@@ -1,491 +1,221 @@
-// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
-// BjÃÂ¶rninn InnrÃÂ©ttingar Ã¢ÂÂ Quote PDF Generator
-// Vercel serverless function
-// Called by an Airtable automation (button) with { recordId, secret }
-// Generates a PDF quote and uploads it to the Airtable record.
-// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+'use strict';
 
-const chromium = require('@sparticuz/chromium-min');
-const puppeteer = require('puppeteer-core');
+const PdfPrinter = require('pdfmake/src/printer');
+const vfsFonts = require('pdfmake/build/vfs_fonts');
 
-// Ã¢ÂÂÃ¢ÂÂ Airtable config Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
-const BASE_ID        = 'app91U15z9K704Okd';
-const TABLE_TAEK     = 'tbl4LMXlQjp66RFKI'; // TÃÂ¦kifÃÂ¦ri (projects)
-const TABLE_LINUR    = 'tblFcsUoGxsuUwNEH'; // VÃÂ¶ru lÃÂ­nur (line items)
-const TABLE_VORUR    = 'tblzuuRSRkeXaLWxC'; // VÃÂ¶rulisti (product list)
-const TABLE_UTFAER   = 'tbl8HjvBwNJ41cTV0'; // ÃÂtfÃÂ¦rslur (variants)
-const TABLE_EFNI     = 'tbl8CrVWKF8CuI7HD'; // Efnislisti (materials)
-
-// Field ID for the "TilboÃÂ° til sendingar" attachment field on TÃÂ¦kifÃÂ¦ri
+const AIRTABLE_TOKEN = process.env.AIRTABLE_TOKEN;
+const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
+const BASE_ID = 'app91U15z9K704Okd';
+const TABLE_TAEK = 'tbl4LMXlQjp66RFKI';
+const TABLE_LINUR = 'tblFcsUoGxsuUwNEH';
 const TILBOD_FIELD_ID = 'flddIR5JAm8ZM753V';
 
-// Ã¢ÂÂÃ¢ÂÂ Airtable helpers Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+const GOLD = '#CEB163';
+const DARK = '#1A1A1A';
+const GRAY = '#6E6E6E';
+const LIGHT = '#F0F0F0';
 
-function airtableHeaders() {
-  return {
-    'Authorization': `Bearer ${process.env.AIRTABLE_TOKEN}`,
-    'Content-Type': 'application/json',
-  };
-}
-
-async function fetchRecord(tableId, recordId) {
-  const url = `https://api.airtable.com/v0/${BASE_ID}/${tableId}/${recordId}`;
-  const res = await fetch(url, { headers: airtableHeaders() });
-  if (!res.ok) {
-    throw new Error(`Airtable fetchRecord failed [${res.status}]: ${await res.text()}`);
+const fontDescriptors = {
+  Roboto: {
+    normal: Buffer.from(vfsFonts.pdfMake.vfs['Roboto-Regular.ttf'], 'base64'),
+    bold: Buffer.from(vfsFonts.pdfMake.vfs['Roboto-Medium.ttf'], 'base64'),
+    italics: Buffer.from(vfsFonts.pdfMake.vfs['Roboto-Italic.ttf'], 'base64'),
+    bolditalics: Buffer.from(vfsFonts.pdfMake.vfs['Roboto-MediumItalic.ttf'], 'base64'),
   }
+};
+
+const printer = new PdfPrinter(fontDescriptors);
+
+async function fetchAirtable(path) {
+  const res = await fetch(`https://api.airtable.com/v0/${BASE_ID}/${path}`, {
+    headers: { 'Authorization': `Bearer ${AIRTABLE_TOKEN}` }
+  });
+  if (!res.ok) throw new Error(`Airtable ${path}: ${res.status} ${await res.text()}`);
   return res.json();
 }
 
-// Fetch multiple records by their IDs (batched into one API call per table)
-async function batchFetch(tableId, recordIds, fields = []) {
-  if (!recordIds || recordIds.length === 0) return [];
-
-  const unique = [...new Set(recordIds)];
-  const formula = unique.length === 1
-    ? `RECORD_ID()="${unique[0]}"`
-    : `OR(${unique.map(id => `RECORD_ID()="${id}"`).join(',')})`;
-
-  const params = new URLSearchParams();
-  params.set('filterByFormula', formula);
-  fields.forEach(f => params.append('fields[]', f));
-
-  const url = `https://api.airtable.com/v0/${BASE_ID}/${tableId}?${params}`;
-  const res = await fetch(url, { headers: airtableHeaders() });
-  if (!res.ok) {
-    throw new Error(`Airtable batchFetch failed [${res.status}]: ${await res.text()}`);
+function getField(fields) {
+  const keys = Array.from(arguments).slice(1);
+  for (const key of keys) {
+    if (fields[key] !== undefined && fields[key] !== null && fields[key] !== '') return fields[key];
   }
-  const data = await res.json();
-  return data.records || [];
+  return '';
 }
 
-// Ã¢ÂÂÃ¢ÂÂ Utilities Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
-
-// Airtable lookup fields return arrays Ã¢ÂÂ grab the first value
-const first = val => (Array.isArray(val) ? (val[0] ?? '') : (val ?? ''));
-
-// Format ISK currency
-function fmtISK(n) {
-  return new Intl.NumberFormat('is-IS').format(Math.round(n || 0)) + ' kr.';
+function formatISK(amount) {
+  if (!amount || isNaN(amount)) return '-';
+  return new Intl.NumberFormat('is-IS').format(Math.round(amount)) + ' kr.';
 }
-
-// Today's date as DD-MM-YYYY
-function todayDate() {
-  return new Date().toLocaleDateString('is-IS', {
-    day: '2-digit', month: '2-digit', year: 'numeric',
-  });
-}
-
-// Strip rich-text HTML tags from Airtable richText fields
-function stripHtml(str) {
-  return str ? String(str).replace(/<[^>]+>/g, '') : '';
-}
-
-// Ã¢ÂÂÃ¢ÂÂ HTML template Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
-
-function buildHTML({ quoteName, customer, phone, email, notes,
-                     innvols, framhlidar, lines,
-                     totalExVat, vat, totalInclVat }) {
-  // Build table rows, grouping by room
-  let rows = '';
-  let lastRoom = null;
-
-  for (const line of lines) {
-    // Room header row (only when room changes)
-    if (line.room !== lastRoom) {
-      rows += `
-        <tr class="room-row">
-          <td class="room-label">${line.room || ''}</td>
-          <td colspan="8"></td>
-        </tr>`;
-      lastRoom = line.room;
-    }
-
-    const afslDisplay = line.afsl ? (line.afsl * 100).toFixed(0) + ' %' : '';
-    // Prefer a custom work description; fall back to the variant description
-    const descDisplay  = line.lysing || line.utfaersla || '';
-
-    rows += `
-      <tr>
-        <td></td>
-        <td>${line.vorunr}</td>
-        <td>${line.tegund}</td>
-        <td>${line.vara}</td>
-        <td class="desc">${descDisplay}</td>
-        <td class="center">${afslDisplay}</td>
-        <td class="center">${line.magn}</td>
-        <td class="right nowrap">${line.einingarverd}</td>
-        <td class="right nowrap">${line.samtals}</td>
-      </tr>`;
-  }
-
-  return `<!DOCTYPE html>
-<html lang="is">
-<head>
-<meta charset="UTF-8">
-<link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  body {
-    font-family: 'Kumbh Sans', sans-serif;
-    font-size: 9pt;
-    color: #000;
-    background: #fff;
-    padding: 28pt 36pt;
-  }
-
-  /* Ã¢ÂÂÃ¢ÂÂ Header Ã¢ÂÂÃ¢ÂÂ */
-  .header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 18pt;
-  }
-  .logo-title { font-size: 20pt; font-weight: 700; line-height: 1.1; }
-  .logo-gold  { color: #CEB163; }
-  .tagline    { font-size: 7.5pt; color: #6E6E6E; margin-top: 3pt; }
-
-  .header-right { text-align: right; }
-  .quote-label  { font-size: 9pt; font-weight: 700; }
-  .quote-name   { font-size: 8.5pt; border-bottom: 0.75pt solid #000; padding-bottom: 2pt; margin-bottom: 6pt; }
-  .date-line    { font-size: 7.5pt; color: #6E6E6E; }
-
-  /* Ã¢ÂÂÃ¢ÂÂ Info block Ã¢ÂÂÃ¢ÂÂ */
-  .info-grid {
-    display: flex;
-    gap: 24pt;
-    margin-bottom: 16pt;
-  }
-  .info-left, .info-right { flex: 1; }
-
-  .spec-line { font-size: 8pt; margin-bottom: 2pt; }
-  .spec-bold { font-weight: 700; }
-
-  .cust-line { font-size: 8.5pt; margin-bottom: 3pt; }
-  .cust-line span { border-bottom: 0.75pt solid #000; padding-bottom: 1pt; }
-
-  /* Ã¢ÂÂÃ¢ÂÂ Table Ã¢ÂÂÃ¢ÂÂ */
-  table { width: 100%; border-collapse: collapse; }
-
-  .main-table { margin-bottom: 16pt; }
-
-  thead th {
-    font-size: 7.5pt;
-    font-weight: 700;
-    padding: 5pt 3pt;
-    text-align: left;
-    border-top: 1.5pt solid #000;
-    border-bottom: 1.5pt solid #000;
-    white-space: nowrap;
-  }
-  thead th.right  { text-align: right; }
-  thead th.center { text-align: center; }
-
-  tbody tr.room-row td.room-label {
-    font-size: 7.5pt;
-    font-weight: 600;
-    color: #6E6E6E;
-    padding: 8pt 3pt 2pt;
-  }
-  tbody tr:not(.room-row) td {
-    font-size: 7.5pt;
-    padding: 3pt 3pt;
-    border-bottom: 0.5pt solid #F0F0F0;
-    vertical-align: top;
-  }
-  td.right  { text-align: right; }
-  td.center { text-align: center; }
-  td.nowrap { white-space: nowrap; }
-  td.desc   { max-width: 160pt; }
-
-  /* Ã¢ÂÂÃ¢ÂÂ Totals Ã¢ÂÂÃ¢ÂÂ */
-  .totals-table { width: 100%; }
-  .totals-table td { font-size: 9pt; padding: 2pt 3pt; }
-  .totals-table .lbl { text-align: left; }
-  .totals-table .val { text-align: right; white-space: nowrap; }
-  .totals-table .vsk td { text-decoration: underline; }
-  .totals-table .grand td {
-    font-size: 11pt;
-    font-weight: 700;
-    color: #CEB163;
-    border-top: 1pt solid #000;
-    padding-top: 5pt;
-  }
-
-  /* Ã¢ÂÂÃ¢ÂÂ Footer Ã¢ÂÂÃ¢ÂÂ */
-  .footer {
-    margin-top: 28pt;
-    padding-top: 8pt;
-    border-top: 0.5pt solid #C2C2C2;
-    font-size: 6.5pt;
-    color: #6E6E6E;
-    text-align: center;
-    line-height: 1.7;
-  }
-  .footer strong { font-weight: 600; color: #000; }
-</style>
-</head>
-<body>
-
-<!-- Ã¢ÂÂÃ¢ÂÂ Header Ã¢ÂÂÃ¢ÂÂ -->
-<div class="header">
-  <div>
-    <div class="logo-title">
-      <span class="logo-gold">BJÃÂRNINN</span> INNRÃÂTTINGAR
-    </div>
-    <div class="tagline">ÃÂslensk framleiÃÂ°sla ÃÂ­ meira en hÃÂ¡lfa ÃÂ¶ld</div>
-  </div>
-  <div class="header-right">
-    <div class="quote-label">TilboÃÂ°:</div>
-    <div class="quote-name">${quoteName}</div>
-    <div class="cust-line">TengiliÃÂ°ur: <span>${customer}</span></div>
-    <div class="cust-line">SÃÂ­mi/netfang: <span>${[phone, email].filter(Boolean).join(' / ')}</span></div>
-    <div class="date-line" style="margin-top:6pt;">Dags: ${todayDate()}</div>
-    <div class="date-line">TilboÃÂ° gildir ÃÂ­ 30 daga frÃÂ¡ ÃÂºtgÃÂ¡fudegi</div>
-  </div>
-</div>
-
-<!-- Ã¢ÂÂÃ¢ÂÂ Material specs + comment Ã¢ÂÂÃ¢ÂÂ -->
-<div class="info-grid">
-  <div class="info-left">
-    ${innvols    ? `<div class="spec-line"><span class="spec-bold">INNVOLS:</span> ${innvols}</div>` : ''}
-    ${framhlidar ? `<div class="spec-line"><span class="spec-bold">FRAMHLIÃÂAR:</span> ${framhlidar}</div>` : ''}
-  </div>
-  <div class="info-right">
-    ${notes ? `<div class="spec-line"><span class="spec-bold">Athugasemd:</span> ${notes}</div>` : ''}
-  </div>
-</div>
-
-<!-- Ã¢ÂÂÃ¢ÂÂ Line items table Ã¢ÂÂÃ¢ÂÂ -->
-<table class="main-table">
-  <thead>
-    <tr>
-      <th style="width:52pt">(RÃÂ½mi)</th>
-      <th style="width:40pt">VÃÂ¶runr</th>
-      <th style="width:50pt">Tegund</th>
-      <th style="width:100pt">Vara</th>
-      <th>ÃÂtfÃÂ¦rsla</th>
-      <th class="center" style="width:32pt">Afsl.</th>
-      <th class="center" style="width:30pt">Magn</th>
-      <th class="right" style="width:68pt">EiningarverÃÂ°</th>
-      <th class="right" style="width:72pt">Samtals m.vsk</th>
-    </tr>
-  </thead>
-  <tbody>
-    ${rows}
-  </tbody>
-</table>
-
-<!-- Ã¢ÂÂÃ¢ÂÂ Totals Ã¢ÂÂÃ¢ÂÂ -->
-<table class="totals-table">
-  <tr>
-    <td class="lbl">Samtals</td>
-    <td class="val">${fmtISK(totalExVat)}</td>
-  </tr>
-  <tr class="vsk">
-    <td class="lbl">Vsk.</td>
-    <td class="val">${fmtISK(vat)}</td>
-  </tr>
-  <tr class="grand">
-    <td class="lbl">Samtals m. vsk.</td>
-    <td class="val">${fmtISK(totalInclVat)}</td>
-  </tr>
-</table>
-
-<!-- Ã¢ÂÂÃ¢ÂÂ Footer Ã¢ÂÂÃ¢ÂÂ -->
-<div class="footer">
-  BjÃÂ¶rninn ehf | ÃÂlfhella 5 | 221, HafnarfjÃÂ¶rÃÂ°ur | bjorninn@bjorninninnrettingar.is | bjorninninnrettingar.is
-  | TilboÃÂ°i fylgir hvorki uppsetning nÃÂ© flutningur nema ÃÂ¾aÃÂ° komi sÃÂ©rstaklega fram<br>
-  <strong>
-    SkilmÃÂ¡la Bjarnarins mÃÂ¡ finna hÃÂ©r: https://www.bjorninninnrettingar.is/skilmÃÂ¡lar
-    &nbsp;|&nbsp;
-    MikilvÃÂ¦gt er aÃÂ° kynna sÃÂ©r skilmÃÂ¡la en innborgun er samÃÂ¾ykki viÃÂ° skilmÃÂ¡lum
-  </strong><br>
-  Ath. endurgreiÃÂ°sla ÃÂ¡ staÃÂ°festingargjaldi er ekki mÃÂ¶guleg undir neinum kringumstÃÂ¦ÃÂ°um
-</div>
-
-</body>
-</html>`;
-}
-
-// Ã¢ÂÂÃ¢ÂÂ Main handler Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
 module.exports = async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   const { recordId, secret } = req.body || {};
-
-  // Simple secret check so random people can't call your endpoint
-  if (secret !== process.env.WEBHOOK_SECRET) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  if (!recordId) {
-    return res.status(400).json({ error: 'recordId is required' });
-  }
+  if (secret !== WEBHOOK_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if (!recordId) return res.status(400).json({ error: 'recordId required' });
 
   try {
-    // Ã¢ÂÂÃ¢ÂÂ 1. Fetch the project (TÃÂ¦kifÃÂ¦ri) record Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
-    const project = await fetchRecord(TABLE_TAEK, recordId);
-    const pf = project.fields;
+    const projectData = await fetchAirtable(`${TABLE_TAEK}/${recordId}`);
+    const f = projectData.fields;
+    console.log('Fields:', Object.keys(f).join(', '));
 
-    // Ã¢ÂÂÃ¢ÂÂ 2. Fetch all linked line items Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
-    // The field name includes special characters Ã¢ÂÂ use the exact name from Airtable
-    const lineItemIds = pf["VÃÂ¶ru lÃÂ­nur Ã¢ÂÂ¡Ã¯Â¸ÂÃ°ÂÂÂ¦ (Line item's)"] || [];
-    // (the field name is: "VÃÂ¶ru lÃÂ­nur Ã¢ÂÂÃ°ÂÂÂ¦ (Line item's)" Ã¢ÂÂ stored as a Unicode string)
-    // If the above doesn't work, try the key below (Airtable sometimes uses field IDs internally)
-    // Fallback: look for any key containing "VÃÂ¶ru lÃÂ­nur"
-    const lineItemIdsResolved = lineItemIds.length > 0
-      ? lineItemIds
-      : (() => {
-          const key = Object.keys(pf).find(k => k.includes('VÃÂ¶ru lÃÂ­nur'));
-          return key ? (pf[key] || []) : [];
-        })();
+    const quoteNum = getField(f, 'Tilboðsnúmer', 'Quote number', 'Heiti', 'Name');
+    const customerName = getField(f, 'Nafn viðskiptavinar', 'Viðskiptavinur', 'Nafn', 'Customer');
+    const phone = getField(f, 'Sími', 'Phone', 'Símanúmer');
+    const email = getField(f, 'Netfang', 'Email');
+    const carcassMat = getField(f, 'Skrokkaefni', 'Innvið');
+    const frontMat = getField(f, 'Frontaefni', 'Framhliðarefni');
+    const countertop = getField(f, 'Borðplata', 'Countertop');
+    const handles = getField(f, 'Höldur', 'Handles');
+    const edgebanding = getField(f, 'Kantlíming', 'Edgebanding');
 
-    const lineRecords = await batchFetch(TABLE_LINUR, lineItemIdsResolved, [
-      'RÃÂ½mi Ã°ÂÂÂ¡',
-      'Vara Ã°ÂÂÂª',
-      'ÃÂºtfÃÂ¦rsla Ã°ÂÂÂ¨',
-      'Magn',
-      'Afsl. %',
-      'EiningarverÃÂ° texti',
-      'Endanlegt sÃÂ¶luverÃÂ° texti',
-      'LÃÂ½sing ÃÂ¡ verki',
-      'VÃÂ¶ru reitur 1',
-      'VÃÂ¶ru reitur 2',
-    ]);
-
-    // Preserve the order Airtable has them in (lineItemIdsResolved order)
-    const lineMap = Object.fromEntries(lineRecords.map(r => [r.id, r]));
-    const orderedLines = lineItemIdsResolved.map(id => lineMap[id]).filter(Boolean);
-
-    // Ã¢ÂÂÃ¢ÂÂ 3. Batch-fetch products (VÃÂ¶rulisti) & variants (ÃÂtfÃÂ¦rslur) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
-    const productIds = orderedLines.flatMap(r => r.fields['VÃÂ¶ru reitur 1'] || []);
-    const variantIds = orderedLines.flatMap(r => r.fields['VÃÂ¶ru reitur 2'] || []);
-
-    const [productRecords, variantRecords] = await Promise.all([
-      batchFetch(TABLE_VORUR, productIds, ['Heiti vÃÂ¶ru Ã°ÂÂÂ£', 'VÃÂ¶runÃÂºmer #Ã¯Â¸ÂÃ¢ÂÂ£']),
-      batchFetch(TABLE_UTFAER, variantIds, ['LÃÂ½sing ÃÂ¡ ÃÂºtfÃÂ¦rslu', 'VÃÂ¶runÃÂºmer']),
-    ]);
-
-    const prodMap    = Object.fromEntries(productRecords.map(r => [r.id, r.fields]));
-    const variantMap = Object.fromEntries(variantRecords.map(r => [r.id, r.fields]));
-
-    // Ã¢ÂÂÃ¢ÂÂ 4. Fetch material specs (Efnislisti) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
-    const skrokkaIds = pf['Skrokka efni Ã°ÂÂÂ² viÃÂ°skiptavinar'] || [];
-    const frontaIds  = pf['Fronta efni viÃÂ°skiptavinar Ã°ÂÂÂ¼Ã¯Â¸Â']  || [];
-    const efniIds    = [...skrokkaIds, ...frontaIds];
-
-    const efniRecords = await batchFetch(TABLE_EFNI, efniIds, [
-      'Heiti efnis',
-      'EfnisnÃÂºmer / kÃÂ³ÃÂ°i #Ã¯Â¸ÂÃ¢ÂÂ£',
-      'ÃÂykkt (mm)',
-    ]);
-    const efniMap = Object.fromEntries(efniRecords.map(r => [r.id, r.fields]));
-
-    // Build the material spec strings (e.g. "Plastl spÃÂ³napl 16mm U963 dÃÂ¶kkgrÃÂ¡ ST2")
-    const buildMatStr = id => {
-      if (!id || !efniMap[id]) return '';
-      const m = efniMap[id];
-      const parts = [m['ÃÂykkt (mm)'] ? m['ÃÂykkt (mm)'] + ' mm' : '', m['Heiti efnis'] || ''];
-      return parts.filter(Boolean).join(' ');
-    };
-    const innvols    = buildMatStr(skrokkaIds[0]);
-    const framhlidar = buildMatStr(frontaIds[0]);
-
-    // Ã¢ÂÂÃ¢ÂÂ 5. Build enriched line item list Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
-    const lines = orderedLines.map(r => {
-      const f   = r.fields;
-      const pid = (f['VÃÂ¶ru reitur 1'] || [])[0];
-      const vid = (f['VÃÂ¶ru reitur 2'] || [])[0];
-      const prod    = prodMap[pid]    || {};
-      const variant = variantMap[vid] || {};
-
-      return {
-        room:         f['RÃÂ½mi Ã°ÂÂÂ¡']                   || '',
-        vorunr:       prod['VÃÂ¶runÃÂºmer #Ã¯Â¸ÂÃ¢ÂÂ£']           || '',
-        tegund:       variant['VÃÂ¶runÃÂºmer']            || '', // variant code = "Tegund" column
-        vara:         first(f['Vara Ã°ÂÂÂª'])             || prod['Heiti vÃÂ¶ru Ã°ÂÂÂ£'] || '',
-        utfaersla:    first(f['ÃÂºtfÃÂ¦rsla Ã°ÂÂÂ¨'])         || variant['LÃÂ½sing ÃÂ¡ ÃÂºtfÃÂ¦rslu'] || '',
-        magn:         f['Magn']                       ?? '',
-        afsl:         f['Afsl. %']                    || 0,
-        einingarverd: f['EiningarverÃÂ° texti']         || '',
-        samtals:      f['Endanlegt sÃÂ¶luverÃÂ° texti']   || '',
-        lysing:       f['LÃÂ½sing ÃÂ¡ verki']             || '',
-      };
-    });
-
-    // Ã¢ÂÂÃ¢ÂÂ 6. Pull totals from the project record Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
-    const totalExVat   = pf['TilboÃÂ°supphÃÂ¦ÃÂ°'] || 0;
-    const vat          = pf['vsk.']           || 0;
-    const totalInclVat = totalExVat + vat;
-
-    const quoteName = pf['TilboÃÂ°sblaÃÂ°s heiti']
-      || pf['Heiti tÃÂ¦kifÃÂ¦ris / verkefnis']
-      || 'TilboÃÂ°';
-    const customer  = first(pf['Fullt nafn Ã°ÂÂÂ¤']);
-    const phone     = first(pf['SÃÂ­manÃÂºmer Ã¢ÂÂÃ¯Â¸Â']);
-    const email     = first(pf['Netfang Ã°ÂÂÂ§']);
-    const notes     = stripHtml(pf['GlÃÂ³sur']);
-
-    // Ã¢ÂÂÃ¢ÂÂ 7. Render HTML Ã¢ÂÂ PDF Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
-    const html = buildHTML({
-      quoteName, customer, phone, email, notes,
-      innvols, framhlidar, lines,
-      totalExVat, vat, totalInclVat,
-    });
-
-    const browser = await puppeteer.launch({
-      args:            chromium.args,
-      defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath('https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar'),
-      headless:        true,
-    });
-
-    let pdfBuffer;
-    try {
-      const page = await browser.newPage();
-      // waitUntil:'networkidle0' lets Google Fonts load before generating the PDF
-      await page.setContent(html, { waitUntil: 'networkidle0' });
-      pdfBuffer = await page.pdf({
-        format:          'A4',
-        printBackground: true,
-        margin:          { top: '0', right: '0', bottom: '0', left: '0' },
-      });
-    } finally {
-      await browser.close();
+    const lineItemIds = f['Vöru línur'] || f['Line items'] || f['Linur'] || [];
+    let lineItems = [];
+    if (Array.isArray(lineItemIds) && lineItemIds.length > 0) {
+      const formula = encodeURIComponent('OR(' + lineItemIds.map(id => `RECORD_ID()='${id}'`).join(',') + ')');
+      const lineData = await fetchAirtable(`${TABLE_LINUR}?filterByFormula=${formula}`);
+      lineItems = lineData.records || [];
     }
 
-    // Ã¢ÂÂÃ¢ÂÂ 8. Upload PDF to Airtable attachment field Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
-    const filename = `${quoteName}.pdf`;
+    const tableBody = [[
+      { text: 'Vörur', style: 'th' },
+      { text: 'Útfærsla', style: 'th' },
+      { text: 'Magn', style: 'th', alignment: 'center' },
+      { text: 'Afsl.', style: 'th', alignment: 'center' },
+      { text: 'Einingarverð', style: 'th', alignment: 'right' },
+      { text: 'Samtals m. vsk.', style: 'th', alignment: 'right' },
+    ]];
 
-    // Native FormData + Blob (Node 18+)
-    const blob     = new Blob([pdfBuffer], { type: 'application/pdf' });
-    const formData = new FormData();
-    formData.append('file',        blob, filename);
-    formData.append('filename',    filename);
-    formData.append('contentType', 'application/pdf');
+    let subtotal = 0;
+    lineItems.forEach(item => {
+      const lf = item.fields;
+      const name = getField(lf, 'Heiti', 'Name', 'Vara', 'Lýsing');
+      const desc = getField(lf, 'Útfærsla', 'Lýsing', 'Description');
+      const qty = parseFloat(getField(lf, 'Magn', 'Quantity', 'Fjöldi') || 1);
+      const discPct = parseFloat(getField(lf, 'Afsláttur', 'Afsl', 'Discount') || 0);
+      const unitPrice = parseFloat(getField(lf, 'Einingarverð', 'Verð', 'Price') || 0);
+      const lineTotal = qty * unitPrice * (1 - discPct / 100);
+      subtotal += lineTotal;
+      tableBody.push([
+        { text: name, fontSize: 8 },
+        { text: desc, fontSize: 8 },
+        { text: String(qty % 1 === 0 ? qty.toFixed(0) : qty), fontSize: 8, alignment: 'center' },
+        { text: discPct > 0 ? discPct + '%' : '', fontSize: 8, alignment: 'center' },
+        { text: formatISK(unitPrice), fontSize: 8, alignment: 'right' },
+        { text: formatISK(lineTotal * 1.24), fontSize: 8, alignment: 'right' },
+      ]);
+    });
+
+    if (tableBody.length === 1) {
+      tableBody.push([{ text: 'Engar vörulínur skráðar', colSpan: 6, fontSize: 8, color: GRAY, italics: true }, '', '', '', '', '']);
+    }
+
+    const vat = subtotal * 0.24;
+    const total = subtotal + vat;
+    const today = new Date().toLocaleDateString('is-IS', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+    const matRows = [
+      ['Innvið', carcassMat], ['Framhliðar', frontMat],
+      ['Borðplata', countertop], ['Höldur', handles], ['Kantlíming', edgebanding],
+    ].filter(r => r[1]).map(([k, v]) => [
+      { text: k, fontSize: 8, color: GRAY }, { text: v, fontSize: 8 }
+    ]);
+    if (!matRows.length) matRows.push([{ text: '-', fontSize: 8, color: GRAY, colSpan: 2 }, '']);
+
+    const doc = {
+      pageSize: 'A4', pageMargins: [40, 40, 40, 90],
+      footer: (currentPage, pageCount) => ({
+        margin: [40, 8, 40, 0],
+        stack: [
+          { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 0.5, lineColor: GOLD }] },
+          { margin: [0, 5, 0, 0], columns: [
+            { text: 'Alfhella 5, 221 Hafnarfjordur', fontSize: 7, color: GRAY },
+            { text: 'bjorninn@bjorninninnrettingar.is', fontSize: 7, color: GRAY, alignment: 'center' },
+            { text: 'Sida ' + currentPage + '/' + pageCount, fontSize: 7, color: GRAY, alignment: 'right' },
+          ]},
+          { margin: [0, 3, 0, 0], fontSize: 7, color: GRAY, text: 'Tilbodi fylgir hvorki uppsetning ne flutningur nema thad komi serstaklega fram  |  Skilmalar: bjorninninnrettingar.is/skilmalar' },
+          { margin: [0, 2, 0, 0], fontSize: 7, color: GRAY, text: 'Innborgun er samthykki vid skilmala. Endurgreidsla stadfestingargjalds er ekki moguleg undir neinum kringumstaethum.' },
+        ]
+      }),
+      content: [
+        { columns: [
+          { stack: [
+            { text: 'BJORNINN INNRETTINGAR', fontSize: 18, bold: true, color: GOLD },
+            { text: 'Islensk framleidlsa i meira en halfa old', fontSize: 8, color: GRAY, margin: [0, 2, 0, 0] },
+          ]},
+          { stack: [
+            { text: today, fontSize: 9, alignment: 'right', color: GRAY },
+            { text: 'Tilbod gildir i 30 daga fra utgafudegi', fontSize: 7.5, alignment: 'right', color: GRAY, margin: [0, 2, 0, 0] },
+          ]}
+        ]},
+        { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1, lineColor: GOLD }], margin: [0, 10, 0, 14] },
+        { text: quoteNum || recordId, fontSize: 15, bold: true, color: DARK, margin: [0, 0, 0, 14] },
+        { columns: [
+          { width: '48%', stack: [
+            { text: 'TENGILIDIR', fontSize: 7.5, bold: true, color: GOLD, margin: [0, 0, 0, 4] },
+            { text: customerName || '-', fontSize: 10, bold: true, margin: [0, 0, 0, 2] },
+            phone ? { text: phone, fontSize: 8.5, color: GRAY } : {},
+            email ? { text: email, fontSize: 8.5, color: GRAY } : {},
+            { text: '', margin: [0, 10, 0, 0] },
+            { text: 'EFNI OG YFIRBORID', fontSize: 7.5, bold: true, color: GOLD, margin: [0, 0, 0, 5] },
+            { table: { widths: [70, '*'], body: matRows }, layout: 'noBorders' },
+          ]},
+          { width: 16, text: '' },
+          { width: '*', stack: [
+            { text: 'SKILMALAR OG ATHUGASEMDIR', fontSize: 7.5, bold: true, color: GOLD, margin: [0, 0, 0, 5] },
+            { fontSize: 8, color: GRAY, lineHeight: 1.5, text: 'Tilbod thetta tekur til framleidlslu og efnis samkvaemt lysingu her ad nedhan. Uppsetning og flutningur eru ekki innifalin nema serstaklega komi fram.' },
+            { fontSize: 8, color: GRAY, lineHeight: 1.5, margin: [0, 6, 0, 0], text: 'Ol mal eru i millimetrum. Bjorninn ehf. askilur ser reitt til litilshatar breytinga a malum vegna framleidlslutaekni.' },
+          ]}
+        ], margin: [0, 0, 0, 18] },
+        { text: 'VORULISTI', fontSize: 7.5, bold: true, color: GOLD, margin: [0, 0, 0, 5] },
+        { table: { headerRows: 1, widths: ['*', '*', 36, 32, 70, 82], body: tableBody },
+          layout: {
+            hLineWidth: (i, node) => (i === 0 || i === 1 || i === node.table.body.length) ? 0.75 : 0.25,
+            vLineWidth: () => 0,
+            hLineColor: (i) => i <= 1 ? GOLD : '#DDDDDD',
+            fillColor: (i) => i === 0 ? LIGHT : null,
+            paddingTop: () => 5, paddingBottom: () => 5,
+          }
+        },
+        { margin: [0, 14, 0, 0], columns: [
+          { text: '', width: '*' },
+          { width: 210, table: { widths: ['*', 95], body: [
+            [{ text: 'Samtals (an vsk.)', fontSize: 9, color: GRAY }, { text: formatISK(subtotal), fontSize: 9, alignment: 'right' }],
+            [{ text: 'VSK (24%)', fontSize: 9, color: GRAY }, { text: formatISK(vat), fontSize: 9, alignment: 'right' }],
+            [{ text: 'Samtals m. vsk.', fontSize: 11, bold: true }, { text: formatISK(total), fontSize: 11, bold: true, alignment: 'right' }],
+          ]},
+          layout: {
+            hLineWidth: (i, node) => i === node.table.body.length - 1 ? 0 : (i === node.table.body.length ? 0 : 0.25),
+            vLineWidth: () => 0,
+            hLineColor: () => '#DDDDDD',
+            paddingTop: (i) => i === 2 ? 8 : 4, paddingBottom: () => 4,
+          }}
+        ]},
+      ],
+      styles: { th: { fontSize: 8, bold: true, color: GRAY } },
+      defaultStyle: { font: 'Roboto', fontSize: 9, color: DARK, lineHeight: 1.3 }
+    };
+
+    const pdfDoc = printer.createPdfKitDocument(doc);
+    const chunks = [];
+    pdfDoc.on('data', chunk => chunks.push(chunk));
+    await new Promise((resolve, reject) => { pdfDoc.on('end', resolve); pdfDoc.on('error', reject); pdfDoc.end(); });
+
+    const pdfBuffer = Buffer.concat(chunks);
+    const filename = (quoteNum || recordId).replace(/[^a-zA-Z0-9_\- ]/g, '_') + '.pdf';
 
     const uploadRes = await fetch(
       `https://content.airtable.com/v0/${BASE_ID}/${recordId}/${TILBOD_FIELD_ID}/uploadAttachment`,
-      {
-        method:  'POST',
-        headers: { 'Authorization': `Bearer ${process.env.AIRTABLE_TOKEN}` },
-        body:    formData,
+      { method: 'POST',
+        headers: { 'Authorization': `Bearer ${AIRTABLE_TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contentType: 'application/pdf', filename, file: pdfBuffer.toString('base64') })
       }
     );
 
-    if (!uploadRes.ok) {
-      const errBody = await uploadRes.text();
-      throw new Error(`Airtable upload failed [${uploadRes.status}]: ${errBody}`);
-    }
-
+    if (!uploadRes.ok) throw new Error(`Upload failed (${uploadRes.status}): ${await uploadRes.text()}`);
     return res.status(200).json({ success: true, filename });
 
   } catch (err) {
-    console.error('[generate-quote] Error:', err.message);
+    console.error('Error:', err);
     return res.status(500).json({ error: err.message });
   }
 };
