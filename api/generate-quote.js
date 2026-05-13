@@ -265,15 +265,15 @@ async function buildPdf(project, lineItems) {
   y -= 20;
 
   // Column definitions — Rými first
-  // Text columns are wider so numeric columns cluster tightly on the right
+  // Útfærsla is wide so Magn/Afsl/Einingarverð/Samtals cluster on the far right
   const cols = [
-    { label: "Rými",            w: 0.10, align: "left",   clip: true  },
-    { label: "Vara",            w: 0.24, align: "left",   clip: true  },
-    { label: "Útfærsla",        w: 0.25, align: "left",   clip: true  },
+    { label: "Rými",            w: 0.08, align: "left",   clip: true  },
+    { label: "Vara",            w: 0.18, align: "left",   clip: true  },
+    { label: "Útfærsla",        w: 0.34, align: "left",   clip: true  },
     { label: "Magn",            w: 0.05, align: "center", clip: false },
     { label: "Afsl. %",         w: 0.05, align: "center", clip: false },
     { label: "Einingarverð",    w: 0.13, align: "right",  clip: false },
-    { label: "Samtals m. vsk.", w: 0.18, align: "right",  clip: false },
+    { label: "Samtals m. vsk.", w: 0.17, align: "right",  clip: false },
   ];
 
   let xCur = MARGIN;
@@ -372,13 +372,12 @@ async function buildPdf(project, lineItems) {
   txt(page, gtv, PW - MARGIN - gtw, y, fontBold, 13, GOLD);
 
   // ── Footer ───────────────────────────────────────────────────────────────
-  const footerY = 18;
+  const footerY = 9;
   line(page, MARGIN, footerY + 28, PW - MARGIN, footerY + 28, LIGHT, 0.5);
 
   const footerLines = [
-    "Tilboði fylgir hvorki uppsetning né flutningur nema það komi sérstaklega fram.",
-    "Skilmálar: bjorninninnrettingar.is/skilmálar  ·  Innborgun er samþykki við skilmálum  ·  Endurgreiðsla á staðfestingargjaldi er ekki möguleg.",
-    "Björninn ehf.  ·  Álfhella 5, 221 Hafnarfjörður  ·  bjorninn@bjorninninnrettingar.is  ·  bjorninninnrettingar.is",
+    "Tilboði fylgir hvorki uppsetning né flutningur nema það komi sérstaklega fram.  ·  Skilmálar: bjorninninnrettingar.is/skilmálar  ·  Innborgun er samþykki við skilmálum  ·  Endurgreiðsla á staðfestingargjaldi er ekki möguleg.",
+    "Björninn ehf.  |  Álfhella 5, 221 Hafnarfjörður  |  bjorninn@bjorninninnrettingar.is  |  bjorninninnrettingar.is",
   ];
   let fy = footerY + 22;
   for (const l of footerLines) {
