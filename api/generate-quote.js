@@ -19,7 +19,7 @@ const GOLD_TINT = rgb(0.980, 0.961, 0.906);  // very light gold for table header
 
 const MARGIN = 48;
 
-// ── Airtable ──────────────────────────────────────────────────────────────────
+// ── Airtable ─────────────────────────────────────────────────────────────────
 
 async function airtableFetch(url, token) {
   const res = await fetch(url, {
@@ -83,6 +83,12 @@ function formatISK(num) {
   const n = parseFloat(num);
   if (isNaN(n)) return "0 kr.";
   return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") + " kr.";
+}
+
+// Airtable lookup fields return arrays — safely extract first element
+function lv(val) {
+  if (Array.isArray(val)) return val[0] ?? "";
+  return val ?? "";
 }
 
 function formatDate(val) {
@@ -151,7 +157,7 @@ async function buildPdf(project, lineItems) {
   y -= 16;
 
   // Quote title + validity
-  const quoteTitle = project["Tilboðsblað heiti"] || "Tilboð";
+  const quoteTitle = project["Tilboðsblaðs heiti"] || "Tilboð";
   txt(page, quoteTitle, MARGIN, y, fontBold, 14, DARK);
 
   const validStr = "Tilboð gildir í 30 daga frá útgáfudegi";
@@ -167,10 +173,10 @@ async function buildPdf(project, lineItems) {
   // Left — customer
   txt(page, "TENGILIÐUR", colL, y, fontBold, 7, GOLD);
   y -= 13;
-  txt(page, String(project["Tengiliður verkefni"] || ""), colL, y, fontBold, 10, DARK);
+  txt(page, lv(project["Fullt nafn 👤"]), colL, y, fontBold, 10, DARK);
   y -= 13;
-  const phone = project["Símanúmer"] || "";
-  const email = project["Tölvupóstfang"] || "";
+  const phone = lv(project["Símanúmer ☎️"]);
+  const email = lv(project["Netfang 📧"]);
   if (phone) { txt(page, String(phone), colL, y, fontReg, 8.5, GRAY); y -= 12; }
   if (email) { txt(page, String(email), colL, y, fontReg, 8.5, GRAY); y -= 12; }
 
@@ -179,12 +185,16 @@ async function buildPdf(project, lineItems) {
   txt(page, "EFNISVAL", colR, yR, fontBold, 7, GOLD);
   yR -= 13;
 
+  const holder1 = lv(project["Heiti vöru 📣 (from Höldur Viðskiptavinar ✊)"]);
+  const holder2 = lv(project["Heiti vöru 📣 (from Höldur Viðskiptavinar ✊2.0)"]);
+  const holderVal = [holder1, holder2].filter(Boolean).join(" / ");
+
   const specFields = [
-    ["Innvols",       project["Skrokkaefni viðskiptavinar"]],
-    ["Framhliðar",    project["Frontaefni viðskiptavinar"]],
-    ["Framhliðar 2",  project["Frontaefni 2 viðskiptavinar"]],
-    ["Borðplata",     project["Borðplata viðskiptavinar"]],
-    ["Höldur",        project["Höldur 1 og 2"]],
+    ["Innvols",       lv(project["Heiti efnis (from Skrokka efni 🔲 viðskiptavinar)"])],
+    ["Framhliðar",    lv(project["Heiti efnis (from Fronta efni viðskiptavinar 🖼️)"])],
+    ["Framhliðar 2",  lv(project["Heiti efnis (from Fronta efni 2 Viðskiptavinar 🖼️)"])],
+    ["Borðplata",     lv(project["Heiti efnis (from Borðplata viðskiptavinar 🍽️)"])],
+    ["Höldur",        holderVal],
   ];
 
   for (const [label, val] of specFields) {
@@ -305,8 +315,8 @@ async function buildPdf(project, lineItems) {
   line(page, MARGIN, footerY + 28, PW - MARGIN, footerY + 28, LIGHT, 0.5);
 
   const footerLines = [
-    "Tilboði fylgir hvorki uppsetning né flutningur nema það komi sérstaklega fram.",
-    "Skilmálar: bjorninninnrettingar.is/skilmálar  ·  Innborgun er samþykki við skilmálum  ·  Endurgreiðsla á staðfestingargjaldi er ekki möguleg.",
+    "Tilboði fylgir hw vorki uppsetning né flutningur nema öað komi sérstaklega fram.",
+    "Skilmálar: bjorninninnrettingar.is/skilmálar  ·  Innborgun er samöykki við skilmálum  ·  Endurgreiðsla á staðfestingargjaldi er ekki möguleg.",
     "Björninn ehf.  ·  Álfhella 5, 221 Hafnarfjörður  ·  bjorninn@bjorninninnrettingar.is  ·  bjorninninnrettingar.is",
   ];
   let fy = footerY + 22;
@@ -345,7 +355,7 @@ export default async function handler(req, res) {
     const lineItems = await getLineItems(token, linkedIds);
 
     const orientation = lineItems.length <= 30 ? "landscape" : "portrait";
-    console.log(`"${project["Tilboðsblað heiti"] || recordId}" — ${lineItems.length} items — ${orientation}`);
+    console.log(`"${project["Tilboðsblaðs heiti"] || recordId}" — ${lineItems.length} items — ${orientation}`);
 
     const pdfBytes = await buildPdf(project, lineItems);
     console.log(`PDF ${pdfBytes.length} bytes, clearing old attachments…`);
