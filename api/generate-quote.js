@@ -19,7 +19,7 @@ const GOLD_TINT = rgb(0.980, 0.961, 0.906);  // very light gold for table header
 
 const MARGIN = 48;
 
-// ── Airtable ─────────────────────────────────────────────────────────────────
+// ── Airtable ──────────────────────────────────────────────────────────────────
 
 async function airtableFetch(url, token) {
   const res = await fetch(url, {
@@ -141,8 +141,11 @@ async function buildPdf(project, lineItems) {
   let y = PH - MARGIN;
 
   // ── Header ──────────────────────────────────────────────────────────────
-  txt(page, "BJÖRNINN",      MARGIN, y,      fontBold, 22, GOLD);
-  txt(page, "INNRÉTTINGAR",  MARGIN, y - 16, fontBold, 13, GOLD);
+  txt(page, "BJÖRNINN", MARGIN, y, fontBold, 22, GOLD);
+  // Right-edge-align INNRÉTTINGAR under BJÖRNINN, regular weight, black
+  const brandW = fontBold.widthOfTextAtSize("BJÖRNINN", 22);
+  const subW   = fontReg.widthOfTextAtSize("INNRÉTTINGAR", 11);
+  txt(page, "INNRÉTTINGAR", MARGIN + brandW - subW, y - 16, fontReg, 11, DARK);
 
   const tagline = "Íslensk framleiðsla í meira en hálfa öld";
   const tagW = fontReg.widthOfTextAtSize(tagline, 9);
@@ -215,8 +218,8 @@ async function buildPdf(project, lineItems) {
     { label: "Rými",            w: 0.11, align: "left"  },
     { label: "Vara",            w: 0.21, align: "left"  },
     { label: "Útfærsla",        w: 0.20, align: "left"  },
-    { label: "Magn",            w: 0.07, align: "right" },
-    { label: "Afsl. %",         w: 0.07, align: "right" },
+    { label: "Magn",            w: 0.07, align: "center" },
+    { label: "Afsl. %",         w: 0.07, align: "center" },
     { label: "Einingarverð",    w: 0.14, align: "right" },
     { label: "Samtals m. vsk.", w: 0.20, align: "right" },
   ];
@@ -233,7 +236,9 @@ async function buildPdf(project, lineItems) {
   rect(page, MARGIN, y - 5, CW, 18, GOLD_TINT);
   for (const col of colDefs) {
     const lw = fontBold.widthOfTextAtSize(col.label, 7.5);
-    const lx = col.align === "right" ? col.x + col.pw - lw - 3 : col.x + 3;
+    const lx = col.align === "right"  ? col.x + col.pw - lw - 3
+             : col.align === "center" ? col.x + (col.pw - lw) / 2
+             : col.x + 3;
     txt(page, col.label, lx, y, fontBold, 7.5, DARK);
   }
   y -= 16;
@@ -252,7 +257,7 @@ async function buildPdf(project, lineItems) {
     const unitPrice = parseFloat(item["Einingarverð"] ?? 0) || 0;
     const discPct   = parseFloat(item["Afsl. %"]      ?? 0) || 0;
     const lineExVat   = unitPrice * qty * (1 - discPct / 100);
-    const lineInclVat = lineExVat * 1.11;
+    const lineInclVat = lineExVat * 1.24;
     subtotalInclVat += lineInclVat;
 
     // Alternating row background
@@ -272,7 +277,9 @@ async function buildPdf(project, lineItems) {
       const col = colDefs[ci];
       const val = String(rowData[ci] ?? "");
       const vw = fontReg.widthOfTextAtSize(val, 8);
-      const vx = col.align === "right" ? col.x + col.pw - vw - 3 : col.x + 3;
+      const vx = col.align === "right"  ? col.x + col.pw - vw - 3
+               : col.align === "center" ? col.x + (col.pw - vw) / 2
+               : col.x + 3;
       txt(page, val, vx, y, fontReg, 8, DARK);
     }
     y -= ROW_H;
@@ -280,20 +287,20 @@ async function buildPdf(project, lineItems) {
 
   // ── Totals ───────────────────────────────────────────────────────────────
   ({ page, y } = checkBreak(page, y, 90));
-  y -= 8;
+  y -= 16;
   line(page, MARGIN, y, PW - MARGIN, y, GRAY, 0.4);
-  y -= 14;
+  y -= 16;
 
   // Use locally computed row totals as source of truth (avoids double-counting from project rollup fields)
   const totalInclVat = subtotalInclVat;
-  const totalExVat   = totalInclVat / 1.11;
+  const totalExVat   = totalInclVat / 1.24;
   const vatAmount    = totalInclVat - totalExVat;
 
   const totalsX = PW - MARGIN - 230;
 
   const subtotalRows = [
     { label: "Samtals (án VSK):", value: formatISK(totalExVat) },
-    { label: "VSK 11%:",          value: formatISK(vatAmount)  },
+    { label: "VSK 24%:",          value: formatISK(vatAmount)  },
   ];
   for (const row of subtotalRows) {
     txt(page, row.label, totalsX, y, fontReg, 9, GRAY);
@@ -302,21 +309,21 @@ async function buildPdf(project, lineItems) {
     y -= 13;
   }
 
-  y -= 4;
-  line(page, totalsX, y + 3, PW - MARGIN, y + 3, GOLD, 0.75);
-  y -= 4;
+  y -= 6;
+  line(page, totalsX, y, PW - MARGIN, y, GOLD, 0.75);
+  y -= 14;
   txt(page, "Samtals m. vsk.:", totalsX, y, fontBold, 11, DARK);
   const gtv = formatISK(totalInclVat);
   const gtw = fontBold.widthOfTextAtSize(gtv, 13);
-  txt(page, gtv, PW - MARGIN - gtw, y - 1, fontBold, 13, GOLD);
+  txt(page, gtv, PW - MARGIN - gtw, y, fontBold, 13, GOLD);
 
   // ── Footer ───────────────────────────────────────────────────────────────
-  const footerY = MARGIN + 6;
+  const footerY = 18;
   line(page, MARGIN, footerY + 28, PW - MARGIN, footerY + 28, LIGHT, 0.5);
 
   const footerLines = [
-    "Tilboði fylgir hw vorki uppsetning né flutningur nema öað komi sérstaklega fram.",
-    "Skilmálar: bjorninninnrettingar.is/skilmálar  ·  Innborgun er samöykki við skilmálum  ·  Endurgreiðsla á staðfestingargjaldi er ekki möguleg.",
+    "Tilboði fylgir hvorki uppsetning né flutningur nema það komi sérstaklega fram.",
+    "Skilmálar: bjorninninnrettingar.is/skilmálar  ·  Innborgun er samþykki við skilmálum  ·  Endurgreiðsla á staðfestingargjaldi er ekki möguleg.",
     "Björninn ehf.  ·  Álfhella 5, 221 Hafnarfjörður  ·  bjorninn@bjorninninnrettingar.is  ·  bjorninninnrettingar.is",
   ];
   let fy = footerY + 22;
