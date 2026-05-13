@@ -1,298 +1,245 @@
 // api/generate-quote.js
 // Björninn ehf. — Quote PDF Generator
-// Uses pdf-lib (pure JS, no native deps, no startup issues)
+// pdf-lib, pure JS, no native deps
 
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
-const AIRTABLE_BASE = "app91U15z9K704Okd";
-const PROJECTS_TABLE = "tbl4LMXlQjp66RFKI";
+const AIRTABLE_BASE    = "app91U15z9K704Okd";
+const PROJECTS_TABLE   = "tbl4LMXlQjp66RFKI";
 const LINE_ITEMS_TABLE = "tblFcsUoGxsuUwNEH";
 const ATTACHMENT_FIELD = "flddIR5JAm8ZM753V";
+const LINKED_FIELD     = "Vöru línur ➖📦 (Line item's)";
 
-// Brand colours (0–1 scale)
-const GOLD = rgb(0.808, 0.694, 0.388);   // #CEB163
-const DARK = rgb(0.102, 0.102, 0.102);   // #1A1A1A
-const GRAY = rgb(0.431, 0.431, 0.431);   // #6E6E6E
-const LIGHT = rgb(0.941, 0.941, 0.941);  // #F0F0F0
-const WHITE = rgb(1, 1, 1);
+// Brand colours
+const GOLD      = rgb(0.808, 0.694, 0.388);  // #CEB163
+const DARK      = rgb(0.102, 0.102, 0.102);  // #1A1A1A
+const GRAY      = rgb(0.431, 0.431, 0.431);  // #6E6E6E
+const LIGHT     = rgb(0.941, 0.941, 0.941);  // #F0F0F0
+const GOLD_TINT = rgb(0.980, 0.961, 0.906);  // very light gold for table header
 
-const VAT_RATE = 0.11;
+const MARGIN = 48;
 
-// ── Airtable helpers ──────────────────────────────────────────────────────────
+// ── Airtable ──────────────────────────────────────────────────────────────────
 
-async function airtableFetch(url, token, options = {}) {
+async function airtableFetch(url, token) {
   const res = await fetch(url, {
-    ...options,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
   });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Airtable ${res.status}: ${body}`);
-  }
+  if (!res.ok) throw new Error(`Airtable ${res.status}: ${await res.text()}`);
   return res.json();
 }
 
 async function getProject(token, recordId) {
-  const url = `https://api.airtable.com/v0/${AIRTABLE_BASE}/${PROJECTS_TABLE}/${recordId}`;
-  const data = await airtableFetch(url, token);
-  return data.fields;
-}
-
-async function getLineItems(token, recordId) {
-  // Line items are linked from the project; fetch the linked record IDs then
-  // retrieve each one from the line-items table.
-  const project = await airtableFetch(
+  const data = await airtableFetch(
     `https://api.airtable.com/v0/${AIRTABLE_BASE}/${PROJECTS_TABLE}/${recordId}`,
     token
   );
-  const linkedIds = project.fields["Vöru línur"] || [];
-  if (linkedIds.length === 0) return [];
+  return data.fields;
+}
 
-  // Fetch all linked line items in one filterByFormula call
+async function getLineItems(token, linkedIds) {
+  if (!linkedIds || linkedIds.length === 0) return [];
   const filter = `OR(${linkedIds.map((id) => `RECORD_ID()="${id}"`).join(",")})`;
-  const url =
-    `https://api.airtable.com/v0/${AIRTABLE_BASE}/${LINE_ITEMS_TABLE}` +
-    `?filterByFormula=${encodeURIComponent(filter)}`;
-  const data = await airtableFetch(url, token);
+  const data = await airtableFetch(
+    `https://api.airtable.com/v0/${AIRTABLE_BASE}/${LINE_ITEMS_TABLE}?filterByFormula=${encodeURIComponent(filter)}`,
+    token
+  );
   return data.records.map((r) => r.fields);
 }
 
 async function uploadPdf(token, recordId, pdfBytes) {
-  const base64 = Buffer.from(pdfBytes).toString("base64");
-  const url = `https://content.airtable.com/v0/${AIRTABLE_BASE}/${recordId}/${ATTACHMENT_FIELD}/uploadAttachment`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      filename: "tilbod.pdf",
-      contentType: "application/pdf",
-      file: base64,
-    }),
-  });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Upload ${res.status}: ${body}`);
-  }
+  const res = await fetch(
+    `https://content.airtable.com/v0/${AIRTABLE_BASE}/${recordId}/${ATTACHMENT_FIELD}/uploadAttachment`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        filename: "tilbod.pdf",
+        contentType: "application/pdf",
+        file: Buffer.from(pdfBytes).toString("base64"),
+      }),
+    }
+  );
+  if (!res.ok) throw new Error(`Upload ${res.status}: ${await res.text()}`);
   return res.json();
 }
 
 // ── PDF helpers ───────────────────────────────────────────────────────────────
 
-const A4_W = 595.28;
-const A4_H = 841.89;
-const MARGIN = 48;
-const CONTENT_W = A4_W - MARGIN * 2;
-
-function clamp(y, min = MARGIN) {
-  return Math.max(y, min);
+function formatISK(num) {
+  const n = parseFloat(num);
+  if (isNaN(n)) return "0 kr.";
+  return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") + " kr.";
 }
 
-function drawRect(page, x, y, w, h, color) {
+function formatDate(val) {
+  const d = val ? new Date(val) : new Date();
+  return d.toLocaleDateString("is-IS", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function txt(page, str, x, y, font, size, color = DARK) {
+  if (str === null || str === undefined || str === "") return;
+  page.drawText(String(str), { x, y, size, font, color });
+}
+
+function rect(page, x, y, w, h, color) {
   page.drawRectangle({ x, y, width: w, height: h, color });
 }
 
-function text(page, str, x, y, font, size, color = DARK, maxWidth) {
-  if (!str) return;
-  const opts = { x, y, size, font, color };
-  if (maxWidth) opts.maxWidth = maxWidth;
-  page.drawText(String(str), opts);
-}
-
-function formatISK(num) {
-  if (num === undefined || num === null || isNaN(num)) return "0 kr.";
-  return (
-    Math.round(num)
-      .toString()
-      .replace(/\B(?=(\d{3})+(?!\d))/g, ".") + " kr."
-  );
-}
-
-function formatDate(dateStr) {
-  if (!dateStr) {
-    const now = new Date();
-    return now.toLocaleDateString("is-IS", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-  }
-  return new Date(dateStr).toLocaleDateString("is-IS", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
+function line(page, x1, y1, x2, y2, color = GOLD, thickness = 0.75) {
+  page.drawLine({ start: { x: x1, y: y1 }, end: { x: x2, y: y2 }, thickness, color });
 }
 
 // ── PDF builder ───────────────────────────────────────────────────────────────
 
 async function buildPdf(project, lineItems) {
   const doc = await PDFDocument.create();
-  const page = doc.addPage([A4_W, A4_H]);
-
   const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
-  const fontReg = await doc.embedFont(StandardFonts.Helvetica);
+  const fontReg  = await doc.embedFont(StandardFonts.Helvetica);
 
-  // ── Header bar ────────────────────────────────────────────────────────────
-  drawRect(page, 0, A4_H - 72, A4_W, 72, DARK);
+  // Dynamic orientation: ≤30 items → landscape, >30 → portrait
+  const landscape = lineItems.length <= 30;
+  const PW = landscape ? 841.89 : 595.28;
+  const PH = landscape ? 595.28 : 841.89;
+  const CW = PW - MARGIN * 2;  // content width
 
-  // Company name (gold)
-  text(page, "BJÖRNINN", MARGIN, A4_H - 34, fontBold, 22, GOLD);
-  text(page, "INNRÉTTINGAR", MARGIN, A4_H - 52, fontBold, 13, GOLD);
+  function newPage() {
+    const p = doc.addPage([PW, PH]);
+    return p;
+  }
 
-  // Tagline (right-aligned area)
+  // Page break: returns { page, y } — creates new page if y is too low
+  function checkBreak(page, y, reserve = 100) {
+    if (y > MARGIN + reserve) return { page, y };
+    const p = newPage();
+    // Subtle continuation header
+    line(p, MARGIN, PH - 28, PW - MARGIN, PH - 28, GOLD, 0.5);
+    txt(p, "BJÖRNINN INNRÉTTINGAR — framhald", MARGIN, PH - 20, fontReg, 7.5, GRAY);
+    return { page: p, y: PH - 48 };
+  }
+
+  let page = newPage();
+  let y = PH - MARGIN;
+
+  // ── Header ──────────────────────────────────────────────────────────────
+  txt(page, "BJÖRNINN",      MARGIN, y,      fontBold, 22, GOLD);
+  txt(page, "INNRÉTTINGAR",  MARGIN, y - 16, fontBold, 13, GOLD);
+
   const tagline = "Íslensk framleiðsla í meira en hálfa öld";
-  text(page, tagline, A4_W - MARGIN - 230, A4_H - 42, fontReg, 9, WHITE);
+  const tagW = fontReg.widthOfTextAtSize(tagline, 9);
+  txt(page, tagline, PW - MARGIN - tagW, y, fontReg, 9, GRAY);
 
-  // ── Quote meta ────────────────────────────────────────────────────────────
-  let y = A4_H - 100;
+  const dateStr = `Dagsetning: ${formatDate(project["Skráð þann:"])}`;
+  const dateW = fontReg.widthOfTextAtSize(dateStr, 8);
+  txt(page, dateStr, PW - MARGIN - dateW, y - 14, fontReg, 8, GRAY);
 
-  const quoteNum = project["Tilboðsnúmer"] || project["Name"] || "—";
-  const customerName =
-    project["Tengiliðir"] ||
-    project["Viðskiptavinur"] ||
-    project["Customer"] ||
-    "Viðskiptavinur";
-  const quoteLabel = `Tilboð: T-${quoteNum} | ${customerName}`;
-  text(page, quoteLabel, MARGIN, y, fontBold, 13, DARK);
-
-  const today = formatDate(null);
-  const dateStr = `Dagsetning: ${today}`;
-  const dateW = fontReg.widthOfTextAtSize(dateStr, 9);
-  text(page, dateStr, A4_W - MARGIN - dateW, y, fontReg, 9, GRAY);
-
-  y -= 14;
-  const validStr = "Tilboð gildir í 30 daga frá útgáfudegi";
-  text(page, validStr, MARGIN, y, fontReg, 8, GRAY);
-
-  // ── Divider ───────────────────────────────────────────────────────────────
-  y -= 10;
-  drawRect(page, MARGIN, y, CONTENT_W, 1, GOLD);
+  y -= 28;
+  line(page, MARGIN, y, PW - MARGIN, y, GOLD, 1);
   y -= 16;
 
-  // ── Two-column info block ─────────────────────────────────────────────────
+  // Quote title + validity
+  const quoteTitle = project["Tilboðsblað heiti"] || "Tilboð";
+  txt(page, quoteTitle, MARGIN, y, fontBold, 14, DARK);
+
+  const validStr = "Tilboð gildir í 30 daga frá útgáfudegi";
+  const validW = fontReg.widthOfTextAtSize(validStr, 8);
+  txt(page, validStr, PW - MARGIN - validW, y, fontReg, 8, GRAY);
+  y -= 22;
+
+  // ── Info block (two columns) ─────────────────────────────────────────────
   const colL = MARGIN;
-  const colR = MARGIN + CONTENT_W * 0.5 + 10;
+  const colR = MARGIN + CW * 0.5 + 10;
+  const infoTopY = y;
 
-  // Left: customer info
-  text(page, "TENGILIÐUR", colL, y, fontBold, 7, GOLD);
-  y -= 12;
-  const phone = project["Sími"] || project["Phone"] || "";
-  const email = project["Netfang"] || project["Email"] || "";
-  const addr = project["Heimilisfang"] || project["Address"] || "";
-  text(page, String(customerName), colL, y, fontBold, 9, DARK);
-  if (phone) { y -= 11; text(page, phone, colL, y, fontReg, 8, GRAY); }
-  if (email) { y -= 11; text(page, email, colL, y, fontReg, 8, GRAY); }
-  if (addr)  { y -= 11; text(page, addr,  colL, y, fontReg, 8, GRAY); }
+  // Left — customer
+  txt(page, "TENGILIÐUR", colL, y, fontBold, 7, GOLD);
+  y -= 13;
+  txt(page, String(project["Tengiliður verkefni"] || ""), colL, y, fontBold, 10, DARK);
+  y -= 13;
+  const phone = project["Símanúmer"] || "";
+  const email = project["Tölvupóstfang"] || "";
+  if (phone) { txt(page, String(phone), colL, y, fontReg, 8.5, GRAY); y -= 12; }
+  if (email) { txt(page, String(email), colL, y, fontReg, 8.5, GRAY); y -= 12; }
 
-  // Right: material spec
-  const infoTop = y + (phone ? 11 : 0) + (email ? 11 : 0) + (addr ? 11 : 0) + 12;
-  let yR = infoTop;
-  text(page, "EFNISVAL", colR, yR, fontBold, 7, GOLD);
-  yR -= 12;
+  // Right — material spec (skip empty fields)
+  let yR = infoTopY;
+  txt(page, "EFNISVAL", colR, yR, fontBold, 7, GOLD);
+  yR -= 13;
 
-  const specs = [
-    ["Innvols", project["Skrokkaefni"] || "Egger hvítt 18mm"],
-    ["Framhliðar", project["Frontaefni"] || "—"],
-    ["Kantlíming", project["Kantlíming"] || "Matching ABS"],
-    ["Búnaður", "Blum (mjúk lokun)"],
+  const specFields = [
+    ["Innvols",       project["Skrokkaefni viðskiptavinar"]],
+    ["Framhliðar",    project["Frontaefni viðskiptavinar"]],
+    ["Framhliðar 2",  project["Frontaefni 2 viðskiptavinar"]],
+    ["Borðplata",     project["Borðplata viðskiptavinar"]],
+    ["Höldur",        project["Höldur 1 og 2"]],
   ];
-  for (const [label, val] of specs) {
-    text(page, `${label}:`, colR, yR, fontBold, 8, DARK, 80);
-    text(page, val, colR + 82, yR, fontReg, 8, GRAY, 150);
-    yR -= 11;
+
+  for (const [label, val] of specFields) {
+    if (!val) continue;
+    txt(page, `${label}:`, colR,      yR, fontBold, 8, DARK);
+    txt(page, String(val), colR + 78, yR, fontReg,  8, GRAY);
+    yR -= 12;
   }
 
-  // Standard description block (right column)
-  yR -= 4;
-  const desc =
-    "Verð er án uppsetningar og flutnings nema annað komi fram. " +
-    "Allt efni er úr hágæða Egger spónum. " +
-    "Búnaður er frá Blum — mjúk lokun á öllum skúffum og hurðum.";
-  // Draw wrapped desc text
-  const descWords = desc.split(" ");
-  let line = "";
-  const lineH = 10;
-  const maxW = CONTENT_W * 0.47;
-  for (const word of descWords) {
-    const test = line ? `${line} ${word}` : word;
-    if (fontReg.widthOfTextAtSize(test, 7.5) > maxW) {
-      text(page, line, colR, yR, fontReg, 7.5, GRAY);
-      yR -= lineH;
-      line = word;
-    } else {
-      line = test;
-    }
-  }
-  if (line) { text(page, line, colR, yR, fontReg, 7.5, GRAY); yR -= lineH; }
-
-  // Move main y to below both columns
   y = Math.min(y - 10, yR - 10);
 
-  // ── Line items table ──────────────────────────────────────────────────────
-  y -= 8;
-  drawRect(page, MARGIN, y, CONTENT_W, 1, GOLD);
-  y -= 18;
+  // ── Line items table ─────────────────────────────────────────────────────
+  line(page, MARGIN, y, PW - MARGIN, y, GOLD, 0.75);
+  y -= 20;
 
-  // Column widths
+  // Column definitions
   const cols = [
-    { label: "Vörur",         key: "Vörur",        w: 0.30 },
-    { label: "Útfærslur",     key: "Útfærslur",    w: 0.22 },
-    { label: "Magn",          key: "Magn",         w: 0.08, align: "right" },
-    { label: "Afsl.",         key: "Afsláttur",    w: 0.08, align: "right" },
-    { label: "Einingarverð",  key: "Einingarverð", w: 0.16, align: "right" },
-    { label: "Samtals m. vsk.", key: null,          w: 0.16, align: "right" },
+    { label: "Vara",            w: 0.21, align: "left"  },
+    { label: "Rými",            w: 0.11, align: "left"  },
+    { label: "Útfærsla",        w: 0.20, align: "left"  },
+    { label: "Magn",            w: 0.07, align: "right" },
+    { label: "Afsl. %",         w: 0.07, align: "right" },
+    { label: "Einingarverð",    w: 0.14, align: "right" },
+    { label: "Samtals m. vsk.", w: 0.20, align: "right" },
   ];
 
-  // Compute pixel widths
-  let xCursor = MARGIN;
+  let xCur = MARGIN;
   const colDefs = cols.map((c) => {
-    const pw = CONTENT_W * c.w;
-    const def = { ...c, x: xCursor, pw };
-    xCursor += pw;
+    const pw = CW * c.w;
+    const def = { ...c, x: xCur, pw };
+    xCur += pw;
     return def;
   });
 
-  // Header row
-  drawRect(page, MARGIN, y - 4, CONTENT_W, 18, DARK);
+  // Table header
+  rect(page, MARGIN, y - 5, CW, 18, GOLD_TINT);
   for (const col of colDefs) {
     const lw = fontBold.widthOfTextAtSize(col.label, 7.5);
-    const lx =
-      col.align === "right"
-        ? col.x + col.pw - lw - 4
-        : col.x + 4;
-    text(page, col.label, lx, y + 1, fontBold, 7.5, WHITE);
+    const lx = col.align === "right" ? col.x + col.pw - lw - 3 : col.x + 3;
+    txt(page, col.label, lx, y, fontBold, 7.5, DARK);
   }
-  y -= 22;
+  y -= 16;
+  line(page, MARGIN, y, PW - MARGIN, y, GOLD, 0.5);
+  y -= 4;
 
-  // Data rows
+  // Rows
   let subtotalExVat = 0;
-  const ROW_H = 16;
+  const ROW_H = 15;
 
   for (let i = 0; i < lineItems.length; i++) {
+    ({ page, y } = checkBreak(page, y, 110));
+
     const item = lineItems[i];
-    const qty = parseFloat(item["Magn"] ?? item["Quantity"] ?? 1) || 1;
-    const unitPrice = parseFloat(item["Einingarverð"] ?? item["Unit Price"] ?? 0) || 0;
-    const discPct = parseFloat(item["Afsláttur"] ?? item["Discount"] ?? 0) || 0;
-    const lineExVat = unitPrice * qty * (1 - discPct / 100);
-    const lineInclVat = lineExVat * (1 + VAT_RATE);
+    const qty       = parseFloat(item["Magn"]        ?? 1) || 1;
+    const unitPrice = parseFloat(item["Einingarverð"] ?? 0) || 0;
+    const discPct   = parseFloat(item["Afsl. %"]      ?? 0) || 0;
+    const lineExVat   = unitPrice * qty * (1 - discPct / 100);
+    const lineInclVat = lineExVat * (1 + 0.11);
     subtotalExVat += lineExVat;
 
     // Alternating row background
-    if (i % 2 === 0) {
-      drawRect(page, MARGIN, y - 4, CONTENT_W, ROW_H, LIGHT);
-    }
+    if (i % 2 === 0) rect(page, MARGIN, y - 3, CW, ROW_H, LIGHT);
 
     const rowData = [
-      item["Vörur"] || item["Name"] || "—",
-      item["Útfærslur"] || item["Description"] || "",
-      qty.toString(),
+      item["Vara 🚪"]      || "—",
+      item["Rými 🏡"]      || "",
+      item["útfærsla 🎨"]  || "",
+      qty % 1 === 0 ? String(qty) : qty.toFixed(1),
       discPct ? `${discPct}%` : "—",
       formatISK(unitPrice),
       formatISK(lineInclVat),
@@ -302,79 +249,58 @@ async function buildPdf(project, lineItems) {
       const col = colDefs[ci];
       const val = String(rowData[ci] ?? "");
       const vw = fontReg.widthOfTextAtSize(val, 8);
-      const vx =
-        col.align === "right"
-          ? col.x + col.pw - vw - 4
-          : col.x + 4;
-      text(page, val, vx, y + 1, fontReg, 8, DARK);
+      const vx = col.align === "right" ? col.x + col.pw - vw - 3 : col.x + 3;
+      txt(page, val, vx, y, fontReg, 8, DARK);
     }
     y -= ROW_H;
-
-    // Page break guard (leave 120px for totals/footer)
-    if (y < 120 + MARGIN) {
-      // In a full implementation you'd add a new page here;
-      // for now stop rendering items to avoid overflow.
-      break;
-    }
   }
 
-  // ── Totals ────────────────────────────────────────────────────────────────
-  y -= 10;
-  drawRect(page, MARGIN, y, CONTENT_W, 1, GRAY);
+  // ── Totals ───────────────────────────────────────────────────────────────
+  ({ page, y } = checkBreak(page, y, 90));
+  y -= 8;
+  line(page, MARGIN, y, PW - MARGIN, y, GRAY, 0.4);
   y -= 14;
 
-  const vatAmount = subtotalExVat * VAT_RATE;
-  const totalInclVat = subtotalExVat + vatAmount;
-  const totalsX = A4_W - MARGIN - 200;
+  // Use Airtable's calculated totals as source of truth; fall back to local sum
+  const totalExVat  = parseFloat(project["Tilboðsupphæð"] ?? subtotalExVat) || subtotalExVat;
+  const vatAmount   = parseFloat(project["vsk."]           ?? totalExVat * 0.11) || totalExVat * 0.11;
+  const totalInclVat = totalExVat + vatAmount;
 
-  const totals = [
-    { label: "Samtals (án VSK):",  value: formatISK(subtotalExVat), bold: false },
-    { label: "VSK 11%:",           value: formatISK(vatAmount),     bold: false },
+  const totalsX = PW - MARGIN - 230;
+
+  const subtotalRows = [
+    { label: "Samtals (án VSK):", value: formatISK(totalExVat) },
+    { label: "VSK 11%:",          value: formatISK(vatAmount)  },
   ];
-
-  for (const row of totals) {
-    const font = row.bold ? fontBold : fontReg;
-    text(page, row.label, totalsX, y, font, 9, GRAY);
-    const vw = font.widthOfTextAtSize(row.value, 9);
-    text(page, row.value, A4_W - MARGIN - vw, y, font, 9, GRAY);
+  for (const row of subtotalRows) {
+    txt(page, row.label, totalsX, y, fontReg, 9, GRAY);
+    const vw = fontReg.widthOfTextAtSize(row.value, 9);
+    txt(page, row.value, PW - MARGIN - vw, y, fontReg, 9, GRAY);
     y -= 13;
   }
 
-  // Grand total row
-  drawRect(page, MARGIN, y - 6, CONTENT_W, 22, DARK);
-  const gtLabel = "Samtals m. vsk.:";
-  const gtValue = formatISK(totalInclVat);
-  text(page, gtLabel, totalsX, y + 3, fontBold, 11, GOLD);
-  const gtw = fontBold.widthOfTextAtSize(gtValue, 13);
-  text(page, gtValue, A4_W - MARGIN - gtw, y + 2, fontBold, 13, WHITE);
-  y -= 30;
+  y -= 4;
+  line(page, totalsX, y + 3, PW - MARGIN, y + 3, GOLD, 0.75);
+  y -= 4;
+  txt(page, "Samtals m. vsk.:", totalsX, y, fontBold, 11, DARK);
+  const gtv = formatISK(totalInclVat);
+  const gtw = fontBold.widthOfTextAtSize(gtv, 13);
+  txt(page, gtv, PW - MARGIN - gtw, y - 1, fontBold, 13, GOLD);
 
-  // ── Footer ────────────────────────────────────────────────────────────────
-  const footerY = MARGIN + 10;
-  drawRect(page, 0, 0, A4_W, footerY + 52, DARK);
+  // ── Footer ───────────────────────────────────────────────────────────────
+  const footerY = MARGIN + 6;
+  line(page, MARGIN, footerY + 28, PW - MARGIN, footerY + 28, LIGHT, 0.5);
 
   const footerLines = [
     "Tilboði fylgir hvorki uppsetning né flutningur nema það komi sérstaklega fram.",
-    "Skilmálar: https://www.bjorninninnrettingar.is/skilmálar",
-    "Mikilvægt er að kynna sér skilmála — innborgun er samþykki við skilmálum.",
-    "Endurgreiðsla á staðfestingargjaldi er ekki möguleg undir neinum kringumstæðum.",
+    "Skilmálar: bjorninninnrettingar.is/skilmálar  ·  Innborgun er samþykki við skilmálum  ·  Endurgreiðsla á staðfestingargjaldi er ekki möguleg.",
+    "Björninn ehf.  ·  Álfhella 5, 221 Hafnarfjörður  ·  bjorninn@bjorninninnrettingar.is  ·  bjorninninnrettingar.is",
   ];
-  let fy = footerY + 46;
-  for (const line of footerLines) {
-    text(page, line, MARGIN, fy, fontReg, 7, GRAY);
-    fy -= 10;
+  let fy = footerY + 22;
+  for (const l of footerLines) {
+    txt(page, l, MARGIN, fy, fontReg, 6.5, GRAY);
+    fy -= 9;
   }
-
-  // Company info line
-  text(
-    page,
-    "Björninn ehf. · Álfhella 5, 221 Hafnarfjörður · bjorninn@bjorninninnrettingar.is · bjorninninnrettingar.is",
-    MARGIN,
-    footerY - 2,
-    fontReg,
-    7,
-    GRAY
-  );
 
   return doc.save();
 }
@@ -386,48 +312,43 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // Verify webhook secret
   const secret = req.headers["x-webhook-secret"];
   if (secret !== process.env.WEBHOOK_SECRET) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
   const token = process.env.AIRTABLE_TOKEN;
-  if (!token) {
-    return res.status(500).json({ error: "AIRTABLE_TOKEN not configured" });
-  }
+  if (!token) return res.status(500).json({ error: "AIRTABLE_TOKEN not configured" });
 
   const { recordId } = req.body || {};
-  if (!recordId) {
-    return res.status(400).json({ error: "recordId is required" });
-  }
+  if (!recordId) return res.status(400).json({ error: "recordId is required" });
 
   try {
     console.log(`Generating quote for record: ${recordId}`);
 
-    const [project, lineItems] = await Promise.all([
-      getProject(token, recordId),
-      getLineItems(token, recordId),
-    ]);
+    // Fetch project first, then line items using linked IDs from project
+    const project = await getProject(token, recordId);
+    const linkedIds = project[LINKED_FIELD] || [];
+    const lineItems = await getLineItems(token, linkedIds);
 
-    console.log(`Fetched project "${project["Name"] || recordId}" with ${lineItems.length} line items`);
+    const orientation = lineItems.length <= 30 ? "landscape" : "portrait";
+    console.log(`"${project["Tilboðsblað heiti"] || recordId}" — ${lineItems.length} items — ${orientation}`);
 
     const pdfBytes = await buildPdf(project, lineItems);
-
-    console.log(`PDF built (${pdfBytes.length} bytes), uploading…`);
+    console.log(`PDF ${pdfBytes.length} bytes, uploading…`);
 
     await uploadPdf(token, recordId, pdfBytes);
-
-    console.log("Upload complete.");
+    console.log("Done.");
 
     return res.status(200).json({
       success: true,
       recordId,
-      pdfSize: pdfBytes.length,
       lineItemCount: lineItems.length,
+      orientation,
+      pdfSize: pdfBytes.length,
     });
   } catch (err) {
-    console.error("Quote generation failed:", err);
+    console.error("Failed:", err);
     return res.status(500).json({ error: err.message });
   }
 }
