@@ -185,7 +185,7 @@ async function buildPdf(project, lineItems) {
     const tagW = fontReg.widthOfTextAtSize(tagline, 9);
     txt(page, tagline, PW - MARGIN - tagW, y, fontReg, 9, GRAY);
 
-    const dateStr = `Dagsetning: ${formatDate(project["Skráİ þann:"])}`;
+    const dateStr = `Dagsetning: ${formatDate(project["Skráð þann:"])}`;
     const dateW = fontReg.widthOfTextAtSize(dateStr, 8);
     txt(page, dateStr, PW - MARGIN - dateW, y - 14, fontReg, 8, GRAY);
 
@@ -267,13 +267,13 @@ async function buildPdf(project, lineItems) {
   // Column definitions — Rými first
   // Útfærsla is wide so Magn/Afsl/Einingarverð/Samtals cluster on the far right
   const cols = [
-    { label: "Rými",            w: 0.08, align: "left",   clip: true  },
-    { label: "Vara",            w: 0.18, align: "left",   clip: true  },
-    { label: "Útfærsla",        w: 0.34, align: "left",   clip: true  },
+    { label: "Rými",            w: 0.10, align: "left",   clip: true  },
+    { label: "Vara",            w: 0.22, align: "left",   clip: true  },
+    { label: "Útfærsla",        w: 0.32, align: "left",   clip: true  },
     { label: "Magn",            w: 0.05, align: "center", clip: false },
     { label: "Afsl. %",         w: 0.05, align: "center", clip: false },
     { label: "Einingarverð",    w: 0.13, align: "right",  clip: false },
-    { label: "Samtals m. vsk.", w: 0.17, align: "right",  clip: false },
+    { label: "Samtals m. vsk.", w: 0.13, align: "right",  clip: false },
   ];
 
   let xCur = MARGIN;
@@ -376,8 +376,8 @@ async function buildPdf(project, lineItems) {
   line(page, MARGIN, footerY + 28, PW - MARGIN, footerY + 28, LIGHT, 0.5);
 
   const footerLines = [
-    "Tilboði fylgir hvorki uppsetning né flutningur nema það komi sérstaklega fram.  ·  Skilmálar: bjorninninnrettingar.is/skilmálar  ·  Innborgun er samþykki við skilmálum  ·  Endurgreiðsla á staðfestingargjaldi er ekki möguleg.",
-    "Björninn ehf.  |  Álfhella 5, 221 Hafnarfjörður  |  bjorninn@bjorninninnrettingar.is  |  bjorninninnrettingar.is",
+    "Tilboði fylgir hvorki uppsetning né flutningur nema öao komi særstaklega fram.  ·  Skilmálar: bjorninninnrettingar.is/skilmálar  ·  Innborgun er samöykki við skilmálum  ·  Endurgreiðsla á staðfestingargjaldi er ekki möguleg.",
+    "Björninn ehf.  |  Álfhella 5, 221 Hafnarfjörður  |  bjorninn@bjorninninnrettingar.is  |  bjorninninnnrettingar.is",
   ];
   let fy = footerY + 22;
   for (const l of footerLines) {
