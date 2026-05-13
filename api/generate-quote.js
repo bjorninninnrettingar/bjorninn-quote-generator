@@ -19,6 +19,22 @@ const GOLD_TINT = rgb(0.980, 0.961, 0.906);  // very light gold for table header
 
 const MARGIN = 48;
 
+// Logo fetched once per cold start and cached
+const LOGO_URL =
+  "https://raw.githubusercontent.com/bjorninninnrettingar/bjorninn-quote-generator/main/Lo%CC%81go%CC%81%20a%CC%81%20hvi%CC%81tum.png";
+let _logoCache = null;
+async function getLogo() {
+  if (_logoCache) return _logoCache;
+  try {
+    const res = await fetch(LOGO_URL);
+    if (res.ok) _logoCache = new Uint8Array(await res.arrayBuffer());
+    else console.warn("Logo fetch status:", res.status);
+  } catch (e) {
+    console.warn("Logo fetch failed:", e.message);
+  }
+  return _logoCache;
+}
+
 // ── Airtable ──────────────────────────────────────────────────────────────────
 
 async function airtableFetch(url, token) {
@@ -101,6 +117,16 @@ function txt(page, str, x, y, font, size, color = DARK) {
   page.drawText(String(str), { x, y, size, font, color });
 }
 
+// Truncate text to fit within maxW points; appends "…" if cut
+function truncate(font, str, size, maxW) {
+  str = String(str);
+  if (font.widthOfTextAtSize(str, size) <= maxW) return str;
+  while (str.length > 1 && font.widthOfTextAtSize(str + "…", size) > maxW) {
+    str = str.slice(0, -1);
+  }
+  return str + "…";
+}
+
 function rect(page, x, y, w, h, color) {
   page.drawRectangle({ x, y, width: w, height: h, color });
 }
@@ -115,6 +141,15 @@ async function buildPdf(project, lineItems) {
   const doc = await PDFDocument.create();
   const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
   const fontReg  = await doc.embedFont(StandardFonts.Helvetica);
+
+  // Embed logo image (PNG with white background)
+  const logoBytes = await getLogo();
+  let logoImg = null;
+  if (logoBytes) {
+    try { logoImg = await doc.embedPng(logoBytes); } catch (e) {
+      console.warn("Logo embed failed:", e.message);
+    }
+  }
 
   // Dynamic orientation: ≤30 items → landscape, >30 → portrait
   const landscape = lineItems.length <= 30;
@@ -141,21 +176,37 @@ async function buildPdf(project, lineItems) {
   let y = PH - MARGIN;
 
   // ── Header ──────────────────────────────────────────────────────────────
-  txt(page, "BJÖRNINN", MARGIN, y, fontBold, 22, GOLD);
-  // Right-edge-align INNRÉTTINGAR under BJÖRNINN, regular weight, black
-  const brandW = fontBold.widthOfTextAtSize("BJÖRNINN", 22);
-  const subW   = fontReg.widthOfTextAtSize("INNRÉTTINGAR", 11);
-  txt(page, "INNRÉTTINGAR", MARGIN + brandW - subW, y - 16, fontReg, 11, DARK);
+  const LOGO_W = 180;  // pt — adjust if logo appears too large/small
+  if (logoImg) {
+    const LOGO_H = Math.round(LOGO_W * logoImg.height / logoImg.width);
+    page.drawImage(logoImg, { x: MARGIN, y: y - LOGO_H, width: LOGO_W, height: LOGO_H });
 
-  const tagline = "Íslensk framleiðsla í meira en hálfa öld";
-  const tagW = fontReg.widthOfTextAtSize(tagline, 9);
-  txt(page, tagline, PW - MARGIN - tagW, y, fontReg, 9, GRAY);
+    const tagline = "Íslensk framleiðsla í meira en hálfa öld";
+    const tagW = fontReg.widthOfTextAtSize(tagline, 9);
+    txt(page, tagline, PW - MARGIN - tagW, y, fontReg, 9, GRAY);
 
-  const dateStr = `Dagsetning: ${formatDate(project["Skráð þann:"])}`;
-  const dateW = fontReg.widthOfTextAtSize(dateStr, 8);
-  txt(page, dateStr, PW - MARGIN - dateW, y - 14, fontReg, 8, GRAY);
+    const dateStr = `Dagsetning: ${formatDate(project["Skráİ þann:"])}`;
+    const dateW = fontReg.widthOfTextAtSize(dateStr, 8);
+    txt(page, dateStr, PW - MARGIN - dateW, y - 14, fontReg, 8, GRAY);
 
-  y -= 28;
+    y -= LOGO_H + 6;
+  } else {
+    // Fallback: hand-drawn text logo
+    txt(page, "BJÖRNINN", MARGIN, y, fontBold, 22, GOLD);
+    const brandW = fontBold.widthOfTextAtSize("BJÖRNINN", 22);
+    const subW   = fontReg.widthOfTextAtSize("INNRÉTTINGAR", 11);
+    txt(page, "INNRÉTTINGAR", MARGIN + brandW - subW, y - 16, fontReg, 11, DARK);
+
+    const tagline = "Íslensk framleiðsla í meira en hálfa öld";
+    const tagW = fontReg.widthOfTextAtSize(tagline, 9);
+    txt(page, tagline, PW - MARGIN - tagW, y, fontReg, 9, GRAY);
+
+    const dateStr = `Dagsetning: ${formatDate(project["Skráð þann:"])}`;
+    const dateW = fontReg.widthOfTextAtSize(dateStr, 8);
+    txt(page, dateStr, PW - MARGIN - dateW, y - 14, fontReg, 8, GRAY);
+
+    y -= 28;
+  }
   line(page, MARGIN, y, PW - MARGIN, y, GOLD, 1);
   y -= 16;
 
@@ -214,14 +265,15 @@ async function buildPdf(project, lineItems) {
   y -= 20;
 
   // Column definitions — Rými first
+  // Text columns are wider so numeric columns cluster tightly on the right
   const cols = [
-    { label: "Rými",            w: 0.11, align: "left"  },
-    { label: "Vara",            w: 0.21, align: "left"  },
-    { label: "Útfærsla",        w: 0.20, align: "left"  },
-    { label: "Magn",            w: 0.07, align: "center" },
-    { label: "Afsl. %",         w: 0.07, align: "center" },
-    { label: "Einingarverð",    w: 0.14, align: "right" },
-    { label: "Samtals m. vsk.", w: 0.20, align: "right" },
+    { label: "Rými",            w: 0.10, align: "left",   clip: true  },
+    { label: "Vara",            w: 0.24, align: "left",   clip: true  },
+    { label: "Útfærsla",        w: 0.25, align: "left",   clip: true  },
+    { label: "Magn",            w: 0.05, align: "center", clip: false },
+    { label: "Afsl. %",         w: 0.05, align: "center", clip: false },
+    { label: "Einingarverð",    w: 0.13, align: "right",  clip: false },
+    { label: "Samtals m. vsk.", w: 0.18, align: "right",  clip: false },
   ];
 
   let xCur = MARGIN;
@@ -275,7 +327,9 @@ async function buildPdf(project, lineItems) {
 
     for (let ci = 0; ci < colDefs.length; ci++) {
       const col = colDefs[ci];
-      const val = String(rowData[ci] ?? "");
+      const maxTextW = col.pw - 6;  // 3pt padding each side
+      const raw = String(rowData[ci] ?? "");
+      const val = col.clip ? truncate(fontReg, raw, 8, maxTextW) : raw;
       const vw = fontReg.widthOfTextAtSize(val, 8);
       const vx = col.align === "right"  ? col.x + col.pw - vw - 3
                : col.align === "center" ? col.x + (col.pw - vw) / 2
@@ -319,11 +373,12 @@ async function buildPdf(project, lineItems) {
 
   // ── Footer ───────────────────────────────────────────────────────────────
   const footerY = 18;
-  line(page, MARGIN, footerY + 29, PW - MARGIN, footerY + 29, LIGHT, 0.5);
+  line(page, MARGIN, footerY + 28, PW - MARGIN, footerY + 28, LIGHT, 0.5);
 
   const footerLines = [
-    "Tilboði fylgir hvorki uppsetning né flutningur nema það komi sérstaklega fram. Skilmálar: bjorninninnrettingar.is/skilmálar  ·  Innborgun er samþykki við skilmálum  ·  Endurgreiðsla á staðfestingargjaldi er ekki möguleg.",
-    "Björninn ehf.  |  Álfhella 5, 221 Hafnarfjörður  |  bjorninn@bjorninninnrettingar.is  |  bjorninninnrettingar.is",
+    "Tilboði fylgir hvorki uppsetning né flutningur nema það komi sérstaklega fram.",
+    "Skilmálar: bjorninninnrettingar.is/skilmálar  ·  Innborgun er samþykki við skilmálum  ·  Endurgreiðsla á staðfestingargjaldi er ekki möguleg.",
+    "Björninn ehf.  ·  Álfhella 5, 221 Hafnarfjörður  ·  bjorninn@bjorninninnrettingar.is  ·  bjorninninnrettingar.is",
   ];
   let fy = footerY + 22;
   for (const l of footerLines) {
