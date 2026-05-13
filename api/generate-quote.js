@@ -47,6 +47,19 @@ async function getLineItems(token, linkedIds) {
   return data.records.map((r) => r.fields);
 }
 
+async function clearAttachments(token, recordId) {
+  // Delete all existing attachments so old PDFs don't linger alongside new ones
+  const res = await fetch(
+    `https://api.airtable.com/v0/${AIRTABLE_BASE}/${PROJECTS_TABLE}/${recordId}`,
+    {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ fields: { [ATTACHMENT_FIELD]: [] } }),
+    }
+  );
+  if (!res.ok) console.warn(`clearAttachments: ${res.status} ${await res.text()}`);
+}
+
 async function uploadPdf(token, recordId, pdfBytes) {
   const res = await fetch(
     `https://content.airtable.com/v0/${AIRTABLE_BASE}/${recordId}/${ATTACHMENT_FIELD}/uploadAttachment`,
@@ -187,10 +200,10 @@ async function buildPdf(project, lineItems) {
   line(page, MARGIN, y, PW - MARGIN, y, GOLD, 0.75);
   y -= 20;
 
-  // Column definitions
+  // Column definitions — Rými first
   const cols = [
-    { label: "Vara",            w: 0.21, align: "left"  },
     { label: "Rými",            w: 0.11, align: "left"  },
+    { label: "Vara",            w: 0.21, align: "left"  },
     { label: "Útfærsla",        w: 0.20, align: "left"  },
     { label: "Magn",            w: 0.07, align: "right" },
     { label: "Afsl. %",         w: 0.07, align: "right" },
@@ -218,7 +231,7 @@ async function buildPdf(project, lineItems) {
   y -= 4;
 
   // Rows
-  let subtotalExVat = 0;
+  let subtotalInclVat = 0;
   const ROW_H = 15;
 
   for (let i = 0; i < lineItems.length; i++) {
@@ -229,15 +242,15 @@ async function buildPdf(project, lineItems) {
     const unitPrice = parseFloat(item["Einingarverð"] ?? 0) || 0;
     const discPct   = parseFloat(item["Afsl. %"]      ?? 0) || 0;
     const lineExVat   = unitPrice * qty * (1 - discPct / 100);
-    const lineInclVat = lineExVat * (1 + 0.11);
-    subtotalExVat += lineExVat;
+    const lineInclVat = lineExVat * 1.11;
+    subtotalInclVat += lineInclVat;
 
     // Alternating row background
     if (i % 2 === 0) rect(page, MARGIN, y - 3, CW, ROW_H, LIGHT);
 
     const rowData = [
-      item["Vara 🚪"]      || "—",
       item["Rými 🏡"]      || "",
+      item["Vara 🚪"]      || "—",
       item["útfærsla 🎨"]  || "",
       qty % 1 === 0 ? String(qty) : qty.toFixed(1),
       discPct ? `${discPct}%` : "—",
@@ -261,10 +274,10 @@ async function buildPdf(project, lineItems) {
   line(page, MARGIN, y, PW - MARGIN, y, GRAY, 0.4);
   y -= 14;
 
-  // Use Airtable's calculated totals as source of truth; fall back to local sum
-  const totalExVat  = parseFloat(project["Tilboðsupphæð"] ?? subtotalExVat) || subtotalExVat;
-  const vatAmount   = parseFloat(project["vsk."]           ?? totalExVat * 0.11) || totalExVat * 0.11;
-  const totalInclVat = totalExVat + vatAmount;
+  // Use locally computed row totals as source of truth (avoids double-counting from project rollup fields)
+  const totalInclVat = subtotalInclVat;
+  const totalExVat   = totalInclVat / 1.11;
+  const vatAmount    = totalInclVat - totalExVat;
 
   const totalsX = PW - MARGIN - 230;
 
@@ -335,7 +348,10 @@ export default async function handler(req, res) {
     console.log(`"${project["Tilboðsblað heiti"] || recordId}" — ${lineItems.length} items — ${orientation}`);
 
     const pdfBytes = await buildPdf(project, lineItems);
-    console.log(`PDF ${pdfBytes.length} bytes, uploading…`);
+    console.log(`PDF ${pdfBytes.length} bytes, clearing old attachments…`);
+
+    await clearAttachments(token, recordId);
+    console.log("Old attachments cleared, uploading new PDF…");
 
     await uploadPdf(token, recordId, pdfBytes);
     console.log("Done.");
