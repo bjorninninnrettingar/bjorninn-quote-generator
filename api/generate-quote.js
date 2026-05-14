@@ -179,7 +179,8 @@ async function buildPdf(project, lineItems) {
   const LOGO_W = 180;  // pt — adjust if logo appears too large/small
   if (logoImg) {
     const LOGO_H = Math.round(LOGO_W * logoImg.height / logoImg.width);
-    page.drawImage(logoImg, { x: MARGIN, y: y - LOGO_H, width: LOGO_W, height: LOGO_H });
+    // Draw logo so its vertical centre aligns with the tagline on the right
+    page.drawImage(logoImg, { x: MARGIN, y: y - LOGO_H / 2, width: LOGO_W, height: LOGO_H });
 
     const tagline = "Íslensk framleiðsla í meira en hálfa öld";
     const tagW = fontReg.widthOfTextAtSize(tagline, 9);
@@ -189,7 +190,7 @@ async function buildPdf(project, lineItems) {
     const dateW = fontReg.widthOfTextAtSize(dateStr, 8);
     txt(page, dateStr, PW - MARGIN - dateW, y - 14, fontReg, 8, GRAY);
 
-    y -= LOGO_H + 6;
+    y -= LOGO_H / 2 + 6;
   } else {
     // Fallback: hand-drawn text logo
     txt(page, "BJÖRNINN", MARGIN, y, fontBold, 22, GOLD);
@@ -376,8 +377,8 @@ async function buildPdf(project, lineItems) {
   line(page, MARGIN, footerY + 28, PW - MARGIN, footerY + 28, LIGHT, 0.5);
 
   const footerLines = [
-    "Tilboði fylgir hvorki uppsetning né flutningur nema öao komi særstaklega fram.  ·  Skilmálar: bjorninninnrettingar.is/skilmálar  ·  Innborgun er samöykki við skilmálum  ·  Endurgreiðsla á staðfestingargjaldi er ekki möguleg.",
-    "Björninn ehf.  |  Álfhella 5, 221 Hafnarfjörður  |  bjorninn@bjorninninnrettingar.is  |  bjorninninnnrettingar.is",
+    "Tilboði fylgir hvorki uppsetning né flutningur nema öað komi særstaklega fram.  ·  Skilmálar: bjorninninnrettingar.is/skilmálar  ·  Innborgun er samþykki við skilmálum  ·  Endurgreiðsla á staðfestingargjaldi er ekki möguleg.",
+    "Björninn ehf.  |  Álfhella 5, 221 Hafnarfjörður  |  bjorninn@bjorninninnrettingar.is  |  bjorninninnrettingar.is",
   ];
   let fy = footerY + 22;
   for (const l of footerLines) {
