@@ -76,14 +76,14 @@ async function clearAttachments(token, recordId) {
   if (!res.ok) console.warn(`clearAttachments: ${res.status} ${await res.text()}`);
 }
 
-async function uploadPdf(token, recordId, pdfBytes) {
+async function uploadPdf(token, recordId, pdfBytes, filename = "tilbod.pdf") {
   const res = await fetch(
     `https://content.airtable.com/v0/${AIRTABLE_BASE}/${recordId}/${ATTACHMENT_FIELD}/uploadAttachment`,
     {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        filename: "tilbod.pdf",
+        filename,
         contentType: "application/pdf",
         file: Buffer.from(pdfBytes).toString("base64"),
       }),
@@ -377,7 +377,7 @@ async function buildPdf(project, lineItems) {
   line(page, MARGIN, footerY + 28, PW - MARGIN, footerY + 28, LIGHT, 0.5);
 
   const footerLines = [
-    "Tilboði fylgir hvorki uppsetning né flutningur nema öað komi særstaklega fram.  ·  Skilmálar: bjorninninnrettingar.is/skilmálar  ·  Innborgun er samþykki við skilmálum  ·  Endurgreiðsla á staðfestingargjaldi er ekki möguleg.",
+    "Tilboði fylgir hvorki uppsetning né flutningur nema það komi sérstaklega fram.  ·  Skilmálar: bjorninninnrettingar.is/skilmálar  ·  Innborgun er samþykki við skilmálum  ·  Endurgreiðsla á staðfestingargjaldi er ekki möguleg.",
     "Björninn ehf.  |  Álfhella 5, 221 Hafnarfjörður  |  bjorninn@bjorninninnrettingar.is  |  bjorninninnrettingar.is",
   ];
   let fy = footerY + 22;
@@ -424,7 +424,11 @@ export default async function handler(req, res) {
     await clearAttachments(token, recordId);
     console.log("Old attachments cleared, uploading new PDF…");
 
-    await uploadPdf(token, recordId, pdfBytes);
+    const safeTitle = (project["Tilboðsblaðs heiti"] || "Tilboð")
+      .replace(/[/\\:*?"<>]/g, "-")  // strip chars invalid in filenames
+      .trim();
+    const pdfFilename = `${safeTitle} | Tilboð.pdf`;
+    await uploadPdf(token, recordId, pdfBytes, pdfFilename);
     console.log("Done.");
 
     return res.status(200).json({
