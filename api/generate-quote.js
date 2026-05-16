@@ -60,7 +60,8 @@ async function getLineItems(token, linkedIds) {
     `https://api.airtable.com/v0/${AIRTABLE_BASE}/${LINE_ITEMS_TABLE}?filterByFormula=${encodeURIComponent(filter)}`,
     token
   );
-  return data.records.map((r) => r.fields);
+  const recordMap = Object.fromEntries(data.records.map((r) => [r.id, r.fields]));
+  return linkedIds.map((id) => recordMap[id]).filter(Boolean);
 }
 
 async function clearAttachments(token, recordId) {
@@ -310,7 +311,7 @@ async function buildPdf(project, lineItems) {
     const qty       = parseFloat(item["Magn"]        ?? 1) || 1;
     const unitPrice = parseFloat(item["Einingarverð"] ?? 0) || 0;
     const discPct   = parseFloat(item["Afsl. %"]      ?? 0) || 0;
-    const lineExVat   = unitPrice * qty * (1 - discPct / 100);
+    const lineExVat   = unitPrice * qty * (1 - discPct);
     const lineInclVat = lineExVat * 1.24;
     subtotalInclVat += lineInclVat;
 
@@ -322,7 +323,7 @@ async function buildPdf(project, lineItems) {
       item["Vara 🚪"]      || "—",
       item["útfærsla 🎨"]  || "",
       qty % 1 === 0 ? String(qty) : qty.toFixed(1),
-      discPct ? `${discPct}%` : "—",
+      discPct ? `${Math.round(discPct * 100)}%` : "—",
       formatISK(unitPrice),
       formatISK(lineInclVat),
     ];
