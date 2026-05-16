@@ -225,7 +225,7 @@ async function buildPdf(project, lineItems) {
 
   // ── Info block (two columns) ─────────────────────────────────────────────
   const colL = MARGIN;
-  const colR = MARGIN + CW * 0.5 + 10;
+  const colR = MARGIN + CW * 0.38;
   const infoTopY = y;
 
   // Left — customer
@@ -258,7 +258,8 @@ async function buildPdf(project, lineItems) {
   for (const [label, val] of specFields) {
     if (!val) continue;
     txt(page, `${label}:`, colR,      yR, fontBold, 8, DARK);
-    txt(page, String(val), colR + 78, yR, fontReg,  8, GRAY);
+    const maxSpecW = PW - MARGIN - (colR + 78) - 4;
+    txt(page, truncate(fontReg, String(val), 8, maxSpecW), colR + 78, yR, fontReg, 8, GRAY);
     yR -= 12;
   }
 
