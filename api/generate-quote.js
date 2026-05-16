@@ -151,8 +151,10 @@ async function buildPdf(project, lineItems) {
     }
   }
 
-  // Dynamic orientation: ≤30 items → landscape, >30 → portrait
-  const landscape = lineItems.length <= 30;
+    // Dynamic orientation: landscape only if all rows fit on one page (~11 rows max)
+  const ROW_H = 15;
+  const availableLand = 595.28 - MARGIN * 2 - 165 - 40 - 85 - 35;
+  const landscape = lineItems.length * ROW_H <= availableLand;
   const PW = landscape ? 841.89 : 595.28;
   const PH = landscape ? 595.28 : 841.89;
   const CW = PW - MARGIN * 2;  // content width
@@ -300,7 +302,6 @@ async function buildPdf(project, lineItems) {
 
   // Rows
   let subtotalInclVat = 0;
-  const ROW_H = 15;
 
   for (let i = 0; i < lineItems.length; i++) {
     ({ page, y } = checkBreak(page, y, 110));
@@ -415,7 +416,8 @@ export default async function handler(req, res) {
     const linkedIds = project[LINKED_FIELD] || [];
     const lineItems = await getLineItems(token, linkedIds);
 
-    const orientation = lineItems.length <= 30 ? "landscape" : "portrait";
+        const availableLand = 595.28 - MARGIN * 2 - 165 - 40 - 85 - 35;
+    const orientation = lineItems.length * 15 <= availableLand ? "landscape" : "portrait";
     console.log(`"${project["Tilboðsblaðs heiti"] || recordId}" — ${lineItems.length} items — ${orientation}`);
 
     const pdfBytes = await buildPdf(project, lineItems);
