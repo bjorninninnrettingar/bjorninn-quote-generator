@@ -259,7 +259,7 @@ async function buildPdf(project, lineItems) {
     if (!val) continue;
     txt(page, `${label}:`, colR,      yR, fontBold, 8, DARK);
     const maxSpecW = PW - MARGIN - (colR + 78) - 4;
-    txt(page, truncate(fontReg, String(val), 8, maxSpecW), colR + 78, yR, fontReg, 8, GRAY);
+    txt(page, truncate(fontReg, String(val), 8, maxSpecW), colR + 55, yR, fontReg, 8, GRAY);
     yR -= 12;
   }
 
@@ -377,13 +377,14 @@ async function buildPdf(project, lineItems) {
 
   // ── Footer ───────────────────────────────────────────────────────────────
   const footerY = 9;
-  line(page, MARGIN, footerY + 28, PW - MARGIN, footerY + 28, LIGHT, 0.5);
+  line(page, MARGIN, footerY + 37, PW - MARGIN, footerY + 37, LIGHT, 0.5);
 
   const footerLines = [
-    "Tilboði fylgir hvorki uppsetning né flutningur nema það komi sérstaklega fram.  ·  Skilmálar: bjorninninnrettingar.is/skilmálar  ·  Innborgun er samþykki við skilmálum  ·  Endurgreiðsla á staðfestingargjaldi er ekki möguleg.",
+    "Tilboði fylgir hvorki uppsetning né flutningur nema það komi sérstaklega fram.  ·  Skilmálar: bjorninninnrettingar.is/skilmálar",
+    "Innborgun er samþykki við skilmálum  ·  Endurgreiðsla á staðfestingargjaldi er ekki möguleg.",
     "Björninn ehf.  |  Álfhella 5, 221 Hafnarfjörður  |  bjorninn@bjorninninnrettingar.is  |  bjorninninnrettingar.is",
   ];
-  let fy = footerY + 22;
+  let fy = footerY + 31;
   for (const l of footerLines) {
     txt(page, l, MARGIN, fy, fontReg, 6.5, GRAY);
     fy -= 9;
