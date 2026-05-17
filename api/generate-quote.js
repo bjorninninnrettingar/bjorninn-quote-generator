@@ -53,6 +53,7 @@ async function getProject(token, recordId) {
   return data.fields;
 }
 
+// CHANGED: preserve linkedIds order after fetching
 async function getLineItems(token, linkedIds) {
   if (!linkedIds || linkedIds.length === 0) return [];
   const filter = `OR(${linkedIds.map((id) => `RECORD_ID()="${id}"`).join(",")})`;
@@ -60,7 +61,8 @@ async function getLineItems(token, linkedIds) {
     `https://api.airtable.com/v0/${AIRTABLE_BASE}/${LINE_ITEMS_TABLE}?filterByFormula=${encodeURIComponent(filter)}`,
     token
   );
-  return data.records.map((r) => r.fields);
+  const recordMap = Object.fromEntries(data.records.map((r) => [r.id, r.fields]));
+  return linkedIds.map((id) => recordMap[id]).filter(Boolean);
 }
 
 async function clearAttachments(token, recordId) {
@@ -150,8 +152,10 @@ async function buildPdf(project, lineItems) {
     }
   }
 
-  // Dynamic orientation: ≤30 items → landscape, >30 → portrait
-  const landscape = lineItems.length <= 30;
+  // CHANGED: landscape only if all rows fit on one page (~11 rows max)
+  const ROW_H = 15;
+  const availableLand = 595.28 - MARGIN * 2 - 165 - 40 - 85 - 35;
+  const landscape = lineItems.length * ROW_H <= availableLand;
   const PW = landscape ? 841.89 : 595.28;
   const PH = landscape ? 595.28 : 841.89;
   const CW = PW - MARGIN * 2;  // content width
@@ -165,7 +169,6 @@ async function buildPdf(project, lineItems) {
   function checkBreak(page, y, reserve = 100) {
     if (y > MARGIN + reserve) return { page, y };
     const p = newPage();
-    // Subtle continuation header
     line(p, MARGIN, PH - 28, PW - MARGIN, PH - 28, GOLD, 0.5);
     txt(p, "BJÖRNINN INNRÉTTINGAR — framhald", MARGIN, PH - 20, fontReg, 7.5, GRAY);
     return { page: p, y: PH - 48 };
@@ -220,7 +223,7 @@ async function buildPdf(project, lineItems) {
 
   // ── Info block (two columns) ─────────────────────────────────────────────
   const colL = MARGIN;
-  const colR = MARGIN + CW * 0.5 + 10;
+  const colR = MARGIN + CW * 0.38;  // CHANGED: moved left from 0.5 + 10
   const infoTopY = y;
 
   // Left — customer
@@ -252,8 +255,10 @@ async function buildPdf(project, lineItems) {
 
   for (const [label, val] of specFields) {
     if (!val) continue;
-    txt(page, `${label}:`, colR,      yR, fontBold, 8, DARK);
-    txt(page, String(val), colR + 78, yR, fontReg,  8, GRAY);
+    txt(page, `${label}:`, colR, yR, fontBold, 8, DARK);
+    // CHANGED: value offset reduced to 55, with truncation to prevent overflow
+    const maxSpecW = PW - MARGIN - (colR + 55) - 4;
+    txt(page, truncate(fontReg, String(val), 8, maxSpecW), colR + 55, yR, fontReg, 8, GRAY);
     yR -= 12;
   }
 
@@ -297,7 +302,6 @@ async function buildPdf(project, lineItems) {
 
   // Rows
   let subtotalInclVat = 0;
-  const ROW_H = 15;
 
   for (let i = 0; i < lineItems.length; i++) {
     ({ page, y } = checkBreak(page, y, 110));
@@ -306,7 +310,8 @@ async function buildPdf(project, lineItems) {
     const qty       = parseFloat(item["Magn"]        ?? 1) || 1;
     const unitPrice = parseFloat(item["Einingarverð"] ?? 0) || 0;
     const discPct   = parseFloat(item["Afsl. %"]      ?? 0) || 0;
-    const lineExVat   = unitPrice * qty * (1 - discPct / 100);
+    // CHANGED: Airtable percentage fields are stored as decimals (0.2 = 20%)
+    const lineExVat   = unitPrice * qty * (1 - discPct);
     const lineInclVat = lineExVat * 1.24;
     subtotalInclVat += lineInclVat;
 
@@ -318,7 +323,8 @@ async function buildPdf(project, lineItems) {
       item["Vara 🚪"]      || "—",
       item["útfærsla 🎨"]  || "",
       qty % 1 === 0 ? String(qty) : qty.toFixed(1),
-      discPct ? `${discPct}%` : "—",
+      // CHANGED: multiply by 100 to display correctly (0.2 → 20%)
+      discPct ? `${Math.round(discPct * 100)}%` : "—",
       formatISK(unitPrice),
       formatISK(lineInclVat),
     ];
@@ -370,13 +376,16 @@ async function buildPdf(project, lineItems) {
 
   // ── Footer ───────────────────────────────────────────────────────────────
   const footerY = 9;
-  line(page, MARGIN, footerY + 28, PW - MARGIN, footerY + 28, LIGHT, 0.5);
+  // CHANGED: separator raised to accommodate 3 footer lines
+  line(page, MARGIN, footerY + 37, PW - MARGIN, footerY + 37, LIGHT, 0.5);
 
+  // CHANGED: first long line split in two so it doesn't overflow
   const footerLines = [
-    "Tilboði fylgir hvorki uppsetning né flutningur nema það komi sérstaklega fram.  ·  Skilmálar: bjorninninnrettingar.is/skilmálar  ·  Innborgun er samþykki við skilmálum  ·  Endurgreiðsla á staðfestingargjaldi er ekki möguleg.",
+    "Tilboði fylgir hvorki uppsetning né flutningur nema það komi sérstaklega fram.  ·  Skilmálar: bjorninninnrettingar.is/skilmálar",
+    "Innborgun er samþykki við skilmálum  ·  Endurgreiðsla á staðfestingargjaldi er ekki möguleg.",
     "Björninn ehf.  |  Álfhella 5, 221 Hafnarfjörður  |  bjorninn@bjorninninnrettingar.is  |  bjorninninnrettingar.is",
   ];
-  let fy = footerY + 22;
+  let fy = footerY + 31;
   for (const l of footerLines) {
     txt(page, l, MARGIN, fy, fontReg, 6.5, GRAY);
     fy -= 9;
@@ -410,7 +419,9 @@ export default async function handler(req, res) {
     const linkedIds = project[LINKED_FIELD] || [];
     const lineItems = await getLineItems(token, linkedIds);
 
-    const orientation = lineItems.length <= 30 ? "landscape" : "portrait";
+    // CHANGED: orientation log matches new dynamic calculation
+    const availableLand = 595.28 - MARGIN * 2 - 165 - 40 - 85 - 35;
+    const orientation = lineItems.length * 15 <= availableLand ? "landscape" : "portrait";
     console.log(`"${project["Tilboðsblaðs heiti"] || recordId}" — ${lineItems.length} items — ${orientation}`);
 
     const pdfBytes = await buildPdf(project, lineItems);
