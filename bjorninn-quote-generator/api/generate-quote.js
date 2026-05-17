@@ -2,7 +2,7 @@
 // Björninn Innréttingar – Quote PDF Generator
 // Vercel serverless function
 // Called by an Airtable automation (button) with { recordId, secret }
-// Generates a PDF quote and uploads it to the Airtable record.
+// Generates two PDFs: full detail + room summary, uploads both to Airtable.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const chromium = require('@sparticuz/chromium');
@@ -81,17 +81,193 @@ function stripHtml(str) {
   return str ? String(str).replace(/<[^>]+>/g, '') : '';
 }
 
-// ── HTML template ──────────────────────────────────────────────────────────────
+// ── Grouping logic ─────────────────────────────────────────────────────────────
+// Groups line items by Rými. A non-empty Rými starts a new group.
+// Items with an empty Rými inherit the last named room above them.
+// Totals are parsed from "Endanlegt söluverð texti" (pre-formatted ISK string).
+// Returns: [{ name, count, total }, ...]
 
-function buildHTML({ quoteName, customer, phone, email, notes,
-                     innvols, framhlidar, lines,
-                     totalExVat, vat, totalInclVat }) {
-  // Build table rows, grouping by room
+function parseISK(str) {
+  if (!str) return 0;
+  // Strip " kr." and Icelandic thousand-separators (dots), parse as integer
+  return parseInt(String(str).replace(/[^\d]/g, ''), 10) || 0;
+}
+
+function groupByRymi(lines) {
+  const groups = [];
+  let current = null;
+
+  for (const line of lines) {
+    const rymiName = (line.room || '').trim();
+
+    if (rymiName) {
+      current = { name: rymiName, count: 0, total: 0 };
+      groups.push(current);
+    } else if (!current) {
+      // Items before any named room
+      current = { name: 'Óskilgreint', count: 0, total: 0 };
+      groups.push(current);
+    }
+
+    current.count += 1;
+    current.total += parseISK(line.samtals);
+  }
+
+  return groups;
+}
+
+// ── Shared CSS ─────────────────────────────────────────────────────────────────
+
+const SHARED_CSS = `
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Kumbh Sans', sans-serif;
+    font-size: 9pt;
+    color: #000;
+    background: #fff;
+    padding: 28pt 36pt;
+  }
+
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 18pt;
+  }
+  .logo-title { font-size: 20pt; font-weight: 700; line-height: 1.1; }
+  .logo-gold  { color: #CEB163; }
+  .tagline    { font-size: 7.5pt; color: #6E6E6E; margin-top: 3pt; }
+
+  .header-right { text-align: right; }
+  .quote-label  { font-size: 9pt; font-weight: 700; }
+  .quote-name   { font-size: 8.5pt; border-bottom: 0.75pt solid #000; padding-bottom: 2pt; margin-bottom: 6pt; }
+  .date-line    { font-size: 7.5pt; color: #6E6E6E; }
+
+  .info-grid {
+    display: flex;
+    gap: 24pt;
+    margin-bottom: 16pt;
+  }
+  .info-left, .info-right { flex: 1; }
+
+  .spec-line { font-size: 8pt; margin-bottom: 2pt; }
+  .spec-bold { font-weight: 700; }
+
+  .cust-line { font-size: 8.5pt; margin-bottom: 3pt; }
+  .cust-line span { border-bottom: 0.75pt solid #000; padding-bottom: 1pt; }
+
+  table { width: 100%; border-collapse: collapse; }
+  .main-table { margin-bottom: 16pt; }
+
+  thead th {
+    font-size: 7.5pt;
+    font-weight: 700;
+    padding: 5pt 3pt;
+    text-align: left;
+    border-top: 1.5pt solid #000;
+    border-bottom: 1.5pt solid #000;
+    white-space: nowrap;
+  }
+  thead th.right  { text-align: right; }
+  thead th.center { text-align: center; }
+
+  .totals-table { width: 100%; }
+  .totals-table td { font-size: 9pt; padding: 2pt 3pt; }
+  .totals-table .lbl { text-align: left; }
+  .totals-table .val { text-align: right; white-space: nowrap; }
+  .totals-table .vsk td { text-decoration: underline; }
+  .totals-table .grand td {
+    font-size: 11pt;
+    font-weight: 700;
+    color: #CEB163;
+    border-top: 1pt solid #000;
+    padding-top: 5pt;
+  }
+
+  .footer {
+    margin-top: 28pt;
+    padding-top: 8pt;
+    border-top: 0.5pt solid #C2C2C2;
+    font-size: 6.5pt;
+    color: #6E6E6E;
+    text-align: center;
+    line-height: 1.7;
+  }
+  .footer strong { font-weight: 600; color: #000; }
+`;
+
+// ── Shared HTML fragments ──────────────────────────────────────────────────────
+
+function buildHeaderHTML({ quoteName, customer, phone, email, innvols, framhlidar, notes }) {
+  return `
+<div class="header">
+  <div>
+    <div class="logo-title">
+      <span class="logo-gold">BJÖRNINN</span> INNRÉTTINGAR
+    </div>
+    <div class="tagline">Íslensk framleiðsla í meira en hálfa öld</div>
+  </div>
+  <div class="header-right">
+    <div class="quote-label">Tilboð:</div>
+    <div class="quote-name">${quoteName}</div>
+    <div class="cust-line">Tengiliður: <span>${customer}</span></div>
+    <div class="cust-line">Sími/netfang: <span>${[phone, email].filter(Boolean).join(' / ')}</span></div>
+    <div class="date-line" style="margin-top:6pt;">Dags: ${todayDate()}</div>
+    <div class="date-line">Tilboð gildir í 30 daga frá útgáfudegi</div>
+  </div>
+</div>
+
+<div class="info-grid">
+  <div class="info-left">
+    ${innvols    ? `<div class="spec-line"><span class="spec-bold">INNVOLS:</span> ${innvols}</div>` : ''}
+    ${framhlidar ? `<div class="spec-line"><span class="spec-bold">FRAMHLIÐAR:</span> ${framhlidar}</div>` : ''}
+  </div>
+  <div class="info-right">
+    ${notes ? `<div class="spec-line"><span class="spec-bold">Athugasemd:</span> ${notes}</div>` : ''}
+  </div>
+</div>`;
+}
+
+function buildTotalsHTML({ totalExVat, vat, totalInclVat }) {
+  return `
+<table class="totals-table">
+  <tr>
+    <td class="lbl">Samtals</td>
+    <td class="val">${fmtISK(totalExVat)}</td>
+  </tr>
+  <tr class="vsk">
+    <td class="lbl">Vsk.</td>
+    <td class="val">${fmtISK(vat)}</td>
+  </tr>
+  <tr class="grand">
+    <td class="lbl">Samtals m. vsk.</td>
+    <td class="val">${fmtISK(totalInclVat)}</td>
+  </tr>
+</table>`;
+}
+
+const FOOTER_HTML = `
+<div class="footer">
+  Björninn ehf | Álfhella 5 | 221, Hafnarfjörður | bjorninn@bjorninninnrettingar.is | bjorninninnrettingar.is
+  | Tilboði fylgir hvorki uppsetning né flutningur nema það komi sérstaklega fram<br>
+  <strong>
+    Skilmála Bjarnarins má finna hér: https://www.bjorninninnrettingar.is/skilmálar
+    &nbsp;|&nbsp;
+    Mikilvægt er að kynna sér skilmála en innborgun er samþykki við skilmálum
+  </strong><br>
+  Ath. endurgreiðsla á staðfestingargjaldi er ekki möguleg undir neinum kringumstæðum
+</div>`;
+
+// ── Detail HTML template ───────────────────────────────────────────────────────
+
+function buildDetailHTML({ quoteName, customer, phone, email, notes,
+                           innvols, framhlidar, lines,
+                           totalExVat, vat, totalInclVat }) {
   let rows = '';
   let lastRoom = null;
 
   for (const line of lines) {
-    // Room header row (only when room changes)
     if (line.room !== lastRoom) {
       rows += `
         <tr class="room-row">
@@ -102,8 +278,7 @@ function buildHTML({ quoteName, customer, phone, email, notes,
     }
 
     const afslDisplay = line.afsl ? (line.afsl * 100).toFixed(0) + ' %' : '';
-    // Prefer a custom work description; fall back to the variant description
-    const descDisplay  = line.lysing || line.utfaersla || '';
+    const descDisplay = line.lysing || line.utfaersla || '';
 
     rows += `
       <tr>
@@ -125,62 +300,7 @@ function buildHTML({ quoteName, customer, phone, email, notes,
 <meta charset="UTF-8">
 <link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  body {
-    font-family: 'Kumbh Sans', sans-serif;
-    font-size: 9pt;
-    color: #000;
-    background: #fff;
-    padding: 28pt 36pt;
-  }
-
-  /* ── Header ── */
-  .header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 18pt;
-  }
-  .logo-title { font-size: 20pt; font-weight: 700; line-height: 1.1; }
-  .logo-gold  { color: #CEB163; }
-  .tagline    { font-size: 7.5pt; color: #6E6E6E; margin-top: 3pt; }
-
-  .header-right { text-align: right; }
-  .quote-label  { font-size: 9pt; font-weight: 700; }
-  .quote-name   { font-size: 8.5pt; border-bottom: 0.75pt solid #000; padding-bottom: 2pt; margin-bottom: 6pt; }
-  .date-line    { font-size: 7.5pt; color: #6E6E6E; }
-
-  /* ── Info block ── */
-  .info-grid {
-    display: flex;
-    gap: 24pt;
-    margin-bottom: 16pt;
-  }
-  .info-left, .info-right { flex: 1; }
-
-  .spec-line { font-size: 8pt; margin-bottom: 2pt; }
-  .spec-bold { font-weight: 700; }
-
-  .cust-line { font-size: 8.5pt; margin-bottom: 3pt; }
-  .cust-line span { border-bottom: 0.75pt solid #000; padding-bottom: 1pt; }
-
-  /* ── Table ── */
-  table { width: 100%; border-collapse: collapse; }
-
-  .main-table { margin-bottom: 16pt; }
-
-  thead th {
-    font-size: 7.5pt;
-    font-weight: 700;
-    padding: 5pt 3pt;
-    text-align: left;
-    border-top: 1.5pt solid #000;
-    border-bottom: 1.5pt solid #000;
-    white-space: nowrap;
-  }
-  thead th.right  { text-align: right; }
-  thead th.center { text-align: center; }
+  ${SHARED_CSS}
 
   tbody tr.room-row td.room-label {
     font-size: 7.5pt;
@@ -198,66 +318,12 @@ function buildHTML({ quoteName, customer, phone, email, notes,
   td.center { text-align: center; }
   td.nowrap { white-space: nowrap; }
   td.desc   { max-width: 160pt; }
-
-  /* ── Totals ── */
-  .totals-table { width: 100%; }
-  .totals-table td { font-size: 9pt; padding: 2pt 3pt; }
-  .totals-table .lbl { text-align: left; }
-  .totals-table .val { text-align: right; white-space: nowrap; }
-  .totals-table .vsk td { text-decoration: underline; }
-  .totals-table .grand td {
-    font-size: 11pt;
-    font-weight: 700;
-    color: #CEB163;
-    border-top: 1pt solid #000;
-    padding-top: 5pt;
-  }
-
-  /* ── Footer ── */
-  .footer {
-    margin-top: 28pt;
-    padding-top: 8pt;
-    border-top: 0.5pt solid #C2C2C2;
-    font-size: 6.5pt;
-    color: #6E6E6E;
-    text-align: center;
-    line-height: 1.7;
-  }
-  .footer strong { font-weight: 600; color: #000; }
 </style>
 </head>
 <body>
 
-<!-- ── Header ── -->
-<div class="header">
-  <div>
-    <div class="logo-title">
-      <span class="logo-gold">BJÖRNINN</span> INNRÉTTINGAR
-    </div>
-    <div class="tagline">Íslensk framleiðsla í meira en hálfa öld</div>
-  </div>
-  <div class="header-right">
-    <div class="quote-label">Tilboð:</div>
-    <div class="quote-name">${quoteName}</div>
-    <div class="cust-line">Tengiliður: <span>${customer}</span></div>
-    <div class="cust-line">Sími/netfang: <span>${[phone, email].filter(Boolean).join(' / ')}</span></div>
-    <div class="date-line" style="margin-top:6pt;">Dags: ${todayDate()}</div>
-    <div class="date-line">Tilboð gildir í 30 daga frá útgáfudegi</div>
-  </div>
-</div>
+${buildHeaderHTML({ quoteName, customer, phone, email, innvols, framhlidar, notes })}
 
-<!-- ── Material specs + comment ── -->
-<div class="info-grid">
-  <div class="info-left">
-    ${innvols    ? `<div class="spec-line"><span class="spec-bold">INNVOLS:</span> ${innvols}</div>` : ''}
-    ${framhlidar ? `<div class="spec-line"><span class="spec-bold">FRAMHLIÐAR:</span> ${framhlidar}</div>` : ''}
-  </div>
-  <div class="info-right">
-    ${notes ? `<div class="spec-line"><span class="spec-bold">Athugasemd:</span> ${notes}</div>` : ''}
-  </div>
-</div>
-
-<!-- ── Line items table ── -->
 <table class="main-table">
   <thead>
     <tr>
@@ -277,36 +343,112 @@ function buildHTML({ quoteName, customer, phone, email, notes,
   </tbody>
 </table>
 
-<!-- ── Totals ── -->
-<table class="totals-table">
-  <tr>
-    <td class="lbl">Samtals</td>
-    <td class="val">${fmtISK(totalExVat)}</td>
-  </tr>
-  <tr class="vsk">
-    <td class="lbl">Vsk.</td>
-    <td class="val">${fmtISK(vat)}</td>
-  </tr>
-  <tr class="grand">
-    <td class="lbl">Samtals m. vsk.</td>
-    <td class="val">${fmtISK(totalInclVat)}</td>
-  </tr>
-</table>
-
-<!-- ── Footer ── -->
-<div class="footer">
-  Björninn ehf | Álfhella 5 | 221, Hafnarfjörður | bjorninn@bjorninninnrettingar.is | bjorninninnrettingar.is
-  | Tilboði fylgir hvorki uppsetning né flutningur nema það komi sérstaklega fram<br>
-  <strong>
-    Skilmála Bjarnarins má finna hér: https://www.bjorninninnrettingar.is/skilmálar
-    &nbsp;|&nbsp;
-    Mikilvægt er að kynna sér skilmála en innborgun er samþykki við skilmálum
-  </strong><br>
-  Ath. endurgreiðsla á staðfestingargjaldi er ekki möguleg undir neinum kringumstæðum
-</div>
+${buildTotalsHTML({ totalExVat, vat, totalInclVat })}
+${FOOTER_HTML}
 
 </body>
 </html>`;
+}
+
+// ── Summary HTML template ──────────────────────────────────────────────────────
+
+function buildSummaryHTML({ quoteName, customer, phone, email, notes,
+                            innvols, framhlidar, groups,
+                            totalExVat, vat, totalInclVat }) {
+  let rows = '';
+  for (let i = 0; i < groups.length; i++) {
+    const g  = groups[i];
+    const bg = i % 2 === 0 ? '' : 'style="background:#F8F8F8"';
+    rows += `
+      <tr ${bg}>
+        <td class="room-name">${g.name}</td>
+        <td class="center">${g.count}</td>
+        <td class="right nowrap">${fmtISK(g.total)}</td>
+      </tr>`;
+  }
+
+  return `<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  ${SHARED_CSS}
+
+  tbody td {
+    font-size: 9.5pt;
+    padding: 7pt 4pt;
+    border-bottom: 0.5pt solid #F0F0F0;
+    vertical-align: middle;
+  }
+  td.room-name { font-weight: 600; }
+  td.right  { text-align: right; }
+  td.center { text-align: center; }
+  td.nowrap { white-space: nowrap; }
+</style>
+</head>
+<body>
+
+${buildHeaderHTML({ quoteName, customer, phone, email, innvols, framhlidar, notes })}
+
+<table class="main-table">
+  <thead>
+    <tr>
+      <th>Rými</th>
+      <th class="center" style="width:80pt">Fjöldi eininga</th>
+      <th class="right" style="width:110pt">Samtals m. vsk.</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${rows}
+  </tbody>
+</table>
+
+${buildTotalsHTML({ totalExVat, vat, totalInclVat })}
+${FOOTER_HTML}
+
+</body>
+</html>`;
+}
+
+// ── PDF rendering ──────────────────────────────────────────────────────────────
+
+async function renderPDF(browser, html) {
+  const page = await browser.newPage();
+  try {
+    await page.setContent(html, { waitUntil: 'networkidle0' });
+    return await page.pdf({
+      format:          'A4',
+      printBackground: true,
+      margin:          { top: '0', right: '0', bottom: '0', left: '0' },
+    });
+  } finally {
+    await page.close();
+  }
+}
+
+// ── Upload helper ──────────────────────────────────────────────────────────────
+
+async function uploadPDF(recordId, pdfBuffer, filename) {
+  const blob     = new Blob([pdfBuffer], { type: 'application/pdf' });
+  const formData = new FormData();
+  formData.append('file',        blob, filename);
+  formData.append('filename',    filename);
+  formData.append('contentType', 'application/pdf');
+
+  const uploadRes = await fetch(
+    `https://content.airtable.com/v0/${BASE_ID}/${recordId}/${TILBOD_FIELD_ID}/uploadAttachment`,
+    {
+      method:  'POST',
+      headers: { 'Authorization': `Bearer ${process.env.AIRTABLE_TOKEN}` },
+      body:    formData,
+    }
+  );
+
+  if (!uploadRes.ok) {
+    throw new Error(`Airtable upload failed [${uploadRes.status}]: ${await uploadRes.text()}`);
+  }
+  return uploadRes.json();
 }
 
 // ── Main handler ───────────────────────────────────────────────────────────────
@@ -318,7 +460,6 @@ module.exports = async function handler(req, res) {
 
   const { recordId, secret } = req.body || {};
 
-  // Simple secret check so random people can't call your endpoint
   if (secret !== process.env.WEBHOOK_SECRET) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -332,11 +473,7 @@ module.exports = async function handler(req, res) {
     const pf = project.fields;
 
     // ── 2. Fetch all linked line items ─────────────────────────────────────
-    // The field name includes special characters – use the exact name from Airtable
     const lineItemIds = pf["Vöru línur ➡️📦 (Line item's)"] || [];
-    // (the field name is: "Vöru línur ➖📦 (Line item's)" – stored as a Unicode string)
-    // If the above doesn't work, try the key below (Airtable sometimes uses field IDs internally)
-    // Fallback: look for any key containing "Vöru línur"
     const lineItemIdsResolved = lineItemIds.length > 0
       ? lineItemIds
       : (() => {
@@ -385,7 +522,6 @@ module.exports = async function handler(req, res) {
     ]);
     const efniMap = Object.fromEntries(efniRecords.map(r => [r.id, r.fields]));
 
-    // Build the material spec strings (e.g. "Plastl spónapl 16mm U963 dökkgrá ST2")
     const buildMatStr = id => {
       if (!id || !efniMap[id]) return '';
       const m = efniMap[id];
@@ -406,7 +542,7 @@ module.exports = async function handler(req, res) {
       return {
         room:         f['Rými 🏡']                   || '',
         vorunr:       prod['Vörunúmer #️⃣']           || '',
-        tegund:       variant['Vörunúmer']            || '', // variant code = "Tegund" column
+        tegund:       variant['Vörunúmer']            || '',
         vara:         first(f['Vara 🚪'])             || prod['Heiti vöru 📣'] || '',
         utfaersla:    first(f['útfærsla 🎨'])         || variant['Lýsing á útfærslu'] || '',
         magn:         f['Magn']                       ?? '',
@@ -430,13 +566,20 @@ module.exports = async function handler(req, res) {
     const email     = first(pf['Netfang 📧']);
     const notes     = stripHtml(pf['Glósur']);
 
-    // ── 7. Render HTML → PDF ───────────────────────────────────────────────
-    const html = buildHTML({
-      quoteName, customer, phone, email, notes,
-      innvols, framhlidar, lines,
-      totalExVat, vat, totalInclVat,
+    // ── 7. Group lines by room (for summary PDF) ───────────────────────────
+    const groups = groupByRymi(lines);
+
+    // ── 8. Build both HTML templates ───────────────────────────────────────
+    const sharedProps = { quoteName, customer, phone, email, notes, innvols, framhlidar };
+
+    const detailHTML  = buildDetailHTML({
+      ...sharedProps, lines, totalExVat, vat, totalInclVat,
+    });
+    const summaryHTML = buildSummaryHTML({
+      ...sharedProps, groups, totalExVat, vat, totalInclVat,
     });
 
+    // ── 9. Render both PDFs with a single browser instance ─────────────────
     const browser = await puppeteer.launch({
       args:            chromium.args,
       defaultViewport: chromium.defaultViewport,
@@ -444,45 +587,27 @@ module.exports = async function handler(req, res) {
       headless:        true,
     });
 
-    let pdfBuffer;
+    let detailBuffer, summaryBuffer;
     try {
-      const page = await browser.newPage();
-      // waitUntil:'networkidle0' lets Google Fonts load before generating the PDF
-      await page.setContent(html, { waitUntil: 'networkidle0' });
-      pdfBuffer = await page.pdf({
-        format:          'A4',
-        printBackground: true,
-        margin:          { top: '0', right: '0', bottom: '0', left: '0' },
-      });
+      // Render sequentially — reuses the same browser, avoids memory spikes
+      detailBuffer  = await renderPDF(browser, detailHTML);
+      summaryBuffer = await renderPDF(browser, summaryHTML);
     } finally {
       await browser.close();
     }
 
-    // ── 8. Upload PDF to Airtable attachment field ─────────────────────────
-    const filename = `${quoteName}.pdf`;
+    // ── 10. Upload both PDFs to Airtable ───────────────────────────────────
+    const safeTitle = quoteName.replace(/[/\\:*?"<>|]/g, '-').trim();
 
-    // Native FormData + Blob (Node 18+)
-    const blob     = new Blob([pdfBuffer], { type: 'application/pdf' });
-    const formData = new FormData();
-    formData.append('file',        blob, filename);
-    formData.append('filename',    filename);
-    formData.append('contentType', 'application/pdf');
+    await uploadPDF(recordId, detailBuffer,  `${safeTitle} | Tilboð.pdf`);
+    await uploadPDF(recordId, summaryBuffer, `${safeTitle} | Yfirlit.pdf`);
 
-    const uploadRes = await fetch(
-      `https://content.airtable.com/v0/${BASE_ID}/${recordId}/${TILBOD_FIELD_ID}/uploadAttachment`,
-      {
-        method:  'POST',
-        headers: { 'Authorization': `Bearer ${process.env.AIRTABLE_TOKEN}` },
-        body:    formData,
-      }
-    );
-
-    if (!uploadRes.ok) {
-      const errBody = await uploadRes.text();
-      throw new Error(`Airtable upload failed [${uploadRes.status}]: ${errBody}`);
-    }
-
-    return res.status(200).json({ success: true, filename });
+    return res.status(200).json({
+      success:   true,
+      filename:  `${safeTitle} | Tilboð.pdf`,
+      lineItems: lines.length,
+      rooms:     groups.length,
+    });
 
   } catch (err) {
     console.error('[generate-quote] Error:', err.message);
