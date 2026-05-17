@@ -1,450 +1,616 @@
-// api/generate-quote.js
-// Björninn ehf. — Quote PDF Generator
-// pdf-lib, pure JS, no native deps
+// ─────────────────────────────────────────────────────────────────────────────
+// Björninn Innréttingar – Quote PDF Generator
+// Vercel serverless function
+// Called by an Airtable automation (button) with { recordId, secret }
+// Generates two PDFs: full detail + room summary, uploads both to Airtable.
+// ─────────────────────────────────────────────────────────────────────────────
 
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+const chromium = require('@sparticuz/chromium');
+const puppeteer = require('puppeteer-core');
 
-const AIRTABLE_BASE    = "app91U15z9K704Okd";
-const PROJECTS_TABLE   = "tbl4LMXlQjp66RFKI";
-const LINE_ITEMS_TABLE = "tblFcsUoGxsuUwNEH";
-const ATTACHMENT_FIELD = "flddIR5JAm8ZM753V";
-const LINKED_FIELD     = "Vöru línur ➖📦 (Line item's)";
+// ── Airtable config ────────────────────────────────────────────────────────────
+const BASE_ID        = 'app91U15z9K704Okd';
+const TABLE_TAEK     = 'tbl4LMXlQjp66RFKI'; // Tækifæri (projects)
+const TABLE_LINUR    = 'tblFcsUoGxsuUwNEH'; // Vöru línur (line items)
+const TABLE_VORUR    = 'tblzuuRSRkeXaLWxC'; // Vörulisti (product list)
+const TABLE_UTFAER   = 'tbl8HjvBwNJ41cTV0'; // Útfærslur (variants)
+const TABLE_EFNI     = 'tbl8CrVWKF8CuI7HD'; // Efnislisti (materials)
 
-// Brand colours
-const GOLD      = rgb(0.808, 0.694, 0.388);  // #CEB163
-const DARK      = rgb(0.102, 0.102, 0.102);  // #1A1A1A
-const GRAY      = rgb(0.431, 0.431, 0.431);  // #6E6E6E
-const LIGHT     = rgb(0.941, 0.941, 0.941);  // #F0F0F0
-const GOLD_TINT = rgb(0.980, 0.961, 0.906);  // very light gold for table header
+// Field ID for the "Tilboð til sendingar" attachment field on Tækifæri
+const TILBOD_FIELD_ID = 'flddIR5JAm8ZM753V';
 
-const MARGIN = 48;
+// ── Airtable helpers ───────────────────────────────────────────────────────────
 
-// Logo fetched once per cold start and cached
-const LOGO_URL =
-  "https://raw.githubusercontent.com/bjorninninnrettingar/bjorninn-quote-generator/main/Lo%CC%81go%CC%81%20a%CC%81%20hvi%CC%81tum.png";
-let _logoCache = null;
-async function getLogo() {
-  if (_logoCache) return _logoCache;
+function airtableHeaders() {
+  return {
+    'Authorization': `Bearer ${process.env.AIRTABLE_TOKEN}`,
+    'Content-Type': 'application/json',
+  };
+}
+
+async function fetchRecord(tableId, recordId) {
+  const url = `https://api.airtable.com/v0/${BASE_ID}/${tableId}/${recordId}`;
+  const res = await fetch(url, { headers: airtableHeaders() });
+  if (!res.ok) {
+    throw new Error(`Airtable fetchRecord failed [${res.status}]: ${await res.text()}`);
+  }
+  return res.json();
+}
+
+// Fetch multiple records by their IDs (batched into one API call per table)
+async function batchFetch(tableId, recordIds, fields = []) {
+  if (!recordIds || recordIds.length === 0) return [];
+
+  const unique = [...new Set(recordIds)];
+  const formula = unique.length === 1
+    ? `RECORD_ID()="${unique[0]}"`
+    : `OR(${unique.map(id => `RECORD_ID()="${id}"`).join(',')})`;
+
+  const params = new URLSearchParams();
+  params.set('filterByFormula', formula);
+  fields.forEach(f => params.append('fields[]', f));
+
+  const url = `https://api.airtable.com/v0/${BASE_ID}/${tableId}?${params}`;
+  const res = await fetch(url, { headers: airtableHeaders() });
+  if (!res.ok) {
+    throw new Error(`Airtable batchFetch failed [${res.status}]: ${await res.text()}`);
+  }
+  const data = await res.json();
+  return data.records || [];
+}
+
+// ── Utilities ──────────────────────────────────────────────────────────────────
+
+// Airtable lookup fields return arrays – grab the first value
+const first = val => (Array.isArray(val) ? (val[0] ?? '') : (val ?? ''));
+
+// Format ISK currency
+function fmtISK(n) {
+  return new Intl.NumberFormat('is-IS').format(Math.round(n || 0)) + ' kr.';
+}
+
+// Today's date as DD-MM-YYYY
+function todayDate() {
+  return new Date().toLocaleDateString('is-IS', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+  });
+}
+
+// Strip rich-text HTML tags from Airtable richText fields
+function stripHtml(str) {
+  return str ? String(str).replace(/<[^>]+>/g, '') : '';
+}
+
+// ── Grouping logic ─────────────────────────────────────────────────────────────
+// Groups line items by Rými. A non-empty Rými starts a new group.
+// Items with an empty Rými inherit the last named room above them.
+// Totals are parsed from "Endanlegt söluverð texti" (pre-formatted ISK string).
+// Returns: [{ name, count, total }, ...]
+
+function parseISK(str) {
+  if (!str) return 0;
+  // Strip " kr." and Icelandic thousand-separators (dots), parse as integer
+  return parseInt(String(str).replace(/[^\d]/g, ''), 10) || 0;
+}
+
+function groupByRymi(lines) {
+  const groups = [];
+  let current = null;
+
+  for (const line of lines) {
+    const rymiName = (line.room || '').trim();
+
+    if (rymiName) {
+      current = { name: rymiName, count: 0, total: 0 };
+      groups.push(current);
+    } else if (!current) {
+      // Items before any named room
+      current = { name: 'Óskilgreint', count: 0, total: 0 };
+      groups.push(current);
+    }
+
+    current.count += 1;
+    current.total += parseISK(line.samtals);
+  }
+
+  return groups;
+}
+
+// ── Shared CSS ─────────────────────────────────────────────────────────────────
+
+const SHARED_CSS = `
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Kumbh Sans', sans-serif;
+    font-size: 9pt;
+    color: #000;
+    background: #fff;
+    padding: 28pt 36pt;
+  }
+
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 18pt;
+  }
+  .logo-title { font-size: 20pt; font-weight: 700; line-height: 1.1; }
+  .logo-gold  { color: #CEB163; }
+  .tagline    { font-size: 7.5pt; color: #6E6E6E; margin-top: 3pt; }
+
+  .header-right { text-align: right; }
+  .quote-label  { font-size: 9pt; font-weight: 700; }
+  .quote-name   { font-size: 8.5pt; border-bottom: 0.75pt solid #000; padding-bottom: 2pt; margin-bottom: 6pt; }
+  .date-line    { font-size: 7.5pt; color: #6E6E6E; }
+
+  .info-grid {
+    display: flex;
+    gap: 24pt;
+    margin-bottom: 16pt;
+  }
+  .info-left, .info-right { flex: 1; }
+
+  .spec-line { font-size: 8pt; margin-bottom: 2pt; }
+  .spec-bold { font-weight: 700; }
+
+  .cust-line { font-size: 8.5pt; margin-bottom: 3pt; }
+  .cust-line span { border-bottom: 0.75pt solid #000; padding-bottom: 1pt; }
+
+  table { width: 100%; border-collapse: collapse; }
+  .main-table { margin-bottom: 16pt; }
+
+  thead th {
+    font-size: 7.5pt;
+    font-weight: 700;
+    padding: 5pt 3pt;
+    text-align: left;
+    border-top: 1.5pt solid #000;
+    border-bottom: 1.5pt solid #000;
+    white-space: nowrap;
+  }
+  thead th.right  { text-align: right; }
+  thead th.center { text-align: center; }
+
+  .totals-table { width: 100%; }
+  .totals-table td { font-size: 9pt; padding: 2pt 3pt; }
+  .totals-table .lbl { text-align: left; }
+  .totals-table .val { text-align: right; white-space: nowrap; }
+  .totals-table .vsk td { text-decoration: underline; }
+  .totals-table .grand td {
+    font-size: 11pt;
+    font-weight: 700;
+    color: #CEB163;
+    border-top: 1pt solid #000;
+    padding-top: 5pt;
+  }
+
+  .footer {
+    margin-top: 28pt;
+    padding-top: 8pt;
+    border-top: 0.5pt solid #C2C2C2;
+    font-size: 6.5pt;
+    color: #6E6E6E;
+    text-align: center;
+    line-height: 1.7;
+  }
+  .footer strong { font-weight: 600; color: #000; }
+`;
+
+// ── Shared HTML fragments ──────────────────────────────────────────────────────
+
+function buildHeaderHTML({ quoteName, customer, phone, email, innvols, framhlidar, notes }) {
+  return `
+<div class="header">
+  <div>
+    <div class="logo-title">
+      <span class="logo-gold">BJÖRNINN</span> INNRÉTTINGAR
+    </div>
+    <div class="tagline">Íslensk framleiðsla í meira en hálfa öld</div>
+  </div>
+  <div class="header-right">
+    <div class="quote-label">Tilboð:</div>
+    <div class="quote-name">${quoteName}</div>
+    <div class="cust-line">Tengiliður: <span>${customer}</span></div>
+    <div class="cust-line">Sími/netfang: <span>${[phone, email].filter(Boolean).join(' / ')}</span></div>
+    <div class="date-line" style="margin-top:6pt;">Dags: ${todayDate()}</div>
+    <div class="date-line">Tilboð gildir í 30 daga frá útgáfudegi</div>
+  </div>
+</div>
+
+<div class="info-grid">
+  <div class="info-left">
+    ${innvols    ? `<div class="spec-line"><span class="spec-bold">INNVOLS:</span> ${innvols}</div>` : ''}
+    ${framhlidar ? `<div class="spec-line"><span class="spec-bold">FRAMHLIÐAR:</span> ${framhlidar}</div>` : ''}
+  </div>
+  <div class="info-right">
+    ${notes ? `<div class="spec-line"><span class="spec-bold">Athugasemd:</span> ${notes}</div>` : ''}
+  </div>
+</div>`;
+}
+
+function buildTotalsHTML({ totalExVat, vat, totalInclVat }) {
+  return `
+<table class="totals-table">
+  <tr>
+    <td class="lbl">Samtals</td>
+    <td class="val">${fmtISK(totalExVat)}</td>
+  </tr>
+  <tr class="vsk">
+    <td class="lbl">Vsk.</td>
+    <td class="val">${fmtISK(vat)}</td>
+  </tr>
+  <tr class="grand">
+    <td class="lbl">Samtals m. vsk.</td>
+    <td class="val">${fmtISK(totalInclVat)}</td>
+  </tr>
+</table>`;
+}
+
+const FOOTER_HTML = `
+<div class="footer">
+  Björninn ehf | Álfhella 5 | 221, Hafnarfjörður | bjorninn@bjorninninnrettingar.is | bjorninninnrettingar.is
+  | Tilboði fylgir hvorki uppsetning né flutningur nema það komi sérstaklega fram<br>
+  <strong>
+    Skilmála Bjarnarins má finna hér: https://www.bjorninninnrettingar.is/skilmálar
+    &nbsp;|&nbsp;
+    Mikilvægt er að kynna sér skilmála en innborgun er samþykki við skilmálum
+  </strong><br>
+  Ath. endurgreiðsla á staðfestingargjaldi er ekki möguleg undir neinum kringumstæðum
+</div>`;
+
+// ── Detail HTML template ───────────────────────────────────────────────────────
+
+function buildDetailHTML({ quoteName, customer, phone, email, notes,
+                           innvols, framhlidar, lines,
+                           totalExVat, vat, totalInclVat }) {
+  let rows = '';
+  let lastRoom = null;
+
+  for (const line of lines) {
+    if (line.room !== lastRoom) {
+      rows += `
+        <tr class="room-row">
+          <td class="room-label">${line.room || ''}</td>
+          <td colspan="8"></td>
+        </tr>`;
+      lastRoom = line.room;
+    }
+
+    const afslDisplay = line.afsl ? (line.afsl * 100).toFixed(0) + ' %' : '';
+    const descDisplay = line.lysing || line.utfaersla || '';
+
+    rows += `
+      <tr>
+        <td></td>
+        <td>${line.vorunr}</td>
+        <td>${line.tegund}</td>
+        <td>${line.vara}</td>
+        <td class="desc">${descDisplay}</td>
+        <td class="center">${afslDisplay}</td>
+        <td class="center">${line.magn}</td>
+        <td class="right nowrap">${line.einingarverd}</td>
+        <td class="right nowrap">${line.samtals}</td>
+      </tr>`;
+  }
+
+  return `<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  ${SHARED_CSS}
+
+  tbody tr.room-row td.room-label {
+    font-size: 7.5pt;
+    font-weight: 600;
+    color: #6E6E6E;
+    padding: 8pt 3pt 2pt;
+  }
+  tbody tr:not(.room-row) td {
+    font-size: 7.5pt;
+    padding: 3pt 3pt;
+    border-bottom: 0.5pt solid #F0F0F0;
+    vertical-align: top;
+  }
+  td.right  { text-align: right; }
+  td.center { text-align: center; }
+  td.nowrap { white-space: nowrap; }
+  td.desc   { max-width: 160pt; }
+</style>
+</head>
+<body>
+
+${buildHeaderHTML({ quoteName, customer, phone, email, innvols, framhlidar, notes })}
+
+<table class="main-table">
+  <thead>
+    <tr>
+      <th style="width:52pt">(Rými)</th>
+      <th style="width:40pt">Vörunr</th>
+      <th style="width:50pt">Tegund</th>
+      <th style="width:100pt">Vara</th>
+      <th>Útfærsla</th>
+      <th class="center" style="width:32pt">Afsl.</th>
+      <th class="center" style="width:30pt">Magn</th>
+      <th class="right" style="width:68pt">Einingarverð</th>
+      <th class="right" style="width:72pt">Samtals m.vsk</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${rows}
+  </tbody>
+</table>
+
+${buildTotalsHTML({ totalExVat, vat, totalInclVat })}
+${FOOTER_HTML}
+
+</body>
+</html>`;
+}
+
+// ── Summary HTML template ──────────────────────────────────────────────────────
+
+function buildSummaryHTML({ quoteName, customer, phone, email, notes,
+                            innvols, framhlidar, groups,
+                            totalExVat, vat, totalInclVat }) {
+  let rows = '';
+  for (let i = 0; i < groups.length; i++) {
+    const g  = groups[i];
+    const bg = i % 2 === 0 ? '' : 'style="background:#F8F8F8"';
+    rows += `
+      <tr ${bg}>
+        <td class="room-name">${g.name}</td>
+        <td class="center">${g.count}</td>
+        <td class="right nowrap">${fmtISK(g.total)}</td>
+      </tr>`;
+  }
+
+  return `<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  ${SHARED_CSS}
+
+  tbody td {
+    font-size: 9.5pt;
+    padding: 7pt 4pt;
+    border-bottom: 0.5pt solid #F0F0F0;
+    vertical-align: middle;
+  }
+  td.room-name { font-weight: 600; }
+  td.right  { text-align: right; }
+  td.center { text-align: center; }
+  td.nowrap { white-space: nowrap; }
+</style>
+</head>
+<body>
+
+${buildHeaderHTML({ quoteName, customer, phone, email, innvols, framhlidar, notes })}
+
+<table class="main-table">
+  <thead>
+    <tr>
+      <th>Rými</th>
+      <th class="center" style="width:80pt">Fjöldi eininga</th>
+      <th class="right" style="width:110pt">Samtals m. vsk.</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${rows}
+  </tbody>
+</table>
+
+${buildTotalsHTML({ totalExVat, vat, totalInclVat })}
+${FOOTER_HTML}
+
+</body>
+</html>`;
+}
+
+// ── PDF rendering ──────────────────────────────────────────────────────────────
+
+async function renderPDF(browser, html) {
+  const page = await browser.newPage();
   try {
-    const res = await fetch(LOGO_URL);
-    if (res.ok) _logoCache = new Uint8Array(await res.arrayBuffer());
-    else console.warn("Logo fetch status:", res.status);
-  } catch (e) {
-    console.warn("Logo fetch failed:", e.message);
+    await page.setContent(html, { waitUntil: 'networkidle0' });
+    return await page.pdf({
+      format:          'A4',
+      printBackground: true,
+      margin:          { top: '0', right: '0', bottom: '0', left: '0' },
+    });
+  } finally {
+    await page.close();
   }
-  return _logoCache;
 }
 
-// ── Airtable ──────────────────────────────────────────────────────────────────
+// ── Upload helper ──────────────────────────────────────────────────────────────
 
-async function airtableFetch(url, token) {
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-  });
-  if (!res.ok) throw new Error(`Airtable ${res.status}: ${await res.text()}`);
-  return res.json();
-}
+async function uploadPDF(recordId, pdfBuffer, filename) {
+  const blob     = new Blob([pdfBuffer], { type: 'application/pdf' });
+  const formData = new FormData();
+  formData.append('file',        blob, filename);
+  formData.append('filename',    filename);
+  formData.append('contentType', 'application/pdf');
 
-async function getProject(token, recordId) {
-  const data = await airtableFetch(
-    `https://api.airtable.com/v0/${AIRTABLE_BASE}/${PROJECTS_TABLE}/${recordId}`,
-    token
-  );
-  return data.fields;
-}
-
-async function getLineItems(token, linkedIds) {
-  if (!linkedIds || linkedIds.length === 0) return [];
-  const filter = `OR(${linkedIds.map((id) => `RECORD_ID()="${id}"`).join(",")})`;
-  const data = await airtableFetch(
-    `https://api.airtable.com/v0/${AIRTABLE_BASE}/${LINE_ITEMS_TABLE}?filterByFormula=${encodeURIComponent(filter)}`,
-    token
-  );
-  const recordMap = Object.fromEntries(data.records.map((r) => [r.id, r.fields]));
-  return linkedIds.map((id) => recordMap[id]).filter(Boolean);
-}
-
-async function clearAttachments(token, recordId) {
-  // Delete all existing attachments so old PDFs don't linger alongside new ones
-  const res = await fetch(
-    `https://api.airtable.com/v0/${AIRTABLE_BASE}/${PROJECTS_TABLE}/${recordId}`,
+  const uploadRes = await fetch(
+    `https://content.airtable.com/v0/${BASE_ID}/${recordId}/${TILBOD_FIELD_ID}/uploadAttachment`,
     {
-      method: "PATCH",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ fields: { [ATTACHMENT_FIELD]: [] } }),
+      method:  'POST',
+      headers: { 'Authorization': `Bearer ${process.env.AIRTABLE_TOKEN}` },
+      body:    formData,
     }
   );
-  if (!res.ok) console.warn(`clearAttachments: ${res.status} ${await res.text()}`);
+
+  if (!uploadRes.ok) {
+    throw new Error(`Airtable upload failed [${uploadRes.status}]: ${await uploadRes.text()}`);
+  }
+  return uploadRes.json();
 }
 
-async function uploadPdf(token, recordId, pdfBytes, filename = "tilbod.pdf") {
-  const res = await fetch(
-    `https://content.airtable.com/v0/${AIRTABLE_BASE}/${recordId}/${ATTACHMENT_FIELD}/uploadAttachment`,
-    {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        filename,
-        contentType: "application/pdf",
-        file: Buffer.from(pdfBytes).toString("base64"),
-      }),
-    }
-  );
-  if (!res.ok) throw new Error(`Upload ${res.status}: ${await res.text()}`);
-  return res.json();
-}
+// ── Main handler ───────────────────────────────────────────────────────────────
 
-// ── PDF helpers ───────────────────────────────────────────────────────────────
-
-function formatISK(num) {
-  const n = parseFloat(num);
-  if (isNaN(n)) return "0 kr.";
-  return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") + " kr.";
-}
-
-// Airtable lookup fields return arrays — safely extract first element
-function lv(val) {
-  if (Array.isArray(val)) return val[0] ?? "";
-  return val ?? "";
-}
-
-function formatDate(val) {
-  const d = val ? new Date(val) : new Date();
-  return d.toLocaleDateString("is-IS", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
-
-function txt(page, str, x, y, font, size, color = DARK) {
-  if (str === null || str === undefined || str === "") return;
-  page.drawText(String(str), { x, y, size, font, color });
-}
-
-// Truncate text to fit within maxW points; appends "…" if cut
-function truncate(font, str, size, maxW) {
-  str = String(str);
-  if (font.widthOfTextAtSize(str, size) <= maxW) return str;
-  while (str.length > 1 && font.widthOfTextAtSize(str + "…", size) > maxW) {
-    str = str.slice(0, -1);
-  }
-  return str + "…";
-}
-
-function rect(page, x, y, w, h, color) {
-  page.drawRectangle({ x, y, width: w, height: h, color });
-}
-
-function line(page, x1, y1, x2, y2, color = GOLD, thickness = 0.75) {
-  page.drawLine({ start: { x: x1, y: y1 }, end: { x: x2, y: y2 }, thickness, color });
-}
-
-// ── PDF builder ───────────────────────────────────────────────────────────────
-
-async function buildPdf(project, lineItems) {
-  const doc = await PDFDocument.create();
-  const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
-  const fontReg  = await doc.embedFont(StandardFonts.Helvetica);
-
-  // Embed logo image (PNG with white background)
-  const logoBytes = await getLogo();
-  let logoImg = null;
-  if (logoBytes) {
-    try { logoImg = await doc.embedPng(logoBytes); } catch (e) {
-      console.warn("Logo embed failed:", e.message);
-    }
+module.exports = async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
-    // Dynamic orientation: landscape only if all rows fit on one page (~11 rows max)
-  const ROW_H = 15;
-  const availableLand = 595.28 - MARGIN * 2 - 165 - 40 - 85 - 35;
-  const landscape = lineItems.length * ROW_H <= availableLand;
-  const PW = landscape ? 841.89 : 595.28;
-  const PH = landscape ? 595.28 : 841.89;
-  const CW = PW - MARGIN * 2;  // content width
+  const { recordId, secret } = req.body || {};
 
-  function newPage() {
-    const p = doc.addPage([PW, PH]);
-    return p;
-  }
-
-  // Page break: returns { page, y } — creates new page if y is too low
-  function checkBreak(page, y, reserve = 100) {
-    if (y > MARGIN + reserve) return { page, y };
-    const p = newPage();
-    // Subtle continuation header
-    line(p, MARGIN, PH - 28, PW - MARGIN, PH - 28, GOLD, 0.5);
-    txt(p, "BJÖRNINN INNRÉTTINGAR — framhald", MARGIN, PH - 20, fontReg, 7.5, GRAY);
-    return { page: p, y: PH - 48 };
-  }
-
-  let page = newPage();
-  let y = PH - MARGIN;
-
-  // ── Header ──────────────────────────────────────────────────────────────
-  const LOGO_W = 180;  // pt — adjust if logo appears too large/small
-  if (logoImg) {
-    const LOGO_H = Math.round(LOGO_W * logoImg.height / logoImg.width);
-    // Draw logo so its vertical centre aligns with the tagline on the right
-    page.drawImage(logoImg, { x: MARGIN, y: y - LOGO_H / 2, width: LOGO_W, height: LOGO_H });
-
-    const tagline = "Íslensk framleiðsla í meira en hálfa öld";
-    const tagW = fontReg.widthOfTextAtSize(tagline, 9);
-    txt(page, tagline, PW - MARGIN - tagW, y, fontReg, 9, GRAY);
-
-    const dateStr = `Dagsetning: ${formatDate(project["Skráð þann:"])}`;
-    const dateW = fontReg.widthOfTextAtSize(dateStr, 8);
-    txt(page, dateStr, PW - MARGIN - dateW, y - 14, fontReg, 8, GRAY);
-
-    y -= LOGO_H / 2 + 6;
-  } else {
-    // Fallback: hand-drawn text logo
-    txt(page, "BJÖRNINN", MARGIN, y, fontBold, 22, GOLD);
-    const brandW = fontBold.widthOfTextAtSize("BJÖRNINN", 22);
-    const subW   = fontReg.widthOfTextAtSize("INNRÉTTINGAR", 11);
-    txt(page, "INNRÉTTINGAR", MARGIN + brandW - subW, y - 16, fontReg, 11, DARK);
-
-    const tagline = "Íslensk framleiðsla í meira en hálfa öld";
-    const tagW = fontReg.widthOfTextAtSize(tagline, 9);
-    txt(page, tagline, PW - MARGIN - tagW, y, fontReg, 9, GRAY);
-
-    const dateStr = `Dagsetning: ${formatDate(project["Skráð þann:"])}`;
-    const dateW = fontReg.widthOfTextAtSize(dateStr, 8);
-    txt(page, dateStr, PW - MARGIN - dateW, y - 14, fontReg, 8, GRAY);
-
-    y -= 28;
-  }
-  line(page, MARGIN, y, PW - MARGIN, y, GOLD, 1);
-  y -= 16;
-
-  // Quote title + validity
-  const quoteTitle = project["Tilboðsblaðs heiti"] || "Tilboð";
-  txt(page, quoteTitle, MARGIN, y, fontBold, 14, DARK);
-
-  const validStr = "Tilboð gildir í 30 daga frá útgáfudegi";
-  const validW = fontReg.widthOfTextAtSize(validStr, 8);
-  txt(page, validStr, PW - MARGIN - validW, y, fontReg, 8, GRAY);
-  y -= 22;
-
-  // ── Info block (two columns) ─────────────────────────────────────────────
-  const colL = MARGIN;
-  const colR = MARGIN + CW * 0.38;
-  const infoTopY = y;
-
-  // Left — customer
-  txt(page, "TENGILIÐUR", colL, y, fontBold, 7, GOLD);
-  y -= 13;
-  txt(page, lv(project["Fullt nafn 👤"]), colL, y, fontBold, 10, DARK);
-  y -= 13;
-  const phone = lv(project["Símanúmer ☎️"]);
-  const email = lv(project["Netfang 📧"]);
-  if (phone) { txt(page, String(phone), colL, y, fontReg, 8.5, GRAY); y -= 12; }
-  if (email) { txt(page, String(email), colL, y, fontReg, 8.5, GRAY); y -= 12; }
-
-  // Right — material spec (skip empty fields)
-  let yR = infoTopY;
-  txt(page, "EFNISVAL", colR, yR, fontBold, 7, GOLD);
-  yR -= 13;
-
-  const holder1 = lv(project["Heiti vöru 📣 (from Höldur Viðskiptavinar ✊)"]);
-  const holder2 = lv(project["Heiti vöru 📣 (from Höldur Viðskiptavinar ✊2.0)"]);
-  const holderVal = [holder1, holder2].filter(Boolean).join(" / ");
-
-  const specFields = [
-    ["Innvols",       lv(project["Heiti efnis (from Skrokka efni 🔲 viðskiptavinar)"])],
-    ["Framhliðar",    lv(project["Heiti efnis (from Fronta efni viðskiptavinar 🖼️)"])],
-    ["Framhliðar 2",  lv(project["Heiti efnis (from Fronta efni 2 Viðskiptavinar 🖼️)"])],
-    ["Borðplata",     lv(project["Heiti efnis (from Borðplata viðskiptavinar 🍽️)"])],
-    ["Höldur",        holderVal],
-  ];
-
-  for (const [label, val] of specFields) {
-    if (!val) continue;
-    txt(page, `${label}:`, colR,      yR, fontBold, 8, DARK);
-    const maxSpecW = PW - MARGIN - (colR + 78) - 4;
-    txt(page, truncate(fontReg, String(val), 8, maxSpecW), colR + 55, yR, fontReg, 8, GRAY);
-    yR -= 12;
-  }
-
-  y = Math.min(y - 10, yR - 10);
-
-  // ── Line items table ─────────────────────────────────────────────────────
-  line(page, MARGIN, y, PW - MARGIN, y, GOLD, 0.75);
-  y -= 20;
-
-  // Column definitions — Rými first
-  // Útfærsla is wide so Magn/Afsl/Einingarverð/Samtals cluster on the far right
-  const cols = [
-    { label: "Rými",            w: 0.10, align: "left",   clip: true  },
-    { label: "Vara",            w: 0.22, align: "left",   clip: true  },
-    { label: "Útfærsla",        w: 0.32, align: "left",   clip: true  },
-    { label: "Magn",            w: 0.05, align: "center", clip: false },
-    { label: "Afsl. %",         w: 0.05, align: "center", clip: false },
-    { label: "Einingarverð",    w: 0.13, align: "right",  clip: false },
-    { label: "Samtals m. vsk.", w: 0.13, align: "right",  clip: false },
-  ];
-
-  let xCur = MARGIN;
-  const colDefs = cols.map((c) => {
-    const pw = CW * c.w;
-    const def = { ...c, x: xCur, pw };
-    xCur += pw;
-    return def;
-  });
-
-  // Table header
-  rect(page, MARGIN, y - 5, CW, 18, GOLD_TINT);
-  for (const col of colDefs) {
-    const lw = fontBold.widthOfTextAtSize(col.label, 7.5);
-    const lx = col.align === "right"  ? col.x + col.pw - lw - 3
-             : col.align === "center" ? col.x + (col.pw - lw) / 2
-             : col.x + 3;
-    txt(page, col.label, lx, y, fontBold, 7.5, DARK);
-  }
-  y -= 16;
-  line(page, MARGIN, y, PW - MARGIN, y, GOLD, 0.5);
-  y -= 4;
-
-  // Rows
-  let subtotalInclVat = 0;
-
-  for (let i = 0; i < lineItems.length; i++) {
-    ({ page, y } = checkBreak(page, y, 110));
-
-    const item = lineItems[i];
-    const qty       = parseFloat(item["Magn"]        ?? 1) || 1;
-    const unitPrice = parseFloat(item["Einingarverð"] ?? 0) || 0;
-    const discPct   = parseFloat(item["Afsl. %"]      ?? 0) || 0;
-    const lineExVat   = unitPrice * qty * (1 - discPct);
-    const lineInclVat = lineExVat * 1.24;
-    subtotalInclVat += lineInclVat;
-
-    // Alternating row background
-    if (i % 2 === 0) rect(page, MARGIN, y - 3, CW, ROW_H, LIGHT);
-
-    const rowData = [
-      item["Rými 🏡"]      || "",
-      item["Vara 🚪"]      || "—",
-      item["útfærsla 🎨"]  || "",
-      qty % 1 === 0 ? String(qty) : qty.toFixed(1),
-      discPct ? `${Math.round(discPct * 100)}%` : "—",
-      formatISK(unitPrice),
-      formatISK(lineInclVat),
-    ];
-
-    for (let ci = 0; ci < colDefs.length; ci++) {
-      const col = colDefs[ci];
-      const maxTextW = col.pw - 6;  // 3pt padding each side
-      const raw = String(rowData[ci] ?? "");
-      const val = col.clip ? truncate(fontReg, raw, 8, maxTextW) : raw;
-      const vw = fontReg.widthOfTextAtSize(val, 8);
-      const vx = col.align === "right"  ? col.x + col.pw - vw - 3
-               : col.align === "center" ? col.x + (col.pw - vw) / 2
-               : col.x + 3;
-      txt(page, val, vx, y, fontReg, 8, DARK);
-    }
-    y -= ROW_H;
-  }
-
-  // ── Totals ───────────────────────────────────────────────────────────────
-  ({ page, y } = checkBreak(page, y, 90));
-  y -= 16;
-  line(page, MARGIN, y, PW - MARGIN, y, GRAY, 0.4);
-  y -= 16;
-
-  // Use locally computed row totals as source of truth (avoids double-counting from project rollup fields)
-  const totalInclVat = subtotalInclVat;
-  const totalExVat   = totalInclVat / 1.24;
-  const vatAmount    = totalInclVat - totalExVat;
-
-  const totalsX = PW - MARGIN - 230;
-
-  const subtotalRows = [
-    { label: "Samtals (án VSK):", value: formatISK(totalExVat) },
-    { label: "VSK 24%:",          value: formatISK(vatAmount)  },
-  ];
-  for (const row of subtotalRows) {
-    txt(page, row.label, totalsX, y, fontReg, 9, GRAY);
-    const vw = fontReg.widthOfTextAtSize(row.value, 9);
-    txt(page, row.value, PW - MARGIN - vw, y, fontReg, 9, GRAY);
-    y -= 13;
-  }
-
-  y -= 6;
-  line(page, totalsX, y, PW - MARGIN, y, GOLD, 0.75);
-  y -= 14;
-  txt(page, "Samtals m. vsk.:", totalsX, y, fontBold, 11, DARK);
-  const gtv = formatISK(totalInclVat);
-  const gtw = fontBold.widthOfTextAtSize(gtv, 13);
-  txt(page, gtv, PW - MARGIN - gtw, y, fontBold, 13, GOLD);
-
-  // ── Footer ───────────────────────────────────────────────────────────────
-  const footerY = 9;
-  line(page, MARGIN, footerY + 37, PW - MARGIN, footerY + 37, LIGHT, 0.5);
-
-  const footerLines = [
-    "Tilboði fylgir hvorki uppsetning né flutningur nema það komi sérstaklega fram.  ·  Skilmálar: https://www.bjorninninnrettingar.is/skilm%C3%A1lar",
-    "Innborgun er samþykki við skilmálum  ·  Endurgreiðsla á staðfestingargjaldi er ekki möguleg.",
-    "Björninn ehf.  |  Álfhella 5, 221 Hafnarfjörður  |  bjorninn@bjorninninnrettingar.is  |  bjorninninnrettingar.is",
-  ];
-  let fy = footerY + 31;
-  for (const l of footerLines) {
-    txt(page, l, MARGIN, fy, fontReg, 6.5, GRAY);
-    fy -= 9;
-  }
-
-  return doc.save();
-}
-
-// ── Main handler ──────────────────────────────────────────────────────────────
-
-export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
-
-  const secret = req.headers["x-webhook-secret"];
   if (secret !== process.env.WEBHOOK_SECRET) {
-    return res.status(401).json({ error: "Unauthorized" });
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  if (!recordId) {
+    return res.status(400).json({ error: 'recordId is required' });
   }
 
-  const token = process.env.AIRTABLE_TOKEN;
-  if (!token) return res.status(500).json({ error: "AIRTABLE_TOKEN not configured" });
-
-  const { recordId } = req.body || {};
-  if (!recordId) return res.status(400).json({ error: "recordId is required" });
-
   try {
-    console.log(`Generating quote for record: ${recordId}`);
+    // ── 1. Fetch the project (Tækifæri) record ─────────────────────────────
+    const project = await fetchRecord(TABLE_TAEK, recordId);
+    const pf = project.fields;
 
-    // Fetch project first, then line items using linked IDs from project
-    const project = await getProject(token, recordId);
-    const linkedIds = project[LINKED_FIELD] || [];
-    const lineItems = await getLineItems(token, linkedIds);
+    // ── 2. Fetch all linked line items ─────────────────────────────────────
+    const lineItemIds = pf["Vöru línur ➡️📦 (Line item's)"] || [];
+    const lineItemIdsResolved = lineItemIds.length > 0
+      ? lineItemIds
+      : (() => {
+          const key = Object.keys(pf).find(k => k.includes('Vöru línur'));
+          return key ? (pf[key] || []) : [];
+        })();
 
-        const availableLand = 595.28 - MARGIN * 2 - 165 - 40 - 85 - 35;
-    const orientation = lineItems.length * 15 <= availableLand ? "landscape" : "portrait";
-    console.log(`"${project["Tilboðsblaðs heiti"] || recordId}" — ${lineItems.length} items — ${orientation}`);
+    const lineRecords = await batchFetch(TABLE_LINUR, lineItemIdsResolved, [
+      'Rými 🏡',
+      'Vara 🚪',
+      'útfærsla 🎨',
+      'Magn',
+      'Afsl. %',
+      'Einingarverð texti',
+      'Endanlegt söluverð texti',
+      'Lýsing á verki',
+      'Vöru reitur 1',
+      'Vöru reitur 2',
+    ]);
 
-    const pdfBytes = await buildPdf(project, lineItems);
-    console.log(`PDF ${pdfBytes.length} bytes, clearing old attachments…`);
+    // Preserve the order Airtable has them in (lineItemIdsResolved order)
+    const lineMap = Object.fromEntries(lineRecords.map(r => [r.id, r]));
+    const orderedLines = lineItemIdsResolved.map(id => lineMap[id]).filter(Boolean);
 
-    await clearAttachments(token, recordId);
-    console.log("Old attachments cleared, uploading new PDF…");
+    // ── 3. Batch-fetch products (Vörulisti) & variants (Útfærslur) ─────────
+    const productIds = orderedLines.flatMap(r => r.fields['Vöru reitur 1'] || []);
+    const variantIds = orderedLines.flatMap(r => r.fields['Vöru reitur 2'] || []);
 
-    const safeTitle = (project["Tilboðsblaðs heiti"] || "Tilboð")
-      .replace(/[/\\:*?"<>]/g, "-")  // strip chars invalid in filenames
-      .trim();
-    const pdfFilename = `${safeTitle} | Tilboð.pdf`;
-    await uploadPdf(token, recordId, pdfBytes, pdfFilename);
-    console.log("Done.");
+    const [productRecords, variantRecords] = await Promise.all([
+      batchFetch(TABLE_VORUR, productIds, ['Heiti vöru 📣', 'Vörunúmer #️⃣']),
+      batchFetch(TABLE_UTFAER, variantIds, ['Lýsing á útfærslu', 'Vörunúmer']),
+    ]);
+
+    const prodMap    = Object.fromEntries(productRecords.map(r => [r.id, r.fields]));
+    const variantMap = Object.fromEntries(variantRecords.map(r => [r.id, r.fields]));
+
+    // ── 4. Fetch material specs (Efnislisti) ───────────────────────────────
+    const skrokkaIds = pf['Skrokka efni 🔲 viðskiptavinar'] || [];
+    const frontaIds  = pf['Fronta efni viðskiptavinar 🖼️']  || [];
+    const efniIds    = [...skrokkaIds, ...frontaIds];
+
+    const efniRecords = await batchFetch(TABLE_EFNI, efniIds, [
+      'Heiti efnis',
+      'Efnisnúmer / kóði #️⃣',
+      'Þykkt (mm)',
+    ]);
+    const efniMap = Object.fromEntries(efniRecords.map(r => [r.id, r.fields]));
+
+    const buildMatStr = id => {
+      if (!id || !efniMap[id]) return '';
+      const m = efniMap[id];
+      const parts = [m['Þykkt (mm)'] ? m['Þykkt (mm)'] + ' mm' : '', m['Heiti efnis'] || ''];
+      return parts.filter(Boolean).join(' ');
+    };
+    const innvols    = buildMatStr(skrokkaIds[0]);
+    const framhlidar = buildMatStr(frontaIds[0]);
+
+    // ── 5. Build enriched line item list ───────────────────────────────────
+    const lines = orderedLines.map(r => {
+      const f   = r.fields;
+      const pid = (f['Vöru reitur 1'] || [])[0];
+      const vid = (f['Vöru reitur 2'] || [])[0];
+      const prod    = prodMap[pid]    || {};
+      const variant = variantMap[vid] || {};
+
+      return {
+        room:         f['Rými 🏡']                   || '',
+        vorunr:       prod['Vörunúmer #️⃣']           || '',
+        tegund:       variant['Vörunúmer']            || '',
+        vara:         first(f['Vara 🚪'])             || prod['Heiti vöru 📣'] || '',
+        utfaersla:    first(f['útfærsla 🎨'])         || variant['Lýsing á útfærslu'] || '',
+        magn:         f['Magn']                       ?? '',
+        afsl:         f['Afsl. %']                    || 0,
+        einingarverd: f['Einingarverð texti']         || '',
+        samtals:      f['Endanlegt söluverð texti']   || '',
+        lysing:       f['Lýsing á verki']             || '',
+      };
+    });
+
+    // ── 6. Pull totals from the project record ─────────────────────────────
+    const totalExVat   = pf['Tilboðsupphæð'] || 0;
+    const vat          = pf['vsk.']           || 0;
+    const totalInclVat = totalExVat + vat;
+
+    const quoteName = pf['Tilboðsblaðs heiti']
+      || pf['Heiti tækifæris / verkefnis']
+      || 'Tilboð';
+    const customer  = first(pf['Fullt nafn 👤']);
+    const phone     = first(pf['Símanúmer ☎️']);
+    const email     = first(pf['Netfang 📧']);
+    const notes     = stripHtml(pf['Glósur']);
+
+    // ── 7. Group lines by room (for summary PDF) ───────────────────────────
+    const groups = groupByRymi(lines);
+
+    // ── 8. Build both HTML templates ───────────────────────────────────────
+    const sharedProps = { quoteName, customer, phone, email, notes, innvols, framhlidar };
+
+    const detailHTML  = buildDetailHTML({
+      ...sharedProps, lines, totalExVat, vat, totalInclVat,
+    });
+    const summaryHTML = buildSummaryHTML({
+      ...sharedProps, groups, totalExVat, vat, totalInclVat,
+    });
+
+    // ── 9. Render both PDFs with a single browser instance ─────────────────
+    const browser = await puppeteer.launch({
+      args:            chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath:  await chromium.executablePath(),
+      headless:        true,
+    });
+
+    let detailBuffer, summaryBuffer;
+    try {
+      // Render sequentially — reuses the same browser, avoids memory spikes
+      detailBuffer  = await renderPDF(browser, detailHTML);
+      summaryBuffer = await renderPDF(browser, summaryHTML);
+    } finally {
+      await browser.close();
+    }
+
+    // ── 10. Upload both PDFs to Airtable ───────────────────────────────────
+    const safeTitle = quoteName.replace(/[/\\:*?"<>|]/g, '-').trim();
+
+    await uploadPDF(recordId, detailBuffer,  `${safeTitle} | Tilboð.pdf`);
+    await uploadPDF(recordId, summaryBuffer, `${safeTitle} | Yfirlit.pdf`);
 
     return res.status(200).json({
-      success: true,
-      recordId,
-      lineItemCount: lineItems.length,
-      orientation,
-      pdfSize: pdfBytes.length,
+      success:   true,
+      filename:  `${safeTitle} | Tilboð.pdf`,
+      lineItems: lines.length,
+      rooms:     groups.length,
     });
+
   } catch (err) {
-    console.error("Failed:", err);
+    console.error('[generate-quote] Error:', err.message);
     return res.status(500).json({ error: err.message });
   }
-}
+};
