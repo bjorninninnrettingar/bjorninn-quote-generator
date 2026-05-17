@@ -180,7 +180,7 @@ function drawFooter(page, PW, fontReg) {
   line(page, MARGIN, footerY + 37, PW - MARGIN, footerY + 37, LIGHT, 0.5);
 
   const footerLines = [
-    "Tilboði fylgir hvorki uppsetning né flutningur nema það komi sérstaklega fram.  ·  Skilmálar: bjorninninnrettingar.is/skilmálar",
+    "Tilboði fylgir hvorki uppsetning né flutningur nema það komi sérstaklega fram.  ·  Skilmálar: https://www.bjorninninnrettingar.is/skilm%C3%A1lar",
     "Innborgun er samþykki við skilmálum  ·  Endurgreiðsla á staðfestingargjaldi er ekki möguleg.",
     "Björninn ehf.  |  Álfhella 5, 221 Hafnarfjörður  |  bjorninn@bjorninninnrettingar.is  |  bjorninninnrettingar.is",
   ];
