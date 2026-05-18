@@ -421,8 +421,10 @@ async function buildSummaryPdf(project, lineItems) {
   const roomOrder = [];
   const roomTotals = new Map();
 
+  let currentRoom = "Óskilgreint";
   for (const item of lineItems) {
-    const room = item["Rými 🏡"] || "Óskilgreint";
+    if (item["Rými 🏡"]) currentRoom = item["Rými 🏡"];
+    const room = currentRoom;
     const qty       = parseFloat(item["Magn"]        ?? 1) || 1;
     const unitPrice = parseFloat(item["Einingarverð"] ?? 0) || 0;
     const discPct   = parseFloat(item["Afsl. %"]      ?? 0) || 0;
