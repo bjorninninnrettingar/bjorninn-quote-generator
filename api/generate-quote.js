@@ -320,7 +320,7 @@ async function buildPdf(project, lineItems) {
     const qty       = parseFloat(item["Magn"]        ?? 1) || 1;
     const unitPrice = parseFloat(item["Einingarverð"] ?? 0) || 0;
     const discPct   = parseFloat(item["Afsl. %"]      ?? 0) || 0;
-    const lineExVat   = unitPrice * qty * (1 - discPct);
+    const lineExVat   = unitPrice * qty;
     const lineInclVat = lineExVat * 1.24;
     subtotalInclVat += lineInclVat;
 
@@ -428,7 +428,7 @@ async function buildSummaryPdf(project, lineItems) {
     const qty       = parseFloat(item["Magn"]        ?? 1) || 1;
     const unitPrice = parseFloat(item["Einingarverð"] ?? 0) || 0;
     const discPct   = parseFloat(item["Afsl. %"]      ?? 0) || 0;
-    const lineInclVat = unitPrice * qty * (1 - discPct) * 1.24;
+    const lineInclVat = unitPrice * qty * 1.24;
 
     if (!roomTotals.has(room)) {
       roomOrder.push(room);
