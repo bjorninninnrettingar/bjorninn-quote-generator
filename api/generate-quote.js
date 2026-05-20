@@ -193,7 +193,7 @@ function drawFooter(page, PW, fontReg) {
 
 // ── Main quote PDF ────────────────────────────────────────────────────────────
 
-async function buildPdf(project, lineItems) {
+async function buildPdf(project, lineItems, includeSummary = false) {
   const doc = await PDFDocument.create();
   const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
   const fontReg  = await doc.embedFont(StandardFonts.Helvetica);
@@ -382,124 +382,88 @@ async function buildPdf(project, lineItems) {
 
   drawFooter(page, PW, fontReg);
 
-  return doc.save();
-}
+  // ── Summary page (by Rými) — appended when there are multiple rooms ───────
+  if (includeSummary) {
+    const SPW = 595.28;
+    const SPH = 841.89;
+    const SCW = SPW - MARGIN * 2;
 
-// ── Summary PDF (by Rými) ─────────────────────────────────────────────────────
+    const sPage = doc.addPage([SPW, SPH]);
+    let sy = drawHeader(sPage, project, logoImg, SPW, SPH, fontBold, fontReg);
 
-async function buildSummaryPdf(project, lineItems) {
-  const doc = await PDFDocument.create();
-  const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
-  const fontReg  = await doc.embedFont(StandardFonts.Helvetica);
+    txt(sPage, project["Tilboðsblaðs heiti"] || "Tilboð", MARGIN, sy, fontBold, 14, DARK);
+    const subLabel = "Samantekt eftir rými";
+    const subLabelW = fontReg.widthOfTextAtSize(subLabel, 8);
+    txt(sPage, subLabel, SPW - MARGIN - subLabelW, sy, fontReg, 8, GRAY);
+    sy -= 28;
 
-  const logoBytes = await getLogo();
-  let logoImg = null;
-  if (logoBytes) {
-    try { logoImg = await doc.embedPng(logoBytes); } catch (e) {
-      console.warn("Logo embed failed:", e.message);
+    const roomOrder = [];
+    const roomTotals = new Map();
+    let currentRoom = "Óskilgreint";
+    for (const item of lineItems) {
+      if (item["Rými 🏡"]) currentRoom = item["Rými 🏡"];
+      const qty       = parseFloat(item["Magn"]        ?? 1) || 1;
+      const unitPrice = parseFloat(item["Einingarverð"] ?? 0) || 0;
+      const lineInclVat = unitPrice * qty * 1.24;
+      if (!roomTotals.has(currentRoom)) { roomOrder.push(currentRoom); roomTotals.set(currentRoom, 0); }
+      roomTotals.set(currentRoom, roomTotals.get(currentRoom) + lineInclVat);
     }
-  }
 
-  // Always portrait for the summary
-  const PW = 595.28;
-  const PH = 841.89;
-  const CW = PW - MARGIN * 2;
+    const COL_ROOM_W = SCW * 0.65;
+    const COL_VAL_X  = MARGIN + COL_ROOM_W;
+    const COL_VAL_W  = SCW * 0.35;
+    const SROW_H = 22;
 
-  const page = doc.addPage([PW, PH]);
-  let y = drawHeader(page, project, logoImg, PW, PH, fontBold, fontReg);
+    rect(sPage, MARGIN, sy - 5, SCW, 20, GOLD_TINT);
+    txt(sPage, "Rými", MARGIN + 3, sy, fontBold, 8.5, DARK);
+    const hdrLabel = "Samtals m. vsk.";
+    const hdrLabelW = fontBold.widthOfTextAtSize(hdrLabel, 8.5);
+    txt(sPage, hdrLabel, COL_VAL_X + COL_VAL_W - hdrLabelW - 3, sy, fontBold, 8.5, DARK);
+    sy -= 14;
+    line(sPage, MARGIN, sy, SPW - MARGIN, sy, GOLD, 0.5);
+    sy -= 6;
 
-  // Title
-  const quoteTitle = project["Tilboðsblaðs heiti"] || "Tilboð";
-  txt(page, quoteTitle, MARGIN, y, fontBold, 14, DARK);
-
-  const subLabel = "Samantekt eftir rými";
-  const subLabelW = fontReg.widthOfTextAtSize(subLabel, 8);
-  txt(page, subLabel, PW - MARGIN - subLabelW, y, fontReg, 8, GRAY);
-  y -= 28;
-
-  // ── Group line items by room, preserving first-seen order ────────────────
-  const roomOrder = [];
-  const roomTotals = new Map();
-
-  let currentRoom = "Óskilgreint";
-  for (const item of lineItems) {
-    if (item["Rými 🏡"]) currentRoom = item["Rými 🏡"];
-    const room = currentRoom;
-    const qty       = parseFloat(item["Magn"]        ?? 1) || 1;
-    const unitPrice = parseFloat(item["Einingarverð"] ?? 0) || 0;
-    const discPct   = parseFloat(item["Afsl. %"]      ?? 0) || 0;
-    const lineInclVat = unitPrice * qty * 1.24;
-
-    if (!roomTotals.has(room)) {
-      roomOrder.push(room);
-      roomTotals.set(room, 0);
+    let grandTotal = 0;
+    for (let i = 0; i < roomOrder.length; i++) {
+      const room  = roomOrder[i];
+      const total = roomTotals.get(room);
+      grandTotal += total;
+      if (i % 2 === 0) rect(sPage, MARGIN, sy - 4, SCW, SROW_H, LIGHT);
+      txt(sPage, room, MARGIN + 3, sy, fontBold, 9, DARK);
+      const valStr = formatISK(total);
+      const valW   = fontReg.widthOfTextAtSize(valStr, 9);
+      txt(sPage, valStr, COL_VAL_X + COL_VAL_W - valW - 3, sy, fontReg, 9, DARK);
+      sy -= SROW_H;
     }
-    roomTotals.set(room, roomTotals.get(room) + lineInclVat);
+
+    sy -= 10;
+    line(sPage, MARGIN, sy, SPW - MARGIN, sy, GRAY, 0.4);
+    sy -= 16;
+
+    const grandExVat = grandTotal / 1.24;
+    const grandVat   = grandTotal - grandExVat;
+    const sTotalsX   = MARGIN + COL_ROOM_W;
+
+    for (const row of [
+      { label: "Samtals (án VSK):", value: formatISK(grandExVat) },
+      { label: "VSK 24%:",          value: formatISK(grandVat)   },
+    ]) {
+      txt(sPage, row.label, sTotalsX, sy, fontReg, 9, GRAY);
+      const vw = fontReg.widthOfTextAtSize(row.value, 9);
+      txt(sPage, row.value, SPW - MARGIN - vw, sy, fontReg, 9, GRAY);
+      sy -= 13;
+    }
+
+    sy -= 6;
+    line(sPage, sTotalsX, sy, SPW - MARGIN, sy, GOLD, 0.75);
+    sy -= 14;
+    txt(sPage, "Samtals m. vsk.:", sTotalsX, sy, fontBold, 11, DARK);
+    const sgtv = formatISK(grandTotal);
+    const sgtw = fontBold.widthOfTextAtSize(sgtv, 13);
+    txt(sPage, sgtv, SPW - MARGIN - sgtw, sy, fontBold, 13, GOLD);
+
+    drawFooter(sPage, SPW, fontReg);
   }
-
-  // ── Table header ─────────────────────────────────────────────────────────
-  const COL_ROOM_W = CW * 0.65;
-  const COL_VAL_X  = MARGIN + COL_ROOM_W;
-  const COL_VAL_W  = CW * 0.35;
-  const ROW_H = 22;
-
-  rect(page, MARGIN, y - 5, CW, 20, GOLD_TINT);
-  txt(page, "Rými", MARGIN + 3, y, fontBold, 8.5, DARK);
-  const hdrLabel = "Samtals m. vsk.";
-  const hdrLabelW = fontBold.widthOfTextAtSize(hdrLabel, 8.5);
-  txt(page, hdrLabel, COL_VAL_X + COL_VAL_W - hdrLabelW - 3, y, fontBold, 8.5, DARK);
-  y -= 14;
-  line(page, MARGIN, y, PW - MARGIN, y, GOLD, 0.5);
-  y -= 6;
-
-  // ── Room rows ────────────────────────────────────────────────────────────
-  let grandTotal = 0;
-
-  for (let i = 0; i < roomOrder.length; i++) {
-    const room  = roomOrder[i];
-    const total = roomTotals.get(room);
-    grandTotal += total;
-
-    if (i % 2 === 0) rect(page, MARGIN, y - 4, CW, ROW_H, LIGHT);
-
-    txt(page, room, MARGIN + 3, y, fontBold, 9, DARK);
-
-    const valStr = formatISK(total);
-    const valW   = fontReg.widthOfTextAtSize(valStr, 9);
-    txt(page, valStr, COL_VAL_X + COL_VAL_W - valW - 3, y, fontReg, 9, DARK);
-
-    y -= ROW_H;
-  }
-
-  // ── Totals ───────────────────────────────────────────────────────────────
-  y -= 10;
-  line(page, MARGIN, y, PW - MARGIN, y, GRAY, 0.4);
-  y -= 16;
-
-  const grandExVat  = grandTotal / 1.24;
-  const grandVat    = grandTotal - grandExVat;
-  const totalsX     = MARGIN + COL_ROOM_W;
-
-  const summaryTotals = [
-    { label: "Samtals (án VSK):", value: formatISK(grandExVat) },
-    { label: "VSK 24%:",          value: formatISK(grandVat)   },
-  ];
-  for (const row of summaryTotals) {
-    txt(page, row.label, totalsX, y, fontReg, 9, GRAY);
-    const vw = fontReg.widthOfTextAtSize(row.value, 9);
-    txt(page, row.value, PW - MARGIN - vw, y, fontReg, 9, GRAY);
-    y -= 13;
-  }
-
-  y -= 6;
-  line(page, totalsX, y, PW - MARGIN, y, GOLD, 0.75);
-  y -= 14;
-  txt(page, "Samtals m. vsk.:", totalsX, y, fontBold, 11, DARK);
-  const gtv = formatISK(grandTotal);
-  const gtw = fontBold.widthOfTextAtSize(gtv, 13);
-  txt(page, gtv, PW - MARGIN - gtw, y, fontBold, 13, GOLD);
-
-  drawFooter(page, PW, fontReg);
 
   return doc.save();
 }
@@ -536,13 +500,9 @@ export default async function handler(req, res) {
     const uniqueRooms = new Set(lineItems.map((i) => i["Rými 🏡"] || "").filter(Boolean));
     const includeSummary = uniqueRooms.size > 1;
 
-    // Build PDFs (summary only when there are multiple rooms)
-    const [pdfBytes, summaryBytes] = await Promise.all([
-      buildPdf(project, lineItems),
-      includeSummary ? buildSummaryPdf(project, lineItems) : Promise.resolve(null),
-    ]);
+    const pdfBytes = await buildPdf(project, lineItems, includeSummary);
 
-    console.log(`Main PDF ${pdfBytes.length} bytes${includeSummary ? `, summary PDF ${summaryBytes.length} bytes` : ", skipping summary (≤1 room)"}`);
+    console.log(`PDF ${pdfBytes.length} bytes${includeSummary ? " (with summary page)" : ""}`);
     console.log("Clearing old attachments…");
     await clearAttachments(token, recordId);
 
@@ -550,9 +510,8 @@ export default async function handler(req, res) {
       .replace(/[/\\:*?"<>]/g, "-")
       .trim();
 
-    console.log("Uploading PDFs…");
+    console.log("Uploading PDF…");
     await uploadPdf(token, recordId, pdfBytes, `${safeTitle} | Tilboð.pdf`);
-    if (includeSummary) await uploadPdf(token, recordId, summaryBytes, `${safeTitle} | Samantekt.pdf`);
     console.log("Done.");
 
     return res.status(200).json({
@@ -561,7 +520,6 @@ export default async function handler(req, res) {
       lineItemCount: lineItems.length,
       orientation,
       pdfSize: pdfBytes.length,
-      summarySize: includeSummary ? summaryBytes.length : 0,
     });
   } catch (err) {
     console.error("Failed:", err);
