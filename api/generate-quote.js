@@ -533,13 +533,16 @@ export default async function handler(req, res) {
     const orientation = lineItems.length * 15 <= availableLand ? "landscape" : "portrait";
     console.log(`"${project["Tilboðsblaðs heiti"] || recordId}" — ${lineItems.length} items — ${orientation}`);
 
-    // Build both PDFs in parallel
+    const uniqueRooms = new Set(lineItems.map((i) => i["Rými 🏡"] || "").filter(Boolean));
+    const includeSummary = uniqueRooms.size > 1;
+
+    // Build PDFs (summary only when there are multiple rooms)
     const [pdfBytes, summaryBytes] = await Promise.all([
       buildPdf(project, lineItems),
-      buildSummaryPdf(project, lineItems),
+      includeSummary ? buildSummaryPdf(project, lineItems) : Promise.resolve(null),
     ]);
 
-    console.log(`Main PDF ${pdfBytes.length} bytes, summary PDF ${summaryBytes.length} bytes`);
+    console.log(`Main PDF ${pdfBytes.length} bytes${includeSummary ? `, summary PDF ${summaryBytes.length} bytes` : ", skipping summary (≤1 room)"}`);
     console.log("Clearing old attachments…");
     await clearAttachments(token, recordId);
 
@@ -547,10 +550,9 @@ export default async function handler(req, res) {
       .replace(/[/\\:*?"<>]/g, "-")
       .trim();
 
-    // Upload both — Airtable appends each upload to the field
     console.log("Uploading PDFs…");
-    await uploadPdf(token, recordId, pdfBytes,    `${safeTitle} | Tilboð.pdf`);
-    await uploadPdf(token, recordId, summaryBytes, `${safeTitle} | Samantekt.pdf`);
+    await uploadPdf(token, recordId, pdfBytes, `${safeTitle} | Tilboð.pdf`);
+    if (includeSummary) await uploadPdf(token, recordId, summaryBytes, `${safeTitle} | Samantekt.pdf`);
     console.log("Done.");
 
     return res.status(200).json({
@@ -559,7 +561,7 @@ export default async function handler(req, res) {
       lineItemCount: lineItems.length,
       orientation,
       pdfSize: pdfBytes.length,
-      summarySize: summaryBytes.length,
+      summarySize: includeSummary ? summaryBytes.length : 0,
     });
   } catch (err) {
     console.error("Failed:", err);
