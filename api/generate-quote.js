@@ -312,6 +312,7 @@ async function buildPdf(project, lineItems, includeSummary = false) {
   y -= 4;
 
   let subtotalInclVat = 0;
+  let totalDiscountInclVat = 0;
 
   for (let i = 0; i < lineItems.length; i++) {
     ({ page, y } = checkBreak(page, y, 110));
@@ -322,7 +323,8 @@ async function buildPdf(project, lineItems, includeSummary = false) {
     const discPct   = parseFloat(item["Afsl. %"]      ?? 0) || 0;
     const lineExVat   = unitPrice * qty;
     const lineInclVat = lineExVat * 1.24;
-    subtotalInclVat += lineInclVat;
+    subtotalInclVat      += lineInclVat;
+    totalDiscountInclVat += unitPrice * qty * discPct * 1.24;
 
     if (i % 2 === 0) rect(page, MARGIN, y - 3, CW, ROW_H, LIGHT);
 
@@ -365,6 +367,9 @@ async function buildPdf(project, lineItems, includeSummary = false) {
     { label: "Samtals (án VSK):", value: formatISK(totalExVat) },
     { label: "VSK 24%:",          value: formatISK(vatAmount)  },
   ];
+  if (totalDiscountInclVat > 0) {
+    subtotalRows.push({ label: "Afsláttur samtals:", value: formatISK(totalDiscountInclVat) });
+  }
   for (const row of subtotalRows) {
     txt(page, row.label, totalsX, y, fontReg, 9, GRAY);
     const vw = fontReg.widthOfTextAtSize(row.value, 9);
@@ -444,10 +449,14 @@ async function buildPdf(project, lineItems, includeSummary = false) {
     const grandVat   = grandTotal - grandExVat;
     const sTotalsX   = MARGIN + COL_ROOM_W;
 
-    for (const row of [
+    const sSummaryRows = [
       { label: "Samtals (án VSK):", value: formatISK(grandExVat) },
       { label: "VSK 24%:",          value: formatISK(grandVat)   },
-    ]) {
+    ];
+    if (totalDiscountInclVat > 0) {
+      sSummaryRows.push({ label: "Afsláttur samtals:", value: formatISK(totalDiscountInclVat) });
+    }
+    for (const row of sSummaryRows) {
       txt(sPage, row.label, sTotalsX, sy, fontReg, 9, GRAY);
       const vw = fontReg.widthOfTextAtSize(row.value, 9);
       txt(sPage, row.value, SPW - MARGIN - vw, sy, fontReg, 9, GRAY);
