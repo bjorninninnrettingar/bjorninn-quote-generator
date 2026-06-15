@@ -4,11 +4,12 @@
 
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
-const AIRTABLE_BASE    = "app91U15z9K704Okd";
-const PROJECTS_TABLE   = "tbl4LMXlQjp66RFKI";
-const LINE_ITEMS_TABLE = "tblFcsUoGxsuUwNEH";
-const ATTACHMENT_FIELD = "flddIR5JAm8ZM753V";
-const LINKED_FIELD     = "Vöru línur ➖📦 (Line item's)";
+const AIRTABLE_BASE       = "app91U15z9K704Okd";
+const PROJECTS_TABLE      = "tbl4LMXlQjp66RFKI";
+const LINE_ITEMS_TABLE    = "tblFcsUoGxsuUwNEH";
+const ATTACHMENT_FIELD    = "flddIR5JAm8ZM753V";
+const LINKED_FIELD        = "Vöru línur ➖📦 (Line item's)";
+const INSTALL_PRICE_FIELD = "Uppsetningarverð Verkefnis";
 
 // Brand colours
 const GOLD      = rgb(0.808, 0.694, 0.388);
@@ -477,6 +478,107 @@ async function buildPdf(project, lineItems, includeSummary = false) {
   return doc.save();
 }
 
+// ── Installation quote PDF ────────────────────────────────────────────────────
+
+async function buildInstallationPdf(project, installPriceExVat) {
+  const doc      = await PDFDocument.create();
+  const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const fontReg  = await doc.embedFont(StandardFonts.Helvetica);
+
+  const logoBytes = await getLogo();
+  let logoImg = null;
+  if (logoBytes) {
+    try { logoImg = await doc.embedPng(logoBytes); } catch (e) {
+      console.warn("Logo embed failed:", e.message);
+    }
+  }
+
+  const PW = 595.28;
+  const PH = 841.89;
+  const CW = PW - MARGIN * 2;
+
+  const page = doc.addPage([PW, PH]);
+  let y = drawHeader(page, project, logoImg, PW, PH, fontBold, fontReg);
+
+  // Title
+  const quoteTitle = (project["Tilboðsblaðs heiti"] || "Tilboð") + " — Uppsetning";
+  txt(page, quoteTitle, MARGIN, y, fontBold, 14, DARK);
+
+  const validStr = "Tilboð gildir í 30 daga frá útgáfudegi";
+  const validW = fontReg.widthOfTextAtSize(validStr, 8);
+  txt(page, validStr, PW - MARGIN - validW, y, fontReg, 8, GRAY);
+  y -= 22;
+
+  // Customer info
+  txt(page, "TENGILIÐUR", MARGIN, y, fontBold, 7, GOLD);
+  y -= 13;
+  txt(page, lv(project["Fullt nafn 👤"]), MARGIN, y, fontBold, 10, DARK);
+  y -= 13;
+  const phone = lv(project["Símanúmer ☎️"]);
+  const email = lv(project["Netfang 📧"]);
+  if (phone) { txt(page, String(phone), MARGIN, y, fontReg, 8.5, GRAY); y -= 12; }
+  if (email) { txt(page, String(email), MARGIN, y, fontReg, 8.5, GRAY); y -= 12; }
+  y -= 14;
+
+  // Gold rule
+  line(page, MARGIN, y, PW - MARGIN, y, GOLD, 0.75);
+  y -= 20;
+
+  // Column header
+  const COL_LABEL_W = CW * 0.65;
+  const COL_VAL_X   = MARGIN + COL_LABEL_W;
+  const COL_VAL_W   = CW * 0.35;
+
+  rect(page, MARGIN, y - 5, CW, 18, GOLD_TINT);
+  txt(page, "Þjónusta", MARGIN + 3, y, fontBold, 7.5, DARK);
+  const hdr = "Samtals m. vsk.";
+  const hdrW = fontBold.widthOfTextAtSize(hdr, 7.5);
+  txt(page, hdr, COL_VAL_X + COL_VAL_W - hdrW - 3, y, fontBold, 7.5, DARK);
+  y -= 16;
+  line(page, MARGIN, y, PW - MARGIN, y, GOLD, 0.5);
+  y -= 4;
+
+  // Single row — field value already includes VAT
+  const totalInclVat = installPriceExVat;
+  const priceExVat   = totalInclVat / 1.24;
+  const vatAmount    = totalInclVat - priceExVat;
+
+  rect(page, MARGIN, y - 3, CW, 15, LIGHT);
+  txt(page, "Uppsetning", MARGIN + 3, y, fontReg, 8, DARK);
+  const rowVal = formatISK(totalInclVat);
+  const rowValW = fontReg.widthOfTextAtSize(rowVal, 8);
+  txt(page, rowVal, COL_VAL_X + COL_VAL_W - rowValW - 3, y, fontReg, 8, DARK);
+  y -= 15;
+
+  // Totals
+  y -= 22;
+  line(page, MARGIN, y, PW - MARGIN, y, GRAY, 0.4);
+  y -= 16;
+
+  const totalsX = PW - MARGIN - 230;
+  for (const row of [
+    { label: "Samtals (án VSK):", value: formatISK(priceExVat) },
+    { label: "VSK 24%:",          value: formatISK(vatAmount)  },
+  ]) {
+    txt(page, row.label, totalsX, y, fontReg, 9, GRAY);
+    const vw = fontReg.widthOfTextAtSize(row.value, 9);
+    txt(page, row.value, PW - MARGIN - vw, y, fontReg, 9, GRAY);
+    y -= 13;
+  }
+
+  y -= 6;
+  line(page, totalsX, y, PW - MARGIN, y, GOLD, 0.75);
+  y -= 14;
+  txt(page, "Samtals m. vsk.:", totalsX, y, fontBold, 11, DARK);
+  const gtv = formatISK(totalInclVat);
+  const gtw = fontBold.widthOfTextAtSize(gtv, 13);
+  txt(page, gtv, PW - MARGIN - gtw, y, fontBold, 13, GOLD);
+
+  drawFooter(page, PW, fontReg);
+
+  return doc.save();
+}
+
 // ── Main handler ──────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
@@ -511,6 +613,15 @@ export default async function handler(req, res) {
 
     const pdfBytes = await buildPdf(project, lineItems, includeSummary);
 
+    const installPriceExVat = parseFloat(project[INSTALL_PRICE_FIELD] ?? 0) || 0;
+    const hasInstallation = installPriceExVat > 0;
+
+    let installPdfBytes = null;
+    if (hasInstallation) {
+      console.log(`Building installation PDF (${formatISK(installPriceExVat)} ex VAT)…`);
+      installPdfBytes = await buildInstallationPdf(project, installPriceExVat);
+    }
+
     console.log(`PDF ${pdfBytes.length} bytes${includeSummary ? " (with summary page)" : ""}`);
     console.log("Clearing old attachments…");
     await clearAttachments(token, recordId);
@@ -519,8 +630,14 @@ export default async function handler(req, res) {
       .replace(/[/\\:*?"<>]/g, "-")
       .trim();
 
-    console.log("Uploading PDF…");
+    console.log("Uploading main PDF…");
     await uploadPdf(token, recordId, pdfBytes, `${safeTitle} | Tilboð.pdf`);
+
+    if (installPdfBytes) {
+      console.log("Uploading installation PDF…");
+      await uploadPdf(token, recordId, installPdfBytes, `${safeTitle} | Uppsetning.pdf`);
+    }
+
     console.log("Done.");
 
     return res.status(200).json({
@@ -529,6 +646,7 @@ export default async function handler(req, res) {
       lineItemCount: lineItems.length,
       orientation,
       pdfSize: pdfBytes.length,
+      installationPrice: hasInstallation ? installPriceExVat : null,
     });
   } catch (err) {
     console.error("Failed:", err);
