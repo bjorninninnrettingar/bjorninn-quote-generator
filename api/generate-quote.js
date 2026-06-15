@@ -125,6 +125,23 @@ function truncate(font, str, size, maxW) {
   return str + "…";
 }
 
+function wrapText(font, str, size, maxW) {
+  const words = String(str).split(" ");
+  const lines = [];
+  let current = "";
+  for (const word of words) {
+    const candidate = current ? current + " " + word : word;
+    if (font.widthOfTextAtSize(candidate, size) <= maxW) {
+      current = candidate;
+    } else {
+      if (current) lines.push(current);
+      current = word;
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
+}
+
 function rect(page, x, y, w, h, color) {
   page.drawRectangle({ x, y, width: w, height: h, color });
 }
@@ -573,6 +590,26 @@ async function buildInstallationPdf(project, installPriceExVat) {
   const gtv = formatISK(totalInclVat);
   const gtw = fontBold.widthOfTextAtSize(gtv, 13);
   txt(page, gtv, PW - MARGIN - gtw, y, fontBold, 13, GOLD);
+
+  // Disclaimer
+  y -= 32;
+  line(page, MARGIN, y, PW - MARGIN, y, LIGHT, 0.5);
+  y -= 14;
+
+  const disclaimerParas = [
+    "Tilboðið nær eingöngu til þeirrar vinnu sem sérstaklega er tilgreind og miðast við að aðstæður á verkstað séu eðlilegar og í samræmi við þær upplýsingar sem lágu fyrir við tilboðsgerð.",
+    "Ófyrirséðar aðstæður, þar með talið en ekki takmarkað við miklar skekkjur í gólfi eða veggjum, frávik í lögnum, dren, burðarflötum, festingum eða aðrar aðstæður sem kalla á aukavinnu, breytingar eða sérlausnir, teljast ekki hluti af föstu tilboðsverði.",
+    "Slík vinna er rukkuð sérstaklega í tímavinnu samkvæmt tímagjaldi kr. 13.000 + vsk. á klst., auk efnis, aksturs eða annars útlagðs kostnaðar ef við á.",
+  ];
+  const DISC_SIZE = 7.5;
+  const DISC_LEAD = 11;
+  for (const para of disclaimerParas) {
+    for (const l of wrapText(fontReg, para, DISC_SIZE, CW)) {
+      txt(page, l, MARGIN, y, fontReg, DISC_SIZE, GRAY);
+      y -= DISC_LEAD;
+    }
+    y -= 6;
+  }
 
   drawFooter(page, PW, fontReg);
 
