@@ -598,8 +598,8 @@ async function buildInstallationPdf(project, installPriceExVat) {
 
   const disclaimerParas = [
     "Tilboðið nær eingöngu til þeirrar vinnu sem sérstaklega er tilgreind og miðast við að aðstæður á verkstað séu eðlilegar og í samræmi við þær upplýsingar sem lágu fyrir við tilboðsgerð.",
-    "Ófyrirséðar aðstæður, þar með talið en ekki takmarkað við miklar skekkjur í gólfi eða veggjum, frávik í lögnum, dren, burðarflötum, festingum eða aðrar aðstæður sem kalla á aukavinnu, breytingar eða sérlausnir, teljast ekki hluti af föstu tilboðsverði.",
-    "Slík vinna er rukkuð sérstaklega í tímavinnu samkvæmt tímagjaldi kr. 13.000 + vsk. á klst., auk efnis, aksturs eða annars útlagðs kostnaðar ef við á.",
+    "Ófyrirséðar aðstæður, þar með talið en ekki takmarkað við miklar skekkjur í gólfi eða veggjum, frávik í lögnum, dreni, burðarflötum, festingum eða aðrar aðstæður sem kalla á aukavinnu, breytingar eða sérlausnir, teljast ekki hluti af föstu tilboðsverði.",
+    "Slík vinna er rukkuð sérstaklega í tímavinnu samkvæmt tímagjaldi að fjárhæð kr. 13.000 + vsk. á klst., auk efnis, aksturs eða annars útlagðs kostnaðar, ef við á.",
   ];
   const DISC_SIZE = 7.5;
   const DISC_LEAD = 11;
