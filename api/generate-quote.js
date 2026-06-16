@@ -557,23 +557,36 @@ async function buildInstallationPdf(project, installPriceExVat, deliveryPriceInc
   y -= 4;
 
   // Rows — both field values already include VAT
-  const trips = (project["Fjöldi ferða 🚚"] || "").replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "").trim();
+  const tripsRaw = project["Fjöldi ferða 🚚"] || "";
+  const tripsClean = tripsRaw.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "").trim();
   const freeTrip = project["Ein ferð ókeypis"];
-  const deliveryLabel = [
-    trips ? `Heimsending — ${trips}` : "Heimsending",
-    freeTrip ? "| ( Ein ferð ókeypis )" : "",
-  ].filter(Boolean).join(" ");
+
+  const TRIP_PRICES = {
+    "1 Ferð 🚚": 20000, "2 Ferðir 🚚🚚": 35000,
+    "3 Ferðir 🚚🚚🚚": 50000, "4 Ferðir 🚚🚚🚚🚚": 65000,
+  };
+  const fullDeliveryPrice = TRIP_PRICES[tripsRaw] || deliveryPriceInclVat;
+  const freeTripDiscount  = freeTrip ? (tripsRaw === "1 Ferð 🚚" ? 20000 : 15000) : 0;
+  const deliveryLabel     = tripsClean ? `Heimsending — ${tripsClean}` : "Heimsending";
+
   const rows = [
-    { label: "Uppsetning",   amount: installPriceExVat },
-    { label: deliveryLabel,  amount: deliveryPriceInclVat },
-  ].filter((r) => r.amount > 0);
+    { label: "Uppsetning", amount: installPriceExVat },
+    ...(fullDeliveryPrice > 0 ? [
+      { label: deliveryLabel,              amount: fullDeliveryPrice  },
+      ...(freeTripDiscount > 0 ? [
+        { label: "Afsláttur — Ein ferð ókeypis", amount: -freeTripDiscount, isDiscount: true },
+      ] : []),
+    ] : []),
+  ].filter((r) => r.amount !== 0 || r.isDiscount);
 
   for (let i = 0; i < rows.length; i++) {
-    if (i % 2 === 0) rect(page, MARGIN, y - 3, CW, 15, LIGHT);
-    txt(page, rows[i].label, MARGIN + 3, y, fontReg, 8, DARK);
-    const rv = formatISK(rows[i].amount);
+    const row = rows[i];
+    const rowColor = row.isDiscount ? GRAY : DARK;
+    if (!row.isDiscount && i % 2 === 0) rect(page, MARGIN, y - 3, CW, 15, LIGHT);
+    txt(page, row.label, MARGIN + 3, y, fontReg, 8, rowColor);
+    const rv = row.isDiscount ? `- ${formatISK(-row.amount)}` : formatISK(row.amount);
     const rvw = fontReg.widthOfTextAtSize(rv, 8);
-    txt(page, rv, COL_VAL_X + COL_VAL_W - rvw - 3, y, fontReg, 8, DARK);
+    txt(page, rv, COL_VAL_X + COL_VAL_W - rvw - 3, y, fontReg, 8, rowColor);
     y -= 15;
   }
 
