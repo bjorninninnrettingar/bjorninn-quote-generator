@@ -9,7 +9,8 @@ const PROJECTS_TABLE      = "tbl4LMXlQjp66RFKI";
 const LINE_ITEMS_TABLE    = "tblFcsUoGxsuUwNEH";
 const ATTACHMENT_FIELD    = "flddIR5JAm8ZM753V";
 const LINKED_FIELD        = "Vöru línur ➖📦 (Line item's)";
-const INSTALL_PRICE_FIELD = "Uppsetningarverð Verkefnis";
+const INSTALL_PRICE_FIELD  = "Uppsetningarverð Verkefnis";
+const DELIVERY_PRICE_FIELD = "heimsendingaverð";
 
 // Brand colours
 const GOLD      = rgb(0.808, 0.694, 0.388);
@@ -497,7 +498,7 @@ async function buildPdf(project, lineItems, includeSummary = false) {
 
 // ── Installation quote PDF ────────────────────────────────────────────────────
 
-async function buildInstallationPdf(project, installPriceExVat) {
+async function buildInstallationPdf(project, installPriceExVat, deliveryPriceInclVat) {
   const doc      = await PDFDocument.create();
   const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
   const fontReg  = await doc.embedFont(StandardFonts.Helvetica);
@@ -555,17 +556,24 @@ async function buildInstallationPdf(project, installPriceExVat) {
   line(page, MARGIN, y, PW - MARGIN, y, GOLD, 0.5);
   y -= 4;
 
-  // Single row — field value already includes VAT
-  const totalInclVat = installPriceExVat;
+  // Rows — both field values already include VAT
+  const rows = [
+    { label: "Uppsetning",  amount: installPriceExVat },
+    { label: "Heimsending", amount: deliveryPriceInclVat },
+  ].filter((r) => r.amount > 0);
+
+  for (let i = 0; i < rows.length; i++) {
+    if (i % 2 === 0) rect(page, MARGIN, y - 3, CW, 15, LIGHT);
+    txt(page, rows[i].label, MARGIN + 3, y, fontReg, 8, DARK);
+    const rv = formatISK(rows[i].amount);
+    const rvw = fontReg.widthOfTextAtSize(rv, 8);
+    txt(page, rv, COL_VAL_X + COL_VAL_W - rvw - 3, y, fontReg, 8, DARK);
+    y -= 15;
+  }
+
+  const totalInclVat = installPriceExVat + deliveryPriceInclVat;
   const priceExVat   = totalInclVat / 1.24;
   const vatAmount    = totalInclVat - priceExVat;
-
-  rect(page, MARGIN, y - 3, CW, 15, LIGHT);
-  txt(page, "Uppsetning", MARGIN + 3, y, fontReg, 8, DARK);
-  const rowVal = formatISK(totalInclVat);
-  const rowValW = fontReg.widthOfTextAtSize(rowVal, 8);
-  txt(page, rowVal, COL_VAL_X + COL_VAL_W - rowValW - 3, y, fontReg, 8, DARK);
-  y -= 15;
 
   // Totals
   y -= 22;
@@ -650,13 +658,14 @@ export default async function handler(req, res) {
 
     const pdfBytes = await buildPdf(project, lineItems, includeSummary);
 
-    const installPriceExVat = parseFloat(project[INSTALL_PRICE_FIELD] ?? 0) || 0;
-    const hasInstallation = installPriceExVat > 0;
+    const installPriceExVat    = parseFloat(project[INSTALL_PRICE_FIELD]  ?? 0) || 0;
+    const deliveryPriceInclVat = parseFloat(project[DELIVERY_PRICE_FIELD] ?? 0) || 0;
+    const hasInstallationPdf   = installPriceExVat > 0 || deliveryPriceInclVat > 0;
 
     let installPdfBytes = null;
-    if (hasInstallation) {
-      console.log(`Building installation PDF (${formatISK(installPriceExVat)} ex VAT)…`);
-      installPdfBytes = await buildInstallationPdf(project, installPriceExVat);
+    if (hasInstallationPdf) {
+      console.log(`Building installation PDF (uppsetning: ${formatISK(installPriceExVat)}, heimsending: ${formatISK(deliveryPriceInclVat)})…`);
+      installPdfBytes = await buildInstallationPdf(project, installPriceExVat, deliveryPriceInclVat);
     }
 
     console.log(`PDF ${pdfBytes.length} bytes${includeSummary ? " (with summary page)" : ""}`);
@@ -670,7 +679,7 @@ export default async function handler(req, res) {
     console.log("Uploading main PDF…");
     await uploadPdf(token, recordId, pdfBytes, `${safeTitle} | Tilboð.pdf`);
 
-    if (installPdfBytes) {
+    if (hasInstallationPdf && installPdfBytes) {
       console.log("Uploading installation PDF…");
       await uploadPdf(token, recordId, installPdfBytes, `${safeTitle} | Uppsetning.pdf`);
     }
@@ -683,7 +692,8 @@ export default async function handler(req, res) {
       lineItemCount: lineItems.length,
       orientation,
       pdfSize: pdfBytes.length,
-      installationPrice: hasInstallation ? installPriceExVat : null,
+      installationPrice: installPriceExVat || null,
+      deliveryPrice: deliveryPriceInclVat || null,
     });
   } catch (err) {
     console.error("Failed:", err);
