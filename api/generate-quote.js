@@ -558,9 +558,14 @@ async function buildInstallationPdf(project, installPriceExVat, deliveryPriceInc
 
   // Rows — both field values already include VAT
   const trips = (project["Fjöldi ferða 🚚"] || "").replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "").trim();
+  const freeTrip = project["Ein ferð ókeypis"];
+  const deliveryLabel = [
+    trips ? `Heimsending — ${trips}` : "Heimsending",
+    freeTrip ? "| ( Ein ferð ókeypis )" : "",
+  ].filter(Boolean).join(" ");
   const rows = [
-    { label: "Uppsetning",                                    amount: installPriceExVat },
-    { label: trips ? `Heimsending — ${trips}` : "Heimsending", amount: deliveryPriceInclVat },
+    { label: "Uppsetning",   amount: installPriceExVat },
+    { label: deliveryLabel,  amount: deliveryPriceInclVat },
   ].filter((r) => r.amount > 0);
 
   for (let i = 0; i < rows.length; i++) {
