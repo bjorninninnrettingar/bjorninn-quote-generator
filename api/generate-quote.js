@@ -496,16 +496,56 @@ async function buildPdf(project, lineItems, includeSummary = false) {
   return doc.save();
 }
 
-// ── Merge two PDFs into one ───────────────────────────────────────────────────
+// ── Virtual installation line items (for combined PDF) ───────────────────────
 
-async function mergePdfs(pdf1Bytes, pdf2Bytes) {
-  const merged = await PDFDocument.create();
-  for (const bytes of [pdf1Bytes, pdf2Bytes]) {
-    const doc = await PDFDocument.load(bytes);
-    const pages = await merged.copyPages(doc, doc.getPageIndices());
-    pages.forEach((p) => merged.addPage(p));
+function buildInstallationLineItems(project, installPriceInclVat, deliveryPriceInclVat) {
+  const items = [];
+  const ROOM = "Uppsetning";
+
+  if (installPriceInclVat > 0) {
+    items.push({
+      "Rými 🏡":     ROOM,
+      "Vara 🚪":     "Uppsetning",
+      "útfærsla 🎨": "",
+      "Magn":        1,
+      "Einingarverð": installPriceInclVat / 1.24,
+      "Afsl. %":     0,
+    });
   }
-  return merged.save();
+
+  const tripsRaw    = project["Fjöldi ferða 🚚"] || "";
+  const tripsClean  = tripsRaw.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "").trim();
+  const freeTrip    = project["Ein ferð ókeypis"];
+  const TRIP_PRICES = {
+    "1 Ferð 🚚": 20000, "2 Ferðir 🚚🚚": 35000,
+    "3 Ferðir 🚚🚚🚚": 50000, "4 Ferðir 🚚🚚🚚🚚": 65000,
+  };
+  const fullDeliveryPrice = TRIP_PRICES[tripsRaw] || deliveryPriceInclVat;
+  const freeTripDiscount  = freeTrip ? (tripsRaw === "1 Ferð 🚚" ? 20000 : 15000) : 0;
+
+  if (fullDeliveryPrice > 0) {
+    const label = tripsClean ? `Heimsending — ${tripsClean}` : "Heimsending";
+    items.push({
+      "Rými 🏡":     ROOM,
+      "Vara 🚪":     label,
+      "útfærsla 🎨": "",
+      "Magn":        1,
+      "Einingarverð": fullDeliveryPrice / 1.24,
+      "Afsl. %":     0,
+    });
+    if (freeTripDiscount > 0) {
+      items.push({
+        "Rými 🏡":     ROOM,
+        "Vara 🚪":     "Afsláttur — Ein ferð ókeypis",
+        "útfærsla 🎨": "",
+        "Magn":        1,
+        "Einingarverð": -(freeTripDiscount / 1.24),
+        "Afsl. %":     0,
+      });
+    }
+  }
+
+  return items;
 }
 
 // ── Installation quote PDF ────────────────────────────────────────────────────
@@ -670,57 +710,46 @@ export default async function handler(req, res) {
   const token = process.env.AIRTABLE_TOKEN;
   if (!token) return res.status(500).json({ error: "AIRTABLE_TOKEN not configured" });
 
-  const { recordId, mode = "cabinets" } = req.body || {};
+  const { recordId, mode = "separate" } = req.body || {};
   if (!recordId) return res.status(400).json({ error: "recordId is required" });
 
-  // mode: "cabinets" | "installation" | "all"
-  const wantCabinets     = mode === "cabinets" || mode === "all";
-  const wantInstallation = mode === "installation" || mode === "all";
+  // mode: "separate" → 2 PDFs (cabinets + installation)
+  // mode: "combined" → 1 PDF (installation appears as line items under Uppsetning room)
 
   try {
     console.log(`Generating quote for record: ${recordId} (mode: ${mode})`);
 
     const project   = await getProject(token, recordId);
     const linkedIds = project[LINKED_FIELD] || [];
+    const lineItems = await getLineItems(token, linkedIds);
 
-    const installPriceExVat    = parseFloat(project[INSTALL_PRICE_FIELD]  ?? 0) || 0;
+    const installPriceInclVat  = parseFloat(project[INSTALL_PRICE_FIELD]  ?? 0) || 0;
     const deliveryPriceInclVat = parseFloat(project[DELIVERY_PRICE_FIELD] ?? 0) || 0;
-    const hasInstallationData  = installPriceExVat > 0 || deliveryPriceInclVat > 0;
-
-    let pdfBytes = null;
-    if (wantCabinets) {
-      const lineItems = await getLineItems(token, linkedIds);
-      const availableLand = 595.28 - MARGIN * 2 - 165 - 40 - 85 - 35;
-      const orientation = lineItems.length * 15 <= availableLand ? "landscape" : "portrait";
-      console.log(`"${project["Tilboðsblaðs heiti"] || recordId}" — ${lineItems.length} items — ${orientation}`);
-      const uniqueRooms = new Set(lineItems.map((i) => i["Rými 🏡"] || "").filter(Boolean));
-      pdfBytes = await buildPdf(project, lineItems, uniqueRooms.size > 1);
-    }
-
-    let installPdfBytes = null;
-    if (wantInstallation && hasInstallationData) {
-      console.log(`Building installation PDF (uppsetning: ${formatISK(installPriceExVat)}, heimsending: ${formatISK(deliveryPriceInclVat)})…`);
-      installPdfBytes = await buildInstallationPdf(project, installPriceExVat, deliveryPriceInclVat);
-    }
-
-    console.log("Clearing old attachments…");
-    await clearAttachments(token, recordId);
+    const hasInstallationData  = installPriceInclVat > 0 || deliveryPriceInclVat > 0;
 
     const safeTitle = (project["Tilboðsblaðs heiti"] || "Tilboð")
       .replace(/[/\\:*?"<>]/g, "-")
       .trim();
 
-    if (mode === "all" && pdfBytes && installPdfBytes) {
-      console.log("Merging and uploading combined PDF…");
-      const combinedBytes = await mergePdfs(pdfBytes, installPdfBytes);
-      await uploadPdf(token, recordId, combinedBytes, `${safeTitle} | Tilboð & Uppsetning.pdf`);
+    console.log("Clearing old attachments…");
+    await clearAttachments(token, recordId);
+
+    if (mode === "combined" && hasInstallationData) {
+      const virtualItems = buildInstallationLineItems(project, installPriceInclVat, deliveryPriceInclVat);
+      const allItems     = [...lineItems, ...virtualItems];
+      const allRooms     = new Set(allItems.map((i) => i["Rými 🏡"] || "").filter(Boolean));
+      console.log(`Combined PDF — ${allItems.length} items (${virtualItems.length} installation)`);
+      const pdfBytes = await buildPdf(project, allItems, allRooms.size > 1);
+      await uploadPdf(token, recordId, pdfBytes, `${safeTitle} | Tilboð & Uppsetning.pdf`);
     } else {
-      if (pdfBytes) {
-        console.log("Uploading main PDF…");
-        await uploadPdf(token, recordId, pdfBytes, `${safeTitle} | Tilboð.pdf`);
-      }
-      if (installPdfBytes) {
-        console.log("Uploading installation PDF…");
+      const uniqueRooms = new Set(lineItems.map((i) => i["Rými 🏡"] || "").filter(Boolean));
+      const pdfBytes    = await buildPdf(project, lineItems, uniqueRooms.size > 1);
+      console.log(`Cabinets PDF — ${lineItems.length} items`);
+      await uploadPdf(token, recordId, pdfBytes, `${safeTitle} | Tilboð.pdf`);
+
+      if (hasInstallationData) {
+        console.log(`Installation PDF — uppsetning: ${formatISK(installPriceInclVat)}, heimsending: ${formatISK(deliveryPriceInclVat)}`);
+        const installPdfBytes = await buildInstallationPdf(project, installPriceInclVat, deliveryPriceInclVat);
         await uploadPdf(token, recordId, installPdfBytes, `${safeTitle} | Uppsetning.pdf`);
       }
     }
@@ -730,10 +759,8 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: true,
       recordId,
-      lineItemCount: lineItems.length,
-      orientation,
-      pdfSize: pdfBytes.length,
-      installationPrice: installPriceExVat || null,
+      mode,
+      installationPrice: installPriceInclVat || null,
       deliveryPrice: deliveryPriceInclVat || null,
     });
   } catch (err) {
