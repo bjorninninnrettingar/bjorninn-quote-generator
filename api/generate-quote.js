@@ -658,36 +658,39 @@ export default async function handler(req, res) {
   const token = process.env.AIRTABLE_TOKEN;
   if (!token) return res.status(500).json({ error: "AIRTABLE_TOKEN not configured" });
 
-  const { recordId } = req.body || {};
+  const { recordId, mode = "cabinets" } = req.body || {};
   if (!recordId) return res.status(400).json({ error: "recordId is required" });
 
+  // mode: "cabinets" | "installation" | "all"
+  const wantCabinets     = mode === "cabinets" || mode === "all";
+  const wantInstallation = mode === "installation" || mode === "all";
+
   try {
-    console.log(`Generating quote for record: ${recordId}`);
+    console.log(`Generating quote for record: ${recordId} (mode: ${mode})`);
 
-    const project  = await getProject(token, recordId);
+    const project   = await getProject(token, recordId);
     const linkedIds = project[LINKED_FIELD] || [];
-    const lineItems = await getLineItems(token, linkedIds);
-
-    const availableLand = 595.28 - MARGIN * 2 - 165 - 40 - 85 - 35;
-    const orientation = lineItems.length * 15 <= availableLand ? "landscape" : "portrait";
-    console.log(`"${project["Tilboðsblaðs heiti"] || recordId}" — ${lineItems.length} items — ${orientation}`);
-
-    const uniqueRooms = new Set(lineItems.map((i) => i["Rými 🏡"] || "").filter(Boolean));
-    const includeSummary = uniqueRooms.size > 1;
-
-    const pdfBytes = await buildPdf(project, lineItems, includeSummary);
 
     const installPriceExVat    = parseFloat(project[INSTALL_PRICE_FIELD]  ?? 0) || 0;
     const deliveryPriceInclVat = parseFloat(project[DELIVERY_PRICE_FIELD] ?? 0) || 0;
-    const hasInstallationPdf   = installPriceExVat > 0 || deliveryPriceInclVat > 0;
+    const hasInstallationData  = installPriceExVat > 0 || deliveryPriceInclVat > 0;
+
+    let pdfBytes = null;
+    if (wantCabinets) {
+      const lineItems = await getLineItems(token, linkedIds);
+      const availableLand = 595.28 - MARGIN * 2 - 165 - 40 - 85 - 35;
+      const orientation = lineItems.length * 15 <= availableLand ? "landscape" : "portrait";
+      console.log(`"${project["Tilboðsblaðs heiti"] || recordId}" — ${lineItems.length} items — ${orientation}`);
+      const uniqueRooms = new Set(lineItems.map((i) => i["Rými 🏡"] || "").filter(Boolean));
+      pdfBytes = await buildPdf(project, lineItems, uniqueRooms.size > 1);
+    }
 
     let installPdfBytes = null;
-    if (hasInstallationPdf) {
+    if (wantInstallation && hasInstallationData) {
       console.log(`Building installation PDF (uppsetning: ${formatISK(installPriceExVat)}, heimsending: ${formatISK(deliveryPriceInclVat)})…`);
       installPdfBytes = await buildInstallationPdf(project, installPriceExVat, deliveryPriceInclVat);
     }
 
-    console.log(`PDF ${pdfBytes.length} bytes${includeSummary ? " (with summary page)" : ""}`);
     console.log("Clearing old attachments…");
     await clearAttachments(token, recordId);
 
@@ -695,10 +698,11 @@ export default async function handler(req, res) {
       .replace(/[/\\:*?"<>]/g, "-")
       .trim();
 
-    console.log("Uploading main PDF…");
-    await uploadPdf(token, recordId, pdfBytes, `${safeTitle} | Tilboð.pdf`);
-
-    if (hasInstallationPdf && installPdfBytes) {
+    if (pdfBytes) {
+      console.log("Uploading main PDF…");
+      await uploadPdf(token, recordId, pdfBytes, `${safeTitle} | Tilboð.pdf`);
+    }
+    if (installPdfBytes) {
       console.log("Uploading installation PDF…");
       await uploadPdf(token, recordId, installPdfBytes, `${safeTitle} | Uppsetning.pdf`);
     }
