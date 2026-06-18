@@ -496,6 +496,18 @@ async function buildPdf(project, lineItems, includeSummary = false) {
   return doc.save();
 }
 
+// ── Merge two PDFs into one ───────────────────────────────────────────────────
+
+async function mergePdfs(pdf1Bytes, pdf2Bytes) {
+  const merged = await PDFDocument.create();
+  for (const bytes of [pdf1Bytes, pdf2Bytes]) {
+    const doc = await PDFDocument.load(bytes);
+    const pages = await merged.copyPages(doc, doc.getPageIndices());
+    pages.forEach((p) => merged.addPage(p));
+  }
+  return merged.save();
+}
+
 // ── Installation quote PDF ────────────────────────────────────────────────────
 
 async function buildInstallationPdf(project, installPriceExVat, deliveryPriceInclVat) {
@@ -698,13 +710,19 @@ export default async function handler(req, res) {
       .replace(/[/\\:*?"<>]/g, "-")
       .trim();
 
-    if (pdfBytes) {
-      console.log("Uploading main PDF…");
-      await uploadPdf(token, recordId, pdfBytes, `${safeTitle} | Tilboð.pdf`);
-    }
-    if (installPdfBytes) {
-      console.log("Uploading installation PDF…");
-      await uploadPdf(token, recordId, installPdfBytes, `${safeTitle} | Uppsetning.pdf`);
+    if (mode === "all" && pdfBytes && installPdfBytes) {
+      console.log("Merging and uploading combined PDF…");
+      const combinedBytes = await mergePdfs(pdfBytes, installPdfBytes);
+      await uploadPdf(token, recordId, combinedBytes, `${safeTitle} | Tilboð & Uppsetning.pdf`);
+    } else {
+      if (pdfBytes) {
+        console.log("Uploading main PDF…");
+        await uploadPdf(token, recordId, pdfBytes, `${safeTitle} | Tilboð.pdf`);
+      }
+      if (installPdfBytes) {
+        console.log("Uploading installation PDF…");
+        await uploadPdf(token, recordId, installPdfBytes, `${safeTitle} | Uppsetning.pdf`);
+      }
     }
 
     console.log("Done.");
