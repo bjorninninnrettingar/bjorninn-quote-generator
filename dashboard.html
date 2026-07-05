@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Framleiðsluyfirlit — Björninn</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0a0a0a;
+      color: #f0f0f0;
+      font-family: "Helvetica Neue", Arial, sans-serif;
+      min-height: 100vh;
+      padding: 20px 40px;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    header h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: #ffffff;
+      text-transform: uppercase;
+    }
+
+    #clock {
+      font-size: 1.2rem;
+      color: #888;
+      font-variant-numeric: tabular-nums;
+    }
+
+    #status-bar {
+      font-size: 0.8rem;
+      color: #555;
+      margin-bottom: 16px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    #status-bar { color: #fff; }
+    #status-bar span { color: #4caf50; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .card {
+      background: #161616;
+      border: 1px solid #222;
+      border-radius: 10px;
+      padding: 14px 24px;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1.2fr;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .card-name {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #ffffff;
+      line-height: 1.2;
+      margin-bottom: 6px;
+    }
+
+    .card-status {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #ffffff;
+      background: #222;
+      border-radius: 4px;
+      border: 1.5px solid #444;
+      padding: 4px 10px;
+      display: inline-block;
+      align-self: flex-start;
+    }
+    .status-blue    { border-color: #2196f3; color: #2196f3; }
+    .status-yellow  { border-color: #f5c518; color: #f5c518; }
+    .status-orange  { border-color: #ff9800; color: #ff9800; }
+    .status-red     { border-color: #f44336; color: #f44336; }
+    .status-green   { border-color: #4caf50; color: #4caf50; }
+    .status-teal    { border-color: #26c6da; color: #26c6da; }
+
+    .card-date { color: #888; }
+
+    .card-date .label {
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      color: #fff;
+      letter-spacing: 0.08em;
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .card-date .value { font-size: 1rem; color: #ddd; }
+    .card-date .value.overdue { color: #f44336; }
+    .card-date .value.soon    { color: #ff9800; }
+    .card-date .value.ok      { color: #4caf50; }
+
+    .card-countdown {
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-top: 4px;
+    }
+    .card-countdown.overdue { color: #f44336; }
+    .card-countdown.soon    { color: #ff9800; }
+    .card-countdown.ok      { color: #4caf50; }
+
+    .progress-wrap { display: flex; flex-direction: column; gap: 8px; }
+
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+
+    .progress-label {
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      color: #fff;
+      letter-spacing: 0.08em;
+    }
+
+    .progress-pct {
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: #ffffff;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .progress-bar-bg {
+      width: 100%;
+      height: 12px;
+      background: #2a2a2a;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      border-radius: 6px;
+      transition: width 0.6s ease;
+    }
+
+    .fill-1 { background: #f44336; }
+    .fill-2 { background: #ff9800; }
+    .fill-3 { background: #ffeb3b; }
+    .fill-4 { background: #2196f3; }
+    .fill-5 { background: #4caf50; }
+
+    #error {
+      color: #f44336;
+      font-size: 1.1rem;
+      margin-top: 60px;
+      text-align: center;
+      display: none;
+    }
+
+    #loading {
+      color: #555;
+      font-size: 1.2rem;
+      margin-top: 60px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Framleiðsluyfirlit — Björninn</h1>
+    <div id="clock"></div>
+  </header>
+
+  <div id="status-bar">Síðast uppfært: <span id="last-updated">—</span></div>
+
+  <div id="loading">Hleð gögnum…</div>
+  <div id="error">Villa við að sækja gögn. Athugaðu API lykil og Base ID.</div>
+
+  <div class="grid" id="grid"></div>
+
+  <script>
+    // ── CONFIGURATION ─────────────────────────────────────────────────────────
+    // Requests go through /api/airtable — a server-side proxy that holds the
+    // Personal Access Token as a Vercel env var. Never embed the token here:
+    // GitHub's push protection blocks any commit containing an Airtable PAT.
+    const PROXY_URL = "/api/airtable";
+    const TABLE    = "tbl4LMXlQjp66RFKI"; // Tækifæri 📣 (projects)
+
+    // Primary field of Tækifæri — check your base if the name is different
+    const FIELD_NAME      = "Heiti tækifæris / verkefnis";
+    const FIELD_DATE      = "Áætlaður afhendingardagur Björninn (internal)";
+    const FIELD_PROGRESS  = "Framvinda framleiðslu [weighted]";
+    const FIELD_STADA_SKIP = "Staða í skipulagi";
+    const FIELD_STADA_FRAM = "Staða í framleiðslu";
+    const FIELD_PRIORITY   = "Forgangur framleiðslu 🥇";
+
+    const REFRESH_MS = 60_000; // refresh every 60 seconds
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // Show:
+    //   • Klárt til framleiðslu in skipulagi  (approved, not yet started)
+    //   • Any framleiðslu status except Afhent (LOKIÐ ✅)
+    // Always exclude Afhent (LOKIÐ ✅).
+    const FILTER = `AND(
+      {${FIELD_STADA_FRAM}} != "Afhent (LOKIÐ ✅)",
+      OR(
+        {${FIELD_STADA_SKIP}} = "Klárt til framleiðslu",
+        {${FIELD_STADA_FRAM}} != ""
+      )
+    )`;
+
+    function pad(n) { return String(n).padStart(2, "0"); }
+
+    function updateClock() {
+      const now = new Date();
+      document.getElementById("clock").textContent =
+        `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    }
+
+    function formatDate(iso) {
+      if (!iso) return { text: "Engin dagsetning", cls: "" };
+      const date  = new Date(iso);
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const diff  = Math.floor((date - today) / 86_400_000);
+      const locale = date.toLocaleDateString("is-IS", { day: "numeric", month: "long", year: "numeric" });
+      if (diff < 0)  return { text: locale + " (liðið)", cls: "overdue" };
+      if (diff <= 7) return { text: locale + ` (${diff}d)`, cls: "soon" };
+      return { text: locale, cls: "ok" };
+    }
+
+    function pctToFill(pct) {
+      if (pct >= 100) return "fill-5";
+      if (pct >= 75)  return "fill-4";
+      if (pct >= 50)  return "fill-3";
+      if (pct >= 25)  return "fill-2";
+      return "fill-1";
+    }
+
+    const STATUS_COLORS = {
+      "tilbúið til framleiðslu":  "status-blue",
+      "verk í vinnslu":           "status-yellow",
+      "samsetning og þökkun":     "status-orange",
+      "má afhenda":               "status-teal",
+      "for-skipulag":             "status-yellow",
+      "í skipulagningu":          "status-orange",
+      "yfirfara":                 "status-red",
+      "klárt til framleiðslu":    "status-green",
+    };
+
+    function statusClass(label) {
+      const key = label.toLowerCase();
+      for (const [fragment, cls] of Object.entries(STATUS_COLORS)) {
+        if (key.includes(fragment)) return cls;
+      }
+      return "";
+    }
+
+    function countdown(diff) {
+      if (diff < 0)  return { text: `${Math.abs(diff)} dagar liðnir!`, cls: "overdue" };
+      if (diff === 0) return { text: "Á afhendingardegi!", cls: "soon" };
+      if (diff === 1) return { text: "1 dagur í afhendingu!", cls: "soon" };
+      if (diff <= 7) return { text: `${diff} dagar í afhendingu!`, cls: "soon" };
+      return { text: `${diff} dagar í afhendingu`, cls: "ok" };
+    }
+
+    function escHtml(s) {
+      return String(s || "")
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    function renderCards(records) {
+      const grid = document.getElementById("grid");
+      grid.innerHTML = "";
+
+      if (!records.length) {
+        grid.innerHTML = `<p style="color:#555;font-size:1.2rem;grid-column:1/-1;">Engin virk verkefni fundust.</p>`;
+        return;
+      }
+
+      for (const rec of records) {
+        const f      = rec.fields;
+        const name   = f[FIELD_NAME] || rec.id;
+        const date   = formatDate(f[FIELD_DATE] || null);
+        const status = f[FIELD_STADA_FRAM] || f[FIELD_STADA_SKIP] || "—";
+
+        // Progress: Airtable percent fields return 0–1; formula fields may return 0–100
+        let rawPct = f[FIELD_PROGRESS] ?? 0;
+        let pct = (rawPct > 0 && rawPct <= 1) ? Math.round(rawPct * 100) : Math.round(rawPct);
+        pct = Math.max(0, Math.min(100, pct));
+
+        const rawDate = f[FIELD_DATE] || null;
+        const diff = rawDate ? Math.floor((new Date(rawDate) - new Date().setHours(0,0,0,0)) / 86_400_000) : null;
+        const cd = diff !== null ? countdown(diff) : null;
+
+        const priority = f[FIELD_PRIORITY] || "";
+        const medal = priority.startsWith("1") ? "🥇" : priority.startsWith("2") ? "🥈" : priority.startsWith("3") ? "🥉" : "";
+
+        const card = document.createElement("div");
+        card.className = "card";
+        card.innerHTML = `
+          <div>
+            <div class="card-name">${escHtml(name)}</div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <div class="card-status ${statusClass(status)}">${escHtml(status)}</div>
+              ${medal ? `<span style="font-size:1.4rem;">${medal}</span>` : ""}
+            </div>
+          </div>
+          <div class="card-date">
+            <span class="label">Afhendingardagur</span>
+            <span class="value ${date.cls}">${date.text}</span>
+            ${cd ? `<div class="card-countdown ${cd.cls}">${cd.text}</div>` : ""}
+          </div>
+          <div class="progress-wrap">
+            <div class="progress-header">
+              <span class="progress-label">Framvinda</span>
+              <span class="progress-pct">${pct}%</span>
+            </div>
+            <div class="progress-bar-bg">
+              <div class="progress-bar-fill ${pctToFill(pct)}" style="width:${pct}%"></div>
+            </div>
+          </div>
+        `;
+        grid.appendChild(card);
+      }
+    }
+
+    async function fetchData() {
+      const url = new URL(PROXY_URL, window.location.origin);
+      url.searchParams.set("path", TABLE);
+      url.searchParams.set("filterByFormula", FILTER);
+      [FIELD_NAME, FIELD_DATE, FIELD_PROGRESS, FIELD_STADA_SKIP, FIELD_STADA_FRAM, FIELD_PRIORITY]
+        .forEach(f => url.searchParams.append("fields[]", f));
+
+      const res = await fetch(url.toString());
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+
+      // Collect all pages
+      let records = data.records || [];
+      let offset  = data.offset;
+      while (offset) {
+        url.searchParams.set("offset", offset);
+        const r2 = await fetch(url.toString());
+        const d2 = await r2.json();
+        records  = records.concat(d2.records || []);
+        offset   = d2.offset;
+      }
+
+      return records;
+    }
+
+    async function refresh() {
+      try {
+        const records = await fetchData();
+        document.getElementById("loading").style.display = "none";
+        document.getElementById("error").style.display   = "none";
+
+        function priorityRank(rec) {
+          const val = (rec.fields[FIELD_PRIORITY] || "").trim();
+          if (val.startsWith("1")) return 1;
+          if (val.startsWith("2")) return 2;
+          if (val.startsWith("3")) return 3;
+          return 0;
+        }
+
+        // Slot the 3 medal projects in order, then add the 1 nearest non-medal
+        const medal1 = records.find(r => priorityRank(r) === 1) || null;
+        const medal2 = records.find(r => priorityRank(r) === 2) || null;
+        const medal3 = records.find(r => priorityRank(r) === 3) || null;
+
+        const medalIds = new Set([medal1, medal2, medal3].filter(Boolean).map(r => r.id));
+        const rest = records
+          .filter(r => !medalIds.has(r.id))
+          .sort((a, b) => {
+            const da = a.fields[FIELD_DATE] || "9999";
+            const db = b.fields[FIELD_DATE] || "9999";
+            return da < db ? -1 : da > db ? 1 : 0;
+          });
+
+        const display = [medal1, medal2, medal3, rest[0]].filter(Boolean);
+
+        renderCards(display);
+
+        const now = new Date();
+        document.getElementById("last-updated").textContent =
+          `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+      } catch (e) {
+        console.error(e);
+        document.getElementById("loading").style.display = "none";
+        document.getElementById("error").style.display   = "block";
+      }
+    }
+
+    updateClock();
+    setInterval(updateClock, 10_000);
+    refresh();
+    setInterval(refresh, REFRESH_MS);
+  </script>
+</body>
+</html>

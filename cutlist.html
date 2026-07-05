@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Skurðarlisti (Cutty) — Björninn</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0a0a0a;
+    color: #f0f0f0;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    min-height: 100vh;
+    padding: 24px 40px 60px;
+  }
+  h1 { font-size: 1.4rem; letter-spacing: 0.03em; margin-bottom: 4px; }
+  .sub { color: #888; font-size: 0.85rem; margin-bottom: 24px; }
+
+  .card {
+    background: #161616;
+    border: 1px solid #222;
+    border-radius: 10px;
+    padding: 18px 22px;
+    margin-bottom: 18px;
+  }
+
+  label { display: block; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: #999; margin-bottom: 6px; }
+
+  input[type="text"], input[type="number"], select {
+    background: #0d0d0d;
+    border: 1px solid #333;
+    color: #f0f0f0;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 0.95rem;
+    width: 100%;
+    max-width: 420px;
+  }
+
+  button {
+    background: #2196f3;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 18px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 10px;
+  }
+  button:disabled { background: #333; color: #777; cursor: not-allowed; }
+  button.secondary { background: #333; }
+
+  #searchResults { margin-top: 10px; max-width: 420px; }
+  .result-item {
+    padding: 8px 10px;
+    border: 1px solid #222;
+    border-radius: 6px;
+    margin-bottom: 6px;
+    cursor: pointer;
+  }
+  .result-item:hover { border-color: #2196f3; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 10px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #222; }
+  th { color: #999; text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.05em; }
+
+  .status-ok { color: #4caf50; font-weight: 600; }
+  .status-warn { color: #f44336; font-weight: 600; }
+
+  #log {
+    background: #0d0d0d;
+    border: 1px solid #222;
+    border-radius: 6px;
+    padding: 12px;
+    font-family: "SF Mono", Consolas, monospace;
+    font-size: 0.8rem;
+    max-height: 260px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    color: #9ad39a;
+  }
+
+  .project-name { font-size: 1.15rem; font-weight: 700; margin-bottom: 4px; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+
+  <h1>Skurðarlisti fyrir Cutty</h1>
+  <div class="sub">Býr til CUTLST-skrár beint á USB-drif, flokkað eftir efni og þykkt.</div>
+
+  <div class="card" id="searchCard">
+    <label>Veldu verkefni (Tækifæri)</label>
+    <select id="projectSelect">
+      <option value="">Sæki verkefni…</option>
+    </select>
+  </div>
+
+  <div class="card hidden" id="projectCard">
+    <div class="project-name" id="projectName"></div>
+    <div class="sub" id="projectStatus">Sæki Sögunarlisti færslur…</div>
+  </div>
+
+  <div class="card hidden" id="missingDimsCard">
+    <label>Línur vantar breidd/þykkt — líklega ekki skurðarpartar (t.d. Blum vélbúnaður)</label>
+    <ul id="missingDimsList" style="font-size:0.85rem;color:#f5c518;padding-left:20px;"></ul>
+  </div>
+
+  <div class="card hidden" id="groupsCard">
+    <table id="groupsTable">
+      <thead>
+        <tr>
+          <th>Efni</th>
+          <th>Þykkt</th>
+          <th>Plötustærð</th>
+          <th>Fjöldi lína</th>
+          <th>Fjöldi skráa</th>
+          <th>Staða</th>
+        </tr>
+      </thead>
+      <tbody id="groupsBody"></tbody>
+    </table>
+
+    <label style="margin-top:16px;">Fjöldi platna á skrá (F1 — hægt að breyta í Cutty á gólfinu)</label>
+    <input type="number" id="boardQtyInput" value="1" min="1" style="max-width:120px;" />
+
+    <div>
+      <button id="writeBtn">Velja USB-drif og skrifa skurðarlista</button>
+      <button class="secondary" id="resetBtn">Byrja upp á nýtt</button>
+    </div>
+  </div>
+
+  <div class="card hidden" id="logCard">
+    <label>Log</label>
+    <div id="log"></div>
+  </div>
+
+<script>
+// ── CONFIGURATION ────────────────────────────────────────────────────────
+// Requests go through /api/airtable — a server-side proxy that holds the
+// Personal Access Token as a Vercel env var. Never embed the token here:
+// GitHub's push protection blocks any commit containing an Airtable PAT.
+const PROXY_URL = "/api/airtable";
+
+// Table IDs, not names — the proxy path only needs to survive as a plain
+// query-string value, and IDs avoid encoding table names with emoji.
+const PROJECTS_TABLE     = "tbl4LMXlQjp66RFKI"; // Tækifæri 📣 (projects)
+const SOGUNARLISTI_TABLE = "tblhdgyvTcBfP8kov"; // Sögunarlisti 🪚
+const EFNISLISTI_TABLE   = "tbl8CrVWKF8CuI7HD"; // Efnislisti 🧱
+
+const P_NAME_FIELD = "Heiti tækifæris / verkefnis";
+const P_STADA_SKIPULAG = "Staða í skipulagi";
+const P_UNNID = "Tækifæri unnið 🏆";
+
+const S_PROJECT_LINK      = "Tækifæri 📣 (projects)";
+const S_PARTUR            = "Partur";
+const S_H                 = "H";
+const S_B                 = "B";
+const S_TH                = "Þ";
+const S_M                 = "M";
+const S_EFNI_UNDIRSTADA   = "Efni: (undirstaða)";
+
+const E_HEITI   = "Heiti efnis";
+const E_BREIDD  = "Breidd (mm)";
+const E_LENGD   = "Lengd (mm)";
+const E_THYKKT  = "Þykkt (mm)";
+
+const MAX_LINES_PER_FILE = 22;
+// Karmur is glued/built-up (like Sérsmíði) — not a single saw cut, excluded entirely.
+const EXCLUDED_PARTUR = new Set(["Sérsmíði", "Karmur – Hliðar", "Karmur – Toppstykki"]);
+
+// "Efni: (undirstaða)" has no override for Slaglisti/Karmur, so it falls through
+// to the customer's carcass-laminate lookup — which isn't a real board at these
+// thicknesses. Mirror the board override your "Efni:" formula already encodes,
+// keyed directly on Partur instead of trusting the formula field for these two.
+const SLAGLISTI_PARTUR = new Set(["Slaglisti – Hliðar", "Slaglisti – Toppur"]);
+const KJOTLISTI_PARTUR = new Set(["Kjötlisti – Hlið", "Kjötlisti – Efri / Neðri"]);
+
+function resolveMaterialKey(p) {
+  const partur = String(p.partur).trim();
+  if (SLAGLISTI_PARTUR.has(partur)) return "MDF 12mm";
+  if (KJOTLISTI_PARTUR.has(partur)) return "Spónaplata";
+  return normalizeMaterialKey(p.efni);
+}
+
+// Static blocks, byte-verified against a real saved Cutty order (CUTLST00 from the shop USB).
+// Do not change unless the saw's kerf/trim configuration changes — see CUTLST_FORMAT.md.
+const F7_BLOCK = [
+  "F7 3052",
+  "218 436", "167 669", "204 408", "204 204", "204 204",
+  "209 209", "167 167", "213 213", "229 229", "164 164", "150 150",
+];
+const F7B_LINE = "F7b 0.000 0.000 0.000 0.000";
+const F8_LINE  = "F8 0.000 0.000 20 10 0 0 0.000 -1 -1 0 1 0 1 0";
+const F9_LINE  = "F9 0 0.000 0 0.000 0.000 0.000 20.000 20.000 10 0 4.400 0 0 0 2";
+// ─────────────────────────────────────────────────────────────────────────
+
+let currentProject = null;
+let currentGroups = [];
+
+function log(msg) {
+  const el = document.getElementById("log");
+  document.getElementById("logCard").classList.remove("hidden");
+  el.textContent += msg + "\n";
+  el.scrollTop = el.scrollHeight;
+}
+
+function toNumber(v) {
+  if (v === null || v === undefined) return 0;
+  if (typeof v === "number") return v;
+  const n = Number(String(v).replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function fmtNum(n) { return Number(n).toFixed(3); }
+
+function padRight(s, width) {
+  s = String(s ?? "");
+  if (s.length >= width) return s.slice(0, width);
+  return s + " ".repeat(width - s.length);
+}
+
+// Strips the trailing " – " artifact left by the "Efni: (undirstaða)" formula
+// when the linked customer-material lookup is empty, WITHOUT touching real
+// suffixes like "-harðplast" (no space before that dash).
+function normalizeMaterialKey(raw) {
+  return String(raw || "").trim().replace(/\s+[–-]\s*$/, "").trim();
+}
+
+function fuzzyKey(s) {
+  return String(s || "").toLowerCase().replace(/\s+/g, "");
+}
+
+function sanitizeFolderName(name) {
+  return String(name).replace(/[\\/:*?"<>|]/g, "-").trim();
+}
+
+// ISO-8859-1 (Latin-1) — confirmed by hex-dumping a real CUTLST file; covers
+// öáéíóúýþæð natively, so no transliteration needed. Anything outside Latin-1
+// (shouldn't happen — Partur text is plain Icelandic) falls back to '?'.
+function stringToLatin1Bytes(str) {
+  const bytes = new Uint8Array(str.length);
+  for (let i = 0; i < str.length; i++) {
+    const code = str.charCodeAt(i);
+    bytes[i] = code <= 0xFF ? code : 0x3F;
+  }
+  return bytes;
+}
+
+async function airtableFetch(table, params, recordId) {
+  const url = new URL(PROXY_URL, window.location.origin);
+  url.searchParams.set("path", recordId ? `${table}/${recordId}` : table);
+  for (const [k, v] of Object.entries(params || {})) {
+    if (Array.isArray(v)) v.forEach(x => url.searchParams.append(k, x));
+    else if (v !== undefined) url.searchParams.set(k, v);
+  }
+
+  if (recordId) {
+    const res = await fetch(url.toString());
+    if (!res.ok) throw new Error(`Airtable HTTP ${res.status}`);
+    return res.json();
+  }
+
+  let records = [];
+  let offset;
+  do {
+    if (offset) url.searchParams.set("offset", offset);
+    const res = await fetch(url.toString());
+    if (!res.ok) throw new Error(`Airtable HTTP ${res.status}`);
+    const data = await res.json();
+    records = records.concat(data.records || []);
+    offset = data.offset;
+  } while (offset);
+  return records;
+}
+
+async function fetchEligibleProjects() {
+  // Only projects that have entered Skipulag (any status in that field) or are
+  // already confirmed/won — excludes early-stage leads from the dropdown.
+  const formula = `OR(
+    {${P_STADA_SKIPULAG}} != "",
+    {${P_UNNID}} = 1
+  )`;
+  return airtableFetch(PROJECTS_TABLE, {
+    filterByFormula: formula,
+    "fields[]": [P_NAME_FIELD],
+    pageSize: 100,
+  });
+}
+
+async function fetchProjectById(id) {
+  return airtableFetch(PROJECTS_TABLE, {}, id);
+}
+
+async function fetchAllSogunarlisti() {
+  return airtableFetch(SOGUNARLISTI_TABLE, {
+    "fields[]": [S_PROJECT_LINK, S_PARTUR, S_H, S_B, S_TH, S_M, S_EFNI_UNDIRSTADA],
+    pageSize: 100,
+  });
+}
+
+async function fetchAllBoards() {
+  return airtableFetch(EFNISLISTI_TABLE, {
+    "fields[]": [E_HEITI, E_BREIDD, E_LENGD, E_THYKKT],
+    pageSize: 100,
+  });
+}
+
+function findBoard(materialKey, thickness, boards) {
+  const fk = fuzzyKey(materialKey);
+  // Every tier requires the board's own Þykkt to match the piece's real
+  // thickness — name matching alone must never bypass that check, or a
+  // material sold at one thickness silently gets matched to a mislabeled
+  // row claiming a different thickness (caught via live testing on T-31).
+  const sameThickness = b => toNumber(b.fields[E_THYKKT]) === thickness;
+  let match = boards.find(b => fuzzyKey(b.fields[E_HEITI]) === fk && sameThickness(b));
+  if (!match) match = boards.find(b => fuzzyKey(b.fields[E_HEITI]).startsWith(fk) && sameThickness(b));
+  if (!match) match = boards.find(b => fuzzyKey(b.fields[E_HEITI]).includes(fk) && sameThickness(b));
+  return match || null;
+}
+
+function groupPieces(pieces) {
+  const groups = new Map();
+  const missingDims = [];
+  for (const p of pieces) {
+    if (EXCLUDED_PARTUR.has(String(p.partur).trim())) continue;
+    // A real saw panel always has width+thickness. Rows missing either are
+    // usually pre-made hardware (e.g. Blum TIP-ON units) that slipped into
+    // Sögunarlisti as raw untranslated import text — not something to cut.
+    if (p.b <= 0 || p.th <= 0) { missingDims.push(p); continue; }
+    const mat = resolveMaterialKey(p);
+    const key = `${mat}|${p.th}`;
+    if (!groups.has(key)) groups.set(key, { material: mat, thickness: p.th, rows: [] });
+    groups.get(key).rows.push(p);
+  }
+  return { groups, missingDims };
+}
+
+// Sorts largest-area-first, then deals round-robin across N files so the
+// smallest offcuts are spread evenly instead of dumped into one leftover file.
+function packIntoFiles(rows, maxLines) {
+  const n = Math.max(1, Math.ceil(rows.length / maxLines));
+  if (n === 1) return [rows];
+  const sorted = [...rows].sort((a, b) => (b.h * b.b) - (a.h * a.b));
+  const files = Array.from({ length: n }, () => []);
+  sorted.forEach((r, i) => files[i % n].push(r));
+  return files;
+}
+
+function buildPieceLine(length, width, qty, pieceNum, description) {
+  const piecenumField = padRight(String(pieceNum), 13);
+  const descField = padRight(description, 25);
+  return `${fmtNum(length)} ${fmtNum(width)} ${qty} 0 0 0 0 ${piecenumField}0 ${descField}`;
+}
+
+function buildCutlstContent(boardLength, boardWidth, thickness, boardQty, pieces) {
+  const lines = [];
+  lines.push("F0" + " ".repeat(26));
+  lines.push(" 6.00 210700 150300");
+  lines.push("");
+  lines.push(`F1 ${fmtNum(thickness)} 0.000 0.000 0.000 `);
+  lines.push(
+    `${fmtNum(boardLength)} ${fmtNum(boardWidth)} ${boardQty} 200 1 1` +
+    " ".repeat(21) + "EdtDescrizione" + " ".repeat(12) + "0 1.000"
+  );
+  lines.push("");
+  lines.push("F2 0 0 0");
+  pieces.forEach((p, i) => {
+    lines.push(buildPieceLine(p.h, p.b, p.m, i + 1, p.label));
+  });
+  lines.push("");
+  lines.push(...F7_BLOCK);
+  lines.push("");
+  lines.push(F7B_LINE);
+  lines.push("");
+  lines.push(F8_LINE);
+  lines.push("");
+  lines.push(F9_LINE);
+  lines.push("");
+  lines.push("F3");
+  lines.push("E0");
+  return lines.join("\r\n") + "\r\n";
+}
+
+async function loadProject(projectId) {
+  document.getElementById("searchCard").classList.add("hidden");
+  document.getElementById("projectCard").classList.remove("hidden");
+  document.getElementById("projectStatus").textContent = "Sæki gögn…";
+
+  const project = await fetchProjectById(projectId);
+  currentProject = project;
+  document.getElementById("projectName").textContent = project.fields[P_NAME_FIELD] || project.id;
+
+  const [allPieces, boards] = await Promise.all([fetchAllSogunarlisti(), fetchAllBoards()]);
+
+  const pieces = allPieces
+    .filter(r => (r.fields[S_PROJECT_LINK] || []).includes(projectId))
+    .map(r => ({
+      partur: r.fields[S_PARTUR] || "",
+      h: toNumber(r.fields[S_H]),
+      b: toNumber(r.fields[S_B]),
+      th: toNumber(r.fields[S_TH]),
+      m: toNumber(r.fields[S_M]) || 1,
+      efni: r.fields[S_EFNI_UNDIRSTADA] || "",
+      label: String(r.fields[S_PARTUR] || "").trim(),
+    }));
+
+  if (!pieces.length) {
+    document.getElementById("projectStatus").textContent =
+      "Engar Sögunarlisti færslur fundust fyrir þetta verkefni.";
+    return;
+  }
+
+  const { groups: groupMap, missingDims } = groupPieces(pieces);
+  currentGroups = [];
+  for (const g of groupMap.values()) {
+    const board = findBoard(g.material, g.thickness, boards);
+    const files = packIntoFiles(g.rows, MAX_LINES_PER_FILE);
+    currentGroups.push({ ...g, board, files });
+  }
+
+  const groupedCount = [...groupMap.values()].reduce((s, g) => s + g.rows.length, 0);
+  const sersmidiCount = pieces.length - groupedCount - missingDims.length;
+  document.getElementById("projectStatus").textContent =
+    `${pieces.length} línur sóttar` +
+    (sersmidiCount ? `, ${sersmidiCount} Sérsmíði/Karmur-línur sleppt` : "") +
+    (missingDims.length ? `, ${missingDims.length} línur vantar mál (líklega ekki skurðarpartar)` : "") +
+    `, ${currentGroups.length} efni/þykktar-hópar fundnir.`;
+
+  renderMissingDims(missingDims);
+  renderGroups();
+  document.getElementById("groupsCard").classList.remove("hidden");
+}
+
+function renderMissingDims(missingDims) {
+  const card = document.getElementById("missingDimsCard");
+  const list = document.getElementById("missingDimsList");
+  if (!missingDims.length) {
+    card.classList.add("hidden");
+    return;
+  }
+  list.innerHTML = missingDims
+    .map(p => `<li>${p.label || "(án Partur)"} — H:${p.h} B:${p.b} Þ:${p.th}</li>`)
+    .join("");
+  card.classList.remove("hidden");
+}
+
+function renderGroups() {
+  const tbody = document.getElementById("groupsBody");
+  tbody.innerHTML = "";
+  for (const g of currentGroups) {
+    const tr = document.createElement("tr");
+    const boardSize = g.board
+      ? `${g.board.fields[E_LENGD]}×${g.board.fields[E_BREIDD]}mm`
+      : "—";
+    const statusHtml = g.board
+      ? `<span class="status-ok">Fann plötu</span>`
+      : `<span class="status-warn">Engin plata fannst — athuga Efnislisti</span>`;
+    tr.innerHTML = `
+      <td>${g.material}</td>
+      <td>${g.thickness}mm</td>
+      <td>${boardSize}</td>
+      <td>${g.rows.length}</td>
+      <td>${g.files.length}</td>
+      <td>${statusHtml}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+async function writeToUsb() {
+  if (!("showDirectoryPicker" in window)) {
+    alert("Þessi vafri styður ekki að skrifa beint á USB. Notaðu Chrome eða Edge.");
+    return;
+  }
+  const boardQty = parseInt(document.getElementById("boardQtyInput").value, 10) || 1;
+  const jobName = sanitizeFolderName(currentProject.fields[P_NAME_FIELD] || currentProject.id);
+
+  let rootDir;
+  try {
+    rootDir = await window.showDirectoryPicker();
+  } catch (e) {
+    log("Hætt við að velja USB-drif.");
+    return;
+  }
+
+  // "-" not "|" — USB sticks for Cutty are FAT32/exFAT, which reject "|" in
+  // filenames. sanitizeFolderName() already strips "|" from jobName itself,
+  // but the literal " | " joiner here was un-sanitized and silently broke
+  // getDirectoryHandle() with no visible error (caught via real USB testing).
+  const jobDirName = sanitizeFolderName(`${jobName} - Sögunarlisti`);
+
+  try {
+    log(`Skrifa í möppu: ${jobDirName}`);
+    const jobDir = await rootDir.getDirectoryHandle(jobDirName, { create: true });
+
+    let totalFiles = 0;
+    for (const g of currentGroups) {
+      if (!g.board) {
+        log(`SLEPPT: ${g.material} (${g.thickness}mm) — engin plata fannst í Efnislisti.`);
+        continue;
+      }
+      const folderName = sanitizeFolderName(`${g.thickness}mm - ${g.material}`);
+      const matDir = await jobDir.getDirectoryHandle(folderName, { create: true });
+
+      for (let i = 0; i < g.files.length; i++) {
+        const content = buildCutlstContent(
+          g.board.fields[E_LENGD], g.board.fields[E_BREIDD], g.thickness, boardQty, g.files[i]
+        );
+        const fileName = `CUTLST${String(i).padStart(2, "0")}`;
+        const fileHandle = await matDir.getFileHandle(fileName, { create: true });
+        const writable = await fileHandle.createWritable();
+        await writable.write(stringToLatin1Bytes(content));
+        await writable.close();
+        totalFiles++;
+        log(`  ${folderName}/${fileName} — ${g.files[i].length} línur`);
+      }
+    }
+    log(`Búið. ${totalFiles} skrár skrifaðar á USB.`);
+  } catch (e) {
+    log(`VILLA: ${e.message}`);
+    alert(`Villa við að skrifa á USB: ${e.message}`);
+  }
+}
+
+async function populateProjectDropdown() {
+  const select = document.getElementById("projectSelect");
+  const records = await fetchEligibleProjects();
+  records.sort((a, b) =>
+    (a.fields[P_NAME_FIELD] || "").localeCompare(b.fields[P_NAME_FIELD] || "", "is")
+  );
+  select.innerHTML = '<option value="">— Veldu verkefni —</option>';
+  for (const r of records) {
+    const opt = document.createElement("option");
+    opt.value = r.id;
+    opt.textContent = r.fields[P_NAME_FIELD] || r.id;
+    select.appendChild(opt);
+  }
+}
+
+document.getElementById("projectSelect").addEventListener("change", (e) => {
+  if (e.target.value) loadProject(e.target.value);
+});
+
+document.getElementById("writeBtn").addEventListener("click", writeToUsb);
+document.getElementById("resetBtn").addEventListener("click", () => window.location.reload());
+
+// Auto-load if opened from an Airtable button: cutlist.html?recordId=recXXXX
+const params = new URLSearchParams(window.location.search);
+const recordIdParam = params.get("recordId");
+if (recordIdParam) {
+  loadProject(recordIdParam);
+} else {
+  populateProjectDropdown();
+}
+</script>
+</body>
+</html>
