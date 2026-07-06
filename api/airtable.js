@@ -34,7 +34,6 @@ const ALLOWED_FIELDS = {
     "Efni: (undirstaða)",
     "Villa?",
     "Athugasemd",
-    "Lokið",
   ],
   "tbl8CrVWKF8CuI7HD": [ // Efnislisti 🧱
     "Heiti efnis",
