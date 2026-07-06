@@ -406,6 +406,13 @@ async function fetchAllBoards() {
   });
 }
 
+// Ambiguous matches (more than one board qualifies at the same tier) are
+// left unresolved (board: null) rather than silently guessing candidates[0]
+// — picking "whichever Airtable returned first" with no signal is exactly
+// how a wrong board gets used if two candidates ever have different
+// dimensions (e.g. a second "Eurolight 38mm ..." SKU, or two veneer
+// variants like "...eik" vs "...eik m gripalistum"). The caller must show
+// the candidate list and let a person pick.
 function findBoard(materialKey, thickness, boards) {
   const fk = fuzzyKey(materialKey);
   // Every tier requires the board's own Þykkt to match the piece's real
@@ -413,21 +420,20 @@ function findBoard(materialKey, thickness, boards) {
   // material sold at one thickness silently gets matched to a mislabeled
   // row claiming a different thickness (caught via live testing on T-31).
   const sameThickness = b => toNumber(b.fields[E_THYKKT]) === thickness;
-  const exact = boards.filter(b => fuzzyKey(b.fields[E_HEITI]) === fk && sameThickness(b));
-  if (exact.length) return { board: exact[0], ambiguous: exact.length > 1 };
 
-  const starts = boards.filter(b => fuzzyKey(b.fields[E_HEITI]).startsWith(fk) && sameThickness(b));
-  if (starts.length) return { board: starts[0], ambiguous: starts.length > 1 };
+  const tiers = [
+    boards.filter(b => fuzzyKey(b.fields[E_HEITI]) === fk && sameThickness(b)),
+    boards.filter(b => fuzzyKey(b.fields[E_HEITI]).startsWith(fk) && sameThickness(b)),
+    boards.filter(b => fuzzyKey(b.fields[E_HEITI]).includes(fk) && sameThickness(b)),
+  ];
 
-  // Only reachable here on a fuzzy "contains" match — flagged ambiguous
-  // whenever more than one board qualifies, since picking "whichever Airtable
-  // returned first" with no signal is exactly how a wrong board silently
-  // gets used (e.g. if a second "Eurolight 38mm ..." SKU is ever added —
-  // today there's only one, but nothing stops a second from appearing).
-  const contains = boards.filter(b => fuzzyKey(b.fields[E_HEITI]).includes(fk) && sameThickness(b));
-  if (contains.length) return { board: contains[0], ambiguous: contains.length > 1 };
+  for (const candidates of tiers) {
+    if (!candidates.length) continue;
+    const ambiguous = candidates.length > 1;
+    return { board: ambiguous ? null : candidates[0], ambiguous, candidates };
+  }
 
-  return { board: null, ambiguous: false };
+  return { board: null, ambiguous: false, candidates: [] };
 }
 
 // The original CUTLST format doc is explicit that nothing stops you writing
@@ -519,6 +525,43 @@ function buildCutlstContent(boardLength, boardWidth, thickness, boardQty, pieces
 
 let currentOversized = [];
 
+// Splits a group's full row set against its (possibly just-chosen) board:
+// fitting pieces stay in the group, oversized ones move to currentOversized.
+// Re-runnable so picking a board for a previously-ambiguous group recomputes
+// oversized/files the same way the initial load does. If no board is set yet
+// (still ambiguous, unresolved), files are still built from the full row set
+// so the table shows a file-count estimate, but writeToUsb() skips groups
+// without a board regardless.
+function applyBoardToGroup(g) {
+  currentOversized = currentOversized.filter(o => o.groupKey !== g.key);
+  let rows = g.allRows;
+  if (g.board) {
+    const fitting = [];
+    for (const p of g.allRows) {
+      if (pieceFits(p, g.board)) fitting.push(p);
+      else currentOversized.push({ ...p, material: g.material, thickness: g.thickness, board: g.board, groupKey: g.key });
+    }
+    rows = fitting;
+  }
+  g.rows = rows;
+  g.files = packIntoFiles(rows, MAX_LINES_PER_FILE);
+}
+
+// Called from the board-picker <select> in renderGroups() when a group's
+// match was ambiguous — resolves it to the chosen candidate and recomputes
+// everything downstream (oversized check, file split) for that group.
+function chooseBoardForGroup(groupKey, boardId) {
+  const g = currentGroups.find(x => x.key === groupKey);
+  if (!g || !boardId) return;
+  const chosen = g.candidates.find(c => c.id === boardId);
+  if (!chosen) return;
+  g.board = chosen;
+  applyBoardToGroup(g);
+  renderOversized();
+  renderGroups();
+  updateWriteButtonState();
+}
+
 async function loadProject(projectId) {
   document.getElementById("searchCard").classList.add("hidden");
   document.getElementById("projectCard").classList.remove("hidden");
@@ -564,21 +607,12 @@ async function loadProject(projectId) {
   const { groups: groupMap, missingDims } = groupPieces(pieces);
   currentGroups = [];
   currentOversized = [];
+  let i = 0;
   for (const g of groupMap.values()) {
-    const { board, ambiguous } = findBoard(g.material, g.thickness, boards);
-
-    let rows = g.rows;
-    if (board) {
-      const fitting = [];
-      for (const p of rows) {
-        if (pieceFits(p, board)) fitting.push(p);
-        else currentOversized.push({ ...p, material: g.material, thickness: g.thickness, board });
-      }
-      rows = fitting;
-    }
-
-    const files = packIntoFiles(rows, MAX_LINES_PER_FILE);
-    currentGroups.push({ ...g, rows, board, ambiguous, files });
+    const { board, ambiguous, candidates } = findBoard(g.material, g.thickness, boards);
+    const groupObj = { ...g, key: String(i++), allRows: g.rows, board, ambiguous, candidates, rows: [], files: [] };
+    currentGroups.push(groupObj);
+    applyBoardToGroup(groupObj);
   }
 
   const groupedCount = [...groupMap.values()].reduce((s, g) => s + g.rows.length, 0);
@@ -619,10 +653,24 @@ function renderGroups() {
       ? `${g.board.fields[E_LENGD]}×${g.board.fields[E_BREIDD]}mm`
       : "—";
     let statusHtml;
-    if (!g.board) {
+    if (g.ambiguous && !g.board) {
+      // Unresolved — more than one Efnislisti board could match. Blocking
+      // (see updateWriteButtonState) rather than silently guessing, since
+      // the candidates can have different real dimensions.
+      const options = g.candidates
+        .map(c => `<option value="${c.id}">${escapeHtml(c.fields[E_HEITI])} (${c.fields[E_LENGD]}×${c.fields[E_BREIDD]}mm)</option>`)
+        .join("");
+      statusHtml = `
+        <span class="status-warn">Veldu plötu:</span>
+        <select onchange="chooseBoardForGroup('${g.key}', this.value)" style="max-width:280px;">
+          <option value="">— Fleiri en ein plata gæti passað —</option>
+          ${options}
+        </select>
+      `;
+    } else if (!g.board) {
       statusHtml = `<span class="status-warn">Engin plata fannst — athuga Efnislisti</span>`;
     } else if (g.ambiguous) {
-      statusHtml = `<span class="status-warn">Fleiri en ein plata gæti passað — óvíst val</span>`;
+      statusHtml = `<span class="status-ok">Fann plötu (valið handvirkt)</span>`;
     } else {
       statusHtml = `<span class="status-ok">Fann plötu</span>`;
     }
@@ -672,7 +720,8 @@ function renderOversized() {
 }
 
 function updateWriteButtonState() {
-  document.getElementById("writeBtn").disabled = currentOversized.length > 0;
+  const unresolvedAmbiguous = currentGroups.some(g => g.ambiguous && !g.board);
+  document.getElementById("writeBtn").disabled = currentOversized.length > 0 || unresolvedAmbiguous;
 }
 
 async function fixOversized(idx) {
