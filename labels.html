@@ -297,10 +297,28 @@ function groupPieces(pieces) {
   return { groups: [...map.values()], missingDims };
 }
 
+// Copies-printed-so-far per record, keyed by record id. Airtable only ever
+// stores the final Lokið flag, not "2 of 3 copies done" — that count lives
+// in print-server.js's local counts.json — so this can only reflect progress
+// actively driven through this tool in the current session; anything not
+// yet touched here shows 0 until it's fully Lokið.
+let printProgress = {};
+
+function recordDoneQty(r) {
+  if (r.lokid) return r.m;
+  return printProgress[r.id] || 0;
+}
+
+function groupProgress(g) {
+  const total = g.records.reduce((s, r) => s + r.m, 0);
+  const done = g.records.reduce((s, r) => s + recordDoneQty(r), 0);
+  return { done, total };
+}
+
 function groupStatus(g) {
-  const done = g.records.filter(r => r.lokid).length;
-  if (done === 0) return "none";
-  if (done === g.records.length) return "done";
+  const { done, total } = groupProgress(g);
+  if (done <= 0) return "none";
+  if (done >= total) return "done";
   return "partial";
 }
 
@@ -349,10 +367,16 @@ async function printGroup(groupKey) {
   const pending = g.records.filter(r => !r.lokid);
   for (const r of pending) {
     const roomLabel = r.athugasemd || r.id;
+    printProgress[r.id] = 0;
     try {
       log(`🖨️  Prenta: ${g.partur} ${g.h}×${g.b} — ${roomLabel}`);
-      await printRecordToCompletion(r.id, () => log(`   ...næsta eintak (${roomLabel})`));
+      await printRecordToCompletion(r.id, () => {
+        printProgress[r.id] = (printProgress[r.id] || 0) + 1;
+        log(`   ...${printProgress[r.id]}/${r.m} (${roomLabel})`);
+        renderRows();
+      });
       r.lokid = true;
+      delete printProgress[r.id];
       log(`✅ Lokið: ${g.partur} — ${roomLabel}`);
       renderRows();
     } catch (e) {
@@ -469,11 +493,10 @@ function renderRows() {
   for (const g of sorted) {
     const status = groupStatus(g);
     const qty = groupQty(g);
+    const { done: doneQty, total: totalQty } = groupProgress(g);
     const div = document.createElement("div");
     div.className = `row ${status}`;
-    const statusText = status === "done" ? "✓ Allt prentað"
-      : status === "partial" ? `${g.records.filter(r => r.lokid).length}/${g.records.length} prentað`
-      : "Óprentað";
+    const statusText = `${doneQty}/${totalQty} prentað`;
     const statusClass = status === "done" ? "status-done" : status === "partial" ? "status-partial" : "status-none";
 
     div.innerHTML = `
