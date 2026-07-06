@@ -125,7 +125,12 @@ export default async function handler(req, res) {
       body: JSON.stringify({ fields }),
     });
     const data = await airtableRes.json();
-    return res.status(airtableRes.status).json(data);
+    // Airtable's PATCH response echoes the full updated record regardless of
+    // what was sent — same leak as the GET path if left unfiltered (caught
+    // via direct testing: a PATCH response included every field on the
+    // record, not just the ones written).
+    const filtered = data.fields ? filterFields(data, ALLOWED_FIELDS[tableId] || []) : data;
+    return res.status(airtableRes.status).json(filtered);
   }
 
   return res.status(405).json({ error: "GET or PATCH only" });
