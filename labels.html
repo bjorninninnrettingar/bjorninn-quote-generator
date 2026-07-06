@@ -217,10 +217,9 @@ function escapeHtml(s) {
   }[c]));
 }
 
-// printRecordToCompletion can issue dozens of GET polls per print cycle
-// (every 1.5s for up to 20s, times up to 50 cycles) — print-server.js
-// already retries its own Airtable calls on 429 for the same reason, this
-// mirrors it here instead of letting a rate-limit hit abort a print mid-run.
+// printOneCycle polls every 1.5s for up to 20s — print-server.js already
+// retries its own Airtable calls on 429 for the same reason, this mirrors
+// it here instead of letting a rate-limit hit abort a print mid-run.
 async function fetchWithRetry(url, options, maxRetries = 3) {
   for (let attempt = 0; ; attempt++) {
     const res = await fetch(url, options);
@@ -354,35 +353,34 @@ function groupQty(g) {
 }
 
 // ── PRINT TRIGGER ────────────────────────────────────────────────────────
-// Drives one underlying Sögunarlisti record through its full print cycle.
-// The shop's print-server.js prints exactly ONE label per B.A.S. check, then
-// either sets Lokið=true (if that was the last copy) or just unchecks
-// B.A.S. (if the record's own quantity means more copies remain) — so a
-// piece with qty > 1 needs repeated re-checks. This loop does that
-// automatically so one click here finishes the whole job.
-async function printRecordToCompletion(id, onCopyPrinted) {
+// Drives exactly ONE print cycle for a record: check B.A.S., wait for the
+// shop's print-server.js to print one label and clear it (or set Lokið if
+// that was the last copy), then stop. This deliberately does NOT loop to
+// auto-finish a multi-copy piece — an earlier version re-checked B.A.S. in a
+// loop until Lokið, which interacted badly with print-server's own 3s poll
+// cadence and caused a runaway flood of duplicate prints on a real qty-8
+// piece (confirmed live). One press now means exactly one print action;
+// pieces with qty > 1 need one press per copy, same as the original
+// checkbox-in-Airtable workflow.
+async function printOneCycle(id) {
   const POLL_MS = 1500;
   const CYCLE_TIMEOUT_MS = 20000;
-  const MAX_CYCLES = 50; // safety cap against a runaway loop if Lokið never flips (e.g. bad M value)
 
-  for (let cycle = 0; cycle < MAX_CYCLES; cycle++) {
-    await patchSogunarlisti(id, { [S_BAS]: true });
-    const cycleStart = Date.now();
-    let bas = true, lokid = false;
+  await patchSogunarlisti(id, { [S_BAS]: true });
+  const cycleStart = Date.now();
 
-    while (Date.now() - cycleStart < CYCLE_TIMEOUT_MS) {
-      await sleep(POLL_MS);
-      const rec = await airtableFetch(SOGUNARLISTI_TABLE, {}, id);
-      bas = !!rec.fields[S_BAS];
-      lokid = !!rec.fields[S_LOKID];
-      if (lokid) return;
-      if (!bas) break; // one copy printed — loop outer to trigger the next, if any
-    }
-
-    if (bas) throw new Error("Prentþjónn svarar ekki (tímamörk náð) — er hann í gangi á gólfstölvunni?");
-    if (onCopyPrinted) onCopyPrinted();
+  while (Date.now() - cycleStart < CYCLE_TIMEOUT_MS) {
+    await sleep(POLL_MS);
+    const rec = await airtableFetch(SOGUNARLISTI_TABLE, {}, id);
+    if (rec.fields[S_LOKID]) return { lokid: true };
+    if (!rec.fields[S_BAS]) return { lokid: false }; // one copy printed, more may remain
   }
-  throw new Error("Náði ekki Lokið eftir margar tilraunir — athuga Magn (M) gildi á færslunni");
+
+  // Timed out — B.A.S. never flipped back (print server likely isn't
+  // running). Clear it ourselves so it doesn't sit checked and fire an
+  // unexpected print later once the server comes back online.
+  await patchSogunarlisti(id, { [S_BAS]: false }).catch(() => {});
+  throw new Error("Prentþjónn svarar ekki (tímamörk náð) — er hann í gangi á gólfstölvunni?");
 }
 
 // Only one group can print at a time anyway (one physical printer), but
@@ -400,20 +398,23 @@ async function printGroup(groupKey) {
   renderRows();
 
   try {
+    // One press = one print cycle per pending underlying record in this
+    // group (bounded by how many distinct records it has) — not a repeat
+    // loop per record. A qty>1 piece needs one press per remaining copy.
     const pending = g.records.filter(r => !r.lokid);
     for (const r of pending) {
       const roomLabel = r.athugasemd || r.id;
-      printProgress[r.id] = 0;
       try {
         log(`🖨️  Prenta: ${g.partur} ${g.h}×${g.b} — ${roomLabel}`);
-        await printRecordToCompletion(r.id, () => {
+        const result = await printOneCycle(r.id);
+        if (result.lokid) {
+          r.lokid = true;
+          delete printProgress[r.id];
+          log(`✅ Lokið: ${g.partur} — ${roomLabel}`);
+        } else {
           printProgress[r.id] = (printProgress[r.id] || 0) + 1;
-          log(`   ...${printProgress[r.id]}/${r.m} (${roomLabel})`);
-          renderRows();
-        });
-        r.lokid = true;
-        delete printProgress[r.id];
-        log(`✅ Lokið: ${g.partur} — ${roomLabel}`);
+          log(`   ${printProgress[r.id]}/${r.m} prentað (${roomLabel}) — ýttu aftur fyrir næsta eintak`);
+        }
         renderRows();
       } catch (e) {
         log(`❌ Villa (${roomLabel}): ${e.message}`);
