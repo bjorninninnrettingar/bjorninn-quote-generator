@@ -208,6 +208,27 @@ function toNumber(v) {
   return Number.isFinite(n) ? n : 0;
 }
 
+// Efni/Partur/file-name text is interpolated into innerHTML for the rows and
+// filter dropdowns — escape it so a stray "<"/">" in Airtable text can't
+// render as real HTML.
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[c]));
+}
+
+// printRecordToCompletion can issue dozens of GET polls per print cycle
+// (every 1.5s for up to 20s, times up to 50 cycles) — print-server.js
+// already retries its own Airtable calls on 429 for the same reason, this
+// mirrors it here instead of letting a rate-limit hit abort a print mid-run.
+async function fetchWithRetry(url, options, maxRetries = 3) {
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(url, options);
+    if (res.status !== 429 || attempt >= maxRetries) return res;
+    await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+  }
+}
+
 async function airtableFetch(table, params, recordId) {
   const url = new URL(PROXY_URL, window.location.origin);
   url.searchParams.set("path", recordId ? `${table}/${recordId}` : table);
@@ -217,7 +238,7 @@ async function airtableFetch(table, params, recordId) {
   }
 
   if (recordId) {
-    const res = await fetch(url.toString());
+    const res = await fetchWithRetry(url.toString());
     if (!res.ok) throw new Error(`Airtable HTTP ${res.status}`);
     return res.json();
   }
@@ -226,7 +247,7 @@ async function airtableFetch(table, params, recordId) {
   let offset;
   do {
     if (offset) url.searchParams.set("offset", offset);
-    const res = await fetch(url.toString());
+    const res = await fetchWithRetry(url.toString());
     if (!res.ok) throw new Error(`Airtable HTTP ${res.status}`);
     const data = await res.json();
     records = records.concat(data.records || []);
@@ -238,7 +259,7 @@ async function airtableFetch(table, params, recordId) {
 async function patchSogunarlisti(recordId, fields) {
   const url = new URL(PROXY_URL, window.location.origin);
   url.searchParams.set("path", `${SOGUNARLISTI_TABLE}/${recordId}`);
-  const res = await fetch(url.toString(), {
+  const res = await fetchWithRetry(url.toString(), {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ fields }),
@@ -288,7 +309,13 @@ function groupPieces(pieces) {
   const missingDims = [];
   for (const p of pieces) {
     if (p.b <= 0 || p.th <= 0) { missingDims.push(p); continue; }
-    const key = `${p.partur}|${p.h}|${p.b}|${p.th}`;
+    // Material is part of the key too, not just Partur+size — otherwise two
+    // genuinely different materials that happen to share the same part name,
+    // size, and thickness would silently merge into one row (each physical
+    // label still prints correctly since print-server pulls material fresh
+    // per record, but the aggregated row would misleadingly combine two
+    // batches the operator would want to treat separately).
+    const key = `${p.partur}|${p.h}|${p.b}|${p.th}|${p.efni}`;
     if (!map.has(key)) {
       map.set(key, { partur: p.partur, h: p.h, b: p.b, th: p.th, efni: p.efni, records: [] });
     }
@@ -358,32 +385,44 @@ async function printRecordToCompletion(id, onCopyPrinted) {
   throw new Error("Náði ekki Lokið eftir margar tilraunir — athuga Magn (M) gildi á færslunni");
 }
 
+// Only one group can print at a time anyway (one physical printer), but
+// nothing stopped clicking a second group's button while the first was still
+// running — both printGroup() loops would race, PATCHing/polling B.A.S.
+// concurrently. isPrinting blocks that: renderRows() disables every print
+// button while it's true, not just the one that was clicked.
+let isPrinting = false;
+
 async function printGroup(groupKey) {
+  if (isPrinting) return;
   const g = groups.find(x => x.key === groupKey);
   if (!g) return;
-  const btn = document.getElementById(`btn-${groupKey}`);
-  btn.disabled = true;
+  isPrinting = true;
+  renderRows();
 
-  const pending = g.records.filter(r => !r.lokid);
-  for (const r of pending) {
-    const roomLabel = r.athugasemd || r.id;
-    printProgress[r.id] = 0;
-    try {
-      log(`🖨️  Prenta: ${g.partur} ${g.h}×${g.b} — ${roomLabel}`);
-      await printRecordToCompletion(r.id, () => {
-        printProgress[r.id] = (printProgress[r.id] || 0) + 1;
-        log(`   ...${printProgress[r.id]}/${r.m} (${roomLabel})`);
+  try {
+    const pending = g.records.filter(r => !r.lokid);
+    for (const r of pending) {
+      const roomLabel = r.athugasemd || r.id;
+      printProgress[r.id] = 0;
+      try {
+        log(`🖨️  Prenta: ${g.partur} ${g.h}×${g.b} — ${roomLabel}`);
+        await printRecordToCompletion(r.id, () => {
+          printProgress[r.id] = (printProgress[r.id] || 0) + 1;
+          log(`   ...${printProgress[r.id]}/${r.m} (${roomLabel})`);
+          renderRows();
+        });
+        r.lokid = true;
+        delete printProgress[r.id];
+        log(`✅ Lokið: ${g.partur} — ${roomLabel}`);
         renderRows();
-      });
-      r.lokid = true;
-      delete printProgress[r.id];
-      log(`✅ Lokið: ${g.partur} — ${roomLabel}`);
-      renderRows();
-    } catch (e) {
-      log(`❌ Villa (${roomLabel}): ${e.message}`);
-      renderRows();
-      return; // stop the group here rather than pushing on after a failure
+      } catch (e) {
+        log(`❌ Villa (${roomLabel}): ${e.message}`);
+        return; // stop the group here rather than pushing on after a failure
+      }
     }
+  } finally {
+    isPrinting = false;
+    renderRows();
   }
 }
 
@@ -431,13 +470,13 @@ function populateFilterDropdowns() {
   const efniSelect = document.getElementById("efniSelect");
   const prevEfni = efniSelect.value;
   efniSelect.innerHTML = '<option value="">Öll efni</option>' +
-    efnis.map(e => `<option value="${e}">${e}</option>`).join("");
+    efnis.map(e => `<option value="${escapeHtml(e)}">${escapeHtml(e)}</option>`).join("");
   efniSelect.value = efnis.includes(prevEfni) ? prevEfni : "";
 
   const skraSelect = document.getElementById("skraSelect");
   const prevSkra = skraSelect.value;
   skraSelect.innerHTML = '<option value="">Allar skrár (CUTLST)</option>' +
-    skrar.map(s => `<option value="${s}">${s}</option>`).join("") +
+    skrar.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("") +
     (allPieces.some(p => !p.skra) ? '<option value="__none__">Ekki í neinni skrá enn</option>' : "");
   skraSelect.value = (skrar.includes(prevSkra) || prevSkra === "__none__") ? prevSkra : "";
 }
@@ -499,15 +538,16 @@ function renderRows() {
     const statusText = `${doneQty}/${totalQty} prentað`;
     const statusClass = status === "done" ? "status-done" : status === "partial" ? "status-partial" : "status-none";
 
+    const disabled = status === 'done' || isPrinting;
     div.innerHTML = `
       <div class="row-main">
-        <div class="partur">${g.partur}</div>
-        <div class="meta">${g.h}×${g.b}×${g.th}mm — ${g.efni}</div>
+        <div class="partur">${escapeHtml(g.partur)}</div>
+        <div class="meta">${g.h}×${g.b}×${g.th}mm — ${escapeHtml(g.efni)}</div>
       </div>
       <div class="qty-badge">×${qty}</div>
       <div class="status-text ${statusClass}">${statusText}</div>
       <button class="print-btn ${status === 'done' ? 'done' : ''}" id="btn-${g.key}"
-        ${status === 'done' ? 'disabled' : ''}
+        ${disabled ? 'disabled' : ''}
         onclick="printGroup('${g.key}')">${status === 'done' ? '✓' : '🖨️'}</button>
     `;
     container.appendChild(div);

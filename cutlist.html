@@ -260,6 +260,15 @@ function toNumber(v) {
   return Number.isFinite(n) ? n : 0;
 }
 
+// Material/Partur text comes straight from Airtable and gets interpolated
+// into innerHTML for the groups/warnings tables — escape it so a stray
+// "<"/">" in a note field can't render as real HTML.
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[c]));
+}
+
 function fmtNum(n) { return Number(n).toFixed(3); }
 
 function padRight(s, width) {
@@ -295,6 +304,18 @@ function stringToLatin1Bytes(str) {
   return bytes;
 }
 
+// print-server.js already retries its own Airtable calls on 429 — this
+// mirrors that here, since writeToUsb can fire dozens of sequential PATCHes
+// (one per piece, for Skurðarskrá) and previously any rate-limit hit would
+// just abort that single piece's write with no retry at all.
+async function fetchWithRetry(url, options, maxRetries = 3) {
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(url, options);
+    if (res.status !== 429 || attempt >= maxRetries) return res;
+    await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+  }
+}
+
 async function airtableFetch(table, params, recordId) {
   const url = new URL(PROXY_URL, window.location.origin);
   url.searchParams.set("path", recordId ? `${table}/${recordId}` : table);
@@ -304,7 +325,7 @@ async function airtableFetch(table, params, recordId) {
   }
 
   if (recordId) {
-    const res = await fetch(url.toString());
+    const res = await fetchWithRetry(url.toString());
     if (!res.ok) throw new Error(`Airtable HTTP ${res.status}`);
     return res.json();
   }
@@ -313,7 +334,7 @@ async function airtableFetch(table, params, recordId) {
   let offset;
   do {
     if (offset) url.searchParams.set("offset", offset);
-    const res = await fetch(url.toString());
+    const res = await fetchWithRetry(url.toString());
     if (!res.ok) throw new Error(`Airtable HTTP ${res.status}`);
     const data = await res.json();
     records = records.concat(data.records || []);
@@ -329,7 +350,7 @@ async function airtableFetch(table, params, recordId) {
 async function patchSogunarlisti(recordId, fields) {
   const url = new URL(PROXY_URL, window.location.origin);
   url.searchParams.set("path", `${SOGUNARLISTI_TABLE}/${recordId}`);
-  const res = await fetch(url.toString(), {
+  const res = await fetchWithRetry(url.toString(), {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ fields }),
@@ -584,7 +605,7 @@ function renderMissingDims(missingDims) {
     return;
   }
   list.innerHTML = missingDims
-    .map(p => `<li>${p.label || "(án Partur)"} — H:${p.h} B:${p.b} Þ:${p.th}</li>`)
+    .map(p => `<li>${escapeHtml(p.label || "(án Partur)")} — H:${p.h} B:${p.b} Þ:${p.th}</li>`)
     .join("");
   card.classList.remove("hidden");
 }
@@ -606,7 +627,7 @@ function renderGroups() {
       statusHtml = `<span class="status-ok">Fann plötu</span>`;
     }
     tr.innerHTML = `
-      <td>${g.material}</td>
+      <td>${escapeHtml(g.material)}</td>
       <td>${g.thickness}mm</td>
       <td>${boardSize}</td>
       <td>${g.rows.length}</td>
@@ -636,7 +657,7 @@ function renderOversized() {
     const li = document.createElement("li");
     li.style.marginBottom = "10px";
     li.innerHTML = `
-      ${p.label} — <strong>${p.h}×${p.b}mm</strong> á ${p.thickness}mm ${p.material}
+      ${escapeHtml(p.label)} — <strong>${p.h}×${p.b}mm</strong> á ${p.thickness}mm ${escapeHtml(p.material)}
       (plata ${p.board.fields[E_LENGD]}×${p.board.fields[E_BREIDD]}mm)<br>
       <input type="number" value="${p.h}" id="fixH-${idx}" style="width:90px;max-width:90px;display:inline-block;" />
       ×
@@ -682,7 +703,7 @@ async function writeToUsb() {
   const writeBtn = document.getElementById("writeBtn");
   writeBtn.disabled = true; // guards against double-clicks starting two overlapping writes
 
-  const boardQty = parseInt(document.getElementById("boardQtyInput").value, 10) || 1;
+  const boardQty = Math.max(1, parseInt(document.getElementById("boardQtyInput").value, 10) || 1);
   const jobName = sanitizeFolderName(currentProject.fields[P_NAME_FIELD] || currentProject.id);
 
   let rootDir;
