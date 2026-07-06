@@ -151,6 +151,7 @@ const EFNISLISTI_TABLE   = "tbl8CrVWKF8CuI7HD"; // Efnislisti 🧱
 
 const P_NAME_FIELD = "Heiti tækifæris / verkefnis";
 const P_STADA_SKIPULAG = "Staða í skipulagi";
+const P_STADA_FRAM = "Staða í framleiðslu";
 const P_UNNID = "Tækifæri unnið 🏆";
 
 const S_PROJECT_LINK      = "Tækifæri 📣 (projects)";
@@ -278,9 +279,14 @@ async function airtableFetch(table, params, recordId) {
 async function fetchEligibleProjects() {
   // Only projects that have entered Skipulag (any status in that field) or are
   // already confirmed/won — excludes early-stage leads from the dropdown.
-  const formula = `OR(
-    {${P_STADA_SKIPULAG}} != "",
-    {${P_UNNID}} = 1
+  // Staða í framleiðslu must be empty too: once production has actually
+  // started, the project no longer needs to show up here.
+  const formula = `AND(
+    OR(
+      {${P_STADA_SKIPULAG}} != "",
+      {${P_UNNID}} = 1
+    ),
+    {${P_STADA_FRAM}} = ""
   )`;
   return airtableFetch(PROJECTS_TABLE, {
     filterByFormula: formula,
@@ -337,15 +343,25 @@ function groupPieces(pieces) {
   return { groups, missingDims };
 }
 
-// Sorts largest-area-first, then deals round-robin across N files so the
-// smallest offcuts are spread evenly instead of dumped into one leftover file.
+// Greedy LPT (longest-processing-time-first) bin balancing: place the largest
+// piece first, always into whichever file currently has the least total area
+// (among files still under the line cap). Round-robin-by-rank looked balanced
+// but actually left a ~2x spread in cut area per file on real data (9.8m² vs
+// 20.4m² across 8 files of the same material) — this keeps files within ~1m²
+// of each other, so no board load is left mostly empty while another is
+// packed tight.
 function packIntoFiles(rows, maxLines) {
   const n = Math.max(1, Math.ceil(rows.length / maxLines));
   if (n === 1) return [rows];
   const sorted = [...rows].sort((a, b) => (b.h * b.b) - (a.h * a.b));
-  const files = Array.from({ length: n }, () => []);
-  sorted.forEach((r, i) => files[i % n].push(r));
-  return files;
+  const bins = Array.from({ length: n }, () => ({ rows: [], area: 0 }));
+  for (const p of sorted) {
+    const candidates = bins.filter(b => b.rows.length < maxLines);
+    const target = candidates.reduce((min, b) => (b.area < min.area ? b : min), candidates[0]);
+    target.rows.push(p);
+    target.area += p.h * p.b * p.m;
+  }
+  return bins.map(b => b.rows);
 }
 
 function buildPieceLine(length, width, qty, pieceNum, description) {
@@ -508,7 +524,12 @@ async function writeToUsb() {
         const content = buildCutlstContent(
           g.board.fields[E_LENGD], g.board.fields[E_BREIDD], g.thickness, boardQty, g.files[i]
         );
-        const fileName = `CUTLST${String(i).padStart(2, "0")}`;
+        // On the USB the name carries file# + material so the operator can
+        // tell files apart at a glance ("CUTLST00-1-MDF 12mm"). Cutty itself
+        // needs the strict "CUTLST00" 8-char form, so the operator strips the
+        // "-1-MDF 12mm" suffix back off when copying one file at a time into
+        // Cutty's own folder — the base stays fixed, only the suffix differs.
+        const fileName = sanitizeFolderName(`CUTLST00-${i + 1}-${g.material}`);
         const fileHandle = await matDir.getFileHandle(fileName, { create: true });
         const writable = await fileHandle.createWritable();
         await writable.write(stringToLatin1Bytes(content));
