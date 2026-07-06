@@ -24,16 +24,8 @@ const ALLOWED_FIELDS = {
     "Framvinda framleiðslu [weighted]",
     "Forgangur framleiðslu 🥇",
   ],
-  "tblhdgyvTcBfP8kov": [ // Sögunarlisti 🪚
-    "Tækifæri 📣 (projects)",
+  "tblhdgyvTcBfP8kov": [ // Sögunarlisti 🪚 — DEBUG: temporarily just one field
     "Partur",
-    "H",
-    "B",
-    "Þ",
-    "M",
-    "Efni: (undirstaða)",
-    "Villa?",
-    "Athugasemd",
   ],
   "tbl8CrVWKF8CuI7HD": [ // Efnislisti 🧱
     "Heiti efnis",
