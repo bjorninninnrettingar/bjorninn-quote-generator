@@ -24,8 +24,19 @@ const ALLOWED_FIELDS = {
     "Framvinda framleiðslu [weighted]",
     "Forgangur framleiðslu 🥇",
   ],
-  "tblhdgyvTcBfP8kov": [ // Sögunarlisti 🪚 — DEBUG: temporarily just one field
+  "tblhdgyvTcBfP8kov": [ // Sögunarlisti 🪚
+    "Tækifæri 📣 (projects)",
     "Partur",
+    "H",
+    "B",
+    "Þ",
+    "M",
+    "Efni: (undirstaða)",
+    "Villa?",
+    "Athugasemd",
+    "B.A.S.",
+    "Lokið",
+    "Skurðarskrá",
   ],
   "tbl8CrVWKF8CuI7HD": [ // Efnislisti 🧱
     "Heiti efnis",
@@ -63,11 +74,11 @@ export default async function handler(req, res) {
     const { path, ...params } = req.query;
     if (!path) return res.status(400).json({ error: "Missing path" });
 
-    const tableId = String(path).split("/")[0];
+    const [tableId, recordId] = String(path).split("/");
     const allowedFields = ALLOWED_FIELDS[tableId];
     if (!allowedFields) return res.status(403).json({ error: "Table not allowed" });
 
-    const url = new URL(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${path}`);
+    const url = new URL(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${tableId}`);
     for (const [key, value] of Object.entries(params)) {
       if (key === "fields[]") continue; // rebuilt below — client's request is ignored, not trusted
       if (Array.isArray(value)) value.forEach((v) => url.searchParams.append(key, v));
@@ -75,20 +86,31 @@ export default async function handler(req, res) {
     }
     allowedFields.forEach((f) => url.searchParams.append("fields[]", f));
 
+    if (recordId) {
+      // Airtable's single-record endpoint (GET /v0/{base}/{table}/{id}) started
+      // rejecting every request with a generic 422 "parameter validation
+      // failed" — verified via direct testing that even one allowed field, and
+      // even the previously rock-solid Tækifæri table, fail identically.
+      // Routing through the list endpoint's RECORD_ID() filter instead gets
+      // the same data and sidesteps whatever broke there.
+      url.searchParams.set("filterByFormula", `RECORD_ID()='${recordId}'`);
+      const airtableRes = await fetch(url.toString(), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await airtableRes.json();
+      if (!airtableRes.ok) return res.status(airtableRes.status).json(data);
+      const record = (data.records || [])[0];
+      if (!record) return res.status(404).json({ error: "Record not found" });
+      return res.status(200).json(filterFields(record, allowedFields));
+    }
+
     const airtableRes = await fetch(url.toString(), {
       headers: { Authorization: `Bearer ${token}` },
     });
     const data = await airtableRes.json();
-
-    // Belt-and-braces: Airtable's single-record GET endpoint doesn't honor
-    // fields[] the way the list endpoint does, so strip server-side too —
-    // this caps the response regardless of which endpoint was actually hit.
     if (Array.isArray(data.records)) {
       data.records = data.records.map((r) => filterFields(r, allowedFields));
-    } else if (data.fields) {
-      Object.assign(data, filterFields(data, allowedFields));
     }
-
     return res.status(airtableRes.status).json(data);
   }
 
