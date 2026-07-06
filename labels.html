@@ -139,6 +139,12 @@
 
   <div class="card hidden" id="listCard">
     <div class="toolbar">
+      <select id="efniSelect" style="max-width:260px;" onchange="onFilterChange()">
+        <option value="">Öll efni</option>
+      </select>
+      <select id="skraSelect" style="max-width:260px;" onchange="onFilterChange()">
+        <option value="">Allar skrár (CUTLST)</option>
+      </select>
       <div class="filter-pill" id="filterPill" onclick="toggleFilter()">
         <span class="dot"></span>Sýna ólokið eingöngu
       </div>
@@ -176,11 +182,15 @@ const S_EFNI_UNDIRSTADA = "Efni: (undirstaða)";
 const S_ATHUGASEMD      = "Athugasemd";
 const S_BAS             = "B.A.S.";
 const S_LOKID           = "Lokið";
+const S_SKURDARSKRA     = "Skurðarskrá";
 // ─────────────────────────────────────────────────────────────────────────
 
 let currentProjectId = null;
+let allPieces = [];
 let groups = [];
 let filterUnfinished = false;
+let selectedEfni = "";
+let selectedSkra = "";
 
 function log(msg) {
   const el = document.getElementById("log");
@@ -263,7 +273,7 @@ async function fetchSogunarlistiForProject(projectName) {
     filterByFormula: formula,
     "fields[]": [
       S_PROJECT_LINK, S_PARTUR, S_H, S_B, S_TH, S_M,
-      S_EFNI_UNDIRSTADA, S_ATHUGASEMD, S_BAS, S_LOKID,
+      S_EFNI_UNDIRSTADA, S_ATHUGASEMD, S_BAS, S_LOKID, S_SKURDARSKRA,
     ],
     pageSize: 100,
   });
@@ -367,7 +377,7 @@ async function loadProject(projectId) {
 
   const rows = await fetchSogunarlistiForProject(projectName);
 
-  const pieces = rows
+  allPieces = rows
     .filter(r => (r.fields[S_PROJECT_LINK] || []).includes(projectId))
     .map(r => ({
       id: r.id,
@@ -379,16 +389,59 @@ async function loadProject(projectId) {
       efni: r.fields[S_EFNI_UNDIRSTADA] || "",
       athugasemd: String(r.fields[S_ATHUGASEMD] || "").trim(),
       lokid: !!r.fields[S_LOKID],
+      skra: String(r.fields[S_SKURDARSKRA] || "").trim(),
     }));
+
+  populateFilterDropdowns();
+  document.getElementById("listCard").classList.remove("hidden");
+  rebuildGroups();
+}
+
+// Materials and CUTLST files seen across the whole project — independent of
+// the current filter selection, so switching one filter doesn't hide options
+// in the other.
+function populateFilterDropdowns() {
+  const efnis = [...new Set(allPieces.map(p => p.efni).filter(Boolean))].sort();
+  const skrar = [...new Set(allPieces.map(p => p.skra).filter(Boolean))].sort();
+
+  const efniSelect = document.getElementById("efniSelect");
+  const prevEfni = efniSelect.value;
+  efniSelect.innerHTML = '<option value="">Öll efni</option>' +
+    efnis.map(e => `<option value="${e}">${e}</option>`).join("");
+  efniSelect.value = efnis.includes(prevEfni) ? prevEfni : "";
+
+  const skraSelect = document.getElementById("skraSelect");
+  const prevSkra = skraSelect.value;
+  skraSelect.innerHTML = '<option value="">Allar skrár (CUTLST)</option>' +
+    skrar.map(s => `<option value="${s}">${s}</option>`).join("") +
+    (allPieces.some(p => !p.skra) ? '<option value="__none__">Ekki í neinni skrá enn</option>' : "");
+  skraSelect.value = (skrar.includes(prevSkra) || prevSkra === "__none__") ? prevSkra : "";
+}
+
+function onFilterChange() {
+  selectedEfni = document.getElementById("efniSelect").value;
+  selectedSkra = document.getElementById("skraSelect").value;
+  rebuildGroups();
+}
+
+// Re-derives groups from allPieces + the current Efni/Skrá filters. Filtering
+// by Skrá happens BEFORE grouping, not after — a group can straddle two
+// CUTLST files (the 22-line cap can split one size across files), so
+// filtering to one file has to narrow which underlying pieces count, not
+// just hide groups that don't match.
+function rebuildGroups() {
+  let pieces = allPieces;
+  if (selectedEfni) pieces = pieces.filter(p => p.efni === selectedEfni);
+  if (selectedSkra === "__none__") pieces = pieces.filter(p => !p.skra);
+  else if (selectedSkra) pieces = pieces.filter(p => p.skra === selectedSkra);
 
   const { groups: grouped, missingDims } = groupPieces(pieces);
   groups = grouped.map((g, i) => ({ ...g, key: String(i) }));
 
   document.getElementById("projectStatus").textContent =
-    `${pieces.length} línur sóttar, ${groups.length} hópar` +
+    `${pieces.length} línur sýndar (af ${allPieces.length}), ${groups.length} hópar` +
     (missingDims.length ? ` — ${missingDims.length} línur vantar mál, sleppt` : "");
 
-  document.getElementById("listCard").classList.remove("hidden");
   renderRows();
 }
 
