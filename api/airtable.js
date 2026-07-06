@@ -34,6 +34,9 @@ const ALLOWED_FIELDS = {
     "Efni: (undirstaða)",
     "Villa?",
     "Athugasemd",
+    "B.A.S.",
+    "Lokið",
+    "Skurðarskrá",
   ],
   "tbl8CrVWKF8CuI7HD": [ // Efnislisti 🧱
     "Heiti efnis",
@@ -44,10 +47,14 @@ const ALLOWED_FIELDS = {
 };
 
 // Only Sögunarlisti rows may be patched, and only these fields — used for the
-// "mark as manual cut" / "fix oversized piece" actions in cutlist.html. Never
+// "mark as manual cut" / "fix oversized piece" actions in cutlist.html, the
+// Skurðarskrá file-assignment write, and labels.html's print trigger. Never
 // exposes create/delete, and never touches Tækifæri or Efnislisti.
+// Note: "Lokið" is intentionally NOT writable here — the shop's
+// print-server.js is the sole owner of setting that field; this proxy only
+// ever sets B.A.S. to request a print, then reads Lokið to see it complete.
 const WRITABLE_FIELDS = {
-  "tblhdgyvTcBfP8kov": ["H", "B", "Þ", "Villa?", "Athugasemd"],
+  "tblhdgyvTcBfP8kov": ["H", "B", "Þ", "Villa?", "Athugasemd", "B.A.S.", "Skurðarskrá"],
 };
 
 function filterFields(record, allowedFields) {

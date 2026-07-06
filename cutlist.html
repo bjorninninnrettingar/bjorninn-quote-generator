@@ -740,6 +740,16 @@ async function writeToUsb() {
         await writable.close();
         totalFiles++;
         log(`  ${folderName}/${fileName} — ${g.files[i].length} línur`);
+
+        // Record which file each piece landed in, so Sögunarlisti can be
+        // filtered by "assigned to a file" (about to be cut) vs not yet.
+        for (const p of g.files[i]) {
+          try {
+            await patchSogunarlisti(p.id, { "Skurðarskrá": fileName });
+          } catch (e) {
+            log(`  ⚠ Skurðarskrá ekki vistað fyrir ${p.label}: ${e.message}`);
+          }
+        }
       }
     }
     log(`Búið. ${totalFiles} skrár skrifaðar á USB.`);
