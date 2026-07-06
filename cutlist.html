@@ -107,6 +107,11 @@
     <ul id="missingDimsList" style="font-size:0.85rem;color:#f5c518;padding-left:20px;"></ul>
   </div>
 
+  <div class="card hidden" id="oversizedCard">
+    <label>Passa ekki á plötuna — verður að leysa áður en hægt er að skrifa á USB</label>
+    <ul id="oversizedList" style="font-size:0.85rem;color:#f44336;padding-left:20px;list-style:none;"></ul>
+  </div>
+
   <div class="card hidden" id="groupsCard">
     <table id="groupsTable">
       <thead>
@@ -161,6 +166,7 @@ const S_B                 = "B";
 const S_TH                = "Þ";
 const S_M                 = "M";
 const S_EFNI_UNDIRSTADA   = "Efni: (undirstaða)";
+const S_VILLA             = "Villa?";
 
 const E_HEITI   = "Heiti efnis";
 const E_BREIDD  = "Breidd (mm)";
@@ -168,18 +174,47 @@ const E_LENGD   = "Lengd (mm)";
 const E_THYKKT  = "Þykkt (mm)";
 
 const MAX_LINES_PER_FILE = 22;
+
+// Case/whitespace/dash-insensitive comparison for Partur category matching —
+// the fuzzy board-name matching already tolerated this, but the exact Set
+// lookups below didn't: a Partur typed as "Slaglisti- Hliðar" (missing a
+// space) or in different case would silently miss the override entirely and
+// re-introduce the exact bug already found once, just under a new string.
+function normalizePartur(s) {
+  return String(s || "").trim().toLowerCase().replace(/\s+/g, " ").replace(/[–-]/g, "-");
+}
+
 // Karmur is glued/built-up (like Sérsmíði) — not a single saw cut, excluded entirely.
-const EXCLUDED_PARTUR = new Set(["Sérsmíði", "Karmur – Hliðar", "Karmur – Toppstykki"]);
+const EXCLUDED_PARTUR = new Set(["Sérsmíði", "Karmur – Hliðar", "Karmur – Toppstykki"].map(normalizePartur));
 
 // "Efni: (undirstaða)" has no override for Slaglisti/Karmur, so it falls through
 // to the customer's carcass-laminate lookup — which isn't a real board at these
 // thicknesses. Mirror the board override your "Efni:" formula already encodes,
 // keyed directly on Partur instead of trusting the formula field for these two.
-const SLAGLISTI_PARTUR = new Set(["Slaglisti – Hliðar", "Slaglisti – Toppur"]);
-const KJOTLISTI_PARTUR = new Set(["Kjötlisti – Hlið", "Kjötlisti – Efri / Neðri"]);
+const SLAGLISTI_PARTUR = new Set(["Slaglisti – Hliðar", "Slaglisti – Toppur"].map(normalizePartur));
+const KJOTLISTI_PARTUR = new Set(["Kjötlisti – Hlið", "Kjötlisti – Efri / Neðri"].map(normalizePartur));
+
+// Acronyms for the 25-char per-piece label field — long Partur text was
+// silently truncated mid-word before (e.g. "Innskúffufrontur K - Merivo
+// Skrokkaefni" → "Innskúffufrontur K - Meri"). Keyed by a regex matched
+// against the normalized Partur text; only affects the label baked into the
+// generated CUTLST file, never the real Partur value in Airtable.
+// Fill in once acronyms are agreed — empty for now, falls back to the
+// original (truncated) text until then.
+const PARTUR_LABEL_OVERRIDES = [
+  // { pattern: /innskúffufrontur m/, label: "TODO" },
+  // { pattern: /innskúffufrontur e/, label: "TODO" },
+  // { pattern: /innskúffufrontur k/, label: "TODO" },
+];
+
+function resolveLabel(partur) {
+  const norm = normalizePartur(partur);
+  const override = PARTUR_LABEL_OVERRIDES.find(o => o.pattern.test(norm));
+  return override ? override.label : partur;
+}
 
 function resolveMaterialKey(p) {
-  const partur = String(p.partur).trim();
+  const partur = normalizePartur(p.partur);
   if (SLAGLISTI_PARTUR.has(partur)) return "MDF 12mm";
   if (KJOTLISTI_PARTUR.has(partur)) return "Spónaplata";
   return normalizeMaterialKey(p.efni);
@@ -276,6 +311,22 @@ async function airtableFetch(table, params, recordId) {
   return records;
 }
 
+// Narrow write path for the oversized-piece resolution flow (mark as manual
+// cut, or fix the recorded H/B). The proxy only allows this on Sögunarlisti,
+// and only on the fields listed in WRITABLE_FIELDS server-side — this client
+// code can't expand that, it's enforced independently on the server.
+async function patchSogunarlisti(recordId, fields) {
+  const url = new URL(PROXY_URL, window.location.origin);
+  url.searchParams.set("path", `${SOGUNARLISTI_TABLE}/${recordId}`);
+  const res = await fetch(url.toString(), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fields }),
+  });
+  if (!res.ok) throw new Error(`Airtable PATCH HTTP ${res.status}`);
+  return res.json();
+}
+
 async function fetchEligibleProjects() {
   // Only projects that have entered Skipulag (any status in that field) or are
   // already confirmed/won — excludes early-stage leads from the dropdown.
@@ -299,9 +350,19 @@ async function fetchProjectById(id) {
   return airtableFetch(PROJECTS_TABLE, {}, id);
 }
 
-async function fetchAllSogunarlisti() {
+// Scoped to one project server-side via the project's own name text, instead
+// of pulling the whole table (1800+ rows and growing) and filtering
+// client-side. Airtable can't filter a linked-record field by ID directly
+// through filterByFormula, but ARRAYJOIN'd link fields return the linked
+// records' primary field text, which we already have from fetchProjectById.
+// The client-side .includes(projectId) check stays as a defensive backstop
+// in case two projects ever share exact name text.
+async function fetchSogunarlistiForProject(projectName) {
+  const escaped = projectName.replace(/"/g, '\\"');
+  const formula = `FIND("${escaped}", ARRAYJOIN({${S_PROJECT_LINK}})) > 0`;
   return airtableFetch(SOGUNARLISTI_TABLE, {
-    "fields[]": [S_PROJECT_LINK, S_PARTUR, S_H, S_B, S_TH, S_M, S_EFNI_UNDIRSTADA],
+    filterByFormula: formula,
+    "fields[]": [S_PROJECT_LINK, S_PARTUR, S_H, S_B, S_TH, S_M, S_EFNI_UNDIRSTADA, S_VILLA],
     pageSize: 100,
   });
 }
@@ -320,17 +381,42 @@ function findBoard(materialKey, thickness, boards) {
   // material sold at one thickness silently gets matched to a mislabeled
   // row claiming a different thickness (caught via live testing on T-31).
   const sameThickness = b => toNumber(b.fields[E_THYKKT]) === thickness;
-  let match = boards.find(b => fuzzyKey(b.fields[E_HEITI]) === fk && sameThickness(b));
-  if (!match) match = boards.find(b => fuzzyKey(b.fields[E_HEITI]).startsWith(fk) && sameThickness(b));
-  if (!match) match = boards.find(b => fuzzyKey(b.fields[E_HEITI]).includes(fk) && sameThickness(b));
-  return match || null;
+  const exact = boards.filter(b => fuzzyKey(b.fields[E_HEITI]) === fk && sameThickness(b));
+  if (exact.length) return { board: exact[0], ambiguous: exact.length > 1 };
+
+  const starts = boards.filter(b => fuzzyKey(b.fields[E_HEITI]).startsWith(fk) && sameThickness(b));
+  if (starts.length) return { board: starts[0], ambiguous: starts.length > 1 };
+
+  // Only reachable here on a fuzzy "contains" match — flagged ambiguous
+  // whenever more than one board qualifies, since picking "whichever Airtable
+  // returned first" with no signal is exactly how a wrong board silently
+  // gets used (e.g. if a second "Eurolight 38mm ..." SKU is ever added —
+  // today there's only one, but nothing stops a second from appearing).
+  const contains = boards.filter(b => fuzzyKey(b.fields[E_HEITI]).includes(fk) && sameThickness(b));
+  if (contains.length) return { board: contains[0], ambiguous: contains.length > 1 };
+
+  return { board: null, ambiguous: false };
+}
+
+// The original CUTLST format doc is explicit that nothing stops you writing
+// a piece bigger than the board — checked here instead, since a silent
+// oversized piece in the file is exactly how a piece gets forgotten (it'd
+// only surface once someone's standing at the saw with a file that doesn't
+// nest). Allows either orientation (grain-direction locking isn't checked —
+// out of scope today, would need the "Vígindi" field too).
+function pieceFits(p, board) {
+  const boardL = toNumber(board.fields[E_LENGD]);
+  const boardW = toNumber(board.fields[E_BREIDD]);
+  const fitsAsIs = p.h <= boardL && p.b <= boardW;
+  const fitsRotated = p.b <= boardL && p.h <= boardW;
+  return fitsAsIs || fitsRotated;
 }
 
 function groupPieces(pieces) {
   const groups = new Map();
   const missingDims = [];
   for (const p of pieces) {
-    if (EXCLUDED_PARTUR.has(String(p.partur).trim())) continue;
+    if (EXCLUDED_PARTUR.has(normalizePartur(p.partur))) continue;
     // A real saw panel always has width+thickness. Rows missing either are
     // usually pre-made hardware (e.g. Blum TIP-ON units) that slipped into
     // Sögunarlisti as raw untranslated import text — not something to cut.
@@ -399,6 +485,8 @@ function buildCutlstContent(boardLength, boardWidth, thickness, boardQty, pieces
   return lines.join("\r\n") + "\r\n";
 }
 
+let currentOversized = [];
+
 async function loadProject(projectId) {
   document.getElementById("searchCard").classList.add("hidden");
   document.getElementById("projectCard").classList.remove("hidden");
@@ -406,21 +494,34 @@ async function loadProject(projectId) {
 
   const project = await fetchProjectById(projectId);
   currentProject = project;
-  document.getElementById("projectName").textContent = project.fields[P_NAME_FIELD] || project.id;
+  const projectName = project.fields[P_NAME_FIELD] || project.id;
+  document.getElementById("projectName").textContent = projectName;
 
-  const [allPieces, boards] = await Promise.all([fetchAllSogunarlisti(), fetchAllBoards()]);
+  const [rows, boards] = await Promise.all([
+    fetchSogunarlistiForProject(projectName),
+    fetchAllBoards(),
+  ]);
 
-  const pieces = allPieces
-    .filter(r => (r.fields[S_PROJECT_LINK] || []).includes(projectId))
+  const allRows = rows
+    .filter(r => (r.fields[S_PROJECT_LINK] || []).includes(projectId)) // defensive backstop, see fetchSogunarlistiForProject
     .map(r => ({
+      id: r.id,
       partur: r.fields[S_PARTUR] || "",
       h: toNumber(r.fields[S_H]),
       b: toNumber(r.fields[S_B]),
       th: toNumber(r.fields[S_TH]),
       m: toNumber(r.fields[S_M]) || 1,
       efni: r.fields[S_EFNI_UNDIRSTADA] || "",
-      label: String(r.fields[S_PARTUR] || "").trim(),
+      label: resolveLabel(String(r.fields[S_PARTUR] || "").trim()),
+      villa: !!r.fields[S_VILLA],
     }));
+
+  // Already marked "handskorið" via markOversizedManual() on a previous run —
+  // permanently excluded, not re-flagged every time (the H/B are still
+  // oversized, that's the whole point, so pieceFits() would flag it forever
+  // otherwise).
+  const manualCount = allRows.filter(p => p.villa).length;
+  const pieces = allRows.filter(p => !p.villa);
 
   if (!pieces.length) {
     document.getElementById("projectStatus").textContent =
@@ -430,21 +531,36 @@ async function loadProject(projectId) {
 
   const { groups: groupMap, missingDims } = groupPieces(pieces);
   currentGroups = [];
+  currentOversized = [];
   for (const g of groupMap.values()) {
-    const board = findBoard(g.material, g.thickness, boards);
-    const files = packIntoFiles(g.rows, MAX_LINES_PER_FILE);
-    currentGroups.push({ ...g, board, files });
+    const { board, ambiguous } = findBoard(g.material, g.thickness, boards);
+
+    let rows = g.rows;
+    if (board) {
+      const fitting = [];
+      for (const p of rows) {
+        if (pieceFits(p, board)) fitting.push(p);
+        else currentOversized.push({ ...p, material: g.material, thickness: g.thickness, board });
+      }
+      rows = fitting;
+    }
+
+    const files = packIntoFiles(rows, MAX_LINES_PER_FILE);
+    currentGroups.push({ ...g, rows, board, ambiguous, files });
   }
 
   const groupedCount = [...groupMap.values()].reduce((s, g) => s + g.rows.length, 0);
   const sersmidiCount = pieces.length - groupedCount - missingDims.length;
   document.getElementById("projectStatus").textContent =
-    `${pieces.length} línur sóttar` +
+    `${allRows.length} línur sóttar` +
+    (manualCount ? `, ${manualCount} þegar merktar handskornar` : "") +
     (sersmidiCount ? `, ${sersmidiCount} Sérsmíði/Karmur-línur sleppt` : "") +
     (missingDims.length ? `, ${missingDims.length} línur vantar mál (líklega ekki skurðarpartar)` : "") +
-    `, ${currentGroups.length} efni/þykktar-hópar fundnir.`;
+    `, ${currentGroups.length} efni/þykktar-hópar fundnir.` +
+    (currentOversized.length ? ` ⚠ ${currentOversized.length} passa ekki á plötu.` : "");
 
   renderMissingDims(missingDims);
+  renderOversized();
   renderGroups();
   document.getElementById("groupsCard").classList.remove("hidden");
 }
@@ -470,9 +586,14 @@ function renderGroups() {
     const boardSize = g.board
       ? `${g.board.fields[E_LENGD]}×${g.board.fields[E_BREIDD]}mm`
       : "—";
-    const statusHtml = g.board
-      ? `<span class="status-ok">Fann plötu</span>`
-      : `<span class="status-warn">Engin plata fannst — athuga Efnislisti</span>`;
+    let statusHtml;
+    if (!g.board) {
+      statusHtml = `<span class="status-warn">Engin plata fannst — athuga Efnislisti</span>`;
+    } else if (g.ambiguous) {
+      statusHtml = `<span class="status-warn">Fleiri en ein plata gæti passað — óvíst val</span>`;
+    } else {
+      statusHtml = `<span class="status-ok">Fann plötu</span>`;
+    }
     tr.innerHTML = `
       <td>${g.material}</td>
       <td>${g.thickness}mm</td>
@@ -485,11 +606,71 @@ function renderGroups() {
   }
 }
 
+// Blocking by design — an oversized piece that's silently skipped is a piece
+// that never gets cut. Each one must be either fixed (corrected H/B saved
+// back to Sögunarlisti and re-included) or explicitly marked for manual
+// cutting (Villa? + a note, excluded from this run) before the USB write is
+// allowed to proceed.
+function renderOversized() {
+  const card = document.getElementById("oversizedCard");
+  const list = document.getElementById("oversizedList");
+  list.innerHTML = "";
+  if (!currentOversized.length) {
+    card.classList.add("hidden");
+    updateWriteButtonState();
+    return;
+  }
+  card.classList.remove("hidden");
+  currentOversized.forEach((p, idx) => {
+    const li = document.createElement("li");
+    li.style.marginBottom = "10px";
+    li.innerHTML = `
+      ${p.label} — <strong>${p.h}×${p.b}mm</strong> á ${p.thickness}mm ${p.material}
+      (plata ${p.board.fields[E_LENGD]}×${p.board.fields[E_BREIDD]}mm)<br>
+      <input type="number" value="${p.h}" id="fixH-${idx}" style="width:90px;max-width:90px;display:inline-block;" />
+      ×
+      <input type="number" value="${p.b}" id="fixB-${idx}" style="width:90px;max-width:90px;display:inline-block;" />
+      mm
+      <button class="secondary" style="margin-top:0;" onclick="fixOversized(${idx})">Leiðrétta og vista</button>
+      <button class="secondary" style="margin-top:0;" onclick="markOversizedManual(${idx})">Merkja sem handskorið</button>
+    `;
+    list.appendChild(li);
+  });
+  updateWriteButtonState();
+}
+
+function updateWriteButtonState() {
+  document.getElementById("writeBtn").disabled = currentOversized.length > 0;
+}
+
+async function fixOversized(idx) {
+  const p = currentOversized[idx];
+  const newH = toNumber(document.getElementById(`fixH-${idx}`).value);
+  const newB = toNumber(document.getElementById(`fixB-${idx}`).value);
+  if (newH <= 0 || newB <= 0) { alert("Sláðu inn gild mál."); return; }
+  await patchSogunarlisti(p.id, { [S_H]: newH, [S_B]: newB });
+  log(`Leiðrétt í Airtable: ${p.label} → ${newH}×${newB}mm. Endurhleð verkefni…`);
+  await loadProject(currentProject.id);
+}
+
+async function markOversizedManual(idx) {
+  const p = currentOversized[idx];
+  await patchSogunarlisti(p.id, {
+    "Villa?": true,
+    "Athugasemd": `Passar ekki á plötu (${p.h}×${p.b}mm á ${p.board.fields[E_LENGD]}×${p.board.fields[E_BREIDD]}mm) — skorið handvirkt, ekki í Cutty-skurðarlista.`,
+  });
+  log(`Merkt sem handskorið í Airtable: ${p.label}. Endurhleð verkefni…`);
+  await loadProject(currentProject.id);
+}
+
 async function writeToUsb() {
   if (!("showDirectoryPicker" in window)) {
     alert("Þessi vafri styður ekki að skrifa beint á USB. Notaðu Chrome eða Edge.");
     return;
   }
+  const writeBtn = document.getElementById("writeBtn");
+  writeBtn.disabled = true; // guards against double-clicks starting two overlapping writes
+
   const boardQty = parseInt(document.getElementById("boardQtyInput").value, 10) || 1;
   const jobName = sanitizeFolderName(currentProject.fields[P_NAME_FIELD] || currentProject.id);
 
@@ -498,6 +679,7 @@ async function writeToUsb() {
     rootDir = await window.showDirectoryPicker();
   } catch (e) {
     log("Hætt við að velja USB-drif.");
+    updateWriteButtonState();
     return;
   }
 
@@ -508,6 +690,17 @@ async function writeToUsb() {
   const jobDirName = sanitizeFolderName(`${jobName} - Sögunarlisti`);
 
   try {
+    // Wipe any previous run for this project before writing fresh — otherwise
+    // a re-run after fixing data (e.g. an Efnislisti correction) can leave
+    // stale files from the old grouping sitting alongside the new ones.
+    try {
+      await rootDir.getDirectoryHandle(jobDirName, { create: false });
+      log(`Hreinsa eldri möppu: ${jobDirName}`);
+      await rootDir.removeEntry(jobDirName, { recursive: true });
+    } catch (e) {
+      // didn't exist yet — nothing to wipe, proceed to create it fresh
+    }
+
     log(`Skrifa í möppu: ${jobDirName}`);
     const jobDir = await rootDir.getDirectoryHandle(jobDirName, { create: true });
 
@@ -542,6 +735,8 @@ async function writeToUsb() {
   } catch (e) {
     log(`VILLA: ${e.message}`);
     alert(`Villa við að skrifa á USB: ${e.message}`);
+  } finally {
+    updateWriteButtonState();
   }
 }
 
