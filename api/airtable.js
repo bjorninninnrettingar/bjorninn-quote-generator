@@ -6,7 +6,7 @@
 //
 // Two layers of restriction, both enforced server-side (never trust the
 // client to only ask for what it needs):
-//   1. Table allowlist — only these 3 tables are reachable at all.
+//   1. Table allowlist — only these 4 tables are reachable at all.
 //   2. Field allowlist per table — the response is capped to exactly these
 //      fields regardless of what fields[] requests or omits. Verified by
 //      direct testing that omitting fields[] returns full records, including
@@ -43,6 +43,12 @@ const ALLOWED_FIELDS = {
     "Breidd (mm)",
     "Lengd (mm)",
     "Þykkt (mm)",
+  ],
+  "tblDQWuf4OSjUv2XI": [ // QUICK FIX❗
+    "Verkheiti",
+    "Vandamálið",
+    "Ábyrgðarmaður",
+    "Staða",
   ],
 };
 

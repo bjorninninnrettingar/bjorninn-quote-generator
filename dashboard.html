@@ -172,6 +172,52 @@
       margin-top: 60px;
       text-align: center;
     }
+
+    #quickfix-bar {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 100;
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      padding: 14px 40px;
+      background: #b71c1c;
+      border-top: 3px solid #ff1744;
+      box-shadow: 0 -4px 24px rgba(255, 23, 68, 0.6);
+      animation: quickfix-pulse 1.4s ease-in-out infinite;
+    }
+
+    @keyframes quickfix-pulse {
+      0%, 100% { background: #b71c1c; }
+      50%      { background: #d32f2f; }
+    }
+
+    .quickfix-item {
+      display: flex;
+      align-items: baseline;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .quickfix-flag {
+      font-size: 1rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      color: #fff;
+      text-transform: uppercase;
+    }
+
+    .quickfix-name { font-size: 1.15rem; font-weight: 700; color: #fff; }
+    .quickfix-issue { font-size: 0.95rem; color: #ffe0e0; }
+    .quickfix-owner {
+      font-size: 0.85rem;
+      color: #ffcdd2;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-left: auto;
+    }
   </style>
 </head>
 <body>
@@ -187,6 +233,8 @@
   <div id="error">Villa við að sækja gögn. Athugaðu API lykil og Base ID.</div>
 
   <div class="grid" id="grid"></div>
+
+  <div id="quickfix-bar"></div>
 
   <script>
     // ── CONFIGURATION ─────────────────────────────────────────────────────────
@@ -205,6 +253,15 @@
     const FIELD_PRIORITY   = "Forgangur framleiðslu 🥇";
 
     const REFRESH_MS = 60_000; // refresh every 60 seconds
+
+    // QUICK FIX❗ table — shows as a red alert bar pinned to the bottom of the
+    // screen whenever a fix is actively being worked (Staða = "Í vinnslu ⚙️").
+    const QUICKFIX_TABLE  = "tblDQWuf4OSjUv2XI";
+    const QF_FIELD_NAME   = "Verkheiti";
+    const QF_FIELD_STATUS = "Staða";
+    const QF_FIELD_ISSUE  = "Vandamálið";
+    const QF_FIELD_OWNER  = "Ábyrgðarmaður";
+    const QF_FILTER = `{${QF_FIELD_STATUS}} = "Í vinnslu ⚙️"`;
     // ─────────────────────────────────────────────────────────────────────────
 
     // Show:
@@ -335,12 +392,11 @@
       }
     }
 
-    async function fetchData() {
+    async function fetchRecords(tableId, filter, fields) {
       const url = new URL(PROXY_URL, window.location.origin);
-      url.searchParams.set("path", TABLE);
-      url.searchParams.set("filterByFormula", FILTER);
-      [FIELD_NAME, FIELD_DATE, FIELD_PROGRESS, FIELD_STADA_SKIP, FIELD_STADA_FRAM, FIELD_PRIORITY]
-        .forEach(f => url.searchParams.append("fields[]", f));
+      url.searchParams.set("path", tableId);
+      url.searchParams.set("filterByFormula", filter);
+      fields.forEach(f => url.searchParams.append("fields[]", f));
 
       const res = await fetch(url.toString());
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -360,9 +416,45 @@
       return records;
     }
 
+    function fetchData() {
+      return fetchRecords(TABLE, FILTER,
+        [FIELD_NAME, FIELD_DATE, FIELD_PROGRESS, FIELD_STADA_SKIP, FIELD_STADA_FRAM, FIELD_PRIORITY]);
+    }
+
+    function fetchQuickFix() {
+      return fetchRecords(QUICKFIX_TABLE, QF_FILTER, [QF_FIELD_NAME, QF_FIELD_ISSUE, QF_FIELD_OWNER]);
+    }
+
+    function renderQuickFix(records) {
+      const bar = document.getElementById("quickfix-bar");
+      if (!records.length) {
+        bar.style.display = "none";
+        bar.innerHTML = "";
+        document.body.style.paddingBottom = "";
+        return;
+      }
+
+      bar.innerHTML = records.map(rec => {
+        const f     = rec.fields;
+        const name  = f[QF_FIELD_NAME] || "—";
+        const issue = f[QF_FIELD_ISSUE] || "";
+        const owner = f[QF_FIELD_OWNER] || "";
+        return `
+          <div class="quickfix-item">
+            <span class="quickfix-flag">❗ Quick Fix</span>
+            <span class="quickfix-name">${escHtml(name)}</span>
+            ${issue ? `<span class="quickfix-issue">${escHtml(issue)}</span>` : ""}
+            ${owner ? `<span class="quickfix-owner">${escHtml(owner)}</span>` : ""}
+          </div>
+        `;
+      }).join("");
+      bar.style.display = "flex";
+      document.body.style.paddingBottom = `${bar.offsetHeight + 20}px`;
+    }
+
     async function refresh() {
       try {
-        const records = await fetchData();
+        const [records, quickfix] = await Promise.all([fetchData(), fetchQuickFix()]);
         document.getElementById("loading").style.display = "none";
         document.getElementById("error").style.display   = "none";
 
@@ -391,6 +483,7 @@
         const display = [medal1, medal2, medal3, rest[0]].filter(Boolean);
 
         renderCards(display);
+        renderQuickFix(quickfix);
 
         const now = new Date();
         document.getElementById("last-updated").textContent =
