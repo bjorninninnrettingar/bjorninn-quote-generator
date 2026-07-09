@@ -133,8 +133,11 @@
 
   <div class="card" id="searchCard">
     <label>Veldu verkefni (Tækifæri)</label>
+    <input type="search" id="projectSearch" placeholder="Leita að verkefni…"
+      style="width:100%;padding:8px 10px;border:1px solid #444;border-radius:6px;background:#1a1a1a;color:#fff;font-size:1rem;margin-bottom:6px;box-sizing:border-box;"
+      oninput="filterProjectOptions()" />
     <select id="projectSelect">
-      <option value="">Sæki verkefni…</option>
+      <option value="">Veldu verkefni…</option>
     </select>
   </div>
 
@@ -174,6 +177,7 @@ const PROJECTS_TABLE     = "tbl4LMXlQjp66RFKI"; // Tækifæri 📣 (projects)
 const SOGUNARLISTI_TABLE = "tblhdgyvTcBfP8kov"; // Sögunarlisti 🪚
 
 const P_NAME_FIELD = "Heiti tækifæris / verkefnis";
+const P_STADA_SOLU = "Staða í söluferli";
 const P_STADA_SKIPULAG = "Staða í skipulagi";
 const P_STADA_FRAM = "Staða í framleiðslu";
 const P_UNNID = "Tækifæri unnið 🏆";
@@ -274,7 +278,11 @@ async function patchSogunarlisti(recordId, fields) {
 }
 
 async function fetchEligibleProjects() {
-  const formula = `{${P_STADA_FRAM}} != "Lokið"`;
+  const formula = `AND(
+    {${P_STADA_SOLU}} = "🏆 Tækifæri unnið",
+    {${P_STADA_SKIPULAG}} = "Klárt til framleiðslu",
+    {${P_STADA_FRAM}} != "Afhent (LOKIÐ ✅)"
+  )`;
   return airtableFetch(PROJECTS_TABLE, {
     filterByFormula: formula,
     "fields[]": [P_NAME_FIELD],
@@ -560,6 +568,20 @@ function renderRows() {
 document.getElementById("projectSelect").addEventListener("change", (e) => {
   if (e.target.value) loadProject(e.target.value);
 });
+
+function filterProjectOptions() {
+  const q = document.getElementById("projectSearch").value.toLowerCase();
+  const select = document.getElementById("projectSelect");
+  for (const opt of select.options) {
+    opt.hidden = q && !opt.textContent.toLowerCase().includes(q);
+  }
+  // Auto-select if exactly one option matches
+  const visible = Array.from(select.options).filter(o => !o.hidden && o.value);
+  if (visible.length === 1) {
+    select.value = visible[0].value;
+    loadProject(visible[0].value);
+  }
+}
 
 async function populateProjectDropdown() {
   const select = document.getElementById("projectSelect");
