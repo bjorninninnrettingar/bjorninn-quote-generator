@@ -497,15 +497,25 @@ function populateFilterDropdowns() {
 
   const skraSelect = document.getElementById("skraSelect");
   const prevSkra = skraSelect.value;
-  skraSelect.innerHTML = '<option value="">Allar skrár (CUTLST)</option>' +
-    skrar.map(s => {
-      const pieces = allPieces.filter(p => p.skra === s);
-      const allDone = pieces.length > 0 && pieces.every(p => p.lokid);
-      const style = allDone ? ' style="color:#4caf50;"' : '';
-      const label = allDone ? s.split('').map(c => c + '̶').join('') : s;
-      return `<option value="${escapeHtml(s)}"${style}>${escapeHtml(label)}</option>`;
-    }).join("") +
-    (allPieces.some(p => !p.skra) ? '<option value="__none__">Ekki í neinni skrá enn</option>' : "");
+
+  const incomplete = skrar.filter(s => {
+    const pieces = allPieces.filter(p => p.skra === s);
+    return !pieces.every(p => p.lokid);
+  });
+  const done = skrar.filter(s => {
+    const pieces = allPieces.filter(p => p.skra === s);
+    return pieces.length > 0 && pieces.every(p => p.lokid);
+  });
+
+  const strikethrough = s => s.split('').map(c => c + '̶').join('');
+
+  skraSelect.innerHTML =
+    '<option value="">Allar skrár (CUTLST)</option>' +
+    incomplete.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("") +
+    (allPieces.some(p => !p.skra) ? '<option value="__none__">Ekki í neinni skrá enn</option>' : "") +
+    (done.length ? '<option disabled>──────────────────</option>' : "") +
+    done.map(s => `<option value="${escapeHtml(s)}" style="color:#4caf50;">${escapeHtml(strikethrough(s))} ✓</option>`).join("");
+
   skraSelect.value = (skrar.includes(prevSkra) || prevSkra === "__none__") ? prevSkra : "";
 }
 
