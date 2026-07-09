@@ -474,7 +474,12 @@ async function loadProject(projectId) {
 // in the other.
 function populateFilterDropdowns() {
   const efnis = [...new Set(allPieces.map(p => p.efni).filter(Boolean))].sort();
-  const skrar = [...new Set(allPieces.map(p => p.skra).filter(Boolean))].sort();
+  const skrar = [...new Set(allPieces.map(p => p.skra).filter(Boolean))].sort((a, b) => {
+    // Sort by material name (strip "CUTLST00-N-" prefix) so same materials group together
+    const matA = a.replace(/^[^-]+-\d+-/, '');
+    const matB = b.replace(/^[^-]+-\d+-/, '');
+    return matA.localeCompare(matB, 'is');
+  });
 
   const efniSelect = document.getElementById("efniSelect");
   const prevEfni = efniSelect.value;
