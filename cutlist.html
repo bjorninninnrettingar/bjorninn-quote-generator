@@ -364,13 +364,7 @@ async function fetchEligibleProjects() {
   // already confirmed/won — excludes early-stage leads from the dropdown.
   // Staða í framleiðslu must be empty too: once production has actually
   // started, the project no longer needs to show up here.
-  const formula = `AND(
-    OR(
-      {${P_STADA_SKIPULAG}} != "",
-      {${P_UNNID}} = 1
-    ),
-    {${P_STADA_FRAM}} = ""
-  )`;
+  const formula = `{${P_STADA_FRAM}} != "Lokið"`;
   return airtableFetch(PROJECTS_TABLE, {
     filterByFormula: formula,
     "fields[]": [P_NAME_FIELD],
