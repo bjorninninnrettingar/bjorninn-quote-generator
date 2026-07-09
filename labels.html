@@ -501,8 +501,9 @@ function populateFilterDropdowns() {
     skrar.map(s => {
       const pieces = allPieces.filter(p => p.skra === s);
       const allDone = pieces.length > 0 && pieces.every(p => p.lokid);
-      const style = allDone ? ' style="color:#4caf50;text-decoration:line-through;"' : '';
-      return `<option value="${escapeHtml(s)}"${style}>${escapeHtml(s)}</option>`;
+      const style = allDone ? ' style="color:#4caf50;"' : '';
+      const label = allDone ? s.split('').map(c => c + '̶').join('') : s;
+      return `<option value="${escapeHtml(s)}"${style}>${escapeHtml(label)}</option>`;
     }).join("") +
     (allPieces.some(p => !p.skra) ? '<option value="__none__">Ekki í neinni skrá enn</option>' : "");
   skraSelect.value = (skrar.includes(prevSkra) || prevSkra === "__none__") ? prevSkra : "";
