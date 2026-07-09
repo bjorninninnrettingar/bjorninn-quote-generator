@@ -446,8 +446,9 @@ async function loadProject(projectId) {
   document.getElementById("listCard").classList.add("hidden");
   document.getElementById("projectStatus").textContent = "Sæki gögn…";
 
-  const project = await fetchProjectById(projectId);
-  const projectName = project.fields[P_NAME_FIELD] || project.id;
+  // Read name from dropdown option to avoid an extra API call
+  const opt = document.querySelector(`#projectSelect option[value="${projectId}"]`);
+  const projectName = opt?.dataset.name || opt?.textContent || projectId;
   document.getElementById("projectName").textContent = projectName;
 
   const rows = await fetchSogunarlistiForProject(projectName);
@@ -497,7 +498,13 @@ function populateFilterDropdowns() {
   const skraSelect = document.getElementById("skraSelect");
   const prevSkra = skraSelect.value;
   skraSelect.innerHTML = '<option value="">Allar skrár (CUTLST)</option>' +
-    skrar.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("") +
+    skrar.map(s => {
+      const pieces = allPieces.filter(p => p.skra === s);
+      const allDone = pieces.length > 0 && pieces.every(p => p.lokid);
+      const style = allDone ? ' style="color:#4caf50;font-weight:600;"' : '';
+      const tick = allDone ? ' ✓' : '';
+      return `<option value="${escapeHtml(s)}"${style}>${escapeHtml(s)}${tick}</option>`;
+    }).join("") +
     (allPieces.some(p => !p.skra) ? '<option value="__none__">Ekki í neinni skrá enn</option>' : "");
   skraSelect.value = (skrar.includes(prevSkra) || prevSkra === "__none__") ? prevSkra : "";
 }
@@ -616,6 +623,7 @@ async function populateProjectDropdown() {
     const opt = document.createElement("option");
     opt.value = r.id;
     opt.textContent = r.fields[P_NAME_FIELD] || r.id;
+    opt.dataset.name = r.fields[P_NAME_FIELD] || r.id;
     select.appendChild(opt);
   }
 }
