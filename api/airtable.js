@@ -65,20 +65,27 @@ const ALLOWED_FIELDS = {
     "Yfirvinna (klst)",
     "Samtals (klst)",
   ],
+  "tbl3e5o0Klv9RcNQ4": [ // Fjarvistir 🤒 (sick day log)
+    "Dagsetning",
+    "Starfsmaður",
+    "Tegund",
+  ],
 };
 
-// Tables that hold credential-like data (PIN) — a request with no
-// filterByFormula would otherwise dump every row's allowed fields, which for
-// Starfsmenn means every employee's PIN at once. Require the caller to
+// Tables that hold credential-like or health-adjacent data — a request with
+// no filterByFormula would otherwise dump every row's allowed fields, which
+// for Starfsmenn means every employee's PIN at once, and for Fjarvistir
+// means every employee's sick-day history at once. Require the caller to
 // filter to a single lookup instead of listing the whole table.
-const REQUIRE_FILTER = new Set(["tblhglpjQkczdG1AY"]);
+const REQUIRE_FILTER = new Set(["tblhglpjQkczdG1AY", "tbl3e5o0Klv9RcNQ4"]);
 
-// Stimplanir is the only table the stimpilklukka kiosk may create records
-// in — opening a new shift (Inn). No other table accepts creates through
-// this proxy. "Út" is deliberately not creatable: a shift is opened blank
-// and only ever closed via the PATCH path below, never created pre-closed.
+// Stimplanir is for opening a new shift (Inn). Fjarvistir is for marking a
+// day sick from the kiosk. No other table accepts creates through this
+// proxy. Stimplanir's "Út" is deliberately not creatable: a shift is opened
+// blank and only ever closed via the PATCH path below, never created pre-closed.
 const CREATABLE_FIELDS = {
   "tblnFIO8RB6HcelXF": ["Inn", "Starfsmaður"],
+  "tbl3e5o0Klv9RcNQ4": ["Dagsetning", "Starfsmaður", "Tegund"],
 };
 
 // Only Sögunarlisti rows may be patched, and only these fields — used for the

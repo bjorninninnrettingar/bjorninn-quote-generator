@@ -106,8 +106,21 @@
     #btn-action.out:active { background: #7f1010; }
     #btn-action:disabled { opacity: 0.4; }
 
+    #btn-sick {
+      margin-top: 18px;
+      width: 100%;
+      background: none;
+      border: 1px solid #333;
+      border-radius: 12px;
+      color: #999;
+      font-size: 0.95rem;
+      padding: 14px 0;
+    }
+    #btn-sick:active { background: #161616; }
+    #btn-sick:disabled { opacity: 0.4; }
+
     #cancel-btn {
-      margin-top: 28px;
+      margin-top: 20px;
       background: none;
       border: none;
       color: #555;
@@ -147,6 +160,7 @@
     <div id="employee-name"></div>
     <div id="employee-status"></div>
     <button id="btn-action"></button>
+    <button id="btn-sick">Tilkynna veikindi í dag</button>
     <button id="cancel-btn">Hætta við</button>
   </div>
 
@@ -160,6 +174,12 @@
   <script>
     const STARFSMENN_TABLE = "tblhglpjQkczdG1AY";
     const STIMPLANIR_TABLE = "tblnFIO8RB6HcelXF";
+    const FJARVISTIR_TABLE = "tbl3e5o0Klv9RcNQ4";
+
+    function todayISO() {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
 
     function updateClock() {
       document.getElementById("clock").textContent =
@@ -276,16 +296,20 @@
     const employeeName = document.getElementById("employee-name");
     const employeeStatus = document.getElementById("employee-status");
     const btnAction = document.getElementById("btn-action");
+    const btnSick = document.getElementById("btn-sick");
     let currentEmployee = null;
     let openShift = null; // the open Stimplanir record, or null if clocked out
+    let sickToday = false; // already marked sick today?
 
     async function showEmployee(record) {
       currentEmployee = record;
       openShift = null;
+      sickToday = false;
       employeeName.textContent = record.fields["Nafn starfsmanns 👷"] || "Starfsmaður";
       employeeStatus.textContent = "Athuga stöðu…";
       btnAction.disabled = true;
       btnAction.textContent = "…";
+      btnSick.disabled = true;
       screenPin.classList.add("hidden");
       screenEmployee.classList.remove("hidden");
 
@@ -294,12 +318,20 @@
         // linked row's *display name* — not its record ID — so matching has
         // to be done against the employee's name, not record.id.
         const name = (record.fields["Nafn starfsmanns 👷"] || "").replace(/"/g, '\\"');
-        const formula = `AND({Starfsmaður}="${name}",{Út}=BLANK())`;
-        const data = await airtableGet(STIMPLANIR_TABLE, {
-          filterByFormula: formula,
-          maxRecords: 1,
-        });
-        openShift = (data.records || [])[0] || null;
+        const [shiftData, sickData] = await Promise.all([
+          airtableGet(STIMPLANIR_TABLE, {
+            filterByFormula: `AND({Starfsmaður}="${name}",{Út}=BLANK())`,
+            maxRecords: 1,
+          }),
+          airtableGet(FJARVISTIR_TABLE, {
+            // {Dagsetning} is a "date" field — comparing it to a plain string
+            // with "=" silently matches nothing; DATETIME_FORMAT works.
+            filterByFormula: `AND({Starfsmaður}="${name}",DATETIME_FORMAT({Dagsetning},'YYYY-MM-DD')="${todayISO()}")`,
+            maxRecords: 1,
+          }),
+        ]);
+        openShift = (shiftData.records || [])[0] || null;
+        sickToday = (sickData.records || []).length > 0;
       } catch {
         employeeStatus.textContent = "Villa við að athuga stöðu";
       }
@@ -308,13 +340,20 @@
 
     function renderAction() {
       btnAction.disabled = false;
-      if (openShift) {
+      btnSick.disabled = sickToday;
+      btnSick.textContent = sickToday ? "Þegar skráð(ur) veik(ur) í dag" : "Tilkynna veikindi í dag";
+      if (sickToday) {
+        employeeStatus.innerHTML = `Skráð<span class="out">ur/uð</span> veik(ur) í dag`;
+      } else if (openShift) {
         const time = new Date(openShift.fields["Inn"]).toLocaleTimeString("is-IS", { hour: "2-digit", minute: "2-digit" });
         employeeStatus.innerHTML = `Mætt<span class="in">ur/uð</span> kl. ${time}`;
+      } else {
+        employeeStatus.textContent = "Ekki mætt(ur) núna";
+      }
+      if (openShift) {
         btnAction.textContent = "ÚT";
         btnAction.className = "out";
       } else {
-        employeeStatus.textContent = "Ekki mætt(ur) núna";
         btnAction.textContent = "INN";
         btnAction.className = "in";
       }
@@ -342,9 +381,38 @@
     }
     btnAction.addEventListener("click", punchAction);
 
+    async function markSick() {
+      // Sick leave registration doesn't require clocking in — but if the
+      // employee happens to already be clocked in (e.g. sent home sick),
+      // close that shift too rather than leaving it open indefinitely.
+      if (!currentEmployee || sickToday) return;
+      btnAction.disabled = true;
+      btnSick.disabled = true;
+      try {
+        const tasks = [
+          airtablePost(FJARVISTIR_TABLE, {
+            "Dagsetning": todayISO(),
+            "Starfsmaður": [currentEmployee.id],
+            "Tegund": "Veikindi",
+          }),
+        ];
+        if (openShift) {
+          tasks.push(airtablePatch(`${STIMPLANIR_TABLE}/${openShift.id}`, { "Út": new Date().toISOString() }));
+        }
+        await Promise.all(tasks);
+        showConfirm("Veikindi", new Date());
+      } catch {
+        employeeStatus.textContent = "Villa við að skrá veikindi — reyndu aftur";
+        btnAction.disabled = false;
+        btnSick.disabled = false;
+      }
+    }
+    btnSick.addEventListener("click", markSick);
+
     document.getElementById("cancel-btn").addEventListener("click", () => {
       currentEmployee = null;
       openShift = null;
+      sickToday = false;
       screenEmployee.classList.add("hidden");
       screenPin.classList.remove("hidden");
       resetPin();
@@ -354,15 +422,17 @@
     function showConfirm(type, when) {
       screenEmployee.classList.add("hidden");
       screenConfirm.classList.remove("hidden");
-      document.getElementById("confirm-icon").textContent = type === "Inn" ? "✅" : "👋";
-      document.getElementById("confirm-text").textContent =
-        `${employeeName.textContent} stimplað(ur) ${type.toUpperCase()}`;
+      document.getElementById("confirm-icon").textContent = type === "Inn" ? "✅" : type === "Veikindi" ? "🤒" : "👋";
+      document.getElementById("confirm-text").textContent = type === "Veikindi"
+        ? `${employeeName.textContent} skráð(ur) veik(ur) í dag`
+        : `${employeeName.textContent} stimplað(ur) ${type.toUpperCase()}`;
       document.getElementById("confirm-time").textContent =
         when.toLocaleTimeString("is-IS", { hour: "2-digit", minute: "2-digit" });
 
       setTimeout(() => {
         currentEmployee = null;
         openShift = null;
+        sickToday = false;
         screenConfirm.classList.add("hidden");
         screenPin.classList.remove("hidden");
         resetPin();
