@@ -1,16 +1,18 @@
 // api/airtable.js
 // Airtable proxy — keeps the Personal Access Token server-side only, so it
 // never sits in committed code or page source (GitHub's push protection
-// blocks any commit containing an Airtable PAT). Used by cutlist.html and
-// dashboard.html.
+// blocks any commit containing an Airtable PAT). Used by cutlist.html,
+// dashboard.html, labels.html and stimpilklukka.html.
 //
 // Two layers of restriction, both enforced server-side (never trust the
 // client to only ask for what it needs):
-//   1. Table allowlist — only these 4 tables are reachable at all.
+//   1. Table allowlist — only these tables are reachable at all.
 //   2. Field allowlist per table — the response is capped to exactly these
 //      fields regardless of what fields[] requests or omits. Verified by
 //      direct testing that omitting fields[] returns full records, including
 //      Efnislisti's purchase-cost fields — this is what stops that.
+//      Starfsmenn additionally requires a filterByFormula (REQUIRE_FILTER)
+//      so a caller can't dump every employee's PIN in one request.
 
 const AIRTABLE_BASE = "app91U15z9K704Okd";
 
@@ -50,6 +52,33 @@ const ALLOWED_FIELDS = {
     "Ábyrgðarmaður",
     "Staða",
   ],
+  "tblhglpjQkczdG1AY": [ // Starfsmenn 👷🏼‍♂️ — stimpilklukka PIN lookup only.
+    "Nafn starfsmanns 👷",
+    "PIN 🔢",
+    "Er starfandi? ✅",
+  ],
+  "tblnFIO8RB6HcelXF": [ // Stimplanir ⏱️ (time clock shifts — one row per Inn→Út)
+    "Inn",
+    "Út",
+    "Starfsmaður",
+    "Dagvinna (klst)",
+    "Yfirvinna (klst)",
+    "Samtals (klst)",
+  ],
+};
+
+// Tables that hold credential-like data (PIN) — a request with no
+// filterByFormula would otherwise dump every row's allowed fields, which for
+// Starfsmenn means every employee's PIN at once. Require the caller to
+// filter to a single lookup instead of listing the whole table.
+const REQUIRE_FILTER = new Set(["tblhglpjQkczdG1AY"]);
+
+// Stimplanir is the only table the stimpilklukka kiosk may create records
+// in — opening a new shift (Inn). No other table accepts creates through
+// this proxy. "Út" is deliberately not creatable: a shift is opened blank
+// and only ever closed via the PATCH path below, never created pre-closed.
+const CREATABLE_FIELDS = {
+  "tblnFIO8RB6HcelXF": ["Inn", "Starfsmaður"],
 };
 
 // Only Sögunarlisti rows may be patched, and only these fields — used for the
@@ -61,7 +90,19 @@ const ALLOWED_FIELDS = {
 // ever sets B.A.S. to request a print, then reads Lokið to see it complete.
 const WRITABLE_FIELDS = {
   "tblhdgyvTcBfP8kov": ["H", "B", "Þ", "Villa?", "Athugasemd", "B.A.S.", "Skurðarskrá"],
+  // Closes an open shift (stimpilklukka's ÚT button). "Inn" is intentionally
+  // not writable here — a shift's start time is only ever set at creation.
+  "tblnFIO8RB6HcelXF": ["Út"],
 };
+
+// URLSearchParams serializes spaces as "+" (application/x-www-form-urlencoded).
+// Airtable's query-string field matching tolerates that, but its formula
+// parser doesn't decode "+" back to space, so a filterByFormula referencing
+// a field name with a space (e.g. {PIN 🔢}) fails with "Unknown field
+// names". %20 works in both contexts, so normalize before every request.
+function airtableUrl(url) {
+  return url.toString().replace(/\+/g, "%20");
+}
 
 function filterFields(record, allowedFields) {
   const allowedSet = new Set(allowedFields);
@@ -83,6 +124,9 @@ export default async function handler(req, res) {
     const [tableId, recordId] = String(path).split("/");
     const allowedFields = ALLOWED_FIELDS[tableId];
     if (!allowedFields) return res.status(403).json({ error: "Table not allowed" });
+    if (!recordId && REQUIRE_FILTER.has(tableId) && !params.filterByFormula) {
+      return res.status(403).json({ error: "filterByFormula required for this table" });
+    }
 
     const url = new URL(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${tableId}`);
     for (const [key, value] of Object.entries(params)) {
@@ -100,7 +144,7 @@ export default async function handler(req, res) {
       // Routing through the list endpoint's RECORD_ID() filter instead gets
       // the same data and sidesteps whatever broke there.
       url.searchParams.set("filterByFormula", `RECORD_ID()='${recordId}'`);
-      const airtableRes = await fetch(url.toString(), {
+      const airtableRes = await fetch(airtableUrl(url), {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await airtableRes.json();
@@ -110,7 +154,7 @@ export default async function handler(req, res) {
       return res.status(200).json(filterFields(record, allowedFields));
     }
 
-    const airtableRes = await fetch(url.toString(), {
+    const airtableRes = await fetch(airtableUrl(url), {
       headers: { Authorization: `Bearer ${token}` },
     });
     const data = await airtableRes.json();
@@ -118,6 +162,37 @@ export default async function handler(req, res) {
       data.records = data.records.map((r) => filterFields(r, allowedFields));
     }
     return res.status(airtableRes.status).json(data);
+  }
+
+  if (req.method === "POST") {
+    const { path } = req.query;
+    if (!path) return res.status(400).json({ error: "Missing path" });
+
+    const tableId = String(path);
+    const creatable = CREATABLE_FIELDS[tableId];
+    if (!creatable) return res.status(403).json({ error: "Create not allowed for this table" });
+
+    const requestedFields = req.body?.fields || {};
+    const fields = {};
+    for (const [k, v] of Object.entries(requestedFields)) {
+      if (creatable.includes(k)) fields[k] = v;
+    }
+    if (Object.keys(fields).length === 0) {
+      return res.status(400).json({ error: "No writable fields in request" });
+    }
+
+    const url = `https://api.airtable.com/v0/${AIRTABLE_BASE}/${tableId}`;
+    const airtableRes = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ fields }),
+    });
+    const data = await airtableRes.json();
+    const filtered = data.fields ? filterFields(data, ALLOWED_FIELDS[tableId] || []) : data;
+    return res.status(airtableRes.status).json(filtered);
   }
 
   if (req.method === "PATCH") {
@@ -157,5 +232,5 @@ export default async function handler(req, res) {
     return res.status(airtableRes.status).json(filtered);
   }
 
-  return res.status(405).json({ error: "GET or PATCH only" });
+  return res.status(405).json({ error: "GET, POST or PATCH only" });
 }
