@@ -56,6 +56,7 @@ const ALLOWED_FIELDS = {
     "Nafn starfsmanns 👷",
     "PIN 🔢",
     "Er starfandi? ✅",
+    "Kyn",
   ],
   "tblnFIO8RB6HcelXF": [ // Stimplanir ⏱️ (time clock shifts — one row per Inn→Út)
     "Inn",

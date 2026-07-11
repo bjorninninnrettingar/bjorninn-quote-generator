@@ -310,11 +310,13 @@
     let currentEmployee = null;
     let openShift = null; // the open Stimplanir record, or null if clocked out
     let sickToday = false; // already marked sick today?
+    let isKK = true; // karlkyn/kvenkyn — defaults to KK (masculine) if "Kyn" isn't set
 
     async function showEmployee(record) {
       currentEmployee = record;
       openShift = null;
       sickToday = false;
+      isKK = record.fields["Kyn"] !== "KVK";
       employeeName.textContent = record.fields["Nafn starfsmanns 👷"] || "Starfsmaður";
       employeeStatus.textContent = "Athuga stöðu…";
       btnAction.disabled = true;
@@ -351,14 +353,16 @@
     function renderAction() {
       btnAction.disabled = false;
       btnSick.disabled = sickToday;
-      btnSick.textContent = sickToday ? "Þegar skráð(ur) veik(ur) í dag" : "Tilkynna veikindi í dag";
+      btnSick.textContent = sickToday
+        ? (isKK ? "Þegar skráður veikur í dag" : "Þegar skráð veik í dag")
+        : "Tilkynna veikindi í dag";
       if (sickToday) {
-        employeeStatus.innerHTML = `Skráð<span class="out">ur/uð</span> veik(ur) í dag`;
+        employeeStatus.innerHTML = `<span class="out">${isKK ? "Skráður veikur" : "Skráð veik"}</span> í dag`;
       } else if (openShift) {
         const time = new Date(openShift.fields["Inn"]).toLocaleTimeString("is-IS", { hour: "2-digit", minute: "2-digit" });
-        employeeStatus.innerHTML = `Mætt<span class="in">ur/uð</span> kl. ${time}`;
+        employeeStatus.innerHTML = `<span class="in">${isKK ? "Mættur" : "Mætt"}</span> kl. ${time}`;
       } else {
-        employeeStatus.textContent = "Ekki mætt(ur) núna";
+        employeeStatus.textContent = isKK ? "Ekki mættur núna" : "Ekki mætt núna";
       }
       if (openShift) {
         btnAction.textContent = "ÚT";
@@ -434,8 +438,8 @@
       screenConfirm.classList.remove("hidden");
       document.getElementById("confirm-icon").textContent = type === "Inn" ? "✅" : type === "Veikindi" ? "🤒" : "👋";
       document.getElementById("confirm-text").textContent = type === "Veikindi"
-        ? `${employeeName.textContent} skráð(ur) veik(ur) í dag`
-        : `${employeeName.textContent} stimplað(ur) ${type.toUpperCase()}`;
+        ? `${employeeName.textContent} ${isKK ? "skráður veikur" : "skráð veik"} í dag`
+        : `${employeeName.textContent} ${isKK ? "stimplaður" : "stimpluð"} ${type.toUpperCase()}`;
       document.getElementById("confirm-time").textContent =
         when.toLocaleTimeString("is-IS", { hour: "2-digit", minute: "2-digit" });
 
