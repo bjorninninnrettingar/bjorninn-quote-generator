@@ -38,21 +38,22 @@
       font-size: 1.1rem;
       font-weight: 700;
       letter-spacing: 0.08em;
-      color: #888;
+      color: #fff;
       text-transform: uppercase;
     }
 
     #brand {
       font-family: "Kumbh Sans", "Helvetica Neue", Arial, sans-serif;
       font-weight: 700;
-      font-size: 1.3rem;
+      font-size: 2.2rem;
       letter-spacing: 0.06em;
       color: #b5a270;
+      margin-bottom: 24px;
     }
 
     #clock {
       font-size: 0.95rem;
-      color: #555;
+      color: #fff;
       font-variant-numeric: tabular-nums;
     }
 
@@ -137,12 +138,12 @@
 <body>
   <header>
     <h1>Stimpilklukka</h1>
-    <div id="brand">BJÖRNINN</div>
     <div id="clock"></div>
   </header>
 
   <!-- PIN entry -->
   <div class="screen" id="screen-pin">
+    <div id="brand">BJÖRNINN</div>
     <div id="pin-dots">
       <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
     </div>
@@ -181,9 +182,18 @@
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     }
 
+    // Hardcoded rather than toLocaleString("is-IS", ...) — some browser
+    // environments silently fall back to English weekday/month names when
+    // their ICU data doesn't include Icelandic, with no error to catch.
+    const IS_WEEKDAYS = ["Sunnudagur", "Mánudagur", "Þriðjudagur", "Miðvikudagur", "Fimmtudagur", "Föstudagur", "Laugardagur"];
+    const IS_MONTHS = ["janúar", "febrúar", "mars", "apríl", "maí", "júní", "júlí", "ágúst", "september", "október", "nóvember", "desember"];
+
     function updateClock() {
+      const d = new Date();
+      const hh = String(d.getHours()).padStart(2, "0");
+      const mm = String(d.getMinutes()).padStart(2, "0");
       document.getElementById("clock").textContent =
-        new Date().toLocaleString("is-IS", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
+        `${IS_WEEKDAYS[d.getDay()]} ${d.getDate()}. ${IS_MONTHS[d.getMonth()]} kl. ${hh}:${mm}`;
     }
     updateClock();
     setInterval(updateClock, 10_000);
