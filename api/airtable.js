@@ -15,6 +15,8 @@
 //      so a caller can't dump every employee's PIN in one request.
 
 const AIRTABLE_BASE = "app91U15z9K704Okd";
+const STIMPLANIR_TABLE = "tblnFIO8RB6HcelXF";
+const ORLOFSBEIDNIR_TABLE = "tbljdg6uxEfHE7uCU";
 
 const ALLOWED_FIELDS = {
   "tbl4LMXlQjp66RFKI": [ // Tækifæri 📣 (projects)
@@ -71,6 +73,12 @@ const ALLOWED_FIELDS = {
     "Starfsmaður",
     "Tegund",
   ],
+  "tbljdg6uxEfHE7uCU": [ // Orlofsbeiðnir 🌴 (vacation requests)
+    "Frá",
+    "Til",
+    "Starfsmaður",
+    "Staða",
+  ],
 };
 
 // Tables that hold credential-like or health-adjacent data — a request with
@@ -81,13 +89,36 @@ const ALLOWED_FIELDS = {
 const REQUIRE_FILTER = new Set(["tblhglpjQkczdG1AY", "tbl3e5o0Klv9RcNQ4"]);
 
 // Stimplanir is for opening a new shift (Inn). Fjarvistir is for marking a
-// day sick from the kiosk. No other table accepts creates through this
-// proxy. Stimplanir's "Út" is deliberately not creatable: a shift is opened
-// blank and only ever closed via the PATCH path below, never created pre-closed.
+// day sick from the kiosk. Orlofsbeiðnir is for submitting a vacation
+// request. No other table accepts creates through this proxy. Stimplanir's
+// "Út" is deliberately not creatable: a shift is opened blank and only ever
+// closed via the PATCH path below, never created pre-closed. Orlofsbeiðnir's
+// "Staða" is deliberately not creatable either — see FORCED_CREATE_FIELDS
+// below, which sets it server-side so a client can't self-approve.
 const CREATABLE_FIELDS = {
   "tblnFIO8RB6HcelXF": ["Inn", "Starfsmaður"],
   "tbl3e5o0Klv9RcNQ4": ["Dagsetning", "Starfsmaður", "Tegund"],
+  "tbljdg6uxEfHE7uCU": ["Frá", "Til", "Starfsmaður"],
 };
+
+// Fields forced to a fixed value on create, regardless of what (or whether)
+// the client sends — applied after CREATABLE_FIELDS filtering, so these
+// don't need to be creatable at all.
+const FORCED_CREATE_FIELDS = {
+  "tbljdg6uxEfHE7uCU": { "Staða": "Í bið" },
+};
+
+// Only the stimpilklukka kiosk's own paired device may open/close a shift —
+// this is what keeps INN/ÚT tied to being physically at the shop, while
+// Fjarvistir (sick) and Orlofsbeiðnir (vacation request) stay reachable from
+// any device. Pairing happens client-side (stimpilklukka.html stores the
+// secret from a one-time ?setup= link); this just checks the header matches.
+const KIOSK_LOCKED_TABLES = new Set([STIMPLANIR_TABLE]);
+
+function isKioskPaired(req) {
+  const secret = process.env.KIOSK_DEVICE_SECRET;
+  return !!secret && req.headers["x-kiosk-token"] === secret;
+}
 
 // Only Sögunarlisti rows may be patched, and only these fields — used for the
 // "mark as manual cut" / "fix oversized piece" actions in cutlist.html, the
@@ -179,12 +210,16 @@ export default async function handler(req, res) {
     const tableId = String(path);
     const creatable = CREATABLE_FIELDS[tableId];
     if (!creatable) return res.status(403).json({ error: "Create not allowed for this table" });
+    if (KIOSK_LOCKED_TABLES.has(tableId) && !isKioskPaired(req)) {
+      return res.status(403).json({ error: "DEVICE_NOT_PAIRED" });
+    }
 
     const requestedFields = req.body?.fields || {};
     const fields = {};
     for (const [k, v] of Object.entries(requestedFields)) {
       if (creatable.includes(k)) fields[k] = v;
     }
+    Object.assign(fields, FORCED_CREATE_FIELDS[tableId] || {});
     if (Object.keys(fields).length === 0) {
       return res.status(400).json({ error: "No writable fields in request" });
     }
@@ -211,6 +246,9 @@ export default async function handler(req, res) {
     const writable = WRITABLE_FIELDS[tableId];
     if (!writable || !recordId) {
       return res.status(403).json({ error: "Write not allowed for this path" });
+    }
+    if (KIOSK_LOCKED_TABLES.has(tableId) && !isKioskPaired(req)) {
+      return res.status(403).json({ error: "DEVICE_NOT_PAIRED" });
     }
 
     const requestedFields = req.body?.fields || {};

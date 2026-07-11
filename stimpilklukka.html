@@ -19,15 +19,14 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
       padding: 24px;
+      gap: 24px;
     }
 
+    /* Not fixed — screens now vary a lot in height (PIN pad vs. the
+       employee screen's stack of buttons), and a fixed header overlapped
+       taller screens once "Mínar stundir"/"Sækja um orlof" were added. */
     header {
-      position: fixed;
-      top: 20px;
-      left: 0;
-      right: 0;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -107,8 +106,8 @@
     #btn-action.out:active { background: #7f1010; }
     #btn-action:disabled { opacity: 0.4; }
 
-    #btn-sick {
-      margin-top: 18px;
+    .secondary-btn {
+      margin-top: 12px;
       width: 100%;
       background: none;
       border: 1px solid #333;
@@ -117,10 +116,11 @@
       font-size: 0.95rem;
       padding: 14px 0;
     }
-    #btn-sick:active { background: #161616; }
-    #btn-sick:disabled { opacity: 0.4; }
+    .secondary-btn:active { background: #161616; }
+    .secondary-btn:disabled { opacity: 0.4; }
+    #btn-sick { margin-top: 18px; }
 
-    #cancel-btn {
+    .link-btn {
       margin-top: 20px;
       background: none;
       border: none;
@@ -133,6 +133,33 @@
     #confirm-icon { font-size: 3.5rem; margin-bottom: 12px; }
     #confirm-text { font-size: 1.4rem; font-weight: 700; text-align: center; margin-bottom: 4px; }
     #confirm-time { font-size: 1rem; color: #fff; }
+
+    /* ---- Hours screen ---- */
+    #hours-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 24px; text-align: center; }
+    .stat-row {
+      display: flex; justify-content: space-between; align-items: baseline;
+      width: 100%; padding: 14px 0; border-bottom: 1px solid #222;
+    }
+    .stat-row .label { color: #ccc; font-size: 1rem; }
+    .stat-row .value { font-size: 1.3rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    #hours-note { font-size: 0.85rem; color: #888; margin-top: 16px; text-align: center; }
+
+    /* ---- Vacation request screen ---- */
+    #vacation-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 24px; text-align: center; }
+    .field { width: 100%; margin-bottom: 16px; }
+    .field label { display: block; font-size: 0.9rem; color: #ccc; margin-bottom: 6px; }
+    .field input[type="date"] {
+      width: 100%; background: #161616; color: #fff; border: 1px solid #333;
+      border-radius: 10px; padding: 14px; font-size: 1.1rem; color-scheme: dark;
+    }
+    #btn-vacation-submit {
+      width: 100%; font-size: 1.2rem; font-weight: 700; letter-spacing: 0.03em;
+      border-radius: 16px; padding: 24px 0; border: none; color: #fff;
+      background: #2e7d32; margin-top: 8px;
+    }
+    #btn-vacation-submit:active { background: #1b5e20; }
+    #btn-vacation-submit:disabled { opacity: 0.4; }
+    #vacation-msg { min-height: 20px; font-size: 0.9rem; color: #e53935; margin-top: 10px; text-align: center; }
   </style>
 </head>
 <body>
@@ -161,8 +188,38 @@
     <div id="employee-name"></div>
     <div id="employee-status"></div>
     <button id="btn-action"></button>
-    <button id="btn-sick">Tilkynna veikindi í dag</button>
-    <button id="cancel-btn">Hætta við</button>
+    <button id="btn-sick" class="secondary-btn">Tilkynna veikindi í dag</button>
+    <button id="btn-hours" class="secondary-btn">Mínar stundir</button>
+    <button id="btn-vacation" class="secondary-btn">Sækja um orlof</button>
+    <button id="cancel-btn" class="link-btn">Hætta við</button>
+  </div>
+
+  <!-- Hours screen -->
+  <div class="screen hidden" id="screen-hours">
+    <div id="hours-title">Mínar stundir — <span id="hours-month"></span></div>
+    <div class="stat-row"><span class="label">Dagvinna</span><span class="value" id="hours-dagvinna"></span></div>
+    <div class="stat-row"><span class="label">Yfirvinna</span><span class="value" id="hours-yfirvinna"></span></div>
+    <div class="stat-row"><span class="label">Samtals</span><span class="value" id="hours-samtals"></span></div>
+    <div class="stat-row"><span class="label">Veikindadagar</span><span class="value" id="hours-veikindi"></span></div>
+    <div class="stat-row"><span class="label">Auka orlofsdagar</span><span class="value" id="hours-orlof"></span></div>
+    <div id="hours-note"></div>
+    <button id="hours-back" class="link-btn">Til baka</button>
+  </div>
+
+  <!-- Vacation request screen -->
+  <div class="screen hidden" id="screen-vacation">
+    <div id="vacation-title">Sækja um orlof</div>
+    <div class="field">
+      <label for="vacation-from">Frá</label>
+      <input type="date" id="vacation-from" />
+    </div>
+    <div class="field">
+      <label for="vacation-to">Til</label>
+      <input type="date" id="vacation-to" />
+    </div>
+    <button id="btn-vacation-submit">Senda beiðni</button>
+    <div id="vacation-msg"></div>
+    <button id="vacation-back" class="link-btn">Hætta við</button>
   </div>
 
   <!-- Confirmation -->
@@ -176,9 +233,24 @@
     const STARFSMENN_TABLE = "tblhglpjQkczdG1AY";
     const STIMPLANIR_TABLE = "tblnFIO8RB6HcelXF";
     const FJARVISTIR_TABLE = "tbl3e5o0Klv9RcNQ4";
+    const ORLOFSBEIDNIR_TABLE = "tbljdg6uxEfHE7uCU";
 
-    function todayISO() {
-      const d = new Date();
+    // Kiosk device pairing: visiting /klukka?setup=<KIOSK_DEVICE_SECRET> once
+    // stores the secret in localStorage and strips it from the URL bar (so it
+    // doesn't linger in history). INN/ÚT send it as a header; the server only
+    // accepts those two actions from a device that has it. Sick-marking and
+    // vacation requests are untouched — they still work from any device.
+    (function pairKioskIfRequested() {
+      const setup = new URLSearchParams(location.search).get("setup");
+      if (setup) {
+        localStorage.setItem("kioskToken", setup);
+        history.replaceState(null, "", location.pathname);
+      }
+    })();
+    const KIOSK_TOKEN = localStorage.getItem("kioskToken") || "";
+
+    function todayISO(d) {
+      d = d || new Date();
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     }
 
@@ -212,28 +284,29 @@
       return res.json();
     }
 
-    async function airtablePost(path, fields) {
+    async function airtableWrite(method, path, fields, extraHeaders) {
       const url = new URL("/api/airtable", location.origin);
       url.searchParams.set("path", path);
       const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method,
+        headers: { "Content-Type": "application/json", ...(extraHeaders || {}) },
         body: JSON.stringify({ fields }),
       });
-      if (!res.ok) throw new Error("Airtable POST failed: " + res.status);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        const err = new Error(`Airtable ${method} failed: ${res.status}`);
+        err.code = body.error;
+        throw err;
+      }
       return res.json();
     }
 
-    async function airtablePatch(path, fields) {
-      const url = new URL("/api/airtable", location.origin);
-      url.searchParams.set("path", path);
-      const res = await fetch(url, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fields }),
-      });
-      if (!res.ok) throw new Error("Airtable PATCH failed: " + res.status);
-      return res.json();
+    async function airtablePost(path, fields, extraHeaders) {
+      return airtableWrite("POST", path, fields, extraHeaders);
+    }
+
+    async function airtablePatch(path, fields, extraHeaders) {
+      return airtableWrite("PATCH", path, fields, extraHeaders);
     }
 
     // ---- PIN screen ----
@@ -377,43 +450,48 @@
       if (!currentEmployee) return;
       btnAction.disabled = true;
       const now = new Date();
+      const kioskHeaders = { "X-Kiosk-Token": KIOSK_TOKEN };
       try {
         if (openShift) {
-          await airtablePatch(`${STIMPLANIR_TABLE}/${openShift.id}`, { "Út": now.toISOString() });
+          await airtablePatch(`${STIMPLANIR_TABLE}/${openShift.id}`, { "Út": now.toISOString() }, kioskHeaders);
           showConfirm("Út", now);
         } else {
           await airtablePost(STIMPLANIR_TABLE, {
             "Inn": now.toISOString(),
             "Starfsmaður": [currentEmployee.id],
-          });
+          }, kioskHeaders);
           showConfirm("Inn", now);
         }
-      } catch {
-        employeeStatus.textContent = "Villa við að skrá stimplun — reyndu aftur";
+      } catch (err) {
+        employeeStatus.textContent = err.code === "DEVICE_NOT_PAIRED"
+          ? "Þetta tæki er ekki skráð sem stimpilklukka — biddu yfirmann að opna uppsetningarhlekk hér"
+          : "Villa við að skrá stimplun — reyndu aftur";
         btnAction.disabled = false;
       }
     }
     btnAction.addEventListener("click", punchAction);
 
     async function markSick() {
-      // Sick leave registration doesn't require clocking in — but if the
-      // employee happens to already be clocked in (e.g. sent home sick),
-      // close that shift too rather than leaving it open indefinitely.
+      // Sick leave registration doesn't require clocking in, and works from
+      // any device (unlike INN/ÚT, this isn't kiosk-token gated).
       if (!currentEmployee || sickToday) return;
       btnAction.disabled = true;
       btnSick.disabled = true;
       try {
-        const tasks = [
-          airtablePost(FJARVISTIR_TABLE, {
-            "Dagsetning": todayISO(),
-            "Starfsmaður": [currentEmployee.id],
-            "Tegund": "Veikindi",
-          }),
-        ];
+        await airtablePost(FJARVISTIR_TABLE, {
+          "Dagsetning": todayISO(),
+          "Starfsmaður": [currentEmployee.id],
+          "Tegund": "Veikindi",
+        });
         if (openShift) {
-          tasks.push(airtablePatch(`${STIMPLANIR_TABLE}/${openShift.id}`, { "Út": new Date().toISOString() }));
+          // Best-effort: closing the shift is a Stimplanir write, so it only
+          // succeeds from the paired kiosk device. Marking sick from home
+          // (no token) still works — the open shift just stays open for the
+          // manager to close manually.
+          try {
+            await airtablePatch(`${STIMPLANIR_TABLE}/${openShift.id}`, { "Út": new Date().toISOString() }, { "X-Kiosk-Token": KIOSK_TOKEN });
+          } catch { /* not on the paired device — fine, see above */ }
         }
-        await Promise.all(tasks);
         showConfirm("Veikindi", new Date());
       } catch {
         employeeStatus.textContent = "Villa við að skrá veikindi — reyndu aftur";
@@ -432,13 +510,114 @@
       resetPin();
     });
 
-    // ---- Confirm screen ----
-    function showConfirm(type, when) {
+    // ---- Hours screen ----
+    const screenHours = document.getElementById("screen-hours");
+    const btnHours = document.getElementById("btn-hours");
+
+    async function showHours() {
       screenEmployee.classList.add("hidden");
+      screenHours.classList.remove("hidden");
+      const now = new Date();
+      document.getElementById("hours-month").textContent = IS_MONTHS[now.getMonth()];
+      document.getElementById("hours-dagvinna").textContent = "…";
+      document.getElementById("hours-yfirvinna").textContent = "…";
+      document.getElementById("hours-samtals").textContent = "…";
+      document.getElementById("hours-veikindi").textContent = "…";
+      document.getElementById("hours-orlof").textContent = `${currentEmployee.fields["Auka orlofsdagar 🌴"] || 0} d.`;
+      document.getElementById("hours-note").textContent = "";
+
+      try {
+        const name = (currentEmployee.fields["Nafn starfsmanns 👷"] || "").replace(/"/g, '\\"');
+        const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+        const [shiftData, sickData] = await Promise.all([
+          airtableGet(STIMPLANIR_TABLE, {
+            filterByFormula: `AND({Starfsmaður}="${name}",DATETIME_FORMAT({Inn},'YYYY-MM')="${monthKey}",{Út}!=BLANK())`,
+            pageSize: 100,
+          }),
+          airtableGet(FJARVISTIR_TABLE, {
+            filterByFormula: `AND({Starfsmaður}="${name}",DATETIME_FORMAT({Dagsetning},'YYYY-MM')="${monthKey}")`,
+            pageSize: 100,
+          }),
+        ]);
+        const shifts = shiftData.records || [];
+        const sum = (field) => shifts.reduce((total, r) => total + (r.fields[field] || 0), 0);
+        document.getElementById("hours-dagvinna").textContent = `${sum("Dagvinna (klst)").toFixed(1)} klst`;
+        document.getElementById("hours-yfirvinna").textContent = `${sum("Yfirvinna (klst)").toFixed(1)} klst`;
+        document.getElementById("hours-samtals").textContent = `${sum("Samtals (klst)").toFixed(1)} klst`;
+        document.getElementById("hours-veikindi").textContent = `${(sickData.records || []).length} d.`;
+        document.getElementById("hours-note").textContent = openShift ? "Núverandi vakt er ekki talin með ennþá." : "";
+      } catch {
+        document.getElementById("hours-note").textContent = "Villa við að sækja stundir — reyndu aftur";
+      }
+    }
+    btnHours.addEventListener("click", showHours);
+    document.getElementById("hours-back").addEventListener("click", () => {
+      screenHours.classList.add("hidden");
+      screenEmployee.classList.remove("hidden");
+    });
+
+    // ---- Vacation request screen ----
+    const screenVacation = document.getElementById("screen-vacation");
+    const btnVacation = document.getElementById("btn-vacation");
+    const vacationFrom = document.getElementById("vacation-from");
+    const vacationTo = document.getElementById("vacation-to");
+    const vacationMsg = document.getElementById("vacation-msg");
+    const btnVacationSubmit = document.getElementById("btn-vacation-submit");
+
+    btnVacation.addEventListener("click", () => {
+      screenEmployee.classList.add("hidden");
+      screenVacation.classList.remove("hidden");
+      vacationMsg.textContent = "";
+      vacationFrom.value = todayISO();
+      vacationTo.value = todayISO();
+      btnVacationSubmit.disabled = false;
+    });
+    document.getElementById("vacation-back").addEventListener("click", () => {
+      screenVacation.classList.add("hidden");
+      screenEmployee.classList.remove("hidden");
+    });
+
+    btnVacationSubmit.addEventListener("click", async () => {
+      if (!currentEmployee) return;
+      const fra = vacationFrom.value;
+      const til = vacationTo.value;
+      if (!fra || !til) {
+        vacationMsg.textContent = "Veldu báðar dagsetningar";
+        return;
+      }
+      if (til < fra) {
+        vacationMsg.textContent = "Til-dagsetning verður að vera eftir frá-dagsetningu";
+        return;
+      }
+      btnVacationSubmit.disabled = true;
+      vacationMsg.textContent = "";
+      try {
+        // Vacation requests work from any device, like sick-marking — no
+        // kiosk token. "Staða" is deliberately not sent — the server always
+        // forces it to "Í bið" on create so a client can't self-approve.
+        await airtablePost(ORLOFSBEIDNIR_TABLE, {
+          "Frá": fra,
+          "Til": til,
+          "Starfsmaður": [currentEmployee.id],
+        });
+        screenVacation.classList.add("hidden");
+        showConfirm("Orlof", new Date(), { fra, til });
+      } catch {
+        vacationMsg.textContent = "Villa við að senda beiðni — reyndu aftur";
+        btnVacationSubmit.disabled = false;
+      }
+    });
+
+    // ---- Confirm screen ----
+    function showConfirm(type, when, extra) {
+      screenEmployee.classList.add("hidden");
+      screenVacation.classList.add("hidden");
       screenConfirm.classList.remove("hidden");
-      document.getElementById("confirm-icon").textContent = type === "Inn" ? "✅" : type === "Veikindi" ? "🤒" : "👋";
-      document.getElementById("confirm-text").textContent = type === "Veikindi"
-        ? `${employeeName.textContent} ${isKK ? "skráður veikur" : "skráð veik"} í dag`
+      document.getElementById("confirm-icon").textContent =
+        type === "Inn" ? "✅" : type === "Veikindi" ? "🤒" : type === "Orlof" ? "🌴" : "👋";
+      document.getElementById("confirm-text").textContent =
+        type === "Veikindi" ? `${employeeName.textContent} ${isKK ? "skráður veikur" : "skráð veik"} í dag`
+        : type === "Orlof" ? `Orlofsbeiðni send: ${extra.fra} – ${extra.til}`
         : `${employeeName.textContent} ${isKK ? "stimplaður" : "stimpluð"} ${type.toUpperCase()}`;
       document.getElementById("confirm-time").textContent =
         when.toLocaleTimeString("is-IS", { hour: "2-digit", minute: "2-digit" });
