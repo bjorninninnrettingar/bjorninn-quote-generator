@@ -96,7 +96,11 @@ const REQUIRE_FILTER = new Set(["tblhglpjQkczdG1AY", "tbl3e5o0Klv9RcNQ4"]);
 // "Staða" is deliberately not creatable either — see FORCED_CREATE_FIELDS
 // below, which sets it server-side so a client can't self-approve.
 const CREATABLE_FIELDS = {
-  "tblnFIO8RB6HcelXF": ["Inn", "Starfsmaður"],
+  // "Mánuður 🗓️"/"Ár 🗓️" are real single-select fields (not formulas) so
+  // they work as clean pick-a-value dropdown filters in Interfaces — the
+  // kiosk computes and sends them at creation time since there's no
+  // Airtable Automation populating them.
+  "tblnFIO8RB6HcelXF": ["Inn", "Starfsmaður", "Mánuður 🗓️", "Ár 🗓️"],
   "tbl3e5o0Klv9RcNQ4": ["Dagsetning", "Starfsmaður", "Tegund"],
   "tbljdg6uxEfHE7uCU": ["Frá", "Til", "Starfsmaður"],
 };
@@ -231,7 +235,10 @@ export default async function handler(req, res) {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ fields }),
+      // typecast: true so a singleSelect value with no exact-matching choice
+      // (e.g. a stale/renamed option) creates the choice instead of hard-
+      // failing the write — a create should never brick over a label typo.
+      body: JSON.stringify({ fields, typecast: true }),
     });
     const data = await airtableRes.json();
     const filtered = data.fields ? filterFields(data, ALLOWED_FIELDS[tableId] || []) : data;
