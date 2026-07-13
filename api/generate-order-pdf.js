@@ -236,18 +236,9 @@ async function buildOrderPdf(order, lines) {
   const PW = 841.89;
   const PH = 595.28;
   const CW = PW - MARGIN * 2;
-  const ROW_H = 40;
 
   function newPage() {
     return doc.addPage([PW, PH]);
-  }
-
-  function checkBreak(page, y, reserve = 100) {
-    if (y > MARGIN + reserve) return { page, y };
-    const p = newPage();
-    line(p, MARGIN, PH - 28, PW - MARGIN, PH - 28, GOLD, 0.5);
-    txt(p, "BJÖRNINN INNRÉTTINGAR — framhald", MARGIN, PH - 20, fontReg, 7.5, GRAY);
-    return { page: p, y: PH - 48 };
   }
 
   let page = newPage();
@@ -284,6 +275,7 @@ async function buildOrderPdf(order, lines) {
     return i === -1 ? GERD_ORDER.length : i;
   }
   const sortedLines = [...lines].sort((a, b) => gerdRank(a["Gerð"]) - gerdRank(b["Gerð"]));
+  const groupCount = new Set(sortedLines.map((item) => item["Gerð"] || "Annað")).size;
 
   // Pre-embed every unique product/material thumbnail before drawing rows —
   // embedding is async, drawing each row is not, so this keeps the row loop simple.
@@ -293,7 +285,9 @@ async function buildOrderPdf(order, lines) {
     if (url) await embedImage(doc, url, imageCache);
   }
 
-  // ── Line items table ─────────────────────────────────────────────────────
+  // ── Line items table — always exactly one page. Row height is computed
+  // from however much vertical space is left, so it shrinks automatically
+  // as the order gets longer instead of ever spilling onto a page 2.
   const cols = [
     { label: "Vörulisti txt", w: 0.44, align: "left",   clip: true },
     { label: "Magn",          w: 0.08, align: "center", clip: false },
@@ -309,17 +303,29 @@ async function buildOrderPdf(order, lines) {
     return def;
   });
 
-  rect(page, MARGIN, y - 5, CW, 18, GOLD_TINT);
+  const COLUMN_HEADER_H = 16;
+  const GROUP_HEADER_H  = 13;
+  const GROUP_GAP       = 5; // breathing room between one group's last row and the next group's header
+  const FOOTER_RESERVE  = 46; // total line + rule + footer text
+
+  const usableForRows = y - COLUMN_HEADER_H - (groupCount * GROUP_HEADER_H)
+    - ((groupCount - 1) * GROUP_GAP) - (MARGIN + FOOTER_RESERVE);
+  const rowCount = sortedLines.length || 1;
+  const ROW_H = Math.max(6, Math.min(20, usableForRows / rowCount));
+  const FONT_SIZE = ROW_H >= 15 ? 7.5 : ROW_H >= 10 ? 6.5 : 5.5;
+  const THUMB_H = Math.max(5, ROW_H - 3);
+
+  rect(page, MARGIN, y - 4, CW, COLUMN_HEADER_H, GOLD_TINT);
   for (const col of colDefs) {
-    const lw = fontBold.widthOfTextAtSize(col.label, 7.5);
+    const lw = fontBold.widthOfTextAtSize(col.label, 7);
     const lx = col.align === "right"  ? col.x + col.pw - lw - 3
              : col.align === "center" ? col.x + (col.pw - lw) / 2
              : col.x + 3;
-    txt(page, col.label, lx, y, fontBold, 7.5, DARK);
+    txt(page, col.label, lx, y, fontBold, 7, DARK);
   }
-  y -= 16;
+  y -= COLUMN_HEADER_H - 2;
   line(page, MARGIN, y, PW - MARGIN, y, GOLD, 0.5);
-  y -= 4;
+  y -= 3;
 
   let totalCost = 0;
   let currentGerd = null;
@@ -328,17 +334,16 @@ async function buildOrderPdf(order, lines) {
   for (const item of sortedLines) {
     const gerd = item["Gerð"] || "Annað";
     if (gerd !== currentGerd) {
+      if (currentGerd !== null) {
+        y -= GROUP_GAP;
+        line(page, MARGIN, y + 2, PW - MARGIN, y + 2, GOLD, 1.5);
+      }
       currentGerd = gerd;
-      ({ page, y } = checkBreak(page, y, 110));
-      y -= 8;
-      rect(page, MARGIN, y - 3, CW, 15, LIGHT);
-      line(page, MARGIN, y - 3, MARGIN, y + 12, GOLD, 2);
-      txt(page, gerd, MARGIN + 6, y, fontBold, 8.5, DARK);
-      y -= 20;
+      rect(page, MARGIN, y - 2, CW, GROUP_HEADER_H, LIGHT);
+      txt(page, gerd, MARGIN + 6, y + 1, fontBold, 7, DARK);
+      y -= GROUP_HEADER_H;
       rowIndex = 0;
     }
-
-    ({ page, y } = checkBreak(page, y, 90));
 
     const name  = stripEmoji(item["Vörulisti txt"] || item["Vörunúmer #️⃣"] || "") || "—";
     const qty   = item["Magn"] ?? "";
@@ -346,38 +351,41 @@ async function buildOrderPdf(order, lines) {
     const cost  = parseFloat(item["Áætlaður kostnaður"] ?? 0) || 0;
     totalCost += cost;
 
-    if (rowIndex % 2 === 0) rect(page, MARGIN, y - ROW_H + 12, CW, ROW_H, LIGHT);
+    if (rowIndex % 2 === 0) rect(page, MARGIN, y - ROW_H + 2, CW, ROW_H, LIGHT);
+
+    const textY = y - ROW_H / 2 + 2;
 
     const nameCol = colDefs[0];
-    txt(page, truncate(fontReg, name, 8, nameCol.pw - 6), nameCol.x + 3, y - ROW_H / 2 + 3, fontReg, 8, DARK);
+    txt(page, truncate(fontReg, name, FONT_SIZE, nameCol.pw - 6), nameCol.x + 3, textY, fontReg, FONT_SIZE, DARK);
 
     const qtyCol = colDefs[1];
     const qtyStr = String(qty);
-    const qw = fontReg.widthOfTextAtSize(qtyStr, 8);
-    txt(page, qtyStr, qtyCol.x + (qtyCol.pw - qw) / 2, y - ROW_H / 2 + 3, fontReg, 8, DARK);
+    const qw = fontReg.widthOfTextAtSize(qtyStr, FONT_SIZE);
+    txt(page, qtyStr, qtyCol.x + (qtyCol.pw - qw) / 2, textY, fontReg, FONT_SIZE, DARK);
 
     const imgCol = colDefs[2];
     const url = firstImageUrl(item["Mynd af vöru"], item["Mynd af efni"]);
     const img = url ? imageCache.get(url) : null;
-    drawThumb(page, img, imgCol.x, y - ROW_H + 6, imgCol.pw, ROW_H - 10);
+    drawThumb(page, img, imgCol.x, y - ROW_H + 1, imgCol.pw, THUMB_H);
 
     const colorCol = colDefs[3];
-    txt(page, truncate(fontReg, litur, 8, colorCol.pw - 6), colorCol.x + 3, y - ROW_H / 2 + 3, fontReg, 8, DARK);
+    txt(page, truncate(fontReg, litur, FONT_SIZE, colorCol.pw - 6), colorCol.x + 3, textY, fontReg, FONT_SIZE, DARK);
 
     y -= ROW_H;
     rowIndex++;
   }
 
   // ── Total ────────────────────────────────────────────────────────────────
-  ({ page, y } = checkBreak(page, y, 60));
-  y -= 10;
+  y -= 8;
   line(page, MARGIN, y, PW - MARGIN, y, GRAY, 0.4);
-  y -= 18;
+  y -= 16;
 
-  txt(page, "Áætlaður kostnaður samtals:", PW - MARGIN - 230, y, fontBold, 11, DARK);
+  const totalLabel = "Áætlaður kostnaður samtals:";
+  const totalLabelW = fontBold.widthOfTextAtSize(totalLabel, 10);
   const gtv = formatISK(totalCost);
-  const gtw = fontBold.widthOfTextAtSize(gtv, 13);
-  txt(page, gtv, PW - MARGIN - gtw, y, fontBold, 13, GOLD);
+  const gtw = fontBold.widthOfTextAtSize(gtv, 12);
+  txt(page, totalLabel, PW - MARGIN - gtw - 8 - totalLabelW, y, fontBold, 10, DARK);
+  txt(page, gtv, PW - MARGIN - gtw, y, fontBold, 12, GOLD);
 
   drawFooter(page, PW, fontReg);
 
