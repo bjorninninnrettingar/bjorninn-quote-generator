@@ -304,8 +304,8 @@ async function buildOrderPdf(order, lines) {
   });
 
   const COLUMN_HEADER_H = 16;
-  const GROUP_HEADER_H  = 13;
-  const GROUP_GAP       = 5; // breathing room between one group's last row and the next group's header
+  const GROUP_HEADER_H  = 14;
+  const GROUP_GAP       = 6; // breathing room between one group's last row and the next group's header
   const FOOTER_RESERVE  = 46; // total line + rule + footer text
 
   const usableForRows = y - COLUMN_HEADER_H - (groupCount * GROUP_HEADER_H)
@@ -313,19 +313,20 @@ async function buildOrderPdf(order, lines) {
   const rowCount = sortedLines.length || 1;
   const ROW_H = Math.max(6, Math.min(20, usableForRows / rowCount));
   const FONT_SIZE = ROW_H >= 15 ? 7.5 : ROW_H >= 10 ? 6.5 : 5.5;
-  const THUMB_H = Math.max(5, ROW_H - 3);
 
-  rect(page, MARGIN, y - 4, CW, COLUMN_HEADER_H, GOLD_TINT);
+  // Every block below follows the same convention: y is the top edge of the
+  // space still to be drawn. A block occupies [y - H, y], then y -= H. No
+  // fudge-factor offsets, so adjacent blocks can never overlap each other.
+  rect(page, MARGIN, y - COLUMN_HEADER_H, CW, COLUMN_HEADER_H, GOLD_TINT);
   for (const col of colDefs) {
     const lw = fontBold.widthOfTextAtSize(col.label, 7);
     const lx = col.align === "right"  ? col.x + col.pw - lw - 3
              : col.align === "center" ? col.x + (col.pw - lw) / 2
              : col.x + 3;
-    txt(page, col.label, lx, y, fontBold, 7, DARK);
+    txt(page, col.label, lx, y - COLUMN_HEADER_H + 5, fontBold, 7, DARK);
   }
-  y -= COLUMN_HEADER_H - 2;
+  y -= COLUMN_HEADER_H;
   line(page, MARGIN, y, PW - MARGIN, y, GOLD, 0.5);
-  y -= 3;
 
   let totalCost = 0;
   let currentGerd = null;
@@ -336,10 +337,9 @@ async function buildOrderPdf(order, lines) {
     if (gerd !== currentGerd) {
       if (currentGerd !== null) y -= GROUP_GAP;
       currentGerd = gerd;
-      // Draw the divider AFTER the header background, or the rect paints over it.
-      rect(page, MARGIN, y - 2, CW, GROUP_HEADER_H, LIGHT);
-      line(page, MARGIN, y - 2 + GROUP_HEADER_H, PW - MARGIN, y - 2 + GROUP_HEADER_H, GOLD, 1.5);
-      txt(page, gerd, MARGIN + 6, y + 1, fontBold, 7, DARK);
+      line(page, MARGIN, y, PW - MARGIN, y, GOLD, 1.5);
+      rect(page, MARGIN, y - GROUP_HEADER_H, CW, GROUP_HEADER_H, LIGHT);
+      txt(page, gerd, MARGIN + 6, y - GROUP_HEADER_H + 5, fontBold, 7, DARK);
       y -= GROUP_HEADER_H;
       rowIndex = 0;
     }
@@ -350,9 +350,9 @@ async function buildOrderPdf(order, lines) {
     const cost  = parseFloat(item["Áætlaður kostnaður"] ?? 0) || 0;
     totalCost += cost;
 
-    if (rowIndex % 2 === 0) rect(page, MARGIN, y - ROW_H + 2, CW, ROW_H, LIGHT);
+    if (rowIndex % 2 === 0) rect(page, MARGIN, y - ROW_H, CW, ROW_H, LIGHT);
 
-    const textY = y - ROW_H / 2 + 2;
+    const textY = y - ROW_H / 2 - FONT_SIZE / 3;
 
     const nameCol = colDefs[0];
     txt(page, truncate(fontReg, name, FONT_SIZE, nameCol.pw - 6), nameCol.x + 3, textY, fontReg, FONT_SIZE, DARK);
@@ -362,10 +362,12 @@ async function buildOrderPdf(order, lines) {
     const qw = fontReg.widthOfTextAtSize(qtyStr, FONT_SIZE);
     txt(page, qtyStr, qtyCol.x + (qtyCol.pw - qw) / 2, textY, fontReg, FONT_SIZE, DARK);
 
+    // Centered within the row's full height/width — drawThumb itself scales
+    // to fit and centers within whatever box it's given.
     const imgCol = colDefs[2];
     const url = firstImageUrl(item["Mynd af vöru"], item["Mynd af efni"]);
     const img = url ? imageCache.get(url) : null;
-    drawThumb(page, img, imgCol.x, y - ROW_H + 1, imgCol.pw, THUMB_H);
+    drawThumb(page, img, imgCol.x, y - ROW_H, imgCol.pw, ROW_H);
 
     const colorCol = colDefs[3];
     txt(page, truncate(fontReg, litur, FONT_SIZE, colorCol.pw - 6), colorCol.x + 3, textY, fontReg, FONT_SIZE, DARK);
