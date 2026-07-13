@@ -334,12 +334,11 @@ async function buildOrderPdf(order, lines) {
   for (const item of sortedLines) {
     const gerd = item["Gerð"] || "Annað";
     if (gerd !== currentGerd) {
-      if (currentGerd !== null) {
-        y -= GROUP_GAP;
-        line(page, MARGIN, y + 2, PW - MARGIN, y + 2, GOLD, 1.5);
-      }
+      if (currentGerd !== null) y -= GROUP_GAP;
       currentGerd = gerd;
+      // Draw the divider AFTER the header background, or the rect paints over it.
       rect(page, MARGIN, y - 2, CW, GROUP_HEADER_H, LIGHT);
+      line(page, MARGIN, y - 2 + GROUP_HEADER_H, PW - MARGIN, y - 2 + GROUP_HEADER_H, GOLD, 1.5);
       txt(page, gerd, MARGIN + 6, y + 1, fontBold, 7, DARK);
       y -= GROUP_HEADER_H;
       rowIndex = 0;
