@@ -93,6 +93,20 @@
     white-space: nowrap;
   }
 
+  .qty-stepper {
+    display: flex; align-items: center; gap: 6px;
+  }
+  .qty-btn {
+    width: 34px; height: 34px; padding: 0;
+    font-size: 1.2rem; font-weight: 700; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 6px;
+  }
+  .qty-stepper .qty-value {
+    min-width: 34px; text-align: center;
+    font-size: 1.1rem; font-weight: 700;
+  }
+
   .status-text { font-size: 0.85rem; font-weight: 600; white-space: nowrap; }
   .status-done    { color: #4caf50; }
   .status-partial { color: #f5c518; }
@@ -230,7 +244,7 @@ function escapeHtml(s) {
   }[c]));
 }
 
-// printOneCycle polls every 1.5s for up to 20s — print-server.js already
+// printOneCycle polls every 0.5s for up to 20s — print-server.js already
 // retries its own Airtable calls on 429 for the same reason, this mirrors
 // it here instead of letting a rate-limit hit abort a print mid-run.
 async function fetchWithRetry(url, options, maxRetries = 3) {
@@ -363,6 +377,34 @@ function groupQty(g) {
   return g.records.reduce((s, r) => s + r.m, 0);
 }
 
+function groupRemaining(g) {
+  const { done, total } = groupProgress(g);
+  return total - done;
+}
+
+// How many copies the next print press should produce for this group.
+// Defaults to "everything left" until the user steps it down; reset back to
+// that default after each print run so a half-used stepper doesn't linger.
+let desiredQty = {};
+
+function getDesiredQty(g) {
+  const remaining = groupRemaining(g);
+  const stored = desiredQty[g.key];
+  if (stored === undefined) return remaining;
+  return Math.min(Math.max(stored, 1), remaining);
+}
+
+function stepQty(groupKey, delta) {
+  if (isPrinting) return;
+  const g = groups.find(x => x.key === groupKey);
+  if (!g) return;
+  const remaining = groupRemaining(g);
+  if (remaining <= 0) return;
+  const next = getDesiredQty(g) + delta;
+  desiredQty[groupKey] = Math.min(Math.max(next, 1), remaining);
+  renderRows();
+}
+
 // ── PRINT TRIGGER ────────────────────────────────────────────────────────
 // Drives exactly ONE print cycle for a record: check B.A.S., wait for the
 // shop's print-server.js to print one label and clear it (or set Lokið if
@@ -374,7 +416,7 @@ function groupQty(g) {
 // pieces with qty > 1 need one press per copy, same as the original
 // checkbox-in-Airtable workflow.
 async function printOneCycle(id) {
-  const POLL_MS = 1500;
+  const POLL_MS = 500;
   const CYCLE_TIMEOUT_MS = 20000;
 
   await patchSogunarlisti(id, { [S_BAS]: true });
@@ -408,31 +450,42 @@ async function printGroup(groupKey) {
   isPrinting = true;
   renderRows();
 
+  // Print exactly as many copies as the stepper says (defaults to
+  // "everything left" in the group), spread across its pending underlying
+  // records in order — each printOneCycle call is still exactly one physical
+  // print, called sequentially and awaited one at a time, never in parallel.
+  let remainingToPrint = getDesiredQty(g);
+
   try {
-    // One press = one print cycle per pending underlying record in this
-    // group (bounded by how many distinct records it has) — not a repeat
-    // loop per record. A qty>1 piece needs one press per remaining copy.
     const pending = g.records.filter(r => !r.lokid);
     for (const r of pending) {
+      if (remainingToPrint <= 0) break;
       const roomLabel = r.athugasemd || r.id;
-      try {
-        log(`🖨️  Prenta: ${g.partur} ${g.h}×${g.b} — ${roomLabel}`);
-        const result = await printOneCycle(r.id);
-        if (result.lokid) {
-          r.lokid = true;
-          delete printProgress[r.id];
-          log(`✅ Lokið: ${g.partur} — ${roomLabel}`);
-        } else {
-          printProgress[r.id] = (printProgress[r.id] || 0) + 1;
-          log(`   ${printProgress[r.id]}/${r.m} prentað (${roomLabel}) — ýttu aftur fyrir næsta eintak`);
+      const recordRemaining = r.m - (printProgress[r.id] || 0);
+      const copiesForThisRecord = Math.min(remainingToPrint, recordRemaining);
+
+      for (let i = 0; i < copiesForThisRecord && !r.lokid; i++) {
+        try {
+          log(`🖨️  Prenta: ${g.partur} ${g.h}×${g.b} — ${roomLabel}`);
+          const result = await printOneCycle(r.id);
+          if (result.lokid) {
+            r.lokid = true;
+            delete printProgress[r.id];
+            log(`✅ Lokið: ${g.partur} — ${roomLabel}`);
+          } else {
+            printProgress[r.id] = (printProgress[r.id] || 0) + 1;
+            log(`   ${printProgress[r.id]}/${r.m} prentað (${roomLabel})`);
+          }
+          remainingToPrint--;
+          renderRows();
+        } catch (e) {
+          log(`❌ Villa (${roomLabel}): ${e.message}`);
+          return; // stop the group here rather than pushing on after a failure
         }
-        renderRows();
-      } catch (e) {
-        log(`❌ Villa (${roomLabel}): ${e.message}`);
-        return; // stop the group here rather than pushing on after a failure
       }
     }
   } finally {
+    delete desiredQty[groupKey]; // stepper resets to "everything left" next time
     isPrinting = false;
     renderRows();
   }
@@ -578,13 +631,22 @@ function renderRows() {
 
     const disabled = status === 'done' || isPrinting;
     const cabinets = [...new Set(g.records.map(r => r.athugasemd).filter(Boolean))].join(", ");
+
+    const qtyControl = status === 'done'
+      ? `<div class="qty-badge">×${qty}</div>`
+      : `<div class="qty-stepper">
+          <button type="button" class="qty-btn" ${disabled ? 'disabled' : ''} onclick="stepQty('${g.key}', -1)">−</button>
+          <span class="qty-value">${getDesiredQty(g)}</span>
+          <button type="button" class="qty-btn" ${disabled ? 'disabled' : ''} onclick="stepQty('${g.key}', 1)">+</button>
+        </div>`;
+
     div.innerHTML = `
       <div class="row-main">
         <div class="partur">${escapeHtml(g.partur)}</div>
         <div class="meta">${g.h}×${g.b}×${g.th}mm — ${escapeHtml(g.efni)}</div>
       </div>
       <div class="cabinets" title="${escapeHtml(cabinets)}">${escapeHtml(cabinets)}</div>
-      <div class="qty-badge">×${qty}</div>
+      ${qtyControl}
       <div class="status-text ${statusClass}">${statusText}</div>
       <button class="print-btn ${status === 'done' ? 'done' : ''}" id="btn-${g.key}"
         ${disabled ? 'disabled' : ''}
