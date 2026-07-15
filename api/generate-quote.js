@@ -437,8 +437,8 @@ async function buildPdf(project, lineItems, includeSummary = false, estimate = f
 
   // ── Summary page (by Rými) — appended when there are multiple rooms ───────
   if (includeSummary) {
-    const SPW = 595.28;
-    const SPH = 841.89;
+    const SPW = PW;
+    const SPH = PH;
     const SCW = SPW - MARGIN * 2;
 
     const sPage = doc.addPage([SPW, SPH]);
