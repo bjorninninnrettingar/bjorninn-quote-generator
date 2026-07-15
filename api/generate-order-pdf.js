@@ -289,10 +289,11 @@ async function buildOrderPdf(order, lines) {
   // from however much vertical space is left, so it shrinks automatically
   // as the order gets longer instead of ever spilling onto a page 2.
   const cols = [
-    { label: "Vörulisti txt", w: 0.44, align: "left",   clip: true },
-    { label: "Magn",          w: 0.08, align: "center", clip: false },
-    { label: "Mynd",          w: 0.13, align: "center", clip: false },
-    { label: "Litur",         w: 0.35, align: "left",   clip: true },
+    { label: "Vörulisti txt", w: 0.35, align: "left",   clip: true },
+    { label: "Magn",          w: 0.06, align: "center", clip: false },
+    { label: "Verð (stk.)",   w: 0.13, align: "right",  clip: false },
+    { label: "Mynd",          w: 0.12, align: "center", clip: false },
+    { label: "Litur",         w: 0.34, align: "left",   clip: true },
   ];
 
   let xCur = MARGIN;
@@ -350,6 +351,13 @@ async function buildOrderPdf(order, lines) {
     const cost  = parseFloat(item["Áætlaður kostnaður"] ?? 0) || 0;
     totalCost += cost;
 
+    // Unit price — shown so the supplier can spot a stale/wrong price
+    // themselves. Same source the Áætlaður kostnaður formula already uses:
+    // Vörulisti's price for products, Efnislisti's for materials.
+    const varaPrice = item["Innkaupakostnaður (vara) 🔍"]?.[0];
+    const efniPrice = item["Innkaupsverð (efni) 🔍"]?.[0];
+    const unitPrice = typeof varaPrice === "number" ? varaPrice : typeof efniPrice === "number" ? efniPrice : null;
+
     if (rowIndex % 2 === 0) rect(page, MARGIN, y - ROW_H, CW, ROW_H, LIGHT);
 
     const textY = y - ROW_H / 2 - FONT_SIZE / 3;
@@ -362,14 +370,19 @@ async function buildOrderPdf(order, lines) {
     const qw = fontReg.widthOfTextAtSize(qtyStr, FONT_SIZE);
     txt(page, qtyStr, qtyCol.x + (qtyCol.pw - qw) / 2, textY, fontReg, FONT_SIZE, DARK);
 
+    const priceCol = colDefs[2];
+    const priceStr = unitPrice !== null ? formatISK(unitPrice) : "—";
+    const pw2 = fontReg.widthOfTextAtSize(priceStr, FONT_SIZE);
+    txt(page, priceStr, priceCol.x + priceCol.pw - pw2 - 3, textY, fontReg, FONT_SIZE, DARK);
+
     // Centered within the row's full height/width — drawThumb itself scales
     // to fit and centers within whatever box it's given.
-    const imgCol = colDefs[2];
+    const imgCol = colDefs[3];
     const url = firstImageUrl(item["Mynd af vöru"], item["Mynd af efni"]);
     const img = url ? imageCache.get(url) : null;
     drawThumb(page, img, imgCol.x, y - ROW_H, imgCol.pw, ROW_H);
 
-    const colorCol = colDefs[3];
+    const colorCol = colDefs[4];
     txt(page, truncate(fontReg, litur, FONT_SIZE, colorCol.pw - 6), colorCol.x + 3, textY, fontReg, FONT_SIZE, DARK);
 
     y -= ROW_H;
