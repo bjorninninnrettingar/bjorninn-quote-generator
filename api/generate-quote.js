@@ -2,7 +2,7 @@
 // Björninn ehf. — Quote PDF Generator
 // pdf-lib, pure JS, no native deps
 
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb, degrees } from "pdf-lib";
 
 const AIRTABLE_BASE       = "app91U15z9K704Okd";
 const PROJECTS_TABLE      = "tbl4LMXlQjp66RFKI";
@@ -153,7 +153,7 @@ function line(page, x1, y1, x2, y2, color = GOLD, thickness = 0.75) {
 
 // ── Shared header renderer (used by both PDFs) ────────────────────────────────
 
-function drawHeader(page, project, logoImg, PW, PH, fontBold, fontReg) {
+function drawHeader(page, project, logoImg, PW, PH, fontBold, fontReg, hideDate = false) {
   const CW = PW - MARGIN * 2;
   let y = PH - MARGIN;
   const LOGO_W = 180;
@@ -166,9 +166,11 @@ function drawHeader(page, project, logoImg, PW, PH, fontBold, fontReg) {
     const tagW = fontReg.widthOfTextAtSize(tagline, 9);
     txt(page, tagline, PW - MARGIN - tagW, y, fontReg, 9, GRAY);
 
-    const dateStr = `Dagsetning: ${formatDate(project["Skráð þann:"])}`;
-    const dateW = fontReg.widthOfTextAtSize(dateStr, 8);
-    txt(page, dateStr, PW - MARGIN - dateW, y - 14, fontReg, 8, GRAY);
+    if (!hideDate) {
+      const dateStr = `Dagsetning: ${formatDate(project["Skráð þann:"])}`;
+      const dateW = fontReg.widthOfTextAtSize(dateStr, 8);
+      txt(page, dateStr, PW - MARGIN - dateW, y - 14, fontReg, 8, GRAY);
+    }
 
     y -= LOGO_H / 2 + 6;
   } else {
@@ -181,15 +183,40 @@ function drawHeader(page, project, logoImg, PW, PH, fontBold, fontReg) {
     const tagW = fontReg.widthOfTextAtSize(tagline, 9);
     txt(page, tagline, PW - MARGIN - tagW, y, fontReg, 9, GRAY);
 
-    const dateStr = `Dagsetning: ${formatDate(project["Skráð þann:"])}`;
-    const dateW = fontReg.widthOfTextAtSize(dateStr, 8);
-    txt(page, dateStr, PW - MARGIN - dateW, y - 14, fontReg, 8, GRAY);
+    if (!hideDate) {
+      const dateStr = `Dagsetning: ${formatDate(project["Skráð þann:"])}`;
+      const dateW = fontReg.widthOfTextAtSize(dateStr, 8);
+      txt(page, dateStr, PW - MARGIN - dateW, y - 14, fontReg, 8, GRAY);
+    }
 
     y -= 28;
   }
 
   line(page, MARGIN, y, PW - MARGIN, y, GOLD, 1);
   return y - 16;  // return y position after the gold rule
+}
+
+// ── Diagonal watermark (used by the "estimate" / verðhugmynd variant) ─────────
+
+const WATERMARK_TEXT = "Aðeins verðhugmynd, ógilt sem tilboð";
+const WATERMARK_ANGLE = 35; // degrees, bottom-left to top-right
+
+function drawWatermark(page, font, PW, PH) {
+  const size = 30;
+  const textWidth = font.widthOfTextAtSize(WATERMARK_TEXT, size);
+  const rad = (WATERMARK_ANGLE * Math.PI) / 180;
+  const x = PW / 2 - (textWidth / 2) * Math.cos(rad);
+  const y = PH / 2 - (textWidth / 2) * Math.sin(rad);
+
+  page.drawText(WATERMARK_TEXT, {
+    x,
+    y,
+    size,
+    font,
+    color: rgb(0.75, 0.15, 0.15),
+    opacity: 0.22,
+    rotate: degrees(WATERMARK_ANGLE),
+  });
 }
 
 // ── Shared footer renderer ────────────────────────────────────────────────────
@@ -212,7 +239,7 @@ function drawFooter(page, PW, fontReg) {
 
 // ── Main quote PDF ────────────────────────────────────────────────────────────
 
-async function buildPdf(project, lineItems, includeSummary = false) {
+async function buildPdf(project, lineItems, includeSummary = false, estimate = false) {
   const doc = await PDFDocument.create();
   const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
   const fontReg  = await doc.embedFont(StandardFonts.Helvetica);
@@ -245,15 +272,17 @@ async function buildPdf(project, lineItems, includeSummary = false) {
   }
 
   let page = newPage();
-  let y = drawHeader(page, project, logoImg, PW, PH, fontBold, fontReg);
+  let y = drawHeader(page, project, logoImg, PW, PH, fontBold, fontReg, estimate);
 
   // Quote title + validity
-  const quoteTitle = project["Tilboðsblaðs heiti"] || "Tilboð";
+  const quoteTitle = project["Tilboðsblaðs heiti"] || (estimate ? "Verðhugmynd" : "Tilboð");
   txt(page, quoteTitle, MARGIN, y, fontBold, 14, DARK);
 
-  const validStr = "Tilboð gildir í 30 daga frá útgáfudegi";
-  const validW = fontReg.widthOfTextAtSize(validStr, 8);
-  txt(page, validStr, PW - MARGIN - validW, y, fontReg, 8, GRAY);
+  if (!estimate) {
+    const validStr = "Tilboð gildir í 30 daga frá útgáfudegi";
+    const validW = fontReg.widthOfTextAtSize(validStr, 8);
+    txt(page, validStr, PW - MARGIN - validW, y, fontReg, 8, GRAY);
+  }
   y -= 22;
 
   // ── Info block ───────────────────────────────────────────────────────────
@@ -413,9 +442,9 @@ async function buildPdf(project, lineItems, includeSummary = false) {
     const SCW = SPW - MARGIN * 2;
 
     const sPage = doc.addPage([SPW, SPH]);
-    let sy = drawHeader(sPage, project, logoImg, SPW, SPH, fontBold, fontReg);
+    let sy = drawHeader(sPage, project, logoImg, SPW, SPH, fontBold, fontReg, estimate);
 
-    txt(sPage, project["Tilboðsblaðs heiti"] || "Tilboð", MARGIN, sy, fontBold, 14, DARK);
+    txt(sPage, project["Tilboðsblaðs heiti"] || (estimate ? "Verðhugmynd" : "Tilboð"), MARGIN, sy, fontBold, 14, DARK);
     const subLabel = "Samantekt eftir rými";
     const subLabelW = fontReg.widthOfTextAtSize(subLabel, 8);
     txt(sPage, subLabel, SPW - MARGIN - subLabelW, sy, fontReg, 8, GRAY);
@@ -491,6 +520,10 @@ async function buildPdf(project, lineItems, includeSummary = false) {
     txt(sPage, sgtv, SPW - MARGIN - sgtw, sy, fontBold, 13, GOLD);
 
     drawFooter(sPage, SPW, fontReg);
+  }
+
+  if (estimate) {
+    for (const p of doc.getPages()) drawWatermark(p, fontBold, p.getWidth(), p.getHeight());
   }
 
   return doc.save();
@@ -715,6 +748,8 @@ export default async function handler(req, res) {
 
   // mode: "separate" → 2 PDFs (cabinets + installation)
   // mode: "combined" → 1 PDF (installation appears as line items under Uppsetning room)
+  // mode: "estimate" → same as "combined", but no date, no validity line, and a red
+  //                     "Aðeins verðhugmynd, ógilt sem tilboð" watermark on every page
 
   try {
     console.log(`Generating quote for record: ${recordId} (mode: ${mode})`);
@@ -734,13 +769,25 @@ export default async function handler(req, res) {
     console.log("Clearing old attachments…");
     await clearAttachments(token, recordId);
 
-    if (mode === "combined" && hasInstallationData) {
+    if ((mode === "combined" || mode === "estimate") && hasInstallationData) {
+      const isEstimate   = mode === "estimate";
       const virtualItems = buildInstallationLineItems(project, installPriceInclVat, deliveryPriceInclVat);
       const allItems     = [...lineItems, ...virtualItems];
       const allRooms     = new Set(allItems.map((i) => i["Rými 🏡"] || "").filter(Boolean));
-      console.log(`Combined PDF — ${allItems.length} items (${virtualItems.length} installation)`);
-      const pdfBytes = await buildPdf(project, allItems, allRooms.size > 1);
-      await uploadPdf(token, recordId, pdfBytes, `${safeTitle} | Tilboð & Uppsetning.pdf`);
+      console.log(`${isEstimate ? "Estimate" : "Combined"} PDF — ${allItems.length} items (${virtualItems.length} installation)`);
+      const pdfBytes = await buildPdf(project, allItems, allRooms.size > 1, isEstimate);
+      await uploadPdf(
+        token,
+        recordId,
+        pdfBytes,
+        isEstimate ? `${safeTitle} | Verðhugmynd.pdf` : `${safeTitle} | Tilboð & Uppsetning.pdf`
+      );
+    } else if (mode === "estimate") {
+      // No installation data — estimate mode still needs the watermark applied to the cabinets-only PDF.
+      const uniqueRooms = new Set(lineItems.map((i) => i["Rými 🏡"] || "").filter(Boolean));
+      console.log(`Estimate PDF (no installation data) — ${lineItems.length} items`);
+      const pdfBytes = await buildPdf(project, lineItems, uniqueRooms.size > 1, true);
+      await uploadPdf(token, recordId, pdfBytes, `${safeTitle} | Verðhugmynd.pdf`);
     } else {
       const uniqueRooms = new Set(lineItems.map((i) => i["Rými 🏡"] || "").filter(Boolean));
       const pdfBytes    = await buildPdf(project, lineItems, uniqueRooms.size > 1);
