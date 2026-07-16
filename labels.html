@@ -138,12 +138,39 @@
   .missing-note { font-size: 0.85rem; color: #f5c518; }
   .hidden { display: none; }
   .empty-msg { color: #666; text-align: center; padding: 40px; font-size: 1.1rem; }
+
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000; padding: 20px;
+  }
+  .modal-box {
+    background: #161616; border: 1.5px solid #f5c518; border-radius: 12px;
+    padding: 28px; max-width: 440px;
+  }
+  .modal-box h2 { font-size: 1.15rem; color: #f5c518; margin-bottom: 12px; }
+  .modal-box p { color: #ccc; font-size: 0.95rem; line-height: 1.5; margin-bottom: 20px; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+  .modal-actions .secondary-action { background: #262626; }
+  .modal-actions .secondary-action:hover { background: #333; }
 </style>
 </head>
 <body>
 
   <h1>Merkingar — Sögun</h1>
   <div class="sub">Veldu verkefni, ýttu á prent-hnapp til að merkja og prenta miða.</div>
+
+  <div class="modal-overlay hidden" id="cuttyWarningOverlay">
+    <div class="modal-box">
+      <h2>⚠️ Skurðarlisti (Cutty) hefur ekki verið keyrt</h2>
+      <p>Engin stykki í þessu verkefni eru komin í skurðarskrá (CUTLST). Ef Skurðarlisti er ekki keyrður fyrst flokkast stykki hér bara eftir efnisheiti — ekki þykkt — og ólík þykkt (t.d. 19mm og 38mm af sama efni) getur birst saman í listanum.</p>
+      <p>Ath að láta ábyrgðarmann keyra cutty á USB kubbinn til að halda áfram.</p>
+      <div class="modal-actions">
+        <button class="secondary-action" onclick="dismissCuttyWarning()">Halda áfram samt</button>
+        <button onclick="goToCutlist()">Fara í Skurðarlista →</button>
+      </div>
+    </div>
+  </div>
 
   <div class="card" id="searchCard">
     <label>Veldu verkefni (Tækifæri)</label>
@@ -524,6 +551,27 @@ async function loadProject(projectId) {
   populateFilterDropdowns();
   document.getElementById("listCard").classList.remove("hidden");
   rebuildGroups();
+
+  // Skurðarskrá is only ever written by cutlist.html's USB-export step — if
+  // every piece is still missing it, Cutty was never run for this project.
+  // Without it, pieces here only group by Efni text (not real thickness), so
+  // e.g. a 38mm doubled-up part can show alongside 19mm pieces of the same
+  // base material. Warn before the operator starts printing off that.
+  if (allPieces.length > 0 && allPieces.every(p => !p.skra)) {
+    showCuttyWarning();
+  }
+}
+
+function showCuttyWarning() {
+  document.getElementById("cuttyWarningOverlay").classList.remove("hidden");
+}
+
+function dismissCuttyWarning() {
+  document.getElementById("cuttyWarningOverlay").classList.add("hidden");
+}
+
+function goToCutlist() {
+  window.location.href = "/cutlist";
 }
 
 // Materials and CUTLST files seen across the whole project — independent of
