@@ -199,6 +199,9 @@
       <select id="efniSelect" style="max-width:260px;" onchange="onFilterChange()">
         <option value="">Öll efni</option>
       </select>
+      <select id="thicknessSelect" style="max-width:140px;" onchange="onFilterChange()">
+        <option value="">Allar þykktir</option>
+      </select>
       <select id="skraSelect" style="max-width:260px;" onchange="onFilterChange()">
         <option value="">Allar skrár (CUTLST)</option>
       </select>
@@ -243,12 +246,32 @@ const S_LOKID           = "Lokið";
 const S_SKURDARSKRA     = "Skurðarskrá";
 // ─────────────────────────────────────────────────────────────────────────
 
+// Mirrors cutlist.html's resolveMaterialKey exactly — same override rules,
+// so the material shown/filtered here always agrees with what Cutty actually
+// cuts from. 38mm pieces (e.g. Hurðablað) are built from Eurolight
+// honeycomb-core stock, never a real 38mm sheet of whatever face laminate
+// "Efni: (undirstaða)" reports — that field inherits the thin laminate's
+// name (e.g. "...H3710 Carini hnota"), which is confusing at 38mm outside
+// the CUTLST00 workflow. Karmar pieces at 38mm are the one exception.
+function normalizePartur(s) {
+  return String(s || "").trim().toLowerCase().replace(/\s+/g, " ").replace(/[–-]/g, "-");
+}
+const EUROLIGHT_38MM = "Eurolight 38 mm 207x280 cm";
+const KARMA_SAMLOKA_38MM = "MDF Karma-samloka";
+function resolveMaterialKey(p) {
+  const partur = normalizePartur(p.partur);
+  if (p.th === 38 && partur.includes("karmar")) return KARMA_SAMLOKA_38MM;
+  if (p.th === 38) return EUROLIGHT_38MM;
+  return String(p.efni || "").trim().replace(/\s+[–-]\s*$/, "").trim();
+}
+
 let currentProjectId = null;
 let allPieces = [];
 let groups = [];
 let filterUnfinished = false;
 let selectedEfni = "";
 let selectedSkra = "";
+let selectedThickness = "";
 
 function log(msg) {
   const el = document.getElementById("log");
@@ -552,6 +575,7 @@ async function loadProject(projectId) {
       lokid: !!r.fields[S_LOKID],
       skra: String(r.fields[S_SKURDARSKRA] || "").trim(),
     }));
+  for (const p of allPieces) p.efni = resolveMaterialKey(p);
 
   populateFilterDropdowns();
   document.getElementById("listCard").classList.remove("hidden");
@@ -579,8 +603,9 @@ function goToCutlist() {
   window.location.href = "/cutlist";
 }
 
-// Materials and CUTLST files seen across the whole project — independent of
-// the current filter selection, so switching one filter doesn't hide options
+// Materials, thicknesses, and CUTLST files seen across the whole project —
+// independent of the current filter selection, so switching one filter
+// doesn't hide options
 // in the other.
 function populateFilterDropdowns() {
   const efnis = [...new Set(allPieces.map(p => p.efni).filter(Boolean))].sort();
@@ -600,6 +625,13 @@ function populateFilterDropdowns() {
   efniSelect.innerHTML = '<option value="">Öll efni</option>' +
     efnis.map(e => `<option value="${escapeHtml(e)}">${escapeHtml(e)}</option>`).join("");
   efniSelect.value = efnis.includes(prevEfni) ? prevEfni : "";
+
+  const thicknesses = [...new Set(allPieces.map(p => p.th).filter(t => t > 0))].sort((a, b) => a - b);
+  const thicknessSelect = document.getElementById("thicknessSelect");
+  const prevThickness = thicknessSelect.value;
+  thicknessSelect.innerHTML = '<option value="">Allar þykktir</option>' +
+    thicknesses.map(t => `<option value="${t}">${t}mm</option>`).join("");
+  thicknessSelect.value = thicknesses.map(String).includes(prevThickness) ? prevThickness : "";
 
   const skraSelect = document.getElementById("skraSelect");
   const prevSkra = skraSelect.value;
@@ -627,18 +659,20 @@ function populateFilterDropdowns() {
 
 function onFilterChange() {
   selectedEfni = document.getElementById("efniSelect").value;
+  selectedThickness = document.getElementById("thicknessSelect").value;
   selectedSkra = document.getElementById("skraSelect").value;
   rebuildGroups();
 }
 
-// Re-derives groups from allPieces + the current Efni/Skrá filters. Filtering
-// by Skrá happens BEFORE grouping, not after — a group can straddle two
+// Re-derives groups from allPieces + the current Efni/Þykkt/Skrá filters.
+// Filtering happens BEFORE grouping, not after — a group can straddle two
 // CUTLST files (the 22-line cap can split one size across files), so
 // filtering to one file has to narrow which underlying pieces count, not
 // just hide groups that don't match.
 function rebuildGroups() {
   let pieces = allPieces;
   if (selectedEfni) pieces = pieces.filter(p => p.efni === selectedEfni);
+  if (selectedThickness) pieces = pieces.filter(p => String(p.th) === selectedThickness);
   if (selectedSkra === "__none__") pieces = pieces.filter(p => !p.skra);
   else if (selectedSkra) pieces = pieces.filter(p => p.skra === selectedSkra);
 
