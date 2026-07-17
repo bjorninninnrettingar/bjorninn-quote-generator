@@ -256,10 +256,15 @@ const S_SKURDARSKRA     = "Skurðarskrá";
 function normalizePartur(s) {
   return String(s || "").trim().toLowerCase().replace(/\s+/g, " ").replace(/[–-]/g, "-");
 }
+const SLAGLISTI_PARTUR = new Set(["Slaglisti – Hliðar", "Slaglisti – Toppur"].map(normalizePartur));
+const KJOTLISTI_PARTUR = new Set(["Kjötlisti – Hlið", "Kjötlisti – Efri / Neðri"].map(normalizePartur));
+const KJOTLISTI_MATERIAL = "Spónaplötur 22 mm 207 x 280 cm";
 const EUROLIGHT_38MM = "Eurolight 38 mm 207x280 cm";
 const KARMA_SAMLOKA_38MM = "MDF Karma-samloka";
 function resolveMaterialKey(p) {
   const partur = normalizePartur(p.partur);
+  if (SLAGLISTI_PARTUR.has(partur)) return "MDF 12mm";
+  if (KJOTLISTI_PARTUR.has(partur)) return KJOTLISTI_MATERIAL;
   if (p.th === 38 && partur.includes("karmar")) return KARMA_SAMLOKA_38MM;
   if (p.th === 38) return EUROLIGHT_38MM;
   return String(p.efni || "").trim().replace(/\s+[–-]\s*$/, "").trim();
