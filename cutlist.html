@@ -113,6 +113,20 @@
   </div>
 
   <div class="card hidden" id="groupsCard">
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px;">
+      <div>
+        <label>Efni</label>
+        <select id="materialFilterSelect" onchange="renderGroups()" style="max-width:280px;">
+          <option value="">Öll efni</option>
+        </select>
+      </div>
+      <div>
+        <label>Þykkt</label>
+        <select id="thicknessFilterSelect" onchange="renderGroups()" style="max-width:160px;">
+          <option value="">Allar þykktir</option>
+        </select>
+      </div>
+    </div>
     <table id="groupsTable">
       <thead>
         <tr>
@@ -225,10 +239,27 @@ function resolveLabel(partur) {
   return override ? override.label : partur;
 }
 
+// 38mm pieces (e.g. Hurðablað) are always built up from Eurolight
+// honeycomb-core stock — never a real 38mm sheet of whatever face laminate
+// "Efni: (undirstaða)" reports (that field inherits the thin laminate's
+// name, e.g. "...H3710 Carini hnota", which has no matching board in
+// Efnislisti at 38mm). Confirmed against Efnislisti: "Eurolight 38 mm
+// 207x280 cm" is a real board there. Overriding here keeps the groups table
+// readable outside the CUTLST00 workflow, where the raw Efni text at 38mm
+// was just confusing rather than useful.
+const EUROLIGHT_38MM = "Eurolight 38 mm 207x280 cm";
+// Exception to the 38mm→Eurolight rule above: karmar pieces at 38mm are
+// built from MDF Karma-samloka instead. Matched on Partur containing
+// "karmar" (not the exact-match Set the other overrides use, since karmar
+// Partur text varies) — confirmed against Efnislisti.
+const KARMA_SAMLOKA_38MM = "MDF Karma-samloka";
+
 function resolveMaterialKey(p) {
   const partur = normalizePartur(p.partur);
   if (SLAGLISTI_PARTUR.has(partur)) return "MDF 12mm";
   if (KJOTLISTI_PARTUR.has(partur)) return "Spónaplata";
+  if (p.th === 38 && partur.includes("karmar")) return KARMA_SAMLOKA_38MM;
+  if (p.th === 38) return EUROLIGHT_38MM;
   return normalizeMaterialKey(p.efni);
 }
 
@@ -624,8 +655,25 @@ async function loadProject(projectId) {
 
   renderMissingDims(missingDims);
   renderOversized();
+  populateGroupFilters();
   renderGroups();
   document.getElementById("groupsCard").classList.remove("hidden");
+}
+
+// Efni/Þykkt filters are display-only — they narrow which rows renderGroups()
+// shows, never which groups writeToUsb() writes (that always uses the full
+// currentGroups list). Purely there so a long groups table stays scannable.
+function populateGroupFilters() {
+  const materials = [...new Set(currentGroups.map(g => g.material))].sort((a, b) => a.localeCompare(b, "is"));
+  const thicknesses = [...new Set(currentGroups.map(g => g.thickness))].sort((a, b) => a - b);
+
+  const materialSelect = document.getElementById("materialFilterSelect");
+  materialSelect.innerHTML = '<option value="">Öll efni</option>' +
+    materials.map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join("");
+
+  const thicknessSelect = document.getElementById("thicknessFilterSelect");
+  thicknessSelect.innerHTML = '<option value="">Allar þykktir</option>' +
+    thicknesses.map(t => `<option value="${t}">${t}mm</option>`).join("");
 }
 
 function renderMissingDims(missingDims) {
@@ -642,9 +690,16 @@ function renderMissingDims(missingDims) {
 }
 
 function renderGroups() {
+  const materialFilter = document.getElementById("materialFilterSelect").value;
+  const thicknessFilter = document.getElementById("thicknessFilterSelect").value;
+  const visibleGroups = currentGroups.filter(g =>
+    (!materialFilter || g.material === materialFilter) &&
+    (!thicknessFilter || String(g.thickness) === thicknessFilter)
+  );
+
   const tbody = document.getElementById("groupsBody");
   tbody.innerHTML = "";
-  for (const g of currentGroups) {
+  for (const g of visibleGroups) {
     const tr = document.createElement("tr");
     const boardSize = g.board
       ? `${g.board.fields[E_LENGD]}×${g.board.fields[E_BREIDD]}mm`
