@@ -155,6 +155,7 @@ const SOGUNARLISTI_TABLE = "tblhdgyvTcBfP8kov"; // Sögunarlisti 🪚
 const EFNISLISTI_TABLE   = "tbl8CrVWKF8CuI7HD"; // Efnislisti 🧱
 
 const P_NAME_FIELD = "Heiti tækifæris / verkefnis";
+const P_STADA_SOLU = "Staða í söluferli";
 const P_STADA_SKIPULAG = "Staða í skipulagi";
 const P_STADA_FRAM = "Staða í framleiðslu";
 const P_UNNID = "Tækifæri unnið 🏆";
@@ -360,11 +361,13 @@ async function patchSogunarlisti(recordId, fields) {
 }
 
 async function fetchEligibleProjects() {
-  // Only projects that have entered Skipulag (any status in that field) or are
-  // already confirmed/won — excludes early-stage leads from the dropdown.
-  // Staða í framleiðslu must be empty too: once production has actually
-  // started, the project no longer needs to show up here.
-  const formula = `{${P_STADA_FRAM}} != "Lokið"`;
+  // Staða í söluferli must be "unnið" (won) — excludes early-stage leads from
+  // the dropdown. Staða í framleiðslu must not be "Afhent (LOKIÐ ✅)" — once a
+  // project has actually been delivered, it no longer needs to show up here.
+  const formula = `AND(
+    {${P_STADA_SOLU}} = "🏆 Tækifæri unnið",
+    {${P_STADA_FRAM}} != "Afhent (LOKIÐ ✅)"
+  )`;
   return airtableFetch(PROJECTS_TABLE, {
     filterByFormula: formula,
     "fields[]": [P_NAME_FIELD],
