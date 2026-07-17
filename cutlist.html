@@ -255,17 +255,19 @@ function resolveLabel(partur) {
 // readable outside the CUTLST00 workflow, where the raw Efni text at 38mm
 // was just confusing rather than useful.
 const EUROLIGHT_38MM = "Eurolight 38 mm 207x280 cm";
-// Exception to the 38mm→Eurolight rule above: karmar pieces at 38mm are
-// built from MDF Karma-samloka instead. Matched on Partur containing
-// "karmar" (not the exact-match Set the other overrides use, since karmar
-// Partur text varies) — confirmed against Efnislisti.
+// Exception to the 38mm→Eurolight rule above: karmur pieces at 38mm are
+// built from MDF Karma-samloka instead. Matched on Partur containing the
+// "karm" root (not the exact-match Set the other overrides use, since karmur
+// Partur text varies — and must catch every Icelandic declension: karmur,
+// karmar, karms, karmi, karma, etc, not just the one form) — confirmed
+// against Efnislisti.
 const KARMA_SAMLOKA_38MM = "MDF Karma-samloka";
 
 function resolveMaterialKey(p) {
   const partur = normalizePartur(p.partur);
   if (SLAGLISTI_PARTUR.has(partur)) return "MDF 12mm";
   if (KJOTLISTI_PARTUR.has(partur)) return KJOTLISTI_MATERIAL;
-  if (p.th === 38 && partur.includes("karmar")) return KARMA_SAMLOKA_38MM;
+  if (p.th === 38 && partur.includes("karm")) return KARMA_SAMLOKA_38MM;
   if (p.th === 38) return EUROLIGHT_38MM;
   return normalizeMaterialKey(p.efni);
 }
