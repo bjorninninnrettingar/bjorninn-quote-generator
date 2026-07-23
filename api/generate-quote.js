@@ -12,6 +12,7 @@ const LINKED_FIELD        = "Vöru línur ➖📦 (Line item's)";
 const INSTALL_PRICE_FIELD  = "Uppsetningarverð Verkefnis";
 const DELIVERY_PRICE_FIELD = "heimsendingaverð";
 const INSTALL_INCLUDE_FIELD = "Uppsetning Bjarnarins 🪛🐻"; // checkbox — gates Uppsetning on the Verðhugmynd (estimate) PDF only
+const PROJECT_NAME_FIELD = "Heiti tækifæris / verkefnis"; // real project name — "Tilboðsblaðs heiti" (formerly used for the PDF filename) isn't an actual field in the base, so it always fell back to a generic default
 
 // Brand colours
 const GOLD      = rgb(0.808, 0.694, 0.388);
@@ -276,7 +277,7 @@ async function buildPdf(project, lineItems, includeSummary = false, estimate = f
   let y = drawHeader(page, project, logoImg, PW, PH, fontBold, fontReg, estimate);
 
   // Quote title + validity
-  const quoteTitle = project["Tilboðsblaðs heiti"] || (estimate ? "Verðhugmynd" : "Tilboð");
+  const quoteTitle = project[PROJECT_NAME_FIELD] || (estimate ? "Verðhugmynd" : "Tilboð");
   txt(page, quoteTitle, MARGIN, y, fontBold, 14, DARK);
 
   if (!estimate) {
@@ -445,7 +446,7 @@ async function buildPdf(project, lineItems, includeSummary = false, estimate = f
     const sPage = doc.addPage([SPW, SPH]);
     let sy = drawHeader(sPage, project, logoImg, SPW, SPH, fontBold, fontReg, estimate);
 
-    txt(sPage, project["Tilboðsblaðs heiti"] || (estimate ? "Verðhugmynd" : "Tilboð"), MARGIN, sy, fontBold, 14, DARK);
+    txt(sPage, project[PROJECT_NAME_FIELD] || (estimate ? "Verðhugmynd" : "Tilboð"), MARGIN, sy, fontBold, 14, DARK);
     const subLabel = "Samantekt eftir rými";
     const subLabelW = fontReg.widthOfTextAtSize(subLabel, 8);
     txt(sPage, subLabel, SPW - MARGIN - subLabelW, sy, fontReg, 8, GRAY);
@@ -605,7 +606,7 @@ async function buildInstallationPdf(project, installPriceExVat, deliveryPriceInc
   let y = drawHeader(page, project, logoImg, PW, PH, fontBold, fontReg);
 
   // Title
-  const quoteTitle = (project["Tilboðsblaðs heiti"] || "Tilboð") + " — Uppsetning";
+  const quoteTitle = (project[PROJECT_NAME_FIELD] || "Tilboð") + " — Uppsetning";
   txt(page, quoteTitle, MARGIN, y, fontBold, 14, DARK);
 
   const validStr = "Tilboð gildir í 30 daga frá útgáfudegi";
@@ -763,7 +764,7 @@ export default async function handler(req, res) {
     const deliveryPriceInclVat = parseFloat(project[DELIVERY_PRICE_FIELD] ?? 0) || 0;
     const hasInstallationData  = installPriceInclVat > 0 || deliveryPriceInclVat > 0;
 
-    const safeTitle = (project["Tilboðsblaðs heiti"] || "Tilboð")
+    const safeTitle = (project[PROJECT_NAME_FIELD] || recordId)
       .replace(/[/\\:*?"<>]/g, "-")
       .trim();
 
@@ -784,24 +785,24 @@ export default async function handler(req, res) {
         token,
         recordId,
         pdfBytes,
-        isEstimate ? `${safeTitle} | Verðhugmynd.pdf` : `${safeTitle} | Tilboð & Uppsetning.pdf`
+        isEstimate ? `${safeTitle} (Verðhugmynd).pdf` : `${safeTitle} (Tilboð & Uppsetning).pdf`
       );
     } else if (mode === "estimate") {
       // No installation data — estimate mode still needs the watermark applied to the cabinets-only PDF.
       const uniqueRooms = new Set(lineItems.map((i) => i["Rými 🏡"] || "").filter(Boolean));
       console.log(`Estimate PDF (no installation data) — ${lineItems.length} items`);
       const pdfBytes = await buildPdf(project, lineItems, uniqueRooms.size > 1, true);
-      await uploadPdf(token, recordId, pdfBytes, `${safeTitle} | Verðhugmynd.pdf`);
+      await uploadPdf(token, recordId, pdfBytes, `${safeTitle} (Verðhugmynd).pdf`);
     } else {
       const uniqueRooms = new Set(lineItems.map((i) => i["Rými 🏡"] || "").filter(Boolean));
       const pdfBytes    = await buildPdf(project, lineItems, uniqueRooms.size > 1);
       console.log(`Cabinets PDF — ${lineItems.length} items`);
-      await uploadPdf(token, recordId, pdfBytes, `${safeTitle} | Tilboð.pdf`);
+      await uploadPdf(token, recordId, pdfBytes, `${safeTitle} (Tilboð).pdf`);
 
       if (hasInstallationData) {
         console.log(`Installation PDF — uppsetning: ${formatISK(installPriceInclVat)}, heimsending: ${formatISK(deliveryPriceInclVat)}`);
         const installPdfBytes = await buildInstallationPdf(project, installPriceInclVat, deliveryPriceInclVat);
-        await uploadPdf(token, recordId, installPdfBytes, `${safeTitle} | Uppsetning.pdf`);
+        await uploadPdf(token, recordId, installPdfBytes, `${safeTitle} (Uppsetning).pdf`);
       }
     }
 
