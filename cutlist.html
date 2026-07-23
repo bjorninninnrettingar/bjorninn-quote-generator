@@ -182,6 +182,7 @@ const S_TH                = "Þ";
 const S_M                 = "M";
 const S_EFNI_UNDIRSTADA   = "Efni: (undirstaða)";
 const S_VILLA             = "Villa?";
+const S_TEGUND            = "Tegund einingu";
 
 const E_HEITI   = "Heiti efnis";
 const E_BREIDD  = "Breidd (mm)";
@@ -263,10 +264,27 @@ const EUROLIGHT_38MM = "Eurolight 38 mm 207x280 cm";
 // against Efnislisti.
 const KARMA_SAMLOKA_38MM = "MDF Karma-samloka";
 
+// Doors (Eyðublað "Tegund einingu" = "Hurð") are always cut from 38mm
+// Eurolight — no exceptions — but the per-piece Þ field is manually
+// editable and has been found wrong on a real project (Þ=19 recorded for a
+// Hurð unit's Hurðablað, which would otherwise nest/cut from the wrong
+// board here). Keying off Tegund einingu instead of the raw Þ value or
+// Partur text is the authoritative fix: it overrides both the resolved
+// material AND the effective thickness (see resolveThickness) regardless
+// of what Þ says, rather than trusting per-piece data that can drift.
+function isDoorTegund(p) {
+  return String(p.tegund || "").trim().toLowerCase() === "hurð";
+}
+function resolveThickness(p) {
+  if (isDoorTegund(p)) return 38;
+  return p.th;
+}
+
 function resolveMaterialKey(p) {
   const partur = normalizePartur(p.partur);
   if (SLAGLISTI_PARTUR.has(partur)) return "MDF 12mm";
   if (KJOTLISTI_PARTUR.has(partur)) return KJOTLISTI_MATERIAL;
+  if (isDoorTegund(p)) return EUROLIGHT_38MM;
   if (p.th === 38 && partur.includes("karm")) return KARMA_SAMLOKA_38MM;
   if (p.th === 38) return EUROLIGHT_38MM;
   return normalizeMaterialKey(p.efni);
@@ -299,6 +317,13 @@ function toNumber(v) {
   if (typeof v === "number") return v;
   const n = Number(String(v).replace(",", "."));
   return Number.isFinite(n) ? n : 0;
+}
+
+// "Tegund einingu" is a lookup through the linked Eyðublað, so Airtable
+// returns it as a one-element array (Sögunarlisti links to exactly one
+// Eyðublað row) rather than a plain string.
+function firstLookupValue(v) {
+  return Array.isArray(v) ? String(v[0] ?? "").trim() : String(v ?? "").trim();
 }
 
 // Material/Partur text comes straight from Airtable and gets interpolated
@@ -431,7 +456,7 @@ async function fetchSogunarlistiForProject(projectName) {
   const formula = `FIND("${escaped}", ARRAYJOIN({${S_PROJECT_LINK}})) > 0`;
   return airtableFetch(SOGUNARLISTI_TABLE, {
     filterByFormula: formula,
-    "fields[]": [S_PROJECT_LINK, S_PARTUR, S_H, S_B, S_TH, S_M, S_EFNI_UNDIRSTADA, S_VILLA],
+    "fields[]": [S_PROJECT_LINK, S_PARTUR, S_H, S_B, S_TH, S_M, S_EFNI_UNDIRSTADA, S_VILLA, S_TEGUND],
     pageSize: 100,
   });
 }
@@ -624,9 +649,11 @@ async function loadProject(projectId) {
       th: toNumber(r.fields[S_TH]),
       m: toNumber(r.fields[S_M]) || 1,
       efni: r.fields[S_EFNI_UNDIRSTADA] || "",
+      tegund: firstLookupValue(r.fields[S_TEGUND]),
       label: resolveLabel(String(r.fields[S_PARTUR] || "").trim()),
       villa: !!r.fields[S_VILLA],
     }));
+  for (const p of allRows) p.th = resolveThickness(p);
 
   // Already marked "handskorið" via markOversizedManual() on a previous run —
   // permanently excluded, not re-flagged every time (the H/B are still

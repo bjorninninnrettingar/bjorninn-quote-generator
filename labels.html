@@ -244,6 +244,7 @@ const S_ATHUGASEMD      = "Athugasemd";
 const S_BAS             = "B.A.S.";
 const S_LOKID           = "Lokið";
 const S_SKURDARSKRA     = "Skurðarskrá";
+const S_TEGUND          = "Tegund einingu";
 // ─────────────────────────────────────────────────────────────────────────
 
 // Mirrors cutlist.html's resolveMaterialKey exactly — same override rules,
@@ -252,7 +253,7 @@ const S_SKURDARSKRA     = "Skurðarskrá";
 // honeycomb-core stock, never a real 38mm sheet of whatever face laminate
 // "Efni: (undirstaða)" reports — that field inherits the thin laminate's
 // name (e.g. "...H3710 Carini hnota"), which is confusing at 38mm outside
-// the CUTLST00 workflow. Karmar pieces at 38mm are the one exception.
+// the CUTLST00 workflow. Karmar pieces at 38mm are one exception.
 function normalizePartur(s) {
   return String(s || "").trim().toLowerCase().replace(/\s+/g, " ").replace(/[–-]/g, "-");
 }
@@ -261,10 +262,27 @@ const KJOTLISTI_PARTUR = new Set(["Kjötlisti – Hlið", "Kjötlisti – Efri /
 const KJOTLISTI_MATERIAL = "Spónaplötur 22 mm 207 x 280 cm";
 const EUROLIGHT_38MM = "Eurolight 38 mm 207x280 cm";
 const KARMA_SAMLOKA_38MM = "MDF Karma-samloka";
+
+// Doors (Eyðublað "Tegund einingu" = "Hurð") are always cut from 38mm
+// Eurolight — no exceptions — but the per-piece Þ field is manually
+// editable and has been found wrong on a real project (Þ=19 recorded for a
+// Hurð unit's Hurðablað). Keying off Tegund einingu instead of the raw Þ
+// value or Partur text is the authoritative fix: it overrides both the
+// resolved material AND the effective thickness (see resolveThickness)
+// regardless of what Þ says, rather than trusting per-piece data that can
+// drift.
+function isDoorTegund(p) {
+  return String(p.tegund || "").trim().toLowerCase() === "hurð";
+}
+function resolveThickness(p) {
+  if (isDoorTegund(p)) return 38;
+  return p.th;
+}
 function resolveMaterialKey(p) {
   const partur = normalizePartur(p.partur);
   if (SLAGLISTI_PARTUR.has(partur)) return "MDF 12mm";
   if (KJOTLISTI_PARTUR.has(partur)) return KJOTLISTI_MATERIAL;
+  if (isDoorTegund(p)) return EUROLIGHT_38MM;
   if (p.th === 38 && partur.includes("karm")) return KARMA_SAMLOKA_38MM;
   if (p.th === 38) return EUROLIGHT_38MM;
   return String(p.efni || "").trim().replace(/\s+[–-]\s*$/, "").trim();
@@ -292,6 +310,13 @@ function toNumber(v) {
   if (typeof v === "number") return v;
   const n = Number(String(v).replace(",", "."));
   return Number.isFinite(n) ? n : 0;
+}
+
+// "Tegund einingu" is a lookup through the linked Eyðublað, so Airtable
+// returns it as a one-element array (Sögunarlisti links to exactly one
+// Eyðublað row) rather than a plain string.
+function firstLookupValue(v) {
+  return Array.isArray(v) ? String(v[0] ?? "").trim() : String(v ?? "").trim();
 }
 
 // Efni/Partur/file-name text is interpolated into innerHTML for the rows and
@@ -377,7 +402,7 @@ async function fetchSogunarlistiForProject(projectName) {
     filterByFormula: formula,
     "fields[]": [
       S_PROJECT_LINK, S_PARTUR, S_H, S_B, S_TH, S_M,
-      S_EFNI_UNDIRSTADA, S_ATHUGASEMD, S_BAS, S_LOKID, S_SKURDARSKRA,
+      S_EFNI_UNDIRSTADA, S_ATHUGASEMD, S_BAS, S_LOKID, S_SKURDARSKRA, S_TEGUND,
     ],
     pageSize: 100,
   });
@@ -576,11 +601,15 @@ async function loadProject(projectId) {
       th: toNumber(r.fields[S_TH]),
       m: toNumber(r.fields[S_M]) || 1,
       efni: r.fields[S_EFNI_UNDIRSTADA] || "",
+      tegund: firstLookupValue(r.fields[S_TEGUND]),
       athugasemd: String(r.fields[S_ATHUGASEMD] || "").trim(),
       lokid: !!r.fields[S_LOKID],
       skra: String(r.fields[S_SKURDARSKRA] || "").trim(),
     }));
-  for (const p of allPieces) p.efni = resolveMaterialKey(p);
+  for (const p of allPieces) {
+    p.th = resolveThickness(p);
+    p.efni = resolveMaterialKey(p);
+  }
 
   populateFilterDropdowns();
   document.getElementById("listCard").classList.remove("hidden");

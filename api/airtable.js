@@ -41,6 +41,7 @@ const ALLOWED_FIELDS = {
     "B.A.S.",
     "Lokið",
     "Skurðarskrá",
+    "Tegund einingu",
   ],
   "tbl8CrVWKF8CuI7HD": [ // Efnislisti 🧱
     "Heiti efnis",
