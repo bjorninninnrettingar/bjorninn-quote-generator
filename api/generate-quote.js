@@ -11,6 +11,7 @@ const ATTACHMENT_FIELD    = "flddIR5JAm8ZM753V";
 const LINKED_FIELD        = "Vöru línur ➖📦 (Line item's)";
 const INSTALL_PRICE_FIELD  = "Uppsetningarverð Verkefnis";
 const DELIVERY_PRICE_FIELD = "heimsendingaverð";
+const INSTALL_INCLUDE_FIELD = "Uppsetning Bjarnarins 🪛🐻"; // checkbox — gates Uppsetning on the Verðhugmynd (estimate) PDF only
 
 // Brand colours
 const GOLD      = rgb(0.808, 0.694, 0.388);
@@ -531,11 +532,11 @@ async function buildPdf(project, lineItems, includeSummary = false, estimate = f
 
 // ── Virtual installation line items (for combined PDF) ───────────────────────
 
-function buildInstallationLineItems(project, installPriceInclVat, deliveryPriceInclVat) {
+function buildInstallationLineItems(project, installPriceInclVat, deliveryPriceInclVat, includeInstallation = true) {
   const items = [];
   const ROOM = "Uppsetning";
 
-  if (installPriceInclVat > 0) {
+  if (installPriceInclVat > 0 && includeInstallation) {
     items.push({
       "Rými 🏡":     ROOM,
       "Vara 🚪":     "Uppsetning",
@@ -771,7 +772,10 @@ export default async function handler(req, res) {
 
     if ((mode === "combined" || mode === "estimate") && hasInstallationData) {
       const isEstimate   = mode === "estimate";
-      const virtualItems = buildInstallationLineItems(project, installPriceInclVat, deliveryPriceInclVat);
+      // Verðhugmynd only shows the Uppsetning line when explicitly opted into via
+      // the checkbox — Tilboð & Uppsetning (combined, a real offer) always shows it.
+      const includeInstallation = isEstimate ? !!project[INSTALL_INCLUDE_FIELD] : true;
+      const virtualItems = buildInstallationLineItems(project, installPriceInclVat, deliveryPriceInclVat, includeInstallation);
       const allItems     = [...lineItems, ...virtualItems];
       const allRooms     = new Set(allItems.map((i) => i["Rými 🏡"] || "").filter(Boolean));
       console.log(`${isEstimate ? "Estimate" : "Combined"} PDF — ${allItems.length} items (${virtualItems.length} installation)`);
