@@ -202,8 +202,8 @@ function drawFooter(page, PW, fontReg) {
 
 // ── Cover page ────────────────────────────────────────────────────────────────
 
-// Landscape, single page, four quadrants split by a gold cross. Gold is used
-// only for separator lines — every label/value is dark or gray.
+// Landscape, single page, four quadrants separated by whitespace only. Gold
+// is reserved for the header/title rules and each quadrant's mini underline.
 async function buildCoverPage(project) {
   const doc = await PDFDocument.create();
   const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
@@ -238,7 +238,7 @@ async function buildCoverPage(project) {
   line(page, MARGIN, y, PW - MARGIN, y, GOLD, 1);
   y -= 18;
 
-  // ── Split the remaining area into four quadrants with a gold cross ─────────
+  // ── Split the remaining area into four quadrants (whitespace only, no lines) ─
   const GAP = 26;
   const contentTop    = y;
   const contentBottom = MARGIN;
@@ -246,9 +246,6 @@ async function buildCoverPage(project) {
   const contentRight  = PW - MARGIN;
   const midX = (contentLeft + contentRight) / 2;
   const midY = (contentTop + contentBottom) / 2;
-
-  line(page, midX, contentTop, midX, contentBottom, GOLD, 0.75);
-  line(page, contentLeft, midY, contentRight, midY, GOLD, 0.75);
 
   const quadW = (contentRight - contentLeft) / 2 - GAP / 2;
   const boxes = {
