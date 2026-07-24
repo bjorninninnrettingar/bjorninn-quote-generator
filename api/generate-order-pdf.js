@@ -107,8 +107,15 @@ function formatDate(val) {
 
 // Standard PDF fonts can't encode emoji (e.g. Litur's colour-swatch glyphs) —
 // stripping them avoids a hard crash on drawText for any field that has one.
+// Compound emoji (e.g. "🐻‍❄️") are sequences joined by U+200D with trailing
+// U+FE0F/FE0E variation selectors and U+1F3FB–FF skin-tone modifiers — none of
+// which \p{Extended_Pictographic} alone matches, so strip those explicitly too
+// or a stray joiner/selector crashes WinAnsi encoding on its own.
 function stripEmoji(str) {
-  return String(str).replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "").trim();
+  return String(str)
+    .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}\p{Emoji_Modifier}\u200D\uFE0E\uFE0F]/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function txt(page, str, x, y, font, size, color = DARK) {
@@ -119,7 +126,7 @@ function txt(page, str, x, y, font, size, color = DARK) {
 }
 
 function truncate(font, str, size, maxW) {
-  str = String(str);
+  str = stripEmoji(str);
   if (font.widthOfTextAtSize(str, size) <= maxW) return str;
   while (str.length > 1 && font.widthOfTextAtSize(str + "…", size) > maxW) {
     str = str.slice(0, -1);

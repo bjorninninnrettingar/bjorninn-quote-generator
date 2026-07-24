@@ -114,13 +114,28 @@ function formatDate(val) {
   return d.toLocaleDateString("is-IS", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
+// Standard PDF fonts can't encode emoji, and Airtable text fields here are full
+// of them (staff names, product/material names, notes). Compound emoji (e.g.
+// "🐻‍❄️") are sequences joined by U+200D with trailing U+FE0F/FE0E variation
+// selectors and U+1F3FB–FF skin-tone modifiers — none of which
+// \p{Extended_Pictographic} alone matches, so strip those explicitly too or a
+// stray joiner/selector crashes WinAnsi encoding on its own.
+function stripEmoji(str) {
+  return String(str)
+    .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}\p{Emoji_Modifier}\u200D\uFE0E\uFE0F]/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function txt(page, str, x, y, font, size, color = DARK) {
   if (str === null || str === undefined || str === "") return;
-  page.drawText(String(str), { x, y, size, font, color });
+  const clean = stripEmoji(str);
+  if (!clean) return;
+  page.drawText(clean, { x, y, size, font, color });
 }
 
 function truncate(font, str, size, maxW) {
-  str = String(str);
+  str = stripEmoji(str);
   if (font.widthOfTextAtSize(str, size) <= maxW) return str;
   while (str.length > 1 && font.widthOfTextAtSize(str + "…", size) > maxW) {
     str = str.slice(0, -1);
@@ -129,7 +144,7 @@ function truncate(font, str, size, maxW) {
 }
 
 function wrapText(font, str, size, maxW) {
-  const words = String(str).split(" ");
+  const words = stripEmoji(str).split(" ");
   const lines = [];
   let current = "";
   for (const word of words) {
@@ -549,7 +564,7 @@ function buildInstallationLineItems(project, installPriceInclVat, deliveryPriceI
   }
 
   const tripsRaw    = project["Fjöldi ferða 🚚"] || "";
-  const tripsClean  = tripsRaw.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "").trim();
+  const tripsClean  = stripEmoji(tripsRaw);
   const freeTrip    = project["Ein ferð ókeypis"];
   const TRIP_PRICES = {
     "1 Ferð 🚚": 20000, "2 Ferðir 🚚🚚": 35000,
@@ -645,7 +660,7 @@ async function buildInstallationPdf(project, installPriceExVat, deliveryPriceInc
 
   // Rows — both field values already include VAT
   const tripsRaw = project["Fjöldi ferða 🚚"] || "";
-  const tripsClean = tripsRaw.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "").trim();
+  const tripsClean = stripEmoji(tripsRaw);
   const freeTrip = project["Ein ferð ókeypis"];
 
   const TRIP_PRICES = {
