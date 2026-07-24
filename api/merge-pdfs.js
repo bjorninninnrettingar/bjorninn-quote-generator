@@ -117,8 +117,15 @@ function formatDate(val) {
 // Standard PDF fonts can't encode emoji — Airtable names/notes are full of them
 // (e.g. collaborator names like "Jóel Kristjánsson 🦁") — so strip before drawing
 // or measuring text, or pdf-lib throws instead of just dropping the glyph.
+// Compound emoji (e.g. "🐻‍❄️") are sequences joined by U+200D with trailing
+// U+FE0F/FE0E variation selectors and U+1F3FB–FF skin-tone modifiers — none of
+// which \p{Extended_Pictographic} alone matches, so they'd survive the strip
+// and crash WinAnsi encoding on their own.
 function stripEmoji(str) {
-  return String(str).replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "").replace(/\s+/g, " ").trim();
+  return String(str)
+    .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}\p{Emoji_Modifier}\u200D\uFE0E\uFE0F]/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function txt(page, str, x, y, font, size, color = DARK) {
