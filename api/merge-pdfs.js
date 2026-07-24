@@ -202,6 +202,8 @@ function drawFooter(page, PW, fontReg) {
 
 // ── Cover page ────────────────────────────────────────────────────────────────
 
+// Landscape, single page, four quadrants split by a gold cross. Gold is used
+// only for separator lines — every label/value is dark or gray.
 async function buildCoverPage(project) {
   const doc = await PDFDocument.create();
   const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
@@ -215,99 +217,116 @@ async function buildCoverPage(project) {
     }
   }
 
-  const PW = 595.28;
-  const PH = 841.89;
-  const CW = PW - MARGIN * 2;
-  const LABEL_W = 155;
+  const PW = 841.89;
+  const PH = 595.28;
+  const page = doc.addPage([PW, PH]);
 
-  function newPage() {
-    return doc.addPage([PW, PH]);
-  }
-
-  let page = newPage();
   let y = drawHeader(page, logoImg, PW, PH, fontBold, fontReg);
 
-  function checkBreak(reserve = 40) {
-    if (y > MARGIN + reserve) return;
-    page = newPage();
-    line(page, MARGIN, PH - 28, PW - MARGIN, PH - 28, GOLD, 0.5);
-    txt(page, "BJÖRNINN INNRÉTTINGAR — framhald", MARGIN, PH - 20, fontReg, 7.5, GRAY);
-    y = PH - 48;
-  }
-
-  txt(page, "VERKEFNISYFIRLIT", MARGIN, y, fontBold, 8, GOLD);
+  txt(page, "VERKEFNISYFIRLIT", MARGIN, y, fontReg, 8, GRAY);
   y -= 16;
   txt(page, project[PROJECT_NAME_FIELD] || "Verkefni", MARGIN, y, fontBold, 18, DARK);
-  y -= 22;
+  y -= 18;
   line(page, MARGIN, y, PW - MARGIN, y, GOLD, 1);
-  y -= 20;
+  y -= 18;
 
-  function sectionHeader(label) {
-    checkBreak(30);
-    txt(page, label, MARGIN, y, fontBold, 9, GOLD);
-    y -= 14;
-  }
+  // ── Split the remaining area into four quadrants with a gold cross ─────────
+  const GAP = 26;
+  const contentTop    = y;
+  const contentBottom = MARGIN;
+  const contentLeft   = MARGIN;
+  const contentRight  = PW - MARGIN;
+  const midX = (contentLeft + contentRight) / 2;
+  const midY = (contentTop + contentBottom) / 2;
 
-  function row(label, value) {
-    if (!value) return;
-    checkBreak(30);
-    const lines = wrapText(fontReg, String(value), 9, CW - LABEL_W);
-    txt(page, `${label}:`, MARGIN, y, fontBold, 9, DARK);
-    txt(page, lines[0] || "", MARGIN + LABEL_W, y, fontReg, 9, GRAY);
-    y -= 13;
-    for (const extra of lines.slice(1)) {
-      checkBreak(30);
-      txt(page, extra, MARGIN + LABEL_W, y, fontReg, 9, GRAY);
-      y -= 13;
+  line(page, midX, contentTop, midX, contentBottom, GOLD, 0.75);
+  line(page, contentLeft, midY, contentRight, midY, GOLD, 0.75);
+
+  const quadW = (contentRight - contentLeft) / 2 - GAP / 2;
+  const boxes = {
+    tl: { x: contentLeft,    top: contentTop },
+    tr: { x: midX + GAP / 2, top: contentTop },
+    // Bottom quadrants get a full GAP of clearance below the divider (not
+    // GAP/2) — the top quadrants' content height is sized to *just* fit above
+    // the divider, so this leaves a buffer against font-metric rounding
+    // instead of the two nearly touching.
+    bl: { x: contentLeft,    top: midY - GAP },
+    br: { x: midX + GAP / 2, top: midY - GAP },
+  };
+
+  // Each quadrant gets its own label-above-value "spec sheet" cursor — robust
+  // to label length at this narrower per-quadrant width, and reads cleaner
+  // than the old inline label:value layout.
+  function makeQuadrant({ x, top }) {
+    let qy = top;
+
+    function header(label) {
+      txt(page, label, x, qy, fontBold, 9, DARK);
+      qy -= 6;
+      line(page, x, qy, x + quadW, qy, GOLD, 0.5);
+      qy -= 14;
     }
-  }
 
-  function paragraph(label, value) {
-    if (!value) return;
-    checkBreak(50);
-    txt(page, label, MARGIN, y, fontBold, 9, GOLD);
-    y -= 14;
-    for (const para of String(value).split("\n")) {
-      for (const l of wrapText(fontReg, para, 9, CW)) {
-        checkBreak(30);
-        txt(page, l, MARGIN, y, fontReg, 9, DARK);
-        y -= 13;
+    function row(label, value) {
+      if (!value) return;
+      txt(page, label.toUpperCase(), x, qy, fontReg, 6, GRAY);
+      qy -= 7;
+      for (const l of wrapText(fontReg, String(value), 9, quadW)) {
+        txt(page, l, x, qy, fontReg, 9, DARK);
+        qy -= 9.5;
       }
+      qy -= 2;
     }
-    y -= 8;
+
+    function paragraph(label, value) {
+      if (!value) return;
+      txt(page, label.toUpperCase(), x, qy, fontReg, 6.5, GRAY);
+      qy -= 10;
+      for (const para of String(value).split("\n")) {
+        for (const l of wrapText(fontReg, para, 8.5, quadW)) {
+          txt(page, l, x, qy, fontReg, 8.5, DARK);
+          qy -= 11;
+        }
+      }
+      qy -= 6;
+    }
+
+    return { header, row, paragraph };
   }
 
-  // ── Efnisval ──────────────────────────────────────────────────────────────
-  sectionHeader("EFNISVAL");
-  row("Skrokkaefni", lv(project[F.skrokkaefni]));
-  row("Frontaefni", lv(project[F.frontaefni1]));
-  row("Frontaefni 2", lv(project[F.frontaefni2]));
-  row("Hurðaefni", lv(project[F.hurdaefni1]));
-  row("Hurðaefni 2", lv(project[F.hurdaefni2]));
-  row("Borðplata", lv(project[F.bordplata]));
-  row("Kantlíming skrokka", project[F.kantliming]);
+  // ── Top-left: Efnisval ──────────────────────────────────────────────────
+  const tl = makeQuadrant(boxes.tl);
+  tl.header("EFNISVAL");
+  tl.row("Skrokkaefni", lv(project[F.skrokkaefni]));
+  tl.row("Frontaefni", lv(project[F.frontaefni1]));
+  tl.row("Frontaefni 2", lv(project[F.frontaefni2]));
+  tl.row("Hurðaefni", lv(project[F.hurdaefni1]));
+  tl.row("Hurðaefni 2", lv(project[F.hurdaefni2]));
+  tl.row("Borðplata", lv(project[F.bordplata]));
+  tl.row("Kantlíming skrokka", project[F.kantliming]);
   const holdur1 = [lv(project[F.holdur1Nafn]), project[F.holdur1Litur]].filter(Boolean).join(" — ");
   const holdur2 = [lv(project[F.holdur2Nafn]), project[F.holdur2Litur]].filter(Boolean).join(" — ");
-  row("Höldur 1", holdur1);
-  row("Höldur 2", holdur2);
-  y -= 8;
+  tl.row("Höldur 1", holdur1);
+  tl.row("Höldur 2", holdur2);
 
-  // ── Verkefni ──────────────────────────────────────────────────────────────
-  sectionHeader("VERKEFNI");
-  row("Skipulagsaðili", project[F.skipulagsadili]);
-  row("Ábyrgðaraðili yfirferðar", project[F.abyrgdaradili]);
-  row("Áætluð afhending", project[F.afhending] ? formatDate(project[F.afhending]) : null);
-  y -= 8;
+  // ── Top-right: Skipulags- og ábyrgðaraðili ──────────────────────────────
+  const tr = makeQuadrant(boxes.tr);
+  tr.header("VERKEFNI");
+  tr.row("Skipulagsaðili", project[F.skipulagsadili]);
+  tr.row("Ábyrgðaraðili yfirferðar", project[F.abyrgdaradili]);
+  tr.row("Áætluð afhending", project[F.afhending] ? formatDate(project[F.afhending]) : null);
 
-  // ── Markmið og pepp ───────────────────────────────────────────────────────
-  sectionHeader("MARKMIÐ OG PEPP");
-  row("Markmið", project[F.markmid]);
-  row("Pepp", project[F.pepp]);
-  y -= 8;
+  // ── Bottom-left: Markmið og pepp ────────────────────────────────────────
+  const bl = makeQuadrant(boxes.bl);
+  bl.header("MARKMIÐ OG PEPP");
+  bl.row("Markmið", project[F.markmid]);
+  bl.row("Pepp", project[F.pepp]);
 
-  // ── Athugasemdir (long free text, can spill onto page 2) ───────────────────
-  paragraph("ÞAÐ SEM FRÆSARI ÞARF AÐ HAFA Í HUGA", project[F.fraesari]);
-  paragraph("VERKLÝSING TEIKNARA", project[F.verklysing]);
+  // ── Bottom-right: Fræsari og teiknari ───────────────────────────────────
+  const br = makeQuadrant(boxes.br);
+  br.header("ATHUGASEMDIR");
+  br.paragraph("Fræsari", project[F.fraesari]);
+  br.paragraph("Verklýsing teiknara", project[F.verklysing]);
 
   drawFooter(page, PW, fontReg);
 
