@@ -36,7 +36,7 @@ const F = {
 // Brand colours — same palette as generate-quote.js
 const GOLD = rgb(0.808, 0.694, 0.388);
 const DARK = rgb(0.102, 0.102, 0.102);
-const GRAY = rgb(0.431, 0.431, 0.431);
+const RED  = rgb(0.75, 0.15, 0.15); // same red as the "Verðhugmynd" watermark
 
 const MARGIN = 48;
 
@@ -166,7 +166,7 @@ function drawHeader(page, logoImg, PW, PH, fontBold, fontReg) {
 
     const dateStr = `Dagsetning: ${formatDate()}`;
     const dateW = fontReg.widthOfTextAtSize(dateStr, 8);
-    txt(page, dateStr, PW - MARGIN - dateW, y, fontReg, 8, GRAY);
+    txt(page, dateStr, PW - MARGIN - dateW, y, fontReg, 8, DARK);
 
     y -= LOGO_H / 2 + 6;
   } else {
@@ -177,7 +177,7 @@ function drawHeader(page, logoImg, PW, PH, fontBold, fontReg) {
 
     const dateStr = `Dagsetning: ${formatDate()}`;
     const dateW = fontReg.widthOfTextAtSize(dateStr, 8);
-    txt(page, dateStr, PW - MARGIN - dateW, y, fontReg, 8, GRAY);
+    txt(page, dateStr, PW - MARGIN - dateW, y, fontReg, 8, DARK);
 
     y -= 28;
   }
@@ -196,7 +196,7 @@ function drawFooter(page, PW, fontReg) {
     footerY + 14,
     fontReg,
     6.5,
-    GRAY
+    DARK
   );
 }
 
@@ -223,9 +223,17 @@ async function buildCoverPage(project) {
 
   let y = drawHeader(page, logoImg, PW, PH, fontBold, fontReg);
 
-  txt(page, "VERKEFNISYFIRLIT", MARGIN, y, fontReg, 8, GRAY);
+  txt(page, "VERKEFNISYFIRLIT", MARGIN, y, fontReg, 8, DARK);
   y -= 16;
-  txt(page, project[PROJECT_NAME_FIELD] || "Verkefni", MARGIN, y, fontBold, 18, DARK);
+  const titleText = project[PROJECT_NAME_FIELD] || "Verkefni";
+  txt(page, titleText, MARGIN, y, fontBold, 18, DARK);
+
+  const afhendingVal = project[F.afhending] ? formatDate(project[F.afhending]) : null;
+  if (afhendingVal) {
+    const titleW = fontBold.widthOfTextAtSize(stripEmoji(titleText), 18);
+    txt(page, `Áætluð afhending: ${afhendingVal}`, MARGIN + titleW + 24, y + 2, fontBold, 12, RED);
+  }
+
   y -= 18;
   line(page, MARGIN, y, PW - MARGIN, y, GOLD, 1);
   y -= 18;
@@ -269,19 +277,18 @@ async function buildCoverPage(project) {
 
     function row(label, value) {
       if (!value) return;
-      txt(page, label.toUpperCase(), x, qy, fontReg, 6, GRAY);
-      qy -= 7;
+      txt(page, label.toUpperCase(), x, qy, fontReg, 6, DARK);
+      qy -= 9;
       for (const l of wrapText(fontReg, String(value), 9, quadW)) {
         txt(page, l, x, qy, fontReg, 9, DARK);
-        qy -= 9.5;
+        qy -= 9;
       }
-      qy -= 2;
     }
 
     function paragraph(label, value) {
       if (!value) return;
-      txt(page, label.toUpperCase(), x, qy, fontReg, 6.5, GRAY);
-      qy -= 10;
+      txt(page, label.toUpperCase(), x, qy, fontReg, 6.5, DARK);
+      qy -= 12;
       for (const para of String(value).split("\n")) {
         for (const l of wrapText(fontReg, para, 8.5, quadW)) {
           txt(page, l, x, qy, fontReg, 8.5, DARK);
@@ -314,7 +321,6 @@ async function buildCoverPage(project) {
   tr.header("VERKEFNI");
   tr.row("Skipulagsaðili", project[F.skipulagsadili]);
   tr.row("Ábyrgðaraðili yfirferðar", project[F.abyrgdaradili]);
-  tr.row("Áætluð afhending", project[F.afhending] ? formatDate(project[F.afhending]) : null);
 
   // ── Bottom-left: Markmið og pepp ────────────────────────────────────────
   const bl = makeQuadrant(boxes.bl);
