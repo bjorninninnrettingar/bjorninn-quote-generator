@@ -290,6 +290,37 @@ function resolveMaterialKey(p) {
   return normalizeMaterialKey(p.efni);
 }
 
+// Sökkull (plinth) units are deliberately built from offcuts of material
+// otherwise bought for cabinets, never a board ordered/matched specifically
+// for them — see findBoard/Efnislisti for how every other group works. All
+// Sögunarlisti rows on a Sökkull-type Eyðublað route here regardless of
+// their own Partur text, bucketed only by thickness (never material, since
+// which offcut gets used doesn't matter). SOKKLAR_PLACEHOLDER_BOARD stands
+// in for a real Efnislisti board so this reuses the exact same
+// group/board/file pipeline as everything else — sized generously so a
+// plinth piece is never flagged oversized; the saw operator picks the real
+// offcut and can adjust board size/qty in Cutty on the floor regardless,
+// same as every other file's board qty already is.
+function isSokkullTegund(p) {
+  return String(p.tegund || "").trim().toLowerCase() === "sökkull";
+}
+const SOKKLAR_MATERIAL = "Sökklar";
+const SOKKLAR_PLACEHOLDER_BOARD = {
+  fields: { [E_HEITI]: SOKKLAR_MATERIAL, [E_LENGD]: 2800, [E_BREIDD]: 2070 },
+};
+function groupSokkullPieces(pieces) {
+  const groups = new Map();
+  const missingDims = [];
+  for (const p of pieces) {
+    if (EXCLUDED_PARTUR.has(normalizePartur(p.partur))) continue;
+    if (p.b <= 0 || p.th <= 0) { missingDims.push(p); continue; }
+    const key = String(p.th);
+    if (!groups.has(key)) groups.set(key, { material: SOKKLAR_MATERIAL, thickness: p.th, rows: [] });
+    groups.get(key).rows.push(p);
+  }
+  return { groups, missingDims };
+}
+
 // Static blocks, byte-verified against a real saved Cutty order (CUTLST00 from the shop USB).
 // Do not change unless the saw's kerf/trim configuration changes — see CUTLST_FORMAT.md.
 const F7_BLOCK = [
@@ -668,7 +699,14 @@ async function loadProject(projectId) {
     return;
   }
 
-  const { groups: groupMap, missingDims } = groupPieces(pieces);
+  // Sökkull units skip material/board matching entirely — see groupSokkullPieces.
+  const sokkullPieces = pieces.filter(isSokkullTegund);
+  const regularPieces = pieces.filter(p => !isSokkullTegund(p));
+
+  const { groups: groupMap, missingDims } = groupPieces(regularPieces);
+  const { groups: sokkullGroupMap, missingDims: sokkullMissingDims } = groupSokkullPieces(sokkullPieces);
+  const allMissingDims = [...missingDims, ...sokkullMissingDims];
+
   currentGroups = [];
   currentOversized = [];
   let i = 0;
@@ -678,18 +716,25 @@ async function loadProject(projectId) {
     currentGroups.push(groupObj);
     applyBoardToGroup(groupObj);
   }
+  for (const g of sokkullGroupMap.values()) {
+    const groupObj = { ...g, key: String(i++), allRows: g.rows, board: SOKKLAR_PLACEHOLDER_BOARD, ambiguous: false, candidates: [], rows: [], files: [] };
+    currentGroups.push(groupObj);
+    applyBoardToGroup(groupObj);
+  }
 
-  const groupedCount = [...groupMap.values()].reduce((s, g) => s + g.rows.length, 0);
-  const sersmidiCount = pieces.length - groupedCount - missingDims.length;
+  const groupedCount =
+    [...groupMap.values()].reduce((s, g) => s + g.rows.length, 0) +
+    [...sokkullGroupMap.values()].reduce((s, g) => s + g.rows.length, 0);
+  const sersmidiCount = pieces.length - groupedCount - allMissingDims.length;
   document.getElementById("projectStatus").textContent =
     `${allRows.length} línur sóttar` +
     (manualCount ? `, ${manualCount} þegar merktar handskornar` : "") +
     (sersmidiCount ? `, ${sersmidiCount} Sérsmíði/Karmur-línur sleppt` : "") +
-    (missingDims.length ? `, ${missingDims.length} línur vantar mál (líklega ekki skurðarpartar)` : "") +
+    (allMissingDims.length ? `, ${allMissingDims.length} línur vantar mál (líklega ekki skurðarpartar)` : "") +
     `, ${currentGroups.length} efni/þykktar-hópar fundnir.` +
     (currentOversized.length ? ` ⚠ ${currentOversized.length} passa ekki á plötu.` : "");
 
-  renderMissingDims(missingDims);
+  renderMissingDims(allMissingDims);
   renderOversized();
   populateGroupFilters();
   renderGroups();
@@ -737,11 +782,14 @@ function renderGroups() {
   tbody.innerHTML = "";
   for (const g of visibleGroups) {
     const tr = document.createElement("tr");
+    const isSokklar = g.material === SOKKLAR_MATERIAL;
     const boardSize = g.board
-      ? `${g.board.fields[E_LENGD]}×${g.board.fields[E_BREIDD]}mm`
+      ? `${g.board.fields[E_LENGD]}×${g.board.fields[E_BREIDD]}mm${isSokklar ? " (afskurður)" : ""}`
       : "—";
     let statusHtml;
-    if (g.ambiguous && !g.board) {
+    if (isSokklar) {
+      statusHtml = `<span class="status-ok">Notar afskurð — engin plata pöntuð</span>`;
+    } else if (g.ambiguous && !g.board) {
       // Unresolved — more than one Efnislisti board could match. Blocking
       // (see updateWriteButtonState) rather than silently guessing, since
       // the candidates can have different real dimensions.
