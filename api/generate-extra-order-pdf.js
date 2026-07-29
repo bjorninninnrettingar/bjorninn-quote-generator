@@ -56,26 +56,52 @@ async function getExtraOrder(token, recordId) {
   return data.fields;
 }
 
-// cellFormat=string turns the Vörulisti 🚪/Efnislisti 🧱 link fields into the
-// linked record's own display name instead of a bare record ID — timeZone/
-// userLocale are required by Airtable whenever cellFormat=string is used and
-// the table has any date/dateTime field (Pöntunarlisti's Created/Síðast
-// uppfært do), even though we don't read those fields here.
+// Two fetches against the same lines, merged by record ID: cellFormat=string
+// resolves the Vörulisti 🚪/Efnislisti 🧱 link fields to the linked record's
+// own display name (default format only gives a bare record ID) — but that
+// same cellFormat also flattens attachment fields (Mynd af vöru/Mynd af efni)
+// down to filenames, losing the URL needed to embed the thumbnail. So names
+// come from the string-format call and everything else, incl. images, from
+// the plain JSON one. timeZone/userLocale are required by Airtable whenever
+// cellFormat=string is used and the table has any date/dateTime field
+// (Pöntunarlisti's Created/Síðast uppfært do), even restricted to these two fields.
 async function getLines(token, linkedIds) {
   if (!linkedIds || linkedIds.length === 0) return [];
   const filter = `OR(${linkedIds.map((id) => `RECORD_ID()="${id}"`).join(",")})`;
-  const params = new URLSearchParams({
+
+  const rawData = await airtableFetch(
+    `https://api.airtable.com/v0/${AIRTABLE_BASE}/${PURCHASE_TABLE}?filterByFormula=${encodeURIComponent(filter)}`,
+    token
+  );
+
+  const nameParams = new URLSearchParams({
     filterByFormula: filter,
     cellFormat: "string",
     timeZone: "Atlantic/Reykjavik",
     userLocale: "is",
   });
-  const data = await airtableFetch(
-    `https://api.airtable.com/v0/${AIRTABLE_BASE}/${PURCHASE_TABLE}?${params.toString()}`,
+  nameParams.append("fields[]", "Vörulisti 🚪");
+  nameParams.append("fields[]", "Efnislisti 🧱");
+  const nameData = await airtableFetch(
+    `https://api.airtable.com/v0/${AIRTABLE_BASE}/${PURCHASE_TABLE}?${nameParams.toString()}`,
     token
   );
-  const recordMap = Object.fromEntries(data.records.map((r) => [r.id, r.fields]));
-  return linkedIds.map((id) => recordMap[id]).filter(Boolean);
+
+  const recordMap = Object.fromEntries(rawData.records.map((r) => [r.id, r.fields]));
+  const nameMap = Object.fromEntries(nameData.records.map((r) => [r.id, r.fields]));
+
+  return linkedIds
+    .map((id) => {
+      const fields = recordMap[id];
+      if (!fields) return null;
+      const names = nameMap[id] || {};
+      return {
+        ...fields,
+        "Vörulisti 🚪": names["Vörulisti 🚪"],
+        "Efnislisti 🧱": names["Efnislisti 🧱"],
+      };
+    })
+    .filter(Boolean);
 }
 
 async function clearAttachment(token, recordId) {
@@ -147,6 +173,45 @@ function truncate(font, str, size, maxW) {
     str = str.slice(0, -1);
   }
   return str + "…";
+}
+
+// ── Image helpers (product/material thumbnails) ────────────────────────────
+
+function firstImageUrl(...fieldValues) {
+  for (const val of fieldValues) {
+    if (!Array.isArray(val) || !val.length) continue;
+    let att = val[0];
+    if (Array.isArray(att)) att = att[0];
+    const url = att?.thumbnails?.large?.url || att?.url;
+    if (url) return url;
+  }
+  return null;
+}
+
+async function embedImage(doc, url, cache) {
+  if (!url) return null;
+  if (cache.has(url)) return cache.get(url);
+  let img = null;
+  try {
+    const res = await fetch(url);
+    if (res.ok) {
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      try { img = await doc.embedJpg(bytes); }
+      catch { img = await doc.embedPng(bytes); }
+    }
+  } catch (e) {
+    console.warn("Image embed failed:", url, e.message);
+  }
+  cache.set(url, img);
+  return img;
+}
+
+function drawThumb(page, img, cellX, cellY, cellW, cellH) {
+  if (!img) return;
+  const scale = Math.min(cellW / img.width, cellH / img.height) * 0.85;
+  const w = img.width * scale;
+  const h = img.height * scale;
+  page.drawImage(img, { x: cellX + (cellW - w) / 2, y: cellY + (cellH - h) / 2, width: w, height: h });
 }
 
 function rect(page, x, y, w, h, color) {
@@ -246,13 +311,14 @@ async function buildExtraOrderPdf(extraOrder, lines) {
   );
   y -= 42;
 
-  // ── Flat line-item table — no Gerð grouping, no images, no per-line price.
+  // ── Flat line-item table — no Gerð grouping, no per-line price.
   // Always exactly one page: row height shrinks to fit whatever's left.
   const cols = [
-    { label: "Vara / Efni", w: 0.44, align: "left"   },
-    { label: "Magn",        w: 0.12, align: "center" },
-    { label: "Dýpt",        w: 0.18, align: "center" },
-    { label: "Litur",       w: 0.26, align: "left"   },
+    { label: "Vara / Efni", w: 0.32, align: "left"   },
+    { label: "Magn",        w: 0.08, align: "center" },
+    { label: "Dýpt",        w: 0.14, align: "center" },
+    { label: "Mynd",        w: 0.14, align: "center" },
+    { label: "Litur",       w: 0.32, align: "left"   },
   ];
 
   let xCur = MARGIN;
@@ -262,6 +328,14 @@ async function buildExtraOrderPdf(extraOrder, lines) {
     xCur += pw;
     return def;
   });
+
+  // Pre-embed every unique product/material thumbnail before drawing rows —
+  // embedding is async, drawing each row is not, so this keeps the row loop simple.
+  const imageCache = new Map();
+  for (const item of lines) {
+    const url = firstImageUrl(item["Mynd af vöru"], item["Mynd af efni"]);
+    if (url) await embedImage(doc, url, imageCache);
+  }
 
   const COLUMN_HEADER_H = 16;
   const FOOTER_RESERVE  = 46; // total line + rule + footer text
@@ -311,7 +385,14 @@ async function buildExtraOrderPdf(extraOrder, lines) {
     const dw = fontReg.widthOfTextAtSize(dypt, FONT_SIZE);
     txt(page, dypt, dyptCol.x + (dyptCol.pw - dw) / 2, textY, fontReg, FONT_SIZE, DARK);
 
-    const colorCol = colDefs[3];
+    // Centered within the row's full height/width — drawThumb itself scales
+    // to fit and centers within whatever box it's given.
+    const imgCol = colDefs[3];
+    const url = firstImageUrl(item["Mynd af vöru"], item["Mynd af efni"]);
+    const img = url ? imageCache.get(url) : null;
+    drawThumb(page, img, imgCol.x, y - ROW_H, imgCol.pw, ROW_H);
+
+    const colorCol = colDefs[4];
     txt(page, truncate(fontReg, litur, FONT_SIZE, colorCol.pw - 6), colorCol.x + 3, textY, fontReg, FONT_SIZE, DARK);
 
     y -= ROW_H;
