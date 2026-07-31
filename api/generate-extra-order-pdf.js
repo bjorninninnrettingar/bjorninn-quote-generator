@@ -2,8 +2,8 @@
 // Björninn ehf. — Auka-Pöntunarlisti (extra/forgotten items) PDF Generator
 // Lean sibling of generate-order-pdf.js: same header/footer/title styling,
 // but a flat table (no Gerð-grouping, no images, no per-line price) showing
-// only Vara/Efni name + Dýpt [AP] + Litur [AP] + Magn, plus the total cost
-// straight from Auka-Pöntunarlisti's own rollup field.
+// only Vara/Efni name + Dýpt [AP] + Litur [AP] + Magn + Glósur [AP], plus the
+// total cost straight from Auka-Pöntunarlisti's own rollup field.
 
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
@@ -314,11 +314,12 @@ async function buildExtraOrderPdf(extraOrder, lines) {
   // ── Flat line-item table — no Gerð grouping, no per-line price.
   // Always exactly one page: row height shrinks to fit whatever's left.
   const cols = [
-    { label: "Vara / Efni", w: 0.32, align: "left"   },
-    { label: "Magn",        w: 0.08, align: "center" },
-    { label: "Dýpt",        w: 0.14, align: "center" },
-    { label: "Mynd",        w: 0.14, align: "center" },
-    { label: "Litur",       w: 0.32, align: "left"   },
+    { label: "Vara / Efni", w: 0.27, align: "left"   },
+    { label: "Magn",        w: 0.07, align: "center" },
+    { label: "Dýpt",        w: 0.12, align: "center" },
+    { label: "Mynd",        w: 0.12, align: "center" },
+    { label: "Litur",       w: 0.27, align: "left"   },
+    { label: "Glósur",      w: 0.15, align: "left"   },
   ];
 
   let xCur = MARGIN;
@@ -366,8 +367,9 @@ async function buildExtraOrderPdf(extraOrder, lines) {
     // these link fields to the linked record's own display name.
     const name = stripEmoji(item["Vörulisti 🚪"] || item["Efnislisti 🧱"] || "") || "—";
     const qty   = item["Magn"] ?? "";
-    const dypt  = stripEmoji(item["Dýptir [AP]"] || "") || "—";
-    const litur = stripEmoji(item["Litur [AP]"] || "") || "—";
+    const dypt   = stripEmoji(item["Dýptir [AP]"] || "") || "—";
+    const litur  = stripEmoji(item["Litur [AP]"] || "") || "—";
+    const glosur = stripEmoji(item["Glósur [AP]"] || "") || "—";
 
     if (rowIndex % 2 === 0) rect(page, MARGIN, y - ROW_H, CW, ROW_H, LIGHT);
 
@@ -394,6 +396,9 @@ async function buildExtraOrderPdf(extraOrder, lines) {
 
     const colorCol = colDefs[4];
     txt(page, truncate(fontReg, litur, FONT_SIZE, colorCol.pw - 6), colorCol.x + 3, textY, fontReg, FONT_SIZE, DARK);
+
+    const notesCol = colDefs[5];
+    txt(page, truncate(fontReg, glosur, FONT_SIZE, notesCol.pw - 6), notesCol.x + 3, textY, fontReg, FONT_SIZE, DARK);
 
     y -= ROW_H;
     rowIndex++;
