@@ -318,8 +318,8 @@ async function buildExtraOrderPdf(extraOrder, lines) {
     { label: "Magn",        w: 0.05, align: "center" },
     { label: "Dýpt",        w: 0.05, align: "center" },
     { label: "Mynd",        w: 0.05, align: "center" },
-    { label: "Litur",       w: 0.05, align: "left"   },
-    { label: "Glósur",      w: 0.45, align: "left"   },
+    { label: "Litur",       w: 0.07, align: "left"   },
+    { label: "Glósur",      w: 0.43, align: "left"   },
   ];
 
   let xCur = MARGIN;
