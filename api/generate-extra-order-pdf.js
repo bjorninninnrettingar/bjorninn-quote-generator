@@ -314,12 +314,12 @@ async function buildExtraOrderPdf(extraOrder, lines) {
   // ── Flat line-item table — no Gerð grouping, no per-line price.
   // Always exactly one page: row height shrinks to fit whatever's left.
   const cols = [
-    { label: "Vara / Efni", w: 0.35, align: "left"   },
-    { label: "Magn",        w: 0.06, align: "center" },
-    { label: "Dýpt",        w: 0.08, align: "center" },
+    { label: "Vara / Efni", w: 0.45, align: "left"   },
+    { label: "Magn",        w: 0.05, align: "center" },
+    { label: "Dýpt",        w: 0.05, align: "center" },
     { label: "Mynd",        w: 0.10, align: "center" },
-    { label: "Litur",       w: 0.18, align: "left"   },
-    { label: "Glósur",      w: 0.23, align: "left"   },
+    { label: "Litur",       w: 0.05, align: "left"   },
+    { label: "Glósur",      w: 0.30, align: "left"   },
   ];
 
   let xCur = MARGIN;
