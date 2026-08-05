@@ -347,17 +347,18 @@ function isPdfAttachment(att) {
 // copying pages in at their native size (the old approach) means the merged
 // PDF prints inconsistently: some pages fit an A4 sheet, others overflow it
 // or print tiny. Every page — the generated cover included — is redrawn onto
-// a fresh A4 sheet instead, oriented to match its own aspect ratio and scaled
-// to fill it (preserving aspect ratio, centered), so the whole document
-// prints at one consistent physical size regardless of source page size.
-const A4_PORTRAIT  = [595.28, 841.89];
+// a fresh, fixed-orientation A4 landscape sheet instead (matching the cover,
+// which is generated landscape on purpose), scaled to fit within it
+// (preserving aspect ratio, centered) so the whole document prints at one
+// consistent physical size and orientation regardless of source page size —
+// a portrait-drawn source page gets letterboxed rather than rotating the sheet.
 const A4_LANDSCAPE = [841.89, 595.28];
 
 async function addNormalizedPages(merged, sourceBytes) {
   const srcDoc = await PDFDocument.load(sourceBytes);
   const embeddedPages = await merged.embedPages(srcDoc.getPages());
   for (const embedded of embeddedPages) {
-    const [targetW, targetH] = embedded.width > embedded.height ? A4_LANDSCAPE : A4_PORTRAIT;
+    const [targetW, targetH] = A4_LANDSCAPE;
     const scale = Math.min(targetW / embedded.width, targetH / embedded.height);
     const w = embedded.width * scale;
     const h = embedded.height * scale;
