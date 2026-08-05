@@ -204,7 +204,12 @@ function drawFooter(page, PW, fontReg) {
 
 // Landscape, single page, four quadrants separated by whitespace only. Gold
 // is reserved for the header/title rules and each quadrant's mini underline.
-async function buildCoverPage(project) {
+// Drawn at a fixed design size (below) regardless of targetSize — the layout
+// itself is never touched. If targetSize differs, the whole rendered page is
+// uniformly scaled and centered onto a new page of that size at the very end,
+// so the physical page matches whatever size the real drawings use without
+// having to make every margin/font-size in the layout proportional.
+async function buildCoverPage(project, targetSize) {
   const doc = await PDFDocument.create();
   const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
   const fontReg  = await doc.embedFont(StandardFonts.Helvetica);
@@ -333,7 +338,20 @@ async function buildCoverPage(project) {
 
   drawFooter(page, PW, fontReg);
 
-  return doc.save();
+  const designBytes = await doc.save();
+  if (!targetSize) return designBytes;
+
+  const [targetW, targetH] = targetSize;
+  if (Math.abs(targetW - PW) < 0.5 && Math.abs(targetH - PH) < 0.5) return designBytes;
+
+  const wrapper = await PDFDocument.create();
+  const [embedded] = await wrapper.embedPdf(designBytes); // single-page doc — default indices [0] is correct here
+  const scale = Math.min(targetW / embedded.width, targetH / embedded.height);
+  const w = embedded.width * scale;
+  const h = embedded.height * scale;
+  const wrapperPage = wrapper.addPage([targetW, targetH]);
+  wrapperPage.drawPage(embedded, { x: (targetW - w) / 2, y: (targetH - h) / 2, width: w, height: h });
+  return wrapper.save();
 }
 
 // ── Merge ─────────────────────────────────────────────────────────────────────
@@ -342,44 +360,28 @@ function isPdfAttachment(att) {
   return att.type === "application/pdf" || /\.pdf$/i.test(att.filename || "");
 }
 
-// Real drawing PDFs in this base are all over the place — A4 portrait, A3
-// portrait, arbitrary custom sizes from exported screenshots — so simply
-// copying pages in at their native size (the old approach) means the merged
-// PDF prints inconsistently: some pages fit an A4 sheet, others overflow it
-// or print tiny. Every page — the generated cover included — is redrawn onto
-// a fresh, fixed-orientation A4 landscape sheet instead (matching the cover,
-// which is generated landscape on purpose), scaled to fit within it
-// (preserving aspect ratio, centered) so the whole document prints at one
-// consistent physical size and orientation regardless of source page size —
-// a portrait-drawn source page gets letterboxed rather than rotating the sheet.
-const A4_LANDSCAPE = [841.89, 595.28];
-
-async function addNormalizedPages(merged, sourceBytes) {
-  const srcDoc = await PDFDocument.load(sourceBytes);
-  const embeddedPages = await merged.embedPages(srcDoc.getPages());
-  for (const embedded of embeddedPages) {
-    const [targetW, targetH] = A4_LANDSCAPE;
-    const scale = Math.min(targetW / embedded.width, targetH / embedded.height);
-    const w = embedded.width * scale;
-    const h = embedded.height * scale;
-    const page = merged.addPage([targetW, targetH]);
-    page.drawPage(embedded, { x: (targetW - w) / 2, y: (targetH - h) / 2, width: w, height: h });
-  }
-}
-
-// Cover page first, then attachments in the order Airtable returns them, i.e.
-// the order they're arranged in on the record — arranging them there controls
-// page order here.
+// Drawing pages are copied in completely untouched — no rescaling. These are
+// technical drawings (cutlists, room layouts with "SKALI 1:40" callouts,
+// etc.) printed at a specific scale; resizing them to fit a common page size
+// silently breaks that scale and shrinks the actual content, which is worse
+// than the original size-mismatch problem this endpoint was written to fix.
+// Only the generated cover page's own size is adapted (see buildCoverPage's
+// targetSize param, sized from the first drawing in the main handler) so it
+// prints at the same physical size as the drawings it's stapled in front of.
 async function mergePdfs(coverBytes, attachments) {
   const merged = await PDFDocument.create();
 
-  await addNormalizedPages(merged, coverBytes);
+  const coverDoc = await PDFDocument.load(coverBytes);
+  const coverPages = await merged.copyPages(coverDoc, coverDoc.getPageIndices());
+  coverPages.forEach((page) => merged.addPage(page));
 
   for (const att of attachments) {
     const res = await fetch(att.url);
     if (!res.ok) throw new Error(`Failed to download ${att.filename}: ${res.status}`);
     const bytes = new Uint8Array(await res.arrayBuffer());
-    await addNormalizedPages(merged, bytes);
+    const src = await PDFDocument.load(bytes);
+    const pages = await merged.copyPages(src, src.getPageIndices());
+    pages.forEach((page) => merged.addPage(page));
   }
   return merged.save();
 }
@@ -417,8 +419,17 @@ export default async function handler(req, res) {
       .replace(/[/\\:*?"<>]/g, "-")
       .trim();
 
+    console.log("Reading target page size from first drawing…");
+    const firstRes = await fetch(pdfAttachments[0].url);
+    if (!firstRes.ok) {
+      throw new Error(`Failed to download ${pdfAttachments[0].filename}: ${firstRes.status}`);
+    }
+    const firstBytes = new Uint8Array(await firstRes.arrayBuffer());
+    const firstPage = (await PDFDocument.load(firstBytes)).getPages()[0];
+    const targetSize = [firstPage.getWidth(), firstPage.getHeight()];
+
     console.log("Building cover page…");
-    const coverBytes = await buildCoverPage(project);
+    const coverBytes = await buildCoverPage(project, targetSize);
 
     console.log(`Merging cover page + ${pdfAttachments.length} PDF(s)…`);
     const mergedBytes = await mergePdfs(coverBytes, pdfAttachments);
