@@ -342,23 +342,43 @@ function isPdfAttachment(att) {
   return att.type === "application/pdf" || /\.pdf$/i.test(att.filename || "");
 }
 
+// Real drawing PDFs in this base are all over the place — A4 portrait, A3
+// portrait, arbitrary custom sizes from exported screenshots — so simply
+// copying pages in at their native size (the old approach) means the merged
+// PDF prints inconsistently: some pages fit an A4 sheet, others overflow it
+// or print tiny. Every page — the generated cover included — is redrawn onto
+// a fresh A4 sheet instead, oriented to match its own aspect ratio and scaled
+// to fill it (preserving aspect ratio, centered), so the whole document
+// prints at one consistent physical size regardless of source page size.
+const A4_PORTRAIT  = [595.28, 841.89];
+const A4_LANDSCAPE = [841.89, 595.28];
+
+async function addNormalizedPages(merged, sourceBytes) {
+  const srcDoc = await PDFDocument.load(sourceBytes);
+  const embeddedPages = await merged.embedPages(srcDoc.getPages());
+  for (const embedded of embeddedPages) {
+    const [targetW, targetH] = embedded.width > embedded.height ? A4_LANDSCAPE : A4_PORTRAIT;
+    const scale = Math.min(targetW / embedded.width, targetH / embedded.height);
+    const w = embedded.width * scale;
+    const h = embedded.height * scale;
+    const page = merged.addPage([targetW, targetH]);
+    page.drawPage(embedded, { x: (targetW - w) / 2, y: (targetH - h) / 2, width: w, height: h });
+  }
+}
+
 // Cover page first, then attachments in the order Airtable returns them, i.e.
 // the order they're arranged in on the record — arranging them there controls
 // page order here.
 async function mergePdfs(coverBytes, attachments) {
   const merged = await PDFDocument.create();
 
-  const coverDoc = await PDFDocument.load(coverBytes);
-  const coverPages = await merged.copyPages(coverDoc, coverDoc.getPageIndices());
-  coverPages.forEach((page) => merged.addPage(page));
+  await addNormalizedPages(merged, coverBytes);
 
   for (const att of attachments) {
     const res = await fetch(att.url);
     if (!res.ok) throw new Error(`Failed to download ${att.filename}: ${res.status}`);
     const bytes = new Uint8Array(await res.arrayBuffer());
-    const src = await PDFDocument.load(bytes);
-    const pages = await merged.copyPages(src, src.getPageIndices());
-    pages.forEach((page) => merged.addPage(page));
+    await addNormalizedPages(merged, bytes);
   }
   return merged.save();
 }
