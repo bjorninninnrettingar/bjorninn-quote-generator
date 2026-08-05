@@ -426,7 +426,10 @@ export default async function handler(req, res) {
     }
     const firstBytes = new Uint8Array(await firstRes.arrayBuffer());
     const firstPage = (await PDFDocument.load(firstBytes)).getPages()[0];
-    const targetSize = [firstPage.getWidth(), firstPage.getHeight()];
+    const [firstW, firstH] = [firstPage.getWidth(), firstPage.getHeight()];
+    // Cover always prints landscape — same paper dimensions as the first
+    // drawing, swapped if that page happens to be portrait.
+    const targetSize = firstW >= firstH ? [firstW, firstH] : [firstH, firstW];
 
     console.log("Building cover page…");
     const coverBytes = await buildCoverPage(project, targetSize);
