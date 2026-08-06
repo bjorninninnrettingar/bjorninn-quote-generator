@@ -40,22 +40,6 @@
     .screen { width: 100%; max-width: 380px; display: flex; flex-direction: column; align-items: center; }
     .hidden { display: none !important; }
 
-    /* ---- PIN screen ---- */
-    #pin-dots { display: flex; gap: 18px; margin-bottom: 32px; }
-    .dot { width: 20px; height: 20px; border-radius: 50%; border: 2px solid #444; transition: background 0.1s, border-color 0.1s; }
-    .dot.filled { background: #4caf50; border-color: #4caf50; }
-    .dot.error { background: #e53935; border-color: #e53935; }
-
-    #pin-msg { min-height: 22px; font-size: 0.95rem; color: #e53935; margin-bottom: 12px; text-align: center; }
-
-    .pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; width: 100%; }
-    .pad button {
-      font-size: 1.6rem; font-weight: 600; background: #161616; border: 1px solid #262626;
-      border-radius: 14px; color: #f0f0f0; padding: 22px 0; font-variant-numeric: tabular-nums;
-    }
-    .pad button:active { background: #262626; }
-    .pad button.wide { font-size: 1rem; color: #fff; }
-
     /* ---- Shared titles ---- */
     .title { font-size: 1.4rem; font-weight: 700; margin-bottom: 24px; text-align: center; }
     .subtitle { font-size: 1rem; color: #ccc; margin-bottom: 24px; text-align: center; }
@@ -121,28 +105,13 @@
     <div id="clock"></div>
   </header>
 
-  <!-- PIN entry -->
-  <div class="screen" id="screen-pin">
-    <div id="brand">BJÖRNINN</div>
-    <div id="pin-dots">
-      <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
-    </div>
-    <div id="pin-msg"></div>
-    <div class="pad">
-      <button data-d="1">1</button><button data-d="2">2</button><button data-d="3">3</button>
-      <button data-d="4">4</button><button data-d="5">5</button><button data-d="6">6</button>
-      <button data-d="7">7</button><button data-d="8">8</button><button data-d="9">9</button>
-      <button class="wide" id="clear-btn">Hreinsa</button><button data-d="0">0</button><button class="wide" id="back-btn">⌫</button>
-    </div>
-  </div>
-
   <!-- Station select -->
-  <div class="screen hidden" id="screen-station">
-    <div class="title" id="station-title"></div>
+  <div class="screen" id="screen-station">
+    <div id="brand">BJÖRNINN</div>
+    <div class="title">Veldu stöð</div>
     <button class="station-btn" data-station="Kantlíming">Kantlíming</button>
     <button class="station-btn" data-station="Spónlagt">Spónlagt</button>
     <button class="station-btn" data-station="Lökkun">Lökkun</button>
-    <button id="station-cancel" class="link-btn">Hætta við</button>
   </div>
 
   <!-- Project list -->
@@ -190,15 +159,9 @@
   </div>
 
   <script>
-    const STARFSMENN_TABLE = "tblhglpjQkczdG1AY";
     const TAEKIFAERI_TABLE = "tbl4LMXlQjp66RFKI";
     const SOGUNARLISTI_TABLE = "tblhdgyvTcBfP8kov";
     const STODVATIMAR_TABLE = "tbl74vVH41s8u4NGV";
-
-    function todayISO(d) {
-      d = d || new Date();
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    }
 
     const IS_WEEKDAYS = ["Sunnudagur", "Mánudagur", "Þriðjudagur", "Miðvikudagur", "Fimmtudagur", "Föstudagur", "Laugardagur"];
     const IS_MONTHS = ["janúar", "febrúar", "mars", "apríl", "maí", "júní", "júlí", "ágúst", "september", "október", "nóvember", "desember"];
@@ -269,78 +232,13 @@
       screens[id].classList.remove("hidden");
     }
 
-    // ---- PIN screen ----
-    const dots = [...document.querySelectorAll(".dot")];
-    const pinMsg = document.getElementById("pin-msg");
-    let pin = "";
-    let locked = false;
-    let currentEmployee = null;
-
-    function renderDots(state) {
-      dots.forEach((dot, i) => {
-        dot.className = "dot";
-        if (i < pin.length) dot.classList.add(state === "error" ? "error" : "filled");
-      });
-    }
-    function resetPin() {
-      pin = "";
-      pinMsg.textContent = "";
-      renderDots();
-    }
-
-    async function submitPin() {
-      locked = true;
-      try {
-        const formula = `AND({PIN 🔢}=${pin},{Er starfandi? ✅}=1)`;
-        const data = await airtableGet(STARFSMENN_TABLE, { filterByFormula: formula, maxRecords: 1 });
-        const record = (data.records || [])[0];
-        if (!record) {
-          pinMsg.textContent = "Rangt PIN númer";
-          renderDots("error");
-          setTimeout(() => { locked = false; resetPin(); }, 900);
-          return;
-        }
-        currentEmployee = record;
-        locked = false;
-        document.getElementById("station-title").textContent =
-          `Hæ ${record.fields["Nafn starfsmanns 👷"] || ""} — veldu stöð`;
-        showScreen("screen-station");
-      } catch (err) {
-        pinMsg.textContent = "Villa — reyndu aftur";
-        renderDots("error");
-        setTimeout(() => { locked = false; resetPin(); }, 1200);
-      }
-    }
-
-    document.querySelectorAll(".pad button[data-d]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        if (locked || pin.length >= 4) return;
-        pin += btn.dataset.d;
-        renderDots();
-        if (pin.length === 4) submitPin();
-      });
-    });
-    document.getElementById("back-btn").addEventListener("click", () => {
-      if (locked) return;
-      pin = pin.slice(0, -1);
-      pinMsg.textContent = "";
-      renderDots();
-    });
-    document.getElementById("clear-btn").addEventListener("click", () => {
-      if (locked) return;
-      resetPin();
-    });
-
-    function backToPin() {
-      currentEmployee = null;
+    function resetToStart() {
       selectedStation = null;
       selectedProject = null;
       openSession = null;
       stopTimerTick();
-      showScreen("screen-pin");
-      resetPin();
+      showScreen("screen-station");
     }
-    document.getElementById("station-cancel").addEventListener("click", backToPin);
 
     // ---- Station select ----
     let selectedStation = null; // "Kantlíming" | "Spónlagt" | "Lökkun"
@@ -472,7 +370,6 @@
           "Inn": now.toISOString(),
           "Stöð": "Kantlíming",
           "Tækifæri 📣 (projects)": [selectedProject.id],
-          "Starfsmaður": [currentEmployee.id],
           "Fjöldi stykkja": pieces,
         });
         showRunning(selectedProject.fields["Heiti tækifæris / verkefnis"] || "", record);
@@ -516,7 +413,6 @@
           "Út": until.toISOString(),
           "Stöð": selectedStation,
           "Tækifæri 📣 (projects)": [selectedProject.id],
-          "Starfsmaður": [currentEmployee.id],
           "Áætlað ✅": true,
         });
         showConfirm(`${selectedStation} skráð`, `${selectedProject.fields["Heiti tækifæris / verkefnis"] || ""} — ${hours} klst (áætlað)`);
@@ -531,7 +427,7 @@
       showScreen("screen-confirm");
       document.getElementById("confirm-text").textContent = text;
       document.getElementById("confirm-sub").textContent = sub || "";
-      setTimeout(backToPin, 2400);
+      setTimeout(resetToStart, 2400);
     }
   </script>
 </body>
