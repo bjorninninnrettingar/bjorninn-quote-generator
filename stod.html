@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Vinnustöðvar — Björninn</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@700&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; user-select: none; }
+
+    body {
+      background: #0a0a0a;
+      color: #f0f0f0;
+      font-family: "Helvetica Neue", Arial, sans-serif;
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px;
+      gap: 24px;
+    }
+
+    header { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    header h1 { font-size: 1.1rem; font-weight: 700; letter-spacing: 0.08em; color: #fff; text-transform: uppercase; }
+
+    #brand {
+      font-family: "Kumbh Sans", "Helvetica Neue", Arial, sans-serif;
+      font-weight: 700;
+      font-size: 2.2rem;
+      letter-spacing: 0.06em;
+      color: #b5a270;
+      margin-bottom: 24px;
+    }
+
+    #clock { font-size: 0.95rem; color: #fff; font-variant-numeric: tabular-nums; }
+
+    .screen { width: 100%; max-width: 380px; display: flex; flex-direction: column; align-items: center; }
+    .hidden { display: none !important; }
+
+    /* ---- PIN screen ---- */
+    #pin-dots { display: flex; gap: 18px; margin-bottom: 32px; }
+    .dot { width: 20px; height: 20px; border-radius: 50%; border: 2px solid #444; transition: background 0.1s, border-color 0.1s; }
+    .dot.filled { background: #4caf50; border-color: #4caf50; }
+    .dot.error { background: #e53935; border-color: #e53935; }
+
+    #pin-msg { min-height: 22px; font-size: 0.95rem; color: #e53935; margin-bottom: 12px; text-align: center; }
+
+    .pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; width: 100%; }
+    .pad button {
+      font-size: 1.6rem; font-weight: 600; background: #161616; border: 1px solid #262626;
+      border-radius: 14px; color: #f0f0f0; padding: 22px 0; font-variant-numeric: tabular-nums;
+    }
+    .pad button:active { background: #262626; }
+    .pad button.wide { font-size: 1rem; color: #fff; }
+
+    /* ---- Shared titles ---- */
+    .title { font-size: 1.4rem; font-weight: 700; margin-bottom: 24px; text-align: center; }
+    .subtitle { font-size: 1rem; color: #ccc; margin-bottom: 24px; text-align: center; }
+
+    /* ---- Station select ---- */
+    .station-btn {
+      width: 100%; font-size: 1.2rem; font-weight: 700; letter-spacing: 0.02em;
+      border-radius: 16px; padding: 26px 0; border: 1px solid #333; color: #fff;
+      background: #161616; margin-bottom: 14px;
+    }
+    .station-btn:active { background: #262626; }
+
+    /* ---- Project list ---- */
+    #project-list { width: 100%; max-height: 55vh; overflow-y: auto; }
+    .project-btn {
+      width: 100%; font-size: 1.05rem; font-weight: 600; text-align: left;
+      border-radius: 14px; padding: 18px 16px; border: 1px solid #262626; color: #f0f0f0;
+      background: #161616; margin-bottom: 10px;
+    }
+    .project-btn:active { background: #262626; }
+    #project-msg { font-size: 0.95rem; color: #888; text-align: center; margin: 12px 0; }
+
+    /* ---- Count / running screens ---- */
+    .big-number { font-size: 3rem; font-weight: 700; font-variant-numeric: tabular-nums; margin-bottom: 8px; }
+    .big-label { font-size: 0.95rem; color: #ccc; margin-bottom: 28px; text-align: center; }
+    #timer-display { font-size: 2.6rem; font-weight: 700; font-variant-numeric: tabular-nums; margin-bottom: 28px; }
+
+    .primary-btn {
+      width: 100%; font-size: 1.3rem; font-weight: 700; letter-spacing: 0.03em;
+      border-radius: 16px; padding: 30px 0; border: none; color: #fff; background: #2e7d32;
+    }
+    .primary-btn:active { background: #1b5e20; }
+    .primary-btn:disabled { opacity: 0.4; }
+    .primary-btn.stop { background: #b71c1c; }
+    .primary-btn.stop:active { background: #7f1010; }
+
+    .secondary-btn {
+      margin-top: 12px; width: 100%; background: none; border: 1px solid #333;
+      border-radius: 12px; color: #fff; font-size: 0.95rem; padding: 14px 0;
+    }
+    .secondary-btn:active { background: #161616; }
+
+    .link-btn { margin-top: 20px; background: none; border: none; color: #fff; font-size: 0.95rem; padding: 10px; }
+
+    /* ---- Estimate form ---- */
+    .field { width: 100%; margin-bottom: 16px; }
+    .field label { display: block; font-size: 0.9rem; color: #ccc; margin-bottom: 6px; }
+    .field input[type="number"] {
+      width: 100%; background: #161616; color: #fff; border: 1px solid #333;
+      border-radius: 10px; padding: 14px; font-size: 1.3rem; text-align: center;
+    }
+    #estimate-msg { min-height: 20px; font-size: 0.9rem; color: #e53935; margin-top: 10px; text-align: center; }
+
+    /* ---- Confirm screen ---- */
+    #confirm-icon { font-size: 3.5rem; margin-bottom: 12px; }
+    #confirm-text { font-size: 1.4rem; font-weight: 700; text-align: center; margin-bottom: 4px; }
+    #confirm-sub { font-size: 1rem; color: #fff; text-align: center; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Vinnustöðvar</h1>
+    <div id="clock"></div>
+  </header>
+
+  <!-- PIN entry -->
+  <div class="screen" id="screen-pin">
+    <div id="brand">BJÖRNINN</div>
+    <div id="pin-dots">
+      <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+    </div>
+    <div id="pin-msg"></div>
+    <div class="pad">
+      <button data-d="1">1</button><button data-d="2">2</button><button data-d="3">3</button>
+      <button data-d="4">4</button><button data-d="5">5</button><button data-d="6">6</button>
+      <button data-d="7">7</button><button data-d="8">8</button><button data-d="9">9</button>
+      <button class="wide" id="clear-btn">Hreinsa</button><button data-d="0">0</button><button class="wide" id="back-btn">⌫</button>
+    </div>
+  </div>
+
+  <!-- Station select -->
+  <div class="screen hidden" id="screen-station">
+    <div class="title" id="station-title"></div>
+    <button class="station-btn" data-station="Kantlíming">Kantlíming</button>
+    <button class="station-btn" data-station="Spónlagt">Spónlagt</button>
+    <button class="station-btn" data-station="Lökkun">Lökkun</button>
+    <button id="station-cancel" class="link-btn">Hætta við</button>
+  </div>
+
+  <!-- Project list -->
+  <div class="screen hidden" id="screen-projects">
+    <div class="title" id="projects-title">Veldu verkefni</div>
+    <div id="project-list"></div>
+    <div id="project-msg"></div>
+    <button id="projects-back" class="link-btn">Til baka</button>
+  </div>
+
+  <!-- Kantlíming: piece count, ready to start -->
+  <div class="screen hidden" id="screen-count">
+    <div class="subtitle" id="count-project"></div>
+    <div class="big-number" id="count-number"></div>
+    <div class="big-label">stykki þurfa kantlímingu</div>
+    <button id="btn-start" class="primary-btn">Byrja</button>
+    <button id="count-back" class="link-btn">Til baka</button>
+  </div>
+
+  <!-- Kantlíming: running -->
+  <div class="screen hidden" id="screen-running">
+    <div class="subtitle" id="running-project"></div>
+    <div class="big-label" id="running-pieces"></div>
+    <div id="timer-display">00:00</div>
+    <button id="btn-stop" class="primary-btn stop">Ljúka</button>
+  </div>
+
+  <!-- Spónlagt / Lökkun: estimate form -->
+  <div class="screen hidden" id="screen-estimate">
+    <div class="subtitle" id="estimate-project"></div>
+    <div class="field">
+      <label for="estimate-hours">Áætlaðar klukkustundir</label>
+      <input type="number" id="estimate-hours" step="0.25" min="0.25" inputmode="decimal" />
+    </div>
+    <button id="btn-estimate-submit" class="primary-btn">Skrá</button>
+    <div id="estimate-msg"></div>
+    <button id="estimate-back" class="link-btn">Til baka</button>
+  </div>
+
+  <!-- Confirmation -->
+  <div class="screen hidden" id="screen-confirm">
+    <div id="confirm-icon">✅</div>
+    <div id="confirm-text"></div>
+    <div id="confirm-sub"></div>
+  </div>
+
+  <script>
+    const STARFSMENN_TABLE = "tblhglpjQkczdG1AY";
+    const TAEKIFAERI_TABLE = "tbl4LMXlQjp66RFKI";
+    const SOGUNARLISTI_TABLE = "tblhdgyvTcBfP8kov";
+    const STODVATIMAR_TABLE = "tbl74vVH41s8u4NGV";
+
+    function todayISO(d) {
+      d = d || new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
+
+    const IS_WEEKDAYS = ["Sunnudagur", "Mánudagur", "Þriðjudagur", "Miðvikudagur", "Fimmtudagur", "Föstudagur", "Laugardagur"];
+    const IS_MONTHS = ["janúar", "febrúar", "mars", "apríl", "maí", "júní", "júlí", "ágúst", "september", "október", "nóvember", "desember"];
+
+    function updateClock() {
+      const d = new Date();
+      const hh = String(d.getHours()).padStart(2, "0");
+      const mm = String(d.getMinutes()).padStart(2, "0");
+      document.getElementById("clock").textContent =
+        `${IS_WEEKDAYS[d.getDay()]} ${d.getDate()}. ${IS_MONTHS[d.getMonth()]} kl. ${hh}:${mm}`;
+    }
+    updateClock();
+    setInterval(updateClock, 10_000);
+
+    async function airtableGet(path, params) {
+      const all = { path, ...(params || {}) };
+      const qs = Object.entries(all)
+        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+        .join("&");
+      const res = await fetch(`/api/airtable?${qs}`);
+      if (!res.ok) throw new Error("Airtable GET failed: " + res.status);
+      return res.json();
+    }
+
+    // Loops on Airtable's `offset` paging token so a project with more than
+    // one page of matching rows (piece counts, project lists) isn't silently
+    // truncated to the first 100.
+    async function airtableGetAll(path, params) {
+      let records = [];
+      let offset;
+      do {
+        const data = await airtableGet(path, offset ? { ...params, offset } : params);
+        records = records.concat(data.records || []);
+        offset = data.offset;
+      } while (offset && records.length < 1000);
+      return records;
+    }
+
+    async function airtablePost(path, fields) {
+      const url = new URL("/api/airtable", location.origin);
+      url.searchParams.set("path", path);
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fields }),
+      });
+      if (!res.ok) throw new Error("Airtable POST failed: " + res.status);
+      return res.json();
+    }
+
+    async function airtablePatch(path, fields) {
+      const url = new URL("/api/airtable", location.origin);
+      url.searchParams.set("path", path);
+      const res = await fetch(url, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fields }),
+      });
+      if (!res.ok) throw new Error("Airtable PATCH failed: " + res.status);
+      return res.json();
+    }
+
+    // ---- Screen plumbing ----
+    const screens = {};
+    document.querySelectorAll(".screen").forEach((el) => { screens[el.id] = el; });
+    function showScreen(id) {
+      Object.values(screens).forEach((el) => el.classList.add("hidden"));
+      screens[id].classList.remove("hidden");
+    }
+
+    // ---- PIN screen ----
+    const dots = [...document.querySelectorAll(".dot")];
+    const pinMsg = document.getElementById("pin-msg");
+    let pin = "";
+    let locked = false;
+    let currentEmployee = null;
+
+    function renderDots(state) {
+      dots.forEach((dot, i) => {
+        dot.className = "dot";
+        if (i < pin.length) dot.classList.add(state === "error" ? "error" : "filled");
+      });
+    }
+    function resetPin() {
+      pin = "";
+      pinMsg.textContent = "";
+      renderDots();
+    }
+
+    async function submitPin() {
+      locked = true;
+      try {
+        const formula = `AND({PIN 🔢}=${pin},{Er starfandi? ✅}=1)`;
+        const data = await airtableGet(STARFSMENN_TABLE, { filterByFormula: formula, maxRecords: 1 });
+        const record = (data.records || [])[0];
+        if (!record) {
+          pinMsg.textContent = "Rangt PIN númer";
+          renderDots("error");
+          setTimeout(() => { locked = false; resetPin(); }, 900);
+          return;
+        }
+        currentEmployee = record;
+        locked = false;
+        document.getElementById("station-title").textContent =
+          `Hæ ${record.fields["Nafn starfsmanns 👷"] || ""} — veldu stöð`;
+        showScreen("screen-station");
+      } catch (err) {
+        pinMsg.textContent = "Villa — reyndu aftur";
+        renderDots("error");
+        setTimeout(() => { locked = false; resetPin(); }, 1200);
+      }
+    }
+
+    document.querySelectorAll(".pad button[data-d]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (locked || pin.length >= 4) return;
+        pin += btn.dataset.d;
+        renderDots();
+        if (pin.length === 4) submitPin();
+      });
+    });
+    document.getElementById("back-btn").addEventListener("click", () => {
+      if (locked) return;
+      pin = pin.slice(0, -1);
+      pinMsg.textContent = "";
+      renderDots();
+    });
+    document.getElementById("clear-btn").addEventListener("click", () => {
+      if (locked) return;
+      resetPin();
+    });
+
+    function backToPin() {
+      currentEmployee = null;
+      selectedStation = null;
+      selectedProject = null;
+      openSession = null;
+      stopTimerTick();
+      showScreen("screen-pin");
+      resetPin();
+    }
+    document.getElementById("station-cancel").addEventListener("click", backToPin);
+
+    // ---- Station select ----
+    let selectedStation = null; // "Kantlíming" | "Spónlagt" | "Lökkun"
+    let selectedProject = null; // Tækifæri record
+    let openSession = null; // open Kantlíming Stöðvatímar record, if any
+
+    document.querySelectorAll(".station-btn").forEach((btn) => {
+      btn.addEventListener("click", () => selectStation(btn.dataset.station));
+    });
+
+    async function selectStation(station) {
+      selectedStation = station;
+      if (station === "Kantlíming") {
+        showScreen("screen-projects");
+        document.getElementById("projects-title").textContent = "Athuga stöðu…";
+        document.getElementById("project-list").innerHTML = "";
+        document.getElementById("project-msg").textContent = "";
+        try {
+          const data = await airtableGet(STODVATIMAR_TABLE, {
+            filterByFormula: `AND({Stöð}="Kantlíming",{Út}=BLANK())`,
+            maxRecords: 1,
+          });
+          const open = (data.records || [])[0];
+          if (open) {
+            openSession = open;
+            const projectId = (open.fields["Tækifæri 📣 (projects)"] || [])[0];
+            let projectName = "";
+            if (projectId) {
+              const proj = await airtableGet(`${TAEKIFAERI_TABLE}/${projectId}`);
+              projectName = proj.fields["Heiti tækifæris / verkefnis"] || "";
+            }
+            showRunning(projectName, open);
+            return;
+          }
+        } catch {
+          document.getElementById("project-msg").textContent = "Villa við að athuga stöðu — reyndu aftur";
+          return;
+        }
+      }
+      showProjectList();
+    }
+
+    // ---- Project list ----
+    async function showProjectList() {
+      showScreen("screen-projects");
+      document.getElementById("projects-title").textContent = `${selectedStation} — veldu verkefni`;
+      const list = document.getElementById("project-list");
+      const msg = document.getElementById("project-msg");
+      list.innerHTML = "";
+      msg.textContent = "Sæki verkefni…";
+      try {
+        const formula = `NOT(OR({Staða í framleiðslu}="Afhent (LOKIÐ ✅)",{Staða í framleiðslu}="Má Afhenda 🚚"))`;
+        const records = await airtableGetAll(TAEKIFAERI_TABLE, { filterByFormula: formula, pageSize: 100 });
+        records.sort((a, b) =>
+          (a.fields["Heiti tækifæris / verkefnis"] || "").localeCompare(b.fields["Heiti tækifæris / verkefnis"] || "", "is"));
+        msg.textContent = records.length ? "" : "Engin virk verkefni fundust";
+        records.forEach((rec) => {
+          const btn = document.createElement("button");
+          btn.className = "project-btn";
+          btn.textContent = rec.fields["Heiti tækifæris / verkefnis"] || "(Ónefnt verkefni)";
+          btn.addEventListener("click", () => selectProject(rec));
+          list.appendChild(btn);
+        });
+      } catch {
+        msg.textContent = "Villa við að sækja verkefni — reyndu aftur";
+      }
+    }
+    document.getElementById("projects-back").addEventListener("click", () => showScreen("screen-station"));
+
+    async function selectProject(project) {
+      selectedProject = project;
+      if (selectedStation === "Kantlíming") {
+        showScreen("screen-count");
+        document.getElementById("count-project").textContent = project.fields["Heiti tækifæris / verkefnis"] || "";
+        document.getElementById("count-number").textContent = "…";
+        document.getElementById("btn-start").disabled = true;
+        try {
+          const name = (project.fields["Heiti tækifæris / verkefnis"] || "").replace(/"/g, '\\"');
+          const formula = `AND({Tækifæri 📣 (projects)}="${name}",OR({Kant F_h}!="",{Kant B_h}!="",{Kant V_h}!="",{Kant H_h}!=""))`;
+          const records = await airtableGetAll(SOGUNARLISTI_TABLE, { filterByFormula: formula, pageSize: 100 });
+          document.getElementById("count-number").textContent = records.length;
+          document.getElementById("btn-start").disabled = false;
+        } catch {
+          document.getElementById("count-number").textContent = "villa";
+        }
+      } else {
+        showScreen("screen-estimate");
+        document.getElementById("estimate-project").textContent =
+          `${selectedStation} — ${project.fields["Heiti tækifæris / verkefnis"] || ""}`;
+        document.getElementById("estimate-hours").value = "";
+        document.getElementById("estimate-msg").textContent = "";
+      }
+    }
+    document.getElementById("count-back").addEventListener("click", showProjectList);
+    document.getElementById("estimate-back").addEventListener("click", showProjectList);
+
+    // ---- Kantlíming: start/stop ----
+    let timerInterval = null;
+    function stopTimerTick() {
+      if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+    }
+    function showRunning(projectName, session) {
+      openSession = session;
+      showScreen("screen-running");
+      document.getElementById("running-project").textContent = projectName;
+      const pieces = session.fields["Fjöldi stykkja"];
+      document.getElementById("running-pieces").textContent =
+        pieces != null ? `${pieces} stykki` : "";
+      const start = new Date(session.fields["Inn"]);
+      stopTimerTick();
+      function tick() {
+        const s = Math.max(0, Math.floor((Date.now() - start.getTime()) / 1000));
+        const hh = Math.floor(s / 3600);
+        const mm = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
+        const ss = String(s % 60).padStart(2, "0");
+        document.getElementById("timer-display").textContent = hh > 0 ? `${hh}:${mm}:${ss}` : `${mm}:${ss}`;
+      }
+      tick();
+      timerInterval = setInterval(tick, 1000);
+    }
+
+    document.getElementById("btn-start").addEventListener("click", async () => {
+      const btn = document.getElementById("btn-start");
+      btn.disabled = true;
+      const pieces = parseInt(document.getElementById("count-number").textContent, 10) || 0;
+      const now = new Date();
+      try {
+        const record = await airtablePost(STODVATIMAR_TABLE, {
+          "Inn": now.toISOString(),
+          "Stöð": "Kantlíming",
+          "Tækifæri 📣 (projects)": [selectedProject.id],
+          "Starfsmaður": [currentEmployee.id],
+          "Fjöldi stykkja": pieces,
+        });
+        showRunning(selectedProject.fields["Heiti tækifæris / verkefnis"] || "", record);
+      } catch {
+        btn.disabled = false;
+        document.getElementById("count-project").textContent += " — villa við að byrja, reyndu aftur";
+      }
+    });
+
+    document.getElementById("btn-stop").addEventListener("click", async () => {
+      const btn = document.getElementById("btn-stop");
+      btn.disabled = true;
+      stopTimerTick();
+      const now = new Date();
+      try {
+        await airtablePatch(`${STODVATIMAR_TABLE}/${openSession.id}`, { "Út": now.toISOString() });
+        showConfirm("Kantlíming skráð", `${document.getElementById("running-project").textContent} — ${document.getElementById("timer-display").textContent}`);
+      } catch {
+        btn.disabled = false;
+        showRunning(document.getElementById("running-project").textContent, openSession);
+      }
+    });
+
+    // ---- Spónlagt / Lökkun: estimate ----
+    document.getElementById("btn-estimate-submit").addEventListener("click", async () => {
+      const input = document.getElementById("estimate-hours");
+      const hours = parseFloat(input.value);
+      const msg = document.getElementById("estimate-msg");
+      if (!hours || hours <= 0) {
+        msg.textContent = "Sláðu inn fjölda klukkustunda";
+        return;
+      }
+      const btn = document.getElementById("btn-estimate-submit");
+      btn.disabled = true;
+      msg.textContent = "";
+      const now = new Date();
+      const until = new Date(now.getTime() + hours * 3600 * 1000);
+      try {
+        await airtablePost(STODVATIMAR_TABLE, {
+          "Inn": now.toISOString(),
+          "Út": until.toISOString(),
+          "Stöð": selectedStation,
+          "Tækifæri 📣 (projects)": [selectedProject.id],
+          "Starfsmaður": [currentEmployee.id],
+          "Áætlað ✅": true,
+        });
+        showConfirm(`${selectedStation} skráð`, `${selectedProject.fields["Heiti tækifæris / verkefnis"] || ""} — ${hours} klst (áætlað)`);
+      } catch {
+        btn.disabled = false;
+        msg.textContent = "Villa við að skrá — reyndu aftur";
+      }
+    });
+
+    // ---- Confirm screen ----
+    function showConfirm(text, sub) {
+      showScreen("screen-confirm");
+      document.getElementById("confirm-text").textContent = text;
+      document.getElementById("confirm-sub").textContent = sub || "";
+      setTimeout(backToPin, 2400);
+    }
+  </script>
+</body>
+</html>

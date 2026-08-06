@@ -2,7 +2,7 @@
 // Airtable proxy — keeps the Personal Access Token server-side only, so it
 // never sits in committed code or page source (GitHub's push protection
 // blocks any commit containing an Airtable PAT). Used by cutlist.html,
-// dashboard.html, labels.html and stimpilklukka.html.
+// dashboard.html, labels.html, stimpilklukka.html and stod.html.
 //
 // Two layers of restriction, both enforced server-side (never trust the
 // client to only ask for what it needs):
@@ -17,6 +17,7 @@
 const AIRTABLE_BASE = "app91U15z9K704Okd";
 const STIMPLANIR_TABLE = "tblnFIO8RB6HcelXF";
 const ORLOFSBEIDNIR_TABLE = "tbljdg6uxEfHE7uCU";
+const STODVATIMAR_TABLE = "tbl74vVH41s8u4NGV";
 
 const ALLOWED_FIELDS = {
   "tbl4LMXlQjp66RFKI": [ // Tækifæri 📣 (projects)
@@ -80,6 +81,16 @@ const ALLOWED_FIELDS = {
     "Starfsmaður",
     "Staða",
   ],
+  "tbl74vVH41s8u4NGV": [ // Stöðvatímar ⏱️ (Kantlíming/Spónlagt/Lökkun time log)
+    "Inn",
+    "Út",
+    "Stöð",
+    "Tækifæri 📣 (projects)",
+    "Starfsmaður",
+    "Fjöldi stykkja",
+    "Áætlað ✅",
+    "Klst",
+  ],
 };
 
 // Tables that hold credential-like or health-adjacent data — a request with
@@ -104,6 +115,11 @@ const CREATABLE_FIELDS = {
   "tblnFIO8RB6HcelXF": ["Inn", "Starfsmaður", "Mánuður 🗓️", "Ár 🗓️"],
   "tbl3e5o0Klv9RcNQ4": ["Dagsetning", "Starfsmaður", "Tegund"],
   "tbljdg6uxEfHE7uCU": ["Frá", "Til", "Starfsmaður"],
+  // Unlike Stimplanir, "Út" IS creatable here — Kantlíming opens blank (Út
+  // set later via PATCH, same start/stop pattern as a shift), but Spónlagt/
+  // Lökkun have no real start/stop point, so stod.html submits an estimate
+  // as one already-closed session (Út = Inn + guessed hours) in a single POST.
+  "tbl74vVH41s8u4NGV": ["Inn", "Út", "Stöð", "Tækifæri 📣 (projects)", "Starfsmaður", "Fjöldi stykkja", "Áætlað ✅"],
 };
 
 // Fields forced to a fixed value on create, regardless of what (or whether)
@@ -137,6 +153,9 @@ const WRITABLE_FIELDS = {
   // Closes an open shift (stimpilklukka's ÚT button). "Inn" is intentionally
   // not writable here — a shift's start time is only ever set at creation.
   "tblnFIO8RB6HcelXF": ["Út"],
+  // Closes an open Kantlíming session (stod.html's Ljúka button). Spónlagt/
+  // Lökkun rows are never patched — they're created already-closed.
+  "tbl74vVH41s8u4NGV": ["Út"],
 };
 
 // URLSearchParams serializes spaces as "+" (application/x-www-form-urlencoded).
