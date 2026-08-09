@@ -43,6 +43,22 @@ const ALLOWED_FIELDS = {
     "Lokið",
     "Skurðarskrá",
     "Tegund einingu",
+    "Yfirfr.",
+    "Fræst",
+    "Magn fræst",
+    "Eyðublað ✏️", // used by fraesing.html to group parts by unit
+  ],
+  "tbl0WcyHhz63pSzZX": [ // Eyðublað ✏️ — read-only, used by fraesing.html to render one card per unit
+    "Athugasemd", // primary field — the unit's own short name (e.g. "SK 20")
+    "Tækifæri 📣 (projects)",
+    "Tækifæri 📣", // old project-link field — some units are only linked via this one
+    "Hvað viltu smíða?",
+    "Athugasemd til fræsara 🔬",
+    "Sérsmíði tegund",
+    "Frontur / Hlið tegund",
+    "Skúffutegund",
+    "LED magn",
+    "N", "M", "K", "C", "F", "E", "IN", "IM", "IK", "IC", "IF", "IE",
   ],
   "tbl8CrVWKF8CuI7HD": [ // Efnislisti 🧱
     "Heiti efnis",
@@ -149,7 +165,9 @@ function isKioskPaired(req) {
 // print-server.js is the sole owner of setting that field; this proxy only
 // ever sets B.A.S. to request a print, then reads Lokið to see it complete.
 const WRITABLE_FIELDS = {
-  "tblhdgyvTcBfP8kov": ["H", "B", "Þ", "Villa?", "Athugasemd", "B.A.S.", "Skurðarskrá"],
+  // "Fræst"/"Magn fræst" (milling done / partial quantity done) are written
+  // by fraesing.html's toggle buttons.
+  "tblhdgyvTcBfP8kov": ["H", "B", "Þ", "Villa?", "Athugasemd", "B.A.S.", "Skurðarskrá", "Fræst", "Magn fræst"],
   // Closes an open shift (stimpilklukka's ÚT button). "Inn" is intentionally
   // not writable here — a shift's start time is only ever set at creation.
   "tblnFIO8RB6HcelXF": ["Út"],

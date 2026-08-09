@@ -339,16 +339,28 @@ async function fetchWithRetry(url, options, maxRetries = 3) {
   }
 }
 
-async function airtableFetch(table, params, recordId) {
-  const url = new URL(PROXY_URL, window.location.origin);
-  url.searchParams.set("path", recordId ? `${table}/${recordId}` : table);
+// Builds a query string with plain encodeURIComponent — NOT URLSearchParams.
+// URLSearchParams serializes spaces as "+", and Vercel's server-side query
+// parser (verified by direct testing) leaves a literal "+" untouched rather
+// than decoding it back to a space, so a filterByFormula referencing a field
+// name with a space (e.g. {Staða í söluferli}) silently corrupts into
+// "Staða+í+söluferli" and Airtable rejects the whole formula as invalid —
+// this was breaking the project dropdown outright. encodeURIComponent always
+// emits %20, which survives the round trip intact.
+function buildQueryString(params) {
+  const parts = [];
   for (const [k, v] of Object.entries(params || {})) {
-    if (Array.isArray(v)) v.forEach(x => url.searchParams.append(k, x));
-    else if (v !== undefined) url.searchParams.set(k, v);
+    if (Array.isArray(v)) v.forEach(x => parts.push(`${encodeURIComponent(k)}=${encodeURIComponent(x)}`));
+    else if (v !== undefined) parts.push(`${encodeURIComponent(k)}=${encodeURIComponent(v)}`);
   }
+  return parts.join("&");
+}
+
+async function airtableFetch(table, params, recordId) {
+  const allParams = { path: recordId ? `${table}/${recordId}` : table, ...(params || {}) };
 
   if (recordId) {
-    const res = await fetchWithRetry(url.toString());
+    const res = await fetchWithRetry(`${PROXY_URL}?${buildQueryString(allParams)}`);
     if (!res.ok) throw new Error(`Airtable HTTP ${res.status}`);
     return res.json();
   }
@@ -356,8 +368,8 @@ async function airtableFetch(table, params, recordId) {
   let records = [];
   let offset;
   do {
-    if (offset) url.searchParams.set("offset", offset);
-    const res = await fetchWithRetry(url.toString());
+    const qs = buildQueryString(offset ? { ...allParams, offset } : allParams);
+    const res = await fetchWithRetry(`${PROXY_URL}?${qs}`);
     if (!res.ok) throw new Error(`Airtable HTTP ${res.status}`);
     const data = await res.json();
     records = records.concat(data.records || []);
@@ -367,9 +379,8 @@ async function airtableFetch(table, params, recordId) {
 }
 
 async function patchSogunarlisti(recordId, fields) {
-  const url = new URL(PROXY_URL, window.location.origin);
-  url.searchParams.set("path", `${SOGUNARLISTI_TABLE}/${recordId}`);
-  const res = await fetchWithRetry(url.toString(), {
+  const qs = buildQueryString({ path: `${SOGUNARLISTI_TABLE}/${recordId}` });
+  const res = await fetchWithRetry(`${PROXY_URL}?${qs}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ fields }),

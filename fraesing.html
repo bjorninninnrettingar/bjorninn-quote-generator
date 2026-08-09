@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Yfirfræsun (Sögun) — Björninn</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0a0a0a;
+    color: #f0f0f0;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    min-height: 100vh;
+    padding: 24px 40px 60px;
+  }
+  h1 { font-size: 1.6rem; letter-spacing: 0.03em; margin-bottom: 4px; }
+  .sub { color: #888; font-size: 0.95rem; margin-bottom: 24px; }
+
+  .card {
+    background: #161616;
+    border: 1px solid #222;
+    border-radius: 10px;
+    padding: 18px 22px;
+    margin-bottom: 18px;
+  }
+
+  label { display: block; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: #999; margin-bottom: 6px; }
+
+  select {
+    background: #0d0d0d;
+    border: 1px solid #333;
+    color: #f0f0f0;
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 1.1rem;
+    width: 100%;
+    max-width: 480px;
+  }
+
+  .toolbar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 6px; }
+  .toolbar-right { margin-left: auto; }
+
+  .filter-pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 0.9rem; font-weight: 600; cursor: pointer;
+    padding: 8px 16px; border: 1.5px solid #333; border-radius: 8px;
+    user-select: none;
+  }
+  .filter-pill.active { border-color: #2196f3; color: #2196f3; background: #0d1a26; }
+  .filter-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: #333; }
+  .filter-pill.active .dot { background: #2196f3; }
+
+  button {
+    background: #333;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 18px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:hover { background: #444; }
+
+  .units { display: flex; flex-direction: column; gap: 14px; }
+
+  .unit-card {
+    background: #131313;
+    border: 1.5px solid #262626;
+    border-radius: 12px;
+    padding: 18px 20px;
+  }
+  .unit-card.unit-done { border-color: #2e7d32; background: #0f1a10; }
+
+  .unit-head {
+    display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+    margin-bottom: 4px;
+  }
+  .unit-name { font-size: 1.25rem; font-weight: 700; }
+  .unit-tegund { font-size: 0.8rem; color: #777; }
+  .unit-innihald { color: #aaa; font-size: 0.92rem; margin-bottom: 8px; }
+  .unit-note {
+    color: #f5c518; font-size: 0.88rem; margin-bottom: 12px;
+    background: #1a170d; border: 1px solid #3a3115; border-radius: 6px;
+    padding: 6px 10px; display: inline-block;
+  }
+
+  .pieces { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  .piece-btn {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+    text-align: left; border-radius: 8px; padding: 10px 14px; border: none;
+    background: #2196f3; color: #fff; min-width: 90px;
+    transition: background 0.15s ease;
+  }
+  .piece-btn:hover { background: #1976d2; }
+  .piece-btn.done { background: #2e7d32; }
+  .piece-btn.done:hover { background: #256427; }
+  .piece-btn .partur { font-size: 0.92rem; font-weight: 700; white-space: nowrap; }
+  .piece-btn .qty { font-size: 0.75rem; opacity: 0.85; }
+
+  .empty-msg { color: #666; text-align: center; padding: 40px; font-size: 1.1rem; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+
+  <h1>Yfirfræsun — Sögun</h1>
+  <div class="sub">Veldu verkefni, ýttu á stykki þegar það er fullfræst.</div>
+
+  <div class="card" id="searchCard">
+    <label>Veldu verkefni (Tækifæri)</label>
+    <input type="search" id="projectSearch" placeholder="Leita að verkefni…"
+      style="width:100%;padding:8px 10px;border:1px solid #444;border-radius:6px;background:#1a1a1a;color:#fff;font-size:1rem;margin-bottom:6px;box-sizing:border-box;"
+      oninput="filterProjectOptions()" />
+    <select id="projectSelect">
+      <option value="">Veldu verkefni…</option>
+    </select>
+  </div>
+
+  <div class="card hidden" id="projectCard">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+      <button class="secondary" onclick="goBack()" style="padding:4px 12px;font-size:0.85rem;">← Til baka</button>
+      <div style="font-size:1.2rem;font-weight:700;" id="projectName"></div>
+    </div>
+    <div class="sub" id="projectStatus" style="margin-bottom:0;">Sæki gögn…</div>
+  </div>
+
+  <div class="card hidden" id="listCard">
+    <div class="toolbar">
+      <select id="tegundSelect" style="max-width:260px;" onchange="onFilterChange()">
+        <option value="">Allar tegundir</option>
+      </select>
+      <div class="filter-pill" id="filterPill" onclick="toggleFilter()">
+        <span class="dot"></span>Sýna ólokið eingöngu
+      </div>
+      <div class="toolbar-right">
+        <button onclick="loadProject(currentProjectId)">↺ Uppfæra</button>
+      </div>
+    </div>
+    <div class="units" id="units"></div>
+  </div>
+
+<script>
+// ── CONFIGURATION ────────────────────────────────────────────────────────
+const PROXY_URL = "/api/airtable";
+
+const PROJECTS_TABLE     = "tbl4LMXlQjp66RFKI"; // Tækifæri 📣 (projects)
+const SOGUNARLISTI_TABLE = "tblhdgyvTcBfP8kov"; // Sögunarlisti 🪚
+const EYDUBLAD_TABLE     = "tbl0WcyHhz63pSzZX"; // Eyðublað ✏️
+
+const P_NAME_FIELD = "Heiti tækifæris / verkefnis";
+const P_STADA_SOLU = "Staða í söluferli";
+const P_STADA_SKIPULAG = "Staða í skipulagi";
+const P_STADA_FRAM = "Staða í framleiðslu";
+
+const S_PROJECT_LINK = "Tækifæri 📣 (projects)";
+const S_PARTUR       = "Partur";
+const S_M            = "M";
+const S_ATHUGASEMD   = "Athugasemd";
+const S_YFIRFR       = "Yfirfr.";
+const S_FRAEST       = "Fræst";
+const S_MAGN_FRAEST  = "Magn fræst";
+const S_EYDUBLAD_LINK = "Eyðublað ✏️";
+
+const U_NAME             = "Athugasemd"; // Eyðublað's own primary field
+const U_PROJECT_LINK     = "Tækifæri 📣 (projects)";
+const U_PROJECT_LINK_OLD = "Tækifæri 📣";
+const U_HVAD_VILTU_SMIDA = "Hvað viltu smíða?";
+const U_CNC_NOTE         = "Athugasemd til fræsara 🔬";
+const U_SERSMIDI_TEGUND  = "Sérsmíði tegund";
+const U_FRONT_HLID_TEGUND = "Frontur / Hlið tegund";
+const U_SKUFFUTEGUND     = "Skúffutegund";
+const U_LED_MAGN         = "LED magn";
+const U_DRAWER_FIELDS    = ["N", "M", "K", "C", "F", "E", "IN", "IM", "IK", "IC", "IF", "IE"];
+
+// Part types that always come in a matched pair of mirror-image panels —
+// shown as two individually-tappable "V hlið"/"H hlið" buttons instead of
+// one generic "×2" button, since an operator thinks of them as two distinct
+// physical pieces, not one batch. If the underlying Sögunarlisti data is a
+// single row (M=2) rather than two separate rows, both buttons share that
+// one row's Fræst state (tapping either flips both together) — there's no
+// way to track "left done, right not" without a second row to hold it.
+const SIDE_PARTUR_NAMES = new Set([
+  "Grunnskápur hlið", "Skápur hlið", "Grunnsk. hlið", "FRE - Hlið", "FRE Grunnsk. hlið",
+  "FRE-Grunnskápur hlið", "FRE2 - Hlið", "FRE2 - Grunnsk. hlið", "Fronta-Grunnskápur hlið",
+  "Lagna - Hliðar", "Lagna - Hliðar úr FRE", "Lagna - Hliðar úr FRE2", "Tækja hlið",
+  "Karmur – Hliðar", "FRE-Vasi innri hlið (hægri)", "FRE-Vasi ytri hlið (hægri)",
+]);
+// ─────────────────────────────────────────────────────────────────────────
+
+let currentProjectId = null;
+let units = []; // [{ id, name, tegund, innihald, note, pieceGroups: [...] }]
+let filterUnfinished = false;
+let selectedTegund = "";
+
+function toNumber(v) {
+  if (v === null || v === undefined) return 0;
+  if (typeof v === "number") return v;
+  const n = Number(String(v).replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function singleSelectName(v) {
+  return v && typeof v === "object" ? String(v.name || "") : String(v || "");
+}
+
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[c]));
+}
+
+async function fetchWithRetry(url, options, maxRetries = 3) {
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(url, options);
+    if (res.status !== 429 || attempt >= maxRetries) return res;
+    await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+  }
+}
+
+// Builds a query string with plain encodeURIComponent — NOT URLSearchParams.
+// URLSearchParams serializes spaces as "+", and Vercel's server-side query
+// parser (verified by direct testing) leaves a literal "+" untouched rather
+// than decoding it back to a space, so a filterByFormula referencing a field
+// name with a space (e.g. {Staða í söluferli}) silently corrupts into
+// "Staða+í+söluferli" and Airtable rejects the whole formula as invalid.
+// encodeURIComponent always emits %20, which survives the round trip intact.
+function buildQueryString(params) {
+  const parts = [];
+  for (const [k, v] of Object.entries(params || {})) {
+    if (Array.isArray(v)) v.forEach(x => parts.push(`${encodeURIComponent(k)}=${encodeURIComponent(x)}`));
+    else if (v !== undefined) parts.push(`${encodeURIComponent(k)}=${encodeURIComponent(v)}`);
+  }
+  return parts.join("&");
+}
+
+async function airtableFetch(table, params, recordId) {
+  const allParams = { path: recordId ? `${table}/${recordId}` : table, ...(params || {}) };
+
+  if (recordId) {
+    const res = await fetchWithRetry(`${PROXY_URL}?${buildQueryString(allParams)}`);
+    if (!res.ok) throw new Error(`Airtable HTTP ${res.status}`);
+    return res.json();
+  }
+
+  let records = [];
+  let offset;
+  do {
+    const qs = buildQueryString(offset ? { ...allParams, offset } : allParams);
+    const res = await fetchWithRetry(`${PROXY_URL}?${qs}`);
+    if (!res.ok) throw new Error(`Airtable HTTP ${res.status}`);
+    const data = await res.json();
+    records = records.concat(data.records || []);
+    offset = data.offset;
+  } while (offset);
+  return records;
+}
+
+async function patchSogunarlisti(recordId, fields) {
+  const qs = buildQueryString({ path: `${SOGUNARLISTI_TABLE}/${recordId}` });
+  const res = await fetchWithRetry(`${PROXY_URL}?${qs}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fields }),
+  });
+  if (!res.ok) throw new Error(`Airtable PATCH HTTP ${res.status}`);
+  return res.json();
+}
+
+async function fetchEligibleProjects() {
+  const formula = `AND(
+    {${P_STADA_SOLU}} = "🏆 Tækifæri unnið",
+    {${P_STADA_SKIPULAG}} = "Klárt til framleiðslu",
+    {${P_STADA_FRAM}} != "Afhent (LOKIÐ ✅)"
+  )`;
+  return airtableFetch(PROJECTS_TABLE, {
+    filterByFormula: formula,
+    "fields[]": [P_NAME_FIELD],
+    pageSize: 100,
+  });
+}
+
+async function fetchEyðublaðForProject(projectName) {
+  const escaped = projectName.replace(/"/g, '\\"');
+  const formula = `OR(
+    FIND("${escaped}", ARRAYJOIN({${U_PROJECT_LINK}})) > 0,
+    FIND("${escaped}", ARRAYJOIN({${U_PROJECT_LINK_OLD}})) > 0
+  )`;
+  return airtableFetch(EYDUBLAD_TABLE, {
+    filterByFormula: formula,
+    "fields[]": [
+      U_NAME, U_PROJECT_LINK, U_PROJECT_LINK_OLD, U_HVAD_VILTU_SMIDA, U_CNC_NOTE,
+      U_SERSMIDI_TEGUND, U_FRONT_HLID_TEGUND, U_SKUFFUTEGUND, U_LED_MAGN,
+      ...U_DRAWER_FIELDS,
+    ],
+    pageSize: 100,
+  });
+}
+
+async function fetchSogunarlistiForProject(projectName) {
+  const escaped = projectName.replace(/"/g, '\\"');
+  const formula = `AND(FIND("${escaped}", ARRAYJOIN({${S_PROJECT_LINK}})) > 0, {${S_YFIRFR}})`;
+  return airtableFetch(SOGUNARLISTI_TABLE, {
+    filterByFormula: formula,
+    "fields[]": [S_PROJECT_LINK, S_PARTUR, S_M, S_ATHUGASEMD, S_FRAEST, S_MAGN_FRAEST, S_EYDUBLAD_LINK],
+    pageSize: 100,
+  });
+}
+
+// "Hvað viltu smíða?" only has 4 broad values (Skáp / Skáp úr FRE /
+// Front / Hlið / Sérsmíði) — doors don't get their own value there, they're
+// a "Sérsmíði tegund" = "Hurð" underneath the generic "Sérsmíði" bucket.
+// Split that out into its own "Hurðir" filter option since doors are
+// common enough to want direct access to, rather than buried inside
+// "Sérsmíði" alongside borðplötur/sökklar/stakar vörur.
+function filterTegund(u) {
+  const hvad = singleSelectName(u.fields[U_HVAD_VILTU_SMIDA]);
+  if (hvad === "Sérsmíði" && singleSelectName(u.fields[U_SERSMIDI_TEGUND]) === "Hurð") {
+    return "Hurðir";
+  }
+  return hvad;
+}
+
+// ── INNIHALD — plain-language summary of what's in the box, for the
+// operator. Ported from the retired Yfirfræsaralisti automation script.
+function buildInnihald(u) {
+  const sersmidiTegund = singleSelectName(u.fields[U_SERSMIDI_TEGUND]);
+  if (sersmidiTegund === "Hurð")      return "Hurð / karmur";
+  if (sersmidiTegund === "Borðplata") return "Borðplata";
+  if (sersmidiTegund === "Stök vara") return "Stök vara";
+  if (sersmidiTegund === "Sérsmíði")  return "Ath. teikningar";
+  if (sersmidiTegund === "Sökull")    return "";
+
+  const frontHlidTegund = singleSelectName(u.fields[U_FRONT_HLID_TEGUND]);
+  if (frontHlidTegund) return frontHlidTegund;
+
+  const drawerParts = [];
+  let totalDrawers = 0;
+  for (const letter of U_DRAWER_FIELDS) {
+    const qty = toNumber(u.fields[letter]);
+    if (qty > 0) {
+      drawerParts.push(`${qty}×${letter}`);
+      totalDrawers += qty;
+    }
+  }
+  if (!drawerParts.length) return "";
+
+  const material = singleSelectName(u.fields[U_SKUFFUTEGUND]);
+  const materialSuffix = material ? ` (${material})` : "";
+  const ledQty = toNumber(u.fields[U_LED_MAGN]);
+  const ledSuffix = ledQty > 0 ? ` | LED ×${ledQty}` : "";
+
+  return `Skúffur: ${drawerParts.join(" · ")}${materialSuffix} | Skúffufrontar: ${totalDrawers}${ledSuffix}`;
+}
+
+// ── PIECE GROUPING (per unit) ───────────────────────────────────────────
+// One button per distinct Partur name within this unit, EXCEPT the
+// side-panel names in SIDE_PARTUR_NAMES, which split into two named
+// buttons ("V hlið"/"H hlið") when there are either exactly two underlying
+// records, or one record whose quantity is 2.
+//
+// A group backed by exactly one record with quantity > 1 (the common case
+// for e.g. "Slár ×4") is "cyclable": instead of one all-or-nothing toggle,
+// each tap advances that record's own "Magn fræst" by one piece, and the
+// button fills green proportionally (half green/half blue at 2 of 4, etc).
+// A group backed by MULTIPLE records (rare — e.g. two separate "Slár" rows)
+// falls back to the simple all-or-nothing toggle, same as before; there's
+// no single field to track partial progress across several rows.
+function buildPieceGroups(pieces) {
+  const byPartur = new Map();
+  for (const p of pieces) {
+    if (!byPartur.has(p.partur)) byPartur.set(p.partur, []);
+    byPartur.get(p.partur).push(p);
+  }
+
+  const groupsOut = [];
+  let i = 0;
+  for (const [partur, records] of byPartur) {
+    const totalQty = records.reduce((s, r) => s + r.m, 0);
+    const isSide = SIDE_PARTUR_NAMES.has(partur);
+
+    if (isSide && records.length === 2) {
+      groupsOut.push({ key: `g${i++}`, label: "V hlið", records: [records[0]], cyclable: false });
+      groupsOut.push({ key: `g${i++}`, label: "H hlið", records: [records[1]], cyclable: false });
+    } else if (isSide && records.length === 1 && totalQty === 2) {
+      groupsOut.push({ key: `g${i++}`, label: "V hlið", records: [records[0]], cyclable: false });
+      groupsOut.push({ key: `g${i++}`, label: "H hlið", records: [records[0]], cyclable: false });
+    } else if (records.length === 1 && totalQty > 1) {
+      groupsOut.push({ key: `g${i++}`, label: partur, records, qty: totalQty, cyclable: true });
+    } else {
+      groupsOut.push({ key: `g${i++}`, label: partur, records, qty: totalQty, cyclable: false });
+    }
+  }
+  // Stable alphabetical order every time — so a piece is always in the same
+  // spot on the card regardless of what order Airtable happened to return
+  // the underlying records in, and the operator can learn its position
+  // instead of having to scan for it each time.
+  groupsOut.sort((a, b) => a.label.localeCompare(b.label, "is"));
+  return groupsOut;
+}
+
+function groupProgress(g) {
+  if (g.cyclable) {
+    const r = g.records[0];
+    const done = Math.max(0, Math.min(r.magnFraest || 0, r.m));
+    return { done, total: r.m };
+  }
+  const done = g.records.filter(r => r.fraest).length;
+  return { done, total: g.records.length };
+}
+
+function groupStatus(g) {
+  const { done, total } = groupProgress(g);
+  if (done <= 0) return "none";
+  if (done >= total) return "done";
+  return "partial";
+}
+
+// ── TOGGLE ───────────────────────────────────────────────────────────────
+// Non-cyclable groups: tapping flips every underlying record at once
+// (usually one record, two for a linked V/H hlið pair sharing a single
+// row). Tap again on a done button to undo.
+// Cyclable groups: tapping advances "Magn fræst" by one piece, wrapping
+// back to 0 once it would exceed the quantity — so repeated taps cycle
+// through every partial state instead of jumping straight to "all done".
+let isSaving = false;
+
+async function togglePiece(unitId, groupKey) {
+  if (isSaving) return;
+  const u = units.find(x => x.id === unitId);
+  const g = u?.pieceGroups.find(x => x.key === groupKey);
+  if (!g) return;
+
+  isSaving = true;
+  renderUnits();
+  try {
+    if (g.cyclable) {
+      const r = g.records[0];
+      const current = Math.max(0, Math.min(r.magnFraest || 0, r.m));
+      const next = current >= r.m ? 0 : current + 1;
+      await patchSogunarlisti(r.id, { [S_MAGN_FRAEST]: next, [S_FRAEST]: next >= r.m });
+      r.magnFraest = next;
+      r.fraest = next >= r.m;
+    } else {
+      const targetValue = groupStatus(g) !== "done";
+      const seen = new Set();
+      for (const r of g.records) {
+        if (seen.has(r.id)) continue; // a shared record (linked V/H pair) is only patched once
+        seen.add(r.id);
+        if (r.fraest === targetValue) continue;
+        await patchSogunarlisti(r.id, { [S_FRAEST]: targetValue });
+        r.fraest = targetValue;
+      }
+    }
+  } catch (e) {
+    alert("Villa við að vista — reyndu aftur: " + e.message);
+  } finally {
+    isSaving = false;
+    renderUnits();
+  }
+}
+
+// ── LOAD / RENDER ────────────────────────────────────────────────────────
+async function loadProject(projectId) {
+  currentProjectId = projectId;
+  document.getElementById("searchCard").classList.add("hidden");
+  document.getElementById("projectCard").classList.remove("hidden");
+  document.getElementById("listCard").classList.add("hidden");
+  document.getElementById("projectStatus").textContent = "Sæki gögn…";
+
+  const opt = document.querySelector(`#projectSelect option[value="${projectId}"]`);
+  const projectName = opt?.dataset.name || opt?.textContent || projectId;
+  document.getElementById("projectName").textContent = projectName;
+
+  const [unitRows, pieceRows] = await Promise.all([
+    fetchEyðublaðForProject(projectName),
+    fetchSogunarlistiForProject(projectName),
+  ]);
+
+  const unitRowsInProject = unitRows.filter(r =>
+    (r.fields[U_PROJECT_LINK] || []).includes(projectId) ||
+    (r.fields[U_PROJECT_LINK_OLD] || []).includes(projectId)
+  );
+
+  const pieces = pieceRows
+    .filter(r => (r.fields[S_PROJECT_LINK] || []).includes(projectId))
+    .map(r => ({
+      id: r.id,
+      partur: String(r.fields[S_PARTUR] || "").trim(),
+      m: toNumber(r.fields[S_M]) || 1,
+      athugasemd: String(r.fields[S_ATHUGASEMD] || "").trim(),
+      fraest: !!r.fields[S_FRAEST],
+      magnFraest: toNumber(r.fields[S_MAGN_FRAEST]),
+      unitId: (r.fields[S_EYDUBLAD_LINK] || [])[0] || null,
+    }));
+
+  units = unitRowsInProject
+    .map(u => {
+      const ownPieces = pieces.filter(p => p.unitId === u.id);
+      return {
+        id: u.id,
+        name: u.fields[U_NAME] || u.id,
+        tegund: filterTegund(u),
+        innihald: buildInnihald(u),
+        note: String(u.fields[U_CNC_NOTE] || "").trim(),
+        pieceGroups: buildPieceGroups(ownPieces),
+      };
+    })
+    .filter(u => u.pieceGroups.length > 0); // only units that actually need milling
+
+  populateTegundDropdown();
+  document.getElementById("listCard").classList.remove("hidden");
+  rebuildView();
+}
+
+function populateTegundDropdown() {
+  const tegundir = [...new Set(units.map(u => u.tegund).filter(Boolean))].sort((a, b) => a.localeCompare(b, "is"));
+  const select = document.getElementById("tegundSelect");
+  const prev = select.value;
+  select.innerHTML = '<option value="">Allar tegundir</option>' +
+    tegundir.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join("");
+  select.value = tegundir.includes(prev) ? prev : "";
+}
+
+function onFilterChange() {
+  selectedTegund = document.getElementById("tegundSelect").value;
+  rebuildView();
+}
+
+function toggleFilter() {
+  filterUnfinished = !filterUnfinished;
+  document.getElementById("filterPill").classList.toggle("active", filterUnfinished);
+  rebuildView();
+}
+
+function unitIsDone(u) {
+  return u.pieceGroups.every(g => groupStatus(g) === "done");
+}
+
+function rebuildView() {
+  let visible = units;
+  if (selectedTegund) visible = visible.filter(u => u.tegund === selectedTegund);
+  if (filterUnfinished) visible = visible.filter(u => !unitIsDone(u));
+
+  document.getElementById("projectStatus").textContent =
+    `${visible.length} einingar sýndar (af ${units.length})`;
+
+  renderUnits(visible);
+}
+
+function renderUnits(visible) {
+  // Re-render calls from togglePiece() don't recompute the filter — reuse
+  // whatever's currently on screen by re-deriving from the same filters.
+  if (visible === undefined) {
+    let v = units;
+    if (selectedTegund) v = v.filter(u => u.tegund === selectedTegund);
+    if (filterUnfinished) v = v.filter(u => !unitIsDone(u));
+    visible = v;
+  }
+
+  const container = document.getElementById("units");
+  container.innerHTML = "";
+
+  if (!visible.length) {
+    container.innerHTML = `<div class="empty-msg">${filterUnfinished ? "Allt lokið 🎉" : "Engar einingar fundust."}</div>`;
+    return;
+  }
+
+  const sorted = [...visible].sort((a, b) => a.name.localeCompare(b.name, "is", { numeric: true }));
+
+  for (const u of sorted) {
+    const div = document.createElement("div");
+    div.className = `unit-card ${unitIsDone(u) ? "unit-done" : ""}`;
+
+    const piecesHtml = u.pieceGroups.map(g => {
+      const status = groupStatus(g);
+      const { done, total } = groupProgress(g);
+
+      let styleAttr = "";
+      let qtyLabel = "";
+      if (g.cyclable) {
+        qtyLabel = `${done}/${total}`;
+        if (status === "partial") {
+          const pct = Math.round((done / total) * 100);
+          styleAttr = `style="background: linear-gradient(to right, #2e7d32 0%, #2e7d32 ${pct}%, #2196f3 ${pct}%, #2196f3 100%);"`;
+        }
+      } else if (g.qty && g.qty > 1) {
+        qtyLabel = `×${g.qty}`;
+      }
+
+      return `
+        <button type="button" class="piece-btn ${status === "done" ? "done" : ""}" ${styleAttr}
+          ${isSaving ? "disabled" : ""}
+          onclick="togglePiece('${u.id}', '${g.key}')">
+          <div class="partur">${escapeHtml(g.label)} ${status === "done" ? "✓" : ""}</div>
+          ${qtyLabel ? `<div class="qty">${qtyLabel}</div>` : ""}
+        </button>
+      `;
+    }).join("");
+
+    div.innerHTML = `
+      <div class="unit-head">
+        <div class="unit-name">${escapeHtml(u.name)}</div>
+        ${u.tegund ? `<div class="unit-tegund">${escapeHtml(u.tegund)}</div>` : ""}
+      </div>
+      ${u.innihald ? `<div class="unit-innihald">${escapeHtml(u.innihald)}</div>` : ""}
+      ${u.note ? `<div class="unit-note">📝 ${escapeHtml(u.note)}</div>` : ""}
+      <div class="pieces">${piecesHtml}</div>
+    `;
+    container.appendChild(div);
+  }
+}
+
+document.getElementById("projectSelect").addEventListener("change", (e) => {
+  if (e.target.value) loadProject(e.target.value);
+});
+
+function goBack() {
+  document.getElementById("searchCard").classList.remove("hidden");
+  document.getElementById("projectCard").classList.add("hidden");
+  document.getElementById("listCard").classList.add("hidden");
+  document.getElementById("projectSelect").value = "";
+  document.getElementById("projectSearch").value = "";
+  filterProjectOptions();
+}
+
+function filterProjectOptions() {
+  const q = document.getElementById("projectSearch").value.toLowerCase();
+  const select = document.getElementById("projectSelect");
+  for (const opt of select.options) {
+    opt.hidden = q && !opt.textContent.toLowerCase().includes(q);
+  }
+  const visible = Array.from(select.options).filter(o => !o.hidden && o.value);
+  if (visible.length === 1) {
+    select.value = visible[0].value;
+    loadProject(visible[0].value);
+  }
+}
+
+async function populateProjectDropdown() {
+  const select = document.getElementById("projectSelect");
+  const records = await fetchEligibleProjects();
+  records.sort((a, b) =>
+    (a.fields[P_NAME_FIELD] || "").localeCompare(b.fields[P_NAME_FIELD] || "", "is")
+  );
+  select.innerHTML = '<option value="">— Veldu verkefni —</option>';
+  for (const r of records) {
+    const opt = document.createElement("option");
+    opt.value = r.id;
+    opt.textContent = r.fields[P_NAME_FIELD] || r.id;
+    opt.dataset.name = r.fields[P_NAME_FIELD] || r.id;
+    select.appendChild(opt);
+  }
+}
+
+// Auto-load if opened from an Airtable button: fraesing.html?recordId=recXXXX
+const params = new URLSearchParams(window.location.search);
+const recordIdParam = params.get("recordId");
+if (recordIdParam) {
+  loadProject(recordIdParam);
+} else {
+  populateProjectDropdown();
+}
+</script>
+</body>
+</html>
