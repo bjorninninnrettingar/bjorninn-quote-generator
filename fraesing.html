@@ -402,7 +402,12 @@ function buildPieceGroups(pieces) {
   // one rather than trying to reconcile a range.
   for (const g of groupsOut) {
     const r = g.records[0];
-    g.dims = r.h && r.b ? `${r.h}×${r.b}${r.th ? `×${r.th}` : ""}` : "";
+    // Toppur is always milled 20mm taller than the cutlist height so it
+    // matches Botn's footprint in the CNC and the pieces fit together —
+    // flagged on the button so the operator doesn't mill it to the raw
+    // cutlist number by mistake.
+    const heightLabel = g.label === "Toppur" && r.h ? `${r.h} (+20mm)` : r.h;
+    g.dims = r.h && r.b ? `${heightLabel}×${r.b}${r.th ? `×${r.th}` : ""}` : "";
   }
 
   // Fixed priority order every time — toppur, botn, hliðar, slár, frontur,
