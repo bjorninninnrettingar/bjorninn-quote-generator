@@ -163,6 +163,9 @@
       <div class="filter-pill" id="filterPill" onclick="toggleFilter()">
         <span class="dot"></span>Sýna ólokið eingöngu
       </div>
+      <div class="filter-pill" id="piecesFilterPill" onclick="togglePieceFilter()">
+        <span class="dot"></span>Fela lokin stykki
+      </div>
       <div class="toolbar-right">
         <button onclick="loadProject(currentProjectId)">↺ Uppfæra</button>
       </div>
@@ -231,6 +234,7 @@ const SIDE_PARTUR_NAMES = new Set([
 let currentProjectId = null;
 let units = []; // [{ id, name, tegund, innihald, note, pieceGroups: [...] }]
 let filterUnfinished = false;
+let hideFinishedPieces = false;
 let selectedTegund = "";
 
 function toNumber(v) {
@@ -667,6 +671,12 @@ function toggleFilter() {
   rebuildView();
 }
 
+function togglePieceFilter() {
+  hideFinishedPieces = !hideFinishedPieces;
+  document.getElementById("piecesFilterPill").classList.toggle("active", hideFinishedPieces);
+  renderUnits();
+}
+
 function unitIsDone(u) {
   return u.pieceGroups.every(g => groupStatus(g) === "done");
 }
@@ -701,12 +711,22 @@ function renderUnits(visible) {
   }
 
   const sorted = [...visible].sort((a, b) => a.name.localeCompare(b.name, "is", { numeric: true }));
+  let renderedCount = 0;
 
   for (const u of sorted) {
+    // "Fela lokin stykki" removes individual finished pieces from a unit's
+    // card, not the whole unit — if that empties the card out, skip the
+    // unit entirely rather than showing a title with nothing under it.
+    const groupsToShow = hideFinishedPieces
+      ? u.pieceGroups.filter(g => groupStatus(g) !== "done")
+      : u.pieceGroups;
+    if (!groupsToShow.length) continue;
+    renderedCount++;
+
     const div = document.createElement("div");
     div.className = `unit-card ${unitIsDone(u) ? "unit-done" : ""}`;
 
-    const piecesHtml = u.pieceGroups.map(g => {
+    const piecesHtml = groupsToShow.map(g => {
       const status = groupStatus(g);
       const { done, total } = groupProgress(g);
 
@@ -743,6 +763,10 @@ function renderUnits(visible) {
       <div class="pieces">${piecesHtml}</div>
     `;
     container.appendChild(div);
+  }
+
+  if (!renderedCount) {
+    container.innerHTML = `<div class="empty-msg">Allt lokið 🎉</div>`;
   }
 }
 
