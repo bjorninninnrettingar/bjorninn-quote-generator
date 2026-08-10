@@ -405,12 +405,29 @@ function buildPieceGroups(pieces) {
     g.dims = r.h && r.b ? `${r.h}×${r.b}${r.th ? `×${r.th}` : ""}` : "";
   }
 
-  // Stable alphabetical order every time — so a piece is always in the same
-  // spot on the card regardless of what order Airtable happened to return
-  // the underlying records in, and the operator can learn its position
-  // instead of having to scan for it each time.
-  groupsOut.sort((a, b) => a.label.localeCompare(b.label, "is"));
+  // Fixed priority order every time — toppur, botn, hliðar, slár, frontur,
+  // then everything else alphabetically — so a piece is always in the same
+  // spot on the card and the operator can learn its position instead of
+  // having to scan for it each time. Check order matters: "slár" is checked
+  // before "topp" so compound names like "Toppslár" land in the slár bucket,
+  // not the toppur one.
+  groupsOut.sort((a, b) => {
+    const pa = piecePriority(a.label);
+    const pb = piecePriority(b.label);
+    if (pa !== pb) return pa - pb;
+    return a.label.localeCompare(b.label, "is");
+  });
   return groupsOut;
+}
+
+function piecePriority(label) {
+  const l = label.toLowerCase();
+  if (l.includes("slár")) return 3;
+  if (l.includes("hlið")) return 2;
+  if (l.includes("front")) return 4;
+  if (l.includes("topp")) return 0;
+  if (l.includes("botn")) return 1;
+  return 5;
 }
 
 function groupProgress(g) {
