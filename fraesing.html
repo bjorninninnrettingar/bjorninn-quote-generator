@@ -98,6 +98,7 @@
   .piece-btn.done:hover { background: #256427; }
   .piece-btn .partur { font-size: 0.92rem; font-weight: 700; white-space: nowrap; }
   .piece-btn .qty { font-size: 0.75rem; opacity: 0.85; }
+  .piece-btn .dims { font-size: 0.72rem; opacity: 0.7; }
 
   .empty-msg { color: #666; text-align: center; padding: 40px; font-size: 1.1rem; }
   .hidden { display: none; }
@@ -157,6 +158,9 @@ const P_STADA_FRAM = "Staða í framleiðslu";
 const S_PROJECT_LINK = "Tækifæri 📣 (projects)";
 const S_PARTUR       = "Partur";
 const S_M            = "M";
+const S_H            = "H";
+const S_B            = "B";
+const S_TH           = "Þ";
 const S_ATHUGASEMD   = "Athugasemd";
 const S_YFIRFR       = "Yfirfr.";
 const S_FRAEST       = "Fræst";
@@ -303,7 +307,7 @@ async function fetchSogunarlistiForProject(projectName) {
   const formula = `AND(FIND("${escaped}", ARRAYJOIN({${S_PROJECT_LINK}})) > 0, {${S_YFIRFR}})`;
   return airtableFetch(SOGUNARLISTI_TABLE, {
     filterByFormula: formula,
-    "fields[]": [S_PROJECT_LINK, S_PARTUR, S_M, S_ATHUGASEMD, S_FRAEST, S_MAGN_FRAEST, S_EYDUBLAD_LINK],
+    "fields[]": [S_PROJECT_LINK, S_PARTUR, S_M, S_H, S_B, S_TH, S_ATHUGASEMD, S_FRAEST, S_MAGN_FRAEST, S_EYDUBLAD_LINK],
     pageSize: 100,
   });
 }
@@ -392,6 +396,15 @@ function buildPieceGroups(pieces) {
       groupsOut.push({ key: `g${i++}`, label: partur, records, qty: totalQty, cyclable: false });
     }
   }
+  // Dimensions from the first underlying record — every record in a group
+  // shares the same Partur within the same unit, so in practice they're all
+  // the same size; if they ever genuinely differ this just shows the first
+  // one rather than trying to reconcile a range.
+  for (const g of groupsOut) {
+    const r = g.records[0];
+    g.dims = r.h && r.b ? `${r.h}×${r.b}${r.th ? `×${r.th}` : ""}` : "";
+  }
+
   // Stable alphabetical order every time — so a piece is always in the same
   // spot on the card regardless of what order Airtable happened to return
   // the underlying records in, and the operator can learn its position
@@ -489,6 +502,9 @@ async function loadProject(projectId) {
       id: r.id,
       partur: String(r.fields[S_PARTUR] || "").trim(),
       m: toNumber(r.fields[S_M]) || 1,
+      h: toNumber(r.fields[S_H]),
+      b: toNumber(r.fields[S_B]),
+      th: toNumber(r.fields[S_TH]),
       athugasemd: String(r.fields[S_ATHUGASEMD] || "").trim(),
       fraest: !!r.fields[S_FRAEST],
       magnFraest: toNumber(r.fields[S_MAGN_FRAEST]),
@@ -595,6 +611,7 @@ function renderUnits(visible) {
           onclick="togglePiece('${u.id}', '${g.key}')">
           <div class="partur">${escapeHtml(g.label)} ${status === "done" ? "✓" : ""}</div>
           ${qtyLabel ? `<div class="qty">${qtyLabel}</div>` : ""}
+          ${g.dims ? `<div class="dims">${escapeHtml(g.dims)}mm</div>` : ""}
         </button>
       `;
     }).join("");
