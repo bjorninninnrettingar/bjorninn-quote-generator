@@ -28,6 +28,10 @@ const ALLOWED_FIELDS = {
     "Áætlaður afhendingardagur Björninn (internal)",
     "Framvinda framleiðslu [weighted]",
     "Forgangur framleiðslu 🥇",
+    // Reference PDFs shown at the top of fraesing.html, hidden if empty.
+    "Loka teikningar verkefnis 📋",
+    "Sér fræsi teikningar",
+    "Heimilistæki verkefnis",
   ],
   "tblhdgyvTcBfP8kov": [ // Sögunarlisti 🪚
     "Tækifæri 📣 (projects)",

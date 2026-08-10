@@ -102,6 +102,16 @@
 
   .empty-msg { color: #666; text-align: center; padding: 40px; font-size: 1.1rem; }
   .hidden { display: none; }
+
+  .project-docs { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .doc-group-label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: #999; margin-bottom: 6px; }
+  .doc-links { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-link {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: #1a1a1a; border: 1px solid #333; border-radius: 8px;
+    padding: 8px 12px; font-size: 0.88rem; color: #f0f0f0; text-decoration: none;
+  }
+  .doc-link:hover { background: #242424; border-color: #444; }
 </style>
 </head>
 <body>
@@ -125,6 +135,7 @@
       <div style="font-size:1.2rem;font-weight:700;" id="projectName"></div>
     </div>
     <div class="sub" id="projectStatus" style="margin-bottom:0;">Sæki gögn…</div>
+    <div class="project-docs hidden" id="projectDocs"></div>
   </div>
 
   <div class="card hidden" id="listCard">
@@ -154,6 +165,13 @@ const P_NAME_FIELD = "Heiti tækifæris / verkefnis";
 const P_STADA_SOLU = "Staða í söluferli";
 const P_STADA_SKIPULAG = "Staða í skipulagi";
 const P_STADA_FRAM = "Staða í framleiðslu";
+
+// Reference PDFs shown at the top of the project card, hidden if empty.
+const PROJECT_DOC_FIELDS = [
+  { field: "Loka teikningar verkefnis 📋", label: "Loka teikningar" },
+  { field: "Sér fræsi teikningar", label: "Sér fræsi teikningar" },
+  { field: "Heimilistæki verkefnis", label: "Heimilistæki" },
+];
 
 const S_PROJECT_LINK = "Tækifæri 📣 (projects)";
 const S_PARTUR       = "Partur";
@@ -507,11 +525,15 @@ async function loadProject(projectId) {
   const opt = document.querySelector(`#projectSelect option[value="${projectId}"]`);
   const projectName = opt?.dataset.name || opt?.textContent || projectId;
   document.getElementById("projectName").textContent = projectName;
+  document.getElementById("projectDocs").classList.add("hidden");
+  document.getElementById("projectDocs").innerHTML = "";
 
-  const [unitRows, pieceRows] = await Promise.all([
+  const [unitRows, pieceRows, projectRecord] = await Promise.all([
     fetchEyðublaðForProject(projectName),
     fetchSogunarlistiForProject(projectName),
+    airtableFetch(PROJECTS_TABLE, {}, projectId),
   ]);
+  renderProjectDocs(projectRecord);
 
   const unitRowsInProject = unitRows.filter(r =>
     (r.fields[U_PROJECT_LINK] || []).includes(projectId) ||
@@ -550,6 +572,31 @@ async function loadProject(projectId) {
   populateTegundDropdown();
   document.getElementById("listCard").classList.remove("hidden");
   rebuildView();
+}
+
+function renderProjectDocs(record) {
+  const container = document.getElementById("projectDocs");
+  const groups = PROJECT_DOC_FIELDS
+    .map(({ field, label }) => ({ label, files: record?.fields?.[field] || [] }))
+    .filter(g => g.files.length > 0);
+
+  if (groups.length === 0) {
+    container.classList.add("hidden");
+    container.innerHTML = "";
+    return;
+  }
+
+  container.innerHTML = groups.map(g => `
+    <div class="doc-group">
+      <div class="doc-group-label">${escapeHtml(g.label)}</div>
+      <div class="doc-links">
+        ${g.files.map(f => `
+          <a class="doc-link" href="${escapeHtml(f.url)}" target="_blank" rel="noopener">📄 ${escapeHtml(f.filename || "skjal")}</a>
+        `).join("")}
+      </div>
+    </div>
+  `).join("");
+  container.classList.remove("hidden");
 }
 
 function populateTegundDropdown() {
