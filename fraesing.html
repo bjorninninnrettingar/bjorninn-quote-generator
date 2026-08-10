@@ -160,6 +160,9 @@
       <select id="tegundSelect" style="max-width:260px;" onchange="onFilterChange()">
         <option value="">Allar tegundir</option>
       </select>
+      <select id="parturSelect" style="max-width:260px;" onchange="onFilterChange()">
+        <option value="">Allir hlutir</option>
+      </select>
       <div class="filter-pill" id="filterPill" onclick="toggleFilter()">
         <span class="dot"></span>Sýna ólokið eingöngu
       </div>
@@ -236,6 +239,7 @@ let units = []; // [{ id, name, tegund, innihald, note, pieceGroups: [...] }]
 let filterUnfinished = false;
 let hideFinishedPieces = false;
 let selectedTegund = "";
+let selectedPartur = "";
 
 function toNumber(v) {
   if (v === null || v === undefined) return 0;
@@ -594,6 +598,7 @@ async function loadProject(projectId) {
     .filter(u => u.pieceGroups.length > 0); // only units that actually need milling
 
   populateTegundDropdown();
+  populatePartturDropdown();
   document.getElementById("listCard").classList.remove("hidden");
   rebuildView();
 }
@@ -660,8 +665,18 @@ function populateTegundDropdown() {
   select.value = tegundir.includes(prev) ? prev : "";
 }
 
+function populatePartturDropdown() {
+  const partar = [...new Set(units.flatMap(u => u.pieceGroups.map(g => g.label)))].sort((a, b) => a.localeCompare(b, "is"));
+  const select = document.getElementById("parturSelect");
+  const prev = select.value;
+  select.innerHTML = '<option value="">Allir hlutir</option>' +
+    partar.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join("");
+  select.value = partar.includes(prev) ? prev : "";
+}
+
 function onFilterChange() {
   selectedTegund = document.getElementById("tegundSelect").value;
+  selectedPartur = document.getElementById("parturSelect").value;
   rebuildView();
 }
 
@@ -714,12 +729,14 @@ function renderUnits(visible) {
   let renderedCount = 0;
 
   for (const u of sorted) {
-    // "Fela lokin stykki" removes individual finished pieces from a unit's
-    // card, not the whole unit — if that empties the card out, skip the
-    // unit entirely rather than showing a title with nothing under it.
-    const groupsToShow = hideFinishedPieces
+    // "Fela lokin stykki" and the part-name dropdown both filter pieces
+    // within a unit's card, not the whole unit — if that empties the card
+    // out, skip the unit entirely rather than showing a title with nothing
+    // under it.
+    let groupsToShow = hideFinishedPieces
       ? u.pieceGroups.filter(g => groupStatus(g) !== "done")
       : u.pieceGroups;
+    if (selectedPartur) groupsToShow = groupsToShow.filter(g => g.label === selectedPartur);
     if (!groupsToShow.length) continue;
     renderedCount++;
 
@@ -766,7 +783,9 @@ function renderUnits(visible) {
   }
 
   if (!renderedCount) {
-    container.innerHTML = `<div class="empty-msg">Allt lokið 🎉</div>`;
+    container.innerHTML = selectedPartur
+      ? `<div class="empty-msg">Engin ólokin ${escapeHtml(selectedPartur)} fundust.</div>`
+      : `<div class="empty-msg">Allt lokið 🎉</div>`;
   }
 }
 
