@@ -84,6 +84,11 @@
     background: #1a170d; border: 1px solid #3a3115; border-radius: 6px;
     padding: 6px 10px; display: inline-block;
   }
+  .unit-warning {
+    color: #ff6b6b; font-size: 0.88rem; font-weight: 700; margin-bottom: 12px;
+    background: #260d0d; border: 1px solid #4a1414; border-radius: 6px;
+    padding: 6px 10px; display: inline-block;
+  }
 
   .pieces { display: flex; flex-wrap: wrap; gap: 8px; }
 
@@ -218,6 +223,7 @@ const U_PROJECT_LINK     = "Tækifæri 📣 (projects)";
 const U_PROJECT_LINK_OLD = "Tækifæri 📣";
 const U_HVAD_VILTU_SMIDA = "Hvað viltu smíða?";
 const U_CNC_NOTE         = "Athugasemd til fræsara 🔬";
+const U_SKAPATEGUND      = "Skápategund";
 const U_SERSMIDI_TEGUND  = "Sérsmíði tegund";
 const U_FRONT_HLID_TEGUND = "Frontur / Hlið tegund";
 const U_SKUFFUTEGUND     = "Skúffutegund";
@@ -343,7 +349,7 @@ async function fetchEyðublaðForProject(projectName) {
     filterByFormula: formula,
     "fields[]": [
       U_NAME, U_PROJECT_LINK, U_PROJECT_LINK_OLD, U_HVAD_VILTU_SMIDA, U_CNC_NOTE,
-      U_SERSMIDI_TEGUND, U_FRONT_HLID_TEGUND, U_SKUFFUTEGUND, U_LED_MAGN,
+      U_SKAPATEGUND, U_SERSMIDI_TEGUND, U_FRONT_HLID_TEGUND, U_SKUFFUTEGUND, U_LED_MAGN,
       ...U_DRAWER_FIELDS,
     ],
     pageSize: 100,
@@ -419,6 +425,14 @@ function buildInnihald(u) {
 // A group backed by MULTIPLE records (rare — e.g. two separate "Slár" rows)
 // falls back to the simple all-or-nothing toggle, same as before; there's
 // no single field to track partial progress across several rows.
+// Lagnaskápur side panels (Partur "Lagna - Hliðar..." variants) get their
+// own label instead of the generic "V hlið"/"H hlið" — operators need to
+// know at a glance these are the lagnaskápur sides, which aren't sawn for
+// masonít backing (see the "Lagna - Ekki saga f. masoniti!" unit warning).
+function sideLabel(partur, side) {
+  return partur.toLowerCase().startsWith("lagna") ? `${side} Lagna-hlið` : `${side} hlið`;
+}
+
 function buildPieceGroups(pieces) {
   const byPartur = new Map();
   for (const p of pieces) {
@@ -433,8 +447,8 @@ function buildPieceGroups(pieces) {
     const isSide = SIDE_PARTUR_NAMES.has(partur);
 
     if (isSide && records.length === 2) {
-      groupsOut.push({ key: `g${i++}`, label: "V hlið", records: [records[0]], cyclable: false });
-      groupsOut.push({ key: `g${i++}`, label: "H hlið", records: [records[1]], cyclable: false });
+      groupsOut.push({ key: `g${i++}`, label: sideLabel(partur, "V"), records: [records[0]], cyclable: false });
+      groupsOut.push({ key: `g${i++}`, label: sideLabel(partur, "H"), records: [records[1]], cyclable: false });
     } else if (isSide && records.length === 1 && totalQty >= 2 && totalQty % 2 === 0) {
       // Both sides live on the SAME Airtable row (M = 2 × unit count, e.g. a
       // unit with Fjöldi eininga=2 gives M=4: 2 of each side, not 4 of one
@@ -443,8 +457,8 @@ function buildPieceGroups(pieces) {
       // fræst" count on that one record — half the total quantity each —
       // letting each side be tracked (and partially tracked) independently.
       const sideQty = totalQty / 2;
-      groupsOut.push({ key: `g${i++}`, label: "V hlið", records: [records[0]], side: "V", sideQty, cyclable: true });
-      groupsOut.push({ key: `g${i++}`, label: "H hlið", records: [records[0]], side: "H", sideQty, cyclable: true });
+      groupsOut.push({ key: `g${i++}`, label: sideLabel(partur, "V"), records: [records[0]], side: "V", sideQty, cyclable: true });
+      groupsOut.push({ key: `g${i++}`, label: sideLabel(partur, "H"), records: [records[0]], side: "H", sideQty, cyclable: true });
     } else if (records.length === 1 && totalQty > 1) {
       groupsOut.push({ key: `g${i++}`, label: partur, records, qty: totalQty, cyclable: true });
     } else {
@@ -626,6 +640,7 @@ async function loadProject(projectId) {
         tegund: filterTegund(u),
         innihald: buildInnihald(u),
         note: String(u.fields[U_CNC_NOTE] || "").trim(),
+        isLagnaskapur: singleSelectName(u.fields[U_SKAPATEGUND]) === "Lagnaskápur",
         pieceGroups: buildPieceGroups(ownPieces),
       };
     })
@@ -810,6 +825,7 @@ function renderUnits(visible) {
         ${u.tegund ? `<div class="unit-tegund">${escapeHtml(u.tegund)}</div>` : ""}
       </div>
       ${u.innihald ? `<div class="unit-innihald">${escapeHtml(u.innihald)}</div>` : ""}
+      ${u.isLagnaskapur ? `<div class="unit-warning">⚠️ Lagna - Ekki saga f. masoniti!</div>` : ""}
       ${u.note ? `<div class="unit-note">📝 ${escapeHtml(u.note)}</div>` : ""}
       <div class="pieces">${piecesHtml}</div>
     `;

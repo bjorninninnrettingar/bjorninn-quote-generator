@@ -60,6 +60,7 @@ const ALLOWED_FIELDS = {
     "Tækifæri 📣", // old project-link field — some units are only linked via this one
     "Hvað viltu smíða?",
     "Athugasemd til fræsara 🔬",
+    "Skápategund", // used by fraesing.html to flag Lagnaskápur units
     "Sérsmíði tegund",
     "Frontur / Hlið tegund",
     "Skúffutegund",
