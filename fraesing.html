@@ -425,12 +425,15 @@ function buildInnihald(u) {
 // A group backed by MULTIPLE records (rare — e.g. two separate "Slár" rows)
 // falls back to the simple all-or-nothing toggle, same as before; there's
 // no single field to track partial progress across several rows.
-// Lagnaskápur side panels (Partur "Lagna - Hliðar..." variants) get their
-// own label instead of the generic "V hlið"/"H hlið" — operators need to
-// know at a glance these are the lagnaskápur sides, which aren't sawn for
-// masonít backing (see the "Lagna - Ekki saga f. masoniti!" unit warning).
+// Side panels whose Partur name flags a special material/build get their own
+// label instead of the generic "V hlið"/"H hlið", so an operator can tell at
+// a glance which variant they're holding. FRE2 and "FRE-Vasi..." are checked
+// before the plain FRE prefix so they don't get swept into the FRE bucket.
 function sideLabel(partur, side) {
-  return partur.toLowerCase().startsWith("lagna") ? `${side} Lagna-hlið` : `${side} hlið`;
+  const p = partur.toLowerCase();
+  if (p.startsWith("lagna")) return `${side} Lagna-hlið`;
+  if (p.startsWith("fre") && !p.startsWith("fre2") && !p.startsWith("fre-vasi")) return `FRE- ${side} hlið`;
+  return `${side} hlið`;
 }
 
 function buildPieceGroups(pieces) {
