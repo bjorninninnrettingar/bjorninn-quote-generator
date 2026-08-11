@@ -206,6 +206,8 @@ const S_ATHUGASEMD   = "Athugasemd";
 const S_YFIRFR       = "Yfirfr.";
 const S_FRAEST       = "Fræst";
 const S_MAGN_FRAEST  = "Magn fræst";
+const S_FRAEST_V     = "V hlið fræst"; // per-side done, for a V/H hlið pair sharing one row (M=2)
+const S_FRAEST_H     = "H hlið fræst";
 const S_EYDUBLAD_LINK = "Eyðublað ✏️";
 
 const U_NAME             = "Athugasemd"; // Eyðublað's own primary field
@@ -350,7 +352,7 @@ async function fetchSogunarlistiForProject(projectName) {
   const formula = `AND(FIND("${escaped}", ARRAYJOIN({${S_PROJECT_LINK}})) > 0, {${S_YFIRFR}})`;
   return airtableFetch(SOGUNARLISTI_TABLE, {
     filterByFormula: formula,
-    "fields[]": [S_PROJECT_LINK, S_PARTUR, S_M, S_H, S_B, S_TH, S_ATHUGASEMD, S_FRAEST, S_MAGN_FRAEST, S_EYDUBLAD_LINK],
+    "fields[]": [S_PROJECT_LINK, S_PARTUR, S_M, S_H, S_B, S_TH, S_ATHUGASEMD, S_FRAEST, S_MAGN_FRAEST, S_FRAEST_V, S_FRAEST_H, S_EYDUBLAD_LINK],
     pageSize: 100,
   });
 }
@@ -431,14 +433,12 @@ function buildPieceGroups(pieces) {
       groupsOut.push({ key: `g${i++}`, label: "V hlið", records: [records[0]], cyclable: false });
       groupsOut.push({ key: `g${i++}`, label: "H hlið", records: [records[1]], cyclable: false });
     } else if (isSide && records.length === 1 && totalQty === 2) {
-      // Both sides live on the SAME Airtable row (M=2), so there's no way to
-      // mark just one of them done — a single Fræst/Magn fræst pair can't
-      // distinguish "left" from "right". Splitting this into two buttons
-      // that each read that one shared record used to make tapping either
-      // one show BOTH as done, which falsely implied the untouched side was
-      // also milled. One cyclable button (0→1→2, half-green at 1) is honest
-      // about only tracking a shared count, not which specific side is done.
-      groupsOut.push({ key: `g${i++}`, label: "V/H hlið", records, qty: totalQty, cyclable: true });
+      // Both sides live on the SAME Airtable row (M=2) — the shared "Fræst"
+      // checkbox can't tell left from right, so each button here reads its
+      // own dedicated "V hlið fræst"/"H hlið fræst" field on that one record
+      // instead, letting each side be marked done independently.
+      groupsOut.push({ key: `g${i++}`, label: "V hlið", records: [records[0]], side: "V", cyclable: false });
+      groupsOut.push({ key: `g${i++}`, label: "H hlið", records: [records[0]], side: "H", cyclable: false });
     } else if (records.length === 1 && totalQty > 1) {
       groupsOut.push({ key: `g${i++}`, label: partur, records, qty: totalQty, cyclable: true });
     } else {
@@ -493,6 +493,11 @@ function groupProgress(g) {
     const done = Math.max(0, Math.min(r.magnFraest || 0, r.m));
     return { done, total: r.m };
   }
+  if (g.side) {
+    const r = g.records[0];
+    const done = (g.side === "V" ? r.fraestV : r.fraestH) ? 1 : 0;
+    return { done, total: 1 };
+  }
   const done = g.records.filter(r => r.fraest).length;
   return { done, total: g.records.length };
 }
@@ -529,6 +534,17 @@ async function togglePiece(unitId, groupKey) {
       await patchSogunarlisti(r.id, { [S_MAGN_FRAEST]: next, [S_FRAEST]: next >= r.m });
       r.magnFraest = next;
       r.fraest = next >= r.m;
+    } else if (g.side) {
+      // V and H each have their own field on the same shared record — "Fræst"
+      // is kept in sync as "both sides done" for anything else that might
+      // read it, but each side's own done state is tracked independently.
+      const r = g.records[0];
+      const field = g.side === "V" ? S_FRAEST_V : S_FRAEST_H;
+      const target = !(g.side === "V" ? r.fraestV : r.fraestH);
+      const otherDone = g.side === "V" ? r.fraestH : r.fraestV;
+      await patchSogunarlisti(r.id, { [field]: target, [S_FRAEST]: target && otherDone });
+      if (g.side === "V") r.fraestV = target; else r.fraestH = target;
+      r.fraest = target && otherDone;
     } else {
       const targetValue = groupStatus(g) !== "done";
       const seen = new Set();
@@ -586,6 +602,8 @@ async function loadProject(projectId) {
       athugasemd: String(r.fields[S_ATHUGASEMD] || "").trim(),
       fraest: !!r.fields[S_FRAEST],
       magnFraest: toNumber(r.fields[S_MAGN_FRAEST]),
+      fraestV: !!r.fields[S_FRAEST_V],
+      fraestH: !!r.fields[S_FRAEST_H],
       unitId: (r.fields[S_EYDUBLAD_LINK] || [])[0] || null,
     }));
 
