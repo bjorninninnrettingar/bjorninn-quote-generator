@@ -431,8 +431,14 @@ function buildPieceGroups(pieces) {
       groupsOut.push({ key: `g${i++}`, label: "V hlið", records: [records[0]], cyclable: false });
       groupsOut.push({ key: `g${i++}`, label: "H hlið", records: [records[1]], cyclable: false });
     } else if (isSide && records.length === 1 && totalQty === 2) {
-      groupsOut.push({ key: `g${i++}`, label: "V hlið", records: [records[0]], cyclable: false });
-      groupsOut.push({ key: `g${i++}`, label: "H hlið", records: [records[0]], cyclable: false });
+      // Both sides live on the SAME Airtable row (M=2), so there's no way to
+      // mark just one of them done — a single Fræst/Magn fræst pair can't
+      // distinguish "left" from "right". Splitting this into two buttons
+      // that each read that one shared record used to make tapping either
+      // one show BOTH as done, which falsely implied the untouched side was
+      // also milled. One cyclable button (0→1→2, half-green at 1) is honest
+      // about only tracking a shared count, not which specific side is done.
+      groupsOut.push({ key: `g${i++}`, label: "V/H hlið", records, qty: totalQty, cyclable: true });
     } else if (records.length === 1 && totalQty > 1) {
       groupsOut.push({ key: `g${i++}`, label: partur, records, qty: totalQty, cyclable: true });
     } else {
