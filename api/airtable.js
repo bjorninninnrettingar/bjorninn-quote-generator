@@ -50,8 +50,8 @@ const ALLOWED_FIELDS = {
     "Yfirfr.",
     "Fræst",
     "Magn fræst",
-    "V hlið fræst", // per-side done tracking for a V/H hlið pair sharing one row (M=2)
-    "H hlið fræst",
+    "V hlið magn fræst", // per-side partial done tracking for a V/H hlið pair sharing one row (M=2×unit count)
+    "H hlið magn fræst",
     "Eyðublað ✏️", // used by fraesing.html to group parts by unit
   ],
   "tbl0WcyHhz63pSzZX": [ // Eyðublað ✏️ — read-only, used by fraesing.html to render one card per unit
@@ -172,9 +172,9 @@ function isKioskPaired(req) {
 // ever sets B.A.S. to request a print, then reads Lokið to see it complete.
 const WRITABLE_FIELDS = {
   // "Fræst"/"Magn fræst" (milling done / partial quantity done) and the
-  // per-side "V hlið fræst"/"H hlið fræst" pair are written by fraesing.html's
-  // toggle buttons.
-  "tblhdgyvTcBfP8kov": ["H", "B", "Þ", "Villa?", "Athugasemd", "B.A.S.", "Skurðarskrá", "Fræst", "Magn fræst", "V hlið fræst", "H hlið fræst"],
+  // per-side "V hlið magn fræst"/"H hlið magn fræst" pair are written by
+  // fraesing.html's toggle buttons.
+  "tblhdgyvTcBfP8kov": ["H", "B", "Þ", "Villa?", "Athugasemd", "B.A.S.", "Skurðarskrá", "Fræst", "Magn fræst", "V hlið magn fræst", "H hlið magn fræst"],
   // Closes an open shift (stimpilklukka's ÚT button). "Inn" is intentionally
   // not writable here — a shift's start time is only ever set at creation.
   "tblnFIO8RB6HcelXF": ["Út"],

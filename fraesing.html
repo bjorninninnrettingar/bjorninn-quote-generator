@@ -206,8 +206,11 @@ const S_ATHUGASEMD   = "Athugasemd";
 const S_YFIRFR       = "Yfirfr.";
 const S_FRAEST       = "Fræst";
 const S_MAGN_FRAEST  = "Magn fræst";
-const S_FRAEST_V     = "V hlið fræst"; // per-side done, for a V/H hlið pair sharing one row (M=2)
-const S_FRAEST_H     = "H hlið fræst";
+// Per-side partial-quantity tracking for a V/H hlið pair sharing one row —
+// e.g. a unit repeated ×2 (Fjöldi eininga) gives M=4 on one Grunnskápur
+// hlið row: 2 of each side, not 4 of one generic side.
+const S_MAGN_FRAEST_V = "V hlið magn fræst";
+const S_MAGN_FRAEST_H = "H hlið magn fræst";
 const S_EYDUBLAD_LINK = "Eyðublað ✏️";
 
 const U_NAME             = "Athugasemd"; // Eyðublað's own primary field
@@ -352,7 +355,7 @@ async function fetchSogunarlistiForProject(projectName) {
   const formula = `AND(FIND("${escaped}", ARRAYJOIN({${S_PROJECT_LINK}})) > 0, {${S_YFIRFR}})`;
   return airtableFetch(SOGUNARLISTI_TABLE, {
     filterByFormula: formula,
-    "fields[]": [S_PROJECT_LINK, S_PARTUR, S_M, S_H, S_B, S_TH, S_ATHUGASEMD, S_FRAEST, S_MAGN_FRAEST, S_FRAEST_V, S_FRAEST_H, S_EYDUBLAD_LINK],
+    "fields[]": [S_PROJECT_LINK, S_PARTUR, S_M, S_H, S_B, S_TH, S_ATHUGASEMD, S_FRAEST, S_MAGN_FRAEST, S_MAGN_FRAEST_V, S_MAGN_FRAEST_H, S_EYDUBLAD_LINK],
     pageSize: 100,
   });
 }
@@ -432,13 +435,16 @@ function buildPieceGroups(pieces) {
     if (isSide && records.length === 2) {
       groupsOut.push({ key: `g${i++}`, label: "V hlið", records: [records[0]], cyclable: false });
       groupsOut.push({ key: `g${i++}`, label: "H hlið", records: [records[1]], cyclable: false });
-    } else if (isSide && records.length === 1 && totalQty === 2) {
-      // Both sides live on the SAME Airtable row (M=2) — the shared "Fræst"
-      // checkbox can't tell left from right, so each button here reads its
-      // own dedicated "V hlið fræst"/"H hlið fræst" field on that one record
-      // instead, letting each side be marked done independently.
-      groupsOut.push({ key: `g${i++}`, label: "V hlið", records: [records[0]], side: "V", cyclable: false });
-      groupsOut.push({ key: `g${i++}`, label: "H hlið", records: [records[0]], side: "H", cyclable: false });
+    } else if (isSide && records.length === 1 && totalQty >= 2 && totalQty % 2 === 0) {
+      // Both sides live on the SAME Airtable row (M = 2 × unit count, e.g. a
+      // unit with Fjöldi eininga=2 gives M=4: 2 of each side, not 4 of one
+      // generic side). The shared "Fræst" checkbox can't tell left from
+      // right, so each button here cycles its own dedicated "V/H hlið magn
+      // fræst" count on that one record — half the total quantity each —
+      // letting each side be tracked (and partially tracked) independently.
+      const sideQty = totalQty / 2;
+      groupsOut.push({ key: `g${i++}`, label: "V hlið", records: [records[0]], side: "V", sideQty, cyclable: true });
+      groupsOut.push({ key: `g${i++}`, label: "H hlið", records: [records[0]], side: "H", sideQty, cyclable: true });
     } else if (records.length === 1 && totalQty > 1) {
       groupsOut.push({ key: `g${i++}`, label: partur, records, qty: totalQty, cyclable: true });
     } else {
@@ -488,15 +494,16 @@ function piecePriority(label) {
 }
 
 function groupProgress(g) {
+  if (g.side) {
+    const r = g.records[0];
+    const raw = g.side === "V" ? r.magnFraestV : r.magnFraestH;
+    const done = Math.max(0, Math.min(raw || 0, g.sideQty));
+    return { done, total: g.sideQty };
+  }
   if (g.cyclable) {
     const r = g.records[0];
     const done = Math.max(0, Math.min(r.magnFraest || 0, r.m));
     return { done, total: r.m };
-  }
-  if (g.side) {
-    const r = g.records[0];
-    const done = (g.side === "V" ? r.fraestV : r.fraestH) ? 1 : 0;
-    return { done, total: 1 };
   }
   const done = g.records.filter(r => r.fraest).length;
   return { done, total: g.records.length };
@@ -527,24 +534,27 @@ async function togglePiece(unitId, groupKey) {
   isSaving = true;
   renderUnits();
   try {
-    if (g.cyclable) {
+    if (g.side) {
+      // V and H each cycle their own count on the same shared record — "Fræst"
+      // is kept in sync as "both sides fully done" for anything else that
+      // might read it, but each side's own progress is tracked independently.
+      const r = g.records[0];
+      const field = g.side === "V" ? S_MAGN_FRAEST_V : S_MAGN_FRAEST_H;
+      const current = Math.max(0, Math.min((g.side === "V" ? r.magnFraestV : r.magnFraestH) || 0, g.sideQty));
+      const next = current >= g.sideQty ? 0 : current + 1;
+      const otherRaw = g.side === "V" ? r.magnFraestH : r.magnFraestV;
+      const otherDone = Math.max(0, Math.min(otherRaw || 0, g.sideQty)) >= g.sideQty;
+      const thisDone = next >= g.sideQty;
+      await patchSogunarlisti(r.id, { [field]: next, [S_FRAEST]: thisDone && otherDone });
+      if (g.side === "V") r.magnFraestV = next; else r.magnFraestH = next;
+      r.fraest = thisDone && otherDone;
+    } else if (g.cyclable) {
       const r = g.records[0];
       const current = Math.max(0, Math.min(r.magnFraest || 0, r.m));
       const next = current >= r.m ? 0 : current + 1;
       await patchSogunarlisti(r.id, { [S_MAGN_FRAEST]: next, [S_FRAEST]: next >= r.m });
       r.magnFraest = next;
       r.fraest = next >= r.m;
-    } else if (g.side) {
-      // V and H each have their own field on the same shared record — "Fræst"
-      // is kept in sync as "both sides done" for anything else that might
-      // read it, but each side's own done state is tracked independently.
-      const r = g.records[0];
-      const field = g.side === "V" ? S_FRAEST_V : S_FRAEST_H;
-      const target = !(g.side === "V" ? r.fraestV : r.fraestH);
-      const otherDone = g.side === "V" ? r.fraestH : r.fraestV;
-      await patchSogunarlisti(r.id, { [field]: target, [S_FRAEST]: target && otherDone });
-      if (g.side === "V") r.fraestV = target; else r.fraestH = target;
-      r.fraest = target && otherDone;
     } else {
       const targetValue = groupStatus(g) !== "done";
       const seen = new Set();
@@ -602,8 +612,8 @@ async function loadProject(projectId) {
       athugasemd: String(r.fields[S_ATHUGASEMD] || "").trim(),
       fraest: !!r.fields[S_FRAEST],
       magnFraest: toNumber(r.fields[S_MAGN_FRAEST]),
-      fraestV: !!r.fields[S_FRAEST_V],
-      fraestH: !!r.fields[S_FRAEST_H],
+      magnFraestV: toNumber(r.fields[S_MAGN_FRAEST_V]),
+      magnFraestH: toNumber(r.fields[S_MAGN_FRAEST_H]),
       unitId: (r.fields[S_EYDUBLAD_LINK] || [])[0] || null,
     }));
 
