@@ -427,12 +427,19 @@ function buildInnihald(u) {
 // no single field to track partial progress across several rows.
 // Side panels whose Partur name flags a special material/build get their own
 // label instead of the generic "V hlið"/"H hlið", so an operator can tell at
-// a glance which variant they're holding. FRE2 and "FRE-Vasi..." are checked
-// before the plain FRE prefix so they don't get swept into the FRE bucket.
+// a glance which variant they're holding. FRE2 is checked before the plain
+// FRE prefix so it doesn't get swept into the FRE bucket. "FRE-Vasi..."
+// (Revego) is deliberately left alone for now — those two names are actually
+// "innri"/"ytri" (inner/outer), not a real left/right pair, and need their
+// own fix later rather than a label slapped on the current V/H split.
 function sideLabel(partur, side) {
   const p = partur.toLowerCase();
   if (p.startsWith("lagna")) return `${side} Lagna-hlið`;
-  if (p.startsWith("fre") && !p.startsWith("fre2") && !p.startsWith("fre-vasi")) return `FRE- ${side} hlið`;
+  if (p.startsWith("fre2")) return `FRE2- ${side} hlið`;
+  if (p.startsWith("fre") && !p.startsWith("fre-vasi")) return `FRE- ${side} hlið`;
+  if (p.startsWith("tækja")) return `Tækja- ${side} hlið`;
+  if (p.startsWith("karmur")) return `Karmur- ${side} hlið`;
+  if (p.startsWith("fronta")) return `Fronta- ${side} hlið`;
   return `${side} hlið`;
 }
 
