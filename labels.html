@@ -196,6 +196,9 @@
 
   <div class="card hidden" id="listCard">
     <div class="toolbar">
+      <input type="search" id="partSearch" placeholder="Leita að stykki…"
+        style="max-width:220px;padding:11px 12px;border:1px solid #333;border-radius:8px;background:#0d0d0d;color:#f0f0f0;font-size:0.95rem;"
+        oninput="onSearchInput()" />
       <select id="efniSelect" style="max-width:260px;" onchange="onFilterChange()">
         <option value="">Öll efni</option>
       </select>
@@ -295,6 +298,7 @@ let filterUnfinished = false;
 let selectedEfni = "";
 let selectedSkra = "";
 let selectedThickness = "";
+let searchQuery = "";
 
 function log(msg) {
   const el = document.getElementById("log");
@@ -594,6 +598,9 @@ async function loadProject(projectId) {
   document.getElementById("projectCard").classList.remove("hidden");
   document.getElementById("listCard").classList.add("hidden");
   document.getElementById("projectStatus").textContent = "Sæki gögn…";
+  searchQuery = "";
+  const partSearchEl = document.getElementById("partSearch");
+  if (partSearchEl) partSearchEl.value = "";
 
   // Read name from dropdown option to avoid an extra API call
   const opt = document.querySelector(`#projectSelect option[value="${projectId}"]`);
@@ -737,14 +744,22 @@ function toggleFilter() {
   renderRows();
 }
 
+function onSearchInput() {
+  searchQuery = document.getElementById("partSearch").value.trim().toLowerCase();
+  renderRows();
+}
+
 function renderRows() {
   const container = document.getElementById("rows");
   container.innerHTML = "";
 
-  const visible = filterUnfinished ? groups.filter(g => groupStatus(g) !== "done") : groups;
+  let visible = filterUnfinished ? groups.filter(g => groupStatus(g) !== "done") : groups;
+  if (searchQuery) visible = visible.filter(g => g.partur.toLowerCase().includes(searchQuery));
 
   if (!visible.length) {
-    container.innerHTML = `<div class="empty-msg">${filterUnfinished ? "Allt lokið 🎉" : "Engar færslur fundust."}</div>`;
+    const msg = searchQuery ? "Ekkert stykki passar við leitina."
+      : filterUnfinished ? "Allt lokið 🎉" : "Engar færslur fundust.";
+    container.innerHTML = `<div class="empty-msg">${msg}</div>`;
     return;
   }
 
