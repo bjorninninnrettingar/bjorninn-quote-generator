@@ -139,6 +139,20 @@ async function airtableFetch(token, tableId, params) {
   return res.json();
 }
 
+// Airtable caps a single response at 100 records — anything that needs a
+// true total (dedupe sets, sums) must page through with `offset`, not just
+// take the first page.
+async function airtableFetchAll(token, tableId, params) {
+  let offset;
+  const records = [];
+  do {
+    const json = await airtableFetch(token, tableId, offset ? { ...params, offset } : params);
+    records.push(...(json.records || []));
+    offset = json.offset;
+  } while (offset);
+  return records;
+}
+
 async function airtableCreate(token, tableId, records) {
   for (let i = 0; i < records.length; i += 10) {
     const batch = records.slice(i, i + 10);
@@ -148,6 +162,18 @@ async function airtableCreate(token, tableId, records) {
       body: JSON.stringify({ records: batch, typecast: true }),
     });
     if (!res.ok) throw new Error(`Airtable ${tableId} create failed: ${res.status} ${await res.text()}`);
+  }
+}
+
+async function airtableUpdate(token, tableId, records) {
+  for (let i = 0; i < records.length; i += 10) {
+    const batch = records.slice(i, i + 10);
+    const res = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${tableId}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ records: batch, typecast: true }),
+    });
+    if (!res.ok) throw new Error(`Airtable ${tableId} update failed: ${res.status} ${await res.text()}`);
   }
 }
 
@@ -178,30 +204,71 @@ export default async function handler(req, res) {
     const unpaidTotal = unpaidBills.reduce((sum, b) => sum + b.totalAmountDue, 0);
     const claimsTotal = unpaidClaims.reduce((sum, c) => sum + c.totalAmountDue, 0);
 
+    // Overdraft headroom, for the "health bar" — only accounts with a real
+    // limit set count; availableAmount is the bank's own room-remaining
+    // figure (balance + unused limit, minus any hold), not recomputed here.
+    const overdraftAccounts = openIskAccounts.filter((a) => a.overdraftLimit > 0);
+    const overdraftLimitTotal = overdraftAccounts.reduce((sum, a) => sum + a.overdraftLimit, 0);
+    const overdraftRoomTotal = overdraftAccounts.reduce((sum, a) => sum + a.availableAmount, 0);
+    // True total spendable liquidity — balance for accounts without
+    // overdraft, remaining credit for the one that has it. Do NOT sum this
+    // with cashTotal/overdraftRoomTotal elsewhere, that double-counts.
+    const availableTotal = openIskAccounts.reduce((sum, a) => sum + a.availableAmount, 0);
+
     const today = new Date().toISOString().slice(0, 10);
 
-    await airtableCreate(airtableToken, FJARHAGSSTADA_TABLE, [
-      {
-        fields: {
-          Dagsetning: today,
-          "Sjóðsstaða samtals": cashTotal,
-          "Óinnheimtar kröfur": claimsTotal,
-          "Ógreiddir reikningar": unpaidTotal,
-        },
-      },
-    ]);
+    // Trailing ~90-day average of Fastur kostnaður, for the runway figure —
+    // relies on rows already categorized by hand in Bókhald (bank-synced
+    // rows tagged "Óunnið (banki)" have no Tegund yet, so they're correctly
+    // excluded until someone categorizes them).
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+    const fixedCostRows = await airtableFetchAll(airtableToken, BOKHALD_TABLE, {
+      filterByFormula: `AND({Tegund}='Fastur kostnaður 🔒', IS_AFTER({Dagsetning}, '${ninetyDaysAgo}'))`,
+      "fields[]": ["Upphæð"],
+      pageSize: 100,
+    });
+    const fixedCostSum = fixedCostRows.reduce((sum, r) => sum + (r.fields["Upphæð"] || 0), 0);
+    const avgMonthlyFixedCost = fixedCostSum / 3;
+
+    // Upsert by date — this can run more than once on the same day (manual
+    // re-triggers, retries), and a snapshot table with duplicate rows per
+    // day would corrupt any trend chart built on it.
+    const fjarhagsstadaFields = {
+      Dagsetning: today,
+      "Sjóðsstaða samtals": cashTotal,
+      "Óinnheimtar kröfur": claimsTotal,
+      "Ógreiddir reikningar": unpaidTotal,
+      "Yfirdráttarheimild samtals": overdraftLimitTotal,
+      "Yfirdráttarrými eftir": overdraftRoomTotal,
+      "Laust fé samtals": availableTotal,
+      "Meðaltal fastur kostnaður (3 mán)": avgMonthlyFixedCost,
+    };
+    const existingToday = await airtableFetch(airtableToken, FJARHAGSSTADA_TABLE, {
+      filterByFormula: `DATETIME_FORMAT({Dagsetning}, 'YYYY-MM-DD') = '${today}'`,
+      "fields[]": ["Dagsetning"],
+      pageSize: 2,
+    });
+    if ((existingToday.records || []).length) {
+      await airtableUpdate(
+        airtableToken,
+        FJARHAGSSTADA_TABLE,
+        existingToday.records.map((r) => ({ id: r.id, fields: fjarhagsstadaFields }))
+      );
+    } else {
+      await airtableCreate(airtableToken, FJARHAGSSTADA_TABLE, [{ fields: fjarhagsstadaFields }]);
+    }
 
     // New transactions -> Bókhald, deduped against a 30-day window by the
     // bank's own transaction id (Banka-IÐ). Fetch window matches the dedupe
     // window with margin, so a transaction can never be missed between runs.
     const fromDate = new Date(Date.now() - 10 * 86400000).toISOString().slice(0, 10);
 
-    const existing = await airtableFetch(airtableToken, BOKHALD_TABLE, {
+    const existing = await airtableFetchAll(airtableToken, BOKHALD_TABLE, {
       filterByFormula: `AND({Banka-IÐ}!='', IS_AFTER({Dagsetning}, DATEADD(TODAY(), -30, 'days')))`,
       "fields[]": ["Banka-IÐ"],
       pageSize: 100,
     });
-    const seenIds = new Set((existing.records || []).map((r) => r.fields["Banka-IÐ"]).filter(Boolean));
+    const seenIds = new Set(existing.map((r) => r.fields["Banka-IÐ"]).filter(Boolean));
 
     const newRows = [];
     for (const account of openIskAccounts) {
