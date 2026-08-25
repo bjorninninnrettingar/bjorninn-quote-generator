@@ -29,6 +29,8 @@ import https from "node:https";
 const AIRTABLE_BASE = "app91U15z9K704Okd";
 const BOKHALD_TABLE = "tbl5wXBjHf437yKQx";
 const FJARHAGSSTADA_TABLE = "tblhP1FMM4QJfwxat";
+const KENNITOLUR_TABLE = "tbl89ZKxV8R69sKLv";
+const FYRIRTAEKI_TABLE = "tbl2akoCETBx9S1SK";
 
 const LB_API_HOST = "openapi.landsbankinn.is";
 const LB_TOKEN_HOST = "mtls-auth.landsbankinn.is";
@@ -204,6 +206,49 @@ export default async function handler(req, res) {
     const unpaidTotal = unpaidBills.reduce((sum, b) => sum + b.totalAmountDue, 0);
     const claimsTotal = unpaidClaims.reduce((sum, c) => sum + c.totalAmountDue, 0);
 
+    // Kennitala -> name lookup, so bank transactions whose `reference` looks
+    // like a real kennitala (10 digits, per Landsbankinn's Kennitala type)
+    // can show who was actually paid instead of the bank's generic
+    // transaction-type label. Sourced from UnpaidBills/Claims (fetched
+    // above), Fyrirtæki (your own contacts), and everything already learned
+    // in Kennitölur from previous runs — grows over time on its own.
+    const kennitalaMap = new Map();
+    const persistedKennitolur = await airtableFetchAll(airtableToken, KENNITOLUR_TABLE, {
+      "fields[]": ["Kennitala", "Nafn"],
+      pageSize: 100,
+    });
+    for (const r of persistedKennitolur) {
+      if (r.fields["Kennitala"] && r.fields["Nafn"]) kennitalaMap.set(r.fields["Kennitala"], r.fields["Nafn"]);
+    }
+    const knownKennitolur = new Set(kennitalaMap.keys());
+
+    const fyrirtaekiRows = await airtableFetchAll(airtableToken, FYRIRTAEKI_TABLE, {
+      "fields[]": ["Kennitala #️⃣", "Nafn fyrirtækis"],
+      pageSize: 100,
+    });
+    for (const r of fyrirtaekiRows) {
+      const kt = r.fields["Kennitala #️⃣"];
+      const name = r.fields["Nafn fyrirtækis"];
+      if (kt && name) kennitalaMap.set(String(kt).padStart(10, "0"), name);
+    }
+
+    const newKennitalaEntries = [];
+    for (const b of unpaidBills) {
+      if (b.claimantNationalId && b.claimantName && !knownKennitolur.has(b.claimantNationalId)) {
+        kennitalaMap.set(b.claimantNationalId, b.claimantName);
+        newKennitalaEntries.push({ fields: { Kennitala: b.claimantNationalId, Nafn: b.claimantName, Uppruni: "Ógreiddir reikningar" } });
+        knownKennitolur.add(b.claimantNationalId);
+      }
+    }
+    for (const c of unpaidClaims) {
+      if (c.payorNationalId && c.payorName && !knownKennitolur.has(c.payorNationalId)) {
+        kennitalaMap.set(c.payorNationalId, c.payorName);
+        newKennitalaEntries.push({ fields: { Kennitala: c.payorNationalId, Nafn: c.payorName, Uppruni: "Kröfur" } });
+        knownKennitolur.add(c.payorNationalId);
+      }
+    }
+    if (newKennitalaEntries.length) await airtableCreate(airtableToken, KENNITOLUR_TABLE, newKennitalaEntries);
+
     // Overdraft headroom, for the "health bar" — only accounts with a real
     // limit set count; availableAmount is the bank's own room-remaining
     // figure (balance + unused limit, minus any hold), not recomputed here.
@@ -259,16 +304,16 @@ export default async function handler(req, res) {
     }
 
     // New transactions -> Bókhald, deduped against a 30-day window by the
-    // bank's own transaction id (Banka-IÐ). Fetch window matches the dedupe
+    // bank's own transaction id (Banka-ID). Fetch window matches the dedupe
     // window with margin, so a transaction can never be missed between runs.
     const fromDate = new Date(Date.now() - 10 * 86400000).toISOString().slice(0, 10);
 
     const existing = await airtableFetchAll(airtableToken, BOKHALD_TABLE, {
-      filterByFormula: `AND({Banka-IÐ}!='', IS_AFTER({Dagsetning}, DATEADD(TODAY(), -30, 'days')))`,
-      "fields[]": ["Banka-IÐ"],
+      filterByFormula: `AND({Banka-ID}!='', IS_AFTER({Dagsetning}, DATEADD(TODAY(), -30, 'days')))`,
+      "fields[]": ["Banka-ID"],
       pageSize: 100,
     });
-    const seenIds = new Set(existing.map((r) => r.fields["Banka-IÐ"]).filter(Boolean));
+    const seenIds = new Set(existing.map((r) => r.fields["Banka-ID"]).filter(Boolean));
 
     const newRows = [];
     for (const account of openIskAccounts) {
@@ -279,13 +324,18 @@ export default async function handler(req, res) {
       for (const tx of txs) {
         if (seenIds.has(tx.id)) continue;
         seenIds.add(tx.id);
+        // Who, not how: name of who got paid (outgoing) or who paid us
+        // (incoming) beats the bank's generic transaction-type label
+        // (actionLabel — "Bifreiðagjöld", "Úttekt með debetkorti", etc.).
+        const counterparty = tx.amount < 0 ? tx.creditorName || tx.ultimateCreditorName : tx.debtorName || tx.ultimateDebtorName;
+        const kennitalaName = tx.reference && /^\d{10}$/.test(tx.reference) ? kennitalaMap.get(tx.reference) : undefined;
         newRows.push({
           fields: {
-            Lýsing: tx.remittanceInformationUnstructured || tx.actionLabel || tx.reference || "Bankafærsla",
+            Lýsing: counterparty || kennitalaName || tx.remittanceInformationUnstructured || tx.actionLabel || tx.reference || "Bankafærsla",
             Dagsetning: tx.bookingDate,
             Upphæð: tx.amount,
             "Óunnið (banki) 🏦": true,
-            "Banka-IÐ": tx.id,
+            "Banka-ID": tx.id,
           },
         });
       }
