@@ -380,6 +380,7 @@
 
     let pin = "";
     let locked = false; // true while looking up / submitting, ignore taps
+    let reloadPending = false; // a newer deploy is live — reload once idle
 
     function renderDots(state) {
       dots.forEach((dot, i) => {
@@ -389,10 +390,36 @@
     }
 
     function resetPin() {
+      // Back at the PIN screen = kiosk is idle. If a newer deploy landed
+      // while someone was mid-flow, pick it up now instead of running stale
+      // JS until the next manual reload.
+      if (reloadPending) { location.reload(); return; }
       pin = "";
       pinMsg.textContent = "";
       renderDots();
     }
+
+    // ---- Auto-update ----
+    // A kiosk tab stays open for days. Poll the deployed commit SHA; when it
+    // changes, reload — immediately if idle on the PIN screen, otherwise as
+    // soon as the current person finishes (see resetPin). /api/version is
+    // no-store so this always sees the live value.
+    let deployedVersion = null;
+    async function checkDeployVersion() {
+      try {
+        const res = await fetch("/api/version", { cache: "no-store" });
+        if (!res.ok) return;
+        const { version } = await res.json();
+        if (!version) return;
+        if (deployedVersion === null) { deployedVersion = version; return; }
+        if (version !== deployedVersion) {
+          reloadPending = true;
+          if (!screenPin.classList.contains("hidden")) location.reload();
+        }
+      } catch { /* offline — retry next tick */ }
+    }
+    setInterval(checkDeployVersion, 3 * 60 * 1000);
+    checkDeployVersion();
 
     async function submitPin() {
       locked = true;
