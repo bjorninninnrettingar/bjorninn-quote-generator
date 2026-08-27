@@ -160,6 +160,40 @@
     #btn-vacation-submit:active { background: #1b5e20; }
     #btn-vacation-submit:disabled { opacity: 0.4; }
     #vacation-msg { min-height: 20px; font-size: 0.9rem; color: #e53935; margin-top: 10px; text-align: center; }
+
+    /* ---- Project-time allocation screen (after ÚT) ---- */
+    #alloc-head { text-align: center; margin-bottom: 4px; }
+    #alloc-target { font-size: 1.25rem; font-weight: 700; }
+    #alloc-remaining { font-size: 1rem; margin-top: 4px; color: #e0a030; font-variant-numeric: tabular-nums; }
+    #alloc-remaining.done { color: #4caf50; }
+    #alloc-search {
+      width: 100%; background: #161616; color: #fff; border: 1px solid #333;
+      border-radius: 10px; padding: 12px 14px; font-size: 1rem; margin: 12px 0;
+    }
+    #alloc-list { width: 100%; max-height: 46vh; overflow-y: auto; }
+    .alloc-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      padding: 10px 0; border-bottom: 1px solid #1e1e1e;
+    }
+    .alloc-row.active .alloc-name { color: #fff; font-weight: 700; }
+    .alloc-name { font-size: 0.98rem; color: #ccc; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .alloc-row.bucket .alloc-name { font-style: italic; color: #9aa; }
+    .alloc-stepper { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+    .alloc-stepper button {
+      width: 44px; height: 44px; border-radius: 12px; border: 1px solid #333;
+      background: #161616; color: #fff; font-size: 1.5rem; font-weight: 700; padding: 0;
+    }
+    .alloc-stepper button:active { background: #2a2a2a; }
+    .alloc-stepper button:disabled { opacity: 0.3; }
+    .alloc-val { min-width: 42px; text-align: center; font-size: 1.1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    #alloc-submit {
+      width: 100%; font-size: 1.3rem; font-weight: 700; letter-spacing: 0.03em;
+      border-radius: 16px; padding: 26px 0; border: none; color: #fff;
+      background: #2e7d32; margin-top: 14px;
+    }
+    #alloc-submit:disabled { opacity: 0.4; }
+    #alloc-submit:active { background: #1b5e20; }
+    #alloc-msg { min-height: 20px; font-size: 0.9rem; color: #e53935; margin-top: 10px; text-align: center; }
   </style>
 </head>
 <body>
@@ -222,6 +256,19 @@
     <button id="vacation-back" class="link-btn">Hætta við</button>
   </div>
 
+  <!-- Project-time allocation (shown after ÚT) -->
+  <div class="screen hidden" id="screen-alloc">
+    <div id="alloc-head">
+      <div id="alloc-target"></div>
+      <div id="alloc-remaining"></div>
+    </div>
+    <input type="text" id="alloc-search" placeholder="Leita að verki…" autocomplete="off" />
+    <div id="alloc-list"></div>
+    <button id="alloc-submit">Staðfesta skiptingu</button>
+    <div id="alloc-msg"></div>
+    <button id="alloc-skip" class="link-btn hidden">Sleppa í bili</button>
+  </div>
+
   <!-- Confirmation -->
   <div class="screen hidden" id="screen-confirm">
     <div id="confirm-icon"></div>
@@ -234,6 +281,8 @@
     const STIMPLANIR_TABLE = "tblnFIO8RB6HcelXF";
     const FJARVISTIR_TABLE = "tbl3e5o0Klv9RcNQ4";
     const ORLOFSBEIDNIR_TABLE = "tbljdg6uxEfHE7uCU";
+    const TAEKIFAERI_TABLE = "tbl4LMXlQjp66RFKI";
+    const VERKTIMAR_TABLE = "tblGu27c2fcwN2i2n";
 
     // Kiosk device pairing: visiting /klukka?setup=<KIOSK_DEVICE_SECRET> once
     // stores the secret in localStorage and strips it from the URL bar (so it
@@ -282,6 +331,19 @@
       const res = await fetch(`/api/airtable?${qs}`);
       if (!res.ok) throw new Error("Airtable GET failed: " + res.status);
       return res.json();
+    }
+
+    // Follows Airtable's `offset` paging token so a role that sees more than
+    // one page of active projects isn't silently cut to the first 100.
+    async function airtableGetAll(path, params) {
+      let records = [];
+      let offset;
+      do {
+        const data = await airtableGet(path, offset ? { ...params, offset } : params);
+        records = records.concat(data.records || []);
+        offset = data.offset;
+      } while (offset && records.length < 1000);
+      return records;
     }
 
     async function airtableWrite(method, path, fields, extraHeaders) {
@@ -454,7 +516,9 @@
       try {
         if (openShift) {
           await airtablePatch(`${STIMPLANIR_TABLE}/${openShift.id}`, { "Út": now.toISOString() }, kioskHeaders);
-          showConfirm("Út", now);
+          // Shift is now closed — the allocation screen splits its hours
+          // across projects. Bailing there never un-closes the shift.
+          startAllocation(openShift, now);
         } else {
           await airtablePost(STIMPLANIR_TABLE, {
             "Inn": now.toISOString(),
@@ -613,10 +677,229 @@
       }
     });
 
+    // ---- Project-time allocation (shown after ÚT) ----
+    // The shift row is already closed (Út PATCHed) before this screen opens,
+    // so bailing here never loses the clock-out — only the per-project split,
+    // which a manager can then fill in directly on the Verktímar table.
+    //
+    // Which projects an employee sees is driven by Starfsheiti 💼:
+    //   Framleiðsla          → active workshop jobs only
+    //   Sölumaður / Arkitekt → "Sölur" + jobs still in planning stages
+    //   everyone else        → both lists + "Sölur"
+    // Everyone also gets an "Annað" bucket for non-project time, so the split
+    // can always reach 100%.
+    const ALLOC_PROD_FORMULA = `AND({Staða í söluferli}="🏆 Tækifæri unnið",{Staða í skipulagi}="Klárt til framleiðslu",NOT(OR({Staða í framleiðslu}="Afhent (LOKIÐ ✅)",{Staða í framleiðslu}="Má Afhenda 🚚")))`;
+    const ALLOC_PLAN_FORMULA = `AND({Staða í söluferli}="🏆 Tækifæri unnið",OR({Staða í skipulagi}="For-skipulag",{Staða í skipulagi}="Í skipulagningu",{Staða í skipulagi}="Yfirfara"))`;
+
+    const screenAlloc = document.getElementById("screen-alloc");
+    const allocList = document.getElementById("alloc-list");
+    const allocSearch = document.getElementById("alloc-search");
+    const allocSubmit = document.getElementById("alloc-submit");
+    const allocMsg = document.getElementById("alloc-msg");
+    const allocSkip = document.getElementById("alloc-skip");
+    const allocRemaining = document.getElementById("alloc-remaining");
+    const allocTargetEl = document.getElementById("alloc-target");
+
+    let allocState = null;
+    let allocIdleTimer = null;
+
+    function fmtH(h) { return Number.isInteger(h) ? String(h) : h.toFixed(1); }
+
+    function scopeForRole(role) {
+      if (role === "Framleiðsla") return { formulas: [ALLOC_PROD_FORMULA], buckets: ["Annað"] };
+      if (role === "Sölumaður / Arkitekt") return { formulas: [ALLOC_PLAN_FORMULA], buckets: ["Sölur", "Annað"] };
+      return { formulas: [ALLOC_PROD_FORMULA, ALLOC_PLAN_FORMULA], buckets: ["Sölur", "Annað"] };
+    }
+
+    function resetAllocIdle() {
+      if (allocIdleTimer) clearTimeout(allocIdleTimer);
+      // If someone walks away mid-split, free the kiosk. The shift stays
+      // closed; the split is just left for a manager to add.
+      allocIdleTimer = setTimeout(() => {
+        screenAlloc.classList.add("hidden");
+        screenPin.classList.remove("hidden");
+        currentEmployee = null; openShift = null; sickToday = false;
+        allocState = null;
+        resetPin();
+      }, 120_000);
+    }
+
+    function allocSum() {
+      let s = 0;
+      for (const v of allocState.entries.values()) s += v;
+      return Math.round(s * 2) / 2;
+    }
+
+    function renderAllocRemaining() {
+      const left = Math.round((allocState.target - allocSum()) * 2) / 2;
+      allocRemaining.textContent = left === 0 ? "Allt skipt ✓" : `Eftir: ${fmtH(left)} klst`;
+      allocRemaining.classList.toggle("done", left === 0);
+      allocSubmit.disabled = left !== 0 || allocSum() === 0;
+    }
+
+    function renderAllocList() {
+      const q = allocSearch.value.trim().toLowerCase();
+      const canAdd = (allocState.target - allocSum()) >= 0.5;
+      allocList.innerHTML = "";
+      for (const opt of allocState.options) {
+        if (q && !opt.bucket && !opt.name.toLowerCase().includes(q)) continue;
+        const val = allocState.entries.get(opt.key) || 0;
+        const row = document.createElement("div");
+        row.className = "alloc-row" + (opt.bucket ? " bucket" : "") + (val > 0 ? " active" : "");
+        const name = document.createElement("span");
+        name.className = "alloc-name";
+        name.textContent = opt.name;
+        const stepper = document.createElement("div");
+        stepper.className = "alloc-stepper";
+        const dec = document.createElement("button");
+        dec.textContent = "−"; dec.disabled = val <= 0;
+        dec.addEventListener("click", () => stepAlloc(opt.key, -0.5));
+        const num = document.createElement("span");
+        num.className = "alloc-val"; num.textContent = fmtH(val);
+        const inc = document.createElement("button");
+        inc.textContent = "+"; inc.disabled = !canAdd;
+        inc.addEventListener("click", () => stepAlloc(opt.key, 0.5));
+        stepper.append(dec, num, inc);
+        row.append(name, stepper);
+        allocList.appendChild(row);
+      }
+    }
+
+    function stepAlloc(key, delta) {
+      resetAllocIdle();
+      if (delta > 0 && (allocState.target - allocSum()) < 0.5) return;
+      const next = Math.max(0, (allocState.entries.get(key) || 0) + delta);
+      if (next === 0) allocState.entries.delete(key);
+      else allocState.entries.set(key, next);
+      renderAllocList();
+      renderAllocRemaining();
+    }
+
+    async function startAllocation(shift, outTime) {
+      const inMs = new Date(shift.fields["Inn"]).getTime();
+      const rawHours = Math.max(0, (outTime.getTime() - inMs) / 3_600_000);
+      const target = Math.round(rawHours * 2) / 2;
+      if (target < 0.5) { showConfirm("Út", outTime); return; }
+
+      allocState = {
+        shiftId: shift.id,
+        employeeId: currentEmployee.id,
+        dateISO: todayISO(new Date(inMs)),
+        outTime,
+        target,
+        entries: new Map(),
+        options: [],
+      };
+      screenEmployee.classList.add("hidden");
+      screenConfirm.classList.add("hidden");
+      screenAlloc.classList.remove("hidden");
+      allocSearch.value = "";
+      allocMsg.textContent = "";
+      allocSkip.classList.add("hidden");
+      allocSubmit.disabled = true;
+      allocTargetEl.textContent = `Skiptu ${fmtH(target)} klst á verk`;
+      allocList.innerHTML = `<div style="color:#888;text-align:center;padding:20px 0">Sæki verkefni…</div>`;
+      renderAllocRemaining();
+      resetAllocIdle();
+
+      try {
+        const { formulas, buckets } = scopeForRole(currentEmployee.fields["Starfsheiti 💼"]);
+        const seen = new Set();
+        const projects = [];
+        for (const f of formulas) {
+          const recs = await airtableGetAll(TAEKIFAERI_TABLE, { filterByFormula: f, pageSize: 100 });
+          for (const r of recs) {
+            if (seen.has(r.id)) continue;
+            seen.add(r.id);
+            projects.push({
+              key: r.id,
+              projectId: r.id,
+              name: r.fields["Heiti tækifæris / verkefnis"] || "(Ónefnt verkefni)",
+              bucket: null,
+            });
+          }
+        }
+        projects.sort((a, b) => a.name.localeCompare(b.name, "is"));
+        allocState.options = [
+          ...buckets.map((b) => ({
+            key: `bucket:${b}`,
+            projectId: null,
+            name: b === "Sölur" ? "Sölur (ekki verkefni)" : "Annað (ekki verkefni)",
+            bucket: b,
+          })),
+          ...projects,
+        ];
+        renderAllocList();
+      } catch {
+        allocList.innerHTML = "";
+        allocMsg.textContent = "Villa við að sækja verkefni.";
+        allocSkip.classList.remove("hidden");
+        const retry = document.createElement("button");
+        retry.className = "secondary-btn";
+        retry.textContent = "Reyna aftur";
+        retry.addEventListener("click", () => startAllocation(shift, outTime));
+        allocList.appendChild(retry);
+      }
+    }
+
+    allocSearch.addEventListener("input", renderAllocList);
+
+    allocSkip.addEventListener("click", () => {
+      if (allocIdleTimer) clearTimeout(allocIdleTimer);
+      const t = allocState ? allocState.outTime : new Date();
+      allocState = null;
+      showConfirm("Út", t);
+    });
+
+    allocSubmit.addEventListener("click", async () => {
+      if (allocSubmit.disabled || !allocState) return;
+      allocSubmit.disabled = true;
+      allocMsg.textContent = "";
+      if (allocIdleTimer) clearTimeout(allocIdleTimer);
+
+      const queue = [];
+      for (const [key, hours] of allocState.entries.entries()) {
+        if (hours <= 0) continue;
+        const opt = allocState.options.find((o) => o.key === key);
+        const fields = {
+          "Dagsetning": allocState.dateISO,
+          "Klst": hours,
+          "Starfsmaður": [allocState.employeeId],
+          "Stimplun ⏱️": [allocState.shiftId],
+        };
+        if (opt && opt.bucket) fields["Verkflokkur"] = opt.bucket;
+        else { fields["Verkefni 📣"] = [opt.projectId]; fields["Verkflokkur"] = "Verkefni"; }
+        queue.push(fields);
+      }
+
+      const kioskHeaders = { "X-Kiosk-Token": KIOSK_TOKEN };
+      const nParts = queue.length;
+      try {
+        // Sequential, shifting each success off the queue — a mid-way failure
+        // just re-enables the button and resends only what's left.
+        while (queue.length) {
+          await airtablePost(VERKTIMAR_TABLE, queue[0], kioskHeaders);
+          queue.shift();
+        }
+        const out = allocState.outTime;
+        allocState = null;
+        showConfirm("Út", out, null, `Tíma skipt á ${nParts} verk`);
+      } catch (err) {
+        allocMsg.textContent = err.code === "DEVICE_NOT_PAIRED"
+          ? "Þetta tæki er ekki skráð sem stimpilklukka."
+          : "Villa við að skrá skiptingu — reyndu aftur.";
+        allocSubmit.disabled = false;
+        resetAllocIdle();
+      }
+    });
+
     // ---- Confirm screen ----
-    function showConfirm(type, when, extra) {
+    function showConfirm(type, when, extra, note) {
+      if (allocIdleTimer) { clearTimeout(allocIdleTimer); allocIdleTimer = null; }
+      allocState = null;
       screenEmployee.classList.add("hidden");
       screenVacation.classList.add("hidden");
+      screenAlloc.classList.add("hidden");
       screenConfirm.classList.remove("hidden");
       document.getElementById("confirm-icon").textContent =
         type === "Inn" ? "✅" : type === "Veikindi" ? "🤒" : type === "Orlof" ? "🌴" : "👋";
@@ -624,8 +907,9 @@
         type === "Veikindi" ? `${employeeName.textContent} ${isKK ? "skráður veikur" : "skráð veik"} í dag`
         : type === "Orlof" ? `Orlofsbeiðni send: ${extra.fra} – ${extra.til}`
         : `${employeeName.textContent} ${isKK ? "stimplaður" : "stimpluð"} ${type.toUpperCase()}`;
-      document.getElementById("confirm-time").textContent =
-        when.toLocaleTimeString("is-IS", { hour: "2-digit", minute: "2-digit" });
+      document.getElementById("confirm-time").textContent = note
+        ? `${when.toLocaleTimeString("is-IS", { hour: "2-digit", minute: "2-digit" })} — ${note}`
+        : when.toLocaleTimeString("is-IS", { hour: "2-digit", minute: "2-digit" });
 
       setTimeout(() => {
         currentEmployee = null;

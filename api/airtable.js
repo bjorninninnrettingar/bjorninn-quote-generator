@@ -2,7 +2,7 @@
 // Airtable proxy — keeps the Personal Access Token server-side only, so it
 // never sits in committed code or page source (GitHub's push protection
 // blocks any commit containing an Airtable PAT). Used by cutlist.html,
-// dashboard.html, labels.html, stimpilklukka.html and stod.html.
+// dashboard.html, labels.html and stimpilklukka.html.
 //
 // Two layers of restriction, both enforced server-side (never trust the
 // client to only ask for what it needs):
@@ -17,7 +17,7 @@
 const AIRTABLE_BASE = "app91U15z9K704Okd";
 const STIMPLANIR_TABLE = "tblnFIO8RB6HcelXF";
 const ORLOFSBEIDNIR_TABLE = "tbljdg6uxEfHE7uCU";
-const STODVATIMAR_TABLE = "tbl74vVH41s8u4NGV";
+const VERKTIMAR_TABLE = "tblGu27c2fcwN2i2n";
 
 const ALLOWED_FIELDS = {
   "tbl4LMXlQjp66RFKI": [ // Tækifæri 📣 (projects)
@@ -84,6 +84,7 @@ const ALLOWED_FIELDS = {
     "PIN 🔢",
     "Er starfandi? ✅",
     "Kyn",
+    "Starfsheiti 💼", // drives which project list the clock-out allocation screen shows
   ],
   "tblnFIO8RB6HcelXF": [ // Stimplanir ⏱️ (time clock shifts — one row per Inn→Út)
     "Inn",
@@ -104,15 +105,13 @@ const ALLOWED_FIELDS = {
     "Starfsmaður",
     "Staða",
   ],
-  "tbl74vVH41s8u4NGV": [ // Stöðvatímar ⏱️ (Kantlíming/Spónlagt/Lökkun time log)
-    "Inn",
-    "Út",
-    "Stöð",
-    "Tækifæri 📣 (projects)",
+  "tblGu27c2fcwN2i2n": [ // Verktímar 🕒 (per-project time allocation on clock-out)
+    "Dagsetning",
     "Starfsmaður",
-    "Fjöldi stykkja",
-    "Áætlað ✅",
+    "Verkefni 📣",
+    "Verkflokkur",
     "Klst",
+    "Stimplun ⏱️",
   ],
 };
 
@@ -123,11 +122,17 @@ const ALLOWED_FIELDS = {
 // filter to a single lookup instead of listing the whole table.
 const REQUIRE_FILTER = new Set(["tblhglpjQkczdG1AY", "tbl3e5o0Klv9RcNQ4"]);
 
+// The kiosk's clock-out flow writes one Verktímar row per project the
+// employee split their shift across (Dagsetning + Klst + links). Like
+// Stimplanir it's kiosk-device-locked (see KIOSK_LOCKED_TABLES) — the split
+// only happens right after ÚT on the paired shop tablet.
+
 // Stimplanir is for opening a new shift (Inn). Fjarvistir is for marking a
 // day sick from the kiosk. Orlofsbeiðnir is for submitting a vacation
-// request. No other table accepts creates through this proxy. Stimplanir's
-// "Út" is deliberately not creatable: a shift is opened blank and only ever
-// closed via the PATCH path below, never created pre-closed. Orlofsbeiðnir's
+// request. Verktímar is for the per-project split written on clock-out. No
+// other table accepts creates through this proxy. Stimplanir's "Út" is
+// deliberately not creatable: a shift is opened blank and only ever closed
+// via the PATCH path below, never created pre-closed. Orlofsbeiðnir's
 // "Staða" is deliberately not creatable either — see FORCED_CREATE_FIELDS
 // below, which sets it server-side so a client can't self-approve.
 const CREATABLE_FIELDS = {
@@ -138,11 +143,10 @@ const CREATABLE_FIELDS = {
   "tblnFIO8RB6HcelXF": ["Inn", "Starfsmaður", "Mánuður 🗓️", "Ár 🗓️"],
   "tbl3e5o0Klv9RcNQ4": ["Dagsetning", "Starfsmaður", "Tegund"],
   "tbljdg6uxEfHE7uCU": ["Frá", "Til", "Starfsmaður"],
-  // Unlike Stimplanir, "Út" IS creatable here — Kantlíming opens blank (Út
-  // set later via PATCH, same start/stop pattern as a shift), but Spónlagt/
-  // Lökkun have no real start/stop point, so stod.html submits an estimate
-  // as one already-closed session (Út = Inn + guessed hours) in a single POST.
-  "tbl74vVH41s8u4NGV": ["Inn", "Út", "Stöð", "Tækifæri 📣 (projects)", "Starfsmaður", "Fjöldi stykkja", "Áætlað ✅"],
+  // One row per project the employee split their just-closed shift across.
+  // Verkefni 📣 is empty for the "Sölur"/"Annað" buckets (Verkflokkur says
+  // which). Stimplun ⏱️ links back to the shift row for traceability.
+  "tblGu27c2fcwN2i2n": ["Dagsetning", "Starfsmaður", "Verkefni 📣", "Verkflokkur", "Klst", "Stimplun ⏱️"],
 };
 
 // Fields forced to a fixed value on create, regardless of what (or whether)
@@ -157,7 +161,7 @@ const FORCED_CREATE_FIELDS = {
 // Fjarvistir (sick) and Orlofsbeiðnir (vacation request) stay reachable from
 // any device. Pairing happens client-side (stimpilklukka.html stores the
 // secret from a one-time ?setup= link); this just checks the header matches.
-const KIOSK_LOCKED_TABLES = new Set([STIMPLANIR_TABLE]);
+const KIOSK_LOCKED_TABLES = new Set([STIMPLANIR_TABLE, VERKTIMAR_TABLE]);
 
 function isKioskPaired(req) {
   const secret = process.env.KIOSK_DEVICE_SECRET;
@@ -179,9 +183,6 @@ const WRITABLE_FIELDS = {
   // Closes an open shift (stimpilklukka's ÚT button). "Inn" is intentionally
   // not writable here — a shift's start time is only ever set at creation.
   "tblnFIO8RB6HcelXF": ["Út"],
-  // Closes an open Kantlíming session (stod.html's Ljúka button). Spónlagt/
-  // Lökkun rows are never patched — they're created already-closed.
-  "tbl74vVH41s8u4NGV": ["Út"],
 };
 
 // URLSearchParams serializes spaces as "+" (application/x-www-form-urlencoded).
