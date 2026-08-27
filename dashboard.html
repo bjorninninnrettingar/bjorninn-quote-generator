@@ -510,6 +510,24 @@
     setInterval(updateClock, 10_000);
     refresh();
     setInterval(refresh, REFRESH_MS);
+
+    // Auto-update: this dashboard runs on a TV for weeks at a time. Poll the
+    // deployed commit SHA (api/version.js, no-store) and hard-reload when it
+    // changes so it never shows a stale build. No idle check needed — nobody
+    // interacts with it.
+    let deployedVersion = null;
+    async function checkDeployVersion() {
+      try {
+        const res = await fetch("/api/version", { cache: "no-store" });
+        if (!res.ok) return;
+        const { version } = await res.json();
+        if (!version) return;
+        if (deployedVersion === null) deployedVersion = version;
+        else if (version !== deployedVersion) location.reload();
+      } catch { /* offline — retry next tick */ }
+    }
+    checkDeployVersion();
+    setInterval(checkDeployVersion, 3 * 60 * 1000);
   </script>
 </body>
 </html>

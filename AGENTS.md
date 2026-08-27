@@ -24,7 +24,7 @@ then commit + push — Vercel redeploys automatically on push to `main`.
 - [api/airtable.js](api/airtable.js) — proxy for Airtable requests (holds the PAT server-side)
 - [api/generate-quote.js](api/generate-quote.js) — quote PDF generation (uses `pdf-lib`, `maxDuration: 30` in vercel.json)
 - [api/monthly-sick-rollup.js](api/monthly-sick-rollup.js) — Vercel Cron, 1st of every month; see stimpilklukka notes below
-- [api/version.js](api/version.js) — returns the deployed `VERCEL_GIT_COMMIT_SHA` (`no-store`); `/klukka` polls it every 3 min and reloads itself when it changes, so the always-open kiosk tab never runs a stale build. First rollout onto an already-open tab still needs one manual reload (the checker has to be running to catch the *next* deploy).
+- [api/version.js](api/version.js) — returns the deployed `VERCEL_GIT_COMMIT_SHA` (`no-store`). `/klukka` and `/tv` both poll it every 3 min and reload when it changes, so those always-open tabs never run a stale build. `/klukka` defers the reload until it's idle on the PIN screen (`reloadPending` → `resetPin()`); `/tv` has no user interaction so it reloads immediately. First rollout onto an already-open tab still needs one manual reload (the checker has to be running to catch the *next* deploy).
 
 ## Workflow notes
 
