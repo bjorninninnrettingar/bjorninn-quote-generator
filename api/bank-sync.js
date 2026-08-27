@@ -31,6 +31,7 @@ const BOKHALD_TABLE = "tbl5wXBjHf437yKQx";
 const FJARHAGSSTADA_TABLE = "tblhP1FMM4QJfwxat";
 const KENNITOLUR_TABLE = "tbl89ZKxV8R69sKLv";
 const FYRIRTAEKI_TABLE = "tbl2akoCETBx9S1SK";
+const OGREIDDIR_REIKNINGAR_TABLE = "tbldgBhJGj9mQfXBP";
 
 const LB_API_HOST = "openapi.landsbankinn.is";
 const LB_TOKEN_HOST = "mtls-auth.landsbankinn.is";
@@ -179,6 +180,16 @@ async function airtableUpdate(token, tableId, records) {
   }
 }
 
+async function airtableDelete(token, tableId, recordIds) {
+  for (let i = 0; i < recordIds.length; i += 10) {
+    const batch = recordIds.slice(i, i + 10);
+    const url = new URL(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${tableId}`);
+    batch.forEach((id) => url.searchParams.append("records[]", id));
+    const res = await fetch(url.toString(), { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) throw new Error(`Airtable ${tableId} delete failed: ${res.status} ${await res.text()}`);
+  }
+}
+
 export default async function handler(req, res) {
   if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ error: "Unauthorized" });
@@ -248,6 +259,36 @@ export default async function handler(req, res) {
       }
     }
     if (newKennitalaEntries.length) await airtableCreate(airtableToken, KENNITOLUR_TABLE, newKennitalaEntries);
+
+    // Ógreiddir reikningar detail list — full replace each run rather than
+    // upsert. Unlike Bókhald transactions this isn't a history, it's always
+    // "what's currently unpaid right now", and bills disappear once settled
+    // — a diff/upsert would need to detect and delete those anyway, so a
+    // wholesale replace is simpler and just as correct.
+    const existingUnpaidRows = await airtableFetchAll(airtableToken, OGREIDDIR_REIKNINGAR_TABLE, { pageSize: 100 });
+    if (existingUnpaidRows.length) {
+      await airtableDelete(
+        airtableToken,
+        OGREIDDIR_REIKNINGAR_TABLE,
+        existingUnpaidRows.map((r) => r.id)
+      );
+    }
+    if (unpaidBills.length) {
+      await airtableCreate(
+        airtableToken,
+        OGREIDDIR_REIKNINGAR_TABLE,
+        unpaidBills.map((b) => ({
+          fields: {
+            Birgir: b.claimantName || "Óþekkt",
+            Upphæð: b.totalAmountDue,
+            Gjalddagi: b.dueDate,
+            "Loka-gjalddagi": b.finalDueDate,
+            Lýsing: b.description || b.categoryName || "",
+            Reikningsnúmer: b.billNumber || "",
+          },
+        }))
+      );
+    }
 
     // Overdraft headroom, for the "health bar" — only accounts with a real
     // limit set count; availableAmount is the bank's own room-remaining
