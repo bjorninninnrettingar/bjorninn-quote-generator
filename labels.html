@@ -66,7 +66,7 @@
 
   .row {
     display: grid;
-    grid-template-columns: 1fr auto auto auto 90px;
+    grid-template-columns: 1fr auto auto auto auto 90px;
     align-items: center;
     gap: 18px;
     background: #111;
@@ -92,6 +92,19 @@
     background: #222; border-radius: 8px; padding: 8px 14px;
     white-space: nowrap;
   }
+
+  .code-cell {
+    font-family: "SF Mono", Consolas, monospace;
+    font-size: 1rem; font-weight: 700;
+    color: #7fd1ff; background: #0d1a26;
+    border: 1px solid #14405e; border-radius: 8px;
+    padding: 5px 11px; text-align: center; white-space: nowrap;
+  }
+  .code-cell .lbl {
+    display: block; font-size: 0.58rem; font-weight: 700;
+    letter-spacing: 0.1em; color: #5a8bb0; text-transform: uppercase;
+  }
+  .code-cell .none { color: #4a4a4a; font-weight: 400; }
 
   .qty-stepper {
     display: flex; align-items: center; gap: 6px;
@@ -247,6 +260,7 @@ const S_ATHUGASEMD      = "Athugasemd";
 const S_BAS             = "B.A.S.";
 const S_LOKID           = "Lokið";
 const S_SKURDARSKRA     = "Skurðarskrá";
+const S_SKURDARNUMER    = "Skurðarnúmer"; // 1-based position in the CUTLST00 file = the "Code" Cutty shows
 const S_TEGUND          = "Tegund einingu";
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -417,7 +431,7 @@ async function fetchSogunarlistiForProject(projectName) {
     filterByFormula: formula,
     "fields[]": [
       S_PROJECT_LINK, S_PARTUR, S_H, S_B, S_TH, S_M,
-      S_EFNI_UNDIRSTADA, S_ATHUGASEMD, S_BAS, S_LOKID, S_SKURDARSKRA, S_TEGUND,
+      S_EFNI_UNDIRSTADA, S_ATHUGASEMD, S_BAS, S_LOKID, S_SKURDARSKRA, S_SKURDARNUMER, S_TEGUND,
     ],
     pageSize: 100,
   });
@@ -474,6 +488,46 @@ function groupStatus(g) {
 
 function groupQty(g) {
   return g.records.reduce((s, r) => s + r.m, 0);
+}
+
+// Cutty shows a "Code" column on the far left of each CUTLST00 file's piece
+// table — a plain 1..N count in file order (one code per line; quantity is a
+// separate column). cutlist.html writes that same 1-based position onto each
+// piece as Skurðarnúmer when it exports the file to USB. Surfacing it here
+// lets the saw operator match "Cutty is cutting #7" straight to a label row.
+//
+// Codes restart at 1 in every CUTLST00 file, so a bare number is only
+// unambiguous once the view is narrowed to a single file (the Skrá filter).
+// When it isn't, each run is prefixed with its file number, e.g. "2·5–7".
+// Consecutive codes collapse to a range. Rows with no exported code yet
+// (project not run through Cutty since this shipped) return "".
+function collapseRanges(nums) {
+  const s = [...new Set(nums)].sort((a, b) => a - b);
+  const out = [];
+  let start = s[0], prev = s[0];
+  for (let i = 1; i <= s.length; i++) {
+    if (s[i] === prev + 1) { prev = s[i]; continue; }
+    out.push(start === prev ? `${start}` : `${start}–${prev}`);
+    start = prev = s[i];
+  }
+  return out.join(", ");
+}
+
+function groupCodeLabel(g) {
+  const byFile = new Map();
+  for (const r of g.records) {
+    if (!(r.skurdarnumer > 0) || !r.skra) continue;
+    const file = parseInt(r.skra.match(/^[^-]+-(\d+)-/)?.[1] ?? "0", 10);
+    if (!byFile.has(file)) byFile.set(file, []);
+    byFile.get(file).push(r.skurdarnumer);
+  }
+  if (!byFile.size) return "";
+
+  const singleFile = selectedSkra && selectedSkra !== "__none__";
+  return [...byFile.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([file, codes]) => singleFile ? collapseRanges(codes) : `${file}·${collapseRanges(codes)}`)
+    .join("  ");
 }
 
 function groupRemaining(g) {
@@ -623,6 +677,7 @@ async function loadProject(projectId) {
       athugasemd: String(r.fields[S_ATHUGASEMD] || "").trim(),
       lokid: !!r.fields[S_LOKID],
       skra: String(r.fields[S_SKURDARSKRA] || "").trim(),
+      skurdarnumer: toNumber(r.fields[S_SKURDARNUMER]),
     }));
   for (const p of allPieces) {
     p.th = resolveThickness(p);
@@ -778,6 +833,7 @@ function renderRows() {
 
     const disabled = status === 'done' || isPrinting;
     const cabinets = [...new Set(g.records.map(r => r.athugasemd).filter(Boolean))].join(", ");
+    const codeLabel = groupCodeLabel(g);
 
     const qtyControl = status === 'done'
       ? `<div class="qty-badge">×${qty}</div>`
@@ -791,6 +847,9 @@ function renderRows() {
       <div class="row-main">
         <div class="partur">${escapeHtml(g.partur)}</div>
         <div class="meta">${g.h}×${g.b}×${g.th}mm — ${escapeHtml(g.efni)}</div>
+      </div>
+      <div class="code-cell" title="Kóði í Cutty (Code) — lína í CUTLST00 skrá. Endurnýjast per skrá.">
+        <span class="lbl">Kóði</span>${codeLabel ? escapeHtml(codeLabel) : '<span class="none">–</span>'}
       </div>
       <div class="cabinets" title="${escapeHtml(cabinets)}">${escapeHtml(cabinets)}</div>
       ${qtyControl}

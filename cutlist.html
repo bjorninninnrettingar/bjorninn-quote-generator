@@ -948,10 +948,16 @@ async function writeToUsb() {
         log(`  ${folderName}/${fileName} — ${g.files[i].length} línur`);
 
         // Record which file each piece landed in, so Sögunarlisti can be
-        // filtered by "assigned to a file" (about to be cut) vs not yet.
-        for (const p of g.files[i]) {
+        // filtered by "assigned to a file" (about to be cut) vs not yet — plus
+        // the piece's 1-based position in that file's piece list, which is
+        // exactly the "Code" Cutty shows on the left of the piece table
+        // (buildCutlstContent writes pieces in this same order with
+        // pieceNum = index + 1). labels.html surfaces it so the saw operator
+        // can match a piece coming off the saw to its label row.
+        for (let j = 0; j < g.files[i].length; j++) {
+          const p = g.files[i][j];
           try {
-            await patchSogunarlisti(p.id, { "Skurðarskrá": fileName });
+            await patchSogunarlisti(p.id, { "Skurðarskrá": fileName, "Skurðarnúmer": j + 1 });
           } catch (e) {
             log(`  ⚠ Skurðarskrá ekki vistað fyrir ${p.label}: ${e.message}`);
           }

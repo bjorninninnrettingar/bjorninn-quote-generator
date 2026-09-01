@@ -46,6 +46,7 @@ const ALLOWED_FIELDS = {
     "B.A.S.",
     "Lokið",
     "Skurðarskrá",
+    "Skurðarnúmer", // 1-based position of the piece in its CUTLST00 file = the "Code" Cutty shows; written by cutlist.html, read by labels.html
     "Tegund einingu",
     "Yfirfr.",
     "Fræst",
@@ -179,7 +180,7 @@ const WRITABLE_FIELDS = {
   // "Fræst"/"Magn fræst" (milling done / partial quantity done) and the
   // per-side "V hlið magn fræst"/"H hlið magn fræst" pair are written by
   // fraesing.html's toggle buttons.
-  "tblhdgyvTcBfP8kov": ["H", "B", "Þ", "Villa?", "Athugasemd", "B.A.S.", "Skurðarskrá", "Fræst", "Magn fræst", "V hlið magn fræst", "H hlið magn fræst"],
+  "tblhdgyvTcBfP8kov": ["H", "B", "Þ", "Villa?", "Athugasemd", "B.A.S.", "Skurðarskrá", "Skurðarnúmer", "Fræst", "Magn fræst", "V hlið magn fræst", "H hlið magn fræst"],
   // Closes an open shift (stimpilklukka's ÚT button). "Inn" is intentionally
   // not writable here — a shift's start time is only ever set at creation.
   "tblnFIO8RB6HcelXF": ["Út"],
