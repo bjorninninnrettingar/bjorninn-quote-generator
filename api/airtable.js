@@ -1,4 +1,5 @@
 // api/airtable.js
+import crypto from "node:crypto";
 // Airtable proxy — keeps the Personal Access Token server-side only, so it
 // never sits in committed code or page source (GitHub's push protection
 // blocks any commit containing an Airtable PAT). Used by cutlist.html,
@@ -164,9 +165,26 @@ const FORCED_CREATE_FIELDS = {
 // secret from a one-time ?setup= link); this just checks the header matches.
 const KIOSK_LOCKED_TABLES = new Set([STIMPLANIR_TABLE, VERKTIMAR_TABLE]);
 
+// Owners clock in from their phones via /eigandi — no device pairing. That page
+// gets a per-day token from api/eigandi-clock.js (HMAC of the date keyed with
+// KIOSK_DEVICE_SECRET, after verifying the PIN belongs to an Eigandi) and sends
+// it as X-Kiosk-Token. Accept today's or yesterday's so a shift that straddles
+// UTC midnight still submits. Never derivable without the secret.
+function ownerDayToken(secret, offsetDays) {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + (offsetDays || 0));
+  return crypto
+    .createHmac("sha256", secret)
+    .update("eigandi-clock:" + d.toISOString().slice(0, 10))
+    .digest("hex")
+    .slice(0, 40);
+}
+
 function isKioskPaired(req) {
   const secret = process.env.KIOSK_DEVICE_SECRET;
-  return !!secret && req.headers["x-kiosk-token"] === secret;
+  if (!secret) return false;
+  const tok = req.headers["x-kiosk-token"];
+  return tok === secret || tok === ownerDayToken(secret, 0) || tok === ownerDayToken(secret, -1);
 }
 
 // Only Sögunarlisti rows may be patched, and only these fields — used for the

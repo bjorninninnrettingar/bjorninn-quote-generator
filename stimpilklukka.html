@@ -296,7 +296,17 @@
         history.replaceState(null, "", location.pathname);
       }
     })();
-    const KIOSK_TOKEN = localStorage.getItem("kioskToken") || "";
+    let KIOSK_TOKEN = localStorage.getItem("kioskToken") || "";
+
+    // /eigandi — phone clock-in for owners. Same page, but the PIN is verified by
+    // api/eigandi-clock.js (which also checks Tegund starfsmanns = Eigandi) and
+    // returns a per-day token used as X-Kiosk-Token instead of the shop-device
+    // secret. No pairing, works from any phone.
+    const OWNER_MODE = location.pathname.replace(/\/+$/, "") === "/eigandi";
+    if (OWNER_MODE) {
+      const h1 = document.querySelector("header h1");
+      if (h1) h1.textContent = "Eigendaklukka";
+    }
 
     function todayISO(d) {
       d = d || new Date();
@@ -424,14 +434,38 @@
     async function submitPin() {
       locked = true;
       try {
-        const formula = `AND({PIN 🔢}=${pin},{Er starfandi? ✅}=1)`;
-        const data = await airtableGet(STARFSMENN_TABLE, { filterByFormula: formula, maxRecords: 1 });
-        const record = (data.records || [])[0];
-        if (!record) {
-          pinMsg.textContent = "Rangt PIN númer";
-          renderDots("error");
-          setTimeout(() => { locked = false; resetPin(); }, 900);
-          return;
+        let record;
+        if (OWNER_MODE) {
+          const res = await fetch("/api/eigandi-clock", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ pin }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (res.status === 403) {
+            pinMsg.textContent = "Aðeins fyrir eigendur";
+            renderDots("error");
+            setTimeout(() => { locked = false; resetPin(); }, 1200);
+            return;
+          }
+          if (!res.ok || !data.record) {
+            pinMsg.textContent = "Rangt PIN númer";
+            renderDots("error");
+            setTimeout(() => { locked = false; resetPin(); }, 900);
+            return;
+          }
+          KIOSK_TOKEN = data.token;
+          record = data.record;
+        } else {
+          const formula = `AND({PIN 🔢}=${pin},{Er starfandi? ✅}=1)`;
+          const data = await airtableGet(STARFSMENN_TABLE, { filterByFormula: formula, maxRecords: 1 });
+          record = (data.records || [])[0];
+          if (!record) {
+            pinMsg.textContent = "Rangt PIN númer";
+            renderDots("error");
+            setTimeout(() => { locked = false; resetPin(); }, 900);
+            return;
+          }
         }
         await showEmployee(record);
         locked = false;
