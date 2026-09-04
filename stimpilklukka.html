@@ -227,9 +227,11 @@
     <button id="btn-vacation" class="secondary-btn">Sækja um orlof</button>
     <button id="btn-shortcut" class="secondary-btn hidden">⚙️ Sjálfvirk stimplun (Shortcut)</button>
     <div id="shortcut-box" class="hidden" style="margin-top:12px;width:100%;font-size:0.82rem;color:#bbb;line-height:1.5;">
-      <p style="margin-bottom:8px;">Búðu til <b>Personal Automation</b> í Shortcuts: <i>„When I Arrive“ → vinnustaður → Get Contents of URL</i> (Method: <b>POST</b>), settu þessa slóð:</p>
-      <textarea id="shortcut-url" readonly rows="3" style="width:100%;background:#161616;border:1px solid #262626;border-radius:8px;color:#8bc34a;padding:8px;font-size:0.75rem;"></textarea>
-      <p style="margin-top:6px;">Ein slóð (toggle) = inn ef úti, út ef inni. Endurtaktu með „When I Leave“ ef þú vilt sjálfvirka útstimplun líka.</p>
+      <p style="margin-bottom:6px;">Shortcuts → Automation → <b>Get Contents of URL</b> (Method: <b>POST</b>).</p>
+      <p style="margin:8px 0 4px;"><b>„When I Arrive“</b> (vinnustaður) → þessi slóð:</p>
+      <textarea id="shortcut-inn" readonly rows="2" style="width:100%;background:#161616;border:1px solid #262626;border-radius:8px;color:#8bc34a;padding:8px;font-size:0.72rem;"></textarea>
+      <p style="margin:10px 0 4px;"><b>„When I Leave“</b> → þessi slóð:</p>
+      <textarea id="shortcut-ut" readonly rows="2" style="width:100%;background:#161616;border:1px solid #262626;border-radius:8px;color:#e0a030;padding:8px;font-size:0.72rem;"></textarea>
     </div>
     <button id="cancel-btn" class="link-btn">Hætta við</button>
   </div>
@@ -686,13 +688,13 @@
       resetPin();
     });
 
-    document.getElementById("btn-shortcut").addEventListener("click", async () => {
+    document.getElementById("btn-shortcut").addEventListener("click", () => {
       const box = document.getElementById("shortcut-box");
       if (!box.classList.contains("hidden")) { box.classList.add("hidden"); return; }
       if (!ownerShortcut) return;
-      document.getElementById("shortcut-url").value = ownerShortcut.toggle;
+      document.getElementById("shortcut-inn").value = ownerShortcut.inn;
+      document.getElementById("shortcut-ut").value = ownerShortcut.ut;
       box.classList.remove("hidden");
-      try { await navigator.clipboard.writeText(ownerShortcut.toggle); } catch { /* user can select it manually */ }
     });
 
     // ---- Hours screen ----
