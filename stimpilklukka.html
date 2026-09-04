@@ -225,6 +225,12 @@
     <button id="btn-sick" class="secondary-btn">Tilkynna veikindi í dag</button>
     <button id="btn-hours" class="secondary-btn">Mínar stundir</button>
     <button id="btn-vacation" class="secondary-btn">Sækja um orlof</button>
+    <button id="btn-shortcut" class="secondary-btn hidden">⚙️ Sjálfvirk stimplun (Shortcut)</button>
+    <div id="shortcut-box" class="hidden" style="margin-top:12px;width:100%;font-size:0.82rem;color:#bbb;line-height:1.5;">
+      <p style="margin-bottom:8px;">Búðu til <b>Personal Automation</b> í Shortcuts: <i>„When I Arrive“ → vinnustaður → Get Contents of URL</i> (Method: <b>POST</b>), settu þessa slóð:</p>
+      <textarea id="shortcut-url" readonly rows="3" style="width:100%;background:#161616;border:1px solid #262626;border-radius:8px;color:#8bc34a;padding:8px;font-size:0.75rem;"></textarea>
+      <p style="margin-top:6px;">Ein slóð (toggle) = inn ef úti, út ef inni. Endurtaktu með „When I Leave“ ef þú vilt sjálfvirka útstimplun líka.</p>
+    </div>
     <button id="cancel-btn" class="link-btn">Hætta við</button>
   </div>
 
@@ -404,6 +410,8 @@
       // while someone was mid-flow, pick it up now instead of running stale
       // JS until the next manual reload.
       if (reloadPending) { location.reload(); return; }
+      catchUpMode = false;
+      document.getElementById("shortcut-box").classList.add("hidden");
       pin = "";
       pinMsg.textContent = "";
       renderDots();
@@ -455,6 +463,7 @@
             return;
           }
           KIOSK_TOKEN = data.token;
+          ownerShortcut = data.shortcut || null;
           record = data.record;
         } else {
           const formula = `AND({PIN 🔢}=${pin},{Er starfandi? ✅}=1)`;
@@ -507,6 +516,9 @@
     let openShift = null; // the open Stimplanir record, or null if clocked out
     let sickToday = false; // already marked sick today?
     let isKK = true; // karlkyn/kvenkyn — defaults to KK (masculine) if "Kyn" isn't set
+    let catchUpMode = false; // owner mode: splitting a past auto-closed shift
+    const skippedCatchUp = new Set(); // shift ids the owner chose "Sleppa í bili" on — don't re-nag this session
+    let ownerShortcut = null; // { toggle, inn, ut } URLs from the eigandi login
 
     async function showEmployee(record) {
       currentEmployee = record;
@@ -543,7 +555,40 @@
       } catch {
         employeeStatus.textContent = "Villa við að athuga stöðu";
       }
+
+      // Owner mode: an auto (GPS/Shortcut) clock-out closes the shift but can't
+      // do the project split. Catch it here before showing the buttons.
+      if (OWNER_MODE) {
+        document.getElementById("btn-shortcut").classList.toggle("hidden", !ownerShortcut);
+        if (await checkCatchUp()) return; // we're on the alloc screen now
+      }
       renderAction();
+    }
+
+    async function checkCatchUp() {
+      const name = (currentEmployee.fields["Nafn starfsmanns 👷"] || "").replace(/"/g, '\\"');
+      try {
+        const [shifts, verkt] = await Promise.all([
+          airtableGetAll(STIMPLANIR_TABLE, {
+            filterByFormula: `AND({Starfsmaður}="${name}",{Út}!=BLANK(),IS_AFTER({Inn},DATEADD(NOW(),-5,'days')))`,
+          }),
+          airtableGetAll(VERKTIMAR_TABLE, {
+            filterByFormula: `AND({Starfsmaður}="${name}",IS_AFTER({Dagsetning},DATEADD(TODAY(),-5,'days')))`,
+          }),
+        ]);
+        const covered = new Set();
+        for (const r of verkt) for (const id of (r.fields["Stimplun ⏱️"] || [])) covered.add(id);
+        const unsplit = shifts
+          .filter((s) => s.fields["Út"] && !covered.has(s.id) && !skippedCatchUp.has(s.id)
+            && (new Date(s.fields["Út"]) - new Date(s.fields["Inn"])) >= 30 * 60 * 1000)
+          .sort((a, b) => new Date(a.fields["Inn"]) - new Date(b.fields["Inn"]));
+        if (!unsplit.length) return false;
+        catchUpMode = true;
+        startAllocation(unsplit[0], new Date(unsplit[0].fields["Út"]));
+        return true;
+      } catch {
+        return false; // don't block clock-in on a catch-up lookup failure
+      }
     }
 
     function renderAction() {
@@ -635,9 +680,19 @@
       currentEmployee = null;
       openShift = null;
       sickToday = false;
+      document.getElementById("shortcut-box").classList.add("hidden");
       screenEmployee.classList.add("hidden");
       screenPin.classList.remove("hidden");
       resetPin();
+    });
+
+    document.getElementById("btn-shortcut").addEventListener("click", async () => {
+      const box = document.getElementById("shortcut-box");
+      if (!box.classList.contains("hidden")) { box.classList.add("hidden"); return; }
+      if (!ownerShortcut) return;
+      document.getElementById("shortcut-url").value = ownerShortcut.toggle;
+      box.classList.remove("hidden");
+      try { await navigator.clipboard.writeText(ownerShortcut.toggle); } catch { /* user can select it manually */ }
     });
 
     // ---- Hours screen ----
@@ -856,9 +911,11 @@
       screenAlloc.classList.remove("hidden");
       allocSearch.value = "";
       allocMsg.textContent = "";
-      allocSkip.classList.add("hidden");
+      allocSkip.classList.toggle("hidden", !catchUpMode); // catch-up always gets an "out"
       allocSubmit.disabled = true;
-      allocTargetEl.textContent = `Skiptu ${fmtH(target)} klst á verk`;
+      allocTargetEl.textContent = catchUpMode
+        ? `${new Date(inMs).toLocaleDateString("is-IS", { day: "numeric", month: "long" })}: skiptu ${fmtH(target)} klst`
+        : `Skiptu ${fmtH(target)} klst á verk`;
       allocList.innerHTML = `<div style="color:#888;text-align:center;padding:20px 0">Sæki verkefni…</div>`;
       renderAllocRemaining();
       resetAllocIdle();
@@ -908,7 +965,15 @@
     allocSkip.addEventListener("click", () => {
       if (allocIdleTimer) clearTimeout(allocIdleTimer);
       const t = allocState ? allocState.outTime : new Date();
+      const skipId = allocState && allocState.shiftId;
       allocState = null;
+      if (catchUpMode) {
+        catchUpMode = false;
+        if (skipId) skippedCatchUp.add(skipId);
+        screenAlloc.classList.add("hidden");
+        showEmployee(currentEmployee);
+        return;
+      }
       showConfirm("Út", t);
     });
 
@@ -944,6 +1009,7 @@
         }
         const out = allocState.outTime;
         allocState = null;
+        if (catchUpMode) { catchUpMode = false; screenAlloc.classList.add("hidden"); await showEmployee(currentEmployee); return; }
         showConfirm("Út", out, null, `Tíma skipt á ${nParts} verk`);
       } catch (err) {
         allocMsg.textContent = err.code === "DEVICE_NOT_PAIRED"
