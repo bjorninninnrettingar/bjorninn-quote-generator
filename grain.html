@@ -134,6 +134,74 @@
 
   .hint { color: #777; font-size: 0.8rem; margin-top: 6px; }
 
+  /* guided sawing overlay */
+  #guideOverlay {
+    position: fixed; inset: 0; z-index: 100; background: #0b0b0b;
+    display: flex; flex-direction: column;
+  }
+  #guideOverlay .gtop {
+    display: flex; align-items: center; gap: 14px; padding: 12px 20px;
+    border-bottom: 1px solid #222; font-size: 0.9rem; color: #aaa;
+  }
+  #guideOverlay .gtop .gt-title { font-weight: 700; color: #f0f0f0; }
+  #guideOverlay .gtop .gt-step { margin-left: auto; font-variant-numeric: tabular-nums; }
+  #guideOverlay .gprog { height: 4px; background: #1e1e1e; }
+  #guideOverlay .gprog > div { height: 100%; background: #2196f3; transition: width 0.2s; }
+
+  #guideOverlay .gbody {
+    flex: 1; display: flex; gap: 28px; padding: 26px 32px; overflow: auto; align-items: stretch;
+  }
+  #guideOverlay .gdiagram { flex: 1 1 46%; display: flex; align-items: flex-start; justify-content: center; min-width: 260px; }
+  #guideOverlay .gdiagram svg { max-height: 68vh; width: auto; max-width: 100%; background: #141414; border: 1px solid #2a2a2a; border-radius: 6px; }
+  #guideOverlay .ginfo { flex: 1 1 54%; display: flex; flex-direction: column; gap: 18px; }
+
+  #guideOverlay .gboard-chip {
+    align-self: flex-start; background: #1c1c1c; border: 1px solid #333; border-radius: 999px;
+    padding: 4px 14px; font-size: 0.85rem; color: #bbb; font-weight: 600;
+  }
+  #guideOverlay .gkind {
+    font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700;
+  }
+  #guideOverlay .gkind.rip { color: #f5a623; }
+  #guideOverlay .gkind.crosscut { color: #4aa3ff; }
+  #guideOverlay .gkind.trim, #guideOverlay .gkind.scrap { color: #888; }
+  #guideOverlay .gtitle { font-size: 1.9rem; font-weight: 700; line-height: 1.15; }
+  #guideOverlay .gmeasure {
+    display: flex; align-items: baseline; gap: 12px; background: #12181f;
+    border: 1px solid #24384a; border-radius: 12px; padding: 16px 20px;
+  }
+  #guideOverlay .gmeasure .num { font-size: 3.4rem; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; line-height: 1; }
+  #guideOverlay .gmeasure .unit { font-size: 1.3rem; color: #9ac7ff; }
+  #guideOverlay .gmeasure .lbl { margin-left: auto; text-align: right; color: #8fa9c0; font-size: 0.9rem; max-width: 45%; }
+
+  #guideOverlay .gproduces label { margin-bottom: 8px; }
+  #guideOverlay .gchip {
+    display: inline-flex; flex-direction: column; gap: 2px;
+    background: #16241a; border: 1px solid #2c4a34; border-radius: 8px;
+    padding: 8px 12px; margin: 0 8px 8px 0; min-width: 120px;
+  }
+  #guideOverlay .gchip .cl { font-weight: 700; font-size: 0.95rem; }
+  #guideOverlay .gchip .cd { color: #9fd6ac; font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+  #guideOverlay .gchip.warn { border-color: #6b4a22; background: #241c12; }
+  #guideOverlay .gnote { color: #999; font-size: 0.9rem; }
+
+  #guideOverlay .gbottom {
+    display: flex; align-items: center; gap: 16px; padding: 16px 24px; border-top: 1px solid #222;
+  }
+  #guideOverlay .gbottom button { padding: 14px 26px; font-size: 1.05rem; }
+  #guideOverlay .gbottom .spacer { flex: 1; }
+  #guideOverlay .gbottom .kbd-hint { color: #666; font-size: 0.8rem; }
+  #guideOverlay.done .gbody { align-items: center; justify-content: center; }
+  #guideOverlay .gdone { text-align: center; }
+  #guideOverlay .gdone .big { font-size: 3rem; font-weight: 800; margin-bottom: 8px; }
+
+  @media (max-width: 760px) {
+    #guideOverlay .gbody { flex-direction: column; }
+    #guideOverlay .gtitle { font-size: 1.5rem; }
+    #guideOverlay .gmeasure .num { font-size: 2.6rem; }
+  }
+  @media print { #guideOverlay { display: none !important; } }
+
   /* print */
   @media print {
     @page { margin: 12mm; }
@@ -180,6 +248,8 @@
     <div class="hint">Æðaefni efst. Slétt/einlit efni þurfa ekki æðaskipulag — notaðu Cutty fyrir þau.</div>
   </div>
 
+  <div class="hidden" id="guideOverlay"></div>
+
   <div class="hidden" id="workspaceCard">
     <div class="toolbar no-print">
       <div class="field">
@@ -200,8 +270,9 @@
       </div>
       <button class="primary" onclick="autoNest()">↻ Raða sjálfvirkt</button>
       <button class="ghost" onclick="addBoard()">+ Plata</button>
-      <button class="ghost" onclick="window.print()">🖨 Prenta leiðsögn</button>
+      <button class="ghost" onclick="window.print()">🖨 Prenta</button>
       <button class="ghost small" onclick="resetLayout()">Núllstilla röðun</button>
+      <button class="primary" style="margin-left:auto;" onclick="openGuide()">▶ Saga með leiðsögn</button>
     </div>
 
     <div id="matchNote" class="hint no-print" style="margin-bottom:10px;"></div>
@@ -1005,6 +1076,270 @@ function cutSequenceHtml(b, bi) {
   html += `</ol>`;
   return html;
 }
+
+// ── GUIDED SAWING ────────────────────────────────────────────────────────
+// Turns the current layout into an ordered list of physical saw operations:
+// per board → trim → for each vertical strip: rip the strip, then crosscut
+// each front off its leading edge, top to bottom. Measurements are the
+// number the sawyer dials into the fence / crosscut stop for that one cut.
+let guide = null;   // { steps: [...], idx }
+
+function clusterStrips(b) {
+  const items = Object.entries(b.placements).map(([gid, p]) => {
+    const g = groups.find(x => x.id === gid);
+    return g ? { g, x: p.x, y: p.y, w: groupWidth(g), l: groupLen(g) } : null;
+  }).filter(Boolean).sort((a, c) => a.x - c.x || a.y - c.y);
+
+  const strips = [];
+  for (const it of items) {
+    let s = strips.find(s => Math.abs(s.x - it.x) < 45);
+    if (!s) { s = { x: it.x, w: it.w, runs: [] }; strips.push(s); }
+    s.w = Math.max(s.w, it.w);
+    s.runs.push(it);
+  }
+  for (const s of strips) s.runs.sort((a, c) => a.y - c.y);
+  return strips.sort((a, c) => a.x - c.x);
+}
+
+function buildCutPlan() {
+  const steps = [];
+  const k = settings.kerf, tr = settings.trim;
+
+  layout.boards.forEach((b, bi) => {
+    const strips = clusterStrips(b);
+    if (!strips.length) return;
+
+    if (tr > 0) {
+      steps.push({
+        bi, kind: "trim", measure: tr, measureLabel: "Taktu af hvorri brún",
+        title: "Snyrtu frambrún og vinstri kant plötunnar",
+        note: "Svo að allar næstu mælingar byrji á hreinum kanti.",
+        produces: [], cutLines: [{ o: "h", pos: tr }, { o: "v", pos: tr }],
+        highlight: null,
+      });
+    }
+
+    strips.forEach((s, si) => {
+      const names = [...new Set(s.runs.map(r => r.g.unitName.replace(/ · \d+$/, "")))].join(", ");
+      steps.push({
+        bi, kind: "rip", measure: Math.round(s.w), measureLabel: "Rifjaðar — frá vinstri kanti",
+        title: `Rífðu ræmu ${si + 1}${strips.length > 1 ? " af " + strips.length : ""} — ${Math.round(s.w)} mm breið`,
+        note: `Ræman heldur samfelldu æðinni fyrir: ${names}.`,
+        produces: [],
+        highlight: { x: s.x, y: tr, w: s.w, l: board.l - tr },
+        cutLines: [{ o: "v", pos: s.x + s.w }],
+      });
+
+      let cursor = tr;
+      s.runs.forEach(r => {
+        const g = r.g;
+        if (r.y > cursor + 1) {
+          steps.push({
+            bi, kind: "scrap", measure: Math.round(r.y - cursor), measureLabel: "Þverskurðarstopp",
+            title: "Sagaðu frá afskurð efst á ræmunni",
+            note: "Kastaðu — næsti hópur byrjar hér.",
+            produces: [], highlight: { x: s.x, y: cursor, w: s.w, l: r.y - cursor },
+            cutLines: [{ o: "h", pos: r.y }],
+          });
+          cursor = r.y;
+        }
+        if (g.orient === "v") {
+          const narrower = g.width < s.w - 1;
+          const runTop = cursor;
+          g.fronts.forEach((f, fi) => {
+            steps.push({
+              bi, kind: "crosscut", measure: f.h, measureLabel: "Þverskurðarstopp",
+              title: `${g.unitName} — þverskurður ${fi + 1} af ${g.fronts.length}`,
+              note: fi === 0
+                ? "Efsti fronti hópsins. Haltu röðinni." + (narrower ? " (fronturinn rifst mjórri á eftir)" : "")
+                : "",
+              produces: narrower ? [] : [{ label: f.label, w: g.width, h: f.h, unitName: g.unitName, err: f.err }],
+              highlight: { x: s.x, y: cursor, w: g.width, l: f.h },
+              cutLines: [{ o: "h", pos: cursor + f.h }],
+            });
+            cursor += f.h + k;
+          });
+          if (narrower) {
+            steps.push({
+              bi, kind: "rip", measure: g.width, measureLabel: "Rifjaðar",
+              title: `${g.unitName} — rífðu ${g.fronts.length} fronta niður í ${g.width} mm`,
+              note: `Taktu ${Math.round(s.w - g.width)} mm af hverjum (ræman var breiðari en þessi hópur).`,
+              produces: g.fronts.map(f => ({ label: f.label, w: g.width, h: f.h, unitName: g.unitName, err: f.err })),
+              highlight: { x: s.x, y: runTop, w: g.width, l: cursor - runTop - k },
+              cutLines: [{ o: "v", pos: s.x + g.width }],
+            });
+          }
+        } else {
+          const H = Math.max(...g.fronts.map(f => f.h));
+          steps.push({
+            bi, kind: "crosscut", measure: H, measureLabel: "Þverskurðarstopp",
+            title: `${g.unitName} — þverskurður á blokk (${g.fronts.length} frontar hlið við hlið)`,
+            note: "Þessi hópur er sagaður sem ein blokk og svo rifinn.",
+            produces: [], highlight: { x: s.x, y: cursor, w: groupWidth(g), l: H },
+            cutLines: [{ o: "h", pos: cursor + H }],
+          });
+          g.fronts.forEach((f, fi) => {
+            steps.push({
+              bi, kind: "rip", measure: g.width, measureLabel: "Rifjaðar",
+              title: `${g.unitName} — rífðu fronta ${fi + 1} af ${g.fronts.length} úr blokkinni`,
+              note: "", produces: [{ label: f.label, w: g.width, h: f.h, unitName: g.unitName, err: f.err }],
+              highlight: { x: s.x + fi * (g.width + k), y: cursor, w: g.width, l: H },
+              cutLines: [{ o: "v", pos: s.x + (fi + 1) * (g.width + k) }],
+            });
+          });
+          cursor += H + k;
+        }
+      });
+    });
+  });
+
+  return { steps, idx: 0 };
+}
+
+function guideKey() { return `grain:guide:${currentProjectId}:${selectedKey}`; }
+
+function openGuide() {
+  readToolbar();
+  const plan = buildCutPlan();
+  if (!plan.steps.length) { alert("Engir frontar á plötunum til að saga."); return; }
+  let start = 0;
+  try {
+    const saved = parseInt(localStorage.getItem(guideKey()) || "0", 10);
+    if (saved > 0 && saved < plan.steps.length &&
+        confirm(`Halda áfram frá skrefi ${saved + 1} af ${plan.steps.length}? (Í lagi = halda áfram, Hætta við = byrja upp á nýtt)`))
+      start = saved;
+  } catch {}
+  guide = plan; guide.idx = start;
+  $("guideOverlay").classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+  renderGuide();
+}
+function closeGuide() {
+  $("guideOverlay").classList.add("hidden");
+  document.body.style.overflow = "";
+  guide = null;
+}
+function guideNav(d) {
+  if (!guide) return;
+  const n = guide.idx + d;
+  if (n < 0) return;
+  if (n >= guide.steps.length) {
+    guide.idx = guide.steps.length;
+    try { localStorage.removeItem(guideKey()); } catch {}
+    renderGuide(); return;
+  }
+  guide.idx = n;
+  try { localStorage.setItem(guideKey(), String(Math.max(0, n))); } catch {}
+  renderGuide();
+}
+
+function guideSvg(step) {
+  const bi = step.bi;
+  const b = layout.boards[bi];
+  const PXW = 380, scale = PXW / board.w;
+  const W = board.w * scale, H = board.l * scale;
+  const S = (x) => x * scale;
+  let inner = "";
+  // sheet + trim
+  inner += `<rect x="0" y="0" width="${W}" height="${H}" fill="#101010" stroke="#444"/>`;
+  inner += `<rect x="${S(settings.trim)}" y="${S(settings.trim)}" width="${S(board.w - 2 * settings.trim)}" height="${S(board.l - settings.trim)}" fill="none" stroke="#333" stroke-dasharray="3 3"/>`;
+  inner += `<text x="7" y="${H / 2}" fill="#555" font-size="10" text-anchor="middle" transform="rotate(-90 7 ${H / 2})">◄ VIÐARÆÐ ►</text>`;
+  // all groups faint
+  Object.entries(b.placements).forEach(([gid, p]) => {
+    const g = groups.find(x => x.id === gid); if (!g) return;
+    const gi = groups.indexOf(g), c = COLORS[gi % COLORS.length];
+    inner += `<rect x="${S(p.x)}" y="${S(p.y)}" width="${S(groupWidth(g))}" height="${S(groupLen(g))}" fill="${c}" fill-opacity="0.18" stroke="${c}" stroke-opacity="0.5"/>`;
+    let off = 0;
+    g.fronts.forEach(f => {
+      const cw = g.orient === "h" ? g.width : groupWidth(g);
+      const ch = g.orient === "h" ? groupLen(g) : f.h;
+      const cx = g.orient === "h" ? p.x + off : p.x;
+      const cy = g.orient === "h" ? p.y : p.y + off;
+      inner += `<rect x="${S(cx)}" y="${S(cy)}" width="${S(cw)}" height="${S(ch)}" fill="none" stroke="${c}" stroke-opacity="0.4" stroke-width="0.5"/>`;
+      off += (g.orient === "h" ? g.width : f.h) + settings.kerf;
+    });
+  });
+  // highlight region
+  if (step.highlight) {
+    const h = step.highlight;
+    inner += `<rect x="${S(h.x)}" y="${S(h.y)}" width="${S(h.w)}" height="${S(h.l)}" fill="#2196f3" fill-opacity="0.28" stroke="#2196f3" stroke-width="2"/>`;
+  }
+  // cut lines
+  (step.cutLines || []).forEach(cl => {
+    if (cl.o === "v") inner += `<line x1="${S(cl.pos)}" y1="0" x2="${S(cl.pos)}" y2="${H}" stroke="#ff5252" stroke-width="2.5" stroke-dasharray="8 5"/>`;
+    else inner += `<line x1="0" y1="${S(cl.pos)}" x2="${W}" y2="${S(cl.pos)}" stroke="#ff5252" stroke-width="2.5" stroke-dasharray="8 5"/>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">${inner}</svg>`;
+}
+
+function renderGuide() {
+  const o = $("guideOverlay");
+  const total = guide.steps.length;
+  const mat = (materials.find(m => m.key === selectedKey) || {}).efni || "";
+
+  if (guide.idx >= total) {
+    o.classList.add("done");
+    o.innerHTML = `
+      <div class="gtop"><span class="gt-title">Leiðsögn</span><span class="gt-step">búið</span>
+        <button class="ghost small" onclick="closeGuide()">✕ Loka</button></div>
+      <div class="gprog"><div style="width:100%"></div></div>
+      <div class="gbody"><div class="gdone">
+        <div class="big">✓ Klárt</div>
+        <div class="gnote">Öll ${total} skref búin á ${layout.boards.filter(b=>Object.keys(b.placements).length).length} plötum.</div>
+        <div style="margin-top:20px;display:flex;gap:12px;justify-content:center;">
+          <button class="ghost" onclick="guide.idx=0;try{localStorage.removeItem(guideKey())}catch(e){};renderGuide()">↻ Byrja aftur</button>
+          <button class="primary" onclick="try{localStorage.removeItem(guideKey())}catch(e){};closeGuide()">Loka</button>
+        </div>
+      </div></div>`;
+    return;
+  }
+  o.classList.remove("done");
+  const st = guide.steps[guide.idx];
+  const nBoards = new Set(guide.steps.map(s => s.bi)).size;
+  const pct = Math.round(guide.idx / total * 100);
+
+  const produces = (st.produces || []).map(p => `
+    <div class="gchip ${p.err ? "warn" : ""}">
+      <span class="cl">${esc(p.label)}${p.err ? " ⚠" : ""}</span>
+      <span class="cd">${esc(p.unitName)} · ${Math.round(p.w)}×${Math.round(p.h)} mm</span>
+    </div>`).join("");
+
+  o.innerHTML = `
+    <div class="gtop">
+      <span class="gt-title">Leiðsögn — ${esc(projectName)}</span>
+      <span class="gnote">${esc(mat)}</span>
+      <span class="gt-step">Skref ${guide.idx + 1} / ${total}</span>
+      <button class="ghost small" onclick="closeGuide()">✕ Loka</button>
+    </div>
+    <div class="gprog"><div style="width:${pct}%"></div></div>
+    <div class="gbody">
+      <div class="gdiagram">${guideSvg(st)}</div>
+      <div class="ginfo">
+        <span class="gboard-chip">Plata ${st.bi + 1}${nBoards > 1 ? " af " + nBoards : ""}</span>
+        <span class="gkind ${st.kind}">${({ trim: "Snyrting", rip: "Rif", crosscut: "Þverskurður", scrap: "Afskurður" })[st.kind]}</span>
+        <div class="gtitle">${esc(st.title)}</div>
+        ${st.measure != null ? `<div class="gmeasure">
+          <span class="num">${Math.round(st.measure)}</span><span class="unit">mm</span>
+          <span class="lbl">${esc(st.measureLabel || "")}</span>
+        </div>` : ""}
+        ${st.note ? `<div class="gnote">${esc(st.note)}</div>` : ""}
+        ${produces ? `<div class="gproduces"><label>Þú færð — merktu strax</label>${produces}</div>` : ""}
+      </div>
+    </div>
+    <div class="gbottom">
+      <button class="ghost" onclick="guideNav(-1)" ${guide.idx === 0 ? "disabled" : ""}>◀ Til baka</button>
+      <span class="kbd-hint">← → eða bil</span>
+      <span class="spacer"></span>
+      <button class="primary" onclick="guideNav(1)">${guide.idx === total - 1 ? "Klára ✓" : "Næsta ▶"}</button>
+    </div>`;
+}
+
+document.addEventListener("keydown", e => {
+  if (!guide || $("guideOverlay").classList.contains("hidden")) return;
+  if (e.key === "ArrowRight" || e.key === " " || e.key === "Enter") { e.preventDefault(); guideNav(1); }
+  else if (e.key === "ArrowLeft" || e.key === "Backspace") { e.preventDefault(); guideNav(-1); }
+  else if (e.key === "Escape") { e.preventDefault(); closeGuide(); }
+});
 
 // ── VERSION POLL ─────────────────────────────────────────────────────────
 let deployedVersion = null;
