@@ -42,6 +42,7 @@ const ALLOWED_FIELDS = {
     "Þ",
     "M",
     "Efni: (undirstaða)",
+    "Efni:", // resolved decor name incl. customer material (e.g. "...H3154 Charl eik") — grain.html needs the decor to group grain-matched fronts
     "Villa?",
     "Athugasemd",
     "B.A.S.",

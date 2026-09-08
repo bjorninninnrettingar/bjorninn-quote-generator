@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Æðaskipulag — Björninn</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0a0a0a;
+    color: #f0f0f0;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    min-height: 100vh;
+    padding: 24px 40px 80px;
+  }
+  h1 { font-size: 1.6rem; letter-spacing: 0.03em; margin-bottom: 4px; }
+  .sub { color: #888; font-size: 0.95rem; margin-bottom: 22px; }
+
+  .card {
+    background: #161616;
+    border: 1px solid #222;
+    border-radius: 10px;
+    padding: 18px 22px;
+    margin-bottom: 18px;
+  }
+
+  label { display: block; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: #999; margin-bottom: 6px; }
+
+  select, input[type="number"], input[type="text"] {
+    background: #0d0d0d;
+    border: 1px solid #333;
+    color: #f0f0f0;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 1rem;
+    width: 100%;
+    max-width: 480px;
+  }
+  input[type="number"] { max-width: 110px; text-align: right; }
+
+  button {
+    background: #333;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button.primary { background: #2196f3; }
+  button.ghost { background: transparent; border: 1.5px solid #333; }
+  button:disabled { background: #222; color: #666; cursor: not-allowed; }
+  button.small { padding: 5px 9px; font-size: 0.8rem; border-radius: 6px; }
+
+  .hidden { display: none !important; }
+  .project-name { font-size: 1.2rem; font-weight: 700; margin-bottom: 2px; }
+
+  /* material picker */
+  .mat-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 11px 14px; border: 1.5px solid #262626; border-radius: 8px;
+    margin-bottom: 8px; cursor: pointer;
+  }
+  .mat-item:hover { border-color: #2196f3; }
+  .mat-item.active { border-color: #2196f3; background: #0d1a26; }
+  .mat-item .mname { font-weight: 600; }
+  .mat-item .mmeta { color: #888; font-size: 0.82rem; margin-top: 2px; }
+  .badge {
+    font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em;
+    padding: 3px 7px; border-radius: 5px; font-weight: 700; white-space: nowrap;
+  }
+  .badge.grain { background: #3a2d12; color: #f5c518; }
+  .badge.flat  { background: #1f1f1f; color: #777; }
+
+  /* workspace */
+  .workspace { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+  .boards-col { flex: 1 1 620px; min-width: 320px; }
+  .side-col { flex: 0 1 340px; min-width: 280px; }
+
+  .toolbar {
+    display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end;
+    margin-bottom: 16px;
+  }
+  .toolbar .field { display: flex; flex-direction: column; }
+  .toolbar .field label { margin-bottom: 4px; }
+
+  .stat-row { display: flex; gap: 22px; flex-wrap: wrap; margin: 4px 0 18px; }
+  .stat { font-size: 0.85rem; color: #aaa; }
+  .stat b { color: #f0f0f0; font-size: 1.05rem; display: block; }
+
+  #boardsCol { display: flex; flex-wrap: wrap; gap: 22px; align-items: flex-start; }
+  .board-wrap { margin-bottom: 4px; width: 400px; max-width: 100%; }
+  .board-head {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 8px;
+  }
+  .board-head h3 { font-size: 1rem; }
+  .board-head .waste { color: #888; font-size: 0.82rem; }
+
+  svg.board { background: #141414; border: 1px solid #2a2a2a; border-radius: 6px; touch-action: none; display: block; width: 100%; height: auto; }
+  svg.board text { font-family: "SF Mono", Consolas, monospace; }
+
+  .group-rect { cursor: grab; }
+  .group-rect.dragging { cursor: grabbing; }
+  .group-rect.selected .grgbox { stroke: #2196f3; stroke-width: 2.5; }
+  .group-rect.overflow .grgbox { stroke: #f44336; stroke-dasharray: 6 4; }
+
+  .grp-panel { }
+  .grp-panel .grp {
+    border: 1.5px solid #262626; border-radius: 8px; padding: 10px 12px; margin-bottom: 10px;
+  }
+  .grp-panel .grp.sel { border-color: #2196f3; background: #0d1a26; }
+  .grp-panel .grp h4 { font-size: 0.9rem; margin-bottom: 2px; }
+  .grp-panel .grp .gm { color: #888; font-size: 0.78rem; margin-bottom: 8px; }
+  .front-row {
+    display: flex; align-items: center; gap: 8px; font-size: 0.82rem;
+    padding: 4px 0; border-top: 1px solid #1e1e1e;
+  }
+  .front-row .fn { flex: 1; }
+  .front-row .fdim { color: #999; font-variant-numeric: tabular-nums; }
+  .front-row .idx {
+    width: 20px; height: 20px; border-radius: 4px; background: #222; color: #ccc;
+    display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.72rem;
+  }
+  .grp-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    position: fixed; left: 0; right: 0; bottom: 0; background: #2196f3; color: #fff;
+    padding: 10px 16px; text-align: center; font-size: 0.9rem; font-weight: 600; z-index: 50;
+  }
+  .banner button { background: rgba(0,0,0,0.25); margin-left: 10px; }
+
+  .warn-box { background: #2a1512; border: 1px solid #5a2b22; color: #f0b8ac; padding: 10px 12px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 12px; }
+
+  .hint { color: #777; font-size: 0.8rem; margin-top: 6px; }
+
+  /* print */
+  @media print {
+    @page { margin: 12mm; }
+    body { background: #fff; color: #000; padding: 0; }
+    .no-print { display: none !important; }
+    .card { border: none; background: #fff; padding: 0; margin: 0; }
+    .workspace { display: block; }
+    .side-col { display: none; }
+    #boardsCol { display: block; }
+    .board-wrap { page-break-after: always; margin-bottom: 0; width: 100%; max-width: 100%; }
+    svg.board { background: #fff; border: 1px solid #000; max-width: 170mm; }
+    svg.board text { fill: #000 !important; }
+    .print-only { display: block !important; }
+    .board-head h3 { color: #000; }
+    .cutseq { color: #000 !important; }
+    .cutseq b { color: #000 !important; }
+  }
+  .print-only { display: none; }
+  .cutseq { font-size: 0.85rem; line-height: 1.5; margin-top: 10px; color: #bbb; }
+  .cutseq ol { padding-left: 20px; }
+  .cutseq b { color: #f0f0f0; }
+</style>
+</head>
+<body>
+
+  <h1>Æðaskipulag</h1>
+  <div class="sub">Raðar frontum með samfelldri viðaræð á plötu — það sem Cutty getur ekki gert.</div>
+
+  <div class="card no-print" id="searchCard">
+    <label>Veldu verkefni (Tækifæri)</label>
+    <select id="projectSelect"><option value="">Sæki verkefni…</option></select>
+    <div class="hint">Sýnir unnin verkefni sem ekki eru afhent.</div>
+  </div>
+
+  <div class="card no-print hidden" id="projectCard">
+    <div class="project-name" id="projectName"></div>
+    <div class="sub" id="projectStatus" style="margin:0;">Sæki Sögunarlista…</div>
+    <button class="ghost small" style="margin-top:10px;" onclick="resetAll()">← Annað verkefni</button>
+  </div>
+
+  <div class="card no-print hidden" id="materialCard">
+    <label>Veldu efni til að skipuleggja</label>
+    <div id="materialList"></div>
+    <div class="hint">Æðaefni efst. Slétt/einlit efni þurfa ekki æðaskipulag — notaðu Cutty fyrir þau.</div>
+  </div>
+
+  <div class="hidden" id="workspaceCard">
+    <div class="toolbar no-print">
+      <div class="field">
+        <label>Plata breidd (mm)</label>
+        <input type="number" id="boardW" step="1" />
+      </div>
+      <div class="field">
+        <label>Plata lengd — æð ↕ (mm)</label>
+        <input type="number" id="boardL" step="1" />
+      </div>
+      <div class="field">
+        <label>Sagarfar (mm)</label>
+        <input type="number" id="kerf" step="0.5" />
+      </div>
+      <div class="field">
+        <label>Jaðar-snyrting (mm)</label>
+        <input type="number" id="trim" step="1" />
+      </div>
+      <button class="primary" onclick="autoNest()">↻ Raða sjálfvirkt</button>
+      <button class="ghost" onclick="addBoard()">+ Plata</button>
+      <button class="ghost" onclick="window.print()">🖨 Prenta leiðsögn</button>
+      <button class="ghost small" onclick="resetLayout()">Núllstilla röðun</button>
+    </div>
+
+    <div id="matchNote" class="hint no-print" style="margin-bottom:10px;"></div>
+    <div id="overflowWarn"></div>
+
+    <div class="stat-row no-print" id="statRow"></div>
+
+    <div class="workspace">
+      <div class="boards-col" id="boardsCol"></div>
+      <div class="side-col no-print">
+        <div class="card">
+          <label>Æðahópar</label>
+          <div class="hint" style="margin:0 0 10px;">Smelltu á hóp til að velja. Dragðu hópinn til á plötunni. Raðaðu frontum í rétta röð að ofan og niður.</div>
+          <div class="grp-panel" id="grpPanel"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+// ── CONFIG ───────────────────────────────────────────────────────────────
+const PROXY_URL = "/api/airtable";
+const PROJECTS_TABLE     = "tbl4LMXlQjp66RFKI";
+const SOGUNARLISTI_TABLE = "tblhdgyvTcBfP8kov";
+const EFNISLISTI_TABLE   = "tbl8CrVWKF8CuI7HD";
+
+const P_NAME_FIELD = "Heiti tækifæris / verkefnis";
+const P_STADA_SOLU = "Staða í söluferli";
+const P_STADA_FRAM = "Staða í framleiðslu";
+
+const S_PROJECT_LINK = "Tækifæri 📣 (projects)";
+const S_PARTUR   = "Partur";
+const S_H = "H", S_B = "B", S_TH = "Þ", S_M = "M";
+const S_EFNI      = "Efni:";
+const S_EFNI_BASE = "Efni: (undirstaða)";
+const S_EYDUBLAD  = "Eyðublað ✏️";
+const S_VILLA     = "Villa?";
+
+const E_HEITI = "Heiti efnis", E_BREIDD = "Breidd (mm)", E_LENGD = "Lengd (mm)", E_THYKKT = "Þykkt (mm)";
+
+// Visible fronts whose grain the customer sees. Inner drawer fronts
+// (Innskúffufrontur) sit inside the cabinet and are excluded.
+const FRONT_RE  = /(frontur|blindlok|áfella|afella|vænghurð|vaenghurd|sökkul cover|sokkul cover)/i;
+const HIDDEN_RE = /(innskúffufrontur|innskuffufrontur)/i;
+// Wood-look / veneer decors where sequential grain matters.
+const GRAIN_RE  = /(eik|hnot|valhnot|ash|askur|beyk|beech|fura|pine|wenge|teak|oak|walnut|spónlag|spónlög|sponlag|spónn|spon |rift|masterlin|linoak|hickory|acacia|akasía|kirsu|cherry|birki|birch|reykt)/i;
+// Blum drawer-height codes, roughly narrow→tall — a sane default top→bottom order.
+const CODE_RANK = { N: 0, M: 1, K: 2, C: 3, D: 4, F: 5, E: 6 };
+
+const DEFAULTS = { kerf: 4.4, trim: 10 };
+
+// ── STATE ────────────────────────────────────────────────────────────────
+let projects = [];
+let currentProjectId = null;
+let projectName = "";
+let allFronts = [];          // {id, partur, h, b, th, m, efni, unitId, unitName, err}
+let boards = [];             // Efnislisti rows
+let materials = [];          // {key, label, efni, th, grain, pieces, area}
+let selectedKey = null;
+let groups = [];             // {id, unitName, width, orient, fronts:[{label,h,pieceId}]}
+let layout = { boards: [] }; // [{ placements: {gid:{x,y}} }]
+let selectedGid = null;
+let settings = loadSettings();
+let board = { w: 2070, l: 2800, name: "" };
+
+// ── UTIL ─────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const num = v => (typeof v === "number" ? v : parseFloat(v)) || 0;
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+const norm = s => String(s ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+function loadSettings() {
+  try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem("grain:settings") || "{}") }; }
+  catch { return { ...DEFAULTS }; }
+}
+function saveSettings() {
+  try { localStorage.setItem("grain:settings", JSON.stringify(settings)); } catch {}
+}
+function layoutKey() { return `grain:layout:${currentProjectId}:${selectedKey}`; }
+function saveLayout() {
+  try { localStorage.setItem(layoutKey(), JSON.stringify({ layout, board })); } catch {}
+}
+function loadStoredLayout() {
+  try {
+    const raw = localStorage.getItem(layoutKey());
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch { return null; }
+}
+
+async function fetchWithRetry(url, opt, tries = 3) {
+  for (let a = 0; ; a++) {
+    const r = await fetch(url, opt);
+    if (r.status !== 429 || a >= tries) return r;
+    await new Promise(res => setTimeout(res, 1000 * (a + 1)));
+  }
+}
+async function airtableFetch(table, params, recordId) {
+  // Build the query string with encodeURIComponent, NOT URLSearchParams:
+  // URLSearchParams encodes spaces as "+", and neither the /api/airtable
+  // request parser (locally) nor Airtable's formula parser decode "+" back
+  // to a space, so a "{Field Name}" reference in filterByFormula breaks.
+  const qs = [`path=${encodeURIComponent(recordId ? `${table}/${recordId}` : table)}`];
+  for (const [k, v] of Object.entries(params || {})) {
+    if (v === undefined) continue;
+    for (const x of Array.isArray(v) ? v : [v]) qs.push(`${encodeURIComponent(k)}=${encodeURIComponent(x)}`);
+  }
+  const build = extra => `${PROXY_URL}?${[...qs, ...extra].join("&")}`;
+  if (recordId) {
+    const r = await fetchWithRetry(build([]));
+    if (!r.ok) throw new Error(`Airtable HTTP ${r.status}`);
+    return r.json();
+  }
+  let recs = [], offset;
+  do {
+    const r = await fetchWithRetry(build(offset ? [`offset=${encodeURIComponent(offset)}`] : []));
+    if (!r.ok) throw new Error(`Airtable HTTP ${r.status}`);
+    const d = await r.json();
+    recs = recs.concat(d.records || []);
+    offset = d.offset;
+  } while (offset);
+  return recs;
+}
+
+// ── DATA LOAD ────────────────────────────────────────────────────────────
+async function fetchEligibleProjects() {
+  const formula = `AND({${P_STADA_SOLU}} = "🏆 Tækifæri unnið", {${P_STADA_FRAM}} != "Afhent (LOKIÐ ✅)")`;
+  return airtableFetch(PROJECTS_TABLE, { filterByFormula: formula, "fields[]": [P_NAME_FIELD], pageSize: 100 });
+}
+async function fetchProjectById(id) { return airtableFetch(PROJECTS_TABLE, {}, id); }
+
+async function fetchFrontsForProject(name) {
+  const escd = name.replace(/"/g, '\\"');
+  const formula = `FIND("${escd}", ARRAYJOIN({${S_PROJECT_LINK}})) > 0`;
+  return airtableFetch(SOGUNARLISTI_TABLE, {
+    filterByFormula: formula,
+    "fields[]": [S_PARTUR, S_H, S_B, S_TH, S_M, S_EFNI, S_EFNI_BASE, S_EYDUBLAD, S_VILLA],
+    pageSize: 100,
+  });
+}
+async function fetchBoards() {
+  return airtableFetch(EFNISLISTI_TABLE, { "fields[]": [E_HEITI, E_BREIDD, E_LENGD, E_THYKKT], pageSize: 100 });
+}
+
+async function populateProjects() {
+  const recs = await fetchEligibleProjects();
+  recs.sort((a, b) => (a.fields[P_NAME_FIELD] || "").localeCompare(b.fields[P_NAME_FIELD] || "", "is"));
+  const sel = $("projectSelect");
+  sel.innerHTML = '<option value="">— Veldu verkefni —</option>';
+  for (const r of recs) {
+    const o = document.createElement("option");
+    o.value = r.id; o.textContent = r.fields[P_NAME_FIELD] || r.id;
+    o.dataset.name = r.fields[P_NAME_FIELD] || r.id;
+    sel.appendChild(o);
+  }
+}
+
+async function loadProject(id) {
+  currentProjectId = id;
+  $("searchCard").classList.add("hidden");
+  $("projectCard").classList.remove("hidden");
+  $("materialCard").classList.add("hidden");
+  $("workspaceCard").classList.add("hidden");
+  $("projectStatus").textContent = "Sæki Sögunarlista…";
+
+  try {
+    let name = document.querySelector(`#projectSelect option[value="${id}"]`)?.dataset.name;
+    if (!name) name = (await fetchProjectById(id)).fields?.[P_NAME_FIELD] || "";
+    projectName = name;
+    $("projectName").textContent = name || id;
+
+    const [rows, brd] = await Promise.all([fetchFrontsForProject(name), fetchBoards()]);
+    boards = brd.map(r => ({
+      name: r.fields[E_HEITI] || "", w: num(r.fields[E_BREIDD]), l: num(r.fields[E_LENGD]), th: num(r.fields[E_THYKKT]),
+    }));
+
+    allFronts = rows.map(r => {
+      const f = r.fields;
+      const efni = (f[S_EFNI] || f[S_EFNI_BASE] || "").replace(/\s*[–-]\s*$/, "").trim();
+      const unit = (f[S_EYDUBLAD] || [])[0] || {};
+      return {
+        id: r.id,
+        partur: f[S_PARTUR] || "",
+        h: num(f[S_H]), b: num(f[S_B]), th: num(f[S_TH]), m: Math.max(1, num(f[S_M]) || 1),
+        efni,
+        unitId: unit.id || "?",
+        unitName: unit.name || "??",
+        err: !!f[S_VILLA],
+      };
+    }).filter(p =>
+      FRONT_RE.test(p.partur) && !HIDDEN_RE.test(p.partur) && p.h > 0 && p.b > 0
+    );
+
+    if (!allFronts.length) {
+      $("projectStatus").textContent = "Engir frontar fundust í Sögunarlista fyrir þetta verkefni.";
+      return;
+    }
+    $("projectStatus").textContent = `${allFronts.length} frontalínur — veldu efni.`;
+    buildMaterials();
+  } catch (e) {
+    $("projectStatus").textContent = "Villa við að sækja gögn: " + e.message;
+  }
+}
+
+function buildMaterials() {
+  const map = new Map();
+  for (const p of allFronts) {
+    const key = `${p.efni}||${p.th}`;
+    if (!map.has(key)) map.set(key, { key, efni: p.efni, th: p.th, grain: GRAIN_RE.test(p.efni), pieces: 0, area: 0 });
+    const m = map.get(key);
+    m.pieces += p.m;
+    m.area += (p.h * p.b * p.m) / 1e6;
+  }
+  materials = [...map.values()].sort((a, b) => (b.grain - a.grain) || (b.area - a.area));
+
+  $("materialList").innerHTML = materials.map(m => `
+    <div class="mat-item" data-key="${esc(m.key)}" onclick="selectMaterial('${esc(m.key)}')">
+      <div style="flex:1;">
+        <div class="mname">${esc(m.efni || "(ónefnt efni)")}</div>
+        <div class="mmeta">${m.th} mm · ${m.pieces} frontar · ${m.area.toFixed(2)} m²</div>
+      </div>
+      <span class="badge ${m.grain ? "grain" : "flat"}">${m.grain ? "æðaefni" : "slétt"}</span>
+    </div>`).join("");
+  $("materialCard").classList.remove("hidden");
+}
+
+// ── GROUPING ─────────────────────────────────────────────────────────────
+function selectMaterial(key) {
+  selectedKey = key;
+  document.querySelectorAll(".mat-item").forEach(el => el.classList.toggle("active", el.dataset.key === key));
+  const mat = materials.find(m => m.key === key);
+
+  // match a board for dimensions
+  const bd = matchBoard(mat.efni, mat.th);
+  const stored = loadStoredLayout();
+  if (stored?.board) {
+    board = stored.board;
+  } else if (bd) {
+    board = { w: bd.w, l: bd.l, name: bd.name };
+  } else {
+    board = { w: 2070, l: 2800, name: "" };
+  }
+  $("matchNote").innerHTML = bd
+    ? `Plata fundin: <b>${esc(bd.name)}</b> (${bd.w}×${bd.l}×${bd.th} mm). Breyttu að ofan ef rangt.`
+    : `⚠ Engin plata fannst fyrir "${esc(mat.efni)}" ${mat.th} mm í Efnislista — sláðu inn plötustærð að ofan.`;
+
+  buildGroups();
+  $("boardW").value = board.w;
+  $("boardL").value = board.l;
+  $("kerf").value = settings.kerf;
+  $("trim").value = settings.trim;
+
+  if (stored?.layout && stored.layout.boards?.length) {
+    layout = stored.layout;
+    // drop any placement for a group that no longer exists; add missing ones
+    reconcileLayout();
+  } else {
+    autoNest();
+  }
+  $("workspaceCard").classList.remove("hidden");
+  render();
+}
+
+function matchBoard(efni, th) {
+  const key = norm(efni);
+  const cand = boards.filter(b => b.th === th && b.w > 0 && b.l > 0 &&
+    (norm(b.name).includes(key) || key.includes(norm(b.name))) && norm(b.name).length > 4);
+  if (cand.length === 1) return cand[0];
+  if (cand.length > 1) {
+    // longest name overlap wins
+    cand.sort((a, b) => norm(b.name).length - norm(a.name).length);
+    return cand[0];
+  }
+  // loosen: token overlap
+  const toks = new Set(key.split(" ").filter(t => t.length > 2));
+  let best = null, bestScore = 0;
+  for (const b of boards) {
+    if (b.th !== th || !b.w || !b.l) continue;
+    const bt = norm(b.name).split(" ");
+    const score = bt.filter(t => toks.has(t)).length;
+    if (score > bestScore) { bestScore = score; best = b; }
+  }
+  return bestScore >= 2 ? best : null;
+}
+
+function buildGroups() {
+  const mat = materials.find(m => m.key === selectedKey);
+  const rows = allFronts.filter(p => `${p.efni}||${p.th}` === selectedKey);
+
+  // group by unit + rounded width — a grain run is a column of same-width fronts
+  const map = new Map();
+  for (const p of rows) {
+    const gk = `${p.unitId}|${Math.round(p.b)}`;
+    if (!map.has(gk)) map.set(gk, { id: gk, unitName: p.unitName, width: Math.round(p.b), orient: "v", fronts: [] });
+    const g = map.get(gk);
+    for (let i = 0; i < p.m; i++) {
+      g.fronts.push({
+        pieceId: p.id,
+        label: p.partur.replace(/\s*-\s*Merivo.*/i, "").replace(/\s*Skrokkaefni.*/i, "").trim() || p.partur,
+        h: Math.round(p.h),
+        code: (p.partur.match(/\b([NMKCDFE])\b/) || [])[1] || "",
+        err: p.err,
+      });
+    }
+  }
+  groups = [...map.values()];
+  // default order within a group: by drawer code rank, then tall→short
+  for (const g of groups) {
+    g.fronts.sort((a, b) => {
+      const ra = a.code in CODE_RANK ? CODE_RANK[a.code] : 99;
+      const rb = b.code in CODE_RANK ? CODE_RANK[b.code] : 99;
+      return ra - rb || b.h - a.h;
+    });
+  }
+  normalizeGroups();
+  groups.sort((a, b) => groupLen(b) - groupLen(a));
+}
+
+// A grain run must physically fit the sheet. If a vertical stack is longer
+// than the board, try laying it out side-by-side; if it still doesn't fit
+// (or is a lone oversized front), break it into single-front groups so the
+// auto-layout is always valid and the sawyer only has to review, not repair.
+function normalizeGroups() {
+  const maxL = board.l - settings.trim;
+  const maxW = board.w - 2 * settings.trim;
+  const out = [];
+  for (const g of groups) {
+    if (groupLen(g) <= maxL + 0.5 && groupWidth(g) <= maxW + 0.5) { out.push(g); continue; }
+    if (g.fronts.length > 1) {
+      g.orient = "h";
+      if (groupLen(g) <= maxL + 0.5 && groupWidth(g) <= maxW + 0.5) { out.push(g); continue; }
+      g.orient = "v";
+    }
+    // split into singles
+    g.fronts.forEach((f, i) => out.push({
+      id: `${g.id}#${i}`, unitName: g.unitName + " · " + (i + 1), width: g.width, orient: "v", fronts: [f], autoSplit: true,
+    }));
+  }
+  groups = out;
+}
+
+function splitGroup(gid) {
+  const idx = groups.findIndex(g => g.id === gid);
+  if (idx < 0) return;
+  const g = groups[idx];
+  if (g.fronts.length < 2) return;
+  const singles = g.fronts.map((f, i) => ({
+    id: `${g.id}#${i}`, unitName: g.unitName + " · " + (i + 1), width: g.width, orient: "v", fronts: [f],
+  }));
+  groups.splice(idx, 1, ...singles);
+  // move layout placement: keep first at old spot, stack rest under it
+  const bi = boardOfGroup(gid);
+  if (bi >= 0) {
+    const p = layout.boards[bi].placements[gid];
+    delete layout.boards[bi].placements[gid];
+    let y = p.y;
+    for (const s of singles) { layout.boards[bi].placements[s.id] = { x: p.x, y }; y += groupLen(s) + settings.kerf; }
+  }
+  selectedGid = singles[0].id;
+  render(); saveLayout();
+}
+
+function mergeGroup(gid, otherId) {
+  const g = groups.find(x => x.id === gid);
+  const o = groups.find(x => x.id === otherId);
+  if (!g || !o) return;
+  g.fronts = g.fronts.concat(o.fronts);
+  groups = groups.filter(x => x !== o);
+  for (const b of layout.boards) delete b.placements[otherId];
+  render(); saveLayout();
+}
+
+function groupLen(g) {
+  const k = settings.kerf;
+  if (g.orient === "h") return Math.max(...g.fronts.map(f => f.h));
+  return g.fronts.reduce((s, f) => s + f.h, 0) + k * (g.fronts.length - 1);
+}
+function groupWidth(g) {
+  if (g.orient === "h") return g.fronts.reduce((s, f) => s + g.width, 0) + settings.kerf * (g.fronts.length - 1);
+  return g.width;
+}
+
+// ── NESTING ──────────────────────────────────────────────────────────────
+function usable() {
+  return { w: board.w - 2 * settings.trim, l: board.l - settings.trim };
+}
+function autoNest() {
+  readToolbar();
+  const u = usable();
+  const sorted = [...groups].sort((a, b) => groupLen(b) - groupLen(a));
+  const sheets = [];
+
+  function tryPlace(g) {
+    for (const sh of sheets) {
+      for (const col of sh.cols) {
+        if (groupWidth(g) <= col.w + 0.5 && col.used + groupLen(g) <= u.l + 0.5) {
+          sh.place[g.id] = { x: col.x, y: col.used };
+          col.used += groupLen(g) + settings.kerf;
+          return true;
+        }
+      }
+      const nextX = sh.cols.reduce((s, c) => s + c.w + settings.kerf, 0);
+      if (nextX + groupWidth(g) <= u.w + 0.5) {
+        sh.cols.push({ x: nextX, w: groupWidth(g), used: groupLen(g) + settings.kerf });
+        sh.place[g.id] = { x: nextX, y: 0 };
+        return true;
+      }
+    }
+    return false;
+  }
+
+  for (const g of sorted) {
+    if (!tryPlace(g)) {
+      sheets.push({ cols: [], place: {} });
+      if (!tryPlace(g)) {
+        // group longer/wider than a whole board — park it at 0,0 on its own sheet
+        sheets[sheets.length - 1].place[g.id] = { x: 0, y: 0 };
+        sheets[sheets.length - 1].cols.push({ x: 0, w: groupWidth(g), used: groupLen(g) });
+      }
+    }
+  }
+  layout = { boards: sheets.map(s => ({ placements: offsetPlace(s.place) })) };
+  if (!layout.boards.length) layout.boards.push({ placements: {} });
+  saveLayout();
+  render();
+}
+function offsetPlace(place) {
+  const o = {};
+  for (const [gid, p] of Object.entries(place)) o[gid] = { x: p.x + settings.trim, y: p.y + settings.trim };
+  return o;
+}
+function reconcileLayout() {
+  const known = new Set(groups.map(g => g.id));
+  for (const b of layout.boards) {
+    for (const gid of Object.keys(b.placements)) if (!known.has(gid)) delete b.placements[gid];
+  }
+  const placed = new Set(layout.boards.flatMap(b => Object.keys(b.placements)));
+  const missing = groups.filter(g => !placed.has(g.id));
+  if (missing.length) {
+    // append to last board stacked at x=trim
+    const b = layout.boards[layout.boards.length - 1] || (layout.boards.push({ placements: {} }), layout.boards[0]);
+    let y = settings.trim;
+    for (const g of missing) { b.placements[g.id] = { x: settings.trim, y }; y += groupLen(g) + settings.kerf; }
+  }
+  saveLayout();
+}
+function boardOfGroup(gid) {
+  return layout.boards.findIndex(b => gid in b.placements);
+}
+function addBoard() { layout.boards.push({ placements: {} }); saveLayout(); render(); }
+function resetLayout() {
+  try { localStorage.removeItem(layoutKey()); } catch {}
+  buildGroups(); autoNest();
+}
+
+// ── TOOLBAR ──────────────────────────────────────────────────────────────
+function readToolbar() {
+  board.w = num($("boardW").value) || board.w;
+  board.l = num($("boardL").value) || board.l;
+  settings.kerf = num($("kerf").value) || DEFAULTS.kerf;
+  settings.trim = num($("trim").value) || 0;
+  saveSettings();
+}
+["boardW", "boardL", "kerf", "trim"].forEach(id => {
+  $(id).addEventListener("change", () => { readToolbar(); render(); saveLayout(); });
+});
+
+// ── RENDER ───────────────────────────────────────────────────────────────
+function render() {
+  renderStats();
+  renderBoards();
+  renderPanel();
+  renderOverflow();
+}
+
+function renderStats() {
+  const frontArea = groups.reduce((s, g) => s + g.fronts.reduce((a, f) => a + f.h * g.width, 0), 0) / 1e6;
+  const nB = layout.boards.filter(b => Object.keys(b.placements).length).length;
+  const boardArea = nB * board.w * board.l / 1e6;
+  const yield_ = boardArea ? (frontArea / boardArea * 100) : 0;
+  const grainM = groups.reduce((s, g) => s + groupLen(g), 0) / 1000;
+  $("statRow").innerHTML = `
+    <div class="stat"><b>${nB}</b> plötur (${board.w}×${board.l})</div>
+    <div class="stat"><b>${groups.length}</b> æðahópar · ${groups.reduce((s,g)=>s+g.fronts.length,0)} frontar</div>
+    <div class="stat"><b>${frontArea.toFixed(2)} m²</b> frontar</div>
+    <div class="stat"><b>${yield_.toFixed(0)}%</b> nýting</div>
+    <div class="stat"><b>${grainM.toFixed(2)} m</b> samfelld æð</div>`;
+}
+
+function renderOverflow() {
+  const bad = [];
+  for (const g of groups) {
+    if (groupWidth(g) > board.w - 2 * settings.trim + 0.5 || groupLen(g) > board.l - settings.trim + 0.5)
+      bad.push(g.unitName + " (" + Math.round(groupWidth(g)) + "×" + Math.round(groupLen(g)) + ")");
+  }
+  const overlaps = detectOverlaps();
+  let html = "";
+  if (bad.length) html += `<div class="warn-box">Passar ekki á plötu: ${bad.map(esc).join(", ")}. Skiptu hópnum eða minnkaðu snyrtingu.</div>`;
+  if (overlaps.length) html += `<div class="warn-box">Hópar skarast: ${overlaps.map(esc).join(", ")}. Dragðu í sundur eða raðaðu sjálfvirkt.</div>`;
+  $("overflowWarn").innerHTML = html;
+}
+
+function detectOverlaps() {
+  const out = [];
+  for (const b of layout.boards) {
+    const items = Object.entries(b.placements).map(([gid, p]) => {
+      const g = groups.find(x => x.id === gid); if (!g) return null;
+      return { gid, name: g.unitName, x: p.x, y: p.y, w: groupWidth(g), l: groupLen(g) };
+    }).filter(Boolean);
+    for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) {
+      const a = items[i], c = items[j];
+      if (a.x < c.x + c.w - 1 && a.x + a.w > c.x + 1 && a.y < c.y + c.l - 1 && a.y + a.l > c.y + 1)
+        out.push(`${a.name} ↔ ${c.name}`);
+    }
+  }
+  return [...new Set(out)];
+}
+
+const COLORS = ["#2f6f4f", "#3a5a8c", "#8c5a3a", "#6b4a8c", "#8c8140", "#3a7d8c", "#8c4060", "#5c7a3a"];
+
+function renderBoards() {
+  const col = $("boardsCol");
+  col.innerHTML = "";
+  const PXW = 560;
+  const scale = PXW / board.w;
+  layout.boards.forEach((b, bi) => {
+    const svgW = board.w * scale, svgH = board.l * scale;
+    const wrap = document.createElement("div");
+    wrap.className = "board-wrap";
+
+    const placedGids = Object.keys(b.placements);
+    const used = placedGids.reduce((s, gid) => {
+      const g = groups.find(x => x.id === gid);
+      return g ? s + g.fronts.reduce((a, f) => a + f.h * g.width, 0) : s;
+    }, 0) / 1e6;
+    const boardM2 = board.w * board.l / 1e6;
+    const waste = boardM2 ? Math.max(0, 100 - used / boardM2 * 100) : 0;
+
+    wrap.innerHTML = `
+      <div class="board-head">
+        <h3>Plata ${bi + 1}</h3>
+        <span class="waste">${used.toFixed(2)} m² notað · ${waste.toFixed(0)}% afgangur</span>
+        <button class="ghost small no-print" onclick="removeBoard(${bi})" ${layout.boards.length <= 1 ? "disabled" : ""}>Fjarlægja</button>
+      </div>`;
+
+    const svgNS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(svgNS, "svg");
+    svg.setAttribute("class", "board");
+    svg.setAttribute("viewBox", `0 0 ${svgW} ${svgH}`);
+    svg.dataset.board = bi;
+
+    // trim margin
+    const tr = document.createElementNS(svgNS, "rect");
+    tr.setAttribute("x", settings.trim * scale); tr.setAttribute("y", settings.trim * scale);
+    tr.setAttribute("width", (board.w - 2 * settings.trim) * scale);
+    tr.setAttribute("height", (board.l - settings.trim) * scale);
+    tr.setAttribute("fill", "none"); tr.setAttribute("stroke", "#333"); tr.setAttribute("stroke-dasharray", "3 3");
+    svg.appendChild(tr);
+
+    // grain arrow
+    const arr = document.createElementNS(svgNS, "text");
+    arr.setAttribute("x", 8); arr.setAttribute("y", svgH / 2);
+    arr.setAttribute("fill", "#555"); arr.setAttribute("font-size", "11");
+    arr.setAttribute("transform", `rotate(-90 8 ${svgH / 2})`);
+    arr.setAttribute("text-anchor", "middle");
+    arr.textContent = "◄ VIÐARÆÐ ►";
+    svg.appendChild(arr);
+
+    placedGids.forEach(gid => {
+      const g = groups.find(x => x.id === gid);
+      if (!g) return;
+      const p = b.placements[gid];
+      const gi = groups.indexOf(g);
+      const color = COLORS[gi % COLORS.length];
+      const gw = groupWidth(g) * scale, gl = groupLen(g) * scale;
+      const gx = p.x * scale, gy = p.y * scale;
+
+      const over = groupLen(g) > board.l - settings.trim + 0.5 || groupWidth(g) > board.w - 2 * settings.trim + 0.5;
+      const grp = document.createElementNS(svgNS, "g");
+      grp.setAttribute("class", "group-rect" + (gid === selectedGid ? " selected" : "") + (over ? " overflow" : ""));
+      grp.dataset.gid = gid;
+
+      const box = document.createElementNS(svgNS, "rect");
+      box.setAttribute("class", "grgbox");
+      box.setAttribute("x", gx); box.setAttribute("y", gy);
+      box.setAttribute("width", gw); box.setAttribute("height", gl);
+      box.setAttribute("fill", color); box.setAttribute("fill-opacity", "0.35");
+      box.setAttribute("stroke", color); box.setAttribute("stroke-width", "1.5");
+      grp.appendChild(box);
+
+      // front cells
+      let off = 0;
+      g.fronts.forEach((f, fi) => {
+        const cw = g.orient === "h" ? g.width * scale : gw;
+        const ch = g.orient === "h" ? gl : f.h * scale;
+        const cx = g.orient === "h" ? gx + off : gx;
+        const cy = g.orient === "h" ? gy : gy + off;
+        const cell = document.createElementNS(svgNS, "rect");
+        cell.setAttribute("x", cx); cell.setAttribute("y", cy);
+        cell.setAttribute("width", cw); cell.setAttribute("height", ch);
+        cell.setAttribute("fill", "none"); cell.setAttribute("stroke", color); cell.setAttribute("stroke-width", "0.75");
+        grp.appendChild(cell);
+        if (ch > 13 && cw > 24) {
+          const t = document.createElementNS(svgNS, "text");
+          t.setAttribute("x", cx + 4); t.setAttribute("y", cy + 12);
+          t.setAttribute("fill", "#eee"); t.setAttribute("font-size", "9");
+          t.textContent = `${fi + 1}. ${f.label} · ${g.width}×${f.h}${f.err ? " ⚠" : ""}`;
+          grp.appendChild(t);
+        }
+        off += (g.orient === "h" ? g.width : f.h) * scale + settings.kerf * scale;
+      });
+
+      // header label
+      const hl = document.createElementNS(svgNS, "text");
+      hl.setAttribute("x", gx + 4); hl.setAttribute("y", gy - 3);
+      hl.setAttribute("fill", color === "#8c8140" ? "#c9bd63" : "#bbb"); hl.setAttribute("font-size", "10");
+      hl.textContent = `${g.unitName} · ${Math.round(groupWidth(g))}×${Math.round(groupLen(g))}`;
+      grp.appendChild(hl);
+
+      enableDrag(grp, svg, bi, gid, scale);
+      svg.appendChild(grp);
+    });
+
+    wrap.appendChild(svg);
+
+    // print cut sequence
+    const seq = document.createElement("div");
+    seq.className = "cutseq print-only";
+    seq.innerHTML = cutSequenceHtml(b, bi);
+    wrap.appendChild(seq);
+
+    col.appendChild(wrap);
+  });
+}
+
+function removeBoard(bi) {
+  if (layout.boards.length <= 1) return;
+  const moved = layout.boards[bi].placements;
+  layout.boards.splice(bi, 1);
+  // orphaned groups → re-append to first board
+  Object.assign(layout.boards[0].placements, {});
+  const b0 = layout.boards[0];
+  let y = settings.trim;
+  for (const gid of Object.keys(moved)) { b0.placements[gid] = { x: settings.trim, y }; const g = groups.find(x=>x.id===gid); y += (g?groupLen(g):100) + settings.kerf; }
+  saveLayout(); render();
+}
+
+// ── DRAG ─────────────────────────────────────────────────────────────────
+function enableDrag(grp, svg, bi, gid, scale) {
+  grp.addEventListener("pointerdown", ev => {
+    ev.preventDefault();
+    selectedGid = gid; renderPanel();
+    document.querySelectorAll(".group-rect").forEach(el => el.classList.toggle("selected", el.dataset.gid === gid));
+    grp.classList.add("dragging");
+    const start = svgPoint(svg, ev);
+    const p0 = { ...layout.boards[bi].placements[gid] };
+    grp.setPointerCapture(ev.pointerId);
+
+    function move(e) {
+      const pt = svgPoint(svg, e);
+      let nx = p0.x + (pt.x - start.x) / scale;
+      let ny = p0.y + (pt.y - start.y) / scale;
+      const g = groups.find(x => x.id === gid);
+      nx = Math.max(0, Math.min(nx, board.w - groupWidth(g)));
+      ny = Math.max(0, Math.min(ny, board.l - groupLen(g)));
+      // snap to trim edge + other group edges (within 8mm)
+      nx = snap(nx, [settings.trim, ...edgeXs(bi, gid)]);
+      ny = snap(ny, [settings.trim, ...edgeYs(bi, gid)]);
+      layout.boards[bi].placements[gid] = { x: nx, y: ny };
+      render();
+    }
+    function up(e) {
+      grp.classList.remove("dragging");
+      grp.releasePointerCapture(ev.pointerId);
+      svg.removeEventListener("pointermove", move);
+      svg.removeEventListener("pointerup", up);
+      // if dropped over another board's area, move it there
+      const overBi = boardUnderPointer(e);
+      if (overBi != null && overBi !== bi) {
+        delete layout.boards[bi].placements[gid];
+        layout.boards[overBi].placements[gid] = { x: settings.trim, y: settings.trim };
+      }
+      saveLayout(); render();
+    }
+    svg.addEventListener("pointermove", move);
+    svg.addEventListener("pointerup", up);
+  });
+}
+function svgPoint(svg, ev) {
+  const r = svg.getBoundingClientRect();
+  const vb = svg.viewBox.baseVal;
+  return { x: (ev.clientX - r.left) / r.width * vb.width, y: (ev.clientY - r.top) / r.height * vb.height };
+}
+function snap(v, targets, tol = 8) {
+  for (const t of targets) if (Math.abs(v - t) < tol) return t;
+  return Math.round(v);
+}
+function edgeXs(bi, skip) {
+  const xs = [];
+  for (const [gid, p] of Object.entries(layout.boards[bi].placements)) {
+    if (gid === skip) continue;
+    const g = groups.find(x => x.id === gid); if (!g) continue;
+    xs.push(p.x, p.x + groupWidth(g) + settings.kerf);
+  }
+  return xs;
+}
+function edgeYs(bi, skip) {
+  const ys = [];
+  for (const [gid, p] of Object.entries(layout.boards[bi].placements)) {
+    if (gid === skip) continue;
+    const g = groups.find(x => x.id === gid); if (!g) continue;
+    ys.push(p.y, p.y + groupLen(g) + settings.kerf);
+  }
+  return ys;
+}
+function boardUnderPointer(e) {
+  const svgs = document.querySelectorAll("svg.board");
+  for (const s of svgs) {
+    const r = s.getBoundingClientRect();
+    if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom)
+      return +s.dataset.board;
+  }
+  return null;
+}
+
+// ── SIDE PANEL ───────────────────────────────────────────────────────────
+function renderPanel() {
+  $("grpPanel").innerHTML = groups.map(g => {
+    const sel = g.id === selectedGid;
+    const gi = groups.indexOf(g);
+    const color = COLORS[gi % COLORS.length];
+    return `
+    <div class="grp ${sel ? "sel" : ""}" onclick="pickGroup('${g.id}')">
+      <h4 style="color:${color}">${esc(g.unitName)} ${g.orient === "h" ? "↔" : "↕"}</h4>
+      <div class="gm">${g.fronts.length} frontar · ${Math.round(groupWidth(g))}×${Math.round(groupLen(g))} mm · plata ${boardOfGroup(g.id) + 1}${g.autoSplit ? " · sjálfvirk skipting" : ""}</div>
+      ${g.fronts.map((f, i) => `
+        <div class="front-row">
+          <span class="idx">${i + 1}</span>
+          <span class="fn">${esc(f.label)}${f.err ? " ⚠" : ""}</span>
+          <span class="fdim">${f.h} mm</span>
+          ${sel ? `<button class="small ghost" onclick="event.stopPropagation();moveFront('${g.id}',${i},-1)" ${i === 0 ? "disabled" : ""}>↑</button>
+                   <button class="small ghost" onclick="event.stopPropagation();moveFront('${g.id}',${i},1)" ${i === g.fronts.length - 1 ? "disabled" : ""}>↓</button>` : ""}
+        </div>`).join("")}
+      ${sel ? `
+      <div class="grp-actions">
+        <button class="small ghost" onclick="event.stopPropagation();toggleOrient('${g.id}')">${g.orient === "v" ? "→ ↔ hlið við hlið" : "→ ↕ stafla"}</button>
+        <button class="small ghost" onclick="event.stopPropagation();reverseGroup('${g.id}')">↕ snúa röð</button>
+        ${g.fronts.length > 1 ? `<button class="small ghost" onclick="event.stopPropagation();splitGroup('${g.id}')">✂ skipta upp</button>` : ""}
+        ${mergeCandidates(g).length ? `<select class="small" style="max-width:150px;padding:5px 6px;font-size:0.8rem;" onclick="event.stopPropagation()" onchange="if(this.value){mergeGroup('${g.id}',this.value);this.value=''}">
+          <option value="">+ sameina við…</option>
+          ${mergeCandidates(g).map(o => `<option value="${o.id}">${esc(o.unitName)}</option>`).join("")}
+        </select>` : ""}
+        ${layout.boards.map((_, bi) => bi !== boardOfGroup(g.id) ? `<button class="small ghost" onclick="event.stopPropagation();sendToBoard('${g.id}',${bi})">→ plata ${bi + 1}</button>` : "").join("")}
+      </div>` : ""}
+    </div>`;
+  }).join("");
+}
+function pickGroup(gid) { selectedGid = gid; render(); }
+function mergeCandidates(g) {
+  return groups.filter(o => o !== g && o.width === g.width && o.orient === g.orient);
+}
+function moveFront(gid, i, dir) {
+  const g = groups.find(x => x.id === gid);
+  const j = i + dir;
+  if (j < 0 || j >= g.fronts.length) return;
+  [g.fronts[i], g.fronts[j]] = [g.fronts[j], g.fronts[i]];
+  render(); saveLayout();
+}
+function reverseGroup(gid) { groups.find(x => x.id === gid).fronts.reverse(); render(); saveLayout(); }
+function toggleOrient(gid) {
+  const g = groups.find(x => x.id === gid);
+  g.orient = g.orient === "v" ? "h" : "v";
+  render(); saveLayout();
+}
+function sendToBoard(gid, bi) {
+  const from = boardOfGroup(gid);
+  if (from >= 0) delete layout.boards[from].placements[gid];
+  layout.boards[bi].placements[gid] = { x: settings.trim, y: settings.trim };
+  render(); saveLayout();
+}
+
+// ── PRINT CUT SEQUENCE ───────────────────────────────────────────────────
+function cutSequenceHtml(b, bi) {
+  const items = Object.entries(b.placements).map(([gid, p]) => {
+    const g = groups.find(x => x.id === gid); if (!g) return null;
+    return { g, p };
+  }).filter(Boolean).sort((a, c) => a.p.x - c.p.x || a.p.y - c.p.y);
+  if (!items.length) return "<b>Plata " + (bi + 1) + " — tóm</b>";
+
+  let html = `<b>Plata ${bi + 1} — sögunarröð (${board.w}×${board.l} mm, æð ↕)</b><ol>`;
+  items.forEach(({ g, p }, i) => {
+    const w = Math.round(groupWidth(g)), l = Math.round(groupLen(g));
+    html += `<li><b>${esc(g.unitName)}</b>: rífðu ræmu ${w} mm breiða (x ≈ ${Math.round(p.x)}–${Math.round(p.x + w)} mm), lengd ${l} mm.`;
+    if (g.orient === "v") {
+      html += ` Þverskurðir að ofan: ` + g.fronts.map((f, k) => `#${k + 1} ${esc(f.label)} ${f.h}`).join(" → ") + `.`;
+    } else {
+      html += ` Þverskurður ${Math.max(...g.fronts.map(f => f.h))} mm, svo rífðu í ${g.fronts.length} × ${g.width} mm: ` + g.fronts.map((f, k) => `#${k + 1} ${esc(f.label)}`).join(", ") + `.`;
+    }
+    html += `</li>`;
+  });
+  html += `</ol>`;
+  return html;
+}
+
+// ── VERSION POLL ─────────────────────────────────────────────────────────
+let deployedVersion = null;
+async function checkVersion() {
+  try {
+    const r = await fetch("/api/version", { cache: "no-store" });
+    if (!r.ok) return;
+    const { version } = await r.json();
+    if (!version) return;
+    if (deployedVersion === null) { deployedVersion = version; return; }
+    if (version !== deployedVersion) {
+      if (!currentProjectId) location.reload();
+      else showUpdateBanner();
+    }
+  } catch {}
+}
+function showUpdateBanner() {
+  if ($("updBanner")) return;
+  const d = document.createElement("div");
+  d.className = "banner no-print"; d.id = "updBanner";
+  d.innerHTML = `Ný útgáfa tilbúin. <button onclick="location.reload()">Endurhlaða</button>`;
+  document.body.appendChild(d);
+}
+setInterval(checkVersion, 3 * 60 * 1000);
+checkVersion();
+
+// ── INIT ─────────────────────────────────────────────────────────────────
+function resetAll() {
+  currentProjectId = null; selectedKey = null; selectedGid = null;
+  $("searchCard").classList.remove("hidden");
+  $("projectCard").classList.add("hidden");
+  $("materialCard").classList.add("hidden");
+  $("workspaceCard").classList.add("hidden");
+  $("projectSelect").value = "";
+}
+$("projectSelect").addEventListener("change", e => { if (e.target.value) loadProject(e.target.value); });
+
+const params = new URLSearchParams(location.search);
+const recordIdParam = params.get("recordId");
+if (recordIdParam) loadProject(recordIdParam);
+else populateProjects();
+</script>
+</body>
+</html>
