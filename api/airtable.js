@@ -82,6 +82,13 @@ const ALLOWED_FIELDS = {
     "Ábyrgðarmaður",
     "Staða",
   ],
+  "tblzkw70E2xoX9RmK": [ // Æðaplan 📐 — grain.html (/aedar office) writes; /saga floor reads
+    "Nafn",
+    "Tækifæri 📣",
+    "Efni",
+    "Skipulag",     // layout JSON
+    "Staðfest ✅",  // checkbox — floor (/saga) only loads plans where this is ticked
+  ],
   "tblhglpjQkczdG1AY": [ // Starfsmenn 👷🏼‍♂️ — stimpilklukka PIN lookup only.
     "Nafn starfsmanns 👷",
     "PIN 🔢",
@@ -123,7 +130,7 @@ const ALLOWED_FIELDS = {
 // for Starfsmenn means every employee's PIN at once, and for Fjarvistir
 // means every employee's sick-day history at once. Require the caller to
 // filter to a single lookup instead of listing the whole table.
-const REQUIRE_FILTER = new Set(["tblhglpjQkczdG1AY", "tbl3e5o0Klv9RcNQ4"]);
+const REQUIRE_FILTER = new Set(["tblhglpjQkczdG1AY", "tbl3e5o0Klv9RcNQ4", "tblzkw70E2xoX9RmK"]);
 
 // The kiosk's clock-out flow writes one Verktímar row per project the
 // employee split their shift across (Dagsetning + Klst + links). Like
@@ -150,6 +157,9 @@ const CREATABLE_FIELDS = {
   // Verkefni 📣 is empty for the "Sölur"/"Annað" buckets (Verkflokkur says
   // which). Stimplun ⏱️ links back to the shift row for traceability.
   "tblGu27c2fcwN2i2n": ["Dagsetning", "Starfsmaður", "Verkefni 📣", "Verkflokkur", "Klst", "Stimplun ⏱️"],
+  // /aedar creates one grain-plan row per project+material the first time
+  // it's saved; thereafter it PATCHes the same row (see WRITABLE_FIELDS).
+  "tblzkw70E2xoX9RmK": ["Nafn", "Tækifæri 📣", "Efni", "Skipulag", "Staðfest ✅"],
 };
 
 // Fields forced to a fixed value on create, regardless of what (or whether)
@@ -203,6 +213,9 @@ const WRITABLE_FIELDS = {
   // Closes an open shift (stimpilklukka's ÚT button). "Inn" is intentionally
   // not writable here — a shift's start time is only ever set at creation.
   "tblnFIO8RB6HcelXF": ["Út"],
+  // /aedar re-saves the working layout and flips the confirm checkbox on the
+  // existing plan row. Tækifæri/Efni are set once at create, never patched.
+  "tblzkw70E2xoX9RmK": ["Nafn", "Skipulag", "Staðfest ✅"],
 };
 
 // URLSearchParams serializes spaces as "+" (application/x-www-form-urlencoded).

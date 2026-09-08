@@ -141,6 +141,21 @@
 
   .hint { color: #777; font-size: 0.8rem; margin-top: 6px; }
 
+  #planStrip { margin-bottom: 14px; }
+  #planStrip:empty { display: none; }
+  .plan-bar {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 10px 14px; border-radius: 8px; font-size: 0.9rem;
+    border: 1px solid #2a2a2a; background: #161616;
+  }
+  .plan-bar.confirmed { border-color: #2f6f4f; background: #10201a; }
+  .plan-bar.draft     { border-color: #6b5a22; background: #201c12; }
+  .plan-bar.floor     { border-color: #2f5a8c; background: #101a26; }
+  .plan-bar b { color: #f0f0f0; }
+  .plan-bar .spacer { flex: 1; }
+  .plan-bar .muted { color: #999; }
+  body.floor .office-only { display: none !important; }
+
   /* guided sawing overlay */
   #guideOverlay {
     position: fixed; inset: 0; z-index: 100; background: #0b0b0b;
@@ -250,15 +265,16 @@
   </div>
 
   <div class="card no-print hidden" id="materialCard">
-    <label>Veldu efni til að skipuleggja</label>
+    <label id="materialCardLabel">Veldu efni til að skipuleggja</label>
     <div id="materialList"></div>
-    <div class="hint">Æðaefni efst. Slétt/einlit efni þurfa ekki æðaskipulag — notaðu Cutty fyrir þau.</div>
+    <div class="hint" id="materialCardHint">Æðaefni efst. Slétt/einlit efni þurfa ekki æðaskipulag — notaðu Cutty fyrir þau.</div>
   </div>
 
   <div class="hidden" id="guideOverlay"></div>
 
   <div class="hidden" id="workspaceCard">
-    <div class="toolbar no-print">
+    <div id="planStrip" class="no-print"></div>
+    <div class="toolbar no-print" id="toolbar">
       <div class="field">
         <label>Plata breidd (mm)</label>
         <input type="number" id="boardW" step="1" />
@@ -279,12 +295,13 @@
         <label>Grið (mm)</label>
         <input type="number" id="grid" step="5" min="1" />
       </div>
-      <button class="primary" onclick="autoNest()">↻ Raða sjálfvirkt</button>
+      <button class="primary office-only" onclick="autoNest()">↻ Raða sjálfvirkt</button>
       <button class="ghost" id="snapBtn" onclick="toggleFreeMove()"></button>
-      <button class="ghost" onclick="addBoard()">+ Plata</button>
+      <button class="ghost office-only" onclick="addBoard()">+ Plata</button>
       <button class="ghost" onclick="window.print()">🖨 Prenta</button>
-      <button class="ghost small" onclick="resetLayout()">Núllstilla röðun</button>
-      <button class="primary" style="margin-left:auto;" onclick="openGuide()">▶ Saga með leiðsögn</button>
+      <button class="ghost small office-only" onclick="resetLayout()">Núllstilla röðun</button>
+      <button class="primary office-only" id="confirmBtn" style="margin-left:auto;" onclick="confirmPlan()">✅ Staðfesta skipulag</button>
+      <button class="primary" id="guideBtn" style="margin-left:auto;" onclick="openGuide()">▶ Saga með leiðsögn</button>
     </div>
 
     <div id="matchNote" class="hint no-print" style="margin-bottom:10px;"></div>
@@ -310,6 +327,13 @@ const PROXY_URL = "/api/airtable";
 const PROJECTS_TABLE     = "tbl4LMXlQjp66RFKI";
 const SOGUNARLISTI_TABLE = "tblhdgyvTcBfP8kov";
 const EFNISLISTI_TABLE   = "tbl8CrVWKF8CuI7HD";
+const PLAN_TABLE         = "tblzkw70E2xoX9RmK"; // Æðaplan 📐
+const PL_PROJECT = "Tækifæri 📣", PL_EFNI = "Efni", PL_JSON = "Skipulag", PL_CONFIRM = "Staðfest ✅", PL_NAME = "Nafn";
+
+// /aedar = office (build & confirm). /saga = floor (run the confirmed plan,
+// tweak locally only — no write-back).
+const FLOOR_MODE = location.pathname === "/saga";
+const PLAN_SCHEMA = 1;
 
 const P_NAME_FIELD = "Heiti tækifæris / verkefnis";
 const P_STADA_SOLU = "Staða í söluferli";
@@ -324,6 +348,10 @@ const S_EYDUBLAD  = "Eyðublað ✏️";
 const S_VILLA     = "Villa?";
 
 const E_HEITI = "Heiti efnis", E_BREIDD = "Breidd (mm)", E_LENGD = "Lengd (mm)", E_THYKKT = "Þykkt (mm)";
+
+const EYDUBLAD_TABLE = "tbl0WcyHhz63pSzZX";
+const U_NAME = "Athugasemd";               // Eyðublað's own primary field ("Sk 20-22")
+const U_PROJECT_LINK = "Tækifæri 📣 (projects)", U_PROJECT_LINK_OLD = "Tækifæri 📣";
 
 // Visible fronts whose grain the customer sees. Inner drawer fronts
 // (Innskúffufrontur) sit inside the cabinet and are excluded.
@@ -352,6 +380,9 @@ let layout = { boards: [] }; // [{ placements: {gid:{x,y}} }]
 let selectedGid = null;
 let settings = loadSettings();
 let board = { w: 2070, l: 2800, name: "" };
+let projectPlans = [];  // Æðaplan rows for the current project
+let curPlan = null;     // { recordId, confirmed, sourceJSON } for the selected material
+let planSaveTimer = null;
 
 // ── UTIL ─────────────────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -367,8 +398,17 @@ function saveSettings() {
   try { localStorage.setItem("grain:settings", JSON.stringify(settings)); } catch {}
 }
 function layoutKey() { return `grain:layout:${currentProjectId}:${selectedKey}`; }
+function planSig(s) {                          // cheap hash of a plan JSON string
+  let h = 0; s = s || ""; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return h + ":" + s.length;
+}
 function saveLayout() {
-  try { localStorage.setItem(layoutKey(), JSON.stringify({ layout, board })); } catch {}
+  try {
+    localStorage.setItem(layoutKey(), JSON.stringify({
+      layout, board, planSig: FLOOR_MODE && curPlan ? planSig(curPlan.sourceJSON) : undefined,
+    }));
+  } catch {}
+  if (typeof schedulePlanSave === "function") schedulePlanSave();  // office: mirror to Airtable (debounced)
 }
 function loadStoredLayout() {
   try {
@@ -411,6 +451,20 @@ async function airtableFetch(table, params, recordId) {
   } while (offset);
   return recs;
 }
+async function airtableCreate(table, fields) {
+  const r = await fetchWithRetry(`${PROXY_URL}?path=${encodeURIComponent(table)}`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fields }),
+  });
+  if (!r.ok) throw new Error(`Airtable POST ${r.status}`);
+  return r.json();
+}
+async function airtablePatch(table, recordId, fields) {
+  const r = await fetchWithRetry(`${PROXY_URL}?path=${encodeURIComponent(table + "/" + recordId)}`, {
+    method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fields }),
+  });
+  if (!r.ok) throw new Error(`Airtable PATCH ${r.status}`);
+  return r.json();
+}
 
 // ── DATA LOAD ────────────────────────────────────────────────────────────
 async function fetchEligibleProjects() {
@@ -430,6 +484,29 @@ async function fetchFrontsForProject(name) {
 }
 async function fetchBoards() {
   return airtableFetch(EFNISLISTI_TABLE, { "fields[]": [E_HEITI, E_BREIDD, E_LENGD, E_THYKKT], pageSize: 100 });
+}
+// The proxy returns linked-record fields as bare id arrays, so Sögunarlisti's
+// Eyðublað link gives us ids only — fetch the units to map id → short name.
+async function fetchUnitNames(name) {
+  const escd = name.replace(/"/g, '\\"');
+  const formula = `OR(FIND("${escd}", ARRAYJOIN({${U_PROJECT_LINK}})) > 0, FIND("${escd}", ARRAYJOIN({${U_PROJECT_LINK_OLD}})) > 0)`;
+  try {
+    const recs = await airtableFetch(EYDUBLAD_TABLE, { filterByFormula: formula, "fields[]": [U_NAME], pageSize: 100 });
+    const map = {};
+    for (const r of recs) map[r.id] = r.fields[U_NAME] || "";
+    return map;
+  } catch { return {}; }
+}
+async function fetchPlans(name) {
+  const escd = name.replace(/"/g, '\\"');
+  const formula = `FIND("${escd}", ARRAYJOIN({${PL_PROJECT}})) > 0`;
+  try {
+    return await airtableFetch(PLAN_TABLE, {
+      filterByFormula: formula,
+      "fields[]": [PL_EFNI, PL_JSON, PL_CONFIRM, PL_NAME],
+      pageSize: 100,
+    });
+  } catch { return []; }   // table missing / not wired yet → behave as "no plans"
 }
 
 async function populateProjects() {
@@ -451,7 +528,7 @@ async function loadProject(id) {
   $("projectCard").classList.remove("hidden");
   $("materialCard").classList.add("hidden");
   $("workspaceCard").classList.add("hidden");
-  $("projectStatus").textContent = "Sæki Sögunarlista…";
+  $("projectStatus").textContent = FLOOR_MODE ? "Sæki staðfest skipulag…" : "Sæki Sögunarlista…";
 
   try {
     let name = document.querySelector(`#projectSelect option[value="${id}"]`)?.dataset.name;
@@ -459,7 +536,12 @@ async function loadProject(id) {
     projectName = name;
     $("projectName").textContent = name || id;
 
-    const [rows, brd] = await Promise.all([fetchFrontsForProject(name), fetchBoards()]);
+    if (FLOOR_MODE) { await loadFloorPlans(name); return; }
+
+    const [rows, brd, plans, unitNames] = await Promise.all([
+      fetchFrontsForProject(name), fetchBoards(), fetchPlans(name), fetchUnitNames(name),
+    ]);
+    projectPlans = plans;
     boards = brd.map(r => ({
       name: r.fields[E_HEITI] || "", w: num(r.fields[E_BREIDD]), l: num(r.fields[E_LENGD]), th: num(r.fields[E_THYKKT]),
     }));
@@ -467,14 +549,15 @@ async function loadProject(id) {
     allFronts = rows.map(r => {
       const f = r.fields;
       const efni = (f[S_EFNI] || f[S_EFNI_BASE] || "").replace(/\s*[–-]\s*$/, "").trim();
-      const unit = (f[S_EYDUBLAD] || [])[0] || {};
+      const uid = (f[S_EYDUBLAD] || [])[0];              // proxy returns bare id string
+      const id = typeof uid === "string" ? uid : uid?.id;
       return {
         id: r.id,
         partur: f[S_PARTUR] || "",
         h: num(f[S_H]), b: num(f[S_B]), th: num(f[S_TH]), m: Math.max(1, num(f[S_M]) || 1),
         efni,
-        unitId: unit.id || "?",
-        unitName: unit.name || "??",
+        unitId: id || "?",
+        unitName: (id && unitNames[id]) || (typeof uid === "object" ? uid?.name : "") || "óþekkt eining",
         err: !!f[S_VILLA],
       };
     }).filter(p =>
@@ -511,7 +594,152 @@ function buildMaterials() {
       </div>
       <span class="badge ${m.grain ? "grain" : "flat"}">${m.grain ? "æðaefni" : "slétt"}</span>
     </div>`).join("");
+  // mark materials that already have a plan
+  for (const m of materials) {
+    const el = document.querySelector(`.mat-item[data-key="${cssq(m.key)}"] .mmeta`);
+    const plan = projectPlans.find(p => p.fields[PL_EFNI] === m.key);
+    if (el && plan) el.insertAdjacentHTML("beforeend",
+      plan.fields[PL_CONFIRM] ? ` · <span style="color:#4caf50">✅ staðfest skipulag</span>` : ` · <span style="color:#f5c518">✏️ drög</span>`);
+  }
   $("materialCard").classList.remove("hidden");
+}
+
+// ── PLAN (Æðaplan) — office builds & confirms, floor runs it ──────────────
+function serializePlan() {
+  return JSON.stringify({
+    v: PLAN_SCHEMA, key: selectedKey,
+    board: { ...board },
+    settings: { kerf: settings.kerf, trim: settings.trim, grid: settings.grid },
+    groups: groups.map(g => ({
+      id: g.id, unitName: g.unitName, width: g.width, orient: g.orient,
+      keepTogether: !!g.keepTogether, autoSplit: !!g.autoSplit,
+      fronts: g.fronts.map(f => ({ pieceId: f.pieceId, label: f.label, h: f.h, code: f.code || "", err: !!f.err })),
+    })),
+    layout: { boards: layout.boards.map(b => ({ placements: { ...b.placements } })) },
+  });
+}
+let loadingPlan = false;
+function applyPlan(obj) {
+  loadingPlan = true;
+  try {
+    board = { w: 2070, l: 2800, name: "", ...obj.board };
+    settings.kerf = obj.settings?.kerf ?? settings.kerf;
+    settings.trim = obj.settings?.trim ?? settings.trim;
+    settings.grid = obj.settings?.grid ?? settings.grid;
+    groups = (obj.groups || []).map(g => ({ ...g, fronts: g.fronts.map(f => ({ ...f })) }));
+    layout = { boards: (obj.layout?.boards || [{ placements: {} }]).map(b => ({ placements: { ...b.placements } })) };
+    reconcileLayout();
+  } finally { loadingPlan = false; }
+}
+
+function schedulePlanSave() {
+  if (loadingPlan || FLOOR_MODE || !currentProjectId || !selectedKey) return;
+  if (curPlan?.confirmed) { curPlan.confirmed = false; renderPlanStrip(); }  // any edit un-confirms
+  clearTimeout(planSaveTimer);
+  planSaveTimer = setTimeout(() => savePlan(false), 1400);
+}
+async function savePlan(confirm) {
+  if (FLOOR_MODE || !currentProjectId || !selectedKey) return;
+  clearTimeout(planSaveTimer);
+  const mat = materials.find(m => m.key === selectedKey);
+  const nafn = `${projectName.split("|")[0].trim()} · ${mat?.efni || selectedKey}`;
+  const fields = { [PL_NAME]: nafn, [PL_JSON]: serializePlan(), [PL_CONFIRM]: !!confirm };
+  try {
+    if (curPlan?.recordId) {
+      await airtablePatch(PLAN_TABLE, curPlan.recordId, fields);
+    } else {
+      const rec = await airtableCreate(PLAN_TABLE, { ...fields, [PL_PROJECT]: [currentProjectId], [PL_EFNI]: selectedKey });
+      curPlan = { recordId: rec.id, confirmed: !!confirm, sourceJSON: fields[PL_JSON] };
+    }
+    curPlan.confirmed = !!confirm;
+    if (confirm) curPlan.sourceJSON = fields[PL_JSON];
+    renderPlanStrip();
+  } catch (e) {
+    $("planStrip").querySelector(".plan-bar")?.insertAdjacentHTML("beforeend",
+      ` <span style="color:#f44336">· vistun mistókst</span>`);
+  }
+}
+function confirmPlan() {
+  if (!detectOverlaps().length && !anyOverflow()) return savePlan(true).then(() => renderPlanStrip());
+  if (confirm("Það eru vandamál í skipulaginu (skörun eða of stórt). Staðfesta samt?")) savePlan(true);
+}
+function anyOverflow() {
+  return groups.some(g => groupWidth(g) > board.w - 2 * settings.trim + 0.5 || groupLen(g) > board.l - settings.trim + 0.5);
+}
+
+function renderPlanStrip() {
+  const el = $("planStrip");
+  if (!selectedKey) { el.innerHTML = ""; return; }
+  if (FLOOR_MODE) {
+    el.innerHTML = `<div class="plan-bar floor">
+      <span>📐 <b>Staðfest skipulag skrifstofu.</b> <span class="muted">Breytingar þínar eru bara á þessu tæki.</span></span>
+      <span class="spacer"></span>
+      <button class="ghost small" onclick="reloadConfirmedPlan()">↺ Sækja staðfest skipulag aftur</button>
+    </div>`;
+    return;
+  }
+  const confirmed = !!curPlan?.confirmed;
+  el.innerHTML = `<div class="plan-bar ${confirmed ? "confirmed" : "draft"}">
+    <span>${confirmed ? "✅ <b>Staðfest</b> — gólfið getur sótt þetta á /saga" : "✏️ <b>Drög</b> — óstaðfest"}</span>
+    <span class="spacer"></span>
+    ${curPlan?.recordId ? '<span class="muted">vistað sjálfkrafa</span>' : '<span class="muted">óvistað</span>'}
+  </div>`;
+  const btn = $("confirmBtn");
+  if (btn) { btn.textContent = confirmed ? "✅ Staðfest" : "✅ Staðfesta skipulag"; btn.disabled = confirmed; }
+}
+
+// ── FLOOR MODE (/saga) ───────────────────────────────────────────────────
+async function loadFloorPlans(name) {
+  const plans = (await fetchPlans(name)).filter(p => p.fields[PL_CONFIRM] && p.fields[PL_JSON]);
+  projectPlans = plans;
+  if (!plans.length) {
+    $("projectStatus").textContent = "Ekkert staðfest skipulag fyrir þetta verkefni — hafðu samband við skrifstofu.";
+    return;
+  }
+  if (plans.length === 1) { openFloorPlan(plans[0]); return; }
+  $("projectStatus").textContent = "Veldu efni.";
+  $("materialCardLabel").textContent = "Veldu staðfest skipulag";
+  $("materialCardHint").textContent = "";
+  $("materialList").innerHTML = plans.map(p => {
+    const key = p.fields[PL_EFNI] || "";
+    return `<div class="mat-item" onclick='openFloorPlanById("${esc(p.id)}")'>
+      <div style="flex:1;"><div class="mname">${esc(key.split("||")[0])}</div>
+      <div class="mmeta">${esc((key.split("||")[1] || "") + " mm")}</div></div>
+      <span class="badge grain">staðfest</span></div>`;
+  }).join("");
+  $("materialCard").classList.remove("hidden");
+}
+function openFloorPlanById(id) { openFloorPlan(projectPlans.find(p => p.id === id)); }
+function openFloorPlan(rec) {
+  selectedKey = rec.fields[PL_EFNI] || "plan";
+  curPlan = { recordId: rec.id, confirmed: true, sourceJSON: rec.fields[PL_JSON] };
+  $("materialCard").classList.add("hidden");
+  const stored = loadStoredLayout();
+  const freshFromOffice = !stored || stored.planSig !== planSig(rec.fields[PL_JSON]);
+  if (freshFromOffice) {
+    // no local tweaks, or the office re-confirmed a new version → use it as-is
+    try { localStorage.removeItem(layoutKey()); } catch {}
+    applyPlan(JSON.parse(rec.fields[PL_JSON]));
+  } else {
+    applyPlan({ ...JSON.parse(rec.fields[PL_JSON]), ...stored });
+  }
+  syncToolbarInputs();
+  $("workspaceCard").classList.remove("hidden");
+  document.body.classList.add("floor");
+  renderPlanStrip();
+  render();
+  openGuide();
+}
+function reloadConfirmedPlan() {
+  try { localStorage.removeItem(layoutKey()); } catch {}
+  applyPlan(JSON.parse(curPlan.sourceJSON));
+  syncToolbarInputs();
+  render();
+}
+function syncToolbarInputs() {
+  $("boardW").value = board.w; $("boardL").value = board.l;
+  $("kerf").value = settings.kerf; $("trim").value = settings.trim; $("grid").value = settings.grid;
+  updateSnapBtn();
 }
 
 // ── GROUPING ─────────────────────────────────────────────────────────────
@@ -519,6 +747,9 @@ function selectMaterial(key) {
   selectedKey = key;
   document.querySelectorAll(".mat-item").forEach(el => el.classList.toggle("active", el.dataset.key === key));
   const mat = materials.find(m => m.key === key);
+
+  const planRec = projectPlans.find(p => p.fields[PL_EFNI] === key);
+  curPlan = planRec ? { recordId: planRec.id, confirmed: !!planRec.fields[PL_CONFIRM], sourceJSON: planRec.fields[PL_JSON] } : null;
 
   // match a board for dimensions
   const bd = matchBoard(mat.efni, mat.th);
@@ -535,20 +766,23 @@ function selectMaterial(key) {
     : `⚠ Engin plata fannst fyrir "${esc(mat.efni)}" ${mat.th} mm í Efnislista — sláðu inn plötustærð að ofan.`;
 
   buildGroups();
-  $("boardW").value = board.w;
-  $("boardL").value = board.l;
-  $("kerf").value = settings.kerf;
-  $("trim").value = settings.trim;
-  $("grid").value = settings.grid;
-  updateSnapBtn();
 
-  if (stored?.layout && stored.layout.boards?.length) {
-    layout = stored.layout;
-    // drop any placement for a group that no longer exists; add missing ones
-    reconcileLayout();
-  } else {
-    autoNest();
-  }
+  loadingPlan = true;
+  try {
+    if (stored?.layout && stored.layout.boards?.length) {
+      // this device's own in-progress edits win over the saved plan
+      layout = stored.layout;
+      reconcileLayout();
+    } else if (planRec && planRec.fields[PL_JSON]) {
+      try { applyPlan(JSON.parse(planRec.fields[PL_JSON])); }
+      catch { autoNest(); }
+    } else {
+      autoNest();
+    }
+  } finally { loadingPlan = false; }
+
+  syncToolbarInputs();
+  renderPlanStrip();
   $("workspaceCard").classList.remove("hidden");
   render();
 }
@@ -795,6 +1029,7 @@ function render() {
   renderBoards();
   renderPanel();
   renderOverflow();
+  renderPlanStrip();
 }
 
 function renderStats() {
@@ -1829,14 +2064,22 @@ checkVersion();
 
 // ── INIT ─────────────────────────────────────────────────────────────────
 function resetAll() {
-  currentProjectId = null; selectedKey = null; selectedGid = null;
+  currentProjectId = null; selectedKey = null; selectedGid = null; curPlan = null;
+  clearTimeout(planSaveTimer);
   $("searchCard").classList.remove("hidden");
   $("projectCard").classList.add("hidden");
   $("materialCard").classList.add("hidden");
   $("workspaceCard").classList.add("hidden");
+  $("planStrip").innerHTML = "";
   $("projectSelect").value = "";
 }
 $("projectSelect").addEventListener("change", e => { if (e.target.value) loadProject(e.target.value); });
+
+if (FLOOR_MODE) {
+  document.body.classList.add("floor");
+  document.querySelector("h1").textContent = "Saga með leiðsögn";
+  document.querySelector(".sub").textContent = "Staðfest æðaskipulag frá skrifstofu — skref fyrir skref.";
+}
 
 const params = new URLSearchParams(location.search);
 const recordIdParam = params.get("recordId");
