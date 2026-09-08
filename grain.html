@@ -275,7 +275,12 @@
         <label>Jaðar-snyrting (mm)</label>
         <input type="number" id="trim" step="1" />
       </div>
+      <div class="field">
+        <label>Grið (mm)</label>
+        <input type="number" id="grid" step="5" min="1" />
+      </div>
       <button class="primary" onclick="autoNest()">↻ Raða sjálfvirkt</button>
+      <button class="ghost" id="snapBtn" onclick="toggleFreeMove()"></button>
       <button class="ghost" onclick="addBoard()">+ Plata</button>
       <button class="ghost" onclick="window.print()">🖨 Prenta</button>
       <button class="ghost small" onclick="resetLayout()">Núllstilla röðun</button>
@@ -292,7 +297,7 @@
       <div class="side-col no-print">
         <div class="card">
           <label>Æðahópar</label>
-          <div class="hint" style="margin:0 0 10px;">Á plötunni: dragðu ⠿-handfangið til að færa heilan hóp, eða dragðu stakan front til að færa hann, sameina eða kljúfa. Hér: dragðu frontalínurnar til að raða þeim, eða snúðu hópnum 90°.</div>
+          <div class="hint" style="margin:0 0 10px;">Á plötunni: dragðu ⠿-handfangið til að færa heilan hóp, eða dragðu stakan front til að færa/sameina/kljúfa. Hlutir skarast aldrei — þeir smella upp að hlið. Hér: dragðu frontalínurnar til að raða, eða snúðu hópnum 90°.</div>
           <div class="grp-panel" id="grpPanel"></div>
         </div>
       </div>
@@ -329,7 +334,7 @@ const GRAIN_RE  = /(eik|hnot|valhnot|ash|askur|beyk|beech|fura|pine|wenge|teak|o
 // Blum drawer-height codes, roughly narrow→tall — a sane default top→bottom order.
 const CODE_RANK = { N: 0, M: 1, K: 2, C: 3, D: 4, F: 5, E: 6 };
 
-const DEFAULTS = { kerf: 4.4, trim: 10 };
+const DEFAULTS = { kerf: 4.4, trim: 10, grid: 25, freeMove: false };
 
 // ── STATE ────────────────────────────────────────────────────────────────
 let projects = [];
@@ -531,6 +536,8 @@ function selectMaterial(key) {
   $("boardL").value = board.l;
   $("kerf").value = settings.kerf;
   $("trim").value = settings.trim;
+  $("grid").value = settings.grid;
+  updateSnapBtn();
 
   if (stored?.layout && stored.layout.boards?.length) {
     layout = stored.layout;
@@ -639,6 +646,7 @@ function splitGroup(gid) {
     for (const s of singles) { layout.boards[bi].placements[s.id] = { x: p.x, y }; y += groupLen(s) + settings.kerf; }
   }
   selectedGid = singles[0].id;
+  settleAll();
   render(); saveLayout();
 }
 
@@ -649,6 +657,7 @@ function mergeGroup(gid, otherId) {
   g.fronts = g.fronts.concat(o.fronts);
   groups = groups.filter(x => x !== o);
   for (const b of layout.boards) delete b.placements[otherId];
+  settleAll();
   render(); saveLayout();
 }
 
@@ -724,6 +733,7 @@ function reconcileLayout() {
     let y = settings.trim;
     for (const g of missing) { b.placements[g.id] = { x: settings.trim, y }; y += groupLen(g) + settings.kerf; }
   }
+  settleAll();
   saveLayout();
 }
 function boardOfGroup(gid) {
@@ -741,11 +751,24 @@ function readToolbar() {
   board.l = num($("boardL").value) || board.l;
   settings.kerf = num($("kerf").value) || DEFAULTS.kerf;
   settings.trim = num($("trim").value) || 0;
+  settings.grid = Math.max(1, num($("grid").value) || DEFAULTS.grid);
   saveSettings();
 }
-["boardW", "boardL", "kerf", "trim"].forEach(id => {
+["boardW", "boardL", "kerf", "trim", "grid"].forEach(id => {
   $(id).addEventListener("change", () => { readToolbar(); render(); saveLayout(); });
 });
+function updateSnapBtn() {
+  const b = $("snapBtn");
+  if (!b) return;
+  b.textContent = settings.freeMove ? "✋ Frjáls færsla" : `⊞ Grið ${settings.grid} mm`;
+  b.classList.toggle("primary", !settings.freeMove);
+  b.classList.toggle("ghost", settings.freeMove);
+  $("grid").disabled = settings.freeMove;
+}
+function toggleFreeMove() {
+  settings.freeMove = !settings.freeMove;
+  saveSettings(); updateSnapBtn(); render();
+}
 
 // ── RENDER ───────────────────────────────────────────────────────────────
 function render() {
@@ -831,6 +854,35 @@ function renderBoards() {
     svg.setAttribute("viewBox", `0 0 ${svgW} ${svgH}`);
     svg.dataset.board = bi;
 
+    // soft procedural woodgrain — streaks run down the board length (= sheet grain)
+    appendSvg(svg, `
+      <defs><filter id="wood${bi}" x="-5%" y="-5%" width="110%" height="110%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.06 0.007" numOctaves="4" seed="${bi * 7 + 2}" result="n"/>
+        <feColorMatrix in="n" type="matrix" values="0 0 0 0 0.34  0 0 0 0 0.23  0 0 0 0 0.13  0 0 0 0.85 0"/>
+      </filter></defs>
+      <rect x="0" y="0" width="${svgW}" height="${svgH}" fill="#171310"/>
+      <rect x="0" y="0" width="${svgW}" height="${svgH}" filter="url(#wood${bi})" opacity="0.32" pointer-events="none"/>`);
+
+    // grid
+    if (!settings.freeMove && settings.grid >= 2) {
+      let step = settings.grid;
+      while (board.w / step > 42) step *= 2; // keep lines from crowding
+      for (let gx = 0; gx <= board.w; gx += step) {
+        const l = document.createElementNS(svgNS, "line");
+        l.setAttribute("x1", gx * scale); l.setAttribute("y1", 0);
+        l.setAttribute("x2", gx * scale); l.setAttribute("y2", svgH);
+        l.setAttribute("stroke", "#ffffff"); l.setAttribute("stroke-opacity", "0.05"); l.setAttribute("stroke-width", "0.5");
+        svg.appendChild(l);
+      }
+      for (let gy = 0; gy <= board.l; gy += step) {
+        const l = document.createElementNS(svgNS, "line");
+        l.setAttribute("x1", 0); l.setAttribute("y1", gy * scale);
+        l.setAttribute("x2", svgW); l.setAttribute("y2", gy * scale);
+        l.setAttribute("stroke", "#ffffff"); l.setAttribute("stroke-opacity", "0.05"); l.setAttribute("stroke-width", "0.5");
+        svg.appendChild(l);
+      }
+    }
+
     // trim margin
     const tr = document.createElementNS(svgNS, "rect");
     tr.setAttribute("x", settings.trim * scale); tr.setAttribute("y", settings.trim * scale);
@@ -866,7 +918,7 @@ function renderBoards() {
       box.setAttribute("class", "grgbox");
       box.setAttribute("x", gx); box.setAttribute("y", gy);
       box.setAttribute("width", gw); box.setAttribute("height", gl);
-      box.setAttribute("fill", color); box.setAttribute("fill-opacity", "0.35");
+      box.setAttribute("fill", color); box.setAttribute("fill-opacity", "0.5");
       box.setAttribute("stroke", color); box.setAttribute("stroke-width", "1.5");
       grp.appendChild(box);
 
@@ -970,6 +1022,70 @@ function removeBoard(bi) {
 // ── DRAG ─────────────────────────────────────────────────────────────────
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(v, hi));
 
+function appendSvg(parent, markup) {
+  const doc = new DOMParser().parseFromString(
+    `<svg xmlns="http://www.w3.org/2000/svg">${markup}</svg>`, "image/svg+xml");
+  for (const n of [...doc.documentElement.childNodes]) parent.appendChild(n);
+}
+
+const rectsOverlap = (a, b, pad = 1) =>
+  a.x < b.x + b.w - pad && a.x + a.w > b.x + pad && a.y < b.y + b.h - pad && a.y + a.h > b.y + pad;
+
+function obstacleBoxes(bi, skipGid) {
+  return Object.entries(layout.boards[bi].placements).flatMap(([id, p]) => {
+    if (id === skipGid) return [];
+    const g = groups.find(x => x.id === id);
+    return g ? [{ x: p.x, y: p.y, w: groupWidth(g), h: groupLen(g) }] : [];
+  });
+}
+function posFree(bi, gid, x, y, W, H) {
+  return x >= -0.5 && y >= -0.5 && x + W <= board.w + 0.5 && y + H <= board.l + 0.5 &&
+    !obstacleBoxes(bi, gid).some(o => rectsOverlap({ x, y, w: W, h: H }, o));
+}
+
+// Given a wanted position for a run, return the nearest position that does
+// not overlap any other run (butted with a saw kerf). null = boxed in.
+function resolveCollision(bi, gid, want) {
+  const g = groups.find(x => x.id === gid);
+  const W = groupWidth(g), H = groupLen(g), k = settings.kerf;
+  const obs = obstacleBoxes(bi, gid);
+  const free = (x, y) => x >= -0.5 && y >= -0.5 && x + W <= board.w + 0.5 && y + H <= board.l + 0.5 &&
+    !obs.some(o => rectsOverlap({ x, y, w: W, h: H }, o));
+  if (free(want.x, want.y)) return want;
+  const hit = obs.find(o => rectsOverlap({ x: want.x, y: want.y, w: W, h: H }, o));
+  if (!hit) return null;
+  const cands = [
+    { x: hit.x - W - k, y: want.y }, { x: hit.x + hit.w + k, y: want.y },
+    { x: want.x, y: hit.y - H - k }, { x: want.x, y: hit.y + hit.h + k },
+  ].map(c => ({ x: clamp(c.x, 0, board.w - W), y: clamp(c.y, 0, board.l - H) }))
+   .filter(c => free(c.x, c.y))
+   .sort((a, c) => Math.hypot(a.x - want.x, a.y - want.y) - Math.hypot(c.x - want.x, c.y - want.y));
+  return cands[0] || null;
+}
+
+// Tidy a board so nothing overlaps: keep reading order, push each run down
+// past anything it lands on. Used after rotate / split / merge.
+function settleBoard(bi) {
+  const entries = Object.entries(layout.boards[bi].placements)
+    .map(([id, p]) => ({ id, p, g: groups.find(x => x.id === id) })).filter(e => e.g)
+    .sort((a, c) => a.p.y - c.p.y || a.p.x - c.p.x);
+  const placed = [];
+  for (const e of entries) {
+    const W = groupWidth(e.g), H = groupLen(e.g);
+    let x = clamp(e.p.x, 0, Math.max(0, board.w - W));
+    let y = clamp(e.p.y, 0, Math.max(0, board.l - H));
+    for (let guard = 0; guard < 300; guard++) {
+      const hit = placed.find(o => rectsOverlap({ x, y, w: W, h: H }, o));
+      if (!hit) break;
+      y = hit.y + hit.h + settings.kerf;
+      if (y + H > board.l) { y = Math.max(0, board.l - H); break; }
+    }
+    e.p.x = x; e.p.y = y;
+    placed.push({ x, y, w: W, h: H });
+  }
+}
+function settleAll() { layout.boards.forEach((_, bi) => settleBoard(bi)); }
+
 // Drag a whole run around a board (and between boards). Smooth: only the
 // dragged <g> is transformed during the move; the layout + full re-render
 // happen once on drop.
@@ -987,14 +1103,20 @@ function enableDrag(handleEl, svg, bi, gid, scale) {
     let cur = { ...p0 };
     try { handleEl.setPointerCapture(ev.pointerId); } catch {}
 
+    const W = groupWidth(g), H = groupLen(g);
     function move(e) {
       const pt = svgPoint(svg, e);
-      let nx = clamp(p0.x + (pt.x - start.x) / scale, 0, board.w - groupWidth(g));
-      let ny = clamp(p0.y + (pt.y - start.y) / scale, 0, board.l - groupLen(g));
+      let nx = clamp(p0.x + (pt.x - start.x) / scale, 0, board.w - W);
+      let ny = clamp(p0.y + (pt.y - start.y) / scale, 0, board.l - H);
       nx = snap(nx, [settings.trim, ...edgeXs(bi, gid)]);
       ny = snap(ny, [settings.trim, ...edgeYs(bi, gid)]);
-      cur = { x: nx, y: ny };
-      grp.setAttribute("transform", `translate(${(nx - p0.x) * scale} ${(ny - p0.y) * scale})`);
+      // slide along obstacles: move on each axis only if that keeps it clear
+      let tx = cur.x, ty = cur.y;
+      if (posFree(bi, gid, nx, ty, W, H)) tx = nx;
+      if (posFree(bi, gid, tx, ny, W, H)) ty = ny;
+      if (tx === cur.x && ty === cur.y && posFree(bi, gid, nx, ny, W, H)) { tx = nx; ty = ny; }
+      cur = { x: tx, y: ty };
+      grp.setAttribute("transform", `translate(${(cur.x - p0.x) * scale} ${(cur.y - p0.y) * scale})`);
     }
     function up(e) {
       grp.classList.remove("dragging");
@@ -1004,11 +1126,13 @@ function enableDrag(handleEl, svg, bi, gid, scale) {
       const overBi = boardUnderPointer(e);
       const tbi = overBi != null ? overBi : bi;
       if (tbi !== bi) delete layout.boards[bi].placements[gid];
-      const tb = layout.boards[tbi];
-      let x = clamp(cur.x, 0, board.w - groupWidth(g));
-      let y = clamp(cur.y, 0, board.l - groupLen(g));
-      tb.placements[gid] = { x, y };
-      maybeMergeOnDrop(gid, tbi);
+      const want = {
+        x: clamp(cur.x, 0, board.w - groupWidth(g)),
+        y: clamp(cur.y, 0, board.l - groupLen(g)),
+      };
+      layout.boards[tbi].placements[gid] = resolveCollision(tbi, gid, want) || want;
+      const merged = maybeMergeOnDrop(gid, tbi);
+      if (tbi !== bi || merged) settleBoard(tbi);
       saveLayout(); render();
     }
     svg.addEventListener("pointermove", move);
@@ -1056,6 +1180,7 @@ function enableFrontDrag(cell, svg, bi, gid, fi, scale) {
       if (!moved) { selectGroup(gid); render(); return; }
 
       const hit = frontDropTarget(lastE, gid, g.width);
+      let touched = [bi];
       if (hit && hit.gid === gid) {
         // reorder within same run
         const arr = g.fronts;
@@ -1068,6 +1193,7 @@ function enableFrontDrag(cell, svg, bi, gid, fi, scale) {
         // dst keeps its own width; a narrower front gets a rip-to-width step in the cut plan
         dst.fronts.splice(clamp(hit.index, 0, dst.fronts.length), 0, it);
         cleanupIfEmpty(gid);
+        touched.push(boardOfGroup(hit.gid));
       } else {
         // pop into its own run at the drop point
         const tbi = boardUnderPointer(lastE);
@@ -1079,10 +1205,16 @@ function enableFrontDrag(cell, svg, bi, gid, fi, scale) {
         const pt = svgPoint(document.querySelector(`svg.board[data-board="${tbi}"]`), lastE);
         const nx = clamp(pt.x / scale - groupWidth(ng) / 2, 0, board.w - groupWidth(ng));
         const ny = clamp(pt.y / scale - groupLen(ng) / 2, 0, board.l - groupLen(ng));
-        layout.boards[tbi].placements[nid] = { x: snap(nx, [settings.trim]), y: snap(ny, [settings.trim]) };
+        const want = {
+          x: snap(nx, [settings.trim, ...edgeXs(tbi, nid)]),
+          y: snap(ny, [settings.trim, ...edgeYs(tbi, nid)]),
+        };
+        layout.boards[tbi].placements[nid] = resolveCollision(tbi, nid, want) || want;
         cleanupIfEmpty(gid);
         selectedGid = nid;
+        touched.push(tbi);
       }
+      [...new Set(touched)].forEach(x => { if (x >= 0) settleBoard(x); });
       saveLayout(); render();
     }
     svg.addEventListener("pointermove", move);
@@ -1131,21 +1263,23 @@ function cleanupIfEmpty(gid) {
 function maybeMergeOnDrop(gid, bi) {
   const g = groups.find(x => x.id === gid);
   const p = layout.boards[bi].placements[gid];
-  if (!g || !p) return;
+  if (!g || !p) return false;
   for (const [oid, op] of Object.entries(layout.boards[bi].placements)) {
     if (oid === gid) continue;
-    const o = groups.find(x => x.id === oid); if (!o || o.orient !== g.orient) continue;
+    const o = groups.find(x => x.id === oid);
+    if (!o || o.orient !== g.orient || Math.abs(o.width - g.width) > 2) continue;
     const sameCol = Math.abs(op.x - p.x) < 20;
-    const touchBelow = Math.abs((op.y + groupLen(o)) - p.y) < 22;
-    const touchAbove = Math.abs((p.y + groupLen(g)) - op.y) < 22;
+    const touchBelow = Math.abs((op.y + groupLen(o) + settings.kerf) - p.y) < 24;
+    const touchAbove = Math.abs((p.y + groupLen(g) + settings.kerf) - op.y) < 24;
     if (sameCol && (touchBelow || touchAbove)) {
       o.fronts = touchBelow ? o.fronts.concat(g.fronts) : g.fronts.concat(o.fronts);
       groups = groups.filter(x => x !== g);
       delete layout.boards[bi].placements[gid];
       if (selectedGid === gid) selectedGid = oid;
-      return;
+      return true;
     }
   }
+  return false;
 }
 function selectGroup(gid) {
   selectedGid = gid;
@@ -1158,9 +1292,14 @@ function svgPoint(svg, ev) {
   const vb = svg.viewBox.baseVal;
   return { x: (ev.clientX - r.left) / r.width * vb.width, y: (ev.clientY - r.top) / r.height * vb.height };
 }
-function snap(v, targets, tol = 8) {
-  for (const t of targets) if (Math.abs(v - t) < tol) return t;
-  return Math.round(v);
+// Free mode: drop exactly where released (0.1 mm). Grid mode: neighbour /
+// trim edges are magnetic first (tight butt joins), then everything else
+// locks to the grid step.
+function snap(v, targets) {
+  if (settings.freeMove) return Math.round(v * 10) / 10;
+  for (const t of targets) if (Math.abs(v - t) < 14) return t;
+  const g = settings.grid || 25;
+  return Math.round(v / g) * g;
 }
 function edgeXs(bi, skip) {
   const xs = [];
@@ -1280,6 +1419,7 @@ function dropFrontRow(fromGid, fromFi, toGid, toIdx) {
   if (from === to && fromFi < toIdx) toIdx--;
   to.fronts.splice(clamp(toIdx, 0, to.fronts.length), 0, it);
   cleanupIfEmpty(fromGid);
+  settleAll();
   render(); saveLayout();
 }
 function pickGroup(gid) { selectedGid = gid; render(); }
@@ -1297,12 +1437,14 @@ function reverseGroup(gid) { groups.find(x => x.id === gid).fronts.reverse(); re
 function toggleOrient(gid) {
   const g = groups.find(x => x.id === gid);
   g.orient = g.orient === "v" ? "h" : "v";
+  settleAll();
   render(); saveLayout();
 }
 function sendToBoard(gid, bi) {
   const from = boardOfGroup(gid);
   if (from >= 0) delete layout.boards[from].placements[gid];
   layout.boards[bi].placements[gid] = { x: settings.trim, y: settings.trim };
+  settleBoard(bi);
   render(); saveLayout();
 }
 
