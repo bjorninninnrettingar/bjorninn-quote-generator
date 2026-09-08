@@ -329,6 +329,9 @@ const E_HEITI = "Heiti efnis", E_BREIDD = "Breidd (mm)", E_LENGD = "Lengd (mm)",
 // (Innskúffufrontur) sit inside the cabinet and are excluded.
 const FRONT_RE  = /(frontur|blindlok|áfella|afella|vænghurð|vaenghurd|sökkul cover|sokkul cover)/i;
 const HIDDEN_RE = /(innskúffufrontur|innskuffufrontur)/i;
+// Wing doors / split fronts: two+ panels over one opening — must be cut side
+// by side, upright, so the grain figure runs continuously across the seam.
+const SIDEBYSIDE_RE = /(væng|vaeng|skipt)/i;
 // Wood-look / veneer decors where sequential grain matters.
 const GRAIN_RE  = /(eik|hnot|valhnot|ash|askur|beyk|beech|fura|pine|wenge|teak|oak|walnut|spónlag|spónlög|sponlag|spónn|spon |rift|masterlin|linoak|hickory|acacia|akasía|kirsu|cherry|birki|birch|reykt)/i;
 // Blum drawer-height codes, roughly narrow→tall — a sane default top→bottom order.
@@ -576,12 +579,17 @@ function buildGroups() {
   const mat = materials.find(m => m.key === selectedKey);
   const rows = allFronts.filter(p => `${p.efni}||${p.th}` === selectedKey);
 
-  // group by unit + rounded width — a grain run is a column of same-width fronts
+  // group by unit + rounded width — a grain run is a strip of same-width fronts
   const map = new Map();
   for (const p of rows) {
     const gk = `${p.unitId}|${Math.round(p.b)}`;
-    if (!map.has(gk)) map.set(gk, { id: gk, unitName: p.unitName, width: Math.round(p.b), orient: "v", fronts: [] });
+    const sbs = SIDEBYSIDE_RE.test(p.partur);
+    if (!map.has(gk)) map.set(gk, {
+      id: gk, unitName: p.unitName, width: Math.round(p.b),
+      orient: sbs ? "s" : "v", keepTogether: sbs, fronts: [],
+    });
     const g = map.get(gk);
+    if (sbs) { g.orient = "s"; g.keepTogether = true; }
     for (let i = 0; i < p.m; i++) {
       g.fronts.push({
         pieceId: p.id,
@@ -612,15 +620,19 @@ function buildGroups() {
 function normalizeGroups() {
   const maxL = board.l - settings.trim;
   const maxW = board.w - 2 * settings.trim;
+  const fits = g => groupLen(g) <= maxL + 0.5 && groupWidth(g) <= maxW + 0.5;
   const out = [];
   for (const g of groups) {
-    if (groupLen(g) <= maxL + 0.5 && groupWidth(g) <= maxW + 0.5) { out.push(g); continue; }
-    if (g.fronts.length > 1) {
-      g.orient = "h";
-      if (groupLen(g) <= maxL + 0.5 && groupWidth(g) <= maxW + 0.5) { out.push(g); continue; }
-      g.orient = "v";
+    if (fits(g)) { out.push(g); continue; }
+    // try the other arrangements before giving up
+    const order = g.keepTogether ? ["s", "v", "h"] : ["v", "s", "h"];
+    let done = false;
+    for (const o of order) {
+      g.orient = o;
+      if (g.fronts.length > 1 && fits(g)) { out.push(g); done = true; break; }
     }
-    // split into singles
+    if (done) continue;
+    if (g.keepTogether) { g.orient = "s"; out.push(g); continue; } // leave overflowing, warn — never split a wing/split pair
     g.fronts.forEach((f, i) => out.push({
       id: `${g.id}#${i}`, unitName: g.unitName + " · " + (i + 1), width: g.width, orient: "v", fronts: [f], autoSplit: true,
     }));
@@ -661,15 +673,22 @@ function mergeGroup(gid, otherId) {
   render(); saveLayout();
 }
 
-// A run is a strip of fronts sharing continuous grain. orient "v" = grain
-// runs along the board length (fronts stacked, crosscut in sequence).
-// orient "h" = the whole run turned 90°: grain runs across the board width,
-// fronts arranged along the width, still one continuous sequence.
-function grainSpan(g) {
-  return g.fronts.reduce((s, f) => s + f.h, 0) + settings.kerf * (g.fronts.length - 1);
+// A run is a strip of fronts sharing continuous grain. Three arrangements:
+//  "v"  stacked — grain runs down the board length, fronts crosscut in
+//       sequence off the top (drawer banks).
+//  "s"  side by side, upright — fronts placed left→right, grain still
+//       vertical in each, figure continuing across the seams (wing/split
+//       doors). Cut as one tall piece then ripped into panels.
+//  "h"  the whole run turned 90° — grain runs across the board width.
+// frontExtent = a front's size along the run's long (layout) axis.
+function frontExtent(g, f) { return g.orient === "s" ? g.width : f.h; }
+function runSpan(g) {
+  return g.fronts.reduce((s, f) => s + frontExtent(g, f), 0) + settings.kerf * (g.fronts.length - 1);
 }
-function groupLen(g)   { return g.orient === "h" ? g.width : grainSpan(g); }
-function groupWidth(g) { return g.orient === "h" ? grainSpan(g) : g.width; }
+function runTall(g) { return Math.max(...g.fronts.map(f => f.h)); }
+function groupWidth(g) { return g.orient === "v" ? g.width : runSpan(g); }
+function groupLen(g)   { return g.orient === "v" ? runSpan(g) : g.orient === "s" ? runTall(g) : g.width; }
+function orientGlyph(o) { return o === "s" ? "↔" : o === "h" ? "⟳" : "↕"; }
 
 // ── NESTING ──────────────────────────────────────────────────────────────
 function usable() {
@@ -923,12 +942,14 @@ function renderBoards() {
       grp.appendChild(box);
 
       // front cells — each is its own drag target
+      const horiz = g.orient !== "v";      // s and h lay fronts out along x
+      const grainHoriz = g.orient === "h"; // only h rotates the grain itself
       let off = 0;
       g.fronts.forEach((f, fi) => {
-        const cw = g.orient === "h" ? f.h * scale : gw;
-        const ch = g.orient === "h" ? g.width * scale : f.h * scale;
-        const cx = g.orient === "h" ? gx + off : gx;
-        const cy = g.orient === "h" ? gy : gy + off;
+        const cw = (g.orient === "h" ? f.h : g.width) * scale;
+        const ch = (g.orient === "s" ? f.h : g.orient === "h" ? g.width : f.h) * scale;
+        const cx = (horiz ? p.x * scale + off : gx);
+        const cy = (horiz ? gy : gy + off);
         const cell = document.createElementNS(svgNS, "g");
         cell.setAttribute("class", "front-cell");
         cell.dataset.gid = gid; cell.dataset.fi = fi;
@@ -944,7 +965,7 @@ function renderBoards() {
         const nS = 3;
         for (let k = 1; k <= nS; k++) {
           const ln = document.createElementNS(svgNS, "line");
-          if (g.orient === "h") {
+          if (grainHoriz) {
             const yy = cy + ch * k / (nS + 1);
             ln.setAttribute("x1", cx + 2); ln.setAttribute("y1", yy);
             ln.setAttribute("x2", cx + cw - 2); ln.setAttribute("y2", yy);
@@ -957,23 +978,32 @@ function renderBoards() {
           cell.appendChild(ln);
         }
 
-        if (ch > 13 && cw > 24) {
+        {
+          const label = `${fi + 1}. ${f.label} · ${g.width}×${f.h}${f.err ? " ⚠" : ""}`;
           const t = document.createElementNS(svgNS, "text");
-          t.setAttribute("x", cx + 4); t.setAttribute("y", cy + 12);
           t.setAttribute("fill", "#eee"); t.setAttribute("font-size", "9");
-          t.textContent = `${fi + 1}. ${f.label} · ${g.width}×${f.h}${f.err ? " ⚠" : ""}`;
-          cell.appendChild(t);
+          const fitsFlat = label.length * 4.7 <= cw - 6;
+          if (!fitsFlat && ch > 60 && ch > cw) {
+            // label would overflow a portrait cell — run it up the left edge
+            t.setAttribute("x", cx + 11); t.setAttribute("y", cy + ch - 5);
+            t.setAttribute("transform", `rotate(-90 ${cx + 11} ${cy + ch - 5})`);
+            t.textContent = label;
+          } else if (ch > 13 && cw > 24) {
+            t.setAttribute("x", cx + 4); t.setAttribute("y", cy + 12);
+            t.textContent = fitsFlat ? label : `${fi + 1}. ${g.width}×${f.h}`;
+          }
+          if (t.textContent) cell.appendChild(t);
         }
         enableFrontDrag(cell, svg, bi, gid, fi, scale);
         grp.appendChild(cell);
-        off += f.h * scale + settings.kerf * scale;
+        off += frontExtent(g, f) * scale + settings.kerf * scale;
       });
 
       // header label + drag handle for the whole run
       const hl = document.createElementNS(svgNS, "text");
       hl.setAttribute("x", gx + 20); hl.setAttribute("y", gy - 3);
       hl.setAttribute("fill", "#ccc"); hl.setAttribute("font-size", "10");
-      hl.textContent = `${g.unitName} ${g.orient === "h" ? "↔" : "↕"} · ${Math.round(groupWidth(g))}×${Math.round(groupLen(g))}`;
+      hl.textContent = `${g.unitName} ${orientGlyph(g.orient)} · ${Math.round(groupWidth(g))}×${Math.round(groupLen(g))}`;
       grp.appendChild(hl);
 
       const handle = document.createElementNS(svgNS, "g");
@@ -1239,11 +1269,11 @@ function frontDropTarget(e, dragGid, srcW) {
       const gw = groupWidth(g), gl = groupLen(g);
       const mx = pt.x / scale, my = pt.y / scale;
       if (mx < p.x || mx > p.x + gw || my < p.y || my > p.y + gl) continue;
-      // index along the grain axis
-      const along = g.orient === "h" ? mx - p.x : my - p.y;
+      // index along the run's layout axis (x for s/h, y for v)
+      const along = g.orient === "v" ? my - p.y : mx - p.x;
       let acc = 0, index = g.fronts.length;
       for (let i = 0; i < g.fronts.length; i++) {
-        const seg = g.fronts[i].h + settings.kerf;
+        const seg = frontExtent(g, g.fronts[i]) + settings.kerf;
         if (along < acc + seg / 2) { index = i; break; }
         acc += seg;
       }
@@ -1337,7 +1367,7 @@ function renderPanel() {
     const color = COLORS[gi % COLORS.length];
     return `
     <div class="grp ${sel ? "sel" : ""}" onclick="pickGroup('${g.id}')">
-      <h4 style="color:${color}">${esc(g.unitName)} ${g.orient === "h" ? "↔" : "↕"}</h4>
+      <h4 style="color:${color}">${esc(g.unitName)} ${orientGlyph(g.orient)}${g.keepTogether ? " · væng" : ""}</h4>
       <div class="gm">${g.fronts.length} frontar · ${Math.round(groupWidth(g))}×${Math.round(groupLen(g))} mm · plata ${boardOfGroup(g.id) + 1}${g.autoSplit ? " · sjálfvirk skipting" : ""}</div>
       <div class="front-list" data-gid="${g.id}">
       ${g.fronts.map((f, i) => `
@@ -1351,8 +1381,10 @@ function renderPanel() {
         </div>`).join("")}
       </div>
       ${sel ? `
+      <div class="grp-actions" style="margin-bottom:6px;">
+        ${["v", "s", "h"].map(o => `<button class="small ${g.orient === o ? "primary" : "ghost"}" onclick="event.stopPropagation();setOrient('${g.id}','${o}')" title="${{v:"Stafla — æð niður",s:"Hlið við hlið — æð heldur áfram yfir samskeytin (væng)",h:"Snúa 90° — æð þvers"}[o]}">${orientGlyph(o)} ${{v:"stafla",s:"hlið v. hlið",h:"snúa 90°"}[o]}</button>`).join("")}
+      </div>
       <div class="grp-actions">
-        <button class="small ghost" onclick="event.stopPropagation();toggleOrient('${g.id}')">↻ Snúa 90° — æð ${g.orient === "v" ? "þvers" : "upp"}</button>
         <button class="small ghost" onclick="event.stopPropagation();reverseGroup('${g.id}')">↕ snúa röð</button>
         ${g.fronts.length > 1 ? `<button class="small ghost" onclick="event.stopPropagation();splitGroup('${g.id}')">✂ skipta upp</button>` : ""}
         ${mergeCandidates(g).length ? `<select class="small" style="max-width:150px;padding:5px 6px;font-size:0.8rem;" onclick="event.stopPropagation()" onchange="if(this.value){mergeGroup('${g.id}',this.value);this.value=''}">
@@ -1434,9 +1466,10 @@ function moveFront(gid, i, dir) {
   render(); saveLayout();
 }
 function reverseGroup(gid) { groups.find(x => x.id === gid).fronts.reverse(); render(); saveLayout(); }
-function toggleOrient(gid) {
+function setOrient(gid, o) {
   const g = groups.find(x => x.id === gid);
-  g.orient = g.orient === "v" ? "h" : "v";
+  if (!g || g.orient === o) return;
+  g.orient = o;
   settleAll();
   render(); saveLayout();
 }
@@ -1459,10 +1492,13 @@ function cutSequenceHtml(b, bi) {
   let html = `<b>Plata ${bi + 1} — sögunarröð (${board.w}×${board.l} mm, æð ↕)</b><ol>`;
   items.forEach(({ g, p }, i) => {
     const w = Math.round(groupWidth(g)), l = Math.round(groupLen(g));
+    const seq = g.fronts.map((f, k) => `#${k + 1} ${esc(f.label)} ${f.h}`).join(" → ");
     if (g.orient === "v") {
-      html += `<li><b>${esc(g.unitName)}</b> (æð ↕): rífðu ræmu ${w} mm breiða (x ≈ ${Math.round(p.x)}–${Math.round(p.x + w)} mm). Þverskurðir að ofan: ` + g.fronts.map((f, k) => `#${k + 1} ${esc(f.label)} ${f.h}`).join(" → ") + `.`;
+      html += `<li><b>${esc(g.unitName)}</b> (stafla ↕): rífðu ræmu ${w} mm breiða (x ≈ ${Math.round(p.x)}–${Math.round(p.x + w)} mm). Þverskurðir að ofan: ${seq}.`;
+    } else if (g.orient === "s") {
+      html += `<li><b>${esc(g.unitName)}</b> (væng, hlið v. hlið ↔): þverskurður ${Math.round(runTall(g))} mm fyrir allan hópinn, svo rífðu í ${g.fronts.length} × ${g.width} mm hlið við hlið — samfelld æð: ${seq}.`;
     } else {
-      html += `<li><b>${esc(g.unitName)}</b> (æð ↔, snúinn 90°): taktu band ${g.width} mm (á lengd plötu), snúðu 90°, sagaðu fronta: ` + g.fronts.map((f, k) => `#${k + 1} ${esc(f.label)} ${f.h}`).join(" → ") + `.`;
+      html += `<li><b>${esc(g.unitName)}</b> (snúinn 90° ⟳): taktu band ${g.width} mm (á lengd plötu), snúðu 90°, sagaðu fronta: ${seq}.`;
     }
     html += `</li>`;
   });
@@ -1514,7 +1550,7 @@ function buildCutPlan() {
 
     strips.forEach((s, si) => {
       const names = [...new Set(s.runs.map(r => r.g.unitName.replace(/ · \d+$/, "")))].join(", ");
-      const onlyRotated = s.runs.length === 1 && s.runs[0].g.orient === "h";
+      const onlyRotated = s.runs.length === 1 && s.runs[0].g.orient !== "v";
       if (!onlyRotated) steps.push({
         bi, kind: "rip", measure: Math.round(s.w), measureLabel: "Rifjaðar — frá vinstri kanti",
         title: `Rífðu ræmu ${si + 1}${strips.length > 1 ? " af " + strips.length : ""} — ${Math.round(s.w)} mm breið`,
@@ -1563,6 +1599,31 @@ function buildCutPlan() {
               cutLines: [{ o: "v", pos: s.x + g.width }],
             });
           }
+        } else if (g.orient === "s") {
+          // side by side, upright (wing / split doors): crosscut one tall
+          // piece for the whole set, then rip it into panels — grain stays
+          // continuous and the panels come off adjacent, in order.
+          const tall = runTall(g);
+          steps.push({
+            bi, kind: "crosscut", measure: tall, measureLabel: "Þverskurðarstopp",
+            title: `${g.unitName} — þverskurður fyrir allan vænghópinn`,
+            note: `${g.fronts.length} frontar hlið við hlið, samfelld æð yfir samskeytin.`,
+            produces: [], highlight: { x: s.x, y: cursor, w: groupWidth(g), l: tall },
+            cutLines: [{ o: "h", pos: cursor + tall }],
+          });
+          let woff = s.x;
+          g.fronts.forEach((f, fi) => {
+            steps.push({
+              bi, kind: "rip", measure: g.width, measureLabel: "Rifjaðar",
+              title: `${g.unitName} — rífðu væng ${fi + 1} af ${g.fronts.length}`,
+              note: fi === 0 ? "Rífðu frá vinstri, haltu röðinni. Vængirnir eiga að vera hlið við hlið." : "",
+              produces: [{ label: f.label, w: g.width, h: f.h, unitName: g.unitName, err: f.err }],
+              highlight: { x: woff, y: cursor, w: g.width, l: f.h },
+              cutLines: [{ o: "v", pos: woff + g.width }],
+            });
+            woff += g.width + k;
+          });
+          cursor += tall + k;
         } else {
           // rotated 90°: grain runs across the board. Crosscut a band g.width
           // long, then turn it and crosscut each front off in sequence.
@@ -1648,14 +1709,15 @@ function guideSvg(step) {
     const g = groups.find(x => x.id === gid); if (!g) return;
     const gi = groups.indexOf(g), c = COLORS[gi % COLORS.length];
     inner += `<rect x="${S(p.x)}" y="${S(p.y)}" width="${S(groupWidth(g))}" height="${S(groupLen(g))}" fill="${c}" fill-opacity="0.18" stroke="${c}" stroke-opacity="0.5"/>`;
+    const horiz = g.orient !== "v";
     let off = 0;
     g.fronts.forEach(f => {
-      const cw = g.orient === "h" ? f.h : groupWidth(g);
+      const cw = g.orient === "h" ? f.h : g.width;
       const ch = g.orient === "h" ? g.width : f.h;
-      const cx = g.orient === "h" ? p.x + off : p.x;
-      const cy = g.orient === "h" ? p.y : p.y + off;
+      const cx = horiz ? p.x + off : p.x;
+      const cy = horiz ? p.y : p.y + off;
       inner += `<rect x="${S(cx)}" y="${S(cy)}" width="${S(cw)}" height="${S(ch)}" fill="none" stroke="${c}" stroke-opacity="0.4" stroke-width="0.5"/>`;
-      off += f.h + settings.kerf;
+      off += frontExtent(g, f) + settings.kerf;
     });
   });
   // highlight region
