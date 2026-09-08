@@ -100,10 +100,12 @@
   svg.board { background: #141414; border: 1px solid #2a2a2a; border-radius: 6px; touch-action: none; display: block; width: 100%; height: auto; }
   svg.board text { font-family: "SF Mono", Consolas, monospace; }
 
-  .group-rect { cursor: grab; }
-  .group-rect.dragging { cursor: grabbing; }
+  .group-rect.dragging { opacity: 0.75; }
   .group-rect.selected .grgbox { stroke: #2196f3; stroke-width: 2.5; }
   .group-rect.overflow .grgbox { stroke: #f44336; stroke-dasharray: 6 4; }
+  .run-handle { cursor: grab; }
+  .front-cell { cursor: grab; }
+  .front-cell:hover rect:first-child { fill-opacity: 0.28; }
 
   .grp-panel { }
   .grp-panel .grp {
@@ -112,10 +114,15 @@
   .grp-panel .grp.sel { border-color: #2196f3; background: #0d1a26; }
   .grp-panel .grp h4 { font-size: 0.9rem; margin-bottom: 2px; }
   .grp-panel .grp .gm { color: #888; font-size: 0.78rem; margin-bottom: 8px; }
+  .front-list { min-height: 4px; }
   .front-row {
     display: flex; align-items: center; gap: 8px; font-size: 0.82rem;
-    padding: 4px 0; border-top: 1px solid #1e1e1e;
+    padding: 4px 2px; border-top: 1px solid #1e1e1e;
   }
+  .front-row .drag-grip { cursor: grab; color: #666; font-size: 0.9rem; }
+  .front-row.dragging { opacity: 0.4; }
+  .front-row.drop-above { box-shadow: inset 0 2px 0 #2196f3; }
+  .front-row.drop-below { box-shadow: inset 0 -2px 0 #2196f3; }
   .front-row .fn { flex: 1; }
   .front-row .fdim { color: #999; font-variant-numeric: tabular-nums; }
   .front-row .idx {
@@ -285,7 +292,7 @@
       <div class="side-col no-print">
         <div class="card">
           <label>Æðahópar</label>
-          <div class="hint" style="margin:0 0 10px;">Smelltu á hóp til að velja. Dragðu hópinn til á plötunni. Raðaðu frontum í rétta röð að ofan og niður.</div>
+          <div class="hint" style="margin:0 0 10px;">Á plötunni: dragðu ⠿-handfangið til að færa heilan hóp, eða dragðu stakan front til að færa hann, sameina eða kljúfa. Hér: dragðu frontalínurnar til að raða þeim, eða snúðu hópnum 90°.</div>
           <div class="grp-panel" id="grpPanel"></div>
         </div>
       </div>
@@ -645,15 +652,15 @@ function mergeGroup(gid, otherId) {
   render(); saveLayout();
 }
 
-function groupLen(g) {
-  const k = settings.kerf;
-  if (g.orient === "h") return Math.max(...g.fronts.map(f => f.h));
-  return g.fronts.reduce((s, f) => s + f.h, 0) + k * (g.fronts.length - 1);
+// A run is a strip of fronts sharing continuous grain. orient "v" = grain
+// runs along the board length (fronts stacked, crosscut in sequence).
+// orient "h" = the whole run turned 90°: grain runs across the board width,
+// fronts arranged along the width, still one continuous sequence.
+function grainSpan(g) {
+  return g.fronts.reduce((s, f) => s + f.h, 0) + settings.kerf * (g.fronts.length - 1);
 }
-function groupWidth(g) {
-  if (g.orient === "h") return g.fronts.reduce((s, f) => s + g.width, 0) + settings.kerf * (g.fronts.length - 1);
-  return g.width;
-}
+function groupLen(g)   { return g.orient === "h" ? g.width : grainSpan(g); }
+function groupWidth(g) { return g.orient === "h" ? grainSpan(g) : g.width; }
 
 // ── NESTING ──────────────────────────────────────────────────────────────
 function usable() {
@@ -863,36 +870,76 @@ function renderBoards() {
       box.setAttribute("stroke", color); box.setAttribute("stroke-width", "1.5");
       grp.appendChild(box);
 
-      // front cells
+      // front cells — each is its own drag target
       let off = 0;
       g.fronts.forEach((f, fi) => {
-        const cw = g.orient === "h" ? g.width * scale : gw;
-        const ch = g.orient === "h" ? gl : f.h * scale;
+        const cw = g.orient === "h" ? f.h * scale : gw;
+        const ch = g.orient === "h" ? g.width * scale : f.h * scale;
         const cx = g.orient === "h" ? gx + off : gx;
         const cy = g.orient === "h" ? gy : gy + off;
-        const cell = document.createElementNS(svgNS, "rect");
-        cell.setAttribute("x", cx); cell.setAttribute("y", cy);
-        cell.setAttribute("width", cw); cell.setAttribute("height", ch);
-        cell.setAttribute("fill", "none"); cell.setAttribute("stroke", color); cell.setAttribute("stroke-width", "0.75");
-        grp.appendChild(cell);
+        const cell = document.createElementNS(svgNS, "g");
+        cell.setAttribute("class", "front-cell");
+        cell.dataset.gid = gid; cell.dataset.fi = fi;
+
+        const r = document.createElementNS(svgNS, "rect");
+        r.setAttribute("x", cx); r.setAttribute("y", cy);
+        r.setAttribute("width", cw); r.setAttribute("height", ch);
+        r.setAttribute("fill", color); r.setAttribute("fill-opacity", "0.14");
+        r.setAttribute("stroke", color); r.setAttribute("stroke-width", "0.75");
+        cell.appendChild(r);
+
+        // grain streaks — direction shows this front's grain
+        const nS = 3;
+        for (let k = 1; k <= nS; k++) {
+          const ln = document.createElementNS(svgNS, "line");
+          if (g.orient === "h") {
+            const yy = cy + ch * k / (nS + 1);
+            ln.setAttribute("x1", cx + 2); ln.setAttribute("y1", yy);
+            ln.setAttribute("x2", cx + cw - 2); ln.setAttribute("y2", yy);
+          } else {
+            const xx = cx + cw * k / (nS + 1);
+            ln.setAttribute("x1", xx); ln.setAttribute("y1", cy + 2);
+            ln.setAttribute("x2", xx); ln.setAttribute("y2", cy + ch - 2);
+          }
+          ln.setAttribute("stroke", color); ln.setAttribute("stroke-opacity", "0.3"); ln.setAttribute("stroke-width", "0.5");
+          cell.appendChild(ln);
+        }
+
         if (ch > 13 && cw > 24) {
           const t = document.createElementNS(svgNS, "text");
           t.setAttribute("x", cx + 4); t.setAttribute("y", cy + 12);
           t.setAttribute("fill", "#eee"); t.setAttribute("font-size", "9");
           t.textContent = `${fi + 1}. ${f.label} · ${g.width}×${f.h}${f.err ? " ⚠" : ""}`;
-          grp.appendChild(t);
+          cell.appendChild(t);
         }
-        off += (g.orient === "h" ? g.width : f.h) * scale + settings.kerf * scale;
+        enableFrontDrag(cell, svg, bi, gid, fi, scale);
+        grp.appendChild(cell);
+        off += f.h * scale + settings.kerf * scale;
       });
 
-      // header label
+      // header label + drag handle for the whole run
       const hl = document.createElementNS(svgNS, "text");
-      hl.setAttribute("x", gx + 4); hl.setAttribute("y", gy - 3);
-      hl.setAttribute("fill", color === "#8c8140" ? "#c9bd63" : "#bbb"); hl.setAttribute("font-size", "10");
-      hl.textContent = `${g.unitName} · ${Math.round(groupWidth(g))}×${Math.round(groupLen(g))}`;
+      hl.setAttribute("x", gx + 20); hl.setAttribute("y", gy - 3);
+      hl.setAttribute("fill", "#ccc"); hl.setAttribute("font-size", "10");
+      hl.textContent = `${g.unitName} ${g.orient === "h" ? "↔" : "↕"} · ${Math.round(groupWidth(g))}×${Math.round(groupLen(g))}`;
       grp.appendChild(hl);
 
-      enableDrag(grp, svg, bi, gid, scale);
+      const handle = document.createElementNS(svgNS, "g");
+      handle.setAttribute("class", "run-handle");
+      const hb = document.createElementNS(svgNS, "rect");
+      hb.setAttribute("x", gx); hb.setAttribute("y", gy - 13);
+      hb.setAttribute("width", 16); hb.setAttribute("height", 13);
+      hb.setAttribute("rx", 2); hb.setAttribute("fill", color);
+      handle.appendChild(hb);
+      const hg = document.createElementNS(svgNS, "text");
+      hg.setAttribute("x", gx + 3.5); hg.setAttribute("y", gy - 3);
+      hg.setAttribute("font-size", "10"); hg.setAttribute("fill", "#fff");
+      hg.textContent = "⠿";
+      handle.appendChild(hg);
+      grp.appendChild(handle);
+
+      enableDrag(handle, svg, bi, gid, scale);
+      enableDrag(hl, svg, bi, gid, scale);
       svg.appendChild(grp);
     });
 
@@ -921,46 +968,191 @@ function removeBoard(bi) {
 }
 
 // ── DRAG ─────────────────────────────────────────────────────────────────
-function enableDrag(grp, svg, bi, gid, scale) {
-  grp.addEventListener("pointerdown", ev => {
-    ev.preventDefault();
-    selectedGid = gid; renderPanel();
-    document.querySelectorAll(".group-rect").forEach(el => el.classList.toggle("selected", el.dataset.gid === gid));
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(v, hi));
+
+// Drag a whole run around a board (and between boards). Smooth: only the
+// dragged <g> is transformed during the move; the layout + full re-render
+// happen once on drop.
+function enableDrag(handleEl, svg, bi, gid, scale) {
+  handleEl.style.cursor = "grab";
+  handleEl.addEventListener("pointerdown", ev => {
+    if (ev.button > 0) return;
+    ev.preventDefault(); ev.stopPropagation();
+    selectGroup(gid);
+    const grp = svg.querySelector(`g.group-rect[data-gid="${cssq(gid)}"]`);
     grp.classList.add("dragging");
+    const g = groups.find(x => x.id === gid);
     const start = svgPoint(svg, ev);
     const p0 = { ...layout.boards[bi].placements[gid] };
-    grp.setPointerCapture(ev.pointerId);
+    let cur = { ...p0 };
+    try { handleEl.setPointerCapture(ev.pointerId); } catch {}
 
     function move(e) {
       const pt = svgPoint(svg, e);
-      let nx = p0.x + (pt.x - start.x) / scale;
-      let ny = p0.y + (pt.y - start.y) / scale;
-      const g = groups.find(x => x.id === gid);
-      nx = Math.max(0, Math.min(nx, board.w - groupWidth(g)));
-      ny = Math.max(0, Math.min(ny, board.l - groupLen(g)));
-      // snap to trim edge + other group edges (within 8mm)
+      let nx = clamp(p0.x + (pt.x - start.x) / scale, 0, board.w - groupWidth(g));
+      let ny = clamp(p0.y + (pt.y - start.y) / scale, 0, board.l - groupLen(g));
       nx = snap(nx, [settings.trim, ...edgeXs(bi, gid)]);
       ny = snap(ny, [settings.trim, ...edgeYs(bi, gid)]);
-      layout.boards[bi].placements[gid] = { x: nx, y: ny };
-      render();
+      cur = { x: nx, y: ny };
+      grp.setAttribute("transform", `translate(${(nx - p0.x) * scale} ${(ny - p0.y) * scale})`);
     }
     function up(e) {
       grp.classList.remove("dragging");
-      grp.releasePointerCapture(ev.pointerId);
+      try { handleEl.releasePointerCapture(ev.pointerId); } catch {}
       svg.removeEventListener("pointermove", move);
-      svg.removeEventListener("pointerup", up);
-      // if dropped over another board's area, move it there
+      window.removeEventListener("pointerup", up);
       const overBi = boardUnderPointer(e);
-      if (overBi != null && overBi !== bi) {
-        delete layout.boards[bi].placements[gid];
-        layout.boards[overBi].placements[gid] = { x: settings.trim, y: settings.trim };
+      const tbi = overBi != null ? overBi : bi;
+      if (tbi !== bi) delete layout.boards[bi].placements[gid];
+      const tb = layout.boards[tbi];
+      let x = clamp(cur.x, 0, board.w - groupWidth(g));
+      let y = clamp(cur.y, 0, board.l - groupLen(g));
+      tb.placements[gid] = { x, y };
+      maybeMergeOnDrop(gid, tbi);
+      saveLayout(); render();
+    }
+    svg.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  });
+}
+
+// Drag one front cell: drop it onto another run (same orientation) to move
+// it there, drop it on empty board space to pop it into its own run, or
+// drop it back over its own run to reorder.
+function enableFrontDrag(cell, svg, bi, gid, fi, scale) {
+  cell.style.cursor = "grab";
+  cell.addEventListener("pointerdown", ev => {
+    if (ev.button > 0) return;
+    ev.preventDefault(); ev.stopPropagation();
+    selectGroup(gid);
+    const start = svgPoint(svg, ev);
+    try { cell.setPointerCapture(ev.pointerId); } catch {}
+    cell.style.opacity = "0.4";
+    let moved = false, lastE = ev;
+
+    // floating ghost
+    const g = groups.find(x => x.id === gid);
+    const f = g.fronts[fi];
+    const gw = (g.orient === "h" ? f.h : g.width) * scale;
+    const gh = (g.orient === "h" ? g.width : f.h) * scale;
+    const ghost = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    ghost.setAttribute("width", gw); ghost.setAttribute("height", gh);
+    ghost.setAttribute("fill", "#2196f3"); ghost.setAttribute("fill-opacity", "0.35");
+    ghost.setAttribute("stroke", "#2196f3"); ghost.setAttribute("stroke-width", "1.5");
+    ghost.setAttribute("pointer-events", "none");
+    svg.appendChild(ghost);
+
+    function move(e) {
+      moved = true; lastE = e;
+      const pt = svgPoint(svg, e);
+      ghost.setAttribute("x", pt.x - gw / 2);
+      ghost.setAttribute("y", pt.y - gh / 2);
+    }
+    function up(e) {
+      cell.style.opacity = ""; ghost.remove();
+      try { cell.releasePointerCapture(ev.pointerId); } catch {}
+      svg.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      if (!moved) { selectGroup(gid); render(); return; }
+
+      const hit = frontDropTarget(lastE, gid, g.width);
+      if (hit && hit.gid === gid) {
+        // reorder within same run
+        const arr = g.fronts;
+        const [it] = arr.splice(fi, 1);
+        let idx = hit.index; if (idx > fi) idx--;
+        arr.splice(clamp(idx, 0, arr.length), 0, it);
+      } else if (hit) {
+        const dst = groups.find(x => x.id === hit.gid);
+        const [it] = g.fronts.splice(fi, 1);
+        // dst keeps its own width; a narrower front gets a rip-to-width step in the cut plan
+        dst.fronts.splice(clamp(hit.index, 0, dst.fronts.length), 0, it);
+        cleanupIfEmpty(gid);
+      } else {
+        // pop into its own run at the drop point
+        const tbi = boardUnderPointer(lastE);
+        if (tbi == null) { render(); return; }
+        const [it] = g.fronts.splice(fi, 1);
+        const nid = `${gid}~${Date.now()}`;
+        const ng = { id: nid, unitName: shortUnit(g.unitName), width: g.width, orient: g.orient, fronts: [it] };
+        groups.push(ng);
+        const pt = svgPoint(document.querySelector(`svg.board[data-board="${tbi}"]`), lastE);
+        const nx = clamp(pt.x / scale - groupWidth(ng) / 2, 0, board.w - groupWidth(ng));
+        const ny = clamp(pt.y / scale - groupLen(ng) / 2, 0, board.l - groupLen(ng));
+        layout.boards[tbi].placements[nid] = { x: snap(nx, [settings.trim]), y: snap(ny, [settings.trim]) };
+        cleanupIfEmpty(gid);
+        selectedGid = nid;
       }
       saveLayout(); render();
     }
     svg.addEventListener("pointermove", move);
-    svg.addEventListener("pointerup", up);
+    window.addEventListener("pointerup", up);
   });
 }
+function shortUnit(n) { return n.replace(/ · \d+$/, ""); }
+
+// Which run/front slot is under the pointer? Returns {gid, index} or null.
+// Only runs matching srcW (same nominal width) accept a dropped front — a
+// mismatched drop falls through to "pop into its own run" instead.
+function frontDropTarget(e, dragGid, srcW) {
+  for (const s of document.querySelectorAll("svg.board")) {
+    const r = s.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) continue;
+    const bi = +s.dataset.board;
+    const pt = svgPoint(s, e);
+    const scale = r.width / s.viewBox.baseVal.width;
+    for (const [gid, p] of Object.entries(layout.boards[bi].placements)) {
+      const g = groups.find(x => x.id === gid); if (!g) continue;
+      if (gid !== dragGid && srcW != null && Math.abs(g.width - srcW) > 2) continue;
+      const gw = groupWidth(g), gl = groupLen(g);
+      const mx = pt.x / scale, my = pt.y / scale;
+      if (mx < p.x || mx > p.x + gw || my < p.y || my > p.y + gl) continue;
+      // index along the grain axis
+      const along = g.orient === "h" ? mx - p.x : my - p.y;
+      let acc = 0, index = g.fronts.length;
+      for (let i = 0; i < g.fronts.length; i++) {
+        const seg = g.fronts[i].h + settings.kerf;
+        if (along < acc + seg / 2) { index = i; break; }
+        acc += seg;
+      }
+      return { gid, index };
+    }
+  }
+  return null;
+}
+function cleanupIfEmpty(gid) {
+  const g = groups.find(x => x.id === gid);
+  if (g && g.fronts.length === 0) {
+    groups = groups.filter(x => x !== g);
+    for (const b of layout.boards) delete b.placements[gid];
+    if (selectedGid === gid) selectedGid = null;
+  }
+}
+function maybeMergeOnDrop(gid, bi) {
+  const g = groups.find(x => x.id === gid);
+  const p = layout.boards[bi].placements[gid];
+  if (!g || !p) return;
+  for (const [oid, op] of Object.entries(layout.boards[bi].placements)) {
+    if (oid === gid) continue;
+    const o = groups.find(x => x.id === oid); if (!o || o.orient !== g.orient) continue;
+    const sameCol = Math.abs(op.x - p.x) < 20;
+    const touchBelow = Math.abs((op.y + groupLen(o)) - p.y) < 22;
+    const touchAbove = Math.abs((p.y + groupLen(g)) - op.y) < 22;
+    if (sameCol && (touchBelow || touchAbove)) {
+      o.fronts = touchBelow ? o.fronts.concat(g.fronts) : g.fronts.concat(o.fronts);
+      groups = groups.filter(x => x !== g);
+      delete layout.boards[bi].placements[gid];
+      if (selectedGid === gid) selectedGid = oid;
+      return;
+    }
+  }
+}
+function selectGroup(gid) {
+  selectedGid = gid;
+  document.querySelectorAll(".group-rect").forEach(el => el.classList.toggle("selected", el.dataset.gid === gid));
+  renderPanel();
+}
+function cssq(s) { return String(s).replace(/["\\]/g, "\\$&"); }
 function svgPoint(svg, ev) {
   const r = svg.getBoundingClientRect();
   const vb = svg.viewBox.baseVal;
@@ -1008,17 +1200,20 @@ function renderPanel() {
     <div class="grp ${sel ? "sel" : ""}" onclick="pickGroup('${g.id}')">
       <h4 style="color:${color}">${esc(g.unitName)} ${g.orient === "h" ? "↔" : "↕"}</h4>
       <div class="gm">${g.fronts.length} frontar · ${Math.round(groupWidth(g))}×${Math.round(groupLen(g))} mm · plata ${boardOfGroup(g.id) + 1}${g.autoSplit ? " · sjálfvirk skipting" : ""}</div>
+      <div class="front-list" data-gid="${g.id}">
       ${g.fronts.map((f, i) => `
-        <div class="front-row">
+        <div class="front-row" draggable="true" data-gid="${g.id}" data-fi="${i}">
+          <span class="drag-grip">⠿</span>
           <span class="idx">${i + 1}</span>
           <span class="fn">${esc(f.label)}${f.err ? " ⚠" : ""}</span>
           <span class="fdim">${f.h} mm</span>
           ${sel ? `<button class="small ghost" onclick="event.stopPropagation();moveFront('${g.id}',${i},-1)" ${i === 0 ? "disabled" : ""}>↑</button>
                    <button class="small ghost" onclick="event.stopPropagation();moveFront('${g.id}',${i},1)" ${i === g.fronts.length - 1 ? "disabled" : ""}>↓</button>` : ""}
         </div>`).join("")}
+      </div>
       ${sel ? `
       <div class="grp-actions">
-        <button class="small ghost" onclick="event.stopPropagation();toggleOrient('${g.id}')">${g.orient === "v" ? "→ ↔ hlið við hlið" : "→ ↕ stafla"}</button>
+        <button class="small ghost" onclick="event.stopPropagation();toggleOrient('${g.id}')">↻ Snúa 90° — æð ${g.orient === "v" ? "þvers" : "upp"}</button>
         <button class="small ghost" onclick="event.stopPropagation();reverseGroup('${g.id}')">↕ snúa röð</button>
         ${g.fronts.length > 1 ? `<button class="small ghost" onclick="event.stopPropagation();splitGroup('${g.id}')">✂ skipta upp</button>` : ""}
         ${mergeCandidates(g).length ? `<select class="small" style="max-width:150px;padding:5px 6px;font-size:0.8rem;" onclick="event.stopPropagation()" onchange="if(this.value){mergeGroup('${g.id}',this.value);this.value=''}">
@@ -1029,6 +1224,63 @@ function renderPanel() {
       </div>` : ""}
     </div>`;
   }).join("");
+  wireFrontRowDnD();
+}
+
+// Drag front rows in the panel to reorder within a run, or drop onto
+// another run's list to move the front there.
+let dragFront = null;
+function wireFrontRowDnD() {
+  $("grpPanel").querySelectorAll(".front-row").forEach(row => {
+    row.addEventListener("dragstart", e => {
+      dragFront = { gid: row.dataset.gid, fi: +row.dataset.fi };
+      e.dataTransfer.effectAllowed = "move";
+      row.classList.add("dragging");
+    });
+    row.addEventListener("dragend", () => {
+      row.classList.remove("dragging");
+      $("grpPanel").querySelectorAll(".front-row").forEach(r => r.classList.remove("drop-above", "drop-below"));
+      dragFront = null;
+    });
+    row.addEventListener("dragover", e => {
+      if (!dragFront) return;
+      e.preventDefault();
+      const rect = row.getBoundingClientRect();
+      const below = e.clientY > rect.top + rect.height / 2;
+      row.classList.toggle("drop-below", below);
+      row.classList.toggle("drop-above", !below);
+    });
+    row.addEventListener("dragleave", () => row.classList.remove("drop-above", "drop-below"));
+    row.addEventListener("drop", e => {
+      e.preventDefault();
+      if (!dragFront) return;
+      const toGid = row.dataset.gid;
+      const rect = row.getBoundingClientRect();
+      let toIdx = +row.dataset.fi + (e.clientY > rect.top + rect.height / 2 ? 1 : 0);
+      dropFrontRow(dragFront.gid, dragFront.fi, toGid, toIdx);
+    });
+  });
+  // drop onto empty area of a run's list (e.g. a run with 0 visible rows won't exist, so also allow list container)
+  $("grpPanel").querySelectorAll(".front-list").forEach(list => {
+    list.addEventListener("dragover", e => { if (dragFront) e.preventDefault(); });
+    list.addEventListener("drop", e => {
+      if (!dragFront || e.target.closest(".front-row")) return;
+      e.preventDefault();
+      const toGid = list.dataset.gid;
+      const dst = groups.find(x => x.id === toGid);
+      dropFrontRow(dragFront.gid, dragFront.fi, toGid, dst ? dst.fronts.length : 0);
+    });
+  });
+}
+function dropFrontRow(fromGid, fromFi, toGid, toIdx) {
+  const from = groups.find(x => x.id === fromGid);
+  const to = groups.find(x => x.id === toGid);
+  if (!from || !to) return;
+  const [it] = from.fronts.splice(fromFi, 1);
+  if (from === to && fromFi < toIdx) toIdx--;
+  to.fronts.splice(clamp(toIdx, 0, to.fronts.length), 0, it);
+  cleanupIfEmpty(fromGid);
+  render(); saveLayout();
 }
 function pickGroup(gid) { selectedGid = gid; render(); }
 function mergeCandidates(g) {
@@ -1065,11 +1317,10 @@ function cutSequenceHtml(b, bi) {
   let html = `<b>Plata ${bi + 1} — sögunarröð (${board.w}×${board.l} mm, æð ↕)</b><ol>`;
   items.forEach(({ g, p }, i) => {
     const w = Math.round(groupWidth(g)), l = Math.round(groupLen(g));
-    html += `<li><b>${esc(g.unitName)}</b>: rífðu ræmu ${w} mm breiða (x ≈ ${Math.round(p.x)}–${Math.round(p.x + w)} mm), lengd ${l} mm.`;
     if (g.orient === "v") {
-      html += ` Þverskurðir að ofan: ` + g.fronts.map((f, k) => `#${k + 1} ${esc(f.label)} ${f.h}`).join(" → ") + `.`;
+      html += `<li><b>${esc(g.unitName)}</b> (æð ↕): rífðu ræmu ${w} mm breiða (x ≈ ${Math.round(p.x)}–${Math.round(p.x + w)} mm). Þverskurðir að ofan: ` + g.fronts.map((f, k) => `#${k + 1} ${esc(f.label)} ${f.h}`).join(" → ") + `.`;
     } else {
-      html += ` Þverskurður ${Math.max(...g.fronts.map(f => f.h))} mm, svo rífðu í ${g.fronts.length} × ${g.width} mm: ` + g.fronts.map((f, k) => `#${k + 1} ${esc(f.label)}`).join(", ") + `.`;
+      html += `<li><b>${esc(g.unitName)}</b> (æð ↔, snúinn 90°): taktu band ${g.width} mm (á lengd plötu), snúðu 90°, sagaðu fronta: ` + g.fronts.map((f, k) => `#${k + 1} ${esc(f.label)} ${f.h}`).join(" → ") + `.`;
     }
     html += `</li>`;
   });
@@ -1121,7 +1372,8 @@ function buildCutPlan() {
 
     strips.forEach((s, si) => {
       const names = [...new Set(s.runs.map(r => r.g.unitName.replace(/ · \d+$/, "")))].join(", ");
-      steps.push({
+      const onlyRotated = s.runs.length === 1 && s.runs[0].g.orient === "h";
+      if (!onlyRotated) steps.push({
         bi, kind: "rip", measure: Math.round(s.w), measureLabel: "Rifjaðar — frá vinstri kanti",
         title: `Rífðu ræmu ${si + 1}${strips.length > 1 ? " af " + strips.length : ""} — ${Math.round(s.w)} mm breið`,
         note: `Ræman heldur samfelldu æðinni fyrir: ${names}.`,
@@ -1170,24 +1422,29 @@ function buildCutPlan() {
             });
           }
         } else {
-          const H = Math.max(...g.fronts.map(f => f.h));
+          // rotated 90°: grain runs across the board. Crosscut a band g.width
+          // long, then turn it and crosscut each front off in sequence.
+          const band = g.width;
           steps.push({
-            bi, kind: "crosscut", measure: H, measureLabel: "Þverskurðarstopp",
-            title: `${g.unitName} — þverskurður á blokk (${g.fronts.length} frontar hlið við hlið)`,
-            note: "Þessi hópur er sagaður sem ein blokk og svo rifinn.",
-            produces: [], highlight: { x: s.x, y: cursor, w: groupWidth(g), l: H },
-            cutLines: [{ o: "h", pos: cursor + H }],
+            bi, kind: "crosscut", measure: band, measureLabel: "Þverskurðarstopp",
+            title: `${g.unitName} — taktu band (snúinn hópur, æð þvers)`,
+            note: `${g.fronts.length} frontar með samfelldri æð þvers yfir bandið. Snúðu bandinu 90° á eftir.`,
+            produces: [], highlight: { x: s.x, y: cursor, w: groupWidth(g), l: band },
+            cutLines: [{ o: "h", pos: cursor + band }],
           });
+          let woff = s.x;
           g.fronts.forEach((f, fi) => {
             steps.push({
-              bi, kind: "rip", measure: g.width, measureLabel: "Rifjaðar",
-              title: `${g.unitName} — rífðu fronta ${fi + 1} af ${g.fronts.length} úr blokkinni`,
-              note: "", produces: [{ label: f.label, w: g.width, h: f.h, unitName: g.unitName, err: f.err }],
-              highlight: { x: s.x + fi * (g.width + k), y: cursor, w: g.width, l: H },
-              cutLines: [{ o: "v", pos: s.x + (fi + 1) * (g.width + k) }],
+              bi, kind: "crosscut", measure: f.h, measureLabel: "Þverskurðarstopp (á bandinu)",
+              title: `${g.unitName} — fronti ${fi + 1} af ${g.fronts.length} af bandinu`,
+              note: fi === 0 ? "Haltu röðinni frá vinstri." : "",
+              produces: [{ label: f.label, w: g.width, h: f.h, unitName: g.unitName, err: f.err }],
+              highlight: { x: woff, y: cursor, w: f.h, l: band },
+              cutLines: [{ o: "v", pos: woff + f.h }],
             });
+            woff += f.h + k;
           });
-          cursor += H + k;
+          cursor += band + k;
         }
       });
     });
@@ -1251,12 +1508,12 @@ function guideSvg(step) {
     inner += `<rect x="${S(p.x)}" y="${S(p.y)}" width="${S(groupWidth(g))}" height="${S(groupLen(g))}" fill="${c}" fill-opacity="0.18" stroke="${c}" stroke-opacity="0.5"/>`;
     let off = 0;
     g.fronts.forEach(f => {
-      const cw = g.orient === "h" ? g.width : groupWidth(g);
-      const ch = g.orient === "h" ? groupLen(g) : f.h;
+      const cw = g.orient === "h" ? f.h : groupWidth(g);
+      const ch = g.orient === "h" ? g.width : f.h;
       const cx = g.orient === "h" ? p.x + off : p.x;
       const cy = g.orient === "h" ? p.y : p.y + off;
       inner += `<rect x="${S(cx)}" y="${S(cy)}" width="${S(cw)}" height="${S(ch)}" fill="none" stroke="${c}" stroke-opacity="0.4" stroke-width="0.5"/>`;
-      off += (g.orient === "h" ? g.width : f.h) + settings.kerf;
+      off += f.h + settings.kerf;
     });
   });
   // highlight region
