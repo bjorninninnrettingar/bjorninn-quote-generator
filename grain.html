@@ -75,7 +75,7 @@
 
   /* workspace */
   .workspace { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
-  .boards-col { flex: 1 1 620px; min-width: 320px; }
+  .boards-col { flex: 1 1 620px; min-width: 0; overflow-x: auto; }
   .side-col { flex: 0 1 340px; min-width: 280px; }
 
   .toolbar {
@@ -90,7 +90,13 @@
   .stat b { color: #f0f0f0; font-size: 1.05rem; display: block; }
 
   #boardsCol { display: flex; flex-direction: column; gap: 30px; align-items: flex-start; }
-  .board-wrap { margin-bottom: 4px; width: 100%; max-width: 860px; }
+  .board-wrap {
+    margin-bottom: 4px;
+    width: var(--board-w, 760px);
+    min-width: 260px;
+    resize: horizontal; overflow: hidden;   /* drag the bottom-right corner */
+  }
+  .board-wrap svg.board { width: 100%; }
   .board-head {
     display: flex; align-items: center; gap: 12px; margin-bottom: 8px;
   }
@@ -233,7 +239,7 @@
     .workspace { display: block; }
     .side-col { display: none; }
     #boardsCol { display: block; }
-    .board-wrap { page-break-after: always; margin-bottom: 0; width: 100%; max-width: 100%; }
+    .board-wrap { page-break-after: always; margin-bottom: 0; width: 100%; max-width: 100%; resize: none; }
     svg.board { background: #fff; border: 1px solid #000; max-width: 170mm; }
     svg.board text { fill: #000 !important; }
     .print-only { display: block !important; }
@@ -294,6 +300,10 @@
       <div class="field">
         <label>Grið (mm)</label>
         <input type="number" id="grid" step="5" min="1" />
+      </div>
+      <div class="field">
+        <label>Stærð á skjá</label>
+        <input type="range" id="boardSize" min="320" max="1500" step="20" style="width:150px;padding:0;" />
       </div>
       <button class="primary office-only" onclick="autoNest()">↻ Raða sjálfvirkt</button>
       <button class="ghost" id="snapBtn" onclick="toggleFreeMove()"></button>
@@ -365,7 +375,7 @@ const GRAIN_RE  = /(eik|hnot|valhnot|ash|askur|beyk|beech|fura|pine|wenge|teak|o
 // Blum drawer-height codes, roughly narrow→tall — a sane default top→bottom order.
 const CODE_RANK = { N: 0, M: 1, K: 2, C: 3, D: 4, F: 5, E: 6 };
 
-const DEFAULTS = { kerf: 4.4, trim: 10, grid: 25, freeMove: false };
+const DEFAULTS = { kerf: 4.4, trim: 10, grid: 25, freeMove: false, boardPx: 760 };
 
 // ── STATE ────────────────────────────────────────────────────────────────
 let projects = [];
@@ -739,8 +749,35 @@ function reloadConfirmedPlan() {
 function syncToolbarInputs() {
   $("boardW").value = board.w; $("boardL").value = board.l;
   $("kerf").value = settings.kerf; $("trim").value = settings.trim; $("grid").value = settings.grid;
-  updateSnapBtn();
+  $("boardSize").value = settings.boardPx;
+  updateSnapBtn(); applyBoardSize();
 }
+
+// On-screen board width — each device sets its own, persisted in settings.
+function applyBoardSize() {
+  document.documentElement.style.setProperty("--board-w", (settings.boardPx || DEFAULTS.boardPx) + "px");
+}
+let boardSizeSaveT = null;
+$("boardSize").addEventListener("input", e => {
+  settings.boardPx = +e.target.value || DEFAULTS.boardPx;
+  applyBoardSize();
+  clearTimeout(boardSizeSaveT);
+  boardSizeSaveT = setTimeout(saveSettings, 400);
+});
+// Dragging a board's own corner handle updates the shared size too.
+const boardRO = new ResizeObserver(entries => {
+  let changed = 0;
+  for (const e of entries) {
+    const w = Math.round(e.contentRect.width);
+    if (w && Math.abs(w - (settings.boardPx || 0)) >= 6) changed = w;
+  }
+  if (!changed) return;
+  settings.boardPx = Math.max(320, Math.min(changed, 1500));
+  $("boardSize").value = settings.boardPx;
+  document.documentElement.style.setProperty("--board-w", settings.boardPx + "px");
+  clearTimeout(boardSizeSaveT);
+  boardSizeSaveT = setTimeout(saveSettings, 400);
+});
 
 // ── GROUPING ─────────────────────────────────────────────────────────────
 function selectMaterial(key) {
@@ -1079,6 +1116,7 @@ const COLORS = ["#2f6f4f", "#3a5a8c", "#8c5a3a", "#6b4a8c", "#8c8140", "#3a7d8c"
 
 function renderBoards() {
   const col = $("boardsCol");
+  boardRO.disconnect();
   col.innerHTML = "";
   const PXW = 680;
   const scale = PXW / board.w;
@@ -1086,6 +1124,7 @@ function renderBoards() {
     const svgW = board.w * scale, svgH = board.l * scale;
     const wrap = document.createElement("div");
     wrap.className = "board-wrap";
+    boardRO.observe(wrap);
 
     const placedGids = Object.keys(b.placements);
     const used = placedGids.reduce((s, gid) => {
@@ -2080,6 +2119,9 @@ if (FLOOR_MODE) {
   document.querySelector("h1").textContent = "Saga með leiðsögn";
   document.querySelector(".sub").textContent = "Staðfest æðaskipulag frá skrifstofu — skref fyrir skref.";
 }
+
+applyBoardSize();
+$("boardSize").value = settings.boardPx;
 
 const params = new URLSearchParams(location.search);
 const recordIdParam = params.get("recordId");
