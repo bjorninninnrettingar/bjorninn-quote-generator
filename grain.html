@@ -89,6 +89,14 @@
   }
   .toolbar .field { display: flex; flex-direction: column; }
   .toolbar .field label { margin-bottom: 4px; }
+  .settings-pop {
+    position: absolute; top: 100%; left: 0; z-index: 40; margin-top: 6px;
+    background: #161616; border: 1px solid #333; border-radius: 10px; padding: 14px;
+    display: flex; flex-direction: column; gap: 12px; width: 240px;
+    box-shadow: 0 12px 34px rgba(0,0,0,0.55);
+  }
+  .settings-pop .field { width: 100%; }
+  .settings-pop input[type="number"] { max-width: 100%; }
 
   .stat-row { display: flex; gap: 22px; flex-wrap: wrap; margin: 4px 0 18px; }
   .stat { font-size: 0.85rem; color: #aaa; }
@@ -212,8 +220,9 @@
   }
   #guideOverlay .gboard-nav button.cur { border-color: #2196f3; color: #fff; background: #12283d; }
   #guideOverlay .gboard-nav button.done { color: #6fbf7f; border-color: #2f6f4f; }
-  #guideOverlay .gprog { height: 4px; background: #1e1e1e; }
+  #guideOverlay .gprog { height: 4px; background: #1e1e1e; position: relative; }
   #guideOverlay .gprog > div { height: 100%; background: #2196f3; transition: width 0.2s; }
+  #guideOverlay .gprog .tick { position: absolute; top: 0; width: 2px; height: 100%; background: #0b0b0b; }
 
   #guideOverlay .gbody {
     flex: 1; display: flex; gap: 28px; padding: 26px 32px; overflow: auto; align-items: stretch;
@@ -323,25 +332,30 @@
   <div class="hidden" id="workspaceCard">
     <div id="planStrip" class="no-print"></div>
     <div class="toolbar no-print" id="toolbar">
-      <div class="field">
-        <label>Plata breidd (mm)</label>
-        <input type="number" id="boardW" step="1" />
-      </div>
-      <div class="field">
-        <label>Plata lengd — æð ↕ (mm)</label>
-        <input type="number" id="boardL" step="1" />
-      </div>
-      <div class="field">
-        <label>Sagarfar (mm)</label>
-        <input type="number" id="kerf" step="0.5" />
-      </div>
-      <div class="field">
-        <label>Jaðar-snyrting (sjálfg. 10)</label>
-        <input type="number" id="trim" step="1" />
-      </div>
-      <div class="field">
-        <label>Grið (mm)</label>
-        <input type="number" id="grid" step="5" min="1" />
+      <div class="field office-only" style="position:relative;">
+        <button class="ghost" id="settingsBtn" onclick="toggleSettings()">⚙ Stillingar</button>
+        <div id="settingsPop" class="settings-pop" hidden>
+          <div class="field">
+            <label>Plata breidd (mm)</label>
+            <input type="number" id="boardW" step="1" />
+          </div>
+          <div class="field">
+            <label>Plata lengd — æð ↕ (mm)</label>
+            <input type="number" id="boardL" step="1" />
+          </div>
+          <div class="field">
+            <label>Sagarfar (mm)</label>
+            <input type="number" id="kerf" step="0.5" />
+          </div>
+          <div class="field">
+            <label>Jaðar-snyrting (sjálfg. 10)</label>
+            <input type="number" id="trim" step="1" />
+          </div>
+          <div class="field">
+            <label>Grið (mm)</label>
+            <input type="number" id="grid" step="5" min="1" />
+          </div>
+        </div>
       </div>
       <div class="field">
         <label>Stærð á skjá</label>
@@ -866,14 +880,31 @@ async function savePlan(confirm) {
       curPlan = { recordId: rec.id, confirmed: !!confirm, sourceJSON: fields[PL_JSON] };
     }
     curPlan.confirmed = !!confirm;
-    if (confirm) curPlan.sourceJSON = fields[PL_JSON];
+    if (confirm) { curPlan.sourceJSON = fields[PL_JSON]; curPlan.confirmedJSON = fields[PL_JSON]; }
+    clearSaveError();
     renderPlanStrip();
   } catch (e) {
-    $("planStrip").querySelector(".plan-bar")?.insertAdjacentHTML("beforeend",
-      ` <span style="color:#f44336">· vistun mistókst</span>`);
+    showSaveError(confirm);
   }
 }
+let planSaveFailed = false;
+function showSaveError(wasConfirm) {
+  planSaveFailed = true;
+  let d = $("saveErrBanner");
+  if (!d) { d = document.createElement("div"); d.id = "saveErrBanner"; d.className = "banner no-print"; document.body.appendChild(d); }
+  d.style.background = "#c62828";
+  d.innerHTML = `⚠ Vistun mistókst — skipulagið er <b>ekki vistað</b> í Airtable. <button onclick="retrySave(${wasConfirm ? "true" : "false"})">Reyna aftur</button>`;
+}
+function clearSaveError() {
+  planSaveFailed = false;
+  $("saveErrBanner")?.remove();
+}
+function retrySave(wasConfirm) { savePlan(!!wasConfirm); }
 function confirmPlan() {
+  if (planSaveFailed) {
+    alert("Síðasta vistun mistókst — skipulagið er ekki vistað. Athugaðu nettengingu og ýttu á Reyna aftur (rauða stikan neðst) áður en þú staðfestir.");
+    return;
+  }
   const unplaced = unplacedGroups();
   if (unplaced.length) {
     alert(`${unplacedFrontCount()} frontar eru ekki á neinni plötu (${unplaced.map(g => g.unitName).join(", ")}).\n\nRaðaðu þeim inn á plötu áður en þú staðfestir — annars verða þeir ekki sagaðir.`);
@@ -906,14 +937,22 @@ function renderPlanStrip() {
     return;
   }
   const confirmed = !!curPlan?.confirmed;
-  el.innerHTML = `<div class="plan-bar ${confirmed ? "confirmed" : "draft"}">
-    <span>${confirmed ? "✅ <b>Staðfest</b> — gólfið getur sótt þetta á /saga" : "✏️ <b>Drög</b> — óstaðfest"}</span>
+  const drifted = !confirmed && !!curPlan?.confirmedJSON;   // was confirmed, then edited
+  let cls, msg;
+  if (confirmed) { cls = "confirmed"; msg = "✅ <b>Staðfest</b> — gólfið getur sótt þetta á /saga"; }
+  else if (drifted) { cls = "draft"; msg = "⚠ <b>Óstaðfestar breytingar</b> — gólfið er enn með fyrri staðfestu útgáfu. Ýttu á ✅ Staðfesta skipulag þegar þú ert búin/n."; }
+  else { cls = "draft"; msg = "✏️ <b>Drög</b> — óstaðfest"; }
+  el.innerHTML = `<div class="plan-bar ${cls}">
+    <span>${msg}</span>
     <span class="spacer"></span>
     ${confirmed && curPlan?.recordId ? `<button class="ghost small" onclick="copyFloorLink()">🔗 Afrita hlekk fyrir gólfið</button>` : ""}
     ${curPlan?.recordId ? '<span class="muted">vistað sjálfkrafa</span>' : '<span class="muted">óvistað</span>'}
   </div>`;
   const btn = $("confirmBtn");
-  if (btn) { btn.textContent = confirmed ? "✅ Staðfest" : "✅ Staðfesta skipulag"; btn.disabled = confirmed; }
+  if (btn) {
+    btn.textContent = confirmed ? "✅ Staðfest" : drifted ? "✅ Staðfesta breytingar" : "✅ Staðfesta skipulag";
+    btn.disabled = confirmed;
+  }
 }
 function copyFloorLink() {
   const url = `${location.origin}/saga?recordId=${currentProjectId}`;
@@ -987,7 +1026,7 @@ function syncToolbarInputs() {
   $("boardW").value = board.w; $("boardL").value = board.l;
   $("kerf").value = settings.kerf; $("trim").value = settings.trim; $("grid").value = settings.grid;
   $("boardSize").value = settings.boardPx;
-  updateSnapBtn(); applyBoardSize();
+  updateSnapBtn(); applyBoardSize(); syncSettingsBtn();
 }
 
 // On-screen board width — each device sets its own, persisted in settings.
@@ -1024,7 +1063,10 @@ function selectMaterial(key) {
   const mat = materials.find(m => m.key === key);
 
   const planRec = projectPlans.find(p => p.fields[PL_EFNI] === key);
-  curPlan = planRec ? { recordId: planRec.id, confirmed: !!planRec.fields[PL_CONFIRM], sourceJSON: planRec.fields[PL_JSON] } : null;
+  curPlan = planRec ? {
+    recordId: planRec.id, confirmed: !!planRec.fields[PL_CONFIRM], sourceJSON: planRec.fields[PL_JSON],
+    confirmedJSON: planRec.fields[PL_CONFIRM] ? planRec.fields[PL_JSON] : null,   // what the floor currently has
+  } : null;
 
   // match a board for dimensions
   const bd = matchBoard(mat.efni, mat.th);
@@ -1441,7 +1483,20 @@ function readToolbar() {
   saveSettings();
 }
 ["boardW", "boardL", "kerf", "trim", "grid"].forEach(id => {
-  $(id).addEventListener("change", () => { readToolbar(); render(); saveLayout(); });
+  $(id).addEventListener("change", () => { readToolbar(); syncSettingsBtn(); render(); saveLayout(); });
+});
+function syncSettingsBtn() {
+  const b = $("settingsBtn");
+  if (b) b.textContent = `⚙ ${board.w}×${board.l} · far ${settings.kerf} · snyrt ${settings.trim}`;
+}
+function toggleSettings(e) {
+  if (e) e.stopPropagation();
+  $("settingsPop").hidden = !$("settingsPop").hidden;
+}
+document.addEventListener("click", e => {
+  const p = $("settingsPop");
+  if (!p || p.hidden) return;
+  if (!p.contains(e.target) && e.target.id !== "settingsBtn") p.hidden = true;
 });
 function updateSnapBtn() {
   const b = $("snapBtn");
@@ -1481,18 +1536,38 @@ function renderStats() {
 }
 
 function renderOverflow() {
-  const bad = [];
+  const uL = board.l - settings.trim, uW = board.w - 2 * settings.trim;
+  const wide = [], long = [];
   for (const g of groups) {
-    if (groupWidth(g) > board.w - 2 * settings.trim + 0.5 || groupLen(g) > board.l - settings.trim + 0.5)
-      bad.push(g.unitName + " (" + Math.round(groupWidth(g)) + "×" + Math.round(groupLen(g)) + ")");
+    if (groupWidth(g) > uW + 0.5) wide.push(g);
+    else if (groupLen(g) > uL + 0.5) long.push(g);
   }
   const overlaps = detectOverlaps();
   const unplaced = unplacedGroups();
   let html = "";
   if (unplaced.length) html += `<div class="warn-box" style="background:#3a1e0f;border-color:#7a3d18;color:#ffcf9e;"><b>${unplacedFrontCount()} frontar eru ekki á neinni plötu</b> — ${unplaced.map(g => esc(g.unitName)).join(", ")}. Þeir verða <b>ekki sagaðir</b>. Dragðu þá inn á plötu eða ýttu á „↻ Raða sjálfvirkt".</div>`;
-  if (bad.length) html += `<div class="warn-box">Passar ekki á plötu: ${bad.map(esc).join(", ")}. Skiptu hópnum eða minnkaðu snyrtingu.</div>`;
+  if (long.length) {
+    const maxLen = Math.max(...long.map(groupLen));
+    const trimFix = Math.floor(board.l - maxLen);
+    const names = long.map(g => `${esc(g.unitName)} (${Math.round(groupLen(g))} mm)`).join(", ");
+    html += `<div class="warn-box">${names} — ${Math.round(maxLen - uL)} mm of langt fyrir snyrtilínuna.
+      ${trimFix >= 0 && trimFix < settings.trim
+        ? `<button class="small primary" style="margin-left:8px;" onclick="setTrim(${trimFix})">Minnka snyrtingu í ${trimFix} mm</button>`
+        : "Skiptu hópnum upp."}</div>`;
+  }
+  if (wide.length) {
+    const names = wide.map(g => `${esc(g.unitName)} (${Math.round(groupWidth(g))} mm breiður)`).join(", ");
+    html += `<div class="warn-box">${names} — breiðari en nothæf plata (${Math.round(uW)} mm). Skiptu hópnum eða athugaðu málin í Airtable.</div>`;
+  }
   if (overlaps.length) html += `<div class="warn-box">Hópar skarast: ${overlaps.map(esc).join(", ")}. Dragðu í sundur eða raðaðu sjálfvirkt.</div>`;
   $("overflowWarn").innerHTML = html;
+}
+function setTrim(v) {
+  $("trim").value = Math.max(0, v | 0);
+  readToolbar();               // pulls the new trim (and any other edits) into settings
+  saveSettings(); syncSettingsBtn();
+  render(); saveLayout(); pushHistory();
+  toast(`Snyrting sett í ${settings.trim} mm`);
 }
 
 function detectOverlaps() {
@@ -1608,6 +1683,15 @@ function renderBoards() {
       grp.setAttribute("class", "group-rect" + (gid === selectedGid ? " selected" : "") + (over ? " overflow" : ""));
       grp.dataset.gid = gid;
 
+      // dark halo — a 1px ring outside the box so butt-joined runs of
+      // similar colour still read as separate
+      const halo = document.createElementNS(svgNS, "rect");
+      halo.setAttribute("x", gx - 1.5); halo.setAttribute("y", gy - 1.5);
+      halo.setAttribute("width", gw + 3); halo.setAttribute("height", gl + 3);
+      halo.setAttribute("fill", "none"); halo.setAttribute("stroke", "#0a0a0a");
+      halo.setAttribute("stroke-width", "2"); halo.setAttribute("pointer-events", "none");
+      grp.appendChild(halo);
+
       const box = document.createElementNS(svgNS, "rect");
       box.setAttribute("class", "grgbox");
       box.setAttribute("x", gx); box.setAttribute("y", gy);
@@ -1645,21 +1729,19 @@ function renderBoards() {
         if (f.manual) r.setAttribute("stroke-dasharray", "5 3");
         cell.appendChild(r);
 
-        // grain streaks — direction shows this front's grain
-        const nS = 3;
-        for (let k = 1; k <= nS; k++) {
-          const ln = document.createElementNS(svgNS, "line");
-          if (grainHoriz) {
-            const yy = cy + ch * k / (nS + 1);
+        // per-cell grain streaks only for rotated runs (where each front's
+        // grain direction is the thing to show); v/s runs get one set of
+        // streaks spanning the whole run further down, so the figure reads
+        // as continuous across the kerf gaps
+        if (grainHoriz) {
+          for (let k = 1; k <= 3; k++) {
+            const yy = cy + ch * k / 4;
+            const ln = document.createElementNS(svgNS, "line");
             ln.setAttribute("x1", cx + 2); ln.setAttribute("y1", yy);
             ln.setAttribute("x2", cx + cw - 2); ln.setAttribute("y2", yy);
-          } else {
-            const xx = cx + cw * k / (nS + 1);
-            ln.setAttribute("x1", xx); ln.setAttribute("y1", cy + topInset);
-            ln.setAttribute("x2", xx); ln.setAttribute("y2", cy + ch - 2);
+            ln.setAttribute("stroke", color); ln.setAttribute("stroke-opacity", "0.3"); ln.setAttribute("stroke-width", "0.5");
+            cell.appendChild(ln);
           }
-          ln.setAttribute("stroke", color); ln.setAttribute("stroke-opacity", "0.3"); ln.setAttribute("stroke-width", "0.5");
-          cell.appendChild(ln);
         }
 
         {
@@ -1690,6 +1772,21 @@ function renderBoards() {
         off += frontExtent(g, f) * scale + settings.kerf * scale;
       });
 
+      // continuous grain streaks for v/s runs — one set spanning the whole
+      // run so the office can see the figure flows unbroken across the seams
+      if (!grainHoriz) {
+        const nL = Math.max(3, Math.min(6, Math.round(gw / 55)));
+        for (let k = 1; k <= nL; k++) {
+          const xx = gx + gw * k / (nL + 1);
+          const ln = document.createElementNS(svgNS, "line");
+          ln.setAttribute("x1", xx); ln.setAttribute("y1", gy + HB + 2);
+          ln.setAttribute("x2", xx); ln.setAttribute("y2", gy + gl - 3);
+          ln.setAttribute("stroke", "#e8dcc0"); ln.setAttribute("stroke-opacity", "0.16");
+          ln.setAttribute("stroke-width", "0.75"); ln.setAttribute("pointer-events", "none");
+          grp.appendChild(ln);
+        }
+      }
+
       // header band: dark strip at the run's top with unit label + ⠿ handle
       const hdr = document.createElementNS(svgNS, "rect");
       hdr.setAttribute("x", gx); hdr.setAttribute("y", gy);
@@ -1700,7 +1797,7 @@ function renderBoards() {
       const hl = document.createElementNS(svgNS, "text");
       hl.setAttribute("x", gx + 22); hl.setAttribute("y", gy + HB - 5);
       hl.setAttribute("fill", "#eee"); hl.setAttribute("font-size", "13");
-      hl.textContent = `${g.unitName} ${orientGlyph(g.orient)} · ${Math.round(groupWidth(g))}×${Math.round(groupLen(g))}${g.kind ? " " + g.kind : ""}`;
+      hl.textContent = `#${gi + 1}  ${g.unitName} ${orientGlyph(g.orient)} · ${Math.round(groupWidth(g))}×${Math.round(groupLen(g))}${g.kind ? " " + g.kind : ""}`;
       grp.appendChild(hl);
 
       const handle = document.createElementNS(svgNS, "g");
@@ -2102,7 +2199,7 @@ function renderPanel() {
     const manualG = isManualGroup(g);
     return `
     <div class="grp ${sel ? "sel" : ""}" onclick="pickGroup('${g.id}')">
-      <h4 style="color:${color}">${esc(g.unitName)} ${orientGlyph(g.orient)}${g.kind ? " · " + g.kind : ""}${manualG ? " · handvirkt" : ""}</h4>
+      <h4 style="color:${color}"><span style="opacity:.6">#${gi + 1}</span> ${esc(g.unitName)} ${orientGlyph(g.orient)}${g.kind ? " · " + g.kind : ""}${manualG ? " · handvirkt" : ""}</h4>
       <div class="gm">${g.fronts.length} frontar · ${Math.round(groupWidth(g))}×${Math.round(groupLen(g))} mm · plata ${boardOfGroup(g.id) + 1}${g.autoSplit ? " · sjálfvirk skipting" : ""}</div>
       <div class="front-list" data-gid="${g.id}">
       ${g.fronts.map((f, i) => `
@@ -2518,12 +2615,17 @@ function renderGuide() {
   const boardIdxs = [...new Set(guide.steps.map(s => s.bi))];
   const nBoards = boardIdxs.length;
   const pct = Math.round(guide.idx / total * 100);
-  const boardNav = nBoards > 1 ? `<span class="gboard-nav">` + boardIdxs.map(bi => {
-    const first = guide.steps.findIndex(s => s.bi === bi);
-    const last = guide.steps.map(s => s.bi).lastIndexOf(bi);
-    const state = guide.idx > last ? "done" : (st.bi === bi ? "cur" : "");
-    return `<button class="${state}" onclick="guide.idx=${first};renderGuide()">Plata ${bi + 1}${state === "done" ? " ✓" : ""}</button>`;
+  const bStarts = boardIdxs.map(bi => guide.steps.findIndex(s => s.bi === bi));
+  const bLasts  = boardIdxs.map(bi => guide.steps.map(s => s.bi).lastIndexOf(bi));
+  const boardPos = boardIdxs.indexOf(st.bi) + 1;          // 1-based nth board being cut
+  const posInBoard = guide.idx - bStarts[boardPos - 1] + 1;
+  const stepsInBoard = bLasts[boardPos - 1] - bStarts[boardPos - 1] + 1;
+  const boardsDone = bLasts.filter(l => guide.idx > l).length;
+  const boardNav = nBoards > 1 ? `<span class="gboard-nav">` + boardIdxs.map((bi, i) => {
+    const state = guide.idx > bLasts[i] ? "done" : (st.bi === bi ? "cur" : "");
+    return `<button class="${state}" onclick="guide.idx=${bStarts[i]};renderGuide()">Plata ${bi + 1}${state === "done" ? " ✓" : state === "cur" ? ` (${posInBoard}/${stepsInBoard})` : ""}</button>`;
   }).join("") + `</span>` : "";
+  const ticks = nBoards > 1 ? bStarts.slice(1).map(s => `<span class="tick" style="left:${(s / total * 100).toFixed(2)}%"></span>`).join("") : "";
 
   const produces = (st.produces || []).map(p => `
     <div class="gchip ${p.err ? "warn" : ""}">
@@ -2536,10 +2638,10 @@ function renderGuide() {
     <div class="gtop">
       <span class="gt-title">Leiðsögn — ${esc(projectName)}</span>
       ${boardNav}
-      <span class="gt-step">Skref ${guide.idx + 1} / ${total} · ${guide.idx} búin</span>
+      <span class="gt-step">${nBoards > 1 ? `Plata ${boardPos}/${nBoards} · skref ${posInBoard}/${stepsInBoard}${boardsDone ? ` · ${boardsDone} ✓` : ""}` : `Skref ${guide.idx + 1} / ${total}`}</span>
       <button class="ghost small" onclick="closeGuide()">✕ Loka</button>
     </div>
-    <div class="gprog"><div style="width:${pct}%"></div></div>
+    <div class="gprog"><div style="width:${pct}%"></div>${ticks}</div>
     <div class="gbody">
       <div class="gdiagram">${guideSvg(st)}</div>
       <div class="ginfo">
