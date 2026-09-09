@@ -127,9 +127,14 @@
   }
   .front-row .drag-grip { cursor: grab; color: #666; font-size: 0.9rem; }
   .front-row.dragging { opacity: 0.4; }
+  .front-row.manual .fn { color: #7fd88f; }
+  input.mf-h {
+    width: 48px; padding: 3px 4px; font-size: 0.78rem; text-align: right; flex: none;
+    background: #0d0d0d; border: 1px solid #2c4a34; border-radius: 5px; color: #cfeecf;
+  }
   .front-row.drop-above { box-shadow: inset 0 2px 0 #2196f3; }
   .front-row.drop-below { box-shadow: inset 0 -2px 0 #2196f3; }
-  .front-row .fn { flex: 1; }
+  .front-row .fn { flex: 1; min-width: 0; }
   .front-row .fdim { color: #999; font-variant-numeric: tabular-nums; }
   .front-row .idx {
     width: 20px; height: 20px; border-radius: 4px; background: #222; color: #ccc;
@@ -347,6 +352,7 @@ const PLAN_SCHEMA = 1;
 
 const P_NAME_FIELD = "Heiti tækifæris / verkefnis";
 const P_STADA_SOLU = "Staða í söluferli";
+const P_STADA_SKIP = "Staða í skipulagi";
 const P_STADA_FRAM = "Staða í framleiðslu";
 
 const S_PROJECT_LINK = "Tækifæri 📣 (projects)";
@@ -393,6 +399,7 @@ let board = { w: 2070, l: 2800, name: "" };
 let projectPlans = [];  // Æðaplan rows for the current project
 let curPlan = null;     // { recordId, confirmed, sourceJSON } for the selected material
 let planSaveTimer = null;
+let manualFronts = [];  // {id, groupId, unitName, w, orient, label, h} — fronts added by hand in the tool
 
 // ── UTIL ─────────────────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -413,6 +420,7 @@ function planSig(s) {                          // cheap hash of a plan JSON stri
   return h + ":" + s.length;
 }
 function saveLayout() {
+  if (typeof syncManualIndex === "function") syncManualIndex();
   try {
     localStorage.setItem(layoutKey(), JSON.stringify({
       layout, board, planSig: FLOOR_MODE && curPlan ? planSig(curPlan.sourceJSON) : undefined,
@@ -478,7 +486,12 @@ async function airtablePatch(table, recordId, fields) {
 
 // ── DATA LOAD ────────────────────────────────────────────────────────────
 async function fetchEligibleProjects() {
-  const formula = `AND({${P_STADA_SOLU}} = "🏆 Tækifæri unnið", {${P_STADA_FRAM}} != "Afhent (LOKIÐ ✅)")`;
+  const formula = `AND(
+    {${P_STADA_SOLU}} = "🏆 Tækifæri unnið",
+    {${P_STADA_SKIP}} != "For-skipulag",
+    {${P_STADA_FRAM}} != "Afhent (LOKIÐ ✅)",
+    {${P_STADA_FRAM}} != "Má Afhenda 🚚"
+  )`;
   return airtableFetch(PROJECTS_TABLE, { filterByFormula: formula, "fields[]": [P_NAME_FIELD], pageSize: 100 });
 }
 async function fetchProjectById(id) { return airtableFetch(PROJECTS_TABLE, {}, id); }
@@ -623,7 +636,10 @@ function serializePlan() {
     groups: groups.map(g => ({
       id: g.id, unitName: g.unitName, width: g.width, orient: g.orient,
       keepTogether: !!g.keepTogether, autoSplit: !!g.autoSplit,
-      fronts: g.fronts.map(f => ({ pieceId: f.pieceId, label: f.label, h: f.h, code: f.code || "", err: !!f.err })),
+      fronts: g.fronts.map(f => ({
+        pieceId: f.pieceId, label: f.label, h: f.h, code: f.code || "", err: !!f.err,
+        manual: !!f.manual, mfId: f.mfId,
+      })),
     })),
     layout: { boards: layout.boards.map(b => ({ placements: { ...b.placements } })) },
   });
@@ -638,6 +654,8 @@ function applyPlan(obj) {
     settings.grid = obj.settings?.grid ?? settings.grid;
     groups = (obj.groups || []).map(g => ({ ...g, fronts: g.fronts.map(f => ({ ...f })) }));
     layout = { boards: (obj.layout?.boards || [{ placements: {} }]).map(b => ({ placements: { ...b.placements } })) };
+    rebuildManualIndex();          // from the plan groups + this device's local additions
+    mergeManualFronts();           // pull in any local ones the plan doesn't have
     reconcileLayout();
   } finally { loadingPlan = false; }
 }
@@ -741,7 +759,8 @@ function openFloorPlan(rec) {
   openGuide();
 }
 function reloadConfirmedPlan() {
-  try { localStorage.removeItem(layoutKey()); } catch {}
+  try { localStorage.removeItem(layoutKey()); localStorage.removeItem(manualKey()); } catch {}
+  manualFronts = [];
   applyPlan(JSON.parse(curPlan.sourceJSON));
   syncToolbarInputs();
   render();
@@ -802,6 +821,7 @@ function selectMaterial(key) {
     ? `Plata fundin: <b>${esc(bd.name)}</b> (${bd.w}×${bd.l}×${bd.th} mm). Breyttu að ofan ef rangt.`
     : `⚠ Engin plata fannst fyrir "${esc(mat.efni)}" ${mat.th} mm í Efnislista — sláðu inn plötustærð að ofan.`;
 
+  manualFronts = loadManual();
   buildGroups();
 
   loadingPlan = true;
@@ -880,9 +900,92 @@ function buildGroups() {
       return ra - rb || b.h - a.h;
     });
   }
+  mergeManualFronts();   // fold in any hand-added fronts (survives "Núllstilla röðun")
   normalizeGroups();
   groups.sort((a, b) => groupLen(b) - groupLen(a));
 }
+
+// ── HAND-ADDED FRONTS (plan-only, never written to Sögunarlisti) ─────────
+function manualKey() { return `grain:manual:${currentProjectId}:${selectedKey}`; }
+function loadManual() {
+  try { return JSON.parse(localStorage.getItem(manualKey()) || "[]"); } catch { return []; }
+}
+// Recompute the manualFronts list from whatever is currently in `groups`
+// (positions/groups may have changed via drag), and persist it. Called from
+// saveLayout so it stays current after every structural edit.
+function syncManualIndex() {
+  const out = [];
+  for (const g of groups) for (const f of g.fronts) if (f.manual && f.mfId)
+    out.push({ id: f.mfId, groupId: g.id, unitName: g.unitName, w: g.width, orient: g.orient, label: f.label, h: f.h });
+  manualFronts = out;
+  try {
+    if (currentProjectId && selectedKey) localStorage.setItem(manualKey(), JSON.stringify(out));
+  } catch {}
+}
+// On load: seed manualFronts from the plan groups + this device's saved list.
+function rebuildManualIndex() {
+  const byId = new Map();
+  for (const mf of loadManual()) if (mf.id) byId.set(mf.id, mf);
+  for (const g of groups) for (const f of g.fronts) if (f.manual && f.mfId)
+    byId.set(f.mfId, { id: f.mfId, groupId: g.id, unitName: g.unitName, w: g.width, orient: g.orient, label: f.label, h: f.h });
+  manualFronts = [...byId.values()];
+}
+// Fold any manualFronts entry not already present into `groups`.
+function mergeManualFronts() {
+  for (const mf of manualFronts) {
+    if (groups.some(g => g.fronts.some(f => f.mfId === mf.id))) continue;
+    let g = groups.find(x => x.id === mf.groupId);
+    if (!g) {
+      g = { id: mf.groupId, unitName: mf.unitName || "Handvirkt", width: mf.w, orient: mf.orient || "v", fronts: [] };
+      groups.push(g);
+    }
+    g.fronts.push({ pieceId: null, label: mf.label || "Nýr front", h: mf.h, code: "", err: false, manual: true, mfId: mf.id });
+  }
+}
+function newMfId() { return "mf" + Math.random().toString(36).slice(2, 9); }
+
+function addFrontToGroup(gid) {
+  const g = groups.find(x => x.id === gid);
+  if (!g) return;
+  const ref = g.fronts[g.fronts.length - 1];
+  g.fronts.push({ pieceId: null, label: "Nýr front", h: ref ? ref.h : 400, code: "", err: false, manual: true, mfId: newMfId() });
+  selectedGid = gid;
+  settleAll(); render(); saveLayout();
+}
+function addStandaloneFront() {
+  if (!selectedKey) return;
+  const id = newMfId();
+  const gid = "manual~" + id;
+  groups.push({ id: gid, unitName: "Handvirkt", width: 400, orient: "v",
+    fronts: [{ pieceId: null, label: "Nýr front", h: 400, code: "", err: false, manual: true, mfId: id }] });
+  const want = { x: settings.trim, y: settings.trim };
+  layout.boards[0].placements[gid] = resolveCollision(0, gid, want) || want;
+  selectedGid = gid;
+  settleAll(); render(); saveLayout();
+}
+function setManualFrontH(mfId, val) {
+  const h = Math.max(20, Math.round(+val) || 0);
+  if (!h) return;
+  for (const g of groups) for (const f of g.fronts) if (f.mfId === mfId) f.h = h;
+  settleAll(); render(); saveLayout();
+}
+function setManualGroupWidth(gid, val) {
+  const g = groups.find(x => x.id === gid); if (!g) return;
+  g.width = Math.max(20, Math.round(+val) || g.width);
+  settleAll(); render(); saveLayout();
+}
+function removeManualFront(mfId) {
+  for (const g of groups) {
+    const i = g.fronts.findIndex(f => f.mfId === mfId);
+    if (i >= 0) g.fronts.splice(i, 1);
+  }
+  const dead = groups.filter(g => g.fronts.length === 0).map(g => g.id);
+  groups = groups.filter(g => g.fronts.length > 0);
+  for (const b of layout.boards) for (const id of dead) delete b.placements[id];
+  if (selectedGid && !groups.find(g => g.id === selectedGid)) selectedGid = null;
+  settleAll(); render(); saveLayout();
+}
+function isManualGroup(g) { return String(g.id).startsWith("manual~") && g.fronts.every(f => f.manual); }
 
 // A grain run must physically fit the sheet. If a vertical stack is longer
 // than the board, try laying it out side-by-side; if it still doesn't fit
@@ -1231,8 +1334,10 @@ function renderBoards() {
         const r = document.createElementNS(svgNS, "rect");
         r.setAttribute("x", cx); r.setAttribute("y", cy);
         r.setAttribute("width", cw); r.setAttribute("height", ch);
-        r.setAttribute("fill", color); r.setAttribute("fill-opacity", "0.14");
-        r.setAttribute("stroke", color); r.setAttribute("stroke-width", "0.75");
+        r.setAttribute("fill", f.manual ? "#3a7d55" : color); r.setAttribute("fill-opacity", f.manual ? "0.22" : "0.14");
+        r.setAttribute("stroke", f.manual ? "#7fd88f" : color);
+        r.setAttribute("stroke-width", f.manual ? "1.2" : "0.75");
+        if (f.manual) r.setAttribute("stroke-dasharray", "5 3");
         cell.appendChild(r);
 
         // grain streaks — direction shows this front's grain
@@ -1635,22 +1740,28 @@ function boardUnderPointer(e) {
 
 // ── SIDE PANEL ───────────────────────────────────────────────────────────
 function renderPanel() {
-  $("grpPanel").innerHTML = groups.map(g => {
+  $("grpPanel").innerHTML = `
+    <button class="ghost small" style="margin-bottom:10px;" onclick="addStandaloneFront()">＋ Nýr stakur front (handvirkt)</button>
+  ` + groups.map(g => {
     const sel = g.id === selectedGid;
     const gi = groups.indexOf(g);
     const color = COLORS[gi % COLORS.length];
+    const manualG = isManualGroup(g);
     return `
     <div class="grp ${sel ? "sel" : ""}" onclick="pickGroup('${g.id}')">
-      <h4 style="color:${color}">${esc(g.unitName)} ${orientGlyph(g.orient)}${g.keepTogether ? " · væng" : ""}</h4>
+      <h4 style="color:${color}">${esc(g.unitName)} ${orientGlyph(g.orient)}${g.keepTogether ? " · væng" : ""}${manualG ? " · handvirkt" : ""}</h4>
       <div class="gm">${g.fronts.length} frontar · ${Math.round(groupWidth(g))}×${Math.round(groupLen(g))} mm · plata ${boardOfGroup(g.id) + 1}${g.autoSplit ? " · sjálfvirk skipting" : ""}</div>
       <div class="front-list" data-gid="${g.id}">
       ${g.fronts.map((f, i) => `
-        <div class="front-row" draggable="true" data-gid="${g.id}" data-fi="${i}">
+        <div class="front-row${f.manual ? " manual" : ""}" draggable="${f.manual ? "false" : "true"}" data-gid="${g.id}" data-fi="${i}">
           <span class="drag-grip">⠿</span>
           <span class="idx">${i + 1}</span>
-          <span class="fn">${esc(f.label)}${f.err ? " ⚠" : ""}</span>
-          <span class="fdim">${f.h} mm</span>
-          ${sel ? `<button class="small ghost" onclick="event.stopPropagation();moveFront('${g.id}',${i},-1)" ${i === 0 ? "disabled" : ""}>↑</button>
+          <span class="fn">${f.manual ? "✏ " : ""}${esc(f.label)}${f.err ? " ⚠" : ""}</span>
+          ${f.manual
+            ? `<input class="mf-h" type="number" min="20" value="${f.h}" onclick="event.stopPropagation()" onchange="setManualFrontH('${f.mfId}',this.value)" /> <span class="fdim">mm</span>`
+            : `<span class="fdim">${f.h} mm</span>`}
+          ${sel && f.manual ? `<button class="small ghost" title="Fjarlægja" onclick="event.stopPropagation();removeManualFront('${f.mfId}')">✕</button>` : ""}
+          ${sel && !f.manual ? `<button class="small ghost" onclick="event.stopPropagation();moveFront('${g.id}',${i},-1)" ${i === 0 ? "disabled" : ""}>↑</button>
                    <button class="small ghost" onclick="event.stopPropagation();moveFront('${g.id}',${i},1)" ${i === g.fronts.length - 1 ? "disabled" : ""}>↓</button>` : ""}
         </div>`).join("")}
       </div>
@@ -1659,6 +1770,8 @@ function renderPanel() {
         ${["v", "s", "h"].map(o => `<button class="small ${g.orient === o ? "primary" : "ghost"}" onclick="event.stopPropagation();setOrient('${g.id}','${o}')" title="${{v:"Stafla — æð niður",s:"Hlið við hlið — æð heldur áfram yfir samskeytin (væng)",h:"Snúa 90° — æð þvers"}[o]}">${orientGlyph(o)} ${{v:"stafla",s:"hlið v. hlið",h:"snúa 90°"}[o]}</button>`).join("")}
       </div>
       <div class="grp-actions">
+        <button class="small ghost" onclick="event.stopPropagation();addFrontToGroup('${g.id}')">＋ front</button>
+        ${manualG ? `<label class="fdim" style="display:flex;align-items:center;gap:4px;">breidd <input class="mf-h" type="number" min="20" value="${g.width}" onclick="event.stopPropagation()" onchange="setManualGroupWidth('${g.id}',this.value)" /></label>` : ""}
         <button class="small ghost" onclick="event.stopPropagation();reverseGroup('${g.id}')">↕ snúa röð</button>
         ${g.fronts.length > 1 ? `<button class="small ghost" onclick="event.stopPropagation();splitGroup('${g.id}')">✂ skipta upp</button>` : ""}
         ${mergeCandidates(g).length ? `<select class="small" style="max-width:150px;padding:5px 6px;font-size:0.8rem;" onclick="event.stopPropagation()" onchange="if(this.value){mergeGroup('${g.id}',this.value);this.value=''}">
@@ -2103,7 +2216,7 @@ checkVersion();
 
 // ── INIT ─────────────────────────────────────────────────────────────────
 function resetAll() {
-  currentProjectId = null; selectedKey = null; selectedGid = null; curPlan = null;
+  currentProjectId = null; selectedKey = null; selectedGid = null; curPlan = null; manualFronts = [];
   clearTimeout(planSaveTimer);
   $("searchCard").classList.remove("hidden");
   $("projectCard").classList.add("hidden");
