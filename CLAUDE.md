@@ -43,6 +43,10 @@ then commit + push — Vercel redeploys automatically on push to `main`.
 
 **Project filter** (`fetchEligibleProjects`): `Staða í söluferli = "🏆 Tækifæri unnið"` AND `Staða í skipulagi != "For-skipulag"` AND `Staða í framleiðslu` not in `{"Afhent (LOKIÐ ✅)", "Má Afhenda 🚚"}`.
 
+**Skipped fronts**: rows that match `MAYBE_FRONT_RE` (broad: front/hurð/blindlok/lúga/hlið/…) but not `FRONT_RE`, or are missing H/B, land in `skippedFronts` and `renderSkipped()` shows a warning card ("N línur … sem líta út eins og frontar en komust ekki með") so nothing is silently dropped. **Grain detection** (`isGrainMaterial`): décor code `H####` = woodgrain, `U####` = solid; `GRAIN_RE` species keywords are the fallback for names without a code. It's only a picker sort/badge — you can still plan a "slétt" material.
+
+**Recent UX**: `nearestFree` on every drop (no overlaps ever); undo/redo (⌘Z / `pushHistory` from `saveLayout`); confirm dialogs on "Núllstilla röðun" and "Fjarlægja plötu"; manual fronts have an editable label (`mf-label`) + `duplicateFront(gid,fi)` (⎘, works on real fronts too → makes a manual copy); `copyFloorLink()` on a confirmed plan; arrow-keys nudge the selected run by the grid step (Shift = 1 mm, Delete removes a lone manual run); guide top bar has per-board jump buttons + "N búin" count.
+
 **Undo/redo** (⌘Z / ⌘⇧Z / ⌘Y, plus ↶ ↷ toolbar buttons): `history` is an array of `serializePlan()` strings; `pushHistory` is called from `saveLayout` (so every committed mutation snapshots), guarded by `applyingHistory`/`loadingPlan`. `undo`/`redo` walk `histIdx` and `applyPlan` the stored state. `resetHistory(); pushHistory()` sets the baseline at the end of `selectMaterial` / `openFloorPlan`. Keydown handler ignores it while an input is focused or the guide overlay is open.
 
 **Sticky side panel**: `.side-col` is `position:sticky; top:14px; max-height:calc(100vh-28px); overflow-y:auto` so the Æðahópar list scrolls on its own while the boards scroll the page.

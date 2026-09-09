@@ -120,6 +120,14 @@
   .front-cell:hover rect:first-child { fill-opacity: 0.3; }
   body.dragging, body.dragging * { cursor: grabbing !important; }
 
+  #toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px);
+    background: #1c1c1c; border: 1px solid #333; color: #eee; padding: 10px 16px;
+    border-radius: 8px; font-size: 0.85rem; z-index: 300; opacity: 0; pointer-events: none;
+    transition: opacity .2s, transform .2s; max-width: 90vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
   #dragGhost {
     position: fixed; z-index: 200; pointer-events: none; display: none;
     border: 2px solid #2196f3; background: rgba(33,150,243,0.28);
@@ -145,6 +153,10 @@
   .front-row.manual .fn { color: #7fd88f; }
   input.mf-h {
     width: 48px; padding: 3px 4px; font-size: 0.78rem; text-align: right; flex: none;
+    background: #0d0d0d; border: 1px solid #2c4a34; border-radius: 5px; color: #cfeecf;
+  }
+  input.mf-label {
+    flex: 1; min-width: 0; padding: 3px 6px; font-size: 0.8rem;
     background: #0d0d0d; border: 1px solid #2c4a34; border-radius: 5px; color: #cfeecf;
   }
   .front-row.drop-above { box-shadow: inset 0 2px 0 #2196f3; }
@@ -193,6 +205,13 @@
   }
   #guideOverlay .gtop .gt-title { font-weight: 700; color: #f0f0f0; }
   #guideOverlay .gtop .gt-step { margin-left: auto; font-variant-numeric: tabular-nums; }
+  #guideOverlay .gboard-nav { display: flex; gap: 6px; margin-left: 16px; }
+  #guideOverlay .gboard-nav button {
+    padding: 4px 10px; font-size: 0.8rem; border-radius: 6px;
+    background: #1e1e1e; border: 1px solid #333; color: #bbb;
+  }
+  #guideOverlay .gboard-nav button.cur { border-color: #2196f3; color: #fff; background: #12283d; }
+  #guideOverlay .gboard-nav button.done { color: #6fbf7f; border-color: #2f6f4f; }
   #guideOverlay .gprog { height: 4px; background: #1e1e1e; }
   #guideOverlay .gprog > div { height: 100%; background: #2196f3; transition: width 0.2s; }
 
@@ -290,6 +309,8 @@
     <button class="ghost small" style="margin-top:10px;" onclick="resetAll()">← Annað verkefni</button>
   </div>
 
+  <div id="skippedCard" class="no-print"></div>
+
   <div class="card no-print hidden" id="materialCard">
     <label id="materialCardLabel">Veldu efni til að skipuleggja</label>
     <div id="materialList"></div>
@@ -347,7 +368,7 @@
       <div class="side-col no-print">
         <div class="card">
           <label>Æðahópar</label>
-          <div class="hint" style="margin:0 0 10px;">Á plötunni: dragðu ⠿-handfangið til að færa heilan hóp, eða dragðu stakan front til að færa/sameina/kljúfa. Hlutir skarast aldrei — þeir smella upp að hlið. Hér: dragðu frontalínurnar til að raða, eða snúðu hópnum 90°.</div>
+          <div class="hint" style="margin:0 0 10px;">Á plötunni: dragðu ⠿-handfangið til að færa hóp (eða örvatakkar með hóp valinn), dragðu stakan front til að færa/sameina/kljúfa — ekkert skarast, það smellur upp að. ⌘Z afturkallar. Hér: raðaðu frontum, snúðu, ⎘ afritar.</div>
           <div class="grp-panel" id="grpPanel"></div>
         </div>
       </div>
@@ -391,6 +412,9 @@ const U_PROJECT_LINK = "Tækifæri 📣 (projects)", U_PROJECT_LINK_OLD = "Tæki
 // (Innskúffufrontur) sit inside the cabinet and are excluded.
 const FRONT_RE  = /(frontur|blindlok|áfella|afella|vænghurð|vaenghurd|sökkul cover|sokkul cover)/i;
 const HIDDEN_RE = /(innskúffufrontur|innskuffufrontur)/i;
+// Broader net — a row matching this but not FRONT_RE (or missing dims) is
+// flagged as "possibly a missing front" rather than silently dropped.
+const MAYBE_FRONT_RE = /(front|hurð|hurd|blindlok|áfell|afell|lúg|lug|hlið|hlid|áfella|klæðn|klaedn)/i;
 // Wing doors: a horizontal pair over one opening — cut side by side, upright,
 // so the grain figure runs continuously across the seam.
 const SIDEBYSIDE_RE = /(væng|vaeng)/i;
@@ -410,6 +434,7 @@ let projects = [];
 let currentProjectId = null;
 let projectName = "";
 let allFronts = [];          // {id, partur, h, b, th, m, efni, unitId, unitName, err}
+let skippedFronts = [];      // rows that look like fronts but were dropped (missing dims / unknown Partur)
 let boards = [];             // Efnislisti rows
 let materials = [];          // {key, label, efni, th, grain, pieces, area}
 let selectedKey = null;
@@ -498,8 +523,26 @@ document.addEventListener("keydown", e => {
     e.shiftKey ? redo() : undo();
   } else if ((e.metaKey || e.ctrlKey) && (e.key === "y" || e.key === "Y")) {
     e.preventDefault(); redo();
+  } else if (/^Arrow(Left|Right|Up|Down)$/.test(e.key) && selectedGid && !e.metaKey && !e.ctrlKey) {
+    nudgeSelected(e.key, e.shiftKey ? 1 : (settings.grid || 10));
+    e.preventDefault();
+  } else if ((e.key === "Delete" || e.key === "Backspace") && selectedGid) {
+    const g = groups.find(x => x.id === selectedGid);
+    if (g && g.fronts.length === 1 && g.fronts[0].manual) { removeManualFront(g.fronts[0].mfId); e.preventDefault(); }
   }
 });
+function nudgeSelected(key, step) {
+  const bi = boardOfGroup(selectedGid); if (bi < 0) return;
+  const g = groups.find(x => x.id === selectedGid);
+  const W = groupWidth(g), H = groupLen(g);
+  const p = layout.boards[bi].placements[selectedGid];
+  const d = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[key];
+  const x = clamp(p.x + d[0], 0, Math.max(0, board.w - W));
+  const y = clamp(p.y + d[1], 0, Math.max(0, board.l - H));
+  if (!posFree(bi, selectedGid, x, y, W, H)) return;   // blocked — don't move
+  layout.boards[bi].placements[selectedGid] = { x, y };
+  render(); saveLayout();
+}
 function loadStoredLayout() {
   try {
     const raw = localStorage.getItem(layoutKey());
@@ -641,7 +684,7 @@ async function loadProject(id) {
       name: r.fields[E_HEITI] || "", w: num(r.fields[E_BREIDD]), l: num(r.fields[E_LENGD]), th: num(r.fields[E_THYKKT]),
     }));
 
-    allFronts = rows.map(r => {
+    const parsed = rows.map(r => {
       const f = r.fields;
       const efni = (f[S_EFNI] || f[S_EFNI_BASE] || "").replace(/\s*[–-]\s*$/, "").trim();
       const uid = (f[S_EYDUBLAD] || [])[0];              // proxy returns bare id string
@@ -655,26 +698,56 @@ async function loadProject(id) {
         unitName: (id && unitNames[id]) || (typeof uid === "object" ? uid?.name : "") || "óþekkt eining",
         err: !!f[S_VILLA],
       };
-    }).filter(p =>
+    });
+    allFronts = parsed.filter(p =>
       FRONT_RE.test(p.partur) && !HIDDEN_RE.test(p.partur) && p.h > 0 && p.b > 0
     );
+    // rows that look like fronts but got dropped — surfaced so nothing is silently lost
+    skippedFronts = parsed.filter(p => !allFronts.includes(p) && !HIDDEN_RE.test(p.partur) &&
+      MAYBE_FRONT_RE.test(p.partur)).map(p => ({
+        ...p,
+        reason: (p.h <= 0 || p.b <= 0) ? "vantar H/B" : !FRONT_RE.test(p.partur) ? "óþekkt Partur" : "annað",
+      }));
 
     if (!allFronts.length) {
       $("projectStatus").textContent = "Engir frontar fundust í Sögunarlista fyrir þetta verkefni.";
+      renderSkipped();
       return;
     }
     $("projectStatus").textContent = `${allFronts.length} frontalínur — veldu efni.`;
+    renderSkipped();
     buildMaterials();
   } catch (e) {
     $("projectStatus").textContent = "Villa við að sækja gögn: " + e.message;
   }
 }
 
+// Décor codes: "U####" = Uni (solid colour), "H####" = Holz (woodgrain).
+// The species keyword list is a backup for names without a code.
+function isGrainMaterial(name) {
+  if (/\bH\s?\d{3,4}\b/i.test(name)) return true;
+  if (/\bU\s?\d{3,4}\b/i.test(name)) return false;
+  return GRAIN_RE.test(name);
+}
+
+function renderSkipped() {
+  const el = $("skippedCard");
+  if (FLOOR_MODE || !skippedFronts.length) { el.innerHTML = ""; return; }
+  const rows = skippedFronts.map(p =>
+    `<li><b>${esc(p.unitName)}</b> — ${esc(p.partur || "(engin Partur)")} ${p.h}×${p.b} · <span style="color:#f5c518">${p.reason}</span></li>`
+  ).join("");
+  el.innerHTML = `<div class="card" style="border-color:#5a4a22;background:#211c12;">
+    <label style="color:#f5c518;">⚠ ${skippedFronts.length} lína${skippedFronts.length > 1 ? "r" : ""} úr Sögunarlista sem líta út eins og frontar en komust ekki með</label>
+    <ul style="font-size:0.82rem;color:#ddd;padding-left:20px;margin-top:6px;">${rows}</ul>
+    <div class="hint">Lagaðu í Airtable (mál eða Partur) og opnaðu aftur, eða bættu þeim við handvirkt ef þeir eiga heima hér.</div>
+  </div>`;
+}
+
 function buildMaterials() {
   const map = new Map();
   for (const p of allFronts) {
     const key = `${p.efni}||${p.th}`;
-    if (!map.has(key)) map.set(key, { key, efni: p.efni, th: p.th, grain: GRAIN_RE.test(p.efni), pieces: 0, area: 0 });
+    if (!map.has(key)) map.set(key, { key, efni: p.efni, th: p.th, grain: isGrainMaterial(p.efni), pieces: 0, area: 0 });
     const m = map.get(key);
     m.pieces += p.m;
     m.area += (p.h * p.b * p.m) / 1e6;
@@ -782,10 +855,26 @@ function renderPlanStrip() {
   el.innerHTML = `<div class="plan-bar ${confirmed ? "confirmed" : "draft"}">
     <span>${confirmed ? "✅ <b>Staðfest</b> — gólfið getur sótt þetta á /saga" : "✏️ <b>Drög</b> — óstaðfest"}</span>
     <span class="spacer"></span>
+    ${confirmed && curPlan?.recordId ? `<button class="ghost small" onclick="copyFloorLink()">🔗 Afrita hlekk fyrir gólfið</button>` : ""}
     ${curPlan?.recordId ? '<span class="muted">vistað sjálfkrafa</span>' : '<span class="muted">óvistað</span>'}
   </div>`;
   const btn = $("confirmBtn");
   if (btn) { btn.textContent = confirmed ? "✅ Staðfest" : "✅ Staðfesta skipulag"; btn.disabled = confirmed; }
+}
+function copyFloorLink() {
+  const url = `${location.origin}/saga?recordId=${currentProjectId}`;
+  const done = () => toast("Hlekkur afritaður — sendu gólfinu");
+  const fail = () => { try { prompt("Afritaðu hlekkinn fyrir gólfið:", url); } catch { toast(url); } };
+  try {
+    const p = navigator.clipboard && navigator.clipboard.writeText(url);
+    if (p && p.then) p.then(done, fail); else fail();
+  } catch { fail(); }
+}
+function toast(msg) {
+  let t = $("toast");
+  if (!t) { t = document.createElement("div"); t.id = "toast"; document.body.appendChild(t); }
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove("show"), 2600);
 }
 
 // ── FLOOR MODE (/saga) ───────────────────────────────────────────────────
@@ -1048,6 +1137,21 @@ function setManualFrontH(mfId, val) {
   for (const g of groups) for (const f of g.fronts) if (f.mfId === mfId) f.h = h;
   settleAll(); render(); saveLayout();
 }
+function setManualFrontLabel(mfId, val) {
+  for (const g of groups) for (const f of g.fronts) if (f.mfId === mfId) f.label = val.trim() || "Nýr front";
+  render(); saveLayout();
+}
+// Duplicate a front (real or manual) into the same run, as an editable manual copy.
+function duplicateFront(gid, fi) {
+  const g = groups.find(x => x.id === gid);
+  if (!g || !g.fronts[fi]) return;
+  const src = g.fronts[fi];
+  g.fronts.splice(fi + 1, 0, {
+    pieceId: null, label: src.label, h: src.h, code: "", err: false, manual: true, mfId: newMfId(),
+  });
+  selectedGid = gid;
+  settleAll(); render(); saveLayout();
+}
 function setManualGroupWidth(gid, val) {
   const g = groups.find(x => x.id === gid); if (!g) return;
   g.width = Math.max(20, Math.round(+val) || g.width);
@@ -1215,6 +1319,7 @@ function boardOfGroup(gid) {
 }
 function addBoard() { layout.boards.push({ placements: {} }); saveLayout(); render(); }
 function resetLayout() {
+  if (!confirm("Henda allri röðun og byrja upp á nýtt frá Sögunarlista? (Handvirkir frontar haldast.)")) return;
   try { localStorage.removeItem(layoutKey()); } catch {}
   buildGroups(); autoNest();
 }
@@ -1520,12 +1625,14 @@ function renderBoards() {
 function removeBoard(bi) {
   if (layout.boards.length <= 1) return;
   const moved = layout.boards[bi].placements;
+  const n = Object.keys(moved).length;
+  if (n && !confirm(`Fjarlægja Plötu ${bi + 1}? ${n} hópar færast á aðrar plötur.`)) return;
   layout.boards.splice(bi, 1);
-  // orphaned groups → re-append to first board
-  Object.assign(layout.boards[0].placements, {});
-  const b0 = layout.boards[0];
-  let y = settings.trim;
-  for (const gid of Object.keys(moved)) { b0.placements[gid] = { x: settings.trim, y }; const g = groups.find(x=>x.id===gid); y += (g?groupLen(g):100) + settings.kerf; }
+  // re-place orphaned groups onto the least-full remaining board, then settle
+  const target = layout.boards.reduce((best, b, i) =>
+    Object.keys(b.placements).length < Object.keys(layout.boards[best].placements).length ? i : best, 0);
+  for (const gid of Object.keys(moved)) layout.boards[target].placements[gid] = { x: settings.trim, y: settings.trim };
+  settleBoard(target);
   saveLayout(); render();
 }
 
@@ -1890,10 +1997,13 @@ function renderPanel() {
         <div class="front-row${f.manual ? " manual" : ""}" draggable="${f.manual ? "false" : "true"}" data-gid="${g.id}" data-fi="${i}">
           <span class="drag-grip">⠿</span>
           <span class="idx">${i + 1}</span>
-          <span class="fn">${f.manual ? "✏ " : ""}${esc(f.label)}${f.err ? " ⚠" : ""}</span>
           ${f.manual
-            ? `<input class="mf-h" type="number" min="20" value="${f.h}" onclick="event.stopPropagation()" onchange="setManualFrontH('${f.mfId}',this.value)" /> <span class="fdim">mm</span>`
+            ? `<input class="mf-label" value="${esc(f.label)}" onclick="event.stopPropagation()" onchange="setManualFrontLabel('${f.mfId}',this.value)" />`
+            : `<span class="fn">${esc(f.label)}${f.err ? " ⚠" : ""}</span>`}
+          ${f.manual
+            ? `<input class="mf-h" type="number" min="20" value="${f.h}" onclick="event.stopPropagation()" onchange="setManualFrontH('${f.mfId}',this.value)" /><span class="fdim">mm</span>`
             : `<span class="fdim">${f.h} mm</span>`}
+          ${sel ? `<button class="small ghost" title="Afrita" onclick="event.stopPropagation();duplicateFront('${g.id}',${i})">⎘</button>` : ""}
           ${sel && f.manual ? `<button class="small ghost" title="Fjarlægja" onclick="event.stopPropagation();removeManualFront('${f.mfId}')">✕</button>` : ""}
           ${sel && !f.manual ? `<button class="small ghost" onclick="event.stopPropagation();moveFront('${g.id}',${i},-1)" ${i === 0 ? "disabled" : ""}>↑</button>
                    <button class="small ghost" onclick="event.stopPropagation();moveFront('${g.id}',${i},1)" ${i === g.fronts.length - 1 ? "disabled" : ""}>↓</button>` : ""}
@@ -2277,8 +2387,15 @@ function renderGuide() {
   }
   o.classList.remove("done");
   const st = guide.steps[guide.idx];
-  const nBoards = new Set(guide.steps.map(s => s.bi)).size;
+  const boardIdxs = [...new Set(guide.steps.map(s => s.bi))];
+  const nBoards = boardIdxs.length;
   const pct = Math.round(guide.idx / total * 100);
+  const boardNav = nBoards > 1 ? `<span class="gboard-nav">` + boardIdxs.map(bi => {
+    const first = guide.steps.findIndex(s => s.bi === bi);
+    const last = guide.steps.map(s => s.bi).lastIndexOf(bi);
+    const state = guide.idx > last ? "done" : (st.bi === bi ? "cur" : "");
+    return `<button class="${state}" onclick="guide.idx=${first};renderGuide()">Plata ${bi + 1}${state === "done" ? " ✓" : ""}</button>`;
+  }).join("") + `</span>` : "";
 
   const produces = (st.produces || []).map(p => `
     <div class="gchip ${p.err ? "warn" : ""}">
@@ -2289,8 +2406,8 @@ function renderGuide() {
   o.innerHTML = `
     <div class="gtop">
       <span class="gt-title">Leiðsögn — ${esc(projectName)}</span>
-      <span class="gnote">${esc(mat)}</span>
-      <span class="gt-step">Skref ${guide.idx + 1} / ${total}</span>
+      ${boardNav}
+      <span class="gt-step">Skref ${guide.idx + 1} / ${total} · ${guide.idx} búin</span>
       <button class="ghost small" onclick="closeGuide()">✕ Loka</button>
     </div>
     <div class="gprog"><div style="width:${pct}%"></div></div>
@@ -2350,14 +2467,14 @@ checkVersion();
 
 // ── INIT ─────────────────────────────────────────────────────────────────
 function resetAll() {
-  currentProjectId = null; selectedKey = null; selectedGid = null; curPlan = null; manualFronts = [];
+  currentProjectId = null; selectedKey = null; selectedGid = null; curPlan = null; manualFronts = []; skippedFronts = [];
   resetHistory();
   clearTimeout(planSaveTimer);
   $("searchCard").classList.remove("hidden");
   $("projectCard").classList.add("hidden");
   $("materialCard").classList.add("hidden");
   $("workspaceCard").classList.add("hidden");
-  $("planStrip").innerHTML = "";
+  $("planStrip").innerHTML = ""; $("skippedCard").innerHTML = "";
   $("projectSelect").value = "";
 }
 $("projectSelect").addEventListener("change", e => { if (e.target.value) loadProject(e.target.value); });
