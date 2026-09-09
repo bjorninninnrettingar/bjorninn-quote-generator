@@ -49,6 +49,7 @@ const ALLOWED_FIELDS = {
     "Lokið",
     "Skurðarskrá",
     "Skurðarnúmer", // 1-based position of the piece in its CUTLST00 file = the "Code" Cutty shows; written by cutlist.html, read by labels.html
+    "Skilaboð til skipulags", // grain.html: /saga flags a problematic grain front → note back to the planners (rolls up to Tækifæri)
     "Tegund einingu",
     "Yfirfr.",
     "Fræst",
@@ -210,7 +211,7 @@ const WRITABLE_FIELDS = {
   // "Fræst"/"Magn fræst" (milling done / partial quantity done) and the
   // per-side "V hlið magn fræst"/"H hlið magn fræst" pair are written by
   // fraesing.html's toggle buttons.
-  "tblhdgyvTcBfP8kov": ["H", "B", "Þ", "Villa?", "Athugasemd", "B.A.S.", "Skurðarskrá", "Skurðarnúmer", "Fræst", "Magn fræst", "V hlið magn fræst", "H hlið magn fræst"],
+  "tblhdgyvTcBfP8kov": ["H", "B", "Þ", "Villa?", "Athugasemd", "B.A.S.", "Skurðarskrá", "Skurðarnúmer", "Fræst", "Magn fræst", "V hlið magn fræst", "H hlið magn fræst", "Skilaboð til skipulags"],
   // Closes an open shift (stimpilklukka's ÚT button). "Inn" is intentionally
   // not writable here — a shift's start time is only ever set at creation.
   "tblnFIO8RB6HcelXF": ["Út"],

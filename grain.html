@@ -184,6 +184,9 @@
   .banner button { background: rgba(0,0,0,0.25); margin-left: 10px; }
 
   .warn-box { background: #2a1512; border: 1px solid #5a2b22; color: #f0b8ac; padding: 10px 12px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 12px; }
+  .plan-need { padding: 9px 12px; border-radius: 8px; font-size: 0.85rem; margin: 8px 0 4px; border: 1px solid; }
+  .plan-need.warn { background: #201c12; border-color: #6b5a22; color: #f0dca8; }
+  .plan-need.ok   { background: #10201a; border-color: #2f6f4f; color: #a8e0c4; }
 
   .hint { color: #777; font-size: 0.8rem; margin-top: 6px; }
 
@@ -259,7 +262,12 @@
   #guideOverlay .gchip .cl { font-weight: 700; font-size: 0.95rem; }
   #guideOverlay .gchip .cd { color: #9fd6ac; font-size: 0.82rem; font-variant-numeric: tabular-nums; }
   #guideOverlay .gchip.warn { border-color: #6b4a22; background: #241c12; }
+  #guideOverlay .gchip-flag {
+    margin-top: 6px; padding: 3px 7px; font-size: 0.72rem; font-weight: 600;
+    background: transparent; border: 1px solid #5a4a2c; color: #d8b978; border-radius: 5px;
+  }
   #guideOverlay .gnote { color: #999; font-size: 0.9rem; }
+  #guideOverlay .gdatum { color: #8fa9c0; font-size: 0.85rem; background: #12181f; border: 1px solid #24384a; border-radius: 8px; padding: 8px 12px; }
 
   #guideOverlay .gbottom {
     display: flex; align-items: center; gap: 16px; padding: 16px 24px; border-top: 1px solid #222;
@@ -319,9 +327,11 @@
   </div>
 
   <div id="skippedCard" class="no-print"></div>
+  <div id="planMsgCard" class="no-print"></div>
 
   <div class="card no-print hidden" id="materialCard">
     <label id="materialCardLabel">Veldu efni til að skipuleggja</label>
+    <div id="planNeedNote" class="no-print"></div>
     <div id="materialList"></div>
     <div class="hint" id="materialCardHint">Aðeins æðaefni er sýnt. Slétt/einlit efni þarf ekki æðaskipulag — notaðu Cutty fyrir þau.</div>
   </div>
@@ -416,6 +426,7 @@ const S_EFNI      = "Efni:";
 const S_EFNI_BASE = "Efni: (undirstaða)";
 const S_EYDUBLAD  = "Eyðublað ✏️";
 const S_VILLA     = "Villa?";
+const S_PLANMSG   = "Skilaboð til skipulags";   // part-level note to the planners
 
 const E_HEITI = "Heiti efnis", E_BREIDD = "Breidd (mm)", E_LENGD = "Lengd (mm)", E_THYKKT = "Þykkt (mm)";
 const E_SUB = "Undirflokkur 🗂️";   // Frontaefni / Spónlagt / Hurð / Skrokka efni / Harðplast / Borðplata
@@ -633,7 +644,7 @@ async function fetchFrontsForProject(name) {
   const formula = `FIND("${escd}", ARRAYJOIN({${S_PROJECT_LINK}})) > 0`;
   return airtableFetch(SOGUNARLISTI_TABLE, {
     filterByFormula: formula,
-    "fields[]": [S_PARTUR, S_H, S_B, S_TH, S_M, S_EFNI, S_EFNI_BASE, S_EYDUBLAD, S_VILLA],
+    "fields[]": [S_PARTUR, S_H, S_B, S_TH, S_M, S_EFNI, S_EFNI_BASE, S_EYDUBLAD, S_VILLA, S_PLANMSG],
     pageSize: 100,
   });
 }
@@ -697,6 +708,32 @@ async function populateProjects() {
     o.dataset.name = r.fields[P_NAME_FIELD] || r.id;
     sel.appendChild(o);
   }
+  if (!FLOOR_MODE) annotateProjectsWithPlans(recs);
+}
+// one query: mark projects that already have an Æðaplan so the office sees at a
+// glance which have a draft to finish vs a confirmed plan (no new field needed)
+async function annotateProjectsWithPlans(recs) {
+  const names = recs.map(r => r.fields[P_NAME_FIELD]).filter(Boolean);
+  if (!names.length) return;
+  const clauses = names.map(n => `FIND("${n.replace(/"/g, '\\"')}", ARRAYJOIN({${PL_PROJECT}})) > 0`);
+  let plans;
+  try {
+    plans = await airtableFetch(PLAN_TABLE, {
+      filterByFormula: `OR(${clauses.join(",")})`,
+      "fields[]": [PL_PROJECT, PL_CONFIRM], pageSize: 100,
+    });
+  } catch { return; }
+  const byProj = {};
+  for (const p of plans) {
+    const raw = (p.fields[PL_PROJECT] || [])[0];
+    const id = typeof raw === "string" ? raw : raw?.id;
+    if (id) (byProj[id] = byProj[id] || []).push(p);
+  }
+  for (const o of $("projectSelect").options) {
+    const ps = byProj[o.value];
+    if (!ps) continue;
+    o.textContent += ps.every(p => p.fields[PL_CONFIRM]) ? "   ✅ skipulag" : "   ✏️ drög";
+  }
 }
 
 async function loadProject(id) {
@@ -741,6 +778,7 @@ async function loadProject(id) {
         unitId: id || "?",
         unitName: (id && unitNames[id]) || (typeof uid === "object" ? uid?.name : "") || "óþekkt eining",
         err: !!f[S_VILLA],
+        planMsg: (f[S_PLANMSG] || "").trim(),
       };
     });
     const isFront = p => (FRONT_RE.test(p.partur) || p.frontMat) && !HIDDEN_RE.test(p.partur);
@@ -754,11 +792,11 @@ async function loadProject(id) {
 
     if (!allFronts.length) {
       $("projectStatus").textContent = "Engir frontar fundust í Sögunarlista fyrir þetta verkefni.";
-      renderSkipped();
+      renderSkipped(); renderPlanMsgs();
       return;
     }
     $("projectStatus").textContent = `${allFronts.length} frontalínur — veldu efni.`;
-    renderSkipped();
+    renderSkipped(); renderPlanMsgs();
     buildMaterials();
   } catch (e) {
     $("projectStatus").textContent = "Villa við að sækja gögn: " + e.message;
@@ -784,6 +822,25 @@ function renderSkipped() {
     <label style="color:#f5c518;">⚠ ${skippedFronts.length} lína${skippedFronts.length > 1 ? "r" : ""} úr Sögunarlista sem líta út eins og frontar en komust ekki með</label>
     <ul style="font-size:0.82rem;color:#ddd;padding-left:20px;margin-top:6px;">${rows}</ul>
     <div class="hint">Lagaðu í Airtable (mál eða Partur) og opnaðu aftur, eða bættu þeim við handvirkt ef þeir eiga heima hér.</div>
+  </div>`;
+}
+
+// notes on individual fronts (from the floor's "⚠ vandamál" flag, or written
+// straight into Sögunarlisti) — shown to the office so the loop closes
+function renderPlanMsgs() {
+  const el = $("planMsgCard");
+  if (FLOOR_MODE) { el.innerHTML = ""; return; }
+  const seen = new Map();
+  for (const p of [...allFronts, ...skippedFronts]) if (p.planMsg && !seen.has(p.id)) seen.set(p.id, p);
+  const list = [...seen.values()];
+  if (!list.length) { el.innerHTML = ""; return; }
+  const rows = list.map(p =>
+    `<li><b>${esc(p.unitName)}</b> — ${esc(p.partur || "?")}: <span style="color:#8fbaff;white-space:pre-wrap;">${esc(p.planMsg)}</span></li>`
+  ).join("");
+  el.innerHTML = `<div class="card" style="border-color:#2f5a8c;background:#101a26;">
+    <label style="color:#8fbaff;">💬 ${list.length} skilaboð um fronta (frá gólfi eða Sögunarlista)</label>
+    <ul style="font-size:0.82rem;color:#ddd;padding-left:20px;margin-top:6px;">${rows}</ul>
+    <div class="hint">Lagaðu í Airtable/Sögunarlista og hreinsaðu „Skilaboð til skipulags" þegar búið er að leysa.</div>
   </div>`;
 }
 
@@ -824,6 +881,17 @@ function buildMaterials() {
     if (el && plan) el.insertAdjacentHTML("beforeend",
       plan.fields[PL_CONFIRM] ? ` · <span style="color:#4caf50">✅ staðfest skipulag</span>` : ` · <span style="color:#f5c518">✏️ drög</span>`);
   }
+
+  // loud summary: how many æðaefni still need a confirmed plan
+  const need = grainMats.filter(m => {
+    const plan = projectPlans.find(p => p.fields[PL_EFNI] === m.key);
+    return !plan || !plan.fields[PL_CONFIRM];
+  });
+  const note = $("planNeedNote");
+  if (!grainMats.length) note.innerHTML = "";
+  else if (!need.length) note.innerHTML = `<div class="plan-need ok">✅ Öll æðaefni þessa verkefnis eru skipulögð og staðfest.</div>`;
+  else note.innerHTML = `<div class="plan-need warn">⚠ <b>${need.length} af ${grainMats.length} æðaefnum</b> á eftir að skipuleggja og staðfesta: ${need.map(m => esc(m.efni)).join(", ")}.</div>`;
+
   $("materialCard").classList.remove("hidden");
 }
 
@@ -970,6 +1038,32 @@ function toast(msg) {
   clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove("show"), 2600);
 }
 
+// ── FLAG A PROBLEM FRONT ─────────────────────────────────────────────────
+// Writes a part-level note to Sögunarlisti's existing "Skilaboð til skipulags"
+// (rolls up to the project for the planners). No new Airtable field.
+const _flaggedPieces = new Set();
+async function flagPiece(pieceId, label, unitName) {
+  if (!pieceId) { toast("Handvirkur front — engin Sögunarlista lína til að merkja."); return; }
+  const msg = (prompt(`Skilaboð til skrifstofu um „${label}" (${unitName}) — t.d. passar ekki, rangt mál, æð vitlaus:`, "") || "").trim();
+  if (msg === "" && !confirm("Tómt — fjarlægja fyrri skilaboð frá gólfi?")) return;
+  const who = FLOOR_MODE ? "gólf" : "skipulag";
+  try {
+    let existing = "";
+    try { existing = ((await airtableFetch(SOGUNARLISTI_TABLE, {}, pieceId)).fields?.[S_PLANMSG] || "").trim(); } catch {}
+    existing = existing.split("\n").filter(l => !l.startsWith(`[${who} `)).join("\n").trim();
+    const stamped = msg ? (existing ? existing + "\n" : "") + `[${who} ${new Date().toLocaleDateString("is-IS")}] ${msg}` : existing;
+    await airtablePatch(SOGUNARLISTI_TABLE, pieceId, { [S_PLANMSG]: stamped });
+    if (msg) _flaggedPieces.add(pieceId); else _flaggedPieces.delete(pieceId);
+    toast(msg ? "Sent til skrifstofu ✓" : "Skilaboð fjarlægð");
+    if (guide) renderGuide(); else render();
+  } catch { toast("Sending mistókst — reyndu aftur"); }
+}
+function flagFront(gid, fi) {
+  const g = groups.find(x => x.id === gid);
+  const f = g && g.fronts[fi];
+  if (f) flagPiece(f.pieceId, f.label, g.unitName);
+}
+
 // ── FLOOR MODE (/saga) ───────────────────────────────────────────────────
 async function loadFloorPlans(name) {
   const plans = (await fetchPlans(name)).filter(p => p.fields[PL_CONFIRM] && p.fields[PL_JSON]);
@@ -996,6 +1090,7 @@ function openFloorPlan(rec) {
   selectedKey = rec.fields[PL_EFNI] || "plan";
   resetHistory();
   curPlan = { recordId: rec.id, confirmed: true, sourceJSON: rec.fields[PL_JSON] };
+  floorPlanBaseSig = planSig(rec.fields[PL_JSON] || "");   // office version we're running
   $("materialCard").classList.add("hidden");
   const stored = loadStoredLayout();
   const freshFromOffice = !stored || stored.planSig !== planSig(rec.fields[PL_JSON]);
@@ -1194,6 +1289,7 @@ function buildGroups() {
         h: Math.round(p.h),
         code: (p.partur.match(/\b([NMKCDFE])\b/) || [])[1] || "",
         err: p.err,
+        planMsg: p.planMsg || "",
       });
     }
   }
@@ -2212,6 +2308,8 @@ function renderPanel() {
           ${f.manual
             ? `<input class="mf-h" type="number" min="20" value="${f.h}" onclick="event.stopPropagation()" onchange="setManualFrontH('${f.mfId}',this.value)" /><span class="fdim">mm</span>`
             : `<span class="fdim">${f.h} mm</span>`}
+          ${!f.manual && (f.planMsg || _flaggedPieces.has(f.pieceId)) ? `<span title="${esc(f.planMsg || "sent til skrifstofu")}" style="color:#8fbaff;">💬</span>` : ""}
+          ${sel && !f.manual ? `<button class="small ghost" title="Segja skrifstofu frá vandamáli" onclick="event.stopPropagation();flagFront('${g.id}',${i})">⚠</button>` : ""}
           ${sel ? `<button class="small ghost" title="Afrita" onclick="event.stopPropagation();duplicateFront('${g.id}',${i})">⎘</button>` : ""}
           ${sel && f.manual ? `<button class="small ghost" title="Fjarlægja" onclick="event.stopPropagation();removeManualFront('${f.mfId}')">✕</button>` : ""}
           ${sel && !f.manual ? `<button class="small ghost" onclick="event.stopPropagation();moveFront('${g.id}',${i},-1)" ${i === 0 ? "disabled" : ""}>↑</button>
@@ -2423,7 +2521,7 @@ function buildCutPlan() {
               note: fi === 0
                 ? "Efsti fronti hópsins. Haltu röðinni." + (narrower ? " (fronturinn rifst mjórri á eftir)" : "")
                 : "",
-              produces: narrower ? [] : [{ label: f.label, w: g.width, h: f.h, unitName: g.unitName, err: f.err, n: fi + 1, of: g.fronts.length }],
+              produces: narrower ? [] : [{ label: f.label, w: g.width, h: f.h, unitName: g.unitName, err: f.err, n: fi + 1, of: g.fronts.length, pieceId: f.pieceId }],
               highlight: { x: s.x, y: cursor, w: g.width, l: f.h },
               cutLines: [{ o: "h", pos: cursor + f.h }],
             });
@@ -2434,7 +2532,7 @@ function buildCutPlan() {
               bi, kind: "rip", measure: g.width, measureLabel: "Rifjaðar",
               title: `${g.unitName} — rífðu ${g.fronts.length} fronta niður í ${g.width} mm`,
               note: `Taktu ${Math.round(s.w - g.width)} mm af hverjum (ræman var breiðari en þessi hópur).`,
-              produces: g.fronts.map((f, i) => ({ label: f.label, w: g.width, h: f.h, unitName: g.unitName, err: f.err, n: i + 1, of: g.fronts.length })),
+              produces: g.fronts.map((f, i) => ({ label: f.label, w: g.width, h: f.h, unitName: g.unitName, err: f.err, n: i + 1, of: g.fronts.length, pieceId: f.pieceId })),
               highlight: { x: s.x, y: runTop, w: g.width, l: cursor - runTop - k },
               cutLines: [{ o: "v", pos: s.x + g.width }],
             });
@@ -2457,7 +2555,7 @@ function buildCutPlan() {
               bi, kind: "rip", measure: g.width, measureLabel: "Rifjaðar",
               title: `${g.unitName} — rífðu væng ${fi + 1} af ${g.fronts.length}`,
               note: fi === 0 ? "Rífðu frá vinstri, haltu röðinni. Vængirnir eiga að vera hlið við hlið." : "",
-              produces: [{ label: f.label, w: g.width, h: f.h, unitName: g.unitName, err: f.err, n: fi + 1, of: g.fronts.length }],
+              produces: [{ label: f.label, w: g.width, h: f.h, unitName: g.unitName, err: f.err, n: fi + 1, of: g.fronts.length, pieceId: f.pieceId }],
               highlight: { x: woff, y: cursor, w: g.width, l: f.h },
               cutLines: [{ o: "v", pos: woff + g.width }],
             });
@@ -2481,7 +2579,7 @@ function buildCutPlan() {
               bi, kind: "crosscut", measure: f.h, measureLabel: "Þverskurðarstopp (á bandinu)",
               title: `${g.unitName} — fronti ${fi + 1} af ${g.fronts.length} af bandinu`,
               note: fi === 0 ? "Haltu röðinni frá vinstri." : "",
-              produces: [{ label: f.label, w: g.width, h: f.h, unitName: g.unitName, err: f.err, n: fi + 1, of: g.fronts.length }],
+              produces: [{ label: f.label, w: g.width, h: f.h, unitName: g.unitName, err: f.err, n: fi + 1, of: g.fronts.length, pieceId: f.pieceId }],
               highlight: { x: woff, y: cursor, w: f.h, l: band },
               cutLines: [{ o: "v", pos: woff + f.h }],
             });
@@ -2492,6 +2590,19 @@ function buildCutPlan() {
       });
     });
   });
+
+  // annotate every step with an explicit datum, and give crosscuts the
+  // cumulative absolute stop from the trimmed front edge as a cross-check
+  // (kerf-inclusive: each cutLine.pos already carries the accumulated kerf)
+  for (const st of steps) {
+    const hcl = (st.cutLines || []).find(c => c.o === "h");
+    if (st.kind === "trim") st.datum = "mælt af ytri (ósnyrtu) brún plötunnar";
+    else if (st.kind === "rip") st.datum = "rif-fence = þessi tala · frá núverandi vinstri kanti verkstykkisins";
+    else if (st.kind === "crosscut" || st.kind === "scrap") {
+      st.datum = "frá síðasta þverskurði (fyrsti skurður hóps: frá snyrtri frambrún)";
+      if (hcl) st.absStop = Math.max(0, Math.round(hcl.pos - tr));
+    }
+  }
 
   return { steps, idx: 0 };
 }
@@ -2629,8 +2740,9 @@ function renderGuide() {
 
   const produces = (st.produces || []).map(p => `
     <div class="gchip ${p.err ? "warn" : ""}">
-      <span class="cl">${p.of > 1 ? `<b style="color:#ffd479">${p.n}/${p.of}</b> · ` : ""}${esc(p.label)}${p.err ? " ⚠" : ""}</span>
+      <span class="cl">${p.of > 1 ? `<b style="color:#ffd479">${p.n}/${p.of}</b> · ` : ""}${esc(p.label)}${p.err ? " ⚠" : ""}${_flaggedPieces.has(p.pieceId) ? " 💬" : ""}</span>
       <span class="cd">${esc(p.unitName)} · ${Math.round(p.w)}×${Math.round(p.h)} mm</span>
+      ${p.pieceId ? `<button class="gchip-flag" onclick='flagPiece(${JSON.stringify(p.pieceId)},${JSON.stringify(p.label)},${JSON.stringify(p.unitName)})'>⚠ vandamál með þennan part</button>` : ""}
     </div>`).join("");
   const multi = (st.produces || []).some(p => p.of > 1);
 
@@ -2652,6 +2764,7 @@ function renderGuide() {
           <span class="num">${Math.round(st.measure)}</span><span class="unit">mm</span>
           <span class="lbl">${esc(st.measureLabel || "")}</span>
         </div>` : ""}
+        ${st.datum ? `<div class="gdatum">📐 ${esc(st.datum)}${st.absStop != null ? ` &nbsp;·&nbsp; fastur stoppari: <b>${st.absStop} mm</b> frá snyrtri frambrún` : ""}</div>` : ""}
         ${st.note ? `<div class="gnote">${esc(st.note)}</div>` : ""}
         ${produces ? `<div class="gproduces"><label>Þú færð — merktu strax á bakhlið: eining, ör upp ↑${multi ? ", og númer í röð (t.d. 2/5)" : ""}</label>${produces}</div>` : ""}
       </div>
@@ -2696,6 +2809,42 @@ function showUpdateBanner() {
 setInterval(checkVersion, 3 * 60 * 1000);
 checkVersion();
 
+// ── FLOOR PLAN POLL (/saga) ──────────────────────────────────────────────
+// The office can edit / re-confirm / un-confirm while the sawyer has the
+// guide open. planSig only compares at load, so poll the row and warn.
+let floorPlanBaseSig = null;
+async function checkFloorPlan() {
+  if (!FLOOR_MODE || !curPlan?.recordId || $("floorUpdBanner")) return;
+  try {
+    const rec = await airtableFetch(PLAN_TABLE, {}, curPlan.recordId);
+    const f = rec.fields || {};
+    if (!f[PL_CONFIRM]) return showFloorUpdBanner("Skrifstofa afturkallaði staðfestingu á þessu skipulagi.");
+    if (floorPlanBaseSig && planSig(f[PL_JSON] || "") !== floorPlanBaseSig)
+      showFloorUpdBanner("Skrifstofa uppfærði skipulagið — þitt er úrelt.");
+  } catch {}
+}
+function showFloorUpdBanner(msg) {
+  if ($("floorUpdBanner")) return;
+  const d = document.createElement("div");
+  d.className = "banner no-print"; d.id = "floorUpdBanner"; d.style.background = "#c62828";
+  d.innerHTML = `${esc(msg)} <button onclick="reloadFloorPlanFresh()">Sækja nýtt skipulag</button>`;
+  document.body.appendChild(d);
+}
+async function reloadFloorPlanFresh() {
+  const btn = $("floorUpdBanner")?.querySelector("button");
+  if (btn) { btn.disabled = true; btn.textContent = "Sæki…"; }
+  try {
+    try { localStorage.removeItem(layoutKey()); localStorage.removeItem(manualKey()); } catch {}
+    manualFronts = [];
+    const rec = await airtableFetch(PLAN_TABLE, {}, curPlan.recordId);
+    if (!rec.fields?.[PL_CONFIRM]) { toast("Ekkert staðfest skipulag lengur — hafðu samband við skrifstofu."); return; }
+    $("floorUpdBanner")?.remove();
+    closeGuide();
+    openFloorPlan(rec);
+  } catch { if (btn) { btn.disabled = false; btn.textContent = "Reyna aftur"; } }
+}
+if (FLOOR_MODE) setInterval(checkFloorPlan, 90 * 1000);
+
 // ── INIT ─────────────────────────────────────────────────────────────────
 function resetAll() {
   currentProjectId = null; selectedKey = null; selectedGid = null; curPlan = null; manualFronts = []; skippedFronts = [];
@@ -2705,7 +2854,8 @@ function resetAll() {
   $("projectCard").classList.add("hidden");
   $("materialCard").classList.add("hidden");
   $("workspaceCard").classList.add("hidden");
-  $("planStrip").innerHTML = ""; $("skippedCard").innerHTML = "";
+  $("planStrip").innerHTML = ""; $("skippedCard").innerHTML = ""; $("planMsgCard").innerHTML = "";
+  const pn = $("planNeedNote"); if (pn) pn.innerHTML = "";
   $("projectSelect").value = "";
 }
 // back to the material picker without dropping the project (e.g. a project
