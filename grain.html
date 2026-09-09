@@ -111,12 +111,22 @@
   svg.board { background: #141414; border: 1px solid #2a2a2a; border-radius: 6px; touch-action: none; display: block; width: 100%; height: auto; }
   svg.board text { font-family: "SF Mono", Consolas, monospace; }
 
-  .group-rect.dragging { opacity: 0.75; }
-  .group-rect.selected .grgbox { stroke: #2196f3; stroke-width: 2.5; }
+  .group-rect.dragging { opacity: 0.22; }
+  .front-cell.dragging { opacity: 0.22; }
+  .group-rect.selected .grgbox { stroke: #2196f3; stroke-width: 3; }
   .group-rect.overflow .grgbox { stroke: #f44336; stroke-dasharray: 6 4; }
   .run-handle { cursor: grab; }
   .front-cell { cursor: grab; }
-  .front-cell:hover rect:first-child { fill-opacity: 0.28; }
+  .front-cell:hover rect:first-child { fill-opacity: 0.3; }
+  body.dragging, body.dragging * { cursor: grabbing !important; }
+
+  #dragGhost {
+    position: fixed; z-index: 200; pointer-events: none; display: none;
+    border: 2px solid #2196f3; background: rgba(33,150,243,0.28);
+    border-radius: 4px; box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+    color: #fff; font: 600 12px/1.2 "SF Mono", Consolas, monospace;
+    padding: 3px 5px; overflow: hidden; white-space: pre;
+  }
 
   .grp-panel { }
   .grp-panel .grp {
@@ -287,6 +297,7 @@
   </div>
 
   <div class="hidden" id="guideOverlay"></div>
+  <div id="dragGhost"></div>
 
   <div class="hidden" id="workspaceCard">
     <div id="planStrip" class="no-print"></div>
@@ -304,7 +315,7 @@
         <input type="number" id="kerf" step="0.5" />
       </div>
       <div class="field">
-        <label>Jaðar-snyrting (mm)</label>
+        <label>Jaðar-snyrting (sjálfg. 10)</label>
         <input type="number" id="trim" step="1" />
       </div>
       <div class="field">
@@ -419,8 +430,13 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt
 const norm = s => String(s ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
 function loadSettings() {
-  try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem("grain:settings") || "{}") }; }
-  catch { return { ...DEFAULTS }; }
+  let s;
+  try { s = { ...DEFAULTS, ...JSON.parse(localStorage.getItem("grain:settings") || "{}") }; }
+  catch { s = { ...DEFAULTS }; }
+  if (!s.trim) s.trim = DEFAULTS.trim;   // jaðar-snyrting: auto 10 mm
+  if (!s.grid) s.grid = DEFAULTS.grid;
+  if (!s.kerf) s.kerf = DEFAULTS.kerf;
+  return s;
 }
 function saveSettings() {
   try { localStorage.setItem("grain:settings", JSON.stringify(settings)); } catch {}
@@ -1208,7 +1224,7 @@ function readToolbar() {
   board.w = num($("boardW").value) || board.w;
   board.l = num($("boardL").value) || board.l;
   settings.kerf = num($("kerf").value) || DEFAULTS.kerf;
-  settings.trim = num($("trim").value) || 0;
+  settings.trim = $("trim").value.trim() === "" ? DEFAULTS.trim : Math.max(0, num($("trim").value));
   settings.grid = Math.max(1, num($("grid").value) || DEFAULTS.grid);
   saveSettings();
 }
@@ -1383,15 +1399,22 @@ function renderBoards() {
       box.setAttribute("stroke", color); box.setAttribute("stroke-width", "1.5");
       grp.appendChild(box);
 
+      // header band lives INSIDE the run's top edge so it never collides
+      // with neighbours or clips off the board
+      const HB = Math.max(10, Math.min(19, gl - 4));
+
       // front cells — each is its own drag target
       const horiz = g.orient !== "v";      // s and h lay fronts out along x
       const grainHoriz = g.orient === "h"; // only h rotates the grain itself
+      const shortP = s => s.replace(/^Innskúffufrontur/i, "Insk.fr").replace(/^Skúffufrontur/i, "Sk.fr")
+        .replace(/\s*-\s*Merivo.*/i, "").replace(/^Frontur\b/i, "Fr").trim();
       let off = 0;
       g.fronts.forEach((f, fi) => {
         const cw = (g.orient === "h" ? f.h : g.width) * scale;
         const ch = (g.orient === "s" ? f.h : g.orient === "h" ? g.width : f.h) * scale;
         const cx = (horiz ? p.x * scale + off : gx);
         const cy = (horiz ? gy : gy + off);
+        const topInset = (cy <= gy + 1 ? HB : 0) + 4;   // clear the header band
         const cell = document.createElementNS(svgNS, "g");
         cell.setAttribute("class", "front-cell");
         cell.dataset.gid = gid; cell.dataset.fi = fi;
@@ -1415,7 +1438,7 @@ function renderBoards() {
             ln.setAttribute("x2", cx + cw - 2); ln.setAttribute("y2", yy);
           } else {
             const xx = cx + cw * k / (nS + 1);
-            ln.setAttribute("x1", xx); ln.setAttribute("y1", cy + 2);
+            ln.setAttribute("x1", xx); ln.setAttribute("y1", cy + topInset);
             ln.setAttribute("x2", xx); ln.setAttribute("y2", cy + ch - 2);
           }
           ln.setAttribute("stroke", color); ln.setAttribute("stroke-opacity", "0.3"); ln.setAttribute("stroke-width", "0.5");
@@ -1423,49 +1446,56 @@ function renderBoards() {
         }
 
         {
-          const FS = 26, charW = FS * 0.58;
-          const label = `${fi + 1}. ${f.label} · ${g.width}×${f.h}${f.err ? " ⚠" : ""}`;
-          const short = `${fi + 1}. ${g.width}×${f.h}`;
+          const FS = 18, charW = FS * 0.58;
+          const uni = g.unitName;
+          const full = `${uni} · ${shortP(f.label)} · ${g.width}×${f.h}${f.err ? " ⚠" : ""}`;
+          const med  = `${uni} · ${g.width}×${f.h}`;
+          const sml  = `${g.width}×${f.h}`;
           const t = document.createElementNS(svgNS, "text");
           t.setAttribute("fill", "#fff"); t.setAttribute("font-size", FS); t.setAttribute("font-weight", "600");
-          let txt = "";
-          const portrait = ch > cw * 1.15;
-          if (portrait && ch > FS + 12) {
-            const fit = s => s.length * charW <= ch - 16;
-            txt = fit(label) ? label : fit(short) ? short : `${fi + 1}`;
-            const ax = cx + FS - 4, ay = cy + ch - 8;
+          const portrait = ch > cw * 1.1;
+          const avail = (portrait ? ch : cw) - topInset - 10;
+          const txt = [full, med, sml, `#${fi + 1}`].find(s => s.length * charW <= avail) || `#${fi + 1}`;
+          if (portrait && ch > topInset + FS + 6) {
+            const ax = cx + topInset + FS - 6, ay = cy + ch - 6;
             t.setAttribute("x", ax); t.setAttribute("y", ay);
             t.setAttribute("transform", `rotate(-90 ${ax} ${ay})`);
-          } else if (cw > 42 && ch > FS + 8) {
-            const fit = s => s.length * charW <= cw - 14;
-            txt = fit(label) ? label : fit(short) ? short : `${fi + 1}`;
-            t.setAttribute("x", cx + 6); t.setAttribute("y", cy + FS + 2);
+            t.textContent = txt;
+            cell.appendChild(t);
+          } else if (cw > 40 && ch > topInset + FS + 3) {
+            t.setAttribute("x", cx + 6); t.setAttribute("y", cy + topInset + FS - 2);
+            t.textContent = txt;
+            cell.appendChild(t);
           }
-          if (txt) { t.textContent = txt; cell.appendChild(t); }
         }
         enableFrontDrag(cell, svg, bi, gid, fi, scale);
         grp.appendChild(cell);
         off += frontExtent(g, f) * scale + settings.kerf * scale;
       });
 
-      // header label + drag handle for the whole run (clamped so it stays on the board)
-      const topY = Math.max(gy, 24);
+      // header band: dark strip at the run's top with unit label + ⠿ handle
+      const hdr = document.createElementNS(svgNS, "rect");
+      hdr.setAttribute("x", gx); hdr.setAttribute("y", gy);
+      hdr.setAttribute("width", gw); hdr.setAttribute("height", HB);
+      hdr.setAttribute("fill", "#000"); hdr.setAttribute("fill-opacity", "0.5");
+      grp.appendChild(hdr);
+
       const hl = document.createElementNS(svgNS, "text");
-      hl.setAttribute("x", gx + 34); hl.setAttribute("y", topY - 6);
-      hl.setAttribute("fill", "#ddd"); hl.setAttribute("font-size", "17");
-      hl.textContent = `${g.unitName} ${orientGlyph(g.orient)} · ${Math.round(groupWidth(g))}×${Math.round(groupLen(g))}`;
+      hl.setAttribute("x", gx + 22); hl.setAttribute("y", gy + HB - 5);
+      hl.setAttribute("fill", "#eee"); hl.setAttribute("font-size", "13");
+      hl.textContent = `${g.unitName} ${orientGlyph(g.orient)} · ${Math.round(groupWidth(g))}×${Math.round(groupLen(g))}${g.kind ? " " + g.kind : ""}`;
       grp.appendChild(hl);
 
       const handle = document.createElementNS(svgNS, "g");
       handle.setAttribute("class", "run-handle");
       const hb = document.createElementNS(svgNS, "rect");
-      hb.setAttribute("x", gx); hb.setAttribute("y", topY - 24);
-      hb.setAttribute("width", 27); hb.setAttribute("height", 21);
-      hb.setAttribute("rx", 3); hb.setAttribute("fill", color);
+      hb.setAttribute("x", gx + 1); hb.setAttribute("y", gy + 1);
+      hb.setAttribute("width", 18); hb.setAttribute("height", HB - 2);
+      hb.setAttribute("rx", 2); hb.setAttribute("fill", color);
       handle.appendChild(hb);
       const hg = document.createElementNS(svgNS, "text");
-      hg.setAttribute("x", gx + 6); hg.setAttribute("y", topY - 8);
-      hg.setAttribute("font-size", "17"); hg.setAttribute("fill", "#fff");
+      hg.setAttribute("x", gx + 4); hg.setAttribute("y", gy + HB - 5);
+      hg.setAttribute("font-size", "13"); hg.setAttribute("fill", "#fff");
       hg.textContent = "⠿";
       handle.appendChild(hg);
       grp.appendChild(handle);
@@ -1523,24 +1553,73 @@ function posFree(bi, gid, x, y, W, H) {
     !obstacleBoxes(bi, gid).some(o => rectsOverlap({ x, y, w: W, h: H }, o));
 }
 
-// Given a wanted position for a run, return the nearest position that does
-// not overlap any other run (butted with a saw kerf). null = boxed in.
-function resolveCollision(bi, gid, want) {
-  const g = groups.find(x => x.id === gid);
-  const W = groupWidth(g), H = groupLen(g), k = settings.kerf;
+// The nearest position to `want` where a W×H box does not overlap any run
+// on board `bi` (butted with a saw kerf). Fronts never land on top of each
+// other — a drop on an occupied spot snaps to the closest free one.
+function nearestFree(bi, gid, want, W, H) {
+  const g = gid && groups.find(x => x.id === gid);
+  W = W ?? (g ? groupWidth(g) : 100);
+  H = H ?? (g ? groupLen(g) : 100);
+  const maxX = Math.max(0, board.w - W), maxY = Math.max(0, board.l - H), k = settings.kerf;
+  const wx = clamp(want.x, 0, maxX), wy = clamp(want.y, 0, maxY);
+  const ok = (x, y) => posFree(bi, gid, x, y, W, H);
+  if (ok(wx, wy)) return snapPos(bi, gid, { x: wx, y: wy }, W, H);
+
   const obs = obstacleBoxes(bi, gid);
-  const free = (x, y) => x >= -0.5 && y >= -0.5 && x + W <= board.w + 0.5 && y + H <= board.l + 0.5 &&
-    !obs.some(o => rectsOverlap({ x, y, w: W, h: H }, o));
-  if (free(want.x, want.y)) return want;
-  const hit = obs.find(o => rectsOverlap({ x: want.x, y: want.y, w: W, h: H }, o));
-  if (!hit) return null;
-  const cands = [
-    { x: hit.x - W - k, y: want.y }, { x: hit.x + hit.w + k, y: want.y },
-    { x: want.x, y: hit.y - H - k }, { x: want.x, y: hit.y + hit.h + k },
-  ].map(c => ({ x: clamp(c.x, 0, board.w - W), y: clamp(c.y, 0, board.l - H) }))
-   .filter(c => free(c.x, c.y))
-   .sort((a, c) => Math.hypot(a.x - want.x, a.y - want.y) - Math.hypot(c.x - want.x, c.y - want.y));
-  return cands[0] || null;
+  let best = null, bestD = Infinity;
+  const consider = (x, y) => {
+    x = clamp(x, 0, maxX); y = clamp(y, 0, maxY);
+    if (!ok(x, y)) return;
+    const d = (x - wx) ** 2 + (y - wy) ** 2;
+    if (d < bestD) { bestD = d; best = { x, y }; }
+  };
+  // butt against each obstacle's four sides (aligned to want, and to the obstacle)
+  for (const o of obs) {
+    consider(o.x + o.w + k, wy); consider(o.x - W - k, wy);
+    consider(wx, o.y + o.h + k); consider(wx, o.y - H - k);
+    consider(o.x + o.w + k, o.y); consider(o.x - W - k, o.y);
+    consider(o.x, o.y + o.h + k); consider(o.x, o.y - H - k);
+  }
+  consider(settings.trim, settings.trim);
+  if (best) return snapPos(bi, gid, best, W, H);
+
+  // fallback: coarse grid scan for the closest clear spot
+  const step = 14;
+  for (let x = 0; x <= maxX; x += step) for (let y = 0; y <= maxY; y += step) consider(x, y);
+  return best ? snapPos(bi, gid, best, W, H) : { x: wx, y: wy };
+}
+function snapPos(bi, gid, p, W, H) {
+  let x = snap(p.x, [settings.trim, ...edgeXs(bi, gid)]);
+  let y = snap(p.y, [settings.trim, ...edgeYs(bi, gid)]);
+  if (!posFree(bi, gid, x, y, W, H)) return p;   // snapping re-collided → keep the free spot
+  return { x, y };
+}
+// kept for callers that expect the old name
+function resolveCollision(bi, gid, want) { return nearestFree(bi, gid, want); }
+
+// ── FLOATING DRAG GHOST (visible across all boards) ──────────────────────
+function ghostShow(text, wpx, hpx, color) {
+  const el = $("dragGhost");
+  el.textContent = text;
+  el.style.width = Math.max(24, wpx) + "px";
+  el.style.height = Math.max(16, hpx) + "px";
+  el.style.borderColor = color || "#2196f3";
+  el.style.background = (color ? hexA(color, 0.28) : "rgba(33,150,243,0.28)");
+  el.style.display = "block";
+  document.body.classList.add("dragging");
+}
+function ghostMove(clientX, clientY) {
+  const el = $("dragGhost");
+  el.style.left = (clientX - el.offsetWidth / 2) + "px";
+  el.style.top = (clientY - el.offsetHeight / 2) + "px";
+}
+function ghostHide() {
+  $("dragGhost").style.display = "none";
+  document.body.classList.remove("dragging");
+}
+function hexA(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }
 
 // Tidy a board so nothing overlaps: keep reading order, push each run down
@@ -1566,97 +1645,85 @@ function settleBoard(bi) {
 }
 function settleAll() { layout.boards.forEach((_, bi) => settleBoard(bi)); }
 
-// Drag a whole run around a board (and between boards). Smooth: only the
-// dragged <g> is transformed during the move; the layout + full re-render
-// happen once on drop.
+// Drag a whole run — a floating ghost follows the cursor across every board,
+// and on drop the run snaps to the nearest spot where it doesn't overlap.
 function enableDrag(handleEl, svg, bi, gid, scale) {
   handleEl.style.cursor = "grab";
   handleEl.addEventListener("pointerdown", ev => {
     if (ev.button > 0) return;
     ev.preventDefault(); ev.stopPropagation();
     selectGroup(gid);
+    const g = groups.find(x => x.id === gid);
+    const gi = groups.indexOf(g), color = COLORS[gi % COLORS.length];
     const grp = svg.querySelector(`g.group-rect[data-gid="${cssq(gid)}"]`);
     grp.classList.add("dragging");
-    const g = groups.find(x => x.id === gid);
-    const start = svgPoint(svg, ev);
-    const p0 = { ...layout.boards[bi].placements[gid] };
-    let cur = { ...p0 };
     try { handleEl.setPointerCapture(ev.pointerId); } catch {}
 
     const W = groupWidth(g), H = groupLen(g);
-    function move(e) {
-      const pt = svgPoint(svg, e);
-      let nx = clamp(p0.x + (pt.x - start.x) / scale, 0, board.w - W);
-      let ny = clamp(p0.y + (pt.y - start.y) / scale, 0, board.l - H);
-      nx = snap(nx, [settings.trim, ...edgeXs(bi, gid)]);
-      ny = snap(ny, [settings.trim, ...edgeYs(bi, gid)]);
-      // slide along obstacles: move on each axis only if that keeps it clear
-      let tx = cur.x, ty = cur.y;
-      if (posFree(bi, gid, nx, ty, W, H)) tx = nx;
-      if (posFree(bi, gid, tx, ny, W, H)) ty = ny;
-      if (tx === cur.x && ty === cur.y && posFree(bi, gid, nx, ny, W, H)) { tx = nx; ty = ny; }
-      cur = { x: tx, y: ty };
-      grp.setAttribute("transform", `translate(${(cur.x - p0.x) * scale} ${(cur.y - p0.y) * scale})`);
-    }
+    const scr = svg.getBoundingClientRect().width / svg.viewBox.baseVal.width; // vb→px on screen
+    ghostShow(`${g.unitName} ${orientGlyph(g.orient)}\n${Math.round(W)}×${Math.round(H)}`,
+      W * scale * scr, H * scale * scr, color);
+    ghostMove(ev.clientX, ev.clientY);
+
+    function move(e) { ghostMove(e.clientX, e.clientY); }
     function up(e) {
       grp.classList.remove("dragging");
       try { handleEl.releasePointerCapture(ev.pointerId); } catch {}
-      svg.removeEventListener("pointermove", move);
+      window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
+      ghostHide();
       const overBi = boardUnderPointer(e);
       const tbi = overBi != null ? overBi : bi;
+      const tsvg = document.querySelector(`svg.board[data-board="${tbi}"]`);
+      const pt = svgPoint(tsvg, e);
+      const want = { x: pt.x / scale - W / 2, y: pt.y / scale - H / 2 };
       if (tbi !== bi) delete layout.boards[bi].placements[gid];
-      const want = {
-        x: clamp(cur.x, 0, board.w - groupWidth(g)),
-        y: clamp(cur.y, 0, board.l - groupLen(g)),
-      };
-      layout.boards[tbi].placements[gid] = resolveCollision(tbi, gid, want) || want;
+      layout.boards[tbi].placements[gid] = nearestFree(tbi, gid, want, W, H);
       const merged = maybeMergeOnDrop(gid, tbi);
       if (tbi !== bi || merged) settleBoard(tbi);
       saveLayout(); render();
     }
-    svg.addEventListener("pointermove", move);
+    window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
   });
 }
 
-// Drag one front cell: drop it onto another run (same orientation) to move
-// it there, drop it on empty board space to pop it into its own run, or
-// drop it back over its own run to reorder.
+// Drag one front cell: a floating ghost follows the cursor across every
+// board; drop onto a same-width run to move it there, onto empty space to
+// pop it into its own run (snapped to the nearest free spot), or back over
+// its own run to reorder.
 function enableFrontDrag(cell, svg, bi, gid, fi, scale) {
   cell.style.cursor = "grab";
   cell.addEventListener("pointerdown", ev => {
     if (ev.button > 0) return;
     ev.preventDefault(); ev.stopPropagation();
     selectGroup(gid);
-    const start = svgPoint(svg, ev);
     try { cell.setPointerCapture(ev.pointerId); } catch {}
-    cell.style.opacity = "0.4";
     let moved = false, lastE = ev;
+    const startXY = { x: ev.clientX, y: ev.clientY };
 
-    // floating ghost
     const g = groups.find(x => x.id === gid);
     const f = g.fronts[fi];
-    const gw = (g.orient === "h" ? f.h : g.width) * scale;
-    const gh = (g.orient === "h" ? g.width : f.h) * scale;
-    const ghost = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-    ghost.setAttribute("width", gw); ghost.setAttribute("height", gh);
-    ghost.setAttribute("fill", "#2196f3"); ghost.setAttribute("fill-opacity", "0.35");
-    ghost.setAttribute("stroke", "#2196f3"); ghost.setAttribute("stroke-width", "1.5");
-    ghost.setAttribute("pointer-events", "none");
-    svg.appendChild(ghost);
+    const scr = svg.getBoundingClientRect().width / svg.viewBox.baseVal.width;
+    const gw = (g.orient === "h" ? f.h : g.width) * scale * scr;
+    const gh = (g.orient === "h" ? g.width : f.h) * scale * scr;
 
     function move(e) {
-      moved = true; lastE = e;
-      const pt = svgPoint(svg, e);
-      ghost.setAttribute("x", pt.x - gw / 2);
-      ghost.setAttribute("y", pt.y - gh / 2);
+      if (!moved && Math.hypot(e.clientX - startXY.x, e.clientY - startXY.y) < 4) return;
+      if (!moved) {
+        moved = true;
+        cell.classList.add("dragging");
+        ghostShow(`${g.unitName}\n${f.label}\n${g.width}×${f.h}`, gw, gh, "#4aa3ff");
+      }
+      lastE = e;
+      ghostMove(e.clientX, e.clientY);
     }
     function up(e) {
-      cell.style.opacity = ""; ghost.remove();
+      cell.classList.remove("dragging");
       try { cell.releasePointerCapture(ev.pointerId); } catch {}
-      svg.removeEventListener("pointermove", move);
+      window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
+      ghostHide();
       if (!moved) { selectGroup(gid); render(); return; }
 
       const hit = frontDropTarget(lastE, gid, g.width);
@@ -1683,13 +1750,9 @@ function enableFrontDrag(cell, svg, bi, gid, fi, scale) {
         const ng = { id: nid, unitName: shortUnit(g.unitName), width: g.width, orient: g.orient, fronts: [it] };
         groups.push(ng);
         const pt = svgPoint(document.querySelector(`svg.board[data-board="${tbi}"]`), lastE);
-        const nx = clamp(pt.x / scale - groupWidth(ng) / 2, 0, board.w - groupWidth(ng));
-        const ny = clamp(pt.y / scale - groupLen(ng) / 2, 0, board.l - groupLen(ng));
-        const want = {
-          x: snap(nx, [settings.trim, ...edgeXs(tbi, nid)]),
-          y: snap(ny, [settings.trim, ...edgeYs(tbi, nid)]),
-        };
-        layout.boards[tbi].placements[nid] = resolveCollision(tbi, nid, want) || want;
+        const NW = groupWidth(ng), NH = groupLen(ng);
+        const want = { x: pt.x / scale - NW / 2, y: pt.y / scale - NH / 2 };
+        layout.boards[tbi].placements[nid] = nearestFree(tbi, nid, want, NW, NH);
         cleanupIfEmpty(gid);
         selectedGid = nid;
         touched.push(tbi);
@@ -1697,7 +1760,7 @@ function enableFrontDrag(cell, svg, bi, gid, fi, scale) {
       [...new Set(touched)].forEach(x => { if (x >= 0) settleBoard(x); });
       saveLayout(); render();
     }
-    svg.addEventListener("pointermove", move);
+    window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
   });
 }
