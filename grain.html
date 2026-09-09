@@ -76,7 +76,12 @@
   /* workspace */
   .workspace { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
   .boards-col { flex: 1 1 620px; min-width: 0; }
-  .side-col { flex: 0 1 320px; min-width: 280px; }
+  .side-col {
+    flex: 0 1 320px; min-width: 280px;
+    position: sticky; top: 14px; align-self: flex-start;
+    max-height: calc(100vh - 28px); overflow-y: auto;
+  }
+  .side-col > .card { margin-bottom: 0; }
 
   .toolbar {
     display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end;
@@ -310,6 +315,8 @@
         <label>Stærð á skjá</label>
         <input type="range" id="boardSize" min="320" max="1500" step="20" style="width:150px;padding:0;" />
       </div>
+      <button class="ghost small" id="undoBtn" onclick="undo()" title="Afturkalla (⌘Z)" disabled>↶</button>
+      <button class="ghost small" id="redoBtn" onclick="redo()" title="Endurgera (⌘⇧Z)" disabled>↷</button>
       <button class="primary office-only" onclick="autoNest()">↻ Raða sjálfvirkt</button>
       <button class="ghost" id="snapBtn" onclick="toggleFreeMove()"></button>
       <button class="ghost office-only" onclick="addBoard()">+ Plata</button>
@@ -427,7 +434,52 @@ function saveLayout() {
     }));
   } catch {}
   if (typeof schedulePlanSave === "function") schedulePlanSave();  // office: mirror to Airtable (debounced)
+  if (typeof pushHistory === "function") pushHistory();            // undo/redo
 }
+
+// ── UNDO / REDO (Cmd/Ctrl+Z, +Shift for redo) ────────────────────────────
+let history = [];
+let histIdx = -1;
+let applyingHistory = false;
+function resetHistory() { history = []; histIdx = -1; }
+function pushHistory() {
+  if (applyingHistory || loadingPlan || !selectedKey) return;
+  const s = serializePlan();
+  if (history[histIdx] === s) return;
+  history = history.slice(0, histIdx + 1);
+  history.push(s);
+  if (history.length > 80) history.shift();
+  histIdx = history.length - 1;
+  updateUndoButtons();
+}
+function restoreHistory() {
+  applyingHistory = true;
+  try {
+    applyPlan(JSON.parse(history[histIdx]));
+    syncToolbarInputs();
+    selectedGid = null;
+    render();
+    saveLayout();        // persist to localStorage / plan draft — pushHistory bails while applyingHistory
+  } finally { applyingHistory = false; }
+  updateUndoButtons();
+}
+function undo() { if (histIdx > 0) { histIdx--; restoreHistory(); } }
+function redo() { if (histIdx < history.length - 1) { histIdx++; restoreHistory(); } }
+function updateUndoButtons() {
+  const u = $("undoBtn"), r = $("redoBtn");
+  if (u) u.disabled = histIdx <= 0;
+  if (r) r.disabled = histIdx >= history.length - 1;
+}
+document.addEventListener("keydown", e => {
+  if (guide && !$("guideOverlay").classList.contains("hidden")) return;
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+  if ((e.metaKey || e.ctrlKey) && (e.key === "z" || e.key === "Z")) {
+    e.preventDefault();
+    e.shiftKey ? redo() : undo();
+  } else if ((e.metaKey || e.ctrlKey) && (e.key === "y" || e.key === "Y")) {
+    e.preventDefault(); redo();
+  }
+});
 function loadStoredLayout() {
   try {
     const raw = localStorage.getItem(layoutKey());
@@ -740,6 +792,7 @@ async function loadFloorPlans(name) {
 function openFloorPlanById(id) { openFloorPlan(projectPlans.find(p => p.id === id)); }
 function openFloorPlan(rec) {
   selectedKey = rec.fields[PL_EFNI] || "plan";
+  resetHistory();
   curPlan = { recordId: rec.id, confirmed: true, sourceJSON: rec.fields[PL_JSON] };
   $("materialCard").classList.add("hidden");
   const stored = loadStoredLayout();
@@ -756,6 +809,7 @@ function openFloorPlan(rec) {
   document.body.classList.add("floor");
   renderPlanStrip();
   render();
+  resetHistory(); pushHistory();
   openGuide();
 }
 function reloadConfirmedPlan() {
@@ -801,6 +855,7 @@ const boardRO = new ResizeObserver(entries => {
 // ── GROUPING ─────────────────────────────────────────────────────────────
 function selectMaterial(key) {
   selectedKey = key;
+  resetHistory();
   document.querySelectorAll(".mat-item").forEach(el => el.classList.toggle("active", el.dataset.key === key));
   const mat = materials.find(m => m.key === key);
 
@@ -842,6 +897,7 @@ function selectMaterial(key) {
   renderPlanStrip();
   $("workspaceCard").classList.remove("hidden");
   render();
+  resetHistory(); pushHistory();   // baseline = the layout as first shown
 }
 
 function matchBoard(efni, th) {
@@ -2223,6 +2279,7 @@ checkVersion();
 // ── INIT ─────────────────────────────────────────────────────────────────
 function resetAll() {
   currentProjectId = null; selectedKey = null; selectedGid = null; curPlan = null; manualFronts = [];
+  resetHistory();
   clearTimeout(planSaveTimer);
   $("searchCard").classList.remove("hidden");
   $("projectCard").classList.add("hidden");
