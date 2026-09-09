@@ -380,9 +380,13 @@ const U_PROJECT_LINK = "Tækifæri 📣 (projects)", U_PROJECT_LINK_OLD = "Tæki
 // (Innskúffufrontur) sit inside the cabinet and are excluded.
 const FRONT_RE  = /(frontur|blindlok|áfella|afella|vænghurð|vaenghurd|sökkul cover|sokkul cover)/i;
 const HIDDEN_RE = /(innskúffufrontur|innskuffufrontur)/i;
-// Wing doors / split fronts: two+ panels over one opening — must be cut side
-// by side, upright, so the grain figure runs continuously across the seam.
-const SIDEBYSIDE_RE = /(væng|vaeng|skipt)/i;
+// Wing doors: a horizontal pair over one opening — cut side by side, upright,
+// so the grain figure runs continuously across the seam.
+const SIDEBYSIDE_RE = /(væng|vaeng)/i;
+// Wing doors + split fronts (vertical split, "skiptur frontur") — one door's
+// worth of grain, so keep the run together (never auto-split); split fronts
+// stack (grain top→bottom), wing doors go side by side.
+const KEEPTOGETHER_RE = /(væng|vaeng|skipt)/i;
 // Wood-look / veneer decors where sequential grain matters.
 const GRAIN_RE  = /(eik|hnot|valhnot|ash|askur|beyk|beech|fura|pine|wenge|teak|oak|walnut|spónlag|spónlög|sponlag|spónn|spon |rift|masterlin|linoak|hickory|acacia|akasía|kirsu|cherry|birki|birch|reykt)/i;
 // Blum drawer-height codes, roughly narrow→tall — a sane default top→bottom order.
@@ -687,7 +691,7 @@ function serializePlan() {
     settings: { kerf: settings.kerf, trim: settings.trim, grid: settings.grid },
     groups: groups.map(g => ({
       id: g.id, unitName: g.unitName, width: g.width, orient: g.orient,
-      keepTogether: !!g.keepTogether, autoSplit: !!g.autoSplit,
+      keepTogether: !!g.keepTogether, autoSplit: !!g.autoSplit, kind: g.kind || "",
       fronts: g.fronts.map(f => ({
         pieceId: f.pieceId, label: f.label, h: f.h, code: f.code || "", err: !!f.err,
         manual: !!f.manual, mfId: f.mfId,
@@ -931,12 +935,15 @@ function buildGroups() {
   for (const p of rows) {
     const gk = `${p.unitId}|${Math.round(p.b)}`;
     const sbs = SIDEBYSIDE_RE.test(p.partur);
+    const keep = KEEPTOGETHER_RE.test(p.partur);
     if (!map.has(gk)) map.set(gk, {
       id: gk, unitName: p.unitName, width: Math.round(p.b),
-      orient: sbs ? "s" : "v", keepTogether: sbs, fronts: [],
+      orient: sbs ? "s" : "v", keepTogether: keep, kind: sbs ? "væng" : keep ? "skiptur" : "", fronts: [],
     });
     const g = map.get(gk);
-    if (sbs) { g.orient = "s"; g.keepTogether = true; }
+    if (sbs) { g.orient = "s"; g.kind = "væng"; }
+    else if (keep && !g.kind) g.kind = "skiptur";
+    if (keep) g.keepTogether = true;
     for (let i = 0; i < p.m; i++) {
       g.fronts.push({
         pieceId: p.id,
@@ -1054,15 +1061,17 @@ function normalizeGroups() {
   const out = [];
   for (const g of groups) {
     if (fits(g)) { out.push(g); continue; }
-    // try the other arrangements before giving up
-    const order = g.keepTogether ? ["s", "v", "h"] : ["v", "s", "h"];
+    // try the other arrangements before giving up — keep the run's own
+    // starting orientation first (wing = "s", split front = "v")
+    const start = g.orient;
+    const order = [start, ...["v", "s", "h"].filter(o => o !== start)];
     let done = false;
     for (const o of order) {
       g.orient = o;
       if (g.fronts.length > 1 && fits(g)) { out.push(g); done = true; break; }
     }
     if (done) continue;
-    if (g.keepTogether) { g.orient = "s"; out.push(g); continue; } // leave overflowing, warn — never split a wing/split pair
+    if (g.keepTogether) { g.orient = start; out.push(g); continue; } // leave overflowing, warn — never split a wing/split pair
     g.fronts.forEach((f, i) => out.push({
       id: `${g.id}#${i}`, unitName: g.unitName + " · " + (i + 1), width: g.width, orient: "v", fronts: [f], autoSplit: true,
     }));
@@ -1811,7 +1820,7 @@ function renderPanel() {
     const manualG = isManualGroup(g);
     return `
     <div class="grp ${sel ? "sel" : ""}" onclick="pickGroup('${g.id}')">
-      <h4 style="color:${color}">${esc(g.unitName)} ${orientGlyph(g.orient)}${g.keepTogether ? " · væng" : ""}${manualG ? " · handvirkt" : ""}</h4>
+      <h4 style="color:${color}">${esc(g.unitName)} ${orientGlyph(g.orient)}${g.kind ? " · " + g.kind : ""}${manualG ? " · handvirkt" : ""}</h4>
       <div class="gm">${g.fronts.length} frontar · ${Math.round(groupWidth(g))}×${Math.round(groupLen(g))} mm · plata ${boardOfGroup(g.id) + 1}${g.autoSplit ? " · sjálfvirk skipting" : ""}</div>
       <div class="front-list" data-gid="${g.id}">
       ${g.fronts.map((f, i) => `
