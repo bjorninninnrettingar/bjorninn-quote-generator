@@ -75,8 +75,8 @@
 
   /* workspace */
   .workspace { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
-  .boards-col { flex: 1 1 620px; min-width: 0; overflow-x: auto; }
-  .side-col { flex: 0 1 340px; min-width: 280px; }
+  .boards-col { flex: 1 1 620px; min-width: 0; }
+  .side-col { flex: 0 1 320px; min-width: 280px; }
 
   .toolbar {
     display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end;
@@ -89,11 +89,11 @@
   .stat { font-size: 0.85rem; color: #aaa; }
   .stat b { color: #f0f0f0; font-size: 1.05rem; display: block; }
 
-  #boardsCol { display: flex; flex-direction: column; gap: 30px; align-items: flex-start; }
+  #boardsCol { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
   .board-wrap {
     margin-bottom: 4px;
-    width: var(--board-w, 760px);
-    min-width: 260px;
+    width: var(--board-w, 440px);
+    min-width: 240px;
     resize: horizontal; overflow: hidden;   /* drag the bottom-right corner */
   }
   .board-wrap svg.board { width: 100%; }
@@ -381,7 +381,7 @@ const GRAIN_RE  = /(eik|hnot|valhnot|ash|askur|beyk|beech|fura|pine|wenge|teak|o
 // Blum drawer-height codes, roughly narrow→tall — a sane default top→bottom order.
 const CODE_RANK = { N: 0, M: 1, K: 2, C: 3, D: 4, F: 5, E: 6 };
 
-const DEFAULTS = { kerf: 4.4, trim: 10, grid: 25, freeMove: false, boardPx: 760 };
+const DEFAULTS = { kerf: 4.4, trim: 10, grid: 25, freeMove: false, boardPx: 440 };
 
 // ── STATE ────────────────────────────────────────────────────────────────
 let projects = [];
@@ -1358,43 +1358,49 @@ function renderBoards() {
         }
 
         {
+          const FS = 26, charW = FS * 0.58;
           const label = `${fi + 1}. ${f.label} · ${g.width}×${f.h}${f.err ? " ⚠" : ""}`;
+          const short = `${fi + 1}. ${g.width}×${f.h}`;
           const t = document.createElementNS(svgNS, "text");
-          t.setAttribute("fill", "#eee"); t.setAttribute("font-size", "9");
-          const fitsFlat = label.length * 4.7 <= cw - 6;
-          if (!fitsFlat && ch > 60 && ch > cw) {
-            // label would overflow a portrait cell — run it up the left edge
-            t.setAttribute("x", cx + 11); t.setAttribute("y", cy + ch - 5);
-            t.setAttribute("transform", `rotate(-90 ${cx + 11} ${cy + ch - 5})`);
-            t.textContent = label;
-          } else if (ch > 13 && cw > 24) {
-            t.setAttribute("x", cx + 4); t.setAttribute("y", cy + 12);
-            t.textContent = fitsFlat ? label : `${fi + 1}. ${g.width}×${f.h}`;
+          t.setAttribute("fill", "#fff"); t.setAttribute("font-size", FS); t.setAttribute("font-weight", "600");
+          let txt = "";
+          const portrait = ch > cw * 1.15;
+          if (portrait && ch > FS + 12) {
+            const fit = s => s.length * charW <= ch - 16;
+            txt = fit(label) ? label : fit(short) ? short : `${fi + 1}`;
+            const ax = cx + FS - 4, ay = cy + ch - 8;
+            t.setAttribute("x", ax); t.setAttribute("y", ay);
+            t.setAttribute("transform", `rotate(-90 ${ax} ${ay})`);
+          } else if (cw > 42 && ch > FS + 8) {
+            const fit = s => s.length * charW <= cw - 14;
+            txt = fit(label) ? label : fit(short) ? short : `${fi + 1}`;
+            t.setAttribute("x", cx + 6); t.setAttribute("y", cy + FS + 2);
           }
-          if (t.textContent) cell.appendChild(t);
+          if (txt) { t.textContent = txt; cell.appendChild(t); }
         }
         enableFrontDrag(cell, svg, bi, gid, fi, scale);
         grp.appendChild(cell);
         off += frontExtent(g, f) * scale + settings.kerf * scale;
       });
 
-      // header label + drag handle for the whole run
+      // header label + drag handle for the whole run (clamped so it stays on the board)
+      const topY = Math.max(gy, 24);
       const hl = document.createElementNS(svgNS, "text");
-      hl.setAttribute("x", gx + 20); hl.setAttribute("y", gy - 3);
-      hl.setAttribute("fill", "#ccc"); hl.setAttribute("font-size", "10");
+      hl.setAttribute("x", gx + 34); hl.setAttribute("y", topY - 6);
+      hl.setAttribute("fill", "#ddd"); hl.setAttribute("font-size", "17");
       hl.textContent = `${g.unitName} ${orientGlyph(g.orient)} · ${Math.round(groupWidth(g))}×${Math.round(groupLen(g))}`;
       grp.appendChild(hl);
 
       const handle = document.createElementNS(svgNS, "g");
       handle.setAttribute("class", "run-handle");
       const hb = document.createElementNS(svgNS, "rect");
-      hb.setAttribute("x", gx); hb.setAttribute("y", gy - 13);
-      hb.setAttribute("width", 16); hb.setAttribute("height", 13);
-      hb.setAttribute("rx", 2); hb.setAttribute("fill", color);
+      hb.setAttribute("x", gx); hb.setAttribute("y", topY - 24);
+      hb.setAttribute("width", 27); hb.setAttribute("height", 21);
+      hb.setAttribute("rx", 3); hb.setAttribute("fill", color);
       handle.appendChild(hb);
       const hg = document.createElementNS(svgNS, "text");
-      hg.setAttribute("x", gx + 3.5); hg.setAttribute("y", gy - 3);
-      hg.setAttribute("font-size", "10"); hg.setAttribute("fill", "#fff");
+      hg.setAttribute("x", gx + 6); hg.setAttribute("y", topY - 8);
+      hg.setAttribute("font-size", "17"); hg.setAttribute("fill", "#fff");
       hg.textContent = "⠿";
       handle.appendChild(hg);
       grp.appendChild(handle);
