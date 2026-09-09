@@ -75,6 +75,7 @@ const ALLOWED_FIELDS = {
     "Breidd (mm)",
     "Lengd (mm)",
     "Þykkt (mm)",
+    "Undirflokkur 🗂️", // grain.html: is a part's material frontaefni / spónlagt / hurð?
   ],
   "tblDQWuf4OSjUv2XI": [ // QUICK FIX❗
     "Verkheiti",

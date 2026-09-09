@@ -403,6 +403,7 @@ const S_EYDUBLAD  = "Eyðublað ✏️";
 const S_VILLA     = "Villa?";
 
 const E_HEITI = "Heiti efnis", E_BREIDD = "Breidd (mm)", E_LENGD = "Lengd (mm)", E_THYKKT = "Þykkt (mm)";
+const E_SUB = "Undirflokkur 🗂️";   // Frontaefni / Spónlagt / Hurð / Skrokka efni / Harðplast / Borðplata
 
 const EYDUBLAD_TABLE = "tbl0WcyHhz63pSzZX";
 const U_NAME = "Athugasemd";               // Eyðublað's own primary field ("Sk 20-22")
@@ -411,10 +412,11 @@ const U_PROJECT_LINK = "Tækifæri 📣 (projects)", U_PROJECT_LINK_OLD = "Tæki
 // Visible fronts whose grain the customer sees. Inner drawer fronts
 // (Innskúffufrontur) sit inside the cabinet and are excluded.
 const FRONT_RE  = /(frontur|blindlok|áfella|afella|vænghurð|vaenghurd|sökkul cover|sokkul cover)/i;
+// "FRE" / "FRE2" in the Partur text = the part is cut from frontaefni.
+const FRE_RE    = /\bfre\d?\b/i;
+// A part whose material lands in one of these Undirflokkar is front material.
+const FRONT_SUBS = new Set(["Frontaefni", "Spónlagt", "Hurð"]);
 const HIDDEN_RE = /(innskúffufrontur|innskuffufrontur)/i;
-// Broader net — a row matching this but not FRONT_RE (or missing dims) is
-// flagged as "possibly a missing front" rather than silently dropped.
-const MAYBE_FRONT_RE = /(front|hurð|hurd|blindlok|áfell|afell|lúg|lug|hlið|hlid|áfella|klæðn|klaedn)/i;
 // Wing doors: a horizontal pair over one opening — cut side by side, upright,
 // so the grain figure runs continuously across the seam.
 const SIDEBYSIDE_RE = /(væng|vaeng)/i;
@@ -621,7 +623,29 @@ async function fetchFrontsForProject(name) {
   });
 }
 async function fetchBoards() {
-  return airtableFetch(EFNISLISTI_TABLE, { "fields[]": [E_HEITI, E_BREIDD, E_LENGD, E_THYKKT], pageSize: 100 });
+  return airtableFetch(EFNISLISTI_TABLE, { "fields[]": [E_HEITI, E_BREIDD, E_LENGD, E_THYKKT, E_SUB], pageSize: 100 });
+}
+// Look up a material's Undirflokkur by its resolved Efni: name.
+const _subCache = new Map();
+function materialSub(efni) {
+  if (_subCache.has(efni)) return _subCache.get(efni);
+  const v = _materialSub(efni);
+  _subCache.set(efni, v);
+  return v;
+}
+function _materialSub(efni) {
+  const k = norm(efni);
+  if (!k) return "";
+  for (const b of boards) if (b.sub && norm(b.name) === k) return b.sub;
+  for (const b of boards) if (b.sub && (norm(b.name).startsWith(k) || k.startsWith(norm(b.name)))) return b.sub;
+  const toks = new Set(k.split(" ").filter(t => t.length > 2));
+  let best = "", bestScore = 1;
+  for (const b of boards) {
+    if (!b.sub) continue;
+    const s = norm(b.name).split(" ").filter(t => toks.has(t)).length;
+    if (s > bestScore) { bestScore = s; best = b.sub; }
+  }
+  return best;
 }
 // The proxy returns linked-record fields as bare id arrays, so Sögunarlisti's
 // Eyðublað link gives us ids only — fetch the units to map id → short name.
@@ -682,31 +706,35 @@ async function loadProject(id) {
     projectPlans = plans;
     boards = brd.map(r => ({
       name: r.fields[E_HEITI] || "", w: num(r.fields[E_BREIDD]), l: num(r.fields[E_LENGD]), th: num(r.fields[E_THYKKT]),
+      sub: r.fields[E_SUB]?.name || r.fields[E_SUB] || "",
     }));
+    _subCache.clear();
 
     const parsed = rows.map(r => {
       const f = r.fields;
       const efni = (f[S_EFNI] || f[S_EFNI_BASE] || "").replace(/\s*[–-]\s*$/, "").trim();
       const uid = (f[S_EYDUBLAD] || [])[0];              // proxy returns bare id string
       const id = typeof uid === "string" ? uid : uid?.id;
+      const partur = f[S_PARTUR] || "";
+      // Front material = FRE/FRE2 in the Partur, OR a recognised front word,
+      // OR the resolved material's Undirflokkur is Frontaefni/Spónlagt/Hurð.
+      const frontMat = FRE_RE.test(partur) || FRONT_SUBS.has(materialSub(efni));
       return {
-        id: r.id,
-        partur: f[S_PARTUR] || "",
+        id: r.id, partur,
         h: num(f[S_H]), b: num(f[S_B]), th: num(f[S_TH]), m: Math.max(1, num(f[S_M]) || 1),
-        efni,
+        efni, frontMat,
         unitId: id || "?",
         unitName: (id && unitNames[id]) || (typeof uid === "object" ? uid?.name : "") || "óþekkt eining",
         err: !!f[S_VILLA],
       };
     });
-    allFronts = parsed.filter(p =>
-      FRONT_RE.test(p.partur) && !HIDDEN_RE.test(p.partur) && p.h > 0 && p.b > 0
-    );
-    // rows that look like fronts but got dropped — surfaced so nothing is silently lost
+    const isFront = p => (FRONT_RE.test(p.partur) || p.frontMat) && !HIDDEN_RE.test(p.partur);
+    allFronts = parsed.filter(p => isFront(p) && p.h > 0 && p.b > 0);
+    // front-material rows (or explicit "frontur") that got dropped — usually missing dims
     skippedFronts = parsed.filter(p => !allFronts.includes(p) && !HIDDEN_RE.test(p.partur) &&
-      MAYBE_FRONT_RE.test(p.partur)).map(p => ({
+      (p.frontMat || /\bfrontur\b/i.test(p.partur))).map(p => ({
         ...p,
-        reason: (p.h <= 0 || p.b <= 0) ? "vantar H/B" : !FRONT_RE.test(p.partur) ? "óþekkt Partur" : "annað",
+        reason: (p.h <= 0 || p.b <= 0) ? "vantar H eða B" : "annað",
       }));
 
     if (!allFronts.length) {
@@ -725,6 +753,7 @@ async function loadProject(id) {
 // Décor codes: "U####" = Uni (solid colour), "H####" = Holz (woodgrain).
 // The species keyword list is a backup for names without a code.
 function isGrainMaterial(name) {
+  if (materialSub(name) === "Spónlagt") return true;   // veneered → always grain
   if (/\bH\s?\d{3,4}\b/i.test(name)) return true;
   if (/\bU\s?\d{3,4}\b/i.test(name)) return false;
   return GRAIN_RE.test(name);
@@ -987,6 +1016,7 @@ function selectMaterial(key) {
 
   manualFronts = loadManual();
   buildGroups();
+  const freshGroups = groups;   // built from current Sögunarlisti, incl. any new fronts
 
   loadingPlan = true;
   try {
@@ -1002,11 +1032,51 @@ function selectMaterial(key) {
     }
   } finally { loadingPlan = false; }
 
+  checkNewFronts(freshGroups);
   syncToolbarInputs();
   renderPlanStrip();
   $("workspaceCard").classList.remove("hidden");
   render();
   resetHistory(); pushHistory();   // baseline = the layout as first shown
+}
+
+// After loading a saved plan, warn if Sögunarlisti now has fronts the plan
+// doesn't — offer to fold them in rather than silently miss them.
+let pendingNewFronts = [];
+function checkNewFronts(freshGroups) {
+  const inPlan = new Set(groups.flatMap(g => g.fronts.map(f => f.pieceId).filter(Boolean)));
+  pendingNewFronts = [];
+  for (const fg of freshGroups) {
+    const missing = fg.fronts.filter(f => f.pieceId && !inPlan.has(f.pieceId));
+    if (missing.length) pendingNewFronts.push({ ...fg, fronts: missing });
+  }
+  const el = $("skippedCard");
+  el.querySelector("#newFrontsCard")?.remove();
+  if (!pendingNewFronts.length) return;
+  const n = pendingNewFronts.reduce((s, g) => s + g.fronts.length, 0);
+  const lis = pendingNewFronts.map(g => {
+    const names = g.fronts.map(f => esc(f.label) + " " + f.h).join(", ");
+    return "<li><b>" + esc(g.unitName) + "</b> — " + names + "</li>";
+  }).join("");
+  el.insertAdjacentHTML("beforeend", `<div class="card" id="newFrontsCard" style="border-color:#2f5a8c;background:#101a26;">
+    <label style="color:#8fbaff;">🆕 ${n} nýir frontar í Sögunarlista sem eru ekki í þessu skipulagi</label>
+    <ul style="font-size:0.82rem;color:#ddd;padding-left:20px;margin-top:6px;">${lis}</ul>
+    <button class="primary small" onclick="addNewFronts()">Bæta þeim við skipulagið</button>
+  </div>`);
+}
+function addNewFronts() {
+  for (const ng of pendingNewFronts) {
+    const existing = groups.find(g => g.id === ng.id);
+    if (existing) existing.fronts.push(...ng.fronts.map(f => ({ ...f })));
+    else groups.push({ ...ng, fronts: ng.fronts.map(f => ({ ...f })) });
+  }
+  pendingNewFronts = [];
+  const b = layout.boards[layout.boards.length - 1] || (layout.boards.push({ placements: {} }), layout.boards[0]);
+  for (const g of groups) if (!layout.boards.some(bd => g.id in bd.placements)) {
+    b.placements[g.id] = { x: settings.trim, y: settings.trim };
+  }
+  settleAll(); renderSkipped(); render(); saveLayout();
+  toast("Nýju frontarnir bættust við — raðaðu þeim inn.");
 }
 
 function matchBoard(efni, th) {
@@ -1177,7 +1247,9 @@ function isManualGroup(g) { return String(g.id).startsWith("manual~") && g.front
 function normalizeGroups() {
   const maxL = board.l - settings.trim;
   const maxW = board.w - 2 * settings.trim;
-  const fits = g => groupLen(g) <= maxL + 0.5 && groupWidth(g) <= maxW + 0.5;
+  // a few mm of length slack — better a tiny overflow than splitting a
+  // grain-matched stack (the far sheet edge isn't trimmed anyway)
+  const fits = g => groupLen(g) <= maxL + 22 && groupWidth(g) <= maxW + 0.5;
   const out = [];
   for (const g of groups) {
     if (fits(g)) { out.push(g); continue; }
