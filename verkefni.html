@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex" />
+<title>Verkefnisstaða — Björninn</title>
+<style>
+  /* verkefni.html — customer project portal.
+     Served at bjorninn-quote-generator.vercel.app/verkefni?t=<Tækifæri recordId>
+     and iframed into the Wix page bjorninninnrettingar.is/verkefni, which
+     supplies the site header/footer. This page is just the portal body.
+     Data comes through /api/airtable (server-side PAT). Every section renders
+     defensively — a missing field hides its own block, never the page. */
+
+  :root {
+    --bg:      #ffffff;
+    --paper:   #faf7f2;
+    --ink:     #2a2420;
+    --muted:   #8b8177;
+    --line:    #ebe4d9;
+    --accent:  #9c6b3f;   /* walnut */
+    --accent-soft: #f0e4d6;
+    --done:    #5f8f63;
+    --shadow:  0 1px 2px rgba(42,36,32,.04), 0 8px 28px rgba(42,36,32,.06);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.55;
+  }
+
+  .wrap {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 40px 22px 52px;
+  }
+
+  /* ── header / greeting ─────────────────────────────────────────── */
+  .greeting {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 1.9rem;
+    font-weight: 400;
+    letter-spacing: .01em;
+    margin-bottom: 6px;
+  }
+  .refline {
+    font-size: .82rem;
+    color: var(--muted);
+    letter-spacing: .02em;
+    margin-bottom: 22px;
+  }
+  .message {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    border-radius: 10px;
+    padding: 16px 18px;
+    font-size: .98rem;
+    margin-bottom: 34px;
+  }
+  .message p { margin: 0 0 .5em; }
+  .message p:last-child { margin-bottom: 0; }
+  .message a { color: var(--accent); }
+
+  /* ── section shell ────────────────────────────────────────────── */
+  section { margin-bottom: 34px; }
+  .sec-title {
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+
+  /* ── timeline ─────────────────────────────────────────────────── */
+  .timeline {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 0;
+    position: relative;
+  }
+  .tl-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    position: relative;
+    padding-top: 34px;
+  }
+  /* connecting track */
+  .tl-step::before {
+    content: "";
+    position: absolute;
+    top: 13px;
+    left: -50%;
+    width: 100%;
+    height: 2px;
+    background: var(--line);
+  }
+  .tl-step:first-child::before { display: none; }
+  .tl-step.done::before,
+  .tl-step.current::before { background: var(--accent); }
+
+  .tl-dot {
+    position: absolute;
+    top: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--bg);
+    border: 2px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .8rem;
+    color: var(--muted);
+  }
+  .tl-step.done .tl-dot {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .tl-step.current .tl-dot {
+    border-color: var(--accent);
+    color: var(--accent);
+    box-shadow: 0 0 0 5px var(--accent-soft);
+  }
+  .tl-emoji { font-size: 1.15rem; line-height: 1; margin-bottom: 5px; }
+  .tl-label {
+    font-size: .72rem;
+    color: var(--muted);
+    letter-spacing: .01em;
+    padding: 0 3px;
+  }
+  .tl-step.done .tl-label,
+  .tl-step.current .tl-label { color: var(--ink); }
+  .tl-step.current .tl-label { font-weight: 600; }
+
+  @media (max-width: 560px) {
+    .timeline { grid-template-columns: 1fr; gap: 0; }
+    .tl-step {
+      flex-direction: row;
+      text-align: left;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 0 0 20px 0;
+      min-height: 40px;
+    }
+    .tl-step::before {
+      top: 0; left: 13px;
+      width: 2px; height: 100%;
+    }
+    .tl-step:last-child::before { height: 0; }
+    .tl-dot { position: relative; flex: none; }
+    .tl-body { padding-top: 3px; }
+    .tl-emoji { display: inline; margin-right: 6px; }
+    .tl-label { font-size: .9rem; }
+  }
+
+  /* ── delivery ─────────────────────────────────────────────────── */
+  .delivery {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 20px 22px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    box-shadow: var(--shadow);
+  }
+  .delivery .lbl {
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    color: var(--muted);
+  }
+  .delivery .val {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 1.45rem;
+  }
+  .delivery.delivered .val { color: var(--done); }
+
+  /* ── progress bar ─────────────────────────────────────────────── */
+  .progress { margin-top: 16px; }
+  .progress-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: .78rem;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .progress-pct { font-weight: 700; color: var(--ink); }
+  .progress-track {
+    height: 8px;
+    background: var(--line);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 4px;
+    transition: width .6s ease;
+  }
+
+  /* ── materials ────────────────────────────────────────────────── */
+  .materials { display: flex; flex-direction: column; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .mat-row {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 14px;
+    padding: 13px 18px;
+    background: var(--bg);
+    font-size: .92rem;
+  }
+  .mat-row .k { color: var(--muted); }
+  .mat-row .v { color: var(--ink); }
+  @media (max-width: 460px) {
+    .mat-row { grid-template-columns: 1fr; gap: 2px; }
+    .mat-row .k { font-size: .74rem; text-transform: uppercase; letter-spacing: .08em; }
+  }
+
+  /* ── states ───────────────────────────────────────────────────── */
+  #loading, #error {
+    text-align: center;
+    color: var(--muted);
+    padding: 60px 20px;
+    font-size: .95rem;
+  }
+  #error strong { display: block; color: var(--ink); font-size: 1.05rem; margin-bottom: 6px; }
+  .hidden { display: none !important; }
+
+  footer {
+    margin-top: 44px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    font-size: .78rem;
+    color: var(--muted);
+    text-align: center;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="loading">Sæki verkefnisstöðu…</div>
+
+  <div id="error" class="hidden">
+    <strong>Við fundum ekki þetta verkefni</strong>
+    Hlekkurinn gæti verið úreltur. Hafðu samband við okkur á
+    <a href="mailto:bjorninn@bjorninninnrettingar.is">bjorninn@bjorninninnrettingar.is</a>
+    og við sendum þér nýjan.
+  </div>
+
+  <div id="content" class="hidden">
+    <h1 class="greeting" id="greeting"></h1>
+    <div class="refline" id="refline"></div>
+    <div class="message hidden" id="message"></div>
+
+    <section id="timelineSec">
+      <div class="sec-title">Staða verkefnis</div>
+      <div class="timeline" id="timeline"></div>
+    </section>
+
+    <section id="deliverySec" class="hidden">
+      <div class="sec-title">Afhending</div>
+      <div class="delivery" id="delivery">
+        <span class="lbl" id="deliveryLbl">Áætluð afhending</span>
+        <span class="val" id="deliveryVal">—</span>
+      </div>
+      <div class="progress hidden" id="progress">
+        <div class="progress-head">
+          <span>Framvinda framleiðslu</span>
+          <span class="progress-pct" id="progressPct">0%</span>
+        </div>
+        <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+      </div>
+    </section>
+
+    <section id="materialsSec" class="hidden">
+      <div class="sec-title">Efnisval</div>
+      <div class="materials" id="materials"></div>
+    </section>
+
+    <footer>
+      Spurningar? <a href="mailto:bjorninn@bjorninninnrettingar.is">bjorninn@bjorninninnrettingar.is</a>
+      &nbsp;·&nbsp; 855&nbsp;3344
+    </footer>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var PROXY = "/api/airtable";
+  var TABLE = "tbl4LMXlQjp66RFKI"; // Tækifæri 📣
+
+  var F = {
+    name:      "Heiti tækifæris / verkefnis",
+    first:     "Fornafn ⬅️",
+    message:   "Skilaboð til viðskiptavinar 💬",
+    sala:      "Staða í söluferli",
+    skip:      "Staða í skipulagi",
+    fram:      "Staða í framleiðslu",
+    won:       "Tækifæri unnið 🏆",
+    etaExt:    "Áætlaður afhendingardagur + 7 vinnudagar (external)",
+    actual:    "Raun afhendingardagur (int/external)",
+    progress:  "Framvinda framleiðslu [weighted]",
+    matCarcase:"Heiti efnis (from Skrokka efni 🔲 viðskiptavinar)",
+    matFront1: "Heiti efnis (from Fronta efni viðskiptavinar 🖼️)",
+    matFront2: "Heiti efnis (from Fronta efni 2.0 Viðskiptavinar 🖼️)",
+    matHandle1:"Heiti vöru 📣 (from Höldur Viðskiptavinar ✊)",
+    matHandle2:"Heiti vöru 📣 (from Höldur Viðskiptavinar ✊2.0)",
+    matWorktop:"Heiti efnis (from Borðplata viðskiptavinar 🍽️)",
+    matDoor1:  "Heiti efnis (from Hurðaefni viðskiptavinar 🚪)",
+    matDoor2:  "Heiti efnis (from Hurðaefni viðskiptavinar 🚪 2.0)"
+  };
+
+  var STEPS = [
+    { emoji: "✅", label: "Verk staðfest" },
+    { emoji: "📐", label: "Í skipulagningu" },
+    { emoji: "🔨", label: "Í framleiðslu" },
+    { emoji: "📦", label: "Samsetning & pökkun" },
+    { emoji: "🚚", label: "Tilbúið til afhendingar" },
+    { emoji: "🏡", label: "Afhent" }
+  ];
+
+  function $(id) { return document.getElementById(id); }
+  function show(el) { el.classList.remove("hidden"); }
+  function hide(el) { el.classList.add("hidden"); }
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  // Airtable lookups come back as arrays; scalars as strings. Normalise to a
+  // clean " / "-joined string, or "" if empty.
+  function txt(v) {
+    if (Array.isArray(v)) v = v.filter(function (x) { return x != null && x !== ""; }).join(" / ");
+    return String(v == null ? "" : v).trim();
+  }
+
+  // Minimal, safe markdown for the portal message (Airtable rich text).
+  function mdToHtml(src) {
+    var s = esc(src).trim();
+    s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+      '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+    s = s.replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>");
+    var paras = s.split(/\n{2,}/).map(function (p) {
+      return "<p>" + p.replace(/\n/g, "<br>") + "</p>";
+    });
+    return paras.join("");
+  }
+
+  // Furthest step reached (0-5), from the three status fields.
+  function currentStep(f) {
+    var step = 0;
+    var sala = txt(f[F.sala]);
+    var skip = txt(f[F.skip]);
+    var fram = txt(f[F.fram]);
+    var actual = txt(f[F.actual]);
+
+    if (f[F.won] === true || /unnið/i.test(sala)) step = 0;
+    if (skip) step = 1;
+    if (/Klárt til framleiðslu/i.test(skip)) step = 2;
+
+    if (fram) {
+      if (/Tilbúið til framleiðslu|Verk í vinnslu/i.test(fram)) step = Math.max(step, 2);
+      else if (/Samsetning/i.test(fram)) step = 3;
+      else if (/Má Afhenda/i.test(fram)) step = 4;
+      else if (/Afhent/i.test(fram)) step = 5;
+    }
+    if (actual) step = 5;
+    return step;
+  }
+
+  function renderTimeline(f) {
+    var cur = currentStep(f);
+    var html = "";
+    for (var i = 0; i < STEPS.length; i++) {
+      var cls = i < cur ? "done" : (i === cur ? "current" : "");
+      html +=
+        '<div class="tl-step ' + cls + '">' +
+          '<div class="tl-dot">' + (i < cur ? "✓" : (i + 1)) + '</div>' +
+          '<div class="tl-body">' +
+            '<div class="tl-emoji">' + STEPS[i].emoji + '</div>' +
+            '<div class="tl-label">' + esc(STEPS[i].label) + '</div>' +
+          '</div>' +
+        '</div>';
+    }
+    $("timeline").innerHTML = html;
+    return cur;
+  }
+
+  function formatDate(v) {
+    var s = txt(v);
+    if (!s) return "";
+    // ISO date → localised; already-formatted string → as-is.
+    var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) {
+      try {
+        return new Date(s).toLocaleDateString("is-IS",
+          { day: "numeric", month: "long", year: "numeric" });
+      } catch (e) { return s; }
+    }
+    return s;
+  }
+
+  function renderDelivery(f, cur) {
+    var actual = formatDate(f[F.actual]);
+    var eta = formatDate(f[F.etaExt]);
+    var box = $("delivery");
+
+    if (actual) {
+      $("deliveryLbl").textContent = "Afhent";
+      $("deliveryVal").textContent = actual;
+      box.classList.add("delivered");
+      show($("deliverySec"));
+    } else if (eta) {
+      $("deliveryLbl").textContent = "Áætluð afhending";
+      $("deliveryVal").textContent = eta;
+      show($("deliverySec"));
+    }
+
+    // Production progress — only meaningful once production has started.
+    var raw = f[F.progress];
+    if ((cur >= 2 && cur < 5) && raw != null && raw !== "") {
+      var pct = (raw > 0 && raw <= 1) ? Math.round(raw * 100) : Math.round(raw);
+      pct = Math.max(0, Math.min(100, pct));
+      if (pct > 0) {
+        $("progressPct").textContent = pct + "%";
+        $("progressFill").style.width = pct + "%";
+        show($("progress"));
+        show($("deliverySec"));
+      }
+    }
+  }
+
+  function renderMaterials(f) {
+    var rows = [
+      ["Skrokkar", txt(f[F.matCarcase])],
+      ["Frontar", [txt(f[F.matFront1]), txt(f[F.matFront2])].filter(Boolean).join(" / ")],
+      ["Hurðaefni", [txt(f[F.matDoor1]), txt(f[F.matDoor2])].filter(Boolean).join(" / ")],
+      ["Borðplata", txt(f[F.matWorktop])],
+      ["Höldur", [txt(f[F.matHandle1]), txt(f[F.matHandle2])].filter(Boolean).join(" / ")]
+    ].filter(function (r) { return r[1]; });
+
+    if (!rows.length) return;
+    $("materials").innerHTML = rows.map(function (r) {
+      return '<div class="mat-row"><span class="k">' + esc(r[0]) +
+             '</span><span class="v">' + esc(r[1]) + '</span></div>';
+    }).join("");
+    show($("materialsSec"));
+  }
+
+  function render(rec) {
+    var f = rec.fields || {};
+    var first = txt(f[F.first]);
+    $("greeting").textContent = first ? ("Hæ, " + first + " 👋") : "Verkefnisstaða";
+
+    var name = txt(f[F.name]);
+    if (name) { $("refline").textContent = name; } else { hide($("refline")); }
+
+    var msg = txt(f[F.message]);
+    if (msg) { $("message").innerHTML = mdToHtml(msg); show($("message")); }
+
+    var cur;
+    try { cur = renderTimeline(f); } catch (e) { cur = 0; hide($("timelineSec")); }
+    try { renderDelivery(f, cur); } catch (e) { /* section stays hidden */ }
+    try { renderMaterials(f); } catch (e) { /* section stays hidden */ }
+
+    hide($("loading"));
+    show($("content"));
+    postHeight();
+  }
+
+  function fail() {
+    hide($("loading"));
+    hide($("content"));
+    show($("error"));
+    postHeight();
+  }
+
+  // Broadcast our rendered height so the Wix page can size the iframe.
+  function postHeight() {
+    try {
+      var h = Math.ceil(document.documentElement.getBoundingClientRect().height);
+      parent.postMessage({ type: "verkefni:height", height: h }, "*");
+    } catch (e) { /* not framed */ }
+  }
+  window.addEventListener("load", postHeight);
+  window.addEventListener("resize", postHeight);
+  if (window.ResizeObserver) new ResizeObserver(postHeight).observe(document.body);
+
+  // ── boot ──────────────────────────────────────────────────────
+  var t = new URLSearchParams(location.search).get("t");
+  if (!t || !/^rec[A-Za-z0-9]{14}$/.test(t)) { fail(); return; }
+
+  var url = new URL(PROXY, location.origin);
+  url.searchParams.set("path", TABLE + "/" + t);
+
+  fetch(url.toString())
+    .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error("HTTP " + r.status)); })
+    .then(function (rec) {
+      if (!rec || !rec.fields) return Promise.reject(new Error("no record"));
+      render(rec);
+    })
+    .catch(function (e) { console.error(e); fail(); });
+})();
+</script>
+</body>
+</html>

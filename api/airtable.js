@@ -33,6 +33,23 @@ const ALLOWED_FIELDS = {
     "Loka teikningar verkefnis 📋",
     "Sér fræsi teikningar",
     "Heimilistæki verkefnis",
+    // ── Customer portal (verkefni.html, iframed into the Wix /verkefni page) ──
+    // Display-only, deliberately no pricing / cost / phone / email — this is
+    // the same data the old hand-built Wix page already showed publicly. The
+    // link is a plain ?t=<recordId> for now; a signed token comes later.
+    "Fornafn ⬅️",                                    // greeting ("Hæ, Sólveig 👋")
+    "Skilaboð til viðskiptavinar 💬",                 // rich-text portal message
+    "Staða í söluferli",                             // step 1 of the timeline
+    "Áætlaður afhendingardagur + 7 vinnudagar (external)", // shown delivery estimate
+    "Raun afhendingardagur (int/external)",          // actual delivery once handed over
+    "Heiti efnis (from Skrokka efni 🔲 viðskiptavinar)",
+    "Heiti efnis (from Fronta efni viðskiptavinar 🖼️)",
+    "Heiti efnis (from Fronta efni 2.0 Viðskiptavinar 🖼️)",
+    "Heiti vöru 📣 (from Höldur Viðskiptavinar ✊)",
+    "Heiti vöru 📣 (from Höldur Viðskiptavinar ✊2.0)",
+    "Heiti efnis (from Borðplata viðskiptavinar 🍽️)",
+    "Heiti efnis (from Hurðaefni viðskiptavinar 🚪)",
+    "Heiti efnis (from Hurðaefni viðskiptavinar 🚪 2.0)",
   ],
   "tblhdgyvTcBfP8kov": [ // Sögunarlisti 🪚
     "Tækifæri 📣 (projects)",
