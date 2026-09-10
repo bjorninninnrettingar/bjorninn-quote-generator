@@ -225,6 +225,31 @@
     transition: width .6s ease;
   }
 
+  /* ── payment split ───────────────────────────────────────────── */
+  .pay-split {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+  .pay-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    font-size: .92rem;
+    color: var(--muted);
+  }
+  .pay-row.on { color: var(--ink); }
+  .pay-box {
+    width: 20px; height: 20px;
+    flex: none;
+    border-radius: 5px;
+    border: 1.5px solid var(--line);
+    display: flex; align-items: center; justify-content: center;
+    font-size: .7rem; color: #fff;
+  }
+  .pay-box.on { background: var(--done); border-color: var(--done); }
+
   /* ── materials (always stacked) ──────────────────────────────── */
   .materials {
     border: 1px solid var(--line);
@@ -316,6 +341,12 @@
       </div>
     </section>
 
+    <section id="paymentSec" class="hidden">
+      <div class="sec-title">Greiðslufyrirkomulag</div>
+      <div class="pay-split" id="paySplit"></div>
+      <div id="payRows"></div>
+    </section>
+
     <section id="materialsSec" class="hidden">
       <div class="sec-title">Efnisval</div>
       <div class="materials" id="materials"></div>
@@ -324,6 +355,7 @@
     <footer>
       Spurningar? <a href="mailto:bjorninn@bjorninninnrettingar.is">bjorninn@bjorninninnrettingar.is</a>
       &nbsp;·&nbsp; 779&nbsp;5777
+      &nbsp;·&nbsp; <a href="https://www.bjorninninnrettingar.is/algengar-spurningar" target="_blank" rel="noopener">Algengar spurningar</a>
     </footer>
   </div>
 </div>
@@ -346,6 +378,12 @@
     etaExt:    "Áætlaður afhendingardagur + 7 vinnudagar (external)",
     actual:    "Raun afhendingardagur (int/external)",
     progress:  "Framvinda framleiðslu [weighted]",
+
+    paySplit:  "Skipting greiðslu",
+    pay1:      "Greiðsla 1 (staðfesting)",
+    pay2:      "Greiðsla 2 greidd",
+    pay3:      "Greiðsla 3 greidd",
+    grip:      "Harðviðargrip",
 
     carcaseN:  "Heiti efnis (from Skrokka efni 🔲 viðskiptavinar)",
     carcaseI:  "Mynd af skrokka efni",
@@ -404,7 +442,8 @@
     }).join("");
   }
 
-  // Furthest step reached (0-5), from the three status fields.
+  // Furthest step reached (0-5), from the three status fields, plus whether
+  // the project is fully delivered (so the last step reads done, not current).
   function currentStep(f) {
     var step = 0;
     var sala = txt(f[F.sala]);
@@ -415,25 +454,28 @@
     if (f[F.won] === true || /unnið/i.test(sala)) step = 0;
     if (skip) step = 1;
     if (/Klárt til framleiðslu/i.test(skip)) step = 2;
+    var delivered = false;
     if (fram) {
       if (/Tilbúið til framleiðslu|Verk í vinnslu/i.test(fram)) step = Math.max(step, 2);
       else if (/Samsetning/i.test(fram)) step = 3;
       else if (/Má Afhenda/i.test(fram)) step = 4;
-      else if (/Afhent/i.test(fram)) step = 5;
+      else if (/Afhent/i.test(fram)) { step = 5; delivered = true; }
     }
-    if (actual) step = 5;
-    return step;
+    if (actual) { step = 5; delivered = true; }
+    return { step: step, delivered: delivered };
   }
 
   function renderTimeline(f) {
-    var cur = currentStep(f);
+    var s = currentStep(f);
+    var cur = s.step;
     $("timeline").style.setProperty("--prog", (cur / (STEPS.length - 1)).toFixed(4));
     var html = "";
     for (var i = 0; i < STEPS.length; i++) {
-      var cls = i < cur ? "done" : (i === cur ? "current" : "");
+      var isDone = i < cur || (i === cur && s.delivered);
+      var cls = isDone ? "done" : (i === cur ? "current" : "");
       html +=
         '<div class="tl-step ' + cls + '">' +
-          '<div class="tl-dot">' + (i < cur ? "✓" : (i + 1)) + '</div>' +
+          '<div class="tl-dot">' + (isDone ? "✓" : (i + 1)) + '</div>' +
           '<div class="tl-body">' +
             '<div class="tl-emoji">' + STEPS[i].emoji + '</div>' +
             '<div class="tl-label">' + esc(STEPS[i].label) + '</div>' +
@@ -444,16 +486,16 @@
     return cur;
   }
 
+  var IS_MONTHS = ["janúar","febrúar","mars","apríl","maí","júní","júlí",
+                   "ágúst","september","október","nóvember","desember"];
+
   function formatDate(v) {
     var s = txt(v);
     if (!s) return "";
+    // Raw ISO date → format in Icelandic by hand (browser is-IS locale data
+    // isn't guaranteed). The etaExt formula already returns a formatted string.
     var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (m) {
-      try {
-        return new Date(s).toLocaleDateString("is-IS",
-          { day: "numeric", month: "long", year: "numeric" });
-      } catch (e) { return s; }
-    }
+    if (m) return parseInt(m[3], 10) + ". " + IS_MONTHS[parseInt(m[2], 10) - 1] + " " + m[1];
     return s;
   }
 
@@ -485,6 +527,34 @@
     }
   }
 
+  function truthy(v) {
+    if (v === true) return true;
+    if (v === false || v == null || v === "") return false;
+    if (typeof v === "number") return v !== 0;
+    return !/^(0|false|no|nei|ógreitt)$/i.test(String(v).trim());
+  }
+
+  function renderPayment(f) {
+    var split = txt(f[F.paySplit]);
+    if (!split) return;
+    var n = split.split(/\s*[-–]\s*/).filter(Boolean).length; // 1, 2 or 3
+    var paid = [truthy(f[F.pay1]), f[F.pay2] === true, f[F.pay3] === true];
+    var labels = ["1. greiðsla — staðfesting", "2. greiðsla", "3. greiðsla"];
+
+    $("paySplit").textContent = "Skipting: " + split;
+    if (n >= 2) {
+      var rows = "";
+      for (var i = 0; i < n; i++) {
+        rows += '<div class="pay-row ' + (paid[i] ? "on" : "") + '">' +
+                  '<span class="pay-box ' + (paid[i] ? "on" : "") + '">' + (paid[i] ? "✓" : "") + '</span>' +
+                  esc(labels[i]) + (paid[i] ? " · greitt" : "") +
+                '</div>';
+      }
+      $("payRows").innerHTML = rows;
+    }
+    show($("paymentSec"));
+  }
+
   // Pair a list of names with a list of attachment images by index.
   function entries(names, imgs) {
     var ns = arr(names).filter(function (x) { return x != null && x !== ""; });
@@ -493,12 +563,25 @@
   }
 
   function renderMaterials(f) {
+    // Höldur — handle 1 plus, on the same line, the milled "fræst grip" spec
+    // if one is set (some fronts have a routed grip and no physical handle).
+    var grip = txt(f[F.grip]);
+    var holdur = entries(f[F.handle1N], f[F.handle1I]);
+    if (grip) {
+      if (holdur.length) {
+        holdur[0] = { name: holdur[0].name + "  ·  fræst grip: " + grip, img: holdur[0].img };
+      } else {
+        holdur = [{ name: "Fræst grip: " + grip, img: "" }];
+      }
+    }
+
     var groups = [
       { label: "Skrokkar",  items: entries(f[F.carcaseN], f[F.carcaseI]) },
       { label: "Frontar",   items: entries(f[F.front1N], f[F.front1I]).concat(entries(f[F.front2N], f[F.front2I])) },
       { label: "Hurðaefni", items: entries(f[F.door1N], f[F.door1I]).concat(entries(f[F.door2N], f[F.door2I])) },
       { label: "Borðplata", items: entries(f[F.worktopN], f[F.worktopI]) },
-      { label: "Höldur",    items: entries(f[F.handle1N], f[F.handle1I]).concat(entries(f[F.handle2N], f[F.handle2I])) }
+      { label: "Höldur",    items: holdur },
+      { label: "Höldur 2",  items: entries(f[F.handle2N], f[F.handle2I]) }
     ].filter(function (g) { return g.items.length; });
 
     if (!groups.length) return;
@@ -531,6 +614,7 @@
     var cur;
     try { cur = renderTimeline(f); } catch (e) { cur = 0; hide($("timelineSec")); }
     try { renderDelivery(f, cur); } catch (e) { /* section stays hidden */ }
+    try { renderPayment(f); } catch (e) { /* section stays hidden */ }
     try { renderMaterials(f); } catch (e) { /* section stays hidden */ }
 
     hide($("loading"));

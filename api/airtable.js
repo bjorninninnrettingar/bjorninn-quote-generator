@@ -39,6 +39,11 @@ const ALLOWED_FIELDS = {
     // link is a plain ?t=<recordId> for now; a signed token comes later.
     "Fornafn ⬅️",                                    // greeting ("Hæ, Sólveig 👋")
     "Skilaboð til viðskiptavinar 💬",                 // rich-text portal message
+    "Skipting greiðslu",                             // payment split (no krónur exposed)
+    "Greiðsla 1 (staðfesting)",
+    "Greiðsla 2 greidd",
+    "Greiðsla 3 greidd",
+    "Harðviðargrip",                                 // milled "fræst grip" profile, shown on the Höldur row
     "Staða í söluferli",                             // step 1 of the timeline
     "Áætlaður afhendingardagur + 7 vinnudagar (external)", // shown delivery estimate
     "Raun afhendingardagur (int/external)",          // actual delivery once handed over
