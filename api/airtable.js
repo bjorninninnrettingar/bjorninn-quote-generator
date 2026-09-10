@@ -160,6 +160,41 @@ const ALLOWED_FIELDS = {
   ],
 };
 
+// Extra Tækifæri fields the internal floor page (/verk, verk.html) needs —
+// drawings, the "þarf að hafa í huga" notes, meeting notes, progress. These
+// are deliberately NOT in ALLOWED_FIELDS: the customer portal and every other
+// caller hits the same public endpoint, and these are internal. They're
+// merged in only when the request carries ?k= matching VERK_KEY (the key the
+// shop printer bakes into the QR on each Zebra label).
+const VERK_ONLY_FIELDS = {
+  "tbl4LMXlQjp66RFKI": [
+    "Forgangur framleiðslu 🥇",
+    "Upphafs framleiðsludagur verks",
+    "🎯 Markmið:",
+    "🚀 Pepp verksins:",
+    "🧠📌Það sem þarf að hafa í huga",
+    "🔬📌 Það sem Fræsari þarf að hafa í huga",
+    "🪵📌 Það sem spónlagning þarf að hafa í huga",
+    "🪛📌 Það sem uppsetningaraðili þarf að hafa í huga❗",
+    "Ýtarleg verklýsing teiknara📝",
+    "Skúffusamantekt",
+    "Verkfundar glósur",
+    "Loka teikningar verkefnis 📋",
+    "Sér fræsi teikningar",
+    "Málsettar myndir af rými 🖼️",
+    "Teikningar af tækifæri ✍️",
+    "Heimilistæki verkefnis",
+    "Framvinda sögunar",
+    "Framvinda fræsingar",
+    "Framvinda almennar framleiðslu",
+    "Fjöldi varahluta til að saga",
+    "Fjöldi varahluta sagaðir",
+    "Fjöldi eininga til að fræsa",
+    "Fjöldi eininga búið að fræsa ✅",
+    "Staða á efnispöntun",
+  ],
+};
+
 // Tables that hold credential-like or health-adjacent data — a request with
 // no filterByFormula would otherwise dump every row's allowed fields, which
 // for Starfsmenn means every employee's PIN at once, and for Fjarvistir
@@ -280,10 +315,26 @@ export default async function handler(req, res) {
     if (!path) return res.status(400).json({ error: "Missing path" });
 
     const [tableId, recordId] = String(path).split("/");
-    const allowedFields = ALLOWED_FIELDS[tableId];
-    if (!allowedFields) return res.status(403).json({ error: "Table not allowed" });
+    const baseFields = ALLOWED_FIELDS[tableId];
+    if (!baseFields) return res.status(403).json({ error: "Table not allowed" });
     if (!recordId && REQUIRE_FILTER.has(tableId) && !params.filterByFormula) {
       return res.status(403).json({ error: "filterByFormula required for this table" });
+    }
+
+    // ?k= widens the field set for the internal /verk floor page. A present
+    // but wrong key is rejected outright (so the page can show a clear "bad
+    // link" rather than a confusing half-populated view); an absent key just
+    // gets the normal public field set. Never forwarded to Airtable.
+    let allowedFields = baseFields;
+    if (params.k != null) {
+      const verkKey = process.env.VERK_KEY;
+      if (!verkKey || params.k !== verkKey) {
+        return res.status(403).json({ error: "Invalid key" });
+      }
+      if (VERK_ONLY_FIELDS[tableId]) {
+        allowedFields = baseFields.concat(VERK_ONLY_FIELDS[tableId]);
+      }
+      delete params.k;
     }
 
     const url = new URL(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${tableId}`);
