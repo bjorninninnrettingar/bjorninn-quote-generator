@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="robots" content="noindex" />
 <title>Verkefnisstaða — Björninn</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 <style>
   /* verkefni.html — customer project portal.
      Served at bjorninn-quote-generator.vercel.app/verkefni?t=<Tækifæri recordId>
@@ -23,6 +26,7 @@
     --accent-soft: #f0e4d6;
     --done:    #5f8f63;
     --shadow:  0 1px 2px rgba(42,36,32,.04), 0 8px 28px rgba(42,36,32,.06);
+    --font: "Kumbh Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -30,7 +34,7 @@
   html, body {
     background: var(--bg);
     color: var(--ink);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-family: var(--font);
     -webkit-font-smoothing: antialiased;
     line-height: 1.55;
   }
@@ -43,10 +47,9 @@
 
   /* ── header / greeting ─────────────────────────────────────────── */
   .greeting {
-    font-family: Georgia, "Times New Roman", serif;
-    font-size: 1.9rem;
-    font-weight: 400;
-    letter-spacing: .01em;
+    font-size: 1.95rem;
+    font-weight: 600;
+    letter-spacing: -.01em;
     margin-bottom: 6px;
   }
   .refline {
@@ -72,53 +75,60 @@
   section { margin-bottom: 34px; }
   .sec-title {
     font-size: .72rem;
+    font-weight: 600;
     text-transform: uppercase;
     letter-spacing: .14em;
     color: var(--muted);
-    margin-bottom: 16px;
+    margin-bottom: 18px;
   }
 
-  /* ── timeline ─────────────────────────────────────────────────── */
+  /* ── timeline (desktop: horizontal, one continuous track) ─────── */
   .timeline {
+    position: relative;
     display: grid;
     grid-template-columns: repeat(6, 1fr);
-    gap: 0;
-    position: relative;
+    padding: 0 4px;
   }
+  /* grey track + accent fill, both between the centre of step 1 and step 6.
+     One dot centre is 1/12 of the width in from each edge. */
+  .timeline::before,
+  .timeline::after {
+    content: "";
+    position: absolute;
+    top: 14px;
+    height: 2px;
+    left: 8.3333%;
+    right: 8.3333%;
+    background: var(--line);
+    z-index: 0;
+  }
+  .timeline::after {
+    right: auto;
+    width: calc((100% - 16.6666%) * var(--prog, 0));
+    background: var(--accent);
+    z-index: 1;
+    transition: width .5s ease;
+  }
+
   .tl-step {
     display: flex;
     flex-direction: column;
     align-items: center;
     text-align: center;
     position: relative;
-    padding-top: 34px;
+    z-index: 2;
   }
-  /* connecting track */
-  .tl-step::before {
-    content: "";
-    position: absolute;
-    top: 13px;
-    left: -50%;
-    width: 100%;
-    height: 2px;
-    background: var(--line);
-  }
-  .tl-step:first-child::before { display: none; }
-  .tl-step.done::before,
-  .tl-step.current::before { background: var(--accent); }
-
   .tl-dot {
-    position: absolute;
-    top: 0;
-    width: 28px;
-    height: 28px;
+    width: 30px;
+    height: 30px;
     border-radius: 50%;
     background: var(--bg);
     border: 2px solid var(--line);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: .8rem;
+    font-size: .82rem;
+    font-weight: 600;
     color: var(--muted);
   }
   .tl-step.done .tl-dot {
@@ -131,7 +141,7 @@
     color: var(--accent);
     box-shadow: 0 0 0 5px var(--accent-soft);
   }
-  .tl-emoji { font-size: 1.15rem; line-height: 1; margin-bottom: 5px; }
+  .tl-emoji { font-size: 1.15rem; line-height: 1; margin: 9px 0 5px; }
   .tl-label {
     font-size: .72rem;
     color: var(--muted);
@@ -143,23 +153,28 @@
   .tl-step.current .tl-label { font-weight: 600; }
 
   @media (max-width: 560px) {
-    .timeline { grid-template-columns: 1fr; gap: 0; }
+    .timeline { grid-template-columns: 1fr; padding: 0; }
+    .timeline::before, .timeline::after { display: none; }
     .tl-step {
       flex-direction: row;
       text-align: left;
       align-items: flex-start;
       gap: 14px;
       padding: 0 0 20px 0;
-      min-height: 40px;
     }
     .tl-step::before {
-      top: 0; left: 13px;
+      content: "";
+      position: absolute;
+      top: 0; left: 14px;
       width: 2px; height: 100%;
+      background: var(--line);
+      z-index: 0;
     }
-    .tl-step:last-child::before { height: 0; }
-    .tl-dot { position: relative; flex: none; }
-    .tl-body { padding-top: 3px; }
-    .tl-emoji { display: inline; margin-right: 6px; }
+    .tl-step:first-child::before { display: none; }
+    .tl-step.done::before, .tl-step.current::before { background: var(--accent); }
+    .tl-dot { position: relative; z-index: 2; flex: none; }
+    .tl-body { padding-top: 4px; }
+    .tl-emoji { display: inline; margin: 0 6px 0 0; }
     .tl-label { font-size: .9rem; }
   }
 
@@ -178,14 +193,12 @@
   }
   .delivery .lbl {
     font-size: .72rem;
+    font-weight: 600;
     text-transform: uppercase;
     letter-spacing: .12em;
     color: var(--muted);
   }
-  .delivery .val {
-    font-family: Georgia, "Times New Roman", serif;
-    font-size: 1.45rem;
-  }
+  .delivery .val { font-size: 1.4rem; font-weight: 500; }
   .delivery.delivered .val { color: var(--done); }
 
   /* ── progress bar ─────────────────────────────────────────────── */
@@ -212,22 +225,39 @@
     transition: width .6s ease;
   }
 
-  /* ── materials ────────────────────────────────────────────────── */
-  .materials { display: flex; flex-direction: column; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-  .mat-row {
-    display: grid;
-    grid-template-columns: 140px 1fr;
-    gap: 14px;
-    padding: 13px 18px;
-    background: var(--bg);
-    font-size: .92rem;
+  /* ── materials (always stacked) ──────────────────────────────── */
+  .materials {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
   }
-  .mat-row .k { color: var(--muted); }
-  .mat-row .v { color: var(--ink); }
-  @media (max-width: 460px) {
-    .mat-row { grid-template-columns: 1fr; gap: 2px; }
-    .mat-row .k { font-size: .74rem; text-transform: uppercase; letter-spacing: .08em; }
+  .mat-group { padding: 16px 18px; border-top: 1px solid var(--line); }
+  .mat-group:first-child { border-top: 0; }
+  .mat-label {
+    font-size: .72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--muted);
+    margin-bottom: 10px;
   }
+  .mat-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 5px 0;
+  }
+  .mat-item + .mat-item { border-top: 1px dashed var(--line); }
+  .mat-img {
+    width: 44px;
+    height: 44px;
+    flex: none;
+    border-radius: 8px;
+    object-fit: cover;
+    border: 1px solid var(--line);
+    background: var(--paper);
+  }
+  .mat-name { font-size: .93rem; }
 
   /* ── states ───────────────────────────────────────────────────── */
   #loading, #error {
@@ -293,7 +323,7 @@
 
     <footer>
       Spurningar? <a href="mailto:bjorninn@bjorninninnrettingar.is">bjorninn@bjorninninnrettingar.is</a>
-      &nbsp;·&nbsp; 855&nbsp;3344
+      &nbsp;·&nbsp; 779&nbsp;5777
     </footer>
   </div>
 </div>
@@ -316,14 +346,23 @@
     etaExt:    "Áætlaður afhendingardagur + 7 vinnudagar (external)",
     actual:    "Raun afhendingardagur (int/external)",
     progress:  "Framvinda framleiðslu [weighted]",
-    matCarcase:"Heiti efnis (from Skrokka efni 🔲 viðskiptavinar)",
-    matFront1: "Heiti efnis (from Fronta efni viðskiptavinar 🖼️)",
-    matFront2: "Heiti efnis (from Fronta efni 2.0 Viðskiptavinar 🖼️)",
-    matHandle1:"Heiti vöru 📣 (from Höldur Viðskiptavinar ✊)",
-    matHandle2:"Heiti vöru 📣 (from Höldur Viðskiptavinar ✊2.0)",
-    matWorktop:"Heiti efnis (from Borðplata viðskiptavinar 🍽️)",
-    matDoor1:  "Heiti efnis (from Hurðaefni viðskiptavinar 🚪)",
-    matDoor2:  "Heiti efnis (from Hurðaefni viðskiptavinar 🚪 2.0)"
+
+    carcaseN:  "Heiti efnis (from Skrokka efni 🔲 viðskiptavinar)",
+    carcaseI:  "Mynd af skrokka efni",
+    front1N:   "Heiti efnis (from Fronta efni viðskiptavinar 🖼️)",
+    front1I:   "Mynd af fronta efni",
+    front2N:   "Heiti efnis (from Fronta efni 2.0 Viðskiptavinar 🖼️)",
+    front2I:   "Mynd af fronta efni 2",
+    door1N:    "Heiti efnis (from Hurðaefni viðskiptavinar 🚪)",
+    door1I:    "Mynd af Hurðaefni viðskiptavinar",
+    door2N:    "Heiti efnis (from Hurðaefni viðskiptavinar 🚪 2.0)",
+    door2I:    "Mynd af Hurðaefni viðskiptavinar 2.0",
+    worktopN:  "Heiti efnis (from Borðplata viðskiptavinar 🍽️)",
+    worktopI:  "Mynd af borðplötu viðskiptavinar",
+    handle1N:  "Heiti vöru 📣 (from Höldur Viðskiptavinar ✊)",
+    handle1I:  "Mynd af Höldum Viðskiptavinar ✊",
+    handle2N:  "Heiti vöru 📣 (from Höldur Viðskiptavinar ✊2.0)",
+    handle2I:  "Mynd Höldur Viðskiptavinar ✊2.0"
   };
 
   var STEPS = [
@@ -343,12 +382,14 @@
       .replace(/&/g, "&amp;").replace(/</g, "&lt;")
       .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
-
-  // Airtable lookups come back as arrays; scalars as strings. Normalise to a
-  // clean " / "-joined string, or "" if empty.
+  function arr(v) { return Array.isArray(v) ? v : (v == null || v === "" ? [] : [v]); }
   function txt(v) {
-    if (Array.isArray(v)) v = v.filter(function (x) { return x != null && x !== ""; }).join(" / ");
-    return String(v == null ? "" : v).trim();
+    return arr(v).filter(function (x) { return x != null && x !== ""; }).join(" / ").trim();
+  }
+  function imgUrl(att) {
+    if (!att || typeof att !== "object") return "";
+    var t = att.thumbnails || {};
+    return (t.large && t.large.url) || (t.full && t.full.url) || att.url || "";
   }
 
   // Minimal, safe markdown for the portal message (Airtable rich text).
@@ -358,10 +399,9 @@
       '<a href="$2" target="_blank" rel="noopener">$1</a>');
     s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
     s = s.replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>");
-    var paras = s.split(/\n{2,}/).map(function (p) {
+    return s.split(/\n{2,}/).map(function (p) {
       return "<p>" + p.replace(/\n/g, "<br>") + "</p>";
-    });
-    return paras.join("");
+    }).join("");
   }
 
   // Furthest step reached (0-5), from the three status fields.
@@ -375,7 +415,6 @@
     if (f[F.won] === true || /unnið/i.test(sala)) step = 0;
     if (skip) step = 1;
     if (/Klárt til framleiðslu/i.test(skip)) step = 2;
-
     if (fram) {
       if (/Tilbúið til framleiðslu|Verk í vinnslu/i.test(fram)) step = Math.max(step, 2);
       else if (/Samsetning/i.test(fram)) step = 3;
@@ -388,6 +427,7 @@
 
   function renderTimeline(f) {
     var cur = currentStep(f);
+    $("timeline").style.setProperty("--prog", (cur / (STEPS.length - 1)).toFixed(4));
     var html = "";
     for (var i = 0; i < STEPS.length; i++) {
       var cls = i < cur ? "done" : (i === cur ? "current" : "");
@@ -407,7 +447,6 @@
   function formatDate(v) {
     var s = txt(v);
     if (!s) return "";
-    // ISO date → localised; already-formatted string → as-is.
     var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (m) {
       try {
@@ -421,12 +460,11 @@
   function renderDelivery(f, cur) {
     var actual = formatDate(f[F.actual]);
     var eta = formatDate(f[F.etaExt]);
-    var box = $("delivery");
 
     if (actual) {
       $("deliveryLbl").textContent = "Afhent";
       $("deliveryVal").textContent = actual;
-      box.classList.add("delivered");
+      $("delivery").classList.add("delivered");
       show($("deliverySec"));
     } else if (eta) {
       $("deliveryLbl").textContent = "Áætluð afhending";
@@ -434,7 +472,6 @@
       show($("deliverySec"));
     }
 
-    // Production progress — only meaningful once production has started.
     var raw = f[F.progress];
     if ((cur >= 2 && cur < 5) && raw != null && raw !== "") {
       var pct = (raw > 0 && raw <= 1) ? Math.round(raw * 100) : Math.round(raw);
@@ -448,19 +485,34 @@
     }
   }
 
-  function renderMaterials(f) {
-    var rows = [
-      ["Skrokkar", txt(f[F.matCarcase])],
-      ["Frontar", [txt(f[F.matFront1]), txt(f[F.matFront2])].filter(Boolean).join(" / ")],
-      ["Hurðaefni", [txt(f[F.matDoor1]), txt(f[F.matDoor2])].filter(Boolean).join(" / ")],
-      ["Borðplata", txt(f[F.matWorktop])],
-      ["Höldur", [txt(f[F.matHandle1]), txt(f[F.matHandle2])].filter(Boolean).join(" / ")]
-    ].filter(function (r) { return r[1]; });
+  // Pair a list of names with a list of attachment images by index.
+  function entries(names, imgs) {
+    var ns = arr(names).filter(function (x) { return x != null && x !== ""; });
+    var is = arr(imgs);
+    return ns.map(function (n, i) { return { name: String(n), img: imgUrl(is[i]) }; });
+  }
 
-    if (!rows.length) return;
-    $("materials").innerHTML = rows.map(function (r) {
-      return '<div class="mat-row"><span class="k">' + esc(r[0]) +
-             '</span><span class="v">' + esc(r[1]) + '</span></div>';
+  function renderMaterials(f) {
+    var groups = [
+      { label: "Skrokkar",  items: entries(f[F.carcaseN], f[F.carcaseI]) },
+      { label: "Frontar",   items: entries(f[F.front1N], f[F.front1I]).concat(entries(f[F.front2N], f[F.front2I])) },
+      { label: "Hurðaefni", items: entries(f[F.door1N], f[F.door1I]).concat(entries(f[F.door2N], f[F.door2I])) },
+      { label: "Borðplata", items: entries(f[F.worktopN], f[F.worktopI]) },
+      { label: "Höldur",    items: entries(f[F.handle1N], f[F.handle1I]).concat(entries(f[F.handle2N], f[F.handle2I])) }
+    ].filter(function (g) { return g.items.length; });
+
+    if (!groups.length) return;
+
+    $("materials").innerHTML = groups.map(function (g) {
+      var rows = g.items.map(function (it) {
+        var img = it.img
+          ? '<img class="mat-img" src="' + esc(it.img) + '" alt="" loading="lazy" onerror="this.remove()">'
+          : "";
+        return '<div class="mat-item">' + img +
+               '<span class="mat-name">' + esc(it.name) + '</span></div>';
+      }).join("");
+      return '<div class="mat-group"><div class="mat-label">' + esc(g.label) +
+             '</div>' + rows + '</div>';
     }).join("");
     show($("materialsSec"));
   }
@@ -503,6 +555,7 @@
   window.addEventListener("load", postHeight);
   window.addEventListener("resize", postHeight);
   if (window.ResizeObserver) new ResizeObserver(postHeight).observe(document.body);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(postHeight);
 
   // ── boot ──────────────────────────────────────────────────────
   var t = new URLSearchParams(location.search).get("t");

@@ -50,6 +50,17 @@ const ALLOWED_FIELDS = {
     "Heiti efnis (from Borðplata viðskiptavinar 🍽️)",
     "Heiti efnis (from Hurðaefni viðskiptavinar 🚪)",
     "Heiti efnis (from Hurðaefni viðskiptavinar 🚪 2.0)",
+    // Material swatch images shown beside each name on the portal. These are
+    // lookups of attachment fields — Airtable's signed URLs expire in ~2h, but
+    // the portal re-fetches the record on every page load so they stay fresh.
+    "Mynd af skrokka efni",
+    "Mynd af fronta efni",
+    "Mynd af fronta efni 2",
+    "Mynd af Hurðaefni viðskiptavinar",
+    "Mynd af Hurðaefni viðskiptavinar 2.0",
+    "Mynd af borðplötu viðskiptavinar",
+    "Mynd af Höldum Viðskiptavinar ✊",
+    "Mynd Höldur Viðskiptavinar ✊2.0",
   ],
   "tblhdgyvTcBfP8kov": [ // Sögunarlisti 🪚
     "Tækifæri 📣 (projects)",
