@@ -632,11 +632,14 @@
   }
 
   // Broadcast our rendered height so the Wix page can size the iframe.
+  // Wix Studio's HtmlComponent can't be resized from Velo — a small listener
+  // snippet in the site's Custom Code (Body-end) catches this and sets the
+  // iframe + wrapper heights. See the note handed over with this page.
   function postHeight() {
-    try {
-      var h = Math.ceil(document.documentElement.getBoundingClientRect().height);
-      parent.postMessage({ type: "verkefni:height", height: h }, "*");
-    } catch (e) { /* not framed */ }
+    var h = Math.ceil(document.documentElement.getBoundingClientRect().height) + 8;
+    var msg = { type: "verkefni:height", height: h };
+    try { parent.postMessage(msg, "*"); } catch (e) {}
+    try { if (window.top !== parent) window.top.postMessage(msg, "*"); } catch (e) {}
   }
   window.addEventListener("load", postHeight);
   window.addEventListener("resize", postHeight);
