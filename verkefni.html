@@ -605,7 +605,9 @@
     var first = txt(f[F.first]);
     $("greeting").textContent = first ? ("Hæ, " + first + " 👋") : "Verkefnisstaða";
 
-    var name = txt(f[F.name]);
+    // "T-164 | Nafn - Heimilisfang" — strip a trailing empty-address tail
+    // ("- -", " - ", stray commas) when no address is set.
+    var name = txt(f[F.name]).replace(/[\s,–—-]+$/, "").trim();
     if (name) { $("refline").textContent = name; } else { hide($("refline")); }
 
     var msg = txt(f[F.message]);
