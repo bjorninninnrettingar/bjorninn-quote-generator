@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex" />
+<title>Velja — Björninn</title>
+<style>
+  /* velja.html — the QR landing page. Scanning a piece's Zebra label lands
+     here (via /v/<unitId> → this, ?u=<Eyðublað recordId>&k=<VERK_KEY>) and
+     asks: this unit specifically (EINING), or the whole project (VERK)? */
+  :root {
+    --bg:#0b0b0c; --surface:#161618; --surface2:#1e1e21;
+    --line:#2a2a2e; --text:#f2f2f3; --muted:#8b8b92;
+    --blue:#3b9eff; --blue-bg:#0e2436;
+    --amber:#f5c518; --amber-bg:#241f0b;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body {
+    background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased; line-height:1.5;
+    min-height:100vh; display:flex; align-items:center;
+  }
+  .wrap { max-width:520px; margin:0 auto; padding:28px 18px; width:100%; }
+
+  .unit-name { font-size:1.7rem; font-weight:800; letter-spacing:-.01em; }
+  .unit-meta { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+  .chip { font-size:.85rem; font-weight:700; padding:5px 11px; border-radius:999px; background:var(--surface2); border:1px solid var(--line); }
+  .proj-name { color:var(--muted); font-size:.9rem; margin-top:14px; }
+
+  .choices { display:flex; flex-direction:column; gap:14px; margin-top:28px; }
+  .choice {
+    display:flex; align-items:center; gap:16px; text-decoration:none; color:var(--text);
+    border-radius:16px; padding:22px 18px; border:1px solid var(--line);
+  }
+  .choice .ic { font-size:2.2rem; flex:none; }
+  .choice .t { font-size:1.25rem; font-weight:800; letter-spacing:.02em; }
+  .choice .d { font-size:.88rem; color:var(--muted); margin-top:3px; }
+  .choice:active { filter:brightness(1.15); }
+  .choice.eining { background:var(--blue-bg); border-color:#1c3a52; }
+  .choice.eining .t { color:var(--blue); }
+  .choice.verk { background:var(--amber-bg); border-color:#5a4a12; }
+  .choice.verk .t { color:var(--amber); }
+
+  #loading,#error { text-align:center; color:var(--muted); }
+  #error strong { display:block; color:var(--text); font-size:1.1rem; margin-bottom:6px; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="loading">Sæki einingu…</div>
+  <div id="error" class="hidden">
+    <strong>Fann ekki einingu</strong>
+    QR-kóðinn gæti verið úreltur eða hlekkinn vantar lykil.
+  </div>
+
+  <div id="content" class="hidden">
+    <div class="unit-name" id="unitName">—</div>
+    <div class="unit-meta" id="unitMeta"></div>
+    <div class="proj-name" id="projName"></div>
+
+    <div class="choices">
+      <a class="choice eining" id="btnEining">
+        <div class="ic">📦</div>
+        <div><div class="t">EINING</div><div class="d">Skurðarlisti, vörur og allt um þessa einingu</div></div>
+      </a>
+      <a class="choice verk" id="btnVerk">
+        <div class="ic">🏗️</div>
+        <div><div class="t">VERK</div><div class="d">Teikningar, athugasemdir og framvinda verkefnisins</div></div>
+      </a>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var PROXY = "/api/airtable";
+  var UNIT_TABLE = "tbl0WcyHhz63pSzZX";
+  var PROJECT_TABLE = "tbl4LMXlQjp66RFKI";
+
+  function $(id){ return document.getElementById(id); }
+  function show(el){ el.classList.remove("hidden"); }
+  function hide(el){ el.classList.add("hidden"); }
+  function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+  function arr(v){ return Array.isArray(v)?v:(v==null||v===""?[]:[v]); }
+  function txt(v){ return arr(v).filter(function(x){return x!=null&&x!=="";}).join(" / ").trim(); }
+
+  // encodeURIComponent, NOT URLSearchParams — see eining.html for why.
+  function fetchJson(path, k){
+    var qs = "path=" + encodeURIComponent(path) + (k ? "&k=" + encodeURIComponent(k) : "");
+    return fetch(PROXY + "?" + qs).then(function(r){
+      return r.ok ? r.json() : Promise.reject(new Error("HTTP "+r.status));
+    });
+  }
+
+  // u (unit) and p (project) both come from /v/<pieceId>'s server-side
+  // redirect, resolved from the printed piece's own Sögunarlisti links — NOT
+  // re-derived from Eyðublað's own project link here, which has been found
+  // to carry stray extra links on some units (see api/v.js).
+  var q = new URLSearchParams(location.search);
+  var u = q.get("u"), p = q.get("p"), k = q.get("k");
+  if (!u || !/^rec[A-Za-z0-9]{14}$/.test(u) || !k) {
+    hide($("loading")); show($("error")); return;
+  }
+
+  $("btnEining").href = "/eining?u=" + encodeURIComponent(u) +
+    (p ? "&p=" + encodeURIComponent(p) : "") + "&k=" + encodeURIComponent(k);
+  if (p && /^rec[A-Za-z0-9]{14}$/.test(p)) {
+    $("btnVerk").href = "/verk?t=" + encodeURIComponent(p) + "&k=" + encodeURIComponent(k);
+  } else {
+    $("btnVerk").style.opacity = ".4";
+    $("btnVerk").style.pointerEvents = "none";
+  }
+
+  fetchJson(UNIT_TABLE + "/" + u, k)
+    .then(function(rec){
+      var f = rec.fields || {};
+      var name = txt(f["Athugasemd"]) || "Eining";
+      $("unitName").textContent = name;
+
+      var meta = $("unitMeta");
+      var room = txt(f["Heiti rýmis"]);
+      var tegund = txt(f["Tegund einingu"]);
+      if (room) meta.innerHTML += '<span class="chip">'+esc(room)+'</span>';
+      if (tegund) meta.innerHTML += '<span class="chip">'+esc(tegund)+'</span>';
+
+      hide($("loading"));
+      show($("content"));
+
+      if (!p) return;
+      fetchJson(PROJECT_TABLE + "/" + p, null)
+        .then(function(prec){
+          var pname = txt((prec.fields||{})["Heiti tækifæris / verkefnis"]).replace(/[\s,–—-]+$/,"").trim();
+          if (pname) $("projName").textContent = pname;
+        })
+        .catch(function(){ /* project name is a nicety, not required */ });
+    })
+    .catch(function(e){ console.error(e); hide($("loading")); show($("error")); });
+})();
+</script>
+</body>
+</html>

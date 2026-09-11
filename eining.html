@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex" />
+<title>Eining — Björninn</title>
+<style>
+  /* eining.html — internal page for ONE unit (Eyðublað). Reached from /velja
+     after scanning a piece's Zebra label. Mirrors, field-for-field, what the
+     "samsetningar prentunar" Airtable automation puts on the physical
+     assembly label — so the digital and printed views of a unit agree. */
+  :root {
+    --bg:#0b0b0c; --surface:#161618; --surface2:#1e1e21;
+    --line:#2a2a2e; --text:#f2f2f3; --muted:#8b8b92;
+    --blue:#3b9eff; --blue-bg:#0e2436;
+    --amber:#f5c518; --green:#4caf50;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body {
+    background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased; line-height:1.5;
+  }
+  .wrap { max-width:640px; margin:0 auto; padding:16px 14px 60px; }
+
+  .hd h1 { font-size:1.5rem; font-weight:800; letter-spacing:-.01em; }
+  .hd-meta { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+  .chip { font-size:.82rem; font-weight:700; padding:5px 11px; border-radius:999px; background:var(--surface2); border:1px solid var(--line); }
+  .chip.dim { color:var(--blue); border-color:#1c3a52; background:var(--blue-bg); }
+  .proj-link {
+    display:inline-flex; align-items:center; gap:6px; margin-top:12px;
+    color:var(--amber); text-decoration:none; font-size:.88rem; font-weight:700;
+  }
+
+  section { margin-top:22px; }
+  .sec-h { font-size:.74rem; font-weight:800; text-transform:uppercase; letter-spacing:.13em; color:var(--muted); margin-bottom:10px; }
+
+  .list { background:var(--surface); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  .item { display:flex; justify-content:space-between; gap:10px; padding:11px 14px; font-size:.92rem; border-top:1px solid var(--line); }
+  .item:first-child { border-top:0; }
+  .item .k { color:var(--text); }
+  .item .v { color:var(--muted); text-align:right; flex:none; max-width:55%; }
+
+  .cut { display:flex; flex-direction:column; gap:8px; }
+  .crow {
+    display:flex; align-items:center; gap:10px; background:var(--surface); border:1px solid var(--line);
+    border-radius:10px; padding:11px 14px;
+  }
+  .crow.done { opacity:.55; border-color:#1e3a20; }
+  .crow .p { font-weight:700; font-size:.94rem; }
+  .crow .d { color:var(--muted); font-size:.82rem; margin-top:1px; }
+  .crow .n { margin-left:auto; font-weight:800; font-size:.9rem; flex:none; }
+  .crow .n.ok { color:var(--green); }
+
+  .tools { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .tool {
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    background:var(--blue-bg); border:1px solid #1c3a52; color:var(--blue);
+    border-radius:10px; padding:16px 10px; font-size:.95rem; font-weight:800;
+    text-decoration:none; text-align:center;
+  }
+  .tool:active { background:#123048; }
+
+  #loading,#error { text-align:center; color:var(--muted); padding:70px 20px; }
+  #error strong { display:block; color:var(--text); font-size:1.1rem; margin-bottom:6px; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="loading">Sæki einingu…</div>
+  <div id="error" class="hidden">
+    <strong>Fann ekki einingu</strong>
+    QR-kóðinn gæti verið úreltur eða hlekkinn vantar lykil.
+  </div>
+
+  <div id="content" class="hidden">
+    <div class="hd">
+      <h1 id="uname">—</h1>
+      <div class="hd-meta" id="umeta"></div>
+      <a class="proj-link hidden" id="projLink">🏗️ Skoða allt verkefnið →</a>
+    </div>
+
+    <section id="hwSec" class="hidden">
+      <div class="sec-h">Vörur &amp; aukahlutir</div>
+      <div class="list" id="hwList"></div>
+    </section>
+
+    <section id="propSec" class="hidden">
+      <div class="sec-h">Eiginleikar</div>
+      <div class="list" id="propList"></div>
+    </section>
+
+    <section id="cutSec" class="hidden">
+      <div class="sec-h">Skurðarlisti þessarar einingar</div>
+      <div class="cut" id="cutList"></div>
+    </section>
+
+    <section id="toolsSec" class="hidden">
+      <div class="sec-h">Opna</div>
+      <div class="tools" id="tools"></div>
+    </section>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var PROXY = "/api/airtable";
+  var UNIT_TABLE = "tbl0WcyHhz63pSzZX";
+  var PROJECT_TABLE = "tbl4LMXlQjp66RFKI";
+  var PRODUCTS_TABLE = "tblzuuRSRkeXaLWxC";
+  var SOGUNARLISTI_TABLE = "tblhdgyvTcBfP8kov";
+
+  function $(id){ return document.getElementById(id); }
+  function show(el){ el.classList.remove("hidden"); }
+  function hide(el){ el.classList.add("hidden"); }
+  function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+  function arr(v){ return Array.isArray(v)?v:(v==null||v===""?[]:[v]); }
+  function txt(v){ return arr(v).filter(function(x){return x!=null&&x!=="";}).join(" / ").trim(); }
+  function num(v){ var n=Number(v); return Number.isFinite(n)?n:0; }
+
+  // encodeURIComponent, NOT URLSearchParams — URLSearchParams serializes
+  // spaces as "+", which the request parser here doesn't decode back to a
+  // space, corrupting any filterByFormula that references a field name with
+  // a space in it (e.g. {Eyðublað ✏️}). Same gotcha noted across grain.html
+  // and the other tools; encodeURIComponent always emits %20 instead.
+  function fetchJson(path, params, k){
+    var all = Object.assign({ path: path }, params || {});
+    if (k) all.k = k;
+    var qs = Object.keys(all).map(function(key){
+      return encodeURIComponent(key) + "=" + encodeURIComponent(all[key]);
+    }).join("&");
+    return fetch(PROXY + "?" + qs).then(function(r){
+      return r.ok ? r.json() : Promise.reject(new Error("HTTP "+r.status));
+    });
+  }
+  function fetchAll(path, params, k){
+    var records = [];
+    function page(offset){
+      var p = Object.assign({}, params||{});
+      if (offset) p.offset = offset;
+      return fetchJson(path, p, k).then(function(data){
+        records = records.concat(data.records||[]);
+        return data.offset ? page(data.offset) : records;
+      });
+    }
+    return page();
+  }
+
+  // ── field spec tables, mirroring the samsetningar assembly-label script ──
+  var HW_LINKS = [
+    ["Höldur 1","Höldur 1 magn"], ["Höldur 2","Höldur 2 magn"],
+    ["LED","LED magn"], ["Fataslár","Fataslár magn"],
+    ["Straumbreytar","Straumbreytar magn"], ["Útdrög","Útdrög magn"],
+    ["AMBIA","AMBIA magn"], ["Hnífaparabakkar","Hnífaparabakkar magn"],
+    ["Rusl","Rusl magn"], ["Fatalyftur","Fatalyftur magn"],
+    ["Loftunarrist","Loftunarristar magn"], ["Stök vara","Stök vara magn"],
+    ["Harðplast", null], ["Töfrahorn útfærsla", null],
+    ["Skrá [Hurð]", null], ["Felliþr. [Hurð]", null], ["Lamir [Hurð]", null],
+  ];
+  var HW_NUM = [
+    ["Fastar hillur fjöldi","Fastar hillur"], ["Lausar hillur fjöldi","Lausar hillur"],
+    ["Fjöldi hillubera","Hilluberar"], ["Fjöldi sláa","Slár"],
+    ["Fjöldi Movento bakka","Movento bakki"], ["Fjöldi lagnaskúffa","Lagnaskúffa"],
+    ["N","N skúffur"],["M","M skúffur"],["K","K skúffur"],
+    ["C","C skúffur"],["F","F skúffur"],["E","E skúffur"],
+    ["IN","IN sk."],["IM","IM sk."],["IK","IK sk."],
+    ["IC","IC sk."],["IE","IE sk."],["IF","IF sk."],
+    ["Fjöldi díla","Dílar"], ["Fjöldi Skrúfu / rastex","Skrúfur"],
+    ["Fjöldi euroskrúfa","Euroskrúfur"], ["Fjöldi lama / klossa","Lamar/klossar"],
+    ["Undirgrip","Undirgrip"],
+  ];
+  var PROP_BOOL = [
+    ["Rastex","Rastex"], ["Tveir frontar (væng)","Vænghurð"],
+    ["Mottur í skúffur","Mottur í sk."], ["550mm skúffur?","550mm skúffur"],
+    ["Úrtaksskúffa?","Úrtaksskúffa"], ["Harðplast?","Harðplast"],
+    ["Flatpakkaður","Flatpakkaður"], ["Kassi án fronts","Kassi án fronts"],
+    ["Lagnaskápur","Lagnaskápur"], ["Ofnaskápur","Ofnaskápur"],
+    ["Kassi úr frontaefni","FRE kassi"],
+  ];
+  var PROP_SELECT = [
+    ["Grip?","Grip"], ["Skúffutegund","Skúffur"],
+    ["Skipting fronta [Lárétt]","Sk. lárétt"], ["Skipting fronta [Lóðrétt]","Sk. lóðrétt"],
+    ["Skipting fronta [Tækja]","Sk. tækja"], ["Opnun [Hurð]","Opnun"],
+    ["Hurðaefni","Hurðaefni"], ["Tvípress / Eurolight","Tvípress"],
+    ["Sérsmíði tegund","Sérsmíði"], ["Sérsmíði efni","Sérsm. efni"],
+  ];
+  var SERHAED = [
+    ["N","Sérhæð N fronts"], ["M","Sérhæð M fronts"], ["K","Sérhæð K fronts"],
+    ["C","Sérhæð C fronts"], ["F","Sérhæð F fronts"], ["E","Sérhæð E fronts"],
+  ];
+
+  function renderHW(f, names){
+    var rows = [];
+    HW_LINKS.forEach(function(spec){
+      var ids = arr(f[spec[0]]);
+      if (!ids.length) return;
+      var label = ids.map(function(id){ return names[id] || id; }).join(", ");
+      var qty = spec[1] ? num(f[spec[1]]) : 0;
+      rows.push([label, qty > 0 ? "×" + qty : ""]);
+    });
+    HW_NUM.forEach(function(spec){
+      var n = num(f[spec[0]]);
+      if (n > 0) rows.push([spec[1], "×" + n]);
+    });
+    if (!rows.length) return;
+    $("hwList").innerHTML = rows.map(function(r){
+      return '<div class="item"><span class="k">'+esc(r[0])+'</span><span class="v">'+esc(r[1])+'</span></div>';
+    }).join("");
+    show($("hwSec"));
+  }
+
+  function renderProps(f){
+    var rows = [];
+    PROP_BOOL.forEach(function(spec){ if (f[spec[0]] === true) rows.push(spec[1]); });
+    PROP_SELECT.forEach(function(spec){
+      var v = txt(f[spec[0]]);
+      if (v) rows.push(spec[1] + ": " + v);
+    });
+    SERHAED.forEach(function(spec){
+      var count = num(f[spec[0]]), h = num(f[spec[1]]);
+      if (count > 0 && h > 0) rows.push(spec[0] + " front: " + h + "mm");
+    });
+    var depths = txt(f["Skúffu dýptir fyrir prentara"]);
+    if (depths) rows.push("Dýptir: " + depths);
+    if (!rows.length) return;
+    $("propList").innerHTML = rows.map(function(p){
+      return '<div class="item"><span class="k">'+esc(p)+'</span></div>';
+    }).join("");
+    show($("propSec"));
+  }
+
+  function renderCutlist(rows){
+    if (!rows.length) return;
+    var map = new Map();
+    rows.forEach(function(r){
+      var f = r.fields || {};
+      var partur = txt(f["Partur"]), h = num(f["H"]), b = num(f["B"]), th = num(f["Þ"]);
+      var key = partur+"|"+h+"|"+b+"|"+th;
+      if (!map.has(key)) map.set(key, { partur:partur, h:h, b:b, th:th, efni:txt(f["Efni: (undirstaða)"]), m:0, lokid:true });
+      var g = map.get(key);
+      g.m += num(f["M"]) || 1;
+      if (!f["Lokið"]) g.lokid = false;
+    });
+    var groups = [...map.values()].sort(function(a,b){ return (b.h*b.b)-(a.h*a.b); });
+    $("cutList").innerHTML = groups.map(function(g){
+      return '<div class="crow'+(g.lokid?" done":"")+'">'+
+        '<div><div class="p">'+esc(g.partur)+'</div>'+
+        '<div class="d">'+g.h+'×'+g.b+'×'+g.th+'mm — '+esc(g.efni)+'</div></div>'+
+        '<div class="n'+(g.lokid?" ok":"")+'">'+(g.lokid?'✓ ':'')+'×'+g.m+'</div></div>';
+    }).join("");
+    show($("cutSec"));
+  }
+
+  // u (unit) and p (project) both come from /v/<pieceId>'s server-side
+  // redirect, resolved from the printed piece's own Sögunarlisti links — NOT
+  // re-derived from Eyðublað's own project link here, which has been found
+  // to carry stray extra links on some units (see api/v.js).
+  var q = new URLSearchParams(location.search);
+  var u = q.get("u"), p = q.get("p"), k = q.get("k");
+  if (!u || !/^rec[A-Za-z0-9]{14}$/.test(u) || !k) {
+    hide($("loading")); show($("error")); return;
+  }
+
+  fetchJson(UNIT_TABLE + "/" + u, {}, k)
+    .then(function(rec){
+      var f = rec.fields || {};
+      var unitName = txt(f["Athugasemd"]) || "Eining";
+      $("uname").textContent = unitName;
+
+      var meta = $("umeta");
+      var room = txt(f["Heiti rýmis"]), tegund = txt(f["Tegund einingu"]);
+      var hh=num(f["Hæð"]), bb=num(f["Breidd"]), dd=num(f["Dýpt"]), qty=num(f["Fjöldi eininga"]);
+      if (room) meta.innerHTML += '<span class="chip">'+esc(room)+'</span>';
+      if (tegund) meta.innerHTML += '<span class="chip">'+esc(tegund)+'</span>';
+      if (hh||bb||dd) meta.innerHTML += '<span class="chip dim">'+hh+'×'+bb+'×'+dd+'mm</span>';
+      if (qty > 1) meta.innerHTML += '<span class="chip">×'+qty+' stk</span>';
+
+      renderProps(f);
+
+      var linkIds = new Set();
+      HW_LINKS.forEach(function(spec){ arr(f[spec[0]]).forEach(function(id){ linkIds.add(id); }); });
+
+      var namesPromise = linkIds.size
+        ? fetchAll(PRODUCTS_TABLE, { filterByFormula: "OR(" + [...linkIds].map(function(id){ return "RECORD_ID()='"+id+"'"; }).join(",") + ")" }, null)
+            .then(function(recs){
+              var names = {};
+              recs.forEach(function(r){ names[r.id] = txt((r.fields||{})["Heiti vöru 📣"]) || r.id; });
+              return names;
+            })
+            .catch(function(){ return {}; })
+        : Promise.resolve({});
+
+      var projectId = (p && /^rec[A-Za-z0-9]{14}$/.test(p)) ? p : null;
+
+      var projectNamePromise = projectId
+        ? fetchJson(PROJECT_TABLE + "/" + projectId, {}, null)
+            .then(function(prec){ return txt((prec.fields||{})["Heiti tækifæris / verkefnis"]); })
+            .catch(function(){ return ""; })
+        : Promise.resolve("");
+
+      if (projectId) {
+        var pl = $("projLink");
+        pl.href = "/verk?t=" + encodeURIComponent(projectId) + "&k=" + encodeURIComponent(k);
+        show(pl);
+        $("tools").innerHTML =
+          '<a class="tool" href="/labels?recordId='+encodeURIComponent(projectId)+'">Merkingar</a>' +
+          '<a class="tool" href="/fraesing?recordId='+encodeURIComponent(projectId)+'">Fræsing</a>';
+        show($("toolsSec"));
+      }
+
+      hide($("loading"));
+      show($("content"));
+
+      namesPromise.then(function(names){ renderHW(f, names); });
+
+      projectNamePromise.then(function(projectName){
+        if (!projectName || !unitName) return;
+        var formula = "AND(FIND(\""+projectName.replace(/"/g,'\\"')+"\", ARRAYJOIN({Tækifæri 📣 (projects)}))>0, "+
+                      "FIND(\""+unitName.replace(/"/g,'\\"')+"\", ARRAYJOIN({Eyðublað ✏️}))>0)";
+        return fetchAll(SOGUNARLISTI_TABLE, { filterByFormula: formula, pageSize: 100 }, null)
+          .then(renderCutlist)
+          .catch(function(){});
+      });
+    })
+    .catch(function(e){ console.error(e); hide($("loading")); show($("error")); });
+})();
+</script>
+</body>
+</html>

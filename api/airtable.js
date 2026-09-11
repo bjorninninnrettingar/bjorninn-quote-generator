@@ -104,6 +104,9 @@ const ALLOWED_FIELDS = {
     "LED magn",
     "N", "M", "K", "C", "F", "E", "IN", "IM", "IK", "IC", "IF", "IE",
   ],
+  "tblzuuRSRkeXaLWxC": [ // Vörulisti 🚪 — resolves hardware-link names for /eining (name only, no cost)
+    "Heiti vöru 📣",
+  ],
   "tbl8CrVWKF8CuI7HD": [ // Efnislisti 🧱
     "Heiti efnis",
     "Breidd (mm)",
@@ -192,6 +195,44 @@ const VERK_ONLY_FIELDS = {
     "Fjöldi eininga til að fræsa",
     "Fjöldi eininga búið að fræsa ✅",
     "Staða á efnispöntun",
+  ],
+  // /eining (unit page) — mirrors exactly what the "samsetningar prentunar"
+  // Eyðublað automation puts on the physical assembly label, so the digital
+  // and printed views of a unit always agree. Internal build detail, not for
+  // the public proxy path — same VERK_KEY gate as the Tækifæri set above.
+  "tbl0WcyHhz63pSzZX": [
+    "Heiti rýmis",
+    "Tegund einingu",
+    "Hæð", "Breidd", "Dýpt",
+    "Fjöldi eininga",
+    "Höldur 1", "Höldur 1 magn", "Höldur 2", "Höldur 2 magn",
+    "LED", "LED magn",
+    "Fataslár", "Fataslár magn",
+    "Straumbreytar", "Straumbreytar magn",
+    "Útdrög", "Útdrög magn",
+    "AMBIA", "AMBIA magn",
+    "Hnífaparabakkar", "Hnífaparabakkar magn",
+    "Rusl", "Rusl magn",
+    "Fatalyftur", "Fatalyftur magn",
+    "Loftunarrist", "Loftunarristar magn",
+    "Stök vara", "Stök vara magn",
+    "Harðplast", "Harðplast?",
+    "Spegill",
+    "Töfrahorn útfærsla",
+    "Skrá [Hurð]", "Felliþr. [Hurð]", "Lamir [Hurð]",
+    "Fastar hillur fjöldi", "Lausar hillur fjöldi",
+    "Fjöldi hillubera", "Fjöldi sláa",
+    "Fjöldi Movento bakka", "Fjöldi lagnaskúffa",
+    "Fjöldi díla", "Fjöldi Skrúfu / rastex", "Fjöldi euroskrúfa", "Fjöldi lama / klossa",
+    "Rastex", "Undirgrip", "Tveir frontar (væng)",
+    "Mottur í skúffur", "550mm skúffur?", "Úrtaksskúffa?",
+    "Flatpakkaður", "Kassi án fronts", "Lagnaskápur", "Ofnaskápur", "Kassi úr frontaefni",
+    "Grip?", "Skúffutegund", "Skúffu dýptir fyrir prentara",
+    "Skipting fronta [Lárétt]", "Skipting fronta [Lóðrétt]", "Skipting fronta [Tækja]",
+    "Opnun [Hurð]", "Hurðaefni",
+    "Sérhæð N fronts", "Sérhæð M fronts", "Sérhæð K fronts",
+    "Sérhæð C fronts", "Sérhæð F fronts", "Sérhæð E fronts",
+    "Tvípress / Eurolight", "Sérsmíði tegund", "Sérsmíði efni",
   ],
 };
 
