@@ -25,7 +25,7 @@
     --line:#2a2a2e; --text:#f2f2f3; --muted:#e8e8ec;
     --blue:#0a84ff; --blue-bg:#0e2436;
     --amber:#ffd60a; --green:#4caf50; --red:#ff5a5a;
-    --sec-notes:#ff9f0a; --sec-draws:#a78bfa; --sec-prog:#0a84ff; --sec-mat:#2dd4bf;
+    --sec-notes:#ff9f0a; --sec-draws:#a78bfa; --sec-prog:#0a84ff; --sec-mat:#2dd4bf; --sec-units:#ff6482;
     --font:"Kumbh Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
   * { box-sizing:border-box; margin:0; padding:0; }
@@ -34,13 +34,22 @@
     font-family:var(--font);
     -webkit-font-smoothing:antialiased; line-height:1.5;
   }
-  .wrap { max-width:640px; margin:0 auto; padding:16px 14px 60px; }
+  .wrap { max-width:640px; margin:0 auto; padding:0 14px 60px; }
 
-  /* header */
-  .hd { margin-bottom:18px; }
-  .hd h1 { font-size:1.7rem; font-weight:800; line-height:1.2; letter-spacing:-.01em; }
+  /* sticky header — project name + the one number that matters most while
+     scrolling (Afhending), pinned to the top like eining.html's unit bar */
+  .sticky-hd {
+    position:sticky; top:0; z-index:20;
+    margin:0 -14px 16px; padding:14px;
+    background:var(--bg); border-bottom:1px solid var(--line);
+    display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap;
+  }
+  .sticky-pname { font-size:1.2rem; font-weight:800; line-height:1.25; letter-spacing:-.01em; flex:1 1 auto; min-width:0; }
+  .sticky-delivery { flex:none; text-align:right; }
+  .sticky-delivery .flabel { display:block; }
+  .sticky-delivery .fval-big { font-size:2rem; font-weight:800; letter-spacing:-.01em; white-space:nowrap; }
 
-  .field-row { display:flex; gap:28px; flex-wrap:wrap; margin-top:16px; }
+  .field-row { display:flex; gap:28px; flex-wrap:wrap; margin-bottom:4px; }
   .field { margin-bottom:0; }
   .flabel { font-size:.74rem; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:var(--muted); }
   .fval { font-size:1.05rem; font-weight:600; }
@@ -58,8 +67,9 @@
   #drawsSec .sec-h { color:var(--sec-draws); }
   #progSec .sec-h { color:var(--sec-prog); }
   #matSec .sec-h { color:var(--sec-mat); }
+  #unitsSec .sec-h { color:var(--sec-units); }
   #drawsSec .draw { border-left:3px solid var(--sec-draws); }
-  #matSec .mat { border-left:3px solid var(--sec-mat); }
+  #unitsSec .ulist { border-left:3px solid var(--sec-units); }
 
   /* notes */
   .note {
@@ -68,9 +78,14 @@
   }
   .note.warn { border-left-color:var(--amber); }
   .note-k { font-size:.72rem; font-weight:800; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-bottom:5px; }
+  .note-k.toggle { cursor:pointer; display:flex; align-items:center; justify-content:space-between; margin-bottom:0; }
+  .note-k.toggle .cv { color:var(--muted); font-size:.8rem; transition:transform .15s; }
+  .note-k.toggle.open .cv { transform:rotate(-90deg); }
   .note-v { font-size:.98rem; white-space:pre-wrap; word-break:break-word; }
+  .note-v.collapsed { display:none; margin-top:8px; }
+  .note-v:not(.collapsed) { margin-top: 5px; }
   .note-v a { color:var(--blue); }
-  .pep { display:flex; flex-wrap:wrap; gap:8px; }
+  .pep { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
   .pep .note { flex:1 1 46%; border-left-color:var(--green); margin:0; }
 
   /* drawings */
@@ -105,12 +120,32 @@
   .prow-num { font-size:.82rem; color:var(--muted); }
   .prow .bar > i.g { background:var(--green); }
 
-  /* materials */
+  /* materials — colored/swatch rows for actual board materials, plain rows
+     (no color meaning available) for hardware picks + order status */
   .mat { background:var(--surface); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
-  .mrow { display:grid; grid-template-columns:96px 1fr; gap:10px; padding:11px 14px; font-size:.9rem; border-top:1px solid var(--line); }
-  .mrow:first-child { border-top:0; }
+  .mat > * { border-top:1px solid var(--line); }
+  .mat > *:first-child { border-top:0; }
+  .matrow { display:flex; align-items:center; gap:12px; padding:12px 14px; }
+  .mat-swatch { width:34px; height:34px; border-radius:7px; object-fit:cover; flex:none; border:1px solid rgba(255,255,255,.25); }
+  .mat-cat { font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); }
+  .mat-name { font-size:.95rem; font-weight:600; color:var(--text); margin-top:1px; }
+  .mrow { display:grid; grid-template-columns:96px 1fr; gap:10px; padding:11px 14px; font-size:.9rem; }
   .mrow .mk { color:var(--muted); }
+  .mrow .mv { color:var(--text); }
   .mrow.order .mv { font-weight:700; }
+
+  /* units (Eyðublað) */
+  .ulist { background:var(--surface); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  .ulist > a { display:block; border-top:1px solid var(--line); }
+  .ulist > a:first-child { border-top:0; }
+  .urow {
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:13px 14px; text-decoration:none; color:var(--text);
+  }
+  .urow:active { background:var(--surface2); }
+  .urow .uname { font-weight:700; font-size:.95rem; }
+  .urow .usub { color:var(--muted); font-size:.82rem; font-weight:400; margin-top:1px; }
+  .urow .arrow { color:var(--muted); flex:none; }
 
   /* tools */
   .tools { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
@@ -129,24 +164,28 @@
 </head>
 <body>
 <div class="wrap">
-  <div id="loading">Sæki verk…</div>
-  <div id="error" class="hidden">
+  <div id="loading" style="padding-top:70px;">Sæki verk…</div>
+  <div id="error" class="hidden" style="padding-top:70px;">
     <strong>Fann ekki verkið</strong>
     QR-kóðinn gæti verið úreltur eða hlekkinn vantar lykil.
   </div>
 
   <div id="content" class="hidden">
-    <div class="hd">
-      <h1 id="pname">—</h1>
-      <div class="field-row">
-        <div class="field hidden" id="stageField"><span class="flabel">Staða</span><br><span class="fval" id="stageVal"></span></div>
-        <div class="field hidden" id="prioField"><span class="flabel">Forgangur</span><br><span class="fval" id="prioVal"></span></div>
-        <div class="field hidden" id="deliveryField"><span class="flabel">Afhending</span><br><span class="fval" id="deliveryVal"></span></div>
+    <div class="sticky-hd">
+      <span class="sticky-pname" id="pname">—</span>
+      <div class="sticky-delivery hidden" id="deliveryField">
+        <span class="flabel">Afhending</span>
+        <span class="fval-big" id="deliveryVal"></span>
       </div>
-      <div class="barwrap hidden" id="wbar">
-        <div class="bar"><i id="wbarFill" style="width:0%"></i></div>
-        <div class="bar-lbl">Heildarframvinda framleiðslu · <span id="wbarPct">0%</span></div>
-      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field hidden" id="stageField"><span class="flabel">Staða</span><br><span class="fval" id="stageVal"></span></div>
+      <div class="field hidden" id="prioField"><span class="flabel">Forgangur</span><br><span class="fval" id="prioVal"></span></div>
+    </div>
+    <div class="barwrap hidden" id="wbar">
+      <div class="bar"><i id="wbarFill" style="width:0%"></i></div>
+      <div class="bar-lbl">Heildarframvinda framleiðslu · <span id="wbarPct">0%</span></div>
     </div>
 
     <section id="notesSec" class="hidden">
@@ -170,6 +209,11 @@
       <div class="mat" id="mat"></div>
     </section>
 
+    <section id="unitsSec" class="hidden">
+      <div class="sec-h">Eyðublað</div>
+      <div class="ulist" id="unitsList"></div>
+    </section>
+
     <section id="toolsSec">
       <div class="sec-h">Opna</div>
       <div class="tools" id="tools"></div>
@@ -182,6 +226,8 @@
   "use strict";
   var PROXY = "/api/airtable";
   var TABLE = "tbl4LMXlQjp66RFKI";
+  var UNIT_TABLE = "tbl0WcyHhz63pSzZX";
+  var MATERIALS_TABLE = "tbl8CrVWKF8CuI7HD";
 
   var F = {
     name:"Heiti tækifæris / verkefnis",
@@ -252,6 +298,42 @@
     return s.replace(/\n/g,"<br>");
   }
 
+  // Deterministic color per material name — same function as eining.html, so
+  // a material shared between the two pages reads as the same color.
+  function colorForKey(key){
+    var hash = 0;
+    for (var i=0;i<key.length;i++) hash = (hash*31 + key.charCodeAt(i)) | 0;
+    var hue = Math.abs(hash) % 360;
+    return "hsl(" + hue + ",70%,68%)";
+  }
+
+  // encodeURIComponent, NOT URLSearchParams — see eining.html for why
+  // (URLSearchParams turns spaces into "+", which corrupts filterByFormula
+  // here). Material names and field names both contain spaces, so this
+  // matters the moment we query Efnislisti/Eyðublað, not just the main fetch.
+  function fetchJson(path, params, k){
+    var all = Object.assign({ path: path }, params || {});
+    if (k) all.k = k;
+    var qs = Object.keys(all).map(function(key){
+      return encodeURIComponent(key) + "=" + encodeURIComponent(all[key]);
+    }).join("&");
+    return fetch(PROXY + "?" + qs).then(function(r){
+      return r.ok ? r.json() : Promise.reject(new Error("HTTP "+r.status));
+    });
+  }
+  function fetchAll(path, params, k){
+    var records = [];
+    function page(offset){
+      var p = Object.assign({}, params||{});
+      if (offset) p.offset = offset;
+      return fetchJson(path, p, k).then(function(data){
+        records = records.concat(data.records||[]);
+        return data.offset ? page(data.offset) : records;
+      });
+    }
+    return page();
+  }
+
   function note(sec, key, val, opts){
     var v = txt(val);
     if (!v) return;
@@ -263,16 +345,29 @@
     sec.appendChild(d);
   }
 
+  // Skúffusamantekt is usually a long per-cabinet drawer breakdown — worth
+  // having, not worth it taking up a screen's height by default.
+  function collapsibleNote(sec, key, val){
+    var v = txt(val);
+    if (!v) return;
+    var d = document.createElement("div");
+    d.className = "note";
+    d.innerHTML =
+      '<div class="note-k toggle"><span>'+esc(key)+'</span><span class="cv">▸</span></div>'+
+      '<div class="note-v collapsed">'+esc(v)+'</div>';
+    var head = d.querySelector(".note-k");
+    var body = d.querySelector(".note-v");
+    head.addEventListener("click", function(){
+      head.classList.toggle("open");
+      body.classList.toggle("collapsed");
+    });
+    sec.appendChild(d);
+  }
+
   function renderNotes(f){
     var box = $("notes");
-    note(box, "Almennt", f[F.nGeneral], {warn:true});
-    note(box, "Fræsari 🔬", f[F.nFraes], {warn:true});
-    note(box, "Spónlagning 🪵", f[F.nSpon], {warn:true});
-    note(box, "Uppsetning 🪛", f[F.nUpp], {warn:true});
-    note(box, "Verklýsing teiknara 📝", f[F.nTeikn]);
-    note(box, "Skúffusamantekt", f[F.nDrawers]);
-    note(box, "Verkfundur 🗒️", f[F.nMeeting], {md:true});
 
+    // Markmið/Pepp first — morale before task list.
     var goal = txt(f[F.goal]), pep = txt(f[F.pep]);
     if (goal || pep) {
       var wrap = document.createElement("div");
@@ -281,6 +376,12 @@
       if (pep)  wrap.innerHTML += '<div class="note"><div class="note-k">🚀 Pepp</div><div class="note-v">'+esc(pep)+'</div></div>';
       box.appendChild(wrap);
     }
+
+    note(box, "Spónlagning 🪵", f[F.nSpon], {warn:true});
+    note(box, "Verklýsing teiknara 📝", f[F.nTeikn]);
+    collapsibleNote(box, "Skúffusamantekt", f[F.nDrawers]);
+    note(box, "Verkfundur 🗒️", f[F.nMeeting], {md:true});
+
     if (box.children.length) show($("notesSec"));
   }
 
@@ -329,12 +430,12 @@
     });
   }
 
+  // Only Lokateikningar — the other project-drawing types (sérfræsi,
+  // málsettar myndir, teikningar af tækifæri, heimilistæki) were cut from
+  // both /verk and /eining on request. They're not shown anywhere anymore;
+  // say so if you ever need them back.
   function renderDraws(f){
     drawRow("📋", "Lokateikningar", f[F.dFinal]);
-    drawRow("🔬", "Sérfræsi teikningar", f[F.dMill]);
-    drawRow("📐", "Málsettar myndir", f[F.dDims]);
-    drawRow("✍️", "Teikningar af tækifæri", f[F.dSketch]);
-    drawRow("🔌", "Heimilistæki", f[F.dAppl]);
     if ($("draws").children.length || $("imgs").children.length) show($("drawsSec"));
   }
 
@@ -358,24 +459,95 @@
     if ($("prog").children.length) show($("progSec"));
   }
 
+  // Board materials (Skrokkar/Frontar/Hurðaefni/Borðplata) get a swatch photo
+  // + a deterministic color (same colorForKey as eining.html's Sögun &
+  // fræsing, so a shared material reads as the same color on both pages) —
+  // matched by exact name against Efnislisti, same approach as eining.html.
+  // Höldur (hardware, not a board) and Efnispöntun (a status, not a material)
+  // stay plain rows — there's no board material behind them to color.
   function renderMat(f){
-    var rows = [
-      ["Skrokkar", txt(f[F.mCarcase])],
-      ["Frontar", [txt(f[F.mFront1]),txt(f[F.mFront2])].filter(Boolean).join(" / ")],
-      ["Hurðaefni", [txt(f[F.mDoor1]),txt(f[F.mDoor2])].filter(Boolean).join(" / ")],
-      ["Borðplata", txt(f[F.mWorktop])],
-      ["Höldur", [txt(f[F.mHandle1]),txt(f[F.mHandle2])].filter(Boolean).join(" / ")]
-    ].filter(function(r){ return r[1]; });
+    var matEntries = [];
+    function addMat(cat, vals) {
+      vals.forEach(function(v){ if (v) matEntries.push([cat, v]); });
+    }
+    addMat("Skrokkar", [txt(f[F.mCarcase])]);
+    addMat("Frontar", [txt(f[F.mFront1]), txt(f[F.mFront2])]);
+    addMat("Hurðaefni", [txt(f[F.mDoor1]), txt(f[F.mDoor2])]);
+    addMat("Borðplata", [txt(f[F.mWorktop])]);
 
+    var plainRows = [["Höldur", [txt(f[F.mHandle1]),txt(f[F.mHandle2])].filter(Boolean).join(" / ")]]
+      .filter(function(r){ return r[1]; });
     var order = txt(f[F.orderStatus]);
-    if (order) rows.push(["Efnispöntun", order, true]);
-    if (!rows.length) return;
+    if (order) plainRows.push(["Efnispöntun", order, true]);
 
-    $("mat").innerHTML = rows.map(function(r){
-      return '<div class="mrow'+(r[2]?" order":"")+'"><span class="mk">'+esc(r[0])+
-             '</span><span class="mv">'+esc(r[1])+'</span></div>';
-    }).join("");
-    show($("matSec"));
+    if (!matEntries.length && !plainRows.length) return;
+
+    var names = [...new Set(matEntries.map(function(e){ return e[1]; }))];
+    var imgsPromise = names.length
+      ? fetchAll(MATERIALS_TABLE, {
+          filterByFormula: "OR(" + names.map(function(n){
+            return "{Heiti efnis}=\"" + n.replace(/"/g,'\\"') + "\"";
+          }).join(",") + ")"
+        }, null)
+          .then(function(recs){
+            var imgs = {};
+            recs.forEach(function(r){
+              var rf = r.fields || {};
+              var att = arr(rf["Mynd 🖼️"])[0];
+              if (!att) return;
+              var t = (att.thumbnails && (att.thumbnails.large || att.thumbnails.small)) || {};
+              imgs[txt(rf["Heiti efnis"])] = t.url || att.url;
+            });
+            return imgs;
+          })
+          .catch(function(e){ console.error("Efnislisti swatch fetch failed:", e); return {}; })
+      : Promise.resolve({});
+
+    imgsPromise.then(function(imgs){
+      var matHtml = matEntries.map(function(e){
+        var cat = e[0], name = e[1];
+        var c = colorForKey(name);
+        var swatch = imgs[name]
+          ? '<img class="mat-swatch" src="'+esc(imgs[name])+'" alt="" loading="lazy" onerror="this.remove()">' : "";
+        return '<div class="matrow" style="border-left:3px solid '+c+';">'+swatch+
+          '<div><div class="mat-cat">'+esc(cat)+'</div><div class="mat-name">'+esc(name)+'</div></div></div>';
+      }).join("");
+      var plainHtml = plainRows.map(function(r){
+        return '<div class="mrow'+(r[2]?" order":"")+'"><span class="mk">'+esc(r[0])+
+               '</span><span class="mv">'+esc(r[1])+'</span></div>';
+      }).join("");
+      $("mat").innerHTML = matHtml + plainHtml;
+      show($("matSec"));
+    });
+  }
+
+  // All units (Eyðublað) in this project, each linking into /eining for its
+  // own vörur/eiginleikar/skurðarlisti — exact match on both project-link
+  // fields (old + new; some units are only linked via the old one), same
+  // reasoning as everywhere else: FIND/substring is fine at the project-name
+  // level (long, distinctive strings) but exact equality is what's safe.
+  function renderUnits(projectName, projectId, k){
+    if (!projectName) return;
+    var formula = "OR(ARRAYJOIN({Tækifæri 📣 (projects)})=\""+projectName.replace(/"/g,'\\"')+"\", "+
+                  "ARRAYJOIN({Tækifæri 📣})=\""+projectName.replace(/"/g,'\\"')+"\")";
+    fetchAll(UNIT_TABLE, { filterByFormula: formula, pageSize: 100 }, k)
+      .then(function(recs){
+        if (!recs.length) return;
+        recs.sort(function(a,b){
+          return txt((a.fields||{})["Athugasemd"]).localeCompare(txt((b.fields||{})["Athugasemd"]), "is", {numeric:true});
+        });
+        $("unitsList").innerHTML = recs.map(function(r){
+          var uf = r.fields || {};
+          var name = txt(uf["Athugasemd"]) || "Eining";
+          var room = txt(uf["Heiti rýmis"]);
+          var href = "/eining?u="+encodeURIComponent(r.id)+"&p="+encodeURIComponent(projectId)+"&k="+encodeURIComponent(k);
+          return '<a href="'+href+'"><div class="urow">'+
+            '<div><div class="uname">'+esc(name)+'</div>'+(room?'<div class="usub">'+esc(room)+'</div>':'')+'</div>'+
+            '<span class="arrow">→</span></div></a>';
+        }).join("");
+        show($("unitsSec"));
+      })
+      .catch(function(e){ console.error("Eyðublað fetch failed:", e); });
   }
 
   function renderTools(t){
@@ -390,9 +562,10 @@
     }).join("");
   }
 
-  function render(rec){
+  function render(rec, projectId, k){
     var f = rec.fields || {};
-    $("pname").textContent = txt(f[F.name]).replace(/[\s,–—-]+$/,"").trim() || "Verk";
+    var pname = txt(f[F.name]).replace(/[\s,–—-]+$/,"").trim() || "Verk";
+    $("pname").textContent = pname;
 
     var stage = txt(f[F.stage]);
     if (stage) { $("stageVal").textContent = stage; show($("stageField")); }
@@ -418,7 +591,8 @@
     try { renderDraws(f); } catch(e){}
     try { renderProg(f); } catch(e){}
     try { renderMat(f); } catch(e){}
-    renderTools(new URLSearchParams(location.search).get("t"));
+    try { renderUnits(pname, projectId, k); } catch(e){}
+    renderTools(projectId);
 
     hide($("loading"));
     show($("content"));
@@ -429,13 +603,9 @@
   if (!t || !/^rec[A-Za-z0-9]{14}$/.test(t) || !k) {
     hide($("loading")); show($("error")); return;
   }
-  var url = new URL(PROXY, location.origin);
-  url.searchParams.set("path", TABLE + "/" + t);
-  url.searchParams.set("k", k);
 
-  fetch(url.toString())
-    .then(function(r){ return r.ok ? r.json() : Promise.reject(new Error("HTTP "+r.status)); })
-    .then(function(rec){ if(!rec||!rec.fields) return Promise.reject(new Error("no record")); render(rec); })
+  fetchJson(TABLE + "/" + t, {}, k)
+    .then(function(rec){ if(!rec||!rec.fields) return Promise.reject(new Error("no record")); render(rec, t, k); })
     .catch(function(e){ console.error(e); hide($("loading")); show($("error")); });
 })();
 </script>
