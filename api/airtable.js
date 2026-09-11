@@ -113,6 +113,7 @@ const ALLOWED_FIELDS = {
     "Lengd (mm)",
     "Þykkt (mm)",
     "Undirflokkur 🗂️", // grain.html: is a part's material frontaefni / spónlagt / hurð?
+    "Mynd 🖼️", // eining.html: material swatch shown beside its Sögun & fræsing group header
   ],
   "tblDQWuf4OSjUv2XI": [ // QUICK FIX❗
     "Verkheiti",
