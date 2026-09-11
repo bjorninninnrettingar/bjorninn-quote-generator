@@ -656,7 +656,13 @@
 
   function render(rec, projectId, k){
     var f = rec.fields || {};
-    var pname = txt(f[F.name]).replace(/[\s,–—-]+$/,"").trim() || "Verk";
+    // rawName (unstripped) is what Eyðublað's ARRAYJOIN({Tækifæri...}) will
+    // actually contain — it resolves to the linked record's primary field
+    // exactly as stored. pname (stripped of a trailing "- -"/empty-address
+    // tail) is display-only; matching renderUnits' formula against pname
+    // instead silently found zero units for any project with that tail.
+    var rawName = txt(f[F.name]);
+    var pname = rawName.replace(/[\s,–—-]+$/,"").trim() || "Verk";
     $("pname").textContent = pname;
 
     var stage = txt(f[F.stage]);
@@ -683,7 +689,7 @@
     try { renderDraws(f); } catch(e){}
     try { renderProg(f); } catch(e){}
     try { renderMat(f); } catch(e){}
-    try { renderUnits(pname, projectId, k); } catch(e){}
+    try { renderUnits(rawName, projectId, k); } catch(e){}
     renderTools(projectId);
 
     hide($("loading"));
