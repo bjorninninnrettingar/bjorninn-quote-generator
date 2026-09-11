@@ -5,46 +5,48 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="robots" content="noindex" />
 <title>Verk — Björninn</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <style>
   /* verk.html — internal floor page for ONE project.
      Reached by scanning the QR on a Zebra piece-label:
         /verk?t=<Tækifæri recordId>&k=<VERK_KEY>
      Data via /api/airtable — the ?k= widens the Tækifæri field set to include
      the internal notes / drawings / progress (see VERK_ONLY_FIELDS in the
-     proxy). Built for a phone in the workshop: dark, big, scannable. */
+     proxy). Built for a phone in the workshop: dark, big, scannable.
+     Formatting matches eining.html/velja.html: Kumbh Sans, near-white
+     secondary text, no pill chips for plain facts, per-section accent color
+     on headers + (where nothing else already carries color meaning) a
+     left-border on content cards. */
 
   :root {
     --bg:#0b0b0c; --surface:#161618; --surface2:#1e1e21;
-    --line:#2a2a2e; --text:#f2f2f3; --muted:#8b8b92;
-    --blue:#3b9eff; --blue-bg:#0e2436;
-    --amber:#f5c518; --green:#4caf50; --red:#ff5a5a;
+    --line:#2a2a2e; --text:#f2f2f3; --muted:#e8e8ec;
+    --blue:#0a84ff; --blue-bg:#0e2436;
+    --amber:#ffd60a; --green:#4caf50; --red:#ff5a5a;
+    --sec-notes:#ff9f0a; --sec-draws:#a78bfa; --sec-prog:#0a84ff; --sec-mat:#2dd4bf;
+    --font:"Kumbh Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
   * { box-sizing:border-box; margin:0; padding:0; }
   html,body {
     background:var(--bg); color:var(--text);
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-family:var(--font);
     -webkit-font-smoothing:antialiased; line-height:1.5;
   }
   .wrap { max-width:640px; margin:0 auto; padding:16px 14px 60px; }
 
   /* header */
   .hd { margin-bottom:18px; }
-  .hd-top { display:flex; align-items:flex-start; gap:10px; justify-content:space-between; }
-  .hd h1 { font-size:1.45rem; font-weight:800; line-height:1.2; letter-spacing:-.01em; }
-  .prio {
-    flex:none; font-size:.8rem; font-weight:800; padding:5px 10px; border-radius:8px;
-    background:var(--surface2); border:1px solid var(--line); white-space:nowrap;
-  }
-  .prio.p1 { color:#ffd54a; border-color:#5a4a12; background:#241f0b; }
-  .hd-meta { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
-  .chip {
-    font-size:.82rem; font-weight:700; padding:5px 11px; border-radius:999px;
-    background:var(--surface2); border:1px solid var(--line); color:var(--text);
-  }
-  .chip.stage { color:var(--blue); border-color:#1c3a52; background:var(--blue-bg); }
-  .chip.date  { color:var(--amber); }
+  .hd h1 { font-size:1.7rem; font-weight:800; line-height:1.2; letter-spacing:-.01em; }
 
-  .barwrap { margin-top:12px; }
+  .field-row { display:flex; gap:28px; flex-wrap:wrap; margin-top:16px; }
+  .field { margin-bottom:0; }
+  .flabel { font-size:.74rem; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:var(--muted); }
+  .fval { font-size:1.05rem; font-weight:600; }
+  .fval.prio-hot { color:#ffd54a; }
+
+  .barwrap { margin-top:16px; }
   .bar { height:8px; background:var(--surface2); border-radius:5px; overflow:hidden; }
   .bar > i { display:block; height:100%; background:var(--blue); border-radius:5px; }
   .bar-lbl { font-size:.72rem; color:var(--muted); margin-top:4px; text-transform:uppercase; letter-spacing:.08em; }
@@ -52,6 +54,12 @@
   /* section */
   section { margin-top:22px; }
   .sec-h { font-size:.74rem; font-weight:800; text-transform:uppercase; letter-spacing:.13em; color:var(--muted); margin-bottom:10px; }
+  #notesSec .sec-h { color:var(--sec-notes); }
+  #drawsSec .sec-h { color:var(--sec-draws); }
+  #progSec .sec-h { color:var(--sec-prog); }
+  #matSec .sec-h { color:var(--sec-mat); }
+  #drawsSec .draw { border-left:3px solid var(--sec-draws); }
+  #matSec .mat { border-left:3px solid var(--sec-mat); }
 
   /* notes */
   .note {
@@ -129,11 +137,12 @@
 
   <div id="content" class="hidden">
     <div class="hd">
-      <div class="hd-top">
-        <h1 id="pname">—</h1>
-        <span class="prio hidden" id="prio"></span>
+      <h1 id="pname">—</h1>
+      <div class="field-row">
+        <div class="field hidden" id="stageField"><span class="flabel">Staða</span><br><span class="fval" id="stageVal"></span></div>
+        <div class="field hidden" id="prioField"><span class="flabel">Forgangur</span><br><span class="fval" id="prioVal"></span></div>
+        <div class="field hidden" id="deliveryField"><span class="flabel">Afhending</span><br><span class="fval" id="deliveryVal"></span></div>
       </div>
-      <div class="hd-meta" id="meta"></div>
       <div class="barwrap hidden" id="wbar">
         <div class="bar"><i id="wbarFill" style="width:0%"></i></div>
         <div class="bar-lbl">Heildarframvinda framleiðslu · <span id="wbarPct">0%</span></div>
@@ -385,19 +394,18 @@
     var f = rec.fields || {};
     $("pname").textContent = txt(f[F.name]).replace(/[\s,–—-]+$/,"").trim() || "Verk";
 
+    var stage = txt(f[F.stage]);
+    if (stage) { $("stageVal").textContent = stage; show($("stageField")); }
+
     var prio = txt(f[F.prio]);
     if (prio) {
-      var el = $("prio");
-      el.textContent = prio;
-      if (/^1/.test(prio)) el.classList.add("p1");
-      show(el);
+      $("prioVal").textContent = prio;
+      $("prioVal").classList.toggle("prio-hot", /^1/.test(prio));
+      show($("prioField"));
     }
 
-    var meta = $("meta");
-    var stage = txt(f[F.stage]);
-    if (stage) meta.innerHTML += '<span class="chip stage">'+esc(stage)+'</span>';
     var del = fmtDate(f[F.delivery]);
-    if (del) meta.innerHTML += '<span class="chip date">Afhending '+esc(del)+'</span>';
+    if (del) { $("deliveryVal").textContent = del; show($("deliveryField")); }
 
     var w = pct(f[F.weighted]);
     if (w != null) {
