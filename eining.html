@@ -38,7 +38,7 @@
     background:var(--bg); border-bottom:1px solid var(--line);
     display:flex; align-items:baseline; justify-content:space-between; gap:10px; flex-wrap:wrap;
   }
-  .sticky-hd .uname { font-size:1.35rem; font-weight:800; letter-spacing:-.01em; }
+  .sticky-hd .uname { font-size:1.55rem; font-weight:800; letter-spacing:-.01em; }
   .sticky-hd .proj-link { color:var(--amber); font-size:.85rem; font-weight:700; text-decoration:none; white-space:nowrap; }
 
   .field-row { display:flex; gap:28px; flex-wrap:wrap; margin-bottom:12px; }
@@ -253,7 +253,7 @@
     ["Fjöldi hillubera","Hilluberar"],
   ];
   var ANNAD_SPEC = [
-    ["Fjöldi sláa","Slár"], ["Fjöldi Movento bakka","Movento bakki"],
+    ["Fjöldi Movento bakka","Movento bakki"],
     ["Fjöldi díla","Dílar"], ["Fjöldi Skrúfu / rastex","Skrúfur"],
     ["Fjöldi euroskrúfa","Euroskrúfur"], ["Fjöldi lama / klossa","Lamar/klossar"],
     ["Undirgrip","Undirgrip"],
@@ -519,8 +519,13 @@
         renderDraws(pf);
         var projectName = txt(pf["Heiti tækifæris / verkefnis"]);
         if (!projectName || !unitName) return;
-        var formula = "AND(FIND(\""+projectName.replace(/"/g,'\\"')+"\", ARRAYJOIN({Tækifæri 📣 (projects)}))>0, "+
-                      "FIND(\""+unitName.replace(/"/g,'\\"')+"\", ARRAYJOIN({Eyðublað ✏️}))>0)";
+        // Exact match on both, not FIND/substring — "Sk 3" as a substring
+        // also matches "Sk 30", "Sk 31", "Sk 32", "Sk 39"... (confirmed live:
+        // Sk 3's list was pulling in other units' hliðar this way). Since
+        // ARRAYJOIN() on a single-link field is just that one record's name,
+        // exact string equality is the correct match here.
+        var formula = "AND(ARRAYJOIN({Tækifæri 📣 (projects)})=\""+projectName.replace(/"/g,'\\"')+"\", "+
+                      "ARRAYJOIN({Eyðublað ✏️})=\""+unitName.replace(/"/g,'\\"')+"\")";
         return fetchAll(SOGUNARLISTI_TABLE, { filterByFormula: formula, pageSize: 100 }, null)
           .then(renderCutlist)
           .catch(function(){});
