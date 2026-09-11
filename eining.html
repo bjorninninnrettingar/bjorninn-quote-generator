@@ -47,6 +47,10 @@
   .flabel { font-size:.74rem; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:var(--muted); }
   .fval { font-size:1.05rem; font-weight:600; }
   .fval-big { font-size:1.55rem; font-weight:800; letter-spacing:-.01em; }
+  .dims-row { display:flex; align-items:baseline; gap:8px; }
+  .dim-col { display:flex; flex-direction:column; }
+  .dim-lbl { font-size:.62rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-bottom:1px; }
+  .dim-x { font-size:1.55rem; font-weight:800; color:var(--muted); }
   .tnote { font-size:.82rem; color:var(--amber); margin-top:6px; padding-top:6px; border-top:1px dashed var(--line); }
 
   /* per-section accent colors — purely a wayfinding aid so each table reads
@@ -154,7 +158,16 @@
     <div class="field-row">
       <div class="field hidden" id="roomField"><span class="flabel">Rými</span><br><span class="fval" id="roomVal"></span></div>
       <div class="field hidden" id="tegundField"><span class="flabel">Tegund</span><br><span class="fval" id="tegundVal"></span></div>
-      <div class="field hidden" id="dimsField"><span class="flabel">Mál</span><br><span class="fval-big" id="dimsVal"></span></div>
+      <div class="field hidden" id="dimsField">
+        <span class="flabel">Mál</span>
+        <div class="dims-row">
+          <div class="dim-col"><span class="dim-lbl">Hæð</span><span class="fval-big" id="dimsH"></span></div>
+          <span class="dim-x">×</span>
+          <div class="dim-col"><span class="dim-lbl">Breidd</span><span class="fval-big" id="dimsB"></span></div>
+          <span class="dim-x">×</span>
+          <div class="dim-col"><span class="dim-lbl">Dýpt</span><span class="fval-big" id="dimsD"></span></div>
+        </div>
+      </div>
     </div>
 
     <section id="drawsSec" class="hidden">
@@ -174,8 +187,11 @@
     </section>
 
     <section id="cutSec" class="hidden">
-      <div class="sec-h">Sögun &amp; fræsing</div>
-      <div class="ctable">
+      <div class="sec-h" id="cutToggle" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
+        <span>Sögun &amp; fræsing</span>
+        <span id="cutCaret" style="transition:transform .15s;">▾</span>
+      </div>
+      <div class="ctable" id="cutTable">
         <div class="ct-head"><span>Stykki</span><span>SÖG</span><span>FRÆS</span></div>
         <div id="cutList"></div>
       </div>
@@ -401,7 +417,7 @@
     if (docs.length === 1) {
       var a = docs[0];
       var el = document.createElement("a");
-      el.className = "draw-grp"; el.style.cursor = "default";
+      el.className = "draw-grp";
       el.href = a.url; el.target = "_blank"; el.rel = "noopener";
       el.innerHTML = '<span class="ic">'+icon+'</span><span>'+esc(label)+'</span><span class="ct">'+esc(ext(a))+'</span>';
       $("draws").appendChild(el);
@@ -494,29 +510,40 @@
             });
             return imgs;
           })
-          .catch(function(){ return {}; })
+          .catch(function(e){ console.error("Efnislisti swatch fetch failed:", e); return {}; })
       : Promise.resolve({});
 
     imgsPromise.then(function(imgs){
       $("cutList").innerHTML = materials.map(function(mat){
         var list = byMat.get(mat).sort(function(a,b){ return (b.h*b.b)-(a.h*a.b); });
         var c = colorForKey(mat);
-        var rows = list.map(function(g){
+        var rowsHtml = list.map(function(g){
           var sog = '<span class="cstat'+(g.lokid?' ok':'')+'">'+(g.lokid?'✓':'□')+'</span>';
           var fraes = !g.needsMill ? '<span class="cstat na">–</span>'
                     : '<span class="cstat'+(g.milled?' ok':'')+'">'+(g.milled?'✓':'□')+'</span>';
-          return '<div class="crow2" style="border-left:3px solid '+c+';">' +
+          // Row tint: both done (sög + fræs, or fræs n/a) -> green, sög done
+          // only -> yellow, neither -> untinted. Both transparent so the
+          // material's own left-border color still reads through.
+          var bg = g.lokid && g.milled ? "background:rgba(76,175,80,.14);"
+                 : g.lokid ? "background:rgba(255,214,10,.12);" : "";
+          return '<div class="crow2" style="border-left:3px solid '+c+';'+bg+'">' +
             '<div><div class="p">'+esc(g.partur)+' <span style="color:var(--muted);font-weight:400;">×'+g.m+'</span></div>'+
             '<div class="d">'+g.h+'×'+g.b+'×'+g.th+'mm</div></div>'+
             sog + fraes + '</div>';
         }).join("");
         var swatch = imgs[mat]
           ? '<img class="mat-swatch" src="'+esc(imgs[mat])+'" alt="" loading="lazy" onerror="this.remove()">' : "";
-        return '<div class="mat-head" style="color:'+c+';border-left:3px solid '+c+';">'+swatch+'<span>'+esc(mat)+'</span></div>' + rows;
+        return '<div class="mat-head" style="color:'+c+';border-left:3px solid '+c+';">'+swatch+'<span>'+esc(mat)+'</span></div>' + rowsHtml;
       }).join("");
       show($("cutSec"));
     });
   }
+
+  $("cutToggle").addEventListener("click", function(){
+    var open = !$("cutTable").classList.contains("hidden");
+    $("cutTable").classList.toggle("hidden", open);
+    $("cutCaret").style.transform = open ? "rotate(-90deg)" : "";
+  });
 
   // u (unit) and p (project) both come from /v/<pieceId>'s server-side
   // redirect, resolved from the printed piece's own Sögunarlisti links — NOT
@@ -539,7 +566,10 @@
       var tegund = txt(f["Tegund einingu"]);
       if (tegund) { $("tegundVal").textContent = tegund; show($("tegundField")); }
       var hh=num(f["Hæð"]), bb=num(f["Breidd"]), dd=num(f["Dýpt"]);
-      if (hh||bb||dd) { $("dimsVal").textContent = hh+"×"+bb+"×"+dd+"mm"; show($("dimsField")); }
+      if (hh||bb||dd) {
+        $("dimsH").textContent = hh; $("dimsB").textContent = bb; $("dimsD").textContent = dd;
+        show($("dimsField"));
+      }
 
       renderTree(f);
 
@@ -553,7 +583,7 @@
               recs.forEach(function(r){ names[r.id] = txt((r.fields||{})["Heiti vöru 📣"]) || r.id; });
               return names;
             })
-            .catch(function(){ return {}; })
+            .catch(function(e){ console.error("Vörulisti fetch failed:", e); return {}; })
         : Promise.resolve({});
 
       var projectId = (p && /^rec[A-Za-z0-9]{14}$/.test(p)) ? p : null;
