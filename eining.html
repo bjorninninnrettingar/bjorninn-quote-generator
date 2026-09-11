@@ -466,16 +466,16 @@
 
     $("cutList").innerHTML = materials.map(function(mat){
       var list = byMat.get(mat).sort(function(a,b){ return (b.h*b.b)-(a.h*a.b); });
+      var c = colorForKey(mat);
       var rows = list.map(function(g){
         var sog = '<span class="cstat'+(g.lokid?' ok':'')+'">'+(g.lokid?'✓':'□')+'</span>';
         var fraes = !g.needsMill ? '<span class="cstat na">–</span>'
                   : '<span class="cstat'+(g.milled?' ok':'')+'">'+(g.milled?'✓':'□')+'</span>';
-        return '<div class="crow2">' +
+        return '<div class="crow2" style="border-left:3px solid '+c+';">' +
           '<div><div class="p">'+esc(g.partur)+' <span style="color:var(--muted);font-weight:400;">×'+g.m+'</span></div>'+
           '<div class="d">'+g.h+'×'+g.b+'×'+g.th+'mm</div></div>'+
           sog + fraes + '</div>';
       }).join("");
-      var c = colorForKey(mat);
       return '<div class="mat-head" style="color:'+c+';border-left:3px solid '+c+';">'+esc(mat)+'</div>' + rows;
     }).join("");
     show($("cutSec"));
