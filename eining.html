@@ -46,10 +46,24 @@
   .field { margin-bottom:12px; }
   .flabel { font-size:.74rem; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:var(--muted); }
   .fval { font-size:1.05rem; font-weight:600; }
+  .fval-big { font-size:1.55rem; font-weight:800; letter-spacing:-.01em; }
   .tnote { font-size:.82rem; color:var(--amber); margin-top:6px; padding-top:6px; border-top:1px dashed var(--line); }
 
+  /* per-section accent colors — purely a wayfinding aid so each table reads
+     as its own thing while scanning/scrolling, no other meaning attached */
+  :root {
+    --sec-draws:#a78bfa; --sec-tree:#0a84ff; --sec-props:#2dd4bf; --sec-cut:#ff9f0a;
+  }
   section { margin-top:22px; }
   .sec-h { font-size:.74rem; font-weight:800; text-transform:uppercase; letter-spacing:.13em; color:var(--muted); margin-bottom:10px; }
+  #drawsSec .sec-h { color:var(--sec-draws); }
+  #treeSec .sec-h { color:var(--sec-tree); }
+  #propSec .sec-h { color:var(--sec-props); }
+  #cutSec .sec-h { color:var(--sec-cut); }
+  #drawsSec .draw-grp { border-left:3px solid var(--sec-draws); }
+  #treeSec .tgroup { border-left:3px solid var(--sec-tree); }
+  #propSec .list { border-left:3px solid var(--sec-props); }
+  #cutSec .ctable { border-left:3px solid var(--sec-cut); }
 
   /* drawings dropdown */
   .draw-grp {
@@ -138,6 +152,7 @@
     <div class="field-row">
       <div class="field hidden" id="roomField"><span class="flabel">Rými</span><br><span class="fval" id="roomVal"></span></div>
       <div class="field hidden" id="tegundField"><span class="flabel">Tegund</span><br><span class="fval" id="tegundVal"></span></div>
+      <div class="field hidden" id="dimsField"><span class="flabel">Mál</span><br><span class="fval-big" id="dimsVal"></span></div>
     </div>
 
     <section id="drawsSec" class="hidden">
@@ -187,6 +202,15 @@
   function arr(v){ return Array.isArray(v)?v:(v==null||v===""?[]:[v]); }
   function txt(v){ return arr(v).filter(function(x){return x!=null&&x!=="";}).join(" / ").trim(); }
   function num(v){ var n=Number(v); return Number.isFinite(n)?n:0; }
+
+  // Deterministic color per material name — pure wayfinding, same material
+  // always gets the same hue so it's recognizable at a glance while scrolling.
+  function colorForKey(key){
+    var hash = 0;
+    for (var i=0;i<key.length;i++) hash = (hash*31 + key.charCodeAt(i)) | 0;
+    var hue = Math.abs(hash) % 360;
+    return "hsl(" + hue + ",70%,68%)";
+  }
 
   // encodeURIComponent, NOT URLSearchParams — URLSearchParams serializes
   // spaces as "+", which the request parser here doesn't decode back to a
@@ -451,7 +475,8 @@
           '<div class="d">'+g.h+'×'+g.b+'×'+g.th+'mm</div></div>'+
           sog + fraes + '</div>';
       }).join("");
-      return '<div class="mat-head">'+esc(mat)+'</div>' + rows;
+      var c = colorForKey(mat);
+      return '<div class="mat-head" style="color:'+c+';border-left:3px solid '+c+';">'+esc(mat)+'</div>' + rows;
     }).join("");
     show($("cutSec"));
   }
@@ -476,6 +501,8 @@
       if (room) { $("roomVal").textContent = room; show($("roomField")); }
       var tegund = txt(f["Tegund einingu"]);
       if (tegund) { $("tegundVal").textContent = tegund; show($("tegundField")); }
+      var hh=num(f["Hæð"]), bb=num(f["Breidd"]), dd=num(f["Dýpt"]);
+      if (hh||bb||dd) { $("dimsVal").textContent = hh+"×"+bb+"×"+dd+"mm"; show($("dimsField")); }
 
       renderTree(f);
 
