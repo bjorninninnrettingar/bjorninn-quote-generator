@@ -41,9 +41,12 @@
   .sticky-hd .uname { font-size:1.35rem; font-weight:800; letter-spacing:-.01em; }
   .sticky-hd .proj-link { color:var(--amber); font-size:.85rem; font-weight:700; text-decoration:none; white-space:nowrap; }
 
+  .field-row { display:flex; gap:28px; flex-wrap:wrap; margin-bottom:12px; }
+  .field-row .field { margin-bottom:0; }
   .field { margin-bottom:12px; }
   .flabel { font-size:.74rem; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:var(--muted); }
   .fval { font-size:1.05rem; font-weight:600; }
+  .tnote { font-size:.82rem; color:var(--amber); margin-top:6px; padding-top:6px; border-top:1px dashed var(--line); }
 
   section { margin-top:22px; }
   .sec-h { font-size:.74rem; font-weight:800; text-transform:uppercase; letter-spacing:.13em; color:var(--muted); margin-bottom:10px; }
@@ -93,6 +96,10 @@
   .ct-head { padding:8px 14px; font-size:.68rem; font-weight:800; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); }
   .ct-head span { text-align:center; }
   .ct-head span:first-child { text-align:left; }
+  .mat-head {
+    padding:8px 14px; font-size:.78rem; font-weight:800; color:var(--text);
+    background:var(--surface2); border-top:1px solid var(--line);
+  }
   .crow2 { padding:11px 14px; border-top:1px solid var(--line); }
   .crow2 .p { font-weight:700; font-size:.92rem; color:var(--text); }
   .crow2 .d { font-size:.82rem; color:var(--text); margin-top:1px; }
@@ -128,8 +135,10 @@
       <a class="proj-link hidden" id="projLink">Skoða allt verkefnið →</a>
     </div>
 
-    <div class="field hidden" id="roomField"><span class="flabel">Rými</span><br><span class="fval" id="roomVal"></span></div>
-    <div class="field hidden" id="tegundField"><span class="flabel">Tegund</span><br><span class="fval" id="tegundVal"></span></div>
+    <div class="field-row">
+      <div class="field hidden" id="roomField"><span class="flabel">Rými</span><br><span class="fval" id="roomVal"></span></div>
+      <div class="field hidden" id="tegundField"><span class="flabel">Tegund</span><br><span class="fval" id="tegundVal"></span></div>
+    </div>
 
     <section id="drawsSec" class="hidden">
       <div class="sec-h">Teikningar</div>
@@ -140,11 +149,6 @@
     <section id="treeSec" class="hidden">
       <div class="sec-h">Skúffur &amp; hillur</div>
       <div class="tree" id="tree"></div>
-    </section>
-
-    <section id="hwSec" class="hidden">
-      <div class="sec-h">Vörur &amp; aukahlutir</div>
-      <div class="list" id="hwList"></div>
     </section>
 
     <section id="propSec" class="hidden">
@@ -262,6 +266,11 @@
     // unit's drawer system (Skúffutegund) and depth (Skúffu dýptir fyrir
     // prentara — one value for the whole unit, so every leaf shows the same
     // depth; there's no per-type depth field to pull a different number from).
+    // "Fjöldi lagnaskúffa" is NOT an extra drawer to add to the total — it
+    // says that one of the drawers counted above (N/M/K/.../IF) is a
+    // lagnaskúffa variant that needs a different manufacturing route. Shown
+    // as a note under the group, not as its own leaf (the data doesn't say
+    // which specific drawer type it is).
     var tegund = txt(f["Skúffutegund"]);
     var depth = num(f["Skúffu dýptir fyrir prentara"]);
     var lagnaskuffa = num(f["Fjöldi lagnaskúffa"]);
@@ -273,13 +282,19 @@
         drawerLeaves.push([n, t + (spec ? " — " + spec : "")]);
       }
     });
-    if (lagnaskuffa > 0) drawerLeaves.push([lagnaskuffa, "Lagnaskúffa"]);
     if (drawerLeaves.length) {
       var drawerTotal = drawerLeaves.reduce(function(s,l){ return s+l[0]; }, 0);
+      var lagnaNote = lagnaskuffa > 0
+        ? '<div class="tnote">⚠️ Þar af '+lagnaskuffa+' lagnaskúffa — fer aðra framleiðsluleið</div>' : '';
       html += '<div class="tgroup"><div class="th">Skúffur <span class="n">('+drawerTotal+')</span></div>' +
         drawerLeaves.map(function(l){
           return '<div class="tleaf"><span class="branch">∟</span><span class="lv">'+l[0]+'× '+esc(l[1])+'</span></div>';
-        }).join("") + '</div>';
+        }).join("") + lagnaNote + '</div>';
+    } else if (lagnaskuffa > 0) {
+      // No N/M/K/... count recorded at all, only the lagnaskúffa flag —
+      // still surface it rather than silently dropping it.
+      html += '<div class="tgroup"><div class="th">Skúffur</div>' +
+        '<div class="tnote">⚠️ '+lagnaskuffa+' lagnaskúffa — fer aðra framleiðsluleið</div></div>';
     }
 
     // Hillur
@@ -313,7 +328,12 @@
     show($("treeSec"));
   }
 
-  function renderHW(f, names){
+  // One combined "Eiginleikar" list: resolved hardware/products first (each
+  // with its own quantity), then the boolean/select/sérhæð specs. Was two
+  // separate sections (Vörur & aukahlutir / Eiginleikar) — merged since they
+  // were the same kind of info (what's in/about this unit), just split for
+  // no real reason.
+  function renderProps(f, names){
     var rows = [];
     HW_LINKS.forEach(function(spec){
       var ids = arr(f[spec[0]]);
@@ -322,27 +342,19 @@
       var qty = spec[1] ? num(f[spec[1]]) : 0;
       rows.push([label, qty > 0 ? "×" + qty : ""]);
     });
-    if (!rows.length) return;
-    $("hwList").innerHTML = rows.map(function(r){
-      return '<div class="item"><span class="k">'+esc(r[0])+'</span><span class="v">'+esc(r[1])+'</span></div>';
-    }).join("");
-    show($("hwSec"));
-  }
-
-  function renderProps(f){
-    var rows = [];
-    PROP_BOOL.forEach(function(spec){ if (f[spec[0]] === true) rows.push(spec[1]); });
+    PROP_BOOL.forEach(function(spec){ if (f[spec[0]] === true) rows.push([spec[1], ""]); });
     PROP_SELECT.forEach(function(spec){
       var v = txt(f[spec[0]]);
-      if (v) rows.push(spec[1] + ": " + v);
+      if (v) rows.push([spec[1], v]);
     });
     SERHAED.forEach(function(spec){
       var count = num(f[spec[0]]), h = num(f[spec[1]]);
-      if (count > 0 && h > 0) rows.push(spec[0] + " front: " + h + "mm");
+      if (count > 0 && h > 0) rows.push(["Framhæð (" + spec[0] + ")", h + "mm"]);
     });
     if (!rows.length) return;
-    $("propList").innerHTML = rows.map(function(p){
-      return '<div class="item"><span class="k">'+esc(p)+'</span></div>';
+    $("propList").innerHTML = rows.map(function(r){
+      return '<div class="item"><span class="k">'+esc(r[0])+'</span>'+
+        (r[1] ? '<span class="v">'+esc(r[1])+'</span>' : '')+'</div>';
     }).join("");
     show($("propSec"));
   }
@@ -390,27 +402,29 @@
     });
   }
 
+  // Only Lokateikningar — the other project-drawing types (sérfræsi,
+  // málsettar myndir, teikningar af tækifæri, heimilistæki) were cut from
+  // this page on request; they're still on /verk.
   function renderDraws(pf){
     drawRow("📋", "Lokateikningar", pf["Loka teikningar verkefnis 📋"]);
-    drawRow("🔬", "Sérfræsi teikningar", pf["Sér fræsi teikningar"]);
-    drawRow("📐", "Málsettar myndir", pf["Málsettar myndir af rými 🖼️"]);
-    drawRow("✍️", "Teikningar af tækifæri", pf["Teikningar af tækifæri ✍️"]);
-    drawRow("🔌", "Heimilistæki", pf["Heimilistæki verkefnis"]);
     if ($("draws").children.length || $("drawImgs").children.length) show($("drawsSec"));
   }
 
   // Combined sögun/fræsing status, one row per Partur+size+material group —
   // SÖG from Lokið (existing), FRÆS from Yfirfr./Fræst: "–" when the group
   // doesn't need milling at all, ✓ once every record in it is Fræst.
+  // Grouped by material (Efni) with a sub-header per material — everything
+  // coming off the same board sits together, instead of one flat list.
   function renderCutlist(rows){
     if (!rows.length) return;
     var map = new Map();
     rows.forEach(function(r){
       var f = r.fields || {};
       var partur = txt(f["Partur"]), h = num(f["H"]), b = num(f["B"]), th = num(f["Þ"]);
-      var key = partur+"|"+h+"|"+b+"|"+th;
+      var efni = txt(f["Efni: (undirstaða)"]) || "Óþekkt efni";
+      var key = partur+"|"+h+"|"+b+"|"+th+"|"+efni;
       if (!map.has(key)) map.set(key, {
-        partur:partur, h:h, b:b, th:th, efni:txt(f["Efni: (undirstaða)"]),
+        partur:partur, h:h, b:b, th:th, efni:efni,
         m:0, lokid:true, needsMill:false, milled:true,
       });
       var g = map.get(key);
@@ -418,15 +432,26 @@
       if (!f["Lokið"]) g.lokid = false;
       if (f["Yfirfr."]) { g.needsMill = true; if (!f["Fræst"]) g.milled = false; }
     });
-    var groups = [...map.values()].sort(function(a,b){ return (b.h*b.b)-(a.h*a.b); });
-    $("cutList").innerHTML = groups.map(function(g){
-      var sog = '<span class="cstat'+(g.lokid?' ok':'')+'">'+(g.lokid?'✓':'□')+'</span>';
-      var fraes = !g.needsMill ? '<span class="cstat na">–</span>'
-                : '<span class="cstat'+(g.milled?' ok':'')+'">'+(g.milled?'✓':'□')+'</span>';
-      return '<div class="crow2">' +
-        '<div><div class="p">'+esc(g.partur)+' <span style="color:var(--muted);font-weight:400;">×'+g.m+'</span></div>'+
-        '<div class="d">'+g.h+'×'+g.b+'×'+g.th+'mm — '+esc(g.efni)+'</div></div>'+
-        sog + fraes + '</div>';
+
+    var byMat = new Map();
+    map.forEach(function(g){
+      if (!byMat.has(g.efni)) byMat.set(g.efni, []);
+      byMat.get(g.efni).push(g);
+    });
+    var materials = [...byMat.keys()].sort(function(a,b){ return a.localeCompare(b,"is"); });
+
+    $("cutList").innerHTML = materials.map(function(mat){
+      var list = byMat.get(mat).sort(function(a,b){ return (b.h*b.b)-(a.h*a.b); });
+      var rows = list.map(function(g){
+        var sog = '<span class="cstat'+(g.lokid?' ok':'')+'">'+(g.lokid?'✓':'□')+'</span>';
+        var fraes = !g.needsMill ? '<span class="cstat na">–</span>'
+                  : '<span class="cstat'+(g.milled?' ok':'')+'">'+(g.milled?'✓':'□')+'</span>';
+        return '<div class="crow2">' +
+          '<div><div class="p">'+esc(g.partur)+' <span style="color:var(--muted);font-weight:400;">×'+g.m+'</span></div>'+
+          '<div class="d">'+g.h+'×'+g.b+'×'+g.th+'mm</div></div>'+
+          sog + fraes + '</div>';
+      }).join("");
+      return '<div class="mat-head">'+esc(mat)+'</div>' + rows;
     }).join("");
     show($("cutSec"));
   }
@@ -453,7 +478,6 @@
       if (tegund) { $("tegundVal").textContent = tegund; show($("tegundField")); }
 
       renderTree(f);
-      renderProps(f);
 
       var linkIds = new Set();
       HW_LINKS.forEach(function(spec){ arr(f[spec[0]]).forEach(function(id){ linkIds.add(id); }); });
@@ -489,7 +513,7 @@
       hide($("loading"));
       show($("content"));
 
-      namesPromise.then(function(names){ renderHW(f, names); });
+      namesPromise.then(function(names){ renderProps(f, names); });
 
       projectPromise.then(function(pf){
         renderDraws(pf);
