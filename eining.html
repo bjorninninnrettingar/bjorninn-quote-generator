@@ -5,53 +5,100 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="robots" content="noindex" />
 <title>Eining — Björninn</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <style>
   /* eining.html — internal page for ONE unit (Eyðublað). Reached from /velja
-     after scanning a piece's Zebra label. Mirrors, field-for-field, what the
-     "samsetningar prentunar" Airtable automation puts on the physical
-     assembly label — so the digital and printed views of a unit agree. */
+     after scanning a piece's Zebra label. The Vörur/Eiginleikar field lists
+     mirror, field-for-field, what the "samsetningar prentunar" Airtable
+     automation puts on the physical assembly label — so the digital and
+     printed views of a unit agree. */
   :root {
     --bg:#0b0b0c; --surface:#161618; --surface2:#1e1e21;
     --line:#2a2a2e; --text:#f2f2f3; --muted:#8b8b92;
     --blue:#3b9eff; --blue-bg:#0e2436;
     --amber:#f5c518; --green:#4caf50;
+    --font:"Kumbh Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
   * { box-sizing:border-box; margin:0; padding:0; }
   html,body {
     background:var(--bg); color:var(--text);
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-family:var(--font);
     -webkit-font-smoothing:antialiased; line-height:1.5;
   }
-  .wrap { max-width:640px; margin:0 auto; padding:16px 14px 60px; }
+  .wrap { max-width:640px; margin:0 auto; padding:0 14px 60px; }
 
-  .hd h1 { font-size:1.5rem; font-weight:800; letter-spacing:-.01em; }
-  .hd-meta { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
-  .chip { font-size:.82rem; font-weight:700; padding:5px 11px; border-radius:999px; background:var(--surface2); border:1px solid var(--line); }
-  .chip.dim { color:var(--blue); border-color:#1c3a52; background:var(--blue-bg); }
-  .proj-link {
-    display:inline-flex; align-items:center; gap:6px; margin-top:12px;
-    color:var(--amber); text-decoration:none; font-size:.88rem; font-weight:700;
+  /* sticky unit header — bleeds to the wrap's edges so it reads as a full
+     bar while pinned, with its own opaque background so content doesn't
+     show through while scrolling underneath it */
+  .sticky-hd {
+    position:sticky; top:0; z-index:20;
+    margin:0 -14px 16px; padding:14px;
+    background:var(--bg); border-bottom:1px solid var(--line);
+    display:flex; align-items:baseline; justify-content:space-between; gap:10px; flex-wrap:wrap;
   }
+  .sticky-hd .uname { font-size:1.35rem; font-weight:800; letter-spacing:-.01em; }
+  .sticky-hd .proj-link { color:var(--amber); font-size:.85rem; font-weight:700; text-decoration:none; white-space:nowrap; }
+
+  .field { margin-bottom:12px; }
+  .flabel { font-size:.74rem; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:var(--muted); }
+  .fval { font-size:1.05rem; font-weight:600; }
 
   section { margin-top:22px; }
   .sec-h { font-size:.74rem; font-weight:800; text-transform:uppercase; letter-spacing:.13em; color:var(--muted); margin-bottom:10px; }
 
+  /* drawings dropdown */
+  .draw-grp {
+    display:flex; align-items:center; gap:12px; cursor:pointer;
+    background:var(--surface); border:1px solid var(--line); border-radius:10px;
+    padding:13px 14px; font-weight:700; font-size:.95rem;
+    text-decoration:none; color:var(--text);
+  }
+  .draw-imgs { display:grid; grid-template-columns:repeat(auto-fill,minmax(84px,1fr)); gap:8px; }
+  .draw-imgs a { display:block; }
+  .draw-imgs img { width:100%; height:84px; object-fit:cover; border-radius:8px; border:1px solid var(--line); }
+  .draw-grp .ic { font-size:1.2rem; }
+  .draw-grp .ct { margin-left:auto; color:var(--muted); font-size:.82rem; font-weight:700; }
+  .draw-grp .cv { color:var(--muted); font-size:.8rem; transition:transform .15s; }
+  .draw-grp.open .cv { transform:rotate(90deg); }
+  .draw-sub { display:none; flex-direction:column; gap:6px; margin:6px 0 0 10px; }
+  .draw-sub.open { display:flex; }
+  .draw-sub a {
+    display:flex; align-items:center; gap:10px; text-decoration:none; color:var(--text);
+    background:var(--surface2); border:1px solid var(--line); border-radius:8px;
+    padding:10px 12px; font-size:.88rem;
+  }
+  .draw-sub a .ct { margin-left:auto; font-size:.76rem; color:var(--muted); font-weight:700; }
+
+  /* generic list (Vörur / Eiginleikar) */
   .list { background:var(--surface); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
   .item { display:flex; justify-content:space-between; gap:10px; padding:11px 14px; font-size:.92rem; border-top:1px solid var(--line); }
   .item:first-child { border-top:0; }
   .item .k { color:var(--text); }
-  .item .v { color:var(--muted); text-align:right; flex:none; max-width:55%; }
+  .item .v { color:var(--text); opacity:.85; text-align:right; flex:none; max-width:55%; }
 
-  .cut { display:flex; flex-direction:column; gap:8px; }
-  .crow {
-    display:flex; align-items:center; gap:10px; background:var(--surface); border:1px solid var(--line);
-    border-radius:10px; padding:11px 14px;
-  }
-  .crow.done { opacity:.55; border-color:#1e3a20; }
-  .crow .p { font-weight:700; font-size:.94rem; }
-  .crow .d { color:var(--muted); font-size:.82rem; margin-top:1px; }
-  .crow .n { margin-left:auto; font-weight:800; font-size:.9rem; flex:none; }
-  .crow .n.ok { color:var(--green); }
+  /* compact skúffur/hillur tree */
+  .tree { display:flex; flex-direction:column; gap:12px; }
+  .tgroup { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+  .tgroup .th { font-weight:800; font-size:.95rem; margin-bottom:6px; }
+  .tgroup .th .n { color:var(--muted); font-weight:700; }
+  .tleaf { display:flex; gap:8px; font-size:.9rem; padding:3px 0; }
+  .tleaf .branch { color:var(--muted); flex:none; }
+  .tleaf .lv { color:var(--text); }
+
+  /* sögun/fræsing combined table */
+  .ctable { background:var(--surface); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  .ct-head, .crow2 { display:grid; grid-template-columns:1fr 52px 52px; align-items:center; }
+  .ct-head { padding:8px 14px; font-size:.68rem; font-weight:800; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); }
+  .ct-head span { text-align:center; }
+  .ct-head span:first-child { text-align:left; }
+  .crow2 { padding:11px 14px; border-top:1px solid var(--line); }
+  .crow2 .p { font-weight:700; font-size:.92rem; color:var(--text); }
+  .crow2 .d { font-size:.82rem; color:var(--text); opacity:.8; margin-top:1px; }
+  .cstat { text-align:center; font-size:1.05rem; }
+  .cstat.ok { color:var(--green); }
+  .cstat.na { color:var(--muted); opacity:.5; }
 
   .tools { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
   .tool {
@@ -69,18 +116,31 @@
 </head>
 <body>
 <div class="wrap">
-  <div id="loading">Sæki einingu…</div>
-  <div id="error" class="hidden">
+  <div id="loading" style="padding-top:70px;">Sæki einingu…</div>
+  <div id="error" class="hidden" style="padding-top:70px;">
     <strong>Fann ekki einingu</strong>
     QR-kóðinn gæti verið úreltur eða hlekkinn vantar lykil.
   </div>
 
   <div id="content" class="hidden">
-    <div class="hd">
-      <h1 id="uname">—</h1>
-      <div class="hd-meta" id="umeta"></div>
-      <a class="proj-link hidden" id="projLink">🏗️ Skoða allt verkefnið →</a>
+    <div class="sticky-hd">
+      <span class="uname" id="uname">—</span>
+      <a class="proj-link hidden" id="projLink">Skoða allt verkefnið →</a>
     </div>
+
+    <div class="field hidden" id="roomField"><span class="flabel">Rými</span><br><span class="fval" id="roomVal"></span></div>
+    <div class="field hidden" id="tegundField"><span class="flabel">Tegund</span><br><span class="fval" id="tegundVal"></span></div>
+
+    <section id="drawsSec" class="hidden">
+      <div class="sec-h">Teikningar</div>
+      <div id="draws" style="display:flex;flex-direction:column;gap:8px;"></div>
+      <div class="draw-imgs" id="drawImgs" style="margin-top:8px;"></div>
+    </section>
+
+    <section id="treeSec" class="hidden">
+      <div class="sec-h">Skúffur &amp; hillur</div>
+      <div class="tree" id="tree"></div>
+    </section>
 
     <section id="hwSec" class="hidden">
       <div class="sec-h">Vörur &amp; aukahlutir</div>
@@ -93,8 +153,11 @@
     </section>
 
     <section id="cutSec" class="hidden">
-      <div class="sec-h">Skurðarlisti þessarar einingar</div>
-      <div class="cut" id="cutList"></div>
+      <div class="sec-h">Sögun &amp; fræsing</div>
+      <div class="ctable">
+        <div class="ct-head"><span>Stykki</span><span>SÖG</span><span>FRÆS</span></div>
+        <div id="cutList"></div>
+      </div>
     </section>
 
     <section id="toolsSec" class="hidden">
@@ -160,18 +223,6 @@
     ["Harðplast", null], ["Töfrahorn útfærsla", null],
     ["Skrá [Hurð]", null], ["Felliþr. [Hurð]", null], ["Lamir [Hurð]", null],
   ];
-  var HW_NUM = [
-    ["Fastar hillur fjöldi","Fastar hillur"], ["Lausar hillur fjöldi","Lausar hillur"],
-    ["Fjöldi hillubera","Hilluberar"], ["Fjöldi sláa","Slár"],
-    ["Fjöldi Movento bakka","Movento bakki"], ["Fjöldi lagnaskúffa","Lagnaskúffa"],
-    ["N","N skúffur"],["M","M skúffur"],["K","K skúffur"],
-    ["C","C skúffur"],["F","F skúffur"],["E","E skúffur"],
-    ["IN","IN sk."],["IM","IM sk."],["IK","IK sk."],
-    ["IC","IC sk."],["IE","IE sk."],["IF","IF sk."],
-    ["Fjöldi díla","Dílar"], ["Fjöldi Skrúfu / rastex","Skrúfur"],
-    ["Fjöldi euroskrúfa","Euroskrúfur"], ["Fjöldi lama / klossa","Lamar/klossar"],
-    ["Undirgrip","Undirgrip"],
-  ];
   var PROP_BOOL = [
     ["Rastex","Rastex"], ["Tveir frontar (væng)","Vænghurð"],
     ["Mottur í skúffur","Mottur í sk."], ["550mm skúffur?","550mm skúffur"],
@@ -181,7 +232,7 @@
     ["Kassi úr frontaefni","FRE kassi"],
   ];
   var PROP_SELECT = [
-    ["Grip?","Grip"], ["Skúffutegund","Skúffur"],
+    ["Grip?","Grip"],
     ["Skipting fronta [Lárétt]","Sk. lárétt"], ["Skipting fronta [Lóðrétt]","Sk. lóðrétt"],
     ["Skipting fronta [Tækja]","Sk. tækja"], ["Opnun [Hurð]","Opnun"],
     ["Hurðaefni","Hurðaefni"], ["Tvípress / Eurolight","Tvípress"],
@@ -191,6 +242,76 @@
     ["N","Sérhæð N fronts"], ["M","Sérhæð M fronts"], ["K","Sérhæð K fronts"],
     ["C","Sérhæð C fronts"], ["F","Sérhæð F fronts"], ["E","Sérhæð E fronts"],
   ];
+  // Skúffur tree: drawer-front-type letter codes + their counts.
+  var DRAWER_TYPES = ["N","M","K","C","F","E","IN","IM","IK","IC","IE","IF"];
+  var HILLUR_SPEC = [
+    ["Fastar hillur fjöldi","Fastar hillur"], ["Lausar hillur fjöldi","Lausar hillur"],
+    ["Fjöldi hillubera","Hilluberar"],
+  ];
+  var ANNAD_SPEC = [
+    ["Fjöldi sláa","Slár"], ["Fjöldi Movento bakka","Movento bakki"],
+    ["Fjöldi díla","Dílar"], ["Fjöldi Skrúfu / rastex","Skrúfur"],
+    ["Fjöldi euroskrúfa","Euroskrúfur"], ["Fjöldi lama / klossa","Lamar/klossar"],
+    ["Undirgrip","Undirgrip"],
+  ];
+
+  function renderTree(f){
+    var html = "";
+
+    // Skúffur — one leaf per drawer-front type that has a count, with the
+    // unit's drawer system (Skúffutegund) and depth (Skúffu dýptir fyrir
+    // prentara — one value for the whole unit, so every leaf shows the same
+    // depth; there's no per-type depth field to pull a different number from).
+    var tegund = txt(f["Skúffutegund"]);
+    var depth = num(f["Skúffu dýptir fyrir prentara"]);
+    var lagnaskuffa = num(f["Fjöldi lagnaskúffa"]);
+    var drawerLeaves = [];
+    DRAWER_TYPES.forEach(function(t){
+      var n = num(f[t]);
+      if (n > 0) {
+        var spec = [tegund, depth ? depth+"mm dýpt" : ""].filter(Boolean).join(" · ");
+        drawerLeaves.push([n, t + (spec ? " — " + spec : "")]);
+      }
+    });
+    if (lagnaskuffa > 0) drawerLeaves.push([lagnaskuffa, "Lagnaskúffa"]);
+    if (drawerLeaves.length) {
+      var drawerTotal = drawerLeaves.reduce(function(s,l){ return s+l[0]; }, 0);
+      html += '<div class="tgroup"><div class="th">Skúffur <span class="n">('+drawerTotal+')</span></div>' +
+        drawerLeaves.map(function(l){
+          return '<div class="tleaf"><span class="branch">∟</span><span class="lv">'+l[0]+'× '+esc(l[1])+'</span></div>';
+        }).join("") + '</div>';
+    }
+
+    // Hillur
+    var hillurLeaves = [];
+    HILLUR_SPEC.forEach(function(spec){
+      var n = num(f[spec[0]]);
+      if (n > 0) hillurLeaves.push([n, spec[1]]);
+    });
+    if (hillurLeaves.length) {
+      html += '<div class="tgroup"><div class="th">Hillur</div>' +
+        hillurLeaves.map(function(l){
+          return '<div class="tleaf"><span class="branch">∟</span><span class="lv">'+l[0]+'× '+esc(l[1])+'</span></div>';
+        }).join("") + '</div>';
+    }
+
+    // Annað — everything else numeric that isn't a drawer or a shelf
+    var annadLeaves = [];
+    ANNAD_SPEC.forEach(function(spec){
+      var n = num(f[spec[0]]);
+      if (n > 0) annadLeaves.push([n, spec[1]]);
+    });
+    if (annadLeaves.length) {
+      html += '<div class="tgroup"><div class="th">Annað</div>' +
+        annadLeaves.map(function(l){
+          return '<div class="tleaf"><span class="branch">∟</span><span class="lv">'+l[0]+'× '+esc(l[1])+'</span></div>';
+        }).join("") + '</div>';
+    }
+
+    if (!html) return;
+    $("tree").innerHTML = html;
+    show($("treeSec"));
+  }
 
   function renderHW(f, names){
     var rows = [];
@@ -200,10 +321,6 @@
       var label = ids.map(function(id){ return names[id] || id; }).join(", ");
       var qty = spec[1] ? num(f[spec[1]]) : 0;
       rows.push([label, qty > 0 ? "×" + qty : ""]);
-    });
-    HW_NUM.forEach(function(spec){
-      var n = num(f[spec[0]]);
-      if (n > 0) rows.push([spec[1], "×" + n]);
     });
     if (!rows.length) return;
     $("hwList").innerHTML = rows.map(function(r){
@@ -223,8 +340,6 @@
       var count = num(f[spec[0]]), h = num(f[spec[1]]);
       if (count > 0 && h > 0) rows.push(spec[0] + " front: " + h + "mm");
     });
-    var depths = txt(f["Skúffu dýptir fyrir prentara"]);
-    if (depths) rows.push("Dýptir: " + depths);
     if (!rows.length) return;
     $("propList").innerHTML = rows.map(function(p){
       return '<div class="item"><span class="k">'+esc(p)+'</span></div>';
@@ -232,6 +347,61 @@
     show($("propSec"));
   }
 
+  function ext(a){ return (a.filename||"").split(".").pop().toUpperCase(); }
+  function drawRow(icon, label, atts){
+    var list = arr(atts);
+    if (!list.length) return;
+    var docs = list.filter(function(a){ return !(a && /^image\//.test(a.type||"")); });
+    var imgs = list.filter(function(a){ return a && /^image\//.test(a.type||""); });
+
+    if (docs.length === 1) {
+      var a = docs[0];
+      var el = document.createElement("a");
+      el.className = "draw-grp"; el.style.cursor = "default";
+      el.href = a.url; el.target = "_blank"; el.rel = "noopener";
+      el.innerHTML = '<span class="ic">'+icon+'</span><span>'+esc(label)+'</span><span class="ct">'+esc(ext(a))+'</span>';
+      $("draws").appendChild(el);
+    } else if (docs.length > 1) {
+      var head = document.createElement("div");
+      head.className = "draw-grp";
+      head.innerHTML = '<span class="ic">'+icon+'</span><span>'+esc(label)+'</span>'+
+        '<span class="ct">'+docs.length+' skjöl</span><span class="cv">▸</span>';
+      var sub = document.createElement("div");
+      sub.className = "draw-sub";
+      sub.innerHTML = docs.map(function(a, i){
+        return '<a href="'+esc(a.url)+'" target="_blank" rel="noopener">'+
+               esc((a.filename && a.filename.replace(/\.[^.]+$/,"")) || (label+" "+(i+1)))+
+               '<span class="ct">'+esc(ext(a))+'</span></a>';
+      }).join("");
+      head.addEventListener("click", function(){
+        head.classList.toggle("open");
+        sub.classList.toggle("open");
+      });
+      $("draws").appendChild(head);
+      $("draws").appendChild(sub);
+    }
+    imgs.forEach(function(a){
+      var t = (a.thumbnails && (a.thumbnails.large||a.thumbnails.full)) || {};
+      var el = document.createElement("a");
+      el.href = a.url; el.target = "_blank"; el.rel = "noopener";
+      el.title = label;
+      el.innerHTML = '<img src="'+esc(t.url||a.url)+'" alt="'+esc(label)+'" loading="lazy" onerror="this.closest(\'a\').remove()">';
+      $("drawImgs").appendChild(el);
+    });
+  }
+
+  function renderDraws(pf){
+    drawRow("📋", "Lokateikningar", pf["Loka teikningar verkefnis 📋"]);
+    drawRow("🔬", "Sérfræsi teikningar", pf["Sér fræsi teikningar"]);
+    drawRow("📐", "Málsettar myndir", pf["Málsettar myndir af rými 🖼️"]);
+    drawRow("✍️", "Teikningar af tækifæri", pf["Teikningar af tækifæri ✍️"]);
+    drawRow("🔌", "Heimilistæki", pf["Heimilistæki verkefnis"]);
+    if ($("draws").children.length || $("drawImgs").children.length) show($("drawsSec"));
+  }
+
+  // Combined sögun/fræsing status, one row per Partur+size+material group —
+  // SÖG from Lokið (existing), FRÆS from Yfirfr./Fræst: "–" when the group
+  // doesn't need milling at all, ✓ once every record in it is Fræst.
   function renderCutlist(rows){
     if (!rows.length) return;
     var map = new Map();
@@ -239,17 +409,24 @@
       var f = r.fields || {};
       var partur = txt(f["Partur"]), h = num(f["H"]), b = num(f["B"]), th = num(f["Þ"]);
       var key = partur+"|"+h+"|"+b+"|"+th;
-      if (!map.has(key)) map.set(key, { partur:partur, h:h, b:b, th:th, efni:txt(f["Efni: (undirstaða)"]), m:0, lokid:true });
+      if (!map.has(key)) map.set(key, {
+        partur:partur, h:h, b:b, th:th, efni:txt(f["Efni: (undirstaða)"]),
+        m:0, lokid:true, needsMill:false, milled:true,
+      });
       var g = map.get(key);
       g.m += num(f["M"]) || 1;
       if (!f["Lokið"]) g.lokid = false;
+      if (f["Yfirfr."]) { g.needsMill = true; if (!f["Fræst"]) g.milled = false; }
     });
     var groups = [...map.values()].sort(function(a,b){ return (b.h*b.b)-(a.h*a.b); });
     $("cutList").innerHTML = groups.map(function(g){
-      return '<div class="crow'+(g.lokid?" done":"")+'">'+
-        '<div><div class="p">'+esc(g.partur)+'</div>'+
+      var sog = '<span class="cstat'+(g.lokid?' ok':'')+'">'+(g.lokid?'✓':'□')+'</span>';
+      var fraes = !g.needsMill ? '<span class="cstat na">–</span>'
+                : '<span class="cstat'+(g.milled?' ok':'')+'">'+(g.milled?'✓':'□')+'</span>';
+      return '<div class="crow2">' +
+        '<div><div class="p">'+esc(g.partur)+' <span style="color:var(--muted);font-weight:400;">×'+g.m+'</span></div>'+
         '<div class="d">'+g.h+'×'+g.b+'×'+g.th+'mm — '+esc(g.efni)+'</div></div>'+
-        '<div class="n'+(g.lokid?" ok":"")+'">'+(g.lokid?'✓ ':'')+'×'+g.m+'</div></div>';
+        sog + fraes + '</div>';
     }).join("");
     show($("cutSec"));
   }
@@ -270,14 +447,12 @@
       var unitName = txt(f["Athugasemd"]) || "Eining";
       $("uname").textContent = unitName;
 
-      var meta = $("umeta");
-      var room = txt(f["Heiti rýmis"]), tegund = txt(f["Tegund einingu"]);
-      var hh=num(f["Hæð"]), bb=num(f["Breidd"]), dd=num(f["Dýpt"]), qty=num(f["Fjöldi eininga"]);
-      if (room) meta.innerHTML += '<span class="chip">'+esc(room)+'</span>';
-      if (tegund) meta.innerHTML += '<span class="chip">'+esc(tegund)+'</span>';
-      if (hh||bb||dd) meta.innerHTML += '<span class="chip dim">'+hh+'×'+bb+'×'+dd+'mm</span>';
-      if (qty > 1) meta.innerHTML += '<span class="chip">×'+qty+' stk</span>';
+      var room = txt(f["Heiti rýmis"]);
+      if (room) { $("roomVal").textContent = room; show($("roomField")); }
+      var tegund = txt(f["Tegund einingu"]);
+      if (tegund) { $("tegundVal").textContent = tegund; show($("tegundField")); }
 
+      renderTree(f);
       renderProps(f);
 
       var linkIds = new Set();
@@ -295,11 +470,11 @@
 
       var projectId = (p && /^rec[A-Za-z0-9]{14}$/.test(p)) ? p : null;
 
-      var projectNamePromise = projectId
-        ? fetchJson(PROJECT_TABLE + "/" + projectId, {}, null)
-            .then(function(prec){ return txt((prec.fields||{})["Heiti tækifæris / verkefnis"]); })
-            .catch(function(){ return ""; })
-        : Promise.resolve("");
+      var projectPromise = projectId
+        ? fetchJson(PROJECT_TABLE + "/" + projectId, {}, k)
+            .then(function(prec){ return prec.fields || {}; })
+            .catch(function(){ return {}; })
+        : Promise.resolve({});
 
       if (projectId) {
         var pl = $("projLink");
@@ -316,7 +491,9 @@
 
       namesPromise.then(function(names){ renderHW(f, names); });
 
-      projectNamePromise.then(function(projectName){
+      projectPromise.then(function(pf){
+        renderDraws(pf);
+        var projectName = txt(pf["Heiti tækifæris / verkefnis"]);
         if (!projectName || !unitName) return;
         var formula = "AND(FIND(\""+projectName.replace(/"/g,'\\"')+"\", ARRAYJOIN({Tækifæri 📣 (projects)}))>0, "+
                       "FIND(\""+unitName.replace(/"/g,'\\"')+"\", ARRAYJOIN({Eyðublað ✏️}))>0)";

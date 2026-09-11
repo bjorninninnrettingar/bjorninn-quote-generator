@@ -5,45 +5,48 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="robots" content="noindex" />
 <title>Velja — Björninn</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <style>
   /* velja.html — the QR landing page. Scanning a piece's Zebra label lands
-     here (via /v/<unitId> → this, ?u=<Eyðublað recordId>&k=<VERK_KEY>) and
-     asks: this unit specifically (EINING), or the whole project (VERK)? */
+     here (via /v/<pieceId> → this, ?u=<unit>&p=<project>&k=<VERK_KEY>) and
+     asks: this unit specifically (EINING), or the whole project (VERKEFNIÐ)? */
   :root {
     --bg:#0b0b0c; --surface:#161618; --surface2:#1e1e21;
     --line:#2a2a2e; --text:#f2f2f3; --muted:#8b8b92;
     --blue:#3b9eff; --blue-bg:#0e2436;
     --amber:#f5c518; --amber-bg:#241f0b;
+    --font:"Kumbh Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
   * { box-sizing:border-box; margin:0; padding:0; }
   html,body {
     background:var(--bg); color:var(--text);
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-family:var(--font);
     -webkit-font-smoothing:antialiased; line-height:1.5;
-    min-height:100vh; display:flex; align-items:center;
   }
-  .wrap { max-width:520px; margin:0 auto; padding:28px 18px; width:100%; }
+  .wrap { max-width:520px; margin:0 auto; padding:20px 18px 40px; }
 
-  .unit-name { font-size:1.7rem; font-weight:800; letter-spacing:-.01em; }
-  .unit-meta { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
-  .chip { font-size:.85rem; font-weight:700; padding:5px 11px; border-radius:999px; background:var(--surface2); border:1px solid var(--line); }
-  .proj-name { color:var(--muted); font-size:.9rem; margin-top:14px; }
+  .flabel { font-size:.74rem; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:var(--muted); }
+  .field { margin-top:14px; }
+  .field .fval { font-size:1.05rem; font-weight:600; color:var(--text); }
+  .field.main .fval { font-size:1.9rem; font-weight:800; letter-spacing:-.01em; }
 
-  .choices { display:flex; flex-direction:column; gap:14px; margin-top:28px; }
+  .proj-name { color:var(--text); font-size:1.1rem; font-weight:700; margin-top:20px; }
+
+  .choices { display:flex; flex-direction:column; gap:14px; margin-top:26px; }
   .choice {
     display:flex; align-items:center; gap:16px; text-decoration:none; color:var(--text);
     border-radius:16px; padding:22px 18px; border:1px solid var(--line);
   }
   .choice .ic { font-size:2.2rem; flex:none; }
-  .choice .t { font-size:1.25rem; font-weight:800; letter-spacing:.02em; }
-  .choice .d { font-size:.88rem; color:var(--muted); margin-top:3px; }
+  .choice .t { font-size:1.25rem; font-weight:800; letter-spacing:.02em; color:var(--text); }
+  .choice .d { font-size:.88rem; color:var(--text); opacity:.75; margin-top:3px; }
   .choice:active { filter:brightness(1.15); }
   .choice.eining { background:var(--blue-bg); border-color:#1c3a52; }
-  .choice.eining .t { color:var(--blue); }
   .choice.verk { background:var(--amber-bg); border-color:#5a4a12; }
-  .choice.verk .t { color:var(--amber); }
 
-  #loading,#error { text-align:center; color:var(--muted); }
+  #loading,#error { text-align:center; color:var(--muted); padding-top:40px; }
   #error strong { display:block; color:var(--text); font-size:1.1rem; margin-bottom:6px; }
   .hidden { display:none !important; }
 </style>
@@ -57,8 +60,9 @@
   </div>
 
   <div id="content" class="hidden">
-    <div class="unit-name" id="unitName">—</div>
-    <div class="unit-meta" id="unitMeta"></div>
+    <div class="field main"><span class="flabel">Eining</span><br><span class="fval" id="unitName">—</span></div>
+    <div class="field hidden" id="roomField"><span class="flabel">Rými</span><br><span class="fval" id="roomVal"></span></div>
+    <div class="field hidden" id="tegundField"><span class="flabel">Tegund einingu</span><br><span class="fval" id="tegundVal"></span></div>
     <div class="proj-name" id="projName"></div>
 
     <div class="choices">
@@ -67,8 +71,8 @@
         <div><div class="t">EINING</div><div class="d">Skurðarlisti, vörur og allt um þessa einingu</div></div>
       </a>
       <a class="choice verk" id="btnVerk">
-        <div class="ic">🏗️</div>
-        <div><div class="t">VERK</div><div class="d">Teikningar, athugasemdir og framvinda verkefnisins</div></div>
+        <div class="ic">⚙️</div>
+        <div><div class="t">Verkefnið</div><div class="d">Teikningar, athugasemdir og framvinda verkefnisins</div></div>
       </a>
     </div>
   </div>
@@ -121,11 +125,10 @@
       var name = txt(f["Athugasemd"]) || "Eining";
       $("unitName").textContent = name;
 
-      var meta = $("unitMeta");
       var room = txt(f["Heiti rýmis"]);
+      if (room) { $("roomVal").textContent = room; show($("roomField")); }
       var tegund = txt(f["Tegund einingu"]);
-      if (room) meta.innerHTML += '<span class="chip">'+esc(room)+'</span>';
-      if (tegund) meta.innerHTML += '<span class="chip">'+esc(tegund)+'</span>';
+      if (tegund) { $("tegundVal").textContent = tegund; show($("tegundField")); }
 
       hide($("loading"));
       show($("content"));
