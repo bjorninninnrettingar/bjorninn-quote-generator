@@ -133,16 +133,37 @@
   .mrow .mk { color:var(--muted); }
   .mrow .mv { color:var(--text); }
   .mrow.order .mv { font-weight:700; }
+  /* hardware row (Höldur) — same visual treatment as a matrow (swatch +
+     category + name) but no colored border: it's a product, not a board
+     material, so there's no "same material = same color" idea to express. */
+  .hwrow { display:flex; align-items:center; gap:12px; padding:12px 14px; }
 
-  /* units (Eyðublað) */
-  .ulist { background:var(--surface); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
-  .ulist > a { display:block; border-top:1px solid var(--line); }
-  .ulist > a:first-child { border-top:0; }
+  /* units (Eyðublað) — grouped by Rými, collapsible, searchable */
+  .usearch {
+    width:100%; padding:12px 14px; margin-bottom:10px; border-radius:10px;
+    border:1px solid var(--line); background:var(--surface); color:var(--text);
+    font-family:var(--font); font-size:.95rem;
+  }
+  .usearch::placeholder { color:var(--muted); }
+  .rgroup {
+    background:var(--surface); border:1px solid var(--line); border-left:3px solid var(--sec-units);
+    border-radius:10px; overflow:hidden; margin-bottom:10px;
+  }
+  .rhead {
+    display:flex; align-items:center; gap:10px; padding:13px 14px; cursor:pointer;
+    font-weight:800; font-size:.98rem;
+  }
+  .rhead .rcount { color:var(--muted); font-weight:700; font-size:.85rem; }
+  .rhead .cv { margin-left:auto; color:var(--muted); font-size:.85rem; transition:transform .15s; }
+  .rhead.open .cv { transform:rotate(90deg); }
+  .rbody { display:none; flex-direction:column; }
+  .rbody.open { display:flex; }
+  .rbody a { text-decoration:none; color:var(--text); border-top:1px solid var(--line); }
+  .rbody a:active { background:var(--surface2); }
   .urow {
     display:flex; align-items:center; justify-content:space-between; gap:10px;
-    padding:13px 14px; text-decoration:none; color:var(--text);
+    padding:12px 14px 12px 20px;
   }
-  .urow:active { background:var(--surface2); }
   .urow .uname { font-weight:700; font-size:.95rem; }
   .urow .usub { color:var(--muted); font-size:.82rem; font-weight:400; margin-top:1px; }
   .urow .arrow { color:var(--muted); flex:none; }
@@ -211,7 +232,8 @@
 
     <section id="unitsSec" class="hidden">
       <div class="sec-h">Eyðublað</div>
-      <div class="ulist" id="unitsList"></div>
+      <input type="search" class="usearch" id="unitSearch" placeholder="Leita að einingu…" autocomplete="off">
+      <div id="unitsList"></div>
     </section>
 
     <section id="toolsSec">
@@ -269,7 +291,9 @@
     mDoor2:"Heiti efnis (from Hurðaefni viðskiptavinar 🚪 2.0)",
     mWorktop:"Heiti efnis (from Borðplata viðskiptavinar 🍽️)",
     mHandle1:"Heiti vöru 📣 (from Höldur Viðskiptavinar ✊)",
-    mHandle2:"Heiti vöru 📣 (from Höldur Viðskiptavinar ✊2.0)"
+    mHandle2:"Heiti vöru 📣 (from Höldur Viðskiptavinar ✊2.0)",
+    mHandle1Img:"Mynd af Höldum Viðskiptavinar ✊",
+    mHandle2Img:"Mynd Höldur Viðskiptavinar ✊2.0"
   };
 
   var IS_MONTHS = ["janúar","febrúar","mars","apríl","maí","júní","júlí","ágúst","september","október","nóvember","desember"];
@@ -475,12 +499,18 @@
     addMat("Hurðaefni", [txt(f[F.mDoor1]), txt(f[F.mDoor2])]);
     addMat("Borðplata", [txt(f[F.mWorktop])]);
 
-    var plainRows = [["Höldur", [txt(f[F.mHandle1]),txt(f[F.mHandle2])].filter(Boolean).join(" / ")]]
-      .filter(function(r){ return r[1]; });
+    // Höldur gets its own swatch too, straight from the Tækifæri record's
+    // own "Mynd af Höldum ... " lookups (already resolved, same fields the
+    // customer portal uses) — no extra fetch needed for these two.
+    var handleEntries = [];
+    if (txt(f[F.mHandle1])) handleEntries.push([txt(f[F.mHandle1]), arr(f[F.mHandle1Img])[0]]);
+    if (txt(f[F.mHandle2])) handleEntries.push([txt(f[F.mHandle2]), arr(f[F.mHandle2Img])[0]]);
+
+    var plainRows = [];
     var order = txt(f[F.orderStatus]);
     if (order) plainRows.push(["Efnispöntun", order, true]);
 
-    if (!matEntries.length && !plainRows.length) return;
+    if (!matEntries.length && !handleEntries.length && !plainRows.length) return;
 
     var names = [...new Set(matEntries.map(function(e){ return e[1]; }))];
     var imgsPromise = names.length
@@ -512,20 +542,29 @@
         return '<div class="matrow" style="border-left:3px solid '+c+';">'+swatch+
           '<div><div class="mat-cat">'+esc(cat)+'</div><div class="mat-name">'+esc(name)+'</div></div></div>';
       }).join("");
+      var handleHtml = handleEntries.map(function(e){
+        var name = e[0], att = e[1];
+        var t = att && ((att.thumbnails && (att.thumbnails.large || att.thumbnails.small)) || {});
+        var url = att && (t.url || att.url);
+        var swatch = url ? '<img class="mat-swatch" src="'+esc(url)+'" alt="" loading="lazy" onerror="this.remove()">' : "";
+        return '<div class="hwrow">'+swatch+
+          '<div><div class="mat-cat">Höldur</div><div class="mat-name">'+esc(name)+'</div></div></div>';
+      }).join("");
       var plainHtml = plainRows.map(function(r){
         return '<div class="mrow'+(r[2]?" order":"")+'"><span class="mk">'+esc(r[0])+
                '</span><span class="mv">'+esc(r[1])+'</span></div>';
       }).join("");
-      $("mat").innerHTML = matHtml + plainHtml;
+      $("mat").innerHTML = matHtml + handleHtml + plainHtml;
       show($("matSec"));
     });
   }
 
-  // All units (Eyðublað) in this project, each linking into /eining for its
-  // own vörur/eiginleikar/skurðarlisti — exact match on both project-link
-  // fields (old + new; some units are only linked via the old one), same
-  // reasoning as everywhere else: FIND/substring is fine at the project-name
-  // level (long, distinctive strings) but exact equality is what's safe.
+  // All units (Eyðublað) in this project, grouped by Rými (collapsible) and
+  // sorted by Tegund within each room, each linking into /eining for its own
+  // vörur/eiginleikar/skurðarlisti. Exact match on both project-link fields
+  // (old + new; some units are only linked via the old one), same reasoning
+  // as everywhere else: FIND/substring is fine at the project-name level
+  // (long, distinctive strings) but exact equality is what's safe.
   function renderUnits(projectName, projectId, k){
     if (!projectName) return;
     var formula = "OR(ARRAYJOIN({Tækifæri 📣 (projects)})=\""+projectName.replace(/"/g,'\\"')+"\", "+
@@ -533,22 +572,67 @@
     fetchAll(UNIT_TABLE, { filterByFormula: formula, pageSize: 100 }, k)
       .then(function(recs){
         if (!recs.length) return;
-        recs.sort(function(a,b){
-          return txt((a.fields||{})["Athugasemd"]).localeCompare(txt((b.fields||{})["Athugasemd"]), "is", {numeric:true});
+
+        var byRoom = new Map();
+        recs.forEach(function(r){
+          var room = txt((r.fields||{})["Heiti rýmis"]) || "Án rýmis";
+          if (!byRoom.has(room)) byRoom.set(room, []);
+          byRoom.get(room).push(r);
         });
-        $("unitsList").innerHTML = recs.map(function(r){
-          var uf = r.fields || {};
-          var name = txt(uf["Athugasemd"]) || "Eining";
-          var room = txt(uf["Heiti rýmis"]);
-          var href = "/eining?u="+encodeURIComponent(r.id)+"&p="+encodeURIComponent(projectId)+"&k="+encodeURIComponent(k);
-          return '<a href="'+href+'"><div class="urow">'+
-            '<div><div class="uname">'+esc(name)+'</div>'+(room?'<div class="usub">'+esc(room)+'</div>':'')+'</div>'+
-            '<span class="arrow">→</span></div></a>';
+        var rooms = [...byRoom.keys()].sort(function(a,b){ return a.localeCompare(b,"is"); });
+
+        $("unitsList").innerHTML = rooms.map(function(room){
+          var units = byRoom.get(room).slice().sort(function(a,b){
+            var af = a.fields||{}, bf = b.fields||{};
+            var ta = txt(af["Tegund einingu"]), tb = txt(bf["Tegund einingu"]);
+            if (ta !== tb) return ta.localeCompare(tb, "is");
+            return txt(af["Athugasemd"]).localeCompare(txt(bf["Athugasemd"]), "is", {numeric:true});
+          });
+          var rows = units.map(function(r){
+            var uf = r.fields || {};
+            var name = txt(uf["Athugasemd"]) || "Eining";
+            var tegund = txt(uf["Tegund einingu"]);
+            var href = "/eining?u="+encodeURIComponent(r.id)+"&p="+encodeURIComponent(projectId)+"&k="+encodeURIComponent(k);
+            return '<a href="'+href+'" data-name="'+esc(name.toLowerCase())+'">'+
+              '<div class="urow"><div><div class="uname">'+esc(name)+'</div>'+
+              (tegund?'<div class="usub">'+esc(tegund)+'</div>':'')+'</div>'+
+              '<span class="arrow">→</span></div></a>';
+          }).join("");
+          return '<div class="rgroup" data-room="'+esc(room.toLowerCase())+'">'+
+            '<div class="rhead"><span>'+esc(room)+'</span><span class="rcount">'+units.length+'</span><span class="cv">▸</span></div>'+
+            '<div class="rbody">'+rows+'</div></div>';
         }).join("");
+
+        $("unitsList").querySelectorAll(".rhead").forEach(function(head){
+          var body = head.nextElementSibling;
+          head.addEventListener("click", function(){
+            head.classList.toggle("open");
+            body.classList.toggle("open");
+          });
+        });
+
         show($("unitsSec"));
       })
       .catch(function(e){ console.error("Eyðublað fetch failed:", e); });
   }
+
+  // Filters units by name as you type, auto-expanding rooms with a match and
+  // collapsing everything again once the search is cleared.
+  $("unitSearch").addEventListener("input", function(){
+    var qv = this.value.trim().toLowerCase();
+    $("unitsList").querySelectorAll(".rgroup").forEach(function(g){
+      var anyMatch = false;
+      g.querySelectorAll(":scope > .rbody > a").forEach(function(a){
+        var match = !qv || (a.dataset.name || "").indexOf(qv) !== -1;
+        a.classList.toggle("hidden", !match);
+        if (match) anyMatch = true;
+      });
+      g.classList.toggle("hidden", !anyMatch);
+      var head = g.querySelector(".rhead"), body = g.querySelector(".rbody");
+      head.classList.toggle("open", !!qv && anyMatch);
+      body.classList.toggle("open", !!qv && anyMatch);
+    });
+  });
 
   function renderTools(t){
     var tools = [
