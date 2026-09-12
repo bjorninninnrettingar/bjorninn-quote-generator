@@ -185,13 +185,24 @@
   }
   #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+  /* the ghost is always in the DOM (like #toast) so .show can transition it
+     in/out — a quick "lift off the board" cue when you pick something up,
+     instead of an abrupt appear/disappear */
   #dragGhost {
-    position: fixed; z-index: 200; pointer-events: none; display: none;
+    position: fixed; z-index: 200; pointer-events: none;
     border: 2px solid #2196f3; background: rgba(33,150,243,0.28);
-    border-radius: 4px; box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+    border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,0.35);
     color: #fff; font: 600 12px/1.2 "SF Mono", Consolas, monospace;
     padding: 3px 5px; overflow: hidden; white-space: pre;
+    opacity: 0; transform: scale(0.92);
+    transition: opacity .12s ease, transform .12s ease, box-shadow .12s ease;
   }
+  #dragGhost.show { opacity: 1; transform: scale(1.05); box-shadow: 0 10px 28px rgba(0,0,0,0.5); }
+
+  /* a short "landed" flash on the run/front that was just dropped, instead
+     of it just snapping into place with no feedback */
+  @keyframes landPulse { 0% { filter: brightness(1.7); } 100% { filter: brightness(1); } }
+  .grgbox.landed { animation: landPulse .4s ease-out; }
 
   .grp-panel { }
   .grp-panel .grp {
@@ -2139,7 +2150,15 @@ function snapPos(bi, gid, p, W, H) {
 // kept for callers that expect the old name
 function resolveCollision(bi, gid, want) { return nearestFree(bi, gid, want); }
 
-// ── FLOATING DRAG GHOST (visible across all boards) ──────────────────────
+// ── FLOATING DRAG GHOST (visible across all boards) ───────────────────────
+// ghostShow() only configures size/colour/text; it deliberately doesn't
+// touch position or reveal it — every call site calls ghostMove() with the
+// real cursor position immediately after, and that's what actually shows
+// the ghost, positioned correctly on the very first frame. (An earlier
+// version of this tried to pre-position from the previous drag's last
+// known spot, which is exactly backwards — right after ghostHide() there
+// is no "last spot" to reuse, so it would have flashed at a stale position
+// anyway. Simpler to just never reveal before the real position is known.)
 function ghostShow(text, wpx, hpx, color) {
   const el = $("dragGhost");
   el.textContent = text;
@@ -2147,17 +2166,55 @@ function ghostShow(text, wpx, hpx, color) {
   el.style.height = Math.max(16, hpx) + "px";
   el.style.borderColor = color || "#2196f3";
   el.style.background = (color ? hexA(color, 0.28) : "rgba(33,150,243,0.28)");
-  el.style.display = "block";
+  ghostRevealed = false;
   document.body.classList.add("dragging");
 }
+// Cursor position updates are batched through one requestAnimationFrame
+// instead of applied on every raw pointermove — pointermove can fire much
+// faster than the screen repaints, so without this the ghost (and the
+// offsetWidth/offsetHeight reads below) can start to feel jittery/laggy on
+// a slower tablet. This coalesces a burst of events into one paint.
+let ghostRAF = null, ghostLast = null, ghostRevealed = false;
 function ghostMove(clientX, clientY) {
-  const el = $("dragGhost");
-  el.style.left = (clientX - el.offsetWidth / 2) + "px";
-  el.style.top = (clientY - el.offsetHeight / 2) + "px";
+  ghostLast = { x: clientX, y: clientY };
+  if (!ghostRevealed) {
+    // first position since ghostShow(): place it synchronously (so there's
+    // no stale-position frame at all), then reveal on the next frame so the
+    // opacity/scale transition actually has a "before" state to animate from.
+    const el = $("dragGhost");
+    el.style.left = (clientX - el.offsetWidth / 2) + "px";
+    el.style.top = (clientY - el.offsetHeight / 2) + "px";
+    ghostRevealed = true;
+    requestAnimationFrame(() => el.classList.add("show"));
+    return;
+  }
+  if (ghostRAF) return;
+  ghostRAF = requestAnimationFrame(() => {
+    ghostRAF = null;
+    if (!ghostLast) return;
+    const el = $("dragGhost");
+    el.style.left = (ghostLast.x - el.offsetWidth / 2) + "px";
+    el.style.top = (ghostLast.y - el.offsetHeight / 2) + "px";
+  });
 }
 function ghostHide() {
-  $("dragGhost").style.display = "none";
+  if (ghostRAF) { cancelAnimationFrame(ghostRAF); ghostRAF = null; }
+  ghostLast = null; ghostRevealed = false;
+  $("dragGhost").classList.remove("show");
   document.body.classList.remove("dragging");
+}
+// Brief brightness flash on the run that was just dropped — render() tears
+// down and rebuilds every board SVG from scratch, so there's nothing to
+// smoothly animate *from* the old position; this at least confirms "it
+// landed here" instead of the run just silently snapping into place.
+function pulseLanded(gid) {
+  requestAnimationFrame(() => {
+    const el = document.querySelector(`g.group-rect[data-gid="${cssq(gid)}"] .grgbox`);
+    if (!el) return;
+    el.classList.remove("landed"); void el.offsetWidth;  // restart the animation if it's already mid-flash
+    el.classList.add("landed");
+    el.addEventListener("animationend", () => el.classList.remove("landed"), { once: true });
+  });
 }
 function hexA(hex, a) {
   const n = parseInt(hex.slice(1), 16);
@@ -2224,6 +2281,7 @@ function enableDrag(handleEl, svg, bi, gid, scale) {
       const merged = maybeMergeOnDrop(gid, tbi);
       if (tbi !== bi || merged) settleBoard(tbi);
       saveLayout(); render();
+      pulseLanded(merged || gid);
     }
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
@@ -2269,7 +2327,7 @@ function enableFrontDrag(cell, svg, bi, gid, fi, scale) {
       if (!moved) { selectGroup(gid); render(); return; }
 
       const hit = frontDropTarget(lastE, gid, g.width);
-      let touched = [bi];
+      let touched = [bi], landedGid = gid;
       if (hit && hit.gid === gid) {
         // reorder within same run
         const arr = g.fronts;
@@ -2283,6 +2341,7 @@ function enableFrontDrag(cell, svg, bi, gid, fi, scale) {
         dst.fronts.splice(clamp(hit.index, 0, dst.fronts.length), 0, it);
         cleanupIfEmpty(gid);
         touched.push(boardOfGroup(hit.gid));
+        landedGid = hit.gid;
       } else {
         // pop into its own run at the drop point
         const tbi = boardUnderPointer(lastE);
@@ -2298,9 +2357,11 @@ function enableFrontDrag(cell, svg, bi, gid, fi, scale) {
         cleanupIfEmpty(gid);
         selectedGid = nid;
         touched.push(tbi);
+        landedGid = nid;
       }
       [...new Set(touched)].forEach(x => { if (x >= 0) settleBoard(x); });
       saveLayout(); render();
+      pulseLanded(landedGid);
     }
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
@@ -2361,7 +2422,7 @@ function maybeMergeOnDrop(gid, bi) {
       groups = groups.filter(x => x !== g);
       delete layout.boards[bi].placements[gid];
       if (selectedGid === gid) selectedGid = oid;
-      return true;
+      return oid;   // the id gid actually ended up in, for pulseLanded()
     }
   }
   return false;
