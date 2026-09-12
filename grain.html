@@ -4,12 +4,18 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Æðaskipulag — Björninn</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <style>
+  /* Kumbh Sans ties this into the /skipulag · /verkstaedi · velja.html family
+     (2026-09-12) — a font swap only, no layout changes, so it's safe this
+     close to /saga going into real use. */
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     background: #0a0a0a;
     color: #f0f0f0;
-    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-family: "Kumbh Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
     min-height: 100vh;
     padding: 24px 40px 80px;
   }
@@ -204,6 +210,18 @@
   .plan-bar .spacer { flex: 1; }
   .plan-bar .muted { color: #999; }
   body.floor .office-only { display: none !important; }
+
+  /* Shop-floor touch targets: a tablet in a dusty workshop with gloved or
+     sawdust-covered fingers needs bigger hit areas than an office mouse
+     pointer does — bump only what the floor actually sees, office density
+     stays as-is. Also brightens the floor's "start sawing" CTA to the same
+     amber the /verkstaedi hub uses for Saga, so the hub → guide hop reads as
+     one product instead of two different tools. */
+  body.floor button.small { padding: 9px 14px; font-size: 0.88rem; }
+  body.floor #guideOverlay .gboard-nav button { padding: 9px 14px; font-size: 0.88rem; }
+  body.floor .plan-bar.floor .primary {
+    background: #ffd60a; color: #1a1400; font-size: 1.05rem; padding: 14px 22px;
+  }
 
   /* guided sawing overlay */
   #guideOverlay {
@@ -2287,7 +2305,7 @@ function boardUnderPointer(e) {
 // ── SIDE PANEL ───────────────────────────────────────────────────────────
 function renderPanel() {
   $("grpPanel").innerHTML = `
-    <button class="ghost small" style="margin-bottom:10px;" onclick="addStandaloneFront()">＋ Nýr stakur front (handvirkt)</button>
+    <button class="ghost small office-only" style="margin-bottom:10px;" onclick="addStandaloneFront()">＋ Nýr stakur front (handvirkt)</button>
   ` + groups.map(g => {
     const sel = g.id === selectedGid;
     const gi = groups.indexOf(g);
@@ -2310,7 +2328,7 @@ function renderPanel() {
             : `<span class="fdim">${f.h} mm</span>`}
           ${!f.manual && (f.planMsg || _flaggedPieces.has(f.pieceId)) ? `<span title="${esc(f.planMsg || "sent til skrifstofu")}" style="color:#8fbaff;">💬</span>` : ""}
           ${sel && !f.manual ? `<button class="small ghost" title="Segja skrifstofu frá vandamáli" onclick="event.stopPropagation();flagFront('${g.id}',${i})">⚠</button>` : ""}
-          ${sel ? `<button class="small ghost" title="Afrita" onclick="event.stopPropagation();duplicateFront('${g.id}',${i})">⎘</button>` : ""}
+          ${sel ? `<button class="small ghost office-only" title="Afrita" onclick="event.stopPropagation();duplicateFront('${g.id}',${i})">⎘</button>` : ""}
           ${sel && f.manual ? `<button class="small ghost" title="Fjarlægja" onclick="event.stopPropagation();removeManualFront('${f.mfId}')">✕</button>` : ""}
           ${sel && !f.manual ? `<button class="small ghost" onclick="event.stopPropagation();moveFront('${g.id}',${i},-1)" ${i === 0 ? "disabled" : ""}>↑</button>
                    <button class="small ghost" onclick="event.stopPropagation();moveFront('${g.id}',${i},1)" ${i === g.fronts.length - 1 ? "disabled" : ""}>↓</button>` : ""}
@@ -2321,11 +2339,11 @@ function renderPanel() {
         ${["v", "s", "h"].map(o => `<button class="small ${g.orient === o ? "primary" : "ghost"}" onclick="event.stopPropagation();setOrient('${g.id}','${o}')" title="${{v:"Stafla — æð niður",s:"Hlið við hlið — æð heldur áfram yfir samskeytin (væng)",h:"Snúa 90° — æð þvers"}[o]}">${orientGlyph(o)} ${{v:"stafla",s:"hlið v. hlið",h:"snúa 90°"}[o]}</button>`).join("")}
       </div>
       <div class="grp-actions">
-        <button class="small ghost" onclick="event.stopPropagation();addFrontToGroup('${g.id}')">＋ front</button>
-        ${manualG ? `<label class="fdim" style="display:flex;align-items:center;gap:4px;">breidd <input class="mf-h" type="number" min="20" value="${g.width}" onclick="event.stopPropagation()" onchange="setManualGroupWidth('${g.id}',this.value)" /></label>` : ""}
+        <button class="small ghost office-only" onclick="event.stopPropagation();addFrontToGroup('${g.id}')">＋ front</button>
+        ${manualG ? `<label class="fdim office-only" style="display:flex;align-items:center;gap:4px;">breidd <input class="mf-h" type="number" min="20" value="${g.width}" onclick="event.stopPropagation()" onchange="setManualGroupWidth('${g.id}',this.value)" /></label>` : ""}
         <button class="small ghost" onclick="event.stopPropagation();reverseGroup('${g.id}')">↕ snúa röð</button>
-        ${g.fronts.length > 1 ? `<button class="small ghost" onclick="event.stopPropagation();splitGroup('${g.id}')">✂ skipta upp</button>` : ""}
-        ${mergeCandidates(g).length ? `<select class="small" style="max-width:150px;padding:5px 6px;font-size:0.8rem;" onclick="event.stopPropagation()" onchange="if(this.value){mergeGroup('${g.id}',this.value);this.value=''}">
+        ${g.fronts.length > 1 ? `<button class="small ghost office-only" onclick="event.stopPropagation();splitGroup('${g.id}')">✂ skipta upp</button>` : ""}
+        ${mergeCandidates(g).length ? `<select class="small office-only" style="max-width:150px;padding:5px 6px;font-size:0.8rem;" onclick="event.stopPropagation()" onchange="if(this.value){mergeGroup('${g.id}',this.value);this.value=''}">
           <option value="">+ sameina við…</option>
           ${mergeCandidates(g).map(o => `<option value="${o.id}">${esc(o.unitName)}</option>`).join("")}
         </select>` : ""}
