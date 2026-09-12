@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex" />
+<title>Saga — Verkstæði — Björninn</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  /* verkstaedi.html — floor-side hub for the sögun/æðar tools. One link from
+     Airtable lands here instead of two separate buttons (Merkingar + Saga);
+     this picks the tool and forwards the project (?recordId=) into it. Same
+     visual language as velja.html/skipulag.html — solid-fill choice cards. */
+  :root {
+    --bg:#0b0b0c; --surface:#161618; --line:#2a2a2e; --text:#f2f2f3; --muted:#e8e8ec;
+    --blue:#0a84ff; --amber:#ffd60a;
+    --font:"Kumbh Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; line-height:1.5; }
+  .wrap { max-width:520px; margin:0 auto; padding:20px 18px 40px; }
+
+  .kicker { font-size:.74rem; font-weight:700; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); }
+  h1 { font-size:1.9rem; font-weight:800; letter-spacing:-.01em; margin-top:6px; }
+  .sub { color:var(--muted); font-size:.95rem; margin-top:6px; }
+  .proj { margin-top:18px; padding:12px 14px; background:var(--surface); border:1px solid var(--line); border-radius:12px; font-weight:700; }
+  .proj .lbl { display:block; font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:var(--muted); margin-bottom:2px; }
+
+  .choices { display:flex; flex-direction:column; gap:14px; margin-top:26px; }
+  .choice {
+    display:flex; align-items:center; gap:16px; text-decoration:none; color:var(--text);
+    border-radius:16px; padding:22px 18px; border:1px solid var(--line);
+  }
+  .choice .ic { font-size:2.2rem; flex:none; }
+  .choice .t { font-size:1.25rem; font-weight:800; letter-spacing:.02em; color:var(--text); }
+  .choice .d { font-size:.88rem; color:var(--text); margin-top:3px; }
+  .choice:active { filter:brightness(1.1); }
+  .choice.merkingar { background:#1668d9; border-color:#3d8bff; }
+  .choice.saga { background:var(--amber); border-color:#c9a800; }
+  .choice.saga .t, .choice.saga .d { color:#1a1400; }
+  .choice.saga .d { opacity:.75; }
+
+  #err { display:none; text-align:center; color:var(--muted); padding-top:20px; }
+  #err strong { display:block; color:var(--text); font-size:1.05rem; margin-bottom:6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="kicker">Saga</div>
+  <h1>Verkstæði</h1>
+  <div class="sub">Veldu verkfæri fyrir verkstæðið.</div>
+
+  <div class="proj" id="projBox" style="display:none;">
+    <span class="lbl">Verkefni</span><span id="projName">—</span>
+  </div>
+
+  <div class="choices">
+    <a class="choice merkingar" id="btnMerkingar">
+      <div class="ic">🏷️</div>
+      <div><div class="t">MERKINGAR</div><div class="d">Merkja og passa saman sagaða parta af Cutty</div></div>
+    </a>
+    <a class="choice saga" id="btnSaga">
+      <div class="ic">🪚</div>
+      <div><div class="t">SAGA</div><div class="d">Leiðsögn við að saga æðaskipulagða fronta, skref fyrir skref</div></div>
+    </a>
+  </div>
+
+  <div id="err"><strong>Fann ekki verkefnið</strong>Skoðaðu samt bæði verkfærin — þú getur valið verkefni þar.</div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var PROXY = "/api/airtable";
+  var PROJECTS_TABLE = "tbl4LMXlQjp66RFKI";        // Tækifæri 📣
+  var P_NAME_FIELD = "Heiti tækifæris / verkefnis";
+
+  function $(id) { return document.getElementById(id); }
+
+  // Both labels.html and grain.html (/saga) already auto-load a project from
+  // ?recordId=recXXXX — forward it straight through. /saga only shows
+  // projects with a CONFIRMED Æðaplan, so if none exists it just says so.
+  var params = new URLSearchParams(location.search);
+  var recordId = params.get("recordId");
+  var qs = recordId ? "?recordId=" + encodeURIComponent(recordId) : "";
+  $("btnMerkingar").href = "/labels" + qs;
+  $("btnSaga").href = "/saga" + qs;
+
+  if (!recordId) return;
+
+  // encodeURIComponent, NOT URLSearchParams — see grain.html for why (the
+  // local proxy doesn't decode "+" back to a space).
+  fetch(PROXY + "?path=" + encodeURIComponent(PROJECTS_TABLE + "/" + recordId))
+    .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error("HTTP " + r.status)); })
+    .then(function (rec) {
+      var name = ((rec.fields || {})[P_NAME_FIELD] || "").trim();
+      if (!name) return;
+      $("projName").textContent = name;
+      $("projBox").style.display = "block";
+    })
+    .catch(function () { $("err").style.display = "block"; });
+})();
+</script>
+</body>
+</html>

@@ -14,6 +14,8 @@ since GitHub push protection blocks committing an Airtable PAT directly).
 | `/aedar` | [grain.html](grain.html) | Æðaskipulag (office) — build & **confirm** a grain-matched front sheet layout |
 | `/saga` | [grain.html](grain.html) | Same file in `FLOOR_MODE` — the floor opens a **confirmed** plan and runs the guided sawing steps (can nudge locally, no write-back) |
 | `/labels` | [labels.html](labels.html) | Merkingar (Sögun) — label printing for cut pieces |
+| `/skipulag` | [skipulag.html](skipulag.html) | **Saga — Skipulag** — office-side hub: pick Cutty or Æðar, project (`?recordId=`) forwarded into whichever you pick |
+| `/verkstaedi` | [verkstaedi.html](verkstaedi.html) | **Saga — Verkstæði** — floor-side hub: pick Merkingar or Saga, project (`?recordId=`) forwarded into whichever you pick |
 | `/leidbeiningar` | [leidbeiningar.html](leidbeiningar.html) | Leiðbeiningar — instructions for the cutlist + labels workflow |
 | `/klukka` | [stimpilklukka.html](stimpilklukka.html) | Stimpilklukka — PIN-pad time clock (Inn/Út) for starfsmenn, kiosk-style; on ÚT, split the shift's hours across projects (→ `Verktímar 🕒`) |
 | `/eigandi` | [stimpilklukka.html](stimpilklukka.html) | Same page in "owner mode" — phone clock-in for eigendur, no device pairing (PIN verified by [api/eigandi-clock.js](api/eigandi-clock.js), which also checks `Tegund starfsmanns = Eigandi 👨🏻‍💼`) |
@@ -21,6 +23,17 @@ since GitHub push protection blocks committing an Airtable PAT directly).
 Rewrites live in [vercel.json](vercel.json). To add another short URL, add a
 `rewrites` entry there (`source` = short path, `destination` = the `.html` file),
 then commit + push — Vercel redeploys automatically on push to `main`.
+
+**Hub pages** (2026-09-12): `/skipulag` and `/verkstaedi` exist so an Airtable
+button links to *one* URL per phase instead of one per tool. Each is a small
+standalone page (same dark/Kumbh-Sans visual language as `velja.html`) with two
+big choice cards; both read `?recordId=` and forward it unchanged into whichever
+tool is picked — `cutlist.html`, `grain.html` (`/aedar`/`/saga`), and
+`labels.html` all already auto-load a project from `?recordId=recXXXX` on their
+own, so the hub doesn't need any Airtable write access, just the read-only
+project-name lookup for the confirmation card. Adding a third tool to a phase
+later = one more `.choice` block + one more forwarded href, not a rewrite of
+the hub's logic.
 
 ## API
 
