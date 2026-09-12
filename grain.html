@@ -62,21 +62,29 @@
   .hidden { display: none !important; }
   .project-name { font-size: 1.2rem; font-weight: 700; margin-bottom: 2px; }
 
-  /* project + active-material header pill (replaces the old "veldu efni"
-     picker screen — see renderHeaderPill()) */
-  .mat-switcher {
-    display: flex; align-items: center; gap: 12px; margin-top: 14px;
-    padding-top: 14px; border-top: 1px solid #222;
+  /* project name (left) + active-material chip (right corner), same line —
+     replaces the old "veldu efni" picker screen, see renderHeaderPill().
+     Both sides ellipsis rather than wrap, so a long project name or a long
+     décor name can't push this onto two lines — full text is one hover away
+     via the title attribute set alongside these. */
+  .hdr-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .hdr-row .project-name {
+    flex: 1 1 auto; min-width: 80px; max-width: 60%;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
+  .mat-switcher { display: flex; align-items: center; gap: 10px; flex: 0 1 auto; min-width: 0; }
   .mat-photo {
-    width: 52px; height: 52px; border-radius: 10px; object-fit: cover;
+    width: 40px; height: 40px; border-radius: 9px; object-fit: cover;
     flex: none; border: 1px solid #2a2a2a; background: #0d0d0d;
   }
-  .mat-swatch { display: flex; align-items: center; justify-content: center; font-size: 1.4rem; }
-  .mat-name { font-size: 1.05rem; font-weight: 700; }
-  .mat-badge { font-size: 0.82rem; margin-top: 2px; }
+  .mat-swatch { display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+  .mat-name, .mat-badge {
+    max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .mat-name { font-size: 0.92rem; font-weight: 700; text-align: right; }
+  .mat-badge { font-size: 0.8rem; margin-top: 2px; text-align: right; }
   #matSelect {
-    flex: none; width: auto; max-width: 220px; background: #0d0d0d; border: 1px solid #333;
+    flex: none; width: auto; max-width: 200px; background: #0d0d0d; border: 1px solid #333;
     color: #f0f0f0; border-radius: 8px; padding: 8px 10px; font-size: 0.85rem;
   }
 
@@ -121,15 +129,16 @@
   .settings-pop .field { width: 100%; }
   .settings-pop input[type="number"] { max-width: 100%; }
   .pop-head {
-    display: flex; align-items: center; justify-content: space-between;
+    display: flex; align-items: center; justify-content: space-between; cursor: pointer;
     font-size: 0.85rem; font-weight: 700; color: #f0f0f0;
-    padding-bottom: 8px; margin-bottom: 2px; border-bottom: 1px solid #2a2a2a;
+    padding: 2px 2px 10px; margin: -2px -2px 8px; border-bottom: 1px solid #2a2a2a;
   }
   .pop-close {
-    background: transparent; border: none; color: #d5d5d5; font-size: 1rem;
-    padding: 6px 10px; margin: -6px -8px -6px 0; border-radius: 6px;
+    background: #222; border: none; color: #fff; font-size: 1.15rem; line-height: 1;
+    width: 34px; height: 34px; border-radius: 9px; flex: none;
+    display: flex; align-items: center; justify-content: center;
   }
-  .pop-close:active { background: #222; }
+  .pop-close:active { background: #333; }
 
   .stat-row { display: flex; gap: 22px; flex-wrap: wrap; margin: 4px 0 18px; }
   .stat { font-size: 0.85rem; color: #d5d5d5; }
@@ -217,11 +226,19 @@
   .banner button { background: rgba(0,0,0,0.25); margin-left: 10px; }
 
   .warn-box { background: #2a1512; border: 1px solid #5a2b22; color: #f0b8ac; padding: 10px 12px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 12px; }
-  .plan-need { padding: 9px 12px; border-radius: 8px; font-size: 0.85rem; margin: 8px 0 4px; border: 1px solid; }
-  .plan-need.warn { background: #201c12; border-color: #6b5a22; color: #f0dca8; }
-  .plan-need.ok   { background: #10201a; border-color: #2f6f4f; color: #a8e0c4; }
 
   .hint { color: #d5d5d5; font-size: 0.8rem; margin-top: 6px; }
+
+  .msg-drop {
+    border: 1px solid #2f5a8c; background: #101a26; border-radius: 10px;
+    padding: 10px 14px; margin-bottom: 18px;
+  }
+  .msg-drop summary {
+    cursor: pointer; color: #8fbaff; font-weight: 700; font-size: 0.9rem; list-style: none;
+  }
+  .msg-drop summary::-webkit-details-marker { display: none; }
+  .msg-drop summary::after { content: " ▾"; }
+  .msg-drop[open] summary::after { content: " ▴"; }
 
   #planStrip { margin-bottom: 14px; }
   #planStrip:empty { display: none; }
@@ -366,19 +383,19 @@
   </div>
 
   <div class="card no-print hidden" id="projectCard">
-    <div class="project-name" id="projectName"></div>
-    <div class="sub" id="projectStatus" style="margin:0;">Sæki Sögunarlista…</div>
-
-    <div id="matSwitcher" class="mat-switcher hidden">
-      <img id="matPhoto" class="mat-photo hidden" alt="" />
-      <div id="matSwatch" class="mat-photo mat-swatch">🪵</div>
-      <div style="flex:1;min-width:0;">
-        <div id="matName" class="mat-name"></div>
-        <div id="matBadge" class="mat-badge"></div>
+    <div class="hdr-row">
+      <div class="project-name" id="projectName"></div>
+      <div id="matSwitcher" class="mat-switcher hidden">
+        <img id="matPhoto" class="mat-photo hidden" alt="" />
+        <div id="matSwatch" class="mat-photo mat-swatch">🪵</div>
+        <div style="min-width:0;">
+          <div id="matName" class="mat-name"></div>
+          <div id="matBadge" class="mat-badge"></div>
+        </div>
+        <select id="matSelect" class="hidden" onchange="selectMaterial(this.value)" title="Skipta um æðaefni"></select>
       </div>
-      <select id="matSelect" class="hidden" onchange="selectMaterial(this.value)" title="Skipta um æðaefni"></select>
     </div>
-    <div id="planNeedNote" class="no-print"></div>
+    <div class="sub" id="projectStatus" style="margin:0;">Sæki Sögunarlista…</div>
 
     <button class="ghost small" style="margin-top:10px;" onclick="resetAll()">← Annað verkefni</button>
   </div>
@@ -403,7 +420,7 @@
       <div class="field office-only" style="position:relative;">
         <button class="ghost" id="settingsBtn" onclick="toggleSettings()">⚙ Stillingar</button>
         <div id="settingsPop" class="settings-pop" data-btn="settingsBtn" hidden>
-          <div class="pop-head"><span>Stillingar</span><button class="pop-close" onclick="closeAllPopovers()">✕</button></div>
+          <div class="pop-head" onclick="closeAllPopovers()"><span>Stillingar</span><button class="pop-close" onclick="closeAllPopovers()">✕</button></div>
           <div class="field">
             <label>Plata breidd (mm)</label>
             <input type="number" id="boardW" step="1" />
@@ -438,13 +455,13 @@
       <div class="field" style="position:relative;">
         <button class="ghost" id="moreBtn" onclick="toggleMore()">⋯</button>
         <div id="morePop" class="settings-pop" data-btn="moreBtn" hidden style="width:180px;">
-          <div class="pop-head"><span>Meira</span><button class="pop-close" onclick="closeAllPopovers()">✕</button></div>
+          <div class="pop-head" onclick="closeAllPopovers()"><span>Meira</span><button class="pop-close" onclick="closeAllPopovers()">✕</button></div>
           <button class="ghost" style="width:100%;" onclick="window.print();closeAllPopovers()">🖨 Prenta</button>
           <button class="ghost small office-only" style="width:100%;margin-top:8px;" onclick="closeAllPopovers();resetLayout()">Núllstilla röðun</button>
         </div>
       </div>
       <button class="primary office-only" id="confirmBtn" style="margin-left:auto;" onclick="confirmPlan()">✅ Staðfesta skipulag</button>
-      <button class="primary" id="guideBtn" style="margin-left:auto;" onclick="openGuide()">▶ Saga með leiðsögn</button>
+      <button class="primary" id="guideBtn" onclick="openGuide()">▶ Saga með leiðsögn</button>
     </div>
 
     <div id="matchNote" class="hint no-print" style="margin-bottom:10px;"></div>
@@ -822,6 +839,7 @@ async function loadProject(id) {
     if (!name) name = (await fetchProjectById(id)).fields?.[P_NAME_FIELD] || "";
     projectName = name;
     $("projectName").textContent = name || id;
+    $("projectName").title = name || id;   // full text on hover — the header row can ellipsis it
 
     if (FLOOR_MODE) { await loadFloorPlans(name); return; }
 
@@ -906,6 +924,9 @@ function renderSkipped() {
 
 // notes on individual fronts (from the floor's "⚠ vandamál" flag, or written
 // straight into Sögunarlisti) — shown to the office so the loop closes
+// Collapsed by default (<details>, not a full card) — this is a to-do/FYI
+// list, not an urgent warning, so it shouldn't cost screen space when empty
+// of the reader's attention.
 function renderPlanMsgs() {
   const el = $("planMsgCard");
   if (FLOOR_MODE) { el.innerHTML = ""; return; }
@@ -916,11 +937,11 @@ function renderPlanMsgs() {
   const rows = list.map(p =>
     `<li><b>${esc(p.unitName)}</b> — ${esc(p.partur || "?")}: <span style="color:#8fbaff;white-space:pre-wrap;">${esc(p.planMsg)}</span></li>`
   ).join("");
-  el.innerHTML = `<div class="card" style="border-color:#2f5a8c;background:#101a26;">
-    <label style="color:#8fbaff;">💬 ${list.length} skilaboð um fronta (frá gólfi eða Sögunarlista)</label>
-    <ul style="font-size:0.82rem;color:#ddd;padding-left:20px;margin-top:6px;">${rows}</ul>
+  el.innerHTML = `<details class="msg-drop">
+    <summary>💬 ${list.length} skilaboð um fronta</summary>
+    <ul style="font-size:0.82rem;color:#ddd;padding-left:20px;margin-top:8px;">${rows}</ul>
     <div class="hint">Lagaðu í Airtable/Sögunarlista og hreinsaðu „Skilaboð til skipulags" þegar búið er að leysa.</div>
-  </div>`;
+  </details>`;
 }
 
 function buildMaterials() {
@@ -941,19 +962,11 @@ function buildMaterials() {
   if (!materials.length) {
     $("projectStatus").textContent = "Ekkert æðaefni (melamín viðarmynstur) fannst í þessu verkefni — notaðu Cutty.";
     $("matSwitcher").classList.add("hidden");
-    $("planNeedNote").innerHTML = "";
     return;
   }
 
-  // loud summary: how many æðaefni still need a confirmed plan
-  const need = materials.filter(m => {
-    const plan = projectPlans.find(p => p.fields[PL_EFNI] === m.key);
-    return !plan || !plan.fields[PL_CONFIRM];
-  });
-  const note = $("planNeedNote");
-  if (!need.length) note.innerHTML = `<div class="plan-need ok">✅ Öll æðaefni þessa verkefnis eru skipulögð og staðfest.</div>`;
-  else note.innerHTML = `<div class="plan-need warn">⚠ <b>${need.length} af ${materials.length} æðaefnum</b> á eftir að skipuleggja og staðfesta: ${need.map(m => esc(m.efni)).join(", ")}.</div>`;
-
+  // Confirmed/draft status shows as the ✏️/✅ badge in the header pill
+  // (renderHeaderPill) — no separate "N af M óskipulögð" banner needed.
   selectMaterial(materials[0].key);   // straight to planning — no "pick a material" step
 }
 
@@ -971,6 +984,7 @@ function renderHeaderPill() {
   else { img.classList.add("hidden"); swatch.classList.remove("hidden"); }
 
   $("matName").textContent = `${cur.efni || "(ónefnt efni)"} · ${cur.th} mm`;
+  $("matName").title = cur.efni || "";
   const plan = projectPlans.find(p => p.fields[PL_EFNI] === cur.key);
   $("matBadge").innerHTML = plan
     ? (plan.fields[PL_CONFIRM] ? `✅ staðfest skipulag` : `✏️ drög`)
@@ -2964,7 +2978,6 @@ function resetAll() {
   $("materialCard").classList.add("hidden");
   $("workspaceCard").classList.add("hidden");
   $("planStrip").innerHTML = ""; $("skippedCard").innerHTML = ""; $("planMsgCard").innerHTML = "";
-  const pn = $("planNeedNote"); if (pn) pn.innerHTML = "";
   $("projectSelect").value = "";
 }
 $("projectSelect").addEventListener("change", e => { if (e.target.value) loadProject(e.target.value); });
