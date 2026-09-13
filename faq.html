@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aðstoð | BJÖRNINN</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#ffffff;
+    --ink:#191919;
+    --ink-soft:#6f6d66;
+    --line:#e6e3da;
+    --blue:#3d61c1;
+    --blue-deep:#2c478e;
+    --gold:#a29c72;
+    --gold-soft:#f5f3ea;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Kumbh Sans', Arial, Helvetica, sans-serif;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{ background:var(--gold-soft); }
+
+  .wrap{
+    max-width:760px;
+    margin:0 auto;
+    padding: clamp(28px,5vw,48px) clamp(18px,4vw,24px) 64px;
+  }
+
+  .eyebrow{
+    font-size:12px;
+    font-weight:600;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    color:var(--gold);
+    margin:0 0 12px;
+  }
+
+  h1{
+    font-weight:600;
+    font-size:clamp(30px,5.2vw,42px);
+    line-height:1.12;
+    letter-spacing:-.01em;
+    margin:0 0 14px;
+    color:var(--ink);
+  }
+
+  .lede{
+    font-size:16px;
+    color:var(--ink-soft);
+    max-width:56ch;
+    margin:0 0 30px;
+  }
+
+  /* search */
+  .search{ position:relative; margin-bottom:24px; }
+  .search input{
+    width:100%;
+    font:inherit;
+    font-size:16px;
+    padding:14px 16px 14px 44px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    background:#fff;
+    color:var(--ink);
+    outline:none;
+    transition:border-color .15s ease;
+  }
+  .search input:focus{ border-color:var(--blue); }
+  .search svg{
+    position:absolute; left:14px; top:50%; transform:translateY(-50%);
+    color:var(--ink-soft); pointer-events:none;
+  }
+  .search-results{ margin-top:10px; display:flex; flex-direction:column; gap:0; border-top:1px solid var(--line); }
+  .search-hit{
+    text-align:left;
+    border:none; border-bottom:1px solid var(--line);
+    background:none;
+    padding:14px 2px;
+    cursor:pointer;
+    font:inherit; font-size:15.5px; color:var(--ink);
+  }
+  .search-hit:hover{ color:var(--blue); }
+  .search-hit .cat{
+    font-size:11px; font-weight:600;
+    color:var(--gold);
+    text-transform:uppercase; letter-spacing:.08em;
+    display:block; margin-bottom:4px;
+  }
+  .search-empty{ color:var(--ink-soft); font-size:14.5px; padding:14px 2px; }
+  .search-empty a{ color:var(--blue); }
+
+  /* popular chips */
+  .popular{ margin: 4px 0 36px; }
+  .popular .label{
+    font-size:11.5px; font-weight:600;
+    letter-spacing:.1em; text-transform:uppercase;
+    color:var(--ink-soft);
+    margin:0 0 10px;
+  }
+  .chiprow{ display:flex; flex-wrap:wrap; gap:8px; }
+  .chip{
+    font:inherit; font-size:13.5px; font-weight:500;
+    background:#fff;
+    border:1px solid var(--line);
+    color:var(--ink);
+    border-radius:100px;
+    padding:7px 14px;
+    cursor:pointer;
+  }
+  .chip:hover{ border-color:var(--blue); color:var(--blue); }
+
+  /* category grid */
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(200px,1fr));
+    gap:1px;
+    background:var(--line);
+    border:1px solid var(--line);
+  }
+  .card{
+    text-align:left;
+    background:#fff;
+    border:none;
+    padding:20px 18px;
+    cursor:pointer;
+    font:inherit;
+    color:var(--ink);
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+    transition:background .15s ease;
+  }
+  .card:hover{ background:var(--gold-soft); }
+  .card:hover h3{ color:var(--blue); }
+  .card .icon{ color:var(--gold); }
+  .card h3{
+    font-weight:600;
+    font-size:16.5px;
+    margin:0;
+  }
+  .card .count{
+    font-size:12px;
+    color:var(--ink-soft);
+  }
+
+  /* category detail view */
+  .back{
+    display:inline-flex; align-items:center; gap:6px;
+    font:inherit; font-size:14px; font-weight:500;
+    background:none; border:none; color:var(--blue);
+    cursor:pointer; padding:0; margin-bottom:20px;
+  }
+  .back:hover{ text-decoration:underline; }
+
+  .cathead{ display:flex; align-items:center; gap:12px; margin-bottom:8px; }
+  .cathead .icon{ color:var(--gold); flex:none; }
+  .cathead h2{
+    font-weight:600;
+    font-size:clamp(21px,3.2vw,26px);
+    margin:0;
+  }
+
+  .qlist{ display:flex; flex-direction:column; margin-top:14px; }
+  .qitem{ border-bottom:1px solid var(--line); }
+  .qitem:first-child{ border-top:1px solid var(--line); }
+  .qbtn{
+    width:100%;
+    display:flex; align-items:center; justify-content:space-between; gap:14px;
+    text-align:left;
+    background:none; border:none;
+    font:inherit; font-size:16px; font-weight:500; color:var(--ink);
+    padding:17px 2px;
+    cursor:pointer;
+  }
+  .qbtn .chev{ flex:none; color:var(--ink-soft); transition:transform .18s ease; }
+  .qitem.open .qbtn .chev{ transform:rotate(180deg); color:var(--blue); }
+  .qitem.open .qbtn{ color:var(--blue); }
+  .qanswer{ display:grid; grid-template-rows:0fr; transition:grid-template-rows .2s ease; }
+  .qitem.open .qanswer{ grid-template-rows:1fr; }
+  .qanswer-inner{ overflow:hidden; }
+  .qanswer p{ margin:0 2px 18px; color:var(--ink-soft); font-size:15px; max-width:62ch; }
+  .qanswer p b{ color:var(--ink); font-weight:600; }
+  .draft{
+    display:inline-flex; align-items:center; gap:5px;
+    font-size:10px; font-weight:600; letter-spacing:.06em; text-transform:uppercase;
+    color:var(--gold);
+    background:var(--gold-soft);
+    border-radius:100px;
+    padding:3px 9px;
+    margin-left:10px;
+  }
+
+  .cta{
+    margin-top:44px;
+    padding:22px 0 0;
+    border-top:1px solid var(--line);
+    display:flex; align-items:center; justify-content:space-between;
+    gap:16px; flex-wrap:wrap;
+  }
+  .cta p{ margin:0; font-size:15px; color:var(--ink-soft); }
+  .cta strong{ color:var(--ink); }
+  .cta a{
+    font-weight:600; font-size:14.5px;
+    color:#fff; background:var(--blue);
+    padding:11px 20px; border-radius:6px; text-decoration:none;
+    white-space:nowrap;
+  }
+  .cta a:hover{ background:var(--blue-deep); }
+
+  [hidden]{ display:none !important; }
+
+  @media (max-width:480px){
+    .cta{ flex-direction:column; align-items:flex-start; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{ transition-duration:.001ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <p class="eyebrow">Björninn · Aðstoð</p>
+  <h1>Algengar spurningar</h1>
+  <p class="lede">Leitaðu, veldu flokk, eða smelltu á vinsæla spurningu — mest tvö skref í hvert svar.</p>
+
+  <div class="search">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+    <input id="searchInput" type="text" placeholder="Leitaðu, t.d. „verð“, „biðtími“, „skápur“…" autocomplete="off">
+    <div class="search-results" id="searchResults" hidden></div>
+  </div>
+
+  <div class="popular" id="popularBlock">
+    <p class="label">Vinsælustu spurningarnar</p>
+    <div class="chiprow" id="popularChips"></div>
+  </div>
+
+  <div id="homeView">
+    <div class="grid" id="catGrid"></div>
+  </div>
+
+  <div id="catView" hidden>
+    <button class="back" id="backBtn">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+      Allir flokkar
+    </button>
+    <div class="cathead">
+      <span class="icon" id="catIcon"></span>
+      <h2 id="catTitle"></h2>
+    </div>
+    <div class="qlist" id="qlist"></div>
+  </div>
+
+  <div class="cta">
+    <p>Fannst þú ekki svarið? <strong>Ekki málið.</strong></p>
+    <a href="https://www.bjorninninnrettingar.is/hafðu-samband">Hafðu samband</a>
+  </div>
+
+</div>
+
+<script>
+const ICONS = {
+  process: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>',
+  why: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 4.9.8c0 1.7-2.4 2-2.4 3.7"/><path d="M12 17h.01"/></svg>',
+  money: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v9M9.5 9.8c0-1.1 1.1-1.8 2.5-1.8s2.5.8 2.5 1.9c0 2.6-5 1.4-5 4 0 1.1 1.1 1.9 2.5 1.9s2.5-.7 2.5-1.8"/></svg>',
+  design: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+  material: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="4.5" rx="1"/><rect x="3" y="10.75" width="18" height="4.5" rx="1"/><rect x="3" y="17.5" width="12" height="4.5" rx="1"/></svg>',
+  delivery: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="7" width="13" height="10" rx="1"/><path d="M14.5 10.5H18l3.5 3.5V17h-7"/><circle cx="6" cy="18.5" r="1.6"/><circle cx="17.5" cy="18.5" r="1.6"/></svg>',
+  install: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.6 5.2L3 17.6V21h3.4l6-6.1a4 4 0 0 0 5.2-5.6l-2.8 2.8-2-2Z"/></svg>',
+  care: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.5-9.5-9A5.5 5.5 0 0 1 12 6a5.5 5.5 0 0 1 9.5 6c-2.5 4.5-9.5 9-9.5 9Z"/></svg>',
+  business: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7.5" width="19" height="12" rx="1.5"/><path d="M8 7.5V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2.5"/><path d="M2.5 13h19"/></svg>'
+};
+
+const DATA = [
+  { id:"afhverju", title:"Af hverju sérsmíði?", icon:"why", questions:[
+    { q:"Af hverju á ég að velja sérsmíði frekar en staðlaða eða tilbúna (flatpakka) innréttingu?",
+      a:"[Drög — staðfestu áherslupunkta] Sérsmíði er sniðin nákvæmlega að þínu rými og þörfum, endist lengur og nýtir hvern sentimetra — engin fylliefni eða málamiðlanir sem staðlaðar lausnir krefjast.", draft:true },
+    { q:"Hver er munurinn á sérsmíði og staðlaðri innréttingu?",
+      a:"Staðlaðar innréttingar koma í fyrirfram ákveðnum stærðum. Sérsmíði er hönnuð og smíðuð frá grunni utan um þitt rými, þínar þarfir og þinn stíl.", draft:true },
+    { q:"Eykur sérsmíðuð innrétting endursöluvirði heimilisins?",
+      a:"[Drög — staðfestu] Vönduð sérsmíði er almennt talin til tekna við sölu fasteignar, enda sýnileg fjárfesting í gæðum og útliti.", draft:true },
+    { q:"Hversu lengi endist sérsmíðuð innrétting?",
+      a:"[Drög — staðfestu raunhæfa tímalengd miðað við ykkar efni og smíði.]", draft:true },
+    { q:"Hversu lengi hefur Björninn starfað?",
+      a:"Björninn hefur verið að smíða innréttingar eftir höfði landsmanna í tæp 50 ár." }
+  ]},
+  { id:"ferli", title:"Ferlið", icon:"process", questions:[
+    { q:"Hvernig byrja ég ferlið hjá ykkur?",
+      a:"Þú bókar tíma í fría hönnun og ráðgjöf, annaðhvort í sýningarsal okkar í Álfhellu 5 í Hafnarfirði eða heima hjá þér. Þar förum við yfir hugmyndir þínar, þarfir og rýmið sjálft." },
+    { q:"Þarf ég að vera komin/n með teikningu eða hugmynd áður en ég hef samband?",
+      a:"Nei, alls ekki. Það er frábært ef þú kemur með skissur, teikningar eða hugmyndir sem þú hefur þegar unnið að — en ef ekkert slíkt liggur fyrir er það ekkert vandamál. Við förum yfir rýmið, þarfirnar og það sem þú vilt fá út úr innréttingunni saman." },
+    { q:"Hver er munurinn á ráðgjafarfundi og hönnunarpakka?",
+      a:"Á ráðgjafarfundinum sýnum við þér efni, liti, höldur og lausnir, og gefum þér verðhugmynd. Ef þér líst vel á framhaldið bókar þú hönnunarpakka þar sem hugmyndin er fullmótuð, vinnu- og útlitsteikningar unnar og verkefnið undirbúið fyrir nákvæmt tilboð.", draft:true },
+    { q:"Hvernig fara mælingar fram?",
+      a:"Við staðfestingu mætir mælingarmaður frá Birninum á svæðið þar sem innréttingin á að vera. Með málbandi og fjarlægðarlaser tekur hann öll nauðsynleg mál." },
+    { q:"Get ég fengið hönnuð heim til mín í stað þess að koma í sýningarsal?",
+      a:"Já — bókaðu tíma undir „Bóka hönnuð heim“ og hönnuður kemur til þín í stað þess að þú komir til okkar." },
+    { q:"Vinnið þið með arkitektum eða hönnuðum sem ég kem með sjálf/ur?",
+      a:"[Drög — staðfestu] Já, við tökum hiklaust við teikningum frá þínum eigin arkitekt eða hönnuði og vinnum áfram með þeim.", draft:true }
+  ]},
+  { id:"verd", title:"Verð & greiðsla", icon:"money", questions:[
+    { q:"Hvað kostar innrétting hjá ykkur?",
+      a:"Nákvæmt verð er ekki hægt að veita fyrr en öll hönnunarvinna hefur farið fram. Efnisval, stærð verks og innvols hefur allt áhrif á verð." },
+    { q:"Er ráðgjafarfundurinn ókeypis?",
+      a:"Já, upphafsráðgjöfin — þar sem við förum yfir hugmyndina þína og gefum verðhugmynd — er þér að kostnaðarlausu." },
+    { q:"Hvað er staðfestingargjaldið hátt?",
+      a:"Staðfestingargjald fyrir verk sem kosta meira en 1.000.000 kr. er 50% af útgefnu tilboði. Verk undir 1.000.000 kr. skulu vera greidd að fullu áður en verk hefst." },
+    { q:"Get ég raðgreitt fyrir innréttinguna?",
+      a:"Hægt er að raðgreiða innréttingar í gegnum PEI. Við bjóðum einnig sveigjanlegt greiðslufyrirkomulag fyrir seinni hluta tilboðsins, í samráði við þig." },
+    { q:"Hvað ef verkið reynist dýrara en upphaflega tilboðið gerði ráð fyrir?",
+      a:"Verðbreytingar — til dæmis ef þú bætir við eða breytir innréttingu eftir að tilboð er samþykkt — eru alltaf kynntar og samþykktar af þér áður en vinna hefst við þær.", draft:true },
+    { q:"Þarf ég að borga eitthvað ef ég hætti við eftir ráðgjafarfundinn?",
+      a:"Nei. Ráðgjafarfundurinn sjálfur er ókeypis og án nokkurrar skuldbindingar.", draft:true },
+    { q:"Bjóðið þið upp á afslátt fyrir stærri verkefni?",
+      a:"[Drög — staðfestu hvort þið viljið nefna þetta opinberlega.]", draft:true }
+  ]},
+  { id:"honnun", title:"Hönnun & sérsmíði", icon:"design", questions:[
+    { q:"Getið þið hannað innréttinguna?",
+      a:"Við getum svo sannarlega hannað innréttinguna, alveg frá grunni eða út frá teikningu. Við mælum eindregið með að bóka tíma í hönnun og ráðgjöf hjá okkur — eða, ef þú vilt ganga alla leið, bóka hönnuðinn heim til þín." },
+    { q:"Getið þið smíðað eftir sérstærðum?",
+      a:"Að smíða í sérstærðum er það sem við sérhæfum okkur í. Vandræðalegt horn eða þröngt bil? Ekkert mál fyrir Björninn." },
+    { q:"Get ég komið með mynd eða hugmynd sem ég hef séð annars staðar og fengið ykkur til að útfæra hana?",
+      a:"Endilega. Skissur, teikningar eða innblástur — hvaðan sem þær koma — eru frábær byrjunarreitur fyrir ráðgjafarfundinn." },
+    { q:"Get ég pantað aðeins framhliðar á innréttingu sem ég á?",
+      a:"Því miður ekki einar og sér, en við getum sérsmíðað nýjar framhliðar og úthliðar sem hluta af stærra verki hjá okkur, til dæmis samhliða pöntun á öðrum innréttingum." },
+    { q:"Get ég fengið eina einingu eða skáp smíðaðan — ekki heilt eldhús eða fataherbergi?",
+      a:"Já — sérsmíði gengur jafn vel upp í stökum einingum og í heilu rými.", draft:true },
+    { q:"Smíðið þið hurðir?",
+      a:"Við smíðum hefðbundnar innihurðir sem og rennihurðir. Einnig tökum við að okkur að smíða eldvarnarhurðir í sértilfellum." },
+    { q:"Smíðið þið húsgögn?",
+      a:"Við gerum það ekki að vana en erum opnir fyrir öllu ef verkið er spennandi. Öll sérsmíði af þessu tagi fer fram á tímakaupi." },
+    { q:"Get ég fengið að sjá efnissýnishorn áður en ég ákveð mig?",
+      a:"[Drög — staðfestu] Já, þú getur skoðað og fengið efnissýnishorn í sýningarsal okkar áður en þú tekur ákvörðun.", draft:true },
+    { q:"Getið þið samræmt nýja innréttingu við eldri húsgögn eða innréttingar sem fyrir eru?",
+      a:"[Drög — staðfestu] Já, við skoðum það sem fyrir er og finnum efni og lit sem fellur vel að því.", draft:true },
+    { q:"Er hægt að fá nýtt útlit á eldri innréttingu frá ykkur, t.d. nýja málningu eða spónlagningu?",
+      a:"[Drög — staðfestu hvort þið bjóðið þessa þjónustu.]", draft:true },
+    { q:"Þjónustið þið einstaklinga, eða eingöngu fyrirtæki og verktaka?",
+      a:"Við þjónustum bæði — heimili jafnt sem fyrirtæki.", draft:true },
+    { q:"Smíðið þið líka fyrir baðherbergi og fataherbergi — ekki bara eldhús?",
+      a:"Já, við sérsmíðum fyrir eldhús, fataskápa, baðherbergi og fleiri rými." }
+  ]},
+  { id:"efni", title:"Efni & gæði", icon:"material", questions:[
+    { q:"Úr hvaða efni eru innréttingarnar?",
+      a:"Framhliðar geta verið úr ýmsum efnum, til dæmis melamíni, spónlögðum plötum, MDF og í sumum tilfellum gegnheilum viði. Skrokkaefnið okkar kemur frá EGGER, leiðandi framleiðanda á plötuefni fyrir innréttingasmíði með ríka áherslu á gæði og sjálfbærni." },
+    { q:"Hverskonar borðplötu úrval hafið þið?",
+      a:"Björninn býður upp á límtrés-, harðplasts- og harðkjarnaborðplötur. Við erum einnig í samstarfi við steinborðplötufyrirtæki þar sem viðskiptavinir okkar geta fengið betri kjör." },
+    { q:"Hvar framleiðið þið innréttingarnar?",
+      a:"Innréttingar okkar eru framleiddar á Íslandi, nánar tiltekið í Álfhellu 5, Hafnarfirði. Endilega kíktu við í sýningarsal okkar þar." },
+    { q:"Hvaða vörumerki notið þið í skúffum, lömum og lyftibúnaði?",
+      a:"Við notum hágæða <b>Blum</b> lausnir í skúffum, lömum og lyftibúnaði — sama merki og margir helstu innréttingaframleiðendur Evrópu treysta á." },
+    { q:"Af hverju skiptir kantlíming máli?",
+      a:"Kantlíming lokar fyrir opna brún á plötuefni svo raki og daglegt hnjask valdi ekki skemmdum með tímanum — lítið smáatriði sem hefur mikil áhrif á endingu." },
+    { q:"Eru efnin sem þið notið umhverfisvæn og örugg?",
+      a:"Skrokkaefnið okkar kemur frá EGGER, sem leggur ríka áherslu á sjálfbærni í sinni framleiðslu.", draft:true },
+    { q:"Þola efnin ykkar raka vel, t.d. fyrir eldhús og baðherbergi?",
+      a:"[Drög — staðfestu raka-þol eftir efnisflokki.]", draft:true }
+  ]},
+  { id:"afhending", title:"Framleiðslutími & afhending", icon:"delivery", questions:[
+    { q:"Hver er biðtíminn hjá ykkur?",
+      a:"Biðtími fer eftir mörgum breytum. Efnisval, fjöldi kassa og innvols hefur allt áhrif á afhendingartíma. Áætlaður afhendingartími er gefinn upp með tilboði." },
+    { q:"Hvernig get ég fylgst með stöðu verkefnisins míns?",
+      a:"Þegar verkið er komið af stað færðu aðgang að vefgátt þar sem þú sérð stöðu hönnunar og framleiðslu, ásamt áætluðum afhendingardegi." },
+    { q:"Hvað gerist ef afhending seinkar?",
+      a:"Ef við sjáum fram á seinkun höfum við samband við þig um leið og það liggur fyrir, með útskýringu og nýrri tímasetningu.", draft:true }
+  ]},
+  { id:"uppsetning", title:"Uppsetning", icon:"install", questions:[
+    { q:"Sjáið þið um uppsetningu?",
+      a:"Hægt er að fá sér tilboð í uppsetningu með öllum innréttingatilboðum. Uppsetning frá Birninum er algjörlega valkvæð." },
+    { q:"Þarf ég að vera heima á meðan uppsetning fer fram?",
+      a:"[Drög — staðfestu] Þægilegast er ef einhver er til staðar í upphafi og við lok uppsetningar.", draft:true },
+    { q:"Hvað ef eitthvað þarf að laga eftir uppsetningu?",
+      a:"[Drög — staðfestu] Hafðu samband við okkur — smávægilegar stillingar á hurðum og skúffum eru eðlilegur hluti af frágangi.", draft:true },
+    { q:"Er hægt að halda núverandi gólfefni þegar skipt er um innréttingu?",
+      a:"[Drög — staðfestu.]", draft:true },
+    { q:"Sjáið þið um að fjarlægja gömlu innréttinguna?",
+      a:"[Drög — staðfestu hvort þetta er innifalið eða aukalega verðlagt.]", draft:true }
+  ]},
+  { id:"vidhald", title:"Eftir afhendingu", icon:"care", questions:[
+    { q:"Hvernig er best að þrífa og viðhalda innréttingunni?",
+      a:"Þurrkaðu af með mjúkum, rökum klút og forðastu sterk hreinsiefni eða mikinn raka — þá endist innréttingin sem allra best." },
+    { q:"Er ábyrgð á smíðinni?",
+      a:"[Fylla inn raunveruleg ábyrgðarskilyrði Bjarnarins hér.]", draft:true },
+    { q:"Get ég fengið viðbætur eða breytingar síðar, t.d. auka skúffu?",
+      a:"Já, hafðu samband við okkur — við getum sérsmíðað viðbætur sem passa við það sem þú ert nú þegar með.", draft:true }
+  ]},
+  { id:"fyrirtaeki", title:"Fyrirtæki & sérverkefni", icon:"business", questions:[
+    { q:"Þjónustið þið líka fyrirtæki, ekki bara heimili?",
+      a:"Já — auk þess að smíða innréttingar fyrir heimili, störfum við líka við sérsmíði fyrir fyrirtæki: varningshillur fyrir verslanir, bar fyrir veitingastaði og aðrar sérlausnir." },
+    { q:"Hvaða svæði þjónustið þið?",
+      a:"[Fylla inn raunverulegt þjónustusvæði — t.d. bara höfuðborgarsvæðið, eða allt land.]", draft:true }
+  ]}
+];
+
+const POPULAR = [
+  {label:"Verð", cat:"verd", q:0},
+  {label:"Staðfestingargjald", cat:"verd", q:2},
+  {label:"Biðtími", cat:"afhending", q:0},
+  {label:"Stakur skápur eða eining", cat:"honnun", q:4},
+  {label:"Rekja verkefnið mitt", cat:"afhending", q:1}
+];
+
+const catGrid = document.getElementById('catGrid');
+const catView = document.getElementById('catView');
+const homeView = document.getElementById('homeView');
+const qlist = document.getElementById('qlist');
+const catTitle = document.getElementById('catTitle');
+const catIcon = document.getElementById('catIcon');
+const popularChips = document.getElementById('popularChips');
+const searchInput = document.getElementById('searchInput');
+const searchResults = document.getElementById('searchResults');
+const popularBlock = document.getElementById('popularBlock');
+
+function renderGrid(){
+  catGrid.innerHTML = DATA.map(c => `
+    <button class="card" data-cat="${c.id}">
+      <span class="icon">${ICONS[c.icon]}</span>
+      <h3>${c.title}</h3>
+      <span class="count">${c.questions.length} spurningar</span>
+    </button>
+  `).join('');
+  catGrid.querySelectorAll('.card').forEach(btn=>{
+    btn.addEventListener('click', ()=> openCategory(btn.dataset.cat));
+  });
+}
+
+function renderPopular(){
+  popularChips.innerHTML = POPULAR.map((p,i)=>`<button class="chip" data-i="${i}">${p.label}</button>`).join('');
+  popularChips.querySelectorAll('.chip').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const p = POPULAR[btn.dataset.i];
+      openCategory(p.cat, p.q);
+    });
+  });
+}
+
+function openCategory(catId, openIndex){
+  const cat = DATA.find(c=>c.id===catId);
+  if(!cat) return;
+  homeView.hidden = true;
+  popularBlock.hidden = true;
+  catView.hidden = false;
+  catTitle.textContent = cat.title;
+  catIcon.innerHTML = ICONS[cat.icon];
+  qlist.innerHTML = cat.questions.map((item,i)=>`
+    <div class="qitem" data-i="${i}">
+      <button class="qbtn">
+        <span>${item.q}${item.draft ? '<span class="draft">Drög</span>' : ''}</span>
+        <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <div class="qanswer"><div class="qanswer-inner"><p>${item.a}</p></div></div>
+    </div>
+  `).join('');
+  qlist.querySelectorAll('.qitem').forEach(el=>{
+    el.querySelector('.qbtn').addEventListener('click', ()=>{
+      const isOpen = el.classList.contains('open');
+      qlist.querySelectorAll('.qitem.open').forEach(o=>o.classList.remove('open'));
+      if(!isOpen) el.classList.add('open');
+      reportHeight();
+    });
+  });
+  window.scrollTo({top:0, behavior:'smooth'});
+  if(typeof openIndex === 'number'){
+    requestAnimationFrame(()=>{
+      const el = qlist.querySelector(`.qitem[data-i="${openIndex}"]`);
+      if(el){ el.classList.add('open'); el.scrollIntoView({behavior:'smooth', block:'center'}); }
+      reportHeight();
+    });
+  }
+  reportHeight();
+}
+
+document.getElementById('backBtn').addEventListener('click', ()=>{
+  catView.hidden = true;
+  homeView.hidden = false;
+  popularBlock.hidden = false;
+  window.scrollTo({top:0, behavior:'smooth'});
+  reportHeight();
+});
+
+function norm(s){ return s.toLowerCase(); }
+
+searchInput.addEventListener('input', ()=>{
+  const val = norm(searchInput.value.trim());
+  if(!val){
+    searchResults.hidden = true;
+    homeView.hidden = false;
+    popularBlock.hidden = false;
+    catView.hidden = true;
+    reportHeight();
+    return;
+  }
+  homeView.hidden = true;
+  popularBlock.hidden = true;
+  catView.hidden = true;
+  searchResults.hidden = false;
+
+  const hits = [];
+  DATA.forEach(cat=>{
+    cat.questions.forEach((item,i)=>{
+      if(norm(item.q).includes(val) || norm(item.a).includes(val)){
+        hits.push({cat: cat.id, catTitle: cat.title, i, q:item.q});
+      }
+    });
+  });
+
+  searchResults.innerHTML = hits.length
+    ? hits.map(h=>`<button class="search-hit" data-cat="${h.cat}" data-i="${h.i}"><span class="cat">${h.catTitle}</span>${h.q}</button>`).join('')
+    : `<p class="search-empty">Ekkert fannst — reyndu annað orð, eða <a href="https://www.bjorninninnrettingar.is/hafðu-samband">hafðu samband beint</a>.</p>`;
+
+  searchResults.querySelectorAll('.search-hit').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      searchInput.value = '';
+      searchResults.hidden = true;
+      openCategory(btn.dataset.cat, Number(btn.dataset.i));
+    });
+  });
+  reportHeight();
+});
+
+function reportHeight(){
+  const h = Math.ceil(document.documentElement.getBoundingClientRect().height) + 8;
+  const msg = { type: 'faq:height', height: h };
+  try { parent.postMessage(msg, '*'); } catch(e){}
+  try { if (window.top !== parent) window.top.postMessage(msg, '*'); } catch(e){}
+}
+
+renderGrid();
+renderPopular();
+window.addEventListener('load', reportHeight);
+window.addEventListener('resize', reportHeight);
+new ResizeObserver(reportHeight).observe(document.body);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(reportHeight);
+</script>
+</body>
+</html>
