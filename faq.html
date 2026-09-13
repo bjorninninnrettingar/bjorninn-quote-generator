@@ -547,6 +547,16 @@ function reportHeight(){
 
 renderGrid();
 renderPopular();
+
+// Deep-link support: ?cat=<id> opens straight into that category
+// (e.g. embedding /adstod?cat=honnun on the Eldhús page instead of
+// always landing on the category grid). Falls back to the normal
+// home view if the id is missing or unrecognized.
+const initialCat = new URLSearchParams(window.location.search).get('cat');
+if (initialCat && DATA.some(c => c.id === initialCat)) {
+  openCategory(initialCat);
+}
+
 window.addEventListener('load', reportHeight);
 window.addEventListener('resize', reportHeight);
 new ResizeObserver(reportHeight).observe(document.body);
