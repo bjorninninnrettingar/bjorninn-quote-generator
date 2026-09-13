@@ -52,8 +52,9 @@
   }
 
   /* search */
-  .search{ position:relative; margin-bottom:24px; }
-  .search input{
+  .search{ margin-bottom:24px; }
+  .search-box{ position:relative; }
+  .search-box input{
     width:100%;
     font:inherit;
     font-size:16px;
@@ -65,8 +66,8 @@
     outline:none;
     transition:border-color .15s ease;
   }
-  .search input:focus{ border-color:var(--blue); }
-  .search svg{
+  .search-box input:focus{ border-color:var(--blue); }
+  .search-box svg{
     display:block;
     position:absolute; left:15px; top:50%; transform:translateY(-50%);
     color:var(--ink-soft); pointer-events:none;
@@ -227,8 +228,10 @@
   <p class="lede">Leitaðu, veldu flokk, eða smelltu á vinsæla spurningu — mest tvö skref í hvert svar.</p>
 
   <div class="search">
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="7"/><path d="m20.5 20.5-4.35-4.35"/></svg>
-    <input id="searchInput" type="text" placeholder="Leitaðu, t.d. „verð“, „biðtími“, „skápur“…" autocomplete="off">
+    <div class="search-box">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="7"/><path d="m20.5 20.5-4.35-4.35"/></svg>
+      <input id="searchInput" type="text" placeholder="Leitaðu, t.d. „verð“, „biðtími“, „skápur“…" autocomplete="off">
+    </div>
     <div class="search-results" id="searchResults" hidden></div>
   </div>
 
@@ -275,122 +278,136 @@ const ICONS = {
 
 const DATA = [
   { id:"afhverju", title:"Af hverju sérsmíði?", icon:"why", questions:[
-    { q:"Af hverju á ég að velja sérsmíði frekar en staðlaða eða tilbúna (flatpakka) innréttingu?",
-      a:"[Drög — staðfestu áherslupunkta] Sérsmíði er sniðin nákvæmlega að þínu rými og þörfum, endist lengur og nýtir hvern sentimetra — engin fylliefni eða málamiðlanir sem staðlaðar lausnir krefjast.", draft:true },
+    { q:"Af hverju ætti ég að velja sérsmíði frekar en staðlaða innréttingu?",
+      a:"Sérsmíði er gerð fyrir þitt rými og þínar þarfir. Þá nýtist plássið betur og innréttingin passar betur inn í rýmið. Einnig færðu nákvæmlega þá hönnun sem hentar þínu lífi og í þeim stíl sem þú vilt." },
     { q:"Hver er munurinn á sérsmíði og staðlaðri innréttingu?",
-      a:"Staðlaðar innréttingar koma í fyrirfram ákveðnum stærðum. Sérsmíði er hönnuð og smíðuð frá grunni utan um þitt rými, þínar þarfir og þinn stíl.", draft:true },
-    { q:"Eykur sérsmíðuð innrétting endursöluvirði heimilisins?",
-      a:"[Drög — staðfestu] Vönduð sérsmíði er almennt talin til tekna við sölu fasteignar, enda sýnileg fjárfesting í gæðum og útliti.", draft:true },
+      a:"Staðlaðar innréttingar koma í ákveðnum stærðum og litum. Sérsmíði er hönnuð og smíðuð sérstaklega fyrir þitt rými eftir þínu höfði." },
+    { q:"Eykur sérsmíðuð innrétting verðmæti fasteignar?",
+      a:"Vönduð innrétting getur gert heimilið fallegra og betra í notkun. Það getur verið kostur þegar fasteign er seld. Við getum þó ekki sagt hversu mikið það hefur áhrif á verð." },
     { q:"Hversu lengi endist sérsmíðuð innrétting?",
-      a:"[Drög — staðfestu raunhæfa tímalengd miðað við ykkar efni og smíði.]", draft:true },
+      a:"Vönduð innrétting getur enst í áratugi. Ending fer eftir efni, notkun og því hvernig farið er með hana." },
     { q:"Hversu lengi hefur Björninn starfað?",
-      a:"Björninn hefur verið að smíða innréttingar eftir höfði landsmanna í tæp 50 ár." }
+      a:"Björninn hefur komið að innréttingum í nær 50 ár." }
   ]},
   { id:"ferli", title:"Ferlið", icon:"process", questions:[
     { q:"Hvernig byrja ég ferlið hjá ykkur?",
-      a:"Þú bókar tíma í fría hönnun og ráðgjöf, annaðhvort í sýningarsal okkar í Álfhellu 5 í Hafnarfirði eða heima hjá þér. Þar förum við yfir hugmyndir þínar, þarfir og rýmið sjálft." },
-    { q:"Þarf ég að vera komin/n með teikningu eða hugmynd áður en ég hef samband?",
-      a:"Nei, alls ekki. Það er frábært ef þú kemur með skissur, teikningar eða hugmyndir sem þú hefur þegar unnið að — en ef ekkert slíkt liggur fyrir er það ekkert vandamál. Við förum yfir rýmið, þarfirnar og það sem þú vilt fá út úr innréttingunni saman." },
-    { q:"Hver er munurinn á ráðgjafarfundi og hönnunarpakka?",
-      a:"Á ráðgjafarfundinum sýnum við þér efni, liti, höldur og lausnir, og gefum þér verðhugmynd. Ef þér líst vel á framhaldið bókar þú hönnunarpakka þar sem hugmyndin er fullmótuð, vinnu- og útlitsteikningar unnar og verkefnið undirbúið fyrir nákvæmt tilboð.", draft:true },
+      a:"Fyrsta skrefið er að bóka tíma í hönnun og ráðgjöf eða senda ýtarlegan tölvupóst. Þar förum við yfir hugmyndir, rýmið og það sem þú þarft." },
+    { q:"Þarf ég að vera með teikningu eða hugmynd áður en ég hef samband?",
+      a:"Nei. Gott er þó að koma með skissur, teikningar eða myndir ef þú getur. Ef ekki, byrjum við bara frá grunni." },
+    { q:"Hver er munurinn á hönnun og ráðgjöf og hönnunarpakka?",
+      a:"Ráðgjafarfundurinn er fyrsta skrefið. Þar förum við yfir verkefnið, efni, liti og lausnir. Þar fáum við líka fyrstu verðhugmynd.<br><br>Hönnunarpakkinn er greidd þjónusta. Þá fullklárum við hönnunina og gerum tækniteikningar sem þú eignast." },
     { q:"Hvernig fara mælingar fram?",
-      a:"Við staðfestingu mætir mælingarmaður frá Birninum á svæðið þar sem innréttingin á að vera. Með málbandi og fjarlægðarlaser tekur hann öll nauðsynleg mál." },
-    { q:"Get ég fengið hönnuð heim til mín í stað þess að koma í sýningarsal?",
-      a:"Já — bókaðu tíma undir „Bóka hönnuð heim“ og hönnuður kemur til þín í stað þess að þú komir til okkar." },
-    { q:"Vinnið þið með arkitektum eða hönnuðum sem ég kem með sjálf/ur?",
-      a:"[Drög — staðfestu] Já, við tökum hiklaust við teikningum frá þínum eigin arkitekt eða hönnuði og vinnum áfram með þeim.", draft:true }
+      a:"Þegar verkefnið hefur verið staðfest færðu hlekk til að bóka mælingu á stað. Mælingarmaður kemur á staðinn og tekur öll mál sem við þurfum." },
+    { q:"Hvað þarf að vera tilbúið áður en þið komið að mæla?",
+      a:"Það þarf að vera hægt að komast að veggjum, gólfi og lofti. Ef mikið á eftir að breytast í rýminu getur verið að þurfi að mæla aftur síðar." },
+    { q:"Get ég fengið hönnuð heim til mín?",
+      a:"Já. Hægt er að bóka hönnuð heim til þín." },
+    { q:"Vinnið þið með arkitektum eða hönnuðum sem ég kem með?",
+      a:"Já. Við getum unnið út frá teikningum frá þínum arkitekt eða hönnuði." },
+    { q:"Get ég breytt hönnuninni eftir að ég hef samþykkt tilboð?",
+      a:"Já, svo lengi sem framleiðsla er ekki byrjuð og efni ekki pantað. Breytingar geta haft áhrif á verð og afhendingartíma.<br><br>Eftir að framleiðsla hefst geta breytingar orðið dýrari eða ómögulegar." },
+    { q:"Fer eitthvað í framleiðslu án þess að ég samþykki það?",
+      a:"Nei. Þú samþykkir lokaútgáfuna áður en framleiðsla byrjar." }
   ]},
-  { id:"verd", title:"Verð & greiðsla", icon:"money", questions:[
+  { id:"verd", title:"Verð og greiðslur", icon:"money", questions:[
     { q:"Hvað kostar innrétting hjá ykkur?",
-      a:"Nákvæmt verð er ekki hægt að veita fyrr en öll hönnunarvinna hefur farið fram. Efnisval, stærð verks og innvols hefur allt áhrif á verð." },
+      a:"Verðið fer eftir stærð, efni, skúffum, innvolsi og útfærslu.<br><br>Við getum gefið verðhugmynd snemma. Nákvæmt verð kemur þegar nægar upplýsingar liggja fyrir." },
     { q:"Er ráðgjafarfundurinn ókeypis?",
-      a:"Já, upphafsráðgjöfin — þar sem við förum yfir hugmyndina þína og gefum verðhugmynd — er þér að kostnaðarlausu." },
+      a:"Já. Hönnun og ráðgjöf er ókeypis." },
     { q:"Hvað er staðfestingargjaldið hátt?",
-      a:"Staðfestingargjald fyrir verk sem kosta meira en 1.000.000 kr. er 50% af útgefnu tilboði. Verk undir 1.000.000 kr. skulu vera greidd að fullu áður en verk hefst." },
-    { q:"Get ég raðgreitt fyrir innréttinguna?",
-      a:"Hægt er að raðgreiða innréttingar í gegnum PEI. Við bjóðum einnig sveigjanlegt greiðslufyrirkomulag fyrir seinni hluta tilboðsins, í samráði við þig." },
-    { q:"Hvað ef verkið reynist dýrara en upphaflega tilboðið gerði ráð fyrir?",
-      a:"Verðbreytingar — til dæmis ef þú bætir við eða breytir innréttingu eftir að tilboð er samþykkt — eru alltaf kynntar og samþykktar af þér áður en vinna hefst við þær.", draft:true },
-    { q:"Þarf ég að borga eitthvað ef ég hætti við eftir ráðgjafarfundinn?",
-      a:"Nei. Ráðgjafarfundurinn sjálfur er ókeypis og án nokkurrar skuldbindingar.", draft:true },
-    { q:"Bjóðið þið upp á afslátt fyrir stærri verkefni?",
-      a:"[Drög — staðfestu hvort þið viljið nefna þetta opinberlega.]", draft:true }
+      a:"Fyrir verkefni að 750.000 kr. er greitt að fullu fyrir fram.<br><br>Fyrir verkefni á bilinu 750.000–1.000.000 kr. eru 50% greidd við staðfestingu og 50% við skil.<br><br>Fyrir verkefni yfir 1.000.000 kr. er greiðslufyrirkomulag sveigjanlegra. Staðfestingargjald er þó aldrei lægra en 40%." },
+    { q:"Hvenær greiði ég restina?",
+      a:"Það fer eftir stærð verkefnisins og verður rætt við sölufulltrúa.<br><br>Minni verkefni eru greidd að fullu fyrir fram eða í tveimur greiðslum. Fyrir stærri verkefni er hægt að skipta greiðslum niður eftir samkomulagi." },
+    { q:"Get ég raðgreitt?",
+      a:"Já. Hægt er að raðgreiða í gegnum PEI. Í sumum tilfellum er líka hægt að semja um annað greiðslufyrirkomulag." },
+    { q:"Hvað ef verkið verður dýrara?",
+      a:"Ef þú bætir einhverju við eða breytir verkinu segjum við þér frá því áður en kostnaður hækkar. Við byrjum ekki á viðbótarvinnu án þess að þú vitir af því." },
+    { q:"Þarf ég að borga ef ég hætti við eftir fyrsta fund?",
+      a:"Nei. Fyrsti ráðgjafarfundurinn er ókeypis. Ef þú hefur keypt hönnunarpakka eða staðfest verk gilda aðrir skilmálar." }
   ]},
-  { id:"honnun", title:"Hönnun & sérsmíði", icon:"design", questions:[
+  { id:"honnun", title:"Hönnun og sérsmíði", icon:"design", questions:[
     { q:"Getið þið hannað innréttinguna?",
-      a:"Við getum svo sannarlega hannað innréttinguna, alveg frá grunni eða út frá teikningu. Við mælum eindregið með að bóka tíma í hönnun og ráðgjöf hjá okkur — eða, ef þú vilt ganga alla leið, bóka hönnuðinn heim til þín." },
+      a:"Já. Við getum hannað hana frá grunni eða unnið út frá teikningum sem þú ert með." },
     { q:"Getið þið smíðað eftir sérstærðum?",
-      a:"Að smíða í sérstærðum er það sem við sérhæfum okkur í. Vandræðalegt horn eða þröngt bil? Ekkert mál fyrir Björninn." },
-    { q:"Get ég komið með mynd eða hugmynd sem ég hef séð annars staðar og fengið ykkur til að útfæra hana?",
-      a:"Endilega. Skissur, teikningar eða innblástur — hvaðan sem þær koma — eru frábær byrjunarreitur fyrir ráðgjafarfundinn." },
-    { q:"Get ég pantað aðeins framhliðar á innréttingu sem ég á?",
-      a:"Því miður ekki einar og sér, en við getum sérsmíðað nýjar framhliðar og úthliðar sem hluta af stærra verki hjá okkur, til dæmis samhliða pöntun á öðrum innréttingum." },
-    { q:"Get ég fengið eina einingu eða skáp smíðaðan — ekki heilt eldhús eða fataherbergi?",
-      a:"Já — sérsmíði gengur jafn vel upp í stökum einingum og í heilu rými.", draft:true },
+      a:"Já. Það er einmitt það sem við sérhæfum okkur í. Við getum smíðað fyrir skökk horn, þröng bil og óvenjuleg rými." },
+    { q:"Get ég komið með mynd eða hugmynd sem ég hef séð annars staðar?",
+      a:"Já. Myndir, skissur og hugmyndir eru mjög góð byrjun." },
+    { q:"Get ég pantað aðeins framhliðar?",
+      a:"Ekki einar og sér. Við getum þó smíðað framhliðar sem hluta af stærra verkefni hjá okkur." },
+    { q:"Get ég fengið bara einn skáp eða eina einingu?",
+      a:"Mögulega. Við tökum þó almennt ekki að okkur verkefni undir 300.000 kr.<br><br>Minni sérsmíðaverk eru oft ekki hagkvæm í framleiðslu miðað við undirbúning, mælingar og þá vinnu sem fylgir hverju verkefni." },
     { q:"Smíðið þið hurðir?",
-      a:"Við smíðum hefðbundnar innihurðir sem og rennihurðir. Einnig tökum við að okkur að smíða eldvarnarhurðir í sértilfellum." },
+      a:"Já. Við smíðum innihurðir og rennihurðir." },
     { q:"Smíðið þið húsgögn?",
-      a:"Við gerum það ekki að vana en erum opnir fyrir öllu ef verkið er spennandi. Öll sérsmíði af þessu tagi fer fram á tímakaupi." },
-    { q:"Get ég fengið að sjá efnissýnishorn áður en ég ákveð mig?",
-      a:"[Drög — staðfestu] Já, þú getur skoðað og fengið efnissýnishorn í sýningarsal okkar áður en þú tekur ákvörðun.", draft:true },
-    { q:"Getið þið samræmt nýja innréttingu við eldri húsgögn eða innréttingar sem fyrir eru?",
-      a:"[Drög — staðfestu] Já, við skoðum það sem fyrir er og finnum efni og lit sem fellur vel að því.", draft:true },
-    { q:"Er hægt að fá nýtt útlit á eldri innréttingu frá ykkur, t.d. nýja málningu eða spónlagningu?",
-      a:"[Drög — staðfestu hvort þið bjóðið þessa þjónustu.]", draft:true },
-    { q:"Þjónustið þið einstaklinga, eða eingöngu fyrirtæki og verktaka?",
-      a:"Við þjónustum bæði — heimili jafnt sem fyrirtæki.", draft:true },
-    { q:"Smíðið þið líka fyrir baðherbergi og fataherbergi — ekki bara eldhús?",
-      a:"Já, við sérsmíðum fyrir eldhús, fataskápa, baðherbergi og fleiri rými." }
+      a:"Almennt ekki. Við skoðum þó sérstök verkefni ef þau eru spennandi." },
+    { q:"Get ég skoðað efnissýnishorn áður en ég ákveð mig?",
+      a:"Já. Í sýningarsalnum geturðu skoðað efni, liti, spón, höldur og ýmsar útfærslur.<br><br>Þú færð líka betri tilfinningu fyrir gæðum, lausnum og því hvað sérsmíði felur í sér. Við hvetjum alla sem eru að skoða sérsmíði til að kíkja til okkar í kaffispjall." },
+    { q:"Getið þið samræmt nýja innréttingu við það sem fyrir er?",
+      a:"Já. Við getum valið efni og liti sem passa vel við það sem er fyrir. Það er þó ekki alltaf hægt að fá alveg sama lit og á gömlu efni." },
+    { q:"Endurnýið þið eldri innréttingar?",
+      a:"Við einbeitum okkur að nýsmíði. Við tökum eldri innréttingar að okkur þó aðeins í sérstökum tilfellum." },
+    { q:"Þjónustið þið einstaklinga og fyrirtæki?",
+      a:"Já. Við vinnum bæði fyrir einstaklinga og fyrirtæki." },
+    { q:"Smíðið þið fyrir fleiri rými en eldhús?",
+      a:"Já. Við smíðum fyrir eldhús, baðherbergi, þvottahús, fataskápa, fataherbergi, stofur og fleiri rými.<br><br>Ef það er hægt að hanna það, þá getum við yfirleitt smíðað það. Það er einmitt kosturinn við sérsmíði." }
   ]},
-  { id:"efni", title:"Efni & gæði", icon:"material", questions:[
-    { q:"Úr hvaða efni eru innréttingarnar?",
-      a:"Framhliðar geta verið úr ýmsum efnum, til dæmis melamíni, spónlögðum plötum, MDF og í sumum tilfellum gegnheilum viði. Skrokkaefnið okkar kemur frá EGGER, leiðandi framleiðanda á plötuefni fyrir innréttingasmíði með ríka áherslu á gæði og sjálfbærni." },
-    { q:"Hverskonar borðplötu úrval hafið þið?",
-      a:"Björninn býður upp á límtrés-, harðplasts- og harðkjarnaborðplötur. Við erum einnig í samstarfi við steinborðplötufyrirtæki þar sem viðskiptavinir okkar geta fengið betri kjör." },
+  { id:"efni", title:"Efni og gæði", icon:"material", questions:[
+    { q:"Úr hvaða efnum eru innréttingarnar?",
+      a:"Við notum meðal annars melamín, spón, MDF og stundum gegnheilan við." },
+    { q:"Hvaða borðplötur bjóðið þið upp á?",
+      a:"Við bjóðum meðal annars límtré, harðplast og harðkjarna. Við vinnum líka með fyrirtækjum sem framleiða steinborðplötur." },
     { q:"Hvar framleiðið þið innréttingarnar?",
-      a:"Innréttingar okkar eru framleiddar á Íslandi, nánar tiltekið í Álfhellu 5, Hafnarfirði. Endilega kíktu við í sýningarsal okkar þar." },
-    { q:"Hvaða vörumerki notið þið í skúffum, lömum og lyftibúnaði?",
-      a:"Við notum hágæða <b>Blum</b> lausnir í skúffum, lömum og lyftibúnaði — sama merki og margir helstu innréttingaframleiðendur Evrópu treysta á." },
-    { q:"Af hverju skiptir kantlíming máli?",
-      a:"Kantlíming lokar fyrir opna brún á plötuefni svo raki og daglegt hnjask valdi ekki skemmdum með tímanum — lítið smáatriði sem hefur mikil áhrif á endingu." },
-    { q:"Eru efnin sem þið notið umhverfisvæn og örugg?",
-      a:"Skrokkaefnið okkar kemur frá EGGER, sem leggur ríka áherslu á sjálfbærni í sinni framleiðslu.", draft:true },
-    { q:"Þola efnin ykkar raka vel, t.d. fyrir eldhús og baðherbergi?",
-      a:"[Drög — staðfestu raka-þol eftir efnisflokki.]", draft:true }
+      a:"Við framleiðum innréttingarnar frá grunni hér á Íslandi 🇮🇸, á verkstæðinu okkar í Álfhellu 5 í Hafnarfirði. Kíktu endilega í kaffi og sjáðu hvar og hvernig þær verða til." },
+    { q:"Hvaða vörumerki notið þið í skúffum og lömum?",
+      a:"Við notum nær eingöngu <b>Blum</b> í skúffum og lömum." },
+    { q:"Eru efnin umhverfisvæn?",
+      a:"Við veljum efni frá þekktum framleiðendum sem leggja áherslu á gæði og ábyrga framleiðslu. Stærsti hluti plötuefnisins okkar kemur frá EGGER." },
+    { q:"Þola innréttingarnar raka?",
+      a:"Já, þær eru gerðar fyrir venjulega notkun í eldhúsi og baðherbergi. Þær eru þó ekki vatnsheldar. Vatn ætti ekki að liggja lengi á köntum eða samskeytum." }
   ]},
-  { id:"afhending", title:"Framleiðslutími & afhending", icon:"delivery", questions:[
+  { id:"afhending", title:"Framleiðslutími og afhending", icon:"delivery", questions:[
     { q:"Hver er biðtíminn hjá ykkur?",
-      a:"Biðtími fer eftir mörgum breytum. Efnisval, fjöldi kassa og innvols hefur allt áhrif á afhendingartíma. Áætlaður afhendingartími er gefinn upp með tilboði." },
-    { q:"Hvernig get ég fylgst með stöðu verkefnisins míns?",
-      a:"Þegar verkið er komið af stað færðu aðgang að vefgátt þar sem þú sérð stöðu hönnunar og framleiðslu, ásamt áætluðum afhendingardegi." },
+      a:"Það fer eftir stöðunni hjá okkur og stærð verksins. Áætlaður afhendingartími kemur fram þegar verkefnið er staðfest." },
+    { q:"Hvenær fæ ég nákvæman afhendingardag?",
+      a:"Við gefum fyrst áætlaðan tíma. Þegar líður á framleiðsluna getum við gefið nákvæmari upplýsingar." },
+    { q:"Hvernig get ég fylgst með verkefninu mínu?",
+      a:"Þú færð aðgang að vefgátt þar sem þú getur fylgst með stöðu verkefnisins." },
     { q:"Hvað gerist ef afhending seinkar?",
-      a:"Ef við sjáum fram á seinkun höfum við samband við þig um leið og það liggur fyrir, með útskýringu og nýrri tímasetningu.", draft:true }
+      a:"Við látum þig vita eins fljótt og við getum og gefum þér nýtt mat á afhendingu." },
+    { q:"Er heimsending innifalin?",
+      a:"Nei, nema það komi fram í tilboðinu. Hægt er að bæta heimsendingu við." },
+    { q:"Getið þið geymt innréttinguna fyrir mig?",
+      a:"Aðeins í takmarkaðan tíma. Ef innrétting er tilbúin og ekki hægt að afhenda hana geta geymslugjöld bæst við." }
   ]},
   { id:"uppsetning", title:"Uppsetning", icon:"install", questions:[
     { q:"Sjáið þið um uppsetningu?",
-      a:"Hægt er að fá sér tilboð í uppsetningu með öllum innréttingatilboðum. Uppsetning frá Birninum er algjörlega valkvæð." },
+      a:"Já. Hægt er að fá sérstakt tilboð í uppsetningu. Uppsetning er ekki sjálfkrafa innifalin." },
     { q:"Þarf ég að vera heima á meðan uppsetning fer fram?",
-      a:"[Drög — staðfestu] Þægilegast er ef einhver er til staðar í upphafi og við lok uppsetningar.", draft:true },
+      a:"Ekki allan tímann. Það þarf þó að vera gott aðgengi að húsnæðinu og gott að einhver sé tiltækur ef spurningar koma upp." },
     { q:"Hvað ef eitthvað þarf að laga eftir uppsetningu?",
-      a:"[Drög — staðfestu] Hafðu samband við okkur — smávægilegar stillingar á hurðum og skúffum eru eðlilegur hluti af frágangi.", draft:true },
-    { q:"Er hægt að halda núverandi gólfefni þegar skipt er um innréttingu?",
-      a:"[Drög — staðfestu.]", draft:true },
+      a:"Hafðu samband við okkur. Smá stillingar á hurðum, skúffum og lömum geta verið eðlilegur hluti af frágangi." },
+    { q:"Get ég haldið núverandi gólfefni?",
+      a:"Oft já. Það fer þó eftir því hvernig gamla og nýja innréttingin liggja í rýminu." },
     { q:"Sjáið þið um að fjarlægja gömlu innréttinguna?",
-      a:"[Drög — staðfestu hvort þetta er innifalið eða aukalega verðlagt.]", draft:true }
+      a:"Það er ekki sjálfkrafa innifalið. Ef þú vilt fá niðurrif eða förgun þarf það að koma fram í tilboðinu." },
+    { q:"Sjáið þið um rafmagn og pípulagnir?",
+      a:"Ekki nema það sé sérstaklega tekið fram. Rafvirki og pípulagningamaður sjá yfirleitt um slíka vinnu." }
   ]},
   { id:"vidhald", title:"Eftir afhendingu", icon:"care", questions:[
-    { q:"Hvernig er best að þrífa og viðhalda innréttingunni?",
-      a:"Þurrkaðu af með mjúkum, rökum klút og forðastu sterk hreinsiefni eða mikinn raka — þá endist innréttingin sem allra best." },
-    { q:"Er ábyrgð á smíðinni?",
-      a:"[Fylla inn raunveruleg ábyrgðarskilyrði Bjarnarins hér.]", draft:true },
-    { q:"Get ég fengið viðbætur eða breytingar síðar, t.d. auka skúffu?",
-      a:"Já, hafðu samband við okkur — við getum sérsmíðað viðbætur sem passa við það sem þú ert nú þegar með.", draft:true }
+    { q:"Hvernig þríf ég innréttinguna?",
+      a:"Notaðu mjúkan, rakan klút og mild hreinsiefni. Forðastu sterk efni, grófa svampa og mikinn raka." },
+    { q:"Er ábyrgð á innréttingunni?",
+      a:"Ef eitthvað reynist gallað skaltu hafa samband við okkur. Við skoðum málið og metum hvað fellur undir ábyrgð eða kvörtunarrétt." },
+    { q:"Get ég bætt einhverju við síðar?",
+      a:"Já, oft. Við getum stundum smíðað viðbætur sem passa við innréttinguna sem þú ert með. Það getur þó verið erfitt að fá nákvæmlega sama lit ef mörg ár eru liðin." }
   ]},
-  { id:"fyrirtaeki", title:"Fyrirtæki & sérverkefni", icon:"business", questions:[
-    { q:"Þjónustið þið líka fyrirtæki, ekki bara heimili?",
-      a:"Já — auk þess að smíða innréttingar fyrir heimili, störfum við líka við sérsmíði fyrir fyrirtæki: varningshillur fyrir verslanir, bar fyrir veitingastaði og aðrar sérlausnir." },
+  { id:"fyrirtaeki", title:"Fyrirtæki og sérverkefni", icon:"business", questions:[
+    { q:"Þjónustið þið fyrirtæki?",
+      a:"Já. Við smíðum meðal annars innréttingar fyrir skrifstofur, verslanir, veitingastaði og önnur atvinnurými." },
+    { q:"Takið þið að ykkur sérverkefni?",
+      a:"Já, ef verkefnið hentar vélum okkar og framleiðslu. Við skoðum hvert verkefni fyrir sig." },
     { q:"Hvaða svæði þjónustið þið?",
-      a:"[Fylla inn raunverulegt þjónustusvæði — t.d. bara höfuðborgarsvæðið, eða allt land.]", draft:true }
+      a:"Við tökum að okkur verkefni um allt land. Mælingar, flutningur og uppsetning utan höfuðborgarsvæðisins eru metin sérstaklega." }
   ]}
 ];
 
@@ -399,7 +416,7 @@ const POPULAR = [
   {label:"Staðfestingargjald", cat:"verd", q:2},
   {label:"Biðtími", cat:"afhending", q:0},
   {label:"Stakur skápur eða eining", cat:"honnun", q:4},
-  {label:"Rekja verkefnið mitt", cat:"afhending", q:1}
+  {label:"Rekja verkefnið mitt", cat:"afhending", q:2}
 ];
 
 const catGrid = document.getElementById('catGrid');
