@@ -1563,21 +1563,44 @@ function buildGroups() {
 
   // group by unit + rounded width — a grain run is a strip of same-width fronts
   const map = new Map();
+  const drawerBuckets = new Map();   // base key -> [group, group, ...] for later "· N" labeling
   for (const p of rows) {
-    const gk = `${p.unitId}|${Math.round(p.b)}`;
+    const baseKey = `${p.unitId}|${Math.round(p.b)}`;
     const sbs = SIDEBYSIDE_RE.test(p.partur);
     const keep = KEEPTOGETHER_RE.test(p.partur);
     const drw = DRAWER_RE.test(p.partur);
-    if (!map.has(gk)) map.set(gk, {
-      id: gk, unitName: p.unitName, width: Math.round(p.b),
-      orient: sbs ? "s" : "v", keepTogether: keep || drw, kind: sbs ? "væng" : keep ? "skiptur" : drw ? "skúffur" : "", fronts: [],
-    });
-    const g = map.get(gk);
-    if (sbs) { g.orient = "s"; g.kind = "væng"; }
-    else if (keep && !g.kind) g.kind = "skiptur";
-    else if (drw && !g.kind) g.kind = "skúffur";
-    if (keep || drw) g.keepTogether = true;
     for (let i = 0; i < p.m; i++) {
+      // A drawer front row's Magn (M) is an AGGREGATE count — Sögunarlisti
+      // doesn't say which physical duplicate cabinet (Fjöldi eininga >= 2)
+      // each copy belongs to. Merging every copy of every drawer height in
+      // this unit+width into one run was wrong: it interleaved two whole
+      // cabinets' drawer banks (e.g. M,M,K,K,E,E) instead of keeping each
+      // cabinet's own 3-front stack together, breaking grain continuity
+      // within a single installed drawer bank. Fix: key drawer rows by
+      // their copy index `i` too, so copy #0 of every drawer-height row in
+      // this unit+width becomes its own group, copy #1 becomes a separate
+      // group, etc. — pairing "the i-th copy of each height" is always a
+      // physically valid reconstruction since same-height copies are
+      // interchangeable, and it naturally degrades to one lone-front group
+      // for any row whose Magn is short relative to the others (see
+      // buildGroups' comment block below for the mismatched-Magn case).
+      // Plain (non-drawer) fronts are untouched — they keep the original
+      // shared-width grouping, where M > 1 just means "N identical copies
+      // of this one front," not "N different drawer positions."
+      const gk = drw ? `${baseKey}|${i}` : baseKey;
+      if (!map.has(gk)) {
+        const g = {
+          id: gk, unitName: p.unitName, width: Math.round(p.b),
+          orient: sbs ? "s" : "v", keepTogether: keep || drw, kind: sbs ? "væng" : keep ? "skiptur" : drw ? "skúffur" : "", fronts: [],
+        };
+        map.set(gk, g);
+        if (drw) (drawerBuckets.get(baseKey) || drawerBuckets.set(baseKey, []).get(baseKey)).push(g);
+      }
+      const g = map.get(gk);
+      if (sbs) { g.orient = "s"; g.kind = "væng"; }
+      else if (keep && !g.kind) g.kind = "skiptur";
+      else if (drw && !g.kind) g.kind = "skúffur";
+      if (keep || drw) g.keepTogether = true;
       g.fronts.push({
         pieceId: p.id,
         // pieceId is the Sögunarlisti ROW's id — every physical copy from a
@@ -1593,6 +1616,12 @@ function buildGroups() {
         planMsg: p.planMsg || "",
       });
     }
+  }
+  // Label a multi-cabinet drawer bank's separate groups "· 1", "· 2", … so
+  // the panel can tell them apart — a single cabinet (only one group came
+  // out of that unit+width) keeps its plain unit name, no added noise.
+  for (const list of drawerBuckets.values()) {
+    if (list.length > 1) list.forEach((g, i) => { g.unitName += " · " + (i + 1); });
   }
   groups = [...map.values()];
   // Default order within a group: smallest front at the top, biggest at the
