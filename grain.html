@@ -1724,54 +1724,62 @@ function orientGlyph(o) { return o === "s" ? "↔" : o === "h" ? "⟳" : "↕"; 
 function usable() {
   return { w: board.w - 2 * settings.trim, l: board.l - settings.trim };
 }
-function autoNest() {
-  readToolbar();
-  const u = usable();
-  // Widest groups first, not longest. Each new column locks in its width for
-  // the rest of the run (only narrower groups can stack into it later), so a
-  // wide group processed late can easily fail to fit any existing column and
-  // be forced onto its own near-empty sheet -- exactly the "lots of free
-  // space but still on separate sheets" case. Placing wide groups first lets
-  // every narrower group that follows opportunistically fill in beneath them.
-  // ~15% fewer sheets and +10pt yield on a real 84-group project (T-33) vs the
-  // old length-first sort.
-  const sorted = [...groups].sort((a, b) => groupWidth(b) - groupWidth(a) || groupLen(b) - groupLen(a));
+// A single guillotine packing strategy: primaryOf/secondaryOf pick which of
+// a group's two real dimensions (groupWidth/groupLen) drives strip width vs
+// stacking, and primaryLimit/secondaryLimit are the matching sheet bounds.
+// "Column-first" (primary=width, strips run the sheet length) is the
+// original strategy: groups sharing a WIDTH stack into the same strip. Its
+// mirror, "row-first" (primary=length, strips run the sheet width), does
+// the opposite: groups sharing a LENGTH sit side by side in the same strip
+// — exactly what a short, very wide run (a plinth/kickboard cover) wants,
+// and column-first structurally can't do (each of its strips is only as
+// wide as whichever group first claimed it). autoNest() runs both and keeps
+// whichever uses fewer sheets — see below.
+//
+// Everything here operates in "primary/secondary" strip-space, not real
+// x/y — the caller's primaryOf/secondaryOf choice is what makes one strip
+// axis or the other; toXY() below maps a strategy's result back to real
+// board coordinates.
+function packGuillotine(groupsIn, primaryLimit, secondaryLimit, primaryOf, secondaryOf) {
+  const sorted = [...groupsIn].sort((a, b) => primaryOf(b) - primaryOf(a) || secondaryOf(b) - secondaryOf(a));
   const sheets = [];
 
   // tries EXISTING sheets only — never opens a new one. Shared by whole-group
   // placement and by the per-front fallback below, so "does this fit
-  // somewhere already open" means the same thing either way. Uses the
-  // group's orientation exactly as assigned — auto-nest never rotates a
-  // group on its own; height runs vertical unless the sawyer/planner flips
-  // it by hand with "⟳ snúa 90°".
+  // somewhere already open" means the same thing either way. Uses each
+  // group's orientation exactly as assigned — a packing strategy only
+  // decides which sheets/strips things land in, never rotates anything;
+  // height stays vertical unless the sawyer/planner flips it by hand.
   function tryPlaceExisting(g) {
-    const w = groupWidth(g), l = groupLen(g);
+    const p = primaryOf(g), s = secondaryOf(g);
     for (const sh of sheets) {
-      for (const col of sh.cols) {
-        if (w <= col.w + 0.5 && col.used + l <= u.l + 0.5) {
-          sh.place[g.id] = { x: col.x, y: col.used };
-          col.used += l + settings.kerf;
+      for (const strip of sh.strips) {
+        if (p <= strip.size + 0.5 && strip.used + s <= secondaryLimit + 0.5) {
+          sh.place[g.id] = { primary: strip.pos, secondary: strip.used };
+          strip.used += s + settings.kerf;
           return true;
         }
       }
-      const nextX = sh.cols.reduce((s, c) => s + c.w + settings.kerf, 0);
-      if (nextX + w <= u.w + 0.5) {
-        sh.cols.push({ x: nextX, w, used: l + settings.kerf });
-        sh.place[g.id] = { x: nextX, y: 0 };
+      const nextPos = sh.strips.reduce((acc, st) => acc + st.size + settings.kerf, 0);
+      if (nextPos + p <= primaryLimit + 0.5) {
+        sh.strips.push({ pos: nextPos, size: p, used: s + settings.kerf });
+        sh.place[g.id] = { primary: nextPos, secondary: 0 };
         return true;
       }
-      // Bottom band: something wider than any single column (a plinth/
-      // kickboard run, say) can't join one and is too wide to become its own
-      // new column either — but once every column on this sheet has reached
-      // at least some Y, the strip below that Y is free across the sheet's
-      // full width, regardless of the narrower column boundaries above it.
-      // Only tried after the per-column checks above, since those make
-      // tighter use of anything narrow enough to actually fit one.
-      if (sh.cols.length) {
-        const floorY = Math.max(...sh.cols.map(c => c.used));
-        if (w <= u.w + 0.5 && floorY + l <= u.l + 0.5) {
-          sh.place[g.id] = { x: 0, y: floorY };
-          for (const c of sh.cols) c.used = Math.max(c.used, floorY + l + settings.kerf);
+      // Shared floor: something that needs more PRIMARY room than any
+      // single strip has claimed (a plinth/kickboard run wider than any
+      // existing column, in column-first strategy) can't join one and is
+      // too big to become its own new strip either — but once every strip
+      // on this sheet has used at least some SECONDARY room, the region
+      // past that point is free across the sheet's full primary extent,
+      // regardless of the narrower strip boundaries above it. Only tried
+      // after the per-strip checks above, since those make tighter use of
+      // anything that actually fits an existing strip.
+      if (sh.strips.length) {
+        const floor = Math.max(...sh.strips.map(st => st.used));
+        if (p <= primaryLimit + 0.5 && floor + s <= secondaryLimit + 0.5) {
+          sh.place[g.id] = { primary: 0, secondary: floor };
+          for (const st of sh.strips) st.used = Math.max(st.used, floor + s + settings.kerf);
           return true;
         }
       }
@@ -1779,7 +1787,7 @@ function autoNest() {
     return false;
   }
   function placeOnFreshSheet(g) {
-    sheets.push({ cols: [{ x: 0, w: groupWidth(g), used: groupLen(g) + settings.kerf }], place: { [g.id]: { x: 0, y: 0 } } });
+    sheets.push({ strips: [{ pos: 0, size: primaryOf(g), used: secondaryOf(g) + settings.kerf }], place: { [g.id]: { primary: 0, secondary: 0 } } });
   }
 
   const finalGroups = [];
@@ -1788,10 +1796,10 @@ function autoNest() {
     // Whole group doesn't fit any sheet that's already open. Before opening
     // a brand new (likely mostly-empty) sheet for it, see if its individual
     // fronts can each backfill leftover space on sheets that already exist
-    // — e.g. a wide-but-short run like a plinth/kickboard cover run, split
-    // across a few sheets' spare corners instead of claiming a whole new
-    // one for itself. Grain-matched runs (keepTogether) and locked groups
-    // are never split — same rule the manual "✂ skipta upp" button follows.
+    // — e.g. a plinth/kickboard cover run split across a few sheets' spare
+    // corners instead of claiming a whole new one for itself. Grain-matched
+    // runs (keepTogether) and locked groups are never split — same rule the
+    // manual "✂ skipta upp" button follows.
     if (!g.keepTogether && !g.locked && g.fronts.length > 1) {
       const placedPieces = [], remaining = [];
       g.fronts.forEach((f, i) => {
@@ -1814,9 +1822,40 @@ function autoNest() {
     placeOnFreshSheet(g);
     finalGroups.push(g);
   }
-  groups = finalGroups;
+  return { sheets, finalGroups };
+}
+function autoNest() {
+  readToolbar();
+  const u = usable();
+  // Run both strategies from the SAME starting groups and keep whichever
+  // uses fewer sheets (yield as the tie-break) — see packGuillotine's own
+  // comment for why two independent strategies instead of one that tries to
+  // mix both within a sheet. Neither run mutates a shared group object
+  // (tryPlaceExisting only ever reads groupWidth/groupLen; split pieces are
+  // new objects), so trying both against the same `groups` is safe.
+  const colFirst = packGuillotine(groups, u.w, u.l, groupWidth, groupLen);
+  const rowFirst = packGuillotine(groups, u.l, u.w, groupLen, groupWidth);
+  const yieldOf = r => {
+    const boardArea = board.w * board.l;
+    const used = r.finalGroups.reduce((s, g) => s + groupWidth(g) * groupLen(g), 0);
+    return r.sheets.length ? used / (r.sheets.length * boardArea) : 0;
+  };
+  const useRowFirst = rowFirst.sheets.length < colFirst.sheets.length ||
+    (rowFirst.sheets.length === colFirst.sheets.length && yieldOf(rowFirst) > yieldOf(colFirst));
+  const winner = useRowFirst ? rowFirst : colFirst;
+  // column-first's {primary, secondary} IS {x, y} already (primary=width=x);
+  // row-first's is transposed (primary=length=y, secondary=width=x).
+  const toXY = useRowFirst ? (p => ({ x: p.secondary, y: p.primary })) : (p => ({ x: p.primary, y: p.secondary }));
+
+  groups = winner.finalGroups;
   if (selectedGid && !groups.find(g => g.id === selectedGid)) selectedGid = null;
-  layout = { boards: sheets.map(s => ({ placements: offsetPlace(s.place) })) };
+  layout = {
+    boards: winner.sheets.map(s => {
+      const xy = {};
+      for (const [gid, p] of Object.entries(s.place)) xy[gid] = toXY(p);
+      return { placements: offsetPlace(xy) };
+    }),
+  };
   if (!layout.boards.length) layout.boards.push({ placements: {} });
   saveLayout();
   render();
