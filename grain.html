@@ -1110,7 +1110,7 @@ function serializePlan() {
       keepTogether: !!g.keepTogether, autoSplit: !!g.autoSplit, kind: g.kind || "",
       locked: !!g.locked,
       fronts: g.fronts.map(f => ({
-        pieceId: f.pieceId, label: f.label, h: f.h, code: f.code || "", err: !!f.err,
+        pieceId: f.pieceId, uid: f.uid, label: f.label, h: f.h, code: f.code || "", err: !!f.err,
         manual: !!f.manual, mfId: f.mfId,
       })),
     })),
@@ -1126,6 +1126,14 @@ function applyPlan(obj) {
     settings.trim = obj.settings?.trim ?? settings.trim;
     settings.grid = obj.settings?.grid ?? settings.grid;
     groups = (obj.groups || []).map(g => ({ ...g, fronts: g.fronts.map(f => ({ ...f })) }));
+    // Plans saved before `uid` existed have real fronts with neither uid nor
+    // mfId — frontId() would return undefined for all of them alike, which
+    // is exactly the collision this field exists to prevent. Backfill once
+    // on load so every front has a permanent, unique identity from here on;
+    // serializePlan() now carries uid through, so this only ever fires once
+    // per plan (the next save has it for good).
+    let legacyN = 0;
+    for (const g of groups) for (const f of g.fronts) if (!f.uid && !f.mfId) f.uid = `legacy~${legacyN++}~${Math.random().toString(36).slice(2, 8)}`;
     layout = { boards: (obj.layout?.boards || [{ placements: {} }]).map(b => ({ placements: { ...b.placements }, done: !!b.done })) };
     rebuildManualIndex();          // from the plan groups + this device's local additions
     mergeManualFronts();           // pull in any local ones the plan doesn't have
@@ -1494,6 +1502,12 @@ function buildGroups() {
     for (let i = 0; i < p.m; i++) {
       g.fronts.push({
         pieceId: p.id,
+        // pieceId is the Sögunarlisti ROW's id — every physical copy from a
+        // row with magn/m > 1 shares it, so it's not unique per front. uid
+        // is: distinct per individual instance, permanent for this front's
+        // whole life (buildGroups() is the only place that creates it), and
+        // is what any future split must key its id off — see frontId().
+        uid: `${p.id}~${i}`,
         label: p.partur.replace(/\s*-\s*Merivo.*/i, "").replace(/\s*Skrokkaefni.*/i, "").trim() || p.partur,
         h: Math.round(p.h),
         code: (p.partur.match(/\b([NMKCDFE])\b/) || [])[1] || "",
@@ -1554,6 +1568,18 @@ function mergeManualFronts() {
   }
 }
 function newMfId() { return "mf" + Math.random().toString(36).slice(2, 9); }
+// A front's own permanent identity — its Sögunarlisti record id, or its
+// manual-front id. Every place that splits a group into single-front groups
+// must key the new id off THIS, never off the front's position in the
+// array: that position isn't stable once a group can be split more than
+// once (autoNest() can split the same "leftover" group again on a second
+// run), and two different fronts landing on the same array index produce
+// the same group id — which silently drops one of them, since
+// layout.boards[*].placements is a plain object keyed by id and the second
+// write just overwrites the first. Confirmed on a real project: clicking
+// "raða sjálfvirkt" a few times in a row duplicated a group id and made one
+// of the two same-named fronts vanish from every board with no warning.
+function frontId(f) { return f.uid || f.mfId; }
 
 function addFrontToGroup(gid) {
   const g = groups.find(x => x.id === gid);
@@ -1638,7 +1664,7 @@ function normalizeGroups() {
     if (done) continue;
     if (g.keepTogether) { g.orient = start; out.push(g); continue; } // leave overflowing, warn — never split a wing/split pair
     g.fronts.forEach((f, i) => out.push({
-      id: `${g.id}#${i}`, unitName: g.unitName + " · " + (i + 1), width: g.width, orient: "v", fronts: [f], autoSplit: true,
+      id: `${g.id}~${frontId(f)}`, unitName: g.unitName + " · " + (i + 1), width: g.width, orient: "v", fronts: [f], autoSplit: true,
     }));
   }
   groups = out;
@@ -1650,7 +1676,7 @@ function splitGroup(gid) {
   const g = groups[idx];
   if (g.fronts.length < 2 || g.locked) return;
   const singles = g.fronts.map((f, i) => ({
-    id: `${g.id}#${i}`, unitName: g.unitName + " · " + (i + 1), width: g.width, orient: "v", fronts: [f],
+    id: `${g.id}~${frontId(f)}`, unitName: g.unitName + " · " + (i + 1), width: g.width, orient: "v", fronts: [f],
   }));
   groups.splice(idx, 1, ...singles);
   // move layout placement: keep first at old spot, stack rest under it
@@ -1769,7 +1795,7 @@ function autoNest() {
     if (!g.keepTogether && !g.locked && g.fronts.length > 1) {
       const placedPieces = [], remaining = [];
       g.fronts.forEach((f, i) => {
-        const piece = { id: `${g.id}#${i}`, unitName: g.unitName + " · " + (i + 1), width: g.width, orient: "v", fronts: [f], autoSplit: true };
+        const piece = { id: `${g.id}~${frontId(f)}`, unitName: g.unitName + " · " + (i + 1), width: g.width, orient: "v", fronts: [f], autoSplit: true };
         if (tryPlaceExisting(piece)) placedPieces.push(piece);
         else remaining.push(f);
       });
