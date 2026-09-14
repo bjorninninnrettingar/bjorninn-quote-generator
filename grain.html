@@ -556,6 +556,8 @@ const S_EFNI_BASE = "Efni: (undirstaða)";
 const S_EYDUBLAD  = "Eyðublað ✏️";
 const S_VILLA     = "Villa?";
 const S_PLANMSG   = "Skilaboð til skipulags";   // part-level note to the planners
+const S_BAS   = "B.A.S.";   // checked -> print-server.js (shop PC) prints one label, then unchecks it
+const S_LOKID = "Lokið";    // read-only here; print-server sets it once every copy (Magn) is printed
 
 const E_HEITI = "Heiti efnis", E_BREIDD = "Breidd (mm)", E_LENGD = "Lengd (mm)", E_THYKKT = "Þykkt (mm)";
 const E_SUB = "Undirflokkur 🗂️";   // Frontaefni / Spónlagt / Hurð / Skrokka efni / Harðplast / Borðplata
@@ -1287,6 +1289,58 @@ function flagFront(gid, fi) {
   const g = groups.find(x => x.id === gid);
   const f = g && g.fronts[fi];
   if (f) flagPiece(f.pieceId, f.label, g.unitName);
+}
+
+// ── LABEL PRINTING (real Sögunarlisti pieces only — manual fronts have no
+// row to flag, so they never get a print button in the first place) ───────
+// Reuses labels.html's exact mechanism, not a new one: check B.A.S. on the
+// piece's row, then poll for the shop's print-server.js to notice (it polls
+// Airtable every 5s), print one physical label straight from that row's own
+// standard fields, and uncheck B.A.S. Nothing server-side needs to change —
+// print-server.js doesn't care what set the flag. A row with Magn > 1 needs
+// one full cycle per physical copy; print-server tracks that count itself
+// (local counts.json) and reports Lokið once the last copy is done.
+const _printedPieces = new Set();   // pieceIds confirmed Lokið this session
+let _printing = false;
+async function printOneCycle(pieceId) {
+  const POLL_MS = 500, TIMEOUT_MS = 20000;
+  await airtablePatch(SOGUNARLISTI_TABLE, pieceId, { [S_BAS]: true });
+  const start = Date.now();
+  while (Date.now() - start < TIMEOUT_MS) {
+    await new Promise(r => setTimeout(r, POLL_MS));
+    const rec = await airtableFetch(SOGUNARLISTI_TABLE, {}, pieceId);
+    if (rec.fields?.[S_LOKID]) return { lokid: true };
+    if (!rec.fields?.[S_BAS]) return { lokid: false };   // one copy printed, more may remain
+  }
+  // Timed out — print-server likely isn't running. Clear the flag ourselves
+  // so it isn't sitting checked, ready to fire a surprise print later once
+  // the shop PC comes back online.
+  await airtablePatch(SOGUNARLISTI_TABLE, pieceId, { [S_BAS]: false }).catch(() => {});
+  throw new Error("Prentþjónn svarar ekki — er hann í gangi á gólfstölvunni?");
+}
+async function printPieceLabel(pieceId, label) {
+  if (!pieceId || _printing) { if (_printing) toast("Bíddu — annar miði er að prenta"); return; }
+  _printing = true; if (guide) renderGuide();
+  try {
+    const r = await printOneCycle(pieceId);
+    if (r.lokid) { _printedPieces.add(pieceId); toast(`✅ Allir miðar prentaðir — ${label}`); }
+    else toast(`🖨 Miði prentaður — ${label}`);
+  } catch (e) { toast(e.message || "Prentun mistókst"); }
+  finally { _printing = false; if (guide) renderGuide(); }
+}
+async function printBoardLabels(bi) {
+  if (!guide || _printing) { if (_printing) toast("Bíddu — annar miði er að prenta"); return; }
+  const pieces = guide.steps.filter(s => s.bi === bi).flatMap(s => s.produces || [])
+    .filter(p => p.pieceId && !_printedPieces.has(p.pieceId));
+  if (!pieces.length) { toast("Ekkert eftir að prenta á þessari plötu"); return; }
+  _printing = true; renderGuide();
+  let ok = 0, failed = false;
+  for (const p of pieces) {
+    try { const r = await printOneCycle(p.pieceId); if (r.lokid) _printedPieces.add(p.pieceId); ok++; }
+    catch { failed = true; break; }   // stop on the first failure, same as labels.html's printGroup
+  }
+  _printing = false; renderGuide();
+  toast(failed ? `🖨 ${ok} prentaðir, villa á eftir — reyndu aftur` : `✅ ${ok} miðar prentaðir`);
 }
 
 // ── FLOOR MODE (/saga) ───────────────────────────────────────────────────
@@ -3264,8 +3318,9 @@ function renderGuide() {
 
   const produces = (st.produces || []).map(p => `
     <div class="gchip ${p.err ? "warn" : ""}">
-      <span class="cl">${p.of > 1 ? `<b style="color:#ffd479">${p.n}/${p.of}</b> · ` : ""}${esc(p.label)}${p.err ? " ⚠" : ""}${_flaggedPieces.has(p.pieceId) ? " 💬" : ""}</span>
+      <span class="cl">${p.of > 1 ? `<b style="color:#ffd479">${p.n}/${p.of}</b> · ` : ""}${esc(p.label)}${p.err ? " ⚠" : ""}${_flaggedPieces.has(p.pieceId) ? " 💬" : ""}${p.pieceId && _printedPieces.has(p.pieceId) ? " 🖨✓" : ""}</span>
       <span class="cd">${esc(p.unitName)} · ${Math.round(p.w)}×${Math.round(p.h)} mm</span>
+      ${p.pieceId ? `<button class="gchip-flag" ${_printing ? "disabled" : ""} onclick='printPieceLabel(${JSON.stringify(p.pieceId)},${JSON.stringify(p.label)})'>🖨 prenta miða</button>` : ""}
       ${p.pieceId ? `<button class="gchip-flag" onclick='flagPiece(${JSON.stringify(p.pieceId)},${JSON.stringify(p.label)},${JSON.stringify(p.unitName)})'>⚠ vandamál með þennan part</button>` : ""}
     </div>`).join("");
   const multi = (st.produces || []).some(p => p.of > 1);
@@ -3296,6 +3351,11 @@ function renderGuide() {
       <div class="gdiagram">${guideSvg(st)}</div>
       <div class="ginfo">
         <span class="gboard-chip">Plata ${st.bi + 1}${nBoards > 1 ? " af " + nBoards : ""}</span>
+        ${(() => {
+          const pending = guide.steps.filter(s => s.bi === st.bi).flatMap(s => s.produces || [])
+            .filter(p => p.pieceId && !_printedPieces.has(p.pieceId)).length;
+          return pending ? `<button class="ghost small" ${_printing ? "disabled" : ""} onclick="printBoardLabels(${st.bi})">🖨 prenta ${pending} óprentaða miða á plötunni</button>` : "";
+        })()}
         <span class="gkind ${st.kind}">${({ trim: "Snyrting", rip: "Rif", crosscut: "Þverskurður", scrap: "Afskurður" })[st.kind]}</span>
         <div class="gtitle">${esc(st.title)}</div>
         ${st.measure != null ? `<div class="gmeasure">
