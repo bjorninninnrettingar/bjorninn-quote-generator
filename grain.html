@@ -367,6 +367,20 @@
   }
   #guideOverlay .gnote { color: #d5d5d5; font-size: 0.9rem; }
   #guideOverlay .gdatum { color: #8fa9c0; font-size: 0.85rem; background: #12181f; border: 1px solid #24384a; border-radius: 8px; padding: 8px 12px; }
+  #guideOverlay .greorient {
+    color: #ffd479; font-size: 0.92rem; line-height: 1.4;
+    background: #241c12; border: 1px solid #6b4a22; border-radius: 8px; padding: 10px 14px;
+  }
+  #guideOverlay .gsheetlen { color: #8fa9c0; font-size: 0.82rem; }
+  #guideOverlay .gwincut {
+    background: #12181f; border: 1px solid #24384a; border-radius: 10px; padding: 10px 12px;
+  }
+  #guideOverlay .gwincut-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; font-size: 0.85rem; }
+  #guideOverlay .gwincut-feed { color: #8fa9c0; }
+  #guideOverlay .gwincut-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+  #guideOverlay .gwincut-table th { text-align: left; color: #6b7a8a; font-weight: 600; padding: 3px 8px; }
+  #guideOverlay .gwincut-table td { padding: 4px 8px; border-top: 1px solid #1e2a36; }
+  #guideOverlay .gwincut-table tr.cur td { background: #1a3a2a; color: #9fd6ac; font-weight: 700; }
 
   #guideOverlay .gbottom {
     display: flex; align-items: center; gap: 16px; padding: 16px 24px; border-top: 1px solid #222;
@@ -2929,8 +2943,20 @@ function buildCutPlan() {
     strips.forEach((s, si) => {
       const names = [...new Set(s.runs.map(r => r.g.unitName.replace(/ · \d+$/, "")))].join(", ");
       const onlyRotated = s.runs.length === 1 && s.runs[0].g.orient !== "v";
+      // workpiece: which physical piece of material a step actually cuts.
+      // Two steps can share a board AND an axis and still be different
+      // physical pieces — e.g. ripping the sheet's next strip is "v", and so
+      // is crosscutting a front off an already-separated rotated band, but
+      // they are not the same piece of material and can't be one WinCut
+      // program together just because the axis happens to match. Every
+      // separation (a strip ripped off the sheet, a "tall" piece or a
+      // rotated "band" crosscut off a strip) gets its own workpiece id so
+      // buildWinCutPrograms() below only merges steps that are truly
+      // continuous cuts on the same piece.
+      const sheetPiece = `${bi}-sheet`;
+      const stripPiece = `${bi}-strip${si}`;
       if (!onlyRotated) steps.push({
-        bi, kind: "rip", measure: Math.round(s.w), measureLabel: "Rifjaðar — frá vinstri kanti",
+        bi, workpiece: sheetPiece, kind: "rip", measure: Math.round(s.w), measureLabel: "Rifjaðar — frá vinstri kanti",
         title: `Rífðu ræmu ${si + 1}${strips.length > 1 ? " af " + strips.length : ""} — ${Math.round(s.w)} mm breið`,
         note: `Ræman heldur samfelldu æðinni fyrir: ${names}.`,
         produces: [],
@@ -2943,7 +2969,7 @@ function buildCutPlan() {
         const g = r.g;
         if (r.y > cursor + 1) {
           steps.push({
-            bi, kind: "scrap", measure: Math.round(r.y - cursor), measureLabel: "Þverskurðarstopp",
+            bi, workpiece: stripPiece, kind: "scrap", measure: Math.round(r.y - cursor), measureLabel: "Þverskurðarstopp",
             title: "Sagaðu frá afskurð efst á ræmunni",
             note: "Kastaðu — næsti hópur byrjar hér.",
             produces: [], highlight: { x: s.x, y: cursor, w: s.w, l: r.y - cursor },
@@ -2956,7 +2982,7 @@ function buildCutPlan() {
           const runTop = cursor;
           g.fronts.forEach((f, fi) => {
             steps.push({
-              bi, kind: "crosscut", measure: f.h, measureLabel: "Þverskurðarstopp",
+              bi, workpiece: stripPiece, kind: "crosscut", measure: f.h, measureLabel: "Þverskurðarstopp",
               title: `${g.unitName} — þverskurður ${fi + 1} af ${g.fronts.length}`,
               note: fi === 0
                 ? "Efsti fronti hópsins. Haltu röðinni." + (narrower ? " (fronturinn rifst mjórri á eftir)" : "")
@@ -2969,7 +2995,7 @@ function buildCutPlan() {
           });
           if (narrower) {
             steps.push({
-              bi, kind: "rip", measure: g.width, measureLabel: "Rifjaðar",
+              bi, workpiece: stripPiece, kind: "rip", measure: g.width, measureLabel: "Rifjaðar",
               title: `${g.unitName} — rífðu ${g.fronts.length} fronta niður í ${g.width} mm`,
               note: `Taktu ${Math.round(s.w - g.width)} mm af hverjum (ræman var breiðari en þessi hópur).`,
               produces: g.fronts.map((f, i) => ({ label: f.label, w: g.width, h: f.h, unitName: g.unitName, err: f.err, n: i + 1, of: g.fronts.length, pieceId: f.pieceId })),
@@ -2980,10 +3006,12 @@ function buildCutPlan() {
         } else if (g.orient === "s") {
           // side by side, upright (wing / split doors): crosscut one tall
           // piece for the whole set, then rip it into panels — grain stays
-          // continuous and the panels come off adjacent, in order.
+          // continuous and the panels come off adjacent, in order. The rip
+          // steps work the separated tall piece, not the strip — own id.
+          const tallPiece = `${stripPiece}-tall-${g.id}`;
           const tall = runTall(g);
           steps.push({
-            bi, kind: "crosscut", measure: tall, measureLabel: "Þverskurðarstopp",
+            bi, workpiece: stripPiece, kind: "crosscut", measure: tall, measureLabel: "Þverskurðarstopp",
             title: `${g.unitName} — þverskurður fyrir allan vænghópinn`,
             note: `${g.fronts.length} frontar hlið við hlið, samfelld æð yfir samskeytin.`,
             produces: [], highlight: { x: s.x, y: cursor, w: groupWidth(g), l: tall },
@@ -2992,7 +3020,7 @@ function buildCutPlan() {
           let woff = s.x;
           g.fronts.forEach((f, fi) => {
             steps.push({
-              bi, kind: "rip", measure: g.width, measureLabel: "Rifjaðar",
+              bi, workpiece: tallPiece, kind: "rip", measure: g.width, measureLabel: "Rifjaðar",
               title: `${g.unitName} — rífðu væng ${fi + 1} af ${g.fronts.length}`,
               note: fi === 0 ? "Rífðu frá vinstri, haltu röðinni. Vængirnir eiga að vera hlið við hlið." : "",
               produces: [{ label: f.label, w: g.width, h: f.h, unitName: g.unitName, err: f.err, n: fi + 1, of: g.fronts.length, pieceId: f.pieceId }],
@@ -3004,10 +3032,14 @@ function buildCutPlan() {
           cursor += tall + k;
         } else {
           // rotated 90°: grain runs across the board. Crosscut a band g.width
-          // long, then turn it and crosscut each front off in sequence.
+          // long (separating it from the strip), then turn it and crosscut
+          // each front off it in sequence — the per-front cuts work the
+          // separated band, not the strip, even though the axis (v) happens
+          // to match whatever rip comes next on the strip/sheet.
+          const bandPiece = `${stripPiece}-band-${g.id}`;
           const band = g.width;
           steps.push({
-            bi, kind: "crosscut", measure: band, measureLabel: "Þverskurðarstopp",
+            bi, workpiece: stripPiece, kind: "crosscut", measure: band, measureLabel: "Þverskurðarstopp",
             title: `${g.unitName} — taktu band (snúinn hópur, æð þvers)`,
             note: `${g.fronts.length} frontar með samfelldri æð þvers yfir bandið. Snúðu bandinu 90° á eftir.`,
             produces: [], highlight: { x: s.x, y: cursor, w: groupWidth(g), l: band },
@@ -3016,7 +3048,7 @@ function buildCutPlan() {
           let woff = s.x;
           g.fronts.forEach((f, fi) => {
             steps.push({
-              bi, kind: "crosscut", measure: f.h, measureLabel: "Þverskurðarstopp (á bandinu)",
+              bi, workpiece: bandPiece, kind: "crosscut", measure: f.h, measureLabel: "Þverskurðarstopp (á bandinu)",
               title: `${g.unitName} — fronti ${fi + 1} af ${g.fronts.length} af bandinu`,
               note: fi === 0 ? "Haltu röðinni frá vinstri." : "",
               produces: [{ label: f.label, w: g.width, h: f.h, unitName: g.unitName, err: f.err, n: fi + 1, of: g.fronts.length, pieceId: f.pieceId }],
@@ -3044,7 +3076,74 @@ function buildCutPlan() {
     }
   }
 
-  return { steps, idx: 0 };
+  const programs = buildWinCutPrograms(steps);
+  return { steps, programs, idx: 0 };
+}
+
+// Groups the step list into WinCut "SEMI-AUTOMATIC" programs — the real
+// machine can only run a sequence of cuts along ONE axis per program (photos
+// of the F2 screen confirm this: every row in a program is the same XI
+// type). A rip step ("v" cut) and the crosscuts that follow it ("h") are
+// physically different axes, meaning the sawyer has to stop, rotate/re-feed
+// the material, and start a fresh program — a step the app never used to
+// call out at all. Consecutive same-board, same-axis steps become one
+// program; identical consecutive Values collapse into one line with a Rep
+// count, exactly like WinCut's own Rep column (confirmed: a real program had
+// "568.000, Rep 2" for two identical cuts back to back). trim is left out —
+// it's a fixed preamble (crop both edges once), not something typed as an
+// XI sequence.
+function buildWinCutPrograms(steps) {
+  const programs = [];
+  let cur = null;
+  steps.forEach((st, i) => {
+    const cl = (st.cutLines || [])[0];
+    if (st.kind === "trim" || !cl) { cur = null; return; }
+    const axis = cl.o;
+    // the cross-dimension of the material being fed for this program — the
+    // "XA" declare value on the real screen. For an "h" (crosscut) axis
+    // that's the piece's width; for "v" (rip) it's its length. Shown to the
+    // user with an explicit caveat on rip-axis programs since it's the one
+    // piece of the mapping not yet confirmed against a real rip-mode photo.
+    const feedWidth = Math.round(axis === "h" ? (st.highlight?.w ?? 0) : (st.highlight?.l ?? 0));
+    // Break on workpiece too, not just axis+board — two steps can be the
+    // same board and the same axis and still be different physical pieces
+    // (crosscutting a front off an already-separated rotated band is "v",
+    // and so is ripping the sheet's next strip; they are not the same piece
+    // of material and were wrongly merging into one WinCut program before
+    // this field existed — see buildCutPlan()'s workpiece comment).
+    if (!cur || cur.bi !== st.bi || cur.axis !== axis || cur.workpiece !== st.workpiece) {
+      cur = { bi: st.bi, axis, workpiece: st.workpiece, feedWidth, lines: [] };
+      programs.push(cur);
+    }
+    const val = Math.round(st.measure);
+    const last = cur.lines[cur.lines.length - 1];
+    if (last && last.value === val) last.stepIdxs.push(i);
+    else cur.lines.push({ value: val, stepIdxs: [i] });
+  });
+  programs.forEach((p, pi) => {
+    p.lines.forEach((line, li) => {
+      line.stepIdxs.forEach(si => { steps[si].programIdx = pi; steps[si].programLineIdx = li; });
+    });
+  });
+  // Flag the transition into every program after a board's first one (that
+  // one just follows the trim step, which already told the sawyer to square
+  // up the sheet). Two different kinds of transition, two different
+  // instructions: the axis changed → physically rotate/re-feed the material
+  // ("reorient"); only the workpiece changed (axis the same) → set the
+  // current piece aside and pick up a different one, no rotation needed
+  // ("switchPiece") — e.g. finishing a rotated band's own cuts and going
+  // back to the main sheet's next strip, both happen to run "v".
+  let prevByBoard = new Map();
+  programs.forEach(p => {
+    const firstStepIdx = p.lines[0].stepIdxs[0];
+    const prev = prevByBoard.get(p.bi);
+    if (prev) {
+      if (prev.axis !== p.axis) steps[firstStepIdx].reorient = true;
+      else steps[firstStepIdx].switchPiece = true;
+    }
+    prevByBoard.set(p.bi, p);
+  });
+  return programs;
 }
 
 function guideKey() { return `grain:guide:${currentProjectId}:${selectedKey}`; }
@@ -3186,6 +3285,22 @@ function renderGuide() {
     </div>`).join("");
   const multi = (st.produces || []).some(p => p.of > 1);
 
+  const prog = st.programIdx != null ? guide.programs[st.programIdx] : null;
+  const reorientBanner = st.reorient ? `
+    <div class="greorient">🔄 <b>Snúðu/matið efnið — ný átt</b><br>Næstu skurðir eru í aðra átt en þeir síðustu. WinCut keyrir bara eina átt í einu (F2) — kláraðu núverandi forrit á vélinni, snúðu verkstykkinu, og settu svo inn forritið hér að neðan.</div>`
+    : st.switchPiece ? `
+    <div class="greorient">↔️ <b>Skiptu um verkstykki</b><br>Sama átt og áðan, en þetta er annar biti — leggðu frá þér það sem þú varst með og taktu upp næsta. Nýtt WinCut forrit hér að neðan.</div>` : "";
+  const sheetLenNote = st.kind !== "trim" ? `
+    <div class="gsheetlen">📏 WinCut <b>Sheet length</b> fyrir þessa plötu: <b>${Math.round(board.l)} mm</b> — settu inn einu sinni í byrjun plötunnar, ekki breyta á milli skurða.</div>` : "";
+  const wincutPanel = prog ? `
+    <div class="gwincut">
+      <div class="gwincut-head"><b>WinCut forrit (F2)</b>
+        <span class="gwincut-feed">breidd efnis (XA): <b>${prog.feedWidth} mm</b>${prog.axis === "v" ? ` <span title="Óstaðfest fyrir rifskurði — athugaðu töluna á vélinni fyrst">⚠</span>` : ""}</span></div>
+      <table class="gwincut-table"><thead><tr><th>Type</th><th>Value</th><th>Rep.</th></tr></thead>
+        <tbody>${prog.lines.map((line, li) => `<tr class="${li === st.programLineIdx ? "cur" : ""}"><td>XI</td><td>${line.value}</td><td>${line.stepIdxs.length}</td></tr>`).join("")}</tbody>
+      </table>
+    </div>` : "";
+
   o.innerHTML = `
     <div class="gtop">
       <span class="gt-title">Leiðsögn — ${esc(projectName)}</span>
@@ -3206,6 +3321,9 @@ function renderGuide() {
         </div>` : ""}
         ${st.datum ? `<div class="gdatum">📐 ${esc(st.datum)}${st.absStop != null ? ` &nbsp;·&nbsp; fastur stoppari: <b>${st.absStop} mm</b> frá snyrtri frambrún` : ""}</div>` : ""}
         ${st.note ? `<div class="gnote">${esc(st.note)}</div>` : ""}
+        ${reorientBanner}
+        ${sheetLenNote}
+        ${wincutPanel}
         ${produces ? `<div class="gproduces"><label>Þú færð — merktu strax á bakhlið: eining, ör upp ↑${multi ? ", og númer í röð (t.d. 2/5)" : ""}</label>${produces}</div>` : ""}
       </div>
     </div>
