@@ -1712,54 +1712,47 @@ function autoNest() {
   const sorted = [...groups].sort((a, b) => groupWidth(b) - groupWidth(a) || groupLen(b) - groupLen(a));
   const sheets = [];
 
-  // A group's own orientation ("v" stack vs "h" rotated 90°) was picked once
-  // during buildGroups()/normalizeGroups() and never revisited here — but a
-  // "v" 2050×586 block and its "h" 586×2050 rotation are two completely
-  // different shapes, and one can fit a leftover slot the other can't (the
-  // whole reason the manual "⟳ snúa 90°" button exists on the sheet). Tries
-  // the group's current orientation first (no gratuitous rotating), then the
-  // 90° swap, only for groups where rotating doesn't break a grain match
-  // (never keepTogether/locked — same rule splitting follows). Mutates
-  // g.orient to whichever one actually fit, since that's now real.
-  function orientCandidates(g) {
-    if (g.keepTogether || g.locked || g.orient === "s") return [g.orient];
-    return g.orient === "h" ? ["h", "v"] : [g.orient, "h"];
-  }
   // tries EXISTING sheets only — never opens a new one. Shared by whole-group
   // placement and by the per-front fallback below, so "does this fit
-  // somewhere already open" means the same thing either way.
+  // somewhere already open" means the same thing either way. Uses the
+  // group's orientation exactly as assigned — auto-nest never rotates a
+  // group on its own; height runs vertical unless the sawyer/planner flips
+  // it by hand with "⟳ snúa 90°".
   function tryPlaceExisting(g) {
-    for (const o of orientCandidates(g)) {
-      const prevOrient = g.orient;
-      g.orient = o;
-      const w = groupWidth(g), l = groupLen(g);
-      for (const sh of sheets) {
-        for (const col of sh.cols) {
-          if (w <= col.w + 0.5 && col.used + l <= u.l + 0.5) {
-            sh.place[g.id] = { x: col.x, y: col.used };
-            col.used += l + settings.kerf;
-            return true;
-          }
-        }
-        const nextX = sh.cols.reduce((s, c) => s + c.w + settings.kerf, 0);
-        if (nextX + w <= u.w + 0.5) {
-          sh.cols.push({ x: nextX, w, used: l + settings.kerf });
-          sh.place[g.id] = { x: nextX, y: 0 };
+    const w = groupWidth(g), l = groupLen(g);
+    for (const sh of sheets) {
+      for (const col of sh.cols) {
+        if (w <= col.w + 0.5 && col.used + l <= u.l + 0.5) {
+          sh.place[g.id] = { x: col.x, y: col.used };
+          col.used += l + settings.kerf;
           return true;
         }
       }
-      g.orient = prevOrient;
+      const nextX = sh.cols.reduce((s, c) => s + c.w + settings.kerf, 0);
+      if (nextX + w <= u.w + 0.5) {
+        sh.cols.push({ x: nextX, w, used: l + settings.kerf });
+        sh.place[g.id] = { x: nextX, y: 0 };
+        return true;
+      }
+      // Bottom band: something wider than any single column (a plinth/
+      // kickboard run, say) can't join one and is too wide to become its own
+      // new column either — but once every column on this sheet has reached
+      // at least some Y, the strip below that Y is free across the sheet's
+      // full width, regardless of the narrower column boundaries above it.
+      // Only tried after the per-column checks above, since those make
+      // tighter use of anything narrow enough to actually fit one.
+      if (sh.cols.length) {
+        const floorY = Math.max(...sh.cols.map(c => c.used));
+        if (w <= u.w + 0.5 && floorY + l <= u.l + 0.5) {
+          sh.place[g.id] = { x: 0, y: floorY };
+          for (const c of sh.cols) c.used = Math.max(c.used, floorY + l + settings.kerf);
+          return true;
+        }
+      }
     }
     return false;
   }
   function placeOnFreshSheet(g) {
-    // same orientation trial, but against one totally empty sheet — only
-    // matters for a group too wide for the board in one orientation but not
-    // the other (rare, but a real overflow this avoids for free)
-    for (const o of orientCandidates(g)) {
-      g.orient = o;
-      if (groupWidth(g) <= u.w + 0.5 && groupLen(g) <= u.l + 0.5) break;
-    }
     sheets.push({ cols: [{ x: 0, w: groupWidth(g), used: groupLen(g) + settings.kerf }], place: { [g.id]: { x: 0, y: 0 } } });
   }
 
