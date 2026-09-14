@@ -585,9 +585,16 @@ const SIDEBYSIDE_RE = /(væng|vaeng)/i;
 // worth of grain, so keep the run together (never auto-split); split fronts
 // stack (grain top→bottom), wing doors go side by side.
 const KEEPTOGETHER_RE = /(væng|vaeng|skipt)/i;
+// A drawer bank: several fronts of one cabinet's drawer stack, sharing a
+// width. Same "must not be scattered" logic as wing/split fronts, below —
+// see DRAWER_RE's use in buildGroups().
+const DRAWER_RE = /skúffufrontur/i;
 // Wood-look / veneer decors where sequential grain matters.
 const GRAIN_RE  = /(eik|hnot|valhnot|ash|askur|beyk|beech|fura|pine|wenge|teak|oak|walnut|spónlag|spónlög|sponlag|spónn|spon |rift|masterlin|linoak|hickory|acacia|akasía|kirsu|cherry|birki|birch|reykt)/i;
-// Blum drawer-height codes, roughly narrow→tall — a sane default top→bottom order.
+// Blum drawer-height codes, roughly narrow→tall — only used to break a
+// genuine tie between two fronts of equal measured height (see buildGroups):
+// the real H is what actually orders a drawer stack, and a code letter
+// isn't always present in the Partur text.
 const CODE_RANK = { N: 0, M: 1, K: 2, C: 3, D: 4, F: 5, E: 6 };
 
 const DEFAULTS = { kerf: 4.4, trim: 10, grid: 25, freeMove: false, boardPx: 440 };
@@ -1560,14 +1567,16 @@ function buildGroups() {
     const gk = `${p.unitId}|${Math.round(p.b)}`;
     const sbs = SIDEBYSIDE_RE.test(p.partur);
     const keep = KEEPTOGETHER_RE.test(p.partur);
+    const drw = DRAWER_RE.test(p.partur);
     if (!map.has(gk)) map.set(gk, {
       id: gk, unitName: p.unitName, width: Math.round(p.b),
-      orient: sbs ? "s" : "v", keepTogether: keep, kind: sbs ? "væng" : keep ? "skiptur" : "", fronts: [],
+      orient: sbs ? "s" : "v", keepTogether: keep || drw, kind: sbs ? "væng" : keep ? "skiptur" : drw ? "skúffur" : "", fronts: [],
     });
     const g = map.get(gk);
     if (sbs) { g.orient = "s"; g.kind = "væng"; }
     else if (keep && !g.kind) g.kind = "skiptur";
-    if (keep) g.keepTogether = true;
+    else if (drw && !g.kind) g.kind = "skúffur";
+    if (keep || drw) g.keepTogether = true;
     for (let i = 0; i < p.m; i++) {
       g.fronts.push({
         pieceId: p.id,
@@ -1586,12 +1595,20 @@ function buildGroups() {
     }
   }
   groups = [...map.values()];
-  // default order within a group: by drawer code rank, then tall→short
+  // Default order within a group: smallest front at the top, biggest at the
+  // bottom, shrinking as you go up — by the front's own measured height.
+  // Was code-rank-first with a *descending*-height tiebreak, which put the
+  // tallest front on top whenever two fronts shared a code (or neither had
+  // one) — backwards from the "smallest on top" rule, and the common case
+  // for any Skúffufrontur row without an embedded Blum code letter. Height
+  // is what a sawyer actually measures, so it's the primary key now; code
+  // rank only breaks a genuine tie between two equal-height fronts.
   for (const g of groups) {
     g.fronts.sort((a, b) => {
+      if (a.h !== b.h) return a.h - b.h;
       const ra = a.code in CODE_RANK ? CODE_RANK[a.code] : 99;
       const rb = b.code in CODE_RANK ? CODE_RANK[b.code] : 99;
-      return ra - rb || b.h - a.h;
+      return ra - rb;
     });
   }
   mergeManualFronts();   // fold in any hand-added fronts (survives "Núllstilla röðun")
