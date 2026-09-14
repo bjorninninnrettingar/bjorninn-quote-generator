@@ -1712,7 +1712,10 @@ function autoNest() {
   const sorted = [...groups].sort((a, b) => groupWidth(b) - groupWidth(a) || groupLen(b) - groupLen(a));
   const sheets = [];
 
-  function tryPlace(g) {
+  // tries EXISTING sheets only — never opens a new one. Shared by whole-group
+  // placement and by the per-front fallback below, so "does this fit
+  // somewhere already open" means the same thing either way.
+  function tryPlaceExisting(g) {
     for (const sh of sheets) {
       for (const col of sh.cols) {
         if (groupWidth(g) <= col.w + 0.5 && col.used + groupLen(g) <= u.l + 0.5) {
@@ -1730,17 +1733,53 @@ function autoNest() {
     }
     return false;
   }
-
-  for (const g of sorted) {
-    if (!tryPlace(g)) {
-      sheets.push({ cols: [], place: {} });
-      if (!tryPlace(g)) {
-        // group longer/wider than a whole board — park it at 0,0 on its own sheet
-        sheets[sheets.length - 1].place[g.id] = { x: 0, y: 0 };
-        sheets[sheets.length - 1].cols.push({ x: 0, w: groupWidth(g), used: groupLen(g) });
-      }
+  function placeOnFreshSheet(g) {
+    sheets.push({ cols: [], place: {} });
+    const sh = sheets[sheets.length - 1];
+    if (groupWidth(g) <= u.w + 0.5 && groupLen(g) <= u.l + 0.5) {
+      sh.cols.push({ x: 0, w: groupWidth(g), used: groupLen(g) + settings.kerf });
+      sh.place[g.id] = { x: 0, y: 0 };
+    } else {
+      // bigger than a whole board — park it at 0,0 anyway, overflow warning covers it
+      sh.cols.push({ x: 0, w: groupWidth(g), used: groupLen(g) });
+      sh.place[g.id] = { x: 0, y: 0 };
     }
   }
+
+  const finalGroups = [];
+  for (const g of sorted) {
+    if (tryPlaceExisting(g)) { finalGroups.push(g); continue; }
+    // Whole group doesn't fit any sheet that's already open. Before opening
+    // a brand new (likely mostly-empty) sheet for it, see if its individual
+    // fronts can each backfill leftover space on sheets that already exist
+    // — e.g. a wide-but-short run like a plinth/kickboard cover run, split
+    // across a few sheets' spare corners instead of claiming a whole new
+    // one for itself. Grain-matched runs (keepTogether) and locked groups
+    // are never split — same rule the manual "✂ skipta upp" button follows.
+    if (!g.keepTogether && !g.locked && g.fronts.length > 1) {
+      const placedPieces = [], remaining = [];
+      g.fronts.forEach((f, i) => {
+        const piece = { id: `${g.id}#${i}`, unitName: g.unitName + " · " + (i + 1), width: g.width, orient: "v", fronts: [f], autoSplit: true };
+        if (tryPlaceExisting(piece)) placedPieces.push(piece);
+        else remaining.push(f);
+      });
+      if (placedPieces.length) {
+        finalGroups.push(...placedPieces);
+        if (remaining.length) {
+          // whatever's left stays ONE group (no point fragmenting further
+          // than necessary) and only now gets a fresh sheet if it must
+          const rest = { id: g.id, unitName: g.unitName, width: g.width, orient: "v", fronts: remaining, autoSplit: true };
+          if (!tryPlaceExisting(rest)) placeOnFreshSheet(rest);
+          finalGroups.push(rest);
+        }
+        continue;
+      }
+    }
+    placeOnFreshSheet(g);
+    finalGroups.push(g);
+  }
+  groups = finalGroups;
+  if (selectedGid && !groups.find(g => g.id === selectedGid)) selectedGid = null;
   layout = { boards: sheets.map(s => ({ placements: offsetPlace(s.place) })) };
   if (!layout.boards.length) layout.boards.push({ placements: {} });
   saveLayout();
