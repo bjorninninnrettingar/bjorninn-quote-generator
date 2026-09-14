@@ -366,21 +366,19 @@
     background: transparent; border: 1px solid #5a4a2c; color: #d8b978; border-radius: 5px;
   }
   #guideOverlay .gnote { color: #d5d5d5; font-size: 0.9rem; }
-  #guideOverlay .gdatum { color: #8fa9c0; font-size: 0.85rem; background: #12181f; border: 1px solid #24384a; border-radius: 8px; padding: 8px 12px; }
   #guideOverlay .greorient {
     color: #ffd479; font-size: 0.92rem; line-height: 1.4;
     background: #241c12; border: 1px solid #6b4a22; border-radius: 8px; padding: 10px 14px;
   }
-  #guideOverlay .gsheetlen { color: #8fa9c0; font-size: 0.82rem; }
   #guideOverlay .gwincut {
-    background: #12181f; border: 1px solid #24384a; border-radius: 10px; padding: 10px 12px;
+    background: #12181f; border: 1px solid #2c4256; border-radius: 10px; padding: 14px 16px;
   }
-  #guideOverlay .gwincut-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; font-size: 0.85rem; }
-  #guideOverlay .gwincut-feed { color: #8fa9c0; }
-  #guideOverlay .gwincut-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
-  #guideOverlay .gwincut-table th { text-align: left; color: #6b7a8a; font-weight: 600; padding: 3px 8px; }
-  #guideOverlay .gwincut-table td { padding: 4px 8px; border-top: 1px solid #1e2a36; }
-  #guideOverlay .gwincut-table tr.cur td { background: #1a3a2a; color: #9fd6ac; font-weight: 700; }
+  #guideOverlay .gwincut-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; font-size: 1rem; color: #fff; }
+  #guideOverlay .gwincut-feed { color: #fff; font-size: 0.95rem; }
+  #guideOverlay .gwincut-table { width: 100%; border-collapse: collapse; font-size: 1.3rem; font-variant-numeric: tabular-nums; color: #fff; }
+  #guideOverlay .gwincut-table th { text-align: left; color: #9fb3c8; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; padding: 4px 10px; }
+  #guideOverlay .gwincut-table td { padding: 8px 10px; border-top: 1px solid #24384a; color: #fff; font-weight: 600; }
+  #guideOverlay .gwincut-table tr.cur td { background: #1a3a2a; color: #fff; font-weight: 800; font-size: 1.5rem; }
 
   #guideOverlay .gbottom {
     display: flex; align-items: center; gap: 16px; padding: 16px 24px; border-top: 1px solid #222;
@@ -3063,19 +3061,6 @@ function buildCutPlan() {
     });
   });
 
-  // annotate every step with an explicit datum, and give crosscuts the
-  // cumulative absolute stop from the trimmed front edge as a cross-check
-  // (kerf-inclusive: each cutLine.pos already carries the accumulated kerf)
-  for (const st of steps) {
-    const hcl = (st.cutLines || []).find(c => c.o === "h");
-    if (st.kind === "trim") st.datum = "mælt af ytri (ósnyrtu) brún plötunnar";
-    else if (st.kind === "rip") st.datum = "rif-fence = þessi tala · frá núverandi vinstri kanti verkstykkisins";
-    else if (st.kind === "crosscut" || st.kind === "scrap") {
-      st.datum = "frá síðasta þverskurði (fyrsti skurður hóps: frá snyrtri frambrún)";
-      if (hcl) st.absStop = Math.max(0, Math.round(hcl.pos - tr));
-    }
-  }
-
   const programs = buildWinCutPrograms(steps);
   return { steps, programs, idx: 0 };
 }
@@ -3290,8 +3275,6 @@ function renderGuide() {
     <div class="greorient">🔄 <b>Snúðu/matið efnið — ný átt</b><br>Næstu skurðir eru í aðra átt en þeir síðustu. WinCut keyrir bara eina átt í einu (F2) — kláraðu núverandi forrit á vélinni, snúðu verkstykkinu, og settu svo inn forritið hér að neðan.</div>`
     : st.switchPiece ? `
     <div class="greorient">↔️ <b>Skiptu um verkstykki</b><br>Sama átt og áðan, en þetta er annar biti — leggðu frá þér það sem þú varst með og taktu upp næsta. Nýtt WinCut forrit hér að neðan.</div>` : "";
-  const sheetLenNote = st.kind !== "trim" ? `
-    <div class="gsheetlen">📏 WinCut <b>Sheet length</b> fyrir þessa plötu: <b>${Math.round(board.l)} mm</b> — settu inn einu sinni í byrjun plötunnar, ekki breyta á milli skurða.</div>` : "";
   const wincutPanel = prog ? `
     <div class="gwincut">
       <div class="gwincut-head"><b>WinCut forrit (F2)</b>
@@ -3319,10 +3302,8 @@ function renderGuide() {
           <span class="num">${Math.round(st.measure)}</span><span class="unit">mm</span>
           <span class="lbl">${esc(st.measureLabel || "")}</span>
         </div>` : ""}
-        ${st.datum ? `<div class="gdatum">📐 ${esc(st.datum)}${st.absStop != null ? ` &nbsp;·&nbsp; fastur stoppari: <b>${st.absStop} mm</b> frá snyrtri frambrún` : ""}</div>` : ""}
         ${st.note ? `<div class="gnote">${esc(st.note)}</div>` : ""}
         ${reorientBanner}
-        ${sheetLenNote}
         ${wincutPanel}
         ${produces ? `<div class="gproduces"><label>Þú færð — merktu strax á bakhlið: eining, ör upp ↑${multi ? ", og númer í röð (t.d. 2/5)" : ""}</label>${produces}</div>` : ""}
       </div>
