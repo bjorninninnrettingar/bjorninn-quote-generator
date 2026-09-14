@@ -219,7 +219,10 @@
   .grgbox.landed { animation: landPulse .4s ease-out; }
 
   .grp-panel { }
-  .grp-panel button.small, .grp-panel select.small { padding: 7px 11px; font-size: 0.85rem; }
+  /* only the roomy group-level action row gets bigger buttons — the dense
+     per-front row (name + dims + 4 buttons on one line) has no slack for it,
+     and grew tight enough there to squeeze .fn to 0 width and overlap text */
+  .grp-actions button.small, .grp-actions select.small { padding: 7px 11px; font-size: 0.85rem; }
   .grp-panel .grp {
     border: 1.5px solid #262626; border-radius: 8px; padding: 10px 12px; margin-bottom: 10px;
   }
@@ -231,7 +234,7 @@
   .front-list { min-height: 4px; }
   .front-row {
     display: flex; align-items: center; gap: 8px; font-size: 0.82rem;
-    padding: 4px 2px; border-top: 1px solid #1e1e1e;
+    padding: 4px 2px; border-top: 1px solid #1e1e1e; flex-wrap: wrap;
   }
   .front-row .drag-grip { cursor: grab; color: #cfcfcf; font-size: 0.9rem; }
   .front-row.dragging { opacity: 0.4; }
@@ -246,7 +249,7 @@
   }
   .front-row.drop-above { box-shadow: inset 0 2px 0 #2196f3; }
   .front-row.drop-below { box-shadow: inset 0 -2px 0 #2196f3; }
-  .front-row .fn { flex: 1; min-width: 0; }
+  .front-row .fn { flex: 1 1 90px; min-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .front-row .fdim { color: #d5d5d5; font-variant-numeric: tabular-nums; }
   .front-row .idx {
     width: 20px; height: 20px; border-radius: 4px; background: #222; color: #eee;
@@ -1698,7 +1701,15 @@ function usable() {
 function autoNest() {
   readToolbar();
   const u = usable();
-  const sorted = [...groups].sort((a, b) => groupLen(b) - groupLen(a));
+  // Widest groups first, not longest. Each new column locks in its width for
+  // the rest of the run (only narrower groups can stack into it later), so a
+  // wide group processed late can easily fail to fit any existing column and
+  // be forced onto its own near-empty sheet -- exactly the "lots of free
+  // space but still on separate sheets" case. Placing wide groups first lets
+  // every narrower group that follows opportunistically fill in beneath them.
+  // ~15% fewer sheets and +10pt yield on a real 84-group project (T-33) vs the
+  // old length-first sort.
+  const sorted = [...groups].sort((a, b) => groupWidth(b) - groupWidth(a) || groupLen(b) - groupLen(a));
   const sheets = [];
 
   function tryPlace(g) {
@@ -2589,8 +2600,9 @@ function renderPanel() {
     const manualG = isManualGroup(g);
     return `
     <div class="grp ${sel ? "sel" : ""}${g.locked ? " locked" : ""}" data-gid="${g.id}" onclick="pickGroup('${g.id}')">
-      <h4 style="color:${color}"><span style="opacity:.6">#${gi + 1}</span> ${esc(g.unitName)} ${orientGlyph(g.orient)}${g.kind ? " · " + g.kind : ""}${manualG ? " · handvirkt" : ""}${g.locked ? ` <span title="Læst — enginn front kemst inn eða út">🔒</span>` : ""}</h4>
+      <h4 style="color:${color}"><span class="chev" style="opacity:.5">${sel ? "▾" : "▸"}</span> <span style="opacity:.6">#${gi + 1}</span> ${esc(g.unitName)} ${orientGlyph(g.orient)}${g.kind ? " · " + g.kind : ""}${manualG ? " · handvirkt" : ""}${g.locked ? ` <span title="Læst — enginn front kemst inn eða út">🔒</span>` : ""}</h4>
       <div class="gm">${g.fronts.length} frontar · ${Math.round(groupWidth(g))}×${Math.round(groupLen(g))} mm · plata ${boardOfGroup(g.id) + 1}${g.autoSplit ? " · sjálfvirk skipting" : ""}</div>
+      ${sel ? `
       <div class="front-list" data-gid="${g.id}">
       ${g.fronts.map((f, i) => `
         <div class="front-row${f.manual ? " manual" : ""}" draggable="${f.manual ? "false" : "true"}" data-gid="${g.id}" data-fi="${i}">
@@ -2603,13 +2615,13 @@ function renderPanel() {
             ? `<input class="mf-h" type="number" min="20" value="${f.h}" onclick="event.stopPropagation()" onchange="setManualFrontH('${f.mfId}',this.value)" /><span class="fdim">mm</span>`
             : `<span class="fdim">${f.h} mm</span>`}
           ${!f.manual && (f.planMsg || _flaggedPieces.has(f.pieceId)) ? `<span title="${esc(f.planMsg || "sent til skrifstofu")}" style="color:#8fbaff;">💬</span>` : ""}
-          ${sel && !f.manual ? `<button class="small ghost" title="Segja skrifstofu frá vandamáli" onclick="event.stopPropagation();flagFront('${g.id}',${i})">⚠</button>` : ""}
-          ${sel && !g.locked ? `<button class="small ghost office-only" title="Afrita" onclick="event.stopPropagation();duplicateFront('${g.id}',${i})">⎘</button>` : ""}
-          ${sel && f.manual ? `<button class="small ghost" title="Fjarlægja" onclick="event.stopPropagation();removeManualFront('${f.mfId}')">✕</button>` : ""}
-          ${sel && !f.manual ? `<button class="small ghost" onclick="event.stopPropagation();moveFront('${g.id}',${i},-1)" ${i === 0 ? "disabled" : ""}>↑</button>
+          ${!f.manual ? `<button class="small ghost" title="Segja skrifstofu frá vandamáli" onclick="event.stopPropagation();flagFront('${g.id}',${i})">⚠</button>` : ""}
+          ${!g.locked ? `<button class="small ghost office-only" title="Afrita" onclick="event.stopPropagation();duplicateFront('${g.id}',${i})">⎘</button>` : ""}
+          ${f.manual ? `<button class="small ghost" title="Fjarlægja" onclick="event.stopPropagation();removeManualFront('${f.mfId}')">✕</button>` : ""}
+          ${!f.manual ? `<button class="small ghost" onclick="event.stopPropagation();moveFront('${g.id}',${i},-1)" ${i === 0 ? "disabled" : ""}>↑</button>
                    <button class="small ghost" onclick="event.stopPropagation();moveFront('${g.id}',${i},1)" ${i === g.fronts.length - 1 ? "disabled" : ""}>↓</button>` : ""}
         </div>`).join("")}
-      </div>
+      </div>` : ""}
       ${sel ? `
       <div class="grp-actions" style="margin-bottom:6px;">
         ${["v", "s", "h"].map(o => `<button class="small ${g.orient === o ? "primary" : "ghost"}" onclick="event.stopPropagation();setOrient('${g.id}','${o}')" title="${{v:"Stafla — æð niður",s:"Hlið við hlið — æð heldur áfram yfir samskeytin (væng)",h:"Snúa 90° — æð þvers"}[o]}">${orientGlyph(o)} ${{v:"stafla",s:"hlið v. hlið",h:"snúa 90°"}[o]}</button>`).join("")}
