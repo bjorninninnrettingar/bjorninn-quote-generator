@@ -1712,38 +1712,55 @@ function autoNest() {
   const sorted = [...groups].sort((a, b) => groupWidth(b) - groupWidth(a) || groupLen(b) - groupLen(a));
   const sheets = [];
 
+  // A group's own orientation ("v" stack vs "h" rotated 90°) was picked once
+  // during buildGroups()/normalizeGroups() and never revisited here — but a
+  // "v" 2050×586 block and its "h" 586×2050 rotation are two completely
+  // different shapes, and one can fit a leftover slot the other can't (the
+  // whole reason the manual "⟳ snúa 90°" button exists on the sheet). Tries
+  // the group's current orientation first (no gratuitous rotating), then the
+  // 90° swap, only for groups where rotating doesn't break a grain match
+  // (never keepTogether/locked — same rule splitting follows). Mutates
+  // g.orient to whichever one actually fit, since that's now real.
+  function orientCandidates(g) {
+    if (g.keepTogether || g.locked || g.orient === "s") return [g.orient];
+    return g.orient === "h" ? ["h", "v"] : [g.orient, "h"];
+  }
   // tries EXISTING sheets only — never opens a new one. Shared by whole-group
   // placement and by the per-front fallback below, so "does this fit
   // somewhere already open" means the same thing either way.
   function tryPlaceExisting(g) {
-    for (const sh of sheets) {
-      for (const col of sh.cols) {
-        if (groupWidth(g) <= col.w + 0.5 && col.used + groupLen(g) <= u.l + 0.5) {
-          sh.place[g.id] = { x: col.x, y: col.used };
-          col.used += groupLen(g) + settings.kerf;
+    for (const o of orientCandidates(g)) {
+      const prevOrient = g.orient;
+      g.orient = o;
+      const w = groupWidth(g), l = groupLen(g);
+      for (const sh of sheets) {
+        for (const col of sh.cols) {
+          if (w <= col.w + 0.5 && col.used + l <= u.l + 0.5) {
+            sh.place[g.id] = { x: col.x, y: col.used };
+            col.used += l + settings.kerf;
+            return true;
+          }
+        }
+        const nextX = sh.cols.reduce((s, c) => s + c.w + settings.kerf, 0);
+        if (nextX + w <= u.w + 0.5) {
+          sh.cols.push({ x: nextX, w, used: l + settings.kerf });
+          sh.place[g.id] = { x: nextX, y: 0 };
           return true;
         }
       }
-      const nextX = sh.cols.reduce((s, c) => s + c.w + settings.kerf, 0);
-      if (nextX + groupWidth(g) <= u.w + 0.5) {
-        sh.cols.push({ x: nextX, w: groupWidth(g), used: groupLen(g) + settings.kerf });
-        sh.place[g.id] = { x: nextX, y: 0 };
-        return true;
-      }
+      g.orient = prevOrient;
     }
     return false;
   }
   function placeOnFreshSheet(g) {
-    sheets.push({ cols: [], place: {} });
-    const sh = sheets[sheets.length - 1];
-    if (groupWidth(g) <= u.w + 0.5 && groupLen(g) <= u.l + 0.5) {
-      sh.cols.push({ x: 0, w: groupWidth(g), used: groupLen(g) + settings.kerf });
-      sh.place[g.id] = { x: 0, y: 0 };
-    } else {
-      // bigger than a whole board — park it at 0,0 anyway, overflow warning covers it
-      sh.cols.push({ x: 0, w: groupWidth(g), used: groupLen(g) });
-      sh.place[g.id] = { x: 0, y: 0 };
+    // same orientation trial, but against one totally empty sheet — only
+    // matters for a group too wide for the board in one orientation but not
+    // the other (rare, but a real overflow this avoids for free)
+    for (const o of orientCandidates(g)) {
+      g.orient = o;
+      if (groupWidth(g) <= u.w + 0.5 && groupLen(g) <= u.l + 0.5) break;
     }
+    sheets.push({ cols: [{ x: 0, w: groupWidth(g), used: groupLen(g) + settings.kerf }], place: { [g.id]: { x: 0, y: 0 } } });
   }
 
   const finalGroups = [];
@@ -2365,25 +2382,29 @@ function hexA(hex, a) {
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }
 
-// Tidy a board so nothing overlaps: keep reading order, push each run down
-// past anything it lands on. Used after rotate / split / merge.
+// Tidy a board so nothing overlaps: keep reading order, re-place each run
+// (in turn, against only the runs already re-placed) via nearestFree — the
+// same free-space search drag-and-drop already relies on. Used after
+// rotate / split / merge.
+//
+// The previous version pushed a run straight down past whatever it hit, and
+// if that push would run it off the bottom of the sheet, clamped back up
+// and gave up right there WITHOUT re-checking — silently leaving it
+// overlapping whatever was already there instead of trying anywhere else
+// (sideways, say). One rotate that displaced enough neighbours could cascade
+// into a real mess of unresolved overlaps (seen on a live project after a
+// run of manual 90° rotations: ~60 overlapping pairs, settleAll() unable to
+// clear any of them since it hit this same dead end on every attempt).
+// nearestFree does a proper search (edge-butt candidates in both axes, then
+// a coarse grid scan) and only gives up if the board is genuinely full.
 function settleBoard(bi) {
-  const entries = Object.entries(layout.boards[bi].placements)
+  const b = layout.boards[bi];
+  const entries = Object.entries(b.placements)
     .map(([id, p]) => ({ id, p, g: groups.find(x => x.id === id) })).filter(e => e.g)
     .sort((a, c) => a.p.y - c.p.y || a.p.x - c.p.x);
-  const placed = [];
+  b.placements = {};
   for (const e of entries) {
-    const W = groupWidth(e.g), H = groupLen(e.g);
-    let x = clamp(e.p.x, 0, Math.max(0, board.w - W));
-    let y = clamp(e.p.y, 0, Math.max(0, board.l - H));
-    for (let guard = 0; guard < 300; guard++) {
-      const hit = placed.find(o => rectsOverlap({ x, y, w: W, h: H }, o));
-      if (!hit) break;
-      y = hit.y + hit.h + settings.kerf;
-      if (y + H > board.l) { y = Math.max(0, board.l - H); break; }
-    }
-    e.p.x = x; e.p.y = y;
-    placed.push({ x, y, w: W, h: H });
+    b.placements[e.id] = nearestFree(bi, e.id, e.p, groupWidth(e.g), groupLen(e.g));
   }
 }
 function settleAll() { layout.boards.forEach((_, bi) => settleBoard(bi)); }
