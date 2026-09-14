@@ -163,7 +163,6 @@
     display: flex; align-items: center; gap: 12px; margin-bottom: 8px;
   }
   .board-head h3 { font-size: 1rem; }
-  .board-head .waste { color: #d5d5d5; font-size: 0.82rem; }
 
   /* collapsed "done" sheets — a compact strip instead of the full diagram,
      so working through 20 sheets one at a time doesn't mean scrolling past
@@ -220,6 +219,7 @@
   .grgbox.landed { animation: landPulse .4s ease-out; }
 
   .grp-panel { }
+  .grp-panel button.small, .grp-panel select.small { padding: 7px 11px; font-size: 0.85rem; }
   .grp-panel .grp {
     border: 1.5px solid #262626; border-radius: 8px; padding: 10px 12px; margin-bottom: 10px;
   }
@@ -282,7 +282,7 @@
     border: 1px solid #2a2a2a; background: #161616;
   }
   .plan-bar.confirmed { border-color: #2f6f4f; background: #10201a; }
-  .plan-bar.draft     { border-color: #6b5a22; background: #201c12; }
+  .plan-bar.draft     { border-color: #8f7530; background: #332912; }
   .plan-bar.floor     { border-color: #2f5a8c; background: #101a26; }
   .plan-bar b { color: #f0f0f0; }
   .plan-bar .spacer { flex: 1; }
@@ -1211,7 +1211,7 @@ function renderPlanStrip() {
   let cls, msg;
   if (confirmed) { cls = "confirmed"; msg = "✅ <b>Staðfest</b> — gólfið getur sótt þetta á /saga"; }
   else if (drifted) { cls = "draft"; msg = "⚠ <b>Óstaðfestar breytingar</b> — gólfið er enn með fyrri staðfestu útgáfu. Ýttu á ✅ Staðfesta skipulag þegar þú ert búin/n."; }
-  else { cls = "draft"; msg = "✏️ <b>Drög</b> — óstaðfest"; }
+  else { cls = "draft"; msg = '✏️ <b style="color:#f5c518">Drög</b> — óstaðfest'; }
   el.innerHTML = `<div class="plan-bar ${cls}">
     <span>${msg}</span>
     <span class="spacer"></span>
@@ -1839,18 +1839,8 @@ function render() {
 }
 
 function renderStats() {
-  const frontArea = groups.reduce((s, g) => s + g.fronts.reduce((a, f) => a + f.h * g.width, 0), 0) / 1e6;
   const nB = layout.boards.filter(b => Object.keys(b.placements).length).length;
-  const boardArea = nB * board.w * board.l / 1e6;
-  const yield_ = boardArea ? (frontArea / boardArea * 100) : 0;
-  const yc = yield_ >= 68 ? "#4caf50" : yield_ >= 50 ? "#f5c518" : "#f44336";
-  const grainM = groups.reduce((s, g) => s + groupLen(g), 0) / 1000;
-  $("statRow").innerHTML = `
-    <div class="stat"><b>${nB}</b> plötur (${board.w}×${board.l})</div>
-    <div class="stat"><b>${groups.length}</b> æðahópar · ${groups.reduce((s,g)=>s+g.fronts.length,0)} frontar</div>
-    <div class="stat"><b>${frontArea.toFixed(2)} m²</b> frontar</div>
-    <div class="stat"><b style="color:${yc}">${yield_.toFixed(0)}%</b> nýting</div>
-    <div class="stat"><b>${grainM.toFixed(2)} m</b> samfelld æð</div>`;
+  $("statRow").innerHTML = `<div class="stat"><b>${nB}</b> plötur (${board.w}×${board.l})</div>`;
 }
 
 function renderOverflow() {
@@ -1905,18 +1895,15 @@ function detectOverlaps() {
 }
 
 const COLORS = ["#2f6f4f", "#3a5a8c", "#8c5a3a", "#6b4a8c", "#8c8140", "#3a7d8c", "#8c4060", "#5c7a3a"];
-
-// per-board used/waste — shared by the full board head and the collapsed pill
-function boardUsage(b) {
-  const placedGids = Object.keys(b.placements);
-  const used = placedGids.reduce((s, gid) => {
-    const g = groups.find(x => x.id === gid);
-    return g ? s + g.fronts.reduce((a, f) => a + f.h * g.width, 0) : s;
-  }, 0) / 1e6;
-  const boardM2 = board.w * board.l / 1e6;
-  const waste = boardM2 ? Math.max(0, 100 - used / boardM2 * 100) : 0;
-  return { used, waste };
+// Colour keyed off the group's own stable id (not its position in `groups`) —
+// splitting/merging/adding a group elsewhere used to shift every later
+// group's array index, silently recolouring runs on other, untouched sheets.
+function groupColor(g) {
+  let h = 0;
+  for (let i = 0; i < g.id.length; i++) h = (h * 31 + g.id.charCodeAt(i)) | 0;
+  return COLORS[Math.abs(h) % COLORS.length];
 }
+
 // "Done" is a pure view-state flag — never touches placements/groups, so the
 // saved plan, guide sequence, and print output are unaffected. It just lets
 // the office collapse a finished sheet out of the way instead of scrolling
@@ -1939,11 +1926,8 @@ function renderBoards() {
     const pills = document.createElement("div");
     pills.className = "done-pills no-print";
     pills.innerHTML = `<span class="done-pills-label">🔒 Læstar plötur (${doneBis.length})</span>` +
-      doneBis.map(bi => {
-        const { used, waste } = boardUsage(layout.boards[bi]);
-        return `<span class="done-pill">Plata ${bi + 1} · ${used.toFixed(1)} m²
-          <button class="ghost small" title="Taka lás af og sýna aftur" onclick="toggleBoardDone(${bi})">↺</button></span>`;
-      }).join("");
+      doneBis.map(bi => `<span class="done-pill">Plata ${bi + 1}
+          <button class="ghost small" title="Taka lás af og sýna aftur" onclick="toggleBoardDone(${bi})">↺</button></span>`).join("");
     col.appendChild(pills);
   }
 
@@ -1954,12 +1938,9 @@ function renderBoards() {
     wrap.className = "board-wrap";
     boardRO.observe(wrap);
 
-    const { used, waste } = boardUsage(b);
-
     wrap.innerHTML = `
       <div class="board-head">
         <h3>Plata ${bi + 1}</h3>
-        <span class="waste">${used.toFixed(2)} m² notað · ${waste.toFixed(0)}% afgangur</span>
         <button class="ghost small no-print" title="Fela þessa plötu þegar þú ert búin/n með hana" onclick="toggleBoardDone(${bi})">🔒 Læsa plötu</button>
         <button class="ghost small no-print" onclick="removeBoard(${bi})" ${layout.boards.length <= 1 ? "disabled" : ""}>Fjarlægja</button>
       </div>`;
@@ -2023,7 +2004,7 @@ function renderBoards() {
       if (!g) return;
       const p = b.placements[gid];
       const gi = groups.indexOf(g);
-      const color = COLORS[gi % COLORS.length];
+      const color = groupColor(g);
       const gw = groupWidth(g) * scale, gl = groupLen(g) * scale;
       const gx = p.x * scale, gy = p.y * scale;
 
@@ -2366,7 +2347,7 @@ function enableDrag(handleEl, svg, bi, gid, scale) {
     ev.preventDefault(); ev.stopPropagation();
     selectGroup(gid);
     const g = groups.find(x => x.id === gid);
-    const gi = groups.indexOf(g), color = COLORS[gi % COLORS.length];
+    const color = groupColor(g);
     const grp = svg.querySelector(`g.group-rect[data-gid="${cssq(gid)}"]`);
     grp.classList.add("dragging");
     try { handleEl.setPointerCapture(ev.pointerId); } catch {}
@@ -2546,6 +2527,13 @@ function selectGroup(gid) {
   selectedGid = gid;
   document.querySelectorAll(".group-rect").forEach(el => el.classList.toggle("selected", el.dataset.gid === gid));
   renderPanel();
+  scrollPanelToGroup(gid);
+}
+// clicking a piece on a sheet should bring its side-panel entry into view,
+// not leave the sawyer/planner hunting through a long scrolled list for it
+function scrollPanelToGroup(gid) {
+  const el = document.querySelector(`.grp-panel .grp[data-gid="${cssq(gid)}"]`);
+  if (el) el.scrollIntoView({ block: "nearest" });
 }
 function cssq(s) { return String(s).replace(/["\\]/g, "\\$&"); }
 function svgPoint(svg, ev) {
@@ -2597,10 +2585,10 @@ function renderPanel() {
   ` + groups.map(g => {
     const sel = g.id === selectedGid;
     const gi = groups.indexOf(g);
-    const color = COLORS[gi % COLORS.length];
+    const color = groupColor(g);
     const manualG = isManualGroup(g);
     return `
-    <div class="grp ${sel ? "sel" : ""}${g.locked ? " locked" : ""}" onclick="pickGroup('${g.id}')">
+    <div class="grp ${sel ? "sel" : ""}${g.locked ? " locked" : ""}" data-gid="${g.id}" onclick="pickGroup('${g.id}')">
       <h4 style="color:${color}"><span style="opacity:.6">#${gi + 1}</span> ${esc(g.unitName)} ${orientGlyph(g.orient)}${g.kind ? " · " + g.kind : ""}${manualG ? " · handvirkt" : ""}${g.locked ? ` <span title="Læst — enginn front kemst inn eða út">🔒</span>` : ""}</h4>
       <div class="gm">${g.fronts.length} frontar · ${Math.round(groupWidth(g))}×${Math.round(groupLen(g))} mm · plata ${boardOfGroup(g.id) + 1}${g.autoSplit ? " · sjálfvirk skipting" : ""}</div>
       <div class="front-list" data-gid="${g.id}">
@@ -2636,7 +2624,10 @@ function renderPanel() {
           <option value="">+ sameina við…</option>
           ${mergeCandidates(g).map(o => `<option value="${o.id}">${esc(o.unitName)}</option>`).join("")}
         </select>` : ""}
-        ${layout.boards.map((_, bi) => bi !== boardOfGroup(g.id) ? `<button class="small ghost" onclick="event.stopPropagation();sendToBoard('${g.id}',${bi})">→ plata ${bi + 1}</button>` : "").join("")}
+        ${layout.boards.length > 1 ? `<select class="small ghost" style="max-width:110px;padding:5px 6px;font-size:0.8rem;" onclick="event.stopPropagation()" onchange="if(this.value!==''){sendToBoard('${g.id}',Number(this.value));this.value=''}">
+          <option value="">→ plata…</option>
+          ${layout.boards.map((_, bi) => bi !== boardOfGroup(g.id) ? `<option value="${bi}">Plata ${bi + 1}</option>` : "").join("")}
+        </select>` : ""}
       </div>` : ""}
     </div>`;
   }).join("");
@@ -2700,7 +2691,7 @@ function dropFrontRow(fromGid, fromFi, toGid, toIdx) {
   settleAll();
   render(); saveLayout();
 }
-function pickGroup(gid) { selectedGid = gid; render(); }
+function pickGroup(gid) { selectedGid = gid; render(); scrollPanelToGroup(gid); }
 function mergeCandidates(g) {
   if (g.locked) return [];   // a locked run can't absorb anything, and can't be absorbed
   return groups.filter(o => o !== g && !o.locked && o.width === g.width && o.orient === g.orient);
@@ -2993,7 +2984,7 @@ function guideSvg(step) {
   // all groups faint
   Object.entries(b.placements).forEach(([gid, p]) => {
     const g = groups.find(x => x.id === gid); if (!g) return;
-    const gi = groups.indexOf(g), c = COLORS[gi % COLORS.length];
+    const c = groupColor(g);
     inner += `<rect x="${S(p.x)}" y="${S(p.y)}" width="${S(groupWidth(g))}" height="${S(groupLen(g))}" fill="${c}" fill-opacity="0.18" stroke="${c}" stroke-opacity="0.5"/>`;
     const horiz = g.orient !== "v";
     let off = 0;
