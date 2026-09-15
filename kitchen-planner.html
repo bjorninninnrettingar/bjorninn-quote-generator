@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Skipuleggðu eldhúsið | BJÖRNINN</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#ffffff;
+    --panel:#faf9f6;
+    --ink:#191919;
+    --ink-soft:#6f6d66;
+    --line:#e6e3da;
+    --blue:#3d61c1;
+    --blue-deep:#2c478e;
+    --blue-soft:#eaeefb;
+    --gold:#a29c72;
+    --gold-soft:#f5f3ea;
+    --danger:#b3432f;
+    --danger-soft:#fbebe7;
+    --floor:#3d61c1;
+    --wall:#a29c72;
+    --tall:#2c478e;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Kumbh Sans', Arial, Helvetica, sans-serif;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  button, input{ font-family:inherit; }
+
+  .wrap{ max-width:900px; margin:0 auto; padding:clamp(20px,4vw,40px) clamp(16px,4vw,24px) 80px; }
+
+  .top{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:6px; }
+  .kicker{ font-size:11.5px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--gold); }
+  h1{ font-weight:600; font-size:clamp(24px,4vw,32px); letter-spacing:-.01em; margin:6px 0 6px; }
+  .lede{ font-size:15px; color:var(--ink-soft); max-width:60ch; margin:0 0 26px; }
+  .reset-link{ background:none; border:none; color:var(--ink-soft); font-size:13px; text-decoration:underline; cursor:pointer; padding:4px 0; white-space:nowrap; }
+  .reset-link:hover{ color:var(--danger); }
+
+  .screen-title{ font-size:18px; font-weight:600; margin:0 0 4px; }
+  .screen-sub{ font-size:14px; color:var(--ink-soft); margin:0 0 20px; }
+
+  /* ---- shape step ---- */
+  .shapes{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:28px; }
+  @media (max-width:560px){ .shapes{ grid-template-columns:1fr; } }
+  .shape-card{
+    background:#fff; border:1.5px solid var(--line); border-radius:14px;
+    padding:18px 14px; text-align:center; cursor:pointer; color:var(--ink);
+  }
+  .shape-card:hover{ border-color:var(--blue); }
+  .shape-card.active{ border-color:var(--blue); background:var(--blue-soft); }
+  .shape-card svg{ display:block; margin:0 auto 10px; }
+  .shape-card .name{ font-weight:600; font-size:15px; }
+  .shape-card .hint{ font-size:12.5px; color:var(--ink-soft); margin-top:2px; }
+
+  .wall-lengths{ display:flex; flex-direction:column; gap:14px; max-width:420px; margin-bottom:24px; }
+  .field{ display:flex; flex-direction:column; gap:6px; }
+  .field label{ font-size:13px; font-weight:600; color:var(--ink); }
+  .field .row{ display:flex; align-items:center; gap:8px; }
+  .field input[type=number]{
+    width:110px; padding:10px 12px; border:1px solid var(--line); border-radius:8px;
+    font-size:15px; color:var(--ink); background:#fff;
+  }
+  .field input[type=number]:focus{ outline:none; border-color:var(--blue); }
+  .field .unit{ color:var(--ink-soft); font-size:13.5px; }
+
+  .btn{
+    font:inherit; font-size:14.5px; font-weight:600; cursor:pointer;
+    border-radius:9px; padding:12px 22px; border:1.5px solid transparent;
+  }
+  .btn-primary{ background:var(--blue); color:#fff; }
+  .btn-primary:hover{ background:var(--blue-deep); }
+  .btn-primary:disabled{ background:var(--line); color:var(--ink-soft); cursor:not-allowed; }
+  .btn-secondary{ background:#fff; border-color:var(--line); color:var(--ink); }
+  .btn-secondary:hover{ border-color:var(--blue); color:var(--blue); }
+  .btn-small{ padding:7px 12px; font-size:13px; border-radius:7px; }
+
+  .actions{ display:flex; gap:10px; align-items:center; margin-top:8px; flex-wrap:wrap; }
+
+  /* ---- walls step ---- */
+  .wallcard{
+    background:var(--panel); border:1px solid var(--line); border-radius:16px;
+    padding:18px 18px 20px; margin-bottom:18px;
+  }
+  .wallcard-head{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:14px; }
+  .wallcard-head h3{ font-size:15.5px; font-weight:600; margin:0; }
+  .wallcard-head .len{ color:var(--ink-soft); font-weight:400; }
+
+  .zone{ margin-bottom:16px; }
+  .zone:last-child{ margin-bottom:0; }
+  .zone-label-row{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+  .zone-label{ font-size:12px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--ink-soft); }
+  .zone-add{ display:flex; gap:6px; }
+
+  .strip{
+    position:relative; height:38px; background:#fff; border:1px solid var(--line); border-radius:8px;
+    display:flex; overflow:hidden; margin-bottom:10px;
+  }
+  .zone-floor .strip{ height:56px; }
+  .strip-block{
+    display:flex; align-items:center; justify-content:center; overflow:hidden;
+    font-size:11px; font-weight:600; color:#fff; white-space:nowrap; padding:0 4px;
+    border-right:1px solid rgba(255,255,255,.35);
+  }
+  .strip-gap{ background:repeating-linear-gradient(45deg,#f4f2ec,#f4f2ec 6px,#efece3 6px,#efece3 12px); }
+  .strip-block.tall{ background:var(--tall); }
+  .strip-block.floor{ background:var(--floor); }
+  .strip-block.wall{ background:var(--wall); }
+
+  .meter-note{ font-size:12.5px; color:var(--ink-soft); margin:0 0 10px; }
+  .meter-note.full{ color:var(--danger); }
+
+  .blocklist{ display:flex; flex-direction:column; gap:8px; }
+  .block-row{
+    display:flex; align-items:center; gap:8px; background:#fff; border:1px solid var(--line);
+    border-radius:9px; padding:8px 10px; flex-wrap:wrap;
+  }
+  .block-row .dot{ width:10px; height:10px; border-radius:3px; flex:none; }
+  .block-row .dot.floor{ background:var(--floor); }
+  .block-row .dot.wall{ background:var(--wall); }
+  .block-row .dot.tall{ background:var(--tall); }
+  .block-row .type{ font-size:13.5px; font-weight:600; flex:1 1 auto; min-width:90px; }
+  .block-row .wfield{ display:flex; align-items:center; gap:5px; }
+  .block-row input[type=number]{
+    width:72px; padding:6px 8px; border:1px solid var(--line); border-radius:6px; font-size:13.5px;
+  }
+  .block-row .u{ font-size:12px; color:var(--ink-soft); }
+  .iconbtn{
+    width:28px; height:28px; border-radius:6px; border:1px solid var(--line); background:#fff;
+    cursor:pointer; font-size:13px; color:var(--ink); display:flex; align-items:center; justify-content:center;
+  }
+  .iconbtn:hover{ border-color:var(--blue); color:var(--blue); }
+  .iconbtn.del:hover{ border-color:var(--danger); color:var(--danger); }
+  .iconbtn:disabled{ opacity:.35; cursor:not-allowed; }
+
+  .empty-note{ font-size:13px; color:var(--ink-soft); font-style:italic; padding:6px 2px; }
+
+  .summary-line{ display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px dashed var(--line); font-size:14px; }
+  .summary-line:last-child{ border-bottom:none; }
+  .summary-total{ margin-top:18px; padding-top:14px; border-top:1px solid var(--line); font-weight:600; }
+
+  .callout{
+    background:var(--gold-soft); border:1px solid var(--line); border-radius:10px;
+    padding:12px 14px; font-size:13.5px; color:var(--ink-soft); margin-top:24px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div>
+      <div class="kicker">BJÖRNINN · Sjálfsafgreiðsla</div>
+      <h1 id="pageTitle">Skipuleggðu eldhúsið þitt</h1>
+    </div>
+    <button class="reset-link" id="resetBtn" type="button" title="Hreinsa allt og byrja upp á nýtt">Byrja upp á nýtt</button>
+  </div>
+  <p class="lede" id="pageLede">Veldu lögun eldhússins og raðaðu skápum upp — gróf teikning, engin binding. Rakel fer svo yfir og fullkomnar hönnunina með þér.</p>
+
+  <!-- ============ STEP: SHAPE ============ -->
+  <section id="screen-shape">
+    <div class="screen-title">Lögun eldhússins</div>
+    <p class="screen-sub">Veldu þá lögun sem líkist mest þínu rými. Þú getur breytt lengdunum hvenær sem er.</p>
+
+    <div class="shapes" id="shapeCards">
+      <div class="shape-card" data-shape="straight">
+        <svg width="72" height="44" viewBox="0 0 72 44"><rect x="6" y="20" width="60" height="8" rx="2" fill="#3d61c1"/></svg>
+        <div class="name">Beinn veggur</div>
+        <div class="hint">Einn samfelldur veggur</div>
+      </div>
+      <div class="shape-card" data-shape="L">
+        <svg width="72" height="44" viewBox="0 0 72 44"><path d="M8 8 L8 36 L64 36" stroke="#3d61c1" stroke-width="8" fill="none" stroke-linecap="square"/></svg>
+        <div class="name">L-laga</div>
+        <div class="hint">Tveir veggir mætast í horni</div>
+      </div>
+      <div class="shape-card" data-shape="U">
+        <svg width="72" height="44" viewBox="0 0 72 44"><path d="M10 6 L10 36 L62 36 L62 6" stroke="#3d61c1" stroke-width="8" fill="none" stroke-linecap="square"/></svg>
+        <div class="name">U-laga</div>
+        <div class="hint">Þrír veggir, eldhús á alla vegu</div>
+      </div>
+    </div>
+
+    <div class="wall-lengths" id="wallLengthFields" hidden></div>
+
+    <div class="actions">
+      <button class="btn btn-primary" id="toWallsBtn" type="button" disabled>Áfram — raða skápum</button>
+    </div>
+  </section>
+
+  <!-- ============ STEP: WALLS / LAYOUT ============ -->
+  <section id="screen-walls" hidden>
+    <div class="screen-title">Raðaðu skápum upp</div>
+    <p class="screen-sub">Fyrir hvern vegg: bættu við skápum í neðri röð (gólfskápar) og efri röð (veggskápar). Þú getur alltaf breytt breiddinni.</p>
+
+    <div id="wallCards"></div>
+
+    <div class="actions">
+      <button class="btn btn-secondary" id="backToShapeBtn" type="button">← Breyta lögun / lengdum</button>
+      <button class="btn btn-primary" id="toSummaryBtn" type="button" disabled>Sjá yfirlit</button>
+    </div>
+  </section>
+
+  <!-- ============ STEP: SUMMARY ============ -->
+  <section id="screen-summary" hidden>
+    <div class="screen-title">Yfirlit</div>
+    <p class="screen-sub">Svona lítur skipulagið þitt út núna.</p>
+
+    <div id="summaryBody"></div>
+
+    <div class="actions">
+      <button class="btn btn-secondary" id="backToWallsBtn" type="button">← Halda áfram að raða</button>
+    </div>
+
+    <div class="callout">Næstu skref (val á stíl/efni og staðfesting með þínum upplýsingum) bætast við hér síðar — að svo stöddu er þetta forskoðun á skipulaginu.</div>
+  </section>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var STORAGE_KEY = "bjorninn:kitchenPlanner:draft:v1";
+
+  var CATALOG = {
+    grunnskapur: { label:"Grunnskápur", zone:"floor", cls:"floor", defaultW:600, minW:300, maxW:1200, h:800,  d:600 },
+    harskapur:   { label:"Hárskápur",   zone:"floor", cls:"tall",  defaultW:600, minW:300, maxW:900,  h:2400, d:600 },
+    efriskapur:  { label:"Efriskápur",  zone:"wall",  cls:"wall",  defaultW:600, minW:300, maxW:1200, h:600,  d:600 }
+  };
+
+  var SHAPES = {
+    straight: [ { id:"A", label:"Veggur", defaultLen:3000 } ],
+    L:        [ { id:"A", label:"Veggur A", defaultLen:2400 }, { id:"B", label:"Veggur B", defaultLen:2400 } ],
+    U:        [ { id:"A", label:"Veggur A", defaultLen:1800 }, { id:"B", label:"Bakveggur", defaultLen:3000 }, { id:"C", label:"Veggur C", defaultLen:1800 } ]
+  };
+
+  var state = {
+    step: "shape",
+    shape: null,
+    walls: [] // {id,label,lengthMm, floor:[block], wall:[block]}
+  };
+  var blockSeq = 1;
+
+  function newBlock(type){
+    var c = CATALOG[type];
+    return { id:"b" + (blockSeq++), type:type, widthMm:c.defaultW };
+  }
+
+  function usedMm(list){ return list.reduce(function(s,b){ return s + b.widthMm; }, 0); }
+
+  function clampWidth(type, w){
+    var c = CATALOG[type];
+    if (isNaN(w)) return c.defaultW;
+    return Math.max(c.minW, Math.min(c.maxW, Math.round(w / 10) * 10));
+  }
+
+  // ---------- persistence ----------
+  function save(){
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+  }
+  function load(){
+    try{
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return false;
+      var parsed = JSON.parse(raw);
+      if (!parsed || !parsed.walls) return false;
+      state = parsed;
+      blockSeq = 1;
+      state.walls.forEach(function(w){
+        w.floor.concat(w.wall).forEach(function(b){
+          var n = parseInt(String(b.id).replace("b",""), 10);
+          if (!isNaN(n) && n >= blockSeq) blockSeq = n + 1;
+        });
+      });
+      return true;
+    }catch(e){ return false; }
+  }
+  function resetAll(){
+    if (!confirm("Hreinsa allt skipulagið og byrja upp á nýtt?")) return;
+    try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
+    state = { step:"shape", shape:null, walls:[] };
+    render();
+  }
+
+  // ---------- shape step ----------
+  function selectShape(shape){
+    state.shape = shape;
+    state.walls = SHAPES[shape].map(function(w){
+      return { id:w.id, label:w.label, lengthMm:w.defaultLen, floor:[], wall:[] };
+    });
+    save();
+    renderShapeStep();
+  }
+
+  function renderShapeStep(){
+    var cards = document.querySelectorAll("#shapeCards .shape-card");
+    cards.forEach(function(el){ el.classList.toggle("active", el.dataset.shape === state.shape); });
+
+    var box = document.getElementById("wallLengthFields");
+    var toWalls = document.getElementById("toWallsBtn");
+    if (!state.shape){
+      box.hidden = true;
+      toWalls.disabled = true;
+      return;
+    }
+    box.hidden = false;
+    toWalls.disabled = false;
+    box.innerHTML = "";
+    state.walls.forEach(function(w){
+      var field = document.createElement("div");
+      field.className = "field";
+      field.innerHTML =
+        '<label for="len-' + w.id + '">' + w.label + '</label>' +
+        '<div class="row"><input type="number" id="len-' + w.id + '" min="600" max="8000" step="50" value="' + w.lengthMm + '"><span class="unit">mm</span></div>';
+      box.appendChild(field);
+      field.querySelector("input").addEventListener("input", function(e){
+        var v = parseInt(e.target.value, 10);
+        if (isNaN(v)) return;
+        v = Math.max(600, Math.min(8000, v));
+        w.lengthMm = v;
+        save();
+      });
+    });
+  }
+
+  // ---------- walls step ----------
+  function addBlock(wall, type){
+    var c = CATALOG[type];
+    var list = wall[c.zone];
+    var used = usedMm(list);
+    var remaining = wall.lengthMm - used;
+    if (remaining < c.minW){
+      toast("Ekki nóg pláss á " + wall.label.toLowerCase() + " fyrir " + c.label.toLowerCase() + ".");
+      return;
+    }
+    var b = newBlock(type);
+    if (b.widthMm > remaining) b.widthMm = clampWidth(type, remaining);
+    list.push(b);
+    save();
+    renderWalls();
+  }
+
+  function removeBlock(wall, zone, id){
+    wall[zone] = wall[zone].filter(function(b){ return b.id !== id; });
+    save();
+    renderWalls();
+  }
+
+  function moveBlock(wall, zone, id, dir){
+    var list = wall[zone];
+    var idx = list.findIndex(function(b){ return b.id === id; });
+    var swapIdx = idx + dir;
+    if (idx < 0 || swapIdx < 0 || swapIdx >= list.length) return;
+    var tmp = list[idx]; list[idx] = list[swapIdx]; list[swapIdx] = tmp;
+    save();
+    renderWalls();
+  }
+
+  function setBlockWidth(wall, zone, id, val){
+    var list = wall[zone];
+    var b = list.find(function(x){ return x.id === id; });
+    if (!b) return;
+    var others = usedMm(list) - b.widthMm;
+    var maxAllowed = Math.min(CATALOG[b.type].maxW, wall.lengthMm - others);
+    var w = clampWidth(b.type, val);
+    w = Math.min(w, Math.max(CATALOG[b.type].minW, maxAllowed));
+    b.widthMm = w;
+    save();
+    renderWalls();
+  }
+
+  function stripHTML(list, wallLenMm){
+    var used = usedMm(list);
+    var html = list.map(function(b){
+      var pct = (b.widthMm / wallLenMm * 100).toFixed(3);
+      var c = CATALOG[b.type];
+      return '<div class="strip-block ' + c.cls + '" style="flex:0 0 ' + pct + '%" title="' + c.label + ' · ' + b.widthMm + 'mm">' +
+             (b.widthMm >= 260 ? c.label : "") + '</div>';
+    }).join("");
+    var gapPct = Math.max(0, (wallLenMm - used) / wallLenMm * 100).toFixed(3);
+    if (wallLenMm - used > 1){
+      html += '<div class="strip-block strip-gap" style="flex:0 0 ' + gapPct + '%"></div>';
+    }
+    return html;
+  }
+
+  function blockRowHTML(wall, zone, b){
+    var c = CATALOG[b.type];
+    return (
+      '<div class="block-row" data-id="' + b.id + '">' +
+        '<span class="dot ' + c.cls + '"></span>' +
+        '<span class="type">' + c.label + '</span>' +
+        '<div class="wfield"><input type="number" min="' + c.minW + '" max="' + c.maxW + '" step="10" value="' + b.widthMm + '" data-role="width"><span class="u">mm</span></div>' +
+        '<button class="iconbtn" data-role="left" title="Færa til vinstri">◀</button>' +
+        '<button class="iconbtn" data-role="right" title="Færa til hægri">▶</button>' +
+        '<button class="iconbtn del" data-role="del" title="Fjarlægja">✕</button>' +
+      '</div>'
+    );
+  }
+
+  function zoneHTML(wall, zoneKey, title, addTypes){
+    var list = wall[zoneKey];
+    var used = usedMm(list);
+    var remaining = wall.lengthMm - used;
+    var addBtns = addTypes.map(function(type){
+      var c = CATALOG[type];
+      var disabled = remaining < c.minW ? "disabled" : "";
+      return '<button class="btn btn-secondary btn-small" data-add="' + type + '" data-wall="' + wall.id + '" ' + disabled + '>+ ' + c.label + '</button>';
+    }).join("");
+
+    var rows = list.length
+      ? '<div class="blocklist" data-wall="' + wall.id + '" data-zone="' + zoneKey + '">' + list.map(function(b){ return blockRowHTML(wall, zoneKey, b); }).join("") + '</div>'
+      : '<div class="empty-note">Ekkert bætt við hér ennþá.</div>';
+
+    return (
+      '<div class="zone zone-' + zoneKey + '">' +
+        '<div class="zone-label-row"><span class="zone-label">' + title + '</span><div class="zone-add">' + addBtns + '</div></div>' +
+        '<div class="strip">' + stripHTML(list, wall.lengthMm) + '</div>' +
+        '<p class="meter-note' + (remaining < 1 ? ' full' : '') + '">' + used + ' / ' + wall.lengthMm + ' mm notað' + (remaining < 1 ? " — veggur fullur" : ", " + remaining + " mm laust") + '</p>' +
+        rows +
+      '</div>'
+    );
+  }
+
+  function renderWalls(){
+    var container = document.getElementById("wallCards");
+    container.innerHTML = state.walls.map(function(wall){
+      return (
+        '<div class="wallcard" data-wall="' + wall.id + '">' +
+          '<div class="wallcard-head"><h3>' + wall.label + ' <span class="len">· ' + wall.lengthMm + ' mm</span></h3></div>' +
+          zoneHTML(wall, "wall", "Efri röð — veggskápar", ["efriskapur"]) +
+          zoneHTML(wall, "floor", "Neðri röð — gólfskápar", ["grunnskapur", "harskapur"]) +
+        '</div>'
+      );
+    }).join("");
+
+    // wire events
+    container.querySelectorAll("[data-add]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var wall = state.walls.find(function(w){ return w.id === btn.dataset.wall; });
+        addBlock(wall, btn.dataset.add);
+      });
+    });
+    container.querySelectorAll(".blocklist").forEach(function(listEl){
+      var wall = state.walls.find(function(w){ return w.id === listEl.dataset.wall; });
+      var zone = listEl.dataset.zone;
+      listEl.querySelectorAll(".block-row").forEach(function(row){
+        var id = row.dataset.id;
+        row.querySelector('[data-role="del"]').addEventListener("click", function(){ removeBlock(wall, zone, id); });
+        row.querySelector('[data-role="left"]').addEventListener("click", function(){ moveBlock(wall, zone, id, -1); });
+        row.querySelector('[data-role="right"]').addEventListener("click", function(){ moveBlock(wall, zone, id, 1); });
+        row.querySelector('[data-role="width"]').addEventListener("change", function(e){
+          setBlockWidth(wall, zone, id, parseInt(e.target.value, 10));
+        });
+      });
+    });
+
+    var totalBlocks = state.walls.reduce(function(s, w){ return s + w.floor.length + w.wall.length; }, 0);
+    document.getElementById("toSummaryBtn").disabled = totalBlocks === 0;
+  }
+
+  // ---------- summary step ----------
+  function renderSummary(){
+    var body = document.getElementById("summaryBody");
+    var counts = {};
+    var html = "";
+    state.walls.forEach(function(wall){
+      var rows = wall.wall.concat(wall.floor);
+      if (!rows.length) return;
+      html += '<div class="wallcard"><div class="wallcard-head"><h3>' + wall.label + ' <span class="len">· ' + wall.lengthMm + ' mm</span></h3></div>';
+      rows.forEach(function(b){
+        var c = CATALOG[b.type];
+        counts[c.label] = (counts[c.label] || 0) + 1;
+        html += '<div class="summary-line"><span>' + c.label + '</span><span>' + b.widthMm + ' × ' + c.h + ' × ' + c.d + ' mm</span></div>';
+      });
+      html += '</div>';
+    });
+    if (!html) html = '<p class="empty-note">Engir skápar komnir inn ennþá.</p>';
+
+    var totalLine = Object.keys(counts).map(function(k){ return counts[k] + '× ' + k; }).join(" · ");
+    var total = Object.values ? Object.keys(counts).reduce(function(s,k){return s+counts[k];},0) : 0;
+    html += '<div class="summary-total">Samtals ' + total + ' skápar' + (totalLine ? " — " + totalLine : "") + '</div>';
+
+    body.innerHTML = html;
+  }
+
+  // ---------- toast ----------
+  var toastTimer;
+  function toast(msg){
+    var el = document.getElementById("toastEl");
+    if (!el){
+      el = document.createElement("div");
+      el.id = "toastEl";
+      el.style.cssText = "position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#191919;color:#fff;padding:10px 16px;border-radius:8px;font-size:13.5px;z-index:50;box-shadow:0 6px 20px rgba(0,0,0,.2);";
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.style.opacity = "1";
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ el.style.opacity = "0"; }, 2400);
+  }
+
+  // ---------- screen switching ----------
+  function goto(step){
+    state.step = step;
+    save();
+    render();
+  }
+
+  function render(){
+    document.getElementById("screen-shape").hidden = state.step !== "shape";
+    document.getElementById("screen-walls").hidden = state.step !== "walls";
+    document.getElementById("screen-summary").hidden = state.step !== "summary";
+
+    if (state.step === "shape") renderShapeStep();
+    if (state.step === "walls") renderWalls();
+    if (state.step === "summary") renderSummary();
+  }
+
+  // ---------- wire top-level controls ----------
+  document.querySelectorAll("#shapeCards .shape-card").forEach(function(card){
+    card.addEventListener("click", function(){ selectShape(card.dataset.shape); });
+  });
+  document.getElementById("toWallsBtn").addEventListener("click", function(){ goto("walls"); });
+  document.getElementById("backToShapeBtn").addEventListener("click", function(){ goto("shape"); });
+  document.getElementById("toSummaryBtn").addEventListener("click", function(){ goto("summary"); });
+  document.getElementById("backToWallsBtn").addEventListener("click", function(){ goto("walls"); });
+  document.getElementById("resetBtn").addEventListener("click", resetAll);
+
+  // ---------- init ----------
+  load();
+  render();
+})();
+</script>
+</body>
+</html>
