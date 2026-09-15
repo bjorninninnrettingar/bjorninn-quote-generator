@@ -644,8 +644,22 @@ function planSig(s) {                          // cheap hash of a plan JSON stri
 function saveLayout() {
   if (typeof syncManualIndex === "function") syncManualIndex();
   try {
+    // `groups` travels with `layout`, not just `board` — autoNest() can
+    // split a run into several single-front pieces to fit (round 6's yield
+    // fallback), each under its own id, and `layout.boards[*].placements`
+    // is keyed by exactly those (possibly split) ids. Saving `layout`
+    // without the matching `groups` meant the next load here paired this
+    // (possibly split) `layout` with a freshly-`buildGroups()`-rebuilt
+    // `groups` — always UNSPLIT, since only autoNest() ever splits, never
+    // buildGroups() itself — so every split run's fragments had no
+    // matching group by id. detectOverlaps()/unplacedGroups() silently
+    // skip any placement with no matching group, and reconcileLayout()
+    // read the (very much still-placed) whole run as "missing" and
+    // stacked a fresh unsplit copy on top of it. Confirmed live on T-33:
+    // this is what kept reintroducing real overlaps purely from opening
+    // the project, with nothing actually changed.
     localStorage.setItem(layoutKey(), JSON.stringify({
-      layout, board, planSig: FLOOR_MODE && curPlan ? planSig(curPlan.sourceJSON) : undefined,
+      layout, board, groups, planSig: FLOOR_MODE && curPlan ? planSig(curPlan.sourceJSON) : undefined,
     }));
   } catch {}
   if (typeof schedulePlanSave === "function") schedulePlanSave();  // office: mirror to Airtable (debounced)
@@ -1475,6 +1489,13 @@ function selectMaterial(key) {
     if (stored?.layout && stored.layout.boards?.length) {
       // this device's own in-progress edits win over the saved plan
       layout = stored.layout;
+      // `groups` must come from the SAME save as `layout` — see
+      // saveLayout()'s comment: pairing a possibly-split `layout` with the
+      // freshly-`buildGroups()`-rebuilt (always-unsplit) `groups` above
+      // breaks fragment-id matching for every split run. A save made
+      // before `groups` was included here won't have it — keep the
+      // freshly-built one in that case, same as before this fix.
+      if (stored.groups) groups = stored.groups.map(g => ({ ...g, fronts: g.fronts.map(f => ({ ...f })) }));
       reconcileLayout();
     } else if (planRec && planRec.fields[PL_JSON]) {
       try { applyPlan(JSON.parse(planRec.fields[PL_JSON])); }
@@ -1981,21 +2002,79 @@ function offsetPlace(place) {
   return o;
 }
 function reconcileLayout() {
-  const known = new Set(groups.map(g => g.id));
-  for (const b of layout.boards) {
-    for (const gid of Object.keys(b.placements)) if (!known.has(gid)) delete b.placements[gid];
+  // A GROUP's id isn't stable across a split — autoNest() can break a
+  // multi-front, non-keepTogether run into single-front pieces to fit
+  // better (round 6's yield fallback), each with its own `${gid}~${frontId}`
+  // id — or across a later rebuild that no longer needs to split it. Only
+  // a FRONT's own identity (frontId(): its uid, or mfId for a manual one)
+  // stays stable through that. This function used to compare by group id
+  // alone: a plan loaded via the localStorage/`stored.layout` path never
+  // re-runs autoNest() (`groups` here is only ever buildGroups()'s fresh,
+  // always-UNSPLIT output), so any group the stored layout had split
+  // earlier had its whole content sitting under fragment ids the unsplit
+  // `groups` doesn't contain — read as "unknown" and deleted, then the
+  // WHOLE run read as "missing" and stacked back on as one fresh unsplit
+  // block on the last board, on top of whatever was already there. That's
+  // exactly what kept reintroducing real overlaps on T-33 purely from
+  // opening the project, with nothing actually changed — confirmed live:
+  // buildGroups()+autoNest() is fully deterministic (same 108 groups, same
+  // splits, every repeated run), so the drift was only ever in this
+  // group-id comparison, never in the packer itself.
+  // Every fragment a split could possibly have produced from the CURRENT
+  // fronts, keyed by its exact id (`${originalGroupId}~${frontId}`) → the
+  // front it represents. frontId() itself already contains a `~` (a uid is
+  // `pieceId~i`), so a naive "take whatever's after the last ~" on a
+  // fragment's own id grabs the wrong (innermost) piece — this builds the
+  // real expected ids directly instead of trying to reverse-parse one.
+  const expectedFragmentIds = new Map();
+  for (const g of groups) for (const f of g.fronts) {
+    const fid = frontId(f);
+    if (fid) expectedFragmentIds.set(`${g.id}~${fid}`, fid);
   }
-  const placed = new Set(layout.boards.flatMap(b => Object.keys(b.placements)));
-  const missing = groups.filter(g => !placed.has(g.id));
-  if (missing.length) {
+  const coveredFrontIds = new Set();
+  for (const b of layout.boards) {
+    for (const gid of Object.keys(b.placements)) {
+      const g = groups.find(x => x.id === gid);
+      if (g) { g.fronts.forEach(f => { const fid = frontId(f); if (fid) coveredFrontIds.add(fid); }); continue; }
+      // No group carries this exact id any more — before assuming it's
+      // gone, check whether it's a split fragment of a front that still
+      // exists.
+      if (expectedFragmentIds.has(gid)) { coveredFrontIds.add(expectedFragmentIds.get(gid)); continue; }
+      delete b.placements[gid];   // genuinely gone
+    }
+  }
+  const missingFronts = [];
+  for (const g of groups) for (const f of g.fronts) {
+    const fid = frontId(f);
+    if (fid && !coveredFrontIds.has(fid)) missingFronts.push({ g, f });
+  }
+  if (missingFronts.length) {
     // append to the last non-done board (never a locked/hidden one — that
-    // would place new fronts somewhere nobody can see), stacked at x=trim
+    // would place new fronts somewhere nobody can see), stacked at x=trim,
+    // one small group per originating run so fronts from the same run stay
+    // together. A synthetic id is always used here (never the run's own
+    // `g.id`) since that id may already be in use by an existing, still
+    // otherwise-valid placement for the same run.
     let b = [...layout.boards].reverse().find(x => !x.done);
     if (!b) { layout.boards.push({ placements: {} }); b = layout.boards[layout.boards.length - 1]; }
+    const byGroup = new Map();
+    for (const { g, f } of missingFronts) (byGroup.get(g) || byGroup.set(g, []).get(g)).push(f);
     let y = settings.trim;
-    for (const g of missing) { b.placements[g.id] = { x: settings.trim, y }; y += groupLen(g) + settings.kerf; }
+    for (const [g, fronts] of byGroup) {
+      const id = `${g.id}~missing${Math.random().toString(36).slice(2, 8)}`;
+      const ng = { ...g, id, fronts };
+      groups.push(ng);
+      b.placements[id] = { x: settings.trim, y };
+      y += groupLen(ng) + settings.kerf;
+    }
+    // Only settle when something actually needs it (new fronts just got
+    // stacked into free-for-all positions above). settleAll() re-places
+    // every run on every board via nearestFree() from scratch — on a board
+    // already packed at/near capacity, replaying that search can shift a
+    // run by a hair and leave it with nowhere valid left, turning an
+    // already-correct layout into an overlapping one for no real reason.
+    settleAll();
   }
-  settleAll();
   saveLayout();
 }
 function boardOfGroup(gid) {
@@ -3088,7 +3167,7 @@ function buildCutPlan() {
               note: fi === 0
                 ? "Efsti fronti hópsins. Haltu röðinni." + (narrower ? " (fronturinn rifst mjórri á eftir)" : "")
                 : "",
-              produces: narrower ? [] : [{ label: f.label, w: g.width, h: f.h, unitName: g.unitName, err: f.err, n: fi + 1, of: g.fronts.length, pieceId: f.pieceId }],
+              produces: narrower ? [] : [{ label: f.label, w: g.width, h: f.h, unitName: g.unitName, err: f.err, n: fi + 1, of: g.fronts.length, pieceId: f.pieceId, gid: g.id, fi }],
               highlight: { x: s.x, y: cursor, w: g.width, l: f.h },
               cutLines: [{ o: "h", pos: cursor + f.h }],
             });
@@ -3099,7 +3178,7 @@ function buildCutPlan() {
               bi, workpiece: stripPiece, kind: "rip", measure: g.width, measureLabel: "Rifjaðar",
               title: `${g.unitName} — rífðu ${g.fronts.length} fronta niður í ${g.width} mm`,
               note: `Taktu ${Math.round(s.w - g.width)} mm af hverjum (ræman var breiðari en þessi hópur).`,
-              produces: g.fronts.map((f, i) => ({ label: f.label, w: g.width, h: f.h, unitName: g.unitName, err: f.err, n: i + 1, of: g.fronts.length, pieceId: f.pieceId })),
+              produces: g.fronts.map((f, i) => ({ label: f.label, w: g.width, h: f.h, unitName: g.unitName, err: f.err, n: i + 1, of: g.fronts.length, pieceId: f.pieceId, gid: g.id, fi: i })),
               highlight: { x: s.x, y: runTop, w: g.width, l: cursor - runTop - k },
               cutLines: [{ o: "v", pos: s.x + g.width }],
             });
@@ -3124,7 +3203,7 @@ function buildCutPlan() {
               bi, workpiece: tallPiece, kind: "rip", measure: g.width, measureLabel: "Rifjaðar",
               title: `${g.unitName} — rífðu væng ${fi + 1} af ${g.fronts.length}`,
               note: fi === 0 ? "Rífðu frá vinstri, haltu röðinni. Vængirnir eiga að vera hlið við hlið." : "",
-              produces: [{ label: f.label, w: g.width, h: f.h, unitName: g.unitName, err: f.err, n: fi + 1, of: g.fronts.length, pieceId: f.pieceId }],
+              produces: [{ label: f.label, w: g.width, h: f.h, unitName: g.unitName, err: f.err, n: fi + 1, of: g.fronts.length, pieceId: f.pieceId, gid: g.id, fi }],
               highlight: { x: woff, y: cursor, w: g.width, l: f.h },
               cutLines: [{ o: "v", pos: woff + g.width }],
             });
@@ -3152,7 +3231,7 @@ function buildCutPlan() {
               bi, workpiece: bandPiece, kind: "crosscut", measure: f.h, measureLabel: "Þverskurðarstopp (á bandinu)",
               title: `${g.unitName} — fronti ${fi + 1} af ${g.fronts.length} af bandinu`,
               note: fi === 0 ? "Haltu röðinni frá vinstri." : "",
-              produces: [{ label: f.label, w: g.width, h: f.h, unitName: g.unitName, err: f.err, n: fi + 1, of: g.fronts.length, pieceId: f.pieceId }],
+              produces: [{ label: f.label, w: g.width, h: f.h, unitName: g.unitName, err: f.err, n: fi + 1, of: g.fronts.length, pieceId: f.pieceId, gid: g.id, fi }],
               highlight: { x: woff, y: cursor, w: f.h, l: band },
               cutLines: [{ o: "v", pos: woff + f.h }],
             });
@@ -3298,19 +3377,39 @@ function guideSvg(step) {
       <path d="M${x - 3} ${bot - 6} L${x} ${bot} L${x + 3} ${bot - 6}"/></g>
       <text x="${x + 7}" y="${H / 2}" fill="#666" font-size="9" text-anchor="middle" transform="rotate(-90 ${x + 7} ${H / 2})">æð</text>`;
   }
-  // all groups faint
+  // Fronts already fully separated by an earlier step (in the guide
+  // sequence up to but not including the one on screen now) are drawn out
+  // of the diagram entirely — otherwise the board still shows a piece the
+  // sawyer already cut off and labeled several steps ago, which reads as
+  // "still there" and invites a wrong cut. Cuts always happen in a run's
+  // own front-array order (see buildCutPlan), so "done" is always a
+  // contiguous prefix — never a done front with an undone one ahead of it.
+  const doneKeys = new Set();
+  (guide?.steps || []).slice(0, guide?.idx ?? 0).forEach(gs => {
+    (gs.produces || []).forEach(p => { if (p.gid != null && p.fi != null) doneKeys.add(`${p.gid}~${p.fi}`); });
+  });
+  // all groups faint — only the still-uncut remainder of each run
   Object.entries(b.placements).forEach(([gid, p]) => {
     const g = groups.find(x => x.id === gid); if (!g) return;
+    let doneCount = 0;
+    while (doneCount < g.fronts.length && doneKeys.has(`${gid}~${doneCount}`)) doneCount++;
+    if (doneCount >= g.fronts.length) return;   // whole run already cut apart — nothing left to draw
     const c = groupColor(g);
-    inner += `<rect x="${S(p.x)}" y="${S(p.y)}" width="${S(groupWidth(g))}" height="${S(groupLen(g))}" fill="${c}" fill-opacity="0.18" stroke="${c}" stroke-opacity="0.5"/>`;
     const horiz = g.orient !== "v";
+    let doneOff = 0;
+    for (let fi = 0; fi < doneCount; fi++) doneOff += frontExtent(g, g.fronts[fi]) + settings.kerf;
+    const remX = horiz ? p.x + doneOff : p.x;
+    const remY = horiz ? p.y : p.y + doneOff;
+    const remW = horiz ? groupWidth(g) - doneOff : groupWidth(g);
+    const remL = horiz ? groupLen(g) : groupLen(g) - doneOff;
+    inner += `<rect x="${S(remX)}" y="${S(remY)}" width="${S(remW)}" height="${S(remL)}" fill="${c}" fill-opacity="0.18" stroke="${c}" stroke-opacity="0.5"/>`;
     let off = 0;
-    g.fronts.forEach(f => {
+    g.fronts.forEach((f, fi) => {
       const cw = g.orient === "h" ? f.h : g.width;
       const ch = g.orient === "h" ? g.width : f.h;
       const cx = horiz ? p.x + off : p.x;
       const cy = horiz ? p.y : p.y + off;
-      inner += `<rect x="${S(cx)}" y="${S(cy)}" width="${S(cw)}" height="${S(ch)}" fill="none" stroke="${c}" stroke-opacity="0.4" stroke-width="0.5"/>`;
+      if (fi >= doneCount) inner += `<rect x="${S(cx)}" y="${S(cy)}" width="${S(cw)}" height="${S(ch)}" fill="none" stroke="${c}" stroke-opacity="0.4" stroke-width="0.5"/>`;
       off += frontExtent(g, f) + settings.kerf;
     });
   });
