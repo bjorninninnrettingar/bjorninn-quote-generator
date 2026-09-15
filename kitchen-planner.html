@@ -7,6 +7,21 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+  import * as THREE from "three";
+  import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+  window.__THREE__ = THREE;
+  window.__OrbitControls__ = OrbitControls;
+  window.dispatchEvent(new Event("three-ready"));
+</script>
 <style>
   :root{
     --bg:#ffffff;
@@ -192,6 +207,19 @@
   .look-selected-strip img{ width:34px; height:34px; border-radius:7px; object-fit:cover; }
 
   .strip-block.styled{ background-size:cover; background-position:center; text-shadow:0 1px 3px rgba(0,0,0,.85); }
+
+  /* ---- 3D step ---- */
+  .three-wrap{
+    position:relative; width:100%; height:min(60vh,480px); min-height:280px;
+    background:var(--panel); border:1px solid var(--line); border-radius:16px;
+    overflow:hidden; margin-bottom:8px;
+  }
+  .three-wrap canvas{ display:block; width:100%; height:100%; touch-action:none; }
+  .three-note{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    text-align:center; padding:24px; font-size:14px; color:var(--ink-soft);
+  }
+  .three-hint{ font-size:12.5px; color:var(--ink-soft); margin:0 0 22px; }
 </style>
 </head>
 <body>
@@ -276,14 +304,17 @@
 
     <div class="actions">
       <button class="btn btn-secondary" id="backToWallsFromLookBtn" type="button">← Halda áfram að raða</button>
-      <button class="btn btn-primary" id="toSummaryBtn" type="button" disabled>Sjá yfirlit</button>
+      <button class="btn btn-primary" id="toSummaryBtn" type="button" disabled>Sjá í 3D</button>
     </div>
   </section>
 
-  <!-- ============ STEP: SUMMARY ============ -->
+  <!-- ============ STEP: SUMMARY / 3D ============ -->
   <section id="screen-summary" hidden>
-    <div class="screen-title">Yfirlit</div>
+    <div class="screen-title">Eldhúsið þitt í 3D</div>
     <p class="screen-sub">Svona lítur skipulagið þitt út núna.</p>
+
+    <div class="three-wrap" id="threeWrap"></div>
+    <p class="three-hint">Dragðu til að snúa · klíptu eða skrunaðu til að rýma/fjarlægja</p>
 
     <div id="summaryBody"></div>
 
@@ -316,11 +347,17 @@
 
   // Fixed tie-break priority when two looks score equal in the quiz.
   var LOOK_ORDER = ["hvitt", "gratt", "eik", "valhnota"];
+  // `color3d` is the material's real average color (sampled directly from its
+  // own photo, not guessed) — used as a flat color on 3D cabinet faces. The
+  // photos themselves are angled product shots with visible background, which
+  // looks broken mapped 1:1 onto a flat box face (a photo of a tilted board
+  // pasted onto another 3D box reads as a floating, wrongly-shaped patch) —
+  // they stay as the actual images only on the 2D look-picker cards.
   var LOOKS = {
-    hvitt:    { label:"Hvítt",    img:"materials/hvitt.png",    desc:"Klassískt og bjart",   efnislistiId:"recETAWxGH3R4yYQK" },
-    gratt:    { label:"Grátt",    img:"materials/gratt.png",    desc:"Nútímalegt og hlutlaust", efnislistiId:"recv9klBmrhz3BJJf" },
-    eik:      { label:"Eik",      img:"materials/eik.png",      desc:"Náttúrulegt og ljóst", efnislistiId:"recr7o33yRRU4DqO7" },
-    valhnota: { label:"Valhnota", img:"materials/valhnota.png", desc:"Hlýtt og dökkt",       efnislistiId:"recOwpVNZipD18qME" }
+    hvitt:    { label:"Hvítt",    img:"materials/hvitt.png",    color3d:"#fffef9", desc:"Klassískt og bjart",   efnislistiId:"recETAWxGH3R4yYQK" },
+    gratt:    { label:"Grátt",    img:"materials/gratt.png",    color3d:"#e3dcd0", desc:"Nútímalegt og hlutlaust", efnislistiId:"recv9klBmrhz3BJJf" },
+    eik:      { label:"Eik",      img:"materials/eik.png",      color3d:"#ccae8b", desc:"Náttúrulegt og ljóst", efnislistiId:"recr7o33yRRU4DqO7" },
+    valhnota: { label:"Valhnota", img:"materials/valhnota.png", color3d:"#765e48", desc:"Hlýtt og dökkt",       efnislistiId:"recOwpVNZipD18qME" }
   };
 
   var QUIZ = [
@@ -402,6 +439,7 @@
   }
   function resetAll(){
     if (!confirm("Hreinsa allt skipulagið og byrja upp á nýtt?")) return;
+    teardown3D();
     try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
     state = { step:"quiz", quizAnswers:{}, suggestedLook:null, look:null, shape:null, walls:[] };
     render();
@@ -659,6 +697,268 @@
     document.getElementById("toSummaryBtn").disabled = !state.look;
   }
 
+  // ---------- 3D scene ----------
+  var WALL_CABINET_BASE_M = 1.4; // fixed visualization height for Efriskápur, not stored per-cabinet
+  var THREE_STATE = null;
+
+  function hasWebGL(){
+    try{
+      var c = document.createElement("canvas");
+      return !!(window.WebGLRenderingContext && (c.getContext("webgl") || c.getContext("experimental-webgl")));
+    }catch(e){ return false; }
+  }
+
+  // Hardcoded per-shape wall layout: each wall's start point, its own axis
+  // (direction cabinets run along) and normal (direction cabinets project
+  // into the room), in meters. Straight/L/U are fixed presets (see Phase 1),
+  // so this doesn't need to be a generic corner-solver.
+  function wallGeometry3D(shape, walls){
+    function m(mm){ return mm / 1000; }
+    if (shape === "straight"){
+      return [ { origin:{x:0,z:0}, axis:{x:1,z:0}, normal:{x:0,z:1}, lenM:m(walls[0].lengthMm) } ];
+    }
+    if (shape === "L"){
+      return [
+        { origin:{x:0,z:0}, axis:{x:1,z:0}, normal:{x:0,z:1}, lenM:m(walls[0].lengthMm) },
+        { origin:{x:0,z:0}, axis:{x:0,z:1}, normal:{x:1,z:0}, lenM:m(walls[1].lengthMm) }
+      ];
+    }
+    if (shape === "U"){
+      var LA = m(walls[0].lengthMm), LB = m(walls[1].lengthMm), LC = m(walls[2].lengthMm);
+      var aEnd = { x:0, z:LA };
+      var bEnd = { x:LB, z:LA };
+      return [
+        { origin:{x:0,z:0}, axis:{x:0,z:1}, normal:{x:1,z:0}, lenM:LA },
+        { origin:aEnd,      axis:{x:1,z:0}, normal:{x:0,z:-1}, lenM:LB },
+        { origin:bEnd,      axis:{x:0,z:-1}, normal:{x:-1,z:0}, lenM:LC }
+      ];
+    }
+    return [];
+  }
+
+  var ROOM_DEPTH_M = 2.4; // assumed walkway/room depth beyond each wall, for floor sizing + camera framing only
+
+  function addFloor(THREE, scene, geoms, floorMat){
+    var minX=Infinity, maxX=-Infinity, minZ=Infinity, maxZ=-Infinity;
+    geoms.forEach(function(g){
+      var end = { x:g.origin.x + g.axis.x*g.lenM, z:g.origin.z + g.axis.z*g.lenM };
+      // Include each wall's endpoints AND those endpoints pushed into the room
+      // along the wall's own normal — the bbox must only grow on the interior
+      // side of a wall, never symmetrically through it (that put the camera
+      // target on the wall surface instead of inside the room).
+      [g.origin, end,
+       { x:g.origin.x + g.normal.x*ROOM_DEPTH_M, z:g.origin.z + g.normal.z*ROOM_DEPTH_M },
+       { x:end.x + g.normal.x*ROOM_DEPTH_M, z:end.z + g.normal.z*ROOM_DEPTH_M }
+      ].forEach(function(p){
+        minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+        minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z);
+      });
+    });
+    var margin = 0.3;
+    var w = (maxX - minX) + margin * 2, d = (maxZ - minZ) + margin * 2;
+    var cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
+    var mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, d), floorMat);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(cx, 0, cz);
+    mesh.receiveShadow = true;
+    scene.add(mesh);
+    return { cx:cx, cz:cz, w:w, d:d };
+  }
+
+  function addWallPlane(THREE, scene, geom, wallHeightM, wallMat){
+    var mesh = new THREE.Mesh(new THREE.PlaneGeometry(geom.lenM, wallHeightM), wallMat);
+    var xAxis = new THREE.Vector3(geom.axis.x, 0, geom.axis.z);
+    var yAxis = new THREE.Vector3(0, 1, 0);
+    var zAxis = new THREE.Vector3(geom.normal.x, 0, geom.normal.z);
+    mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis));
+    mesh.position.set(
+      geom.origin.x + geom.axis.x * (geom.lenM / 2),
+      wallHeightM / 2,
+      geom.origin.z + geom.axis.z * (geom.lenM / 2)
+    );
+    mesh.receiveShadow = true;
+    scene.add(mesh);
+  }
+
+  function addCabinetBox(THREE, scene, geom, offsetM, widthM, heightM, depthM, baseYM, carcassMat, frontMat){
+    var cx = geom.origin.x + geom.axis.x * (offsetM + widthM / 2) + geom.normal.x * (depthM / 2);
+    var cz = geom.origin.z + geom.axis.z * (offsetM + widthM / 2) + geom.normal.z * (depthM / 2);
+    var boxGeo = new THREE.BoxGeometry(widthM, heightM, depthM);
+    var mesh = new THREE.Mesh(boxGeo, [carcassMat, carcassMat, carcassMat, carcassMat, frontMat, carcassMat]);
+    mesh.position.set(cx, baseYM + heightM / 2, cz);
+    var xAxis = new THREE.Vector3(geom.axis.x, 0, geom.axis.z);
+    var yAxis = new THREE.Vector3(0, 1, 0);
+    var zAxis = new THREE.Vector3(geom.normal.x, 0, geom.normal.z);
+    mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis));
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    scene.add(mesh);
+
+    // A light front color (e.g. hvítt) can otherwise blend into the equally
+    // light wall/floor with no shadow-based separation — a dark edge outline
+    // keeps every cabinet readable regardless of which look is applied.
+    var edges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(boxGeo),
+      new THREE.LineBasicMaterial({ color:0x2a2a2a })
+    );
+    edges.position.copy(mesh.position);
+    edges.quaternion.copy(mesh.quaternion);
+    scene.add(edges);
+  }
+
+  function disposeScene(scene){
+    if (!scene) return;
+    scene.traverse(function(obj){
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material){
+        (Array.isArray(obj.material) ? obj.material : [obj.material]).forEach(function(mat){
+          if (mat.map) mat.map.dispose();
+          mat.dispose();
+        });
+      }
+    });
+  }
+
+  function teardown3D(){
+    if (!THREE_STATE) return;
+    cancelAnimationFrame(THREE_STATE.rafId);
+    window.removeEventListener("resize", THREE_STATE.onResize);
+    THREE_STATE.controls.dispose();
+    disposeScene(THREE_STATE.scene);
+    THREE_STATE.renderer.dispose();
+    if (THREE_STATE.renderer.domElement.parentNode){
+      THREE_STATE.renderer.domElement.parentNode.removeChild(THREE_STATE.renderer.domElement);
+    }
+    THREE_STATE = null;
+  }
+
+  function waitForThree(cb, timeoutMs){
+    if (window.__THREE__){ cb(true); return; }
+    var done = false;
+    var timer = setTimeout(function(){
+      if (done) return;
+      done = true;
+      cb(false);
+    }, timeoutMs || 6000);
+    window.addEventListener("three-ready", function onReady(){
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      cb(true);
+    }, { once:true });
+  }
+
+  function buildScene(wrap){
+    var THREE = window.__THREE__;
+    var OrbitControls = window.__OrbitControls__;
+
+    var geoms = wallGeometry3D(state.shape, state.walls);
+    var carcassMat = new THREE.MeshStandardMaterial({ color:0x3a3a3a, roughness:0.9 });
+    var wallMat = new THREE.MeshStandardMaterial({ color:0xf1efe8, roughness:1, side:THREE.DoubleSide });
+    var floorMat = new THREE.MeshStandardMaterial({ color:0xd8d3c6, roughness:1 });
+
+    var scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xf7f6f2);
+
+    var bbox = addFloor(THREE, scene, geoms, floorMat);
+    var WALL_H = 2.6;
+    geoms.forEach(function(g){ addWallPlane(THREE, scene, g, WALL_H, wallMat); });
+
+    var look = state.look ? LOOKS[state.look] : null;
+    var frontMat = new THREE.MeshStandardMaterial({
+      color: look ? look.color3d : 0xb7b2a4, roughness:0.75
+    });
+
+    state.walls.forEach(function(wall, wi){
+      var g = geoms[wi];
+      if (!g) return;
+      var offset = 0;
+      wall.floor.forEach(function(b){
+        var c = CATALOG[b.type];
+        addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, c.h / 1000, c.d / 1000, 0, carcassMat, frontMat);
+        offset += b.widthMm;
+      });
+      offset = 0;
+      wall.wall.forEach(function(b){
+        var c = CATALOG[b.type];
+        addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, c.h / 1000, c.d / 1000, WALL_CABINET_BASE_M, carcassMat, frontMat);
+        offset += b.widthMm;
+      });
+    });
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.65));
+    var dir = new THREE.DirectionalLight(0xffffff, 0.9);
+    dir.position.set(bbox.cx + 3, 5, bbox.cz + 4);
+    dir.castShadow = true;
+    dir.shadow.mapSize.set(1024, 1024);
+    scene.add(dir);
+
+    var camera = new THREE.PerspectiveCamera(45, 1, 0.05, 100);
+    var dist = Math.max(bbox.w, bbox.d) * 0.9 + 1.5;
+    camera.position.set(bbox.cx + dist * 0.6, dist * 0.55, bbox.cz + dist * 0.9);
+
+    var renderer = new THREE.WebGLRenderer({ antialias:true });
+    renderer.shadowMap.enabled = true;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    wrap.appendChild(renderer.domElement);
+
+    var controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(bbox.cx, 1.0, bbox.cz);
+    controls.maxPolarAngle = Math.PI / 2 - 0.03;
+    controls.minPolarAngle = 0.15;
+    controls.minDistance = 0.8;
+    controls.maxDistance = dist * 3;
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.update();
+
+    THREE_STATE = { renderer:renderer, controls:controls, scene:scene, rafId:0, onResize:resize };
+
+    function resize(){
+      var w = wrap.clientWidth, h = wrap.clientHeight;
+      if (!w || !h) return;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    function loop(){
+      THREE_STATE.rafId = requestAnimationFrame(loop);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    loop();
+  }
+
+  function render3D(){
+    var wrap = document.getElementById("threeWrap");
+    teardown3D();
+    wrap.innerHTML = "";
+
+    var hasAnyCabinets = state.walls.some(function(w){ return w.floor.length || w.wall.length; });
+    if (!hasAnyCabinets){
+      wrap.innerHTML = '<div class="three-note">Bættu skápum við til að sjá eldhúsið í 3D.</div>';
+      return;
+    }
+    if (!hasWebGL()){
+      wrap.innerHTML = '<div class="three-note">3D forskoðun er ekki studd í þessum vafra — sjá listann fyrir neðan.</div>';
+      return;
+    }
+
+    wrap.innerHTML = '<div class="three-note">Hleð 3D…</div>';
+    waitForThree(function(ok){
+      if (state.step !== "summary") return; // navigated away while waiting
+      if (!ok){
+        wrap.innerHTML = '<div class="three-note">3D forskoðun tókst ekki að hlaða — sjá listann fyrir neðan.</div>';
+        return;
+      }
+      wrap.innerHTML = "";
+      buildScene(wrap);
+    }, 8000);
+  }
+
   // ---------- summary step ----------
   function renderSummary(){
     var body = document.getElementById("summaryBody");
@@ -706,6 +1006,7 @@
 
   // ---------- screen switching ----------
   function goto(step){
+    if (state.step === "summary" && step !== "summary") teardown3D();
     state.step = step;
     save();
     render();
@@ -728,7 +1029,7 @@
     if (state.step === "shape") renderShapeStep();
     if (state.step === "walls") renderWalls();
     if (state.step === "look") renderLook();
-    if (state.step === "summary") renderSummary();
+    if (state.step === "summary"){ renderSummary(); render3D(); }
   }
 
   // ---------- wire top-level controls ----------
