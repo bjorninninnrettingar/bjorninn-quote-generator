@@ -151,6 +151,47 @@
     background:var(--gold-soft); border:1px solid var(--line); border-radius:10px;
     padding:12px 14px; font-size:13.5px; color:var(--ink-soft); margin-top:24px;
   }
+
+  /* ---- progress ---- */
+  .steps{ display:flex; gap:6px; margin-bottom:22px; }
+  .steps span{ height:4px; flex:1; border-radius:2px; background:var(--line); }
+  .steps span.done{ background:var(--gold); }
+  .steps span.active{ background:var(--blue); }
+
+  /* ---- quiz step ---- */
+  .quiz-q{ margin-bottom:26px; }
+  .quiz-q .qtitle{ font-size:15px; font-weight:600; margin:0 0 12px; }
+  .quiz-options{ display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
+  @media (max-width:560px){ .quiz-options{ grid-template-columns:1fr; } }
+  .quiz-opt{
+    background:#fff; border:1.5px solid var(--line); border-radius:12px;
+    padding:13px 15px; text-align:left; cursor:pointer; color:var(--ink); font-size:14px;
+  }
+  .quiz-opt:hover{ border-color:var(--blue); }
+  .quiz-opt.active{ border-color:var(--blue); background:var(--blue-soft); font-weight:600; }
+  .skip-link{ background:none; border:none; color:var(--ink-soft); font-size:13px; text-decoration:underline; cursor:pointer; padding:0; }
+
+  /* ---- look step ---- */
+  .looks{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:24px; }
+  @media (max-width:720px){ .looks{ grid-template-columns:repeat(2,1fr); } }
+  .look-card{
+    background:#fff; border:1.5px solid var(--line); border-radius:14px; overflow:hidden;
+    cursor:pointer; position:relative; text-align:left;
+  }
+  .look-card:hover{ border-color:var(--blue); }
+  .look-card.active{ border-color:var(--blue); box-shadow:0 0 0 3px var(--blue-soft); }
+  .look-card .swatch{ width:100%; aspect-ratio:4/3; object-fit:cover; display:block; background:var(--panel); }
+  .look-card .info{ padding:10px 12px 12px; }
+  .look-card .name{ font-weight:600; font-size:14px; }
+  .look-card .desc{ font-size:12px; color:var(--ink-soft); margin-top:2px; }
+  .look-badge{
+    position:absolute; top:8px; left:8px; background:var(--gold); color:#fff;
+    font-size:10.5px; font-weight:600; letter-spacing:.03em; padding:4px 8px; border-radius:20px;
+  }
+  .look-selected-strip{ display:flex; align-items:center; gap:10px; margin:0 0 18px; font-size:13.5px; color:var(--ink-soft); }
+  .look-selected-strip img{ width:34px; height:34px; border-radius:7px; object-fit:cover; }
+
+  .strip-block.styled{ background-size:cover; background-position:center; text-shadow:0 1px 3px rgba(0,0,0,.85); }
 </style>
 </head>
 <body>
@@ -163,10 +204,27 @@
     </div>
     <button class="reset-link" id="resetBtn" type="button" title="Hreinsa allt og byrja upp á nýtt">Byrja upp á nýtt</button>
   </div>
-  <p class="lede" id="pageLede">Veldu lögun eldhússins og raðaðu skápum upp — gróf teikning, engin binding. Rakel fer svo yfir og fullkomnar hönnunina með þér.</p>
+  <p class="lede" id="pageLede">Svaraðu nokkrum spurningum, veldu lögun eldhússins og raðaðu skápum upp — gróf teikning, engin binding. Rakel fer svo yfir og fullkomnar hönnunina með þér.</p>
+
+  <div class="steps" id="progressSteps">
+    <span data-s="quiz"></span><span data-s="shape"></span><span data-s="walls"></span><span data-s="look"></span><span data-s="summary"></span>
+  </div>
+
+  <!-- ============ STEP: QUIZ ============ -->
+  <section id="screen-quiz">
+    <div class="screen-title">Hver er þinn stíll?</div>
+    <p class="screen-sub">Svaraðu þessu til að fá tillögu að útliti — þú getur alltaf breytt því sjálf/ur síðar.</p>
+
+    <div id="quizBody"></div>
+
+    <div class="actions">
+      <button class="btn btn-primary" id="toShapeBtn" type="button" disabled>Áfram — lögun eldhúss</button>
+      <button class="skip-link" id="skipQuizBtn" type="button">Sleppa spurningum →</button>
+    </div>
+  </section>
 
   <!-- ============ STEP: SHAPE ============ -->
-  <section id="screen-shape">
+  <section id="screen-shape" hidden>
     <div class="screen-title">Lögun eldhússins</div>
     <p class="screen-sub">Veldu þá lögun sem líkist mest þínu rými. Þú getur breytt lengdunum hvenær sem er.</p>
 
@@ -191,6 +249,7 @@
     <div class="wall-lengths" id="wallLengthFields" hidden></div>
 
     <div class="actions">
+      <button class="btn btn-secondary" id="backToQuizBtn" type="button">← Til baka í spurningar</button>
       <button class="btn btn-primary" id="toWallsBtn" type="button" disabled>Áfram — raða skápum</button>
     </div>
   </section>
@@ -204,6 +263,19 @@
 
     <div class="actions">
       <button class="btn btn-secondary" id="backToShapeBtn" type="button">← Breyta lögun / lengdum</button>
+      <button class="btn btn-primary" id="toLookBtn" type="button" disabled>Áfram — velja stíl</button>
+    </div>
+  </section>
+
+  <!-- ============ STEP: LOOK ============ -->
+  <section id="screen-look" hidden>
+    <div class="screen-title">Veldu stíl</div>
+    <p class="screen-sub">Fjórir efnispakkar sem Björninn vinnur mikið með. Sá sem passar best við svörin þín er merktur.</p>
+
+    <div class="looks" id="lookCards"></div>
+
+    <div class="actions">
+      <button class="btn btn-secondary" id="backToWallsFromLookBtn" type="button">← Halda áfram að raða</button>
       <button class="btn btn-primary" id="toSummaryBtn" type="button" disabled>Sjá yfirlit</button>
     </div>
   </section>
@@ -216,10 +288,10 @@
     <div id="summaryBody"></div>
 
     <div class="actions">
-      <button class="btn btn-secondary" id="backToWallsBtn" type="button">← Halda áfram að raða</button>
+      <button class="btn btn-secondary" id="backToLookBtn" type="button">← Breyta stíl</button>
     </div>
 
-    <div class="callout">Næstu skref (val á stíl/efni og staðfesting með þínum upplýsingum) bætast við hér síðar — að svo stöddu er þetta forskoðun á skipulaginu.</div>
+    <div class="callout">Næstu skref (staðfesting með þínum upplýsingum) bætast við hér síðar — að svo stöddu er þetta forskoðun á skipulaginu.</div>
   </section>
 
 </div>
@@ -242,8 +314,50 @@
     U:        [ { id:"A", label:"Veggur A", defaultLen:1800 }, { id:"B", label:"Bakveggur", defaultLen:3000 }, { id:"C", label:"Veggur C", defaultLen:1800 } ]
   };
 
+  // Fixed tie-break priority when two looks score equal in the quiz.
+  var LOOK_ORDER = ["hvitt", "gratt", "eik", "valhnota"];
+  var LOOKS = {
+    hvitt:    { label:"Hvítt",    img:"materials/hvitt.png",    desc:"Klassískt og bjart",   efnislistiId:"recETAWxGH3R4yYQK" },
+    gratt:    { label:"Grátt",    img:"materials/gratt.png",    desc:"Nútímalegt og hlutlaust", efnislistiId:"recv9klBmrhz3BJJf" },
+    eik:      { label:"Eik",      img:"materials/eik.png",      desc:"Náttúrulegt og ljóst", efnislistiId:"recr7o33yRRU4DqO7" },
+    valhnota: { label:"Valhnota", img:"materials/valhnota.png", desc:"Hlýtt og dökkt",       efnislistiId:"recOwpVNZipD18qME" }
+  };
+
+  var QUIZ = [
+    {
+      q: "Hvernig myndir þú lýsa núverandi heimilinu þínu?",
+      options: [
+        { t:"Bjart og einfalt",         w:{hvitt:2} },
+        { t:"Hlýlegt og notalegt",      w:{valhnota:2, eik:1} },
+        { t:"Stílhreint og nútímalegt", w:{gratt:2} },
+        { t:"Blanda af gömlu og nýju",  w:{eik:2, valhnota:1} }
+      ]
+    },
+    {
+      q: "Hvað skiptir þig mestu máli í eldhúsinu?",
+      options: [
+        { t:"Að það sé bjart og virki stórt",         w:{hvitt:2, gratt:1} },
+        { t:"Að það sé hlýlegt og persónulegt",       w:{valhnota:2, eik:1} },
+        { t:"Að það þoli tímans tönn",                w:{gratt:2, eik:1} },
+        { t:"Náttúruleg efni og áferð",               w:{eik:2, valhnota:1} }
+      ]
+    },
+    {
+      q: "Hvaða lýsingarorð á best við þig?",
+      options: [
+        { t:"Klassísk/ur og tímalaus", w:{hvitt:2} },
+        { t:"Djörf/djarfur og töff",   w:{gratt:2} },
+        { t:"Róleg/ur og náttúruleg/ur", w:{eik:2} },
+        { t:"Hlý/hlýr og lifandi",     w:{valhnota:2} }
+      ]
+    }
+  ];
+
   var state = {
-    step: "shape",
+    step: "quiz",
+    quizAnswers: {},   // {questionIndex: optionIndex}
+    suggestedLook: null,
+    look: null,
     shape: null,
     walls: [] // {id,label,lengthMm, floor:[block], wall:[block]}
   };
@@ -273,6 +387,9 @@
       var parsed = JSON.parse(raw);
       if (!parsed || !parsed.walls) return false;
       state = parsed;
+      if (!state.quizAnswers) state.quizAnswers = {};
+      if (state.suggestedLook === undefined) state.suggestedLook = null;
+      if (state.look === undefined) state.look = null;
       blockSeq = 1;
       state.walls.forEach(function(w){
         w.floor.concat(w.wall).forEach(function(b){
@@ -286,8 +403,50 @@
   function resetAll(){
     if (!confirm("Hreinsa allt skipulagið og byrja upp á nýtt?")) return;
     try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
-    state = { step:"shape", shape:null, walls:[] };
+    state = { step:"quiz", quizAnswers:{}, suggestedLook:null, look:null, shape:null, walls:[] };
     render();
+  }
+
+  // ---------- quiz step ----------
+  function answerQuiz(qIndex, optIndex){
+    state.quizAnswers[qIndex] = optIndex;
+    state.suggestedLook = computeSuggestedLook();
+    save();
+    renderQuiz();
+  }
+
+  function computeSuggestedLook(){
+    var scores = { hvitt:0, gratt:0, eik:0, valhnota:0 };
+    Object.keys(state.quizAnswers).forEach(function(qIndex){
+      var opt = QUIZ[qIndex].options[state.quizAnswers[qIndex]];
+      if (!opt) return;
+      Object.keys(opt.w).forEach(function(key){ scores[key] += opt.w[key]; });
+    });
+    var best = null, bestScore = -1;
+    LOOK_ORDER.forEach(function(key){
+      if (scores[key] > bestScore){ bestScore = scores[key]; best = key; }
+    });
+    return bestScore > 0 ? best : null;
+  }
+
+  function renderQuiz(){
+    var body = document.getElementById("quizBody");
+    body.innerHTML = QUIZ.map(function(q, qIndex){
+      var opts = q.options.map(function(opt, optIndex){
+        var active = state.quizAnswers[qIndex] === optIndex;
+        return '<button class="quiz-opt' + (active ? ' active' : '') + '" data-q="' + qIndex + '" data-opt="' + optIndex + '">' + opt.t + '</button>';
+      }).join("");
+      return '<div class="quiz-q"><p class="qtitle">' + (qIndex + 1) + '. ' + q.q + '</p><div class="quiz-options">' + opts + '</div></div>';
+    }).join("");
+
+    body.querySelectorAll(".quiz-opt").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        answerQuiz(parseInt(btn.dataset.q, 10), parseInt(btn.dataset.opt, 10));
+      });
+    });
+
+    var answered = Object.keys(state.quizAnswers).length;
+    document.getElementById("toShapeBtn").disabled = answered < QUIZ.length;
   }
 
   // ---------- shape step ----------
@@ -379,10 +538,14 @@
 
   function stripHTML(list, wallLenMm){
     var used = usedMm(list);
+    var look = state.look ? LOOKS[state.look] : null;
     var html = list.map(function(b){
       var pct = (b.widthMm / wallLenMm * 100).toFixed(3);
       var c = CATALOG[b.type];
-      return '<div class="strip-block ' + c.cls + '" style="flex:0 0 ' + pct + '%" title="' + c.label + ' · ' + b.widthMm + 'mm">' +
+      var styleAttr = 'flex:0 0 ' + pct + '%';
+      var cls = "strip-block " + c.cls;
+      if (look){ cls += " styled"; styleAttr += "; background-image:url(" + look.img + ")"; }
+      return '<div class="' + cls + '" style="' + styleAttr + '" title="' + c.label + ' · ' + b.widthMm + 'mm">' +
              (b.widthMm >= 260 ? c.label : "") + '</div>';
     }).join("");
     var gapPct = Math.max(0, (wallLenMm - used) / wallLenMm * 100).toFixed(3);
@@ -464,7 +627,36 @@
     });
 
     var totalBlocks = state.walls.reduce(function(s, w){ return s + w.floor.length + w.wall.length; }, 0);
-    document.getElementById("toSummaryBtn").disabled = totalBlocks === 0;
+    document.getElementById("toLookBtn").disabled = totalBlocks === 0;
+  }
+
+  // ---------- look step ----------
+  function selectLook(key){
+    state.look = key;
+    save();
+    renderLook();
+  }
+
+  function renderLook(){
+    var container = document.getElementById("lookCards");
+    container.innerHTML = Object.keys(LOOKS).map(function(key){
+      var l = LOOKS[key];
+      var active = state.look === key;
+      var suggested = !state.look && state.suggestedLook === key;
+      return (
+        '<button type="button" class="look-card' + (active ? ' active' : '') + '" data-look="' + key + '">' +
+          (state.suggestedLook === key ? '<span class="look-badge">Mælt með</span>' : '') +
+          '<img class="swatch" src="' + l.img + '" alt="' + l.label + '">' +
+          '<div class="info"><div class="name">' + l.label + '</div><div class="desc">' + l.desc + '</div></div>' +
+        '</button>'
+      );
+    }).join("");
+
+    container.querySelectorAll(".look-card").forEach(function(card){
+      card.addEventListener("click", function(){ selectLook(card.dataset.look); });
+    });
+
+    document.getElementById("toSummaryBtn").disabled = !state.look;
   }
 
   // ---------- summary step ----------
@@ -472,6 +664,10 @@
     var body = document.getElementById("summaryBody");
     var counts = {};
     var html = "";
+    if (state.look){
+      var l = LOOKS[state.look];
+      html += '<div class="look-selected-strip"><img src="' + l.img + '" alt="' + l.label + '"><span>Valinn stíll: <strong>' + l.label + '</strong> — ' + l.desc + '</span></div>';
+    }
     state.walls.forEach(function(wall){
       var rows = wall.wall.concat(wall.floor);
       if (!rows.length) return;
@@ -515,24 +711,43 @@
     render();
   }
 
-  function render(){
-    document.getElementById("screen-shape").hidden = state.step !== "shape";
-    document.getElementById("screen-walls").hidden = state.step !== "walls";
-    document.getElementById("screen-summary").hidden = state.step !== "summary";
+  var STEP_ORDER = ["quiz", "shape", "walls", "look", "summary"];
 
+  function render(){
+    STEP_ORDER.forEach(function(s){
+      document.getElementById("screen-" + s).hidden = state.step !== s;
+    });
+    var stepIdx = STEP_ORDER.indexOf(state.step);
+    document.querySelectorAll("#progressSteps span").forEach(function(el){
+      var i = STEP_ORDER.indexOf(el.dataset.s);
+      el.classList.toggle("active", i === stepIdx);
+      el.classList.toggle("done", i < stepIdx);
+    });
+
+    if (state.step === "quiz") renderQuiz();
     if (state.step === "shape") renderShapeStep();
     if (state.step === "walls") renderWalls();
+    if (state.step === "look") renderLook();
     if (state.step === "summary") renderSummary();
   }
 
   // ---------- wire top-level controls ----------
+  document.getElementById("toShapeBtn").addEventListener("click", function(){ goto("shape"); });
+  document.getElementById("skipQuizBtn").addEventListener("click", function(){ goto("shape"); });
+  document.getElementById("backToQuizBtn").addEventListener("click", function(){ goto("quiz"); });
+
   document.querySelectorAll("#shapeCards .shape-card").forEach(function(card){
     card.addEventListener("click", function(){ selectShape(card.dataset.shape); });
   });
   document.getElementById("toWallsBtn").addEventListener("click", function(){ goto("walls"); });
   document.getElementById("backToShapeBtn").addEventListener("click", function(){ goto("shape"); });
+
+  document.getElementById("toLookBtn").addEventListener("click", function(){ goto("look"); });
+  document.getElementById("backToWallsFromLookBtn").addEventListener("click", function(){ goto("walls"); });
+
   document.getElementById("toSummaryBtn").addEventListener("click", function(){ goto("summary"); });
-  document.getElementById("backToWallsBtn").addEventListener("click", function(){ goto("walls"); });
+  document.getElementById("backToLookBtn").addEventListener("click", function(){ goto("look"); });
+
   document.getElementById("resetBtn").addEventListener("click", resetAll);
 
   // ---------- init ----------
