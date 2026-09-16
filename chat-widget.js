@@ -86,6 +86,10 @@
     ".bub{max-width:84%;padding:9px 12px;border-radius:12px;font-size:14px;line-height:1.5;white-space:pre-wrap;}",
     ".row.user .bub{background:#3d61c1;color:#fff;border-bottom-right-radius:3px;}",
     ".row.bot .bub{background:#f5f3ea;color:#403d35;border-bottom-left-radius:3px;}",
+    ".links{display:flex;flex-wrap:wrap;gap:6px;max-width:84%;margin:2px 0 0 2px;}",
+    ".links a{font-size:12.5px;font-weight:600;color:#3d61c1;background:#fff;border:1px solid #a29c72;",
+    "border-radius:14px;padding:5px 11px;text-decoration:none;white-space:nowrap;}",
+    ".links a:hover{background:#f5f3ea;}",
     ".typing{display:flex;gap:4px;padding:4px 2px;}",
     ".typing span{width:6px;height:6px;border-radius:50%;background:#a29c72;animation:blink 1.2s infinite ease-in-out;}",
     ".typing span:nth-child(2){animation-delay:.2s;} .typing span:nth-child(3){animation-delay:.4s;}",
@@ -219,6 +223,7 @@
     for (var i = 0; i < transcript.length; i++) {
       var t = transcript[i];
       addRow(t.role, t.text);
+      if (t.links && t.links.length) addLinkChips(t.links);
       if (t.escalate) addEscalateBlock(t.question);
     }
     scrollToBottom();
@@ -237,6 +242,22 @@
 
   function addBotBubble(text) {
     addRow("bot", text);
+    scrollToBottom();
+  }
+
+  function addLinkChips(links) {
+    if (!msgsEl || !links || !links.length) return;
+    var row = document.createElement("div");
+    row.className = "links";
+    for (var i = 0; i < links.length; i++) {
+      var a = document.createElement("a");
+      a.href = links[i].url;
+      a.target = "_blank";
+      a.rel = "noopener";
+      a.textContent = links[i].label;
+      row.appendChild(a);
+    }
+    msgsEl.appendChild(row);
     scrollToBottom();
   }
 
@@ -330,9 +351,11 @@
         typingRow.remove();
         var answer = (data && data.answer) || GENERIC_ERROR;
         var escalate = !!(data && data.escalate);
+        var links = (data && Array.isArray(data.links)) ? data.links : [];
         apiMessages.push({ role: "assistant", content: JSON.stringify({ answer: answer, escalate: escalate }) });
-        transcript.push({ role: "bot", text: answer, escalate: escalate, question: text });
+        transcript.push({ role: "bot", text: answer, escalate: escalate, question: text, links: links });
         addBotBubble(answer);
+        if (links.length) addLinkChips(links);
         if (escalate) addEscalateBlock(text);
       })
       .catch(function () {

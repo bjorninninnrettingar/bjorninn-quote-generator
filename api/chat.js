@@ -1,10 +1,11 @@
 // api/chat.js
-// Phase 1 of the site chatbot widget (see memory: project_chatbot). The
-// widget (Phase 2, not built yet) will POST the full conversation so far —
-// { messages: [{role:"user"|"assistant", content:string}, ...] } — and get
-// back { answer, escalate }. Stateless on purpose: the widget keeps the
-// conversation client-side and resends it each turn, same as any simple
-// chat completion API; there's no server-side session to manage.
+// Site chatbot widget backend (see memory: project_chatbot). chat-widget.js
+// POSTs the full conversation so far —
+// { messages: [{role:"user"|"assistant", content:string}, ...] } — and gets
+// back { answer, escalate, links: [{label,url}] }. Stateless on purpose: the
+// widget keeps the conversation client-side and resends it each turn, same
+// as any simple chat completion API; there's no server-side session to
+// manage.
 //
 // Grounding is entirely the system prompt's job (see
 // _chatbot-faq-prompt.js) — this file never touches FAQ content directly,
@@ -17,7 +18,7 @@
 // to /api/airtable?path=tbltD1UNpqj05WtMx itself once a conversation ends.
 // No second logging endpoint needed.
 
-import { buildSystemPrompt } from "./_chatbot-faq-prompt.js";
+import { buildSystemPrompt, LINKS } from "./_chatbot-faq-prompt.js";
 import { applyCors } from "./_cors.js";
 
 const MODEL = process.env.CHATBOT_MODEL || "claude-haiku-4-5-20251001";
@@ -26,6 +27,12 @@ const MAX_TOKENS = 500;
 // costs a real Claude API call — cheap to check, expensive to skip.
 const MAX_MESSAGES = 20;
 const MAX_MESSAGE_CHARS = 2000;
+const MAX_LINKS = 2;
+// The model can only pick link KEYS out of this table (see
+// _chatbot-faq-prompt.js's "Tenglar sem þú mátt vísa í") — never a free-text
+// URL. Resolving here, from the same table the prompt was built from, means
+// a hallucinated or malformed link can never reach a visitor.
+const LINK_MAP = new Map(LINKS.map((l) => [l.key, { label: l.label, url: l.url }]));
 
 const FALLBACK_ANSWER = "Því miður gat ég ekki svarað þessu núna. Endilega hafðu samband beint.";
 
@@ -117,7 +124,7 @@ function parseModelReply(text) {
       return normalizeReply(JSON.parse(candidate));
     } catch {}
   }
-  return { answer: FALLBACK_ANSWER, escalate: true };
+  return { answer: FALLBACK_ANSWER, escalate: true, links: [] };
 }
 
 function extractFirstJsonObject(text) {
@@ -146,11 +153,20 @@ function extractFirstJsonObject(text) {
 
 function normalizeReply(obj) {
   const hasAnswer = typeof obj.answer === "string" && obj.answer.trim().length > 0;
+  const links = [];
+  if (Array.isArray(obj.links)) {
+    for (const key of obj.links) {
+      const entry = LINK_MAP.get(key);
+      if (entry && !links.some((l) => l.url === entry.url)) links.push(entry);
+      if (links.length >= MAX_LINKS) break;
+    }
+  }
   return {
     answer: hasAnswer ? obj.answer.trim() : FALLBACK_ANSWER,
     // Default to escalating when the field is missing/malformed — safer to
     // over-escalate (an extra "hafðu samband" offer) than to silently drop
     // a question the model couldn't actually answer.
     escalate: typeof obj.escalate === "boolean" ? obj.escalate : true,
+    links: links,
   };
 }

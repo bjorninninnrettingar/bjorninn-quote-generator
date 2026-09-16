@@ -154,6 +154,30 @@ function renderCorpus() {
   }).join("\n\n");
 }
 
+// Real page URLs pulled directly from bjorninninnrettingar.is's own live
+// navigation (not guessed) — the model is only allowed to pick from these
+// keys, never free-text a URL of its own, so a hallucinated/broken link
+// can't reach a visitor. api/chat.js resolves keys to {label,url} itself
+// from this same table (imported, not re-typed) — one source of truth.
+const LINKS = [
+  { key: "efni", label: "Efnisúrval", url: "https://www.bjorninninnrettingar.is/efnis%C3%BArval-innr%C3%A9ttinga", hint: "þegar spurt er um efni, plötur, liti eða sýnishorn" },
+  { key: "ferli", label: "Ferlið fyrir sérsmíði", url: "https://www.bjorninninnrettingar.is/ferli%C3%B0-fyrir-s%C3%A9rsm%C3%AD%C3%B0i", hint: "þegar spurt er um ferlið, skrefin eða hvernig eigi að byrja" },
+  { key: "boka_tima", label: "Bóka tíma í hönnun og ráðgjöf", url: "https://www.bjorninninnrettingar.is/b%C3%B3ka-t%C3%ADma", hint: "þegar svarið nefnir að bóka ráðgjafarfund" },
+  { key: "boka_honnud_heim", label: "Bóka hönnuð heim", url: "https://www.bjorninninnrettingar.is/b%C3%B3ka-h%C3%B6nnu%C3%B0-heim", hint: "sérstaklega þegar spurt er um að fá hönnuð heim til sín" },
+  { key: "eldhus", label: "Eldhúsinnréttingar", url: "https://www.bjorninninnrettingar.is/s%C3%A9rsm%C3%AD%C3%B0u%C3%B0-eldh%C3%BAsinnr%C3%A9tting", hint: "þegar talað er sérstaklega um eldhús" },
+  { key: "fataskapar", label: "Fataskápar", url: "https://www.bjorninninnrettingar.is/s%C3%A9rsm%C3%AD%C3%B0a%C3%B0ir-fatask%C3%A1par", hint: "þegar talað er sérstaklega um fataskápa eða fataherbergi" },
+  { key: "badherbergi", label: "Baðinnréttingar", url: "https://www.bjorninninnrettingar.is/s%C3%A9rsm%C3%AD%C3%B0a%C3%B0ar-ba%C3%B0innr%C3%A9ttingar", hint: "þegar talað er sérstaklega um baðherbergi" },
+  { key: "innihurdir", label: "Innihurðir", url: "https://www.bjorninninnrettingar.is/innihur%C3%B0ir", hint: "þegar spurt er um hurðir" },
+  { key: "holdur", label: "Höldur", url: "https://www.bjorninninnrettingar.is/h%C3%B6ldur", hint: "þegar spurt er um höldur eða handföng" },
+  { key: "fyrirtaeki", label: "Fyrirtækjaþjónusta", url: "https://www.bjorninninnrettingar.is/fyrirt%C3%A6kja%C3%BEj%C3%B3nusta-bjarnarins", hint: "þegar spurt er um fyrirtæki eða sérverkefni" },
+  { key: "um_okkur", label: "Um okkur", url: "https://www.bjorninninnrettingar.is/um-okkur", hint: "þegar spurt er um fyrirtækið sjálft, söguna eða hverjir þau eru" },
+  { key: "samband", label: "Hafðu samband", url: "https://www.bjorninninnrettingar.is/haf%C3%B0u-samband", hint: "þegar besta svarið er að hvetja til beins sambands" },
+];
+
+function renderLinks() {
+  return LINKS.map((l) => `- "${l.key}" (${l.label}) — ${l.hint}`).join("\n");
+}
+
 // Contract with the (not-yet-built) Phase 1 backend: the model replies with
 // ONLY a JSON object, never prose outside it — {"answer": string, "escalate":
 // boolean}. "escalate" is what the widget frontend uses to decide whether to
@@ -178,15 +202,21 @@ export function buildSystemPrompt() {
 
 Skrifaðu stutt, vingjarnlegt svar sem viðurkennir að þú vitir þetta ekki með vissu og að málið verði sent áfram á rétt fólk hjá Birninum. EKKI reyna að svara samt. Ekki þarf að útskýra sjálf(t) "hafðu samband" hlekkinn eða tölvupóstsöfnunina í svarinu — það sér spjallgluggasniðmátið sjálft um að birta, þú setur bara "escalate": true.
 
+## Tenglar sem þú mátt vísa í
+
+Þegar svarið tengist beint einhverju af eftirfarandi, bættu VIÐ EINUM eða TVEIMUR (aldrei fleiri) af lyklunum hér að neðan í "links" fylkið. Notaðu EINGÖNGU lykla úr þessum lista — aldrei nýtt orð, aldrei slóð sem er ekki hér. Ef ekkert á sérstaklega við, skildu "links" eftir sem tómt fylki [].
+
+${renderLinks()}
+
 ## Svarsnið — MJÖG MIKILVÆGT
 
 Svaraðu ALLTAF með EINGÖNGU einum JSON-hlut, ekkert annað fyrir framan eða aftan, ekkert markdown-kóðablokk utan um hann:
 
-{"answer": "<svarið þitt á íslensku, hnitmiðað>", "escalate": true eða false}
+{"answer": "<svarið þitt á íslensku, hnitmiðað>", "escalate": true eða false, "links": ["lykill1", "lykill2"]}
 
 ## Algengar spurningar — gagnasafn (eina leyfilega heimildin)
 
 ${renderCorpus()}`;
 }
 
-export { FAQ_CORPUS };
+export { FAQ_CORPUS, LINKS };
