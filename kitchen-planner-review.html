@@ -111,6 +111,9 @@
     var CATALOG = KP3D.CATALOG, LOOKS = KP3D.LOOKS, HANDLES = KP3D.HANDLES;
     var look = state.look ? LOOKS[state.look] : null;
     var handle = state.handle ? HANDLES[state.handle] : null;
+    var carcass = state.carcass ? KP3D.CARCASS[state.carcass] : null;
+    var drawerSys = state.drawerSystem ? KP3D.DRAWER_SYSTEMS[state.drawerSystem] : null;
+    var intake = state.intake || {};
 
     var rows = [];
     state.walls.forEach(function(wall){
@@ -130,8 +133,15 @@
         '<span>' + esc(f["Netfang 📧"] || "—") + '</span>' +
         '<span>' + esc(f["☎️ Símanúmer"] || "—") + '</span>' +
       '</div>' +
-        (look ? '<p class="note" style="margin:10px 0 0">Valinn stíll: <b>' + esc(look.label) + '</b></p>' : '') +
-        (handle ? '<p class="note" style="margin:4px 0 0">Valin halda: <b>' + esc(handle.label) + '</b></p>' : '') +
+        ((intake.delivery || intake.budget) ? '<p class="note" style="margin:10px 0 0">' +
+          (intake.delivery ? 'Afhending: <b>' + esc(intake.delivery) + '</b>' : '') +
+          (intake.delivery && intake.budget ? ' · ' : '') +
+          (intake.budget ? 'Fjárhagsrammi: <b>' + esc(intake.budget) + '</b>' : '') +
+        '</p>' : '') +
+        (carcass ? '<p class="note" style="margin:8px 0 0">Litur á skrokkum: <b>' + esc(carcass.label) + '</b></p>' : '') +
+        (look ? '<p class="note" style="margin:4px 0 0">Valin framhlið: <b>' + esc(look.label) + '</b></p>' : '') +
+        (handle ? '<p class="note" style="margin:4px 0 0">Valin opnun: <b>' + esc(handle.label) + '</b>' + (handle.isPushOpen ? ' <span class="note">⚠️ Blum Tip-on — veldu réttu vöruna eftir hurð/skúffu</span>' : '') + '</p>' : '') +
+        (drawerSys ? '<p class="note" style="margin:4px 0 0">Skúffukerfi: <b>' + esc(drawerSys.label) + '</b></p>' : '') +
       '</div>' +
       '<div class="view-toggle" id="viewToggle">' +
         '<button type="button" class="active" data-view="3d">🧊 3D</button>' +

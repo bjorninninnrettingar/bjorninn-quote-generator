@@ -310,8 +310,13 @@ const CREATABLE_FIELDS = {
   // Tækifæri linking it, then one Eyðublað per placed cabinet — see
   // FORCED_CREATE_FIELDS below for the fields the client can't set itself.
   "tblQ8zeUanriESWvL": ["Fornafn ⬅️", "Eftirnafn ➡️", "Netfang 📧", "Símanúmer ☎️", "Tegund tengiliðs 👥", "Hvaðan kom viðskiptavinurinn 📥"],
-  "tbl4LMXlQjp66RFKI": ["Tengiliður verkefnis 👤", "Skrokka efni 🔲 viðskiptavinar", "Fronta efni viðskiptavinar 🖼️", "Sjálfsafgreiðsla skipulag (JSON) 📐"],
-  "tbl0WcyHhz63pSzZX": ["Tækifæri 📣", "Heiti rýmis", "Hvað viltu smíða?", "Skápategund", "Breidd", "Hæð", "Dýpt", "Fjöldi eininga", "Grip?", "Skilaboð til Skipulags 📝", "Höldur 1", "Höldur 1 magn", "Hæð ofns", "Töfrahorn útfærsla", "Breidd á töfra front"],
+  // "Skilaboð til skipulags" here carries the Phase 7a intake note (delivery
+  // timeframe / budget bucket) — reuses the same field the review page's
+  // "flag for a call" path already writes to, no new schema.
+  "tbl4LMXlQjp66RFKI": ["Tengiliður verkefnis 👤", "Skrokka efni 🔲 viðskiptavinar", "Fronta efni viðskiptavinar 🖼️", "Sjálfsafgreiðsla skipulag (JSON) 📐", "Skilaboð til skipulags"],
+  // "Skúffutegund" (Phase 7b) is a real 2-choice field (LEGRA/MERIVO), set
+  // the same on every unit — a whole-project hardware choice, not per-cabinet.
+  "tbl0WcyHhz63pSzZX": ["Tækifæri 📣", "Heiti rýmis", "Hvað viltu smíða?", "Skápategund", "Breidd", "Hæð", "Dýpt", "Fjöldi eininga", "Grip?", "Skilaboð til Skipulags 📝", "Höldur 1", "Höldur 1 magn", "Hæð ofns", "Töfrahorn útfærsla", "Breidd á töfra front", "Skúffutegund"],
 };
 
 // Fields forced to a fixed value on create, regardless of what (or whether)

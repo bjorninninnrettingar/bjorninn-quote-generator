@@ -180,7 +180,7 @@
   .steps span.done{ background:var(--gold); }
   .steps span.active{ background:var(--blue); }
 
-  /* ---- quiz step ---- */
+  /* ---- intake step ---- */
   .quiz-q{ margin-bottom:26px; }
   .quiz-q .qtitle{ font-size:15px; font-weight:600; margin:0 0 12px; }
   .quiz-options{ display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
@@ -191,7 +191,19 @@
   }
   .quiz-opt:hover{ border-color:var(--blue); }
   .quiz-opt.active{ border-color:var(--blue); background:var(--blue-soft); font-weight:600; }
+  .quiz-opt:disabled{ opacity:.4; cursor:not-allowed; }
+  .quiz-opt:disabled:hover{ border-color:var(--line); }
   .skip-link{ background:none; border:none; color:var(--ink-soft); font-size:13px; text-decoration:underline; cursor:pointer; padding:0; }
+
+  /* ---- materials step ---- */
+  .mat-section{ margin-bottom:30px; }
+  .mat-section:last-child{ margin-bottom:0; }
+  .mat-section-title{ font-size:15px; font-weight:600; margin:0 0 3px; }
+  .mat-section-sub{ font-size:13px; color:var(--ink-soft); margin:0 0 12px; }
+  .mat-cat-label{ font-size:12px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--gold); margin:14px 0 8px; }
+  .mat-cat-label:first-child{ margin-top:0; }
+  .swatch-color{ width:100%; aspect-ratio:4/3; display:block; }
+  .swatch-glyph{ width:100%; aspect-ratio:4/3; display:flex; align-items:center; justify-content:center; font-size:28px; background:var(--panel); }
 
   /* ---- look step ---- */
   .looks{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:24px; }
@@ -206,10 +218,6 @@
   .look-card .info{ padding:10px 12px 12px; }
   .look-card .name{ font-weight:600; font-size:14px; }
   .look-card .desc{ font-size:12px; color:var(--ink-soft); margin-top:2px; }
-  .look-badge{
-    position:absolute; top:8px; left:8px; background:var(--gold); color:#fff;
-    font-size:10.5px; font-weight:600; letter-spacing:.03em; padding:4px 8px; border-radius:20px;
-  }
   .look-selected-strip{ display:flex; align-items:center; gap:10px; margin:0 0 18px; font-size:13.5px; color:var(--ink-soft); }
   .look-selected-strip img{ width:34px; height:34px; border-radius:7px; object-fit:cover; }
 
@@ -295,15 +303,15 @@
   <p class="lede" id="pageLede">Svaraðu nokkrum spurningum, veldu lögun eldhússins og raðaðu skápum upp — gróf teikning, engin binding. Rakel fer svo yfir og fullkomnar hönnunina með þér.</p>
 
   <div class="steps" id="progressSteps">
-    <span data-s="quiz"></span><span data-s="shape"></span><span data-s="walls"></span><span data-s="look"></span><span data-s="handle"></span><span data-s="summary"></span><span data-s="contact"></span>
+    <span data-s="intake"></span><span data-s="shape"></span><span data-s="walls"></span><span data-s="materials"></span><span data-s="summary"></span><span data-s="contact"></span>
   </div>
 
-  <!-- ============ STEP: QUIZ ============ -->
-  <section id="screen-quiz">
-    <div class="screen-title">Hver er þinn stíll?</div>
-    <p class="screen-sub">Svaraðu þessu til að fá tillögu að útliti — þú getur alltaf breytt því sjálf/ur síðar.</p>
+  <!-- ============ STEP: INTAKE ============ -->
+  <section id="screen-intake">
+    <div class="screen-title">Áður en við byrjum</div>
+    <p class="screen-sub">Þetta hjálpar Rakel að finna lausn sem hentar þínum ramma og tímalínu — engin binding.</p>
 
-    <div id="quizBody"></div>
+    <div id="intakeBody"></div>
 
     <div class="actions">
       <button class="btn btn-primary" id="toShapeBtn" type="button" disabled>Áfram — lögun eldhúss</button>
@@ -337,7 +345,7 @@
     <div class="wall-lengths" id="wallLengthFields" hidden></div>
 
     <div class="actions">
-      <button class="btn btn-secondary" id="backToQuizBtn" type="button">← Til baka í spurningar</button>
+      <button class="btn btn-secondary" id="backToQuizBtn" type="button">← Til baka í upphaf</button>
       <button class="btn btn-primary" id="toWallsBtn" type="button" disabled>Áfram — raða skápum</button>
     </div>
   </section>
@@ -351,32 +359,41 @@
 
     <div class="actions">
       <button class="btn btn-secondary" id="backToShapeBtn" type="button">← Breyta lögun / lengdum</button>
-      <button class="btn btn-primary" id="toLookBtn" type="button" disabled>Áfram — velja stíl</button>
+      <button class="btn btn-primary" id="toLookBtn" type="button" disabled>Áfram — velja efni</button>
     </div>
   </section>
 
-  <!-- ============ STEP: LOOK ============ -->
-  <section id="screen-look" hidden>
-    <div class="screen-title">Veldu stíl</div>
-    <p class="screen-sub">Fjórir efnispakkar sem Björninn vinnur mikið með. Sá sem passar best við svörin þín er merktur.</p>
+  <!-- ============ STEP: MATERIALS ============ -->
+  <section id="screen-materials" hidden>
+    <div class="screen-title">Veldu efni</div>
+    <p class="screen-sub">Þetta er notað á alla skápa — þú getur alltaf breytt þessu með Rakel síðar.</p>
 
-    <div class="looks" id="lookCards"></div>
+    <div class="mat-section">
+      <div class="mat-section-title">Litur á skrokkum</div>
+      <p class="mat-section-sub">Innviðir skápanna — sést t.d. innan í skápum og á hliðum.</p>
+      <div class="looks" id="carcassCards"></div>
+    </div>
+
+    <div class="mat-section">
+      <div class="mat-section-title">Framhliðar</div>
+      <p class="mat-section-sub">Efni og áferð á hurðum/frontum.</p>
+      <div id="lookCards"></div>
+    </div>
+
+    <div class="mat-section">
+      <div class="mat-section-title">Opnun</div>
+      <p class="mat-section-sub">Sama aðferð er notuð á alla skápa. "Falið grip" þýðir ekkert áfast handfang — bara rennt í plötuna.</p>
+      <div class="looks" id="handleCards"></div>
+    </div>
+
+    <div class="mat-section">
+      <div class="mat-section-title">Skúffukerfi</div>
+      <p class="mat-section-sub">Skiptir aðeins máli ef þú bætir við skúffum síðar í ferlinu.</p>
+      <div class="looks" id="drawerSystemCards"></div>
+    </div>
 
     <div class="actions">
       <button class="btn btn-secondary" id="backToWallsFromLookBtn" type="button">← Halda áfram að raða</button>
-      <button class="btn btn-primary" id="toHandleBtn" type="button" disabled>Áfram — velja höldu</button>
-    </div>
-  </section>
-
-  <!-- ============ STEP: HANDLE ============ -->
-  <section id="screen-handle" hidden>
-    <div class="screen-title">Veldu höldu</div>
-    <p class="screen-sub">Sama handfang er notað á alla skápa. "Falið grip" þýðir ekkert áfast handfang — bara rennt í plötuna.</p>
-
-    <div class="looks" id="handleCards"></div>
-
-    <div class="actions">
-      <button class="btn btn-secondary" id="backToLookFromHandleBtn" type="button">← Breyta stíl</button>
       <button class="btn btn-primary" id="toSummaryBtn" type="button" disabled>Sjá í 3D</button>
     </div>
   </section>
@@ -400,7 +417,7 @@
     <div id="summaryBody"></div>
 
     <div class="actions">
-      <button class="btn btn-secondary" id="backToLookBtn" type="button">← Breyta höldu</button>
+      <button class="btn btn-secondary" id="backToLookBtn" type="button">← Breyta efni</button>
       <button class="btn btn-primary" id="toContactBtn" type="button">Áfram — senda inn</button>
     </div>
   </section>
@@ -461,8 +478,10 @@
   var KP3D = window.KP3D;
   var CATALOG = KP3D.CATALOG;
   var LOOKS = KP3D.LOOKS;
+  var LOOK_CATEGORIES = KP3D.LOOK_CATEGORIES;
+  var CARCASS = KP3D.CARCASS;
+  var DRAWER_SYSTEMS = KP3D.DRAWER_SYSTEMS;
   var HANDLES = KP3D.HANDLES;
-  var LOOK_ORDER = KP3D.LOOK_ORDER;
 
   var SHAPES = {
     straight: [ { id:"A", label:"Veggur", defaultLen:3000 } ],
@@ -470,40 +489,29 @@
     U:        [ { id:"A", label:"Veggur A", defaultLen:1800 }, { id:"B", label:"Bakveggur", defaultLen:3000 }, { id:"C", label:"Veggur C", defaultLen:1800 } ]
   };
 
-  var QUIZ = [
-    {
-      q: "Hvernig myndir þú lýsa núverandi heimilinu þínu?",
-      options: [
-        { t:"Bjart og einfalt",         w:{hvitt:2} },
-        { t:"Hlýlegt og notalegt",      w:{valhnota:2, eik:1} },
-        { t:"Stílhreint og nútímalegt", w:{gratt:2} },
-        { t:"Blanda af gömlu og nýju",  w:{eik:2, valhnota:1} }
-      ]
-    },
-    {
-      q: "Hvað skiptir þig mestu máli í eldhúsinu?",
-      options: [
-        { t:"Að það sé bjart og virki stórt",         w:{hvitt:2, gratt:1} },
-        { t:"Að það sé hlýlegt og persónulegt",       w:{valhnota:2, eik:1} },
-        { t:"Að það þoli tímans tönn",                w:{gratt:2, eik:1} },
-        { t:"Náttúruleg efni og áferð",               w:{eik:2, valhnota:1} }
-      ]
-    },
-    {
-      q: "Hvaða lýsingarorð á best við þig?",
-      options: [
-        { t:"Klassísk/ur og tímalaus", w:{hvitt:2} },
-        { t:"Djörf/djarfur og töff",   w:{gratt:2} },
-        { t:"Róleg/ur og náttúruleg/ur", w:{eik:2} },
-        { t:"Hlý/hlýr og lifandi",     w:{valhnota:2} }
-      ]
-    }
+  // Practical intake — replaces the old style quiz (Phase 7a). Bucketed
+  // single-select answers, not exact numbers/dates: simpler UI, and a first-
+  // time browser's exact figure isn't reliably meaningful anyway. "Room"
+  // only has one real enabled choice for now (kitchen) — shown anyway so the
+  // "more rooms coming" intent is visible, per the user's own note.
+  var INTAKE_QUESTIONS = [
+    { key:"delivery", q:"Hvenær væri best að fá eldhúsið afhent?",
+      options:["Sem fyrst", "Innan 3ja mánaða", "Eftir 3–6 mánuði", "Er ekki að flýta mér"] },
+    { key:"budget", q:"Hvert er áætlað fjárhagsrými fyrir verkefnið?",
+      options:["Undir 2 m.kr.", "2–4 m.kr.", "4–7 m.kr.", "Yfir 7 m.kr.", "Óviss — vil ráðgjöf"] },
+    { key:"room", q:"Hvaða rými ertu að skipuleggja?",
+      options:[
+        { t:"Eldhús", enabled:true },
+        { t:"Fataherbergi / skápar", enabled:false, note:"kemur síðar" },
+        { t:"Baðherbergi", enabled:false, note:"kemur síðar" }
+      ] }
   ];
 
   var state = {
-    step: "quiz",
-    quizAnswers: {},   // {questionIndex: optionIndex}
-    suggestedLook: null,
+    step: "intake",
+    intake: { delivery:null, budget:null, room:"Eldhús" },
+    carcass: null,
+    drawerSystem: null,
     look: null,
     handle: null,
     shape: null,
@@ -537,10 +545,14 @@
       var parsed = JSON.parse(raw);
       if (!parsed || !parsed.walls) return false;
       state = parsed;
-      if (!state.quizAnswers) state.quizAnswers = {};
-      if (state.suggestedLook === undefined) state.suggestedLook = null;
+      if (!state.intake) state.intake = { delivery:null, budget:null, room:"Eldhús" };
+      if (state.carcass === undefined) state.carcass = null;
+      if (state.drawerSystem === undefined) state.drawerSystem = null;
       if (state.look === undefined) state.look = null;
       if (state.handle === undefined) state.handle = null;
+      // Old drafts may be mid-step in steps that no longer exist.
+      if (state.step === "quiz") state.step = "intake";
+      if (state.step === "look" || state.step === "handle") state.step = "materials";
       blockSeq = 1;
       state.walls.forEach(function(w){
         w.floor.concat(w.wall).forEach(function(b){
@@ -555,50 +567,36 @@
     if (!confirm("Hreinsa allt skipulagið og byrja upp á nýtt?")) return;
     KP3D.teardown3D();
     try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
-    state = { step:"quiz", quizAnswers:{}, suggestedLook:null, look:null, handle:null, shape:null, walls:[] };
+    state = { step:"intake", intake:{delivery:null,budget:null,room:"Eldhús"}, carcass:null, drawerSystem:null, look:null, handle:null, shape:null, walls:[] };
     render();
   }
 
-  // ---------- quiz step ----------
-  function answerQuiz(qIndex, optIndex){
-    state.quizAnswers[qIndex] = optIndex;
-    state.suggestedLook = computeSuggestedLook();
+  // ---------- intake step ----------
+  function answerIntake(key, value){
+    state.intake[key] = value;
     save();
-    renderQuiz();
+    renderIntake();
   }
 
-  function computeSuggestedLook(){
-    var scores = { hvitt:0, gratt:0, eik:0, valhnota:0 };
-    Object.keys(state.quizAnswers).forEach(function(qIndex){
-      var opt = QUIZ[qIndex].options[state.quizAnswers[qIndex]];
-      if (!opt) return;
-      Object.keys(opt.w).forEach(function(key){ scores[key] += opt.w[key]; });
-    });
-    var best = null, bestScore = -1;
-    LOOK_ORDER.forEach(function(key){
-      if (scores[key] > bestScore){ bestScore = scores[key]; best = key; }
-    });
-    return bestScore > 0 ? best : null;
-  }
-
-  function renderQuiz(){
-    var body = document.getElementById("quizBody");
-    body.innerHTML = QUIZ.map(function(q, qIndex){
-      var opts = q.options.map(function(opt, optIndex){
-        var active = state.quizAnswers[qIndex] === optIndex;
-        return '<button class="quiz-opt' + (active ? ' active' : '') + '" data-q="' + qIndex + '" data-opt="' + optIndex + '">' + opt.t + '</button>';
+  function renderIntake(){
+    var body = document.getElementById("intakeBody");
+    body.innerHTML = INTAKE_QUESTIONS.map(function(q, qIndex){
+      var opts = q.options.map(function(opt){
+        var isObj = typeof opt === "object";
+        var label = isObj ? opt.t : opt;
+        var enabled = isObj ? opt.enabled !== false : true;
+        var active = state.intake[q.key] === label;
+        var suffix = isObj && opt.note ? ' <span style="font-weight:400;color:var(--ink-soft);">(' + opt.note + ')</span>' : '';
+        return '<button class="quiz-opt' + (active ? ' active' : '') + '" data-key="' + q.key + '" data-val="' + label + '" ' + (enabled ? "" : "disabled") + '>' + label + suffix + '</button>';
       }).join("");
       return '<div class="quiz-q"><p class="qtitle">' + (qIndex + 1) + '. ' + q.q + '</p><div class="quiz-options">' + opts + '</div></div>';
     }).join("");
 
-    body.querySelectorAll(".quiz-opt").forEach(function(btn){
-      btn.addEventListener("click", function(){
-        answerQuiz(parseInt(btn.dataset.q, 10), parseInt(btn.dataset.opt, 10));
-      });
+    body.querySelectorAll(".quiz-opt:not(:disabled)").forEach(function(btn){
+      btn.addEventListener("click", function(){ answerIntake(btn.dataset.key, btn.dataset.val); });
     });
 
-    var answered = Object.keys(state.quizAnswers).length;
-    document.getElementById("toShapeBtn").disabled = answered < QUIZ.length;
+    document.getElementById("toShapeBtn").disabled = !(state.intake.delivery && state.intake.budget);
   }
 
   // ---------- shape step ----------
@@ -823,50 +821,63 @@
     document.getElementById("toLookBtn").disabled = totalBlocks === 0;
   }
 
-  // ---------- look step ----------
-  function selectLook(key){
-    state.look = key;
-    save();
-    renderLook();
-  }
+  // ---------- materials step (carcass / front / opening / drawers) ----------
+  function selectCarcass(key){ state.carcass = key; save(); renderMaterials(); }
+  function selectLook(key){ state.look = key; save(); renderMaterials(); }
+  function selectHandle(key){ state.handle = key; save(); renderMaterials(); }
+  function selectDrawerSystem(key){ state.drawerSystem = key; save(); renderMaterials(); }
 
-  function renderLook(){
-    var container = document.getElementById("lookCards");
-    container.innerHTML = Object.keys(LOOKS).map(function(key){
-      var l = LOOKS[key];
-      var active = state.look === key;
-      var suggested = !state.look && state.suggestedLook === key;
+  function renderCarcassCards(){
+    var container = document.getElementById("carcassCards");
+    container.innerHTML = Object.keys(CARCASS).map(function(key){
+      var c = CARCASS[key];
+      var active = state.carcass === key;
       return (
-        '<button type="button" class="look-card' + (active ? ' active' : '') + '" data-look="' + key + '">' +
-          (state.suggestedLook === key ? '<span class="look-badge">Mælt með</span>' : '') +
-          '<img class="swatch" src="' + l.img + '" alt="' + l.label + '">' +
-          '<div class="info"><div class="name">' + l.label + '</div><div class="desc">' + l.desc + '</div></div>' +
+        '<button type="button" class="look-card' + (active ? ' active' : '') + '" data-carcass="' + key + '">' +
+          '<div class="swatch-color" style="background:' + c.color3d + ';"></div>' +
+          '<div class="info"><div class="name">' + c.label + '</div></div>' +
         '</button>'
       );
+    }).join("");
+    container.querySelectorAll(".look-card").forEach(function(card){
+      card.addEventListener("click", function(){ selectCarcass(card.dataset.carcass); });
+    });
+  }
+
+  function renderLookCards(){
+    var container = document.getElementById("lookCards");
+    container.innerHTML = LOOK_CATEGORIES.map(function(cat){
+      var keys = Object.keys(LOOKS).filter(function(k){ return LOOKS[k].category === cat.key; });
+      if (!keys.length) return "";
+      var cards = keys.map(function(key){
+        var l = LOOKS[key];
+        var active = state.look === key;
+        var swatch = l.img
+          ? '<img class="swatch" src="' + l.img + '" alt="' + l.label + '">'
+          : '<div class="swatch-glyph">🌳</div>';
+        return (
+          '<button type="button" class="look-card' + (active ? ' active' : '') + '" data-look="' + key + '">' +
+            swatch +
+            '<div class="info"><div class="name">' + l.label + '</div><div class="desc">' + l.desc + '</div></div>' +
+          '</button>'
+        );
+      }).join("");
+      return '<div class="mat-cat-label">' + cat.label + '</div><div class="looks">' + cards + '</div>';
     }).join("");
 
     container.querySelectorAll(".look-card").forEach(function(card){
       card.addEventListener("click", function(){ selectLook(card.dataset.look); });
     });
-
-    document.getElementById("toHandleBtn").disabled = !state.look;
   }
 
-  // ---------- handle step ----------
-  function selectHandle(key){
-    state.handle = key;
-    save();
-    renderHandle();
-  }
-
-  function renderHandle(){
+  function renderHandleCards(){
     var container = document.getElementById("handleCards");
     container.innerHTML = Object.keys(HANDLES).map(function(key){
       var h = HANDLES[key];
       var active = state.handle === key;
       var swatch = h.img
         ? '<img class="swatch" src="' + h.img + '" alt="' + h.label + '">'
-        : '<div class="swatch" style="display:flex;align-items:center;justify-content:center;font-size:28px;">▭</div>';
+        : '<div class="swatch-glyph">▭</div>';
       return (
         '<button type="button" class="look-card' + (active ? ' active' : '') + '" data-handle="' + key + '">' +
           swatch +
@@ -878,8 +889,31 @@
     container.querySelectorAll(".look-card").forEach(function(card){
       card.addEventListener("click", function(){ selectHandle(card.dataset.handle); });
     });
+  }
 
-    document.getElementById("toSummaryBtn").disabled = !state.handle;
+  function renderDrawerSystemCards(){
+    var container = document.getElementById("drawerSystemCards");
+    container.innerHTML = Object.keys(DRAWER_SYSTEMS).map(function(key){
+      var d = DRAWER_SYSTEMS[key];
+      var active = state.drawerSystem === key;
+      return (
+        '<button type="button" class="look-card' + (active ? ' active' : '') + '" data-drawersys="' + key + '">' +
+          '<div class="swatch-glyph">🗄️</div>' +
+          '<div class="info"><div class="name">' + d.label + '</div><div class="desc">' + d.desc + '</div></div>' +
+        '</button>'
+      );
+    }).join("");
+    container.querySelectorAll(".look-card").forEach(function(card){
+      card.addEventListener("click", function(){ selectDrawerSystem(card.dataset.drawersys); });
+    });
+  }
+
+  function renderMaterials(){
+    renderCarcassCards();
+    renderLookCards();
+    renderHandleCards();
+    renderDrawerSystemCards();
+    document.getElementById("toSummaryBtn").disabled = !(state.carcass && state.look && state.handle && state.drawerSystem);
   }
 
   // ---------- 3D / 2D view (rendering itself lives in kitchen-planner-3d.js,
@@ -1048,15 +1082,25 @@
     var body = document.getElementById("summaryBody");
     var counts = {};
     var html = "";
+    if (state.carcass){
+      var cc = CARCASS[state.carcass];
+      html += '<div class="look-selected-strip"><span style="display:inline-block;width:34px;height:34px;border-radius:7px;background:' + cc.color3d + ';"></span><span>Litur á skrokkum: <strong>' + cc.label + '</strong></span></div>';
+    }
     if (state.look){
       var l = LOOKS[state.look];
-      html += '<div class="look-selected-strip"><img src="' + l.img + '" alt="' + l.label + '"><span>Valinn stíll: <strong>' + l.label + '</strong> — ' + l.desc + '</span></div>';
+      html += '<div class="look-selected-strip">' +
+        (l.img ? '<img src="' + l.img + '" alt="' + l.label + '">' : '') +
+        '<span>Valin framhlið: <strong>' + l.label + '</strong> — ' + l.desc + '</span></div>';
     }
     if (state.handle){
       var h = HANDLES[state.handle];
       html += '<div class="look-selected-strip">' +
         (h.img ? '<img src="' + h.img + '" alt="' + h.label + '">' : '') +
-        '<span>Valin halda: <strong>' + h.label + '</strong> — ' + h.desc + '</span></div>';
+        '<span>Valin opnun: <strong>' + h.label + '</strong> — ' + h.desc + '</span></div>';
+    }
+    if (state.drawerSystem){
+      var ds = DRAWER_SYSTEMS[state.drawerSystem];
+      html += '<div class="look-selected-strip"><span>Skúffukerfi: <strong>' + ds.label + '</strong></span></div>';
     }
     state.walls.forEach(function(wall){
       var rows = wall.wall.concat(wall.floor);
@@ -1105,7 +1149,8 @@
     render();
   }
 
-  var STEP_ORDER = ["quiz", "shape", "walls", "look", "handle", "summary", "contact", "done"];
+  var STEP_ORDER = ["intake", "shape", "walls", "materials", "summary", "contact", "done"];
+  // "materials" is the step name; its screen element is still #screen-materials.
 
   function render(){
     STEP_ORDER.forEach(function(s){
@@ -1118,20 +1163,23 @@
       el.classList.toggle("done", i < stepIdx);
     });
 
-    if (state.step === "quiz") renderQuiz();
+    if (state.step === "intake") renderIntake();
     if (state.step === "shape") renderShapeStep();
     if (state.step === "walls") renderWalls();
-    if (state.step === "look") renderLook();
-    if (state.step === "handle") renderHandle();
+    if (state.step === "materials") renderMaterials();
     if (state.step === "summary"){ renderSummary(); renderEditPanel(); viewMode = "3d"; renderView(); }
   }
 
   // ---------- contact + submit ----------
   var PROXY_URL = "/api/airtable";
-  // Standard carcass material shared by all 4 looks (Plastl spónapl 16mm
-  // U963 dökkgrá ST2) — see the Phase 0 memory writeup for how this was
-  // picked (by far the most-used carcass across real projects).
-  var CARCASS_EFNISLISTI_ID = "recOz5NQJs6mCBpkq";
+
+  function intakeNote(){
+    // Values like "2–4 m.kr." already end in a period — don't double it up.
+    var lines = [];
+    if (state.intake.delivery) lines.push("Æskileg afhending: " + state.intake.delivery);
+    if (state.intake.budget) lines.push("Áætlað fjárhagsrými: " + state.intake.budget);
+    return lines.join(". ");
+  }
 
   async function airtableCreate(table, fields){
     var r = await fetch(PROXY_URL + "?path=" + encodeURIComponent(table), {
@@ -1162,6 +1210,7 @@
   function collectEyðublaðRows(){
     var rows = [];
     var handle = state.handle ? HANDLES[state.handle] : null;
+    var drawerSys = state.drawerSystem ? DRAWER_SYSTEMS[state.drawerSystem] : null;
     state.walls.forEach(function(wall){
       wall.floor.concat(wall.wall).forEach(function(b){
         var c = CATALOG[b.type];
@@ -1183,16 +1232,27 @@
           fields["Töfrahorn útfærsla"] = [c.tofrahornId];
           fields["Breidd á töfra front"] = b.widthMm;
         }
+        if (drawerSys){
+          fields["Skúffutegund"] = drawerSys.airtableName;
+        }
+        var notes = [];
         if (handle && handle.vorulistiId){
           // A real physical handle — no milled grip channel on the panel.
           fields["Höldur 1"] = [handle.vorulistiId];
           fields["Höldur 1 magn"] = 1;
+        } else if (handle && handle.isPushOpen){
+          // Real Blum Tip-on products exist for both doors and drawers —
+          // which exact SKU applies is Rakel's own judgment per cabinet, so
+          // this writes a plain note instead of guessing a product link.
+          notes.push("Viðskiptavinur óskar eftir þrýstiopnun (Blum Tip-on) í stað handfangs — vinsamlegast veldu réttu vöruna eftir hurð/skúffu.");
         } else {
           fields["Grip?"] = "Fræst grip lárétt";
         }
         if (b.interior && b.interior.mode === "skuffur"){
-          fields["Skilaboð til Skipulags 📝"] =
-            "Viðskiptavinur óskar eftir skúffum (" + b.interior.count + " stk) í stað hilla — vinsamlegast staðfestu skúffuhæðir.";
+          notes.push("Viðskiptavinur óskar eftir skúffum (" + b.interior.count + " stk) í stað hilla — vinsamlegast staðfestu skúffuhæðir.");
+        }
+        if (notes.length){
+          fields["Skilaboð til Skipulags 📝"] = notes.join(" ");
         }
         rows.push(fields);
       });
@@ -1217,11 +1277,16 @@
       });
 
       var lookRec = state.look ? LOOKS[state.look] : null;
+      var carcassRec = state.carcass ? CARCASS[state.carcass] : null;
+      var note = intakeNote();
       var opp = await airtableCreate("tbl4LMXlQjp66RFKI", Object.assign({
-        "Tengiliður verkefnis 👤": [contact.id],
-        "Skrokka efni 🔲 viðskiptavinar": [CARCASS_EFNISLISTI_ID]
-      }, lookRec ? {
+        "Tengiliður verkefnis 👤": [contact.id]
+      }, carcassRec ? {
+        "Skrokka efni 🔲 viðskiptavinar": [carcassRec.efnislistiId]
+      } : {}, lookRec ? {
         "Fronta efni viðskiptavinar 🖼️": [lookRec.efnislistiId]
+      } : {}, note ? {
+        "Skilaboð til skipulags": note
       } : {}, {
         "Sjálfsafgreiðsla skipulag (JSON) 📐": JSON.stringify(state)
       }));
@@ -1234,7 +1299,7 @@
 
       KP3D.teardown3D();
       try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
-      state = { step:"done", quizAnswers:{}, suggestedLook:null, look:null, handle:null, shape:null, walls:[] };
+      state = { step:"done", intake:{delivery:null,budget:null,room:"Eldhús"}, carcass:null, drawerSystem:null, look:null, handle:null, shape:null, walls:[] };
       render();
     }catch(e){
       errEl.textContent = "Eitthvað fór úrskeiðis við að senda inn. Prófaðu aftur — " + e.message;
@@ -1255,14 +1320,11 @@
   document.getElementById("toWallsBtn").addEventListener("click", function(){ goto("walls"); });
   document.getElementById("backToShapeBtn").addEventListener("click", function(){ goto("shape"); });
 
-  document.getElementById("toLookBtn").addEventListener("click", function(){ goto("look"); });
+  document.getElementById("toLookBtn").addEventListener("click", function(){ goto("materials"); });
   document.getElementById("backToWallsFromLookBtn").addEventListener("click", function(){ goto("walls"); });
 
-  document.getElementById("toHandleBtn").addEventListener("click", function(){ goto("handle"); });
-  document.getElementById("backToLookFromHandleBtn").addEventListener("click", function(){ goto("look"); });
-
   document.getElementById("toSummaryBtn").addEventListener("click", function(){ goto("summary"); });
-  document.getElementById("backToLookBtn").addEventListener("click", function(){ goto("handle"); });
+  document.getElementById("backToLookBtn").addEventListener("click", function(){ goto("materials"); });
   document.getElementById("toContactBtn").addEventListener("click", function(){ goto("contact"); });
   document.getElementById("backToSummaryBtn").addEventListener("click", function(){ goto("summary"); });
   document.getElementById("submitBtn").addEventListener("click", function(){

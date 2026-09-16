@@ -21,8 +21,18 @@
                    skapategundOverride:"Grunnskápur", tofrahornId:"rec9PD5fCZGUpwAon" }
   };
 
-  // Fixed tie-break priority when two looks score equal in the quiz.
-  var LOOK_ORDER = ["hvitt", "gratt", "eik", "valhnota"];
+  // Fixed tie-break priority, kept for display ordering (the style quiz that
+  // used this for scoring was removed — see Phase 7a).
+  var LOOK_ORDER = ["hvitt", "gratt", "eik", "valhnota", "sponn"];
+  // Front-material categories, matching how the user thinks about them
+  // (Phase 7b): real veneer / melamine wood-look / Perfect Sense solid color.
+  // Purely a UI grouping — every LOOKS entry still maps to one real
+  // Efnislisti record either way.
+  var LOOK_CATEGORIES = [
+    { key:"sponn",         label:"Viðarspónn" },
+    { key:"melamine-wood", label:"Plastspónn — viðaráferð" },
+    { key:"perfectsense",  label:"Perfect Sense — litað" }
+  ];
   // `color3d` is the material's real average color (sampled directly from its
   // own photo, not guessed) — used as a flat color on 3D/2D cabinet faces. The
   // photos themselves are angled product shots with visible background, which
@@ -30,10 +40,33 @@
   // pasted onto another 3D box reads as a floating, wrongly-shaped patch) —
   // they stay as the actual images only on the 2D look-picker cards.
   var LOOKS = {
-    hvitt:    { label:"Hvítt",    img:"materials/hvitt.png",    color3d:"#fffef9", desc:"Klassískt og bjart",   efnislistiId:"recETAWxGH3R4yYQK" },
-    gratt:    { label:"Grátt",    img:"materials/gratt.png",    color3d:"#e3dcd0", desc:"Nútímalegt og hlutlaust", efnislistiId:"recv9klBmrhz3BJJf" },
-    eik:      { label:"Eik",      img:"materials/eik.png",      color3d:"#ccae8b", desc:"Náttúrulegt og ljóst", efnislistiId:"recr7o33yRRU4DqO7" },
-    valhnota: { label:"Valhnota", img:"materials/valhnota.png", color3d:"#765e48", desc:"Hlýtt og dökkt",       efnislistiId:"recOwpVNZipD18qME" }
+    hvitt:    { label:"Hvítt",    img:"materials/hvitt.png",    color3d:"#fffef9", desc:"Klassískt og bjart",   efnislistiId:"recETAWxGH3R4yYQK", category:"perfectsense" },
+    gratt:    { label:"Grátt",    img:"materials/gratt.png",    color3d:"#e3dcd0", desc:"Nútímalegt og hlutlaust", efnislistiId:"recv9klBmrhz3BJJf", category:"perfectsense" },
+    eik:      { label:"Eik",      img:"materials/eik.png",      color3d:"#ccae8b", desc:"Náttúrulegt og ljóst", efnislistiId:"recr7o33yRRU4DqO7", category:"melamine-wood" },
+    valhnota: { label:"Valhnota", img:"materials/valhnota.png", color3d:"#765e48", desc:"Hlýtt og dökkt",       efnislistiId:"recOwpVNZipD18qME", category:"melamine-wood" },
+    // Real Spónlagt (veneer) record — no product-photo swatch exists on this
+    // one in Efnislisti (only a generic placeholder icon), so this stays a
+    // text/glyph card like "Falið grip" rather than showing a fake photo.
+    // Áferð/litun (smoked, bleached, etc.) gets refined with Rakel, not here.
+    sponn:    { label:"Eik spónn", img:null, color3d:"#b89268", desc:"Alvöru viðarspónn — áferð og litun farið yfir með Rakel", efnislistiId:"recC4sVQ9NkQZTNkk", category:"sponn" }
+  };
+
+  // Carcass (skrokkur) color — Phase 7b: previously hardcoded to dökkgrátt
+  // for every project, now customer-selectable. All 3 are real, already-
+  // stocked Efnislisti records (Undirflokkur=Skrokka efni) — no new material
+  // needed. dokkgra is the historical default (98 real projects).
+  var CARCASS = {
+    dokkgra: { label:"Dökkgrátt", color3d:"#4a4946", efnislistiId:"recOz5NQJs6mCBpkq" },
+    hvit:    { label:"Hvítt",     color3d:"#f3f1ea", efnislistiId:"rech0E8IbKuuSzeHU" },
+    ljosgra: { label:"Ljósgrátt", color3d:"#c7c4ba", efnislistiId:"recAuDUx94oKtjeQQ" }
+  };
+
+  // Drawer runner system — real Eyðublað "Skúffutegund" field, exactly these
+  // 2 choices. Project-wide like look/handle/carcass (you wouldn't mix
+  // runner brands in one kitchen), not per-cabinet.
+  var DRAWER_SYSTEMS = {
+    legra:  { label:"Legra",  desc:"Skúffukerfi sem Björninn notar reglulega.", airtableName:"LEGRA" },
+    merivo: { label:"Merivo", desc:"Annað skúffukerfi í boði hjá Birninum.",   airtableName:"MERIVO" }
   };
 
   // A curated 5 of Vörulisti's 100+ "Höldur" products (no usage/popularity
@@ -48,7 +81,14 @@
     ona:    { label:"Ona", img:"handles/ona.jpg", desc:"Klassískt langt stanghandfang", vorulistiId:"rec0vFCmgfSb4pn7Q" },
     jey2:   { label:"Jey2 Ál grip", img:"handles/jey2.jpg", desc:"Nútímalegt álprófíl-grip", vorulistiId:"recB9WZg6CXM0xZrZ" },
     arpa:   { label:"Arpa hnúður", img:"handles/arpa.png", desc:"Einfaldur hnúður", vorulistiId:"rec3cjIwV84443gre" },
-    hexxa:  { label:"Hexxa Ál grip", img:"handles/hexxa.jpg", desc:"Grannt álprófíl-grip", vorulistiId:"rec9YdI6ECx0pxkPA" }
+    hexxa:  { label:"Hexxa Ál grip", img:"handles/hexxa.jpg", desc:"Grannt álprófíl-grip", vorulistiId:"rec9YdI6ECx0pxkPA" },
+    // Real Blum Tip-on products exist for both doors and drawers (several
+    // door variants + one drawer variant) — which exact SKU applies depends
+    // on Rakel's own door/drawer judgment per cabinet, so this doesn't try to
+    // fake that precision. It writes a plain note instead (see
+    // collectEyðublaðRows in kitchen-planner.html), same pattern as the
+    // shelves-vs-drawers note. `isPushOpen` flags that branch.
+    push:   { label:"Þrýstiopnun (Blum Tip-on)", img:"handles/push-open.jpg", desc:"Ekkert sýnilegt handfang eða grip — ýtt létt á framhliðina til að opna", vorulistiId:null, isPushOpen:true }
   };
 
   // Hardcoded per-shape wall layout: each wall's start point, its own axis
@@ -301,7 +341,8 @@
     var OrbitControls = window.__OrbitControls__;
 
     var geoms = wallGeometry3D(state.shape, state.walls);
-    var carcassMat = new THREE.MeshStandardMaterial({ color:0x3a3a3a, roughness:0.9 });
+    var carcass = state.carcass ? CARCASS[state.carcass] : null;
+    var carcassMat = new THREE.MeshStandardMaterial({ color: carcass ? carcass.color3d : "#3a3a3a", roughness:0.9 });
     var wallMat = new THREE.MeshStandardMaterial({ color:0xf1efe8, roughness:1, side:THREE.DoubleSide });
     var floorMat = new THREE.MeshStandardMaterial({ color:0xd8d3c6, roughness:1 });
 
@@ -482,6 +523,9 @@
     CATALOG: CATALOG,
     LOOKS: LOOKS,
     LOOK_ORDER: LOOK_ORDER,
+    LOOK_CATEGORIES: LOOK_CATEGORIES,
+    CARCASS: CARCASS,
+    DRAWER_SYSTEMS: DRAWER_SYSTEMS,
     HANDLES: HANDLES,
     wallGeometry3D: wallGeometry3D,
     hasWebGL: hasWebGL,
