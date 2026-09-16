@@ -130,6 +130,10 @@
     border-right:1px solid rgba(255,255,255,.35);
   }
   .strip-gap{ background:repeating-linear-gradient(45deg,#f4f2ec,#f4f2ec 6px,#efece3 6px,#efece3 12px); }
+  .strip-corner{
+    background:repeating-linear-gradient(45deg,#fbebe7,#fbebe7 6px,#f3d9d2 6px,#f3d9d2 12px);
+    color:var(--danger); font-size:10px;
+  }
   .strip-block.tall{ background:var(--tall); }
   .strip-block.oven{ background:var(--oven); }
   .strip-block.corner{ background:var(--corner); }
@@ -709,11 +713,15 @@
   }
 
   // ---------- walls step ----------
+  function cornerClearance(wall, zoneKey){
+    return KP3D.cornerClearanceMm(state.walls, state.walls.indexOf(wall), zoneKey);
+  }
+
   function addBlock(wall, type){
     var c = CATALOG[type];
     var list = wall[c.zone];
     var used = usedMm(list);
-    var remaining = wall.lengthMm - used;
+    var remaining = wall.lengthMm - cornerClearance(wall, c.zone) - used;
     if (remaining < c.minW){
       toast("Ekki nóg pláss á " + wall.label.toLowerCase() + " fyrir " + c.label.toLowerCase() + ".");
       return;
@@ -746,7 +754,7 @@
     var b = list.find(function(x){ return x.id === id; });
     if (!b) return;
     var others = usedMm(list) - b.widthMm;
-    var maxAllowed = Math.min(CATALOG[b.type].maxW, wall.lengthMm - others);
+    var maxAllowed = Math.min(CATALOG[b.type].maxW, wall.lengthMm - cornerClearance(wall, zone) - others);
     var w = clampWidth(b.type, val);
     w = Math.min(w, Math.max(CATALOG[b.type].minW, maxAllowed));
     b.widthMm = w;
@@ -754,10 +762,16 @@
     renderWalls();
   }
 
-  function stripHTML(list, wallLenMm){
+  function stripHTML(list, wallLenMm, clearanceMm){
     var used = usedMm(list);
     var look = state.look ? LOOKS[state.look] : null;
-    var html = list.map(function(b){
+    var html = "";
+    if (clearanceMm > 0){
+      var clearPct = (clearanceMm / wallLenMm * 100).toFixed(3);
+      html += '<div class="strip-block strip-corner" style="flex:0 0 ' + clearPct + '%" title="' +
+        clearanceMm + ' mm frátekið fyrir horn — skápur á hinum veggnum nær hingað inn">⟟ horn</div>';
+    }
+    html += list.map(function(b){
       var pct = (b.widthMm / wallLenMm * 100).toFixed(3);
       var c = CATALOG[b.type];
       var styleAttr = 'flex:0 0 ' + pct + '%';
@@ -766,8 +780,8 @@
       return '<div class="' + cls + '" style="' + styleAttr + '" title="' + c.label + ' · ' + b.widthMm + 'mm">' +
              (b.widthMm >= 260 ? c.label : "") + '</div>';
     }).join("");
-    var gapPct = Math.max(0, (wallLenMm - used) / wallLenMm * 100).toFixed(3);
-    if (wallLenMm - used > 1){
+    var gapPct = Math.max(0, (wallLenMm - clearanceMm - used) / wallLenMm * 100).toFixed(3);
+    if (wallLenMm - clearanceMm - used > 1){
       html += '<div class="strip-block strip-gap" style="flex:0 0 ' + gapPct + '%"></div>';
     }
     return html;
@@ -823,7 +837,8 @@
   function zoneHTML(wall, zoneKey, title, addTypes){
     var list = wall[zoneKey];
     var used = usedMm(list);
-    var remaining = wall.lengthMm - used;
+    var clearance = cornerClearance(wall, zoneKey);
+    var remaining = wall.lengthMm - clearance - used;
     var addBtns = addTypes.map(function(type){
       var c = CATALOG[type];
       var disabled = remaining < c.minW ? "disabled" : "";
@@ -834,11 +849,12 @@
       ? '<div class="blocklist" data-wall="' + wall.id + '" data-zone="' + zoneKey + '">' + list.map(function(b){ return blockRowHTML(wall, zoneKey, b); }).join("") + '</div>'
       : '<div class="empty-note">Ekkert bætt við hér ennþá.</div>';
 
+    var clearanceNote = clearance > 0 ? " (þar af " + clearance + " mm frátekið fyrir horn)" : "";
     return (
       '<div class="zone zone-' + zoneKey + '">' +
         '<div class="zone-label-row"><span class="zone-label">' + title + '</span><div class="zone-add">' + addBtns + '</div></div>' +
-        '<div class="strip">' + stripHTML(list, wall.lengthMm) + '</div>' +
-        '<p class="meter-note' + (remaining < 1 ? ' full' : '') + '">' + used + ' / ' + wall.lengthMm + ' mm notað' + (remaining < 1 ? " — veggur fullur" : ", " + remaining + " mm laust") + '</p>' +
+        '<div class="strip">' + stripHTML(list, wall.lengthMm, clearance) + '</div>' +
+        '<p class="meter-note' + (remaining < 1 ? ' full' : '') + '">' + used + ' / ' + wall.lengthMm + ' mm notað' + (remaining < 1 ? " — veggur fullur" : ", " + remaining + " mm laust") + clearanceNote + '</p>' +
         rows +
       '</div>'
     );
@@ -1125,7 +1141,7 @@
     if (!newWall || newWall.id === found.wall.id) return;
     var list = newWall[found.zone];
     var used = usedMm(list);
-    var remaining = newWall.lengthMm - used;
+    var remaining = newWall.lengthMm - cornerClearance(newWall, found.zone) - used;
     if (remaining < found.block.widthMm){
       toast("Ekki nóg pláss á " + newWall.label.toLowerCase() + ".");
       return;

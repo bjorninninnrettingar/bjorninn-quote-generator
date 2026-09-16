@@ -134,6 +134,31 @@
     return geoms;
   }
 
+  // Corner-overlap fix (Phase 7d-2): a floor cabinet's depth projects into
+  // the room along its own wall's normal — at a 90° turn, the previous
+  // wall's last floor cabinet projects exactly along the NEXT wall's own
+  // line, so if that next wall also starts filling from offset 0, the two
+  // cabinets' boxes physically overlap in the shared corner square. Real
+  // kitchen design handles this with a fixed clearance (one wall's cabinets
+  // run flush into the corner, the other's start after leaving room for the
+  // first one's depth) — not full 2D collision geometry. Skipped entirely
+  // when a Töfrahorn (real Le Mans corner unit, `cls:"corner"`) already
+  // occupies either side of the corner, since that hardware is specifically
+  // built to consume the corner itself.
+  var CORNER_CLEARANCE_MM = 600;
+  function cornerClearanceMm(walls, wallIndex, zoneKey){
+    if (zoneKey !== "floor" || wallIndex <= 0) return 0;
+    var prev = walls[wallIndex - 1];
+    if (!prev.turnAfter) return 0;
+    var prevLast = prev.floor[prev.floor.length - 1];
+    if (!prevLast) return 0;
+    var cur = walls[wallIndex];
+    var curFirst = cur.floor[0];
+    if (CATALOG[prevLast.type].cls === "corner") return 0;
+    if (curFirst && CATALOG[curFirst.type].cls === "corner") return 0;
+    return prevLast.depthMm || CATALOG[prevLast.type].d;
+  }
+
   var ROOM_DEPTH_M = 2.4; // assumed walkway/room depth beyond each wall, for floor sizing + camera framing only
   var WALL_CABINET_BASE_M = 1.4; // fixed visualization height for Efriskápur, not stored per-cabinet
 
@@ -370,7 +395,7 @@
     state.walls.forEach(function(wall, wi){
       var g = geoms[wi];
       if (!g) return;
-      var offset = 0;
+      var offset = cornerClearanceMm(state.walls, wi, "floor");
       wall.floor.forEach(function(b){
         var c = CATALOG[b.type];
         var hM = Math.min(b.heightMm || c.h, roomHeightMm) / 1000, dM = (b.depthMm || c.d) / 1000;
@@ -505,7 +530,7 @@
     state.walls.forEach(function(wall, wi){
       var g = geoms[wi];
       if (!g) return;
-      var offset = 0;
+      var offset = cornerClearanceMm(state.walls, wi, "floor");
       wall.floor.forEach(function(bl){ drawCabinetRect(bl, CATALOG[bl.type], g, wall.id, "floor", offset, false); offset += bl.widthMm; });
       offset = 0;
       wall.wall.forEach(function(bl){ drawCabinetRect(bl, CATALOG[bl.type], g, wall.id, "wall", offset, true); offset += bl.widthMm; });
@@ -536,6 +561,7 @@
     DRAWER_SYSTEMS: DRAWER_SYSTEMS,
     HANDLES: HANDLES,
     wallGeometry3D: wallGeometry3D,
+    cornerClearanceMm: cornerClearanceMm,
     hasWebGL: hasWebGL,
     waitForThree: waitForThree,
     buildScene: buildScene,
