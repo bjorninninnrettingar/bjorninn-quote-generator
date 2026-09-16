@@ -69,6 +69,27 @@
     merivo: { label:"Merivo", desc:"Annað skúffukerfi í boði hjá Birninum.",   airtableName:"MERIVO" }
   };
 
+  // Room wall color (Phase 7e) — purely a visualization preference, not a
+  // purchasable material (Björninn doesn't sell paint), so no Efnislisti
+  // link like carcass/front — just a curated hex palette for the 3D/2D
+  // preview. hvitt matches the historical fixed wall color.
+  var WALL_COLORS = {
+    hvitt:   { label:"Hvítt",     hex:"#f1efe8" },
+    ljosgra: { label:"Ljósgrátt", hex:"#d9d6cd" },
+    blatt:   { label:"Ljósblátt", hex:"#cdd9e0" },
+    graent:  { label:"Sölvígrænt",hex:"#d3d9c9" }
+  };
+
+  // Windows/doors (Phase 7e) — room-level openings, not cabinets: fixed
+  // sensible default sizes rather than customer-tunable dimensions, matching
+  // this tool's "rough sketch" positioning (Rakel refines exact placement).
+  // Deliberately independent of cabinet placement — no collision detection
+  // against cabinets on the same wall; real-world conflicts (a window where
+  // a cabinet was about to go) are exactly the kind of judgment call left
+  // for Rakel's review, not something this tool tries to solve.
+  var WINDOW_DEFAULT = { widthMm:1200, heightMm:1000, sillHeightMm:900 };
+  var DOOR_DEFAULT = { widthMm:800, heightMm:2000 };
+
   // A curated 5 of Vörulisti's 100+ "Höldur" products (no usage/popularity
   // field on that table to rank by, unlike Efnislisti's materials — picked
   // by hand for a spread of styles). `vorulistiId` is null for "fraest"
@@ -245,6 +266,30 @@
     scene.add(mesh);
   }
 
+  // Window/door markers (Phase 7e) — a flat panel on the wall's inner face
+  // rather than a true cut hole (no CSG boolean ops in vanilla Three.js;
+  // matches this module's existing "simple textured boxes, not full
+  // realism" approach used for cabinets/handles throughout). `baseYM` is
+  // where the opening starts (sill height for a window, 0 for a door).
+  var WINDOW_MARKER_COLOR = 0xa9c6d6, DOOR_MARKER_COLOR = 0x8a6a4a;
+  function addOpeningMarker(THREE, scene, geom, offsetM, widthM, heightM, baseYM, color, opacity){
+    var mesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(widthM, heightM),
+      new THREE.MeshStandardMaterial({ color:color, roughness:0.5, transparent:true, opacity:opacity, side:THREE.DoubleSide })
+    );
+    var cx = geom.origin.x + geom.axis.x * (offsetM + widthM / 2);
+    var cz = geom.origin.z + geom.axis.z * (offsetM + widthM / 2);
+    var xAxis = new THREE.Vector3(geom.axis.x, 0, geom.axis.z);
+    var yAxis = new THREE.Vector3(0, 1, 0);
+    var zAxis = new THREE.Vector3(geom.normal.x, 0, geom.normal.z);
+    mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis));
+    // Just proud of the wall's inner (room-facing) face — avoids z-fighting
+    // without needing to cut real geometry.
+    var frontOut = 0.005;
+    mesh.position.set(cx + geom.normal.x * frontOut, baseYM + heightM / 2, cz + geom.normal.z * frontOut);
+    scene.add(mesh);
+  }
+
   function addDrawerSeams(THREE, scene, geom, offsetM, widthM, heightM, baseYM, depthM, count){
     if (!count || count < 2) return;
     var xAxis = new THREE.Vector3(geom.axis.x, 0, geom.axis.z);
@@ -372,7 +417,8 @@
     var geoms = wallGeometry3D(state.walls);
     var carcass = state.carcass ? CARCASS[state.carcass] : null;
     var carcassMat = new THREE.MeshStandardMaterial({ color: carcass ? carcass.color3d : "#3a3a3a", roughness:0.9 });
-    var wallMat = new THREE.MeshStandardMaterial({ color:0xf1efe8, roughness:1, side:THREE.DoubleSide });
+    var wallColor = state.wallColor && WALL_COLORS[state.wallColor] ? WALL_COLORS[state.wallColor].hex : "#f1efe8";
+    var wallMat = new THREE.MeshStandardMaterial({ color:wallColor, roughness:1, side:THREE.DoubleSide });
     var floorMat = new THREE.MeshStandardMaterial({ color:0xd8d3c6, roughness:1 });
 
     var scene = new THREE.Scene();
@@ -385,6 +431,23 @@
     var roomHeightMm = state.roomHeightMm || 2600;
     var WALL_H = roomHeightMm / 1000;
     geoms.forEach(function(g){ addWallPlane(THREE, scene, g, WALL_H, wallMat); });
+
+    function geomForWall(wallId){
+      var wi = state.walls.findIndex(function(w){ return w.id === wallId; });
+      return wi === -1 ? null : geoms[wi];
+    }
+    (state.windows || []).forEach(function(win){
+      var g = geomForWall(win.wallId);
+      if (!g) return;
+      addOpeningMarker(THREE, scene, g, win.offsetMm / 1000, win.widthMm / 1000, win.heightMm / 1000,
+        win.sillHeightMm / 1000, WINDOW_MARKER_COLOR, 0.55);
+    });
+    (state.doors || []).forEach(function(door){
+      var g = geomForWall(door.wallId);
+      if (!g) return;
+      addOpeningMarker(THREE, scene, g, door.offsetMm / 1000, door.widthMm / 1000, door.heightMm / 1000,
+        0, DOOR_MARKER_COLOR, 0.85);
+    });
 
     var look = state.look ? LOOKS[state.look] : null;
     var frontMat = new THREE.MeshStandardMaterial({
@@ -516,6 +579,21 @@
       svg += '<text x="' + lx + '" y="' + ly + '" font-size="11" fill="#6f6d66" text-anchor="middle">' + Math.round(g.lenM * 1000) + ' mm</text>';
     });
 
+    // Window/door markers: a thick colored segment over the wall line at
+    // the opening's own span — simpler than drawing a true gap, and this
+    // plan already isn't a precision architectural drawing.
+    function openingSegment(o, dataAttr, color){
+      var g = geoms[state.walls.findIndex(function(w){ return w.id === o.wallId; })];
+      if (!g) return;
+      var offsetM = o.offsetMm / 1000, widthM = o.widthMm / 1000;
+      var x1 = g.origin.x + g.axis.x * offsetM, z1 = g.origin.z + g.axis.z * offsetM;
+      var x2 = g.origin.x + g.axis.x * (offsetM + widthM), z2 = g.origin.z + g.axis.z * (offsetM + widthM);
+      svg += '<line ' + dataAttr + '="' + o.id + '" x1="' + X(x1) + '" y1="' + Y(z1) + '" x2="' + X(x2) + '" y2="' + Y(z2) +
+        '" stroke="' + color + '" stroke-width="7" stroke-linecap="butt" style="cursor:pointer;"/>';
+    }
+    (state.windows || []).forEach(function(w){ openingSegment(w, 'data-window-id', "#5b8fae"); });
+    (state.doors || []).forEach(function(d){ openingSegment(d, 'data-door-id', "#8a6a4a"); });
+
     function drawCabinetRect(bl, c, g, wallId, zone, offsetMm, isWallRow){
       var offsetM = offsetMm / 1000, widthM = bl.widthMm / 1000, depthM = (bl.depthMm || c.d) / 1000;
       var x0 = g.origin.x + g.axis.x * offsetM, z0 = g.origin.z + g.axis.z * offsetM;
@@ -577,6 +655,9 @@
     wallGeometry3D: wallGeometry3D,
     cornerClearanceMm: cornerClearanceMm,
     planTransform: planTransform,
+    WALL_COLORS: WALL_COLORS,
+    WINDOW_DEFAULT: WINDOW_DEFAULT,
+    DOOR_DEFAULT: DOOR_DEFAULT,
     hasWebGL: hasWebGL,
     waitForThree: waitForThree,
     buildScene: buildScene,

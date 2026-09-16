@@ -89,6 +89,15 @@
   .catalog-card.dragging{ opacity:.35; }
   #wallsPlanWrap polygon.drop-hover{ stroke:var(--blue) !important; stroke-width:4 !important; }
   #wallsPlanWrap [data-block-id]{ touch-action:none; }
+  #wallsPlanWrap [data-window-id], #wallsPlanWrap [data-door-id]{ touch-action:none; }
+  .catalog-card .dot.window{ background:#5b8fae; }
+  .catalog-card .dot.door{ background:#8a6a4a; }
+  .opening-row{
+    display:flex; align-items:center; gap:8px; background:#fff; border:1px solid var(--line);
+    border-radius:9px; padding:8px 10px; margin-bottom:8px; font-size:13.5px;
+  }
+  .opening-row .dot{ width:10px; height:10px; border-radius:3px; flex:none; }
+  .opening-row span:nth-child(2){ flex:1; }
   #wallsPlanWrap line.drop-hover{ stroke:var(--blue) !important; }
   .drag-ghost{
     position:fixed; z-index:999; pointer-events:none; left:0; top:0;
@@ -104,6 +113,11 @@
   .wallchain-row .wc-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
   .wallchain-row .wc-label{ font-size:13.5px; font-weight:600; }
   .wallchain-turn{ display:flex; gap:8px; flex-wrap:wrap; margin:10px 0 20px; }
+  .wallcolor-row{ display:flex; gap:10px; margin-bottom:24px; }
+  .wallcolor-swatch{
+    width:44px; height:44px; border-radius:10px; border:2px solid var(--line); cursor:pointer; padding:0;
+  }
+  .wallcolor-swatch.active{ border-color:var(--blue); box-shadow:0 0 0 3px var(--blue-soft); }
 
   .wall-lengths{ display:flex; flex-direction:column; gap:14px; max-width:420px; margin-bottom:24px; }
   .field{ display:flex; flex-direction:column; gap:6px; }
@@ -393,6 +407,12 @@
 
     <div class="wall-lengths" id="wallLengthFields"></div>
 
+    <div class="mat-section">
+      <div class="mat-section-title">Litur á veggjum</div>
+      <p class="mat-section-sub">Bara til að sjá teikninguna eins og hjá þér — ekki hluti af pöntuninni.</p>
+      <div class="wallcolor-row" id="wallColorRow"></div>
+    </div>
+
     <div class="actions">
       <button class="btn btn-secondary" id="backToMaterialsBtn" type="button">← Breyta efni</button>
       <button class="btn btn-primary" id="toWallsBtn" type="button" disabled>Áfram — raða skápum</button>
@@ -407,6 +427,8 @@
     <div class="catalog-bar" id="catalogBar"></div>
 
     <div class="room-preview" id="wallsPlanWrap"></div>
+
+    <div id="openingsList"></div>
 
     <div id="wallCards"></div>
 
@@ -500,6 +522,9 @@
   var CARCASS = KP3D.CARCASS;
   var DRAWER_SYSTEMS = KP3D.DRAWER_SYSTEMS;
   var HANDLES = KP3D.HANDLES;
+  var WALL_COLORS = KP3D.WALL_COLORS;
+  var WINDOW_DEFAULT = KP3D.WINDOW_DEFAULT;
+  var DOOR_DEFAULT = KP3D.DOOR_DEFAULT;
 
   // Practical intake — replaces the old style quiz (Phase 7a). Bucketed
   // single-select answers, not exact numbers/dates: simpler UI, and a first-
@@ -535,8 +560,12 @@
     look: null,
     handle: null,
     roomHeightMm: DEFAULT_ROOM_HEIGHT_MM,
+    wallColor: null,
+    windows: [], // {id, wallId, offsetMm, widthMm, heightMm, sillHeightMm}
+    doors: [],   // {id, wallId, offsetMm, widthMm, heightMm}
     walls: freshWalls() // {id,label,lengthMm,turnAfter, floor:[block], wall:[block]}
   };
+  var openingSeq = 1;
 
   // A cabinet can never render/write taller than the room itself (Phase 7c) —
   // matters for Hárskápur, whose real range tops out at 2600mm.
@@ -583,11 +612,15 @@
       if (state.look === undefined) state.look = null;
       if (state.handle === undefined) state.handle = null;
       if (!state.roomHeightMm) state.roomHeightMm = DEFAULT_ROOM_HEIGHT_MM;
+      if (state.wallColor === undefined) state.wallColor = null;
+      if (!state.windows) state.windows = [];
+      if (!state.doors) state.doors = [];
       // Old drafts may be mid-step in steps that no longer exist.
       if (state.step === "quiz") state.step = "intake";
       if (state.step === "look" || state.step === "handle") state.step = "materials";
       blockSeq = 1;
       wallSeq = 2;
+      openingSeq = 1;
       state.walls.forEach(function(w){
         var wn = parseInt(String(w.id).replace("W", ""), 10);
         if (!isNaN(wn) && wn >= wallSeq) wallSeq = wn + 1;
@@ -595,6 +628,10 @@
           var n = parseInt(String(b.id).replace("b",""), 10);
           if (!isNaN(n) && n >= blockSeq) blockSeq = n + 1;
         });
+      });
+      state.windows.concat(state.doors).forEach(function(o){
+        var n = parseInt(String(o.id).replace("o", ""), 10);
+        if (!isNaN(n) && n >= openingSeq) openingSeq = n + 1;
       });
       return true;
     }catch(e){ return false; }
@@ -604,7 +641,8 @@
     KP3D.teardown3D();
     try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
     wallSeq = 2;
-    state = { step:"intake", intake:{delivery:null,budget:null,room:"Eldhús"}, carcass:null, drawerSystem:null, look:null, handle:null, roomHeightMm:DEFAULT_ROOM_HEIGHT_MM, walls:freshWalls() };
+    openingSeq = 1;
+    state = { step:"intake", intake:{delivery:null,budget:null,room:"Eldhús"}, carcass:null, drawerSystem:null, look:null, handle:null, roomHeightMm:DEFAULT_ROOM_HEIGHT_MM, wallColor:null, windows:[], doors:[], walls:freshWalls() };
     render();
   }
 
@@ -737,8 +775,26 @@
     if (turnBtn) turnBtn.addEventListener("click", function(){ addWallTurn("left"); });
     if (removeBtn) removeBtn.addEventListener("click", removeLastWall);
 
+    renderWallColorRow();
     document.getElementById("toWallsBtn").disabled = false;
     renderRoomPreview();
+  }
+
+  function renderWallColorRow(){
+    var row = document.getElementById("wallColorRow");
+    row.innerHTML = Object.keys(WALL_COLORS).map(function(key){
+      var c = WALL_COLORS[key];
+      var active = state.wallColor === key;
+      return '<button type="button" class="wallcolor-swatch' + (active ? ' active' : '') + '" data-wallcolor="' + key + '" style="background:' + c.hex + ';" title="' + c.label + '"></button>';
+    }).join("");
+    row.querySelectorAll(".wallcolor-swatch").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        state.wallColor = btn.dataset.wallcolor;
+        save();
+        renderWallColorRow();
+        renderRoomPreview();
+      });
+    });
   }
 
   // ---------- walls step ----------
@@ -901,20 +957,33 @@
     { title:"Gólfskápar", types:["grunnskapur", "harskapur", "ofnaskapur", "tofrahorn"] },
     { title:"Veggskápar", types:["efriskapur"] }
   ];
-  var dragState = null; // {type, ghostEl}
+  // Windows/doors (Phase 7e) drag exactly like cabinets but aren't cabinets
+  // — not in CATALOG, routed by data-kind instead of assuming cabinet zone
+  // rules (no capacity/corner-clearance logic applies to them).
+  var OPENING_TYPES = {
+    gluggi: { label:"Gluggi", cls:"window" },
+    hurd:   { label:"Hurð", cls:"door" }
+  };
+  var dragState = null; // {kind, type, ghostEl}
 
   function renderCatalogBar(){
     var bar = document.getElementById("catalogBar");
-    bar.innerHTML = CATALOG_GROUPS.reduce(function(acc, group){
+    var cabinetCards = CATALOG_GROUPS.reduce(function(acc, group){
       return acc.concat(group.types.map(function(type){
         var c = CATALOG[type];
-        return '<div class="catalog-card" data-type="' + type + '" title="' + c.label + '">' +
+        return '<div class="catalog-card" data-kind="cabinet" data-type="' + type + '" title="' + c.label + '">' +
           '<div class="dot ' + c.cls + '"></div><div class="name">' + c.label + '</div></div>';
       }));
-    }, []).join("");
+    }, []);
+    var openingCards = Object.keys(OPENING_TYPES).map(function(type){
+      var o = OPENING_TYPES[type];
+      return '<div class="catalog-card" data-kind="opening" data-type="' + type + '" title="' + o.label + '">' +
+        '<div class="dot ' + o.cls + '"></div><div class="name">' + o.label + '</div></div>';
+    });
+    bar.innerHTML = cabinetCards.concat(openingCards).join("");
 
     bar.querySelectorAll(".catalog-card").forEach(function(card){
-      card.addEventListener("pointerdown", function(evt){ startCatalogDrag(card.dataset.type, card, evt); });
+      card.addEventListener("pointerdown", function(evt){ startCatalogDrag(card.dataset.kind, card.dataset.type, card, evt); });
     });
   }
 
@@ -928,16 +997,16 @@
     el.style.top = y + "px";
   }
 
-  function startCatalogDrag(type, cardEl, evt){
+  function startCatalogDrag(kind, type, cardEl, evt){
     evt.preventDefault();
-    var c = CATALOG[type];
+    var label = kind === "opening" ? OPENING_TYPES[type].label : CATALOG[type].label;
     var ghost = document.createElement("div");
     ghost.className = "drag-ghost";
-    ghost.textContent = c.label;
+    ghost.textContent = label;
     document.body.appendChild(ghost);
     ghostPosition(ghost, evt.clientX, evt.clientY);
     cardEl.classList.add("dragging");
-    dragState = { type:type, ghostEl:ghost, cardEl:cardEl };
+    dragState = { kind:kind, type:type, ghostEl:ghost, cardEl:cardEl };
     window.addEventListener("pointermove", onCatalogDragMove);
     window.addEventListener("pointerup", onCatalogDragEnd, { once:true });
   }
@@ -1020,16 +1089,59 @@
   function onCatalogDragEnd(evt){
     window.removeEventListener("pointermove", onCatalogDragMove);
     if (!dragState) return;
-    var wallId = findDropWall(evt.clientX, evt.clientY);
+    var drop = findDropPoint(evt.clientX, evt.clientY);
     dragState.ghostEl.remove();
     dragState.cardEl.classList.remove("dragging");
     clearDropHighlight();
-    var type = dragState.type;
+    var kind = dragState.kind, type = dragState.type;
     dragState = null;
-    if (wallId){
-      var wall = state.walls.find(function(w){ return w.id === wallId; });
+    if (!drop) return;
+    if (kind === "opening"){
+      addOpening(type, drop.wallId, drop.alongMm);
+    } else {
+      var wall = state.walls.find(function(w){ return w.id === drop.wallId; });
       if (wall) addBlock(wall, type);
     }
+  }
+
+  // ---------- windows/doors (Phase 7e) — room-level openings, not cabinets:
+  // fixed default sizes, positioned by drop point, no collision checks
+  // against cabinets on the same wall (a real-world conflict there is
+  // exactly the kind of judgment call left for Rakel's review).
+  function addOpening(type, wallId, alongMm){
+    var wall = state.walls.find(function(w){ return w.id === wallId; });
+    if (!wall) return;
+    var isWindow = type === "gluggi";
+    var d = isWindow ? WINDOW_DEFAULT : DOOR_DEFAULT;
+    var offsetMm = Math.max(0, Math.min(wall.lengthMm - d.widthMm, Math.round((alongMm - d.widthMm / 2) / 10) * 10));
+    var o = { id:"o" + (openingSeq++), wallId:wallId, offsetMm:offsetMm, widthMm:d.widthMm, heightMm:d.heightMm };
+    if (isWindow) o.sillHeightMm = d.sillHeightMm;
+    (isWindow ? state.windows : state.doors).push(o);
+    save();
+    renderWalls();
+  }
+
+  function removeOpening(kind, id){
+    var list = kind === "window" ? state.windows : state.doors;
+    var idx = list.findIndex(function(o){ return o.id === id; });
+    if (idx > -1) list.splice(idx, 1);
+    save();
+    renderWalls();
+  }
+
+  function renderOpeningsList(){
+    var host = document.getElementById("openingsList");
+    var rows = state.windows.map(function(w){
+      var wall = state.walls.find(function(x){ return x.id === w.wallId; });
+      return '<div class="opening-row"><span class="dot window"></span><span>Gluggi · ' + (wall ? wall.label : "") + ' · ' + w.widthMm + ' mm</span><button class="iconbtn del" data-kind="window" data-id="' + w.id + '">✕</button></div>';
+    }).concat(state.doors.map(function(d){
+      var wall = state.walls.find(function(x){ return x.id === d.wallId; });
+      return '<div class="opening-row"><span class="dot door"></span><span>Hurð · ' + (wall ? wall.label : "") + ' · ' + d.widthMm + ' mm</span><button class="iconbtn del" data-kind="door" data-id="' + d.id + '">✕</button></div>';
+    }));
+    host.innerHTML = rows.join("");
+    host.querySelectorAll("[data-kind]").forEach(function(btn){
+      btn.addEventListener("click", function(){ removeOpening(btn.dataset.kind, btn.dataset.id); });
+    });
   }
 
   // ---------- drag an already-placed cabinet to move/reorder it (Phase
@@ -1112,6 +1224,7 @@
   function renderWalls(){
     renderCatalogBar();
     renderWallsPlan();
+    renderOpeningsList();
     var container = document.getElementById("wallCards");
     container.innerHTML = state.walls.map(function(wall){
       return (
@@ -1438,6 +1551,13 @@
       var ds = DRAWER_SYSTEMS[state.drawerSystem];
       html += '<div class="look-selected-strip"><span>Skúffukerfi: <strong>' + ds.label + '</strong></span></div>';
     }
+    if (state.wallColor){
+      var wc = WALL_COLORS[state.wallColor];
+      html += '<div class="look-selected-strip"><span style="display:inline-block;width:34px;height:34px;border-radius:7px;background:' + wc.hex + ';border:1px solid var(--line);"></span><span>Litur á veggjum: <strong>' + wc.label + '</strong></span></div>';
+    }
+    if (state.windows.length || state.doors.length){
+      html += '<div class="look-selected-strip"><span>' + state.windows.length + ' gluggi/gluggar · ' + state.doors.length + ' hurð(ir) teiknuð inn</span></div>';
+    }
     state.walls.forEach(function(wall){
       var rows = wall.wall.concat(wall.floor);
       if (!rows.length) return;
@@ -1511,11 +1631,20 @@
   var PROXY_URL = "/api/airtable";
 
   function intakeNote(){
-    // Values like "2–4 m.kr." already end in a period — don't double it up.
     var lines = [];
     if (state.intake.delivery) lines.push("Æskileg afhending: " + state.intake.delivery);
     if (state.intake.budget) lines.push("Áætlað fjárhagsrými: " + state.intake.budget);
-    return lines.join(". ");
+    // Windows/doors are room-level, not cabinets — no Eyðublað row of their
+    // own, so this note (plus the JSON blob the review page renders from)
+    // is the only place Rakel sees them were drawn in at all.
+    if (state.windows.length || state.doors.length){
+      lines.push("Teiknaði inn " + state.windows.length + " glugga og " + state.doors.length + " hurð(ir) í rýmið — sjá teikningu");
+    }
+    if (!lines.length) return "";
+    // Values like "2–4 m.kr." already end in a period — strip any trailing
+    // ones per line before joining so a period never gets doubled up,
+    // regardless of how many lines end up combined here.
+    return lines.map(function(l){ return l.replace(/\.+$/, ""); }).join(". ") + ".";
   }
 
   async function airtableCreate(table, fields){
@@ -1637,7 +1766,8 @@
       KP3D.teardown3D();
       try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
       wallSeq = 2;
-      state = { step:"done", intake:{delivery:null,budget:null,room:"Eldhús"}, carcass:null, drawerSystem:null, look:null, handle:null, roomHeightMm:DEFAULT_ROOM_HEIGHT_MM, walls:freshWalls() };
+      openingSeq = 1;
+      state = { step:"done", intake:{delivery:null,budget:null,room:"Eldhús"}, carcass:null, drawerSystem:null, look:null, handle:null, roomHeightMm:DEFAULT_ROOM_HEIGHT_MM, wallColor:null, windows:[], doors:[], walls:freshWalls() };
       render();
     }catch(e){
       errEl.textContent = "Eitthvað fór úrskeiðis við að senda inn. Prófaðu aftur — " + e.message;
