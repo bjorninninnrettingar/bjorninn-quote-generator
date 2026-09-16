@@ -238,11 +238,20 @@
     .popular .label{ font-size:9px; margin:0 0 5px; }
     .chiprow{ gap:5px; }
     .chip{ padding:4.5px 9px; font-size:10.5px; }
-    .grid{ gap:8px; }
-    .card{ padding:12px; gap:8px; border-radius:8px; }
+    /* Category cards were still icon-on-top/title/count stacked in three
+       lines — fine at the original card size, way too tall once the card
+       itself got smaller (still ~140px each, so only ~2 fit on screen).
+       Converted to single-line rows instead: icon, then title (truncates
+       with an ellipsis rather than wrapping, so every row stays exactly
+       one line regardless of how long a category name is), then the
+       count as a small fixed-width trailing label. ~37px per row means 6+
+       categories are visible without scrolling, which was the actual ask. */
+    .grid{ display:flex; flex-direction:column; gap:0; }
+    .card{ flex-direction:row; align-items:center; gap:10px; padding:9px 2px;
+      border:none; border-bottom:1px solid var(--line); border-radius:0; }
     .card .icon svg{ width:16px; height:16px; }
-    .card h3{ font-size:13px; }
-    .card .count{ font-size:10.5px; }
+    .card h3{ font-size:13px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .card .count{ font-size:10px; flex:none; white-space:nowrap; }
     .back{ padding:7px 12px 7px 9px; font-size:13px; margin-bottom:12px; }
     .cathead{ margin-bottom:4px; gap:8px; }
     .cathead h2{ font-size:17px; }
