@@ -1,5 +1,6 @@
 // api/airtable.js
 import crypto from "node:crypto";
+import { applyCors } from "./_cors.js";
 // Airtable proxy — keeps the Personal Access Token server-side only, so it
 // never sits in committed code or page source (GitHub's push protection
 // blocks any commit containing an Airtable PAT). Used by cutlist.html,
@@ -121,6 +122,16 @@ const ALLOWED_FIELDS = {
     "Ábyrgðarmaður",
     "Staða",
   ],
+  "tbltD1UNpqj05WtMx": [ // Vefspjall 💬 — site chatbot conversation log. Write-only in
+    // practice (Rakel reviews in Airtable directly), but listed here too so a
+    // successful create's own response echoes back what was written instead
+    // of coming back with an empty fields object.
+    "Fyrsta spurning",
+    "Samtal",
+    "Óleyst spurning",
+    "Netfang",
+    "Síða",
+  ],
   "tblzkw70E2xoX9RmK": [ // Æðaplan 📐 — grain.html (/aedar office) writes; /saga floor reads
     "Nafn",
     "Tækifæri 📣",
@@ -237,12 +248,14 @@ const VERK_ONLY_FIELDS = {
   ],
 };
 
-// Tables that hold credential-like or health-adjacent data — a request with
-// no filterByFormula would otherwise dump every row's allowed fields, which
-// for Starfsmenn means every employee's PIN at once, and for Fjarvistir
-// means every employee's sick-day history at once. Require the caller to
-// filter to a single lookup instead of listing the whole table.
-const REQUIRE_FILTER = new Set(["tblhglpjQkczdG1AY", "tbl3e5o0Klv9RcNQ4", "tblzkw70E2xoX9RmK"]);
+// Tables that hold credential-like, health-adjacent, or visitor-PII data — a
+// request with no filterByFormula would otherwise dump every row's allowed
+// fields, which for Starfsmenn means every employee's PIN at once, for
+// Fjarvistir means every employee's sick-day history at once, and for
+// Vefspjall means every site visitor's email + full conversation transcript
+// at once. Require the caller to filter to a single lookup instead of
+// listing the whole table.
+const REQUIRE_FILTER = new Set(["tblhglpjQkczdG1AY", "tbl3e5o0Klv9RcNQ4", "tblzkw70E2xoX9RmK", "tbltD1UNpqj05WtMx"]);
 
 // The kiosk's clock-out flow writes one Verktímar row per project the
 // employee split their shift across (Dagsetning + Klst + links). Like
@@ -272,6 +285,10 @@ const CREATABLE_FIELDS = {
   // /aedar creates one grain-plan row per project+material the first time
   // it's saved; thereafter it PATCHes the same row (see WRITABLE_FIELDS).
   "tblzkw70E2xoX9RmK": ["Nafn", "Tækifæri 📣", "Efni", "Skipulag", "Staðfest ✅"],
+  // Site chatbot widget (see faq.html's corpus) logs one row per conversation
+  // when it ends — write-only from this proxy, Rakel/owner review happens
+  // directly in Airtable, nothing in this repo reads it back.
+  "tbltD1UNpqj05WtMx": ["Fyrsta spurning", "Samtal", "Óleyst spurning", "Netfang", "Síða"],
 };
 
 // Fields forced to a fixed value on create, regardless of what (or whether)
@@ -279,6 +296,7 @@ const CREATABLE_FIELDS = {
 // don't need to be creatable at all.
 const FORCED_CREATE_FIELDS = {
   "tbljdg6uxEfHE7uCU": { "Staða": "Í bið" },
+  "tbltD1UNpqj05WtMx": { "Staða": "Nýtt" },
 };
 
 // Only the stimpilklukka kiosk's own paired device may open/close a shift —
@@ -349,6 +367,8 @@ function filterFields(record, allowedFields) {
 }
 
 export default async function handler(req, res) {
+  if (applyCors(req, res)) return;
+
   const token = process.env.AIRTABLE_TOKEN;
   if (!token) return res.status(500).json({ error: "AIRTABLE_TOKEN not configured" });
 
