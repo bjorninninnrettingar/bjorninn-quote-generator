@@ -553,7 +553,17 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ messages: apiMessages }),
     })
-      .then(function (res) { return res.json(); })
+      // fetch() only rejects on a real network failure — a 4xx/5xx HTTP
+      // response (hitting the message cap, a backend/Anthropic outage,
+      // ...) still resolves here with no "answer"/"escalate" fields.
+      // Left unchecked, that fell through to the generic-error text with
+      // escalate defaulting to false — a dead end with no way to reach a
+      // human, unlike a real network failure below. Throwing routes both
+      // cases through the same .catch(), which does escalate.
+      .then(function (res) {
+        if (!res.ok) throw new Error("chat API error " + res.status);
+        return res.json();
+      })
       .then(function (data) {
         typingRow.remove();
         var answer = (data && data.answer) || GENERIC_ERROR;
