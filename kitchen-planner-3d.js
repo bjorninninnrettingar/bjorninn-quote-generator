@@ -350,7 +350,11 @@
     scene.background = new THREE.Color(0xf7f6f2);
 
     var bbox = addFloor(THREE, scene, geoms, floorMat);
-    var WALL_H = 2.6;
+    // Phase 7c: customer-set room height (was a fixed 2.6m for every
+    // project). Also caps how tall any cabinet can render — a Hárskápur
+    // sized for a 2.6m ceiling shouldn't poke through a lower one.
+    var roomHeightMm = state.roomHeightMm || 2600;
+    var WALL_H = roomHeightMm / 1000;
     geoms.forEach(function(g){ addWallPlane(THREE, scene, g, WALL_H, wallMat); });
 
     var look = state.look ? LOOKS[state.look] : null;
@@ -365,7 +369,7 @@
       var offset = 0;
       wall.floor.forEach(function(b){
         var c = CATALOG[b.type];
-        var hM = (b.heightMm || c.h) / 1000, dM = (b.depthMm || c.d) / 1000;
+        var hM = Math.min(b.heightMm || c.h, roomHeightMm) / 1000, dM = (b.depthMm || c.d) / 1000;
         var selected = opts.selectedId === b.id;
         addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, carcassMat, frontMat, b.interior,
           { wallId:wall.id, zone:"floor", blockId:b.id }, selected, pickables);
@@ -374,7 +378,7 @@
       offset = 0;
       wall.wall.forEach(function(b){
         var c = CATALOG[b.type];
-        var hM = (b.heightMm || c.h) / 1000, dM = (b.depthMm || c.d) / 1000;
+        var hM = Math.min(b.heightMm || c.h, roomHeightMm) / 1000, dM = (b.depthMm || c.d) / 1000;
         var selected = opts.selectedId === b.id;
         addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, WALL_CABINET_BASE_M, carcassMat, frontMat, null,
           { wallId:wall.id, zone:"wall", blockId:b.id }, selected, pickables);
