@@ -88,6 +88,7 @@
   .catalog-card .name{ font-size:11px; font-weight:600; line-height:1.25; }
   .catalog-card.dragging{ opacity:.35; }
   #wallsPlanWrap polygon.drop-hover{ stroke:var(--blue) !important; stroke-width:4 !important; }
+  #wallsPlanWrap [data-block-id]{ touch-action:none; }
   #wallsPlanWrap line.drop-hover{ stroke:var(--blue) !important; }
   .drag-ghost{
     position:fixed; z-index:999; pointer-events:none; left:0; top:0;
@@ -919,6 +920,7 @@
 
   function renderWallsPlan(){
     KP3D.buildPlan2D(document.getElementById("wallsPlanWrap"), state);
+    wireBlockDragHandlers();
   }
 
   function ghostPosition(el, x, y){
@@ -957,26 +959,51 @@
     return Math.hypot(px - cx, pz - cz);
   }
 
-  // Returns the wall id nearest the given screen point, or null if the
-  // point isn't over the plan SVG at all.
-  function findDropWall(clientX, clientY){
+  // Returns {wallId, alongMm} for the wall nearest the given screen point
+  // (alongMm = projected distance from that wall's own origin, for
+  // position-aware placement — Phase 7d-4), or null if the point isn't over
+  // the plan SVG at all.
+  function findDropPoint(clientX, clientY){
     var svg = document.querySelector("#wallsPlanWrap svg");
     if (!svg) return null;
     var rect = svg.getBoundingClientRect();
     if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) return null;
     var vb = svg.viewBox.baseVal;
-    var px = (clientX - rect.left) / rect.width * vb.width + vb.x;
-    var py = (clientY - rect.top) / rect.height * vb.height + vb.y;
+    // The SVG's default preserveAspectRatio ("xMidYMid meet") letterboxes
+    // and centers the viewBox content inside the element's box rather than
+    // stretching to fill it — (clientX-rect.left)/rect.width*vb.width only
+    // gives the right answer when the box's aspect ratio happens to match
+    // the viewBox's, which it usually doesn't (the room-preview container
+    // is a fixed pixel height, the viewBox's aspect ratio depends on the
+    // room's actual shape). Found via a real failed drag during testing —
+    // coarse drops (far-apart walls) looked fine by luck, but precise
+    // same-wall reordering silently landed tens of centimeters off.
+    var scale = Math.min(rect.width / vb.width, rect.height / vb.height);
+    var offsetX = rect.left + (rect.width - vb.width * scale) / 2;
+    var offsetY = rect.top + (rect.height - vb.height * scale) / 2;
+    var px = (clientX - offsetX) / scale + vb.x;
+    var py = (clientY - offsetY) / scale + vb.y;
     var t = KP3D.planTransform(state);
     if (!t) return null;
     var worldX = px / t.pxPerM + t.minX;
     var worldZ = py / t.pxPerM + t.minZ;
-    var best = null, bestDist = Infinity;
+    var best = null, bestDist = Infinity, bestAlongM = 0;
     t.geoms.forEach(function(g, i){
-      var d = distanceToWallSegment(worldX, worldZ, g);
-      if (d < bestDist){ bestDist = d; best = i; }
+      var x1 = g.origin.x, z1 = g.origin.z;
+      var dx = g.axis.x * g.lenM, dz = g.axis.z * g.lenM;
+      var lenSq = dx * dx + dz * dz;
+      var tt = lenSq > 0 ? ((worldX - x1) * dx + (worldZ - z1) * dz) / lenSq : 0;
+      tt = Math.max(0, Math.min(1, tt));
+      var cx = x1 + tt * dx, cz = z1 + tt * dz;
+      var d = Math.hypot(worldX - cx, worldZ - cz);
+      if (d < bestDist){ bestDist = d; best = i; bestAlongM = tt * g.lenM; }
     });
-    return best === null ? null : state.walls[best].id;
+    return best === null ? null : { wallId: state.walls[best].id, alongMm: Math.round(bestAlongM * 1000) };
+  }
+
+  function findDropWall(clientX, clientY){
+    var p = findDropPoint(clientX, clientY);
+    return p ? p.wallId : null;
   }
 
   function highlightDropTarget(clientX, clientY){
@@ -986,19 +1013,100 @@
     });
   }
 
+  function clearDropHighlight(){
+    document.querySelectorAll("#wallsPlanWrap [data-wall-line-id]").forEach(function(line){ line.classList.remove("drop-hover"); });
+  }
+
   function onCatalogDragEnd(evt){
     window.removeEventListener("pointermove", onCatalogDragMove);
     if (!dragState) return;
     var wallId = findDropWall(evt.clientX, evt.clientY);
     dragState.ghostEl.remove();
     dragState.cardEl.classList.remove("dragging");
-    document.querySelectorAll("#wallsPlanWrap [data-wall-line-id]").forEach(function(line){ line.classList.remove("drop-hover"); });
+    clearDropHighlight();
     var type = dragState.type;
     dragState = null;
     if (wallId){
       var wall = state.walls.find(function(w){ return w.id === wallId; });
       if (wall) addBlock(wall, type);
     }
+  }
+
+  // ---------- drag an already-placed cabinet to move/reorder it (Phase
+  // 7d-4) — same pointer-drag mechanics as the catalog, different drop
+  // target: replaces having to use the ◀/▶ buttons or the edit panel's
+  // "move to wall" dropdown for this specific action, though those still
+  // work exactly as before.
+  function insertIndexForOffset(list, targetOffsetMm, startOffsetMm){
+    var offset = startOffsetMm;
+    for (var i = 0; i < list.length; i++){
+      if (targetOffsetMm < offset + list[i].widthMm / 2) return i;
+      offset += list[i].widthMm;
+    }
+    return list.length;
+  }
+
+  function moveBlockToPosition(blockId, wallId, alongMm){
+    var found = findBlock(blockId);
+    if (!found) return;
+    var targetWall = state.walls.find(function(w){ return w.id === wallId; });
+    if (!targetWall) return;
+    var zone = found.zone;
+    var list = targetWall[zone];
+    var sameList = list === found.wall[zone];
+    var clearance = cornerClearance(targetWall, zone);
+    var otherWidth = usedMm(list) - (sameList ? found.block.widthMm : 0);
+    if (otherWidth + found.block.widthMm > targetWall.lengthMm - clearance){
+      toast("Ekki nóg pláss á " + targetWall.label.toLowerCase() + ".");
+      return;
+    }
+    found.wall[zone] = found.wall[zone].filter(function(b){ return b.id !== blockId; });
+    var destList = targetWall[zone];
+    var idx = insertIndexForOffset(destList, Math.max(alongMm, clearance), clearance);
+    destList.splice(idx, 0, found.block);
+    save();
+    renderWalls();
+  }
+
+  var blockDragState = null; // {blockId, ghostEl}
+
+  function startBlockDrag(blockId, evt){
+    evt.preventDefault();
+    evt.stopPropagation();
+    var found = findBlock(blockId);
+    if (!found) return;
+    var c = CATALOG[found.block.type];
+    var ghost = document.createElement("div");
+    ghost.className = "drag-ghost";
+    ghost.textContent = c.label;
+    document.body.appendChild(ghost);
+    ghostPosition(ghost, evt.clientX, evt.clientY);
+    blockDragState = { blockId:blockId, ghostEl:ghost };
+    window.addEventListener("pointermove", onBlockDragMove);
+    window.addEventListener("pointerup", onBlockDragEnd, { once:true });
+  }
+
+  function onBlockDragMove(evt){
+    if (!blockDragState) return;
+    ghostPosition(blockDragState.ghostEl, evt.clientX, evt.clientY);
+    highlightDropTarget(evt.clientX, evt.clientY);
+  }
+
+  function onBlockDragEnd(evt){
+    window.removeEventListener("pointermove", onBlockDragMove);
+    if (!blockDragState) return;
+    var drop = findDropPoint(evt.clientX, evt.clientY);
+    blockDragState.ghostEl.remove();
+    clearDropHighlight();
+    var blockId = blockDragState.blockId;
+    blockDragState = null;
+    if (drop) moveBlockToPosition(blockId, drop.wallId, drop.alongMm);
+  }
+
+  function wireBlockDragHandlers(){
+    document.querySelectorAll("#wallsPlanWrap [data-block-id]").forEach(function(poly){
+      poly.addEventListener("pointerdown", function(evt){ startBlockDrag(poly.dataset.blockId, evt); });
+    });
   }
 
   function renderWalls(){
