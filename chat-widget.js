@@ -158,18 +158,24 @@
     "border-radius:6px;text-decoration:none;text-align:center;}",
     ".escalate a.contact:hover{background:#2c478e;}",
     ".escalate .capture{display:flex;gap:6px;}",
-    ".escalate input[type=email]{flex:1;min-width:0;font:inherit;font-size:13px;padding:7px 9px;",
+    // font-size must stay >=16px on every real text input in this file —
+    // iOS Safari force-zooms the whole page on focus for anything smaller,
+    // which is exactly the kind of jarring, jump-around behavior the mobile
+    // stability fix was about. Not optional/cosmetic.
+    ".escalate input[type=email]{flex:1;min-width:0;font:inherit;font-size:16px;padding:7px 9px;",
     "border:1px solid #e6e3da;border-radius:6px;outline:none;}",
     ".escalate input[type=email]:focus{border-color:#3d61c1;}",
+    ".escalate .err-msg{color:#c0392b;font-size:12px;margin:0;}",
     ".escalate button.send{font:inherit;font-size:13px;font-weight:600;color:#191919;background:#fff;",
     "border:1px solid #a29c72;border-radius:6px;padding:7px 10px;cursor:pointer;white-space:nowrap;}",
     ".escalate button.send:hover{background:#f5f3ea;}",
     ".escalate button.send:disabled{opacity:.5;cursor:default;}",
     ".escalate .done{color:#2c478e;font-weight:500;}",
     ".inputrow{flex:none;display:flex;gap:8px;padding:10px;border-top:1px solid #e6e3da;background:#fff;}",
-    ".inputrow input{flex:1;min-width:0;font:inherit;font-size:14px;padding:10px 12px;border:1px solid #e6e3da;",
+    ".inputrow input{flex:1;min-width:0;font:inherit;font-size:16px;padding:10px 12px;border:1px solid #e6e3da;",
     "border-radius:8px;outline:none;}",
     ".inputrow input:focus{border-color:#3d61c1;}",
+    ".inputrow input:disabled{background:#f5f3ea;}",
     ".inputrow button{font:inherit;font-size:14px;font-weight:600;color:#fff;background:#3d61c1;border:none;",
     "border-radius:8px;padding:0 16px;cursor:pointer;}",
     ".inputrow button:disabled{opacity:.5;cursor:default;}",
@@ -347,7 +353,7 @@
       var text = input.value.trim();
       if (!text || awaitingReply) return;
       input.value = "";
-      sendMessage(text);
+      sendMessage(text, input, sendBtn);
     }
     sendBtn.addEventListener("click", send);
     input.addEventListener("keydown", function (e) {
@@ -359,7 +365,18 @@
     } else {
       renderExisting();
     }
-    input.focus();
+    // Skip on the same narrow-viewport breakpoint the mobile bottom sheet
+    // uses — auto-focusing there pops the on-screen keyboard the instant
+    // the panel opens, eating half the screen before the visitor has even
+    // read the greeting. Desktop has no keyboard-popping cost, so focus
+    // there as normal.
+    if (!window.matchMedia("(max-width:480px)").matches) input.focus();
+
+    document.addEventListener("keydown", onEscape);
+  }
+
+  function onEscape(e) {
+    if (e.key === "Escape") closePanel();
   }
 
   function closePanel() {
@@ -367,6 +384,7 @@
     panel.remove();
     panel = null;
     msgsEl = null;
+    document.removeEventListener("keydown", onEscape);
     logConversation();
   }
 
@@ -375,7 +393,7 @@
       var t = transcript[i];
       addRow(t.role, t.text);
       if (t.links && t.links.length) addLinkChips(t.links);
-      if (t.escalate) addEscalateBlock(t.question);
+      if (t.escalate) addEscalateBlock(t);
     }
     scrollToBottom();
   }
@@ -416,7 +434,13 @@
     if (msgsEl) msgsEl.scrollTop = msgsEl.scrollHeight;
   }
 
-  function addEscalateBlock(question) {
+  // Takes the transcript entry itself (not just its question text) so a
+  // successful email submission can be recorded directly on it
+  // (entry.resolvedEmail) — renderExisting() replays this same entry every
+  // time the panel is reopened, and without that flag it would show a
+  // blank, un-submitted form again even after the visitor already sent
+  // their email, risking a confused duplicate submission.
+  function addEscalateBlock(entry) {
     var box = document.createElement("div");
     box.className = "escalate";
 
@@ -426,6 +450,22 @@
 
     var actions = document.createElement("div");
     actions.className = "actions";
+    box.appendChild(actions);
+    if (msgsEl) msgsEl.appendChild(box);
+
+    function renderDone(email) {
+      actions.innerHTML = "";
+      var done = document.createElement("p");
+      done.className = "done";
+      done.textContent = "Takk! Við sendum þér svar á " + email + ".";
+      box.appendChild(done);
+    }
+
+    if (entry.resolvedEmail) {
+      renderDone(entry.resolvedEmail);
+      scrollToBottom();
+      return;
+    }
 
     var contactA = document.createElement("a");
     contactA.className = "contact";
@@ -448,35 +488,46 @@
     captureRow.appendChild(sendBtn);
     actions.appendChild(captureRow);
 
-    box.appendChild(actions);
-    if (msgsEl) msgsEl.appendChild(box);
-
-    sendBtn.addEventListener("click", function () {
+    function submit() {
       var email = emailInput.value.trim();
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         emailInput.style.borderColor = "#c0392b";
         emailInput.focus();
         return;
       }
+      var err = box.querySelector(".err-msg");
+      if (err) err.remove();
       sendBtn.disabled = true;
       emailInput.disabled = true;
       sendBtn.textContent = "...";
-      logConversation(email, question).then(function (ok) {
-        actions.innerHTML = "";
-        var done = document.createElement("p");
-        done.className = "done";
-        done.textContent = ok
-          ? "Takk! Við sendum þér svar á " + email + "."
-          : "Því miður tókst þetta ekki núna — endilega hafðu samband beint.";
-        box.appendChild(done);
+      logConversation(email, entry.question).then(function (ok) {
+        if (ok) {
+          entry.resolvedEmail = email;
+          renderDone(email);
+        } else {
+          // Keep the form usable on failure (a network blip shouldn't be a
+          // dead end) — re-enable and let them retry instead of just
+          // showing an error with no way forward from inside the chat.
+          sendBtn.disabled = false;
+          emailInput.disabled = false;
+          sendBtn.textContent = "Senda";
+          var errMsg = document.createElement("p");
+          errMsg.className = "err-msg";
+          errMsg.textContent = "Náði ekki að senda — reyndu aftur.";
+          actions.insertBefore(errMsg, captureRow);
+        }
         scrollToBottom();
       });
+    }
+    sendBtn.addEventListener("click", submit);
+    emailInput.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") submit();
     });
 
     scrollToBottom();
   }
 
-  function sendMessage(text) {
+  function sendMessage(text, input, sendBtn) {
     addRow("user", text);
     transcript.push({ role: "user", text: text });
     apiMessages.push({ role: "user", content: text });
@@ -491,7 +542,12 @@
     if (msgsEl) msgsEl.appendChild(typingRow);
     scrollToBottom();
 
+    // Visible "in flight" state — without this the input/button stay fully
+    // interactive while awaitingReply silently no-ops a second send, which
+    // just looks broken rather than "still working on it."
     awaitingReply = true;
+    input.disabled = true;
+    sendBtn.disabled = true;
     fetch(API_BASE + "/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -504,19 +560,24 @@
         var escalate = !!(data && data.escalate);
         var links = (data && Array.isArray(data.links)) ? data.links : [];
         apiMessages.push({ role: "assistant", content: JSON.stringify({ answer: answer, escalate: escalate }) });
-        transcript.push({ role: "bot", text: answer, escalate: escalate, question: text, links: links });
+        var entry = { role: "bot", text: answer, escalate: escalate, question: text, links: links };
+        transcript.push(entry);
         addBotBubble(answer);
         if (links.length) addLinkChips(links);
-        if (escalate) addEscalateBlock(text);
+        if (escalate) addEscalateBlock(entry);
       })
       .catch(function () {
         typingRow.remove();
-        transcript.push({ role: "bot", text: GENERIC_ERROR, escalate: true, question: text });
+        var entry = { role: "bot", text: GENERIC_ERROR, escalate: true, question: text };
+        transcript.push(entry);
         addBotBubble(GENERIC_ERROR);
-        addEscalateBlock(text);
+        addEscalateBlock(entry);
       })
       .then(function () {
         awaitingReply = false;
+        input.disabled = false;
+        sendBtn.disabled = false;
+        input.focus();
       });
   }
 
