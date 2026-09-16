@@ -33,13 +33,24 @@
   // doesn't need to be a generic corner-solver.
   function wallGeometry3D(shape, walls){
     function m(mm){ return mm / 1000; }
+    // Every wall here must form a RIGHT-HANDED basis with world-up, i.e.
+    // cross(axis, (0,1,0)) must equal normal — makeBasis() below doesn't
+    // validate this, it'll happily build a mirrored (determinant -1) matrix
+    // that Quaternion.setFromRotationMatrix then silently mangles into a
+    // degenerate non-unit quaternion (garbled wall/cabinet orientation,
+    // "material facing the wrong way"). Where a wall's natural fill
+    // direction would violate this, the wall is parameterized from its
+    // *other* end instead (axis flipped, origin moved to the far corner) —
+    // same physical wall segment, opposite offset(0) end, always verified
+    // right-handed. See the session notes for how this was diagnosed.
     if (shape === "straight"){
       return [ { origin:{x:0,z:0}, axis:{x:1,z:0}, normal:{x:0,z:1}, lenM:m(walls[0].lengthMm) } ];
     }
     if (shape === "L"){
+      var lB = m(walls[1].lengthMm);
       return [
         { origin:{x:0,z:0}, axis:{x:1,z:0}, normal:{x:0,z:1}, lenM:m(walls[0].lengthMm) },
-        { origin:{x:0,z:0}, axis:{x:0,z:1}, normal:{x:1,z:0}, lenM:m(walls[1].lengthMm) }
+        { origin:{x:0,z:lB}, axis:{x:0,z:-1}, normal:{x:1,z:0}, lenM:lB }
       ];
     }
     if (shape === "U"){
@@ -47,9 +58,9 @@
       var aEnd = { x:0, z:LA };
       var bEnd = { x:LB, z:LA };
       return [
-        { origin:{x:0,z:0}, axis:{x:0,z:1}, normal:{x:1,z:0}, lenM:LA },
-        { origin:aEnd,      axis:{x:1,z:0}, normal:{x:0,z:-1}, lenM:LB },
-        { origin:bEnd,      axis:{x:0,z:-1}, normal:{x:-1,z:0}, lenM:LC }
+        { origin:aEnd, axis:{x:0,z:-1}, normal:{x:1,z:0},  lenM:LA },
+        { origin:bEnd, axis:{x:-1,z:0}, normal:{x:0,z:-1}, lenM:LB },
+        { origin:bEnd, axis:{x:0,z:1},  normal:{x:-1,z:0}, lenM:LC }
       ];
     }
     return [];
@@ -117,18 +128,27 @@
     return { cx:cx, cz:cz, w:w, d:d };
   }
 
+  var WALL_THICKNESS_M = 0.08;
+
   function addWallPlane(THREE, scene, geom, wallHeightM, wallMat){
-    var mesh = new THREE.Mesh(new THREE.PlaneGeometry(geom.lenM, wallHeightM), wallMat);
+    // A real (thin) box instead of a zero-thickness plane — a flat plane
+    // viewed edge-on shrinks to a literal zero-width line, which read as a
+    // "glitchy" flickering wall from some camera angles. The box's inner
+    // (room-facing) surface stays exactly on the wall line; thickness
+    // extends outward so cabinet placement (which assumes offset 0 = the
+    // wall line) is unaffected.
+    var mesh = new THREE.Mesh(new THREE.BoxGeometry(geom.lenM, wallHeightM, WALL_THICKNESS_M), wallMat);
     var xAxis = new THREE.Vector3(geom.axis.x, 0, geom.axis.z);
     var yAxis = new THREE.Vector3(0, 1, 0);
     var zAxis = new THREE.Vector3(geom.normal.x, 0, geom.normal.z);
     mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis));
     mesh.position.set(
-      geom.origin.x + geom.axis.x * (geom.lenM / 2),
+      geom.origin.x + geom.axis.x * (geom.lenM / 2) - geom.normal.x * (WALL_THICKNESS_M / 2),
       wallHeightM / 2,
-      geom.origin.z + geom.axis.z * (geom.lenM / 2)
+      geom.origin.z + geom.axis.z * (geom.lenM / 2) - geom.normal.z * (WALL_THICKNESS_M / 2)
     );
     mesh.receiveShadow = true;
+    mesh.castShadow = true;
     scene.add(mesh);
   }
 
