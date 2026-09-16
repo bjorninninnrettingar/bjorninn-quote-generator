@@ -24,7 +24,6 @@
     : "https://bjorninn-quote-generator.vercel.app";
   var VEFSPJALL_PATH = "tbltD1UNpqj05WtMx";
   var CONTACT_URL = "https://www.bjorninninnrettingar.is/hafðu-samband";
-  var COLLAPSE_KEY = "bjorninn-chat-collapsed";
   var GREETING = "Hæ! Ég get svarað spurningum um sérsmíði, verð, ferlið og fleira hjá Birninum. Hvað viltu vita?";
   var GENERIC_ERROR = "Því miður kom upp villa. Endilega reyndu aftur, eða hafðu samband beint.";
 
@@ -35,21 +34,14 @@
   // accident later; this check can't drift from it.
   if (location.pathname !== "/") return;
 
-  function storageGet(key) {
-    try { return localStorage.getItem(key); } catch (e) { return null; }
-  }
-  function storageSet(key, value) {
-    try { localStorage.setItem(key, value); } catch (e) {}
-  }
-
-  // ?resetchat=1 — a convenience for testing/support, so bringing the
-  // widget back doesn't require opening DevTools. Also clears the old
-  // "dismissed forever" key from before this became a reversible collapse.
+  // A prior version let visitors collapse the bubble to a small
+  // up-arrow handle, persisted via localStorage — dropped because that
+  // handle ended up almost the same size as the bubble itself, so it
+  // didn't actually declutter anything. Clean up that leftover state for
+  // anyone who has it set from before.
   try {
-    if (new URLSearchParams(location.search).get("resetchat") === "1") {
-      localStorage.removeItem(COLLAPSE_KEY);
-      localStorage.removeItem("bjorninn-chat-dismissed");
-    }
+    localStorage.removeItem("bjorninn-chat-collapsed");
+    localStorage.removeItem("bjorninn-chat-dismissed");
   } catch (e) {}
 
   // ---- state ----
@@ -79,18 +71,9 @@
     ":host{all:initial;}",
     "*{box-sizing:border-box;font-family:'Kumbh Sans',Arial,Helvetica,sans-serif;}",
     ".wrap{position:fixed;bottom:20px;right:20px;display:flex;flex-direction:column;align-items:flex-end;gap:12px;}",
-    ".bubble-holder{position:relative;}",
     ".bubble{width:56px;height:56px;border-radius:50%;background:#3d61c1;border:none;cursor:pointer;",
     "display:flex;align-items:center;justify-content:center;box-shadow:0 6px 20px rgba(0,0,0,.18);transition:background .15s ease;}",
     ".bubble:hover{background:#2c478e;}",
-    ".collapse-badge{position:absolute;top:-4px;right:-4px;width:20px;height:20px;border-radius:50%;",
-    "background:#fff;border:1px solid #e6e3da;color:#6f6d66;cursor:pointer;padding:0;",
-    "display:flex;align-items:center;justify-content:center;}",
-    ".collapse-badge:hover{color:#191919;border-color:#a29c72;}",
-    ".restore-handle{width:38px;height:38px;border-radius:50%;background:#fff;border:1px solid #e6e3da;",
-    "cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,.14);",
-    "color:#6f6d66;}",
-    ".restore-handle:hover{border-color:#a29c72;color:#191919;}",
     ".panel{width:340px;max-width:calc(100vw - 24px);height:min(520px, calc(100vh - 100px));",
     "height:min(520px, calc(100dvh - 100px));",
     "background:#fff;border:1px solid #e6e3da;border-radius:12px;box-shadow:0 12px 34px rgba(0,0,0,.2);",
@@ -108,7 +91,6 @@
     ".wrap{left:0;right:0;bottom:0;padding:10px;gap:8px;}",
     ".bubble{width:50px;height:50px;}",
     ".bubble svg{width:22px;height:22px;}",
-    ".restore-handle{width:34px;height:34px;}",
     ".panel{width:100%;max-width:100%;height:60vh;height:60dvh;max-height:60dvh;",
     "border-radius:14px 14px 0 0;box-shadow:0 -8px 28px rgba(0,0,0,.22);}",
     ".hdr{border-radius:14px 14px 0 0;}",
@@ -210,52 +192,12 @@
   var panel = null;
   var msgsEl = null;
 
-  var CHEVRON_DOWN = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
-  var CHEVRON_UP = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>';
-
-  var bubbleHolder = document.createElement("div");
-  bubbleHolder.className = "bubble-holder";
   var bubble = document.createElement("button");
   bubble.className = "bubble";
   bubble.setAttribute("aria-label", "Opna spjall");
   bubble.innerHTML = '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-4.4 7.4L4 21l2.1-4.6A8.38 8.38 0 0 1 12 3a8.38 8.38 0 0 1 9 8.5Z"/></svg>';
   bubble.addEventListener("click", togglePanel);
-
-  var collapseBadge = document.createElement("button");
-  collapseBadge.className = "collapse-badge";
-  collapseBadge.setAttribute("aria-label", "Fela spjallhnapp");
-  collapseBadge.innerHTML = CHEVRON_DOWN;
-  collapseBadge.addEventListener("click", function (e) {
-    e.stopPropagation();
-    setCollapsed(true);
-  });
-
-  bubbleHolder.appendChild(bubble);
-  bubbleHolder.appendChild(collapseBadge);
-
-  var restoreHandle = document.createElement("button");
-  restoreHandle.className = "restore-handle";
-  restoreHandle.setAttribute("aria-label", "Sýna spjallhnapp");
-  restoreHandle.innerHTML = CHEVRON_UP;
-  restoreHandle.addEventListener("click", function () {
-    setCollapsed(false);
-  });
-
-  wrap.appendChild(bubbleHolder);
-
-  function setCollapsed(collapsed) {
-    if (collapsed) {
-      closePanel(); // also logs the conversation so far, same as any other close
-      bubbleHolder.remove();
-      wrap.appendChild(restoreHandle);
-    } else {
-      restoreHandle.remove();
-      wrap.appendChild(bubbleHolder);
-    }
-    storageSet(COLLAPSE_KEY, collapsed ? "1" : "0");
-  }
-
-  setCollapsed(storageGet(COLLAPSE_KEY) === "1");
+  wrap.appendChild(bubble);
 
   function togglePanel() {
     if (panel) {
@@ -347,7 +289,7 @@
     panel.appendChild(hdr);
     panel.appendChild(content);
     panel.appendChild(tabbar);
-    wrap.insertBefore(panel, bubbleHolder);
+    wrap.insertBefore(panel, bubble);
 
     function send() {
       var text = input.value.trim();
