@@ -24,9 +24,16 @@
     : "https://bjorninn-quote-generator.vercel.app";
   var VEFSPJALL_PATH = "tbltD1UNpqj05WtMx";
   var CONTACT_URL = "https://www.bjorninninnrettingar.is/hafðu-samband";
-  var DISMISS_KEY = "bjorninn-chat-dismissed";
+  var COLLAPSE_KEY = "bjorninn-chat-collapsed";
   var GREETING = "Hæ! Ég get svarað spurningum um sérsmíði, verð, ferlið og fleira hjá Birninum. Hvað viltu vita?";
   var GENERIC_ERROR = "Því miður kom upp villa. Endilega reyndu aftur, eða hafðu samband beint.";
+
+  // Homepage-only, on purpose — a visitor browsing other pages shouldn't
+  // have this follow them. This is a code-level guarantee independent of
+  // whatever page-scope the Wix Custom Code panel has set, since that's a
+  // manually-configured admin setting and easy to get wrong or change by
+  // accident later; this check can't drift from it.
+  if (location.pathname !== "/") return;
 
   function storageGet(key) {
     try { return localStorage.getItem(key); } catch (e) { return null; }
@@ -35,7 +42,15 @@
     try { localStorage.setItem(key, value); } catch (e) {}
   }
 
-  if (storageGet(DISMISS_KEY) === "1") return;
+  // ?resetchat=1 — a convenience for testing/support, so bringing the
+  // widget back doesn't require opening DevTools. Also clears the old
+  // "dismissed forever" key from before this became a reversible collapse.
+  try {
+    if (new URLSearchParams(location.search).get("resetchat") === "1") {
+      localStorage.removeItem(COLLAPSE_KEY);
+      localStorage.removeItem("bjorninn-chat-dismissed");
+    }
+  } catch (e) {}
 
   // ---- state ----
   // apiMessages mirrors exactly what api/chat.js expects/returns per turn —
@@ -68,10 +83,14 @@
     ".bubble{width:56px;height:56px;border-radius:50%;background:#3d61c1;border:none;cursor:pointer;",
     "display:flex;align-items:center;justify-content:center;box-shadow:0 6px 20px rgba(0,0,0,.18);transition:background .15s ease;}",
     ".bubble:hover{background:#2c478e;}",
-    ".dismiss-badge{position:absolute;top:-4px;right:-4px;width:20px;height:20px;border-radius:50%;",
-    "background:#fff;border:1px solid #e6e3da;color:#6f6d66;font-size:12px;line-height:1;cursor:pointer;",
-    "display:flex;align-items:center;justify-content:center;padding:0;}",
-    ".dismiss-badge:hover{color:#191919;border-color:#a29c72;}",
+    ".collapse-badge{position:absolute;top:-4px;right:-4px;width:20px;height:20px;border-radius:50%;",
+    "background:#fff;border:1px solid #e6e3da;color:#6f6d66;cursor:pointer;padding:0;",
+    "display:flex;align-items:center;justify-content:center;}",
+    ".collapse-badge:hover{color:#191919;border-color:#a29c72;}",
+    ".restore-handle{width:38px;height:38px;border-radius:50%;background:#fff;border:1px solid #e6e3da;",
+    "cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,.14);",
+    "color:#6f6d66;}",
+    ".restore-handle:hover{border-color:#a29c72;color:#191919;}",
     ".panel{width:340px;max-width:calc(100vw - 24px);height:min(520px, calc(100vh - 100px));",
     "background:#fff;border:1px solid #e6e3da;border-radius:12px;box-shadow:0 12px 34px rgba(0,0,0,.2);",
     "display:flex;flex-direction:column;overflow:hidden;}",
@@ -127,6 +146,9 @@
   var panel = null;
   var msgsEl = null;
 
+  var CHEVRON_DOWN = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+  var CHEVRON_UP = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>';
+
   var bubbleHolder = document.createElement("div");
   bubbleHolder.className = "bubble-holder";
   var bubble = document.createElement("button");
@@ -135,20 +157,41 @@
   bubble.innerHTML = '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-4.4 7.4L4 21l2.1-4.6A8.38 8.38 0 0 1 12 3a8.38 8.38 0 0 1 9 8.5Z"/></svg>';
   bubble.addEventListener("click", togglePanel);
 
-  var dismissBadge = document.createElement("button");
-  dismissBadge.className = "dismiss-badge";
-  dismissBadge.setAttribute("aria-label", "Loka spjallglugga");
-  dismissBadge.textContent = "✕";
-  dismissBadge.addEventListener("click", function (e) {
+  var collapseBadge = document.createElement("button");
+  collapseBadge.className = "collapse-badge";
+  collapseBadge.setAttribute("aria-label", "Fela spjallhnapp");
+  collapseBadge.innerHTML = CHEVRON_DOWN;
+  collapseBadge.addEventListener("click", function (e) {
     e.stopPropagation();
-    storageSet(DISMISS_KEY, "1");
-    logConversation(); // best-effort, in case they'd already started chatting
-    host.remove();
+    setCollapsed(true);
   });
 
   bubbleHolder.appendChild(bubble);
-  bubbleHolder.appendChild(dismissBadge);
+  bubbleHolder.appendChild(collapseBadge);
+
+  var restoreHandle = document.createElement("button");
+  restoreHandle.className = "restore-handle";
+  restoreHandle.setAttribute("aria-label", "Sýna spjallhnapp");
+  restoreHandle.innerHTML = CHEVRON_UP;
+  restoreHandle.addEventListener("click", function () {
+    setCollapsed(false);
+  });
+
   wrap.appendChild(bubbleHolder);
+
+  function setCollapsed(collapsed) {
+    if (collapsed) {
+      closePanel(); // also logs the conversation so far, same as any other close
+      bubbleHolder.remove();
+      wrap.appendChild(restoreHandle);
+    } else {
+      restoreHandle.remove();
+      wrap.appendChild(bubbleHolder);
+    }
+    storageSet(COLLAPSE_KEY, collapsed ? "1" : "0");
+  }
+
+  setCollapsed(storageGet(COLLAPSE_KEY) === "1");
 
   function togglePanel() {
     if (panel) {
