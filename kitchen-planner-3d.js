@@ -472,6 +472,19 @@
 
   var PX_PER_M = 80;
 
+  // Phase 7d-3: exposes the exact same coordinate mapping buildPlan2D uses
+  // internally, so a drag-and-drop drop handler in kitchen-planner.html can
+  // convert a screen-pixel drop point into world mm and find the nearest
+  // wall — without duplicating (and risking drift from) buildPlan2D's own
+  // margin/scale math.
+  function planTransform(state){
+    var geoms = wallGeometry3D(state.walls);
+    if (!geoms.length) return null;
+    var b = interiorBounds(geoms);
+    var margin = 0.4;
+    return { minX: b.minX - margin, minZ: b.minZ - margin, pxPerM: PX_PER_M, geoms: geoms };
+  }
+
   function buildPlan2D(container, state, opts){
     opts = opts || {};
     var geoms = wallGeometry3D(state.walls);
@@ -492,11 +505,12 @@
     var svg = '<svg viewBox="0 0 ' + svgW + ' ' + svgH + '" xmlns="http://www.w3.org/2000/svg" ' +
       'style="width:100%;height:100%;display:block;background:#faf9f6;font-family:\'Kumbh Sans\',Arial,sans-serif;">';
 
-    geoms.forEach(function(g){
+    geoms.forEach(function(g, gi){
       var x1 = X(g.origin.x), y1 = Y(g.origin.z);
       var end = { x:g.origin.x + g.axis.x * g.lenM, z:g.origin.z + g.axis.z * g.lenM };
       var x2 = X(end.x), y2 = Y(end.z);
-      svg += '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="#191919" stroke-width="6" stroke-linecap="square"/>';
+      var wallId = state.walls[gi] ? state.walls[gi].id : "";
+      svg += '<line data-wall-line-id="' + wallId + '" x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="#191919" stroke-width="6" stroke-linecap="square"/>';
       var midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
       var lx = midX - g.normal.x * 14, ly = midY - g.normal.z * 14;
       svg += '<text x="' + lx + '" y="' + ly + '" font-size="11" fill="#6f6d66" text-anchor="middle">' + Math.round(g.lenM * 1000) + ' mm</text>';
@@ -562,6 +576,7 @@
     HANDLES: HANDLES,
     wallGeometry3D: wallGeometry3D,
     cornerClearanceMm: cornerClearanceMm,
+    planTransform: planTransform,
     hasWebGL: hasWebGL,
     waitForThree: waitForThree,
     buildScene: buildScene,

@@ -72,6 +72,30 @@
     margin-bottom:20px; overflow:hidden;
   }
   .room-preview svg{ width:100%; height:100%; display:block; }
+
+  /* ---- walls step (Phase 7d-3: catalog drag-and-drop) ---- */
+  .catalog-bar{
+    display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; margin-bottom:14px;
+    -webkit-overflow-scrolling:touch;
+  }
+  .catalog-card{
+    flex:0 0 auto; width:92px; background:#fff; border:1.5px solid var(--line); border-radius:12px;
+    padding:10px 8px; text-align:center; cursor:grab; touch-action:none; user-select:none;
+    -webkit-user-select:none;
+  }
+  .catalog-card:active{ cursor:grabbing; }
+  .catalog-card .dot{ width:100%; height:22px; border-radius:6px; margin-bottom:6px; }
+  .catalog-card .name{ font-size:11px; font-weight:600; line-height:1.25; }
+  .catalog-card.dragging{ opacity:.35; }
+  #wallsPlanWrap polygon.drop-hover{ stroke:var(--blue) !important; stroke-width:4 !important; }
+  #wallsPlanWrap line.drop-hover{ stroke:var(--blue) !important; }
+  .drag-ghost{
+    position:fixed; z-index:999; pointer-events:none; left:0; top:0;
+    padding:6px 12px; border-radius:8px; background:var(--blue); color:#fff;
+    font-size:12.5px; font-weight:600; box-shadow:0 6px 18px rgba(0,0,0,.25);
+    transform:translate(-50%,-130%);
+  }
+
   .wallchain-row{
     background:#fff; border:1px solid var(--line); border-radius:12px;
     padding:12px 14px; margin-bottom:10px;
@@ -377,7 +401,11 @@
   <!-- ============ STEP: WALLS / LAYOUT ============ -->
   <section id="screen-walls" hidden>
     <div class="screen-title">Raðaðu skápum upp</div>
-    <p class="screen-sub">Fyrir hvern vegg: bættu við skápum í neðri röð (gólfskápar) og efri röð (veggskápar). Þú getur alltaf breytt breiddinni.</p>
+    <p class="screen-sub">Dragðu skáp úr listanum inn á teikninguna, eða notaðu "+" hnappana fyrir neðan. Þú getur alltaf breytt breiddinni.</p>
+
+    <div class="catalog-bar" id="catalogBar"></div>
+
+    <div class="room-preview" id="wallsPlanWrap"></div>
 
     <div id="wallCards"></div>
 
@@ -860,7 +888,122 @@
     );
   }
 
+  // ---------- walls step: catalog drag-and-drop (Phase 7d-3) ----------
+  // Pointer-events based, not the native HTML5 Drag-and-Drop API — native
+  // DnD has no reliable touch equivalent. Same approach grain.html already
+  // uses for dragging cut-sheet pieces (ghost element follows the cursor,
+  // pointerup determines the drop target) — proven pattern, different drop
+  // target (a wall's floor/wall zone instead of a cut sheet). The existing
+  // "+ Type" buttons stay as the reliable fallback, per the confirmed
+  // decision — drag is the delightful primary path, not the only path.
+  var CATALOG_GROUPS = [
+    { title:"Gólfskápar", types:["grunnskapur", "harskapur", "ofnaskapur", "tofrahorn"] },
+    { title:"Veggskápar", types:["efriskapur"] }
+  ];
+  var dragState = null; // {type, ghostEl}
+
+  function renderCatalogBar(){
+    var bar = document.getElementById("catalogBar");
+    bar.innerHTML = CATALOG_GROUPS.reduce(function(acc, group){
+      return acc.concat(group.types.map(function(type){
+        var c = CATALOG[type];
+        return '<div class="catalog-card" data-type="' + type + '" title="' + c.label + '">' +
+          '<div class="dot ' + c.cls + '"></div><div class="name">' + c.label + '</div></div>';
+      }));
+    }, []).join("");
+
+    bar.querySelectorAll(".catalog-card").forEach(function(card){
+      card.addEventListener("pointerdown", function(evt){ startCatalogDrag(card.dataset.type, card, evt); });
+    });
+  }
+
+  function renderWallsPlan(){
+    KP3D.buildPlan2D(document.getElementById("wallsPlanWrap"), state);
+  }
+
+  function ghostPosition(el, x, y){
+    el.style.left = x + "px";
+    el.style.top = y + "px";
+  }
+
+  function startCatalogDrag(type, cardEl, evt){
+    evt.preventDefault();
+    var c = CATALOG[type];
+    var ghost = document.createElement("div");
+    ghost.className = "drag-ghost";
+    ghost.textContent = c.label;
+    document.body.appendChild(ghost);
+    ghostPosition(ghost, evt.clientX, evt.clientY);
+    cardEl.classList.add("dragging");
+    dragState = { type:type, ghostEl:ghost, cardEl:cardEl };
+    window.addEventListener("pointermove", onCatalogDragMove);
+    window.addEventListener("pointerup", onCatalogDragEnd, { once:true });
+  }
+
+  function onCatalogDragMove(evt){
+    if (!dragState) return;
+    ghostPosition(dragState.ghostEl, evt.clientX, evt.clientY);
+    highlightDropTarget(evt.clientX, evt.clientY);
+  }
+
+  function distanceToWallSegment(px, pz, g){
+    var x1 = g.origin.x, z1 = g.origin.z;
+    var x2 = g.origin.x + g.axis.x * g.lenM, z2 = g.origin.z + g.axis.z * g.lenM;
+    var dx = x2 - x1, dz = z2 - z1;
+    var lenSq = dx * dx + dz * dz;
+    var t = lenSq > 0 ? ((px - x1) * dx + (pz - z1) * dz) / lenSq : 0;
+    t = Math.max(0, Math.min(1, t));
+    var cx = x1 + t * dx, cz = z1 + t * dz;
+    return Math.hypot(px - cx, pz - cz);
+  }
+
+  // Returns the wall id nearest the given screen point, or null if the
+  // point isn't over the plan SVG at all.
+  function findDropWall(clientX, clientY){
+    var svg = document.querySelector("#wallsPlanWrap svg");
+    if (!svg) return null;
+    var rect = svg.getBoundingClientRect();
+    if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) return null;
+    var vb = svg.viewBox.baseVal;
+    var px = (clientX - rect.left) / rect.width * vb.width + vb.x;
+    var py = (clientY - rect.top) / rect.height * vb.height + vb.y;
+    var t = KP3D.planTransform(state);
+    if (!t) return null;
+    var worldX = px / t.pxPerM + t.minX;
+    var worldZ = py / t.pxPerM + t.minZ;
+    var best = null, bestDist = Infinity;
+    t.geoms.forEach(function(g, i){
+      var d = distanceToWallSegment(worldX, worldZ, g);
+      if (d < bestDist){ bestDist = d; best = i; }
+    });
+    return best === null ? null : state.walls[best].id;
+  }
+
+  function highlightDropTarget(clientX, clientY){
+    var wallId = findDropWall(clientX, clientY);
+    document.querySelectorAll("#wallsPlanWrap [data-wall-line-id]").forEach(function(line){
+      line.classList.toggle("drop-hover", !!wallId && line.dataset.wallLineId === wallId);
+    });
+  }
+
+  function onCatalogDragEnd(evt){
+    window.removeEventListener("pointermove", onCatalogDragMove);
+    if (!dragState) return;
+    var wallId = findDropWall(evt.clientX, evt.clientY);
+    dragState.ghostEl.remove();
+    dragState.cardEl.classList.remove("dragging");
+    document.querySelectorAll("#wallsPlanWrap [data-wall-line-id]").forEach(function(line){ line.classList.remove("drop-hover"); });
+    var type = dragState.type;
+    dragState = null;
+    if (wallId){
+      var wall = state.walls.find(function(w){ return w.id === wallId; });
+      if (wall) addBlock(wall, type);
+    }
+  }
+
   function renderWalls(){
+    renderCatalogBar();
+    renderWallsPlan();
     var container = document.getElementById("wallCards");
     container.innerHTML = state.walls.map(function(wall){
       return (
