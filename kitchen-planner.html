@@ -40,6 +40,8 @@
     --floor:#3d61c1;
     --wall:#a29c72;
     --tall:#2c478e;
+    --oven:#8a3b2c;
+    --corner:#3b7a5a;
   }
   *{ box-sizing:border-box; }
   html,body{ margin:0; padding:0; }
@@ -128,6 +130,8 @@
   }
   .strip-gap{ background:repeating-linear-gradient(45deg,#f4f2ec,#f4f2ec 6px,#efece3 6px,#efece3 12px); }
   .strip-block.tall{ background:var(--tall); }
+  .strip-block.oven{ background:var(--oven); }
+  .strip-block.corner{ background:var(--corner); }
   .strip-block.floor{ background:var(--floor); }
   .strip-block.wall{ background:var(--wall); }
 
@@ -143,6 +147,8 @@
   .block-row .dot.floor{ background:var(--floor); }
   .block-row .dot.wall{ background:var(--wall); }
   .block-row .dot.tall{ background:var(--tall); }
+  .block-row .dot.oven{ background:var(--oven); }
+  .block-row .dot.corner{ background:var(--corner); }
   .block-row .type{ font-size:13.5px; font-weight:600; flex:1 1 auto; min-width:90px; }
   .block-row .wfield{ display:flex; align-items:center; gap:5px; }
   .block-row input[type=number]{
@@ -759,7 +765,7 @@
         '<div class="wallcard" data-wall="' + wall.id + '">' +
           '<div class="wallcard-head"><h3>' + wall.label + ' <span class="len">· ' + wall.lengthMm + ' mm</span></h3></div>' +
           zoneHTML(wall, "wall", "Efri röð — veggskápar", ["efriskapur"]) +
-          zoneHTML(wall, "floor", "Neðri röð — gólfskápar", ["grunnskapur", "harskapur"]) +
+          zoneHTML(wall, "floor", "Neðri röð — gólfskápar", ["grunnskapur", "harskapur", "ofnaskapur", "tofrahorn"]) +
         '</div>'
       );
     }).join("");
@@ -1029,12 +1035,21 @@
         var fields = {
           "Heiti rýmis": "Eldhús",
           "Hvað viltu smíða?": "Skáp",
-          "Skápategund": c.label,
+          // Töfrahorn isn't its own real Skápategund — it's a Grunnskápur
+          // corner unit fitted with a real mechanism (linked below).
+          "Skápategund": c.skapategundOverride || c.label,
           "Breidd": b.widthMm,
           "Hæð": c.h,
           "Dýpt": c.d,
           "Fjöldi eininga": 1
         };
+        if (c.ovenHeightMm){
+          fields["Hæð ofns"] = c.ovenHeightMm;
+        }
+        if (c.tofrahornId){
+          fields["Töfrahorn útfærsla"] = [c.tofrahornId];
+          fields["Breidd á töfra front"] = b.widthMm;
+        }
         if (handle && handle.vorulistiId){
           // A real physical handle — no milled grip channel on the panel.
           fields["Höldur 1"] = [handle.vorulistiId];

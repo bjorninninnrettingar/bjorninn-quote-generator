@@ -9,7 +9,16 @@
   var CATALOG = {
     grunnskapur: { label:"Grunnskápur", zone:"floor", cls:"floor", defaultW:600, minW:300, maxW:1200, h:800,  d:600, hasInterior:true, drawerCountRange:[1,5] },
     harskapur:   { label:"Hárskápur",   zone:"floor", cls:"tall",  defaultW:600, minW:300, maxW:900,  h:2400, d:600, hasInterior:true, drawerCountRange:[1,5] },
-    efriskapur:  { label:"Efriskápur",  zone:"wall",  cls:"wall",  defaultW:600, minW:300, maxW:1200, h:600,  d:600, hasInterior:false }
+    efriskapur:  { label:"Efriskápur",  zone:"wall",  cls:"wall",  defaultW:600, minW:300, maxW:1200, h:600,  d:600, hasInterior:false },
+    // Real Skápategund choice, with real oven-cavity fields already in
+    // Eyðublað (Hæð ofns / Hæð undir ofni) — a fixed 600mm-wide tower is
+    // the common real config, so width isn't customer-adjustable here.
+    ofnaskapur:  { label:"Ofnaskápur",  zone:"floor", cls:"oven",  defaultW:600, minW:600, maxW:600,  h:2100, d:600, hasInterior:false, ovenHeightMm:595 },
+    // Not its own Skápategund in the real schema — physically a Grunnskápur
+    // corner unit fitted with a real Le Mans mechanism (Vörulisti product).
+    // Fixed 900×900 corner footprint (the real hardware's actual size).
+    tofrahorn:   { label:"Töfrahorn (kapphorn)", zone:"floor", cls:"corner", defaultW:900, minW:900, maxW:900, h:800, d:900, hasInterior:false,
+                   skapategundOverride:"Grunnskápur", tofrahornId:"rec9PD5fCZGUpwAon" }
   };
 
   // Fixed tie-break priority when two looks score equal in the quiz.
