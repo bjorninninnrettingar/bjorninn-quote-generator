@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex" />
+<title>Verk í gangi — Björninn</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  /* verk-i-gangi.html — project picker for /app. Lists every project currently
+     in production (same eligibility filter grain.html/skipulag.html already
+     use), tapping one stores it as the app's "current project"
+     (localStorage key verkApp:project) and returns to /app, where every tool
+     tile then forwards it as ?recordId= automatically. */
+  :root {
+    --bg:#0b0b0c; --surface:#161618; --surface2:#1e1e21; --line:#2a2a2e;
+    --text:#f2f2f3; --muted:#c9c9ce;
+    --blue:#0a84ff; --amber:#ffd60a; --green:#4caf50; --red:#ff5a5a;
+    --font:"Kumbh Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; line-height:1.5; }
+  .wrap { max-width:640px; margin:0 auto; padding:0 16px 40px; }
+
+  .hd { position:sticky; top:0; z-index:10; background:var(--bg); padding:16px 0 12px; border-bottom:1px solid var(--line); }
+  .back { display:inline-flex; align-items:center; gap:6px; color:var(--muted); text-decoration:none; font-size:.85rem; font-weight:700; }
+  h1 { font-size:1.6rem; font-weight:800; letter-spacing:-.01em; margin-top:8px; }
+  .sub { color:var(--muted); font-size:.9rem; margin-top:4px; }
+
+  #search {
+    width:100%; margin-top:14px; padding:13px 14px; border-radius:12px;
+    border:1px solid var(--line); background:var(--surface); color:var(--text);
+    font-family:var(--font); font-size:1rem;
+  }
+  #search:focus { outline:2px solid var(--blue); outline-offset:-1px; }
+
+  .list { display:flex; flex-direction:column; gap:10px; margin-top:16px; }
+  .card {
+    display:block; text-align:left; width:100%; cursor:pointer;
+    background:var(--surface); border:1px solid var(--line); border-radius:14px;
+    padding:14px 16px; color:var(--text); font-family:var(--font);
+  }
+  .card:active { filter:brightness(1.15); }
+  .card .name { font-size:1.08rem; font-weight:800; letter-spacing:-.005em; }
+  .card .meta { display:flex; flex-wrap:wrap; gap:8px 14px; margin-top:8px; }
+  .card .meta .m { font-size:.82rem; color:var(--muted); }
+  .card .meta .m b { color:var(--text); font-weight:700; }
+  .card .meta .date.soon { color:var(--amber); }
+  .card .meta .date.overdue { color:var(--red); }
+  .card .hot { color:#ffd54a; }
+
+  #status { text-align:center; color:var(--muted); padding:40px 0; }
+  #empty { display:none; text-align:center; color:var(--muted); padding:40px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hd">
+    <a class="back" href="/app">← Verkstæði</a>
+    <h1>Verk í gangi</h1>
+    <div class="sub">Veldu verkefni — það fylgir svo með í öll tólin.</div>
+    <input id="search" type="text" placeholder="Leita að verkefni…" autocomplete="off" />
+  </div>
+
+  <div id="status">Sæki verk…</div>
+  <div id="empty">Ekkert verk fannst.</div>
+  <div class="list" id="list"></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var PROXY_URL = "/api/airtable";
+  var PROJECTS_TABLE = "tbl4LMXlQjp66RFKI"; // Tækifæri 📣
+
+  var P_NAME     = "Heiti tækifæris / verkefnis";
+  var P_STADA_SOLU = "Staða í söluferli";
+  var P_STADA_SKIP = "Staða í skipulagi";
+  var P_STADA_FRAM = "Staða í framleiðslu";
+  var P_DATE     = "Áætlaður afhendingardagur Björninn (internal)";
+  var P_PROGRESS = "Framvinda framleiðslu [weighted]";
+  var P_PRIORITY = "Forgangur framleiðslu 🥇";
+
+  function $(id) { return document.getElementById(id); }
+
+  // encodeURIComponent, NOT URLSearchParams — see grain.html for why (the
+  // proxy doesn't decode "+" back to a space, which breaks {Field Name} refs).
+  async function airtableFetch(table, params) {
+    var qs = ["path=" + encodeURIComponent(table)];
+    Object.keys(params || {}).forEach(function (k) {
+      var v = params[k];
+      (Array.isArray(v) ? v : [v]).forEach(function (x) {
+        qs.push(encodeURIComponent(k) + "=" + encodeURIComponent(x));
+      });
+    });
+    var recs = [], offset;
+    do {
+      var url = PROXY_URL + "?" + qs.join("&") + (offset ? "&offset=" + encodeURIComponent(offset) : "");
+      var r = await fetch(url);
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      var d = await r.json();
+      recs = recs.concat(d.records || []);
+      offset = d.offset;
+    } while (offset);
+    return recs;
+  }
+
+  function formatDate(iso) {
+    if (!iso) return { text: "Engin dagsetning", cls: "" };
+    var date = new Date(iso);
+    var today = new Date(); today.setHours(0, 0, 0, 0);
+    var diff = Math.floor((date - today) / 86400000);
+    var locale = date.toLocaleDateString("is-IS", { day: "numeric", month: "short" });
+    if (diff < 0) return { text: locale + " (liðið)", cls: "overdue" };
+    if (diff <= 7) return { text: locale + " (" + diff + "d)", cls: "soon" };
+    return { text: locale, cls: "" };
+  }
+
+  var allProjects = [];
+
+  function render(filterText) {
+    var q = (filterText || "").trim().toLowerCase();
+    var list = $("list");
+    list.innerHTML = "";
+    var shown = allProjects.filter(function (rec) {
+      var name = (rec.fields[P_NAME] || "").toLowerCase();
+      return !q || name.indexOf(q) !== -1;
+    });
+    $("empty").style.display = shown.length ? "none" : "block";
+    shown.forEach(function (rec) {
+      var f = rec.fields;
+      var name = f[P_NAME] || "(nafnlaust verk)";
+      var stada = f[P_STADA_FRAM] || f[P_STADA_SKIP] || "";
+      var d = formatDate(f[P_DATE]);
+      var progress = f[P_PROGRESS];
+      var hot = (f[P_PRIORITY] || "").indexOf("🥇") !== -1 || /hot|forgang/i.test(f[P_PRIORITY] || "");
+
+      var card = document.createElement("button");
+      card.type = "button";
+      card.className = "card";
+      card.innerHTML =
+        '<div class="name">' + (hot ? '<span class="hot">🔥 </span>' : "") + escapeHtml(name) + "</div>" +
+        '<div class="meta">' +
+          (stada ? '<span class="m"><b>' + escapeHtml(stada) + "</b></span>" : "") +
+          '<span class="m date ' + d.cls + '">' + escapeHtml(d.text) + "</span>" +
+          (progress != null && progress !== "" ? '<span class="m">' + Math.round(progress * 100) + "% búið</span>" : "") +
+        "</div>";
+      card.addEventListener("click", function () { selectProject(rec.id, name); });
+      list.appendChild(card);
+    });
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function selectProject(id, name) {
+    try {
+      localStorage.setItem("verkApp:project", JSON.stringify({ id: id, name: name }));
+    } catch (e) {}
+    location.href = "/app";
+  }
+
+  $("search").addEventListener("input", function () { render(this.value); });
+
+  (async function () {
+    try {
+      var formula = "AND(" +
+        "{" + P_STADA_SOLU + "} = \"🏆 Tækifæri unnið\", " +
+        "{" + P_STADA_SKIP + "} != \"For-skipulag\", " +
+        "{" + P_STADA_FRAM + "} != \"Afhent (LOKIÐ ✅)\", " +
+        "{" + P_STADA_FRAM + "} != \"Má Afhenda 🚚\"" +
+        ")";
+      var recs = await airtableFetch(PROJECTS_TABLE, {
+        filterByFormula: formula,
+        "fields[]": [P_NAME, P_STADA_SKIP, P_STADA_FRAM, P_DATE, P_PROGRESS, P_PRIORITY],
+        pageSize: 100,
+      });
+      recs.sort(function (a, b) {
+        var da = a.fields[P_DATE] || "9999";
+        var db = b.fields[P_DATE] || "9999";
+        return da < db ? -1 : da > db ? 1 : 0;
+      });
+      allProjects = recs;
+      $("status").style.display = "none";
+      render("");
+    } catch (e) {
+      $("status").textContent = "Villa við að sækja verk — reyndu aftur.";
+    }
+  })();
+})();
+</script>
+</body>
+</html>

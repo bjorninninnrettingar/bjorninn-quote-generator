@@ -138,6 +138,11 @@ const ALLOWED_FIELDS = {
     "Vandamálið",
     "Ábyrgðarmaður",
     "Staða",
+    "Nafn þitt",
+    "Tengt verkefni",
+    "Skiladagur",
+    "Kvörtunar-ID",
+    "Skráð þann:",
   ],
   "tbltD1UNpqj05WtMx": [ // Vefspjall 💬 — site chatbot conversation log. Write-only in
     // practice (Rakel reviews in Airtable directly), but listed here too so a
@@ -317,6 +322,10 @@ const CREATABLE_FIELDS = {
   // "Skúffutegund" (Phase 7b) is a real 2-choice field (LEGRA/MERIVO), set
   // the same on every unit — a whole-project hardware choice, not per-cabinet.
   "tbl0WcyHhz63pSzZX": ["Tækifæri 📣", "Heiti rýmis", "Hvað viltu smíða?", "Skápategund", "Breidd", "Hæð", "Dýpt", "Fjöldi eininga", "Grip?", "Skilaboð til Skipulags 📝", "Höldur 1", "Höldur 1 magn", "Hæð ofns", "Töfrahorn útfærsla", "Breidd á töfra front", "Skúffutegund"],
+  // /app's "❗ Nýtt QUICK FIX" quick-task form — see FORCED_CREATE_FIELDS
+  // below for why "Staða" isn't in this list (anyone on the floor can report
+  // a problem, but it always starts "opið", never self-set to in-progress).
+  "tblDQWuf4OSjUv2XI": ["Nafn þitt", "Vandamálið", "Ábyrgðarmaður", "Tengt verkefni", "Skiladagur"],
 };
 
 // Fields forced to a fixed value on create, regardless of what (or whether)
@@ -325,6 +334,7 @@ const CREATABLE_FIELDS = {
 const FORCED_CREATE_FIELDS = {
   "tbljdg6uxEfHE7uCU": { "Staða": "Í bið" },
   "tbltD1UNpqj05WtMx": { "Staða": "Nýtt" },
+  "tblDQWuf4OSjUv2XI": { "Staða": "opið 😠" },
   // A self-serve submission must never look like reviewed designer work —
   // both the review flag and the pre-production stage are forced server-side
   // so a tampered client request can't skip Rakel's review or jump straight
@@ -388,6 +398,10 @@ const WRITABLE_FIELDS = {
   // review flag (that's the approval action — no separate status field), and
   // a "flag for a call" note goes into the same field skipulag already uses.
   "tbl4LMXlQjp66RFKI": ["Sjálfsafgreiðsla — óyfirfarið ⚠️", "Skilaboð til skipulags"],
+  // /app's recent-QUICK-FIX list lets anyone tap a card to advance
+  // opið → Í vinnslu → Lokið — unlike Orlofsbeiðnir's "Staða" this isn't an
+  // approval gate, so any floor device may set it.
+  "tblDQWuf4OSjUv2XI": ["Staða"],
 };
 
 // URLSearchParams serializes spaces as "+" (application/x-www-form-urlencoded).

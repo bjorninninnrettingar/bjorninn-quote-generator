@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="robots" content="noindex" />
+<title>Verkstæði — Björninn</title>
+
+<link rel="manifest" href="/manifest.json" />
+<meta name="theme-color" content="#0b0b0c" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Verkstæði" />
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+<link rel="icon" href="/icons/icon-192.png" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  /* app.html — /app, the workshop's single entry point (installable PWA).
+     Gathers the tools that used to need a QR scan or an Airtable button into
+     one home screen: stimpilklukka, the active-project picker, the QUICK FIX
+     task board, and direct links into merkingar/fræsing/skipulag/saga. A
+     "current project" is picked once (verk-i-gangi.html) and remembered in
+     localStorage for as long as the app stays open, so every tool tile below
+     forwards it as ?recordId= without asking again. Same dark/Kumbh-Sans
+     visual language as velja.html/skipulag.html/verkstaedi.html. */
+  :root {
+    --bg:#0b0b0c; --surface:#161618; --surface2:#1e1e21; --line:#2a2a2e;
+    --text:#f2f2f3; --muted:#c9c9ce;
+    --blue:#0a84ff; --amber:#ffd60a; --green:#4caf50; --red:#ff5a5a;
+    --font:"Kumbh Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; line-height:1.5; }
+  .wrap { max-width:640px; margin:0 auto; padding:16px 16px 48px; }
+
+  .hd { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .hd h1 { font-size:1.7rem; font-weight:800; letter-spacing:-.01em; }
+  .hd .clock { font-size:1.1rem; font-weight:700; color:var(--muted); font-variant-numeric:tabular-nums; }
+
+  /* ── install banner (Android beforeinstallprompt / iOS Safari hint) ── */
+  #installBar {
+    display:none; align-items:center; gap:10px; margin-top:12px;
+    background:var(--surface); border:1px solid var(--line); border-radius:12px;
+    padding:10px 12px; font-size:.85rem; color:var(--muted);
+  }
+  #installBar b { color:var(--text); }
+  #installBar button {
+    margin-left:auto; flex:none; background:var(--blue); color:#fff; border:none;
+    border-radius:9px; padding:8px 12px; font-family:var(--font); font-weight:700; font-size:.85rem;
+  }
+
+  /* ── current project bar ── */
+  .projbar {
+    margin-top:14px; padding:13px 14px; background:var(--surface); border:1px solid var(--line);
+    border-radius:14px; display:flex; align-items:center; gap:12px;
+  }
+  .projbar .lbl { font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:var(--muted); display:block; }
+  .projbar .name { font-size:1.08rem; font-weight:800; margin-top:2px; }
+  .projbar.empty .name { color:var(--muted); font-weight:600; font-size:.98rem; }
+  .projbar .actions { margin-left:auto; display:flex; gap:8px; flex:none; }
+  .projbar button {
+    font-family:var(--font); font-weight:700; font-size:.82rem; border-radius:9px; border:1px solid var(--line);
+    background:var(--surface2); color:var(--text); padding:8px 12px;
+  }
+  .projbar .actions .pick { background:var(--blue); border-color:#3d8bff; color:#fff; }
+
+  /* ── QUICK FIX add card ── */
+  .qf-card {
+    margin-top:18px; border-radius:16px; padding:16px; background:#241108; border:1px solid #5a2a12;
+  }
+  .qf-card h2 { font-size:1.15rem; font-weight:800; color:#ff9f6a; display:flex; align-items:center; gap:8px; }
+  .qf-card .sub { font-size:.82rem; color:var(--muted); margin-top:3px; }
+  .qf-card form { margin-top:12px; display:flex; flex-direction:column; gap:10px; }
+  .qf-card textarea, .qf-card select, .qf-card input[type=text], .qf-card input[type=date] {
+    width:100%; font-family:var(--font); font-size:1rem; color:var(--text);
+    background:var(--surface2); border:1px solid var(--line); border-radius:10px; padding:11px 12px;
+  }
+  .qf-card textarea { min-height:64px; resize:vertical; }
+  .qf-card .row2 { display:flex; gap:10px; }
+  .qf-card .row2 > * { flex:1 1 0; min-width:0; }
+  .qf-card .field .lbl { font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); display:block; margin-bottom:5px; }
+  .qf-link { font-size:.82rem; color:var(--muted); }
+  .qf-link b { color:var(--text); }
+  .qf-link a { color:var(--blue); text-decoration:none; font-weight:700; }
+  .qf-submit {
+    margin-top:2px; font-family:var(--font); font-weight:800; font-size:1rem; border:none; border-radius:11px;
+    background:#ff6a2b; color:#1a0d00; padding:13px; cursor:pointer;
+  }
+  .qf-submit:disabled { opacity:.55; }
+  .qf-msg { font-size:.85rem; margin-top:2px; display:none; }
+  .qf-msg.ok { color:#7be08a; display:block; }
+  .qf-msg.err { color:var(--red); display:block; }
+
+  /* ── recent quick fix list ── */
+  .qf-recent { margin-top:14px; }
+  .qf-recent summary { cursor:pointer; font-size:.85rem; font-weight:700; color:var(--muted); padding:4px 0; }
+  .qf-row {
+    display:flex; align-items:flex-start; gap:10px; padding:10px 12px; margin-top:8px;
+    background:var(--surface); border:1px solid var(--line); border-radius:12px; cursor:pointer;
+  }
+  .qf-row:active { filter:brightness(1.15); }
+  .qf-row .txt { flex:1 1 auto; min-width:0; }
+  .qf-row .issue { font-size:.92rem; font-weight:600; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+  .qf-row .meta { font-size:.76rem; color:var(--muted); margin-top:4px; }
+  .qf-badge { flex:none; font-size:.72rem; font-weight:800; border-radius:20px; padding:4px 10px; white-space:nowrap; }
+  .qf-badge.open { background:#3a1414; color:#ff8f8f; }
+  .qf-badge.progress { background:#3a2f0c; color:var(--amber); }
+  #qfEmpty { font-size:.85rem; color:var(--muted); padding:8px 2px; }
+
+  /* ── tool tiles ── */
+  .tiles { display:flex; flex-direction:column; gap:12px; margin-top:22px; }
+  .section-lbl { font-size:.74rem; font-weight:700; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); margin-top:22px; }
+  .tile {
+    display:flex; align-items:center; gap:15px; text-decoration:none; color:var(--text);
+    border-radius:15px; padding:17px 16px; border:1px solid var(--line); background:var(--surface);
+  }
+  .tile:active { filter:brightness(1.15); }
+  .tile .ic { font-size:1.9rem; flex:none; width:34px; text-align:center; }
+  .tile .t { font-size:1.08rem; font-weight:800; letter-spacing:.01em; }
+  .tile .d { font-size:.82rem; color:var(--muted); margin-top:2px; }
+  .tile.disabled { opacity:.5; }
+  .tile.accent { background:var(--amber); border-color:#c9a800; }
+  .tile.accent .t, .tile.accent .d { color:#1a1400; }
+  .tile.accent .d { opacity:.75; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hd">
+    <h1>Verkstæði</h1>
+    <div class="clock" id="clock">--:--</div>
+  </div>
+
+  <div id="installBar">
+    <span><b>Settu appið á heimaskjáinn</b> — opnast þá eins og venjulegt app.</span>
+    <button id="installBtn" type="button">Setja upp</button>
+  </div>
+
+  <div class="projbar empty" id="projBar">
+    <div>
+      <span class="lbl">Verk í vinnslu</span>
+      <span class="name" id="projName">Ekkert verk valið</span>
+    </div>
+    <div class="actions">
+      <button class="pick" type="button" onclick="location.href='/verk-i-gangi'">Velja verk</button>
+      <button type="button" id="clearProjBtn" style="display:none;">Hreinsa</button>
+    </div>
+  </div>
+
+  <div class="qf-card">
+    <h2>❗ Skrá verkefni / vandamál</h2>
+    <div class="sub">Fljótleg leið til að koma verki áleiðis og segja hver á að klára það.</div>
+    <form id="qfForm">
+      <div class="field">
+        <span class="lbl">Hvað þarf að gera?</span>
+        <textarea id="qfIssue" required placeholder="Lýstu verkinu eða vandamálinu…"></textarea>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <span class="lbl">Hver á að gera það?</span>
+          <select id="qfOwner" required>
+            <option value="" disabled selected>Veldu starfsmann…</option>
+          </select>
+        </div>
+        <div class="field">
+          <span class="lbl">Skiladagur</span>
+          <input type="date" id="qfDue" />
+        </div>
+      </div>
+      <div class="field">
+        <span class="lbl">Frá hverjum (valfrjálst)</span>
+        <input type="text" id="qfFrom" placeholder="Nafn þitt" />
+      </div>
+      <div class="qf-link" id="qfProjLink"></div>
+      <button class="qf-submit" type="submit" id="qfSubmitBtn">➕ Skrá</button>
+      <div class="qf-msg" id="qfMsg"></div>
+    </form>
+
+    <details class="qf-recent">
+      <summary id="qfRecentSummary">Nýleg verkefni</summary>
+      <div id="qfList"></div>
+      <div id="qfEmpty" style="display:none;">Ekkert opið verkefni skráð.</div>
+    </details>
+  </div>
+
+  <div class="section-lbl">Tól</div>
+  <div class="tiles">
+    <a class="tile" id="tileVerkIGangi" href="/verk-i-gangi">
+      <div class="ic">📋</div>
+      <div><div class="t">Verk í gangi</div><div class="d">Veldu verkefni sem er í framleiðslu núna</div></div>
+    </a>
+    <a class="tile" id="tileKlukka" href="/klukka">
+      <div class="ic">⏱️</div>
+      <div><div class="t">Stimpilklukka</div><div class="d">Stimpla inn / út</div></div>
+    </a>
+    <a class="tile" id="tileVerk">
+      <div class="ic">📄</div>
+      <div><div class="t">Verk — yfirlit</div><div class="d">Teikningar, glósur og framvinda valda verksins</div></div>
+    </a>
+    <a class="tile" id="tileLabels">
+      <div class="ic">🏷️</div>
+      <div><div class="t">Merkingar</div><div class="d">Sögunarlisti samanlagður — merkja sagaða parta</div></div>
+    </a>
+    <a class="tile" id="tileFraesing">
+      <div class="ic">🔬</div>
+      <div><div class="t">Yfirfræsing</div><div class="d">Fræsilisti fyrir valið verk</div></div>
+    </a>
+    <a class="tile" id="tileSkipulag">
+      <div class="ic">📐</div>
+      <div><div class="t">Skipulag</div><div class="d">Cutty (skurðarlisti) og Æðar (viðarmynstur)</div></div>
+    </a>
+    <a class="tile accent" id="tileSaga">
+      <div class="ic">🪚</div>
+      <div><div class="t">Saga</div><div class="d">Merkingar eða leiðsögn við sögun æðaskipulags</div></div>
+    </a>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var PROXY_URL = "/api/airtable";
+  var PROJECTS_TABLE  = "tbl4LMXlQjp66RFKI"; // Tækifæri 📣
+  var QUICKFIX_TABLE  = "tblDQWuf4OSjUv2XI"; // QUICK FIX❗
+  var P_NAME = "Heiti tækifæris / verkefnis";
+
+  var QF_ISSUE  = "Vandamálið";
+  var QF_OWNER  = "Ábyrgðarmaður";
+  var QF_FROM   = "Nafn þitt";
+  var QF_DUE    = "Skiladagur";
+  var QF_LINK   = "Tengt verkefni";
+  var QF_STATUS = "Staða";
+  var QF_CREATED = "Skráð þann:";
+
+  var OWNERS = ["Kári Freyr (jr.) 🦆", "Anton Pétur 🐕‍🦺", "Þóhallur 🦇", "Dolli W. 🦊", "Jóel 🦁", "Ísak 🐻‍❄️"];
+  var NEXT_STATUS = { "opið 😠": "Í vinnslu ⚙️", "Í vinnslu ⚙️": "Lokið ✅" };
+
+  function $(id) { return document.getElementById(id); }
+
+  // ── clock ──
+  function pad(n) { return String(n).padStart(2, "0"); }
+  function tickClock() {
+    var d = new Date();
+    $("clock").textContent = pad(d.getHours()) + ":" + pad(d.getMinutes());
+  }
+  tickClock(); setInterval(tickClock, 15000);
+
+  // ── PWA: service worker + install prompt ──
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/sw.js").catch(function () {});
+  }
+  var isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  var deferredInstall = null;
+  window.addEventListener("beforeinstallprompt", function (e) {
+    e.preventDefault();
+    deferredInstall = e;
+    if (!isStandalone) $("installBar").style.display = "flex";
+  });
+  $("installBtn").addEventListener("click", function () {
+    if (!deferredInstall) return;
+    deferredInstall.prompt();
+    deferredInstall.userChoice.finally(function () {
+      deferredInstall = null;
+      $("installBar").style.display = "none";
+    });
+  });
+  var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  if (isIOS && !isStandalone) {
+    $("installBar").innerHTML = "<span><b>Settu appið á heimaskjáinn</b> — Deila-hnappurinn neðst í Safari → \"Bæta á heimaskjá\".</span>";
+    $("installBar").style.display = "flex";
+  }
+
+  // ── VERK_KEY pairing (mirrors stimpilklukka.html's kiosk pairing) — lets
+  // "Verk — yfirlit" show the internal notes/drawings instead of just the
+  // public field set. Optional: the tile still works without it. ──
+  (function () {
+    var setup = new URLSearchParams(location.search).get("setup");
+    if (setup) {
+      try { localStorage.setItem("verkApp:verkKey", setup); } catch (e) {}
+      history.replaceState({}, "", location.pathname);
+    }
+  })();
+  function verkKey() { try { return localStorage.getItem("verkApp:verkKey") || ""; } catch (e) { return ""; } }
+
+  // encodeURIComponent, NOT URLSearchParams — see grain.html for why (the
+  // proxy doesn't decode "+" back to a space, which breaks {Field Name} refs).
+  function qs(params) {
+    var parts = [];
+    Object.keys(params || {}).forEach(function (k) {
+      var v = params[k];
+      (Array.isArray(v) ? v : [v]).forEach(function (x) {
+        if (x === undefined || x === null) return;
+        parts.push(encodeURIComponent(k) + "=" + encodeURIComponent(x));
+      });
+    });
+    return parts.join("&");
+  }
+  async function airtableFetch(table, params, recordId) {
+    var base = "path=" + encodeURIComponent(recordId ? table + "/" + recordId : table);
+    var extra = qs(params);
+    if (recordId) {
+      var r = await fetch(PROXY_URL + "?" + base + (extra ? "&" + extra : ""));
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    }
+    var recs = [], offset;
+    do {
+      var url = PROXY_URL + "?" + base + (extra ? "&" + extra : "") + (offset ? "&offset=" + encodeURIComponent(offset) : "");
+      var res = await fetch(url);
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      var d = await res.json();
+      recs = recs.concat(d.records || []);
+      offset = d.offset;
+    } while (offset);
+    return recs;
+  }
+  async function airtableCreate(table, fields) {
+    var r = await fetch(PROXY_URL + "?path=" + encodeURIComponent(table), {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fields: fields }),
+    });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    return r.json();
+  }
+  async function airtablePatch(table, recordId, fields) {
+    var r = await fetch(PROXY_URL + "?path=" + encodeURIComponent(table + "/" + recordId), {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fields: fields }),
+    });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    return r.json();
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  // ── current project (persisted for the life of the installed app) ──
+  function getProject() {
+    try { return JSON.parse(localStorage.getItem("verkApp:project") || "null"); } catch (e) { return null; }
+  }
+  function setProject(p) {
+    try {
+      if (p) localStorage.setItem("verkApp:project", JSON.stringify(p));
+      else localStorage.removeItem("verkApp:project");
+    } catch (e) {}
+    renderProjectBar();
+    wireTiles();
+  }
+
+  function renderProjectBar() {
+    var p = getProject();
+    var bar = $("projBar");
+    if (p) {
+      bar.classList.remove("empty");
+      $("projName").textContent = p.name;
+      $("clearProjBtn").style.display = "inline-block";
+    } else {
+      bar.classList.add("empty");
+      $("projName").textContent = "Ekkert verk valið";
+      $("clearProjBtn").style.display = "none";
+    }
+  }
+  $("clearProjBtn").addEventListener("click", function () { setProject(null); });
+
+  function wireTiles() {
+    var p = getProject();
+    var rid = p ? "?recordId=" + encodeURIComponent(p.id) : "";
+    $("tileLabels").href = "/labels" + rid;
+    $("tileFraesing").href = "/fraesing" + rid;
+    $("tileSkipulag").href = "/skipulag" + rid;
+    $("tileSaga").href = "/verkstaedi" + rid;
+
+    var verkTile = $("tileVerk");
+    if (p) {
+      var k = verkKey();
+      verkTile.href = "/verk?t=" + encodeURIComponent(p.id) + (k ? "&k=" + encodeURIComponent(k) : "");
+      verkTile.classList.remove("disabled");
+      verkTile.querySelector(".d").textContent = "Teikningar, glósur og framvinda — " + p.name;
+    } else {
+      verkTile.href = "/verk-i-gangi";
+      verkTile.classList.add("disabled");
+      verkTile.querySelector(".d").textContent = "Veldu verk fyrst";
+    }
+
+    // QUICK FIX form's project link line
+    var link = $("qfProjLink");
+    link.innerHTML = p
+      ? "Tengist verki: <b>" + escapeHtml(p.name) + "</b> — <a href=\"/verk-i-gangi\">breyta</a>"
+      : "Ekki tengt ákveðnu verki — <a href=\"/verk-i-gangi\">velja verk</a> (valfrjálst)";
+  }
+
+  // Support landing on /app?recordId=recXXXX (e.g. an Airtable button), same
+  // as every other hub page — sets it as the current project and cleans the URL.
+  (async function () {
+    var params = new URLSearchParams(location.search);
+    var rid = params.get("recordId");
+    if (!rid) return;
+    history.replaceState({}, "", "/app");
+    try {
+      var rec = await airtableFetch(PROJECTS_TABLE, {}, rid);
+      var name = ((rec.fields || {})[P_NAME] || "").trim();
+      if (name) setProject({ id: rid, name: name });
+    } catch (e) {}
+  })();
+
+  renderProjectBar();
+  wireTiles();
+
+  // ── QUICK FIX: owner dropdown ──
+  var ownerSel = $("qfOwner");
+  OWNERS.forEach(function (name) {
+    var o = document.createElement("option");
+    o.value = name; o.textContent = name;
+    ownerSel.appendChild(o);
+  });
+
+  // ── QUICK FIX: submit ──
+  $("qfForm").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    var msg = $("qfMsg");
+    msg.className = "qf-msg"; msg.textContent = "";
+    var issue = $("qfIssue").value.trim();
+    var owner = $("qfOwner").value;
+    if (!issue || !owner) return;
+
+    var fields = { };
+    fields[QF_ISSUE] = issue;
+    fields[QF_OWNER] = owner;
+    var from = $("qfFrom").value.trim();
+    if (from) fields[QF_FROM] = from;
+    var due = $("qfDue").value;
+    if (due) fields[QF_DUE] = due;
+    var p = getProject();
+    if (p) fields[QF_LINK] = [p.id];
+
+    var btn = $("qfSubmitBtn");
+    btn.disabled = true; btn.textContent = "Skrái…";
+    try {
+      await airtableCreate(QUICKFIX_TABLE, fields);
+      $("qfForm").reset();
+      msg.className = "qf-msg ok"; msg.textContent = "✅ Skráð — " + owner + " sér um þetta.";
+      loadRecentQuickFix();
+    } catch (err) {
+      msg.className = "qf-msg err"; msg.textContent = "Tókst ekki að skrá — reyndu aftur.";
+    } finally {
+      btn.disabled = false; btn.textContent = "➕ Skrá";
+    }
+  });
+
+  // ── QUICK FIX: recent list, tap to advance status ──
+  function timeAgo(iso) {
+    if (!iso) return "";
+    var diffMin = Math.max(0, Math.round((Date.now() - new Date(iso)) / 60000));
+    if (diffMin < 60) return diffMin + " mín";
+    var h = Math.round(diffMin / 60);
+    if (h < 24) return h + " klst";
+    return Math.round(h / 24) + " d";
+  }
+
+  async function loadRecentQuickFix() {
+    var list = $("qfList");
+    try {
+      var recs = await airtableFetch(QUICKFIX_TABLE, {
+        filterByFormula: '{' + QF_STATUS + '} != "Lokið ✅"',
+        "fields[]": [QF_ISSUE, QF_OWNER, QF_STATUS, QF_CREATED],
+        pageSize: 25,
+      });
+      // Sorted client-side (newest first) — simpler than building Airtable's
+      // sort[0][field]/sort[0][direction] query-param pair for one field.
+      recs.sort(function (a, b) {
+        var da = a.fields[QF_CREATED] || "";
+        var db = b.fields[QF_CREATED] || "";
+        return da < db ? 1 : da > db ? -1 : 0;
+      });
+      list.innerHTML = "";
+      $("qfRecentSummary").textContent = "Nýleg verkefni (" + recs.length + ")";
+      $("qfEmpty").style.display = recs.length ? "none" : "block";
+      recs.forEach(function (rec) {
+        var f = rec.fields;
+        var status = f[QF_STATUS] || "opið 😠";
+        var row = document.createElement("div");
+        row.className = "qf-row";
+        row.innerHTML =
+          '<div class="txt">' +
+            '<div class="issue">' + escapeHtml(f[QF_ISSUE] || "") + "</div>" +
+            '<div class="meta">' + escapeHtml(f[QF_OWNER] || "—") + " · " + timeAgo(f[QF_CREATED]) + "</div>" +
+          "</div>" +
+          '<div class="qf-badge ' + (status.indexOf("vinnslu") !== -1 ? "progress" : "open") + '">' + escapeHtml(status) + "</div>";
+        row.addEventListener("click", function () {
+          var next = NEXT_STATUS[status];
+          if (!next) return;
+          row.style.opacity = ".5";
+          airtablePatch(QUICKFIX_TABLE, rec.id, (function () { var o = {}; o[QF_STATUS] = next; return o; })())
+            .then(loadRecentQuickFix)
+            .catch(function () { row.style.opacity = "1"; });
+        });
+        list.appendChild(row);
+      });
+    } catch (e) {
+      list.innerHTML = "";
+      $("qfEmpty").textContent = "Ekki tókst að sækja verkefni.";
+      $("qfEmpty").style.display = "block";
+    }
+  }
+  loadRecentQuickFix();
+})();
+</script>
+</body>
+</html>
