@@ -272,7 +272,7 @@
     var hdr = document.createElement("div");
     hdr.className = "hdr";
     var h1 = document.createElement("h1");
-    h1.textContent = "BJÖRNINN Ráðgjöf";
+    h1.textContent = "BJÖRNINN";
     var closeBtn = document.createElement("button");
     closeBtn.setAttribute("aria-label", "Loka");
     closeBtn.textContent = "✕";
