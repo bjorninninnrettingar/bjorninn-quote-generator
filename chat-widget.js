@@ -92,8 +92,26 @@
     "color:#6f6d66;}",
     ".restore-handle:hover{border-color:#a29c72;color:#191919;}",
     ".panel{width:340px;max-width:calc(100vw - 24px);height:min(520px, calc(100vh - 100px));",
+    "height:min(520px, calc(100dvh - 100px));",
     "background:#fff;border:1px solid #e6e3da;border-radius:12px;box-shadow:0 12px 34px rgba(0,0,0,.2);",
     "display:flex;flex-direction:column;overflow:hidden;}",
+    // Mobile: `vh` on a phone is the browser-chrome-hidden height, so a
+    // panel sized off it visibly resizes/jumps every time the address bar
+    // or the on-screen keyboard shows or hides — confirmed as the reported
+    // "moving a lot" symptom. `dvh` tracks the actually-visible viewport
+    // instead (falls back to the `vh` line above on older browsers, since
+    // an invalid unit just drops that one declaration). Docking the panel
+    // to a full-width bottom sheet also removes the side margins that made
+    // any shift more noticeable, and a smaller bubble/handle leaves more
+    // room so the panel doesn't compete with the keyboard for space.
+    "@media (max-width:480px){",
+    ".wrap{left:0;right:0;bottom:0;padding:10px;gap:8px;}",
+    ".bubble{width:50px;height:50px;}",
+    ".bubble svg{width:22px;height:22px;}",
+    ".restore-handle{width:34px;height:34px;}",
+    ".panel{width:100%;max-width:100%;height:60vh;height:60dvh;max-height:60dvh;",
+    "border-radius:14px 14px 0 0;box-shadow:0 -8px 28px rgba(0,0,0,.22);}",
+    "}",
     ".hdr{background:#3d61c1;color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;flex:none;}",
     ".hdr h1{font-size:15px;font-weight:600;margin:0;}",
     ".hdr button{background:none;border:none;color:#fff;font-size:18px;cursor:pointer;padding:2px 4px;line-height:1;opacity:.85;}",
@@ -142,6 +160,26 @@
   var wrap = document.createElement("div");
   wrap.className = "wrap";
   root.appendChild(wrap);
+
+  // On a phone, focusing the input opens the on-screen keyboard, which
+  // shrinks window.visualViewport without changing window.innerHeight — a
+  // position:fixed element stays pinned to the (unchanged) layout
+  // viewport, so it ends up sitting behind the keyboard or the page
+  // scrolls to compensate, both of which read as the widget "jumping."
+  // Track the actually-visible viewport and nudge the widget up by
+  // exactly the obscured amount instead. No-op on desktop (nothing
+  // shrinks the visual viewport there), and safe if visualViewport isn't
+  // supported at all.
+  function syncViewportOffset() {
+    var vv = window.visualViewport;
+    if (!vv) return;
+    var obscured = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    wrap.style.bottom = obscured > 0 ? obscured + "px" : "";
+  }
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", syncViewportOffset);
+    window.visualViewport.addEventListener("scroll", syncViewportOffset);
+  }
 
   var panel = null;
   var msgsEl = null;
