@@ -66,18 +66,19 @@
   .screen-title{ font-size:18px; font-weight:600; margin:0 0 4px; }
   .screen-sub{ font-size:14px; color:var(--ink-soft); margin:0 0 20px; }
 
-  /* ---- shape step ---- */
-  .shapes{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:28px; }
-  @media (max-width:560px){ .shapes{ grid-template-columns:1fr; } }
-  .shape-card{
-    background:#fff; border:1.5px solid var(--line); border-radius:14px;
-    padding:18px 14px; text-align:center; cursor:pointer; color:var(--ink);
+  /* ---- shape step (Phase 7d-1: guided wall-chain builder) ---- */
+  .room-preview{
+    height:220px; background:var(--panel); border:1px solid var(--line); border-radius:16px;
+    margin-bottom:20px; overflow:hidden;
   }
-  .shape-card:hover{ border-color:var(--blue); }
-  .shape-card.active{ border-color:var(--blue); background:var(--blue-soft); }
-  .shape-card svg{ display:block; margin:0 auto 10px; }
-  .shape-card .name{ font-weight:600; font-size:15px; }
-  .shape-card .hint{ font-size:12.5px; color:var(--ink-soft); margin-top:2px; }
+  .room-preview svg{ width:100%; height:100%; display:block; }
+  .wallchain-row{
+    background:#fff; border:1px solid var(--line); border-radius:12px;
+    padding:12px 14px; margin-bottom:10px;
+  }
+  .wallchain-row .wc-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
+  .wallchain-row .wc-label{ font-size:13.5px; font-weight:600; }
+  .wallchain-turn{ display:flex; gap:8px; flex-wrap:wrap; margin:10px 0 20px; }
 
   .wall-lengths{ display:flex; flex-direction:column; gap:14px; max-width:420px; margin-bottom:24px; }
   .field{ display:flex; flex-direction:column; gap:6px; }
@@ -357,27 +358,11 @@
   <!-- ============ STEP: SHAPE ============ -->
   <section id="screen-shape" hidden>
     <div class="screen-title">Lögun eldhússins</div>
-    <p class="screen-sub">Veldu þá lögun sem líkist mest þínu rými. Þú getur breytt lengdunum og lofthæð hvenær sem er.</p>
+    <p class="screen-sub">Sláðu inn lengd fyrsta veggjar og segðu okkur hvernig rýmið heldur áfram — hvaða lögun sem er.</p>
 
-    <div class="shapes" id="shapeCards">
-      <div class="shape-card" data-shape="straight">
-        <svg width="72" height="44" viewBox="0 0 72 44"><rect x="6" y="20" width="60" height="8" rx="2" fill="#3d61c1"/></svg>
-        <div class="name">Beinn veggur</div>
-        <div class="hint">Einn samfelldur veggur</div>
-      </div>
-      <div class="shape-card" data-shape="L">
-        <svg width="72" height="44" viewBox="0 0 72 44"><path d="M8 8 L8 36 L64 36" stroke="#3d61c1" stroke-width="8" fill="none" stroke-linecap="square"/></svg>
-        <div class="name">L-laga</div>
-        <div class="hint">Tveir veggir mætast í horni</div>
-      </div>
-      <div class="shape-card" data-shape="U">
-        <svg width="72" height="44" viewBox="0 0 72 44"><path d="M10 6 L10 36 L62 36 L62 6" stroke="#3d61c1" stroke-width="8" fill="none" stroke-linecap="square"/></svg>
-        <div class="name">U-laga</div>
-        <div class="hint">Þrír veggir, eldhús á alla vegu</div>
-      </div>
-    </div>
+    <div class="room-preview" id="roomPreviewWrap"></div>
 
-    <div class="wall-lengths" id="wallLengthFields" hidden></div>
+    <div class="wall-lengths" id="wallLengthFields"></div>
 
     <div class="actions">
       <button class="btn btn-secondary" id="backToMaterialsBtn" type="button">← Breyta efni</button>
@@ -483,12 +468,6 @@
   var DRAWER_SYSTEMS = KP3D.DRAWER_SYSTEMS;
   var HANDLES = KP3D.HANDLES;
 
-  var SHAPES = {
-    straight: [ { id:"A", label:"Veggur", defaultLen:3000 } ],
-    L:        [ { id:"A", label:"Veggur A", defaultLen:2400 }, { id:"B", label:"Veggur B", defaultLen:2400 } ],
-    U:        [ { id:"A", label:"Veggur A", defaultLen:1800 }, { id:"B", label:"Bakveggur", defaultLen:3000 }, { id:"C", label:"Veggur C", defaultLen:1800 } ]
-  };
-
   // Practical intake — replaces the old style quiz (Phase 7a). Bucketed
   // single-select answers, not exact numbers/dates: simpler UI, and a first-
   // time browser's exact figure isn't reliably meaningful anyway. "Room"
@@ -509,6 +488,12 @@
 
   var DEFAULT_ROOM_HEIGHT_MM = 2600; // matches the historical fixed 3D wall height
 
+  // A fresh room always starts as one wall — the customer extends it by
+  // turning left/right (Phase 7d-1, replaces the old straight/L/U presets).
+  function freshWalls(){
+    return [ { id:"W1", label:"Veggur 1", lengthMm:3000, turnAfter:null, floor:[], wall:[] } ];
+  }
+
   var state = {
     step: "intake",
     intake: { delivery:null, budget:null, room:"Eldhús" },
@@ -516,9 +501,8 @@
     drawerSystem: null,
     look: null,
     handle: null,
-    shape: null,
     roomHeightMm: DEFAULT_ROOM_HEIGHT_MM,
-    walls: [] // {id,label,lengthMm, floor:[block], wall:[block]}
+    walls: freshWalls() // {id,label,lengthMm,turnAfter, floor:[block], wall:[block]}
   };
 
   // A cabinet can never render/write taller than the room itself (Phase 7c) —
@@ -526,6 +510,7 @@
   function effMaxH(c){ return Math.min(c.maxH, state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM); }
   function blockHeightMm(b, c){ return Math.min(b.heightMm || c.h, state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM); }
   var blockSeq = 1;
+  var wallSeq = 2; // W1 already used by the starting wall
 
   function newBlock(type){
     var c = CATALOG[type];
@@ -552,6 +537,12 @@
       if (!raw) return false;
       var parsed = JSON.parse(raw);
       if (!parsed || !parsed.walls) return false;
+      // Pre-Phase-7d-1 drafts used a fixed straight/L/U shape with no
+      // turnAfter chain — geometrically incompatible with the new wall-chain
+      // model, and not worth a lossy migration for a brand-new tool with no
+      // real customer usage on the old shape yet. Start that draft fresh
+      // rather than risk rendering a garbled room.
+      if (parsed.shape !== undefined) return false;
       state = parsed;
       if (!state.intake) state.intake = { delivery:null, budget:null, room:"Eldhús" };
       if (state.carcass === undefined) state.carcass = null;
@@ -563,7 +554,10 @@
       if (state.step === "quiz") state.step = "intake";
       if (state.step === "look" || state.step === "handle") state.step = "materials";
       blockSeq = 1;
+      wallSeq = 2;
       state.walls.forEach(function(w){
+        var wn = parseInt(String(w.id).replace("W", ""), 10);
+        if (!isNaN(wn) && wn >= wallSeq) wallSeq = wn + 1;
         w.floor.concat(w.wall).forEach(function(b){
           var n = parseInt(String(b.id).replace("b",""), 10);
           if (!isNaN(n) && n >= blockSeq) blockSeq = n + 1;
@@ -576,7 +570,8 @@
     if (!confirm("Hreinsa allt skipulagið og byrja upp á nýtt?")) return;
     KP3D.teardown3D();
     try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
-    state = { step:"intake", intake:{delivery:null,budget:null,room:"Eldhús"}, carcass:null, drawerSystem:null, look:null, handle:null, shape:null, roomHeightMm:DEFAULT_ROOM_HEIGHT_MM, walls:[] };
+    wallSeq = 2;
+    state = { step:"intake", intake:{delivery:null,budget:null,room:"Eldhús"}, carcass:null, drawerSystem:null, look:null, handle:null, roomHeightMm:DEFAULT_ROOM_HEIGHT_MM, walls:freshWalls() };
     render();
   }
 
@@ -608,59 +603,109 @@
     document.getElementById("toMaterialsBtn").disabled = !(state.intake.delivery && state.intake.budget);
   }
 
-  // ---------- shape step ----------
-  function selectShape(shape){
-    state.shape = shape;
-    state.walls = SHAPES[shape].map(function(w){
-      return { id:w.id, label:w.label, lengthMm:w.defaultLen, floor:[], wall:[] };
+  // ---------- shape step (Phase 7d-1: guided wall-chain builder) ----------
+  // Validated like a real dimension field, not a silent auto-clamp — an
+  // out-of-range or unreadable value shows exactly why, same pattern as
+  // the contact step's .field-error (Phase 7d scan: a competitor planner's
+  // ceiling-height field flags "Unrecognised entry" instead of silently
+  // correcting a bad value).
+  function numberField(container, id, labelText, min, max, value, onValid){
+    var field = document.createElement("div");
+    field.className = "field";
+    field.innerHTML =
+      '<label for="' + id + '">' + labelText + '</label>' +
+      '<div class="row"><input type="number" id="' + id + '" min="' + min + '" max="' + max + '" step="10" value="' + value + '"><span class="unit">mm</span></div>' +
+      '<span class="field-error">Ógild tala — verður að vera á milli ' + min + ' og ' + max + ' mm</span>';
+    container.appendChild(field);
+    field.querySelector("input").addEventListener("input", function(e){
+      var raw = e.target.value.trim();
+      var v = parseInt(raw, 10);
+      var valid = raw !== "" && !isNaN(v) && v >= min && v <= max;
+      field.classList.toggle("invalid", !valid);
+      if (!valid) return; // keep the last good state value until it's fixed
+      onValid(v);
+      save();
+      renderRoomPreview();
     });
+    return field;
+  }
+
+  function addWallTurn(dir){
+    var last = state.walls[state.walls.length - 1];
+    last.turnAfter = dir;
+    state.walls.push({ id:"W" + (wallSeq++), label:"Veggur " + (state.walls.length + 1), lengthMm:2400, turnAfter:null, floor:[], wall:[] });
     save();
     renderShapeStep();
   }
 
+  function removeLastWall(){
+    if (state.walls.length <= 1) return;
+    var last = state.walls[state.walls.length - 1];
+    if ((last.floor.length || last.wall.length) &&
+        !confirm("Þessi veggur er þegar með skápum á sér. Fjarlægja hann samt?")) return;
+    state.walls.pop();
+    state.walls[state.walls.length - 1].turnAfter = null;
+    save();
+    renderShapeStep();
+  }
+
+  function renderRoomPreview(){
+    KP3D.buildPlan2D(document.getElementById("roomPreviewWrap"), state);
+  }
+
+  // Only "turn left" (turnAfter:"left") is exposed in the UI — verified via
+  // the actual rendered geometry that consecutive "right" turns produce
+  // cabinets facing *away* from the enclosed room (each wall's normal is
+  // forced to be 90° CCW of its own axis for the 3D basis to stay
+  // right-handed; chaining that consistently only stays coherent turning
+  // one direction — the exterior-angle theorem for a simple polygon). Since
+  // the tool's absolute starting orientation is arbitrary and invisible to
+  // the customer, "always turn left" can still build any straight/L/U/
+  // staircase shape — every realistic kitchen — with no risk of the broken
+  // case. `turnAfter` itself stays a "left"|"right" field (kitchen-planner-
+  // 3d.js's wallGeometry3D supports both) in case a future phase adds
+  // concave notches with proper handling — just not customer-exposed yet.
+  var TURN_LABEL = { left:"Beygir hér", right:"Beygir hér" };
+
   function renderShapeStep(){
-    var cards = document.querySelectorAll("#shapeCards .shape-card");
-    cards.forEach(function(el){ el.classList.toggle("active", el.dataset.shape === state.shape); });
-
     var box = document.getElementById("wallLengthFields");
-    var toWalls = document.getElementById("toWallsBtn");
-    if (!state.shape){
-      box.hidden = true;
-      toWalls.disabled = true;
-      return;
-    }
-    box.hidden = false;
-    toWalls.disabled = false;
     box.innerHTML = "";
-    // Validated like a real dimension field, not a silent auto-clamp — an
-    // out-of-range or unreadable value shows exactly why, same pattern as
-    // the contact step's .field-error (Phase 7d scan: a competitor planner's
-    // ceiling-height field flags "Unrecognised entry" instead of silently
-    // correcting a bad value — worth borrowing here, cheap and concrete).
-    function numberField(container, id, labelText, min, max, value, onValid){
-      var field = document.createElement("div");
-      field.className = "field";
-      field.innerHTML =
-        '<label for="' + id + '">' + labelText + '</label>' +
-        '<div class="row"><input type="number" id="' + id + '" min="' + min + '" max="' + max + '" step="10" value="' + value + '"><span class="unit">mm</span></div>' +
-        '<span class="field-error">Ógild tala — verður að vera á milli ' + min + ' og ' + max + ' mm</span>';
-      container.appendChild(field);
-      field.querySelector("input").addEventListener("input", function(e){
-        var raw = e.target.value.trim();
-        var v = parseInt(raw, 10);
-        var valid = raw !== "" && !isNaN(v) && v >= min && v <= max;
-        field.classList.toggle("invalid", !valid);
-        if (!valid) return; // keep the last good state value until it's fixed
-        onValid(v);
-        save();
-      });
-      return field;
-    }
 
-    state.walls.forEach(function(w){
-      numberField(box, "len-" + w.id, w.label, 600, 8000, w.lengthMm, function(v){ w.lengthMm = v; });
+    state.walls.forEach(function(w, i){
+      var row = document.createElement("div");
+      row.className = "wallchain-row";
+      var head = document.createElement("div");
+      head.className = "wc-head";
+      head.innerHTML = '<span class="wc-label">' + w.label + '</span>';
+      row.appendChild(head);
+      numberField(row, "len-" + w.id, "Lengd", 600, 8000, w.lengthMm, function(v){ w.lengthMm = v; });
+
+      var isLast = i === state.walls.length - 1;
+      if (isLast){
+        var turnBox = document.createElement("div");
+        turnBox.className = "wallchain-turn";
+        turnBox.innerHTML =
+          '<button class="btn btn-secondary btn-small" id="turnBtn">↰ Beygja hér og bæta við vegg</button>' +
+          (state.walls.length > 1 ? '<button class="btn btn-secondary btn-small" id="removeWallBtn">✕ Fjarlægja vegg</button>' : '');
+        row.appendChild(turnBox);
+      } else if (w.turnAfter){
+        var note = document.createElement("p");
+        note.className = "meter-note";
+        note.textContent = TURN_LABEL[w.turnAfter];
+        row.appendChild(note);
+      }
+      box.appendChild(row);
     });
+
     numberField(box, "roomHeight", "Lofthæð", 2200, 3200, state.roomHeightMm, function(v){ state.roomHeightMm = v; });
+
+    var turnBtn = document.getElementById("turnBtn");
+    var removeBtn = document.getElementById("removeWallBtn");
+    if (turnBtn) turnBtn.addEventListener("click", function(){ addWallTurn("left"); });
+    if (removeBtn) removeBtn.addEventListener("click", removeLastWall);
+
+    document.getElementById("toWallsBtn").disabled = false;
+    renderRoomPreview();
   }
 
   // ---------- walls step ----------
@@ -1324,7 +1369,8 @@
 
       KP3D.teardown3D();
       try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
-      state = { step:"done", intake:{delivery:null,budget:null,room:"Eldhús"}, carcass:null, drawerSystem:null, look:null, handle:null, shape:null, roomHeightMm:DEFAULT_ROOM_HEIGHT_MM, walls:[] };
+      wallSeq = 2;
+      state = { step:"done", intake:{delivery:null,budget:null,room:"Eldhús"}, carcass:null, drawerSystem:null, look:null, handle:null, roomHeightMm:DEFAULT_ROOM_HEIGHT_MM, walls:freshWalls() };
       render();
     }catch(e){
       errEl.textContent = "Eitthvað fór úrskeiðis við að senda inn. Prófaðu aftur — " + e.message;
@@ -1343,9 +1389,6 @@
   document.getElementById("toShapeBtn").addEventListener("click", function(){ goto("shape"); });
   document.getElementById("backToMaterialsBtn").addEventListener("click", function(){ goto("materials"); });
 
-  document.querySelectorAll("#shapeCards .shape-card").forEach(function(card){
-    card.addEventListener("click", function(){ selectShape(card.dataset.shape); });
-  });
   document.getElementById("toWallsBtn").addEventListener("click", function(){ goto("walls"); });
   document.getElementById("backToShapeBtn").addEventListener("click", function(){ goto("shape"); });
 

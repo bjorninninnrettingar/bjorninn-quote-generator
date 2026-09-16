@@ -91,43 +91,47 @@
     push:   { label:"Þrýstiopnun (Blum Tip-on)", img:"handles/push-open.jpg", desc:"Ekkert sýnilegt handfang eða grip — ýtt létt á framhliðina til að opna", vorulistiId:null, isPushOpen:true }
   };
 
-  // Hardcoded per-shape wall layout: each wall's start point, its own axis
-  // (direction cabinets run along) and normal (direction cabinets project
-  // into the room), in meters. Straight/L/U are fixed presets, so this
-  // doesn't need to be a generic corner-solver.
-  function wallGeometry3D(shape, walls){
+  // Rectilinear wall-chain (Phase 7d-1) — replaces the old hardcoded
+  // straight/L/U presets with a generic walk: each wall's `turnAfter`
+  // ("left"|"right"|null) says how the *next* wall turns off this one, so
+  // any rectilinear kitchen shape (not just 3 fixed presets) falls out of
+  // the same loop.
+  //
+  // Every wall must form a RIGHT-HANDED basis with world-up, i.e.
+  // cross(axis, (0,1,0)) must equal normal — makeBasis() below doesn't
+  // validate this, it'll happily build a mirrored (determinant -1) matrix
+  // that Quaternion.setFromRotationMatrix then silently mangles into a
+  // degenerate non-unit quaternion (garbled wall/cabinet orientation,
+  // "material facing the wrong way" — the bug this session's earlier 3D fix
+  // chased down, hand-verified per hardcoded shape). Deriving normal from
+  // axis via one fixed formula, always, retires that whole bug class instead
+  // of re-verifying it by hand per shape: for axis=(x,z), normal=(-z,x) is
+  // exactly cross(axis,(0,1,0)) — confirmed by checking it reproduces every
+  // wall in the old straight/L/U cases exactly. Turning the walk left/right
+  // rotates axis by the same ±90°, and normal is *always* re-derived from
+  // the new axis by that formula — so a turn can never produce a mirrored
+  // basis, by construction.
+  function rotate90(v, dir){
+    return dir === "left" ? { x:-v.z, z:v.x } : { x:v.z, z:-v.x };
+  }
+  function normalFromAxis(axis){ return { x:-axis.z, z:axis.x }; }
+
+  function wallGeometry3D(walls){
     function m(mm){ return mm / 1000; }
-    // Every wall here must form a RIGHT-HANDED basis with world-up, i.e.
-    // cross(axis, (0,1,0)) must equal normal — makeBasis() below doesn't
-    // validate this, it'll happily build a mirrored (determinant -1) matrix
-    // that Quaternion.setFromRotationMatrix then silently mangles into a
-    // degenerate non-unit quaternion (garbled wall/cabinet orientation,
-    // "material facing the wrong way"). Where a wall's natural fill
-    // direction would violate this, the wall is parameterized from its
-    // *other* end instead (axis flipped, origin moved to the far corner) —
-    // same physical wall segment, opposite offset(0) end, always verified
-    // right-handed. See the session notes for how this was diagnosed.
-    if (shape === "straight"){
-      return [ { origin:{x:0,z:0}, axis:{x:1,z:0}, normal:{x:0,z:1}, lenM:m(walls[0].lengthMm) } ];
-    }
-    if (shape === "L"){
-      var lB = m(walls[1].lengthMm);
-      return [
-        { origin:{x:0,z:0}, axis:{x:1,z:0}, normal:{x:0,z:1}, lenM:m(walls[0].lengthMm) },
-        { origin:{x:0,z:lB}, axis:{x:0,z:-1}, normal:{x:1,z:0}, lenM:lB }
-      ];
-    }
-    if (shape === "U"){
-      var LA = m(walls[0].lengthMm), LB = m(walls[1].lengthMm), LC = m(walls[2].lengthMm);
-      var aEnd = { x:0, z:LA };
-      var bEnd = { x:LB, z:LA };
-      return [
-        { origin:aEnd, axis:{x:0,z:-1}, normal:{x:1,z:0},  lenM:LA },
-        { origin:bEnd, axis:{x:-1,z:0}, normal:{x:0,z:-1}, lenM:LB },
-        { origin:bEnd, axis:{x:0,z:1},  normal:{x:-1,z:0}, lenM:LC }
-      ];
-    }
-    return [];
+    var geoms = [];
+    var origin = { x:0, z:0 };
+    var axis = { x:1, z:0 };
+    walls.forEach(function(w){
+      var normal = normalFromAxis(axis);
+      var lenM = m(w.lengthMm);
+      geoms.push({ origin:{ x:origin.x, z:origin.z }, axis:axis, normal:normal, lenM:lenM });
+      var end = { x: origin.x + axis.x * lenM, z: origin.z + axis.z * lenM };
+      if (w.turnAfter === "left" || w.turnAfter === "right"){
+        axis = rotate90(axis, w.turnAfter);
+      }
+      origin = end;
+    });
+    return geoms;
   }
 
   var ROOM_DEPTH_M = 2.4; // assumed walkway/room depth beyond each wall, for floor sizing + camera framing only
@@ -340,7 +344,7 @@
     var THREE = window.__THREE__;
     var OrbitControls = window.__OrbitControls__;
 
-    var geoms = wallGeometry3D(state.shape, state.walls);
+    var geoms = wallGeometry3D(state.walls);
     var carcass = state.carcass ? CARCASS[state.carcass] : null;
     var carcassMat = new THREE.MeshStandardMaterial({ color: carcass ? carcass.color3d : "#3a3a3a", roughness:0.9 });
     var wallMat = new THREE.MeshStandardMaterial({ color:0xf1efe8, roughness:1, side:THREE.DoubleSide });
@@ -445,7 +449,7 @@
 
   function buildPlan2D(container, state, opts){
     opts = opts || {};
-    var geoms = wallGeometry3D(state.shape, state.walls);
+    var geoms = wallGeometry3D(state.walls);
     if (!geoms.length){ container.innerHTML = ""; return; }
 
     var b = interiorBounds(geoms);
