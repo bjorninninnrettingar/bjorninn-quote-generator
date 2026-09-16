@@ -111,12 +111,32 @@
     ".restore-handle{width:34px;height:34px;}",
     ".panel{width:100%;max-width:100%;height:60vh;height:60dvh;max-height:60dvh;",
     "border-radius:14px 14px 0 0;box-shadow:0 -8px 28px rgba(0,0,0,.22);}",
+    ".hdr{border-radius:14px 14px 0 0;}",
     "}",
-    ".hdr{background:#3d61c1;color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;flex:none;}",
+    // `.hdr`'s own top corners have to match `.panel`'s rounding exactly —
+    // `overflow:hidden` on the panel clips it, but browsers commonly leave a
+    // faint white-background seam at the curve from antialiasing when the
+    // clipped child's own corners are still square. Reported as a "white
+    // frame" around the header.
+    ".hdr{background:#3d61c1;color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;flex:none;",
+    "border-radius:12px 12px 0 0;}",
     ".hdr h1{font-size:15px;font-weight:600;margin:0;}",
     ".hdr button{background:none;border:none;color:#fff;font-size:18px;cursor:pointer;padding:2px 4px;line-height:1;opacity:.85;}",
     ".hdr button:hover{opacity:1;}",
-    ".msgs{flex:1;overflow-y:auto;padding:14px 12px;display:flex;flex-direction:column;gap:10px;background:#fff;}",
+    ".content{flex:1;min-height:0;overflow:hidden;}",
+    ".chat-view{height:100%;min-height:0;display:flex;flex-direction:column;}",
+    ".faq-view{height:100%;}",
+    ".faq-view iframe{width:100%;height:100%;border:0;display:block;}",
+    // Same corner-seam fix as `.hdr`, mirrored at the bottom — `.tabbar` is
+    // now the panel's last child, sitting against its rounded bottom
+    // corners (desktop only; the mobile bottom-sheet variant has square
+    // bottom corners already, so no override needed there).
+    ".tabbar{flex:none;display:flex;border-top:1px solid #e6e3da;background:#fff;border-radius:0 0 12px 12px;}",
+    ".tabbar button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;",
+    "padding:8px 4px 7px;background:none;border:none;cursor:pointer;color:#9a9890;font:inherit;font-size:11px;font-weight:600;}",
+    ".tabbar button.active{color:#3d61c1;}",
+    ".tabbar button svg{display:block;}",
+    ".msgs{flex:1;min-height:0;overflow-y:auto;padding:14px 12px;display:flex;flex-direction:column;gap:10px;background:#fff;}",
     ".row{display:flex;}",
     ".row.user{justify-content:flex-end;}",
     ".row.bot{justify-content:flex-start;}",
@@ -239,6 +259,12 @@
     openPanel();
   }
 
+  var CHAT_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-4.4 7.4L4 21l2.1-4.6A8.38 8.38 0 0 1 12 3a8.38 8.38 0 0 1 9 8.5Z"/></svg>';
+  // Same question-mark-in-circle icon faq.html itself uses for its "Af
+  // hverju sérsmíði?" category — keeps the FAQ tab visually tied to the
+  // page it's actually showing.
+  var FAQ_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 4.9.8c0 1.7-2.4 2-2.4 3.7"/><path d="M12 17h.01"/></svg>';
+
   function openPanel() {
     panel = document.createElement("div");
     panel.className = "panel";
@@ -246,13 +272,19 @@
     var hdr = document.createElement("div");
     hdr.className = "hdr";
     var h1 = document.createElement("h1");
-    h1.textContent = "Björninn — spjall";
+    h1.textContent = "BJÖRNINN Ráðgjöf";
     var closeBtn = document.createElement("button");
     closeBtn.setAttribute("aria-label", "Loka");
     closeBtn.textContent = "✕";
     closeBtn.addEventListener("click", closePanel);
     hdr.appendChild(h1);
     hdr.appendChild(closeBtn);
+
+    var content = document.createElement("div");
+    content.className = "content";
+
+    var chatView = document.createElement("div");
+    chatView.className = "chat-view";
 
     msgsEl = document.createElement("div");
     msgsEl.className = "msgs";
@@ -267,10 +299,48 @@
     sendBtn.textContent = "Senda";
     inputRow.appendChild(input);
     inputRow.appendChild(sendBtn);
+    chatView.appendChild(msgsEl);
+    chatView.appendChild(inputRow);
+
+    // The FAQ tab reuses faq.html itself (already live at /adstod, already
+    // the single source of truth for this content) via iframe, rather than
+    // re-implementing its search/category/accordion UI a second time here.
+    // Lazy-loaded: no src until the tab is actually opened, so visitors who
+    // never touch it don't cost an extra request.
+    var faqView = document.createElement("div");
+    faqView.className = "faq-view";
+    var faqIframe = document.createElement("iframe");
+    faqIframe.title = "Algengar spurningar";
+    faqView.appendChild(faqIframe);
+    faqView.style.display = "none";
+
+    content.appendChild(chatView);
+    content.appendChild(faqView);
+
+    var tabbar = document.createElement("div");
+    tabbar.className = "tabbar";
+    var chatTabBtn = document.createElement("button");
+    chatTabBtn.className = "active";
+    chatTabBtn.innerHTML = CHAT_ICON + "<span>Spjall</span>";
+    var faqTabBtn = document.createElement("button");
+    faqTabBtn.innerHTML = FAQ_ICON + "<span>Algengar spurningar</span>";
+    tabbar.appendChild(chatTabBtn);
+    tabbar.appendChild(faqTabBtn);
+
+    function switchTab(tab) {
+      var isChat = tab === "chat";
+      chatView.style.display = isChat ? "flex" : "none";
+      faqView.style.display = isChat ? "none" : "block";
+      chatTabBtn.classList.toggle("active", isChat);
+      faqTabBtn.classList.toggle("active", !isChat);
+      if (!isChat && !faqIframe.src) faqIframe.src = API_BASE + "/adstod";
+    }
+    chatTabBtn.addEventListener("click", function () { switchTab("chat"); });
+    faqTabBtn.addEventListener("click", function () { switchTab("faq"); });
 
     panel.appendChild(hdr);
-    panel.appendChild(msgsEl);
-    panel.appendChild(inputRow);
+    panel.appendChild(content);
+    panel.appendChild(tabbar);
     wrap.insertBefore(panel, bubbleHolder);
 
     function send() {
