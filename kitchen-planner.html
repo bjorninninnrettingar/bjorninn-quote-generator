@@ -632,34 +632,35 @@
     box.hidden = false;
     toWalls.disabled = false;
     box.innerHTML = "";
-    state.walls.forEach(function(w){
+    // Validated like a real dimension field, not a silent auto-clamp — an
+    // out-of-range or unreadable value shows exactly why, same pattern as
+    // the contact step's .field-error (Phase 7d scan: a competitor planner's
+    // ceiling-height field flags "Unrecognised entry" instead of silently
+    // correcting a bad value — worth borrowing here, cheap and concrete).
+    function numberField(container, id, labelText, min, max, value, onValid){
       var field = document.createElement("div");
       field.className = "field";
       field.innerHTML =
-        '<label for="len-' + w.id + '">' + w.label + '</label>' +
-        '<div class="row"><input type="number" id="len-' + w.id + '" min="600" max="8000" step="50" value="' + w.lengthMm + '"><span class="unit">mm</span></div>';
-      box.appendChild(field);
+        '<label for="' + id + '">' + labelText + '</label>' +
+        '<div class="row"><input type="number" id="' + id + '" min="' + min + '" max="' + max + '" step="10" value="' + value + '"><span class="unit">mm</span></div>' +
+        '<span class="field-error">Ógild tala — verður að vera á milli ' + min + ' og ' + max + ' mm</span>';
+      container.appendChild(field);
       field.querySelector("input").addEventListener("input", function(e){
-        var v = parseInt(e.target.value, 10);
-        if (isNaN(v)) return;
-        v = Math.max(600, Math.min(8000, v));
-        w.lengthMm = v;
+        var raw = e.target.value.trim();
+        var v = parseInt(raw, 10);
+        var valid = raw !== "" && !isNaN(v) && v >= min && v <= max;
+        field.classList.toggle("invalid", !valid);
+        if (!valid) return; // keep the last good state value until it's fixed
+        onValid(v);
         save();
       });
-    });
+      return field;
+    }
 
-    var heightField = document.createElement("div");
-    heightField.className = "field";
-    heightField.innerHTML =
-      '<label for="roomHeight">Lofthæð</label>' +
-      '<div class="row"><input type="number" id="roomHeight" min="2200" max="3200" step="10" value="' + state.roomHeightMm + '"><span class="unit">mm</span></div>';
-    box.appendChild(heightField);
-    heightField.querySelector("input").addEventListener("input", function(e){
-      var v = parseInt(e.target.value, 10);
-      if (isNaN(v)) return;
-      state.roomHeightMm = Math.max(2200, Math.min(3200, v));
-      save();
+    state.walls.forEach(function(w){
+      numberField(box, "len-" + w.id, w.label, 600, 8000, w.lengthMm, function(v){ w.lengthMm = v; });
     });
+    numberField(box, "roomHeight", "Lofthæð", 2200, 3200, state.roomHeightMm, function(v){ state.roomHeightMm = v; });
   }
 
   // ---------- walls step ----------
