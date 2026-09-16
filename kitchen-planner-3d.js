@@ -7,17 +7,17 @@
   "use strict";
 
   var CATALOG = {
-    grunnskapur: { label:"Grunnskápur", zone:"floor", cls:"floor", defaultW:600, minW:300, maxW:1200, h:800,  d:600, hasInterior:true, drawerCountRange:[1,5] },
-    harskapur:   { label:"Hárskápur",   zone:"floor", cls:"tall",  defaultW:600, minW:300, maxW:900,  h:2400, d:600, hasInterior:true, drawerCountRange:[1,5] },
-    efriskapur:  { label:"Efriskápur",  zone:"wall",  cls:"wall",  defaultW:600, minW:300, maxW:1200, h:600,  d:600, hasInterior:false },
+    grunnskapur: { label:"Grunnskápur", zone:"floor", cls:"floor", defaultW:600, minW:300, maxW:1200, h:800,  d:600, minH:600,  maxH:900,  minD:400, maxD:650, hasInterior:true, drawerCountRange:[1,5] },
+    harskapur:   { label:"Hárskápur",   zone:"floor", cls:"tall",  defaultW:600, minW:300, maxW:900,  h:2400, d:600, minH:2000, maxH:2600, minD:400, maxD:650, hasInterior:true, drawerCountRange:[1,5] },
+    efriskapur:  { label:"Efriskápur",  zone:"wall",  cls:"wall",  defaultW:600, minW:300, maxW:1200, h:600,  d:600, minH:400,  maxH:900,  minD:300, maxD:650, hasInterior:false },
     // Real Skápategund choice, with real oven-cavity fields already in
     // Eyðublað (Hæð ofns / Hæð undir ofni) — a fixed 600mm-wide tower is
     // the common real config, so width isn't customer-adjustable here.
-    ofnaskapur:  { label:"Ofnaskápur",  zone:"floor", cls:"oven",  defaultW:600, minW:600, maxW:600,  h:2100, d:600, hasInterior:false, ovenHeightMm:595 },
+    ofnaskapur:  { label:"Ofnaskápur",  zone:"floor", cls:"oven",  defaultW:600, minW:600, maxW:600,  h:2100, d:600, minH:1800, maxH:2200, minD:600, maxD:600, hasInterior:false, ovenHeightMm:595 },
     // Not its own Skápategund in the real schema — physically a Grunnskápur
     // corner unit fitted with a real Le Mans mechanism (Vörulisti product).
-    // Fixed 900×900 corner footprint (the real hardware's actual size).
-    tofrahorn:   { label:"Töfrahorn (kapphorn)", zone:"floor", cls:"corner", defaultW:900, minW:900, maxW:900, h:800, d:900, hasInterior:false,
+    // Fixed 900×900×800 (the real hardware's actual footprint/height).
+    tofrahorn:   { label:"Töfrahorn (kapphorn)", zone:"floor", cls:"corner", defaultW:900, minW:900, maxW:900, h:800, d:900, minH:800, maxH:800, minD:900, maxD:900, hasInterior:false,
                    skapategundOverride:"Grunnskápur", tofrahornId:"rec9PD5fCZGUpwAon" }
   };
 
@@ -195,12 +195,25 @@
     }
   }
 
-  // `interior` is optional: { mode:"hillur"|"skuffur", count:number }
-  function addCabinetBox(THREE, scene, geom, offsetM, widthM, heightM, depthM, baseYM, carcassMat, frontMat, interior){
+  var SELECT_COLOR = 0x3d61c1;
+
+  // `interior` is optional: { mode:"hillur"|"skuffur", count:number }.
+  // `meta` (optional) is tagged onto the mesh as userData for click-picking —
+  // {wallId, zone, blockId}. `selected` swaps the edge color and tints the
+  // front face so a picked cabinet is unambiguous. `pickables` (optional
+  // array) collects the mesh so the caller can raycast against exactly the
+  // clickable set, not walls/floor/seams.
+  function addCabinetBox(THREE, scene, geom, offsetM, widthM, heightM, depthM, baseYM, carcassMat, frontMat, interior, meta, selected, pickables){
     var cx = geom.origin.x + geom.axis.x * (offsetM + widthM / 2) + geom.normal.x * (depthM / 2);
     var cz = geom.origin.z + geom.axis.z * (offsetM + widthM / 2) + geom.normal.z * (depthM / 2);
     var boxGeo = new THREE.BoxGeometry(widthM, heightM, depthM);
-    var mesh = new THREE.Mesh(boxGeo, [carcassMat, carcassMat, carcassMat, carcassMat, frontMat, carcassMat]);
+    var useFrontMat = frontMat;
+    if (selected){
+      useFrontMat = frontMat.clone();
+      useFrontMat.emissive = new THREE.Color(SELECT_COLOR);
+      useFrontMat.emissiveIntensity = 0.35;
+    }
+    var mesh = new THREE.Mesh(boxGeo, [carcassMat, carcassMat, carcassMat, carcassMat, useFrontMat, carcassMat]);
     mesh.position.set(cx, baseYM + heightM / 2, cz);
     var xAxis = new THREE.Vector3(geom.axis.x, 0, geom.axis.z);
     var yAxis = new THREE.Vector3(0, 1, 0);
@@ -208,14 +221,16 @@
     mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis));
     mesh.castShadow = true;
     mesh.receiveShadow = true;
+    if (meta) mesh.userData = meta;
     scene.add(mesh);
+    if (pickables) pickables.push(mesh);
 
     // A light front color (e.g. hvítt) can otherwise blend into the equally
     // light wall/floor with no shadow-based separation — a dark edge outline
     // keeps every cabinet readable regardless of which look is applied.
     var edges = new THREE.LineSegments(
       new THREE.EdgesGeometry(boxGeo),
-      new THREE.LineBasicMaterial({ color:0x2a2a2a })
+      new THREE.LineBasicMaterial({ color: selected ? SELECT_COLOR : 0x2a2a2a })
     );
     edges.position.copy(mesh.position);
     edges.quaternion.copy(mesh.quaternion);
@@ -241,10 +256,32 @@
 
   var THREE_STATE = null;
 
+  // Click-to-select: a plain 'click' listener (not pointerdown/up distance
+  // tracking) — browsers already suppress a synthetic click when the pointer
+  // moved significantly between down and up, which is exactly the same
+  // "was this an orbit-drag or a tap" distinction picking needs, so this
+  // coexists with OrbitControls without extra bookkeeping.
+  function setupPicking(THREE, renderer, camera, pickables, onSelect){
+    var raycaster = new THREE.Raycaster();
+    function onClick(evt){
+      var rect = renderer.domElement.getBoundingClientRect();
+      var ndc = {
+        x: ((evt.clientX - rect.left) / rect.width) * 2 - 1,
+        y: -((evt.clientY - rect.top) / rect.height) * 2 + 1
+      };
+      raycaster.setFromCamera(ndc, camera);
+      var hits = raycaster.intersectObjects(pickables, false);
+      onSelect(hits.length ? hits[0].object.userData : null);
+    }
+    renderer.domElement.addEventListener("click", onClick);
+    return function cleanup(){ renderer.domElement.removeEventListener("click", onClick); };
+  }
+
   function teardown3D(){
     if (!THREE_STATE) return;
     cancelAnimationFrame(THREE_STATE.rafId);
     window.removeEventListener("resize", THREE_STATE.onResize);
+    if (THREE_STATE.cleanupPicking) THREE_STATE.cleanupPicking();
     THREE_STATE.controls.dispose();
     disposeScene(THREE_STATE.scene);
     THREE_STATE.renderer.dispose();
@@ -254,8 +291,12 @@
     THREE_STATE = null;
   }
 
-  // wrap: DOM element to render into. state: the planner's {shape,walls,look} object.
-  function buildScene(wrap, state){
+  // wrap: DOM element to render into. state: the planner's {shape,walls,look}
+  // object. opts (optional): {selectedId, onSelect(meta|null)} — onSelect is
+  // called with {wallId,zone,blockId} when a cabinet is clicked, or null on
+  // a click that hit nothing (deselect).
+  function buildScene(wrap, state, opts){
+    opts = opts || {};
     var THREE = window.__THREE__;
     var OrbitControls = window.__OrbitControls__;
 
@@ -276,19 +317,26 @@
       color: look ? look.color3d : 0xb7b2a4, roughness:0.75
     });
 
+    var pickables = [];
     state.walls.forEach(function(wall, wi){
       var g = geoms[wi];
       if (!g) return;
       var offset = 0;
       wall.floor.forEach(function(b){
         var c = CATALOG[b.type];
-        addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, c.h / 1000, c.d / 1000, 0, carcassMat, frontMat, b.interior);
+        var hM = (b.heightMm || c.h) / 1000, dM = (b.depthMm || c.d) / 1000;
+        var selected = opts.selectedId === b.id;
+        addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, carcassMat, frontMat, b.interior,
+          { wallId:wall.id, zone:"floor", blockId:b.id }, selected, pickables);
         offset += b.widthMm;
       });
       offset = 0;
       wall.wall.forEach(function(b){
         var c = CATALOG[b.type];
-        addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, c.h / 1000, c.d / 1000, WALL_CABINET_BASE_M, carcassMat, frontMat, null);
+        var hM = (b.heightMm || c.h) / 1000, dM = (b.depthMm || c.d) / 1000;
+        var selected = opts.selectedId === b.id;
+        addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, WALL_CABINET_BASE_M, carcassMat, frontMat, null,
+          { wallId:wall.id, zone:"wall", blockId:b.id }, selected, pickables);
         offset += b.widthMm;
       });
     });
@@ -319,7 +367,8 @@
     controls.dampingFactor = 0.08;
     controls.update();
 
-    THREE_STATE = { renderer:renderer, controls:controls, scene:scene, rafId:0, onResize:resize };
+    var cleanupPicking = opts.onSelect ? setupPicking(THREE, renderer, camera, pickables, opts.onSelect) : null;
+    THREE_STATE = { renderer:renderer, controls:controls, scene:scene, rafId:0, onResize:resize, cleanupPicking:cleanupPicking };
 
     function resize(){
       var w = wrap.clientWidth, h = wrap.clientHeight;
@@ -349,7 +398,8 @@
 
   var PX_PER_M = 80;
 
-  function buildPlan2D(container, state){
+  function buildPlan2D(container, state, opts){
+    opts = opts || {};
     var geoms = wallGeometry3D(state.shape, state.walls);
     if (!geoms.length){ container.innerHTML = ""; return; }
 
@@ -378,8 +428,8 @@
       svg += '<text x="' + lx + '" y="' + ly + '" font-size="11" fill="#6f6d66" text-anchor="middle">' + Math.round(g.lenM * 1000) + ' mm</text>';
     });
 
-    function drawCabinetRect(bl, c, g, offsetMm, isWallRow){
-      var offsetM = offsetMm / 1000, widthM = bl.widthMm / 1000, depthM = c.d / 1000;
+    function drawCabinetRect(bl, c, g, wallId, zone, offsetMm, isWallRow){
+      var offsetM = offsetMm / 1000, widthM = bl.widthMm / 1000, depthM = (bl.depthMm || c.d) / 1000;
       var x0 = g.origin.x + g.axis.x * offsetM, z0 = g.origin.z + g.axis.z * offsetM;
       var corners = [0, widthM].map(function(along){
         return [0, depthM].map(function(out){
@@ -389,12 +439,17 @@
       var poly = [corners[0][0], corners[1][0], corners[1][1], corners[0][1]]
         .map(function(p){ return X(p.x) + "," + Y(p.z); }).join(" ");
       var dash = isWallRow ? ' stroke-dasharray="4,3"' : '';
-      svg += '<polygon points="' + poly + '" fill="' + fillColor + '" fill-opacity="' + (isWallRow ? 0.55 : 0.9) + '" stroke="#2a2a2a" stroke-width="1.5"' + dash + '/>';
+      var selected = opts.selectedId === bl.id;
+      var stroke = selected ? "#3d61c1" : "#2a2a2a";
+      var strokeW = selected ? 3 : 1.5;
+      svg += '<polygon data-wall-id="' + wallId + '" data-zone="' + zone + '" data-block-id="' + bl.id + '" ' +
+        'points="' + poly + '" fill="' + fillColor + '" fill-opacity="' + (isWallRow ? 0.55 : 0.9) + '" ' +
+        'stroke="' + stroke + '" stroke-width="' + strokeW + '"' + dash + ' style="cursor:pointer;"/>';
       if (widthM * PX_PER_M > 30){
         var cx = (X(corners[0][0].x) + X(corners[1][1].x)) / 2;
         var cy = (Y(corners[0][0].z) + Y(corners[1][1].z)) / 2;
         var label = bl.widthMm + (bl.interior && bl.interior.mode === "skuffur" ? " · " + bl.interior.count + "sk" : "");
-        svg += '<text x="' + cx + '" y="' + cy + '" font-size="9" fill="#191919" text-anchor="middle" dominant-baseline="middle">' + label + '</text>';
+        svg += '<text x="' + cx + '" y="' + cy + '" font-size="9" fill="#191919" text-anchor="middle" dominant-baseline="middle" style="pointer-events:none;">' + label + '</text>';
       }
     }
 
@@ -402,13 +457,25 @@
       var g = geoms[wi];
       if (!g) return;
       var offset = 0;
-      wall.floor.forEach(function(bl){ drawCabinetRect(bl, CATALOG[bl.type], g, offset, false); offset += bl.widthMm; });
+      wall.floor.forEach(function(bl){ drawCabinetRect(bl, CATALOG[bl.type], g, wall.id, "floor", offset, false); offset += bl.widthMm; });
       offset = 0;
-      wall.wall.forEach(function(bl){ drawCabinetRect(bl, CATALOG[bl.type], g, offset, true); offset += bl.widthMm; });
+      wall.wall.forEach(function(bl){ drawCabinetRect(bl, CATALOG[bl.type], g, wall.id, "wall", offset, true); offset += bl.widthMm; });
     });
 
     svg += "</svg>";
     container.innerHTML = svg;
+
+    if (opts.onSelect){
+      container.querySelectorAll("[data-block-id]").forEach(function(el){
+        el.addEventListener("click", function(){
+          opts.onSelect({ wallId: el.dataset.wallId, zone: el.dataset.zone, blockId: el.dataset.blockId });
+        });
+      });
+      // Clicking empty plan background deselects, mirroring the 3D view.
+      container.querySelector("svg").addEventListener("click", function(evt){
+        if (evt.target.tagName === "svg" || evt.target === container.querySelector("svg")) opts.onSelect(null);
+      });
+    }
   }
 
   window.KP3D = {

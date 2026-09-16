@@ -245,6 +245,24 @@
   .hw-count{ display:flex; align-items:center; gap:4px; font-size:12.5px; color:var(--ink-soft); }
   .hw-count b{ color:var(--ink); min-width:14px; text-align:center; }
 
+  /* ---- cabinet edit panel (click-to-select in 3D/2D) ---- */
+  .edit-panel{
+    background:var(--blue-soft); border:1.5px solid var(--blue); border-radius:14px;
+    padding:16px 18px; margin-bottom:18px;
+  }
+  .edit-panel-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .edit-panel-head h4{ margin:0; font-size:15px; }
+  .edit-panel-head .sub{ font-size:12.5px; color:var(--ink-soft); }
+  .edit-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:12px; }
+  @media (max-width:520px){ .edit-grid{ grid-template-columns:1fr 1fr; } }
+  .edit-field{ display:flex; flex-direction:column; gap:4px; }
+  .edit-field label{ font-size:11.5px; font-weight:600; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.03em; }
+  .edit-field input, .edit-field select{
+    padding:8px 10px; border:1px solid var(--line); border-radius:7px; font-size:14px; background:#fff; color:var(--ink);
+  }
+  .edit-field input:disabled{ background:var(--panel); color:var(--ink-soft); }
+  .edit-actions{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+
   /* ---- contact step ---- */
   .contact-fields{ display:flex; flex-direction:column; gap:14px; max-width:420px; margin-bottom:8px; }
   .contact-fields input[type=text], .contact-fields input[type=email], .contact-fields input[type=tel]{
@@ -375,7 +393,9 @@
 
     <div class="three-wrap" id="threeWrap"></div>
     <div class="three-wrap" id="planWrap" hidden></div>
-    <p class="three-hint">3D: dragðu til að snúa · klíptu eða skrunaðu til að rýma/fjarlægja</p>
+    <p class="three-hint">Smelltu á skáp til að breyta honum · dragðu til að snúa · klíptu/skrunaðu til að rýma</p>
+
+    <div id="cabinetEditPanel"></div>
 
     <div id="summaryBody"></div>
 
@@ -866,6 +886,26 @@
   // shared with Rakel's review page — this just orchestrates which view is
   // showing and feeds it the current state) ----------
   var viewMode = "3d"; // "3d" | "2d", not persisted — always opens on 3D
+  var selectedBlockId = null; // not part of state — never persisted/submitted
+
+  function findBlock(id){
+    for (var i = 0; i < state.walls.length; i++){
+      var wall = state.walls[i];
+      var zones = ["floor", "wall"];
+      for (var j = 0; j < zones.length; j++){
+        var zone = zones[j];
+        var b = wall[zone].find(function(x){ return x.id === id; });
+        if (b) return { wall:wall, zone:zone, block:b };
+      }
+    }
+    return null;
+  }
+
+  function onCabinetSelect(meta){
+    selectedBlockId = meta ? meta.blockId : null;
+    renderEditPanel();
+    renderView();
+  }
 
   function renderView(){
     var wrap = document.getElementById("threeWrap");
@@ -881,7 +921,7 @@
 
     if (viewMode === "2d"){
       wrap.hidden = true; plan.hidden = false;
-      KP3D.buildPlan2D(plan, state);
+      KP3D.buildPlan2D(plan, state, { selectedId:selectedBlockId, onSelect:onCabinetSelect });
       return;
     }
 
@@ -898,8 +938,101 @@
         return;
       }
       wrap.innerHTML = "";
-      KP3D.buildScene(wrap, state);
+      KP3D.buildScene(wrap, state, { selectedId:selectedBlockId, onSelect:onCabinetSelect });
     }, 8000);
+  }
+
+  // ---------- cabinet edit panel (click-to-select result) ----------
+  function clampDim(val, min, max){
+    if (isNaN(val)) return min;
+    return Math.max(min, Math.min(max, Math.round(val / 10) * 10));
+  }
+
+  function renderEditPanel(){
+    var host = document.getElementById("cabinetEditPanel");
+    if (!selectedBlockId){ host.innerHTML = ""; return; }
+    var found = findBlock(selectedBlockId);
+    if (!found){ selectedBlockId = null; host.innerHTML = ""; return; }
+    var wall = found.wall, zone = found.zone, b = found.block, c = CATALOG[b.type];
+    var hh = b.heightMm || c.h, dd = b.depthMm || c.d;
+    var widthFixed = c.minW === c.maxW, heightFixed = c.minH === c.maxH, depthFixed = c.minD === c.maxD;
+
+    var otherWalls = state.walls.filter(function(w){ return w.id !== wall.id; });
+    var moveOptions = otherWalls.map(function(w){ return '<option value="' + w.id + '">' + w.label + '</option>'; }).join("");
+
+    host.innerHTML =
+      '<div class="edit-panel">' +
+        '<div class="edit-panel-head"><div><h4>' + c.label + '</h4><div class="sub">' + wall.label + ' · ' + (zone === "wall" ? "efri röð" : "neðri röð") + '</div></div>' +
+          '<button class="iconbtn" id="editCloseBtn" title="Loka">✕</button></div>' +
+        '<div class="edit-grid">' +
+          '<div class="edit-field"><label>Breidd (mm)</label><input type="number" id="editWidth" value="' + b.widthMm + '" min="' + c.minW + '" max="' + c.maxW + '" step="10" ' + (widthFixed ? "disabled" : "") + '></div>' +
+          '<div class="edit-field"><label>Hæð (mm)</label><input type="number" id="editHeight" value="' + hh + '" min="' + c.minH + '" max="' + c.maxH + '" step="10" ' + (heightFixed ? "disabled" : "") + '></div>' +
+          '<div class="edit-field"><label>Dýpt (mm)</label><input type="number" id="editDepth" value="' + dd + '" min="' + c.minD + '" max="' + c.maxD + '" step="10" ' + (depthFixed ? "disabled" : "") + '></div>' +
+        '</div>' +
+        (c.hasInterior ? '<div class="edit-field" style="margin-bottom:12px;">' + hardwareHTML(b, c) + '</div>' : '') +
+        '<div class="edit-actions">' +
+          (otherWalls.length ? '<select id="editMoveWall"><option value="">Flytja á vegg…</option>' + moveOptions + '</select>' : '') +
+          '<button class="iconbtn" id="editLeftBtn" title="Færa til vinstri">◀</button>' +
+          '<button class="iconbtn" id="editRightBtn" title="Færa til hægri">▶</button>' +
+          '<button class="iconbtn del" id="editDeleteBtn" title="Fjarlægja">✕ Fjarlægja</button>' +
+        '</div>' +
+      '</div>';
+
+    document.getElementById("editCloseBtn").addEventListener("click", function(){ onCabinetSelect(null); });
+    document.getElementById("editWidth").addEventListener("change", function(e){
+      setBlockWidth(wall, zone, b.id, parseInt(e.target.value, 10));
+      renderEditPanel();
+    });
+    document.getElementById("editHeight").addEventListener("change", function(e){
+      b.heightMm = clampDim(parseInt(e.target.value, 10), c.minH, c.maxH);
+      save(); renderEditPanel(); renderView(); renderSummary();
+    });
+    document.getElementById("editDepth").addEventListener("change", function(e){
+      b.depthMm = clampDim(parseInt(e.target.value, 10), c.minD, c.maxD);
+      save(); renderEditPanel(); renderView(); renderSummary();
+    });
+    if (c.hasInterior){
+      host.querySelectorAll('[data-hw]').forEach(function(btn){
+        btn.addEventListener("click", function(){ setInterior(wall, zone, b.id, btn.dataset.hw); renderEditPanel(); renderView(); });
+      });
+      var dec = host.querySelector('[data-role="hw-dec"]');
+      var inc = host.querySelector('[data-role="hw-inc"]');
+      if (dec) dec.addEventListener("click", function(){ setInterior(wall, zone, b.id, "skuffur", b.interior.count - 1); renderEditPanel(); renderView(); });
+      if (inc) inc.addEventListener("click", function(){ setInterior(wall, zone, b.id, "skuffur", b.interior.count + 1); renderEditPanel(); renderView(); });
+    }
+    document.getElementById("editLeftBtn").addEventListener("click", function(){ moveBlock(wall, zone, b.id, -1); renderEditPanel(); renderView(); });
+    document.getElementById("editRightBtn").addEventListener("click", function(){ moveBlock(wall, zone, b.id, 1); renderEditPanel(); renderView(); });
+    document.getElementById("editDeleteBtn").addEventListener("click", function(){
+      removeBlock(wall, zone, b.id);
+      selectedBlockId = null;
+      renderEditPanel(); renderView(); renderSummary();
+    });
+    var moveSel = document.getElementById("editMoveWall");
+    if (moveSel){
+      moveSel.addEventListener("change", function(e){
+        if (e.target.value) moveBlockToWall(b.id, e.target.value);
+      });
+    }
+  }
+
+  function moveBlockToWall(blockId, newWallId){
+    var found = findBlock(blockId);
+    if (!found) return;
+    var newWall = state.walls.find(function(w){ return w.id === newWallId; });
+    if (!newWall || newWall.id === found.wall.id) return;
+    var list = newWall[found.zone];
+    var used = usedMm(list);
+    var remaining = newWall.lengthMm - used;
+    if (remaining < found.block.widthMm){
+      toast("Ekki nóg pláss á " + newWall.label.toLowerCase() + ".");
+      return;
+    }
+    found.wall[found.zone] = found.wall[found.zone].filter(function(x){ return x.id !== blockId; });
+    newWall[found.zone].push(found.block);
+    save();
+    renderEditPanel();
+    renderView();
+    renderSummary();
   }
 
   function setViewMode(mode){
@@ -935,7 +1068,7 @@
         var hw = b.interior
           ? (b.interior.mode === "skuffur" ? " · " + b.interior.count + " skúffur" : " · hillur")
           : "";
-        html += '<div class="summary-line"><span>' + c.label + hw + '</span><span>' + b.widthMm + ' × ' + c.h + ' × ' + c.d + ' mm</span></div>';
+        html += '<div class="summary-line"><span>' + c.label + hw + '</span><span>' + b.widthMm + ' × ' + (b.heightMm || c.h) + ' × ' + (b.depthMm || c.d) + ' mm</span></div>';
       });
       html += '</div>';
     });
@@ -966,7 +1099,7 @@
 
   // ---------- screen switching ----------
   function goto(step){
-    if (state.step === "summary" && step !== "summary") KP3D.teardown3D();
+    if (state.step === "summary" && step !== "summary"){ KP3D.teardown3D(); selectedBlockId = null; }
     state.step = step;
     save();
     render();
@@ -990,7 +1123,7 @@
     if (state.step === "walls") renderWalls();
     if (state.step === "look") renderLook();
     if (state.step === "handle") renderHandle();
-    if (state.step === "summary"){ renderSummary(); viewMode = "3d"; renderView(); }
+    if (state.step === "summary"){ renderSummary(); renderEditPanel(); viewMode = "3d"; renderView(); }
   }
 
   // ---------- contact + submit ----------
@@ -1039,8 +1172,8 @@
           // corner unit fitted with a real mechanism (linked below).
           "Skápategund": c.skapategundOverride || c.label,
           "Breidd": b.widthMm,
-          "Hæð": c.h,
-          "Dýpt": c.d,
+          "Hæð": b.heightMm || c.h,
+          "Dýpt": b.depthMm || c.d,
           "Fjöldi eininga": 1
         };
         if (c.ovenHeightMm){
