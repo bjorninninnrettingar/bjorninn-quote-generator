@@ -271,7 +271,7 @@
   <p class="lede" id="pageLede">Svaraðu nokkrum spurningum, veldu lögun eldhússins og raðaðu skápum upp — gróf teikning, engin binding. Rakel fer svo yfir og fullkomnar hönnunina með þér.</p>
 
   <div class="steps" id="progressSteps">
-    <span data-s="quiz"></span><span data-s="shape"></span><span data-s="walls"></span><span data-s="look"></span><span data-s="summary"></span><span data-s="contact"></span>
+    <span data-s="quiz"></span><span data-s="shape"></span><span data-s="walls"></span><span data-s="look"></span><span data-s="handle"></span><span data-s="summary"></span><span data-s="contact"></span>
   </div>
 
   <!-- ============ STEP: QUIZ ============ -->
@@ -340,6 +340,19 @@
 
     <div class="actions">
       <button class="btn btn-secondary" id="backToWallsFromLookBtn" type="button">← Halda áfram að raða</button>
+      <button class="btn btn-primary" id="toHandleBtn" type="button" disabled>Áfram — velja höldu</button>
+    </div>
+  </section>
+
+  <!-- ============ STEP: HANDLE ============ -->
+  <section id="screen-handle" hidden>
+    <div class="screen-title">Veldu höldu</div>
+    <p class="screen-sub">Sama handfang er notað á alla skápa. "Falið grip" þýðir ekkert áfast handfang — bara rennt í plötuna.</p>
+
+    <div class="looks" id="handleCards"></div>
+
+    <div class="actions">
+      <button class="btn btn-secondary" id="backToLookFromHandleBtn" type="button">← Breyta stíl</button>
       <button class="btn btn-primary" id="toSummaryBtn" type="button" disabled>Sjá í 3D</button>
     </div>
   </section>
@@ -361,7 +374,7 @@
     <div id="summaryBody"></div>
 
     <div class="actions">
-      <button class="btn btn-secondary" id="backToLookBtn" type="button">← Breyta stíl</button>
+      <button class="btn btn-secondary" id="backToLookBtn" type="button">← Breyta höldu</button>
       <button class="btn btn-primary" id="toContactBtn" type="button">Áfram — senda inn</button>
     </div>
   </section>
@@ -422,6 +435,7 @@
   var KP3D = window.KP3D;
   var CATALOG = KP3D.CATALOG;
   var LOOKS = KP3D.LOOKS;
+  var HANDLES = KP3D.HANDLES;
   var LOOK_ORDER = KP3D.LOOK_ORDER;
 
   var SHAPES = {
@@ -465,6 +479,7 @@
     quizAnswers: {},   // {questionIndex: optionIndex}
     suggestedLook: null,
     look: null,
+    handle: null,
     shape: null,
     walls: [] // {id,label,lengthMm, floor:[block], wall:[block]}
   };
@@ -499,6 +514,7 @@
       if (!state.quizAnswers) state.quizAnswers = {};
       if (state.suggestedLook === undefined) state.suggestedLook = null;
       if (state.look === undefined) state.look = null;
+      if (state.handle === undefined) state.handle = null;
       blockSeq = 1;
       state.walls.forEach(function(w){
         w.floor.concat(w.wall).forEach(function(b){
@@ -513,7 +529,7 @@
     if (!confirm("Hreinsa allt skipulagið og byrja upp á nýtt?")) return;
     KP3D.teardown3D();
     try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
-    state = { step:"quiz", quizAnswers:{}, suggestedLook:null, look:null, shape:null, walls:[] };
+    state = { step:"quiz", quizAnswers:{}, suggestedLook:null, look:null, handle:null, shape:null, walls:[] };
     render();
   }
 
@@ -807,7 +823,37 @@
       card.addEventListener("click", function(){ selectLook(card.dataset.look); });
     });
 
-    document.getElementById("toSummaryBtn").disabled = !state.look;
+    document.getElementById("toHandleBtn").disabled = !state.look;
+  }
+
+  // ---------- handle step ----------
+  function selectHandle(key){
+    state.handle = key;
+    save();
+    renderHandle();
+  }
+
+  function renderHandle(){
+    var container = document.getElementById("handleCards");
+    container.innerHTML = Object.keys(HANDLES).map(function(key){
+      var h = HANDLES[key];
+      var active = state.handle === key;
+      var swatch = h.img
+        ? '<img class="swatch" src="' + h.img + '" alt="' + h.label + '">'
+        : '<div class="swatch" style="display:flex;align-items:center;justify-content:center;font-size:28px;">▭</div>';
+      return (
+        '<button type="button" class="look-card' + (active ? ' active' : '') + '" data-handle="' + key + '">' +
+          swatch +
+          '<div class="info"><div class="name">' + h.label + '</div><div class="desc">' + h.desc + '</div></div>' +
+        '</button>'
+      );
+    }).join("");
+
+    container.querySelectorAll(".look-card").forEach(function(card){
+      card.addEventListener("click", function(){ selectHandle(card.dataset.handle); });
+    });
+
+    document.getElementById("toSummaryBtn").disabled = !state.handle;
   }
 
   // ---------- 3D / 2D view (rendering itself lives in kitchen-planner-3d.js,
@@ -867,6 +913,12 @@
       var l = LOOKS[state.look];
       html += '<div class="look-selected-strip"><img src="' + l.img + '" alt="' + l.label + '"><span>Valinn stíll: <strong>' + l.label + '</strong> — ' + l.desc + '</span></div>';
     }
+    if (state.handle){
+      var h = HANDLES[state.handle];
+      html += '<div class="look-selected-strip">' +
+        (h.img ? '<img src="' + h.img + '" alt="' + h.label + '">' : '') +
+        '<span>Valin halda: <strong>' + h.label + '</strong> — ' + h.desc + '</span></div>';
+    }
     state.walls.forEach(function(wall){
       var rows = wall.wall.concat(wall.floor);
       if (!rows.length) return;
@@ -914,7 +966,7 @@
     render();
   }
 
-  var STEP_ORDER = ["quiz", "shape", "walls", "look", "summary", "contact", "done"];
+  var STEP_ORDER = ["quiz", "shape", "walls", "look", "handle", "summary", "contact", "done"];
 
   function render(){
     STEP_ORDER.forEach(function(s){
@@ -931,6 +983,7 @@
     if (state.step === "shape") renderShapeStep();
     if (state.step === "walls") renderWalls();
     if (state.step === "look") renderLook();
+    if (state.step === "handle") renderHandle();
     if (state.step === "summary"){ renderSummary(); viewMode = "3d"; renderView(); }
   }
 
@@ -969,6 +1022,7 @@
 
   function collectEyðublaðRows(){
     var rows = [];
+    var handle = state.handle ? HANDLES[state.handle] : null;
     state.walls.forEach(function(wall){
       wall.floor.concat(wall.wall).forEach(function(b){
         var c = CATALOG[b.type];
@@ -979,9 +1033,15 @@
           "Breidd": b.widthMm,
           "Hæð": c.h,
           "Dýpt": c.d,
-          "Fjöldi eininga": 1,
-          "Grip?": "Fræst grip lárétt"
+          "Fjöldi eininga": 1
         };
+        if (handle && handle.vorulistiId){
+          // A real physical handle — no milled grip channel on the panel.
+          fields["Höldur 1"] = [handle.vorulistiId];
+          fields["Höldur 1 magn"] = 1;
+        } else {
+          fields["Grip?"] = "Fræst grip lárétt";
+        }
         if (b.interior && b.interior.mode === "skuffur"){
           fields["Skilaboð til Skipulags 📝"] =
             "Viðskiptavinur óskar eftir skúffum (" + b.interior.count + " stk) í stað hilla — vinsamlegast staðfestu skúffuhæðir.";
@@ -1026,7 +1086,7 @@
 
       KP3D.teardown3D();
       try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
-      state = { step:"done", quizAnswers:{}, suggestedLook:null, look:null, shape:null, walls:[] };
+      state = { step:"done", quizAnswers:{}, suggestedLook:null, look:null, handle:null, shape:null, walls:[] };
       render();
     }catch(e){
       errEl.textContent = "Eitthvað fór úrskeiðis við að senda inn. Prófaðu aftur — " + e.message;
@@ -1050,8 +1110,11 @@
   document.getElementById("toLookBtn").addEventListener("click", function(){ goto("look"); });
   document.getElementById("backToWallsFromLookBtn").addEventListener("click", function(){ goto("walls"); });
 
+  document.getElementById("toHandleBtn").addEventListener("click", function(){ goto("handle"); });
+  document.getElementById("backToLookFromHandleBtn").addEventListener("click", function(){ goto("look"); });
+
   document.getElementById("toSummaryBtn").addEventListener("click", function(){ goto("summary"); });
-  document.getElementById("backToLookBtn").addEventListener("click", function(){ goto("look"); });
+  document.getElementById("backToLookBtn").addEventListener("click", function(){ goto("handle"); });
   document.getElementById("toContactBtn").addEventListener("click", function(){ goto("contact"); });
   document.getElementById("backToSummaryBtn").addEventListener("click", function(){ goto("summary"); });
   document.getElementById("submitBtn").addEventListener("click", function(){

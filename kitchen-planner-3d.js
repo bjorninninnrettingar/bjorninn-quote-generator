@@ -27,6 +27,21 @@
     valhnota: { label:"Valhnota", img:"materials/valhnota.png", color3d:"#765e48", desc:"Hlýtt og dökkt",       efnislistiId:"recOwpVNZipD18qME" }
   };
 
+  // A curated 5 of Vörulisti's 100+ "Höldur" products (no usage/popularity
+  // field on that table to rank by, unlike Efnislisti's materials — picked
+  // by hand for a spread of styles). `vorulistiId` is null for "fraest"
+  // (no separate hardware, the existing milled-grip default) — everything
+  // else links a real product record. Not modeled in 3D (out of scope, see
+  // the "simple textured boxes" decision) — shown as a confirmation line
+  // with the real photo instead, on both the customer summary and review page.
+  var HANDLES = {
+    fraest: { label:"Falið grip (fræst)", img:null, desc:"Ekkert áfast handfang — rennt í plötuna sjálfa", vorulistiId:null },
+    ona:    { label:"Ona", img:"handles/ona.jpg", desc:"Klassískt langt stanghandfang", vorulistiId:"rec0vFCmgfSb4pn7Q" },
+    jey2:   { label:"Jey2 Ál grip", img:"handles/jey2.jpg", desc:"Nútímalegt álprófíl-grip", vorulistiId:"recB9WZg6CXM0xZrZ" },
+    arpa:   { label:"Arpa hnúður", img:"handles/arpa.png", desc:"Einfaldur hnúður", vorulistiId:"rec3cjIwV84443gre" },
+    hexxa:  { label:"Hexxa Ál grip", img:"handles/hexxa.jpg", desc:"Grannt álprófíl-grip", vorulistiId:"rec9YdI6ECx0pxkPA" }
+  };
+
   // Hardcoded per-shape wall layout: each wall's start point, its own axis
   // (direction cabinets run along) and normal (direction cabinets project
   // into the room), in meters. Straight/L/U are fixed presets, so this
@@ -391,6 +406,7 @@
     CATALOG: CATALOG,
     LOOKS: LOOKS,
     LOOK_ORDER: LOOK_ORDER,
+    HANDLES: HANDLES,
     wallGeometry3D: wallGeometry3D,
     hasWebGL: hasWebGL,
     waitForThree: waitForThree,

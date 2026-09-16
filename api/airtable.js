@@ -115,6 +115,7 @@ const ALLOWED_FIELDS = {
     // ── kitchen-planner.html write-back ──
     "Heiti rýmis", "Breidd", "Hæð", "Dýpt", "Fjöldi eininga", "Grip?",
     "Skilaboð til Skipulags 📝", // plain-language "customer wants N drawers, not shelves" note
+    "Höldur 1", "Höldur 1 magn", // set instead of Grip? when a real Vörulisti handle is chosen
   ],
   "tblQ8zeUanriESWvL": [ // Tengiliðir 👤 — created by kitchen-planner.html's contact-capture step
     "Fornafn ⬅️", "Eftirnafn ➡️", "Netfang 📧", "Símanúmer ☎️",
@@ -309,7 +310,7 @@ const CREATABLE_FIELDS = {
   // FORCED_CREATE_FIELDS below for the fields the client can't set itself.
   "tblQ8zeUanriESWvL": ["Fornafn ⬅️", "Eftirnafn ➡️", "Netfang 📧", "Símanúmer ☎️", "Tegund tengiliðs 👥", "Hvaðan kom viðskiptavinurinn 📥"],
   "tbl4LMXlQjp66RFKI": ["Tengiliður verkefnis 👤", "Skrokka efni 🔲 viðskiptavinar", "Fronta efni viðskiptavinar 🖼️", "Sjálfsafgreiðsla skipulag (JSON) 📐"],
-  "tbl0WcyHhz63pSzZX": ["Tækifæri 📣", "Heiti rýmis", "Hvað viltu smíða?", "Skápategund", "Breidd", "Hæð", "Dýpt", "Fjöldi eininga", "Grip?", "Skilaboð til Skipulags 📝"],
+  "tbl0WcyHhz63pSzZX": ["Tækifæri 📣", "Heiti rýmis", "Hvað viltu smíða?", "Skápategund", "Breidd", "Hæð", "Dýpt", "Fjöldi eininga", "Grip?", "Skilaboð til Skipulags 📝", "Höldur 1", "Höldur 1 magn"],
 };
 
 // Fields forced to a fixed value on create, regardless of what (or whether)
