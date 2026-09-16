@@ -67,6 +67,14 @@ const ALLOWED_FIELDS = {
     "Mynd af borðplötu viðskiptavinar",
     "Mynd af Höldum Viðskiptavinar ✊",
     "Mynd Höldur Viðskiptavinar ✊2.0",
+    // ── Kitchen planner self-serve submissions (kitchen-planner.html /
+    // kitchen-planner-review.html) ──
+    "Fullt nafn 👤",                                 // contact name, shown on Rakel's review page
+    "Netfang 📧",
+    "☎️ Símanúmer",
+    "Sjálfsafgreiðsla — óyfirfarið ⚠️",              // true until Rakel reviews it — see api/airtable.js's FORCED_CREATE_FIELDS
+    "Sjálfsafgreiðsla skipulag (JSON) 📐",           // the exact planner state, so the review page renders the same 3D/2D scene
+    "Skilaboð til skipulags",                        // review page's "flag for a call" note
   ],
   "tblhdgyvTcBfP8kov": [ // Sögunarlisti 🪚
     "Tækifæri 📣 (projects)",
@@ -104,6 +112,13 @@ const ALLOWED_FIELDS = {
     "Skúffutegund",
     "LED magn",
     "N", "M", "K", "C", "F", "E", "IN", "IM", "IK", "IC", "IF", "IE",
+    // ── kitchen-planner.html write-back ──
+    "Heiti rýmis", "Breidd", "Hæð", "Dýpt", "Fjöldi eininga", "Grip?",
+    "Skilaboð til Skipulags 📝", // plain-language "customer wants N drawers, not shelves" note
+  ],
+  "tblQ8zeUanriESWvL": [ // Tengiliðir 👤 — created by kitchen-planner.html's contact-capture step
+    "Fornafn ⬅️", "Eftirnafn ➡️", "Netfang 📧", "Símanúmer ☎️",
+    "Tegund tengiliðs 👥", "Hvaðan kom viðskiptavinurinn 📥",
   ],
   "tblzuuRSRkeXaLWxC": [ // Vörulisti 🚪 — resolves hardware-link names for /eining (name only, no cost)
     "Heiti vöru 📣",
@@ -289,6 +304,12 @@ const CREATABLE_FIELDS = {
   // when it ends — write-only from this proxy, Rakel/owner review happens
   // directly in Airtable, nothing in this repo reads it back.
   "tbltD1UNpqj05WtMx": ["Fyrsta spurning", "Samtal", "Óleyst spurning", "Netfang", "Síða"],
+  // kitchen-planner.html's contact-capture step creates a Tengiliðir, then a
+  // Tækifæri linking it, then one Eyðublað per placed cabinet — see
+  // FORCED_CREATE_FIELDS below for the fields the client can't set itself.
+  "tblQ8zeUanriESWvL": ["Fornafn ⬅️", "Eftirnafn ➡️", "Netfang 📧", "Símanúmer ☎️", "Tegund tengiliðs 👥", "Hvaðan kom viðskiptavinurinn 📥"],
+  "tbl4LMXlQjp66RFKI": ["Tengiliður verkefnis 👤", "Skrokka efni 🔲 viðskiptavinar", "Fronta efni viðskiptavinar 🖼️", "Sjálfsafgreiðsla skipulag (JSON) 📐"],
+  "tbl0WcyHhz63pSzZX": ["Tækifæri 📣", "Heiti rýmis", "Hvað viltu smíða?", "Skápategund", "Breidd", "Hæð", "Dýpt", "Fjöldi eininga", "Grip?", "Skilaboð til Skipulags 📝"],
 };
 
 // Fields forced to a fixed value on create, regardless of what (or whether)
@@ -297,6 +318,16 @@ const CREATABLE_FIELDS = {
 const FORCED_CREATE_FIELDS = {
   "tbljdg6uxEfHE7uCU": { "Staða": "Í bið" },
   "tbltD1UNpqj05WtMx": { "Staða": "Nýtt" },
+  // A self-serve submission must never look like reviewed designer work —
+  // both the review flag and the pre-production stage are forced server-side
+  // so a tampered client request can't skip Rakel's review or jump straight
+  // into the real production pipeline (which only ever fires off an explicit
+  // button press on the Tækifæri record, never on record creation).
+  "tbl4LMXlQjp66RFKI": {
+    "Staða í söluferli": "Hönnun & Ráðgjöf 🖊️✨",
+    "Staða í skipulagi": "For-skipulag",
+    "Sjálfsafgreiðsla — óyfirfarið ⚠️": true,
+  },
 };
 
 // Only the stimpilklukka kiosk's own paired device may open/close a shift —
@@ -346,6 +377,10 @@ const WRITABLE_FIELDS = {
   // /aedar re-saves the working layout and flips the confirm checkbox on the
   // existing plan row. Tækifæri/Efni are set once at create, never patched.
   "tblzkw70E2xoX9RmK": ["Nafn", "Skipulag", "Staðfest ✅"],
+  // kitchen-planner-review.html: Rakel's "✅ Yfirfarið" button unchecks the
+  // review flag (that's the approval action — no separate status field), and
+  // a "flag for a call" note goes into the same field skipulag already uses.
+  "tbl4LMXlQjp66RFKI": ["Sjálfsafgreiðsla — óyfirfarið ⚠️", "Skilaboð til skipulags"],
 };
 
 // URLSearchParams serializes spaces as "+" (application/x-www-form-urlencoded).

@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex" />
+<title>Yfirfara eldhússkipulag | BJÖRNINN</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+  import * as THREE from "three";
+  import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+  window.__THREE__ = THREE;
+  window.__OrbitControls__ = OrbitControls;
+  window.dispatchEvent(new Event("three-ready"));
+</script>
+<script src="kitchen-planner-3d.js"></script>
+<style>
+  :root{
+    --bg:#ffffff; --panel:#faf9f6; --ink:#191919; --ink-soft:#6f6d66; --line:#e6e3da;
+    --blue:#3d61c1; --blue-deep:#2c478e; --blue-soft:#eaeefb;
+    --gold:#a29c72; --gold-soft:#f5f3ea; --danger:#b3432f;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{ background:var(--bg); color:var(--ink); font-family:'Kumbh Sans', Arial, Helvetica, sans-serif; line-height:1.5; -webkit-font-smoothing:antialiased; }
+  button, input, textarea{ font-family:inherit; }
+  .wrap{ max-width:900px; margin:0 auto; padding:clamp(20px,4vw,40px) clamp(16px,4vw,24px) 80px; }
+  .kicker{ font-size:11.5px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--gold); }
+  h1{ font-weight:600; font-size:clamp(22px,4vw,28px); letter-spacing:-.01em; margin:6px 0 20px; }
+
+  .badge{ display:inline-block; font-size:11.5px; font-weight:600; padding:4px 10px; border-radius:20px; margin-bottom:18px; }
+  .badge.pending{ background:#fbebe7; color:var(--danger); }
+  .badge.done{ background:var(--gold-soft); color:var(--gold); }
+
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:18px 20px; margin-bottom:18px; }
+  .card h3{ margin:0 0 10px; font-size:14px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft); }
+  .contact-line{ display:flex; gap:18px; flex-wrap:wrap; font-size:15px; }
+  .contact-line b{ font-weight:600; }
+
+  .view-toggle{ display:flex; gap:6px; margin-bottom:10px; }
+  .view-toggle button{ font:inherit; font-size:13.5px; font-weight:600; cursor:pointer; background:#fff; border:1.5px solid var(--line); border-radius:8px; padding:8px 14px; color:var(--ink); }
+  .view-toggle button.active{ border-color:var(--blue); background:var(--blue-soft); color:var(--blue-deep); }
+  .three-wrap{ position:relative; width:100%; height:min(55vh,460px); min-height:280px; background:var(--panel); border:1px solid var(--line); border-radius:16px; overflow:hidden; margin-bottom:22px; }
+  .three-wrap canvas{ display:block; width:100%; height:100%; touch-action:none; }
+  .three-note{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; padding:24px; font-size:14px; color:var(--ink-soft); }
+
+  .summary-line{ display:flex; justify-content:space-between; gap:12px; padding:8px 0; border-bottom:1px dashed var(--line); font-size:14px; }
+  .summary-line:last-child{ border-bottom:none; }
+  .summary-line .note{ display:block; font-size:12.5px; color:var(--danger); margin-top:3px; }
+
+  .btn{ font:inherit; font-size:14.5px; font-weight:600; cursor:pointer; border-radius:9px; padding:12px 22px; border:1.5px solid transparent; }
+  .btn-primary{ background:var(--blue); color:#fff; }
+  .btn-primary:hover{ background:var(--blue-deep); }
+  .btn-primary:disabled{ background:var(--line); color:var(--ink-soft); cursor:not-allowed; }
+  .btn-secondary{ background:#fff; border-color:var(--line); color:var(--ink); }
+  .actions{ display:flex; gap:10px; align-items:center; margin-top:8px; flex-wrap:wrap; }
+
+  textarea{ width:100%; min-height:70px; padding:10px 12px; border:1px solid var(--line); border-radius:8px; font-size:14px; resize:vertical; }
+  .note{ font-size:13px; color:var(--ink-soft); }
+  .error{ color:var(--danger); font-size:14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="kicker">BJÖRNINN · Yfirferð á sjálfsafgreiðslu</div>
+  <h1 id="pageTitle">Eldhússkipulag frá viðskiptavini</h1>
+  <div id="body">Sæki gögn…</div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var KP3D = window.KP3D;
+  var params = new URLSearchParams(location.search);
+  var recordId = params.get("recordId");
+  var body = document.getElementById("body");
+  var record = null;
+  var state = null;
+  var viewMode = "3d";
+
+  async function airtableGet(pathSuffix){
+    var r = await fetch("/api/airtable?path=" + encodeURIComponent(pathSuffix));
+    var data = await r.json();
+    if (!r.ok) throw new Error(data.error || ("Airtable GET " + r.status));
+    return data;
+  }
+  async function airtablePatch(table, id, fields){
+    var r = await fetch("/api/airtable?path=" + encodeURIComponent(table + "/" + id), {
+      method:"PATCH", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ fields:fields })
+    });
+    var data = await r.json();
+    if (!r.ok) throw new Error(data.error || ("Airtable PATCH " + r.status));
+    return data;
+  }
+
+  function esc(s){ return String(s == null ? "" : s).replace(/[&<>]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c]; }); }
+
+  function render(){
+    var f = record.fields;
+    var pending = f["Sjálfsafgreiðsla — óyfirfarið ⚠️"] !== false;
+    var CATALOG = KP3D.CATALOG, LOOKS = KP3D.LOOKS;
+    var look = state.look ? LOOKS[state.look] : null;
+
+    var rows = [];
+    state.walls.forEach(function(wall){
+      wall.wall.concat(wall.floor).forEach(function(b){
+        var c = CATALOG[b.type];
+        var hw = b.interior ? (b.interior.mode === "skuffur" ? "Skúffur × " + b.interior.count : "Hillur") : null;
+        var noteHtml = b.interior && b.interior.mode === "skuffur"
+          ? '<span class="note">⚠️ Viðskiptavinur óskar eftir skúffum — staðfestu skúffuhæðir</span>' : "";
+        rows.push('<div class="summary-line"><span>' + esc(wall.label) + ' — ' + esc(c.label) + (hw ? " · " + hw : "") + noteHtml + '</span><span>' + b.widthMm + ' × ' + c.h + ' × ' + c.d + ' mm</span></div>');
+      });
+    });
+
+    body.innerHTML =
+      '<span class="badge ' + (pending ? "pending" : "done") + '">' + (pending ? "⚠️ Óyfirfarið" : "✅ Yfirfarið") + '</span>' +
+      '<div class="card"><h3>Tengiliður</h3><div class="contact-line">' +
+        '<span><b>' + esc(f["Fullt nafn 👤"] || "—") + '</b></span>' +
+        '<span>' + esc(f["Netfang 📧"] || "—") + '</span>' +
+        '<span>' + esc(f["☎️ Símanúmer"] || "—") + '</span>' +
+      '</div>' + (look ? '<p class="note" style="margin:10px 0 0">Valinn stíll: <b>' + esc(look.label) + '</b></p>' : '') + '</div>' +
+      '<div class="view-toggle" id="viewToggle">' +
+        '<button type="button" class="active" data-view="3d">🧊 3D</button>' +
+        '<button type="button" data-view="2d">📐 Teikning</button>' +
+      '</div>' +
+      '<div class="three-wrap" id="threeWrap"></div>' +
+      '<div class="three-wrap" id="planWrap" hidden></div>' +
+      '<div class="card"><h3>Skápar (' + rows.length + ')</h3>' + rows.join("") + '</div>' +
+      '<div class="card">' +
+        '<h3>Aðgerðir</h3>' +
+        (pending
+          ? '<div class="actions"><button class="btn btn-primary" id="markReviewedBtn">✅ Yfirfarið — halda áfram</button></div>'
+          : '<p class="note">Þegar yfirfarið.</p>') +
+        '<p class="note" style="margin-top:14px;">Merkja fyrir símtal / skilja eftir skilaboð til skipulags:</p>' +
+        '<textarea id="flagNote" placeholder="T.d. óska eftir að hringja til að fara yfir mál..."></textarea>' +
+        '<div class="actions"><button class="btn btn-secondary" id="flagBtn">Vista skilaboð</button></div>' +
+      '</div>';
+
+    document.querySelectorAll("#viewToggle button").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        viewMode = btn.dataset.view;
+        document.querySelectorAll("#viewToggle button").forEach(function(b){ b.classList.toggle("active", b === btn); });
+        renderView();
+      });
+    });
+    var markBtn = document.getElementById("markReviewedBtn");
+    if (markBtn) markBtn.addEventListener("click", markReviewed);
+    document.getElementById("flagBtn").addEventListener("click", saveFlagNote);
+
+    renderView();
+  }
+
+  function renderView(){
+    var wrap = document.getElementById("threeWrap");
+    var plan = document.getElementById("planWrap");
+    KP3D.teardown3D();
+
+    if (viewMode === "2d"){
+      wrap.hidden = true; plan.hidden = false;
+      KP3D.buildPlan2D(plan, state);
+      return;
+    }
+    wrap.hidden = false; plan.hidden = true;
+    if (!KP3D.hasWebGL()){
+      wrap.innerHTML = '<div class="three-note">3D ekki stutt í þessum vafra — notaðu teikninguna eða listann.</div>';
+      return;
+    }
+    wrap.innerHTML = '<div class="three-note">Hleð 3D…</div>';
+    KP3D.waitForThree(function(ok){
+      if (viewMode !== "3d") return;
+      if (!ok){ wrap.innerHTML = '<div class="three-note">Tókst ekki að hlaða 3D.</div>'; return; }
+      wrap.innerHTML = "";
+      KP3D.buildScene(wrap, state);
+    }, 8000);
+  }
+
+  async function markReviewed(){
+    var btn = document.getElementById("markReviewedBtn");
+    btn.disabled = true; btn.textContent = "Vista...";
+    try{
+      await airtablePatch("tbl4LMXlQjp66RFKI", recordId, { "Sjálfsafgreiðsla — óyfirfarið ⚠️": false });
+      record.fields["Sjálfsafgreiðsla — óyfirfarið ⚠️"] = false;
+      render();
+    }catch(e){
+      alert("Tókst ekki að vista: " + e.message);
+      btn.disabled = false; btn.textContent = "✅ Yfirfarið — halda áfram";
+    }
+  }
+
+  async function saveFlagNote(){
+    var val = document.getElementById("flagNote").value.trim();
+    if (!val) return;
+    var btn = document.getElementById("flagBtn");
+    btn.disabled = true; btn.textContent = "Vista...";
+    try{
+      var existing = record.fields["Skilaboð til skipulags"] || "";
+      var stamped = (typeof existing === "string" ? existing : "") + (existing ? "\n\n" : "") + "[skipulag yfirferð] " + val;
+      await airtablePatch("tbl4LMXlQjp66RFKI", recordId, { "Skilaboð til skipulags": stamped });
+      record.fields["Skilaboð til skipulags"] = stamped;
+      document.getElementById("flagNote").value = "";
+      btn.textContent = "Vistað ✓";
+      setTimeout(function(){ btn.disabled = false; btn.textContent = "Vista skilaboð"; }, 1500);
+    }catch(e){
+      alert("Tókst ekki að vista: " + e.message);
+      btn.disabled = false; btn.textContent = "Vista skilaboð";
+    }
+  }
+
+  async function init(){
+    if (!recordId){
+      body.innerHTML = '<p class="error">Vantar ?recordId= í hlekkinn.</p>';
+      return;
+    }
+    try{
+      record = await airtableGet("tbl4LMXlQjp66RFKI/" + recordId);
+      var raw = record.fields["Sjálfsafgreiðsla skipulag (JSON) 📐"];
+      if (!raw){
+        body.innerHTML = '<p class="error">Þetta verkefni er ekki með vistað sjálfsafgreiðslu-skipulag.</p>';
+        return;
+      }
+      state = JSON.parse(raw);
+      render();
+    }catch(e){
+      body.innerHTML = '<p class="error">Villa við að sækja gögn: ' + esc(e.message) + '</p>';
+    }
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

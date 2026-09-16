@@ -22,6 +22,7 @@
   window.__OrbitControls__ = OrbitControls;
   window.dispatchEvent(new Event("three-ready"));
 </script>
+<script src="kitchen-planner-3d.js"></script>
 <style>
   :root{
     --bg:#ffffff;
@@ -220,6 +221,41 @@
     text-align:center; padding:24px; font-size:14px; color:var(--ink-soft);
   }
   .three-hint{ font-size:12.5px; color:var(--ink-soft); margin:0 0 22px; }
+
+  .view-toggle{ display:flex; gap:6px; margin-bottom:10px; }
+  .view-toggle button{
+    font:inherit; font-size:13.5px; font-weight:600; cursor:pointer;
+    background:#fff; border:1.5px solid var(--line); border-radius:8px; padding:8px 14px; color:var(--ink);
+  }
+  .view-toggle button.active{ border-color:var(--blue); background:var(--blue-soft); color:var(--blue-deep); }
+
+  /* ---- hardware (shelves/drawers) config ---- */
+  .hw-toggle{ display:flex; gap:4px; }
+  .hw-btn{
+    font:inherit; font-size:12px; font-weight:600; cursor:pointer;
+    background:#fff; border:1px solid var(--line); border-radius:6px; padding:6px 10px; color:var(--ink);
+  }
+  .hw-btn.active{ border-color:var(--blue); background:var(--blue-soft); color:var(--blue-deep); }
+  .hw-count{ display:flex; align-items:center; gap:4px; font-size:12.5px; color:var(--ink-soft); }
+  .hw-count b{ color:var(--ink); min-width:14px; text-align:center; }
+
+  /* ---- contact step ---- */
+  .contact-fields{ display:flex; flex-direction:column; gap:14px; max-width:420px; margin-bottom:8px; }
+  .contact-fields input[type=text], .contact-fields input[type=email], .contact-fields input[type=tel]{
+    padding:10px 12px; border:1px solid var(--line); border-radius:8px; font-size:15px; color:var(--ink); background:#fff;
+  }
+  .contact-fields input:focus{ outline:none; border-color:var(--blue); }
+  .field-error{ font-size:12.5px; color:var(--danger); margin-top:2px; display:none; }
+  .field.invalid input{ border-color:var(--danger); }
+  .field.invalid .field-error{ display:block; }
+  .submit-note{ font-size:13px; color:var(--ink-soft); margin-top:4px; }
+  .success-box{
+    background:var(--gold-soft); border:1px solid var(--line); border-radius:14px;
+    padding:24px; text-align:center;
+  }
+  .success-box .big{ font-size:32px; margin-bottom:8px; }
+  .success-box h3{ margin:0 0 8px; font-size:19px; }
+  .success-box p{ margin:0; color:var(--ink-soft); font-size:14.5px; }
 </style>
 </head>
 <body>
@@ -235,7 +271,7 @@
   <p class="lede" id="pageLede">Svaraðu nokkrum spurningum, veldu lögun eldhússins og raðaðu skápum upp — gróf teikning, engin binding. Rakel fer svo yfir og fullkomnar hönnunina með þér.</p>
 
   <div class="steps" id="progressSteps">
-    <span data-s="quiz"></span><span data-s="shape"></span><span data-s="walls"></span><span data-s="look"></span><span data-s="summary"></span>
+    <span data-s="quiz"></span><span data-s="shape"></span><span data-s="walls"></span><span data-s="look"></span><span data-s="summary"></span><span data-s="contact"></span>
   </div>
 
   <!-- ============ STEP: QUIZ ============ -->
@@ -313,16 +349,66 @@
     <div class="screen-title">Eldhúsið þitt í 3D</div>
     <p class="screen-sub">Svona lítur skipulagið þitt út núna.</p>
 
+    <div class="view-toggle" id="viewToggle">
+      <button type="button" class="active" data-view="3d">🧊 3D</button>
+      <button type="button" data-view="2d">📐 Teikning</button>
+    </div>
+
     <div class="three-wrap" id="threeWrap"></div>
-    <p class="three-hint">Dragðu til að snúa · klíptu eða skrunaðu til að rýma/fjarlægja</p>
+    <div class="three-wrap" id="planWrap" hidden></div>
+    <p class="three-hint">3D: dragðu til að snúa · klíptu eða skrunaðu til að rýma/fjarlægja</p>
 
     <div id="summaryBody"></div>
 
     <div class="actions">
       <button class="btn btn-secondary" id="backToLookBtn" type="button">← Breyta stíl</button>
+      <button class="btn btn-primary" id="toContactBtn" type="button">Áfram — senda inn</button>
+    </div>
+  </section>
+
+  <!-- ============ STEP: CONTACT ============ -->
+  <section id="screen-contact" hidden>
+    <div class="screen-title">Þínar upplýsingar</div>
+    <p class="screen-sub">Rakel fer yfir skipulagið þitt og hefur samband til að fullkomna hönnunina.</p>
+
+    <div class="contact-fields" id="contactFields">
+      <div class="field" id="field-fornafn">
+        <label for="cFornafn">Fornafn</label>
+        <input type="text" id="cFornafn" autocomplete="given-name">
+        <span class="field-error">Vantar fornafn</span>
+      </div>
+      <div class="field" id="field-eftirnafn">
+        <label for="cEftirnafn">Eftirnafn</label>
+        <input type="text" id="cEftirnafn" autocomplete="family-name">
+        <span class="field-error">Vantar eftirnafn</span>
+      </div>
+      <div class="field" id="field-netfang">
+        <label for="cNetfang">Netfang</label>
+        <input type="email" id="cNetfang" autocomplete="email">
+        <span class="field-error">Netfang lítur ekki rétt út</span>
+      </div>
+      <div class="field" id="field-simi">
+        <label for="cSimi">Símanúmer</label>
+        <input type="tel" id="cSimi" autocomplete="tel">
+        <span class="field-error">Vantar símanúmer</span>
+      </div>
     </div>
 
-    <div class="callout">Næstu skref (staðfesting með þínum upplýsingum) bætast við hér síðar — að svo stöddu er þetta forskoðun á skipulaginu.</div>
+    <p class="submit-note" id="submitError" style="display:none; color:var(--danger);"></p>
+
+    <div class="actions">
+      <button class="btn btn-secondary" id="backToSummaryBtn" type="button">← Til baka</button>
+      <button class="btn btn-primary" id="submitBtn" type="button">Senda inn</button>
+    </div>
+  </section>
+
+  <!-- ============ STEP: DONE ============ -->
+  <section id="screen-done" hidden>
+    <div class="success-box">
+      <div class="big">✅</div>
+      <h3>Takk fyrir!</h3>
+      <p>Rakel hefur fengið skipulagið þitt og hefur samband fljótlega til að fullkomna hönnunina með þér.</p>
+    </div>
   </section>
 
 </div>
@@ -333,31 +419,15 @@
 
   var STORAGE_KEY = "bjorninn:kitchenPlanner:draft:v1";
 
-  var CATALOG = {
-    grunnskapur: { label:"Grunnskápur", zone:"floor", cls:"floor", defaultW:600, minW:300, maxW:1200, h:800,  d:600 },
-    harskapur:   { label:"Hárskápur",   zone:"floor", cls:"tall",  defaultW:600, minW:300, maxW:900,  h:2400, d:600 },
-    efriskapur:  { label:"Efriskápur",  zone:"wall",  cls:"wall",  defaultW:600, minW:300, maxW:1200, h:600,  d:600 }
-  };
+  var KP3D = window.KP3D;
+  var CATALOG = KP3D.CATALOG;
+  var LOOKS = KP3D.LOOKS;
+  var LOOK_ORDER = KP3D.LOOK_ORDER;
 
   var SHAPES = {
     straight: [ { id:"A", label:"Veggur", defaultLen:3000 } ],
     L:        [ { id:"A", label:"Veggur A", defaultLen:2400 }, { id:"B", label:"Veggur B", defaultLen:2400 } ],
     U:        [ { id:"A", label:"Veggur A", defaultLen:1800 }, { id:"B", label:"Bakveggur", defaultLen:3000 }, { id:"C", label:"Veggur C", defaultLen:1800 } ]
-  };
-
-  // Fixed tie-break priority when two looks score equal in the quiz.
-  var LOOK_ORDER = ["hvitt", "gratt", "eik", "valhnota"];
-  // `color3d` is the material's real average color (sampled directly from its
-  // own photo, not guessed) — used as a flat color on 3D cabinet faces. The
-  // photos themselves are angled product shots with visible background, which
-  // looks broken mapped 1:1 onto a flat box face (a photo of a tilted board
-  // pasted onto another 3D box reads as a floating, wrongly-shaped patch) —
-  // they stay as the actual images only on the 2D look-picker cards.
-  var LOOKS = {
-    hvitt:    { label:"Hvítt",    img:"materials/hvitt.png",    color3d:"#fffef9", desc:"Klassískt og bjart",   efnislistiId:"recETAWxGH3R4yYQK" },
-    gratt:    { label:"Grátt",    img:"materials/gratt.png",    color3d:"#e3dcd0", desc:"Nútímalegt og hlutlaust", efnislistiId:"recv9klBmrhz3BJJf" },
-    eik:      { label:"Eik",      img:"materials/eik.png",      color3d:"#ccae8b", desc:"Náttúrulegt og ljóst", efnislistiId:"recr7o33yRRU4DqO7" },
-    valhnota: { label:"Valhnota", img:"materials/valhnota.png", color3d:"#765e48", desc:"Hlýtt og dökkt",       efnislistiId:"recOwpVNZipD18qME" }
   };
 
   var QUIZ = [
@@ -402,7 +472,9 @@
 
   function newBlock(type){
     var c = CATALOG[type];
-    return { id:"b" + (blockSeq++), type:type, widthMm:c.defaultW };
+    var b = { id:"b" + (blockSeq++), type:type, widthMm:c.defaultW };
+    if (c.hasInterior) b.interior = { mode:"hillur", count:3 };
+    return b;
   }
 
   function usedMm(list){ return list.reduce(function(s,b){ return s + b.widthMm; }, 0); }
@@ -439,7 +511,7 @@
   }
   function resetAll(){
     if (!confirm("Hreinsa allt skipulagið og byrja upp á nýtt?")) return;
-    teardown3D();
+    KP3D.teardown3D();
     try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
     state = { step:"quiz", quizAnswers:{}, suggestedLook:null, look:null, shape:null, walls:[] };
     render();
@@ -593,6 +665,26 @@
     return html;
   }
 
+  function hardwareHTML(b, c){
+    if (!c.hasInterior) return "";
+    var isDrawer = b.interior.mode === "skuffur";
+    var min = c.drawerCountRange[0], max = c.drawerCountRange[1];
+    return (
+      '<div class="hw-toggle" data-role="hw-toggle">' +
+        '<button type="button" class="hw-btn' + (!isDrawer ? ' active' : '') + '" data-hw="hillur">Hillur</button>' +
+        '<button type="button" class="hw-btn' + (isDrawer ? ' active' : '') + '" data-hw="skuffur">Skúffur</button>' +
+      '</div>' +
+      (isDrawer
+        ? '<div class="hw-count">' +
+            '<button class="iconbtn" data-role="hw-dec" ' + (b.interior.count <= min ? "disabled" : "") + '>−</button>' +
+            '<b>' + b.interior.count + '</b>' +
+            '<button class="iconbtn" data-role="hw-inc" ' + (b.interior.count >= max ? "disabled" : "") + '>+</button>' +
+            '<span>skúffur</span>' +
+          '</div>'
+        : "")
+    );
+  }
+
   function blockRowHTML(wall, zone, b){
     var c = CATALOG[b.type];
     return (
@@ -600,11 +692,24 @@
         '<span class="dot ' + c.cls + '"></span>' +
         '<span class="type">' + c.label + '</span>' +
         '<div class="wfield"><input type="number" min="' + c.minW + '" max="' + c.maxW + '" step="10" value="' + b.widthMm + '" data-role="width"><span class="u">mm</span></div>' +
+        hardwareHTML(b, c) +
         '<button class="iconbtn" data-role="left" title="Færa til vinstri">◀</button>' +
         '<button class="iconbtn" data-role="right" title="Færa til hægri">▶</button>' +
         '<button class="iconbtn del" data-role="del" title="Fjarlægja">✕</button>' +
       '</div>'
     );
+  }
+
+  function setInterior(wall, zone, id, mode, count){
+    var b = wall[zone].find(function(x){ return x.id === id; });
+    if (!b || !b.interior) return;
+    b.interior.mode = mode;
+    if (count !== undefined){
+      var range = CATALOG[b.type].drawerCountRange;
+      b.interior.count = Math.max(range[0], Math.min(range[1], count));
+    }
+    save();
+    renderWalls();
   }
 
   function zoneHTML(wall, zoneKey, title, addTypes){
@@ -661,6 +766,14 @@
         row.querySelector('[data-role="width"]').addEventListener("change", function(e){
           setBlockWidth(wall, zone, id, parseInt(e.target.value, 10));
         });
+        var b = wall[zone].find(function(x){ return x.id === id; });
+        row.querySelectorAll('[data-hw]').forEach(function(btn){
+          btn.addEventListener("click", function(){ setInterior(wall, zone, id, btn.dataset.hw); });
+        });
+        var dec = row.querySelector('[data-role="hw-dec"]');
+        var inc = row.querySelector('[data-role="hw-inc"]');
+        if (dec) dec.addEventListener("click", function(){ setInterior(wall, zone, id, "skuffur", b.interior.count - 1); });
+        if (inc) inc.addEventListener("click", function(){ setInterior(wall, zone, id, "skuffur", b.interior.count + 1); });
       });
     });
 
@@ -697,266 +810,52 @@
     document.getElementById("toSummaryBtn").disabled = !state.look;
   }
 
-  // ---------- 3D scene ----------
-  var WALL_CABINET_BASE_M = 1.4; // fixed visualization height for Efriskápur, not stored per-cabinet
-  var THREE_STATE = null;
+  // ---------- 3D / 2D view (rendering itself lives in kitchen-planner-3d.js,
+  // shared with Rakel's review page — this just orchestrates which view is
+  // showing and feeds it the current state) ----------
+  var viewMode = "3d"; // "3d" | "2d", not persisted — always opens on 3D
 
-  function hasWebGL(){
-    try{
-      var c = document.createElement("canvas");
-      return !!(window.WebGLRenderingContext && (c.getContext("webgl") || c.getContext("experimental-webgl")));
-    }catch(e){ return false; }
-  }
-
-  // Hardcoded per-shape wall layout: each wall's start point, its own axis
-  // (direction cabinets run along) and normal (direction cabinets project
-  // into the room), in meters. Straight/L/U are fixed presets (see Phase 1),
-  // so this doesn't need to be a generic corner-solver.
-  function wallGeometry3D(shape, walls){
-    function m(mm){ return mm / 1000; }
-    if (shape === "straight"){
-      return [ { origin:{x:0,z:0}, axis:{x:1,z:0}, normal:{x:0,z:1}, lenM:m(walls[0].lengthMm) } ];
-    }
-    if (shape === "L"){
-      return [
-        { origin:{x:0,z:0}, axis:{x:1,z:0}, normal:{x:0,z:1}, lenM:m(walls[0].lengthMm) },
-        { origin:{x:0,z:0}, axis:{x:0,z:1}, normal:{x:1,z:0}, lenM:m(walls[1].lengthMm) }
-      ];
-    }
-    if (shape === "U"){
-      var LA = m(walls[0].lengthMm), LB = m(walls[1].lengthMm), LC = m(walls[2].lengthMm);
-      var aEnd = { x:0, z:LA };
-      var bEnd = { x:LB, z:LA };
-      return [
-        { origin:{x:0,z:0}, axis:{x:0,z:1}, normal:{x:1,z:0}, lenM:LA },
-        { origin:aEnd,      axis:{x:1,z:0}, normal:{x:0,z:-1}, lenM:LB },
-        { origin:bEnd,      axis:{x:0,z:-1}, normal:{x:-1,z:0}, lenM:LC }
-      ];
-    }
-    return [];
-  }
-
-  var ROOM_DEPTH_M = 2.4; // assumed walkway/room depth beyond each wall, for floor sizing + camera framing only
-
-  function addFloor(THREE, scene, geoms, floorMat){
-    var minX=Infinity, maxX=-Infinity, minZ=Infinity, maxZ=-Infinity;
-    geoms.forEach(function(g){
-      var end = { x:g.origin.x + g.axis.x*g.lenM, z:g.origin.z + g.axis.z*g.lenM };
-      // Include each wall's endpoints AND those endpoints pushed into the room
-      // along the wall's own normal — the bbox must only grow on the interior
-      // side of a wall, never symmetrically through it (that put the camera
-      // target on the wall surface instead of inside the room).
-      [g.origin, end,
-       { x:g.origin.x + g.normal.x*ROOM_DEPTH_M, z:g.origin.z + g.normal.z*ROOM_DEPTH_M },
-       { x:end.x + g.normal.x*ROOM_DEPTH_M, z:end.z + g.normal.z*ROOM_DEPTH_M }
-      ].forEach(function(p){
-        minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
-        minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z);
-      });
-    });
-    var margin = 0.3;
-    var w = (maxX - minX) + margin * 2, d = (maxZ - minZ) + margin * 2;
-    var cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
-    var mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, d), floorMat);
-    mesh.rotation.x = -Math.PI / 2;
-    mesh.position.set(cx, 0, cz);
-    mesh.receiveShadow = true;
-    scene.add(mesh);
-    return { cx:cx, cz:cz, w:w, d:d };
-  }
-
-  function addWallPlane(THREE, scene, geom, wallHeightM, wallMat){
-    var mesh = new THREE.Mesh(new THREE.PlaneGeometry(geom.lenM, wallHeightM), wallMat);
-    var xAxis = new THREE.Vector3(geom.axis.x, 0, geom.axis.z);
-    var yAxis = new THREE.Vector3(0, 1, 0);
-    var zAxis = new THREE.Vector3(geom.normal.x, 0, geom.normal.z);
-    mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis));
-    mesh.position.set(
-      geom.origin.x + geom.axis.x * (geom.lenM / 2),
-      wallHeightM / 2,
-      geom.origin.z + geom.axis.z * (geom.lenM / 2)
-    );
-    mesh.receiveShadow = true;
-    scene.add(mesh);
-  }
-
-  function addCabinetBox(THREE, scene, geom, offsetM, widthM, heightM, depthM, baseYM, carcassMat, frontMat){
-    var cx = geom.origin.x + geom.axis.x * (offsetM + widthM / 2) + geom.normal.x * (depthM / 2);
-    var cz = geom.origin.z + geom.axis.z * (offsetM + widthM / 2) + geom.normal.z * (depthM / 2);
-    var boxGeo = new THREE.BoxGeometry(widthM, heightM, depthM);
-    var mesh = new THREE.Mesh(boxGeo, [carcassMat, carcassMat, carcassMat, carcassMat, frontMat, carcassMat]);
-    mesh.position.set(cx, baseYM + heightM / 2, cz);
-    var xAxis = new THREE.Vector3(geom.axis.x, 0, geom.axis.z);
-    var yAxis = new THREE.Vector3(0, 1, 0);
-    var zAxis = new THREE.Vector3(geom.normal.x, 0, geom.normal.z);
-    mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis));
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    scene.add(mesh);
-
-    // A light front color (e.g. hvítt) can otherwise blend into the equally
-    // light wall/floor with no shadow-based separation — a dark edge outline
-    // keeps every cabinet readable regardless of which look is applied.
-    var edges = new THREE.LineSegments(
-      new THREE.EdgesGeometry(boxGeo),
-      new THREE.LineBasicMaterial({ color:0x2a2a2a })
-    );
-    edges.position.copy(mesh.position);
-    edges.quaternion.copy(mesh.quaternion);
-    scene.add(edges);
-  }
-
-  function disposeScene(scene){
-    if (!scene) return;
-    scene.traverse(function(obj){
-      if (obj.geometry) obj.geometry.dispose();
-      if (obj.material){
-        (Array.isArray(obj.material) ? obj.material : [obj.material]).forEach(function(mat){
-          if (mat.map) mat.map.dispose();
-          mat.dispose();
-        });
-      }
-    });
-  }
-
-  function teardown3D(){
-    if (!THREE_STATE) return;
-    cancelAnimationFrame(THREE_STATE.rafId);
-    window.removeEventListener("resize", THREE_STATE.onResize);
-    THREE_STATE.controls.dispose();
-    disposeScene(THREE_STATE.scene);
-    THREE_STATE.renderer.dispose();
-    if (THREE_STATE.renderer.domElement.parentNode){
-      THREE_STATE.renderer.domElement.parentNode.removeChild(THREE_STATE.renderer.domElement);
-    }
-    THREE_STATE = null;
-  }
-
-  function waitForThree(cb, timeoutMs){
-    if (window.__THREE__){ cb(true); return; }
-    var done = false;
-    var timer = setTimeout(function(){
-      if (done) return;
-      done = true;
-      cb(false);
-    }, timeoutMs || 6000);
-    window.addEventListener("three-ready", function onReady(){
-      if (done) return;
-      done = true;
-      clearTimeout(timer);
-      cb(true);
-    }, { once:true });
-  }
-
-  function buildScene(wrap){
-    var THREE = window.__THREE__;
-    var OrbitControls = window.__OrbitControls__;
-
-    var geoms = wallGeometry3D(state.shape, state.walls);
-    var carcassMat = new THREE.MeshStandardMaterial({ color:0x3a3a3a, roughness:0.9 });
-    var wallMat = new THREE.MeshStandardMaterial({ color:0xf1efe8, roughness:1, side:THREE.DoubleSide });
-    var floorMat = new THREE.MeshStandardMaterial({ color:0xd8d3c6, roughness:1 });
-
-    var scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xf7f6f2);
-
-    var bbox = addFloor(THREE, scene, geoms, floorMat);
-    var WALL_H = 2.6;
-    geoms.forEach(function(g){ addWallPlane(THREE, scene, g, WALL_H, wallMat); });
-
-    var look = state.look ? LOOKS[state.look] : null;
-    var frontMat = new THREE.MeshStandardMaterial({
-      color: look ? look.color3d : 0xb7b2a4, roughness:0.75
-    });
-
-    state.walls.forEach(function(wall, wi){
-      var g = geoms[wi];
-      if (!g) return;
-      var offset = 0;
-      wall.floor.forEach(function(b){
-        var c = CATALOG[b.type];
-        addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, c.h / 1000, c.d / 1000, 0, carcassMat, frontMat);
-        offset += b.widthMm;
-      });
-      offset = 0;
-      wall.wall.forEach(function(b){
-        var c = CATALOG[b.type];
-        addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, c.h / 1000, c.d / 1000, WALL_CABINET_BASE_M, carcassMat, frontMat);
-        offset += b.widthMm;
-      });
-    });
-
-    scene.add(new THREE.AmbientLight(0xffffff, 0.65));
-    var dir = new THREE.DirectionalLight(0xffffff, 0.9);
-    dir.position.set(bbox.cx + 3, 5, bbox.cz + 4);
-    dir.castShadow = true;
-    dir.shadow.mapSize.set(1024, 1024);
-    scene.add(dir);
-
-    var camera = new THREE.PerspectiveCamera(45, 1, 0.05, 100);
-    var dist = Math.max(bbox.w, bbox.d) * 0.9 + 1.5;
-    camera.position.set(bbox.cx + dist * 0.6, dist * 0.55, bbox.cz + dist * 0.9);
-
-    var renderer = new THREE.WebGLRenderer({ antialias:true });
-    renderer.shadowMap.enabled = true;
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    wrap.appendChild(renderer.domElement);
-
-    var controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.set(bbox.cx, 1.0, bbox.cz);
-    controls.maxPolarAngle = Math.PI / 2 - 0.03;
-    controls.minPolarAngle = 0.15;
-    controls.minDistance = 0.8;
-    controls.maxDistance = dist * 3;
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.08;
-    controls.update();
-
-    THREE_STATE = { renderer:renderer, controls:controls, scene:scene, rafId:0, onResize:resize };
-
-    function resize(){
-      var w = wrap.clientWidth, h = wrap.clientHeight;
-      if (!w || !h) return;
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
-    }
-    resize();
-    window.addEventListener("resize", resize);
-
-    function loop(){
-      THREE_STATE.rafId = requestAnimationFrame(loop);
-      controls.update();
-      renderer.render(scene, camera);
-    }
-    loop();
-  }
-
-  function render3D(){
+  function renderView(){
     var wrap = document.getElementById("threeWrap");
-    teardown3D();
-    wrap.innerHTML = "";
+    var plan = document.getElementById("planWrap");
+    KP3D.teardown3D();
 
     var hasAnyCabinets = state.walls.some(function(w){ return w.floor.length || w.wall.length; });
     if (!hasAnyCabinets){
-      wrap.innerHTML = '<div class="three-note">Bættu skápum við til að sjá eldhúsið í 3D.</div>';
-      return;
-    }
-    if (!hasWebGL()){
-      wrap.innerHTML = '<div class="three-note">3D forskoðun er ekki studd í þessum vafra — sjá listann fyrir neðan.</div>';
+      wrap.hidden = false; plan.hidden = true;
+      wrap.innerHTML = '<div class="three-note">Bættu skápum við til að sjá eldhúsið hér.</div>';
       return;
     }
 
+    if (viewMode === "2d"){
+      wrap.hidden = true; plan.hidden = false;
+      KP3D.buildPlan2D(plan, state);
+      return;
+    }
+
+    wrap.hidden = false; plan.hidden = true;
+    if (!KP3D.hasWebGL()){
+      wrap.innerHTML = '<div class="three-note">3D forskoðun er ekki studd í þessum vafra — sjá listann fyrir neðan, eða skoðaðu teikninguna.</div>';
+      return;
+    }
     wrap.innerHTML = '<div class="three-note">Hleð 3D…</div>';
-    waitForThree(function(ok){
-      if (state.step !== "summary") return; // navigated away while waiting
+    KP3D.waitForThree(function(ok){
+      if (state.step !== "summary" || viewMode !== "3d") return; // navigated away while waiting
       if (!ok){
         wrap.innerHTML = '<div class="three-note">3D forskoðun tókst ekki að hlaða — sjá listann fyrir neðan.</div>';
         return;
       }
       wrap.innerHTML = "";
-      buildScene(wrap);
+      KP3D.buildScene(wrap, state);
     }, 8000);
+  }
+
+  function setViewMode(mode){
+    viewMode = mode;
+    document.querySelectorAll("#viewToggle button").forEach(function(btn){
+      btn.classList.toggle("active", btn.dataset.view === mode);
+    });
+    renderView();
   }
 
   // ---------- summary step ----------
@@ -975,7 +874,10 @@
       rows.forEach(function(b){
         var c = CATALOG[b.type];
         counts[c.label] = (counts[c.label] || 0) + 1;
-        html += '<div class="summary-line"><span>' + c.label + '</span><span>' + b.widthMm + ' × ' + c.h + ' × ' + c.d + ' mm</span></div>';
+        var hw = b.interior
+          ? (b.interior.mode === "skuffur" ? " · " + b.interior.count + " skúffur" : " · hillur")
+          : "";
+        html += '<div class="summary-line"><span>' + c.label + hw + '</span><span>' + b.widthMm + ' × ' + c.h + ' × ' + c.d + ' mm</span></div>';
       });
       html += '</div>';
     });
@@ -1006,13 +908,13 @@
 
   // ---------- screen switching ----------
   function goto(step){
-    if (state.step === "summary" && step !== "summary") teardown3D();
+    if (state.step === "summary" && step !== "summary") KP3D.teardown3D();
     state.step = step;
     save();
     render();
   }
 
-  var STEP_ORDER = ["quiz", "shape", "walls", "look", "summary"];
+  var STEP_ORDER = ["quiz", "shape", "walls", "look", "summary", "contact", "done"];
 
   function render(){
     STEP_ORDER.forEach(function(s){
@@ -1029,7 +931,109 @@
     if (state.step === "shape") renderShapeStep();
     if (state.step === "walls") renderWalls();
     if (state.step === "look") renderLook();
-    if (state.step === "summary"){ renderSummary(); render3D(); }
+    if (state.step === "summary"){ renderSummary(); viewMode = "3d"; renderView(); }
+  }
+
+  // ---------- contact + submit ----------
+  var PROXY_URL = "/api/airtable";
+  // Standard carcass material shared by all 4 looks (Plastl spónapl 16mm
+  // U963 dökkgrá ST2) — see the Phase 0 memory writeup for how this was
+  // picked (by far the most-used carcass across real projects).
+  var CARCASS_EFNISLISTI_ID = "recOz5NQJs6mCBpkq";
+
+  async function airtableCreate(table, fields){
+    var r = await fetch(PROXY_URL + "?path=" + encodeURIComponent(table), {
+      method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ fields:fields })
+    });
+    var data = await r.json();
+    if (!r.ok) throw new Error(data.error || ("Airtable POST " + r.status));
+    return data;
+  }
+
+  function validateContact(){
+    var ok = true;
+    var checks = [
+      { id:"fornafn", el:document.getElementById("cFornafn"), test:function(v){ return v.trim().length > 0; } },
+      { id:"eftirnafn", el:document.getElementById("cEftirnafn"), test:function(v){ return v.trim().length > 0; } },
+      { id:"netfang", el:document.getElementById("cNetfang"), test:function(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()); } },
+      { id:"simi", el:document.getElementById("cSimi"), test:function(v){ return v.trim().length >= 6; } }
+    ];
+    checks.forEach(function(c){
+      var field = document.getElementById("field-" + c.id);
+      var valid = c.test(c.el.value);
+      field.classList.toggle("invalid", !valid);
+      if (!valid) ok = false;
+    });
+    return ok;
+  }
+
+  function collectEyðublaðRows(){
+    var rows = [];
+    state.walls.forEach(function(wall){
+      wall.floor.concat(wall.wall).forEach(function(b){
+        var c = CATALOG[b.type];
+        var fields = {
+          "Heiti rýmis": "Eldhús",
+          "Hvað viltu smíða?": "Skáp",
+          "Skápategund": c.label,
+          "Breidd": b.widthMm,
+          "Hæð": c.h,
+          "Dýpt": c.d,
+          "Fjöldi eininga": 1,
+          "Grip?": "Fræst grip lárétt"
+        };
+        if (b.interior && b.interior.mode === "skuffur"){
+          fields["Skilaboð til Skipulags 📝"] =
+            "Viðskiptavinur óskar eftir skúffum (" + b.interior.count + " stk) í stað hilla — vinsamlegast staðfestu skúffuhæðir.";
+        }
+        rows.push(fields);
+      });
+    });
+    return rows;
+  }
+
+  async function submitPlan(){
+    var submitBtn = document.getElementById("submitBtn");
+    var errEl = document.getElementById("submitError");
+    errEl.style.display = "none";
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Sendi...";
+    try{
+      var contact = await airtableCreate("tblQ8zeUanriESWvL", {
+        "Fornafn ⬅️": document.getElementById("cFornafn").value.trim(),
+        "Eftirnafn ➡️": document.getElementById("cEftirnafn").value.trim(),
+        "Netfang 📧": document.getElementById("cNetfang").value.trim(),
+        "Símanúmer ☎️": document.getElementById("cSimi").value.trim(),
+        "Tegund tengiliðs 👥": "Einstaklingur / heimili",
+        "Hvaðan kom viðskiptavinurinn 📥": "Vefsíða"
+      });
+
+      var lookRec = state.look ? LOOKS[state.look] : null;
+      var opp = await airtableCreate("tbl4LMXlQjp66RFKI", Object.assign({
+        "Tengiliður verkefnis 👤": [contact.id],
+        "Skrokka efni 🔲 viðskiptavinar": [CARCASS_EFNISLISTI_ID]
+      }, lookRec ? {
+        "Fronta efni viðskiptavinar 🖼️": [lookRec.efnislistiId]
+      } : {}, {
+        "Sjálfsafgreiðsla skipulag (JSON) 📐": JSON.stringify(state)
+      }));
+
+      var rows = collectEyðublaðRows();
+      for (var i = 0; i < rows.length; i++){
+        rows[i]["Tækifæri 📣"] = [opp.id];
+        await airtableCreate("tbl0WcyHhz63pSzZX", rows[i]);
+      }
+
+      KP3D.teardown3D();
+      try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
+      state = { step:"done", quizAnswers:{}, suggestedLook:null, look:null, shape:null, walls:[] };
+      render();
+    }catch(e){
+      errEl.textContent = "Eitthvað fór úrskeiðis við að senda inn. Prófaðu aftur — " + e.message;
+      errEl.style.display = "block";
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Senda inn";
+    }
   }
 
   // ---------- wire top-level controls ----------
@@ -1048,8 +1052,18 @@
 
   document.getElementById("toSummaryBtn").addEventListener("click", function(){ goto("summary"); });
   document.getElementById("backToLookBtn").addEventListener("click", function(){ goto("look"); });
+  document.getElementById("toContactBtn").addEventListener("click", function(){ goto("contact"); });
+  document.getElementById("backToSummaryBtn").addEventListener("click", function(){ goto("summary"); });
+  document.getElementById("submitBtn").addEventListener("click", function(){
+    if (!validateContact()) return;
+    submitPlan();
+  });
 
   document.getElementById("resetBtn").addEventListener("click", resetAll);
+
+  document.querySelectorAll("#viewToggle button").forEach(function(btn){
+    btn.addEventListener("click", function(){ setViewMode(btn.dataset.view); });
+  });
 
   // ---------- init ----------
   load();
