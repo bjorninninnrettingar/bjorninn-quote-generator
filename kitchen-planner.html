@@ -188,23 +188,6 @@
   .meter-note{ font-size:12.5px; color:var(--ink-soft); margin:0 0 10px; }
   .meter-note.full{ color:var(--danger); }
 
-  .blocklist{ display:flex; flex-direction:column; gap:8px; }
-  .block-row{
-    display:flex; align-items:center; gap:8px; background:#fff; border:1px solid var(--line);
-    border-radius:9px; padding:8px 10px; flex-wrap:wrap;
-  }
-  .block-row .dot{ width:10px; height:10px; border-radius:3px; flex:none; }
-  .block-row .dot.floor{ background:var(--floor); }
-  .block-row .dot.wall{ background:var(--wall); }
-  .block-row .dot.tall{ background:var(--tall); }
-  .block-row .dot.oven{ background:var(--oven); }
-  .block-row .dot.corner{ background:var(--corner); }
-  .block-row .type{ font-size:13.5px; font-weight:600; flex:1 1 auto; min-width:90px; }
-  .block-row .wfield{ display:flex; align-items:center; gap:5px; }
-  .block-row input[type=number]{
-    width:72px; padding:6px 8px; border:1px solid var(--line); border-radius:6px; font-size:13.5px;
-  }
-  .block-row .u{ font-size:12px; color:var(--ink-soft); }
   .iconbtn{
     width:28px; height:28px; border-radius:6px; border:1px solid var(--line); background:#fff;
     cursor:pointer; font-size:13px; color:var(--ink); display:flex; align-items:center; justify-content:center;
@@ -311,17 +294,11 @@
   .edit-panel-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
   .edit-panel-head h4{ margin:0; font-size:15px; }
   .edit-panel-head .sub{ font-size:12.5px; color:var(--ink-soft); }
-  .edit-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:12px; }
-  @media (max-width:520px){ .edit-grid{ grid-template-columns:1fr 1fr; } }
-  .edit-field{ display:flex; flex-direction:column; gap:4px; }
+  .edit-field{ display:flex; flex-direction:column; gap:4px; margin-bottom:12px; }
   .edit-field label{ font-size:11.5px; font-weight:600; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.03em; }
   .edit-field input, .edit-field select{
     padding:8px 10px; border:1px solid var(--line); border-radius:7px; font-size:14px; background:#fff; color:var(--ink);
   }
-  .edit-field input:disabled{ background:var(--panel); color:var(--ink-soft); }
-  .edit-field .stepper-row{ display:flex; align-items:center; gap:6px; }
-  .edit-field .stepper-row input{ flex:1; min-width:0; text-align:center; padding:8px 4px; }
-  .edit-field .stepper-row .iconbtn{ flex:none; }
   .edit-actions{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
 
   /* ---- contact step ---- */
@@ -464,11 +441,13 @@
   <!-- ============ STEP: WALLS / LAYOUT ============ -->
   <section id="screen-walls" hidden>
     <div class="screen-title">Raðaðu skápum upp</div>
-    <p class="screen-sub">Dragðu skáp úr listanum inn á teikninguna, eða notaðu "+" hnappana fyrir neðan. Þú getur alltaf breytt breiddinni.</p>
+    <p class="screen-sub">Dragðu skáp úr listanum inn á teikninguna, eða notaðu "+" hnappana fyrir neðan. Smelltu á skáp á teikningunni til að breyta tegund eða fjarlægja.</p>
 
     <div class="catalog-bar" id="catalogBar"></div>
 
     <div class="room-preview" id="wallsPlanWrap"></div>
+
+    <div id="wallsEditPanel"></div>
 
     <div id="openingsList"></div>
 
@@ -876,17 +855,37 @@
     renderWalls();
   }
 
-  function setBlockWidth(wall, zone, id, val){
+  // HomeByMe-style type swap (click a cabinet, pick a new type from a
+  // dropdown) — replaces the old per-cabinet width/height/depth editing now
+  // that every catalog entry is a fixed-size item. Only offers types that
+  // share the block's own zone (floor vs wall) — swapping zones would mean
+  // moving the block into a different array, out of scope here.
+  function typesForZone(zone){
+    return Object.keys(CATALOG).filter(function(t){ return CATALOG[t].zone === zone; });
+  }
+
+  function changeBlockType(wall, zone, id, newType){
     var list = wall[zone];
-    var b = list.find(function(x){ return x.id === id; });
-    if (!b) return;
-    var others = usedMm(list) - b.widthMm;
-    var maxAllowed = Math.min(CATALOG[b.type].maxW, wall.lengthMm - cornerClearance(wall, zone) - others);
-    var w = clampWidth(b.type, val);
-    w = Math.min(w, Math.max(CATALOG[b.type].minW, maxAllowed));
-    b.widthMm = w;
+    var idx = list.findIndex(function(x){ return x.id === id; });
+    if (idx < 0) return;
+    var old = list[idx];
+    if (old.type === newType) return;
+    var c = CATALOG[newType];
+    var others = usedMm(list) - old.widthMm;
+    if (others + c.defaultW > wall.lengthMm - cornerClearance(wall, zone)){
+      toast("Ekki nóg pláss á " + wall.label.toLowerCase() + " fyrir " + c.label.toLowerCase() + ".");
+      return;
+    }
+    var nb = { id:old.id, type:newType, widthMm:c.defaultW };
+    if (c.hasInterior){
+      var range = c.drawerCountRange;
+      var mode = (old.interior && old.interior.mode) || "hillur";
+      var count = old.interior && old.interior.count ? old.interior.count : 3;
+      nb.interior = { mode:mode, count:Math.max(range[0], Math.min(range[1], count)) };
+    }
+    list[idx] = nb;
     save();
-    renderWalls();
+    refreshAfterEdit();
   }
 
   function stripHTML(list, wallLenMm, clearanceMm){
@@ -934,21 +933,6 @@
     );
   }
 
-  function blockRowHTML(wall, zone, b){
-    var c = CATALOG[b.type];
-    return (
-      '<div class="block-row" data-id="' + b.id + '">' +
-        '<span class="dot ' + c.cls + '"></span>' +
-        '<span class="type">' + c.label + '</span>' +
-        '<div class="wfield"><input type="number" min="' + c.minW + '" max="' + c.maxW + '" step="10" value="' + b.widthMm + '" data-role="width"><span class="u">mm</span></div>' +
-        hardwareHTML(b, c) +
-        '<button class="iconbtn" data-role="left" title="Færa til vinstri">◀</button>' +
-        '<button class="iconbtn" data-role="right" title="Færa til hægri">▶</button>' +
-        '<button class="iconbtn del" data-role="del" title="Fjarlægja">✕</button>' +
-      '</div>'
-    );
-  }
-
   function setInterior(wall, zone, id, mode, count){
     var b = wall[zone].find(function(x){ return x.id === id; });
     if (!b || !b.interior) return;
@@ -972,17 +956,12 @@
       return '<button class="btn btn-secondary btn-small" data-add="' + type + '" data-wall="' + wall.id + '" ' + disabled + '>+ ' + c.label + '</button>';
     }).join("");
 
-    var rows = list.length
-      ? '<div class="blocklist" data-wall="' + wall.id + '" data-zone="' + zoneKey + '">' + list.map(function(b){ return blockRowHTML(wall, zoneKey, b); }).join("") + '</div>'
-      : '<div class="empty-note">Ekkert bætt við hér ennþá.</div>';
-
     var clearanceNote = clearance > 0 ? " (þar af " + clearance + " mm frátekið fyrir horn)" : "";
     return (
       '<div class="zone zone-' + zoneKey + '">' +
         '<div class="zone-label-row"><span class="zone-label">' + title + '</span><div class="zone-add">' + addBtns + '</div></div>' +
         '<div class="strip">' + stripHTML(list, wall.lengthMm, clearance) + '</div>' +
         '<p class="meter-note' + (remaining < 1 ? ' full' : '') + '">' + used + ' / ' + wall.lengthMm + ' mm notað' + (remaining < 1 ? " — veggur fullur" : ", " + remaining + " mm laust") + clearanceNote + '</p>' +
-        rows +
       '</div>'
     );
   }
@@ -996,7 +975,7 @@
   // "+ Type" buttons stay as the reliable fallback, per the confirmed
   // decision — drag is the delightful primary path, not the only path.
   var CATALOG_GROUPS = [
-    { title:"Gólfskápar", types:["grunnskapur", "harskapur", "ofnaskapur", "tofrahorn"] },
+    { title:"Gólfskápar", types:["grunnskapur", "harskapur"] },
     { title:"Veggskápar", types:["efriskapur"] }
   ];
   // Windows/doors (Phase 7e) drag exactly like cabinets but aren't cabinets
@@ -1030,7 +1009,7 @@
   }
 
   function renderWallsPlan(){
-    KP3D.buildPlan2D(document.getElementById("wallsPlanWrap"), state);
+    KP3D.buildPlan2D(document.getElementById("wallsPlanWrap"), state, { selectedId:selectedBlockId, onSelect:onCabinetSelect });
     wireBlockDragHandlers();
   }
 
@@ -1377,7 +1356,7 @@
         '<div class="wallcard" data-wall="' + wall.id + '">' +
           '<div class="wallcard-head"><h3>' + wall.label + ' <span class="len">· ' + wall.lengthMm + ' mm</span></h3></div>' +
           zoneHTML(wall, "wall", "Efri röð — veggskápar", ["efriskapur"]) +
-          zoneHTML(wall, "floor", "Neðri röð — gólfskápar", ["grunnskapur", "harskapur", "ofnaskapur", "tofrahorn"]) +
+          zoneHTML(wall, "floor", "Neðri röð — gólfskápar", ["grunnskapur", "harskapur"]) +
         '</div>'
       );
     }).join("");
@@ -1389,30 +1368,9 @@
         addBlock(wall, btn.dataset.add);
       });
     });
-    container.querySelectorAll(".blocklist").forEach(function(listEl){
-      var wall = state.walls.find(function(w){ return w.id === listEl.dataset.wall; });
-      var zone = listEl.dataset.zone;
-      listEl.querySelectorAll(".block-row").forEach(function(row){
-        var id = row.dataset.id;
-        row.querySelector('[data-role="del"]').addEventListener("click", function(){ removeBlock(wall, zone, id); });
-        row.querySelector('[data-role="left"]').addEventListener("click", function(){ moveBlock(wall, zone, id, -1); });
-        row.querySelector('[data-role="right"]').addEventListener("click", function(){ moveBlock(wall, zone, id, 1); });
-        row.querySelector('[data-role="width"]').addEventListener("change", function(e){
-          setBlockWidth(wall, zone, id, parseInt(e.target.value, 10));
-        });
-        var b = wall[zone].find(function(x){ return x.id === id; });
-        row.querySelectorAll('[data-hw]').forEach(function(btn){
-          btn.addEventListener("click", function(){ setInterior(wall, zone, id, btn.dataset.hw); });
-        });
-        var dec = row.querySelector('[data-role="hw-dec"]');
-        var inc = row.querySelector('[data-role="hw-inc"]');
-        if (dec) dec.addEventListener("click", function(){ setInterior(wall, zone, id, "skuffur", b.interior.count - 1); });
-        if (inc) inc.addEventListener("click", function(){ setInterior(wall, zone, id, "skuffur", b.interior.count + 1); });
-      });
-    });
-
     var totalBlocks = state.walls.reduce(function(s, w){ return s + w.floor.length + w.wall.length; }, 0);
     document.getElementById("toSummaryBtn").disabled = totalBlocks === 0;
+    renderEditPanel();
   }
 
   // ---------- materials step (carcass / front / opening / drawers) ----------
@@ -1532,7 +1490,17 @@
   function onCabinetSelect(meta){
     selectedBlockId = meta ? meta.blockId : null;
     renderEditPanel();
-    renderView();
+    if (state.step === "walls") renderWallsPlan();
+    else if (state.step === "summary") renderView();
+  }
+
+  // Re-renders whatever needs to reflect a change made from the edit panel —
+  // called from both hosts (walls-step plan and the 3D/2D summary view)
+  // share this one panel's logic, so a mutation always refreshes whichever
+  // one is actually on screen.
+  function refreshAfterEdit(){
+    if (state.step === "walls") renderWalls(); // rebuilds strip + plan + re-renders the panel itself
+    else if (state.step === "summary"){ renderView(); renderSummary(); renderEditPanel(); }
   }
 
   function renderView(){
@@ -1571,101 +1539,70 @@
   }
 
   // ---------- cabinet edit panel (click-to-select result) ----------
-  function clampDim(val, min, max){
-    if (isNaN(val)) return min;
-    return Math.max(min, Math.min(max, Math.round(val / 10) * 10));
-  }
+  // HomeByMe-style: click a cabinet (in the walls-step plan OR the 3D/2D
+  // summary view) and pick its type from a dropdown, instead of the old
+  // per-row width/hardware/reorder list. Every catalog entry is a fixed-size
+  // item now, so there's nothing left to type in beyond "which type is this."
+  // Rendered into whichever host div is present for the current step —
+  // #wallsEditPanel (walls step) and #cabinetEditPanel (summary/3D step)
+  // share this exact same logic, scoped via querySelector (not global ids)
+  // so both can exist in the DOM at once without colliding.
+  var EDIT_PANEL_HOSTS = ["wallsEditPanel", "cabinetEditPanel"];
 
   function renderEditPanel(){
-    var host = document.getElementById("cabinetEditPanel");
+    EDIT_PANEL_HOSTS.forEach(function(hostId){
+      var host = document.getElementById(hostId);
+      if (host) renderEditPanelInto(host);
+    });
+  }
+
+  function renderEditPanelInto(host){
     if (!selectedBlockId){ host.innerHTML = ""; return; }
     var found = findBlock(selectedBlockId);
     if (!found){ selectedBlockId = null; host.innerHTML = ""; return; }
     var wall = found.wall, zone = found.zone, b = found.block, c = CATALOG[b.type];
-    var hh = blockHeightMm(b, c), dd = b.depthMm || c.d;
-    var maxH = effMaxH(c);
-    var widthFixed = c.minW === c.maxW, heightFixed = c.minH === maxH, depthFixed = c.minD === c.maxD;
 
     var otherWalls = state.walls.filter(function(w){ return w.id !== wall.id; });
     var moveOptions = otherWalls.map(function(w){ return '<option value="' + w.id + '">' + w.label + '</option>'; }).join("");
-
-    // Phase 7f: +/- steppers instead of a bare number field to type into —
-    // same .iconbtn pattern already used for the hillur/skúffur count.
-    // Buttons just nudge the input's value and dispatch a real "change"
-    // event, so the existing width/height/depth change-handlers below stay
-    // exactly as they were — this only changes how the value gets there.
-    function stepperField(label, inputId, value, min, max, fixed){
-      var atMin = value <= min, atMax = value >= max;
-      return (
-        '<div class="edit-field"><label>' + label + '</label>' +
-          '<div class="stepper-row">' +
-            '<button class="iconbtn" data-target="' + inputId + '" data-dir="-1" ' + (fixed || atMin ? "disabled" : "") + '>−</button>' +
-            '<input type="number" id="' + inputId + '" value="' + value + '" min="' + min + '" max="' + max + '" step="10" ' + (fixed ? "disabled" : "") + '>' +
-            '<button class="iconbtn" data-target="' + inputId + '" data-dir="1" ' + (fixed || atMax ? "disabled" : "") + '>+</button>' +
-          '</div>' +
-        '</div>'
-      );
-    }
+    var typeOptions = typesForZone(zone).map(function(t){
+      return '<option value="' + t + '"' + (t === b.type ? " selected" : "") + '>' + CATALOG[t].label + '</option>';
+    }).join("");
 
     host.innerHTML =
       '<div class="edit-panel">' +
         '<div class="edit-panel-head"><div><h4>' + c.label + '</h4><div class="sub">' + wall.label + ' · ' + (zone === "wall" ? "efri röð" : "neðri röð") + '</div></div>' +
-          '<button class="iconbtn" id="editCloseBtn" title="Loka">✕</button></div>' +
-        '<div class="edit-grid">' +
-          stepperField("Breidd (mm)", "editWidth", b.widthMm, c.minW, c.maxW, widthFixed) +
-          stepperField("Hæð (mm)", "editHeight", hh, c.minH, maxH, heightFixed) +
-          stepperField("Dýpt (mm)", "editDepth", dd, c.minD, c.maxD, depthFixed) +
-        '</div>' +
-        (c.hasInterior ? '<div class="edit-field" style="margin-bottom:12px;">' + hardwareHTML(b, c) + '</div>' : '') +
+          '<button class="iconbtn" data-role="close" title="Loka">✕</button></div>' +
+        '<div class="edit-field"><label>Tegund skáps</label><select data-role="type">' + typeOptions + '</select></div>' +
+        (c.hasInterior ? '<div class="edit-field">' + hardwareHTML(b, c) + '</div>' : '') +
         '<div class="edit-actions">' +
-          (otherWalls.length ? '<select id="editMoveWall"><option value="">Flytja á vegg…</option>' + moveOptions + '</select>' : '') +
-          '<button class="iconbtn" id="editLeftBtn" title="Færa til vinstri">◀</button>' +
-          '<button class="iconbtn" id="editRightBtn" title="Færa til hægri">▶</button>' +
-          '<button class="iconbtn del" id="editDeleteBtn" title="Fjarlægja">✕ Fjarlægja</button>' +
+          (otherWalls.length ? '<select data-role="moveWall"><option value="">Flytja á vegg…</option>' + moveOptions + '</select>' : '') +
+          '<button class="iconbtn" data-role="left" title="Færa til vinstri">◀</button>' +
+          '<button class="iconbtn" data-role="right" title="Færa til hægri">▶</button>' +
+          '<button class="iconbtn del" data-role="delete" title="Fjarlægja">✕ Fjarlægja</button>' +
         '</div>' +
       '</div>';
 
-    host.querySelectorAll(".stepper-row [data-dir]").forEach(function(btn){
-      btn.addEventListener("click", function(){
-        var input = document.getElementById(btn.dataset.target);
-        var min = parseInt(input.min, 10), max = parseInt(input.max, 10);
-        var v = parseInt(input.value, 10);
-        if (isNaN(v)) v = min;
-        v = Math.max(min, Math.min(max, v + parseInt(btn.dataset.dir, 10) * 10));
-        input.value = v;
-        input.dispatchEvent(new Event("change", { bubbles:true }));
-      });
-    });
-    document.getElementById("editCloseBtn").addEventListener("click", function(){ onCabinetSelect(null); });
-    document.getElementById("editWidth").addEventListener("change", function(e){
-      setBlockWidth(wall, zone, b.id, parseInt(e.target.value, 10));
-      renderEditPanel();
-    });
-    document.getElementById("editHeight").addEventListener("change", function(e){
-      b.heightMm = clampDim(parseInt(e.target.value, 10), c.minH, effMaxH(c));
-      save(); renderEditPanel(); renderView(); renderSummary();
-    });
-    document.getElementById("editDepth").addEventListener("change", function(e){
-      b.depthMm = clampDim(parseInt(e.target.value, 10), c.minD, c.maxD);
-      save(); renderEditPanel(); renderView(); renderSummary();
+    host.querySelector('[data-role="close"]').addEventListener("click", function(){ onCabinetSelect(null); });
+    host.querySelector('[data-role="type"]').addEventListener("change", function(e){
+      changeBlockType(wall, zone, b.id, e.target.value);
     });
     if (c.hasInterior){
       host.querySelectorAll('[data-hw]').forEach(function(btn){
-        btn.addEventListener("click", function(){ setInterior(wall, zone, b.id, btn.dataset.hw); renderEditPanel(); renderView(); });
+        btn.addEventListener("click", function(){ setInterior(wall, zone, b.id, btn.dataset.hw); refreshAfterEdit(); });
       });
       var dec = host.querySelector('[data-role="hw-dec"]');
       var inc = host.querySelector('[data-role="hw-inc"]');
-      if (dec) dec.addEventListener("click", function(){ setInterior(wall, zone, b.id, "skuffur", b.interior.count - 1); renderEditPanel(); renderView(); });
-      if (inc) inc.addEventListener("click", function(){ setInterior(wall, zone, b.id, "skuffur", b.interior.count + 1); renderEditPanel(); renderView(); });
+      if (dec) dec.addEventListener("click", function(){ setInterior(wall, zone, b.id, "skuffur", b.interior.count - 1); refreshAfterEdit(); });
+      if (inc) inc.addEventListener("click", function(){ setInterior(wall, zone, b.id, "skuffur", b.interior.count + 1); refreshAfterEdit(); });
     }
-    document.getElementById("editLeftBtn").addEventListener("click", function(){ moveBlock(wall, zone, b.id, -1); renderEditPanel(); renderView(); });
-    document.getElementById("editRightBtn").addEventListener("click", function(){ moveBlock(wall, zone, b.id, 1); renderEditPanel(); renderView(); });
-    document.getElementById("editDeleteBtn").addEventListener("click", function(){
+    host.querySelector('[data-role="left"]').addEventListener("click", function(){ moveBlock(wall, zone, b.id, -1); refreshAfterEdit(); });
+    host.querySelector('[data-role="right"]').addEventListener("click", function(){ moveBlock(wall, zone, b.id, 1); refreshAfterEdit(); });
+    host.querySelector('[data-role="delete"]').addEventListener("click", function(){
       removeBlock(wall, zone, b.id);
       selectedBlockId = null;
-      renderEditPanel(); renderView(); renderSummary();
+      refreshAfterEdit();
     });
-    var moveSel = document.getElementById("editMoveWall");
+    var moveSel = host.querySelector('[data-role="moveWall"]');
     if (moveSel){
       moveSel.addEventListener("change", function(e){
         if (e.target.value) moveBlockToWall(b.id, e.target.value);
@@ -1688,9 +1625,7 @@
     found.wall[found.zone] = found.wall[found.zone].filter(function(x){ return x.id !== blockId; });
     newWall[found.zone].push(found.block);
     save();
-    renderEditPanel();
-    renderView();
-    renderSummary();
+    refreshAfterEdit();
   }
 
   function setViewMode(mode){
@@ -1775,6 +1710,7 @@
   // ---------- screen switching ----------
   function goto(step){
     if (state.step === "summary" && step !== "summary"){ KP3D.teardown3D(); selectedBlockId = null; }
+    if (state.step === "walls" && step !== "walls"){ selectedBlockId = null; }
     state.step = step;
     save();
     render();

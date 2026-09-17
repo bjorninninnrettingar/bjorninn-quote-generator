@@ -6,19 +6,19 @@
 (function(){
   "use strict";
 
+  // HomeByMe-style catalog (2026-09-17): the core 3 types only, each a
+  // FIXED-size item (min===max on every dimension) rather than a
+  // customer-adjustable range — you pick a cabinet by clicking it and
+  // choosing its type from a dropdown, not by typing width/height/depth.
+  // Ofnaskápur and Töfrahorn (real oven-cavity + Le Mans corner types) are
+  // paused, not deleted-forever — they'll come back as "underskápar"
+  // variants once this base 3-type model is settled; see kitchen-planner.html's
+  // collectEyðublaðRows(), which already no-ops cleanly on their absence
+  // (its ovenHeightMm/tofrahornId branches just never fire for these 3).
   var CATALOG = {
-    grunnskapur: { label:"Grunnskápur", zone:"floor", cls:"floor", defaultW:600, minW:300, maxW:1200, h:800,  d:600, minH:600,  maxH:900,  minD:400, maxD:650, hasInterior:true, drawerCountRange:[1,5] },
-    harskapur:   { label:"Hárskápur",   zone:"floor", cls:"tall",  defaultW:600, minW:300, maxW:900,  h:2400, d:600, minH:2000, maxH:2600, minD:400, maxD:650, hasInterior:true, drawerCountRange:[1,5] },
-    efriskapur:  { label:"Efriskápur",  zone:"wall",  cls:"wall",  defaultW:600, minW:300, maxW:1200, h:600,  d:600, minH:400,  maxH:900,  minD:300, maxD:650, hasInterior:false },
-    // Real Skápategund choice, with real oven-cavity fields already in
-    // Eyðublað (Hæð ofns / Hæð undir ofni) — a fixed 600mm-wide tower is
-    // the common real config, so width isn't customer-adjustable here.
-    ofnaskapur:  { label:"Ofnaskápur",  zone:"floor", cls:"oven",  defaultW:600, minW:600, maxW:600,  h:2100, d:600, minH:1800, maxH:2200, minD:600, maxD:600, hasInterior:false, ovenHeightMm:595 },
-    // Not its own Skápategund in the real schema — physically a Grunnskápur
-    // corner unit fitted with a real Le Mans mechanism (Vörulisti product).
-    // Fixed 900×900×800 (the real hardware's actual footprint/height).
-    tofrahorn:   { label:"Töfrahorn (kapphorn)", zone:"floor", cls:"corner", defaultW:900, minW:900, maxW:900, h:800, d:900, minH:800, maxH:800, minD:900, maxD:900, hasInterior:false,
-                   skapategundOverride:"Grunnskápur", tofrahornId:"rec9PD5fCZGUpwAon" }
+    grunnskapur: { label:"Grunnskápur", zone:"floor", cls:"floor", defaultW:600, minW:600, maxW:600, h:800,  d:600, minH:800,  maxH:800,  minD:600, maxD:600, hasInterior:true, drawerCountRange:[1,5] },
+    harskapur:   { label:"Hárskápur",   zone:"floor", cls:"tall",  defaultW:600, minW:600, maxW:600, h:2400, d:600, minH:2400, maxH:2400, minD:600, maxD:600, hasInterior:true, drawerCountRange:[1,5] },
+    efriskapur:  { label:"Efriskápur",  zone:"wall",  cls:"wall",  defaultW:600, minW:600, maxW:600, h:1000, d:300, minH:1000, maxH:1000, minD:300, maxD:300, hasInterior:false }
   };
 
   // Fixed tie-break priority, kept for display ordering (the style quiz that
