@@ -418,6 +418,61 @@
     THREE_STATE = null;
   }
 
+  // Procedural front-face texture (2026-09-17): a flat MeshStandardMaterial
+  // color read as plasticky in the 3D view — cabinet fronts want *some*
+  // surface variation, not a solid swatch. Draws a small tileable canvas per
+  // look — vertical wood-grain streaks for veneer/melamine-wood looks
+  // (grain running the height of a door, the common real orientation),
+  // a faint fleck for painted "perfectsense" colors — both tinted from the
+  // look's own color3d. Not a substitute for a real product photo (see the
+  // LOOKS comment above on why photos don't map cleanly onto a flat box
+  // face) — just enough texture that a front doesn't read as flat plastic.
+  // Cached per look key as a plain <canvas> (not a Three.js Texture) — a
+  // fresh CanvasTexture wraps it on every scene build so disposeScene's
+  // teardown can freely dispose that Texture without needing to know its
+  // pixel data is shared/reused.
+  var LOOK_TEXTURE_CANVAS = {};
+
+  function lookTextureCanvas(lookKey){
+    if (LOOK_TEXTURE_CANVAS[lookKey]) return LOOK_TEXTURE_CANVAS[lookKey];
+    var look = LOOKS[lookKey];
+    var size = 256;
+    var canvas = document.createElement("canvas");
+    canvas.width = size; canvas.height = size;
+    var ctx = canvas.getContext("2d");
+    ctx.fillStyle = look.color3d;
+    ctx.fillRect(0, 0, size, size);
+
+    if (look.category === "perfectsense"){
+      // Painted solid color — a faint fleck, not dead-flat plastic.
+      for (var i = 0; i < 2500; i++){
+        var shade = Math.random() < 0.5 ? "0,0,0" : "255,255,255";
+        ctx.fillStyle = "rgba(" + shade + "," + (Math.random() * 0.035).toFixed(3) + ")";
+        ctx.fillRect(Math.random() * size, Math.random() * size, 1, 1);
+      }
+    } else {
+      // Wood-look (veneer / melamine-wood) — wavy vertical grain streaks,
+      // same spirit as grain.html's procedural feTurbulence woodgrain, just
+      // drawn with the 2D canvas API instead of an SVG filter.
+      var streaks = 46;
+      for (var s = 0; s < streaks; s++){
+        var x = Math.random() * size;
+        var dark = Math.random() < 0.6;
+        ctx.strokeStyle = "rgba(" + (dark ? "0,0,0" : "255,250,235") + "," + (0.04 + Math.random() * 0.09).toFixed(3) + ")";
+        ctx.lineWidth = 0.6 + Math.random() * 2.2;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        for (var y = 8; y <= size; y += 8){
+          x += (Math.random() - 0.5) * 7;
+          ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+    }
+    LOOK_TEXTURE_CANVAS[lookKey] = canvas;
+    return canvas;
+  }
+
   // wrap: DOM element to render into. state: the planner's {shape,walls,look}
   // object. opts (optional): {selectedId, onSelect(meta|null)} — onSelect is
   // called with {wallId,zone,blockId} when a cabinet is clicked, or null on
@@ -464,8 +519,15 @@
 
     var look = state.look ? LOOKS[state.look] : null;
     var frontMat = new THREE.MeshStandardMaterial({
-      color: look ? look.color3d : 0xb7b2a4, roughness:0.75
+      color: look ? 0xffffff : 0xb7b2a4, roughness:0.75
     });
+    if (look){
+      var frontTex = new THREE.CanvasTexture(lookTextureCanvas(state.look));
+      frontTex.wrapS = frontTex.wrapT = THREE.RepeatWrapping;
+      var wood = look.category !== "perfectsense";
+      frontTex.repeat.set(wood ? 2 : 1, wood ? 4 : 1);
+      frontMat.map = frontTex;
+    }
 
     var pickables = [];
     state.walls.forEach(function(wall, wi){
