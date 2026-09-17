@@ -548,6 +548,23 @@
     return { minX: b.minX - margin, minZ: b.minZ - margin, pxPerM: PX_PER_M, geoms: geoms };
   }
 
+  // Phase 8: shared corner math for a rectangle sitting on a wall (offset
+  // along the wall, projecting `depthMm` into the room) — used by
+  // buildPlan2D's own cabinet rendering AND by kitchen-planner.html's live
+  // drag-preview overlay, so the preview shown while dragging is pixel-for-
+  // pixel the same shape that actually gets drawn on drop, not an
+  // approximation that could drift from it.
+  function rectCornersWorld(g, offsetMm, widthMm, depthMm){
+    var offsetM = offsetMm / 1000, widthM = widthMm / 1000, depthM = depthMm / 1000;
+    var x0 = g.origin.x + g.axis.x * offsetM, z0 = g.origin.z + g.axis.z * offsetM;
+    var corners = [0, widthM].map(function(along){
+      return [0, depthM].map(function(out){
+        return { x:x0 + g.axis.x * along + g.normal.x * out, z:z0 + g.axis.z * along + g.normal.z * out };
+      });
+    });
+    return [corners[0][0], corners[1][0], corners[1][1], corners[0][1]];
+  }
+
   function buildPlan2D(container, state, opts){
     opts = opts || {};
     var geoms = wallGeometry3D(state.walls);
@@ -595,15 +612,9 @@
     (state.doors || []).forEach(function(d){ openingSegment(d, 'data-door-id', "#8a6a4a"); });
 
     function drawCabinetRect(bl, c, g, wallId, zone, offsetMm, isWallRow){
-      var offsetM = offsetMm / 1000, widthM = bl.widthMm / 1000, depthM = (bl.depthMm || c.d) / 1000;
-      var x0 = g.origin.x + g.axis.x * offsetM, z0 = g.origin.z + g.axis.z * offsetM;
-      var corners = [0, widthM].map(function(along){
-        return [0, depthM].map(function(out){
-          return { x:x0 + g.axis.x * along + g.normal.x * out, z:z0 + g.axis.z * along + g.normal.z * out };
-        });
-      });
-      var poly = [corners[0][0], corners[1][0], corners[1][1], corners[0][1]]
-        .map(function(p){ return X(p.x) + "," + Y(p.z); }).join(" ");
+      var widthM = bl.widthMm / 1000;
+      var corners = rectCornersWorld(g, offsetMm, bl.widthMm, bl.depthMm || c.d);
+      var poly = corners.map(function(p){ return X(p.x) + "," + Y(p.z); }).join(" ");
       var dash = isWallRow ? ' stroke-dasharray="4,3"' : '';
       var selected = opts.selectedId === bl.id;
       var stroke = selected ? "#3d61c1" : "#2a2a2a";
@@ -612,8 +623,8 @@
         'points="' + poly + '" fill="' + fillColor + '" fill-opacity="' + (isWallRow ? 0.55 : 0.9) + '" ' +
         'stroke="' + stroke + '" stroke-width="' + strokeW + '"' + dash + ' style="cursor:pointer;"/>';
       if (widthM * PX_PER_M > 30){
-        var cx = (X(corners[0][0].x) + X(corners[1][1].x)) / 2;
-        var cy = (Y(corners[0][0].z) + Y(corners[1][1].z)) / 2;
+        var cx = (X(corners[0].x) + X(corners[2].x)) / 2;
+        var cy = (Y(corners[0].z) + Y(corners[2].z)) / 2;
         var label = bl.widthMm + (bl.interior && bl.interior.mode === "skuffur" ? " · " + bl.interior.count + "sk" : "");
         svg += '<text x="' + cx + '" y="' + cy + '" font-size="9" fill="#191919" text-anchor="middle" dominant-baseline="middle" style="pointer-events:none;">' + label + '</text>';
       }
@@ -655,6 +666,7 @@
     wallGeometry3D: wallGeometry3D,
     cornerClearanceMm: cornerClearanceMm,
     planTransform: planTransform,
+    rectCornersWorld: rectCornersWorld,
     WALL_COLORS: WALL_COLORS,
     WINDOW_DEFAULT: WINDOW_DEFAULT,
     DOOR_DEFAULT: DOOR_DEFAULT,

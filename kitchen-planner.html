@@ -99,6 +99,12 @@
   .opening-row .dot{ width:10px; height:10px; border-radius:3px; flex:none; }
   .opening-row span:nth-child(2){ flex:1; }
   #wallsPlanWrap line.drop-hover{ stroke:var(--blue) !important; }
+  /* ---- Phase 8: live drag preview + snapping ---- */
+  .drag-preview-shape{
+    fill:rgba(61,97,193,.35); stroke:#3d61c1; stroke-width:2; stroke-dasharray:5,3;
+    pointer-events:none; display:none;
+  }
+  .drag-preview-shape--blocked{ fill:rgba(179,67,47,.35); stroke:#b3432f; }
   .drag-ghost{
     position:fixed; z-index:999; pointer-events:none; left:0; top:0;
     padding:6px 12px; border-radius:8px; background:var(--blue); color:#fff;
@@ -1011,10 +1017,98 @@
     window.addEventListener("pointerup", onCatalogDragEnd, { once:true });
   }
 
+  // Phase 8: live drag preview — shows the actual shape landing at its real
+  // computed position/size as you drag, not just a floating text label.
+  // Reuses KP3D.rectCornersWorld (same math the real render uses) so the
+  // preview can never visually drift from what actually gets drawn on drop.
+  var SNAP_THRESHOLD_MM = 100;
+
+  function ensureDragPreviewEl(){
+    var svg = document.querySelector("#wallsPlanWrap svg");
+    if (!svg) return null;
+    var el = svg.querySelector("#dragPreviewShape");
+    if (!el){
+      el = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+      el.setAttribute("id", "dragPreviewShape");
+      el.setAttribute("class", "drag-preview-shape");
+      svg.appendChild(el);
+    }
+    return el;
+  }
+
+  function updateDragPreviewRect(wallId, offsetMm, widthMm, depthMm, ok){
+    var el = ensureDragPreviewEl();
+    var t = KP3D.planTransform(state);
+    if (!el || !t) return;
+    var wi = state.walls.findIndex(function(w){ return w.id === wallId; });
+    var g = t.geoms[wi];
+    if (!g){ el.style.display = "none"; return; }
+    var corners = KP3D.rectCornersWorld(g, offsetMm, widthMm, depthMm);
+    var pts = corners.map(function(p){ return (p.x - t.minX) * t.pxPerM + "," + (p.z - t.minZ) * t.pxPerM; }).join(" ");
+    el.setAttribute("points", pts);
+    el.setAttribute("class", "drag-preview-shape" + (ok ? "" : " drag-preview-shape--blocked"));
+    el.style.display = "block";
+  }
+
+  function hideDragPreview(){
+    var el = document.querySelector("#dragPreviewShape");
+    if (el) el.style.display = "none";
+  }
+
+  function removeDragPreview(){
+    var el = document.querySelector("#dragPreviewShape");
+    if (el) el.remove();
+  }
+
+  // Where a cabinet of `widthMm` actually PACKS to if dropped near
+  // `rawAlongMm` — cabinets always sit flush against each other/the corner
+  // clearance, so "snapping" for them means picking the right slot (which
+  // insertIndexForOffset already does), then previewing its real resulting
+  // offset — not an approximation of where the cursor is.
+  function computePackedOffset(wall, zone, widthMm, rawAlongMm, excludeId){
+    var clearance = cornerClearance(wall, zone);
+    var list = wall[zone].filter(function(b){ return b.id !== excludeId; });
+    var idx = insertIndexForOffset(list, Math.max(rawAlongMm, clearance), clearance);
+    var offset = clearance;
+    for (var i = 0; i < idx; i++) offset += list[i].widthMm;
+    var used = usedMm(list);
+    return { offsetMm:offset, index:idx, fits: used + widthMm <= wall.lengthMm - clearance };
+  }
+
+  // Windows/doors aren't packed — free position — but do snap flush to
+  // either end of the wall once close enough, so "almost but not quite
+  // flush" isn't a fiddly drop to land.
+  function snappedOpeningOffset(wall, widthMm, rawAlongMm){
+    var raw = Math.max(0, Math.min(wall.lengthMm - widthMm, Math.round((rawAlongMm - widthMm / 2) / 10) * 10));
+    if (raw <= SNAP_THRESHOLD_MM) return 0;
+    if (raw >= wall.lengthMm - widthMm - SNAP_THRESHOLD_MM) return wall.lengthMm - widthMm;
+    return raw;
+  }
+
+  function highlightDropWall(wallId){
+    document.querySelectorAll("#wallsPlanWrap [data-wall-line-id]").forEach(function(line){
+      line.classList.toggle("drop-hover", !!wallId && line.dataset.wallLineId === wallId);
+    });
+  }
+
   function onCatalogDragMove(evt){
     if (!dragState) return;
     ghostPosition(dragState.ghostEl, evt.clientX, evt.clientY);
-    highlightDropTarget(evt.clientX, evt.clientY);
+    var drop = findDropPoint(evt.clientX, evt.clientY);
+    highlightDropWall(drop ? drop.wallId : null);
+    if (!drop){ hideDragPreview(); return; }
+    var wall = state.walls.find(function(w){ return w.id === drop.wallId; });
+    if (!wall){ hideDragPreview(); return; }
+    if (dragState.kind === "opening"){
+      var isWindow = dragState.type === "gluggi";
+      var d = isWindow ? WINDOW_DEFAULT : DOOR_DEFAULT;
+      var offsetMm = snappedOpeningOffset(wall, d.widthMm, drop.alongMm);
+      updateDragPreviewRect(drop.wallId, offsetMm, d.widthMm, 60, true);
+    } else {
+      var c = CATALOG[dragState.type];
+      var packed = computePackedOffset(wall, c.zone, c.defaultW, drop.alongMm, null);
+      updateDragPreviewRect(drop.wallId, packed.offsetMm, c.defaultW, c.d, packed.fits);
+    }
   }
 
   function distanceToWallSegment(px, pz, g){
@@ -1070,18 +1164,6 @@
     return best === null ? null : { wallId: state.walls[best].id, alongMm: Math.round(bestAlongM * 1000) };
   }
 
-  function findDropWall(clientX, clientY){
-    var p = findDropPoint(clientX, clientY);
-    return p ? p.wallId : null;
-  }
-
-  function highlightDropTarget(clientX, clientY){
-    var wallId = findDropWall(clientX, clientY);
-    document.querySelectorAll("#wallsPlanWrap [data-wall-line-id]").forEach(function(line){
-      line.classList.toggle("drop-hover", !!wallId && line.dataset.wallLineId === wallId);
-    });
-  }
-
   function clearDropHighlight(){
     document.querySelectorAll("#wallsPlanWrap [data-wall-line-id]").forEach(function(line){ line.classList.remove("drop-hover"); });
   }
@@ -1093,6 +1175,7 @@
     dragState.ghostEl.remove();
     dragState.cardEl.classList.remove("dragging");
     clearDropHighlight();
+    removeDragPreview();
     var kind = dragState.kind, type = dragState.type;
     dragState = null;
     if (!drop) return;
@@ -1100,8 +1183,26 @@
       addOpening(type, drop.wallId, drop.alongMm);
     } else {
       var wall = state.walls.find(function(w){ return w.id === drop.wallId; });
-      if (wall) addBlock(wall, type);
+      if (wall) placeBlockAtDrop(wall, type, drop.alongMm);
     }
+  }
+
+  // Drag path only — places a NEW cabinet at the slot it's actually dropped
+  // near (matching the live preview exactly), unlike the "+ Type" button's
+  // addBlock() which always appends to the end (a button click has no
+  // "position" to speak of, so that stays simple on purpose).
+  function placeBlockAtDrop(wall, type, alongMm){
+    var c = CATALOG[type];
+    var zone = c.zone;
+    var packed = computePackedOffset(wall, zone, c.defaultW, alongMm, null);
+    if (!packed.fits){
+      toast("Ekki nóg pláss á " + wall.label.toLowerCase() + " fyrir " + c.label.toLowerCase() + ".");
+      return;
+    }
+    var b = newBlock(type);
+    wall[zone].splice(packed.index, 0, b);
+    save();
+    renderWalls();
   }
 
   // ---------- windows/doors (Phase 7e) — room-level openings, not cabinets:
@@ -1113,7 +1214,7 @@
     if (!wall) return;
     var isWindow = type === "gluggi";
     var d = isWindow ? WINDOW_DEFAULT : DOOR_DEFAULT;
-    var offsetMm = Math.max(0, Math.min(wall.lengthMm - d.widthMm, Math.round((alongMm - d.widthMm / 2) / 10) * 10));
+    var offsetMm = snappedOpeningOffset(wall, d.widthMm, alongMm);
     var o = { id:"o" + (openingSeq++), wallId:wallId, offsetMm:offsetMm, widthMm:d.widthMm, heightMm:d.heightMm };
     if (isWindow) o.sillHeightMm = d.sillHeightMm;
     (isWindow ? state.windows : state.doors).push(o);
@@ -1201,7 +1302,15 @@
   function onBlockDragMove(evt){
     if (!blockDragState) return;
     ghostPosition(blockDragState.ghostEl, evt.clientX, evt.clientY);
-    highlightDropTarget(evt.clientX, evt.clientY);
+    var drop = findDropPoint(evt.clientX, evt.clientY);
+    highlightDropWall(drop ? drop.wallId : null);
+    if (!drop){ hideDragPreview(); return; }
+    var wall = state.walls.find(function(w){ return w.id === drop.wallId; });
+    var found = findBlock(blockDragState.blockId);
+    if (!wall || !found){ hideDragPreview(); return; }
+    var c = CATALOG[found.block.type];
+    var packed = computePackedOffset(wall, found.zone, found.block.widthMm, drop.alongMm, found.block.id);
+    updateDragPreviewRect(drop.wallId, packed.offsetMm, found.block.widthMm, found.block.depthMm || c.d, packed.fits);
   }
 
   function onBlockDragEnd(evt){
@@ -1210,6 +1319,7 @@
     var drop = findDropPoint(evt.clientX, evt.clientY);
     blockDragState.ghostEl.remove();
     clearDropHighlight();
+    removeDragPreview();
     var blockId = blockDragState.blockId;
     blockDragState = null;
     if (drop) moveBlockToPosition(blockId, drop.wallId, drop.alongMm);
