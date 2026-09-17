@@ -32,7 +32,7 @@
 
   label { display: block; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: #d5d5d5; margin-bottom: 6px; }
 
-  select, input[type="number"], input[type="text"] {
+  select, input[type="number"], input[type="text"], input[type="search"] {
     background: #0d0d0d;
     border: 1px solid #333;
     color: #f0f0f0;
@@ -229,6 +229,9 @@
   .grp-panel .grp.sel { border-color: #2196f3; background: #0d1a26; }
   .grp-panel .grp.locked { border-color: #6b5a22; }
   .grp-panel .grp.locked.sel { border-color: #c9a234; background: #201c12; }
+  .piece-search { margin: 8px 0 6px; max-width: none; }
+  .piece-search-status { min-height: 18px; color: #d5d5d5; font-size: 0.76rem; margin-bottom: 10px; }
+  .grp-panel .grp.search-hit { border-color: #3a5a8c; }
   .grp-panel .grp h4 { font-size: 0.9rem; margin-bottom: 2px; }
   .grp-panel .grp .gm { color: #d5d5d5; font-size: 0.78rem; margin-bottom: 8px; }
   .front-list { min-height: 4px; }
@@ -239,6 +242,7 @@
   .front-row .drag-grip { cursor: grab; color: #cfcfcf; font-size: 0.9rem; }
   .front-row.dragging { opacity: 0.4; }
   .front-row.manual .fn { color: #7fd88f; }
+  .front-row.search-hit { background: #12283d; border-radius: 5px; padding-left: 5px; padding-right: 5px; }
   input.mf-h {
     width: 48px; padding: 3px 4px; font-size: 0.78rem; text-align: right; flex: none;
     background: #0d0d0d; border: 1px solid #2c4a34; border-radius: 5px; color: #cfeecf;
@@ -526,6 +530,11 @@
       <div class="side-col no-print">
         <div class="card">
           <label>Æðahópar</label>
+          <input class="piece-search" type="search" id="pieceSearch"
+            placeholder="Leita að stykki, einingu eða máli…" autocomplete="off"
+            aria-label="Leita að stykki, einingu eða máli"
+            oninput="setPieceSearch(this.value)" onkeydown="if(event.key==='Escape'){clearPieceSearch();}" />
+          <div class="piece-search-status" id="pieceSearchStatus" aria-live="polite"></div>
           <div class="grp-panel" id="grpPanel"></div>
         </div>
       </div>
@@ -611,6 +620,7 @@ let selectedKey = null;
 let groups = [];             // {id, unitName, width, orient, fronts:[{label,h,pieceId}]}
 let layout = { boards: [] }; // [{ placements: {gid:{x,y}} }]
 let selectedGid = null;
+let pieceSearchQuery = "";
 let settings = loadSettings();
 let board = { w: 2070, l: 2800, name: "" };
 let projectPlans = [];  // Æðaplan rows for the current project
@@ -797,7 +807,7 @@ async function fetchProjectById(id) { return airtableFetch(PROJECTS_TABLE, {}, i
 
 async function fetchFrontsForProject(name) {
   const escd = name.replace(/"/g, '\\"');
-  const formula = `FIND("${escd}", ARRAYJOIN({${S_PROJECT_LINK}})) > 0`;
+  const formula = `{${S_PROJECT_LINK}}="${escd}"`;
   return airtableFetch(SOGUNARLISTI_TABLE, {
     filterByFormula: formula,
     "fields[]": [S_PARTUR, S_H, S_B, S_TH, S_M, S_EFNI, S_EFNI_BASE, S_EYDUBLAD, S_VILLA, S_PLANMSG],
@@ -821,7 +831,7 @@ function attImgUrl(field) {
 // have any melamine-grain front at all".
 async function fetchAllFrontsAcrossProjects(names) {
   if (!names.length) return [];
-  const clauses = names.map(n => `FIND("${n.replace(/"/g, '\\"')}", ARRAYJOIN({${S_PROJECT_LINK}})) > 0`);
+  const clauses = names.map(n => `{${S_PROJECT_LINK}}="${n.replace(/"/g, '\\"')}"`);
   try {
     return await airtableFetch(SOGUNARLISTI_TABLE, {
       filterByFormula: `OR(${clauses.join(",")})`,
@@ -895,7 +905,7 @@ function _materialSub(efni) {
 // Eyðublað link gives us ids only — fetch the units to map id → short name.
 async function fetchUnitNames(name) {
   const escd = name.replace(/"/g, '\\"');
-  const formula = `OR(FIND("${escd}", ARRAYJOIN({${U_PROJECT_LINK}})) > 0, FIND("${escd}", ARRAYJOIN({${U_PROJECT_LINK_OLD}})) > 0)`;
+  const formula = `OR({${U_PROJECT_LINK}}="${escd}",{${U_PROJECT_LINK_OLD}}="${escd}")`;
   try {
     const recs = await airtableFetch(EYDUBLAD_TABLE, { filterByFormula: formula, "fields[]": [U_NAME], pageSize: 100 });
     const map = {};
@@ -905,7 +915,7 @@ async function fetchUnitNames(name) {
 }
 async function fetchPlans(name) {
   const escd = name.replace(/"/g, '\\"');
-  const formula = `FIND("${escd}", ARRAYJOIN({${PL_PROJECT}})) > 0`;
+  const formula = `{${PL_PROJECT}}="${escd}"`;
   try {
     return await airtableFetch(PLAN_TABLE, {
       filterByFormula: formula,
@@ -939,7 +949,7 @@ async function populateProjects() {
 async function annotateProjectsWithPlans(recs) {
   const names = recs.map(r => r.fields[P_NAME_FIELD]).filter(Boolean);
   if (!names.length) return;
-  const clauses = names.map(n => `FIND("${n.replace(/"/g, '\\"')}", ARRAYJOIN({${PL_PROJECT}})) > 0`);
+  const clauses = names.map(n => `{${PL_PROJECT}}="${n.replace(/"/g, '\\"')}"`);
   let plans;
   try {
     plans = await airtableFetch(PLAN_TABLE, {
@@ -962,6 +972,8 @@ async function annotateProjectsWithPlans(recs) {
 
 async function loadProject(id) {
   currentProjectId = id;
+  pieceSearchQuery = "";
+  if ($("pieceSearch")) $("pieceSearch").value = "";
   $("searchCard").classList.add("hidden");
   $("projectCard").classList.remove("hidden");
   $("materialCard").classList.add("hidden");
@@ -2902,35 +2914,87 @@ function boardUnderPointer(e) {
 }
 
 // ── SIDE PANEL ───────────────────────────────────────────────────────────
+function pieceSearchNorm(value) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/ð/g, "d").replace(/þ/g, "th").replace(/æ/g, "ae")
+    .replace(/(\d)\s*[x×]\s*(\d)/g, "$1 $2")
+    .replace(/[^a-z0-9]+/g, " ").trim();
+}
+function pieceSearchMatches(haystack, query) {
+  const hayTokens = pieceSearchNorm(haystack).split(" ").filter(Boolean);
+  return query.split(" ").filter(Boolean).every(token =>
+    /^\d+$/.test(token) ? hayTokens.includes(token) : hayTokens.some(word => word.includes(token))
+  );
+}
+function pieceSearchInfo(g, gi) {
+  if (!pieceSearchQuery) return { matches: true, groupMatched: false, frontMatchIndexes: new Set() };
+  const width = Math.round(groupWidth(g));
+  const length = Math.round(groupLen(g));
+  const boardIndex = boardOfGroup(g.id);
+  const boardText = boardIndex >= 0 ? `plata ${boardIndex + 1}` : "óstaðsett";
+  const groupText = `#${gi + 1} ${g.unitName} ${g.kind || ""} ${width} ${length} ${width}x${length} ${boardText}`;
+  const groupMatched = pieceSearchMatches(groupText, pieceSearchQuery);
+  const frontMatchIndexes = new Set();
+  g.fronts.forEach((f, i) => {
+    const frontText = `${groupText} ${f.label} ${f.h} ${f.h}x${g.width} ${g.width}x${f.h}`;
+    if (pieceSearchMatches(frontText, pieceSearchQuery)) frontMatchIndexes.add(i);
+  });
+  return { matches: groupMatched || frontMatchIndexes.size > 0, groupMatched, frontMatchIndexes };
+}
+function setPieceSearch(value) {
+  pieceSearchQuery = pieceSearchNorm(value);
+  renderPanel();
+}
+function clearPieceSearch() {
+  pieceSearchQuery = "";
+  const input = $("pieceSearch");
+  if (input) { input.value = ""; input.focus(); }
+  renderPanel();
+}
 function renderPanel() {
+  const entries = groups.map((g, gi) => ({ g, gi, info: pieceSearchInfo(g, gi) }));
+  const visibleEntries = entries.filter(x => x.info.matches);
+  const status = $("pieceSearchStatus");
+  if (status) {
+    status.textContent = pieceSearchQuery
+      ? `${visibleEntries.length} af ${groups.length} hópum fundust`
+      : `${groups.length} hópar · ${groups.reduce((n, g) => n + g.fronts.length, 0)} stykki`;
+  }
   $("grpPanel").innerHTML = `
     <button class="ghost small office-only" style="margin-bottom:10px;" onclick="addStandaloneFront()">＋ Nýr stakur front (handvirkt)</button>
-  ` + groups.map(g => {
+    ${pieceSearchQuery && !visibleEntries.length ? '<div class="hint">Ekkert stykki passar við leitina.</div>' : ""}
+  ` + visibleEntries.map(({ g, gi, info }) => {
     const sel = g.id === selectedGid;
-    const gi = groups.indexOf(g);
+    const expanded = sel || !!pieceSearchQuery;
     const color = groupColor(g);
     const manualG = isManualGroup(g);
+    const boardIndex = boardOfGroup(g.id);
+    const boardText = boardIndex >= 0 ? `plata ${boardIndex + 1}` : "óstaðsett";
+    const frontEntries = g.fronts.map((f, i) => ({ f, i }))
+      .filter(({ i }) => !pieceSearchQuery || info.groupMatched || info.frontMatchIndexes.has(i));
     return `
-    <div class="grp ${sel ? "sel" : ""}${g.locked ? " locked" : ""}" data-gid="${g.id}" onclick="pickGroup('${g.id}')">
-      <h4 style="color:${color}"><span class="chev" style="opacity:.5">${sel ? "▾" : "▸"}</span> <span style="opacity:.6">#${gi + 1}</span> ${esc(g.unitName)} ${orientGlyph(g.orient)}${g.kind ? " · " + g.kind : ""}${manualG ? " · handvirkt" : ""}${g.locked ? ` <span title="Læst — enginn front kemst inn eða út">🔒</span>` : ""}</h4>
-      <div class="gm">${g.fronts.length} frontar · ${Math.round(groupWidth(g))}×${Math.round(groupLen(g))} mm · plata ${boardOfGroup(g.id) + 1}${g.autoSplit ? " · sjálfvirk skipting" : ""}</div>
-      ${sel ? `
+    <div class="grp ${sel ? "sel" : ""}${g.locked ? " locked" : ""}${pieceSearchQuery ? " search-hit" : ""}" data-gid="${g.id}" onclick="pickGroup('${g.id}')">
+      <h4 style="color:${color}"><span class="chev" style="opacity:.5">${expanded ? "▾" : "▸"}</span> <span style="opacity:.6">#${gi + 1}</span> ${esc(g.unitName)} ${orientGlyph(g.orient)}${g.kind ? " · " + g.kind : ""}${manualG ? " · handvirkt" : ""}${g.locked ? ` <span title="Læst — enginn front kemst inn eða út">🔒</span>` : ""}</h4>
+      <div class="gm">${g.fronts.length} frontar · ${Math.round(groupWidth(g))}×${Math.round(groupLen(g))} mm · ${boardText}${g.autoSplit ? " · sjálfvirk skipting" : ""}</div>
+      ${expanded ? `
       <div class="front-list" data-gid="${g.id}">
-      ${g.fronts.map((f, i) => `
-        <div class="front-row${f.manual ? " manual" : ""}" draggable="${f.manual ? "false" : "true"}" data-gid="${g.id}" data-fi="${i}">
-          <span class="drag-grip">⠿</span>
+      ${frontEntries.map(({ f, i }) => `
+        <div class="front-row${f.manual ? " manual" : ""}${info.frontMatchIndexes.has(i) ? " search-hit" : ""}" draggable="${sel && !f.manual ? "true" : "false"}" data-gid="${g.id}" data-fi="${i}">
+          <span class="drag-grip">${sel ? "⠿" : "⌕"}</span>
           <span class="idx">${i + 1}</span>
-          ${f.manual
+          ${f.manual && sel
             ? `<input class="mf-label" value="${esc(f.label)}" onclick="event.stopPropagation()" onchange="setManualFrontLabel('${f.mfId}',this.value)" />`
             : `<span class="fn">${esc(f.label)}${f.err ? " ⚠" : ""}</span>`}
-          ${f.manual
+          ${f.manual && sel
             ? `<input class="mf-h" type="number" min="20" value="${f.h}" onclick="event.stopPropagation()" onchange="setManualFrontH('${f.mfId}',this.value)" /><span class="fdim">mm</span>`
             : `<span class="fdim">${f.h} mm</span>`}
           ${!f.manual && (f.planMsg || _flaggedPieces.has(f.pieceId)) ? `<span title="${esc(f.planMsg || "sent til skrifstofu")}" style="color:#8fbaff;">💬</span>` : ""}
-          ${!f.manual ? `<button class="small ghost" title="Segja skrifstofu frá vandamáli" onclick="event.stopPropagation();flagFront('${g.id}',${i})">⚠</button>` : ""}
-          ${!g.locked ? `<button class="small ghost office-only" title="Afrita" onclick="event.stopPropagation();duplicateFront('${g.id}',${i})">⎘</button>` : ""}
-          ${f.manual ? `<button class="small ghost" title="Fjarlægja" onclick="event.stopPropagation();removeManualFront('${f.mfId}')">✕</button>` : ""}
-          ${!f.manual ? `<button class="small ghost" onclick="event.stopPropagation();moveFront('${g.id}',${i},-1)" ${i === 0 ? "disabled" : ""}>↑</button>
+          ${sel && !f.manual ? `<button class="small ghost" title="Segja skrifstofu frá vandamáli" onclick="event.stopPropagation();flagFront('${g.id}',${i})">⚠</button>` : ""}
+          ${sel && !g.locked ? `<button class="small ghost office-only" title="Afrita" onclick="event.stopPropagation();duplicateFront('${g.id}',${i})">⎘</button>` : ""}
+          ${sel && f.manual ? `<button class="small ghost" title="Fjarlægja" onclick="event.stopPropagation();removeManualFront('${f.mfId}')">✕</button>` : ""}
+          ${sel && !f.manual ? `<button class="small ghost" onclick="event.stopPropagation();moveFront('${g.id}',${i},-1)" ${i === 0 ? "disabled" : ""}>↑</button>
                    <button class="small ghost" onclick="event.stopPropagation();moveFront('${g.id}',${i},1)" ${i === g.fronts.length - 1 ? "disabled" : ""}>↓</button>` : ""}
         </div>`).join("")}
       </div>` : ""}
@@ -3754,7 +3818,7 @@ if (FLOOR_MODE) setInterval(checkFloorPlan, 90 * 1000);
 
 // ── INIT ─────────────────────────────────────────────────────────────────
 function resetAll() {
-  currentProjectId = null; selectedKey = null; selectedGid = null; curPlan = null; manualFronts = []; skippedFronts = [];
+  currentProjectId = null; selectedKey = null; selectedGid = null; curPlan = null; manualFronts = []; skippedFronts = []; pieceSearchQuery = "";
   resetHistory();
   clearTimeout(planSaveTimer);
   $("searchCard").classList.remove("hidden");
@@ -3763,6 +3827,7 @@ function resetAll() {
   $("workspaceCard").classList.add("hidden");
   $("planStrip").innerHTML = ""; $("skippedCard").innerHTML = ""; $("planMsgCard").innerHTML = "";
   $("projectSelect").value = "";
+  $("pieceSearch").value = "";
 }
 $("projectSelect").addEventListener("change", e => { if (e.target.value) loadProject(e.target.value); });
 
