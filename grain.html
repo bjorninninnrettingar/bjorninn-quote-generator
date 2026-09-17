@@ -189,6 +189,10 @@
   .run-handle { cursor: grab; }
   .front-cell { cursor: grab; }
   .front-cell:hover rect:first-child { fill-opacity: 0.3; }
+  .front-cell.selected-piece rect:first-child {
+    stroke: #ffd60a !important; stroke-width: 5px !important; fill-opacity: 0.55 !important;
+    filter: drop-shadow(0 0 7px rgba(255, 214, 10, 0.95));
+  }
   body.dragging, body.dragging * { cursor: grabbing !important; }
 
   #toast {
@@ -243,6 +247,7 @@
   .front-row.dragging { opacity: 0.4; }
   .front-row.manual .fn { color: #7fd88f; }
   .front-row.search-hit { background: #12283d; border-radius: 5px; padding-left: 5px; padding-right: 5px; }
+  .front-row.selected-piece { background: #3a3210; outline: 2px solid #ffd60a; border-radius: 5px; padding-left: 5px; padding-right: 5px; }
   input.mf-h {
     width: 48px; padding: 3px 4px; font-size: 0.78rem; text-align: right; flex: none;
     background: #0d0d0d; border: 1px solid #2c4a34; border-radius: 5px; color: #cfeecf;
@@ -620,6 +625,7 @@ let selectedKey = null;
 let groups = [];             // {id, unitName, width, orient, fronts:[{label,h,pieceId}]}
 let layout = { boards: [] }; // [{ placements: {gid:{x,y}} }]
 let selectedGid = null;
+let selectedFrontKey = null;
 let pieceSearchQuery = "";
 let settings = loadSettings();
 let board = { w: 2070, l: 2800, name: "" };
@@ -1468,6 +1474,8 @@ const boardRO = new ResizeObserver(entries => {
 // ── GROUPING ─────────────────────────────────────────────────────────────
 function selectMaterial(key) {
   selectedKey = key;
+  selectedGid = null;
+  selectedFrontKey = null;
   resetHistory();
   document.querySelectorAll(".mat-item").forEach(el => el.classList.toggle("active", el.dataset.key === key));
   const mat = materials.find(m => m.key === key);
@@ -1728,6 +1736,12 @@ function newMfId() { return "mf" + Math.random().toString(36).slice(2, 9); }
 // "raða sjálfvirkt" a few times in a row duplicated a group id and made one
 // of the two same-named fronts vanish from every board with no warning.
 function frontId(f) { return f.uid || f.mfId; }
+// Stable DOM identity for matching a sidebar row to its exact SVG cell.
+// Modern plans always have uid/mfId; the fallback keeps older saved plans
+// clickable until they are rebuilt and saved with the newer schema.
+function frontUiKey(f, index) {
+  return String(frontId(f) || `${f.pieceId || "piece"}|${f.label}|${f.h}|${index}`);
+}
 
 function addFrontToGroup(gid) {
   const g = groups.find(x => x.id === gid);
@@ -2242,7 +2256,10 @@ function groupColor(g) {
 function toggleBoardDone(bi) {
   const b = layout.boards[bi]; if (!b) return;
   b.done = !b.done;
-  if (b.done && selectedGid && boardOfGroup(selectedGid) === bi) selectedGid = null;
+  if (b.done && selectedGid && boardOfGroup(selectedGid) === bi) {
+    selectedGid = null;
+    selectedFrontKey = null;
+  }
   render(); saveLayout();
 }
 function renderBoards() {
@@ -2378,8 +2395,10 @@ function renderBoards() {
         const cy = (horiz ? gy : gy + off);
         const topInset = (cy <= gy + 1 ? HB : 0) + 4;   // clear the header band
         const cell = document.createElementNS(svgNS, "g");
-        cell.setAttribute("class", "front-cell");
+        const uiKey = frontUiKey(f, fi);
+        cell.setAttribute("class", "front-cell" + (gid === selectedGid && uiKey === selectedFrontKey ? " selected-piece" : ""));
         cell.dataset.gid = gid; cell.dataset.fi = fi;
+        cell.dataset.frontKey = uiKey;
 
         const r = document.createElementNS(svgNS, "rect");
         r.setAttribute("x", cx); r.setAttribute("y", cy);
@@ -2860,6 +2879,7 @@ function maybeMergeOnDrop(gid, bi) {
 }
 function selectGroup(gid) {
   selectedGid = gid;
+  selectedFrontKey = null;
   document.querySelectorAll(".group-rect").forEach(el => el.classList.toggle("selected", el.dataset.gid === gid));
   renderPanel();
   scrollPanelToGroup(gid);
@@ -2981,7 +3001,9 @@ function renderPanel() {
       ${expanded ? `
       <div class="front-list" data-gid="${g.id}">
       ${frontEntries.map(({ f, i }) => `
-        <div class="front-row${f.manual ? " manual" : ""}${info.frontMatchIndexes.has(i) ? " search-hit" : ""}" draggable="${sel && !f.manual ? "true" : "false"}" data-gid="${g.id}" data-fi="${i}">
+        <div class="front-row${f.manual ? " manual" : ""}${info.frontMatchIndexes.has(i) ? " search-hit" : ""}${sel && frontUiKey(f, i) === selectedFrontKey ? " selected-piece" : ""}"
+          draggable="${sel && !f.manual ? "true" : "false"}" data-gid="${g.id}" data-fi="${i}"
+          onclick="event.stopPropagation();pickFront('${g.id}',${i})">
           <span class="drag-grip">${sel ? "⠿" : "⌕"}</span>
           <span class="idx">${i + 1}</span>
           ${f.manual && sel
@@ -3079,7 +3101,25 @@ function dropFrontRow(fromGid, fromFi, toGid, toIdx) {
   settleAll();
   render(); saveLayout();
 }
-function pickGroup(gid) { selectedGid = gid; render(); scrollPanelToGroup(gid); }
+function pickGroup(gid) {
+  selectedGid = gid;
+  selectedFrontKey = null;
+  render();
+  scrollPanelToGroup(gid);
+}
+function pickFront(gid, fi) {
+  const g = groups.find(x => x.id === gid);
+  const f = g?.fronts[fi];
+  if (!f) return;
+  selectedGid = gid;
+  selectedFrontKey = frontUiKey(f, fi);
+  const bi = boardOfGroup(gid);
+  if (bi >= 0 && layout.boards[bi]?.done) layout.boards[bi].done = false;
+  render();
+  const target = [...document.querySelectorAll(".front-cell")]
+    .find(el => el.dataset.gid === gid && el.dataset.frontKey === selectedFrontKey);
+  if (target) target.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+}
 function mergeCandidates(g) {
   if (g.locked) return [];   // a locked run can't absorb anything, and can't be absorbed
   return groups.filter(o => o !== g && !o.locked && o.width === g.width && o.orient === g.orient);
@@ -3818,7 +3858,7 @@ if (FLOOR_MODE) setInterval(checkFloorPlan, 90 * 1000);
 
 // ── INIT ─────────────────────────────────────────────────────────────────
 function resetAll() {
-  currentProjectId = null; selectedKey = null; selectedGid = null; curPlan = null; manualFronts = []; skippedFronts = []; pieceSearchQuery = "";
+  currentProjectId = null; selectedKey = null; selectedGid = null; selectedFrontKey = null; curPlan = null; manualFronts = []; skippedFronts = []; pieceSearchQuery = "";
   resetHistory();
   clearTimeout(planSaveTimer);
   $("searchCard").classList.remove("hidden");
