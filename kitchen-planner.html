@@ -319,6 +319,9 @@
     padding:8px 10px; border:1px solid var(--line); border-radius:7px; font-size:14px; background:#fff; color:var(--ink);
   }
   .edit-field input:disabled{ background:var(--panel); color:var(--ink-soft); }
+  .edit-field .stepper-row{ display:flex; align-items:center; gap:6px; }
+  .edit-field .stepper-row input{ flex:1; min-width:0; text-align:center; padding:8px 4px; }
+  .edit-field .stepper-row .iconbtn{ flex:none; }
   .edit-actions{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
 
   /* ---- contact step ---- */
@@ -1586,14 +1589,32 @@
     var otherWalls = state.walls.filter(function(w){ return w.id !== wall.id; });
     var moveOptions = otherWalls.map(function(w){ return '<option value="' + w.id + '">' + w.label + '</option>'; }).join("");
 
+    // Phase 7f: +/- steppers instead of a bare number field to type into —
+    // same .iconbtn pattern already used for the hillur/skúffur count.
+    // Buttons just nudge the input's value and dispatch a real "change"
+    // event, so the existing width/height/depth change-handlers below stay
+    // exactly as they were — this only changes how the value gets there.
+    function stepperField(label, inputId, value, min, max, fixed){
+      var atMin = value <= min, atMax = value >= max;
+      return (
+        '<div class="edit-field"><label>' + label + '</label>' +
+          '<div class="stepper-row">' +
+            '<button class="iconbtn" data-target="' + inputId + '" data-dir="-1" ' + (fixed || atMin ? "disabled" : "") + '>−</button>' +
+            '<input type="number" id="' + inputId + '" value="' + value + '" min="' + min + '" max="' + max + '" step="10" ' + (fixed ? "disabled" : "") + '>' +
+            '<button class="iconbtn" data-target="' + inputId + '" data-dir="1" ' + (fixed || atMax ? "disabled" : "") + '>+</button>' +
+          '</div>' +
+        '</div>'
+      );
+    }
+
     host.innerHTML =
       '<div class="edit-panel">' +
         '<div class="edit-panel-head"><div><h4>' + c.label + '</h4><div class="sub">' + wall.label + ' · ' + (zone === "wall" ? "efri röð" : "neðri röð") + '</div></div>' +
           '<button class="iconbtn" id="editCloseBtn" title="Loka">✕</button></div>' +
         '<div class="edit-grid">' +
-          '<div class="edit-field"><label>Breidd (mm)</label><input type="number" id="editWidth" value="' + b.widthMm + '" min="' + c.minW + '" max="' + c.maxW + '" step="10" ' + (widthFixed ? "disabled" : "") + '></div>' +
-          '<div class="edit-field"><label>Hæð (mm)</label><input type="number" id="editHeight" value="' + hh + '" min="' + c.minH + '" max="' + maxH + '" step="10" ' + (heightFixed ? "disabled" : "") + '></div>' +
-          '<div class="edit-field"><label>Dýpt (mm)</label><input type="number" id="editDepth" value="' + dd + '" min="' + c.minD + '" max="' + c.maxD + '" step="10" ' + (depthFixed ? "disabled" : "") + '></div>' +
+          stepperField("Breidd (mm)", "editWidth", b.widthMm, c.minW, c.maxW, widthFixed) +
+          stepperField("Hæð (mm)", "editHeight", hh, c.minH, maxH, heightFixed) +
+          stepperField("Dýpt (mm)", "editDepth", dd, c.minD, c.maxD, depthFixed) +
         '</div>' +
         (c.hasInterior ? '<div class="edit-field" style="margin-bottom:12px;">' + hardwareHTML(b, c) + '</div>' : '') +
         '<div class="edit-actions">' +
@@ -1604,6 +1625,17 @@
         '</div>' +
       '</div>';
 
+    host.querySelectorAll(".stepper-row [data-dir]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var input = document.getElementById(btn.dataset.target);
+        var min = parseInt(input.min, 10), max = parseInt(input.max, 10);
+        var v = parseInt(input.value, 10);
+        if (isNaN(v)) v = min;
+        v = Math.max(min, Math.min(max, v + parseInt(btn.dataset.dir, 10) * 10));
+        input.value = v;
+        input.dispatchEvent(new Event("change", { bubbles:true }));
+      });
+    });
     document.getElementById("editCloseBtn").addEventListener("click", function(){ onCabinetSelect(null); });
     document.getElementById("editWidth").addEventListener("change", function(e){
       setBlockWidth(wall, zone, b.id, parseInt(e.target.value, 10));
