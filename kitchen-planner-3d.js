@@ -370,6 +370,15 @@
 
   var THREE_STATE = null;
 
+  // Every click-to-select / type-change re-renders the whole scene from
+  // scratch (teardown3D + buildScene) — without this, that also silently
+  // reset the camera to its default framing on every single click, which
+  // read as the view "snapping back" mid-orbit. Captured on teardown, applied
+  // back on the next buildScene, so only a real reset (a fresh room, "byrja
+  // upp á nýtt", a finished submit) should actually clear it — those call
+  // teardown3D(true) to discard it explicitly.
+  var savedCameraState = null;
+
   // Click-to-select: a plain 'click' listener (not pointerdown/up distance
   // tracking) — browsers already suppress a synthetic click when the pointer
   // moved significantly between down and up, which is exactly the same
@@ -391,8 +400,12 @@
     return function cleanup(){ renderer.domElement.removeEventListener("click", onClick); };
   }
 
-  function teardown3D(){
+  function teardown3D(discardCamera){
     if (!THREE_STATE) return;
+    savedCameraState = discardCamera ? null : {
+      position: THREE_STATE.controls.object.position.clone(),
+      target: THREE_STATE.controls.target.clone()
+    };
     cancelAnimationFrame(THREE_STATE.rafId);
     window.removeEventListener("resize", THREE_STATE.onResize);
     if (THREE_STATE.cleanupPicking) THREE_STATE.cleanupPicking();
@@ -502,6 +515,10 @@
     controls.maxDistance = dist * 3;
     controls.enableDamping = true;
     controls.dampingFactor = 0.08;
+    if (savedCameraState){
+      camera.position.copy(savedCameraState.position);
+      controls.target.copy(savedCameraState.target);
+    }
     controls.update();
 
     var cleanupPicking = opts.onSelect ? setupPicking(THREE, renderer, camera, pickables, opts.onSelect) : null;
