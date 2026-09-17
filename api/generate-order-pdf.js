@@ -352,7 +352,8 @@ async function buildOrderPdf(order, lines) {
       rowIndex = 0;
     }
 
-    const name  = stripEmoji(item["Vörulisti txt"] || item["Vörunúmer #️⃣"] || "") || "—";
+    const rawName = item["Vörulisti txt"] || item["Vörunúmer #️⃣"] || "";
+    const name  = stripEmoji(rawName) || "—";
     const qty   = item["Magn"] ?? "";
     const litur = stripEmoji(item["Litur"] || "") || "—";
     const cost  = parseFloat(item["Áætlaður kostnaður"] ?? 0) || 0;
@@ -360,10 +361,23 @@ async function buildOrderPdf(order, lines) {
 
     // Unit price — shown so the supplier can spot a stale/wrong price
     // themselves. Same source the Áætlaður kostnaður formula already uses:
-    // Vörulisti's price for products, Efnislisti's for materials.
-    const varaPrice = item["Innkaupakostnaður (vara) 🔍"]?.[0];
-    const efniPrice = item["Innkaupsverð (efni) 🔍"]?.[0];
-    const unitPrice = typeof varaPrice === "number" ? varaPrice : typeof efniPrice === "number" ? efniPrice : null;
+    // Vörulisti's price for products, Efnislisti's for materials — except
+    // Kantlíming, which is priced flat per metre (LOFT=frontaefni/LÍM=skrokkaefni,
+    // same "LOFT "/"LÍM " prefix the Vörulisti txt formula already stamps on)
+    // rather than off the linked board's per-sheet price.
+    let unitPrice = null;
+    let priceSuffix = "";
+    if (gerd === "Kantlíming" && rawName.startsWith("LOFT")) {
+      unitPrice = 300;
+      priceSuffix = "/m";
+    } else if (gerd === "Kantlíming" && rawName.startsWith("LÍM")) {
+      unitPrice = 100;
+      priceSuffix = "/m";
+    } else {
+      const varaPrice = item["Innkaupakostnaður (vara) 🔍"]?.[0];
+      const efniPrice = item["Innkaupsverð (efni) 🔍"]?.[0];
+      unitPrice = typeof varaPrice === "number" ? varaPrice : typeof efniPrice === "number" ? efniPrice : null;
+    }
 
     if (rowIndex % 2 === 0) rect(page, MARGIN, y - ROW_H, CW, ROW_H, LIGHT);
 
@@ -378,7 +392,7 @@ async function buildOrderPdf(order, lines) {
     txt(page, qtyStr, qtyCol.x + (qtyCol.pw - qw) / 2, textY, fontReg, FONT_SIZE, DARK);
 
     const priceCol = colDefs[2];
-    const priceStr = unitPrice !== null ? formatISK(unitPrice) : "—";
+    const priceStr = unitPrice !== null ? formatISK(unitPrice) + priceSuffix : "—";
     const pw2 = fontReg.widthOfTextAtSize(priceStr, FONT_SIZE);
     txt(page, priceStr, priceCol.x + priceCol.pw - pw2 - 3, textY, fontReg, FONT_SIZE, DARK);
 
