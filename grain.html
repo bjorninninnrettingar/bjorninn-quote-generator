@@ -1252,6 +1252,11 @@ function confirmPlan() {
     alert(`Hópar skarast: ${overlaps.join(", ")}.\n\nLagaðu skörunina áður en þú staðfestir — gólfið getur ekki sagað skarandi hópa.`);
     return;
   }
+  const dupFronts = duplicatedFrontIds();
+  if (dupFronts.length) {
+    alert(`${dupFronts.length} hlutir eru tvíteknir í skipulaginu — sami hlutur er á tveimur stöðum og yrði sagaður tvisvar.\n\nÝttu á "Núllstilla röðun" til að laga þetta áður en þú staðfestir.`);
+    return;
+  }
   if (anyOverflow() &&
       !confirm("Sumir hópar fara aðeins út fyrir snyrtilínuna. Á melamíni er það oftast í lagi (kanturinn er ósnyrtur hvort sem er). Staðfesta samt?"))
     return;
@@ -2027,7 +2032,75 @@ function offsetPlace(place) {
   for (const [gid, p] of Object.entries(place)) o[gid] = { x: p.x + settings.trim, y: p.y + settings.trim };
   return o;
 }
+// A front can end up claimed by two different PLACED groups at once — found
+// live on T-33 (Birgitta): a group and a `${gid}~missing<rand>` synthetic
+// sibling (the fallback below creates one whenever a front is transiently
+// read as "missing" — e.g. a stale localStorage/Airtable snapshot where the
+// front's real group existed in `groups` but wasn't placed on a board yet)
+// can BOTH end up placed once the real group is placed again on a later
+// load, since nothing ever prunes the synthetic twin once it stops being
+// needed. The result: the same physical piece appears twice in the side
+// panel and gets cut twice by the guide — real wasted material, and no
+// existing check catches it (detectOverlaps only flags GEOMETRIC overlap,
+// and these two copies usually land in different, non-overlapping spots).
+// Conservative auto-repair: only collapses an EXACT whole-group content
+// match (both placed groups have the identical set of front ids) — a
+// partial/mixed overlap is left alone and instead caught by
+// duplicatedFrontIds() below, which hard-blocks confirmPlan().
+function dedupePlacedGroups() {
+  const placedEntries = [];
+  for (const b of layout.boards) {
+    for (const gid of Object.keys(b.placements)) {
+      const g = groups.find(x => x.id === gid);
+      if (g) placedEntries.push({ b, gid, g });
+    }
+  }
+  const bySig = new Map();
+  for (const e of placedEntries) {
+    const ids = e.g.fronts.map(frontId).filter(Boolean).sort();
+    if (!ids.length) continue;
+    const sig = ids.join("|");
+    (bySig.get(sig) || bySig.set(sig, []).get(sig)).push(e);
+  }
+  const removed = [];
+  for (const entries of bySig.values()) {
+    if (entries.length < 2) continue;
+    // Keep whichever entry's id doesn't look like a synthetic "missing"
+    // fragment; among equals, keep the first found (stable/deterministic).
+    entries.sort((a, c) => (/~missing[a-z0-9]+$/.test(a.gid) ? 1 : 0) - (/~missing[a-z0-9]+$/.test(c.gid) ? 1 : 0));
+    for (const d of entries.slice(1)) {
+      delete d.b.placements[d.gid];
+      const idx = groups.indexOf(d.g);
+      if (idx >= 0) groups.splice(idx, 1);
+      removed.push(d.g.unitName);
+    }
+  }
+  if (removed.length && typeof toast === "function")
+    toast(`Fjarlægði ${removed.length} tvítekna hluti úr skipulaginu (sami hlutur var á tveimur stöðum): ${[...new Set(removed)].join(", ")}`);
+  return removed.length;
+}
+// Every front id currently claimed by more than one PLACED group — the
+// general case dedupePlacedGroups() above doesn't auto-fix (a partial/mixed
+// overlap, not an exact whole-group match). Hard-blocks confirmPlan(),
+// same as unplacedGroups()/detectOverlaps().
+function duplicatedFrontIds() {
+  const byFront = new Map();
+  for (const b of layout.boards) {
+    for (const gid of Object.keys(b.placements)) {
+      const g = groups.find(x => x.id === gid);
+      if (!g) continue;
+      for (const f of g.fronts) {
+        const fid = frontId(f); if (!fid) continue;
+        (byFront.get(fid) || byFront.set(fid, new Set()).get(fid)).add(gid);
+      }
+    }
+  }
+  const dups = [];
+  for (const gids of byFront.values()) if (gids.size > 1) dups.push([...gids]);
+  return dups;
+}
 function reconcileLayout() {
+  dedupePlacedGroups();
   // A GROUP's id isn't stable across a split — autoNest() can break a
   // multi-front, non-keepTogether run into single-front pieces to fit
   // better (round 6's yield fallback), each with its own `${gid}~${frontId}`
