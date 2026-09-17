@@ -1994,14 +1994,24 @@ function packGuillotine(groupsIn, primaryLimit, secondaryLimit, primaryOf, secon
 function autoNest() {
   readToolbar();
   const u = usable();
+
+  // A board marked "done" (🔒 Læsa plötu) means the sawyer has already cut
+  // that physical sheet — its contents and board number are reality now,
+  // not a layout suggestion. Never let the repack move a group off/onto a
+  // done board, and never let a fresh board object silently drop the done
+  // flag. Only groups that AREN'T currently on a done board are eligible.
+  const doneGids = new Set();
+  layout.boards.forEach(b => { if (b.done) Object.keys(b.placements).forEach(gid => doneGids.add(gid)); });
+  const packable = groups.filter(g => !doneGids.has(g.id));
+
   // Run both strategies from the SAME starting groups and keep whichever
   // uses fewer sheets (yield as the tie-break) — see packGuillotine's own
   // comment for why two independent strategies instead of one that tries to
   // mix both within a sheet. Neither run mutates a shared group object
   // (tryPlaceExisting only ever reads groupWidth/groupLen; split pieces are
-  // new objects), so trying both against the same `groups` is safe.
-  const colFirst = packGuillotine(groups, u.w, u.l, groupWidth, groupLen);
-  const rowFirst = packGuillotine(groups, u.l, u.w, groupLen, groupWidth);
+  // new objects), so trying both against the same `packable` is safe.
+  const colFirst = packGuillotine(packable, u.w, u.l, groupWidth, groupLen);
+  const rowFirst = packGuillotine(packable, u.l, u.w, groupLen, groupWidth);
   const yieldOf = r => {
     const boardArea = board.w * board.l;
     const used = r.finalGroups.reduce((s, g) => s + groupWidth(g) * groupLen(g), 0);
@@ -2014,15 +2024,21 @@ function autoNest() {
   // row-first's is transposed (primary=length=y, secondary=width=x).
   const toXY = useRowFirst ? (p => ({ x: p.secondary, y: p.primary })) : (p => ({ x: p.primary, y: p.secondary }));
 
-  groups = winner.finalGroups;
+  const doneGroups = groups.filter(g => doneGids.has(g.id));
+  groups = [...doneGroups, ...winner.finalGroups];
   if (selectedGid && !groups.find(g => g.id === selectedGid)) selectedGid = null;
-  layout = {
-    boards: winner.sheets.map(s => {
-      const xy = {};
-      for (const [gid, p] of Object.entries(s.place)) xy[gid] = toXY(p);
-      return { placements: offsetPlace(xy) };
-    }),
-  };
+  const newBoards = winner.sheets.map(s => {
+    const xy = {};
+    for (const [gid, p] of Object.entries(s.place)) xy[gid] = toXY(p);
+    return { placements: offsetPlace(xy), done: false };
+  });
+  // Splice the freshly packed boards into the non-done slots of the
+  // original board list, in order — every done board keeps its exact
+  // original position, contents, and done flag untouched.
+  let ni = 0;
+  const rebuilt = layout.boards.map(b => b.done ? b : (newBoards[ni++] || null)).filter(Boolean);
+  while (ni < newBoards.length) rebuilt.push(newBoards[ni++]);   // more boards needed than there were open slots
+  layout = { boards: rebuilt };
   if (!layout.boards.length) layout.boards.push({ placements: {} });
   saveLayout();
   render();
