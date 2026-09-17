@@ -338,10 +338,43 @@
   .success-box .big{ font-size:32px; margin-bottom:8px; }
   .success-box h3{ margin:0 0 8px; font-size:19px; }
   .success-box p{ margin:0; color:var(--ink-soft); font-size:14.5px; }
+
+  /* ---- desktop-only gate ---- */
+  /* :not([hidden]) matters: an unconditional `display:flex` here would beat
+     the browser's own [hidden]{display:none} rule regardless of the hidden
+     attribute (author CSS wins over UA CSS on equal specificity) — the
+     exact bug already caught and documented in this repo's grain.html
+     popovers. Toggle visibility via the `hidden` property in JS, never
+     `style.display` directly, and always gate display rules like this. */
+  .mobile-gate:not([hidden]){
+    min-height:100vh; display:flex; align-items:center; justify-content:center;
+    padding:32px 24px; background:var(--bg); text-align:center;
+  }
+  .mobile-gate-box{ max-width:360px; }
+  .mobile-gate-icon{ font-size:40px; margin-bottom:14px; }
+  .mobile-gate-box h1{ font-size:22px; font-weight:600; margin:0 0 10px; }
+  .mobile-gate-box p{ font-size:14.5px; color:var(--ink-soft); margin:0 0 8px; line-height:1.5; }
+  .mobile-gate-sub{ font-size:13px !important; color:var(--gold) !important; }
 </style>
 </head>
 <body>
-<div class="wrap">
+
+<!-- ============ DESKTOP-ONLY GATE ============ -->
+<!-- Phase 8 scope call: drag-and-drop is built on pointer events (works on
+     touch too, by design) but has never been verified on a real phone, and
+     the layout itself isn't tuned for a small screen either. Rather than
+     ship an untested/half-working experience to phone visitors, gate it
+     explicitly — a clear "use a computer" message, not a broken tool. -->
+<div class="mobile-gate" id="mobileGate" hidden>
+  <div class="mobile-gate-box">
+    <div class="mobile-gate-icon">💻</div>
+    <h1>Best á tölvu</h1>
+    <p>Þetta skipulagstól er hannað fyrir stærri skjái — opnaðu þessa síðu á fartölvu eða borðtölvu til að teikna og raða upp eldhúsinu þínu.</p>
+    <p class="mobile-gate-sub">Ekkert týnist — komdu bara aftur á tölvu.</p>
+  </div>
+</div>
+
+<div class="wrap" id="mainWrap">
 
   <div class="top">
     <div>
@@ -1914,9 +1947,28 @@
     btn.addEventListener("click", function(){ setViewMode(btn.dataset.view); });
   });
 
+  // ---------- desktop-only gate ----------
+  // Width-based, not user-agent sniffing (UA strings are unreliable/
+  // deprecated) — a narrow window is the actual problem regardless of what
+  // device reports it. 768px is the common phone/tablet cutoff, so an iPad
+  // in portrait still gets through; a phone doesn't.
+  var MOBILE_GATE_WIDTH = 768;
+  function checkMobileGate(){
+    var isSmall = window.innerWidth < MOBILE_GATE_WIDTH;
+    document.getElementById("mobileGate").hidden = !isSmall;
+    document.getElementById("mainWrap").hidden = isSmall;
+    return isSmall;
+  }
+
   // ---------- init ----------
-  load();
-  render();
+  // Checked once at load, not on resize — a desktop window getting
+  // resized narrow mid-session shouldn't yank a real in-progress draft out
+  // from under someone; this is about keeping phones from ever loading the
+  // untested drag UI in the first place, not policing window width live.
+  if (!checkMobileGate()){
+    load();
+    render();
+  }
 })();
 </script>
 </body>
