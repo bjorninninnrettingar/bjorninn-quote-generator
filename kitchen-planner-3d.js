@@ -226,6 +226,50 @@
     return prevLast.depthMm || CATALOG[prevLast.type].d;
   }
 
+  // ---------- fit check (shared: editor + Rakel's review page) ----------
+  // Flags physically impossible/awkward combinations, in millimetres on each
+  // wall: a cabinet overlapping a window or door, or a unit taller than the
+  // ceiling. Advisory only — Rakel makes the final call.
+  var WALL_UNIT_BASE_MM = 1400;
+  function fitWarnings(state){
+    var out = [], byMsg = {}, roomH = state.roomHeightMm || 2600;
+    function add(msg, ids){
+      var w = byMsg[msg];
+      if (!w){ w = byMsg[msg] = { msg:msg, ids:[], count:0 }; out.push(w); }
+      w.count++;
+      ids.forEach(function(id){ if (w.ids.indexOf(id) < 0) w.ids.push(id); });
+    }
+    function acc(label){ return label.replace(/^Veggur/, "vegg"); } // "á vegg 1"
+    state.walls.forEach(function(wall, wi){
+      var spans = [], off = cornerClearanceMm(state.walls, wi, "floor");
+      wall.floor.forEach(function(b){
+        var c = CATALOG[b.type], h = b.heightMm || c.h;
+        spans.push({ b:b, c:c, from:off, to:off + b.widthMm, lo:0, hi:Math.min(h, roomH) + (c.counter ? 32 : 0), rawH:h });
+        off += b.widthMm;
+      });
+      off = 0;
+      wall.wall.forEach(function(b){
+        var c = CATALOG[b.type], h = b.heightMm || c.h;
+        spans.push({ b:b, c:c, from:off, to:off + b.widthMm, lo:WALL_UNIT_BASE_MM, hi:WALL_UNIT_BASE_MM + h, rawH:WALL_UNIT_BASE_MM + h });
+        off += b.widthMm;
+      });
+      var ops = (state.windows || []).filter(function(o){ return o.wallId === wall.id; }).map(function(o){ return { kind:"gluggi", o:o, lo:o.sillHeightMm, hi:o.sillHeightMm + o.heightMm }; })
+        .concat((state.doors || []).filter(function(o){ return o.wallId === wall.id; }).map(function(o){ return { kind:"hurð", o:o, lo:0, hi:o.heightMm }; }));
+      spans.forEach(function(sp){
+        ops.forEach(function(op){
+          var hOverlap = Math.min(sp.to, op.o.offsetMm + op.o.widthMm) - Math.max(sp.from, op.o.offsetMm);
+          var vOverlap = Math.min(sp.hi, op.hi) - Math.max(sp.lo, op.lo);
+          if (hOverlap > 20 && vOverlap > 20){
+            add(sp.c.label + " skarast við " + (op.kind === "gluggi" ? "glugga" : "hurð") + " á " + acc(wall.label) + ".", [sp.b.id, op.o.id]);
+          }
+        });
+        if (sp.rawH > roomH) add(sp.c.label + " á " + acc(wall.label) + " er hærri en loftið (" + roomH + " mm).", [sp.b.id]);
+      });
+    });
+    out.forEach(function(w){ if (w.count > 1) w.msg = w.msg.replace(/\.$/, "") + " (" + w.count + " skápar)."; });
+    return out;
+  }
+
   var ROOM_DEPTH_M = 2.4; // assumed walkway/room depth beyond each wall, for floor sizing + camera framing only
   var WALL_CABINET_BASE_M = 1.4; // fixed visualization height for Efriskápur, not stored per-cabinet
 
@@ -1347,6 +1391,8 @@
     updateDragPreview3D: updateDragPreview3D,
     dropPointFromClient: dropPointFromClient,
     setSelected3D: setSelected3D,
+    fitWarnings: fitWarnings,
+    WALL_UNIT_BASE_MM: WALL_UNIT_BASE_MM,
     snapshot3D: snapshot3D,
     shelvesOf: shelvesOf,
     hideDragPreview3D: hideDragPreview3D,

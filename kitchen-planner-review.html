@@ -52,6 +52,16 @@
   .contact-line{ display:flex; gap:18px; flex-wrap:wrap; font-size:15px; }
   .contact-line b{ font-weight:600; }
 
+  .toolbar-row{ display:flex; gap:14px; align-items:center; flex-wrap:wrap; margin-bottom:0; }
+  .toolbar-row .view-toggle{ margin-bottom:10px; }
+  .print-snap{ display:none; width:100%; border:1px solid var(--line); border-radius:12px; margin-bottom:10px; }
+  @media print{
+    .no-print, #viewToggle, .actions, textarea, #flagBtn, #markReviewedBtn, .three-wrap{ display:none !important; }
+    .print-snap{ display:block; }
+    .wrap{ padding:0; max-width:none; }
+    body{ background:#fff; }
+    .card{ break-inside:avoid; }
+  }
   .view-toggle{ display:flex; gap:6px; margin-bottom:10px; }
   .view-toggle button{ font:inherit; font-size:13.5px; font-weight:600; cursor:pointer; background:#fff; border:1.5px solid var(--line); border-radius:8px; padding:8px 14px; color:var(--ink); }
   .view-toggle button.active{ border-color:var(--blue); background:var(--blue-soft); color:var(--blue-deep); }
@@ -122,6 +132,7 @@
     var windows = state.windows || [], doors = state.doors || [];
     var intake = state.intake || {};
 
+    var fitWarns = KP3D.fitWarnings(state);
     var rows = [];
     state.walls.forEach(function(wall){
       wall.wall.concat(wall.floor).forEach(function(b){
@@ -157,12 +168,16 @@
         (wallColor ? '<p class="note" style="margin:4px 0 0">Litur á veggjum: <b>' + esc(wallColor.label) + '</b></p>' : '') +
         ((windows.length || doors.length) ? '<p class="note" style="margin:4px 0 0">' + windows.length + ' gluggi/gluggar · ' + doors.length + ' hurð(ir) teiknuð inn — sjá teikningu</p>' : '') +
       '</div>' +
-      '<div class="view-toggle" id="viewToggle">' +
+      '<div class="toolbar-row"><div class="view-toggle" id="viewToggle">' +
         '<button type="button" class="active" data-view="3d">🧊 3D</button>' +
         '<button type="button" data-view="2d">📐 Teikning</button>' +
-      '</div>' +
+      '</div><div class="view-toggle no-print">' +
+        '<button type="button" id="snapBtn" title="Vista mynd af skipulaginu">📷 Mynd</button>' +
+        '<button type="button" id="printBtn" title="Prenta yfirlit">🖨 Prenta</button>' +
+      '</div></div>' +
       '<div class="three-wrap" id="threeWrap"></div>' +
       '<div class="three-wrap" id="planWrap" hidden></div>' +
+      (fitWarns.length ? '<div class="card" style="background:#fff4e6;border-color:#f0c78f;"><h3 style="color:#a85a0e;">⚠ Ábendingar frá skipulagstóli</h3>' + fitWarns.map(function(w){ return '<div class="summary-line"><span>' + esc(w.msg) + '</span></div>'; }).join("") + '</div>' : '') +
       '<div class="card"><h3>Skápar (' + rows.length + ')</h3>' + rows.join("") + '</div>' +
       '<div class="card">' +
         '<h3>Aðgerðir</h3>' +
@@ -181,12 +196,42 @@
         renderView();
       });
     });
+    // 📷 save the current view as PNG · 🖨 print (the WebGL canvas doesn't print,
+    // so a snapshot image stands in for it while the print dialog is open)
+    function download(url){ var a = document.createElement("a"); a.href = url; a.download = "eldhus-skipulag.png"; document.body.appendChild(a); a.click(); a.remove(); }
+    function svgToPng(svg, done){
+      var vb = svg.viewBox.baseVal, sc = 2, img = new Image();
+      img.onload = function(){
+        var cv = document.createElement("canvas"); cv.width = vb.width * sc; cv.height = vb.height * sc;
+        var cx = cv.getContext("2d"); cx.fillStyle = "#faf9f6"; cx.fillRect(0, 0, cv.width, cv.height); cx.drawImage(img, 0, 0, cv.width, cv.height);
+        done(cv.toDataURL("image/png"));
+      };
+      var clone = svg.cloneNode(true); clone.setAttribute("width", vb.width * sc); clone.setAttribute("height", vb.height * sc); clone.style.width = ""; clone.style.height = "";
+      img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(new XMLSerializer().serializeToString(clone));
+    }
+    document.getElementById("snapBtn").addEventListener("click", function(){
+      if (viewMode === "3d"){ var u = KP3D.snapshot3D(); if (u) download(u); return; }
+      var svg = document.querySelector("#planWrap svg"); if (svg) svgToPng(svg, download);
+    });
+    document.getElementById("printBtn").addEventListener("click", function(){ window.print(); });
+    var printImg = null;
+    window.addEventListener("beforeprint", function(){
+      var wrap = document.getElementById("threeWrap");
+      if (viewMode !== "3d" || !wrap) return;
+      var u = KP3D.snapshot3D(); if (!u) return;
+      printImg = document.createElement("img"); printImg.src = u; printImg.className = "print-snap";
+      wrap.parentNode.insertBefore(printImg, wrap);
+    });
+    window.addEventListener("afterprint", function(){ if (printImg){ printImg.remove(); printImg = null; } });
+
     var markBtn = document.getElementById("markReviewedBtn");
     if (markBtn) markBtn.addEventListener("click", markReviewed);
     document.getElementById("flagBtn").addEventListener("click", saveFlagNote);
 
     renderView();
   }
+
+  function warnIds(){ return KP3D.fitWarnings(state).reduce(function(a, w){ return a.concat(w.ids); }, []); }
 
   function renderView(){
     var wrap = document.getElementById("threeWrap");
@@ -195,7 +240,7 @@
 
     if (viewMode === "2d"){
       wrap.hidden = true; plan.hidden = false;
-      KP3D.buildPlan2D(plan, state);
+      KP3D.buildPlan2D(plan, state, { warnIds: warnIds() });
       return;
     }
     wrap.hidden = false; plan.hidden = true;
@@ -208,7 +253,7 @@
       if (viewMode !== "3d") return;
       if (!ok){ wrap.innerHTML = '<div class="three-note">Tókst ekki að hlaða 3D.</div>'; return; }
       wrap.innerHTML = "";
-      KP3D.buildScene(wrap, state);
+      KP3D.buildScene(wrap, state, { warnIds: warnIds() });
     }, 8000);
   }
 

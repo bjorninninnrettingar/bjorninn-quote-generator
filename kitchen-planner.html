@@ -1647,46 +1647,8 @@
   // in millimetres on each wall. Advisory only — Rakel makes the final call —
   // and the messages travel to her in the Tækifæri note.
   var warnings = [];
-  var WALL_UNIT_BASE_MM = 1400;
-  function computeWarnings(){
-    var out = [], byMsg = {}, roomH = state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM;
-    // identical messages (e.g. three wall units too tall) collapse into one line with a count
-    function add(msg, ids){
-      var w = byMsg[msg];
-      if (!w){ w = byMsg[msg] = { msg:msg, ids:[], count:0 }; out.push(w); }
-      w.count++;
-      ids.forEach(function(id){ if (w.ids.indexOf(id) < 0) w.ids.push(id); });
-    }
-    function acc(label){ return label.replace(/^Veggur/, "vegg"); } // "á vegg 1"
-    state.walls.forEach(function(wall){
-      var spans = [], off = cornerClearance(wall, "floor");
-      wall.floor.forEach(function(b){
-        var c = CATALOG[b.type], h = b.heightMm || c.h;
-        spans.push({ b:b, c:c, from:off, to:off + b.widthMm, lo:0, hi:Math.min(h, roomH) + (c.counter ? 32 : 0), rawH:h, row:"floor" });
-        off += b.widthMm;
-      });
-      off = 0;
-      wall.wall.forEach(function(b){
-        var c = CATALOG[b.type], h = b.heightMm || c.h;
-        spans.push({ b:b, c:c, from:off, to:off + b.widthMm, lo:WALL_UNIT_BASE_MM, hi:WALL_UNIT_BASE_MM + h, rawH:WALL_UNIT_BASE_MM + h, row:"wall" });
-        off += b.widthMm;
-      });
-      var ops = state.windows.filter(function(o){ return o.wallId === wall.id; }).map(function(o){ return { kind:"gluggi", o:o, lo:o.sillHeightMm, hi:o.sillHeightMm + o.heightMm }; })
-        .concat(state.doors.filter(function(o){ return o.wallId === wall.id; }).map(function(o){ return { kind:"hurð", o:o, lo:0, hi:o.heightMm }; }));
-      spans.forEach(function(sp){
-        ops.forEach(function(op){
-          var hOverlap = Math.min(sp.to, op.o.offsetMm + op.o.widthMm) - Math.max(sp.from, op.o.offsetMm);
-          var vOverlap = Math.min(sp.hi, op.hi) - Math.max(sp.lo, op.lo);
-          if (hOverlap > 20 && vOverlap > 20){
-            add(sp.c.label + " skarast við " + (op.kind === "gluggi" ? "glugga" : "hurð") + " á " + acc(wall.label) + ".", [sp.b.id, op.o.id]);
-          }
-        });
-        if (sp.rawH > roomH) add(sp.c.label + " á " + acc(wall.label) + " er hærri en loftið (" + roomH + " mm).", [sp.b.id]);
-      });
-    });
-    out.forEach(function(w){ if (w.count > 1) w.msg = w.msg.replace(/\.$/, "") + " (" + w.count + " skápar)."; });
-    return out;
-  }
+  var WALL_UNIT_BASE_MM = KP3D.WALL_UNIT_BASE_MM;
+  function computeWarnings(){ return KP3D.fitWarnings(state); }
   function warnIdList(){ return warnings.reduce(function(acc, w){ return acc.concat(w.ids); }, []); }
 
   function onCabinetSelect(meta){
@@ -2135,8 +2097,26 @@
   // ---------- contact + submit ----------
   var PROXY_URL = "/api/airtable";
 
+  // One-line description of the plan, first line of the Tækifæri note so
+  // Rakel knows what she's opening before she opens it.
+  function planHeadline(){
+    var all = state.walls.reduce(function(acc, w){ return acc.concat(w.floor, w.wall); }, []);
+    var shape = state.walls.length === 1 ? "beint" : state.walls.length === 2 ? "L-laga" : state.walls.length === 3 ? "U-laga" : state.walls.length + " veggja";
+    var extras = [];
+    function count(pred, one, many){ var n = all.filter(pred).length; if (n) extras.push(n > 1 ? n + " " + many : one); }
+    count(function(b){ return CATALOG[b.type].fridge; }, "ísskápur", "ísskápar");
+    count(function(b){ return CATALOG[b.type].oven; }, "ofn", "ofnar");
+    count(function(b){ return CATALOG[b.type].sink; }, "vaskaskápur", "vaskaskápar");
+    count(function(b){ return CATALOG[b.type].cls === "corner"; }, "hornskápur", "hornskápar");
+    count(function(b){ return CATALOG[b.type].open; }, "opnar hillur", "opnar hillur");
+    return "Sjálfsafgreiðsla: " + shape + " eldhús, " + all.length + " " + plural(all.length, "skápur", "skápar") +
+      (extras.length ? " (" + extras.join(", ") + ")" : "") +
+      (state.windows.length ? ", " + state.windows.length + " " + plural(state.windows.length, "gluggi", "gluggar") : "") +
+      (state.doors.length ? ", " + state.doors.length + " " + plural(state.doors.length, "hurð", "hurðir") : "");
+  }
+
   function intakeNote(){
-    var lines = [];
+    var lines = [planHeadline()];
     if (state.intake.delivery) lines.push("Æskileg afhending: " + state.intake.delivery);
     if (state.intake.budget) lines.push("Áætlað fjárhagsrými: " + state.intake.budget);
     // Windows/doors are room-level, not cabinets — no Eyðublað row of their
