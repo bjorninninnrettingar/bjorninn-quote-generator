@@ -419,7 +419,7 @@
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     if (meta) mesh.userData = meta;
-    if (meta && selected) meta.selected = true;
+    if (meta){ meta.selected = !!selected; meta.baseFront = frontMat; }
     // One group per cabinet (body + outline + drawer seams) so a drag can move
     // the whole thing by setting a single matrix; the group stays at identity
     // otherwise. The pickable mesh is a child, so raycasts still hit it.
@@ -660,6 +660,37 @@
     return nearestWallDrop(THREE_STATE.geoms, THREE_STATE.walls, pt.x, pt.z);
   }
 
+  // Selection without a rebuild: swap the highlight on the affected meshes in
+  // place (a full teardown+rebuild cost ~80 ms with 20 cabinets, which made
+  // plain clicks feel laggy). Returns false when there's no live scene, so
+  // the caller falls back to a normal re-render.
+  function setSelected3D(id){
+    if (!THREE_STATE) return false;
+    var THREE = window.__THREE__;
+    THREE_STATE.pickables.forEach(function(m){
+      var u = m.userData, want = u.blockId === id;
+      if (!!u.selected === want) return;
+      u.selected = want;
+      if (Array.isArray(m.material)){ // cabinet
+        if (want){
+          var c = u.baseFront.clone();
+          c.emissive = new THREE.Color(SELECT_COLOR); c.emissiveIntensity = 0.35;
+          m.material[4] = c;
+        } else {
+          if (m.material[4] !== u.baseFront) m.material[4].dispose();
+          m.material[4] = u.baseFront;
+        }
+        var e = m.parent && m.parent.children[1];
+        if (e && e.material && e.material.color) e.material.color.set(want ? SELECT_COLOR : 0x2a2a2a);
+      } else { // window / door plane
+        m.material.emissive = new THREE.Color(want ? SELECT_COLOR : 0x000000);
+        m.material.emissiveIntensity = want ? 0.55 : 0;
+      }
+    });
+    THREE_STATE.opts.selectedId = id;
+    return true;
+  }
+
   function hideDragPreview3D(){
     if (THREE_STATE && THREE_STATE.previewMesh) THREE_STATE.previewMesh.visible = false;
   }
@@ -873,7 +904,7 @@
 
     var cleanupInteraction = setupCabinetInteraction(THREE, wrap, renderer, camera, controls, pickables, geoms, state.walls, opts);
     THREE_STATE = { renderer:renderer, camera:camera, controls:controls, scene:scene, rafId:0, onResize:resize, cleanupInteraction:cleanupInteraction,
-                    walls:state.walls, geoms:geoms, previewMesh:null, dragging:false };
+                    walls:state.walls, geoms:geoms, previewMesh:null, dragging:false, opts:opts, pickables:pickables };
 
     function resize(){
       var w = wrap.clientWidth, h = wrap.clientHeight;
@@ -1097,6 +1128,7 @@
     buildPlan2D: buildPlan2D,
     updateDragPreview3D: updateDragPreview3D,
     dropPointFromClient: dropPointFromClient,
+    setSelected3D: setSelected3D,
     hideDragPreview3D: hideDragPreview3D,
     teardown3D: teardown3D
   };

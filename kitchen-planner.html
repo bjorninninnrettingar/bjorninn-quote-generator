@@ -1557,7 +1557,12 @@
   function onCabinetSelect(meta){
     selectedBlockId = meta ? meta.blockId : null;
     renderEditPanel();
-    renderView();
+    // 3D: just move the highlight (no scene rebuild); 2D / cold scene: re-render
+    if (viewMode === "3d" && KP3D.setSelected3D(selectedBlockId)) syncFloatBarKind();
+    else renderView();
+  }
+  function syncFloatBarKind(){
+    document.getElementById("floatBar").classList.toggle("opening", !!(selectedBlockId && findOpening(selectedBlockId)));
   }
 
   // One editor workspace now (catalog | 3D/2D stage | properties): any change
@@ -1663,7 +1668,7 @@
     var plan = document.getElementById("planWrap");
     KP3D.teardown3D();
     document.getElementById("floatBar").hidden = true;
-    document.getElementById("floatBar").classList.toggle("opening", !!(selectedBlockId && findOpening(selectedBlockId)));
+    syncFloatBarKind();
 
     if (viewMode === "2d"){
       wrap.hidden = true; plan.hidden = false;
