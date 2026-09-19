@@ -336,7 +336,12 @@
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     if (meta) mesh.userData = meta;
-    scene.add(mesh);
+    // One group per cabinet (body + outline + drawer seams) so a drag can move
+    // the whole thing by setting a single matrix; the group stays at identity
+    // otherwise. The pickable mesh is a child, so raycasts still hit it.
+    var group = new THREE.Group();
+    group.add(mesh);
+    scene.add(group);
     if (pickables) pickables.push(mesh);
 
     // A light front color (e.g. hvítt) can otherwise blend into the equally
@@ -348,10 +353,10 @@
     );
     edges.position.copy(mesh.position);
     edges.quaternion.copy(mesh.quaternion);
-    scene.add(edges);
+    group.add(edges);
 
     if (interior && interior.mode === "skuffur"){
-      addDrawerSeams(THREE, scene, geom, offsetM, widthM, heightM, baseYM, depthM, interior.count);
+      addDrawerSeams(THREE, group, geom, offsetM, widthM, heightM, baseYM, depthM, interior.count);
     }
   }
 
@@ -416,7 +421,7 @@
   function setupCabinetInteraction(THREE, wrap, renderer, camera, controls, pickables, geoms, walls, opts){
     var raycaster = new THREE.Raycaster();
     var floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-    var drag = null; // {meta, startX, startY, moved}
+    var drag = null; // {meta, mesh, group, startMatrix, startX, startY, moved}
     var suppressClick = false;
 
     function ndc(evt){
@@ -443,7 +448,7 @@
       var mesh = pickMeshAt(evt);
       if (!mesh) return;
       evt.stopPropagation();
-      drag = { meta:mesh.userData, startX:evt.clientX, startY:evt.clientY, moved:false };
+      drag = { meta:mesh.userData, mesh:mesh, group:mesh.parent, startX:evt.clientX, startY:evt.clientY, moved:false };
       controls.enabled = false;
     }
     function onMove(evt){
@@ -452,11 +457,41 @@
         if (Math.hypot(evt.clientX - drag.startX, evt.clientY - drag.startY) < CABINET_DRAG_PX) return;
         drag.moved = true;
       }
-      if (opts.onCabinetDragMove) opts.onCabinetDragMove(drag.meta, dropAt(evt));
+      var drop = dropAt(evt);
+      followCursor(drop);
+      if (opts.onCabinetDragMove) opts.onCabinetDragMove(drag.meta, drop);
+    }
+    // The real cabinet slides along the wall under the cursor (free, not
+    // snapped — the blue/red footprint shows where it will actually land),
+    // and turns with the wall if the cursor moves to another one. Setting the
+    // group matrix G = target * startInverse moves body, outline and seams as
+    // one without touching their own transforms.
+    function followCursor(drop){
+      if (THREE_STATE) THREE_STATE.dragging = true;
+      if (!drop) return;
+      var wi = walls.findIndex(function(w){ return w.id === drop.wallId; });
+      var g = geoms[wi];
+      if (!g) return;
+      var widthM = drag.meta.widthMm / 1000, depthM = drag.meta.depthMm / 1000;
+      var offsetM = Math.max(0, Math.min(g.lenM - widthM, drop.alongMm / 1000 - widthM / 2));
+      var mesh = drag.mesh;
+      var target = new THREE.Vector3(
+        g.origin.x + g.axis.x * (offsetM + widthM / 2) + g.normal.x * (depthM / 2),
+        mesh.position.y,
+        g.origin.z + g.axis.z * (offsetM + widthM / 2) + g.normal.z * (depthM / 2));
+      var q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(
+        new THREE.Vector3(g.axis.x, 0, g.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(g.normal.x, 0, g.normal.z)));
+      var m0 = new THREE.Matrix4().compose(mesh.position, mesh.quaternion, new THREE.Vector3(1, 1, 1));
+      var m1 = new THREE.Matrix4().compose(target, q, new THREE.Vector3(1, 1, 1));
+      drag.group.matrixAutoUpdate = false;
+      drag.group.matrix.copy(m1).multiply(m0.invert());
+      drag.group.matrixWorldNeedsUpdate = true;
     }
     function onUp(evt){
       if (!drag) return;
       var meta = drag.meta, moved = drag.moved;
+      if (moved){ drag.group.matrix.identity(); drag.group.matrixWorldNeedsUpdate = true; }
+      if (THREE_STATE) THREE_STATE.dragging = false;
       drag = null;
       controls.enabled = true;
       if (moved){
@@ -669,7 +704,7 @@
         var hM = Math.min(b.heightMm || c.h, roomHeightMm) / 1000, dM = (b.depthMm || c.d) / 1000;
         var selected = opts.selectedId === b.id;
         addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, carcassMat, frontMat, b.interior,
-          { wallId:wall.id, zone:"floor", blockId:b.id }, selected, pickables);
+          { wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d) }, selected, pickables);
         offset += b.widthMm;
       });
       offset = 0;
@@ -678,7 +713,7 @@
         var hM = Math.min(b.heightMm || c.h, roomHeightMm) / 1000, dM = (b.depthMm || c.d) / 1000;
         var selected = opts.selectedId === b.id;
         addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, WALL_CABINET_BASE_M, carcassMat, frontMat, null,
-          { wallId:wall.id, zone:"wall", blockId:b.id }, selected, pickables);
+          { wallId:wall.id, zone:"wall", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d) }, selected, pickables);
         offset += b.widthMm;
       });
     });
@@ -715,7 +750,7 @@
 
     var cleanupInteraction = setupCabinetInteraction(THREE, wrap, renderer, camera, controls, pickables, geoms, state.walls, opts);
     THREE_STATE = { renderer:renderer, camera:camera, controls:controls, scene:scene, rafId:0, onResize:resize, cleanupInteraction:cleanupInteraction,
-                    walls:state.walls, geoms:geoms, previewMesh:null };
+                    walls:state.walls, geoms:geoms, previewMesh:null, dragging:false };
 
     function resize(){
       var w = wrap.clientWidth, h = wrap.clientHeight;
@@ -727,10 +762,30 @@
     resize();
     window.addEventListener("resize", resize);
 
+    // Floating toolbar (opts.floatEl) pinned above the selected cabinet: its
+    // top-centre is projected to screen every frame so it tracks orbiting.
+    var floatBox = new THREE.Box3(), floatV = new THREE.Vector3();
+    function placeFloatBar(){
+      var el = opts.floatEl;
+      if (!el) return;
+      var mesh = opts.selectedId && !THREE_STATE.dragging ? pickables.find(function(m){ return m.userData.blockId === opts.selectedId; }) : null;
+      if (!mesh){ el.hidden = true; return; }
+      floatBox.setFromObject(mesh);
+      floatV.set((floatBox.min.x + floatBox.max.x) / 2, floatBox.max.y, (floatBox.min.z + floatBox.max.z) / 2).project(camera);
+      if (floatV.z > 1){ el.hidden = true; return; }
+      var cr = renderer.domElement.getBoundingClientRect(), pr = el.offsetParent ? el.offsetParent.getBoundingClientRect() : cr;
+      var x = cr.left - pr.left + (floatV.x * 0.5 + 0.5) * cr.width;
+      var y = cr.top - pr.top + (-floatV.y * 0.5 + 0.5) * cr.height;
+      el.style.left = Math.max(60, Math.min(pr.width - 60, x)) + "px";
+      el.style.top = Math.max(46, y - 10) + "px";
+      el.hidden = false;
+    }
+
     function loop(){
       THREE_STATE.rafId = requestAnimationFrame(loop);
       controls.update();
       renderer.render(scene, camera);
+      placeFloatBar();
     }
     loop();
   }
