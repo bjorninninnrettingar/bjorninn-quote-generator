@@ -73,32 +73,49 @@
   }
   .room-preview svg{ width:100%; height:100%; display:block; }
 
-  /* ---- walls step (Phase 7d-3: catalog drag-and-drop) ---- */
-  .catalog-bar{
-    display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; margin-bottom:14px;
-    -webkit-overflow-scrolling:touch;
+  /* ---- editor step: HomeByMe-style 3-panel workspace ---- */
+  .wrap.wide{ max-width:1440px; }
+  .editor{ display:grid; grid-template-columns:232px minmax(0,1fr) 304px; gap:14px; align-items:start; margin-bottom:16px; }
+  .ed-catalog, .ed-props{
+    background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:14px;
+    max-height:calc(100vh - 210px); overflow-y:auto; position:sticky; top:12px;
   }
-  .catalog-card{
-    flex:0 0 auto; width:92px; background:#fff; border:1.5px solid var(--line); border-radius:12px;
-    padding:10px 8px; text-align:center; cursor:grab; touch-action:none; user-select:none;
-    -webkit-user-select:none;
+  .ed-stage .three-wrap{ height:calc(100vh - 262px); min-height:460px; margin-bottom:0; }
+  .ed-toolbar{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
+  .ed-toolbar .view-toggle{ margin-bottom:0; }
+  .ed-hint{ font-size:12.5px; color:var(--ink-soft); text-align:right; }
+  .cat-title{ font-size:11.5px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--gold); margin:4px 0 8px; }
+  .cat-title:not(:first-child){ margin-top:16px; }
+  .cat-item{
+    display:flex; align-items:center; gap:10px; width:100%; padding:9px 10px; margin-bottom:8px;
+    background:#fff; border:1.5px solid var(--line); border-radius:12px; cursor:grab; text-align:left;
+    font:inherit; color:var(--ink); touch-action:none; user-select:none; -webkit-user-select:none;
   }
-  .catalog-card:active{ cursor:grabbing; }
-  .catalog-card .dot{ width:100%; height:22px; border-radius:6px; margin-bottom:6px; }
-  .catalog-card .name{ font-size:11px; font-weight:600; line-height:1.25; }
-  .catalog-card.dragging{ opacity:.35; }
-  #wallsPlanWrap polygon.drop-hover{ stroke:var(--blue) !important; stroke-width:4 !important; }
-  #wallsPlanWrap [data-block-id]{ touch-action:none; }
-  #wallsPlanWrap [data-window-id], #wallsPlanWrap [data-door-id]{ touch-action:none; }
-  .catalog-card .dot.window{ background:#5b8fae; }
-  .catalog-card .dot.door{ background:#8a6a4a; }
-  .opening-row{
-    display:flex; align-items:center; gap:8px; background:#fff; border:1px solid var(--line);
-    border-radius:9px; padding:8px 10px; margin-bottom:8px; font-size:13.5px;
+  .cat-item:hover{ border-color:var(--blue); }
+  .cat-item.dragging{ opacity:.35; }
+  .cat-item .sw{ width:34px; height:34px; border-radius:8px; flex:none; }
+  .cat-item .sw.floor{ background:var(--floor); } .cat-item .sw.tall{ background:var(--tall); }
+  .cat-item .sw.wall{ background:var(--wall); } .cat-item .sw.window{ background:#5b8fae; }
+  .cat-item .sw.door{ background:#8a6a4a; }
+  .cat-item .nm{ display:block; font-size:13.5px; font-weight:600; line-height:1.25; }
+  .cat-item .dim{ display:block; font-size:11.5px; color:var(--ink-soft); }
+  .ed-props .edit-panel{ background:none; border:none; padding:0; margin:0; }
+  .ov-title{ font-size:15px; font-weight:600; margin:0 0 10px; }
+  .ov-wall{ margin-bottom:14px; }
+  .ov-wall-h{ font-size:12px; font-weight:600; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px; }
+  .ov-item{
+    display:flex; justify-content:space-between; gap:8px; width:100%; text-align:left; font:inherit; font-size:13px;
+    background:#fff; border:1px solid var(--line); border-radius:8px; padding:7px 10px; margin-bottom:5px; cursor:pointer; color:var(--ink);
   }
-  .opening-row .dot{ width:10px; height:10px; border-radius:3px; flex:none; }
-  .opening-row span:nth-child(2){ flex:1; }
-  #wallsPlanWrap line.drop-hover{ stroke:var(--blue) !important; }
+  .ov-item:hover{ border-color:var(--blue); }
+  .ov-item span{ color:var(--ink-soft); font-size:12px; white-space:nowrap; }
+  .ov-mat{ font-size:13px; color:var(--ink-soft); margin:0 0 4px; }
+  .ov-mat strong{ color:var(--ink); }
+  .ov-links{ display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+  #planWrap polygon.drop-hover{ stroke:var(--blue) !important; stroke-width:4 !important; }
+  #planWrap [data-block-id]{ touch-action:none; }
+  #planWrap line.drop-hover{ stroke:var(--blue) !important; }
+  .drop-target-3d{ outline:2px dashed var(--blue); outline-offset:-2px; }
   /* ---- Phase 8: live drag preview + snapping ---- */
   .drag-preview-shape{
     fill:rgba(61,97,193,.35); stroke:#3d61c1; stroke-width:2; stroke-dasharray:5,3;
@@ -149,58 +166,8 @@
 
   .actions{ display:flex; gap:10px; align-items:center; margin-top:8px; flex-wrap:wrap; }
 
-  /* ---- walls step ---- */
-  .wallcard{
-    background:var(--panel); border:1px solid var(--line); border-radius:16px;
-    padding:18px 18px 20px; margin-bottom:18px;
-  }
-  .wallcard-head{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:14px; }
-  .wallcard-head h3{ font-size:15.5px; font-weight:600; margin:0; }
-  .wallcard-head .len{ color:var(--ink-soft); font-weight:400; }
-
-  .zone{ margin-bottom:16px; }
-  .zone:last-child{ margin-bottom:0; }
-  .zone-label-row{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
-  .zone-label{ font-size:12px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--ink-soft); }
-  .zone-add{ display:flex; gap:6px; }
-
-  .strip{
-    position:relative; height:38px; background:#fff; border:1px solid var(--line); border-radius:8px;
-    display:flex; overflow:hidden; margin-bottom:10px;
-  }
-  .zone-floor .strip{ height:56px; }
-  .strip-block{
-    display:flex; align-items:center; justify-content:center; overflow:hidden;
-    font-size:11px; font-weight:600; color:#fff; white-space:nowrap; padding:0 4px;
-    border-right:1px solid rgba(255,255,255,.35);
-  }
-  .strip-gap{ background:repeating-linear-gradient(45deg,#f4f2ec,#f4f2ec 6px,#efece3 6px,#efece3 12px); }
-  .strip-corner{
-    background:repeating-linear-gradient(45deg,#fbebe7,#fbebe7 6px,#f3d9d2 6px,#f3d9d2 12px);
-    color:var(--danger); font-size:10px;
-  }
-  .strip-block.tall{ background:var(--tall); }
-  .strip-block.oven{ background:var(--oven); }
-  .strip-block.corner{ background:var(--corner); }
-  .strip-block.floor{ background:var(--floor); }
-  .strip-block.wall{ background:var(--wall); }
-
   .meter-note{ font-size:12.5px; color:var(--ink-soft); margin:0 0 10px; }
-  .meter-note.full{ color:var(--danger); }
-
-  .iconbtn{
-    width:28px; height:28px; border-radius:6px; border:1px solid var(--line); background:#fff;
-    cursor:pointer; font-size:13px; color:var(--ink); display:flex; align-items:center; justify-content:center;
-  }
-  .iconbtn:hover{ border-color:var(--blue); color:var(--blue); }
-  .iconbtn.del:hover{ border-color:var(--danger); color:var(--danger); }
-  .iconbtn:disabled{ opacity:.35; cursor:not-allowed; }
-
   .empty-note{ font-size:13px; color:var(--ink-soft); font-style:italic; padding:6px 2px; }
-
-  .summary-line{ display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px dashed var(--line); font-size:14px; }
-  .summary-line:last-child{ border-bottom:none; }
-  .summary-total{ margin-top:18px; padding-top:14px; border-top:1px solid var(--line); font-weight:600; }
 
   .callout{
     background:var(--gold-soft); border:1px solid var(--line); border-radius:10px;
@@ -251,11 +218,6 @@
   .look-card .info{ padding:10px 12px 12px; }
   .look-card .name{ font-weight:600; font-size:14px; }
   .look-card .desc{ font-size:12px; color:var(--ink-soft); margin-top:2px; }
-  .look-selected-strip{ display:flex; align-items:center; gap:10px; margin:0 0 18px; font-size:13.5px; color:var(--ink-soft); }
-  .look-selected-strip img{ width:34px; height:34px; border-radius:7px; object-fit:cover; }
-
-  .strip-block.styled{ background-size:cover; background-position:center; text-shadow:0 1px 3px rgba(0,0,0,.85); }
-
   /* ---- 3D step ---- */
   .three-wrap{
     position:relative; width:100%; height:min(60vh,480px); min-height:280px;
@@ -366,7 +328,7 @@
   <p class="lede" id="pageLede">Svaraðu nokkrum spurningum, veldu lögun eldhússins og raðaðu skápum upp — gróf teikning, engin binding. Rakel fer svo yfir og fullkomnar hönnunina með þér.</p>
 
   <div class="steps" id="progressSteps">
-    <span data-s="intake"></span><span data-s="materials"></span><span data-s="shape"></span><span data-s="walls"></span><span data-s="summary"></span><span data-s="contact"></span>
+    <span data-s="intake"></span><span data-s="materials"></span><span data-s="shape"></span><span data-s="editor"></span><span data-s="contact"></span>
   </div>
 
   <!-- ============ STEP: INTAKE ============ -->
@@ -438,48 +400,29 @@
     </div>
   </section>
 
-  <!-- ============ STEP: WALLS / LAYOUT ============ -->
-  <section id="screen-walls" hidden>
-    <div class="screen-title">Raðaðu skápum upp</div>
-    <p class="screen-sub">Dragðu skáp úr listanum inn á teikninguna, eða notaðu "+" hnappana fyrir neðan. Smelltu á skáp á teikningunni til að breyta tegund eða fjarlægja.</p>
+  <!-- ============ STEP: EDITOR (catalog | 3D/2D stage | properties) ============ -->
+  <section id="screen-editor" hidden>
+    <div class="editor">
+      <aside class="ed-catalog" id="catalogPanel"></aside>
 
-    <div class="catalog-bar" id="catalogBar"></div>
+      <div class="ed-stage">
+        <div class="ed-toolbar">
+          <div class="view-toggle" id="viewToggle">
+            <button type="button" class="active" data-view="3d">🧊 3D</button>
+            <button type="button" data-view="2d">📐 Teikning</button>
+          </div>
+          <span class="ed-hint">Dragðu skáp inn í rýmið · smelltu á skáp til að breyta</span>
+        </div>
+        <div class="three-wrap" id="threeWrap"></div>
+        <div class="three-wrap" id="planWrap" hidden></div>
+      </div>
 
-    <div class="room-preview" id="wallsPlanWrap"></div>
-
-    <div id="wallsEditPanel"></div>
-
-    <div id="openingsList"></div>
-
-    <div id="wallCards"></div>
+      <aside class="ed-props" id="cabinetEditPanel"></aside>
+    </div>
 
     <div class="actions">
       <button class="btn btn-secondary" id="backToShapeBtn" type="button">← Breyta lögun / lengdum</button>
-      <button class="btn btn-primary" id="toSummaryBtn" type="button" disabled>Sjá í 3D</button>
-    </div>
-  </section>
-
-  <!-- ============ STEP: SUMMARY / 3D ============ -->
-  <section id="screen-summary" hidden>
-    <div class="screen-title">Eldhúsið þitt í 3D</div>
-    <p class="screen-sub">Svona lítur skipulagið þitt út núna.</p>
-
-    <div class="view-toggle" id="viewToggle">
-      <button type="button" class="active" data-view="3d">🧊 3D</button>
-      <button type="button" data-view="2d">📐 Teikning</button>
-    </div>
-
-    <div class="three-wrap" id="threeWrap"></div>
-    <div class="three-wrap" id="planWrap" hidden></div>
-    <p class="three-hint">Smelltu á skáp til að breyta honum · dragðu til að snúa · klíptu/skrunaðu til að rýma</p>
-
-    <div id="cabinetEditPanel"></div>
-
-    <div id="summaryBody"></div>
-
-    <div class="actions">
-      <button class="btn btn-secondary" id="backToWallsBtn" type="button">← Breyta uppröðun</button>
-      <button class="btn btn-primary" id="toContactBtn" type="button">Áfram — senda inn</button>
+      <button class="btn btn-primary" id="toContactBtn" type="button" disabled>Áfram — senda inn</button>
     </div>
   </section>
 
@@ -514,7 +457,7 @@
     <p class="submit-note" id="submitError" style="display:none; color:var(--danger);"></p>
 
     <div class="actions">
-      <button class="btn btn-secondary" id="backToSummaryBtn" type="button">← Til baka</button>
+      <button class="btn btn-secondary" id="backToEditorBtn" type="button">← Til baka</button>
       <button class="btn btn-primary" id="submitBtn" type="button">Senda inn</button>
     </div>
   </section>
@@ -638,6 +581,7 @@
       if (!state.doors) state.doors = [];
       // Old drafts may be mid-step in steps that no longer exist.
       if (state.step === "quiz") state.step = "intake";
+      if (state.step === "walls" || state.step === "summary") state.step = "editor"; // the two steps merged into one editor
       if (state.step === "look" || state.step === "handle") state.step = "materials";
       blockSeq = 1;
       wallSeq = 2;
@@ -836,13 +780,13 @@
     if (b.widthMm > remaining) b.widthMm = clampWidth(type, remaining);
     list.push(b);
     save();
-    renderWalls();
+    refreshAfterEdit();
   }
 
   function removeBlock(wall, zone, id){
     wall[zone] = wall[zone].filter(function(b){ return b.id !== id; });
     save();
-    renderWalls();
+    refreshAfterEdit();
   }
 
   function moveBlock(wall, zone, id, dir){
@@ -852,7 +796,7 @@
     if (idx < 0 || swapIdx < 0 || swapIdx >= list.length) return;
     var tmp = list[idx]; list[idx] = list[swapIdx]; list[swapIdx] = tmp;
     save();
-    renderWalls();
+    refreshAfterEdit();
   }
 
   // HomeByMe-style type swap (click a cabinet, pick a new type from a
@@ -888,31 +832,6 @@
     refreshAfterEdit();
   }
 
-  function stripHTML(list, wallLenMm, clearanceMm){
-    var used = usedMm(list);
-    var look = state.look ? LOOKS[state.look] : null;
-    var html = "";
-    if (clearanceMm > 0){
-      var clearPct = (clearanceMm / wallLenMm * 100).toFixed(3);
-      html += '<div class="strip-block strip-corner" style="flex:0 0 ' + clearPct + '%" title="' +
-        clearanceMm + ' mm frátekið fyrir horn — skápur á hinum veggnum nær hingað inn">⟟ horn</div>';
-    }
-    html += list.map(function(b){
-      var pct = (b.widthMm / wallLenMm * 100).toFixed(3);
-      var c = CATALOG[b.type];
-      var styleAttr = 'flex:0 0 ' + pct + '%';
-      var cls = "strip-block " + c.cls;
-      if (look && look.img){ cls += " styled"; styleAttr += "; background-image:url(" + look.img + ")"; }
-      return '<div class="' + cls + '" style="' + styleAttr + '" title="' + c.label + ' · ' + b.widthMm + 'mm">' +
-             (b.widthMm >= 260 ? c.label : "") + '</div>';
-    }).join("");
-    var gapPct = Math.max(0, (wallLenMm - clearanceMm - used) / wallLenMm * 100).toFixed(3);
-    if (wallLenMm - clearanceMm - used > 1){
-      html += '<div class="strip-block strip-gap" style="flex:0 0 ' + gapPct + '%"></div>';
-    }
-    return html;
-  }
-
   function hardwareHTML(b, c){
     if (!c.hasInterior) return "";
     var isDrawer = b.interior.mode === "skuffur";
@@ -942,28 +861,7 @@
       b.interior.count = Math.max(range[0], Math.min(range[1], count));
     }
     save();
-    renderWalls();
-  }
-
-  function zoneHTML(wall, zoneKey, title, addTypes){
-    var list = wall[zoneKey];
-    var used = usedMm(list);
-    var clearance = cornerClearance(wall, zoneKey);
-    var remaining = wall.lengthMm - clearance - used;
-    var addBtns = addTypes.map(function(type){
-      var c = CATALOG[type];
-      var disabled = remaining < c.minW ? "disabled" : "";
-      return '<button class="btn btn-secondary btn-small" data-add="' + type + '" data-wall="' + wall.id + '" ' + disabled + '>+ ' + c.label + '</button>';
-    }).join("");
-
-    var clearanceNote = clearance > 0 ? " (þar af " + clearance + " mm frátekið fyrir horn)" : "";
-    return (
-      '<div class="zone zone-' + zoneKey + '">' +
-        '<div class="zone-label-row"><span class="zone-label">' + title + '</span><div class="zone-add">' + addBtns + '</div></div>' +
-        '<div class="strip">' + stripHTML(list, wall.lengthMm, clearance) + '</div>' +
-        '<p class="meter-note' + (remaining < 1 ? ' full' : '') + '">' + used + ' / ' + wall.lengthMm + ' mm notað' + (remaining < 1 ? " — veggur fullur" : ", " + remaining + " mm laust") + clearanceNote + '</p>' +
-      '</div>'
-    );
+    refreshAfterEdit();
   }
 
   // ---------- walls step: catalog drag-and-drop (Phase 7d-3) ----------
@@ -987,32 +885,6 @@
   };
   var dragState = null; // {kind, type, ghostEl}
 
-  function renderCatalogBar(){
-    var bar = document.getElementById("catalogBar");
-    var cabinetCards = CATALOG_GROUPS.reduce(function(acc, group){
-      return acc.concat(group.types.map(function(type){
-        var c = CATALOG[type];
-        return '<div class="catalog-card" data-kind="cabinet" data-type="' + type + '" title="' + c.label + '">' +
-          '<div class="dot ' + c.cls + '"></div><div class="name">' + c.label + '</div></div>';
-      }));
-    }, []);
-    var openingCards = Object.keys(OPENING_TYPES).map(function(type){
-      var o = OPENING_TYPES[type];
-      return '<div class="catalog-card" data-kind="opening" data-type="' + type + '" title="' + o.label + '">' +
-        '<div class="dot ' + o.cls + '"></div><div class="name">' + o.label + '</div></div>';
-    });
-    bar.innerHTML = cabinetCards.concat(openingCards).join("");
-
-    bar.querySelectorAll(".catalog-card").forEach(function(card){
-      card.addEventListener("pointerdown", function(evt){ startCatalogDrag(card.dataset.kind, card.dataset.type, card, evt); });
-    });
-  }
-
-  function renderWallsPlan(){
-    KP3D.buildPlan2D(document.getElementById("wallsPlanWrap"), state, { selectedId:selectedBlockId, onSelect:onCabinetSelect });
-    wireBlockDragHandlers();
-  }
-
   function ghostPosition(el, x, y){
     el.style.left = x + "px";
     el.style.top = y + "px";
@@ -1027,7 +899,7 @@
     document.body.appendChild(ghost);
     ghostPosition(ghost, evt.clientX, evt.clientY);
     cardEl.classList.add("dragging");
-    dragState = { kind:kind, type:type, ghostEl:ghost, cardEl:cardEl };
+    dragState = { kind:kind, type:type, ghostEl:ghost, cardEl:cardEl, startX:evt.clientX, startY:evt.clientY, moved:false };
     window.addEventListener("pointermove", onCatalogDragMove);
     window.addEventListener("pointerup", onCatalogDragEnd, { once:true });
   }
@@ -1039,7 +911,7 @@
   var SNAP_THRESHOLD_MM = 100;
 
   function ensureDragPreviewEl(){
-    var svg = document.querySelector("#wallsPlanWrap svg");
+    var svg = document.querySelector("#planWrap svg");
     if (!svg) return null;
     var el = svg.querySelector("#dragPreviewShape");
     if (!el){
@@ -1100,8 +972,22 @@
     return raw;
   }
 
+  // The stage shows either the 3D scene or the 2D plan — a drop point comes
+  // from a raycast in 3D and from the SVG hit-test in 2D, but both yield the
+  // same {wallId, alongMm} so everything downstream is shared.
+  function dropPointAt(clientX, clientY){
+    return viewMode === "3d" ? KP3D.dropPointFromClient(clientX, clientY) : findDropPoint(clientX, clientY);
+  }
+  function showDropPreview(wallId, offsetMm, widthMm, depthMm, ok){
+    if (viewMode === "3d") KP3D.updateDragPreview3D(wallId, offsetMm, widthMm, depthMm, ok);
+    else updateDragPreviewRect(wallId, offsetMm, widthMm, depthMm, ok);
+  }
+  function hideDropPreview(){
+    if (viewMode === "3d") KP3D.hideDragPreview3D(); else hideDragPreview();
+  }
+
   function highlightDropWall(wallId){
-    document.querySelectorAll("#wallsPlanWrap [data-wall-line-id]").forEach(function(line){
+    document.querySelectorAll("#planWrap [data-wall-line-id]").forEach(function(line){
       line.classList.toggle("drop-hover", !!wallId && line.dataset.wallLineId === wallId);
     });
   }
@@ -1109,20 +995,24 @@
   function onCatalogDragMove(evt){
     if (!dragState) return;
     ghostPosition(dragState.ghostEl, evt.clientX, evt.clientY);
-    var drop = findDropPoint(evt.clientX, evt.clientY);
+    if (!dragState.moved){
+      if (Math.hypot(evt.clientX - dragState.startX, evt.clientY - dragState.startY) < 6) return;
+      dragState.moved = true;
+    }
+    var drop = dropPointAt(evt.clientX, evt.clientY);
     highlightDropWall(drop ? drop.wallId : null);
-    if (!drop){ hideDragPreview(); return; }
+    if (!drop){ hideDropPreview(); return; }
     var wall = state.walls.find(function(w){ return w.id === drop.wallId; });
-    if (!wall){ hideDragPreview(); return; }
+    if (!wall){ hideDropPreview(); return; }
     if (dragState.kind === "opening"){
       var isWindow = dragState.type === "gluggi";
       var d = isWindow ? WINDOW_DEFAULT : DOOR_DEFAULT;
       var offsetMm = snappedOpeningOffset(wall, d.widthMm, drop.alongMm);
-      updateDragPreviewRect(drop.wallId, offsetMm, d.widthMm, 60, true);
+      showDropPreview(drop.wallId, offsetMm, d.widthMm, 60, true);
     } else {
       var c = CATALOG[dragState.type];
       var packed = computePackedOffset(wall, c.zone, c.defaultW, drop.alongMm, null);
-      updateDragPreviewRect(drop.wallId, packed.offsetMm, c.defaultW, c.d, packed.fits);
+      showDropPreview(drop.wallId, packed.offsetMm, c.defaultW, c.d, packed.fits);
     }
   }
 
@@ -1142,7 +1032,7 @@
   // position-aware placement — Phase 7d-4), or null if the point isn't over
   // the plan SVG at all.
   function findDropPoint(clientX, clientY){
-    var svg = document.querySelector("#wallsPlanWrap svg");
+    var svg = document.querySelector("#planWrap svg");
     if (!svg) return null;
     var rect = svg.getBoundingClientRect();
     if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) return null;
@@ -1180,19 +1070,22 @@
   }
 
   function clearDropHighlight(){
-    document.querySelectorAll("#wallsPlanWrap [data-wall-line-id]").forEach(function(line){ line.classList.remove("drop-hover"); });
+    document.querySelectorAll("#planWrap [data-wall-line-id]").forEach(function(line){ line.classList.remove("drop-hover"); });
   }
 
   function onCatalogDragEnd(evt){
     window.removeEventListener("pointermove", onCatalogDragMove);
     if (!dragState) return;
-    var drop = findDropPoint(evt.clientX, evt.clientY);
+    var moved = dragState.moved;
+    var drop = moved ? dropPointAt(evt.clientX, evt.clientY) : null;
     dragState.ghostEl.remove();
     dragState.cardEl.classList.remove("dragging");
     clearDropHighlight();
     removeDragPreview();
+    KP3D.hideDragPreview3D();
     var kind = dragState.kind, type = dragState.type;
     dragState = null;
+    if (!moved){ addFromCatalog(kind, type); return; } // a plain click adds it
     if (!drop) return;
     if (kind === "opening"){
       addOpening(type, drop.wallId, drop.alongMm);
@@ -1200,6 +1093,51 @@
       var wall = state.walls.find(function(w){ return w.id === drop.wallId; });
       if (wall) placeBlockAtDrop(wall, type, drop.alongMm);
     }
+  }
+
+  // Click (no drag) on a catalog item: put it on the first wall with room
+  // (windows/doors: the middle of the first wall).
+  function addFromCatalog(kind, type){
+    if (kind === "opening"){
+      var w0 = state.walls[0];
+      addOpening(type, w0.id, Math.round(w0.lengthMm / 2));
+      return;
+    }
+    var c = CATALOG[type];
+    for (var i = 0; i < state.walls.length; i++){
+      var wall = state.walls[i];
+      if (wall.lengthMm - cornerClearance(wall, c.zone) - usedMm(wall[c.zone]) >= c.minW){
+        addBlock(wall, type);
+        return;
+      }
+    }
+    toast("Ekki nóg pláss fyrir " + c.label.toLowerCase() + " á neinum vegg.");
+  }
+
+  // ---------- catalog panel (left column of the editor) ----------
+  function renderCatalogPanel(){
+    var host = document.getElementById("catalogPanel");
+    function room(type){
+      var c = CATALOG[type];
+      return state.walls.some(function(w){ return w.lengthMm - cornerClearance(w, c.zone) - usedMm(w[c.zone]) >= c.minW; });
+    }
+    function item(kind, type, cls, name, dim, ok){
+      return '<button type="button" class="cat-item" data-kind="' + kind + '" data-type="' + type + '"' + (ok ? "" : ' style="opacity:.45;"') + '>' +
+        '<span class="sw ' + cls + '"></span><span><span class="nm">' + name + '</span><span class="dim">' + dim + '</span></span></button>';
+    }
+    var html = CATALOG_GROUPS.map(function(group){
+      return '<div class="cat-title">' + group.title + '</div>' + group.types.map(function(type){
+        var c = CATALOG[type];
+        return item("cabinet", type, c.cls, c.label, c.h + ' × ' + c.defaultW + ' × ' + c.d + ' mm', room(type));
+      }).join("");
+    }).join("");
+    html += '<div class="cat-title">Gluggar og hurðir</div>' +
+      item("opening", "gluggi", "window", "Gluggi", WINDOW_DEFAULT.heightMm + ' × ' + WINDOW_DEFAULT.widthMm + ' mm', true) +
+      item("opening", "hurd", "door", "Hurð", DOOR_DEFAULT.heightMm + ' × ' + DOOR_DEFAULT.widthMm + ' mm', true);
+    host.innerHTML = html;
+    host.querySelectorAll(".cat-item").forEach(function(card){
+      card.addEventListener("pointerdown", function(evt){ startCatalogDrag(card.dataset.kind, card.dataset.type, card, evt); });
+    });
   }
 
   // Drag path only — places a NEW cabinet at the slot it's actually dropped
@@ -1217,7 +1155,7 @@
     var b = newBlock(type);
     wall[zone].splice(packed.index, 0, b);
     save();
-    renderWalls();
+    refreshAfterEdit();
   }
 
   // ---------- windows/doors (Phase 7e) — room-level openings, not cabinets:
@@ -1234,7 +1172,7 @@
     if (isWindow) o.sillHeightMm = d.sillHeightMm;
     (isWindow ? state.windows : state.doors).push(o);
     save();
-    renderWalls();
+    refreshAfterEdit();
   }
 
   function removeOpening(kind, id){
@@ -1242,22 +1180,7 @@
     var idx = list.findIndex(function(o){ return o.id === id; });
     if (idx > -1) list.splice(idx, 1);
     save();
-    renderWalls();
-  }
-
-  function renderOpeningsList(){
-    var host = document.getElementById("openingsList");
-    var rows = state.windows.map(function(w){
-      var wall = state.walls.find(function(x){ return x.id === w.wallId; });
-      return '<div class="opening-row"><span class="dot window"></span><span>Gluggi · ' + (wall ? wall.label : "") + ' · ' + w.widthMm + ' mm</span><button class="iconbtn del" data-kind="window" data-id="' + w.id + '">✕</button></div>';
-    }).concat(state.doors.map(function(d){
-      var wall = state.walls.find(function(x){ return x.id === d.wallId; });
-      return '<div class="opening-row"><span class="dot door"></span><span>Hurð · ' + (wall ? wall.label : "") + ' · ' + d.widthMm + ' mm</span><button class="iconbtn del" data-kind="door" data-id="' + d.id + '">✕</button></div>';
-    }));
-    host.innerHTML = rows.join("");
-    host.querySelectorAll("[data-kind]").forEach(function(btn){
-      btn.addEventListener("click", function(){ removeOpening(btn.dataset.kind, btn.dataset.id); });
-    });
+    refreshAfterEdit();
   }
 
   // ---------- drag an already-placed cabinet to move/reorder it (Phase
@@ -1341,36 +1264,9 @@
   }
 
   function wireBlockDragHandlers(){
-    document.querySelectorAll("#wallsPlanWrap [data-block-id]").forEach(function(poly){
+    document.querySelectorAll("#planWrap [data-block-id]").forEach(function(poly){
       poly.addEventListener("pointerdown", function(evt){ startBlockDrag(poly.dataset.blockId, evt); });
     });
-  }
-
-  function renderWalls(){
-    renderCatalogBar();
-    renderWallsPlan();
-    renderOpeningsList();
-    var container = document.getElementById("wallCards");
-    container.innerHTML = state.walls.map(function(wall){
-      return (
-        '<div class="wallcard" data-wall="' + wall.id + '">' +
-          '<div class="wallcard-head"><h3>' + wall.label + ' <span class="len">· ' + wall.lengthMm + ' mm</span></h3></div>' +
-          zoneHTML(wall, "wall", "Efri röð — veggskápar", ["efriskapur"]) +
-          zoneHTML(wall, "floor", "Neðri röð — gólfskápar", ["grunnskapur", "harskapur"]) +
-        '</div>'
-      );
-    }).join("");
-
-    // wire events
-    container.querySelectorAll("[data-add]").forEach(function(btn){
-      btn.addEventListener("click", function(){
-        var wall = state.walls.find(function(w){ return w.id === btn.dataset.wall; });
-        addBlock(wall, btn.dataset.add);
-      });
-    });
-    var totalBlocks = state.walls.reduce(function(s, w){ return s + w.floor.length + w.wall.length; }, 0);
-    document.getElementById("toSummaryBtn").disabled = totalBlocks === 0;
-    renderEditPanel();
   }
 
   // ---------- materials step (carcass / front / opening / drawers) ----------
@@ -1490,17 +1386,19 @@
   function onCabinetSelect(meta){
     selectedBlockId = meta ? meta.blockId : null;
     renderEditPanel();
-    if (state.step === "walls") renderWallsPlan();
-    else if (state.step === "summary") renderView();
+    renderView();
   }
 
-  // Re-renders whatever needs to reflect a change made from the edit panel —
-  // called from both hosts (walls-step plan and the 3D/2D summary view)
-  // share this one panel's logic, so a mutation always refreshes whichever
-  // one is actually on screen.
+  // One editor workspace now (catalog | 3D/2D stage | properties): any change
+  // to the layout re-renders the stage, the properties panel and the catalog
+  // (whose items grey out when nothing more fits).
   function refreshAfterEdit(){
-    if (state.step === "walls") renderWalls(); // rebuilds strip + plan + re-renders the panel itself
-    else if (state.step === "summary"){ renderView(); renderSummary(); renderEditPanel(); }
+    if (state.step !== "editor") return;
+    renderCatalogPanel();
+    renderView();
+    renderEditPanel();
+    var total = state.walls.reduce(function(sum, w){ return sum + w.floor.length + w.wall.length; }, 0);
+    document.getElementById("toContactBtn").disabled = total === 0;
   }
 
   // Dragging a cabinet in the 3D view — mirrors the walls-step 2D drag
@@ -1525,16 +1423,10 @@
     var plan = document.getElementById("planWrap");
     KP3D.teardown3D();
 
-    var hasAnyCabinets = state.walls.some(function(w){ return w.floor.length || w.wall.length; });
-    if (!hasAnyCabinets){
-      wrap.hidden = false; plan.hidden = true;
-      wrap.innerHTML = '<div class="three-note">Bættu skápum við til að sjá eldhúsið hér.</div>';
-      return;
-    }
-
     if (viewMode === "2d"){
       wrap.hidden = true; plan.hidden = false;
       KP3D.buildPlan2D(plan, state, { selectedId:selectedBlockId, onSelect:onCabinetSelect });
+      wireBlockDragHandlers();
       return;
     }
 
@@ -1545,7 +1437,7 @@
     }
     wrap.innerHTML = '<div class="three-note">Hleð 3D…</div>';
     KP3D.waitForThree(function(ok){
-      if (state.step !== "summary" || viewMode !== "3d") return; // navigated away while waiting
+      if (state.step !== "editor" || viewMode !== "3d") return; // navigated away while waiting
       if (!ok){
         wrap.innerHTML = '<div class="three-note">3D forskoðun tókst ekki að hlaða — sjá listann fyrir neðan.</div>';
         return;
@@ -1564,19 +1456,63 @@
   // #wallsEditPanel (walls step) and #cabinetEditPanel (summary/3D step)
   // share this exact same logic, scoped via querySelector (not global ids)
   // so both can exist in the DOM at once without colliding.
-  var EDIT_PANEL_HOSTS = ["wallsEditPanel", "cabinetEditPanel"];
-
   function renderEditPanel(){
-    EDIT_PANEL_HOSTS.forEach(function(hostId){
-      var host = document.getElementById(hostId);
-      if (host) renderEditPanelInto(host);
+    renderEditPanelInto(document.getElementById("cabinetEditPanel"));
+  }
+
+  // Nothing selected → a compact overview of the room (HomeByMe's right
+  // panel does the same): click a row to select that cabinet.
+  function overviewHTML(){
+    var html = '<div class="ov-title">Eldhúsið þitt</div>';
+    state.walls.forEach(function(wall){
+      var items = wall.wall.concat(wall.floor);
+      html += '<div class="ov-wall"><div class="ov-wall-h">' + wall.label + ' · ' + wall.lengthMm + ' mm</div>';
+      if (!items.length) html += '<div class="empty-note">Ekkert ennþá</div>';
+      items.forEach(function(b){
+        var c = CATALOG[b.type];
+        var hw = b.interior ? (b.interior.mode === "skuffur" ? " · " + b.interior.count + " skúffur" : " · hillur") : "";
+        html += '<button type="button" class="ov-item" data-select="' + b.id + '"><span style="color:var(--ink);font-weight:600;">' + c.label + hw + '</span><span>' + b.widthMm + '×' + blockHeightMm(b, c) + '×' + (b.depthMm || c.d) + '</span></button>';
+      });
+      html += '</div>';
     });
+    var openings = state.windows.map(function(o){ return { kind:"window", o:o, label:"Gluggi" }; })
+      .concat(state.doors.map(function(o){ return { kind:"door", o:o, label:"Hurð" }; }));
+    if (openings.length){
+      html += '<div class="ov-wall"><div class="ov-wall-h">Gluggar og hurðir</div>';
+      openings.forEach(function(x){
+        var wall = state.walls.find(function(w){ return w.id === x.o.wallId; });
+        html += '<div class="ov-item" style="cursor:default;"><span style="color:var(--ink);font-weight:600;">' + x.label + ' · ' + (wall ? wall.label : "") + '</span>' +
+          '<button type="button" class="iconbtn del" data-open-kind="' + x.kind + '" data-open-id="' + x.o.id + '" title="Fjarlægja">✕</button></div>';
+      });
+      html += '</div>';
+    }
+    var mats = [];
+    if (state.carcass) mats.push("Skrokkur: <strong>" + CARCASS[state.carcass].label + "</strong>");
+    if (state.look) mats.push("Framhlið: <strong>" + LOOKS[state.look].label + "</strong>");
+    if (state.handle) mats.push("Opnun: <strong>" + HANDLES[state.handle].label + "</strong>");
+    if (state.drawerSystem) mats.push("Skúffukerfi: <strong>" + DRAWER_SYSTEMS[state.drawerSystem].label + "</strong>");
+    if (state.wallColor) mats.push("Veggir: <strong>" + WALL_COLORS[state.wallColor].label + "</strong>");
+    html += '<div class="ov-wall"><div class="ov-wall-h">Efni</div>' + mats.map(function(m){ return '<p class="ov-mat">' + m + '</p>'; }).join("") +
+      '<div class="ov-links"><button type="button" class="btn btn-secondary btn-small" data-goto="materials">Breyta efni</button></div></div>';
+    return html;
   }
 
   function renderEditPanelInto(host){
-    if (!selectedBlockId){ host.innerHTML = ""; return; }
-    var found = findBlock(selectedBlockId);
-    if (!found){ selectedBlockId = null; host.innerHTML = ""; return; }
+    var found = selectedBlockId ? findBlock(selectedBlockId) : null;
+    if (!found){
+      selectedBlockId = null;
+      host.innerHTML = overviewHTML();
+      host.querySelectorAll("[data-select]").forEach(function(btn){
+        btn.addEventListener("click", function(){ onCabinetSelect({ blockId:btn.dataset.select }); });
+      });
+      host.querySelectorAll("[data-open-kind]").forEach(function(btn){
+        btn.addEventListener("click", function(){ removeOpening(btn.dataset.openKind, btn.dataset.openId); });
+      });
+      host.querySelectorAll("[data-goto]").forEach(function(btn){
+        btn.addEventListener("click", function(){ goto(btn.dataset.goto); });
+      });
+      return;
+    }
     var wall = found.wall, zone = found.zone, b = found.block, c = CATALOG[b.type];
 
     var otherWalls = state.walls.filter(function(w){ return w.id !== wall.id; });
@@ -1605,19 +1541,18 @@
     });
     if (c.hasInterior){
       host.querySelectorAll('[data-hw]').forEach(function(btn){
-        btn.addEventListener("click", function(){ setInterior(wall, zone, b.id, btn.dataset.hw); refreshAfterEdit(); });
+        btn.addEventListener("click", function(){ setInterior(wall, zone, b.id, btn.dataset.hw); });
       });
       var dec = host.querySelector('[data-role="hw-dec"]');
       var inc = host.querySelector('[data-role="hw-inc"]');
-      if (dec) dec.addEventListener("click", function(){ setInterior(wall, zone, b.id, "skuffur", b.interior.count - 1); refreshAfterEdit(); });
-      if (inc) inc.addEventListener("click", function(){ setInterior(wall, zone, b.id, "skuffur", b.interior.count + 1); refreshAfterEdit(); });
+      if (dec) dec.addEventListener("click", function(){ setInterior(wall, zone, b.id, "skuffur", b.interior.count - 1); });
+      if (inc) inc.addEventListener("click", function(){ setInterior(wall, zone, b.id, "skuffur", b.interior.count + 1); });
     }
-    host.querySelector('[data-role="left"]').addEventListener("click", function(){ moveBlock(wall, zone, b.id, -1); refreshAfterEdit(); });
-    host.querySelector('[data-role="right"]').addEventListener("click", function(){ moveBlock(wall, zone, b.id, 1); refreshAfterEdit(); });
+    host.querySelector('[data-role="left"]').addEventListener("click", function(){ moveBlock(wall, zone, b.id, -1); });
+    host.querySelector('[data-role="right"]').addEventListener("click", function(){ moveBlock(wall, zone, b.id, 1); });
     host.querySelector('[data-role="delete"]').addEventListener("click", function(){
-      removeBlock(wall, zone, b.id);
       selectedBlockId = null;
-      refreshAfterEdit();
+      removeBlock(wall, zone, b.id);
     });
     var moveSel = host.querySelector('[data-role="moveWall"]');
     if (moveSel){
@@ -1654,60 +1589,6 @@
   }
 
   // ---------- summary step ----------
-  function renderSummary(){
-    var body = document.getElementById("summaryBody");
-    var counts = {};
-    var html = "";
-    if (state.carcass){
-      var cc = CARCASS[state.carcass];
-      html += '<div class="look-selected-strip"><span style="display:inline-block;width:34px;height:34px;border-radius:7px;background:' + cc.color3d + ';"></span><span>Litur á skrokkum: <strong>' + cc.label + '</strong></span></div>';
-    }
-    if (state.look){
-      var l = LOOKS[state.look];
-      html += '<div class="look-selected-strip">' +
-        (l.img ? '<img src="' + l.img + '" alt="' + l.label + '">' : '') +
-        '<span>Valin framhlið: <strong>' + l.label + '</strong> — ' + l.desc + '</span></div>';
-    }
-    if (state.handle){
-      var h = HANDLES[state.handle];
-      html += '<div class="look-selected-strip">' +
-        (h.img ? '<img src="' + h.img + '" alt="' + h.label + '">' : '') +
-        '<span>Valin opnun: <strong>' + h.label + '</strong> — ' + h.desc + '</span></div>';
-    }
-    if (state.drawerSystem){
-      var ds = DRAWER_SYSTEMS[state.drawerSystem];
-      html += '<div class="look-selected-strip"><span>Skúffukerfi: <strong>' + ds.label + '</strong></span></div>';
-    }
-    if (state.wallColor){
-      var wc = WALL_COLORS[state.wallColor];
-      html += '<div class="look-selected-strip"><span style="display:inline-block;width:34px;height:34px;border-radius:7px;background:' + wc.hex + ';border:1px solid var(--line);"></span><span>Litur á veggjum: <strong>' + wc.label + '</strong></span></div>';
-    }
-    if (state.windows.length || state.doors.length){
-      html += '<div class="look-selected-strip"><span>' + state.windows.length + ' gluggi/gluggar · ' + state.doors.length + ' hurð(ir) teiknuð inn</span></div>';
-    }
-    state.walls.forEach(function(wall){
-      var rows = wall.wall.concat(wall.floor);
-      if (!rows.length) return;
-      html += '<div class="wallcard"><div class="wallcard-head"><h3>' + wall.label + ' <span class="len">· ' + wall.lengthMm + ' mm</span></h3></div>';
-      rows.forEach(function(b){
-        var c = CATALOG[b.type];
-        counts[c.label] = (counts[c.label] || 0) + 1;
-        var hw = b.interior
-          ? (b.interior.mode === "skuffur" ? " · " + b.interior.count + " skúffur" : " · hillur")
-          : "";
-        html += '<div class="summary-line"><span>' + c.label + hw + '</span><span>' + b.widthMm + ' × ' + blockHeightMm(b, c) + ' × ' + (b.depthMm || c.d) + ' mm</span></div>';
-      });
-      html += '</div>';
-    });
-    if (!html) html = '<p class="empty-note">Engir skápar komnir inn ennþá.</p>';
-
-    var totalLine = Object.keys(counts).map(function(k){ return counts[k] + '× ' + k; }).join(" · ");
-    var total = Object.values ? Object.keys(counts).reduce(function(s,k){return s+counts[k];},0) : 0;
-    html += '<div class="summary-total">Samtals ' + total + ' skápar' + (totalLine ? " — " + totalLine : "") + '</div>';
-
-    body.innerHTML = html;
-  }
-
   // ---------- toast ----------
   var toastTimer;
   function toast(msg){
@@ -1726,8 +1607,7 @@
 
   // ---------- screen switching ----------
   function goto(step){
-    if (state.step === "summary" && step !== "summary"){ KP3D.teardown3D(); selectedBlockId = null; }
-    if (state.step === "walls" && step !== "walls"){ selectedBlockId = null; }
+    if (state.step === "editor" && step !== "editor"){ KP3D.teardown3D(); selectedBlockId = null; }
     state.step = step;
     save();
     render();
@@ -1735,7 +1615,7 @@
 
   // Phase 7c: materials moved before shape/walls so room dimensions sit
   // immediately before the 3D view, matching the user's own outline.
-  var STEP_ORDER = ["intake", "materials", "shape", "walls", "summary", "contact", "done"];
+  var STEP_ORDER = ["intake", "materials", "shape", "editor", "contact", "done"];
 
   function render(){
     STEP_ORDER.forEach(function(s){
@@ -1750,9 +1630,18 @@
 
     if (state.step === "intake") renderIntake();
     if (state.step === "shape") renderShapeStep();
-    if (state.step === "walls") renderWalls();
     if (state.step === "materials") renderMaterials();
-    if (state.step === "summary"){ renderSummary(); renderEditPanel(); viewMode = "3d"; renderView(); }
+    document.getElementById("mainWrap").classList.toggle("wide", state.step === "editor");
+    document.getElementById("pageLede").hidden = state.step === "editor";
+    if (state.step === "editor"){
+      viewMode = "3d";
+      document.querySelectorAll("#viewToggle button").forEach(function(btn){ btn.classList.toggle("active", btn.dataset.view === "3d"); });
+      renderCatalogPanel();
+      renderEditPanel();
+      renderView();
+      var total = state.walls.reduce(function(sum, w){ return sum + w.floor.length + w.wall.length; }, 0);
+      document.getElementById("toContactBtn").disabled = total === 0;
+    }
   }
 
   // ---------- contact + submit ----------
@@ -1914,13 +1803,11 @@
   document.getElementById("toShapeBtn").addEventListener("click", function(){ goto("shape"); });
   document.getElementById("backToMaterialsBtn").addEventListener("click", function(){ goto("materials"); });
 
-  document.getElementById("toWallsBtn").addEventListener("click", function(){ goto("walls"); });
+  document.getElementById("toWallsBtn").addEventListener("click", function(){ goto("editor"); });
   document.getElementById("backToShapeBtn").addEventListener("click", function(){ goto("shape"); });
 
-  document.getElementById("toSummaryBtn").addEventListener("click", function(){ goto("summary"); });
-  document.getElementById("backToWallsBtn").addEventListener("click", function(){ goto("walls"); });
   document.getElementById("toContactBtn").addEventListener("click", function(){ goto("contact"); });
-  document.getElementById("backToSummaryBtn").addEventListener("click", function(){ goto("summary"); });
+  document.getElementById("backToEditorBtn").addEventListener("click", function(){ goto("editor"); });
   document.getElementById("submitBtn").addEventListener("click", function(){
     if (!validateContact()) return;
     submitPlan();

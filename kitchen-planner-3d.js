@@ -511,6 +511,21 @@
     mesh.visible = true;
   }
 
+  // Screen point → {wallId, alongMm} for the live 3D scene (used when a
+  // catalog item is dragged in from the side panel); null when the point is
+  // outside the canvas or misses the floor.
+  function dropPointFromClient(clientX, clientY){
+    if (!THREE_STATE) return null;
+    var rect = THREE_STATE.renderer.domElement.getBoundingClientRect();
+    if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) return null;
+    var THREE = window.__THREE__;
+    var rc = new THREE.Raycaster();
+    rc.setFromCamera(new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1), THREE_STATE.camera);
+    var pt = new THREE.Vector3();
+    if (!rc.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), pt)) return null;
+    return nearestWallDrop(THREE_STATE.geoms, THREE_STATE.walls, pt.x, pt.z);
+  }
+
   function hideDragPreview3D(){
     if (THREE_STATE && THREE_STATE.previewMesh) THREE_STATE.previewMesh.visible = false;
   }
@@ -699,7 +714,7 @@
     controls.update();
 
     var cleanupInteraction = setupCabinetInteraction(THREE, wrap, renderer, camera, controls, pickables, geoms, state.walls, opts);
-    THREE_STATE = { renderer:renderer, controls:controls, scene:scene, rafId:0, onResize:resize, cleanupInteraction:cleanupInteraction,
+    THREE_STATE = { renderer:renderer, camera:camera, controls:controls, scene:scene, rafId:0, onResize:resize, cleanupInteraction:cleanupInteraction,
                     walls:state.walls, geoms:geoms, previewMesh:null };
 
     function resize(){
@@ -870,6 +885,7 @@
     buildScene: buildScene,
     buildPlan2D: buildPlan2D,
     updateDragPreview3D: updateDragPreview3D,
+    dropPointFromClient: dropPointFromClient,
     hideDragPreview3D: hideDragPreview3D,
     teardown3D: teardown3D
   };
