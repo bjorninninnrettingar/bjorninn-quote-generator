@@ -18,7 +18,14 @@
   var CATALOG = {
     grunnskapur: { label:"Grunnskápur", zone:"floor", cls:"floor", defaultW:600, minW:600, maxW:600, h:800,  d:600, minH:800,  maxH:800,  minD:600, maxD:600, hasInterior:true, drawerCountRange:[1,5] },
     harskapur:   { label:"Hárskápur",   zone:"floor", cls:"tall",  defaultW:600, minW:600, maxW:600, h:2400, d:600, minH:2400, maxH:2400, minD:600, maxD:600, hasInterior:true, drawerCountRange:[1,5] },
-    efriskapur:  { label:"Efriskápur",  zone:"wall",  cls:"wall",  defaultW:600, minW:600, maxW:600, h:1000, d:300, minH:1000, maxH:1000, minD:300, maxD:300, hasInterior:false }
+    efriskapur:  { label:"Efriskápur",  zone:"wall",  cls:"wall",  defaultW:600, minW:600, maxW:600, h:1000, d:300, minH:1000, maxH:1000, minD:300, maxD:300, hasInterior:false },
+    // legacy:true = not offered in the editor's catalog, but kept so drafts
+    // and already-submitted plans (Rakel's review page renders those) that
+    // contain them still draw and submit correctly instead of crashing or
+    // silently dropping a cabinet.
+    ofnaskapur:  { label:"Ofnaskápur",  zone:"floor", cls:"oven",  defaultW:600, minW:600, maxW:600, h:2100, d:600, minH:1800, maxH:2200, minD:600, maxD:600, hasInterior:false, ovenHeightMm:595, legacy:true },
+    tofrahorn:   { label:"Töfrahorn (kapphorn)", zone:"floor", cls:"corner", defaultW:900, minW:900, maxW:900, h:800, d:900, minH:800, maxH:800, minD:900, maxD:900, hasInterior:false,
+                   skapategundOverride:"Grunnskápur", tofrahornId:"rec9PD5fCZGUpwAon", legacy:true }
   };
 
   // Fixed tie-break priority, kept for display ordering (the style quiz that

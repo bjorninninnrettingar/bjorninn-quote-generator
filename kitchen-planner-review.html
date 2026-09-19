@@ -248,6 +248,10 @@
         return;
       }
       state = JSON.parse(raw);
+      state.walls.forEach(function(w){
+        w.floor = (w.floor || []).filter(function(b){ return KP3D.CATALOG[b.type]; });
+        w.wall = (w.wall || []).filter(function(b){ return KP3D.CATALOG[b.type]; });
+      });
       render();
     }catch(e){
       body.innerHTML = '<p class="error">Villa við að sækja gögn: ' + esc(e.message) + '</p>';

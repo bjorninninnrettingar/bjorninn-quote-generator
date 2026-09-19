@@ -597,6 +597,12 @@
       if (state.wallColor === undefined) state.wallColor = null;
       if (!state.windows) state.windows = [];
       if (!state.doors) state.doors = [];
+      // A draft can only contain types this build knows (corrupt/very old
+      // data would otherwise crash every render on CATALOG[b.type].label).
+      state.walls.forEach(function(w){
+        w.floor = (w.floor || []).filter(function(b){ return CATALOG[b.type]; });
+        w.wall = (w.wall || []).filter(function(b){ return CATALOG[b.type]; });
+      });
       // Old drafts may be mid-step in steps that no longer exist.
       if (state.step === "quiz") state.step = "intake";
       if (state.step === "walls" || state.step === "summary") state.step = "editor"; // the two steps merged into one editor
@@ -823,7 +829,7 @@
   // share the block's own zone (floor vs wall) — swapping zones would mean
   // moving the block into a different array, out of scope here.
   function typesForZone(zone){
-    return Object.keys(CATALOG).filter(function(t){ return CATALOG[t].zone === zone; });
+    return Object.keys(CATALOG).filter(function(t){ return CATALOG[t].zone === zone && !CATALOG[t].legacy; });
   }
 
   function changeBlockType(wall, zone, id, newType){
@@ -1577,7 +1583,9 @@
 
     var otherWalls = state.walls.filter(function(w){ return w.id !== wall.id; });
     var moveOptions = otherWalls.map(function(w){ return '<option value="' + w.id + '">' + w.label + '</option>'; }).join("");
-    var typeOptions = typesForZone(zone).map(function(t){
+    var typeKeys = typesForZone(zone);
+    if (typeKeys.indexOf(b.type) < 0) typeKeys.unshift(b.type); // legacy type keeps its own entry
+    var typeOptions = typeKeys.map(function(t){
       return '<option value="' + t + '"' + (t === b.type ? " selected" : "") + '>' + CATALOG[t].label + '</option>';
     }).join("");
 
