@@ -706,6 +706,14 @@
     return true;
   }
 
+  // PNG of the current 3D view: render once and read the canvas in the same
+  // tick (without preserveDrawingBuffer the buffer is cleared after compositing).
+  function snapshot3D(){
+    if (!THREE_STATE) return null;
+    THREE_STATE.renderer.render(THREE_STATE.scene, THREE_STATE.camera);
+    return THREE_STATE.renderer.domElement.toDataURL("image/png");
+  }
+
   function hideDragPreview3D(){
     if (THREE_STATE && THREE_STATE.previewMesh) THREE_STATE.previewMesh.visible = false;
   }
@@ -1146,6 +1154,7 @@
     updateDragPreview3D: updateDragPreview3D,
     dropPointFromClient: dropPointFromClient,
     setSelected3D: setSelected3D,
+    snapshot3D: snapshot3D,
     shelvesOf: shelvesOf,
     hideDragPreview3D: hideDragPreview3D,
     teardown3D: teardown3D

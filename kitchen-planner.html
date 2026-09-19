@@ -472,6 +472,7 @@
           </div>
           <div class="view-toggle" id="camToggle">
             <button type="button" id="resetCamBtn" title="Endurstilla sýn">🎯</button>
+            <button type="button" id="snapBtn" title="Vista mynd af skipulaginu">📷</button>
           </div>
           <div class="view-toggle" id="histToggle">
             <button type="button" id="undoBtn" title="Afturkalla (⌘Z)" disabled>↶</button>
@@ -2218,6 +2219,35 @@
     if (viewMode !== "3d") return;
     KP3D.teardown3D(true); // discard the remembered camera so the rebuild re-frames the room
     renderView();
+  });
+  // Save the current view as a PNG (3D: canvas readback; 2D: SVG → canvas).
+  function downloadDataUrl(url){
+    var a = document.createElement("a");
+    a.href = url; a.download = "eldhus-skipulag.png";
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+  document.getElementById("snapBtn").addEventListener("click", function(){
+    if (viewMode === "3d"){
+      var url = KP3D.snapshot3D();
+      if (url) downloadDataUrl(url); else toast("3D myndin er ekki tilbúin ennþá.");
+      return;
+    }
+    var svg = document.querySelector("#planWrap svg");
+    if (!svg){ toast("Engin teikning til að vista."); return; }
+    var vb = svg.viewBox.baseVal, scale = 2;
+    var img = new Image();
+    img.onload = function(){
+      var cv = document.createElement("canvas");
+      cv.width = vb.width * scale; cv.height = vb.height * scale;
+      var cx = cv.getContext("2d");
+      cx.fillStyle = "#faf9f6"; cx.fillRect(0, 0, cv.width, cv.height);
+      cx.drawImage(img, 0, 0, cv.width, cv.height);
+      downloadDataUrl(cv.toDataURL("image/png"));
+    };
+    var clone = svg.cloneNode(true);
+    clone.setAttribute("width", vb.width * scale); clone.setAttribute("height", vb.height * scale);
+    clone.style.width = ""; clone.style.height = "";
+    img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(new XMLSerializer().serializeToString(clone));
   });
   document.getElementById("undoBtn").addEventListener("click", function(){ stepHistory(-1); });
   document.getElementById("redoBtn").addEventListener("click", function(){ stepHistory(1); });
