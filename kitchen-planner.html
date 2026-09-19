@@ -114,6 +114,8 @@
   }
   .cat-item:hover{ border-color:var(--blue); }
   .cat-item.dragging{ opacity:.35; }
+  .cat-more{ margin:2px 0 8px; }
+  .cat-more summary{ font-size:12.5px; color:var(--blue); cursor:pointer; padding:4px 2px; margin-bottom:6px; }
   .cat-item .sw{ width:34px; height:34px; border-radius:8px; flex:none; }
   .cat-item .sw.floor{ background:var(--floor); } .cat-item .sw.tall{ background:var(--tall); }
   .cat-item .sw.wall{ background:var(--wall); } .cat-item .sw.window{ background:#5b8fae; }
@@ -1192,6 +1194,7 @@
   }
 
   // ---------- catalog panel (left column of the editor) ----------
+  var openMore = {}; // which "Fleiri stærðir" folds are open — survives re-renders
   function renderCatalogPanel(){
     var host = document.getElementById("catalogPanel");
     function room(type){
@@ -1202,16 +1205,25 @@
       return '<button type="button" class="cat-item" data-kind="' + kind + '" data-type="' + type + '"' + (ok ? "" : ' style="opacity:.45;"') + '>' +
         '<span class="sw ' + cls + '"></span><span><span class="nm">' + name + '</span><span class="dim">' + dim + '</span></span></button>';
     }
+    function cabinetItem(type){
+      var c = CATALOG[type];
+      return item("cabinet", type, c.cls, c.label, c.h + ' × ' + c.defaultW + ' × ' + c.d + ' mm', room(type));
+    }
     var html = CATALOG_GROUPS.map(function(group){
-      return '<div class="cat-title">' + group.title + '</div>' + group.types.map(function(type){
-        var c = CATALOG[type];
-        return item("cabinet", type, c.cls, c.label, c.h + ' × ' + c.defaultW + ' × ' + c.d + ' mm', room(type));
-      }).join("");
+      var variants = [];
+      group.types.forEach(function(core){
+        Object.keys(CATALOG).forEach(function(k){ if (CATALOG[k].variantOf === core) variants.push(k); });
+      });
+      return '<div class="cat-title">' + group.title + '</div>' + group.types.map(cabinetItem).join("") +
+        (variants.length ? '<details class="cat-more"' + (openMore[group.title] ? " open" : "") + ' data-group="' + group.title + '"><summary>Fleiri stærðir (' + variants.length + ')</summary>' + variants.map(cabinetItem).join("") + '</details>' : "");
     }).join("");
     html += '<div class="cat-title">Gluggar og hurðir</div>' +
       item("opening", "gluggi", "window", "Gluggi", WINDOW_DEFAULT.heightMm + ' × ' + WINDOW_DEFAULT.widthMm + ' mm', true) +
       item("opening", "hurd", "door", "Hurð", DOOR_DEFAULT.heightMm + ' × ' + DOOR_DEFAULT.widthMm + ' mm', true);
     host.innerHTML = html;
+    host.querySelectorAll(".cat-more").forEach(function(d){
+      d.addEventListener("toggle", function(){ openMore[d.dataset.group] = d.open; });
+    });
     host.querySelectorAll(".cat-item").forEach(function(card){
       card.addEventListener("pointerdown", function(evt){ startCatalogDrag(card.dataset.kind, card.dataset.type, card, evt); });
       // keyboard: Enter/Space adds it (pointer handlers alone aren't focus-activatable)
@@ -1773,8 +1785,11 @@
     var moveOptions = otherWalls.map(function(w){ return '<option value="' + w.id + '">' + w.label + '</option>'; }).join("");
     var typeKeys = typesForZone(zone);
     if (typeKeys.indexOf(b.type) < 0) typeKeys.unshift(b.type); // legacy type keeps its own entry
-    var typeOptions = typeKeys.map(function(t){
-      return '<option value="' + t + '"' + (t === b.type ? " selected" : "") + '>' + CATALOG[t].label + '</option>';
+    function opt(t){ return '<option value="' + t + '"' + (t === b.type ? " selected" : "") + '>' + CATALOG[t].label + '</option>'; }
+    // grouped by core type so 14 entries don't read as one flat list
+    var typeOptions = typeKeys.filter(function(t){ return !CATALOG[t].variantOf; }).map(function(core){
+      var kids = typeKeys.filter(function(t){ return CATALOG[t].variantOf === core; });
+      return kids.length ? '<optgroup label="' + CATALOG[core].label + '">' + opt(core) + kids.map(opt).join("") + '</optgroup>' : opt(core);
     }).join("");
 
     host.innerHTML =

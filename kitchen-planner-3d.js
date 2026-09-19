@@ -28,6 +28,24 @@
                    skapategundOverride:"Grunnskápur", tofrahornId:"rec9PD5fCZGUpwAon", legacy:true }
   };
 
+  // Width variants ("underskápar") of the three core types. Same height/depth
+  // and same real Skápategund (skapategundOverride = the core's label), only
+  // Breidd differs — so no new Airtable choices are needed. Offered in the
+  // editor's catalog under "Fleiri stærðir"; edit this list to add or remove.
+  var WIDTH_VARIANTS = {
+    grunnskapur: [300, 400, 500, 800, 900, 1000, 1200],
+    harskapur:   [300, 400, 500, 800, 900],
+    efriskapur:  [300, 400, 500, 800, 900, 1000, 1200]
+  };
+  Object.keys(WIDTH_VARIANTS).forEach(function(base){
+    WIDTH_VARIANTS[base].forEach(function(w){
+      var b = CATALOG[base];
+      CATALOG[base + "_" + w] = Object.assign({}, b, {
+        label: b.label + " " + w, defaultW:w, minW:w, maxW:w, skapategundOverride:b.label, variantOf:base
+      });
+    });
+  });
+
   // Fixed tie-break priority, kept for display ordering (the style quiz that
   // used this for scoring was removed — see Phase 7a).
   var LOOK_ORDER = ["hvitt", "gratt", "eik", "valhnota", "sponn"];
