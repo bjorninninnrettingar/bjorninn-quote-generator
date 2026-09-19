@@ -280,11 +280,10 @@
   // realism" approach used for cabinets/handles throughout). `baseYM` is
   // where the opening starts (sill height for a window, 0 for a door).
   var WINDOW_MARKER_COLOR = 0xa9c6d6, DOOR_MARKER_COLOR = 0x8a6a4a;
-  function addOpeningMarker(THREE, scene, geom, offsetM, widthM, heightM, baseYM, color, opacity){
-    var mesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(widthM, heightM),
-      new THREE.MeshStandardMaterial({ color:color, roughness:0.5, transparent:true, opacity:opacity, side:THREE.DoubleSide })
-    );
+  function addOpeningMarker(THREE, scene, geom, offsetM, widthM, heightM, baseYM, color, opacity, meta, selected, pickables){
+    var mat = new THREE.MeshStandardMaterial({ color:color, roughness:0.5, transparent:true, opacity:opacity, side:THREE.DoubleSide });
+    if (selected){ mat.emissive = new THREE.Color(SELECT_COLOR); mat.emissiveIntensity = 0.55; }
+    var mesh = new THREE.Mesh(new THREE.PlaneGeometry(widthM, heightM), mat);
     var cx = geom.origin.x + geom.axis.x * (offsetM + widthM / 2);
     var cz = geom.origin.z + geom.axis.z * (offsetM + widthM / 2);
     var xAxis = new THREE.Vector3(geom.axis.x, 0, geom.axis.z);
@@ -295,7 +294,13 @@
     // without needing to cut real geometry.
     var frontOut = 0.005;
     mesh.position.set(cx + geom.normal.x * frontOut, baseYM + heightM / 2, cz + geom.normal.z * frontOut);
-    scene.add(mesh);
+    // Same group-per-object shape as cabinets so a 3D drag can move it; the
+    // plane is pickable, so windows/doors select and drag like cabinets.
+    if (meta) mesh.userData = meta;
+    var group = new THREE.Group();
+    group.add(mesh);
+    scene.add(group);
+    if (pickables && meta) pickables.push(mesh);
   }
 
   function addDrawerSeams(THREE, scene, geom, offsetM, widthM, heightM, baseYM, depthM, count){
@@ -465,7 +470,7 @@
       if (mesh === hovered) return;
       if (hovered){ var e0 = hovered.parent && hovered.parent.children[1]; if (e0 && e0.material && !hovered.userData.selected) e0.material.color.set(0x2a2a2a); }
       hovered = mesh;
-      if (hovered){ var e1 = hovered.parent && hovered.parent.children[1]; if (e1 && e1.material) e1.material.color.set(SELECT_COLOR); }
+      if (hovered){ var e1 = hovered.parent && hovered.parent.children[1]; if (e1 && e1.material && e1.material.color) e1.material.color.set(SELECT_COLOR); }
       renderer.domElement.style.cursor = hovered ? "grab" : "";
     }
     function onMove(evt){
@@ -697,17 +702,20 @@
       var wi = state.walls.findIndex(function(w){ return w.id === wallId; });
       return wi === -1 ? null : geoms[wi];
     }
+    var pickables = [];
     (state.windows || []).forEach(function(win){
       var g = geomForWall(win.wallId);
       if (!g) return;
       addOpeningMarker(THREE, scene, g, win.offsetMm / 1000, win.widthMm / 1000, win.heightMm / 1000,
-        win.sillHeightMm / 1000, WINDOW_MARKER_COLOR, 0.55);
+        win.sillHeightMm / 1000, WINDOW_MARKER_COLOR, 0.55,
+        { wallId:win.wallId, zone:"opening", kind:"window", blockId:win.id, widthMm:win.widthMm, depthMm:10 }, opts.selectedId === win.id, pickables);
     });
     (state.doors || []).forEach(function(door){
       var g = geomForWall(door.wallId);
       if (!g) return;
       addOpeningMarker(THREE, scene, g, door.offsetMm / 1000, door.widthMm / 1000, door.heightMm / 1000,
-        0, DOOR_MARKER_COLOR, 0.85);
+        0, DOOR_MARKER_COLOR, 0.85,
+        { wallId:door.wallId, zone:"opening", kind:"door", blockId:door.id, widthMm:door.widthMm, depthMm:10 }, opts.selectedId === door.id, pickables);
     });
 
     var look = state.look ? LOOKS[state.look] : null;
@@ -722,7 +730,6 @@
       frontMat.map = frontTex;
     }
 
-    var pickables = [];
     state.walls.forEach(function(wall, wi){
       var g = geoms[wi];
       if (!g) return;
@@ -912,8 +919,9 @@
       var offsetM = o.offsetMm / 1000, widthM = o.widthMm / 1000;
       var x1 = g.origin.x + g.axis.x * offsetM, z1 = g.origin.z + g.axis.z * offsetM;
       var x2 = g.origin.x + g.axis.x * (offsetM + widthM), z2 = g.origin.z + g.axis.z * (offsetM + widthM);
+      var sel = opts.selectedId === o.id;
       svg += '<line ' + dataAttr + '="' + o.id + '" x1="' + X(x1) + '" y1="' + Y(z1) + '" x2="' + X(x2) + '" y2="' + Y(z2) +
-        '" stroke="' + color + '" stroke-width="7" stroke-linecap="butt" style="cursor:pointer;"/>';
+        '" stroke="' + (sel ? "#3d61c1" : color) + '" stroke-width="' + (sel ? 10 : 7) + '" stroke-linecap="butt" style="cursor:pointer;"/>';
     }
     (state.windows || []).forEach(function(w){ openingSegment(w, 'data-window-id', "#5b8fae"); });
     (state.doors || []).forEach(function(d){ openingSegment(d, 'data-door-id', "#8a6a4a"); });
@@ -953,6 +961,13 @@
       container.querySelectorAll("[data-block-id]").forEach(function(el){
         el.addEventListener("click", function(){
           opts.onSelect({ wallId: el.dataset.wallId, zone: el.dataset.zone, blockId: el.dataset.blockId });
+        });
+      });
+      container.querySelectorAll("[data-window-id],[data-door-id]").forEach(function(el){
+        el.addEventListener("click", function(evt){
+          evt.stopPropagation();
+          var isWin = el.dataset.windowId !== undefined;
+          opts.onSelect({ blockId: isWin ? el.dataset.windowId : el.dataset.doorId, kind: isWin ? "window" : "door", zone:"opening" });
         });
       });
       // Clicking empty plan background deselects, mirroring the 3D view.

@@ -86,6 +86,7 @@
     background:#fff; border:1px solid var(--line); border-radius:12px;
     box-shadow:0 6px 20px rgba(0,0,0,.18); transform:translate(-50%,-100%);
   }
+  .float-bar.opening button:not(.del){ display:none; }
   .float-bar button{
     width:34px; height:34px; border:none; background:none; border-radius:8px; cursor:pointer;
     font-size:15px; color:var(--ink); display:flex; align-items:center; justify-content:center;
@@ -1239,6 +1240,24 @@
     refreshAfterEdit();
   }
 
+  function findOpening(id){
+    var w = state.windows.find(function(o){ return o.id === id; });
+    if (w) return { kind:"window", o:w };
+    var d = state.doors.find(function(o){ return o.id === id; });
+    return d ? { kind:"door", o:d } : null;
+  }
+
+  // Re-seat an existing window/door (dragged in 3D or 2D): same wall-end
+  // snapping as placing a new one, on whichever wall it was dropped on.
+  function moveOpening(id, wallId, alongMm){
+    var f = findOpening(id), wall = state.walls.find(function(w){ return w.id === wallId; });
+    if (!f || !wall) return;
+    f.o.wallId = wallId;
+    f.o.offsetMm = snappedOpeningOffset(wall, f.o.widthMm, alongMm);
+    save();
+    refreshAfterEdit();
+  }
+
   function removeOpening(kind, id){
     var list = kind === "window" ? state.windows : state.doors;
     var idx = list.findIndex(function(o){ return o.id === id; });
@@ -1327,7 +1346,52 @@
     if (drop) moveBlockToPosition(blockId, drop.wallId, drop.alongMm);
   }
 
+  // 2D: drag a window/door along (or between) walls — preview + commit
+  // mirror the cabinet drag below.
+  var openingDrag = null;
+  function startOpeningDrag(id, evt){
+    evt.preventDefault();
+    evt.stopPropagation();
+    var f = findOpening(id);
+    if (!f) return;
+    var ghost = document.createElement("div");
+    ghost.className = "drag-ghost";
+    ghost.textContent = f.kind === "window" ? "Gluggi" : "Hurð";
+    document.body.appendChild(ghost);
+    ghostPosition(ghost, evt.clientX, evt.clientY);
+    openingDrag = { id:id, ghostEl:ghost, startX:evt.clientX, startY:evt.clientY, moved:false };
+    window.addEventListener("pointermove", onOpeningDragMove);
+    window.addEventListener("pointerup", onOpeningDragEnd, { once:true });
+  }
+  function onOpeningDragMove(evt){
+    if (!openingDrag) return;
+    ghostPosition(openingDrag.ghostEl, evt.clientX, evt.clientY);
+    if (!openingDrag.moved){
+      if (Math.hypot(evt.clientX - openingDrag.startX, evt.clientY - openingDrag.startY) < 6) return;
+      openingDrag.moved = true;
+    }
+    var drop = findDropPoint(evt.clientX, evt.clientY), f = findOpening(openingDrag.id);
+    highlightDropWall(drop ? drop.wallId : null);
+    var wall = drop && state.walls.find(function(w){ return w.id === drop.wallId; });
+    if (!wall || !f){ hideDragPreview(); return; }
+    updateDragPreviewRect(drop.wallId, snappedOpeningOffset(wall, f.o.widthMm, drop.alongMm), f.o.widthMm, 60, true);
+  }
+  function onOpeningDragEnd(evt){
+    window.removeEventListener("pointermove", onOpeningDragMove);
+    if (!openingDrag) return;
+    var d = openingDrag, drop = d.moved ? findDropPoint(evt.clientX, evt.clientY) : null;
+    d.ghostEl.remove();
+    clearDropHighlight();
+    removeDragPreview();
+    openingDrag = null;
+    if (!d.moved){ onCabinetSelect({ blockId:d.id, zone:"opening" }); return; }
+    if (drop) moveOpening(d.id, drop.wallId, drop.alongMm);
+  }
+
   function wireBlockDragHandlers(){
+    document.querySelectorAll("#planWrap [data-window-id], #planWrap [data-door-id]").forEach(function(el){
+      el.addEventListener("pointerdown", function(evt){ startOpeningDrag(el.dataset.windowId || el.dataset.doorId, evt); });
+    });
     document.querySelectorAll("#planWrap [data-block-id]").forEach(function(poly){
       poly.addEventListener("pointerdown", function(evt){ startBlockDrag(poly.dataset.blockId, evt); });
     });
@@ -1470,6 +1534,12 @@
   // moveBlockToPosition, just fed by a raycast instead of an SVG hit-test.
   function on3DDragMove(meta, drop){
     var wall = drop && state.walls.find(function(w){ return w.id === drop.wallId; });
+    if (meta.kind){
+      var op = findOpening(meta.blockId);
+      if (!wall || !op){ KP3D.hideDragPreview3D(); return; }
+      KP3D.updateDragPreview3D(drop.wallId, snappedOpeningOffset(wall, op.o.widthMm, drop.alongMm), op.o.widthMm, 60, true);
+      return;
+    }
     var found = findBlock(meta.blockId);
     if (!wall || !found){ KP3D.hideDragPreview3D(); return; }
     var c = CATALOG[found.block.type];
@@ -1479,7 +1549,9 @@
 
   function on3DDragEnd(meta, drop){
     KP3D.hideDragPreview3D();
-    if (drop) moveBlockToPosition(meta.blockId, drop.wallId, drop.alongMm);
+    if (!drop) return;
+    if (meta.kind) moveOpening(meta.blockId, drop.wallId, drop.alongMm);
+    else moveBlockToPosition(meta.blockId, drop.wallId, drop.alongMm);
   }
 
   function duplicateBlock(wall, zone, id){
@@ -1503,6 +1575,8 @@
   // from KP3D; 2D places it from the selected polygon's screen box).
   document.getElementById("floatBar").addEventListener("click", function(e){
     var btn = e.target.closest("[data-fb]");
+    var opening = selectedBlockId ? findOpening(selectedBlockId) : null;
+    if (btn && opening && btn.dataset.fb === "del"){ selectedBlockId = null; removeOpening(opening.kind, opening.o.id); return; }
     var found = selectedBlockId ? findBlock(selectedBlockId) : null;
     if (!btn || !found) return;
     var act = btn.dataset.fb;
@@ -1514,7 +1588,7 @@
 
   function positionFloatBar2D(){
     var bar = document.getElementById("floatBar");
-    var poly = selectedBlockId ? document.querySelector('#planWrap [data-block-id="' + selectedBlockId + '"]') : null;
+    var poly = selectedBlockId ? document.querySelector('#planWrap [data-block-id="' + selectedBlockId + '"], #planWrap [data-window-id="' + selectedBlockId + '"], #planWrap [data-door-id="' + selectedBlockId + '"]') : null;
     if (!poly){ bar.hidden = true; return; }
     var r = poly.getBoundingClientRect(), pr = bar.offsetParent.getBoundingClientRect();
     bar.style.left = (r.left - pr.left + r.width / 2) + "px";
@@ -1527,6 +1601,7 @@
     var plan = document.getElementById("planWrap");
     KP3D.teardown3D();
     document.getElementById("floatBar").hidden = true;
+    document.getElementById("floatBar").classList.toggle("opening", !!(selectedBlockId && findOpening(selectedBlockId)));
 
     if (viewMode === "2d"){
       wrap.hidden = true; plan.hidden = false;
@@ -1587,7 +1662,7 @@
       html += '<div class="ov-wall"><div class="ov-wall-h">Gluggar og hurðir</div>';
       openings.forEach(function(x){
         var wall = state.walls.find(function(w){ return w.id === x.o.wallId; });
-        html += '<div class="ov-item" style="cursor:default;"><span style="color:var(--ink);font-weight:600;">' + x.label + ' · ' + (wall ? wall.label : "") + '</span>' +
+        html += '<div class="ov-item" data-select="' + x.o.id + '" style="cursor:pointer;"><span style="color:var(--ink);font-weight:600;">' + x.label + ' · ' + (wall ? wall.label : "") + '</span>' +
           '<button type="button" class="iconbtn del" data-open-kind="' + x.kind + '" data-open-id="' + x.o.id + '" title="Fjarlægja">✕</button></div>';
       });
       html += '</div>';
@@ -1603,8 +1678,43 @@
     return html;
   }
 
+  // Window/door properties: width (and sill height for windows) in steps,
+  // clamped so the opening always stays inside its wall.
+  function renderOpeningPanel(host, f){
+    var o = f.o, wall = state.walls.find(function(w){ return w.id === o.wallId; });
+    var isWin = f.kind === "window";
+    function row(label, key, val, step){
+      return '<div class="edit-field"><label>' + label + '</label><div class="hw-count">' +
+        '<button class="iconbtn" data-op="' + key + '" data-dir="-1">−</button><b style="min-width:60px;">' + val + ' mm</b>' +
+        '<button class="iconbtn" data-op="' + key + '" data-dir="1">+</button></div></div>';
+    }
+    host.innerHTML =
+      '<div class="edit-panel">' +
+        '<div class="edit-panel-head"><div><h4>' + (isWin ? "Gluggi" : "Hurð") + '</h4><div class="sub">' + (wall ? wall.label : "") + '</div></div>' +
+          '<button class="iconbtn" data-role="close" title="Loka">✕</button></div>' +
+        row("Breidd", "widthMm", o.widthMm) +
+        row("Hæð", "heightMm", o.heightMm) +
+        (isWin ? row("Hæð frá gólfi", "sillHeightMm", o.sillHeightMm) : "") +
+        '<div class="edit-actions"><button class="iconbtn del" data-role="delete" title="Fjarlægja">✕ Fjarlægja</button></div>' +
+      '</div>';
+    var LIMITS = { widthMm:[400, wall ? wall.lengthMm : 3000, 100], heightMm:[600, 2500, 100], sillHeightMm:[0, 1500, 50] };
+    host.querySelector('[data-role="close"]').addEventListener("click", function(){ onCabinetSelect(null); });
+    host.querySelector('[data-role="delete"]').addEventListener("click", function(){ selectedBlockId = null; removeOpening(f.kind, o.id); });
+    host.querySelectorAll("[data-op]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var key = btn.dataset.op, lim = LIMITS[key];
+        o[key] = Math.max(lim[0], Math.min(lim[1], o[key] + parseInt(btn.dataset.dir, 10) * lim[2]));
+        if (wall) o.offsetMm = Math.max(0, Math.min(wall.lengthMm - o.widthMm, o.offsetMm));
+        save();
+        refreshAfterEdit();
+      });
+    });
+  }
+
   function renderEditPanelInto(host){
     var found = selectedBlockId ? findBlock(selectedBlockId) : null;
+    var opening = !found && selectedBlockId ? findOpening(selectedBlockId) : null;
+    if (opening){ renderOpeningPanel(host, opening); return; }
     if (!found){
       selectedBlockId = null;
       host.innerHTML = overviewHTML();
@@ -1612,7 +1722,7 @@
         btn.addEventListener("click", function(){ onCabinetSelect({ blockId:btn.dataset.select }); });
       });
       host.querySelectorAll("[data-open-kind]").forEach(function(btn){
-        btn.addEventListener("click", function(){ removeOpening(btn.dataset.openKind, btn.dataset.openId); });
+        btn.addEventListener("click", function(e){ e.stopPropagation(); removeOpening(btn.dataset.openKind, btn.dataset.openId); });
       });
       host.querySelectorAll("[data-goto]").forEach(function(btn){
         btn.addEventListener("click", function(){ goto(btn.dataset.goto); });
@@ -1941,8 +2051,9 @@
     if (mod && e.key.toLowerCase() === "y"){ e.preventDefault(); stepHistory(1); return; }
     if (!selectedBlockId) return;
     if (e.key === "Delete" || e.key === "Backspace"){
-      var found = findBlock(selectedBlockId);
+      var found = findBlock(selectedBlockId), op = found ? null : findOpening(selectedBlockId);
       if (found){ e.preventDefault(); selectedBlockId = null; removeBlock(found.wall, found.zone, found.block.id); }
+      else if (op){ e.preventDefault(); selectedBlockId = null; removeOpening(op.kind, op.o.id); }
     } else if (e.key === "Escape"){ onCabinetSelect(null); }
   });
 
