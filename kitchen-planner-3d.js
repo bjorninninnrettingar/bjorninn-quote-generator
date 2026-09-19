@@ -319,7 +319,10 @@
   // where the opening starts (sill height for a window, 0 for a door).
   var WINDOW_MARKER_COLOR = 0xa9c6d6, DOOR_MARKER_COLOR = 0x8a6a4a;
   function addOpeningMarker(THREE, scene, geom, offsetM, widthM, heightM, baseYM, color, opacity, meta, selected, pickables){
-    var mat = new THREE.MeshStandardMaterial({ color:color, roughness:0.5, transparent:true, opacity:opacity, side:THREE.DoubleSide });
+    var isWin = meta && meta.kind === "window";
+    var mat = isWin
+      ? new THREE.MeshPhysicalMaterial({ color:0xbfd8e8, roughness:0.05, metalness:0, transparent:true, opacity:0.32, side:THREE.DoubleSide })
+      : new THREE.MeshStandardMaterial({ color:0xd9d2c4, roughness:0.55, transparent:true, opacity:1, side:THREE.DoubleSide });
     if (selected){ mat.emissive = new THREE.Color(SELECT_COLOR); mat.emissiveIntensity = 0.55; }
     var mesh = new THREE.Mesh(new THREE.PlaneGeometry(widthM, heightM), mat);
     var cx = geom.origin.x + geom.axis.x * (offsetM + widthM / 2);
@@ -339,6 +342,31 @@
     group.add(mesh);
     scene.add(group);
     if (pickables && meta) pickables.push(mesh);
+
+    // Frame, sill / door leaf detail — all children of the same group, so a
+    // drag or selection treats the opening as one object.
+    var isDoor = meta && meta.kind === "door";
+    var frameMat = new THREE.MeshStandardMaterial({ color:0xf2f0ea, roughness:0.5 });
+    function at(along, y, out){
+      return new THREE.Vector3(geom.origin.x + geom.axis.x * (offsetM + widthM / 2 + along) + geom.normal.x * out, y,
+        geom.origin.z + geom.axis.z * (offsetM + widthM / 2 + along) + geom.normal.z * out);
+    }
+    var q = mesh.quaternion, fw = 0.055, fo = 0.03;
+    function bar(w, h, d, along, y, out, mat){
+      var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat || frameMat);
+      m.position.copy(at(along, y, out)); m.quaternion.copy(q); m.castShadow = true; group.add(m); return m;
+    }
+    bar(widthM, fw, 0.05, 0, baseYM + heightM - fw / 2, fo);                       // head
+    bar(fw, heightM, 0.05, -(widthM / 2 - fw / 2), baseYM + heightM / 2, fo);      // left jamb
+    bar(fw, heightM, 0.05, widthM / 2 - fw / 2, baseYM + heightM / 2, fo);         // right jamb
+    if (!isDoor){
+      bar(widthM, fw, 0.05, 0, baseYM + fw / 2, fo);                               // window base rail
+      bar(0.035, heightM - 2 * fw, 0.04, 0, baseYM + heightM / 2, fo);             // centre mullion
+      bar(widthM + 0.12, 0.035, 0.13, 0, baseYM - 0.0175, 0.065);                  // sill
+    } else {
+      var handleMat = new THREE.MeshStandardMaterial({ color:0x55575a, metalness:0.7, roughness:0.35 });
+      bar(0.14, 0.02, 0.04, widthM / 2 - 0.1, 1.0, 0.04, handleMat);               // lever handle
+    }
   }
 
   function addDrawerSeams(THREE, scene, geom, offsetM, widthM, heightM, baseYM, depthM, count){
@@ -867,6 +895,16 @@
       sp.position.set(g.origin.x + g.axis.x * g.lenM / 2, WALL_H + 0.16, g.origin.z + g.axis.z * g.lenM / 2);
       sp.renderOrder = 10;
       scene.add(sp);
+    });
+
+    // White skirting boards along every wall (visible wherever no cabinet stands)
+    var skirtMat = new THREE.MeshStandardMaterial({ color:0xf3f1ec, roughness:0.55 });
+    geoms.forEach(function(g){
+      var sk = new THREE.Mesh(new THREE.BoxGeometry(g.lenM, 0.09, 0.014), skirtMat);
+      sk.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(g.axis.x, 0, g.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(g.normal.x, 0, g.normal.z)));
+      sk.position.set(g.origin.x + g.axis.x * g.lenM / 2 + g.normal.x * 0.007, 0.045, g.origin.z + g.axis.z * g.lenM / 2 + g.normal.z * 0.007);
+      sk.receiveShadow = true;
+      scene.add(sk);
     });
 
     var wallFades = geoms.map(function(g){
