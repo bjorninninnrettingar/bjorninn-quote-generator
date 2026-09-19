@@ -1287,15 +1287,22 @@
     var look = state.look ? LOOKS[state.look] : null;
     var fillColor = look ? look.color3d : "#b7b2a4";
 
+    // Drawing-board look: warm paper, a 0.5 m grid, soft drop shadows under
+    // the cabinets, real door-swing arcs and window symbols.
+    var gridPx = PX_PER_M * 0.5;
     var svg = '<svg viewBox="0 0 ' + svgW + ' ' + svgH + '" xmlns="http://www.w3.org/2000/svg" ' +
-      'style="width:100%;height:100%;display:block;background:#faf9f6;font-family:\'Kumbh Sans\',Arial,sans-serif;">';
+      'style="width:100%;height:100%;display:block;background:#f7f4ed;font-family:\'Kumbh Sans\',Arial,sans-serif;">' +
+      '<defs><pattern id="kpGrid" width="' + gridPx + '" height="' + gridPx + '" patternUnits="userSpaceOnUse">' +
+        '<path d="M ' + gridPx + ' 0 L 0 0 0 ' + gridPx + '" fill="none" stroke="#ebe6da" stroke-width="1"/></pattern>' +
+      '<filter id="kpShadow" x="-10%" y="-10%" width="130%" height="140%"><feDropShadow dx="1" dy="2" stdDeviation="2" flood-color="#000" flood-opacity=".22"/></filter></defs>' +
+      '<rect width="100%" height="100%" fill="url(#kpGrid)"/>';
 
     geoms.forEach(function(g, gi){
       var x1 = X(g.origin.x), y1 = Y(g.origin.z);
       var end = { x:g.origin.x + g.axis.x * g.lenM, z:g.origin.z + g.axis.z * g.lenM };
       var x2 = X(end.x), y2 = Y(end.z);
       var wallId = state.walls[gi] ? state.walls[gi].id : "";
-      svg += '<line data-wall-line-id="' + wallId + '" x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="#191919" stroke-width="6" stroke-linecap="square"/>';
+      svg += '<line data-wall-line-id="' + wallId + '" x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="#2b2b2e" stroke-width="9" stroke-linecap="square"/>';
       var midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
       var lx = midX - g.normal.x * 14, ly = midY - g.normal.z * 14;
       svg += '<text x="' + lx + '" y="' + ly + '" font-size="11" fill="#6f6d66" text-anchor="middle">' + Math.round(g.lenM * 1000) + ' mm</text>';
@@ -1304,36 +1311,63 @@
     // Window/door markers: a thick colored segment over the wall line at
     // the opening's own span — simpler than drawing a true gap, and this
     // plan already isn't a precision architectural drawing.
-    function openingSegment(o, dataAttr, color){
+    function openingSegment(o, dataAttr, color, isDoor){
       var g = geoms[state.walls.findIndex(function(w){ return w.id === o.wallId; })];
       if (!g) return;
       var offsetM = o.offsetMm / 1000, widthM = o.widthMm / 1000;
-      var x1 = g.origin.x + g.axis.x * offsetM, z1 = g.origin.z + g.axis.z * offsetM;
-      var x2 = g.origin.x + g.axis.x * (offsetM + widthM), z2 = g.origin.z + g.axis.z * (offsetM + widthM);
+      var ax = g.origin.x + g.axis.x * offsetM, az = g.origin.z + g.axis.z * offsetM;
+      var bx = g.origin.x + g.axis.x * (offsetM + widthM), bz = g.origin.z + g.axis.z * (offsetM + widthM);
       var sel = opts.selectedId === o.id;
-      svg += '<line ' + dataAttr + '="' + o.id + '" x1="' + X(x1) + '" y1="' + Y(z1) + '" x2="' + X(x2) + '" y2="' + Y(z2) +
-        '" stroke="' + (sel ? "#3d61c1" : color) + '" stroke-width="' + (sel ? 10 : 7) + '" stroke-linecap="butt" style="cursor:pointer;"/>';
+      // gap in the wall + the symbol
+      svg += '<line x1="' + X(ax) + '" y1="' + Y(az) + '" x2="' + X(bx) + '" y2="' + Y(bz) + '" stroke="#f7f4ed" stroke-width="11" stroke-linecap="butt" style="pointer-events:none;"/>';
+      if (isDoor){
+        var cxp = ax + g.normal.x * widthM, czp = az + g.normal.z * widthM; // leaf tip, swung into the room
+        var cross = g.normal.x * g.axis.z - g.normal.z * g.axis.x;
+        svg += '<line x1="' + X(ax) + '" y1="' + Y(az) + '" x2="' + X(cxp) + '" y2="' + Y(czp) + '" stroke="#8a6a4a" stroke-width="2" style="pointer-events:none;"/>' +
+          '<path d="M ' + X(cxp) + ' ' + Y(czp) + ' A ' + widthM * PX_PER_M + ' ' + widthM * PX_PER_M + ' 0 0 ' + (cross > 0 ? 1 : 0) + ' ' + X(bx) + ' ' + Y(bz) + '" fill="none" stroke="#8a6a4a" stroke-width="1.2" stroke-dasharray="4,3" style="pointer-events:none;"/>';
+      } else {
+        [-3, 3].forEach(function(d){
+          svg += '<line x1="' + (X(ax) + g.normal.x * d) + '" y1="' + (Y(az) + g.normal.z * d) + '" x2="' + (X(bx) + g.normal.x * d) + '" y2="' + (Y(bz) + g.normal.z * d) + '" stroke="#5b8fae" stroke-width="1.6" style="pointer-events:none;"/>';
+        });
+      }
+      // wide, mostly-invisible hit target that also shows the selection
+      svg += '<line ' + dataAttr + '="' + o.id + '" x1="' + X(ax) + '" y1="' + Y(az) + '" x2="' + X(bx) + '" y2="' + Y(bz) +
+        '" stroke="' + (sel ? "#3d61c1" : color) + '" stroke-opacity="' + (sel ? 1 : 0.35) + '" stroke-width="' + (sel ? 11 : 9) + '" stroke-linecap="butt" style="cursor:pointer;"/>';
     }
-    (state.windows || []).forEach(function(w){ openingSegment(w, 'data-window-id', "#5b8fae"); });
-    (state.doors || []).forEach(function(d){ openingSegment(d, 'data-door-id', "#8a6a4a"); });
+    (state.windows || []).forEach(function(w){ openingSegment(w, 'data-window-id', "#5b8fae", false); });
+    (state.doors || []).forEach(function(d){ openingSegment(d, 'data-door-id', "#8a6a4a", true); });
 
     function drawCabinetRect(bl, c, g, wallId, zone, offsetMm, isWallRow){
       var widthM = bl.widthMm / 1000;
       var corners = rectCornersWorld(g, offsetMm, bl.widthMm, bl.depthMm || c.d);
       var poly = corners.map(function(p){ return X(p.x) + "," + Y(p.z); }).join(" ");
-      var dash = isWallRow ? ' stroke-dasharray="4,3"' : '';
+      var dash = isWallRow ? ' stroke-dasharray="5,3"' : '';
       var selected = opts.selectedId === bl.id;
       var warned = opts.warnIds && opts.warnIds.indexOf(bl.id) >= 0;
-      var stroke = selected ? "#3d61c1" : (warned ? "#d9822b" : "#2a2a2a");
-      var strokeW = selected ? 3 : (warned ? 3 : 1.5);
+      var stroke = selected ? "#3d61c1" : (warned ? "#d9822b" : "#3a3a3d");
+      var strokeW = selected ? 3 : (warned ? 3 : 1.2);
+      // top view: worktop stone on base units, steel/black on appliances, the
+      // kitchen's front colour on towers; wall units drawn lighter + dashed
+      var fill = c.fridge ? "#c9ccd1" : c.oven ? "#4a4c52" : c.counter ? "#e6e1d8" : fillColor;
+      var op = isWallRow ? 0.5 : 1;
       svg += '<polygon data-wall-id="' + wallId + '" data-zone="' + zone + '" data-block-id="' + bl.id + '" ' +
-        'points="' + poly + '" fill="' + fillColor + '" fill-opacity="' + (isWallRow ? 0.55 : 0.9) + '" ' +
-        'stroke="' + stroke + '" stroke-width="' + strokeW + '"' + dash + ' style="cursor:pointer;"/>';
+        'points="' + poly + '" fill="' + fill + '" fill-opacity="' + op + '" ' +
+        'stroke="' + stroke + '" stroke-width="' + strokeW + '"' + dash + (isWallRow ? '' : ' filter="url(#kpShadow)"') + ' style="cursor:pointer;"/>';
+      // front edge in the kitchen's front colour
+      if (!isWallRow && c.counter){
+        svg += '<line x1="' + X(corners[3].x) + '" y1="' + Y(corners[3].z) + '" x2="' + X(corners[2].x) + '" y2="' + Y(corners[2].z) + '" stroke="' + fillColor + '" stroke-width="4" style="pointer-events:none;"/>';
+      }
+      if (c.sink){ // basin
+        var m = function(a, o2){ return { x:g.origin.x + g.axis.x * (offsetMm / 1000 + a) + g.normal.x * o2, z:g.origin.z + g.axis.z * (offsetMm / 1000 + a) + g.normal.z * o2 }; };
+        var bw = Math.min(0.6, widthM * 0.72), bd = Math.min(0.4, (bl.depthMm || c.d) / 1000 * 0.62), oc = (bl.depthMm || c.d) / 2000;
+        var q = [m(widthM / 2 - bw / 2, oc - bd / 2), m(widthM / 2 + bw / 2, oc - bd / 2), m(widthM / 2 + bw / 2, oc + bd / 2), m(widthM / 2 - bw / 2, oc + bd / 2)];
+        svg += '<polygon points="' + q.map(function(p){ return X(p.x) + "," + Y(p.z); }).join(" ") + '" fill="#b9bec4" stroke="#7d848b" stroke-width="1" style="pointer-events:none;"/>';
+      }
       if (widthM * PX_PER_M > 30){
         var cx = (X(corners[0].x) + X(corners[2].x)) / 2;
         var cy = (Y(corners[0].z) + Y(corners[2].z)) / 2;
         var label = bl.widthMm + (bl.interior && bl.interior.mode === "skuffur" ? " · " + bl.interior.count + "sk" : "");
-        svg += '<text x="' + cx + '" y="' + cy + '" font-size="9" fill="#191919" text-anchor="middle" dominant-baseline="middle" style="pointer-events:none;">' + label + '</text>';
+        svg += '<text x="' + cx + '" y="' + cy + '" font-size="9.5" fill="' + (c.oven ? "#fff" : "#191919") + '" text-anchor="middle" dominant-baseline="middle" style="pointer-events:none;">' + label + '</text>';
       }
     }
 
