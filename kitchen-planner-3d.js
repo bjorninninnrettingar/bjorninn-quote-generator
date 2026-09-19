@@ -271,6 +271,7 @@
     mesh.receiveShadow = true;
     mesh.castShadow = true;
     scene.add(mesh);
+    return mesh;
   }
 
   // Window/door markers (Phase 7e) — a flat panel on the wall's inner face
@@ -343,6 +344,7 @@
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     if (meta) mesh.userData = meta;
+    if (meta && selected) meta.selected = true;
     // One group per cabinet (body + outline + drawer seams) so a drag can move
     // the whole thing by setting a single matrix; the group stays at identity
     // otherwise. The pickable mesh is a child, so raycasts still hit it.
@@ -458,8 +460,20 @@
       drag = { meta:mesh.userData, mesh:mesh, group:mesh.parent, startX:evt.clientX, startY:evt.clientY, moved:false };
       controls.enabled = false;
     }
+    var hovered = null;
+    function setHover(mesh){
+      if (mesh === hovered) return;
+      if (hovered){ var e0 = hovered.parent && hovered.parent.children[1]; if (e0 && e0.material && !hovered.userData.selected) e0.material.color.set(0x2a2a2a); }
+      hovered = mesh;
+      if (hovered){ var e1 = hovered.parent && hovered.parent.children[1]; if (e1 && e1.material) e1.material.color.set(SELECT_COLOR); }
+      renderer.domElement.style.cursor = hovered ? "grab" : "";
+    }
     function onMove(evt){
-      if (!drag) return;
+      if (!drag){
+        if (evt.target === renderer.domElement) setHover(pickMeshAt(evt));
+        else setHover(null);
+        return;
+      }
       if (!drag.moved){
         if (Math.hypot(evt.clientX - drag.startX, evt.clientY - drag.startY) < CABINET_DRAG_PX) return;
         drag.moved = true;
@@ -501,6 +515,7 @@
       if (THREE_STATE) THREE_STATE.dragging = false;
       drag = null;
       controls.enabled = true;
+      renderer.domElement.style.cursor = "";
       if (moved){
         suppressClick = true;
         if (opts.onCabinetDragEnd) opts.onCabinetDragEnd(meta, dropAt(evt));
@@ -670,7 +685,13 @@
     // sized for a 2.6m ceiling shouldn't poke through a lower one.
     var roomHeightMm = state.roomHeightMm || 2600;
     var WALL_H = roomHeightMm / 1000;
-    geoms.forEach(function(g){ addWallPlane(THREE, scene, g, WALL_H, wallMat); });
+    // Walls between the camera and the room fade out (HomeByMe-style) so an
+    // orbit to the "outside" never hides the cabinets behind a solid wall.
+    var wallFades = geoms.map(function(g){
+      var mat = wallMat.clone();
+      mat.transparent = true;
+      return { mesh:addWallPlane(THREE, scene, g, WALL_H, mat), geom:g, mat:mat };
+    });
 
     function geomForWall(wallId){
       var wi = state.walls.findIndex(function(w){ return w.id === wallId; });
@@ -788,9 +809,23 @@
       el.hidden = false;
     }
 
+    var wallVec = new THREE.Vector3();
+    function fadeWalls(){
+      wallFades.forEach(function(w){
+        var cx = w.geom.origin.x + w.geom.axis.x * w.geom.lenM / 2, cz = w.geom.origin.z + w.geom.axis.z * w.geom.lenM / 2;
+        // camera on the outer side of this wall (opposite its room-facing normal)?
+        wallVec.set(camera.position.x - cx, 0, camera.position.z - cz);
+        var behind = wallVec.x * w.geom.normal.x + wallVec.z * w.geom.normal.z < 0;
+        var target = behind ? 0.1 : 1;
+        w.mat.opacity += (target - w.mat.opacity) * 0.2;
+        w.mat.depthWrite = w.mat.opacity > 0.6;
+      });
+    }
+
     function loop(){
       THREE_STATE.rafId = requestAnimationFrame(loop);
       controls.update();
+      fadeWalls();
       renderer.render(scene, camera);
       placeFloatBar();
     }

@@ -425,6 +425,9 @@
             <button type="button" class="active" data-view="3d">🧊 3D</button>
             <button type="button" data-view="2d">📐 Teikning</button>
           </div>
+          <div class="view-toggle" id="camToggle">
+            <button type="button" id="resetCamBtn" title="Endurstilla sýn">🎯</button>
+          </div>
           <div class="view-toggle" id="histToggle">
             <button type="button" id="undoBtn" title="Afturkalla (⌘Z)" disabled>↶</button>
             <button type="button" id="redoBtn" title="Endurgera (⌘⇧Z)" disabled>↷</button>
@@ -1923,6 +1926,11 @@
 
   document.getElementById("resetBtn").addEventListener("click", resetAll);
 
+  document.getElementById("resetCamBtn").addEventListener("click", function(){
+    if (viewMode !== "3d") return;
+    KP3D.teardown3D(true); // discard the remembered camera so the rebuild re-frames the room
+    renderView();
+  });
   document.getElementById("undoBtn").addEventListener("click", function(){ stepHistory(-1); });
   document.getElementById("redoBtn").addEventListener("click", function(){ stepHistory(1); });
   document.addEventListener("keydown", function(e){
