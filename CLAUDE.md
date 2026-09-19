@@ -21,6 +21,8 @@ since GitHub push protection blocks committing an Airtable PAT directly).
 | `/eigandi` | [stimpilklukka.html](stimpilklukka.html) | Same page in "owner mode" — phone clock-in for eigendur, no device pairing (PIN verified by [api/eigandi-clock.js](api/eigandi-clock.js), which also checks `Tegund starfsmanns = Eigandi 👨🏻‍💼`) |
 | `/app` | [app.html](app.html) | **Verkstæðisappið** — installable PWA home screen for the floor. See "Verkstæðisappið" below. |
 | `/verk-i-gangi` | [verk-i-gangi.html](verk-i-gangi.html) | Project picker for `/app` — lists projects currently in production, tapping one becomes the app's "current project" |
+| `/skipuleggja` | [kitchen-planner.html](kitchen-planner.html) | **Eldhússkipulag (sjálfsafgreiðsla)** — customer-facing kitchen planner, see "Kitchen planner" below. Desktop only (<768px shows a gate). |
+| `/eldhus-yfirferd` | [kitchen-planner-review.html](kitchen-planner-review.html) | Rakel's read-only review of a submitted plan (`?recordId=` of the Tækifæri); renders the same 3D/2D via the shared module |
 
 Rewrites live in [vercel.json](vercel.json). To add another short URL, add a
 `rewrites` entry there (`source` = short path, `destination` = the `.html` file),
@@ -36,6 +38,14 @@ own, so the hub doesn't need any Airtable write access, just the read-only
 project-name lookup for the confirmation card. Adding a third tool to a phase
 later = one more `.choice` block + one more forwarded href, not a rewrite of
 the hub's logic.
+
+## Kitchen planner (`/skipuleggja`)
+
+HomeByMe-style self-serve planner that ends in a lead: steps intake → materials → room shape (wall chain) → **editor** → contact/submit. Submit writes Tengiliðir → Tækifæri (with the whole state as JSON in `Sjálfsafgreiðsla skipulag (JSON) 📐`) → one Eyðublað per cabinet, all through `/api/airtable` (server forces the review flag). Full history/gotchas live in the Claude memory file `project_kitchen_planner.md`.
+
+- **Shared render module** [kitchen-planner-3d.js](kitchen-planner-3d.js) (`window.KP3D`): `CATALOG` (3 fixed-size active types + `legacy:true` oven/corner types kept so old drafts/submissions still render), `buildScene` (Three.js 3D: per-cabinet `THREE.Group`, fronts with procedural texture, door seams + handles, walls fade when between camera and room, floating-toolbar projection, cabinet/opening drag + click-select via `setupCabinetInteraction`), `buildPlan2D` (SVG plan), drag-preview helpers. Rakel's review page loads the same file with no callbacks (read-only).
+- **Editor** (`screen-editor` in kitchen-planner.html): left catalog (click adds, drag drops into 3D or 2D), centre 3D/2D stage with floating toolbar and undo/redo, right panel = selected cabinet / window / door properties, or a room overview with quick material swatches. All mutations end in `refreshAfterEdit()`; state persists in `localStorage` (`bjorninn:kitchenPlanner:draft:v1`).
+- **Adding a cabinet type**: add it to `CATALOG` (fixed W/H/D, `zone`, `cls`), list it in `CATALOG_GROUPS` in kitchen-planner.html, and map any Airtable fields in `collectEyðublaðRows()`.
 
 ## API
 

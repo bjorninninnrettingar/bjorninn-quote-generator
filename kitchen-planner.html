@@ -1214,6 +1214,10 @@
     host.innerHTML = html;
     host.querySelectorAll(".cat-item").forEach(function(card){
       card.addEventListener("pointerdown", function(evt){ startCatalogDrag(card.dataset.kind, card.dataset.type, card, evt); });
+      // keyboard: Enter/Space adds it (pointer handlers alone aren't focus-activatable)
+      card.addEventListener("keydown", function(evt){
+        if (evt.key === "Enter" || evt.key === " "){ evt.preventDefault(); addFromCatalog(card.dataset.kind, card.dataset.type); }
+      });
     });
   }
 

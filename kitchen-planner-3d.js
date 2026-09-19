@@ -512,6 +512,7 @@
 
     function onDown(evt){
       if (evt.button !== undefined && evt.button !== 0) return;
+      if (!opts.onSelect && !opts.onCabinetDragEnd) return; // read-only view (review page): leave every press to OrbitControls
       var mesh = pickMeshAt(evt);
       if (!mesh) return;
       evt.stopPropagation();
