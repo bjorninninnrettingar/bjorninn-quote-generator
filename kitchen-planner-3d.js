@@ -705,8 +705,13 @@
     // and turns with the wall if the cursor moves to another one. Setting the
     // group matrix G = target * startInverse moves body, outline and seams as
     // one without touching their own transforms.
+    // Eased follow: the cabinet glides toward the cursor's wall position each
+    // frame (it turns with the wall and lifts a touch, so it reads as held),
+    // instead of jumping. Setting group.matrix = target · startInverse moves
+    // body, outline, plinth, worktop and details as one.
+    var tgtPos = new THREE.Vector3(), tgtQuat = new THREE.Quaternion(), haveTarget = false;
     function followCursor(drop){
-      if (THREE_STATE) THREE_STATE.dragging = true;
+      if (THREE_STATE){ THREE_STATE.dragging = true; THREE_STATE.dragStep = stepFollow; }
       if (!drop) return;
       var wi = walls.findIndex(function(w){ return w.id === drop.wallId; });
       var g = geoms[wi];
@@ -714,14 +719,22 @@
       var widthM = drag.meta.widthMm / 1000, depthM = drag.meta.depthMm / 1000;
       var offsetM = Math.max(0, Math.min(g.lenM - widthM, drop.alongMm / 1000 - widthM / 2));
       var mesh = drag.mesh;
-      var target = new THREE.Vector3(
+      tgtPos.set(
         g.origin.x + g.axis.x * (offsetM + widthM / 2) + g.normal.x * (depthM / 2),
-        mesh.position.y,
+        mesh.position.y + 0.035,
         g.origin.z + g.axis.z * (offsetM + widthM / 2) + g.normal.z * (depthM / 2));
-      var q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(
+      tgtQuat.setFromRotationMatrix(new THREE.Matrix4().makeBasis(
         new THREE.Vector3(g.axis.x, 0, g.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(g.normal.x, 0, g.normal.z)));
+      if (!drag.curPos){ drag.curPos = mesh.position.clone(); drag.curQuat = mesh.quaternion.clone(); }
+      haveTarget = true;
+    }
+    function stepFollow(){
+      if (!drag || !drag.curPos || !haveTarget) return;
+      drag.curPos.lerp(tgtPos, 0.3);
+      drag.curQuat.slerp(tgtQuat, 0.3);
+      var mesh = drag.mesh;
       var m0 = new THREE.Matrix4().compose(mesh.position, mesh.quaternion, new THREE.Vector3(1, 1, 1));
-      var m1 = new THREE.Matrix4().compose(target, q, new THREE.Vector3(1, 1, 1));
+      var m1 = new THREE.Matrix4().compose(drag.curPos, drag.curQuat, new THREE.Vector3(1, 1, 1));
       drag.group.matrixAutoUpdate = false;
       drag.group.matrix.copy(m1).multiply(m0.invert());
       drag.group.matrixWorldNeedsUpdate = true;
@@ -730,7 +743,8 @@
       if (!drag) return;
       var meta = drag.meta, moved = drag.moved;
       if (moved){ drag.group.matrix.identity(); drag.group.matrixWorldNeedsUpdate = true; }
-      if (THREE_STATE) THREE_STATE.dragging = false;
+      haveTarget = false;
+      if (THREE_STATE){ THREE_STATE.dragging = false; THREE_STATE.dragStep = null; }
       drag = null;
       controls.enabled = true;
       renderer.domElement.style.cursor = "";
@@ -762,28 +776,53 @@
   // Flat translucent footprint on the floor showing where the dragged
   // cabinet will land (blue = fits, red = wall full) — the 3D counterpart of
   // kitchen-planner.html's 2D drag-preview polygon.
-  function updateDragPreview3D(wallId, offsetMm, widthMm, depthMm, ok){
+  // heightMm/baseMm (optional) add a translucent ghost of the cabinet's real
+  // volume at the landing spot; the target wall also gets a soft "drop band".
+  function updateDragPreview3D(wallId, offsetMm, widthMm, depthMm, ok, heightMm, baseMm){
     if (!THREE_STATE) return;
-    var THREE = window.__THREE__;
-    var wi = THREE_STATE.walls.findIndex(function(w){ return w.id === wallId; });
-    var g = THREE_STATE.geoms[wi];
+    var THREE = window.__THREE__, st = THREE_STATE;
+    var wi = st.walls.findIndex(function(w){ return w.id === wallId; });
+    var g = st.geoms[wi];
     if (!g){ hideDragPreview3D(); return; }
-    var p = rectCornersWorld(g, offsetMm, widthMm, depthMm), y = 0.012;
-    var geo = new THREE.BufferGeometry();
-    geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array([
-      p[0].x, y, p[0].z,  p[1].x, y, p[1].z,  p[2].x, y, p[2].z,
-      p[0].x, y, p[0].z,  p[2].x, y, p[2].z,  p[3].x, y, p[3].z
-    ]), 3));
-    if (!THREE_STATE.previewMesh){
-      THREE_STATE.previewMesh = new THREE.Mesh(new THREE.BufferGeometry(),
-        new THREE.MeshBasicMaterial({ color:0x3d61c1, transparent:true, opacity:0.45, side:THREE.DoubleSide, depthWrite:false }));
-      THREE_STATE.scene.add(THREE_STATE.previewMesh);
+    var col = ok ? 0x3d61c1 : 0xb3432f;
+    function quad(mesh, corners, y){
+      var p = corners, geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array([
+        p[0].x, y, p[0].z,  p[1].x, y, p[1].z,  p[2].x, y, p[2].z,
+        p[0].x, y, p[0].z,  p[2].x, y, p[2].z,  p[3].x, y, p[3].z
+      ]), 3));
+      mesh.geometry.dispose(); mesh.geometry = geo;
     }
-    var mesh = THREE_STATE.previewMesh;
-    mesh.geometry.dispose();
-    mesh.geometry = geo;
-    mesh.material.color.set(ok ? 0x3d61c1 : 0xb3432f);
-    mesh.visible = true;
+    function ensure(key, opacity){
+      if (!st[key]){
+        st[key] = new THREE.Mesh(new THREE.BufferGeometry(),
+          new THREE.MeshBasicMaterial({ color:0x3d61c1, transparent:true, opacity:opacity, side:THREE.DoubleSide, depthWrite:false }));
+        st.scene.add(st[key]);
+      }
+      st[key].material.color.set(col);
+      st[key].visible = true;
+      return st[key];
+    }
+    quad(ensure("previewMesh", 0.5), rectCornersWorld(g, offsetMm, widthMm, depthMm), 0.012);
+    quad(ensure("bandMesh", 0.16), rectCornersWorld(g, 0, g.lenM * 1000, 70), 0.008);
+    if (heightMm){
+      if (!st.ghostBox){
+        st.ghostBox = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1),
+          new THREE.MeshBasicMaterial({ color:0x3d61c1, transparent:true, opacity:0.2, depthWrite:false }));
+        st.ghostBox.add(new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)), new THREE.LineBasicMaterial({ color:0x3d61c1, transparent:true, opacity:0.8 })));
+        st.scene.add(st.ghostBox);
+      }
+      var w = widthMm / 1000, h = heightMm / 1000, d = depthMm / 1000, off = offsetMm / 1000;
+      st.ghostBox.scale.set(w, h, d);
+      st.ghostBox.position.set(
+        g.origin.x + g.axis.x * (off + w / 2) + g.normal.x * (d / 2), (baseMm || 0) / 1000 + h / 2,
+        g.origin.z + g.axis.z * (off + w / 2) + g.normal.z * (d / 2));
+      st.ghostBox.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(
+        new THREE.Vector3(g.axis.x, 0, g.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(g.normal.x, 0, g.normal.z)));
+      st.ghostBox.material.color.set(col);
+      st.ghostBox.children[0].material.color.set(col);
+      st.ghostBox.visible = true;
+    } else if (st.ghostBox) st.ghostBox.visible = false;
   }
 
   // Screen point → {wallId, alongMm} for the live 3D scene (used when a
@@ -841,7 +880,8 @@
   }
 
   function hideDragPreview3D(){
-    if (THREE_STATE && THREE_STATE.previewMesh) THREE_STATE.previewMesh.visible = false;
+    if (!THREE_STATE) return;
+    ["previewMesh", "bandMesh", "ghostBox"].forEach(function(k){ if (THREE_STATE[k]) THREE_STATE[k].visible = false; });
   }
 
   function teardown3D(discardCamera){
@@ -1138,6 +1178,7 @@
       THREE_STATE.rafId = requestAnimationFrame(loop);
       controls.update();
       settleLanded();
+      if (THREE_STATE.dragStep) THREE_STATE.dragStep();
       fadeWalls();
       renderer.render(scene, camera);
       placeFloatBar();

@@ -1157,8 +1157,8 @@
   function dropPointAt(clientX, clientY){
     return viewMode === "3d" ? KP3D.dropPointFromClient(clientX, clientY) : findDropPoint(clientX, clientY);
   }
-  function showDropPreview(wallId, offsetMm, widthMm, depthMm, ok){
-    if (viewMode === "3d") KP3D.updateDragPreview3D(wallId, offsetMm, widthMm, depthMm, ok);
+  function showDropPreview(wallId, offsetMm, widthMm, depthMm, ok, heightMm, baseMm){
+    if (viewMode === "3d") KP3D.updateDragPreview3D(wallId, offsetMm, widthMm, depthMm, ok, heightMm, baseMm);
     else updateDragPreviewRect(wallId, offsetMm, widthMm, depthMm, ok);
   }
   function hideDropPreview(){
@@ -1191,7 +1191,7 @@
     } else {
       var c = CATALOG[dragState.type];
       var packed = computePackedOffset(wall, c.zone, c.defaultW, drop.alongMm, null);
-      showDropPreview(drop.wallId, packed.offsetMm, c.defaultW, c.d, packed.fits);
+      showDropPreview(drop.wallId, packed.offsetMm, c.defaultW, c.d, packed.fits, Math.min(c.h, state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM), c.zone === "wall" ? WALL_UNIT_BASE_MM : 0);
     }
   }
 
@@ -1749,7 +1749,7 @@
     if (!wall || !found){ KP3D.hideDragPreview3D(); return; }
     var c = CATALOG[found.block.type];
     var packed = computePackedOffset(wall, found.zone, found.block.widthMm, drop.alongMm, found.block.id);
-    KP3D.updateDragPreview3D(drop.wallId, packed.offsetMm, found.block.widthMm, found.block.depthMm || c.d, packed.fits);
+    KP3D.updateDragPreview3D(drop.wallId, packed.offsetMm, found.block.widthMm, found.block.depthMm || c.d, packed.fits, blockHeightMm(found.block, c), found.zone === "wall" ? WALL_UNIT_BASE_MM : 0);
   }
 
   function on3DDragEnd(meta, drop){
