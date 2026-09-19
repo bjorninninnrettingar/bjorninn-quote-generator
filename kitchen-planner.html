@@ -137,7 +137,7 @@
   .cat-more summary{ font-size:12.5px; color:var(--blue); cursor:pointer; padding:4px 2px; margin-bottom:6px; }
   .cat-item .sw{ width:34px; height:34px; border-radius:8px; flex:none; }
   .cat-item .sw.floor{ background:var(--floor); } .cat-item .sw.tall{ background:var(--tall); }
-  .cat-item .sw.wall{ background:var(--wall); } .cat-item .sw.window{ background:#5b8fae; }
+  .cat-item .sw.wall{ background:var(--wall); } .cat-item .sw.fridge{ background:#5b8a8f; } .cat-item .sw.window{ background:#5b8fae; }
   .cat-item .sw.door{ background:#8a6a4a; }
   .cat-item .nm{ display:block; font-size:13.5px; font-weight:600; line-height:1.25; }
   .cat-item .dim{ display:block; font-size:11.5px; color:var(--ink-soft); }
@@ -622,6 +622,9 @@
     return b;
   }
 
+  // Icelandic plural: 1, 21, 31… take the singular (11 doesn't)
+  function plural(n, one, many){ return (n % 10 === 1 && n % 100 !== 11) ? one : many; }
+
   function usedMm(list){ return list.reduce(function(s,b){ return s + b.widthMm; }, 0); }
 
   function clampWidth(type, w){
@@ -982,7 +985,7 @@
             '<button class="iconbtn" data-role="hw-dec" ' + (b.interior.count <= min ? "disabled" : "") + '>−</button>' +
             '<b>' + b.interior.count + '</b>' +
             '<button class="iconbtn" data-role="hw-inc" ' + (b.interior.count >= max ? "disabled" : "") + '>+</button>' +
-            '<span>skúffur</span>' +
+            '<span>' + plural(b.interior.count, "skúffa", "skúffur") + '</span>' +
           '</div>'
         : "")
     );
@@ -1009,7 +1012,7 @@
   // "+ Type" buttons stay as the reliable fallback, per the confirmed
   // decision — drag is the delightful primary path, not the only path.
   var CATALOG_GROUPS = [
-    { title:"Gólfskápar", types:["grunnskapur", "harskapur"] },
+    { title:"Gólfskápar", types:["grunnskapur", "harskapur", "isskapur"] },
     { title:"Veggskápar", types:["efriskapur"] }
   ];
   // Windows/doors (Phase 7e) drag exactly like cabinets but aren't cabinets
@@ -1767,7 +1770,8 @@
       if (!items.length) html += '<div class="empty-note">Ekkert ennþá</div>';
       items.forEach(function(b){
         var c = CATALOG[b.type];
-        var hw = b.interior ? (b.interior.mode === "skuffur" ? " · " + b.interior.count + " skúffur" : " · hillur") : "";
+        var hw = b.interior && b.interior.mode === "skuffur" ? " · " + b.interior.count + " " + plural(b.interior.count, "skúffa", "skúffur")
+          : c.shelfRange ? " · " + KP3D.shelvesOf(b) + " " + plural(KP3D.shelvesOf(b), "hilla", "hillur") : "";
         html += '<button type="button" class="ov-item" data-select="' + b.id + '"><span style="color:var(--ink);font-weight:600;">' + c.label + hw + '</span><span>' + b.widthMm + '×' + blockHeightMm(b, c) + '×' + (b.depthMm || c.d) + '</span></button>';
       });
       html += '</div>';
@@ -1875,6 +1879,14 @@
           '<button class="iconbtn" data-role="close" title="Loka">✕</button></div>' +
         '<div class="edit-field"><label>Tegund skáps</label><select data-role="type">' + typeOptions + '</select></div>' +
         (c.hasInterior ? '<div class="edit-field">' + hardwareHTML(b, c) + '</div>' : '') +
+        (c.shelfRange && !(b.interior && b.interior.mode === "skuffur")
+          ? '<div class="edit-field"><label>Lausar hillur</label><div class="hw-count">' +
+              '<button class="iconbtn" data-role="sh-dec" ' + (KP3D.shelvesOf(b) <= c.shelfRange[0] ? "disabled" : "") + '>−</button>' +
+              '<b>' + KP3D.shelvesOf(b) + '</b>' +
+              '<button class="iconbtn" data-role="sh-inc" ' + (KP3D.shelvesOf(b) >= c.shelfRange[1] ? "disabled" : "") + '>+</button>' +
+              '<span>' + plural(KP3D.shelvesOf(b), "hilla", "hillur") + '</span></div></div>'
+          : '') +
+        (c.fridge ? '<p class="ov-mat" style="margin:0 0 10px;">Rakel staðfestir stærð tækis og hurðargerð.</p>' : '') +
         '<div class="edit-actions">' +
           (otherWalls.length ? '<select data-role="moveWall"><option value="">Flytja á vegg…</option>' + moveOptions + '</select>' : '') +
           '<button class="iconbtn" data-role="left" title="Færa til vinstri">◀</button>' +
@@ -1896,6 +1908,14 @@
       if (dec) dec.addEventListener("click", function(){ setInterior(wall, zone, b.id, "skuffur", b.interior.count - 1); });
       if (inc) inc.addEventListener("click", function(){ setInterior(wall, zone, b.id, "skuffur", b.interior.count + 1); });
     }
+    function setShelves(delta){
+      b.shelves = Math.max(c.shelfRange[0], Math.min(c.shelfRange[1], KP3D.shelvesOf(b) + delta));
+      save();
+      refreshAfterEdit();
+    }
+    var shDec = host.querySelector('[data-role="sh-dec"]'), shInc = host.querySelector('[data-role="sh-inc"]');
+    if (shDec) shDec.addEventListener("click", function(){ setShelves(-1); });
+    if (shInc) shInc.addEventListener("click", function(){ setShelves(1); });
     host.querySelector('[data-role="left"]').addEventListener("click", function(){ moveBlock(wall, zone, b.id, -1); });
     host.querySelector('[data-role="right"]').addEventListener("click", function(){ moveBlock(wall, zone, b.id, 1); });
     host.querySelector('[data-role="delete"]').addEventListener("click", function(){
@@ -2083,7 +2103,11 @@
         }
         if (b.interior && b.interior.mode === "skuffur"){
           notes.push("Viðskiptavinur óskar eftir skúffum (" + b.interior.count + " stk) í stað hilla — vinsamlegast staðfestu skúffuhæðir.");
+        } else if (c.shelfRange){
+          // real number field the production templates read (plain, writable)
+          fields["Lausar hillur fjöldi"] = KP3D.shelvesOf(b);
         }
+        if (c.note) notes.push(c.note);
         if (notes.length){
           fields["Skilaboð til Skipulags 📝"] = notes.join(" ");
         }

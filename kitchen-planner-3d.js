@@ -16,9 +16,16 @@
   // collectEyðublaðRows(), which already no-ops cleanly on their absence
   // (its ovenHeightMm/tofrahornId branches just never fire for these 3).
   var CATALOG = {
-    grunnskapur: { label:"Grunnskápur", zone:"floor", cls:"floor", defaultW:600, minW:600, maxW:600, h:800,  d:600, minH:800,  maxH:800,  minD:600, maxD:600, hasInterior:true, drawerCountRange:[1,5] },
-    harskapur:   { label:"Hárskápur",   zone:"floor", cls:"tall",  defaultW:600, minW:600, maxW:600, h:2400, d:600, minH:2400, maxH:2400, minD:600, maxD:600, hasInterior:true, drawerCountRange:[1,5] },
-    efriskapur:  { label:"Efriskápur",  zone:"wall",  cls:"wall",  defaultW:600, minW:600, maxW:600, h:1000, d:300, minH:1000, maxH:1000, minD:300, maxD:300, hasInterior:false },
+    grunnskapur: { label:"Grunnskápur", zone:"floor", cls:"floor", defaultW:600, minW:600, maxW:600, h:800,  d:600, minH:800,  maxH:800,  minD:600, maxD:600, hasInterior:true, drawerCountRange:[1,5], shelfRange:[0,4,1] },
+    harskapur:   { label:"Hárskápur",   zone:"floor", cls:"tall",  defaultW:600, minW:600, maxW:600, h:2400, d:600, minH:2400, maxH:2400, minD:600, maxD:600, hasInterior:true, drawerCountRange:[1,5], shelfRange:[0,8,5] },
+    efriskapur:  { label:"Efriskápur",  zone:"wall",  cls:"wall",  defaultW:600, minW:600, maxW:600, h:1000, d:300, minH:1000, maxH:1000, minD:300, maxD:300, hasInterior:false, shelfRange:[0,5,2] },
+    // Built-in fridge: NOT its own Skápategund in the schema (Skápategund has
+    // Grunn/Hár/Efri/Lagna/Ofna/Loftunarskápur only) — physically a Hárskápur
+    // housing a bought appliance, so it submits as Hárskápur plus a plain note
+    // (same pattern as the drawer note) and Rakel confirms the niche size.
+    isskapur:    { label:"Ísskápur (innbyggður)", zone:"floor", cls:"fridge", defaultW:600, minW:600, maxW:600, h:2400, d:600, minH:2400, maxH:2400, minD:600, maxD:600, hasInterior:false,
+                   skapategundOverride:"Hárskápur", fridge:true,
+                   note:"Viðskiptavinur óskar eftir innbyggðum ísskáp í þessum skáp — vinsamlegast staðfestu stærð tækis (nisju) og hurðargerð." },
     // legacy:true = not offered in the editor's catalog, but kept so drafts
     // and already-submitted plans (Rakel's review page renders those) that
     // contain them still draw and submit correctly instead of crashing or
@@ -27,6 +34,14 @@
     tofrahorn:   { label:"Töfrahorn (kapphorn)", zone:"floor", cls:"corner", defaultW:900, minW:900, maxW:900, h:800, d:900, minH:800, maxH:800, minD:900, maxD:900, hasInterior:false,
                    skapategundOverride:"Grunnskápur", tofrahornId:"rec9PD5fCZGUpwAon", legacy:true }
   };
+
+  // Loose shelves (Eyðublað "Lausar hillur fjöldi"): the customer's choice,
+  // else the type's default. Not meaningful for a drawer unit.
+  function shelvesOf(b){
+    var c = CATALOG[b.type];
+    if (!c || !c.shelfRange) return null;
+    return b.shelves != null ? Math.max(c.shelfRange[0], Math.min(c.shelfRange[1], b.shelves)) : c.shelfRange[2];
+  }
 
   // Width variants ("underskápar") of the three core types. Same height/depth
   // and same real Skápategund (skapategundOverride = the core's label), only
@@ -348,13 +363,13 @@
   // hexxa), a knob (arpa), or a milled groove (fraest); push-open (push)
   // shows no hardware. Fronts: drawers → equal rows, tall unit → two doors,
   // anything else → one door. Purely visual — nothing here is submitted.
-  function addFrontDetails(THREE, group, geom, offsetM, widthM, heightM, baseYM, depthM, interior, handleKey, isTall, isWallRow){
+  function addFrontDetails(THREE, group, geom, offsetM, widthM, heightM, baseYM, depthM, interior, handleKey, isTall, isWallRow, split){
     var xAxis = new THREE.Vector3(geom.axis.x, 0, geom.axis.z);
     var quat = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(xAxis, new THREE.Vector3(0, 1, 0), new THREE.Vector3(geom.normal.x, 0, geom.normal.z)));
     var drawers = interior && interior.mode === "skuffur" ? interior.count : 0;
     var fronts = [];
     if (drawers){ for (var i = 0; i < drawers; i++) fronts.push({ y0:i / drawers, y1:(i + 1) / drawers, drawer:true }); }
-    else if (isTall){ fronts.push({ y0:0, y1:0.55 }, { y0:0.55, y1:1 }); }
+    else if (isTall){ fronts.push({ y0:0, y1:split }, { y0:split, y1:1 }); }
     else fronts.push({ y0:0, y1:1 });
 
     var cx = geom.origin.x + geom.axis.x * (offsetM + widthM / 2), cz = geom.origin.z + geom.axis.z * (offsetM + widthM / 2);
@@ -442,7 +457,7 @@
     if (interior && interior.mode === "skuffur"){
       addDrawerSeams(THREE, group, geom, offsetM, widthM, heightM, baseYM, depthM, interior.count);
     }
-    if (meta && meta.zone !== "opening") addFrontDetails(THREE, group, geom, offsetM, widthM, heightM, baseYM, depthM, interior, meta.handle, !!meta.tall, meta.zone === "wall");
+    if (meta && meta.zone !== "opening") addFrontDetails(THREE, group, geom, offsetM, widthM, heightM, baseYM, depthM, interior, meta.handle, !!meta.tall, meta.zone === "wall", meta.split || 0.55);
   }
 
   function disposeScene(scene){
@@ -858,7 +873,7 @@
         var hM = Math.min(b.heightMm || c.h, roomHeightMm) / 1000, dM = (b.depthMm || c.d) / 1000;
         var selected = opts.selectedId === b.id;
         addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, carcassMat, frontMat, b.interior,
-          { wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), handle:state.handle, tall:c.cls === "tall" }, selected, pickables);
+          { wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), handle:state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0.55 }, selected, pickables);
         offset += b.widthMm;
       });
       offset = 0;
@@ -1129,6 +1144,7 @@
     updateDragPreview3D: updateDragPreview3D,
     dropPointFromClient: dropPointFromClient,
     setSelected3D: setSelected3D,
+    shelvesOf: shelvesOf,
     hideDragPreview3D: hideDragPreview3D,
     teardown3D: teardown3D
   };

@@ -321,7 +321,7 @@ const CREATABLE_FIELDS = {
   "tbl4LMXlQjp66RFKI": ["Tengiliður verkefnis 👤", "Skrokka efni 🔲 viðskiptavinar", "Fronta efni viðskiptavinar 🖼️", "Sjálfsafgreiðsla skipulag (JSON) 📐", "Skilaboð til skipulags"],
   // "Skúffutegund" (Phase 7b) is a real 2-choice field (LEGRA/MERIVO), set
   // the same on every unit — a whole-project hardware choice, not per-cabinet.
-  "tbl0WcyHhz63pSzZX": ["Tækifæri 📣", "Heiti rýmis", "Hvað viltu smíða?", "Skápategund", "Breidd", "Hæð", "Dýpt", "Fjöldi eininga", "Grip?", "Skilaboð til Skipulags 📝", "Höldur 1", "Höldur 1 magn", "Hæð ofns", "Töfrahorn útfærsla", "Breidd á töfra front", "Skúffutegund"],
+  "tbl0WcyHhz63pSzZX": ["Tækifæri 📣", "Heiti rýmis", "Hvað viltu smíða?", "Skápategund", "Breidd", "Hæð", "Dýpt", "Fjöldi eininga", "Grip?", "Skilaboð til Skipulags 📝", "Höldur 1", "Höldur 1 magn", "Hæð ofns", "Töfrahorn útfærsla", "Breidd á töfra front", "Skúffutegund", "Lausar hillur fjöldi"],
   // /app's "❗ Nýtt QUICK FIX" quick-task form — see FORCED_CREATE_FIELDS
   // below for why "Staða" isn't in this list (anyone on the floor can report
   // a problem, but it always starts "opið", never self-set to in-progress).
