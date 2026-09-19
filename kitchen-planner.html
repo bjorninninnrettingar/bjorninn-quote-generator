@@ -129,7 +129,15 @@
   .ed-toolbar .view-toggle{ margin-bottom:0; }
   .ed-toolbar .view-toggle button:disabled{ opacity:.35; cursor:not-allowed; }
   .ed-toolbar #viewToggle{ margin-right:auto; }
-  .ed-hint{ font-size:12.5px; color:var(--ink-soft); text-align:right; }
+  .warn-chip:not([hidden]){ font:inherit; font-size:13px; font-weight:600; cursor:pointer; background:#fff4e6; color:#a85a0e; border:1.5px solid #f0c78f; border-radius:8px; padding:7px 12px; }
+  .warn-chip:hover{ background:#ffeacf; }
+  .warn-box{ background:#fff4e6; border:1px solid #f0c78f; border-radius:12px; padding:10px 12px; margin-bottom:14px; }
+  .warn-box .ov-wall-h{ color:#a85a0e; }
+  .warn-item{ display:block; width:100%; text-align:left; font:inherit; font-size:12.5px; line-height:1.4; color:#6b4210; background:none; border:none; padding:5px 0; cursor:pointer; border-top:1px solid #f4dcb8; }
+  .warn-item:first-of-type{ border-top:none; }
+  .warn-item:hover{ color:#a85a0e; text-decoration:underline; }
+  .ed-hint{ font-size:12.5px; color:var(--ink-soft); text-align:right; flex:1 1 0; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .view-toggle button{ white-space:nowrap; }
   .cat-title{ font-size:11.5px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--gold); margin:4px 0 8px; }
   .cat-title:not(:first-child){ margin-top:16px; }
   .cat-item{
@@ -484,6 +492,7 @@
             <button type="button" id="resetCamBtn" title="Endurstilla sýn">🎯</button>
             <button type="button" id="snapBtn" title="Vista mynd af skipulaginu">📷</button>
           </div>
+          <button type="button" class="warn-chip" id="warnChip" hidden></button>
           <div class="view-toggle" id="histToggle">
             <button type="button" id="undoBtn" title="Afturkalla (⌘Z)" disabled>↶</button>
             <button type="button" id="redoBtn" title="Endurgera (⌘⇧Z)" disabled>↷</button>
@@ -1632,6 +1641,54 @@
     return null;
   }
 
+  // ---------- fit check ----------
+  // Flags physically impossible/awkward combinations (a door with a cabinet in
+  // front of it, a wall unit over a window, a tower taller than the ceiling)
+  // in millimetres on each wall. Advisory only — Rakel makes the final call —
+  // and the messages travel to her in the Tækifæri note.
+  var warnings = [];
+  var WALL_UNIT_BASE_MM = 1400;
+  function computeWarnings(){
+    var out = [], byMsg = {}, roomH = state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM;
+    // identical messages (e.g. three wall units too tall) collapse into one line with a count
+    function add(msg, ids){
+      var w = byMsg[msg];
+      if (!w){ w = byMsg[msg] = { msg:msg, ids:[], count:0 }; out.push(w); }
+      w.count++;
+      ids.forEach(function(id){ if (w.ids.indexOf(id) < 0) w.ids.push(id); });
+    }
+    function acc(label){ return label.replace(/^Veggur/, "vegg"); } // "á vegg 1"
+    state.walls.forEach(function(wall){
+      var spans = [], off = cornerClearance(wall, "floor");
+      wall.floor.forEach(function(b){
+        var c = CATALOG[b.type], h = b.heightMm || c.h;
+        spans.push({ b:b, c:c, from:off, to:off + b.widthMm, lo:0, hi:Math.min(h, roomH) + (c.counter ? 32 : 0), rawH:h, row:"floor" });
+        off += b.widthMm;
+      });
+      off = 0;
+      wall.wall.forEach(function(b){
+        var c = CATALOG[b.type], h = b.heightMm || c.h;
+        spans.push({ b:b, c:c, from:off, to:off + b.widthMm, lo:WALL_UNIT_BASE_MM, hi:WALL_UNIT_BASE_MM + h, rawH:WALL_UNIT_BASE_MM + h, row:"wall" });
+        off += b.widthMm;
+      });
+      var ops = state.windows.filter(function(o){ return o.wallId === wall.id; }).map(function(o){ return { kind:"gluggi", o:o, lo:o.sillHeightMm, hi:o.sillHeightMm + o.heightMm }; })
+        .concat(state.doors.filter(function(o){ return o.wallId === wall.id; }).map(function(o){ return { kind:"hurð", o:o, lo:0, hi:o.heightMm }; }));
+      spans.forEach(function(sp){
+        ops.forEach(function(op){
+          var hOverlap = Math.min(sp.to, op.o.offsetMm + op.o.widthMm) - Math.max(sp.from, op.o.offsetMm);
+          var vOverlap = Math.min(sp.hi, op.hi) - Math.max(sp.lo, op.lo);
+          if (hOverlap > 20 && vOverlap > 20){
+            add(sp.c.label + " skarast við " + (op.kind === "gluggi" ? "glugga" : "hurð") + " á " + acc(wall.label) + ".", [sp.b.id, op.o.id]);
+          }
+        });
+        if (sp.rawH > roomH) add(sp.c.label + " á " + acc(wall.label) + " er hærri en loftið (" + roomH + " mm).", [sp.b.id]);
+      });
+    });
+    out.forEach(function(w){ if (w.count > 1) w.msg = w.msg.replace(/\.$/, "") + " (" + w.count + " skápar)."; });
+    return out;
+  }
+  function warnIdList(){ return warnings.reduce(function(acc, w){ return acc.concat(w.ids); }, []); }
+
   function onCabinetSelect(meta){
     selectedBlockId = meta ? meta.blockId : null;
     renderEditPanel();
@@ -1649,6 +1706,7 @@
   var landedBlockId = null; // cabinet that just landed → a short settle bounce in 3D
   function refreshAfterEdit(){
     if (state.step !== "editor") return;
+    warnings = computeWarnings();
     renderCatalogPanel();
     renderView();
     renderEditPanel();
@@ -1668,6 +1726,9 @@
 
   function updateEditorChrome(){
     updateTip();
+    var chip = document.getElementById("warnChip");
+    chip.hidden = !warnings.length;
+    chip.textContent = "⚠ " + warnings.length + " " + plural(warnings.length, "ábending", "ábendingar");
     var total = state.walls.reduce(function(sum, w){ return sum + w.floor.length + w.wall.length; }, 0);
     document.getElementById("toContactBtn").disabled = total === 0;
     document.getElementById("stageEmpty").hidden = total !== 0;
@@ -1759,7 +1820,7 @@
 
     if (viewMode === "2d"){
       wrap.hidden = true; plan.hidden = false;
-      KP3D.buildPlan2D(plan, state, { selectedId:selectedBlockId, onSelect:onCabinetSelect });
+      KP3D.buildPlan2D(plan, state, { selectedId:selectedBlockId, onSelect:onCabinetSelect, warnIds:warnIdList() });
       wireBlockDragHandlers();
       positionFloatBar2D();
       return;
@@ -1775,7 +1836,7 @@
         return;
       }
       wrap.innerHTML = "";
-      KP3D.buildScene(wrap, state, { selectedId:selectedBlockId, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, floatEl:document.getElementById("floatBar"), landedId:landedBlockId });
+      KP3D.buildScene(wrap, state, { selectedId:selectedBlockId, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList() });
       landedBlockId = null;
     }, 8000);
   }
@@ -1801,6 +1862,11 @@
   // panel does the same): click a row to select that cabinet.
   function overviewHTML(){
     var html = '<div class="ov-title">Eldhúsið þitt</div>';
+    if (warnings.length){
+      html += '<div class="warn-box"><div class="ov-wall-h">⚠ Athugið</div>' + warnings.map(function(w, i){
+        return '<button type="button" class="warn-item" data-warn="' + i + '">' + w.msg + '</button>';
+      }).join("") + '</div>';
+    }
     state.walls.forEach(function(wall){
       var items = wall.wall.concat(wall.floor);
       html += '<div class="ov-wall"><div class="ov-wall-h">' + wall.label + ' · ' + wall.lengthMm + ' mm</div>';
@@ -1884,6 +1950,9 @@
       });
       host.querySelectorAll("[data-open-kind]").forEach(function(btn){
         btn.addEventListener("click", function(e){ e.stopPropagation(); removeOpening(btn.dataset.openKind, btn.dataset.openId); });
+      });
+      host.querySelectorAll("[data-warn]").forEach(function(btn){
+        btn.addEventListener("click", function(){ onCabinetSelect({ blockId:warnings[parseInt(btn.dataset.warn, 10)].ids[0] }); });
       });
       host.querySelectorAll("[data-swatch]").forEach(function(btn){
         btn.addEventListener("click", function(){
@@ -2055,6 +2124,7 @@
       document.querySelectorAll("#viewToggle button").forEach(function(btn){ btn.classList.toggle("active", btn.dataset.view === "3d"); });
       pushHistory();
       updateHistoryButtons();
+      warnings = computeWarnings();
       renderCatalogPanel();
       renderEditPanel();
       renderView();
@@ -2075,6 +2145,7 @@
     if (state.windows.length || state.doors.length){
       lines.push("Teiknaði inn " + state.windows.length + " glugga og " + state.doors.length + " hurð(ir) í rýmið — sjá teikningu");
     }
+    computeWarnings().slice(0, 8).forEach(function(w){ lines.push("Athugasemd frá skipulagstóli: " + w.msg.replace(/\.$/, "")); });
     if (!lines.length) return "";
     // Values like "2–4 m.kr." already end in a period — strip any trailing
     // ones per line before joining so a period never gets doubled up,
@@ -2282,6 +2353,9 @@
     btn.addEventListener("click", function(){ applyShapePreset(btn.dataset.preset); });
   });
 
+  document.getElementById("warnChip").addEventListener("click", function(){
+    if (warnings.length) onCabinetSelect({ blockId:warnings[0].ids[0] });
+  });
   document.getElementById("resetCamBtn").addEventListener("click", function(){
     if (viewMode !== "3d") return;
     KP3D.teardown3D(true); // discard the remembered camera so the rebuild re-frames the room

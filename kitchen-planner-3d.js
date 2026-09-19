@@ -395,6 +395,7 @@
   }
 
   var SELECT_COLOR = 0x3d61c1;
+  var WARN_COLOR = 0xd9822b; // outline of a cabinet/opening the fit check flagged
 
   // Door seams + handles on a cabinet front (2026-09-19) so cabinets read as
   // cabinets instead of plain boxes. Handle style follows the customer's
@@ -525,7 +526,7 @@
     // light wall/floor — a soft dark outline keeps every cabinet readable.
     var edges = new THREE.LineSegments(
       new THREE.EdgesGeometry(new THREE.BoxGeometry(widthM, bodyH, depthM)),
-      new THREE.LineBasicMaterial({ color: selected ? SELECT_COLOR : 0x2a2a2a, transparent:true, opacity: selected ? 1 : 0.4 })
+      new THREE.LineBasicMaterial({ color: selected ? SELECT_COLOR : (meta && meta.warn ? WARN_COLOR : 0x2a2a2a), transparent:true, opacity: (selected || (meta && meta.warn)) ? 1 : 0.4 })
     );
     edges.position.copy(mesh.position);
     edges.quaternion.copy(mesh.quaternion);
@@ -680,7 +681,7 @@
     var hovered = null;
     function setHover(mesh){
       if (mesh === hovered) return;
-      if (hovered){ var e0 = hovered.parent && hovered.parent.children[1]; if (e0 && e0.material && !hovered.userData.selected) e0.material.color.set(0x2a2a2a); }
+      if (hovered){ var e0 = hovered.parent && hovered.parent.children[1]; if (e0 && e0.material && !hovered.userData.selected) e0.material.color.set(hovered.userData.warn ? WARN_COLOR : 0x2a2a2a); }
       hovered = mesh;
       if (hovered){ var e1 = hovered.parent && hovered.parent.children[1]; if (e1 && e1.material && e1.material.color) e1.material.color.set(SELECT_COLOR); }
       renderer.domElement.style.cursor = hovered ? "grab" : "";
@@ -821,7 +822,7 @@
           m.material[4] = u.baseFront;
         }
         var e = m.parent && m.parent.children[1];
-        if (e && e.material && e.material.color) e.material.color.set(want ? SELECT_COLOR : 0x2a2a2a);
+        if (e && e.material && e.material.color) e.material.color.set(want ? SELECT_COLOR : (u.warn ? WARN_COLOR : 0x2a2a2a));
       } else { // window / door plane
         m.material.emissive = new THREE.Color(want ? SELECT_COLOR : 0x000000);
         m.material.emissiveIntensity = want ? 0.55 : 0;
@@ -1002,7 +1003,7 @@
         var hM = Math.min(b.heightMm || c.h, roomHeightMm) / 1000, dM = (b.depthMm || c.d) / 1000;
         var selected = opts.selectedId === b.id;
         addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, carcassMat, c.fridge ? steelMat : frontMat, b.interior,
-          { wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), handle:state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0.55,
+          { warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), handle:state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0.55,
             plinth:true, counter:!!c.counter, sink:!!c.sink, oven:!!c.oven, plinthMat:plinthMat, stoneMat:stoneMat }, selected, pickables);
         offset += b.widthMm;
       });
@@ -1012,7 +1013,7 @@
         var hM = Math.min(b.heightMm || c.h, roomHeightMm) / 1000, dM = (b.depthMm || c.d) / 1000;
         var selected = opts.selectedId === b.id;
         addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, WALL_CABINET_BASE_M, carcassMat, frontMat, null,
-          { wallId:wall.id, zone:"wall", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), handle:state.handle,
+          { warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"wall", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), handle:state.handle,
             open:!!c.open, openMat:openMat, hiddenMat:hiddenMat, shelves:c.open ? shelvesOf(b) : 0 }, selected, pickables);
         offset += b.widthMm;
       });
@@ -1237,8 +1238,9 @@
       var poly = corners.map(function(p){ return X(p.x) + "," + Y(p.z); }).join(" ");
       var dash = isWallRow ? ' stroke-dasharray="4,3"' : '';
       var selected = opts.selectedId === bl.id;
-      var stroke = selected ? "#3d61c1" : "#2a2a2a";
-      var strokeW = selected ? 3 : 1.5;
+      var warned = opts.warnIds && opts.warnIds.indexOf(bl.id) >= 0;
+      var stroke = selected ? "#3d61c1" : (warned ? "#d9822b" : "#2a2a2a");
+      var strokeW = selected ? 3 : (warned ? 3 : 1.5);
       svg += '<polygon data-wall-id="' + wallId + '" data-zone="' + zone + '" data-block-id="' + bl.id + '" ' +
         'points="' + poly + '" fill="' + fillColor + '" fill-opacity="' + (isWallRow ? 0.55 : 0.9) + '" ' +
         'stroke="' + stroke + '" stroke-width="' + strokeW + '"' + dash + ' style="cursor:pointer;"/>';
