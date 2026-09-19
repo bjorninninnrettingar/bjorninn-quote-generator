@@ -379,25 +379,140 @@
   // teardown3D(true) to discard it explicitly.
   var savedCameraState = null;
 
-  // Click-to-select: a plain 'click' listener (not pointerdown/up distance
-  // tracking) — browsers already suppress a synthetic click when the pointer
-  // moved significantly between down and up, which is exactly the same
-  // "was this an orbit-drag or a tap" distinction picking needs, so this
-  // coexists with OrbitControls without extra bookkeeping.
-  function setupPicking(THREE, renderer, camera, pickables, onSelect){
+  // Drag a cabinet in the 3D view (2026-09-19) — click-to-select and
+  // drag-to-reposition share this one pointer handler so they can't fight
+  // over the same gesture.
+  //   • Press on a cabinet: OrbitControls is suspended for that gesture. The
+  //     listener sits on `wrap` (an ANCESTOR of the canvas) in the capture
+  //     phase and calls stopPropagation, so OrbitControls' own pointerdown
+  //     (on the canvas itself) never runs. Listeners on the same element
+  //     fire in registration order regardless of the capture flag, so
+  //     attaching to the canvas would have lost that race.
+  //   • Pointer moves past CABINET_DRAG_PX → a drag: the pointer is raycast
+  //     onto the floor plane, projected to the nearest wall (same math as
+  //     kitchen-planner.html's 2D findDropPoint), and reported up via
+  //     opts.onCabinetDragMove / onCabinetDragEnd. Snapping/packing stays in
+  //     kitchen-planner.html; the landing footprint is drawn with
+  //     updateDragPreview3D.
+  //   • Released without moving → a tap: opts.onSelect(meta).
+  //   • Press on empty space is left alone, so orbit/pan/zoom work as before;
+  //     a plain click there still deselects.
+  var CABINET_DRAG_PX = 6;
+
+  function nearestWallDrop(geoms, walls, worldX, worldZ){
+    var best = null, bestDist = Infinity, bestAlongM = 0;
+    geoms.forEach(function(g, i){
+      var x1 = g.origin.x, z1 = g.origin.z;
+      var dx = g.axis.x * g.lenM, dz = g.axis.z * g.lenM;
+      var lenSq = dx * dx + dz * dz;
+      var t = lenSq > 0 ? ((worldX - x1) * dx + (worldZ - z1) * dz) / lenSq : 0;
+      t = Math.max(0, Math.min(1, t));
+      var d = Math.hypot(worldX - (x1 + t * dx), worldZ - (z1 + t * dz));
+      if (d < bestDist){ bestDist = d; best = i; bestAlongM = t * g.lenM; }
+    });
+    return best === null ? null : { wallId:walls[best].id, alongMm:Math.round(bestAlongM * 1000) };
+  }
+
+  function setupCabinetInteraction(THREE, wrap, renderer, camera, controls, pickables, geoms, walls, opts){
     var raycaster = new THREE.Raycaster();
-    function onClick(evt){
+    var floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    var drag = null; // {meta, startX, startY, moved}
+    var suppressClick = false;
+
+    function ndc(evt){
       var rect = renderer.domElement.getBoundingClientRect();
-      var ndc = {
-        x: ((evt.clientX - rect.left) / rect.width) * 2 - 1,
-        y: -((evt.clientY - rect.top) / rect.height) * 2 + 1
-      };
-      raycaster.setFromCamera(ndc, camera);
-      var hits = raycaster.intersectObjects(pickables, false);
-      onSelect(hits.length ? hits[0].object.userData : null);
+      return new THREE.Vector2(
+        ((evt.clientX - rect.left) / rect.width) * 2 - 1,
+        -((evt.clientY - rect.top) / rect.height) * 2 + 1
+      );
     }
-    renderer.domElement.addEventListener("click", onClick);
-    return function cleanup(){ renderer.domElement.removeEventListener("click", onClick); };
+    function pickMeshAt(evt){
+      raycaster.setFromCamera(ndc(evt), camera);
+      var hits = raycaster.intersectObjects(pickables, false);
+      return hits.length ? hits[0].object : null;
+    }
+    function dropAt(evt){
+      raycaster.setFromCamera(ndc(evt), camera);
+      var pt = new THREE.Vector3();
+      if (!raycaster.ray.intersectPlane(floorPlane, pt)) return null;
+      return nearestWallDrop(geoms, walls, pt.x, pt.z);
+    }
+
+    function onDown(evt){
+      if (evt.button !== undefined && evt.button !== 0) return;
+      var mesh = pickMeshAt(evt);
+      if (!mesh) return;
+      evt.stopPropagation();
+      drag = { meta:mesh.userData, startX:evt.clientX, startY:evt.clientY, moved:false };
+      controls.enabled = false;
+    }
+    function onMove(evt){
+      if (!drag) return;
+      if (!drag.moved){
+        if (Math.hypot(evt.clientX - drag.startX, evt.clientY - drag.startY) < CABINET_DRAG_PX) return;
+        drag.moved = true;
+      }
+      if (opts.onCabinetDragMove) opts.onCabinetDragMove(drag.meta, dropAt(evt));
+    }
+    function onUp(evt){
+      if (!drag) return;
+      var meta = drag.meta, moved = drag.moved;
+      drag = null;
+      controls.enabled = true;
+      if (moved){
+        suppressClick = true;
+        if (opts.onCabinetDragEnd) opts.onCabinetDragEnd(meta, dropAt(evt));
+      } else if (opts.onSelect){
+        opts.onSelect(meta);
+      }
+    }
+    function onClickEmpty(evt){
+      if (suppressClick){ suppressClick = false; return; }
+      if (pickMeshAt(evt)) return; // a tap on a cabinet was already handled in onUp
+      if (opts.onSelect) opts.onSelect(null);
+    }
+
+    wrap.addEventListener("pointerdown", onDown, { capture:true });
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    renderer.domElement.addEventListener("click", onClickEmpty);
+    return function cleanup(){
+      wrap.removeEventListener("pointerdown", onDown, { capture:true });
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      renderer.domElement.removeEventListener("click", onClickEmpty);
+    };
+  }
+
+  // Flat translucent footprint on the floor showing where the dragged
+  // cabinet will land (blue = fits, red = wall full) — the 3D counterpart of
+  // kitchen-planner.html's 2D drag-preview polygon.
+  function updateDragPreview3D(wallId, offsetMm, widthMm, depthMm, ok){
+    if (!THREE_STATE) return;
+    var THREE = window.__THREE__;
+    var wi = THREE_STATE.walls.findIndex(function(w){ return w.id === wallId; });
+    var g = THREE_STATE.geoms[wi];
+    if (!g){ hideDragPreview3D(); return; }
+    var p = rectCornersWorld(g, offsetMm, widthMm, depthMm), y = 0.012;
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array([
+      p[0].x, y, p[0].z,  p[1].x, y, p[1].z,  p[2].x, y, p[2].z,
+      p[0].x, y, p[0].z,  p[2].x, y, p[2].z,  p[3].x, y, p[3].z
+    ]), 3));
+    if (!THREE_STATE.previewMesh){
+      THREE_STATE.previewMesh = new THREE.Mesh(new THREE.BufferGeometry(),
+        new THREE.MeshBasicMaterial({ color:0x3d61c1, transparent:true, opacity:0.45, side:THREE.DoubleSide, depthWrite:false }));
+      THREE_STATE.scene.add(THREE_STATE.previewMesh);
+    }
+    var mesh = THREE_STATE.previewMesh;
+    mesh.geometry.dispose();
+    mesh.geometry = geo;
+    mesh.material.color.set(ok ? 0x3d61c1 : 0xb3432f);
+    mesh.visible = true;
+  }
+
+  function hideDragPreview3D(){
+    if (THREE_STATE && THREE_STATE.previewMesh) THREE_STATE.previewMesh.visible = false;
   }
 
   function teardown3D(discardCamera){
@@ -408,7 +523,7 @@
     };
     cancelAnimationFrame(THREE_STATE.rafId);
     window.removeEventListener("resize", THREE_STATE.onResize);
-    if (THREE_STATE.cleanupPicking) THREE_STATE.cleanupPicking();
+    if (THREE_STATE.cleanupInteraction) THREE_STATE.cleanupInteraction();
     THREE_STATE.controls.dispose();
     disposeScene(THREE_STATE.scene);
     THREE_STATE.renderer.dispose();
@@ -583,8 +698,9 @@
     }
     controls.update();
 
-    var cleanupPicking = opts.onSelect ? setupPicking(THREE, renderer, camera, pickables, opts.onSelect) : null;
-    THREE_STATE = { renderer:renderer, controls:controls, scene:scene, rafId:0, onResize:resize, cleanupPicking:cleanupPicking };
+    var cleanupInteraction = setupCabinetInteraction(THREE, wrap, renderer, camera, controls, pickables, geoms, state.walls, opts);
+    THREE_STATE = { renderer:renderer, controls:controls, scene:scene, rafId:0, onResize:resize, cleanupInteraction:cleanupInteraction,
+                    walls:state.walls, geoms:geoms, previewMesh:null };
 
     function resize(){
       var w = wrap.clientWidth, h = wrap.clientHeight;
@@ -753,6 +869,8 @@
     waitForThree: waitForThree,
     buildScene: buildScene,
     buildPlan2D: buildPlan2D,
+    updateDragPreview3D: updateDragPreview3D,
+    hideDragPreview3D: hideDragPreview3D,
     teardown3D: teardown3D
   };
 })();
