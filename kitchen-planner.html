@@ -316,6 +316,11 @@
   .edit-actions{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
 
   /* ---- contact step ---- */
+  .contact-preview:not([hidden]){ display:flex; align-items:center; gap:16px; max-width:560px; margin:0 0 22px; padding:12px; background:var(--panel); border:1px solid var(--line); border-radius:14px; }
+  .contact-preview img{ width:190px; border-radius:9px; border:1px solid var(--line); flex:none; }
+  .contact-preview .cp-text{ font-size:13.5px; color:var(--ink-soft); line-height:1.5; }
+  .contact-preview .cp-text strong{ color:var(--ink); }
+  .contact-preview a{ color:var(--blue); font-size:13px; }
   .contact-fields{ display:flex; flex-direction:column; gap:14px; max-width:420px; margin-bottom:8px; }
   .contact-fields input[type=text], .contact-fields input[type=email], .contact-fields input[type=tel]{
     padding:10px 12px; border:1px solid var(--line); border-radius:8px; font-size:15px; color:var(--ink); background:#fff;
@@ -510,6 +515,8 @@
     <div class="screen-title">Þínar upplýsingar</div>
     <p class="screen-sub">Rakel fer yfir skipulagið þitt og hefur samband til að fullkomna hönnunina.</p>
 
+    <div class="contact-preview" id="contactPreview" hidden></div>
+
     <div class="contact-fields" id="contactFields">
       <div class="field" id="field-fornafn">
         <label for="cFornafn">Fornafn</label>
@@ -548,6 +555,7 @@
       <div class="big">✅</div>
       <h3>Takk fyrir!</h3>
       <p>Rakel hefur fengið skipulagið þitt og hefur samband fljótlega til að fullkomna hönnunina með þér.</p>
+      <div class="contact-preview" id="donePreview" hidden style="margin:18px auto 0;"></div>
     </div>
   </section>
 
@@ -724,6 +732,7 @@
   function resetAll(){
     if (!confirm("Hreinsa allt skipulagið og byrja upp á nýtt?")) return;
     KP3D.teardown3D(true);
+    lastThumb = null; lastSummary = "";
     try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
     wallSeq = 2;
     openingSeq = 1;
@@ -2183,6 +2192,7 @@
       openingSeq = 1;
       state = { step:"done", intake:{delivery:null,budget:null,room:"Eldhús"}, carcass:null, drawerSystem:null, look:null, handle:null, roomHeightMm:DEFAULT_ROOM_HEIGHT_MM, wallColor:null, windows:[], doors:[], walls:freshWalls() };
       render();
+      renderPreviews();
     }catch(e){
       errEl.textContent = "Eitthvað fór úrskeiðis við að senda inn. Prófaðu aftur — " + e.message;
       errEl.style.display = "block";
@@ -2203,7 +2213,45 @@
   document.getElementById("toWallsBtn").addEventListener("click", function(){ goto("editor"); });
   document.getElementById("backToShapeBtn").addEventListener("click", function(){ goto("shape"); });
 
-  document.getElementById("toContactBtn").addEventListener("click", function(){ goto("contact"); });
+  // A small picture of the plan for the contact/done screens (taken while the
+  // 3D scene is still alive, i.e. before leaving the editor).
+  var lastThumb = null;
+  function captureThumb(){
+    lastThumb = null;
+    try{
+      var url = viewMode === "3d" ? KP3D.snapshot3D() : null;
+      if (!url) return;
+      var img = new Image();
+      img.onload = function(){
+        var cv = document.createElement("canvas");
+        cv.width = 640; cv.height = Math.round(640 * img.height / img.width);
+        cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+        lastThumb = cv.toDataURL("image/jpeg", 0.85);
+        renderPreviews();
+      };
+      img.src = url;
+    }catch(e){}
+  }
+  function planSummaryText(){
+    var cab = state.walls.reduce(function(sum, w){ return sum + w.floor.length + w.wall.length; }, 0);
+    var parts = [cab + " " + plural(cab, "skápur", "skápar")];
+    if (state.windows.length) parts.push(state.windows.length + " " + plural(state.windows.length, "gluggi", "gluggar"));
+    if (state.doors.length) parts.push(state.doors.length + " " + plural(state.doors.length, "hurð", "hurðir"));
+    return parts.join(" · ");
+  }
+  var lastSummary = "";
+  function renderPreviews(){
+    var html = lastThumb ? '<img src="' + lastThumb + '" alt="Skipulagið þitt">' : "";
+    if (state.step === "contact" || state.step === "done"){
+      var text = state.step === "contact" ? planSummaryText() : lastSummary;
+      lastSummary = state.step === "contact" ? text : lastSummary;
+      var box = document.getElementById(state.step === "contact" ? "contactPreview" : "donePreview");
+      box.innerHTML = html + '<div class="cp-text"><strong>Skipulagið þitt</strong><br>' + text +
+        (lastThumb ? '<br><a href="' + lastThumb + '" download="eldhus-skipulag.jpg">Sækja mynd</a>' : "") + '</div>';
+      box.hidden = false;
+    }
+  }
+  document.getElementById("toContactBtn").addEventListener("click", function(){ captureThumb(); goto("contact"); renderPreviews(); });
   document.getElementById("backToEditorBtn").addEventListener("click", function(){ goto("editor"); });
   document.getElementById("submitBtn").addEventListener("click", function(){
     if (!validateContact()) return;
