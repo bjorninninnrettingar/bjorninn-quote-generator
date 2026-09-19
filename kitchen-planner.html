@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Skipuleggðu eldhúsið | BJÖRNINN</title>
+<meta name="description" content="Teiknaðu upp draumaeldhúsið í 3D — veldu skápa, efni og lögun. Gróf teikning, engin binding. Björninn Innréttingar fer yfir og fullkomnar hönnunina með þér." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -531,6 +532,7 @@
       </div>
     </div>
 
+    <p class="submit-note">Við notum upplýsingarnar eingöngu til að hafa samband við þig vegna skipulagsins. Engin binding.</p>
     <p class="submit-note" id="submitError" style="display:none; color:var(--danger);"></p>
 
     <div class="actions">
@@ -1710,6 +1712,15 @@
     bar.hidden = false;
   }
 
+  // 3D can't run (no WebGL / CDN blocked): fall back to the 2D plan, which
+  // supports everything the editor does, instead of leaving a dead canvas.
+  function fall2D(msg){
+    viewMode = "2d";
+    document.querySelectorAll("#viewToggle button").forEach(function(btn){ btn.classList.toggle("active", btn.dataset.view === "2d"); });
+    toast(msg);
+    renderView();
+  }
+
   function renderView(){
     var wrap = document.getElementById("threeWrap");
     var plan = document.getElementById("planWrap");
@@ -1726,15 +1737,12 @@
     }
 
     wrap.hidden = false; plan.hidden = true;
-    if (!KP3D.hasWebGL()){
-      wrap.innerHTML = '<div class="three-note">3D forskoðun er ekki studd í þessum vafra — sjá listann fyrir neðan, eða skoðaðu teikninguna.</div>';
-      return;
-    }
+    if (!KP3D.hasWebGL()){ fall2D("3D er ekki stutt í þessum vafra — þú getur skipulagt í teikningunni."); return; }
     wrap.innerHTML = '<div class="three-note">Hleð 3D…</div>';
     KP3D.waitForThree(function(ok){
       if (state.step !== "editor" || viewMode !== "3d") return; // navigated away while waiting
       if (!ok){
-        wrap.innerHTML = '<div class="three-note">3D forskoðun tókst ekki að hlaða — sjá listann fyrir neðan.</div>';
+        fall2D("3D tókst ekki að hlaða — þú getur skipulagt í teikningunni.");
         return;
       }
       wrap.innerHTML = "";
