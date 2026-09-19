@@ -95,6 +95,8 @@
   .ed-stage .three-wrap{ height:calc(100vh - 262px); min-height:460px; margin-bottom:0; }
   .ed-toolbar{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
   .ed-toolbar .view-toggle{ margin-bottom:0; }
+  .ed-toolbar .view-toggle button:disabled{ opacity:.35; cursor:not-allowed; }
+  .ed-toolbar #viewToggle{ margin-right:auto; }
   .ed-hint{ font-size:12.5px; color:var(--ink-soft); text-align:right; }
   .cat-title{ font-size:11.5px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--gold); margin:4px 0 8px; }
   .cat-title:not(:first-child){ margin-top:16px; }
@@ -423,6 +425,10 @@
             <button type="button" class="active" data-view="3d">🧊 3D</button>
             <button type="button" data-view="2d">📐 Teikning</button>
           </div>
+          <div class="view-toggle" id="histToggle">
+            <button type="button" id="undoBtn" title="Afturkalla (⌘Z)" disabled>↶</button>
+            <button type="button" id="redoBtn" title="Endurgera (⌘⇧Z)" disabled>↷</button>
+          </div>
           <span class="ed-hint">Dragðu skáp inn í rýmið · smelltu á skáp til að breyta</span>
         </div>
         <div class="three-wrap" id="threeWrap"></div>
@@ -574,6 +580,37 @@
   // ---------- persistence ----------
   function save(){
     try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+    pushHistory();
+  }
+
+  // ---------- undo / redo (editor step only) ----------
+  // Snapshots of the whole state, taken on every save() while editing. Undo
+  // restores one; ids stay unique because blockSeq/openingSeq never rewind.
+  var undoStack = [], histIdx = -1;
+  function pushHistory(){
+    if (state.step !== "editor") return;
+    var j = JSON.stringify(state);
+    if (histIdx >= 0 && undoStack[histIdx] === j) return;
+    undoStack = undoStack.slice(0, histIdx + 1);
+    undoStack.push(j);
+    if (undoStack.length > 60) undoStack.shift();
+    histIdx = undoStack.length - 1;
+    updateHistoryButtons();
+  }
+  function updateHistoryButtons(){
+    var u = document.getElementById("undoBtn"), r = document.getElementById("redoBtn");
+    if (u) u.disabled = histIdx <= 0;
+    if (r) r.disabled = histIdx >= undoStack.length - 1;
+  }
+  function stepHistory(dir){
+    var next = histIdx + dir;
+    if (next < 0 || next >= undoStack.length) return;
+    histIdx = next;
+    state = JSON.parse(undoStack[histIdx]);
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+    if (selectedBlockId && !findBlock(selectedBlockId)) selectedBlockId = null;
+    updateHistoryButtons();
+    refreshAfterEdit();
   }
   function load(){
     try{
@@ -1676,6 +1713,7 @@
   // ---------- screen switching ----------
   function goto(step){
     if (state.step === "editor" && step !== "editor"){ KP3D.teardown3D(); selectedBlockId = null; }
+    if (step === "editor" && state.step !== "editor"){ undoStack = []; histIdx = -1; }
     state.step = step;
     save();
     render();
@@ -1704,6 +1742,8 @@
     if (state.step === "editor"){
       viewMode = "3d";
       document.querySelectorAll("#viewToggle button").forEach(function(btn){ btn.classList.toggle("active", btn.dataset.view === "3d"); });
+      pushHistory();
+      updateHistoryButtons();
       renderCatalogPanel();
       renderEditPanel();
       renderView();
@@ -1883,9 +1923,15 @@
 
   document.getElementById("resetBtn").addEventListener("click", resetAll);
 
+  document.getElementById("undoBtn").addEventListener("click", function(){ stepHistory(-1); });
+  document.getElementById("redoBtn").addEventListener("click", function(){ stepHistory(1); });
   document.addEventListener("keydown", function(e){
-    if (state.step !== "editor" || !selectedBlockId) return;
+    if (state.step !== "editor") return;
     if (/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
+    var mod = e.metaKey || e.ctrlKey;
+    if (mod && e.key.toLowerCase() === "z"){ e.preventDefault(); stepHistory(e.shiftKey ? 1 : -1); return; }
+    if (mod && e.key.toLowerCase() === "y"){ e.preventDefault(); stepHistory(1); return; }
+    if (!selectedBlockId) return;
     if (e.key === "Delete" || e.key === "Backspace"){
       var found = findBlock(selectedBlockId);
       if (found){ e.preventDefault(); selectedBlockId = null; removeBlock(found.wall, found.zone, found.block.id); }
