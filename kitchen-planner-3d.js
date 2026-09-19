@@ -324,6 +324,58 @@
 
   var SELECT_COLOR = 0x3d61c1;
 
+  // Door seams + handles on a cabinet front (2026-09-19) so cabinets read as
+  // cabinets instead of plain boxes. Handle style follows the customer's
+  // chosen opening (HANDLES key): a bar (ona), a full-width profile (jey2 /
+  // hexxa), a knob (arpa), or a milled groove (fraest); push-open (push)
+  // shows no hardware. Fronts: drawers → equal rows, tall unit → two doors,
+  // anything else → one door. Purely visual — nothing here is submitted.
+  function addFrontDetails(THREE, group, geom, offsetM, widthM, heightM, baseYM, depthM, interior, handleKey, isTall, isWallRow){
+    var xAxis = new THREE.Vector3(geom.axis.x, 0, geom.axis.z);
+    var quat = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(xAxis, new THREE.Vector3(0, 1, 0), new THREE.Vector3(geom.normal.x, 0, geom.normal.z)));
+    var drawers = interior && interior.mode === "skuffur" ? interior.count : 0;
+    var fronts = [];
+    if (drawers){ for (var i = 0; i < drawers; i++) fronts.push({ y0:i / drawers, y1:(i + 1) / drawers, drawer:true }); }
+    else if (isTall){ fronts.push({ y0:0, y1:0.55 }, { y0:0.55, y1:1 }); }
+    else fronts.push({ y0:0, y1:1 });
+
+    var cx = geom.origin.x + geom.axis.x * (offsetM + widthM / 2), cz = geom.origin.z + geom.axis.z * (offsetM + widthM / 2);
+    function place(mesh, y, out){
+      mesh.position.set(cx + geom.normal.x * (depthM + out), y, cz + geom.normal.z * (depthM + out));
+      mesh.quaternion.copy(quat);
+      group.add(mesh);
+    }
+    var seamMat = new THREE.MeshBasicMaterial({ color:0x2a2a2a, side:THREE.DoubleSide });
+    var handleMat = new THREE.MeshStandardMaterial({ color:0x55575a, metalness:0.65, roughness:0.35 });
+
+    fronts.forEach(function(f, idx){
+      // seam between stacked door fronts (drawer seams are drawn separately)
+      if (!f.drawer && idx > 0){
+        place(new THREE.Mesh(new THREE.PlaneGeometry(widthM * 0.96, 0.008), seamMat), baseYM + heightM * f.y0, 0.004);
+      }
+      if (!handleKey || handleKey === "push") return;
+      var top = baseYM + heightM * f.y1, bottom = baseYM + heightM * f.y0;
+      // wall units and the upper door of a tall unit take the handle at the
+      // lower edge, everything else at the upper edge
+      var atBottom = isWallRow || (isTall && !f.drawer && idx === fronts.length - 1 && fronts.length > 1);
+      var edgeY = atBottom ? bottom + 0.02 : top - 0.02;
+      var mesh;
+      if (handleKey === "ona"){
+        mesh = new THREE.Mesh(new THREE.BoxGeometry(Math.min(0.24, widthM * 0.5), 0.012, 0.02), handleMat);
+        place(mesh, atBottom ? bottom + 0.06 : top - (f.drawer ? 0.07 : 0.06), 0.012);
+      } else if (handleKey === "jey2" || handleKey === "hexxa"){
+        mesh = new THREE.Mesh(new THREE.BoxGeometry(widthM * (handleKey === "jey2" ? 0.94 : 0.7), 0.02, 0.016), handleMat);
+        place(mesh, edgeY, 0.008);
+      } else if (handleKey === "arpa"){
+        mesh = new THREE.Mesh(new THREE.SphereGeometry(0.014, 14, 12), handleMat);
+        place(mesh, atBottom ? bottom + 0.07 : top - 0.07, 0.014);
+      } else if (handleKey === "fraest"){
+        mesh = new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.9, 0.006, 0.002), seamMat);
+        place(mesh, atBottom ? bottom + 0.012 : top - 0.012, 0.002);
+      }
+    });
+  }
+
   // `interior` is optional: { mode:"hillur"|"skuffur", count:number }.
   // `meta` (optional) is tagged onto the mesh as userData for click-picking —
   // {wallId, zone, blockId}. `selected` swaps the edge color and tints the
@@ -372,6 +424,7 @@
     if (interior && interior.mode === "skuffur"){
       addDrawerSeams(THREE, group, geom, offsetM, widthM, heightM, baseYM, depthM, interior.count);
     }
+    if (meta && meta.zone !== "opening") addFrontDetails(THREE, group, geom, offsetM, widthM, heightM, baseYM, depthM, interior, meta.handle, !!meta.tall, meta.zone === "wall");
   }
 
   function disposeScene(scene){
@@ -739,7 +792,7 @@
         var hM = Math.min(b.heightMm || c.h, roomHeightMm) / 1000, dM = (b.depthMm || c.d) / 1000;
         var selected = opts.selectedId === b.id;
         addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, carcassMat, frontMat, b.interior,
-          { wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d) }, selected, pickables);
+          { wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), handle:state.handle, tall:c.cls === "tall" }, selected, pickables);
         offset += b.widthMm;
       });
       offset = 0;
@@ -748,7 +801,7 @@
         var hM = Math.min(b.heightMm || c.h, roomHeightMm) / 1000, dM = (b.depthMm || c.d) / 1000;
         var selected = opts.selectedId === b.id;
         addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, WALL_CABINET_BASE_M, carcassMat, frontMat, null,
-          { wallId:wall.id, zone:"wall", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d) }, selected, pickables);
+          { wallId:wall.id, zone:"wall", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), handle:state.handle }, selected, pickables);
         offset += b.widthMm;
       });
     });
@@ -761,7 +814,7 @@
     scene.add(dir);
 
     var camera = new THREE.PerspectiveCamera(45, 1, 0.05, 100);
-    var dist = Math.max(bbox.w, bbox.d) * 0.9 + 1.5;
+    var dist = Math.max(bbox.w, bbox.d) * 0.74 + 1.2;
     camera.position.set(bbox.cx + dist * 0.6, dist * 0.55, bbox.cz + dist * 0.9);
 
     var renderer = new THREE.WebGLRenderer({ antialias:true });
