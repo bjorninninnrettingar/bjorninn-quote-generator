@@ -86,6 +86,12 @@
     background:#fff; border:1px solid var(--line); border-radius:12px;
     box-shadow:0 6px 20px rgba(0,0,0,.18); transform:translate(-50%,-100%);
   }
+  .stage-empty:not([hidden]){
+    position:absolute; left:50%; top:52%; transform:translate(-50%,-50%); z-index:5; text-align:center;
+    pointer-events:none; background:rgba(255,255,255,.92); border:1.5px dashed var(--line); border-radius:14px;
+    padding:16px 22px; font-size:15px; font-weight:600; color:var(--ink);
+  }
+  .stage-empty span{ font-size:12.5px; font-weight:400; color:var(--ink-soft); }
   .float-bar.opening button:not(.del){ display:none; }
   .float-bar button{
     width:34px; height:34px; border:none; background:none; border-radius:8px; cursor:pointer;
@@ -124,6 +130,10 @@
   }
   .ov-item:hover{ border-color:var(--blue); }
   .ov-item span{ color:var(--ink-soft); font-size:12px; white-space:nowrap; }
+  .sw-row{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+  .sw-btn{ width:30px; height:30px; border-radius:8px; border:2px solid var(--line); cursor:pointer; padding:0; }
+  .sw-btn:hover{ border-color:var(--ink-soft); }
+  .sw-btn.active{ border-color:var(--blue); box-shadow:0 0 0 2px var(--blue-soft); }
   .ov-mat{ font-size:13px; color:var(--ink-soft); margin:0 0 4px; }
   .ov-mat strong{ color:var(--ink); }
   .ov-links{ display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
@@ -437,6 +447,7 @@
         </div>
         <div class="three-wrap" id="threeWrap"></div>
         <div class="three-wrap" id="planWrap" hidden></div>
+        <div class="stage-empty" id="stageEmpty" hidden>Dragðu skáp úr vörulistanum inn í rýmið<br><span>eða smelltu á hann til að bæta honum við</span></div>
         <div class="float-bar" id="floatBar" hidden>
           <button type="button" data-fb="left" title="Færa til vinstri">◀</button>
           <button type="button" data-fb="right" title="Færa til hægri">▶</button>
@@ -844,6 +855,7 @@
     var b = newBlock(type);
     if (b.widthMm > remaining) b.widthMm = clampWidth(type, remaining);
     list.push(b);
+    landedBlockId = b.id;
     save();
     refreshAfterEdit();
   }
@@ -1219,6 +1231,7 @@
     }
     var b = newBlock(type);
     wall[zone].splice(packed.index, 0, b);
+    landedBlockId = b.id;
     save();
     refreshAfterEdit();
   }
@@ -1298,6 +1311,7 @@
     var destList = targetWall[zone];
     var idx = insertIndexForOffset(destList, Math.max(alongMm, clearance), clearance);
     destList.splice(idx, 0, found.block);
+    landedBlockId = found.block.id;
     save();
     refreshAfterEdit();
   }
@@ -1520,13 +1534,20 @@
   // One editor workspace now (catalog | 3D/2D stage | properties): any change
   // to the layout re-renders the stage, the properties panel and the catalog
   // (whose items grey out when nothing more fits).
+  var landedBlockId = null; // cabinet that just landed → a short settle bounce in 3D
   function refreshAfterEdit(){
     if (state.step !== "editor") return;
     renderCatalogPanel();
     renderView();
     renderEditPanel();
+    updateEditorChrome();
+  }
+
+  // Empty-state hint + the "continue" button depend only on the cabinet count.
+  function updateEditorChrome(){
     var total = state.walls.reduce(function(sum, w){ return sum + w.floor.length + w.wall.length; }, 0);
     document.getElementById("toContactBtn").disabled = total === 0;
+    document.getElementById("stageEmpty").hidden = total !== 0;
   }
 
   // Dragging a cabinet in the 3D view — mirrors the walls-step 2D drag
@@ -1567,6 +1588,7 @@
     if (src.interior) copy.interior = { mode:src.interior.mode, count:src.interior.count };
     list.splice(idx + 1, 0, copy);
     selectedBlockId = copy.id;
+    landedBlockId = copy.id;
     save();
     refreshAfterEdit();
   }
@@ -1624,7 +1646,8 @@
         return;
       }
       wrap.innerHTML = "";
-      KP3D.buildScene(wrap, state, { selectedId:selectedBlockId, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, floatEl:document.getElementById("floatBar") });
+      KP3D.buildScene(wrap, state, { selectedId:selectedBlockId, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, floatEl:document.getElementById("floatBar"), landedId:landedBlockId });
+      landedBlockId = null;
     }, 8000);
   }
 
@@ -1667,14 +1690,18 @@
       });
       html += '</div>';
     }
-    var mats = [];
-    if (state.carcass) mats.push("Skrokkur: <strong>" + CARCASS[state.carcass].label + "</strong>");
-    if (state.look) mats.push("Framhlið: <strong>" + LOOKS[state.look].label + "</strong>");
-    if (state.handle) mats.push("Opnun: <strong>" + HANDLES[state.handle].label + "</strong>");
-    if (state.drawerSystem) mats.push("Skúffukerfi: <strong>" + DRAWER_SYSTEMS[state.drawerSystem].label + "</strong>");
-    if (state.wallColor) mats.push("Veggir: <strong>" + WALL_COLORS[state.wallColor].label + "</strong>");
-    html += '<div class="ov-wall"><div class="ov-wall-h">Efni</div>' + mats.map(function(m){ return '<p class="ov-mat">' + m + '</p>'; }).join("") +
-      '<div class="ov-links"><button type="button" class="btn btn-secondary btn-small" data-goto="materials">Breyta efni</button></div></div>';
+    function swatches(title, key, map, active, attr){
+      return '<div class="ov-wall-h">' + title + '</div><div class="sw-row">' + Object.keys(map).map(function(k){
+        var hex = map[k].color3d || map[k].hex;
+        return '<button type="button" class="sw-btn' + (active === k ? ' active' : '') + '" data-swatch="' + key + '" data-val="' + k + '" title="' + map[k].label + '" style="background:' + hex + ';"></button>';
+      }).join("") + '</div>';
+    }
+    html += '<div class="ov-wall">' +
+      swatches("Framhlið", "look", LOOKS, state.look) +
+      swatches("Skrokkur", "carcass", CARCASS, state.carcass) +
+      swatches("Veggir", "wallColor", WALL_COLORS, state.wallColor) +
+      '<p class="ov-mat" style="margin-top:10px;">Opnun: <strong>' + (state.handle ? HANDLES[state.handle].label : "—") + '</strong> · Skúffukerfi: <strong>' + (state.drawerSystem ? DRAWER_SYSTEMS[state.drawerSystem].label : "—") + '</strong></p>' +
+      '<div class="ov-links"><button type="button" class="btn btn-secondary btn-small" data-goto="materials">Breyta öðru efni</button></div></div>';
     return html;
   }
 
@@ -1723,6 +1750,13 @@
       });
       host.querySelectorAll("[data-open-kind]").forEach(function(btn){
         btn.addEventListener("click", function(e){ e.stopPropagation(); removeOpening(btn.dataset.openKind, btn.dataset.openId); });
+      });
+      host.querySelectorAll("[data-swatch]").forEach(function(btn){
+        btn.addEventListener("click", function(){
+          state[btn.dataset.swatch] = btn.dataset.val;
+          save();
+          refreshAfterEdit();
+        });
       });
       host.querySelectorAll("[data-goto]").forEach(function(btn){
         btn.addEventListener("click", function(){ goto(btn.dataset.goto); });
@@ -1860,8 +1894,7 @@
       renderCatalogPanel();
       renderEditPanel();
       renderView();
-      var total = state.walls.reduce(function(sum, w){ return sum + w.floor.length + w.wall.length; }, 0);
-      document.getElementById("toContactBtn").disabled = total === 0;
+      updateEditorChrome();
     }
   }
 
@@ -2050,6 +2083,11 @@
     if (mod && e.key.toLowerCase() === "z"){ e.preventDefault(); stepHistory(e.shiftKey ? 1 : -1); return; }
     if (mod && e.key.toLowerCase() === "y"){ e.preventDefault(); stepHistory(1); return; }
     if (!selectedBlockId) return;
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight"){
+      var fa = findBlock(selectedBlockId);
+      if (fa){ e.preventDefault(); moveBlock(fa.wall, fa.zone, fa.block.id, e.key === "ArrowLeft" ? -1 : 1); }
+      return;
+    }
     if (e.key === "Delete" || e.key === "Backspace"){
       var found = findBlock(selectedBlockId), op = found ? null : findOpening(selectedBlockId);
       if (found){ e.preventDefault(); selectedBlockId = null; removeBlock(found.wall, found.zone, found.block.id); }

@@ -829,9 +829,20 @@
       });
     }
 
+    // Settle: the cabinet that just landed hops slightly and drops back.
+    var landed = opts.landedId ? pickables.find(function(m){ return m.userData.blockId === opts.landedId; }) : null;
+    var landedGroup = landed ? landed.parent : null, landedStart = performance.now();
+    function settleLanded(){
+      if (!landedGroup) return;
+      var t = (performance.now() - landedStart) / 420;
+      if (t >= 1){ landedGroup.position.y = 0; landedGroup = null; return; }
+      landedGroup.position.y = 0.05 * Math.sin(Math.PI * t) * (1 - t);
+    }
+
     function loop(){
       THREE_STATE.rafId = requestAnimationFrame(loop);
       controls.update();
+      settleLanded();
       fadeWalls();
       renderer.render(scene, camera);
       placeFloatBar();
