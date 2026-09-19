@@ -16,7 +16,7 @@
   // collectEyðublaðRows(), which already no-ops cleanly on their absence
   // (its ovenHeightMm/tofrahornId branches just never fire for these 3).
   var CATALOG = {
-    grunnskapur: { label:"Grunnskápur", zone:"floor", cls:"floor", defaultW:600, minW:600, maxW:600, h:800,  d:600, minH:800,  maxH:800,  minD:600, maxD:600, hasInterior:true, drawerCountRange:[1,5], shelfRange:[0,4,1] },
+    grunnskapur: { label:"Grunnskápur", zone:"floor", cls:"floor", defaultW:600, minW:600, maxW:600, h:800,  d:600, minH:800,  maxH:800,  minD:600, maxD:600, hasInterior:true, drawerCountRange:[1,5], shelfRange:[0,4,1], counter:true },
     harskapur:   { label:"Hárskápur",   zone:"floor", cls:"tall",  defaultW:600, minW:600, maxW:600, h:2400, d:600, minH:2400, maxH:2400, minD:600, maxD:600, hasInterior:true, drawerCountRange:[1,5], shelfRange:[0,8,5] },
     efriskapur:  { label:"Efriskápur",  zone:"wall",  cls:"wall",  defaultW:600, minW:600, maxW:600, h:1000, d:300, minH:1000, maxH:1000, minD:300, maxD:300, hasInterior:false, shelfRange:[0,5,2] },
     // Built-in fridge: NOT its own Skápategund in the schema (Skápategund has
@@ -275,6 +275,11 @@
     var w = (b.maxX - b.minX) + margin * 2, d = (b.maxZ - b.minZ) + margin * 2;
     var cx = (b.minX + b.maxX) / 2, cz = (b.minZ + b.maxZ) / 2;
     var mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, d), floorMat);
+    if (floorMat.map && floorMat.userData.tile){ // one 2 m tile of oak planks, repeated to the room size
+      var rx = w / floorMat.userData.tile, ry = d / floorMat.userData.tile;
+      floorMat.map.repeat.set(rx, ry);
+      if (floorMat.bumpMap) floorMat.bumpMap.repeat.set(rx, ry);
+    }
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.set(cx, 0, cz);
     mesh.receiveShadow = true;
@@ -363,7 +368,7 @@
   // hexxa), a knob (arpa), or a milled groove (fraest); push-open (push)
   // shows no hardware. Fronts: drawers → equal rows, tall unit → two doors,
   // anything else → one door. Purely visual — nothing here is submitted.
-  function addFrontDetails(THREE, group, geom, offsetM, widthM, heightM, baseYM, depthM, interior, handleKey, isTall, isWallRow, split){
+  function addFrontDetails(THREE, group, geom, offsetM, widthM, heightM, baseYM, depthM, interior, handleKey, isTall, isWallRow, split, meta){
     var xAxis = new THREE.Vector3(geom.axis.x, 0, geom.axis.z);
     var quat = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(xAxis, new THREE.Vector3(0, 1, 0), new THREE.Vector3(geom.normal.x, 0, geom.normal.z)));
     var drawers = interior && interior.mode === "skuffur" ? interior.count : 0;
@@ -418,7 +423,14 @@
   function addCabinetBox(THREE, scene, geom, offsetM, widthM, heightM, depthM, baseYM, carcassMat, frontMat, interior, meta, selected, pickables){
     var cx = geom.origin.x + geom.axis.x * (offsetM + widthM / 2) + geom.normal.x * (depthM / 2);
     var cz = geom.origin.z + geom.axis.z * (offsetM + widthM / 2) + geom.normal.z * (depthM / 2);
-    var boxGeo = new THREE.BoxGeometry(widthM, heightM, depthM);
+    // Floor units stand on a recessed plinth (sökkull): the body starts 100 mm
+    // up and a dark, set-back block fills the gap, as in a real kitchen.
+    var plinthM = meta && meta.plinth ? 0.1 : 0;
+    var bodyBase = baseYM + plinthM, bodyH = heightM - plinthM;
+    var boxGeo = window.__RoundedBox__
+      ? new window.__RoundedBox__(widthM, bodyH, depthM, 3, 0.004)
+      : new THREE.BoxGeometry(widthM, bodyH, depthM);
+    scaleFrontUV(boxGeo, widthM, bodyH, frontMat.userData && frontMat.userData.tile);
     var useFrontMat = frontMat;
     if (selected){
       useFrontMat = frontMat.clone();
@@ -426,47 +438,87 @@
       useFrontMat.emissiveIntensity = 0.35;
     }
     var mesh = new THREE.Mesh(boxGeo, [carcassMat, carcassMat, carcassMat, carcassMat, useFrontMat, carcassMat]);
-    mesh.position.set(cx, baseYM + heightM / 2, cz);
+    mesh.position.set(cx, bodyBase + bodyH / 2, cz);
     var xAxis = new THREE.Vector3(geom.axis.x, 0, geom.axis.z);
     var yAxis = new THREE.Vector3(0, 1, 0);
     var zAxis = new THREE.Vector3(geom.normal.x, 0, geom.normal.z);
-    mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis));
+    var quat = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis));
+    mesh.quaternion.copy(quat);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     if (meta) mesh.userData = meta;
     if (meta){ meta.selected = !!selected; meta.baseFront = frontMat; }
-    // One group per cabinet (body + outline + drawer seams) so a drag can move
-    // the whole thing by setting a single matrix; the group stays at identity
-    // otherwise. The pickable mesh is a child, so raycasts still hit it.
+    // One group per cabinet (body + outline + plinth + worktop + details) so a
+    // drag can move the whole thing by setting a single matrix; the group stays
+    // at identity otherwise. The pickable mesh is a child, so raycasts still hit it.
     var group = new THREE.Group();
     group.add(mesh);
     scene.add(group);
     if (pickables) pickables.push(mesh);
 
     // A light front color (e.g. hvítt) can otherwise blend into the equally
-    // light wall/floor with no shadow-based separation — a dark edge outline
-    // keeps every cabinet readable regardless of which look is applied.
+    // light wall/floor — a soft dark outline keeps every cabinet readable.
     var edges = new THREE.LineSegments(
-      new THREE.EdgesGeometry(boxGeo),
-      new THREE.LineBasicMaterial({ color: selected ? SELECT_COLOR : 0x2a2a2a })
+      new THREE.EdgesGeometry(new THREE.BoxGeometry(widthM, bodyH, depthM)),
+      new THREE.LineBasicMaterial({ color: selected ? SELECT_COLOR : 0x2a2a2a, transparent:true, opacity: selected ? 1 : 0.4 })
     );
     edges.position.copy(mesh.position);
     edges.quaternion.copy(mesh.quaternion);
     group.add(edges);
 
-    if (interior && interior.mode === "skuffur"){
-      addDrawerSeams(THREE, group, geom, offsetM, widthM, heightM, baseYM, depthM, interior.count);
+    function local(alongM, y, outM){ // point on this cabinet: centre-line offset, height, distance out from the wall
+      return new THREE.Vector3(
+        geom.origin.x + geom.axis.x * (offsetM + widthM / 2 + alongM) + geom.normal.x * outM, y,
+        geom.origin.z + geom.axis.z * (offsetM + widthM / 2 + alongM) + geom.normal.z * outM);
     }
-    if (meta && meta.zone !== "opening") addFrontDetails(THREE, group, geom, offsetM, widthM, heightM, baseYM, depthM, interior, meta.handle, !!meta.tall, meta.zone === "wall", meta.split || 0.55);
+
+    if (plinthM && meta && meta.plinthMat){
+      var pl = new THREE.Mesh(new THREE.BoxGeometry(widthM - 0.004, plinthM, depthM - 0.06), meta.plinthMat);
+      pl.position.copy(local(0, baseYM + plinthM / 2, (depthM - 0.06) / 2));
+      pl.quaternion.copy(quat);
+      pl.receiveShadow = true;
+      group.add(pl);
+    }
+    if (meta && meta.counter && meta.stoneMat){
+      var top = new THREE.Mesh(new THREE.BoxGeometry(widthM + 0.001, 0.032, depthM + 0.02), meta.stoneMat);
+      top.position.copy(local(0, baseYM + heightM + 0.016, (depthM + 0.02) / 2));
+      top.quaternion.copy(quat);
+      top.castShadow = true; top.receiveShadow = true;
+      group.add(top);
+      if (meta.sink) addSink(THREE, group, local, quat, widthM, depthM, baseYM + heightM + 0.032);
+    }
+
+    if (interior && interior.mode === "skuffur"){
+      addDrawerSeams(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior.count);
+    }
+    if (meta && meta.zone !== "opening") addFrontDetails(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta.handle, !!meta.tall, meta.zone === "wall", meta.split || 0.55, meta);
+  }
+
+  // Stainless sink basin + tap on top of a worktop.
+  function addSink(THREE, group, local, quat, widthM, depthM, topY){
+    var steel = new THREE.MeshStandardMaterial({ color:0xb9bec4, metalness:0.85, roughness:0.28 });
+    var w = Math.min(0.62, widthM * 0.72), d = Math.min(0.42, depthM * 0.62);
+    var basin = new THREE.Mesh(new THREE.BoxGeometry(w, 0.004, d), steel);
+    basin.position.copy(local(0, topY + 0.002, depthM * 0.5 + 0.01)); basin.quaternion.copy(quat);
+    var inner = new THREE.Mesh(new THREE.BoxGeometry(w - 0.05, 0.005, d - 0.05), new THREE.MeshStandardMaterial({ color:0x6f757b, metalness:0.7, roughness:0.4 }));
+    inner.position.copy(local(0, topY + 0.004, depthM * 0.5 + 0.01)); inner.quaternion.copy(quat);
+    var stem = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.014, 0.2, 14), steel);
+    stem.position.copy(local(0, topY + 0.1, 0.07));
+    var spout = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.16, 12), steel);
+    spout.rotation.x = Math.PI / 2; spout.quaternion.premultiply(quat);
+    spout.position.copy(local(0, topY + 0.2, 0.15));
+    [basin, inner, stem, spout].forEach(function(m){ m.castShadow = true; group.add(m); });
   }
 
   function disposeScene(scene){
     if (!scene) return;
+    if (scene.environment) scene.environment.dispose();
     scene.traverse(function(obj){
       if (obj.geometry) obj.geometry.dispose();
       if (obj.material){
         (Array.isArray(obj.material) ? obj.material : [obj.material]).forEach(function(mat){
           if (mat.map) mat.map.dispose();
+          if (mat.bumpMap) mat.bumpMap.dispose();
           mat.dispose();
         });
       }
@@ -736,59 +788,35 @@
     THREE_STATE = null;
   }
 
-  // Procedural front-face texture (2026-09-17): a flat MeshStandardMaterial
-  // color read as plasticky in the 3D view — cabinet fronts want *some*
-  // surface variation, not a solid swatch. Draws a small tileable canvas per
-  // look — vertical wood-grain streaks for veneer/melamine-wood looks
-  // (grain running the height of a door, the common real orientation),
-  // a faint fleck for painted "perfectsense" colors — both tinted from the
-  // look's own color3d. Not a substitute for a real product photo (see the
-  // LOOKS comment above on why photos don't map cleanly onto a flat box
-  // face) — just enough texture that a front doesn't read as flat plastic.
-  // Cached per look key as a plain <canvas> (not a Three.js Texture) — a
-  // fresh CanvasTexture wraps it on every scene build so disposeScene's
-  // teardown can freely dispose that Texture without needing to know its
-  // pixel data is shared/reused.
-  var LOOK_TEXTURE_CANVAS = {};
+  // Front material from the procedural texture library (kitchen-planner-
+  // materials.js): real-looking wood grain (rings, fibres, pores + a bump map)
+  // for wood looks, a satin painted finish for solid colours. Each cabinet's UVs
+  // are scaled to its own size (see scaleFrontUV) so the grain keeps one
+  // physical scale across a 600 mm wall unit and a 2400 mm tower.
+  function canvasTex(THREE, canvas, srgb){
+    var x = new THREE.CanvasTexture(canvas);
+    x.wrapS = x.wrapT = THREE.RepeatWrapping;
+    if (srgb && THREE.SRGBColorSpace) x.colorSpace = THREE.SRGBColorSpace;
+    return x;
+  }
 
-  function lookTextureCanvas(lookKey){
-    if (LOOK_TEXTURE_CANVAS[lookKey]) return LOOK_TEXTURE_CANVAS[lookKey];
-    var look = LOOKS[lookKey];
-    var size = 256;
-    var canvas = document.createElement("canvas");
-    canvas.width = size; canvas.height = size;
-    var ctx = canvas.getContext("2d");
-    ctx.fillStyle = look.color3d;
-    ctx.fillRect(0, 0, size, size);
+  function makeFrontMaterial(THREE, lookKey, look){
+    var wood = look.category !== "perfectsense";
+    var t = wood ? window.KPMat.woodTexture(lookKey, look.color3d) : window.KPMat.paintTexture(lookKey, look.color3d);
+    function tex(canvas, srgb){ return canvasTex(THREE, canvas, srgb); }
+    var mat = wood
+      ? new THREE.MeshStandardMaterial({ map:tex(t.color, true), bumpMap:tex(t.bump, false), bumpScale:1.4, roughness:0.6 })
+      : new THREE.MeshPhysicalMaterial({ map:tex(t.color, true), bumpMap:tex(t.bump, false), bumpScale:0.5, roughness:0.5, clearcoat:0.14, clearcoatRoughness:0.45 });
+    mat.userData.tile = { w:t.tileW, h:t.tileH };
+    return mat;
+  }
 
-    if (look.category === "perfectsense"){
-      // Painted solid color — a faint fleck, not dead-flat plastic.
-      for (var i = 0; i < 2500; i++){
-        var shade = Math.random() < 0.5 ? "0,0,0" : "255,255,255";
-        ctx.fillStyle = "rgba(" + shade + "," + (Math.random() * 0.035).toFixed(3) + ")";
-        ctx.fillRect(Math.random() * size, Math.random() * size, 1, 1);
-      }
-    } else {
-      // Wood-look (veneer / melamine-wood) — wavy vertical grain streaks,
-      // same spirit as grain.html's procedural feTurbulence woodgrain, just
-      // drawn with the 2D canvas API instead of an SVG filter.
-      var streaks = 46;
-      for (var s = 0; s < streaks; s++){
-        var x = Math.random() * size;
-        var dark = Math.random() < 0.6;
-        ctx.strokeStyle = "rgba(" + (dark ? "0,0,0" : "255,250,235") + "," + (0.04 + Math.random() * 0.09).toFixed(3) + ")";
-        ctx.lineWidth = 0.6 + Math.random() * 2.2;
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        for (var y = 8; y <= size; y += 8){
-          x += (Math.random() - 0.5) * 7;
-          ctx.lineTo(x, y);
-        }
-        ctx.stroke();
-      }
-    }
-    LOOK_TEXTURE_CANVAS[lookKey] = canvas;
-    return canvas;
+  // Rescale a box's UVs so one texture tile covers tile.w × tile.h metres.
+  function scaleFrontUV(geo, widthM, heightM, tile){
+    if (!tile) return;
+    var uv = geo.attributes.uv;
+    for (var i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * widthM / tile.w, uv.getY(i) * heightM / tile.h);
+    uv.needsUpdate = true;
   }
 
   // wrap: DOM element to render into. state: the planner's {shape,walls,look}
@@ -805,7 +833,14 @@
     var carcassMat = new THREE.MeshStandardMaterial({ color: carcass ? carcass.color3d : "#3a3a3a", roughness:0.9 });
     var wallColor = state.wallColor && WALL_COLORS[state.wallColor] ? WALL_COLORS[state.wallColor].hex : "#f1efe8";
     var wallMat = new THREE.MeshStandardMaterial({ color:wallColor, roughness:1, side:THREE.DoubleSide });
-    var floorMat = new THREE.MeshStandardMaterial({ color:0xd8d3c6, roughness:1 });
+    var floorMat;
+    if (window.KPMat){
+      var ft = window.KPMat.plankFloorTexture("#c9a97c");
+      floorMat = new THREE.MeshStandardMaterial({ map:canvasTex(THREE, ft.color, true), bumpMap:canvasTex(THREE, ft.bump, false), bumpScale:0.7, roughness:0.58 });
+      floorMat.userData.tile = ft.tileW;
+    } else {
+      floorMat = new THREE.MeshStandardMaterial({ color:0xd8d3c6, roughness:1 });
+    }
 
     var scene = new THREE.Scene();
     scene.background = new THREE.Color(0xf7f6f2);
@@ -861,18 +896,16 @@
     });
 
     // built-in fridge reads as an appliance: brushed-steel front instead of the kitchen's fronts
-    var steelMat = new THREE.MeshStandardMaterial({ color:0xc9ccd1, metalness:0.55, roughness:0.38 });
+    var steelMat = new THREE.MeshStandardMaterial({ color:0xc9ccd1, metalness:0.75, roughness:0.32 });
+    // shared by every floor unit: recessed plinth + honed-stone worktop
+    var plinthMat = new THREE.MeshStandardMaterial({ color:0x26262a, roughness:0.85 });
+    var stoneMat = window.KPMat
+      ? (function(){ var st = window.KPMat.stoneTexture("#e4dfd6"); var m = new THREE.MeshStandardMaterial({ map:canvasTex(THREE, st.color, true), roughness:0.32, metalness:0.02 }); m.map.repeat.set(1 / st.tileW, 1 / st.tileH); return m; })()
+      : new THREE.MeshStandardMaterial({ color:0xe4dfd6, roughness:0.4 });
     var look = state.look ? LOOKS[state.look] : null;
-    var frontMat = new THREE.MeshStandardMaterial({
-      color: look ? 0xffffff : 0xb7b2a4, roughness:0.75
-    });
-    if (look){
-      var frontTex = new THREE.CanvasTexture(lookTextureCanvas(state.look));
-      frontTex.wrapS = frontTex.wrapT = THREE.RepeatWrapping;
-      var wood = look.category !== "perfectsense";
-      frontTex.repeat.set(wood ? 2 : 1, wood ? 4 : 1);
-      frontMat.map = frontTex;
-    }
+    var frontMat = look && window.KPMat
+      ? makeFrontMaterial(THREE, state.look, look)
+      : new THREE.MeshStandardMaterial({ color: look ? look.color3d : 0xb7b2a4, roughness:0.7 });
 
     state.walls.forEach(function(wall, wi){
       var g = geoms[wi];
@@ -883,7 +916,8 @@
         var hM = Math.min(b.heightMm || c.h, roomHeightMm) / 1000, dM = (b.depthMm || c.d) / 1000;
         var selected = opts.selectedId === b.id;
         addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, carcassMat, c.fridge ? steelMat : frontMat, b.interior,
-          { wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), handle:state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0.55 }, selected, pickables);
+          { wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), handle:state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0.55,
+            plinth:true, counter:!!c.counter, sink:!!c.sink, oven:!!c.oven, plinthMat:plinthMat, stoneMat:stoneMat }, selected, pickables);
         offset += b.widthMm;
       });
       offset = 0;
@@ -897,12 +931,23 @@
       });
     });
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.65));
-    var dir = new THREE.DirectionalLight(0xffffff, 0.9);
-    dir.position.set(bbox.cx + 3, 5, bbox.cz + 4);
+    // Soft daylight: sky/ground hemisphere fill + a warm key light with soft
+    // shadows fitted to the room + a faint cool fill from the other side.
+    scene.add(new THREE.HemisphereLight(0xffffff, 0xbdb4a4, 0.5));
+    var dir = new THREE.DirectionalLight(0xfff5e6, 1.0);
+    dir.position.set(bbox.cx + 3.2, 5.5, bbox.cz + 4);
+    dir.target.position.set(bbox.cx, 0.8, bbox.cz);
+    scene.add(dir.target);
     dir.castShadow = true;
-    dir.shadow.mapSize.set(1024, 1024);
+    dir.shadow.mapSize.set(2048, 2048);
+    var SR = Math.max(bbox.w, bbox.d) * 0.75 + 1;
+    dir.shadow.camera.left = -SR; dir.shadow.camera.right = SR; dir.shadow.camera.top = SR; dir.shadow.camera.bottom = -SR;
+    dir.shadow.camera.near = 0.5; dir.shadow.camera.far = 18;
+    dir.shadow.bias = -0.0004; dir.shadow.normalBias = 0.02; dir.shadow.radius = 3;
     scene.add(dir);
+    var fill = new THREE.DirectionalLight(0xdfe8ff, 0.22);
+    fill.position.set(bbox.cx - 3, 3, bbox.cz - 3);
+    scene.add(fill);
 
     var camera = new THREE.PerspectiveCamera(45, 1, 0.05, 100);
     var dist = Math.max(bbox.w, bbox.d) * 0.74 + 1.2;
@@ -910,8 +955,26 @@
 
     var renderer = new THREE.WebGLRenderer({ antialias:true });
     renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     wrap.appendChild(renderer.domElement);
+
+    // Subtle image-based lighting so steel, handles and the satin finish pick up
+    // believable reflections; plus sharper textures at glancing angles.
+    if (window.__RoomEnvironment__){
+      var pmrem = new THREE.PMREMGenerator(renderer);
+      scene.environment = pmrem.fromScene(new window.__RoomEnvironment__(renderer), 0.04).texture;
+      pmrem.dispose();
+    }
+    var maxAniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+    scene.traverse(function(o){
+      if (!o.material) return;
+      (Array.isArray(o.material) ? o.material : [o.material]).forEach(function(m){
+        if (m.envMapIntensity !== undefined) m.envMapIntensity = m.metalness > 0.5 ? 1.0 : 0.3;
+        if (m.map) m.map.anisotropy = maxAniso;
+        if (m.bumpMap) m.bumpMap.anisotropy = maxAniso;
+      });
+    });
 
     var controls = new OrbitControls(camera, renderer.domElement);
     controls.target.set(bbox.cx, 1.0, bbox.cz);
