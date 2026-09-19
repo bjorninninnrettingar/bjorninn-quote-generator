@@ -26,13 +26,17 @@
     isskapur:    { label:"Ísskápur (innbyggður)", zone:"floor", cls:"fridge", defaultW:600, minW:600, maxW:600, h:2400, d:600, minH:2400, maxH:2400, minD:600, maxD:600, hasInterior:false,
                    skapategundOverride:"Hárskápur", fridge:true,
                    note:"Viðskiptavinur óskar eftir innbyggðum ísskáp í þessum skáp — vinsamlegast staðfestu stærð tækis (nisju) og hurðargerð." },
-    // legacy:true = not offered in the editor's catalog, but kept so drafts
-    // and already-submitted plans (Rakel's review page renders those) that
-    // contain them still draw and submit correctly instead of crashing or
-    // silently dropping a cabinet.
-    ofnaskapur:  { label:"Ofnaskápur",  zone:"floor", cls:"oven",  defaultW:600, minW:600, maxW:600, h:2100, d:600, minH:1800, maxH:2200, minD:600, maxD:600, hasInterior:false, ovenHeightMm:595, legacy:true },
-    tofrahorn:   { label:"Töfrahorn (kapphorn)", zone:"floor", cls:"corner", defaultW:900, minW:900, maxW:900, h:800, d:900, minH:800, maxH:800, minD:900, maxD:900, hasInterior:false,
-                   skapategundOverride:"Grunnskápur", tofrahornId:"rec9PD5fCZGUpwAon", legacy:true }
+    // Special units (2026-09-19 — no longer paused): oven tower and Le Mans
+    // corner map to real Airtable fields (Hæð ofns, Töfrahorn útfærsla); the
+    // sink base and open shelves have no schema of their own, so they submit
+    // as Grunnskápur / Efriskápur plus a plain note for Rakel.
+    ofnaskapur:  { label:"Ofnaskápur",  zone:"floor", cls:"oven",  defaultW:600, minW:600, maxW:600, h:2100, d:600, minH:1800, maxH:2200, minD:600, maxD:600, hasInterior:false, ovenHeightMm:595, oven:true },
+    tofrahorn:   { label:"Töfrahorn (kapphorn)", zone:"floor", cls:"corner", defaultW:900, minW:900, maxW:900, h:800, d:900, minH:800, maxH:800, minD:900, maxD:900, hasInterior:false, counter:true,
+                   skapategundOverride:"Grunnskápur", tofrahornId:"rec9PD5fCZGUpwAon" },
+    vaskaskapur: { label:"Vaskaskápur", zone:"floor", cls:"floor", defaultW:800, minW:800, maxW:800, h:800, d:600, minH:800, maxH:800, minD:600, maxD:600, hasInterior:false, counter:true, sink:true,
+                   skapategundOverride:"Grunnskápur", note:"Vaskaskápur — útskurður fyrir vask og lagnir; vinsamlegast staðfestu vaskstærð og gerð." },
+    opnarhillur: { label:"Opnar hillur", zone:"wall", cls:"wall", defaultW:600, minW:600, maxW:600, h:700, d:300, minH:700, maxH:700, minD:300, maxD:300, hasInterior:false, open:true, shelfRange:[1,5,3],
+                   skapategundOverride:"Efriskápur", note:"Opnar hillur — engin hurð; viðskiptavinur óskar eftir opnum hillum." }
   };
 
   // Loose shelves (Eyðublað "Lausar hillur fjöldi"): the customer's choice,
@@ -50,7 +54,9 @@
   var WIDTH_VARIANTS = {
     grunnskapur: [300, 400, 500, 800, 900, 1000, 1200],
     harskapur:   [300, 400, 500, 800, 900],
-    efriskapur:  [300, 400, 500, 800, 900, 1000, 1200]
+    efriskapur:  [300, 400, 500, 800, 900, 1000, 1200],
+    vaskaskapur: [600, 900, 1000, 1200],
+    opnarhillur: [300, 400, 800, 900, 1000]
   };
   Object.keys(WIDTH_VARIANTS).forEach(function(base){
     WIDTH_VARIANTS[base].forEach(function(w){
@@ -397,22 +403,49 @@
   // shows no hardware. Fronts: drawers → equal rows, tall unit → two doors,
   // anything else → one door. Purely visual — nothing here is submitted.
   function addFrontDetails(THREE, group, geom, offsetM, widthM, heightM, baseYM, depthM, interior, handleKey, isTall, isWallRow, split, meta){
+    if (meta && meta.open) return; // open shelves have no fronts
     var xAxis = new THREE.Vector3(geom.axis.x, 0, geom.axis.z);
     var quat = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(xAxis, new THREE.Vector3(0, 1, 0), new THREE.Vector3(geom.normal.x, 0, geom.normal.z)));
     var drawers = interior && interior.mode === "skuffur" ? interior.count : 0;
+    var isOven = !!(meta && meta.oven);
     var fronts = [];
     if (drawers){ for (var i = 0; i < drawers; i++) fronts.push({ y0:i / drawers, y1:(i + 1) / drawers, drawer:true }); }
-    else if (isTall){ fronts.push({ y0:0, y1:split }, { y0:split, y1:1 }); }
-    else fronts.push({ y0:0, y1:1 });
+    else if (isTall && !isOven){ fronts.push({ y0:0, y1:split }, { y0:split, y1:1 }); }
+    else if (!isOven) fronts.push({ y0:0, y1:1 });
 
     var cx = geom.origin.x + geom.axis.x * (offsetM + widthM / 2), cz = geom.origin.z + geom.axis.z * (offsetM + widthM / 2);
-    function place(mesh, y, out){
-      mesh.position.set(cx + geom.normal.x * (depthM + out), y, cz + geom.normal.z * (depthM + out));
+    function place(mesh, y, out, along){
+      along = along || 0;
+      mesh.position.set(cx + geom.axis.x * along + geom.normal.x * (depthM + out), y, cz + geom.axis.z * along + geom.normal.z * (depthM + out));
       mesh.quaternion.copy(quat);
+      mesh.castShadow = true;
       group.add(mesh);
     }
-    var seamMat = new THREE.MeshBasicMaterial({ color:0x2a2a2a, side:THREE.DoubleSide });
-    var handleMat = new THREE.MeshStandardMaterial({ color:0x55575a, metalness:0.65, roughness:0.35 });
+    var seamMat = new THREE.MeshBasicMaterial({ color:0x2e2e30, transparent:true, opacity:0.7, side:THREE.DoubleSide });
+    var handleMat = new THREE.MeshStandardMaterial({ color:0x55575a, metalness:0.75, roughness:0.32 });
+    function hbar(len, y, along, out){ place(new THREE.Mesh(new THREE.BoxGeometry(len, 0.012, 0.02), handleMat), y, out || 0.012, along); }
+
+    // Oven tower: drawer below, 595 mm oven (dark glass + control strip + bar
+    // handle), door above.
+    if (isOven){
+      var oy = baseYM + 0.55, oh = 0.595;
+      var glassMat = new THREE.MeshStandardMaterial({ color:0x141518, roughness:0.12, metalness:0.5 });
+      [oy, oy + oh].forEach(function(y){ place(new THREE.Mesh(new THREE.PlaneGeometry(widthM * 0.96, 0.008), seamMat), y, 0.004); });
+      place(new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.9, oh - 0.13, 0.012), glassMat), oy + (oh - 0.13) / 2 + 0.005, 0.006);
+      place(new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.9, 0.06, 0.012), new THREE.MeshStandardMaterial({ color:0x2b2c30, roughness:0.4, metalness:0.4 })), oy + oh - 0.05, 0.006);
+      place(new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.7, 0.018, 0.028), handleMat), oy + oh - 0.105, 0.024);
+      if (handleKey && handleKey !== "push" && handleKey !== "fraest"){
+        hbar(Math.min(0.24, widthM * 0.5), oy - 0.06, 0);                    // drawer below the oven
+        hbar(Math.min(0.24, widthM * 0.5), oy + oh + 0.06, 0);               // door above
+      }
+      return;
+    }
+
+    // Wide door units (≥ 750 mm) read as double doors: a centre seam.
+    var wideDoor = !drawers && widthM >= 0.75 && !(meta && meta.fridge);
+    if (wideDoor){
+      place(new THREE.Mesh(new THREE.PlaneGeometry(0.008, heightM * 0.97), seamMat), baseYM + heightM / 2, 0.004);
+    }
 
     fronts.forEach(function(f, idx){
       // seam between stacked door fronts (drawer seams are drawn separately)
@@ -425,16 +458,17 @@
       // lower edge, everything else at the upper edge
       var atBottom = isWallRow || (isTall && !f.drawer && idx === fronts.length - 1 && fronts.length > 1);
       var edgeY = atBottom ? bottom + 0.02 : top - 0.02;
+      var hy = atBottom ? bottom + 0.06 : top - (f.drawer ? 0.07 : 0.06);
       var mesh;
       if (handleKey === "ona"){
-        mesh = new THREE.Mesh(new THREE.BoxGeometry(Math.min(0.24, widthM * 0.5), 0.012, 0.02), handleMat);
-        place(mesh, atBottom ? bottom + 0.06 : top - (f.drawer ? 0.07 : 0.06), 0.012);
+        if (wideDoor && !f.drawer){ hbar(0.16, hy, -widthM * 0.16); hbar(0.16, hy, widthM * 0.16); }
+        else hbar(Math.min(0.24, widthM * 0.5), hy, 0);
       } else if (handleKey === "jey2" || handleKey === "hexxa"){
         mesh = new THREE.Mesh(new THREE.BoxGeometry(widthM * (handleKey === "jey2" ? 0.94 : 0.7), 0.02, 0.016), handleMat);
         place(mesh, edgeY, 0.008);
       } else if (handleKey === "arpa"){
-        mesh = new THREE.Mesh(new THREE.SphereGeometry(0.014, 14, 12), handleMat);
-        place(mesh, atBottom ? bottom + 0.07 : top - 0.07, 0.014);
+        var knobs = wideDoor && !f.drawer ? [-widthM * 0.12, widthM * 0.12] : [0];
+        knobs.forEach(function(al){ place(new THREE.Mesh(new THREE.SphereGeometry(0.014, 14, 12), handleMat), atBottom ? bottom + 0.07 : top - 0.07, 0.014, al); });
       } else if (handleKey === "fraest"){
         mesh = new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.9, 0.006, 0.002), seamMat);
         place(mesh, atBottom ? bottom + 0.012 : top - 0.012, 0.002);
@@ -465,7 +499,10 @@
       useFrontMat.emissive = new THREE.Color(SELECT_COLOR);
       useFrontMat.emissiveIntensity = 0.35;
     }
-    var mesh = new THREE.Mesh(boxGeo, [carcassMat, carcassMat, carcassMat, carcassMat, useFrontMat, carcassMat]);
+    var isOpen = !!(meta && meta.open && meta.openMat);
+    var mesh = new THREE.Mesh(boxGeo, isOpen
+      ? [meta.openMat, meta.openMat, meta.openMat, meta.openMat, meta.hiddenMat, meta.openMat] // no front, inside faces visible
+      : [carcassMat, carcassMat, carcassMat, carcassMat, useFrontMat, carcassMat]);
     mesh.position.set(cx, bodyBase + bodyH / 2, cz);
     var xAxis = new THREE.Vector3(geom.axis.x, 0, geom.axis.z);
     var yAxis = new THREE.Vector3(0, 1, 0);
@@ -516,6 +553,14 @@
       if (meta.sink) addSink(THREE, group, local, quat, widthM, depthM, baseYM + heightM + 0.032);
     }
 
+    if (isOpen){ // shelf boards
+      for (var sh = 1; sh <= (meta.shelves || 0); sh++){
+        var board = new THREE.Mesh(new THREE.BoxGeometry(widthM - 0.036, 0.018, depthM - 0.02), meta.openMat);
+        board.position.copy(local(0, bodyBase + bodyH * sh / ((meta.shelves || 0) + 1), (depthM - 0.02) / 2 + 0.005));
+        board.quaternion.copy(quat); board.castShadow = true; board.receiveShadow = true;
+        group.add(board);
+      }
+    }
     if (interior && interior.mode === "skuffur"){
       addDrawerSeams(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior.count);
     }
@@ -834,7 +879,7 @@
     function tex(canvas, srgb){ return canvasTex(THREE, canvas, srgb); }
     var mat = wood
       ? new THREE.MeshStandardMaterial({ map:tex(t.color, true), bumpMap:tex(t.bump, false), bumpScale:1.4, roughness:0.6 })
-      : new THREE.MeshPhysicalMaterial({ map:tex(t.color, true), bumpMap:tex(t.bump, false), bumpScale:0.5, roughness:0.5, clearcoat:0.14, clearcoatRoughness:0.45 });
+      : new THREE.MeshPhysicalMaterial({ map:tex(t.color, true), bumpMap:tex(t.bump, false), bumpScale:0.08, roughness:0.5, clearcoat:0.14, clearcoatRoughness:0.45 });
     mat.userData.tile = { w:t.tileW, h:t.tileH };
     return mat;
   }
@@ -937,6 +982,9 @@
     var steelMat = new THREE.MeshStandardMaterial({ color:0xc9ccd1, metalness:0.75, roughness:0.32 });
     // shared by every floor unit: recessed plinth + honed-stone worktop
     var plinthMat = new THREE.MeshStandardMaterial({ color:0x26262a, roughness:0.85 });
+    // open-shelf units: inside faces must render (double-sided) and the front is left out
+    var openMat = carcassMat.clone(); openMat.side = THREE.DoubleSide;
+    var hiddenMat = new THREE.MeshBasicMaterial({ visible:false });
     var stoneMat = window.KPMat
       ? (function(){ var st = window.KPMat.stoneTexture("#e4dfd6"); var m = new THREE.MeshStandardMaterial({ map:canvasTex(THREE, st.color, true), roughness:0.32, metalness:0.02 }); m.map.repeat.set(1 / st.tileW, 1 / st.tileH); return m; })()
       : new THREE.MeshStandardMaterial({ color:0xe4dfd6, roughness:0.4 });
@@ -964,7 +1012,8 @@
         var hM = Math.min(b.heightMm || c.h, roomHeightMm) / 1000, dM = (b.depthMm || c.d) / 1000;
         var selected = opts.selectedId === b.id;
         addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, WALL_CABINET_BASE_M, carcassMat, frontMat, null,
-          { wallId:wall.id, zone:"wall", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), handle:state.handle }, selected, pickables);
+          { wallId:wall.id, zone:"wall", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), handle:state.handle,
+            open:!!c.open, openMat:openMat, hiddenMat:hiddenMat, shelves:c.open ? shelvesOf(b) : 0 }, selected, pickables);
         offset += b.widthMm;
       });
     });

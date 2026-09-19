@@ -97,7 +97,7 @@
     var cx = color.getContext("2d"), bx = bump.getContext("2d"), ci = cx.createImageData(S, S), bi = bx.createImageData(S, S);
     for (var y = 0; y < S; y++) for (var x = 0; x < S; x++){
       var k = (y * S + x) * 4, a = n1(x / S * 32, y / S * 32), b = n2(x / S * 6, y / S * 6);
-      var l = 1 + (a - 0.5) * 0.035 + (b - 0.5) * 0.03;
+      var l = 1 + (a - 0.5) * 0.02 + (b - 0.5) * 0.02;
       ci.data[k] = clamp(base[0] * l); ci.data[k + 1] = clamp(base[1] * l); ci.data[k + 2] = clamp(base[2] * l); ci.data[k + 3] = 255;
       var g = Math.round(a * 255); bi.data[k] = bi.data[k + 1] = bi.data[k + 2] = g; bi.data[k + 3] = 255;
     }

@@ -143,7 +143,7 @@
   .cat-more summary{ font-size:12.5px; color:var(--blue); cursor:pointer; padding:4px 2px; margin-bottom:6px; }
   .cat-item .sw{ width:34px; height:34px; border-radius:8px; flex:none; }
   .cat-item .sw.floor{ background:var(--floor); } .cat-item .sw.tall{ background:var(--tall); }
-  .cat-item .sw.wall{ background:var(--wall); } .cat-item .sw.fridge{ background:#5b8a8f; } .cat-item .sw.window{ background:#5b8fae; }
+  .cat-item .sw.wall{ background:var(--wall); } .cat-item .sw.fridge{ background:#5b8a8f; } .cat-item .sw.oven{ background:var(--oven); } .cat-item .sw.corner{ background:var(--corner); } .cat-item .sw.window{ background:#5b8fae; }
   .cat-item .sw.door{ background:#8a6a4a; }
   .cat-item .nm{ display:block; font-size:13.5px; font-weight:600; line-height:1.25; }
   .cat-item .dim{ display:block; font-size:11.5px; color:var(--ink-soft); }
@@ -1043,8 +1043,8 @@
   // "+ Type" buttons stay as the reliable fallback, per the confirmed
   // decision — drag is the delightful primary path, not the only path.
   var CATALOG_GROUPS = [
-    { title:"Gólfskápar", types:["grunnskapur", "harskapur", "isskapur"] },
-    { title:"Veggskápar", types:["efriskapur"] }
+    { title:"Gólfskápar", types:["grunnskapur", "harskapur", "vaskaskapur", "isskapur", "ofnaskapur", "tofrahorn"] },
+    { title:"Veggskápar", types:["efriskapur", "opnarhillur"] }
   ];
   // Windows/doors (Phase 7e) drag exactly like cabinets but aren't cabinets
   // — not in CATALOG, routed by data-kind instead of assuming cabinet zone
@@ -1923,7 +1923,7 @@
               '<button class="iconbtn" data-role="sh-inc" ' + (KP3D.shelvesOf(b) >= c.shelfRange[1] ? "disabled" : "") + '>+</button>' +
               '<span>' + plural(KP3D.shelvesOf(b), "hilla", "hillur") + '</span></div></div>'
           : '') +
-        ((c.shelfRange || c.fridge) && !(b.interior && b.interior.mode === "skuffur")
+        ((c.shelfRange || c.fridge) && !c.open && !(b.interior && b.interior.mode === "skuffur")
           ? '<div class="edit-field"><label>Lamir hurðar (séð framan frá)</label><select data-role="swing">' +
               '<option value="">Ekki valið</option><option value="vinstri"' + (b.swing === "vinstri" ? " selected" : "") + '>Vinstra megin</option>' +
               '<option value="haegri"' + (b.swing === "haegri" ? " selected" : "") + '>Hægra megin</option></select></div>'
