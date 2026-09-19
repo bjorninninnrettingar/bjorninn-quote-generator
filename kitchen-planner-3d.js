@@ -764,6 +764,22 @@
     var WALL_H = roomHeightMm / 1000;
     // Walls between the camera and the room fade out (HomeByMe-style) so an
     // orbit to the "outside" never hides the cabinets behind a solid wall.
+    // Wall length labels floating just above each wall (HomeByMe shows room
+    // dimensions on the plan); a canvas-texture sprite, drawn on top.
+    geoms.forEach(function(g, i){
+      var cv = document.createElement("canvas"); cv.width = 256; cv.height = 64;
+      var cx = cv.getContext("2d");
+      cx.fillStyle = "rgba(255,255,255,.92)"; cx.strokeStyle = "#e6e3da"; cx.lineWidth = 3;
+      cx.beginPath(); cx.roundRect ? cx.roundRect(4, 4, 248, 56, 14) : cx.rect(4, 4, 248, 56); cx.fill(); cx.stroke();
+      cx.fillStyle = "#191919"; cx.font = "600 30px 'Kumbh Sans', Arial, sans-serif"; cx.textAlign = "center"; cx.textBaseline = "middle";
+      cx.fillText(Math.round(g.lenM * 1000) + " mm", 128, 34);
+      var sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:new THREE.CanvasTexture(cv), depthTest:false, transparent:true }));
+      sp.scale.set(0.62, 0.155, 1);
+      sp.position.set(g.origin.x + g.axis.x * g.lenM / 2, WALL_H + 0.16, g.origin.z + g.axis.z * g.lenM / 2);
+      sp.renderOrder = 10;
+      scene.add(sp);
+    });
+
     var wallFades = geoms.map(function(g){
       var mat = wallMat.clone();
       mat.transparent = true;

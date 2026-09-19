@@ -86,6 +86,12 @@
     background:#fff; border:1px solid var(--line); border-radius:12px;
     box-shadow:0 6px 20px rgba(0,0,0,.18); transform:translate(-50%,-100%);
   }
+  .tip-bar:not([hidden]){
+    display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px;
+    background:var(--gold-soft); border:1px solid var(--line); border-radius:10px; padding:9px 14px;
+    font-size:13px; color:var(--ink-soft);
+  }
+  .tip-bar button{ background:none; border:none; cursor:pointer; font-size:14px; color:var(--ink-soft); }
   .stage-empty:not([hidden]){
     position:absolute; left:50%; top:52%; transform:translate(-50%,-50%); z-index:5; text-align:center;
     pointer-events:none; background:rgba(255,255,255,.92); border:1.5px dashed var(--line); border-radius:14px;
@@ -93,6 +99,8 @@
   }
   .stage-empty span{ font-size:12.5px; font-weight:400; color:var(--ink-soft); }
   .float-bar.opening button:not(.del){ display:none; }
+  .fb-dim{ align-self:center; font-size:11.5px; font-weight:600; color:var(--ink-soft); padding:0 8px 0 6px; white-space:nowrap; border-right:1px solid var(--line); margin-right:2px; }
+  .float-bar.opening .fb-dim{ border-right:none; }
   .float-bar button{
     width:34px; height:34px; border:none; background:none; border-radius:8px; cursor:pointer;
     font-size:15px; color:var(--ink); display:flex; align-items:center; justify-content:center;
@@ -451,6 +459,7 @@
         <div class="three-wrap" id="planWrap" hidden></div>
         <div class="stage-empty" id="stageEmpty" hidden>Dragðu skáp úr vörulistanum inn í rýmið<br><span>eða smelltu á hann til að bæta honum við</span></div>
         <div class="float-bar" id="floatBar" hidden>
+          <span class="fb-dim" id="fbDim"></span>
           <button type="button" data-fb="left" title="Færa til vinstri">◀</button>
           <button type="button" data-fb="right" title="Færa til hægri">▶</button>
           <button type="button" data-fb="dup" title="Afrita">⧉</button>
@@ -459,6 +468,10 @@
       </div>
 
       <aside class="ed-props" id="cabinetEditPanel"></aside>
+    </div>
+    <div class="tip-bar" id="tipBar" hidden>
+      <span>💡 Dragðu skápa úr vörulistanum inn í rýmið · smelltu á skáp til að breyta honum · dragðu hann til að færa · <b>⌘Z</b> afturkallar · <b>Delete</b> fjarlægir</span>
+      <button type="button" id="tipClose" title="Loka">✕</button>
     </div>
 
     <div class="actions">
@@ -1560,7 +1573,18 @@
   }
 
   // Empty-state hint + the "continue" button depend only on the cabinet count.
+  function updateTip(){
+    var seen = false;
+    try{ seen = localStorage.getItem("bjorninn:kitchenPlanner:tipSeen") === "1"; }catch(e){}
+    document.getElementById("tipBar").hidden = seen;
+  }
+  document.getElementById("tipClose").addEventListener("click", function(){
+    try{ localStorage.setItem("bjorninn:kitchenPlanner:tipSeen", "1"); }catch(e){}
+    document.getElementById("tipBar").hidden = true;
+  });
+
   function updateEditorChrome(){
+    updateTip();
     var total = state.walls.reduce(function(sum, w){ return sum + w.floor.length + w.wall.length; }, 0);
     document.getElementById("toContactBtn").disabled = total === 0;
     document.getElementById("stageEmpty").hidden = total !== 0;
@@ -1678,6 +1702,10 @@
   // so both can exist in the DOM at once without colliding.
   function renderEditPanel(){
     renderEditPanelInto(document.getElementById("cabinetEditPanel"));
+    // size chip on the floating toolbar
+    var chip = document.getElementById("fbDim"), fb = selectedBlockId ? findBlock(selectedBlockId) : null, op = !fb && selectedBlockId ? findOpening(selectedBlockId) : null;
+    chip.textContent = fb ? fb.block.widthMm + " × " + blockHeightMm(fb.block, CATALOG[fb.block.type]) + " × " + (fb.block.depthMm || CATALOG[fb.block.type].d)
+      : op ? op.o.widthMm + " × " + op.o.heightMm : "";
   }
 
   // Nothing selected → a compact overview of the room (HomeByMe's right
