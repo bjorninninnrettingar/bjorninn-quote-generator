@@ -123,9 +123,11 @@
         var c = CATALOG[b.type];
         var hw = b.interior && b.interior.mode === "skuffur" ? "Skúffur × " + b.interior.count
           : c.shelfRange ? "Hillur × " + KP3D.shelvesOf(b) : (b.interior ? "Hillur" : null);
-        var noteHtml = b.interior && b.interior.mode === "skuffur"
-          ? '<span class="note">⚠️ Viðskiptavinur óskar eftir skúffum — staðfestu skúffuhæðir</span>'
-          : c.fridge ? '<span class="note">⚠️ Innbyggður ísskápur — staðfestu stærð tækis (nisju) og hurðargerð</span>' : "";
+        var isDrawers = b.interior && b.interior.mode === "skuffur";
+        var noteHtml = isDrawers
+          ? '<span class="note">⚠️ Viðskiptavinur óskar eftir skúffum — staðfestu skúffuhæðir</span>' : "";
+        if (c.fridge) noteHtml += '<span class="note">⚠️ Innbyggður ísskápur — staðfestu stærð tækis (nisju) og hurðargerð</span>';
+        if (b.swing && !isDrawers) noteHtml += '<span class="note">Lamir ' + (b.swing === "vinstri" ? "vinstra" : "hægra") + ' megin</span>';
         var hMm = Math.min(b.heightMm || c.h, state.roomHeightMm || 2600);
         rows.push('<div class="summary-line"><span>' + esc(wall.label) + ' — ' + esc(c.label) + (hw ? " · " + hw : "") + noteHtml + '</span><span>' + b.widthMm + ' × ' + hMm + ' × ' + (b.depthMm || c.d) + ' mm</span></div>');
       });

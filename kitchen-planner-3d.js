@@ -852,6 +852,8 @@
         { wallId:door.wallId, zone:"opening", kind:"door", blockId:door.id, widthMm:door.widthMm, depthMm:10 }, opts.selectedId === door.id, pickables);
     });
 
+    // built-in fridge reads as an appliance: brushed-steel front instead of the kitchen's fronts
+    var steelMat = new THREE.MeshStandardMaterial({ color:0xc9ccd1, metalness:0.55, roughness:0.38 });
     var look = state.look ? LOOKS[state.look] : null;
     var frontMat = new THREE.MeshStandardMaterial({
       color: look ? 0xffffff : 0xb7b2a4, roughness:0.75
@@ -872,7 +874,7 @@
         var c = CATALOG[b.type];
         var hM = Math.min(b.heightMm || c.h, roomHeightMm) / 1000, dM = (b.depthMm || c.d) / 1000;
         var selected = opts.selectedId === b.id;
-        addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, carcassMat, frontMat, b.interior,
+        addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, carcassMat, c.fridge ? steelMat : frontMat, b.interior,
           { wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), handle:state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0.55 }, selected, pickables);
         offset += b.widthMm;
       });

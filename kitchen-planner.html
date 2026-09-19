@@ -1886,6 +1886,11 @@
               '<button class="iconbtn" data-role="sh-inc" ' + (KP3D.shelvesOf(b) >= c.shelfRange[1] ? "disabled" : "") + '>+</button>' +
               '<span>' + plural(KP3D.shelvesOf(b), "hilla", "hillur") + '</span></div></div>'
           : '') +
+        ((c.shelfRange || c.fridge) && !(b.interior && b.interior.mode === "skuffur")
+          ? '<div class="edit-field"><label>Lamir hurðar (séð framan frá)</label><select data-role="swing">' +
+              '<option value="">Ekki valið</option><option value="vinstri"' + (b.swing === "vinstri" ? " selected" : "") + '>Vinstra megin</option>' +
+              '<option value="haegri"' + (b.swing === "haegri" ? " selected" : "") + '>Hægra megin</option></select></div>'
+          : '') +
         (c.fridge ? '<p class="ov-mat" style="margin:0 0 10px;">Rakel staðfestir stærð tækis og hurðargerð.</p>' : '') +
         '<div class="edit-actions">' +
           (otherWalls.length ? '<select data-role="moveWall"><option value="">Flytja á vegg…</option>' + moveOptions + '</select>' : '') +
@@ -1913,6 +1918,12 @@
       save();
       refreshAfterEdit();
     }
+    var swingSel = host.querySelector('[data-role="swing"]');
+    if (swingSel) swingSel.addEventListener("change", function(e){
+      if (e.target.value) b.swing = e.target.value; else delete b.swing;
+      save();
+      refreshAfterEdit();
+    });
     var shDec = host.querySelector('[data-role="sh-dec"]'), shInc = host.querySelector('[data-role="sh-inc"]');
     if (shDec) shDec.addEventListener("click", function(){ setShelves(-1); });
     if (shInc) shInc.addEventListener("click", function(){ setShelves(1); });
@@ -2108,6 +2119,9 @@
           fields["Lausar hillur fjöldi"] = KP3D.shelvesOf(b);
         }
         if (c.note) notes.push(c.note);
+        if (b.swing && !(b.interior && b.interior.mode === "skuffur")){
+          notes.push("Viðskiptavinur óskar eftir að lamir séu " + (b.swing === "vinstri" ? "vinstra" : "hægra") + " megin (séð framan frá).");
+        }
         if (notes.length){
           fields["Skilaboð til Skipulags 📝"] = notes.join(" ");
         }
