@@ -774,13 +774,13 @@
   // the contact step's .field-error (Phase 7d scan: a competitor planner's
   // ceiling-height field flags "Unrecognised entry" instead of silently
   // correcting a bad value).
-  function numberField(container, id, labelText, min, max, value, onValid){
+  function numberField(container, id, labelText, min, max, value, onValid, hint){
     var field = document.createElement("div");
     field.className = "field";
     field.innerHTML =
       '<label for="' + id + '">' + labelText + '</label>' +
       '<div class="row"><input type="number" id="' + id + '" min="' + min + '" max="' + max + '" step="10" value="' + value + '"><span class="unit">mm</span></div>' +
-      '<span class="field-error">Ógild tala — verður að vera á milli ' + min + ' og ' + max + ' mm</span>';
+      '<span class="field-error">Ógild tala — verður að vera á milli ' + min + ' og ' + max + ' mm' + (hint ? ' (' + hint + ')' : '') + '</span>';
     container.appendChild(field);
     field.querySelector("input").addEventListener("input", function(e){
       var raw = e.target.value.trim();
@@ -864,7 +864,21 @@
       head.className = "wc-head";
       head.innerHTML = '<span class="wc-label">' + w.label + '</span>';
       row.appendChild(head);
-      numberField(row, "len-" + w.id, "Lengd", 600, 8000, w.lengthMm, function(v){ w.lengthMm = v; });
+      // A wall can't be shortened below what's already on it (cabinets +
+      // corner clearance) — otherwise the editor would show cabinets sticking
+      // out past the wall end. Windows/doors are pulled back inside instead.
+      var needed = ["floor", "wall"].reduce(function(m, zone){
+        return Math.max(m, KP3D.cornerClearanceMm(state.walls, i, zone) + usedMm(w[zone]));
+      }, 0);
+      var minLen = Math.max(600, needed);
+      numberField(row, "len-" + w.id, "Lengd", minLen, 8000, w.lengthMm, function(v){
+        w.lengthMm = v;
+        state.windows.concat(state.doors).forEach(function(o){
+          if (o.wallId !== w.id) return;
+          o.widthMm = Math.min(o.widthMm, v);
+          o.offsetMm = Math.max(0, Math.min(v - o.widthMm, o.offsetMm));
+        });
+      }, needed > 600 ? "skápar á veggnum taka " + needed + " mm" : "");
 
       var isLast = i === state.walls.length - 1;
       if (isLast){
