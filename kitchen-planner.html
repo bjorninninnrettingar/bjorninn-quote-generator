@@ -177,6 +177,8 @@
   }
   .wallcolor-swatch.active{ border-color:var(--blue); box-shadow:0 0 0 3px var(--blue-soft); }
 
+  .shape-presets{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+  .shape-presets-label{ font-size:13px; color:var(--ink-soft); }
   .wall-lengths{ display:flex; flex-direction:column; gap:14px; max-width:420px; margin-bottom:24px; }
   .field{ display:flex; flex-direction:column; gap:6px; }
   .field label{ font-size:13px; font-weight:600; color:var(--ink); }
@@ -211,7 +213,10 @@
 
   /* ---- progress ---- */
   .steps{ display:flex; gap:6px; margin-bottom:22px; }
-  .steps span{ height:4px; flex:1; border-radius:2px; background:var(--line); }
+  .steps{ margin-bottom:26px; }
+  .steps span{ height:4px; flex:1; border-radius:2px; background:var(--line); position:relative; }
+  .steps span::after{ content:attr(data-l); position:absolute; top:9px; left:0; font-size:11.5px; font-weight:600; color:var(--ink-soft); white-space:nowrap; }
+  .steps span.active::after{ color:var(--blue); }
   .steps span.done{ background:var(--gold); }
   .steps span.active{ background:var(--blue); }
 
@@ -363,7 +368,7 @@
   <p class="lede" id="pageLede">Svaraðu nokkrum spurningum, veldu lögun eldhússins og raðaðu skápum upp — gróf teikning, engin binding. Rakel fer svo yfir og fullkomnar hönnunina með þér.</p>
 
   <div class="steps" id="progressSteps">
-    <span data-s="intake"></span><span data-s="materials"></span><span data-s="shape"></span><span data-s="editor"></span><span data-s="contact"></span>
+    <span data-s="intake" data-l="Spurningar"></span><span data-s="materials" data-l="Efni"></span><span data-s="shape" data-l="Rými"></span><span data-s="editor" data-l="Skipulag"></span><span data-s="contact" data-l="Senda inn"></span>
   </div>
 
   <!-- ============ STEP: INTAKE ============ -->
@@ -418,6 +423,13 @@
   <section id="screen-shape" hidden>
     <div class="screen-title">Lögun eldhússins</div>
     <p class="screen-sub">Sláðu inn lengd fyrsta veggjar og segðu okkur hvernig rýmið heldur áfram — hvaða lögun sem er.</p>
+
+    <div class="shape-presets" id="shapePresets">
+      <span class="shape-presets-label">Fljótval:</span>
+      <button type="button" class="btn btn-secondary btn-small" data-preset="straight">▬ Bein lína</button>
+      <button type="button" class="btn btn-secondary btn-small" data-preset="l">⌐ L-laga</button>
+      <button type="button" class="btn btn-secondary btn-small" data-preset="u">⊓ U-laga</button>
+    </div>
 
     <div class="room-preview" id="roomPreviewWrap"></div>
 
@@ -793,6 +805,27 @@
   // 3d.js's wallGeometry3D supports both) in case a future phase adds
   // concave notches with proper handling — just not customer-exposed yet.
   var TURN_LABEL = { left:"Beygir hér", right:"Beygir hér" };
+
+  // One-click starting shapes (the wall chain stays fully editable after).
+  // Replacing walls that already carry cabinets asks first.
+  var SHAPE_PRESETS = {
+    straight: [3600],
+    l: [3600, 2600],
+    u: [2600, 3400, 2600]
+  };
+  function applyShapePreset(key){
+    var lens = SHAPE_PRESETS[key];
+    var hasStuff = state.walls.some(function(w){ return w.floor.length || w.wall.length; }) || state.windows.length || state.doors.length;
+    if (hasStuff && !confirm("Þetta breytir lögun rýmisins og fjarlægir skápa, glugga og hurðir sem þú ert búin(n) að setja inn. Halda áfram?")) return;
+    wallSeq = 1;
+    state.walls = lens.map(function(len, i){
+      return { id:"W" + (wallSeq++), label:"Veggur " + (i + 1), lengthMm:len, turnAfter:i < lens.length - 1 ? "left" : null, floor:[], wall:[] };
+    });
+    state.windows = [];
+    state.doors = [];
+    save();
+    renderShapeStep();
+  }
 
   function renderShapeStep(){
     var box = document.getElementById("wallLengthFields");
@@ -2120,6 +2153,9 @@
   });
 
   document.getElementById("resetBtn").addEventListener("click", resetAll);
+  document.querySelectorAll("#shapePresets [data-preset]").forEach(function(btn){
+    btn.addEventListener("click", function(){ applyShapePreset(btn.dataset.preset); });
+  });
 
   document.getElementById("resetCamBtn").addEventListener("click", function(){
     if (viewMode !== "3d") return;
