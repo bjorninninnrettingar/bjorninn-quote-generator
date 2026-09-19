@@ -1788,7 +1788,8 @@
     var bar = document.getElementById("floatBar");
     var poly = selectedBlockId ? document.querySelector('#planWrap [data-block-id="' + selectedBlockId + '"], #planWrap [data-window-id="' + selectedBlockId + '"], #planWrap [data-door-id="' + selectedBlockId + '"]') : null;
     if (!poly){ bar.hidden = true; return; }
-    var r = poly.getBoundingClientRect(), pr = bar.offsetParent.getBoundingClientRect();
+    // measure against the stage (the bar's positioned parent) — a hidden bar has no offsetParent
+    var r = poly.getBoundingClientRect(), pr = document.querySelector(".ed-stage").getBoundingClientRect();
     bar.style.left = (r.left - pr.left + r.width / 2) + "px";
     bar.style.top = Math.max(46, r.top - pr.top - 8) + "px";
     bar.hidden = false;
