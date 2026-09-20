@@ -664,6 +664,7 @@
 
   // ---------- persistence ----------
   function save(){
+    normalizeIslands();
     try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
     pushHistory();
   }
@@ -745,6 +746,7 @@
           if (!isNaN(n) && n >= blockSeq) blockSeq = n + 1;
         });
       });
+      normalizeIslands();
       state.islands.forEach(function(isl){
         var n = parseInt(String(isl.id).replace("I", ""), 10);
         if (!isNaN(n) && n >= islandSeq) islandSeq = n + 1;
@@ -994,6 +996,12 @@
   // stretch's ends when close. {offsetMm, index (slot in the list), fits}.
   function placeInWall(wall, zone, widthMm, centerAlongMm, excludeId){
     if (wall.island && zone !== "floor") return { offsetMm:0, index:0, fits:false }; // wall units only go on real walls
+    if (wall.island){ // island rows stay packed: pick the slot by neighbours' centres, insert there
+      var sp = spansOf(wall, zone, excludeId), idx = sp.length;
+      for (var si = 0; si < sp.length; si++){ if (centerAlongMm < (sp[si].start + sp[si].end) / 2){ idx = si; break; } }
+      var at = idx < sp.length ? sp[idx].start : (sp.length ? sp[sp.length - 1].end : 0);
+      return { offsetMm:at, index:idx, fits:true };
+    }
     var want = Math.round((centerAlongMm - widthMm / 2) / 10) * 10;
     var best = null;
     freeIntervals(wall, zone, excludeId).forEach(function(iv){
@@ -1088,6 +1096,7 @@
   function nudgeBlock(wall, zone, id, dir, stepMm){
     var list = wall[zone], i = list.findIndex(function(b){ return b.id === id; });
     if (i < 0) return;
+    if (wall.island){ moveBlock(wall, zone, id, dir); return; } // island rows are packed: ◀▶ reorders
     var b = list[i], spans = spansOf(wall, zone);
     var me = spans[i];
     var lo = i > 0 ? spans[i - 1].end : cornerClearance(wall, zone);
@@ -1547,7 +1556,7 @@
   // cabinets. A single row faces the wall (rot 180); a double row's B side does.
   function addIsland(type, at){
     var two = ISLAND_TYPES[type].two, w0 = state.walls[0];
-    var len = Math.max(600, Math.min(1800, Math.floor(w0.lengthMm / 100) * 100));
+    var len = Math.max(600, Math.floor(Math.min(1800, Math.floor(w0.lengthMm / 100) * 100) / 600) * 600);
     var isl = { id:"I" + (islandSeq++), label:"Eyja " + (state.islands.length + 1), lengthMm:len,
       xMm:at ? at.xMm : Math.round(w0.lengthMm / 2), zMm:at ? at.zMm : 2200, rot:two ? 0 : 180, two:two, a:[] };
     fillIslandRow(isl.a, len);
@@ -1556,6 +1565,7 @@
     clampIslands();
     selectedBlockId = isl.id;
     save();
+    KP3D.teardown3D(true); // refit the camera so the new island is in view (a kept orbit would crop it)
     refreshAfterEdit();
   }
   function moveIsland(isl, dxMm, dzMm){
@@ -1564,14 +1574,24 @@
     save();
     refreshAfterEdit();
   }
-  function setIslandLength(isl, lenMm){
-    var used = Math.max.apply(null, islandRowList(isl).map(usedMm));
-    var next = Math.max(600, Math.min(5000, lenMm));
-    if (next < used){ toast("Skáparnir taka " + used + " mm — fjarlægðu skáp til að stytta eyjuna."); return; }
-    if (next === isl.lengthMm) return;
-    isl.lengthMm = next;
-    save();
-    refreshAfterEdit();
+  // An island's length is not a setting: it is whatever its cabinets add up to
+  // (longest row). Rows are packed flush from the same end; the island grows
+  // and shrinks from its right end so its left end stays where it is.
+  function normalizeIslands(){
+    (state.islands || []).forEach(function(isl){
+      var rows = islandRowList(isl);
+      rows.forEach(function(row){ row.forEach(function(b){ delete b.gapMm; }); });
+      var usedA = usedMm(isl.a), usedB = isl.two ? usedMm(isl.b) : 0;
+      var len = Math.max(600, usedA, usedB), old = isl.lengthMm || len;
+      if (len !== old){
+        var f = KP3D.islandFrame(isl);
+        isl.xMm = Math.round(isl.xMm + f.axis.x * (len - old) / 2);
+        isl.zMm = Math.round(isl.zMm + f.axis.z * (len - old) / 2);
+      }
+      isl.lengthMm = len;
+      // row B is measured from the far end, so give it a lead-in gap to line up with row A
+      if (isl.two && isl.b.length && usedB < len) isl.b[0].gapMm = len - usedB;
+    });
   }
   function setIslandRows(isl, two){
     if (!!isl.two === two) return;
@@ -2172,16 +2192,11 @@
 
   // Island properties: length, one/two rows, where it stands, rotation, add cabinets.
   function renderIslandPanel(host, isl){
-    function stepRow(label, key, val){
-      return '<div class="edit-field"><label>' + label + '</label><div class="hw-count">' +
-        '<button class="iconbtn" data-isl="' + key + '" data-dir="-1">−</button><b style="min-width:70px;">' + val + ' mm</b>' +
-        '<button class="iconbtn" data-isl="' + key + '" data-dir="1">+</button></div></div>';
-    }
     host.innerHTML =
       '<div class="edit-panel">' +
         '<div class="edit-panel-head"><div><h4>' + isl.label + '</h4><div class="sub">' + (isl.two ? "Tvær raðir bak í bak" : "Ein röð") + ' · frístandandi</div></div>' +
           '<button class="iconbtn" data-role="close" title="Loka">✕</button></div>' +
-        stepRow("Lengd", "len", isl.lengthMm) +
+        '<p class="ov-mat" style="margin:0 0 10px;">Lengd: <b>' + isl.lengthMm + ' mm</b> — reiknast út frá skápunum. Veldu skáp í eyjunni til að breyta breidd hans, eða notaðu ＋ og ✕ til að breyta fjölda.</p>' +
         '<div class="edit-field"><label>Raðir</label><div class="hw-toggle">' +
           '<button type="button" class="hw-btn' + (!isl.two ? ' active' : '') + '" data-rows="1">Ein röð</button>' +
           '<button type="button" class="hw-btn' + (isl.two ? ' active' : '') + '" data-rows="2">Tvær raðir</button></div></div>' +
@@ -2198,9 +2213,6 @@
         '<p class="ov-mat" style="margin-top:10px;">Smelltu á skáp í eyjunni til að breyta tegund, skúffum o.fl.</p>' +
       '</div>';
     host.querySelector('[data-role="close"]').addEventListener("click", function(){ onCabinetSelect(null); });
-    host.querySelectorAll("[data-isl]").forEach(function(btn){
-      btn.addEventListener("click", function(){ setIslandLength(isl, isl.lengthMm + 100 * parseInt(btn.dataset.dir, 10)); });
-    });
     host.querySelectorAll("[data-rows]").forEach(function(btn){
       btn.addEventListener("click", function(){ setIslandRows(isl, btn.dataset.rows === "2"); });
     });

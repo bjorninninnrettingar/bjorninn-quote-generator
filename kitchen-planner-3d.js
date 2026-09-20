@@ -222,14 +222,16 @@
     for (var i = 0; i < k; i++) axis = rotate90(axis, "right");
     return { axis:axis, normal:normalFromAxis(axis) };
   }
+  var ISLAND_MAX_MM = 6000;
   function surfacesOf(state){
     var out = state.walls.slice();
     (state.islands || []).forEach(function(isl){
       if (!isl.a) isl.a = [];
-      out.push({ id:isl.id + "a", label:isl.label + (isl.two ? " · röð A" : ""), lengthMm:isl.lengthMm, floor:isl.a, wall:[], island:isl, side:"a" });
+      // lengthMm = placement capacity only: an island's real length grows/shrinks with its cabinets (see the planner's normalizeIslands)
+      out.push({ id:isl.id + "a", label:isl.label + (isl.two ? " · röð A" : ""), lengthMm:ISLAND_MAX_MM, floor:isl.a, wall:[], island:isl, side:"a" });
       if (isl.two){
         if (!isl.b) isl.b = [];
-        out.push({ id:isl.id + "b", label:isl.label + " · röð B", lengthMm:isl.lengthMm, floor:isl.b, wall:[], island:isl, side:"b" });
+        out.push({ id:isl.id + "b", label:isl.label + " · röð B", lengthMm:ISLAND_MAX_MM, floor:isl.b, wall:[], island:isl, side:"b" });
       }
     });
     return out;
@@ -253,7 +255,7 @@
     return { x:isl.xMm / 1000 - f.axis.x * (lenM / 2 + 0.42), z:isl.zMm / 1000 - f.axis.z * (lenM / 2 + 0.42) };
   }
   // room interior bounds (m) from the real walls only — islands are clamped inside
-  function roomBounds(state){ var g = wallGeometry3D(state.walls); return g.length ? interiorBounds(g) : null; }
+  function roomBounds(state){ var g = wallGeometry3D(state.walls); return g.length ? interiorBounds(g, 4.2) : null; }
 
   // Corner-overlap fix (Phase 7d-2): a floor cabinet's depth projects into
   // the room along its own wall's normal — at a 90° turn, the previous
@@ -421,16 +423,21 @@
   }
 
   // ---------- interior bounding box (for floor sizing + camera/plan framing) ----------
-  function interiorBounds(geoms){
+  function interiorBounds(geoms, depthM, extra){
+    var D = depthM || ROOM_DEPTH_M;
     var minX=Infinity, maxX=-Infinity, minZ=Infinity, maxZ=-Infinity;
+    (extra || []).forEach(function(p){
+      minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+      minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z);
+    });
     geoms.forEach(function(g){
       var end = { x:g.origin.x + g.axis.x*g.lenM, z:g.origin.z + g.axis.z*g.lenM };
       // Each wall's endpoints AND those endpoints pushed into the room along
       // the wall's own normal — must only grow on the interior side of a
       // wall, never symmetrically through it.
       [g.origin, end,
-       { x:g.origin.x + g.normal.x*ROOM_DEPTH_M, z:g.origin.z + g.normal.z*ROOM_DEPTH_M },
-       { x:end.x + g.normal.x*ROOM_DEPTH_M, z:end.z + g.normal.z*ROOM_DEPTH_M }
+       { x:g.origin.x + g.normal.x*D, z:g.origin.z + g.normal.z*D },
+       { x:end.x + g.normal.x*D, z:end.z + g.normal.z*D }
       ].forEach(function(p){
         minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
         minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z);
@@ -443,8 +450,19 @@
   // 3D scene
   // ============================================================
 
-  function addFloor(THREE, scene, geoms, floorMat){
-    var b = interiorBounds(geoms);
+  // floor + camera framing bounds: the walls' interior plus every island with a walkway around it
+  function stateBounds(state, geoms){
+    var extra = [];
+    (state.islands || []).forEach(function(isl){
+      var f = islandFrame(isl), h = isl.lengthMm / 2000 + 0.6, cx = isl.xMm / 1000, cz = isl.zMm / 1000;
+      [-1, 1].forEach(function(a){ [-1, 1].forEach(function(n){
+        extra.push({ x:cx + f.axis.x * h * a + f.normal.x * 1.3 * n, z:cz + f.axis.z * h * a + f.normal.z * 1.3 * n });
+      }); });
+    });
+    return interiorBounds(geoms, ROOM_DEPTH_M, extra);
+  }
+
+  function addFloor(THREE, scene, geoms, floorMat, b){
     var margin = 0.3;
     var w = (b.maxX - b.minX) + margin * 2, d = (b.maxZ - b.minZ) + margin * 2;
     var cx = (b.minX + b.maxX) / 2, cz = (b.minZ + b.maxZ) / 2;
@@ -1221,7 +1239,7 @@
     var scene = new THREE.Scene();
     scene.background = new THREE.Color(0xf7f6f2);
 
-    var bbox = addFloor(THREE, scene, geoms, floorMat);
+    var bbox = addFloor(THREE, scene, geoms, floorMat, stateBounds(state, geoms));
     // Phase 7c: customer-set room height (was a fixed 2.6m for every
     // project). Also caps how tall any cabinet can render — a Hárskápur
     // sized for a 2.6m ceiling shouldn't poke through a lower one.
@@ -1499,7 +1517,7 @@
   function planTransform(state){
     var geoms = wallGeometry3D(state.walls);
     if (!geoms.length) return null;
-    var b = interiorBounds(geoms);
+    var b = stateBounds(state, geoms);
     var margin = 0.4;
     // geoms/surfaces include free-standing island rows after the real walls
     return { minX: b.minX - margin, minZ: b.minZ - margin, pxPerM: PX_PER_M, geoms: geoms.concat(islandGeoms(state)), surfaces: surfacesOf(state) };
@@ -1528,7 +1546,7 @@
     if (!geoms.length){ container.innerHTML = ""; return; }
     var surfaces = surfacesOf(state), allGeoms = geoms.concat(islandGeoms(state));
 
-    var b = interiorBounds(geoms);
+    var b = stateBounds(state, geoms);
     var margin = 0.4;
     var minX = b.minX - margin, maxX = b.maxX + margin;
     var minZ = b.minZ - margin, maxZ = b.maxZ + margin;
@@ -1686,6 +1704,7 @@
     dropPointFromClient: dropPointFromClient,
     floorPointFromClient: floorPointFromClient,
     surfacesOf: surfacesOf,
+    islandFrame: islandFrame,
     surfaceGeoms: surfaceGeoms,
     islandHandlePos: islandHandlePos,
     roomBounds: roomBounds,
