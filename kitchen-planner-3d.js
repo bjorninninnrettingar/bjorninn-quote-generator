@@ -132,6 +132,26 @@
   // Drawer runner system — real Eyðublað "Skúffutegund" field, exactly these
   // 2 choices. Project-wide like look/handle/carcass (you wouldn't mix
   // runner brands in one kitchen), not per-cabinet.
+  // Real drawer-box side heights (mm) from Blum's catalogue, per the 3-drawer
+  // base cabinet Björninn builds: LEGRABOX M / K / F, MERIVOBOX M / K / E
+  // (listed top → bottom). Fronts are the box height plus an equal share of
+  // what is left of the cabinet body, so the fronts read like a real stack.
+  var DRAWER_LAYOUT = {
+    legra:  { codes:["M", "K", "F"], sides:[90.5, 128.5, 241] },
+    merivo: { codes:["M", "K", "E"], sides:[91, 129, 192] }
+  };
+  // cumulative front boundaries bottom → top (fractions of the body height, one per seam)
+  function drawerFractions(sysKey, bodyMm, gapMm){
+    var L = DRAWER_LAYOUT[sysKey];
+    if (!L) return null;
+    var gaps = (L.sides.length - 1) * (gapMm || 3), sum = L.sides.reduce(function(a, b){ return a + b; }, 0);
+    var extra = (bodyMm - gaps - sum) / L.sides.length;
+    var fronts = L.sides.map(function(h){ return h + extra; }).reverse(); // bottom → top
+    var out = [], acc = 0;
+    fronts.slice(0, -1).forEach(function(h){ acc += h + (gapMm || 3) / 2; out.push(acc / bodyMm); acc += (gapMm || 3) / 2; });
+    return out;
+  }
+
   var DRAWER_SYSTEMS = {
     legra:  { label:"Legra",  desc:"Skúffukerfi sem Björninn notar reglulega.", airtableName:"LEGRA" },
     merivo: { label:"Merivo", desc:"Annað skúffukerfi í boði hjá Birninum.",   airtableName:"MERIVO" }
@@ -629,7 +649,7 @@
     }
   }
 
-  function addDrawerSeams(THREE, scene, geom, offsetM, widthM, heightM, baseYM, depthM, count){
+  function addDrawerSeams(THREE, scene, geom, offsetM, widthM, heightM, baseYM, depthM, count, fractions){
     if (!count || count < 2) return;
     var xAxis = new THREE.Vector3(geom.axis.x, 0, geom.axis.z);
     var yAxis = new THREE.Vector3(0, 1, 0);
@@ -638,10 +658,10 @@
     var seamMat = new THREE.MeshBasicMaterial({ color:0x2a2a2a, side:THREE.DoubleSide });
     var frontOut = depthM + 0.004; // just proud of the front face, avoids z-fighting
     for (var i = 1; i < count; i++){
-      var y = baseYM + heightM * (i / count);
+      var y = baseYM + heightM * (fractions && fractions[i - 1] != null ? fractions[i - 1] : i / count);
       var cx = geom.origin.x + geom.axis.x * (offsetM + widthM / 2) + geom.normal.x * frontOut;
       var cz = geom.origin.z + geom.axis.z * (offsetM + widthM / 2) + geom.normal.z * frontOut;
-      var seam = new THREE.Mesh(new THREE.PlaneGeometry(widthM * 0.94, 0.012), seamMat);
+      var seam = new THREE.Mesh(new THREE.PlaneGeometry(widthM + 0.002, 0.005), seamMat); // the gap between two fronts: edge to edge, hairline thin
       seam.position.set(cx, y, cz);
       seam.quaternion.copy(quat);
       scene.add(seam);
@@ -664,7 +684,10 @@
     var drawers = interior && interior.mode === "skuffur" ? interior.count : 0;
     var isOven = !!(meta && meta.oven);
     var fronts = [];
-    if (drawers){ for (var i = 0; i < drawers; i++) fronts.push({ y0:i / drawers, y1:(i + 1) / drawers, drawer:true }); }
+    if (drawers){
+      var fr = interior.fractions && interior.fractions.length === drawers - 1 ? interior.fractions : null;
+      for (var i = 0; i < drawers; i++) fronts.push({ y0:fr ? (i === 0 ? 0 : fr[i - 1]) : i / drawers, y1:fr ? (i === drawers - 1 ? 1 : fr[i]) : (i + 1) / drawers, drawer:true });
+    }
     else if (isTall && !isOven){ fronts.push({ y0:0, y1:split }, { y0:split, y1:1 }); }
     else if (!isOven) fronts.push({ y0:0, y1:1 });
 
@@ -686,7 +709,7 @@
     if (isOven){
       var oy = baseYM + 0.55, oh = 0.595;
       var glassMat = new THREE.MeshStandardMaterial({ color:0x141518, roughness:0.12, metalness:0.5 });
-      [oy, oy + oh].forEach(function(y){ place(new THREE.Mesh(new THREE.PlaneGeometry(widthM * 0.96, 0.008), seamMat), y, 0.004); });
+      [oy, oy + oh].forEach(function(y){ place(new THREE.Mesh(new THREE.PlaneGeometry(widthM + 0.002, 0.005), seamMat), y, 0.004); });
       place(new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.9, oh - 0.13, 0.012), glassMat), oy + (oh - 0.13) / 2 + 0.005, 0.006);
       place(new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.9, 0.06, 0.012), new THREE.MeshStandardMaterial({ color:0x2b2c30, roughness:0.4, metalness:0.4 })), oy + oh - 0.05, 0.006);
       place(new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.7, 0.018, 0.028), handleMat), oy + oh - 0.105, 0.024);
@@ -706,7 +729,7 @@
     fronts.forEach(function(f, idx){
       // seam between stacked door fronts (drawer seams are drawn separately)
       if (!f.drawer && idx > 0){
-        place(new THREE.Mesh(new THREE.PlaneGeometry(widthM * 0.96, 0.008), seamMat), baseYM + heightM * f.y0, 0.004);
+        place(new THREE.Mesh(new THREE.PlaneGeometry(widthM + 0.002, 0.005), seamMat), baseYM + heightM * f.y0, 0.004);
       }
       if (!handleKey || hstyle === "none") return;
       var top = baseYM + heightM * f.y1, bottom = baseYM + heightM * f.y0;
@@ -797,8 +820,9 @@
     }
 
     if (plinthM && meta && meta.plinthMat){
-      var pl = new THREE.Mesh(new THREE.BoxGeometry(widthM - 0.004, plinthM, depthM - 0.06), meta.plinthMat);
-      pl.position.copy(local(0, baseYM + plinthM / 2, (depthM - 0.06) / 2));
+      // a hair shorter than the gap so its top never shares a plane with the body's underside (z-fighting showed through an open cabinet)
+      var pl = new THREE.Mesh(new THREE.BoxGeometry(widthM - 0.004, plinthM - 0.004, depthM - 0.06), meta.plinthMat);
+      pl.position.copy(local(0, baseYM + (plinthM - 0.004) / 2, (depthM - 0.06) / 2));
       pl.quaternion.copy(quat);
       pl.receiveShadow = true;
       group.add(pl);
@@ -823,7 +847,7 @@
       }
     }
     if (interior && interior.mode === "skuffur"){
-      addDrawerSeams(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior.count);
+      addDrawerSeams(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior.count, interior.fractions);
     }
     if (meta && meta.zone !== "opening") addFrontDetails(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta.handle, !!meta.tall, meta.zone === "wall", meta.split || 0.55, meta);
   }
@@ -1445,7 +1469,9 @@
         var c = CATALOG[b.type];
         var hM = Math.min(b.heightMm || c.h, roomHeightMm) / 1000, dM = (b.depthMm || c.d) / 1000;
         var selected = opts.selectedId === b.id;
-        addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, carcassMat, c.fridge ? steelMat : frontMat, b.interior,
+        var inter = b.interior && b.interior.mode === "skuffur" && b.interior.count === 3 && state.drawerSystem
+          ? Object.assign({}, b.interior, { fractions:drawerFractions(state.drawerSystem, hM * 1000 - 100) }) : b.interior;
+        addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, carcassMat, c.fridge ? steelMat : frontMat, inter,
           { islandId:islandId, warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), handle:state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0.55,
             plinth:true, counter:!!c.counter, sink:!!c.sink, oven:!!c.oven, plinthMat:plinthMat, stoneMat:stoneMat }, selected, pickables);
       });
@@ -1633,26 +1659,43 @@
     if (!PREVIEW) return;
     cancelAnimationFrame(PREVIEW.raf);
     window.removeEventListener("resize", PREVIEW.onResize);
+    if (PREVIEW.ro) PREVIEW.ro.disconnect();
     PREVIEW.controls.dispose();
     disposeScene(PREVIEW.scene);
     if (PREVIEW.renderer.domElement.parentNode) PREVIEW.renderer.domElement.parentNode.removeChild(PREVIEW.renderer.domElement);
     PREVIEW = null;
   }
 
-  function addDrawerBodies(THREE, group, sysKey){
-    var metal = sysKey !== "merivo";
-    var mat = new THREE.MeshStandardMaterial({ color:metal ? 0xb8bdc4 : 0xf2f1ed, metalness:metal ? 0.6 : 0.08, roughness:metal ? 0.34 : 0.5 });
-    var bw = 0.52, bd = 0.5, ph = metal ? 0.15 : 0.17, t = 0.012;
-    [0, 1, 2].forEach(function(i){
-      var y0 = 0.13 + i * 0.215, pull = i === 2 ? 0.17 : (i === 1 ? 0.03 : 0), cz = 0.6 - 0.04 - bd / 2 + pull;
-      function panel(w, h, d, x, y, z){
-        var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  // Drawer boxes as they sit in a real cabinet. LEGRABOX: slim straight steel
+  // sides + back; MERIVOBOX: L-profile sides (a flange turns in at the bottom).
+  // Colour follows the carcass — white, or dark grey with a dark carcass.
+  // heights are the real Blum side heights; the top drawer is pulled out a bit.
+  function addDrawerBodies(THREE, group, sysKey, carcassKey, fractions, bodyBaseM, bodyM){
+    var L = DRAWER_LAYOUT[sysKey];
+    if (!L) return;
+    var dark = carcassKey === "dokkgra";
+    var mat = new THREE.MeshStandardMaterial({ color:dark ? 0x64676c : 0xf0efeb, metalness:dark ? 0.45 : 0.1, roughness:0.4 });
+    var legra = sysKey !== "merivo", t = legra ? 0.0128 : 0.016, bw = 0.5, bd = 0.5;
+    var bounds = [0].concat(fractions || [1 / 3, 2 / 3]).concat([1]);       // bottom → top
+    var sides = L.sides.slice().reverse();                                  // bottom → top
+    sides.forEach(function(sideMm, i){
+      var h = sideMm / 1000, top = bodyBaseM + bodyM * bounds[i + 1] - 0.03, y0 = top - h;
+      var pull = i === sides.length - 1 ? 0.2 : (i === 1 ? 0.04 : 0), cz = 0.6 - 0.05 - bd / 2 + pull;
+      function panel(w, hh, d, x, y, z){
+        var m = new THREE.Mesh(new THREE.BoxGeometry(w, hh, d), mat);
         m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; group.add(m);
       }
-      panel(bw, t, bd, 0, y0, cz);                       // bottom
-      panel(t, ph, bd, -bw / 2, y0 + ph / 2, cz);        // sides
-      panel(t, ph, bd, bw / 2, y0 + ph / 2, cz);
-      panel(bw, ph, t, 0, y0 + ph / 2, cz - bd / 2);     // back
+      panel(bw, t, bd, 0, y0 + t / 2, cz);                                   // bottom
+      panel(t, h, bd, -bw / 2 + t / 2, y0 + h / 2, cz);                      // sides
+      panel(t, h, bd, bw / 2 - t / 2, y0 + h / 2, cz);
+      panel(bw, Math.min(h, 0.09), t, 0, y0 + Math.min(h, 0.09) / 2, cz - bd / 2 + t / 2); // back panel
+      if (!legra){ // Merivo: the L-shaped flange at the bottom of each side
+        panel(0.02, t, bd, -bw / 2 + t + 0.01, y0 + t * 1.5, cz);
+        panel(0.02, t, bd, bw / 2 - t - 0.01, y0 + t * 1.5, cz);
+      } else {     // Legra: the slim front bracket the front panel clips onto
+        panel(0.03, 0.04, 0.02, -bw / 2 + 0.03, y0 + h - 0.03, cz + bd / 2 - 0.01);
+        panel(0.03, 0.04, 0.02, bw / 2 - 0.03, y0 + h - 0.03, cz + bd / 2 - 0.01);
+      }
     });
   }
 
@@ -1675,8 +1718,9 @@
       meta.hiddenMat = new THREE.MeshBasicMaterial({ visible:false });
     }
     var geom = { origin:{ x:-0.3, z:0 }, axis:{ x:1, z:0 }, normal:{ x:0, z:1 }, lenM:0.6 };
-    addCabinetBox(THREE, group, geom, 0, 0.6, 0.8, 0.6, 0, carcassMat, frontMat, closed ? { mode:"skuffur", count:3 } : null, meta, false, null);
-    if (!closed && cfg.showDrawers && cfg.drawer) addDrawerBodies(THREE, group, cfg.drawer);
+    var fractions = cfg.drawer ? drawerFractions(cfg.drawer, 700) : null; // body = 800 - 100 plinth
+    addCabinetBox(THREE, group, geom, 0, 0.6, 0.8, 0.6, 0, carcassMat, frontMat, closed ? { mode:"skuffur", count:3, fractions:fractions } : null, meta, false, null);
+    if (!closed && cfg.showDrawers && cfg.drawer) addDrawerBodies(THREE, group, cfg.drawer, cfg.carcass, fractions, 0.1, 0.7);
     PREVIEW.scene.add(group);
     var aniso = Math.min(8, PREVIEW.renderer.capabilities.getMaxAnisotropy());
     group.traverse(function(o){
@@ -1720,6 +1764,7 @@
         window.dispatchEvent(new Event("kp3d-context-lost"));
       });
     }
+    renderer.domElement.style.width = "100%"; renderer.domElement.style.height = "100%"; // the shared canvas may carry pixel sizes from the room view
     wrap.appendChild(renderer.domElement);
     if (window.__RoomEnvironment__){
       if (!sharedEnv){
@@ -1741,11 +1786,13 @@
       var w = wrap.clientWidth, h = wrap.clientHeight;
       if (!w || !h) return;
       camera.aspect = w / h; camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
+      renderer.setSize(w, h, false); // CSS (100% × 100%) sizes the canvas, so it can never stay at a stale pixel size
     }
     resize();
     window.addEventListener("resize", resize);
-    PREVIEW = { renderer:renderer, camera:camera, controls:controls, scene:scene, group:null, onResize:resize, raf:0 };
+    var ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(resize) : null;
+    if (ro) ro.observe(wrap);
+    PREVIEW = { renderer:renderer, camera:camera, controls:controls, scene:scene, group:null, onResize:resize, raf:0, ro:ro };
     (function loop(){
       if (!PREVIEW) return;
       PREVIEW.raf = requestAnimationFrame(loop);
@@ -1953,6 +2000,7 @@
     TOP_GROUPS: TOP_GROUPS,
     CARCASS: CARCASS,
     DRAWER_SYSTEMS: DRAWER_SYSTEMS,
+    DRAWER_LAYOUT: DRAWER_LAYOUT,
     HANDLES: HANDLES,
     wallGeometry3D: wallGeometry3D,
     cornerClearanceMm: cornerClearanceMm,
