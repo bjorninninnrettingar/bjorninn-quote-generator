@@ -29,6 +29,7 @@
 </script>
 <script src="kitchen-planner-materials.js"></script>
 <script src="kitchen-planner-catalog.js"></script>
+<script src="kitchen-planner-models.js"></script>
 <script src="kitchen-planner-3d.js"></script>
 <style>
   :root{
@@ -505,7 +506,7 @@
     <div class="mat-wiz">
       <div class="mat-stage">
         <div class="cab-preview" id="cabPreview"></div>
-        <p class="cab-hint">Dragðu til að snúa skápnum · skrollaðu til að þysja</p>
+        <p class="cab-hint">Dragðu til að snúa skápnum · skrollaðu til að þysja · smelltu á skúffu til að opna hana</p>
       </div>
       <div class="mat-side">
         <div class="wiz-steps" id="wizSteps"></div>
@@ -2384,6 +2385,12 @@
       if (last) goto("shape"); else { matPhase++; renderMaterials(); }
     });
   }
+
+  // a real .glb finished loading: redraw whatever 3D view is showing
+  window.addEventListener("kp3d-model-loaded", function(){
+    if (state.step === "materials" && KP3D.hasCabinetPreview()) KP3D.setCabinetPreview(cabCfg());
+    else if (state.step === "editor") renderView();
+  });
 
   function renderMaterials(){
     if (matPhase === null) matPhase = firstMissingPhase();

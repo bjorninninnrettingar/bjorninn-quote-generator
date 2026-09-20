@@ -671,6 +671,43 @@
   var SELECT_COLOR = 0x3d61c1;
   var WARN_COLOR = 0xd9822b; // outline of a cabinet/opening the fit check flagged
 
+  // ---------- optional real models (.glb) — see kitchen-planner-models.js ----------
+  var MODEL_CACHE = {}; // url -> {state:"loading"|"ready"|"error", obj}
+  function modelEntry(kind, key){
+    var m = window.KPMODELS && window.KPMODELS[kind] && window.KPMODELS[kind][key];
+    return m && m.file ? m : null;
+  }
+  // -> a normalised clone (bottom at y=0, centred on x/z, front at +z side) or null while it loads / when none exists
+  function getModel(kind, key){
+    var e = modelEntry(kind, key);
+    if (!e) return null;
+    var c = MODEL_CACHE[e.file];
+    if (!c){
+      c = MODEL_CACHE[e.file] = { state:"loading", obj:null };
+      import("three/addons/loaders/GLTFLoader.js").then(function(mod){
+        new mod.GLTFLoader().load(e.file, function(gltf){
+          c.obj = normaliseModel(gltf.scene, e); c.state = "ready";
+          window.dispatchEvent(new Event("kp3d-model-loaded"));
+        }, undefined, function(){ c.state = "error"; });
+      }).catch(function(){ c.state = "error"; });
+    }
+    return c.state === "ready" ? c.obj.clone(true) : null;
+  }
+  function normaliseModel(root, e){
+    var THREE = window.__THREE__, wrap = new THREE.Group();
+    wrap.add(root);
+    if (e.rot) root.rotation.set((e.rot[0] || 0) * Math.PI / 180, (e.rot[1] || 0) * Math.PI / 180, (e.rot[2] || 0) * Math.PI / 180);
+    if (e.mirrorX) root.scale.x *= -1;
+    var box = new THREE.Box3().setFromObject(wrap), size = box.getSize(new THREE.Vector3());
+    if (Math.max(size.x, size.y, size.z) > 4) wrap.scale.setScalar(0.001); // exported in millimetres
+    box.setFromObject(wrap);
+    var ctr = box.getCenter(new THREE.Vector3());
+    root.position.set(-ctr.x, -box.min.y, -ctr.z);
+    var out = new THREE.Group(); out.add(wrap);
+    wrap.traverse(function(o){ if (o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
+    return out;
+  }
+
   // Door seams + handles on a cabinet front (2026-09-19) so cabinets read as
   // cabinets instead of plain boxes. Handle style follows the customer's
   // chosen opening (HANDLES key): a bar (ona), a full-width profile (jey2 /
@@ -739,6 +776,14 @@
       var edgeY = atBottom ? bottom + 0.02 : top - 0.02;
       var hy = atBottom ? bottom + 0.06 : top - (f.drawer ? 0.07 : 0.06);
       var mesh;
+      var hm = getModel("handles", handleKey);
+      if (hm){ // a real handle model: back against the front, anchored where the procedural one would sit
+        var hb = new THREE.Box3().setFromObject(hm), hsz = hb.getSize(new THREE.Vector3()), holder = new THREE.Group();
+        hm.position.set(0, -hsz.y / 2, hsz.z / 2);
+        holder.add(hm);
+        place(holder, hstyle === "edge" || hstyle === "tab" ? edgeY : hy, 0, 0);
+        return;
+      }
       if (hstyle === "bar"){
         var blen = hdef.len || 0.24, cap = blen <= 0.24 ? 0.5 : 0.85;
         if (wideDoor && !f.drawer && blen <= 0.24){ hbar(0.16, hy, -widthM * 0.16); hbar(0.16, hy, widthM * 0.16); }
@@ -1660,44 +1705,42 @@
     cancelAnimationFrame(PREVIEW.raf);
     window.removeEventListener("resize", PREVIEW.onResize);
     if (PREVIEW.ro) PREVIEW.ro.disconnect();
+    if (PREVIEW.cleanupPick) PREVIEW.cleanupPick();
     PREVIEW.controls.dispose();
     disposeScene(PREVIEW.scene);
     if (PREVIEW.renderer.domElement.parentNode) PREVIEW.renderer.domElement.parentNode.removeChild(PREVIEW.renderer.domElement);
     PREVIEW = null;
   }
 
-  // Drawer boxes as they sit in a real cabinet. LEGRABOX: slim straight steel
-  // sides + back; MERIVOBOX: L-profile sides (a flange turns in at the bottom).
-  // Colour follows the carcass — white, or dark grey with a dark carcass.
-  // heights are the real Blum side heights; the top drawer is pulled out a bit.
-  function addDrawerBodies(THREE, group, sysKey, carcassKey, fractions, bodyBaseM, bodyM){
-    var L = DRAWER_LAYOUT[sysKey];
-    if (!L) return;
+  // One drawer box (LEGRABOX: slim straight steel sides + back + the front
+  // bracket; MERIVOBOX: L-profile sides with a flange at the bottom), built
+  // with real Blum side heights. Local coordinates: bottom at y = 0, the
+  // front edge at z = 0 and the box extending backwards (-z).
+  function buildDrawerBox(THREE, sysKey, carcassKey, sideMm){
+    var g = new THREE.Group();
     var dark = carcassKey === "dokkgra";
     var mat = new THREE.MeshStandardMaterial({ color:dark ? 0x64676c : 0xf0efeb, metalness:dark ? 0.45 : 0.1, roughness:0.4 });
-    var legra = sysKey !== "merivo", t = legra ? 0.0128 : 0.016, bw = 0.5, bd = 0.5;
-    var bounds = [0].concat(fractions || [1 / 3, 2 / 3]).concat([1]);       // bottom → top
-    var sides = L.sides.slice().reverse();                                  // bottom → top
-    sides.forEach(function(sideMm, i){
-      var h = sideMm / 1000, top = bodyBaseM + bodyM * bounds[i + 1] - 0.03, y0 = top - h;
-      var pull = i === sides.length - 1 ? 0.2 : (i === 1 ? 0.04 : 0), cz = 0.6 - 0.05 - bd / 2 + pull;
-      function panel(w, hh, d, x, y, z){
-        var m = new THREE.Mesh(new THREE.BoxGeometry(w, hh, d), mat);
-        m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; group.add(m);
-      }
-      panel(bw, t, bd, 0, y0 + t / 2, cz);                                   // bottom
-      panel(t, h, bd, -bw / 2 + t / 2, y0 + h / 2, cz);                      // sides
-      panel(t, h, bd, bw / 2 - t / 2, y0 + h / 2, cz);
-      panel(bw, Math.min(h, 0.09), t, 0, y0 + Math.min(h, 0.09) / 2, cz - bd / 2 + t / 2); // back panel
-      if (!legra){ // Merivo: the L-shaped flange at the bottom of each side
-        panel(0.02, t, bd, -bw / 2 + t + 0.01, y0 + t * 1.5, cz);
-        panel(0.02, t, bd, bw / 2 - t - 0.01, y0 + t * 1.5, cz);
-      } else {     // Legra: the slim front bracket the front panel clips onto
-        panel(0.03, 0.04, 0.02, -bw / 2 + 0.03, y0 + h - 0.03, cz + bd / 2 - 0.01);
-        panel(0.03, 0.04, 0.02, bw / 2 - 0.03, y0 + h - 0.03, cz + bd / 2 - 0.01);
-      }
-    });
+    var legra = sysKey !== "merivo", t = legra ? 0.0128 : 0.016, bw = 0.5, bd = 0.5, h = sideMm / 1000;
+    function panel(w, hh, d, x, y, z){
+      var m = new THREE.Mesh(new THREE.BoxGeometry(w, hh, d), mat);
+      m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; g.add(m);
+    }
+    panel(bw, t, bd, 0, t / 2, -bd / 2);                                   // bottom
+    panel(t, h, bd, -bw / 2 + t / 2, h / 2, -bd / 2);                      // sides
+    panel(t, h, bd, bw / 2 - t / 2, h / 2, -bd / 2);
+    var bh = Math.min(h, 0.09);
+    panel(bw, bh, t, 0, bh / 2, -bd + t / 2);                              // back panel
+    if (!legra){
+      panel(0.02, t, bd, -bw / 2 + t + 0.01, t * 1.5, -bd / 2);            // Merivo: L-shaped flange
+      panel(0.02, t, bd, bw / 2 - t - 0.01, t * 1.5, -bd / 2);
+    } else {
+      panel(0.03, 0.04, 0.02, -bw / 2 + 0.03, h - 0.03, -0.01);            // Legra: front bracket
+      panel(0.03, 0.04, 0.02, bw / 2 - 0.03, h - 0.03, -0.01);
+    }
+    return g;
   }
+
+  var FRONT_T = 0.02;   // fronts are 20 mm thick; the carcass is (depth - 20 mm)
 
   function setCabinetPreview(cfg){
     if (!PREVIEW) return;
@@ -1705,22 +1748,77 @@
     if (PREVIEW.group){ PREVIEW.scene.remove(PREVIEW.group); disposeScene(PREVIEW.group); }
     var group = new THREE.Group();
     PREVIEW.group = group;
+    var W = 0.6, H = 0.8, PL = 0.1, D = 0.6, CD = D - FRONT_T, T = 0.018, BODY = H - PL;
     var carc = cfg.carcass && CARCASS[cfg.carcass];
     var carcassMat = new THREE.MeshStandardMaterial({ color:carc ? carc.color3d : "#cdc8bd", roughness:0.9 });
     var look = cfg.look && LOOKS[cfg.look];
     var frontMat = look && window.KPMat ? makeFrontMaterial(THREE, cfg.look, look) : new THREE.MeshStandardMaterial({ color:look ? look.color3d : 0xd9d4ca, roughness:0.7 });
-    var closed = !!(cfg.showFronts && look);
-    var meta = { plinth:true, plinthMat:new THREE.MeshStandardMaterial({ color:0x26262a, roughness:0.85 }),
-      handle:cfg.showHandle && cfg.handle ? cfg.handle : null, tall:false, split:0.55, counter:!!(cfg.showTop), stoneMat:cfg.showTop ? makeTopMaterial(THREE, cfg.top) : null };
-    if (!closed){
-      meta.open = true; meta.shelves = 0;
-      meta.openMat = carcassMat.clone(); meta.openMat.side = THREE.DoubleSide;
-      meta.hiddenMat = new THREE.MeshBasicMaterial({ visible:false });
+    function box(w, h, d, x, y, z, mat, tile){
+      var geo = new THREE.BoxGeometry(w, h, d);
+      if (tile) scaleFrontUV(geo, w, h, tile);
+      var m = new THREE.Mesh(geo, mat);
+      m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; group.add(m);
+      return m;
     }
-    var geom = { origin:{ x:-0.3, z:0 }, axis:{ x:1, z:0 }, normal:{ x:0, z:1 }, lenM:0.6 };
-    var fractions = cfg.drawer ? drawerFractions(cfg.drawer, 700) : null; // body = 800 - 100 plinth
-    addCabinetBox(THREE, group, geom, 0, 0.6, 0.8, 0.6, 0, carcassMat, frontMat, closed ? { mode:"skuffur", count:3, fractions:fractions } : null, meta, false, null);
-    if (!closed && cfg.showDrawers && cfg.drawer) addDrawerBodies(THREE, group, cfg.drawer, cfg.carcass, fractions, 0.1, 0.7);
+    // plinth (a hair shorter than the gap so nothing shares a plane) + carcass panels
+    box(W - 0.004, PL - 0.004, CD - 0.06, 0, (PL - 0.004) / 2, (CD - 0.06) / 2, new THREE.MeshStandardMaterial({ color:0x26262a, roughness:0.85 }));
+    box(T, BODY, CD, -W / 2 + T / 2, PL + BODY / 2, CD / 2, carcassMat);                 // sides
+    box(T, BODY, CD, W / 2 - T / 2, PL + BODY / 2, CD / 2, carcassMat);
+    box(W - 2 * T, T, CD, 0, PL + T / 2, CD / 2, carcassMat);                              // bottom
+    box(W - 2 * T, T, CD, 0, H - T / 2, CD / 2, carcassMat);                               // top
+    box(W - 2 * T, BODY - 2 * T, 0.008, 0, PL + BODY / 2, 0.004, carcassMat);              // back
+    if (cfg.showTop){
+      var topMat = makeTopMaterial(THREE, cfg.top);
+      box(W + 0.001, 0.032, D + 0.02, 0, H + 0.016, (D + 0.02) / 2, topMat, topMat.userData && topMat.userData.tile);
+    }
+
+    // drawers: front (20 mm) + handle + box move together
+    var fractions = cfg.drawer ? drawerFractions(cfg.drawer, BODY * 1000) : [1 / 3, 2 / 3];
+    var bounds = [0].concat(fractions).concat([1]);                                       // bottom → top
+    var L = DRAWER_LAYOUT[cfg.drawer];
+    var sides = L ? L.sides.slice().reverse() : [90, 130, 190];
+    var showFronts = !!(cfg.showFronts && look), showBoxes = !!(cfg.showDrawers && cfg.drawer);
+    var drawers = [], pickables = [];
+    var geomFake = { origin:{ x:-W / 2, z:0 }, axis:{ x:1, z:0 }, normal:{ x:0, z:1 }, lenM:W };
+    for (var i = 0; i < 3; i++){
+      var dg = new THREE.Group();
+      dg.userData.drawer = i;
+      var y0 = PL + BODY * bounds[i] + (i === 0 ? 0.0015 : 0.0015), y1 = PL + BODY * bounds[i + 1] - (i === 2 ? 0.0015 : 0.0015), fh = y1 - y0;
+      if (showFronts){
+        var slab = new THREE.Mesh(new THREE.BoxGeometry(W - 0.004, fh, FRONT_T), frontMat);
+        scaleFrontUV(slab.geometry, W - 0.004, fh, frontMat.userData && frontMat.userData.tile);
+        slab.position.set(0, (y0 + y1) / 2, CD + FRONT_T / 2); slab.castShadow = true; slab.receiveShadow = true;
+        dg.add(slab); pickables.push(slab);
+        if (cfg.showHandle && cfg.handle){
+          var tmp = new THREE.Group();
+          addFrontDetails(THREE, tmp, geomFake, 0, W, fh, y0, D, { mode:"skuffur", count:1 }, cfg.handle, false, false, 0.55, {});
+          tmp.children.slice().forEach(function(ch){ dg.add(ch); if (ch.isMesh) pickables.push(ch); });
+        }
+      }
+      if (showBoxes){
+        var real = L ? getModel("drawers", cfg.drawer + "_" + L.codes[2 - i]) : null, bx;
+        if (real){ // real model: front edge at the front, top just under the drawer front's top
+          var rb = new THREE.Box3().setFromObject(real), rs = rb.getSize(new THREE.Vector3());
+          bx = new THREE.Group(); real.position.set(0, 0, -rb.max.z); bx.add(real);
+          bx.position.set(0, y1 - 0.03 - rs.y, CD - 0.005);
+        } else {
+          bx = buildDrawerBox(THREE, cfg.drawer, cfg.carcass, sides[i]);
+          bx.position.set(0, y1 - 0.03 - sides[i] / 1000, CD - 0.005);
+        }
+        dg.add(bx);
+        bx.traverse(function(o){ if (o.isMesh) pickables.push(o); });
+      }
+      pickables.forEach(function(m){ if (m.userData.drawer == null) m.userData.drawer = i; });
+      group.add(dg);
+      drawers.push(dg);
+    }
+    // keep each drawer's open/closed state across rebuilds (a pick shouldn't slam them shut)
+    PREVIEW.drawers = drawers.map(function(g, i){
+      var prev = PREVIEW.drawerState && PREVIEW.drawerState[i] || { target:0, cur:0 };
+      g.position.z = 0.34 * prev.cur * prev.cur * (3 - 2 * prev.cur);
+      return { group:g, target:prev.target, cur:prev.cur };
+    });
+    PREVIEW.pickables = showBoxes || showFronts ? pickables : [];
     PREVIEW.scene.add(group);
     var aniso = Math.min(8, PREVIEW.renderer.capabilities.getMaxAnisotropy());
     group.traverse(function(o){
@@ -1792,10 +1890,46 @@
     window.addEventListener("resize", resize);
     var ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(resize) : null;
     if (ro) ro.observe(wrap);
-    PREVIEW = { renderer:renderer, camera:camera, controls:controls, scene:scene, group:null, onResize:resize, raf:0, ro:ro };
+    PREVIEW = { renderer:renderer, camera:camera, controls:controls, scene:scene, group:null, onResize:resize, raf:0, ro:ro, drawers:[], pickables:[], drawerState:[] };
+
+    // click a drawer (front or box) to slide it out / push it back in
+    var ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), down = null, dom = renderer.domElement;
+    function pick(evt){
+      var r = dom.getBoundingClientRect();
+      ndc.set(((evt.clientX - r.left) / r.width) * 2 - 1, -((evt.clientY - r.top) / r.height) * 2 + 1);
+      ray.setFromCamera(ndc, camera);
+      var hit = PREVIEW && PREVIEW.pickables.length ? ray.intersectObjects(PREVIEW.pickables, false)[0] : null;
+      return hit ? hit.object.userData.drawer : null;
+    }
+    function onDown(e){ down = { x:e.clientX, y:e.clientY }; }
+    function onUp(e){
+      if (!down || !PREVIEW) return;
+      var moved = Math.hypot(e.clientX - down.x, e.clientY - down.y) > 5;
+      down = null;
+      if (moved) return;
+      var i = pick(e);
+      if (i == null || !PREVIEW.drawers[i]) return;
+      var d = PREVIEW.drawers[i];
+      d.target = d.target ? 0 : 1;
+      PREVIEW.drawerState[i] = d;
+    }
+    function onMove(e){
+      if (down || !PREVIEW) return;
+      dom.style.cursor = pick(e) != null ? "pointer" : "grab";
+    }
+    dom.addEventListener("pointerdown", onDown);
+    dom.addEventListener("pointerup", onUp);
+    dom.addEventListener("pointermove", onMove);
+    PREVIEW.cleanupPick = function(){ dom.removeEventListener("pointerdown", onDown); dom.removeEventListener("pointerup", onUp); dom.removeEventListener("pointermove", onMove); dom.style.cursor = ""; };
+
     (function loop(){
       if (!PREVIEW) return;
       PREVIEW.raf = requestAnimationFrame(loop);
+      PREVIEW.drawers.forEach(function(d){
+        d.cur += (d.target - d.cur) * 0.14;
+        if (Math.abs(d.target - d.cur) < 0.002) d.cur = d.target;
+        d.group.position.z = 0.34 * d.cur * d.cur * (3 - 2 * d.cur);
+      });
       controls.update();
       renderer.render(scene, camera);
     })();
