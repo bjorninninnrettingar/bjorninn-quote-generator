@@ -630,13 +630,14 @@
 
   function disposeScene(scene){
     if (!scene) return;
-    if (scene.environment) scene.environment.dispose();
+    scene.environment = null; // shared with the next scene — don't dispose it here
     scene.traverse(function(obj){
+      if (obj.isLight && obj.shadow && obj.shadow.map) obj.shadow.map.dispose(); // 2048² depth target per build otherwise leaks on the shared renderer
       if (obj.geometry) obj.geometry.dispose();
       if (obj.material){
         (Array.isArray(obj.material) ? obj.material : [obj.material]).forEach(function(mat){
-          if (mat.map) mat.map.dispose();
-          if (mat.bumpMap) mat.bumpMap.dispose();
+          if (mat.map && !mat.map.userData.keep) mat.map.dispose();
+          if (mat.bumpMap && !mat.bumpMap.userData.keep) mat.bumpMap.dispose();
           mat.dispose();
         });
       }
@@ -644,6 +645,7 @@
   }
 
   var THREE_STATE = null;
+  var sharedRenderer = null, sharedEnv = null;
 
   // Every click-to-select / type-change re-renders the whole scene from
   // scratch (teardown3D + buildScene) — without this, that also silently
@@ -939,7 +941,7 @@
     if (THREE_STATE.cleanupInteraction) THREE_STATE.cleanupInteraction();
     THREE_STATE.controls.dispose();
     disposeScene(THREE_STATE.scene);
-    THREE_STATE.renderer.dispose();
+    // the renderer is shared across rebuilds — keep it, just detach its canvas
     if (THREE_STATE.renderer.domElement.parentNode){
       THREE_STATE.renderer.domElement.parentNode.removeChild(THREE_STATE.renderer.domElement);
     }
@@ -951,10 +953,18 @@
   // for wood looks, a satin painted finish for solid colours. Each cabinet's UVs
   // are scaled to its own size (see scaleFrontUV) so the grain keeps one
   // physical scale across a 600 mm wall unit and a 2400 mm tower.
+  // Textures are cached per source canvas and kept alive across scene rebuilds
+  // (the renderer is shared too), so an edit doesn't re-upload megabytes of
+  // wood/floor pixels to the GPU every time. disposeScene skips `userData.keep`.
+  var TEX_CACHE = typeof Map !== "undefined" ? new Map() : null;
   function canvasTex(THREE, canvas, srgb){
+    var key = srgb ? "s" : "l", hit = TEX_CACHE && TEX_CACHE.get(canvas);
+    if (hit && hit[key]) return hit[key];
     var x = new THREE.CanvasTexture(canvas);
     x.wrapS = x.wrapT = THREE.RepeatWrapping;
     if (srgb && THREE.SRGBColorSpace) x.colorSpace = THREE.SRGBColorSpace;
+    x.userData.keep = true;
+    if (TEX_CACHE){ hit = hit || {}; hit[key] = x; TEX_CACHE.set(canvas, hit); }
     return x;
   }
 
@@ -1125,18 +1135,34 @@
     var dist = Math.max(bbox.w, bbox.d) * 0.74 + 1.2;
     camera.position.set(bbox.cx + dist * 0.6, dist * 0.55, bbox.cz + dist * 0.9);
 
-    var renderer = new THREE.WebGLRenderer({ antialias:true });
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    // One WebGL renderer (and one prefiltered environment map) for the whole
+    // page session: every edit rebuilds the scene, and creating a renderer +
+    // PMREM each time cost ~100 ms. teardown3D only detaches the canvas.
+    var renderer = sharedRenderer;
+    if (!renderer){
+      renderer = sharedRenderer = new THREE.WebGLRenderer({ antialias:true });
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      // GPU reset / tab backgrounded too long: drop the shared objects so the
+      // next build makes fresh ones, and tell the page to rebuild now.
+      renderer.domElement.addEventListener("webglcontextlost", function(e){
+        e.preventDefault();
+        sharedRenderer = null; sharedEnv = null;
+        window.dispatchEvent(new Event("kp3d-context-lost"));
+      });
+    }
     wrap.appendChild(renderer.domElement);
 
     // Subtle image-based lighting so steel, handles and the satin finish pick up
     // believable reflections; plus sharper textures at glancing angles.
     if (window.__RoomEnvironment__){
-      var pmrem = new THREE.PMREMGenerator(renderer);
-      scene.environment = pmrem.fromScene(new window.__RoomEnvironment__(renderer), 0.04).texture;
-      pmrem.dispose();
+      if (!sharedEnv){
+        var pmrem = new THREE.PMREMGenerator(renderer);
+        sharedEnv = pmrem.fromScene(new window.__RoomEnvironment__(renderer), 0.04).texture;
+        pmrem.dispose();
+      }
+      scene.environment = sharedEnv;
     }
     var maxAniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
     scene.traverse(function(o){
@@ -1425,6 +1451,7 @@
     updateDragPreview3D: updateDragPreview3D,
     dropPointFromClient: dropPointFromClient,
     setSelected3D: setSelected3D,
+    debugInfo: function(){ return sharedRenderer ? { memory:sharedRenderer.info.memory, programs:(sharedRenderer.info.programs || []).length } : null; },
     fitWarnings: fitWarnings,
     WALL_UNIT_BASE_MM: WALL_UNIT_BASE_MM,
     snapshot3D: snapshot3D,
