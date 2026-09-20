@@ -50,17 +50,25 @@
   // Width variants ("underskápar") of the three core types. Same height/depth
   // and same real Skápategund (skapategundOverride = the core's label), only
   // Breidd differs — so no new Airtable choices are needed. Offered in the
-  // editor's catalog under "Fleiri stærðir"; edit this list to add or remove.
+  // editor's catalog under "Fleiri stærðir". 10 cm steps are the offered
+  // granularity (Björninn builds any size; Rakel adjusts odd widths in review).
+  // Keys stay `<core>_<mm>`, so drafts saved with the earlier, sparser list load unchanged.
+  function widthRange(from, to){
+    var out = [];
+    for (var w = from; w <= to; w += 100) out.push(w);
+    return out;
+  }
   var WIDTH_VARIANTS = {
-    grunnskapur: [300, 400, 500, 800, 900, 1000, 1200],
-    harskapur:   [300, 400, 500, 800, 900],
-    efriskapur:  [300, 400, 500, 800, 900, 1000, 1200],
-    vaskaskapur: [600, 900, 1000, 1200],
-    opnarhillur: [300, 400, 800, 900, 1000]
+    grunnskapur: widthRange(300, 1200),
+    harskapur:   widthRange(300, 900),
+    efriskapur:  widthRange(300, 1200),
+    vaskaskapur: widthRange(600, 1200),
+    opnarhillur: widthRange(300, 1200)
   };
   Object.keys(WIDTH_VARIANTS).forEach(function(base){
     WIDTH_VARIANTS[base].forEach(function(w){
       var b = CATALOG[base];
+      if (w === b.defaultW) return; // the core type already is this width
       CATALOG[base + "_" + w] = Object.assign({}, b, {
         label: b.label + " " + w, defaultW:w, minW:w, maxW:w, skapategundOverride:b.label, variantOf:base
       });
@@ -708,10 +716,15 @@
       var hits = raycaster.intersectObjects(pickables, false);
       return hits.length ? hits[0].object : null;
     }
+    // Cast onto the horizontal plane through the dragged item's own mid-height,
+    // not the floor: with the pointer over the cabinet body the floor hit lies
+    // well behind it (parallax), which shifted the landing spot along the wall.
     function dropAt(evt){
       raycaster.setFromCamera(ndc(evt), camera);
       var pt = new THREE.Vector3();
-      if (!raycaster.ray.intersectPlane(floorPlane, pt)) return null;
+      var y = drag && drag.mesh ? drag.mesh.position.y : 0;
+      var plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -y);
+      if (!raycaster.ray.intersectPlane(plane, pt)) return null;
       return nearestWallDrop(geoms, walls, pt.x, pt.z);
     }
 
@@ -874,7 +887,10 @@
   // Screen point → {wallId, alongMm} for the live 3D scene (used when a
   // catalog item is dragged in from the side panel); null when the point is
   // outside the canvas or misses the floor.
-  function dropPointFromClient(clientX, clientY){
+  // planeYm (optional) = height of the horizontal plane the pointer ray is cast
+  // onto — pass the dragged item's mid-height so the point matches what the
+  // cursor visually covers (default: the floor).
+  function dropPointFromClient(clientX, clientY, planeYm){
     if (!THREE_STATE) return null;
     var rect = THREE_STATE.renderer.domElement.getBoundingClientRect();
     if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) return null;
@@ -882,7 +898,7 @@
     var rc = new THREE.Raycaster();
     rc.setFromCamera(new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1), THREE_STATE.camera);
     var pt = new THREE.Vector3();
-    if (!rc.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), pt)) return null;
+    if (!rc.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -(planeYm || 0)), pt)) return null;
     return nearestWallDrop(THREE_STATE.geoms, THREE_STATE.walls, pt.x, pt.z);
   }
 

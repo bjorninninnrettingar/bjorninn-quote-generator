@@ -1155,8 +1155,16 @@
   // The stage shows either the 3D scene or the 2D plan — a drop point comes
   // from a raycast in 3D and from the SVG hit-test in 2D, but both yield the
   // same {wallId, alongMm} so everything downstream is shared.
-  function dropPointAt(clientX, clientY){
-    return viewMode === "3d" ? KP3D.dropPointFromClient(clientX, clientY) : findDropPoint(clientX, clientY);
+  // planeYm: mid-height (m) of what's being dragged, so the 3D ray is cast where
+  // the cursor visually is on the item rather than through it onto the floor.
+  function dropPointAt(clientX, clientY, planeYm){
+    return viewMode === "3d" ? KP3D.dropPointFromClient(clientX, clientY, planeYm) : findDropPoint(clientX, clientY);
+  }
+  function catalogPlaneY(kind, type){
+    if (kind === "opening") return 1.0;
+    var c = CATALOG[type];
+    var h = Math.min(c.h, state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM);
+    return ((c.zone === "wall" ? WALL_UNIT_BASE_MM : 0) + h / 2) / 1000;
   }
   function showDropPreview(wallId, offsetMm, widthMm, depthMm, ok, heightMm, baseMm){
     if (viewMode === "3d") KP3D.updateDragPreview3D(wallId, offsetMm, widthMm, depthMm, ok, heightMm, baseMm);
@@ -1179,7 +1187,7 @@
       if (Math.hypot(evt.clientX - dragState.startX, evt.clientY - dragState.startY) < 6) return;
       dragState.moved = true;
     }
-    var drop = dropPointAt(evt.clientX, evt.clientY);
+    var drop = dropPointAt(evt.clientX, evt.clientY, catalogPlaneY(dragState.kind, dragState.type));
     highlightDropWall(drop ? drop.wallId : null);
     if (!drop){ hideDropPreview(); return; }
     var wall = state.walls.find(function(w){ return w.id === drop.wallId; });
@@ -1257,7 +1265,7 @@
     window.removeEventListener("pointermove", onCatalogDragMove);
     if (!dragState) return;
     var moved = dragState.moved;
-    var drop = moved ? dropPointAt(evt.clientX, evt.clientY) : null;
+    var drop = moved ? dropPointAt(evt.clientX, evt.clientY, catalogPlaneY(dragState.kind, dragState.type)) : null;
     dragState.ghostEl.remove();
     dragState.cardEl.classList.remove("dragging");
     clearDropHighlight();
@@ -1475,13 +1483,19 @@
     ghost.textContent = c.label;
     document.body.appendChild(ghost);
     ghostPosition(ghost, evt.clientX, evt.clientY);
-    blockDragState = { blockId:blockId, ghostEl:ghost };
+    ghost.style.visibility = "hidden"; // shown once the press turns into a drag
+    blockDragState = { blockId:blockId, ghostEl:ghost, startX:evt.clientX, startY:evt.clientY, moved:false };
     window.addEventListener("pointermove", onBlockDragMove);
     window.addEventListener("pointerup", onBlockDragEnd, { once:true });
   }
 
   function onBlockDragMove(evt){
     if (!blockDragState) return;
+    if (!blockDragState.moved){
+      if (Math.hypot(evt.clientX - blockDragState.startX, evt.clientY - blockDragState.startY) < 6) return;
+      blockDragState.moved = true;
+      blockDragState.ghostEl.style.visibility = "";
+    }
     ghostPosition(blockDragState.ghostEl, evt.clientX, evt.clientY);
     var drop = findDropPoint(evt.clientX, evt.clientY);
     highlightDropWall(drop ? drop.wallId : null);
@@ -1497,12 +1511,18 @@
   function onBlockDragEnd(evt){
     window.removeEventListener("pointermove", onBlockDragMove);
     if (!blockDragState) return;
-    var drop = findDropPoint(evt.clientX, evt.clientY);
+    var moved = blockDragState.moved;
+    var drop = moved ? findDropPoint(evt.clientX, evt.clientY) : null;
     blockDragState.ghostEl.remove();
     clearDropHighlight();
     removeDragPreview();
     var blockId = blockDragState.blockId;
     blockDragState = null;
+    if (!moved){ // a plain click selects (the re-render below would otherwise swallow it)
+      var f = findBlock(blockId);
+      if (f) onCabinetSelect({ wallId:f.wall.id, zone:f.zone, blockId:blockId });
+      return;
+    }
     if (drop) moveBlockToPosition(blockId, drop.wallId, drop.alongMm);
   }
 
@@ -1969,7 +1989,8 @@
     // grouped by core type so 14 entries don't read as one flat list
     var typeOptions = typeKeys.filter(function(t){ return !CATALOG[t].variantOf; }).map(function(core){
       var kids = typeKeys.filter(function(t){ return CATALOG[t].variantOf === core; });
-      return kids.length ? '<optgroup label="' + CATALOG[core].label + '">' + opt(core) + kids.map(opt).join("") + '</optgroup>' : opt(core);
+      var sized = [core].concat(kids).sort(function(a, z){ return CATALOG[a].defaultW - CATALOG[z].defaultW; });
+      return kids.length ? '<optgroup label="' + CATALOG[core].label + '">' + sized.map(opt).join("") + '</optgroup>' : opt(core);
     }).join("");
 
     host.innerHTML =
