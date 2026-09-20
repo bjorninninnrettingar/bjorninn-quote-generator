@@ -254,6 +254,7 @@
   var ISLAND_MAX_MM = 6000;
   function surfacesOf(state){
     var out = state.walls.slice();
+    out.closed = !!state.closed;
     (state.islands || []).forEach(function(isl){
       if (!isl.a) isl.a = [];
       // lengthMm = placement capacity only: an island's real length grows/shrinks with its cabinets (see the planner's normalizeIslands)
@@ -277,14 +278,22 @@
     });
     return out;
   }
-  function surfaceGeoms(state){ return wallGeometry3D(state.walls).concat(islandGeoms(state)); }
+  // Wall geometry for a whole state: state.closed = the walls form a closed
+  // room (last wall returns to the first wall's start); a wall with .open is a
+  // dashed boundary with no wall, cabinets or openings (open-plan kitchens).
+  function wallGeoms(state){
+    var g = wallGeometry3D(state.walls);
+    g.closed = !!state.closed;
+    return g;
+  }
+  function surfaceGeoms(state){ return wallGeoms(state).concat(islandGeoms(state)); }
   // where the move-handle "puck" of an island sits: on the floor just past its start
   function islandHandlePos(isl){
     var f = islandFrame(isl), lenM = isl.lengthMm / 1000;
     return { x:isl.xMm / 1000 - f.axis.x * (lenM / 2 + 0.42), z:isl.zMm / 1000 - f.axis.z * (lenM / 2 + 0.42) };
   }
   // room interior bounds (m) from the real walls only — islands are clamped inside
-  function roomBounds(state){ var g = wallGeometry3D(state.walls); return g.length ? interiorBounds(g, 4.2) : null; }
+  function roomBounds(state){ var g = wallGeoms(state); return g.length ? interiorBounds(g, 4.2) : null; }
 
   // Corner-overlap fix (Phase 7d-2): a floor cabinet's depth projects into
   // the room along its own wall's normal — at a 90° turn, the previous
@@ -299,10 +308,16 @@
   // built to consume the corner itself.
   var CORNER_CLEARANCE_MM = 600;
   function cornerClearanceMm(walls, wallIndex, zoneKey){
-    if (zoneKey !== "floor" || wallIndex <= 0) return 0;
+    if (zoneKey !== "floor" || wallIndex < 0) return 0;
     if (walls[wallIndex] && walls[wallIndex].island) return 0; // free-standing rows have no corner
-    var prev = walls[wallIndex - 1];
-    if (!prev.turnAfter) return 0;
+    var prevIdx = wallIndex > 0 ? wallIndex - 1 : -1;
+    if (prevIdx < 0 && walls.closed){ // closed room: the last real wall meets the first
+      prevIdx = walls.length - 1;
+      while (prevIdx > 0 && walls[prevIdx].island) prevIdx--;
+    }
+    if (prevIdx < 0 || prevIdx === wallIndex) return 0;
+    var prev = walls[prevIdx];
+    if (prev.turnAfter !== "left" || prev.open || (walls[wallIndex] && walls[wallIndex].open)) return 0; // outward (reflex) corners and open edges have no clash
     var prevLast = prev.floor[prev.floor.length - 1];
     if (!prevLast) return 0;
     var cur = walls[wallIndex];
@@ -405,7 +420,8 @@
         var key = sf.island ? "i:" + sf.island.id : "w:" + sj;
         var name = sf.island ? sf.island.label : sf.label;
         var cands = boxes[sj].slice();
-        if (!sf.island) cands.push(lineBox(gs[sj]));
+        if (!sf.island && !sf.open) cands.push(lineBox(gs[sj]));
+        if (sf.open) return;
         mine.forEach(function(m){
           cands.forEach(function(o){
             if (o.id && overlap(m, o)){
@@ -460,6 +476,13 @@
     });
     geoms.forEach(function(g){
       var end = { x:g.origin.x + g.axis.x*g.lenM, z:g.origin.z + g.axis.z*g.lenM };
+      if (geoms.closed){ // a closed room IS its outline — nothing to guess beyond it
+        [g.origin, end].forEach(function(p){
+          minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+          minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z);
+        });
+        return;
+      }
       // Each wall's endpoints AND those endpoints pushed into the room along
       // the wall's own normal — must only grow on the interior side of a
       // wall, never symmetrically through it.
@@ -481,7 +504,7 @@
   // floor + camera framing bounds: the walls' interior plus every island with a walkway around it
   function stateBounds(state, geoms){
     var extra = [];
-    (state.islands || []).forEach(function(isl){
+    (geoms.closed ? [] : (state.islands || [])).forEach(function(isl){ // a closed room already contains its islands
       var f = islandFrame(isl), h = isl.lengthMm / 2000 + 0.6, cx = isl.xMm / 1000, cz = isl.zMm / 1000;
       [-1, 1].forEach(function(a){ [-1, 1].forEach(function(n){
         extra.push({ x:cx + f.axis.x * h * a + f.normal.x * 1.3 * n, z:cz + f.axis.z * h * a + f.normal.z * 1.3 * n });
@@ -491,9 +514,26 @@
   }
 
   function addFloor(THREE, scene, geoms, floorMat, b){
-    var margin = 0.3;
+    var margin = geoms.closed ? 0 : 0.3;
     var w = (b.maxX - b.minX) + margin * 2, d = (b.maxZ - b.minZ) + margin * 2;
     var cx = (b.minX + b.maxX) / 2, cz = (b.minZ + b.maxZ) / 2;
+    if (geoms.closed && geoms.length >= 3){ // floor follows the room outline (planks in world units: 1 uv = 1 m)
+      var shape = new THREE.Shape();
+      geoms.forEach(function(g, i){ if (i === 0) shape.moveTo(g.origin.x, -g.origin.z); else shape.lineTo(g.origin.x, -g.origin.z); });
+      shape.closePath();
+      var fm = floorMat.clone();
+      fm.side = THREE.DoubleSide;
+      if (floorMat.map && floorMat.userData.tile){
+        fm.map = floorMat.map; fm.bumpMap = floorMat.bumpMap; // shared, kept textures
+        floorMat.map.repeat.set(1 / floorMat.userData.tile, 1 / floorMat.userData.tile);
+        if (floorMat.bumpMap) floorMat.bumpMap.repeat.set(1 / floorMat.userData.tile, 1 / floorMat.userData.tile);
+      }
+      var pm = new THREE.Mesh(new THREE.ShapeGeometry(shape), fm);
+      pm.rotation.x = -Math.PI / 2;
+      pm.receiveShadow = true;
+      scene.add(pm);
+      return { cx:cx, cz:cz, w:w, d:d };
+    }
     var mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, d), floorMat);
     if (floorMat.map && floorMat.userData.tile){ // one 2 m tile of oak planks, repeated to the room size
       var rx = w / floorMat.userData.tile, ry = d / floorMat.userData.tile;
@@ -855,6 +895,7 @@
   function nearestWallDrop(geoms, walls, worldX, worldZ, wallsOnly){
     var best = null, bestDist = Infinity, bestAlongM = 0;
     geoms.forEach(function(g, i){
+      if (walls[i].open) return; // open edges take nothing
       if (wallsOnly && walls[i].island) return; // windows/doors only go on real walls
       var x1 = g.origin.x, z1 = g.origin.z;
       var dx = g.axis.x * g.lenM, dz = g.axis.z * g.lenM;
@@ -1273,7 +1314,7 @@
     var THREE = window.__THREE__;
     var OrbitControls = window.__OrbitControls__;
 
-    var geoms = wallGeometry3D(state.walls);
+    var geoms = wallGeoms(state);
     var surfaces = surfacesOf(state), allGeoms = geoms.concat(islandGeoms(state)); // walls + island rows
     var carcass = state.carcass ? CARCASS[state.carcass] : null;
     var carcassMat = new THREE.MeshStandardMaterial({ color: carcass ? carcass.color3d : "#3a3a3a", roughness:0.9 });
@@ -1301,6 +1342,7 @@
     // orbit to the "outside" never hides the cabinets behind a solid wall.
     // Wall length labels floating just above each wall (HomeByMe shows room
     // dimensions on the plan); a canvas-texture sprite, drawn on top.
+    function isOpenGeom(i){ return !!(state.walls[i] && state.walls[i].open); }
     geoms.forEach(function(g, i){
       var cv = document.createElement("canvas"); cv.width = 256; cv.height = 64;
       var cx = cv.getContext("2d");
@@ -1317,7 +1359,8 @@
 
     // White skirting boards along every wall (visible wherever no cabinet stands)
     var skirtMat = new THREE.MeshStandardMaterial({ color:0xf3f1ec, roughness:0.55 });
-    geoms.forEach(function(g){
+    geoms.forEach(function(g, gi){
+      if (isOpenGeom(gi)) return;
       var sk = new THREE.Mesh(new THREE.BoxGeometry(g.lenM, 0.09, 0.014), skirtMat);
       sk.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(g.axis.x, 0, g.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(g.normal.x, 0, g.normal.z)));
       sk.position.set(g.origin.x + g.axis.x * g.lenM / 2 + g.normal.x * 0.007, 0.045, g.origin.z + g.axis.z * g.lenM / 2 + g.normal.z * 0.007);
@@ -1325,15 +1368,25 @@
       scene.add(sk);
     });
 
-    var wallFades = geoms.map(function(g){
+    // open edges of an open-plan kitchen: no wall, just a dashed line on the floor
+    geoms.forEach(function(g, gi){
+      if (!isOpenGeom(gi)) return;
+      var pts = [new THREE.Vector3(g.origin.x, 0.012, g.origin.z), new THREE.Vector3(g.origin.x + g.axis.x * g.lenM, 0.012, g.origin.z + g.axis.z * g.lenM)];
+      var line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineDashedMaterial({ color:0x6f6d66, dashSize:0.12, gapSize:0.08 }));
+      line.computeLineDistances();
+      scene.add(line);
+    });
+    var wallFades = [];
+    geoms.forEach(function(g, gi){
+      if (isOpenGeom(gi)) return;
       var mat = wallMat.clone();
       mat.transparent = true;
-      return { mesh:addWallPlane(THREE, scene, g, WALL_H, mat), geom:g, mat:mat };
+      wallFades.push({ mesh:addWallPlane(THREE, scene, g, WALL_H, mat), geom:g, mat:mat });
     });
 
     function geomForWall(wallId){
       var wi = state.walls.findIndex(function(w){ return w.id === wallId; });
-      return wi === -1 ? null : geoms[wi];
+      return wi === -1 || state.walls[wi].open ? null : geoms[wi];
     }
     var pickables = [];
     (state.windows || []).forEach(function(win){
@@ -1432,7 +1485,7 @@
     scene.add(fill);
 
     var camera = new THREE.PerspectiveCamera(45, 1, 0.05, 100);
-    var dist = Math.max(bbox.w, bbox.d) * 0.74 + 1.2;
+    var dist = Math.max(bbox.w, bbox.d) * (geoms.closed ? 0.95 : 0.74) + (geoms.closed ? 1.7 : 1.2);
     camera.position.set(bbox.cx + dist * 0.6, dist * 0.55, bbox.cz + dist * 0.9);
 
     // One WebGL renderer (and one prefiltered environment map) for the whole
@@ -1572,7 +1625,7 @@
   // wall — without duplicating (and risking drift from) buildPlan2D's own
   // margin/scale math.
   function planTransform(state){
-    var geoms = wallGeometry3D(state.walls);
+    var geoms = wallGeoms(state);
     if (!geoms.length) return null;
     var b = stateBounds(state, geoms);
     var margin = 0.4;
@@ -1599,7 +1652,7 @@
 
   function buildPlan2D(container, state, opts){
     opts = opts || {};
-    var geoms = wallGeometry3D(state.walls);
+    var geoms = wallGeoms(state);
     if (!geoms.length){ container.innerHTML = ""; return; }
     var surfaces = surfacesOf(state), allGeoms = geoms.concat(islandGeoms(state));
 
@@ -1627,12 +1680,18 @@
       '<filter id="kpShadow" x="-10%" y="-10%" width="130%" height="140%"><feDropShadow dx="1" dy="2" stdDeviation="2" flood-color="#000" flood-opacity=".22"/></filter></defs>' +
       '<rect width="100%" height="100%" fill="url(#kpGrid)"/>';
 
+    if (geoms.closed && geoms.length >= 3){ // the room's floor
+      svg += '<polygon points="' + geoms.map(function(g){ return X(g.origin.x) + "," + Y(g.origin.z); }).join(" ") + '" fill="#f1e6d0" stroke="none" style="pointer-events:none;"/>';
+    }
     geoms.forEach(function(g, gi){
       var x1 = X(g.origin.x), y1 = Y(g.origin.z);
       var end = { x:g.origin.x + g.axis.x * g.lenM, z:g.origin.z + g.axis.z * g.lenM };
       var x2 = X(end.x), y2 = Y(end.z);
       var wallId = state.walls[gi] ? state.walls[gi].id : "";
-      svg += '<line data-wall-line-id="' + wallId + '" x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="#2b2b2e" stroke-width="9" stroke-linecap="square"/>';
+      var isOpen = !!(state.walls[gi] && state.walls[gi].open);
+      svg += isOpen
+        ? '<line data-wall-line-id="' + wallId + '" x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="#6f6d66" stroke-width="2.4" stroke-dasharray="8,6"/>'
+        : '<line data-wall-line-id="' + wallId + '" x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="#2b2b2e" stroke-width="9" stroke-linecap="square"/>';
       var midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
       var lx = midX - g.normal.x * 14, ly = midY - g.normal.z * 14;
       svg += '<text x="' + lx + '" y="' + ly + '" font-size="11" fill="#6f6d66" text-anchor="middle">' + Math.round(g.lenM * 1000) + ' mm</text>';
@@ -1766,6 +1825,7 @@
     floorPointFromClient: floorPointFromClient,
     surfacesOf: surfacesOf,
     islandFrame: islandFrame,
+    wallGeoms: wallGeoms,
     surfaceGeoms: surfaceGeoms,
     islandHandlePos: islandHandlePos,
     roomBounds: roomBounds,

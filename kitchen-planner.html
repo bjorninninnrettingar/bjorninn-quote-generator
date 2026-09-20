@@ -273,6 +273,7 @@
   .swatch-glyph{ width:100%; aspect-ratio:4/3; display:flex; align-items:center; justify-content:center; font-size:28px; background:var(--panel); }
 
   .wrap.mat{ max-width:1200px; }
+  .wrap.shp{ max-width:1000px; }
   .mat-layout{ display:grid; grid-template-columns:minmax(0,1fr) 380px; gap:32px; align-items:start; }
   @media (max-width:1000px){ .mat-layout{ grid-template-columns:1fr; } .mat-aside{ order:-1; position:static !important; } }
   .mat-aside{ position:sticky; top:16px; }
@@ -306,6 +307,31 @@
   .h-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; }
   .h-grid .sw-tile img{ object-fit:contain; background:#fafafa; }
   .h-grid .sw-name small{ display:block; font-weight:400; color:var(--ink-soft); margin-top:2px; font-size:11px; }
+  /* ---- define your space ---- */
+  .shape-group-title{ font-size:15px; font-weight:600; margin:22px 0 10px; }
+  .shape-group-title span{ font-weight:400; font-size:12.5px; color:var(--ink-soft); }
+  .shape-cards{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; max-width:760px; }
+  @media (max-width:640px){ .shape-cards{ grid-template-columns:repeat(2,1fr); } }
+  .shape-card{ background:#fff; border:1.5px solid var(--line); border-radius:12px; padding:14px 12px 10px; cursor:pointer; text-align:center; font:inherit; position:relative; }
+  .shape-card:hover{ border-color:var(--blue); }
+  .shape-card.active{ background:var(--blue-soft); border-color:var(--blue); }
+  .shape-card svg{ width:100%; height:120px; display:block; }
+  .shape-card .nm{ font-size:13px; font-weight:600; margin-top:8px; }
+  .shape-toolbar{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:0 0 12px; font-size:13px; color:var(--ink-soft); }
+  .shape-canvas-wrap{ position:relative; }
+  .shape-canvas{ background:#fbfaf7; border:1px solid var(--line); border-radius:14px; height:min(64vh,560px); min-height:380px; overflow:hidden; touch-action:none; user-select:none; }
+  .shape-canvas svg{ width:100%; height:100%; display:block; }
+  .shape-canvas .dim{ cursor:pointer; }
+  .shape-canvas .dim:hover text{ fill:var(--blue); }
+  .dim-pop{ position:absolute; z-index:5; background:#fff; border:1px solid var(--line); border-radius:10px; box-shadow:0 8px 28px rgba(0,0,0,.18); padding:10px; width:max-content; max-width:92%; }
+  .dim-pop:not([hidden]){ display:block; }
+  .dp-row{ display:flex; align-items:stretch; gap:0; }
+  .dp-row button{ border:1px solid var(--line); background:#f1f1f1; font:inherit; font-size:12px; letter-spacing:.03em; text-transform:uppercase; padding:8px 12px; cursor:pointer; }
+  .dp-row button.go{ background:#0058a3; color:#fff; border-color:#0058a3; }
+  .dp-row input{ width:96px; border:1px solid var(--line); border-left:none; border-right:none; text-align:center; font:inherit; font-size:14px; padding:6px; }
+  .dp-more{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:8px; font-size:12.5px; color:var(--ink-soft); }
+  .dp-more label{ display:flex; align-items:center; gap:6px; cursor:pointer; }
+  .dp-more button{ border:none; background:none; cursor:pointer; font-size:16px; color:var(--ink-soft); }
   /* ---- look step ---- */
   .looks{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:24px; }
   @media (max-width:720px){ .looks{ grid-template-columns:repeat(2,1fr); } }
@@ -503,30 +529,35 @@
 
   <!-- ============ STEP: SHAPE ============ -->
   <section id="screen-shape" hidden>
-    <div class="screen-title">Lögun eldhússins</div>
-    <p class="screen-sub">Sláðu inn lengd fyrsta veggjar og segðu okkur hvernig rýmið heldur áfram — hvaða lögun sem er.</p>
+    <div class="screen-title" id="shapeTitle">Skilgreindu rýmið</div>
+    <p class="screen-sub" id="shapeSub"></p>
 
-    <div class="shape-presets" id="shapePresets">
-      <span class="shape-presets-label">Fljótval:</span>
-      <button type="button" class="btn btn-secondary btn-small" data-preset="straight">▬ Bein lína</button>
-      <button type="button" class="btn btn-secondary btn-small" data-preset="l">⌐ L-laga</button>
-      <button type="button" class="btn btn-secondary btn-small" data-preset="u">⊓ U-laga</button>
+    <!-- phase 1: pick a shape -->
+    <div id="shapePick">
+      <div class="shape-group-title">Lokað rými</div>
+      <div class="shape-cards" id="shapeCardsClosed"></div>
+      <div class="shape-group-title">Opið rými <span>— eldhúsið er opið að stofunni (strikalína = enginn veggur)</span></div>
+      <div class="shape-cards" id="shapeCardsOpen"></div>
     </div>
 
-    <div class="room-preview" id="roomPreviewWrap"></div>
-
-    <div class="wall-lengths" id="wallLengthFields"></div>
-
-    <div class="mat-section">
-      <div class="mat-section-title">Litur á veggjum</div>
-      <p class="mat-section-sub">Bara til að sjá teikninguna eins og hjá þér — ekki hluti af pöntuninni.</p>
-      <div class="wallcolor-row" id="wallColorRow"></div>
+    <!-- phases 2+3: top-down drawing -->
+    <div id="shapeDraw" hidden>
+      <div class="shape-toolbar" id="shapeToolbar"></div>
+      <div class="shape-canvas-wrap"><div class="shape-canvas" id="shapeCanvas"></div><div class="dim-pop" id="dimPop" hidden></div></div>
+      <div id="shapeExtras">
+        <div class="mat-section" style="margin-top:20px;">
+          <div class="mat-section-title">Lofthæð</div>
+          <div id="roomHeightBox" style="max-width:260px;"></div>
+        </div>
+        <div class="mat-section">
+          <div class="mat-section-title">Litur á veggjum</div>
+          <p class="mat-section-sub">Bara til að sjá teikninguna eins og hjá þér — ekki hluti af pöntuninni.</p>
+          <div class="wallcolor-row" id="wallColorRow"></div>
+        </div>
+      </div>
     </div>
 
-    <div class="actions">
-      <button class="btn btn-secondary" id="backToMaterialsBtn" type="button">← Breyta efni</button>
-      <button class="btn btn-primary" id="toWallsBtn" type="button" disabled>Áfram — raða skápum</button>
-    </div>
+    <div class="actions" id="shapeActions"></div>
   </section>
 
   <!-- ============ STEP: EDITOR (catalog | 3D/2D stage | properties) ============ -->
@@ -683,6 +714,9 @@
     wallColor: null,
     windows: [], // {id, wallId, offsetMm, widthMm, heightMm, sillHeightMm}
     doors: [],   // {id, wallId, offsetMm, widthMm, heightMm}
+    closed: false,      // walls form a closed room outline (new "Skilgreindu rýmið" step)
+    waterWall: null,    // wall id the water supply is on (sink is seeded there)
+    seeded: false,      // sink already seeded once
     islands: [], // {id, label, lengthMm, xMm, zMm, rot, two, a:[blocks], b:[blocks]} — free-standing cabinet runs
     walls: freshWalls() // {id,label,lengthMm,turnAfter, floor:[block], wall:[block]}
   };
@@ -763,6 +797,9 @@
       // real customer usage on the old shape yet. Start that draft fresh
       // rather than risk rendering a garbled room.
       if (parsed.shape !== undefined) return false;
+      // Drafts from before the closed-room model can't be opened in the new
+      // editors (open wall chains) — start those over instead of half-loading.
+      if (!parsed.closed && (parsed.step === "shape" || parsed.step === "editor" || parsed.step === "contact")) return false;
       state = parsed;
       if (!state.intake) state.intake = { delivery:null, budget:null, room:"Eldhús" };
       if (state.carcass === undefined) state.carcass = null;
@@ -775,6 +812,9 @@
       if (!state.windows) state.windows = [];
       if (!state.doors) state.doors = [];
       if (!state.islands) state.islands = [];
+      if (state.closed === undefined) state.closed = false;
+      if (state.waterWall === undefined) state.waterWall = null;
+      if (state.seeded === undefined) state.seeded = false;
       state.islands.forEach(function(isl){
         isl.a = (isl.a || []).filter(function(b){ return CATALOG[b.type]; });
         isl.b = isl.two ? (isl.b || []).filter(function(b){ return CATALOG[b.type]; }) : undefined;
@@ -882,119 +922,369 @@
     return field;
   }
 
-  function addWallTurn(dir){
-    var last = state.walls[state.walls.length - 1];
-    last.turnAfter = dir;
-    state.walls.push({ id:"W" + (wallSeq++), label:"Veggur " + (state.walls.length + 1), lengthMm:2400, turnAfter:null, floor:[], wall:[] });
-    save();
-    renderShapeStep();
-  }
+  // ======================================================================
+  // "Skilgreindu rýmið" — pick a shape, then a top-down drawing: drag any wall
+  // to grow/shrink the room, click a dimension to type it, choose the water wall.
+  // The room is a closed rectilinear outline stored as the wall chain
+  // (state.walls, state.closed): each wall has a length and turnAfter ("left" =
+  // inward corner, "right" = outward/reflex corner), and .open marks a dashed
+  // edge with no wall. Sliding wall j by d only changes its two neighbours:
+  //   len[j-1] -= d * turn[j-1],  len[j+1] -= d * turn[j]   (turn: left=+1, right=-1)
+  // ======================================================================
+  var shapePhase = "pick"; // pick | size | water
+  var MIN_EDGE_MM = 500, MAX_EDGE_MM = 20000;
+  var selectedEdge = null; // index into state.walls
+  var frozenView = null;   // {scale, ox, oy} while a drag is in progress (keeps the picture still)
 
-  function removeLastWall(){
-    if (state.walls.length <= 1) return;
-    var last = state.walls[state.walls.length - 1];
-    if ((last.floor.length || last.wall.length) &&
-        !confirm("Þessi veggur er þegar með skápum á sér. Fjarlægja hann samt?")) return;
-    state.walls.pop();
-    state.walls[state.walls.length - 1].turnAfter = null;
-    save();
-    renderShapeStep();
-  }
-
-  function renderRoomPreview(){
-    KP3D.buildPlan2D(document.getElementById("roomPreviewWrap"), state);
-  }
-
-  // Only "turn left" (turnAfter:"left") is exposed in the UI — verified via
-  // the actual rendered geometry that consecutive "right" turns produce
-  // cabinets facing *away* from the enclosed room (each wall's normal is
-  // forced to be 90° CCW of its own axis for the 3D basis to stay
-  // right-handed; chaining that consistently only stays coherent turning
-  // one direction — the exterior-angle theorem for a simple polygon). Since
-  // the tool's absolute starting orientation is arbitrary and invisible to
-  // the customer, "always turn left" can still build any straight/L/U/
-  // staircase shape — every realistic kitchen — with no risk of the broken
-  // case. `turnAfter` itself stays a "left"|"right" field (kitchen-planner-
-  // 3d.js's wallGeometry3D supports both) in case a future phase adds
-  // concave notches with proper handling — just not customer-exposed yet.
-  var TURN_LABEL = { left:"Beygir hér", right:"Beygir hér" };
-
-  // One-click starting shapes (the wall chain stays fully editable after).
-  // Replacing walls that already carry cabinets asks first.
-  var SHAPE_PRESETS = {
-    straight: [3600],
-    l: [3600, 2600],
-    u: [2600, 3400, 2600]
+  // [length mm, turn after: L/R], open edge indexes
+  var SHAPE_TEMPLATES = {
+    rect:    { group:"closed", label:"Rétthyrnt", edges:[[4000,"L"],[3000,"L"],[4000,"L"],[3000,"L"]], open:[] },
+    lroom:   { group:"closed", label:"L-laga rými", edges:[[2600,"L"],[1200,"R"],[1400,"L"],[2600,"L"],[4000,"L"],[3800,"L"]], open:[] },
+    alcove:  { group:"closed", label:"Með kverk", edges:[[1200,"R"],[600,"L"],[1600,"L"],[600,"R"],[1200,"L"],[3000,"L"],[4000,"L"],[3000,"L"]], open:[] },
+    open1:   { group:"open", label:"Ein lína, opið út", edges:[[4000,"L"],[2800,"L"],[4000,"L"],[2800,"L"]], open:[2] },
+    open2:   { group:"open", label:"Horn, opið út", edges:[[4000,"L"],[3000,"L"],[4000,"L"],[3000,"L"]], open:[1,2] },
+    open3:   { group:"open", label:"L-laga, opið", edges:[[2600,"L"],[1200,"R"],[1400,"L"],[2600,"L"],[4000,"L"],[3800,"L"]], open:[3,4] }
   };
-  function applyShapePreset(key){
-    var lens = SHAPE_PRESETS[key];
-    var hasStuff = state.walls.some(function(w){ return w.floor.length || w.wall.length; }) || state.windows.length || state.doors.length || state.islands.length;
-    if (hasStuff && !confirm("Þetta breytir lögun rýmisins og fjarlægir skápa, glugga og hurðir sem þú ert búin(n) að setja inn. Halda áfram?")) return;
-    wallSeq = 1;
-    state.walls = lens.map(function(len, i){
-      return { id:"W" + (wallSeq++), label:"Veggur " + (i + 1), lengthMm:len, turnAfter:i < lens.length - 1 ? "left" : null, floor:[], wall:[] };
+
+  function turnSign(w){ return w.turnAfter === "left" ? 1 : -1; }
+  function rotAxis(a, turn){ return turn === "left" ? { x:-a.z, z:a.x } : turn === "right" ? { x:a.z, z:-a.x } : a; }
+  function chainVertices(lens, turns){ // -> {pts:[{x,z}] (one per edge start), end}, mm
+    var p = { x:0, z:0 }, a = { x:1, z:0 }, pts = [];
+    lens.forEach(function(len, i){
+      pts.push({ x:p.x, z:p.z });
+      p = { x:p.x + a.x * len, z:p.z + a.z * len };
+      a = rotAxis(a, turns[i]);
     });
-    state.windows = [];
-    state.doors = [];
-    state.islands = [];
+    return { pts:pts, end:p };
+  }
+  function edgeAxis(i){ // unit axis of wall i in mm space
+    var a = { x:1, z:0 };
+    for (var k = 0; k < i; k++) a = rotAxis(a, state.walls[k].turnAfter);
+    return a;
+  }
+  function segsCross(p1, p2, p3, p4){
+    function orient(a, b, c){ return (b.x - a.x) * (c.z - a.z) - (b.z - a.z) * (c.x - a.x); }
+    function on(a, b, c){ return Math.min(a.x, b.x) <= c.x && c.x <= Math.max(a.x, b.x) && Math.min(a.z, b.z) <= c.z && c.z <= Math.max(a.z, b.z); }
+    var o1 = orient(p1, p2, p3), o2 = orient(p1, p2, p4), o3 = orient(p3, p4, p1), o4 = orient(p3, p4, p2);
+    if (((o1 > 0 && o2 < 0) || (o1 < 0 && o2 > 0)) && ((o3 > 0 && o4 < 0) || (o3 < 0 && o4 > 0))) return true;
+    return (o1 === 0 && on(p1, p2, p3)) || (o2 === 0 && on(p1, p2, p4)) || (o3 === 0 && on(p3, p4, p1)) || (o4 === 0 && on(p3, p4, p2));
+  }
+  // a proposed set of edge lengths must close up, keep every wall long enough for what stands on it, and not cross itself
+  function lensValid(lens){
+    var turns = state.walls.map(function(w){ return w.turnAfter; }), n = lens.length, surf = KP3D.surfacesOf(state);
+    for (var i = 0; i < n; i++){
+      if (lens[i] < MIN_EDGE_MM || lens[i] > MAX_EDGE_MM) return "Veggur má vera " + MIN_EDGE_MM + "–" + MAX_EDGE_MM + " mm.";
+      var w = state.walls[i], needed = w.open ? 0 : ["floor", "wall"].reduce(function(m, z){ return Math.max(m, KP3D.cornerClearanceMm(surf, i, z) + usedMm(w[z])); }, 0);
+      if (lens[i] < needed) return "Skápar á " + w.label.toLowerCase() + " taka " + needed + " mm.";
+    }
+    var v = chainVertices(lens, turns);
+    if (Math.abs(v.end.x) > 1 || Math.abs(v.end.z) > 1) return "Lögunin lokast ekki.";
+    for (var a = 0; a < n; a++) for (var b = a + 2; b < n; b++){
+      if (a === 0 && b === n - 1) continue;
+      if (segsCross(v.pts[a], v.pts[(a + 1) % n], v.pts[b], v.pts[(b + 1) % n])) return "Veggirnir mega ekki skerast.";
+    }
+    return null;
+  }
+  function slideLens(lens, j, d){
+    var n = lens.length, out = lens.slice(), p = (j - 1 + n) % n, q = (j + 1) % n;
+    out[p] = lens[p] - d * turnSign(state.walls[p]);
+    out[q] = lens[q] - d * turnSign(state.walls[j]);
+    return out;
+  }
+  function applyLens(lens){
+    lens.forEach(function(len, i){
+      var w = state.walls[i];
+      w.lengthMm = Math.round(len);
+      state.windows.concat(state.doors).forEach(function(o){
+        if (o.wallId !== w.id) return;
+        o.widthMm = Math.min(o.widthMm, w.lengthMm);
+        o.offsetMm = Math.max(0, Math.min(w.lengthMm - o.widthMm, o.offsetMm));
+      });
+    });
+  }
+  // typed length: the chosen end of the wall moves (which slides the neighbouring wall on that side)
+  function setEdgeLength(i, newLen, endSide){
+    var n = state.walls.length, w = state.walls[i], delta = newLen - w.lengthMm;
+    if (!delta) return true;
+    var j = endSide === "start" ? (i - 1 + n) % n : (i + 1) % n;
+    var d = -delta * turnSign(endSide === "start" ? state.walls[j] : w);
+    var lens = slideLens(state.walls.map(function(x){ return x.lengthMm; }), j, d);
+    var err = lensValid(lens);
+    if (err){ toast(err); return false; }
+    applyLens(lens);
+    save();
+    return true;
+  }
+
+  function templateWalls(key){
+    var t = SHAPE_TEMPLATES[key];
+    wallSeq = 1;
+    return t.edges.map(function(e, i){
+      return { id:"W" + (wallSeq++), label:"Veggur " + (i + 1), lengthMm:e[0], turnAfter:e[1] === "L" ? "left" : "right", open:t.open.indexOf(i) >= 0, floor:[], wall:[] };
+    });
+  }
+  function applyShapeTemplate(key){
+    var hasStuff = state.closed && (state.walls.some(function(w){ return w.floor.length || w.wall.length; }) || state.windows.length || state.doors.length || state.islands.length);
+    if (hasStuff && !confirm("Þetta breytir lögun rýmisins og fjarlægir skápa, glugga og hurðir sem þú ert búin(n) að setja inn. Halda áfram?")) return;
+    state.walls = templateWalls(key);
+    state.closed = true;
+    state.windows = []; state.doors = []; state.islands = [];
+    state.waterWall = null; state.seeded = false;
+    selectedEdge = null;
+    shapePhase = "size";
     save();
     renderShapeStep();
   }
+
+  function templateIcon(key){
+    var t = SHAPE_TEMPLATES[key], lens = t.edges.map(function(e){ return e[0]; }), turns = t.edges.map(function(e){ return e[1] === "L" ? "left" : "right"; });
+    var v = chainVertices(lens, turns).pts, xs = v.map(function(p){ return p.x; }), zs = v.map(function(p){ return p.z; });
+    var minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs), minZ = Math.min.apply(null, zs), maxZ = Math.max.apply(null, zs);
+    var W = 200, H = 120, pad = 10, sc = Math.min((W - 2 * pad) / (maxX - minX), (H - 2 * pad) / (maxZ - minZ));
+    var ox = (W - (maxX - minX) * sc) / 2 - minX * sc, oy = (H - (maxZ - minZ) * sc) / 2 - minZ * sc;
+    var out = '<svg viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true">';
+    v.forEach(function(p, i){
+      var q = v[(i + 1) % v.length], open = t.open.indexOf(i) >= 0;
+      out += '<line x1="' + (p.x * sc + ox).toFixed(1) + '" y1="' + (p.z * sc + oy).toFixed(1) + '" x2="' + (q.x * sc + ox).toFixed(1) + '" y2="' + (q.z * sc + oy).toFixed(1) + '" stroke="#1c1c1c" stroke-width="' + (open ? 1.6 : 2.4) + '"' + (open ? ' stroke-dasharray="5,4"' : '') + ' stroke-linecap="square"/>';
+    });
+    return out + '</svg>';
+  }
+
+  // ---------- the drawing ----------
+  function shapeView(width, height){
+    var lens = state.walls.map(function(w){ return w.lengthMm; }), turns = state.walls.map(function(w){ return w.turnAfter; });
+    var v = chainVertices(lens, turns).pts, xs = v.map(function(p){ return p.x; }), zs = v.map(function(p){ return p.z; });
+    var minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs), minZ = Math.min.apply(null, zs), maxZ = Math.max.apply(null, zs);
+    if (frozenView) return { pts:v, scale:frozenView.scale, ox:frozenView.ox, oy:frozenView.oy };
+    var m = shapePhase === "water" ? 64 : 120, sc = Math.min((width - 2 * m) / Math.max(1, maxX - minX), (height - 2 * m) / Math.max(1, maxZ - minZ));
+    sc = Math.min(sc, 0.12);
+    return { pts:v, scale:sc, ox:(width - (maxX - minX) * sc) / 2 - minX * sc, oy:(height - (maxZ - minZ) * sc) / 2 - minZ * sc };
+  }
+  function polygonAreaM2(pts){
+    var a = 0;
+    pts.forEach(function(p, i){ var q = pts[(i + 1) % pts.length]; a += p.x * q.z - q.x * p.z; });
+    return Math.abs(a) / 2 / 1e6;
+  }
+
+  function renderShapeCanvas(){
+    var host = document.getElementById("shapeCanvas");
+    if (!host || !state.closed) return;
+    var W = host.clientWidth || 800, H = host.clientHeight || 480;
+    var view = shapeView(W, H), sc = view.scale, pts = view.pts, n = pts.length;
+    function X(p){ return p.x * sc + view.ox; }
+    function Y(p){ return p.z * sc + view.oy; }
+    var water = shapePhase === "water", polyPts = pts.map(function(p){ return X(p) + "," + Y(p); }).join(" ");
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg" style="font-family:\'Kumbh Sans\',Arial,sans-serif;">' +
+      '<defs><pattern id="plank" width="60" height="18" patternUnits="userSpaceOnUse"><path d="M0 17.5 H60 M30 0 V17.5" stroke="#e2c99f" stroke-width="1" fill="none"/></pattern></defs>' +
+      '<polygon points="' + polyPts + '" fill="#efd9b6"/><polygon points="' + polyPts + '" fill="url(#plank)"/>';
+    var items = "", handles = "";
+    for (var i = 0; i < n; i++){
+      var w = state.walls[i], p1 = pts[i], p2 = pts[(i + 1) % n];
+      var ax = (p2.x - p1.x), az = (p2.z - p1.z), len = Math.hypot(ax, az) || 1; ax /= len; az /= len;
+      var nx = -az, nz = ax;               // interior normal
+      var x1 = X(p1), y1 = Y(p1), x2 = X(p2), y2 = Y(p2), sel = selectedEdge === i;
+      if (w.open){
+        items += '<line data-edge="' + i + '" x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + (sel ? "#0d8fbf" : "#6f6d66") + '" stroke-width="' + (sel ? 3 : 2) + '" stroke-dasharray="9,7" style="cursor:pointer;"/>';
+      } else {
+        var off = 8;
+        items += '<line data-edge="' + i + '" x1="' + (x1 - nx * off) + '" y1="' + (y1 - nz * off) + '" x2="' + (x2 - nx * off) + '" y2="' + (y2 - nz * off) + '" stroke="' + (sel ? "#97d5ea" : "#d5d9e2") + '" stroke-width="16" stroke-linecap="square" style="cursor:pointer;"/>';
+      }
+      if (water){
+        if (!w.open){
+          var mx = (x1 + x2) / 2 + nx * 30, my = (y1 + y2) / 2 + nz * 30, on = state.waterWall === w.id;
+          handles += '<g data-water="' + w.id + '" style="cursor:pointer;"><circle cx="' + mx + '" cy="' + my + '" r="20" fill="' + (on ? "#0058a3" : "#fff") + '" stroke="#8a8f9a" stroke-width="2"/>' +
+            (on ? '<path d="M' + (mx - 8) + ' ' + my + ' l6 6 l11 -12" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' : '<path d="M' + mx + ' ' + (my - 8) + ' q7 9 0 14 q-7 -5 0 -14z" fill="#5b8fae"/>') + '</g>';
+        }
+        continue;
+      }
+      // dimension line, 72px outside the wall (clear of the slide arrows)
+      var dxo = -nx * 72, dzo = -nz * 72;
+      items += '<line x1="' + (x1 + dxo) + '" y1="' + (y1 + dzo) + '" x2="' + (x2 + dxo) + '" y2="' + (y2 + dzo) + '" stroke="#444" stroke-width="1"/>' +
+        '<line x1="' + (x1 + dxo - nx * 6) + '" y1="' + (y1 + dzo - nz * 6) + '" x2="' + (x1 + dxo + nx * 6) + '" y2="' + (y1 + dzo + nz * 6) + '" stroke="#444"/>' +
+        '<line x1="' + (x2 + dxo - nx * 6) + '" y1="' + (y2 + dzo - nz * 6) + '" x2="' + (x2 + dxo + nx * 6) + '" y2="' + (y2 + dzo + nz * 6) + '" stroke="#444"/>';
+      var lx = (x1 + x2) / 2 + dxo, ly = (y1 + y2) / 2 + dzo, txt = w.lengthMm + " mm", tw = txt.length * 7.2 + 14;
+      items += '<g class="dim" data-dim="' + i + '"><rect x="' + (lx - tw / 2) + '" y="' + (ly - 11) + '" width="' + tw + '" height="22" rx="4" fill="#fbfaf7" stroke="' + (sel ? "#0d8fbf" : "none") + '"/>' +
+        '<text x="' + lx + '" y="' + (ly + 4.5) + '" font-size="13" text-anchor="middle" fill="#191919" style="pointer-events:none;">' + txt + '</text></g>';
+      // slide arrows (perpendicular to the wall)
+      var hx = (x1 + x2) / 2, hy = (y1 + y2) / 2, cur = Math.abs(nx) > Math.abs(nz) ? "ew-resize" : "ns-resize";
+      var tri = function(sgn){
+        var bx = hx + nx * sgn * 22, by = hy + nz * sgn * 22, tipx = bx + nx * sgn * 11, tipy = by + nz * sgn * 11, px = -nz * 8, py = nx * 8;
+        return '<polygon points="' + (bx + px) + ',' + (by + py) + ' ' + (bx - px) + ',' + (by - py) + ' ' + tipx + ',' + tipy + '" fill="#fff" stroke="#666" stroke-width="2.2" stroke-linejoin="round"/>';
+      };
+      handles += '<g data-slide="' + i + '" style="cursor:' + cur + ';"><circle cx="' + hx + '" cy="' + hy + '" r="30" fill="transparent"/>' + tri(1) + tri(-1) + '</g>';
+    }
+    svg += items + handles;
+    if (!water){
+      var cx0 = pts.reduce(function(s2, p){ return s2 + X(p); }, 0) / n, cz0 = pts.reduce(function(s2, p){ return s2 + Y(p); }, 0) / n;
+      svg += '<text x="' + cx0 + '" y="' + cz0 + '" font-size="15" text-anchor="middle" fill="#3a3630" style="pointer-events:none;">Rými</text><text x="' + cx0 + '" y="' + (cz0 + 20) + '" font-size="13" text-anchor="middle" fill="#5c574d" style="pointer-events:none;">' + polygonAreaM2(pts).toFixed(1).replace(".", ",") + ' m²</text>';
+    }
+    host.innerHTML = svg + '</svg>';
+    host.querySelectorAll("[data-slide]").forEach(function(g){
+      g.addEventListener("pointerdown", function(evt){ startSlide(parseInt(g.dataset.slide, 10), evt); });
+    });
+    host.querySelectorAll("[data-edge]").forEach(function(el){
+      el.addEventListener("pointerdown", function(evt){ if (!water) startSlide(parseInt(el.dataset.edge, 10), evt); });
+    });
+    host.querySelectorAll("[data-dim]").forEach(function(g){
+      g.addEventListener("click", function(){ openDimPop(parseInt(g.dataset.dim, 10)); });
+    });
+    host.querySelectorAll("[data-water]").forEach(function(g){
+      g.addEventListener("click", function(){ state.waterWall = g.dataset.water; state.seeded = false; save(); renderShapeCanvas(); });
+    });
+  }
+
+  var slideState = null;
+  function startSlide(i, evt){
+    evt.preventDefault();
+    var host = document.getElementById("shapeCanvas"), v = shapeView(host.clientWidth, host.clientHeight);
+    var a = edgeAxis(i);
+    slideState = { i:i, x0:evt.clientX, y0:evt.clientY, n:{ x:-a.z, z:a.x }, base:state.walls.map(function(w){ return w.lengthMm; }), lastD:0, moved:false, view:v };
+    selectedEdge = i;
+    frozenView = { scale:v.scale, ox:v.ox, oy:v.oy };
+    document.getElementById("dimPop").hidden = true;
+    window.addEventListener("pointermove", onSlideMove);
+    window.addEventListener("pointerup", onSlideUp, { once:true });
+  }
+  function onSlideMove(evt){
+    var st = slideState;
+    if (!st) return;
+    var dpx = (evt.clientX - st.x0) * st.n.x + (evt.clientY - st.y0) * st.n.z;
+    if (!st.moved && Math.hypot(evt.clientX - st.x0, evt.clientY - st.y0) < 4) return;
+    st.moved = true;
+    var step = evt.shiftKey ? 10 : 50;
+    var d = Math.round((dpx / st.view.scale) / step) * step;
+    if (d === st.lastD) return;
+    var lens = slideLens(st.base, st.i, d);
+    if (lensValid(lens)) return; // blocked: keep the last valid picture
+    st.lastD = d;
+    applyLens(lens);
+    renderShapeCanvas();
+  }
+  function onSlideUp(){
+    window.removeEventListener("pointermove", onSlideMove);
+    var st = slideState;
+    slideState = null;
+    frozenView = null;
+    if (st && st.moved) save();
+    renderShapeCanvas();
+    if (st && !st.moved) openDimPop(st.i);
+  }
+
+  function openDimPop(i){
+    selectedEdge = i;
+    renderShapeCanvas();
+    var host = document.getElementById("shapeCanvas"), pop = document.getElementById("dimPop"), w = state.walls[i];
+    var v = shapeView(host.clientWidth, host.clientHeight), n = v.pts.length, p1 = v.pts[i], p2 = v.pts[(i + 1) % n];
+    var a = edgeAxis(i), horizontal = Math.abs(a.x) >= Math.abs(a.z);
+    var startFirst = horizontal ? a.x > 0 : a.z > 0; // is the wall's start the left/upper end?
+    var lblA = horizontal ? "◀ Vinstri" : "▲ Upp", lblB = horizontal ? "Hægri ▶" : "Niður ▼";
+    var whichA = startFirst ? "start" : "end", whichB = startFirst ? "end" : "start";
+    pop.innerHTML =
+      '<div class="dp-row"><button type="button" data-ap="' + whichA + '">' + lblA + '</button><input type="number" id="dimInput" value="' + w.lengthMm + '" min="' + MIN_EDGE_MM + '" max="' + MAX_EDGE_MM + '" step="10"><button type="button" class="go" data-ap="' + whichB + '">' + lblB + '</button></div>' +
+      '<div class="dp-more"><label><input type="checkbox" id="dimOpen"' + (w.open ? " checked" : "") + '> Opinn — enginn veggur</label><button type="button" id="dimClose" title="Loka">✕</button></div>';
+    var mx = ((p1.x + p2.x) / 2) * v.scale + v.ox, my = ((p1.z + p2.z) / 2) * v.scale + v.oy;
+    pop.hidden = false;
+    var pw = pop.offsetWidth, ph = pop.offsetHeight;
+    pop.style.left = Math.max(6, Math.min(host.clientWidth - pw - 6, mx - pw / 2)) + "px";
+    pop.style.top = Math.max(6, Math.min(host.clientHeight - ph - 6, my - ph / 2)) + "px";
+    var inp = document.getElementById("dimInput");
+    inp.focus(); inp.select();
+    function apply(which){
+      var val = parseInt(inp.value, 10);
+      if (isNaN(val) || val < MIN_EDGE_MM || val > MAX_EDGE_MM){ toast("Veggur má vera " + MIN_EDGE_MM + "–" + MAX_EDGE_MM + " mm."); return; }
+      if (setEdgeLength(i, val, which)){ pop.hidden = true; renderShapeCanvas(); }
+    }
+    pop.querySelectorAll("[data-ap]").forEach(function(b){ b.addEventListener("click", function(){ apply(b.dataset.ap); }); });
+    inp.addEventListener("keydown", function(e){ if (e.key === "Enter") apply(whichB); if (e.key === "Escape"){ pop.hidden = true; } });
+    document.getElementById("dimClose").addEventListener("click", function(){ pop.hidden = true; });
+    document.getElementById("dimOpen").addEventListener("change", function(e){
+      if (e.target.checked){
+        var others = state.walls.filter(function(x, k){ return k !== i && !x.open; }).length;
+        if (!others){ toast("Að minnsta kosti einn veggur þarf að vera lokaður."); e.target.checked = false; return; }
+        var has = w.floor.length || w.wall.length || state.windows.concat(state.doors).some(function(o){ return o.wallId === w.id; });
+        if (has && !confirm("Þetta fjarlægir skápa, glugga og hurðir af veggnum. Halda áfram?")){ e.target.checked = false; return; }
+        w.floor = []; w.wall = [];
+        state.windows = state.windows.filter(function(o){ return o.wallId !== w.id; });
+        state.doors = state.doors.filter(function(o){ return o.wallId !== w.id; });
+        if (state.waterWall === w.id) state.waterWall = null;
+      }
+      w.open = e.target.checked;
+      save();
+      renderShapeCanvas();
+    });
+  }
+  document.getElementById("shapeCanvas").addEventListener("pointerdown", function(evt){
+    if (evt.target === evt.currentTarget || evt.target.tagName === "svg" || evt.target.tagName === "polygon"){ selectedEdge = null; document.getElementById("dimPop").hidden = true; renderShapeCanvas(); }
+  });
+  window.addEventListener("resize", function(){ if (state.step === "shape" && shapePhase !== "pick") renderShapeCanvas(); });
+
+  // sink on the chosen water wall when the editor opens for the first time
+  function seedSink(){
+    if (state.seeded || !state.waterWall) return;
+    state.seeded = true;
+    var w = state.walls.find(function(x){ return x.id === state.waterWall; });
+    var any = state.walls.some(function(x){ return x.floor.length || x.wall.length; }) || state.islands.length;
+    if (!w || w.open || any) return;
+    var b = newBlock("vaskaskapur");
+    var start = Math.max(cornerClearance(w, "floor"), Math.round((w.lengthMm - b.widthMm) / 2 / 10) * 10);
+    insertBlockAt(w, "floor", b, start);
+    landedBlockId = b.id;
+    save();
+  }
+
+  function renderShapeActions(){
+    var box = document.getElementById("shapeActions");
+    if (shapePhase === "pick"){
+      box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">← Breyta efni</button><button class="btn btn-primary" id="shNext" type="button"' + (state.closed ? "" : " disabled") + '>Áfram — stilla stærð</button>';
+      document.getElementById("shBack").addEventListener("click", function(){ goto("materials"); });
+      document.getElementById("shNext").addEventListener("click", function(){ shapePhase = "size"; renderShapeStep(); });
+    } else if (shapePhase === "size"){
+      box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">← Velja aðra lögun</button><button class="btn btn-primary" id="shNext" type="button">Áfram — vatn</button>';
+      document.getElementById("shBack").addEventListener("click", function(){ shapePhase = "pick"; renderShapeStep(); });
+      document.getElementById("shNext").addEventListener("click", function(){ shapePhase = "water"; renderShapeStep(); });
+    } else {
+      box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">← Stilla stærð</button><button class="btn btn-secondary" id="shSkip" type="button">Sleppa</button><button class="btn btn-primary" id="shNext" type="button">Áfram — raða skápum</button>';
+      document.getElementById("shBack").addEventListener("click", function(){ shapePhase = "size"; renderShapeStep(); });
+      document.getElementById("shSkip").addEventListener("click", function(){ state.waterWall = null; save(); goto("editor"); });
+      document.getElementById("shNext").addEventListener("click", function(){ goto("editor"); });
+    }
+  }
+
+  function renderRoomPreview(){ if (state.step === "shape" && shapePhase !== "pick") renderShapeCanvas(); }
 
   function renderShapeStep(){
-    var box = document.getElementById("wallLengthFields");
-    box.innerHTML = "";
-
-    state.walls.forEach(function(w, i){
-      var row = document.createElement("div");
-      row.className = "wallchain-row";
-      var head = document.createElement("div");
-      head.className = "wc-head";
-      head.innerHTML = '<span class="wc-label">' + w.label + '</span>';
-      row.appendChild(head);
-      // A wall can't be shortened below what's already on it (cabinets +
-      // corner clearance) — otherwise the editor would show cabinets sticking
-      // out past the wall end. Windows/doors are pulled back inside instead.
-      var needed = ["floor", "wall"].reduce(function(m, zone){
-        return Math.max(m, KP3D.cornerClearanceMm(state.walls, i, zone) + usedMm(w[zone]));
-      }, 0);
-      var minLen = Math.max(600, needed);
-      numberField(row, "len-" + w.id, "Lengd", minLen, 8000, w.lengthMm, function(v){
-        w.lengthMm = v;
-        state.windows.concat(state.doors).forEach(function(o){
-          if (o.wallId !== w.id) return;
-          o.widthMm = Math.min(o.widthMm, v);
-          o.offsetMm = Math.max(0, Math.min(v - o.widthMm, o.offsetMm));
-        });
-      }, needed > 600 ? "skápar á veggnum taka " + needed + " mm" : "");
-
-      var isLast = i === state.walls.length - 1;
-      if (isLast){
-        var turnBox = document.createElement("div");
-        turnBox.className = "wallchain-turn";
-        turnBox.innerHTML =
-          '<button class="btn btn-secondary btn-small" id="turnBtn">↰ Beygja hér og bæta við vegg</button>' +
-          (state.walls.length > 1 ? '<button class="btn btn-secondary btn-small" id="removeWallBtn">✕ Fjarlægja vegg</button>' : '');
-        row.appendChild(turnBox);
-      } else if (w.turnAfter){
-        var note = document.createElement("p");
-        note.className = "meter-note";
-        note.textContent = TURN_LABEL[w.turnAfter];
-        row.appendChild(note);
+    if (!state.closed) shapePhase = "pick";
+    var titles = {
+      pick:  ["Skilgreindu rýmið", "Veldu lögun sem líkist rýminu þínu best — næst dregur þú veggina í rétta stærð."],
+      size:  ["Stilltu stærðina", "Dragðu vegg með örvunum til að stækka eða minnka rýmið, eða smelltu á málið til að slá inn nákvæma lengd."],
+      water: ["Hvar er vatnið?", "Veldu vegginn þar sem vatnslögnin er — vaskurinn er settur þar."]
+    };
+    document.getElementById("shapeTitle").textContent = titles[shapePhase][0];
+    document.getElementById("shapeSub").textContent = titles[shapePhase][1];
+    document.getElementById("shapePick").hidden = shapePhase !== "pick";
+    document.getElementById("shapeDraw").hidden = shapePhase === "pick";
+    document.getElementById("shapeExtras").hidden = shapePhase !== "size";
+    if (shapePhase === "pick"){
+      ["closed", "open"].forEach(function(g){
+        document.getElementById(g === "closed" ? "shapeCardsClosed" : "shapeCardsOpen").innerHTML = Object.keys(SHAPE_TEMPLATES).filter(function(k){ return SHAPE_TEMPLATES[k].group === g; }).map(function(k){
+          return '<button type="button" class="shape-card" data-shape="' + k + '">' + templateIcon(k) + '<div class="nm">' + SHAPE_TEMPLATES[k].label + '</div></button>';
+        }).join("");
+      });
+      document.querySelectorAll("[data-shape]").forEach(function(b){ b.addEventListener("click", function(){ applyShapeTemplate(b.dataset.shape); }); });
+    } else {
+      document.getElementById("shapeToolbar").textContent = shapePhase === "size"
+        ? "Strikalínu (opinn veggur) býrðu til með því að smella á málið og haka við „Opinn“."
+        : "Smelltu á dropann við vegginn sem vatnið er á.";
+      if (shapePhase === "size"){
+        var box = document.getElementById("roomHeightBox");
+        box.innerHTML = "";
+        numberField(box, "roomHeight", "Lofthæð", 2200, 3200, state.roomHeightMm, function(v){ state.roomHeightMm = v; });
+        renderWallColorRow();
       }
-      box.appendChild(row);
-    });
-
-    numberField(box, "roomHeight", "Lofthæð", 2200, 3200, state.roomHeightMm, function(v){ state.roomHeightMm = v; });
-
-    var turnBtn = document.getElementById("turnBtn");
-    var removeBtn = document.getElementById("removeWallBtn");
-    if (turnBtn) turnBtn.addEventListener("click", function(){ addWallTurn("left"); });
-    if (removeBtn) removeBtn.addEventListener("click", removeLastWall);
-
-    renderWallColorRow();
-    document.getElementById("toWallsBtn").disabled = false;
-    renderRoomPreview();
+      document.getElementById("dimPop").hidden = true;
+      renderShapeCanvas();
+    }
+    renderShapeActions();
   }
 
   function renderWallColorRow(){
@@ -1017,7 +1307,7 @@
   // ---------- walls step ----------
   function cornerClearance(wall, zoneKey){
     if (wall.island) return 0; // free-standing rows have no corner
-    return KP3D.cornerClearanceMm(state.walls, state.walls.indexOf(wall), zoneKey);
+    return KP3D.cornerClearanceMm(KP3D.surfacesOf(state), state.walls.indexOf(wall), zoneKey);
   }
 
   // ---------- free placement along a wall ----------
@@ -1043,12 +1333,14 @@
     return out;
   }
   function canFit(wall, zone, widthMm){
+    if (wall.open) return false;
     return freeIntervals(wall, zone).some(function(iv){ return iv[1] - iv[0] >= widthMm; });
   }
   // Where a cabinet of `widthMm` lands if its centre is dropped at
   // `centerAlongMm`: the nearest free stretch that fits it, flush to the
   // stretch's ends when close. {offsetMm, index (slot in the list), fits}.
   function placeInWall(wall, zone, widthMm, centerAlongMm, excludeId){
+    if (wall.open) return { offsetMm:0, index:0, fits:false }; // an open edge has no wall to stand on
     if (wall.island && zone !== "floor") return { offsetMm:0, index:0, fits:false }; // wall units only go on real walls
     if (wall.island){ // island rows stay packed: pick the slot by neighbours' centres, insert there
       var sp = spansOf(wall, zone, excludeId), idx = sp.length;
@@ -1478,7 +1770,7 @@
   // (windows/doors: the middle of the first wall).
   function addFromCatalog(kind, type){
     if (kind === "opening"){
-      var w0 = state.walls[0];
+      var w0 = state.walls.find(function(w){ return !w.open; }) || state.walls[0];
       addOpening(type, w0.id, Math.round(w0.lengthMm / 2));
       return;
     }
@@ -1609,10 +1901,15 @@
   // Default spot: centred on the first wall, a 1 m walkway out from its base
   // cabinets. A single row faces the wall (rot 180); a double row's B side does.
   function addIsland(type, at){
-    var two = ISLAND_TYPES[type].two, w0 = state.walls[0];
+    var two = ISLAND_TYPES[type].two;
+    var wi = state.walls.findIndex(function(w){ return !w.open; }); if (wi < 0) wi = 0;
+    var w0 = state.walls[wi], g = KP3D.wallGeoms(state)[wi];
     var len = Math.max(600, Math.floor(Math.min(1800, Math.floor(w0.lengthMm / 100) * 100) / 600) * 600);
+    // default: centred on that wall, 2.2 m out from it; a single row faces the wall, a double row's B side does
+    var wallRot = [{ x:1, z:0 }, { x:0, z:-1 }, { x:-1, z:0 }, { x:0, z:1 }].findIndex(function(a){ return Math.abs(a.x - g.axis.x) < 0.01 && Math.abs(a.z - g.axis.z) < 0.01; });
+    var cx = g.origin.x * 1000 + g.axis.x * w0.lengthMm / 2 + g.normal.x * 2200, cz = g.origin.z * 1000 + g.axis.z * w0.lengthMm / 2 + g.normal.z * 2200;
     var isl = { id:"I" + (islandSeq++), label:"Eyja " + (state.islands.length + 1), lengthMm:len,
-      xMm:at ? at.xMm : Math.round(w0.lengthMm / 2), zMm:at ? at.zMm : 2200, rot:two ? 0 : 180, two:two, a:[] };
+      xMm:at ? at.xMm : Math.round(cx), zMm:at ? at.zMm : Math.round(cz), rot:(Math.max(0, wallRot) * 90 + (two ? 0 : 180)) % 360, two:two, a:[] };
     fillIslandRow(isl.a, len);
     if (two){ isl.b = []; fillIslandRow(isl.b, len); }
     state.islands.push(isl);
@@ -1708,7 +2005,7 @@
   // exactly the kind of judgment call left for Rakel's review).
   function addOpening(type, wallId, alongMm){
     var wall = state.walls.find(function(w){ return w.id === wallId; });
-    if (!wall) return;
+    if (!wall || wall.open) return;
     var isWindow = type === "gluggi";
     var d = isWindow ? WINDOW_DEFAULT : DOOR_DEFAULT;
     var offsetMm = snappedOpeningOffset(wall, d.widthMm, alongMm);
@@ -1730,7 +2027,7 @@
   // snapping as placing a new one, on whichever wall it was dropped on.
   function moveOpening(id, wallId, alongMm){
     var f = findOpening(id), wall = state.walls.find(function(w){ return w.id === wallId; });
-    if (!f || !wall) return;
+    if (!f || !wall || wall.open) return;
     f.o.wallId = wallId;
     f.o.offsetMm = snappedOpeningOffset(wall, f.o.widthMm, alongMm);
     save();
@@ -2256,6 +2553,7 @@
       }).join("") + '</div>';
     }
     state.walls.forEach(function(wall){
+      if (wall.open) return;
       var items = wall.wall.concat(wall.floor);
       html += '<div class="ov-wall"><div class="ov-wall-h">' + wall.label + ' · ' + wall.lengthMm + ' mm</div>';
       if (!items.length) html += '<div class="empty-note">Ekkert ennþá</div>';
@@ -2405,7 +2703,7 @@
     }
     var wall = found.wall, zone = found.zone, b = found.block, c = CATALOG[b.type];
 
-    var otherWalls = surfaces().filter(function(w){ return w.id !== wall.id && !(w.island && zone !== "floor"); });
+    var otherWalls = surfaces().filter(function(w){ return w.id !== wall.id && !w.open && !(w.island && zone !== "floor"); });
     var moveOptions = otherWalls.map(function(w){ return '<option value="' + w.id + '">' + w.label + '</option>'; }).join("");
     var typeKeys = typesForZone(zone);
     if (typeKeys.indexOf(b.type) < 0) typeKeys.unshift(b.type); // legacy type keeps its own entry
@@ -2532,7 +2830,8 @@
   // ---------- screen switching ----------
   function goto(step){
     if (state.step === "editor" && step !== "editor"){ KP3D.teardown3D(); selectedBlockId = null; }
-    if (step === "editor" && state.step !== "editor"){ undoStack = []; histIdx = -1; }
+    if (step === "editor" && state.step !== "editor"){ undoStack = []; histIdx = -1; seedSink(); }
+    if (step === "shape" && state.closed && shapePhase === "pick" && state.walls.length) shapePhase = "size";
     state.step = step;
     save();
     render();
@@ -2558,6 +2857,7 @@
     if (state.step === "materials") renderMaterials();
     document.getElementById("mainWrap").classList.toggle("wide", state.step === "editor");
     document.getElementById("mainWrap").classList.toggle("mat", state.step === "materials");
+    document.getElementById("mainWrap").classList.toggle("shp", state.step === "shape");
     document.getElementById("pageLede").hidden = state.step === "editor";
     if (state.step === "editor"){
       viewMode = "3d";
@@ -2579,7 +2879,8 @@
   // Rakel knows what she's opening before she opens it.
   function planHeadline(){
     var all = surfaces().reduce(function(acc, w){ return acc.concat(w.floor, w.wall); }, []);
-    var shape = state.walls.length === 1 ? "beint" : state.walls.length === 2 ? "L-laga" : state.walls.length === 3 ? "U-laga" : state.walls.length + " veggja";
+    var nOpen = state.walls.filter(function(w){ return w.open; }).length;
+    var shape = state.closed ? (nOpen ? "opið" : "lokað") + " " + state.walls.length + " veggja" : (state.walls.length === 1 ? "beint" : state.walls.length === 2 ? "L-laga" : state.walls.length === 3 ? "U-laga" : state.walls.length + " veggja");
     var extras = [];
     function count(pred, one, many){ var n = all.filter(pred).length; if (n) extras.push(n > 1 ? n + " " + many : one); }
     count(function(b){ return CATALOG[b.type].fridge; }, "ísskápur", "ísskápar");
@@ -2762,10 +3063,7 @@
   document.getElementById("backToIntakeBtn").addEventListener("click", function(){ goto("intake"); });
 
   document.getElementById("toShapeBtn").addEventListener("click", function(){ goto("shape"); });
-  document.getElementById("backToMaterialsBtn").addEventListener("click", function(){ goto("materials"); });
-
-  document.getElementById("toWallsBtn").addEventListener("click", function(){ goto("editor"); });
-  document.getElementById("backToShapeBtn").addEventListener("click", function(){ goto("shape"); });
+  document.getElementById("backToShapeBtn").addEventListener("click", function(){ shapePhase = "size"; goto("shape"); });
 
   // A small picture of the plan for the contact/done screens (taken while the
   // 3D scene is still alive, i.e. before leaving the editor).
@@ -2813,9 +3111,6 @@
   });
 
   document.getElementById("resetBtn").addEventListener("click", resetAll);
-  document.querySelectorAll("#shapePresets [data-preset]").forEach(function(btn){
-    btn.addEventListener("click", function(){ applyShapePreset(btn.dataset.preset); });
-  });
 
   document.getElementById("warnChip").addEventListener("click", function(){
     if (warnings.length) onCabinetSelect({ blockId:warnings[0].ids[0] });
@@ -2911,6 +3206,7 @@
   // untested drag UI in the first place, not policing window width live.
   if (!checkMobileGate()){
     load();
+    if (state.closed && state.walls.length) shapePhase = "size"; // a saved room opens on the sizing drawing
     render();
   }
 })();
