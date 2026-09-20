@@ -234,6 +234,21 @@
     return prevLast.depthMm || CATALOG[prevLast.type].d;
   }
 
+  // Free positioning along a wall: each block may carry `gapMm` = empty space
+  // between it and the previous block (or the wall start / corner clearance
+  // for the first one). No gaps = the old packed layout, so old drafts and
+  // submissions render exactly as before. Returns the start offset (mm from
+  // the wall origin) of every block in `list`.
+  function blockStartsMm(list, clearanceMm){
+    var out = [], pos = clearanceMm || 0;
+    list.forEach(function(b){
+      pos += b.gapMm || 0;
+      out.push(pos);
+      pos += b.widthMm;
+    });
+    return out;
+  }
+
   // ---------- fit check (shared: editor + Rakel's review page) ----------
   // Flags physically impossible/awkward combinations, in millimetres on each
   // wall: a cabinet overlapping a window or door, or a unit taller than the
@@ -249,17 +264,14 @@
     }
     function acc(label){ return label.replace(/^Veggur/, "vegg"); } // "á vegg 1"
     state.walls.forEach(function(wall, wi){
-      var spans = [], off = cornerClearanceMm(state.walls, wi, "floor");
-      wall.floor.forEach(function(b){
+      var spans = [], fStarts = blockStartsMm(wall.floor, cornerClearanceMm(state.walls, wi, "floor")), wStarts = blockStartsMm(wall.wall, 0);
+      wall.floor.forEach(function(b, i){
         var c = CATALOG[b.type], h = b.heightMm || c.h;
-        spans.push({ b:b, c:c, from:off, to:off + b.widthMm, lo:0, hi:Math.min(h, roomH) + (c.counter ? 32 : 0), rawH:h });
-        off += b.widthMm;
+        spans.push({ b:b, c:c, from:fStarts[i], to:fStarts[i] + b.widthMm, lo:0, hi:Math.min(h, roomH) + (c.counter ? 32 : 0), rawH:h });
       });
-      off = 0;
-      wall.wall.forEach(function(b){
+      wall.wall.forEach(function(b, i){
         var c = CATALOG[b.type], h = b.heightMm || c.h;
-        spans.push({ b:b, c:c, from:off, to:off + b.widthMm, lo:WALL_UNIT_BASE_MM, hi:WALL_UNIT_BASE_MM + h, rawH:WALL_UNIT_BASE_MM + h });
-        off += b.widthMm;
+        spans.push({ b:b, c:c, from:wStarts[i], to:wStarts[i] + b.widthMm, lo:WALL_UNIT_BASE_MM, hi:WALL_UNIT_BASE_MM + h, rawH:WALL_UNIT_BASE_MM + h });
       });
       var ops = (state.windows || []).filter(function(o){ return o.wallId === wall.id; }).map(function(o){ return { kind:"gluggi", o:o, lo:o.sillHeightMm, hi:o.sillHeightMm + o.heightMm }; })
         .concat((state.doors || []).filter(function(o){ return o.wallId === wall.id; }).map(function(o){ return { kind:"hurð", o:o, lo:0, hi:o.heightMm }; }));
@@ -1134,25 +1146,24 @@
     state.walls.forEach(function(wall, wi){
       var g = geoms[wi];
       if (!g) return;
-      var offset = cornerClearanceMm(state.walls, wi, "floor");
-      wall.floor.forEach(function(b){
+      var fStarts = blockStartsMm(wall.floor, cornerClearanceMm(state.walls, wi, "floor")), wStarts = blockStartsMm(wall.wall, 0);
+      wall.floor.forEach(function(b, bi){
+        var offset = fStarts[bi];
         var c = CATALOG[b.type];
         var hM = Math.min(b.heightMm || c.h, roomHeightMm) / 1000, dM = (b.depthMm || c.d) / 1000;
         var selected = opts.selectedId === b.id;
         addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, carcassMat, c.fridge ? steelMat : frontMat, b.interior,
           { warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), handle:state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0.55,
             plinth:true, counter:!!c.counter, sink:!!c.sink, oven:!!c.oven, plinthMat:plinthMat, stoneMat:stoneMat }, selected, pickables);
-        offset += b.widthMm;
       });
-      offset = 0;
-      wall.wall.forEach(function(b){
+      wall.wall.forEach(function(b, bi){
+        var offset = wStarts[bi];
         var c = CATALOG[b.type];
         var hM = Math.min(b.heightMm || c.h, roomHeightMm) / 1000, dM = (b.depthMm || c.d) / 1000;
         var selected = opts.selectedId === b.id;
         addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, WALL_CABINET_BASE_M, carcassMat, frontMat, null,
           { warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"wall", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), handle:state.handle,
             open:!!c.open, openMat:openMat, hiddenMat:hiddenMat, shelves:c.open ? shelvesOf(b) : 0 }, selected, pickables);
-        offset += b.widthMm;
       });
     });
 
@@ -1443,10 +1454,9 @@
     state.walls.forEach(function(wall, wi){
       var g = geoms[wi];
       if (!g) return;
-      var offset = cornerClearanceMm(state.walls, wi, "floor");
-      wall.floor.forEach(function(bl){ drawCabinetRect(bl, CATALOG[bl.type], g, wall.id, "floor", offset, false); offset += bl.widthMm; });
-      offset = 0;
-      wall.wall.forEach(function(bl){ drawCabinetRect(bl, CATALOG[bl.type], g, wall.id, "wall", offset, true); offset += bl.widthMm; });
+      var fStarts = blockStartsMm(wall.floor, cornerClearanceMm(state.walls, wi, "floor")), wStarts = blockStartsMm(wall.wall, 0);
+      wall.floor.forEach(function(bl, bi){ drawCabinetRect(bl, CATALOG[bl.type], g, wall.id, "floor", fStarts[bi], false); });
+      wall.wall.forEach(function(bl, bi){ drawCabinetRect(bl, CATALOG[bl.type], g, wall.id, "wall", wStarts[bi], true); });
     });
 
     svg += "</svg>";
@@ -1482,6 +1492,7 @@
     HANDLES: HANDLES,
     wallGeometry3D: wallGeometry3D,
     cornerClearanceMm: cornerClearanceMm,
+    blockStartsMm: blockStartsMm,
     planTransform: planTransform,
     rectCornersWorld: rectCornersWorld,
     WALL_COLORS: WALL_COLORS,

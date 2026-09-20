@@ -651,7 +651,8 @@
   // Icelandic plural: 1, 21, 31… take the singular (11 doesn't)
   function plural(n, one, many){ return (n % 10 === 1 && n % 100 !== 11) ? one : many; }
 
-  function usedMm(list){ return list.reduce(function(s,b){ return s + b.widthMm; }, 0); }
+  // space a list of blocks takes up along a wall: widths plus the free gaps between them
+  function usedMm(list){ return list.reduce(function(s,b){ return s + b.widthMm + (b.gapMm || 0); }, 0); }
 
   function clampWidth(type, w){
     var c = CATALOG[type];
@@ -946,35 +947,138 @@
     return KP3D.cornerClearanceMm(state.walls, state.walls.indexOf(wall), zoneKey);
   }
 
+  // ---------- free placement along a wall ----------
+  // Cabinets may stand anywhere along a wall with gaps between them (b.gapMm =
+  // free space before the block; 0/absent = butted up, i.e. the old packed
+  // layout). Nothing is ever auto-packed: removing or resizing a cabinet
+  // leaves its neighbours where they are. Dropping/nudging near a neighbour,
+  // the wall end or the corner clearance snaps flush (FREE_SNAP_MM).
+  var FREE_SNAP_MM = 60;
+
+  function spansOf(wall, zone, excludeId){
+    var list = wall[zone], starts = KP3D.blockStartsMm(list, cornerClearance(wall, zone)), out = [];
+    list.forEach(function(b, i){ if (b.id !== excludeId) out.push({ b:b, start:starts[i], end:starts[i] + b.widthMm }); });
+    return out;
+  }
+  function freeIntervals(wall, zone, excludeId){
+    var pos = cornerClearance(wall, zone), out = [];
+    spansOf(wall, zone, excludeId).forEach(function(sp){
+      if (sp.start > pos) out.push([pos, sp.start]);
+      pos = Math.max(pos, sp.end);
+    });
+    if (wall.lengthMm > pos) out.push([pos, wall.lengthMm]);
+    return out;
+  }
+  function canFit(wall, zone, widthMm){
+    return freeIntervals(wall, zone).some(function(iv){ return iv[1] - iv[0] >= widthMm; });
+  }
+  // Where a cabinet of `widthMm` lands if its centre is dropped at
+  // `centerAlongMm`: the nearest free stretch that fits it, flush to the
+  // stretch's ends when close. {offsetMm, index (slot in the list), fits}.
+  function placeInWall(wall, zone, widthMm, centerAlongMm, excludeId){
+    var want = Math.round((centerAlongMm - widthMm / 2) / 10) * 10;
+    var best = null;
+    freeIntervals(wall, zone, excludeId).forEach(function(iv){
+      if (iv[1] - iv[0] < widthMm) return;
+      var s0 = Math.max(iv[0], Math.min(iv[1] - widthMm, want));
+      if (s0 - iv[0] <= FREE_SNAP_MM) s0 = iv[0];
+      else if (iv[1] - (s0 + widthMm) <= FREE_SNAP_MM) s0 = iv[1] - widthMm;
+      var d = Math.abs(s0 - want);
+      if (!best || d < best.d) best = { s:s0, d:d };
+    });
+    var spans = spansOf(wall, zone, excludeId);
+    var at = best ? best.s : Math.max(cornerClearance(wall, zone), Math.min(wall.lengthMm - widthMm, want));
+    return { offsetMm:at, index:spans.filter(function(sp){ return sp.start < at; }).length, fits:!!best };
+  }
+  // first free spot after the last cabinet (or wherever there's room)
+  function appendPlacement(wall, zone, widthMm){
+    var spans = spansOf(wall, zone), lastEnd = spans.length ? spans[spans.length - 1].end : cornerClearance(wall, zone);
+    return placeInWall(wall, zone, widthMm, lastEnd + widthMm / 2, null);
+  }
+  // Take a block out of its list; the next block absorbs the freed space so
+  // nothing else moves.
+  function detachBlock(wall, zone, id){
+    var list = wall[zone], i = list.findIndex(function(b){ return b.id === id; });
+    if (i < 0) return null;
+    var b = list[i], next = list[i + 1];
+    if (next) next.gapMm = (next.gapMm || 0) + (b.gapMm || 0) + b.widthMm;
+    list.splice(i, 1);
+    delete b.gapMm;
+    return b;
+  }
+  // Put a (detached/new) block at an absolute start offset; the block after it
+  // keeps its position (its gap shrinks to match).
+  function insertBlockAt(wall, zone, block, startMm){
+    var list = wall[zone], clear = cornerClearance(wall, zone), starts = KP3D.blockStartsMm(list, clear);
+    var idx = 0;
+    while (idx < list.length && starts[idx] < startMm) idx++;
+    var prevEnd = idx > 0 ? starts[idx - 1] + list[idx - 1].widthMm : clear;
+    var next = list[idx], nextStart = next ? starts[idx] : 0;
+    block.gapMm = Math.max(0, startMm - prevEnd);
+    if (!block.gapMm) delete block.gapMm;
+    list.splice(idx, 0, block);
+    if (next){
+      next.gapMm = Math.max(0, nextStart - (startMm + block.widthMm));
+      if (!next.gapMm) delete next.gapMm;
+    }
+  }
+
   function addBlock(wall, type){
     var c = CATALOG[type];
-    var list = wall[c.zone];
-    var used = usedMm(list);
-    var remaining = wall.lengthMm - cornerClearance(wall, c.zone) - used;
-    if (remaining < c.minW){
+    var b = newBlock(type);
+    var pl = appendPlacement(wall, c.zone, b.widthMm);
+    if (!pl.fits){
       toast("Ekki nóg pláss á " + wall.label.toLowerCase() + " fyrir " + c.label.toLowerCase() + ".");
       return;
     }
-    var b = newBlock(type);
-    if (b.widthMm > remaining) b.widthMm = clampWidth(type, remaining);
-    list.push(b);
+    insertBlockAt(wall, c.zone, b, pl.offsetMm);
     landedBlockId = b.id;
     save();
     refreshAfterEdit();
   }
 
   function removeBlock(wall, zone, id){
-    wall[zone] = wall[zone].filter(function(b){ return b.id !== id; });
+    detachBlock(wall, zone, id);
     save();
     refreshAfterEdit();
   }
 
+  // Swap with the neighbour (used when a nudge is blocked): the pair keeps its
+  // overall span; the first block of the new order starts where the pair
+  // started, the second ends where the pair ended.
   function moveBlock(wall, zone, id, dir){
     var list = wall[zone];
     var idx = list.findIndex(function(b){ return b.id === id; });
     var swapIdx = idx + dir;
     if (idx < 0 || swapIdx < 0 || swapIdx >= list.length) return;
+    var starts = KP3D.blockStartsMm(list, cornerClearance(wall, zone));
+    var lo = Math.min(starts[idx], starts[swapIdx]);
+    var hi = Math.max(starts[idx] + list[idx].widthMm, starts[swapIdx] + list[swapIdx].widthMm);
+    var i0 = Math.min(idx, swapIdx);
+    var prevEnd = i0 > 0 ? starts[i0 - 1] + list[i0 - 1].widthMm : cornerClearance(wall, zone);
     var tmp = list[idx]; list[idx] = list[swapIdx]; list[swapIdx] = tmp;
+    var first = list[i0], second = list[i0 + 1];
+    first.gapMm = lo - prevEnd;
+    second.gapMm = (hi - second.widthMm) - (lo + first.widthMm);
+    [first, second].forEach(function(x){ if (!x.gapMm || x.gapMm < 0) delete x.gapMm; });
+    save();
+    refreshAfterEdit();
+  }
+
+  // Arrow/◀▶: slide the cabinet along its wall by `stepMm` (as far as the free
+  // space allows); when a neighbour is flush against it, swap places instead.
+  function nudgeBlock(wall, zone, id, dir, stepMm){
+    var list = wall[zone], i = list.findIndex(function(b){ return b.id === id; });
+    if (i < 0) return;
+    var b = list[i], spans = spansOf(wall, zone);
+    var me = spans[i];
+    var lo = i > 0 ? spans[i - 1].end : cornerClearance(wall, zone);
+    var hi = i < spans.length - 1 ? spans[i + 1].start : wall.lengthMm;
+    var target = me.start + dir * stepMm;
+    var ns = Math.max(lo, Math.min(hi - b.widthMm, target));
+    if (ns === me.start){ moveBlock(wall, zone, id, dir); return; }
+    var d = detachBlock(wall, zone, id);
+    insertBlockAt(wall, zone, d, ns);
     save();
     refreshAfterEdit();
   }
@@ -995,19 +1099,28 @@
     var old = list[idx];
     if (old.type === newType) return;
     var c = CATALOG[newType];
-    var others = usedMm(list) - old.widthMm;
-    if (others + c.defaultW > wall.lengthMm - cornerClearance(wall, zone)){
+    var next = list[idx + 1], oldNextGap = next ? next.gapMm : undefined, delta = c.defaultW - old.widthMm;
+    // neighbours keep their spot where the free gap after this cabinet allows it
+    if (next){
+      next.gapMm = Math.max(0, (next.gapMm || 0) - delta);
+      if (!next.gapMm) delete next.gapMm;
+    }
+    var nb = { id:old.id, type:newType, widthMm:c.defaultW };
+    if (old.gapMm) nb.gapMm = old.gapMm;
+    var before = list[idx];
+    list[idx] = nb;
+    if (usedMm(list) > wall.lengthMm - cornerClearance(wall, zone)){
+      list[idx] = before;
+      if (next){ if (oldNextGap === undefined) delete next.gapMm; else next.gapMm = oldNextGap; }
       toast("Ekki nóg pláss á " + wall.label.toLowerCase() + " fyrir " + c.label.toLowerCase() + ".");
       return;
     }
-    var nb = { id:old.id, type:newType, widthMm:c.defaultW };
     if (c.hasInterior){
       var range = c.drawerCountRange;
       var mode = (old.interior && old.interior.mode) || "hillur";
       var count = old.interior && old.interior.count ? old.interior.count : 3;
       nb.interior = { mode:mode, count:Math.max(range[0], Math.min(range[1], count)) };
     }
-    list[idx] = nb;
     save();
     refreshAfterEdit();
   }
@@ -1127,29 +1240,10 @@
     if (el) el.remove();
   }
 
-  // Where a cabinet of `widthMm` actually PACKS to if dropped near
-  // `rawAlongMm` — cabinets always sit flush against each other/the corner
-  // clearance, so "snapping" for them means picking the right slot (which
-  // insertIndexForOffset already does), then previewing its real resulting
-  // offset — not an approximation of where the cursor is.
   function clampGrip(g, widthMm){ return Math.max(-widthMm / 2, Math.min(widthMm / 2, g)); }
   function blockCenterAlongMm(wall, zone, blockId){
-    var offset = cornerClearance(wall, zone);
-    for (var i = 0; i < wall[zone].length; i++){
-      var b = wall[zone][i];
-      if (b.id === blockId) return offset + b.widthMm / 2;
-      offset += b.widthMm;
-    }
-    return offset;
-  }
-  function computePackedOffset(wall, zone, widthMm, rawAlongMm, excludeId){
-    var clearance = cornerClearance(wall, zone);
-    var list = wall[zone].filter(function(b){ return b.id !== excludeId; });
-    var idx = insertIndexForOffset(list, Math.max(rawAlongMm, clearance), clearance);
-    var offset = clearance;
-    for (var i = 0; i < idx; i++) offset += list[i].widthMm;
-    var used = usedMm(list);
-    return { offsetMm:offset, index:idx, fits: used + widthMm <= wall.lengthMm - clearance };
+    var sp = spansOf(wall, zone).find(function(x){ return x.b.id === blockId; });
+    return sp ? (sp.start + sp.end) / 2 : 0;
   }
 
   // Windows/doors aren't packed — free position — but do snap flush to
@@ -1209,7 +1303,7 @@
       showDropPreview(drop.wallId, offsetMm, d.widthMm, 60, true);
     } else {
       var c = CATALOG[dragState.type];
-      var packed = computePackedOffset(wall, c.zone, c.defaultW, drop.alongMm, null);
+      var packed = placeInWall(wall, c.zone, c.defaultW, drop.alongMm, null);
       showDropPreview(drop.wallId, packed.offsetMm, c.defaultW, c.d, packed.fits, Math.min(c.h, state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM), c.zone === "wall" ? WALL_UNIT_BASE_MM : 0);
     }
   }
@@ -1304,7 +1398,7 @@
     var c = CATALOG[type];
     for (var i = 0; i < state.walls.length; i++){
       var wall = state.walls[i];
-      if (wall.lengthMm - cornerClearance(wall, c.zone) - usedMm(wall[c.zone]) >= c.minW){
+      if (canFit(wall, c.zone, c.defaultW)){
         addBlock(wall, type);
         return;
       }
@@ -1347,7 +1441,7 @@
     var host = document.getElementById("catalogPanel");
     function room(type){
       var c = CATALOG[type];
-      return state.walls.some(function(w){ return w.lengthMm - cornerClearance(w, c.zone) - usedMm(w[c.zone]) >= c.minW; });
+      return state.walls.some(function(w){ return canFit(w, c.zone, c.defaultW); });
     }
     function item(kind, type, cls, name, dim, ok){
       return '<button type="button" class="cat-item" data-kind="' + kind + '" data-type="' + type + '"' + (ok ? "" : ' style="opacity:.45;"') + '>' +
@@ -1388,13 +1482,13 @@
   function placeBlockAtDrop(wall, type, alongMm){
     var c = CATALOG[type];
     var zone = c.zone;
-    var packed = computePackedOffset(wall, zone, c.defaultW, alongMm, null);
+    var packed = placeInWall(wall, zone, c.defaultW, alongMm, null);
     if (!packed.fits){
       toast("Ekki nóg pláss á " + wall.label.toLowerCase() + " fyrir " + c.label.toLowerCase() + ".");
       return;
     }
     var b = newBlock(type);
-    wall[zone].splice(packed.index, 0, b);
+    insertBlockAt(wall, zone, b, packed.offsetMm);
     landedBlockId = b.id;
     save();
     refreshAfterEdit();
@@ -1448,34 +1542,20 @@
   // target: replaces having to use the ◀/▶ buttons or the edit panel's
   // "move to wall" dropdown for this specific action, though those still
   // work exactly as before.
-  function insertIndexForOffset(list, targetOffsetMm, startOffsetMm){
-    var offset = startOffsetMm;
-    for (var i = 0; i < list.length; i++){
-      if (targetOffsetMm < offset + list[i].widthMm / 2) return i;
-      offset += list[i].widthMm;
-    }
-    return list.length;
-  }
-
   function moveBlockToPosition(blockId, wallId, alongMm){
     var found = findBlock(blockId);
     if (!found) return;
     var targetWall = state.walls.find(function(w){ return w.id === wallId; });
     if (!targetWall) return;
     var zone = found.zone;
-    var list = targetWall[zone];
-    var sameList = list === found.wall[zone];
-    var clearance = cornerClearance(targetWall, zone);
-    var otherWidth = usedMm(list) - (sameList ? found.block.widthMm : 0);
-    if (otherWidth + found.block.widthMm > targetWall.lengthMm - clearance){
+    var pl = placeInWall(targetWall, zone, found.block.widthMm, alongMm, blockId);
+    if (!pl.fits){
       toast("Ekki nóg pláss á " + targetWall.label.toLowerCase() + ".");
       return;
     }
-    found.wall[zone] = found.wall[zone].filter(function(b){ return b.id !== blockId; });
-    var destList = targetWall[zone];
-    var idx = insertIndexForOffset(destList, Math.max(alongMm, clearance), clearance);
-    destList.splice(idx, 0, found.block);
-    landedBlockId = found.block.id;
+    var b = detachBlock(found.wall, zone, blockId);
+    insertBlockAt(targetWall, zone, b, pl.offsetMm);
+    landedBlockId = b.id;
     save();
     refreshAfterEdit();
   }
@@ -1518,7 +1598,7 @@
     var found = findBlock(blockDragState.blockId);
     if (!wall || !found){ hideDragPreview(); return; }
     var c = CATALOG[found.block.type];
-    var packed = computePackedOffset(wall, found.zone, found.block.widthMm, drop.alongMm, found.block.id);
+    var packed = placeInWall(wall, found.zone, found.block.widthMm, drop.alongMm, found.block.id);
     updateDragPreviewRect(drop.wallId, packed.offsetMm, found.block.widthMm, found.block.depthMm || c.d, packed.fits);
   }
 
@@ -1778,7 +1858,7 @@
     var found = findBlock(meta.blockId);
     if (!wall || !found){ KP3D.hideDragPreview3D(); return; }
     var c = CATALOG[found.block.type];
-    var packed = computePackedOffset(wall, found.zone, found.block.widthMm, drop.alongMm, found.block.id);
+    var packed = placeInWall(wall, found.zone, found.block.widthMm, drop.alongMm, found.block.id);
     KP3D.updateDragPreview3D(drop.wallId, packed.offsetMm, found.block.widthMm, found.block.depthMm || c.d, packed.fits, blockHeightMm(found.block, c), found.zone === "wall" ? WALL_UNIT_BASE_MM : 0);
   }
 
@@ -1794,13 +1874,15 @@
     var idx = list.findIndex(function(x){ return x.id === id; });
     if (idx < 0) return;
     var src = list[idx];
-    if (usedMm(list) + src.widthMm > wall.lengthMm - cornerClearance(wall, zone)){
+    var srcSpan = spansOf(wall, zone).find(function(x){ return x.b.id === id; });
+    var pl = placeInWall(wall, zone, src.widthMm, srcSpan.end + src.widthMm / 2, null);
+    if (!pl.fits){
       toast("Ekki nóg pláss á " + wall.label.toLowerCase() + " til að afrita.");
       return;
     }
     var copy = newBlock(src.type);
     if (src.interior) copy.interior = { mode:src.interior.mode, count:src.interior.count };
-    list.splice(idx + 1, 0, copy);
+    insertBlockAt(wall, zone, copy, pl.offsetMm);
     selectedBlockId = copy.id;
     landedBlockId = copy.id;
     save();
@@ -1816,8 +1898,8 @@
     var found = selectedBlockId ? findBlock(selectedBlockId) : null;
     if (!btn || !found) return;
     var act = btn.dataset.fb;
-    if (act === "left") moveBlock(found.wall, found.zone, found.block.id, -1);
-    else if (act === "right") moveBlock(found.wall, found.zone, found.block.id, 1);
+    if (act === "left") nudgeBlock(found.wall, found.zone, found.block.id, -1, 100);
+    else if (act === "right") nudgeBlock(found.wall, found.zone, found.block.id, 1, 100);
     else if (act === "dup") duplicateBlock(found.wall, found.zone, found.block.id);
     else if (act === "del"){ selectedBlockId = null; removeBlock(found.wall, found.zone, found.block.id); }
   });
@@ -2065,8 +2147,8 @@
     var shDec = host.querySelector('[data-role="sh-dec"]'), shInc = host.querySelector('[data-role="sh-inc"]');
     if (shDec) shDec.addEventListener("click", function(){ setShelves(-1); });
     if (shInc) shInc.addEventListener("click", function(){ setShelves(1); });
-    host.querySelector('[data-role="left"]').addEventListener("click", function(){ moveBlock(wall, zone, b.id, -1); });
-    host.querySelector('[data-role="right"]').addEventListener("click", function(){ moveBlock(wall, zone, b.id, 1); });
+    host.querySelector('[data-role="left"]').addEventListener("click", function(){ nudgeBlock(wall, zone, b.id, -1, 100); });
+    host.querySelector('[data-role="right"]').addEventListener("click", function(){ nudgeBlock(wall, zone, b.id, 1, 100); });
     host.querySelector('[data-role="delete"]').addEventListener("click", function(){
       selectedBlockId = null;
       removeBlock(wall, zone, b.id);
@@ -2084,15 +2166,13 @@
     if (!found) return;
     var newWall = state.walls.find(function(w){ return w.id === newWallId; });
     if (!newWall || newWall.id === found.wall.id) return;
-    var list = newWall[found.zone];
-    var used = usedMm(list);
-    var remaining = newWall.lengthMm - cornerClearance(newWall, found.zone) - used;
-    if (remaining < found.block.widthMm){
+    var pl = appendPlacement(newWall, found.zone, found.block.widthMm);
+    if (!pl.fits){
       toast("Ekki nóg pláss á " + newWall.label.toLowerCase() + ".");
       return;
     }
-    found.wall[found.zone] = found.wall[found.zone].filter(function(x){ return x.id !== blockId; });
-    newWall[found.zone].push(found.block);
+    var moved = detachBlock(found.wall, found.zone, blockId);
+    insertBlockAt(newWall, found.zone, moved, pl.offsetMm);
     save();
     refreshAfterEdit();
   }
@@ -2452,7 +2532,7 @@
     if (!selectedBlockId) return;
     if (e.key === "ArrowLeft" || e.key === "ArrowRight"){
       var fa = findBlock(selectedBlockId);
-      if (fa){ e.preventDefault(); moveBlock(fa.wall, fa.zone, fa.block.id, e.key === "ArrowLeft" ? -1 : 1); }
+      if (fa){ e.preventDefault(); nudgeBlock(fa.wall, fa.zone, fa.block.id, e.key === "ArrowLeft" ? -1 : 1, e.shiftKey ? 10 : 100); }
       return;
     }
     if (e.key === "Delete" || e.key === "Backspace"){
