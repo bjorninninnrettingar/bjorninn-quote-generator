@@ -134,7 +134,7 @@
 
     var fitWarns = KP3D.fitWarnings(state);
     var rows = [];
-    state.walls.forEach(function(wall){
+    KP3D.surfacesOf(state).forEach(function(wall){
       wall.wall.concat(wall.floor).forEach(function(b){
         var c = CATALOG[b.type];
         var hw = b.interior && b.interior.mode === "skuffur" ? "Skúffur × " + b.interior.count
@@ -305,6 +305,11 @@
       state.walls.forEach(function(w){
         w.floor = (w.floor || []).filter(function(b){ return KP3D.CATALOG[b.type]; });
         w.wall = (w.wall || []).filter(function(b){ return KP3D.CATALOG[b.type]; });
+      });
+      state.islands = state.islands || [];
+      state.islands.forEach(function(isl){
+        isl.a = (isl.a || []).filter(function(b){ return KP3D.CATALOG[b.type]; });
+        isl.b = isl.two ? (isl.b || []).filter(function(b){ return KP3D.CATALOG[b.type]; }) : undefined;
       });
       render();
     }catch(e){

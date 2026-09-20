@@ -209,6 +209,52 @@
     return geoms;
   }
 
+  // ---------- islands ----------
+  // state.islands = [{id, label, lengthMm, xMm, zMm, rot (0/90/180/270),
+  //                   a:[blocks], two:bool, b:[blocks]}]. (xMm, zMm) is the
+  // middle of the island's seam line in room coordinates. Each row behaves
+  // like a wall that stands free in the room: "surfaces" = the real walls
+  // followed by every island row, in the same order as surfaceGeoms(), so all
+  // the wall-based placement/drag/render code works on islands unchanged.
+  // Row A faces the island's normal; row B (back to back) faces the other way.
+  function islandFrame(isl){
+    var axis = { x:1, z:0 }, k = (((Math.round((isl.rot || 0) / 90)) % 4) + 4) % 4;
+    for (var i = 0; i < k; i++) axis = rotate90(axis, "right");
+    return { axis:axis, normal:normalFromAxis(axis) };
+  }
+  function surfacesOf(state){
+    var out = state.walls.slice();
+    (state.islands || []).forEach(function(isl){
+      if (!isl.a) isl.a = [];
+      out.push({ id:isl.id + "a", label:isl.label + (isl.two ? " · röð A" : ""), lengthMm:isl.lengthMm, floor:isl.a, wall:[], island:isl, side:"a" });
+      if (isl.two){
+        if (!isl.b) isl.b = [];
+        out.push({ id:isl.id + "b", label:isl.label + " · röð B", lengthMm:isl.lengthMm, floor:isl.b, wall:[], island:isl, side:"b" });
+      }
+    });
+    return out;
+  }
+  function islandGeoms(state){
+    var out = [];
+    (state.islands || []).forEach(function(isl){
+      var f = islandFrame(isl), lenM = isl.lengthMm / 1000, cx = isl.xMm / 1000, cz = isl.zMm / 1000;
+      out.push({ origin:{ x:cx - f.axis.x * lenM / 2, z:cz - f.axis.z * lenM / 2 }, axis:f.axis, normal:f.normal, lenM:lenM });
+      if (isl.two){
+        var ax = { x:-f.axis.x, z:-f.axis.z };
+        out.push({ origin:{ x:cx + f.axis.x * lenM / 2, z:cz + f.axis.z * lenM / 2 }, axis:ax, normal:normalFromAxis(ax), lenM:lenM });
+      }
+    });
+    return out;
+  }
+  function surfaceGeoms(state){ return wallGeometry3D(state.walls).concat(islandGeoms(state)); }
+  // where the move-handle "puck" of an island sits: on the floor just past its start
+  function islandHandlePos(isl){
+    var f = islandFrame(isl), lenM = isl.lengthMm / 1000;
+    return { x:isl.xMm / 1000 - f.axis.x * (lenM / 2 + 0.42), z:isl.zMm / 1000 - f.axis.z * (lenM / 2 + 0.42) };
+  }
+  // room interior bounds (m) from the real walls only — islands are clamped inside
+  function roomBounds(state){ var g = wallGeometry3D(state.walls); return g.length ? interiorBounds(g) : null; }
+
   // Corner-overlap fix (Phase 7d-2): a floor cabinet's depth projects into
   // the room along its own wall's normal — at a 90° turn, the previous
   // wall's last floor cabinet projects exactly along the NEXT wall's own
@@ -223,6 +269,7 @@
   var CORNER_CLEARANCE_MM = 600;
   function cornerClearanceMm(walls, wallIndex, zoneKey){
     if (zoneKey !== "floor" || wallIndex <= 0) return 0;
+    if (walls[wallIndex] && walls[wallIndex].island) return 0; // free-standing rows have no corner
     var prev = walls[wallIndex - 1];
     if (!prev.turnAfter) return 0;
     var prevLast = prev.floor[prev.floor.length - 1];
@@ -287,7 +334,64 @@
       });
     });
     out.forEach(function(w){ if (w.count > 1) w.msg = w.msg.replace(/\.$/, "") + " (" + w.count + " skápar)."; });
+    islandWarnings(state, function(msg, ids){ out.push({ msg:msg, ids:ids, count:1 }); });
     return out;
+  }
+
+  // Islands: overlap with other cabinets/islands and walkways narrower than
+  // 900 mm. Every wall and island is axis-aligned, so plain boxes (mm) will do.
+  var WALKWAY_MM = 900;
+  function islandWarnings(state, push){
+    var islands = state.islands || [];
+    if (!islands.length) return;
+    var surf = surfacesOf(state), gs = surfaceGeoms(state);
+    function bbox(cs){
+      var xs = cs.map(function(p){ return p.x * 1000; }), zs = cs.map(function(p){ return p.z * 1000; });
+      return { x0:Math.min.apply(null, xs), x1:Math.max.apply(null, xs), z0:Math.min.apply(null, zs), z1:Math.max.apply(null, zs) };
+    }
+    var boxes = surf.map(function(sf, si){
+      var starts = blockStartsMm(sf.floor, cornerClearanceMm(surf, si, "floor"));
+      return sf.floor.map(function(b, i){
+        var c = CATALOG[b.type], bb = bbox(rectCornersWorld(gs[si], starts[i], b.widthMm, b.depthMm || c.d));
+        bb.id = b.id; bb.label = c.label;
+        return bb;
+      });
+    });
+    function lineBox(g){
+      return bbox([{ x:g.origin.x, z:g.origin.z }, { x:g.origin.x + g.axis.x * g.lenM, z:g.origin.z + g.axis.z * g.lenM }]);
+    }
+    function overlap(a, b){ return Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0) > 20 && Math.min(a.z1, b.z1) - Math.max(a.z0, b.z0) > 20; }
+    function dist(a, b){
+      return Math.hypot(Math.max(a.x0 - b.x1, b.x0 - a.x1, 0), Math.max(a.z0 - b.z1, b.z0 - a.z1, 0));
+    }
+    islands.forEach(function(isl, ii){
+      var mine = [];
+      surf.forEach(function(sf, si){ if (sf.island === isl) mine = mine.concat(boxes[si]); });
+      if (!mine.length) return;
+      var byTarget = {}; // walkway per wall / other island: the tightest pair
+      surf.forEach(function(sf, sj){
+        if (sf.island === isl) return;
+        if (sf.island && islands.indexOf(sf.island) < ii) return; // each island pair reported once
+        var key = sf.island ? "i:" + sf.island.id : "w:" + sj;
+        var name = sf.island ? sf.island.label : sf.label;
+        var cands = boxes[sj].slice();
+        if (!sf.island) cands.push(lineBox(gs[sj]));
+        mine.forEach(function(m){
+          cands.forEach(function(o){
+            if (o.id && overlap(m, o)){
+              push(isl.label + ": " + m.label.toLowerCase() + " skarast við " + o.label.toLowerCase() + " (" + name + ").", [m.id, o.id]);
+              return;
+            }
+            var d = dist(m, o), cur = byTarget[key];
+            if (!cur || d < cur.d) byTarget[key] = { d:d, name:name, ids:[m.id] };
+          });
+        });
+      });
+      Object.keys(byTarget).forEach(function(k){
+        var t = byTarget[k];
+        if (t.d < WALKWAY_MM) push("Aðeins " + Math.round(t.d) + " mm gangur á milli " + isl.label + " og " + t.name + " — mælt er með " + WALKWAY_MM + " mm eða meira.", t.ids);
+      });
+    });
   }
 
   var ROOM_DEPTH_M = 2.4; // assumed walkway/room depth beyond each wall, for floor sizing + camera framing only
@@ -696,15 +800,18 @@
   //     a plain click there still deselects.
   var CABINET_DRAG_PX = 6;
 
-  function nearestWallDrop(geoms, walls, worldX, worldZ){
+  function nearestWallDrop(geoms, walls, worldX, worldZ, wallsOnly){
     var best = null, bestDist = Infinity, bestAlongM = 0;
     geoms.forEach(function(g, i){
+      if (wallsOnly && walls[i].island) return; // windows/doors only go on real walls
       var x1 = g.origin.x, z1 = g.origin.z;
       var dx = g.axis.x * g.lenM, dz = g.axis.z * g.lenM;
       var lenSq = dx * dx + dz * dz;
       var t = lenSq > 0 ? ((worldX - x1) * dx + (worldZ - z1) * dz) / lenSq : 0;
       t = Math.max(0, Math.min(1, t));
       var d = Math.hypot(worldX - (x1 + t * dx), worldZ - (z1 + t * dz));
+      // back-to-back island rows share one seam: pick the row whose front the cursor is on
+      if (walls[i].island && walls[i].island.two && (worldX - x1) * g.normal.x + (worldZ - z1) * g.normal.z < 0) d += 5;
       if (d < bestDist){ bestDist = d; best = i; bestAlongM = t * g.lenM; }
     });
     return best === null ? null : { wallId:walls[best].id, alongMm:Math.round(bestAlongM * 1000) };
@@ -737,11 +844,16 @@
       var y = drag && drag.mesh ? drag.mesh.position.y : 0;
       var plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -y);
       if (!raycaster.ray.intersectPlane(plane, pt)) return null;
-      var drop = nearestWallDrop(geoms, walls, pt.x, pt.z);
+      var drop = nearestWallDrop(geoms, walls, pt.x, pt.z, drag && drag.meta && !!drag.meta.kind);
       // Keep the spot the cabinet was grabbed at under the cursor: alongMm is
       // the cabinet CENTRE, so shift it by the grab offset measured on press.
       if (drop && drag && drag.gripMm) drop.alongMm -= drag.gripMm;
       return drop;
+    }
+    function floorHit(evt){
+      raycaster.setFromCamera(ndc(evt), camera);
+      var pt = new THREE.Vector3();
+      return raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), pt) ? pt : null;
     }
     // Distance (mm) of a world point along a wall from that wall's origin.
     function alongOnWall(wallId, x, z){
@@ -771,6 +883,14 @@
       var mesh = pickMeshAt(evt);
       if (!mesh) return;
       evt.stopPropagation();
+      if (mesh.userData.kind === "island"){ // island move-handle: slides the island's cabinets as one
+        var iid = mesh.userData.islandId;
+        drag = { meta:mesh.userData, mesh:mesh, group:mesh.parent, island:true, startX:evt.clientX, startY:evt.clientY, moved:false,
+          pt0:floorHit(evt), dx:0, dz:0,
+          groups:pickables.filter(function(m){ return m.userData.islandId === iid; }).map(function(m){ return m.parent; }) };
+        controls.enabled = false;
+        return;
+      }
       drag = { meta:mesh.userData, mesh:mesh, group:mesh.parent, startX:evt.clientX, startY:evt.clientY, moved:false, gripMm:gripOffsetMm(evt, mesh) };
       controls.enabled = false;
     }
@@ -791,6 +911,13 @@
       if (!drag.moved){
         if (Math.hypot(evt.clientX - drag.startX, evt.clientY - drag.startY) < CABINET_DRAG_PX) return;
         drag.moved = true;
+      }
+      if (drag.island){
+        var pt = floorHit(evt);
+        if (!pt || !drag.pt0) return;
+        drag.dx = pt.x - drag.pt0.x; drag.dz = pt.z - drag.pt0.z;
+        drag.groups.forEach(function(g){ g.matrixAutoUpdate = false; g.matrix.makeTranslation(drag.dx, 0, drag.dz); g.matrixWorldNeedsUpdate = true; });
+        return;
       }
       var drop = dropAt(evt);
       followCursor(drop);
@@ -837,6 +964,20 @@
     }
     function onUp(evt){
       if (!drag) return;
+      if (drag.island){
+        var d0 = drag;
+        drag = null; haveTarget = false;
+        controls.enabled = true;
+        renderer.domElement.style.cursor = "";
+        if (d0.moved){
+          d0.groups.forEach(function(g){ g.matrix.identity(); g.matrixWorldNeedsUpdate = true; });
+          suppressClick = true;
+          if (opts.onIslandDragEnd) opts.onIslandDragEnd(d0.meta.islandId, Math.round(d0.dx * 1000), Math.round(d0.dz * 1000));
+        } else if (opts.onSelect){
+          opts.onSelect(d0.meta);
+        }
+        return;
+      }
       var meta = drag.meta, moved = drag.moved;
       // must be computed while `drag` is still set: dropAt uses its mid-height plane and grip offset
       var finalDrop = moved ? dropAt(evt) : null;
@@ -929,7 +1070,7 @@
   // planeYm (optional) = height of the horizontal plane the pointer ray is cast
   // onto — pass the dragged item's mid-height so the point matches what the
   // cursor visually covers (default: the floor).
-  function dropPointFromClient(clientX, clientY, planeYm){
+  function dropPointFromClient(clientX, clientY, planeYm, wallsOnly){
     if (!THREE_STATE) return null;
     var rect = THREE_STATE.renderer.domElement.getBoundingClientRect();
     if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) return null;
@@ -938,7 +1079,18 @@
     rc.setFromCamera(new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1), THREE_STATE.camera);
     var pt = new THREE.Vector3();
     if (!rc.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -(planeYm || 0)), pt)) return null;
-    return nearestWallDrop(THREE_STATE.geoms, THREE_STATE.walls, pt.x, pt.z);
+    return nearestWallDrop(THREE_STATE.geoms, THREE_STATE.walls, pt.x, pt.z, wallsOnly);
+  }
+
+  // Screen point → {xMm, zMm} on the floor (for dropping a new island from the catalog).
+  function floorPointFromClient(clientX, clientY){
+    if (!THREE_STATE) return null;
+    var rect = THREE_STATE.renderer.domElement.getBoundingClientRect();
+    if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) return null;
+    var THREE = window.__THREE__, rc = new THREE.Raycaster(), pt = new THREE.Vector3();
+    rc.setFromCamera(new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1), THREE_STATE.camera);
+    if (!rc.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), pt)) return null;
+    return { xMm:Math.round(pt.x * 1000), zMm:Math.round(pt.z * 1000) };
   }
 
   // Selection without a rebuild: swap the highlight on the affected meshes in
@@ -1052,6 +1204,7 @@
     var OrbitControls = window.__OrbitControls__;
 
     var geoms = wallGeometry3D(state.walls);
+    var surfaces = surfacesOf(state), allGeoms = geoms.concat(islandGeoms(state)); // walls + island rows
     var carcass = state.carcass ? CARCASS[state.carcass] : null;
     var carcassMat = new THREE.MeshStandardMaterial({ color: carcass ? carcass.color3d : "#3a3a3a", roughness:0.9 });
     var wallColor = state.wallColor && WALL_COLORS[state.wallColor] ? WALL_COLORS[state.wallColor].hex : "#f1efe8";
@@ -1143,17 +1296,18 @@
       ? makeFrontMaterial(THREE, state.look, look)
       : new THREE.MeshStandardMaterial({ color: look ? look.color3d : 0xb7b2a4, roughness:0.7 });
 
-    state.walls.forEach(function(wall, wi){
-      var g = geoms[wi];
+    surfaces.forEach(function(wall, wi){
+      var g = allGeoms[wi];
       if (!g) return;
-      var fStarts = blockStartsMm(wall.floor, cornerClearanceMm(state.walls, wi, "floor")), wStarts = blockStartsMm(wall.wall, 0);
+      var fStarts = blockStartsMm(wall.floor, cornerClearanceMm(surfaces, wi, "floor")), wStarts = blockStartsMm(wall.wall, 0);
+      var islandId = wall.island ? wall.island.id : undefined;
       wall.floor.forEach(function(b, bi){
         var offset = fStarts[bi];
         var c = CATALOG[b.type];
         var hM = Math.min(b.heightMm || c.h, roomHeightMm) / 1000, dM = (b.depthMm || c.d) / 1000;
         var selected = opts.selectedId === b.id;
         addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, carcassMat, c.fridge ? steelMat : frontMat, b.interior,
-          { warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), handle:state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0.55,
+          { islandId:islandId, warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), handle:state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0.55,
             plinth:true, counter:!!c.counter, sink:!!c.sink, oven:!!c.oven, plinthMat:plinthMat, stoneMat:stoneMat }, selected, pickables);
       });
       wall.wall.forEach(function(b, bi){
@@ -1166,6 +1320,23 @@
             open:!!c.open, openMat:openMat, hiddenMat:hiddenMat, shelves:c.open ? shelvesOf(b) : 0 }, selected, pickables);
       });
     });
+
+    // Move-handles for islands: a flat puck on the floor just past each
+    // island's start. Drag it to slide the whole island; tap it to select.
+    if (opts.onSelect){
+      (state.islands || []).forEach(function(isl){
+        var hp = islandHandlePos(isl), sel = opts.selectedId === isl.id;
+        var grp = new THREE.Group();
+        var disc = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.03, 32), new THREE.MeshStandardMaterial({ color:sel ? 0x3d61c1 : 0xf5c518, roughness:0.5 }));
+        disc.position.set(hp.x, 0.02, hp.z);
+        disc.userData = { islandId:isl.id, kind:"island", zone:"island", blockId:isl.id, wallId:isl.id + "a", widthMm:340, depthMm:340, selected:sel };
+        var ring = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.012, 8, 32), new THREE.MeshBasicMaterial({ color:0x2a2a2a }));
+        ring.rotation.x = Math.PI / 2; ring.position.set(hp.x, 0.037, hp.z);
+        grp.add(disc); grp.add(ring);
+        scene.add(grp);
+        pickables.push(disc);
+      });
+    }
 
     // Soft daylight: sky/ground hemisphere fill + a warm key light with soft
     // shadows fitted to the room + a faint cool fill from the other side.
@@ -1242,9 +1413,9 @@
     }
     controls.update();
 
-    var cleanupInteraction = setupCabinetInteraction(THREE, wrap, renderer, camera, controls, pickables, geoms, state.walls, opts);
+    var cleanupInteraction = setupCabinetInteraction(THREE, wrap, renderer, camera, controls, pickables, allGeoms, surfaces, opts);
     THREE_STATE = { renderer:renderer, camera:camera, controls:controls, scene:scene, rafId:0, onResize:resize, cleanupInteraction:cleanupInteraction,
-                    walls:state.walls, geoms:geoms, previewMesh:null, dragging:false, opts:opts, pickables:pickables };
+                    walls:surfaces, geoms:allGeoms, previewMesh:null, dragging:false, opts:opts, pickables:pickables };
 
     function resize(){
       var w = wrap.clientWidth, h = wrap.clientHeight;
@@ -1263,7 +1434,7 @@
       var el = opts.floatEl;
       if (!el) return;
       var mesh = opts.selectedId && !THREE_STATE.dragging ? pickables.find(function(m){ return m.userData.blockId === opts.selectedId; }) : null;
-      if (!mesh){ el.hidden = true; return; }
+      if (!mesh || mesh.userData.kind === "island"){ el.hidden = true; return; }
       floatBox.setFromObject(mesh);
       floatV.set((floatBox.min.x + floatBox.max.x) / 2, floatBox.max.y, (floatBox.min.z + floatBox.max.z) / 2).project(camera);
       if (floatV.z > 1){ el.hidden = true; return; }
@@ -1330,7 +1501,8 @@
     if (!geoms.length) return null;
     var b = interiorBounds(geoms);
     var margin = 0.4;
-    return { minX: b.minX - margin, minZ: b.minZ - margin, pxPerM: PX_PER_M, geoms: geoms };
+    // geoms/surfaces include free-standing island rows after the real walls
+    return { minX: b.minX - margin, minZ: b.minZ - margin, pxPerM: PX_PER_M, geoms: geoms.concat(islandGeoms(state)), surfaces: surfacesOf(state) };
   }
 
   // Phase 8: shared corner math for a rectangle sitting on a wall (offset
@@ -1354,6 +1526,7 @@
     opts = opts || {};
     var geoms = wallGeometry3D(state.walls);
     if (!geoms.length){ container.innerHTML = ""; return; }
+    var surfaces = surfacesOf(state), allGeoms = geoms.concat(islandGeoms(state));
 
     var b = interiorBounds(geoms);
     var margin = 0.4;
@@ -1451,12 +1624,19 @@
       }
     }
 
-    state.walls.forEach(function(wall, wi){
-      var g = geoms[wi];
+    surfaces.forEach(function(wall, wi){
+      var g = allGeoms[wi];
       if (!g) return;
-      var fStarts = blockStartsMm(wall.floor, cornerClearanceMm(state.walls, wi, "floor")), wStarts = blockStartsMm(wall.wall, 0);
+      var fStarts = blockStartsMm(wall.floor, cornerClearanceMm(surfaces, wi, "floor")), wStarts = blockStartsMm(wall.wall, 0);
       wall.floor.forEach(function(bl, bi){ drawCabinetRect(bl, CATALOG[bl.type], g, wall.id, "floor", fStarts[bi], false); });
       wall.wall.forEach(function(bl, bi){ drawCabinetRect(bl, CATALOG[bl.type], g, wall.id, "wall", wStarts[bi], true); });
+    });
+
+    // island move-handles (drag = slide the island, tap = select it)
+    (opts.onSelect ? (state.islands || []) : []).forEach(function(isl){
+      var hp = islandHandlePos(isl), sel = opts.selectedId === isl.id;
+      svg += '<circle data-island-id="' + isl.id + '" cx="' + X(hp.x) + '" cy="' + Y(hp.z) + '" r="12" fill="' + (sel ? "#3d61c1" : "#f5c518") + '" stroke="#2a2a2a" stroke-width="1.6" style="cursor:grab;"/>' +
+        '<text x="' + X(hp.x) + '" y="' + Y(hp.z) + '" font-size="13" text-anchor="middle" dominant-baseline="central" fill="' + (sel ? "#fff" : "#2a2a2a") + '" style="pointer-events:none;">✥</text>';
     });
 
     svg += "</svg>";
@@ -1504,6 +1684,12 @@
     buildPlan2D: buildPlan2D,
     updateDragPreview3D: updateDragPreview3D,
     dropPointFromClient: dropPointFromClient,
+    floorPointFromClient: floorPointFromClient,
+    surfacesOf: surfacesOf,
+    surfaceGeoms: surfaceGeoms,
+    islandHandlePos: islandHandlePos,
+    roomBounds: roomBounds,
+    nearestWallDrop: nearestWallDrop,
     setSelected3D: setSelected3D,
     debugInfo: function(){ return sharedRenderer ? { memory:sharedRenderer.info.memory, programs:(sharedRenderer.info.programs || []).length } : null; },
     fitWarnings: fitWarnings,

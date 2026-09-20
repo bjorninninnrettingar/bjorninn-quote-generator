@@ -630,9 +630,11 @@
     wallColor: null,
     windows: [], // {id, wallId, offsetMm, widthMm, heightMm, sillHeightMm}
     doors: [],   // {id, wallId, offsetMm, widthMm, heightMm}
+    islands: [], // {id, label, lengthMm, xMm, zMm, rot, two, a:[blocks], b:[blocks]} — free-standing cabinet runs
     walls: freshWalls() // {id,label,lengthMm,turnAfter, floor:[block], wall:[block]}
   };
   var openingSeq = 1;
+  var islandSeq = 1;
 
   // A cabinet can never render/write taller than the room itself (Phase 7c) —
   // matters for Hárskápur, whose real range tops out at 2600mm.
@@ -717,6 +719,11 @@
       if (state.wallColor === undefined) state.wallColor = null;
       if (!state.windows) state.windows = [];
       if (!state.doors) state.doors = [];
+      if (!state.islands) state.islands = [];
+      state.islands.forEach(function(isl){
+        isl.a = (isl.a || []).filter(function(b){ return CATALOG[b.type]; });
+        isl.b = isl.two ? (isl.b || []).filter(function(b){ return CATALOG[b.type]; }) : undefined;
+      });
       // A draft can only contain types this build knows (corrupt/very old
       // data would otherwise crash every render on CATALOG[b.type].label).
       state.walls.forEach(function(w){
@@ -736,6 +743,14 @@
         w.floor.concat(w.wall).forEach(function(b){
           var n = parseInt(String(b.id).replace("b",""), 10);
           if (!isNaN(n) && n >= blockSeq) blockSeq = n + 1;
+        });
+      });
+      state.islands.forEach(function(isl){
+        var n = parseInt(String(isl.id).replace("I", ""), 10);
+        if (!isNaN(n) && n >= islandSeq) islandSeq = n + 1;
+        (isl.a || []).concat(isl.b || []).forEach(function(b){
+          var m = parseInt(String(b.id).replace("b", ""), 10);
+          if (!isNaN(m) && m >= blockSeq) blockSeq = m + 1;
         });
       });
       state.windows.concat(state.doors).forEach(function(o){
@@ -857,7 +872,7 @@
   };
   function applyShapePreset(key){
     var lens = SHAPE_PRESETS[key];
-    var hasStuff = state.walls.some(function(w){ return w.floor.length || w.wall.length; }) || state.windows.length || state.doors.length;
+    var hasStuff = state.walls.some(function(w){ return w.floor.length || w.wall.length; }) || state.windows.length || state.doors.length || state.islands.length;
     if (hasStuff && !confirm("Þetta breytir lögun rýmisins og fjarlægir skápa, glugga og hurðir sem þú ert búin(n) að setja inn. Halda áfram?")) return;
     wallSeq = 1;
     state.walls = lens.map(function(len, i){
@@ -865,6 +880,7 @@
     });
     state.windows = [];
     state.doors = [];
+    state.islands = [];
     save();
     renderShapeStep();
   }
@@ -944,6 +960,7 @@
 
   // ---------- walls step ----------
   function cornerClearance(wall, zoneKey){
+    if (wall.island) return 0; // free-standing rows have no corner
     return KP3D.cornerClearanceMm(state.walls, state.walls.indexOf(wall), zoneKey);
   }
 
@@ -976,6 +993,7 @@
   // `centerAlongMm`: the nearest free stretch that fits it, flush to the
   // stretch's ends when close. {offsetMm, index (slot in the list), fits}.
   function placeInWall(wall, zone, widthMm, centerAlongMm, excludeId){
+    if (wall.island && zone !== "floor") return { offsetMm:0, index:0, fits:false }; // wall units only go on real walls
     var want = Math.round((centerAlongMm - widthMm / 2) / 10) * 10;
     var best = null;
     freeIntervals(wall, zone, excludeId).forEach(function(iv){
@@ -1176,6 +1194,10 @@
     gluggi: { label:"Gluggi", cls:"window" },
     hurd:   { label:"Hurð", cls:"door" }
   };
+  var ISLAND_TYPES = {
+    island1: { label:"Eyja — ein röð", dim:"1800 × 600 mm", two:false },
+    island2: { label:"Eyja — tvær raðir", dim:"1800 × 1200 mm", two:true }
+  };
   var dragState = null; // {kind, type, ghostEl}
 
   function ghostPosition(el, x, y){
@@ -1185,7 +1207,7 @@
 
   function startCatalogDrag(kind, type, cardEl, evt){
     evt.preventDefault();
-    var label = kind === "opening" ? OPENING_TYPES[type].label : CATALOG[type].label;
+    var label = kind === "opening" ? OPENING_TYPES[type].label : kind === "island" ? ISLAND_TYPES[type].label : CATALOG[type].label;
     var ghost = document.createElement("div");
     ghost.className = "drag-ghost";
     ghost.textContent = label;
@@ -1220,7 +1242,7 @@
     var el = ensureDragPreviewEl();
     var t = KP3D.planTransform(state);
     if (!el || !t) return;
-    var wi = state.walls.findIndex(function(w){ return w.id === wallId; });
+    var wi = t.surfaces.findIndex(function(w){ return w.id === wallId; });
     var g = t.geoms[wi];
     if (!g){ el.style.display = "none"; return; }
     var corners = KP3D.rectCornersWorld(g, offsetMm, widthMm, depthMm);
@@ -1261,11 +1283,12 @@
   // same {wallId, alongMm} so everything downstream is shared.
   // planeYm: mid-height (m) of what's being dragged, so the 3D ray is cast where
   // the cursor visually is on the item rather than through it onto the floor.
-  function dropPointAt(clientX, clientY, planeYm){
-    return viewMode === "3d" ? KP3D.dropPointFromClient(clientX, clientY, planeYm) : findDropPoint(clientX, clientY);
+  function dropPointAt(clientX, clientY, planeYm, wallsOnly){
+    return viewMode === "3d" ? KP3D.dropPointFromClient(clientX, clientY, planeYm, wallsOnly) : findDropPoint(clientX, clientY, wallsOnly);
   }
   function catalogPlaneY(kind, type){
     if (kind === "opening") return 1.0;
+    if (kind === "island") return 0;
     var c = CATALOG[type];
     var h = Math.min(c.h, state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM);
     return ((c.zone === "wall" ? WALL_UNIT_BASE_MM : 0) + h / 2) / 1000;
@@ -1291,10 +1314,11 @@
       if (Math.hypot(evt.clientX - dragState.startX, evt.clientY - dragState.startY) < 6) return;
       dragState.moved = true;
     }
-    var drop = dropPointAt(evt.clientX, evt.clientY, catalogPlaneY(dragState.kind, dragState.type));
+    if (dragState.kind === "island"){ hideDropPreview(); return; } // islands land at the release point
+    var drop = dropPointAt(evt.clientX, evt.clientY, catalogPlaneY(dragState.kind, dragState.type), dragState.kind === "opening");
     highlightDropWall(drop ? drop.wallId : null);
     if (!drop){ hideDropPreview(); return; }
-    var wall = state.walls.find(function(w){ return w.id === drop.wallId; });
+    var wall = dragState.kind === "opening" ? state.walls.find(function(w){ return w.id === drop.wallId; }) : surfaceById(drop.wallId);
     if (!wall){ hideDropPreview(); return; }
     if (dragState.kind === "opening"){
       var isWindow = dragState.type === "gluggi";
@@ -1323,7 +1347,12 @@
   // (alongMm = projected distance from that wall's own origin, for
   // position-aware placement — Phase 7d-4), or null if the point isn't over
   // the plan SVG at all.
-  function findDropPoint(clientX, clientY){
+  function findDropPoint(clientX, clientY, wallsOnly){
+    var w = planWorldAt(clientX, clientY);
+    return w ? KP3D.nearestWallDrop(w.t.geoms, w.t.surfaces, w.x, w.z, wallsOnly) : null;
+  }
+  // screen point over the 2D plan -> world metres (+ the plan's transform); null outside the plan
+  function planWorldAt(clientX, clientY){
     var svg = document.querySelector("#planWrap svg");
     if (!svg) return null;
     var rect = svg.getBoundingClientRect();
@@ -1345,20 +1374,13 @@
     var py = (clientY - offsetY) / scale + vb.y;
     var t = KP3D.planTransform(state);
     if (!t) return null;
-    var worldX = px / t.pxPerM + t.minX;
-    var worldZ = py / t.pxPerM + t.minZ;
-    var best = null, bestDist = Infinity, bestAlongM = 0;
-    t.geoms.forEach(function(g, i){
-      var x1 = g.origin.x, z1 = g.origin.z;
-      var dx = g.axis.x * g.lenM, dz = g.axis.z * g.lenM;
-      var lenSq = dx * dx + dz * dz;
-      var tt = lenSq > 0 ? ((worldX - x1) * dx + (worldZ - z1) * dz) / lenSq : 0;
-      tt = Math.max(0, Math.min(1, tt));
-      var cx = x1 + tt * dx, cz = z1 + tt * dz;
-      var d = Math.hypot(worldX - cx, worldZ - cz);
-      if (d < bestDist){ bestDist = d; best = i; bestAlongM = tt * g.lenM; }
-    });
-    return best === null ? null : { wallId: state.walls[best].id, alongMm: Math.round(bestAlongM * 1000) };
+    return { x:px / t.pxPerM + t.minX, z:py / t.pxPerM + t.minZ, t:t };
+  }
+  // screen point -> {xMm, zMm} on the room floor (3D raycast or 2D plan); null if not over the stage
+  function floorPointAt(clientX, clientY){
+    if (viewMode === "3d") return KP3D.floorPointFromClient(clientX, clientY);
+    var w = planWorldAt(clientX, clientY);
+    return w ? { xMm:Math.round(w.x * 1000), zMm:Math.round(w.z * 1000) } : null;
   }
 
   function clearDropHighlight(){
@@ -1369,7 +1391,8 @@
     window.removeEventListener("pointermove", onCatalogDragMove);
     if (!dragState) return;
     var moved = dragState.moved;
-    var drop = moved ? dropPointAt(evt.clientX, evt.clientY, catalogPlaneY(dragState.kind, dragState.type)) : null;
+    var islandAt = moved && dragState.kind === "island" ? floorPointAt(evt.clientX, evt.clientY) : null;
+    var drop = moved && dragState.kind !== "island" ? dropPointAt(evt.clientX, evt.clientY, catalogPlaneY(dragState.kind, dragState.type), dragState.kind === "opening") : null;
     dragState.ghostEl.remove();
     dragState.cardEl.classList.remove("dragging");
     clearDropHighlight();
@@ -1377,12 +1400,13 @@
     KP3D.hideDragPreview3D();
     var kind = dragState.kind, type = dragState.type;
     dragState = null;
+    if (kind === "island"){ addIsland(type, islandAt); return; } // click = room centre, drag = where you let go
     if (!moved){ addFromCatalog(kind, type); return; } // a plain click adds it
     if (!drop) return;
     if (kind === "opening"){
       addOpening(type, drop.wallId, drop.alongMm);
     } else {
-      var wall = state.walls.find(function(w){ return w.id === drop.wallId; });
+      var wall = surfaceById(drop.wallId);
       if (wall) placeBlockAtDrop(wall, type, drop.alongMm);
     }
   }
@@ -1395,6 +1419,7 @@
       addOpening(type, w0.id, Math.round(w0.lengthMm / 2));
       return;
     }
+    if (kind === "island"){ addIsland(type, null); return; }
     var c = CATALOG[type];
     for (var i = 0; i < state.walls.length; i++){
       var wall = state.walls[i];
@@ -1413,7 +1438,11 @@
     function r(x, y, w, h, f, st, extra){ return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="1.2" fill="' + f + '" stroke="' + (st || line) + '" stroke-width="1.1"' + (extra || "") + '/>'; }
     function ln(x1, y1, x2, y2, col, w){ return '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + (col || line) + '" stroke-width="' + (w || 1.1) + '"/>'; }
     var g = "";
-    if (kind === "opening" && type === "gluggi"){
+    if (kind === "island"){
+      var two = ISLAND_TYPES[type].two;
+      g = r(5, two ? 10 : 15, 30, 9, "#e6e1d8") + (two ? r(5, 19, 30, 9, "#e6e1d8") : "") + ln(5, two ? 19 : 19, 35, two ? 19 : 19, "#8a8577", 1) +
+        '<circle cx="20" cy="33" r="3.2" fill="#f5c518" stroke="#2f2f33" stroke-width="1"/>';
+    } else if (kind === "opening" && type === "gluggi"){
       g = r(6, 8, 28, 24, "#dcebf5", "#5b8fae") + ln(20, 8, 20, 32, "#5b8fae") + r(4, 32, 32, 3, "#f2f0ea", "#b8b4a8");
     } else if (kind === "opening"){
       g = r(11, 4, 18, 32, "#c9a97c", "#8a6a4a") + r(14, 8, 12, 10, "#d8bd93", "#8a6a4a") + r(14, 21, 12, 12, "#d8bd93", "#8a6a4a") + ln(26, 20, 26, 24, "#55575a", 2);
@@ -1459,6 +1488,9 @@
       return '<div class="cat-title">' + group.title + '</div>' + group.types.map(cabinetItem).join("") +
         (variants.length ? '<details class="cat-more"' + (openMore[group.title] ? " open" : "") + ' data-group="' + group.title + '"><summary>Fleiri stærðir (' + variants.length + ')</summary>' + variants.map(cabinetItem).join("") + '</details>' : "");
     }).join("");
+    html += '<div class="cat-title">Eyjar</div>' + Object.keys(ISLAND_TYPES).map(function(k){
+      return item("island", k, "island", ISLAND_TYPES[k].label, ISLAND_TYPES[k].dim, true);
+    }).join("");
     html += '<div class="cat-title">Gluggar og hurðir</div>' +
       item("opening", "gluggi", "window", "Gluggi", WINDOW_DEFAULT.heightMm + ' × ' + WINDOW_DEFAULT.widthMm + ' mm', true) +
       item("opening", "hurd", "door", "Hurð", DOOR_DEFAULT.heightMm + ' × ' + DOOR_DEFAULT.widthMm + ' mm', true);
@@ -1490,6 +1522,108 @@
     var b = newBlock(type);
     insertBlockAt(wall, zone, b, packed.offsetMm);
     landedBlockId = b.id;
+    save();
+    refreshAfterEdit();
+  }
+
+  // ---------- islands: free-standing runs of cabinets (1 or 2 rows back to back) ----------
+  function findIsland(id){ return (state.islands || []).find(function(i){ return i.id === id; }) || null; }
+  function islandRowList(isl){ return isl.two ? [isl.a, isl.b] : [isl.a]; }
+  function fillIslandRow(row, lengthMm){
+    for (var n = Math.floor(lengthMm / 600); n > 0; n--) row.push(newBlock("grunnskapur"));
+  }
+  // keep every island's centre inside the room (walls can change after the island was placed)
+  function clampIslands(){
+    var b = KP3D.roomBounds(state), changed = false;
+    if (!b) return false;
+    (state.islands || []).forEach(function(isl){
+      var x = Math.round(Math.max(b.minX * 1000 + 300, Math.min(b.maxX * 1000 - 300, isl.xMm)) / 10) * 10;
+      var z = Math.round(Math.max(b.minZ * 1000 + 300, Math.min(b.maxZ * 1000 - 300, isl.zMm)) / 10) * 10;
+      if (x !== isl.xMm || z !== isl.zMm){ isl.xMm = x; isl.zMm = z; changed = true; }
+    });
+    return changed;
+  }
+  // Default spot: centred on the first wall, a 1 m walkway out from its base
+  // cabinets. A single row faces the wall (rot 180); a double row's B side does.
+  function addIsland(type, at){
+    var two = ISLAND_TYPES[type].two, w0 = state.walls[0];
+    var len = Math.max(600, Math.min(1800, Math.floor(w0.lengthMm / 100) * 100));
+    var isl = { id:"I" + (islandSeq++), label:"Eyja " + (state.islands.length + 1), lengthMm:len,
+      xMm:at ? at.xMm : Math.round(w0.lengthMm / 2), zMm:at ? at.zMm : 2200, rot:two ? 0 : 180, two:two, a:[] };
+    fillIslandRow(isl.a, len);
+    if (two){ isl.b = []; fillIslandRow(isl.b, len); }
+    state.islands.push(isl);
+    clampIslands();
+    selectedBlockId = isl.id;
+    save();
+    refreshAfterEdit();
+  }
+  function moveIsland(isl, dxMm, dzMm){
+    isl.xMm += dxMm; isl.zMm += dzMm;
+    clampIslands();
+    save();
+    refreshAfterEdit();
+  }
+  function setIslandLength(isl, lenMm){
+    var used = Math.max.apply(null, islandRowList(isl).map(usedMm));
+    var next = Math.max(600, Math.min(5000, lenMm));
+    if (next < used){ toast("Skáparnir taka " + used + " mm — fjarlægðu skáp til að stytta eyjuna."); return; }
+    if (next === isl.lengthMm) return;
+    isl.lengthMm = next;
+    save();
+    refreshAfterEdit();
+  }
+  function setIslandRows(isl, two){
+    if (!!isl.two === two) return;
+    if (!two && isl.b && isl.b.length && !confirm("Þetta fjarlægir skápana í röð B. Halda áfram?")) return;
+    isl.two = two;
+    if (two){ isl.b = []; fillIslandRow(isl.b, isl.lengthMm); } else delete isl.b;
+    save();
+    refreshAfterEdit();
+  }
+  function removeIsland(isl){
+    state.islands = state.islands.filter(function(i){ return i.id !== isl.id; });
+    selectedBlockId = null;
+    save();
+    refreshAfterEdit();
+  }
+  // 3D: the yellow puck was dragged — dx/dz in mm
+  function onIslandDragEnd(id, dxMm, dzMm){
+    var isl = findIsland(id);
+    if (!isl) return;
+    moveIsland(isl, dxMm, dzMm);
+  }
+  // 2D: drag the puck; the plan is redrawn live, committed on release
+  var islandDragState = null;
+  function startIslandDrag(id, evt){
+    evt.preventDefault();
+    evt.stopPropagation();
+    var isl = findIsland(id), w = planWorldAt(evt.clientX, evt.clientY);
+    if (!isl || !w) return;
+    islandDragState = { id:id, x0:isl.xMm, z0:isl.zMm, px:w.x, pz:w.z, startX:evt.clientX, startY:evt.clientY, moved:false };
+    window.addEventListener("pointermove", onIslandDragMove);
+    window.addEventListener("pointerup", onIslandDragUp, { once:true });
+  }
+  function onIslandDragMove(evt){
+    var d = islandDragState, isl = d && findIsland(d.id);
+    if (!isl) return;
+    if (!d.moved){
+      if (Math.hypot(evt.clientX - d.startX, evt.clientY - d.startY) < 6) return;
+      d.moved = true;
+    }
+    var w = planWorldAt(evt.clientX, evt.clientY);
+    if (!w) return;
+    isl.xMm = d.x0 + Math.round((w.x - d.px) * 1000 / 10) * 10;
+    isl.zMm = d.z0 + Math.round((w.z - d.pz) * 1000 / 10) * 10;
+    clampIslands();
+    renderView();
+  }
+  function onIslandDragUp(){
+    window.removeEventListener("pointermove", onIslandDragMove);
+    var d = islandDragState;
+    islandDragState = null;
+    if (!d) return;
+    if (!d.moved){ onCabinetSelect({ blockId:d.id }); return; }
     save();
     refreshAfterEdit();
   }
@@ -1545,7 +1679,7 @@
   function moveBlockToPosition(blockId, wallId, alongMm){
     var found = findBlock(blockId);
     if (!found) return;
-    var targetWall = state.walls.find(function(w){ return w.id === wallId; });
+    var targetWall = surfaceById(wallId);
     if (!targetWall) return;
     var zone = found.zone;
     var pl = placeInWall(targetWall, zone, found.block.widthMm, alongMm, blockId);
@@ -1594,7 +1728,7 @@
     highlightDropWall(drop ? drop.wallId : null);
     if (!drop){ hideDragPreview(); return; }
     drop.alongMm -= blockDragState.gripMm;
-    var wall = state.walls.find(function(w){ return w.id === drop.wallId; });
+    var wall = surfaceById(drop.wallId);
     var found = findBlock(blockDragState.blockId);
     if (!wall || !found){ hideDragPreview(); return; }
     var c = CATALOG[found.block.type];
@@ -1669,6 +1803,9 @@
   function wireBlockDragHandlers(){
     document.querySelectorAll("#planWrap [data-window-id], #planWrap [data-door-id]").forEach(function(el){
       el.addEventListener("pointerdown", function(evt){ startOpeningDrag(el.dataset.windowId || el.dataset.doorId, evt); });
+    });
+    document.querySelectorAll("#planWrap [data-island-id]").forEach(function(el){
+      el.addEventListener("pointerdown", function(evt){ startIslandDrag(el.dataset.islandId, evt); });
     });
     document.querySelectorAll("#planWrap [data-block-id]").forEach(function(poly){
       poly.addEventListener("pointerdown", function(evt){ startBlockDrag(poly.dataset.blockId, evt); });
@@ -1776,9 +1913,12 @@
   var viewMode = "3d"; // "3d" | "2d", not persisted — always opens on 3D
   var selectedBlockId = null; // not part of state — never persisted/submitted
 
+  function surfaces(){ return KP3D.surfacesOf(state); } // real walls + island rows
+  function surfaceById(id){ return surfaces().find(function(w){ return w.id === id; }) || null; }
   function findBlock(id){
-    for (var i = 0; i < state.walls.length; i++){
-      var wall = state.walls[i];
+    var all = surfaces();
+    for (var i = 0; i < all.length; i++){
+      var wall = all[i];
       var zones = ["floor", "wall"];
       for (var j = 0; j < zones.length; j++){
         var zone = zones[j];
@@ -1816,6 +1956,7 @@
   var landedBlockId = null; // cabinet that just landed → a short settle bounce in 3D
   function refreshAfterEdit(){
     if (state.step !== "editor") return;
+    if (clampIslands()) save();
     warnings = computeWarnings();
     renderCatalogPanel();
     renderView();
@@ -1839,7 +1980,7 @@
     var chip = document.getElementById("warnChip");
     chip.hidden = !warnings.length;
     chip.textContent = "⚠ " + warnings.length + " " + plural(warnings.length, "ábending", "ábendingar");
-    var total = state.walls.reduce(function(sum, w){ return sum + w.floor.length + w.wall.length; }, 0);
+    var total = surfaces().reduce(function(sum, w){ return sum + w.floor.length + w.wall.length; }, 0);
     document.getElementById("toContactBtn").disabled = total === 0;
     document.getElementById("stageEmpty").hidden = total !== 0;
   }
@@ -1848,7 +1989,7 @@
   // (onBlockDragMove/onBlockDragEnd): same packing preview, same commit via
   // moveBlockToPosition, just fed by a raycast instead of an SVG hit-test.
   function on3DDragMove(meta, drop){
-    var wall = drop && state.walls.find(function(w){ return w.id === drop.wallId; });
+    var wall = drop && (meta.kind ? state.walls.find(function(w){ return w.id === drop.wallId; }) : surfaceById(drop.wallId));
     if (meta.kind){
       var op = findOpening(meta.blockId);
       if (!wall || !op){ KP3D.hideDragPreview3D(); return; }
@@ -1949,7 +2090,7 @@
         return;
       }
       wrap.innerHTML = "";
-      KP3D.buildScene(wrap, state, { selectedId:selectedBlockId, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList() });
+      KP3D.buildScene(wrap, state, { selectedId:selectedBlockId, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, onIslandDragEnd:onIslandDragEnd, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList() });
       landedBlockId = null;
     }, 8000);
   }
@@ -1992,6 +2133,17 @@
       });
       html += '</div>';
     });
+    (state.islands || []).forEach(function(isl){
+      html += '<div class="ov-wall"><div class="ov-wall-h">' + isl.label + ' · ' + isl.lengthMm + ' mm · ' + (isl.two ? "tvær raðir" : "ein röð") + '</div>' +
+        '<button type="button" class="ov-item" data-select="' + isl.id + '"><span style="color:var(--ink);font-weight:600;">Velja eyju (færa · snúa · lengd)</span><span></span></button>';
+      islandRowList(isl).forEach(function(row){
+        row.forEach(function(b){
+          var c = CATALOG[b.type];
+          html += '<button type="button" class="ov-item" data-select="' + b.id + '"><span style="color:var(--ink);font-weight:600;">' + c.label + '</span><span>' + b.widthMm + '×' + blockHeightMm(b, c) + '×' + (b.depthMm || c.d) + '</span></button>';
+        });
+      });
+      html += '</div>';
+    });
     var openings = state.windows.map(function(o){ return { kind:"window", o:o, label:"Gluggi" }; })
       .concat(state.doors.map(function(o){ return { kind:"door", o:o, label:"Hurð" }; }));
     if (openings.length){
@@ -2016,6 +2168,50 @@
       '<p class="ov-mat" style="margin-top:10px;">Opnun: <strong>' + (state.handle ? HANDLES[state.handle].label : "—") + '</strong> · Skúffukerfi: <strong>' + (state.drawerSystem ? DRAWER_SYSTEMS[state.drawerSystem].label : "—") + '</strong></p>' +
       '<div class="ov-links"><button type="button" class="btn btn-secondary btn-small" data-goto="materials">Breyta öðru efni</button></div></div>';
     return html;
+  }
+
+  // Island properties: length, one/two rows, where it stands, rotation, add cabinets.
+  function renderIslandPanel(host, isl){
+    function stepRow(label, key, val){
+      return '<div class="edit-field"><label>' + label + '</label><div class="hw-count">' +
+        '<button class="iconbtn" data-isl="' + key + '" data-dir="-1">−</button><b style="min-width:70px;">' + val + ' mm</b>' +
+        '<button class="iconbtn" data-isl="' + key + '" data-dir="1">+</button></div></div>';
+    }
+    host.innerHTML =
+      '<div class="edit-panel">' +
+        '<div class="edit-panel-head"><div><h4>' + isl.label + '</h4><div class="sub">' + (isl.two ? "Tvær raðir bak í bak" : "Ein röð") + ' · frístandandi</div></div>' +
+          '<button class="iconbtn" data-role="close" title="Loka">✕</button></div>' +
+        stepRow("Lengd", "len", isl.lengthMm) +
+        '<div class="edit-field"><label>Raðir</label><div class="hw-toggle">' +
+          '<button type="button" class="hw-btn' + (!isl.two ? ' active' : '') + '" data-rows="1">Ein röð</button>' +
+          '<button type="button" class="hw-btn' + (isl.two ? ' active' : '') + '" data-rows="2">Tvær raðir</button></div></div>' +
+        '<div class="edit-field"><label>Staðsetning — dragðu gula punktinn á gólfinu, eða notaðu örvarnar</label><div class="hw-count">' +
+          '<button class="iconbtn" data-mv="-1,0" title="Vinstri">◀</button><button class="iconbtn" data-mv="0,-1" title="Upp">▲</button>' +
+          '<button class="iconbtn" data-mv="0,1" title="Niður">▼</button><button class="iconbtn" data-mv="1,0" title="Hægri">▶</button></div>' +
+          '<p class="ov-mat" style="margin:6px 0 0;">Örvar á lyklaborði færa líka (Shift = 10 mm)</p></div>' +
+        '<div class="edit-actions">' +
+          '<button class="iconbtn" data-role="rot">↻ Snúa 90°</button>' +
+          '<button class="iconbtn" data-role="addA">＋ Skápur' + (isl.two ? ' (röð A)' : '') + '</button>' +
+          (isl.two ? '<button class="iconbtn" data-role="addB">＋ Skápur (röð B)</button>' : '') +
+          '<button class="iconbtn del" data-role="delete">✕ Fjarlægja eyju</button>' +
+        '</div>' +
+        '<p class="ov-mat" style="margin-top:10px;">Smelltu á skáp í eyjunni til að breyta tegund, skúffum o.fl.</p>' +
+      '</div>';
+    host.querySelector('[data-role="close"]').addEventListener("click", function(){ onCabinetSelect(null); });
+    host.querySelectorAll("[data-isl]").forEach(function(btn){
+      btn.addEventListener("click", function(){ setIslandLength(isl, isl.lengthMm + 100 * parseInt(btn.dataset.dir, 10)); });
+    });
+    host.querySelectorAll("[data-rows]").forEach(function(btn){
+      btn.addEventListener("click", function(){ setIslandRows(isl, btn.dataset.rows === "2"); });
+    });
+    host.querySelectorAll("[data-mv]").forEach(function(btn){
+      btn.addEventListener("click", function(){ var d = btn.dataset.mv.split(","); moveIsland(isl, 100 * parseInt(d[0], 10), 100 * parseInt(d[1], 10)); });
+    });
+    host.querySelector('[data-role="rot"]').addEventListener("click", function(){ isl.rot = ((isl.rot || 0) + 90) % 360; save(); refreshAfterEdit(); });
+    host.querySelector('[data-role="addA"]').addEventListener("click", function(){ addBlock(surfaceById(isl.id + "a"), "grunnskapur"); });
+    var addB = host.querySelector('[data-role="addB"]');
+    if (addB) addB.addEventListener("click", function(){ addBlock(surfaceById(isl.id + "b"), "grunnskapur"); });
+    host.querySelector('[data-role="delete"]').addEventListener("click", function(){ removeIsland(isl); });
   }
 
   // Window/door properties: width (and sill height for windows) in steps,
@@ -2055,6 +2251,8 @@
     var found = selectedBlockId ? findBlock(selectedBlockId) : null;
     var opening = !found && selectedBlockId ? findOpening(selectedBlockId) : null;
     if (opening){ renderOpeningPanel(host, opening); return; }
+    var island = !found && !opening && selectedBlockId ? findIsland(selectedBlockId) : null;
+    if (island){ renderIslandPanel(host, island); return; }
     if (!found){
       selectedBlockId = null;
       host.innerHTML = overviewHTML();
@@ -2081,7 +2279,7 @@
     }
     var wall = found.wall, zone = found.zone, b = found.block, c = CATALOG[b.type];
 
-    var otherWalls = state.walls.filter(function(w){ return w.id !== wall.id; });
+    var otherWalls = surfaces().filter(function(w){ return w.id !== wall.id && !(w.island && zone !== "floor"); });
     var moveOptions = otherWalls.map(function(w){ return '<option value="' + w.id + '">' + w.label + '</option>'; }).join("");
     var typeKeys = typesForZone(zone);
     if (typeKeys.indexOf(b.type) < 0) typeKeys.unshift(b.type); // legacy type keeps its own entry
@@ -2095,7 +2293,8 @@
 
     host.innerHTML =
       '<div class="edit-panel">' +
-        '<div class="edit-panel-head"><div><h4>' + c.label + '</h4><div class="sub">' + wall.label + ' · ' + (zone === "wall" ? "efri röð" : "neðri röð") + '</div></div>' +
+        '<div class="edit-panel-head"><div><h4>' + c.label + '</h4><div class="sub">' + wall.label + (wall.island ? "" : ' · ' + (zone === "wall" ? "efri röð" : "neðri röð")) + '</div></div>' +
+          (wall.island ? '<button class="iconbtn" data-role="toIsland" title="Velja eyjuna" style="margin-right:6px;">Eyja</button>' : '') +
           '<button class="iconbtn" data-role="close" title="Loka">✕</button></div>' +
         '<div class="edit-field"><label>Tegund skáps</label><select data-role="type">' + typeOptions + '</select></div>' +
         (c.hasInterior ? '<div class="edit-field">' + hardwareHTML(b, c) + '</div>' : '') +
@@ -2121,6 +2320,8 @@
       '</div>';
 
     host.querySelector('[data-role="close"]').addEventListener("click", function(){ onCabinetSelect(null); });
+    var toIsl = host.querySelector('[data-role="toIsland"]');
+    if (toIsl) toIsl.addEventListener("click", function(){ onCabinetSelect({ blockId:wall.island.id }); });
     host.querySelector('[data-role="type"]').addEventListener("change", function(e){
       changeBlockType(wall, zone, b.id, e.target.value);
     });
@@ -2164,7 +2365,7 @@
   function moveBlockToWall(blockId, newWallId){
     var found = findBlock(blockId);
     if (!found) return;
-    var newWall = state.walls.find(function(w){ return w.id === newWallId; });
+    var newWall = surfaceById(newWallId);
     if (!newWall || newWall.id === found.wall.id) return;
     var pl = appendPlacement(newWall, found.zone, found.block.widthMm);
     if (!pl.fits){
@@ -2250,7 +2451,7 @@
   // One-line description of the plan, first line of the Tækifæri note so
   // Rakel knows what she's opening before she opens it.
   function planHeadline(){
-    var all = state.walls.reduce(function(acc, w){ return acc.concat(w.floor, w.wall); }, []);
+    var all = surfaces().reduce(function(acc, w){ return acc.concat(w.floor, w.wall); }, []);
     var shape = state.walls.length === 1 ? "beint" : state.walls.length === 2 ? "L-laga" : state.walls.length === 3 ? "U-laga" : state.walls.length + " veggja";
     var extras = [];
     function count(pred, one, many){ var n = all.filter(pred).length; if (n) extras.push(n > 1 ? n + " " + many : one); }
@@ -2261,6 +2462,7 @@
     count(function(b){ return CATALOG[b.type].open; }, "opnar hillur", "opnar hillur");
     return "Sjálfsafgreiðsla: " + shape + " eldhús, " + all.length + " " + plural(all.length, "skápur", "skápar") +
       (extras.length ? " (" + extras.join(", ") + ")" : "") +
+      (state.islands.length ? ", " + state.islands.length + " " + plural(state.islands.length, "eyja", "eyjur") : "") +
       (state.windows.length ? ", " + state.windows.length + " " + plural(state.windows.length, "gluggi", "gluggar") : "") +
       (state.doors.length ? ", " + state.doors.length + " " + plural(state.doors.length, "hurð", "hurðir") : "");
   }
@@ -2313,7 +2515,7 @@
     var rows = [];
     var handle = state.handle ? HANDLES[state.handle] : null;
     var drawerSys = state.drawerSystem ? DRAWER_SYSTEMS[state.drawerSystem] : null;
-    state.walls.forEach(function(wall){
+    surfaces().forEach(function(wall){
       wall.floor.concat(wall.wall).forEach(function(b){
         var c = CATALOG[b.type];
         var fields = {
@@ -2338,6 +2540,7 @@
           fields["Skúffutegund"] = drawerSys.airtableName;
         }
         var notes = [];
+        if (wall.island) notes.push("Skápur í eyju (" + wall.label + ") — stendur laus á gólfinu, ekki við vegg" + (wall.island.two ? "; bak í bak við aðra röð." : "."));
         if (handle && handle.vorulistiId){
           // A real physical handle — no milled grip channel on the panel.
           fields["Höldur 1"] = [handle.vorulistiId];
@@ -2453,7 +2656,7 @@
     }catch(e){}
   }
   function planSummaryText(){
-    var cab = state.walls.reduce(function(sum, w){ return sum + w.floor.length + w.wall.length; }, 0);
+    var cab = surfaces().reduce(function(sum, w){ return sum + w.floor.length + w.wall.length; }, 0);
     var parts = [cab + " " + plural(cab, "skápur", "skápar")];
     if (state.windows.length) parts.push(state.windows.length + " " + plural(state.windows.length, "gluggi", "gluggar"));
     if (state.doors.length) parts.push(state.doors.length + " " + plural(state.doors.length, "hurð", "hurðir"));
@@ -2530,6 +2733,17 @@
     if (mod && e.key.toLowerCase() === "z"){ e.preventDefault(); stepHistory(e.shiftKey ? 1 : -1); return; }
     if (mod && e.key.toLowerCase() === "y"){ e.preventDefault(); stepHistory(1); return; }
     if (!selectedBlockId) return;
+    var isl = findIsland(selectedBlockId);
+    if (isl){
+      var stepI = e.shiftKey ? 10 : 100;
+      if (e.key === "ArrowLeft") { e.preventDefault(); moveIsland(isl, -stepI, 0); }
+      else if (e.key === "ArrowRight") { e.preventDefault(); moveIsland(isl, stepI, 0); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); moveIsland(isl, 0, -stepI); }
+      else if (e.key === "ArrowDown") { e.preventDefault(); moveIsland(isl, 0, stepI); }
+      else if (e.key === "Delete" || e.key === "Backspace"){ e.preventDefault(); removeIsland(isl); }
+      else if (e.key === "Escape"){ onCabinetSelect(null); }
+      return;
+    }
     if (e.key === "ArrowLeft" || e.key === "ArrowRight"){
       var fa = findBlock(selectedBlockId);
       if (fa){ e.preventDefault(); nudgeBlock(fa.wall, fa.zone, fa.block.id, e.key === "ArrowLeft" ? -1 : 1, e.shiftKey ? 10 : 100); }
