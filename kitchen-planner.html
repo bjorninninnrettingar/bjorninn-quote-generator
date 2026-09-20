@@ -28,6 +28,7 @@
   window.dispatchEvent(new Event("three-ready"));
 </script>
 <script src="kitchen-planner-materials.js"></script>
+<script src="kitchen-planner-catalog.js"></script>
 <script src="kitchen-planner-3d.js"></script>
 <style>
   :root{
@@ -271,6 +272,40 @@
   .swatch-color{ width:100%; aspect-ratio:4/3; display:block; }
   .swatch-glyph{ width:100%; aspect-ratio:4/3; display:flex; align-items:center; justify-content:center; font-size:28px; background:var(--panel); }
 
+  .wrap.mat{ max-width:1200px; }
+  .mat-layout{ display:grid; grid-template-columns:minmax(0,1fr) 380px; gap:32px; align-items:start; }
+  @media (max-width:1000px){ .mat-layout{ grid-template-columns:1fr; } .mat-aside{ order:-1; position:static !important; } }
+  .mat-aside{ position:sticky; top:16px; }
+  .mat-preview{ background:#f4f1ea; border:1px solid var(--line); border-radius:16px; padding:18px 16px 16px; }
+  .mock{ position:relative; }
+  .mock-wall{ background:#eceae4; border-radius:8px 8px 0 0; padding:14px 12px 10px; }
+  .mock-uppers{ display:flex; gap:3px; background:var(--mock-carcass,#4a4946); padding:3px; border-radius:3px; width:74%; }
+  .mock-uppers .mock-door{ height:46px; }
+  .mock-top{ height:12px; border-radius:2px; margin:14px -12px 0; background-size:120px auto; box-shadow:0 2px 3px rgba(0,0,0,.18); }
+  .mock-base{ display:flex; gap:3px; background:var(--mock-carcass,#4a4946); padding:3px 3px 8px; margin:0 -12px; border-radius:0 0 3px 3px; }
+  .mock-door{ position:relative; flex:1; background-size:70px auto; }
+  .mock-base .mock-door{ height:78px; }
+  .mock-door.drawer{ height:36px; }
+  .mock-col{ flex:1; display:flex; flex-direction:column; gap:3px; }
+  .mock-h{ position:absolute; background:var(--mock-h,#55575a); border-radius:2px; box-shadow:0 1px 1px rgba(0,0,0,.35); }
+  .mock-caption{ font-size:12px; color:var(--ink-soft); margin:12px 2px 0; line-height:1.55; }
+  .mock-caption b{ color:var(--ink); font-weight:600; }
+  .tabs-row{ display:flex; gap:8px; flex-wrap:wrap; margin:2px 0 10px; }
+  .tab-btn{ border:1.5px solid var(--line); background:#fff; color:var(--ink); border-radius:999px; padding:8px 16px; font:inherit; font-size:13.5px; font-weight:600; cursor:pointer; }
+  .tab-btn:hover{ border-color:var(--blue); }
+  .tab-btn.active{ background:var(--ink); color:#fff; border-color:var(--ink); }
+  .tab-btn .n{ font-weight:400; opacity:.7; margin-left:4px; }
+  .tab-blurb{ font-size:13px; color:var(--ink-soft); margin:0 0 12px; max-width:70ch; }
+  .sw-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(108px,1fr)); gap:10px; margin-bottom:6px; }
+  .sw-tile{ position:relative; background:#fff; border:1.5px solid var(--line); border-radius:12px; overflow:hidden; cursor:pointer; text-align:left; padding:0; font:inherit; }
+  .sw-tile:hover{ border-color:var(--blue); }
+  .sw-tile.active{ border-color:var(--blue); box-shadow:0 0 0 3px var(--blue-soft); }
+  .sw-tile img, .sw-tile .sw-fill{ width:100%; aspect-ratio:4/3; object-fit:cover; display:block; background:var(--panel); }
+  .sw-tile .sw-name{ font-size:12px; font-weight:600; padding:6px 8px 8px; line-height:1.25; }
+  .sw-tile.active::after{ content:"✓"; position:absolute; top:6px; right:6px; width:20px; height:20px; border-radius:50%; background:var(--blue); color:#fff; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; }
+  .h-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; }
+  .h-grid .sw-tile img{ object-fit:contain; background:#fafafa; }
+  .h-grid .sw-name small{ display:block; font-weight:400; color:var(--ink-soft); margin-top:2px; font-size:11px; }
   /* ---- look step ---- */
   .looks{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:24px; }
   @media (max-width:720px){ .looks{ grid-template-columns:repeat(2,1fr); } }
@@ -418,30 +453,46 @@
   <!-- ============ STEP: MATERIALS ============ -->
   <section id="screen-materials" hidden>
     <div class="screen-title">Veldu efni</div>
-    <p class="screen-sub">Þetta er notað á alla skápa — þú getur alltaf breytt þessu með Rakel síðar.</p>
+    <p class="screen-sub">Þetta er brot af efnisúrvalinu okkar — þú sérð valið hægra megin. Þú getur alltaf breytt þessu með Rakel síðar.</p>
 
-    <div class="mat-section">
-      <div class="mat-section-title">Litur á skrokkum</div>
-      <p class="mat-section-sub">Innviðir skápanna — sést t.d. innan í skápum og á hliðum.</p>
-      <div class="looks" id="carcassCards"></div>
-    </div>
+    <div class="mat-layout">
+      <div class="mat-main">
+        <div class="mat-section">
+          <div class="mat-section-title">Framhliðar</div>
+          <div class="tabs-row" id="frontTabs"></div>
+          <p class="tab-blurb" id="frontBlurb"></p>
+          <div class="sw-grid" id="lookCards"></div>
+        </div>
 
-    <div class="mat-section">
-      <div class="mat-section-title">Framhliðar</div>
-      <p class="mat-section-sub">Efni og áferð á hurðum/frontum.</p>
-      <div id="lookCards"></div>
-    </div>
+        <div class="mat-section">
+          <div class="mat-section-title">Litur á skrokkum</div>
+          <p class="mat-section-sub">Innviðir skápanna — sést t.d. innan í skápum og á hliðum.</p>
+          <div class="looks" id="carcassCards"></div>
+        </div>
 
-    <div class="mat-section">
-      <div class="mat-section-title">Opnun</div>
-      <p class="mat-section-sub">Sama aðferð er notuð á alla skápa. "Falið grip" þýðir ekkert áfast handfang — bara rennt í plötuna.</p>
-      <div class="looks" id="handleCards"></div>
-    </div>
+        <div class="mat-section">
+          <div class="mat-section-title">Borðplata</div>
+          <div class="tabs-row" id="topTabs"></div>
+          <p class="tab-blurb" id="topBlurb"></p>
+          <div class="sw-grid" id="topCards"></div>
+        </div>
 
-    <div class="mat-section">
-      <div class="mat-section-title">Skúffukerfi</div>
-      <p class="mat-section-sub">Skiptir aðeins máli ef þú bætir við skúffum síðar í ferlinu.</p>
-      <div class="looks" id="drawerSystemCards"></div>
+        <div class="mat-section">
+          <div class="mat-section-title">Höldur og opnun</div>
+          <p class="mat-section-sub">Sama aðferð er notuð á alla skápa. „Falið grip“ þýðir ekkert áfast handfang — bara rennt í plötuna.</p>
+          <div class="h-grid" id="handleCards"></div>
+        </div>
+
+        <div class="mat-section">
+          <div class="mat-section-title">Skúffukerfi</div>
+          <p class="mat-section-sub">Skiptir aðeins máli ef þú bætir við skúffum síðar í ferlinu.</p>
+          <div class="looks" id="drawerSystemCards"></div>
+        </div>
+      </div>
+
+      <aside class="mat-aside">
+        <div class="mat-preview" id="matPreview"></div>
+      </aside>
     </div>
 
     <div class="actions">
@@ -589,6 +640,7 @@
   var CARCASS = KP3D.CARCASS;
   var DRAWER_SYSTEMS = KP3D.DRAWER_SYSTEMS;
   var HANDLES = KP3D.HANDLES;
+  var TOPS = KP3D.TOPS, TOP_GROUPS = KP3D.TOP_GROUPS;
   var WALL_COLORS = KP3D.WALL_COLORS;
   var WINDOW_DEFAULT = KP3D.WINDOW_DEFAULT;
   var DOOR_DEFAULT = KP3D.DOOR_DEFAULT;
@@ -625,6 +677,7 @@
     carcass: null,
     drawerSystem: null,
     look: null,
+    top: null,   // worktop key (KP3D.TOPS); null = plain stone
     handle: null,
     roomHeightMm: DEFAULT_ROOM_HEIGHT_MM,
     wallColor: null,
@@ -716,6 +769,7 @@
       if (state.drawerSystem === undefined) state.drawerSystem = null;
       if (state.look === undefined) state.look = null;
       if (state.handle === undefined) state.handle = null;
+      if (state.top === undefined || (state.top && !TOPS[state.top])) state.top = null;
       if (!state.roomHeightMm) state.roomHeightMm = DEFAULT_ROOM_HEIGHT_MM;
       if (state.wallColor === undefined) state.wallColor = null;
       if (!state.windows) state.windows = [];
@@ -1835,71 +1889,126 @@
   // ---------- materials step (carcass / front / opening / drawers) ----------
   function selectCarcass(key){ state.carcass = key; save(); renderMaterials(); }
   function selectLook(key){ state.look = key; save(); renderMaterials(); }
+  function selectTop(key){ state.top = key; save(); renderMaterials(); }
   function selectHandle(key){ state.handle = key; save(); renderMaterials(); }
   function selectDrawerSystem(key){ state.drawerSystem = key; save(); renderMaterials(); }
 
   function renderCarcassCards(){
     var container = document.getElementById("carcassCards");
+    container.className = "sw-grid";
     container.innerHTML = Object.keys(CARCASS).map(function(key){
       var c = CARCASS[key];
-      var active = state.carcass === key;
-      return (
-        '<button type="button" class="look-card' + (active ? ' active' : '') + '" data-carcass="' + key + '">' +
-          '<div class="swatch-color" style="background:' + c.color3d + ';"></div>' +
-          '<div class="info"><div class="name">' + c.label + '</div></div>' +
-        '</button>'
-      );
+      return '<button type="button" class="sw-tile' + (state.carcass === key ? ' active' : '') + '" data-carcass="' + key + '" title="' + c.label + '">' +
+        '<div class="sw-fill" style="background:' + c.color3d + ';"></div><div class="sw-name">' + c.label + '</div></button>';
     }).join("");
-    container.querySelectorAll(".look-card").forEach(function(card){
+    container.querySelectorAll("[data-carcass]").forEach(function(card){
       card.addEventListener("click", function(){ selectCarcass(card.dataset.carcass); });
     });
   }
 
-  function renderLookCards(){
-    var container = document.getElementById("lookCards");
-    container.innerHTML = LOOK_CATEGORIES.map(function(cat){
-      var keys = Object.keys(LOOKS).filter(function(k){ return LOOKS[k].category === cat.key; });
-      if (!keys.length) return "";
-      var cards = keys.map(function(key){
-        var l = LOOKS[key];
-        var active = state.look === key;
-        var swatch = l.img
-          ? '<img class="swatch" src="' + l.img + '" alt="' + l.label + '">'
-          : '<div class="swatch-glyph">🌳</div>';
-        return (
-          '<button type="button" class="look-card' + (active ? ' active' : '') + '" data-look="' + key + '">' +
-            swatch +
-            '<div class="info"><div class="name">' + l.label + '</div><div class="desc">' + l.desc + '</div></div>' +
-          '</button>'
-        );
-      }).join("");
-      return '<div class="mat-cat-label">' + cat.label + '</div><div class="looks">' + cards + '</div>';
-    }).join("");
+  // which tab is open in the front / worktop pickers (jumps to the group of the current pick)
+  var matTab = { front:"vidarliki", top:"limtre" };
+  function frontsOf(cat){ return Object.keys(LOOKS).filter(function(k){ return !LOOKS[k].hidden && LOOKS[k].category === cat; }); }
+  function topsOf(group){ return Object.keys(TOPS).filter(function(k){ return TOPS[k].group === group; }); }
 
-    container.querySelectorAll(".look-card").forEach(function(card){
+  function tabsHTML(groups, countOf, activeKey, attr){
+    return groups.map(function(g){
+      return '<button type="button" class="tab-btn' + (g.key === activeKey ? ' active' : '') + '" ' + attr + '="' + g.key + '">' + g.label + '<span class="n">' + countOf(g.key) + '</span></button>';
+    }).join("");
+  }
+
+  function renderLookCards(){
+    var cat = LOOK_CATEGORIES.find(function(c){ return c.key === matTab.front; }) || LOOK_CATEGORIES[0];
+    var tabs = document.getElementById("frontTabs");
+    tabs.innerHTML = tabsHTML(LOOK_CATEGORIES, function(k){ return frontsOf(k).length; }, cat.key, "data-ftab");
+    tabs.querySelectorAll("[data-ftab]").forEach(function(b){ b.addEventListener("click", function(){ matTab.front = b.dataset.ftab; renderLookCards(); }); });
+    document.getElementById("frontBlurb").textContent = cat.blurb;
+    var container = document.getElementById("lookCards");
+    container.innerHTML = frontsOf(cat.key).map(function(key){
+      var l = LOOKS[key];
+      return '<button type="button" class="sw-tile' + (state.look === key ? ' active' : '') + '" data-look="' + key + '" title="' + l.label + '">' +
+        (l.img ? '<img src="' + l.img + '" alt="' + l.label + '" loading="lazy">' : '<div class="sw-fill" style="background:' + l.color3d + ';"></div>') +
+        '<div class="sw-name">' + l.label + '</div></button>';
+    }).join("");
+    container.querySelectorAll("[data-look]").forEach(function(card){
       card.addEventListener("click", function(){ selectLook(card.dataset.look); });
+    });
+  }
+
+  function renderTopCards(){
+    var grp = TOP_GROUPS.find(function(g){ return g.key === matTab.top; }) || TOP_GROUPS[0];
+    var tabs = document.getElementById("topTabs");
+    tabs.innerHTML = tabsHTML(TOP_GROUPS, function(k){ return topsOf(k).length; }, grp.key, "data-ttab");
+    tabs.querySelectorAll("[data-ttab]").forEach(function(b){ b.addEventListener("click", function(){ matTab.top = b.dataset.ttab; renderTopCards(); }); });
+    document.getElementById("topBlurb").textContent = grp.blurb;
+    var active = state.top || "steinn";
+    var container = document.getElementById("topCards");
+    container.innerHTML = topsOf(grp.key).map(function(key){
+      var t = TOPS[key];
+      return '<button type="button" class="sw-tile' + (active === key ? ' active' : '') + '" data-top="' + key + '" title="' + t.label + '">' +
+        (t.img ? '<img src="' + t.img + '" alt="' + t.label + '" loading="lazy">' : '<div class="sw-fill" style="background:linear-gradient(135deg,#f0ece4,#d9d3c6);"></div>') +
+        '<div class="sw-name">' + t.label + '</div></button>';
+    }).join("");
+    container.querySelectorAll("[data-top]").forEach(function(card){
+      card.addEventListener("click", function(){ selectTop(card.dataset.top); });
     });
   }
 
   function renderHandleCards(){
     var container = document.getElementById("handleCards");
-    container.innerHTML = Object.keys(HANDLES).map(function(key){
+    // the site's own handles first, then the workshop's standard ones
+    var keys = Object.keys(HANDLES).sort(function(a, b){ return (HANDLES[b].site ? 1 : 0) - (HANDLES[a].site ? 1 : 0); });
+    container.innerHTML = keys.map(function(key){
       var h = HANDLES[key];
-      var active = state.handle === key;
-      var swatch = h.img
-        ? '<img class="swatch" src="' + h.img + '" alt="' + h.label + '">'
-        : '<div class="swatch-glyph">▭</div>';
-      return (
-        '<button type="button" class="look-card' + (active ? ' active' : '') + '" data-handle="' + key + '">' +
-          swatch +
-          '<div class="info"><div class="name">' + h.label + '</div><div class="desc">' + h.desc + '</div></div>' +
-        '</button>'
-      );
+      return '<button type="button" class="sw-tile' + (state.handle === key ? ' active' : '') + '" data-handle="' + key + '" title="' + h.label + '">' +
+        (h.img ? '<img src="' + h.img + '" alt="' + h.label + '" loading="lazy">' : '<div class="sw-fill" style="display:flex;align-items:center;justify-content:center;font-size:28px;">▭</div>') +
+        '<div class="sw-name">' + h.label + '<small>' + h.desc + '</small></div></button>';
     }).join("");
-
-    container.querySelectorAll(".look-card").forEach(function(card){
+    container.querySelectorAll("[data-handle]").forEach(function(card){
       card.addEventListener("click", function(){ selectHandle(card.dataset.handle); });
     });
+  }
+
+  // Small CSS mock-up of the chosen combination: upper cabinets, worktop,
+  // base doors + a drawer, with the handle drawn in its own style/colour.
+  function mockFill(l){
+    if (!l) return "background:#d8d3c6;";
+    if (l.tex) return "background-image:url(" + l.tex + ");background-size:cover;background-position:center;";
+    if (l.prev) return "background-image:url(" + l.prev + ");background-size:cover;background-position:center;";
+    return "background:" + l.color3d + ";";
+  }
+  function mockHandle(h, where){ // where: "top" (edge of a base door) or "bottom" (upper cabinet)
+    if (!h || h.style === "none") return "";
+    var pos = where === "bottom" ? "bottom:5px;" : "top:5px;";
+    var st = h.style || "bar";
+    if (st === "groove") return '<i class="mock-h" style="left:8%;right:8%;height:2px;background:rgba(0,0,0,.45);box-shadow:none;' + (where === "bottom" ? "bottom:2px;" : "top:2px;") + '"></i>';
+    if (st === "knob") return '<i class="mock-h" style="left:50%;margin-left:-4px;width:8px;height:8px;border-radius:50%;' + pos + '"></i>';
+    if (st === "edge") return '<i class="mock-h" style="left:' + (50 - 45 * Math.min(1, h.len || 0.7)) + '%;right:' + (50 - 45 * Math.min(1, h.len || 0.7)) + '%;height:4px;border-radius:1px;' + (where === "bottom" ? "bottom:0;" : "top:0;") + '"></i>';
+    if (st === "tab") return '<i class="mock-h" style="left:50%;margin-left:-9px;width:18px;height:6px;' + (where === "bottom" ? "bottom:0;" : "top:0;") + '"></i>';
+    var w = Math.max(16, Math.min(80, (h.len || 0.24) * 130));
+    return '<i class="mock-h" style="left:50%;margin-left:-' + w / 2 + 'px;width:' + w + 'px;height:4px;' + pos + '"></i>';
+  }
+  function renderMatPreview(){
+    var l = state.look ? LOOKS[state.look] : null, c = state.carcass ? CARCASS[state.carcass] : null;
+    var t = TOPS[state.top || "steinn"], h = state.handle ? HANDLES[state.handle] : null;
+    var f = mockFill(l);
+    var topStyle = t && t.tex ? "background-image:url(" + t.tex + ");background-size:cover;background-position:center;" : "background:" + (t ? t.color3d : "#e4dfd6") + ";";
+    var hv = h && h.color ? "--mock-h:" + h.color + ";" : "";
+    function door(extra, where){ return '<div class="mock-door' + (extra || "") + '" style="' + f + '">' + mockHandle(h, where || "top") + '</div>'; }
+    document.getElementById("matPreview").innerHTML =
+      '<div class="mock" style="--mock-carcass:' + (c ? c.color3d : "#4a4946") + ';' + hv + '">' +
+        '<div class="mock-wall"><div class="mock-uppers">' + door("", "bottom") + door("", "bottom") + door("", "bottom") + '</div>' +
+        '<div class="mock-top" style="' + topStyle + '"></div></div>' +
+        '<div class="mock-base" style="margin-top:0">' +
+          '<div class="mock-col">' + door(" drawer") + door(" drawer") + '</div>' + door() + '<div class="mock-col">' + door(" drawer") + door(" drawer") + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<p class="mock-caption">' +
+        '<b>Framhlið:</b> ' + (l ? l.label + ' · ' + (LOOK_CATEGORIES.find(function(x){ return x.key === l.category; }) || {}).label : '— veldu hér til vinstri') + '<br>' +
+        '<b>Skrokkur:</b> ' + (c ? c.label : '—') + '<br>' +
+        '<b>Borðplata:</b> ' + (t ? t.label + (t.group === "steinn" ? "" : " · " + (TOP_GROUPS.find(function(x){ return x.key === t.group; }) || {}).label) : '—') + '<br>' +
+        '<b>Handfang:</b> ' + (h ? h.label : '—') +
+      '</p>';
   }
 
   function renderDrawerSystemCards(){
@@ -1920,9 +2029,14 @@
   }
 
   function renderMaterials(){
+    // open the tab that holds the current pick (a tab click only re-renders its own picker, so it isn't undone)
+    if (state.look && LOOKS[state.look] && !LOOKS[state.look].hidden) matTab.front = LOOKS[state.look].category;
+    if (state.top && TOPS[state.top]) matTab.top = TOPS[state.top].group;
     renderCarcassCards();
     renderLookCards();
+    renderTopCards();
     renderHandleCards();
+    renderMatPreview();
     renderDrawerSystemCards();
     document.getElementById("toShapeBtn").disabled = !(state.carcass && state.look && state.handle && state.drawerSystem);
   }
@@ -2182,7 +2296,7 @@
       }).join("") + '</div>';
     }
     html += '<div class="ov-wall">' +
-      swatches("Framhlið", "look", LOOKS, state.look) +
+      '<p class="ov-mat" style="margin:0 0 6px;">Framhlið: <strong>' + (state.look && LOOKS[state.look] ? LOOKS[state.look].label : "—") + '</strong> · Borðplata: <strong>' + (TOPS[state.top || "steinn"] ? TOPS[state.top || "steinn"].label : "—") + '</strong></p>' +
       swatches("Skrokkur", "carcass", CARCASS, state.carcass) +
       swatches("Veggir", "wallColor", WALL_COLORS, state.wallColor) +
       '<p class="ov-mat" style="margin-top:10px;">Opnun: <strong>' + (state.handle ? HANDLES[state.handle].label : "—") + '</strong> · Skúffukerfi: <strong>' + (state.drawerSystem ? DRAWER_SYSTEMS[state.drawerSystem].label : "—") + '</strong></p>' +
@@ -2443,6 +2557,7 @@
     if (state.step === "shape") renderShapeStep();
     if (state.step === "materials") renderMaterials();
     document.getElementById("mainWrap").classList.toggle("wide", state.step === "editor");
+    document.getElementById("mainWrap").classList.toggle("mat", state.step === "materials");
     document.getElementById("pageLede").hidden = state.step === "editor";
     if (state.step === "editor"){
       viewMode = "3d";
@@ -2483,6 +2598,10 @@
     var lines = [planHeadline()];
     if (state.intake.delivery) lines.push("Æskileg afhending: " + state.intake.delivery);
     if (state.intake.budget) lines.push("Áætlað fjárhagsrými: " + state.intake.budget);
+    var lk = state.look ? LOOKS[state.look] : null, tp = TOPS[state.top || "steinn"], hd = state.handle ? HANDLES[state.handle] : null;
+    if (lk) lines.push("Valin framhlið: " + lk.label + " (" + ((LOOK_CATEGORIES.find(function(x){ return x.key === lk.category; }) || {}).label || lk.category) + ")");
+    if (tp) lines.push("Valin borðplata: " + tp.label + (tp.group === "steinn" ? " (pöntuð sérstaklega)" : " (" + ((TOP_GROUPS.find(function(x){ return x.key === tp.group; }) || {}).label || "") + ")"));
+    if (hd) lines.push("Valið handfang: " + hd.label);
     // Windows/doors are room-level, not cabinets — no Eyðublað row of their
     // own, so this note (plus the JSON blob the review page renders from)
     // is the only place Rakel sees them were drawn in at all.
@@ -2607,7 +2726,7 @@
         "Tengiliður verkefnis 👤": [contact.id]
       }, carcassRec ? {
         "Skrokka efni 🔲 viðskiptavinar": [carcassRec.efnislistiId]
-      } : {}, lookRec ? {
+      } : {}, lookRec && lookRec.efnislistiId ? {
         "Fronta efni viðskiptavinar 🖼️": [lookRec.efnislistiId]
       } : {}, note ? {
         "Skilaboð til skipulags": note

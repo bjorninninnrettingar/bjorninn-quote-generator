@@ -82,10 +82,17 @@
   // (Phase 7b): real veneer / melamine wood-look / Perfect Sense solid color.
   // Purely a UI grouping — every LOOKS entry still maps to one real
   // Efnislisti record either way.
+  // The picker now mirrors bjorninninnrettingar.is → Efnisúrval: three front groups.
   var LOOK_CATEGORIES = [
-    { key:"sponn",         label:"Viðarspónn" },
-    { key:"melamine-wood", label:"Plastspónn — viðaráferð" },
-    { key:"perfectsense",  label:"Perfect Sense — litað" }
+    { key:"vidarliki",     label:"Viðarlíki",     blurb:"Hlýlegt og stílhreint, slitsterkt og hagkvæmt — frá ljósri eik yfir í dökkar viðartegundir." },
+    { key:"framhlidaefni", label:"Framhliðaefni", blurb:"Fáguð, lituð og silkimjúk yfirborð sem minna á hágæða lakk." },
+    { key:"sponlagt",      label:"Spónlagt",      blurb:"Ekta viður — hver innrétting verður einstök, með lifandi mynstri." }
+  ];
+  var TOP_GROUPS = [
+    { key:"limtre",   label:"Límtré",    blurb:"Hlý, náttúruleg og lifandi borðplata — ask, hnota, eik, beyki og fura." },
+    { key:"compact",  label:"Compact",   blurb:"Þéttar og sterkbyggðar harðkjarna plötur — þola raka og daglega notkun vel." },
+    { key:"hardplast",label:"Harðplast", blurb:"Hagkvæm og endingargóð — einlitt, viðar-, stein- og marmaraútlit." },
+    { key:"steinn",   label:"Steinn",    blurb:"Steinplötur eru pantaðar sérstaklega hjá samstarfsaðilum." }
   ];
   // `color3d` is the material's real average color (sampled directly from its
   // own photo, not guessed) — used as a flat color on 3D/2D cabinet faces. The
@@ -104,6 +111,13 @@
     // Áferð/litun (smoked, bleached, etc.) gets refined with Rakel, not here.
     sponn:    { label:"Eik spónn", img:null, color3d:"#b89268", desc:"Alvöru viðarspónn — áferð og litun farið yfir með Rakel", efnislistiId:"recC4sVQ9NkQZTNkk", category:"sponn" }
   };
+
+  // The four hand-picked Efnislisti looks stay (old drafts still render) but
+  // are no longer offered; the picker now shows the site's own selection.
+  Object.keys(LOOKS).forEach(function(k){ LOOKS[k].hidden = true; });
+  Object.keys((window.KPCAT || { fronts:{} }).fronts).forEach(function(k){
+    LOOKS[k] = Object.assign({ efnislistiId:null }, window.KPCAT.fronts[k]);
+  });
 
   // Carcass (skrokkur) color — Phase 7b: previously hardcoded to dökkgrátt
   // for every project, now customer-selectable. All 3 are real, already-
@@ -165,6 +179,21 @@
     // shelves-vs-drawers note. `isPushOpen` flags that branch.
     push:   { label:"Þrýstiopnun (Blum Tip-on)", img:"handles/push-open.jpg", desc:"Ekkert sýnilegt handfang eða grip — ýtt létt á framhliðina til að opna", vorulistiId:null, isPushOpen:true }
   };
+  // 3D look of each handle: style = bar | edge | tab | knob | groove | none,
+  // len = bar length (m) or the share of the door width for an edge profile.
+  HANDLES.fraest.style = "groove";
+  HANDLES.ona.style = "bar";   HANDLES.ona.len = 0.24;
+  HANDLES.jey2.style = "edge"; HANDLES.jey2.len = 0.94;
+  HANDLES.hexxa.style = "edge"; HANDLES.hexxa.len = 0.7;
+  HANDLES.arpa.style = "knob";
+  HANDLES.push.style = "none";
+
+  // Catalogue harvested from the galleries on bjorninninnrettingar.is
+  // (kitchen-planner-catalog.js → window.KPCAT): fronts, worktops, more handles.
+  var KPCAT = window.KPCAT || { fronts:{}, tops:{}, handles:{} };
+  Object.keys(KPCAT.handles).forEach(function(k){ HANDLES[k] = Object.assign({ vorulistiId:null }, KPCAT.handles[k]); });
+  var TOPS = {};
+  Object.keys(KPCAT.tops).forEach(function(k){ TOPS[k] = KPCAT.tops[k]; });
 
   // Rectilinear wall-chain (Phase 7d-1) — replaces the old hardcoded
   // straight/L/U presets with a generic walk: each wall's `turnAfter`
@@ -608,7 +637,8 @@
       group.add(mesh);
     }
     var seamMat = new THREE.MeshBasicMaterial({ color:0x2e2e30, transparent:true, opacity:0.7, side:THREE.DoubleSide });
-    var handleMat = new THREE.MeshStandardMaterial({ color:0x55575a, metalness:0.75, roughness:0.32 });
+    var hdef = HANDLES[handleKey] || {}, hstyle = hdef.style || "bar";
+    var handleMat = new THREE.MeshStandardMaterial({ color:hdef.color || 0x55575a, metalness:hdef.color ? 0.55 : 0.75, roughness:0.34 });
     function hbar(len, y, along, out){ place(new THREE.Mesh(new THREE.BoxGeometry(len, 0.012, 0.02), handleMat), y, out || 0.012, along); }
 
     // Oven tower: drawer below, 595 mm oven (dark glass + control strip + bar
@@ -620,7 +650,7 @@
       place(new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.9, oh - 0.13, 0.012), glassMat), oy + (oh - 0.13) / 2 + 0.005, 0.006);
       place(new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.9, 0.06, 0.012), new THREE.MeshStandardMaterial({ color:0x2b2c30, roughness:0.4, metalness:0.4 })), oy + oh - 0.05, 0.006);
       place(new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.7, 0.018, 0.028), handleMat), oy + oh - 0.105, 0.024);
-      if (handleKey && handleKey !== "push" && handleKey !== "fraest"){
+      if (handleKey && hstyle !== "none" && hstyle !== "groove"){
         hbar(Math.min(0.24, widthM * 0.5), oy - 0.06, 0);                    // drawer below the oven
         hbar(Math.min(0.24, widthM * 0.5), oy + oh + 0.06, 0);               // door above
       }
@@ -638,7 +668,7 @@
       if (!f.drawer && idx > 0){
         place(new THREE.Mesh(new THREE.PlaneGeometry(widthM * 0.96, 0.008), seamMat), baseYM + heightM * f.y0, 0.004);
       }
-      if (!handleKey || handleKey === "push") return;
+      if (!handleKey || hstyle === "none") return;
       var top = baseYM + heightM * f.y1, bottom = baseYM + heightM * f.y0;
       // wall units and the upper door of a tall unit take the handle at the
       // lower edge, everything else at the upper edge
@@ -646,16 +676,19 @@
       var edgeY = atBottom ? bottom + 0.02 : top - 0.02;
       var hy = atBottom ? bottom + 0.06 : top - (f.drawer ? 0.07 : 0.06);
       var mesh;
-      if (handleKey === "ona"){
-        if (wideDoor && !f.drawer){ hbar(0.16, hy, -widthM * 0.16); hbar(0.16, hy, widthM * 0.16); }
-        else hbar(Math.min(0.24, widthM * 0.5), hy, 0);
-      } else if (handleKey === "jey2" || handleKey === "hexxa"){
-        mesh = new THREE.Mesh(new THREE.BoxGeometry(widthM * (handleKey === "jey2" ? 0.94 : 0.7), 0.02, 0.016), handleMat);
+      if (hstyle === "bar"){
+        var blen = hdef.len || 0.24, cap = blen <= 0.24 ? 0.5 : 0.85;
+        if (wideDoor && !f.drawer && blen <= 0.24){ hbar(0.16, hy, -widthM * 0.16); hbar(0.16, hy, widthM * 0.16); }
+        else hbar(Math.min(blen, widthM * cap), hy, 0);
+      } else if (hstyle === "edge"){
+        mesh = new THREE.Mesh(new THREE.BoxGeometry(Math.min(widthM * 0.94, widthM * (hdef.len || 0.7)), 0.02, 0.016), handleMat);
         place(mesh, edgeY, 0.008);
-      } else if (handleKey === "arpa"){
-        var knobs = wideDoor && !f.drawer ? [-widthM * 0.12, widthM * 0.12] : [0];
+      } else if (hstyle === "tab"){
+        mesh = new THREE.Mesh(new THREE.BoxGeometry(hdef.len || 0.14, 0.03, 0.02), handleMat);
+        place(mesh, edgeY, 0.01);
+      } else if (hstyle === "knob"){        var knobs = wideDoor && !f.drawer ? [-widthM * 0.12, widthM * 0.12] : [0];
         knobs.forEach(function(al){ place(new THREE.Mesh(new THREE.SphereGeometry(0.014, 14, 12), handleMat), atBottom ? bottom + 0.07 : top - 0.07, 0.014, al); });
-      } else if (handleKey === "fraest"){
+      } else if (hstyle === "groove"){
         mesh = new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.9, 0.006, 0.002), seamMat);
         place(mesh, atBottom ? bottom + 0.012 : top - 0.012, 0.002);
       }
@@ -731,7 +764,9 @@
       group.add(pl);
     }
     if (meta && meta.counter && meta.stoneMat){
-      var top = new THREE.Mesh(new THREE.BoxGeometry(widthM + 0.001, 0.032, depthM + 0.02), meta.stoneMat);
+      var topGeo = new THREE.BoxGeometry(widthM + 0.001, 0.032, depthM + 0.02);
+      scaleFrontUV(topGeo, widthM, depthM + 0.02, meta.stoneMat.userData && meta.stoneMat.userData.tile);
+      var top = new THREE.Mesh(topGeo, meta.stoneMat);
       top.position.copy(local(0, baseYM + heightM + 0.016, (depthM + 0.02) / 2));
       top.quaternion.copy(quat);
       top.castShadow = true; top.receiveShadow = true;
@@ -1192,8 +1227,26 @@
     return x;
   }
 
+  // Photo textures from the site (same-origin JPGs): loaded once, kept for the page session.
+  var IMG_TEX = typeof Map !== "undefined" ? new Map() : null;
+  function imgTex(THREE, url){
+    var t = IMG_TEX && IMG_TEX.get(url);
+    if (t) return t;
+    t = new THREE.TextureLoader().load(url);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    if (THREE.SRGBColorSpace) t.colorSpace = THREE.SRGBColorSpace;
+    t.userData.keep = true;
+    if (IMG_TEX) IMG_TEX.set(url, t);
+    return t;
+  }
+
   function makeFrontMaterial(THREE, lookKey, look){
-    var wood = look.category !== "perfectsense";
+    if (look.tex){ // a real board texture from the gallery
+      var im = new THREE.MeshStandardMaterial({ map:imgTex(THREE, look.tex), roughness:0.58 });
+      im.userData.tile = { w:0.6, h:0.6 };
+      return im;
+    }
+    var wood = look.category !== "perfectsense" && look.category !== "framhlidaefni";
     var t = wood ? window.KPMat.woodTexture(lookKey, look.color3d) : window.KPMat.paintTexture(lookKey, look.color3d);
     function tex(canvas, srgb){ return canvasTex(THREE, canvas, srgb); }
     var mat = wood
@@ -1305,7 +1358,12 @@
     // open-shelf units: inside faces must render (double-sided) and the front is left out
     var openMat = carcassMat.clone(); openMat.side = THREE.DoubleSide;
     var hiddenMat = new THREE.MeshBasicMaterial({ visible:false });
-    var stoneMat = window.KPMat
+    var topDef = state.top && TOPS[state.top] ? TOPS[state.top] : null;
+    var stoneMat = topDef && topDef.tex
+      ? (function(){ var m = new THREE.MeshStandardMaterial({ map:imgTex(THREE, topDef.tex), roughness:0.42, metalness:0.02 }); m.userData.tile = { w:0.9, h:0.9 }; return m; })()
+      : topDef && topDef.group !== "steinn"
+      ? new THREE.MeshStandardMaterial({ color:topDef.color3d, roughness:0.45 })
+      : window.KPMat
       ? (function(){ var st = window.KPMat.stoneTexture("#e4dfd6"); var m = new THREE.MeshStandardMaterial({ map:canvasTex(THREE, st.color, true), roughness:0.32, metalness:0.02 }); m.map.repeat.set(1 / st.tileW, 1 / st.tileH); return m; })()
       : new THREE.MeshStandardMaterial({ color:0xe4dfd6, roughness:0.4 });
     var look = state.look ? LOOKS[state.look] : null;
@@ -1556,6 +1614,8 @@
 
     var look = state.look ? LOOKS[state.look] : null;
     var fillColor = look ? look.color3d : "#b7b2a4";
+    var topDef2 = state.top && TOPS[state.top] ? TOPS[state.top] : null;
+    var counterFill = topDef2 ? topDef2.color3d : "#e6e1d8";
 
     // Drawing-board look: warm paper, a 0.5 m grid, soft drop shadows under
     // the cabinets, real door-swing arcs and window symbols.
@@ -1618,7 +1678,7 @@
       var strokeW = selected ? 3 : (warned ? 3 : 1.2);
       // top view: worktop stone on base units, steel/black on appliances, the
       // kitchen's front colour on towers; wall units drawn lighter + dashed
-      var fill = c.fridge ? "#c9ccd1" : c.oven ? "#4a4c52" : c.counter ? "#e6e1d8" : fillColor;
+      var fill = c.fridge ? "#c9ccd1" : c.oven ? "#4a4c52" : c.counter ? counterFill : fillColor;
       var op = isWallRow ? 0.5 : 1;
       svg += '<polygon data-wall-id="' + wallId + '" data-zone="' + zone + '" data-block-id="' + bl.id + '" ' +
         'points="' + poly + '" fill="' + fill + '" fill-opacity="' + op + '" ' +
@@ -1684,6 +1744,8 @@
     LOOKS: LOOKS,
     LOOK_ORDER: LOOK_ORDER,
     LOOK_CATEGORIES: LOOK_CATEGORIES,
+    TOPS: TOPS,
+    TOP_GROUPS: TOP_GROUPS,
     CARCASS: CARCASS,
     DRAWER_SYSTEMS: DRAWER_SYSTEMS,
     HANDLES: HANDLES,
