@@ -161,6 +161,8 @@
   .ed-props .edit-panel{ background:none; border:none; padding:0; margin:0; }
   .ov-title{ font-size:15px; font-weight:600; margin:0 0 10px; }
   .ov-wall{ margin-bottom:14px; }
+  button.ov-wall-h{ display:block; width:100%; text-align:left; background:none; border:0; padding:0; cursor:pointer; font-family:inherit; }
+  button.ov-wall-h:hover{ color:var(--blue); }
   .ov-wall-h{ font-size:12px; font-weight:600; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px; }
   .ov-item{
     display:flex; justify-content:space-between; gap:8px; width:100%; text-align:left; font:inherit; font-size:13px;
@@ -239,14 +241,24 @@
     padding:12px 14px; font-size:13.5px; color:var(--ink-soft); margin-top:24px;
   }
 
-  /* ---- progress ---- */
-  .steps{ display:flex; gap:6px; margin-bottom:22px; }
-  .steps{ margin-bottom:26px; }
-  .steps span{ height:4px; flex:1; border-radius:2px; background:var(--line); position:relative; }
-  .steps span::after{ content:attr(data-l); position:absolute; top:9px; left:0; font-size:11.5px; font-weight:600; color:var(--ink-soft); white-space:nowrap; }
-  .steps span.active::after{ color:var(--blue); }
-  .steps span.done{ background:var(--gold); }
-  .steps span.active{ background:var(--blue); }
+  /* ---- progress: numbered, clickable stepper ---- */
+  .stepper{ display:flex; gap:8px; margin:0 0 26px; }
+  .stepper .st{
+    flex:1; min-width:0; display:flex; align-items:center; gap:10px; padding:10px 12px; text-align:left;
+    background:#fff; border:1.5px solid var(--line); border-radius:12px; cursor:pointer; font:inherit; font-size:14px; color:var(--ink-soft);
+  }
+  .stepper .st i{
+    flex:none; width:26px; height:26px; border-radius:50%; background:var(--line); color:#fff; font-style:normal;
+    font-weight:700; font-size:13px; display:flex; align-items:center; justify-content:center;
+  }
+  .stepper .st span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .stepper .st:hover:not(.locked):not(.active){ border-color:var(--blue); color:var(--ink); }
+  .stepper .st.done i{ background:var(--gold); }
+  .stepper .st.done{ color:var(--ink); }
+  .stepper .st.active{ border-color:var(--blue); background:var(--blue-soft); color:var(--blue-deep); font-weight:700; box-shadow:0 0 0 3px var(--blue-soft); cursor:default; }
+  .stepper .st.active i{ background:var(--blue); }
+  .stepper .st.locked{ opacity:.5; cursor:not-allowed; }
+  .kicker b{ color:var(--blue); font-weight:700; }
 
   /* ---- intake step ---- */
   .quiz-q{ margin-bottom:26px; }
@@ -454,6 +466,50 @@
   .mobile-gate-box h1{ font-size:22px; font-weight:600; margin:0 0 10px; }
   .mobile-gate-box p{ font-size:14.5px; color:var(--ink-soft); margin:0 0 8px; line-height:1.5; }
   .mobile-gate-sub{ font-size:13px !important; color:var(--gold) !important; }
+
+  /* ---- editor: use the whole screen (sidebars flush to the edges) ---- */
+  @media (min-width:981px){
+    .wrap.wide{ max-width:none; padding:0; height:100vh; display:flex; flex-direction:column; }
+    .wrap.wide .top{ padding:10px 18px 0; margin:0; }
+    .wrap.wide h1{ font-size:17px; margin:2px 0 0; }
+    .wrap.wide .stepper{ margin:8px 18px 10px; }
+    .wrap.wide .stepper .st{ padding:6px 10px; }
+    #screen-editor:not([hidden]){ display:flex; flex-direction:column; flex:1; min-height:0; }
+    .editor{ flex:1; min-height:0; margin:0; gap:0; grid-template-columns:288px minmax(0,1fr) 336px; grid-template-rows:minmax(0,1fr); align-items:stretch; border-top:1px solid var(--line); }
+    .ed-catalog, .ed-props{ position:static; max-height:none; height:100%; min-height:0; border-radius:0; border:0; border-right:1px solid var(--line); }
+    .ed-props{ border-right:0; border-left:1px solid var(--line); }
+    .ed-stage{ display:flex; flex-direction:column; min-height:0; min-width:0; }
+    .ed-stage .three-wrap{ flex:1; height:auto; min-height:0; border-radius:0; border:0; margin:0; }
+    .ed-toolbar{ margin:0; padding:8px 14px; border-bottom:1px solid var(--line); }
+    .wrap.wide .actions{ margin:0; padding:10px 18px; border-top:1px solid var(--line); background:#fff; }
+    .wrap.wide .tip-bar:not([hidden]){ margin:0; border-radius:0; border-width:1px 0 0; }
+  }
+  @media (max-width:1180px){ .wrap.wide .editor{ grid-template-columns:232px minmax(0,1fr) 290px; } }
+
+  /* ---- catalog accordion (left sidebar) ---- */
+  .cat-sec{ border-bottom:1px solid var(--line); }
+  .cat-sec > summary{ list-style:none; cursor:pointer; padding:12px 2px; font-size:13.5px; font-weight:700; display:flex; align-items:center; justify-content:space-between; }
+  .cat-sec > summary::-webkit-details-marker{ display:none; }
+  .cat-sec > summary::after{ content:"▾"; color:var(--ink-soft); font-weight:400; }
+  .cat-sec:not([open]) > summary::after{ content:"▸"; }
+  .cat-sec > summary:hover{ color:var(--blue); }
+  .sec-body{ padding:2px 0 14px; }
+  .sec-body .cat-title:first-child{ margin-top:0; }
+  .fl-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-bottom:8px; }
+  .fl-sw{ padding:0; border:2px solid var(--line); border-radius:8px; overflow:hidden; cursor:pointer; background:#fff; }
+  .fl-sw img{ display:block; width:100%; aspect-ratio:4/3; object-fit:cover; }
+  .fl-sw.active{ border-color:var(--blue); box-shadow:0 0 0 2px var(--blue-soft); }
+  .sec-note{ font-size:12px; color:var(--ink-soft); margin:0 0 8px; line-height:1.45; }
+  .sec-body .btn-small{ width:100%; margin-bottom:6px; }
+
+  /* ---- typed dimensions in the properties panel ---- */
+  .dim-grid{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+  .dim-f label{ display:block; font-size:11px; font-weight:600; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.03em; margin-bottom:3px; }
+  .dim-f input{ width:100%; padding:7px 8px; border:1.5px solid var(--line); border-radius:7px; font:inherit; font-size:14px; background:#fff; color:var(--ink); }
+  .dim-f input:focus{ outline:none; border-color:var(--blue); }
+  .dim-f small{ display:block; font-size:10.5px; color:var(--ink-soft); margin-top:2px; }
+  .dim-f.fixed b{ display:block; padding:7px 0; font-size:14px; }
+  .wall-badge{ display:inline-block; font-size:11.5px; font-weight:700; color:#fff; background:var(--blue); border-radius:999px; padding:2px 9px; margin-left:6px; vertical-align:middle; }
 </style>
 </head>
 <body>
@@ -477,16 +533,20 @@
 
   <div class="top">
     <div>
-      <div class="kicker">BJÖRNINN · Sjálfsafgreiðsla</div>
+      <div class="kicker" id="kicker">BJÖRNINN · Sjálfsafgreiðsla</div>
       <h1 id="pageTitle">Skipuleggðu eldhúsið þitt</h1>
     </div>
     <button class="reset-link" id="resetBtn" type="button" title="Hreinsa allt og byrja upp á nýtt">Byrja upp á nýtt</button>
   </div>
   <p class="lede" id="pageLede">Svaraðu nokkrum spurningum, veldu lögun eldhússins og raðaðu skápum upp — gróf teikning, engin binding. Rakel fer svo yfir og fullkomnar hönnunina með þér.</p>
 
-  <div class="steps" id="progressSteps">
-    <span data-s="intake" data-l="Spurningar"></span><span data-s="materials" data-l="Efni"></span><span data-s="shape" data-l="Rými"></span><span data-s="editor" data-l="Skipulag"></span><span data-s="contact" data-l="Senda inn"></span>
-  </div>
+  <nav class="stepper" id="progressSteps" aria-label="Skref">
+    <button type="button" class="st" data-s="intake"><i>1</i><span>Spurningar</span></button>
+    <button type="button" class="st" data-s="materials"><i>2</i><span>Efni</span></button>
+    <button type="button" class="st" data-s="shape"><i>3</i><span>Rými</span></button>
+    <button type="button" class="st" data-s="editor"><i>4</i><span>Skipulag</span></button>
+    <button type="button" class="st" data-s="contact"><i>5</i><span>Senda inn</span></button>
+  </nav>
 
   <!-- ============ STEP: INTAKE ============ -->
   <section id="screen-intake">
@@ -754,7 +814,13 @@
     var c = CATALOG[type];
     var b = { id:"b" + (blockSeq++), type:type, widthMm:c.defaultW };
     if (c.hasInterior) b.interior = { mode:"hillur", count:3 };
+    if (c.shelfStack) initShelfStack(b, 3, KP3D.SHELF_GAP_DEFAULT);
     return b;
+  }
+  // Loose shelves: count boards with a gap between; heightMm always = the whole stack.
+  function initShelfStack(b, count, gapMm){
+    b.count = count; b.vgapMm = gapMm;
+    b.heightMm = KP3D.stackHeightMm(count, gapMm);
   }
 
   // Icelandic plural: 1, 21, 31… take the singular (11 doesn't)
@@ -1478,6 +1544,7 @@
       return;
     }
     insertBlockAt(wall, c.zone, b, pl.offsetMm);
+    matchPanelToNeighbour(wall, c.zone, b);
     landedBlockId = b.id;
     save();
     refreshAfterEdit();
@@ -1535,39 +1602,147 @@
   // that every catalog entry is a fixed-size item. Only offers types that
   // share the block's own zone (floor vs wall) — swapping zones would mean
   // moving the block into a different array, out of scope here.
-  function typesForZone(zone){
-    return Object.keys(CATALOG).filter(function(t){ return CATALOG[t].zone === zone && !CATALOG[t].legacy; });
+  // kindOf: the block being edited — cabinets swap among cabinets, panels among
+  // panels, loose shelves stay loose shelves.
+  function typesForZone(zone, like){
+    var lc = like ? CATALOG[like.type] : null;
+    return Object.keys(CATALOG).filter(function(t){
+      var c = CATALOG[t];
+      if (c.zone !== zone || c.legacy) return false;
+      if (lc && lc.panel) return !!c.panel;
+      if (lc && lc.shelfStack) return !!c.shelfStack;
+      return !c.panel && !c.shelfStack;
+    });
   }
 
+  // ---------- resizing: a cabinet grows where there is room ----------
+  // Grow/shrink `b` (already in wall[zone]) to `w` mm. It keeps its left edge and
+  // grows right; if a neighbour or the wall end blocks that, it grows LEFT
+  // instead (its right edge stays put). Returns false when even the whole free
+  // stretch between its neighbours is too small.
+  function growBlock(wall, zone, b, w){
+    if (wall.island){ b.widthMm = w; return true; } // island rows are packed: they just re-pack
+    var list = wall[zone], idx = list.indexOf(b), spans = spansOf(wall, zone), me = spans[idx];
+    var lo = idx > 0 ? spans[idx - 1].end : cornerClearance(wall, zone);
+    var hi = idx < spans.length - 1 ? spans[idx + 1].start : wall.lengthMm;
+    if (w > hi - lo) return false;
+    var start = me.start;
+    if (start + w > hi) start = hi - w; // right side is blocked: grow to the left
+    if (start < lo) start = lo;
+    var d = detachBlock(wall, zone, b.id);
+    d.widthMm = w;
+    insertBlockAt(wall, zone, d, start);
+    return true;
+  }
+  function dimRange(c, key){
+    var roomH = state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM;
+    if (key === "widthMm") return [c.minW, c.maxW];
+    if (key === "heightMm") return [c.minH, Math.min(c.maxH, roomH)];
+    return [c.minD, c.maxD];
+  }
+  var DIM_NAMES = { widthMm:"Breidd", heightMm:"Hæð", depthMm:"Dýpt" };
+  // Typed dimension from the properties panel. Out-of-range values are refused
+  // with a message (the panel then redraws with the real value).
+  function setBlockDim(blockId, key, raw){
+    var f = findBlock(blockId);
+    if (!f) return;
+    var b = f.block, c = CATALOG[b.type], r = dimRange(c, key), v = Math.round(parseFloat(String(raw).replace(",", ".")));
+    if (isNaN(v) || v < r[0] || v > r[1]){
+      toast(DIM_NAMES[key] + " þarf að vera á milli " + r[0] + " og " + r[1] + " mm.");
+      renderEditPanel();
+      return;
+    }
+    if (key === "widthMm"){
+      if (v !== b.widthMm && !growBlock(f.wall, f.zone, b, v)){
+        toast("Ekki nóg pláss á " + f.wall.label.toLowerCase() + " fyrir þessa breidd.");
+        renderEditPanel();
+        return;
+      }
+    } else {
+      var def = key === "heightMm" ? c.h : c.d;
+      if (v === def) delete b[key]; else b[key] = v;
+      if (f.zone === "wall" && key === "heightMm") clampElev(b);
+    }
+    save();
+    refreshAfterEdit();
+  }
+  function clampElev(b){
+    var c = CATALOG[b.type], roomH = state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM, h = blockHeightMm(b, c);
+    if (b.elevMm != null && b.elevMm + h > roomH) b.elevMm = Math.max(0, roomH - h);
+  }
+  // Snap a dragged/typed bottom-edge height: the type's usual height, or lined up
+  // with (or stacked on) another wall unit on the same wall.
+  function snapElev(wall, b, elevMm){
+    var c = CATALOG[b.type], roomH = state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM, h = blockHeightMm(b, c);
+    var v = Math.max(0, Math.min(roomH - h, Math.round(elevMm / 10) * 10));
+    var cands = [KP3D.defaultElevOf(b.type)];
+    (wall.wall || []).forEach(function(o){
+      if (o.id === b.id) return;
+      var oh = blockHeightMm(o, CATALOG[o.type]), oe = KP3D.elevOf(o);
+      cands.push(oe, oe + oh, oe + oh - h);
+    });
+    var best = null;
+    cands.forEach(function(x){ if (Math.abs(x - v) <= 40 && x >= 0 && x + h <= roomH && (best === null || Math.abs(x - v) < Math.abs(best - v))) best = x; });
+    return best === null ? v : best;
+  }
+  function setBlockElev(b, wall, mm){
+    var v = snapElev(wall, b, mm);
+    if (v === KP3D.defaultElevOf(b.type)) delete b.elevMm; else b.elevMm = v;
+  }
+
+  // Úthlið (19 mm end panel) placed against a cabinet takes that cabinet's
+  // height, depth and (wall units) height above the floor, and the matching
+  // floor/tall type — so it "matches the box it is set up against".
+  function matchPanelToNeighbour(wall, zone, b){
+    var c = CATALOG[b.type];
+    if (!c.panel) return;
+    var spans = spansOf(wall, zone), me = spans.find(function(sp){ return sp.b.id === b.id; });
+    if (!me) return;
+    var near = spans.filter(function(sp){
+      return sp.b.id !== b.id && !CATALOG[sp.b.type].panel && (Math.abs(sp.end - me.start) <= 60 || Math.abs(sp.start - me.end) <= 60);
+    });
+    if (!near.length) return;
+    var nb = near[0].b, nc = CATALOG[nb.type];
+    if (zone === "floor") b.type = (nc.cls === "tall" || nc.fridge || nc.oven) ? "uthlidhar" : "uthlid";
+    c = CATALOG[b.type];
+    var h = Math.max(c.minH, Math.min(dimRange(c, "heightMm")[1], blockHeightMm(nb, nc))), d = Math.max(c.minD, Math.min(c.maxD, nb.depthMm || nc.d));
+    if (h === c.h) delete b.heightMm; else b.heightMm = h;
+    if (d === c.d) delete b.depthMm; else b.depthMm = d;
+    if (zone === "wall"){
+      var e = KP3D.elevOf(nb);
+      if (e === KP3D.defaultElevOf(b.type)) delete b.elevMm; else b.elevMm = e;
+      clampElev(b);
+    }
+  }
+
+  // HomeByMe-style type swap: click a cabinet, pick another type. Width, height
+  // and depth are typed values now, so the customer's own width is kept where
+  // the new type allows it (untouched sizes follow the new type's defaults).
   function changeBlockType(wall, zone, id, newType){
     var list = wall[zone];
     var idx = list.findIndex(function(x){ return x.id === id; });
     if (idx < 0) return;
     var old = list[idx];
     if (old.type === newType) return;
-    var c = CATALOG[newType];
-    var next = list[idx + 1], oldNextGap = next ? next.gapMm : undefined, delta = c.defaultW - old.widthMm;
-    // neighbours keep their spot where the free gap after this cabinet allows it
-    if (next){
-      next.gapMm = Math.max(0, (next.gapMm || 0) - delta);
-      if (!next.gapMm) delete next.gapMm;
-    }
-    var nb = { id:old.id, type:newType, widthMm:c.defaultW };
+    var oc = CATALOG[old.type], c = CATALOG[newType];
+    var w = old.widthMm === oc.defaultW ? c.defaultW : Math.max(c.minW, Math.min(c.maxW, old.widthMm));
+    var nb = { id:old.id, type:newType, widthMm:old.widthMm };
     if (old.gapMm) nb.gapMm = old.gapMm;
-    var before = list[idx];
-    list[idx] = nb;
-    if (usedMm(list) > wall.lengthMm - cornerClearance(wall, zone)){
-      list[idx] = before;
-      if (next){ if (oldNextGap === undefined) delete next.gapMm; else next.gapMm = oldNextGap; }
-      toast("Ekki nóg pláss á " + wall.label.toLowerCase() + " fyrir " + c.label.toLowerCase() + ".");
-      return;
-    }
+    if (zone === "wall" && old.elevMm != null) nb.elevMm = old.elevMm;
     if (c.hasInterior){
       var range = c.drawerCountRange;
       var mode = (old.interior && old.interior.mode) || "hillur";
       var count = old.interior && old.interior.count ? old.interior.count : 3;
       nb.interior = { mode:mode, count:Math.max(range[0], Math.min(range[1], count)) };
     }
+    if (c.shelfStack) initShelfStack(nb, 3, KP3D.SHELF_GAP_DEFAULT);
+    list[idx] = nb;
+    if (w !== nb.widthMm && !growBlock(wall, zone, nb, w)){
+      list[idx] = old;
+      toast("Ekki nóg pláss á " + wall.label.toLowerCase() + " fyrir " + c.label.toLowerCase() + ".");
+      return;
+    }
+    if (c.panel) matchPanelToNeighbour(wall, zone, nb);
     save();
     refreshAfterEdit();
   }
@@ -1616,6 +1791,7 @@
     { title:"Gólfskápar", types:["grunnskapur", "harskapur", "vaskaskapur", "isskapur", "ofnaskapur", "tofrahorn"] },
     { title:"Veggskápar", types:["efriskapur", "opnarhillur"] }
   ];
+  var PARTS_GROUP = { title:"Hillur og úthliðar", types:["laushilla", "uthlid", "uthlidhar", "uthlidefri"] };
   // Windows/doors (Phase 7e) drag exactly like cabinets but aren't cabinets
   // — not in CATALOG, routed by data-kind instead of assuming cabinet zone
   // rules (no capacity/corner-clearance logic applies to them).
@@ -1712,8 +1888,23 @@
   // same {wallId, alongMm} so everything downstream is shared.
   // planeYm: mid-height (m) of what's being dragged, so the 3D ray is cast where
   // the cursor visually is on the item rather than through it onto the floor.
-  function dropPointAt(clientX, clientY, planeYm, wallsOnly){
-    return viewMode === "3d" ? KP3D.dropPointFromClient(clientX, clientY, planeYm, wallsOnly) : findDropPoint(clientX, clientY, wallsOnly);
+  function dropPointAt(clientX, clientY, planeYm, wallsOnly, wallItem){
+    return viewMode === "3d" ? KP3D.dropPointFromClient(clientX, clientY, planeYm, wallsOnly, wallItem) : findDropPoint(clientX, clientY, wallsOnly);
+  }
+  // wall-mounted catalog items are aimed at the wall itself (which also gives their height)
+  function wallItemFor(kind, type){
+    if (kind === "opening") return { depthMm:0, heightMm:(type === "gluggi" ? WINDOW_DEFAULT : DOOR_DEFAULT).heightMm };
+    if (kind === "cabinet" && CATALOG[type].zone === "wall") return { depthMm:CATALOG[type].d, heightMm:CATALOG[type].h };
+    return null;
+  }
+  function openingSill(wallItemHeightMm, elevMm, type){
+    if (type === "hurd") return 0;
+    var roomH = state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM;
+    if (elevMm == null) return WINDOW_DEFAULT.sillHeightMm;
+    var v = Math.max(0, Math.min(roomH - wallItemHeightMm, Math.round(elevMm / 10) * 10));
+    if (Math.abs(v - WINDOW_DEFAULT.sillHeightMm) <= 40) v = WINDOW_DEFAULT.sillHeightMm;
+    if (v <= 40) v = 0;
+    return v;
   }
   function catalogPlaneY(kind, type){
     if (kind === "opening") return 1.0;
@@ -1744,7 +1935,7 @@
       dragState.moved = true;
     }
     if (dragState.kind === "island"){ hideDropPreview(); return; } // islands land at the release point
-    var drop = dropPointAt(evt.clientX, evt.clientY, catalogPlaneY(dragState.kind, dragState.type), dragState.kind === "opening");
+    var drop = dropPointAt(evt.clientX, evt.clientY, catalogPlaneY(dragState.kind, dragState.type), dragState.kind === "opening", wallItemFor(dragState.kind, dragState.type));
     highlightDropWall(drop ? drop.wallId : null);
     if (!drop){ hideDropPreview(); return; }
     var wall = dragState.kind === "opening" ? state.walls.find(function(w){ return w.id === drop.wallId; }) : surfaceById(drop.wallId);
@@ -1753,11 +1944,14 @@
       var isWindow = dragState.type === "gluggi";
       var d = isWindow ? WINDOW_DEFAULT : DOOR_DEFAULT;
       var offsetMm = snappedOpeningOffset(wall, d.widthMm, drop.alongMm);
-      showDropPreview(drop.wallId, offsetMm, d.widthMm, 60, true);
+      showDropPreview(drop.wallId, offsetMm, d.widthMm, 60, true, d.heightMm, openingSill(d.heightMm, drop.elevMm, dragState.type));
     } else {
       var c = CATALOG[dragState.type];
       var packed = placeInWall(wall, c.zone, c.defaultW, drop.alongMm, null);
-      showDropPreview(drop.wallId, packed.offsetMm, c.defaultW, c.d, packed.fits, Math.min(c.h, state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM), c.zone === "wall" ? WALL_UNIT_BASE_MM : 0);
+      var probe = { id:"", type:dragState.type, widthMm:c.defaultW };
+      if (c.shelfStack) initShelfStack(probe, 3, KP3D.SHELF_GAP_DEFAULT);
+      var previewElev = c.zone === "wall" ? (drop.elevMm != null ? snapElev(wall, probe, drop.elevMm) : KP3D.defaultElevOf(dragState.type)) : 0;
+      showDropPreview(drop.wallId, packed.offsetMm, c.defaultW, c.d, packed.fits, Math.min(probe.heightMm || c.h, state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM), previewElev);
     }
   }
 
@@ -1821,7 +2015,7 @@
     if (!dragState) return;
     var moved = dragState.moved;
     var islandAt = moved && dragState.kind === "island" ? floorPointAt(evt.clientX, evt.clientY) : null;
-    var drop = moved && dragState.kind !== "island" ? dropPointAt(evt.clientX, evt.clientY, catalogPlaneY(dragState.kind, dragState.type), dragState.kind === "opening") : null;
+    var drop = moved && dragState.kind !== "island" ? dropPointAt(evt.clientX, evt.clientY, catalogPlaneY(dragState.kind, dragState.type), dragState.kind === "opening", wallItemFor(dragState.kind, dragState.type)) : null;
     dragState.ghostEl.remove();
     dragState.cardEl.classList.remove("dragging");
     clearDropHighlight();
@@ -1833,10 +2027,10 @@
     if (!moved){ addFromCatalog(kind, type); return; } // a plain click adds it
     if (!drop) return;
     if (kind === "opening"){
-      addOpening(type, drop.wallId, drop.alongMm);
+      addOpening(type, drop.wallId, drop.alongMm, drop.elevMm);
     } else {
       var wall = surfaceById(drop.wallId);
-      if (wall) placeBlockAtDrop(wall, type, drop.alongMm);
+      if (wall) placeBlockAtDrop(wall, type, drop.alongMm, drop.elevMm);
     }
   }
 
@@ -1875,6 +2069,10 @@
       g = r(6, 8, 28, 24, "#dcebf5", "#5b8fae") + ln(20, 8, 20, 32, "#5b8fae") + r(4, 32, 32, 3, "#f2f0ea", "#b8b4a8");
     } else if (kind === "opening"){
       g = r(11, 4, 18, 32, "#c9a97c", "#8a6a4a") + r(14, 8, 12, 10, "#d8bd93", "#8a6a4a") + r(14, 21, 12, 12, "#d8bd93", "#8a6a4a") + ln(26, 20, 26, 24, "#55575a", 2);
+    } else if (c.shelfStack){
+      g = r(6, 8, 28, 3.5, body) + r(6, 17, 28, 3.5, body) + r(6, 26, 28, 3.5, body) + ln(9, 11.5, 9, 17, "#8a8577", 1) + ln(31, 11.5, 31, 17, "#8a8577", 1);
+    } else if (c.panel){
+      g = r(17, c.zone === "wall" ? 6 : 4, 6, c.cls === "tall" ? 33 : c.zone === "wall" ? 17 : 22, body) + (c.zone === "wall" ? ln(6, 3, 34, 3, "#b8b4a8", 1) : ln(6, 37, 34, 37, "#b8b4a8", 1));
     } else if (c.fridge){
       g = r(12, 3, 16, 34, steel) + ln(12, 13, 28, 13) + ln(25, 6, 25, 10, "#55575a", 1.6) + ln(25, 16, 25, 24, "#55575a", 1.6);
     } else if (c.oven){
@@ -1894,9 +2092,14 @@
     return '<svg class="ico" viewBox="0 0 40 40" width="38" height="38" aria-hidden="true">' + g + '</svg>';
   }
 
-  var openMore = {}; // which "Fleiri stærðir" folds are open — survives re-renders
+  // ---------- left sidebar: collapsible sections ----------
+  var SEC_KEY = "bjorninn:kitchenPlanner:sections";
+  var openSecs = { skapar:true };
+  try{ var savedSecs = JSON.parse(localStorage.getItem(SEC_KEY) || "null"); if (savedSecs) openSecs = savedSecs; }catch(e){}
+
   function renderCatalogPanel(){
     var host = document.getElementById("catalogPanel");
+    var keepScroll = host.scrollTop;
     function room(type){
       var c = CATALOG[type];
       return state.walls.some(function(w){ return canFit(w, c.zone, c.defaultW); });
@@ -1906,26 +2109,75 @@
         catIcon(kind, type) + '<span><span class="nm">' + name + '</span><span class="dim">' + dim + '</span></span></button>';
     }
     function cabinetItem(type){
-      var c = CATALOG[type];
-      return item("cabinet", type, c.cls, c.label, c.h + ' × ' + c.defaultW + ' × ' + c.d + ' mm', room(type));
+      var c = CATALOG[type], dim;
+      if (c.panel) dim = '19 mm þykk · ' + c.h + ' × ' + c.d + ' mm';
+      else if (c.shelfStack) dim = '38 mm þykkar · ' + c.defaultW + ' × ' + c.d + ' mm · allt að 5';
+      else dim = c.h + ' × ' + c.defaultW + ' × ' + c.d + ' mm';
+      return item("cabinet", type, c.cls, c.label, dim, room(type));
     }
-    var html = CATALOG_GROUPS.map(function(group){
-      var variants = [];
-      group.types.forEach(function(core){
-        Object.keys(CATALOG).forEach(function(k){ if (CATALOG[k].variantOf === core) variants.push(k); });
-      });
-      return '<div class="cat-title">' + group.title + '</div>' + group.types.map(cabinetItem).join("") +
-        (variants.length ? '<details class="cat-more"' + (openMore[group.title] ? " open" : "") + ' data-group="' + group.title + '"><summary>Fleiri stærðir (' + variants.length + ')</summary>' + variants.map(cabinetItem).join("") + '</details>' : "");
-    }).join("");
-    html += '<div class="cat-title">Eyjar</div>' + Object.keys(ISLAND_TYPES).map(function(k){
-      return item("island", k, "island", ISLAND_TYPES[k].label, ISLAND_TYPES[k].dim, true);
-    }).join("");
-    html += '<div class="cat-title">Gluggar og hurðir</div>' +
+    function sec(key, title, body){
+      return '<details class="cat-sec" data-sec="' + key + '"' + (openSecs[key] ? " open" : "") + '><summary>' + title + '</summary><div class="sec-body">' + body + '</div></details>';
+    }
+    // --- Breyta rými: floor, wall colour, ceiling, shape ---
+    var F = KP3D.FLOORS, activeFloor = state.floor || "parket_eik";
+    var roomBody = '<div class="cat-title">Gólfefni</div><div class="fl-grid">' + Object.keys(F).map(function(k){
+      return '<button type="button" class="fl-sw' + (activeFloor === k ? " active" : "") + '" data-floorpick="' + k + '" title="' + F[k].label + '"><img src="' + floorSwatch(k) + '" alt="' + F[k].label + '"></button>';
+    }).join("") + '</div>' +
+      '<div class="cat-title">Litur á veggjum</div><div class="sw-row">' + Object.keys(WALL_COLORS).map(function(k){
+        return '<button type="button" class="sw-btn' + (state.wallColor === k ? " active" : "") + '" data-wallpick="' + k + '" title="' + WALL_COLORS[k].label + '" style="background:' + WALL_COLORS[k].hex + ';"></button>';
+      }).join("") + '</div>' +
+      '<div class="cat-title">Lofthæð</div><div class="dim-f" style="margin-bottom:12px;"><input type="number" id="roomHeightInput" min="2200" max="3200" step="10" value="' + state.roomHeightMm + '"><small>mm · 2200–3200</small></div>' +
+      '<button type="button" class="btn btn-secondary btn-small" data-act="shape">Breyta lögun og lengd veggja</button>';
+    var html = sec("rymi", "Breyta rými", roomBody);
+
+    // --- cabinets ---
+    html += sec("skapar", "Skápar", CATALOG_GROUPS.map(function(group){
+      return '<div class="cat-title">' + group.title + '</div>' + group.types.map(cabinetItem).join("");
+    }).join(""));
+    // --- shelves + end panels ---
+    html += sec("hillur", PARTS_GROUP.title, '<p class="sec-note">Úthlið sem sett er upp við skáp tekur sjálfkrafa hæð og dýpt hans. Lausar hillur má lengja og raða allt að 5 yfir hver aðra.</p>' + PARTS_GROUP.types.map(cabinetItem).join(""));
+    // --- windows + doors ---
+    html += sec("gluggar", "Hurðir og gluggar",
       item("opening", "gluggi", "window", "Gluggi", WINDOW_DEFAULT.heightMm + ' × ' + WINDOW_DEFAULT.widthMm + ' mm', true) +
-      item("opening", "hurd", "door", "Hurð", DOOR_DEFAULT.heightMm + ' × ' + DOOR_DEFAULT.widthMm + ' mm', true);
+      item("opening", "hurd", "door", "Hurð", DOOR_DEFAULT.heightMm + ' × ' + DOOR_DEFAULT.widthMm + ' mm', true));
+    // --- islands ---
+    html += sec("eyjar", "Eyjar", Object.keys(ISLAND_TYPES).map(function(k){
+      return item("island", k, "island", ISLAND_TYPES[k].label, ISLAND_TYPES[k].dim, true);
+    }).join(""));
+    // --- materials ---
+    html += sec("efni", "Efni og útlit",
+      '<p class="sec-note">Framhlið: <b>' + (state.look && LOOKS[state.look] ? LOOKS[state.look].label : "—") + '</b><br>Borðplata: <b>' + (TOPS[state.top || "steinn"] ? TOPS[state.top || "steinn"].label : "—") + '</b><br>Opnun: <b>' + (state.handle ? HANDLES[state.handle].label : "—") + '</b></p>' +
+      '<button type="button" class="btn btn-secondary btn-small" data-act="materials">Breyta efni (framhlið, höldur, borðplata)</button>');
     host.innerHTML = html;
-    host.querySelectorAll(".cat-more").forEach(function(d){
-      d.addEventListener("toggle", function(){ openMore[d.dataset.group] = d.open; });
+    host.scrollTop = keepScroll;
+
+    host.querySelectorAll(".cat-sec").forEach(function(d){
+      d.addEventListener("toggle", function(){
+        openSecs[d.dataset.sec] = d.open;
+        try{ localStorage.setItem(SEC_KEY, JSON.stringify(openSecs)); }catch(e){}
+      });
+    });
+    host.querySelectorAll("[data-floorpick]").forEach(function(b){
+      b.addEventListener("click", function(){ state.floor = b.dataset.floorpick; save(); refreshAfterEdit(); });
+    });
+    host.querySelectorAll("[data-wallpick]").forEach(function(b){
+      b.addEventListener("click", function(){ state.wallColor = b.dataset.wallpick; save(); refreshAfterEdit(); });
+    });
+    var rh = document.getElementById("roomHeightInput");
+    if (rh) rh.addEventListener("change", function(){
+      var v = parseInt(rh.value, 10);
+      if (isNaN(v) || v < 2200 || v > 3200){ toast("Lofthæð þarf að vera á milli 2200 og 3200 mm."); rh.value = state.roomHeightMm; return; }
+      state.roomHeightMm = v;
+      state.walls.concat(state.islands).forEach(function(w){ (w.wall || []).concat(w.floor || []).forEach(clampElev); });
+      save();
+      KP3D.teardown3D(true); // ceiling changed: re-frame the room
+      refreshAfterEdit();
+    });
+    host.querySelectorAll("[data-act]").forEach(function(b){
+      b.addEventListener("click", function(){
+        if (b.dataset.act === "shape"){ shapePhase = "size"; goto("shape"); }
+        else jumpTo(b.dataset.act);
+      });
     });
     host.querySelectorAll(".cat-item").forEach(function(card){
       card.addEventListener("pointerdown", function(evt){ startCatalogDrag(card.dataset.kind, card.dataset.type, card, evt); });
@@ -1940,7 +2192,7 @@
   // near (matching the live preview exactly), unlike the "+ Type" button's
   // addBlock() which always appends to the end (a button click has no
   // "position" to speak of, so that stays simple on purpose).
-  function placeBlockAtDrop(wall, type, alongMm){
+  function placeBlockAtDrop(wall, type, alongMm, elevMm){
     var c = CATALOG[type];
     var zone = c.zone;
     var packed = placeInWall(wall, zone, c.defaultW, alongMm, null);
@@ -1949,7 +2201,9 @@
       return;
     }
     var b = newBlock(type);
+    if (zone === "wall" && elevMm != null) setBlockElev(b, wall, elevMm);
     insertBlockAt(wall, zone, b, packed.offsetMm);
+    matchPanelToNeighbour(wall, zone, b);
     landedBlockId = b.id;
     save();
     refreshAfterEdit();
@@ -2003,7 +2257,9 @@
   // (longest row). Rows are packed flush from the same end; the island grows
   // and shrinks from its right end so its left end stays where it is.
   function normalizeIslands(){
-    (state.islands || []).forEach(function(isl){
+    // an island with no cabinets left is gone (and so is its yellow move-handle)
+    state.islands = (state.islands || []).filter(function(isl){ return (isl.a && isl.a.length) || (isl.two && isl.b && isl.b.length); });
+    state.islands.forEach(function(isl){
       var rows = islandRowList(isl);
       rows.forEach(function(row){ row.forEach(function(b){ delete b.gapMm; }); });
       var usedA = usedMm(isl.a), usedB = isl.two ? usedMm(isl.b) : 0;
@@ -2077,14 +2333,14 @@
   // fixed default sizes, positioned by drop point, no collision checks
   // against cabinets on the same wall (a real-world conflict there is
   // exactly the kind of judgment call left for Rakel's review).
-  function addOpening(type, wallId, alongMm){
+  function addOpening(type, wallId, alongMm, elevMm){
     var wall = state.walls.find(function(w){ return w.id === wallId; });
     if (!wall || wall.open) return;
     var isWindow = type === "gluggi";
     var d = isWindow ? WINDOW_DEFAULT : DOOR_DEFAULT;
     var offsetMm = snappedOpeningOffset(wall, d.widthMm, alongMm);
     var o = { id:"o" + (openingSeq++), wallId:wallId, offsetMm:offsetMm, widthMm:d.widthMm, heightMm:d.heightMm };
-    if (isWindow) o.sillHeightMm = d.sillHeightMm;
+    if (isWindow) o.sillHeightMm = openingSill(d.heightMm, elevMm, type);
     (isWindow ? state.windows : state.doors).push(o);
     save();
     refreshAfterEdit();
@@ -2099,11 +2355,12 @@
 
   // Re-seat an existing window/door (dragged in 3D or 2D): same wall-end
   // snapping as placing a new one, on whichever wall it was dropped on.
-  function moveOpening(id, wallId, alongMm){
+  function moveOpening(id, wallId, alongMm, elevMm){
     var f = findOpening(id), wall = state.walls.find(function(w){ return w.id === wallId; });
     if (!f || !wall || wall.open) return;
     f.o.wallId = wallId;
     f.o.offsetMm = snappedOpeningOffset(wall, f.o.widthMm, alongMm);
+    if (f.kind === "window" && elevMm != null) f.o.sillHeightMm = openingSill(f.o.heightMm, elevMm, "gluggi"); // dragged up/down the wall
     save();
     refreshAfterEdit();
   }
@@ -2121,7 +2378,7 @@
   // target: replaces having to use the ◀/▶ buttons or the edit panel's
   // "move to wall" dropdown for this specific action, though those still
   // work exactly as before.
-  function moveBlockToPosition(blockId, wallId, alongMm){
+  function moveBlockToPosition(blockId, wallId, alongMm, elevMm){
     var found = findBlock(blockId);
     if (!found) return;
     var targetWall = surfaceById(wallId);
@@ -2133,7 +2390,9 @@
       return;
     }
     var b = detachBlock(found.wall, zone, blockId);
+    if (zone === "wall" && elevMm != null) setBlockElev(b, targetWall, elevMm);
     insertBlockAt(targetWall, zone, b, pl.offsetMm);
+    matchPanelToNeighbour(targetWall, zone, b);
     landedBlockId = b.id;
     save();
     refreshAfterEdit();
@@ -2503,10 +2762,12 @@
   function warnIdList(){ return warnings.reduce(function(acc, w){ return acc.concat(w.ids); }, []); }
 
   function onCabinetSelect(meta){
+    var hadWall = !!selectedWallId;
     selectedBlockId = meta ? meta.blockId : null;
+    selectedWallId = null;
     renderEditPanel();
     // 3D: just move the highlight (no scene rebuild); 2D / cold scene: re-render
-    if (viewMode === "3d" && KP3D.setSelected3D(selectedBlockId)) syncFloatBarKind();
+    if (viewMode === "3d" && KP3D.setSelected3D(selectedBlockId) && KP3D.setSelectedWall3D(null)) syncFloatBarKind();
     else renderView();
   }
   function syncFloatBarKind(){
@@ -2540,6 +2801,7 @@
 
   function updateEditorChrome(){
     updateTip();
+    updateStepper();
     var chip = document.getElementById("warnChip");
     chip.hidden = !warnings.length;
     chip.textContent = "⚠ " + warnings.length + " " + plural(warnings.length, "ábending", "ábendingar");
@@ -2556,21 +2818,23 @@
     if (meta.kind){
       var op = findOpening(meta.blockId);
       if (!wall || !op){ KP3D.hideDragPreview3D(); return; }
-      KP3D.updateDragPreview3D(drop.wallId, snappedOpeningOffset(wall, op.o.widthMm, drop.alongMm), op.o.widthMm, 60, true);
+      var sill = op.kind === "window" ? openingSill(op.o.heightMm, drop.elevMm != null ? drop.elevMm : op.o.sillHeightMm, "gluggi") : 0;
+      KP3D.updateDragPreview3D(drop.wallId, snappedOpeningOffset(wall, op.o.widthMm, drop.alongMm), op.o.widthMm, 60, true, op.o.heightMm, sill);
       return;
     }
     var found = findBlock(meta.blockId);
     if (!wall || !found){ KP3D.hideDragPreview3D(); return; }
     var c = CATALOG[found.block.type];
     var packed = placeInWall(wall, found.zone, found.block.widthMm, drop.alongMm, found.block.id);
-    KP3D.updateDragPreview3D(drop.wallId, packed.offsetMm, found.block.widthMm, found.block.depthMm || c.d, packed.fits, blockHeightMm(found.block, c), found.zone === "wall" ? WALL_UNIT_BASE_MM : 0);
+    var base = found.zone === "wall" ? (drop.elevMm != null ? snapElev(wall, found.block, drop.elevMm) : KP3D.elevOf(found.block)) : 0;
+    KP3D.updateDragPreview3D(drop.wallId, packed.offsetMm, found.block.widthMm, found.block.depthMm || c.d, packed.fits, blockHeightMm(found.block, c), base);
   }
 
   function on3DDragEnd(meta, drop){
     KP3D.hideDragPreview3D();
     if (!drop) return;
-    if (meta.kind) moveOpening(meta.blockId, drop.wallId, drop.alongMm);
-    else moveBlockToPosition(meta.blockId, drop.wallId, drop.alongMm);
+    if (meta.kind) moveOpening(meta.blockId, drop.wallId, drop.alongMm, drop.elevMm);
+    else moveBlockToPosition(meta.blockId, drop.wallId, drop.alongMm, drop.elevMm);
   }
 
   function duplicateBlock(wall, zone, id){
@@ -2584,8 +2848,9 @@
       toast("Ekki nóg pláss á " + wall.label.toLowerCase() + " til að afrita.");
       return;
     }
-    var copy = newBlock(src.type);
-    if (src.interior) copy.interior = { mode:src.interior.mode, count:src.interior.count };
+    var copy = JSON.parse(JSON.stringify(src)); // every setting comes along: size, hardware, hinge side, height…
+    copy.id = "b" + (blockSeq++);
+    delete copy.gapMm;
     insertBlockAt(wall, zone, copy, pl.offsetMm);
     selectedBlockId = copy.id;
     landedBlockId = copy.id;
@@ -2637,7 +2902,7 @@
 
     if (viewMode === "2d"){
       wrap.hidden = true; plan.hidden = false;
-      KP3D.buildPlan2D(plan, state, { selectedId:selectedBlockId, onSelect:onCabinetSelect, warnIds:warnIdList() });
+      KP3D.buildPlan2D(plan, state, { selectedId:selectedBlockId, selectedWallId:selectedWallId, onSelect:onCabinetSelect, onWallSelect:onWallSelect, warnIds:warnIdList() });
       wireBlockDragHandlers();
       positionFloatBar2D();
       return;
@@ -2653,7 +2918,7 @@
         return;
       }
       wrap.innerHTML = "";
-      KP3D.buildScene(wrap, state, { selectedId:selectedBlockId, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, onIslandDragEnd:onIslandDragEnd, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList() });
+      KP3D.buildScene(wrap, state, { selectedId:selectedBlockId, selectedWallId:selectedWallId, onWallSelect:onWallSelect, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, onIslandDragEnd:onIslandDragEnd, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList() });
       landedBlockId = null;
     }, 8000);
   }
@@ -2687,11 +2952,12 @@
     state.walls.forEach(function(wall){
       if (wall.open) return;
       var items = wall.wall.concat(wall.floor);
-      html += '<div class="ov-wall"><div class="ov-wall-h">' + wall.label + ' · ' + wall.lengthMm + ' mm</div>';
+      html += '<div class="ov-wall"><button type="button" class="ov-wall-h" data-wallsel="' + wall.id + '" title="Velja vegginn">' + wall.label + ' · ' + wall.lengthMm + ' mm ›</button>';
       if (!items.length) html += '<div class="empty-note">Ekkert ennþá</div>';
       items.forEach(function(b){
         var c = CATALOG[b.type];
         var hw = b.interior && b.interior.mode === "skuffur" ? " · " + b.interior.count + " " + plural(b.interior.count, "skúffa", "skúffur")
+          : c.shelfStack ? " · " + b.count + " " + plural(b.count, "hilla", "hillur")
           : c.shelfRange ? " · " + KP3D.shelvesOf(b) + " " + plural(KP3D.shelvesOf(b), "hilla", "hillur") : "";
         html += '<button type="button" class="ov-item" data-select="' + b.id + '"><span style="color:var(--ink);font-weight:600;">' + c.label + hw + '</span><span>' + b.widthMm + '×' + blockHeightMm(b, c) + '×' + (b.depthMm || c.d) + '</span></button>';
       });
@@ -2774,28 +3040,33 @@
   // clamped so the opening always stays inside its wall.
   function renderOpeningPanel(host, f){
     var o = f.o, wall = state.walls.find(function(w){ return w.id === o.wallId; });
-    var isWin = f.kind === "window";
-    function row(label, key, val, step){
-      return '<div class="edit-field"><label>' + label + '</label><div class="hw-count">' +
-        '<button class="iconbtn" data-op="' + key + '" data-dir="-1">−</button><b style="min-width:60px;">' + val + ' mm</b>' +
-        '<button class="iconbtn" data-op="' + key + '" data-dir="1">+</button></div></div>';
+    var isWin = f.kind === "window", roomH = state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM;
+    var LIMITS = { widthMm:[400, wall ? wall.lengthMm : 3000], heightMm:[600, Math.min(2500, roomH)], sillHeightMm:[0, Math.max(0, roomH - o.heightMm)] };
+    function field(key, label){
+      var r = LIMITS[key];
+      return '<div class="dim-f"><label>' + label + '</label><input type="number" data-op="' + key + '" value="' + o[key] + '" min="' + r[0] + '" max="' + r[1] + '" step="1"><small>' + r[0] + '–' + r[1] + '</small></div>';
     }
     host.innerHTML =
       '<div class="edit-panel">' +
-        '<div class="edit-panel-head"><div><h4>' + (isWin ? "Gluggi" : "Hurð") + '</h4><div class="sub">' + (wall ? wall.label : "") + '</div></div>' +
+        '<div class="edit-panel-head"><div><h4>' + (isWin ? "Gluggi" : "Hurð") + '</h4><div class="sub"><a href="#" data-role="toWall" style="color:var(--blue);text-decoration:none;font-weight:600;">' + (wall ? wall.label : "") + '</a></div></div>' +
           '<button class="iconbtn" data-role="close" title="Loka">✕</button></div>' +
-        row("Breidd", "widthMm", o.widthMm) +
-        row("Hæð", "heightMm", o.heightMm) +
-        (isWin ? row("Hæð frá gólfi", "sillHeightMm", o.sillHeightMm) : "") +
+        '<div class="edit-field"><label>Mál (mm) — sláðu inn</label><div class="dim-grid">' + field("widthMm", "Breidd") + field("heightMm", "Hæð") + (isWin ? field("sillHeightMm", "Frá gólfi") : "") + '</div>' +
+          (isWin ? '<p class="ov-mat" style="margin:8px 0 0;">Dragðu gluggann upp og niður á veggnum í 3D til að breyta hæðinni.</p>' : '') + '</div>' +
         '<div class="edit-actions"><button class="iconbtn del" data-role="delete" title="Fjarlægja">✕ Fjarlægja</button></div>' +
       '</div>';
-    var LIMITS = { widthMm:[400, wall ? wall.lengthMm : 3000, 100], heightMm:[600, 2500, 100], sillHeightMm:[0, 1500, 50] };
     host.querySelector('[data-role="close"]').addEventListener("click", function(){ onCabinetSelect(null); });
+    host.querySelector('[data-role="toWall"]').addEventListener("click", function(e){ e.preventDefault(); if (wall) onWallSelect(wall.id); });
     host.querySelector('[data-role="delete"]').addEventListener("click", function(){ selectedBlockId = null; removeOpening(f.kind, o.id); });
-    host.querySelectorAll("[data-op]").forEach(function(btn){
-      btn.addEventListener("click", function(){
-        var key = btn.dataset.op, lim = LIMITS[key];
-        o[key] = Math.max(lim[0], Math.min(lim[1], o[key] + parseInt(btn.dataset.dir, 10) * lim[2]));
+    host.querySelectorAll("[data-op]").forEach(function(inp){
+      inp.addEventListener("change", function(){
+        var key = inp.dataset.op, lim = LIMITS[key], v = Math.round(parseFloat(inp.value));
+        if (isNaN(v) || v < lim[0] || v > lim[1]){
+          toast((key === "widthMm" ? "Breidd" : key === "heightMm" ? "Hæð" : "Hæð frá gólfi") + " þarf að vera á milli " + lim[0] + " og " + lim[1] + " mm.");
+          renderEditPanel();
+          return;
+        }
+        o[key] = v;
+        if (key === "heightMm" && isWin) o.sillHeightMm = Math.min(o.sillHeightMm, Math.max(0, roomH - o.heightMm));
         if (wall) o.offsetMm = Math.max(0, Math.min(wall.lengthMm - o.widthMm, o.offsetMm));
         save();
         refreshAfterEdit();
@@ -2809,11 +3080,16 @@
     if (opening){ renderOpeningPanel(host, opening); return; }
     var island = !found && !opening && selectedBlockId ? findIsland(selectedBlockId) : null;
     if (island){ renderIslandPanel(host, island); return; }
+    var selWall = !found && !selectedBlockId && selectedWallId ? state.walls.find(function(w){ return w.id === selectedWallId; }) : null;
+    if (selWall){ renderWallPanel(host, selWall); return; }
     if (!found){
       selectedBlockId = null;
       host.innerHTML = overviewHTML();
       host.querySelectorAll("[data-select]").forEach(function(btn){
         btn.addEventListener("click", function(){ onCabinetSelect({ blockId:btn.dataset.select }); });
+      });
+      host.querySelectorAll("[data-wallsel]").forEach(function(btn){
+        btn.addEventListener("click", function(){ onWallSelect(btn.dataset.wallsel); });
       });
       host.querySelectorAll("[data-open-kind]").forEach(function(btn){
         btn.addEventListener("click", function(e){ e.stopPropagation(); removeOpening(btn.dataset.openKind, btn.dataset.openId); });
@@ -2834,25 +3110,44 @@
       return;
     }
     var wall = found.wall, zone = found.zone, b = found.block, c = CATALOG[b.type];
+    var roomH = state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM;
 
     var otherWalls = surfaces().filter(function(w){ return w.id !== wall.id && !w.open && !(w.island && zone !== "floor"); });
     var moveOptions = otherWalls.map(function(w){ return '<option value="' + w.id + '">' + w.label + '</option>'; }).join("");
-    var typeKeys = typesForZone(zone);
+    var typeKeys = typesForZone(zone, b);
     if (typeKeys.indexOf(b.type) < 0) typeKeys.unshift(b.type); // legacy type keeps its own entry
-    function opt(t){ return '<option value="' + t + '"' + (t === b.type ? " selected" : "") + '>' + CATALOG[t].label + '</option>'; }
-    // grouped by core type so 14 entries don't read as one flat list
-    var typeOptions = typeKeys.filter(function(t){ return !CATALOG[t].variantOf; }).map(function(core){
-      var kids = typeKeys.filter(function(t){ return CATALOG[t].variantOf === core; });
-      var sized = [core].concat(kids).sort(function(a, z){ return CATALOG[a].defaultW - CATALOG[z].defaultW; });
-      return kids.length ? '<optgroup label="' + CATALOG[core].label + '">' + sized.map(opt).join("") + '</optgroup>' : opt(core);
-    }).join("");
+    var typeOptions = typeKeys.map(function(t){ return '<option value="' + t + '"' + (t === b.type ? " selected" : "") + '>' + CATALOG[t].label + '</option>'; }).join("");
+
+    // typed dimensions (mm): every type has a real min–max range now
+    var hNow = blockHeightMm(b, c), dNow = b.depthMm || c.d;
+    function dimF(key, label, val, r){
+      return '<div class="dim-f"><label>' + label + '</label><input type="number" data-dim="' + key + '" value="' + val + '" min="' + r[0] + '" max="' + r[1] + '" step="1"><small>' + r[0] + '–' + r[1] + '</small></div>';
+    }
+    var dims = '<div class="dim-grid">' +
+      (c.panel ? '<div class="dim-f fixed"><label>Þykkt</label><b>19 mm</b></div>' : dimF("widthMm", c.shelfStack ? "Lengd" : "Breidd", b.widthMm, dimRange(c, "widthMm"))) +
+      (c.shelfStack ? '<div class="dim-f fixed"><label>Heildarhæð</label><b>' + hNow + '</b></div>' : dimF("heightMm", "Hæð", hNow, dimRange(c, "heightMm"))) +
+      dimF("depthMm", "Dýpt", dNow, dimRange(c, "depthMm")) +
+    '</div>';
+    var elevNow = KP3D.elevOf(b);
+    var elevField = zone === "wall"
+      ? '<div class="edit-field"><label>Hæð frá gólfi (neðri brún)</label><div class="dim-grid"><div class="dim-f"><input type="number" data-role="elev" value="' + elevNow + '" min="0" max="' + Math.max(0, roomH - hNow) + '" step="1"><small>mm · 0–' + Math.max(0, roomH - hNow) + ' — eða dragðu upp og niður</small></div></div></div>'
+      : '';
+    var stackField = c.shelfStack
+      ? '<div class="edit-field"><label>Fjöldi hilla (allt að ' + KP3D.SHELF_STACK_MAX + ')</label><div class="hw-count">' +
+          '<button class="iconbtn" data-role="st-dec" ' + (b.count <= 1 ? "disabled" : "") + '>−</button><b>' + b.count + '</b>' +
+          '<button class="iconbtn" data-role="st-inc" ' + (b.count >= KP3D.SHELF_STACK_MAX ? "disabled" : "") + '>+</button><span>' + plural(b.count, "hilla", "hillur") + ' · 38 mm þykkar</span></div></div>' +
+        (b.count > 1 ? '<div class="edit-field"><label>Bil á milli hilla</label><div class="dim-grid"><div class="dim-f"><input type="number" data-role="st-gap" value="' + b.vgapMm + '" min="50" max="800" step="1"><small>mm · 50–800</small></div></div></div>' : '')
+      : '';
 
     host.innerHTML =
       '<div class="edit-panel">' +
-        '<div class="edit-panel-head"><div><h4>' + c.label + '</h4><div class="sub">' + wall.label + (wall.island ? "" : ' · ' + (zone === "wall" ? "efri röð" : "neðri röð")) + '</div></div>' +
+        '<div class="edit-panel-head"><div><h4>' + c.label + '</h4><div class="sub"><a href="#" data-role="toWall" style="color:var(--blue);text-decoration:none;font-weight:600;">' + wall.label + '</a>' + (wall.island ? "" : ' · ' + (zone === "wall" ? "efri röð" : "neðri röð")) + '</div></div>' +
           (wall.island ? '<button class="iconbtn" data-role="toIsland" title="Velja eyjuna" style="margin-right:6px;">Eyja</button>' : '') +
           '<button class="iconbtn" data-role="close" title="Loka">✕</button></div>' +
-        '<div class="edit-field"><label>Tegund skáps</label><select data-role="type">' + typeOptions + '</select></div>' +
+        '<div class="edit-field"><label>Tegund</label><select data-role="type">' + typeOptions + '</select></div>' +
+        '<div class="edit-field"><label>Mál (mm) — sláðu inn</label>' + dims + '</div>' +
+        elevField + stackField +
+        (c.panel ? '<div class="edit-field"><button type="button" class="iconbtn" data-role="match">↔ Passa við skápinn við hliðina</button><p class="ov-mat" style="margin:6px 0 0;">Tekur hæð, dýpt og hæð frá gólfi af skápnum sem hún liggur að.</p></div>' : '') +
         (c.hasInterior ? '<div class="edit-field">' + hardwareHTML(b, c) + '</div>' : '') +
         (c.shelfRange && !(b.interior && b.interior.mode === "skuffur")
           ? '<div class="edit-field"><label>Lausar hillur</label><div class="hw-count">' +
@@ -2878,8 +3173,36 @@
     host.querySelector('[data-role="close"]').addEventListener("click", function(){ onCabinetSelect(null); });
     var toIsl = host.querySelector('[data-role="toIsland"]');
     if (toIsl) toIsl.addEventListener("click", function(){ onCabinetSelect({ blockId:wall.island.id }); });
+    var toWall = host.querySelector('[data-role="toWall"]');
+    if (toWall) toWall.addEventListener("click", function(e){ e.preventDefault(); if (!wall.island) onWallSelect(wall.id); });
     host.querySelector('[data-role="type"]').addEventListener("change", function(e){
       changeBlockType(wall, zone, b.id, e.target.value);
+    });
+    host.querySelectorAll("[data-dim]").forEach(function(inp){
+      inp.addEventListener("change", function(){ setBlockDim(b.id, inp.dataset.dim, inp.value); });
+    });
+    var elevInp = host.querySelector('[data-role="elev"]');
+    if (elevInp) elevInp.addEventListener("change", function(){
+      var v = Math.round(parseFloat(elevInp.value)), max = Math.max(0, roomH - hNow);
+      if (isNaN(v) || v < 0 || v > max){ toast("Hæð frá gólfi þarf að vera á milli 0 og " + max + " mm."); renderEditPanel(); return; }
+      if (v === KP3D.defaultElevOf(b.type)) delete b.elevMm; else b.elevMm = v;
+      save(); refreshAfterEdit();
+    });
+    function restack(count, gap){ initShelfStack(b, count, gap); clampElev(b); save(); refreshAfterEdit(); }
+    var stDec = host.querySelector('[data-role="st-dec"]'), stInc = host.querySelector('[data-role="st-inc"]'), stGap = host.querySelector('[data-role="st-gap"]');
+    if (stDec) stDec.addEventListener("click", function(){ restack(Math.max(1, b.count - 1), b.vgapMm); });
+    if (stInc) stInc.addEventListener("click", function(){ restack(Math.min(KP3D.SHELF_STACK_MAX, b.count + 1), b.vgapMm); });
+    if (stGap) stGap.addEventListener("change", function(){
+      var v = Math.round(parseFloat(stGap.value));
+      if (isNaN(v) || v < 50 || v > 800){ toast("Bil þarf að vera á milli 50 og 800 mm."); renderEditPanel(); return; }
+      restack(b.count, v);
+    });
+    var matchBtn = host.querySelector('[data-role="match"]');
+    if (matchBtn) matchBtn.addEventListener("click", function(){
+      var before = JSON.stringify(b);
+      matchPanelToNeighbour(wall, zone, b);
+      if (JSON.stringify(b) === before) toast("Engin úthlið passar ekki — hún þarf að liggja að skáp.");
+      save(); refreshAfterEdit();
     });
     if (c.hasInterior){
       host.querySelectorAll('[data-hw]').forEach(function(btn){
@@ -2916,6 +3239,51 @@
         if (e.target.value) moveBlockToWall(b.id, e.target.value);
       });
     }
+  }
+
+  // ---------- wall selection ----------
+  // Click a wall (3D: on the wall; 2D: on the thick wall line; or its name in the
+  // overview) to see which wall you are working on and what stands on it.
+  var selectedWallId = null; // not persisted
+  function onWallSelect(id){
+    selectedBlockId = null;
+    selectedWallId = id;
+    document.getElementById("floatBar").hidden = true;
+    renderEditPanel();
+    if (viewMode === "3d" && KP3D.setSelected3D(null) && KP3D.setSelectedWall3D(id)) syncFloatBarKind();
+    else renderView();
+  }
+  function renderWallPanel(host, wall){
+    var roomH = state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM;
+    function freeMm(zone){ return freeIntervals(wall, zone).reduce(function(sum, iv){ return sum + (iv[1] - iv[0]); }, 0); }
+    var items = wall.floor.concat(wall.wall);
+    var ops = state.windows.filter(function(o){ return o.wallId === wall.id; }).map(function(o){ return { kind:"window", o:o, label:"Gluggi" }; })
+      .concat(state.doors.filter(function(o){ return o.wallId === wall.id; }).map(function(o){ return { kind:"door", o:o, label:"Hurð" }; }));
+    var list = items.map(function(b){
+      var c = CATALOG[b.type];
+      return '<button type="button" class="ov-item" data-select="' + b.id + '"><span style="color:var(--ink);font-weight:600;">' + c.label + '</span><span>' + b.widthMm + '×' + blockHeightMm(b, c) + '×' + (b.depthMm || c.d) + '</span></button>';
+    }).concat(ops.map(function(x){
+      return '<button type="button" class="ov-item" data-select="' + x.o.id + '"><span style="color:var(--ink);font-weight:600;">' + x.label + '</span><span>' + x.o.widthMm + '×' + x.o.heightMm + '</span></button>';
+    })).join("");
+    host.innerHTML =
+      '<div class="edit-panel">' +
+        '<div class="edit-panel-head"><div><h4>' + wall.label + '<span class="wall-badge">valinn</span></h4><div class="sub">' + wall.lengthMm + ' mm langur · lofthæð ' + roomH + ' mm</div></div>' +
+          '<button class="iconbtn" data-role="close" title="Loka">✕</button></div>' +
+        '<p class="ov-mat" style="margin:0 0 10px;">Laust pláss: neðri röð <b>' + freeMm("floor") + ' mm</b> · efri röð <b>' + freeMm("wall") + ' mm</b></p>' +
+        '<div class="ov-wall-h" style="margin-bottom:6px;">Á þessum vegg</div>' +
+        (list || '<div class="empty-note">Ekkert ennþá — dragðu skáp úr vörulistanum á vegginn.</div>') +
+        '<div class="edit-actions" style="margin-top:12px;">' +
+          '<button class="iconbtn" data-role="addWin">＋ Gluggi</button><button class="iconbtn" data-role="addDoor">＋ Hurð</button>' +
+        '</div>' +
+        '<div class="ov-links"><button type="button" class="btn btn-secondary btn-small" data-role="shape">Breyta lengd veggja</button></div>' +
+      '</div>';
+    host.querySelector('[data-role="close"]').addEventListener("click", function(){ onCabinetSelect(null); });
+    host.querySelectorAll("[data-select]").forEach(function(btn){
+      btn.addEventListener("click", function(){ onCabinetSelect({ blockId:btn.dataset.select }); });
+    });
+    host.querySelector('[data-role="addWin"]').addEventListener("click", function(){ addOpening("gluggi", wall.id, Math.round(wall.lengthMm / 2)); });
+    host.querySelector('[data-role="addDoor"]').addEventListener("click", function(){ addOpening("hurd", wall.id, Math.round(wall.lengthMm / 2)); });
+    host.querySelector('[data-role="shape"]').addEventListener("click", function(){ shapePhase = "size"; goto("shape"); });
   }
 
   function moveBlockToWall(blockId, newWallId){
@@ -2961,13 +3329,55 @@
 
   // ---------- screen switching ----------
   function goto(step){
-    if (state.step === "editor" && step !== "editor"){ KP3D.teardown3D(); selectedBlockId = null; }
+    if (state.step === "editor" && step !== "editor"){ KP3D.teardown3D(); selectedBlockId = null; selectedWallId = null; }
     if (step === "editor" && state.step !== "editor"){ undoStack = []; histIdx = -1; seedSink(); }
     if (step === "shape" && state.closed && shapePhase === "pick" && state.walls.length) shapePhase = "size";
     state.step = step;
     save();
     render();
   }
+
+  // ---------- progress stepper: shows where you are and jumps between steps ----------
+  // Forward jumps are only allowed once what the later step needs exists (the
+  // same conditions the "Áfram" buttons already enforce); going back is always fine.
+  var STEP_LABELS = { intake:"Spurningar", materials:"Efni", shape:"Rými", editor:"Skipulag", contact:"Senda inn" };
+  function cabinetTotal(){ return surfaces().reduce(function(sum, w){ return sum + w.floor.length + w.wall.length; }, 0); }
+  function canGoTo(step){
+    if (state.step === "done") return { ok:false, why:"Skipulagið hefur verið sent inn." };
+    if (step === "intake" || step === "materials") return { ok:true };
+    if (firstMissingPhase() < 4) return { ok:false, why:"Veldu skrokk, skúffukerfi, framhlið og opnun fyrst (Efni)." };
+    if (step === "shape") return { ok:true };
+    if (!state.closed || !state.walls.length) return { ok:false, why:"Skilgreindu rýmið fyrst." };
+    if (step === "editor") return { ok:true };
+    if (cabinetTotal() === 0) return { ok:false, why:"Bættu að minnsta kosti einum skáp við fyrst." };
+    return { ok:true };
+  }
+  function updateStepper(){
+    var idx = STEP_ORDER.indexOf(state.step);
+    document.querySelectorAll("#progressSteps .st").forEach(function(el){
+      var i = STEP_ORDER.indexOf(el.dataset.s), g = canGoTo(el.dataset.s);
+      el.classList.toggle("active", i === idx);
+      el.classList.toggle("done", i < idx);
+      el.classList.toggle("locked", i !== idx && !g.ok);
+      el.title = i !== idx && !g.ok ? g.why : "";
+      el.setAttribute("aria-current", i === idx ? "step" : "false");
+      el.querySelector("i").textContent = i < idx ? "✓" : String(i + 1);
+    });
+    var k = document.getElementById("kicker");
+    k.innerHTML = idx >= 0 && idx < 5 ? 'BJÖRNINN · Skref <b>' + (idx + 1) + ' af 5</b> · ' + STEP_LABELS[state.step] : "BJÖRNINN · Sjálfsafgreiðsla";
+  }
+  function jumpTo(step){
+    if (step === state.step) return;
+    var g = canGoTo(step);
+    if (!g.ok){ toast(g.why); return; }
+    if (state.step === "editor" && step === "contact") captureThumb(); // the 3D scene must still be alive
+    if (step === "materials") matPhase = firstMissingPhase() >= 4 ? 0 : null;
+    goto(step);
+    if (step === "contact") renderPreviews();
+  }
+  document.querySelectorAll("#progressSteps .st").forEach(function(el){
+    el.addEventListener("click", function(){ jumpTo(el.dataset.s); });
+  });
 
   // Phase 7c: materials moved before shape/walls so room dimensions sit
   // immediately before the 3D view, matching the user's own outline.
@@ -2977,12 +3387,7 @@
     STEP_ORDER.forEach(function(s){
       document.getElementById("screen-" + s).hidden = state.step !== s;
     });
-    var stepIdx = STEP_ORDER.indexOf(state.step);
-    document.querySelectorAll("#progressSteps span").forEach(function(el){
-      var i = STEP_ORDER.indexOf(el.dataset.s);
-      el.classList.toggle("active", i === stepIdx);
-      el.classList.toggle("done", i < stepIdx);
-    });
+    updateStepper();
 
     if (state.step === "intake") renderIntake();
     if (state.step === "shape") renderShapeStep();
@@ -3078,6 +3483,7 @@
     return ok;
   }
 
+  function zone_ofBlock(wall, b){ return wall.wall.indexOf(b) >= 0 ? "wall" : "floor"; }
   function collectEyðublaðRows(){
     var rows = [];
     var handle = state.handle ? HANDLES[state.handle] : null;
@@ -3103,12 +3509,15 @@
           fields["Töfrahorn útfærsla"] = [c.tofrahornId];
           fields["Breidd á töfra front"] = b.widthMm;
         }
-        if (drawerSys){
+        var plain = !c.panel && !c.shelfStack; // úthlið and loose shelves have no drawers/handles of their own
+        if (drawerSys && plain){
           fields["Skúffutegund"] = drawerSys.airtableName;
         }
         var notes = [];
         if (wall.island) notes.push("Skápur í eyju (" + wall.label + ") — stendur laus á gólfinu, ekki við vegg" + (wall.island.two ? "; bak í bak við aðra röð." : "."));
-        if (handle && handle.vorulistiId){
+        if (!plain){
+          // no handle fields for boards
+        } else if (handle && handle.vorulistiId){
           // A real physical handle — no milled grip channel on the panel.
           fields["Höldur 1"] = [handle.vorulistiId];
           fields["Höldur 1 magn"] = 1;
@@ -3127,6 +3536,12 @@
           fields["Lausar hillur fjöldi"] = KP3D.shelvesOf(b);
         }
         if (c.note) notes.push(c.note);
+        if (c.shelfStack){
+          notes.push("Lausar hillur: " + b.count + " stk, hver " + b.widthMm + " mm löng og " + (b.depthMm || c.d) + " mm djúp, " + (b.count > 1 ? b.vgapMm + " mm bil á milli, " : "") + "neðsta hilla " + KP3D.elevOf(b) + " mm frá gólfi.");
+        } else if (zone_ofBlock(wall, b) === "wall" && b.elevMm != null){
+          notes.push("Neðri brún er " + b.elevMm + " mm frá gólfi.");
+        }
+        if (c.panel) notes.push("Úthlið: " + blockHeightMm(b, c) + " mm há, " + (b.depthMm || c.d) + " mm djúp" + (c.zone === "wall" ? ", neðri brún " + KP3D.elevOf(b) + " mm frá gólfi" : "") + ".");
         if (b.swing && !(b.interior && b.interior.mode === "skuffur")){
           notes.push("Viðskiptavinur óskar eftir að lamir séu " + (b.swing === "vinstri" ? "vinstra" : "hægra") + " megin (séð framan frá).");
         }
@@ -3293,6 +3708,7 @@
     var mod = e.metaKey || e.ctrlKey;
     if (mod && e.key.toLowerCase() === "z"){ e.preventDefault(); stepHistory(e.shiftKey ? 1 : -1); return; }
     if (mod && e.key.toLowerCase() === "y"){ e.preventDefault(); stepHistory(1); return; }
+    if (!selectedBlockId && selectedWallId && e.key === "Escape"){ onCabinetSelect(null); return; }
     if (!selectedBlockId) return;
     var isl = findIsland(selectedBlockId);
     if (isl){

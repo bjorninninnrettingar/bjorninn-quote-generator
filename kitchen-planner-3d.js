@@ -16,28 +16,46 @@
   // collectEyðublaðRows(), which already no-ops cleanly on their absence
   // (its ovenHeightMm/tofrahornId branches just never fire for these 3).
   var CATALOG = {
-    grunnskapur: { label:"Grunnskápur", zone:"floor", cls:"floor", defaultW:600, minW:600, maxW:600, h:800,  d:600, minH:800,  maxH:800,  minD:600, maxD:600, hasInterior:true, drawerCountRange:[1,5], shelfRange:[0,4,1], counter:true },
-    harskapur:   { label:"Hárskápur",   zone:"floor", cls:"tall",  defaultW:600, minW:600, maxW:600, h:2400, d:600, minH:2400, maxH:2400, minD:600, maxD:600, hasInterior:true, drawerCountRange:[1,5], shelfRange:[0,8,5] },
-    efriskapur:  { label:"Efriskápur",  zone:"wall",  cls:"wall",  defaultW:600, minW:600, maxW:600, h:1000, d:300, minH:1000, maxH:1000, minD:300, maxD:300, hasInterior:false, shelfRange:[0,5,2] },
+    // Every dimension is editable per cabinet (typed in the properties panel,
+    // clamped to minW..maxW etc.); w/h/d here are just the starting size.
+    grunnskapur: { label:"Grunnskápur", zone:"floor", cls:"floor", defaultW:600, minW:200, maxW:1200, h:800,  d:600, minH:600,  maxH:1000, minD:300, maxD:700, hasInterior:true, drawerCountRange:[1,5], shelfRange:[0,4,1], counter:true },
+    harskapur:   { label:"Hárskápur",   zone:"floor", cls:"tall",  defaultW:600, minW:300, maxW:900,  h:2400, d:600, minH:1800, maxH:2600, minD:300, maxD:700, hasInterior:true, drawerCountRange:[1,5], shelfRange:[0,8,5] },
+    efriskapur:  { label:"Efriskápur",  zone:"wall",  cls:"wall",  defaultW:600, minW:200, maxW:1200, h:1000, d:300, minH:300,  maxH:1200, minD:200, maxD:450, hasInterior:false, shelfRange:[0,5,2] },
     // Built-in fridge: NOT its own Skápategund in the schema (Skápategund has
     // Grunn/Hár/Efri/Lagna/Ofna/Loftunarskápur only) — physically a Hárskápur
     // housing a bought appliance, so it submits as Hárskápur plus a plain note
     // (same pattern as the drawer note) and Rakel confirms the niche size.
-    isskapur:    { label:"Ísskápur (innbyggður)", zone:"floor", cls:"fridge", defaultW:600, minW:600, maxW:600, h:2400, d:600, minH:2400, maxH:2400, minD:600, maxD:600, hasInterior:false,
+    isskapur:    { label:"Ísskápur (innbyggður)", zone:"floor", cls:"fridge", defaultW:600, minW:500, maxW:1000, h:2400, d:600, minH:1700, maxH:2600, minD:500, maxD:750, hasInterior:false,
                    skapategundOverride:"Hárskápur", fridge:true,
                    note:"Viðskiptavinur óskar eftir innbyggðum ísskáp í þessum skáp — vinsamlegast staðfestu stærð tækis (nisju) og hurðargerð." },
-    // Special units (2026-09-19 — no longer paused): oven tower and Le Mans
-    // corner map to real Airtable fields (Hæð ofns, Töfrahorn útfærsla); the
-    // sink base and open shelves have no schema of their own, so they submit
-    // as Grunnskápur / Efriskápur plus a plain note for Rakel.
-    ofnaskapur:  { label:"Ofnaskápur",  zone:"floor", cls:"oven",  defaultW:600, minW:600, maxW:600, h:2100, d:600, minH:1800, maxH:2200, minD:600, maxD:600, hasInterior:false, ovenHeightMm:595, oven:true },
-    tofrahorn:   { label:"Töfrahorn (kapphorn)", zone:"floor", cls:"corner", defaultW:1200, minW:1200, maxW:1200, h:800, d:600, minH:800, maxH:800, minD:600, maxD:600, hasInterior:false, counter:true,
+    // Special units: oven tower and Le Mans corner map to real Airtable fields
+    // (Hæð ofns, Töfrahorn útfærsla); the sink base and open shelves have no
+    // schema of their own, so they submit as Grunnskápur / Efriskápur plus a
+    // plain note for Rakel.
+    ofnaskapur:  { label:"Ofnaskápur",  zone:"floor", cls:"oven",  defaultW:600, minW:500, maxW:900, h:2100, d:600, minH:1800, maxH:2600, minD:500, maxD:750, hasInterior:false, ovenHeightMm:595, oven:true },
+    tofrahorn:   { label:"Töfrahorn (kapphorn)", zone:"floor", cls:"corner", defaultW:1200, minW:900, maxW:1500, h:800, d:600, minH:600, maxH:1000, minD:500, maxD:900, hasInterior:false, counter:true,
                    skapategundOverride:"Grunnskápur", tofrahornId:"rec9PD5fCZGUpwAon" },
-    vaskaskapur: { label:"Vaskaskápur", zone:"floor", cls:"floor", defaultW:800, minW:800, maxW:800, h:800, d:600, minH:800, maxH:800, minD:600, maxD:600, hasInterior:false, counter:true, sink:true,
+    vaskaskapur: { label:"Vaskaskápur", zone:"floor", cls:"floor", defaultW:800, minW:500, maxW:1500, h:800, d:600, minH:600, maxH:1000, minD:400, maxD:750, hasInterior:false, counter:true, sink:true,
                    skapategundOverride:"Grunnskápur", note:"Vaskaskápur — útskurður fyrir vask og lagnir; vinsamlegast staðfestu vaskstærð og gerð." },
-    opnarhillur: { label:"Opnar hillur", zone:"wall", cls:"wall", defaultW:600, minW:600, maxW:600, h:700, d:300, minH:700, maxH:700, minD:300, maxD:300, hasInterior:false, open:true, shelfRange:[1,5,3],
-                   skapategundOverride:"Efriskápur", note:"Opnar hillur — engin hurð; viðskiptavinur óskar eftir opnum hillum." }
+    opnarhillur: { label:"Opnar hillur", zone:"wall", cls:"wall", defaultW:600, minW:200, maxW:1200, h:700, d:300, minH:200, maxH:1200, minD:200, maxD:450, hasInterior:false, open:true, shelfRange:[1,5,3],
+                   skapategundOverride:"Efriskápur", note:"Opnar hillur — engin hurð; viðskiptavinur óskar eftir opnum hillum." },
+    // Úthlið (end panel): 19 mm thick, same material as the fronts. Placed at
+    // the end of a run it copies height/depth from the cabinet it butts up to.
+    uthlid:      { label:"Úthlið — neðri", zone:"floor", cls:"floor", defaultW:19, minW:19, maxW:19, h:800, d:600, minH:300, maxH:1000, minD:100, maxD:750, hasInterior:false, panel:true,
+                   skapategundOverride:"Grunnskápur", note:"Úthlið, 19 mm þykk, sama efni og framhliðar (stendur við enda á skápalínu)." },
+    uthlidhar:   { label:"Úthlið — há", zone:"floor", cls:"tall", defaultW:19, minW:19, maxW:19, h:2400, d:600, minH:1000, maxH:2600, minD:100, maxD:750, hasInterior:false, panel:true,
+                   skapategundOverride:"Hárskápur", note:"Úthlið, 19 mm þykk, sama efni og framhliðar (stendur við enda á skápalínu)." },
+    uthlidefri:  { label:"Úthlið — efri", zone:"wall", cls:"wall", defaultW:19, minW:19, maxW:19, h:1000, d:300, minH:200, maxH:1200, minD:100, maxD:450, hasInterior:false, panel:true,
+                   skapategundOverride:"Efriskápur", note:"Úthlið, 19 mm þykk, sama efni og framhliðar (stendur við enda á skápalínu)." },
+    // Lausar hillur: 38 mm boards on the wall, 1–5 stacked above each other.
+    // b.count = boards, b.vgapMm = clear gap between boards; b.heightMm is kept
+    // equal to the whole stack's height (see stackHeightMm) so every height
+    // check/drawing/submission treats it like any other wall unit.
+    laushilla:   { label:"Lausar hillur (38 mm)", zone:"wall", cls:"wall", defaultW:800, minW:200, maxW:3000, h:38, d:250, minH:38, maxH:2000, minD:150, maxD:450, hasInterior:false, shelfStack:true, elev:1200,
+                   skapategundOverride:"Efriskápur", note:"Lausar hillur, 38 mm þykkar — ekki skápur." }
   };
+  var SHELF_T_MM = 38, SHELF_STACK_MAX = 5, SHELF_GAP_DEFAULT = 300;
+  function stackHeightMm(count, gapMm){ return count * SHELF_T_MM + (count - 1) * gapMm; }
 
   // Loose shelves (Eyðublað "Lausar hillur fjöldi"): the customer's choice,
   // else the type's default. Not meaningful for a drawer unit.
@@ -46,13 +64,19 @@
     if (!c || !c.shelfRange) return null;
     return b.shelves != null ? Math.max(c.shelfRange[0], Math.min(c.shelfRange[1], b.shelves)) : c.shelfRange[2];
   }
+  // Height (mm) of a wall unit's bottom edge above the floor; 0 for floor units.
+  var WALL_UNIT_BASE_MM = 1400;
+  function elevOf(b){
+    var c = CATALOG[b.type];
+    if (!c || c.zone !== "wall") return 0;
+    return b.elevMm != null ? b.elevMm : (c.elev != null ? c.elev : WALL_UNIT_BASE_MM);
+  }
+  function defaultElevOf(type){ var c = CATALOG[type]; return c.zone !== "wall" ? 0 : (c.elev != null ? c.elev : WALL_UNIT_BASE_MM); }
 
-  // Width variants ("underskápar") of the three core types. Same height/depth
-  // and same real Skápategund (skapategundOverride = the core's label), only
-  // Breidd differs — so no new Airtable choices are needed. Offered in the
-  // editor's catalog under "Fleiri stærðir". 10 cm steps are the offered
-  // granularity (Björninn builds any size; Rakel adjusts odd widths in review).
-  // Keys stay `<core>_<mm>`, so drafts saved with the earlier, sparser list load unchanged.
+  // Width variants ("underskápar") of the core types from the first catalog
+  // rounds. Widths are freely editable now, so these are no longer offered —
+  // they stay in CATALOG (legacy) only so older drafts/submissions still load
+  // and render. Keys stay `<core>_<mm>`.
   function widthRange(from, to){
     var out = [];
     for (var w = from; w <= to; w += 100) out.push(w);
@@ -70,7 +94,7 @@
       var b = CATALOG[base];
       if (w === b.defaultW) return; // the core type already is this width
       CATALOG[base + "_" + w] = Object.assign({}, b, {
-        label: b.label + " " + w, defaultW:w, minW:w, maxW:w, skapategundOverride:b.label, variantOf:base
+        label: b.label + " " + w, defaultW:w, skapategundOverride:b.label, variantOf:base, legacy:true
       });
     });
   });
@@ -386,7 +410,6 @@
   // Flags physically impossible/awkward combinations, in millimetres on each
   // wall: a cabinet overlapping a window or door, or a unit taller than the
   // ceiling. Advisory only — Rakel makes the final call.
-  var WALL_UNIT_BASE_MM = 1400;
   function fitWarnings(state){
     var out = [], byMsg = {}, roomH = state.roomHeightMm || 2600;
     function add(msg, ids){
@@ -404,7 +427,8 @@
       });
       wall.wall.forEach(function(b, i){
         var c = CATALOG[b.type], h = b.heightMm || c.h;
-        spans.push({ b:b, c:c, from:wStarts[i], to:wStarts[i] + b.widthMm, lo:WALL_UNIT_BASE_MM, hi:WALL_UNIT_BASE_MM + h, rawH:WALL_UNIT_BASE_MM + h });
+        var e = elevOf(b);
+        spans.push({ b:b, c:c, from:wStarts[i], to:wStarts[i] + b.widthMm, lo:e, hi:e + h, rawH:e + h });
       });
       var ops = (state.windows || []).filter(function(o){ return o.wallId === wall.id; }).map(function(o){ return { kind:"gluggi", o:o, lo:o.sillHeightMm, hi:o.sillHeightMm + o.heightMm }; })
         .concat((state.doors || []).filter(function(o){ return o.wallId === wall.id; }).map(function(o){ return { kind:"hurð", o:o, lo:0, hi:o.heightMm }; }));
@@ -482,7 +506,6 @@
   }
 
   var ROOM_DEPTH_M = 2.4; // assumed walkway/room depth beyond each wall, for floor sizing + camera framing only
-  var WALL_CABINET_BASE_M = 1.4; // fixed visualization height for Efriskápur, not stored per-cabinet
 
   function hasWebGL(){
     try{
@@ -602,10 +625,14 @@
     var yAxis = new THREE.Vector3(0, 1, 0);
     var zAxis = new THREE.Vector3(geom.normal.x, 0, geom.normal.z);
     mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis));
+    // The room face sits 1.5 mm BEHIND the wall line: cabinet backs and the
+    // skirting stand exactly on the line, and a shared plane made them z-fight
+    // with the wall (flickering backs, worst through a faded wall).
+    var back = WALL_THICKNESS_M / 2 + 0.0015;
     mesh.position.set(
-      geom.origin.x + geom.axis.x * (geom.lenM / 2) - geom.normal.x * (WALL_THICKNESS_M / 2),
+      geom.origin.x + geom.axis.x * (geom.lenM / 2) - geom.normal.x * back,
       wallHeightM / 2,
-      geom.origin.z + geom.axis.z * (geom.lenM / 2) - geom.normal.z * (WALL_THICKNESS_M / 2)
+      geom.origin.z + geom.axis.z * (geom.lenM / 2) - geom.normal.z * back
     );
     mesh.receiveShadow = true;
     mesh.castShadow = true;
@@ -848,8 +875,10 @@
       useFrontMat.emissiveIntensity = 0.35;
     }
     var isOpen = !!(meta && meta.open && meta.openMat);
+    var isPanel = !!(meta && meta.panel); // úthlið / loose shelf: solid board in the front material on every face
     var mesh = new THREE.Mesh(boxGeo, isOpen
       ? [meta.openMat, meta.openMat, meta.openMat, meta.openMat, meta.hiddenMat, meta.openMat] // no front, inside faces visible
+      : isPanel ? [frontMat, frontMat, frontMat, frontMat, useFrontMat, frontMat]
       : [carcassMat, carcassMat, carcassMat, carcassMat, useFrontMat, carcassMat]);
     mesh.position.set(cx, bodyBase + bodyH / 2, cz);
     var xAxis = new THREE.Vector3(geom.axis.x, 0, geom.axis.z);
@@ -915,7 +944,7 @@
     if (interior && interior.mode === "skuffur"){
       addDrawerSeams(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior.count, interior.fractions);
     }
-    if (meta && meta.zone !== "opening") addFrontDetails(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta.handle, !!meta.tall, meta.zone === "wall", meta.split || 0.55, meta);
+    if (meta && meta.zone !== "opening" && !isPanel) addFrontDetails(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta.handle, !!meta.tall, meta.zone === "wall", meta.split || 0.55, meta);
   }
 
   // Stainless sink basin + tap on top of a worktop.
@@ -1000,7 +1029,33 @@
     return best === null ? null : { wallId:walls[best].id, alongMm:Math.round(bestAlongM * 1000) };
   }
 
-  function setupCabinetInteraction(THREE, wrap, renderer, camera, controls, pickables, geoms, walls, opts){
+  // Where a camera ray meets the room-facing plane of a real wall, `depthM`
+  // into the room (0 = the wall itself, depth/2 = the middle of a cabinet
+  // hanging on it). Only front-facing hits count (the ray must travel INTO the
+  // wall from the room side), so a faded near wall is ignored and the far wall
+  // behind it is what you point at. Returns the nearest {t, wallId, alongMm, y(m)}.
+  // Wall-mounted things (upper cabinets, shelves, windows) are dragged with
+  // this instead of a horizontal plane: the cursor is then over exactly the spot
+  // that gets picked, from any camera angle, and it also gives the height.
+  function wallPlaneHit(ray, geoms, walls, depthM, roomHM){
+    var best = null, o = ray.origin, d = ray.direction;
+    geoms.forEach(function(g, i){
+      var w = walls[i];
+      if (!w || w.open || w.island) return;
+      var dn = d.x * g.normal.x + d.z * g.normal.z;
+      if (dn > -1e-6) return;
+      var t = ((g.origin.x + g.normal.x * depthM - o.x) * g.normal.x + (g.origin.z + g.normal.z * depthM - o.z) * g.normal.z) / dn;
+      if (t <= 0) return;
+      var px = o.x + d.x * t, py = o.y + d.y * t, pz = o.z + d.z * t;
+      var along = (px - g.origin.x) * g.axis.x + (pz - g.origin.z) * g.axis.z;
+      if (along < -0.3 || along > g.lenM + 0.3 || py < -0.3 || py > roomHM + 0.6) return;
+      if (!best || t < best.t) best = { t:t, wallId:w.id, alongMm:Math.round(along * 1000), y:py };
+    });
+    return best;
+  }
+  function isWallItem(meta){ return !!meta && (meta.zone === "wall" || meta.kind === "window" || meta.kind === "door"); }
+
+  function setupCabinetInteraction(THREE, wrap, renderer, camera, controls, pickables, geoms, walls, opts, roomHM){
     var raycaster = new THREE.Raycaster();
     var floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     var drag = null; // {meta, mesh, group, startMatrix, startX, startY, moved}
@@ -1023,6 +1078,11 @@
     // well behind it (parallax), which shifted the landing spot along the wall.
     function dropAt(evt){
       raycaster.setFromCamera(ndc(evt), camera);
+      if (drag && isWallItem(drag.meta)){
+        var wh = wallPlaneHit(raycaster.ray, geoms, walls, (drag.meta.depthMm || 0) / 2000, roomHM);
+        if (wh) return { wallId:wh.wallId, alongMm:wh.alongMm - (drag.gripMm || 0),
+          elevMm:Math.round(wh.y * 1000 - (drag.gripYmm || 0) - (drag.meta.heightMm || 0) / 2) };
+      }
       var pt = new THREE.Vector3();
       var y = drag && drag.mesh ? drag.mesh.position.y : 0;
       var plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -y);
@@ -1053,11 +1113,20 @@
       var pt = new THREE.Vector3();
       var wp = new THREE.Vector3();
       mesh.getWorldPosition(wp);
-      if (!raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -wp.y), pt)) return 0;
+      if (isWallItem(meta)){ // measured on the wall plane, so it matches dropAt
+        var wh = wallPlaneHit(raycaster.ray, geoms, walls, (meta.depthMm || 0) / 2000, roomHM);
+        var cAlong = alongOnWall(meta.wallId, wp.x, wp.z);
+        if (wh && wh.wallId === meta.wallId && cAlong !== null){
+          var halfW = (meta.widthMm || 0) / 2, halfH = (meta.heightMm || 0) / 2;
+          return { along:Math.max(-halfW, Math.min(halfW, wh.alongMm - cAlong)), y:Math.max(-halfH, Math.min(halfH, wh.y * 1000 - ((meta.elevMm || 0) + halfH))) };
+        }
+        return { along:0, y:0 };
+      }
+      if (!raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -wp.y), pt)) return { along:0, y:0 };
       var a = alongOnWall(meta.wallId, pt.x, pt.z), c = alongOnWall(meta.wallId, wp.x, wp.z);
-      if (a === null || c === null) return 0;
+      if (a === null || c === null) return { along:0, y:0 };
       var half = (meta.widthMm || 0) / 2;
-      return Math.max(-half, Math.min(half, a - c));
+      return { along:Math.max(-half, Math.min(half, a - c)), y:0 };
     }
 
     function onDown(evt){
@@ -1074,7 +1143,10 @@
         controls.enabled = false;
         return;
       }
-      drag = { meta:mesh.userData, mesh:mesh, group:mesh.parent, startX:evt.clientX, startY:evt.clientY, moved:false, gripMm:gripOffsetMm(evt, mesh) };
+      var grip = gripOffsetMm(evt, mesh), bid = mesh.userData.blockId;
+      drag = { meta:mesh.userData, mesh:mesh, group:mesh.parent, startX:evt.clientX, startY:evt.clientY, moved:false, gripMm:grip.along, gripYmm:grip.y,
+        // a stack of shelves is several pickable boards under one block id: they all move together
+        groups:pickables.filter(function(m){ return m.userData.blockId === bid; }).map(function(m){ return m.parent; }) };
       controls.enabled = false;
     }
     var hovered = null;
@@ -1125,9 +1197,13 @@
       var widthM = drag.meta.widthMm / 1000, depthM = drag.meta.depthMm / 1000;
       var offsetM = Math.max(0, Math.min(g.lenM - widthM, drop.alongMm / 1000 - widthM / 2));
       var mesh = drag.mesh;
+      var ty;
+      if (drag.meta.kind === "door") ty = mesh.position.y;
+      else if (isWallItem(drag.meta)) ty = mesh.position.y + ((drop.elevMm != null ? drop.elevMm : (drag.meta.elevMm || 0)) - (drag.meta.elevMm || 0)) / 1000; // follows the cursor up and down the wall
+      else ty = mesh.position.y + 0.035; // floor units lift a touch, as if held
       tgtPos.set(
         g.origin.x + g.axis.x * (offsetM + widthM / 2) + g.normal.x * (depthM / 2),
-        mesh.position.y + 0.035,
+        ty,
         g.origin.z + g.axis.z * (offsetM + widthM / 2) + g.normal.z * (depthM / 2));
       tgtQuat.setFromRotationMatrix(new THREE.Matrix4().makeBasis(
         new THREE.Vector3(g.axis.x, 0, g.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(g.normal.x, 0, g.normal.z)));
@@ -1141,9 +1217,12 @@
       var mesh = drag.mesh;
       var m0 = new THREE.Matrix4().compose(mesh.position, mesh.quaternion, new THREE.Vector3(1, 1, 1));
       var m1 = new THREE.Matrix4().compose(drag.curPos, drag.curQuat, new THREE.Vector3(1, 1, 1));
-      drag.group.matrixAutoUpdate = false;
-      drag.group.matrix.copy(m1).multiply(m0.invert());
-      drag.group.matrixWorldNeedsUpdate = true;
+      var gm = m1.multiply(m0.invert());
+      drag.groups.forEach(function(gr){
+        gr.matrixAutoUpdate = false;
+        gr.matrix.copy(gm);
+        gr.matrixWorldNeedsUpdate = true;
+      });
     }
     function onUp(evt){
       if (!drag) return;
@@ -1164,7 +1243,7 @@
       var meta = drag.meta, moved = drag.moved;
       // must be computed while `drag` is still set: dropAt uses its mid-height plane and grip offset
       var finalDrop = moved ? dropAt(evt) : null;
-      if (moved){ drag.group.matrix.identity(); drag.group.matrixWorldNeedsUpdate = true; }
+      if (moved){ drag.groups.forEach(function(gr){ gr.matrix.identity(); gr.matrixWorldNeedsUpdate = true; }); }
       haveTarget = false;
       if (THREE_STATE){ THREE_STATE.dragging = false; THREE_STATE.dragStep = null; }
       drag = null;
@@ -1180,6 +1259,12 @@
     function onClickEmpty(evt){
       if (suppressClick){ suppressClick = false; return; }
       if (pickMeshAt(evt)) return; // a tap on a cabinet was already handled in onUp
+      if (opts.onWallSelect){ // a click on a wall (not on the floor in front of it) selects that wall
+        raycaster.setFromCamera(ndc(evt), camera);
+        var wh = wallPlaneHit(raycaster.ray, geoms, walls, 0, roomHM), fp = new THREE.Vector3();
+        var floorT = raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), fp) ? fp.distanceTo(raycaster.ray.origin) : Infinity;
+        if (wh && wh.t < floorT){ opts.onWallSelect(wh.wallId); return; }
+      }
       if (opts.onSelect) opts.onSelect(null);
     }
 
@@ -1253,13 +1338,20 @@
   // planeYm (optional) = height of the horizontal plane the pointer ray is cast
   // onto — pass the dragged item's mid-height so the point matches what the
   // cursor visually covers (default: the floor).
-  function dropPointFromClient(clientX, clientY, planeYm, wallsOnly){
+  // wallItem (optional) = {depthMm, heightMm} of a wall-mounted thing: the ray is
+  // then cast onto the wall's own plane and the result also carries elevMm (the
+  // item's bottom edge above the floor), whatever the camera angle.
+  function dropPointFromClient(clientX, clientY, planeYm, wallsOnly, wallItem){
     if (!THREE_STATE) return null;
     var rect = THREE_STATE.renderer.domElement.getBoundingClientRect();
     if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) return null;
     var THREE = window.__THREE__;
     var rc = new THREE.Raycaster();
     rc.setFromCamera(new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1), THREE_STATE.camera);
+    if (wallItem){
+      var wh = wallPlaneHit(rc.ray, THREE_STATE.geoms, THREE_STATE.walls, (wallItem.depthMm || 0) / 2000, THREE_STATE.roomHM);
+      if (wh) return { wallId:wh.wallId, alongMm:wh.alongMm, elevMm:Math.round(wh.y * 1000 - (wallItem.heightMm || 0) / 2) };
+    }
     var pt = new THREE.Vector3();
     if (!rc.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -(planeYm || 0)), pt)) return null;
     return nearestWallDrop(THREE_STATE.geoms, THREE_STATE.walls, pt.x, pt.z, wallsOnly);
@@ -1288,7 +1380,8 @@
       if (!!u.selected === want) return;
       u.selected = want;
       if (Array.isArray(m.material)){ // cabinet
-        if (want){
+        if (u.open){ /* open shelves have NO front: swapping slot 4 for the real front material gave them a door */ }
+        else if (want){
           var c = u.baseFront.clone();
           c.emissive = new THREE.Color(SELECT_COLOR); c.emissiveIntensity = 0.35;
           m.material[4] = c;
@@ -1304,6 +1397,44 @@
       }
     });
     THREE_STATE.opts.selectedId = id;
+    return true;
+  }
+
+  // Highlight of the selected wall (blue tint + frame on its room face), applied
+  // in place like setSelected3D. wallId null clears it.
+  function setSelectedWall3D(wallId){
+    var st = THREE_STATE;
+    if (!st) return false;
+    var THREE = window.__THREE__;
+    if (st.wallHi){
+      st.scene.remove(st.wallHi);
+      st.wallHi.traverse(function(o){ if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+      st.wallHi = null;
+    }
+    st.opts.selectedWallId = wallId || null;
+    if (!wallId) return true;
+    var wi = st.walls.findIndex(function(w){ return w.id === wallId; }), g = st.geoms[wi];
+    if (!g || st.walls[wi].island || st.walls[wi].open) return true;
+    var hM = st.roomHM, grp = new THREE.Group();
+    var quat = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(
+      new THREE.Vector3(g.axis.x, 0, g.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(g.normal.x, 0, g.normal.z)));
+    var pane = new THREE.Mesh(new THREE.PlaneGeometry(g.lenM, hM),
+      new THREE.MeshBasicMaterial({ color:SELECT_COLOR, transparent:true, opacity:0.22, side:THREE.DoubleSide, depthWrite:false }));
+    pane.quaternion.copy(quat);
+    pane.position.set(g.origin.x + g.axis.x * g.lenM / 2 + g.normal.x * 0.006, hM / 2, g.origin.z + g.axis.z * g.lenM / 2 + g.normal.z * 0.006);
+    pane.renderOrder = 5;
+    grp.add(pane);
+    function bar(w, h, along, y){
+      var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.012), new THREE.MeshBasicMaterial({ color:SELECT_COLOR, depthWrite:false }));
+      m.quaternion.copy(quat);
+      m.position.set(g.origin.x + g.axis.x * along + g.normal.x * 0.008, y, g.origin.z + g.axis.z * along + g.normal.z * 0.008);
+      m.renderOrder = 6;
+      grp.add(m);
+    }
+    bar(g.lenM, 0.035, g.lenM / 2, 0.0175); bar(g.lenM, 0.035, g.lenM / 2, hM - 0.0175);
+    bar(0.035, hM, 0.0175, hM / 2); bar(0.035, hM, g.lenM - 0.0175, hM / 2);
+    st.scene.add(grp);
+    st.wallHi = grp;
     return true;
   }
 
@@ -1452,14 +1583,14 @@
     // dimensions on the plan); a canvas-texture sprite, drawn on top.
     function isOpenGeom(i){ return !!(state.walls[i] && state.walls[i].open); }
     geoms.forEach(function(g, i){
-      var cv = document.createElement("canvas"); cv.width = 256; cv.height = 64;
+      var cv = document.createElement("canvas"); cv.width = 420; cv.height = 64;
       var cx = cv.getContext("2d");
       cx.fillStyle = "rgba(255,255,255,.92)"; cx.strokeStyle = "#e6e3da"; cx.lineWidth = 3;
-      cx.beginPath(); cx.roundRect ? cx.roundRect(4, 4, 248, 56, 14) : cx.rect(4, 4, 248, 56); cx.fill(); cx.stroke();
+      cx.beginPath(); cx.roundRect ? cx.roundRect(4, 4, 412, 56, 14) : cx.rect(4, 4, 412, 56); cx.fill(); cx.stroke();
       cx.fillStyle = "#191919"; cx.font = "600 30px 'Kumbh Sans', Arial, sans-serif"; cx.textAlign = "center"; cx.textBaseline = "middle";
-      cx.fillText(Math.round(g.lenM * 1000) + " mm", 128, 34);
+      cx.fillText((state.walls[i] ? state.walls[i].label : "Veggur") + " · " + Math.round(g.lenM * 1000) + " mm", 210, 34);
       var sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:new THREE.CanvasTexture(cv), depthTest:false, transparent:true }));
-      sp.scale.set(0.62, 0.155, 1);
+      sp.scale.set(1.0, 0.152, 1);
       sp.position.set(g.origin.x + g.axis.x * g.lenM / 2, WALL_H + 0.16, g.origin.z + g.axis.z * g.lenM / 2);
       sp.renderOrder = 10;
       scene.add(sp);
@@ -1502,14 +1633,14 @@
       if (!g) return;
       addOpeningMarker(THREE, scene, g, win.offsetMm / 1000, win.widthMm / 1000, win.heightMm / 1000,
         win.sillHeightMm / 1000, WINDOW_MARKER_COLOR, 0.55,
-        { wallId:win.wallId, zone:"opening", kind:"window", blockId:win.id, widthMm:win.widthMm, depthMm:10 }, opts.selectedId === win.id, pickables);
+        { wallId:win.wallId, zone:"opening", kind:"window", blockId:win.id, widthMm:win.widthMm, depthMm:10, heightMm:win.heightMm, elevMm:win.sillHeightMm }, opts.selectedId === win.id, pickables);
     });
     (state.doors || []).forEach(function(door){
       var g = geomForWall(door.wallId);
       if (!g) return;
       addOpeningMarker(THREE, scene, g, door.offsetMm / 1000, door.widthMm / 1000, door.heightMm / 1000,
         0, DOOR_MARKER_COLOR, 0.85,
-        { wallId:door.wallId, zone:"opening", kind:"door", blockId:door.id, widthMm:door.widthMm, depthMm:10 }, opts.selectedId === door.id, pickables);
+        { wallId:door.wallId, zone:"opening", kind:"door", blockId:door.id, widthMm:door.widthMm, depthMm:10, heightMm:door.heightMm, elevMm:0 }, opts.selectedId === door.id, pickables);
     });
 
     // built-in fridge reads as an appliance: brushed-steel front instead of the kitchen's fronts
@@ -1538,17 +1669,27 @@
         var inter = b.interior && b.interior.mode === "skuffur" && b.interior.count === 3 && state.drawerSystem
           ? Object.assign({}, b.interior, { fractions:drawerFractions(state.drawerSystem, hM * 1000 - 100) }) : b.interior;
         addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, carcassMat, c.fridge ? steelMat : frontMat, inter,
-          { islandId:islandId, warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), handle:state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0.55,
-            plinth:true, counter:!!c.counter, sink:!!c.sink, oven:!!c.oven, plinthMat:plinthMat, stoneMat:stoneMat }, selected, pickables);
+          { islandId:islandId, warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), heightMm:hM * 1000, elevMm:0, handle:state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0.55,
+            plinth:!c.panel, counter:!!c.counter, sink:!!c.sink, oven:!!c.oven, panel:!!c.panel, plinthMat:plinthMat, stoneMat:stoneMat }, selected, pickables);
       });
       wall.wall.forEach(function(b, bi){
         var offset = wStarts[bi];
         var c = CATALOG[b.type];
         var hM = Math.min(b.heightMm || c.h, roomHeightMm) / 1000, dM = (b.depthMm || c.d) / 1000;
         var selected = opts.selectedId === b.id;
-        addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, WALL_CABINET_BASE_M, carcassMat, frontMat, null,
-          { warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"wall", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), handle:state.handle,
-            open:!!c.open, openMat:openMat, hiddenMat:hiddenMat, shelves:c.open ? shelvesOf(b) : 0 }, selected, pickables);
+        var elevM = elevOf(b) / 1000;
+        var metaBase = { warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"wall", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d),
+          heightMm:hM * 1000, elevMm:elevM * 1000, handle:state.handle };
+        if (c.shelfStack){ // 1–5 boards of 38 mm above each other: one pickable box per board, all sharing the block id
+          var n = Math.max(1, Math.min(SHELF_STACK_MAX, b.count || 3)), gap = b.vgapMm != null ? b.vgapMm : SHELF_GAP_DEFAULT;
+          for (var k = 0; k < n; k++){
+            addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, SHELF_T_MM / 1000, dM, elevM + k * (SHELF_T_MM + gap) / 1000, carcassMat, frontMat, null,
+              Object.assign({}, metaBase, { panel:true, shelfBoard:true }), selected, pickables);
+          }
+          return;
+        }
+        addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, elevM, carcassMat, frontMat, null,
+          Object.assign(metaBase, { open:!!c.open, panel:!!c.panel, openMat:openMat, hiddenMat:hiddenMat, shelves:c.open ? shelvesOf(b) : 0 }), selected, pickables);
       });
     });
 
@@ -1644,9 +1785,10 @@
     }
     controls.update();
 
-    var cleanupInteraction = setupCabinetInteraction(THREE, wrap, renderer, camera, controls, pickables, allGeoms, surfaces, opts);
+    var cleanupInteraction = setupCabinetInteraction(THREE, wrap, renderer, camera, controls, pickables, allGeoms, surfaces, opts, WALL_H);
     THREE_STATE = { renderer:renderer, camera:camera, controls:controls, scene:scene, rafId:0, onResize:resize, cleanupInteraction:cleanupInteraction,
-                    walls:surfaces, geoms:allGeoms, previewMesh:null, dragging:false, opts:opts, pickables:pickables };
+                    walls:surfaces, geoms:allGeoms, previewMesh:null, dragging:false, opts:opts, pickables:pickables, roomHM:WALL_H, wallHi:null };
+    if (opts.selectedWallId) setSelectedWall3D(opts.selectedWallId);
 
     function resize(){
       var w = wrap.clientWidth, h = wrap.clientHeight;
@@ -1980,7 +2122,7 @@
     var geoms = wallGeoms(state);
     if (!geoms.length) return null;
     var b = stateBounds(state, geoms);
-    var margin = 0.4;
+    var margin = 0.8;
     // geoms/surfaces include free-standing island rows after the real walls
     return { minX: b.minX - margin, minZ: b.minZ - margin, pxPerM: PX_PER_M, geoms: geoms.concat(islandGeoms(state)), surfaces: surfacesOf(state) };
   }
@@ -2009,7 +2151,7 @@
     var surfaces = surfacesOf(state), allGeoms = geoms.concat(islandGeoms(state));
 
     var b = stateBounds(state, geoms);
-    var margin = 0.4;
+    var margin = 0.8;
     var minX = b.minX - margin, maxX = b.maxX + margin;
     var minZ = b.minZ - margin, maxZ = b.maxZ + margin;
     var svgW = (maxX - minX) * PX_PER_M, svgH = (maxZ - minZ) * PX_PER_M;
@@ -2043,10 +2185,10 @@
       var isOpen = !!(state.walls[gi] && state.walls[gi].open);
       svg += isOpen
         ? '<line data-wall-line-id="' + wallId + '" x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="#6f6d66" stroke-width="2.4" stroke-dasharray="8,6"/>'
-        : '<line data-wall-line-id="' + wallId + '" x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="#2b2b2e" stroke-width="9" stroke-linecap="square"/>';
+        : '<line data-wall-line-id="' + wallId + '" x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + (opts.selectedWallId === wallId ? "#3d61c1" : "#2b2b2e") + '" stroke-width="' + (opts.selectedWallId === wallId ? 11 : 9) + '" stroke-linecap="square"' + (opts.onWallSelect ? ' style="cursor:pointer;"' : '') + '/>';
       var midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
-      var lx = midX - g.normal.x * 14, ly = midY - g.normal.z * 14;
-      svg += '<text x="' + lx + '" y="' + ly + '" font-size="11" fill="#6f6d66" text-anchor="middle">' + Math.round(g.lenM * 1000) + ' mm</text>';
+      var lx = midX - g.normal.x * 14, ly = midY - g.normal.z * 14, wsel = opts.selectedWallId === wallId;
+      svg += '<text x="' + lx + '" y="' + ly + '" font-size="' + (wsel ? 12.5 : 11) + '" font-weight="' + (wsel ? 700 : 400) + '" fill="' + (wsel ? "#3d61c1" : "#6f6d66") + '" text-anchor="middle" style="pointer-events:none;">' + (state.walls[gi] ? state.walls[gi].label + ' · ' : '') + Math.round(g.lenM * 1000) + ' mm</text>';
     });
 
     // Window/door markers: a thick colored segment over the wall line at
@@ -2091,9 +2233,13 @@
       // kitchen's front colour on towers; wall units drawn lighter + dashed
       var fill = c.fridge ? "#c9ccd1" : c.oven ? "#4a4c52" : c.counter ? counterFill : fillColor;
       var op = isWallRow ? 0.5 : 1;
-      svg += '<polygon data-wall-id="' + wallId + '" data-zone="' + zone + '" data-block-id="' + bl.id + '" ' +
-        'points="' + poly + '" fill="' + fill + '" fill-opacity="' + op + '" ' +
-        'stroke="' + stroke + '" stroke-width="' + strokeW + '"' + dash + (isWallRow ? '' : ' filter="url(#kpShadow)"') + ' style="cursor:pointer;"/>';
+      var thin = bl.widthMm < 100; // úthlið: a hairline on the plan, so it gets a wider invisible hit target
+      svg += '<polygon ' + (thin ? '' : 'data-wall-id="' + wallId + '" data-zone="' + zone + '" data-block-id="' + bl.id + '" ') +
+        'points="' + poly + '" fill="' + (thin ? fillColor : fill) + '" fill-opacity="' + op + '" ' +
+        'stroke="' + stroke + '" stroke-width="' + (thin ? Math.max(strokeW, 2.4) : strokeW) + '"' + dash + (isWallRow || thin ? '' : ' filter="url(#kpShadow)"') + (thin ? ' style="pointer-events:none;"' : ' style="cursor:pointer;"') + '/>';
+      if (thin){
+        svg += '<polygon data-wall-id="' + wallId + '" data-zone="' + zone + '" data-block-id="' + bl.id + '" points="' + poly + '" fill="none" stroke="transparent" stroke-width="14" style="cursor:pointer;pointer-events:stroke;"/>';
+      }
       // front edge in the kitchen's front colour
       if (!isWallRow && c.counter){
         svg += '<line x1="' + X(corners[3].x) + '" y1="' + Y(corners[3].z) + '" x2="' + X(corners[2].x) + '" y2="' + Y(corners[2].z) + '" stroke="' + fillColor + '" stroke-width="4" style="pointer-events:none;"/>';
@@ -2104,7 +2250,7 @@
         var q = [m(widthM / 2 - bw / 2, oc - bd / 2), m(widthM / 2 + bw / 2, oc - bd / 2), m(widthM / 2 + bw / 2, oc + bd / 2), m(widthM / 2 - bw / 2, oc + bd / 2)];
         svg += '<polygon points="' + q.map(function(p){ return X(p.x) + "," + Y(p.z); }).join(" ") + '" fill="#b9bec4" stroke="#7d848b" stroke-width="1" style="pointer-events:none;"/>';
       }
-      if (widthM * PX_PER_M > 30){
+      if (widthM * PX_PER_M > 30 && !thin){
         var cx = (X(corners[0].x) + X(corners[2].x)) / 2;
         var cy = (Y(corners[0].z) + Y(corners[2].z)) / 2;
         var label = bl.widthMm + (bl.interior && bl.interior.mode === "skuffur" ? " · " + bl.interior.count + "sk" : "");
@@ -2143,6 +2289,12 @@
           opts.onSelect({ blockId: isWin ? el.dataset.windowId : el.dataset.doorId, kind: isWin ? "window" : "door", zone:"opening" });
         });
       });
+      if (opts.onWallSelect){
+        container.querySelectorAll("[data-wall-line-id]").forEach(function(el){
+          if (el.getAttribute("stroke-dasharray")) return; // open edge: no wall
+          el.addEventListener("click", function(evt){ evt.stopPropagation(); opts.onWallSelect(el.dataset.wallLineId); });
+        });
+      }
       // Clicking empty plan background deselects, mirroring the 3D view.
       container.querySelector("svg").addEventListener("click", function(evt){
         if (evt.target.tagName === "svg" || evt.target === container.querySelector("svg")) opts.onSelect(null);
@@ -2192,6 +2344,13 @@
     roomBounds: roomBounds,
     nearestWallDrop: nearestWallDrop,
     setSelected3D: setSelected3D,
+    setSelectedWall3D: setSelectedWall3D,
+    elevOf: elevOf,
+    defaultElevOf: defaultElevOf,
+    stackHeightMm: stackHeightMm,
+    SHELF_T_MM: SHELF_T_MM,
+    SHELF_STACK_MAX: SHELF_STACK_MAX,
+    SHELF_GAP_DEFAULT: SHELF_GAP_DEFAULT,
     debugInfo: function(){ return sharedRenderer ? { memory:sharedRenderer.info.memory, programs:(sharedRenderer.info.programs || []).length } : null; },
     fitWarnings: fitWarnings,
     WALL_UNIT_BASE_MM: WALL_UNIT_BASE_MM,
