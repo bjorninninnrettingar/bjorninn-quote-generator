@@ -88,6 +88,27 @@
     { key:"framhlidaefni", label:"Framhliðaefni", blurb:"Fáguð, lituð og silkimjúk yfirborð sem minna á hágæða lakk." },
     { key:"sponlagt",      label:"Spónlagt",      blurb:"Ekta viður — hver innrétting verður einstök, með lifandi mynstri." }
   ];
+  // Floors (chosen on the "Skilgreindu rýmið" page): three parquets, three tiles.
+  var FLOORS = {
+    parket_ljos: { label:"Ljós eik",           group:"parket", kind:"plank", color:"#dcc39a", rows:14 },
+    parket_eik:  { label:"Náttúruleg eik",     group:"parket", kind:"plank", color:"#c9a97c", rows:14 },
+    parket_dokk: { label:"Dökk hnota, breið",  group:"parket", kind:"plank", color:"#7b5a3d", rows:9 },
+    flis_ljos:   { label:"Ljósgrátt steypuútlit", group:"flisar", kind:"tile", color:"#c4c2bb" },
+    flis_beige:  { label:"Beige steinn",       group:"flisar", kind:"tile", color:"#cdbfa6" },
+    flis_dokk:   { label:"Antrasít",           group:"flisar", kind:"tile", color:"#4e4f52" }
+  };
+  var FLOOR_GROUPS = [{ key:"parket", label:"Parket" }, { key:"flisar", label:"Flísar" }];
+  var DEFAULT_FLOOR = "parket_eik";
+  function floorTexture(key){
+    var f = FLOORS[key] || FLOORS[DEFAULT_FLOOR];
+    return f.kind === "tile" ? window.KPMat.tileFloorTexture(f.color, 0.12) : window.KPMat.plankFloorTexture(f.color, f.rows);
+  }
+  // soft tint of the floor for the 2D drawings
+  function floorPlanColor(key){
+    var f = FLOORS[key] || FLOORS[DEFAULT_FLOOR], n = parseInt(f.color.slice(1), 16), k = f.kind === "tile" ? 0.5 : 0.62;
+    var c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(function(v){ return Math.round(v + (255 - v) * k); });
+    return "#" + c.map(function(v){ return ("0" + v.toString(16)).slice(-2); }).join("");
+  }
   var TOP_GROUPS = [
     { key:"limtre",   label:"Límtré",    blurb:"Hlý, náttúruleg og lifandi borðplata — ask, hnota, eik, beyki og fura." },
     { key:"compact",  label:"Compact",   blurb:"Þéttar og sterkbyggðar harðkjarna plötur — þola raka og daglega notkun vel." },
@@ -1409,8 +1430,8 @@
     var wallMat = new THREE.MeshStandardMaterial({ color:wallColor, roughness:1, side:THREE.DoubleSide });
     var floorMat;
     if (window.KPMat){
-      var ft = window.KPMat.plankFloorTexture("#c9a97c");
-      floorMat = new THREE.MeshStandardMaterial({ map:canvasTex(THREE, ft.color, true), bumpMap:canvasTex(THREE, ft.bump, false), bumpScale:0.7, roughness:0.58 });
+      var ft = floorTexture(state.floor), isTile = (FLOORS[state.floor] || {}).kind === "tile";
+      floorMat = new THREE.MeshStandardMaterial({ map:canvasTex(THREE, ft.color, true), bumpMap:canvasTex(THREE, ft.bump, false), bumpScale:isTile ? 0.35 : 0.7, roughness:isTile ? 0.38 : 0.58 });
       floorMat.userData.tile = ft.tileW;
     } else {
       floorMat = new THREE.MeshStandardMaterial({ color:0xd8d3c6, roughness:1 });
@@ -1769,7 +1790,11 @@
     box(W - 2 * T, BODY - 2 * T, 0.008, 0, PL + BODY / 2, 0.004, carcassMat);              // back
     if (cfg.showTop){
       var topMat = makeTopMaterial(THREE, cfg.top);
-      box(W + 0.001, 0.032, D + 0.02, 0, H + 0.016, (D + 0.02) / 2, topMat, topMat.userData && topMat.userData.tile);
+      var topGeo = new THREE.BoxGeometry(W + 0.001, 0.032, D + 0.02);
+      scaleFrontUV(topGeo, W + 0.001, D + 0.02, topMat.userData && topMat.userData.tile); // over the top face (width × depth), not the thin edge
+      var topMesh = new THREE.Mesh(topGeo, topMat);
+      topMesh.position.set(0, H + 0.016, (D + 0.02) / 2); topMesh.castShadow = true; topMesh.receiveShadow = true;
+      group.add(topMesh);
     }
 
     // drawers: front (20 mm) + handle + box move together
@@ -2008,7 +2033,7 @@
       '<rect width="100%" height="100%" fill="url(#kpGrid)"/>';
 
     if (geoms.closed && geoms.length >= 3){ // the room's floor
-      svg += '<polygon points="' + geoms.map(function(g){ return X(g.origin.x) + "," + Y(g.origin.z); }).join(" ") + '" fill="#f1e6d0" stroke="none" style="pointer-events:none;"/>';
+      svg += '<polygon points="' + geoms.map(function(g){ return X(g.origin.x) + "," + Y(g.origin.z); }).join(" ") + '" fill="' + floorPlanColor(state.floor) + '" stroke="none" style="pointer-events:none;"/>';
     }
     geoms.forEach(function(g, gi){
       var x1 = X(g.origin.x), y1 = Y(g.origin.z);
@@ -2131,6 +2156,10 @@
     LOOK_ORDER: LOOK_ORDER,
     LOOK_CATEGORIES: LOOK_CATEGORIES,
     TOPS: TOPS,
+    FLOORS: FLOORS,
+    FLOOR_GROUPS: FLOOR_GROUPS,
+    floorTexture: floorTexture,
+    floorPlanColor: floorPlanColor,
     TOP_GROUPS: TOP_GROUPS,
     CARCASS: CARCASS,
     DRAWER_SYSTEMS: DRAWER_SYSTEMS,

@@ -557,8 +557,12 @@
       <div class="shape-canvas-wrap"><div class="shape-canvas" id="shapeCanvas"></div><div class="dim-pop" id="dimPop" hidden></div></div>
       <div id="shapeExtras">
         <div class="mat-section" style="margin-top:20px;">
-          <div class="mat-section-title">Lofthæð</div>
           <div id="roomHeightBox" style="max-width:260px;"></div>
+        </div>
+        <div class="mat-section">
+          <div class="mat-section-title">Gólfefni</div>
+          <div class="tabs-row" id="floorTabs"></div>
+          <div class="sw-grid" id="floorCards"></div>
         </div>
         <div class="mat-section">
           <div class="mat-section-title">Litur á veggjum</div>
@@ -720,6 +724,7 @@
     drawerSystem: null,
     look: null,
     top: null,   // worktop key (KP3D.TOPS); null = plain stone
+    floor: null, // floor key (KP3D.FLOORS); null = natural oak parquet
     handle: null,
     roomHeightMm: DEFAULT_ROOM_HEIGHT_MM,
     wallColor: null,
@@ -734,7 +739,7 @@
   var openingSeq = 1;
   var islandSeq = 1;
   function freshState(step){
-    return { step:step, intake:{delivery:null,budget:null,room:"Eldhús"}, carcass:null, drawerSystem:null, look:null, handle:null, top:null,
+    return { step:step, intake:{delivery:null,budget:null,room:"Eldhús"}, carcass:null, drawerSystem:null, look:null, handle:null, top:null, floor:null,
       roomHeightMm:DEFAULT_ROOM_HEIGHT_MM, wallColor:null, windows:[], doors:[], closed:false, waterWall:null, seeded:false, islands:[], walls:freshWalls() };
   }
 
@@ -828,6 +833,7 @@
       if (!state.doors) state.doors = [];
       if (!state.islands) state.islands = [];
       if (state.closed === undefined) state.closed = false;
+      if (state.floor === undefined || (state.floor && !KP3D.FLOORS[state.floor])) state.floor = null;
       if (state.waterWall === undefined) state.waterWall = null;
       if (state.seeded === undefined) state.seeded = false;
       state.islands.forEach(function(isl){
@@ -1008,6 +1014,13 @@
     out[q] = lens[q] - d * turnSign(state.walls[j]);
     return out;
   }
+  // Islands stand in room coordinates; when a wall slides, the drawing is re-anchored on a wall that stayed put,
+  // so the islands travel with that shift and keep their place relative to the unmoved walls.
+  function shiftIslandsBy(now, before){
+    var dx = Math.round(now.x - before.x), dz = Math.round(now.z - before.z);
+    if (!dx && !dz) return;
+    (state.islands || []).forEach(function(isl){ isl.xMm += dx; isl.zMm += dz; });
+  }
   function applyLens(lens){
     lens.forEach(function(len, i){
       var w = state.walls[i];
@@ -1028,7 +1041,10 @@
     var lens = slideLens(state.walls.map(function(x){ return x.lengthMm; }), j, d);
     var err = lensValid(lens);
     if (err){ toast(err); return false; }
+    var turns = state.walls.map(function(x){ return x.turnAfter; }), refI = (j + 2) % n;
+    var before = chainVertices(state.walls.map(function(x){ return x.lengthMm; }), turns).pts[refI];
     applyLens(lens);
+    shiftIslandsBy(chainVertices(lens, turns).pts[refI], before);
     save();
     return true;
   }
@@ -1072,7 +1088,12 @@
     var lens = state.walls.map(function(w){ return w.lengthMm; }), turns = state.walls.map(function(w){ return w.turnAfter; });
     var v = chainVertices(lens, turns).pts, xs = v.map(function(p){ return p.x; }), zs = v.map(function(p){ return p.z; });
     var minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs), minZ = Math.min.apply(null, zs), maxZ = Math.max.apply(null, zs);
-    if (frozenView) return { pts:v, scale:frozenView.scale, ox:frozenView.ox, oy:frozenView.oy };
+    if (frozenView){
+      // the chain is drawn from wall 1's start, so sliding wall 1 (or the wall that closes the loop) would drag
+      // the whole drawing along: hold a vertex that isn't part of the moved wall still on screen instead
+      var ref = v[frozenView.ref];
+      return { pts:v, scale:frozenView.scale, ox:frozenView.ox + (frozenView.refX - ref.x) * frozenView.scale, oy:frozenView.oy + (frozenView.refZ - ref.z) * frozenView.scale };
+    }
     var m = shapePhase === "water" ? 64 : 120, sc = Math.min((width - 2 * m) / Math.max(1, maxX - minX), (height - 2 * m) / Math.max(1, maxZ - minZ));
     sc = Math.min(sc, 0.12);
     return { pts:v, scale:sc, ox:(width - (maxX - minX) * sc) / 2 - minX * sc, oy:(height - (maxZ - minZ) * sc) / 2 - minZ * sc };
@@ -1090,10 +1111,13 @@
     var view = shapeView(W, H), sc = view.scale, pts = view.pts, n = pts.length;
     function X(p){ return p.x * sc + view.ox; }
     function Y(p){ return p.z * sc + view.oy; }
+    var isTileFloor = (KP3D.FLOORS[state.floor || "parket_eik"] || {}).kind === "tile";
     var water = shapePhase === "water", polyPts = pts.map(function(p){ return X(p) + "," + Y(p); }).join(" ");
     var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg" style="font-family:\'Kumbh Sans\',Arial,sans-serif;">' +
-      '<defs><pattern id="plank" width="60" height="18" patternUnits="userSpaceOnUse"><path d="M0 17.5 H60 M30 0 V17.5" stroke="#e2c99f" stroke-width="1" fill="none"/></pattern></defs>' +
-      '<polygon points="' + polyPts + '" fill="#efd9b6"/><polygon points="' + polyPts + '" fill="url(#plank)"/>';
+      (isTileFloor
+        ? '<defs><pattern id="plank" width="46" height="46" patternUnits="userSpaceOnUse"><path d="M0 0.5 H46 M0.5 0 V46" stroke="rgba(0,0,0,.16)" stroke-width="1.4" fill="none"/></pattern></defs>'
+        : '<defs><pattern id="plank" width="60" height="18" patternUnits="userSpaceOnUse"><path d="M0 17.5 H60 M30 0 V17.5" stroke="rgba(0,0,0,.10)" stroke-width="1" fill="none"/></pattern></defs>') +
+      '<polygon points="' + polyPts + '" fill="' + KP3D.floorPlanColor(state.floor) + '"/><polygon points="' + polyPts + '" fill="url(#plank)"/>';
     var items = "", handles = "";
     for (var i = 0; i < n; i++){
       var w = state.walls[i], p1 = pts[i], p2 = pts[(i + 1) % n];
@@ -1150,6 +1174,32 @@
     });
   }
 
+  // ---------- floor choice ----------
+  var floorTab = "parket";
+  var floorSwatchCache = {};
+  function floorSwatch(key){
+    if (floorSwatchCache[key]) return floorSwatchCache[key];
+    var t = KP3D.floorTexture(key), c = document.createElement("canvas");
+    c.width = 160; c.height = 120;
+    c.getContext("2d").drawImage(t.color, 0, 0, 1024, 768, 0, 0, 160, 120);
+    return (floorSwatchCache[key] = c.toDataURL("image/jpeg", 0.85));
+  }
+  function renderFloorPicker(){
+    var F = KP3D.FLOORS, active = state.floor || "parket_eik";
+    var tabs = document.getElementById("floorTabs");
+    tabs.innerHTML = KP3D.FLOOR_GROUPS.map(function(g){
+      return '<button type="button" class="tab-btn' + (g.key === floorTab ? " active" : "") + '" data-ftab2="' + g.key + '">' + g.label + '</button>';
+    }).join("");
+    tabs.querySelectorAll("[data-ftab2]").forEach(function(b){ b.addEventListener("click", function(){ floorTab = b.dataset.ftab2; renderFloorPicker(); }); });
+    var box = document.getElementById("floorCards");
+    box.innerHTML = Object.keys(F).filter(function(k){ return F[k].group === floorTab; }).map(function(k){
+      return '<button type="button" class="sw-tile' + (active === k ? " active" : "") + '" data-floor="' + k + '"><img src="' + floorSwatch(k) + '" alt="' + F[k].label + '"><div class="sw-name">' + F[k].label + '</div></button>';
+    }).join("");
+    box.querySelectorAll("[data-floor]").forEach(function(b){
+      b.addEventListener("click", function(){ state.floor = b.dataset.floor; save(); renderFloorPicker(); renderShapeCanvas(); });
+    });
+  }
+
   var slideState = null;
   function startSlide(i, evt){
     evt.preventDefault();
@@ -1157,7 +1207,9 @@
     var a = edgeAxis(i);
     slideState = { i:i, x0:evt.clientX, y0:evt.clientY, n:{ x:-a.z, z:a.x }, base:state.walls.map(function(w){ return w.lengthMm; }), lastD:0, moved:false, view:v };
     selectedEdge = i;
-    frozenView = { scale:v.scale, ox:v.ox, oy:v.oy };
+    var refI = (i + 2) % v.pts.length;
+    slideState.refI = refI; slideState.refStart = { x:v.pts[refI].x, z:v.pts[refI].z };
+    frozenView = { scale:v.scale, ox:v.ox, oy:v.oy, ref:refI, refX:v.pts[refI].x, refZ:v.pts[refI].z };
     document.getElementById("dimPop").hidden = true;
     window.addEventListener("pointermove", onSlideMove);
     window.addEventListener("pointerup", onSlideUp, { once:true });
@@ -1182,7 +1234,10 @@
     var st = slideState;
     slideState = null;
     frozenView = null;
-    if (st && st.moved) save();
+    if (st && st.moved){
+      shiftIslandsBy(chainVertices(state.walls.map(function(w){ return w.lengthMm; }), state.walls.map(function(w){ return w.turnAfter; })).pts[st.refI], st.refStart);
+      save();
+    }
     renderShapeCanvas();
     if (st && !st.moved) openDimPop(st.i);
   }
@@ -1297,6 +1352,8 @@
         box.innerHTML = "";
         numberField(box, "roomHeight", "Lofthæð", 2200, 3200, state.roomHeightMm, function(v){ state.roomHeightMm = v; });
         renderWallColorRow();
+        if (state.floor && KP3D.FLOORS[state.floor]) floorTab = KP3D.FLOORS[state.floor].group;
+        renderFloorPicker();
       }
       document.getElementById("dimPop").hidden = true;
       renderShapeCanvas();
@@ -2979,6 +3036,8 @@
     if (lk) lines.push("Valin framhlið: " + lk.label + " (" + ((LOOK_CATEGORIES.find(function(x){ return x.key === lk.category; }) || {}).label || lk.category) + ")");
     if (tp) lines.push("Valin borðplata: " + tp.label + (tp.group === "steinn" ? " (pöntuð sérstaklega)" : " (" + ((TOP_GROUPS.find(function(x){ return x.key === tp.group; }) || {}).label || "") + ")"));
     if (hd) lines.push("Valið handfang: " + hd.label);
+    var fl = KP3D.FLOORS[state.floor || "parket_eik"];
+    if (fl) lines.push("Valið gólfefni: " + fl.label + " (" + (fl.group === "flisar" ? "flísar" : "parket") + ")");
     // Windows/doors are room-level, not cabinets — no Eyðublað row of their
     // own, so this note (plus the JSON blob the review page renders from)
     // is the only place Rakel sees them were drawn in at all.

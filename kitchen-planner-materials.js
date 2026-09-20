@@ -107,10 +107,10 @@
 
   // Oak plank floor. Tile = 2 m × 2 m, 1024 px; 14 rows of ~14 cm planks running
   // along x, each with a staggered end joint, its own tint and grain offset.
-  function plankFloorTexture(baseHex){
-    var key = "floor:" + baseHex;
+  function plankFloorTexture(baseHex, rowsOpt){
+    var key = "floor:" + baseHex + ":" + (rowsOpt || 14);
     if (cache[key]) return cache[key];
-    var S = 1024, rows = 14, rowH = S / rows, rnd = mulberry32(2026), wood = makeWood(4242, 2, 16, 0.8, 1.6), base = hexToRgb(baseHex);
+    var S = 1024, rows = rowsOpt || 14, rowH = S / rows, rnd = mulberry32(2026), wood = makeWood(4242, 2, 16, 0.8, 1.6), base = hexToRgb(baseHex);
     var joints = [], tint = [], offs = [];
     for (var r = 0; r < rows; r++){
       joints.push(0.15 + rnd() * 0.7);
@@ -136,6 +136,37 @@
     return (cache[key] = { color: color, bump: bump, tileW: 2, tileH: 2 });
   }
 
+  // Floor tiles: 2 × 2 tiles of 60 cm in a 1.2 m repeat, each tile slightly
+  // different in tone, soft mottling inside the tile, and a grey grout line.
+  function tileFloorTexture(baseHex, mottle){
+    var key = "tile:" + baseHex + ":" + (mottle || 0.1);
+    if (cache[key]) return cache[key];
+    var S = 1024, cells = 2, cell = S / cells, grout = 7, base = hexToRgb(baseHex), m = mottle || 0.1;
+    var n = tileNoise(313, 64, 64), v = tileNoise(317, 8, 8), rnd = mulberry32(77), tone = [];
+    for (var i = 0; i < cells * cells; i++) tone.push(0.955 + rnd() * 0.09);
+    var color = document.createElement("canvas"), bump = document.createElement("canvas");
+    color.width = bump.width = S; color.height = bump.height = S;
+    var cx = color.getContext("2d"), bx = bump.getContext("2d"), ci = cx.createImageData(S, S), bi = bx.createImageData(S, S);
+    for (var y = 0; y < S; y++){
+      var cy = Math.floor(y / cell), ly = y - cy * cell;
+      for (var x = 0; x < S; x++){
+        var cxi = Math.floor(x / cell), lx = x - cxi * cell, k = (y * S + x) * 4;
+        var isGrout = lx < grout / 2 || lx > cell - grout / 2 || ly < grout / 2 || ly > cell - grout / 2;
+        var a = n(x / S * 64, y / S * 64), b = v(x / S * 8, y / S * 8);
+        var l = tone[cy * cells + cxi] * (1 + (a - 0.5) * m + (b - 0.5) * m * 1.4);
+        if (isGrout){
+          ci.data[k] = 138; ci.data[k + 1] = 136; ci.data[k + 2] = 131; bi.data[k] = bi.data[k + 1] = bi.data[k + 2] = 20;
+        } else {
+          ci.data[k] = clamp(base[0] * l); ci.data[k + 1] = clamp(base[1] * l); ci.data[k + 2] = clamp(base[2] * l);
+          bi.data[k] = bi.data[k + 1] = bi.data[k + 2] = 150 + Math.round((a - 0.5) * 50);
+        }
+        ci.data[k + 3] = 255; bi.data[k + 3] = 255;
+      }
+    }
+    cx.putImageData(ci, 0, 0); bx.putImageData(bi, 0, 0);
+    return (cache[key] = { color: color, bump: bump, tileW: 1.2, tileH: 1.2 });
+  }
+
   // Worktop: honed stone with fine mineral speckle. Tile 0.8 × 0.8 m.
   function stoneTexture(baseHex){
     var key = "stone:" + baseHex;
@@ -156,5 +187,5 @@
   function clamp(v){ return v < 0 ? 0 : v > 255 ? 255 : v; }
   function hashKey(str){ var h = 2166136261; for (var i = 0; i < str.length; i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 
-  window.KPMat = { woodTexture: woodTexture, paintTexture: paintTexture, plankFloorTexture: plankFloorTexture, stoneTexture: stoneTexture };
+  window.KPMat = { woodTexture: woodTexture, paintTexture: paintTexture, plankFloorTexture: plankFloorTexture, tileFloorTexture: tileFloorTexture, stoneTexture: stoneTexture };
 })();
