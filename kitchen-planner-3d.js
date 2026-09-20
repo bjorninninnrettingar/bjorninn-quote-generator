@@ -1281,6 +1281,24 @@
     return t;
   }
 
+  // Worktop material for a TOPS key (null/unknown = the plain procedural stone).
+  function makeTopMaterial(THREE, topKey){
+    var topDef = topKey && TOPS[topKey] ? TOPS[topKey] : null;
+    if (topDef && topDef.tex){
+      var m = new THREE.MeshStandardMaterial({ map:imgTex(THREE, topDef.tex), roughness:0.42, metalness:0.02 });
+      m.userData.tile = { w:0.9, h:0.9 };
+      return m;
+    }
+    if (topDef && topDef.group !== "steinn") return new THREE.MeshStandardMaterial({ color:topDef.color3d, roughness:0.45 });
+    if (window.KPMat){
+      var st = window.KPMat.stoneTexture("#e4dfd6");
+      var sm = new THREE.MeshStandardMaterial({ map:canvasTex(THREE, st.color, true), roughness:0.32, metalness:0.02 });
+      sm.map.repeat.set(1 / st.tileW, 1 / st.tileH);
+      return sm;
+    }
+    return new THREE.MeshStandardMaterial({ color:0xe4dfd6, roughness:0.4 });
+  }
+
   function makeFrontMaterial(THREE, lookKey, look){
     if (look.tex){ // a real board texture from the gallery
       var im = new THREE.MeshStandardMaterial({ map:imgTex(THREE, look.tex), roughness:0.58 });
@@ -1411,14 +1429,7 @@
     // open-shelf units: inside faces must render (double-sided) and the front is left out
     var openMat = carcassMat.clone(); openMat.side = THREE.DoubleSide;
     var hiddenMat = new THREE.MeshBasicMaterial({ visible:false });
-    var topDef = state.top && TOPS[state.top] ? TOPS[state.top] : null;
-    var stoneMat = topDef && topDef.tex
-      ? (function(){ var m = new THREE.MeshStandardMaterial({ map:imgTex(THREE, topDef.tex), roughness:0.42, metalness:0.02 }); m.userData.tile = { w:0.9, h:0.9 }; return m; })()
-      : topDef && topDef.group !== "steinn"
-      ? new THREE.MeshStandardMaterial({ color:topDef.color3d, roughness:0.45 })
-      : window.KPMat
-      ? (function(){ var st = window.KPMat.stoneTexture("#e4dfd6"); var m = new THREE.MeshStandardMaterial({ map:canvasTex(THREE, st.color, true), roughness:0.32, metalness:0.02 }); m.map.repeat.set(1 / st.tileW, 1 / st.tileH); return m; })()
-      : new THREE.MeshStandardMaterial({ color:0xe4dfd6, roughness:0.4 });
+    var stoneMat = makeTopMaterial(THREE, state.top);
     var look = state.look ? LOOKS[state.look] : null;
     var frontMat = look && window.KPMat
       ? makeFrontMaterial(THREE, state.look, look)
@@ -1607,6 +1618,141 @@
       placeFloatBar();
     }
     loop();
+  }
+
+  // ============================================================
+  // Materials wizard: ONE 600 × 800 × 600 base cabinet you can spin around.
+  // Each wizard page adds a level: carcass colour (open box) → drawer system
+  // (drawer boxes inside) → front material (the cabinet closes) → handles →
+  // worktop. cfg = {carcass, drawer, look, handle, top, showDrawers, showFronts,
+  // showHandle, showTop}. Reuses addCabinetBox so it looks exactly like the room.
+  // ============================================================
+  var PREVIEW = null;
+
+  function teardownCabinetPreview(){
+    if (!PREVIEW) return;
+    cancelAnimationFrame(PREVIEW.raf);
+    window.removeEventListener("resize", PREVIEW.onResize);
+    PREVIEW.controls.dispose();
+    disposeScene(PREVIEW.scene);
+    if (PREVIEW.renderer.domElement.parentNode) PREVIEW.renderer.domElement.parentNode.removeChild(PREVIEW.renderer.domElement);
+    PREVIEW = null;
+  }
+
+  function addDrawerBodies(THREE, group, sysKey){
+    var metal = sysKey !== "merivo";
+    var mat = new THREE.MeshStandardMaterial({ color:metal ? 0xb8bdc4 : 0xf2f1ed, metalness:metal ? 0.6 : 0.08, roughness:metal ? 0.34 : 0.5 });
+    var bw = 0.52, bd = 0.5, ph = metal ? 0.15 : 0.17, t = 0.012;
+    [0, 1, 2].forEach(function(i){
+      var y0 = 0.13 + i * 0.215, pull = i === 2 ? 0.17 : (i === 1 ? 0.03 : 0), cz = 0.6 - 0.04 - bd / 2 + pull;
+      function panel(w, h, d, x, y, z){
+        var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+        m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; group.add(m);
+      }
+      panel(bw, t, bd, 0, y0, cz);                       // bottom
+      panel(t, ph, bd, -bw / 2, y0 + ph / 2, cz);        // sides
+      panel(t, ph, bd, bw / 2, y0 + ph / 2, cz);
+      panel(bw, ph, t, 0, y0 + ph / 2, cz - bd / 2);     // back
+    });
+  }
+
+  function setCabinetPreview(cfg){
+    if (!PREVIEW) return;
+    var THREE = window.__THREE__;
+    if (PREVIEW.group){ PREVIEW.scene.remove(PREVIEW.group); disposeScene(PREVIEW.group); }
+    var group = new THREE.Group();
+    PREVIEW.group = group;
+    var carc = cfg.carcass && CARCASS[cfg.carcass];
+    var carcassMat = new THREE.MeshStandardMaterial({ color:carc ? carc.color3d : "#cdc8bd", roughness:0.9 });
+    var look = cfg.look && LOOKS[cfg.look];
+    var frontMat = look && window.KPMat ? makeFrontMaterial(THREE, cfg.look, look) : new THREE.MeshStandardMaterial({ color:look ? look.color3d : 0xd9d4ca, roughness:0.7 });
+    var closed = !!(cfg.showFronts && look);
+    var meta = { plinth:true, plinthMat:new THREE.MeshStandardMaterial({ color:0x26262a, roughness:0.85 }),
+      handle:cfg.showHandle && cfg.handle ? cfg.handle : null, tall:false, split:0.55, counter:!!(cfg.showTop), stoneMat:cfg.showTop ? makeTopMaterial(THREE, cfg.top) : null };
+    if (!closed){
+      meta.open = true; meta.shelves = 0;
+      meta.openMat = carcassMat.clone(); meta.openMat.side = THREE.DoubleSide;
+      meta.hiddenMat = new THREE.MeshBasicMaterial({ visible:false });
+    }
+    var geom = { origin:{ x:-0.3, z:0 }, axis:{ x:1, z:0 }, normal:{ x:0, z:1 }, lenM:0.6 };
+    addCabinetBox(THREE, group, geom, 0, 0.6, 0.8, 0.6, 0, carcassMat, frontMat, closed ? { mode:"skuffur", count:3 } : null, meta, false, null);
+    if (!closed && cfg.showDrawers && cfg.drawer) addDrawerBodies(THREE, group, cfg.drawer);
+    PREVIEW.scene.add(group);
+    var aniso = Math.min(8, PREVIEW.renderer.capabilities.getMaxAnisotropy());
+    group.traverse(function(o){
+      if (!o.material) return;
+      (Array.isArray(o.material) ? o.material : [o.material]).forEach(function(m){
+        if (m.envMapIntensity !== undefined) m.envMapIntensity = m.metalness > 0.5 ? 1.0 : 0.3;
+        if (m.map) m.map.anisotropy = aniso;
+      });
+    });
+  }
+
+  function buildCabinetPreview(wrap, cfg){
+    var THREE = window.__THREE__, OrbitControls = window.__OrbitControls__;
+    teardownCabinetPreview();
+    var scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xf4f1ea);
+    var floor = new THREE.Mesh(new THREE.CircleGeometry(2.4, 64), new THREE.MeshStandardMaterial({ color:0xebe7dd, roughness:1 }));
+    floor.rotation.x = -Math.PI / 2; floor.position.set(0, 0, 0.3); floor.receiveShadow = true;
+    scene.add(floor);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0xbdb4a4, 0.55));
+    var key = new THREE.DirectionalLight(0xfff5e6, 1.0);
+    key.position.set(2.4, 3.6, 3.2); key.target.position.set(0, 0.4, 0.3);
+    key.castShadow = true; key.shadow.mapSize.set(1024, 1024);
+    key.shadow.camera.left = -1.6; key.shadow.camera.right = 1.6; key.shadow.camera.top = 1.6; key.shadow.camera.bottom = -1.6;
+    key.shadow.camera.near = 0.5; key.shadow.camera.far = 12; key.shadow.bias = -0.0004; key.shadow.normalBias = 0.02;
+    scene.add(key); scene.add(key.target);
+    var fill = new THREE.DirectionalLight(0xdfe8ff, 0.25); fill.position.set(-2.5, 2, -1); scene.add(fill);
+
+    var camera = new THREE.PerspectiveCamera(38, 1, 0.05, 50);
+    camera.position.set(1.7, 1.45, 2.9);
+
+    var renderer = sharedRenderer;
+    if (!renderer){
+      renderer = sharedRenderer = new THREE.WebGLRenderer({ antialias:true });
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.domElement.addEventListener("webglcontextlost", function(e){
+        e.preventDefault();
+        sharedRenderer = null; sharedEnv = null;
+        window.dispatchEvent(new Event("kp3d-context-lost"));
+      });
+    }
+    wrap.appendChild(renderer.domElement);
+    if (window.__RoomEnvironment__){
+      if (!sharedEnv){
+        var pmrem = new THREE.PMREMGenerator(renderer);
+        sharedEnv = pmrem.fromScene(new window.__RoomEnvironment__(renderer), 0.04).texture;
+        pmrem.dispose();
+      }
+      scene.environment = sharedEnv;
+    }
+    var controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 0.45, 0.3);
+    controls.enablePan = false;
+    controls.minDistance = 1.6; controls.maxDistance = 5;
+    controls.minPolarAngle = 0.25; controls.maxPolarAngle = Math.PI / 2 - 0.04;
+    controls.enableDamping = true; controls.dampingFactor = 0.08;
+    controls.update();
+
+    function resize(){
+      var w = wrap.clientWidth, h = wrap.clientHeight;
+      if (!w || !h) return;
+      camera.aspect = w / h; camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
+    resize();
+    window.addEventListener("resize", resize);
+    PREVIEW = { renderer:renderer, camera:camera, controls:controls, scene:scene, group:null, onResize:resize, raf:0 };
+    (function loop(){
+      if (!PREVIEW) return;
+      PREVIEW.raf = requestAnimationFrame(loop);
+      controls.update();
+      renderer.render(scene, camera);
+    })();
+    setCabinetPreview(cfg);
   }
 
   // ============================================================
@@ -1826,6 +1972,10 @@
     surfacesOf: surfacesOf,
     islandFrame: islandFrame,
     wallGeoms: wallGeoms,
+    buildCabinetPreview: buildCabinetPreview,
+    setCabinetPreview: setCabinetPreview,
+    teardownCabinetPreview: teardownCabinetPreview,
+    hasCabinetPreview: function(){ return !!PREVIEW; },
     surfaceGeoms: surfaceGeoms,
     islandHandlePos: islandHandlePos,
     roomBounds: roomBounds,

@@ -274,6 +274,30 @@
 
   .wrap.mat{ max-width:1200px; }
   .wrap.shp{ max-width:1000px; }
+  .mat-wiz{ display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,1fr); gap:32px; align-items:start; }
+  @media (max-width:900px){ .mat-wiz{ grid-template-columns:1fr; } }
+  .mat-stage{ position:sticky; top:16px; }
+  .cab-preview{ height:min(74vh,640px); min-height:380px; border-radius:18px; overflow:hidden; background:#f4f1ea; border:1px solid var(--line); }
+  .cab-preview canvas{ display:block; width:100%; height:100%; cursor:grab; }
+  .cab-preview .mock{ padding:24px; }
+  .cab-hint{ font-size:12.5px; color:var(--ink-soft); text-align:center; margin:10px 0 0; }
+  .wiz-steps{ display:flex; gap:6px; }
+  .wiz-steps .ws{ flex:1; }
+  .wiz-steps .ws i{ display:block; height:4px; border-radius:2px; background:#e5e1d6; margin-bottom:6px; }
+  .wiz-steps .ws.done i{ background:var(--gold); }
+  .wiz-steps .ws.active i{ background:var(--blue); }
+  .wiz-steps .ws span{ font-size:11.5px; color:var(--ink-soft); }
+  .wiz-steps .ws.active span{ color:var(--ink); font-weight:600; }
+  .wiz-panel{ margin-top:6px; }
+  .sw-grid.big{ grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); }
+  .sw-grid.big .sw-fill{ aspect-ratio:1/1; }
+  .drawer-cards{ display:grid; gap:12px; }
+  .drawer-card{ display:flex; gap:14px; align-items:center; text-align:left; background:#fff; border:1.5px solid var(--line); border-radius:14px; padding:16px; cursor:pointer; font:inherit; }
+  .drawer-card:hover{ border-color:var(--blue); }
+  .drawer-card.active{ border-color:var(--blue); box-shadow:0 0 0 3px var(--blue-soft); }
+  .drawer-card .dc-ico{ flex:none; width:64px; height:64px; border-radius:12px; background:var(--panel); display:flex; align-items:center; justify-content:center; font-size:28px; }
+  .drawer-card .dc-name{ font-size:16px; font-weight:600; }
+  .drawer-card .dc-desc{ font-size:13px; color:var(--ink-soft); margin-top:3px; line-height:1.5; }
   .mat-layout{ display:grid; grid-template-columns:minmax(0,1fr) 380px; gap:32px; align-items:start; }
   @media (max-width:1000px){ .mat-layout{ grid-template-columns:1fr; } .mat-aside{ order:-1; position:static !important; } }
   .mat-aside{ position:sticky; top:16px; }
@@ -478,52 +502,38 @@
 
   <!-- ============ STEP: MATERIALS ============ -->
   <section id="screen-materials" hidden>
-    <div class="screen-title">Veldu efni</div>
-    <p class="screen-sub">Þetta er brot af efnisúrvalinu okkar — þú sérð valið hægra megin. Þú getur alltaf breytt þessu með Rakel síðar.</p>
+    <div class="mat-wiz">
+      <div class="mat-stage">
+        <div class="cab-preview" id="cabPreview"></div>
+        <p class="cab-hint">Dragðu til að snúa skápnum · skrollaðu til að þysja</p>
+      </div>
+      <div class="mat-side">
+        <div class="wiz-steps" id="wizSteps"></div>
+        <div class="screen-title" id="matTitle" style="margin-top:14px;"></div>
+        <p class="screen-sub" id="matSub"></p>
 
-    <div class="mat-layout">
-      <div class="mat-main">
-        <div class="mat-section">
-          <div class="mat-section-title">Framhliðar</div>
+        <div class="wiz-panel" data-mp="0">
+          <div class="sw-grid big" id="carcassCards"></div>
+        </div>
+        <div class="wiz-panel" data-mp="1">
+          <div class="drawer-cards" id="drawerSystemCards"></div>
+        </div>
+        <div class="wiz-panel" data-mp="2">
           <div class="tabs-row" id="frontTabs"></div>
           <p class="tab-blurb" id="frontBlurb"></p>
           <div class="sw-grid" id="lookCards"></div>
         </div>
-
-        <div class="mat-section">
-          <div class="mat-section-title">Litur á skrokkum</div>
-          <p class="mat-section-sub">Innviðir skápanna — sést t.d. innan í skápum og á hliðum.</p>
-          <div class="looks" id="carcassCards"></div>
+        <div class="wiz-panel" data-mp="3">
+          <div class="h-grid" id="handleCards"></div>
         </div>
-
-        <div class="mat-section">
-          <div class="mat-section-title">Borðplata</div>
+        <div class="wiz-panel" data-mp="4">
           <div class="tabs-row" id="topTabs"></div>
           <p class="tab-blurb" id="topBlurb"></p>
           <div class="sw-grid" id="topCards"></div>
         </div>
 
-        <div class="mat-section">
-          <div class="mat-section-title">Höldur og opnun</div>
-          <p class="mat-section-sub">Sama aðferð er notuð á alla skápa. „Falið grip“ þýðir ekkert áfast handfang — bara rennt í plötuna.</p>
-          <div class="h-grid" id="handleCards"></div>
-        </div>
-
-        <div class="mat-section">
-          <div class="mat-section-title">Skúffukerfi</div>
-          <p class="mat-section-sub">Skiptir aðeins máli ef þú bætir við skúffum síðar í ferlinu.</p>
-          <div class="looks" id="drawerSystemCards"></div>
-        </div>
+        <div class="actions" id="matActions"></div>
       </div>
-
-      <aside class="mat-aside">
-        <div class="mat-preview" id="matPreview"></div>
-      </aside>
-    </div>
-
-    <div class="actions">
-      <button class="btn btn-secondary" id="backToIntakeBtn" type="button">← Til baka í upphaf</button>
-      <button class="btn btn-primary" id="toShapeBtn" type="button" disabled>Áfram — lögun eldhúss</button>
     </div>
   </section>
 
@@ -722,6 +732,10 @@
   };
   var openingSeq = 1;
   var islandSeq = 1;
+  function freshState(step){
+    return { step:step, intake:{delivery:null,budget:null,room:"Eldhús"}, carcass:null, drawerSystem:null, look:null, handle:null, top:null,
+      roomHeightMm:DEFAULT_ROOM_HEIGHT_MM, wallColor:null, windows:[], doors:[], closed:false, waterWall:null, seeded:false, islands:[], walls:freshWalls() };
+  }
 
   // A cabinet can never render/write taller than the room itself (Phase 7c) —
   // matters for Hárskápur, whose real range tops out at 2600mm.
@@ -863,7 +877,9 @@
     try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
     wallSeq = 2;
     openingSeq = 1;
-    state = { step:"intake", intake:{delivery:null,budget:null,room:"Eldhús"}, carcass:null, drawerSystem:null, look:null, handle:null, roomHeightMm:DEFAULT_ROOM_HEIGHT_MM, wallColor:null, windows:[], doors:[], walls:freshWalls() };
+    state = freshState("intake");
+    shapePhase = "pick";
+    matPhase = null;
     render();
   }
 
@@ -2285,14 +2301,14 @@
     var w = Math.max(16, Math.min(80, (h.len || 0.24) * 130));
     return '<i class="mock-h" style="left:50%;margin-left:-' + w / 2 + 'px;width:' + w + 'px;height:4px;' + pos + '"></i>';
   }
-  function renderMatPreview(){
+  function renderMatPreview(host){
     var l = state.look ? LOOKS[state.look] : null, c = state.carcass ? CARCASS[state.carcass] : null;
     var t = TOPS[state.top || "steinn"], h = state.handle ? HANDLES[state.handle] : null;
     var f = mockFill(l);
     var topStyle = t && t.tex ? "background-image:url(" + t.tex + ");background-size:cover;background-position:center;" : "background:" + (t ? t.color3d : "#e4dfd6") + ";";
     var hv = h && h.color ? "--mock-h:" + h.color + ";" : "";
     function door(extra, where){ return '<div class="mock-door' + (extra || "") + '" style="' + f + '">' + mockHandle(h, where || "top") + '</div>'; }
-    document.getElementById("matPreview").innerHTML =
+    (host || document.getElementById("cabPreview")).innerHTML =
       '<div class="mock" style="--mock-carcass:' + (c ? c.color3d : "#4a4946") + ';' + hv + '">' +
         '<div class="mock-wall"><div class="mock-uppers">' + door("", "bottom") + door("", "bottom") + door("", "bottom") + '</div>' +
         '<div class="mock-top" style="' + topStyle + '"></div></div>' +
@@ -2312,30 +2328,82 @@
     var container = document.getElementById("drawerSystemCards");
     container.innerHTML = Object.keys(DRAWER_SYSTEMS).map(function(key){
       var d = DRAWER_SYSTEMS[key];
-      var active = state.drawerSystem === key;
-      return (
-        '<button type="button" class="look-card' + (active ? ' active' : '') + '" data-drawersys="' + key + '">' +
-          '<div class="swatch-glyph">🗄️</div>' +
-          '<div class="info"><div class="name">' + d.label + '</div><div class="desc">' + d.desc + '</div></div>' +
-        '</button>'
-      );
+      return '<button type="button" class="drawer-card' + (state.drawerSystem === key ? ' active' : '') + '" data-drawersys="' + key + '">' +
+        '<div class="dc-ico">🗄️</div><div><div class="dc-name">' + d.label + '</div><div class="dc-desc">' + d.desc + '</div></div></button>';
     }).join("");
-    container.querySelectorAll(".look-card").forEach(function(card){
+    container.querySelectorAll("[data-drawersys]").forEach(function(card){
       card.addEventListener("click", function(){ selectDrawerSystem(card.dataset.drawersys); });
     });
   }
 
+  // ======================================================================
+  // Materials as a wizard: one choice per page, with ONE big 3D base cabinet
+  // (600 × 800 × 600) that gains a level per page — carcass colour → drawer
+  // system → fronts (the cabinet closes) → handles → worktop.
+  // ======================================================================
+  var MAT_PHASES = [
+    { label:"Skrokkur",  title:"Veldu lit á skrokknum",   sub:"Innviðir skápanna — sést innan í skápum og á hliðum. Snúðu skápnum og skoðaðu hann frá öllum hliðum." },
+    { label:"Skúffur",   title:"Veldu skúffukerfi",       sub:"Skúffurnar birtast inni í skápnum." },
+    { label:"Framhlið",  title:"Veldu framhlið",          sub:"Skápurinn lokast með framhliðinni sem þú velur." },
+    { label:"Höldur",    title:"Veldu höldu",             sub:"Handfangið fer á skápinn — sama aðferð er notuð á alla skápa. „Falið grip“ þýðir ekkert áfast handfang." },
+    { label:"Borðplata", title:"Veldu borðplötu",         sub:"Borðplatan kemur ofan á skápinn." }
+  ];
+  var matPhase = null;
+  var cabPreviewLoading = false;
+  function matPhaseDone(i){ return [state.carcass, state.drawerSystem, state.look, state.handle, true][i]; }
+  function firstMissingPhase(){ for (var i = 0; i < 4; i++) if (!matPhaseDone(i)) return i; return 4; }
+
+  function cabCfg(){
+    return { carcass:state.carcass, drawer:state.drawerSystem, look:state.look, handle:state.handle, top:state.top || "steinn",
+      showDrawers:matPhase >= 1, showFronts:matPhase >= 2, showHandle:matPhase >= 3, showTop:matPhase >= 4 };
+  }
+  function updateCabinetPreview(){
+    var host = document.getElementById("cabPreview");
+    if (!KP3D.hasWebGL()){ renderMatPreview(host); return; }
+    if (KP3D.hasCabinetPreview()){ KP3D.setCabinetPreview(cabCfg()); return; }
+    if (cabPreviewLoading) return;
+    cabPreviewLoading = true;
+    host.innerHTML = '<div class="three-note">Hleð 3D…</div>';
+    KP3D.waitForThree(function(ok){
+      cabPreviewLoading = false;
+      if (state.step !== "materials") return;
+      if (!ok){ renderMatPreview(host); return; }
+      host.innerHTML = "";
+      KP3D.buildCabinetPreview(host, cabCfg());
+    }, 8000);
+  }
+
+  function renderMatActions(){
+    var box = document.getElementById("matActions"), last = matPhase === MAT_PHASES.length - 1;
+    box.innerHTML = '<button class="btn btn-secondary" id="mtBack" type="button">← ' + (matPhase === 0 ? "Til baka í upphaf" : "Til baka") + '</button>' +
+      '<button class="btn btn-primary" id="mtNext" type="button"' + (matPhaseDone(matPhase) ? "" : " disabled") + '>' + (last ? "Áfram — rýmið" : "Áfram") + '</button>';
+    document.getElementById("mtBack").addEventListener("click", function(){
+      if (matPhase === 0) goto("intake"); else { matPhase--; renderMaterials(); }
+    });
+    document.getElementById("mtNext").addEventListener("click", function(){
+      if (last) goto("shape"); else { matPhase++; renderMaterials(); }
+    });
+  }
+
   function renderMaterials(){
+    if (matPhase === null) matPhase = firstMissingPhase();
     // open the tab that holds the current pick (a tab click only re-renders its own picker, so it isn't undone)
     if (state.look && LOOKS[state.look] && !LOOKS[state.look].hidden) matTab.front = LOOKS[state.look].category;
     if (state.top && TOPS[state.top]) matTab.top = TOPS[state.top].group;
-    renderCarcassCards();
-    renderLookCards();
-    renderTopCards();
-    renderHandleCards();
-    renderMatPreview();
-    renderDrawerSystemCards();
-    document.getElementById("toShapeBtn").disabled = !(state.carcass && state.look && state.handle && state.drawerSystem);
+    var ph = MAT_PHASES[matPhase];
+    document.getElementById("wizSteps").innerHTML = MAT_PHASES.map(function(p, i){
+      return '<div class="ws' + (i === matPhase ? " active" : (i < matPhase && matPhaseDone(i) ? " done" : "")) + '"><i></i><span>' + (i + 1) + '. ' + p.label + '</span></div>';
+    }).join("");
+    document.getElementById("matTitle").textContent = ph.title;
+    document.getElementById("matSub").textContent = ph.sub;
+    document.querySelectorAll(".wiz-panel").forEach(function(el){ el.hidden = parseInt(el.dataset.mp, 10) !== matPhase; });
+    if (matPhase === 0) renderCarcassCards();
+    if (matPhase === 1) renderDrawerSystemCards();
+    if (matPhase === 2) renderLookCards();
+    if (matPhase === 3) renderHandleCards();
+    if (matPhase === 4) renderTopCards();
+    renderMatActions();
+    updateCabinetPreview();
   }
 
   // ---------- 3D / 2D view (rendering itself lives in kitchen-planner-3d.js,
@@ -2858,6 +2926,7 @@
     document.getElementById("mainWrap").classList.toggle("wide", state.step === "editor");
     document.getElementById("mainWrap").classList.toggle("mat", state.step === "materials");
     document.getElementById("mainWrap").classList.toggle("shp", state.step === "shape");
+    if (state.step !== "materials") KP3D.teardownCabinetPreview();
     document.getElementById("pageLede").hidden = state.step === "editor";
     if (state.step === "editor"){
       viewMode = "3d";
@@ -3045,7 +3114,9 @@
       try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
       wallSeq = 2;
       openingSeq = 1;
-      state = { step:"done", intake:{delivery:null,budget:null,room:"Eldhús"}, carcass:null, drawerSystem:null, look:null, handle:null, roomHeightMm:DEFAULT_ROOM_HEIGHT_MM, wallColor:null, windows:[], doors:[], walls:freshWalls() };
+      state = freshState("done");
+      shapePhase = "pick";
+      matPhase = null;
       render();
       renderPreviews();
     }catch(e){
@@ -3060,9 +3131,7 @@
   // Flow order (Phase 7c): intake → materials → shape → walls → summary(3D) → contact.
   document.getElementById("toMaterialsBtn").addEventListener("click", function(){ goto("materials"); });
   document.getElementById("skipQuizBtn").addEventListener("click", function(){ goto("materials"); });
-  document.getElementById("backToIntakeBtn").addEventListener("click", function(){ goto("intake"); });
 
-  document.getElementById("toShapeBtn").addEventListener("click", function(){ goto("shape"); });
   document.getElementById("backToShapeBtn").addEventListener("click", function(){ shapePhase = "size"; goto("shape"); });
 
   // A small picture of the plan for the contact/done screens (taken while the
