@@ -1132,6 +1132,16 @@
   // clearance, so "snapping" for them means picking the right slot (which
   // insertIndexForOffset already does), then previewing its real resulting
   // offset — not an approximation of where the cursor is.
+  function clampGrip(g, widthMm){ return Math.max(-widthMm / 2, Math.min(widthMm / 2, g)); }
+  function blockCenterAlongMm(wall, zone, blockId){
+    var offset = cornerClearance(wall, zone);
+    for (var i = 0; i < wall[zone].length; i++){
+      var b = wall[zone][i];
+      if (b.id === blockId) return offset + b.widthMm / 2;
+      offset += b.widthMm;
+    }
+    return offset;
+  }
   function computePackedOffset(wall, zone, widthMm, rawAlongMm, excludeId){
     var clearance = cornerClearance(wall, zone);
     var list = wall[zone].filter(function(b){ return b.id !== excludeId; });
@@ -1484,7 +1494,10 @@
     document.body.appendChild(ghost);
     ghostPosition(ghost, evt.clientX, evt.clientY);
     ghost.style.visibility = "hidden"; // shown once the press turns into a drag
-    blockDragState = { blockId:blockId, ghostEl:ghost, startX:evt.clientX, startY:evt.clientY, moved:false };
+    // grab offset: where on the cabinet the press landed, so it doesn't jump to centre on the cursor
+    var press = findDropPoint(evt.clientX, evt.clientY), grip = 0;
+    if (press && press.wallId === found.wall.id) grip = clampGrip(press.alongMm - blockCenterAlongMm(found.wall, found.zone, blockId), found.block.widthMm);
+    blockDragState = { blockId:blockId, ghostEl:ghost, startX:evt.clientX, startY:evt.clientY, moved:false, gripMm:grip };
     window.addEventListener("pointermove", onBlockDragMove);
     window.addEventListener("pointerup", onBlockDragEnd, { once:true });
   }
@@ -1500,6 +1513,7 @@
     var drop = findDropPoint(evt.clientX, evt.clientY);
     highlightDropWall(drop ? drop.wallId : null);
     if (!drop){ hideDragPreview(); return; }
+    drop.alongMm -= blockDragState.gripMm;
     var wall = state.walls.find(function(w){ return w.id === drop.wallId; });
     var found = findBlock(blockDragState.blockId);
     if (!wall || !found){ hideDragPreview(); return; }
@@ -1513,6 +1527,7 @@
     if (!blockDragState) return;
     var moved = blockDragState.moved;
     var drop = moved ? findDropPoint(evt.clientX, evt.clientY) : null;
+    if (drop) drop.alongMm -= blockDragState.gripMm;
     blockDragState.ghostEl.remove();
     clearDropHighlight();
     removeDragPreview();
@@ -1539,7 +1554,9 @@
     ghost.textContent = f.kind === "window" ? "Gluggi" : "Hurð";
     document.body.appendChild(ghost);
     ghostPosition(ghost, evt.clientX, evt.clientY);
-    openingDrag = { id:id, ghostEl:ghost, startX:evt.clientX, startY:evt.clientY, moved:false };
+    var opPress = findDropPoint(evt.clientX, evt.clientY), opGrip = 0;
+    if (opPress && opPress.wallId === f.o.wallId) opGrip = clampGrip(opPress.alongMm - (f.o.offsetMm + f.o.widthMm / 2), f.o.widthMm);
+    openingDrag = { id:id, ghostEl:ghost, startX:evt.clientX, startY:evt.clientY, moved:false, gripMm:opGrip };
     window.addEventListener("pointermove", onOpeningDragMove);
     window.addEventListener("pointerup", onOpeningDragEnd, { once:true });
   }
@@ -1552,6 +1569,7 @@
     }
     var drop = findDropPoint(evt.clientX, evt.clientY), f = findOpening(openingDrag.id);
     highlightDropWall(drop ? drop.wallId : null);
+    if (drop) drop.alongMm -= openingDrag.gripMm;
     var wall = drop && state.walls.find(function(w){ return w.id === drop.wallId; });
     if (!wall || !f){ hideDragPreview(); return; }
     updateDragPreviewRect(drop.wallId, snappedOpeningOffset(wall, f.o.widthMm, drop.alongMm), f.o.widthMm, 60, true);
@@ -1565,7 +1583,7 @@
     removeDragPreview();
     openingDrag = null;
     if (!d.moved){ onCabinetSelect({ blockId:d.id, zone:"opening" }); return; }
-    if (drop) moveOpening(d.id, drop.wallId, drop.alongMm);
+    if (drop) moveOpening(d.id, drop.wallId, drop.alongMm - d.gripMm);
   }
 
   function wireBlockDragHandlers(){

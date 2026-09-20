@@ -725,7 +725,32 @@
       var y = drag && drag.mesh ? drag.mesh.position.y : 0;
       var plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -y);
       if (!raycaster.ray.intersectPlane(plane, pt)) return null;
-      return nearestWallDrop(geoms, walls, pt.x, pt.z);
+      var drop = nearestWallDrop(geoms, walls, pt.x, pt.z);
+      // Keep the spot the cabinet was grabbed at under the cursor: alongMm is
+      // the cabinet CENTRE, so shift it by the grab offset measured on press.
+      if (drop && drag && drag.gripMm) drop.alongMm -= drag.gripMm;
+      return drop;
+    }
+    // Distance (mm) of a world point along a wall from that wall's origin.
+    function alongOnWall(wallId, x, z){
+      var wi = walls.findIndex(function(w){ return w.id === wallId; });
+      var g = geoms[wi];
+      return g ? ((x - g.origin.x) * g.axis.x + (z - g.origin.z) * g.axis.z) * 1000 : null;
+    }
+    // Where on the cabinet the press landed, relative to its centre along the
+    // wall — so grabbing a cabinet by its edge doesn't make it jump to centre
+    // itself on the cursor.
+    function gripOffsetMm(evt, mesh){
+      var meta = mesh.userData;
+      raycaster.setFromCamera(ndc(evt), camera);
+      var pt = new THREE.Vector3();
+      var wp = new THREE.Vector3();
+      mesh.getWorldPosition(wp);
+      if (!raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -wp.y), pt)) return 0;
+      var a = alongOnWall(meta.wallId, pt.x, pt.z), c = alongOnWall(meta.wallId, wp.x, wp.z);
+      if (a === null || c === null) return 0;
+      var half = (meta.widthMm || 0) / 2;
+      return Math.max(-half, Math.min(half, a - c));
     }
 
     function onDown(evt){
@@ -734,7 +759,7 @@
       var mesh = pickMeshAt(evt);
       if (!mesh) return;
       evt.stopPropagation();
-      drag = { meta:mesh.userData, mesh:mesh, group:mesh.parent, startX:evt.clientX, startY:evt.clientY, moved:false };
+      drag = { meta:mesh.userData, mesh:mesh, group:mesh.parent, startX:evt.clientX, startY:evt.clientY, moved:false, gripMm:gripOffsetMm(evt, mesh) };
       controls.enabled = false;
     }
     var hovered = null;
@@ -801,6 +826,8 @@
     function onUp(evt){
       if (!drag) return;
       var meta = drag.meta, moved = drag.moved;
+      // must be computed while `drag` is still set: dropAt uses its mid-height plane and grip offset
+      var finalDrop = moved ? dropAt(evt) : null;
       if (moved){ drag.group.matrix.identity(); drag.group.matrixWorldNeedsUpdate = true; }
       haveTarget = false;
       if (THREE_STATE){ THREE_STATE.dragging = false; THREE_STATE.dragStep = null; }
@@ -809,7 +836,7 @@
       renderer.domElement.style.cursor = "";
       if (moved){
         suppressClick = true;
-        if (opts.onCabinetDragEnd) opts.onCabinetDragEnd(meta, dropAt(evt));
+        if (opts.onCabinetDragEnd) opts.onCabinetDragEnd(meta, finalDrop);
       } else if (opts.onSelect){
         opts.onSelect(meta);
       }
