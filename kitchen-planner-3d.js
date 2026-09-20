@@ -31,7 +31,7 @@
     // sink base and open shelves have no schema of their own, so they submit
     // as Grunnskápur / Efriskápur plus a plain note for Rakel.
     ofnaskapur:  { label:"Ofnaskápur",  zone:"floor", cls:"oven",  defaultW:600, minW:600, maxW:600, h:2100, d:600, minH:1800, maxH:2200, minD:600, maxD:600, hasInterior:false, ovenHeightMm:595, oven:true },
-    tofrahorn:   { label:"Töfrahorn (kapphorn)", zone:"floor", cls:"corner", defaultW:900, minW:900, maxW:900, h:800, d:900, minH:800, maxH:800, minD:900, maxD:900, hasInterior:false, counter:true,
+    tofrahorn:   { label:"Töfrahorn (kapphorn)", zone:"floor", cls:"corner", defaultW:1200, minW:1200, maxW:1200, h:800, d:600, minH:800, maxH:800, minD:600, maxD:600, hasInterior:false, counter:true,
                    skapategundOverride:"Grunnskápur", tofrahornId:"rec9PD5fCZGUpwAon" },
     vaskaskapur: { label:"Vaskaskápur", zone:"floor", cls:"floor", defaultW:800, minW:800, maxW:800, h:800, d:600, minH:800, maxH:800, minD:600, maxD:600, hasInterior:false, counter:true, sink:true,
                    skapategundOverride:"Grunnskápur", note:"Vaskaskápur — útskurður fyrir vask og lagnir; vinsamlegast staðfestu vaskstærð og gerð." },
@@ -277,9 +277,8 @@
     var prevLast = prev.floor[prev.floor.length - 1];
     if (!prevLast) return 0;
     var cur = walls[wallIndex];
-    var curFirst = cur.floor[0];
-    if (CATALOG[prevLast.type].cls === "corner") return 0;
-    if (curFirst && CATALOG[curFirst.type].cls === "corner") return 0;
+    // (No exemption for Töfrahorn any more: it is drawn as a plain 1200 × 600 box,
+    // so the neighbouring wall's run has to start after its depth like any cabinet.)
     return prevLast.depthMm || CATALOG[prevLast.type].d;
   }
 
