@@ -14,4 +14,17 @@
 //     drawers: { legra_K: { file:"models/drawers/legra-K.glb" } },
 //     handles: { ona:     { file:"models/handles/ona.glb" } }
 //   };
-window.KPMODELS = { drawers:{}, handles:{} };
+//
+// drawerSides: Blum's own drawer SIDE parts (left + right, one file each, per colour) — the
+// planner adds a plain bottom and back between them. Key = "<system>_<height code>".
+// Only used when the cabinet is deep enough for the real length (470 mm parts).
+window.KPMODELS = {
+  drawers: {},
+  drawerSides: {
+    merivo_E: {
+      white: { L:"models/drawers/merivo-E-white-L.dae", R:"models/drawers/merivo-E-white-R.dae" },
+      dark:  { L:"models/drawers/merivo-E-dark-L.dae",  R:"models/drawers/merivo-E-dark-R.dae" }
+    }
+  },
+  handles: {}
+};

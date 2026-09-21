@@ -757,6 +757,13 @@
     var m = window.KPMODELS && window.KPMODELS[kind] && window.KPMODELS[kind][key];
     return m && m.file ? m : null;
   }
+  // load a .glb or .dae (Blum's CAD download) -> done(sceneRoot) / fail()
+  function loadRaw(file, done, fail){
+    var dae = /\.dae(\?|$)/i.test(file);
+    import(dae ? "three/addons/loaders/ColladaLoader.js" : "three/addons/loaders/GLTFLoader.js").then(function(mod){
+      new (dae ? mod.ColladaLoader : mod.GLTFLoader)().load(file, function(res){ done(res.scene); }, undefined, fail);
+    }).catch(fail);
+  }
   // -> a normalised clone (bottom at y=0, centred on x/z, front at +z side) or null while it loads / when none exists
   function getModel(kind, key){
     var e = modelEntry(kind, key);
@@ -764,15 +771,46 @@
     var c = MODEL_CACHE[e.file];
     if (!c){
       c = MODEL_CACHE[e.file] = { state:"loading", obj:null };
-      var dae = /\.dae(\?|$)/i.test(e.file); // Blum's CAD downloads come as .dae (Collada); .glb works too
-      import(dae ? "three/addons/loaders/ColladaLoader.js" : "three/addons/loaders/GLTFLoader.js").then(function(mod){
-        new (dae ? mod.ColladaLoader : mod.GLTFLoader)().load(e.file, function(res){
-          c.obj = normaliseModel(res.scene, e); c.state = "ready";
-          window.dispatchEvent(new Event("kp3d-model-loaded"));
-        }, undefined, function(){ c.state = "error"; });
-      }).catch(function(){ c.state = "error"; });
+      loadRaw(e.file, function(root){
+        c.obj = normaliseModel(root, e); c.state = "ready";
+        window.dispatchEvent(new Event("kp3d-model-loaded"));
+      }, function(){ c.state = "error"; });
     }
     return c.state === "ready" ? c.obj.clone(true) : null;
+  }
+  // A model in its own coordinates (Blum parts are positioned relative to one another, so
+  // they must NOT be re-centred), with its Phong materials turned into standard ones.
+  var RAW_CACHE = {};
+  function rawModel(file){
+    var c = RAW_CACHE[file];
+    if (!c){
+      c = RAW_CACHE[file] = { state:"loading", obj:null };
+      loadRaw(file, function(root){
+        var THREE = window.__THREE__;
+        root.traverse(function(o){
+          if (!o.isMesh) return;
+          var conv = function(m){
+            var metal = /zinc|steel|chrom|alu/i.test(m.name || "");
+            return new THREE.MeshStandardMaterial({ color:m.color ? m.color.clone() : 0xcccccc, metalness:metal ? 0.7 : 0.06, roughness:metal ? 0.38 : 0.5 });
+          };
+          o.material = Array.isArray(o.material) ? o.material.map(conv) : conv(o.material);
+          o.castShadow = true; o.receiveShadow = true;
+        });
+        var b = new THREE.Box3().setFromObject(root), sz = b.getSize(new THREE.Vector3());
+        if (Math.max(sz.x, sz.y, sz.z) > 4) root.scale.multiplyScalar(0.001); // still in millimetres
+        c.obj = root; c.state = "ready";
+        window.dispatchEvent(new Event("kp3d-model-loaded"));
+      }, function(){ c.state = "error"; });
+    }
+    return c.state === "ready" ? c.obj.clone(true) : null;
+  }
+  // the two real drawer sides (left/right) for this system + height code + colour, or null
+  function realSides(sysKey, code, dark){
+    var e = window.KPMODELS && window.KPMODELS.drawerSides && window.KPMODELS.drawerSides[sysKey + "_" + code];
+    var v = e && e[dark ? "dark" : "white"];
+    if (!v) return null;
+    var L = rawModel(v.L), R = rawModel(v.R);
+    return L && R ? { L:L, R:R, e:e } : null;
   }
   function normaliseModel(root, e){
     var THREE = window.__THREE__, wrap = new THREE.Group();
@@ -1092,7 +1130,7 @@
           bx = new THREE.Group(); real.position.set(0, 0, -rb.max.z); bx.add(real);
           bx.position.set(0, y1 - 0.03 - rs.y, CD - 0.005);
         } else {
-          bx = buildDrawerBox(THREE, sysKey, meta.carcassKey, side, Math.max(0.2, widthM - 2 * T - 0.026), Math.max(0.2, Math.min(0.5, CD - 0.06)));
+          bx = buildDrawerBox(THREE, sysKey, meta.carcassKey, side, Math.max(0.2, widthM - 2 * T - 0.026), Math.max(0.2, Math.min(0.5, CD - 0.06)), L ? L.codes[2 - fi] : null);
           bx.position.set(0, y1 - 0.03 - side / 1000, CD - 0.005);
         }
         g.add(bx); bx.traverse(function(o){ if (o.isMesh) meshes.push(o); });
@@ -2111,9 +2149,28 @@
   // bracket; MERIVOBOX: L-profile sides with a flange at the bottom), built
   // with real Blum side heights. Local coordinates: bottom at y = 0, the
   // front edge at z = 0 and the box extending backwards (-z).
-  function buildDrawerBox(THREE, sysKey, carcassKey, sideMm, boxW, boxD){
+  function buildDrawerBox(THREE, sysKey, carcassKey, sideMm, boxW, boxD, code){
     var g = new THREE.Group();
     var dark = carcassKey === "dokkgra";
+    if (code && (boxD || 0.5) >= 0.49){
+      var rs = realSides(sysKey, code, dark);
+      if (rs){ // Blum's own side parts + a plain bottom and back between them
+        var inset = rs.e.inset || 0.0273, bwR = boxW || 0.5;
+        [["L", rs.L], ["R", rs.R]].forEach(function(pr){
+          var b = new THREE.Box3().setFromObject(pr[1]), holder = new THREE.Group();
+          holder.add(pr[1]);
+          holder.position.set(pr[0] === "L" ? -bwR / 2 - b.min.x : bwR / 2 - b.max.x, -b.min.y, -b.max.z); // outer edge at ±bw/2, bottom at 0, front at z = 0
+          g.add(holder);
+          if (pr[0] === "L"){ g.userData.len = b.max.z - b.min.z; g.userData.footTop = 0.0176; }
+        });
+        var len = g.userData.len || 0.493, inner = bwR - 2 * inset + 0.004;
+        var bm = new THREE.MeshStandardMaterial({ color:dark ? 0x22231f : 0xe4e2d6, roughness:0.5, metalness:0.05 });
+        function pnl(w, h, d, x, y, z){ var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), bm); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; g.add(m); }
+        pnl(inner, 0.016, len - 0.02, 0, 0.0176 + 0.008, -(len - 0.02) / 2 - 0.01);           // bottom
+        pnl(inner, Math.min(sideMm / 1000 - 0.04, 0.1), 0.016, 0, 0.0176 + 0.016 + Math.min(sideMm / 1000 - 0.04, 0.1) / 2, -len + 0.008); // back
+        return g;
+      }
+    }
     var mat = new THREE.MeshStandardMaterial({ color:dark ? 0x64676c : 0xf0efeb, metalness:dark ? 0.45 : 0.1, roughness:0.4 });
     var legra = sysKey !== "merivo", t = legra ? 0.0128 : 0.016, bw = boxW || 0.5, bd = boxD || 0.5, h = sideMm / 1000;
     function panel(w, hh, d, x, y, z){
@@ -2201,7 +2258,7 @@
           bx = new THREE.Group(); real.position.set(0, 0, -rb.max.z); bx.add(real);
           bx.position.set(0, y1 - 0.03 - rs.y, CD - 0.005);
         } else {
-          bx = buildDrawerBox(THREE, cfg.drawer, cfg.carcass, sides[i]);
+          bx = buildDrawerBox(THREE, cfg.drawer, cfg.carcass, sides[i], null, null, L ? L.codes[2 - i] : null);
           bx.position.set(0, y1 - 0.03 - sides[i] / 1000, CD - 0.005);
         }
         dg.add(bx);
