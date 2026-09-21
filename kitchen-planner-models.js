@@ -45,7 +45,8 @@ window.KPMODELS = {
   // Hexxa is milled into the front (no model needed): a slot centred with equal distance to both sides.
   handles: {
     jey2:               { file:"models/handles/jey.glb",   kind:"jey", map:["y", "z", "x"], color:"#1b1b1d", stripMm:27 },
-    kantgrip_kopar_tab: { file:"models/handles/comet.glb", kind:"bar", map:["y", "-x", "z"] },
+    // Comet: 200 mm, mounted on the top edge of the front; model x = the 40 mm it projects, y = length, z = thickness (flat side up)
+    comet:              { file:"models/handles/comet.glb", kind:"topmount", map:["y", "z", "x"], lenMm:200 },
     hexxa:              { kind:"hexxa", marginMm:50 }
   }
 };

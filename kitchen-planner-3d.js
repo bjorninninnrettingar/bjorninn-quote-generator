@@ -258,6 +258,13 @@
   // (kitchen-planner-catalog.js → window.KPCAT): fronts, worktops, more handles.
   var KPCAT = window.KPCAT || { fronts:{}, tops:{}, handles:{} };
   Object.keys(KPCAT.handles).forEach(function(k){ HANDLES[k] = Object.assign({ vorulistiId:null }, KPCAT.handles[k]); });
+  // The handle range is being rebuilt one handle at a time (kitchen-planner-handles.js): the earlier ones stay
+  // (old drafts / submissions still render) but are hidden from the picker.
+  var KPH = window.KPHANDLES || { groups:[], items:{}, placeExisting:{} };
+  Object.keys(HANDLES).forEach(function(k){ HANDLES[k].hidden = true; });
+  Object.keys(KPH.placeExisting || {}).forEach(function(k){ if (HANDLES[k]){ HANDLES[k].hidden = false; HANDLES[k].group = KPH.placeExisting[k]; } });
+  Object.keys(KPH.items || {}).forEach(function(k){ HANDLES[k] = Object.assign({ vorulistiId:null }, KPH.items[k]); });
+  var HANDLE_GROUPS = KPH.groups || [];
   var TOPS = {};
   Object.keys(KPCAT.tops).forEach(function(k){ TOPS[k] = KPCAT.tops[k]; });
 
@@ -829,7 +836,7 @@
     w.applyMatrix4(new THREE.Matrix4().set(rows[0][0], rows[0][1], rows[0][2], 0, rows[1][0], rows[1][1], rows[1][2], 0, rows[2][0], rows[2][1], rows[2][2], 0, 0, 0, 0, 1));
     w.updateMatrixWorld(true);
     var b = new THREE.Box3().setFromObject(w), c = b.getCenter(new THREE.Vector3());
-    w.position.set(-c.x, cfg.kind === "jey" ? -b.max.y : -c.y, -b.min.z);
+    w.position.set(-c.x, cfg.kind === "jey" || cfg.kind === "topmount" ? -b.max.y : -c.y, -b.min.z);
     if (cfg.color){
       w.traverse(function(o){ if (o.isMesh){ o.material = o.material.clone(); o.material.color.set(cfg.color); o.material.metalness = 0.55; o.material.roughness = 0.4; } });
     }
@@ -967,6 +974,19 @@
           // place() overwrites the rotation of what it is given, so the turn lives in a child group
           if (vertical){ sides.forEach(function(sg){ var rot = new THREE.Group(), h2 = new THREE.Group(); rot.add(jp.clone(true)); rot.rotation.z = sg > 0 ? -Math.PI / 2 : Math.PI / 2; h2.add(rot); place(h2, (top + bottom) / 2, 0, twoLeaf ? 0 : sg * hw / 2 + hOff); }); }
           else place(jp, top, 0, hOff);
+          return;
+        }
+      }
+      if (hcfg && hcfg.kind === "topmount"){ // sits ON the top edge of the front (flat side up, under the worktop), projecting out of it
+        var tl = (hcfg.lenMm || 200) / 1000, leafW = twoLeaf ? hw / 2 : hw, tlen = Math.min(tl, leafW - 0.06), tpf = handleProfile(THREE, handleKey, tlen < tl ? tlen : null);
+        if (tpf){
+          if (vertical){ // tall units: an edge pull on the free side, at chest height
+            var vyc = Math.max(bottom + 0.12, Math.min(top - 0.12, 1.05));
+            sides.forEach(function(sg){ var rotT = new THREE.Group(), hT = new THREE.Group(); rotT.add(tpf.clone(true)); rotT.rotation.z = sg > 0 ? -Math.PI / 2 : Math.PI / 2; hT.add(rotT); place(hT, vyc, 0, twoLeaf ? 0 : sg * hw / 2 + hOff); });
+          } else {
+            var centres = twoLeaf ? [-hw / 4, hw / 4] : [hOff];
+            centres.forEach(function(cxT){ var rotB = new THREE.Group(), hB = new THREE.Group(); rotB.add(tpf.clone(true)); if (atBottom) rotB.rotation.z = Math.PI; hB.add(rotB); place(hB, atBottom ? bottom : top, 0, cxT); }); // wall units: on the bottom edge, upside down
+          }
           return;
         }
       }
@@ -2698,6 +2718,7 @@
     DRAWER_SYSTEMS: DRAWER_SYSTEMS,
     DRAWER_LAYOUT: DRAWER_LAYOUT,
     HANDLES: HANDLES,
+    HANDLE_GROUPS: HANDLE_GROUPS,
     wallGeometry3D: wallGeometry3D,
     cornerClearanceMm: cornerClearanceMm,
     blockStartsMm: blockStartsMm,

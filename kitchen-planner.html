@@ -29,6 +29,7 @@
 </script>
 <script src="kitchen-planner-materials.js"></script>
 <script src="kitchen-planner-catalog.js"></script>
+<script src="kitchen-planner-handles.js"></script>
 <script src="kitchen-planner-models.js"></script>
 <script src="kitchen-planner-3d.js"></script>
 <style>
@@ -647,6 +648,8 @@
           <div class="sw-grid" id="lookCards"></div>
         </div>
         <div class="wiz-panel" data-mp="3">
+          <div class="tabs-row" id="handleTabs"></div>
+          <p class="tab-blurb" id="handleBlurb"></p>
           <div class="h-grid" id="handleCards"></div>
         </div>
         <div class="wiz-panel" data-mp="4">
@@ -3048,7 +3051,7 @@
   }
 
   // which tab is open in the front / worktop pickers (jumps to the group of the current pick)
-  var matTab = { front:"vidarliki", top:"limtre" };
+  var matTab = { front:"vidarliki", top:"limtre", handle:"ofan-a" };
   function frontsOf(cat){ return Object.keys(LOOKS).filter(function(k){ return !LOOKS[k].hidden && LOOKS[k].category === cat; }); }
   function topsOf(group){ return Object.keys(TOPS).filter(function(k){ return TOPS[k].group === group; }); }
 
@@ -3095,16 +3098,22 @@
     });
   }
 
+  function handlesOf(group){ return Object.keys(HANDLES).filter(function(k){ return !HANDLES[k].hidden && HANDLES[k].group === group; }); }
   function renderHandleCards(){
-    var container = document.getElementById("handleCards");
-    // the site's own handles first, then the workshop's standard ones
-    var keys = Object.keys(HANDLES).sort(function(a, b){ return (HANDLES[b].site ? 1 : 0) - (HANDLES[a].site ? 1 : 0); });
-    container.innerHTML = keys.map(function(key){
+    var groups = KP3D.HANDLE_GROUPS;
+    if (state.handle && HANDLES[state.handle] && HANDLES[state.handle].group && !HANDLES[state.handle].hidden) matTab.handle = HANDLES[state.handle].group;
+    var grp = groups.find(function(g){ return g.key === matTab.handle; }) || groups[0];
+    var tabs = document.getElementById("handleTabs");
+    tabs.innerHTML = tabsHTML(groups, function(k){ return handlesOf(k).length; }, grp.key, "data-htab");
+    tabs.querySelectorAll("[data-htab]").forEach(function(b){ b.addEventListener("click", function(){ matTab.handle = b.dataset.htab; renderHandleCards(); }); });
+    document.getElementById("handleBlurb").textContent = grp.blurb;
+    var container = document.getElementById("handleCards"), keys = handlesOf(grp.key);
+    container.innerHTML = keys.length ? keys.map(function(key){
       var h = HANDLES[key];
       return '<button type="button" class="sw-tile' + (state.handle === key ? ' active' : '') + '" data-handle="' + key + '" title="' + h.label + '">' +
         (h.img ? '<img src="' + h.img + '" alt="' + h.label + '" loading="lazy">' : '<div class="sw-fill" style="display:flex;align-items:center;justify-content:center;font-size:28px;">▭</div>') +
         '<div class="sw-name">' + h.label + '<small>' + h.desc + '</small></div></button>';
-    }).join("");
+    }).join("") : '<p class="tab-blurb" style="grid-column:1/-1;">Fleiri handföng bætast við hér fljótlega.</p>';
     container.querySelectorAll("[data-handle]").forEach(function(card){
       card.addEventListener("click", function(){ selectHandle(card.dataset.handle); });
     });
