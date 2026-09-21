@@ -250,7 +250,30 @@
   }
 
   /* ---- progress: numbered, clickable stepper ---- */
-  .stepper{ display:flex; gap:8px; margin:0 0 26px; }
+  .stepper{ display:flex; gap:8px; margin:0 0 26px; position:relative; padding-bottom:14px; }
+  .stepper[hidden]{ display:none; }
+  .stepper .bar{ position:absolute; left:0; right:0; bottom:0; height:6px; border-radius:3px; background:var(--line); overflow:hidden; }
+  .stepper .bar i{ display:block; height:100%; width:0; border-radius:3px; background:linear-gradient(90deg, var(--gold), #c9b35a); transition:width .6s cubic-bezier(.4,.1,.2,1); }
+  .stepper .st.done{ background:var(--gold-soft); border-color:#d9d3b3; }
+  /* welcome screen */
+  .wel{ max-width:760px; margin:8px auto 0; text-align:left; }
+  .wel-kick{ font-size:12px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); margin-bottom:8px; }
+  .wel h2{ font-size:32px; line-height:1.15; margin:0 0 12px; font-weight:700; }
+  .wel-lede{ font-size:16px; color:var(--ink-soft); margin:0 0 22px; line-height:1.5; }
+  .wel-steps{ list-style:none; margin:0 0 20px; padding:0; display:grid; gap:12px; }
+  .wel-steps li{ display:flex; gap:16px; align-items:flex-start; background:#fff; border:1.5px solid var(--line); border-radius:16px; padding:16px 18px; }
+  .wel-steps .n{ flex:none; width:38px; height:38px; border-radius:50%; background:var(--gold); color:#fff; font-weight:700; font-size:18px; display:flex; align-items:center; justify-content:center; }
+  .wel-steps h3{ margin:0 0 4px; font-size:18px; }
+  .wel-steps p{ margin:0; color:var(--ink-soft); font-size:14.5px; line-height:1.5; }
+  .wel-meta{ display:flex; gap:18px; flex-wrap:wrap; font-size:13.5px; color:var(--ink-soft); margin:0 0 22px; }
+  .wel-first{ font-size:13.5px; color:var(--ink-soft); margin:0 0 18px; }
+  /* room openings (step 2) */
+  .op-row{ display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; background:#fff; border:1px solid var(--line); border-radius:12px; padding:10px 12px; margin-bottom:8px; }
+  .op-row .op-nm{ min-width:86px; align-self:center; }
+  .op-f{ display:flex; flex-direction:column; font-size:11.5px; color:var(--ink-soft); gap:3px; }
+  .op-f input, .op-row select{ font:inherit; font-size:14px; padding:6px 8px; border:1px solid var(--line); border-radius:8px; background:#fff; }
+  .op-f input{ width:86px; }
+  .op-add{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:14px; }
   .stepper .st{
     flex:1; min-width:0; display:flex; align-items:center; gap:10px; padding:10px 12px; text-align:left;
     background:#fff; border:1.5px solid var(--line); border-radius:12px; cursor:pointer; font:inherit; font-size:14px; color:var(--ink-soft);
@@ -480,7 +503,7 @@
     .wrap.wide{ max-width:none; padding:0; height:100vh; display:flex; flex-direction:column; }
     .wrap.wide .top{ padding:10px 18px 0; margin:0; }
     .wrap.wide h1{ font-size:17px; margin:2px 0 0; }
-    .wrap.wide .stepper{ margin:8px 18px 10px; }
+    .wrap.wide .stepper{ margin:8px 18px 10px; padding-bottom:12px; }
     .wrap.wide .stepper .st{ padding:6px 10px; }
     #screen-editor:not([hidden]){ display:flex; flex-direction:column; flex:1; min-height:0; }
     .editor{ flex:1; min-height:0; margin:0; gap:0; grid-template-columns:288px minmax(0,1fr) 336px; grid-template-rows:minmax(0,1fr); align-items:stretch; border-top:1px solid var(--line); }
@@ -546,15 +569,33 @@
     </div>
     <button class="reset-link" id="resetBtn" type="button" title="Hreinsa allt og byrja upp á nýtt">Byrja upp á nýtt</button>
   </div>
-  <p class="lede" id="pageLede">Svaraðu nokkrum spurningum, veldu lögun eldhússins og raðaðu skápum upp — gróf teikning, engin binding. Rakel fer svo yfir og fullkomnar hönnunina með þér.</p>
+  <p class="lede" id="pageLede">Svaraðu nokkrum spurningum, smíðaðu rýmið, veldu efnin og raðaðu skápum upp — gróf teikning, engin binding. Rakel fer svo yfir og fullkomnar hönnunina með þér.</p>
 
   <nav class="stepper" id="progressSteps" aria-label="Skref">
     <button type="button" class="st" data-s="intake"><i>1</i><span>Spurningar</span></button>
-    <button type="button" class="st" data-s="materials"><i>2</i><span>Efni</span></button>
-    <button type="button" class="st" data-s="shape"><i>3</i><span>Rými</span></button>
+    <button type="button" class="st" data-s="shape"><i>2</i><span>Rými</span></button>
+    <button type="button" class="st" data-s="materials"><i>3</i><span>Efni</span></button>
     <button type="button" class="st" data-s="editor"><i>4</i><span>Skipulag</span></button>
     <button type="button" class="st" data-s="contact"><i>5</i><span>Senda inn</span></button>
+    <div class="bar"><i id="stepFill"></i></div>
   </nav>
+
+  <!-- ============ STEP: WELCOME ============ -->
+  <section id="screen-welcome" hidden>
+    <div class="wel">
+      <div class="wel-kick">Velkomin</div>
+      <h2>Nú hannar þú eldhúsið þitt — eins og þú vilt hafa það</h2>
+      <p class="wel-lede">Þetta eru þrjú einföld skref. Þú getur farið fram og til baka hvenær sem er, allt vistast sjálfkrafa og það er engin binding — Rakel fer yfir hönnunina með þér að lokum.</p>
+      <ol class="wel-steps">
+        <li><span class="n">1</span><div><h3>Smíðaðu rýmið 📐</h3><p>Veldu lögun, stilltu mál og lofthæð, veldu gólfefni og settu inn glugga, hurðir og op. Þegar rýmið er rétt læsirðu því.</p></div></li>
+        <li><span class="n">2</span><div><h3>Veldu efnin 🎨</h3><p>Skrokka, skúffukerfi, framhliðar, borðplötu og höldur — eitt í einu, á skáp sem þú getur snúið og skoðað frá öllum hliðum.</p></div></li>
+        <li><span class="n">3</span><div><h3>Raðaðu innréttingunni 🏠</h3><p>Dragðu skápa inn í rýmið og raðaðu þeim eins og þú vilt — jafnvel sérsmíðuðum einingum, þú slærð inn öll mál sjálf/ur. Læstu skápum þegar þeir eru réttir og opnaðu skúffur og hurðir til að prófa.</p></div></li>
+      </ol>
+      <div class="wel-meta"><span>⏱ Tekur um 10–15 mínútur</span><span>💾 Vistast sjálfkrafa</span><span>🤝 Engin binding</span></div>
+      <p class="wel-first">Fyrst tvær stuttar spurningar til að hjálpa Rakel að skilja rammann þinn.</p>
+      <button class="btn btn-primary" id="welStart" type="button">Byrjum →</button>
+    </div>
+  </section>
 
   <!-- ============ STEP: INTAKE ============ -->
   <section id="screen-intake">
@@ -564,7 +605,7 @@
     <div id="intakeBody"></div>
 
     <div class="actions">
-      <button class="btn btn-primary" id="toMaterialsBtn" type="button" disabled>Áfram — velja efni</button>
+      <button class="btn btn-primary" id="toMaterialsBtn" type="button" disabled>Áfram — smíða rýmið</button>
       <button class="skip-link" id="skipQuizBtn" type="button">Sleppa spurningum →</button>
     </div>
   </section>
@@ -623,6 +664,14 @@
     <div id="shapeDraw" hidden>
       <div class="shape-toolbar" id="shapeToolbar"></div>
       <div class="shape-canvas-wrap"><div class="shape-canvas" id="shapeCanvas"></div><div class="dim-pop" id="dimPop" hidden></div></div>
+      <div id="shapeOpenings" hidden>
+        <div class="mat-section" style="margin-top:20px;">
+          <div class="mat-section-title">Gluggar, hurðir og op</div>
+          <p class="mat-section-sub">Veldu vegg (töluna á teikningunni eða hér) og bættu við. „Op“ er gat í vegginn án hurðar. Þú getur alltaf breytt þessu seinna í skipulaginu.</p>
+          <div class="op-add" id="opAdd"></div>
+          <div id="opList"></div>
+        </div>
+      </div>
       <div id="shapeExtras">
         <div class="mat-section" style="margin-top:20px;">
           <div id="roomHeightBox" style="max-width:260px;"></div>
@@ -791,7 +840,7 @@
   }
 
   var state = {
-    step: "intake",
+    step: "welcome",
     intake: { delivery:null, budget:null, room:"Eldhús" },
     carcass: null,
     drawerSystem: null,
@@ -963,7 +1012,7 @@
     try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
     wallSeq = 2;
     openingSeq = 1;
-    state = freshState("intake");
+    state = freshState("welcome");
     shapePhase = "pick";
     matPhase = null;
     render();
@@ -995,6 +1044,7 @@
     });
 
     document.getElementById("toMaterialsBtn").disabled = !(state.intake.delivery && state.intake.budget);
+    updateStepper();
   }
 
   // ---------- shape step (Phase 7d-1: guided wall-chain builder) ----------
@@ -1191,7 +1241,7 @@
     function X(p){ return p.x * sc + view.ox; }
     function Y(p){ return p.z * sc + view.oy; }
     var isTileFloor = (KP3D.FLOORS[state.floor || "parket_eik"] || {}).kind === "tile";
-    var water = shapePhase === "water", polyPts = pts.map(function(p){ return X(p) + "," + Y(p); }).join(" ");
+    var water = shapePhase === "water", opPhase = shapePhase === "openings", polyPts = pts.map(function(p){ return X(p) + "," + Y(p); }).join(" ");
     var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg" style="font-family:\'Kumbh Sans\',Arial,sans-serif;">' +
       (isTileFloor
         ? '<defs><pattern id="plank" width="46" height="46" patternUnits="userSpaceOnUse"><path d="M0 0.5 H46 M0.5 0 V46" stroke="rgba(0,0,0,.16)" stroke-width="1.4" fill="none"/></pattern></defs>'
@@ -1209,6 +1259,21 @@
         var off = 8;
         items += '<line data-edge="' + i + '" x1="' + (x1 - nx * off) + '" y1="' + (y1 - nz * off) + '" x2="' + (x2 - nx * off) + '" y2="' + (y2 - nz * off) + '" stroke="' + (sel ? "#97d5ea" : "#d5d9e2") + '" stroke-width="16" stroke-linecap="square" style="cursor:pointer;"/>';
       }
+      if (!w.open){ // windows / doors / openings on this wall, drawn over the wall band
+        state.windows.concat(state.doors).forEach(function(o){
+          if (o.wallId !== w.id) return;
+          var s0 = o.offsetMm * sc, s1 = (o.offsetMm + o.widthMm) * sc, isWin = state.windows.indexOf(o) >= 0;
+          var ox1 = x1 - nx * 8 + ax * s0, oy1 = y1 - nz * 8 + az * s0, ox2 = x1 - nx * 8 + ax * s1, oy2 = y1 - nz * 8 + az * s1;
+          items += '<line x1="' + ox1 + '" y1="' + oy1 + '" x2="' + ox2 + '" y2="' + oy2 + '" stroke="' + (isWin ? "#7fb6dc" : o.gap ? "#fbfaf7" : "#b98c58") + '" stroke-width="16" stroke-linecap="butt" style="pointer-events:none;"/>';
+          if (o.gap) items += '<line x1="' + (ox1 + nx * 9) + '" y1="' + (oy1 + nz * 9) + '" x2="' + (ox2 + nx * 9) + '" y2="' + (oy2 + nz * 9) + '" stroke="#8a6a4a" stroke-width="1.6" stroke-dasharray="5,4" style="pointer-events:none;"/>';
+        });
+      }
+      if (opPhase && !w.open){
+        var bx0 = (x1 + x2) / 2 + nx * 26, by0 = (y1 + y2) / 2 + nz * 26, onw = openWallId === w.id;
+        handles += '<g data-openwall="' + w.id + '" style="cursor:pointer;"><circle cx="' + bx0 + '" cy="' + by0 + '" r="15" fill="' + (onw ? "#0058a3" : "#fff") + '" stroke="#8a8f9a" stroke-width="2"/>' +
+          '<text x="' + bx0 + '" y="' + (by0 + 5) + '" font-size="14" font-weight="700" text-anchor="middle" fill="' + (onw ? "#fff" : "#191919") + '">' + (i + 1) + '</text></g>';
+      }
+      if (opPhase){ continue; }
       if (water){
         if (!w.open){
           var mx = (x1 + x2) / 2 + nx * 30, my = (y1 + y2) / 2 + nz * 30, on = state.waterWall === w.id;
@@ -1243,10 +1308,13 @@
       g.addEventListener("pointerdown", function(evt){ startSlide(parseInt(g.dataset.slide, 10), evt); });
     });
     host.querySelectorAll("[data-edge]").forEach(function(el){
-      el.addEventListener("pointerdown", function(evt){ if (!water) startSlide(parseInt(el.dataset.edge, 10), evt); });
+      el.addEventListener("pointerdown", function(evt){ if (!water && !opPhase) startSlide(parseInt(el.dataset.edge, 10), evt); });
     });
     host.querySelectorAll("[data-dim]").forEach(function(g){
       g.addEventListener("click", function(){ openDimPop(parseInt(g.dataset.dim, 10)); });
+    });
+    host.querySelectorAll("[data-openwall]").forEach(function(g){
+      g.addEventListener("click", function(){ openWallId = g.dataset.openwall; renderOpeningsBox(); renderShapeCanvas(); });
     });
     host.querySelectorAll("[data-water]").forEach(function(g){
       g.addEventListener("click", function(){ state.waterWall = g.dataset.water; state.seeded = false; save(); renderShapeCanvas(); });
@@ -1386,19 +1454,30 @@
   function renderShapeActions(){
     var box = document.getElementById("shapeActions");
     if (shapePhase === "pick"){
-      box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">← Breyta efni</button><button class="btn btn-primary" id="shNext" type="button"' + (state.closed ? "" : " disabled") + '>Áfram — stilla stærð</button>';
-      document.getElementById("shBack").addEventListener("click", function(){ goto("materials"); });
+      box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">← Til baka</button><button class="btn btn-primary" id="shNext" type="button"' + (state.closed ? "" : " disabled") + '>Áfram — stilla stærð</button>';
+      document.getElementById("shBack").addEventListener("click", function(){ goto("intake"); });
       document.getElementById("shNext").addEventListener("click", function(){ shapePhase = "size"; renderShapeStep(); });
     } else if (shapePhase === "size"){
-      box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">← Velja aðra lögun</button><button class="btn btn-primary" id="shNext" type="button">Áfram — vatn</button>';
+      box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">← Velja aðra lögun</button><button class="btn btn-primary" id="shNext" type="button">Áfram — gluggar og hurðir</button>';
       document.getElementById("shBack").addEventListener("click", function(){ shapePhase = "pick"; renderShapeStep(); });
+      document.getElementById("shNext").addEventListener("click", function(){ shapePhase = "openings"; renderShapeStep(); });
+    } else if (shapePhase === "openings"){
+      box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">← Stilla stærð</button><button class="btn btn-primary" id="shNext" type="button">Áfram — vatn</button>';
+      document.getElementById("shBack").addEventListener("click", function(){ shapePhase = "size"; renderShapeStep(); });
       document.getElementById("shNext").addEventListener("click", function(){ shapePhase = "water"; renderShapeStep(); });
     } else {
-      box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">← Stilla stærð</button><button class="btn btn-secondary" id="shSkip" type="button">Sleppa</button><button class="btn btn-primary" id="shNext" type="button">Áfram — raða skápum</button>';
-      document.getElementById("shBack").addEventListener("click", function(){ shapePhase = "size"; renderShapeStep(); });
-      document.getElementById("shSkip").addEventListener("click", function(){ state.waterWall = null; save(); goto("editor"); });
-      document.getElementById("shNext").addEventListener("click", function(){ goto("editor"); });
+      box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">← Gluggar og hurðir</button><button class="btn btn-secondary" id="shSkip" type="button">Sleppa vatni</button><button class="btn btn-primary" id="shNext" type="button">🔒 Læsa rýminu — velja efni</button>';
+      document.getElementById("shBack").addEventListener("click", function(){ shapePhase = "openings"; renderShapeStep(); });
+      document.getElementById("shSkip").addEventListener("click", function(){ state.waterWall = null; lockRoom(); });
+      document.getElementById("shNext").addEventListener("click", lockRoom);
     }
+  }
+  // the room is finished: on to the materials
+  function lockRoom(){
+    save();
+    toast("🔒 Rýmið er tilbúið — nú velur þú efnin!");
+    matPhase = firstMissingPhase() >= 4 ? 0 : null;
+    goto("materials");
   }
 
   function renderRoomPreview(){ if (state.step === "shape" && shapePhase !== "pick") renderShapeCanvas(); }
@@ -1408,6 +1487,7 @@
     var titles = {
       pick:  ["Skilgreindu rýmið", "Veldu lögun sem líkist rýminu þínu best — næst dregur þú veggina í rétta stærð."],
       size:  ["Stilltu stærðina", "Dragðu vegg með örvunum til að stækka eða minnka rýmið, eða smelltu á málið til að slá inn nákvæma lengd."],
+      openings: ["Gluggar, hurðir og op", "Settu inn glugga, hurðir og op í veggina og stilltu staðsetningu og mál."],
       water: ["Hvar er vatnið?", "Veldu vegginn þar sem vatnslögnin er — vaskurinn er settur þar."]
     };
     document.getElementById("shapeTitle").textContent = titles[shapePhase][0];
@@ -1415,6 +1495,7 @@
     document.getElementById("shapePick").hidden = shapePhase !== "pick";
     document.getElementById("shapeDraw").hidden = shapePhase === "pick";
     document.getElementById("shapeExtras").hidden = shapePhase !== "size";
+    document.getElementById("shapeOpenings").hidden = shapePhase !== "openings";
     if (shapePhase === "pick"){
       ["closed", "open"].forEach(function(g){
         document.getElementById(g === "closed" ? "shapeCardsClosed" : "shapeCardsOpen").innerHTML = Object.keys(SHAPE_TEMPLATES).filter(function(k){ return SHAPE_TEMPLATES[k].group === g; }).map(function(k){
@@ -1425,7 +1506,9 @@
     } else {
       document.getElementById("shapeToolbar").textContent = shapePhase === "size"
         ? "Strikalínu (opinn veggur) býrðu til með því að smella á málið og haka við „Opinn“."
+        : shapePhase === "openings" ? "Smelltu á töluna við vegg til að velja hann — bættu svo við glugga, hurð eða opi."
         : "Smelltu á dropann við vegginn sem vatnið er á.";
+      if (shapePhase === "openings") renderOpeningsBox();
       if (shapePhase === "size"){
         var box = document.getElementById("roomHeightBox");
         box.innerHTML = "";
@@ -1438,6 +1521,71 @@
       renderShapeCanvas();
     }
     renderShapeActions();
+    updateStepper();
+  }
+
+  // ---------- room step: windows, doors and plain openings ----------
+  var openWallId = null; // wall the "＋" buttons add to
+  function renderOpeningsBox(){
+    var walls = state.walls.filter(function(w){ return !w.open; });
+    if (!walls.some(function(w){ return w.id === openWallId; })) openWallId = walls.length ? walls[0].id : null;
+    function wallOpts(sel){ return walls.map(function(w){ return '<option value="' + w.id + '"' + (w.id === sel ? " selected" : "") + '>' + w.label + ' · ' + w.lengthMm + ' mm</option>'; }).join(""); }
+    var add = document.getElementById("opAdd");
+    add.innerHTML = '<select id="opWallSel">' + wallOpts(openWallId) + '</select>' +
+      '<button type="button" class="iconbtn" data-add="gluggi">＋ Gluggi</button><button type="button" class="iconbtn" data-add="hurd">＋ Hurð</button><button type="button" class="iconbtn" data-add="gat">＋ Op í vegg</button>';
+    add.querySelector("#opWallSel").addEventListener("change", function(e){ openWallId = e.target.value; renderShapeCanvas(); });
+    add.querySelectorAll("[data-add]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var w = state.walls.find(function(x){ return x.id === openWallId; });
+        if (!w) return;
+        addOpening(btn.dataset.add, w.id, Math.round(w.lengthMm / 2));
+        renderOpeningsBox(); renderShapeCanvas(); updateStepper();
+      });
+    });
+    var rows = state.windows.map(function(o){ return { kind:"window", o:o }; }).concat(state.doors.map(function(o){ return { kind:"door", o:o }; }));
+    var list = document.getElementById("opList");
+    if (!rows.length){ list.innerHTML = '<div class="empty-note">Ekkert ennþá — bættu við glugga, hurð eða opi hér að ofan.</div>'; return; }
+    list.innerHTML = rows.map(function(f){
+      var o = f.o, wall = state.walls.find(function(w){ return w.id === o.wallId; }), lim = openingLimits(f);
+      function fld(key, lab, r){ return '<label class="op-f"><span>' + lab + '</span><input type="number" data-op="' + o.id + '" data-key="' + key + '" value="' + o[key] + '" min="' + r[0] + '" max="' + r[1] + '" step="1"></label>'; }
+      return '<div class="op-row"><b class="op-nm">' + (f.kind === "window" ? "Gluggi" : o.gap ? "Op í vegg" : "Hurð") + '</b>' +
+        '<label class="op-f"><span>Veggur</span><select data-opwall="' + o.id + '">' + wallOpts(o.wallId) + '</select></label>' +
+        fld("offsetMm", "Frá byrjun veggjar", [0, Math.max(0, (wall ? wall.lengthMm : 3000) - o.widthMm)]) + fld("widthMm", "Breidd", lim.widthMm) + fld("heightMm", "Hæð", lim.heightMm) +
+        (f.kind === "window" ? fld("sillHeightMm", "Frá gólfi", lim.sillHeightMm) : "") +
+        '<button type="button" class="iconbtn del" data-opdel="' + o.id + '" title="Fjarlægja">✕</button></div>';
+    }).join("");
+    function redraw(){ save(); renderOpeningsBox(); renderShapeCanvas(); }
+    list.querySelectorAll("[data-op]").forEach(function(inp){
+      inp.addEventListener("change", function(){
+        var f = findOpening(inp.dataset.op), key = inp.dataset.key;
+        if (!f) return;
+        if (key === "offsetMm"){
+          var wall = state.walls.find(function(w){ return w.id === f.o.wallId; }), v = Math.round(parseFloat(inp.value));
+          if (isNaN(v)) { renderOpeningsBox(); return; }
+          f.o.offsetMm = Math.max(0, Math.min((wall ? wall.lengthMm : 3000) - f.o.widthMm, v));
+          redraw(); return;
+        }
+        if (!applyOpeningDim(f, key, inp.value)){ renderOpeningsBox(); return; }
+        redraw();
+      });
+    });
+    list.querySelectorAll("[data-opwall]").forEach(function(sel){
+      sel.addEventListener("change", function(){
+        var f = findOpening(sel.dataset.opwall), wall = state.walls.find(function(w){ return w.id === sel.value; });
+        if (!f || !wall) return;
+        f.o.wallId = wall.id;
+        f.o.widthMm = Math.min(f.o.widthMm, wall.lengthMm);
+        f.o.offsetMm = Math.max(0, Math.min(wall.lengthMm - f.o.widthMm, f.o.offsetMm));
+        redraw();
+      });
+    });
+    list.querySelectorAll("[data-opdel]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var f = findOpening(btn.dataset.opdel);
+        if (f) removeOpening(f.kind, f.o.id);
+        renderOpeningsBox(); renderShapeCanvas(); updateStepper();
+      });
+    });
   }
 
   function renderWallColorRow(){
@@ -1476,23 +1624,60 @@
     list.forEach(function(b, i){ if (b.id !== excludeId) out.push({ b:b, start:starts[i], end:starts[i] + b.widthMm }); });
     return out;
   }
-  function freeIntervals(wall, zone, excludeId){
+  // Upper units / open shelves and tall floor units share one wall: wherever their
+  // heights overlap they block each other, so neither can be dropped, grown or
+  // nudged into the other. `probe` = {lo, hi} (mm above the floor) of the thing being placed.
+  function probeSpan(zone, b, elevMm){
+    var c = CATALOG[b.type], h = blockHeightMm(b, c);
+    if (zone === "floor") return { lo:0, hi:h + (c.counter ? 32 : 0) };
+    var e = elevMm != null ? elevMm : KP3D.elevOf(b);
+    return { lo:e, hi:e + h };
+  }
+  function typeProbe(type, elevMm){
+    var c = CATALOG[type], t = { type:type };
+    if (c.shelfStack) initShelfStack(t, 3, KP3D.SHELF_GAP_DEFAULT);
+    return probeSpan(c.zone, t, elevMm);
+  }
+  function crossSpans(wall, zone, probe){
+    if (wall.island || !probe) return [];
+    var other = zone === "floor" ? "wall" : "floor";
+    return spansOf(wall, other).filter(function(sp){
+      var v = probeSpan(other, sp.b);
+      return Math.min(v.hi, probe.hi) - Math.max(v.lo, probe.lo) > 20;
+    });
+  }
+  // does this block (already in its list) collide with something in the other row?
+  function crossOverlap(wall, zone, b){
+    var me = spansOf(wall, zone).find(function(sp){ return sp.b.id === b.id; });
+    if (!me) return false;
+    return crossSpans(wall, zone, probeSpan(zone, b)).some(function(o){ return Math.min(o.end, me.end) - Math.max(o.start, me.start) > 20; });
+  }
+  function crossBounds(wall, zone, b, me, lo, hi){ // tighten [lo, hi] by the other row's blocking units
+    crossSpans(wall, zone, probeSpan(zone, b)).forEach(function(o){
+      if (o.end <= me.start + 1) lo = Math.max(lo, o.end);
+      else if (o.start >= me.end - 1) hi = Math.min(hi, o.start);
+    });
+    return [lo, hi];
+  }
+  function freeIntervals(wall, zone, excludeId, probe){
     var pos = cornerClearance(wall, zone), out = [];
-    spansOf(wall, zone, excludeId).forEach(function(sp){
+    if (!probe && excludeId){ var pf = findBlock(excludeId); if (pf && pf.zone === zone) probe = probeSpan(zone, pf.block); }
+    var all = spansOf(wall, zone, excludeId).concat(crossSpans(wall, zone, probe)).sort(function(a, b){ return a.start - b.start; });
+    all.forEach(function(sp){
       if (sp.start > pos) out.push([pos, sp.start]);
       pos = Math.max(pos, sp.end);
     });
     if (wall.lengthMm > pos) out.push([pos, wall.lengthMm]);
     return out;
   }
-  function canFit(wall, zone, widthMm){
+  function canFit(wall, zone, widthMm, probe){
     if (wall.open) return false;
-    return freeIntervals(wall, zone).some(function(iv){ return iv[1] - iv[0] >= widthMm; });
+    return freeIntervals(wall, zone, null, probe).some(function(iv){ return iv[1] - iv[0] >= widthMm; });
   }
   // Where a cabinet of `widthMm` lands if its centre is dropped at
   // `centerAlongMm`: the nearest free stretch that fits it, flush to the
   // stretch's ends when close. {offsetMm, index (slot in the list), fits}.
-  function placeInWall(wall, zone, widthMm, centerAlongMm, excludeId){
+  function placeInWall(wall, zone, widthMm, centerAlongMm, excludeId, probe){
     if (wall.open) return { offsetMm:0, index:0, fits:false }; // an open edge has no wall to stand on
     if (wall.island && zone !== "floor") return { offsetMm:0, index:0, fits:false }; // wall units only go on real walls
     if (wall.island){ // island rows stay packed: pick the slot by neighbours' centres, insert there
@@ -1503,7 +1688,7 @@
     }
     var want = Math.round((centerAlongMm - widthMm / 2) / 10) * 10;
     var best = null;
-    freeIntervals(wall, zone, excludeId).forEach(function(iv){
+    freeIntervals(wall, zone, excludeId, probe).forEach(function(iv){
       if (iv[1] - iv[0] < widthMm) return;
       var s0 = Math.max(iv[0], Math.min(iv[1] - widthMm, want));
       if (s0 - iv[0] <= FREE_SNAP_MM) s0 = iv[0];
@@ -1516,9 +1701,11 @@
     return { offsetMm:at, index:spans.filter(function(sp){ return sp.start < at; }).length, fits:!!best };
   }
   // first free spot after the last cabinet (or wherever there's room)
-  function appendPlacement(wall, zone, widthMm){
+  function appendPlacement(wall, zone, widthMm, probe){
     var spans = spansOf(wall, zone), lastEnd = spans.length ? spans[spans.length - 1].end : cornerClearance(wall, zone);
-    return placeInWall(wall, zone, widthMm, lastEnd + widthMm / 2, null);
+    // try after the last cabinet first, then wherever there is room
+    var pl = placeInWall(wall, zone, widthMm, lastEnd + widthMm / 2, null, probe);
+    return pl;
   }
   // Take a block out of its list; the next block absorbs the freed space so
   // nothing else moves.
@@ -1551,7 +1738,7 @@
   function addBlock(wall, type){
     var c = CATALOG[type];
     var b = newBlock(type);
-    var pl = appendPlacement(wall, c.zone, b.widthMm);
+    var pl = appendPlacement(wall, c.zone, b.widthMm, probeSpan(c.zone, b));
     if (!pl.fits){
       toast("Ekki nóg pláss á " + wall.label.toLowerCase() + " fyrir " + c.label.toLowerCase() + ".");
       return;
@@ -1614,6 +1801,7 @@
     var me = spans[i];
     var lo = i > 0 ? spans[i - 1].end : cornerClearance(wall, zone);
     var hi = i < spans.length - 1 ? spans[i + 1].start : wall.lengthMm;
+    var cb = crossBounds(wall, zone, b, me, lo, hi); lo = cb[0]; hi = cb[1];
     var target = me.start + dir * stepMm;
     var ns = Math.max(lo, Math.min(hi - b.widthMm, target));
     if (ns === me.start){ moveBlock(wall, zone, id, dir); return; }
@@ -1651,6 +1839,7 @@
     var list = wall[zone], idx = list.indexOf(b), spans = spansOf(wall, zone), me = spans[idx];
     var lo = idx > 0 ? spans[idx - 1].end : cornerClearance(wall, zone);
     var hi = idx < spans.length - 1 ? spans[idx + 1].start : wall.lengthMm;
+    var cb = crossBounds(wall, zone, b, me, lo, hi); lo = cb[0]; hi = cb[1];
     if (w > hi - lo) return false;
     var start = me.start;
     if (start + w > hi) start = hi - w; // right side is blocked: grow to the left
@@ -1684,9 +1873,14 @@
         return false;
       }
     } else {
-      var def = key === "heightMm" ? c.h : c.d;
+      var def = key === "heightMm" ? c.h : c.d, prevVal = b[key];
       if (v === def) delete b[key]; else b[key] = v;
       if (f.zone === "wall" && key === "heightMm") clampElev(b);
+      if (key === "heightMm" && crossOverlap(f.wall, f.zone, b)){
+        if (prevVal === undefined) delete b[key]; else b[key] = prevVal;
+        toast("Þá myndi skápurinn rekast á " + (f.zone === "floor" ? "efri skáp eða hillu" : "hávan skáp") + " á sama vegg.");
+        return false;
+      }
     }
     return true;
   }
@@ -1773,6 +1967,11 @@
       return;
     }
     if (c.panel) matchPanelToNeighbour(wall, zone, nb);
+    if (crossOverlap(wall, zone, nb)){
+      list[idx] = old;
+      toast("Ekki hægt — " + c.label.toLowerCase() + " myndi rekast á " + (zone === "floor" ? "efri skáp eða hillu" : "hávan skáp") + " á sama vegg.");
+      return;
+    }
     save();
     refreshAfterEdit();
   }
@@ -1978,10 +2177,10 @@
       showDropPreview(drop.wallId, offsetMm, d.widthMm, 60, true, d.heightMm, openingSill(d.heightMm, drop.elevMm, dragState.type));
     } else {
       var c = CATALOG[dragState.type];
-      var packed = placeInWall(wall, c.zone, c.defaultW, drop.alongMm, null);
       var probe = { id:"", type:dragState.type, widthMm:c.defaultW };
       if (c.shelfStack) initShelfStack(probe, 3, KP3D.SHELF_GAP_DEFAULT);
       var previewElev = c.zone === "wall" ? (drop.elevMm != null ? snapElev(wall, probe, drop.elevMm) : KP3D.defaultElevOf(dragState.type)) : 0;
+      var packed = placeInWall(wall, c.zone, c.defaultW, drop.alongMm, null, probeSpan(c.zone, probe, c.zone === "wall" ? previewElev : null));
       showDropPreview(drop.wallId, packed.offsetMm, c.defaultW, c.d, packed.fits, Math.min(probe.heightMm || c.h, state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM), previewElev);
     }
   }
@@ -2077,7 +2276,7 @@
     var c = CATALOG[type];
     for (var i = 0; i < state.walls.length; i++){
       var wall = state.walls[i];
-      if (canFit(wall, c.zone, c.defaultW)){
+      if (canFit(wall, c.zone, c.defaultW, typeProbe(type))){
         addBlock(wall, type);
         return;
       }
@@ -2135,7 +2334,7 @@
     var keepScroll = host.scrollTop;
     function room(type){
       var c = CATALOG[type];
-      return state.walls.some(function(w){ return canFit(w, c.zone, c.defaultW); });
+      return state.walls.some(function(w){ return canFit(w, c.zone, c.defaultW, typeProbe(type)); });
     }
     function item(kind, type, cls, name, dim, ok){
       return '<button type="button" class="cat-item" data-kind="' + kind + '" data-type="' + type + '"' + (ok ? "" : ' style="opacity:.45;"') + '>' +
@@ -2229,7 +2428,7 @@
   function placeBlockAtDrop(wall, type, alongMm, elevMm){
     var c = CATALOG[type];
     var zone = c.zone;
-    var packed = placeInWall(wall, zone, c.defaultW, alongMm, null);
+    var packed = placeInWall(wall, zone, c.defaultW, alongMm, null, typeProbe(type, zone === "wall" && elevMm != null ? snapElev(wall, { type:type, widthMm:c.defaultW, heightMm:typeProbe(type).hi - typeProbe(type).lo }, elevMm) : null));
     if (!packed.fits){
       toast("Ekki nóg pláss á " + wall.label.toLowerCase() + " fyrir " + c.label.toLowerCase() + ".");
       return;
@@ -2420,7 +2619,8 @@
     var targetWall = surfaceById(wallId);
     if (!targetWall) return;
     var zone = found.zone;
-    var pl = placeInWall(targetWall, zone, found.block.widthMm, alongMm, blockId);
+    var pl = placeInWall(targetWall, zone, found.block.widthMm, alongMm, blockId,
+      probeSpan(zone, found.block, zone === "wall" && elevMm != null ? snapElev(targetWall, found.block, elevMm) : null));
     if (!pl.fits){
       toast("Ekki nóg pláss á " + targetWall.label.toLowerCase() + ".");
       return;
@@ -2729,13 +2929,14 @@
 
   function renderMatActions(){
     var box = document.getElementById("matActions"), last = matPhase === MAT_PHASES.length - 1;
-    box.innerHTML = '<button class="btn btn-secondary" id="mtBack" type="button">← ' + (matPhase === 0 ? "Til baka í upphaf" : "Til baka") + '</button>' +
-      '<button class="btn btn-primary" id="mtNext" type="button"' + (matPhaseDone(matPhase) ? "" : " disabled") + '>' + (last ? "Áfram — rýmið" : "Áfram") + '</button>';
+    box.innerHTML = '<button class="btn btn-secondary" id="mtBack" type="button">← ' + (matPhase === 0 ? "Til baka í rýmið" : "Til baka") + '</button>' +
+      '<button class="btn btn-primary" id="mtNext" type="button"' + (matPhaseDone(matPhase) ? "" : " disabled") + '>' + (last ? "Áfram — raða skápum" : "Áfram") + '</button>';
+    updateStepper();
     document.getElementById("mtBack").addEventListener("click", function(){
-      if (matPhase === 0) goto("intake"); else { matPhase--; renderMaterials(); }
+      if (matPhase === 0){ shapePhase = "water"; goto("shape"); } else { matPhase--; renderMaterials(); }
     });
     document.getElementById("mtNext").addEventListener("click", function(){
-      if (last) goto("shape"); else { matPhase++; renderMaterials(); }
+      if (last){ toast("🎨 Efnin eru valin — nú raðar þú innréttingunni!"); goto("editor"); } else { matPhase++; renderMaterials(); }
     });
   }
 
@@ -2862,8 +3063,8 @@
     var found = findBlock(meta.blockId);
     if (!wall || !found){ KP3D.hideDragPreview3D(); return; }
     var c = CATALOG[found.block.type];
-    var packed = placeInWall(wall, found.zone, found.block.widthMm, drop.alongMm, found.block.id);
     var base = found.zone === "wall" ? (drop.elevMm != null ? snapElev(wall, found.block, drop.elevMm) : KP3D.elevOf(found.block)) : 0;
+    var packed = placeInWall(wall, found.zone, found.block.widthMm, drop.alongMm, found.block.id, probeSpan(found.zone, found.block, found.zone === "wall" ? base : null));
     KP3D.updateDragPreview3D(drop.wallId, packed.offsetMm, found.block.widthMm, found.block.depthMm || c.d, packed.fits, blockHeightMm(found.block, c), base);
   }
 
@@ -2880,7 +3081,7 @@
     if (idx < 0) return;
     var src = list[idx];
     var srcSpan = spansOf(wall, zone).find(function(x){ return x.b.id === id; });
-    var pl = placeInWall(wall, zone, src.widthMm, srcSpan.end + src.widthMm / 2, null);
+    var pl = placeInWall(wall, zone, src.widthMm, srcSpan.end + src.widthMm / 2, null, probeSpan(zone, src));
     if (!pl.fits){
       toast("Ekki nóg pláss á " + wall.label.toLowerCase() + " til að afrita.");
       return;
@@ -3028,7 +3229,7 @@
   // Nothing selected → a compact overview of the room (HomeByMe's right
   // panel does the same): click a row to select that cabinet.
   function overviewHTML(){
-    var html = '<div class="ov-title">Eldhúsið þitt</div>';
+    var html = '<div class="ov-title">Eldhúsið mitt</div>';
     if (warnings.length){
       html += '<div class="warn-box"><div class="ov-wall-h">⚠ Athugið</div>' + warnings.map(function(w, i){
         return '<button type="button" class="warn-item" data-warn="' + i + '">' + w.msg + '</button>';
@@ -3288,7 +3489,12 @@
     if (elevInp) elevInp.addEventListener("change", function(){
       var v = Math.round(parseFloat(elevInp.value)), max = Math.max(0, roomH - hNow);
       if (isNaN(v) || v < 0 || v > max){ toast("Hæð frá gólfi þarf að vera á milli 0 og " + max + " mm."); renderEditPanel(); return; }
+      var prevElev = b.elevMm;
       if (v === KP3D.defaultElevOf(b.type)) delete b.elevMm; else b.elevMm = v;
+      if (crossOverlap(wall, zone, b)){
+        if (prevElev === undefined) delete b.elevMm; else b.elevMm = prevElev;
+        toast("Þar rekst hann á háan skáp á sama vegg."); renderEditPanel(); return;
+      }
       save(); refreshAfterEdit();
     });
     function restack(count, gap){ initShelfStack(b, count, gap); clampElev(b); save(); refreshAfterEdit(); }
@@ -3406,7 +3612,7 @@
     if (found.block.locked){ lockedToast(); return; }
     var newWall = surfaceById(newWallId);
     if (!newWall || newWall.id === found.wall.id) return;
-    var pl = appendPlacement(newWall, found.zone, found.block.widthMm);
+    var pl = appendPlacement(newWall, found.zone, found.block.widthMm, probeSpan(found.zone, found.block));
     if (!pl.fits){
       toast("Ekki nóg pláss á " + newWall.label.toLowerCase() + ".");
       return;
@@ -3459,18 +3665,30 @@
   function cabinetTotal(){ return surfaces().reduce(function(sum, w){ return sum + w.floor.length + w.wall.length; }, 0); }
   function canGoTo(step){
     if (state.step === "done") return { ok:false, why:"Skipulagið hefur verið sent inn." };
-    if (step === "intake" || step === "materials") return { ok:true };
+    if (step === "intake" || step === "shape") return { ok:true };
+    if (!state.closed || !state.walls.length) return { ok:false, why:"Smíðaðu rýmið fyrst (Rými)." };
+    if (step === "materials") return { ok:true };
     if (firstMissingPhase() < 4) return { ok:false, why:"Veldu skrokk, skúffukerfi, framhlið og opnun fyrst (Efni)." };
-    if (step === "shape") return { ok:true };
-    if (!state.closed || !state.walls.length) return { ok:false, why:"Skilgreindu rýmið fyrst." };
     if (step === "editor") return { ok:true };
     if (cabinetTotal() === 0) return { ok:false, why:"Bættu að minnsta kosti einum skáp við fyrst." };
     return { ok:true };
   }
+  // how far through the CURRENT step the customer is (0..1) — drives the fill of the progress bar
+  function stepFrac(){
+    if (state.step === "intake") return ((state.intake.delivery ? 1 : 0) + (state.intake.budget ? 1 : 0)) / 2 * 0.9;
+    if (state.step === "shape") return { pick:0, size:0.25, openings:0.55, water:0.8 }[shapePhase] || 0;
+    if (state.step === "materials") return matPhase == null ? 0 : Math.min(0.95, matPhase / MAT_PHASES.length);
+    if (state.step === "editor") return cabinetTotal() > 0 ? 0.6 : 0.1;
+    if (state.step === "contact") return 0.5;
+    return 0;
+  }
   function updateStepper(){
-    var idx = STEP_ORDER.indexOf(state.step);
+    var idx = FLOW.indexOf(state.step);
+    document.getElementById("progressSteps").hidden = state.step === "welcome";
+    var pct = state.step === "done" ? 100 : idx < 0 ? 0 : Math.round((idx + stepFrac()) / FLOW.length * 100);
+    document.getElementById("stepFill").style.width = pct + "%";
     document.querySelectorAll("#progressSteps .st").forEach(function(el){
-      var i = STEP_ORDER.indexOf(el.dataset.s), g = canGoTo(el.dataset.s);
+      var i = FLOW.indexOf(el.dataset.s), g = canGoTo(el.dataset.s);
       el.classList.toggle("active", i === idx);
       el.classList.toggle("done", i < idx);
       el.classList.toggle("locked", i !== idx && !g.ok);
@@ -3479,7 +3697,7 @@
       el.querySelector("i").textContent = i < idx ? "✓" : String(i + 1);
     });
     var k = document.getElementById("kicker");
-    k.innerHTML = idx >= 0 && idx < 5 ? 'BJÖRNINN · Skref <b>' + (idx + 1) + ' af 5</b> · ' + STEP_LABELS[state.step] : "BJÖRNINN · Sjálfsafgreiðsla";
+    k.innerHTML = idx >= 0 ? 'BJÖRNINN · Skref <b>' + (idx + 1) + ' af 5</b> · ' + STEP_LABELS[state.step] : "BJÖRNINN · Sjálfsafgreiðsla";
   }
   function jumpTo(step){
     if (step === state.step) return;
@@ -3494,9 +3712,9 @@
     el.addEventListener("click", function(){ jumpTo(el.dataset.s); });
   });
 
-  // Phase 7c: materials moved before shape/walls so room dimensions sit
-  // immediately before the 3D view, matching the user's own outline.
-  var STEP_ORDER = ["intake", "materials", "shape", "editor", "contact", "done"];
+  // 2026-09-21: room first (shape + openings), then materials, then the layout editor.
+  var FLOW = ["intake", "shape", "materials", "editor", "contact"]; // the stepper (the welcome screen sits before it)
+  var STEP_ORDER = ["welcome"].concat(FLOW, ["done"]);
 
   function render(){
     STEP_ORDER.forEach(function(s){
@@ -3511,7 +3729,7 @@
     document.getElementById("mainWrap").classList.toggle("mat", state.step === "materials");
     document.getElementById("mainWrap").classList.toggle("shp", state.step === "shape");
     if (state.step !== "materials") KP3D.teardownCabinetPreview();
-    document.getElementById("pageLede").hidden = state.step === "editor";
+    document.getElementById("pageLede").hidden = state.step === "editor" || state.step === "welcome";
     if (state.step === "editor"){
       viewMode = "3d";
       document.querySelectorAll("#viewToggle button").forEach(function(btn){ btn.classList.toggle("active", btn.dataset.view === "3d"); });
@@ -3726,8 +3944,9 @@
 
   // ---------- wire top-level controls ----------
   // Flow order (Phase 7c): intake → materials → shape → walls → summary(3D) → contact.
-  document.getElementById("toMaterialsBtn").addEventListener("click", function(){ goto("materials"); });
-  document.getElementById("skipQuizBtn").addEventListener("click", function(){ goto("materials"); });
+  document.getElementById("welStart").addEventListener("click", function(){ goto("intake"); });
+  document.getElementById("toMaterialsBtn").addEventListener("click", function(){ goto("shape"); });
+  document.getElementById("skipQuizBtn").addEventListener("click", function(){ goto("shape"); });
 
   document.getElementById("backToShapeBtn").addEventListener("click", function(){ shapePhase = "size"; goto("shape"); });
 

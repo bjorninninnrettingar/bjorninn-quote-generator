@@ -431,6 +431,13 @@
         var e = elevOf(b);
         spans.push({ b:b, c:c, from:wStarts[i], to:wStarts[i] + b.widthMm, lo:e, hi:e + h, rawH:e + h });
       });
+      spans.forEach(function(a){ // upper units / shelves vs tall floor units on the same wall
+        if (a.lo !== 0) return;
+        spans.forEach(function(b2){
+          if (b2.lo === 0 || Math.min(a.to, b2.to) - Math.max(a.from, b2.from) <= 20 || Math.min(a.hi, b2.hi) - Math.max(a.lo, b2.lo) <= 20) return;
+          add(b2.c.label + " rekst á " + a.c.label.toLowerCase() + " á " + acc(wall.label) + ".", [a.b.id, b2.b.id]);
+        });
+      });
       var ops = (state.windows || []).filter(function(o){ return o.wallId === wall.id; }).map(function(o){ return { kind:"gluggi", o:o, lo:o.sillHeightMm, hi:o.sillHeightMm + o.heightMm }; })
         .concat((state.doors || []).filter(function(o){ return o.wallId === wall.id; }).map(function(o){ return { kind:o.gap ? "op" : "hurð", o:o, lo:0, hi:o.heightMm }; }));
       spans.forEach(function(sp){
@@ -954,8 +961,8 @@
 
     if (plinthM && meta && meta.plinthMat){
       // a hair shorter than the gap so its top never shares a plane with the body's underside (z-fighting showed through an open cabinet)
-      var pl = new THREE.Mesh(new THREE.BoxGeometry(widthM - 0.004, plinthM - 0.004, depthM - 0.06), meta.plinthMat);
-      pl.position.copy(local(0, baseYM + (plinthM - 0.004) / 2, (depthM - 0.06) / 2));
+      var pl = new THREE.Mesh(new THREE.BoxGeometry(widthM - 0.004, plinthM - 0.004, depthM - 0.063), meta.plinthMat);
+      pl.position.copy(local(0, baseYM + (plinthM - 0.004) / 2, 0.003 + (depthM - 0.063) / 2)); // 3 mm off the wall line so its back face never shares a plane with the skirting/wall
       pl.quaternion.copy(quat);
       pl.receiveShadow = true;
       group.add(pl);
@@ -1789,7 +1796,7 @@
       if (isOpenGeom(gi)) return;
       var sk = new THREE.Mesh(new THREE.BoxGeometry(g.lenM, 0.09, 0.014), skirtMat);
       sk.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(g.axis.x, 0, g.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(g.normal.x, 0, g.normal.z)));
-      sk.position.set(g.origin.x + g.axis.x * g.lenM / 2 + g.normal.x * 0.007, 0.045, g.origin.z + g.axis.z * g.lenM / 2 + g.normal.z * 0.007);
+      sk.position.set(g.origin.x + g.axis.x * g.lenM / 2 + g.normal.x * 0.005, 0.045, g.origin.z + g.axis.z * g.lenM / 2 + g.normal.z * 0.005); // back face 2 mm behind the wall line: seen from behind it no longer z-fights with the plinth's back face
       sk.receiveShadow = true;
       scene.add(sk);
     });
