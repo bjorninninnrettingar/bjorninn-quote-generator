@@ -888,6 +888,7 @@
     doors: [],   // {id, wallId, offsetMm, widthMm, heightMm}
     closed: false,      // walls form a closed room outline (new "Skilgreindu rýmið" step)
     waterWall: null,    // wall id the water supply is on (sink is seeded there)
+    waterAlongMm: null, // where along that wall (centre of the sink, mm from the wall start); null = middle
     seeded: false,      // sink already seeded once
     islands: [], // {id, label, lengthMm, xMm, zMm, rot, two, a:[blocks], b:[blocks]} — free-standing cabinet runs
     walls: freshWalls() // {id,label,lengthMm,turnAfter, floor:[block], wall:[block]}
@@ -1225,7 +1226,7 @@
     state.walls = templateWalls(key);
     state.closed = true;
     state.windows = []; state.doors = []; state.islands = [];
-    state.waterWall = null; state.seeded = false;
+    state.waterWall = null; state.waterAlongMm = null; state.seeded = false;
     selectedEdge = null;
     shapePhase = "size";
     save();
@@ -1323,14 +1324,7 @@
           '<text x="' + bx0 + '" y="' + (by0 + 5) + '" font-size="14" font-weight="700" text-anchor="middle" fill="' + (onw ? "#fff" : "#191919") + '">' + (i + 1) + '</text></g>';
       }
       if (opPhase){ continue; }
-      if (water){
-        if (!w.open){
-          var mx = (x1 + x2) / 2 + nx * 30, my = (y1 + y2) / 2 + nz * 30, on = state.waterWall === w.id;
-          handles += '<g data-water="' + w.id + '" style="cursor:pointer;"><circle cx="' + mx + '" cy="' + my + '" r="20" fill="' + (on ? "#0058a3" : "#fff") + '" stroke="#8a8f9a" stroke-width="2"/>' +
-            (on ? '<path d="M' + (mx - 8) + ' ' + my + ' l6 6 l11 -12" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' : '<path d="M' + mx + ' ' + (my - 8) + ' q7 9 0 14 q-7 -5 0 -14z" fill="#5b8fae"/>') + '</g>';
-        }
-        continue;
-      }
+      if (water) continue; // the water marker is drawn after the loop
       // dimension line, 72px outside the wall (clear of the slide arrows)
       var dxo = -nx * 72, dzo = -nz * 72;
       items += '<line x1="' + (x1 + dxo) + '" y1="' + (y1 + dzo) + '" x2="' + (x2 + dxo) + '" y2="' + (y2 + dzo) + '" stroke="#444" stroke-width="1"/>' +
@@ -1347,6 +1341,25 @@
       };
       handles += '<g data-slide="' + i + '" style="cursor:' + cur + ';"><circle cx="' + hx + '" cy="' + hy + '" r="30" fill="transparent"/>' + tri(1) + tri(-1) + '</g>';
     }
+    if (water && state.waterWall){ // the water supply: a droplet you drag along the wall, with the sink cabinet's footprint
+      var wi = state.walls.findIndex(function(x){ return x.id === state.waterWall; });
+      if (wi >= 0 && !state.walls[wi].open){
+        var ww = state.walls[wi], q1 = pts[wi], q2 = pts[(wi + 1) % n], adx = q2.x - q1.x, adz = q2.z - q1.z, alen = Math.hypot(adx, adz) || 1, aax = adx / alen, aaz = adz / alen, nnx = -aaz, nnz = aax;
+        var along = waterAlong(ww), qx = X(q1), qy = Y(q1), sinkW = 800;
+        function wp(a2, out){ return { x:qx + aax * a2 * sc + nnx * out, y:qy + aaz * a2 * sc + nnz * out }; }
+        var f0 = wp(Math.max(0, along - sinkW / 2), -8), f1 = wp(Math.min(ww.lengthMm, along + sinkW / 2), -8);
+        items += '<line x1="' + f0.x + '" y1="' + f0.y + '" x2="' + f1.x + '" y2="' + f1.y + '" stroke="#5b8fae" stroke-opacity=".6" stroke-width="16" stroke-linecap="butt" style="pointer-events:none;"/>';
+        var mk = wp(along, 40), base = wp(along, 6);
+        handles += '<g data-watermark="1" style="cursor:grab;"><line x1="' + base.x + '" y1="' + base.y + '" x2="' + mk.x + '" y2="' + mk.y + '" stroke="#0058a3" stroke-width="2"/>' +
+          '<circle cx="' + mk.x + '" cy="' + mk.y + '" r="22" fill="#0058a3" stroke="#fff" stroke-width="3"/><path d="M' + mk.x + ' ' + (mk.y - 11) + ' q9 12 0 18 q-9 -6 0 -18z" fill="#fff"/></g>';
+        function wpill(a2, txt, key){
+          var pp = wp(a2, 70), tw = String(txt).length * 7.4 + 14;
+          return '<g class="dim" data-wdim="' + key + '" style="cursor:pointer;"><rect x="' + (pp.x - tw / 2) + '" y="' + (pp.y - 10) + '" width="' + tw + '" height="20" rx="4" fill="#fff" stroke="#0058a3"/><text x="' + pp.x + '" y="' + (pp.y + 4.5) + '" font-size="12" text-anchor="middle" fill="#191919" style="pointer-events:none;">' + txt + '</text></g>';
+        }
+        if (along > 0) handles += wpill(along / 2, along, "start");
+        if (ww.lengthMm - along > 0) handles += wpill(along + (ww.lengthMm - along) / 2, ww.lengthMm - along, "end");
+      }
+    }
     svg += items + handles;
     if (!water){
       var cx0 = pts.reduce(function(s2, p){ return s2 + X(p); }, 0) / n, cz0 = pts.reduce(function(s2, p){ return s2 + Y(p); }, 0) / n;
@@ -1357,7 +1370,10 @@
       g.addEventListener("pointerdown", function(evt){ startSlide(parseInt(g.dataset.slide, 10), evt); });
     });
     host.querySelectorAll("[data-edge]").forEach(function(el){
-      el.addEventListener("pointerdown", function(evt){ if (!water && !opPhase) startSlide(parseInt(el.dataset.edge, 10), evt); });
+      el.addEventListener("pointerdown", function(evt){
+        if (water){ startWaterDrag(evt, true); return; }
+        if (!opPhase) startSlide(parseInt(el.dataset.edge, 10), evt);
+      });
     });
     host.querySelectorAll("[data-dim]").forEach(function(g){
       g.addEventListener("click", function(){ openDimPop(parseInt(g.dataset.dim, 10)); });
@@ -1369,11 +1385,14 @@
       g.addEventListener("click", function(){ var pr = g.dataset.opdim.split(":"), r = g.querySelector("rect"); openOpPop(pr[0], pr[1], +r.getAttribute("x") + (+r.getAttribute("width")) / 2, +r.getAttribute("y") + 10); });
     });
     if (shapePhase === "size") syncWallInputs();
+    host.querySelectorAll("[data-watermark]").forEach(function(g){
+      g.addEventListener("pointerdown", function(evt){ startWaterDrag(evt, false); });
+    });
+    host.querySelectorAll("[data-wdim]").forEach(function(g){
+      g.addEventListener("click", function(){ var r = g.querySelector("rect"); openWaterPop(g.dataset.wdim, +r.getAttribute("x") + (+r.getAttribute("width")) / 2, +r.getAttribute("y") + 10); });
+    });
     host.querySelectorAll("[data-openwall]").forEach(function(g){
       g.addEventListener("click", function(){ openWallId = g.dataset.openwall; renderOpeningsBox(); renderShapeCanvas(); });
-    });
-    host.querySelectorAll("[data-water]").forEach(function(g){
-      g.addEventListener("click", function(){ state.waterWall = g.dataset.water; state.seeded = false; save(); renderShapeCanvas(); renderWaterList(); });
     });
   }
 
@@ -1481,7 +1500,7 @@
         w.floor = []; w.wall = [];
         state.windows = state.windows.filter(function(o){ return o.wallId !== w.id; });
         state.doors = state.doors.filter(function(o){ return o.wallId !== w.id; });
-        if (state.waterWall === w.id) state.waterWall = null;
+        if (state.waterWall === w.id){ state.waterWall = null; state.waterAlongMm = null; }
       }
       w.open = e.target.checked;
       save();
@@ -1489,6 +1508,7 @@
     });
   }
   document.getElementById("shapeCanvas").addEventListener("pointerdown", function(evt){
+    if (shapePhase === "water" && (evt.target === evt.currentTarget || evt.target.tagName === "svg" || evt.target.tagName === "polygon")){ startWaterDrag(evt, true); return; }
     if (evt.target === evt.currentTarget || evt.target.tagName === "svg" || evt.target.tagName === "polygon"){ selectedEdge = null; selectedOpeningId = null; document.getElementById("dimPop").hidden = true; renderShapeCanvas(); }
   });
   window.addEventListener("resize", function(){ if (state.step === "shape" && shapePhase !== "pick") renderShapeCanvas(); });
@@ -1501,7 +1521,7 @@
     var any = state.walls.some(function(x){ return x.floor.length || x.wall.length; }) || state.islands.length;
     if (!w || w.open || any) return;
     var b = newBlock("vaskaskapur");
-    var start = Math.max(cornerClearance(w, "floor"), Math.round((w.lengthMm - b.widthMm) / 2 / 10) * 10);
+    var start = Math.max(cornerClearance(w, "floor"), Math.min(w.lengthMm - b.widthMm, Math.round((waterAlong(w) - b.widthMm / 2) / 10) * 10)); // centred on the water marker
     insertBlockAt(w, "floor", b, start);
     landedBlockId = b.id;
     save();
@@ -1544,7 +1564,7 @@
       pick:  ["Skilgreindu rýmið", "Veldu lögun sem líkist rýminu þínu best — næst dregur þú veggina í rétta stærð."],
       size:  ["Stilltu stærðina", "Dragðu vegg með örvunum til að stækka eða minnka rýmið, eða smelltu á málið til að slá inn nákvæma lengd."],
       openings: ["Gluggar, hurðir og op", "Settu inn glugga, hurðir og op í veggina og stilltu staðsetningu og mál."],
-      water: ["Hvar er vatnið?", "Veldu vegginn þar sem vatnslögnin er — vaskurinn er settur þar."]
+      water: ["Hvar er vatnið?", "Veldu vegginn og dragðu dropann á réttan stað — þar er vaskurinn settur."]
     };
     document.getElementById("shapeTitle").textContent = titles[shapePhase][0];
     document.getElementById("shapeSub").textContent = titles[shapePhase][1];
@@ -1568,7 +1588,7 @@
       document.getElementById("shapeToolbar").textContent = shapePhase === "size"
         ? "Strikalínu (opinn veggur) býrðu til með því að smella á málið og haka við „Opinn“."
         : shapePhase === "openings" ? "Smelltu á töluna við vegg til að velja hann — bættu svo við glugga, hurð eða opi."
-        : "Smelltu á dropann við vegginn sem vatnið er á.";
+        : "Smelltu á vegg og dragðu dropann þangað sem vatnslögnin kemur inn — vaskaskápurinn er settur þar.";
       if (shapePhase === "openings") renderOpeningsBox();
       if (shapePhase === "size") renderWallList();
       if (shapePhase === "water") renderWaterList();
@@ -1612,15 +1632,80 @@
     document.querySelectorAll("[data-wlen]").forEach(function(inp){ if (document.activeElement !== inp && state.walls[+inp.dataset.wlen]) inp.value = state.walls[+inp.dataset.wlen].lengthMm; });
     document.querySelectorAll("[data-wr]").forEach(function(r){ r.classList.toggle("sel", selectedEdge === +r.dataset.wr); });
   }
+  var SINK_W_MM = 800; // default sink cabinet width
+  function waterAlong(w){ // centre of the water/sink along its wall (mm from the wall start)
+    var v = state.waterAlongMm != null ? state.waterAlongMm : Math.round(w.lengthMm / 2 / 10) * 10;
+    return Math.max(0, Math.min(w.lengthMm, v));
+  }
   function renderWaterList(){
-    var box = document.getElementById("waterList");
+    var box = document.getElementById("waterList"), cur = state.walls.find(function(w){ return w.id === state.waterWall; });
     box.innerHTML = state.walls.map(function(w, i){
       if (w.open) return "";
       return '<label class="wall-row' + (state.waterWall === w.id ? " sel" : "") + '"><input type="radio" name="waterWall" value="' + w.id + '"' + (state.waterWall === w.id ? " checked" : "") + '><span class="wn">' + (i + 1) + '</span><span class="wl">' + w.label + ' · ' + w.lengthMm + ' mm</span></label>';
-    }).join("");
-    box.querySelectorAll("input").forEach(function(inp){
-      inp.addEventListener("change", function(){ state.waterWall = inp.value; state.seeded = false; save(); renderWaterList(); renderShapeCanvas(); });
+    }).join("") + (cur
+      ? '<div class="edit-field" style="margin-top:12px;"><label style="font-size:13px;">Staðsetning á veggnum</label><div class="wall-row" style="cursor:default;"><span class="wl">Miðja vasks, frá byrjun veggjar</span><input type="number" id="waterPos" value="' + waterAlong(cur) + '" min="0" max="' + cur.lengthMm + '" step="10"><span class="u">mm</span></div>' +
+        '<p class="mat-section-sub" style="margin-top:6px;">Dragðu dropann á teikningunni til að færa hann, eða sláðu inn töluna. Vaskaskápurinn (800 mm) er settur þar.</p></div>'
+      : '<p class="mat-section-sub" style="margin-top:12px;">Smelltu á vegg á teikningunni (eða veldu hér) — svo dregurðu dropann þangað sem lögnin er.</p>');
+    box.querySelectorAll("input[name=waterWall]").forEach(function(inp){
+      inp.addEventListener("change", function(){ state.waterWall = inp.value; state.waterAlongMm = null; state.seeded = false; save(); renderWaterList(); renderShapeCanvas(); });
     });
+    var pos = document.getElementById("waterPos");
+    if (pos) pos.addEventListener("change", function(){
+      var v = Math.round(parseFloat(pos.value));
+      if (isNaN(v) || v < 0 || v > cur.lengthMm){ toast("Staðsetningin þarf að vera á milli 0 og " + cur.lengthMm + " mm."); pos.value = waterAlong(cur); return; }
+      state.waterAlongMm = v; state.seeded = false; save(); renderShapeCanvas();
+    });
+  }
+  var waterDrag = null;
+  function startWaterDrag(evt, fromWall){
+    evt.preventDefault(); evt.stopPropagation();
+    var host = document.getElementById("shapeCanvas"), v = shapeView(host.clientWidth, host.clientHeight);
+    waterDrag = { v:v, moved:false, x0:evt.clientX, y0:evt.clientY };
+    document.getElementById("dimPop").hidden = true;
+    if (fromWall) moveWaterTo(evt);
+    window.addEventListener("pointermove", onWaterMove);
+    window.addEventListener("pointerup", onWaterUp, { once:true });
+  }
+  function moveWaterTo(evt){
+    var hit = nearestWallAt(waterDrag.v, canvasPointMm(evt, waterDrag.v));
+    if (!hit) return;
+    var wall = state.walls[hit.i];
+    if (state.waterWall !== wall.id) state.waterWall = wall.id;
+    state.waterAlongMm = Math.max(0, Math.min(wall.lengthMm, Math.round(hit.t / 10) * 10));
+    state.seeded = false;
+    renderShapeCanvas();
+    var pos = document.getElementById("waterPos");
+    if (pos && document.activeElement !== pos) pos.value = state.waterAlongMm;
+  }
+  function onWaterMove(evt){
+    if (!waterDrag) return;
+    if (!waterDrag.moved && Math.hypot(evt.clientX - waterDrag.x0, evt.clientY - waterDrag.y0) < 3) return;
+    waterDrag.moved = true;
+    moveWaterTo(evt);
+  }
+  function onWaterUp(){
+    window.removeEventListener("pointermove", onWaterMove);
+    waterDrag = null;
+    save(); renderWaterList(); renderShapeCanvas();
+  }
+  function openWaterPop(key, cx, cy){
+    var w = state.walls.find(function(x){ return x.id === state.waterWall; }), host = document.getElementById("shapeCanvas"), pop = document.getElementById("dimPop");
+    if (!w) return;
+    var along = waterAlong(w), val = key === "start" ? along : w.lengthMm - along;
+    pop.innerHTML = '<div class="dp-row"><span style="font-size:13px;white-space:nowrap;">' + (key === "start" ? "Frá byrjun veggjar" : "Frá enda veggjar") + '</span><input type="number" id="wpInput" value="' + val + '" step="10"><span class="u" style="font-size:12px;">mm</span><button type="button" class="go" id="wpGo">OK</button></div>';
+    pop.hidden = false;
+    var pw = pop.offsetWidth, ph = pop.offsetHeight;
+    pop.style.left = Math.max(6, Math.min(host.clientWidth - pw - 6, cx - pw / 2)) + "px";
+    pop.style.top = Math.max(6, Math.min(host.clientHeight - ph - 6, cy + 14)) + "px";
+    var inp = document.getElementById("wpInput"); inp.focus(); inp.select();
+    function apply(){
+      var v = Math.round(parseFloat(inp.value));
+      if (isNaN(v) || v < 0 || v > w.lengthMm){ toast("Þarf að vera á milli 0 og " + w.lengthMm + " mm."); return; }
+      state.waterAlongMm = key === "start" ? v : w.lengthMm - v; state.seeded = false;
+      pop.hidden = true; save(); renderWaterList(); renderShapeCanvas();
+    }
+    document.getElementById("wpGo").addEventListener("click", apply);
+    inp.addEventListener("keydown", function(e){ if (e.key === "Enter") apply(); if (e.key === "Escape") pop.hidden = true; });
   }
 
   // ---------- drag / type windows, doors and openings on the drawing ----------
