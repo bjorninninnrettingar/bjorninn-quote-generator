@@ -2556,7 +2556,12 @@
     dom.addEventListener("pointerdown", onDown);
     dom.addEventListener("pointerup", onUp);
     dom.addEventListener("pointermove", onMove);
-    PREVIEW.cleanupPick = function(){ dom.removeEventListener("pointerdown", onDown); dom.removeEventListener("pointerup", onUp); dom.removeEventListener("pointermove", onMove); dom.style.cursor = ""; };
+    // very slow spin so the cabinet is alive; it stops while you touch it and resumes a few seconds later
+    var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches, resumeTimer = 0;
+    controls.autoRotate = !reduceMotion; controls.autoRotateSpeed = 0.8; // 2.0 = one turn per 30 s, so this is one turn per ~75 s
+    function pauseSpin(){ controls.autoRotate = false; clearTimeout(resumeTimer); resumeTimer = setTimeout(function(){ if (PREVIEW && !reduceMotion) controls.autoRotate = true; }, 5000); }
+    dom.addEventListener("pointerdown", pauseSpin); dom.addEventListener("wheel", pauseSpin, { passive:true });
+    PREVIEW.cleanupPick = function(){ clearTimeout(resumeTimer); dom.removeEventListener("pointerdown", pauseSpin); dom.removeEventListener("wheel", pauseSpin); dom.removeEventListener("pointerdown", onDown); dom.removeEventListener("pointerup", onUp); dom.removeEventListener("pointermove", onMove); dom.style.cursor = ""; };
 
     (function loop(){
       if (!PREVIEW) return;
