@@ -981,7 +981,16 @@
       if (hcfg && hcfg.kind === "hexxa"){ // milled into the front, no fixed width: equal distance to both sides
         var hm2 = (hcfg.marginMm || 50) / 1000, dark = new THREE.MeshStandardMaterial({ color:0x18181a, roughness:0.6 });
         if (vertical){ sides.forEach(function(sg){ place(new THREE.Mesh(new THREE.BoxGeometry(0.012, Math.max(0.05, doorH - 2 * hm2), 0.0015), dark), (top + bottom) / 2, 0.0008, edgeAlong(sg, 0.02)); }); }
-        else { var hl = Math.max(0.05, hw - 2 * hm2); place(new THREE.Mesh(new THREE.BoxGeometry(hl, 0.03, 0.0015), dark), top - 0.015, 0.0008, hOff); place(new THREE.Mesh(new THREE.BoxGeometry(hl, 0.003, 0.004), handleMat), top - 0.0315, 0.002, hOff); } // the recess + its lower lip
+        else {
+          var hl = Math.max(0.05, hw - 2 * hm2);
+          if (meta && meta.slab){ // the front is really cut away there: a dark back wall and a floor inside the notch
+            place(new THREE.Mesh(new THREE.BoxGeometry(hl, 0.03, 0.003), dark), top - 0.015, -FRONT_T + 0.0015, hOff);
+            place(new THREE.Mesh(new THREE.BoxGeometry(hl, 0.003, FRONT_T - 0.003), handleMat), top - 0.0315, -(FRONT_T - 0.003) / 2 - 0.0005, hOff);
+          } else {
+            place(new THREE.Mesh(new THREE.BoxGeometry(hl, 0.03, 0.0015), dark), top - 0.015, 0.0008, hOff);
+            place(new THREE.Mesh(new THREE.BoxGeometry(hl, 0.003, 0.004), handleMat), top - 0.0315, 0.002, hOff);
+          }
+        }
         return;
       }
       if (hcfg && hcfg.kind === "jey"){ // full-width profile that replaces stripMm of the front (see addArticulated)
@@ -1007,7 +1016,7 @@
             sides.forEach(function(sg){ var rotT = new THREE.Group(), hT = new THREE.Group(); rotT.add(tpf.clone(true)); rotT.rotation.z = sg > 0 ? -Math.PI / 2 : Math.PI / 2; hT.add(rotT); place(hT, vyc, 0, twoLeaf ? 0 : sg * hw / 2 + hOff); });
           } else {
             var centres = twoLeaf ? [-hw / 4, hw / 4] : [hOff];
-            centres.forEach(function(cxT){ var rotB = new THREE.Group(), hB = new THREE.Group(); rotB.add(tpf.clone(true)); if (atBottom !== !!hcfg.flip) rotB.rotation.z = Math.PI; hB.add(rotB); place(hB, atBottom ? bottom : top, -(hcfg.embedMm || 0) / 1000, cxT); }); // wall units: on the bottom edge, upside down
+            centres.forEach(function(cxT){ var rotB = new THREE.Group(), hB = new THREE.Group(); rotB.add(tpf.clone(true)); if (atBottom !== !!hcfg.flip) rotB.rotation.z = Math.PI; hB.add(rotB); place(hB, atBottom ? bottom + (hcfg.dropMm || 0) / 1000 : top - (hcfg.dropMm || 0) / 1000, -(hcfg.embedMm || 0) / 1000, cxT); }); // wall units: on the bottom edge, upside down
           }
           return;
         }
@@ -1232,8 +1241,8 @@
       var freeSideA = hinge === "left" ? "right" : "left", stripA = hcfgA && hcfgA.kind === "jey" ? (hcfgA.stripMm || 27) / 1000 : 0;
       // a Jey profile REPLACES stripMm of the front: the slab is that much shorter (top strip) or narrower (side strip on tall units)
       var slabW = w - 0.004 - (vertA ? stripA : 0), slabH = fh - (vertA ? 0 : stripA);
-      var slab = new THREE.Mesh(new THREE.BoxGeometry(slabW, slabH, FRONT_T), frontMat);
-      scaleFrontUV(slab.geometry, slabW, slabH, frontMat.userData && frontMat.userData.tile);
+      var notchA = hcfgA && hcfgA.kind === "hexxa" && !vertA ? { len:Math.max(0.05, slabW - 2 * (hcfgA.marginMm || 50) / 1000), h:0.03 } : null;
+      var slab = frontSlab(THREE, slabW, slabH, frontMat, notchA);
       slab.position.set(cxL - pivotX + (vertA ? (freeSideA === "right" ? -stripA / 2 : stripA / 2) : 0), (y0 + y1) / 2 - (vertA ? 0 : stripA / 2), CD + FRONT_T / 2);
       slab.castShadow = true; slab.receiveShadow = true;
       g.add(slab); meshes.push(slab);
@@ -1901,6 +1910,21 @@
     uv.needsUpdate = true;
   }
 
+  // A 20 mm front panel; `notch` {len, h} cuts a recess out of the top edge, centred (Hexxa is milled into the front).
+  function frontSlab(THREE, w, h, frontMat, notch){
+    var geo;
+    if (notch && notch.len > 0.02 && notch.len < w - 0.02){
+      var hw2 = w / 2, nl = notch.len / 2, sh = new THREE.Shape();
+      sh.moveTo(-hw2, 0); sh.lineTo(hw2, 0); sh.lineTo(hw2, h); sh.lineTo(nl, h); sh.lineTo(nl, h - notch.h); sh.lineTo(-nl, h - notch.h); sh.lineTo(-nl, h); sh.lineTo(-hw2, h); sh.lineTo(-hw2, 0);
+      geo = new THREE.ExtrudeGeometry(sh, { depth:FRONT_T, bevelEnabled:false });
+      var ps = geo.attributes.position, uv = geo.attributes.uv;
+      for (var i = 0; i < ps.count; i++) uv.setXY(i, (ps.getX(i) + hw2) / w, ps.getY(i) / h);
+      geo.translate(0, -h / 2, -FRONT_T / 2); // same centring as a box
+    } else geo = new THREE.BoxGeometry(w, h, FRONT_T);
+    scaleFrontUV(geo, w, h, frontMat.userData && frontMat.userData.tile);
+    return new THREE.Mesh(geo, frontMat);
+  }
+
   // wrap: DOM element to render into. state: the planner's {shape,walls,look}
   // object. opts (optional): {selectedId, onSelect(meta|null)} — onSelect is
   // called with {wallId,zone,blockId} when a cabinet is clicked, or null on
@@ -1913,7 +1937,7 @@
     var geoms = wallGeoms(state);
     var surfaces = surfacesOf(state), allGeoms = geoms.concat(islandGeoms(state)); // walls + island rows
     var carcass = state.carcass ? CARCASS[state.carcass] : null;
-    var jeyOn = !!(state.handle && window.KPMODELS && window.KPMODELS.handles && window.KPMODELS.handles[state.handle] && window.KPMODELS.handles[state.handle].kind === "jey"); // Jey sits inline on top of separate fronts
+    var jeyOn = !!(state.handle && window.KPMODELS && window.KPMODELS.handles && window.KPMODELS.handles[state.handle] && /^(jey|hexxa)$/.test(window.KPMODELS.handles[state.handle].kind)); // Jey (on top of the front) and Hexxa (cut into it) need separate fronts
     var carcassMat = new THREE.MeshStandardMaterial({ color: carcass ? carcass.color3d : "#3a3a3a", roughness:0.9 });
     var wallColor = state.wallColor && WALL_COLORS[state.wallColor] ? WALL_COLORS[state.wallColor].hex : "#f1efe8";
     var wallMat = new THREE.MeshStandardMaterial({ color:wallColor, roughness:1, side:THREE.DoubleSide });
@@ -2372,8 +2396,8 @@
       var y0 = PL + BODY * bounds[i] + (i === 0 ? 0.0015 : 0.0015), y1 = PL + BODY * bounds[i + 1] - (i === 2 ? 0.0015 : 0.0015), fh = y1 - y0;
       if (showFronts){
         var jcfgW = cfg.showHandle && cfg.handle && window.KPMODELS && window.KPMODELS.handles && window.KPMODELS.handles[cfg.handle], stripW = jcfgW && jcfgW.kind === "jey" ? (jcfgW.stripMm || 27) / 1000 : 0; // Jey takes its height off the front
-        var slab = new THREE.Mesh(new THREE.BoxGeometry(W - 0.004, fh - stripW, FRONT_T), frontMat);
-        scaleFrontUV(slab.geometry, W - 0.004, fh - stripW, frontMat.userData && frontMat.userData.tile);
+        var notchW = jcfgW && jcfgW.kind === "hexxa" ? { len:Math.max(0.05, W - 0.004 - 2 * (jcfgW.marginMm || 50) / 1000), h:0.03 } : null;
+        var slab = frontSlab(THREE, W - 0.004, fh - stripW, frontMat, notchW);
         slab.position.set(0, (y0 + y1) / 2 - stripW / 2, CD + FRONT_T / 2); slab.castShadow = true; slab.receiveShadow = true;
         dg.add(slab); pickables.push(slab);
         if (cfg.showHandle && cfg.handle){
