@@ -837,7 +837,7 @@
     w.updateMatrixWorld(true);
     if (cfg.take || cfg.dropFlat || cfg.posts){ // pick / assemble parts of a model that holds more than one handle
       var ms = []; w.traverse(function(o){ if (o.isMesh) ms.push(o); });
-      if (cfg.take) ms = ms.slice(0, cfg.take);
+      if (cfg.take) ms = ms.slice(cfg.skip || 0, (cfg.skip || 0) + cfg.take);
       if (cfg.dropFlat) ms = ms.filter(function(m){ var sz = new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3()); return Math.min(sz.x, sz.y, sz.z) > 1e-4; });
       var baked = ms.map(function(m){ var gm = m.geometry.clone(); gm.applyMatrix4(m.matrixWorld); gm.computeBoundingBox(); return new THREE.Mesh(gm, m.material); });
       if (cfg.posts && baked.length > 2){ // one bar + mounting posts: keep the two END posts and fit the bar to the wanted length
@@ -1006,7 +1006,7 @@
             sides.forEach(function(sg){ var rotT = new THREE.Group(), hT = new THREE.Group(); rotT.add(tpf.clone(true)); rotT.rotation.z = sg > 0 ? -Math.PI / 2 : Math.PI / 2; hT.add(rotT); place(hT, vyc, 0, twoLeaf ? 0 : sg * hw / 2 + hOff); });
           } else {
             var centres = twoLeaf ? [-hw / 4, hw / 4] : [hOff];
-            centres.forEach(function(cxT){ var rotB = new THREE.Group(), hB = new THREE.Group(); rotB.add(tpf.clone(true)); if (atBottom) rotB.rotation.z = Math.PI; hB.add(rotB); place(hB, atBottom ? bottom : top, 0, cxT); }); // wall units: on the bottom edge, upside down
+            centres.forEach(function(cxT){ var rotB = new THREE.Group(), hB = new THREE.Group(); rotB.add(tpf.clone(true)); if (atBottom) rotB.rotation.z = Math.PI; hB.add(rotB); place(hB, atBottom ? bottom : top, -(hcfg.embedMm || 0) / 1000, cxT); }); // wall units: on the bottom edge, upside down
           }
           return;
         }

@@ -19,7 +19,7 @@ window.KPHANDLES = {
   ],
   items: {
     comet:    { label:"Comet",     group:"ofan-a",  img:"handles/comet.jpg",    desc:"Ofan á fronti · 200 mm · brons", style:"tab", len:0.2, color:"#b08d57" },
-    vann:     { label:"Vann",      group:"ofan-a",  img:"handles/vann.jpg",     desc:"Ofan á fronti · lítill flipi · kopar · 100 mm", style:"tab", len:0.1, color:"#b87a55" },
+    vann:     { label:"Vann",      group:"ofan-a",  img:"handles/vann.jpg",     desc:"Ofan á fronti · lítill flipi · kopar · 200 mm", style:"tab", len:0.2, color:"#b87a55" },
     angle:    { label:"Angle",     group:"afestar", img:"handles/angle.jpg",    desc:"Fest framan á · vinkilprófíll · svartur", style:"bar", len:0.4, color:"#17171a" },
     crossing: { label:"Crossing",  group:"afestar", img:"handles/crossing.jpg", desc:"Fest framan á · 320 mm · svart og eik", style:"bar", len:0.32, color:"#d4b98c" },
     graf:     { label:"Graf Big",  group:"afestar", img:"handles/graf.jpg",     desc:"Fest framan á · rifflað stangarhandfang · svart", style:"bar", len:0.32, color:"#1e1d1d" },
