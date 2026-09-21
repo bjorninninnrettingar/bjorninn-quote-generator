@@ -798,6 +798,17 @@
         });
         var b = new THREE.Box3().setFromObject(root), sz = b.getSize(new THREE.Vector3());
         if (Math.max(sz.x, sz.y, sz.z) > 4) root.scale.multiplyScalar(0.001); // still in millimetres
+        // x-range of the side wall's top edge (the thin vertical plate), so bottom/back can be fitted between two walls
+        root.updateMatrixWorld(true);
+        var v = new THREE.Vector3(), tops = [], maxY = -1e9;
+        root.traverse(function(o){
+          if (!o.isMesh || !o.geometry.attributes.position) return;
+          var pa = o.geometry.attributes.position;
+          for (var i = 0; i < pa.count; i++){ v.fromBufferAttribute(pa, i).applyMatrix4(o.matrixWorld); tops.push(v.x, v.y); if (v.y > maxY) maxY = v.y; }
+        });
+        var x0 = 1e9, x1 = -1e9;
+        for (var t = 0; t < tops.length; t += 2){ if (tops[t + 1] > maxY - 0.0015){ x0 = Math.min(x0, tops[t]); x1 = Math.max(x1, tops[t]); } }
+        root.userData.wall = { x0:x0, x1:x1 };
         c.obj = root; c.state = "ready";
         window.dispatchEvent(new Event("kp3d-model-loaded"));
       }, function(){ c.state = "error"; });
@@ -809,8 +820,10 @@
     var e = window.KPMODELS && window.KPMODELS.drawerSides && window.KPMODELS.drawerSides[sysKey + "_" + code];
     var v = e && e[dark ? "dark" : "white"];
     if (!v) return null;
-    var L = rawModel(v.L), R = rawModel(v.R);
-    return L && R ? { L:L, R:R, e:e } : null;
+    // Blum's "L" file (x < 0) is the side that belongs on the RIGHT of the drawer and "R" on the left:
+    // that way the bottom foot points inwards under the drawer bottom
+    var left = rawModel(v.R), right = rawModel(v.L);
+    return left && right ? { left:left, right:right, e:e } : null;
   }
   function normaliseModel(root, e){
     var THREE = window.__THREE__, wrap = new THREE.Group();
@@ -2155,19 +2168,20 @@
     if (code && (boxD || 0.5) >= 0.49){
       var rs = realSides(sysKey, code, dark);
       if (rs){ // Blum's own side parts + a plain bottom and back between them
-        var inset = rs.e.inset || 0.0273, bwR = boxW || 0.5;
-        [["L", rs.L], ["R", rs.R]].forEach(function(pr){
-          var b = new THREE.Box3().setFromObject(pr[1]), holder = new THREE.Group();
+        var bwR = boxW || 0.5, inset = 0.02, sideH = 0.19, len = 0.493;
+        [["left", rs.left], ["right", rs.right]].forEach(function(pr){
+          var b = new THREE.Box3().setFromObject(pr[1]), holder = new THREE.Group(), wl = pr[1].userData.wall || { x0:b.min.x, x1:b.max.x };
           holder.add(pr[1]);
-          holder.position.set(pr[0] === "L" ? -bwR / 2 - b.min.x : bwR / 2 - b.max.x, -b.min.y, -b.max.z); // outer edge at ±bw/2, bottom at 0, front at z = 0
+          holder.position.set(pr[0] === "left" ? -bwR / 2 - b.min.x : bwR / 2 - b.max.x, -b.min.y, -b.max.z); // outer edge at ±bw/2, bottom at 0, front at z = 0
           g.add(holder);
-          if (pr[0] === "L"){ g.userData.len = b.max.z - b.min.z; g.userData.footTop = 0.0176; }
+          if (pr[0] === "left"){ inset = wl.x1 - b.min.x; sideH = b.max.y - b.min.y; len = b.max.z - b.min.z; }
         });
-        var len = g.userData.len || 0.493, inner = bwR - 2 * inset + 0.004;
+        var boardY = (rs.e.boardMm || 17.6) / 1000, inner = bwR - 2 * inset + 0.004;
         var bm = new THREE.MeshStandardMaterial({ color:dark ? 0x22231f : 0xe4e2d6, roughness:0.5, metalness:0.05 });
         function pnl(w, h, d, x, y, z){ var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), bm); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; g.add(m); }
-        pnl(inner, 0.016, len - 0.02, 0, 0.0176 + 0.008, -(len - 0.02) / 2 - 0.01);           // bottom
-        pnl(inner, Math.min(sideMm / 1000 - 0.04, 0.1), 0.016, 0, 0.0176 + 0.016 + Math.min(sideMm / 1000 - 0.04, 0.1) / 2, -len + 0.008); // back
+        pnl(inner, 0.016, len - 0.02, 0, boardY + 0.008, -(len - 0.02) / 2 - 0.01);                                   // bottom
+        var backH = sideH - boardY;                                                                                   // back: as tall as the sides
+        pnl(inner, backH, 0.016, 0, boardY + backH / 2, -len + 0.008);
         return g;
       }
     }

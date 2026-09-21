@@ -15,16 +15,22 @@
 //     handles: { ona:     { file:"models/handles/ona.glb" } }
 //   };
 //
-// drawerSides: Blum's own drawer SIDE parts (left + right, one file each, per colour) — the
+// drawerSides: Blum's own drawer SIDE parts (left + right, one .dae each, per colour) — the
 // planner adds a plain bottom and back between them. Key = "<system>_<height code>".
-// Only used when the cabinet is deep enough for the real length (470 mm parts).
+// L = the file whose x is negative in Blum's export, R = positive (they are mirror images);
+// the planner puts R on the left and L on the right (the foot points inwards that way).
+// boardMm = height of the drawer bottom above the lower edge of the side. Missing colour = procedural.
+// Only used when the cabinet is deep enough for the real length (470/500 mm parts).
 window.KPMODELS = {
   drawers: {},
   drawerSides: {
-    merivo_E: {
-      white: { L:"models/drawers/merivo-E-white-L.dae", R:"models/drawers/merivo-E-white-R.dae" },
-      dark:  { L:"models/drawers/merivo-E-dark-L.dae",  R:"models/drawers/merivo-E-dark-R.dae" }
-    }
+    legra_M: { boardMm:12, white:{ L:"models/drawers/legra-M-white-L.dae", R:"models/drawers/legra-M-white-R.dae" }, dark:{ L:"models/drawers/legra-M-dark-L.dae", R:"models/drawers/legra-M-dark-R.dae" } },
+    legra_K: { boardMm:12, white:{ L:"models/drawers/legra-K-white-L.dae", R:"models/drawers/legra-K-white-R.dae" }, dark:{ L:"models/drawers/legra-K-dark-L.dae", R:"models/drawers/legra-K-dark-R.dae" } },
+    legra_F: { boardMm:12, white:{ L:"models/drawers/legra-F-white-L.dae", R:"models/drawers/legra-F-white-R.dae" }, dark:{ L:"models/drawers/legra-F-dark-L.dae", R:"models/drawers/legra-F-dark-R.dae" } },
+    legra_C: { boardMm:12, white:{ L:"models/drawers/legra-C-white-L.dae", R:"models/drawers/legra-C-white-R.dae" }, dark:{ L:"models/drawers/legra-C-dark-L.dae", R:"models/drawers/legra-C-dark-R.dae" } },
+    merivo_M: { boardMm:17.6, white:{ L:"models/drawers/merivo-M-white-L.dae", R:"models/drawers/merivo-M-white-R.dae" }, dark:{ L:"models/drawers/merivo-M-dark-L.dae", R:"models/drawers/merivo-M-dark-R.dae" } },
+    merivo_K: { boardMm:17.6, dark:{ L:"models/drawers/merivo-K-dark-L.dae", R:"models/drawers/merivo-K-dark-R.dae" } },
+    merivo_E: { boardMm:17.6, white:{ L:"models/drawers/merivo-E-white-L.dae", R:"models/drawers/merivo-E-white-R.dae" }, dark:{ L:"models/drawers/merivo-E-dark-L.dae", R:"models/drawers/merivo-E-dark-R.dae" } }
   },
   handles: {}
 };
