@@ -463,6 +463,7 @@
   </div>
 
   <div id="skippedCard" class="no-print"></div>
+  <div id="driftCard" class="no-print"></div>
   <div id="planMsgCard" class="no-print"></div>
 
   <!-- floor (/saga) only, when a project has more than one confirmed plan
@@ -513,13 +514,12 @@
       <button class="primary office-only" onclick="autoNest()">↻ Raða sjálfvirkt</button>
       <button class="ghost" id="snapBtn" onclick="toggleFreeMove()"></button>
       <button class="ghost office-only" onclick="addBoard()">+ Plata</button>
+      <button class="ghost office-only" onclick="resetLayout()" title="Sækir öll mál upp á nýtt úr Sögunarlista og raðar upp á nýtt">Uppfæra mál</button>
       <div class="field" style="position:relative;">
         <button class="ghost" id="moreBtn" onclick="toggleMore()">⋯</button>
         <div id="morePop" class="settings-pop" data-btn="moreBtn" hidden style="width:180px;">
           <div class="pop-head" onclick="closeAllPopovers()"><span>Meira</span><button class="pop-close" onclick="closeAllPopovers()">✕</button></div>
-          <button class="ghost" style="width:100%;" onclick="window.print();closeAllPopovers()">🖨 Prenta</button>
-          <button class="ghost small office-only" style="width:100%;margin-top:8px;" onclick="closeAllPopovers();resetLayout()">Núllstilla röðun</button>
-        </div>
+          <button class="ghost" style="width:100%;" onclick="window.print();closeAllPopovers()">🖨 Prenta</button>        </div>
       </div>
       <button class="primary office-only" id="confirmBtn" style="margin-left:auto;" onclick="confirmPlan()">✅ Staðfesta skipulag</button>
       <button class="primary" id="guideBtn" onclick="openGuide()">▶ Saga með leiðsögn</button>
@@ -1254,7 +1254,11 @@ function confirmPlan() {
   }
   const dupFronts = duplicatedFrontIds();
   if (dupFronts.length) {
-    alert(`${dupFronts.length} hlutir eru tvíteknir í skipulaginu — sami hlutur er á tveimur stöðum og yrði sagaður tvisvar.\n\nÝttu á "Núllstilla röðun" til að laga þetta áður en þú staðfestir.`);
+    alert(`${dupFronts.length} hlutir eru tvíteknir í skipulaginu — sami hlutur er á tveimur stöðum og yrði sagaður tvisvar.\n\nÝttu á "Uppfæra mál" til að laga þetta áður en þú staðfestir.`);
+    return;
+  }
+  if (planDrift.length) {
+    alert(`${planDrift.length} stykki í skipulaginu passa ekki við Sögunarlistann (mál eða fjöldi hefur breyst).\n\nÝttu á "Uppfæra mál" áður en þú staðfestir — annars yrðu röng mál söguð.`);
     return;
   }
   if (anyOverflow() &&
@@ -1481,6 +1485,11 @@ function selectMaterial(key) {
   selectedKey = key;
   selectedGid = null;
   selectedFrontKey = null;
+  // Start every project/material from an empty layout. autoNest() keeps any
+  // board marked done (🔒 Læsa plötu) as-is, so a layout left over from the
+  // previously opened project would otherwise leak its locked boards into
+  // this one whenever there's no saved plan to overwrite it.
+  layout = { boards: [] };
   resetHistory();
   document.querySelectorAll(".mat-item").forEach(el => el.classList.toggle("active", el.dataset.key === key));
   const mat = materials.find(m => m.key === key);
@@ -1531,12 +1540,67 @@ function selectMaterial(key) {
   } finally { loadingPlan = false; }
 
   checkNewFronts(freshGroups);
+  checkPlanDrift(freshGroups);
   syncToolbarInputs();
   renderPlanStrip();
   renderHeaderPill();
   $("workspaceCard").classList.remove("hidden");
   render();
   resetHistory(); pushHistory();   // baseline = the layout as first shown
+}
+
+// A saved plan (draft or confirmed) carries its own copy of every front's
+// width/height and is restored verbatim — so a mm edited in Sögunarlisti
+// after the plan was saved never reaches it, and nothing said so (found on
+// T-80: wing doors 2382 → 1553, drawer fronts 277 → 273, a FRE side with
+// B/H swapped). checkNewFronts() only compares WHICH pieces exist. Real
+// fronts' dimensions can't be hand-edited in the plan (only manual fronts
+// can), so any mismatch against a fresh buildGroups() is stale data, never
+// an intentional tweak. Blocks confirmPlan() until "Uppfæra mál" is run.
+let planDrift = [];
+function checkPlanDrift(freshGroups) {
+  planDrift = [];
+  if (FLOOR_MODE) { renderDriftCard(); return; }
+  const strip = s => String(s || "").replace(/ · \d+$/, "");
+  const fresh = new Map();
+  for (const fg of freshGroups) for (const f of fg.fronts) {
+    if (!f.pieceId || f.manual) continue;
+    const e = fresh.get(f.pieceId) || { w: fg.width, h: f.h, n: 0 };
+    e.n++; fresh.set(f.pieceId, e);
+  }
+  const plan = new Map();
+  for (const g of groups) for (const f of g.fronts) {
+    if (!f.pieceId || f.manual) continue;
+    const e = plan.get(f.pieceId) || { dims: new Set(), n: 0, unit: strip(g.unitName), label: f.label };
+    e.dims.add(`${g.width}×${f.h}`); e.n++; plan.set(f.pieceId, e);
+  }
+  for (const [pid, p] of plan) {
+    const fr = fresh.get(pid);
+    let text = "";
+    if (!fr) text = "er ekki lengur í Sögunarlista fyrir þetta efni";
+    else {
+      const want = `${fr.w}×${fr.h}`;
+      const old = [...p.dims].find(d => d !== want);
+      if (old) text = `${old.replace("×", " × ")} → ${want.replace("×", " × ")} mm`;
+      if (p.n !== fr.n) text += (text ? " · " : "") + `fjöldi ${p.n} → ${fr.n}`;
+    }
+    if (text) planDrift.push({ unit: p.unit, label: p.label, text });
+  }
+  renderDriftCard();
+}
+function renderDriftCard() {
+  const el = $("driftCard");
+  if (!el) return;
+  if (FLOOR_MODE || !planDrift.length) { el.innerHTML = ""; return; }
+  const lis = planDrift.slice(0, 12).map(d =>
+    `<li><b>${esc(d.unit)}</b> — ${esc(d.label)}: ${esc(d.text)}</li>`).join("");
+  const more = planDrift.length > 12 ? `<div class="hint">…og ${planDrift.length - 12} í viðbót</div>` : "";
+  el.innerHTML = `<div class="card" style="border-color:#8f4a22;background:#2a1a12;">
+    <label style="color:#ffb27a;">⚠ ${planDrift.length} stykki í skipulaginu passa ekki við Sögunarlistann</label>
+    <ul style="font-size:0.82rem;color:#ddd;padding-left:20px;margin-top:6px;">${lis}</ul>${more}
+    <div class="hint">Málin (breidd × hæð) í skipulaginu eru afrit frá því það var vistað — þau uppfærast ekki sjálf þegar Sögunarlisti breytist. Ekki er hægt að staðfesta fyrr en málin eru uppfærð.</div>
+    <button class="primary small" style="margin-top:8px;" onclick="resetLayout()">Uppfæra mál</button>
+  </div>`;
 }
 
 // After loading a saved plan, warn if Sögunarlisti now has fronts the plan
@@ -2205,10 +2269,21 @@ function unplacedFrontCount() {
   return unplacedGroups().reduce((s, g) => s + g.fronts.length, 0);
 }
 function addBoard() { layout.boards.push({ placements: {} }); saveLayout(); render(); }
+// "Uppfæra mál" (was "Núllstilla röðun"): re-reads every mm from Sögunarlisti
+// and re-nests from scratch. A full rebuild, so it also drops locked boards —
+// autoNest() alone keeps those, this deliberately doesn't.
 function resetLayout() {
-  if (!confirm("Henda allri röðun og byrja upp á nýtt frá Sögunarlista? (Handvirkir frontar haldast.)")) return;
+  const locked = layout.boards.filter(b => b.done).length;
+  if (!confirm("Uppfæra mál: sækja öll mál upp á nýtt úr Sögunarlista og raða upp á nýtt?\n\nNúverandi röðun glatast (handvirkir frontar haldast)." +
+      (locked ? `\n\nLæstar plötur (${locked}) glatast líka.` : ""))) return;
   try { localStorage.removeItem(layoutKey()); } catch {}
+  layout = { boards: [] };
   buildGroups(); autoNest();
+  planDrift = []; renderDriftCard();
+  // every Sögunarlisti front is in `groups` now — a leftover "🆕 nýir frontar"
+  // card would add them a second time
+  pendingNewFronts = [];
+  $("newFrontsCard")?.remove();
 }
 
 // ── TOOLBAR ──────────────────────────────────────────────────────────────
