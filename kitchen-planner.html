@@ -3099,13 +3099,13 @@
   }
 
   function handlesOf(group){ return Object.keys(HANDLES).filter(function(k){ return !HANDLES[k].hidden && HANDLES[k].group === group; }); }
-  function renderHandleCards(){
+  function renderHandleCards(keepTab){
     var groups = KP3D.HANDLE_GROUPS;
-    if (state.handle && HANDLES[state.handle] && HANDLES[state.handle].group && !HANDLES[state.handle].hidden) matTab.handle = HANDLES[state.handle].group;
+    if (!keepTab && state.handle && HANDLES[state.handle] && HANDLES[state.handle].group && !HANDLES[state.handle].hidden) matTab.handle = HANDLES[state.handle].group;
     var grp = groups.find(function(g){ return g.key === matTab.handle; }) || groups[0];
     var tabs = document.getElementById("handleTabs");
     tabs.innerHTML = tabsHTML(groups, function(k){ return handlesOf(k).length; }, grp.key, "data-htab");
-    tabs.querySelectorAll("[data-htab]").forEach(function(b){ b.addEventListener("click", function(){ matTab.handle = b.dataset.htab; renderHandleCards(); }); });
+    tabs.querySelectorAll("[data-htab]").forEach(function(b){ b.addEventListener("click", function(){ matTab.handle = b.dataset.htab; renderHandleCards(true); }); });
     document.getElementById("handleBlurb").textContent = grp.blurb;
     var container = document.getElementById("handleCards"), keys = handlesOf(grp.key);
     container.innerHTML = keys.length ? keys.map(function(key){

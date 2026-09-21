@@ -263,7 +263,7 @@
   var KPH = window.KPHANDLES || { groups:[], items:{}, placeExisting:{} };
   Object.keys(HANDLES).forEach(function(k){ HANDLES[k].hidden = true; });
   Object.keys(KPH.placeExisting || {}).forEach(function(k){ if (HANDLES[k]){ HANDLES[k].hidden = false; HANDLES[k].group = KPH.placeExisting[k]; } });
-  Object.keys(KPH.items || {}).forEach(function(k){ HANDLES[k] = Object.assign({ vorulistiId:null }, KPH.items[k]); });
+  Object.keys(KPH.items || {}).forEach(function(k){ HANDLES[k] = Object.assign({ vorulistiId:null }, HANDLES[k] || {}, KPH.items[k], { hidden:false }); }); // an old key (Hexxa) keeps its Vörulisti id
   var HANDLE_GROUPS = KPH.groups || [];
   var TOPS = {};
   Object.keys(KPCAT.tops).forEach(function(k){ TOPS[k] = KPCAT.tops[k]; });
@@ -835,6 +835,22 @@
     w.add(raw);
     w.applyMatrix4(new THREE.Matrix4().set(rows[0][0], rows[0][1], rows[0][2], 0, rows[1][0], rows[1][1], rows[1][2], 0, rows[2][0], rows[2][1], rows[2][2], 0, 0, 0, 0, 1));
     w.updateMatrixWorld(true);
+    if (cfg.take || cfg.dropFlat || cfg.posts){ // pick / assemble parts of a model that holds more than one handle
+      var ms = []; w.traverse(function(o){ if (o.isMesh) ms.push(o); });
+      if (cfg.take) ms = ms.slice(0, cfg.take);
+      if (cfg.dropFlat) ms = ms.filter(function(m){ var sz = new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3()); return Math.min(sz.x, sz.y, sz.z) > 1e-4; });
+      var baked = ms.map(function(m){ var gm = m.geometry.clone(); gm.applyMatrix4(m.matrixWorld); gm.computeBoundingBox(); return new THREE.Mesh(gm, m.material); });
+      if (cfg.posts && baked.length > 2){ // one bar + mounting posts: keep the two END posts and fit the bar to the wanted length
+        var bi = 0; baked.forEach(function(m, i){ if (m.geometry.boundingBox.getSize(new THREE.Vector3()).x > baked[bi].geometry.boundingBox.getSize(new THREE.Vector3()).x) bi = i; });
+        var bar = baked[bi], bb = bar.geometry.boundingBox, barLen = bb.max.x - bb.min.x, posts = baked.filter(function(m, i){ return i !== bi; });
+        posts.sort(function(p1, p2){ return p1.geometry.boundingBox.min.x - p2.geometry.boundingBox.min.x; });
+        var first = posts[0], last = posts[posts.length - 1], kL = lenM ? lenM / barLen : 1;
+        if (lenM){ bar.geometry.translate(-bb.min.x, 0, 0); bar.geometry.scale(kL, 1, 1); bar.geometry.translate(bb.min.x, 0, 0); last.geometry.translate(lenM - barLen, 0, 0); }
+        baked = [bar, first, last]; lenM = null; // already at the right length
+      }
+      var w2 = new THREE.Group(); baked.forEach(function(m){ w2.add(m); });
+      w = w2; w.updateMatrixWorld(true);
+    }
     var b = new THREE.Box3().setFromObject(w), c = b.getCenter(new THREE.Vector3());
     w.position.set(-c.x, cfg.kind === "jey" || cfg.kind === "topmount" ? -b.max.y : -c.y, -b.min.z);
     if (cfg.color){
@@ -965,14 +981,19 @@
       if (hcfg && hcfg.kind === "hexxa"){ // milled into the front, no fixed width: equal distance to both sides
         var hm2 = (hcfg.marginMm || 50) / 1000, dark = new THREE.MeshStandardMaterial({ color:0x18181a, roughness:0.6 });
         if (vertical){ sides.forEach(function(sg){ place(new THREE.Mesh(new THREE.BoxGeometry(0.012, Math.max(0.05, doorH - 2 * hm2), 0.0015), dark), (top + bottom) / 2, 0.0008, edgeAlong(sg, 0.02)); }); }
-        else place(new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.05, hw - 2 * hm2), 0.014, 0.0015), dark), top - 0.012, 0.0008, hOff);
+        else { var hl = Math.max(0.05, hw - 2 * hm2); place(new THREE.Mesh(new THREE.BoxGeometry(hl, 0.032, 0.0015), dark), top - 0.019, 0.0008, hOff); place(new THREE.Mesh(new THREE.BoxGeometry(hl, 0.003, 0.004), handleMat), top - 0.0335, 0.002, hOff); } // the recess + its lower lip
         return;
       }
       if (hcfg && hcfg.kind === "jey"){ // full-width profile that replaces stripMm of the front (see addArticulated)
         var jl = vertical ? doorH - 0.004 : hw - 0.004, jp = handleProfile(THREE, handleKey, jl);
         if (jp){
           // place() overwrites the rotation of what it is given, so the turn lives in a child group
-          if (vertical){ sides.forEach(function(sg){ var rot = new THREE.Group(), h2 = new THREE.Group(); rot.add(jp.clone(true)); rot.rotation.z = sg > 0 ? -Math.PI / 2 : Math.PI / 2; h2.add(rot); place(h2, (top + bottom) / 2, 0, twoLeaf ? 0 : sg * hw / 2 + hOff); }); }
+          if (vertical){ sides.forEach(function(sg){ // the finger lip (bottom of the profile) ends up on the free edge, the body extends inwards
+            var rot = new THREE.Group(), lift = new THREE.Group(), h2 = new THREE.Group();
+            lift.position.y = jp.userData.size.h; lift.add(jp.clone(true)); rot.add(lift);
+            rot.rotation.z = sg > 0 ? Math.PI / 2 : -Math.PI / 2; h2.add(rot);
+            place(h2, (top + bottom) / 2, 0, twoLeaf ? 0 : sg * hw / 2 + hOff);
+          }); }
           else place(jp, top, 0, hOff);
           return;
         }
@@ -990,12 +1011,12 @@
           return;
         }
       }
-      if (hcfg && hcfg.kind === "bar" && hcfg.file){ // a real pull: centred, standing upright on tall units
-        var bp = handleProfile(THREE, handleKey, null);
+      if (hcfg && hcfg.kind === "bar" && hcfg.file){ // a real pull screwed onto the face: centred, upright on tall units
+        var wantB = (hcfg.lenMm || 0) / 1000, leafB = twoLeaf ? hw / 2 : hw, fitB = wantB ? Math.min(wantB, leafB - 2 * (hcfg.fitMarginMm || 60) / 1000) : 0;
+        var bp = handleProfile(THREE, handleKey, hcfg.posts ? Math.max(0.1, fitB) : (wantB && fitB < wantB ? Math.max(0.1, fitB) : null));
         if (bp){
-          var hoBar = new THREE.Group();
-          if (vertical){ sides.forEach(function(sg){ var rot2 = new THREE.Group(), g2 = new THREE.Group(); rot2.add(bp.clone(true)); rot2.rotation.z = Math.PI / 2; g2.add(rot2); place(g2, (top + bottom) / 2, 0, edgeAlong(sg, 0.05)); }); }
-          else place(bp, hstyle === "tab" || hstyle === "edge" ? edgeY : hy, 0, hOff);
+          if (vertical){ var vyb = Math.max(bottom + 0.12, Math.min(top - 0.12, 1.05)); sides.forEach(function(sg){ var rot2 = new THREE.Group(), g2 = new THREE.Group(); rot2.add(bp.clone(true)); rot2.rotation.z = Math.PI / 2; g2.add(rot2); place(g2, vyb, 0, edgeAlong(sg, 0.05)); }); }
+          else (twoLeaf ? [-hw / 4, hw / 4] : [hOff]).forEach(function(cxB){ var rotB = new THREE.Group(), gB = new THREE.Group(); rotB.add(bp.clone(true)); gB.add(rotB); place(gB, atBottom ? bottom + 0.06 : hy, 0, cxB); });
           return;
         }
       }

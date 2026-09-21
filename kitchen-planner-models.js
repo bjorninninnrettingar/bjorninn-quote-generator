@@ -44,9 +44,19 @@ window.KPMODELS = {
   // (top strip on doors/drawers, side strip on tall units); "bar" = a pull, centred, turned vertical on tall units.
   // Hexxa is milled into the front (no model needed): a slot centred with equal distance to both sides.
   handles: {
-    jey2:               { file:"models/handles/jey.glb",   kind:"jey", map:["y", "z", "x"], color:"#1b1b1d", stripMm:27 },
+    // Jey (grip): a full-width profile that REPLACES 27 mm of the front; the finger lip is at the BOTTOM of the profile
+    // (model y = length, model z = height with the lip at the low end, model x = the ~17 mm it projects)
+    jey:                { file:"models/handles/jey.glb",   kind:"jey", map:["-y", "-z", "x"], color:"#b8935a", stripMm:27 },
+    jey2:               { file:"models/handles/jey.glb",   kind:"jey", map:["-y", "-z", "x"], color:"#1b1b1d", stripMm:27 },
     // Comet: 200 mm, mounted on the top edge of the front; model x = the 40 mm it projects, y = length, z = thickness (flat side up)
     comet:              { file:"models/handles/comet.glb", kind:"topmount", map:["y", "z", "x"], lenMm:200 },
-    hexxa:              { kind:"hexxa", marginMm:50 }
+    // Vann: 100 mm flip on the top edge (first of the four lengths in the file: `take` = first 2 meshes)
+    vann:               { file:"models/handles/vann.glb", kind:"topmount", map:["y", "x", "-z"], take:2, color:"#b87a55", lenMm:100 },
+    // Fest framan á (screwed onto the face). lenMm = the size of the real product; fitMarginMm = keeps this much clear on each side of a narrow front
+    angle:              { file:"models/handles/angle.glb", kind:"bar", map:["-z", "y", "x"], color:"#17171a", lenMm:600, fitMarginMm:100 },
+    crossing:           { file:"models/handles/crossing.glb", kind:"bar", map:["-z", "y", "x"], lenMm:328, fitMarginMm:100 },
+    graf:               { file:"models/handles/graf-big.glb", kind:"bar", map:["y", "-x", "z"], posts:true, color:"#1e1d1d", lenMm:320, fitMarginMm:100 },
+    sense:              { file:"models/handles/sense-big.glb", kind:"bar", map:["-z", "y", "x"], dropFlat:true, color:"#1a1a1c", lenMm:263, fitMarginMm:100 },
+    hexxa:              { kind:"hexxa", marginMm:50, file:null }
   }
 };
