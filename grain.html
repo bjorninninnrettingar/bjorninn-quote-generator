@@ -2767,11 +2767,18 @@ function resolveCollision(bi, gid, want) { return nearestFree(bi, gid, want); }
 // known spot, which is exactly backwards — right after ghostHide() there
 // is no "last spot" to reuse, so it would have flashed at a stale position
 // anyway. Simpler to just never reveal before the real position is known.)
-function ghostShow(text, wpx, hpx, color) {
+// `grab` = where inside the piece the cursor took hold of it, in screen px from
+// its top-left. The ghost keeps that same point under the cursor for the whole
+// drag (and scales about it), so a piece grabbed by its corner stays held by
+// its corner instead of jumping to be centred on the cursor. Omitted = centre.
+function ghostShow(text, wpx, hpx, color, grab) {
   const el = $("dragGhost");
   el.textContent = text;
-  el.style.width = Math.max(24, wpx) + "px";
-  el.style.height = Math.max(16, hpx) + "px";
+  const w = Math.max(24, wpx), h = Math.max(16, hpx);
+  el.style.width = w + "px";
+  el.style.height = h + "px";
+  ghostGrab = grab ? { x: clamp(grab.x, 0, w), y: clamp(grab.y, 0, h) } : { x: w / 2, y: h / 2 };
+  el.style.transformOrigin = `${ghostGrab.x}px ${ghostGrab.y}px`;
   el.style.borderColor = color || "#2196f3";
   el.style.background = (color ? hexA(color, 0.28) : "rgba(33,150,243,0.28)");
   ghostRevealed = false;
@@ -2782,7 +2789,7 @@ function ghostShow(text, wpx, hpx, color) {
 // faster than the screen repaints, so without this the ghost (and the
 // offsetWidth/offsetHeight reads below) can start to feel jittery/laggy on
 // a slower tablet. This coalesces a burst of events into one paint.
-let ghostRAF = null, ghostLast = null, ghostRevealed = false;
+let ghostRAF = null, ghostLast = null, ghostRevealed = false, ghostGrab = null;
 function ghostMove(clientX, clientY) {
   ghostLast = { x: clientX, y: clientY };
   if (!ghostRevealed) {
@@ -2790,8 +2797,8 @@ function ghostMove(clientX, clientY) {
     // no stale-position frame at all), then reveal on the next frame so the
     // opacity/scale transition actually has a "before" state to animate from.
     const el = $("dragGhost");
-    el.style.left = (clientX - el.offsetWidth / 2) + "px";
-    el.style.top = (clientY - el.offsetHeight / 2) + "px";
+    el.style.left = (clientX - ghostGrab.x) + "px";
+    el.style.top = (clientY - ghostGrab.y) + "px";
     ghostRevealed = true;
     requestAnimationFrame(() => el.classList.add("show"));
     return;
@@ -2801,8 +2808,8 @@ function ghostMove(clientX, clientY) {
     ghostRAF = null;
     if (!ghostLast) return;
     const el = $("dragGhost");
-    el.style.left = (ghostLast.x - el.offsetWidth / 2) + "px";
-    el.style.top = (ghostLast.y - el.offsetHeight / 2) + "px";
+    el.style.left = (ghostLast.x - ghostGrab.x) + "px";
+    el.style.top = (ghostLast.y - ghostGrab.y) + "px";
   });
 }
 function ghostHide() {
@@ -2863,17 +2870,26 @@ function enableDrag(handleEl, svg, bi, gid, scale) {
   handleEl.addEventListener("pointerdown", ev => {
     if (ev.button > 0) return;
     ev.preventDefault(); ev.stopPropagation();
-    selectGroup(gid);
     const g = groups.find(x => x.id === gid);
+    const W = groupWidth(g), H = groupLen(g);
+    const scr = svg.getBoundingClientRect().width / svg.viewBox.baseVal.width; // vb→px on screen
+    // where inside the run the handle was grabbed (mm from its top-left) —
+    // the run keeps that point under the cursor, on the ghost and on drop.
+    // Measured BEFORE selectGroup(): that scrolls the side panel (and the
+    // page, if it has to), which would shift the svg out from under `ev`.
+    const p0 = layout.boards[bi].placements[gid];
+    const pt0 = svgPoint(svg, ev);
+    const grabMM = p0
+      ? { x: clamp(pt0.x / scale - p0.x, 0, W), y: clamp(pt0.y / scale - p0.y, 0, H) }
+      : { x: W / 2, y: H / 2 };
+    selectGroup(gid);
     const color = groupColor(g);
     const grp = svg.querySelector(`g.group-rect[data-gid="${cssq(gid)}"]`);
     grp.classList.add("dragging");
     try { handleEl.setPointerCapture(ev.pointerId); } catch {}
 
-    const W = groupWidth(g), H = groupLen(g);
-    const scr = svg.getBoundingClientRect().width / svg.viewBox.baseVal.width; // vb→px on screen
     ghostShow(`${g.unitName} ${orientGlyph(g.orient)}\n${Math.round(W)}×${Math.round(H)}`,
-      W * scale * scr, H * scale * scr, color);
+      W * scale * scr, H * scale * scr, color, { x: grabMM.x * scale * scr, y: grabMM.y * scale * scr });
     ghostMove(ev.clientX, ev.clientY);
 
     function move(e) { ghostMove(e.clientX, e.clientY); }
@@ -2887,7 +2903,7 @@ function enableDrag(handleEl, svg, bi, gid, scale) {
       const tbi = overBi != null ? overBi : bi;
       const tsvg = document.querySelector(`svg.board[data-board="${tbi}"]`);
       const pt = svgPoint(tsvg, e);
-      const want = { x: pt.x / scale - W / 2, y: pt.y / scale - H / 2 };
+      const want = { x: pt.x / scale - grabMM.x, y: pt.y / scale - grabMM.y };
       if (tbi !== bi) delete layout.boards[bi].placements[gid];
       layout.boards[tbi].placements[gid] = nearestFree(tbi, gid, want, W, H);
       const merged = maybeMergeOnDrop(gid, tbi);
@@ -2909,6 +2925,11 @@ function enableFrontDrag(cell, svg, bi, gid, fi, scale) {
   cell.addEventListener("pointerdown", ev => {
     if (ev.button > 0) return;
     ev.preventDefault(); ev.stopPropagation();
+    // where on the front cell the pointer took hold (screen px from its
+    // top-left) — measured before selectGroup() can scroll anything, and kept
+    // for the whole drag
+    const cr = (cell.querySelector("rect") || cell).getBoundingClientRect();
+    const grabPx = { x: ev.clientX - cr.left, y: ev.clientY - cr.top };
     selectGroup(gid);
     const g0 = groups.find(x => x.id === gid);
     if (g0 && g0.locked) return;   // locked: select on tap, but individual fronts can't be pulled out
@@ -2927,7 +2948,7 @@ function enableFrontDrag(cell, svg, bi, gid, fi, scale) {
       if (!moved) {
         moved = true;
         cell.classList.add("dragging");
-        ghostShow(`${g.unitName}\n${f.label}\n${g.width}×${f.h}`, gw, gh, "#4aa3ff");
+        ghostShow(`${g.unitName}\n${f.label}\n${g.width}×${f.h}`, gw, gh, "#4aa3ff", grabPx);
       }
       lastE = e;
       ghostMove(e.clientX, e.clientY);
@@ -2966,7 +2987,10 @@ function enableFrontDrag(cell, svg, bi, gid, fi, scale) {
         groups.push(ng);
         const pt = svgPoint(document.querySelector(`svg.board[data-board="${tbi}"]`), lastE);
         const NW = groupWidth(ng), NH = groupLen(ng);
-        const want = { x: pt.x / scale - NW / 2, y: pt.y / scale - NH / 2 };
+        const want = {
+          x: pt.x / scale - clamp(grabPx.x / (scale * scr), 0, NW),
+          y: pt.y / scale - clamp(grabPx.y / (scale * scr), 0, NH),
+        };
         layout.boards[tbi].placements[nid] = nearestFree(tbi, nid, want, NW, NH);
         cleanupIfEmpty(gid);
         selectedGid = nid;
