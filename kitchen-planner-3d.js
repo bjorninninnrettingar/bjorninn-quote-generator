@@ -981,20 +981,21 @@
       if (hcfg && hcfg.kind === "hexxa"){ // milled into the front, no fixed width: equal distance to both sides
         var hm2 = (hcfg.marginMm || 50) / 1000, dark = new THREE.MeshStandardMaterial({ color:0x18181a, roughness:0.6 });
         if (vertical){ sides.forEach(function(sg){ place(new THREE.Mesh(new THREE.BoxGeometry(0.012, Math.max(0.05, doorH - 2 * hm2), 0.0015), dark), (top + bottom) / 2, 0.0008, edgeAlong(sg, 0.02)); }); }
-        else { var hl = Math.max(0.05, hw - 2 * hm2); place(new THREE.Mesh(new THREE.BoxGeometry(hl, 0.032, 0.0015), dark), top - 0.019, 0.0008, hOff); place(new THREE.Mesh(new THREE.BoxGeometry(hl, 0.003, 0.004), handleMat), top - 0.0335, 0.002, hOff); } // the recess + its lower lip
+        else { var hl = Math.max(0.05, hw - 2 * hm2); place(new THREE.Mesh(new THREE.BoxGeometry(hl, 0.03, 0.0015), dark), top - 0.015, 0.0008, hOff); place(new THREE.Mesh(new THREE.BoxGeometry(hl, 0.003, 0.004), handleMat), top - 0.0315, 0.002, hOff); } // the recess + its lower lip
         return;
       }
       if (hcfg && hcfg.kind === "jey"){ // full-width profile that replaces stripMm of the front (see addArticulated)
         var jl = vertical ? doorH - 0.004 : hw - 0.004, jp = handleProfile(THREE, handleKey, jl);
         if (jp){
+          var jout = meta && meta.slab ? -jp.userData.size.d + 0.0004 : 0; // in line with the fronts: the lip flush with the front face, the back wall behind it
           // place() overwrites the rotation of what it is given, so the turn lives in a child group
           if (vertical){ sides.forEach(function(sg){ // the finger lip (bottom of the profile) ends up on the free edge, the body extends inwards
             var rot = new THREE.Group(), lift = new THREE.Group(), h2 = new THREE.Group();
             lift.position.y = jp.userData.size.h; lift.add(jp.clone(true)); rot.add(lift);
             rot.rotation.z = sg > 0 ? Math.PI / 2 : -Math.PI / 2; h2.add(rot);
-            place(h2, (top + bottom) / 2, 0, twoLeaf ? 0 : sg * hw / 2 + hOff);
+            place(h2, (top + bottom) / 2, jout, twoLeaf ? 0 : sg * hw / 2 + hOff);
           }); }
-          else place(jp, top, 0, hOff);
+          else place(jp, top, jout, hOff);
           return;
         }
       }
@@ -1006,7 +1007,7 @@
             sides.forEach(function(sg){ var rotT = new THREE.Group(), hT = new THREE.Group(); rotT.add(tpf.clone(true)); rotT.rotation.z = sg > 0 ? -Math.PI / 2 : Math.PI / 2; hT.add(rotT); place(hT, vyc, 0, twoLeaf ? 0 : sg * hw / 2 + hOff); });
           } else {
             var centres = twoLeaf ? [-hw / 4, hw / 4] : [hOff];
-            centres.forEach(function(cxT){ var rotB = new THREE.Group(), hB = new THREE.Group(); rotB.add(tpf.clone(true)); if (atBottom) rotB.rotation.z = Math.PI; hB.add(rotB); place(hB, atBottom ? bottom : top, -(hcfg.embedMm || 0) / 1000, cxT); }); // wall units: on the bottom edge, upside down
+            centres.forEach(function(cxT){ var rotB = new THREE.Group(), hB = new THREE.Group(); rotB.add(tpf.clone(true)); if (atBottom !== !!hcfg.flip) rotB.rotation.z = Math.PI; hB.add(rotB); place(hB, atBottom ? bottom : top, -(hcfg.embedMm || 0) / 1000, cxT); }); // wall units: on the bottom edge, upside down
           }
           return;
         }
@@ -1048,7 +1049,7 @@
   function addCabinetBox(THREE, scene, geom, offsetM, widthM, heightM, depthM, baseYM, carcassMat, frontMat, interior, meta, selected, pickables){
     // A locked cabinet is built in parts (open carcass + 20 mm fronts + drawer boxes) so its
     // drawers and doors can be opened and closed; an unlocked one stays a single solid box.
-    var art = !!(meta && meta.locked && meta.openMat && !meta.oven && !meta.open && !meta.panel && meta.zone !== "opening");
+    var art = !!(meta && (meta.locked || meta.slabFronts) && meta.openMat && !meta.oven && !meta.open && !meta.panel && meta.zone !== "opening");
     var bodyD = art ? depthM - FRONT_T : depthM;
     var cx = geom.origin.x + geom.axis.x * (offsetM + widthM / 2) + geom.normal.x * (bodyD / 2);
     var cz = geom.origin.z + geom.axis.z * (offsetM + widthM / 2) + geom.normal.z * (bodyD / 2);
@@ -1082,7 +1083,7 @@
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     if (meta) mesh.userData = meta;
-    if (meta){ meta.selected = !!selected; meta.baseFront = frontMat; meta.art = art; }
+    if (meta){ meta.selected = !!selected; meta.baseFront = frontMat; meta.art = art; meta.bodyMesh = mesh; }
     // One group per cabinet (body + outline + plinth + worktop + details) so a
     // drag can move the whole thing by setting a single matrix; the group stays
     // at identity otherwise. The pickable mesh is a child, so raycasts still hit it.
@@ -1239,7 +1240,7 @@
       if (meta.handle){
         var tmp = new THREE.Group();
         var fake = { origin:{ x:cxL - w / 2, z:0 }, axis:{ x:1, z:0 }, normal:{ x:0, z:1 }, lenM:w };
-        addFrontDetails(THREE, tmp, fake, 0, w, fh, y0, depthM, { mode:"skuffur", count:1 }, meta.handle, false, meta.zone === "wall" || (meta.tall && fi > 0 && !f.drawer), 0.55, { vertical:vertA, freeSide:freeSideA });
+        addFrontDetails(THREE, tmp, fake, 0, w, fh, y0, depthM, { mode:"skuffur", count:1 }, meta.handle, false, meta.zone === "wall" || (meta.tall && fi > 0 && !f.drawer), 0.55, { vertical:vertA, freeSide:freeSideA, slab:true });
         tmp.children.slice().forEach(function(ch){ ch.position.x -= pivotX; g.add(ch); if (ch.isMesh) meshes.push(ch); else ch.traverse(function(o){ if (o.isMesh) meshes.push(o); }); });
       }
       if (f.drawer){
@@ -1470,6 +1471,7 @@
       if (!opts.onSelect && !opts.onCabinetDragEnd) return; // read-only view (review page): leave every press to OrbitControls
       var mesh = pickMeshAt(evt);
       if (!mesh) return;
+      if (mesh.userData.isPart && !mesh.userData.locked && mesh.userData.bodyMesh) mesh = mesh.userData.bodyMesh; // fronts of an unlocked cabinet are just its body
       if (mesh.userData.locked && mesh.userData.zone !== "opening"){
         // locked cabinet: it cannot be dragged, so the press is left to OrbitControls; a tap opens/closes a drawer/door or selects
         lockTap = { meta:mesh.userData, x:evt.clientX, y:evt.clientY };
@@ -1911,6 +1913,7 @@
     var geoms = wallGeoms(state);
     var surfaces = surfacesOf(state), allGeoms = geoms.concat(islandGeoms(state)); // walls + island rows
     var carcass = state.carcass ? CARCASS[state.carcass] : null;
+    var jeyOn = !!(state.handle && window.KPMODELS && window.KPMODELS.handles && window.KPMODELS.handles[state.handle] && window.KPMODELS.handles[state.handle].kind === "jey"); // Jey sits inline on top of separate fronts
     var carcassMat = new THREE.MeshStandardMaterial({ color: carcass ? carcass.color3d : "#3a3a3a", roughness:0.9 });
     var wallColor = state.wallColor && WALL_COLORS[state.wallColor] ? WALL_COLORS[state.wallColor].hex : "#f1efe8";
     var wallMat = new THREE.MeshStandardMaterial({ color:wallColor, roughness:1, side:THREE.DoubleSide });
@@ -2027,7 +2030,7 @@
         var inter = b.interior && b.interior.mode === "skuffur" && b.interior.count === 3 && state.drawerSystem
           ? Object.assign({}, b.interior, { fractions:drawerFractions(state.drawerSystem, hM * 1000 - 100) }) : b.interior;
         addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, carcassMat, c.fridge ? steelMat : frontMat, inter,
-          { islandId:islandId, locked:!!b.locked, corner:c.cls === "corner", doorSide:b.swing === "vinstri" ? "left" : "right", hingeRight:b.swing === "haegri", shelves:(c.hasInterior || c.shelfRange) && !(b.interior && b.interior.mode === "skuffur") ? (shelvesOf(b) || 0) : 0,
+          { islandId:islandId, locked:!!b.locked, slabFronts:jeyOn, corner:c.cls === "corner", doorSide:b.swing === "vinstri" ? "left" : "right", hingeRight:b.swing === "haegri", shelves:(c.hasInterior || c.shelfRange) && !(b.interior && b.interior.mode === "skuffur") ? (shelvesOf(b) || 0) : 0,
             openMat:openMat, hiddenMat:hiddenMat, drawerSystem:state.drawerSystem, carcassKey:state.carcass,
             warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), heightMm:hM * 1000, elevMm:0, handle:state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0.55,
             plinth:!c.panel, counter:!!c.counter, sink:!!c.sink, oven:!!c.oven, panel:!!c.panel, plinthMat:plinthMat, stoneMat:stoneMat }, selected, pickables);
@@ -2038,7 +2041,7 @@
         var hM = Math.min(b.heightMm || c.h, roomHeightMm) / 1000, dM = (b.depthMm || c.d) / 1000;
         var selected = opts.selectedId === b.id;
         var elevM = elevOf(b) / 1000;
-        var metaBase = { locked:!!b.locked, drawerSystem:state.drawerSystem, carcassKey:state.carcass, warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"wall", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d),
+        var metaBase = { locked:!!b.locked, slabFronts:jeyOn, drawerSystem:state.drawerSystem, carcassKey:state.carcass, warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"wall", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d),
           heightMm:hM * 1000, elevMm:elevM * 1000, handle:state.handle };
         if (c.shelfStack){ // 1–5 boards of 38 mm above each other: one pickable box per board, all sharing the block id
           var n = Math.max(1, Math.min(SHELF_STACK_MAX, b.count || 3)), gap = b.vgapMm != null ? b.vgapMm : SHELF_GAP_DEFAULT;
@@ -2368,13 +2371,14 @@
       dg.userData.drawer = i;
       var y0 = PL + BODY * bounds[i] + (i === 0 ? 0.0015 : 0.0015), y1 = PL + BODY * bounds[i + 1] - (i === 2 ? 0.0015 : 0.0015), fh = y1 - y0;
       if (showFronts){
-        var slab = new THREE.Mesh(new THREE.BoxGeometry(W - 0.004, fh, FRONT_T), frontMat);
-        scaleFrontUV(slab.geometry, W - 0.004, fh, frontMat.userData && frontMat.userData.tile);
-        slab.position.set(0, (y0 + y1) / 2, CD + FRONT_T / 2); slab.castShadow = true; slab.receiveShadow = true;
+        var jcfgW = cfg.showHandle && cfg.handle && window.KPMODELS && window.KPMODELS.handles && window.KPMODELS.handles[cfg.handle], stripW = jcfgW && jcfgW.kind === "jey" ? (jcfgW.stripMm || 27) / 1000 : 0; // Jey takes its height off the front
+        var slab = new THREE.Mesh(new THREE.BoxGeometry(W - 0.004, fh - stripW, FRONT_T), frontMat);
+        scaleFrontUV(slab.geometry, W - 0.004, fh - stripW, frontMat.userData && frontMat.userData.tile);
+        slab.position.set(0, (y0 + y1) / 2 - stripW / 2, CD + FRONT_T / 2); slab.castShadow = true; slab.receiveShadow = true;
         dg.add(slab); pickables.push(slab);
         if (cfg.showHandle && cfg.handle){
           var tmp = new THREE.Group();
-          addFrontDetails(THREE, tmp, geomFake, 0, W, fh, y0, D, { mode:"skuffur", count:1 }, cfg.handle, false, false, 0.55, {});
+          addFrontDetails(THREE, tmp, geomFake, 0, W, fh, y0, D, { mode:"skuffur", count:1 }, cfg.handle, false, false, 0.55, { slab:true });
           tmp.children.slice().forEach(function(ch){ dg.add(ch); if (ch.isMesh) pickables.push(ch); });
         }
       }
