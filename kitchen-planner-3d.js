@@ -1243,7 +1243,9 @@
       // a Jey profile REPLACES stripMm of the front: the slab is that much shorter (top strip) or narrower (side strip on tall units)
       var slabW = w - 0.004 - (vertA ? stripA : 0), slabH = fh - (vertA ? 0 : stripA);
       var notchA = hcfgA && hcfgA.kind === "hexxa" && !vertA ? { len:Math.max(0.05, slabW - 2 * (hcfgA.marginMm || 50) / 1000), h:0.03 } : null;
-      var slab = frontSlab(THREE, slabW, slabH, frontMat, notchA);
+      var slab = hcfgA && hcfgA.kind === "jey" && (hcfgA.profileMm || 0) > (hcfgA.stripMm || 27)
+        ? frontSlabLip(THREE, slabW, slabH, frontMat, (hcfgA.profileMm - (hcfgA.stripMm || 27)) / 1000, 0.002, vertA ? freeSideA : "top")
+        : frontSlab(THREE, slabW, slabH, frontMat, notchA);
       slab.position.set(cxL - pivotX + (vertA ? (freeSideA === "right" ? -stripA / 2 : stripA / 2) : 0), (y0 + y1) / 2 - (vertA ? 0 : stripA / 2), CD + FRONT_T / 2);
       slab.castShadow = true; slab.receiveShadow = true;
       g.add(slab); meshes.push(slab);
@@ -1926,6 +1928,25 @@
     return new THREE.Mesh(geo, frontMat);
   }
 
+  // A 20 mm front whose top (or side) strip has its BACK cut away, leaving only a thin front skin: the part of the
+  // front that overlaps a Jey grip (the grip is 10 mm taller than the 27 mm it takes) — so the panel no longer
+  // shows through the grip's channel. edge: "top" | "left" | "right".
+  function frontSlabLip(THREE, w, h, frontMat, cutM, skinM, edge){
+    var T = FRONT_T, A = edge === "top" ? h : w, E = edge === "top" ? w : h, sh = new THREE.Shape();
+    var hiEnd = edge !== "left"; // which end of the axis the cut sits at
+    if (hiEnd){ sh.moveTo(0, 0); sh.lineTo(T, 0); sh.lineTo(T, A - cutM); sh.lineTo(skinM, A - cutM); sh.lineTo(skinM, A); sh.lineTo(0, A); }
+    else { sh.moveTo(0, 0); sh.lineTo(skinM, 0); sh.lineTo(skinM, cutM); sh.lineTo(T, cutM); sh.lineTo(T, A); sh.lineTo(0, A); }
+    var geo = new THREE.ExtrudeGeometry(sh, { depth:E, bevelEnabled:false });
+    // shape x -> -z (front at sx = 0), shape y -> the cut axis, extrusion -> the other in-plane axis (proper rotations)
+    geo.applyMatrix4(edge === "top" ? new THREE.Matrix4().set(0, 0, 1, 0, 0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 0, 1) : new THREE.Matrix4().set(0, 1, 0, 0, 0, 0, -1, 0, -1, 0, 0, 0, 0, 0, 0, 1));
+    geo.computeBoundingBox();
+    var bb = geo.boundingBox; geo.translate(-(bb.min.x + bb.max.x) / 2, -(bb.min.y + bb.max.y) / 2, T / 2);
+    var ps = geo.attributes.position, uv = geo.attributes.uv;
+    for (var i = 0; i < ps.count; i++) uv.setXY(i, (ps.getX(i) + w / 2) / w, (ps.getY(i) + h / 2) / h);
+    scaleFrontUV(geo, w, h, frontMat.userData && frontMat.userData.tile);
+    return new THREE.Mesh(geo, frontMat);
+  }
+
   // wrap: DOM element to render into. state: the planner's {shape,walls,look}
   // object. opts (optional): {selectedId, onSelect(meta|null)} — onSelect is
   // called with {wallId,zone,blockId} when a cabinet is clicked, or null on
@@ -2398,7 +2419,9 @@
       if (showFronts){
         var jcfgW = cfg.showHandle && cfg.handle && window.KPMODELS && window.KPMODELS.handles && window.KPMODELS.handles[cfg.handle], stripW = jcfgW && jcfgW.kind === "jey" ? (jcfgW.stripMm || 27) / 1000 : 0; // Jey takes its height off the front
         var notchW = jcfgW && jcfgW.kind === "hexxa" ? { len:Math.max(0.05, W - 0.004 - 2 * (jcfgW.marginMm || 50) / 1000), h:0.03 } : null;
-        var slab = frontSlab(THREE, W - 0.004, fh - stripW, frontMat, notchW);
+        var slab = jcfgW && jcfgW.kind === "jey" && (jcfgW.profileMm || 0) > (jcfgW.stripMm || 27)
+          ? frontSlabLip(THREE, W - 0.004, fh - stripW, frontMat, (jcfgW.profileMm - (jcfgW.stripMm || 27)) / 1000, 0.002, "top")
+          : frontSlab(THREE, W - 0.004, fh - stripW, frontMat, notchW);
         slab.position.set(0, (y0 + y1) / 2 - stripW / 2, CD + FRONT_T / 2); slab.castShadow = true; slab.receiveShadow = true;
         dg.add(slab); pickables.push(slab);
         if (cfg.showHandle && cfg.handle){
