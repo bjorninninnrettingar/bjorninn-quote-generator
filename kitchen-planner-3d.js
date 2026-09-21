@@ -1153,6 +1153,7 @@
           bx.position.set(0, y1 - 0.03 - side / 1000, CD - 0.005);
         }
         g.add(bx); bx.traverse(function(o){ if (o.isMesh) meshes.push(o); });
+        if (bx.userData && bx.userData.runners){ var rgR = bx.userData.runners; rgR.position.copy(bx.position); frame.add(rgR); } // runners stay in the cabinet
       }
       meshes.forEach(function(m){ m.userData = pmeta; pickables.push(m); });
       var prev = PART_STATE[key];
@@ -2178,9 +2179,12 @@
         [["left", rs.left, rs.runLeft], ["right", rs.right, rs.runRight]].forEach(function(pr){
           var b = new THREE.Box3().setFromObject(pr[1]), holder = new THREE.Group(), wl = pr[1].userData.wall || { x0:b.min.x, x1:b.max.x };
           holder.add(pr[1]);
-          if (pr[2]) holder.add(pr[2]); // the runner shares the side's frame, so it keeps its exact position relative to it
           holder.position.set(pr[0] === "left" ? -bwR / 2 - b.min.x : bwR / 2 - b.max.x, -b.min.y, -b.max.z); // outer edge at ±bw/2, bottom at 0, front at z = 0
           g.add(holder);
+          if (pr[2]){ // the runner shares the side's frame (exact position relative to it) but is FIXED in the cabinet: callers add g.userData.runners to the cabinet, not to the sliding drawer
+            var rh = new THREE.Group(); rh.position.copy(holder.position); rh.add(pr[2]);
+            (g.userData.runners = g.userData.runners || new THREE.Group()).add(rh);
+          }
           if (pr[0] === "left"){ inset = wl.x1 - b.min.x; sideH = b.max.y - b.min.y; len = b.max.z - b.min.z; }
         });
         var boardY = (rs.e.boardMm || 17.6) / 1000, inner = bwR - 2 * inset + 0.004;
@@ -2283,6 +2287,7 @@
           bx.position.set(0, y1 - 0.03 - sides[i] / 1000, CD - 0.005);
         }
         dg.add(bx);
+        if (bx.userData && bx.userData.runners){ var rgW = bx.userData.runners; rgW.position.copy(bx.position); group.add(rgW); } // runners stay in the cabinet
         bx.traverse(function(o){ if (o.isMesh) pickables.push(o); });
       }
       pickables.forEach(function(m){ if (m.userData.drawer == null) m.userData.drawer = i; });

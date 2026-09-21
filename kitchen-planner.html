@@ -317,7 +317,20 @@
   .swatch-glyph{ width:100%; aspect-ratio:4/3; display:flex; align-items:center; justify-content:center; font-size:28px; background:var(--panel); }
 
   .wrap.mat{ max-width:1200px; }
-  .wrap.shp{ max-width:1000px; }
+  .wrap.shp{ max-width:1240px; }
+  .shape-wiz{ display:grid; grid-template-columns:minmax(0,1.6fr) minmax(300px,1fr); gap:28px; align-items:start; }
+  @media (max-width:980px){ .shape-wiz{ grid-template-columns:1fr; } }
+  .shape-stage{ position:sticky; top:16px; }
+  .shape-side .mat-section{ margin-bottom:22px; }
+  .shape-side .actions{ margin-top:6px; padding-top:14px; border-top:1px solid var(--line); }
+  .shape-wiz .shape-canvas{ height:min(72vh,660px); min-height:420px; }
+  .wall-row{ display:flex; align-items:center; gap:10px; background:#fff; border:1px solid var(--line); border-radius:10px; padding:7px 10px; margin-bottom:6px; cursor:pointer; }
+  .wall-row.sel{ border-color:var(--blue); background:var(--blue-soft); }
+  .wall-row .wn{ flex:none; width:24px; height:24px; border-radius:50%; background:var(--line); font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; }
+  .wall-row .wl{ flex:1; font-size:14px; }
+  .wall-row input[type=number]{ width:96px; font:inherit; font-size:14px; padding:6px 8px; border:1px solid var(--line); border-radius:8px; }
+  .wall-row .u{ font-size:12px; color:var(--ink-soft); }
+  .op-row.sel{ border-color:var(--blue); background:var(--blue-soft); }
   .mat-wiz{ display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,1fr); gap:32px; align-items:start; }
   @media (max-width:900px){ .mat-wiz{ grid-template-columns:1fr; } }
   .mat-stage{ position:sticky; top:16px; }
@@ -660,32 +673,53 @@
       <div class="shape-cards" id="shapeCardsOpen"></div>
     </div>
 
-    <!-- phases 2+3: top-down drawing -->
+    <!-- phases 2-4: top-down drawing on the left, everything else in the panel on the right -->
     <div id="shapeDraw" hidden>
-      <div class="shape-toolbar" id="shapeToolbar"></div>
-      <div class="shape-canvas-wrap"><div class="shape-canvas" id="shapeCanvas"></div><div class="dim-pop" id="dimPop" hidden></div></div>
-      <div id="shapeOpenings" hidden>
-        <div class="mat-section" style="margin-top:20px;">
-          <div class="mat-section-title">Gluggar, hurðir og op</div>
-          <p class="mat-section-sub">Veldu vegg (töluna á teikningunni eða hér) og bættu við. „Op“ er gat í vegginn án hurðar. Þú getur alltaf breytt þessu seinna í skipulaginu.</p>
-          <div class="op-add" id="opAdd"></div>
-          <div id="opList"></div>
+      <div class="shape-wiz">
+        <div class="shape-stage">
+          <div class="shape-toolbar" id="shapeToolbar"></div>
+          <div class="shape-canvas-wrap"><div class="shape-canvas" id="shapeCanvas"></div><div class="dim-pop" id="dimPop" hidden></div></div>
         </div>
-      </div>
-      <div id="shapeExtras">
-        <div class="mat-section" style="margin-top:20px;">
-          <div id="roomHeightBox" style="max-width:260px;"></div>
-        </div>
-        <div class="mat-section">
-          <div class="mat-section-title">Gólfefni</div>
-          <div class="tabs-row" id="floorTabs"></div>
-          <div class="sw-grid" id="floorCards"></div>
-        </div>
-        <div class="mat-section">
-          <div class="mat-section-title">Litur á veggjum</div>
-          <p class="mat-section-sub">Bara til að sjá teikninguna eins og hjá þér — ekki hluti af pöntuninni.</p>
-          <div class="wallcolor-row" id="wallColorRow"></div>
-        </div>
+        <aside class="shape-side" id="shapeSide">
+          <div id="shapeSizeBox" hidden>
+            <div class="mat-section">
+              <div class="mat-section-title">Veggir</div>
+              <p class="mat-section-sub">Sláðu inn lengd hvers veggjar eða dragðu vegginn á teikningunni.</p>
+              <div id="wallList"></div>
+            </div>
+          </div>
+          <div id="shapeExtras">
+            <div class="mat-section">
+              <div id="roomHeightBox" style="max-width:260px;"></div>
+            </div>
+            <div class="mat-section">
+              <div class="mat-section-title">Gólfefni</div>
+              <div class="tabs-row" id="floorTabs"></div>
+              <div class="sw-grid" id="floorCards"></div>
+            </div>
+            <div class="mat-section">
+              <div class="mat-section-title">Litur á veggjum</div>
+              <p class="mat-section-sub">Bara til að sjá teikninguna eins og hjá þér — ekki hluti af pöntuninni.</p>
+              <div class="wallcolor-row" id="wallColorRow"></div>
+            </div>
+          </div>
+          <div id="shapeOpenings" hidden>
+            <div class="mat-section">
+              <div class="mat-section-title">Gluggar, hurðir og op</div>
+              <p class="mat-section-sub">Veldu vegg (töluna á teikningunni eða hér) og bættu við. Dragðu þau til á teikningunni og smelltu á málin til að slá inn. „Op“ er gat í vegginn án hurðar.</p>
+              <div class="op-add" id="opAdd"></div>
+              <div id="opList"></div>
+            </div>
+          </div>
+          <div id="shapeWater" hidden>
+            <div class="mat-section">
+              <div class="mat-section-title">Hvar er vatnið?</div>
+              <p class="mat-section-sub">Vaskurinn er settur á þennan vegg þegar skipulagið opnast.</p>
+              <div id="waterList"></div>
+            </div>
+          </div>
+          <div class="shape-side-actions" id="shapeActionsSlot"></div>
+        </aside>
       </div>
     </div>
 
@@ -1223,7 +1257,7 @@
       var ref = v[frozenView.ref];
       return { pts:v, scale:frozenView.scale, ox:frozenView.ox + (frozenView.refX - ref.x) * frozenView.scale, oy:frozenView.oy + (frozenView.refZ - ref.z) * frozenView.scale };
     }
-    var m = shapePhase === "water" ? 64 : 120, sc = Math.min((width - 2 * m) / Math.max(1, maxX - minX), (height - 2 * m) / Math.max(1, maxZ - minZ));
+    var m = shapePhase === "water" || shapePhase === "openings" ? 70 : 120, sc = Math.min((width - 2 * m) / Math.max(1, maxX - minX), (height - 2 * m) / Math.max(1, maxZ - minZ));
     sc = Math.min(sc, 0.12);
     return { pts:v, scale:sc, ox:(width - (maxX - minX) * sc) / 2 - minX * sc, oy:(height - (maxZ - minZ) * sc) / 2 - minZ * sc };
   }
@@ -1262,14 +1296,29 @@
       if (!w.open){ // windows / doors / openings on this wall, drawn over the wall band
         state.windows.concat(state.doors).forEach(function(o){
           if (o.wallId !== w.id) return;
-          var s0 = o.offsetMm * sc, s1 = (o.offsetMm + o.widthMm) * sc, isWin = state.windows.indexOf(o) >= 0;
+          var s0 = o.offsetMm * sc, s1 = (o.offsetMm + o.widthMm) * sc, isWin = state.windows.indexOf(o) >= 0, selO = opPhase && selectedOpeningId === o.id;
           var ox1 = x1 - nx * 8 + ax * s0, oy1 = y1 - nz * 8 + az * s0, ox2 = x1 - nx * 8 + ax * s1, oy2 = y1 - nz * 8 + az * s1;
           items += '<line x1="' + ox1 + '" y1="' + oy1 + '" x2="' + ox2 + '" y2="' + oy2 + '" stroke="' + (isWin ? "#7fb6dc" : o.gap ? "#fbfaf7" : "#b98c58") + '" stroke-width="16" stroke-linecap="butt" style="pointer-events:none;"/>';
           if (o.gap) items += '<line x1="' + (ox1 + nx * 9) + '" y1="' + (oy1 + nz * 9) + '" x2="' + (ox2 + nx * 9) + '" y2="' + (oy2 + nz * 9) + '" stroke="#8a6a4a" stroke-width="1.6" stroke-dasharray="5,4" style="pointer-events:none;"/>';
+          if (!opPhase) return;
+          if (selO) items += '<line x1="' + ox1 + '" y1="' + oy1 + '" x2="' + ox2 + '" y2="' + oy2 + '" stroke="#0058a3" stroke-width="20" stroke-opacity=".28" stroke-linecap="butt" style="pointer-events:none;"/>';
+          // drag handle (wide, transparent) + the measurements
+          items += '<line data-opid="' + o.id + '" x1="' + ox1 + '" y1="' + oy1 + '" x2="' + ox2 + '" y2="' + oy2 + '" stroke="transparent" stroke-width="22" stroke-linecap="butt" style="cursor:grab;"/>';
+          function pill(px, py, txt, attr){
+            var tw = String(txt).length * 7.4 + 14;
+            return '<g class="dim" ' + attr + ' style="cursor:pointer;"><rect x="' + (px - tw / 2) + '" y="' + (py - 10) + '" width="' + tw + '" height="20" rx="4" fill="#fff" stroke="' + (selO ? "#0058a3" : "#8a8f9a") + '"/><text x="' + px + '" y="' + (py + 4.5) + '" font-size="12" text-anchor="middle" fill="#191919" style="pointer-events:none;">' + txt + '</text></g>';
+          }
+          var mxo = (ox1 + ox2) / 2 + nx * 22, myo = (oy1 + oy2) / 2 + nz * 22;
+          handles += pill(mxo, myo, o.widthMm, 'data-opdim="' + o.id + ':widthMm"');
+          if (selO){
+            var gA = o.offsetMm, gB = w.lengthMm - o.offsetMm - o.widthMm;
+            if (gA >= 0) handles += pill((x1 - nx * 8 + ax * (gA * sc / 2)) + nx * 22, (y1 - nz * 8 + az * (gA * sc / 2)) + nz * 22, gA, 'data-opdim="' + o.id + ':offsetMm"');
+            if (gB >= 0) handles += pill((x1 - nx * 8 + ax * ((o.offsetMm + o.widthMm + gB / 2) * sc)) + nx * 22, (y1 - nz * 8 + az * ((o.offsetMm + o.widthMm + gB / 2) * sc)) + nz * 22, gB, 'data-opdim="' + o.id + ':endGap"');
+          }
         });
       }
       if (opPhase && !w.open){
-        var bx0 = (x1 + x2) / 2 + nx * 26, by0 = (y1 + y2) / 2 + nz * 26, onw = openWallId === w.id;
+        var bx0 = (x1 + x2) / 2 + nx * 50, by0 = (y1 + y2) / 2 + nz * 50, onw = openWallId === w.id;
         handles += '<g data-openwall="' + w.id + '" style="cursor:pointer;"><circle cx="' + bx0 + '" cy="' + by0 + '" r="15" fill="' + (onw ? "#0058a3" : "#fff") + '" stroke="#8a8f9a" stroke-width="2"/>' +
           '<text x="' + bx0 + '" y="' + (by0 + 5) + '" font-size="14" font-weight="700" text-anchor="middle" fill="' + (onw ? "#fff" : "#191919") + '">' + (i + 1) + '</text></g>';
       }
@@ -1313,11 +1362,18 @@
     host.querySelectorAll("[data-dim]").forEach(function(g){
       g.addEventListener("click", function(){ openDimPop(parseInt(g.dataset.dim, 10)); });
     });
+    host.querySelectorAll("[data-opid]").forEach(function(el){
+      el.addEventListener("pointerdown", function(evt){ startOpDrag(el.dataset.opid, evt); });
+    });
+    host.querySelectorAll("[data-opdim]").forEach(function(g){
+      g.addEventListener("click", function(){ var pr = g.dataset.opdim.split(":"), r = g.querySelector("rect"); openOpPop(pr[0], pr[1], +r.getAttribute("x") + (+r.getAttribute("width")) / 2, +r.getAttribute("y") + 10); });
+    });
+    if (shapePhase === "size") syncWallInputs();
     host.querySelectorAll("[data-openwall]").forEach(function(g){
       g.addEventListener("click", function(){ openWallId = g.dataset.openwall; renderOpeningsBox(); renderShapeCanvas(); });
     });
     host.querySelectorAll("[data-water]").forEach(function(g){
-      g.addEventListener("click", function(){ state.waterWall = g.dataset.water; state.seeded = false; save(); renderShapeCanvas(); });
+      g.addEventListener("click", function(){ state.waterWall = g.dataset.water; state.seeded = false; save(); renderShapeCanvas(); renderWaterList(); });
     });
   }
 
@@ -1433,7 +1489,7 @@
     });
   }
   document.getElementById("shapeCanvas").addEventListener("pointerdown", function(evt){
-    if (evt.target === evt.currentTarget || evt.target.tagName === "svg" || evt.target.tagName === "polygon"){ selectedEdge = null; document.getElementById("dimPop").hidden = true; renderShapeCanvas(); }
+    if (evt.target === evt.currentTarget || evt.target.tagName === "svg" || evt.target.tagName === "polygon"){ selectedEdge = null; selectedOpeningId = null; document.getElementById("dimPop").hidden = true; renderShapeCanvas(); }
   });
   window.addEventListener("resize", function(){ if (state.step === "shape" && shapePhase !== "pick") renderShapeCanvas(); });
 
@@ -1495,7 +1551,12 @@
     document.getElementById("shapePick").hidden = shapePhase !== "pick";
     document.getElementById("shapeDraw").hidden = shapePhase === "pick";
     document.getElementById("shapeExtras").hidden = shapePhase !== "size";
+    document.getElementById("shapeSizeBox").hidden = shapePhase !== "size";
     document.getElementById("shapeOpenings").hidden = shapePhase !== "openings";
+    document.getElementById("shapeWater").hidden = shapePhase !== "water";
+    // the buttons sit at the bottom of the side panel while drawing, under the cards while picking a shape
+    var acts = document.getElementById("shapeActions");
+    (shapePhase === "pick" ? document.getElementById("screen-shape") : document.getElementById("shapeActionsSlot")).appendChild(acts);
     if (shapePhase === "pick"){
       ["closed", "open"].forEach(function(g){
         document.getElementById(g === "closed" ? "shapeCardsClosed" : "shapeCardsOpen").innerHTML = Object.keys(SHAPE_TEMPLATES).filter(function(k){ return SHAPE_TEMPLATES[k].group === g; }).map(function(k){
@@ -1509,6 +1570,8 @@
         : shapePhase === "openings" ? "Smelltu á töluna við vegg til að velja hann — bættu svo við glugga, hurð eða opi."
         : "Smelltu á dropann við vegginn sem vatnið er á.";
       if (shapePhase === "openings") renderOpeningsBox();
+      if (shapePhase === "size") renderWallList();
+      if (shapePhase === "water") renderWaterList();
       if (shapePhase === "size"){
         var box = document.getElementById("roomHeightBox");
         box.innerHTML = "";
@@ -1522,6 +1585,127 @@
     }
     renderShapeActions();
     updateStepper();
+  }
+
+  // ---------- right-hand panel of the room step ----------
+  function renderWallList(){
+    var box = document.getElementById("wallList");
+    box.innerHTML = state.walls.map(function(w, i){
+      return '<div class="wall-row' + (selectedEdge === i ? " sel" : "") + '" data-wr="' + i + '"><span class="wn">' + (i + 1) + '</span><span class="wl">' + w.label + (w.open ? " · opinn" : "") + '</span>' +
+        '<input type="number" data-wlen="' + i + '" value="' + w.lengthMm + '" min="' + MIN_EDGE_MM + '" max="' + MAX_EDGE_MM + '" step="10"><span class="u">mm</span></div>';
+    }).join("");
+    box.querySelectorAll("[data-wlen]").forEach(function(inp){
+      var i = parseInt(inp.dataset.wlen, 10);
+      inp.addEventListener("focus", function(){ selectedEdge = i; renderShapeCanvas(); });
+      inp.addEventListener("change", function(){
+        var val = parseInt(inp.value, 10);
+        if (isNaN(val) || val < MIN_EDGE_MM || val > MAX_EDGE_MM){ toast("Veggur má vera " + MIN_EDGE_MM + "–" + MAX_EDGE_MM + " mm."); inp.value = state.walls[i].lengthMm; return; }
+        if (!setEdgeLength(i, val, "end")) inp.value = state.walls[i].lengthMm;
+        renderShapeCanvas();
+      });
+    });
+    box.querySelectorAll("[data-wr]").forEach(function(row){
+      row.addEventListener("click", function(){ selectedEdge = parseInt(row.dataset.wr, 10); renderShapeCanvas(); });
+    });
+  }
+  function syncWallInputs(){ // keep the panel in step with a wall being dragged on the drawing
+    document.querySelectorAll("[data-wlen]").forEach(function(inp){ if (document.activeElement !== inp && state.walls[+inp.dataset.wlen]) inp.value = state.walls[+inp.dataset.wlen].lengthMm; });
+    document.querySelectorAll("[data-wr]").forEach(function(r){ r.classList.toggle("sel", selectedEdge === +r.dataset.wr); });
+  }
+  function renderWaterList(){
+    var box = document.getElementById("waterList");
+    box.innerHTML = state.walls.map(function(w, i){
+      if (w.open) return "";
+      return '<label class="wall-row' + (state.waterWall === w.id ? " sel" : "") + '"><input type="radio" name="waterWall" value="' + w.id + '"' + (state.waterWall === w.id ? " checked" : "") + '><span class="wn">' + (i + 1) + '</span><span class="wl">' + w.label + ' · ' + w.lengthMm + ' mm</span></label>';
+    }).join("");
+    box.querySelectorAll("input").forEach(function(inp){
+      inp.addEventListener("change", function(){ state.waterWall = inp.value; state.seeded = false; save(); renderWaterList(); renderShapeCanvas(); });
+    });
+  }
+
+  // ---------- drag / type windows, doors and openings on the drawing ----------
+  var selectedOpeningId = null;
+  var opDrag = null;
+  function canvasPointMm(evt, v){
+    var r = document.getElementById("shapeCanvas").getBoundingClientRect();
+    return { x:(evt.clientX - r.left - v.ox) / v.scale, z:(evt.clientY - r.top - v.oy) / v.scale };
+  }
+  function nearestWallAt(v, pt){ // -> {i, t (mm along the wall)} of the closest closed wall
+    var best = null, n = v.pts.length;
+    state.walls.forEach(function(w, i){
+      if (w.open) return;
+      var p1 = v.pts[i], p2 = v.pts[(i + 1) % n], dx = p2.x - p1.x, dz = p2.z - p1.z, len = Math.hypot(dx, dz) || 1;
+      var t = Math.max(0, Math.min(len, ((pt.x - p1.x) * dx + (pt.z - p1.z) * dz) / len));
+      var d = Math.hypot(pt.x - (p1.x + dx / len * t), pt.z - (p1.z + dz / len * t));
+      if (!best || d < best.d) best = { i:i, t:t, d:d };
+    });
+    return best;
+  }
+  function startOpDrag(id, evt){
+    evt.preventDefault(); evt.stopPropagation();
+    var f = findOpening(id), host = document.getElementById("shapeCanvas");
+    if (!f) return;
+    var v = shapeView(host.clientWidth, host.clientHeight), hit = nearestWallAt(v, canvasPointMm(evt, v));
+    var onOwn = hit && state.walls[hit.i].id === f.o.wallId;
+    opDrag = { id:id, x0:evt.clientX, y0:evt.clientY, moved:false, v:v, grip:onOwn ? hit.t - (f.o.offsetMm + f.o.widthMm / 2) : 0 };
+    selectedOpeningId = id;
+    document.getElementById("dimPop").hidden = true;
+    window.addEventListener("pointermove", onOpDragMove);
+    window.addEventListener("pointerup", onOpDragUp, { once:true });
+    renderShapeCanvas();
+    highlightOpRow();
+  }
+  function onOpDragMove(evt){
+    var st = opDrag;
+    if (!st) return;
+    if (!st.moved && Math.hypot(evt.clientX - st.x0, evt.clientY - st.y0) < 4) return;
+    st.moved = true;
+    var f = findOpening(st.id), hit = nearestWallAt(st.v, canvasPointMm(evt, st.v));
+    if (!f || !hit) return;
+    var wall = state.walls[hit.i];
+    f.o.wallId = wall.id;
+    f.o.widthMm = Math.min(f.o.widthMm, wall.lengthMm);
+    f.o.offsetMm = snappedOpeningOffset(wall, f.o.widthMm, hit.t - (st.grip || 0));
+    renderShapeCanvas();
+  }
+  function onOpDragUp(){
+    window.removeEventListener("pointermove", onOpDragMove);
+    var st = opDrag; opDrag = null;
+    if (st && st.moved){ save(); renderOpeningsBox(); }
+    renderShapeCanvas();
+  }
+  function highlightOpRow(){
+    document.querySelectorAll("[data-oprow]").forEach(function(r){ r.classList.toggle("sel", r.dataset.oprow === selectedOpeningId); });
+  }
+  // typed measurement from a label on the drawing: width, gap to the wall start, gap to the wall end
+  function openOpPop(id, key, cx, cy){
+    var f = findOpening(id), host = document.getElementById("shapeCanvas"), pop = document.getElementById("dimPop");
+    if (!f) return;
+    var wall = state.walls.find(function(w){ return w.id === f.o.wallId; }), o = f.o;
+    var val = key === "widthMm" ? o.widthMm : key === "offsetMm" ? o.offsetMm : wall.lengthMm - o.offsetMm - o.widthMm;
+    var name = key === "widthMm" ? "Breidd" : key === "offsetMm" ? "Bil frá vinstri/upphafi veggjar" : "Bil að enda veggjar";
+    pop.innerHTML = '<div class="dp-row"><span style="font-size:13px;white-space:nowrap;">' + name + '</span><input type="number" id="opInput" value="' + val + '" step="10"><span class="u" style="font-size:12px;">mm</span><button type="button" class="go" id="opGo">OK</button></div>';
+    pop.hidden = false;
+    var pw = pop.offsetWidth, ph = pop.offsetHeight;
+    pop.style.left = Math.max(6, Math.min(host.clientWidth - pw - 6, cx - pw / 2)) + "px";
+    pop.style.top = Math.max(6, Math.min(host.clientHeight - ph - 6, cy + 14)) + "px";
+    var inp = document.getElementById("opInput");
+    inp.focus(); inp.select();
+    function apply(){
+      var v = Math.round(parseFloat(inp.value));
+      if (isNaN(v)){ return; }
+      var ok = true;
+      if (key === "widthMm") ok = applyOpeningDim(f, "widthMm", v);
+      else {
+        var maxGap = wall.lengthMm - o.widthMm;
+        if (v < 0 || v > maxGap){ toast("Bilið þarf að vera á milli 0 og " + maxGap + " mm."); ok = false; }
+        else o.offsetMm = key === "offsetMm" ? v : maxGap - v;
+      }
+      if (!ok) return;
+      pop.hidden = true; save(); renderShapeCanvas(); renderOpeningsBox();
+    }
+    document.getElementById("opGo").addEventListener("click", apply);
+    inp.addEventListener("keydown", function(e){ if (e.key === "Enter") apply(); if (e.key === "Escape") pop.hidden = true; });
   }
 
   // ---------- room step: windows, doors and plain openings ----------
@@ -1539,6 +1723,7 @@
         var w = state.walls.find(function(x){ return x.id === openWallId; });
         if (!w) return;
         addOpening(btn.dataset.add, w.id, Math.round(w.lengthMm / 2));
+        selectedOpeningId = "o" + (openingSeq - 1);
         renderOpeningsBox(); renderShapeCanvas(); updateStepper();
       });
     });
@@ -1548,13 +1733,17 @@
     list.innerHTML = rows.map(function(f){
       var o = f.o, wall = state.walls.find(function(w){ return w.id === o.wallId; }), lim = openingLimits(f);
       function fld(key, lab, r){ return '<label class="op-f"><span>' + lab + '</span><input type="number" data-op="' + o.id + '" data-key="' + key + '" value="' + o[key] + '" min="' + r[0] + '" max="' + r[1] + '" step="1"></label>'; }
-      return '<div class="op-row"><b class="op-nm">' + (f.kind === "window" ? "Gluggi" : o.gap ? "Op í vegg" : "Hurð") + '</b>' +
+      return '<div class="op-row' + (selectedOpeningId === o.id ? " sel" : "") + '" data-oprow="' + o.id + '"><b class="op-nm">' + (f.kind === "window" ? "Gluggi" : o.gap ? "Op í vegg" : "Hurð") + '</b>' +
         '<label class="op-f"><span>Veggur</span><select data-opwall="' + o.id + '">' + wallOpts(o.wallId) + '</select></label>' +
         fld("offsetMm", "Frá byrjun veggjar", [0, Math.max(0, (wall ? wall.lengthMm : 3000) - o.widthMm)]) + fld("widthMm", "Breidd", lim.widthMm) + fld("heightMm", "Hæð", lim.heightMm) +
         (f.kind === "window" ? fld("sillHeightMm", "Frá gólfi", lim.sillHeightMm) : "") +
         '<button type="button" class="iconbtn del" data-opdel="' + o.id + '" title="Fjarlægja">✕</button></div>';
     }).join("");
     function redraw(){ save(); renderOpeningsBox(); renderShapeCanvas(); }
+    list.querySelectorAll("[data-oprow]").forEach(function(row){
+      row.addEventListener("focusin", function(){ if (selectedOpeningId !== row.dataset.oprow){ selectedOpeningId = row.dataset.oprow; highlightOpRow(); renderShapeCanvas(); } });
+      row.addEventListener("click", function(){ if (selectedOpeningId !== row.dataset.oprow){ selectedOpeningId = row.dataset.oprow; highlightOpRow(); renderShapeCanvas(); } });
+    });
     list.querySelectorAll("[data-op]").forEach(function(inp){
       inp.addEventListener("change", function(){
         var f = findOpening(inp.dataset.op), key = inp.dataset.key;
