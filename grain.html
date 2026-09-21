@@ -203,6 +203,33 @@
   }
   #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+  /* project drawings — kept inside the planner so the user never has to
+     hunt through Airtable or switch apps while checking a front */
+  .project-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .drawing-backdrop {
+    position: fixed; inset: 0; z-index: 310; background: rgba(0,0,0,0.68);
+  }
+  .drawing-panel {
+    position: fixed; z-index: 311; top: 16px; right: 16px; bottom: 16px;
+    width: min(980px, calc(100vw - 32px)); background: #111;
+    border: 1px solid #333; border-radius: 12px; overflow: hidden;
+    box-shadow: 0 22px 70px rgba(0,0,0,0.72); display: flex; flex-direction: column;
+  }
+  .drawing-head {
+    display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+    border-bottom: 1px solid #2a2a2a; background: #171717;
+  }
+  .drawing-head-text { min-width: 0; flex: 1; }
+  .drawing-head-title { font-weight: 800; }
+  .drawing-head-project { color: #aaa; font-size: 0.78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .drawing-tabs { display: flex; gap: 7px; flex-wrap: wrap; padding: 10px 14px; border-bottom: 1px solid #252525; }
+  .drawing-tab { margin: 0; padding: 7px 10px; background: #222; border: 1px solid #333; }
+  .drawing-tab.active { color: #ffd60a; border-color: #ffd60a; background: #332d12; }
+  .drawing-view { flex: 1; min-height: 0; background: #252525; display: flex; align-items: center; justify-content: center; }
+  .drawing-view iframe { width: 100%; height: 100%; border: 0; background: #fff; }
+  .drawing-view img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .drawing-open-link { color: #9ac7ff; font-size: 0.82rem; white-space: nowrap; }
+
   /* the ghost is always in the DOM (like #toast) so .show can transition it
      in/out — a quick "lift off the board" cue when you pick something up,
      instead of an abrupt appear/disappear */
@@ -458,8 +485,10 @@
     </div>
     <div class="sub" id="projectStatus" style="margin:0;">Sæki Sögunarlista…</div>
     <div id="planStrip" class="no-print"></div>
-
-    <button class="ghost small" style="margin-top:10px;" onclick="resetAll()">← Annað verkefni</button>
+    <div class="project-actions">
+      <button class="ghost small" onclick="resetAll()">← Annað verkefni</button>
+      <button class="ghost small hidden" id="drawingsBtn" onclick="openDrawings()">📄 Teikningar</button>
+    </div>
   </div>
 
   <div id="skippedCard" class="no-print"></div>
@@ -476,6 +505,23 @@
 
   <div class="hidden" id="guideOverlay"></div>
   <div id="dragGhost"></div>
+
+  <div class="drawing-backdrop hidden no-print" id="drawingBackdrop" onclick="closeDrawings()"></div>
+  <section class="drawing-panel hidden no-print" id="drawingPanel" role="dialog" aria-modal="true" aria-labelledby="drawingTitle">
+    <div class="drawing-head">
+      <div class="drawing-head-text">
+        <div class="drawing-head-title" id="drawingTitle">Teikningar</div>
+        <div class="drawing-head-project" id="drawingProject"></div>
+      </div>
+      <a class="drawing-open-link" id="drawingOpenLink" href="#" target="_blank" rel="noopener">Opna sér ↗</a>
+      <button class="ghost small" type="button" onclick="closeDrawings()">✕ Loka</button>
+    </div>
+    <div class="drawing-tabs" id="drawingTabs"></div>
+    <div class="drawing-view">
+      <iframe class="hidden" id="drawingFrame" title="Verkteikning"></iframe>
+      <img class="hidden" id="drawingImage" alt="Verkteikning" />
+    </div>
+  </section>
 
   <div class="hidden" id="workspaceCard">
     <div class="toolbar no-print" id="toolbar">
@@ -564,6 +610,10 @@ const P_NAME_FIELD = "Heiti tækifæris / verkefnis";
 const P_STADA_SOLU = "Staða í söluferli";
 const P_STADA_SKIP = "Staða í skipulagi";
 const P_STADA_FRAM = "Staða í framleiðslu";
+const PROJECT_DRAWING_FIELDS = [
+  { field: "Loka teikningar verkefnis 📋", label: "Lokateikningar" },
+  { field: "Sér fræsi teikningar", label: "Sérfræsing" },
+];
 
 const S_PROJECT_LINK = "Tækifæri 📣 (projects)";
 const S_PARTUR   = "Partur";
@@ -630,6 +680,8 @@ let pieceSearchQuery = "";
 let settings = loadSettings();
 let board = { w: 2070, l: 2800, name: "" };
 let projectPlans = [];  // Æðaplan rows for the current project
+let projectDrawings = []; // flattened Airtable attachments for the open project
+let activeDrawingIndex = -1;
 let curPlan = null;     // { recordId, confirmed, sourceJSON } for the selected material
 let planSaveTimer = null;
 let manualFronts = [];  // {id, groupId, unitName, w, orient, label, h} — fronts added by hand in the tool
@@ -716,6 +768,11 @@ function updateUndoButtons() {
   if (r) r.disabled = histIdx >= history.length - 1;
 }
 document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && !$('drawingPanel').classList.contains("hidden")) {
+    closeDrawings();
+    e.preventDefault();
+    return;
+  }
   if (guide && !$("guideOverlay").classList.contains("hidden")) return;
   if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
   if ((e.metaKey || e.ctrlKey) && (e.key === "z" || e.key === "Z")) {
@@ -830,6 +887,70 @@ function attImgUrl(field) {
   if (!att) return "";
   const t = (att.thumbnails && (att.thumbnails.large || att.thumbnails.small)) || {};
   return t.url || att.url || "";
+}
+
+function setProjectDrawings(record) {
+  projectDrawings = [];
+  activeDrawingIndex = -1;
+  closeDrawings();
+  for (const group of PROJECT_DRAWING_FIELDS) {
+    const files = record?.fields?.[group.field];
+    if (!Array.isArray(files)) continue;
+    files.forEach((file, i) => {
+      if (!file?.url) return;
+      projectDrawings.push({
+        ...file,
+        label: group.label,
+        displayName: file.filename || `${group.label} ${i + 1}`,
+      });
+    });
+  }
+  const btn = $("drawingsBtn");
+  if (!projectDrawings.length) {
+    btn.classList.add("hidden");
+    btn.textContent = "📄 Teikningar";
+    return;
+  }
+  btn.textContent = `📄 Teikningar (${projectDrawings.length})`;
+  btn.classList.remove("hidden");
+}
+
+function isPdfDrawing(file) {
+  return file?.type === "application/pdf" || /\.pdf$/i.test(file?.filename || "");
+}
+function openDrawings(index = activeDrawingIndex >= 0 ? activeDrawingIndex : 0) {
+  if (!projectDrawings.length) return;
+  $("drawingProject").textContent = projectName;
+  $("drawingBackdrop").classList.remove("hidden");
+  $("drawingPanel").classList.remove("hidden");
+  $("drawingTabs").innerHTML = projectDrawings.map((file, i) =>
+    `<button type="button" class="drawing-tab${i === index ? " active" : ""}" onclick="selectDrawing(${i})" title="${esc(file.displayName)}">${esc(file.label)}${projectDrawings.filter(x => x.label === file.label).length > 1 ? ` ${projectDrawings.filter(x => x.label === file.label).indexOf(file) + 1}` : ""}</button>`
+  ).join("");
+  selectDrawing(index);
+}
+function selectDrawing(index) {
+  const file = projectDrawings[index];
+  if (!file) return;
+  activeDrawingIndex = index;
+  $("drawingTitle").textContent = file.displayName;
+  $("drawingOpenLink").href = file.url;
+  $("drawingTabs").querySelectorAll(".drawing-tab").forEach((el, i) => el.classList.toggle("active", i === index));
+  const frame = $("drawingFrame"), image = $("drawingImage");
+  if (isPdfDrawing(file)) {
+    image.classList.add("hidden"); image.removeAttribute("src");
+    frame.src = file.url; frame.classList.remove("hidden");
+  } else {
+    frame.classList.add("hidden"); frame.src = "";
+    image.src = file.url; image.alt = file.displayName; image.classList.remove("hidden");
+  }
+}
+function closeDrawings() {
+  const panel = $("drawingPanel");
+  if (!panel) return;
+  panel.classList.add("hidden");
+  $("drawingBackdrop").classList.add("hidden");
+  $("drawingFrame").classList.add("hidden"); $("drawingFrame").src = "";
+  $("drawingImage").classList.add("hidden"); $("drawingImage").removeAttribute("src");
 }
 
 // One batched query across every eligible project's Sögunarlisti, instead
@@ -978,6 +1099,7 @@ async function annotateProjectsWithPlans(recs) {
 
 async function loadProject(id) {
   currentProjectId = id;
+  setProjectDrawings(null);
   pieceSearchQuery = "";
   if ($("pieceSearch")) $("pieceSearch").value = "";
   $("searchCard").classList.add("hidden");
@@ -987,8 +1109,10 @@ async function loadProject(id) {
   $("projectStatus").textContent = FLOOR_MODE ? "Sæki staðfest skipulag…" : "Sæki Sögunarlista…";
 
   try {
+    const projectRecordPromise = fetchProjectById(id).catch(() => null);
+    projectRecordPromise.then(record => { if (currentProjectId === id) setProjectDrawings(record); });
     let name = document.querySelector(`#projectSelect option[value="${id}"]`)?.dataset.name;
-    if (!name) name = (await fetchProjectById(id)).fields?.[P_NAME_FIELD] || "";
+    if (!name) name = (await projectRecordPromise)?.fields?.[P_NAME_FIELD] || "";
     projectName = name;
     $("projectName").textContent = name || id;
     $("projectName").title = name || id;   // full text on hover — the header row can ellipsis it
@@ -4047,6 +4171,7 @@ if (FLOOR_MODE) setInterval(checkFloorPlan, 90 * 1000);
 // ── INIT ─────────────────────────────────────────────────────────────────
 function resetAll() {
   currentProjectId = null; selectedKey = null; selectedGid = null; selectedFrontKey = null; curPlan = null; manualFronts = []; skippedFronts = []; pieceSearchQuery = "";
+  projectDrawings = []; activeDrawingIndex = -1; closeDrawings();
   resetHistory();
   clearTimeout(planSaveTimer);
   $("searchCard").classList.remove("hidden");
@@ -4056,6 +4181,7 @@ function resetAll() {
   $("planStrip").innerHTML = ""; $("skippedCard").innerHTML = ""; $("planMsgCard").innerHTML = "";
   $("projectSelect").value = "";
   $("pieceSearch").value = "";
+  $("drawingsBtn").classList.add("hidden");
 }
 $("projectSelect").addEventListener("change", e => { if (e.target.value) loadProject(e.target.value); });
 
