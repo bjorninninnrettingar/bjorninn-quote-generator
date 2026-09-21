@@ -764,9 +764,10 @@
     var c = MODEL_CACHE[e.file];
     if (!c){
       c = MODEL_CACHE[e.file] = { state:"loading", obj:null };
-      import("three/addons/loaders/GLTFLoader.js").then(function(mod){
-        new mod.GLTFLoader().load(e.file, function(gltf){
-          c.obj = normaliseModel(gltf.scene, e); c.state = "ready";
+      var dae = /\.dae(\?|$)/i.test(e.file); // Blum's CAD downloads come as .dae (Collada); .glb works too
+      import(dae ? "three/addons/loaders/ColladaLoader.js" : "three/addons/loaders/GLTFLoader.js").then(function(mod){
+        new (dae ? mod.ColladaLoader : mod.GLTFLoader)().load(e.file, function(res){
+          c.obj = normaliseModel(res.scene, e); c.state = "ready";
           window.dispatchEvent(new Event("kp3d-model-loaded"));
         }, undefined, function(){ c.state = "error"; });
       }).catch(function(){ c.state = "error"; });

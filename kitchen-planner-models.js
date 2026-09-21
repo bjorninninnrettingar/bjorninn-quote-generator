@@ -1,6 +1,6 @@
 // Real 3D models for drawers and handles (.glb). Empty = the planner draws its own
 // procedural versions. To use a real model, export it from SketchUp as glTF (.glb),
-// drop it under models/drawers/ or models/handles/ and add a line below.
+// (or take Blum's .dae download) drop it under models/drawers/ or models/handles/ and add a line below — .glb and .dae both work.
 //
 //   drawers: key = "<system>_<height code>" with system legra|merivo and code M|K|F|E
 //            (the 3-drawer base cabinet is Legra M/K/F or Merivo M/K/E)
