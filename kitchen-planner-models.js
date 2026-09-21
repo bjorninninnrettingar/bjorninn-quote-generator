@@ -39,5 +39,13 @@ window.KPMODELS = {
     legra:  { L:"models/drawers/legra-runner-L.dae",  R:"models/drawers/legra-runner-R.dae" },
     merivo: { L:"models/drawers/merivo-runner-L.dae", R:"models/drawers/merivo-runner-R.dae" }
   },
-  handles: {}
+  // Real handles. `map` = which model axis becomes the handle's own x (along the front), y (up) and z (out of the
+  // front), with an optional minus sign; `kind`: "jey" = full-width J-profile that REPLACES `stripMm` of the front
+  // (top strip on doors/drawers, side strip on tall units); "bar" = a pull, centred, turned vertical on tall units.
+  // Hexxa is milled into the front (no model needed): a slot centred with equal distance to both sides.
+  handles: {
+    jey2:               { file:"models/handles/jey.glb",   kind:"jey", map:["y", "z", "x"], color:"#1b1b1d", stripMm:27 },
+    kantgrip_kopar_tab: { file:"models/handles/comet.glb", kind:"bar", map:["y", "-x", "z"] },
+    hexxa:              { kind:"hexxa", marginMm:50 }
+  }
 };

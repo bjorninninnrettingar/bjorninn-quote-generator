@@ -816,6 +816,30 @@
     }
     return c.state === "ready" ? c.obj.clone(true) : null;
   }
+  // A real handle in its own frame: x along the front (centred), y up, z out of the front (0 = the plane it sits on).
+  // kind "jey": y = 0 at its TOP edge and it extends downwards. lenM stretches it along x. Returns null until loaded.
+  function handleProfile(THREE, key, lenM){
+    var cfg = window.KPMODELS && window.KPMODELS.handles && window.KPMODELS.handles[key];
+    if (!cfg || !cfg.file) return null;
+    var raw = rawModel(cfg.file);
+    if (!raw) return null;
+    var A = { x:0, y:1, z:2 }, rows = (cfg.map || ["x", "y", "z"]).map(function(t){ var r = [0, 0, 0]; r[A[t.replace("-", "")]] = t.charAt(0) === "-" ? -1 : 1; return r; });
+    var w = new THREE.Group();
+    w.add(raw);
+    w.applyMatrix4(new THREE.Matrix4().set(rows[0][0], rows[0][1], rows[0][2], 0, rows[1][0], rows[1][1], rows[1][2], 0, rows[2][0], rows[2][1], rows[2][2], 0, 0, 0, 0, 1));
+    w.updateMatrixWorld(true);
+    var b = new THREE.Box3().setFromObject(w), c = b.getCenter(new THREE.Vector3());
+    w.position.set(-c.x, cfg.kind === "jey" ? -b.max.y : -c.y, -b.min.z);
+    if (cfg.color){
+      w.traverse(function(o){ if (o.isMesh){ o.material = o.material.clone(); o.material.color.set(cfg.color); o.material.metalness = 0.55; o.material.roughness = 0.4; } });
+    }
+    var g = new THREE.Group(), inner = new THREE.Group();
+    inner.add(w);
+    if (lenM) inner.scale.x = lenM / Math.max(1e-6, b.max.x - b.min.x);
+    g.add(inner);
+    g.userData.size = { len:lenM || (b.max.x - b.min.x), h:b.max.y - b.min.y, d:b.max.z - b.min.z };
+    return g;
+  }
   // the two real drawer sides (left/right) for this system + height code + colour, or null
   function realSides(sysKey, code, dark){
     var e = window.KPMODELS && window.KPMODELS.drawerSides && window.KPMODELS.drawerSides[sysKey + "_" + code];
@@ -916,13 +940,44 @@
       var edgeY = atBottom ? bottom + 0.02 : top - 0.02;
       var hy = atBottom ? bottom + 0.06 : top - (f.drawer ? 0.07 : 0.06);
       var mesh;
-      var hm = getModel("handles", handleKey);
-      if (hm){ // a real handle model: back against the front, anchored where the procedural one would sit
-        var hb = new THREE.Box3().setFromObject(hm), hsz = hb.getSize(new THREE.Vector3()), holder = new THREE.Group();
-        hm.position.set(0, -hsz.y / 2, hsz.z / 2);
-        holder.add(hm);
-        place(holder, hstyle === "edge" || hstyle === "tab" ? edgeY : hy, 0, hOff);
+      var hcfg = window.KPMODELS && window.KPMODELS.handles && window.KPMODELS.handles[handleKey];
+      var doorH = top - bottom;
+      // tall units: pulls stand upright on the free side of each door (opposite the hinge); wide units have two doors meeting in the middle
+      var vertical = !!(meta && meta.vertical) || (isTall && !f.drawer && hstyle !== "knob");
+      var freeRight = meta && meta.freeSide ? meta.freeSide === "right" : !(meta && meta.hingeRight);
+      var twoLeaf = wideDoor && !f.drawer && !(meta && meta.vertical);
+      var sides = twoLeaf ? [-1, 1] : [freeRight ? 1 : -1];
+      function edgeAlong(sg, inset){ return twoLeaf ? sg * inset * 0.6 : sg * (hw / 2 - inset) + hOff; }
+      if (vertical && !(hcfg && hcfg.kind === "hexxa") && !(hcfg && hcfg.file)){ // plain vertical versions of the drawn handles
+        var vy = (top + bottom) / 2;
+        if (hstyle === "bar"){ var vl = Math.min(hdef.len || 0.24, doorH * 0.6); sides.forEach(function(sg){ place(new THREE.Mesh(new THREE.BoxGeometry(0.012, vl, 0.02), handleMat), vy, 0.012, edgeAlong(sg, 0.05)); }); return; }
+        if (hstyle === "edge"){ sides.forEach(function(sg){ place(new THREE.Mesh(new THREE.BoxGeometry(0.02, doorH * 0.94, 0.016), handleMat), vy, 0.008, edgeAlong(sg, 0.012)); }); return; }
+        if (hstyle === "tab"){ sides.forEach(function(sg){ place(new THREE.Mesh(new THREE.BoxGeometry(0.03, hdef.len || 0.14, 0.02), handleMat), vy, 0.01, edgeAlong(sg, 0.02)); }); return; }
+        if (hstyle === "groove"){ sides.forEach(function(sg){ place(new THREE.Mesh(new THREE.BoxGeometry(0.006, doorH * 0.9, 0.002), seamMat), vy, 0.002, edgeAlong(sg, 0.012)); }); return; }
+      }
+      if (hcfg && hcfg.kind === "hexxa"){ // milled into the front, no fixed width: equal distance to both sides
+        var hm2 = (hcfg.marginMm || 50) / 1000, dark = new THREE.MeshStandardMaterial({ color:0x18181a, roughness:0.6 });
+        if (vertical){ sides.forEach(function(sg){ place(new THREE.Mesh(new THREE.BoxGeometry(0.012, Math.max(0.05, doorH - 2 * hm2), 0.0015), dark), (top + bottom) / 2, 0.0008, edgeAlong(sg, 0.02)); }); }
+        else place(new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.05, hw - 2 * hm2), 0.014, 0.0015), dark), top - 0.012, 0.0008, hOff);
         return;
+      }
+      if (hcfg && hcfg.kind === "jey"){ // full-width profile that replaces stripMm of the front (see addArticulated)
+        var jl = vertical ? doorH - 0.004 : hw - 0.004, jp = handleProfile(THREE, handleKey, jl);
+        if (jp){
+          // place() overwrites the rotation of what it is given, so the turn lives in a child group
+          if (vertical){ sides.forEach(function(sg){ var rot = new THREE.Group(), h2 = new THREE.Group(); rot.add(jp.clone(true)); rot.rotation.z = sg > 0 ? -Math.PI / 2 : Math.PI / 2; h2.add(rot); place(h2, (top + bottom) / 2, 0, twoLeaf ? 0 : sg * hw / 2 + hOff); }); }
+          else place(jp, top, 0, hOff);
+          return;
+        }
+      }
+      if (hcfg && hcfg.kind === "bar" && hcfg.file){ // a real pull: centred, standing upright on tall units
+        var bp = handleProfile(THREE, handleKey, null);
+        if (bp){
+          var hoBar = new THREE.Group();
+          if (vertical){ sides.forEach(function(sg){ var rot2 = new THREE.Group(), g2 = new THREE.Group(); rot2.add(bp.clone(true)); rot2.rotation.z = Math.PI / 2; g2.add(rot2); place(g2, (top + bottom) / 2, 0, edgeAlong(sg, 0.05)); }); }
+          else place(bp, hstyle === "tab" || hstyle === "edge" ? edgeY : hy, 0, hOff);
+          return;
+        }
       }
       if (hstyle === "bar"){
         var blen = hdef.len || 0.24, cap = blen <= 0.24 ? 0.5 : 0.85;
@@ -1129,15 +1184,21 @@
       var g = new THREE.Group(), pivotX = f.drawer ? 0 : (hinge === "left" ? cxL - w / 2 : cxL + w / 2), fh = y1 - y0;
       g.position.set(pivotX, 0, 0);
       var pmeta = Object.assign({}, meta, { isPart:true, partKey:key }), meshes = [];
-      var slab = new THREE.Mesh(new THREE.BoxGeometry(w - 0.004, fh, FRONT_T), frontMat);
-      scaleFrontUV(slab.geometry, w - 0.004, fh, frontMat.userData && frontMat.userData.tile);
-      slab.position.set(cxL - pivotX, (y0 + y1) / 2, CD + FRONT_T / 2);
+      var hcfgA = meta.handle && window.KPMODELS && window.KPMODELS.handles && window.KPMODELS.handles[meta.handle];
+      var hstyleA = (HANDLES[meta.handle] || {}).style;
+      var vertA = !!(meta.tall && !f.drawer && !meta.corner && hstyleA !== "knob");
+      var freeSideA = hinge === "left" ? "right" : "left", stripA = hcfgA && hcfgA.kind === "jey" ? (hcfgA.stripMm || 27) / 1000 : 0;
+      // a Jey profile REPLACES stripMm of the front: the slab is that much shorter (top strip) or narrower (side strip on tall units)
+      var slabW = w - 0.004 - (vertA ? stripA : 0), slabH = fh - (vertA ? 0 : stripA);
+      var slab = new THREE.Mesh(new THREE.BoxGeometry(slabW, slabH, FRONT_T), frontMat);
+      scaleFrontUV(slab.geometry, slabW, slabH, frontMat.userData && frontMat.userData.tile);
+      slab.position.set(cxL - pivotX + (vertA ? (freeSideA === "right" ? -stripA / 2 : stripA / 2) : 0), (y0 + y1) / 2 - (vertA ? 0 : stripA / 2), CD + FRONT_T / 2);
       slab.castShadow = true; slab.receiveShadow = true;
       g.add(slab); meshes.push(slab);
       if (meta.handle){
         var tmp = new THREE.Group();
         var fake = { origin:{ x:cxL - w / 2, z:0 }, axis:{ x:1, z:0 }, normal:{ x:0, z:1 }, lenM:w };
-        addFrontDetails(THREE, tmp, fake, 0, w, fh, y0, depthM, { mode:"skuffur", count:1 }, meta.handle, false, meta.zone === "wall" || (meta.tall && fi > 0 && !f.drawer), 0.55, {});
+        addFrontDetails(THREE, tmp, fake, 0, w, fh, y0, depthM, { mode:"skuffur", count:1 }, meta.handle, false, meta.zone === "wall" || (meta.tall && fi > 0 && !f.drawer), 0.55, { vertical:vertA, freeSide:freeSideA });
         tmp.children.slice().forEach(function(ch){ ch.position.x -= pivotX; g.add(ch); if (ch.isMesh) meshes.push(ch); else ch.traverse(function(o){ if (o.isMesh) meshes.push(o); }); });
       }
       if (f.drawer){
@@ -2644,6 +2705,7 @@
     rectCornersWorld: rectCornersWorld,
     WALL_COLORS: WALL_COLORS,
     WINDOW_DEFAULT: WINDOW_DEFAULT,
+    _handleProfile: handleProfile,
     DOOR_DEFAULT: DOOR_DEFAULT,
     GAP_DEFAULT: GAP_DEFAULT,
     hasWebGL: hasWebGL,
