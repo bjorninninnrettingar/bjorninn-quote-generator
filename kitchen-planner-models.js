@@ -29,8 +29,15 @@ window.KPMODELS = {
     legra_F: { boardMm:12, white:{ L:"models/drawers/legra-F-white-L.dae", R:"models/drawers/legra-F-white-R.dae" }, dark:{ L:"models/drawers/legra-F-dark-L.dae", R:"models/drawers/legra-F-dark-R.dae" } },
     legra_C: { boardMm:12, white:{ L:"models/drawers/legra-C-white-L.dae", R:"models/drawers/legra-C-white-R.dae" }, dark:{ L:"models/drawers/legra-C-dark-L.dae", R:"models/drawers/legra-C-dark-R.dae" } },
     merivo_M: { boardMm:17.6, white:{ L:"models/drawers/merivo-M-white-L.dae", R:"models/drawers/merivo-M-white-R.dae" }, dark:{ L:"models/drawers/merivo-M-dark-L.dae", R:"models/drawers/merivo-M-dark-R.dae" } },
-    merivo_K: { boardMm:17.6, dark:{ L:"models/drawers/merivo-K-dark-L.dae", R:"models/drawers/merivo-K-dark-R.dae" } },
+    // Blum has no white K side for Merivo: the dark files, recoloured to the same white as the other Merivo sides
+    merivo_K: { boardMm:17.6, dark:{ L:"models/drawers/merivo-K-dark-L.dae", R:"models/drawers/merivo-K-dark-R.dae" },
+                white:{ L:"models/drawers/merivo-K-dark-L.dae", R:"models/drawers/merivo-K-dark-R.dae", recolor:"white" } },
     merivo_E: { boardMm:17.6, white:{ L:"models/drawers/merivo-E-white-L.dae", R:"models/drawers/merivo-E-white-R.dae" }, dark:{ L:"models/drawers/merivo-E-dark-L.dae", R:"models/drawers/merivo-E-dark-R.dae" } }
+  },
+  // the slide runners (one per side, same coordinate frame as the sides): they move with the drawer
+  runners: {
+    legra:  { L:"models/drawers/legra-runner-L.dae",  R:"models/drawers/legra-runner-R.dae" },
+    merivo: { L:"models/drawers/merivo-runner-L.dae", R:"models/drawers/merivo-runner-R.dae" }
   },
   handles: {}
 };

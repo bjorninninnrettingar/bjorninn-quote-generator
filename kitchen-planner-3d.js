@@ -781,17 +781,18 @@
   // A model in its own coordinates (Blum parts are positioned relative to one another, so
   // they must NOT be re-centred), with its Phong materials turned into standard ones.
   var RAW_CACHE = {};
-  function rawModel(file){
-    var c = RAW_CACHE[file];
+  function rawModel(file, recolor){
+    var key = file + "|" + (recolor || ""), c = RAW_CACHE[key];
     if (!c){
-      c = RAW_CACHE[file] = { state:"loading", obj:null };
+      c = RAW_CACHE[key] = { state:"loading", obj:null };
       loadRaw(file, function(root){
         var THREE = window.__THREE__;
         root.traverse(function(o){
           if (!o.isMesh) return;
           var conv = function(m){
-            var metal = /zinc|steel|chrom|alu/i.test(m.name || "");
-            return new THREE.MeshStandardMaterial({ color:m.color ? m.color.clone() : 0xcccccc, metalness:metal ? 0.7 : 0.06, roughness:metal ? 0.38 : 0.5 });
+            var metal = /zinc|steel|chrom|alu/i.test(m.name || ""), col = m.color ? m.color.clone() : new THREE.Color(0xcccccc);
+            if (recolor === "white" && !metal && col.r < 0.3 && col.g < 0.3) col.setRGB(0.8637, 0.8637, 0.8155); // dark grey part -> Blum's own silk white
+            return new THREE.MeshStandardMaterial({ color:col, metalness:metal ? 0.7 : 0.06, roughness:metal ? 0.38 : 0.5 });
           };
           o.material = Array.isArray(o.material) ? o.material.map(conv) : conv(o.material);
           o.castShadow = true; o.receiveShadow = true;
@@ -822,8 +823,13 @@
     if (!v) return null;
     // Blum's "L" file (x < 0) is the side that belongs on the RIGHT of the drawer and "R" on the left:
     // that way the bottom foot points inwards under the drawer bottom
-    var left = rawModel(v.R), right = rawModel(v.L);
-    return left && right ? { left:left, right:right, e:e } : null;
+    var left = rawModel(v.R, v.recolor), right = rawModel(v.L, v.recolor);
+    var rn = window.KPMODELS.runners && window.KPMODELS.runners[sysKey], runL = null, runR = null;
+    if (rn){
+      runL = rawModel(rn.R); runR = rawModel(rn.L); // same pairing as the sides
+      if (!runL || !runR) return null; // wait until everything is loaded so the drawer doesn't change look
+    }
+    return left && right ? { left:left, right:right, runLeft:runL, runRight:runR, e:e } : null;
   }
   function normaliseModel(root, e){
     var THREE = window.__THREE__, wrap = new THREE.Group();
@@ -2169,9 +2175,10 @@
       var rs = realSides(sysKey, code, dark);
       if (rs){ // Blum's own side parts + a plain bottom and back between them
         var bwR = boxW || 0.5, inset = 0.02, sideH = 0.19, len = 0.493;
-        [["left", rs.left], ["right", rs.right]].forEach(function(pr){
+        [["left", rs.left, rs.runLeft], ["right", rs.right, rs.runRight]].forEach(function(pr){
           var b = new THREE.Box3().setFromObject(pr[1]), holder = new THREE.Group(), wl = pr[1].userData.wall || { x0:b.min.x, x1:b.max.x };
           holder.add(pr[1]);
+          if (pr[2]) holder.add(pr[2]); // the runner shares the side's frame, so it keeps its exact position relative to it
           holder.position.set(pr[0] === "left" ? -bwR / 2 - b.min.x : bwR / 2 - b.max.x, -b.min.y, -b.max.z); // outer edge at ±bw/2, bottom at 0, front at z = 0
           g.add(holder);
           if (pr[0] === "left"){ inset = wl.x1 - b.min.x; sideH = b.max.y - b.min.y; len = b.max.z - b.min.z; }
