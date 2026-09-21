@@ -984,8 +984,9 @@
         else {
           var hl = Math.max(0.05, hw - 2 * hm2);
           if (meta && meta.slab){ // the front is really cut away there: a dark back wall and a floor inside the notch
-            place(new THREE.Mesh(new THREE.BoxGeometry(hl, 0.03, 0.003), dark), top - 0.015, -FRONT_T + 0.0015, hOff);
-            place(new THREE.Mesh(new THREE.BoxGeometry(hl, 0.003, FRONT_T - 0.003), handleMat), top - 0.0315, -(FRONT_T - 0.003) / 2 - 0.0005, hOff);
+            // 1–2 mm smaller than the notch and lifted 1 mm off its floor, so nothing shares a plane with the panel (that z-fought)
+            place(new THREE.Mesh(new THREE.BoxGeometry(hl - 0.002, 0.028, 0.003), dark), top - 0.0155, -FRONT_T + 0.0025, hOff);
+            place(new THREE.Mesh(new THREE.BoxGeometry(hl - 0.002, 0.001, FRONT_T - 0.003), handleMat), top - 0.0295, -FRONT_T / 2 + 0.0005, hOff);
           } else {
             place(new THREE.Mesh(new THREE.BoxGeometry(hl, 0.03, 0.0015), dark), top - 0.015, 0.0008, hOff);
             place(new THREE.Mesh(new THREE.BoxGeometry(hl, 0.003, 0.004), handleMat), top - 0.0315, 0.002, hOff);
