@@ -32,7 +32,7 @@
     // (Hæð ofns, Töfrahorn útfærsla); the sink base and open shelves have no
     // schema of their own, so they submit as Grunnskápur / Efriskápur plus a
     // plain note for Rakel.
-    ofnaskapur:  { label:"Ofnaskápur",  zone:"floor", cls:"oven",  defaultW:600, minW:500, maxW:900, h:2100, d:600, minH:1800, maxH:2600, minD:500, maxD:750, hasInterior:false, ovenHeightMm:595, oven:true },
+    ofnaskapur:  { label:"Ofnaskápur",  zone:"floor", cls:"oven",  defaultW:600, minW:500, maxW:900, h:2400, d:600, minH:1800, maxH:2600, minD:500, maxD:750, hasInterior:false, ovenHeightMm:595, oven:true },
     tofrahorn:   { label:"Töfrahorn (kapphorn)", zone:"floor", cls:"corner", defaultW:1200, minW:900, maxW:1500, h:800, d:600, minH:600, maxH:1000, minD:500, maxD:900, hasInterior:false, counter:true,
                    skapategundOverride:"Grunnskápur", tofrahornId:"rec9PD5fCZGUpwAon" },
     vaskaskapur: { label:"Vaskaskápur", zone:"floor", cls:"floor", defaultW:800, minW:500, maxW:1500, h:800, d:600, minH:600, maxH:1000, minD:400, maxD:750, hasInterior:false, counter:true, sink:true,
@@ -222,6 +222,7 @@
   // for Rakel's review, not something this tool tries to solve.
   var WINDOW_DEFAULT = { widthMm:1200, heightMm:1000, sillHeightMm:900 };
   var DOOR_DEFAULT = { widthMm:800, heightMm:2000 };
+  var GAP_DEFAULT = { widthMm:900, heightMm:2100 }; // a plain opening in the wall (no door)
 
   // A curated 5 of Vörulisti's 100+ "Höldur" products (no usage/popularity
   // field on that table to rank by, unlike Efnislisti's materials — picked
@@ -431,13 +432,13 @@
         spans.push({ b:b, c:c, from:wStarts[i], to:wStarts[i] + b.widthMm, lo:e, hi:e + h, rawH:e + h });
       });
       var ops = (state.windows || []).filter(function(o){ return o.wallId === wall.id; }).map(function(o){ return { kind:"gluggi", o:o, lo:o.sillHeightMm, hi:o.sillHeightMm + o.heightMm }; })
-        .concat((state.doors || []).filter(function(o){ return o.wallId === wall.id; }).map(function(o){ return { kind:"hurð", o:o, lo:0, hi:o.heightMm }; }));
+        .concat((state.doors || []).filter(function(o){ return o.wallId === wall.id; }).map(function(o){ return { kind:o.gap ? "op" : "hurð", o:o, lo:0, hi:o.heightMm }; }));
       spans.forEach(function(sp){
         ops.forEach(function(op){
           var hOverlap = Math.min(sp.to, op.o.offsetMm + op.o.widthMm) - Math.max(sp.from, op.o.offsetMm);
           var vOverlap = Math.min(sp.hi, op.hi) - Math.max(sp.lo, op.lo);
           if (hOverlap > 20 && vOverlap > 20){
-            add(sp.c.label + " skarast við " + (op.kind === "gluggi" ? "glugga" : "hurð") + " á " + acc(wall.label) + ".", [sp.b.id, op.o.id]);
+            add(sp.c.label + " skarast við " + (op.kind === "gluggi" ? "glugga" : op.kind === "op" ? "op í vegg" : "hurð") + " á " + acc(wall.label) + ".", [sp.b.id, op.o.id]);
           }
         });
         if (sp.rawH > roomH) add(sp.c.label + " á " + acc(wall.label) + " er hærri en loftið (" + roomH + " mm).", [sp.b.id]);
@@ -613,30 +614,44 @@
 
   var WALL_THICKNESS_M = 0.08;
 
-  function addWallPlane(THREE, scene, geom, wallHeightM, wallMat){
+  // `gaps` (optional): [{offM, widM, hM}] openings with no door — the wall is built
+  // in pieces (left of the gap, the header above it, right of it) so it is a real hole.
+  function addWallPlane(THREE, scene, geom, wallHeightM, wallMat, gaps){
     // A real (thin) box instead of a zero-thickness plane — a flat plane
     // viewed edge-on shrinks to a literal zero-width line, which read as a
     // "glitchy" flickering wall from some camera angles. The box's inner
     // (room-facing) surface stays exactly on the wall line; thickness
     // extends outward so cabinet placement (which assumes offset 0 = the
     // wall line) is unaffected.
-    var mesh = new THREE.Mesh(new THREE.BoxGeometry(geom.lenM, wallHeightM, WALL_THICKNESS_M), wallMat);
     var xAxis = new THREE.Vector3(geom.axis.x, 0, geom.axis.z);
     var yAxis = new THREE.Vector3(0, 1, 0);
     var zAxis = new THREE.Vector3(geom.normal.x, 0, geom.normal.z);
-    mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis));
+    var wq = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis));
+    // wall pieces: [from, to, bottom, top] along the wall / up the wall
+    var pieces = [], pos = 0;
+    (gaps || []).slice().sort(function(a, b){ return a.offM - b.offM; }).forEach(function(gp){
+      var a = Math.max(pos, gp.offM), b = Math.min(geom.lenM, gp.offM + gp.widM);
+      if (b - a < 0.01) return;
+      if (a > pos + 0.001) pieces.push([pos, a, 0, wallHeightM]);
+      if (gp.hM < wallHeightM - 0.01) pieces.push([a, b, gp.hM, wallHeightM]); // header over the opening
+      pos = b;
+    });
+    if (geom.lenM > pos + 0.001) pieces.push([pos, geom.lenM, 0, wallHeightM]);
+    var mesh = null;
     // The room face sits 1.5 mm BEHIND the wall line: cabinet backs and the
     // skirting stand exactly on the line, and a shared plane made them z-fight
     // with the wall (flickering backs, worst through a faded wall).
     var back = WALL_THICKNESS_M / 2 + 0.0015;
-    mesh.position.set(
-      geom.origin.x + geom.axis.x * (geom.lenM / 2) - geom.normal.x * back,
-      wallHeightM / 2,
-      geom.origin.z + geom.axis.z * (geom.lenM / 2) - geom.normal.z * back
-    );
-    mesh.receiveShadow = true;
-    mesh.castShadow = true;
-    scene.add(mesh);
+    pieces.forEach(function(pc){
+      var m = new THREE.Mesh(new THREE.BoxGeometry(pc[1] - pc[0], pc[3] - pc[2], WALL_THICKNESS_M), wallMat);
+      m.quaternion.copy(wq);
+      var mid = (pc[0] + pc[1]) / 2;
+      m.position.set(geom.origin.x + geom.axis.x * mid - geom.normal.x * back, (pc[2] + pc[3]) / 2, geom.origin.z + geom.axis.z * mid - geom.normal.z * back);
+      m.receiveShadow = true;
+      m.castShadow = true;
+      scene.add(m);
+      if (!mesh) mesh = m;
+    });
     return mesh;
   }
 
@@ -648,10 +663,13 @@
   var WINDOW_MARKER_COLOR = 0xa9c6d6, DOOR_MARKER_COLOR = 0x8a6a4a;
   function addOpeningMarker(THREE, scene, geom, offsetM, widthM, heightM, baseYM, color, opacity, meta, selected, pickables){
     var isWin = meta && meta.kind === "window";
-    var mat = isWin
+    var isGap = !!(meta && meta.gap); // a plain opening in the wall: no door leaf, the wall itself has the hole
+    var mat = isGap
+      ? new THREE.MeshBasicMaterial({ color:SELECT_COLOR, transparent:true, opacity:selected ? 0.25 : 0, depthWrite:false, side:THREE.DoubleSide })
+      : isWin
       ? new THREE.MeshPhysicalMaterial({ color:0xbfd8e8, roughness:0.05, metalness:0, transparent:true, opacity:0.32, side:THREE.DoubleSide })
       : new THREE.MeshStandardMaterial({ color:0xd9d2c4, roughness:0.55, transparent:true, opacity:1, side:THREE.DoubleSide });
-    if (selected){ mat.emissive = new THREE.Color(SELECT_COLOR); mat.emissiveIntensity = 0.55; }
+    if (selected && !isGap){ mat.emissive = new THREE.Color(SELECT_COLOR); mat.emissiveIntensity = 0.55; }
     var mesh = new THREE.Mesh(new THREE.PlaneGeometry(widthM, heightM), mat);
     var cx = geom.origin.x + geom.axis.x * (offsetM + widthM / 2);
     var cz = geom.origin.z + geom.axis.z * (offsetM + widthM / 2);
@@ -683,6 +701,13 @@
     function bar(w, h, d, along, y, out, mat){
       var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat || frameMat);
       m.position.copy(at(along, y, out)); m.quaternion.copy(q); m.castShadow = true; group.add(m); return m;
+    }
+    if (isGap){ // reveals lining the hole through the wall thickness
+      var rv = -(WALL_THICKNESS_M / 2 + 0.0015);
+      bar(widthM, 0.012, WALL_THICKNESS_M, 0, baseYM + heightM - 0.006, rv);
+      bar(0.012, heightM, WALL_THICKNESS_M, -(widthM / 2 - 0.006), baseYM + heightM / 2, rv);
+      bar(0.012, heightM, WALL_THICKNESS_M, widthM / 2 - 0.006, baseYM + heightM / 2, rv);
+      return;
     }
     bar(widthM, fw, 0.05, 0, baseYM + heightM - fw / 2, fo);                       // head
     bar(fw, heightM, 0.05, -(widthM / 2 - fw / 2), baseYM + heightM / 2, fo);      // left jamb
@@ -768,6 +793,8 @@
     var quat = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(xAxis, new THREE.Vector3(0, 1, 0), new THREE.Vector3(geom.normal.x, 0, geom.normal.z)));
     var drawers = interior && interior.mode === "skuffur" ? interior.count : 0;
     var isOven = !!(meta && meta.oven);
+    // Töfrahorn: ONE door, on the left or right half of the front; the other half is a fixed blind panel
+    var isCorner = !!(meta && meta.corner), hw = isCorner ? widthM / 2 : widthM, hOff = isCorner ? (meta.doorSide === "left" ? -widthM / 4 : widthM / 4) : 0;
     var fronts = [];
     if (drawers){
       var fr = interior.fractions && interior.fractions.length === drawers - 1 ? interior.fractions : null;
@@ -806,8 +833,8 @@
     }
 
     // Wide door units (≥ 750 mm) read as double doors: a centre seam.
-    var wideDoor = !drawers && widthM >= 0.75 && !(meta && meta.fridge);
-    if (wideDoor){
+    var wideDoor = !drawers && widthM >= 0.75 && !(meta && meta.fridge) && !isCorner;
+    if (wideDoor || isCorner){
       place(new THREE.Mesh(new THREE.PlaneGeometry(0.008, heightM * 0.97), seamMat), baseYM + heightM / 2, 0.004);
     }
 
@@ -829,24 +856,24 @@
         var hb = new THREE.Box3().setFromObject(hm), hsz = hb.getSize(new THREE.Vector3()), holder = new THREE.Group();
         hm.position.set(0, -hsz.y / 2, hsz.z / 2);
         holder.add(hm);
-        place(holder, hstyle === "edge" || hstyle === "tab" ? edgeY : hy, 0, 0);
+        place(holder, hstyle === "edge" || hstyle === "tab" ? edgeY : hy, 0, hOff);
         return;
       }
       if (hstyle === "bar"){
         var blen = hdef.len || 0.24, cap = blen <= 0.24 ? 0.5 : 0.85;
         if (wideDoor && !f.drawer && blen <= 0.24){ hbar(0.16, hy, -widthM * 0.16); hbar(0.16, hy, widthM * 0.16); }
-        else hbar(Math.min(blen, widthM * cap), hy, 0);
+        else hbar(Math.min(blen, hw * cap), hy, hOff);
       } else if (hstyle === "edge"){
-        mesh = new THREE.Mesh(new THREE.BoxGeometry(Math.min(widthM * 0.94, widthM * (hdef.len || 0.7)), 0.02, 0.016), handleMat);
-        place(mesh, edgeY, 0.008);
+        mesh = new THREE.Mesh(new THREE.BoxGeometry(Math.min(hw * 0.94, hw * (hdef.len || 0.7)), 0.02, 0.016), handleMat);
+        place(mesh, edgeY, 0.008, hOff);
       } else if (hstyle === "tab"){
         mesh = new THREE.Mesh(new THREE.BoxGeometry(hdef.len || 0.14, 0.03, 0.02), handleMat);
-        place(mesh, edgeY, 0.01);
-      } else if (hstyle === "knob"){        var knobs = wideDoor && !f.drawer ? [-widthM * 0.12, widthM * 0.12] : [0];
+        place(mesh, edgeY, 0.01, hOff);
+      } else if (hstyle === "knob"){        var knobs = wideDoor && !f.drawer ? [-widthM * 0.12, widthM * 0.12] : [hOff];
         knobs.forEach(function(al){ place(new THREE.Mesh(new THREE.SphereGeometry(0.014, 14, 12), handleMat), atBottom ? bottom + 0.07 : top - 0.07, 0.014, al); });
       } else if (hstyle === "groove"){
-        mesh = new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.9, 0.006, 0.002), seamMat);
-        place(mesh, atBottom ? bottom + 0.012 : top - 0.012, 0.002);
+        mesh = new THREE.Mesh(new THREE.BoxGeometry(hw * 0.9, 0.006, 0.002), seamMat);
+        place(mesh, atBottom ? bottom + 0.012 : top - 0.012, 0.002, hOff);
       }
     });
   }
@@ -858,15 +885,19 @@
   // array) collects the mesh so the caller can raycast against exactly the
   // clickable set, not walls/floor/seams.
   function addCabinetBox(THREE, scene, geom, offsetM, widthM, heightM, depthM, baseYM, carcassMat, frontMat, interior, meta, selected, pickables){
-    var cx = geom.origin.x + geom.axis.x * (offsetM + widthM / 2) + geom.normal.x * (depthM / 2);
-    var cz = geom.origin.z + geom.axis.z * (offsetM + widthM / 2) + geom.normal.z * (depthM / 2);
+    // A locked cabinet is built in parts (open carcass + 20 mm fronts + drawer boxes) so its
+    // drawers and doors can be opened and closed; an unlocked one stays a single solid box.
+    var art = !!(meta && meta.locked && meta.openMat && !meta.oven && !meta.open && !meta.panel && meta.zone !== "opening");
+    var bodyD = art ? depthM - FRONT_T : depthM;
+    var cx = geom.origin.x + geom.axis.x * (offsetM + widthM / 2) + geom.normal.x * (bodyD / 2);
+    var cz = geom.origin.z + geom.axis.z * (offsetM + widthM / 2) + geom.normal.z * (bodyD / 2);
     // Floor units stand on a recessed plinth (sökkull): the body starts 100 mm
     // up and a dark, set-back block fills the gap, as in a real kitchen.
     var plinthM = meta && meta.plinth ? 0.1 : 0;
     var bodyBase = baseYM + plinthM, bodyH = heightM - plinthM;
     var boxGeo = window.__RoundedBox__
-      ? new window.__RoundedBox__(widthM, bodyH, depthM, 3, 0.004)
-      : new THREE.BoxGeometry(widthM, bodyH, depthM);
+      ? new window.__RoundedBox__(widthM, bodyH, bodyD, 3, 0.004)
+      : new THREE.BoxGeometry(widthM, bodyH, bodyD);
     scaleFrontUV(boxGeo, widthM, bodyH, frontMat.userData && frontMat.userData.tile);
     var useFrontMat = frontMat;
     if (selected){
@@ -876,7 +907,8 @@
     }
     var isOpen = !!(meta && meta.open && meta.openMat);
     var isPanel = !!(meta && meta.panel); // úthlið / loose shelf: solid board in the front material on every face
-    var mesh = new THREE.Mesh(boxGeo, isOpen
+    var mesh = new THREE.Mesh(boxGeo, art ? [meta.openMat, meta.openMat, meta.openMat, meta.openMat, meta.hiddenMat, meta.openMat]
+      : isOpen
       ? [meta.openMat, meta.openMat, meta.openMat, meta.openMat, meta.hiddenMat, meta.openMat] // no front, inside faces visible
       : isPanel ? [frontMat, frontMat, frontMat, frontMat, useFrontMat, frontMat]
       : [carcassMat, carcassMat, carcassMat, carcassMat, useFrontMat, carcassMat]);
@@ -889,7 +921,7 @@
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     if (meta) mesh.userData = meta;
-    if (meta){ meta.selected = !!selected; meta.baseFront = frontMat; }
+    if (meta){ meta.selected = !!selected; meta.baseFront = frontMat; meta.art = art; }
     // One group per cabinet (body + outline + plinth + worktop + details) so a
     // drag can move the whole thing by setting a single matrix; the group stays
     // at identity otherwise. The pickable mesh is a child, so raycasts still hit it.
@@ -905,8 +937,14 @@
       new THREE.LineBasicMaterial({ color: selected ? SELECT_COLOR : (meta && meta.warn ? WARN_COLOR : 0x2a2a2a), transparent:true, opacity: (selected || (meta && meta.warn)) ? 1 : 0.4 })
     );
     edges.position.copy(mesh.position);
+    if (art) edges.position.x += geom.normal.x * FRONT_T / 2, edges.position.z += geom.normal.z * FRONT_T / 2; // the outline wraps the fronts too
     edges.quaternion.copy(mesh.quaternion);
     group.add(edges);
+    if (meta) meta.edgesObj = edges;
+    if (meta && meta.zone !== "opening"){ // back-face fade (see fadeCabinets in buildScene)
+      group.userData.cab = { blockId:meta.blockId, nx:geom.normal.x, nz:geom.normal.z, d:geom.normal.x * geom.origin.x + geom.normal.z * geom.origin.z, t:0, items:null };
+      (scene.userData.cabs = scene.userData.cabs || []).push(group);
+    }
 
     function local(alongM, y, outM){ // point on this cabinet: centre-line offset, height, distance out from the wall
       return new THREE.Vector3(
@@ -941,10 +979,139 @@
         group.add(board);
       }
     }
-    if (interior && interior.mode === "skuffur"){
+    if (interior && interior.mode === "skuffur" && !art){
       addDrawerSeams(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior.count, interior.fractions);
     }
-    if (meta && meta.zone !== "opening" && !isPanel) addFrontDetails(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta.handle, !!meta.tall, meta.zone === "wall", meta.split || 0.55, meta);
+    if (meta && meta.locked && meta.zone !== "opening") addLockBadge(THREE, group, local(0, baseYM + heightM + (meta.counter ? 0.16 : 0.1), depthM / 2));
+    if (art) addArticulated(THREE, scene, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta, useFrontMat, pickables);
+    else if (meta && meta.zone !== "opening" && !isPanel) addFrontDetails(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta.handle, !!meta.tall, meta.zone === "wall", meta.split || 0.55, meta);
+  }
+
+  // Small padlock floating over a locked cabinet.
+  var LOCK_TEX = null;
+  function addLockBadge(THREE, group, pos){
+    if (!LOCK_TEX){
+      var cv = document.createElement("canvas"); cv.width = cv.height = 96;
+      var cx = cv.getContext("2d");
+      cx.fillStyle = "rgba(25,25,25,.9)"; cx.beginPath(); cx.arc(48, 48, 46, 0, Math.PI * 2); cx.fill();
+      cx.strokeStyle = "#f5c518"; cx.lineWidth = 7; cx.lineCap = "round";
+      cx.beginPath(); cx.moveTo(35, 46); cx.lineTo(35, 36); cx.arc(48, 36, 13, Math.PI, 0); cx.lineTo(61, 46); cx.stroke(); // shackle
+      cx.fillStyle = "#f5c518"; cx.beginPath(); cx.roundRect ? cx.roundRect(28, 44, 40, 30, 6) : cx.rect(28, 44, 40, 30); cx.fill(); // body
+      cx.fillStyle = "#191919"; cx.beginPath(); cx.arc(48, 57, 4.5, 0, Math.PI * 2); cx.fill(); cx.fillRect(46, 57, 4, 10);
+      LOCK_TEX = new THREE.CanvasTexture(cv); LOCK_TEX.userData = { keep:true };
+    }
+    var sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:LOCK_TEX, depthTest:false, transparent:true }));
+    sp.scale.set(0.11, 0.11, 1); sp.position.copy(pos); sp.renderOrder = 9;
+    group.add(sp);
+  }
+
+  // Open/closed state of every drawer and door of locked cabinets, keyed "blockId:part".
+  // Lives outside the scene so a rebuild (any edit re-renders the room) keeps them as they were.
+  var PART_STATE = {};
+  function partEase(p){ return p.cur * p.cur * (3 - 2 * p.cur); }
+  function applyPart(p){
+    var e = partEase(p);
+    if (p.kind === "drawer") p.group.position.z = p.slide * e;
+    else p.group.rotation.y = (p.hinge === "left" ? -1 : 1) * 1.75 * e;
+  }
+  function stepParts(scene){
+    (scene.userData.parts || []).forEach(function(p){
+      if (p.cur === p.target) return;
+      p.cur += (p.target - p.cur) * 0.14;
+      if (Math.abs(p.target - p.cur) < 0.002) p.cur = p.target;
+      applyPart(p);
+    });
+  }
+  function togglePart(key){
+    if (!THREE_STATE) return;
+    var p = (THREE_STATE.scene.userData.parts || []).find(function(x){ return x.key === key; });
+    if (!p) return;
+    p.target = p.target ? 0 : 1;
+    PART_STATE[key] = p;
+  }
+
+  // The parts of a locked cabinet, in its own frame (x along the wall, z out of it):
+  // shelves, then per front a 20 mm slab + handle that slides out (drawer, with a
+  // real-height Legra/Merivo box behind it) or swings on its hinge (door).
+  function addArticulated(THREE, scene, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta, frontMat, pickables){
+    var CD = depthM - FRONT_T, T = 0.018;
+    var frame = new THREE.Group();
+    frame.position.set(geom.origin.x + geom.axis.x * (offsetM + widthM / 2), 0, geom.origin.z + geom.axis.z * (offsetM + widthM / 2));
+    frame.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(geom.axis.x, 0, geom.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(geom.normal.x, 0, geom.normal.z)));
+    group.add(frame);
+    var drawers = interior && interior.mode === "skuffur" ? interior.count : 0;
+    var nShelves = drawers ? 0 : (meta.shelves || 0);
+    for (var sh = 1; sh <= nShelves; sh++){
+      var board = new THREE.Mesh(new THREE.BoxGeometry(widthM - 2 * T, 0.018, CD - 0.03), meta.openMat);
+      board.position.set(0, bodyBase + bodyH * sh / (nShelves + 1), (CD - 0.03) / 2 + 0.005);
+      board.castShadow = true; board.receiveShadow = true;
+      frame.add(board);
+    }
+    // the fronts of this cabinet
+    var fronts = [];
+    if (drawers){
+      var fr = interior.fractions && interior.fractions.length === drawers - 1 ? interior.fractions : null;
+      for (var i = 0; i < drawers; i++) fronts.push({ y0:fr ? (i === 0 ? 0 : fr[i - 1]) : i / drawers, y1:fr ? (i === drawers - 1 ? 1 : fr[i]) : (i + 1) / drawers, drawer:true });
+    } else if (meta.tall && !meta.corner){ var sp = meta.split || 0.55; fronts.push({ y0:0, y1:sp }, { y0:sp, y1:1 }); }
+    else fronts.push({ y0:0, y1:1 });
+    var L = drawers === 3 && meta.drawerSystem ? DRAWER_LAYOUT[meta.drawerSystem] : null;
+    var sysKey = meta.drawerSystem || "legra";
+    var wide = !drawers && widthM >= 0.75 && !meta.fridge && !meta.corner;
+    var parts = (scene.userData.parts = scene.userData.parts || []);
+
+    function makeLeaf(idx, cxL, w, y0, y1, hinge, f, fi){
+      var key = meta.blockId + ":" + idx;
+      var g = new THREE.Group(), pivotX = f.drawer ? 0 : (hinge === "left" ? cxL - w / 2 : cxL + w / 2), fh = y1 - y0;
+      g.position.set(pivotX, 0, 0);
+      var pmeta = Object.assign({}, meta, { isPart:true, partKey:key }), meshes = [];
+      var slab = new THREE.Mesh(new THREE.BoxGeometry(w - 0.004, fh, FRONT_T), frontMat);
+      scaleFrontUV(slab.geometry, w - 0.004, fh, frontMat.userData && frontMat.userData.tile);
+      slab.position.set(cxL - pivotX, (y0 + y1) / 2, CD + FRONT_T / 2);
+      slab.castShadow = true; slab.receiveShadow = true;
+      g.add(slab); meshes.push(slab);
+      if (meta.handle){
+        var tmp = new THREE.Group();
+        var fake = { origin:{ x:cxL - w / 2, z:0 }, axis:{ x:1, z:0 }, normal:{ x:0, z:1 }, lenM:w };
+        addFrontDetails(THREE, tmp, fake, 0, w, fh, y0, depthM, { mode:"skuffur", count:1 }, meta.handle, false, meta.zone === "wall" || (meta.tall && fi > 0 && !f.drawer), 0.55, {});
+        tmp.children.slice().forEach(function(ch){ ch.position.x -= pivotX; g.add(ch); if (ch.isMesh) meshes.push(ch); else ch.traverse(function(o){ if (o.isMesh) meshes.push(o); }); });
+      }
+      if (f.drawer){
+        var side = fi != null && L ? L.sides.slice().reverse()[fi] : Math.max(50, Math.min(200, Math.round(fh * 1000 - 55)));
+        side = Math.max(40, Math.min(side, fh * 1000 - 40));
+        var real = L ? getModel("drawers", sysKey + "_" + L.codes[2 - fi]) : null, bx;
+        if (real){
+          var rb = new THREE.Box3().setFromObject(real), rs = rb.getSize(new THREE.Vector3());
+          bx = new THREE.Group(); real.position.set(0, 0, -rb.max.z); bx.add(real);
+          bx.position.set(0, y1 - 0.03 - rs.y, CD - 0.005);
+        } else {
+          bx = buildDrawerBox(THREE, sysKey, meta.carcassKey, side, Math.max(0.2, widthM - 2 * T - 0.026), Math.max(0.2, Math.min(0.5, CD - 0.06)));
+          bx.position.set(0, y1 - 0.03 - side / 1000, CD - 0.005);
+        }
+        g.add(bx); bx.traverse(function(o){ if (o.isMesh) meshes.push(o); });
+      }
+      meshes.forEach(function(m){ m.userData = pmeta; pickables.push(m); });
+      var prev = PART_STATE[key];
+      var part = { key:key, group:g, kind:f.drawer ? "drawer" : "door", hinge:hinge, slide:Math.min(0.34, CD * 0.6), cur:prev ? prev.cur : 0, target:prev ? prev.target : 0 };
+      PART_STATE[key] = part; parts.push(part); applyPart(part);
+      frame.add(g);
+    }
+
+    var idx = 0;
+    fronts.forEach(function(f, fi){
+      var y0 = bodyBase + bodyH * f.y0 + 0.0015, y1 = bodyBase + bodyH * f.y1 - 0.0015;
+      if (f.drawer) makeLeaf(idx++, 0, widthM, y0, y1, "left", f, fi);
+      else if (meta.corner){
+        var left = meta.doorSide === "left", hw = widthM / 2;
+        makeLeaf(idx++, left ? -hw / 2 : hw / 2, hw, y0, y1, left ? "left" : "right", f, fi);
+        var blind = new THREE.Mesh(new THREE.BoxGeometry(hw - 0.004, y1 - y0, FRONT_T), frontMat); // fixed blind panel on the other half
+        scaleFrontUV(blind.geometry, hw - 0.004, y1 - y0, frontMat.userData && frontMat.userData.tile);
+        blind.position.set(left ? hw / 2 : -hw / 2, (y0 + y1) / 2, CD + FRONT_T / 2); blind.castShadow = true;
+        frame.add(blind);
+      } else if (wide){
+        makeLeaf(idx++, -widthM / 4, widthM / 2, y0, y1, "left", f, fi);
+        makeLeaf(idx++, widthM / 4, widthM / 2, y0, y1, "right", f, fi);
+      } else makeLeaf(idx++, 0, widthM, y0, y1, meta.hingeRight ? "right" : "left", f, fi);
+    });
   }
 
   // Stainless sink basin + tap on top of a worktop.
@@ -1059,6 +1226,7 @@
     var raycaster = new THREE.Raycaster();
     var floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     var drag = null; // {meta, mesh, group, startMatrix, startX, startY, moved}
+    var lockTap = null; // press on a locked cabinet
     var suppressClick = false;
 
     function ndc(evt){
@@ -1134,28 +1302,34 @@
       if (!opts.onSelect && !opts.onCabinetDragEnd) return; // read-only view (review page): leave every press to OrbitControls
       var mesh = pickMeshAt(evt);
       if (!mesh) return;
+      if (mesh.userData.locked && mesh.userData.zone !== "opening"){
+        // locked cabinet: it cannot be dragged, so the press is left to OrbitControls; a tap opens/closes a drawer/door or selects
+        lockTap = { meta:mesh.userData, x:evt.clientX, y:evt.clientY };
+        return;
+      }
       evt.stopPropagation();
       if (mesh.userData.kind === "island"){ // island move-handle: slides the island's cabinets as one
         var iid = mesh.userData.islandId;
         drag = { meta:mesh.userData, mesh:mesh, group:mesh.parent, island:true, startX:evt.clientX, startY:evt.clientY, moved:false,
           pt0:floorHit(evt), dx:0, dz:0,
-          groups:pickables.filter(function(m){ return m.userData.islandId === iid; }).map(function(m){ return m.parent; }) };
+          groups:pickables.filter(function(m){ return m.userData.islandId === iid && !m.userData.isPart; }).map(function(m){ return m.parent; }) };
         controls.enabled = false;
         return;
       }
       var grip = gripOffsetMm(evt, mesh), bid = mesh.userData.blockId;
       drag = { meta:mesh.userData, mesh:mesh, group:mesh.parent, startX:evt.clientX, startY:evt.clientY, moved:false, gripMm:grip.along, gripYmm:grip.y,
         // a stack of shelves is several pickable boards under one block id: they all move together
-        groups:pickables.filter(function(m){ return m.userData.blockId === bid; }).map(function(m){ return m.parent; }) };
+        groups:pickables.filter(function(m){ return m.userData.blockId === bid && !m.userData.isPart; }).map(function(m){ return m.parent; }) };
       controls.enabled = false;
     }
     var hovered = null;
+    function edgesOf(m){ return m.userData.edgesObj || (m.parent && m.parent.children[1]); }
     function setHover(mesh){
       if (mesh === hovered) return;
-      if (hovered){ var e0 = hovered.parent && hovered.parent.children[1]; if (e0 && e0.material && !hovered.userData.selected) e0.material.color.set(hovered.userData.warn ? WARN_COLOR : 0x2a2a2a); }
+      if (hovered){ var e0 = edgesOf(hovered); if (e0 && e0.material && !hovered.userData.selected) e0.material.color.set(hovered.userData.warn ? WARN_COLOR : 0x2a2a2a); }
       hovered = mesh;
-      if (hovered){ var e1 = hovered.parent && hovered.parent.children[1]; if (e1 && e1.material && e1.material.color) e1.material.color.set(SELECT_COLOR); }
-      renderer.domElement.style.cursor = hovered ? "grab" : "";
+      if (hovered){ var e1 = edgesOf(hovered); if (e1 && e1.material && e1.material.color) e1.material.color.set(SELECT_COLOR); }
+      renderer.domElement.style.cursor = hovered ? (hovered.userData.locked ? (hovered.userData.isPart ? "pointer" : "default") : "grab") : "";
     }
     function onMove(evt){
       if (!drag){
@@ -1225,6 +1399,14 @@
       });
     }
     function onUp(evt){
+      if (lockTap){
+        var lt = lockTap; lockTap = null;
+        if (Math.hypot(evt.clientX - lt.x, evt.clientY - lt.y) < CABINET_DRAG_PX){
+          if (lt.meta.isPart) togglePart(lt.meta.partKey);
+          else if (opts.onSelect) opts.onSelect(lt.meta);
+        }
+        return;
+      }
       if (!drag) return;
       if (drag.island){
         var d0 = drag;
@@ -1379,8 +1561,11 @@
       var u = m.userData, want = u.blockId === id;
       if (!!u.selected === want) return;
       u.selected = want;
+      if (u.isPart) return; // fronts of a locked cabinet: only the outline shows the selection
+      var cab = m.parent && m.parent.userData && m.parent.userData.cab;
+      if (cab && cab.items && cab.t > 0){ cab.items.forEach(function(it){ it.o.material = it.orig; }); cab.t = 0; } // back to solid before the material slots are touched
       if (Array.isArray(m.material)){ // cabinet
-        if (u.open){ /* open shelves have NO front: swapping slot 4 for the real front material gave them a door */ }
+        if (u.open || u.art){ /* open shelves have NO front: swapping slot 4 for the real front material gave them a door */ }
         else if (want){
           var c = u.baseFront.clone();
           c.emissive = new THREE.Color(SELECT_COLOR); c.emissiveIntensity = 0.35;
@@ -1391,6 +1576,8 @@
         }
         var e = m.parent && m.parent.children[1];
         if (e && e.material && e.material.color) e.material.color.set(want ? SELECT_COLOR : (u.warn ? WARN_COLOR : 0x2a2a2a));
+      } else if (u.gap){ // opening in the wall: a faint tint over the hole
+        m.material.opacity = want ? 0.25 : 0;
       } else { // window / door plane
         m.material.emissive = new THREE.Color(want ? SELECT_COLOR : 0x000000);
         m.material.emissiveIntensity = want ? 0.55 : 0;
@@ -1620,7 +1807,10 @@
       if (isOpenGeom(gi)) return;
       var mat = wallMat.clone();
       mat.transparent = true;
-      wallFades.push({ mesh:addWallPlane(THREE, scene, g, WALL_H, mat), geom:g, mat:mat });
+      var wid = state.walls[gi] && state.walls[gi].id;
+      var gaps = (state.doors || []).filter(function(d){ return d.gap && d.wallId === wid; })
+        .map(function(d){ return { offM:d.offsetMm / 1000, widM:d.widthMm / 1000, hM:Math.min(d.heightMm, roomHeightMm) / 1000 }; });
+      wallFades.push({ mesh:addWallPlane(THREE, scene, g, WALL_H, mat, gaps), geom:g, mat:mat });
     });
 
     function geomForWall(wallId){
@@ -1640,7 +1830,7 @@
       if (!g) return;
       addOpeningMarker(THREE, scene, g, door.offsetMm / 1000, door.widthMm / 1000, door.heightMm / 1000,
         0, DOOR_MARKER_COLOR, 0.85,
-        { wallId:door.wallId, zone:"opening", kind:"door", blockId:door.id, widthMm:door.widthMm, depthMm:10, heightMm:door.heightMm, elevMm:0 }, opts.selectedId === door.id, pickables);
+        { wallId:door.wallId, zone:"opening", kind:"door", gap:!!door.gap, blockId:door.id, widthMm:door.widthMm, depthMm:10, heightMm:door.heightMm, elevMm:0 }, opts.selectedId === door.id, pickables);
     });
 
     // built-in fridge reads as an appliance: brushed-steel front instead of the kitchen's fronts
@@ -1669,7 +1859,9 @@
         var inter = b.interior && b.interior.mode === "skuffur" && b.interior.count === 3 && state.drawerSystem
           ? Object.assign({}, b.interior, { fractions:drawerFractions(state.drawerSystem, hM * 1000 - 100) }) : b.interior;
         addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, carcassMat, c.fridge ? steelMat : frontMat, inter,
-          { islandId:islandId, warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), heightMm:hM * 1000, elevMm:0, handle:state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0.55,
+          { islandId:islandId, locked:!!b.locked, corner:c.cls === "corner", doorSide:b.swing === "vinstri" ? "left" : "right", hingeRight:b.swing === "haegri", shelves:(c.hasInterior || c.shelfRange) && !(b.interior && b.interior.mode === "skuffur") ? (shelvesOf(b) || 0) : 0,
+            openMat:openMat, hiddenMat:hiddenMat, drawerSystem:state.drawerSystem, carcassKey:state.carcass,
+            warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), heightMm:hM * 1000, elevMm:0, handle:state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0.55,
             plinth:!c.panel, counter:!!c.counter, sink:!!c.sink, oven:!!c.oven, panel:!!c.panel, plinthMat:plinthMat, stoneMat:stoneMat }, selected, pickables);
       });
       wall.wall.forEach(function(b, bi){
@@ -1678,7 +1870,7 @@
         var hM = Math.min(b.heightMm || c.h, roomHeightMm) / 1000, dM = (b.depthMm || c.d) / 1000;
         var selected = opts.selectedId === b.id;
         var elevM = elevOf(b) / 1000;
-        var metaBase = { warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"wall", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d),
+        var metaBase = { locked:!!b.locked, drawerSystem:state.drawerSystem, carcassKey:state.carcass, warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"wall", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d),
           heightMm:hM * 1000, elevMm:elevM * 1000, handle:state.handle };
         if (c.shelfStack){ // 1–5 boards of 38 mm above each other: one pickable box per board, all sharing the block id
           var n = Math.max(1, Math.min(SHELF_STACK_MAX, b.count || 3)), gap = b.vgapMm != null ? b.vgapMm : SHELF_GAP_DEFAULT;
@@ -1689,7 +1881,7 @@
           return;
         }
         addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, elevM, carcassMat, frontMat, null,
-          Object.assign(metaBase, { open:!!c.open, panel:!!c.panel, openMat:openMat, hiddenMat:hiddenMat, shelves:c.open ? shelvesOf(b) : 0 }), selected, pickables);
+          Object.assign(metaBase, { open:!!c.open, panel:!!c.panel, openMat:openMat, hiddenMat:hiddenMat, shelves:c.open ? shelvesOf(b) : (c.shelfRange ? (shelvesOf(b) || 0) : 0) }), selected, pickables);
       });
     });
 
@@ -1842,12 +2034,44 @@
       landedGroup.position.y = 0.05 * Math.sin(Math.PI * t) * (1 - t);
     }
 
+    // Cabinets seen from behind (camera on the wall side of their front plane) turn
+    // see-through so they don't hide the room when planning around corners.
+    var GHOST_OPACITY = 0.16;
+    function ghostApply(gr, t){
+      var c = gr.userData.cab;
+      if (!c.items){
+        if (t <= 0) return;
+        c.items = [];
+        gr.traverse(function(o){
+          if (!o.isMesh) return;
+          var cl = function(m){ if (m.visible === false) return m; var g = m.clone(); g.transparent = true; return g; };
+          c.items.push({ o:o, orig:o.material, ghost:Array.isArray(o.material) ? o.material.map(cl) : cl(o.material) });
+        });
+      }
+      c.items.forEach(function(it){
+        (Array.isArray(it.ghost) ? it.ghost : [it.ghost]).forEach(function(m){ m.opacity = 1 - (1 - GHOST_OPACITY) * t; m.depthWrite = t < 0.4; });
+        it.o.material = t > 0.01 ? it.ghost : it.orig;
+      });
+    }
+    function fadeCabinets(){
+      (scene.userData.cabs || []).forEach(function(gr){
+        var c = gr.userData.cab;
+        var behind = camera.position.x * c.nx + camera.position.z * c.nz - c.d < -0.05;
+        var want = behind && !THREE_STATE.dragging && opts.selectedId !== c.blockId ? 1 : 0;
+        if (c.t === want) return;
+        c.t = Math.abs(want - c.t) < 0.01 ? want : c.t + (want - c.t) * 0.2;
+        ghostApply(gr, c.t);
+      });
+    }
+
     function loop(){
       THREE_STATE.rafId = requestAnimationFrame(loop);
       controls.update();
       settleLanded();
       if (THREE_STATE.dragStep) THREE_STATE.dragStep();
       fadeWalls();
+      fadeCabinets();
+      stepParts(scene);
       renderer.render(scene, camera);
       placeFloatBar();
     }
@@ -1879,11 +2103,11 @@
   // bracket; MERIVOBOX: L-profile sides with a flange at the bottom), built
   // with real Blum side heights. Local coordinates: bottom at y = 0, the
   // front edge at z = 0 and the box extending backwards (-z).
-  function buildDrawerBox(THREE, sysKey, carcassKey, sideMm){
+  function buildDrawerBox(THREE, sysKey, carcassKey, sideMm, boxW, boxD){
     var g = new THREE.Group();
     var dark = carcassKey === "dokkgra";
     var mat = new THREE.MeshStandardMaterial({ color:dark ? 0x64676c : 0xf0efeb, metalness:dark ? 0.45 : 0.1, roughness:0.4 });
-    var legra = sysKey !== "merivo", t = legra ? 0.0128 : 0.016, bw = 0.5, bd = 0.5, h = sideMm / 1000;
+    var legra = sysKey !== "merivo", t = legra ? 0.0128 : 0.016, bw = boxW || 0.5, bd = boxD || 0.5, h = sideMm / 1000;
     function panel(w, hh, d, x, y, z){
       var m = new THREE.Mesh(new THREE.BoxGeometry(w, hh, d), mat);
       m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; g.add(m);
@@ -2203,7 +2427,12 @@
       var sel = opts.selectedId === o.id;
       // gap in the wall + the symbol
       svg += '<line x1="' + X(ax) + '" y1="' + Y(az) + '" x2="' + X(bx) + '" y2="' + Y(bz) + '" stroke="#f7f4ed" stroke-width="11" stroke-linecap="butt" style="pointer-events:none;"/>';
-      if (isDoor){
+      if (o.gap){ // a plain opening: just the two wall ends, no leaf or glazing
+        [0, widthM].forEach(function(al){
+          var px = g.origin.x + g.axis.x * (offsetM + al), pz = g.origin.z + g.axis.z * (offsetM + al);
+          svg += '<line x1="' + (X(px) - g.normal.x * 6) + '" y1="' + (Y(pz) - g.normal.z * 6) + '" x2="' + (X(px) + g.normal.x * 6) + '" y2="' + (Y(pz) + g.normal.z * 6) + '" stroke="#8a6a4a" stroke-width="2" style="pointer-events:none;"/>';
+        });
+      } else if (isDoor){
         var cxp = ax + g.normal.x * widthM, czp = az + g.normal.z * widthM; // leaf tip, swung into the room
         var cross = g.normal.x * g.axis.z - g.normal.z * g.axis.x;
         svg += '<line x1="' + X(ax) + '" y1="' + Y(az) + '" x2="' + X(cxp) + '" y2="' + Y(czp) + '" stroke="#8a6a4a" stroke-width="2" style="pointer-events:none;"/>' +
@@ -2325,6 +2554,7 @@
     WALL_COLORS: WALL_COLORS,
     WINDOW_DEFAULT: WINDOW_DEFAULT,
     DOOR_DEFAULT: DOOR_DEFAULT,
+    GAP_DEFAULT: GAP_DEFAULT,
     hasWebGL: hasWebGL,
     waitForThree: waitForThree,
     buildScene: buildScene,
