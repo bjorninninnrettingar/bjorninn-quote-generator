@@ -16,7 +16,7 @@
 <meta name="theme-color" content="#0b0b0c" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="apple-mobile-web-app-title" content="Verkstæði" />
+<meta name="apple-mobile-web-app-title" content="BJÖRNINN" />
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
 <link rel="icon" href="/icons/icon-192.png" />
 
@@ -93,47 +93,67 @@
   .search-empty { font-size:.85rem; color:var(--muted); padding:10px 2px; }
   #menuArea.hidden { display:none; }
 
-  /* ── QUICK FIX add card ── */
+  /* ── QUICK FIX add/manage card — red-framed like the rest of the Quick Fix
+     flow (choice screen, tile) so it reads as one consistent zone. ── */
   .qf-card {
-    margin-top:14px; border-radius:16px; padding:16px; background:#241108; border:1px solid #5a2a12;
+    margin-top:14px; border-radius:18px; padding:18px; background:var(--surface); border:1.5px solid var(--red);
   }
-  .qf-card h2 { font-size:1.1rem; font-weight:800; color:#ff9f6a; display:flex; align-items:center; gap:8px; }
+  .qf-card h2 { font-size:1.1rem; font-weight:800; color:var(--red); display:flex; align-items:center; gap:8px; }
   .qf-card .sub { font-size:.82rem; color:var(--muted); margin-top:3px; }
   .qf-card form { margin-top:12px; display:flex; flex-direction:column; gap:10px; }
   .qf-card textarea, .qf-card select, .qf-card input[type=text], .qf-card input[type=date] {
-    width:100%; font-family:var(--font); font-size:1rem; color:var(--text);
+    width:100%; min-width:0; font-family:var(--font); font-size:1rem; color:var(--text);
     background:var(--surface2); border:1px solid var(--line); border-radius:10px; padding:11px 12px;
   }
   .qf-card textarea { min-height:64px; resize:vertical; }
-  .qf-card .row2 { display:flex; gap:10px; }
-  .qf-card .row2 > * { flex:1 1 0; min-width:0; }
   .qf-card .field .lbl { font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); display:block; margin-bottom:5px; }
+  .qf-card .field .lbl .hint { text-transform:none; font-weight:600; letter-spacing:0; color:var(--dim); }
   .qf-link { font-size:.82rem; color:var(--muted); }
   .qf-link b { color:var(--text); }
   .qf-link a { color:var(--blue); text-decoration:none; font-weight:700; }
   .qf-submit {
     margin-top:2px; font-family:var(--font); font-weight:800; font-size:1rem; border:none; border-radius:11px;
-    background:#ff6a2b; color:#1a0d00; padding:13px; cursor:pointer;
+    background:var(--red); color:#2a0a0a; padding:13px; cursor:pointer;
   }
   .qf-submit:disabled { opacity:.55; }
   .qf-msg { font-size:.85rem; margin-top:2px; display:none; }
   .qf-msg.ok { color:#7be08a; display:block; }
   .qf-msg.err { color:var(--red); display:block; }
-  .qf-back { font-family:var(--font); font-weight:700; font-size:.82rem; color:var(--muted); background:none; border:none; padding:2px 0 4px; cursor:pointer; }
+  /* shared "‹ Til baka" — same class on every sub-screen, so bumping this
+     once keeps every back button the same size and place. */
+  .qf-back {
+    font-family:var(--font); font-weight:800; font-size:1rem; color:var(--text);
+    background:none; border:none; padding:4px 0 14px; cursor:pointer;
+  }
 
   /* ── recent quick fix list ── */
   .qf-row {
-    display:flex; align-items:flex-start; gap:10px; padding:10px 12px; margin-top:8px;
+    display:flex; align-items:flex-start; gap:10px; padding:12px; margin-top:8px;
     background:var(--surface2); border:1px solid var(--line); border-radius:12px; cursor:pointer;
   }
   .qf-row:active { filter:brightness(1.15); }
   .qf-row .txt { flex:1 1 auto; min-width:0; }
-  .qf-row .issue { font-size:.92rem; font-weight:600; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
-  .qf-row .meta { font-size:.76rem; color:var(--muted); margin-top:4px; }
+  .qf-row .issue { font-size:.92rem; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+  .qf-row .owner { font-size:1rem; font-weight:800; color:var(--text); margin-top:5px; }
+  .qf-row .meta { font-size:.76rem; color:var(--muted); margin-top:2px; }
   .qf-badge { flex:none; font-size:.72rem; font-weight:800; border-radius:20px; padding:4px 10px; white-space:nowrap; }
   .qf-badge.open { background:#3a1414; color:#ff8f8f; }
   .qf-badge.progress { background:#3a2f0c; color:var(--amber); }
   #qfEmpty { font-size:.85rem; color:var(--muted); padding:8px 2px; }
+
+  /* ── quick fix detail (opened from a list row) ── */
+  .qf-detail-card {
+    background:var(--surface2); border:1px solid var(--line); border-radius:14px; padding:16px; margin-top:4px;
+  }
+  .qf-detail-card .issue { font-size:1.05rem; font-weight:700; white-space:pre-wrap; }
+  .qf-detail-card .meta-row { font-size:.85rem; color:var(--muted); margin-top:12px; display:flex; flex-direction:column; gap:5px; }
+  .qf-detail-card .meta-row b { color:var(--text); }
+  .qf-detail-action {
+    margin-top:14px; width:100%; font-family:var(--font); font-weight:800; font-size:1rem; border:none;
+    border-radius:11px; padding:13px; cursor:pointer;
+  }
+  .qf-detail-action.progress { background:var(--amber); color:#2a2000; }
+  .qf-detail-action.done { background:var(--green); color:#062b0a; }
 
   /* ── tool tiles — 2-column grid of big square-ish cards (2026-09-22 round 2:
      taller, icon-over-label, so each is unambiguous without a description
@@ -163,6 +183,9 @@
   .tile2.c-red { border-color:var(--red); }
   .tile2.c-green { border-color:var(--green); }
   .tile2.c-blue { border-color:var(--blue); }
+  /* solid red when the signed-in person has an open Quick Fix assigned to them */
+  .tile2.qf-alert { background:var(--red); border-color:var(--red); }
+  .tile2.qf-alert .t { color:#2a0a0a; }
   .badge2 {
     position:absolute; top:10px; right:10px; font-size:.58rem; font-weight:800; text-transform:uppercase;
     letter-spacing:.04em; background:var(--surface2); border:1px solid var(--line); border-radius:20px;
@@ -185,6 +208,19 @@
   .choice-card .cc-d { font-size:.82rem; color:var(--muted); margin-top:2px; }
   .choice-card .cc-check { margin-left:auto; flex:none; font-size:1.3rem; color:var(--blue); visibility:hidden; }
   .choice-card.active .cc-check { visibility:visible; }
+  .choice-card.c-red { border-color:var(--red); }
+
+  /* ── Stillingar: identity picker (compact — a big choice-card per person
+     would be a lot for 6 names) ── */
+  .settings-section { margin-top:18px; }
+  .settings-section .settings-label {
+    font-size:.74rem; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:var(--muted);
+    margin-bottom:8px; display:block;
+  }
+  .settings-section select {
+    width:100%; font-family:var(--font); font-size:1rem; color:var(--text);
+    background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:13px 14px;
+  }
 </style>
 </head>
 <body>
@@ -211,23 +247,20 @@
 
       <div id="qfCreatePane">
         <h2>❗ Skrá verkefni / vandamál</h2>
-        <div class="sub">Fljótleg leið til að koma verki áleiðis og segja hver á að klára það.</div>
         <form id="qfForm">
           <div class="field">
-            <span class="lbl">Hvað þarf að gera?</span>
+            <span class="lbl">Hvað þarf að gera? <span class="hint">(Ýtarleg lýsing)</span></span>
             <textarea id="qfIssue" required placeholder="Lýstu verkinu eða vandamálinu…"></textarea>
           </div>
-          <div class="row2">
-            <div class="field">
-              <span class="lbl">Hver á að gera það?</span>
-              <select id="qfOwner" required>
-                <option value="" disabled selected>Veldu starfsmann…</option>
-              </select>
-            </div>
-            <div class="field">
-              <span class="lbl">Skiladagur</span>
-              <input type="date" id="qfDue" />
-            </div>
+          <div class="field">
+            <span class="lbl">Hver á að gera það?</span>
+            <select id="qfOwner" required>
+              <option value="" disabled selected>Veldu starfsmann…</option>
+            </select>
+          </div>
+          <div class="field">
+            <span class="lbl">Skiladagur</span>
+            <input type="date" id="qfDue" />
           </div>
           <div class="field">
             <span class="lbl">Frá hverjum (valfrjálst)</span>
@@ -241,20 +274,29 @@
 
       <div id="qfManagePane" style="display:none;">
         <h2>🔧 Yfirstandandi verkefni</h2>
-        <div class="sub">Ýttu á línu til að færa hana áfram (opið → í vinnslu → lokið).</div>
+        <div class="sub">Ýttu á verk til að skoða og uppfæra.</div>
         <div id="qfList" style="margin-top:12px;"></div>
         <div id="qfEmpty" style="display:none;">Ekkert opið verkefni skráð.</div>
       </div>
     </div>
 
+    <div class="qf-card" id="qfDetail" style="display:none;">
+      <button class="qf-back" type="button" id="qfDetailBackBtn">‹ Til baka</button>
+      <div class="qf-detail-card">
+        <div class="issue" id="qfDetailIssue"></div>
+        <div class="meta-row" id="qfDetailMeta"></div>
+      </div>
+      <button type="button" class="qf-detail-action" id="qfDetailActionBtn"></button>
+    </div>
+
     <div class="qf-choice" id="qfChoice" style="display:none;">
       <button class="qf-back" type="button" id="qfChoiceBackBtn">‹ Til baka</button>
       <div class="choice-cards">
-        <button type="button" class="choice-card" id="qfChoiceNew">
+        <button type="button" class="choice-card c-red" id="qfChoiceNew">
           <div class="cc-ic">➕</div>
           <div><div class="cc-t">Skrá</div><div class="cc-d">Nýtt verkefni eða vandamál</div></div>
         </button>
-        <button type="button" class="choice-card" id="qfChoiceManage">
+        <button type="button" class="choice-card c-red" id="qfChoiceManage">
           <div class="cc-ic">🔧</div>
           <div><div class="cc-t">Græja</div><div class="cc-d">Yfirstandandi verkefni</div></div>
         </button>
@@ -274,6 +316,12 @@
           <div><div class="cc-t">Ljóst þema</div><div class="cc-d">Bjartara viðmót</div></div>
           <div class="cc-check">✓</div>
         </button>
+      </div>
+      <div class="settings-section">
+        <span class="settings-label">Hver ert þú?</span>
+        <select id="meSelect">
+          <option value="">Ekki valið</option>
+        </select>
       </div>
     </div>
 
@@ -484,6 +532,36 @@
     ownerSel.appendChild(o);
   });
 
+  // ── identity ("Hver ert þú?") — lets the home Quick Fix tile flag when the
+  // signed-in person has an open item assigned to them. Not a login, just a
+  // locally-remembered name; real identity is Mín síða's job once it exists. ──
+  var meSel = $("meSelect");
+  OWNERS.forEach(function (name) {
+    var o = document.createElement("option");
+    o.value = name; o.textContent = name;
+    meSel.appendChild(o);
+  });
+  function getMe() { try { return localStorage.getItem("verkApp:me") || ""; } catch (e) { return ""; } }
+  function setMe(name) {
+    try { if (name) localStorage.setItem("verkApp:me", name); else localStorage.removeItem("verkApp:me"); } catch (e) {}
+    checkMyQuickFix();
+  }
+  meSel.value = getMe();
+  meSel.addEventListener("change", function () { setMe(meSel.value); });
+
+  function checkMyQuickFix() {
+    var me = getMe();
+    if (!me) { $("tileQF").classList.remove("qf-alert"); return; }
+    airtableFetch(QUICKFIX_TABLE, {
+      filterByFormula: 'AND({' + QF_OWNER + '}="' + me.replace(/"/g, '\\"') + '", {' + QF_STATUS + '}!="Lokið ✅")',
+      "fields[]": [QF_STATUS],
+      maxRecords: 1,
+    }).then(function (recs) {
+      $("tileQF").classList.toggle("qf-alert", recs.length > 0);
+    }).catch(function () {});
+  }
+  checkMyQuickFix();
+
   // ── QUICK FIX: tap the tile → a full-screen choice step (Skrá / Græja),
   // same "go to a page that gives the choice" pattern as the /verkstaedi hub
   // instead of a small anchored dropdown. ──
@@ -495,6 +573,7 @@
   function closeQfChoice() {
     $("qfChoice").style.display = "none";
     $("menuArea").querySelectorAll(".tilegrid").forEach(function (el) { el.style.display = ""; });
+    checkMyQuickFix();
   }
   $("tileQF").addEventListener("click", openQfChoice);
   $("qfChoiceBackBtn").addEventListener("click", closeQfChoice);
@@ -526,6 +605,7 @@
   function closeSettings() {
     $("settingsPanel").style.display = "none";
     $("menuArea").querySelectorAll(".tilegrid").forEach(function (el) { el.style.display = ""; });
+    checkMyQuickFix();
   }
   $("tileSettings").addEventListener("click", openSettings);
   $("settingsBackBtn").addEventListener("click", closeSettings);
@@ -533,6 +613,7 @@
   // ── QUICK FIX: open/close the create/manage card ──
   function openQf(mode) {
     $("qfChoice").style.display = "none";
+    $("qfDetail").style.display = "none";
     $("menuArea").querySelectorAll(".tilegrid").forEach(function (el) { el.style.display = "none"; });
     $("qfCard").style.display = "block";
     $("qfCreatePane").style.display = mode === "new" ? "block" : "none";
@@ -541,10 +622,53 @@
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   function closeQf() {
+    // "Til baka" here goes back to the Skrá/Græja choice, not all the way home.
     $("qfCard").style.display = "none";
-    $("menuArea").querySelectorAll(".tilegrid").forEach(function (el) { el.style.display = ""; });
+    $("qfChoice").style.display = "block";
   }
   $("qfBackBtn").addEventListener("click", closeQf);
+
+  // ── QUICK FIX: detail view — opened from a list row, the only place a
+  // status change (and especially closing) can happen from, so nobody marks
+  // something done without actually opening and reading it first. ──
+  function openQfDetail(rec) {
+    var f = rec.fields;
+    var status = f[QF_STATUS] || "opið 😠";
+    $("qfCard").style.display = "none";
+    $("qfDetailIssue").textContent = f[QF_ISSUE] || "";
+    var rows = [];
+    rows.push("<div><b>Ábyrgðarmaður:</b> " + escapeHtml(f[QF_OWNER] || "—") + "</div>");
+    if (f[QF_FROM]) rows.push("<div><b>Frá:</b> " + escapeHtml(f[QF_FROM]) + "</div>");
+    if (f[QF_DUE]) rows.push("<div><b>Skiladagur:</b> " + escapeHtml(f[QF_DUE]) + "</div>");
+    rows.push("<div><b>Staða:</b> " + escapeHtml(status) + "</div>");
+    rows.push("<div><b>Skráð:</b> " + timeAgo(f[QF_CREATED]) + " síðan</div>");
+    $("qfDetailMeta").innerHTML = rows.join("");
+
+    var next = NEXT_STATUS[status];
+    var btn = $("qfDetailActionBtn");
+    if (next) {
+      var isDone = next.indexOf("Lokið") !== -1;
+      btn.style.display = "block";
+      btn.className = "qf-detail-action " + (isDone ? "done" : "progress");
+      btn.textContent = isDone ? "✅ Loka verki" : "▶️ Taka í vinnslu";
+      btn.disabled = false;
+      btn.onclick = function () {
+        btn.disabled = true; btn.textContent = "Vista…";
+        airtablePatch(QUICKFIX_TABLE, rec.id, (function () { var o = {}; o[QF_STATUS] = next; return o; })())
+          .then(closeQfDetail)
+          .catch(function () { btn.disabled = false; });
+      };
+    } else {
+      btn.style.display = "none";
+    }
+    $("qfDetail").style.display = "block";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  function closeQfDetail() {
+    $("qfDetail").style.display = "none";
+    openQf("manage");
+  }
+  $("qfDetailBackBtn").addEventListener("click", closeQfDetail);
 
   // ── QUICK FIX: submit ──
   $("qfForm").addEventListener("submit", async function (e) {
@@ -578,7 +702,7 @@
     }
   });
 
-  // ── QUICK FIX: recent list, tap to advance status ──
+  // ── QUICK FIX: recent list, tap a row to open its detail ──
   function timeAgo(iso) {
     if (!iso) return "";
     var diffMin = Math.max(0, Math.round((Date.now() - new Date(iso)) / 60000));
@@ -594,7 +718,7 @@
     try {
       var recs = await airtableFetch(QUICKFIX_TABLE, {
         filterByFormula: '{' + QF_STATUS + '} != "Lokið ✅"',
-        "fields[]": [QF_ISSUE, QF_OWNER, QF_STATUS, QF_CREATED],
+        "fields[]": [QF_ISSUE, QF_OWNER, QF_STATUS, QF_CREATED, QF_FROM, QF_DUE],
         pageSize: 25,
       });
       recs.sort(function (a, b) {
@@ -612,17 +736,11 @@
         row.innerHTML =
           '<div class="txt">' +
             '<div class="issue">' + escapeHtml(f[QF_ISSUE] || "") + "</div>" +
-            '<div class="meta">' + escapeHtml(f[QF_OWNER] || "—") + " · " + timeAgo(f[QF_CREATED]) + "</div>" +
+            '<div class="owner">👤 ' + escapeHtml(f[QF_OWNER] || "—") + "</div>" +
+            '<div class="meta">' + timeAgo(f[QF_CREATED]) + " síðan</div>" +
           "</div>" +
           '<div class="qf-badge ' + (status.indexOf("vinnslu") !== -1 ? "progress" : "open") + '">' + escapeHtml(status) + "</div>";
-        row.addEventListener("click", function () {
-          var next = NEXT_STATUS[status];
-          if (!next) return;
-          row.style.opacity = ".5";
-          airtablePatch(QUICKFIX_TABLE, rec.id, (function () { var o = {}; o[QF_STATUS] = next; return o; })())
-            .then(loadRecentQuickFix)
-            .catch(function () { row.style.opacity = "1"; });
-        });
+        row.addEventListener("click", function () { openQfDetail(rec); });
         list.appendChild(row);
       });
     } catch (e) {
