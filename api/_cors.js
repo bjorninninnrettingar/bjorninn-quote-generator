@@ -1,7 +1,7 @@
 // api/_cors.js
 // Shared CORS handling — first needed for Phase 1 of the site chatbot
 // widget (see memory: project_chatbot). Every other page in this repo is
-// either loaded directly from bjorninn-quote-generator.vercel.app (its own
+// either loaded directly from bjorninn.vercel.app (its own
 // short URLs) or iframed into Wix (verkefni.html, faq.html) — an iframe's
 // own JS runs in the iframe's origin, so no cross-origin fetch is involved.
 // The chatbot widget is different by design: it's a script injected

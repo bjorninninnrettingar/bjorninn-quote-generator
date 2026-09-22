@@ -21,7 +21,7 @@
   // this script's own origin.
   var API_BASE = /^(localhost|127\.0\.0\.1)$/.test(location.hostname)
     ? ""
-    : "https://bjorninn-quote-generator.vercel.app";
+    : "https://bjorninn.vercel.app";
   var VEFSPJALL_PATH = "tbltD1UNpqj05WtMx";
   var CONTACT_URL = "https://www.bjorninninnrettingar.is/hafðu-samband";
   var GREETING = "Hæ! Ég get svarað spurningum um sérsmíði, verð, ferlið og fleira hjá Birninum. Hvað viltu vita?";

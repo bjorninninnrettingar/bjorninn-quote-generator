@@ -1,7 +1,7 @@
 # bjorninn-quote-generator
 
 Static HTML tools + Vercel API functions for Björninn Innréttingar. Deployed at
-https://bjorninn-quote-generator.vercel.app — all pages talk to Airtable through
+https://bjorninn.vercel.app — all pages talk to Airtable through
 `/api/airtable`, a server-side proxy that holds the PAT (kept out of the repo
 since GitHub push protection blocks committing an Airtable PAT directly).
 
