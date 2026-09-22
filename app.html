@@ -93,12 +93,14 @@
   .search-empty { font-size:.85rem; color:var(--muted); padding:10px 2px; }
   #menuArea.hidden { display:none; }
 
-  /* ── QUICK FIX add/manage card — red-framed like the rest of the Quick Fix
-     flow (choice screen, tile) so it reads as one consistent zone. ── */
+  /* ── shared "framed panel" card — used by Quick Fix (red) and Verk í
+     vinnslu (yellow), same shape either way, colour via a modifier class. ── */
   .qf-card {
     margin-top:14px; border-radius:18px; padding:18px; background:var(--surface); border:1.5px solid var(--red);
   }
+  .qf-card.c-yellow { border-color:var(--amber); }
   .qf-card h2 { font-size:1.1rem; font-weight:800; color:var(--red); display:flex; align-items:center; gap:8px; }
+  .qf-card.c-yellow h2 { color:var(--amber); }
   .qf-card .sub { font-size:.82rem; color:var(--muted); margin-top:3px; }
   .qf-card form { margin-top:12px; display:flex; flex-direction:column; gap:10px; }
   .qf-card textarea, .qf-card select, .qf-card input[type=text], .qf-card input[type=date] {
@@ -141,6 +143,22 @@
   .qf-badge.progress { background:#3a2f0c; color:var(--amber); }
   #qfEmpty { font-size:.85rem; color:var(--muted); padding:8px 2px; }
 
+  /* ── Verk í vinnslu — active-project list ── */
+  .verk-card {
+    display:block; text-align:left; width:100%; cursor:pointer; font-family:var(--font);
+    background:var(--surface2); border:1px solid var(--line); border-radius:12px;
+    padding:14px 16px; color:var(--text);
+  }
+  .verk-card:active { filter:brightness(1.15); }
+  .verk-card .name { font-size:1.05rem; font-weight:800; letter-spacing:-.005em; }
+  .verk-card .meta { display:flex; flex-wrap:wrap; gap:8px 14px; margin-top:8px; }
+  .verk-card .meta .m { font-size:.8rem; color:var(--muted); }
+  .verk-card .meta .m b { color:var(--text); font-weight:700; }
+  .verk-card .meta .date.soon { color:var(--amber); }
+  .verk-card .meta .date.overdue { color:var(--red); }
+  .verk-card .hot { color:#ffd54a; }
+  #verkEmpty { font-size:.85rem; color:var(--muted); padding:8px 2px; display:none; }
+
   /* ── quick fix detail (opened from a list row) ── */
   .qf-detail-card {
     background:var(--surface2); border:1px solid var(--line); border-radius:14px; padding:16px; margin-top:4px;
@@ -165,7 +183,7 @@
   .tilegrid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:16px; }
   .tile2 {
     display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
-    text-align:center; text-decoration:none; color:var(--text); min-height:132px;
+    text-align:center; text-decoration:none; color:var(--text); min-height:132px; min-width:0;
     border-radius:18px; padding:20px 12px; border:1px solid var(--line); background:var(--surface);
     cursor:pointer; position:relative;
   }
@@ -289,6 +307,14 @@
       <button type="button" class="qf-detail-action" id="qfDetailActionBtn"></button>
     </div>
 
+    <div class="qf-card c-yellow" id="verkPanel" style="display:none;">
+      <button class="qf-back" type="button" id="verkBackBtn">‹ Til baka</button>
+      <h2>📋 Verk í vinnslu</h2>
+      <div class="sub" id="verkStatus">Sæki verk…</div>
+      <div id="verkItems" style="margin-top:12px; display:flex; flex-direction:column; gap:10px;"></div>
+      <div id="verkEmpty">Ekkert virkt verk núna.</div>
+    </div>
+
     <div class="qf-choice" id="qfChoice" style="display:none;">
       <button class="qf-back" type="button" id="qfChoiceBackBtn">‹ Til baka</button>
       <div class="choice-cards">
@@ -326,10 +352,10 @@
     </div>
 
     <div class="tilegrid">
-      <a class="tile2 c-yellow" id="tileVerkIGangi" href="/verk-i-gangi">
+      <div class="tile2 c-yellow" id="tileVerkIGangi">
         <div class="ic">📋</div><div class="t">Verk í vinnslu</div>
         <div class="t-sub" id="projTileSub">Ekkert verk valið</div>
-      </a>
+      </div>
 
       <div class="tile2 c-red" id="tileQF">
         <div class="ic">❗</div><div class="t">Quick Fix</div>
@@ -371,6 +397,16 @@
   var PROJECTS_TABLE  = "tbl4LMXlQjp66RFKI"; // Tækifæri 📣
   var QUICKFIX_TABLE  = "tblDQWuf4OSjUv2XI"; // QUICK FIX❗
   var P_NAME = "Heiti tækifæris / verkefnis";
+
+  // "Active project" eligibility — same filter verk-i-gangi.html/grain.html
+  // already use (won + not for-skipulag + not yet delivered). Provisional —
+  // revisit the exact criteria once there's real data to check it against.
+  var P_STADA_SOLU = "Staða í söluferli";
+  var P_STADA_SKIP = "Staða í skipulagi";
+  var P_STADA_FRAM = "Staða í framleiðslu";
+  var P_DATE     = "Áætlaður afhendingardagur Björninn (internal)";
+  var P_PROGRESS = "Framvinda framleiðslu [weighted]";
+  var P_PRIORITY = "Forgangur framleiðslu 🥇";
 
   var QF_ISSUE  = "Vandamálið";
   var QF_OWNER  = "Ábyrgðarmaður";
@@ -562,6 +598,85 @@
   }
   checkMyQuickFix();
 
+  // ── Verk í vinnslu: in-app list of active projects (was a separate page,
+  // /verk-i-gangi — still deployed/reachable for old links, but the home
+  // tile now opens this instead, same pattern as Quick Fix). ──
+  function formatVerkDate(iso) {
+    if (!iso) return { text: "Engin dagsetning", cls: "" };
+    var date = new Date(iso);
+    var today = new Date(); today.setHours(0, 0, 0, 0);
+    var diff = Math.floor((date - today) / 86400000);
+    var locale = date.toLocaleDateString("is-IS", { day: "numeric", month: "short" });
+    if (diff < 0) return { text: locale + " (liðið)", cls: "overdue" };
+    if (diff <= 7) return { text: locale + " (" + diff + "d)", cls: "soon" };
+    return { text: locale, cls: "" };
+  }
+  async function loadVerkList() {
+    var statusEl = $("verkStatus");
+    var itemsEl = $("verkItems");
+    statusEl.style.display = "block";
+    statusEl.textContent = "Sæki verk…";
+    $("verkEmpty").style.display = "none";
+    itemsEl.innerHTML = "";
+    try {
+      var formula = "AND(" +
+        "{" + P_STADA_SOLU + "} = \"🏆 Tækifæri unnið\", " +
+        "{" + P_STADA_SKIP + "} != \"For-skipulag\", " +
+        "{" + P_STADA_FRAM + "} != \"Afhent (LOKIÐ ✅)\", " +
+        "{" + P_STADA_FRAM + "} != \"Má Afhenda 🚚\"" +
+        ")";
+      var recs = await airtableFetch(PROJECTS_TABLE, {
+        filterByFormula: formula,
+        "fields[]": [P_NAME, P_STADA_SKIP, P_STADA_FRAM, P_DATE, P_PROGRESS, P_PRIORITY],
+        pageSize: 100,
+      });
+      recs.sort(function (a, b) {
+        var da = a.fields[P_DATE] || "9999";
+        var db = b.fields[P_DATE] || "9999";
+        return da < db ? -1 : da > db ? 1 : 0;
+      });
+      statusEl.style.display = "none";
+      $("verkEmpty").style.display = recs.length ? "none" : "block";
+      recs.forEach(function (rec) {
+        var f = rec.fields;
+        var name = f[P_NAME] || "(nafnlaust verk)";
+        var stada = f[P_STADA_FRAM] || f[P_STADA_SKIP] || "";
+        var d = formatVerkDate(f[P_DATE]);
+        var progress = f[P_PROGRESS];
+        var hot = (f[P_PRIORITY] || "").indexOf("🥇") !== -1;
+        var card = document.createElement("button");
+        card.type = "button";
+        card.className = "verk-card";
+        card.innerHTML =
+          '<div class="name">' + (hot ? '<span class="hot">🔥 </span>' : "") + escapeHtml(name) + "</div>" +
+          '<div class="meta">' +
+            (stada ? '<span class="m"><b>' + escapeHtml(stada) + "</b></span>" : "") +
+            '<span class="m date ' + d.cls + '">' + escapeHtml(d.text) + "</span>" +
+            (progress != null && progress !== "" ? '<span class="m">' + Math.round(progress * 100) + "% búið</span>" : "") +
+          "</div>";
+        card.addEventListener("click", function () {
+          setProject({ id: rec.id, name: name });
+          closeVerkList();
+        });
+        itemsEl.appendChild(card);
+      });
+    } catch (e) {
+      statusEl.textContent = "Villa við að sækja verk — reyndu aftur.";
+    }
+  }
+  function openVerkList() {
+    $("menuArea").querySelectorAll(".tilegrid").forEach(function (el) { el.style.display = "none"; });
+    $("verkPanel").style.display = "block";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    loadVerkList();
+  }
+  function closeVerkList() {
+    $("verkPanel").style.display = "none";
+    $("menuArea").querySelectorAll(".tilegrid").forEach(function (el) { el.style.display = ""; });
+  }
+  $("tileVerkIGangi").addEventListener("click", openVerkList);
+  $("verkBackBtn").addEventListener("click", closeVerkList);
+
   // ── QUICK FIX: tap the tile → a full-screen choice step (Skrá / Græja),
   // same "go to a page that gives the choice" pattern as the /verkstaedi hub
   // instead of a small anchored dropdown. ──
@@ -752,7 +867,7 @@
 
   // ── search — same instant-filter pattern as faq.html, adapted to tiles ──
   var SEARCH_INDEX = [
-    { cat: "Verk", t: "Verk í vinnslu", ic: "📋", kw: "verk vinnslu virk verkefni velja", go: function () { location.href = "/verk-i-gangi"; } },
+    { cat: "Verk", t: "Verk í vinnslu", ic: "📋", kw: "verk vinnslu virk verkefni velja", go: function () { openVerkList(); } },
     { cat: "Sög", t: "Sög — velja Cutty eða Vígindi", ic: "🪚", kw: "sög saga val verkstæði", go: function () { location.href = $("tileSog").href; } },
     { cat: "Sög", t: "F6 – Cutty (merkingar)", ic: "🏷️", kw: "sög merkingar cutty f6 labels", go: function () { var p = getProject(); location.href = "/labels" + (p ? "?recordId=" + encodeURIComponent(p.id) : ""); } },
     { cat: "Sög", t: "F2 – Vígindi (æða-leiðsögn)", ic: "🪚", kw: "sög æðar vígindi f2 saga leiðsögn", go: function () { var p = getProject(); location.href = "/saga" + (p ? "?recordId=" + encodeURIComponent(p.id) : ""); } },
