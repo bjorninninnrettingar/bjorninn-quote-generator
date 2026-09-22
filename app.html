@@ -20,18 +20,22 @@
 <style>
   /* app.html — /app, the workshop's single entry point (installable PWA).
      Redesigned 2026-09-22 into a searchable menu (same instant-filter
-     pattern as faq.html, adapted to this page's dark theme) over 7 fixed
-     destinations: Verk í vinnslu, Sög (F6-Cutty / F2-Vígindi — the saw
-     console's own button names for merkingar vs. æða-guided sawing),
-     Quick Fix (Skrá / Græja), Yfirfræsara, Mín síða, Dagatal, Google Chat.
-     Mín síða and Dagatal are still being built — their tiles are present
-     but marked "Væntanlegt" and don't navigate yet. Personal-phone model:
-     each employee installs this on their own phone, so Mín síða (once
-     built) can persist identity via a one-time PIN pairing — it will
-     never do actual Inn/Út clock punches, those stay on the shared
-     stimpilklukka kiosk. A "current project" is still picked once
-     (verk-i-gangi.html) and remembered in localStorage for as long as the
-     app stays open, so every tool tile below forwards it as ?recordId=. */
+     pattern as faq.html, adapted to this page's dark theme); round 2 same
+     day made it a 2-column grid of big cards: Quick Fix, Sög, Yfirfræsing,
+     Dagatal, Mín síða, Google Chat. The old "Verk í vinnslu" tile was
+     dropped — it only duplicated the project bar's own "Velja verk" button,
+     still searchable though. Sög taps straight through to /verkstaedi (the
+     existing "pick Merkingar or Saga" hub); Quick Fix opens a full-screen
+     choice step (Skrá / Græja) instead of a small popover, same "go to a
+     page that gives the choice" pattern. Mín síða and Dagatal are still
+     being built — their tiles are present but marked "Væntanlegt" and don't
+     navigate yet. Personal-phone model: each employee installs this on
+     their own phone, so Mín síða (once built) can persist identity via a
+     one-time PIN pairing — it will never do actual Inn/Út clock punches,
+     those stay on the shared stimpilklukka kiosk. A "current project" is
+     still picked once (verk-i-gangi.html) and remembered in localStorage
+     for as long as the app stays open, so every tool tile forwards it as
+     ?recordId=. */
   :root {
     --bg:#0b0b0c; --surface:#161618; --surface2:#1e1e21; --line:#2a2a2e;
     --text:#f2f2f3; --muted:#c9c9ce; --dim:#8a8a90;
@@ -40,7 +44,7 @@
   }
   * { box-sizing:border-box; margin:0; padding:0; }
   html,body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; line-height:1.5; }
-  .wrap { max-width:640px; margin:0 auto; padding:12px 14px 20px; }
+  .wrap { max-width:640px; margin:0 auto; padding:calc(16px + env(safe-area-inset-top)) 14px calc(16px + env(safe-area-inset-bottom)); }
 
   .hd { display:flex; align-items:center; justify-content:space-between; gap:10px; }
   .hd h1 { font-size:1.7rem; font-weight:800; letter-spacing:-.01em; }
@@ -136,42 +140,43 @@
   .qf-badge.progress { background:#3a2f0c; color:var(--amber); }
   #qfEmpty { font-size:.85rem; color:var(--muted); padding:8px 2px; }
 
-  /* ── tool tiles — compact 2-column grid, no per-tile description text
-     (2026-09-22 compaction pass: fit the whole menu with no page scroll).
-     Sög / Quick Fix each have a sub-action popover (.subpop) instead of a
-     chips row, so picking F6/F2 or Skrá/Græja doesn't cost extra height. */
-  .tilegrid { display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:14px; }
-  .tilecell { position:relative; }
+  /* ── tool tiles — 2-column grid of big square-ish cards (2026-09-22 round 2:
+     taller, icon-over-label, so each is unambiguous without a description
+     line). Sög now navigates straight to /verkstaedi (already the exact
+     "pick Merkingar or Saga" hub page) instead of a popover. Quick Fix opens
+     a full-screen choice step (.qf-choice, two big cards) before landing on
+     the create/manage pane, matching that same "go to a page that gives the
+     choice" pattern rather than a small anchored dropdown. */
+  .tilegrid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:16px; }
   .tile2 {
-    display:flex; align-items:center; gap:10px; text-decoration:none; color:var(--text);
-    border-radius:14px; padding:13px 12px; border:1px solid var(--line); background:var(--surface);
-    cursor:pointer; position:relative; width:100%; height:100%;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
+    text-align:center; text-decoration:none; color:var(--text); min-height:132px;
+    border-radius:18px; padding:20px 12px; border:1px solid var(--line); background:var(--surface);
+    cursor:pointer; position:relative;
   }
   .tile2:active { filter:brightness(1.15); }
-  .tile2 .ic { font-size:1.45rem; flex:none; width:26px; text-align:center; }
-  .tile2 .t { font-size:.94rem; font-weight:800; letter-spacing:.01em; }
-  .tile2.accent { background:var(--amber); border-color:#c9a800; }
-  .tile2.accent .t { color:#1a1400; }
+  .tile2 .ic { font-size:2.3rem; line-height:1; }
+  .tile2 .t { font-size:1.02rem; font-weight:800; letter-spacing:.01em; }
   .tile2.soon { opacity:.5; }
-  .tile2.wide { grid-column:1 / -1; justify-content:center; }
   .badge2 {
-    position:absolute; top:6px; right:8px; font-size:.58rem; font-weight:800; text-transform:uppercase;
+    position:absolute; top:10px; right:10px; font-size:.58rem; font-weight:800; text-transform:uppercase;
     letter-spacing:.04em; background:var(--surface2); border:1px solid var(--line); border-radius:20px;
     padding:2px 7px; color:var(--muted);
   }
 
-  .subpop {
-    display:none; position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:30;
-    background:var(--surface2); border:1px solid var(--line); border-radius:12px; padding:6px;
-    flex-direction:column; gap:4px; box-shadow:0 10px 28px rgba(0,0,0,.45);
+  /* ── Quick Fix choice screen — same "two big cards" pattern as
+     skipulag.html/verkstaedi.html's hub pages ── */
+  .qf-choice { margin-top:14px; }
+  .choice-cards { display:flex; flex-direction:column; gap:12px; margin-top:14px; }
+  .choice-card {
+    display:flex; align-items:center; gap:16px; text-align:left; width:100%;
+    font-family:var(--font); color:var(--text); background:var(--surface); border:1px solid var(--line);
+    border-radius:18px; padding:20px 18px; cursor:pointer;
   }
-  .subpop.show { display:flex; }
-  .subpop a, .subpop button {
-    display:block; width:100%; text-align:left; font-family:var(--font); font-weight:700; font-size:.85rem;
-    color:var(--text); background:var(--bg); border:1px solid var(--line); border-radius:9px;
-    padding:9px 11px; text-decoration:none; cursor:pointer;
-  }
-  .subpop a:active, .subpop button:active { background:var(--surface); }
+  .choice-card:active { filter:brightness(1.15); }
+  .choice-card .cc-ic { font-size:2.1rem; flex:none; }
+  .choice-card .cc-t { font-size:1.08rem; font-weight:800; }
+  .choice-card .cc-d { font-size:.82rem; color:var(--muted); margin-top:2px; }
 </style>
 </head>
 <body>
@@ -245,30 +250,28 @@
       </div>
     </div>
 
+    <div class="qf-choice" id="qfChoice" style="display:none;">
+      <button class="qf-back" type="button" id="qfChoiceBackBtn">‹ Til baka</button>
+      <div class="choice-cards">
+        <button type="button" class="choice-card" id="qfChoiceNew">
+          <div class="cc-ic">➕</div>
+          <div><div class="cc-t">Skrá</div><div class="cc-d">Nýtt verkefni eða vandamál</div></div>
+        </button>
+        <button type="button" class="choice-card" id="qfChoiceManage">
+          <div class="cc-ic">🔧</div>
+          <div><div class="cc-t">Græja</div><div class="cc-d">Yfirstandandi verkefni</div></div>
+        </button>
+      </div>
+    </div>
+
     <div class="tilegrid">
-      <a class="tile2 accent" id="tileVerkIGangi" href="/verk-i-gangi">
-        <div class="ic">📋</div><div class="t">Verk í vinnslu</div>
+      <div class="tile2" id="tileQF">
+        <div class="ic">❗</div><div class="t">Quick Fix</div>
+      </div>
+
+      <a class="tile2" id="tileSog">
+        <div class="ic">🪚</div><div class="t">Sög</div>
       </a>
-
-      <div class="tilecell">
-        <div class="tile2" id="tileQF">
-          <div class="ic">❗</div><div class="t">Quick Fix</div>
-        </div>
-        <div class="subpop" id="qfPop">
-          <button type="button" id="chipQfNew">➕ Skrá</button>
-          <button type="button" id="chipQfManage">🔧 Græja</button>
-        </div>
-      </div>
-
-      <div class="tilecell">
-        <div class="tile2" id="tileSog">
-          <div class="ic">🪚</div><div class="t">Sög</div>
-        </div>
-        <div class="subpop" id="sogPop">
-          <a id="chipF6">F6 – Cutty</a>
-          <a id="chipF2">F2 – Vígindi</a>
-        </div>
-      </div>
 
       <a class="tile2" id="tileFraesing">
         <div class="ic">🔬</div><div class="t">Yfirfræsing</div>
@@ -284,7 +287,7 @@
         <div class="badge2">Væntanlegt</div>
       </div>
 
-      <a class="tile2 wide" id="tileChat" href="https://mail.google.com/chat/" target="_blank" rel="noopener">
+      <a class="tile2" id="tileChat" href="https://mail.google.com/chat/" target="_blank" rel="noopener">
         <div class="ic">💬</div><div class="t">Google Chat</div>
       </a>
     </div>
@@ -440,8 +443,7 @@
   function wireTiles() {
     var p = getProject();
     var rid = p ? "?recordId=" + encodeURIComponent(p.id) : "";
-    $("chipF6").href = "/labels" + rid;
-    $("chipF2").href = "/saga" + rid;
+    $("tileSog").href = "/verkstaedi" + rid;
     $("tileFraesing").href = "/fraesing" + rid;
 
     // QUICK FIX form's project link line
@@ -476,29 +478,26 @@
     ownerSel.appendChild(o);
   });
 
-  // ── sub-action popovers (Sög: F6/F2, Quick Fix: Skrá/Græja) — keeps the
-  // main grid at a fixed height instead of a chips row per tile. Toggled by
-  // a class, never the `hidden` attribute — see grain.html's popover-cascade
-  // lesson (an author display rule beats [hidden] regardless of specificity). ──
-  function closeAllPopovers() {
-    document.querySelectorAll(".subpop.show").forEach(function (el) { el.classList.remove("show"); });
+  // ── QUICK FIX: tap the tile → a full-screen choice step (Skrá / Græja),
+  // same "go to a page that gives the choice" pattern as the /verkstaedi hub
+  // instead of a small anchored dropdown. ──
+  function openQfChoice() {
+    $("menuArea").querySelectorAll(".tilegrid").forEach(function (el) { el.style.display = "none"; });
+    $("qfChoice").style.display = "block";
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
-  function togglePopover(id) {
-    var el = $(id);
-    var wasOpen = el.classList.contains("show");
-    closeAllPopovers();
-    if (!wasOpen) el.classList.add("show");
+  function closeQfChoice() {
+    $("qfChoice").style.display = "none";
+    $("menuArea").querySelectorAll(".tilegrid").forEach(function (el) { el.style.display = ""; });
   }
-  $("tileQF").addEventListener("click", function (e) { e.stopPropagation(); togglePopover("qfPop"); });
-  $("tileSog").addEventListener("click", function (e) { e.stopPropagation(); togglePopover("sogPop"); });
-  document.addEventListener("pointerdown", function (e) {
-    if (e.target.closest(".tilecell")) return;
-    closeAllPopovers();
-  }, true);
+  $("tileQF").addEventListener("click", openQfChoice);
+  $("qfChoiceBackBtn").addEventListener("click", closeQfChoice);
+  $("qfChoiceNew").addEventListener("click", function () { openQf("new"); });
+  $("qfChoiceManage").addEventListener("click", function () { openQf("manage"); });
 
-  // ── QUICK FIX: open/close the card in either Skrá or Græja mode ──
+  // ── QUICK FIX: open/close the create/manage card ──
   function openQf(mode) {
-    closeAllPopovers();
+    $("qfChoice").style.display = "none";
     $("menuArea").querySelectorAll(".tilegrid").forEach(function (el) { el.style.display = "none"; });
     $("qfCard").style.display = "block";
     $("qfCreatePane").style.display = mode === "new" ? "block" : "none";
@@ -510,8 +509,6 @@
     $("qfCard").style.display = "none";
     $("menuArea").querySelectorAll(".tilegrid").forEach(function (el) { el.style.display = ""; });
   }
-  $("chipQfNew").addEventListener("click", function () { openQf("new"); });
-  $("chipQfManage").addEventListener("click", function () { openQf("manage"); });
   $("qfBackBtn").addEventListener("click", closeQf);
 
   // ── QUICK FIX: submit ──
@@ -603,8 +600,9 @@
   // ── search — same instant-filter pattern as faq.html, adapted to tiles ──
   var SEARCH_INDEX = [
     { cat: "Verk", t: "Verk í vinnslu", ic: "📋", kw: "verk vinnslu virk verkefni velja", go: function () { location.href = "/verk-i-gangi"; } },
-    { cat: "Sög", t: "F6 – Cutty (merkingar)", ic: "🏷️", kw: "sög merkingar cutty f6 labels", go: function () { location.href = $("chipF6").href; } },
-    { cat: "Sög", t: "F2 – Vígindi (æða-leiðsögn)", ic: "🪚", kw: "sög æðar vígindi f2 saga leiðsögn", go: function () { location.href = $("chipF2").href; } },
+    { cat: "Sög", t: "Sög — velja Cutty eða Vígindi", ic: "🪚", kw: "sög saga val verkstæði", go: function () { location.href = $("tileSog").href; } },
+    { cat: "Sög", t: "F6 – Cutty (merkingar)", ic: "🏷️", kw: "sög merkingar cutty f6 labels", go: function () { var p = getProject(); location.href = "/labels" + (p ? "?recordId=" + encodeURIComponent(p.id) : ""); } },
+    { cat: "Sög", t: "F2 – Vígindi (æða-leiðsögn)", ic: "🪚", kw: "sög æðar vígindi f2 saga leiðsögn", go: function () { var p = getProject(); location.href = "/saga" + (p ? "?recordId=" + encodeURIComponent(p.id) : ""); } },
     { cat: "Quick Fix", t: "Skrá nýtt verkefni", ic: "➕", kw: "quick fix skrá nýtt vandamál", go: function () { openQf("new"); } },
     { cat: "Quick Fix", t: "Græja opin verkefni", ic: "🔧", kw: "quick fix græja opin laga", go: function () { openQf("manage"); } },
     { cat: "Verkstæði", t: "Yfirfræsing", ic: "🔬", kw: "yfirfræsing fræsari fræsilisti", go: function () { location.href = $("tileFraesing").href; } },
