@@ -43,7 +43,6 @@ const ALLOWED_FIELDS = {
     "Greiðsla 1 (staðfesting)",
     "Greiðsla 2 greidd",
     "Greiðsla 3 greidd",
-    "Harðviðargrip",                                 // milled "fræst grip" profile, shown on the Höldur row
     "Staða í söluferli",                             // step 1 of the timeline
     "Áætlaður afhendingardagur + 7 vinnudagar (external)", // shown delivery estimate
     "Raun afhendingardagur (int/external)",          // actual delivery once handed over
@@ -73,7 +72,6 @@ const ALLOWED_FIELDS = {
     "☎️ Símanúmer",
     "Sjálfsafgreiðsla — óyfirfarið ⚠️",              // true until Rakel reviews it — see api/airtable.js's FORCED_CREATE_FIELDS
     "Sjálfsafgreiðsla skipulag (JSON) 📐",           // the exact planner state, so the review page renders the same 3D/2D scene
-    "Skilaboð til skipulags",                        // review page's "flag for a call" note
   ],
   "tblhdgyvTcBfP8kov": [ // Sögunarlisti 🪚
     "Tækifæri 📣 (projects)",
