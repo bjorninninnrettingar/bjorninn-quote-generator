@@ -40,7 +40,7 @@
   }
   * { box-sizing:border-box; margin:0; padding:0; }
   html,body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; line-height:1.5; }
-  .wrap { max-width:640px; margin:0 auto; padding:16px 16px 48px; }
+  .wrap { max-width:640px; margin:0 auto; padding:12px 14px 20px; }
 
   .hd { display:flex; align-items:center; justify-content:space-between; gap:10px; }
   .hd h1 { font-size:1.7rem; font-weight:800; letter-spacing:-.01em; }
@@ -60,7 +60,7 @@
 
   /* ── current project bar ── */
   .projbar {
-    margin-top:14px; padding:13px 14px; background:var(--surface); border:1px solid var(--line);
+    margin-top:10px; padding:10px 12px; background:var(--surface); border:1px solid var(--line);
     border-radius:14px; display:flex; align-items:center; gap:12px;
   }
   .projbar .lbl { font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:var(--muted); display:block; }
@@ -74,12 +74,12 @@
   .projbar .actions .pick { background:var(--blue); border-color:#3d8bff; color:#fff; }
 
   /* ── search ── */
-  .search { margin-top:18px; position:relative; }
+  .search { margin-top:12px; position:relative; }
   .search svg { position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--dim); pointer-events:none; }
   .search input {
     width:100%; font-family:var(--font); font-size:1rem; color:var(--text);
     background:var(--surface); border:1px solid var(--line); border-radius:12px;
-    padding:13px 14px 13px 42px; outline:none;
+    padding:11px 14px 11px 42px; outline:none;
   }
   .search input:focus { border-color:var(--blue); }
   .search-results { margin-top:8px; display:none; flex-direction:column; gap:8px; }
@@ -136,29 +136,42 @@
   .qf-badge.progress { background:#3a2f0c; color:var(--amber); }
   #qfEmpty { font-size:.85rem; color:var(--muted); padding:8px 2px; }
 
-  /* ── tool tiles ── */
-  .tiles { display:flex; flex-direction:column; gap:12px; margin-top:18px; }
-  .section-lbl { font-size:.74rem; font-weight:700; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); margin-top:20px; margin-bottom:2px; }
-  .tile {
-    display:flex; align-items:center; gap:15px; text-decoration:none; color:var(--text);
-    border-radius:15px; padding:17px 16px; border:1px solid var(--line); background:var(--surface);
+  /* ── tool tiles — compact 2-column grid, no per-tile description text
+     (2026-09-22 compaction pass: fit the whole menu with no page scroll).
+     Sög / Quick Fix each have a sub-action popover (.subpop) instead of a
+     chips row, so picking F6/F2 or Skrá/Græja doesn't cost extra height. */
+  .tilegrid { display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:14px; }
+  .tilecell { position:relative; }
+  .tile2 {
+    display:flex; align-items:center; gap:10px; text-decoration:none; color:var(--text);
+    border-radius:14px; padding:13px 12px; border:1px solid var(--line); background:var(--surface);
+    cursor:pointer; position:relative; width:100%; height:100%;
   }
-  .tile:active { filter:brightness(1.15); }
-  .tile .ic { font-size:1.9rem; flex:none; width:34px; text-align:center; }
-  .tile .t { font-size:1.08rem; font-weight:800; letter-spacing:.01em; }
-  .tile .d { font-size:.82rem; color:var(--muted); margin-top:2px; }
-  .tile.accent { background:var(--amber); border-color:#c9a800; }
-  .tile.accent .t, .tile.accent .d { color:#1a1400; }
-  .tile.accent .d { opacity:.75; }
-  .tile.soon { opacity:.5; }
-  .tile.soon .badge { margin-left:auto; flex:none; font-size:.68rem; font-weight:800; text-transform:uppercase; letter-spacing:.06em; background:var(--surface2); border:1px solid var(--line); border-radius:20px; padding:4px 9px; color:var(--muted); }
+  .tile2:active { filter:brightness(1.15); }
+  .tile2 .ic { font-size:1.45rem; flex:none; width:26px; text-align:center; }
+  .tile2 .t { font-size:.94rem; font-weight:800; letter-spacing:.01em; }
+  .tile2.accent { background:var(--amber); border-color:#c9a800; }
+  .tile2.accent .t { color:#1a1400; }
+  .tile2.soon { opacity:.5; }
+  .tile2.wide { grid-column:1 / -1; justify-content:center; }
+  .badge2 {
+    position:absolute; top:6px; right:8px; font-size:.58rem; font-weight:800; text-transform:uppercase;
+    letter-spacing:.04em; background:var(--surface2); border:1px solid var(--line); border-radius:20px;
+    padding:2px 7px; color:var(--muted);
+  }
 
-  .chips { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 0 0; padding-left:calc(34px + 15px); }
-  .chip {
-    text-decoration:none; color:var(--muted); background:var(--bg); border:1px solid var(--line);
-    border-radius:999px; padding:7px 14px; font-size:.82rem; font-weight:700; cursor:pointer; font-family:var(--font);
+  .subpop {
+    display:none; position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:30;
+    background:var(--surface2); border:1px solid var(--line); border-radius:12px; padding:6px;
+    flex-direction:column; gap:4px; box-shadow:0 10px 28px rgba(0,0,0,.45);
   }
-  .chip:active { color:var(--text); border-color:var(--dim); }
+  .subpop.show { display:flex; }
+  .subpop a, .subpop button {
+    display:block; width:100%; text-align:left; font-family:var(--font); font-weight:700; font-size:.85rem;
+    color:var(--text); background:var(--bg); border:1px solid var(--line); border-radius:9px;
+    padding:9px 11px; text-decoration:none; cursor:pointer;
+  }
+  .subpop a:active, .subpop button:active { background:var(--surface); }
 </style>
 </head>
 <body>
@@ -232,60 +245,47 @@
       </div>
     </div>
 
-    <div class="section-lbl">Tól</div>
-    <div class="tiles">
-      <a class="tile accent" id="tileVerkIGangi" href="/verk-i-gangi">
-        <div class="ic">📋</div>
-        <div><div class="t">Verk í vinnslu</div><div class="d">Veldu verkefni sem er í framleiðslu núna</div></div>
+    <div class="tilegrid">
+      <a class="tile2 accent" id="tileVerkIGangi" href="/verk-i-gangi">
+        <div class="ic">📋</div><div class="t">Verk í vinnslu</div>
       </a>
 
-      <div>
-        <div class="tile" id="tileSog">
-          <div class="ic">🪚</div>
-          <div><div class="t">Sög</div><div class="d">F6 – Cutty (merkingar) eða F2 – Vígindi (æða-leiðsögn)</div></div>
+      <div class="tilecell">
+        <div class="tile2" id="tileQF">
+          <div class="ic">❗</div><div class="t">Quick Fix</div>
         </div>
-        <div class="chips">
-          <a class="chip" id="chipF6">F6 – Cutty</a>
-          <a class="chip" id="chipF2">F2 – Vígindi</a>
-        </div>
-      </div>
-
-      <div>
-        <div class="tile" id="tileQF">
-          <div class="ic">❗</div>
-          <div><div class="t">Quick Fix</div><div class="d">Skrá nýtt verkefni, eða græja opin</div></div>
-        </div>
-        <div class="chips">
-          <button class="chip" type="button" id="chipQfNew">➕ Skrá</button>
-          <button class="chip" type="button" id="chipQfManage">🔧 Græja</button>
+        <div class="subpop" id="qfPop">
+          <button type="button" id="chipQfNew">➕ Skrá</button>
+          <button type="button" id="chipQfManage">🔧 Græja</button>
         </div>
       </div>
 
-      <a class="tile" id="tileFraesing">
-        <div class="ic">🔬</div>
-        <div><div class="t">Yfirfræsing</div><div class="d">Fræsilisti fyrir valið verk</div></div>
+      <div class="tilecell">
+        <div class="tile2" id="tileSog">
+          <div class="ic">🪚</div><div class="t">Sög</div>
+        </div>
+        <div class="subpop" id="sogPop">
+          <a id="chipF6">F6 – Cutty</a>
+          <a id="chipF2">F2 – Vígindi</a>
+        </div>
+      </div>
+
+      <a class="tile2" id="tileFraesing">
+        <div class="ic">🔬</div><div class="t">Yfirfræsing</div>
       </a>
 
-      <div class="tile soon" id="tileMinSida">
-        <div class="ic">👤</div>
-        <div><div class="t">Mín síða</div><div class="d">Tímar, orlof, veikindi — ekki stimpilklukka</div></div>
-        <div class="badge">Væntanlegt</div>
+      <div class="tile2 soon" id="tileDagatal">
+        <div class="ic">🗓️</div><div class="t">Dagatal</div>
+        <div class="badge2">Væntanlegt</div>
       </div>
 
-      <div class="tile soon" id="tileDagatal">
-        <div class="ic">🗓️</div>
-        <div><div class="t">Dagatal</div><div class="d">Afhendingardagar og efnisdagar</div></div>
-        <div class="badge">Væntanlegt</div>
+      <div class="tile2 soon" id="tileMinSida">
+        <div class="ic">👤</div><div class="t">Mín síða</div>
+        <div class="badge2">Væntanlegt</div>
       </div>
 
-      <a class="tile" id="tileKlukka" href="/klukka">
-        <div class="ic">⏱️</div>
-        <div><div class="t">Stimpilklukka</div><div class="d">Stimpla inn / út</div></div>
-      </a>
-
-      <a class="tile" id="tileChat" href="https://mail.google.com/chat/" target="_blank" rel="noopener">
-        <div class="ic">💬</div>
-        <div><div class="t">Google Chat</div><div class="d">Opnar spjallið beint</div></div>
+      <a class="tile2 wide" id="tileChat" href="https://mail.google.com/chat/" target="_blank" rel="noopener">
+        <div class="ic">💬</div><div class="t">Google Chat</div>
       </a>
     </div>
   </div>
@@ -476,9 +476,30 @@
     ownerSel.appendChild(o);
   });
 
+  // ── sub-action popovers (Sög: F6/F2, Quick Fix: Skrá/Græja) — keeps the
+  // main grid at a fixed height instead of a chips row per tile. Toggled by
+  // a class, never the `hidden` attribute — see grain.html's popover-cascade
+  // lesson (an author display rule beats [hidden] regardless of specificity). ──
+  function closeAllPopovers() {
+    document.querySelectorAll(".subpop.show").forEach(function (el) { el.classList.remove("show"); });
+  }
+  function togglePopover(id) {
+    var el = $(id);
+    var wasOpen = el.classList.contains("show");
+    closeAllPopovers();
+    if (!wasOpen) el.classList.add("show");
+  }
+  $("tileQF").addEventListener("click", function (e) { e.stopPropagation(); togglePopover("qfPop"); });
+  $("tileSog").addEventListener("click", function (e) { e.stopPropagation(); togglePopover("sogPop"); });
+  document.addEventListener("pointerdown", function (e) {
+    if (e.target.closest(".tilecell")) return;
+    closeAllPopovers();
+  }, true);
+
   // ── QUICK FIX: open/close the card in either Skrá or Græja mode ──
   function openQf(mode) {
-    $("menuArea").querySelectorAll(".section-lbl, .tiles").forEach(function (el) { el.style.display = "none"; });
+    closeAllPopovers();
+    $("menuArea").querySelectorAll(".tilegrid").forEach(function (el) { el.style.display = "none"; });
     $("qfCard").style.display = "block";
     $("qfCreatePane").style.display = mode === "new" ? "block" : "none";
     $("qfManagePane").style.display = mode === "manage" ? "block" : "none";
@@ -487,11 +508,10 @@
   }
   function closeQf() {
     $("qfCard").style.display = "none";
-    $("menuArea").querySelectorAll(".section-lbl, .tiles").forEach(function (el) { el.style.display = ""; });
+    $("menuArea").querySelectorAll(".tilegrid").forEach(function (el) { el.style.display = ""; });
   }
   $("chipQfNew").addEventListener("click", function () { openQf("new"); });
   $("chipQfManage").addEventListener("click", function () { openQf("manage"); });
-  $("tileQF").addEventListener("click", function () { openQf("new"); });
   $("qfBackBtn").addEventListener("click", closeQf);
 
   // ── QUICK FIX: submit ──
