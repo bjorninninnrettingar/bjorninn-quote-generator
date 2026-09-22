@@ -287,8 +287,7 @@
   <script>
     const STARFSMENN_TABLE = "tblhglpjQkczdG1AY";
     const STIMPLANIR_TABLE = "tblnFIO8RB6HcelXF";
-    const FJARVISTIR_TABLE = "tbl3e5o0Klv9RcNQ4";
-    const ORLOFSBEIDNIR_TABLE = "tbljdg6uxEfHE7uCU";
+    const FJARVISTIR_TABLE = "tbl3e5o0Klv9RcNQ4"; // sick-day log AND vacation requests (a row with "Til" set = a request)
     const TAEKIFAERI_TABLE = "tbl4LMXlQjp66RFKI";
     const VERKTIMAR_TABLE = "tblGu27c2fcwN2i2n";
 
@@ -780,12 +779,16 @@
       vacationMsg.textContent = "";
       try {
         // Vacation requests work from any device, like sick-marking — no
-        // kiosk token. "Staða" is deliberately not sent — the server always
-        // forces it to "Í bið" on create so a client can't self-approve.
-        await airtablePost(ORLOFSBEIDNIR_TABLE, {
-          "Frá": fra,
+        // kiosk token. A request is a Fjarvistir row with "Til" set (Dagsetning
+        // carries "frá"); "Staða" is deliberately not sent — the server always
+        // forces it to "Í bið" on create *when "Til" is present*, so a client
+        // can't self-approve. An ordinary sick-mark never sends "Til", so it's
+        // unaffected by that gate.
+        await airtablePost(FJARVISTIR_TABLE, {
+          "Dagsetning": fra,
           "Til": til,
           "Starfsmaður": [currentEmployee.id],
+          "Tegund": "Orlof",
         });
         screenVacation.classList.add("hidden");
         showConfirm("Orlof", new Date(), { fra, til });

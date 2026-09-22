@@ -18,7 +18,6 @@ import { applyCors } from "./_cors.js";
 
 const AIRTABLE_BASE = "app91U15z9K704Okd";
 const STIMPLANIR_TABLE = "tblnFIO8RB6HcelXF";
-const ORLOFSBEIDNIR_TABLE = "tbljdg6uxEfHE7uCU";
 const VERKTIMAR_TABLE = "tblGu27c2fcwN2i2n";
 
 const ALLOWED_FIELDS = {
@@ -176,16 +175,17 @@ const ALLOWED_FIELDS = {
     "Yfirvinna (klst)",
     "Samtals (klst)",
   ],
-  "tbl3e5o0Klv9RcNQ4": [ // Fjarvistir 🤒 (sick day log)
+  "tbl3e5o0Klv9RcNQ4": [ // Fjarvistir 🤒 (sick day log + vacation requests —
+    // a row with "Til" filled in is a vacation *request* spanning Dagsetning
+    // (frá) → Til, everything else is a plain single-day absence)
     "Dagsetning",
     "Starfsmaður",
     "Tegund",
-  ],
-  "tbljdg6uxEfHE7uCU": [ // Orlofsbeiðnir 🌴 (vacation requests)
-    "Frá",
     "Til",
-    "Starfsmaður",
     "Staða",
+    "Dagar (virkir)",
+    "Orlofsdagar eftir (staða)",
+    "Dögum dreift",
   ],
   "tblGu27c2fcwN2i2n": [ // Verktímar 🕒 (per-project time allocation on clock-out)
     "Dagsetning",
@@ -285,21 +285,21 @@ const REQUIRE_FILTER = new Set(["tblhglpjQkczdG1AY", "tbl3e5o0Klv9RcNQ4", "tblzk
 // only happens right after ÚT on the paired shop tablet.
 
 // Stimplanir is for opening a new shift (Inn). Fjarvistir is for marking a
-// day sick from the kiosk. Orlofsbeiðnir is for submitting a vacation
-// request. Verktímar is for the per-project split written on clock-out. No
-// other table accepts creates through this proxy. Stimplanir's "Út" is
+// day sick from the kiosk, AND for submitting a vacation request (send
+// "Til" too — see FORCED_CREATE_FIELDS below, which forces "Staða" to
+// "Í bið" only in that case, so a client can't self-approve its own
+// vacation request, while an ordinary same-day sick entry is unaffected).
+// Verktímar is for the per-project split written on clock-out. No other
+// table accepts creates through this proxy. Stimplanir's "Út" is
 // deliberately not creatable: a shift is opened blank and only ever closed
-// via the PATCH path below, never created pre-closed. Orlofsbeiðnir's
-// "Staða" is deliberately not creatable either — see FORCED_CREATE_FIELDS
-// below, which sets it server-side so a client can't self-approve.
+// via the PATCH path below, never created pre-closed.
 const CREATABLE_FIELDS = {
   // "Mánuður 🗓️"/"Ár 🗓️" are real single-select fields (not formulas) so
   // they work as clean pick-a-value dropdown filters in Interfaces — the
   // kiosk computes and sends them at creation time since there's no
   // Airtable Automation populating them.
   "tblnFIO8RB6HcelXF": ["Inn", "Starfsmaður", "Mánuður 🗓️", "Ár 🗓️"],
-  "tbl3e5o0Klv9RcNQ4": ["Dagsetning", "Starfsmaður", "Tegund"],
-  "tbljdg6uxEfHE7uCU": ["Frá", "Til", "Starfsmaður"],
+  "tbl3e5o0Klv9RcNQ4": ["Dagsetning", "Starfsmaður", "Tegund", "Til"],
   // One row per project the employee split their just-closed shift across.
   // Verkefni 📣 is empty for the "Sölur"/"Annað" buckets (Verkflokkur says
   // which). Stimplun ⏱️ links back to the shift row for traceability.
@@ -330,9 +330,13 @@ const CREATABLE_FIELDS = {
 
 // Fields forced to a fixed value on create, regardless of what (or whether)
 // the client sends — applied after CREATABLE_FIELDS filtering, so these
-// don't need to be creatable at all.
+// don't need to be creatable at all. A table's entry may be a plain object
+// (always applied) or a function of the already-filtered fields (applied
+// conditionally) — Fjarvistir needs the latter, since only a vacation
+// *request* (a row that carries "Til") should be forced into "Í bið"; an
+// ordinary same-day sick entry has no "Til" and must pass through untouched.
 const FORCED_CREATE_FIELDS = {
-  "tbljdg6uxEfHE7uCU": { "Staða": "Í bið" },
+  "tbl3e5o0Klv9RcNQ4": (fields) => (fields["Til"] ? { "Staða": "Í bið" } : {}),
   "tbltD1UNpqj05WtMx": { "Staða": "Nýtt" },
   "tblDQWuf4OSjUv2XI": { "Staða": "opið 😠" },
   // A self-serve submission must never look like reviewed designer work —
@@ -349,9 +353,9 @@ const FORCED_CREATE_FIELDS = {
 
 // Only the stimpilklukka kiosk's own paired device may open/close a shift —
 // this is what keeps INN/ÚT tied to being physically at the shop, while
-// Fjarvistir (sick) and Orlofsbeiðnir (vacation request) stay reachable from
-// any device. Pairing happens client-side (stimpilklukka.html stores the
-// secret from a one-time ?setup= link); this just checks the header matches.
+// Fjarvistir (sick marking AND vacation requests) stays reachable from any
+// device. Pairing happens client-side (stimpilklukka.html stores the secret
+// from a one-time ?setup= link); this just checks the header matches.
 const KIOSK_LOCKED_TABLES = new Set([STIMPLANIR_TABLE, VERKTIMAR_TABLE]);
 
 // Owners clock in from their phones via /eigandi — no device pairing. That page
@@ -399,8 +403,8 @@ const WRITABLE_FIELDS = {
   // a "flag for a call" note goes into the same field skipulag already uses.
   "tbl4LMXlQjp66RFKI": ["Sjálfsafgreiðsla — óyfirfarið ⚠️", "Skilaboð til skipulags"],
   // /app's recent-QUICK-FIX list lets anyone tap a card to advance
-  // opið → Í vinnslu → Lokið — unlike Orlofsbeiðnir's "Staða" this isn't an
-  // approval gate, so any floor device may set it.
+  // opið → Í vinnslu → Lokið — unlike Fjarvistir's vacation-request "Staða"
+  // this isn't an approval gate, so any floor device may set it.
   "tblDQWuf4OSjUv2XI": ["Staða"],
 };
 
@@ -507,7 +511,8 @@ export default async function handler(req, res) {
     for (const [k, v] of Object.entries(requestedFields)) {
       if (creatable.includes(k)) fields[k] = v;
     }
-    Object.assign(fields, FORCED_CREATE_FIELDS[tableId] || {});
+    const forced = FORCED_CREATE_FIELDS[tableId];
+    Object.assign(fields, typeof forced === "function" ? forced(fields) : forced || {});
     if (Object.keys(fields).length === 0) {
       return res.status(400).json({ error: "No writable fields in request" });
     }
