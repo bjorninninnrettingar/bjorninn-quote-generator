@@ -870,7 +870,7 @@ async function fetchProjectById(id) { return airtableFetch(PROJECTS_TABLE, {}, i
 
 async function fetchFrontsForProject(name) {
   const escd = name.replace(/"/g, '\\"');
-  const formula = `{${S_PROJECT_LINK}}="${escd}"`;
+  const formula = `FIND("${escd}", ARRAYJOIN({${S_PROJECT_LINK}})) > 0`;
   return airtableFetch(SOGUNARLISTI_TABLE, {
     filterByFormula: formula,
     "fields[]": [S_PARTUR, S_H, S_B, S_TH, S_M, S_EFNI, S_EFNI_BASE, S_EYDUBLAD, S_VILLA, S_PLANMSG],
@@ -958,7 +958,7 @@ function closeDrawings() {
 // have any melamine-grain front at all".
 async function fetchAllFrontsAcrossProjects(names) {
   if (!names.length) return [];
-  const clauses = names.map(n => `{${S_PROJECT_LINK}}="${n.replace(/"/g, '\\"')}"`);
+  const clauses = names.map(n => `FIND("${n.replace(/"/g, '\\"')}", ARRAYJOIN({${S_PROJECT_LINK}})) > 0`);
   try {
     return await airtableFetch(SOGUNARLISTI_TABLE, {
       filterByFormula: `OR(${clauses.join(",")})`,
@@ -1032,7 +1032,7 @@ function _materialSub(efni) {
 // Eyðublað link gives us ids only — fetch the units to map id → short name.
 async function fetchUnitNames(name) {
   const escd = name.replace(/"/g, '\\"');
-  const formula = `OR({${U_PROJECT_LINK}}="${escd}",{${U_PROJECT_LINK_OLD}}="${escd}")`;
+  const formula = `OR(FIND("${escd}", ARRAYJOIN({${U_PROJECT_LINK}})) > 0, FIND("${escd}", ARRAYJOIN({${U_PROJECT_LINK_OLD}})) > 0)`;
   try {
     const recs = await airtableFetch(EYDUBLAD_TABLE, { filterByFormula: formula, "fields[]": [U_NAME], pageSize: 100 });
     const map = {};
@@ -1042,7 +1042,7 @@ async function fetchUnitNames(name) {
 }
 async function fetchPlans(name) {
   const escd = name.replace(/"/g, '\\"');
-  const formula = `{${PL_PROJECT}}="${escd}"`;
+  const formula = `FIND("${escd}", ARRAYJOIN({${PL_PROJECT}})) > 0`;
   try {
     return await airtableFetch(PLAN_TABLE, {
       filterByFormula: formula,
@@ -1076,7 +1076,7 @@ async function populateProjects() {
 async function annotateProjectsWithPlans(recs) {
   const names = recs.map(r => r.fields[P_NAME_FIELD]).filter(Boolean);
   if (!names.length) return;
-  const clauses = names.map(n => `{${PL_PROJECT}}="${n.replace(/"/g, '\\"')}"`);
+  const clauses = names.map(n => `FIND("${n.replace(/"/g, '\\"')}", ARRAYJOIN({${PL_PROJECT}})) > 0`);
   let plans;
   try {
     plans = await airtableFetch(PLAN_TABLE, {
