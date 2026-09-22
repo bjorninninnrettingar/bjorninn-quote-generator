@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <meta name="robots" content="noindex" />
 <title>Verkstæði — Björninn</title>
+<script>
+// Apply a saved light-theme choice before first paint (avoids a dark→light flash).
+(function () {
+  try { if (localStorage.getItem("verkApp:theme") === "light") document.documentElement.setAttribute("data-theme", "light"); } catch (e) {}
+})();
+</script>
 
 <link rel="manifest" href="/manifest.json" />
 <meta name="theme-color" content="#0b0b0c" />
@@ -42,6 +48,10 @@
     --blue:#0a84ff; --amber:#ffd60a; --green:#4caf50; --red:#ff5a5a; --gold:#c9b458;
     --font:"Kumbh Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
+  :root[data-theme="light"] {
+    --bg:#f3f3f4; --surface:#ffffff; --surface2:#ececee; --line:#dcdce0;
+    --text:#131315; --muted:#5a5a62; --dim:#8a8a90;
+  }
   * { box-sizing:border-box; margin:0; padding:0; }
   html,body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; line-height:1.5; }
   .wrap { max-width:640px; margin:0 auto; padding:calc(16px + env(safe-area-inset-top)) 14px calc(16px + env(safe-area-inset-bottom)); }
@@ -61,21 +71,6 @@
     margin-left:auto; flex:none; background:var(--blue); color:#fff; border:none;
     border-radius:9px; padding:8px 12px; font-family:var(--font); font-weight:700; font-size:.85rem;
   }
-
-  /* ── current project bar ── */
-  .projbar {
-    margin-top:10px; padding:10px 12px; background:var(--surface); border:1px solid var(--line);
-    border-radius:14px; display:flex; align-items:center; gap:12px;
-  }
-  .projbar .lbl { font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:var(--muted); display:block; }
-  .projbar .name { font-size:1.08rem; font-weight:800; margin-top:2px; }
-  .projbar.empty .name { color:var(--muted); font-weight:600; font-size:.98rem; }
-  .projbar .actions { margin-left:auto; display:flex; gap:8px; flex:none; }
-  .projbar button {
-    font-family:var(--font); font-weight:700; font-size:.82rem; border-radius:9px; border:1px solid var(--line);
-    background:var(--surface2); color:var(--text); padding:8px 12px;
-  }
-  .projbar .actions .pick { background:var(--blue); border-color:#3d8bff; color:#fff; }
 
   /* ── search ── */
   .search { margin-top:12px; position:relative; }
@@ -157,16 +152,26 @@
   .tile2:active { filter:brightness(1.15); }
   .tile2 .ic { font-size:2.3rem; line-height:1; }
   .tile2 .t { font-size:1.02rem; font-weight:800; letter-spacing:.01em; }
+  .tile2 .t-sub {
+    font-size:.74rem; color:var(--muted); max-width:100%; overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap; padding:0 6px;
+  }
   .tile2.soon { opacity:.5; }
+  /* thin colour-coded frames — Verk í vinnslu/Quick Fix/Yfirfræsing/Sög get a
+     hint of colour so they read apart from the plain/soon/Google Chat ones */
+  .tile2.c-yellow { border-color:var(--amber); }
+  .tile2.c-red { border-color:var(--red); }
+  .tile2.c-green { border-color:var(--green); }
+  .tile2.c-blue { border-color:var(--blue); }
   .badge2 {
     position:absolute; top:10px; right:10px; font-size:.58rem; font-weight:800; text-transform:uppercase;
     letter-spacing:.04em; background:var(--surface2); border:1px solid var(--line); border-radius:20px;
     padding:2px 7px; color:var(--muted);
   }
 
-  /* ── Quick Fix choice screen — same "two big cards" pattern as
-     skipulag.html/verkstaedi.html's hub pages ── */
-  .qf-choice { margin-top:14px; }
+  /* ── Quick Fix choice screen / Settings panel — same "two big cards"
+     pattern as skipulag.html/verkstaedi.html's hub pages ── */
+  .qf-choice, .settings-panel { margin-top:14px; }
   .choice-cards { display:flex; flex-direction:column; gap:12px; margin-top:14px; }
   .choice-card {
     display:flex; align-items:center; gap:16px; text-align:left; width:100%;
@@ -174,9 +179,12 @@
     border-radius:18px; padding:20px 18px; cursor:pointer;
   }
   .choice-card:active { filter:brightness(1.15); }
+  .choice-card.active { border-color:var(--blue); background:var(--surface2); }
   .choice-card .cc-ic { font-size:2.1rem; flex:none; }
   .choice-card .cc-t { font-size:1.08rem; font-weight:800; }
   .choice-card .cc-d { font-size:.82rem; color:var(--muted); margin-top:2px; }
+  .choice-card .cc-check { margin-left:auto; flex:none; font-size:1.3rem; color:var(--blue); visibility:hidden; }
+  .choice-card.active .cc-check { visibility:visible; }
 </style>
 </head>
 <body>
@@ -189,17 +197,6 @@
   <div id="installBar">
     <span><b>Settu appið á heimaskjáinn</b> — opnast þá eins og venjulegt app.</span>
     <button id="installBtn" type="button">Setja upp</button>
-  </div>
-
-  <div class="projbar empty" id="projBar">
-    <div>
-      <span class="lbl">Verk í vinnslu</span>
-      <span class="name" id="projName">Ekkert verk valið</span>
-    </div>
-    <div class="actions">
-      <button class="pick" type="button" onclick="location.href='/verk-i-gangi'">Velja verk</button>
-      <button type="button" id="clearProjBtn" style="display:none;">Hreinsa</button>
-    </div>
   </div>
 
   <div class="search">
@@ -264,16 +261,37 @@
       </div>
     </div>
 
+    <div class="settings-panel" id="settingsPanel" style="display:none;">
+      <button class="qf-back" type="button" id="settingsBackBtn">‹ Til baka</button>
+      <div class="choice-cards">
+        <button type="button" class="choice-card" id="themeDarkBtn">
+          <div class="cc-ic">🌙</div>
+          <div><div class="cc-t">Dökkt þema</div><div class="cc-d">Sjálfgefið</div></div>
+          <div class="cc-check">✓</div>
+        </button>
+        <button type="button" class="choice-card" id="themeLightBtn">
+          <div class="cc-ic">☀️</div>
+          <div><div class="cc-t">Ljóst þema</div><div class="cc-d">Bjartara viðmót</div></div>
+          <div class="cc-check">✓</div>
+        </button>
+      </div>
+    </div>
+
     <div class="tilegrid">
-      <div class="tile2" id="tileQF">
+      <a class="tile2 c-yellow" id="tileVerkIGangi" href="/verk-i-gangi">
+        <div class="ic">📋</div><div class="t">Verk í vinnslu</div>
+        <div class="t-sub" id="projTileSub">Ekkert verk valið</div>
+      </a>
+
+      <div class="tile2 c-red" id="tileQF">
         <div class="ic">❗</div><div class="t">Quick Fix</div>
       </div>
 
-      <a class="tile2" id="tileSog">
+      <a class="tile2 c-blue" id="tileSog">
         <div class="ic">🪚</div><div class="t">Sög</div>
       </a>
 
-      <a class="tile2" id="tileFraesing">
+      <a class="tile2 c-green" id="tileFraesing">
         <div class="ic">🔬</div><div class="t">Yfirfræsing</div>
       </a>
 
@@ -290,6 +308,10 @@
       <a class="tile2" id="tileChat" href="https://mail.google.com/chat/" target="_blank" rel="noopener">
         <div class="ic">💬</div><div class="t">Google Chat</div>
       </a>
+
+      <div class="tile2" id="tileSettings">
+        <div class="ic">⚙️</div><div class="t">Stillingar</div>
+      </div>
     </div>
   </div>
 </div>
@@ -421,28 +443,13 @@
       if (p) localStorage.setItem("verkApp:project", JSON.stringify(p));
       else localStorage.removeItem("verkApp:project");
     } catch (e) {}
-    renderProjectBar();
     wireTiles();
   }
-
-  function renderProjectBar() {
-    var p = getProject();
-    var bar = $("projBar");
-    if (p) {
-      bar.classList.remove("empty");
-      $("projName").textContent = p.name;
-      $("clearProjBtn").style.display = "inline-block";
-    } else {
-      bar.classList.add("empty");
-      $("projName").textContent = "Ekkert verk valið";
-      $("clearProjBtn").style.display = "none";
-    }
-  }
-  $("clearProjBtn").addEventListener("click", function () { setProject(null); });
 
   function wireTiles() {
     var p = getProject();
     var rid = p ? "?recordId=" + encodeURIComponent(p.id) : "";
+    $("projTileSub").textContent = p ? p.name : "Ekkert verk valið";
     $("tileSog").href = "/verkstaedi" + rid;
     $("tileFraesing").href = "/fraesing" + rid;
 
@@ -467,7 +474,6 @@
     } catch (e) {}
   })();
 
-  renderProjectBar();
   wireTiles();
 
   // ── QUICK FIX: owner dropdown ──
@@ -494,6 +500,35 @@
   $("qfChoiceBackBtn").addEventListener("click", closeQfChoice);
   $("qfChoiceNew").addEventListener("click", function () { openQf("new"); });
   $("qfChoiceManage").addEventListener("click", function () { openQf("manage"); });
+
+  // ── Stillingar: light/dark theme (more settings — language, notifications
+  // — can land here later as more choice-cards). ──
+  function getTheme() { try { return localStorage.getItem("verkApp:theme") === "light" ? "light" : "dark"; } catch (e) { return "dark"; } }
+  function setTheme(t) {
+    try { localStorage.setItem("verkApp:theme", t); } catch (e) {}
+    document.documentElement.setAttribute("data-theme", t === "light" ? "light" : "dark");
+    renderThemeChoice();
+  }
+  function renderThemeChoice() {
+    var t = getTheme();
+    $("themeDarkBtn").classList.toggle("active", t === "dark");
+    $("themeLightBtn").classList.toggle("active", t === "light");
+  }
+  renderThemeChoice();
+  $("themeDarkBtn").addEventListener("click", function () { setTheme("dark"); });
+  $("themeLightBtn").addEventListener("click", function () { setTheme("light"); });
+
+  function openSettings() {
+    $("menuArea").querySelectorAll(".tilegrid").forEach(function (el) { el.style.display = "none"; });
+    $("settingsPanel").style.display = "block";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  function closeSettings() {
+    $("settingsPanel").style.display = "none";
+    $("menuArea").querySelectorAll(".tilegrid").forEach(function (el) { el.style.display = ""; });
+  }
+  $("tileSettings").addEventListener("click", openSettings);
+  $("settingsBackBtn").addEventListener("click", closeSettings);
 
   // ── QUICK FIX: open/close the create/manage card ──
   function openQf(mode) {
@@ -610,6 +645,8 @@
     { cat: "Verk", t: "Dagatal", ic: "🗓️", kw: "dagatal afhending efni kalender", go: null },
     { cat: "Starfsmenn", t: "Stimpilklukka", ic: "⏱️", kw: "stimpilklukka klukka inn út", go: function () { location.href = "/klukka"; } },
     { cat: "Annað", t: "Google Chat", ic: "💬", kw: "chat spjall skilaboð google", go: function () { window.open($("tileChat").href, "_blank"); } },
+    { cat: "Stillingar", t: "Ljóst þema", ic: "☀️", kw: "stillingar ljóst þema bjart hvítt", go: function () { setTheme("light"); openSettings(); } },
+    { cat: "Stillingar", t: "Dökkt þema", ic: "🌙", kw: "stillingar dökkt þema svart", go: function () { setTheme("dark"); openSettings(); } },
   ];
   var searchInput = $("searchInput");
   var searchResults = $("searchResults");
