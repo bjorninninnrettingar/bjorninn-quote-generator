@@ -529,13 +529,20 @@
   }
 
   // ── VERK_KEY pairing (mirrors stimpilklukka.html's kiosk pairing) — lets
-  // "Verk — yfirlit" show the internal notes/drawings instead of just the
-  // public field set. Optional: the tile still works without it. ──
+  // Verk í vinnslu/Sög/Yfirfræsing open /verk's internal notes/drawings.
+  // Deliberately does NOT strip ?setup= from the URL (no history.replaceState
+  // here): iOS Safari's "Add to Home Screen" can give the installed app a
+  // separate storage bucket from the Safari tab it was added from, so a
+  // localStorage write made in the Safari tab doesn't reliably survive into
+  // the installed icon — it showed up as "QR kóði úreltur" every time.
+  // Keeping ?setup= in the URL means the *installed icon itself* carries the
+  // key (that's the URL "Add to Home Screen" captures), so pairing re-applies
+  // fresh on every single launch regardless of what happened to localStorage
+  // in between — the write below still fires each time too, harmless. ──
   (function () {
     var setup = new URLSearchParams(location.search).get("setup");
     if (setup) {
       try { localStorage.setItem("verkApp:verkKey", setup); } catch (e) {}
-      history.replaceState({}, "", location.pathname);
     }
   })();
   function verkKey() { try { return localStorage.getItem("verkApp:verkKey") || ""; } catch (e) { return ""; } }
