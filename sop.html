@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex" />
+<title>SOP — Björninn</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  /* sop.html — /sop, a searchable SOP library pulled live from Airtable's
+     "SOP's 🤓" table. Same instant-search → category → item UX as faq.html,
+     rebuilt dark for the internal app instead of the light customer-facing
+     one, and data-driven (categories, counts, everything) instead of a
+     hardcoded DATA array — so a new SOP or category in Airtable just shows
+     up, no code change needed. Reached from /app's home grid. */
+  :root {
+    --bg:#0b0b0c; --surface:#161618; --surface2:#1e1e21; --line:#2a2a2e;
+    --text:#f2f2f3; --muted:#c9c9ce; --dim:#8a8a90;
+    --blue:#0a84ff; --amber:#ffd60a; --green:#4caf50; --red:#ff5a5a;
+    --font:"Kumbh Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; line-height:1.5; }
+  .wrap { max-width:680px; margin:0 auto; padding:0 16px 60px; }
+
+  .hd { position:sticky; top:0; z-index:10; background:var(--bg); padding:16px 0 12px; border-bottom:1px solid var(--line); }
+  .back { display:inline-flex; align-items:center; gap:6px; color:var(--muted); text-decoration:none; font-size:.85rem; font-weight:700; background:none; border:none; cursor:pointer; padding:0; font-family:var(--font); }
+  h1 { font-size:1.6rem; font-weight:800; letter-spacing:-.01em; margin-top:8px; }
+  .lede { color:var(--muted); font-size:.9rem; margin-top:4px; }
+
+  .search { position:relative; margin-top:14px; }
+  .search svg { position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--dim); pointer-events:none; }
+  .search input {
+    width:100%; font-family:var(--font); font-size:1rem; color:var(--text);
+    background:var(--surface); border:1px solid var(--line); border-radius:12px;
+    padding:13px 14px 13px 42px; outline:none;
+  }
+  .search input:focus { border-color:var(--blue); }
+
+  .search-results { margin-top:12px; display:none; flex-direction:column; gap:8px; }
+  .search-results.show { display:flex; }
+  .search-hit {
+    display:block; text-align:left; width:100%; cursor:pointer; font-family:var(--font);
+    text-decoration:none; color:var(--text); background:var(--surface); border:1px solid var(--line);
+    border-radius:12px; padding:13px 14px;
+  }
+  .search-hit .cat { font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--amber); display:block; margin-bottom:2px; }
+  .search-hit .t { font-size:.98rem; font-weight:700; }
+  .search-empty { font-size:.85rem; color:var(--muted); padding:10px 2px; }
+
+  #status { text-align:center; color:var(--muted); padding:60px 0; }
+
+  /* category grid */
+  .grid { display:flex; flex-direction:column; gap:10px; margin-top:18px; }
+  .catcard {
+    display:flex; align-items:center; gap:12px; width:100%; text-align:left; cursor:pointer; font-family:var(--font);
+    background:var(--surface); border:1px solid var(--line); border-left:3px solid var(--cc, var(--blue));
+    border-radius:12px; padding:16px; color:var(--text);
+  }
+  .catcard:active { background:var(--surface2); }
+  .catcard .t { font-size:1.05rem; font-weight:800; flex:1 1 auto; }
+  .catcard .count { font-size:.8rem; color:var(--muted); font-weight:700; flex:none; }
+
+  /* category → SOP list */
+  .cathead { display:flex; align-items:center; gap:10px; margin:18px 0 4px; }
+  .cathead h2 { font-size:1.25rem; font-weight:800; }
+  .soplist { display:flex; flex-direction:column; gap:8px; margin-top:14px; }
+  .soprow {
+    display:flex; align-items:center; gap:12px; width:100%; text-align:left; cursor:pointer; font-family:var(--font);
+    background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px 16px; color:var(--text);
+  }
+  .soprow:active { background:var(--surface2); }
+  .soprow .thumb { width:44px; height:44px; border-radius:8px; object-fit:cover; flex:none; background:var(--surface2); }
+  .soprow .txt { flex:1 1 auto; min-width:0; }
+  .soprow .t { font-size:.98rem; font-weight:700; }
+  .soprow .sub { font-size:.78rem; color:var(--muted); margin-top:2px; display:flex; gap:6px; flex-wrap:wrap; }
+  .soprow .arrow { color:var(--dim); flex:none; }
+
+  .badge { display:inline-block; font-size:.66rem; font-weight:800; text-transform:uppercase; letter-spacing:.05em; border-radius:20px; padding:2px 8px; }
+  .badge.req { background:#3a2f0c; color:var(--amber); }
+  .badge.plain { background:var(--surface2); border:1px solid var(--line); color:var(--muted); }
+
+  /* SOP detail */
+  .cover { width:100%; max-height:220px; object-fit:cover; border-radius:14px; margin-top:16px; border:1px solid var(--line); }
+  .sopname { font-size:1.4rem; font-weight:800; letter-spacing:-.01em; margin-top:16px; }
+  .meta-badges { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .meta-badges .badge.cat { background:var(--surface2); border:1px solid var(--line); color:var(--text); }
+  .owner-line { font-size:.85rem; color:var(--muted); margin-top:10px; }
+  .video-link {
+    display:inline-flex; align-items:center; gap:8px; margin-top:14px; text-decoration:none;
+    background:var(--blue); color:#fff; font-weight:800; font-size:.92rem; border-radius:11px; padding:12px 16px;
+  }
+  .steps { margin-top:22px; }
+  .steps .step-h { font-weight:800; font-size:1rem; margin:18px 0 8px; color:var(--amber); }
+  .steps .step-h:first-child { margin-top:0; }
+  .steps p { font-size:.95rem; margin:6px 0; color:var(--text); }
+  .steps ul, .steps ol { margin:4px 0 10px 22px; padding:0; }
+  .steps li { font-size:.94rem; margin-bottom:5px; color:var(--muted); }
+  .steps li b, .steps li strong { color:var(--text); }
+  .steps ul ul, .steps ol ol, .steps ul ol, .steps ol ul { margin-top:5px; }
+
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hd">
+    <a class="back" href="/app">← Verkstæði</a>
+    <h1>SOP</h1>
+    <div class="lede">Staðlaðar verklagsreglur — leitaðu eða veldu flokk.</div>
+    <div class="search">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="searchInput" type="text" placeholder="Leita — t.d. „samsetning“, „kantlíming“…" autocomplete="off" />
+    </div>
+  </div>
+
+  <div id="status">Sæki SOP…</div>
+  <div class="search-results" id="searchResults"></div>
+
+  <div id="homeView" class="hidden">
+    <div class="grid" id="catGrid"></div>
+  </div>
+
+  <div id="catView" class="hidden">
+    <button class="back" id="catBackBtn">← Allir flokkar</button>
+    <div class="cathead"><h2 id="catTitle"></h2></div>
+    <div class="soplist" id="sopList"></div>
+  </div>
+
+  <div id="itemView" class="hidden">
+    <button class="back" id="itemBackBtn">← Til baka</button>
+    <img class="cover hidden" id="itemCover" alt="" />
+    <div class="sopname" id="itemName"></div>
+    <div class="meta-badges" id="itemBadges"></div>
+    <div class="owner-line hidden" id="itemOwner"></div>
+    <a class="video-link hidden" id="itemVideo" target="_blank" rel="noopener">🎬 Myndband / teiknuð útskýring</a>
+    <div class="steps" id="itemSteps"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var PROXY_URL = "/api/airtable";
+  var SOP_TABLE = "tblPMeNUQirwdNlYf"; // SOP's 🤓
+
+  var F_TITLE = "Heiti SOP (standard operating procedure)";
+  var F_COVER = "Cover mynd 🖼️";
+  var F_OWNER = "Eigandi SOP's";
+  var F_VIDEO = "Myndbands eða teiknuð útskýring 🔗";
+  var F_STEPS = "Lýsing á skrefum ✍️";
+  var F_READ  = "Lesa eða ekki 🤓";
+  var F_CAT   = "Flokkur 🗂️";
+  var F_SUB   = "Undirflokkur 📁";
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function norm(s) { return (s || "").toLowerCase(); }
+
+  // Deterministic accent colour per category name, so each category reads
+  // consistently without a hardcoded colour list that has to be kept in
+  // sync with Airtable's own choices.
+  function colorForKey(key) {
+    var hash = 0;
+    for (var i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) | 0;
+    return "hsl(" + (Math.abs(hash) % 360) + ",65%,60%)";
+  }
+
+  // Small markdown-ish renderer for "Lýsing á skrefum" — **Bold** lines
+  // become step headings, "- "/"1. " lines (any indent) become nested
+  // lists. Matches the informal indented-bullet style SOP authors actually
+  // use in Airtable, not full markdown.
+  function renderSteps(src) {
+    if (!src) return "";
+    var lines = String(src).split(/\r?\n/);
+    var html = "", stack = [];
+    function closeTo(indent) {
+      while (stack.length && stack[stack.length - 1].indent >= indent) {
+        html += "</" + stack.pop().tag + ">";
+      }
+    }
+    function inline(t) {
+      return esc(t).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
+    }
+    lines.forEach(function (raw) {
+      if (!raw.trim()) return;
+      var heading = raw.match(/^\s*#{1,6}\s*(.*)$/);
+      if (heading) {
+        closeTo(0);
+        if (heading[1].trim()) html += '<div class="step-h">' + inline(heading[1].replace(/\*\*/g, "")) + "</div>";
+        return;
+      }
+      var bold = raw.match(/^\s*\*\*(.+?)\*\*\s*:?\s*$/);
+      if (bold) {
+        closeTo(0);
+        html += '<div class="step-h">' + esc(bold[1]) + "</div>";
+        return;
+      }
+      var m = raw.match(/^(\s*)(?:[-*]|\d+[.)])\s+(.*)$/);
+      if (!m) {
+        closeTo(0);
+        html += "<p>" + inline(raw.trim()) + "</p>";
+        return;
+      }
+      var indent = m[1].length, text = m[2];
+      var tag = /^\s*\d/.test(raw.replace(/^\s*/, "")) ? "ol" : "ul";
+      closeTo(indent + 1);
+      if (!stack.length || stack[stack.length - 1].indent < indent) {
+        html += "<" + tag + ">";
+        stack.push({ indent: indent, tag: tag });
+      }
+      html += "<li>" + inline(text) + "</li>";
+    });
+    closeTo(0);
+    return html;
+  }
+
+  async function airtableFetchAll(table, params) {
+    var qs = ["path=" + encodeURIComponent(table)];
+    Object.keys(params || {}).forEach(function (k) {
+      var v = params[k];
+      (Array.isArray(v) ? v : [v]).forEach(function (x) { qs.push(encodeURIComponent(k) + "=" + encodeURIComponent(x)); });
+    });
+    var recs = [], offset;
+    do {
+      var url = PROXY_URL + "?" + qs.join("&") + (offset ? "&offset=" + encodeURIComponent(offset) : "");
+      var r = await fetch(url);
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      var d = await r.json();
+      recs = recs.concat(d.records || []);
+      offset = d.offset;
+    } while (offset);
+    return recs;
+  }
+
+  var homeView = $("homeView"), catView = $("catView"), itemView = $("itemView");
+  var searchResults = $("searchResults"), searchInput = $("searchInput");
+  var sops = [], byCat = {}, cats = [];
+
+  function showOnly(view) {
+    [homeView, catView, itemView].forEach(function (v) { v.classList.toggle("hidden", v !== view); });
+    searchResults.classList.remove("show");
+    searchInput.value = "";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function renderGrid() {
+    $("catGrid").innerHTML = cats.map(function (c) {
+      return '<button class="catcard" style="--cc:' + colorForKey(c) + ';" data-cat="' + esc(c) + '">' +
+        '<span class="t">' + esc(c) + '</span><span class="count">' + byCat[c].length + " SOP</span></button>";
+    }).join("");
+    $("catGrid").querySelectorAll(".catcard").forEach(function (btn) {
+      btn.addEventListener("click", function () { openCategory(btn.dataset.cat); });
+    });
+  }
+
+  function sopSubIcon(rec) {
+    var att = (rec.fields[F_COVER] || [])[0];
+    var thumb = att && att.thumbnails && (att.thumbnails.small || att.thumbnails.large);
+    return thumb ? thumb.url : (att ? att.url : "");
+  }
+
+  function openCategory(cat) {
+    showOnly(catView);
+    $("catTitle").textContent = cat;
+    var list = byCat[cat] || [];
+    $("sopList").innerHTML = list.map(function (rec) {
+      var f = rec.fields;
+      var title = f[F_TITLE] || "(ónefnt)";
+      var read = (f[F_READ] || "");
+      var subs = f[F_SUB] || [];
+      var thumbUrl = sopSubIcon(rec);
+      return '<button class="soprow" data-id="' + esc(rec.id) + '">' +
+        (thumbUrl ? '<img class="thumb" src="' + esc(thumbUrl) + '" alt="" loading="lazy">' : '<span class="thumb"></span>') +
+        '<div class="txt"><div class="t">' + esc(title) + '</div><div class="sub">' +
+          (read ? '<span class="badge req">' + esc(read) + '</span>' : "") +
+          subs.map(function (s) { return '<span class="badge plain">' + esc(s) + '</span>'; }).join("") +
+        '</div></div><span class="arrow">→</span></button>';
+    }).join("");
+    $("sopList").querySelectorAll(".soprow").forEach(function (btn) {
+      btn.addEventListener("click", function () { openItem(btn.dataset.id); });
+    });
+  }
+
+  function openItem(id) {
+    var rec = sops.find(function (r) { return r.id === id; });
+    if (!rec) return;
+    showOnly(itemView);
+    var f = rec.fields;
+    var cover = (f[F_COVER] || [])[0];
+    var coverUrl = cover && cover.thumbnails ? (cover.thumbnails.large || cover.thumbnails.full || cover).url : (cover ? cover.url : "");
+    var coverEl = $("itemCover");
+    if (coverUrl) { coverEl.src = coverUrl; coverEl.classList.remove("hidden"); } else { coverEl.classList.add("hidden"); }
+
+    $("itemName").textContent = f[F_TITLE] || "(ónefnt)";
+
+    var badges = [];
+    if (f[F_CAT]) badges.push('<span class="badge cat">' + esc(f[F_CAT]) + "</span>");
+    (f[F_SUB] || []).forEach(function (s) { badges.push('<span class="badge plain">' + esc(s) + "</span>"); });
+    if (f[F_READ]) badges.push('<span class="badge req">' + esc(f[F_READ]) + "</span>");
+    $("itemBadges").innerHTML = badges.join("");
+
+    var ownerEl = $("itemOwner");
+    if (f[F_OWNER]) { ownerEl.textContent = "Eigandi: " + f[F_OWNER]; ownerEl.classList.remove("hidden"); }
+    else ownerEl.classList.add("hidden");
+
+    var videoEl = $("itemVideo");
+    if (f[F_VIDEO]) { videoEl.href = f[F_VIDEO]; videoEl.classList.remove("hidden"); }
+    else videoEl.classList.add("hidden");
+
+    $("itemSteps").innerHTML = renderSteps(f[F_STEPS]);
+  }
+
+  $("catBackBtn").addEventListener("click", function () { showOnly(homeView); });
+  $("itemBackBtn").addEventListener("click", function () {
+    var rec = sops.find(function (r) { return $("itemName").textContent === (r.fields[F_TITLE] || "(ónefnt)"); });
+    var cat = rec ? rec.fields[F_CAT] : null;
+    if (cat) openCategory(cat); else showOnly(homeView);
+  });
+
+  searchInput.addEventListener("input", function () {
+    var val = norm(searchInput.value.trim());
+    if (!val) {
+      searchResults.classList.remove("show");
+      searchResults.innerHTML = "";
+      homeView.classList.remove("hidden"); catView.classList.add("hidden"); itemView.classList.add("hidden");
+      return;
+    }
+    homeView.classList.add("hidden"); catView.classList.add("hidden"); itemView.classList.add("hidden");
+    searchResults.classList.add("show");
+    var hits = sops.filter(function (rec) {
+      var f = rec.fields;
+      var hay = norm(f[F_TITLE]) + " " + norm(f[F_CAT]) + " " + norm((f[F_SUB] || []).join(" ")) + " " + norm(f[F_STEPS]);
+      return hay.indexOf(val) !== -1;
+    });
+    searchResults.innerHTML = hits.length
+      ? hits.map(function (rec) {
+          var f = rec.fields;
+          return '<button class="search-hit" data-id="' + esc(rec.id) + '"><span class="cat">' + esc(f[F_CAT] || "") + '</span><span class="t">' + esc(f[F_TITLE] || "") + "</span></button>";
+        }).join("")
+      : '<div class="search-empty">Ekkert fannst.</div>';
+    searchResults.querySelectorAll(".search-hit").forEach(function (btn) {
+      btn.addEventListener("click", function () { openItem(btn.dataset.id); });
+    });
+  });
+
+  (async function () {
+    try {
+      sops = await airtableFetchAll(SOP_TABLE, { pageSize: 100 });
+      sops.sort(function (a, b) { return (a.fields[F_TITLE] || "").localeCompare(b.fields[F_TITLE] || "", "is"); });
+      byCat = {};
+      sops.forEach(function (rec) {
+        var c = rec.fields[F_CAT] || "Annað";
+        (byCat[c] = byCat[c] || []).push(rec);
+      });
+      cats = Object.keys(byCat).sort(function (a, b) { return a.localeCompare(b, "is"); });
+      $("status").classList.add("hidden");
+      showOnly(homeView);
+      renderGrid();
+    } catch (e) {
+      $("status").textContent = "Villa við að sækja SOP — reyndu aftur.";
+    }
+  })();
+})();
+</script>
+</body>
+</html>

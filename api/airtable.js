@@ -193,6 +193,16 @@ const ALLOWED_FIELDS = {
     "Klst",
     "Stimplun ⏱️",
   ],
+  "tblPMeNUQirwdNlYf": [ // SOP's 🤓 — read-only reference library for /sop
+    "Heiti SOP (standard operating procedure)",
+    "Cover mynd 🖼️",
+    "Eigandi SOP's",
+    "Myndbands eða teiknuð útskýring 🔗",
+    "Lýsing á skrefum ✍️",
+    "Lesa eða ekki 🤓",
+    "Flokkur 🗂️",
+    "Undirflokkur 📁",
+  ],
 };
 
 // Extra Tækifæri fields the internal floor page (/verk, verk.html) needs —
@@ -220,12 +230,9 @@ const VERK_ONLY_FIELDS = {
     "Teikningar af tækifæri ✍️",
     "Heimilistæki verkefnis",
     "Framvinda sögunar",
-    "Framvinda fræsingar",
     "Framvinda almennar framleiðslu",
     "Fjöldi varahluta til að saga",
     "Fjöldi varahluta sagaðir",
-    "Fjöldi eininga til að fræsa",
-    "Fjöldi eininga búið að fræsa ✅",
     "Staða á efnispöntun",
   ],
   // /eining (unit page) — mirrors exactly what the "samsetningar prentunar"
@@ -247,7 +254,7 @@ const VERK_ONLY_FIELDS = {
     "Rusl", "Rusl magn",
     "Fatalyftur", "Fatalyftur magn",
     "Loftunarrist", "Loftunarristar magn",
-    "Stök vara", "Stök vara magn",
+    "Stök vara",
     "Harðplast", "Harðplast?",
     "Spegill",
     "Töfrahorn útfærsla",
@@ -257,7 +264,7 @@ const VERK_ONLY_FIELDS = {
     "Fjöldi Movento bakka", "Fjöldi lagnaskúffa",
     "Fjöldi díla", "Fjöldi Skrúfu / rastex", "Fjöldi euroskrúfa", "Fjöldi lama / klossa",
     "Rastex", "Undirgrip", "Tveir frontar (væng)",
-    "Mottur í skúffur", "550mm skúffur?", "Úrtaksskúffa?",
+    "Mottur í skúffur", "550mm skúffur?",
     "Flatpakkaður", "Kassi án fronts", "Lagnaskápur", "Ofnaskápur", "Kassi úr frontaefni",
     "Grip?", "Skúffutegund", "Skúffu dýptir fyrir prentara",
     "Skipting fronta [Lárétt]", "Skipting fronta [Lóðrétt]", "Skipting fronta [Tækja]",
@@ -313,10 +320,7 @@ const CREATABLE_FIELDS = {
   // Tækifæri linking it, then one Eyðublað per placed cabinet — see
   // FORCED_CREATE_FIELDS below for the fields the client can't set itself.
   "tblQ8zeUanriESWvL": ["Fornafn ⬅️", "Eftirnafn ➡️", "Netfang 📧", "Símanúmer ☎️", "Tegund tengiliðs 👥", "Hvaðan kom viðskiptavinurinn 📥"],
-  // "Skilaboð til skipulags" here carries the Phase 7a intake note (delivery
-  // timeframe / budget bucket) — reuses the same field the review page's
-  // "flag for a call" path already writes to, no new schema.
-  "tbl4LMXlQjp66RFKI": ["Tengiliður verkefnis 👤", "Skrokka efni 🔲 viðskiptavinar", "Fronta efni viðskiptavinar 🖼️", "Sjálfsafgreiðsla skipulag (JSON) 📐", "Skilaboð til skipulags"],
+  "tbl4LMXlQjp66RFKI": ["Tengiliður verkefnis 👤", "Skrokka efni 🔲 viðskiptavinar", "Fronta efni viðskiptavinar 🖼️", "Sjálfsafgreiðsla skipulag (JSON) 📐"],
   // "Skúffutegund" (Phase 7b) is a real 2-choice field (LEGRA/MERIVO), set
   // the same on every unit — a whole-project hardware choice, not per-cabinet.
   "tbl0WcyHhz63pSzZX": ["Tækifæri 📣", "Heiti rýmis", "Hvað viltu smíða?", "Skápategund", "Breidd", "Hæð", "Dýpt", "Fjöldi eininga", "Grip?", "Skilaboð til Skipulags 📝", "Höldur 1", "Höldur 1 magn", "Hæð ofns", "Töfrahorn útfærsla", "Breidd á töfra front", "Skúffutegund", "Lausar hillur fjöldi"],
@@ -397,9 +401,8 @@ const WRITABLE_FIELDS = {
   // existing plan row. Tækifæri/Efni are set once at create, never patched.
   "tblzkw70E2xoX9RmK": ["Nafn", "Skipulag", "Staðfest ✅"],
   // kitchen-planner-review.html: Rakel's "✅ Yfirfarið" button unchecks the
-  // review flag (that's the approval action — no separate status field), and
-  // a "flag for a call" note goes into the same field skipulag already uses.
-  "tbl4LMXlQjp66RFKI": ["Sjálfsafgreiðsla — óyfirfarið ⚠️", "Skilaboð til skipulags"],
+  // review flag (that's the approval action — no separate status field).
+  "tbl4LMXlQjp66RFKI": ["Sjálfsafgreiðsla — óyfirfarið ⚠️"],
   // /app's recent-QUICK-FIX list lets anyone tap a card to advance
   // opið → Í vinnslu → Lokið — unlike Fjarvistir's vacation-request "Staða"
   // this isn't an approval gate, so any floor device may set it.
