@@ -99,8 +99,14 @@
     margin-top:14px; border-radius:18px; padding:18px; background:var(--surface); border:1.5px solid var(--red);
   }
   .qf-card.c-yellow { border-color:var(--amber); }
+  .qf-card.c-blue { border-color:var(--blue); }
+  .qf-card.c-green { border-color:var(--green); }
+  .qf-card.c-plain { border-color:var(--line); }
   .qf-card h2 { font-size:1.1rem; font-weight:800; color:var(--red); display:flex; align-items:center; gap:8px; }
   .qf-card.c-yellow h2 { color:var(--amber); }
+  .qf-card.c-blue h2 { color:var(--blue); }
+  .qf-card.c-green h2 { color:var(--green); }
+  .qf-card.c-plain h2 { color:var(--text); }
   .qf-card .sub { font-size:.82rem; color:var(--muted); margin-top:3px; }
   .qf-card form { margin-top:12px; display:flex; flex-direction:column; gap:10px; }
   .qf-card textarea, .qf-card select, .qf-card input[type=text], .qf-card input[type=date] {
@@ -143,14 +149,17 @@
   .qf-badge.progress { background:#3a2f0c; color:var(--amber); }
   #qfEmpty { font-size:.85rem; color:var(--muted); padding:8px 2px; }
 
-  /* ── Verk í vinnslu — active-project list. Each card is its own yellow-
-     framed tile (matches the c-yellow home tile); tapping one opens /verk
-     for that project. Just name + production progress — no status text. ── */
+  /* ── shared project-picker list — used by Verk í vinnslu (yellow), Sög
+     (blue) and Yfirfræsing (green). Each card is its own coloured-framed
+     tile, colour set per screen via a modifier class on the card itself. ── */
   .verk-card {
     display:block; text-align:left; width:100%; cursor:pointer; font-family:var(--font);
-    background:var(--surface2); border:1px solid var(--amber); border-radius:12px;
+    background:var(--surface2); border:1px solid var(--line); border-radius:12px;
     padding:14px 16px; color:var(--text);
   }
+  .verk-card.c-yellow { border-color:var(--amber); }
+  .verk-card.c-blue { border-color:var(--blue); }
+  .verk-card.c-green { border-color:var(--green); }
   .verk-card:active { filter:brightness(1.15); }
   .verk-card .name { font-size:1.05rem; font-weight:800; letter-spacing:-.005em; }
   .verk-card .hot { color:#ffd54a; }
@@ -158,7 +167,15 @@
   .verk-card .vprog-bar { height:6px; background:var(--surface); border-radius:4px; overflow:hidden; }
   .verk-card .vprog-bar i { display:block; height:100%; background:var(--amber); border-radius:4px; }
   .verk-card .vprog-pct { font-size:.78rem; color:var(--muted); margin-top:5px; }
-  #verkEmpty { font-size:.85rem; color:var(--muted); padding:8px 2px; display:none; }
+  .proj-empty { font-size:.85rem; color:var(--muted); padding:8px 2px; display:none; }
+
+  /* ── plain neutral button, e.g. Mín síða's link to Stimpilklukka ── */
+  .link-btn {
+    display:block; text-align:center; text-decoration:none; margin-top:16px;
+    font-family:var(--font); font-weight:800; font-size:1rem; border-radius:11px;
+    padding:13px; background:var(--blue); color:#fff;
+  }
+  .link-btn:active { filter:brightness(1.15); }
 
   /* ── quick fix detail (opened from a list row) ── */
   .qf-detail-card {
@@ -228,6 +245,7 @@
   .choice-card .cc-check { margin-left:auto; flex:none; font-size:1.3rem; color:var(--blue); visibility:hidden; }
   .choice-card.active .cc-check { visibility:visible; }
   .choice-card.c-red { border-color:var(--red); }
+  .choice-card.c-blue { border-color:var(--blue); }
 
   /* ── Stillingar: identity picker (compact — a big choice-card per person
      would be a lot for 6 names) ── */
@@ -314,7 +332,55 @@
         <h2>📋 Verk í vinnslu</h2>
         <div class="sub" id="verkStatus">Sæki verk…</div>
         <div id="verkItems" style="margin-top:12px; display:flex; flex-direction:column; gap:10px;"></div>
-        <div id="verkEmpty">Ekkert virkt verk núna.</div>
+        <div id="verkEmpty" class="proj-empty">Ekkert virkt verk núna.</div>
+      </div>
+    </div>
+
+    <div id="sogScreen" style="display:none;">
+      <button class="qf-back" type="button" id="sogBackBtn">‹ Til baka</button>
+      <div class="qf-card c-blue" id="sogPanel">
+        <h2>🪚 Sög — veldu verkefni</h2>
+        <div class="sub" id="sogStatus">Sæki verk…</div>
+        <div id="sogItems" style="margin-top:12px; display:flex; flex-direction:column; gap:10px;"></div>
+        <div id="sogEmpty" class="proj-empty">Ekkert verk fannst.</div>
+      </div>
+    </div>
+
+    <div class="qf-choice" id="sogChoice" style="display:none;">
+      <button class="qf-back" type="button" id="sogChoiceBackBtn">‹ Til baka</button>
+      <div class="choice-cards">
+        <button type="button" class="choice-card c-blue" id="sogChoiceF6">
+          <div class="cc-ic">🏷️</div>
+          <div><div class="cc-t">F6 – Cutty</div><div class="cc-d">Merkingar</div></div>
+        </button>
+        <button type="button" class="choice-card c-blue" id="sogChoiceF2">
+          <div class="cc-ic">🪚</div>
+          <div><div class="cc-t">F2 – Vígindi</div><div class="cc-d">Æða-leiðsögn</div></div>
+        </button>
+      </div>
+    </div>
+
+    <div id="fraesScreen" style="display:none;">
+      <button class="qf-back" type="button" id="fraesBackBtn">‹ Til baka</button>
+      <div class="qf-card c-green" id="fraesPanel">
+        <h2>🔬 Yfirfræsing — veldu verkefni</h2>
+        <div class="sub" id="fraesStatus">Sæki verk…</div>
+        <div id="fraesItems" style="margin-top:12px; display:flex; flex-direction:column; gap:10px;"></div>
+        <div id="fraesEmpty" class="proj-empty">Ekkert verk fannst.</div>
+      </div>
+    </div>
+
+    <div id="minSidaScreen" style="display:none;">
+      <button class="qf-back" type="button" id="minSidaBackBtn">‹ Til baka</button>
+      <div class="qf-card c-plain" id="minSidaPanel">
+        <h2>👤 Mín síða</h2>
+        <div class="settings-section">
+          <span class="settings-label">Hver ert þú?</span>
+          <select id="meSelect">
+            <option value="">Ekki valið</option>
+          </select>
+        </div>
+        <a class="link-btn" href="/klukka">⏱️ Opna stimpilklukku</a>
       </div>
     </div>
 
@@ -346,12 +412,6 @@
           <div class="cc-check">✓</div>
         </button>
       </div>
-      <div class="settings-section">
-        <span class="settings-label">Hver ert þú?</span>
-        <select id="meSelect">
-          <option value="">Ekki valið</option>
-        </select>
-      </div>
     </div>
 
     <div class="tilegrid">
@@ -364,22 +424,21 @@
         <div class="ic">❗</div><div class="t">Quick Fix</div>
       </div>
 
-      <a class="tile2 c-blue" id="tileSog">
+      <div class="tile2 c-blue" id="tileSog">
         <div class="ic">🪚</div><div class="t">Sög</div>
-      </a>
+      </div>
 
-      <a class="tile2 c-green" id="tileFraesing">
+      <div class="tile2 c-green" id="tileFraesing">
         <div class="ic">🔬</div><div class="t">Yfirfræsing</div>
-      </a>
+      </div>
 
       <div class="tile2 soon" id="tileDagatal">
         <div class="ic">🗓️</div><div class="t">Dagatal</div>
         <div class="badge2">Væntanlegt</div>
       </div>
 
-      <div class="tile2 soon" id="tileMinSida">
+      <div class="tile2" id="tileMinSida">
         <div class="ic">👤</div><div class="t">Mín síða</div>
-        <div class="badge2">Væntanlegt</div>
       </div>
 
       <a class="tile2" id="tileChat" href="https://mail.google.com/chat/" target="_blank" rel="noopener">
@@ -405,18 +464,23 @@
   var QUICKFIX_TABLE  = "tblDQWuf4OSjUv2XI"; // QUICK FIX❗
   var P_NAME = "Heiti tækifæris / verkefnis";
 
-  // "Active project" (Verk í vinnslu) = actually on the shop floor, not just
-  // won/in design — Staða í framleiðslu is "Tilbúið til framleiðslu 📋" or
-  // "Verk í vinnslu 🔨". Decided 2026-09-22 after checking real data: the
-  // looser "any won, not-yet-delivered deal" filter (still used by the
-  // standalone /verk-i-gangi page and grain.html) also caught projects still
-  // in office/design stages (Í skipulagningu, Yfirfara), which isn't what
-  // belongs on a workshop-floor tile.
+  // Two project-list filters, deliberately different (2026-09-23):
+  // NARROW (Verk í vinnslu) = actually on the shop floor — Staða í
+  // framleiðslu is "Tilbúið til framleiðslu 📋" or "Verk í vinnslu 🔨".
+  // Decided 2026-09-22 after checking real data: a looser filter also
+  // caught projects still in office/design stages, not what belongs on a
+  // workshop-floor tile. BROAD (Sög/Yfirfræsing) = any won, not-yet-
+  // delivered project — the same filter /verk-i-gangi.html and grain.html
+  // already use — since cutting/milling for a project often needs to
+  // happen before it's formally "í vinnslu" as a whole.
+  var P_STADA_SOLU = "Staða í söluferli";
   var P_STADA_SKIP = "Staða í skipulagi";
   var P_STADA_FRAM = "Staða í framleiðslu";
   var P_DATE     = "Áætlaður afhendingardagur Björninn (internal)";
   var P_PROGRESS = "Framvinda framleiðslu [weighted]";
   var P_PRIORITY = "Forgangur framleiðslu 🥇";
+  var NARROW_FILTER = "OR({" + P_STADA_FRAM + "} = \"Tilbúið til framleiðslu 📋\", {" + P_STADA_FRAM + "} = \"Verk í vinnslu 🔨\")";
+  var BROAD_FILTER = "AND({" + P_STADA_SOLU + "} = \"🏆 Tækifæri unnið\", {" + P_STADA_SKIP + "} != \"For-skipulag\", {" + P_STADA_FRAM + "} != \"Afhent (LOKIÐ ✅)\", {" + P_STADA_FRAM + "} != \"Má Afhenda 🚚\")";
 
   var QF_ISSUE  = "Vandamálið";
   var QF_OWNER  = "Ábyrgðarmaður";
@@ -542,10 +606,7 @@
 
   function wireTiles() {
     var p = getProject();
-    var rid = p ? "?recordId=" + encodeURIComponent(p.id) : "";
     $("projTileSub").textContent = p ? p.name : "Ekkert verk valið";
-    $("tileSog").href = "/verkstaedi" + rid;
-    $("tileFraesing").href = "/fraesing" + rid;
 
     // QUICK FIX form's project link line
     var link = $("qfProjLink");
@@ -608,25 +669,19 @@
   }
   checkMyQuickFix();
 
-  // ── Verk í vinnslu: in-app list of active projects (was a separate page,
-  // /verk-i-gangi — still deployed/reachable for old links, but the home
-  // tile now opens this instead, same pattern as Quick Fix). Tapping a
-  // project opens /verk for it — the same per-project floor page the QR
-  // system on a Zebra label opens (verk.html), keyed by verkKey() the same
-  // way (empty until this device is paired via /app?setup=, same convention
-  // as stimpilklukka.html's kiosk pairing). ──
-  async function loadVerkList() {
-    var statusEl = $("verkStatus");
-    var itemsEl = $("verkItems");
+  // ── shared project-picker list — Verk í vinnslu (was a separate page,
+  // /verk-i-gangi — still deployed/reachable for old links), Sög and
+  // Yfirfræsing all reuse this, each with its own colour, filter, and what
+  // happens when a project is tapped. ──
+  function hideTilegrid() { $("menuArea").querySelectorAll(".tilegrid").forEach(function (el) { el.style.display = "none"; }); }
+  function showTilegrid() { $("menuArea").querySelectorAll(".tilegrid").forEach(function (el) { el.style.display = ""; }); }
+
+  async function loadProjectList(formula, statusEl, itemsEl, emptyEl, colorClass, showProgress, onPick) {
     statusEl.style.display = "block";
     statusEl.textContent = "Sæki verk…";
-    $("verkEmpty").style.display = "none";
+    emptyEl.style.display = "none";
     itemsEl.innerHTML = "";
     try {
-      var formula = "OR(" +
-        "{" + P_STADA_FRAM + "} = \"Tilbúið til framleiðslu 📋\", " +
-        "{" + P_STADA_FRAM + "} = \"Verk í vinnslu 🔨\"" +
-        ")";
       var recs = await airtableFetch(PROJECTS_TABLE, {
         filterByFormula: formula,
         "fields[]": [P_NAME, P_DATE, P_PROGRESS, P_PRIORITY],
@@ -638,7 +693,7 @@
         return da < db ? -1 : da > db ? 1 : 0;
       });
       statusEl.style.display = "none";
-      $("verkEmpty").style.display = recs.length ? "none" : "block";
+      emptyEl.style.display = recs.length ? "none" : "block";
       recs.forEach(function (rec) {
         var f = rec.fields;
         var name = f[P_NAME] || "(nafnlaust verk)";
@@ -647,35 +702,107 @@
         var hot = (f[P_PRIORITY] || "").indexOf("🥇") !== -1;
         var card = document.createElement("button");
         card.type = "button";
-        card.className = "verk-card";
+        card.className = "verk-card " + colorClass;
         card.innerHTML =
           '<div class="name">' + (hot ? '<span class="hot">🔥 </span>' : "") + escapeHtml(name) + "</div>" +
-          (pct != null
+          (showProgress && pct != null
             ? '<div class="vprog"><div class="vprog-bar"><i style="width:' + pct + '%"></i></div>' +
               '<div class="vprog-pct">' + pct + "% búið</div></div>"
             : "");
-        card.addEventListener("click", function () {
-          setProject({ id: rec.id, name: name });
-          location.href = "/verk?t=" + encodeURIComponent(rec.id) + "&k=" + encodeURIComponent(verkKey());
-        });
+        card.addEventListener("click", function () { onPick(rec, name); });
         itemsEl.appendChild(card);
       });
     } catch (e) {
       statusEl.textContent = "Villa við að sækja verk — reyndu aftur.";
     }
   }
+
+  // Verk í vinnslu — tapping a project opens /verk for it, the same
+  // per-project floor page the QR system on a Zebra label opens (verk.html),
+  // keyed by verkKey() the same way (empty until this device is paired via
+  // /app?setup=, same convention as stimpilklukka.html's kiosk pairing).
   function openVerkList() {
-    $("menuArea").querySelectorAll(".tilegrid").forEach(function (el) { el.style.display = "none"; });
+    hideTilegrid();
     $("verkScreen").style.display = "block";
     window.scrollTo({ top: 0, behavior: "smooth" });
-    loadVerkList();
+    loadProjectList(NARROW_FILTER, $("verkStatus"), $("verkItems"), $("verkEmpty"), "c-yellow", true, function (rec, name) {
+      setProject({ id: rec.id, name: name });
+      location.href = "/verk?t=" + encodeURIComponent(rec.id) + "&k=" + encodeURIComponent(verkKey());
+    });
   }
   function closeVerkList() {
     $("verkScreen").style.display = "none";
-    $("menuArea").querySelectorAll(".tilegrid").forEach(function (el) { el.style.display = ""; });
+    showTilegrid();
   }
   $("tileVerkIGangi").addEventListener("click", openVerkList);
   $("verkBackBtn").addEventListener("click", closeVerkList);
+
+  // Sög — pick a project (broad filter: anything won and not yet delivered,
+  // since cutting often starts before a project is formally "í vinnslu"),
+  // then F6 (Cutty/merkingar) or F2 (Vígindi/æða-leiðsögn) for that project.
+  function openSogList() {
+    hideTilegrid();
+    $("sogChoice").style.display = "none";
+    $("sogScreen").style.display = "block";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    loadProjectList(BROAD_FILTER, $("sogStatus"), $("sogItems"), $("sogEmpty"), "c-blue", false, function (rec, name) {
+      setProject({ id: rec.id, name: name });
+      openSogChoice();
+    });
+  }
+  function closeSogList() {
+    $("sogScreen").style.display = "none";
+    showTilegrid();
+  }
+  function openSogChoice() {
+    $("sogScreen").style.display = "none";
+    $("sogChoice").style.display = "block";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  $("tileSog").addEventListener("click", openSogList);
+  $("sogBackBtn").addEventListener("click", closeSogList);
+  $("sogChoiceBackBtn").addEventListener("click", openSogList);
+  $("sogChoiceF6").addEventListener("click", function () {
+    var p = getProject();
+    location.href = "/labels" + (p ? "?recordId=" + encodeURIComponent(p.id) : "");
+  });
+  $("sogChoiceF2").addEventListener("click", function () {
+    var p = getProject();
+    location.href = "/saga" + (p ? "?recordId=" + encodeURIComponent(p.id) : "");
+  });
+
+  // Yfirfræsing — pick a project (same broad filter as Sög), straight to
+  // /fraesing for it, no sub-choice needed.
+  function openFraesList() {
+    hideTilegrid();
+    $("fraesScreen").style.display = "block";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    loadProjectList(BROAD_FILTER, $("fraesStatus"), $("fraesItems"), $("fraesEmpty"), "c-green", false, function (rec, name) {
+      setProject({ id: rec.id, name: name });
+      location.href = "/fraesing?recordId=" + encodeURIComponent(rec.id);
+    });
+  }
+  function closeFraesList() {
+    $("fraesScreen").style.display = "none";
+    showTilegrid();
+  }
+  $("tileFraesing").addEventListener("click", openFraesList);
+  $("fraesBackBtn").addEventListener("click", closeFraesList);
+
+  // Mín síða — identity picker (moved here from Stillingar) + a link into
+  // the shared stimpilklukka kiosk. Never does clock punches itself.
+  function openMinSida() {
+    hideTilegrid();
+    $("minSidaScreen").style.display = "block";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  function closeMinSida() {
+    $("minSidaScreen").style.display = "none";
+    showTilegrid();
+    checkMyQuickFix();
+  }
+  $("tileMinSida").addEventListener("click", openMinSida);
+  $("minSidaBackBtn").addEventListener("click", closeMinSida);
 
   // ── QUICK FIX: tap the tile → a full-screen choice step (Skrá / Græja),
   // same "go to a page that gives the choice" pattern as the /verkstaedi hub
@@ -868,13 +995,13 @@
   // ── search — same instant-filter pattern as faq.html, adapted to tiles ──
   var SEARCH_INDEX = [
     { cat: "Verk", t: "Verk í vinnslu", ic: "📋", kw: "verk vinnslu virk verkefni velja", go: function () { openVerkList(); } },
-    { cat: "Sög", t: "Sög — velja Cutty eða Vígindi", ic: "🪚", kw: "sög saga val verkstæði", go: function () { location.href = $("tileSog").href; } },
+    { cat: "Sög", t: "Sög — velja verkefni", ic: "🪚", kw: "sög saga val verkstæði", go: function () { openSogList(); } },
     { cat: "Sög", t: "F6 – Cutty (merkingar)", ic: "🏷️", kw: "sög merkingar cutty f6 labels", go: function () { var p = getProject(); location.href = "/labels" + (p ? "?recordId=" + encodeURIComponent(p.id) : ""); } },
     { cat: "Sög", t: "F2 – Vígindi (æða-leiðsögn)", ic: "🪚", kw: "sög æðar vígindi f2 saga leiðsögn", go: function () { var p = getProject(); location.href = "/saga" + (p ? "?recordId=" + encodeURIComponent(p.id) : ""); } },
     { cat: "Quick Fix", t: "Skrá nýtt verkefni", ic: "➕", kw: "quick fix skrá nýtt vandamál", go: function () { openQf("new"); } },
     { cat: "Quick Fix", t: "Græja opin verkefni", ic: "🔧", kw: "quick fix græja opin laga", go: function () { openQf("manage"); } },
-    { cat: "Verkstæði", t: "Yfirfræsing", ic: "🔬", kw: "yfirfræsing fræsari fræsilisti", go: function () { location.href = $("tileFraesing").href; } },
-    { cat: "Starfsmenn", t: "Mín síða", ic: "👤", kw: "mín síða tímar orlof veikindi", go: null },
+    { cat: "Verkstæði", t: "Yfirfræsing — velja verkefni", ic: "🔬", kw: "yfirfræsing fræsari fræsilisti", go: function () { openFraesList(); } },
+    { cat: "Starfsmenn", t: "Mín síða", ic: "👤", kw: "mín síða hver ert þú stimpilklukka", go: function () { openMinSida(); } },
     { cat: "Verk", t: "Dagatal", ic: "🗓️", kw: "dagatal afhending efni kalender", go: null },
     { cat: "Starfsmenn", t: "Stimpilklukka", ic: "⏱️", kw: "stimpilklukka klukka inn út", go: function () { location.href = "/klukka"; } },
     { cat: "Annað", t: "Google Chat", ic: "💬", kw: "chat spjall skilaboð google", go: function () { window.open($("tileChat").href, "_blank"); } },
