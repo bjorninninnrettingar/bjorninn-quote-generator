@@ -1381,6 +1381,12 @@ function confirmPlan() {
     alert(`${dupFronts.length} hlutir eru tvíteknir í skipulaginu — sami hlutur er á tveimur stöðum og yrði sagaður tvisvar.\n\nÝttu á "Uppfæra mál" til að laga þetta áður en þú staðfestir.`);
     return;
   }
+  const cutProblems = cutPlanProblems();
+  if (cutProblems.length) {
+    const names = [...new Set(cutProblems.flatMap(p => p.groups))].join(", ");
+    alert(`Plata ${cutProblems.map(p => p.bi + 1).join(", ")}: röðunin er ekki sagfær — engin röð af beinum skurðum getur skilið að ${names} án þess að saga í gegnum efni sem er ekki búið að skera af.\n\nÝttu á "Raða sjálfvirkt" (eða raðaðu þessum hópum til) áður en þú staðfestir.`);
+    return;
+  }
   if (planDrift.length) {
     alert(`${planDrift.length} stykki í skipulaginu passa ekki við Sögunarlistann (mál eða fjöldi hefur breyst).\n\nÝttu á "Uppfæra mál" áður en þú staðfestir — annars yrðu röng mál söguð.`);
     return;
@@ -3501,79 +3507,115 @@ function cutSequenceHtml(b, bi) {
 // number the sawyer dials into the fence / crosscut stop for that one cut.
 let guide = null;   // { steps: [...], idx }
 
-// Clusters a list of {x, y, w, l} items into X-columns (45mm tolerance) —
-// the core of clusterStrips below, factored out so band-mode can reuse it
-// WITHIN one band: several runs sharing an X position stack vertically
-// exactly like an ordinary strip (same width, one rip covers all of
-// them), and need to be recognized as one column, not one rip each.
-function clusterByX(items) {
-  const cols = [];
-  for (const it of items) {
-    let c = cols.find(c => Math.abs(c.x - it.x) < 45);
-    if (!c) { c = { x: it.x, w: it.w, runs: [] }; cols.push(c); }
-    c.w = Math.max(c.w, it.w);
-    c.runs.push(it);
+// Finds the SMALLEST valid guillotine split of `runs` along one axis within
+// [lo, hi]: a position where no run's own interval straddles it, splitting
+// the set into two non-empty groups. Candidates are runs' own end
+// coordinates — any valid split can always be pushed to coincide with one
+// (nothing is gained by stopping short of where a run actually ends), and
+// checking them in ascending order finds the smallest peel-off first.
+function findGuillotineCut(runs, axis, lo, hi) {
+  const s = r => r[axis];
+  const e = r => r[axis] + (axis === "y" ? r.l : r.w);
+  const candidates = [...new Set(runs.map(e))].filter(v => v > lo + 0.5 && v < hi - 0.5).sort((a, b) => a - b);
+  for (const pos of candidates) {
+    if (runs.some(r => s(r) < pos - 0.5 && e(r) > pos + 0.5)) continue;   // a run straddles this line — not valid
+    const near = runs.filter(r => e(r) <= pos + 0.5), far = runs.filter(r => s(r) >= pos - 0.5);
+    if (near.length && far.length) return { pos, near, far };
   }
-  for (const c of cols) c.runs.sort((a, b) => a.y - b.y);
-  return cols.sort((a, b) => a.x - b.x);
+  return null;
 }
-function clusterStrips(b) {
-  const items = Object.entries(b.placements).map(([gid, p]) => {
-    const g = groups.find(x => x.id === gid);
-    return g ? { g, x: p.x, y: p.y, w: groupWidth(g), l: groupLen(g) } : null;
-  }).filter(Boolean);
-  return clusterByX(items);
-}
-// The Y-axis mirror of clusterStrips: bands instead of columns, sorted by
-// Y then X within each band. Used when a board needs band-first cutting —
-// see buildCutPlan()'s useBandFirst below.
-//
-// This can't just mirror clusterStrips' "cluster by how close the start
-// position is" — column-first packing only ever guarantees non-overlapping
-// COLUMNS; what each column stacks along Y internally is independent, and
-// two different columns' stacks routinely interleave in Y (one column's
-// short run starts well inside another column's much taller one). A
-// single full-width crosscut can only ever land at a Y that isn't inside
-// any item's interior, in ANY column — so bands have to come from merging
-// every item's Y-interval that overlaps another's, the same way you'd
-// flatten a list of overlapping time ranges, not from how close two
-// items' start positions happen to be. Caught live: two items 45mm+ apart
-// in start Y still had one's whole span sitting inside the other's,
-// producing a "band" whose crosscut fell 300mm above a cut already made —
-// asking the sawyer to cut a piece that was already gone.
-function clusterBands(b) {
-  const items = Object.entries(b.placements).map(([gid, p]) => {
-    const g = groups.find(x => x.id === gid);
-    return g ? { g, x: p.x, y: p.y, w: groupWidth(g), l: groupLen(g) } : null;
-  }).filter(Boolean).sort((a, c) => a.y - c.y || a.x - c.x);
+// Recursively decomposes a rectangular region of material — and the runs
+// placed inside it — into a guillotine-safe cut sequence: crosscut or rip
+// off the SMALLEST slice that cleanly separates some runs from the rest
+// (nothing straddling the line), recurse on each side. This replaces the
+// old two-mode heuristic (rip whole strips, or — only when a strip held
+// 2+ stacked runs — crosscut one band off the whole board first): that
+// only ever considered ONE level of Y-banding before ripping a "column"
+// across the full band height, which breaks the moment a run is staggered
+// BELOW others within what still looked like one band (found live on
+// Birgitta/T-33, board 11 — a column rip at x≈1207 sliced straight through
+// three unrelated, still-whole fronts sitting lower in the same band,
+// because they merely started near that same X, not because their own
+// rectangles were actually clear of it). A straight recursive guillotine
+// split can't make that mistake — every cut line is chosen specifically
+// because nothing still whole crosses it, at any depth, prefering a
+// crosscut over a rip when both are available (matches how a sawyer
+// naturally reads a mixed sheet: free up width before committing to a
+// full-length rip). packGuillotine only ever produces genuinely
+// guillotine-cuttable layouts by construction, so a valid split always
+// exists here unless the board was manually dragged into a shape that
+// no longer is one — the `!cut` branch is only for that rare case.
+function planRegion(steps, bi, workpiece, region, runs, k, seq) {
+  if (!runs.length) return;
 
-  const bands = [];
-  for (const it of items) {
-    const itEnd = it.y + it.l;
-    let bd = bands.find(bd => it.y < bd.yEnd && bd.y < itEnd);   // Y-intervals overlap?
-    if (!bd) { bd = { y: it.y, yEnd: itEnd, runs: [] }; bands.push(bd); }
-    else { bd.y = Math.min(bd.y, it.y); bd.yEnd = Math.max(bd.yEnd, itEnd); }
-    bd.runs.push(it);
+  // Leading-edge scrap: region ahead of the nearest run, on whichever axis
+  // has any (crosscut first, matching the split preference below) — a
+  // crosscut/rip always spans the FULL current region on its own axis, so
+  // cutting this off is valid regardless of what's further into the region.
+  let yGap = Math.min(...runs.map(r => r.y)) - region.y;
+  if (yGap > 1) {
+    steps.push({
+      bi, workpiece, kind: "scrap", measure: Math.round(yGap), measureLabel: "Þverskurðarstopp",
+      title: "Sagaðu frá afskurð efst", note: "Kastaðu — næsti hópur byrjar hér.",
+      produces: [], highlight: { x: region.x, y: region.y, w: region.w, l: yGap },
+      cutLines: [{ o: "h", pos: region.y + yGap }],
+    });
+    region = { ...region, y: region.y + yGap, l: region.l - yGap };
   }
-  // Widening a band during the pass above can bring it into overlap with
-  // an EARLIER band already built — keep merging pairwise until nothing
-  // overlaps anything else, same as flattening overlapping intervals.
-  let merged = true;
-  while (merged) {
-    merged = false;
-    outer: for (let i = 0; i < bands.length; i++) for (let j = i + 1; j < bands.length; j++) {
-      const a = bands[i], c = bands[j];
-      if (a.y < c.yEnd && c.y < a.yEnd) {
-        a.y = Math.min(a.y, c.y); a.yEnd = Math.max(a.yEnd, c.yEnd);
-        a.runs.push(...c.runs);
-        bands.splice(j, 1);
-        merged = true;
-        break outer;
-      }
-    }
+  let xGap = Math.min(...runs.map(r => r.x)) - region.x;
+  if (xGap > 1) {
+    steps.push({
+      bi, workpiece, kind: "scrap", measure: Math.round(xGap), measureLabel: "Rifskurðarstopp",
+      title: "Rífðu frá afskurð til vinstri", note: "Kastaðu — næsti hópur byrjar hér.",
+      produces: [], highlight: { x: region.x, y: region.y, w: xGap, l: region.l },
+      cutLines: [{ o: "v", pos: region.x + xGap }],
+    });
+    region = { ...region, x: region.x + xGap, w: region.w - xGap };
   }
-  for (const bd of bands) { bd.l = bd.yEnd - bd.y; bd.runs.sort((a, c) => a.x - c.x); }
-  return bands.sort((a, c) => a.y - c.y);
+
+  if (runs.length === 1) { emitRun(steps, bi, workpiece, runs[0].g, region.x, region.y, region.w, k); return; }
+
+  let cut = findGuillotineCut(runs, "y", region.y, region.y + region.l);
+  let axis = "h";
+  if (!cut) { cut = findGuillotineCut(runs, "x", region.x, region.x + region.w); axis = "v"; }
+  if (!cut) {
+    // Genuinely unsolvable: these runs' rectangles can't be separated by
+    // ANY sequence of straight guillotine cuts (a real "pinwheel"-style
+    // arrangement — usually the shared-floor/bottom-band autoNest fallback
+    // or a manual drag placed something in a spot nothing can safely reach).
+    // The per-run fallback below is best-effort and NOT guaranteed safe —
+    // recorded so confirmPlan()/openGuide() can block/warn instead of
+    // silently shipping a sequence that might cut into unprocessed material.
+    seq.problems.push({ bi, groups: runs.map(r => r.g.unitName) });
+    runs.forEach(r => emitRun(steps, bi, workpiece, r.g, r.x, r.y, r.w, k));
+    return;
+  }
+
+  const names = rs => [...new Set(rs.map(r => r.g.unitName.replace(/ · \d+$/, "")))].join(", ");
+  const nextPiece = `${workpiece}~${seq.n++}`;
+  if (axis === "h") {
+    const nearLen = cut.pos - region.y;
+    steps.push({
+      bi, workpiece, kind: "crosscut", measure: Math.round(nearLen), measureLabel: "Þverskurðarstopp",
+      title: `Þverskurður — ${Math.round(nearLen)} mm há ræma`,
+      note: `Ræman heldur samfelldu æðinni fyrir: ${names(cut.near)}.`,
+      produces: [], highlight: { x: region.x, y: region.y, w: region.w, l: nearLen },
+      cutLines: [{ o: "h", pos: cut.pos }],
+    });
+    planRegion(steps, bi, nextPiece, { x: region.x, y: region.y, w: region.w, l: nearLen }, cut.near, k, seq);
+    planRegion(steps, bi, workpiece, { x: region.x, y: cut.pos, w: region.w, l: region.y + region.l - cut.pos }, cut.far, k, seq);
+  } else {
+    const nearW = cut.pos - region.x;
+    steps.push({
+      bi, workpiece, kind: "rip", measure: Math.round(nearW), measureLabel: "Rifjaðar — frá vinstri kanti",
+      title: `Rífðu ræmu — ${Math.round(nearW)} mm breið`,
+      note: `Ræman heldur samfelldu æðinni fyrir: ${names(cut.near)}.`,
+      produces: [], highlight: { x: region.x, y: region.y, w: nearW, l: region.l },
+      cutLines: [{ o: "v", pos: cut.pos }],
+    });
+    planRegion(steps, bi, nextPiece, { x: region.x, y: region.y, w: nearW, l: region.l }, cut.near, k, seq);
+    planRegion(steps, bi, workpiece, { x: cut.pos, y: region.y, w: region.x + region.w - cut.pos, l: region.l }, cut.far, k, seq);
+  }
 }
 
 // Emits ONE run's own cut sequence (its individual fronts, or its
@@ -3674,10 +3716,14 @@ function emitRun(steps, bi, workpiece, g, x, y, availWidth, k) {
 function buildCutPlan() {
   const steps = [];
   const k = settings.kerf, tr = settings.trim;
+  const problems = [];   // boards planRegion() couldn't find a safe guillotine sequence for
 
   layout.boards.forEach((b, bi) => {
-    const strips = clusterStrips(b);
-    if (!strips.length) return;
+    const boardRuns = Object.entries(b.placements).map(([gid, p]) => {
+      const g = groups.find(x => x.id === gid);
+      return g ? { g, x: p.x, y: p.y, w: groupWidth(g), l: groupLen(g) } : null;
+    }).filter(Boolean);
+    if (!boardRuns.length) return;
 
     if (tr > 0) {
       steps.push({
@@ -3695,133 +3741,20 @@ function buildCutPlan() {
     // is crosscutting a front off an already-separated rotated band, but
     // they are not the same piece of material and can't be one WinCut
     // program together just because the axis happens to match. Every
-    // separation (a strip/band ripped or crosscut off the sheet, a "tall"
-    // piece or a rotated "band" cut off a strip) gets its own workpiece id
-    // so buildWinCutPrograms() below only merges steps that are truly
-    // continuous cuts on the same piece.
-    const sheetPiece = `${bi}-sheet`;
-
-    // A strip holding 2+ unrelated groups stacked in it forces a full-
-    // board-length rip before any of them can be touched — cutting through
-    // the space of every other group in that column just to reach the one
-    // at the top. Real board found live: a first cut ripping 2790mm to
-    // reach a group that only needed 1057mm of it, passing right by
-    // material for two other, unrelated groups first. When that happens
-    // anywhere on the board, cut the whole board band-first instead:
-    // crosscut across the full remaining width (as far as a real crosscut
-    // actually reaches) down to just what the next group needs, THEN rip
-    // that already-short band into its groups — never commit to ripping
-    // material for groups you haven't gotten to yet. Boards where every
-    // strip only ever holds one group are unaffected (clusterStrips'
-    // column-first read already gives the shortest cut for those).
-    const useBandFirst = strips.some(s => s.runs.length > 1);
-
-    if (useBandFirst) {
-      const bands = clusterBands(b);
-      bands.forEach((bd, bandIdx) => {
-        const names = [...new Set(bd.runs.map(r => r.g.unitName.replace(/ · \d+$/, "")))].join(", ");
-        const onlyRotated = bd.runs.length === 1 && bd.runs[0].g.orient !== "v";
-        const bandPiece = `${bi}-band${bandIdx}`;
-        if (!onlyRotated) steps.push({
-          bi, workpiece: sheetPiece, kind: "crosscut", measure: Math.round(bd.l), measureLabel: "Þverskurðarstopp",
-          title: `Þverskurður ${bandIdx + 1}${bands.length > 1 ? " af " + bands.length : ""} — ${Math.round(bd.l)} mm há ræma`,
-          note: `Ræman heldur samfelldu æðinni fyrir: ${names}.`,
-          produces: [],
-          highlight: { x: tr, y: bd.y, w: board.w - 2 * tr, l: bd.l },
-          cutLines: [{ o: "h", pos: bd.y + bd.l }],
-        });
-
-        if (onlyRotated) {
-          const r = bd.runs[0];
-          emitRun(steps, bi, sheetPiece, r.g, r.x, r.y, board.w - tr - r.x, k);
-          return;   // this band done — next band
-        }
-
-        // Several runs can still share one X position WITHIN a band —
-        // stacked by Y, exactly like an ordinary column — and need to be
-        // recognized as one column sharing a single rip, not one rip
-        // each: two runs at the identical X would otherwise both claim
-        // the exact same cut. clusterByX (the same column-grouping
-        // clusterStrips itself uses) finds those columns within the band.
-        let xCursor = tr;
-        clusterByX(bd.runs).forEach((col, colIdx) => {
-          if (col.x > xCursor + 1) {
-            steps.push({
-              bi, workpiece: bandPiece, kind: "scrap", measure: Math.round(col.x - xCursor), measureLabel: "Rifskurðarstopp",
-              title: "Rífðu frá afskurð til vinstri í bandinu",
-              note: "Kastaðu — næsti hópur byrjar hér.",
-              produces: [], highlight: { x: xCursor, y: bd.y, w: col.x - xCursor, l: bd.l },
-              cutLines: [{ o: "v", pos: col.x }],
-            });
-            xCursor = col.x;
-          }
-          const colNames = [...new Set(col.runs.map(r => r.g.unitName.replace(/ · \d+$/, "")))].join(", ");
-          const colPiece = `${bandPiece}-col${colIdx}`;
-          steps.push({
-            bi, workpiece: bandPiece, kind: "rip", measure: Math.round(col.w), measureLabel: "Rifjaðar — frá vinstri kanti",
-            title: `${colNames} — rífðu úr bandinu, ${Math.round(col.w)} mm breitt`,
-            note: "Fleiri en einn hópur deila þessu bandi — skildu þennan að fyrst.",
-            produces: [],
-            highlight: { x: col.x, y: bd.y, w: col.w, l: bd.l },
-            cutLines: [{ o: "v", pos: col.x + col.w }],
-          });
-          let yCursor = bd.y;
-          col.runs.forEach(r => {
-            const g = r.g;
-            if (r.y > yCursor + 1) {
-              steps.push({
-                bi, workpiece: colPiece, kind: "scrap", measure: Math.round(r.y - yCursor), measureLabel: "Þverskurðarstopp",
-                title: "Sagaðu frá afskurð efst á ræmunni",
-                note: "Kastaðu — næsti hópur byrjar hér.",
-                produces: [], highlight: { x: col.x, y: yCursor, w: col.w, l: r.y - yCursor },
-                cutLines: [{ o: "h", pos: r.y }],
-              });
-              yCursor = r.y;
-            }
-            emitRun(steps, bi, colPiece, g, col.x, yCursor, col.w, k);
-            yCursor = r.y + groupLen(g) + k;
-          });
-          xCursor = col.x + col.w + k;
-        });
-      });
-      return;
-    }
-
-    strips.forEach((s, si) => {
-      const names = [...new Set(s.runs.map(r => r.g.unitName.replace(/ · \d+$/, "")))].join(", ");
-      const onlyRotated = s.runs.length === 1 && s.runs[0].g.orient !== "v";
-      const stripPiece = `${bi}-strip${si}`;
-      if (!onlyRotated) steps.push({
-        bi, workpiece: sheetPiece, kind: "rip", measure: Math.round(s.w), measureLabel: "Rifjaðar — frá vinstri kanti",
-        title: `Rífðu ræmu ${si + 1}${strips.length > 1 ? " af " + strips.length : ""} — ${Math.round(s.w)} mm breið`,
-        note: `Ræman heldur samfelldu æðinni fyrir: ${names}.`,
-        produces: [],
-        highlight: { x: s.x, y: tr, w: s.w, l: board.l - tr },
-        cutLines: [{ o: "v", pos: s.x + s.w }],
-      });
-
-      let cursor = tr;
-      s.runs.forEach(r => {
-        const g = r.g;
-        if (r.y > cursor + 1) {
-          steps.push({
-            bi, workpiece: stripPiece, kind: "scrap", measure: Math.round(r.y - cursor), measureLabel: "Þverskurðarstopp",
-            title: "Sagaðu frá afskurð efst á ræmunni",
-            note: "Kastaðu — næsti hópur byrjar hér.",
-            produces: [], highlight: { x: s.x, y: cursor, w: s.w, l: r.y - cursor },
-            cutLines: [{ o: "h", pos: r.y }],
-          });
-          cursor = r.y;
-        }
-        emitRun(steps, bi, stripPiece, g, s.x, cursor, s.w, k);
-        cursor = r.y + groupLen(g) + k;
-      });
-    });
+    // separation planRegion() makes gets its own fresh workpiece id (see
+    // its own comment) so buildWinCutPrograms() below only merges steps
+    // that are truly continuous cuts on the same piece.
+    planRegion(steps, bi, `${bi}-sheet`, { x: tr, y: tr, w: board.w - 2 * tr, l: board.l - tr }, boardRuns, k, { n: 0, problems });
   });
 
   const programs = buildWinCutPrograms(steps);
-  return { steps, programs, idx: 0 };
+  return { steps, programs, idx: 0, problems };
 }
+// Boards where buildCutPlan() had to fall back to a best-effort (not
+// guaranteed safe) sequence — a real, physically un-guillotine-cuttable
+// arrangement, not something any cut ORDER can fix. Only re-nesting
+// ("Raða sjálfvirkt" or "Uppfæra mál") or a manual rearrange helps.
+function cutPlanProblems() { return buildCutPlan().problems; }
 
 // Groups the step list into WinCut "SEMI-AUTOMATIC" programs — the real
 // machine can only run a sequence of cuts along ONE axis per program (photos
@@ -3904,6 +3837,11 @@ function openGuide() {
   if (unplaced.length &&
       !confirm(`${unplacedFrontCount()} frontar eru ekki á plötu og verða EKKI sagaðir (${unplaced.map(g => g.unitName).join(", ")}).\n\nHalda áfram samt?`))
     return;
+  if (plan.problems.length) {
+    const names = [...new Set(plan.problems.flatMap(p => p.groups))].join(", ");
+    if (!confirm(`⚠ Plata ${plan.problems.map(p => p.bi + 1).join(", ")}: engin röð af beinum skurðum getur skilið að ${names} án þess að saga í gegnum ósagað efni. Leiðbeiningin fyrir þessa hópa er EKKI tryggð rétt.\n\nRaðaðu þessum hópum til (t.d. "Raða sjálfvirkt") áður en sagað er á þessum plötum.\n\nHalda áfram samt?`))
+      return;
+  }
   let start = 0;
   try {
     const saved = parseInt(localStorage.getItem(guideKey()) || "0", 10);
