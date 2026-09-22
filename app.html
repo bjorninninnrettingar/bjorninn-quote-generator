@@ -398,10 +398,13 @@
   var QUICKFIX_TABLE  = "tblDQWuf4OSjUv2XI"; // QUICK FIX❗
   var P_NAME = "Heiti tækifæris / verkefnis";
 
-  // "Active project" eligibility — same filter verk-i-gangi.html/grain.html
-  // already use (won + not for-skipulag + not yet delivered). Provisional —
-  // revisit the exact criteria once there's real data to check it against.
-  var P_STADA_SOLU = "Staða í söluferli";
+  // "Active project" (Verk í vinnslu) = actually on the shop floor, not just
+  // won/in design — Staða í framleiðslu is "Tilbúið til framleiðslu 📋" or
+  // "Verk í vinnslu 🔨". Decided 2026-09-22 after checking real data: the
+  // looser "any won, not-yet-delivered deal" filter (still used by the
+  // standalone /verk-i-gangi page and grain.html) also caught projects still
+  // in office/design stages (Í skipulagningu, Yfirfara), which isn't what
+  // belongs on a workshop-floor tile.
   var P_STADA_SKIP = "Staða í skipulagi";
   var P_STADA_FRAM = "Staða í framleiðslu";
   var P_DATE     = "Áætlaður afhendingardagur Björninn (internal)";
@@ -619,11 +622,9 @@
     $("verkEmpty").style.display = "none";
     itemsEl.innerHTML = "";
     try {
-      var formula = "AND(" +
-        "{" + P_STADA_SOLU + "} = \"🏆 Tækifæri unnið\", " +
-        "{" + P_STADA_SKIP + "} != \"For-skipulag\", " +
-        "{" + P_STADA_FRAM + "} != \"Afhent (LOKIÐ ✅)\", " +
-        "{" + P_STADA_FRAM + "} != \"Má Afhenda 🚚\"" +
+      var formula = "OR(" +
+        "{" + P_STADA_FRAM + "} = \"Tilbúið til framleiðslu 📋\", " +
+        "{" + P_STADA_FRAM + "} = \"Verk í vinnslu 🔨\"" +
         ")";
       var recs = await airtableFetch(PROJECTS_TABLE, {
         filterByFormula: formula,
