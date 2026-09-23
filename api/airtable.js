@@ -427,6 +427,38 @@ function filterFields(record, allowedFields) {
   return { ...record, fields };
 }
 
+// A field deleted in Airtable but left behind in ALLOWED_FIELDS used to 422
+// EVERY read of that table (not just the caller that wanted the dead field),
+// since the list endpoint's fields[] param validates field names and the
+// record-GET path above is routed through it. Self-heal instead: on
+// UNKNOWN_FIELD_NAME, drop just that field and retry, so a stale allowlist
+// entry degrades (silently missing one field, logged) rather than bricking
+// the whole table. Bounded by fields.length so it can't loop forever, and
+// never retries down to zero fields[] — that would ask Airtable for an
+// unfiltered record, which is exactly what the allowlist exists to prevent.
+async function fetchAirtableFiltered(url, allowedFields, token) {
+  let fields = allowedFields;
+  for (let attempt = 0; attempt <= allowedFields.length; attempt++) {
+    const u = new URL(url.toString());
+    u.searchParams.delete("fields[]");
+    fields.forEach((f) => u.searchParams.append("fields[]", f));
+    const airtableRes = await fetch(airtableUrl(u), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await airtableRes.json();
+    if (airtableRes.ok) return { airtableRes, data, fields };
+
+    const badField = data?.error?.type === "UNKNOWN_FIELD_NAME"
+      ? (data.error.message.match(/Unknown field name: "(.+)"/) || [])[1]
+      : null;
+    if (!badField || !fields.includes(badField) || fields.length <= 1) {
+      return { airtableRes, data, fields };
+    }
+    console.warn(`[api/airtable] dropping unknown field "${badField}" from ${u.pathname} — remove it from ALLOWED_FIELDS in api/airtable.js`);
+    fields = fields.filter((f) => f !== badField);
+  }
+}
+
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
 
@@ -466,7 +498,6 @@ export default async function handler(req, res) {
       if (Array.isArray(value)) value.forEach((v) => url.searchParams.append(key, v));
       else url.searchParams.set(key, value);
     }
-    allowedFields.forEach((f) => url.searchParams.append("fields[]", f));
 
     if (recordId) {
       // Airtable's single-record endpoint (GET /v0/{base}/{table}/{id}) started
@@ -476,22 +507,16 @@ export default async function handler(req, res) {
       // Routing through the list endpoint's RECORD_ID() filter instead gets
       // the same data and sidesteps whatever broke there.
       url.searchParams.set("filterByFormula", `RECORD_ID()='${recordId}'`);
-      const airtableRes = await fetch(airtableUrl(url), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await airtableRes.json();
+      const { airtableRes, data, fields } = await fetchAirtableFiltered(url, allowedFields, token);
       if (!airtableRes.ok) return res.status(airtableRes.status).json(data);
       const record = (data.records || [])[0];
       if (!record) return res.status(404).json({ error: "Record not found" });
-      return res.status(200).json(filterFields(record, allowedFields));
+      return res.status(200).json(filterFields(record, fields));
     }
 
-    const airtableRes = await fetch(airtableUrl(url), {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const data = await airtableRes.json();
+    const { airtableRes, data, fields } = await fetchAirtableFiltered(url, allowedFields, token);
     if (Array.isArray(data.records)) {
-      data.records = data.records.map((r) => filterFields(r, allowedFields));
+      data.records = data.records.map((r) => filterFields(r, fields));
     }
     return res.status(airtableRes.status).json(data);
   }
