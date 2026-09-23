@@ -569,6 +569,7 @@
       <button class="ghost" id="snapBtn" onclick="toggleFreeMove()"></button>
       <button class="ghost office-only" onclick="addBoard()">+ Plata</button>
       <button class="ghost office-only" onclick="resetLayout()" title="Sækir öll mál upp á nýtt úr Sögunarlista og raðar upp á nýtt">Uppfæra mál</button>
+      <button class="ghost office-only" onclick="estimateAllSheets()" title="Áætlar hversu margar plötur þyrfti ef ALLT efnið (líka einingar sem Cutty sagar) væri raðað hér — til að panta efni, breytir engu í röðuninni sjálfri">📐 Áætla allt efni</button>
       <div class="field" style="position:relative;">
         <button class="ghost" id="moreBtn" onclick="toggleMore()">⋯</button>
         <div id="morePop" class="settings-pop" data-btn="moreBtn" hidden style="width:180px;">
@@ -583,6 +584,7 @@
     <div id="overflowWarn"></div>
 
     <div class="stat-row no-print" id="statRow"></div>
+    <div id="estimateCard" class="no-print"></div>
 
     <div class="workspace">
       <div class="boards-col" id="boardsCol"></div>
@@ -1397,7 +1399,7 @@ function confirmPlan() {
     return;
   }
   if (planDrift.length) {
-    alert(`${planDrift.length} stykki í skipulaginu passa ekki við Sögunarlistann (mál eða fjöldi hefur breyst).\n\nÝttu á "Uppfæra mál" áður en þú staðfestir — annars yrðu röng mál söguð.`);
+    alert(`${planDrift.length} stykki í skipulaginu passa ekki lengur við Sögunarlistann (mál/fjöldi breytt, eða þurfa ekki lengur æðaskipulag).\n\nÝttu á "Uppfæra mál" áður en þú staðfestir.`);
     return;
   }
   if (anyOverflow() &&
@@ -1624,6 +1626,7 @@ function selectMaterial(key) {
   selectedKey = key;
   selectedGid = null;
   selectedFrontKey = null;
+  estimateShown = false; if ($("estimateCard")) $("estimateCard").innerHTML = "";
   // Start every project/material from an empty layout. autoNest() keeps any
   // board marked done (🔒 Læsa plötu) as-is, so a layout left over from the
   // previously opened project would otherwise leak its locked boards into
@@ -1655,7 +1658,14 @@ function selectMaterial(key) {
 
   manualFronts = loadManual();
   buildGroups();
-  const freshGroups = groups;   // built from current Sögunarlisti, incl. any new fronts
+  const freshGroups = groups;   // full set (incl. solo fronts), built from current Sögunarlisti — used for drift detection below, never filtered
+  // Solo fronts (no wing/split/drawer sibling) are Cutty's job now, not
+  // /aedar's — only when starting genuinely fresh (nothing saved to
+  // restore) does the smaller scope apply immediately. An existing
+  // saved/confirmed plan is left exactly as it was — see checkPlanDrift,
+  // which now flags "no longer needs /aedar" pieces instead of silently
+  // dropping them; "Uppfæra mál" is the explicit way to actually shrink one.
+  const startFresh = () => { groups = freshGroups.filter(g => g.keepTogether); autoNest(); };
 
   loadingPlan = true;
   try {
@@ -1672,9 +1682,9 @@ function selectMaterial(key) {
       reconcileLayout();
     } else if (planRec && planRec.fields[PL_JSON]) {
       try { applyPlan(JSON.parse(planRec.fields[PL_JSON])); }
-      catch { autoNest(); }
+      catch { startFresh(); }
     } else {
-      autoNest();
+      startFresh();
     }
   } finally { loadingPlan = false; }
 
@@ -1696,14 +1706,23 @@ function selectMaterial(key) {
 // fronts' dimensions can't be hand-edited in the plan (only manual fronts
 // can), so any mismatch against a fresh buildGroups() is stale data, never
 // an intentional tweak. Blocks confirmPlan() until "Uppfæra mál" is run.
+//
+// Also covers a plan built before solo fronts (no wing/split/drawer
+// sibling) moved to Cutty — those pieces still exist in freshGroups (so
+// they're not "gone"), just no longer in a keepTogether group, so they're
+// flagged as no longer needing /aedar rather than as missing data. Same fix
+// either way: "Uppfæra mál" rebuilds keepTogether-only and drops them.
 let planDrift = [];
 function checkPlanDrift(freshGroups) {
   planDrift = [];
   if (FLOOR_MODE) { renderDriftCard(); return; }
   const strip = s => String(s || "").replace(/ · \d+$/, "");
-  const fresh = new Map();
+  const fresh = new Map();      // keepTogether-scoped only — the new real planning scope
+  const freshAny = new Set();   // any front still in Sögunarlisti for this material, kt or solo
   for (const fg of freshGroups) for (const f of fg.fronts) {
     if (!f.pieceId || f.manual) continue;
+    freshAny.add(f.pieceId);
+    if (!fg.keepTogether) continue;
     const e = fresh.get(f.pieceId) || { w: fg.width, h: f.h, n: 0 };
     e.n++; fresh.set(f.pieceId, e);
   }
@@ -1716,7 +1735,8 @@ function checkPlanDrift(freshGroups) {
   for (const [pid, p] of plan) {
     const fr = fresh.get(pid);
     let text = "";
-    if (!fr) text = "er ekki lengur í Sögunarlista fyrir þetta efni";
+    if (!freshAny.has(pid)) text = "er ekki lengur í Sögunarlista fyrir þetta efni";
+    else if (!fr) text = "þarf ekki lengur æðaskipulag — sagast núna í gegnum Cutty";
     else {
       const want = `${fr.w}×${fr.h}`;
       const old = [...p.dims].find(d => d !== want);
@@ -2410,19 +2430,54 @@ function unplacedFrontCount() {
 function addBoard() { layout.boards.push({ placements: {} }); saveLayout(); render(); }
 // "Uppfæra mál" (was "Núllstilla röðun"): re-reads every mm from Sögunarlisti
 // and re-nests from scratch. A full rebuild, so it also drops locked boards —
-// autoNest() alone keeps those, this deliberately doesn't.
+// autoNest() alone keeps those, this deliberately doesn't. Also the explicit
+// way to shrink an old plan down to keepTogether-only now that solo fronts
+// are Cutty's job — see checkPlanDrift's "þarf ekki lengur æðaskipulag" case.
 function resetLayout() {
   const locked = layout.boards.filter(b => b.done).length;
   if (!confirm("Uppfæra mál: sækja öll mál upp á nýtt úr Sögunarlista og raða upp á nýtt?\n\nNúverandi röðun glatast (handvirkir frontar haldast)." +
       (locked ? `\n\nLæstar plötur (${locked}) glatast líka.` : ""))) return;
   try { localStorage.removeItem(layoutKey()); } catch {}
   layout = { boards: [] };
-  buildGroups(); autoNest();
+  buildGroups();
+  groups = groups.filter(g => g.keepTogether); // solo fronts are Cutty's job now
+  autoNest();
   planDrift = []; renderDriftCard();
   // every Sögunarlisti front is in `groups` now — a leftover "🆕 nýir frontar"
   // card would add them a second time
   pendingNewFronts = [];
   $("newFrontsCard")?.remove();
+}
+
+// Read-only sheet-count estimate for ALL front-material fronts on the
+// selected material — including solo pieces Cutty now cuts directly, which
+// are no longer part of `groups`/the real plan here. Snapshots and restores
+// `groups` around a throwaway buildGroups()+packGuillotine() pass (same
+// packing autoNest() uses, minus the parts that touch layout/localStorage/
+// Airtable) so this can never leak into or affect the real working plan —
+// purely so the office can see how many sheets the WHOLE material needs
+// when ordering, since Cutty itself has no such estimate (it doesn't nest,
+// just lists pieces for the saw's own optimizer).
+let estimateShown = false;
+function estimateAllSheets() {
+  const card = $("estimateCard");
+  if (estimateShown) { card.innerHTML = ""; estimateShown = false; return; }
+
+  const realGroups = groups;
+  const currentSheets = layout.boards.length;
+  buildGroups();   // clobbers `groups` with the full set — restored right below
+  const allGroups = groups;
+  const u = usable();
+  const colFirst = packGuillotine(allGroups, u.w, u.l, groupWidth, groupLen);
+  const rowFirst = packGuillotine(allGroups, u.l, u.w, groupLen, groupWidth);
+  const allSheets = Math.min(colFirst.sheets.length, rowFirst.sheets.length);
+  groups = realGroups;   // restore — the estimate must never replace the real plan
+
+  card.innerHTML = `<div class="card" style="border-color:#2a5a8f;background:#12202a;">
+    <label style="color:#7ac2ff;">📐 Áætlað fyrir allt efnið (æðahópar hér + einingar sem Cutty sagar): ~${allSheets} plötur</label>
+    <div class="hint">Núverandi röðun hér (aðeins samfellu-hópar): ${currentSheets} plötur. Gróf áætlun til að panta efni — breytir engu í röðuninni sjálfri.</div>
+  </div>`;
+  estimateShown = true;
 }
 
 // ── TOOLBAR ──────────────────────────────────────────────────────────────
