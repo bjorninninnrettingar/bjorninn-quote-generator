@@ -635,6 +635,7 @@ const S_EFNI_BASE = "Efni: (undirstaða)";
 const S_EYDUBLAD  = "Eyðublað ✏️";
 const S_VILLA     = "Villa?";
 const S_PLANMSG   = "Skilaboð til skipulags";   // part-level note to the planners
+const S_NEEDS_AEDAR = "Þarf æðasamfellu";   // audit/visibility only — see syncGrainContinuityFlags()
 const S_BAS   = "B.A.S.";   // checked -> print-server.js (shop PC) prints one label, then unchecks it
 const S_LOKID = "Lokið";    // read-only here; print-server sets it once every copy (Magn) is printed
 
@@ -868,7 +869,7 @@ async function fetchFrontsForProject(name) {
   const formula = `FIND("${escd}", ARRAYJOIN({${S_PROJECT_LINK}})) > 0`;
   return airtableFetch(SOGUNARLISTI_TABLE, {
     filterByFormula: formula,
-    "fields[]": [S_PARTUR, S_H, S_B, S_TH, S_M, S_EFNI, S_EFNI_BASE, S_EYDUBLAD, S_VILLA, S_PLANMSG],
+    "fields[]": [S_PARTUR, S_H, S_B, S_TH, S_M, S_EFNI, S_EFNI_BASE, S_EYDUBLAD, S_VILLA, S_PLANMSG, S_NEEDS_AEDAR],
     pageSize: 100,
   });
 }
@@ -1124,6 +1125,7 @@ async function loadProject(id) {
         unitName: (id && unitNames[id]) || (typeof uid === "object" ? uid?.name : "") || "óþekkt eining",
         err: !!f[S_VILLA],
         planMsg: (f[S_PLANMSG] || "").trim(),
+        needsAedarStored: !!f[S_NEEDS_AEDAR],
       };
     });
     const isFront = p => (FRONT_RE.test(p.partur) || p.frontMat) && !HIDDEN_RE.test(p.partur);
@@ -1143,8 +1145,29 @@ async function loadProject(id) {
     $("projectStatus").textContent = `${allFronts.length} frontalínur fundnar.`;
     renderSkipped(); renderPlanMsgs();
     buildMaterials();
+    syncGrainContinuityFlags(allFronts);
   } catch (e) {
     $("projectStatus").textContent = "Villa við að sækja gögn: " + e.message;
+  }
+}
+
+// Writes "Þarf æðasamfellu" back onto each front row, purely so the office
+// can see in Airtable which pieces need /aedar's manual sequencing vs are
+// solo (drawer stack / wing pair / split-tall front, via
+// FrontClassify.needsAedar). Audit/visibility only — nothing in this app
+// reads it back to decide anything, so a slow or failed write here can
+// never cause a wrong cut, only a stale checkbox someone notices later.
+// Fire-and-forget from loadProject(), and only PATCHes rows whose stored
+// value actually differs so a normal project load doesn't spam dozens of
+// needless writes every time it's opened.
+async function syncGrainContinuityFlags(fronts) {
+  const stale = fronts.filter(p => FrontClassify.needsAedar(p.partur) !== p.needsAedarStored);
+  for (const p of stale) {
+    try {
+      await airtablePatch(SOGUNARLISTI_TABLE, p.id, { [S_NEEDS_AEDAR]: FrontClassify.needsAedar(p.partur) });
+    } catch (e) {
+      console.warn("syncGrainContinuityFlags: failed to update", p.id, e);
+    }
   }
 }
 

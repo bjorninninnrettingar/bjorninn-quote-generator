@@ -89,6 +89,7 @@ const ALLOWED_FIELDS = {
     "Skurðarskrá",
     "Skurðarnúmer", // 1-based position of the piece in its CUTLST00 file = the "Code" Cutty shows; written by cutlist.html, read by labels.html
     "Skilaboð til skipulags", // grain.html: /saga flags a problematic grain front → note back to the planners (rolls up to Tækifæri)
+    "Þarf æðasamfellu", // grain.html writes this per front row — audit/visibility only, see WRITABLE_FIELDS comment below
     "Tegund einingu",
     "Yfirfr.",
     "Fræst",
@@ -394,7 +395,13 @@ const WRITABLE_FIELDS = {
   // "Fræst"/"Magn fræst" (milling done / partial quantity done) and the
   // per-side "V hlið magn fræst"/"H hlið magn fræst" pair are written by
   // fraesing.html's toggle buttons.
-  "tblhdgyvTcBfP8kov": ["H", "B", "Þ", "Villa?", "Athugasemd", "B.A.S.", "Skurðarskrá", "Skurðarnúmer", "Fræst", "Magn fræst", "V hlið magn fræst", "H hlið magn fræst", "Skilaboð til skipulags"],
+  // "Þarf æðasamfellu" (grain.html writes this per front row so the office
+  // can see in Airtable which pieces need /aedar's manual sequencing vs are
+  // solo — see front-classify.js's needsAedar()). Purely an audit/visibility
+  // field: neither grain.html nor cutlist.html reads it back to decide
+  // anything, both recompute the classification fresh every time, so a
+  // stale value here can never cause a wrong cut.
+  "tblhdgyvTcBfP8kov": ["H", "B", "Þ", "Villa?", "Athugasemd", "B.A.S.", "Skurðarskrá", "Skurðarnúmer", "Fræst", "Magn fræst", "V hlið magn fræst", "H hlið magn fræst", "Skilaboð til skipulags", "Þarf æðasamfellu"],
   // Closes an open shift (stimpilklukka's ÚT button). "Inn" is intentionally
   // not writable here — a shift's start time is only ever set at creation.
   "tblnFIO8RB6HcelXF": ["Út"],
