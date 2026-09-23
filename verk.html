@@ -286,6 +286,7 @@
   var TABLE = "tbl4LMXlQjp66RFKI";
   var UNIT_TABLE = "tbl0WcyHhz63pSzZX";
   var MATERIALS_TABLE = "tbl8CrVWKF8CuI7HD";
+  var SOGUNARLISTI_TABLE = "tblhdgyvTcBfP8kov"; // Sögunarlisti 🪚 — live SÖG/Fræs status for the Framvinda tile
 
   var F = {
     name:"Heiti tækifæris / verkefnis",
@@ -677,27 +678,54 @@
     });
   });
 
-  // 2×2: Framvinda (purple, jumps to #progSec above — same SÖG/FRÆS numbers
-  // already computed there, just surfaced here too as a quick ✅/□ readout)
-  // · F6 – Cutty (labels.html) · Yfirfr. (fraesing.html) · F2 – Vígindi
-  // (grain.html's /saga floor mode) — the last one previously linked to
-  // plain "/saga" with no ?recordId=, so the floor guide never actually
-  // opened THIS project; fixed here.
-  function renderTools(t, f){
-    var sawT = num(f[F.sawTodo]), sawD = num(f[F.sawDone]);
-    var milT = num(f[F.millTodo]), milD = num(f[F.millDone]);
-    function stat(done, todo){ return todo > 0 ? (done >= todo ? "✅" : "□") : "–"; }
-
+  // 2×2: Framvinda (purple, jumps to #progSec above) · F6 – Cutty
+  // (labels.html) · Yfirfr. (fraesing.html) · F2 – Vígindi (grain.html's
+  // /saga floor mode) — the last one previously linked to plain "/saga"
+  // with no ?recordId=, so the floor guide never actually opened THIS
+  // project; fixed here.
+  function renderTools(t, f, rawName){
     $("tools").innerHTML =
       '<a class="tool2 c-purple" href="#progSec">'+
         '<span class="t2-ic">📊</span><span class="t2-t">Framvinda</span>'+
-        '<span class="t2-sub">SÖG '+stat(sawD,sawT)+' · Fræs '+stat(milD,milT)+'</span></a>'+
+        '<span class="t2-sub" id="framvindaStat">Sæki…</span></a>'+
       '<a class="tool2 c-blue" href="/labels?recordId='+encodeURIComponent(t)+'">'+
         '<span class="t2-ic">🏷️</span><span class="t2-t">F6 – Cutty</span></a>'+
       '<a class="tool2 c-green" href="/fraesing?recordId='+encodeURIComponent(t)+'">'+
         '<span class="t2-ic">🔬</span><span class="t2-t">Yfirfr.</span></a>'+
       '<a class="tool2 c-blue" href="/saga?recordId='+encodeURIComponent(t)+'">'+
         '<span class="t2-ic">🪚</span><span class="t2-t">F2 – Vígindi</span></a>';
+
+    loadFramvindaStat(rawName);
+  }
+
+  // The Framvinda tile's SÖG/Fræs readout used to read the Tækifæri rollup
+  // fields (Fjöldi eininga til að fræsa/sagaðir) — found to be unreliable
+  // (a project could show "engin fræsing" there while fraesing.html's own
+  // live query against Sögunarlisti found a real unit needing milling).
+  // Computed live from Sögunarlisti instead — same source, same fields
+  // (Lokið/Yfirfr./Fræst), as eining.html's own per-unit SÖG/FRÆS table.
+  function loadFramvindaStat(rawName){
+    var el = $("framvindaStat");
+    if (!el || !rawName) return;
+    var formula = "ARRAYJOIN({Tækifæri 📣 (projects)})=\""+rawName.replace(/"/g,'\\"')+"\"";
+    fetchAll(SOGUNARLISTI_TABLE, { filterByFormula: formula, pageSize: 100 }, null)
+      .then(function(recs){
+        var sawDone = true, needsMill = false, millDone = true;
+        recs.forEach(function(r){
+          var rf = r.fields || {};
+          if (!rf["Lokið"]) sawDone = false;
+          if (rf["Yfirfr."]) { needsMill = true; if (!rf["Fræst"]) millDone = false; }
+        });
+        var sawIc = recs.length ? (sawDone ? "✅" : "□") : "–";
+        var milIc = !needsMill ? "–" : (millDone ? "✅" : "□");
+        var target = $("framvindaStat");
+        if (target) target.textContent = "SÖG "+sawIc+" · Fræs "+milIc;
+      })
+      .catch(function(e){
+        console.error("Sögunarlisti fetch for Framvinda failed:", e);
+        var target = $("framvindaStat");
+        if (target) target.textContent = "";
+      });
   }
 
   function render(rec, projectId, k){
@@ -736,7 +764,7 @@
     try { renderProg(f); } catch(e){}
     try { renderMat(f); } catch(e){}
     try { renderUnits(rawName, projectId, k); } catch(e){}
-    renderTools(projectId, f);
+    renderTools(projectId, f, rawName);
 
     hide($("loading"));
     show($("content"));
