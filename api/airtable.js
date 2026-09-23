@@ -164,6 +164,7 @@ const ALLOWED_FIELDS = {
     "Er starfandi? ✅",
     "Kyn",
     "Starfsheiti 💼", // drives which project list the clock-out allocation screen shows
+    "Auka orlofsdagar 🌴", // shown on /app's Mín síða → Mínar stundir, same as stimpilklukka.html's hours screen
   ],
   "tblnFIO8RB6HcelXF": [ // Stimplanir ⏱️ (time clock shifts — one row per Inn→Út)
     "Inn",

@@ -229,8 +229,11 @@
   }
 
   /* ── Quick Fix choice screen / Settings panel — same "two big cards"
-     pattern as skipulag.html/verkstaedi.html's hub pages ── */
-  .qf-choice, .settings-panel { margin-top:14px; }
+     pattern as skipulag.html/verkstaedi.html's hub pages. .screen-wrap is
+     the plain wrapper (Til baka + a coloured .qf-card) used by Verk í
+     vinnslu/Sög/Yfirfræsing/Mín síða — same top margin as these two so
+     every "‹ Til baka" sits at the same height, not crowding the search bar. ── */
+  .qf-choice, .settings-panel, .screen-wrap { margin-top:14px; }
   .choice-cards { display:flex; flex-direction:column; gap:12px; margin-top:14px; }
   .choice-card {
     display:flex; align-items:center; gap:16px; text-align:left; width:100%;
@@ -258,6 +261,40 @@
     width:100%; font-family:var(--font); font-size:1rem; color:var(--text);
     background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:13px 14px;
   }
+
+  /* ── Mín síða: PIN pad (gates entry, then persists identity — no re-entry
+     needed on this personal phone, unlike the shared stimpilklukka kiosk) ── */
+  .pin-dots { display:flex; gap:14px; justify-content:center; margin:18px 0 10px; }
+  .pin-dots span { width:16px; height:16px; border-radius:50%; border:2px solid var(--line); display:block; }
+  .pin-dots span.filled { background:var(--blue); border-color:var(--blue); }
+  .pin-msg { min-height:20px; font-size:.85rem; color:var(--red); text-align:center; margin-bottom:4px; }
+  .pin-pad { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:8px; }
+  .pin-pad button {
+    font-family:var(--font); font-size:1.3rem; font-weight:700; background:var(--surface2);
+    border:1px solid var(--line); border-radius:12px; color:var(--text); padding:16px 0;
+  }
+  .pin-pad button.wide { font-size:.85rem; }
+  .pin-pad button:active { filter:brightness(1.25); }
+
+  /* Mín síða's 3 big feature buttons — "stærri takka" than a dropdown */
+  .minside-btn {
+    display:flex; align-items:center; gap:14px; width:100%; text-align:left; cursor:pointer;
+    font-family:var(--font); font-weight:800; font-size:1.05rem; color:var(--text);
+    background:var(--surface2); border:1px solid var(--line); border-radius:14px;
+    padding:18px 16px; margin-top:10px;
+  }
+  .minside-btn .ic { font-size:1.6rem; flex:none; }
+  .minside-btn:active { filter:brightness(1.2); }
+  .ms-pane-back {
+    font-family:var(--font); font-weight:700; font-size:.85rem; color:var(--muted);
+    background:none; border:none; padding:0 0 10px; cursor:pointer;
+  }
+  .stat-row {
+    display:flex; justify-content:space-between; align-items:baseline;
+    padding:12px 0; border-bottom:1px solid var(--line);
+  }
+  .stat-row .label { color:var(--muted); font-size:.95rem; }
+  .stat-row .value { font-size:1.15rem; font-weight:800; font-variant-numeric:tabular-nums; }
 </style>
 </head>
 <body>
@@ -326,7 +363,7 @@
       <button type="button" class="qf-detail-action" id="qfDetailActionBtn"></button>
     </div>
 
-    <div id="verkScreen" style="display:none;">
+    <div id="verkScreen" class="screen-wrap" style="display:none;">
       <button class="qf-back" type="button" id="verkBackBtn">‹ Til baka</button>
       <div class="qf-card c-yellow" id="verkPanel">
         <h2>📋 Verk í vinnslu</h2>
@@ -336,7 +373,7 @@
       </div>
     </div>
 
-    <div id="sogScreen" style="display:none;">
+    <div id="sogScreen" class="screen-wrap" style="display:none;">
       <button class="qf-back" type="button" id="sogBackBtn">‹ Til baka</button>
       <div class="qf-card c-blue" id="sogPanel">
         <h2>🪚 Sög — veldu verkefni</h2>
@@ -360,7 +397,7 @@
       </div>
     </div>
 
-    <div id="fraesScreen" style="display:none;">
+    <div id="fraesScreen" class="screen-wrap" style="display:none;">
       <button class="qf-back" type="button" id="fraesBackBtn">‹ Til baka</button>
       <div class="qf-card c-green" id="fraesPanel">
         <h2>🔬 Yfirfræsing — veldu verkefni</h2>
@@ -370,17 +407,70 @@
       </div>
     </div>
 
-    <div id="minSidaScreen" style="display:none;">
+    <div id="minSidaScreen" class="screen-wrap" style="display:none;">
       <button class="qf-back" type="button" id="minSidaBackBtn">‹ Til baka</button>
-      <div class="qf-card c-plain" id="minSidaPanel">
+
+      <!-- PIN entry — shown until identity is verified once, then it's
+           remembered on this phone (unlike the shared stimpilklukka kiosk,
+           which always re-asks since it doesn't know who's next). -->
+      <div class="qf-card c-plain" id="minSidaPin">
         <h2>👤 Mín síða</h2>
-        <div class="settings-section">
-          <span class="settings-label">Hver ert þú?</span>
-          <select id="meSelect">
-            <option value="">Ekki valið</option>
-          </select>
+        <div class="sub">Sláðu inn PIN-ið þitt til að opna.</div>
+        <div class="pin-dots" id="pinDots"><span></span><span></span><span></span><span></span></div>
+        <div class="pin-msg" id="pinMsg"></div>
+        <div class="pin-pad" id="pinPad">
+          <button type="button" data-d="1">1</button><button type="button" data-d="2">2</button><button type="button" data-d="3">3</button>
+          <button type="button" data-d="4">4</button><button type="button" data-d="5">5</button><button type="button" data-d="6">6</button>
+          <button type="button" data-d="7">7</button><button type="button" data-d="8">8</button><button type="button" data-d="9">9</button>
+          <button type="button" class="wide" id="pinClearBtn">Hreinsa</button><button type="button" data-d="0">0</button><button type="button" class="wide" id="pinBackspaceBtn">⌫</button>
         </div>
+      </div>
+
+      <!-- Main menu — once identity is known -->
+      <div class="qf-card c-plain" id="minSidaMenu" style="display:none;">
+        <h2>👤 <span id="minSidaName">Mín síða</span></h2>
+        <button type="button" class="minside-btn" id="msSickBtn"><span class="ic">🤒</span> Tilkynna veikindi</button>
+        <button type="button" class="minside-btn" id="msHoursBtn"><span class="ic">⏱️</span> Mínar stundir</button>
+        <button type="button" class="minside-btn" id="msVacBtn"><span class="ic">🌴</span> Sækja um orlof</button>
         <a class="link-btn" href="/klukka">⏱️ Opna stimpilklukku</a>
+        <button type="button" class="ms-pane-back" id="msLogoutBtn" style="margin-top:14px;padding-top:4px;">Þetta er ekki ég — skipta um notanda</button>
+      </div>
+
+      <!-- Tilkynna veikindi -->
+      <div class="qf-card c-plain" id="minSidaSick" style="display:none;">
+        <button type="button" class="ms-pane-back" id="msSickBackBtn">‹ Valmynd</button>
+        <h2>🤒 Tilkynna veikindi</h2>
+        <div class="sub" id="msSickStatus">Skráir veikindi fyrir daginn í dag.</div>
+        <button type="button" class="qf-submit" id="msSickConfirmBtn" style="margin-top:16px;">Staðfesta veikindi í dag</button>
+        <div class="qf-msg" id="msSickMsg"></div>
+      </div>
+
+      <!-- Mínar stundir -->
+      <div class="qf-card c-plain" id="minSidaHours" style="display:none;">
+        <button type="button" class="ms-pane-back" id="msHoursBackBtn">‹ Valmynd</button>
+        <h2>⏱️ Mínar stundir — <span id="msHoursMonth"></span></h2>
+        <div class="stat-row"><span class="label">Dagvinna</span><span class="value" id="msDagvinna">…</span></div>
+        <div class="stat-row"><span class="label">Yfirvinna</span><span class="value" id="msYfirvinna">…</span></div>
+        <div class="stat-row"><span class="label">Samtals</span><span class="value" id="msSamtals">…</span></div>
+        <div class="stat-row"><span class="label">Veikindadagar</span><span class="value" id="msVeikindi">…</span></div>
+        <div class="stat-row" style="border-bottom:none;"><span class="label">Auka orlofsdagar</span><span class="value" id="msOrlofDagar">…</span></div>
+        <div class="sub" id="msHoursNote" style="margin-top:10px;"></div>
+      </div>
+
+      <!-- Sækja um orlof -->
+      <div class="qf-card c-plain" id="minSidaVacation" style="display:none;">
+        <button type="button" class="ms-pane-back" id="msVacBackBtn">‹ Valmynd</button>
+        <h2>🌴 Sækja um orlof</h2>
+        <div class="field" style="margin-top:12px;">
+          <span class="lbl">Frá</span>
+          <input type="date" id="msVacFrom" />
+        </div>
+        <div class="field">
+          <span class="lbl">Til</span>
+          <input type="date" id="msVacTo" />
+        </div>
+        <button type="button" class="qf-submit" id="msVacSubmitBtn">Senda beiðni</button>
+        <div class="qf-msg" id="msVacMsg"></div>
       </div>
     </div>
 
@@ -429,7 +519,7 @@
       </div>
 
       <div class="tile2 c-green" id="tileFraesing">
-        <div class="ic">🔬</div><div class="t">Yfirfræsing</div>
+        <div class="ic">🔬</div><div class="t">Yfirfr.</div>
       </div>
 
       <div class="tile2 soon" id="tileDagatal">
@@ -462,6 +552,9 @@
   var PROXY_URL = "/api/airtable";
   var PROJECTS_TABLE  = "tbl4LMXlQjp66RFKI"; // Tækifæri 📣
   var QUICKFIX_TABLE  = "tblDQWuf4OSjUv2XI"; // QUICK FIX❗
+  var STARFSMENN_TABLE = "tblhglpjQkczdG1AY"; // Starfsmenn 👷 — Mín síða PIN lookup
+  var FJARVISTIR_TABLE = "tbl3e5o0Klv9RcNQ4"; // Fjarvistir 🤒 — sick log + vacation requests
+  var STIMPLANIR_TABLE = "tblnFIO8RB6HcelXF"; // Stimplanir ⏱️ — read-only here (Mínar stundir)
   var P_NAME = "Heiti tækifæris / verkefnis";
 
   // Two project-list filters, deliberately different (2026-09-23):
@@ -631,6 +724,14 @@
     } catch (e) {}
   })();
 
+  // verk.html's own "‹ Til baka" links here with ?screen=verk so it reopens
+  // the Verk í vinnslu list, not just the home grid.
+  (function () {
+    if (new URLSearchParams(location.search).get("screen") !== "verk") return;
+    history.replaceState({}, "", "/app");
+    openVerkList();
+  })();
+
   wireTiles();
 
   // ── QUICK FIX: owner dropdown ──
@@ -641,22 +742,17 @@
     ownerSel.appendChild(o);
   });
 
-  // ── identity ("Hver ert þú?") — lets the home Quick Fix tile flag when the
-  // signed-in person has an open item assigned to them. Not a login, just a
-  // locally-remembered name; real identity is Mín síða's job once it exists. ──
-  var meSel = $("meSelect");
-  OWNERS.forEach(function (name) {
-    var o = document.createElement("option");
-    o.value = name; o.textContent = name;
-    meSel.appendChild(o);
-  });
-  function getMe() { try { return localStorage.getItem("verkApp:me") || ""; } catch (e) { return ""; } }
-  function setMe(name) {
-    try { if (name) localStorage.setItem("verkApp:me", name); else localStorage.removeItem("verkApp:me"); } catch (e) {}
+  // ── identity — verified once via Mín síða's PIN pad (Starfsmenn lookup,
+  // same check stimpilklukka.html uses), then remembered on this phone so
+  // it's never asked again here (unlike the shared kiosk, which can't
+  // assume who's next). Also drives the home Quick Fix tile's red alert
+  // when the signed-in person has an open item assigned to them. ──
+  function getMeRecord() { try { return JSON.parse(localStorage.getItem("verkApp:meRecord") || "null"); } catch (e) { return null; } }
+  function setMeRecord(rec) {
+    try { if (rec) localStorage.setItem("verkApp:meRecord", JSON.stringify(rec)); else localStorage.removeItem("verkApp:meRecord"); } catch (e) {}
     checkMyQuickFix();
   }
-  meSel.value = getMe();
-  meSel.addEventListener("change", function () { setMe(meSel.value); });
+  function getMe() { var r = getMeRecord(); return r ? r.name : ""; }
 
   function checkMyQuickFix() {
     var me = getMe();
@@ -789,12 +885,21 @@
   $("tileFraesing").addEventListener("click", openFraesList);
   $("fraesBackBtn").addEventListener("click", closeFraesList);
 
-  // Mín síða — identity picker (moved here from Stillingar) + a link into
-  // the shared stimpilklukka kiosk. Never does clock punches itself.
+  // Mín síða — PIN-gated once, then remembered; menu of 3 self-service
+  // actions (sick/hours/vacation, all ported from stimpilklukka.html's own
+  // logic — none of them need kiosk pairing, same as there) plus a link
+  // into the shared stimpilklukka kiosk. Never does clock punches itself.
+  function todayISO() {
+    var d = new Date();
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+  }
+  var IS_MONTHS = ["janúar", "febrúar", "mars", "apríl", "maí", "júní", "júlí", "ágúst", "september", "október", "nóvember", "desember"];
+
   function openMinSida() {
     hideTilegrid();
     $("minSidaScreen").style.display = "block";
     window.scrollTo({ top: 0, behavior: "smooth" });
+    if (getMeRecord()) showMsMenu(); else showMsPin();
   }
   function closeMinSida() {
     $("minSidaScreen").style.display = "none";
@@ -803,6 +908,184 @@
   }
   $("tileMinSida").addEventListener("click", openMinSida);
   $("minSidaBackBtn").addEventListener("click", closeMinSida);
+
+  // ── PIN pad ──
+  var msPin = "", msPinLocked = false;
+  function msRenderDots() {
+    $("pinDots").querySelectorAll("span").forEach(function (el, i) { el.classList.toggle("filled", i < msPin.length); });
+  }
+  function msResetPin() { msPin = ""; $("pinMsg").textContent = ""; msRenderDots(); }
+  function showMsPin() {
+    $("minSidaPin").style.display = "block";
+    $("minSidaMenu").style.display = "none";
+    msResetPin();
+  }
+  async function msSubmitPin() {
+    msPinLocked = true;
+    try {
+      var formula = "AND({PIN 🔢}=" + msPin + ",{Er starfandi? ✅}=1)";
+      var recs = await airtableFetch(STARFSMENN_TABLE, { filterByFormula: formula, maxRecords: 1 });
+      var rec = recs[0];
+      if (!rec) {
+        $("pinMsg").textContent = "Rangt PIN númer";
+        setTimeout(function () { msPinLocked = false; msResetPin(); }, 900);
+        return;
+      }
+      setMeRecord({
+        id: rec.id,
+        name: rec.fields["Nafn starfsmanns 👷"] || "Starfsmaður",
+        kk: rec.fields["Kyn"] !== "KVK",
+        orlof: rec.fields["Auka orlofsdagar 🌴"] || 0,
+      });
+      msPinLocked = false;
+      showMsMenu();
+    } catch (e) {
+      $("pinMsg").textContent = "Villa — reyndu aftur";
+      setTimeout(function () { msPinLocked = false; msResetPin(); }, 1200);
+    }
+  }
+  $("pinPad").querySelectorAll("button[data-d]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      if (msPinLocked || msPin.length >= 4) return;
+      msPin += btn.dataset.d;
+      msRenderDots();
+      if (msPin.length === 4) msSubmitPin();
+    });
+  });
+  $("pinBackspaceBtn").addEventListener("click", function () {
+    if (msPinLocked) return;
+    msPin = msPin.slice(0, -1);
+    $("pinMsg").textContent = "";
+    msRenderDots();
+  });
+  $("pinClearBtn").addEventListener("click", function () { if (!msPinLocked) msResetPin(); });
+
+  // ── main menu ──
+  function msHidePanes() {
+    ["minSidaMenu", "minSidaSick", "minSidaHours", "minSidaVacation"].forEach(function (id) { $(id).style.display = "none"; });
+  }
+  function showMsMenu() {
+    $("minSidaPin").style.display = "none";
+    msHidePanes();
+    $("minSidaMenu").style.display = "block";
+    var me = getMeRecord();
+    $("minSidaName").textContent = me ? me.name : "Mín síða";
+  }
+  $("msLogoutBtn").addEventListener("click", function () {
+    setMeRecord(null);
+    showMsPin();
+  });
+
+  // ── Tilkynna veikindi ──
+  async function showMsSick() {
+    msHidePanes();
+    $("minSidaSick").style.display = "block";
+    var me = getMeRecord();
+    var btn = $("msSickConfirmBtn");
+    $("msSickMsg").className = "qf-msg"; $("msSickMsg").textContent = "";
+    $("msSickStatus").textContent = "Athuga stöðu…";
+    btn.disabled = true;
+    try {
+      var recs = await airtableFetch(FJARVISTIR_TABLE, {
+        filterByFormula: 'AND({Starfsmaður}="' + me.name.replace(/"/g, '\\"') + '", DATETIME_FORMAT({Dagsetning},\'YYYY-MM-DD\')="' + todayISO() + '")',
+        maxRecords: 1,
+      });
+      if (recs.length) {
+        $("msSickStatus").textContent = me.kk ? "Þú ert þegar skráður veikur í dag." : "Þú ert þegar skráð veik í dag.";
+        btn.style.display = "none";
+      } else {
+        $("msSickStatus").textContent = "Skráir veikindi fyrir daginn í dag.";
+        btn.style.display = "block";
+        btn.disabled = false;
+      }
+    } catch (e) {
+      $("msSickStatus").textContent = "Villa við að athuga stöðu.";
+    }
+  }
+  $("msSickBtn").addEventListener("click", showMsSick);
+  $("msSickBackBtn").addEventListener("click", showMsMenu);
+  $("msSickConfirmBtn").addEventListener("click", async function () {
+    var me = getMeRecord();
+    if (!me) return;
+    var btn = $("msSickConfirmBtn");
+    btn.disabled = true; btn.textContent = "Skrái…";
+    try {
+      await airtableCreate(FJARVISTIR_TABLE, { "Dagsetning": todayISO(), "Starfsmaður": [me.id], "Tegund": "Veikindi" });
+      $("msSickMsg").className = "qf-msg ok"; $("msSickMsg").textContent = "✅ Veikindi skráð.";
+      $("msSickStatus").textContent = me.kk ? "Þú ert skráður veikur í dag." : "Þú ert skráð veik í dag.";
+      btn.style.display = "none";
+    } catch (e) {
+      $("msSickMsg").className = "qf-msg err"; $("msSickMsg").textContent = "Tókst ekki að skrá — reyndu aftur.";
+      btn.disabled = false; btn.textContent = "Staðfesta veikindi í dag";
+    }
+  });
+
+  // ── Mínar stundir ──
+  async function showMsHours() {
+    msHidePanes();
+    $("minSidaHours").style.display = "block";
+    var me = getMeRecord();
+    var now = new Date();
+    $("msHoursMonth").textContent = IS_MONTHS[now.getMonth()];
+    ["msDagvinna", "msYfirvinna", "msSamtals", "msVeikindi"].forEach(function (id) { $(id).textContent = "…"; });
+    $("msOrlofDagar").textContent = (me.orlof || 0) + " d.";
+    $("msHoursNote").textContent = "";
+    try {
+      var name = me.name.replace(/"/g, '\\"');
+      var monthKey = now.getFullYear() + "-" + pad(now.getMonth() + 1);
+      var results = await Promise.all([
+        airtableFetch(STIMPLANIR_TABLE, {
+          filterByFormula: 'AND({Starfsmaður}="' + name + '", DATETIME_FORMAT({Inn},\'YYYY-MM\')="' + monthKey + '", {Út}!=BLANK())',
+          pageSize: 100,
+        }),
+        airtableFetch(FJARVISTIR_TABLE, {
+          filterByFormula: 'AND({Starfsmaður}="' + name + '", DATETIME_FORMAT({Dagsetning},\'YYYY-MM\')="' + monthKey + '")',
+          pageSize: 100,
+        }),
+      ]);
+      var shifts = results[0], sick = results[1];
+      function sum(field) { return shifts.reduce(function (t, r) { return t + (r.fields[field] || 0); }, 0); }
+      $("msDagvinna").textContent = sum("Dagvinna (klst)").toFixed(1) + " klst";
+      $("msYfirvinna").textContent = sum("Yfirvinna (klst)").toFixed(1) + " klst";
+      $("msSamtals").textContent = sum("Samtals (klst)").toFixed(1) + " klst";
+      $("msVeikindi").textContent = sick.length + " d.";
+    } catch (e) {
+      $("msHoursNote").textContent = "Villa við að sækja stundir — reyndu aftur.";
+    }
+  }
+  $("msHoursBtn").addEventListener("click", showMsHours);
+  $("msHoursBackBtn").addEventListener("click", showMsMenu);
+
+  // ── Sækja um orlof ──
+  $("msVacBtn").addEventListener("click", function () {
+    msHidePanes();
+    $("minSidaVacation").style.display = "block";
+    $("msVacMsg").className = "qf-msg"; $("msVacMsg").textContent = "";
+    $("msVacFrom").value = todayISO();
+    $("msVacTo").value = todayISO();
+    $("msVacSubmitBtn").disabled = false;
+    $("msVacSubmitBtn").textContent = "Senda beiðni";
+  });
+  $("msVacBackBtn").addEventListener("click", showMsMenu);
+  $("msVacSubmitBtn").addEventListener("click", async function () {
+    var me = getMeRecord();
+    if (!me) return;
+    var fra = $("msVacFrom").value, til = $("msVacTo").value;
+    var msg = $("msVacMsg");
+    msg.className = "qf-msg"; msg.textContent = "";
+    if (!fra || !til) { msg.className = "qf-msg err"; msg.textContent = "Veldu báðar dagsetningar."; return; }
+    if (til < fra) { msg.className = "qf-msg err"; msg.textContent = "Til-dagsetning verður að vera eftir frá-dagsetningu."; return; }
+    var btn = $("msVacSubmitBtn");
+    btn.disabled = true; btn.textContent = "Sendi…";
+    try {
+      await airtableCreate(FJARVISTIR_TABLE, { "Dagsetning": fra, "Til": til, "Starfsmaður": [me.id], "Tegund": "Orlof" });
+      msg.className = "qf-msg ok"; msg.textContent = "✅ Orlofsbeiðni send: " + fra + " – " + til;
+      btn.style.display = "none";
+    } catch (e) {
+      msg.className = "qf-msg err"; msg.textContent = "Tókst ekki að senda beiðni — reyndu aftur.";
+      btn.disabled = false; btn.textContent = "Senda beiðni";
+    }
+  });
 
   // ── QUICK FIX: tap the tile → a full-screen choice step (Skrá / Græja),
   // same "go to a page that gives the choice" pattern as the /verkstaedi hub
@@ -1009,6 +1292,26 @@
     { cat: "Stillingar", t: "Ljóst þema", ic: "☀️", kw: "stillingar ljóst þema bjart hvítt", go: function () { setTheme("light"); openSettings(); } },
     { cat: "Stillingar", t: "Dökkt þema", ic: "🌙", kw: "stillingar dökkt þema svart", go: function () { setTheme("dark"); openSettings(); } },
   ];
+  // Live projects, fetched once so every keystroke is instant — same broad
+  // filter as Sög/Yfirfræsing (any won, not-yet-delivered project), so
+  // typing a project name/number finds it even if it isn't "í vinnslu" yet.
+  // Picking one opens /verk for it, same as tapping it in Verk í vinnslu.
+  var PROJECT_INDEX = [];
+  airtableFetch(PROJECTS_TABLE, { filterByFormula: BROAD_FILTER, "fields[]": [P_NAME], pageSize: 100 })
+    .then(function (recs) {
+      PROJECT_INDEX = recs.map(function (r) {
+        var name = r.fields[P_NAME] || "";
+        return {
+          cat: "Verk", t: name, ic: "📋",
+          go: function () {
+            setProject({ id: r.id, name: name });
+            location.href = "/verk?t=" + encodeURIComponent(r.id) + "&k=" + encodeURIComponent(verkKey());
+          },
+        };
+      });
+    })
+    .catch(function () {});
+
   var searchInput = $("searchInput");
   var searchResults = $("searchResults");
   var menuArea = $("menuArea");
@@ -1025,7 +1328,9 @@
     searchResults.classList.add("show");
     var hits = SEARCH_INDEX.filter(function (item) {
       return norm(item.t).indexOf(val) !== -1 || item.kw.indexOf(val) !== -1;
-    });
+    }).concat(
+      PROJECT_INDEX.filter(function (item) { return norm(item.t).indexOf(val) !== -1; }).slice(0, 8)
+    );
     searchResults.innerHTML = hits.length
       ? hits.map(function (h, i) {
           return '<a class="search-hit" href="javascript:void(0)" data-i="' + i + '"><div class="ic">' + h.ic + '</div><div><span class="cat">' + h.cat + '</span><span class="t">' + h.t + (h.go ? "" : " (væntanlegt)") + '</span></div></a>';

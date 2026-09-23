@@ -169,15 +169,36 @@
   .urow .usub { color:var(--muted); font-size:.82rem; font-weight:400; margin-top:1px; }
   .urow .arrow { color:var(--muted); flex:none; }
 
-  /* tools */
-  .tools { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-  .tool {
-    display:flex; align-items:center; justify-content:center; gap:8px;
-    background:var(--blue-bg); border:1px solid #1c3a52; color:var(--blue);
-    border-radius:10px; padding:16px 10px; font-size:.98rem; font-weight:800;
-    text-decoration:none; text-align:center;
+  /* "‹ Til baka" — back to Verk í vinnslu on /app. Same class/feel as
+     app.html's .qf-back, sits above the sticky header so it never scrolls
+     out of reach and is visible even on the error screen. */
+  .back-btn {
+    display:inline-block; font-family:var(--font); font-weight:800; font-size:1rem;
+    color:var(--text); text-decoration:none; padding:14px 0 6px;
   }
-  .tool:active { background:#123048; }
+
+  /* tools — redesigned into a 2×2 grid of thin colour-framed cards, same
+     "icon over label" language as app.html's home tile grid (.tile2), so
+     this page reads as part of the same app. Framvinda (purple) jumps to
+     the progress section above instead of navigating away; the other 3
+     open the matching tool for THIS project. */
+  .tools { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .tool2 {
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
+    text-align:center; text-decoration:none; color:var(--text); min-height:104px;
+    border-radius:16px; padding:16px 10px; border:1px solid var(--line); background:var(--surface);
+    cursor:pointer;
+  }
+  .tool2:active { filter:brightness(1.2); }
+  .tool2 .t2-ic { font-size:1.7rem; line-height:1; }
+  .tool2 .t2-t { font-size:.95rem; font-weight:800; }
+  .tool2 .t2-sub { font-size:.72rem; color:var(--muted); font-weight:600; }
+  .tool2.c-purple { border-color:var(--sec-draws); }
+  .tool2.c-purple .t2-t { color:var(--sec-draws); }
+  .tool2.c-blue { border-color:var(--blue); }
+  .tool2.c-blue .t2-t { color:var(--blue); }
+  .tool2.c-green { border-color:var(--green); }
+  .tool2.c-green .t2-t { color:var(--green); }
 
   #loading,#error { text-align:center; color:var(--muted); padding:70px 20px; }
   #error strong { display:block; color:var(--text); font-size:1.1rem; margin-bottom:6px; }
@@ -186,6 +207,7 @@
 </head>
 <body>
 <div class="wrap">
+  <a class="back-btn" href="/app?screen=verk">‹ Til baka</a>
   <div id="loading" style="padding-top:70px;">Sæki verk…</div>
   <div id="error" class="hidden" style="padding-top:70px;">
     <strong>Fann ekki verkið</strong>
@@ -642,16 +664,27 @@
     });
   });
 
-  function renderTools(t){
-    var tools = [
-      ["Skurðarlisti","/cutlist?recordId="+t],
-      ["Fræsing","/fraesing?recordId="+t],
-      ["Merkingar","/labels?recordId="+t],
-      ["Æðaskipulag","/saga"]
-    ];
-    $("tools").innerHTML = tools.map(function(x){
-      return '<a class="tool" href="'+x[1]+'">'+esc(x[0])+'</a>';
-    }).join("");
+  // 2×2: Framvinda (purple, jumps to #progSec above — same SÖG/FRÆS numbers
+  // already computed there, just surfaced here too as a quick ✅/□ readout)
+  // · F6 – Cutty (labels.html) · Yfirfr. (fraesing.html) · F2 – Vígindi
+  // (grain.html's /saga floor mode) — the last one previously linked to
+  // plain "/saga" with no ?recordId=, so the floor guide never actually
+  // opened THIS project; fixed here.
+  function renderTools(t, f){
+    var sawT = num(f[F.sawTodo]), sawD = num(f[F.sawDone]);
+    var milT = num(f[F.millTodo]), milD = num(f[F.millDone]);
+    function stat(done, todo){ return todo > 0 ? (done >= todo ? "✅" : "□") : "–"; }
+
+    $("tools").innerHTML =
+      '<a class="tool2 c-purple" href="#progSec">'+
+        '<span class="t2-ic">📊</span><span class="t2-t">Framvinda</span>'+
+        '<span class="t2-sub">SÖG '+stat(sawD,sawT)+' · Fræs '+stat(milD,milT)+'</span></a>'+
+      '<a class="tool2 c-blue" href="/labels?recordId='+encodeURIComponent(t)+'">'+
+        '<span class="t2-ic">🏷️</span><span class="t2-t">F6 – Cutty</span></a>'+
+      '<a class="tool2 c-green" href="/fraesing?recordId='+encodeURIComponent(t)+'">'+
+        '<span class="t2-ic">🔬</span><span class="t2-t">Yfirfr.</span></a>'+
+      '<a class="tool2 c-blue" href="/saga?recordId='+encodeURIComponent(t)+'">'+
+        '<span class="t2-ic">🪚</span><span class="t2-t">F2 – Vígindi</span></a>';
   }
 
   function render(rec, projectId, k){
@@ -690,7 +723,7 @@
     try { renderProg(f); } catch(e){}
     try { renderMat(f); } catch(e){}
     try { renderUnits(rawName, projectId, k); } catch(e){}
-    renderTools(projectId);
+    renderTools(projectId, f);
 
     hide($("loading"));
     show($("content"));
