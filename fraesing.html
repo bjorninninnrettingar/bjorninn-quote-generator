@@ -15,6 +15,12 @@
   }
   h1 { font-size: 1.6rem; letter-spacing: 0.03em; margin-bottom: 4px; }
   .sub { color: #888; font-size: 0.95rem; margin-bottom: 24px; }
+  /* exit link — back to the launching app, not the in-page "← Til baka"
+     (goBack()) which only resets the project picker within this tool.
+     Contextual: points at /verk for the current project once one's loaded,
+     so a mistap on the wrong project is one tap to undo; /app otherwise. */
+  .exit-back { display: inline-block; color: #888; text-decoration: none; font-size: 0.85rem; font-weight: 700; margin-bottom: 14px; }
+  .exit-back:hover { color: #fff; }
 
   .card {
     background: #161616;
@@ -133,6 +139,7 @@
 </head>
 <body>
 
+  <a class="exit-back" id="exitBack" href="/app">‹ Til baka</a>
   <h1>Yfirfræsun — Sögun</h1>
   <div class="sub">Veldu verkefni, ýttu á stykki þegar það er fullfræst.</div>
 
@@ -192,6 +199,9 @@ const SOGUNARLISTI_TABLE = "tblhdgyvTcBfP8kov"; // Sögunarlisti 🪚
 const EYDUBLAD_TABLE     = "tbl0WcyHhz63pSzZX"; // Eyðublað ✏️
 
 const P_NAME_FIELD = "Heiti tækifæris / verkefnis";
+// Same non-strong-secret constant app.html/verk.html use — only needed here
+// to build the exit link back to /verk for the current project.
+const VERK_KEY = "bjorn-verk-7Kq2mP9xLd4";
 const P_STADA_SOLU = "Staða í söluferli";
 const P_STADA_SKIPULAG = "Staða í skipulagi";
 const P_STADA_FRAM = "Staða í framleiðslu";
@@ -642,19 +652,37 @@ async function loadProject(projectId) {
   document.getElementById("projectCard").classList.remove("hidden");
   document.getElementById("listCard").classList.add("hidden");
   document.getElementById("projectStatus").textContent = "Sæki gögn…";
-
-  const opt = document.querySelector(`#projectSelect option[value="${projectId}"]`);
-  const projectName = opt?.dataset.name || opt?.textContent || projectId;
-  document.getElementById("projectName").textContent = projectName;
   document.getElementById("projectDocs").classList.add("hidden");
   document.getElementById("projectDocs").innerHTML = "";
 
-  const [unitRows, pieceRows, projectRecord] = await Promise.all([
+  const exitBack = document.getElementById("exitBack");
+  if (exitBack) exitBack.href = `/verk?t=${encodeURIComponent(projectId)}&k=${encodeURIComponent(VERK_KEY)}`;
+
+  const projectRecordPromise = airtableFetch(PROJECTS_TABLE, {}, projectId);
+
+  const opt = document.querySelector(`#projectSelect option[value="${projectId}"]`);
+  let projectName = opt?.dataset.name || opt?.textContent || "";
+  // Opened via a direct ?recordId= link (Sög's F6/F2 choice, verk.html's
+  // Yfirfr. tile, or an Airtable button) — the dropdown was never
+  // populated, so there was no cached name to read here. Falling back to
+  // the raw record ID (the old behaviour) silently broke every query below
+  // — they match a project by NAME (ARRAYJOIN/FIND), never by record id —
+  // so every unit/piece looked like it had vanished, and the header showed
+  // the raw id instead of the project's name. Resolve it from the record
+  // itself instead.
+  let projectRecord = null;
+  if (!projectName) {
+    projectRecord = await projectRecordPromise.catch(() => null);
+    projectName = projectRecord?.fields?.[P_NAME_FIELD] || projectId;
+  }
+  document.getElementById("projectName").textContent = projectName;
+
+  const [unitRows, pieceRows, fetchedRecord] = await Promise.all([
     fetchEyðublaðForProject(projectName),
     fetchSogunarlistiForProject(projectName),
-    airtableFetch(PROJECTS_TABLE, {}, projectId),
+    projectRecord ? Promise.resolve(projectRecord) : projectRecordPromise,
   ]);
-  renderProjectDocs(projectRecord);
+  renderProjectDocs(fetchedRecord);
 
   const unitRowsInProject = unitRows.filter(r =>
     (r.fields[U_PROJECT_LINK] || []).includes(projectId) ||
@@ -898,6 +926,8 @@ function goBack() {
   document.getElementById("projectSelect").value = "";
   document.getElementById("projectSearch").value = "";
   filterProjectOptions();
+  const exitBack = document.getElementById("exitBack");
+  if (exitBack) exitBack.href = "/app";
 }
 
 function filterProjectOptions() {
@@ -934,6 +964,10 @@ const params = new URLSearchParams(window.location.search);
 const recordIdParam = params.get("recordId");
 if (recordIdParam) {
   loadProject(recordIdParam);
+  // Populate the dropdown in the background too (not awaited — loadProject
+  // no longer depends on it) so "← Til baka" → "annað verkefni" has a real
+  // list to search instead of a blank one.
+  populateProjectDropdown();
 } else {
   populateProjectDropdown();
 }

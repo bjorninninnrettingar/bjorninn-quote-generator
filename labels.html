@@ -15,6 +15,12 @@
   }
   h1 { font-size: 1.6rem; letter-spacing: 0.03em; margin-bottom: 4px; }
   .sub { color: #888; font-size: 0.95rem; margin-bottom: 24px; }
+  /* exit link — back to the launching app, not the in-page "← Til baka"
+     (goBack()) which only resets the project picker within this tool.
+     Contextual: points at /verk for the current project once one's loaded,
+     so a mistap on the wrong project is one tap to undo; /app otherwise. */
+  .exit-back { display: inline-block; color: #888; text-decoration: none; font-size: 0.85rem; font-weight: 700; margin-bottom: 14px; }
+  .exit-back:hover { color: #fff; }
 
   .card {
     background: #161616;
@@ -174,6 +180,7 @@
 </head>
 <body>
 
+  <a class="exit-back" id="exitBack" href="/app">‹ Til baka</a>
   <h1>Merkingar — Sögun</h1>
   <div class="sub">Veldu verkefni, ýttu á prent-hnapp til að merkja og prenta miða.</div>
 
@@ -244,6 +251,9 @@ const PROJECTS_TABLE     = "tbl4LMXlQjp66RFKI"; // Tækifæri 📣 (projects)
 const SOGUNARLISTI_TABLE = "tblhdgyvTcBfP8kov"; // Sögunarlisti 🪚
 
 const P_NAME_FIELD = "Heiti tækifæris / verkefnis";
+// Same non-strong-secret constant app.html/verk.html use — only needed here
+// to build the exit link back to /verk for the current project.
+const VERK_KEY = "bjorn-verk-7Kq2mP9xLd4";
 const P_STADA_SOLU = "Staða í söluferli";
 const P_STADA_SKIPULAG = "Staða í skipulagi";
 const P_STADA_FRAM = "Staða í framleiðslu";
@@ -656,9 +666,24 @@ async function loadProject(projectId) {
   const partSearchEl = document.getElementById("partSearch");
   if (partSearchEl) partSearchEl.value = "";
 
-  // Read name from dropdown option to avoid an extra API call
+  const exitBack = document.getElementById("exitBack");
+  if (exitBack) exitBack.href = `/verk?t=${encodeURIComponent(projectId)}&k=${encodeURIComponent(VERK_KEY)}`;
+
+  // Read name from dropdown option to avoid an extra API call — but when
+  // opened via a direct ?recordId= link (Sög's F6/F2 choice, verk.html's
+  // F6 – Cutty tile, or an Airtable button) the dropdown was never
+  // populated, so there's no cached name to read. Falling back to the raw
+  // record ID (the old behaviour) silently broke fetchSogunarlistiForProject
+  // below — it matches a project by NAME (FIND/ARRAYJOIN), never by record
+  // id — so every piece looked like it had vanished, and the header showed
+  // the raw id instead of the project's name. Resolve it from the record
+  // itself instead.
   const opt = document.querySelector(`#projectSelect option[value="${projectId}"]`);
-  const projectName = opt?.dataset.name || opt?.textContent || projectId;
+  let projectName = opt?.dataset.name || opt?.textContent || "";
+  if (!projectName) {
+    const rec = await airtableFetch(PROJECTS_TABLE, {}, projectId).catch(() => null);
+    projectName = rec?.fields?.[P_NAME_FIELD] || projectId;
+  }
   document.getElementById("projectName").textContent = projectName;
 
   const rows = await fetchSogunarlistiForProject(projectName);
@@ -875,6 +900,8 @@ function goBack() {
   document.getElementById("projectSelect").value = "";
   document.getElementById("projectSearch").value = "";
   filterProjectOptions();
+  const exitBack = document.getElementById("exitBack");
+  if (exitBack) exitBack.href = "/app";
 }
 
 function filterProjectOptions() {
@@ -912,6 +939,10 @@ const params = new URLSearchParams(window.location.search);
 const recordIdParam = params.get("recordId");
 if (recordIdParam) {
   loadProject(recordIdParam);
+  // Populate the dropdown in the background too (not awaited — loadProject
+  // no longer depends on it) so "← Til baka" → "annað verkefni" has a real
+  // list to search instead of a blank one.
+  populateProjectDropdown();
 } else {
   populateProjectDropdown();
 }

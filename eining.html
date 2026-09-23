@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="robots" content="noindex" />
 <title>Eining — Björninn</title>
+<script>
+// Carry over the light-theme choice made on /app (Mín síða → Stillingar) —
+// same localStorage key, same data-theme attribute, applied before first
+// paint to avoid a dark→light flash.
+(function () {
+  try { if (localStorage.getItem("verkApp:theme") === "light") document.documentElement.setAttribute("data-theme", "light"); } catch (e) {}
+})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -17,9 +25,14 @@
   :root {
     --bg:#0b0b0c; --surface:#161618; --surface2:#1e1e21;
     --line:#2a2a2e; --text:#f2f2f3; --muted:#e8e8ec;
-    --blue:#0a84ff; --blue-bg:#0e2436;
+    --blue:#0a84ff; --blue-bg:#0e2436; --blue-border:#1c3a52; --blue-active:#123048;
     --amber:#ffd60a; --green:#4caf50;
     --font:"Kumbh Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  :root[data-theme="light"] {
+    --bg:#f3f3f4; --surface:#ffffff; --surface2:#ececee; --line:#dcdce0;
+    --text:#131315; --muted:#6a6a72;
+    --blue-bg:#e6f2ff; --blue-border:#b8dcff; --blue-active:#d3ebff;
   }
   * { box-sizing:border-box; margin:0; padding:0; }
   html,body {
@@ -131,11 +144,11 @@
   .tools { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
   .tool {
     display:flex; align-items:center; justify-content:center; gap:8px;
-    background:var(--blue-bg); border:1px solid #1c3a52; color:var(--blue);
+    background:var(--blue-bg); border:1px solid var(--blue-border); color:var(--blue);
     border-radius:10px; padding:16px 10px; font-size:.95rem; font-weight:800;
     text-decoration:none; text-align:center;
   }
-  .tool:active { background:#123048; }
+  .tool:active { background:var(--blue-active); }
 
   #loading,#error { text-align:center; color:var(--muted); padding:70px 20px; }
   #error strong { display:block; color:var(--text); font-size:1.1rem; margin-bottom:6px; }

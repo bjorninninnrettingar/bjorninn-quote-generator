@@ -21,6 +21,13 @@
   }
   h1 { font-size: 1.6rem; letter-spacing: 0.03em; margin-bottom: 4px; }
   .sub { color: #d5d5d5; font-size: 0.95rem; margin-bottom: 22px; }
+  /* exit link — back to the launching app, not "← Annað verkefni" (resetAll())
+     which only resets the project picker within this tool. Contextual:
+     points at /verk for the current project once one's loaded, so a mistap
+     on the wrong project is one tap to undo; /app otherwise. */
+  .exit-back { display: inline-block; color: #888; text-decoration: none; font-size: 0.85rem; font-weight: 700; margin-bottom: 14px; }
+  .exit-back:hover { color: #fff; }
+  body.floor .exit-back { font-size: 0.95rem; padding: 4px 0; }
 
   .card {
     background: #161616;
@@ -461,6 +468,7 @@
 </head>
 <body>
 
+  <a class="exit-back no-print" id="exitBack" href="/app">‹ Til baka</a>
   <h1>Æðaskipulag</h1>
   <div class="sub">Raðar frontum með samfelldri viðaræð á plötu — það sem Cutty getur ekki gert.</div>
 
@@ -607,6 +615,9 @@ const FLOOR_MODE = location.pathname === "/saga";
 const PLAN_SCHEMA = 1;
 
 const P_NAME_FIELD = "Heiti tækifæris / verkefnis";
+// Same non-strong-secret constant app.html/verk.html use — only needed here
+// to build the exit link back to /verk for the current project.
+const VERK_KEY = "bjorn-verk-7Kq2mP9xLd4";
 const P_STADA_SOLU = "Staða í söluferli";
 const P_STADA_SKIP = "Staða í skipulagi";
 const P_STADA_FRAM = "Staða í framleiðslu";
@@ -1107,6 +1118,7 @@ async function loadProject(id) {
   $("materialCard").classList.add("hidden");
   $("workspaceCard").classList.add("hidden");
   $("projectStatus").textContent = FLOOR_MODE ? "Sæki staðfest skipulag…" : "Sæki Sögunarlista…";
+  if ($("exitBack")) $("exitBack").href = `/verk?t=${encodeURIComponent(id)}&k=${encodeURIComponent(VERK_KEY)}`;
 
   try {
     const projectRecordPromise = fetchProjectById(id).catch(() => null);
@@ -4120,6 +4132,7 @@ function resetAll() {
   $("projectSelect").value = "";
   $("pieceSearch").value = "";
   $("drawingsBtn").classList.add("hidden");
+  if ($("exitBack")) $("exitBack").href = "/app";
 }
 $("projectSelect").addEventListener("change", e => { if (e.target.value) loadProject(e.target.value); });
 
@@ -4134,8 +4147,14 @@ $("boardSize").value = settings.boardPx;
 
 const params = new URLSearchParams(location.search);
 const recordIdParam = params.get("recordId");
-if (recordIdParam) loadProject(recordIdParam);
-else populateProjects();
+if (recordIdParam) {
+  loadProject(recordIdParam);
+  // Populate the dropdown in the background too (not awaited) so
+  // "← Annað verkefni" has a real list to search instead of a blank one.
+  populateProjects();
+} else {
+  populateProjects();
+}
 </script>
 </body>
 </html>

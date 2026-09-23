@@ -234,6 +234,11 @@
      vinnslu/Sög/Yfirfræsing/Mín síða — same top margin as these two so
      every "‹ Til baka" sits at the same height, not crowding the search bar. ── */
   .qf-choice, .settings-panel, .screen-wrap { margin-top:14px; }
+  /* project-name confirmation above Sög's F6/F2 choice — so a mistap on the
+     wrong project in the list before it is visible before opening a tool,
+     not just after (per real feedback: someone could tap the wrong project
+     and only notice once labels.html/grain.html had already loaded). */
+  .choice-title { font-size:1.05rem; font-weight:800; letter-spacing:-.005em; margin:-4px 0 2px; }
   .choice-cards { display:flex; flex-direction:column; gap:12px; margin-top:14px; }
   .choice-card {
     display:flex; align-items:center; gap:16px; text-align:left; width:100%;
@@ -385,6 +390,7 @@
 
     <div class="qf-choice" id="sogChoice" style="display:none;">
       <button class="qf-back" type="button" id="sogChoiceBackBtn">‹ Til baka</button>
+      <div class="choice-title" id="sogChoiceTitle"></div>
       <div class="choice-cards">
         <button type="button" class="choice-card c-blue" id="sogChoiceF6">
           <div class="cc-ic">🏷️</div>
@@ -853,6 +859,8 @@
   function openSogChoice() {
     $("sogScreen").style.display = "none";
     $("sogChoice").style.display = "block";
+    var p = getProject();
+    $("sogChoiceTitle").textContent = p ? p.name : "";
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   $("tileSog").addEventListener("click", openSogList);
