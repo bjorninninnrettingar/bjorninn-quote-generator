@@ -600,6 +600,7 @@
     </div>
   </div>
 
+<script src="front-classify.js"></script>
 <script>
 // ── CONFIG ───────────────────────────────────────────────────────────────
 const PROXY_URL = "/api/airtable";
@@ -645,27 +646,10 @@ const EYDUBLAD_TABLE = "tbl0WcyHhz63pSzZX";
 const U_NAME = "Athugasemd";               // Eyðublað's own primary field ("Sk 20-22")
 const U_PROJECT_LINK = "Tækifæri 📣 (projects)", U_PROJECT_LINK_OLD = "Tækifæri 📣";
 
-// Visible fronts whose grain the customer sees. Inner drawer fronts
-// (Innskúffufrontur) sit inside the cabinet and are excluded.
-const FRONT_RE  = /(frontur|blindlok|áfella|afella|vænghurð|vaenghurd|sökkul cover|sokkul cover)/i;
-// "FRE" / "FRE2" in the Partur text = the part is cut from frontaefni.
-const FRE_RE    = /\bfre\d?\b/i;
-// A part whose material lands in one of these Undirflokkar is front material.
-const FRONT_SUBS = new Set(["Frontaefni", "Spónlagt", "Hurð"]);
-const HIDDEN_RE = /(innskúffufrontur|innskuffufrontur)/i;
-// Wing doors: a horizontal pair over one opening — cut side by side, upright,
-// so the grain figure runs continuously across the seam.
-const SIDEBYSIDE_RE = /(væng|vaeng)/i;
-// Wing doors + split fronts (vertical split, "skiptur frontur") — one door's
-// worth of grain, so keep the run together (never auto-split); split fronts
-// stack (grain top→bottom), wing doors go side by side.
-const KEEPTOGETHER_RE = /(væng|vaeng|skipt)/i;
-// A drawer bank: several fronts of one cabinet's drawer stack, sharing a
-// width. Same "must not be scattered" logic as wing/split fronts, below —
-// see DRAWER_RE's use in buildGroups().
-const DRAWER_RE = /skúffufrontur/i;
-// Wood-look / veneer decors where sequential grain matters.
-const GRAIN_RE  = /(eik|hnot|valhnot|ash|askur|beyk|beech|fura|pine|wenge|teak|oak|walnut|spónlag|spónlög|sponlag|spónn|spon |rift|masterlin|linoak|hickory|acacia|akasía|kirsu|cherry|birki|birch|reykt)/i;
+// Front/grain classification (is this a front? does it need /aedar?) lives
+// in front-classify.js, shared with cutlist.html so the two pages can never
+// disagree about which bucket a piece belongs to.
+const { FRONT_RE, FRE_RE, FRONT_SUBS, HIDDEN_RE, SIDEBYSIDE_RE, KEEPTOGETHER_RE, DRAWER_RE, GRAIN_RE } = FrontClassify;
 // Blum drawer-height codes, roughly narrow→tall — only used to break a
 // genuine tie between two fronts of equal measured height (see buildGroups):
 // the real H is what actually orders a drawer stack, and a code letter
@@ -1000,7 +984,7 @@ async function filterProjectsByMelamine(recs) {
     sub: r.fields[E_SUB]?.name || r.fields[E_SUB] || "",
     mynd: attImgUrl(r.fields[E_MYND]),
   }));
-  _subCache.clear();
+  FrontClassify.clearCache();
 
   const melamineIds = new Set();
   for (const r of rows) {
@@ -1017,28 +1001,9 @@ async function filterProjectsByMelamine(recs) {
   }
   return melamineIds;
 }
-// Look up a material's Undirflokkur by its resolved Efni: name.
-const _subCache = new Map();
-function materialSub(efni) {
-  if (_subCache.has(efni)) return _subCache.get(efni);
-  const v = _materialSub(efni);
-  _subCache.set(efni, v);
-  return v;
-}
-function _materialSub(efni) {
-  const k = norm(efni);
-  if (!k) return "";
-  for (const b of boards) if (b.sub && norm(b.name) === k) return b.sub;
-  for (const b of boards) if (b.sub && (norm(b.name).startsWith(k) || k.startsWith(norm(b.name)))) return b.sub;
-  const toks = new Set(k.split(" ").filter(t => t.length > 2));
-  let best = "", bestScore = 1;
-  for (const b of boards) {
-    if (!b.sub) continue;
-    const s = norm(b.name).split(" ").filter(t => toks.has(t)).length;
-    if (s > bestScore) { bestScore = s; best = b.sub; }
-  }
-  return best;
-}
+// Look up a material's Undirflokkur by its resolved Efni: name — delegates
+// to front-classify.js, passing this page's own `boards` cache.
+function materialSub(efni) { return FrontClassify.materialSub(efni, boards); }
 // The proxy returns linked-record fields as bare id arrays, so Sögunarlisti's
 // Eyðublað link gives us ids only — fetch the units to map id → short name.
 async function fetchUnitNames(name) {
@@ -1140,7 +1105,7 @@ async function loadProject(id) {
       sub: r.fields[E_SUB]?.name || r.fields[E_SUB] || "",
       mynd: attImgUrl(r.fields[E_MYND]),
     }));
-    _subCache.clear();
+    FrontClassify.clearCache();
 
     const parsed = rows.map(r => {
       const f = r.fields;
@@ -1190,12 +1155,7 @@ async function loadProject(id) {
 // filters them out of the picker entirely rather than listing them.
 // Décor codes: "U####" = Uni (solid colour), "H####" = Holz (woodgrain).
 // The species keyword list is a backup for names without a code.
-function isMelamineGrain(name) {
-  if (materialSub(name) === "Spónlagt") return false;  // real veneer — out of scope for this tool
-  if (/\bH\s?\d{3,4}\b/i.test(name)) return true;
-  if (/\bU\s?\d{3,4}\b/i.test(name)) return false;
-  return GRAIN_RE.test(name);
-}
+function isMelamineGrain(name) { return FrontClassify.isMelamineGrain(name, boards); }
 
 function renderSkipped() {
   const el = $("skippedCard");
