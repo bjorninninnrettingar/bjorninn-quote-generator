@@ -528,24 +528,19 @@
     $("installBar").style.display = "flex";
   }
 
-  // ── VERK_KEY pairing (mirrors stimpilklukka.html's kiosk pairing) — lets
-  // Verk í vinnslu/Sög/Yfirfræsing open /verk's internal notes/drawings.
-  // Deliberately does NOT strip ?setup= from the URL (no history.replaceState
-  // here): iOS Safari's "Add to Home Screen" can give the installed app a
-  // separate storage bucket from the Safari tab it was added from, so a
-  // localStorage write made in the Safari tab doesn't reliably survive into
-  // the installed icon — it showed up as "QR kóði úreltur" every time.
-  // Keeping ?setup= in the URL means the *installed icon itself* carries the
-  // key (that's the URL "Add to Home Screen" captures), so pairing re-applies
-  // fresh on every single launch regardless of what happened to localStorage
-  // in between — the write below still fires each time too, harmless. ──
-  (function () {
-    var setup = new URLSearchParams(location.search).get("setup");
-    if (setup) {
-      try { localStorage.setItem("verkApp:verkKey", setup); } catch (e) {}
-    }
-  })();
-  function verkKey() { try { return localStorage.getItem("verkApp:verkKey") || ""; } catch (e) { return ""; } }
+  // ── VERK_KEY — lets Verk í vinnslu/Sög/Yfirfræsing open /verk's internal
+  // notes/drawings. Used to require a one-time "?setup=" pairing step
+  // (mirroring stimpilklukka.html's kiosk pairing), but that depended on
+  // localStorage written in a Safari tab surviving into the "Add to Home
+  // Screen" icon — iOS can give the installed icon a separate storage
+  // bucket from the tab it was added from, so pairing kept silently failing
+  // ("Hlekkinn vantar lykil") even right after a working setup visit.
+  // Baked in directly instead — this key isn't a strong secret to begin
+  // with (every other page here is equally unauthenticated), so trading
+  // that theoretical gate for "it just works on every phone, every time"
+  // is the right call. ──
+  var VERK_KEY = "bjorn-verk-7Kq2mP9xLd4";
+  function verkKey() { return VERK_KEY; }
 
   // encodeURIComponent, NOT URLSearchParams — see grain.html for why (the
   // proxy doesn't decode "+" back to a space, which breaks {Field Name} refs).
@@ -725,9 +720,7 @@
   }
 
   // Verk í vinnslu — tapping a project opens /verk for it, the same
-  // per-project floor page the QR system on a Zebra label opens (verk.html),
-  // keyed by verkKey() the same way (empty until this device is paired via
-  // /app?setup=, same convention as stimpilklukka.html's kiosk pairing).
+  // per-project floor page the QR system on a Zebra label opens (verk.html).
   function openVerkList() {
     hideTilegrid();
     $("verkScreen").style.display = "block";
