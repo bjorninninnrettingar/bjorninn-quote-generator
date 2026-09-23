@@ -91,17 +91,44 @@
     return GRAIN_RE.test(name);
   }
 
-  // Does this front need to be planned in /aedar (must stay adjacent to a
-  // sibling piece so the grain flows continuously — drawer stack, wing
-  // pair, or split-tall front)? Purely a Partur-text pattern match, no
-  // sibling/context needed — a Skúffufrontur row is drawer-type by category
-  // regardless of how many siblings it currently has.
-  function needsAedar(partur) {
-    return KEEPTOGETHER_RE.test(partur || "") || DRAWER_RE.test(partur || "");
+  // grain.html's buildGroups() keys a row into its group by unit + rounded
+  // width (+material) — EXCEPT a drawer row (DRAWER_RE), which gets its own
+  // per-copy-index key instead (`baseKey|i`) and so never actually lands in
+  // the same group as a sibling plain front, even one sharing its exact
+  // width. Only a wing/split row (KEEPTOGETHER_RE — "væng"/"skipt") uses the
+  // plain baseKey, so ONLY that can pull an unrelated plain front along with
+  // it into needing /aedar. A drawer row still always needs /aedar itself —
+  // it just doesn't spread that requirement to its width-siblings. Mirrors
+  // buildGroups()'s gk/keepTogether logic exactly; this is the one place
+  // that rule lives, so grain.html and cutlist.html can't disagree on it.
+  function aedarBucketKey(unitId, width, efni, th) {
+    return `${unitId}|${Math.round(width)}|${efni}|${th}`;
+  }
+  // fronts: [{unitId, width, efni, th, partur}] — every grain-material front
+  // row for a project (any material, any unit). Returns a Set of bucket
+  // keys that need /aedar via the wing/split-sharing-a-width rule; look a
+  // row up with aedarBucketKey(...). Combine with a direct DRAWER_RE test
+  // on the row's own Partur for the full per-row answer (see needsAedarRow
+  // in cutlist.html / syncGrainContinuityFlags in grain.html).
+  function computeAedarBuckets(fronts) {
+    const needs = new Set();
+    for (const f of fronts) {
+      if (KEEPTOGETHER_RE.test(f.partur || "")) {
+        needs.add(aedarBucketKey(f.unitId, f.width, f.efni, f.th));
+      }
+    }
+    return needs;
+  }
+  // The full per-row answer: this row's own Partur is a drawer front (always
+  // needs /aedar, never spreads to siblings), OR it falls in a bucket a
+  // wing/split sibling pulled in (see computeAedarBuckets).
+  function needsAedarRow(f, buckets) {
+    return DRAWER_RE.test(f.partur || "") || buckets.has(aedarBucketKey(f.unitId, f.width, f.efni, f.th));
   }
 
   global.FrontClassify = {
     FRONT_RE, FRE_RE, FRONT_SUBS, HIDDEN_RE, SIDEBYSIDE_RE, KEEPTOGETHER_RE, DRAWER_RE, GRAIN_RE,
-    materialSub, clearCache, isFrontMaterial, isFront, isMelamineGrain, needsAedar,
+    materialSub, clearCache, isFrontMaterial, isFront, isMelamineGrain,
+    aedarBucketKey, computeAedarBuckets, needsAedarRow,
   };
 })(window);

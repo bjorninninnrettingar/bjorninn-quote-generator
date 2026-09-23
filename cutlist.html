@@ -102,6 +102,11 @@
     <div class="sub" id="projectStatus">Sæki Sögunarlisti færslur…</div>
   </div>
 
+  <div class="card hidden" id="aedarCard" style="border-color:#5a4a22;background:#211c12;">
+    <label style="color:#f5c518;">Þurfa æðasamfellu — sagast í gegnum <a href="/aedar" target="_blank" style="color:#f5c518;">/aedar</a>, ekki hér</label>
+    <ul id="aedarList" style="font-size:0.85rem;color:#ddd;padding-left:20px;"></ul>
+  </div>
+
   <div class="card hidden" id="missingDimsCard">
     <label>Línur vantar breidd/þykkt — líklega ekki skurðarpartar (t.d. Blum vélbúnaður)</label>
     <ul id="missingDimsList" style="font-size:0.85rem;color:#f5c518;padding-left:20px;"></ul>
@@ -155,6 +160,7 @@
     <div id="log"></div>
   </div>
 
+<script src="front-classify.js"></script>
 <script>
 // ── CONFIGURATION ────────────────────────────────────────────────────────
 // Requests go through /api/airtable — a server-side proxy that holds the
@@ -181,13 +187,20 @@ const S_B                 = "B";
 const S_TH                = "Þ";
 const S_M                 = "M";
 const S_EFNI_UNDIRSTADA   = "Efni: (undirstaða)";
+// Resolved decor incl. customer material — same field grain.html classifies
+// grain material from. S_EFNI_UNDIRSTADA above stays the one used for board
+// matching (unchanged); this one is only for the front/grain classification
+// below, to mirror grain.html's own precedence exactly.
+const S_EFNI              = "Efni:";
 const S_VILLA             = "Villa?";
 const S_TEGUND            = "Tegund einingu";
+const S_EYDUBLAD          = "Eyðublað ✏️"; // for the aedar-bucket unit+width grouping, same field grain.html uses
 
 const E_HEITI   = "Heiti efnis";
 const E_BREIDD  = "Breidd (mm)";
 const E_LENGD   = "Lengd (mm)";
 const E_THYKKT  = "Þykkt (mm)";
+const E_SUB     = "Undirflokkur 🗂️"; // for FrontClassify.materialSub, same as grain.html
 
 const MAX_LINES_PER_FILE = 22;
 
@@ -413,16 +426,22 @@ async function fetchWithRetry(url, options, maxRetries = 3) {
   }
 }
 
+// Query string built with encodeURIComponent, NOT URLSearchParams (which was
+// here before): URLSearchParams encodes spaces as "+", and neither the
+// /api/airtable request parser (locally) nor Airtable's formula parser
+// decode "+" back to a space, so a "{Field Name}" reference in
+// filterByFormula breaks — works in prod (which does decode it) but 422s
+// under local `vercel dev`. Same fix grain.html already uses.
 async function airtableFetch(table, params, recordId) {
-  const url = new URL(PROXY_URL, window.location.origin);
-  url.searchParams.set("path", recordId ? `${table}/${recordId}` : table);
+  const qs = [`path=${encodeURIComponent(recordId ? `${table}/${recordId}` : table)}`];
   for (const [k, v] of Object.entries(params || {})) {
-    if (Array.isArray(v)) v.forEach(x => url.searchParams.append(k, x));
-    else if (v !== undefined) url.searchParams.set(k, v);
+    if (v === undefined) continue;
+    for (const x of Array.isArray(v) ? v : [v]) qs.push(`${encodeURIComponent(k)}=${encodeURIComponent(x)}`);
   }
+  const build = extra => `${PROXY_URL}?${[...qs, ...extra].join("&")}`;
 
   if (recordId) {
-    const res = await fetchWithRetry(url.toString());
+    const res = await fetchWithRetry(build([]));
     if (!res.ok) throw new Error(`Airtable HTTP ${res.status}`);
     return res.json();
   }
@@ -430,8 +449,8 @@ async function airtableFetch(table, params, recordId) {
   let records = [];
   let offset;
   do {
-    if (offset) url.searchParams.set("offset", offset);
-    const res = await fetchWithRetry(url.toString());
+    const extra = offset ? [`offset=${encodeURIComponent(offset)}`] : [];
+    const res = await fetchWithRetry(build(extra));
     if (!res.ok) throw new Error(`Airtable HTTP ${res.status}`);
     const data = await res.json();
     records = records.concat(data.records || []);
@@ -487,14 +506,14 @@ async function fetchSogunarlistiForProject(projectName) {
   const formula = `FIND("${escaped}", ARRAYJOIN({${S_PROJECT_LINK}})) > 0`;
   return airtableFetch(SOGUNARLISTI_TABLE, {
     filterByFormula: formula,
-    "fields[]": [S_PROJECT_LINK, S_PARTUR, S_H, S_B, S_TH, S_M, S_EFNI_UNDIRSTADA, S_VILLA, S_TEGUND],
+    "fields[]": [S_PROJECT_LINK, S_PARTUR, S_H, S_B, S_TH, S_M, S_EFNI_UNDIRSTADA, S_EFNI, S_VILLA, S_TEGUND, S_EYDUBLAD],
     pageSize: 100,
   });
 }
 
 async function fetchAllBoards() {
   return airtableFetch(EFNISLISTI_TABLE, {
-    "fields[]": [E_HEITI, E_BREIDD, E_LENGD, E_THYKKT],
+    "fields[]": [E_HEITI, E_BREIDD, E_LENGD, E_THYKKT, E_SUB],
     pageSize: 100,
   });
 }
@@ -533,12 +552,15 @@ function findBoard(materialKey, thickness, boards) {
 // a piece bigger than the board — checked here instead, since a silent
 // oversized piece in the file is exactly how a piece gets forgotten (it'd
 // only surface once someone's standing at the saw with a file that doesn't
-// nest). Allows either orientation (grain-direction locking isn't checked —
-// out of scope today, would need the "Vígindi" field too).
+// nest). A grain-locked piece (p.grainLock) can't actually be rotated on the
+// saw (see buildPieceLine), so only the as-is orientation counts for it —
+// otherwise a piece that only fits sideways would pass this check and then
+// silently get cut across the grain instead of being flagged oversized.
 function pieceFits(p, board) {
   const boardL = toNumber(board.fields[E_LENGD]);
   const boardW = toNumber(board.fields[E_BREIDD]);
   const fitsAsIs = p.h <= boardL && p.b <= boardW;
+  if (p.grainLock) return fitsAsIs;
   const fitsRotated = p.b <= boardL && p.h <= boardW;
   return fitsAsIs || fitsRotated;
 }
@@ -581,10 +603,14 @@ function packIntoFiles(rows, maxLines) {
   return bins.map(b => b.rows);
 }
 
-function buildPieceLine(length, width, qty, pieceNum, description) {
+// The 2nd of the 4 fields after qty is the saw software's own grain/
+// no-rotate lock — confirmed empirically against the real saw software
+// (5 trial files, only the "POS2" one showed the grain checkbox ticked).
+// grainLock true = "1" there, same "0 0 0 0" as always otherwise.
+function buildPieceLine(length, width, qty, pieceNum, description, grainLock) {
   const piecenumField = padRight(String(pieceNum), 13);
   const descField = padRight(description, 25);
-  return `${fmtNum(length)} ${fmtNum(width)} ${qty} 0 0 0 0 ${piecenumField}0 ${descField}`;
+  return `${fmtNum(length)} ${fmtNum(width)} ${qty} 0 ${grainLock ? "1" : "0"} 0 0 ${piecenumField}0 ${descField}`;
 }
 
 function buildCutlstContent(boardLength, boardWidth, thickness, boardQty, pieces) {
@@ -600,7 +626,7 @@ function buildCutlstContent(boardLength, boardWidth, thickness, boardQty, pieces
   lines.push("");
   lines.push("F2 0 0 0");
   pieces.forEach((p, i) => {
-    lines.push(buildPieceLine(p.h, p.b, p.m, i + 1, p.label));
+    lines.push(buildPieceLine(p.h, p.b, p.m, i + 1, p.label, p.grainLock));
   });
   lines.push("");
   lines.push(...F7_BLOCK);
@@ -670,32 +696,86 @@ async function loadProject(projectId) {
     fetchAllBoards(),
   ]);
 
+  // For FrontClassify — same {name, sub} shape grain.html builds from
+  // Efnislisti, kept separate from the raw `boards` records findBoard() uses
+  // for actual board matching (untouched, existing behavior).
+  const classifyBoards = boards.map(b => ({
+    name: b.fields[E_HEITI] || "",
+    sub: b.fields[E_SUB]?.name || b.fields[E_SUB] || "",
+  }));
+  FrontClassify.clearCache();
+
   const allRows = rows
     .filter(r => (r.fields[S_PROJECT_LINK] || []).includes(projectId)) // defensive backstop, see fetchSogunarlistiForProject
-    .map(r => ({
-      id: r.id,
-      partur: r.fields[S_PARTUR] || "",
-      h: toNumber(r.fields[S_H]),
-      b: toNumber(r.fields[S_B]),
-      th: toNumber(r.fields[S_TH]),
-      m: toNumber(r.fields[S_M]) || 1,
-      efni: r.fields[S_EFNI_UNDIRSTADA] || "",
-      tegund: firstLookupValue(r.fields[S_TEGUND]),
-      label: resolveLabel(String(r.fields[S_PARTUR] || "").trim()),
-      villa: !!r.fields[S_VILLA],
-    }));
+    .map(r => {
+      const partur = r.fields[S_PARTUR] || "";
+      // Same precedence grain.html uses for classification — kept separate
+      // from S_EFNI_UNDIRSTADA (efni, below), which stays the board-matching
+      // field and is untouched by any of this.
+      const grainEfni = (r.fields[S_EFNI] || r.fields[S_EFNI_UNDIRSTADA] || "").replace(/\s*[–-]\s*$/, "").trim();
+      const isFrontMat = FrontClassify.isFrontMaterial(partur, grainEfni, classifyBoards);
+      const isFrontRow = FrontClassify.isFront(partur, isFrontMat);
+      // Melamine grain only — mirrors /aedar's own scope exactly (real
+      // veneer/Spónlagt is out of scope there too, so left untouched here:
+      // no exclusion, no rotation lock, same as before this change).
+      const isGrainFront = isFrontRow && FrontClassify.isMelamineGrain(grainEfni, classifyBoards);
+      // Bare id array, same as grain.html's own S_EYDUBLAD handling.
+      const uidRaw = (r.fields[S_EYDUBLAD] || [])[0];
+      const unitId = (typeof uidRaw === "string" ? uidRaw : uidRaw?.id) || "?";
+      return {
+        id: r.id,
+        partur,
+        h: toNumber(r.fields[S_H]),
+        b: toNumber(r.fields[S_B]),
+        th: toNumber(r.fields[S_TH]),
+        m: toNumber(r.fields[S_M]) || 1,
+        efni: r.fields[S_EFNI_UNDIRSTADA] || "",
+        grainEfni,
+        unitId,
+        tegund: firstLookupValue(r.fields[S_TEGUND]),
+        label: resolveLabel(String(partur).trim()),
+        villa: !!r.fields[S_VILLA],
+        grainLock: isGrainFront,
+      };
+    });
   for (const p of allRows) p.th = resolveThickness(p);
+
+  // needsAedarRow can't be decided per row alone — a wing/split row shares
+  // grain.html's plain unit+width group key with any sibling front at that
+  // width, so the whole bucket has to stay together (a drawer row doesn't:
+  // it gets its own per-copy key, see aedarBucketKey's comment). Mirror that
+  // exact rule via the shared helpers instead of re-deriving it, so this
+  // page can't quietly disagree with what /aedar actually does.
+  const grainRows = allRows.filter(p => p.grainLock);
+  const aedarBuckets = FrontClassify.computeAedarBuckets(
+    grainRows.map(p => ({ unitId: p.unitId, width: p.b, efni: p.grainEfni, th: p.th, partur: p.partur }))
+  );
+  for (const p of allRows) {
+    p.needsAedarRow = p.grainLock && FrontClassify.needsAedarRow(
+      { unitId: p.unitId, width: p.b, efni: p.grainEfni, th: p.th, partur: p.partur }, aedarBuckets
+    );
+  }
 
   // Already marked "handskorið" via markOversizedManual() on a previous run —
   // permanently excluded, not re-flagged every time (the H/B are still
   // oversized, that's the whole point, so pieceFits() would flag it forever
   // otherwise).
   const manualCount = allRows.filter(p => p.villa).length;
-  const pieces = allRows.filter(p => !p.villa);
+  const villaFiltered = allRows.filter(p => !p.villa);
+
+  // Drawer stacks / wing pairs / split-tall grain fronts (and anything
+  // sharing their unit+width bucket — see computeAedarBuckets above) stay
+  // exclusively /aedar's job. Everything else (including solo grain fronts,
+  // which get grainLock instead) goes through the normal Cutty flow below,
+  // same as any carcase part always has.
+  const aedarPieces = villaFiltered.filter(p => p.needsAedarRow);
+  const pieces = villaFiltered.filter(p => !p.needsAedarRow);
 
   if (!pieces.length) {
-    document.getElementById("projectStatus").textContent =
-      "Engar Sögunarlisti færslur fundust fyrir þetta verkefni.";
+    renderAedarPieces(aedarPieces);
+    document.getElementById("projectStatus").textContent = aedarPieces.length
+      ? `Engar Sögunarlisti færslur fyrir Cutty — öll ${aedarPieces.length} stykki þurfa æðasamfellu, fara í gegnum /aedar.`
+      : "Engar Sögunarlisti færslur fundust fyrir þetta verkefni.";
     return;
   }
 
@@ -729,11 +809,13 @@ async function loadProject(projectId) {
   document.getElementById("projectStatus").textContent =
     `${allRows.length} línur sóttar` +
     (manualCount ? `, ${manualCount} þegar merktar handskornar` : "") +
+    (aedarPieces.length ? `, ${aedarPieces.length} þurfa æðasamfellu (fara í gegnum /aedar)` : "") +
     (sersmidiCount ? `, ${sersmidiCount} Sérsmíði/Karmur-línur sleppt` : "") +
     (allMissingDims.length ? `, ${allMissingDims.length} línur vantar mál (líklega ekki skurðarpartar)` : "") +
     `, ${currentGroups.length} efni/þykktar-hópar fundnir.` +
     (currentOversized.length ? ` ⚠ ${currentOversized.length} passa ekki á plötu.` : "");
 
+  renderAedarPieces(aedarPieces);
   renderMissingDims(allMissingDims);
   renderOversized();
   populateGroupFilters();
@@ -755,6 +837,19 @@ function populateGroupFilters() {
   const thicknessSelect = document.getElementById("thicknessFilterSelect");
   thicknessSelect.innerHTML = '<option value="">Allar þykktir</option>' +
     thicknesses.map(t => `<option value="${t}">${t}mm</option>`).join("");
+}
+
+function renderAedarPieces(aedarPieces) {
+  const card = document.getElementById("aedarCard");
+  const list = document.getElementById("aedarList");
+  if (!aedarPieces.length) {
+    card.classList.add("hidden");
+    return;
+  }
+  list.innerHTML = aedarPieces
+    .map(p => `<li>${escapeHtml(p.label || "(án Partur)")} — ${p.h}×${p.b}mm</li>`)
+    .join("");
+  card.classList.remove("hidden");
 }
 
 function renderMissingDims(missingDims) {

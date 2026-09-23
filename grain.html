@@ -1153,18 +1153,32 @@ async function loadProject(id) {
 
 // Writes "Þarf æðasamfellu" back onto each front row, purely so the office
 // can see in Airtable which pieces need /aedar's manual sequencing vs are
-// solo (drawer stack / wing pair / split-tall front, via
-// FrontClassify.needsAedar). Audit/visibility only — nothing in this app
-// reads it back to decide anything, so a slow or failed write here can
-// never cause a wrong cut, only a stale checkbox someone notices later.
-// Fire-and-forget from loadProject(), and only PATCHes rows whose stored
-// value actually differs so a normal project load doesn't spam dozens of
-// needless writes every time it's opened.
+// solo. Audit/visibility only — nothing in this app reads it back to decide
+// anything, so a slow or failed write here can never cause a wrong cut,
+// only a stale checkbox someone notices later. Fire-and-forget from
+// loadProject(), and only PATCHes rows whose stored value actually differs
+// so a normal project load doesn't spam dozens of needless writes.
+//
+// This must mirror buildGroups()'s own unit+width bucketing exactly (via
+// FrontClassify.computeAedarBuckets/needsAedarRow), not just test each row's
+// own Partur text — a plain front sharing a unit+width with a wing/split
+// front needs /aedar too, because buildGroups() would fold it into that
+// same keepTogether run (a drawer front doesn't spread this way — it gets
+// its own per-copy group key, see aedarBucketKey's comment). Only
+// grain-material fronts are ever considered, since buildGroups()/
+// materials.html never operate on anything else.
 async function syncGrainContinuityFlags(fronts) {
-  const stale = fronts.filter(p => FrontClassify.needsAedar(p.partur) !== p.needsAedarStored);
+  const grainFronts = fronts.filter(p => isMelamineGrain(p.efni));
+  const buckets = FrontClassify.computeAedarBuckets(
+    grainFronts.map(p => ({ unitId: p.unitId, width: p.b, efni: p.efni, th: p.th, partur: p.partur }))
+  );
+  const valueFor = p => isMelamineGrain(p.efni) && FrontClassify.needsAedarRow(
+    { unitId: p.unitId, width: p.b, efni: p.efni, th: p.th, partur: p.partur }, buckets
+  );
+  const stale = fronts.filter(p => valueFor(p) !== p.needsAedarStored);
   for (const p of stale) {
     try {
-      await airtablePatch(SOGUNARLISTI_TABLE, p.id, { [S_NEEDS_AEDAR]: FrontClassify.needsAedar(p.partur) });
+      await airtablePatch(SOGUNARLISTI_TABLE, p.id, { [S_NEEDS_AEDAR]: valueFor(p) });
     } catch (e) {
       console.warn("syncGrainContinuityFlags: failed to update", p.id, e);
     }
