@@ -359,8 +359,9 @@ async function buildPdf(project, lineItems, includeSummary = false, estimate = f
 
   const cols = [
     { label: "Rými",            w: 0.10, align: "left",   clip: true  },
-    { label: "Vara",            w: 0.22, align: "left",   clip: true  },
-    { label: "Útfærsla",        w: 0.32, align: "left",   clip: true  },
+    { label: "🔑",              w: 0.08, align: "left",   clip: true  },
+    { label: "Vara",            w: 0.18, align: "left",   clip: true  },
+    { label: "Útfærsla",        w: 0.28, align: "left",   clip: true  },
     { label: "Magn",            w: 0.05, align: "center", clip: false },
     { label: "Afsl. %",         w: 0.05, align: "center", clip: false },
     { label: "Einingarverð",    w: 0.13, align: "right",  clip: false },
@@ -406,6 +407,7 @@ async function buildPdf(project, lineItems, includeSummary = false, estimate = f
 
     const rowData = [
       item["Rými 🏡"]      || "",
+      item["🔑"]           || "",
       item["Vara 🚪"]      || "—",
       item["útfærsla 🎨"]  || "",
       qty % 1 === 0 ? String(qty) : qty.toFixed(1),
