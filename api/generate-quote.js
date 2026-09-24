@@ -63,7 +63,18 @@ async function getLineItems(token, linkedIds) {
     `https://api.airtable.com/v0/${AIRTABLE_BASE}/${LINE_ITEMS_TABLE}?filterByFormula=${encodeURIComponent(filter)}`,
     token
   );
-  const recordMap = Object.fromEntries(data.records.map((r) => [r.id, r.fields]));
+  const recordMap = Object.fromEntries(
+    data.records.map((r) => {
+      const fields = { ...r.fields };
+
+      // Canonical room field is now "Rými - Skipulag". Keep the old internal
+      // key used by the PDF renderer so the rest of the quote code stays stable.
+      // Fallback to "Rými 🏡" during the transition and after a future rename.
+      fields["Rými 🏡"] = fields["Rými - Skipulag"] ?? fields["Rými 🏡"] ?? "";
+
+      return [r.id, fields];
+    })
+  );
   return linkedIds.map((id) => recordMap[id]).filter(Boolean);
 }
 
