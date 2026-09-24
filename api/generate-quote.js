@@ -359,7 +359,7 @@ async function buildPdf(project, lineItems, includeSummary = false, estimate = f
 
   const cols = [
     { label: "Rými",            w: 0.10, align: "left",   clip: true  },
-    { label: "🔑",              w: 0.08, align: "left",   clip: true  },
+    { label: "Eining",          w: 0.08, align: "left",   clip: true  },
     { label: "Vara",            w: 0.18, align: "left",   clip: true  },
     { label: "Útfærsla",        w: 0.28, align: "left",   clip: true  },
     { label: "Magn",            w: 0.05, align: "center", clip: false },
