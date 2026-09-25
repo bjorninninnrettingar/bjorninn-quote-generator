@@ -170,6 +170,9 @@
   </div>
 
   <div class="card hidden" id="listCard">
+    <input type="search" id="pieceSearch" placeholder="Leita að skáp eða stykki…"
+      style="width:100%;padding:10px 12px;border:1px solid #444;border-radius:8px;background:#1a1a1a;color:#fff;font-size:1rem;margin-bottom:12px;box-sizing:border-box;"
+      oninput="onSearchInput()" />
     <div class="toolbar">
       <select id="tegundSelect" style="max-width:260px;" onchange="onFilterChange()">
         <option value="">Allar tegundir</option>
@@ -263,6 +266,7 @@ let filterUnfinished = false;
 let hideFinishedPieces = false;
 let selectedTegund = "";
 let selectedPartur = "";
+let searchQuery = "";
 
 function toNumber(v) {
   if (v === null || v === undefined) return 0;
@@ -647,6 +651,14 @@ function togglePiece(unitId, groupKey) {
 
 // ── LOAD / RENDER ────────────────────────────────────────────────────────
 async function loadProject(projectId) {
+  if (currentProjectId !== projectId) {
+    // Switching to a different project — an old search would silently hide
+    // units in a project it was never typed for. Refreshing the SAME
+    // project (↺ Uppfæra) leaves it alone.
+    searchQuery = "";
+    const pieceSearchEl = document.getElementById("pieceSearch");
+    if (pieceSearchEl) pieceSearchEl.value = "";
+  }
   currentProjectId = projectId;
   document.getElementById("searchCard").classList.add("hidden");
   document.getElementById("projectCard").classList.remove("hidden");
@@ -820,10 +832,32 @@ function unitIsDone(u) {
   return u.pieceGroups.every(g => groupStatus(g) === "done");
 }
 
+// A unit matches the free-text search if its own name (skápur) matches, or
+// any piece within it (stykki — e.g. "Toppur", "Hlið") does. A unit whose
+// name doesn't match but has a matching piece still shows — just with its
+// non-matching pieces hidden, same idea as the "Allir hlutir" dropdown but
+// free-text instead of exact.
+function unitMatchesSearch(u) {
+  if (!searchQuery) return true;
+  if (u.name.toLowerCase().includes(searchQuery)) return true;
+  return u.pieceGroups.some(g => g.label.toLowerCase().includes(searchQuery));
+}
+
+function onSearchInput() {
+  searchQuery = document.getElementById("pieceSearch").value.trim().toLowerCase();
+  rebuildView();
+}
+
+function applyFilters(list) {
+  let v = list;
+  if (selectedTegund) v = v.filter(u => u.tegund === selectedTegund);
+  if (filterUnfinished) v = v.filter(u => !unitIsDone(u));
+  if (searchQuery) v = v.filter(unitMatchesSearch);
+  return v;
+}
+
 function rebuildView() {
-  let visible = units;
-  if (selectedTegund) visible = visible.filter(u => u.tegund === selectedTegund);
-  if (filterUnfinished) visible = visible.filter(u => !unitIsDone(u));
+  const visible = applyFilters(units);
 
   document.getElementById("projectStatus").textContent =
     `${visible.length} einingar sýndar (af ${units.length})`;
@@ -834,12 +868,7 @@ function rebuildView() {
 function renderUnits(visible) {
   // Re-render calls from togglePiece() don't recompute the filter — reuse
   // whatever's currently on screen by re-deriving from the same filters.
-  if (visible === undefined) {
-    let v = units;
-    if (selectedTegund) v = v.filter(u => u.tegund === selectedTegund);
-    if (filterUnfinished) v = v.filter(u => !unitIsDone(u));
-    visible = v;
-  }
+  if (visible === undefined) visible = applyFilters(units);
 
   const container = document.getElementById("units");
   container.innerHTML = "";
@@ -861,6 +890,9 @@ function renderUnits(visible) {
       ? u.pieceGroups.filter(g => groupStatus(g) !== "done")
       : u.pieceGroups;
     if (selectedPartur) groupsToShow = groupsToShow.filter(g => g.label === selectedPartur);
+    if (searchQuery && !u.name.toLowerCase().includes(searchQuery)) {
+      groupsToShow = groupsToShow.filter(g => g.label.toLowerCase().includes(searchQuery));
+    }
     if (!groupsToShow.length) continue;
     renderedCount++;
 
