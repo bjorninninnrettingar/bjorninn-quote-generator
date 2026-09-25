@@ -438,6 +438,7 @@
         <button type="button" class="minside-btn" id="msSickBtn"><span class="ic">🤒</span> Tilkynna veikindi</button>
         <button type="button" class="minside-btn" id="msHoursBtn"><span class="ic">⏱️</span> Mínar stundir</button>
         <button type="button" class="minside-btn" id="msVacBtn"><span class="ic">🌴</span> Sækja um orlof</button>
+        <a class="minside-btn" id="msOwnerClockBtn" href="/eigandi" style="display:none;text-decoration:none;"><span class="ic">🐻</span> Eigendaklukka</a>
         <a class="link-btn" href="/klukka">⏱️ Opna stimpilklukku</a>
         <button type="button" class="ms-pane-back" id="msLogoutBtn" style="margin-top:14px;padding-top:4px;">Þetta er ekki ég — skipta um notanda</button>
       </div>
@@ -528,10 +529,9 @@
         <div class="ic">🔬</div><div class="t">Yfirfr.</div>
       </div>
 
-      <div class="tile2 soon" id="tileDagatal">
+      <a class="tile2" id="tileDagatal" href="/dagatal">
         <div class="ic">🗓️</div><div class="t">Dagatal</div>
-        <div class="badge2">Væntanlegt</div>
-      </div>
+      </a>
 
       <div class="tile2" id="tileMinSida">
         <div class="ic">👤</div><div class="t">Mín síða</div>
@@ -944,6 +944,7 @@
         name: rec.fields["Nafn starfsmanns 👷"] || "Starfsmaður",
         kk: rec.fields["Kyn"] !== "KVK",
         orlof: rec.fields["Auka orlofsdagar 🌴"] || 0,
+        type: rec.fields["Tegund starfsmanns 🧑‍💻"] || "",
       });
       msPinLocked = false;
       showMsMenu();
@@ -978,6 +979,7 @@
     $("minSidaMenu").style.display = "block";
     var me = getMeRecord();
     $("minSidaName").textContent = me ? me.name : "Mín síða";
+    $("msOwnerClockBtn").style.display = me && me.type === "Eigandi 👨🏻‍💼" ? "flex" : "none";
   }
   $("msLogoutBtn").addEventListener("click", function () {
     setMeRecord(null);
@@ -1293,7 +1295,7 @@
     { cat: "Quick Fix", t: "Græja opin verkefni", ic: "🔧", kw: "quick fix græja opin laga", go: function () { openQf("manage"); } },
     { cat: "Verkstæði", t: "Yfirfræsing — velja verkefni", ic: "🔬", kw: "yfirfræsing fræsari fræsilisti", go: function () { openFraesList(); } },
     { cat: "Starfsmenn", t: "Mín síða", ic: "👤", kw: "mín síða hver ert þú stimpilklukka", go: function () { openMinSida(); } },
-    { cat: "Verk", t: "Dagatal", ic: "🗓️", kw: "dagatal afhending efni kalender", go: null },
+    { cat: "Verk", t: "Dagatal", ic: "🗓️", kw: "dagatal afhending framleiðsla efni kalender", go: function () { location.href = "/dagatal"; } },
     { cat: "Starfsmenn", t: "Stimpilklukka", ic: "⏱️", kw: "stimpilklukka klukka inn út", go: function () { location.href = "/klukka"; } },
     { cat: "Annað", t: "Google Chat", ic: "💬", kw: "chat spjall skilaboð google", go: function () { window.open($("tileChat").href, "_blank"); } },
     { cat: "SOP", t: "SOP — verklagsreglur", ic: "📒", kw: "sop verklag reglur leiðbeiningar samsetning vélar onboarding", go: function () { location.href = "/sop"; } },
