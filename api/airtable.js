@@ -27,6 +27,8 @@ const ALLOWED_FIELDS = {
     "Staða í framleiðslu",
     "Tækifæri unnið 🏆",
     "Áætlaður afhendingardagur Björninn (internal)",
+    "Upphafs framleiðsludagur verks",
+    "Viðskiptavinur sækir þann:",
     "Framvinda framleiðslu [weighted]",
     "Forgangur framleiðslu 🥇",
     // Reference PDFs shown at the top of fraesing.html, hidden if empty.
@@ -165,6 +167,7 @@ const ALLOWED_FIELDS = {
     "Er starfandi? ✅",
     "Kyn",
     "Starfsheiti 💼", // drives which project list the clock-out allocation screen shows
+    "Tegund starfsmanns 🧑‍💻",
     "Auka orlofsdagar 🌴", // shown on /app's Mín síða → Mínar stundir, same as stimpilklukka.html's hours screen
   ],
   "tblnFIO8RB6HcelXF": [ // Stimplanir ⏱️ (time clock shifts — one row per Inn→Út)
@@ -410,11 +413,11 @@ const WRITABLE_FIELDS = {
   "tblzkw70E2xoX9RmK": ["Nafn", "Skipulag", "Staðfest ✅"],
   // kitchen-planner-review.html: Rakel's "✅ Yfirfarið" button unchecks the
   // review flag (that's the approval action — no separate status field).
-  "tbl4LMXlQjp66RFKI": ["Sjálfsafgreiðsla — óyfirfarið ⚠️"],
+  "tbl4LMXlQjp66RFKI": ["Sjálfsafgreiðsla — óyfirfarið ⚠️", "Upphafs framleiðsludagur verks", "Áætlaður afhendingardagur Björninn (internal)", "Viðskiptavinur sækir þann:"],
   // /app's recent-QUICK-FIX list lets anyone tap a card to advance
   // opið → Í vinnslu → Lokið — unlike Fjarvistir's vacation-request "Staða"
   // this isn't an approval gate, so any floor device may set it.
-  "tblDQWuf4OSjUv2XI": ["Staða"],
+  "tblDQWuf4OSjUv2XI": ["Staða", "Skiladagur"],
 };
 
 // URLSearchParams serializes spaces as "+" (application/x-www-form-urlencoded).
