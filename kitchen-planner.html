@@ -338,7 +338,8 @@
   @media (max-width:980px){ .shape-wiz{ grid-template-columns:1fr; } }
   .shape-stage{ position:sticky; top:16px; }
   .shape-side .mat-section{ margin-bottom:22px; }
-  .shape-side .actions{ margin-top:6px; padding-top:14px; border-top:1px solid var(--line); }
+  .shape-side .actions{ margin:0 0 14px; padding-bottom:14px; border-bottom:1px solid var(--line); }
+  #matActions{ margin:0 0 14px; padding-bottom:14px; border-bottom:1px solid var(--line); }
   .shape-wiz .shape-canvas{ height:min(72vh,660px); min-height:420px; }
   .wall-row{ display:flex; align-items:center; gap:10px; background:#fff; border:1px solid var(--line); border-radius:10px; padding:7px 10px; margin-bottom:6px; cursor:pointer; }
   .wall-row.sel{ border-color:var(--blue); background:var(--blue-soft); }
@@ -655,6 +656,7 @@
         <div class="wiz-steps" id="wizSteps"></div>
         <div class="screen-title" id="matTitle" style="margin-top:14px;"></div>
         <p class="screen-sub" id="matSub"></p>
+        <div class="actions" id="matActions"></div>
 
         <div class="wiz-panel" data-mp="0">
           <div class="sw-grid big" id="carcassCards"></div>
@@ -679,7 +681,6 @@
           <div class="sw-grid" id="topCards"></div>
         </div>
 
-        <div class="actions" id="matActions"></div>
       </div>
     </div>
   </section>
@@ -705,11 +706,18 @@
           <div class="shape-canvas-wrap"><div class="shape-canvas" id="shapeCanvas"></div><div class="dim-pop" id="dimPop" hidden></div></div>
         </div>
         <aside class="shape-side" id="shapeSide">
+          <div class="shape-side-actions" id="shapeActionsSlot"></div>
           <div id="shapeSizeBox" hidden>
             <div class="mat-section">
               <div class="mat-section-title">Veggir</div>
               <p class="mat-section-sub">Sláðu inn lengd hvers veggjar eða dragðu vegginn á teikningunni.</p>
               <div id="wallList"></div>
+            </div>
+          </div>
+          <div id="shapeHeightBox" hidden>
+            <div class="mat-section">
+              <div id="roomHeightBox2" style="max-width:260px;"></div>
+              <p class="mat-section-sub">Dragðu sleðann eða sláðu inn töluna. Lágmark 2500 mm.</p>
             </div>
           </div>
           <div id="shapeExtras">
@@ -723,12 +731,6 @@
               <div class="mat-section-title">Litur á veggjum</div>
               <p class="mat-section-sub">Bara til að sjá teikninguna eins og hjá þér — ekki hluti af pöntuninni.</p>
               <div class="wallcolor-row" id="wallColorRow"></div>
-            </div>
-          </div>
-          <div id="shapeHeightBox" hidden>
-            <div class="mat-section">
-              <div id="roomHeightBox2" style="max-width:260px;"></div>
-              <p class="mat-section-sub">Dragðu sleðann eða sláðu inn töluna. Lágmark 2500 mm.</p>
             </div>
           </div>
           <div id="shapeOpenings" hidden>
@@ -745,7 +747,6 @@
               <div id="waterList"></div>
             </div>
           </div>
-          <div class="shape-side-actions" id="shapeActionsSlot"></div>
         </aside>
       </div>
     </div>
@@ -1013,6 +1014,21 @@
       if (!parsed.closed && (parsed.step === "shape" || parsed.step === "editor" || parsed.step === "contact")) return false;
       state = parsed;
       if (!state.intake) state.intake = { delivery:null, budget:null, room:"Eldhús" };
+      // older drafts could have windows/doors on top of each other: slide each one clear of the ones before it
+      (state.walls || []).forEach(function(w){
+        var seen = [];
+        (state.windows || []).concat(state.doors || []).forEach(function(o){
+          if (o.wallId !== w.id) return;
+          var clash = seen.some(function(q){ return !(o.offsetMm + o.widthMm <= q.offsetMm || o.offsetMm >= q.offsetMm + q.widthMm); });
+          if (clash){
+            var cands = [0, w.lengthMm - o.widthMm].concat(seen.map(function(q){ return q.offsetMm + q.widthMm; }), seen.map(function(q){ return q.offsetMm - o.widthMm; }));
+            var ok = cands.filter(function(c){ return c >= 0 && c <= w.lengthMm - o.widthMm && seen.every(function(q){ return c + o.widthMm <= q.offsetMm || c >= q.offsetMm + q.widthMm; }); })
+              .sort(function(a, b){ return Math.abs(a - o.offsetMm) - Math.abs(b - o.offsetMm); });
+            if (ok.length) o.offsetMm = ok[0];
+          }
+          seen.push(o);
+        });
+      });
       if (state.openingsDone === undefined) state.openingsDone = !!((state.windows || []).length || (state.doors || []).length || state.waterWall || state.step !== "shape");
       if (state.carcass === undefined) state.carcass = null;
       if (state.drawerSystem === undefined) state.drawerSystem = null;
@@ -1223,6 +1239,7 @@
         if (o.wallId !== w.id) return;
         o.widthMm = Math.min(o.widthMm, w.lengthMm);
         o.offsetMm = Math.max(0, Math.min(w.lengthMm - o.widthMm, o.offsetMm));
+        if (!openingClear(w.id, o.offsetMm, o.widthMm, o.id)){ var nf = freeOpeningOffset(w, o.widthMm, o.offsetMm, o.id); if (nf !== null) o.offsetMm = nf; }
       });
     });
   }
@@ -1488,11 +1505,16 @@
         setFloorVariant(b.dataset.flvar);
         // picking a size/pattern on a tab whose floor isn't chosen yet also picks that tab's first floor
         if ((KP3D.FLOORS[state.floor || "parket_eik"] || {}).group !== floorTab) state.floor = Object.keys(F).filter(function(k){ return F[k].group === floorTab; })[0];
-        save(); renderFloorPicker(); renderShapeCanvas();
+        save(); renderFloorPicker(); scheduleRoomPreview();
       });
     });
     box.querySelectorAll("[data-floor]").forEach(function(b){
-      b.addEventListener("click", function(){ state.floor = b.dataset.floor; save(); renderFloorPicker(); renderShapeCanvas(); });
+      b.addEventListener("click", function(){
+        if (state.floor === b.dataset.floor) return;
+        state.floor = b.dataset.floor; save();
+        box.querySelectorAll("[data-floor]").forEach(function(x){ x.classList.toggle("active", x === b); });
+        scheduleRoomPreview();
+      });
     });
   }
 
@@ -1608,7 +1630,7 @@
       document.getElementById("shBack").addEventListener("click", function(){ goto("welcome"); });
       document.getElementById("shNext").addEventListener("click", function(){ shapePhase = "size"; renderShapeStep(); });
     } else if (shapePhase === "size"){
-      box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">← Velja aðra lögun</button><button class="btn btn-primary" id="shNext" type="button">Áfram — lofthæð</button>';
+      box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">← Velja aðra lögun</button><button class="btn btn-primary" id="shNext" type="button">Áfram — lofthæð og gólf</button>';
       document.getElementById("shBack").addEventListener("click", function(){ shapePhase = "pick"; renderShapeStep(); });
       document.getElementById("shNext").addEventListener("click", function(){ shapePhase = "height"; renderShapeStep(); });
     } else if (shapePhase === "height"){
@@ -1635,6 +1657,9 @@
   }
 
   function renderRoomPreview(){ if (state.step === "shape" && shapePhase !== "pick") renderShapeCanvas(); }
+  // quick repeated picks (floor, wall colour) redraw at most once per frame
+  var roomPreviewRaf = 0;
+  function scheduleRoomPreview(){ cancelAnimationFrame(roomPreviewRaf); roomPreviewRaf = requestAnimationFrame(renderRoomPreview); }
 
   function renderShapeStep(){
     if (!state.closed) shapePhase = "pick";
@@ -1642,7 +1667,7 @@
     var titles = {
       pick:  ["Skilgreindu rýmið", "Veldu lögun sem líkist rýminu þínu best — næst dregur þú veggina í rétta stærð."],
       size:  ["Stilltu stærðina", "Dragðu vegg með örvunum til að stækka eða minnka rýmið, eða smelltu á málið til að slá inn nákvæma lengd."],
-      height: ["Lofthæð", "Stilltu lofthæðina — fólkið í rýminu er 180 og 168 cm á hæð til viðmiðunar."],
+      height: ["Lofthæð, gólf og veggir", "Stilltu lofthæðina og veldu gólfefni og vegglit — fólkið í rýminu er 180 og 168 cm á hæð til viðmiðunar."],
       openings: ["Gluggar, hurðir og op", "Förum yfir veggina einn í einu — merktur veggur er sá sem við erum að skoða."],
       water: ["Hvar er vatnið?", "Bættu vatninu við og dragðu dropann á réttan stað — þar er vaskurinn settur."]
     };
@@ -1650,7 +1675,7 @@
     document.getElementById("shapeSub").textContent = titles[shapePhase][1];
     document.getElementById("shapePick").hidden = shapePhase !== "pick";
     document.getElementById("shapeDraw").hidden = shapePhase === "pick";
-    document.getElementById("shapeExtras").hidden = shapePhase !== "size";
+    document.getElementById("shapeExtras").hidden = shapePhase !== "height";
     document.getElementById("shapeSizeBox").hidden = shapePhase !== "size";
     document.getElementById("shapeHeightBox").hidden = shapePhase !== "height";
     document.getElementById("shapeOpenings").hidden = shapePhase !== "openings";
@@ -1674,7 +1699,7 @@
       if (shapePhase === "openings") renderOpeningsBox();
       if (shapePhase === "size") renderWallList();
       if (shapePhase === "water") renderWaterList();
-      if (shapePhase === "size"){
+      if (shapePhase === "height"){ // floor + wall colour live with the 3D room view, where you actually see them
         renderWallColorRow();
         if (state.floor && KP3D.FLOORS[state.floor]) floorTab = KP3D.FLOORS[state.floor].group;
         renderFloorPicker();
@@ -1849,10 +1874,12 @@
     st.moved = true;
     var f = findOpening(st.id), hit = nearestWallAt(st.v, canvasPointMm(evt, st.v));
     if (!f || !hit) return;
-    var wall = state.walls[hit.i];
+    var wall = state.walls[hit.i], wmm = Math.min(f.o.widthMm, wall.lengthMm);
+    var off = snappedOpeningOffset(wall, wmm, hit.t - (st.grip || 0), f.o.id);
+    if (off === null) return; // no room on that wall: stay where it was
     f.o.wallId = wall.id;
-    f.o.widthMm = Math.min(f.o.widthMm, wall.lengthMm);
-    f.o.offsetMm = snappedOpeningOffset(wall, f.o.widthMm, hit.t - (st.grip || 0));
+    f.o.widthMm = wmm;
+    f.o.offsetMm = off;
     renderShapeCanvas();
   }
   function onOpDragUp(){
@@ -1885,8 +1912,10 @@
       if (key === "widthMm") ok = applyOpeningDim(f, "widthMm", v);
       else {
         var maxGap = wall.lengthMm - o.widthMm;
+        var nv = key === "offsetMm" ? v : maxGap - v;
         if (v < 0 || v > maxGap){ toast("Bilið þarf að vera á milli 0 og " + maxGap + " mm."); ok = false; }
-        else o.offsetMm = key === "offsetMm" ? v : maxGap - v;
+        else if (!openingClear(wall.id, nv, o.widthMm, o.id)){ toast(OVERLAP_MSG); ok = false; }
+        else o.offsetMm = nv;
       }
       if (!ok) return;
       pop.hidden = true; save(); renderShapeCanvas(); renderOpeningsBox();
@@ -1930,7 +1959,7 @@
       btn.addEventListener("click", function(){
         var w = state.walls.find(function(x){ return x.id === openWallId; });
         if (!w) return;
-        addOpening(btn.dataset.add, w.id, Math.round(w.lengthMm / 2));
+        if (addOpening(btn.dataset.add, w.id, Math.round(w.lengthMm / 2)) === false) return;
         selectedOpeningId = "o" + (openingSeq - 1);
         renderOpeningsBox(); renderShapeCanvas(); updateStepper();
       });
@@ -1961,7 +1990,9 @@
         if (key === "offsetMm"){
           var wall = state.walls.find(function(w){ return w.id === f.o.wallId; }), v = Math.round(parseFloat(inp.value));
           if (isNaN(v)) { renderOpeningsBox(); return; }
-          f.o.offsetMm = Math.max(0, Math.min((wall ? wall.lengthMm : 3000) - f.o.widthMm, v));
+          v = Math.max(0, Math.min((wall ? wall.lengthMm : 3000) - f.o.widthMm, v));
+          if (wall && !openingClear(wall.id, v, f.o.widthMm, f.o.id)){ toast(OVERLAP_MSG); renderOpeningsBox(); return; }
+          f.o.offsetMm = v;
           redraw(); return;
         }
         if (!applyOpeningDim(f, key, inp.value)){ renderOpeningsBox(); return; }
@@ -1972,9 +2003,11 @@
       sel.addEventListener("change", function(){
         var f = findOpening(sel.dataset.opwall), wall = state.walls.find(function(w){ return w.id === sel.value; });
         if (!f || !wall) return;
+        var wmm = Math.min(f.o.widthMm, wall.lengthMm), off = freeOpeningOffset(wall, wmm, Math.max(0, Math.min(wall.lengthMm - wmm, f.o.offsetMm)), f.o.id);
+        if (off === null){ toast(OVERLAP_MSG); renderOpeningsBox(); return; }
         f.o.wallId = wall.id;
-        f.o.widthMm = Math.min(f.o.widthMm, wall.lengthMm);
-        f.o.offsetMm = Math.max(0, Math.min(wall.lengthMm - f.o.widthMm, f.o.offsetMm));
+        f.o.widthMm = wmm;
+        f.o.offsetMm = off;
         redraw();
       });
     });
@@ -1996,10 +2029,11 @@
     }).join("");
     row.querySelectorAll(".wallcolor-swatch").forEach(function(btn){
       btn.addEventListener("click", function(){
+        if (state.wallColor === btn.dataset.wallcolor) return;
         state.wallColor = btn.dataset.wallcolor;
         save();
-        renderWallColorRow();
-        renderRoomPreview();
+        row.querySelectorAll(".wallcolor-swatch").forEach(function(x){ x.classList.toggle("active", x === btn); });
+        scheduleRoomPreview();
       });
     });
   }
@@ -2607,12 +2641,34 @@
   // Windows/doors aren't packed — free position — but do snap flush to
   // either end of the wall once close enough, so "almost but not quite
   // flush" isn't a fiddly drop to land.
-  function snappedOpeningOffset(wall, widthMm, rawAlongMm){
+  function snappedOpeningOffset(wall, widthMm, rawAlongMm, excludeId){
     var raw = Math.max(0, Math.min(wall.lengthMm - widthMm, Math.round((rawAlongMm - widthMm / 2) / 10) * 10));
-    if (raw <= SNAP_THRESHOLD_MM) return 0;
-    if (raw >= wall.lengthMm - widthMm - SNAP_THRESHOLD_MM) return wall.lengthMm - widthMm;
-    return raw;
+    if (raw <= SNAP_THRESHOLD_MM) raw = 0;
+    else if (raw >= wall.lengthMm - widthMm - SNAP_THRESHOLD_MM) raw = wall.lengthMm - widthMm;
+    if (excludeId === undefined) return raw;
+    return freeOpeningOffset(wall, widthMm, raw, excludeId);
   }
+  // Windows, doors and openings never overlap along a wall (butting up is fine): the closest offset to `want`
+  // where [off, off + width] is clear of every other opening on the wall, or null when it doesn't fit anywhere.
+  function openingsOnWall(wallId, excludeId){
+    return state.windows.concat(state.doors).filter(function(o){ return o.wallId === wallId && o.id !== excludeId; });
+  }
+  function openingClear(wallId, off, widthMm, excludeId){
+    return openingsOnWall(wallId, excludeId).every(function(o){ return off + widthMm <= o.offsetMm || off >= o.offsetMm + o.widthMm; });
+  }
+  function freeOpeningOffset(wall, widthMm, want, excludeId){
+    var maxOff = wall.lengthMm - widthMm;
+    if (maxOff < 0) return null;
+    var cands = [Math.max(0, Math.min(maxOff, want)), 0, maxOff];
+    openingsOnWall(wall.id, excludeId).forEach(function(o){ cands.push(o.offsetMm + o.widthMm, o.offsetMm - widthMm); });
+    var best = null;
+    cands.forEach(function(c){
+      if (c < 0 || c > maxOff || !openingClear(wall.id, c, widthMm, excludeId)) return;
+      if (best === null || Math.abs(c - want) < Math.abs(best - want)) best = c;
+    });
+    return best;
+  }
+  var OVERLAP_MSG = "Gluggar, hurðir og op mega ekki skarast — það er ekki pláss fyrir þetta þarna.";
 
   // The stage shows either the 3D scene or the 2D plan — a drop point comes
   // from a raycast in 3D and from the SVG hit-test in 2D, but both yield the
@@ -2674,8 +2730,8 @@
     if (dragState.kind === "opening"){
       var isWindow = dragState.type === "gluggi";
       var d = openingDefault(dragState.type);
-      var offsetMm = snappedOpeningOffset(wall, d.widthMm, drop.alongMm);
-      showDropPreview(drop.wallId, offsetMm, d.widthMm, 60, true, d.heightMm, openingSill(d.heightMm, drop.elevMm, dragState.type));
+      var offsetMm = snappedOpeningOffset(wall, d.widthMm, drop.alongMm, "");
+      showDropPreview(drop.wallId, offsetMm === null ? snappedOpeningOffset(wall, d.widthMm, drop.alongMm) : offsetMm, d.widthMm, 60, offsetMm !== null, d.heightMm, openingSill(d.heightMm, drop.elevMm, dragState.type));
     } else {
       var c = CATALOG[dragState.type];
       var probe = { id:"", type:dragState.type, widthMm:c.defaultW };
@@ -2769,7 +2825,9 @@
   // (windows/doors: the middle of the first wall).
   function addFromCatalog(kind, type){
     if (kind === "opening"){
-      var w0 = state.walls.find(function(w){ return !w.open; }) || state.walls[0];
+      // first solid wall with room for it (openings never overlap)
+      var d0 = openingDefault(type), w0 = state.walls.find(function(w){ return !w.open && freeOpeningOffset(w, d0.widthMm, Math.round((w.lengthMm - d0.widthMm) / 2), "") !== null; });
+      if (!w0){ toast(OVERLAP_MSG); return; }
       addOpening(type, w0.id, Math.round(w0.lengthMm / 2));
       return;
     }
@@ -2892,13 +2950,23 @@
       });
     });
     host.querySelectorAll("[data-floorpick]").forEach(function(b){
-      b.addEventListener("click", function(){ state.floor = b.dataset.floorpick; save(); refreshAfterEdit(); });
+      b.addEventListener("click", function(){
+        if (state.floor === b.dataset.floorpick) return;
+        state.floor = b.dataset.floorpick; save();
+        host.querySelectorAll("[data-floorpick]").forEach(function(x){ x.classList.toggle("active", x === b); });
+        scheduleEditorView();
+      });
     });
     host.querySelectorAll("[data-flvar2]").forEach(function(b){
       b.addEventListener("click", function(){ setFloorVariant(b.dataset.flvar2); save(); refreshAfterEdit(); });
     });
     host.querySelectorAll("[data-wallpick]").forEach(function(b){
-      b.addEventListener("click", function(){ state.wallColor = b.dataset.wallpick; save(); refreshAfterEdit(); });
+      b.addEventListener("click", function(){
+        if (state.wallColor === b.dataset.wallpick) return;
+        state.wallColor = b.dataset.wallpick; save();
+        host.querySelectorAll("[data-wallpick]").forEach(function(x){ x.classList.toggle("active", x === b); });
+        scheduleEditorView();
+      });
     });
     var rh = document.getElementById("roomHeightInput");
     if (rh) rh.addEventListener("change", function(){
@@ -3074,14 +3142,16 @@
     var wall = state.walls.find(function(w){ return w.id === wallId; });
     if (!wall || wall.open) return;
     var isWindow = type === "gluggi";
-    var d = openingDefault(type);
-    var offsetMm = snappedOpeningOffset(wall, d.widthMm, alongMm);
-    var o = { id:"o" + (openingSeq++), wallId:wallId, offsetMm:offsetMm, widthMm:d.widthMm, heightMm:d.heightMm };
+    var d = openingDefault(type), wMm = Math.min(d.widthMm, wall.lengthMm); // a short wall gets a narrower one
+    var offsetMm = snappedOpeningOffset(wall, wMm, alongMm, "");
+    if (offsetMm === null){ toast(OVERLAP_MSG); return false; }
+    var o = { id:"o" + (openingSeq++), wallId:wallId, offsetMm:offsetMm, widthMm:wMm, heightMm:d.heightMm };
     if (type === "gat") o.gap = true; // stored with the doors: same wall placement, no leaf, the wall is cut open
     if (isWindow) o.sillHeightMm = openingSill(d.heightMm, elevMm, type);
     (isWindow ? state.windows : state.doors).push(o);
     save();
     refreshAfterEdit();
+    return true;
   }
 
   function findOpening(id){
@@ -3096,8 +3166,11 @@
   function moveOpening(id, wallId, alongMm, elevMm){
     var f = findOpening(id), wall = state.walls.find(function(w){ return w.id === wallId; });
     if (!f || !wall || wall.open) return;
+    var off = snappedOpeningOffset(wall, Math.min(f.o.widthMm, wall.lengthMm), alongMm, f.o.id);
+    if (off === null){ toast(OVERLAP_MSG); refreshAfterEdit(); return; }
     f.o.wallId = wallId;
-    f.o.offsetMm = snappedOpeningOffset(wall, f.o.widthMm, alongMm);
+    f.o.widthMm = Math.min(f.o.widthMm, wall.lengthMm);
+    f.o.offsetMm = off;
     if (f.kind === "window" && elevMm != null) f.o.sillHeightMm = openingSill(f.o.heightMm, elevMm, "gluggi"); // dragged up/down the wall
     save();
     refreshAfterEdit();
@@ -3543,6 +3616,8 @@
   // to the layout re-renders the stage, the properties panel and the catalog
   // (whose items grey out when nothing more fits).
   var landedBlockId = null; // cabinet that just landed → a short settle bounce in 3D
+  var editorViewRaf = 0;
+  function scheduleEditorView(){ cancelAnimationFrame(editorViewRaf); editorViewRaf = requestAnimationFrame(function(){ if (state.step === "editor"){ renderView(); renderEditPanel(); } }); }
   function refreshAfterEdit(){
     if (state.step !== "editor") return;
     if (clampIslands()) save();
@@ -3862,6 +3937,11 @@
     if (isNaN(v) || v < lim[0] || v > lim[1]){
       toast((key === "widthMm" ? "Breidd" : key === "heightMm" ? "Hæð" : "Hæð frá gólfi") + " þarf að vera á milli " + lim[0] + " og " + lim[1] + " mm.");
       return false;
+    }
+    if (key === "widthMm" && wall){ // wider: keep it clear of its neighbours (shift it if that helps)
+      var nOff = freeOpeningOffset(wall, v, Math.max(0, Math.min(wall.lengthMm - v, o.offsetMm)), o.id);
+      if (nOff === null){ toast(OVERLAP_MSG); return false; }
+      o.offsetMm = nOff;
     }
     o[key] = v;
     if (key === "heightMm" && f.kind === "window") o.sillHeightMm = Math.min(o.sillHeightMm, Math.max(0, roomH - o.heightMm));

@@ -1156,7 +1156,8 @@
     if (plinthM && meta && meta.plinthMat){
       // a hair shorter than the gap so its top never shares a plane with the body's underside (z-fighting showed through an open cabinet)
       var plGeo = new THREE.BoxGeometry(widthM - 0.004, plinthM - 0.004, depthM - 0.063);
-      scaleFrontUV(plGeo, widthM, plinthM, meta.plinthMat.userData && meta.plinthMat.userData.tile); // the plinth is clad in the front material
+      var plFace = Array.isArray(meta.plinthMat) ? meta.plinthMat[4] : meta.plinthMat;
+      scaleFrontUV(plGeo, widthM, plinthM, plFace.userData && plFace.userData.tile); // the plinth's front is clad in the front material
       var pl = new THREE.Mesh(plGeo, meta.plinthMat);
       pl.position.copy(local(0, baseYM + (plinthM - 0.004) / 2, 0.003 + (depthM - 0.063) / 2)); // 3 mm off the wall line so its back face never shares a plane with the skirting/wall
       pl.quaternion.copy(quat);
@@ -1300,6 +1301,10 @@
         }
         g.add(bx); bx.traverse(function(o){ if (o.isMesh) meshes.push(o); });
         if (bx.userData && bx.userData.runners){ var rgR = bx.userData.runners; rgR.position.copy(bx.position); frame.add(rgR); } // runners stay in the cabinet
+      }
+      if (!f.drawer){ // a door hinges on the FRONT edge of the carcass (not at the wall): move the pivot forward to z = CD
+        g.children.forEach(function(ch){ ch.position.z -= CD; });
+        g.position.z = CD;
       }
       meshes.forEach(function(m){ m.userData = pmeta; pickables.push(m); });
       var prev = PART_STATE[key];
@@ -2173,8 +2178,10 @@
     var frontMat = look && window.KPMat
       ? makeFrontMaterial(THREE, state.look, look)
       : new THREE.MeshStandardMaterial({ color: look ? look.color3d : 0xb7b2a4, roughness:0.7 });
-    // the plinth (sökkull) is clad in the same front material once one is chosen
-    var plinthMat = look ? frontMat : new THREE.MeshStandardMaterial({ color:0x26262a, roughness:0.85 });
+    // the plinth (sökkull): its FRONT face is clad in the front material once one is chosen (box face 4 = +z = out
+    // of the wall); the sides and back stay the dark plinth colour
+    var plinthDark = new THREE.MeshStandardMaterial({ color:0x26262a, roughness:0.85 });
+    var plinthMat = look ? [plinthDark, plinthDark, plinthDark, plinthDark, frontMat, plinthDark] : plinthDark;
 
     surfaces.forEach(function(wall, wi){
       var g = allGeoms[wi];
@@ -2382,12 +2389,13 @@
         gr.traverse(function(o){
           if (!o.isMesh) return;
           var cl = function(m){ if (m.visible === false) return m; var g = m.clone(); g.transparent = true; return g; };
-          c.items.push({ o:o, orig:o.material, ghost:Array.isArray(o.material) ? o.material.map(cl) : cl(o.material) });
+          c.items.push({ o:o, orig:o.material, cast:o.castShadow, ghost:Array.isArray(o.material) ? o.material.map(cl) : cl(o.material) });
         });
       }
       c.items.forEach(function(it){
         (Array.isArray(it.ghost) ? it.ghost : [it.ghost]).forEach(function(m){ m.opacity = 1 - (1 - GHOST_OPACITY) * t; m.depthWrite = t < 0.4; });
         it.o.material = t > 0.01 ? it.ghost : it.orig;
+        it.o.castShadow = t > 0.01 ? false : it.cast; // a see-through cabinet casting a full shadow left blotchy shadow patterns on what's behind it
       });
     }
     function fadeCabinets(){
@@ -2512,7 +2520,8 @@
     }
     // plinth (a hair shorter than the gap so nothing shares a plane) + carcass panels
     var plinthFront = !!(look && cfg.showFronts); // sökkull clad in the front material once the fronts are on
-    box(W - 0.004, PL - 0.004, CD - 0.06, 0, (PL - 0.004) / 2, (CD - 0.06) / 2, plinthFront ? frontMat : new THREE.MeshStandardMaterial({ color:0x26262a, roughness:0.85 }), plinthFront && frontMat.userData.tile);
+    var plDark = new THREE.MeshStandardMaterial({ color:0x26262a, roughness:0.85 });
+    box(W - 0.004, PL - 0.004, CD - 0.06, 0, (PL - 0.004) / 2, (CD - 0.06) / 2, plinthFront ? [plDark, plDark, plDark, plDark, frontMat, plDark] : plDark, plinthFront && frontMat.userData.tile);
     box(T, BODY, CD, -W / 2 + T / 2, PL + BODY / 2, CD / 2, carcassMat);                 // sides
     box(T, BODY, CD, W / 2 - T / 2, PL + BODY / 2, CD / 2, carcassMat);
     box(W - 2 * T, T, CD, 0, PL + T / 2, CD / 2, carcassMat);                              // bottom
@@ -2967,6 +2976,7 @@
     snapshot3D: snapshot3D,
     shelvesOf: shelvesOf,
     hideDragPreview3D: hideDragPreview3D,
-    teardown3D: teardown3D
+    teardown3D: teardown3D,
+    _three: function(){ return THREE_STATE; }
   };
 })();
