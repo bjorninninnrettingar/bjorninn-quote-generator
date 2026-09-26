@@ -61,7 +61,8 @@ export default async function handler(req, res) {
 
   // Make sends Gmail's raw message (base64url, from "Get an email" with
   // format=raw); plain {from, subject, body} also works for testing.
-  let { from = "", subject = "", body = "", raw = "" } = req.body || {};
+  let { from = "", subject = "", body = "", html = "", raw = "" } = req.body || {};
+  if (!body && html) body = stripHtml(String(html));
   let replyTo = "", messageId = "", references = "";
   if (raw) {
     try {
