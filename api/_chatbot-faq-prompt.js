@@ -219,4 +219,4 @@ Svaraðu ALLTAF með EINGÖNGU einum JSON-hlut, ekkert annað fyrir framan eða 
 ${renderCorpus()}`;
 }
 
-export { FAQ_CORPUS, LINKS };
+export { FAQ_CORPUS, LINKS, renderCorpus, renderLinks };
