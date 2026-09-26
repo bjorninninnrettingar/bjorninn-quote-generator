@@ -11,6 +11,7 @@
 // Grounding reuses the chatbot's FAQ corpus (_chatbot-faq-prompt.js) so the
 // drafts, the chatbot and /adstod all say the same thing.
 
+import PostalMime from "postal-mime";
 import { renderCorpus, LINKS } from "./_chatbot-faq-prompt.js";
 
 const MODEL = process.env.EMAIL_DRAFT_MODEL || "claude-sonnet-5";
@@ -57,8 +58,36 @@ export default async function handler(req, res) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return res.status(500).json({ error: "ANTHROPIC_API_KEY not configured" });
 
-  const { from = "", subject = "", body = "" } = req.body || {};
+  // Make sends Gmail's raw message (base64url, from "Get an email" with
+  // format=raw); plain {from, subject, body} also works for testing.
+  let { from = "", subject = "", body = "", raw = "" } = req.body || {};
+  let replyTo = "", messageId = "", references = "";
+  if (raw) {
+    try {
+      const mail = await PostalMime.parse(Buffer.from(String(raw).replace(/-/g, "+").replace(/_/g, "/"), "base64"));
+      const sender = mail.replyTo?.[0] || mail.from || {};
+      from = sender.name ? `${sender.name} <${sender.address}>` : sender.address || "";
+      replyTo = sender.address || "";
+      subject = mail.subject || "";
+      body = mail.text || stripHtml(mail.html || "");
+      messageId = mail.messageId || "";
+      references = [mail.headers?.find((h) => h.key === "references")?.value, messageId].filter(Boolean).join(" ");
+    } catch {
+      return res.status(400).json({ error: "Could not parse raw email" });
+    }
+  }
   if (!body && !subject) return res.status(400).json({ error: "subject or body required" });
+
+  const reply = {
+    replyTo,
+    replySubject: /^(re|sv|svar):/i.test(subject) ? subject : `Re: ${subject}`,
+    inReplyTo: messageId,
+    references,
+  };
+  // Never draft replies to ourselves (booking confirmations etc. come from our own address).
+  if (/@bjorninninnrettingar\.is$/i.test(replyTo)) {
+    return res.status(200).json({ isInquiry: false, category: "eigin póstur", summary: "", draft: "", needsHuman: false, ...reply });
+  }
 
   const email = `Frá: ${String(from).slice(0, 300)}\nEfni: ${String(subject).slice(0, 300)}\n\n${String(body).slice(0, MAX_BODY_CHARS)}`;
 
@@ -86,16 +115,28 @@ export default async function handler(req, res) {
 
   const text = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("").trim();
   const parsed = parseJson(text);
-  if (!parsed) return res.status(200).json({ isInquiry: false, category: "villa", summary: "Gat ekki lesið svar frá Claude", draft: "", needsHuman: true });
+  if (!parsed) return res.status(200).json({ isInquiry: false, category: "villa", summary: "Gat ekki lesið svar frá Claude", draft: "", needsHuman: true, ...reply });
 
   const isInquiry = parsed.isInquiry === true;
+  const draft = isInquiry ? String(parsed.draft || "").trim() : "";
   return res.status(200).json({
     isInquiry,
     category: String(parsed.category || ""),
     summary: String(parsed.summary || ""),
-    draft: isInquiry ? String(parsed.draft || "").trim() : "",
+    draft,
+    // Gmail drafts via Make take HTML — escape and keep line breaks.
+    draftHtml: draft ? escapeHtml(draft).replace(/\n/g, "<br>") : "",
     needsHuman: parsed.needsHuman !== false,
+    ...reply,
   });
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function stripHtml(html) {
+  return html.replace(/<br\s*\/?>/gi, "\n").replace(/<\/p>/gi, "\n\n").replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").trim();
 }
 
 // Same brace-walking extraction as api/chat.js — models sometimes add
