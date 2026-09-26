@@ -5,7 +5,7 @@
 // `draft` as a Gmail draft in the same thread. Nothing is ever sent from
 // here — a person always reads the draft and presses send.
 //
-// POST { from, subject, body } with header x-webhook-secret: WEBHOOK_SECRET
+// POST { from, subject, body } with header x-webhook-secret: EMAIL_DRAFT_SECRET
 // → { isInquiry, category, summary, draft, needsHuman }
 //
 // Grounding reuses the chatbot's FAQ corpus (_chatbot-faq-prompt.js) so the
@@ -52,7 +52,8 @@ ${renderCorpus()}`;
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
-  if (req.headers["x-webhook-secret"] !== process.env.WEBHOOK_SECRET) {
+  const secret = process.env.EMAIL_DRAFT_SECRET;
+  if (!secret || req.headers["x-webhook-secret"] !== secret) {
     return res.status(401).json({ error: "Unauthorized" });
   }
   const apiKey = process.env.ANTHROPIC_API_KEY;
