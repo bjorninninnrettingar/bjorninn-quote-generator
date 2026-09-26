@@ -65,7 +65,7 @@ export default async function handler(req, res) {
   let replyTo = "", messageId = "", references = "";
   if (raw) {
     try {
-      const mail = await PostalMime.parse(Buffer.from(String(raw).replace(/-/g, "+").replace(/_/g, "/"), "base64"));
+      const mail = await PostalMime.parse(decodeRaw(raw));
       const sender = mail.replyTo?.[0] || mail.from || {};
       from = sender.name ? `${sender.name} <${sender.address}>` : sender.address || "";
       replyTo = sender.address || "";
@@ -130,6 +130,21 @@ export default async function handler(req, res) {
     needsHuman: parsed.needsHuman !== false,
     ...reply,
   });
+}
+
+// Make's Gmail "raw" may arrive as the MIME text itself or base64(url), and
+// the scenario wraps it in base64() so it survives JSON — so peel base64
+// layers until it looks like a MIME message (has a "Header: value" line).
+function decodeRaw(raw) {
+  let buf = Buffer.from(String(raw));
+  for (let i = 0; i < 3; i++) {
+    const text = buf.toString("latin1");
+    if (/^[\w-]+:[ \t]/m.test(text.slice(0, 2000))) return buf;
+    const b64 = text.replace(/\s+/g, "");
+    if (!/^[A-Za-z0-9+/_=-]+$/.test(b64)) return buf;
+    buf = Buffer.from(b64.replace(/-/g, "+").replace(/_/g, "/"), "base64");
+  }
+  return buf;
 }
 
 function escapeHtml(s) {
