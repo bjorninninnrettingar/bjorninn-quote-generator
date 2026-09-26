@@ -136,24 +136,28 @@
     return (cache[key] = { color: color, bump: bump, tileW: 2, tileH: 2 });
   }
 
-  // Floor tiles: 2 × 2 tiles of 60 cm in a 1.2 m repeat, each tile slightly
-  // different in tone, soft mottling inside the tile, and a grey grout line.
-  function tileFloorTexture(baseHex, mottle){
-    var key = "tile:" + baseHex + ":" + (mottle || 0.1);
+  // Floor tiles: one 1.2 m × 1.2 m repeat filled with tiles of tileW × tileH metres
+  // (0.3×0.6 / 0.6×0.6 / 0.6×1.2 — all divide 1.2 m). Rectangular tiles are laid
+  // in a half-bond (every other row shifted half a tile). Each tile slightly
+  // different in tone, soft mottling inside, and a grey grout line.
+  function tileFloorTexture(baseHex, mottle, tileW, tileH){
+    tileW = tileW || 0.6; tileH = tileH || 0.6;
+    var key = "tile:" + baseHex + ":" + (mottle || 0.1) + ":" + tileW + "x" + tileH;
     if (cache[key]) return cache[key];
-    var S = 1024, cells = 2, cell = S / cells, grout = 7, base = hexToRgb(baseHex), m = mottle || 0.1;
+    var S = 1024, REP = 1.2, cols = Math.round(REP / tileW), rows = Math.round(REP / tileH), cw = S / cols, ch = S / rows;
+    var bond = tileW !== tileH, grout = 7 * Math.min(1, 0.6 / Math.min(tileW, tileH)) * 0.8 + 1.4, base = hexToRgb(baseHex), m = mottle || 0.1;
     var n = tileNoise(313, 64, 64), v = tileNoise(317, 8, 8), rnd = mulberry32(77), tone = [];
-    for (var i = 0; i < cells * cells; i++) tone.push(0.955 + rnd() * 0.09);
+    for (var i = 0; i < cols * rows * 2; i++) tone.push(0.955 + rnd() * 0.09);
     var color = document.createElement("canvas"), bump = document.createElement("canvas");
     color.width = bump.width = S; color.height = bump.height = S;
     var cx = color.getContext("2d"), bx = bump.getContext("2d"), ci = cx.createImageData(S, S), bi = bx.createImageData(S, S);
     for (var y = 0; y < S; y++){
-      var cy = Math.floor(y / cell), ly = y - cy * cell;
+      var cy = Math.floor(y / ch), ly = y - cy * ch, shift = bond && (cy % 2) ? cw / 2 : 0;
       for (var x = 0; x < S; x++){
-        var cxi = Math.floor(x / cell), lx = x - cxi * cell, k = (y * S + x) * 4;
-        var isGrout = lx < grout / 2 || lx > cell - grout / 2 || ly < grout / 2 || ly > cell - grout / 2;
+        var xs = (x + shift) % S, cxi = Math.floor(xs / cw), lx = xs - cxi * cw, k = (y * S + x) * 4;
+        var isGrout = lx < grout / 2 || lx > cw - grout / 2 || ly < grout / 2 || ly > ch - grout / 2;
         var a = n(x / S * 64, y / S * 64), b = v(x / S * 8, y / S * 8);
-        var l = tone[cy * cells + cxi] * (1 + (a - 0.5) * m + (b - 0.5) * m * 1.4);
+        var l = tone[(cy * cols + cxi) % tone.length] * (1 + (a - 0.5) * m + (b - 0.5) * m * 1.4);
         if (isGrout){
           ci.data[k] = 138; ci.data[k + 1] = 136; ci.data[k + 2] = 131; bi.data[k] = bi.data[k + 1] = bi.data[k + 2] = 20;
         } else {
@@ -164,7 +168,54 @@
       }
     }
     cx.putImageData(ci, 0, 0); bx.putImageData(bi, 0, 0);
-    return (cache[key] = { color: color, bump: bump, tileW: 1.2, tileH: 1.2 });
+    return (cache[key] = { color: color, bump: bump, tileW: REP, tileH: REP });
+  }
+
+  // Herringbone parquet: planks W × L (L = N·W) at 45° to the walls. Unrotated,
+  // the pattern is a staircase of horizontal planks H_k at (kW, kW) and vertical
+  // planks V_k at (kW + L, kW + W − L), repeated by (L, −L). Rotated 45° that
+  // lattice becomes rectangular (W√2 × L√2), so a square canvas of 2N × 2
+  // periods tiles seamlessly; each plank's tint depends only on its index
+  // modulo the canvas period so planks cut by the edge match their wrap-around.
+  function herringboneFloorTexture(baseHex){
+    var key = "herring:" + baseHex;
+    if (cache[key]) return cache[key];
+    var N = 6, Wm = 0.09, Lm = N * Wm, REP = 2 * Lm * Math.SQRT2, S = 1024, px = S / REP, W = Wm * px, L = Lm * px;
+    var base = hexToRgb(baseHex);
+    var color = document.createElement("canvas"), bump = document.createElement("canvas");
+    color.width = bump.width = S; color.height = bump.height = S;
+    var cx = color.getContext("2d"), bx = bump.getContext("2d");
+    function rgb(l){ return "rgb(" + Math.round(clamp(base[0] * l)) + "," + Math.round(clamp(base[1] * l * 0.985)) + "," + Math.round(clamp(base[2] * l * 0.96)) + ")"; }
+    function plank(ctx, isBump, x, y, w, h, horiz, seed){
+      var r = mulberry32(seed), t = 0.93 + r() * 0.13;
+      ctx.fillStyle = isBump ? "rgb(150,150,150)" : rgb(t);
+      ctx.fillRect(x, y, w, h);
+      // grain: thin streaks along the plank's length
+      for (var g = 0; g < 7; g++){
+        var o = r(), a = 0.05 + r() * 0.08, dark = r() < 0.6;
+        ctx.fillStyle = isBump ? (dark ? "rgba(60,60,60," + a * 2 + ")" : "rgba(220,220,220," + a + ")") : (dark ? "rgba(60,35,15," + a + ")" : "rgba(255,245,225," + a * 0.8 + ")");
+        if (horiz) ctx.fillRect(x, y + o * h, w, 0.6 + r() * 1.6); else ctx.fillRect(x + o * w, y, 0.6 + r() * 1.6, h);
+      }
+      ctx.strokeStyle = isBump ? "rgb(20,20,20)" : "rgba(40,25,10,.38)";
+      ctx.lineWidth = 1.2;
+      ctx.strokeRect(x + 0.6, y + 0.6, w - 1.2, h - 1.2);
+    }
+    [[cx, false], [bx, true]].forEach(function(pair){
+      var ctx = pair[0];
+      ctx.save();
+      ctx.translate(S / 2, S / 2); ctx.rotate(Math.PI / 4);
+      var span = Math.ceil(S / W) + 4, bands = Math.ceil(S / L) + 3;
+      for (var m = -bands; m <= bands; m++){
+        for (var k = -span; k <= span; k++){
+          var ox = k * W + m * L, oy = k * W - m * L;
+          var kk = ((k % (2 * N)) + 2 * N) % (2 * N), mm = ((m % 2) + 2) % 2;
+          plank(ctx, pair[1], ox, oy, L, W, true, 1000 + kk * 7 + mm * 131);
+          plank(ctx, pair[1], ox + L, oy + W - L, W, L, false, 5000 + kk * 7 + mm * 131);
+        }
+      }
+      ctx.restore();
+    });
+    return (cache[key] = { color: color, bump: bump, tileW: REP, tileH: REP });
   }
 
   // Worktop: honed stone with fine mineral speckle. Tile 0.8 × 0.8 m.
@@ -187,5 +238,5 @@
   function clamp(v){ return v < 0 ? 0 : v > 255 ? 255 : v; }
   function hashKey(str){ var h = 2166136261; for (var i = 0; i < str.length; i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 
-  window.KPMat = { woodTexture: woodTexture, paintTexture: paintTexture, plankFloorTexture: plankFloorTexture, tileFloorTexture: tileFloorTexture, stoneTexture: stoneTexture };
+  window.KPMat = { woodTexture: woodTexture, paintTexture: paintTexture, plankFloorTexture: plankFloorTexture, tileFloorTexture: tileFloorTexture, herringboneFloorTexture: herringboneFloorTexture, stoneTexture: stoneTexture };
 })();

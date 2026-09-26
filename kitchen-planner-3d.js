@@ -123,9 +123,23 @@
   };
   var FLOOR_GROUPS = [{ key:"parket", label:"Parket" }, { key:"flisar", label:"Flísar" }];
   var DEFAULT_FLOOR = "parket_eik";
-  function floorTexture(key){
-    var f = FLOORS[key] || FLOORS[DEFAULT_FLOOR];
-    return f.kind === "tile" ? window.KPMat.tileFloorTexture(f.color, 0.12) : window.KPMat.plankFloorTexture(f.color, f.rows);
+  // Tile sizes (state.floorTile) and parquet laying patterns (state.floorPattern).
+  var TILE_SIZES = {
+    "30x60":  { label:"30 × 60 cm",  w:0.3, h:0.6 },
+    "60x60":  { label:"60 × 60 cm",  w:0.6, h:0.6 },
+    "60x120": { label:"60 × 120 cm", w:0.6, h:1.2 }
+  };
+  var DEFAULT_TILE = "60x60";
+  var FLOOR_PATTERNS = { beint:{ label:"Beint" }, fiskibein:{ label:"Fiskibein" } };
+  // variant: the state object (floorTile / floorPattern are read from it), or omitted = defaults
+  function floorTexture(key, variant){
+    var f = FLOORS[key] || FLOORS[DEFAULT_FLOOR], v = variant || {};
+    if (f.kind === "tile"){
+      var ts = TILE_SIZES[v.floorTile] || TILE_SIZES[DEFAULT_TILE];
+      return window.KPMat.tileFloorTexture(f.color, 0.12, ts.w, ts.h);
+    }
+    if (v.floorPattern === "fiskibein") return window.KPMat.herringboneFloorTexture(f.color);
+    return window.KPMat.plankFloorTexture(f.color, f.rows);
   }
   // soft tint of the floor for the 2D drawings
   function floorPlanColor(key){
@@ -207,10 +221,14 @@
   // link like carcass/front — just a curated hex palette for the 3D/2D
   // preview. hvitt matches the historical fixed wall color.
   var WALL_COLORS = {
-    hvitt:   { label:"Hvítt",     hex:"#f1efe8" },
+    hreinhvitt: { label:"Hreinhvítt", hex:"#fbfbf9" },
+    hvitt:   { label:"Beinhvítt",  hex:"#f1efe8" },
     ljosgra: { label:"Ljósgrátt", hex:"#d9d6cd" },
     blatt:   { label:"Ljósblátt", hex:"#cdd9e0" },
-    graent:  { label:"Sölvígrænt",hex:"#d3d9c9" }
+    graent:  { label:"Sölvígrænt",hex:"#d3d9c9" },
+    greige:  { label:"Hlýtt grátt", hex:"#cfc8bc" },
+    dokkgra: { label:"Dökkgrátt",  hex:"#5f6164" },
+    kol:     { label:"Kolgrátt",   hex:"#3d3f42" }
   };
 
   // Windows/doors (Phase 7e) — room-level openings, not cabinets: fixed
@@ -265,6 +283,13 @@
   Object.keys(KPH.placeExisting || {}).forEach(function(k){ if (HANDLES[k]){ HANDLES[k].hidden = false; HANDLES[k].group = KPH.placeExisting[k]; } });
   Object.keys(KPH.items || {}).forEach(function(k){ HANDLES[k] = Object.assign({ vorulistiId:null }, HANDLES[k] || {}, KPH.items[k], { hidden:false }); }); // an old key (Hexxa) keeps its Vörulisti id
   var HANDLE_GROUPS = KPH.groups || [];
+  var HANDLE_FINISHES = KPH.finishes || {};
+  // the chosen handle colour, or null when the handle keeps its own (set at the start of each scene build)
+  function handleFinishFor(handleKey, colorKey){
+    var h = HANDLES[handleKey];
+    return h && !h.fixedColor && h.group !== "an" && colorKey && HANDLE_FINISHES[colorKey] ? HANDLE_FINISHES[colorKey] : null;
+  }
+  var handleFinish = null;
   var TOPS = {};
   Object.keys(KPCAT.tops).forEach(function(k){ TOPS[k] = KPCAT.tops[k]; });
 
@@ -853,7 +878,9 @@
     }
     var b = new THREE.Box3().setFromObject(w), c = b.getCenter(new THREE.Vector3());
     w.position.set(-c.x, cfg.kind === "jey" || cfg.kind === "topmount" ? -b.max.y : -c.y, -b.min.z);
-    if (cfg.color){
+    if (handleFinish){
+      w.traverse(function(o){ if (o.isMesh){ o.material = o.material.clone(); o.material.color.set(handleFinish.hex); o.material.metalness = handleFinish.metal; o.material.roughness = handleFinish.rough; if (o.material.map) o.material.map = null; o.material.needsUpdate = true; } });
+    } else if (cfg.color){
       w.traverse(function(o){ if (o.isMesh){ o.material = o.material.clone(); o.material.color.set(cfg.color); o.material.metalness = 0.55; o.material.roughness = 0.4; } });
     }
     var g = new THREE.Group(), inner = new THREE.Group();
@@ -925,7 +952,9 @@
     }
     var seamMat = new THREE.MeshBasicMaterial({ color:0x2e2e30, transparent:true, opacity:0.7, side:THREE.DoubleSide });
     var hdef = HANDLES[handleKey] || {}, hstyle = hdef.style || "bar";
-    var handleMat = new THREE.MeshStandardMaterial({ color:hdef.color || 0x55575a, metalness:hdef.color ? 0.55 : 0.75, roughness:0.34 });
+    var handleMat = handleFinish
+      ? new THREE.MeshStandardMaterial({ color:handleFinish.hex, metalness:handleFinish.metal, roughness:handleFinish.rough })
+      : new THREE.MeshStandardMaterial({ color:hdef.color || 0x55575a, metalness:hdef.color ? 0.55 : 0.75, roughness:0.34 });
     function hbar(len, y, along, out){ place(new THREE.Mesh(new THREE.BoxGeometry(len, 0.012, 0.02), handleMat), y, out || 0.012, along); }
 
     // Oven tower: drawer below, 595 mm oven (dark glass + control strip + bar
@@ -1126,7 +1155,9 @@
 
     if (plinthM && meta && meta.plinthMat){
       // a hair shorter than the gap so its top never shares a plane with the body's underside (z-fighting showed through an open cabinet)
-      var pl = new THREE.Mesh(new THREE.BoxGeometry(widthM - 0.004, plinthM - 0.004, depthM - 0.063), meta.plinthMat);
+      var plGeo = new THREE.BoxGeometry(widthM - 0.004, plinthM - 0.004, depthM - 0.063);
+      scaleFrontUV(plGeo, widthM, plinthM, meta.plinthMat.userData && meta.plinthMat.userData.tile); // the plinth is clad in the front material
+      var pl = new THREE.Mesh(plGeo, meta.plinthMat);
       pl.position.copy(local(0, baseYM + (plinthM - 0.004) / 2, 0.003 + (depthM - 0.063) / 2)); // 3 mm off the wall line so its back face never shares a plane with the skirting/wall
       pl.quaternion.copy(quat);
       pl.receiveShadow = true;
@@ -1947,12 +1978,93 @@
     return new THREE.Mesh(geo, frontMat);
   }
 
+  // ---- People silhouettes (ceiling-height step): a man (180 cm, hands in pockets)
+  // and a woman (168 cm, hand on hip). Drawn in a 100 × 200 box, head at y=0, feet
+  // at y=200; `cut` is a hole punched out (the gap between arm and body).
+  function mirrorPath(right){ // right half of a symmetric outline → full closed path
+    var left = right.slice().reverse().map(function(p){ return [100 - p[0], p[1]]; });
+    return "M" + right.concat(left).map(function(p){ return p[0] + " " + p[1]; }).join(" L") + " Z";
+  }
+  var PEOPLE = {
+    man: { h:1.8, label:"180 cm",
+      d: "M50 1 C57 1 60.5 5 60.5 12 C60.5 19 57 25 50 25 C43 25 39.5 19 39.5 12 C39.5 5 43 1 50 1 Z " + mirrorPath([
+        [50,24],[55,24],[56,30],[63,33],[70,35],[74,39],[76,46],[77,60],[78,76],[78,92],[76,101],[72,103],[69.5,100],
+        [68.5,110],[67.5,140],[66.5,170],[65.5,188],[70,191],[71,196],[56,196],[55.5,188],[54.5,160],[53,130],[51,114],[50,114]
+      ]),
+      cut: "M68.4 52 L71.6 58 L72.2 88 L69.4 96 Z M31.6 52 L28.4 58 L27.8 88 L30.6 96 Z" },
+    woman: { h:1.68, label:"168 cm",
+      d: "M50 2 C56.5 2 59.5 6 59.5 12.5 C59.5 19 56 24 50 24 C44 24 40.5 19 40.5 12.5 C40.5 6 43.5 2 50 2 Z " +
+         "M42 8 C43 0 58 -1 60 8 C62 17 60 26 65 37 C61 38 57.5 34 57 28 C56 22 58 15 55 10 Z " +
+         "M46 23 L46 29 L40 31.5 L35 34.5 L33 40 L31.5 60 L30.5 80 L29.5 97 L31.5 102 L34 101 L34.5 97 L35.5 80 L37.5 62 L38.5 70 L39.5 79 " +
+         "L31 150 L43.5 152 L43.5 186 L40 194 L41 197 L46 197 L47 190 L48.5 152 L52.5 152 L53.5 186 L54 194 L55 197 L60 197 L58 186 L57 152 L69 150 " +
+         "L60.5 80 L62.5 79 L64.5 81 L77 64 L78.5 58 L74 45 L69 36.5 L63 33 L54 29.5 L54 23 Z",
+      cut: "M61 70 L71.5 59.5 L66 44 L61.5 42 Z" }
+  };
+  var PEOPLE_TEX = {};
+  function personCanvas(key){
+    if (PEOPLE_TEX[key]) return PEOPLE_TEX[key];
+    var P = PEOPLE[key], c = document.createElement("canvas"), sc = 2.56;
+    c.width = 256; c.height = 512;
+    var ctx = c.getContext("2d");
+    ctx.scale(sc, sc);
+    // a light outline first so the figures read against dark walls too
+    ctx.strokeStyle = "rgba(255,255,255,.85)"; ctx.lineWidth = 2.2; ctx.lineJoin = "round";
+    ctx.stroke(new Path2D(P.d));
+    ctx.fillStyle = "#26241f";
+    ctx.fill(new Path2D(P.d), "nonzero");
+    if (P.cut){ ctx.globalCompositeOperation = "destination-out"; ctx.fill(new Path2D(P.cut)); }
+    return (PEOPLE_TEX[key] = c);
+  }
+  // Two cut-out figures standing ~1.2 m in front of the longest solid wall, turned towards the camera every
+  // frame, plus a floor-to-ceiling dimension line on that wall (left of them) with the height in mm.
+  function addPeople(THREE, scene, geoms, wallH, heightMm, walls, wallHex){
+    var g = geoms.filter(function(x, i){ return !(walls[i] && walls[i].open); }).sort(function(a, b){ return b.lenM - a.lenM; })[0] || geoms[0], mid = { x:g.origin.x + g.axis.x * g.lenM / 2, z:g.origin.z + g.axis.z * g.lenM / 2 }, out = [];
+    var inM = 0.7;
+    [["man", -0.38], ["woman", 0.42]].forEach(function(pr){
+      var P = PEOPLE[pr[0]], tex = new THREE.CanvasTexture(personCanvas(pr[0]));
+      if (THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
+      var mat = new THREE.MeshBasicMaterial({ map:tex, transparent:true, alphaTest:0.4, side:THREE.DoubleSide });
+      var m = new THREE.Mesh(new THREE.PlaneGeometry(P.h / 2, P.h), mat);
+      m.position.set(mid.x + g.normal.x * inM + g.axis.x * pr[1], P.h / 2, mid.z + g.normal.z * inM + g.axis.z * pr[1]);
+      m.userData.billboard = true;
+      scene.add(m); out.push(m);
+      var sh = new THREE.Mesh(new THREE.CircleGeometry(0.2, 24), new THREE.MeshBasicMaterial({ color:0x000000, transparent:true, opacity:0.16, depthWrite:false }));
+      sh.rotation.x = -Math.PI / 2; sh.scale.set(1, 0.55, 1);
+      sh.position.set(m.position.x, 0.003, m.position.z);
+      scene.add(sh);
+    });
+    // dimension line on the wall, a little to the side of the figures
+    var dOff = -Math.min(1.3, g.lenM * 0.42);
+    var dx = mid.x + g.axis.x * dOff + g.normal.x * 0.02, dz = mid.z + g.axis.z * dOff + g.normal.z * 0.02;
+    var wn = parseInt((wallHex || "#f1efe8").slice(1), 16), dark = (((wn >> 16) & 255) * 0.3 + ((wn >> 8) & 255) * 0.59 + (wn & 255) * 0.11) < 128;
+    var lm = new THREE.LineBasicMaterial({ color:dark ? 0xf4f2ec : 0x333333 }), tick = 0.08;
+    function seg(a, b){ scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, b]), lm)); }
+    seg(new THREE.Vector3(dx, 0.01, dz), new THREE.Vector3(dx, wallH - 0.01, dz));
+    [0.01, wallH - 0.01].forEach(function(y){
+      seg(new THREE.Vector3(dx - g.axis.x * tick, y, dz - g.axis.z * tick), new THREE.Vector3(dx + g.axis.x * tick, y, dz + g.axis.z * tick));
+    });
+    var lc = document.createElement("canvas"); lc.width = 256; lc.height = 72;
+    var lx = lc.getContext("2d");
+    lx.fillStyle = "#ffffff"; lx.strokeStyle = "#8a8f9a"; lx.lineWidth = 3;
+    if (lx.roundRect){ lx.beginPath(); lx.roundRect(4, 4, 248, 64, 14); lx.fill(); lx.stroke(); } else { lx.fillRect(4, 4, 248, 64); lx.strokeRect(4, 4, 248, 64); }
+    lx.fillStyle = "#191919"; lx.font = "700 34px 'Kumbh Sans', Arial, sans-serif"; lx.textAlign = "center"; lx.textBaseline = "middle";
+    lx.fillText(heightMm + " mm", 128, 38);
+    var lt = new THREE.CanvasTexture(lc);
+    if (THREE.SRGBColorSpace) lt.colorSpace = THREE.SRGBColorSpace;
+    var sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:lt, depthTest:false }));
+    sp.scale.set(0.62, 0.175, 1); sp.renderOrder = 10;
+    sp.position.set(dx + g.normal.x * 0.05, wallH / 2, dz + g.normal.z * 0.05);
+    scene.add(sp);
+    return { people:out, focus:{ x:mid.x + g.normal.x * inM, z:mid.z + g.normal.z * inM }, g:g };
+  }
+
   // wrap: DOM element to render into. state: the planner's {shape,walls,look}
   // object. opts (optional): {selectedId, onSelect(meta|null)} — onSelect is
   // called with {wallId,zone,blockId} when a cabinet is clicked, or null on
   // a click that hit nothing (deselect).
   function buildScene(wrap, state, opts){
     opts = opts || {};
+    handleFinish = handleFinishFor(state.handle, state.handleColor);
     var THREE = window.__THREE__;
     var OrbitControls = window.__OrbitControls__;
 
@@ -1965,7 +2077,7 @@
     var wallMat = new THREE.MeshStandardMaterial({ color:wallColor, roughness:1, side:THREE.DoubleSide });
     var floorMat;
     if (window.KPMat){
-      var ft = floorTexture(state.floor), isTile = (FLOORS[state.floor] || {}).kind === "tile";
+      var ft = floorTexture(state.floor, state), isTile = (FLOORS[state.floor] || {}).kind === "tile";
       floorMat = new THREE.MeshStandardMaterial({ map:canvasTex(THREE, ft.color, true), bumpMap:canvasTex(THREE, ft.bump, false), bumpScale:isTile ? 0.35 : 0.7, roughness:isTile ? 0.38 : 0.58 });
       floorMat.userData.tile = ft.tileW;
     } else {
@@ -1986,7 +2098,7 @@
     // Wall length labels floating just above each wall (HomeByMe shows room
     // dimensions on the plan); a canvas-texture sprite, drawn on top.
     function isOpenGeom(i){ return !!(state.walls[i] && state.walls[i].open); }
-    geoms.forEach(function(g, i){
+    if (!opts.people) geoms.forEach(function(g, i){ // (the ceiling-height view has its own single label)
       var cv = document.createElement("canvas"); cv.width = 420; cv.height = 64;
       var cx = cv.getContext("2d");
       cx.fillStyle = "rgba(255,255,255,.92)"; cx.strokeStyle = "#e6e3da"; cx.lineWidth = 3;
@@ -2053,7 +2165,6 @@
     // built-in fridge reads as an appliance: brushed-steel front instead of the kitchen's fronts
     var steelMat = new THREE.MeshStandardMaterial({ color:0xc9ccd1, metalness:0.75, roughness:0.32 });
     // shared by every floor unit: recessed plinth + honed-stone worktop
-    var plinthMat = new THREE.MeshStandardMaterial({ color:0x26262a, roughness:0.85 });
     // open-shelf units: inside faces must render (double-sided) and the front is left out
     var openMat = carcassMat.clone(); openMat.side = THREE.DoubleSide;
     var hiddenMat = new THREE.MeshBasicMaterial({ visible:false });
@@ -2062,6 +2173,8 @@
     var frontMat = look && window.KPMat
       ? makeFrontMaterial(THREE, state.look, look)
       : new THREE.MeshStandardMaterial({ color: look ? look.color3d : 0xb7b2a4, roughness:0.7 });
+    // the plinth (sökkull) is clad in the same front material once one is chosen
+    var plinthMat = look ? frontMat : new THREE.MeshStandardMaterial({ color:0x26262a, roughness:0.85 });
 
     surfaces.forEach(function(wall, wi){
       var g = allGeoms[wi];
@@ -2140,6 +2253,12 @@
     var camera = new THREE.PerspectiveCamera(45, 1, 0.05, 100);
     var dist = Math.max(bbox.w, bbox.d) * (geoms.closed ? 0.95 : 0.74) + (geoms.closed ? 1.7 : 1.2);
     camera.position.set(bbox.cx + dist * 0.6, dist * 0.55, bbox.cz + dist * 0.9);
+    var people = opts.people && geoms.length ? addPeople(THREE, scene, geoms, WALL_H, roomHeightMm, state.walls, wallColor) : null;
+    if (people){ // stand inside the room at eye height, facing the figures and their wall (wide lens so floor + ceiling fit)
+      var pg = people.g, depth = Math.abs(pg.normal.x) > 0.5 ? bbox.w : bbox.d, back = Math.max(1.9, Math.min(4.2, depth - 0.7 - 0.25)); // keep the camera inside the room when it fits
+      camera.fov = 70; camera.updateProjectionMatrix();
+      camera.position.set(people.focus.x + pg.normal.x * back + pg.axis.x * 0.7, 1.45, people.focus.z + pg.normal.z * back + pg.axis.z * 0.7);
+    }
 
     // One WebGL renderer (and one prefiltered environment map) for the whole
     // page session: every edit rebuilds the scene, and creating a renderer +
@@ -2188,7 +2307,8 @@
     controls.maxDistance = dist * 3;
     controls.enableDamping = true;
     controls.dampingFactor = 0.08;
-    if (savedCameraState){
+    if (people) controls.target.set(people.focus.x - people.g.normal.x * 0.6, WALL_H * 0.46, people.focus.z - people.g.normal.z * 0.6);
+    if (savedCameraState && !opts.freshCamera){
       camera.position.copy(savedCameraState.position);
       controls.target.copy(savedCameraState.target);
     }
@@ -2289,6 +2409,7 @@
       fadeWalls();
       fadeCabinets();
       stepParts(scene);
+      if (people) people.people.forEach(function(m){ m.rotation.y = Math.atan2(camera.position.x - m.position.x, camera.position.z - m.position.z); });
       renderer.render(scene, camera);
       placeFloatBar();
     }
@@ -2372,6 +2493,7 @@
 
   function setCabinetPreview(cfg){
     if (!PREVIEW) return;
+    handleFinish = handleFinishFor(cfg.handle, cfg.handleColor);
     var THREE = window.__THREE__;
     if (PREVIEW.group){ PREVIEW.scene.remove(PREVIEW.group); disposeScene(PREVIEW.group); }
     var group = new THREE.Group();
@@ -2389,7 +2511,8 @@
       return m;
     }
     // plinth (a hair shorter than the gap so nothing shares a plane) + carcass panels
-    box(W - 0.004, PL - 0.004, CD - 0.06, 0, (PL - 0.004) / 2, (CD - 0.06) / 2, new THREE.MeshStandardMaterial({ color:0x26262a, roughness:0.85 }));
+    var plinthFront = !!(look && cfg.showFronts); // sökkull clad in the front material once the fronts are on
+    box(W - 0.004, PL - 0.004, CD - 0.06, 0, (PL - 0.004) / 2, (CD - 0.06) / 2, plinthFront ? frontMat : new THREE.MeshStandardMaterial({ color:0x26262a, roughness:0.85 }), plinthFront && frontMat.userData.tile);
     box(T, BODY, CD, -W / 2 + T / 2, PL + BODY / 2, CD / 2, carcassMat);                 // sides
     box(T, BODY, CD, W / 2 - T / 2, PL + BODY / 2, CD / 2, carcassMat);
     box(W - 2 * T, T, CD, 0, PL + T / 2, CD / 2, carcassMat);                              // bottom
@@ -2790,6 +2913,9 @@
     FLOORS: FLOORS,
     FLOOR_GROUPS: FLOOR_GROUPS,
     floorTexture: floorTexture,
+    PEOPLE: PEOPLE,
+    TILE_SIZES: TILE_SIZES,
+    FLOOR_PATTERNS: FLOOR_PATTERNS,
     floorPlanColor: floorPlanColor,
     TOP_GROUPS: TOP_GROUPS,
     CARCASS: CARCASS,
@@ -2797,6 +2923,8 @@
     DRAWER_LAYOUT: DRAWER_LAYOUT,
     HANDLES: HANDLES,
     HANDLE_GROUPS: HANDLE_GROUPS,
+    HANDLE_FINISHES: HANDLE_FINISHES,
+    handleFinishFor: handleFinishFor,
     wallGeometry3D: wallGeometry3D,
     cornerClearanceMm: cornerClearanceMm,
     blockStartsMm: blockStartsMm,
