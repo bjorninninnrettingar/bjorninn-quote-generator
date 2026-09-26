@@ -78,6 +78,8 @@ export default async function handler(req, res) {
     }
   }
   if (!body && !subject) return res.status(400).json({ error: "subject or body required" });
+  // Plain {from, subject, body} (Make mailhook fields): pull the address out of "Name <a@b>" or a bare address.
+  if (!replyTo) replyTo = (String(from).match(/[^\s<>"]+@[^\s<>"]+/) || [""])[0];
 
   const reply = {
     replyTo,
