@@ -14,6 +14,16 @@ const DELIVERY_PRICE_FIELD = "heimsendingaverð";
 const INSTALL_INCLUDE_FIELD = "Uppsetning Bjarnarins 🪛🐻"; // checkbox — gates Uppsetning on the Verðhugmynd (estimate) PDF only
 const PROJECT_NAME_FIELD = "Heiti tækifæris / verkefnis"; // real project name — "Tilboðsblaðs heiti" (formerly used for the PDF filename) isn't an actual field in the base, so it always fell back to a generic default
 
+// Canonical project total (m. vsk.) = Line Items (handles excluded from V3
+// pricing) + project-level handles. Installation/delivery are NOT in it.
+const TOTAL_FIELD = "💰 Tilboðsupphæð";
+// Project-level handles — priced here, not on the Line Items.
+const HANDLE_SLOTS = [
+  { name: "Heiti vöru 📣 (from Höldur Viðskiptavinar ✊)",    price: "Söluverð halda 1 án vsk", qty: "Magn Halda 1" },
+  { name: "Heiti vöru 📣 (from Höldur Viðskiptavinar ✊2.0)", price: "Söluverð halda 2 án vsk", qty: "Magn halda 2.0" },
+];
+const HANDLE_ROOM = "Höldur";
+
 // Brand colours
 const GOLD      = rgb(0.808, 0.694, 0.388);
 const DARK      = rgb(0.102, 0.102, 0.102);
@@ -48,7 +58,7 @@ async function airtableFetch(url, token) {
   return res.json();
 }
 
-async function getProject(token, recordId) {
+export async function getProject(token, recordId) {
   const data = await airtableFetch(
     `https://api.airtable.com/v0/${AIRTABLE_BASE}/${PROJECTS_TABLE}/${recordId}`,
     token
@@ -56,15 +66,27 @@ async function getProject(token, recordId) {
   return data.fields;
 }
 
-async function getLineItems(token, linkedIds) {
+export async function getLineItems(token, linkedIds) {
   if (!linkedIds || linkedIds.length === 0) return [];
-  const filter = `OR(${linkedIds.map((id) => `RECORD_ID()="${id}"`).join(",")})`;
-  const data = await airtableFetch(
-    `https://api.airtable.com/v0/${AIRTABLE_BASE}/${LINE_ITEMS_TABLE}?filterByFormula=${encodeURIComponent(filter)}`,
-    token
-  );
+  // Airtable returns at most 100 records per page — follow `offset`, and keep
+  // each formula short by querying in chunks, so no line is ever dropped.
+  const records = [];
+  for (let i = 0; i < linkedIds.length; i += 50) {
+    const chunk = linkedIds.slice(i, i + 50);
+    const filter = `OR(${chunk.map((id) => `RECORD_ID()="${id}"`).join(",")})`;
+    let offset;
+    do {
+      const data = await airtableFetch(
+        `https://api.airtable.com/v0/${AIRTABLE_BASE}/${LINE_ITEMS_TABLE}?filterByFormula=${encodeURIComponent(filter)}` +
+          (offset ? `&offset=${offset}` : ""),
+        token
+      );
+      records.push(...data.records);
+      offset = data.offset;
+    } while (offset);
+  }
   const recordMap = Object.fromEntries(
-    data.records.map((r) => {
+    records.map((r) => {
       const fields = { ...r.fields };
 
       // Canonical room field is now "Rými - Skipulag". Keep the old internal
@@ -267,7 +289,9 @@ function drawFooter(page, PW, fontReg) {
 
 // ── Main quote PDF ────────────────────────────────────────────────────────────
 
-async function buildPdf(project, lineItems, includeSummary = false, estimate = false) {
+// totalInclVatOverride: the grand total to print (canonical Airtable total +
+// any virtual installation/delivery rows). null = use the sum of the rows.
+async function buildPdf(project, lineItems, includeSummary = false, estimate = false, totalInclVatOverride = null) {
   const doc = await PDFDocument.create();
   const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
   const fontReg  = await doc.embedFont(StandardFonts.Helvetica);
@@ -436,7 +460,7 @@ async function buildPdf(project, lineItems, includeSummary = false, estimate = f
   line(page, MARGIN, y, PW - MARGIN, y, GRAY, 0.4);
   y -= 16;
 
-  const totalInclVat = subtotalInclVat;
+  const totalInclVat = totalInclVatOverride ?? subtotalInclVat;
   const totalExVat   = totalInclVat / 1.24;
   const vatAmount    = totalInclVat - totalExVat;
   const totalsX = PW - MARGIN - 230;
@@ -523,6 +547,7 @@ async function buildPdf(project, lineItems, includeSummary = false, estimate = f
     line(sPage, MARGIN, sy, SPW - MARGIN, sy, GRAY, 0.4);
     sy -= 16;
 
+    if (totalInclVatOverride != null) grandTotal = totalInclVatOverride;
     const grandExVat = grandTotal / 1.24;
     const grandVat   = grandTotal - grandExVat;
     const sTotalsX   = MARGIN + COL_ROOM_W;
@@ -557,6 +582,36 @@ async function buildPdf(project, lineItems, includeSummary = false, estimate = f
   }
 
   return doc.save();
+}
+
+// ── Virtual handle line items (project-level Höldur) ─────────────────────────
+
+// Same math as Airtable's "Samtals hölduverð m.vsk": söluverð án vsk × magn × 1,24.
+function buildHandleLineItems(project) {
+  const items = [];
+  for (const slot of HANDLE_SLOTS) {
+    const name  = lv(project[slot.name]);
+    const price = parseFloat(lv(project[slot.price])) || 0;
+    const qty   = parseFloat(project[slot.qty]) || 0;
+    if (!price || !qty) continue;
+    items.push({
+      "Rými 🏡":     HANDLE_ROOM,
+      "Vara 🚪":     name || "Höldur",
+      "útfærsla 🎨": "",
+      "Magn":        qty,
+      "Einingarverð": price,
+      "Afsl. %":     0,
+    });
+  }
+  return items;
+}
+
+function sumInclVat(items) {
+  return items.reduce((s, i) => {
+    const qty = parseFloat(i["Magn"] ?? 1) || 1;
+    const unit = parseFloat(i["Einingarverð"] ?? 0) || 0;
+    return s + unit * qty * 1.24;
+  }, 0);
 }
 
 // ── Virtual installation line items (for combined PDF) ───────────────────────
@@ -758,6 +813,96 @@ async function buildInstallationPdf(project, installPriceExVat, deliveryPriceInc
   return doc.save();
 }
 
+// ── Build the PDF(s) for a mode (no Airtable writes — also used for testing) ──
+
+// mode: "cabinets" / "separate" → 2 PDFs (cabinets + installation)
+// mode: "combined" → 1 PDF (installation appears as line items under Uppsetning room)
+// mode: "estimate" → same as "combined", but no date, no validity line, and a red
+//                     "Aðeins verðhugmynd, ógilt sem tilboð" watermark on every page
+//
+// Every mode prints the project-level handles as their own "Höldur" rows, and
+// the cabinet part of the total is Airtable's canonical 💰 Tilboðsupphæð
+// (installation/delivery rows are added on top, as before).
+export async function buildQuoteFiles(project, lineItems, mode, recordId = "") {
+  const installPriceInclVat  = parseFloat(project[INSTALL_PRICE_FIELD]  ?? 0) || 0;
+  const deliveryPriceInclVat = parseFloat(project[DELIVERY_PRICE_FIELD] ?? 0) || 0;
+  const hasInstallationData  = installPriceInclVat > 0 || deliveryPriceInclVat > 0;
+
+  const safeTitle = (project[PROJECT_NAME_FIELD] || recordId)
+    .replace(/[/\\:*?"<>]/g, "-")
+    .trim();
+
+  // Rooms decide whether the summary page is added — handles don't count as a room.
+  const realRooms = new Set(lineItems.map((i) => i["Rými 🏡"] || "").filter(Boolean));
+
+  const handleItems   = buildHandleLineItems(project);
+  const cabinetItems  = [...lineItems, ...handleItems];
+  const rowsTotal     = sumInclVat(cabinetItems);
+  const canonicalRaw  = parseFloat(project[TOTAL_FIELD]);
+  const canonical     = Number.isFinite(canonicalRaw) ? canonicalRaw : null;
+  const cabinetTotal  = canonical ?? rowsTotal;
+  const mismatch      = canonical == null ? null : Math.round(rowsTotal - canonical);
+  if (canonical == null) {
+    console.warn(`"${TOTAL_FIELD}" missing on project — using the sum of the rows (${formatISK(rowsTotal)})`);
+  } else if (Math.abs(rowsTotal - canonical) > 1) {
+    console.warn(`Rows (${formatISK(rowsTotal)}) ≠ ${TOTAL_FIELD} (${formatISK(canonical)}) — printing the Airtable total`);
+  }
+
+  const files = [];
+  let printedTotal;
+
+  if ((mode === "combined" || mode === "estimate") && hasInstallationData) {
+    const isEstimate = mode === "estimate";
+    // Verðhugmynd only shows the Uppsetning line when explicitly opted into via
+    // the checkbox — Tilboð & Uppsetning (combined, a real offer) always shows it.
+    const includeInstallation = isEstimate ? !!project[INSTALL_INCLUDE_FIELD] : true;
+    const virtualItems = buildInstallationLineItems(project, installPriceInclVat, deliveryPriceInclVat, includeInstallation);
+    const allItems = [...cabinetItems, ...virtualItems];
+    const allRooms = new Set([...realRooms, ...virtualItems.map((i) => i["Rými 🏡"])]);
+    printedTotal = cabinetTotal + sumInclVat(virtualItems);
+    console.log(`${isEstimate ? "Estimate" : "Combined"} PDF — ${allItems.length} items (${handleItems.length} handles, ${virtualItems.length} installation)`);
+    files.push({
+      bytes: await buildPdf(project, allItems, allRooms.size > 1, isEstimate, printedTotal),
+      filename: isEstimate ? `${safeTitle} (Verðhugmynd).pdf` : `${safeTitle} (Tilboð & Uppsetning).pdf`,
+    });
+  } else if (mode === "estimate") {
+    // No installation data — estimate mode still needs the watermark applied to the cabinets-only PDF.
+    printedTotal = cabinetTotal;
+    console.log(`Estimate PDF (no installation data) — ${cabinetItems.length} items (${handleItems.length} handles)`);
+    files.push({
+      bytes: await buildPdf(project, cabinetItems, realRooms.size > 1, true, printedTotal),
+      filename: `${safeTitle} (Verðhugmynd).pdf`,
+    });
+  } else {
+    printedTotal = cabinetTotal;
+    console.log(`Cabinets PDF — ${cabinetItems.length} items (${handleItems.length} handles)`);
+    files.push({
+      bytes: await buildPdf(project, cabinetItems, realRooms.size > 1, false, printedTotal),
+      filename: `${safeTitle} (Tilboð).pdf`,
+    });
+    if (hasInstallationData) {
+      console.log(`Installation PDF — uppsetning: ${formatISK(installPriceInclVat)}, heimsending: ${formatISK(deliveryPriceInclVat)}`);
+      files.push({
+        bytes: await buildInstallationPdf(project, installPriceInclVat, deliveryPriceInclVat),
+        filename: `${safeTitle} (Uppsetning).pdf`,
+      });
+    }
+  }
+
+  return {
+    files,
+    totals: {
+      tilbodsupphaed: canonical,
+      rowsTotal: Math.round(rowsTotal),
+      rowsVsTilbodsupphaed: mismatch,
+      printedTotal: Math.round(printedTotal),
+      handles: handleItems.length,
+      installationPrice: installPriceInclVat || null,
+      deliveryPrice: deliveryPriceInclVat || null,
+    },
+  };
+}
+
 // ── Main handler ──────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
@@ -773,13 +918,9 @@ export default async function handler(req, res) {
   const token = process.env.AIRTABLE_TOKEN;
   if (!token) return res.status(500).json({ error: "AIRTABLE_TOKEN not configured" });
 
-  const { recordId, mode = "separate" } = req.body || {};
+  const recordId = String((req.body || {}).recordId || "").trim(); // the Tilboð automation sends "recXXX\n"
+  const mode = (req.body || {}).mode || "separate";
   if (!recordId) return res.status(400).json({ error: "recordId is required" });
-
-  // mode: "separate" → 2 PDFs (cabinets + installation)
-  // mode: "combined" → 1 PDF (installation appears as line items under Uppsetning room)
-  // mode: "estimate" → same as "combined", but no date, no validity line, and a red
-  //                     "Aðeins verðhugmynd, ógilt sem tilboð" watermark on every page
 
   try {
     console.log(`Generating quote for record: ${recordId} (mode: ${mode})`);
@@ -788,51 +929,11 @@ export default async function handler(req, res) {
     const linkedIds = project[LINKED_FIELD] || [];
     const lineItems = await getLineItems(token, linkedIds);
 
-    const installPriceInclVat  = parseFloat(project[INSTALL_PRICE_FIELD]  ?? 0) || 0;
-    const deliveryPriceInclVat = parseFloat(project[DELIVERY_PRICE_FIELD] ?? 0) || 0;
-    const hasInstallationData  = installPriceInclVat > 0 || deliveryPriceInclVat > 0;
-
-    const safeTitle = (project[PROJECT_NAME_FIELD] || recordId)
-      .replace(/[/\\:*?"<>]/g, "-")
-      .trim();
+    const { files, totals } = await buildQuoteFiles(project, lineItems, mode, recordId);
 
     console.log("Clearing old attachments…");
     await clearAttachments(token, recordId);
-
-    if ((mode === "combined" || mode === "estimate") && hasInstallationData) {
-      const isEstimate   = mode === "estimate";
-      // Verðhugmynd only shows the Uppsetning line when explicitly opted into via
-      // the checkbox — Tilboð & Uppsetning (combined, a real offer) always shows it.
-      const includeInstallation = isEstimate ? !!project[INSTALL_INCLUDE_FIELD] : true;
-      const virtualItems = buildInstallationLineItems(project, installPriceInclVat, deliveryPriceInclVat, includeInstallation);
-      const allItems     = [...lineItems, ...virtualItems];
-      const allRooms     = new Set(allItems.map((i) => i["Rými 🏡"] || "").filter(Boolean));
-      console.log(`${isEstimate ? "Estimate" : "Combined"} PDF — ${allItems.length} items (${virtualItems.length} installation)`);
-      const pdfBytes = await buildPdf(project, allItems, allRooms.size > 1, isEstimate);
-      await uploadPdf(
-        token,
-        recordId,
-        pdfBytes,
-        isEstimate ? `${safeTitle} (Verðhugmynd).pdf` : `${safeTitle} (Tilboð & Uppsetning).pdf`
-      );
-    } else if (mode === "estimate") {
-      // No installation data — estimate mode still needs the watermark applied to the cabinets-only PDF.
-      const uniqueRooms = new Set(lineItems.map((i) => i["Rými 🏡"] || "").filter(Boolean));
-      console.log(`Estimate PDF (no installation data) — ${lineItems.length} items`);
-      const pdfBytes = await buildPdf(project, lineItems, uniqueRooms.size > 1, true);
-      await uploadPdf(token, recordId, pdfBytes, `${safeTitle} (Verðhugmynd).pdf`);
-    } else {
-      const uniqueRooms = new Set(lineItems.map((i) => i["Rými 🏡"] || "").filter(Boolean));
-      const pdfBytes    = await buildPdf(project, lineItems, uniqueRooms.size > 1);
-      console.log(`Cabinets PDF — ${lineItems.length} items`);
-      await uploadPdf(token, recordId, pdfBytes, `${safeTitle} (Tilboð).pdf`);
-
-      if (hasInstallationData) {
-        console.log(`Installation PDF — uppsetning: ${formatISK(installPriceInclVat)}, heimsending: ${formatISK(deliveryPriceInclVat)}`);
-        const installPdfBytes = await buildInstallationPdf(project, installPriceInclVat, deliveryPriceInclVat);
-        await uploadPdf(token, recordId, installPdfBytes, `${safeTitle} (Uppsetning).pdf`);
-      }
-    }
+    for (const f of files) await uploadPdf(token, recordId, f.bytes, f.filename);
 
     console.log("Done.");
 
@@ -840,8 +941,7 @@ export default async function handler(req, res) {
       success: true,
       recordId,
       mode,
-      installationPrice: installPriceInclVat || null,
-      deliveryPrice: deliveryPriceInclVat || null,
+      ...totals,
     });
   } catch (err) {
     console.error("Failed:", err);
