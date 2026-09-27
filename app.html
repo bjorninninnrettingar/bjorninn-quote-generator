@@ -563,15 +563,26 @@
   var STIMPLANIR_TABLE = "tblnFIO8RB6HcelXF"; // Stimplanir ⏱️ — read-only here (Mínar stundir)
   var P_NAME = "Heiti tækifæris / verkefnis";
 
-  // Two project-list filters, deliberately different (2026-09-23):
+  // Three project-list filters (2026-09-27 — Sög/Yfirfræsing tightened,
+  // see below):
   // NARROW (Verk í vinnslu) = actually on the shop floor — Staða í
   // framleiðslu is "Tilbúið til framleiðslu 📋" or "Verk í vinnslu 🔨".
   // Decided 2026-09-22 after checking real data: a looser filter also
   // caught projects still in office/design stages, not what belongs on a
-  // workshop-floor tile. BROAD (Sög/Yfirfræsing) = any won, not-yet-
-  // delivered project — the same filter /verk-i-gangi.html and grain.html
-  // already use — since cutting/milling for a project often needs to
-  // happen before it's formally "í vinnslu" as a whole.
+  // workshop-floor tile.
+  // READY (Sög/Yfirfræsing) = Staða í skipulagi is exactly "Klárt til
+  // framleiðslu" — the same filter labels.html's and fraesing.html's own
+  // standalone project dropdowns already hard-code. Was BROAD until
+  // 2026-09-27: the user explicitly asked that these two tiles only ever
+  // list production-ready projects, overriding the 2026-09-23 reasoning
+  // below (cutting/milling starting early) — so the in-app picker now
+  // agrees with what those pages themselves already show when opened
+  // directly with no project pre-selected.
+  // BROAD (project search, "Verk í vinnslu" is NOT this) = any won, not-
+  // yet-delivered project — the same filter /verk-i-gangi.html and
+  // grain.html use — kept for the live command-palette project search,
+  // which should find a project to open its /verk overview regardless of
+  // production stage.
   var P_STADA_SOLU = "Staða í söluferli";
   var P_STADA_SKIP = "Staða í skipulagi";
   var P_STADA_FRAM = "Staða í framleiðslu";
@@ -579,6 +590,7 @@
   var P_PROGRESS = "Framvinda framleiðslu [weighted]";
   var P_PRIORITY = "Forgangur framleiðslu 🥇";
   var NARROW_FILTER = "OR({" + P_STADA_FRAM + "} = \"Tilbúið til framleiðslu 📋\", {" + P_STADA_FRAM + "} = \"Verk í vinnslu 🔨\")";
+  var READY_FILTER = "AND({" + P_STADA_SOLU + "} = \"🏆 Tækifæri unnið\", {" + P_STADA_SKIP + "} = \"Klárt til framleiðslu\", {" + P_STADA_FRAM + "} != \"Afhent (LOKIÐ ✅)\")";
   var BROAD_FILTER = "AND({" + P_STADA_SOLU + "} = \"🏆 Tækifæri unnið\", {" + P_STADA_SKIP + "} != \"For-skipulag\", {" + P_STADA_FRAM + "} != \"Afhent (LOKIÐ ✅)\", {" + P_STADA_FRAM + "} != \"Má Afhenda 🚚\")";
 
   var QF_ISSUE  = "Vandamálið";
@@ -839,15 +851,15 @@
   $("tileVerkIGangi").addEventListener("click", openVerkList);
   $("verkBackBtn").addEventListener("click", closeVerkList);
 
-  // Sög — pick a project (broad filter: anything won and not yet delivered,
-  // since cutting often starts before a project is formally "í vinnslu"),
-  // then F6 (Cutty/merkingar) or F2 (Vígindi/æða-leiðsögn) for that project.
+  // Sög — pick a project (READY filter: Staða í skipulagi = "Klárt til
+  // framleiðslu", same as labels.html's own dropdown), then F6 (Cutty/
+  // merkingar) or F2 (Vígindi/æða-leiðsögn) for that project.
   function openSogList() {
     hideTilegrid();
     $("sogChoice").style.display = "none";
     $("sogScreen").style.display = "block";
     window.scrollTo({ top: 0, behavior: "smooth" });
-    loadProjectList(BROAD_FILTER, $("sogStatus"), $("sogItems"), $("sogEmpty"), "c-blue", false, function (rec, name) {
+    loadProjectList(READY_FILTER, $("sogStatus"), $("sogItems"), $("sogEmpty"), "c-blue", false, function (rec, name) {
       setProject({ id: rec.id, name: name });
       openSogChoice();
     });
@@ -875,13 +887,13 @@
     location.href = "/saga" + (p ? "?recordId=" + encodeURIComponent(p.id) : "");
   });
 
-  // Yfirfræsing — pick a project (same broad filter as Sög), straight to
+  // Yfirfræsing — pick a project (same READY filter as Sög), straight to
   // /fraesing for it, no sub-choice needed.
   function openFraesList() {
     hideTilegrid();
     $("fraesScreen").style.display = "block";
     window.scrollTo({ top: 0, behavior: "smooth" });
-    loadProjectList(BROAD_FILTER, $("fraesStatus"), $("fraesItems"), $("fraesEmpty"), "c-green", false, function (rec, name) {
+    loadProjectList(READY_FILTER, $("fraesStatus"), $("fraesItems"), $("fraesEmpty"), "c-green", false, function (rec, name) {
       setProject({ id: rec.id, name: name });
       location.href = "/fraesing?recordId=" + encodeURIComponent(rec.id);
     });

@@ -147,7 +147,7 @@
           '<span class="m date ' + d.cls + '">' + escapeHtml(d.text) + "</span>" +
           (progress != null && progress !== "" ? '<span class="m">' + Math.round(progress * 100) + "% búið</span>" : "") +
         "</div>";
-      card.addEventListener("click", function () { selectProject(rec.id, name); });
+      card.addEventListener("click", function () { selectProject(rec.id, name, f[P_STADA_SKIP] || ""); });
       list.appendChild(card);
     });
   }
@@ -158,9 +158,14 @@
     });
   }
 
-  function selectProject(id, name) {
+  function selectProject(id, name, stadaSkip) {
     try {
-      localStorage.setItem("verkApp:project", JSON.stringify({ id: id, name: name }));
+      // stadaSkip ("Staða í skipulagi") rides along so /app can tell whether
+      // this project is actually "Klárt til framleiðslu" — Merkingar and
+      // Yfirfræsing only ever list projects at that stage themselves
+      // (fetchEligibleProjects in labels.html/fraesing.html), so /app must
+      // not deep-link into either with a project that isn't there yet.
+      localStorage.setItem("verkApp:project", JSON.stringify({ id: id, name: name, stadaSkip: stadaSkip || "" }));
     } catch (e) {}
     location.href = "/app";
   }
