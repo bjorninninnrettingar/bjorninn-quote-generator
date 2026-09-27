@@ -144,7 +144,9 @@ function lv(val) {
 
 function formatDate(val) {
   const d = val ? new Date(val) : new Date();
-  return d.toLocaleDateString("is-IS", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return d.toLocaleDateString("is-IS", {
+    day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Atlantic/Reykjavik",
+  });
 }
 
 // Standard PDF fonts can't encode emoji, and Airtable text fields here are full
@@ -217,7 +219,8 @@ function drawHeader(page, project, logoImg, PW, PH, fontBold, fontReg, hideDate 
     txt(page, tagline, PW - MARGIN - tagW, y, fontReg, 9, GRAY);
 
     if (!hideDate) {
-      const dateStr = `Dagsetning: ${formatDate(project["Skráð þann:"])}`;
+      // Útgáfudagur = the day the quote is generated (the 30-day validity counts from it)
+      const dateStr = `Dagsetning: ${formatDate()}`;
       const dateW = fontReg.widthOfTextAtSize(dateStr, 8);
       txt(page, dateStr, PW - MARGIN - dateW, y - 14, fontReg, 8, GRAY);
     }
@@ -234,7 +237,7 @@ function drawHeader(page, project, logoImg, PW, PH, fontBold, fontReg, hideDate 
     txt(page, tagline, PW - MARGIN - tagW, y, fontReg, 9, GRAY);
 
     if (!hideDate) {
-      const dateStr = `Dagsetning: ${formatDate(project["Skráð þann:"])}`;
+      const dateStr = `Dagsetning: ${formatDate()}`;
       const dateW = fontReg.widthOfTextAtSize(dateStr, 8);
       txt(page, dateStr, PW - MARGIN - dateW, y - 14, fontReg, 8, GRAY);
     }
