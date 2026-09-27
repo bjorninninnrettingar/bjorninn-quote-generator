@@ -154,6 +154,18 @@ const ALLOWED_FIELDS = {
     "Netfang",
     "Síða",
   ],
+  "tbl7K8v94Pf6Ausk3": [ // Skipulag villur 🐞 — kitchen-planner.html's error reporter (both
+    // window.onerror auto-catches and the manual "Tilkynna vandamál" button).
+    // Write-only, same reasoning as Vefspjall above — someone reviews in Airtable.
+    "Titill",
+    "Tími",
+    "Tegund",
+    "Skref",
+    "Villuboð",
+    "Ástand (JSON)",
+    "Vafri",
+    "Slóð",
+  ],
   "tblzkw70E2xoX9RmK": [ // Æðaplan 📐 — grain.html (/aedar office) writes; /saga floor reads
     "Nafn",
     "Tækifæri 📣",
@@ -333,6 +345,9 @@ const CREATABLE_FIELDS = {
   // below for why "Staða" isn't in this list (anyone on the floor can report
   // a problem, but it always starts "opið", never self-set to in-progress).
   "tblDQWuf4OSjUv2XI": ["Nafn þitt", "Vandamálið", "Ábyrgðarmaður", "Tengt verkefni", "Skiladagur"],
+  // kitchen-planner.html's error reporter — see FORCED_CREATE_FIELDS below for
+  // why "Staða" isn't here (every report starts "Ný", reviewed in Airtable).
+  "tbl7K8v94Pf6Ausk3": ["Titill", "Tími", "Tegund", "Skref", "Villuboð", "Ástand (JSON)", "Vafri", "Slóð"],
 };
 
 // Fields forced to a fixed value on create, regardless of what (or whether)
@@ -346,6 +361,7 @@ const FORCED_CREATE_FIELDS = {
   "tbl3e5o0Klv9RcNQ4": (fields) => (fields["Til"] ? { "Staða": "Í bið" } : {}),
   "tbltD1UNpqj05WtMx": { "Staða": "Nýtt" },
   "tblDQWuf4OSjUv2XI": { "Staða": "opið 😠" },
+  "tbl7K8v94Pf6Ausk3": { "Staða": "Ný" },
   // A self-serve submission must never look like reviewed designer work —
   // both the review flag and the pre-production stage are forced server-side
   // so a tampered client request can't skip Rakel's review or jump straight

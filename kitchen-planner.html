@@ -604,7 +604,10 @@
       <div class="kicker" id="kicker">BJÖRNINN · Sjálfsafgreiðsla</div>
       <h1 id="pageTitle">Skipuleggðu eldhúsið þitt</h1>
     </div>
-    <button class="reset-link" id="resetBtn" type="button" title="Hreinsa allt og byrja upp á nýtt">Byrja upp á nýtt</button>
+    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
+      <button class="reset-link" id="resetBtn" type="button" title="Hreinsa allt og byrja upp á nýtt">Byrja upp á nýtt</button>
+      <button class="reset-link" id="reportBtn" type="button" title="Láttu okkur vita ef eitthvað virkar ekki">⚠️ Tilkynna vandamál</button>
+    </div>
   </div>
   <p class="lede" id="pageLede">Svaraðu nokkrum spurningum, smíðaðu rýmið, veldu efnin og raðaðu skápum upp — gróf teikning, engin binding. Söluaðili fer svo yfir og fullkomnar hönnunina með þér.</p>
 
@@ -4410,6 +4413,56 @@
     return data;
   }
 
+  // ---------- issue reporting (development-phase safety net) ----------
+  // Any uncaught JS error, or the visitor's own "eitthvað virkar ekki" report,
+  // is POSTed to "Skipulag villur 🐞" with a full copy of their draft state
+  // attached, so a report is reproducible instead of just "it broke on me".
+  // Auto-reports are capped + deduped per page load so a loop-y error can't
+  // flood Airtable with the same row a hundred times.
+  var ISSUE_TABLE = "tbl7K8v94Pf6Ausk3";
+  var autoReportsSent = 0, MAX_AUTO_REPORTS = 3, reportedMessages = {};
+  function currentStepInfo(){
+    var s = state && state.step;
+    if (s === "shape") return "shape:" + shapePhase;
+    if (s === "materials") return "materials:" + matPhase;
+    return s || "(engin staða)";
+  }
+  function draftSnapshot(){
+    try { return JSON.stringify(state).slice(0, 90000); } // stay under Airtable's long-text limit
+    catch (e){ return "(gat ekki lesið state: " + e.message + ")"; }
+  }
+  async function sendIssueReport(kind, message, extra){
+    var step = currentStepInfo(), title = (kind === "Sjálfvirk villa" ? "🔧 " : "💬 ") + step + " — " + String(message).slice(0, 90);
+    try {
+      await airtableCreate(ISSUE_TABLE, {
+        "Titill": title, "Tími": new Date().toISOString(), "Tegund": kind, "Skref": step,
+        "Villuboð": String(message).slice(0, 9000) + (extra ? "\n\n" + extra : ""),
+        "Ástand (JSON)": draftSnapshot(), "Vafri": navigator.userAgent, "Slóð": location.href
+      });
+    } catch (e) { /* best-effort — a failed report must never itself throw */ }
+  }
+  window.addEventListener("error", function(ev){
+    if (autoReportsSent >= MAX_AUTO_REPORTS) return;
+    var msg = ev.message || (ev.error && ev.error.message) || "Óþekkt villa";
+    if (reportedMessages[msg]) return;
+    reportedMessages[msg] = true; autoReportsSent++;
+    var stack = (ev.error && ev.error.stack) || (ev.filename ? ev.filename + ":" + ev.lineno + ":" + ev.colno : "");
+    sendIssueReport("Sjálfvirk villa", msg, stack);
+  });
+  window.addEventListener("unhandledrejection", function(ev){
+    if (autoReportsSent >= MAX_AUTO_REPORTS) return;
+    var reason = ev.reason, msg = (reason && reason.message) || String(reason) || "Óþekkt Promise-villa";
+    if (reportedMessages[msg]) return;
+    reportedMessages[msg] = true; autoReportsSent++;
+    sendIssueReport("Sjálfvirk villa", msg, reason && reason.stack ? reason.stack : "");
+  });
+  function openReportPop(){
+    var desc = prompt("Lýstu því sem gerðist — því nákvæmar því betra (t.d. \"skápurinn hvarf þegar ég ýtti á ...\"):");
+    if (desc === null) return; // cancelled
+    sendIssueReport("Notandi tilkynnti", desc.trim() || "(engin lýsing gefin)");
+    toast("Takk — sent til okkar. 🙏");
+  }
+
   function validateContact(){
     var ok = true;
     var checks = [
@@ -4608,6 +4661,7 @@
   });
 
   document.getElementById("resetBtn").addEventListener("click", resetAll);
+  document.getElementById("reportBtn").addEventListener("click", openReportPop);
 
   document.getElementById("warnChip").addEventListener("click", function(){
     if (warnings.length) onCabinetSelect({ blockId:warnings[0].ids[0] });
