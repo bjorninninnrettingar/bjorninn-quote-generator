@@ -9,6 +9,7 @@ const ORDERS_TABLE    = "tblSccfV2lBp4FiFU"; // Pantaðir listar
 const PURCHASE_TABLE  = "tbloXR7f9Q943O9el"; // Pöntunarlisti 📋
 const PDF_FIELD_ID    = "fldtAwH9pxf3QSNO3"; // Pantaðir listar → PDF (attachment)
 const LINES_FIELD     = "Pöntunarlisti 📋";  // Pantaðir listar → linked lines
+const GLASS_GERD      = "Gler & speglar";    // Pöntunarlisti Gerð for glass/mirror pieces
 
 // Brand colours — same palette as generate-quote.js
 const GOLD      = rgb(0.808, 0.694, 0.388);
@@ -276,7 +277,7 @@ async function buildOrderPdf(order, lines) {
   y -= 50;
 
   // ── Sort + group by Gerð ─────────────────────────────────────────────────
-  const GERD_ORDER = ["Skúffur", "Höldur", "Fylgihlutir", "Stök vara", "Plötur", "Harðplast", "Kantlíming", "Spónlagt"];
+  const GERD_ORDER = ["Skúffur", "Höldur", "Fylgihlutir", "Stök vara", GLASS_GERD, "Plötur", "Harðplast", "Kantlíming", "Spónlagt"];
   function gerdRank(g) {
     const i = GERD_ORDER.indexOf(g);
     return i === -1 ? GERD_ORDER.length : i;
@@ -353,9 +354,16 @@ async function buildOrderPdf(order, lines) {
     }
 
     const rawName = item["Vörulisti txt"] || item["Vörunúmer #️⃣"] || "";
-    const name  = stripEmoji(rawName) || "—";
+    // Gler & speglar: one line per piece size — the supplier needs B × H and
+    // the spec (þykkt / kantur / hert / göt), which lives in Athugasemd.
+    const isGlass = gerd === GLASS_GERD && item["Breidd (mm)"] && item["Hæð (mm)"];
+    const name  = isGlass
+      ? `${stripEmoji(rawName)} — ${item["Breidd (mm)"]} × ${item["Hæð (mm)"]} mm`
+      : stripEmoji(rawName) || "—";
     const qty   = item["Magn"] ?? "";
-    const litur = stripEmoji(item["Litur"] || "") || "—";
+    const litur = isGlass
+      ? stripEmoji(item["Athugasemd"] || "") || "—"
+      : stripEmoji(item["Litur"] || "") || "—";
     const cost  = parseFloat(item["Áætlaður kostnaður"] ?? 0) || 0;
     totalCost += cost;
 
@@ -367,7 +375,11 @@ async function buildOrderPdf(order, lines) {
     // rather than off the linked board's per-sheet price.
     let unitPrice = null;
     let priceSuffix = "";
-    if (gerd === "Kantlíming" && rawName.startsWith("LOFT")) {
+    if (isGlass) {
+      // Price per piece (m²-verð × flatarmál) — same as the Einingaverð 🔍 formula.
+      const p = parseFloat(item["Einingaverð 🔍"]);
+      unitPrice = Number.isFinite(p) ? p : null;
+    } else if (gerd === "Kantlíming" && rawName.startsWith("LOFT")) {
       unitPrice = 300;
       priceSuffix = "/m";
     } else if (gerd === "Kantlíming" && rawName.startsWith("LÍM")) {
