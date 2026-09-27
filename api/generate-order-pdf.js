@@ -3,6 +3,7 @@
 // pdf-lib, pure JS, no native deps. Mirrors generate-quote.js's structure.
 
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { T, O, getRecord, renderGlassOrder } from "./_glass.js";
 
 const AIRTABLE_BASE   = "app91U15z9K704Okd";
 const ORDERS_TABLE    = "tblSccfV2lBp4FiFU"; // Pantaðir listar
@@ -447,6 +448,13 @@ export default async function handler(req, res) {
 
   try {
     console.log(`Generating order PDF for record: ${recordId}`);
+
+    // Glass/mirror orders (Ísspan) have their own layout — B×H, þykkt, kantur.
+    const byId = await getRecord(token, T.orders, recordId);
+    if ((byId[O.glass] || []).length) {
+      const lineCount = await renderGlassOrder(token, recordId);
+      return res.status(200).json({ success: true, recordId, lineCount, glass: true });
+    }
 
     const order = await getOrder(token, recordId);
     const linkedIds = order[LINES_FIELD] || [];
