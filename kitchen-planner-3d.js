@@ -936,7 +936,7 @@
   // hexxa), a knob (arpa), or a milled groove (fraest); push-open (push)
   // shows no hardware. Fronts: drawers → equal rows, tall unit → two doors,
   // anything else → one door. Purely visual — nothing here is submitted.
-  function addFrontDetails(THREE, group, geom, offsetM, widthM, heightM, baseYM, depthM, interior, handleKey, isTall, isWallRow, split, meta){
+  function addFrontDetails(THREE, group, geom, offsetM, widthM, heightM, baseYM, depthM, interior, handleKey, isTall, isWallRow, split, meta, frontMat){
     if (meta && meta.open) return; // open shelves have no fronts
     var xAxis = new THREE.Vector3(geom.axis.x, 0, geom.axis.z);
     var quat = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(xAxis, new THREE.Vector3(0, 1, 0), new THREE.Vector3(geom.normal.x, 0, geom.normal.z)));
@@ -1010,7 +1010,7 @@
       var twoLeaf = wideDoor && !f.drawer && !(meta && meta.vertical);
       var sides = twoLeaf ? [-1, 1] : [freeRight ? 1 : -1];
       function edgeAlong(sg, inset){ return twoLeaf ? sg * inset * 0.6 : sg * (hw / 2 - inset) + hOff; }
-      if (vertical && !(hcfg && hcfg.kind === "hexxa") && !(hcfg && hcfg.file)){ // plain vertical versions of the drawn handles
+      if (vertical && !(hcfg && /^(hexxa|sponagrip)$/.test(hcfg.kind)) && !(hcfg && hcfg.file)){ // plain vertical versions of the drawn handles
         var vy = (top + bottom) / 2;
         if (hstyle === "bar"){ var vl = Math.min(hdef.len || 0.24, doorH * 0.6); sides.forEach(function(sg){ place(new THREE.Mesh(new THREE.BoxGeometry(0.012, vl, 0.02), handleMat), vy, 0.012, edgeAlong(sg, 0.05)); }); return; }
         if (hstyle === "edge"){ sides.forEach(function(sg){ place(new THREE.Mesh(new THREE.BoxGeometry(0.02, doorH * 0.94, 0.016), handleMat), vy, 0.008, edgeAlong(sg, 0.012)); }); return; }
@@ -1031,6 +1031,21 @@
             place(new THREE.Mesh(new THREE.BoxGeometry(hl, 0.003, 0.004), handleMat), top - 0.0315, 0.002, hOff);
           }
         }
+        return;
+      }
+      if (hcfg && hcfg.kind === "sponagrip"){ // milled solid-wood grip: rounded cove cut into the front, always the FRONT's own material (frontMat) — never a fixed colour, it's the wood itself, routed
+        var sm2 = (hcfg.marginMm || 50) / 1000;
+        var gripMat = frontMat ? frontMat.clone() : handleMat;
+        if (gripMat.roughness != null) gripMat.roughness = Math.min(1, gripMat.roughness + 0.12); // a routed surface reads a touch more matte than the sanded front
+        function cove(len, radius){ // a partial cylinder standing in for the rounded cove floor — its curve is what sells "rúnaður botn" vs. Hexxa's flat dark slot
+          var geo = new THREE.CylinderGeometry(radius, radius, Math.max(0.05, len), 16, 1, true, Math.PI * 0.12, Math.PI * 0.76);
+          var m = new THREE.Mesh(geo, gripMat); m.receiveShadow = true; return m;
+        }
+        if (vertical){ sides.forEach(function(sg){ place(cove(doorH - 2 * sm2, 0.011), (top + bottom) / 2, meta && meta.slab ? -FRONT_T / 2 + 0.0008 : 0.008, edgeAlong(sg, 0.02)); }); return; }
+        var sl = Math.max(0.05, hw - 2 * sm2), wrap = new THREE.Group(), inner = cove(sl, 0.013);
+        inner.rotation.z = Math.PI / 2; // cylinder's own axis (y) -> the handle's local x ("along the front") — place() would overwrite a rotation set on the mesh itself, hence the wrapper group
+        wrap.add(inner);
+        place(wrap, top - 0.02, meta && meta.slab ? -FRONT_T / 2 + 0.0008 : 0.008, hOff);
         return;
       }
       if (hcfg && hcfg.kind === "jey"){ // full-width profile that replaces stripMm of the front (see addArticulated)
@@ -1199,7 +1214,7 @@
     }
     if (meta && meta.locked && meta.zone !== "opening") addLockBadge(THREE, group, local(0, baseYM + heightM + (meta.counter ? 0.16 : 0.1), depthM / 2));
     if (art) addArticulated(THREE, scene, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta, useFrontMat, pickables);
-    else if (meta && meta.zone !== "opening" && !isPanel) addFrontDetails(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta.handle, !!meta.tall, meta.zone === "wall", meta.split || 0.55, meta);
+    else if (meta && meta.zone !== "opening" && !isPanel) addFrontDetails(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta.handle, !!meta.tall, meta.zone === "wall", meta.split || 0.55, meta, useFrontMat);
   }
 
   // Small padlock floating over a locked cabinet.
@@ -1285,7 +1300,7 @@
       var freeSideA = hinge === "left" ? "right" : "left", stripA = hcfgA && hcfgA.kind === "jey" ? (hcfgA.stripMm || 27) / 1000 : 0;
       // a Jey profile REPLACES stripMm of the front: the slab is that much shorter (top strip) or narrower (side strip on tall units)
       var slabW = w - 0.004 - (vertA ? stripA : 0), slabH = fh - (vertA ? 0 : stripA);
-      var notchA = hcfgA && hcfgA.kind === "hexxa" && !vertA ? { len:Math.max(0.05, slabW - 2 * (hcfgA.marginMm || 50) / 1000), h:0.03 } : null;
+      var notchA = hcfgA && /^(hexxa|sponagrip)$/.test(hcfgA.kind) && !vertA ? { len:Math.max(0.05, slabW - 2 * (hcfgA.marginMm || 50) / 1000), h:0.03 } : null;
       var slab = hcfgA && hcfgA.kind === "jey" && (hcfgA.profileMm || 0) > (hcfgA.stripMm || 27)
         ? frontSlabLip(THREE, slabW, slabH, frontMat, (hcfgA.profileMm - (hcfgA.stripMm || 27)) / 1000, 0.002, vertA ? freeSideA : "top")
         : frontSlab(THREE, slabW, slabH, frontMat, notchA);
@@ -1295,7 +1310,7 @@
       if (meta.handle){
         var tmp = new THREE.Group();
         var fake = { origin:{ x:cxL - w / 2, z:0 }, axis:{ x:1, z:0 }, normal:{ x:0, z:1 }, lenM:w };
-        addFrontDetails(THREE, tmp, fake, 0, w, fh, y0, depthM, { mode:"skuffur", count:1 }, meta.handle, false, meta.zone === "wall" || (meta.tall && fi > 0 && !f.drawer), 0.55, { vertical:vertA, freeSide:freeSideA, slab:true });
+        addFrontDetails(THREE, tmp, fake, 0, w, fh, y0, depthM, { mode:"skuffur", count:1 }, meta.handle, false, meta.zone === "wall" || (meta.tall && fi > 0 && !f.drawer), 0.55, { vertical:vertA, freeSide:freeSideA, slab:true }, frontMat);
         tmp.children.slice().forEach(function(ch){ ch.position.x -= pivotX; g.add(ch); if (ch.isMesh) meshes.push(ch); else ch.traverse(function(o){ if (o.isMesh) meshes.push(o); }); });
       }
       if (f.drawer){
@@ -2092,7 +2107,7 @@
     var geoms = wallGeoms(state);
     var surfaces = surfacesOf(state), allGeoms = geoms.concat(islandGeoms(state)); // walls + island rows
     var carcass = state.carcass ? CARCASS[state.carcass] : null;
-    var jeyOn = !!(state.handle && window.KPMODELS && window.KPMODELS.handles && window.KPMODELS.handles[state.handle] && /^(jey|hexxa)$/.test(window.KPMODELS.handles[state.handle].kind)); // Jey (on top of the front) and Hexxa (cut into it) need separate fronts
+    var jeyOn = !!(state.handle && window.KPMODELS && window.KPMODELS.handles && window.KPMODELS.handles[state.handle] && /^(jey|hexxa|sponagrip)$/.test(window.KPMODELS.handles[state.handle].kind)); // Jey (on top of the front), Hexxa and Spónagrip (both cut into it) need separate fronts
     var carcassMat = new THREE.MeshStandardMaterial({ color: carcass ? carcass.color3d : "#3a3a3a", roughness:0.9 });
     var wallColor = state.wallColor && WALL_COLORS[state.wallColor] ? WALL_COLORS[state.wallColor].hex : "#f1efe8";
     var wallMat = new THREE.MeshStandardMaterial({ color:wallColor, roughness:1, side:THREE.DoubleSide });
@@ -2571,7 +2586,7 @@
       var y0 = PL + BODY * bounds[i] + (i === 0 ? 0.0015 : 0.0015), y1 = PL + BODY * bounds[i + 1] - (i === 2 ? 0.0015 : 0.0015), fh = y1 - y0;
       if (showFronts){
         var jcfgW = cfg.showHandle && cfg.handle && window.KPMODELS && window.KPMODELS.handles && window.KPMODELS.handles[cfg.handle], stripW = jcfgW && jcfgW.kind === "jey" ? (jcfgW.stripMm || 27) / 1000 : 0; // Jey takes its height off the front
-        var notchW = jcfgW && jcfgW.kind === "hexxa" ? { len:Math.max(0.05, W - 0.004 - 2 * (jcfgW.marginMm || 50) / 1000), h:0.03 } : null;
+        var notchW = jcfgW && /^(hexxa|sponagrip)$/.test(jcfgW.kind) ? { len:Math.max(0.05, W - 0.004 - 2 * (jcfgW.marginMm || 50) / 1000), h:0.03 } : null;
         var slab = jcfgW && jcfgW.kind === "jey" && (jcfgW.profileMm || 0) > (jcfgW.stripMm || 27)
           ? frontSlabLip(THREE, W - 0.004, fh - stripW, frontMat, (jcfgW.profileMm - (jcfgW.stripMm || 27)) / 1000, 0.002, "top")
           : frontSlab(THREE, W - 0.004, fh - stripW, frontMat, notchW);
@@ -2579,7 +2594,7 @@
         dg.add(slab); pickables.push(slab);
         if (cfg.showHandle && cfg.handle){
           var tmp = new THREE.Group();
-          addFrontDetails(THREE, tmp, geomFake, 0, W, fh, y0, D, { mode:"skuffur", count:1 }, cfg.handle, false, false, 0.55, { slab:true });
+          addFrontDetails(THREE, tmp, geomFake, 0, W, fh, y0, D, { mode:"skuffur", count:1 }, cfg.handle, false, false, 0.55, { slab:true }, frontMat);
           tmp.children.slice().forEach(function(ch){ dg.add(ch); if (ch.isMesh) pickables.push(ch); });
         }
       }

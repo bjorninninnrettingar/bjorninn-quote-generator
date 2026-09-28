@@ -3335,7 +3335,14 @@
 
   // ---------- materials step (carcass / front / opening / drawers) ----------
   function selectCarcass(key){ state.carcass = key; save(); renderMaterials(); }
-  function selectLook(key){ state.look = key; save(); renderMaterials(); }
+  function selectLook(key){
+    state.look = key;
+    // a handle that requires a specific front category (spónagrip -> spónlagt) can't survive a front
+    // change away from that category — drop it back to unset rather than silently keep an invalid combo
+    var l = LOOKS[key], h = state.handle ? HANDLES[state.handle] : null;
+    if (h && h.requiresFrontCategory && (!l || l.category !== h.requiresFrontCategory)) state.handle = null;
+    save(); renderMaterials();
+  }
   function selectTop(key){ state.top = key; save(); renderMaterials(); }
   function selectHandle(key){ state.handle = key; save(); renderMaterials(); }
   function selectDrawerSystem(key){ state.drawerSystem = key; save(); renderMaterials(); }
@@ -3401,7 +3408,18 @@
     });
   }
 
-  function handlesOf(group){ return Object.keys(HANDLES).filter(function(k){ return !HANDLES[k].hidden && HANDLES[k].group === group; }); }
+  // requiresFrontCategory (e.g. spónagrip -> "sponlagt") gates a handle out of the picker whenever
+  // the customer's chosen front isn't that category — it's milled out of the front's own solid
+  // material, so it doesn't exist as a product on any other front type (2026-09-28).
+  function handlesOf(group){
+    var frontCat = state.look && LOOKS[state.look] ? LOOKS[state.look].category : null;
+    return Object.keys(HANDLES).filter(function(k){
+      var h = HANDLES[k];
+      if (h.hidden || h.group !== group) return false;
+      if (h.requiresFrontCategory && h.requiresFrontCategory !== frontCat) return false;
+      return true;
+    });
+  }
   function renderHandleCards(keepTab){
     var groups = KP3D.HANDLE_GROUPS;
     if (!keepTab && state.handle && HANDLES[state.handle] && HANDLES[state.handle].group && !HANDLES[state.handle].hidden) matTab.handle = HANDLES[state.handle].group;

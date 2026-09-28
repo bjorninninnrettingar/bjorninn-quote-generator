@@ -70,6 +70,12 @@ window.KPMODELS = {
     // "Sense mini" is a different, smaller product — not mapped here, only "Sense Big" this model represents.
     sense:              { file:"models/handles/sense-big.glb", kind:"bar", map:["-z", "-x", "y"], dropFlat:true, color:"#1a1a1c", fitMarginMm:100,
                             lenOptions:[{ mm:140, vorulistiId:"recdosOPHSV6HhP5X" }, { mm:200, vorulistiId:"recZ8EyutxaLegwx6" }, { mm:330, vorulistiId:"reci8JxVITzeV1Kau" }, { mm:490, vorulistiId:"rec8Ul1W9laaMsBeO" }] },
-    hexxa:              { kind:"hexxa", marginMm:50, file:null }
+    hexxa:              { kind:"hexxa", marginMm:50, file:null },
+    // Spónagrip (2026-09-28): like Hexxa (milled into the front, no model, equal distance to both
+    // sides), but the channel reads as a rounded cove rather than a flat dark slot, and `matchFront:true`
+    // tells addFrontDetails() to colour it with the front's own material instead of a fixed dark one —
+    // it's the solid front itself, routed, not an applied profile. Only offered on Spónlagt fronts
+    // (KPHANDLES.items.sponagrip.requiresFrontCategory, enforced in kitchen-planner.html's handlesOf()).
+    sponagrip:          { kind:"sponagrip", marginMm:50, matchFront:true, file:null }
   }
 };
