@@ -49,14 +49,27 @@ window.KPMODELS = {
     jey:                { file:"models/handles/jey.glb",   kind:"jey", map:["-y", "-z", "x"], color:"#b8935a", stripMm:27, profileMm:37 },
     jey2:               { file:"models/handles/jey.glb",   kind:"jey", map:["-y", "-z", "x"], color:"#1b1b1d", stripMm:27, profileMm:37 },
     // Comet: 200 mm, mounted on the top edge of the front; model x = the 40 mm it projects, y = length, z = thickness (flat side up)
-    comet:              { file:"models/handles/comet.glb", kind:"topmount", map:["y", "z", "x"], lenMm:200 },
+    // `lenOptions` = the real orderable lengths (Vörulisti record ids attached), largest that still fits the
+    // front (2026-09-28: "plannerinn sýnir bara það sem er til" — every rendered size must be a real, orderable
+    // product, never an invented one). `pickHandleLenM()` in kitchen-planner-3d.js does the picking.
+    comet:              { file:"models/handles/comet.glb", kind:"topmount", map:["y", "z", "x"],
+                            lenOptions:[{ mm:50, vorulistiId:"rec2TuLmbcn0pFOpw" }, { mm:200, vorulistiId:"recBTiHO5kO5lOWvu" }] },
     // Vann: 200 mm flip on the top edge (the file holds 100/200/350/1200 mm pieces, two meshes each: `skip`/`take` pick the 200 mm one; embedMm = the 90° corner sits inside the front, behind its face; dropMm = lowered so the flat part rests on the front)
+    // NOT YET a real Vörulisti/Útfærslur product (2026-09-28) — Björninn sells it, but the record needs a real
+    // purchase price + supplier before it can be created; ask before wiring it into Line Items.
     vann:               { file:"models/handles/vann.glb", kind:"topmount", map:["y", "z", "x"], skip:2, take:2, color:"#b87a55", lenMm:200, embedMm:20, dropMm:17, flip:true },
-    // Fest framan á (screwed onto the face). lenMm = the size of the real product; fitMarginMm = keeps this much clear on each side of a narrow front
-    angle:              { file:"models/handles/angle.glb", kind:"bar", map:["-z", "y", "x"], color:"#17171a", lenMm:600, fitMarginMm:100 },
-    crossing:           { file:"models/handles/crossing.glb", kind:"bar", map:["-z", "-x", "y"], lenMm:328, fitMarginMm:100 },
-    graf:               { file:"models/handles/graf-big.glb", kind:"bar", map:["y", "-x", "z"], posts:true, color:"#1e1d1d", lenMm:320, fitMarginMm:100 },
-    sense:              { file:"models/handles/sense-big.glb", kind:"bar", map:["-z", "-x", "y"], dropFlat:true, color:"#1a1a1c", lenMm:263, fitMarginMm:100 },
+    // Fest framan á (screwed onto the face). fitMarginMm = keeps this much clear on each side of a narrow front
+    angle:              { file:"models/handles/angle.glb", kind:"bar", map:["-z", "y", "x"], color:"#17171a", fitMarginMm:100,
+                            lenOptions:[{ mm:100, vorulistiId:"recVR0zhe2B29nykK" }, { mm:200, vorulistiId:"recShNvBhme2tEaSV" }, { mm:300, vorulistiId:"recNvdiWxt85OT23i" }] },
+    // "Crossing hnúði" (a knob, not a bar) also exists in the same product line but isn't this shape — left out.
+    crossing:           { file:"models/handles/crossing.glb", kind:"bar", map:["-z", "-x", "y"], fitMarginMm:100,
+                            lenOptions:[{ mm:170, vorulistiId:"rectGcCcmTA8MbckY" }, { mm:330, vorulistiId:"recuTvYTlOrGGjgjQ" }] },
+    // "Graf mini" is a different, smaller product — not mapped here, only the "Graf Big" this model represents.
+    graf:               { file:"models/handles/graf-big.glb", kind:"bar", map:["y", "-x", "z"], posts:true, color:"#1e1d1d", fitMarginMm:100,
+                            lenOptions:[{ mm:220, vorulistiId:"recN7ZlBexPkzG1wp" }, { mm:350, vorulistiId:"recOZvCTG3z4OPuC3" }] },
+    // "Sense mini" is a different, smaller product — not mapped here, only "Sense Big" this model represents.
+    sense:              { file:"models/handles/sense-big.glb", kind:"bar", map:["-z", "-x", "y"], dropFlat:true, color:"#1a1a1c", fitMarginMm:100,
+                            lenOptions:[{ mm:140, vorulistiId:"recdosOPHSV6HhP5X" }, { mm:200, vorulistiId:"recZ8EyutxaLegwx6" }, { mm:330, vorulistiId:"reci8JxVITzeV1Kau" }, { mm:490, vorulistiId:"rec8Ul1W9laaMsBeO" }] },
     hexxa:              { kind:"hexxa", marginMm:50, file:null }
   }
 };

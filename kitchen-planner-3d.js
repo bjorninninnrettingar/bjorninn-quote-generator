@@ -890,6 +890,16 @@
     g.userData.size = { len:lenM || (b.max.x - b.min.x), h:b.max.y - b.min.y, d:b.max.z - b.min.z };
     return g;
   }
+  // The largest of a handle's real orderable lengths (`cfg.lenOptions`, mm + Vörulisti id) that still fits
+  // `availM` metres, falling back to the shortest option if even that doesn't fit — every length this ever
+  // returns is a real, orderable product, never an invented size (2026-09-28: "sýnir bara það sem er til").
+  // A handle with no `lenOptions` (Vann — not a real Vörulisti product yet) falls back to its plain `lenMm`.
+  function pickHandleLenM(cfg, availM){
+    if (!cfg.lenOptions || !cfg.lenOptions.length) return (cfg.lenMm || 200) / 1000;
+    var ms = cfg.lenOptions.map(function(o){ return o.mm / 1000; }).sort(function(a, b){ return a - b; });
+    var fits = ms.filter(function(m){ return m <= Math.max(0, availM); });
+    return fits.length ? fits[fits.length - 1] : ms[0];
+  }
   // the two real drawer sides (left/right) for this system + height code + colour, or null
   function realSides(sysKey, code, dark){
     var e = window.KPMODELS && window.KPMODELS.drawerSides && window.KPMODELS.drawerSides[sysKey + "_" + code];
@@ -1039,7 +1049,7 @@
         }
       }
       if (hcfg && hcfg.kind === "topmount"){ // sits ON the top edge of the front (flat side up, under the worktop), projecting out of it
-        var tl = (hcfg.lenMm || 200) / 1000, leafW = twoLeaf ? hw / 2 : hw, tlen = Math.min(tl, leafW - 0.06), tpf = handleProfile(THREE, handleKey, tlen < tl ? tlen : null);
+        var leafW = twoLeaf ? hw / 2 : hw, tlen = pickHandleLenM(hcfg, leafW - 0.06), tpf = handleProfile(THREE, handleKey, tlen);
         if (tpf){
           if (vertical){ // tall units: an edge pull on the free side, at chest height
             var vyc = Math.max(bottom + 0.12, Math.min(top - 0.12, 1.05));
@@ -1052,8 +1062,8 @@
         }
       }
       if (hcfg && hcfg.kind === "bar" && hcfg.file){ // a real pull screwed onto the face: centred, upright on tall units
-        var wantB = (hcfg.lenMm || 0) / 1000, leafB = twoLeaf ? hw / 2 : hw, fitB = wantB ? Math.min(wantB, leafB - 2 * (hcfg.fitMarginMm || 60) / 1000) : 0;
-        var bp = handleProfile(THREE, handleKey, hcfg.posts ? Math.max(0.1, fitB) : (wantB && fitB < wantB ? Math.max(0.1, fitB) : null));
+        var leafB = twoLeaf ? hw / 2 : hw, fitB = pickHandleLenM(hcfg, leafB - 2 * (hcfg.fitMarginMm || 60) / 1000);
+        var bp = handleProfile(THREE, handleKey, Math.max(0.05, fitB));
         if (bp){
           if (vertical){ var vyb = Math.max(bottom + 0.12, Math.min(top - 0.12, 1.05)); sides.forEach(function(sg){ var rot2 = new THREE.Group(), g2 = new THREE.Group(); rot2.add(bp.clone(true)); rot2.rotation.z = Math.PI / 2; g2.add(rot2); place(g2, vyb, 0, edgeAlong(sg, 0.05)); }); }
           else (twoLeaf ? [-hw / 4, hw / 4] : [hOff]).forEach(function(cxB){ var rotB = new THREE.Group(), gB = new THREE.Group(); rotB.add(bp.clone(true)); gB.add(rotB); place(gB, atBottom ? bottom + 0.06 : hy, 0, cxB); });
