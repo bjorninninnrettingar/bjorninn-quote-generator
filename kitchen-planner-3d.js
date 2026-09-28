@@ -1153,7 +1153,8 @@
     group.add(edges);
     if (meta) meta.edgesObj = edges;
     if (meta && meta.zone !== "opening"){ // back-face fade (see fadeCabinets in buildScene)
-      group.userData.cab = { blockId:meta.blockId, nx:geom.normal.x, nz:geom.normal.z, d:geom.normal.x * geom.origin.x + geom.normal.z * geom.origin.z, t:0, items:null };
+      group.userData.cab = { blockId:meta.blockId, nx:geom.normal.x, nz:geom.normal.z, d:geom.normal.x * geom.origin.x + geom.normal.z * geom.origin.z, t:0, items:null,
+        edgesMat:edges.material, edgesBaseOpacity:edges.material.opacity };
       (scene.userData.cabs = scene.userData.cabs || []).push(group);
     }
 
@@ -1603,10 +1604,15 @@
       if (drag.meta.kind === "door") ty = mesh.position.y;
       else if (isWallItem(drag.meta)) ty = mesh.position.y + ((drop.elevMm != null ? drop.elevMm : (drag.meta.elevMm || 0)) - (drag.meta.elevMm || 0)) / 1000; // follows the cursor up and down the wall
       else ty = mesh.position.y + 0.035; // floor units lift a touch, as if held
+      // Pull the dragged item 20 mm further out from the wall than it'll actually land — purely visual, never
+      // affects the committed drop (onUp computes `finalDrop` fresh with its own raycast). Without this, sliding
+      // a cabinet past a stationary neighbour on the same wall put both at the exact same depth and z-fought.
+      // Doors/windows sit flush in the wall plane and stay there (popping them out would look wrong).
+      var normOut = depthM / 2 + (drag.meta.kind === "door" ? 0 : 0.02);
       tgtPos.set(
-        g.origin.x + g.axis.x * (offsetM + widthM / 2) + g.normal.x * (depthM / 2),
+        g.origin.x + g.axis.x * (offsetM + widthM / 2) + g.normal.x * normOut,
         ty,
-        g.origin.z + g.axis.z * (offsetM + widthM / 2) + g.normal.z * (depthM / 2));
+        g.origin.z + g.axis.z * (offsetM + widthM / 2) + g.normal.z * normOut);
       tgtQuat.setFromRotationMatrix(new THREE.Matrix4().makeBasis(
         new THREE.Vector3(g.axis.x, 0, g.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(g.normal.x, 0, g.normal.z)));
       if (!drag.curPos){ drag.curPos = mesh.position.clone(); drag.curQuat = mesh.quaternion.clone(); }
@@ -2402,6 +2408,11 @@
           c.items.push({ o:o, orig:o.material, cast:o.castShadow, ghost:Array.isArray(o.material) ? o.material.map(cl) : cl(o.material) });
         });
       }
+      // The dark outline (`edges`, EdgesGeometry sitting exactly on the box's own faces) stayed at full
+      // opacity while the faces underneath faded to near-nothing — two coincident semi-transparent surfaces
+      // with no stable draw order, which is what read as a flickering/speckled dark edge on a ghosted cabinet
+      // seen from behind. Fading the outline down together with the faces removes the coincidence.
+      if (c.edgesMat){ c.edgesMat.opacity = c.edgesBaseOpacity - (c.edgesBaseOpacity - GHOST_OPACITY) * t; c.edgesMat.depthWrite = t < 0.4; }
       c.items.forEach(function(it){
         (Array.isArray(it.ghost) ? it.ghost : [it.ghost]).forEach(function(m){ m.opacity = 1 - (1 - GHOST_OPACITY) * t; m.depthWrite = t < 0.4; });
         it.o.material = t > 0.01 ? it.ghost : it.orig;
