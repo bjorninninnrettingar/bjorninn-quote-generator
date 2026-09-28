@@ -1033,19 +1033,24 @@
         }
         return;
       }
-      if (hcfg && hcfg.kind === "sponagrip"){ // milled solid-wood grip: rounded cove cut into the front, always the FRONT's own material (frontMat) — never a fixed colour, it's the wood itself, routed
-        var sm2 = (hcfg.marginMm || 50) / 1000;
+      if (hcfg && hcfg.kind === "sponagrip"){ // milled solid-wood grip: a real finger-scoop routed under the top edge, always the FRONT's own material (frontMat) — never a fixed colour, it's the wood itself, routed
+        // reference: the customer sent a real product photo (2026-09-28) — a deep rounded scoop sitting
+        // right at the top-front edge (not a shallow centred groove); sized and positioned to read that way.
+        // The physical cut (notchA/notchW below) is a fixed 30 mm-tall notch — R stays under half that,
+        // with a couple mm of margin top and bottom, so the circle never pokes out above the front or
+        // below the cut.
+        var sm2 = (hcfg.marginMm || 50) / 1000, R = 0.013, Rv = 0.011;
         var gripMat = frontMat ? frontMat.clone() : handleMat;
         if (gripMat.roughness != null) gripMat.roughness = Math.min(1, gripMat.roughness + 0.12); // a routed surface reads a touch more matte than the sanded front
-        function cove(len, radius){ // a partial cylinder standing in for the rounded cove floor — its curve is what sells "rúnaður botn" vs. Hexxa's flat dark slot
-          var geo = new THREE.CylinderGeometry(radius, radius, Math.max(0.05, len), 16, 1, true, Math.PI * 0.12, Math.PI * 0.76);
+        function cove(len, radius){ // a partial cylinder standing in for the rounded cove floor — its curve is what sells "rúnaður botn" vs. Hexxa's flat dark slot; wide, deep arc so it reads as a real finger-pull, not a decorative line
+          var geo = new THREE.CylinderGeometry(radius, radius, Math.max(0.05, len), 20, 1, true, Math.PI * 0.02, Math.PI * 0.92);
           var m = new THREE.Mesh(geo, gripMat); m.receiveShadow = true; return m;
         }
-        if (vertical){ sides.forEach(function(sg){ place(cove(doorH - 2 * sm2, 0.011), (top + bottom) / 2, meta && meta.slab ? -FRONT_T / 2 + 0.0008 : 0.008, edgeAlong(sg, 0.02)); }); return; }
-        var sl = Math.max(0.05, hw - 2 * sm2), wrap = new THREE.Group(), inner = cove(sl, 0.013);
+        if (vertical){ sides.forEach(function(sg){ place(cove(doorH - 2 * sm2, Rv), (top + bottom) / 2, meta && meta.slab ? -FRONT_T / 2 + 0.0015 : 0.012, edgeAlong(sg, 0.02)); }); return; }
+        var sl = Math.max(0.05, hw - 2 * sm2), wrap = new THREE.Group(), inner = cove(sl, R);
         inner.rotation.z = Math.PI / 2; // cylinder's own axis (y) -> the handle's local x ("along the front") — place() would overwrite a rotation set on the mesh itself, hence the wrapper group
         wrap.add(inner);
-        place(wrap, top - 0.02, meta && meta.slab ? -FRONT_T / 2 + 0.0008 : 0.008, hOff);
+        place(wrap, top - R - 0.002, meta && meta.slab ? -FRONT_T / 2 + 0.0015 : 0.012, hOff); // top of the circle sits ~2 mm below the front's top edge, inside the 30 mm cut
         return;
       }
       if (hcfg && hcfg.kind === "jey"){ // full-width profile that replaces stripMm of the front (see addArticulated)
@@ -1192,7 +1197,7 @@
     }
     if (meta && meta.counter && meta.stoneMat){
       var topGeo = new THREE.BoxGeometry(widthM + 0.001, 0.032, depthM + 0.02);
-      scaleFrontUV(topGeo, widthM, depthM + 0.02, meta.stoneMat.userData && meta.stoneMat.userData.tile);
+      scaleFrontUV(topGeo, widthM, depthM + 0.02, meta.stoneMat.userData && meta.stoneMat.userData.tile, meta.stoneMat.userData && meta.stoneMat.userData.rotateTex);
       var top = new THREE.Mesh(topGeo, meta.stoneMat);
       top.position.copy(local(0, baseYM + heightM + 0.016, (depthM + 0.02) / 2));
       top.quaternion.copy(quat);
@@ -1944,6 +1949,9 @@
     if (topDef && topDef.tex){
       var m = new THREE.MeshStandardMaterial({ map:imgTex(THREE, topDef.tex), roughness:0.42, metalness:0.02 });
       m.userData.tile = { w:0.9, h:0.9 };
+      // Límtré (glulam) worktops: the source photo's grain runs "up" the image — turned 90° here so it
+      // runs side to side across the counter (widthwise) instead of front-to-back (2026-09-28, user request).
+      if (topDef.group === "limtre") m.userData.rotateTex = true;
       return m;
     }
     if (topDef && topDef.group !== "steinn") return new THREE.MeshStandardMaterial({ color:topDef.color3d, roughness:0.45 });
@@ -1973,10 +1981,16 @@
   }
 
   // Rescale a box's UVs so one texture tile covers tile.w × tile.h metres.
-  function scaleFrontUV(geo, widthM, heightM, tile){
+  // `swap` transposes u/v first — a 90° turn of the texture's own pattern (e.g. Límtré's grain,
+  // stored running "up" the source photo) onto the box's other axis, without touching the geometry.
+  function scaleFrontUV(geo, widthM, heightM, tile, swap){
     if (!tile) return;
     var uv = geo.attributes.uv;
-    for (var i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * widthM / tile.w, uv.getY(i) * heightM / tile.h);
+    for (var i = 0; i < uv.count; i++){
+      var u = uv.getX(i), v = uv.getY(i);
+      if (swap) uv.setXY(i, v * widthM / tile.w, u * heightM / tile.h);
+      else uv.setXY(i, u * widthM / tile.w, v * heightM / tile.h);
+    }
     uv.needsUpdate = true;
   }
 
@@ -2566,7 +2580,7 @@
     if (cfg.showTop){
       var topMat = makeTopMaterial(THREE, cfg.top);
       var topGeo = new THREE.BoxGeometry(W + 0.001, 0.032, D + 0.02);
-      scaleFrontUV(topGeo, W + 0.001, D + 0.02, topMat.userData && topMat.userData.tile); // over the top face (width × depth), not the thin edge
+      scaleFrontUV(topGeo, W + 0.001, D + 0.02, topMat.userData && topMat.userData.tile, topMat.userData && topMat.userData.rotateTex); // over the top face (width × depth), not the thin edge
       var topMesh = new THREE.Mesh(topGeo, topMat);
       topMesh.position.set(0, H + 0.016, (D + 0.02) / 2); topMesh.castShadow = true; topMesh.receiveShadow = true;
       group.add(topMesh);
