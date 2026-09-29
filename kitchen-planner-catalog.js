@@ -307,13 +307,25 @@ window.KPCAT = {
    "color3d": "#b3ab9e",
    "desc": "Framhliðaefni, matt"
   },
+  // efnislistiId = the plain-front Efnislisti record (Spónlagt af Birninum, no handle).
+  // gripalistarId = the SAME wood species' "m gripalistum" variant — a genuinely different physical
+  // product (front + built-in grip rail milled/pressed in), not a colour option. This is what Spónagrip
+  // (kitchen-planner-handles.js) actually resolves to when picked: 2026-09-29, the customer clarified
+  // "spónagrip er í raun fast við frontaefni" (spónagrip is really tied to the front material) — it is
+  // NOT a separate machining step recorded elsewhere (unlike Jey/Hexxa's "Grip? - Skipulag" field), it's
+  // simply ordering the gripalistar SKU of the chosen species instead of the plain one. Wired 2026-09-29
+  // in submitPlan() (kitchen-planner.html). sp00 has no gripalistar counterpart in Efnislisti at all —
+  // Spónagrip + sp00 together falls back to a note (see submitPlan()). sp05/sp06/sp07 have neither
+  // (permanent gaps, confirmed with the user 2026-09-28 — "beil á ask og kirsuber", sp06 lost its only
+  // candidate once Master eik was correctly excluded as Viðarlíki not Spónlagt).
   "sp00": {
    "label": "Eik, ljós",
    "category": "sponlagt",
    "img": "materials/site/sp00.jpg",
    "prev": "materials/site/sp00-prev.jpg",
    "color3d": "#e5ccac",
-   "desc": "Ekta viðarspónn"
+   "desc": "Ekta viðarspónn",
+   "efnislistiId": "recySF53whzjg5yJV"
   },
   "sp01": {
    "label": "Eik, þvegin grá",
@@ -321,7 +333,9 @@ window.KPCAT = {
    "img": "materials/site/sp01.jpg",
    "prev": "materials/site/sp01-prev.jpg",
    "color3d": "#c1a68c",
-   "desc": "Ekta viðarspónn"
+   "desc": "Ekta viðarspónn",
+   "efnislistiId": "recC4sVQ9NkQZTNkk",
+   "gripalistarId": "recZiwM22XFl0odiy"
   },
   "sp02": {
    "label": "Eik, hlý brún",
@@ -329,7 +343,9 @@ window.KPCAT = {
    "img": "materials/site/sp02.jpg",
    "prev": "materials/site/sp02-prev.jpg",
    "color3d": "#8d633e",
-   "desc": "Ekta viðarspónn"
+   "desc": "Ekta viðarspónn",
+   "efnislistiId": "recJ8LGZxvD2J8YRr",
+   "gripalistarId": "recCYsxs8754mE0uu"
   },
   "sp03": {
    "label": "Hnota, dökk",
@@ -337,7 +353,9 @@ window.KPCAT = {
    "img": "materials/site/sp03.jpg",
    "prev": "materials/site/sp03-prev.jpg",
    "color3d": "#6d4a30",
-   "desc": "Ekta viðarspónn"
+   "desc": "Ekta viðarspónn",
+   "efnislistiId": "recfg8qzbSfR4odE0",
+   "gripalistarId": "reckyyTsWwR5RWW7p"
   },
   "sp04": {
    "label": "Eik, reykt",
@@ -345,7 +363,9 @@ window.KPCAT = {
    "img": "materials/site/sp04.jpg",
    "prev": "materials/site/sp04-prev.jpg",
    "color3d": "#473932",
-   "desc": "Ekta viðarspónn"
+   "desc": "Ekta viðarspónn",
+   "efnislistiId": "reclIBFdCWnQu6JRJ",
+   "gripalistarId": "rec0K1XWFCWGOIgdJ"
   },
   "sp05": {
    "label": "Ask",

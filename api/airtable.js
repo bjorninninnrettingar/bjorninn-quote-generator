@@ -349,7 +349,11 @@ const CREATABLE_FIELDS = {
   // Tækifæri linking it, then one Eyðublað per placed cabinet — see
   // FORCED_CREATE_FIELDS below for the fields the client can't set itself.
   "tblQ8zeUanriESWvL": ["Fornafn ⬅️", "Eftirnafn ➡️", "Netfang 📧", "Símanúmer ☎️", "Tegund tengiliðs 👥", "Hvaðan kom viðskiptavinurinn 📥"],
-  "tbl4LMXlQjp66RFKI": ["Tengiliður verkefnis 👤", "Skrokka efni 🔲 viðskiptavinar", "Fronta efni viðskiptavinar 🖼️", "Sjálfsafgreiðsla skipulag (JSON) 📐"],
+  // "Skilaboð til skipulags" added 2026-09-29 — it was missing here the whole time, so submitPlan()'s
+  // intakeNote() (delivery timing, budget, chosen materials, warnings) was silently dropped on every
+  // kitchen-planner submission before this: creatable.includes(k) filters unknown fields out with no
+  // error, so the Tækifæri record was still created fine, just always missing its note.
+  "tbl4LMXlQjp66RFKI": ["Tengiliður verkefnis 👤", "Skrokka efni 🔲 viðskiptavinar", "Fronta efni viðskiptavinar 🖼️", "Sjálfsafgreiðsla skipulag (JSON) 📐", "Skilaboð til skipulags"],
   // "Skúffutegund" (Phase 7b) is a real 2-choice field (LEGRA/MERIVO), set
   // the same on every unit — a whole-project hardware choice, not per-cabinet.
   "tbl0WcyHhz63pSzZX": ["Tækifæri 📣", "Heiti rýmis", "Hvað viltu smíða?", "Skápategund", "Breidd", "Hæð", "Dýpt", "Fjöldi eininga", "Grip?", "Skilaboð til Skipulags 📝", "Höldur 1", "Höldur 1 magn", "Hæð ofns", "Töfrahorn útfærsla", "Breidd á töfra front", "Skúffutegund", "Lausar hillur fjöldi"],

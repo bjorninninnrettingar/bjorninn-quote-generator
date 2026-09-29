@@ -4406,6 +4406,12 @@
     if (lk) lines.push("Valin framhlið: " + lk.label + " (" + ((LOOK_CATEGORIES.find(function(x){ return x.key === lk.category; }) || {}).label || lk.category) + ")");
     if (tp) lines.push("Valin borðplata: " + tp.label + (tp.group === "steinn" ? " (pöntuð sérstaklega)" : " (" + ((TOP_GROUPS.find(function(x){ return x.key === tp.group; }) || {}).label || "") + ")"));
     if (hd) lines.push("Valið handfang: " + hd.label + (KP3D.handleFinishFor(state.handle, state.handleColor) ? " — " + KP3D.handleFinishFor(state.handle, state.handleColor).label.toLowerCase() : ""));
+    // Spónagrip is really the front's own "m gripalistum" SKU, not a separate machining step (2026-09-29)
+    // — if this front species has no such variant in Efnislisti, flag it so staff confirm by hand rather
+    // than silently order the plain front for a customer who asked for the milled grip.
+    if (state.handle === "sponagrip" && lk && lk.efnislistiId && !lk.gripalistarId){
+      lines.push("⚠️ Spónagrip óskað en 'm gripalistum' útgáfa af " + lk.label + " er ekki til í Efnislista — staðfestu efni handvirkt");
+    }
     var fl = KP3D.FLOORS[state.floor || "parket_eik"];
     if (fl) lines.push("Valið gólfefni: " + fl.label + " (" + (fl.group === "flisar" ? "flísar " + KP3D.TILE_SIZES[state.floorTile || "60x60"].label : "parket" + (state.floorPattern === "fiskibein" ? ", fiskibeinamynstur" : "")) + ")");
     // Windows/doors are room-level, not cabinets — no Eyðublað row of their
@@ -4587,13 +4593,17 @@
 
       var lookRec = state.look ? LOOKS[state.look] : null;
       var carcassRec = state.carcass ? CARCASS[state.carcass] : null;
+      // Spónagrip orders the front's own "m gripalistum" Efnislisti SKU instead of the plain one — it's
+      // not a separate handle product, the grip is built into that front (2026-09-29, see intakeNote()
+      // for the fallback note when a species has no gripalistar variant).
+      var frontEfnislistiId = lookRec ? (state.handle === "sponagrip" && lookRec.gripalistarId ? lookRec.gripalistarId : lookRec.efnislistiId) : null;
       var note = intakeNote();
       var opp = await airtableCreate("tbl4LMXlQjp66RFKI", Object.assign({
         "Tengiliður verkefnis 👤": [contact.id]
       }, carcassRec ? {
         "Skrokka efni 🔲 viðskiptavinar": [carcassRec.efnislistiId]
-      } : {}, lookRec && lookRec.efnislistiId ? {
-        "Fronta efni viðskiptavinar 🖼️": [lookRec.efnislistiId]
+      } : {}, frontEfnislistiId ? {
+        "Fronta efni viðskiptavinar 🖼️": [frontEfnislistiId]
       } : {}, note ? {
         "Skilaboð til skipulags": note
       } : {}, {
