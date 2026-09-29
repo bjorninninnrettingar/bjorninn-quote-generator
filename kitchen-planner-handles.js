@@ -26,13 +26,14 @@ window.KPHANDLES = {
     sense:    { label:"Sense Big", group:"afestar", img:"handles/sense.jpg",    desc:"Fest framan á · bogadregið bandhandfang · svart", style:"bar", len:0.26, color:"#1a1a1c" },
     jey:      { label:"Jey",       group:"grip",    img:"handles/jey.jpg",      desc:"Grip · prófíll yfir alla framhliðina", style:"edge", len:0.94, color:"#b8935a" },
     hexxa:    { label:"Hexxa",     group:"grip",    img:"handles/hexxa.jpg",    desc:"Grip · fræst inn í framhliðina · jöfn fjarlægð frá báðum hliðum", style:"edge", len:0.7, color:"#2a2522", fixedColor:true },
-    // 2026-09-28: fræst gegnheilt grip — same idea as Jey (a channel cut into the top edge of the
-    // front) but the bottom of the channel is rounded, not flat, and it is always finished in the
-    // FRONT's own colour/material (it's the solid wood itself, milled — not an applied profile), so
-    // it only makes sense on a Spónlagt front. `requiresFrontCategory` gates it out of the picker
-    // (handlesOf() in kitchen-planner.html) whenever state.look isn't a "sponlagt" front. `fixedColor`
-    // is true for the same reason Hexxa's is — there is no separate finish to pick, it follows the wood.
-    sponagrip: { label:"Spónagrip", group:"grip", img:"handles/sponagrip.svg", desc:"Grip · fræst gegnheilt með rúnuðum botni · í lit spónsins · aðeins á spónlögðum frontum", style:"edge", len:0.94, color:"#8a6b48", fixedColor:true, requiresFrontCategory:"sponlagt" }
+    // 2026-09-29: same physical profile as Jey (same jey.glb, same geometry/placement — kind:"jey" in
+    // KPMODELS.handles), just clad in the front's own material instead of a fixed brass/dark colour
+    // (`matchFront:true`, see handleProfile() in kitchen-planner-3d.js) — "eins og Jey nema með
+    // frontaefnisklæðningu", closer to the real product photo the customer sent than the earlier
+    // from-scratch rounded-cove attempt. Only makes sense on a Spónlagt front (`requiresFrontCategory`
+    // gates it out of the picker in handlesOf(), kitchen-planner.html). `fixedColor` is true for the
+    // same reason Hexxa's is — there is no separate finish to pick, it follows the wood.
+    sponagrip: { label:"Spónagrip", group:"grip", img:"handles/jey.jpg", desc:"Grip · sami prófíll og Jey · klætt í lit spónsins · aðeins á spónlögðum frontum", style:"edge", len:0.94, color:"#8a6b48", fixedColor:true, requiresFrontCategory:"sponlagt" }
   },
   // Colours a handle can be ordered in (state.handleColor; null = the handle's own colour from the photo).
   // Handles with fixedColor:true (Crossing = black + oak, Hexxa = milled into the front) have no choice.

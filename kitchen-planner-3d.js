@@ -850,7 +850,7 @@
   }
   // A real handle in its own frame: x along the front (centred), y up, z out of the front (0 = the plane it sits on).
   // kind "jey": y = 0 at its TOP edge and it extends downwards. lenM stretches it along x. Returns null until loaded.
-  function handleProfile(THREE, key, lenM){
+  function handleProfile(THREE, key, lenM, frontMat){
     var cfg = window.KPMODELS && window.KPMODELS.handles && window.KPMODELS.handles[key];
     if (!cfg || !cfg.file) return null;
     var raw = rawModel(cfg.file);
@@ -878,7 +878,9 @@
     }
     var b = new THREE.Box3().setFromObject(w), c = b.getCenter(new THREE.Vector3());
     w.position.set(-c.x, cfg.kind === "jey" || cfg.kind === "topmount" ? -b.max.y : -c.y, -b.min.z);
-    if (handleFinish){
+    if (cfg.matchFront && frontMat){ // Spónagrip: clad in the front's own material (colour + wood texture), not a fixed finish — matches "frontaefnisklæðning" (2026-09-29)
+      w.traverse(function(o){ if (o.isMesh){ o.material = frontMat.clone(); if (o.material.roughness != null) o.material.roughness = Math.min(1, o.material.roughness + 0.08); o.material.needsUpdate = true; } });
+    } else if (handleFinish){
       w.traverse(function(o){ if (o.isMesh){ o.material = o.material.clone(); o.material.color.set(handleFinish.hex); o.material.metalness = handleFinish.metal; o.material.roughness = handleFinish.rough; if (o.material.map) o.material.map = null; o.material.needsUpdate = true; } });
     } else if (cfg.color){
       w.traverse(function(o){ if (o.isMesh){ o.material = o.material.clone(); o.material.color.set(cfg.color); o.material.metalness = 0.55; o.material.roughness = 0.4; } });
@@ -1010,7 +1012,7 @@
       var twoLeaf = wideDoor && !f.drawer && !(meta && meta.vertical);
       var sides = twoLeaf ? [-1, 1] : [freeRight ? 1 : -1];
       function edgeAlong(sg, inset){ return twoLeaf ? sg * inset * 0.6 : sg * (hw / 2 - inset) + hOff; }
-      if (vertical && !(hcfg && /^(hexxa|sponagrip)$/.test(hcfg.kind)) && !(hcfg && hcfg.file)){ // plain vertical versions of the drawn handles
+      if (vertical && !(hcfg && hcfg.kind === "hexxa") && !(hcfg && hcfg.file)){ // plain vertical versions of the drawn handles
         var vy = (top + bottom) / 2;
         if (hstyle === "bar"){ var vl = Math.min(hdef.len || 0.24, doorH * 0.6); sides.forEach(function(sg){ place(new THREE.Mesh(new THREE.BoxGeometry(0.012, vl, 0.02), handleMat), vy, 0.012, edgeAlong(sg, 0.05)); }); return; }
         if (hstyle === "edge"){ sides.forEach(function(sg){ place(new THREE.Mesh(new THREE.BoxGeometry(0.02, doorH * 0.94, 0.016), handleMat), vy, 0.008, edgeAlong(sg, 0.012)); }); return; }
@@ -1033,28 +1035,12 @@
         }
         return;
       }
-      if (hcfg && hcfg.kind === "sponagrip"){ // milled solid-wood grip: a real finger-scoop routed under the top edge, always the FRONT's own material (frontMat) — never a fixed colour, it's the wood itself, routed
-        // reference: the customer sent a real product photo (2026-09-28) — a deep rounded scoop sitting
-        // right at the top-front edge (not a shallow centred groove); sized and positioned to read that way.
-        // The physical cut (notchA/notchW below) is a fixed 30 mm-tall notch — R stays under half that,
-        // with a couple mm of margin top and bottom, so the circle never pokes out above the front or
-        // below the cut.
-        var sm2 = (hcfg.marginMm || 50) / 1000, R = 0.013, Rv = 0.011;
-        var gripMat = frontMat ? frontMat.clone() : handleMat;
-        if (gripMat.roughness != null) gripMat.roughness = Math.min(1, gripMat.roughness + 0.12); // a routed surface reads a touch more matte than the sanded front
-        function cove(len, radius){ // a partial cylinder standing in for the rounded cove floor — its curve is what sells "rúnaður botn" vs. Hexxa's flat dark slot; wide, deep arc so it reads as a real finger-pull, not a decorative line
-          var geo = new THREE.CylinderGeometry(radius, radius, Math.max(0.05, len), 20, 1, true, Math.PI * 0.02, Math.PI * 0.92);
-          var m = new THREE.Mesh(geo, gripMat); m.receiveShadow = true; return m;
-        }
-        if (vertical){ sides.forEach(function(sg){ place(cove(doorH - 2 * sm2, Rv), (top + bottom) / 2, meta && meta.slab ? -FRONT_T / 2 + 0.0015 : 0.012, edgeAlong(sg, 0.02)); }); return; }
-        var sl = Math.max(0.05, hw - 2 * sm2), wrap = new THREE.Group(), inner = cove(sl, R);
-        inner.rotation.z = Math.PI / 2; // cylinder's own axis (y) -> the handle's local x ("along the front") — place() would overwrite a rotation set on the mesh itself, hence the wrapper group
-        wrap.add(inner);
-        place(wrap, top - R - 0.002, meta && meta.slab ? -FRONT_T / 2 + 0.0015 : 0.012, hOff); // top of the circle sits ~2 mm below the front's top edge, inside the 30 mm cut
-        return;
-      }
       if (hcfg && hcfg.kind === "jey"){ // full-width profile that replaces stripMm of the front (see addArticulated)
-        var jl = vertical ? doorH - 0.004 : hw - 0.004, jp = handleProfile(THREE, handleKey, jl);
+        // Spónagrip (2026-09-28) reuses this exact geometry — same jey.glb, same stripMm/profileMm — with
+        // `matchFront:true` so handleProfile() below clads it in the front's own material instead of a
+        // fixed colour ("eins og Jey nema með frontaefnisklæðningu"); requiresFrontCategory:"sponlagt" in
+        // KPHANDLES gates it to Spónlagt fronts only.
+        var jl = vertical ? doorH - 0.004 : hw - 0.004, jp = handleProfile(THREE, handleKey, jl, frontMat);
         if (jp){
           var jout = meta && meta.slab ? -jp.userData.size.d + 0.0004 : 0; // in line with the fronts: the lip flush with the front face, the back wall behind it
           // place() overwrites the rotation of what it is given, so the turn lives in a child group
@@ -1305,7 +1291,7 @@
       var freeSideA = hinge === "left" ? "right" : "left", stripA = hcfgA && hcfgA.kind === "jey" ? (hcfgA.stripMm || 27) / 1000 : 0;
       // a Jey profile REPLACES stripMm of the front: the slab is that much shorter (top strip) or narrower (side strip on tall units)
       var slabW = w - 0.004 - (vertA ? stripA : 0), slabH = fh - (vertA ? 0 : stripA);
-      var notchA = hcfgA && /^(hexxa|sponagrip)$/.test(hcfgA.kind) && !vertA ? { len:Math.max(0.05, slabW - 2 * (hcfgA.marginMm || 50) / 1000), h:0.03 } : null;
+      var notchA = hcfgA && hcfgA.kind === "hexxa" && !vertA ? { len:Math.max(0.05, slabW - 2 * (hcfgA.marginMm || 50) / 1000), h:0.03 } : null;
       var slab = hcfgA && hcfgA.kind === "jey" && (hcfgA.profileMm || 0) > (hcfgA.stripMm || 27)
         ? frontSlabLip(THREE, slabW, slabH, frontMat, (hcfgA.profileMm - (hcfgA.stripMm || 27)) / 1000, 0.002, vertA ? freeSideA : "top")
         : frontSlab(THREE, slabW, slabH, frontMat, notchA);
@@ -2121,7 +2107,7 @@
     var geoms = wallGeoms(state);
     var surfaces = surfacesOf(state), allGeoms = geoms.concat(islandGeoms(state)); // walls + island rows
     var carcass = state.carcass ? CARCASS[state.carcass] : null;
-    var jeyOn = !!(state.handle && window.KPMODELS && window.KPMODELS.handles && window.KPMODELS.handles[state.handle] && /^(jey|hexxa|sponagrip)$/.test(window.KPMODELS.handles[state.handle].kind)); // Jey (on top of the front), Hexxa and Spónagrip (both cut into it) need separate fronts
+    var jeyOn = !!(state.handle && window.KPMODELS && window.KPMODELS.handles && window.KPMODELS.handles[state.handle] && /^(jey|hexxa)$/.test(window.KPMODELS.handles[state.handle].kind)); // Jey (on top of the front, incl. Spónagrip — same kind) and Hexxa (cut into it) need separate fronts
     var carcassMat = new THREE.MeshStandardMaterial({ color: carcass ? carcass.color3d : "#3a3a3a", roughness:0.9 });
     var wallColor = state.wallColor && WALL_COLORS[state.wallColor] ? WALL_COLORS[state.wallColor].hex : "#f1efe8";
     var wallMat = new THREE.MeshStandardMaterial({ color:wallColor, roughness:1, side:THREE.DoubleSide });
@@ -2600,7 +2586,7 @@
       var y0 = PL + BODY * bounds[i] + (i === 0 ? 0.0015 : 0.0015), y1 = PL + BODY * bounds[i + 1] - (i === 2 ? 0.0015 : 0.0015), fh = y1 - y0;
       if (showFronts){
         var jcfgW = cfg.showHandle && cfg.handle && window.KPMODELS && window.KPMODELS.handles && window.KPMODELS.handles[cfg.handle], stripW = jcfgW && jcfgW.kind === "jey" ? (jcfgW.stripMm || 27) / 1000 : 0; // Jey takes its height off the front
-        var notchW = jcfgW && /^(hexxa|sponagrip)$/.test(jcfgW.kind) ? { len:Math.max(0.05, W - 0.004 - 2 * (jcfgW.marginMm || 50) / 1000), h:0.03 } : null;
+        var notchW = jcfgW && jcfgW.kind === "hexxa" ? { len:Math.max(0.05, W - 0.004 - 2 * (jcfgW.marginMm || 50) / 1000), h:0.03 } : null;
         var slab = jcfgW && jcfgW.kind === "jey" && (jcfgW.profileMm || 0) > (jcfgW.stripMm || 27)
           ? frontSlabLip(THREE, W - 0.004, fh - stripW, frontMat, (jcfgW.profileMm - (jcfgW.stripMm || 27)) / 1000, 0.002, "top")
           : frontSlab(THREE, W - 0.004, fh - stripW, frontMat, notchW);
