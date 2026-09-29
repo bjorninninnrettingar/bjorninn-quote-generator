@@ -4525,7 +4525,13 @@
   // linking one to a real cabinet Útfærsla would misrepresent the product; they stay note-only.
   var V1_ALIAS = { grunnskapur:"grunnskapur", harskapur:"harskapur", efriskapur:"efriskapur", opnarhillur:"opnarhillur",
     vaskaskapur:"grunnskapur", isskapur:"harskapur", ofnaskapur:"harskapur" };
-  function widthFamily(mm){ return Math.max(300, Math.min(1200, Math.round(mm / 100) * 100)); }
+  // No clamp here on purpose (an earlier version clamped to 300–1200, found wrong while reviewing):
+  // vaskaskapur's own real width range goes to 1500mm, wider than the grunnskapur table it aliases
+  // (which only goes to 1200) — clamping would silently match a 1300–1500mm sink cabinet to the
+  // 1200mm product instead of correctly finding no match. table[key]||null below already handles an
+  // out-of-range width gracefully (the linemap-draft's own comment already documented this exact gap
+  // for vaskaskapur >120cm — the clamp was quietly overriding that documented behaviour).
+  function widthFamily(mm){ return Math.round(mm / 100) * 100; }
   function v1RecordFor(b, c){
     if (c.tofrahornId) return { id:c.tofrahornId };
     var alias = V1_ALIAS[b.type];
@@ -4538,7 +4544,7 @@
   function v2RecordFor(b, c){
     var LM = window.KP_LINEMAP_DRAFT; if (!LM) return null;
     if (c.hasInterior && b.interior){
-      if (b.interior.mode === "skuffur" && b.interior.count === 3 && !b.interior.fractions){
+      if (b.interior.mode === "skuffur" && b.interior.count === 3 && !(b.interior.fractions && b.interior.fractions.length)){
         return LM.v2DrawersDefault[state.drawerSystem === "merivo" ? "merivo" : "legra"] || null;
       }
       // NB: b.interior.count here, not KP3D.shelvesOf(b) — that reads b.shelves, a different
@@ -4563,9 +4569,19 @@
   // already names whichever was picked. Spónagrip has no lenOptions of its own (it's the
   // front-material swap, not hardware) so it's skipped here too, correctly.
   function frontWidthsOf(b, c){ // rough per-cabinet approximation — good enough given Rakel reviews every submission before it's built
-    if (c.panel || c.shelfStack || c.open) return []; // úthlið, lausar hillur, opnar hillur — no door/front, no handle (caught while verifying, 2026-09-29)
+    if (c.panel || c.shelfStack || c.open) return []; // úthlið, lausar hillur, opnar hillur — no door/front, no handle (caught while reviewing, 2026-09-29)
     var w = b.widthMm;
     if (c.hasInterior && b.interior && b.interior.mode === "skuffur") return [{ mm:w, count:b.interior.count }];
+    // Matches `meta.tall` in kitchen-planner-3d.js (c.cls==="tall" || c.fridge): a tall unit gets TWO
+    // stacked doors, each with its own vertical edge pull sized to that leaf's height, not the
+    // cabinet's width — using width here (as an earlier version did) picked a badly wrong SKU for
+    // harskápur/innbyggður ísskápur (caught while reviewing, 2026-09-29). Ofnaskápur (cls "oven") is
+    // deliberately excluded — the 3D code always renders it with a fixed bar handle, never the
+    // vertical Jey/Hexxa treatment, regardless of the chosen handle.
+    if (c.cls === "tall" || c.fridge){
+      var h = blockHeightMm(b, c), split = c.fridge ? 0.74 : 0.55;
+      return [{ mm:h * split, count:1 }, { mm:h * (1 - split), count:1 }];
+    }
     var wide = w >= 750 && c.cls !== "corner";
     return wide ? [{ mm:w / 2, count:2 }] : [{ mm:w, count:1 }];
   }
@@ -4623,7 +4639,13 @@
         if (c.tofrahornId) notes.push("Breidd á töfrahorns-front: " + b.widthMm + " mm.");
         if (b.interior && b.interior.mode === "skuffur" && !v2){
           notes.push("Viðskiptavinur óskar eftir skúffum (" + b.interior.count + " stk) — vinsamlegast staðfestu skúffuhæðir.");
-        } else if (c.shelfRange && !v2){
+        } else if (b.interior && b.interior.mode === "hillur" && !v2){
+          // b.interior.count here, not KP3D.shelvesOf(b) — same property mix-up as v2RecordFor's own
+          // shelf branch above (b.shelves is a different field, only used by hasInterior:false types
+          // below); read the wrong one during the first pass and this note showed the type's default
+          // shelf count instead of the customer's real pick (caught while reviewing, 2026-09-29).
+          notes.push("Hillufjöldi: " + b.interior.count + " stk.");
+        } else if (c.shelfRange && !c.hasInterior && !v2){
           notes.push("Hillufjöldi: " + (KP3D.shelvesOf(b) || 0) + " stk.");
         }
         if (c.note) notes.push(c.note);
