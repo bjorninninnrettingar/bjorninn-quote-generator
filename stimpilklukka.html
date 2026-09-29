@@ -518,7 +518,14 @@
     let sickToday = false; // already marked sick today?
     let isKK = true; // karlkyn/kvenkyn — defaults to KK (masculine) if "Kyn" isn't set
     let catchUpMode = false; // owner mode: splitting a past auto-closed shift
-    const skippedCatchUp = new Set(); // shift ids the owner chose "Sleppa í bili" on — don't re-nag this session
+    // Shift ids the owner chose "Sleppa" on. Kept in localStorage so a skipped
+    // day doesn't come back on every login (they age out of the 5-day window).
+    const skippedCatchUp = new Set((() => {
+      try { return JSON.parse(localStorage.getItem("eigandi:skippedCatchUp") || "[]"); } catch { return []; }
+    })());
+    function saveSkippedCatchUp() {
+      try { localStorage.setItem("eigandi:skippedCatchUp", JSON.stringify([...skippedCatchUp].slice(-100))); } catch {}
+    }
     let ownerShortcut = null; // { toggle, inn, ut } URLs from the eigandi login
 
     async function showEmployee(record) {
@@ -580,15 +587,49 @@
         const covered = new Set();
         for (const r of verkt) for (const id of (r.fields["Stimplun ⏱️"] || [])) covered.add(id);
         const unsplit = shifts
-          .filter((s) => s.fields["Út"] && !covered.has(s.id) && !skippedCatchUp.has(s.id)
-            && (new Date(s.fields["Út"]) - new Date(s.fields["Inn"])) >= 30 * 60 * 1000)
+          .filter((s) => s.fields["Út"] && !covered.has(s.id) && !skippedCatchUp.has(s.id))
           .sort((a, b) => new Date(a.fields["Inn"]) - new Date(b.fields["Inn"]));
-        if (!unsplit.length) return false;
+        // The GPS shortcut clocks out/in every time an owner leaves and comes
+        // back, so one day can be 3–4 short shifts. Split the whole day once
+        // instead of asking about each shift separately.
+        const day = unsplit.length ? todayISO(new Date(unsplit[0].fields["Inn"])) : null;
+        const dayShifts = unsplit.filter((s) => todayISO(new Date(s.fields["Inn"])) === day);
+        const dayMs = dayShifts.reduce((t, s) => t + (new Date(s.fields["Út"]) - new Date(s.fields["Inn"])), 0);
+        if (!dayShifts.length) return false;
+        if (dayMs < 30 * 60 * 1000) {
+          // Too short to bother splitting — don't ask, and don't ask again.
+          dayShifts.forEach((s) => skippedCatchUp.add(s.id));
+          saveSkippedCatchUp();
+          return checkCatchUp();
+        }
         catchUpMode = true;
-        startAllocation(unsplit[0], new Date(unsplit[0].fields["Út"]));
+        startAllocation(dayShifts, new Date(dayShifts[dayShifts.length - 1].fields["Út"]));
         return true;
       } catch {
         return false; // don't block clock-in on a catch-up lookup failure
+      }
+    }
+
+    async function unsplitShiftsToday(current) {
+      const name = (currentEmployee.fields["Nafn starfsmanns 👷"] || "").replace(/"/g, '\\"');
+      const today = todayISO(new Date(current.fields["Inn"]));
+      try {
+        const [shifts, verkt] = await Promise.all([
+          airtableGetAll(STIMPLANIR_TABLE, {
+            filterByFormula: `AND({Starfsmaður}="${name}",{Út}!=BLANK(),DATETIME_FORMAT(SET_TIMEZONE({Inn},'Atlantic/Reykjavik'),'YYYY-MM-DD')="${today}")`,
+          }),
+          airtableGetAll(VERKTIMAR_TABLE, {
+            filterByFormula: `AND({Starfsmaður}="${name}",DATETIME_FORMAT({Dagsetning},'YYYY-MM-DD')="${today}")`,
+          }),
+        ]);
+        const covered = new Set();
+        for (const r of verkt) for (const id of (r.fields["Stimplun ⏱️"] || [])) covered.add(id);
+        const earlier = shifts
+          .filter((s) => s.id !== current.id && !covered.has(s.id) && !skippedCatchUp.has(s.id))
+          .sort((a, b) => new Date(a.fields["Inn"]) - new Date(b.fields["Inn"]));
+        return [...earlier, current];
+      } catch {
+        return [current]; // lookup failed — just split this shift
       }
     }
 
@@ -625,7 +666,10 @@
           await airtablePatch(`${STIMPLANIR_TABLE}/${openShift.id}`, { "Út": now.toISOString() }, kioskHeaders);
           // Shift is now closed — the allocation screen splits its hours
           // across projects. Bailing there never un-closes the shift.
-          startAllocation(openShift, now);
+          // Owner mode: earlier auto-closed shifts from today go into the
+          // same split, so the day is only split once.
+          const shifts = OWNER_MODE ? await unsplitShiftsToday(openShift) : [openShift];
+          startAllocation(shifts, now);
         } else {
           await airtablePost(STIMPLANIR_TABLE, {
             "Inn": now.toISOString(),
@@ -896,14 +940,30 @@
       renderAllocRemaining();
     }
 
-    async function startAllocation(shift, outTime) {
-      const inMs = new Date(shift.fields["Inn"]).getTime();
-      const rawHours = Math.max(0, (outTime.getTime() - inMs) / 3_600_000);
-      const target = Math.round(rawHours * 2) / 2;
-      if (target < 0.5) { showConfirm("Út", outTime); return; }
+    // `shifts` = one or more closed shifts from the same day, split together.
+    // The last one's Út is `outTime` (it may have just been PATCHed).
+    async function startAllocation(shifts, outTime) {
+      const inMs = new Date(shifts[0].fields["Inn"]).getTime();
+      let rawMs = 0;
+      shifts.forEach((s, i) => {
+        const end = i === shifts.length - 1 ? outTime.getTime() : new Date(s.fields["Út"]).getTime();
+        rawMs += Math.max(0, end - new Date(s.fields["Inn"]).getTime());
+      });
+      const target = Math.round((rawMs / 3_600_000) * 2) / 2;
+      if (target < 0.5) {
+        if (catchUpMode) {
+          catchUpMode = false;
+          shifts.forEach((s) => skippedCatchUp.add(s.id));
+          saveSkippedCatchUp();
+          screenAlloc.classList.add("hidden");
+          showEmployee(currentEmployee);
+          return;
+        }
+        showConfirm("Út", outTime); return;
+      }
 
       allocState = {
-        shiftId: shift.id,
+        shiftIds: shifts.map((s) => s.id),
         employeeId: currentEmployee.id,
         dateISO: todayISO(new Date(inMs)),
         outTime,
@@ -919,7 +979,7 @@
       allocSkip.classList.toggle("hidden", !catchUpMode); // catch-up always gets an "out"
       allocSubmit.disabled = true;
       allocTargetEl.textContent = catchUpMode
-        ? `${new Date(inMs).toLocaleDateString("is-IS", { day: "numeric", month: "long" })}: skiptu ${fmtH(target)} klst`
+        ? `${new Date(inMs).getDate()}. ${IS_MONTHS[new Date(inMs).getMonth()]}${shifts.length > 1 ? ` (${shifts.length} vaktir)` : ""}: skiptu ${fmtH(target)} klst`
         : `Skiptu ${fmtH(target)} klst á verk`;
       allocList.innerHTML = `<div style="color:#888;text-align:center;padding:20px 0">Sæki verkefni…</div>`;
       renderAllocRemaining();
@@ -960,7 +1020,7 @@
         const retry = document.createElement("button");
         retry.className = "secondary-btn";
         retry.textContent = "Reyna aftur";
-        retry.addEventListener("click", () => startAllocation(shift, outTime));
+        retry.addEventListener("click", () => startAllocation(shifts, outTime));
         allocList.appendChild(retry);
       }
     }
@@ -970,11 +1030,12 @@
     allocSkip.addEventListener("click", () => {
       if (allocIdleTimer) clearTimeout(allocIdleTimer);
       const t = allocState ? allocState.outTime : new Date();
-      const skipId = allocState && allocState.shiftId;
+      const skipIds = (allocState && allocState.shiftIds) || [];
       allocState = null;
       if (catchUpMode) {
         catchUpMode = false;
-        if (skipId) skippedCatchUp.add(skipId);
+        skipIds.forEach((id) => skippedCatchUp.add(id));
+        saveSkippedCatchUp();
         screenAlloc.classList.add("hidden");
         showEmployee(currentEmployee);
         return;
@@ -996,7 +1057,7 @@
           "Dagsetning": allocState.dateISO,
           "Klst": hours,
           "Starfsmaður": [allocState.employeeId],
-          "Stimplun ⏱️": [allocState.shiftId],
+          "Stimplun ⏱️": allocState.shiftIds,
         };
         if (opt && opt.bucket) fields["Verkflokkur"] = opt.bucket;
         else { fields["Verkefni 📣"] = [opt.projectId]; fields["Verkflokkur"] = "Verkefni"; }
