@@ -290,6 +290,39 @@
   }
   .minside-btn .ic { font-size:1.6rem; flex:none; }
   .minside-btn:active { filter:brightness(1.2); }
+  /* ── Ísak's private to-do list (own home tile, only on his phone; the
+     data itself is gated server-side by /api/isak-todo) ── */
+  .tile2.c-purple { border-color:#b58cff; }
+  .qf-card.c-purple { border-color:#b58cff; }
+  .qf-card.c-purple h2 { color:#b58cff; }
+  .todo-pin { display:flex; gap:8px; margin-top:12px; }
+  .todo-pin input { flex:1 1 auto; min-width:0; }
+  .todo-group { font-size:.72rem; font-weight:800; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin:18px 0 2px; }
+  .todo-row { background:var(--surface2); border:1px solid var(--line); border-radius:12px; margin-top:8px; }
+  .todo-row .top { display:flex; align-items:flex-start; gap:10px; padding:12px; cursor:pointer; }
+  .todo-row .txt { flex:1 1 auto; min-width:0; }
+  .todo-row .task { font-size:.95rem; font-weight:700; }
+  .todo-row .meta { font-size:.76rem; color:var(--muted); margin-top:3px; }
+  .todo-row .meta .late { color:var(--red); font-weight:700; }
+  .todo-row .more { display:none; padding:0 12px 12px; }
+  .todo-row.open .more { display:block; }
+  .todo-row .desc { font-size:.85rem; color:var(--muted); white-space:pre-wrap; margin-bottom:10px; }
+  .todo-st { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .todo-st button {
+    font-family:var(--font); font-weight:800; font-size:.85rem; color:var(--text); cursor:pointer;
+    background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:11px 6px;
+  }
+  .todo-st button.cur { border-color:#b58cff; background:#2a2140; color:#fff; }
+  .todo-badge { flex:none; font-size:.72rem; font-weight:800; border-radius:20px; padding:4px 10px; white-space:nowrap; background:var(--surface); color:var(--muted); }
+  .todo-badge.s-nytt { background:#2a2140; color:#cdb4ff; }
+  .todo-badge.s-vinnslu { background:#3a2f0c; color:var(--amber); }
+  .todo-badge.s-bid { background:#10303a; color:#8fdcf0; }
+  #todoAddForm { display:none; }
+  #todoAddForm.show { display:flex; }
+  .todo-add-toggle {
+    width:100%; margin-top:12px; font-family:var(--font); font-weight:800; font-size:1rem; border:none;
+    border-radius:11px; padding:13px; cursor:pointer; background:#b58cff; color:#1b0f33;
+  }
   .ms-pane-back {
     font-family:var(--font); font-weight:700; font-size:.85rem; color:var(--muted);
     background:none; border:none; padding:0 0 10px; cursor:pointer;
@@ -413,6 +446,48 @@
       </div>
     </div>
 
+    <div id="todoScreen" class="screen-wrap" style="display:none;">
+      <button class="qf-back" type="button" id="todoBackBtn">‹ Til baka</button>
+      <div class="qf-card c-purple">
+        <h2>📝 To do listinn</h2>
+
+        <div id="todoLogin" style="display:none;">
+          <div class="sub">Sláðu inn PIN-ið þitt einu sinni á þessum síma.</div>
+          <div class="todo-pin">
+            <input type="password" id="todoPinInput" inputmode="numeric" autocomplete="off" placeholder="PIN" />
+            <button type="button" class="link-btn" id="todoPinBtn" style="margin-top:0; padding:11px 18px; border:none;">Opna</button>
+          </div>
+          <div class="qf-msg" id="todoPinMsg"></div>
+        </div>
+
+        <div id="todoMain" style="display:none;">
+          <button type="button" class="todo-add-toggle" id="todoAddToggle">➕ Nýtt verkefni</button>
+          <form id="todoAddForm" style="flex-direction:column; gap:10px; margin-top:12px;">
+            <div class="field">
+              <span class="lbl">Verkefni</span>
+              <input type="text" id="todoTask" required placeholder="Hvað þarf að gera?" />
+            </div>
+            <div class="field">
+              <span class="lbl">Forgangsröðun</span>
+              <select id="todoPriority"></select>
+            </div>
+            <div class="field">
+              <span class="lbl">Hluti reksturins</span>
+              <select id="todoArea"></select>
+            </div>
+            <div class="field">
+              <span class="lbl">Skiladagur <span class="hint">(valfrjálst)</span></span>
+              <input type="date" id="todoDue" />
+            </div>
+            <button class="qf-submit" type="submit" id="todoSubmitBtn" style="background:#b58cff; color:#1b0f33;">Skrá</button>
+          </form>
+          <div class="qf-msg" id="todoMsg"></div>
+          <div class="sub" id="todoStatus" style="margin-top:12px;">Sæki…</div>
+          <div id="todoList"></div>
+        </div>
+      </div>
+    </div>
+
     <div id="minSidaScreen" class="screen-wrap" style="display:none;">
       <button class="qf-back" type="button" id="minSidaBackBtn">‹ Til baka</button>
 
@@ -532,6 +607,11 @@
       <a class="tile2" id="tileDagatal" href="/dagatal">
         <div class="ic">🗓️</div><div class="t">Dagatal</div>
       </a>
+
+      <div class="tile2 c-purple" id="tileTodo" style="display:none;">
+        <div class="ic">📝</div><div class="t">To do</div>
+        <div class="t-sub" id="todoTileSub"></div>
+      </div>
 
       <div class="tile2" id="tileMinSida">
         <div class="ic">👤</div><div class="t">Mín síða</div>
@@ -768,7 +848,9 @@
   function getMeRecord() { try { return JSON.parse(localStorage.getItem("verkApp:meRecord") || "null"); } catch (e) { return null; } }
   function setMeRecord(rec) {
     try { if (rec) localStorage.setItem("verkApp:meRecord", JSON.stringify(rec)); else localStorage.removeItem("verkApp:meRecord"); } catch (e) {}
+    if (!rec) setTodoToken(null); // signing out of Mín síða also locks the to-do list on this phone
     checkMyQuickFix();
+    updateTodoTile();
   }
   function getMe() { var r = getMeRecord(); return r ? r.name : ""; }
 
@@ -958,6 +1040,8 @@
         orlof: rec.fields["Auka orlofsdagar 🌴"] || 0,
         type: rec.fields["Tegund starfsmanns 🧑‍💻"] || "",
       });
+      // Ísak signing in here also unlocks his to-do tile, so he isn't asked twice.
+      if (rec.id === TODO_OWNER_ID) todoLogin(msPin).catch(function () {});
       msPinLocked = false;
       showMsMenu();
     } catch (e) {
@@ -1156,6 +1240,213 @@
   }
   $("tileSettings").addEventListener("click", openSettings);
   $("settingsBackBtn").addEventListener("click", closeSettings);
+
+  // ── To do listinn hans Ísaks — own home tile, only shown on his phone.
+  // The table is NOT reachable through /api/airtable; everything goes via
+  // /api/isak-todo, which checks the PIN server-side against Ísak's own
+  // Starfsmenn record and hands back a token kept in localStorage. Hiding
+  // the tile is just tidiness — the endpoint is what keeps it private. ──
+  var TODO_OWNER_ID = "recIqKajYeUpwB8tU";
+  var TODO_API = "/api/isak-todo";
+  var TODO_PRIO_ORDER = ["TOPP 3", "Núna 🧨", "Í vinnslu en í bið ⚙️", "Við tækifæri 🏃‍♂️‍➡️", "Skoða síðar 🧊", ""];
+  var TODO_STATUS_CLASS = { "Nýtt ✨": "s-nytt", "Í vinnslu ⚙️": "s-vinnslu", "Í bið 🧊": "s-bid" };
+  var todoStatuses = ["Nýtt ✨", "Í vinnslu ⚙️", "Í bið 🧊", "Lokið ✅"];
+  var todoRecords = [];
+  var todoOpenId = null;
+
+  function getTodoToken() { try { return localStorage.getItem("verkApp:todoToken") || ""; } catch (e) { return ""; } }
+  function setTodoToken(t) { try { if (t) localStorage.setItem("verkApp:todoToken", t); else localStorage.removeItem("verkApp:todoToken"); } catch (e) {} }
+  function updateTodoTile() {
+    var me = getMeRecord();
+    $("tileTodo").style.display = (me && me.id === TODO_OWNER_ID) || getTodoToken() ? "" : "none";
+  }
+
+  async function todoApi(body) {
+    var r = await fetch(TODO_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Todo-Token": getTodoToken() },
+      body: JSON.stringify(body),
+    });
+    var d = await r.json().catch(function () { return {}; });
+    if (r.status === 401 && body.pin == null) { setTodoToken(null); showTodoLogin(); }
+    if (!r.ok) throw new Error(d.error || "HTTP " + r.status);
+    return d;
+  }
+  async function todoLogin(pin) {
+    var d = await todoApi({ pin: pin });
+    setTodoToken(d.token);
+    updateTodoTile();
+  }
+
+  function openTodo() {
+    hideTilegrid();
+    $("todoScreen").style.display = "block";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (getTodoToken()) { showTodoMain(); loadTodos(); } else showTodoLogin();
+  }
+  function closeTodo() {
+    $("todoScreen").style.display = "none";
+    showTilegrid();
+  }
+  function showTodoLogin() {
+    $("todoLogin").style.display = "block";
+    $("todoMain").style.display = "none";
+    $("todoPinInput").value = "";
+    $("todoPinMsg").className = "qf-msg";
+  }
+  function showTodoMain() {
+    $("todoLogin").style.display = "none";
+    $("todoMain").style.display = "block";
+  }
+  $("tileTodo").addEventListener("click", openTodo);
+  $("todoBackBtn").addEventListener("click", closeTodo);
+
+  async function submitTodoPin() {
+    var pin = $("todoPinInput").value.replace(/\D/g, "");
+    if (!pin) return;
+    $("todoPinBtn").disabled = true;
+    try {
+      await todoLogin(pin);
+      showTodoMain();
+      loadTodos();
+    } catch (e) {
+      $("todoPinMsg").className = "qf-msg err";
+      $("todoPinMsg").textContent = e.message === "BAD_PIN" ? "Rangt PIN" : "Villa — reyndu aftur";
+      $("todoPinInput").value = "";
+    } finally {
+      $("todoPinBtn").disabled = false;
+    }
+  }
+  $("todoPinBtn").addEventListener("click", submitTodoPin);
+  $("todoPinInput").addEventListener("keydown", function (e) { if (e.key === "Enter") submitTodoPin(); });
+
+  function fillSelect(sel, values, blankLabel) {
+    sel.innerHTML = '<option value="">' + blankLabel + "</option>" +
+      values.map(function (v) { return '<option value="' + escapeHtml(v) + '">' + escapeHtml(v) + "</option>"; }).join("");
+  }
+
+  async function loadTodos() {
+    $("todoStatus").style.display = "block";
+    $("todoStatus").textContent = "Sæki…";
+    try {
+      var d = await todoApi({ action: "list" });
+      todoRecords = d.records || [];
+      if (d.statuses) todoStatuses = d.statuses;
+      if (!$("todoPriority").options.length) {
+        fillSelect($("todoPriority"), d.priorities || [], "— engin —");
+        fillSelect($("todoArea"), d.areas || [], "— enginn —");
+      }
+      renderTodos();
+    } catch (e) {
+      if (getTodoToken()) $("todoStatus").textContent = "Náði ekki í listann — reyndu aftur.";
+    }
+  }
+
+  function fmtDue(iso) {
+    var p = iso.split("-");
+    return Number(p[2]) + ". " + IS_MONTHS[Number(p[1]) - 1];
+  }
+  function renderTodos() {
+    var open = todoRecords.length;
+    $("todoTileSub").textContent = open ? open + " opin" : "";
+    $("todoStatus").style.display = open ? "none" : "block";
+    $("todoStatus").textContent = "Ekkert opið — vel gert 🎉";
+    var today = todayISO();
+    var groups = {};
+    todoRecords.forEach(function (r) {
+      var p = r.fields["Forgangsröðun"] || "";
+      (groups[p] = groups[p] || []).push(r);
+    });
+    var order = TODO_PRIO_ORDER.concat(Object.keys(groups).filter(function (k) { return TODO_PRIO_ORDER.indexOf(k) === -1; }));
+    var html = "";
+    order.forEach(function (p) {
+      var list = groups[p];
+      if (!list) return;
+      list.sort(function (a, b) {
+        var da = a.fields["Skiladagur (Delivery Date)"] || "9999", db = b.fields["Skiladagur (Delivery Date)"] || "9999";
+        return da < db ? -1 : da > db ? 1 : 0;
+      });
+      html += '<div class="todo-group">' + escapeHtml(p || "Án forgangs") + " · " + list.length + "</div>";
+      list.forEach(function (r) {
+        var f = r.fields;
+        var st = f["Status"] || "";
+        var due = f["Skiladagur (Delivery Date)"];
+        var meta = [];
+        if (f["Hluti reksturins"]) meta.push(escapeHtml(f["Hluti reksturins"]));
+        if (due) meta.push('<span class="' + (due < today ? "late" : "") + '">📅 ' + fmtDue(due) + "</span>");
+        html += '<div class="todo-row' + (r.id === todoOpenId ? " open" : "") + '" data-id="' + r.id + '">' +
+          '<div class="top"><div class="txt"><div class="task">' + escapeHtml(f["Verkefni / Task"] || "(ónefnt)") + "</div>" +
+          (meta.length ? '<div class="meta">' + meta.join(" · ") + "</div>" : "") + "</div>" +
+          '<span class="todo-badge ' + (TODO_STATUS_CLASS[st] || "") + '">' + escapeHtml(st || "—") + "</span></div>" +
+          '<div class="more">' + (f["Lýsing"] ? '<div class="desc">' + escapeHtml(f["Lýsing"]) + "</div>" : "") +
+          '<div class="todo-st">' + todoStatuses.map(function (s) {
+            return '<button type="button" data-st="' + escapeHtml(s) + '"' + (s === st ? ' class="cur"' : "") + ">" + escapeHtml(s) + "</button>";
+          }).join("") + "</div></div></div>";
+      });
+    });
+    $("todoList").innerHTML = html;
+    $("todoList").querySelectorAll(".todo-row").forEach(function (row) {
+      var id = row.dataset.id;
+      row.querySelector(".top").addEventListener("click", function () {
+        todoOpenId = todoOpenId === id ? null : id;
+        renderTodos();
+      });
+      row.querySelectorAll("button[data-st]").forEach(function (btn) {
+        btn.addEventListener("click", function () { setTodoStatus(id, btn.dataset.st, btn); });
+      });
+    });
+  }
+
+  async function setTodoStatus(id, status, btn) {
+    var rec = todoRecords.find(function (r) { return r.id === id; });
+    if (!rec || rec.fields["Status"] === status) return;
+    btn.disabled = true;
+    try {
+      await todoApi({ action: "status", id: id, status: status });
+      if (status === "Lokið ✅") {
+        todoRecords = todoRecords.filter(function (r) { return r.id !== id; });
+        todoOpenId = null;
+      } else {
+        rec.fields["Status"] = status;
+      }
+      renderTodos();
+    } catch (e) {
+      btn.disabled = false;
+      $("todoMsg").className = "qf-msg err";
+      $("todoMsg").textContent = "Náði ekki að uppfæra — reyndu aftur.";
+    }
+  }
+
+  $("todoAddToggle").addEventListener("click", function () {
+    var f = $("todoAddForm");
+    f.classList.toggle("show");
+    if (f.classList.contains("show")) $("todoTask").focus();
+  });
+  $("todoAddForm").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    var task = $("todoTask").value.trim();
+    if (!task) return;
+    $("todoSubmitBtn").disabled = true;
+    try {
+      var d = await todoApi({
+        action: "create", task: task,
+        priority: $("todoPriority").value, area: $("todoArea").value, due: $("todoDue").value,
+      });
+      todoRecords.push(d.record);
+      $("todoTask").value = ""; $("todoDue").value = "";
+      $("todoAddForm").classList.remove("show");
+      $("todoMsg").className = "qf-msg ok";
+      $("todoMsg").textContent = "✓ Skráð";
+      setTimeout(function () { $("todoMsg").className = "qf-msg"; }, 2500);
+      renderTodos();
+    } catch (err) {
+      $("todoMsg").className = "qf-msg err";
+      $("todoMsg").textContent = "Náði ekki að skrá — reyndu aftur.";
+    } finally {
+      $("todoSubmitBtn").disabled = false;
+    }
+  });
+  updateTodoTile();
 
   // ── QUICK FIX: open/close the create/manage card ──
   function openQf(mode) {

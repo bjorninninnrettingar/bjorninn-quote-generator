@@ -76,6 +76,7 @@ HomeByMe-style self-serve planner that ends in a lead: steps intake → material
 
 - [api/airtable.js](api/airtable.js) — proxy for Airtable requests (holds the PAT server-side)
 - [api/generate-quote.js](api/generate-quote.js) — quote PDF generation (uses `pdf-lib`, `maxDuration: 30` in vercel.json)
+- [api/isak-todo.js](api/isak-todo.js) — Ísak's private to-do list (`To do listinn hans Ísaks 🐻‍❄️`, `tblvVMCn7Tz5BAI5d`) behind `/app`'s purple "To do" tile. The table is deliberately NOT in `/api/airtable`'s allowlist (that proxy is open to anyone); the PIN is checked server-side against Ísak's Starfsmenn record (`recIqKajYeUpwB8tU`) and returns an HMAC token (keyed with `KIOSK_DEVICE_SECRET`) kept in `localStorage` (`verkApp:todoToken`). List open tasks / change Status / add new. Signing in on Mín síða as Ísak unlocks it too; signing out of Mín síða clears it.
 - [api/version.js](api/version.js) — returns the deployed `VERCEL_GIT_COMMIT_SHA` (`no-store`). `/klukka` and `/tv` both poll it every 3 min and reload when it changes, so those always-open tabs never run a stale build. `/klukka` defers the reload until it's idle on the PIN screen (`reloadPending` → `resetPin()`); `/tv` has no user interaction so it reloads immediately. First rollout onto an already-open tab still needs one manual reload (the checker has to be running to catch the *next* deploy).
 
 ## Workflow notes
