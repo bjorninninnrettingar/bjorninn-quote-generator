@@ -220,6 +220,18 @@ const ALLOWED_FIELDS = {
     "Flokkur 🗂️",
     "Undirflokkur 📁",
   ],
+  "tblDwYfZWPmgGpjio": [ // Vélar 🏭 — read-only machine SOPs for /velar
+    "Heiti vélar",
+    "Mynd 🖼️",
+    "Myndband 🔗",
+    "Ræsing / setup ▶️",
+    "Notkun 📖",
+    "Drepa á ⏹️",
+    "Bilanir & ráð 🛠️",
+    "Öryggi ⚠️",
+    "Röð",
+    "Falið",
+  ],
 };
 
 // Extra Tækifæri fields the internal floor page (/verk, verk.html) needs —

@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex" />
+<title>Vélar — Björninn</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  /* velar.html — /velar, the workshop's machine SOP/FAQ, pulled live from
+     Airtable's "Vélar 🏭" table (one row per machine, fixed sections:
+     Ræsing / Notkun / Drepa á / Bilanir & ráð / Öryggi). Same dark look and
+     search as sop.html, but machine-first: pick a machine → one tap per
+     section, so "how do I shut this down?" is never more than two taps.
+     Deep link: /velar?vel=<recordId>&kafli=drepa (for a QR sticker on the
+     machine itself). Reached from /app's home grid. */
+  :root {
+    --bg:#0b0b0c; --surface:#161618; --surface2:#1e1e21; --line:#2a2a2e;
+    --text:#f2f2f3; --muted:#c9c9ce; --dim:#8a8a90;
+    --blue:#0a84ff; --amber:#ffd60a; --green:#4caf50; --red:#ff5a5a; --orange:#ff9f43;
+    --font:"Kumbh Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; line-height:1.5; }
+  .wrap { max-width:680px; margin:0 auto; padding:0 16px 60px; }
+
+  .hd { position:sticky; top:0; z-index:10; background:var(--bg); padding:16px 0 12px; border-bottom:1px solid var(--line); }
+  .back { display:inline-flex; align-items:center; gap:6px; color:var(--muted); text-decoration:none; font-size:.85rem; font-weight:700; background:none; border:none; cursor:pointer; padding:0; font-family:var(--font); }
+  h1 { font-size:1.6rem; font-weight:800; letter-spacing:-.01em; margin-top:8px; }
+  .lede { color:var(--muted); font-size:.9rem; margin-top:4px; }
+
+  .search { position:relative; margin-top:14px; }
+  .search svg { position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--dim); pointer-events:none; }
+  .search input {
+    width:100%; font-family:var(--font); font-size:1rem; color:var(--text);
+    background:var(--surface); border:1px solid var(--line); border-radius:12px;
+    padding:13px 14px 13px 42px; outline:none;
+  }
+  .search input:focus { border-color:var(--blue); }
+
+  .search-results { margin-top:12px; display:none; flex-direction:column; gap:8px; }
+  .search-results.show { display:flex; }
+  .search-hit {
+    display:block; text-align:left; width:100%; cursor:pointer; font-family:var(--font);
+    color:var(--text); background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:13px 14px;
+  }
+  .search-hit .cat { font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--amber); display:block; margin-bottom:2px; }
+  .search-hit .t { font-size:.98rem; font-weight:700; }
+  .search-hit .snip { font-size:.82rem; color:var(--muted); margin-top:3px; }
+  .search-empty { font-size:.85rem; color:var(--muted); padding:10px 2px; }
+
+  #status { text-align:center; color:var(--muted); padding:60px 0; }
+
+  /* machine list */
+  .mlist { display:flex; flex-direction:column; gap:10px; margin-top:18px; }
+  .mrow {
+    display:flex; align-items:center; gap:14px; width:100%; text-align:left; cursor:pointer; font-family:var(--font);
+    background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:12px 14px; color:var(--text);
+  }
+  .mrow:active { background:var(--surface2); }
+  .mrow .thumb { width:64px; height:64px; border-radius:10px; object-fit:cover; flex:none; background:var(--surface2); display:flex; align-items:center; justify-content:center; font-size:1.8rem; }
+  .mrow .txt { flex:1 1 auto; min-width:0; }
+  .mrow .t { font-size:1.05rem; font-weight:800; }
+  .mrow .sub { font-size:.78rem; color:var(--muted); margin-top:3px; }
+  .mrow .arrow { color:var(--dim); flex:none; }
+
+  /* machine view */
+  .cover { width:100%; max-height:220px; object-fit:cover; border-radius:14px; margin-top:16px; border:1px solid var(--line); }
+  .mname { font-size:1.45rem; font-weight:800; letter-spacing:-.01em; margin-top:14px; }
+  .video-link {
+    display:inline-flex; align-items:center; gap:8px; margin-top:12px; text-decoration:none;
+    background:var(--blue); color:#fff; font-weight:800; font-size:.92rem; border-radius:11px; padding:11px 16px;
+  }
+  .tabs { display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:8px; margin-top:16px; }
+  .tab {
+    font-family:var(--font); font-weight:800; font-size:.95rem; color:var(--text); cursor:pointer;
+    background:var(--surface); border:1.5px solid var(--line); border-radius:12px; padding:14px 8px; text-align:center;
+  }
+  .tab .ic { display:block; font-size:1.4rem; line-height:1; margin-bottom:5px; }
+  .tab.active { border-color:var(--tc); background:var(--surface2); color:var(--tc); }
+  .tab:disabled { opacity:.35; cursor:default; }
+  .section { margin-top:18px; background:var(--surface); border:1px solid var(--line); border-top:3px solid var(--tc); border-radius:14px; padding:16px; }
+  .section h2 { font-size:1.1rem; font-weight:800; color:var(--tc); margin-bottom:8px; }
+  .empty-sec { color:var(--muted); font-size:.9rem; }
+
+  .steps .step-h { font-weight:800; font-size:1rem; margin:16px 0 6px; color:var(--text); }
+  .steps .step-h:first-child { margin-top:0; }
+  .steps p { font-size:.97rem; margin:6px 0; }
+  .steps ul, .steps ol { margin:4px 0 10px 22px; padding:0; }
+  .steps li { font-size:.97rem; margin-bottom:6px; color:var(--muted); }
+  .steps li b, .steps li strong, .steps p b { color:var(--text); }
+  .steps a { color:var(--blue); }
+
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hd">
+    <a class="back" href="/app">← Verkstæði</a>
+    <h1>Vélar</h1>
+    <div class="lede">Ræsing, notkun og hvernig á að drepa á — veldu vél eða leitaðu.</div>
+    <div class="search">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="searchInput" type="text" placeholder="Leita — t.d. „sög“, „lím“, „slökkva“…" autocomplete="off" />
+    </div>
+  </div>
+
+  <div id="status">Sæki vélar…</div>
+  <div class="search-results" id="searchResults"></div>
+
+  <div id="homeView" class="hidden">
+    <div class="mlist" id="mList"></div>
+  </div>
+
+  <div id="machineView" class="hidden">
+    <button class="back" id="backBtn" style="margin-top:14px;">← Allar vélar</button>
+    <img class="cover hidden" id="mCover" alt="" />
+    <div class="mname" id="mName"></div>
+    <a class="video-link hidden" id="mVideo" target="_blank" rel="noopener">🎬 Myndband</a>
+    <div class="tabs" id="mTabs"></div>
+    <div class="section" id="mSection"><h2 id="mSecTitle"></h2><div class="steps" id="mSecBody"></div></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var PROXY_URL = "/api/airtable";
+  var VELAR_TABLE = "tblDwYfZWPmgGpjio"; // Vélar 🏭
+
+  var F_NAME = "Heiti vélar";
+  var F_IMG = "Mynd 🖼️";
+  var F_VIDEO = "Myndband 🔗";
+  var F_ORDER = "Röð";
+  var F_HIDDEN = "Falið";
+  // key = what ?kafli= uses; colour doubles as the tab/section accent
+  var SECTIONS = [
+    { key: "raesing", field: "Ræsing / setup ▶️", label: "Ræsing", ic: "▶️", color: "var(--green)" },
+    { key: "notkun",  field: "Notkun 📖",          label: "Notkun",  ic: "📖", color: "var(--blue)" },
+    { key: "drepa",   field: "Drepa á ⏹️",          label: "Drepa á", ic: "⏹️", color: "var(--red)" },
+    { key: "bilanir", field: "Bilanir & ráð 🛠️",    label: "Bilanir", ic: "🛠️", color: "var(--orange)" },
+    { key: "oryggi",  field: "Öryggi ⚠️",           label: "Öryggi",  ic: "⚠️", color: "var(--amber)" },
+  ];
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function norm(s) { return (s || "").toLowerCase(); }
+  function hasText(v) { return !!(v && String(v).trim()); }
+
+  // Same small markdown renderer as sop.html — Airtable rich text comes back
+  // as markdown: **Bold** lines / #-headings become sub-headings, "- "/"1. "
+  // lines (any indent) become nested lists, [text](url) links work.
+  function renderSteps(src) {
+    if (!src) return "";
+    var lines = String(src).split(/\r?\n/);
+    var html = "", stack = [];
+    function closeTo(indent) {
+      while (stack.length && stack[stack.length - 1].indent >= indent) html += "</" + stack.pop().tag + ">";
+    }
+    function inline(t) {
+      return esc(t)
+        .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
+        .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    }
+    lines.forEach(function (raw) {
+      if (!raw.trim()) return;
+      var heading = raw.match(/^\s*#{1,6}\s*(.*)$/);
+      if (heading) {
+        closeTo(0);
+        if (heading[1].trim()) html += '<div class="step-h">' + inline(heading[1].replace(/\*\*/g, "")) + "</div>";
+        return;
+      }
+      var bold = raw.match(/^\s*\*\*(.+?)\*\*\s*:?\s*$/);
+      if (bold) { closeTo(0); html += '<div class="step-h">' + esc(bold[1]) + "</div>"; return; }
+      var m = raw.match(/^(\s*)(?:[-*]|\d+[.)])\s+(.*)$/);
+      if (!m) { closeTo(0); html += "<p>" + inline(raw.trim()) + "</p>"; return; }
+      var indent = m[1].length;
+      var tag = /^\d/.test(raw.replace(/^\s*/, "")) ? "ol" : "ul";
+      closeTo(indent + 1);
+      var top = stack[stack.length - 1];
+      if (top && top.indent === indent && top.tag !== tag) closeTo(indent); // "- " list followed by "1. " list
+      if (!stack.length || stack[stack.length - 1].indent < indent) {
+        html += "<" + tag + ">";
+        stack.push({ indent: indent, tag: tag });
+      }
+      html += "<li>" + inline(m[2]) + "</li>";
+    });
+    closeTo(0);
+    return html;
+  }
+
+  async function airtableFetchAll(table, params) {
+    var qs = ["path=" + encodeURIComponent(table)];
+    Object.keys(params || {}).forEach(function (k) {
+      var v = params[k];
+      (Array.isArray(v) ? v : [v]).forEach(function (x) { qs.push(encodeURIComponent(k) + "=" + encodeURIComponent(x)); });
+    });
+    var recs = [], offset;
+    do {
+      var r = await fetch(PROXY_URL + "?" + qs.join("&") + (offset ? "&offset=" + encodeURIComponent(offset) : ""));
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      var d = await r.json();
+      recs = recs.concat(d.records || []);
+      offset = d.offset;
+    } while (offset);
+    return recs;
+  }
+
+  var homeView = $("homeView"), machineView = $("machineView");
+  var searchResults = $("searchResults"), searchInput = $("searchInput");
+  var machines = [];
+  var current = null;
+
+  function imgUrl(rec, size) {
+    var att = (rec.fields[F_IMG] || [])[0];
+    if (!att) return "";
+    var t = att.thumbnails || {};
+    return (t[size] || t.large || att).url;
+  }
+
+  function showOnly(view) {
+    [homeView, machineView].forEach(function (v) { v.classList.toggle("hidden", v !== view); });
+    searchResults.classList.remove("show");
+    searchInput.value = "";
+    window.scrollTo({ top: 0 });
+  }
+
+  function renderList() {
+    if (!machines.length) {
+      $("mList").innerHTML = '<div class="search-empty">Engar vélar skráðar enn — bættu þeim við í Airtable-töflunni „Vélar 🏭“.</div>';
+      return;
+    }
+    $("mList").innerHTML = machines.map(function (rec) {
+      var f = rec.fields, thumb = imgUrl(rec, "large");
+      var filled = SECTIONS.filter(function (s) { return hasText(f[s.field]); }).map(function (s) { return s.label; });
+      return '<button class="mrow" data-id="' + esc(rec.id) + '">' +
+        (thumb ? '<img class="thumb" src="' + esc(thumb) + '" alt="" loading="lazy">' : '<span class="thumb">⚙️</span>') +
+        '<div class="txt"><div class="t">' + esc(f[F_NAME] || "(ónefnd vél)") + "</div>" +
+        '<div class="sub">' + (filled.length ? esc(filled.join(" · ")) : "Ekkert efni komið enn") + "</div></div>" +
+        '<span class="arrow">→</span></button>';
+    }).join("");
+    $("mList").querySelectorAll(".mrow").forEach(function (btn) {
+      btn.addEventListener("click", function () { openMachine(btn.dataset.id); });
+    });
+  }
+
+  function openMachine(id, sectionKey) {
+    var rec = machines.find(function (r) { return r.id === id; });
+    if (!rec) return;
+    current = rec;
+    showOnly(machineView);
+    var f = rec.fields;
+    var cover = imgUrl(rec, "large");
+    $("mCover").classList.toggle("hidden", !cover);
+    if (cover) $("mCover").src = cover;
+    $("mName").textContent = f[F_NAME] || "(ónefnd vél)";
+    $("mVideo").classList.toggle("hidden", !f[F_VIDEO]);
+    if (f[F_VIDEO]) $("mVideo").href = f[F_VIDEO];
+
+    $("mTabs").innerHTML = SECTIONS.map(function (s) {
+      return '<button class="tab" style="--tc:' + s.color + ';" data-key="' + s.key + '"' + (hasText(f[s.field]) ? "" : " disabled") + ">" +
+        '<span class="ic">' + s.ic + "</span>" + esc(s.label) + "</button>";
+    }).join("");
+    $("mTabs").querySelectorAll(".tab").forEach(function (btn) {
+      btn.addEventListener("click", function () { showSection(btn.dataset.key); });
+    });
+    var first = SECTIONS.find(function (s) { return hasText(f[s.field]); });
+    showSection(sectionKey || (first ? first.key : "raesing"));
+  }
+
+  function showSection(key) {
+    var s = SECTIONS.find(function (x) { return x.key === key; }) || SECTIONS[0];
+    var body = current.fields[s.field];
+    $("mTabs").querySelectorAll(".tab").forEach(function (b) { b.classList.toggle("active", b.dataset.key === s.key); });
+    $("mSection").style.setProperty("--tc", s.color);
+    $("mSecTitle").textContent = s.ic + " " + s.label;
+    $("mSecBody").innerHTML = hasText(body) ? renderSteps(body) : '<div class="empty-sec">Ekkert skráð hér enn.</div>';
+    try { history.replaceState(null, "", "?vel=" + current.id + "&kafli=" + s.key); } catch (e) {}
+  }
+
+  $("backBtn").addEventListener("click", function () {
+    current = null;
+    try { history.replaceState(null, "", location.pathname); } catch (e) {}
+    showOnly(homeView);
+  });
+
+  // Search across machine names and every section; a hit opens the machine
+  // on the section where the match was found.
+  searchInput.addEventListener("input", function () {
+    var val = norm(searchInput.value.trim());
+    if (!val) {
+      searchResults.classList.remove("show");
+      searchResults.innerHTML = "";
+      (current ? machineView : homeView).classList.remove("hidden");
+      return;
+    }
+    homeView.classList.add("hidden"); machineView.classList.add("hidden");
+    searchResults.classList.add("show");
+    var hits = [];
+    machines.forEach(function (rec) {
+      var f = rec.fields;
+      var nameHit = norm(f[F_NAME]).indexOf(val) !== -1;
+      var secHits = SECTIONS.filter(function (s) { return norm(f[s.field]).indexOf(val) !== -1; });
+      if (nameHit && !secHits.length) hits.push({ rec: rec, sec: null, snip: "" });
+      secHits.forEach(function (s) {
+        var txt = String(f[s.field]).replace(/[*#]/g, "").replace(/\s+/g, " ");
+        var i = norm(txt).indexOf(val);
+        var snip = (i > 30 ? "…" : "") + txt.slice(Math.max(0, i - 30), i + val.length + 50) + "…";
+        hits.push({ rec: rec, sec: s, snip: snip });
+      });
+    });
+    searchResults.innerHTML = hits.length
+      ? hits.map(function (h, i) {
+          return '<button class="search-hit" data-i="' + i + '"><span class="cat">' + esc(h.sec ? h.sec.ic + " " + h.sec.label : "Vél") + "</span>" +
+            '<span class="t">' + esc(h.rec.fields[F_NAME] || "") + "</span>" +
+            (h.snip ? '<div class="snip">' + esc(h.snip) + "</div>" : "") + "</button>";
+        }).join("")
+      : '<div class="search-empty">Ekkert fannst.</div>';
+    searchResults.querySelectorAll(".search-hit").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var h = hits[Number(btn.dataset.i)];
+        openMachine(h.rec.id, h.sec && h.sec.key);
+      });
+    });
+  });
+
+  (async function () {
+    try {
+      var recs = await airtableFetchAll(VELAR_TABLE, { pageSize: 100 });
+      machines = recs.filter(function (r) { return !r.fields[F_HIDDEN] && hasText(r.fields[F_NAME]); });
+      machines.sort(function (a, b) {
+        var oa = a.fields[F_ORDER], ob = b.fields[F_ORDER];
+        if (oa != null || ob != null) return (oa == null ? 1e9 : oa) - (ob == null ? 1e9 : ob);
+        return (a.fields[F_NAME] || "").localeCompare(b.fields[F_NAME] || "", "is");
+      });
+      $("status").classList.add("hidden");
+      renderList();
+      var p = new URLSearchParams(location.search);
+      if (p.get("vel") && machines.some(function (r) { return r.id === p.get("vel"); })) openMachine(p.get("vel"), p.get("kafli"));
+      else showOnly(homeView);
+    } catch (e) {
+      $("status").textContent = "Villa við að sækja vélar — reyndu aftur.";
+    }
+  })();
+})();
+</script>
+</body>
+</html>
