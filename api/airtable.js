@@ -346,17 +346,22 @@ const CREATABLE_FIELDS = {
   // directly in Airtable, nothing in this repo reads it back.
   "tbltD1UNpqj05WtMx": ["Fyrsta spurning", "Samtal", "Óleyst spurning", "Netfang", "Síða"],
   // kitchen-planner.html's contact-capture step creates a Tengiliðir, then a
-  // Tækifæri linking it, then one Eyðublað per placed cabinet — see
-  // FORCED_CREATE_FIELDS below for the fields the client can't set itself.
+  // Tækifæri linking it, then one Line Item per placed cabinet (tblFcsUoGxsuUwNEH,
+  // below) — see FORCED_CREATE_FIELDS below for the fields the client can't set itself.
   "tblQ8zeUanriESWvL": ["Fornafn ⬅️", "Eftirnafn ➡️", "Netfang 📧", "Símanúmer ☎️", "Tegund tengiliðs 👥", "Hvaðan kom viðskiptavinurinn 📥"],
   // "Skilaboð til skipulags" added 2026-09-29 — it was missing here the whole time, so submitPlan()'s
   // intakeNote() (delivery timing, budget, chosen materials, warnings) was silently dropped on every
   // kitchen-planner submission before this: creatable.includes(k) filters unknown fields out with no
   // error, so the Tækifæri record was still created fine, just always missing its note.
-  "tbl4LMXlQjp66RFKI": ["Tengiliður verkefnis 👤", "Skrokka efni 🔲 viðskiptavinar", "Fronta efni viðskiptavinar 🖼️", "Sjálfsafgreiðsla skipulag (JSON) 📐", "Skilaboð til skipulags"],
-  // "Skúffutegund" (Phase 7b) is a real 2-choice field (LEGRA/MERIVO), set
-  // the same on every unit — a whole-project hardware choice, not per-cabinet.
-  "tbl0WcyHhz63pSzZX": ["Tækifæri 📣", "Heiti rýmis", "Hvað viltu smíða?", "Skápategund", "Breidd", "Hæð", "Dýpt", "Fjöldi eininga", "Grip?", "Skilaboð til Skipulags 📝", "Höldur 1", "Höldur 1 magn", "Hæð ofns", "Töfrahorn útfærsla", "Breidd á töfra front", "Skúffutegund", "Lausar hillur fjöldi"],
+  // "Höldur Viðskiptavinar ✊"/"Litur á höldum 🎨"/"Magn Halda 1" added 2026-09-29 — handles are set
+  // once per project here, not per Line Item (see handleHardwareSummary() in kitchen-planner.html).
+  "tbl4LMXlQjp66RFKI": ["Tengiliður verkefnis 👤", "Skrokka efni 🔲 viðskiptavinar", "Fronta efni viðskiptavinar 🖼️", "Sjálfsafgreiðsla skipulag (JSON) 📐", "Skilaboð til skipulags", "Höldur Viðskiptavinar ✊", "Litur á höldum 🎨", "Magn Halda 1"],
+  // Line Items (2026-09-29) — replaces the old raw-Eyðublað write (tbl0WcyHhz63pSzZX, removed from
+  // this list, the client no longer calls it — see collectLineItems() in kitchen-planner.html).
+  // Vöru reitur 1 = cabinet body, Vöru reitur 2 = interior/structure — both may be omitted when the
+  // mapping can't resolve them; ⚠️ Skipulagsvilla (a formula, not writable) then blocks "Keyra
+  // skipulag" on that line until staff link the right Útfærsla by hand, which is intended, not a bug.
+  "tblFcsUoGxsuUwNEH": ["Tækifæri 📣 (projects)", "Rými 🏡", "Vöru reitur 1", "Vöru reitur 2", "Magn", "🔑", "Skilaboð til skipulags"],
   // /app's "❗ Nýtt QUICK FIX" quick-task form — see FORCED_CREATE_FIELDS
   // below for why "Staða" isn't in this list (anyone on the floor can report
   // a problem, but it always starts "opið", never self-set to in-progress).

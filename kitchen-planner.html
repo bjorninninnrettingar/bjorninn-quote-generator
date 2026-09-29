@@ -31,6 +31,7 @@
 <script src="kitchen-planner-catalog.js"></script>
 <script src="kitchen-planner-handles.js"></script>
 <script src="kitchen-planner-models.js"></script>
+<script src="kitchen-planner-linemap-draft.js"></script>
 <script src="kitchen-planner-3d.js"></script>
 <style>
   :root{
@@ -4412,6 +4413,10 @@
     if (state.handle === "sponagrip" && lk && lk.efnislistiId && !lk.gripalistarId){
       lines.push("⚠️ Spónagrip óskað en 'm gripalistum' útgáfa af " + lk.label + " er ekki til í Efnislista — staðfestu efni handvirkt");
     }
+    // "Litur á höldum" in Airtable has no white metal finish (2026-09-29) — flagged rather than guessed.
+    if (state.handleColor === "hvitt"){
+      lines.push("⚠️ Viðskiptavinur valdi 'Hvítt matt' á höldur — enginn samsvarandi litur er til í Airtable, vinsamlegast staðfestu.");
+    }
     var fl = KP3D.FLOORS[state.floor || "parket_eik"];
     if (fl) lines.push("Valið gólfefni: " + fl.label + " (" + (fl.group === "flisar" ? "flísar " + KP3D.TILE_SIZES[state.floorTile || "60x60"].label : "parket" + (state.floorPattern === "fiskibein" ? ", fiskibeinamynstur" : "")) + ")");
     // Windows/doors are room-level, not cabinets — no Eyðublað row of their
@@ -4505,56 +4510,121 @@
   }
 
   function zone_ofBlock(wall, b){ return wall.wall.indexOf(b) >= 0 ? "wall" : "floor"; }
-  function collectEyðublaðRows(){
-    var rows = [];
-    var handle = state.handle ? HANDLES[state.handle] : null;
-    var drawerSys = state.drawerSystem ? DRAWER_SYSTEMS[state.drawerSystem] : null;
+  // ---------- Line Items (2026-09-29) ----------
+  // Replaces the old raw-Eyðublað submission entirely (user: "má eiginlega eyða þeirri leið" —
+  // every submission goes to Line Items now, even the cabinet types the mapping can't resolve;
+  // an unresolved Vöru reitur 1 is not a bug, ⚠️ Skipulagsvilla is SUPPOSED to block "Keyra
+  // skipulag" on it until staff link the right Útfærsla by hand).
+  //
+  // V1 = the plain cabinet body (Skápategund + Breidd, via kitchen-planner-linemap-draft.js's
+  // v1 tables). Several CATALOG types have no schema of their own and reuse an existing V1
+  // table — same aliasing the old Eyðublað path used via CATALOG[type].skapategundOverride,
+  // confirmed with the user ("V1 er í raun og veru bara kassinn"). Úthlið/laushilla
+  // (panel:true/shelfStack:true) deliberately do NOT reuse a table even though they carry a
+  // skapategundOverride too — they're not full cabinet bodies (no front cost, no interior),
+  // linking one to a real cabinet Útfærsla would misrepresent the product; they stay note-only.
+  var V1_ALIAS = { grunnskapur:"grunnskapur", harskapur:"harskapur", efriskapur:"efriskapur", opnarhillur:"opnarhillur",
+    vaskaskapur:"grunnskapur", isskapur:"harskapur", ofnaskapur:"harskapur" };
+  function widthFamily(mm){ return Math.max(300, Math.min(1200, Math.round(mm / 100) * 100)); }
+  function v1RecordFor(b, c){
+    if (c.tofrahornId) return { id:c.tofrahornId };
+    var alias = V1_ALIAS[b.type];
+    var table = alias && window.KP_LINEMAP_DRAFT && window.KP_LINEMAP_DRAFT.v1[alias];
+    return table ? (table[widthFamily(b.widthMm)] || null) : null;
+  }
+  // V2 = whatever makes the box's interior specific — drawer/shelf composition for a plain
+  // cabinet. Types the planner doesn't collect enough detail on (oven/fridge/corner/sink
+  // specifics) get no V2 at all — the note carries it, same as V1's unresolved case.
+  function v2RecordFor(b, c){
+    var LM = window.KP_LINEMAP_DRAFT; if (!LM) return null;
+    if (c.hasInterior && b.interior){
+      if (b.interior.mode === "skuffur" && b.interior.count === 3 && !b.interior.fractions){
+        return LM.v2DrawersDefault[state.drawerSystem === "merivo" ? "merivo" : "legra"] || null;
+      }
+      // NB: b.interior.count here, not KP3D.shelvesOf(b) — that reads b.shelves, a different
+      // property only used by hasInterior:false types (efriskapur/opnarhillur) below. Using it
+      // here silently fell back to the type's default shelf count instead of the customer's
+      // actual pick whenever the two differed (caught while verifying, 2026-09-29).
+      if (b.interior.mode === "hillur") return LM.v2ShelvesPlain[b.interior.count] || null;
+      return null; // custom drawer count/heights — note only
+    }
+    if (c.shelfRange && !c.hasInterior){
+      var n = KP3D.shelvesOf(b);
+      return n ? ((c.open ? LM.v2ShelvesFrontaefni : LM.v2ShelvesPlain)[n] || null) : null;
+    }
+    return null;
+  }
+
+  // ---------- handle hardware (Tækifæri-level, not per-line — 2026-09-29) ----------
+  // "þarf ekki að gera neitt svona [per-line], bara fylla inn í tækifæris efnis fields, magn
+  // og lit" — real, orderable hardware only (Comet/Angle/Crossing/Graf/Sense/Jey/Jey2/Hexxa,
+  // all have lenOptions now). Vann has no real product yet and "an" (falið/þrýstiopnun/none)
+  // has nothing to order — those leave the Tækifæri handle fields untouched; intakeNote()
+  // already names whichever was picked. Spónagrip has no lenOptions of its own (it's the
+  // front-material swap, not hardware) so it's skipped here too, correctly.
+  function frontWidthsOf(b, c){ // rough per-cabinet approximation — good enough given Rakel reviews every submission before it's built
+    if (c.panel || c.shelfStack || c.open) return []; // úthlið, lausar hillur, opnar hillur — no door/front, no handle (caught while verifying, 2026-09-29)
+    var w = b.widthMm;
+    if (c.hasInterior && b.interior && b.interior.mode === "skuffur") return [{ mm:w, count:b.interior.count }];
+    var wide = w >= 750 && c.cls !== "corner";
+    return wide ? [{ mm:w / 2, count:2 }] : [{ mm:w, count:1 }];
+  }
+  // Jey/Jey2/Hexxa: cut-to-size stock — smallest pre-cut ≥ needed, else the bulk (3000 mm) bar
+  // ("ef staðlaðar stærðir þá það, ef funky þá 3000 sagað í mál", 2026-09-29).
+  function pickStockSku(lenOptions, neededMm){
+    var std = lenOptions.filter(function(o){ return !o.bulk; }).sort(function(a, b){ return a.mm - b.mm; });
+    for (var i = 0; i < std.length; i++) if (std[i].mm >= neededMm) return std[i];
+    return lenOptions.find(function(o){ return o.bulk; }) || std[std.length - 1] || null;
+  }
+  // Comet/Angle/Crossing/Graf/Sense: a real discrete pull — largest that still fits, same rule
+  // pickHandleLenM() in kitchen-planner-3d.js uses for the 3D render (mm here, that one's metres).
+  function pickFittingSku(lenOptions, availMm){
+    var sorted = lenOptions.slice().sort(function(a, b){ return a.mm - b.mm; });
+    var fits = sorted.filter(function(o){ return o.mm <= Math.max(0, availMm); });
+    return fits.length ? fits[fits.length - 1] : sorted[0];
+  }
+  function handleHardwareSummary(){
+    var hcfg = state.handle && window.KPMODELS && window.KPMODELS.handles && window.KPMODELS.handles[state.handle];
+    if (!hcfg || !hcfg.lenOptions || !hcfg.lenOptions.length) return null;
+    var stock = hcfg.kind === "jey" || hcfg.kind === "hexxa"; // cut-to-size vs. a fixed discrete pull
+    var ids = {}, count = 0;
     surfaces().forEach(function(wall){
       wall.floor.concat(wall.wall).forEach(function(b){
         var c = CATALOG[b.type];
-        var fields = {
-          "Heiti rýmis": "Eldhús",
-          "Hvað viltu smíða?": "Skáp",
-          // Töfrahorn isn't its own real Skápategund — it's a Grunnskápur
-          // corner unit fitted with a real mechanism (linked below).
-          "Skápategund": c.skapategundOverride || c.label,
-          "Breidd": b.widthMm,
-          "Hæð": blockHeightMm(b, c),
-          "Dýpt": b.depthMm || c.d,
-          "Fjöldi eininga": 1
-        };
-        if (c.ovenHeightMm){
-          fields["Hæð ofns"] = c.ovenHeightMm;
-        }
-        if (c.tofrahornId){
-          fields["Töfrahorn útfærsla"] = [c.tofrahornId];
-          fields["Breidd á töfra front"] = b.widthMm;
-        }
-        var plain = !c.panel && !c.shelfStack; // úthlið and loose shelves have no drawers/handles of their own
-        if (drawerSys && plain){
-          fields["Skúffutegund"] = drawerSys.airtableName;
-        }
+        frontWidthsOf(b, c).forEach(function(fw){
+          var pick = stock ? pickStockSku(hcfg.lenOptions, fw.mm) : pickFittingSku(hcfg.lenOptions, fw.mm);
+          if (pick) ids[pick.vorulistiId] = true;
+          count += fw.count;
+        });
+      });
+    });
+    var idList = Object.keys(ids);
+    return idList.length ? { ids:idList, count:count } : null;
+  }
+  // Airtable's real "Litur á höldum" choices don't line up 1:1 with the planner's 6 finishes —
+  // stál/silfur are the same thing here (confirmed 2026-09-29); brons has no real match, mapped
+  // to the closest warm metal (Kopar) with a note flag; hvítt has no metal-finish match at all,
+  // left blank with a note flag rather than guessing.
+  var HANDLE_COLOR_AIRTABLE = { svart:"Svartar ⚫", stal:"Silfur 🥈", messing:"Gyllt / Látún 🥇", kopar:"Kopar 🥉", brons:"Kopar 🥉" };
+
+  function collectLineItems(){
+    var rows = [], n = 0;
+    surfaces().forEach(function(wall){
+      wall.floor.concat(wall.wall).forEach(function(b){
+        var c = CATALOG[b.type];
+        n++;
+        var fields = { "Rými 🏡":"Eldhús", "Magn":1, "🔑":"Sk" + n };
+        var v1 = v1RecordFor(b, c); if (v1) fields["Vöru reitur 1"] = [v1.id];
+        var v2 = v2RecordFor(b, c); if (v2) fields["Vöru reitur 2"] = [v2.id];
         var notes = [];
+        if (!v1) notes.push((c.skapategundOverride || c.label) + " " + b.widthMm + "×" + blockHeightMm(b, c) + "×" + (b.depthMm || c.d) + " mm — engin sjálfvirk vörutenging, vinsamlegast veldu Útfærslu handvirkt.");
         if (wall.island) notes.push("Skápur í eyju (" + wall.label + ") — stendur laus á gólfinu, ekki við vegg" + (wall.island.two ? "; bak í bak við aðra röð." : "."));
-        if (!plain){
-          // no handle fields for boards
-        } else if (handle && handle.vorulistiId){
-          // A real physical handle — no milled grip channel on the panel.
-          fields["Höldur 1"] = [handle.vorulistiId];
-          fields["Höldur 1 magn"] = 1;
-        } else if (handle && handle.isPushOpen){
-          // Real Blum Tip-on products exist for both doors and drawers —
-          // which exact SKU applies is Rakel's own judgment per cabinet, so
-          // this writes a plain note instead of guessing a product link.
-          notes.push("Viðskiptavinur óskar eftir þrýstiopnun (Blum Tip-on) í stað handfangs — vinsamlegast veldu réttu vöruna eftir hurð/skúffu.");
-        } else {
-          fields["Grip?"] = "Fræst grip lárétt";
-        }
-        if (b.interior && b.interior.mode === "skuffur"){
-          notes.push("Viðskiptavinur óskar eftir skúffum (" + b.interior.count + " stk) í stað hilla — vinsamlegast staðfestu skúffuhæðir.");
-        } else if (c.shelfRange){
-          // real number field the production templates read (plain, writable)
-          fields["Lausar hillur fjöldi"] = KP3D.shelvesOf(b);
+        if (c.ovenHeightMm) notes.push("Ofnhæð: " + c.ovenHeightMm + " mm.");
+        if (c.tofrahornId) notes.push("Breidd á töfrahorns-front: " + b.widthMm + " mm.");
+        if (b.interior && b.interior.mode === "skuffur" && !v2){
+          notes.push("Viðskiptavinur óskar eftir skúffum (" + b.interior.count + " stk) — vinsamlegast staðfestu skúffuhæðir.");
+        } else if (c.shelfRange && !v2){
+          notes.push("Hillufjöldi: " + (KP3D.shelvesOf(b) || 0) + " stk.");
         }
         if (c.note) notes.push(c.note);
         if (c.shelfStack){
@@ -4566,9 +4636,7 @@
         if (b.swing && !(b.interior && b.interior.mode === "skuffur")){
           notes.push("Viðskiptavinur óskar eftir að lamir séu " + (b.swing === "vinstri" ? "vinstra" : "hægra") + " megin (séð framan frá).");
         }
-        if (notes.length){
-          fields["Skilaboð til Skipulags 📝"] = notes.join(" ");
-        }
+        if (notes.length) fields["Skilaboð til skipulags"] = notes.join(" ");
         rows.push(fields);
       });
     });
@@ -4597,6 +4665,8 @@
       // not a separate handle product, the grip is built into that front (2026-09-29, see intakeNote()
       // for the fallback note when a species has no gripalistar variant).
       var frontEfnislistiId = lookRec ? (state.handle === "sponagrip" && lookRec.gripalistarId ? lookRec.gripalistarId : lookRec.efnislistiId) : null;
+      var hw = handleHardwareSummary();
+      var colorKey = state.handleColor ? HANDLE_COLOR_AIRTABLE[state.handleColor] : null;
       var note = intakeNote();
       var opp = await airtableCreate("tbl4LMXlQjp66RFKI", Object.assign({
         "Tengiliður verkefnis 👤": [contact.id]
@@ -4604,16 +4674,21 @@
         "Skrokka efni 🔲 viðskiptavinar": [carcassRec.efnislistiId]
       } : {}, frontEfnislistiId ? {
         "Fronta efni viðskiptavinar 🖼️": [frontEfnislistiId]
+      } : {}, hw ? {
+        "Höldur Viðskiptavinar ✊": hw.ids,
+        "Magn Halda 1": hw.count
+      } : {}, hw && colorKey ? {
+        "Litur á höldum 🎨": colorKey
       } : {}, note ? {
         "Skilaboð til skipulags": note
       } : {}, {
         "Sjálfsafgreiðsla skipulag (JSON) 📐": JSON.stringify(state)
       }));
 
-      var rows = collectEyðublaðRows();
+      var rows = collectLineItems();
       for (var i = 0; i < rows.length; i++){
-        rows[i]["Tækifæri 📣"] = [opp.id];
-        await airtableCreate("tbl0WcyHhz63pSzZX", rows[i]);
+        rows[i]["Tækifæri 📣 (projects)"] = [opp.id];
+        await airtableCreate("tblFcsUoGxsuUwNEH", rows[i]);
       }
 
       KP3D.teardown3D(true);

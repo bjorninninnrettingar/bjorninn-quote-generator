@@ -46,8 +46,17 @@ window.KPMODELS = {
   handles: {
     // Jey (grip): a full-width profile that takes 27 mm off the front and sits on top of it, in line with the front face (the profile is 37 mm tall: the 10 mm that overlap the panel are cut out of the panel behind a thin front lip); the finger lip is at the BOTTOM of the profile
     // (model y = length, model z = height with the lip at the low end, model x = the ~17 mm it projects)
-    jey:                { file:"models/handles/jey.glb",   kind:"jey", map:["-y", "-z", "x"], color:"#b8935a", stripMm:27, profileMm:37 },
-    jey2:               { file:"models/handles/jey.glb",   kind:"jey", map:["-y", "-z", "x"], color:"#1b1b1d", stripMm:27, profileMm:37 },
+    // `lenOptions` here (2026-09-29) are for the Line Items handle-SKU picker in kitchen-planner.html
+    // ONLY — real "Jey Ál grip" Útfærslur (Flokkur=Höldur) exist in 200/300/.../1000 mm pre-cuts plus a
+    // 3000 mm bar cut to size; the 3D render is untouched (still a continuous profile at the exact front
+    // length — for cut-to-size stock the rendered length is always physically achievable, unlike a
+    // discrete pull like Comet, so pickHandleLenM()'s "largest that fits" logic doesn't apply here; the
+    // Line Items code picks a SKU with its own "smallest pre-cut that's ≥ needed, else the 3000mm bar"
+    // rule instead — confirmed with the customer 2026-09-29).
+    jey:                { file:"models/handles/jey.glb",   kind:"jey", map:["-y", "-z", "x"], color:"#b8935a", stripMm:27, profileMm:37,
+                            lenOptions:[{ mm:200, vorulistiId:"recYkz92vylCrlCFR" }, { mm:300, vorulistiId:"rec1IwCSd1ovVxXvl" }, { mm:400, vorulistiId:"recklQjvtxw80fOEo" }, { mm:500, vorulistiId:"recMosVIFxb0wrh2S" }, { mm:600, vorulistiId:"recT3auuYgVVRiWxY" }, { mm:700, vorulistiId:"recOjFVZ95MkJ9Q4h" }, { mm:800, vorulistiId:"recvjzSW2OUhLgYEm" }, { mm:900, vorulistiId:"recVDUcGns6lYvGXN" }, { mm:1000, vorulistiId:"recN5ZXgqQWDzphMY" }, { mm:3000, vorulistiId:"recrqN50q1ITKwFYp", bulk:true }] },
+    jey2:               { file:"models/handles/jey.glb",   kind:"jey", map:["-y", "-z", "x"], color:"#1b1b1d", stripMm:27, profileMm:37,
+                            lenOptions:[{ mm:200, vorulistiId:"rec9KWB5VFxSWLkLh" }, { mm:300, vorulistiId:"rectdCw4psjhUVruc" }, { mm:400, vorulistiId:"rec4Yzl2Cvy57Jrex" }, { mm:500, vorulistiId:"recEcM6FJcqDVoNYT" }, { mm:600, vorulistiId:"receimV2NkpHfSgkH" }, { mm:700, vorulistiId:"recvjsjZuO5sSXFy8" }, { mm:800, vorulistiId:"recjW59nRw1dW8QqW" }, { mm:900, vorulistiId:"rechAyfUAFaAGpeDz" }, { mm:1000, vorulistiId:"recuw8dKmlx2oh40C" }, { mm:3000, vorulistiId:"rec9cXtbvxHFnyYxo", bulk:true }] },
     // Comet: 200 mm, mounted on the top edge of the front; model x = the 40 mm it projects, y = length, z = thickness (flat side up)
     // `lenOptions` = the real orderable lengths (Vörulisti record ids attached), largest that still fits the
     // front (2026-09-28: "plannerinn sýnir bara það sem er til" — every rendered size must be a real, orderable
@@ -70,7 +79,13 @@ window.KPMODELS = {
     // "Sense mini" is a different, smaller product — not mapped here, only "Sense Big" this model represents.
     sense:              { file:"models/handles/sense-big.glb", kind:"bar", map:["-z", "-x", "y"], dropFlat:true, color:"#1a1a1c", fitMarginMm:100,
                             lenOptions:[{ mm:140, vorulistiId:"recdosOPHSV6HhP5X" }, { mm:200, vorulistiId:"recZ8EyutxaLegwx6" }, { mm:330, vorulistiId:"reci8JxVITzeV1Kau" }, { mm:490, vorulistiId:"rec8Ul1W9laaMsBeO" }] },
-    hexxa:              { kind:"hexxa", marginMm:50, file:null },
+    // Real "Hexxa Ál grip" Útfærslur (Höldur): 100/200/350 mm pre-cuts + a 3000 mm bar. Same picker rule
+    // as Jey above (Line Items only, not the 3D render). The 100 mm one's Vörunúmer is "HEXXA110" but its
+    // own description says "100mm" — trusted the description, flagged here in case that's a typo on
+    // Björninn's side and it's actually 110 mm. A "Hexxa Ál grip Brons 3000mm" colour variant also exists
+    // (rec7Xs38ZCfGpcQkD) but isn't wired — Hexxa has no colour-variant concept in this planner yet.
+    hexxa:              { kind:"hexxa", marginMm:50, file:null,
+                            lenOptions:[{ mm:100, vorulistiId:"recw7rNNMA49tHNoz" }, { mm:200, vorulistiId:"recsRIXsElqj7nNu5" }, { mm:350, vorulistiId:"recN8LZkmG9V8Ef85" }, { mm:3000, vorulistiId:"reckwyNfBdBddqYMJ", bulk:true }] },
     // Spónagrip (2026-09-29): the customer confirmed — same physical profile as Jey (same file/map/
     // stripMm/profileMm, exact same geometry+placement), just clad in the front's own material instead
     // of a fixed colour (`matchFront:true` — handleProfile() in kitchen-planner-3d.js clones frontMat
