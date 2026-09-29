@@ -43,7 +43,8 @@ function parseShortcutToken(secret, k) {
   const [recordId, sig] = String(k || "").split("~");
   if (!recordId || !sig) return null;
   const expect = crypto.createHmac("sha256", secret).update("eigandi-shortcut:" + recordId).digest("hex").slice(0, 32);
-  return sig === expect ? recordId : null;
+  const a = Buffer.from(sig), b = Buffer.from(expect);
+  return a.length === b.length && crypto.timingSafeEqual(a, b) ? recordId : null;
 }
 const hhmm = (d) => `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`; // Iceland = UTC
 

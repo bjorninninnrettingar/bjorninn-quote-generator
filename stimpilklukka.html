@@ -581,13 +581,20 @@
             filterByFormula: `AND({Starfsmaður}="${name}",{Út}!=BLANK(),IS_AFTER({Inn},DATEADD(NOW(),-5,'days')))`,
           }),
           airtableGetAll(VERKTIMAR_TABLE, {
-            filterByFormula: `AND({Starfsmaður}="${name}",IS_AFTER({Dagsetning},DATEADD(TODAY(),-5,'days')))`,
+            // One day wider than the shift window: a split made 5 days ago has
+            // Dagsetning = TODAY()-5, which IS_AFTER(…,-5) would miss, and the
+            // already-split shift would be asked about (and counted) again.
+            filterByFormula: `AND({Starfsmaður}="${name}",IS_AFTER({Dagsetning},DATEADD(TODAY(),-6,'days')))`,
           }),
         ]);
         const covered = new Set();
         for (const r of verkt) for (const id of (r.fields["Stimplun ⏱️"] || [])) covered.add(id);
+        const today = todayISO();
         const unsplit = shifts
           .filter((s) => s.fields["Út"] && !covered.has(s.id) && !skippedCatchUp.has(s.id))
+          // Still clocked in today → today's earlier shifts get folded into the
+          // ÚT split (unsplitShiftsToday), don't ask about them twice.
+          .filter((s) => !(openShift && todayISO(new Date(s.fields["Inn"])) === today))
           .sort((a, b) => new Date(a.fields["Inn"]) - new Date(b.fields["Inn"]));
         // The GPS shortcut clocks out/in every time an owner leaves and comes
         // back, so one day can be 3–4 short shifts. Split the whole day once
@@ -596,12 +603,13 @@
         const dayShifts = unsplit.filter((s) => todayISO(new Date(s.fields["Inn"])) === day);
         const dayMs = dayShifts.reduce((t, s) => t + (new Date(s.fields["Út"]) - new Date(s.fields["Inn"])), 0);
         if (!dayShifts.length) return false;
-        if (dayMs < 30 * 60 * 1000) {
+        if (dayMs < 30 * 60 * 1000 && day < today) {
           // Too short to bother splitting — don't ask, and don't ask again.
           dayShifts.forEach((s) => skippedCatchUp.add(s.id));
           saveSkippedCatchUp();
           return checkCatchUp();
         }
+        if (dayMs < 30 * 60 * 1000) return false; // today, too short yet — wait for more of the day
         catchUpMode = true;
         startAllocation(dayShifts, new Date(dayShifts[dayShifts.length - 1].fields["Út"]));
         return true;
