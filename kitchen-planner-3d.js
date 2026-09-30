@@ -18,8 +18,8 @@
   var CATALOG = {
     // Every dimension is editable per cabinet (typed in the properties panel,
     // clamped to minW..maxW etc.); w/h/d here are just the starting size.
-    grunnskapur: { label:"Grunnskápur", zone:"floor", cls:"floor", defaultW:600, minW:200, maxW:1200, h:800,  d:600, minH:600,  maxH:1000, minD:300, maxD:700, hasInterior:true, drawerCountRange:[1,5], shelfRange:[0,4,1], counter:true },
-    harskapur:   { label:"Hárskápur",   zone:"floor", cls:"tall",  defaultW:600, minW:300, maxW:900,  h:2400, d:600, minH:1800, maxH:2600, minD:300, maxD:700, hasInterior:true, drawerCountRange:[1,5], shelfRange:[0,8,5] },
+    grunnskapur: { label:"Grunnskápur", zone:"floor", cls:"floor", defaultW:600, minW:200, maxW:1200, h:800,  d:600, minH:600,  maxH:1000, minD:300, maxD:700, hasInterior:true, drawerCountRange:[1,4], shelfRange:[0,4,1], counter:true },
+    harskapur:   { label:"Hárskápur",   zone:"floor", cls:"tall",  defaultW:600, minW:300, maxW:1200,  h:2400, d:600, minH:1800, maxH:2600, minD:300, maxD:700, hasInterior:true, drawerCountRange:[1,5], shelfRange:[0,8,5] },
     efriskapur:  { label:"Efriskápur",  zone:"wall",  cls:"wall",  defaultW:600, minW:200, maxW:1200, h:1000, d:300, minH:300,  maxH:1200, minD:200, maxD:450, hasInterior:false, shelfRange:[0,5,2] },
     // Built-in fridge: NOT its own Skápategund in the schema (Skápategund has
     // Grunn/Hár/Efri/Lagna/Ofna/Loftunarskápur only) — physically a Hárskápur
@@ -32,7 +32,21 @@
     // (Hæð ofns, Töfrahorn útfærsla); the sink base and open shelves have no
     // schema of their own, so they submit as Grunnskápur / Efriskápur plus a
     // plain note for Rakel.
+    // b.ovenCombo = the drawer combo under the oven (an Útfærslur key, "" = cabinet door, no drawers)
     ofnaskapur:  { label:"Ofnaskápur",  zone:"floor", cls:"oven",  defaultW:600, minW:500, maxW:900, h:2400, d:600, minH:1800, maxH:2600, minD:500, maxD:750, hasInterior:false, ovenHeightMm:595, oven:true },
+    // ---- 2026-09-30: types that exist as real Útfærslur (see kitchen-planner-linemap.js) ----
+    // Búrskápur: tall pantry, doors outside, a real drawer/shelf set inside (b.burCombo)
+    burskapur:   { label:"Búrskápur", zone:"floor", cls:"tall", defaultW:600, minW:300, maxW:1200, h:2400, d:600, minH:1800, maxH:2600, minD:400, maxD:700, hasInterior:false, bur:true },
+    // Þvottavélaskápur: washer/dryer tower; b.thvo = "skuffa" (a drawer at the bottom to raise the machine) | "hurdir" (doors only)
+    thvottavel:  { label:"Þvottavélaskápur", zone:"floor", cls:"tall", defaultW:600, minW:600, maxW:900, h:2400, d:600, minH:1800, maxH:2600, minD:600, maxD:750, hasInterior:false, thvo:true, fixedFronts:true },
+    // Uppþvottavél: integrated dishwasher behind one full front (V1 = the front itself)
+    uppthvottavel:{ label:"Uppþvottavél", zone:"floor", cls:"floor", defaultW:600, minW:450, maxW:600, h:800, d:600, minH:750, maxH:900, minD:550, maxD:700, hasInterior:false, counter:true, dishwasher:true },
+    // Ruslaskápur: one tall pull-out with bins (RUSL60 / RUSL80)
+    ruslaskapur: { label:"Ruslaskápur", zone:"floor", cls:"floor", defaultW:600, minW:600, maxW:800, h:800, d:600, minH:600, maxH:1000, minD:500, maxD:700, hasInterior:false, counter:true, rusl:true },
+    // Lítill kassi: a low box (benches, window seats, TV units) — no worktop by default
+    litillkassi: { label:"Lítill kassi", zone:"floor", cls:"floor", defaultW:600, minW:200, maxW:1200, h:500, d:600, minH:300, maxH:700, minD:300, maxD:700, hasInterior:true, drawerCountRange:[1,4], shelfRange:[0,2,1] },
+    // Hár veggskápur: a shallower tall unit (500 deep, 2000 high)
+    harveggskapur:{ label:"Hár veggskápur", zone:"floor", cls:"tall", defaultW:600, minW:300, maxW:1200, h:2000, d:500, minH:1500, maxH:2600, minD:300, maxD:600, hasInterior:true, drawerCountRange:[1,4], shelfRange:[0,6,4] },
     tofrahorn:   { label:"Töfrahorn (kapphorn)", zone:"floor", cls:"corner", defaultW:1200, minW:900, maxW:1500, h:800, d:600, minH:600, maxH:1000, minD:500, maxD:900, hasInterior:false, counter:true,
                    skapategundOverride:"Grunnskápur", tofrahornId:"rec9PD5fCZGUpwAon" },
     vaskaskapur: { label:"Vaskaskápur", zone:"floor", cls:"floor", defaultW:800, minW:500, maxW:1500, h:800, d:600, minH:600, maxH:1000, minD:400, maxD:750, hasInterior:false, counter:true, sink:true,
@@ -218,6 +232,14 @@
     legra:  { 1:["C"], 2:["C", "C"], 3:["F", "K", "M"], 4:["C", "K", "K", "M"] },
     merivo: { 1:["E"], 2:["E", "E"], 3:["E", "K", "M"], 4:["E", "K", "K", "M"] }
   };
+  // Drawers under the oven (bottom → top) from b.ovenCombo, an Útfærslur key like "MKE" / "CC+IM".
+  // undefined = the usual 3 drawers; "" = a cabinet door instead of drawers (OFN7).
+  var OVEN_DEFAULT = { legra:"MKC", merivo:"MKE" };
+  function ovenCodesOf(b, sysKey){
+    var sys = sysKey === "merivo" ? "merivo" : "legra", key = b.ovenCombo == null ? OVEN_DEFAULT[sys] : b.ovenCombo;
+    var letters = String(key).split("+")[0].split("");
+    return letters.sort(function(a, c){ return CODE_ORDER.indexOf(c) - CODE_ORDER.indexOf(a); }).map(function(c){ return (CODE_SWAP[sys] && CODE_SWAP[sys][c]) || c; });
+  }
   // a code from the other system → the nearest one in this system (switching Legra ↔ Merivo)
   var CODE_SWAP = { legra:{ N:"M", E:"C" }, merivo:{ C:"E", F:"E" } };
   // The drawer stack of a cabinet, bottom → top, in the kitchen's drawer system. Old drafts only
@@ -1007,6 +1029,10 @@
       var fr = interior.fractions && interior.fractions.length === drawers - 1 ? interior.fractions : null;
       for (var i = 0; i < drawers; i++) fronts.push({ y0:fr ? (i === 0 ? 0 : fr[i - 1]) : i / drawers, y1:fr ? (i === drawers - 1 ? 1 : fr[i]) : (i + 1) / drawers, drawer:true });
     }
+    else if (isTall && !isOven && meta && meta.washerDrawerM){ // washer tower: a drawer at the bottom, two doors above
+      var wd = meta.washerDrawerM / heightM, sp2 = wd + (1 - wd) * 0.5;
+      fronts.push({ y0:0, y1:wd, drawer:true }, { y0:wd, y1:sp2 }, { y0:sp2, y1:1 });
+    }
     else if (isTall && !isOven){ fronts.push({ y0:0, y1:split }, { y0:split, y1:1 }); }
     else if (!isOven) fronts.push({ y0:0, y1:1 });
 
@@ -1028,14 +1054,25 @@
     // Oven tower: drawer below, 595 mm oven (dark glass + control strip + bar
     // handle), door above.
     if (isOven){
-      var oy = baseYM + 0.55, oh = 0.595;
+      // the oven sits on a 700 mm drawer/cabinet zone (worktop height), its combo drawn as real drawer fronts
+      var zoneH = 0.70, oy = baseYM + zoneH, oh = 0.595;
+      var ovCodes = (meta && meta.ovenCodes) || [], ovFr = ovCodes.length ? drawerFrontsMm(ovCodes, zoneH * 1000) : null;
       var glassMat = new THREE.MeshStandardMaterial({ color:0x141518, roughness:0.12, metalness:0.5 });
       [oy, oy + oh].forEach(function(y){ place(new THREE.Mesh(new THREE.PlaneGeometry(widthM + 0.002, 0.005), seamMat), y, 0.004); });
       place(new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.9, oh - 0.13, 0.012), glassMat), oy + (oh - 0.13) / 2 + 0.005, 0.006);
       place(new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.9, 0.06, 0.012), new THREE.MeshStandardMaterial({ color:0x2b2c30, roughness:0.4, metalness:0.4 })), oy + oh - 0.05, 0.006);
       place(new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.7, 0.018, 0.028), handleMat), oy + oh - 0.105, 0.024);
+      var tops = [];
+      if (ovFr){ // seams between the drawers under the oven; a handle at the top of each
+        var accY = baseYM;
+        ovFr.forEach(function(h, i){
+          accY += h / 1000 + (i < ovFr.length - 1 ? DRAWER_GAP_MM / 1000 : 0);
+          tops.push(accY);
+          if (i < ovFr.length - 1) place(new THREE.Mesh(new THREE.PlaneGeometry(widthM + 0.002, 0.005), seamMat), accY - DRAWER_GAP_MM / 2000, 0.004);
+        });
+      } else tops.push(oy);
       if (handleKey && hstyle !== "none" && hstyle !== "groove"){
-        hbar(Math.min(0.24, widthM * 0.5), oy - 0.06, 0);                    // drawer below the oven
+        tops.forEach(function(t){ hbar(Math.min(0.24, widthM * 0.5), t - 0.04, 0); }); // drawers / door below the oven
         hbar(Math.min(0.24, widthM * 0.5), oy + oh + 0.06, 0);               // door above
       }
       return;
@@ -1160,7 +1197,7 @@
   function addCabinetBox(THREE, scene, geom, offsetM, widthM, heightM, depthM, baseYM, carcassMat, frontMat, interior, meta, selected, pickables){
     // A locked cabinet is built in parts (open carcass + 20 mm fronts + drawer boxes) so its
     // drawers and doors can be opened and closed; an unlocked one stays a single solid box.
-    var art = !!(meta && (meta.locked || meta.slabFronts) && meta.openMat && !meta.oven && !meta.open && !meta.panel && meta.zone !== "opening");
+    var art = !!(meta && (meta.locked || meta.slabFronts) && meta.openMat && !meta.oven && !meta.fixedFronts && !meta.open && !meta.panel && meta.zone !== "opening");
     var bodyD = art ? depthM - FRONT_T : depthM;
     var cx = geom.origin.x + geom.axis.x * (offsetM + widthM / 2) + geom.normal.x * (bodyD / 2);
     var cz = geom.origin.z + geom.axis.z * (offsetM + widthM / 2) + geom.normal.z * (bodyD / 2);
@@ -2370,15 +2407,18 @@
         var hM = Math.min(b.heightMm || c.h, roomHeightMm) / 1000, dM = (b.depthMm || c.d) / 1000;
         var selected = opts.selectedId === b.id;
         var inter = b.interior;
-        if (b.interior && b.interior.mode === "skuffur"){ // the real stack: one Blum code per drawer, fronts sized from the codes
-          var dcodes = drawerCodes(b.interior, state.drawerSystem), dbody = hM * 1000 - 100, dfr = drawerFrontsMm(dcodes, dbody);
-          inter = Object.assign({}, b.interior, { codes:dcodes, count:dcodes.length, fractions:dfr ? frontsToFractions(dfr, dbody) : null });
+        if (c.rusl) inter = { mode:"skuffur", codes:[state.drawerSystem === "merivo" ? "E" : "C"], count:1 }; // one tall pull-out
+        if (inter && inter.mode === "skuffur"){ // the real stack: one Blum code per drawer, fronts sized from the codes
+          var dcodes = drawerCodes(inter, state.drawerSystem), dbody = hM * 1000 - 100, dfr = drawerFrontsMm(dcodes, dbody);
+          inter = Object.assign({}, inter, { codes:dcodes, count:dcodes.length, fractions:dfr ? frontsToFractions(dfr, dbody) : null });
         }
         addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, carcassMat, c.fridge ? steelMat : frontMat, inter,
           { islandId:islandId, locked:!!b.locked || !!opts.xray, suppressBadge:!!opts.xray, slabFronts:jeyOn, corner:c.cls === "corner", doorSide:b.swing === "vinstri" ? "left" : "right", hingeRight:b.swing === "haegri", shelves:(c.hasInterior || c.shelfRange) && !(b.interior && b.interior.mode === "skuffur") ? (shelvesOf(b) || 0) : 0,
             openMat:openMat, hiddenMat:hiddenMat, drawerSystem:state.drawerSystem, carcassKey:state.carcass,
             warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), heightMm:hM * 1000, elevMm:0, handle:state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0.55,
-            plinth:!c.panel, counter:!!c.counter, sink:!!c.sink, oven:!!c.oven, panel:!!c.panel, plinthMat:plinthMat, stoneMat:stoneMat }, selected, pickables);
+            plinth:!c.panel, counter:!!c.counter, sink:!!c.sink, oven:!!c.oven, panel:!!c.panel, plinthMat:plinthMat, stoneMat:stoneMat,
+            ovenCodes:c.oven ? ovenCodesOf(b, state.drawerSystem) : null, fixedFronts:!!c.fixedFronts,
+            washerDrawerM:c.thvo && b.thvo !== "hurdir" ? 0.40 : 0 }, selected, pickables);
       });
       wall.wall.forEach(function(b, bi){
         var offset = wStarts[bi];
@@ -3172,6 +3212,8 @@
     drawerCodes: drawerCodes,
     drawerFrontsMm: drawerFrontsMm,
     drawerComboKey: drawerComboKey,
+    ovenCodesOf: ovenCodesOf,
+    OVEN_DEFAULT: OVEN_DEFAULT,
     modelsPending: modelsPending,
     shelvesOf: shelvesOf,
     hideDragPreview3D: hideDragPreview3D,

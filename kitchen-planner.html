@@ -2543,6 +2543,35 @@
   function stackAllowed(b, c, codes, inner){
     return codes.length >= 1 && codes.length <= 4 && !!KP3D.drawerFrontsMm(codes, drawerBodyMm(b, c)) && !!drawerComboRec(codes, inner);
   }
+  // ---- appliance / pantry variants (2026-09-30): picked from the real Útfærslur list, never free ----
+  function ovenKeyOf(b){ return b.ovenCombo == null ? KP3D.OVEN_DEFAULT[drawerSys()] : b.ovenCombo; }
+  var BUR_DEFAULT = { legra:"MKCC", merivo:"MKEE" };
+  function burKeyOf(b){ return b.burCombo || BUR_DEFAULT[drawerSys()]; }
+  // "MKC" → "3 skúffur: C · K · M" (tallest first = bottom first), "+IM" → "+ lág innskúffa"
+  function comboLabel(key){
+    var parts = String(key).split("+"), o = "NMKECF";
+    var codes = parts[0].split("").sort(function(a, b){ return o.indexOf(b) - o.indexOf(a); });
+    return codes.length + " " + plural(codes.length, "skúffa", "skúffur") + ": " + codes.join(" · ") +
+      (parts[1] ? " + " + (parts[1] === "IK" ? "miðlungs" : "lág") + " innskúffa" : "");
+  }
+  function variantHTML(b, c){
+    var LM = window.KP_LINEMAP; if (!LM) return "";
+    var opts = [], cur = null, label = "";
+    if (c.oven){
+      label = "Undir ofninum"; cur = ovenKeyOf(b);
+      opts = Object.keys(LM.ofn[drawerSys()] || {}).map(function(k){ return [k, comboLabel(k)]; });
+      opts.push(["", "Skápur með hurð (engar skúffur)"]);
+    } else if (c.bur){
+      label = "Innvols"; cur = burKeyOf(b);
+      opts = Object.keys(LM.bur[drawerSys()] || {}).map(function(k){ return [k, comboLabel(k) + " + hillur"]; });
+    } else if (c.thvo){
+      label = "Útfærsla"; cur = b.thvo === "hurdir" ? "hurdir" : "skuffa";
+      opts = [["skuffa", "Skúffa undir vélinni + skápur ofan við"], ["hurdir", "Hurðir alla leið, 4 loftunarhillur"]];
+    } else return "";
+    return '<div class="edit-field"><label>' + label + '</label><select data-role="variant">' + opts.map(function(o){
+      return '<option value="' + o[0] + '"' + (o[0] === cur ? ' selected' : '') + '>' + o[1] + '</option>';
+    }).join("") + '</select>' + (c.oven || c.bur ? '<p class="sec-note">Aðeins samsetningar sem Björninn smíðar (' + DRAWER_SYSTEMS[drawerSys()].label + ').</p>' : '') + '</div>';
+  }
   function hardwareHTML(b, c){
     if (!c.hasInterior) return "";
     var isDrawer = b.interior.mode === "skuffur";
@@ -2612,7 +2641,8 @@
   // "+ Type" buttons stay as the reliable fallback, per the confirmed
   // decision — drag is the delightful primary path, not the only path.
   var CATALOG_GROUPS = [
-    { title:"Gólfskápar", types:["grunnskapur", "harskapur", "vaskaskapur", "isskapur", "ofnaskapur", "tofrahorn"] },
+    { title:"Gólfskápar", types:["grunnskapur", "harskapur", "vaskaskapur", "ruslaskapur", "uppthvottavel", "tofrahorn", "litillkassi", "harveggskapur", "burskapur"] },
+    { title:"Tækjaskápar", types:["ofnaskapur", "isskapur", "thvottavel"] },
     { title:"Veggskápar", types:["efriskapur", "opnarhillur"] }
   ];
   var PARTS_GROUP = { title:"Hillur og úthliðar", types:["laushilla", "uthlid", "uthlidhar", "uthlidefri"] };
@@ -4130,7 +4160,7 @@
         '<div class="edit-field"><label>Mál (mm) — sláðu inn</label>' + dims + '</div>' +
         elevField + stackField +
         (c.panel ? '<div class="edit-field"><button type="button" class="iconbtn" data-role="match">↔ Passa við skápinn við hliðina</button><p class="ov-mat" style="margin:6px 0 0;">Tekur hæð, dýpt og hæð frá gólfi af skápnum sem hún liggur að.</p></div>' : '') +
-        (c.hasInterior ? '<div class="edit-field">' + hardwareHTML(b, c) + '</div>' : '') +
+        (c.hasInterior ? '<div class="edit-field">' + hardwareHTML(b, c) + '</div>' : '') + variantHTML(b, c) +
         (c.shelfRange && !(b.interior && b.interior.mode === "skuffur")
           ? '<div class="edit-field"><label>Lausar hillur</label><div class="hw-count">' +
               '<button class="iconbtn" data-role="sh-dec" ' + (KP3D.shelvesOf(b) <= c.shelfRange[0] ? "disabled" : "") + '>−</button>' +
@@ -4196,6 +4226,14 @@
       var before = JSON.stringify(b);
       matchPanelToNeighbour(wall, zone, b);
       if (JSON.stringify(b) === before) toast("Engin úthlið passar ekki — hún þarf að liggja að skáp.");
+      save(); refreshAfterEdit();
+    });
+    var variantSel = host.querySelector('[data-role="variant"]');
+    if (variantSel) variantSel.addEventListener("change", function(){
+      if (b.locked){ lockedToast(); renderEditPanel(); return; }
+      if (c.oven) b.ovenCombo = variantSel.value;
+      else if (c.bur) b.burCombo = variantSel.value;
+      else if (c.thvo) b.thvo = variantSel.value;
       save(); refreshAfterEdit();
     });
     if (c.hasInterior){
@@ -4596,8 +4634,9 @@
   // real table). Real Line Items show drawer cabinets as the OPEN body (GR/HA — no door) + a drawer
   // combo, and everything with a door as the CLOSED body (LGR/LHA/LEF…) — the planner used to send
   // LGR + drawers, i.e. a door that isn't there (fixed 2026-09-30, confirmed with the user).
-  var V1_FAMILY = { grunnskapur:"grunnskapur", vaskaskapur:"grunnskapur", harskapur:"harskapur", isskapur:"harskapur",
-    ofnaskapur:"harskapur", efriskapur:"efriskapur", opnarhillur:"efriskapur" };
+  var V1_FAMILY = { grunnskapur:"grunnskapur", vaskaskapur:"grunnskapur", ruslaskapur:"grunnskapur", harskapur:"harskapur", isskapur:"harskapur",
+    ofnaskapur:"harskapur", burskapur:"harskapur", thvottavel:"harskapur", efriskapur:"efriskapur", opnarhillur:"efriskapur",
+    litillkassi:"litillkassi", harveggskapur:"harveggskapur" };
   function isDrawerUnit(b){ return !!(b.interior && b.interior.mode === "skuffur"); }
   // No clamp on purpose: a width outside the product range (e.g. a 1400 mm sink cabinet) must find
   // NO match (→ note + Skipulagsvilla), not silently the widest product.
@@ -4605,14 +4644,22 @@
   function v1RecordFor(b, c){
     if (c.tofrahornId) return { id:c.tofrahornId };
     var fam = V1_FAMILY[b.type], LM = window.KP_LINEMAP;
+    if (c.dishwasher) return LM ? LM.uppthvottavel : null; // the front is the product
     if (!fam || !LM || !LM.v1[fam]) return null;
-    var open = isDrawerUnit(b) || !!c.open; // opnar hillur = "Efri skápur" without "Lokaður"
+    var open = isDrawerUnit(b) || !!c.open || !!c.rusl; // opnar hillur = "Efri skápur" without "Lokaður"; bin = GR + RUSL
     return LM.v1[fam][open ? "open" : "closed"][widthFamily(b.widthMm)] || null;
   }
   // V2 = what makes the box specific: the drawer combo, the shelves, or the appliance's own Útfærsla.
   function v2RecordFor(b, c){
     var LM = window.KP_LINEMAP; if (!LM) return null;
     if (c.fridge) return LM.isskapur;
+    if (c.oven){
+      var ok = ovenKeyOf(b);
+      return ok === "" ? LM.ofnNoDrawers : ((LM.ofn[drawerSys()] || {})[ok] || null);
+    }
+    if (c.bur) return (LM.bur[drawerSys()] || {})[burKeyOf(b)] || null;
+    if (c.thvo) return b.thvo === "hurdir" ? LM.thvottavel.doors : LM.thvottavel[drawerSys()];
+    if (c.rusl) return LM.rusl[String(widthFamily(b.widthMm))] || null;
     if (c.hasInterior && b.interior){
       if (isDrawerUnit(b)) return drawerComboRec(KP3D.drawerCodes(b.interior, drawerSys()), b.interior.inner || null);
       // b.interior.count here, not KP3D.shelvesOf(b) — that reads b.shelves, only used by the
@@ -4638,6 +4685,9 @@
     if (c.panel || c.shelfStack || c.open) return []; // úthlið, lausar hillur, opnar hillur — no door/front, no handle (caught while reviewing, 2026-09-29)
     var w = b.widthMm;
     if (c.hasInterior && b.interior && b.interior.mode === "skuffur") return [{ mm:w, count:b.interior.count }];
+    if (c.rusl) return [{ mm:w, count:1 }];
+    if (c.oven) return [{ mm:w, count:Math.max(1, KP3D.ovenCodesOf(b, state.drawerSystem).length) }, { mm:w, count:1 }]; // drawers/door under the oven + door above
+    if (c.thvo && b.thvo !== "hurdir") return [{ mm:w, count:1 }].concat([0.5, 0.5].map(function(){ return { mm:(blockHeightMm(b, c) - 500) * 0.5, count:1 }; }));
     // Matches `meta.tall` in kitchen-planner-3d.js (c.cls==="tall" || c.fridge): a tall unit gets TWO
     // stacked doors, each with its own vertical edge pull sized to that leaf's height, not the
     // cabinet's width — using width here (as an earlier version did) picked a badly wrong SKU for
