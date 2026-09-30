@@ -199,6 +199,56 @@
     legra:  { codes:["M", "K", "F"], sides:[90.5, 128.5, 241] },
     merivo: { codes:["M", "K", "E"], sides:[91, 129, 192] }
   };
+  // ---- Drawer codes (2026-09-30): every drawer is one Blum height code. Legra = M/K/C/F, Merivo =
+  // N/M/K/E (the letters Björninn's Útfærslur use). SIDE = Blum side height (mm). FRONT_MIN = the
+  // lowest front a drawer of that code can have (side + ~20 mm per Blum; matches the lowest real
+  // fronts in Sögunarlisti: Merivo M 98, K 162, E 270). FRONT_WEIGHT = how spare height is shared
+  // out on top of the minimums (the "Sérhæð … fronts" defaults on Eyðublað) — so a Merivo E+K+M in a
+  // 700 mm body comes out ≈ 334/211/156, close to the real medians (397/247/147).
+  var DRAWER_CODES = {
+    legra:  { codes:["M", "K", "C", "F"], side:{ M:90.5, K:128.5, C:177, F:241 }, inner:["IK", "IM"] },
+    merivo: { codes:["N", "M", "K", "E"], side:{ N:63, M:91, K:129, E:192 },     inner:["IM"] }
+  };
+  var FRONT_MIN = { N:85, M:110, K:150, E:212, C:197, F:261 };
+  var FRONT_WEIGHT = { N:100, M:150, K:200, E:400, C:400, F:800 };
+  var CODE_ORDER = "NMKECF"; // smallest → tallest; also the order Útfærslur combo keys use
+  var DRAWER_GAP_MM = 3;
+  // a sensible stack for N drawers when nothing has been picked (bottom → top)
+  var DEFAULT_CODES = {
+    legra:  { 1:["C"], 2:["C", "C"], 3:["F", "K", "M"], 4:["C", "K", "K", "M"] },
+    merivo: { 1:["E"], 2:["E", "E"], 3:["E", "K", "M"], 4:["E", "K", "K", "M"] }
+  };
+  // a code from the other system → the nearest one in this system (switching Legra ↔ Merivo)
+  var CODE_SWAP = { legra:{ N:"M", E:"C" }, merivo:{ C:"E", F:"E" } };
+  // The drawer stack of a cabinet, bottom → top, in the kitchen's drawer system. Old drafts only
+  // have a count — they get the default stack for that count.
+  function drawerCodes(interior, sysKey){
+    if (!interior || interior.mode !== "skuffur") return [];
+    var sys = DRAWER_CODES[sysKey] ? sysKey : "legra";
+    var codes = interior.codes && interior.codes.length ? interior.codes.slice()
+      : (DEFAULT_CODES[sys][Math.max(1, Math.min(4, interior.count || 3))] || DEFAULT_CODES[sys][3]).slice();
+    return codes.map(function(c){ return (CODE_SWAP[sys] && CODE_SWAP[sys][c]) || c; });
+  }
+  // Front heights (mm, bottom → top) for a stack in a body of bodyMm, or null when it doesn't fit.
+  function drawerFrontsMm(codes, bodyMm){
+    if (!codes.length) return [];
+    var gaps = (codes.length - 1) * DRAWER_GAP_MM;
+    var min = codes.reduce(function(a, c){ return a + (FRONT_MIN[c] || 150); }, 0);
+    var spare = bodyMm - gaps - min;
+    if (spare < -0.5) return null;
+    var wsum = codes.reduce(function(a, c){ return a + (FRONT_WEIGHT[c] || 200); }, 0);
+    return codes.map(function(c){ return (FRONT_MIN[c] || 150) + spare * (FRONT_WEIGHT[c] || 200) / wsum; });
+  }
+  // seams as fractions of the body (bottom → top), like drawerFractions()
+  function frontsToFractions(fronts, bodyMm){
+    var out = [], acc = 0;
+    fronts.slice(0, -1).forEach(function(h){ acc += h + DRAWER_GAP_MM / 2; out.push(acc / bodyMm); acc += DRAWER_GAP_MM / 2; });
+    return out;
+  }
+  // Útfærslur combo key: letters in N M K E C F order, then "+IK"/"+IM" for an inner drawer
+  function drawerComboKey(codes, inner){
+    return codes.slice().sort(function(a, b){ return CODE_ORDER.indexOf(a) - CODE_ORDER.indexOf(b); }).join("") + (inner ? "+" + inner : "");
+  }
   // cumulative front boundaries bottom → top (fractions of the body height, one per seam)
   function drawerFractions(sysKey, bodyMm, gapMm){
     var L = DRAWER_LAYOUT[sysKey];
@@ -1281,8 +1331,8 @@
       for (var i = 0; i < drawers; i++) fronts.push({ y0:fr ? (i === 0 ? 0 : fr[i - 1]) : i / drawers, y1:fr ? (i === drawers - 1 ? 1 : fr[i]) : (i + 1) / drawers, drawer:true });
     } else if (meta.tall && !meta.corner){ var sp = meta.split || 0.55; fronts.push({ y0:0, y1:sp }, { y0:sp, y1:1 }); }
     else fronts.push({ y0:0, y1:1 });
-    var L = drawers === 3 && meta.drawerSystem ? DRAWER_LAYOUT[meta.drawerSystem] : null;
     var sysKey = meta.drawerSystem || "legra";
+    var dcodes = drawers && interior.codes && interior.codes.length === drawers ? interior.codes : null; // bottom → top
     var wide = !drawers && widthM >= 0.75 && !meta.fridge && !meta.corner;
     var parts = (scene.userData.parts = scene.userData.parts || []);
 
@@ -1311,16 +1361,23 @@
         tmp.children.slice().forEach(function(ch){ ch.position.x -= pivotX; g.add(ch); if (ch.isMesh) meshes.push(ch); else ch.traverse(function(o){ if (o.isMesh) meshes.push(o); }); });
       }
       if (f.drawer){
-        var side = fi != null && L ? L.sides.slice().reverse()[fi] : Math.max(50, Math.min(200, Math.round(fh * 1000 - 55)));
+        var code = dcodes ? dcodes[fi] : null, sysD = DRAWER_CODES[sysKey];
+        var side = code && sysD && sysD.side[code] ? sysD.side[code] : Math.max(50, Math.min(200, Math.round(fh * 1000 - 55)));
         side = Math.max(40, Math.min(side, fh * 1000 - 40));
-        var real = L ? getModel("drawers", sysKey + "_" + L.codes[2 - fi]) : null, bx;
+        var real = code ? getModel("drawers", sysKey + "_" + code) : null, bx;
         if (real){
           var rb = new THREE.Box3().setFromObject(real), rs = rb.getSize(new THREE.Vector3());
           bx = new THREE.Group(); real.position.set(0, 0, -rb.max.z); bx.add(real);
           bx.position.set(0, y1 - 0.03 - rs.y, CD - 0.005);
         } else {
-          bx = buildDrawerBox(THREE, sysKey, meta.carcassKey, side, Math.max(0.2, widthM - 2 * T - 0.026), Math.max(0.2, Math.min(0.5, CD - 0.06)), L ? L.codes[2 - fi] : null);
+          bx = buildDrawerBox(THREE, sysKey, meta.carcassKey, side, Math.max(0.2, widthM - 2 * T - 0.026), Math.max(0.2, Math.min(0.5, CD - 0.06)), code);
           bx.position.set(0, y1 - 0.03 - side / 1000, CD - 0.005);
+        }
+        if (interior.inner && fi === drawers - 1 && fh > 0.2){ // inner drawer (innskúffa) behind the top front: a low drawer riding in the upper part of the tall one
+          var innerCode = interior.inner === "IK" ? "K" : "M", innerSide = (sysD && sysD.side[innerCode]) || 90;
+          var ib = buildDrawerBox(THREE, sysKey, meta.carcassKey, innerSide, Math.max(0.18, widthM - 2 * T - 0.06), Math.max(0.2, Math.min(0.46, CD - 0.1)), null);
+          ib.position.set(0, y1 - 0.02 - innerSide / 1000, CD - 0.045);
+          g.add(ib); ib.traverse(function(o){ if (o.isMesh) meshes.push(o); });
         }
         g.add(bx); bx.traverse(function(o){ if (o.isMesh) meshes.push(o); });
         if (bx.userData && bx.userData.runners){ var rgR = bx.userData.runners; rgR.position.copy(bx.position); frame.add(rgR); } // runners stay in the cabinet
@@ -2312,8 +2369,11 @@
         var c = CATALOG[b.type];
         var hM = Math.min(b.heightMm || c.h, roomHeightMm) / 1000, dM = (b.depthMm || c.d) / 1000;
         var selected = opts.selectedId === b.id;
-        var inter = b.interior && b.interior.mode === "skuffur" && b.interior.count === 3 && state.drawerSystem
-          ? Object.assign({}, b.interior, { fractions:drawerFractions(state.drawerSystem, hM * 1000 - 100) }) : b.interior;
+        var inter = b.interior;
+        if (b.interior && b.interior.mode === "skuffur"){ // the real stack: one Blum code per drawer, fronts sized from the codes
+          var dcodes = drawerCodes(b.interior, state.drawerSystem), dbody = hM * 1000 - 100, dfr = drawerFrontsMm(dcodes, dbody);
+          inter = Object.assign({}, b.interior, { codes:dcodes, count:dcodes.length, fractions:dfr ? frontsToFractions(dfr, dbody) : null });
+        }
         addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, carcassMat, c.fridge ? steelMat : frontMat, inter,
           { islandId:islandId, locked:!!b.locked || !!opts.xray, suppressBadge:!!opts.xray, slabFronts:jeyOn, corner:c.cls === "corner", doorSide:b.swing === "vinstri" ? "left" : "right", hingeRight:b.swing === "haegri", shelves:(c.hasInterior || c.shelfRange) && !(b.interior && b.interior.mode === "skuffur") ? (shelvesOf(b) || 0) : 0,
             openMat:openMat, hiddenMat:hiddenMat, drawerSystem:state.drawerSystem, carcassKey:state.carcass,
@@ -3107,6 +3167,11 @@
     setXrayFronts: setXrayFronts,
     setCameraLookAt: setCameraLookAt,
     renderShot: renderShot,
+    DRAWER_CODES: DRAWER_CODES,
+    FRONT_MIN: FRONT_MIN,
+    drawerCodes: drawerCodes,
+    drawerFrontsMm: drawerFrontsMm,
+    drawerComboKey: drawerComboKey,
     modelsPending: modelsPending,
     shelvesOf: shelvesOf,
     hideDragPreview3D: hideDragPreview3D,

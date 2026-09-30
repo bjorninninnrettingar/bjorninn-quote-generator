@@ -31,7 +31,7 @@
 <script src="kitchen-planner-catalog.js"></script>
 <script src="kitchen-planner-handles.js"></script>
 <script src="kitchen-planner-models.js"></script>
-<script src="kitchen-planner-linemap-draft.js"></script>
+<script src="kitchen-planner-linemap.js"></script>
 <script src="kitchen-planner-3d.js"></script>
 <style>
   :root{
@@ -473,6 +473,17 @@
   .hw-btn.active{ border-color:var(--blue); background:var(--blue-soft); color:var(--blue-deep); }
   .hw-count{ display:flex; align-items:center; gap:4px; font-size:12.5px; color:var(--ink-soft); }
   .hw-count b{ color:var(--ink); min-width:14px; text-align:center; }
+  /* drawer builder: the stack drawn as fronts (top drawer first), then add / inner-drawer buttons */
+  .dw-stack{ display:flex; flex-direction:column; gap:3px; margin-top:8px; min-height:120px; }
+  .dw-row{ display:flex; align-items:center; gap:8px; padding:4px 8px; border:1px solid var(--line); border-radius:6px; background:#fff; font-size:12.5px; min-height:26px; }
+  .dw-row b{ font-size:14px; min-width:14px; }
+  .dw-row span{ color:var(--ink-soft); flex:1; }
+  .dw-x{ border:0; background:none; color:var(--ink-soft); cursor:pointer; font-size:13px; padding:2px 4px; }
+  .dw-x:hover{ color:#c0392b; }
+  .dw-add{ display:flex; align-items:center; gap:4px; margin-top:8px; flex-wrap:wrap; font-size:12.5px; color:var(--ink-soft); }
+  .dw-add span{ margin-right:2px; }
+  .dw-add .hw-btn{ min-width:34px; }
+  .dw-add .hw-btn:disabled{ opacity:.35; cursor:not-allowed; }
 
   /* ---- cabinet edit panel (click-to-select in 3D/2D) ---- */
   .edit-panel{
@@ -2515,35 +2526,79 @@
     refreshAfterEdit();
   }
 
+  // ---- drawer builder (2026-09-30): the customer stacks real Blum drawer codes (Merivo N/M/K/E,
+  // Legra M/K/C/F) plus an optional inner drawer. Only stacks that fit the cabinet body AND exist as a
+  // real "Skúffu samsetning" Útfærsla can be built, so every drawer cabinet maps to a real V2.
+  var CODE_LABEL = { N:"Mjög lág", M:"Lág", K:"Miðlungs", E:"Há", C:"Há", F:"Mjög há" };
+  function drawerSys(){ return state.drawerSystem === "merivo" ? "merivo" : "legra"; }
+  function drawerBodyMm(b, c){ return blockHeightMm(b, c) - 100; } // same 100 mm plinth the 3D uses
+  function sortStack(codes){ // tallest at the bottom — how Björninn builds them
+    var o = "NMKECF";
+    return codes.slice().sort(function(a, b){ return o.indexOf(b) - o.indexOf(a); });
+  }
+  function drawerComboRec(codes, inner){
+    var LM = window.KP_LINEMAP;
+    return LM && LM.v2Drawers[drawerSys()] ? LM.v2Drawers[drawerSys()][KP3D.drawerComboKey(codes, inner)] || null : null;
+  }
+  function stackAllowed(b, c, codes, inner){
+    return codes.length >= 1 && codes.length <= 4 && !!KP3D.drawerFrontsMm(codes, drawerBodyMm(b, c)) && !!drawerComboRec(codes, inner);
+  }
   function hardwareHTML(b, c){
     if (!c.hasInterior) return "";
     var isDrawer = b.interior.mode === "skuffur";
-    var min = c.drawerCountRange[0], max = c.drawerCountRange[1];
-    return (
-      '<div class="hw-toggle" data-role="hw-toggle">' +
+    var html = '<div class="hw-toggle" data-role="hw-toggle">' +
         '<button type="button" class="hw-btn' + (!isDrawer ? ' active' : '') + '" data-hw="hillur">Hillur</button>' +
         '<button type="button" class="hw-btn' + (isDrawer ? ' active' : '') + '" data-hw="skuffur">Skúffur</button>' +
-      '</div>' +
-      (isDrawer
-        ? '<div class="hw-count">' +
-            '<button class="iconbtn" data-role="hw-dec" ' + (b.interior.count <= min ? "disabled" : "") + '>−</button>' +
-            '<b>' + b.interior.count + '</b>' +
-            '<button class="iconbtn" data-role="hw-inc" ' + (b.interior.count >= max ? "disabled" : "") + '>+</button>' +
-            '<span>' + plural(b.interior.count, "skúffa", "skúffur") + '</span>' +
-          '</div>'
-        : "")
-    );
+      '</div>';
+    if (!isDrawer) return html;
+    var sys = drawerSys(), D = KP3D.DRAWER_CODES[sys], codes = KP3D.drawerCodes(b.interior, sys), inner = b.interior.inner || null;
+    var fronts = KP3D.drawerFrontsMm(codes, drawerBodyMm(b, c)) || [];
+    html += '<div class="dw-stack">' + codes.map(function(code, i){ return { code:code, i:i, mm:fronts[i] }; }).reverse().map(function(d){
+      return '<div class="dw-row" style="flex-grow:' + Math.max(1, Math.round((d.mm || 150) / 40)) + '"><b>' + d.code + '</b><span>' + CODE_LABEL[d.code] + (d.mm ? ' · ' + Math.round(d.mm) + ' mm' : '') + '</span>' +
+        (codes.length > 1 ? '<button type="button" class="dw-x" data-dw-del="' + d.i + '" title="Taka skúffu">✕</button>' : '') + '</div>';
+    }).join("") + '</div>';
+    html += '<div class="dw-add"><span>Bæta við:</span>' + D.codes.map(function(code){
+      var next = sortStack(codes.concat([code]));
+      var ok = codes.length < 4 && (stackAllowed(b, c, next, inner) || stackAllowed(b, c, next, null)); // may cost the inner drawer (see the click handler)
+      return '<button type="button" class="hw-btn" data-dw-add="' + code + '"' + (ok ? '' : ' disabled') + ' title="' + CODE_LABEL[code] + ' skúffa">' + code + '</button>';
+    }).join("") + '</div>';
+    html += '<div class="dw-add"><span>Innskúffa:</span>' + D.inner.map(function(ik){
+      var on = inner === ik, ok = on || stackAllowed(b, c, codes, ik);
+      return '<button type="button" class="hw-btn' + (on ? ' active' : '') + '" data-dw-inner="' + ik + '"' + (ok ? '' : ' disabled') + '>' + (ik === "IK" ? "Miðlungs (K)" : "Lág (M)") + '</button>';
+    }).join("") + '</div>';
+    if (!stackAllowed(b, c, codes, inner)) html += '<p class="sec-note">⚠️ Þessi samsetning er ekki til sem stöðluð vara — söluaðili staðfestir hana.</p>';
+    return html;
   }
 
   function setInterior(wall, zone, id, mode, count){
     var b = wall[zone].find(function(x){ return x.id === id; });
     if (!b || !b.interior) return;
     if (b.locked){ lockedToast(); return; }
+    var c = CATALOG[b.type];
     b.interior.mode = mode;
+    if (mode === "skuffur" && !(b.interior.codes && b.interior.codes.length)){
+      // start from the usual stack for this cabinet: 3 drawers, fewer if the body is low (lítill kassi)
+      for (var n = 3; n >= 1; n--){
+        var cand = KP3D.drawerCodes({ mode:"skuffur", count:n }, drawerSys());
+        if (stackAllowed(b, c, cand, null) || n === 1){ b.interior.codes = cand; break; }
+      }
+      b.interior.inner = null;
+    }
     if (count !== undefined){
-      var range = CATALOG[b.type].drawerCountRange;
+      var range = c.drawerCountRange;
       b.interior.count = Math.max(range[0], Math.min(range[1], count));
     }
+    if (mode === "skuffur") b.interior.count = b.interior.codes.length;
+    save();
+    refreshAfterEdit();
+  }
+  function setDrawerStack(wall, zone, id, codes, inner){
+    var b = wall[zone].find(function(x){ return x.id === id; });
+    if (!b || !b.interior) return;
+    if (b.locked){ lockedToast(); return; }
+    b.interior.codes = sortStack(codes);
+    b.interior.inner = inner || null;
+    b.interior.count = b.interior.codes.length;
     save();
     refreshAfterEdit();
   }
@@ -4147,10 +4202,23 @@
       host.querySelectorAll('[data-hw]').forEach(function(btn){
         btn.addEventListener("click", function(){ setInterior(wall, zone, b.id, btn.dataset.hw); });
       });
-      var dec = host.querySelector('[data-role="hw-dec"]');
-      var inc = host.querySelector('[data-role="hw-inc"]');
-      if (dec) dec.addEventListener("click", function(){ setInterior(wall, zone, b.id, "skuffur", b.interior.count - 1); });
-      if (inc) inc.addEventListener("click", function(){ setInterior(wall, zone, b.id, "skuffur", b.interior.count + 1); });
+      var curCodes = function(){ return KP3D.drawerCodes(b.interior, drawerSys()); };
+      host.querySelectorAll('[data-dw-add]').forEach(function(btn){
+        btn.addEventListener("click", function(){
+          var next = sortStack(curCodes().concat([btn.dataset.dwAdd])), keep = b.interior.inner && stackAllowed(b, c, next, b.interior.inner);
+          if (b.interior.inner && !keep) toast("Innskúffan passar ekki með " + next.length + " skúffum — hún var tekin út.");
+          setDrawerStack(wall, zone, b.id, next, keep ? b.interior.inner : null);
+        });
+      });
+      host.querySelectorAll('[data-dw-del]').forEach(function(btn){
+        btn.addEventListener("click", function(){
+          var cc = curCodes(); cc.splice(+btn.dataset.dwDel, 1);
+          setDrawerStack(wall, zone, b.id, cc, stackAllowed(b, c, sortStack(cc), b.interior.inner) ? b.interior.inner : null); // an inner drawer the new stack can't carry drops off
+        });
+      });
+      host.querySelectorAll('[data-dw-inner]').forEach(function(btn){
+        btn.addEventListener("click", function(){ setDrawerStack(wall, zone, b.id, curCodes(), b.interior.inner === btn.dataset.dwInner ? null : btn.dataset.dwInner); });
+      });
     }
     function setShelves(delta){
       b.shelves = Math.max(c.shelfRange[0], Math.min(c.shelfRange[1], KP3D.shelvesOf(b) + delta));
@@ -4517,43 +4585,40 @@
   // an unresolved Vöru reitur 1 is not a bug, ⚠️ Skipulagsvilla is SUPPOSED to block "Keyra
   // skipulag" on it until staff link the right Útfærsla by hand).
   //
-  // V1 = the plain cabinet body (Skápategund + Breidd, via kitchen-planner-linemap-draft.js's
+  // V1 = the plain cabinet body (Skápategund + Breidd, via kitchen-planner-linemap.js
   // v1 tables). Several CATALOG types have no schema of their own and reuse an existing V1
   // table — same aliasing the old Eyðublað path used via CATALOG[type].skapategundOverride,
   // confirmed with the user ("V1 er í raun og veru bara kassinn"). Úthlið/laushilla
   // (panel:true/shelfStack:true) deliberately do NOT reuse a table even though they carry a
   // skapategundOverride too — they're not full cabinet bodies (no front cost, no interior),
   // linking one to a real cabinet Útfærsla would misrepresent the product; they stay note-only.
-  var V1_ALIAS = { grunnskapur:"grunnskapur", harskapur:"harskapur", efriskapur:"efriskapur", opnarhillur:"opnarhillur",
-    vaskaskapur:"grunnskapur", isskapur:"harskapur", ofnaskapur:"harskapur" };
-  // No clamp here on purpose (an earlier version clamped to 300–1200, found wrong while reviewing):
-  // vaskaskapur's own real width range goes to 1500mm, wider than the grunnskapur table it aliases
-  // (which only goes to 1200) — clamping would silently match a 1300–1500mm sink cabinet to the
-  // 1200mm product instead of correctly finding no match. table[key]||null below already handles an
-  // out-of-range width gracefully (the linemap-draft's own comment already documented this exact gap
-  // for vaskaskapur >120cm — the clamp was quietly overriding that documented behaviour).
+  // Which Útfærslur body family each planner type uses (kitchen-planner-linemap.js, generated from the
+  // real table). Real Line Items show drawer cabinets as the OPEN body (GR/HA — no door) + a drawer
+  // combo, and everything with a door as the CLOSED body (LGR/LHA/LEF…) — the planner used to send
+  // LGR + drawers, i.e. a door that isn't there (fixed 2026-09-30, confirmed with the user).
+  var V1_FAMILY = { grunnskapur:"grunnskapur", vaskaskapur:"grunnskapur", harskapur:"harskapur", isskapur:"harskapur",
+    ofnaskapur:"harskapur", efriskapur:"efriskapur", opnarhillur:"efriskapur" };
+  function isDrawerUnit(b){ return !!(b.interior && b.interior.mode === "skuffur"); }
+  // No clamp on purpose: a width outside the product range (e.g. a 1400 mm sink cabinet) must find
+  // NO match (→ note + Skipulagsvilla), not silently the widest product.
   function widthFamily(mm){ return Math.round(mm / 100) * 100; }
   function v1RecordFor(b, c){
     if (c.tofrahornId) return { id:c.tofrahornId };
-    var alias = V1_ALIAS[b.type];
-    var table = alias && window.KP_LINEMAP_DRAFT && window.KP_LINEMAP_DRAFT.v1[alias];
-    return table ? (table[widthFamily(b.widthMm)] || null) : null;
+    var fam = V1_FAMILY[b.type], LM = window.KP_LINEMAP;
+    if (!fam || !LM || !LM.v1[fam]) return null;
+    var open = isDrawerUnit(b) || !!c.open; // opnar hillur = "Efri skápur" without "Lokaður"
+    return LM.v1[fam][open ? "open" : "closed"][widthFamily(b.widthMm)] || null;
   }
-  // V2 = whatever makes the box's interior specific — drawer/shelf composition for a plain
-  // cabinet. Types the planner doesn't collect enough detail on (oven/fridge/corner/sink
-  // specifics) get no V2 at all — the note carries it, same as V1's unresolved case.
+  // V2 = what makes the box specific: the drawer combo, the shelves, or the appliance's own Útfærsla.
   function v2RecordFor(b, c){
-    var LM = window.KP_LINEMAP_DRAFT; if (!LM) return null;
+    var LM = window.KP_LINEMAP; if (!LM) return null;
+    if (c.fridge) return LM.isskapur;
     if (c.hasInterior && b.interior){
-      if (b.interior.mode === "skuffur" && b.interior.count === 3 && !(b.interior.fractions && b.interior.fractions.length)){
-        return LM.v2DrawersDefault[state.drawerSystem === "merivo" ? "merivo" : "legra"] || null;
-      }
-      // NB: b.interior.count here, not KP3D.shelvesOf(b) — that reads b.shelves, a different
-      // property only used by hasInterior:false types (efriskapur/opnarhillur) below. Using it
-      // here silently fell back to the type's default shelf count instead of the customer's
-      // actual pick whenever the two differed (caught while verifying, 2026-09-29).
+      if (isDrawerUnit(b)) return drawerComboRec(KP3D.drawerCodes(b.interior, drawerSys()), b.interior.inner || null);
+      // b.interior.count here, not KP3D.shelvesOf(b) — that reads b.shelves, only used by the
+      // hasInterior:false types below (mixing them up once showed the default count, 2026-09-29).
       if (b.interior.mode === "hillur") return LM.v2ShelvesPlain[b.interior.count] || null;
-      return null; // custom drawer count/heights — note only
+      return null;
     }
     if (c.shelfRange && !c.hasInterior){
       var n = KP3D.shelvesOf(b);
@@ -4637,8 +4702,10 @@
         if (wall.island) notes.push("Skápur í eyju (" + wall.label + ") — stendur laus á gólfinu, ekki við vegg" + (wall.island.two ? "; bak í bak við aðra röð." : "."));
         if (c.ovenHeightMm) notes.push("Ofnhæð: " + c.ovenHeightMm + " mm.");
         if (c.tofrahornId) notes.push("Breidd á töfrahorns-front: " + b.widthMm + " mm.");
-        if (b.interior && b.interior.mode === "skuffur" && !v2){
-          notes.push("Viðskiptavinur óskar eftir skúffum (" + b.interior.count + " stk) — vinsamlegast staðfestu skúffuhæðir.");
+        if (isDrawerUnit(b)){ // the stack as drawn, top → bottom, with front heights — also when it matched a combo
+          var dCodes = KP3D.drawerCodes(b.interior, drawerSys()), dFr = KP3D.drawerFrontsMm(dCodes, drawerBodyMm(b, c)) || [];
+          notes.push("Skúffur (" + DRAWER_SYSTEMS[drawerSys()].label + ", ofan frá): " + dCodes.map(function(cd, i){ return cd + (dFr[i] ? " " + Math.round(dFr[i]) + " mm" : ""); }).reverse().join(" / ") +
+            (b.interior.inner ? " + innskúffa (" + b.interior.inner + ")" : "") + (v2 ? "" : " — ekki til sem stöðluð samsetning, vinsamlegast staðfestu."));
         } else if (b.interior && b.interior.mode === "hillur" && !v2){
           // b.interior.count here, not KP3D.shelvesOf(b) — same property mix-up as v2RecordFor's own
           // shelf branch above (b.shelves is a different field, only used by hasInterior:false types
