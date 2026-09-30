@@ -4797,6 +4797,144 @@
     KP3D.teardown3D(true); // discard the remembered camera so the rebuild re-frames the room
     renderView();
   });
+  // ---------- drawing export (2026-09-30, exploratory — capture only, no delivery mechanism yet) ----------
+  // "2D vinnuteikningar" (topplan + a head-on shot of every solid wall) + "3D útlitsteikningar" (a few
+  // orbit angles) — the two deliverable kinds asked for. Assumes the 3D scene is already live in "3d"
+  // viewMode when called (same assumption captureThumb() already makes) for the wall/overview shots;
+  // the plan shot temporarily flips to "2d" and back. Returns [{label, dataUrl}]; what happens to them
+  // (download, upload to Airtable, email) is explicitly not decided yet — this is just the capture step.
+  // Vertical span actually occupied by this wall's cabinets (floor units start at 0; wall-zone units
+  // float at KP3D.elevOf(b)) — the first version of wallElevationShot used a fixed eye-height instead,
+  // which cropped any wall-mounted unit (elevated 1.4m+) clean out of frame (caught while reviewing the
+  // first export pass, 2026-09-30). Falls back to a sensible default range for an empty wall.
+  function wallVerticalExtent(wall){
+    var minY = 0, maxY = 0.9, seen = false;
+    wall.floor.concat(wall.wall).forEach(function(b){
+      var c = CATALOG[b.type], h = blockHeightMm(b, c) / 1000, elev = (KP3D.elevOf(b) || 0) / 1000;
+      minY = seen ? Math.min(minY, elev) : elev;
+      maxY = seen ? Math.max(maxY, elev + h) : elev + h;
+      seen = true;
+    });
+    return { minY:minY, maxY:maxY };
+  }
+  // The back-fade "ghost" system (fadeCabinets() in kitchen-planner-3d.js) recomputes and EASES
+  // cabinet/wall opacity once per animation frame based on the camera's current position — it doesn't
+  // reset the instant the camera moves. Calling snapshot3D() right after setCameraLookAt() (as the
+  // first version of this did) captured whatever fade state was left over from the scene's initial
+  // default camera angle, not the new one — the whole room came out uniformly washed-out in the first
+  // X-ray test. Waiting a bunch of frames lets the 0.2-per-frame ease settle back down (caught while
+  // reviewing that first export, 2026-09-30).
+  function waitFrames(n){
+    return new Promise(function(resolve){
+      (function tick(k){ if (k <= 0){ resolve(); return; } requestAnimationFrame(function(){ tick(k - 1); }); })(n);
+    });
+  }
+  async function wallElevationShot(wallIndex, label){
+    var geoms = KP3D.wallGeometry3D(state.walls);
+    var g = geoms[wallIndex];
+    if (!g) return null;
+    var cx = g.origin.x + g.axis.x * g.lenM / 2, cz = g.origin.z + g.axis.z * g.lenM / 2;
+    var ext = wallVerticalExtent(state.walls[wallIndex]), midY = (ext.minY + ext.maxY) / 2, spanY = Math.max(ext.maxY - ext.minY, 0.9);
+    var fovRad = 45 * Math.PI / 180; // matches the PerspectiveCamera(45, ...) buildScene sets up
+    // distance so the taller of (wall length, the real cabinet height span) fills most of the frame
+    var dist = Math.max(g.lenM, spanY * 1.3) / (2 * Math.tan(fovRad / 2)) * 1.2 + 0.3;
+    if (!KP3D.setCameraLookAt({ x:cx + g.normal.x * dist, y:midY, z:cz + g.normal.z * dist }, { x:cx, y:midY, z:cz })) return null;
+    await waitFrames(25);
+    var url = KP3D.snapshot3D();
+    return url ? { label:label, dataUrl:url } : null;
+  }
+  async function overviewShot(angleDeg, label){
+    var geoms = KP3D.wallGeometry3D(state.walls);
+    if (!geoms.length) return null;
+    var minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    geoms.forEach(function(g){
+      [0, 1].forEach(function(t){
+        var x = g.origin.x + g.axis.x * g.lenM * t, z = g.origin.z + g.axis.z * g.lenM * t;
+        minX = Math.min(minX, x); maxX = Math.max(maxX, x); minZ = Math.min(minZ, z); maxZ = Math.max(maxZ, z);
+      });
+    });
+    var cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2, w = maxX - minX, d = maxZ - minZ;
+    var dist = Math.max(w, d) * 0.95 + 1.7, rad = angleDeg * Math.PI / 180;
+    if (!KP3D.setCameraLookAt({ x:cx + Math.sin(rad) * dist * 0.85, y:dist * 0.5, z:cz + Math.cos(rad) * dist * 0.85 }, { x:cx, y:1.0, z:cz })) return null;
+    await waitFrames(25);
+    var url = KP3D.snapshot3D();
+    return url ? { label:label, dataUrl:url } : null;
+  }
+  function planShot(label){
+    return new Promise(function(resolve){
+      var wasMode = viewMode;
+      viewMode = "2d"; renderView();
+      requestAnimationFrame(function(){
+        var svg = document.querySelector("#planWrap svg");
+        if (!svg){ viewMode = wasMode; renderView(); resolve(null); return; }
+        var vb = svg.viewBox.baseVal, scale = 2;
+        var img = new Image();
+        img.onload = function(){
+          var cv = document.createElement("canvas");
+          cv.width = vb.width * scale; cv.height = vb.height * scale;
+          var cx2 = cv.getContext("2d");
+          cx2.fillStyle = "#faf9f6"; cx2.fillRect(0, 0, cv.width, cv.height);
+          cx2.drawImage(img, 0, 0, cv.width, cv.height);
+          viewMode = wasMode; renderView(); // fire-and-forget rebuild back to 3D; export is done by now
+          resolve({ label:label, dataUrl:cv.toDataURL("image/png") });
+        };
+        var clone = svg.cloneNode(true);
+        clone.setAttribute("width", vb.width * scale); clone.setAttribute("height", vb.height * scale);
+        clone.style.width = ""; clone.style.height = "";
+        img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(new XMLSerializer().serializeToString(clone));
+      });
+    });
+  }
+  // Rebuilds the live 3D scene with extra buildScene() options and waits for it to actually finish
+  // (models etc. can load async) before resolving — mirrors renderView()'s own 3D branch, just without
+  // the interactivity callbacks an export pass doesn't need. discardCamera:true on teardown so the
+  // fresh build re-frames instead of reusing wherever the customer last left the camera.
+  function rebuildScene3D(extraOpts){
+    return new Promise(function(resolve){
+      var wrap = document.getElementById("threeWrap");
+      if (!wrap){ resolve(false); return; }
+      KP3D.teardown3D(true);
+      KP3D.waitForThree(function(ok){
+        if (!ok){ resolve(false); return; }
+        wrap.innerHTML = "";
+        KP3D.buildScene(wrap, state, Object.assign({ freshCamera:true }, extraOpts));
+        resolve(true);
+      }, 8000);
+    });
+  }
+  async function exportDrawings(){
+    var out = [];
+    // Pass 1 — X-ray wall elevations: buildScene({xray:true}) forces every eligible cabinet into the
+    // "locked/articulated" build (separate front slabs + real shelves/drawer boxes — a plain unlocked
+    // cabinet has none of that geometry to reveal), then the one shared front material goes near-
+    // transparent so the interior shows through (2026-09-30, "taka alla veggina ... í X ray ... sýna
+    // hvað er inn í þeim"). clean:true drops the wall-length pill labels and lock badges — UI chrome
+    // that doesn't belong baked into an exported picture.
+    if (await rebuildScene3D({ xray:true, clean:true })){
+      KP3D.setXrayFronts(true);
+      for (var wi = 0; wi < state.walls.length; wi++){
+        if (state.walls[wi].open) continue; // no elevation for an open (wall-less) edge
+        var wshot = await wallElevationShot(wi, "Veggur " + (wi + 1) + " — " + state.walls[wi].label + " (röntgen)");
+        if (wshot) out.push(wshot);
+      }
+      KP3D.setXrayFronts(false);
+    }
+    // Pass 2 — normal build for the "útlitsteikningar" (appearance) overview angles: closed fronts,
+    // full finish, the actual look of the kitchen rather than its construction.
+    if (await rebuildScene3D({ clean:true })){
+      var angles = [30, 150, 210, 330];
+      for (var ai = 0; ai < angles.length; ai++){
+        var oshot = await overviewShot(angles[ai], "3D yfirlit " + (ai + 1));
+        if (oshot) out.push(oshot);
+      }
+    }
+    // Pass 3 — 2D plan (planShot() flips to "2d" and back to whatever viewMode already was, i.e. "3d").
+    var plan = await planShot("Grunnmynd (yfirlit)");
+    if (plan) out.push(plan);
+    return out;
+  }
+  window.__exportDrawings = exportDrawings; // exploratory hook, 2026-09-30 — no button/UI wired to this yet
+
   // Save the current view as a PNG (3D: canvas readback; 2D: SVG → canvas).
   function downloadDataUrl(url){
     var a = document.createElement("a");

@@ -1203,7 +1203,7 @@
     if (interior && interior.mode === "skuffur" && !art){
       addDrawerSeams(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior.count, interior.fractions);
     }
-    if (meta && meta.locked && meta.zone !== "opening") addLockBadge(THREE, group, local(0, baseYM + heightM + (meta.counter ? 0.16 : 0.1), depthM / 2));
+    if (meta && meta.locked && !meta.suppressBadge && meta.zone !== "opening") addLockBadge(THREE, group, local(0, baseYM + heightM + (meta.counter ? 0.16 : 0.1), depthM / 2));
     if (art) addArticulated(THREE, scene, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta, useFrontMat, pickables);
     else if (meta && meta.zone !== "opening" && !isPanel) addFrontDetails(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta.handle, !!meta.tall, meta.zone === "wall", meta.split || 0.55, meta, useFrontMat);
   }
@@ -1873,6 +1873,36 @@
     return THREE_STATE.renderer.domElement.toDataURL("image/png");
   }
 
+  // Drawing export (2026-09-30): point the live camera at an arbitrary position/target — the caller
+  // (kitchen-planner.html's exportDrawings()) computes wall-elevation and orbit-overview positions from
+  // KP3D.wallGeometry3D() and calls this + snapshot3D() once per shot. Doesn't touch OrbitControls'
+  // damping/animation loop, just the camera + target it reads next frame; the caller is responsible for
+  // restoring the customer's own view afterwards (teardown3D(true) + rebuild, same as resetCamBtn).
+  // X-ray export (2026-09-30): toggles the room's one shared front material transparent so a wall
+  // elevation shows the real interior (shelves/drawer boxes) instead of a closed front. Only works
+  // together with `buildScene({xray:true})` — that's what forces every eligible cabinet into the
+  // "locked/articulated" build (separate 20mm front slabs + real shelves/drawer boxes), which a plain
+  // unlocked cabinet never gets (it's a single solid box with no interior geometry at all to reveal).
+  // Every cabinet's front slab shares this ONE material object (frontSlab() never clones it), so
+  // toggling it once affects the whole room; restore opacity 1 before the customer's own view returns.
+  function setXrayFronts(on){
+    if (!THREE_STATE || !THREE_STATE.frontMat) return false;
+    var m = THREE_STATE.frontMat;
+    m.transparent = true;
+    m.opacity = on ? 0.1 : 1;
+    m.depthWrite = !on;
+    m.needsUpdate = true;
+    return true;
+  }
+  function setCameraLookAt(pos, target){
+    if (!THREE_STATE) return false;
+    THREE_STATE.camera.position.set(pos.x, pos.y, pos.z);
+    THREE_STATE.controls.target.set(target.x, target.y, target.z);
+    THREE_STATE.camera.lookAt(target.x, target.y, target.z);
+    THREE_STATE.controls.update();
+    return true;
+  }
+
   function hideDragPreview3D(){
     if (!THREE_STATE) return;
     ["previewMesh", "bandMesh", "ghostBox"].forEach(function(k){ if (THREE_STATE[k]) THREE_STATE[k].visible = false; });
@@ -2134,7 +2164,7 @@
     // Wall length labels floating just above each wall (HomeByMe shows room
     // dimensions on the plan); a canvas-texture sprite, drawn on top.
     function isOpenGeom(i){ return !!(state.walls[i] && state.walls[i].open); }
-    if (!opts.people) geoms.forEach(function(g, i){ // (the ceiling-height view has its own single label)
+    if (!opts.people && !opts.clean) geoms.forEach(function(g, i){ // (the ceiling-height view has its own single label; opts.clean skips it too — drawing exports don't want it baked into the picture)
       var cv = document.createElement("canvas"); cv.width = 420; cv.height = 64;
       var cx = cv.getContext("2d");
       cx.fillStyle = "rgba(255,255,255,.92)"; cx.strokeStyle = "#e6e3da"; cx.lineWidth = 3;
@@ -2227,7 +2257,7 @@
         var inter = b.interior && b.interior.mode === "skuffur" && b.interior.count === 3 && state.drawerSystem
           ? Object.assign({}, b.interior, { fractions:drawerFractions(state.drawerSystem, hM * 1000 - 100) }) : b.interior;
         addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, carcassMat, c.fridge ? steelMat : frontMat, inter,
-          { islandId:islandId, locked:!!b.locked, slabFronts:jeyOn, corner:c.cls === "corner", doorSide:b.swing === "vinstri" ? "left" : "right", hingeRight:b.swing === "haegri", shelves:(c.hasInterior || c.shelfRange) && !(b.interior && b.interior.mode === "skuffur") ? (shelvesOf(b) || 0) : 0,
+          { islandId:islandId, locked:!!b.locked || !!opts.xray, suppressBadge:!!opts.xray, slabFronts:jeyOn, corner:c.cls === "corner", doorSide:b.swing === "vinstri" ? "left" : "right", hingeRight:b.swing === "haegri", shelves:(c.hasInterior || c.shelfRange) && !(b.interior && b.interior.mode === "skuffur") ? (shelvesOf(b) || 0) : 0,
             openMat:openMat, hiddenMat:hiddenMat, drawerSystem:state.drawerSystem, carcassKey:state.carcass,
             warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), heightMm:hM * 1000, elevMm:0, handle:state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0.55,
             plinth:!c.panel, counter:!!c.counter, sink:!!c.sink, oven:!!c.oven, panel:!!c.panel, plinthMat:plinthMat, stoneMat:stoneMat }, selected, pickables);
@@ -2238,7 +2268,7 @@
         var hM = Math.min(b.heightMm || c.h, roomHeightMm) / 1000, dM = (b.depthMm || c.d) / 1000;
         var selected = opts.selectedId === b.id;
         var elevM = elevOf(b) / 1000;
-        var metaBase = { locked:!!b.locked, slabFronts:jeyOn, drawerSystem:state.drawerSystem, carcassKey:state.carcass, warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"wall", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d),
+        var metaBase = { locked:!!b.locked || !!opts.xray, suppressBadge:!!opts.xray, slabFronts:jeyOn, drawerSystem:state.drawerSystem, carcassKey:state.carcass, warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"wall", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d),
           heightMm:hM * 1000, elevMm:elevM * 1000, handle:state.handle };
         if (c.shelfStack){ // 1–5 boards of 38 mm above each other: one pickable box per board, all sharing the block id
           var n = Math.max(1, Math.min(SHELF_STACK_MAX, b.count || 3)), gap = b.vgapMm != null ? b.vgapMm : SHELF_GAP_DEFAULT;
@@ -2354,7 +2384,7 @@
 
     var cleanupInteraction = setupCabinetInteraction(THREE, wrap, renderer, camera, controls, pickables, allGeoms, surfaces, opts, WALL_H);
     THREE_STATE = { renderer:renderer, camera:camera, controls:controls, scene:scene, rafId:0, onResize:resize, cleanupInteraction:cleanupInteraction,
-                    walls:surfaces, geoms:allGeoms, previewMesh:null, dragging:false, opts:opts, pickables:pickables, roomHM:WALL_H, wallHi:null };
+                    walls:surfaces, geoms:allGeoms, previewMesh:null, dragging:false, opts:opts, pickables:pickables, roomHM:WALL_H, wallHi:null, frontMat:frontMat };
     if (opts.selectedWallId) setSelectedWall3D(opts.selectedWallId);
 
     function resize(){
@@ -3010,6 +3040,8 @@
     fitWarnings: fitWarnings,
     WALL_UNIT_BASE_MM: WALL_UNIT_BASE_MM,
     snapshot3D: snapshot3D,
+    setXrayFronts: setXrayFronts,
+    setCameraLookAt: setCameraLookAt,
     shelvesOf: shelvesOf,
     hideDragPreview3D: hideDragPreview3D,
     teardown3D: teardown3D,
