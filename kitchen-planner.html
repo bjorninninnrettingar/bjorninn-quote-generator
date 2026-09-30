@@ -2245,7 +2245,17 @@
     return spansOf(wall, other).filter(function(sp){
       var v = probeSpan(other, sp.b);
       return Math.min(v.hi, probe.hi) - Math.max(v.lo, probe.lo) > 20;
-    });
+    }).concat(openingSpans(wall, probe));
+  }
+  // Windows / doors / openings on this wall that a cabinet at this height would run into (2026-09-30:
+  // a wall unit could be put straight over a window). A base unit under a window sill is fine; a wall
+  // unit or tall unit across the window is not; nothing stands in a doorway.
+  function openingVSpan(o){ var lo = o.sillHeightMm != null ? o.sillHeightMm : 0; return { lo:lo, hi:lo + o.heightMm }; }
+  function openingSpans(wall, probe){
+    return openingsOnWall(wall.id).filter(function(o){
+      var v = openingVSpan(o);
+      return Math.min(v.hi, probe.hi) - Math.max(v.lo, probe.lo) > 20;
+    }).map(function(o){ return { start:o.offsetMm, end:o.offsetMm + o.widthMm, opening:o }; });
   }
   // does this block (already in its list) collide with something in the other row?
   function crossOverlap(wall, zone, b){
@@ -2775,34 +2785,47 @@
   // Windows/doors aren't packed — free position — but do snap flush to
   // either end of the wall once close enough, so "almost but not quite
   // flush" isn't a fiddly drop to land.
-  function snappedOpeningOffset(wall, widthMm, rawAlongMm, excludeId){
+  function snappedOpeningOffset(wall, widthMm, rawAlongMm, excludeId, vspan){
     var raw = Math.max(0, Math.min(wall.lengthMm - widthMm, Math.round((rawAlongMm - widthMm / 2) / 10) * 10));
     if (raw <= SNAP_THRESHOLD_MM) raw = 0;
     else if (raw >= wall.lengthMm - widthMm - SNAP_THRESHOLD_MM) raw = wall.lengthMm - widthMm;
     if (excludeId === undefined) return raw;
-    return freeOpeningOffset(wall, widthMm, raw, excludeId);
+    return freeOpeningOffset(wall, widthMm, raw, excludeId, vspan);
   }
   // Windows, doors and openings never overlap along a wall (butting up is fine): the closest offset to `want`
   // where [off, off + width] is clear of every other opening on the wall, or null when it doesn't fit anywhere.
   function openingsOnWall(wallId, excludeId){
     return state.windows.concat(state.doors).filter(function(o){ return o.wallId === wallId && o.id !== excludeId; });
   }
-  function openingClear(wallId, off, widthMm, excludeId){
-    return openingsOnWall(wallId, excludeId).every(function(o){ return off + widthMm <= o.offsetMm || off >= o.offsetMm + o.widthMm; });
+  // vspan = the opening's own height range; defaults to the opening being moved (excludeId)
+  function openingClear(wallId, off, widthMm, excludeId, vspan){
+    if (!openingsOnWall(wallId, excludeId).every(function(o){ return off + widthMm <= o.offsetMm || off >= o.offsetMm + o.widthMm; })) return false;
+    var self = state.windows.concat(state.doors).find(function(o){ return o.id === excludeId; });
+    var v = vspan || (self ? openingVSpan(self) : null), wall = state.walls.find(function(w){ return w.id === wallId; });
+    if (!v || !wall) return true;
+    // …and no cabinet on this wall in the way at that height (see openingSpans for the other direction)
+    return ["floor", "wall"].every(function(zone){
+      return spansOf(wall, zone).every(function(sp){
+        var pv = probeSpan(zone, sp.b);
+        if (Math.min(pv.hi, v.hi) - Math.max(pv.lo, v.lo) <= 20) return true;
+        return Math.min(sp.end, off + widthMm) - Math.max(sp.start, off) <= 20;
+      });
+    });
   }
-  function freeOpeningOffset(wall, widthMm, want, excludeId){
+  function freeOpeningOffset(wall, widthMm, want, excludeId, vspan){
     var maxOff = wall.lengthMm - widthMm;
     if (maxOff < 0) return null;
     var cands = [Math.max(0, Math.min(maxOff, want)), 0, maxOff];
     openingsOnWall(wall.id, excludeId).forEach(function(o){ cands.push(o.offsetMm + o.widthMm, o.offsetMm - widthMm); });
+    ["floor", "wall"].forEach(function(z){ spansOf(wall, z).forEach(function(sp){ cands.push(sp.end, sp.start - widthMm); }); }); // just past a cabinet
     var best = null;
     cands.forEach(function(c){
-      if (c < 0 || c > maxOff || !openingClear(wall.id, c, widthMm, excludeId)) return;
+      if (c < 0 || c > maxOff || !openingClear(wall.id, c, widthMm, excludeId, vspan)) return;
       if (best === null || Math.abs(c - want) < Math.abs(best - want)) best = c;
     });
     return best;
   }
-  var OVERLAP_MSG = "Gluggar, hurðir og op mega ekki skarast — það er ekki pláss fyrir þetta þarna.";
+  var OVERLAP_MSG = "Gluggar, hurðir, op og skápar mega ekki skarast — það er ekki pláss fyrir þetta þarna.";
 
   // The stage shows either the 3D scene or the 2D plan — a drop point comes
   // from a raycast in 3D and from the SVG hit-test in 2D, but both yield the
@@ -2864,7 +2887,8 @@
     if (dragState.kind === "opening"){
       var isWindow = dragState.type === "gluggi";
       var d = openingDefault(dragState.type);
-      var offsetMm = snappedOpeningOffset(wall, d.widthMm, drop.alongMm, "");
+      var dSill = dragState.type === "gluggi" ? openingSill(d.heightMm, drop.elevMm, dragState.type) : 0;
+      var offsetMm = snappedOpeningOffset(wall, d.widthMm, drop.alongMm, "", { lo:dSill, hi:dSill + d.heightMm });
       showDropPreview(drop.wallId, offsetMm === null ? snappedOpeningOffset(wall, d.widthMm, drop.alongMm) : offsetMm, d.widthMm, 60, offsetMm !== null, d.heightMm, openingSill(d.heightMm, drop.elevMm, dragState.type));
     } else {
       var c = CATALOG[dragState.type];
@@ -2960,7 +2984,7 @@
   function addFromCatalog(kind, type){
     if (kind === "opening"){
       // first solid wall with room for it (openings never overlap)
-      var d0 = openingDefault(type), w0 = state.walls.find(function(w){ return !w.open && freeOpeningOffset(w, d0.widthMm, Math.round((w.lengthMm - d0.widthMm) / 2), "") !== null; });
+      var d0 = openingDefault(type), v0 = openingVSpan(d0), w0 = state.walls.find(function(w){ return !w.open && freeOpeningOffset(w, d0.widthMm, Math.round((w.lengthMm - d0.widthMm) / 2), "", v0) !== null; });
       if (!w0){ toast(OVERLAP_MSG); return; }
       addOpening(type, w0.id, Math.round(w0.lengthMm / 2));
       return;
@@ -3002,6 +3026,9 @@
       { label:"Innbyggður ísskápur", type:"isskapur" },
       { label:"Þvottavélaskápur", type:"thvottavel" },
       { label:"Uppþvottavél", type:"uppthvottavel" } ] },
+    { key:"eyja", label:"Eyja", desc:"Stendur laus á gólfinu", icon:"island1", iconKind:"island", opts:[
+      { label:"Ein röð", island:"island1" },
+      { label:"Tvær raðir (bak í bak)", island:"island2" } ] },
     { key:"annad", label:"Horn og úthliðar", desc:"Töfrahorn, úthliðar", icon:"tofrahorn", opts:[
       { label:"Töfrahorn", type:"tofrahorn" },
       { label:"Úthlið — neðri", type:"uthlid" },
@@ -3069,12 +3096,13 @@
     var side = document.getElementById("uwSide"), html = "";
     if (uw.step === 1){
       html = '<p class="uw-kicker">Ný eining</p><h3>Hvað viltu bæta við?</h3><div class="uw-grid">' + UNIT_TREE.map(function(cat, i){
-        return '<button type="button" class="uw-card" data-uw-cat="' + i + '">' + catIcon("cabinet", cat.icon) + '<span><b>' + cat.label + '</b><small>' + cat.desc + '</small></span></button>';
+        return '<button type="button" class="uw-card" data-uw-cat="' + i + '">' + catIcon(cat.iconKind || "cabinet", cat.icon) + '<span><b>' + cat.label + '</b><small>' + cat.desc + '</small></span></button>';
       }).join("") + '</div>';
     } else if (uw.step === 2){
       var cat = UNIT_TREE[uw.cat];
-      html = '<p class="uw-kicker">' + cat.label + '</p><h3>Hvernig á hann að vera?</h3><div class="uw-grid">' + cat.opts.map(function(o, i){
-        return '<button type="button" class="uw-card" data-uw-opt="' + i + '">' + catIcon("cabinet", o.type) + '<span><b>' + o.label + '</b></span></button>';
+      html = '<p class="uw-kicker">' + cat.label + '</p><h3>Veldu útfærslu</h3><div class="uw-grid">' + cat.opts.map(function(o, i){
+        return '<button type="button" class="uw-card" data-uw-opt="' + i + '">' + (o.island ? catIcon("island", o.island) : catIcon("cabinet", o.type)) + '<span><b>' + o.label + '</b>' +
+          (o.island ? '<small>' + ISLAND_TYPES[o.island].dim + ' · grunnskápar sem þú breytir svo</small>' : '') + '</span></button>';
       }).join("") + '</div><div class="uw-actions"><button type="button" class="btn btn-secondary btn-small" data-uw-back>← Til baka</button></div>';
     } else {
       var b = uw.b, c = CATALOG[b.type], opt = UNIT_TREE[uw.cat].opts[uw.opt];
@@ -3108,6 +3136,8 @@
     side.querySelectorAll("[data-uw-cat]").forEach(function(el){ el.addEventListener("click", function(){ uw.cat = +el.dataset.uwCat; uw.hover = 0; uw.step = 2; renderUnitWizard(); }); });
     side.querySelectorAll("[data-uw-opt]").forEach(function(el){ el.addEventListener("mouseenter", function(){ uw.hover = +el.dataset.uwOpt; schedulePreview(); }); });
     side.querySelectorAll("[data-uw-opt]").forEach(function(el){ el.addEventListener("click", function(){
+      var io = UNIT_TREE[uw.cat].opts[+el.dataset.uwOpt];
+      if (io.island){ leaveUnitWizard(); uwEditorCam = null; addIsland(io.island, null); return; } // islands have nothing to configure first
       uw.opt = +el.dataset.uwOpt; uw.b = uwStartBlock(UNIT_TREE[uw.cat].opts[uw.opt]); uw.step = 3; renderUnitWizard();
     }); });
     side.querySelectorAll("[data-uw-back]").forEach(function(el){ el.addEventListener("click", function(){ uw.step--; if (uw.step < 3) uw.b = null; renderUnitWizard(); }); });
@@ -3185,7 +3215,9 @@
   function renderUnitPreview(){
     var host = document.getElementById("uwPreview");
     if (!uw || !host) return;
-    var type = uw.b ? uw.b.type : (uw.step === 2 ? UNIT_TREE[uw.cat].opts[uw.hover || 0].type : null);
+    var hovOpt = uw.step === 2 ? UNIT_TREE[uw.cat].opts[uw.hover || 0] : null;
+    if (!uw.b && hovOpt && hovOpt.island){ renderIslandPreview(host, hovOpt.island); return; }
+    var type = uw.b ? uw.b.type : (hovOpt ? hovOpt.type : null);
     if (!type){ // step 1: nothing to show yet
       KP3D.teardown3D(true); host.innerHTML = '<div class="uw-empty">Veldu tegund — skápurinn birtist hér.</div>'; uwPrevKey = ""; syncUwTools(); return;
     }
@@ -3202,7 +3234,7 @@
       var prevCam = KP3D._three() ? { p:KP3D._three().camera.position.clone(), t:KP3D._three().controls.target.clone() } : null;
       KP3D.teardown3D(true);
       host.innerHTML = "";
-      KP3D.buildScene(host, pv, { xray:true, clean:true, onlySurfaceId:"UWP", freshCamera:true });
+      KP3D.buildScene(host, pv, { xray:true, clean:true, noGhost:true, onlySurfaceId:"UWP", freshCamera:true });
       var st = KP3D._three(); if (!st) return;
       var g = KP3D.surfaceGeoms(pv)[0], hM = blockHeightMm(b, c) / 1000, elevM = c.zone === "wall" ? (KP3D.elevOf(b) || 0) / 1000 : 0;
       var along = 0.4 + b.widthMm / 2000, cx = g.origin.x + g.axis.x * along, cz = g.origin.z + g.axis.z * along, cy = elevM + hM / 2;
@@ -3221,6 +3253,33 @@
       st.controls.update();
       if (uwView.frontsOff) KP3D.setXrayFronts(true);
       if (uwView.open) KP3D.setAllParts(true);
+      syncUwTools();
+    }, 8000);
+  }
+  // An island preview: 1800 mm of base units (one row, or two back to back), shown on their own
+  function renderIslandPreview(host, islandType){
+    var key = "island:" + islandType + ":" + state.look + state.top;
+    if (key === uwPrevKey && KP3D._three()) return;
+    uwPrevKey = key;
+    var two = ISLAND_TYPES[islandType].two, isl = { id:"UWI", label:"Eyja", lengthMm:1800, xMm:0, zMm:3000, rot:0, two:two, a:[] };
+    var saved = blockSeq;
+    fillIslandRow(isl.a, 1800);
+    if (two){ isl.b = []; fillIslandRow(isl.b, 1800); }
+    blockSeq = saved;
+    var pv = { carcass:state.carcass, drawerSystem:state.drawerSystem, look:state.look, handle:state.handle, handleColor:state.handleColor, top:state.top, floor:state.floor, wallColor:state.wallColor,
+      roomHeightMm:state.roomHeightMm, closed:false, windows:[], doors:[], islands:[isl],
+      walls:[{ id:"UWP", label:"", lengthMm:600, floor:[], wall:[] }] };
+    KP3D.waitForThree(function(ok){
+      if (!ok || !uw) return;
+      KP3D.teardown3D(true);
+      host.innerHTML = "";
+      KP3D.buildScene(host, pv, { xray:true, clean:true, noGhost:true, onlySurfaceId:two ? ["UWIa", "UWIb"] : ["UWIa"], freshCamera:true });
+      var st = KP3D._three(); if (!st) return;
+      var cx = 0, cz = 3, dist = 3.6;
+      KP3D.setCameraLookAt({ x:cx + dist * 0.7, y:2.1, z:cz + dist * 0.75 }, { x:cx, y:0.45, z:cz });
+      var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      st.controls.autoRotate = !reduce; st.controls.autoRotateSpeed = 1.2;
+      st.controls.update();
       syncUwTools();
     }, 8000);
   }
@@ -3307,10 +3366,7 @@
       item("opening", "gluggi", "window", "Gluggi", WINDOW_DEFAULT.heightMm + ' × ' + WINDOW_DEFAULT.widthMm + ' mm', true) +
       item("opening", "hurd", "door", "Hurð", DOOR_DEFAULT.heightMm + ' × ' + DOOR_DEFAULT.widthMm + ' mm', true) +
       item("opening", "gat", "gap", "Op í vegg (án hurðar)", GAP_DEFAULT.heightMm + ' × ' + GAP_DEFAULT.widthMm + ' mm', true));
-    // --- islands ---
-    html += sec("eyjar", "Eyjar", Object.keys(ISLAND_TYPES).map(function(k){
-      return item("island", k, "island", ISLAND_TYPES[k].label, ISLAND_TYPES[k].dim, true);
-    }).join(""));
+    // (islands are added from "＋ Ný eining" → Eyja since 2026-09-30)
     // --- materials ---
     html += sec("efni", "Efni og útlit",
       '<p class="sec-note">Framhlið: <b>' + (state.look && LOOKS[state.look] ? LOOKS[state.look].label : "—") + '</b><br>Borðplata: <b>' + (TOPS[state.top || "steinn"] ? TOPS[state.top || "steinn"].label : "—") + '</b><br>Opnun: <b>' + (state.handle ? HANDLES[state.handle].label : "—") + '</b></p>' +
@@ -3519,7 +3575,8 @@
     if (!wall || wall.open) return;
     var isWindow = type === "gluggi";
     var d = openingDefault(type), wMm = Math.min(d.widthMm, wall.lengthMm); // a short wall gets a narrower one
-    var offsetMm = snappedOpeningOffset(wall, wMm, alongMm, "");
+    var sill0 = isWindow ? openingSill(d.heightMm, elevMm, type) : 0;
+    var offsetMm = snappedOpeningOffset(wall, wMm, alongMm, "", { lo:sill0, hi:sill0 + d.heightMm });
     if (offsetMm === null){ toast(OVERLAP_MSG); return false; }
     var o = { id:"o" + (openingSeq++), wallId:wallId, offsetMm:offsetMm, widthMm:wMm, heightMm:d.heightMm };
     if (type === "gat") o.gap = true; // stored with the doors: same wall placement, no leaf, the wall is cut open
@@ -3542,12 +3599,14 @@
   function moveOpening(id, wallId, alongMm, elevMm){
     var f = findOpening(id), wall = state.walls.find(function(w){ return w.id === wallId; });
     if (!f || !wall || wall.open) return;
-    var off = snappedOpeningOffset(wall, Math.min(f.o.widthMm, wall.lengthMm), alongMm, f.o.id);
+    var newSill = f.kind === "window" && elevMm != null ? openingSill(f.o.heightMm, elevMm, "gluggi") : null; // dragged up/down the wall
+    var vs = openingVSpan(newSill != null ? { sillHeightMm:newSill, heightMm:f.o.heightMm } : f.o);
+    var off = snappedOpeningOffset(wall, Math.min(f.o.widthMm, wall.lengthMm), alongMm, f.o.id, vs);
     if (off === null){ toast(OVERLAP_MSG); refreshAfterEdit(); return; }
     f.o.wallId = wallId;
     f.o.widthMm = Math.min(f.o.widthMm, wall.lengthMm);
     f.o.offsetMm = off;
-    if (f.kind === "window" && elevMm != null) f.o.sillHeightMm = openingSill(f.o.heightMm, elevMm, "gluggi"); // dragged up/down the wall
+    if (newSill != null) f.o.sillHeightMm = newSill;
     save();
     refreshAfterEdit();
   }
@@ -4374,11 +4433,15 @@
       toast((key === "widthMm" ? "Breidd" : key === "heightMm" ? "Hæð" : "Hæð frá gólfi") + " þarf að vera á milli " + lim[0] + " og " + lim[1] + " mm.");
       return false;
     }
+    // the opening as it would be after this change — its height range decides which cabinets it may hit
+    var cand = Object.assign({}, o); cand[key] = v;
+    if (key === "heightMm" && f.kind === "window") cand.sillHeightMm = Math.min(cand.sillHeightMm, Math.max(0, roomH - v));
+    var vs = openingVSpan(cand);
     if (key === "widthMm" && wall){ // wider: keep it clear of its neighbours (shift it if that helps)
-      var nOff = freeOpeningOffset(wall, v, Math.max(0, Math.min(wall.lengthMm - v, o.offsetMm)), o.id);
+      var nOff = freeOpeningOffset(wall, v, Math.max(0, Math.min(wall.lengthMm - v, o.offsetMm)), o.id, vs);
       if (nOff === null){ toast(OVERLAP_MSG); return false; }
       o.offsetMm = nOff;
-    }
+    } else if (wall && !openingClear(wall.id, o.offsetMm, o.widthMm, o.id, vs)){ toast(OVERLAP_MSG); return false; } // taller / moved up or down into a cabinet
     o[key] = v;
     if (key === "heightMm" && f.kind === "window") o.sillHeightMm = Math.min(o.sillHeightMm, Math.max(0, roomH - o.heightMm));
     if (wall) o.offsetMm = Math.max(0, Math.min(wall.lengthMm - o.widthMm, o.offsetMm));

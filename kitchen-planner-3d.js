@@ -1016,7 +1016,15 @@
   // hexxa), a knob (arpa), or a milled groove (fraest); push-open (push)
   // shows no hardware. Fronts: drawers → equal rows, tall unit → two doors,
   // anything else → one door. Purely visual — nothing here is submitted.
+  // Handles, seams and grips drawn on a front are tagged (__frontDetail) so "fronts off" can hide them
+  // with the fronts. Oven glass/controls are an appliance, not a front: left alone.
   function addFrontDetails(THREE, group, geom, offsetM, widthM, heightM, baseYM, depthM, interior, handleKey, isTall, isWallRow, split, meta, frontMat){
+    var n0 = group.children.length;
+    addFrontDetailsInner.apply(null, arguments);
+    if (meta && meta.oven) return;
+    group.children.slice(n0).forEach(function(o){ o.__frontDetail = true; });
+  }
+  function addFrontDetailsInner(THREE, group, geom, offsetM, widthM, heightM, baseYM, depthM, interior, handleKey, isTall, isWallRow, split, meta, frontMat){
     if (meta && meta.open) return; // open shelves have no fronts
     var xAxis = new THREE.Vector3(geom.axis.x, 0, geom.axis.z);
     var quat = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(xAxis, new THREE.Vector3(0, 1, 0), new THREE.Vector3(geom.normal.x, 0, geom.normal.z)));
@@ -2004,6 +2012,17 @@
     m.opacity = on ? 0.1 : 1;
     m.depthWrite = !on;
     m.needsUpdate = true;
+    // See-through fronts must not cast shadows (thin slabs gave striped shadow acne under the worktop),
+    // and their handles / seams go with them. Tagged objects are hidden, not removed — "on" restores them.
+    THREE_STATE.scene.traverse(function(o){
+      if (o.__frontDetail){ o.visible = !on; return; }
+      if (!o.isMesh) return;
+      var mats = Array.isArray(o.material) ? o.material : [o.material];
+      if (mats.indexOf(m) >= 0){
+        if (o.__castShadow0 == null) o.__castShadow0 = o.castShadow;
+        o.castShadow = on ? false : o.__castShadow0;
+      }
+    });
     return true;
   }
   // Drawing export: render the live scene from an arbitrary camera at a fixed pixel size and return a
@@ -2311,7 +2330,8 @@
     var scene = new THREE.Scene();
     // opts.onlySurfaceId (drawing export): only that one wall's / island row's cabinets are built —
     // no floor, walls, skirting, windows/doors or other cabinets in front of or around them.
-    var iso = opts.onlySurfaceId || null;
+    var iso = opts.onlySurfaceId || null; // one surface id, or an array of them (both rows of an island)
+    function isoHas(id){ return Array.isArray(iso) ? iso.indexOf(id) >= 0 : id === iso; }
     scene.background = new THREE.Color(iso ? 0xffffff : 0xf7f6f2);
 
     var nBeforeFloor = scene.children.length;
@@ -2410,7 +2430,7 @@
 
     surfaces.forEach(function(wall, wi){
       var g = allGeoms[wi];
-      if (!g || (iso && wall.id !== iso)) return;
+      if (!g || (iso && !isoHas(wall.id))) return;
       var fStarts = blockStartsMm(wall.floor, cornerClearanceMm(surfaces, wi, "floor")), wStarts = blockStartsMm(wall.wall, 0);
       var islandId = wall.island ? wall.island.id : undefined;
       wall.floor.forEach(function(b, bi){
@@ -2641,7 +2661,7 @@
         var c = gr.userData.cab;
         var cp = (THREE_STATE.fadeCam || camera).position;
         var behind = cp.x * c.nx + cp.z * c.nz - c.d < -0.05;
-        var want = behind && !THREE_STATE.fadeCam && !THREE_STATE.dragging && opts.selectedId !== c.blockId ? 1 : 0; // export shots: never see-through
+        var want = behind && !opts.noGhost && !THREE_STATE.fadeCam && !THREE_STATE.dragging && opts.selectedId !== c.blockId ? 1 : 0; // export shots: never see-through
         if (c.t === want) return;
         c.t = Math.abs(want - c.t) < 0.01 ? want : c.t + (want - c.t) * 0.2;
         ghostApply(gr, c.t);
