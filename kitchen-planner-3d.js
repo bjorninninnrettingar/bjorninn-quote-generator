@@ -810,6 +810,12 @@
     }
     return c.state === "ready" ? c.obj.clone(true) : null;
   }
+  // models still downloading (drawing export waits for 0 before it takes a picture)
+  function modelsPending(){
+    var n = 0;
+    [MODEL_CACHE, RAW_CACHE].forEach(function(c){ Object.keys(c).forEach(function(k){ if (c[k].state === "loading") n++; }); });
+    return n;
+  }
   // A model in its own coordinates (Blum parts are positioned relative to one another, so
   // they must NOT be re-centred), with its Phong materials turned into standard ones.
   var RAW_CACHE = {};
@@ -1894,6 +1900,52 @@
     m.needsUpdate = true;
     return true;
   }
+  // Drawing export: render the live scene from an arbitrary camera at a fixed pixel size and return a
+  // JPEG data URL. spec = {pos, target, up?, fov? | ortho:{halfW, halfH}, width, height, quality}.
+  // The fade systems (walls / cabinets seen from behind) follow this camera for `settle` frames first
+  // (they ease 0.2 per frame), so what's in the way is gone before the picture is taken. Resolves to
+  // {url, halfW, halfH} — halfW/halfH = the ortho frustum actually used (after fitting the aspect),
+  // so the caller can map metres to pixels for dimension lines.
+  function renderShot(spec){
+    return new Promise(function(resolve){
+      if (!THREE_STATE){ resolve(null); return; }
+      var THREE = window.__THREE__, st = THREE_STATE, r = st.renderer;
+      var w = spec.width || 1600, h = spec.height || 1000, hw = 0, hh = 0, cam;
+      if (spec.ortho){
+        hw = spec.ortho.halfW; hh = spec.ortho.halfH;
+        if (hw / hh > w / h) hh = hw * h / w; else hw = hh * w / h;
+        cam = new THREE.OrthographicCamera(-hw, hw, hh, -hh, 0.01, 200);
+      } else {
+        cam = new THREE.PerspectiveCamera(spec.fov || 45, w / h, 0.05, 200);
+      }
+      if (spec.up) cam.up.set(spec.up.x, spec.up.y, spec.up.z);
+      cam.position.set(spec.pos.x, spec.pos.y, spec.pos.z);
+      cam.lookAt(spec.target.x, spec.target.y, spec.target.z);
+      cam.updateProjectionMatrix(); cam.updateMatrixWorld();
+      st.fadeCam = cam;
+      for (var k = 0; k < (spec.settle == null ? 40 : spec.settle); k++) if (st.stepFades) st.stepFades(); // 0.2 ease per step → settled
+      setTimeout(function(){ // one macrotask so async-loaded models/textures that just arrived get in
+        if (THREE_STATE !== st){ resolve(null); return; }
+        var old = r.getSize(new THREE.Vector2()), oldPR = r.getPixelRatio();
+        // spec.headlight: a soft light from the camera itself + extra fill, so the inside of a
+        // cabinet seen head-on (X-ray elevations) reads bright instead of in its own shadow
+        var extra = [];
+        if (spec.headlight){
+          var hl = new THREE.DirectionalLight(0xffffff, spec.headlight);
+          hl.position.copy(cam.position).add(new THREE.Vector3(1.5, 4, 1.5)); hl.target.position.set(spec.target.x, spec.target.y, spec.target.z);
+          extra.push(hl, hl.target, new THREE.AmbientLight(0xffffff, 0.25));
+          extra.forEach(function(o){ st.scene.add(o); });
+        }
+        r.setPixelRatio(1); r.setSize(w, h, false);
+        r.render(st.scene, cam);
+        extra.forEach(function(o){ st.scene.remove(o); });
+        var url = r.domElement.toDataURL("image/jpeg", spec.quality || 0.86);
+        r.setPixelRatio(oldPR); r.setSize(old.x, old.y, false);
+        st.fadeCam = null;
+        resolve({ url:url, halfW:hw, halfH:hh });
+      }, 0);
+    });
+  }
   function setCameraLookAt(pos, target){
     if (!THREE_STATE) return false;
     THREE_STATE.camera.position.set(pos.x, pos.y, pos.z);
@@ -2151,9 +2203,14 @@
     }
 
     var scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xf7f6f2);
+    // opts.onlySurfaceId (drawing export): only that one wall's / island row's cabinets are built —
+    // no floor, walls, skirting, windows/doors or other cabinets in front of or around them.
+    var iso = opts.onlySurfaceId || null;
+    scene.background = new THREE.Color(iso ? 0xffffff : 0xf7f6f2);
 
+    var nBeforeFloor = scene.children.length;
     var bbox = addFloor(THREE, scene, geoms, floorMat, stateBounds(state, geoms));
+    if (iso) scene.children.slice(nBeforeFloor).forEach(function(o){ o.visible = false; });
     // Phase 7c: customer-set room height (was a fixed 2.6m for every
     // project). Also caps how tall any cabinet can render — a Hárskápur
     // sized for a 2.6m ceiling shouldn't poke through a lower one.
@@ -2164,7 +2221,7 @@
     // Wall length labels floating just above each wall (HomeByMe shows room
     // dimensions on the plan); a canvas-texture sprite, drawn on top.
     function isOpenGeom(i){ return !!(state.walls[i] && state.walls[i].open); }
-    if (!opts.people && !opts.clean) geoms.forEach(function(g, i){ // (the ceiling-height view has its own single label; opts.clean skips it too — drawing exports don't want it baked into the picture)
+    if (!opts.people && !opts.clean && !iso) geoms.forEach(function(g, i){ // (the ceiling-height view has its own single label; opts.clean skips it too — drawing exports don't want it baked into the picture)
       var cv = document.createElement("canvas"); cv.width = 420; cv.height = 64;
       var cx = cv.getContext("2d");
       cx.fillStyle = "rgba(255,255,255,.92)"; cx.strokeStyle = "#e6e3da"; cx.lineWidth = 3;
@@ -2181,7 +2238,7 @@
     // White skirting boards along every wall (visible wherever no cabinet stands)
     var skirtMat = new THREE.MeshStandardMaterial({ color:0xf3f1ec, roughness:0.55 });
     geoms.forEach(function(g, gi){
-      if (isOpenGeom(gi)) return;
+      if (isOpenGeom(gi) || iso) return;
       var sk = new THREE.Mesh(new THREE.BoxGeometry(g.lenM, 0.09, 0.014), skirtMat);
       sk.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(g.axis.x, 0, g.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(g.normal.x, 0, g.normal.z)));
       sk.position.set(g.origin.x + g.axis.x * g.lenM / 2 + g.normal.x * 0.005, 0.045, g.origin.z + g.axis.z * g.lenM / 2 + g.normal.z * 0.005); // back face 2 mm behind the wall line: seen from behind it no longer z-fights with the plinth's back face
@@ -2191,7 +2248,7 @@
 
     // open edges of an open-plan kitchen: no wall, just a dashed line on the floor
     geoms.forEach(function(g, gi){
-      if (!isOpenGeom(gi)) return;
+      if (!isOpenGeom(gi) || iso) return;
       var pts = [new THREE.Vector3(g.origin.x, 0.012, g.origin.z), new THREE.Vector3(g.origin.x + g.axis.x * g.lenM, 0.012, g.origin.z + g.axis.z * g.lenM)];
       var line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineDashedMaterial({ color:0x6f6d66, dashSize:0.12, gapSize:0.08 }));
       line.computeLineDistances();
@@ -2199,7 +2256,7 @@
     });
     var wallFades = [];
     geoms.forEach(function(g, gi){
-      if (isOpenGeom(gi)) return;
+      if (isOpenGeom(gi) || iso) return;
       var mat = wallMat.clone();
       mat.transparent = true;
       var wid = state.walls[gi] && state.walls[gi].id;
@@ -2209,6 +2266,7 @@
     });
 
     function geomForWall(wallId){
+      if (iso) return null;
       var wi = state.walls.findIndex(function(w){ return w.id === wallId; });
       return wi === -1 || state.walls[wi].open ? null : geoms[wi];
     }
@@ -2246,7 +2304,7 @@
 
     surfaces.forEach(function(wall, wi){
       var g = allGeoms[wi];
-      if (!g) return;
+      if (!g || (iso && wall.id !== iso)) return;
       var fStarts = blockStartsMm(wall.floor, cornerClearanceMm(surfaces, wi, "floor")), wStarts = blockStartsMm(wall.wall, 0);
       var islandId = wall.island ? wall.island.id : undefined;
       wall.floor.forEach(function(b, bi){
@@ -2421,11 +2479,13 @@
       wallFades.forEach(function(w){
         var cx = w.geom.origin.x + w.geom.axis.x * w.geom.lenM / 2, cz = w.geom.origin.z + w.geom.axis.z * w.geom.lenM / 2;
         // camera on the outer side of this wall (opposite its room-facing normal)?
-        wallVec.set(camera.position.x - cx, 0, camera.position.z - cz);
+        var cp = (THREE_STATE.fadeCam || camera).position;
+        wallVec.set(cp.x - cx, 0, cp.z - cz);
         var behind = wallVec.x * w.geom.normal.x + wallVec.z * w.geom.normal.z < 0;
-        var target = behind ? 0.1 : 1;
+        var target = behind ? (opts.clean ? 0 : 0.1) : 1; // export shots drop a wall in the way completely
         w.mat.opacity += (target - w.mat.opacity) * 0.2;
         w.mat.depthWrite = w.mat.opacity > 0.6;
+        w.mesh.visible = w.mat.opacity > 0.02;
       });
     }
 
@@ -2467,14 +2527,18 @@
     function fadeCabinets(){
       (scene.userData.cabs || []).forEach(function(gr){
         var c = gr.userData.cab;
-        var behind = camera.position.x * c.nx + camera.position.z * c.nz - c.d < -0.05;
-        var want = behind && !THREE_STATE.dragging && opts.selectedId !== c.blockId ? 1 : 0;
+        var cp = (THREE_STATE.fadeCam || camera).position;
+        var behind = cp.x * c.nx + cp.z * c.nz - c.d < -0.05;
+        var want = behind && !THREE_STATE.fadeCam && !THREE_STATE.dragging && opts.selectedId !== c.blockId ? 1 : 0; // export shots: never see-through
         if (c.t === want) return;
         c.t = Math.abs(want - c.t) < 0.01 ? want : c.t + (want - c.t) * 0.2;
         ghostApply(gr, c.t);
       });
     }
 
+    // renderShot() settles the fades itself (synchronously) — rAF doesn't run in a background tab,
+    // and a customer switching tabs mid-submit must not stall the drawing export.
+    THREE_STATE.stepFades = function(){ fadeWalls(); fadeCabinets(); };
     function loop(){
       THREE_STATE.rafId = requestAnimationFrame(loop);
       controls.update();
@@ -3042,6 +3106,8 @@
     snapshot3D: snapshot3D,
     setXrayFronts: setXrayFronts,
     setCameraLookAt: setCameraLookAt,
+    renderShot: renderShot,
+    modelsPending: modelsPending,
     shelvesOf: shelvesOf,
     hideDragPreview3D: hideDragPreview3D,
     teardown3D: teardown3D,

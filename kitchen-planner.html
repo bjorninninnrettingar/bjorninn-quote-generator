@@ -3564,6 +3564,7 @@
 
   // a real .glb finished loading: redraw whatever 3D view is showing
   window.addEventListener("kp3d-model-loaded", function(){
+    if (exporting) return; // the drawing export rebuilds its own off-screen scene once models are in
     if (state.step === "materials" && KP3D.hasCabinetPreview()) KP3D.setCabinetPreview(cabCfg());
     else if (state.step === "editor") renderView();
   });
@@ -4624,12 +4625,11 @@
   var HANDLE_COLOR_AIRTABLE = { svart:"Svartar ⚫", stal:"Silfur 🥈", messing:"Gyllt / Látún 🥇", kopar:"Kopar 🥉", brons:"Kopar 🥉" };
 
   function collectLineItems(){
-    var rows = [], n = 0;
+    var rows = [], keys = skKeys();
     surfaces().forEach(function(wall){
       wall.floor.concat(wall.wall).forEach(function(b){
         var c = CATALOG[b.type];
-        n++;
-        var fields = { "Rými 🏡":"Eldhús", "Magn":1, "🔑":"Sk" + n };
+        var fields = { "Rými 🏡":"Eldhús", "Magn":1, "🔑":keys[b.id] }; // same numbers the drawings print
         var v1 = v1RecordFor(b, c); if (v1) fields["Vöru reitur 1"] = [v1.id];
         var v2 = v2RecordFor(b, c); if (v2) fields["Vöru reitur 2"] = [v2.id];
         var notes = [];
@@ -4713,6 +4713,20 @@
         await airtableCreate("tblFcsUoGxsuUwNEH", rows[i]);
       }
 
+      // Drawings PDF (X-ray elevations, corner views, top view, plan) onto the Tækifæri. The lead is
+      // already saved at this point, so a failure here is only reported, never shown as a failed submit.
+      submitBtn.textContent = "Útbý teikningar...";
+      try{
+        var customer = (document.getElementById("cFornafn").value.trim() + " " + document.getElementById("cEftirnafn").value.trim()).trim();
+        var pdf = await buildDrawingsPdf(customer);
+        if (lastPdfUrl) URL.revokeObjectURL(lastPdfUrl);
+        lastPdfUrl = URL.createObjectURL(pdf);
+        var up = await fetch("/api/kp-drawings?recordId=" + encodeURIComponent(opp.id), { method:"POST", headers:{ "Content-Type":"application/octet-stream" }, body:pdf });
+        if (!up.ok) throw new Error("kp-drawings " + up.status + ": " + (await up.text()).slice(0, 300));
+      }catch(de){
+        sendIssueReport("Sjálfvirk villa", "Teikningar (PDF) mistókust: " + de.message, (de.stack || "") + "\nTækifæri: " + opp.id);
+      }
+
       KP3D.teardown3D(true);
       try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
       wallSeq = 2;
@@ -4774,7 +4788,8 @@
       lastSummary = state.step === "contact" ? text : lastSummary;
       var box = document.getElementById(state.step === "contact" ? "contactPreview" : "donePreview");
       box.innerHTML = html + '<div class="cp-text"><strong>Skipulagið þitt</strong><br>' + text +
-        (lastThumb ? '<br><a href="' + lastThumb + '" download="eldhus-skipulag.jpg">Sækja mynd</a>' : "") + '</div>';
+        (lastThumb ? '<br><a href="' + lastThumb + '" download="eldhus-skipulag.jpg">Sækja mynd</a>' : "") +
+        (state.step === "done" && lastPdfUrl ? '<br><a href="' + lastPdfUrl + '" download="eldhus-teikningar.pdf"><strong>Sækja teikningar (PDF)</strong></a>' : "") + '</div>';
       box.hidden = false;
     }
   }
@@ -4797,143 +4812,325 @@
     KP3D.teardown3D(true); // discard the remembered camera so the rebuild re-frames the room
     renderView();
   });
-  // ---------- drawing export (2026-09-30, exploratory — capture only, no delivery mechanism yet) ----------
-  // "2D vinnuteikningar" (topplan + a head-on shot of every solid wall) + "3D útlitsteikningar" (a few
-  // orbit angles) — the two deliverable kinds asked for. Assumes the 3D scene is already live in "3d"
-  // viewMode when called (same assumption captureThumb() already makes) for the wall/overview shots;
-  // the plan shot temporarily flips to "2d" and back. Returns [{label, dataUrl}]; what happens to them
-  // (download, upload to Airtable, email) is explicitly not decided yet — this is just the capture step.
-  // Vertical span actually occupied by this wall's cabinets (floor units start at 0; wall-zone units
-  // float at KP3D.elevOf(b)) — the first version of wallElevationShot used a fixed eye-height instead,
-  // which cropped any wall-mounted unit (elevated 1.4m+) clean out of frame (caught while reviewing the
-  // first export pass, 2026-09-30). Falls back to a sensible default range for an empty wall.
-  function wallVerticalExtent(wall){
-    var minY = 0, maxY = 0.9, seen = false;
-    wall.floor.concat(wall.wall).forEach(function(b){
-      var c = CATALOG[b.type], h = blockHeightMm(b, c) / 1000, elev = (KP3D.elevOf(b) || 0) / 1000;
-      minY = seen ? Math.min(minY, elev) : elev;
-      maxY = seen ? Math.max(maxY, elev + h) : elev + h;
-      seen = true;
-    });
-    return { minY:minY, maxY:maxY };
+  // ---------- drawing export → one PDF on the Tækifæri (2026-09-30) ----------
+  // Runs at submit, after the Line Items are written. Pages: cover → X-ray head-on elevation of every
+  // wall / island row that has units (ONLY that row is built — floor, walls, openings and every other
+  // cabinet are left out so nothing is in the way; cabinets carry the same Sk-numbers as their Line
+  // Items, widths/heights dimensioned) → a high 3D view from every room corner → a 3D top view → the
+  // dimensioned 2D plan. Rendered off-screen at a fixed size, so it works from the contact screen where
+  // no 3D view is live. The PDF goes to /api/kp-drawings (→ "Teikningar úr skipuleggjara 📐") and the
+  // customer gets a download link on the thank-you screen.
+  var EXPORT_W = 1600, EXPORT_H = 1000;
+  // One number per cabinet in surface order, floor units before wall units — the same order
+  // collectLineItems() writes, so "Sk4" on a drawing is "Sk4" in Line Items.
+  function skKeys(){
+    var map = {}, n = 0;
+    surfaces().forEach(function(w){ w.floor.concat(w.wall).forEach(function(b){ n++; map[b.id] = "Sk" + n; }); });
+    return map;
   }
-  // The back-fade "ghost" system (fadeCabinets() in kitchen-planner-3d.js) recomputes and EASES
-  // cabinet/wall opacity once per animation frame based on the camera's current position — it doesn't
-  // reset the instant the camera moves. Calling snapshot3D() right after setCameraLookAt() (as the
-  // first version of this did) captured whatever fade state was left over from the scene's initial
-  // default camera angle, not the new one — the whole room came out uniformly washed-out in the first
-  // X-ray test. Waiting a bunch of frames lets the 0.2-per-frame ease settle back down (caught while
-  // reviewing that first export, 2026-09-30).
-  function waitFrames(n){
+  function exportHost(){
+    var el = document.getElementById("exportHost");
+    if (!el){
+      el = document.createElement("div");
+      el.id = "exportHost";
+      el.style.cssText = "position:fixed;left:-20000px;top:0;width:" + EXPORT_W + "px;height:" + EXPORT_H + "px;pointer-events:none;";
+      document.body.appendChild(el);
+    }
+    return el;
+  }
+  var exporting = false;
+  function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+  // Builds the off-screen scene. Real drawer sides / handles are .glb/.dae files that load on first
+  // use and only appear in a scene built AFTER they arrived — an X-ray build is often the first time
+  // drawer boxes are needed at all — so wait for pending downloads and rebuild once they're in.
+  function buildOnce(opts){
     return new Promise(function(resolve){
-      (function tick(k){ if (k <= 0){ resolve(); return; } requestAnimationFrame(function(){ tick(k - 1); }); })(n);
-    });
-  }
-  async function wallElevationShot(wallIndex, label){
-    var geoms = KP3D.wallGeometry3D(state.walls);
-    var g = geoms[wallIndex];
-    if (!g) return null;
-    var cx = g.origin.x + g.axis.x * g.lenM / 2, cz = g.origin.z + g.axis.z * g.lenM / 2;
-    var ext = wallVerticalExtent(state.walls[wallIndex]), midY = (ext.minY + ext.maxY) / 2, spanY = Math.max(ext.maxY - ext.minY, 0.9);
-    var fovRad = 45 * Math.PI / 180; // matches the PerspectiveCamera(45, ...) buildScene sets up
-    // distance so the taller of (wall length, the real cabinet height span) fills most of the frame
-    var dist = Math.max(g.lenM, spanY * 1.3) / (2 * Math.tan(fovRad / 2)) * 1.2 + 0.3;
-    if (!KP3D.setCameraLookAt({ x:cx + g.normal.x * dist, y:midY, z:cz + g.normal.z * dist }, { x:cx, y:midY, z:cz })) return null;
-    await waitFrames(25);
-    var url = KP3D.snapshot3D();
-    return url ? { label:label, dataUrl:url } : null;
-  }
-  async function overviewShot(angleDeg, label){
-    var geoms = KP3D.wallGeometry3D(state.walls);
-    if (!geoms.length) return null;
-    var minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-    geoms.forEach(function(g){
-      [0, 1].forEach(function(t){
-        var x = g.origin.x + g.axis.x * g.lenM * t, z = g.origin.z + g.axis.z * g.lenM * t;
-        minX = Math.min(minX, x); maxX = Math.max(maxX, x); minZ = Math.min(minZ, z); maxZ = Math.max(maxZ, z);
-      });
-    });
-    var cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2, w = maxX - minX, d = maxZ - minZ;
-    var dist = Math.max(w, d) * 0.95 + 1.7, rad = angleDeg * Math.PI / 180;
-    if (!KP3D.setCameraLookAt({ x:cx + Math.sin(rad) * dist * 0.85, y:dist * 0.5, z:cz + Math.cos(rad) * dist * 0.85 }, { x:cx, y:1.0, z:cz })) return null;
-    await waitFrames(25);
-    var url = KP3D.snapshot3D();
-    return url ? { label:label, dataUrl:url } : null;
-  }
-  function planShot(label){
-    return new Promise(function(resolve){
-      var wasMode = viewMode;
-      viewMode = "2d"; renderView();
-      requestAnimationFrame(function(){
-        var svg = document.querySelector("#planWrap svg");
-        if (!svg){ viewMode = wasMode; renderView(); resolve(null); return; }
-        var vb = svg.viewBox.baseVal, scale = 2;
-        var img = new Image();
-        img.onload = function(){
-          var cv = document.createElement("canvas");
-          cv.width = vb.width * scale; cv.height = vb.height * scale;
-          var cx2 = cv.getContext("2d");
-          cx2.fillStyle = "#faf9f6"; cx2.fillRect(0, 0, cv.width, cv.height);
-          cx2.drawImage(img, 0, 0, cv.width, cv.height);
-          viewMode = wasMode; renderView(); // fire-and-forget rebuild back to 3D; export is done by now
-          resolve({ label:label, dataUrl:cv.toDataURL("image/png") });
-        };
-        var clone = svg.cloneNode(true);
-        clone.setAttribute("width", vb.width * scale); clone.setAttribute("height", vb.height * scale);
-        clone.style.width = ""; clone.style.height = "";
-        img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(new XMLSerializer().serializeToString(clone));
-      });
-    });
-  }
-  // Rebuilds the live 3D scene with extra buildScene() options and waits for it to actually finish
-  // (models etc. can load async) before resolving — mirrors renderView()'s own 3D branch, just without
-  // the interactivity callbacks an export pass doesn't need. discardCamera:true on teardown so the
-  // fresh build re-frames instead of reusing wherever the customer last left the camera.
-  function rebuildScene3D(extraOpts){
-    return new Promise(function(resolve){
-      var wrap = document.getElementById("threeWrap");
-      if (!wrap){ resolve(false); return; }
       KP3D.teardown3D(true);
       KP3D.waitForThree(function(ok){
         if (!ok){ resolve(false); return; }
-        wrap.innerHTML = "";
-        KP3D.buildScene(wrap, state, Object.assign({ freshCamera:true }, extraOpts));
+        var host = exportHost();
+        host.innerHTML = "";
+        KP3D.buildScene(host, state, Object.assign({ freshCamera:true, clean:true }, opts));
         resolve(true);
       }, 8000);
     });
   }
+  async function buildExportScene(opts){
+    for (var attempt = 0; attempt < 3; attempt++){
+      if (!(await buildOnce(opts))) return false;
+      if (!KP3D.modelsPending()) return true;
+      for (var t = 0; t < 60 && KP3D.modelsPending(); t++) await sleep(100); // up to 6 s
+    }
+    return true; // a model that never arrives: go with the procedural stand-in
+  }
+  function loadImg(url){
+    return new Promise(function(resolve, reject){ var i = new Image(); i.onload = function(){ resolve(i); }; i.onerror = reject; i.src = url; });
+  }
+  // The row's own units with their real positions (m): along = from the row's start, y from the floor.
+  function rowUnits(surfs, si){
+    var surf = surfs[si];
+    var fs = KP3D.blockStartsMm(surf.floor, KP3D.cornerClearanceMm(surfs, si, "floor")), ws = KP3D.blockStartsMm(surf.wall, 0);
+    function unit(b, start, zone){
+      var c = CATALOG[b.type], h = blockHeightMm(b, c) / 1000, y0 = zone === "wall" ? (KP3D.elevOf(b) || 0) / 1000 : 0;
+      return { b:b, zone:zone, a0:start / 1000, a1:(start + b.widthMm) / 1000, y0:y0, y1:y0 + h };
+    }
+    return surf.floor.map(function(b, i){ return unit(b, fs[i], "floor"); })
+      .concat(surf.wall.map(function(b, i){ return unit(b, ws[i], "wall"); }));
+  }
+  function dimLine(cx, x0, y0, x1, y1, text, vertical){
+    cx.strokeStyle = "#444"; cx.fillStyle = "#222"; cx.lineWidth = 1.5;
+    cx.beginPath(); cx.moveTo(x0, y0); cx.lineTo(x1, y1); cx.stroke();
+    var t = 7;
+    [[x0, y0], [x1, y1]].forEach(function(p){ // architectural ticks
+      cx.beginPath(); cx.moveTo(p[0] - t, p[1] + t); cx.lineTo(p[0] + t, p[1] - t); cx.stroke();
+      cx.beginPath(); vertical ? (cx.moveTo(p[0] - 12, p[1]), cx.lineTo(p[0] + 12, p[1])) : (cx.moveTo(p[0], p[1] - 12), cx.lineTo(p[0], p[1] + 12)); cx.stroke();
+    });
+    cx.font = "600 19px 'Kumbh Sans', Arial, sans-serif"; cx.textAlign = "center"; cx.textBaseline = "bottom";
+    var len = vertical ? Math.abs(y1 - y0) : Math.abs(x1 - x0);
+    if (len < cx.measureText(text).width + 6) cx.font = "600 14px 'Kumbh Sans', Arial, sans-serif";
+    cx.save();
+    cx.translate((x0 + x1) / 2, (y0 + y1) / 2);
+    if (vertical) cx.rotate(-Math.PI / 2);
+    cx.fillText(text, 0, -4);
+    cx.restore();
+  }
+  async function elevationShot(surfs, si, keys){
+    var surf = surfs[si], g = KP3D.surfaceGeoms(state)[si], units = rowUnits(surfs, si);
+    if (!g || !units.length) return null;
+    var lo = Math.min.apply(null, units.map(function(u){ return u.a0; })) - 0.45, hi = Math.max.apply(null, units.map(function(u){ return u.a1; })) + 0.25;
+    var top = Math.max.apply(null, units.map(function(u){ return u.y1; }));
+    var yLo = -0.5, yHi = top + 0.5, c = (lo + hi) / 2, mid = (yLo + yHi) / 2;
+    var P = { x:g.origin.x + g.axis.x * c, z:g.origin.z + g.axis.z * c };
+    var r = await KP3D.renderShot({ pos:{ x:P.x + g.normal.x * 8, y:mid, z:P.z + g.normal.z * 8 }, target:{ x:P.x, y:mid, z:P.z },
+      ortho:{ halfW:(hi - lo) / 2, halfH:(yHi - yLo) / 2 }, width:EXPORT_W, height:EXPORT_H, headlight:0.8 });
+    if (!r) return null;
+    // screen-right as seen from the room side — decides whether "along the row" runs left→right or back
+    var sign = g.axis.x * g.normal.z - g.axis.z * g.normal.x >= 0 ? 1 : -1;
+    function X(a){ return EXPORT_W / 2 + sign * (a - c) / r.halfW * EXPORT_W / 2; }
+    function Y(y){ return EXPORT_H / 2 - (y - mid) / r.halfH * EXPORT_H / 2; }
+    var img = await loadImg(r.url), cv = document.createElement("canvas");
+    cv.width = EXPORT_W; cv.height = EXPORT_H;
+    var cx = cv.getContext("2d");
+    cx.drawImage(img, 0, 0);
+    cx.strokeStyle = "#999"; cx.lineWidth = 1; cx.beginPath(); cx.moveTo(X(lo + 0.3), Y(0)); cx.lineTo(X(hi - 0.1), Y(0)); cx.stroke(); // floor line
+    var floorU = units.filter(function(u){ return u.zone === "floor"; }), wallU = units.filter(function(u){ return u.zone === "wall"; });
+    floorU.forEach(function(u){ dimLine(cx, X(u.a0), Y(-0.16), X(u.a1), Y(-0.16), String(u.b.widthMm)); });
+    if (floorU.length > 1){
+      var f0 = Math.min.apply(null, floorU.map(function(u){ return u.a0; })), f1 = Math.max.apply(null, floorU.map(function(u){ return u.a1; }));
+      dimLine(cx, X(f0), Y(-0.34), X(f1), Y(-0.34), Math.round((f1 - f0) * 1000) + " mm");
+    }
+    wallU.forEach(function(u){ dimLine(cx, X(u.a0), Y(top + 0.16), X(u.a1), Y(top + 0.16), String(u.b.widthMm)); });
+    // heights on the free side: floor units' top, wall units' underside and top
+    // every distinct floor-unit height (low units AND towers), wall units' underside and top
+    var ys = [0].concat(floorU.map(function(u){ return u.y1; }));
+    if (wallU.length){ ys.push(Math.min.apply(null, wallU.map(function(u){ return u.y0; }))); ys.push(Math.max.apply(null, wallU.map(function(u){ return u.y1; }))); }
+    ys = ys.filter(function(y, i){ return ys.findIndex(function(z){ return Math.abs(z - y) < 0.005; }) === i; }).sort(function(a, b){ return a - b; });
+    var hx = X(sign > 0 ? lo + 0.22 : hi - 0.1);
+    for (var k = 1; k < ys.length; k++) dimLine(cx, hx, Y(ys[k - 1]), hx, Y(ys[k]), String(Math.round((ys[k] - ys[k - 1]) * 1000)), true);
+    // Sk-number of each unit, same as its Line Item
+    cx.font = "700 20px 'Kumbh Sans', Arial, sans-serif"; cx.textAlign = "center"; cx.textBaseline = "middle";
+    units.forEach(function(u){
+      var t = keys[u.b.id] || "", x = (X(u.a0) + X(u.a1)) / 2, y = Y(u.y1) + 22, w = cx.measureText(t).width + 16;
+      cx.fillStyle = "rgba(255,255,255,.92)"; cx.strokeStyle = "#191919"; cx.lineWidth = 1.5;
+      cx.beginPath(); cx.roundRect ? cx.roundRect(x - w / 2, y - 14, w, 28, 8) : cx.rect(x - w / 2, y - 14, w, 28); cx.fill(); cx.stroke();
+      cx.fillStyle = "#191919"; cx.fillText(t, x, y + 1);
+    });
+    var lenMm = Math.round(g.lenM * 1000);
+    return { title:surf.label + (surf.island ? "" : " · " + lenMm + " mm") + " — innra byrði (röntgen)", canvas:cv };
+  }
+  function roomExtent(){
+    var pts = [];
+    KP3D.surfaceGeoms(state).forEach(function(g){ pts.push(g.origin, { x:g.origin.x + g.axis.x * g.lenM, z:g.origin.z + g.axis.z * g.lenM }); });
+    var xs = pts.map(function(p){ return p.x; }), zs = pts.map(function(p){ return p.z; });
+    var minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs), minZ = Math.min.apply(null, zs), maxZ = Math.max.apply(null, zs);
+    return { cx:(minX + maxX) / 2, cz:(minZ + maxZ) / 2, w:maxX - minX, d:maxZ - minZ, minX:minX, maxX:maxX, minZ:minZ, maxZ:maxZ };
+  }
+  // Room corners to shoot from: every inward (convex) corner of a closed room — an innskot's reflex
+  // corner only looks at a wall — or the 4 corners of the bounding box for an open-plan layout.
+  // Each comes with the direction into the room (bisector of the two walls' room-facing normals).
+  function cornerPoints(ext){
+    var gs = KP3D.wallGeoms(state);
+    if (state.closed && gs.length >= 3){
+      var pts = [];
+      gs.forEach(function(g, i){
+        var pi = (i - 1 + gs.length) % gs.length, prev = state.walls[pi];
+        if (prev && prev.turnAfter === "right") return;
+        var nx = gs[pi].normal.x + g.normal.x, nz = gs[pi].normal.z + g.normal.z, l = Math.hypot(nx, nz) || 1;
+        pts.push({ x:g.origin.x, z:g.origin.z, ix:nx / l, iz:nz / l });
+      });
+      if (pts.length) return pts;
+    }
+    return [[ext.minX, ext.minZ], [ext.maxX, ext.minZ], [ext.maxX, ext.maxZ], [ext.minX, ext.maxZ]].map(function(p){
+      var dx = ext.cx - p[0], dz = ext.cz - p[1], l = Math.hypot(dx, dz) || 1;
+      return { x:p[0], z:p[1], ix:dx / l, iz:dz / l };
+    });
+  }
+  // Camera just inside the corner, above ceiling height (there is no ceiling), looking diagonally
+  // down across the room: the two far walls face it, so nothing is seen from behind or ghosted.
+  async function cornerShot(ext, p, n){
+    var wallH = (state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM) / 1000, reach = Math.hypot(ext.w, ext.d) * 0.5;
+    var r = await KP3D.renderShot({ pos:{ x:p.x + p.ix * 1.0, y:wallH + 0.35, z:p.z + p.iz * 1.0 }, // ~0.7 m off each wall: a corner cabinet ends up behind the lens, not in front of it
+      target:{ x:p.x + p.ix * reach * 1.4, y:0.7, z:p.z + p.iz * reach * 1.4 }, fov:70, width:EXPORT_W, height:EXPORT_H });
+    if (!r) return null;
+    var cv = document.createElement("canvas"); cv.width = EXPORT_W; cv.height = EXPORT_H;
+    cv.getContext("2d").drawImage(await loadImg(r.url), 0, 0);
+    return { title:"Þrívíddarmynd úr horni " + n, canvas:cv, corner:p };
+  }
+  async function topShot(ext){
+    var r = await KP3D.renderShot({ pos:{ x:ext.cx, y:30, z:ext.cz }, target:{ x:ext.cx, y:0, z:ext.cz }, up:{ x:0, y:0, z:-1 },
+      ortho:{ halfW:ext.w / 2 + 0.4, halfH:ext.d / 2 + 0.4 }, width:EXPORT_W, height:EXPORT_H });
+    if (!r) return null;
+    var cv = document.createElement("canvas"); cv.width = EXPORT_W; cv.height = EXPORT_H;
+    cv.getContext("2d").drawImage(await loadImg(r.url), 0, 0);
+    return { title:"Ofanmynd", canvas:cv };
+  }
+  async function planPage(){
+    var holder = document.createElement("div");
+    holder.style.cssText = "position:fixed;left:-20000px;top:0;width:1400px;";
+    document.body.appendChild(holder);
+    try{
+      KP3D.buildPlan2D(holder, state, {});
+      var svg = holder.querySelector("svg");
+      if (!svg) return null;
+      var vb0 = svg.viewBox.baseVal, pad = 90; // the side walls' length labels run past the plan's own viewBox
+      var vb = { x:vb0.x - pad, y:vb0.y - pad / 3, width:vb0.width + pad * 2, height:vb0.height + pad * 2 / 3 }, scale = Math.min(3, 2400 / vb.width);
+      var clone = svg.cloneNode(true);
+      clone.setAttribute("viewBox", vb.x + " " + vb.y + " " + vb.width + " " + vb.height);
+      clone.setAttribute("width", vb.width * scale); clone.setAttribute("height", vb.height * scale);
+      clone.style.width = ""; clone.style.height = "";
+      var img = await loadImg("data:image/svg+xml;charset=utf-8," + encodeURIComponent(new XMLSerializer().serializeToString(clone)));
+      var cv = document.createElement("canvas"); cv.width = vb.width * scale; cv.height = vb.height * scale;
+      var cx = cv.getContext("2d");
+      cx.fillStyle = "#ffffff"; cx.fillRect(0, 0, cv.width, cv.height);
+      cx.drawImage(img, 0, 0, cv.width, cv.height);
+      return { title:"Grunnmynd með málum", canvas:cv };
+    } finally { holder.remove(); }
+  }
+  // All shots as [{title, canvas}] — also handy from devtools: await __exportDrawings()
   async function exportDrawings(){
-    var out = [];
-    // Pass 1 — X-ray wall elevations: buildScene({xray:true}) forces every eligible cabinet into the
-    // "locked/articulated" build (separate front slabs + real shelves/drawer boxes — a plain unlocked
-    // cabinet has none of that geometry to reveal), then the one shared front material goes near-
-    // transparent so the interior shows through (2026-09-30, "taka alla veggina ... í X ray ... sýna
-    // hvað er inn í þeim"). clean:true drops the wall-length pill labels and lock badges — UI chrome
-    // that doesn't belong baked into an exported picture.
-    if (await rebuildScene3D({ xray:true, clean:true })){
+    exporting = true;
+    try{ return await exportDrawingsInner(); }
+    finally{ exporting = false; }
+  }
+  async function exportDrawingsInner(){
+    var out = [], keys = skKeys(), surfs = surfaces();
+    for (var si = 0; si < surfs.length; si++){
+      if (!surfs[si].floor.length && !surfs[si].wall.length) continue;
+      if (!(await buildExportScene({ xray:true, onlySurfaceId:surfs[si].id }))) break;
       KP3D.setXrayFronts(true);
-      for (var wi = 0; wi < state.walls.length; wi++){
-        if (state.walls[wi].open) continue; // no elevation for an open (wall-less) edge
-        var wshot = await wallElevationShot(wi, "Veggur " + (wi + 1) + " — " + state.walls[wi].label + " (röntgen)");
-        if (wshot) out.push(wshot);
-      }
-      KP3D.setXrayFronts(false);
+      var e = await elevationShot(surfs, si, keys);
+      if (e) out.push(e);
     }
-    // Pass 2 — normal build for the "útlitsteikningar" (appearance) overview angles: closed fronts,
-    // full finish, the actual look of the kitchen rather than its construction.
-    if (await rebuildScene3D({ clean:true })){
-      var angles = [30, 150, 210, 330];
-      for (var ai = 0; ai < angles.length; ai++){
-        var oshot = await overviewShot(angles[ai], "3D yfirlit " + (ai + 1));
-        if (oshot) out.push(oshot);
+    if (await buildExportScene({})){
+      var ext = roomExtent(), pts = cornerPoints(ext);
+      for (var ci = 0; ci < pts.length; ci++){
+        var cs = await cornerShot(ext, pts[ci], ci + 1);
+        if (cs) out.push(cs);
       }
+      var tp = await topShot(ext);
+      if (tp) out.push(tp);
     }
-    // Pass 3 — 2D plan (planShot() flips to "2d" and back to whatever viewMode already was, i.e. "3d").
-    var plan = await planShot("Grunnmynd (yfirlit)");
-    if (plan) out.push(plan);
+    KP3D.teardown3D(true);
+    var host = document.getElementById("exportHost");
+    if (host) host.remove();
+    var pl = await planPage();
+    if (pl) out.push(pl);
     return out;
   }
-  window.__exportDrawings = exportDrawings; // exploratory hook, 2026-09-30 — no button/UI wired to this yet
+  window.__exportDrawings = exportDrawings;
+
+  function loadPdfLib(){
+    if (window.PDFLib) return Promise.resolve(window.PDFLib);
+    return new Promise(function(resolve, reject){
+      var s = document.createElement("script");
+      s.src = "https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js";
+      s.onload = function(){ resolve(window.PDFLib); };
+      s.onerror = function(){ reject(new Error("pdf-lib hlóðst ekki")); };
+      document.head.appendChild(s);
+    });
+  }
+  // A4 landscape pages, drawn as one canvas each (so Icelandic text and the site font just work) and
+  // embedded as JPEG — keeps the whole PDF well under the 4.3 MB upload cap.
+  var PAGE_W = 1754, PAGE_H = 1240;
+  function pageCanvas(title, pageNo, customer){
+    var cv = document.createElement("canvas"); cv.width = PAGE_W; cv.height = PAGE_H;
+    var cx = cv.getContext("2d");
+    cx.fillStyle = "#ffffff"; cx.fillRect(0, 0, PAGE_W, PAGE_H);
+    cx.fillStyle = "#191919"; cx.font = "700 34px 'Kumbh Sans', Arial, sans-serif"; cx.textBaseline = "alphabetic"; cx.textAlign = "left";
+    cx.fillText(title, 70, 92);
+    cx.font = "400 22px 'Kumbh Sans', Arial, sans-serif"; cx.fillStyle = "#6f6d66"; cx.textAlign = "right";
+    cx.fillText("Björninn Innréttingar · Eldhússkipulag" + (customer ? " · " + customer : ""), PAGE_W - 70, 92);
+    cx.fillText(String(pageNo), PAGE_W - 70, PAGE_H - 40);
+    cx.strokeStyle = "#e6e3da"; cx.lineWidth = 2; cx.beginPath(); cx.moveTo(70, 118); cx.lineTo(PAGE_W - 70, 118); cx.stroke();
+    return { cv:cv, cx:cx, box:{ x:70, y:140, w:PAGE_W - 140, h:PAGE_H - 210 } };
+  }
+  function fitInto(cx, src, box){
+    var s = Math.min(box.w / src.width, box.h / src.height);
+    var w = src.width * s, h = src.height * s;
+    cx.drawImage(src, box.x + (box.w - w) / 2, box.y + (box.h - h) / 2, w, h);
+  }
+  function coverLines(){
+    var lines = [];
+    var lk = state.look ? LOOKS[state.look] : null, cc = state.carcass ? CARCASS[state.carcass] : null;
+    var tp = TOPS[state.top || "steinn"], hd = state.handle ? HANDLES[state.handle] : null;
+    var ds = state.drawerSystem && KP3D.DRAWER_SYSTEMS ? KP3D.DRAWER_SYSTEMS[state.drawerSystem] : null;
+    lines.push(["Skipulag", planSummaryText()]);
+    if (lk) lines.push(["Framhlið", lk.label]);
+    if (cc) lines.push(["Skrokkur", cc.label]);
+    if (ds) lines.push(["Skúffukerfi", ds.label]);
+    if (tp) lines.push(["Borðplata", tp.label]);
+    if (hd){ var fin = KP3D.handleFinishFor(state.handle, state.handleColor); lines.push(["Handfang", hd.label + (fin ? " — " + fin.label.toLowerCase() : "")]); }
+    lines.push(["Lofthæð", (state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM) + " mm"]);
+    return lines;
+  }
+  // Cover picture: the corner view taken farthest from the middle of all cabinets — it looks at most of them.
+  function heroShot(shots){
+    var gs = KP3D.surfaceGeoms(state), surfs = surfaces(), sx = 0, sz = 0, n = 0;
+    surfs.forEach(function(w, si){
+      var g = gs[si];
+      if (g) rowUnits(surfs, si).forEach(function(u){ var a = (u.a0 + u.a1) / 2; sx += g.origin.x + g.axis.x * a; sz += g.origin.z + g.axis.z * a; n++; });
+    });
+    var corners = shots.filter(function(s){ return s.corner; });
+    if (!corners.length) return shots[0];
+    if (!n) return corners[0];
+    sx /= n; sz /= n;
+    return corners.reduce(function(best, s){ return Math.hypot(s.corner.x - sx, s.corner.z - sz) > Math.hypot(best.corner.x - sx, best.corner.z - sz) ? s : best; });
+  }
+  async function buildDrawingsPdf(customer){
+    var shots = await exportDrawings();
+    var PDFLib = await loadPdfLib();
+    var doc = await PDFLib.PDFDocument.create();
+    doc.setTitle("Eldhússkipulag" + (customer ? " — " + customer : ""));
+    var pages = [];
+    // cover: summary on the left, the first corner view on the right
+    var cov = pageCanvas("Eldhússkipulag", 1, customer), hero = heroShot(shots);
+    cov.cx.textAlign = "left";
+    cov.cx.font = "400 24px 'Kumbh Sans', Arial, sans-serif"; cov.cx.fillStyle = "#6f6d66";
+    var now = new Date(), MONTHS = ["janúar", "febrúar", "mars", "apríl", "maí", "júní", "júlí", "ágúst", "september", "október", "nóvember", "desember"];
+    cov.cx.fillText(now.getDate() + ". " + MONTHS[now.getMonth()] + " " + now.getFullYear(), 70, 190); // browsers without is-IS locale data print English month names
+    var y = 260;
+    coverLines().forEach(function(l){
+      cov.cx.font = "600 20px 'Kumbh Sans', Arial, sans-serif"; cov.cx.fillStyle = "#6f6d66"; cov.cx.fillText(l[0].toUpperCase(), 70, y);
+      cov.cx.font = "400 26px 'Kumbh Sans', Arial, sans-serif"; cov.cx.fillStyle = "#191919"; cov.cx.fillText(l[1], 70, y + 34);
+      y += 88;
+    });
+    cov.cx.font = "400 20px 'Kumbh Sans', Arial, sans-serif"; cov.cx.fillStyle = "#6f6d66";
+    cov.cx.fillText("Sk-númer á veggmyndum = línur í pöntuninni.", 70, PAGE_H - 70);
+    if (hero) fitInto(cov.cx, hero.canvas, { x:560, y:160, w:PAGE_W - 630, h:PAGE_H - 260 });
+    pages.push(cov.cv);
+    shots.forEach(function(s, i){
+      var p = pageCanvas(s.title, i + 2, customer);
+      fitInto(p.cx, s.canvas, p.box);
+      pages.push(p.cv);
+    });
+    for (var i = 0; i < pages.length; i++){
+      var jpg = await doc.embedJpg(await (await fetch(pages[i].toDataURL("image/jpeg", 0.82))).arrayBuffer());
+      var page = doc.addPage([841.89, 595.28]);
+      page.drawImage(jpg, { x:0, y:0, width:841.89, height:595.28 });
+    }
+    return new Blob([await doc.save()], { type:"application/pdf" });
+  }
+  var lastPdfUrl = null;
 
   // Save the current view as a PNG (3D: canvas readback; 2D: SVG → canvas).
   function downloadDataUrl(url){
