@@ -561,6 +561,33 @@
 
   /* ---- catalog accordion (left sidebar) ---- */
   .cat-sec{ border-bottom:1px solid var(--line); }
+  /* "Ný eining" wizard */
+  .uw-open{ width:100%; margin:4px 0 12px; padding:12px; font-size:15px; }
+  .uw-modal{ position:fixed; inset:0; z-index:200; background:rgba(25,25,25,.45); display:flex; align-items:center; justify-content:center; padding:24px; }
+  .uw-modal[hidden]{ display:none; }
+  .uw-box{ background:#fff; border-radius:16px; width:min(1100px, 100%); height:min(680px, 100%); display:grid; grid-template-columns:1.25fr 1fr; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.25); }
+  .uw-preview{ position:relative; background:#fff; min-height:0; }
+  .uw-preview canvas{ width:100% !important; height:100% !important; display:block; }
+  .uw-empty{ height:100%; display:flex; align-items:center; justify-content:center; color:var(--ink-soft); font-size:14px; padding:24px; text-align:center; }
+  .uw-side-wrap{ position:relative; border-left:1px solid var(--line); min-height:0; }
+  .uw-side{ height:100%; overflow-y:auto; padding:26px 24px 20px; }
+  .uw-side h3{ margin:0 0 16px; font-size:22px; }
+  .uw-kicker{ margin:0 0 4px; font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-soft); font-weight:700; }
+  .uw-close{ position:absolute; top:12px; right:12px; z-index:2; border:0; background:none; font-size:18px; cursor:pointer; color:var(--ink-soft); width:34px; height:34px; border-radius:8px; }
+  .uw-close:hover{ background:var(--line); }
+  .uw-grid{ display:grid; gap:8px; }
+  .uw-card{ display:flex; align-items:center; gap:12px; text-align:left; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#fff; cursor:pointer; font:inherit; color:inherit; }
+  .uw-card:hover{ border-color:var(--blue); background:var(--blue-soft); }
+  .uw-card svg{ width:40px; height:40px; flex:0 0 40px; }
+  .uw-card b{ display:block; font-size:14.5px; }
+  .uw-card small{ color:var(--ink-soft); font-size:12.5px; }
+  .uw-chips{ display:flex; flex-wrap:wrap; gap:4px; }
+  .uw-chips .hw-btn{ min-width:38px; }
+  .uw-custom{ display:flex; align-items:center; gap:8px; margin-top:6px; }
+  .uw-custom input{ width:90px; }
+  .uw-custom small{ color:var(--ink-soft); }
+  .uw-actions{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:18px; }
+  .uw-side select{ width:100%; }
   .cat-sec > summary{ list-style:none; cursor:pointer; padding:12px 2px; font-size:13.5px; font-weight:700; display:flex; align-items:center; justify-content:space-between; }
   .cat-sec > summary::-webkit-details-marker{ display:none; }
   .cat-sec > summary::after{ content:"▾"; color:var(--ink-soft); font-weight:400; }
@@ -807,7 +834,7 @@
       <aside class="ed-props" id="cabinetEditPanel"></aside>
     </div>
     <div class="tip-bar" id="tipBar" hidden>
-      <span>💡 Dragðu skápa úr vörulistanum inn í rýmið · smelltu á skáp til að breyta honum · dragðu hann til að færa · <b>⌘Z</b> afturkallar · <b>Delete</b> fjarlægir</span>
+      <span>💡 <b>＋ Ný eining</b> bætir við skáp · smelltu á skáp til að breyta honum · dragðu hann til að færa · <b>⌘Z</b> afturkallar · <b>Delete</b> fjarlægir</span>
       <button type="button" id="tipClose" title="Loka">✕</button>
     </div>
 
@@ -857,6 +884,13 @@
   </section>
 
   <!-- ============ STEP: DONE ============ -->
+  <div class="uw-modal" id="unitWiz" hidden>
+    <div class="uw-box">
+      <div class="uw-preview" id="uwPreview"></div>
+      <div class="uw-side-wrap"><button type="button" class="uw-close" id="uwClose" aria-label="Loka">✕</button><div class="uw-side" id="uwSide"></div></div>
+    </div>
+  </div>
+
   <section id="screen-done" hidden>
     <div class="success-box">
       <div class="big">✅</div>
@@ -2640,12 +2674,6 @@
   // target (a wall's floor/wall zone instead of a cut sheet). The existing
   // "+ Type" buttons stay as the reliable fallback, per the confirmed
   // decision — drag is the delightful primary path, not the only path.
-  var CATALOG_GROUPS = [
-    { title:"Gólfskápar", types:["grunnskapur", "harskapur", "vaskaskapur", "ruslaskapur", "uppthvottavel", "tofrahorn", "litillkassi", "harveggskapur", "burskapur"] },
-    { title:"Tækjaskápar", types:["ofnaskapur", "isskapur", "thvottavel"] },
-    { title:"Veggskápar", types:["efriskapur", "opnarhillur"] }
-  ];
-  var PARTS_GROUP = { title:"Hillur og úthliðar", types:["laushilla", "uthlid", "uthlidhar", "uthlidefri"] };
   // Windows/doors (Phase 7e) drag exactly like cabinets but aren't cabinets
   // — not in CATALOG, routed by data-kind instead of assuming cabinet zone
   // rules (no capacity/corner-clearance logic applies to them).
@@ -2932,6 +2960,245 @@
     toast("Ekki nóg pláss fyrir " + c.label.toLowerCase() + " á neinum vegg.");
   }
 
+  // ---------- "＋ Ný eining" wizard (2026-09-30) ----------
+  // Replaces dragging from a long catalog: category → variant → configure, with ONE spinning 3D cabinet
+  // (like the materials wizard) that updates as you choose. Only things Björninn makes can be picked;
+  // sizes stay free (benches and odd builds are the point), a non-standard width just becomes a note.
+  var UNIT_TREE = [
+    { key:"grunn", label:"Grunnskápur", desc:"Undir borðplötu", icon:"grunnskapur", opts:[
+      { label:"Skúffur", type:"grunnskapur", drawers:true },
+      { label:"Hurð með hillum", type:"grunnskapur" },
+      { label:"Vaskaskápur", type:"vaskaskapur" },
+      { label:"Ruslaskápur", type:"ruslaskapur" },
+      { label:"Uppþvottavél", type:"uppthvottavel" },
+      { label:"Lítill kassi (bekkur)", type:"litillkassi", drawers:true } ] },
+    { key:"har", label:"Hár skápur", desc:"Upp undir loft", icon:"harskapur", opts:[
+      { label:"Hurðir með hillum", type:"harskapur" },
+      { label:"Búrskápur", type:"burskapur" },
+      { label:"Hár veggskápur (50 cm djúpur)", type:"harveggskapur" } ] },
+    { key:"efri", label:"Efri skápur", desc:"Á vegg", icon:"efriskapur", opts:[
+      { label:"Hurð með hillum", type:"efriskapur" },
+      { label:"Opnar hillur", type:"opnarhillur" },
+      { label:"Lausar hillur (38 mm)", type:"laushilla" } ] },
+    { key:"taeki", label:"Tækjaskápur", desc:"Ofn, ísskápur, vélar", icon:"ofnaskapur", opts:[
+      { label:"Ofnaskápur", type:"ofnaskapur" },
+      { label:"Innbyggður ísskápur", type:"isskapur" },
+      { label:"Þvottavélaskápur", type:"thvottavel" },
+      { label:"Uppþvottavél", type:"uppthvottavel" } ] },
+    { key:"annad", label:"Horn og úthliðar", desc:"Töfrahorn, úthliðar", icon:"tofrahorn", opts:[
+      { label:"Töfrahorn", type:"tofrahorn" },
+      { label:"Úthlið — neðri", type:"uthlid" },
+      { label:"Úthlið — há", type:"uthlidhar" },
+      { label:"Úthlið — efri", type:"uthlidefri" } ] }
+  ];
+  var uw = null; // { step, cat, opt, b, wallId }
+  function uwSurfaces(zone){ return zone === "wall" ? state.walls.filter(function(w){ return !w.open; }) : surfaces().filter(function(w){ return !w.open; }); }
+  function uwFits(w, b){ var c = CATALOG[b.type]; return canFit(w, c.zone, b.widthMm, probeSpan(c.zone, b)); }
+  // The editor's own camera, put back when the wizard closes (the preview replaces the one 3D scene).
+  var uwEditorCam = null;
+  function openUnitWizard(){
+    uw = { step:1 };
+    var st = KP3D._three();
+    uwEditorCam = st ? { p:st.camera.position.clone(), t:st.controls.target.clone() } : null;
+    document.getElementById("unitWiz").hidden = false;
+    KP3D.teardown3D(true); // one 3D scene at a time
+    renderUnitWizard();
+  }
+  function leaveUnitWizard(){
+    uw = null;
+    clearTimeout(uwPrevTimer); uwPrevKey = "";
+    KP3D.teardown3D(true);
+    document.getElementById("uwPreview").innerHTML = "";
+    document.getElementById("unitWiz").hidden = true;
+  }
+  function restoreEditorCam(){
+    var cam = uwEditorCam; uwEditorCam = null;
+    if (!cam) return;
+    (function tryIt(n){ // the editor scene is rebuilt asynchronously
+      if (KP3D._three()) KP3D.setCameraLookAt(cam.p, cam.t);
+      else if (n > 0) setTimeout(function(){ tryIt(n - 1); }, 50);
+    })(40);
+  }
+  function closeUnitWizard(){
+    leaveUnitWizard();
+    renderView();
+    restoreEditorCam();
+  }
+  function uwStartBlock(opt){
+    var b = newBlock(opt.type), c = CATALOG[opt.type];
+    if (c.hasInterior && opt.drawers){
+      b.interior.mode = "skuffur";
+      for (var n = 3; n >= 1; n--){
+        var cand = KP3D.drawerCodes({ mode:"skuffur", count:n }, drawerSys());
+        if (stackAllowed(b, c, cand, null) || n === 1){ b.interior.codes = cand; break; }
+      }
+      b.interior.inner = null; b.interior.count = b.interior.codes.length;
+    }
+    if (c.zone === "wall" && c.shelfRange && !c.hasInterior && b.shelves == null) b.shelves = c.shelfRange[2];
+    // default wall: the selected one if it has room, else the first that does
+    var list = uwSurfaces(c.zone), pick = list.find(function(w){ return w.id === selectedWallId && uwFits(w, b); }) || list.find(function(w){ return uwFits(w, b); });
+    uw.wallId = pick ? pick.id : (list[0] && list[0].id);
+    return b;
+  }
+  function uwWidthOptions(c){
+    var out = [];
+    for (var w = 300; w <= 1200; w += 100) if (w >= c.minW && w <= c.maxW) out.push(w);
+    if (c.rusl) out = [600, 800];
+    if (c.dishwasher) out = [450, 600];
+    return out;
+  }
+  function renderUnitWizard(){
+    var side = document.getElementById("uwSide"), html = "";
+    if (uw.step === 1){
+      html = '<p class="uw-kicker">Ný eining</p><h3>Hvað viltu bæta við?</h3><div class="uw-grid">' + UNIT_TREE.map(function(cat, i){
+        return '<button type="button" class="uw-card" data-uw-cat="' + i + '">' + catIcon("cabinet", cat.icon) + '<span><b>' + cat.label + '</b><small>' + cat.desc + '</small></span></button>';
+      }).join("") + '</div>';
+    } else if (uw.step === 2){
+      var cat = UNIT_TREE[uw.cat];
+      html = '<p class="uw-kicker">' + cat.label + '</p><h3>Hvernig á hann að vera?</h3><div class="uw-grid">' + cat.opts.map(function(o, i){
+        return '<button type="button" class="uw-card" data-uw-opt="' + i + '">' + catIcon("cabinet", o.type) + '<span><b>' + o.label + '</b></span></button>';
+      }).join("") + '</div><div class="uw-actions"><button type="button" class="btn btn-secondary btn-small" data-uw-back>← Til baka</button></div>';
+    } else {
+      var b = uw.b, c = CATALOG[b.type], opt = UNIT_TREE[uw.cat].opts[uw.opt];
+      var widths = uwWidthOptions(c), walls = uwSurfaces(c.zone);
+      html = '<p class="uw-kicker">' + UNIT_TREE[uw.cat].label + '</p><h3>' + opt.label + '</h3>';
+      if (!c.panel){
+        html += '<div class="edit-field"><label>Breidd</label><div class="uw-chips">' + widths.map(function(w){
+          return '<button type="button" class="hw-btn' + (b.widthMm === w ? ' active' : '') + '" data-uw-w="' + w + '">' + (w / 10) + '</button>';
+        }).join("") + '</div><div class="uw-custom"><input type="number" data-uw-wcustom min="' + c.minW + '" max="' + c.maxW + '" step="10" value="' + b.widthMm + '"><small>mm · sérmál ' + c.minW + '–' + c.maxW + '</small></div></div>';
+      }
+      if (c.hasInterior) html += '<div class="edit-field">' + hardwareHTML(b, c) + '</div>';
+      var shelfN = c.hasInterior ? (b.interior.mode === "hillur" ? b.interior.count : null) : (c.shelfRange ? KP3D.shelvesOf(b) : null);
+      if (shelfN != null){
+        var rng = c.hasInterior ? [0, c.shelfRange ? c.shelfRange[1] : 5] : [c.shelfRange[0], c.shelfRange[1]];
+        html += '<div class="edit-field"><label>Hillur</label><div class="hw-count"><button class="iconbtn" data-uw-sh="-1"' + (shelfN <= rng[0] ? " disabled" : "") + '>−</button><b>' + shelfN + '</b><button class="iconbtn" data-uw-sh="1"' + (shelfN >= rng[1] ? " disabled" : "") + '>+</button><span>' + plural(shelfN, "hilla", "hillur") + '</span></div></div>';
+      }
+      html += variantHTML(b, c);
+      html += '<div class="edit-field"><label>Hvar?</label><select data-uw-wall>' + walls.map(function(w){
+        return '<option value="' + w.id + '"' + (w.id === uw.wallId ? ' selected' : '') + (uwFits(w, b) ? '' : ' disabled') + '>' + w.label + (uwFits(w, b) ? '' : ' — ekki pláss') + '</option>';
+      }).join("") + '</select></div>';
+      var target = walls.find(function(w){ return w.id === uw.wallId; }), ok = !!(target && uwFits(target, b));
+      html += '<div class="uw-actions"><button type="button" class="btn btn-secondary btn-small" data-uw-back>← Til baka</button>' +
+        '<button type="button" class="btn btn-primary" data-uw-add' + (ok ? '' : ' disabled') + '>Setja inn</button></div>' +
+        (ok ? '' : '<p class="sec-note">Ekki nóg pláss á þessum vegg — veldu annan eða mjórri skáp.</p>');
+    }
+    side.innerHTML = html;
+    wireUnitWizard(side);
+    schedulePreview();
+  }
+  function wireUnitWizard(side){
+    side.querySelectorAll("[data-uw-cat]").forEach(function(el){ el.addEventListener("click", function(){ uw.cat = +el.dataset.uwCat; uw.hover = 0; uw.step = 2; renderUnitWizard(); }); });
+    side.querySelectorAll("[data-uw-opt]").forEach(function(el){ el.addEventListener("mouseenter", function(){ uw.hover = +el.dataset.uwOpt; schedulePreview(); }); });
+    side.querySelectorAll("[data-uw-opt]").forEach(function(el){ el.addEventListener("click", function(){
+      uw.opt = +el.dataset.uwOpt; uw.b = uwStartBlock(UNIT_TREE[uw.cat].opts[uw.opt]); uw.step = 3; renderUnitWizard();
+    }); });
+    side.querySelectorAll("[data-uw-back]").forEach(function(el){ el.addEventListener("click", function(){ uw.step--; if (uw.step < 3) uw.b = null; renderUnitWizard(); }); });
+    if (uw.step !== 3) return;
+    var b = uw.b, c = CATALOG[b.type];
+    side.querySelectorAll("[data-uw-w]").forEach(function(el){ el.addEventListener("click", function(){ b.widthMm = +el.dataset.uwW; renderUnitWizard(); }); });
+    var wc = side.querySelector("[data-uw-wcustom]");
+    if (wc) wc.addEventListener("change", function(){ b.widthMm = clampWidth(b.type, parseFloat(wc.value)); renderUnitWizard(); });
+    side.querySelectorAll("[data-hw]").forEach(function(el){ el.addEventListener("click", function(){
+      if (el.dataset.hw === "skuffur" && !(b.interior.codes && b.interior.codes.length)){
+        for (var n = 3; n >= 1; n--){ var cand = KP3D.drawerCodes({ mode:"skuffur", count:n }, drawerSys()); if (stackAllowed(b, c, cand, null) || n === 1){ b.interior.codes = cand; break; } }
+        b.interior.inner = null;
+      }
+      b.interior.mode = el.dataset.hw;
+      if (el.dataset.hw === "hillur" && !(b.interior.count >= 0 && b.interior.count <= 5)) b.interior.count = 1;
+      if (el.dataset.hw === "skuffur") b.interior.count = b.interior.codes.length;
+      renderUnitWizard();
+    }); });
+    var cur = function(){ return KP3D.drawerCodes(b.interior, drawerSys()); };
+    function setStack(codes, inner){ b.interior.codes = sortStack(codes); b.interior.inner = inner || null; b.interior.count = b.interior.codes.length; renderUnitWizard(); }
+    side.querySelectorAll("[data-dw-add]").forEach(function(el){ el.addEventListener("click", function(){
+      var next = sortStack(cur().concat([el.dataset.dwAdd])), keep = b.interior.inner && stackAllowed(b, c, next, b.interior.inner);
+      if (b.interior.inner && !keep) toast("Innskúffan passar ekki með " + next.length + " skúffum — hún var tekin út.");
+      setStack(next, keep ? b.interior.inner : null);
+    }); });
+    side.querySelectorAll("[data-dw-del]").forEach(function(el){ el.addEventListener("click", function(){
+      var cc = cur(); cc.splice(+el.dataset.dwDel, 1); setStack(cc, stackAllowed(b, c, sortStack(cc), b.interior.inner) ? b.interior.inner : null);
+    }); });
+    side.querySelectorAll("[data-dw-inner]").forEach(function(el){ el.addEventListener("click", function(){ setStack(cur(), b.interior.inner === el.dataset.dwInner ? null : el.dataset.dwInner); }); });
+    side.querySelectorAll("[data-uw-sh]").forEach(function(el){ el.addEventListener("click", function(){
+      var d = +el.dataset.uwSh;
+      if (c.hasInterior) b.interior.count = Math.max(0, Math.min(c.shelfRange ? c.shelfRange[1] : 5, b.interior.count + d));
+      else b.shelves = Math.max(c.shelfRange[0], Math.min(c.shelfRange[1], KP3D.shelvesOf(b) + d));
+      renderUnitWizard();
+    }); });
+    var vs = side.querySelector('[data-role="variant"]');
+    if (vs) vs.addEventListener("change", function(){
+      if (c.oven) b.ovenCombo = vs.value; else if (c.bur) b.burCombo = vs.value; else if (c.thvo) b.thvo = vs.value;
+      renderUnitWizard();
+    });
+    var ws = side.querySelector("[data-uw-wall]");
+    if (ws) ws.addEventListener("change", function(){ uw.wallId = ws.value; renderUnitWizard(); });
+    var add = side.querySelector("[data-uw-add]");
+    if (add) add.addEventListener("click", function(){
+      var wall = surfaces().find(function(w){ return w.id === uw.wallId; });
+      if (!wall) return;
+      var pl = appendPlacement(wall, c.zone, b.widthMm, probeSpan(c.zone, b));
+      if (!pl.fits){ toast("Ekki nóg pláss á " + wall.label.toLowerCase() + " fyrir " + c.label.toLowerCase() + "."); return; }
+      insertBlockAt(wall, c.zone, b, pl.offsetMm);
+      matchPanelToNeighbour(wall, c.zone, b);
+      landedBlockId = b.id; selectedBlockId = b.id; selectedWallId = null;
+      save();
+      leaveUnitWizard();
+      refreshAfterEdit();
+      restoreEditorCam();
+    });
+  }
+  // The spinning preview: a one-wall scene holding just the cabinet being configured (isolated like the
+  // drawing export, built articulated so drawers and doors can be tapped open).
+  var uwPrevTimer = null, uwPrevKey = "";
+  function schedulePreview(){ clearTimeout(uwPrevTimer); uwPrevTimer = setTimeout(renderUnitPreview, 60); }
+  function renderUnitPreview(){
+    var host = document.getElementById("uwPreview");
+    if (!uw || !host) return;
+    var type = uw.b ? uw.b.type : (uw.step === 2 ? UNIT_TREE[uw.cat].opts[uw.hover || 0].type : null);
+    if (!type){ // step 1: nothing to show yet
+      KP3D.teardown3D(true); host.innerHTML = '<div class="uw-empty">Veldu tegund — skápurinn birtist hér.</div>'; uwPrevKey = ""; return;
+    }
+    var b = uw.b || newPreviewBlock(type), c = CATALOG[b.type];
+    var key = JSON.stringify(b);
+    if (key === uwPrevKey && KP3D._three()) return;
+    uwPrevKey = key;
+    var lenMm = Math.max(1200, b.widthMm + 800);
+    var pv = { carcass:state.carcass, drawerSystem:state.drawerSystem, look:state.look, handle:state.handle, handleColor:state.handleColor, top:state.top, floor:state.floor, wallColor:state.wallColor,
+      roomHeightMm:state.roomHeightMm, closed:false, islands:[], windows:[], doors:[],
+      walls:[{ id:"UWP", label:"", lengthMm:lenMm, floor:c.zone === "floor" ? [Object.assign({}, b, { gapMm:400, locked:false })] : [], wall:c.zone === "wall" ? [Object.assign({}, b, { gapMm:400, locked:false })] : [] }] };
+    KP3D.waitForThree(function(ok){
+      if (!ok || !uw) return;
+      var prevCam = KP3D._three() ? { p:KP3D._three().camera.position.clone(), t:KP3D._three().controls.target.clone() } : null;
+      KP3D.teardown3D(true);
+      host.innerHTML = "";
+      KP3D.buildScene(host, pv, { xray:true, clean:true, onlySurfaceId:"UWP", freshCamera:true });
+      var st = KP3D._three(); if (!st) return;
+      var g = KP3D.surfaceGeoms(pv)[0], hM = blockHeightMm(b, c) / 1000, elevM = c.zone === "wall" ? (KP3D.elevOf(b) || 0) / 1000 : 0;
+      var along = 0.4 + b.widthMm / 2000, cx = g.origin.x + g.axis.x * along, cz = g.origin.z + g.axis.z * along, cy = elevM + hM / 2;
+      var size = Math.max(hM, b.widthMm / 1000 * 0.7, 0.9), dist = size / 2 / Math.tan(22.5 * Math.PI / 180) * 1.15 + 0.3; // fit the height in the 45° lens
+      if (prevCam && uw.b && prevCam.t.distanceTo(new (window.__THREE__.Vector3)(cx, cy, cz)) < 1.5){ // same cabinet being tweaked: keep the angle the customer turned it to
+        st.camera.position.copy(prevCam.p); st.controls.target.copy(prevCam.t);
+      } else {
+        KP3D.setCameraLookAt({ x:cx + g.normal.x * dist + g.axis.x * dist * 0.55, y:cy + size * 0.25, z:cz + g.normal.z * dist + g.axis.z * dist * 0.55 }, { x:cx, y:cy, z:cz });
+      }
+      st.controls.target.set(cx, cy, cz);
+      st.controls.minPolarAngle = 0.2;
+      var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      st.controls.autoRotate = !reduce; st.controls.autoRotateSpeed = 1.2;
+      var resume = null;
+      st.renderer.domElement.addEventListener("pointerdown", function(){ st.controls.autoRotate = false; clearTimeout(resume); resume = setTimeout(function(){ if (KP3D._three() === st && !reduce) st.controls.autoRotate = true; }, 5000); });
+      st.controls.update();
+    }, 8000);
+  }
+  function newPreviewBlock(type){ // step 2 shows the category's first variant while you choose
+    var o = UNIT_TREE[uw.cat].opts[uw.hover || 0];
+    var saved = blockSeq, b = uwStartBlock(o); blockSeq = saved; b.id = "uwprev";
+    return b;
+  }
+  document.getElementById("uwClose").addEventListener("click", closeUnitWizard);
+  document.getElementById("unitWiz").addEventListener("click", function(e){ if (e.target.id === "unitWiz") closeUnitWizard(); });
+  document.addEventListener("keydown", function(e){ if (e.key === "Escape" && uw) closeUnitWizard(); });
+
   // ---------- catalog panel (left column of the editor) ----------
   // Small front-view drawings for the catalog (instead of plain colour chips).
   function catIcon(kind, type){
@@ -2980,20 +3247,9 @@
   function renderCatalogPanel(){
     var host = document.getElementById("catalogPanel");
     var keepScroll = host.scrollTop;
-    function room(type){
-      var c = CATALOG[type];
-      return state.walls.some(function(w){ return canFit(w, c.zone, c.defaultW, typeProbe(type)); });
-    }
     function item(kind, type, cls, name, dim, ok){
       return '<button type="button" class="cat-item" data-kind="' + kind + '" data-type="' + type + '"' + (ok ? "" : ' style="opacity:.45;"') + '>' +
         catIcon(kind, type) + '<span><span class="nm">' + name + '</span><span class="dim">' + dim + '</span></span></button>';
-    }
-    function cabinetItem(type){
-      var c = CATALOG[type], dim;
-      if (c.panel) dim = '19 mm þykk · ' + c.h + ' × ' + c.d + ' mm';
-      else if (c.shelfStack) dim = '38 mm þykkar · ' + c.defaultW + ' × ' + c.d + ' mm · allt að 5';
-      else dim = c.h + ' × ' + c.defaultW + ' × ' + c.d + ' mm';
-      return item("cabinet", type, c.cls, c.label, dim, room(type));
     }
     function sec(key, title, body){
       return '<details class="cat-sec" data-sec="' + key + '"' + (openSecs[key] ? " open" : "") + '><summary>' + title + '</summary><div class="sec-body">' + body + '</div></details>';
@@ -3010,12 +3266,8 @@
       '<button type="button" class="btn btn-secondary btn-small" data-act="shape">Breyta lögun og lengd veggja</button>';
     var html = sec("rymi", "Breyta rými", roomBody);
 
-    // --- cabinets ---
-    html += sec("skapar", "Skápar", CATALOG_GROUPS.map(function(group){
-      return '<div class="cat-title">' + group.title + '</div>' + group.types.map(cabinetItem).join("");
-    }).join(""));
-    // --- shelves + end panels ---
-    html += sec("hillur", PARTS_GROUP.title, '<p class="sec-note">Úthlið sem sett er upp við skáp tekur sjálfkrafa hæð og dýpt hans. Lausar hillur má lengja og raða allt að 5 yfir hver aðra.</p>' + PARTS_GROUP.types.map(cabinetItem).join(""));
+    // --- cabinets: one button into the "Ný eining" wizard (the old drag catalog is gone, 2026-09-30) ---
+    html = '<button type="button" class="btn btn-primary uw-open" data-act="newunit">＋ Ný eining</button>' + html;
     // --- windows + doors ---
     html += sec("gluggar", "Hurðir og gluggar",
       item("opening", "gluggi", "window", "Gluggi", WINDOW_DEFAULT.heightMm + ' × ' + WINDOW_DEFAULT.widthMm + ' mm', true) +
@@ -3069,6 +3321,7 @@
     });
     host.querySelectorAll("[data-act]").forEach(function(b){
       b.addEventListener("click", function(){
+        if (b.dataset.act === "newunit"){ openUnitWizard(); return; }
         if (b.dataset.act === "shape"){ shapePhase = "size"; goto("shape"); }
         else jumpTo(b.dataset.act);
       });
