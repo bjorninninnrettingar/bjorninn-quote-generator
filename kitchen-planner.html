@@ -137,7 +137,7 @@
     .ed-stage{ order:-1; }
   }
   .ed-stage .three-wrap{ height:calc(100vh - 262px); min-height:460px; margin-bottom:0; }
-  .ed-toolbar{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
+  .ed-toolbar{ display:flex; align-items:center; justify-content:space-between; gap:8px 12px; margin-bottom:10px; flex-wrap:wrap; }
   .ed-toolbar .view-toggle{ margin-bottom:0; }
   .ed-toolbar .view-toggle button:disabled{ opacity:.35; cursor:not-allowed; }
   .ed-toolbar #viewToggle{ margin-right:auto; }
@@ -568,6 +568,12 @@
   .uw-box{ background:#fff; border-radius:16px; width:min(1100px, 100%); height:min(680px, 100%); display:grid; grid-template-columns:1.25fr 1fr; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.25); }
   .uw-preview{ position:relative; background:#fff; min-height:0; }
   .uw-preview canvas{ width:100% !important; height:100% !important; display:block; }
+  #uwPreview{ position:absolute; inset:0; }
+  .uw-tools{ position:absolute; left:14px; bottom:14px; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .uw-tools[hidden]{ display:none; }
+  .uw-tools button{ border:1px solid var(--line); background:#fff; border-radius:999px; padding:7px 12px; font:inherit; font-size:12.5px; font-weight:600; cursor:pointer; }
+  .uw-tools button.active{ border-color:var(--blue); background:var(--blue-soft); color:var(--blue-deep); }
+  .uw-tools span{ font-size:12px; color:var(--ink-soft); }
   .uw-empty{ height:100%; display:flex; align-items:center; justify-content:center; color:var(--ink-soft); font-size:14px; padding:24px; text-align:center; }
   .uw-side-wrap{ position:relative; border-left:1px solid var(--line); min-height:0; }
   .uw-side{ height:100%; overflow-y:auto; padding:26px 24px 20px; }
@@ -812,15 +818,20 @@
             <button type="button" id="snapBtn" title="Vista mynd af skipulaginu">📷</button>
           </div>
           <button type="button" class="warn-chip" id="warnChip" hidden></button>
+          <div class="view-toggle" id="inspectToggle" title="Skoða innvols: opna skúffur og hurðir, taka framhliðar af">
+            <button type="button" id="inspectBtn">🔍 Innvols</button>
+            <button type="button" id="frontsBtn" hidden>Framhliðar á</button>
+            <button type="button" id="openAllBtn" hidden>Opna allt</button>
+          </div>
           <div class="view-toggle" id="histToggle">
             <button type="button" id="undoBtn" title="Afturkalla (⌘Z)" disabled>↶</button>
             <button type="button" id="redoBtn" title="Endurgera (⌘⇧Z)" disabled>↷</button>
           </div>
-          <span class="ed-hint">Dragðu skáp inn í rýmið · smelltu á skáp til að breyta</span>
+          <span class="ed-hint">＋ Ný eining bætir við skáp · smelltu á skáp til að breyta</span>
         </div>
         <div class="three-wrap" id="threeWrap"></div>
         <div class="three-wrap" id="planWrap" hidden></div>
-        <div class="stage-empty" id="stageEmpty" hidden>Dragðu skáp úr vörulistanum inn í rýmið<br><span>eða smelltu á hann til að bæta honum við</span></div>
+        <div class="stage-empty" id="stageEmpty" hidden>Ýttu á <b>＋ Ný eining</b> til að bæta við fyrsta skápnum<br><span>hann birtist á veggnum og þú getur dregið hann til</span></div>
         <div class="float-bar" id="floatBar" hidden>
           <span class="fb-dim" id="fbDim"></span>
           <button type="button" data-fb="left" title="Færa til vinstri">◀</button>
@@ -886,7 +897,13 @@
   <!-- ============ STEP: DONE ============ -->
   <div class="uw-modal" id="unitWiz" hidden>
     <div class="uw-box">
-      <div class="uw-preview" id="uwPreview"></div>
+      <div class="uw-preview"><div id="uwPreview"></div>
+        <div class="uw-tools" id="uwTools" hidden>
+          <button type="button" data-uwt="fronts">Framhliðar: á</button>
+          <button type="button" data-uwt="open">Opna</button>
+          <span>Smelltu á skúffu eða hurð til að opna</span>
+        </div>
+      </div>
       <div class="uw-side-wrap"><button type="button" class="uw-close" id="uwClose" aria-label="Loka">✕</button><div class="uw-side" id="uwSide"></div></div>
     </div>
   </div>
@@ -3005,6 +3022,7 @@
     renderUnitWizard();
   }
   function leaveUnitWizard(){
+    KP3D.setAllParts(false); // don't carry the preview's open drawers into the room
     uw = null;
     clearTimeout(uwPrevTimer); uwPrevKey = "";
     KP3D.teardown3D(true);
@@ -3068,9 +3086,9 @@
         }).join("") + '</div><div class="uw-custom"><input type="number" data-uw-wcustom min="' + c.minW + '" max="' + c.maxW + '" step="10" value="' + b.widthMm + '"><small>mm · sérmál ' + c.minW + '–' + c.maxW + '</small></div></div>';
       }
       if (c.hasInterior) html += '<div class="edit-field">' + hardwareHTML(b, c) + '</div>';
-      var shelfN = c.hasInterior ? (b.interior.mode === "hillur" ? b.interior.count : null) : (c.shelfRange ? KP3D.shelvesOf(b) : null);
+      var shelfN = c.shelfRange && !(c.hasInterior && b.interior.mode === "skuffur") ? KP3D.shelvesOf(b) : null; // b.shelves, same as the side panel + 3D
       if (shelfN != null){
-        var rng = c.hasInterior ? [0, c.shelfRange ? c.shelfRange[1] : 5] : [c.shelfRange[0], c.shelfRange[1]];
+        var rng = [c.shelfRange[0], c.shelfRange[1]];
         html += '<div class="edit-field"><label>Hillur</label><div class="hw-count"><button class="iconbtn" data-uw-sh="-1"' + (shelfN <= rng[0] ? " disabled" : "") + '>−</button><b>' + shelfN + '</b><button class="iconbtn" data-uw-sh="1"' + (shelfN >= rng[1] ? " disabled" : "") + '>+</button><span>' + plural(shelfN, "hilla", "hillur") + '</span></div></div>';
       }
       html += variantHTML(b, c);
@@ -3104,7 +3122,6 @@
         b.interior.inner = null;
       }
       b.interior.mode = el.dataset.hw;
-      if (el.dataset.hw === "hillur" && !(b.interior.count >= 0 && b.interior.count <= 5)) b.interior.count = 1;
       if (el.dataset.hw === "skuffur") b.interior.count = b.interior.codes.length;
       renderUnitWizard();
     }); });
@@ -3121,8 +3138,7 @@
     side.querySelectorAll("[data-dw-inner]").forEach(function(el){ el.addEventListener("click", function(){ setStack(cur(), b.interior.inner === el.dataset.dwInner ? null : el.dataset.dwInner); }); });
     side.querySelectorAll("[data-uw-sh]").forEach(function(el){ el.addEventListener("click", function(){
       var d = +el.dataset.uwSh;
-      if (c.hasInterior) b.interior.count = Math.max(0, Math.min(c.shelfRange ? c.shelfRange[1] : 5, b.interior.count + d));
-      else b.shelves = Math.max(c.shelfRange[0], Math.min(c.shelfRange[1], KP3D.shelvesOf(b) + d));
+      b.shelves = Math.max(c.shelfRange[0], Math.min(c.shelfRange[1], KP3D.shelvesOf(b) + d));
       renderUnitWizard();
     }); });
     var vs = side.querySelector('[data-role="variant"]');
@@ -3149,14 +3165,29 @@
   }
   // The spinning preview: a one-wall scene holding just the cabinet being configured (isolated like the
   // drawing export, built articulated so drawers and doors can be tapped open).
-  var uwPrevTimer = null, uwPrevKey = "";
+  var uwPrevTimer = null, uwPrevKey = "", uwView = { frontsOff:false, open:false };
+  function syncUwTools(){
+    var t = document.getElementById("uwTools");
+    t.hidden = !(uw && (uw.b || uw.step === 2));
+    t.querySelector('[data-uwt="fronts"]').textContent = "Framhliðar: " + (uwView.frontsOff ? "af" : "á");
+    t.querySelector('[data-uwt="fronts"]').classList.toggle("active", uwView.frontsOff);
+    t.querySelector('[data-uwt="open"]').textContent = uwView.open ? "Loka" : "Opna";
+    t.querySelector('[data-uwt="open"]').classList.toggle("active", uwView.open);
+  }
+  document.querySelectorAll("#uwTools [data-uwt]").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      if (btn.dataset.uwt === "fronts"){ uwView.frontsOff = !uwView.frontsOff; KP3D.setXrayFronts(uwView.frontsOff); }
+      else { uwView.open = !uwView.open; KP3D.setAllParts(uwView.open); }
+      syncUwTools();
+    });
+  });
   function schedulePreview(){ clearTimeout(uwPrevTimer); uwPrevTimer = setTimeout(renderUnitPreview, 60); }
   function renderUnitPreview(){
     var host = document.getElementById("uwPreview");
     if (!uw || !host) return;
     var type = uw.b ? uw.b.type : (uw.step === 2 ? UNIT_TREE[uw.cat].opts[uw.hover || 0].type : null);
     if (!type){ // step 1: nothing to show yet
-      KP3D.teardown3D(true); host.innerHTML = '<div class="uw-empty">Veldu tegund — skápurinn birtist hér.</div>'; uwPrevKey = ""; return;
+      KP3D.teardown3D(true); host.innerHTML = '<div class="uw-empty">Veldu tegund — skápurinn birtist hér.</div>'; uwPrevKey = ""; syncUwTools(); return;
     }
     var b = uw.b || newPreviewBlock(type), c = CATALOG[b.type];
     var key = JSON.stringify(b);
@@ -3175,7 +3206,7 @@
       var st = KP3D._three(); if (!st) return;
       var g = KP3D.surfaceGeoms(pv)[0], hM = blockHeightMm(b, c) / 1000, elevM = c.zone === "wall" ? (KP3D.elevOf(b) || 0) / 1000 : 0;
       var along = 0.4 + b.widthMm / 2000, cx = g.origin.x + g.axis.x * along, cz = g.origin.z + g.axis.z * along, cy = elevM + hM / 2;
-      var size = Math.max(hM, b.widthMm / 1000 * 0.7, 0.9), dist = size / 2 / Math.tan(22.5 * Math.PI / 180) * 1.15 + 0.3; // fit the height in the 45° lens
+      var size = Math.max(hM, b.widthMm / 1000 * 0.7, 0.9), dist = size / 2 / Math.tan(22.5 * Math.PI / 180) * 1.35 + 0.45; // fit the height in the 45° lens, with room for drawers pulled out
       if (prevCam && uw.b && prevCam.t.distanceTo(new (window.__THREE__.Vector3)(cx, cy, cz)) < 1.5){ // same cabinet being tweaked: keep the angle the customer turned it to
         st.camera.position.copy(prevCam.p); st.controls.target.copy(prevCam.t);
       } else {
@@ -3188,6 +3219,9 @@
       var resume = null;
       st.renderer.domElement.addEventListener("pointerdown", function(){ st.controls.autoRotate = false; clearTimeout(resume); resume = setTimeout(function(){ if (KP3D._three() === st && !reduce) st.controls.autoRotate = true; }, 5000); });
       st.controls.update();
+      if (uwView.frontsOff) KP3D.setXrayFronts(true);
+      if (uwView.open) KP3D.setAllParts(true);
+      syncUwTools();
     }, 8000);
   }
   function newPreviewBlock(type){ // step 2 shows the category's first variant while you choose
@@ -4120,10 +4154,51 @@
         return;
       }
       wrap.innerHTML = "";
-      KP3D.buildScene(wrap, state, { selectedId:selectedBlockId, selectedWallId:selectedWallId, onWallSelect:onWallSelect, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, onIslandDragEnd:onIslandDragEnd, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList() });
+      KP3D.buildScene(wrap, state, { selectedId:selectedBlockId, selectedWallId:selectedWallId, onWallSelect:onWallSelect, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, onIslandDragEnd:onIslandDragEnd, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList(),
+        xray:inspect.on }); // inspect mode: every cabinet built in parts (drawers/doors tap open, nothing drags)
       landedBlockId = null;
+      applyInspect();
     }, 8000);
   }
+
+  // ---------- inspect mode (2026-09-30): look inside the cabinets ----------
+  // "🔍 Skoða innvols" rebuilds the room with every cabinet in parts (like a locked one: tap a drawer or
+  // door to open/close it, tap the body to select; nothing can be dragged while it's on) and shows two
+  // toggles: fronts see-through on/off, and open/close everything. View-only state, never saved.
+  var inspect = { on:false, frontsOff:false, open:false };
+  function applyInspect(){
+    if (!inspect.on) return;
+    if (inspect.frontsOff) KP3D.setXrayFronts(true);
+    if (inspect.open) KP3D.setAllParts(true);
+  }
+  function syncInspectUI(){
+    var ib = document.getElementById("inspectBtn"), fb = document.getElementById("frontsBtn"), ob = document.getElementById("openAllBtn");
+    ib.classList.toggle("active", inspect.on);
+    ib.textContent = inspect.on ? "✓ Innvols" : "🔍 Innvols";
+    fb.hidden = ob.hidden = !inspect.on;
+    fb.textContent = inspect.frontsOff ? "Framhliðar af" : "Framhliðar á";
+    fb.classList.toggle("active", inspect.frontsOff);
+    ob.textContent = inspect.open ? "Loka öllu" : "Opna allt";
+    ob.classList.toggle("active", inspect.open);
+  }
+  document.getElementById("inspectBtn").addEventListener("click", function(){
+    inspect.on = !inspect.on;
+    if (!inspect.on){ inspect.open = false; KP3D.setAllParts(false); inspect.frontsOff = false; }
+    else toast("Skoðunarhamur: smelltu á skúffu eða hurð til að opna hana. Skápar hreyfast ekki á meðan.");
+    if (viewMode !== "3d"){ viewMode = "3d"; document.querySelectorAll("#viewToggle [data-view]").forEach(function(x){ x.classList.toggle("active", x.dataset.view === "3d"); }); }
+    syncInspectUI();
+    renderView();
+  });
+  document.getElementById("frontsBtn").addEventListener("click", function(){
+    inspect.frontsOff = !inspect.frontsOff;
+    KP3D.setXrayFronts(inspect.frontsOff);
+    syncInspectUI();
+  });
+  document.getElementById("openAllBtn").addEventListener("click", function(){
+    inspect.open = !inspect.open;
+    KP3D.setAllParts(inspect.open);
+    syncInspectUI();
+  });
 
   // ---------- cabinet edit panel (click-to-select result) ----------
   // HomeByMe-style: click a cabinet (in the walls-step plan OR the 3D/2D
@@ -4915,9 +4990,10 @@
     if (c.rusl) return LM.rusl[String(widthFamily(b.widthMm))] || null;
     if (c.hasInterior && b.interior){
       if (isDrawerUnit(b)) return drawerComboRec(KP3D.drawerCodes(b.interior, drawerSys()), b.interior.inner || null);
-      // b.interior.count here, not KP3D.shelvesOf(b) — that reads b.shelves, only used by the
-      // hasInterior:false types below (mixing them up once showed the default count, 2026-09-29).
-      if (b.interior.mode === "hillur") return LM.v2ShelvesPlain[b.interior.count] || null;
+      // Shelves = KP3D.shelvesOf(b) (b.shelves) — what the side panel's "Lausar hillur" −/+ edits and
+      // what the 3D draws. b.interior.count is only the drawer count; reading it here (2026-09-29) sent
+      // e.g. "3 hillur" for a cabinet drawn with 1 (found 2026-09-30 while building the wizard).
+      if (b.interior.mode === "hillur"){ var sn = KP3D.shelvesOf(b); return sn ? LM.v2ShelvesPlain[sn] || null : null; }
       return null;
     }
     if (c.shelfRange && !c.hasInterior){
@@ -5010,11 +5086,7 @@
           notes.push("Skúffur (" + DRAWER_SYSTEMS[drawerSys()].label + ", ofan frá): " + dCodes.map(function(cd, i){ return cd + (dFr[i] ? " " + Math.round(dFr[i]) + " mm" : ""); }).reverse().join(" / ") +
             (b.interior.inner ? " + innskúffa (" + b.interior.inner + ")" : "") + (v2 ? "" : " — ekki til sem stöðluð samsetning, vinsamlegast staðfestu."));
         } else if (b.interior && b.interior.mode === "hillur" && !v2){
-          // b.interior.count here, not KP3D.shelvesOf(b) — same property mix-up as v2RecordFor's own
-          // shelf branch above (b.shelves is a different field, only used by hasInterior:false types
-          // below); read the wrong one during the first pass and this note showed the type's default
-          // shelf count instead of the customer's real pick (caught while reviewing, 2026-09-29).
-          notes.push("Hillufjöldi: " + b.interior.count + " stk.");
+          notes.push("Hillufjöldi: " + (KP3D.shelvesOf(b) || 0) + " stk."); // b.shelves, as drawn — see v2RecordFor
         } else if (c.shelfRange && !c.hasInterior && !v2){
           notes.push("Hillufjöldi: " + (KP3D.shelvesOf(b) || 0) + " stk.");
         }

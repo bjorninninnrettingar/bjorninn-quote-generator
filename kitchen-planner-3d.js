@@ -1344,6 +1344,14 @@
     PART_STATE[key] = p;
   }
 
+  // Open (1) or close (0) every drawer and door in the scene at once ("Opna allt" in inspect mode)
+  function setAllParts(open){
+    if (!THREE_STATE) return 0;
+    var list = THREE_STATE.scene.userData.parts || [];
+    list.forEach(function(p){ p.target = open ? 1 : 0; PART_STATE[p.key] = p; });
+    return list.length;
+  }
+
   // The parts of a locked cabinet, in its own frame (x along the wall, z out of it):
   // shelves, then per front a 20 mm slab + handle that slides out (drawer, with a
   // real-height Legra/Merivo box behind it) or swings on its hinge (door).
@@ -1633,9 +1641,13 @@
 
     function onDown(evt){
       if (evt.button !== undefined && evt.button !== 0) return;
-      if (!opts.onSelect && !opts.onCabinetDragEnd) return; // read-only view (review page): leave every press to OrbitControls
+      var readOnly = !opts.onSelect && !opts.onCabinetDragEnd; // review page / wizard preview
       var mesh = pickMeshAt(evt);
       if (!mesh) return;
+      if (readOnly){ // only drawers/doors react (tap = open/close); everything else is left to OrbitControls
+        if (mesh.userData.isPart && mesh.userData.locked) lockTap = { meta:mesh.userData, x:evt.clientX, y:evt.clientY };
+        return;
+      }
       if (mesh.userData.isPart && !mesh.userData.locked && mesh.userData.bodyMesh) mesh = mesh.userData.bodyMesh; // fronts of an unlocked cabinet are just its body
       if (mesh.userData.locked && mesh.userData.zone !== "opening"){
         // locked cabinet: it cannot be dragged, so the press is left to OrbitControls; a tap opens/closes a drawer/door or selects
@@ -3207,6 +3219,7 @@
     setXrayFronts: setXrayFronts,
     setCameraLookAt: setCameraLookAt,
     renderShot: renderShot,
+    setAllParts: setAllParts,
     DRAWER_CODES: DRAWER_CODES,
     FRONT_MIN: FRONT_MIN,
     drawerCodes: drawerCodes,
