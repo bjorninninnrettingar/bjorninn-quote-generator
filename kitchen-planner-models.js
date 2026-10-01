@@ -88,7 +88,7 @@ window.KPMODELS = {
     // Björninn's side and it's actually 110 mm. A "Hexxa Ál grip Brons 3000mm" colour variant also exists
     // (rec7Xs38ZCfGpcQkD) but isn't wired — Hexxa has no colour-variant concept in this planner yet.
     hexxa:              { kind:"hexxa", marginMm:50, file:null,
-                            lenOptions:[{ mm:100, vorulistiId:"recVDVmSmXKIYW8OB" }, { mm:200, vorulistiId:"rec9YdI6ECx0pxkPA" }, { mm:350, vorulistiId:"recqNMlGS8KozncQU" }, { mm:3000, vorulistiId:"recWcOENLHDgMTJ6y", bulk:true }] },
+                            lenOptions:[{ mm:200, vorulistiId:"rec9YdI6ECx0pxkPA" }, { mm:350, vorulistiId:"recqNMlGS8KozncQU" }, { mm:1100, vorulistiId:"recVDVmSmXKIYW8OB" }, { mm:3000, vorulistiId:"recWcOENLHDgMTJ6y", bulk:true }] },
     // Spónagrip (2026-09-29): the customer confirmed — same physical profile as Jey (same file/map/
     // stripMm/profileMm, exact same geometry+placement), just clad in the front's own material instead
     // of a fixed colour (`matchFront:true` — handleProfile() in kitchen-planner-3d.js clones frontMat
