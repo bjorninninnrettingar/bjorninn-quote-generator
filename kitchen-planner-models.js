@@ -47,16 +47,19 @@ window.KPMODELS = {
     // Jey (grip): a full-width profile that takes 27 mm off the front and sits on top of it, in line with the front face (the profile is 37 mm tall: the 10 mm that overlap the panel are cut out of the panel behind a thin front lip); the finger lip is at the BOTTOM of the profile
     // (model y = length, model z = height with the lip at the low end, model x = the ~17 mm it projects)
     // `lenOptions` here (2026-09-29) are for the Line Items handle-SKU picker in kitchen-planner.html
-    // ONLY — real "Jey Ál grip" Útfærslur (Flokkur=Höldur) exist in 200/300/.../1000 mm pre-cuts plus a
+    // ONLY. `vorulistiId` MUST be a Vörulisti record (tblzuuRSRkeXaLWxC — what Tækifæri's "Höldur
+    // Viðskiptavinar ✊" links to), not the Útfærslur row of the same name: Jey/Jey2/Hexxa/Crossing 17
+    // had Útfærslur ids until 2026-10-01 and every submission with them failed with a 422
+    // (tests/models.test.js now checks the table). Real "Jey Ál grip" products exist in 200/300/.../1000 mm pre-cuts plus a
     // 3000 mm bar cut to size; the 3D render is untouched (still a continuous profile at the exact front
     // length — for cut-to-size stock the rendered length is always physically achievable, unlike a
     // discrete pull like Comet, so pickHandleLenM()'s "largest that fits" logic doesn't apply here; the
     // Line Items code picks a SKU with its own "smallest pre-cut that's ≥ needed, else the 3000mm bar"
     // rule instead — confirmed with the customer 2026-09-29).
     jey:                { file:"models/handles/jey.glb",   kind:"jey", map:["-y", "-z", "x"], color:"#b8935a", stripMm:27, profileMm:37,
-                            lenOptions:[{ mm:200, vorulistiId:"recYkz92vylCrlCFR" }, { mm:300, vorulistiId:"rec1IwCSd1ovVxXvl" }, { mm:400, vorulistiId:"recklQjvtxw80fOEo" }, { mm:500, vorulistiId:"recMosVIFxb0wrh2S" }, { mm:600, vorulistiId:"recT3auuYgVVRiWxY" }, { mm:700, vorulistiId:"recOjFVZ95MkJ9Q4h" }, { mm:800, vorulistiId:"recvjzSW2OUhLgYEm" }, { mm:900, vorulistiId:"recVDUcGns6lYvGXN" }, { mm:1000, vorulistiId:"recN5ZXgqQWDzphMY" }, { mm:3000, vorulistiId:"recrqN50q1ITKwFYp", bulk:true }] },
+                            lenOptions:[{ mm:200, vorulistiId:"recjqHwoWo2b3LbSw" }, { mm:300, vorulistiId:"recxAQec1dr8qoXQX" }, { mm:400, vorulistiId:"recQGHrPjDouWUj0A" }, { mm:500, vorulistiId:"recysuK4WvUWu7i3R" }, { mm:600, vorulistiId:"rechBGAe17iY6inFO" }, { mm:700, vorulistiId:"recxzCrwZZ7j6nqXn" }, { mm:800, vorulistiId:"recY9RrTFxsdeY46T" }, { mm:900, vorulistiId:"rec0gWmUzXpUOpPJS" }, { mm:1000, vorulistiId:"recuNozHhjuCG5cJa" }, { mm:3000, vorulistiId:"recdJl732T43gWNAC", bulk:true }] },
     jey2:               { file:"models/handles/jey.glb",   kind:"jey", map:["-y", "-z", "x"], color:"#1b1b1d", stripMm:27, profileMm:37,
-                            lenOptions:[{ mm:200, vorulistiId:"rec9KWB5VFxSWLkLh" }, { mm:300, vorulistiId:"rectdCw4psjhUVruc" }, { mm:400, vorulistiId:"rec4Yzl2Cvy57Jrex" }, { mm:500, vorulistiId:"recEcM6FJcqDVoNYT" }, { mm:600, vorulistiId:"receimV2NkpHfSgkH" }, { mm:700, vorulistiId:"recvjsjZuO5sSXFy8" }, { mm:800, vorulistiId:"recjW59nRw1dW8QqW" }, { mm:900, vorulistiId:"rechAyfUAFaAGpeDz" }, { mm:1000, vorulistiId:"recuw8dKmlx2oh40C" }, { mm:3000, vorulistiId:"rec9cXtbvxHFnyYxo", bulk:true }] },
+                            lenOptions:[{ mm:200, vorulistiId:"recblDbSINgzLSApB" }, { mm:300, vorulistiId:"recPoWZgU847emq7u" }, { mm:400, vorulistiId:"recB9WZg6CXM0xZrZ" }, { mm:500, vorulistiId:"recZGrdCkg7Opg5Bk" }, { mm:600, vorulistiId:"recm6eSJdQrZ0QIdG" }, { mm:700, vorulistiId:"reciPwckT2uNAthwy" }, { mm:800, vorulistiId:"rec1qDhnQgMrBWcjB" }, { mm:900, vorulistiId:"recscPxkrXUB9QDD4" }, { mm:1000, vorulistiId:"reckMXPH7Jd7hpyFy" }, { mm:3000, vorulistiId:"recDPjrMqOf1xi1c6", bulk:true }] },
     // Comet: 200 mm, mounted on the top edge of the front; model x = the 40 mm it projects, y = length, z = thickness (flat side up)
     // `lenOptions` = the real orderable lengths (Vörulisti record ids attached), largest that still fits the
     // front (2026-09-28: "plannerinn sýnir bara það sem er til" — every rendered size must be a real, orderable
@@ -72,7 +75,7 @@ window.KPMODELS = {
                             lenOptions:[{ mm:100, vorulistiId:"recVR0zhe2B29nykK" }, { mm:200, vorulistiId:"recShNvBhme2tEaSV" }, { mm:300, vorulistiId:"recNvdiWxt85OT23i" }] },
     // "Crossing hnúði" (a knob, not a bar) also exists in the same product line but isn't this shape — left out.
     crossing:           { file:"models/handles/crossing.glb", kind:"bar", map:["-z", "-x", "y"], fitMarginMm:100,
-                            lenOptions:[{ mm:170, vorulistiId:"rectGcCcmTA8MbckY" }, { mm:330, vorulistiId:"recuTvYTlOrGGjgjQ" }] },
+                            lenOptions:[{ mm:170, vorulistiId:"rec6jtUYpkgKbDkdJ" }, { mm:330, vorulistiId:"recuTvYTlOrGGjgjQ" }] },
     // "Graf mini" is a different, smaller product — not mapped here, only the "Graf Big" this model represents.
     graf:               { file:"models/handles/graf-big.glb", kind:"bar", map:["y", "-x", "z"], posts:true, color:"#1e1d1d", fitMarginMm:100,
                             lenOptions:[{ mm:220, vorulistiId:"recN7ZlBexPkzG1wp" }, { mm:350, vorulistiId:"recOZvCTG3z4OPuC3" }] },
@@ -85,7 +88,7 @@ window.KPMODELS = {
     // Björninn's side and it's actually 110 mm. A "Hexxa Ál grip Brons 3000mm" colour variant also exists
     // (rec7Xs38ZCfGpcQkD) but isn't wired — Hexxa has no colour-variant concept in this planner yet.
     hexxa:              { kind:"hexxa", marginMm:50, file:null,
-                            lenOptions:[{ mm:100, vorulistiId:"recw7rNNMA49tHNoz" }, { mm:200, vorulistiId:"recsRIXsElqj7nNu5" }, { mm:350, vorulistiId:"recN8LZkmG9V8Ef85" }, { mm:3000, vorulistiId:"reckwyNfBdBddqYMJ", bulk:true }] },
+                            lenOptions:[{ mm:100, vorulistiId:"recVDVmSmXKIYW8OB" }, { mm:200, vorulistiId:"rec9YdI6ECx0pxkPA" }, { mm:350, vorulistiId:"recqNMlGS8KozncQU" }, { mm:3000, vorulistiId:"recWcOENLHDgMTJ6y", bulk:true }] },
     // Spónagrip (2026-09-29): the customer confirmed — same physical profile as Jey (same file/map/
     // stripMm/profileMm, exact same geometry+placement), just clad in the front's own material instead
     // of a fixed colour (`matchFront:true` — handleProfile() in kitchen-planner-3d.js clones frontMat

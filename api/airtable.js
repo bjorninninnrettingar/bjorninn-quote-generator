@@ -361,23 +361,9 @@ const CREATABLE_FIELDS = {
   // when it ends — write-only from this proxy, Rakel/owner review happens
   // directly in Airtable, nothing in this repo reads it back.
   "tbltD1UNpqj05WtMx": ["Fyrsta spurning", "Samtal", "Óleyst spurning", "Netfang", "Síða"],
-  // kitchen-planner.html's contact-capture step creates a Tengiliðir, then a
-  // Tækifæri linking it, then one Line Item per placed cabinet (tblFcsUoGxsuUwNEH,
-  // below) — see FORCED_CREATE_FIELDS below for the fields the client can't set itself.
-  "tblQ8zeUanriESWvL": ["Fornafn ⬅️", "Eftirnafn ➡️", "Netfang 📧", "Símanúmer ☎️", "Tegund tengiliðs 👥", "Hvaðan kom viðskiptavinurinn 📥"],
-  // "Skilaboð til skipulags" added 2026-09-29 — it was missing here the whole time, so submitPlan()'s
-  // intakeNote() (delivery timing, budget, chosen materials, warnings) was silently dropped on every
-  // kitchen-planner submission before this: creatable.includes(k) filters unknown fields out with no
-  // error, so the Tækifæri record was still created fine, just always missing its note.
-  // "Höldur Viðskiptavinar ✊"/"Litur á höldum 🎨"/"Magn Halda 1" added 2026-09-29 — handles are set
-  // once per project here, not per Line Item (see handleHardwareSummary() in kitchen-planner.html).
-  "tbl4LMXlQjp66RFKI": ["Tengiliður verkefnis 👤", "Skrokka efni 🔲 viðskiptavinar", "Fronta efni viðskiptavinar 🖼️", "Sjálfsafgreiðsla skipulag (JSON) 📐", "Skilaboð til skipulags", "Höldur Viðskiptavinar ✊", "Litur á höldum 🎨", "Magn Halda 1"],
-  // Line Items (2026-09-29) — replaces the old raw-Eyðublað write (tbl0WcyHhz63pSzZX, removed from
-  // this list, the client no longer calls it — see collectLineItems() in kitchen-planner.html).
-  // Vöru reitur 1 = cabinet body, Vöru reitur 2 = interior/structure — both may be omitted when the
-  // mapping can't resolve them; ⚠️ Skipulagsvilla (a formula, not writable) then blocks "Keyra
-  // skipulag" on that line until staff link the right Útfærsla by hand, which is intended, not a bug.
-  "tblFcsUoGxsuUwNEH": ["Tækifæri 📣 (projects)", "Rými 🏡", "Vöru reitur 1", "Vöru reitur 2", "Magn", "🔑", "Skilaboð til skipulags"],
+  // Tengiliðir / Tækifæri / Line Items are NOT creatable here (2026-10-01): the kitchen planner submits
+  // through api/kp-submit.js (one idempotent request, forced review fields, batched Line Items), and no
+  // other page creates them — an open create path for them was only a spam vector.
   // /app's "❗ Nýtt QUICK FIX" quick-task form — see FORCED_CREATE_FIELDS
   // below for why "Staða" isn't in this list (anyone on the floor can report
   // a problem, but it always starts "opið", never self-set to in-progress).
@@ -399,16 +385,7 @@ const FORCED_CREATE_FIELDS = {
   "tbltD1UNpqj05WtMx": { "Staða": "Nýtt" },
   "tblDQWuf4OSjUv2XI": { "Staða": "opið 😠" },
   "tbl7K8v94Pf6Ausk3": { "Staða": "Ný" },
-  // A self-serve submission must never look like reviewed designer work —
-  // both the review flag and the pre-production stage are forced server-side
-  // so a tampered client request can't skip Rakel's review or jump straight
-  // into the real production pipeline (which only ever fires off an explicit
-  // button press on the Tækifæri record, never on record creation).
-  "tbl4LMXlQjp66RFKI": {
-    "Staða í söluferli": "Hönnun & Ráðgjöf 🖊️✨",
-    "Staða í skipulagi": "For-skipulag",
-    "Sjálfsafgreiðsla — óyfirfarið ⚠️": true,
-  },
+  // (Tækifæri's forced self-serve fields live in api/kp-submit.js now.)
 };
 
 // Only the stimpilklukka kiosk's own paired device may open/close a shift —

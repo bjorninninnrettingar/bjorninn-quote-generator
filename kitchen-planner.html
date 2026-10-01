@@ -4931,6 +4931,27 @@
     return lines.map(function(l){ return l.replace(/\.+$/, ""); }).join(". ") + ".";
   }
 
+  function newSubmissionId(){
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return "s" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+  }
+  // POST JSON, retrying network errors / 429 / 5xx with backoff (the endpoint is idempotent — see
+  // api/kp-submit.js). A 4xx is a real problem with the request and is thrown straight away.
+  async function postWithRetry(url, body, onRetry){
+    var delays = [1500, 4000, 8000], lastErr;
+    for (var attempt = 0; attempt <= delays.length; attempt++){
+      if (attempt){ if (onRetry) onRetry(attempt); await new Promise(function(r){ setTimeout(r, delays[attempt - 1]); }); }
+      var r;
+      try{ r = await fetch(url, { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify(body) }); }
+      catch (e){ lastErr = e; continue; }
+      var data = await r.json().catch(function(){ return {}; });
+      if (r.ok) return data;
+      lastErr = new Error(data.error || ("HTTP " + r.status));
+      if (r.status < 500 && r.status !== 429) throw lastErr;
+    }
+    throw lastErr;
+  }
+
   async function airtableCreate(table, fields){
     var r = await fetch(PROXY_URL + "?path=" + encodeURIComponent(table), {
       method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ fields:fields })
@@ -5033,7 +5054,11 @@
   // NO match (→ note + Skipulagsvilla), not silently the widest product.
   function widthFamily(mm){ return Math.round(mm / 100) * 100; }
   function v1RecordFor(b, c){
-    if (c.tofrahornId) return { id:c.tofrahornId };
+    if (c.tofrahornIds){
+      // (until 2026-10-01 this sent a Vörulisti id into a field that links to Útfærslur → 422 on submit)
+      var side = c.tofrahornIds[b.swing === "vinstri" ? "vinstri" : "haegri"], tid = side[state.carcass];
+      return tid ? { id:tid } : null;
+    }
     var fam = V1_FAMILY[b.type], LM = window.KP_LINEMAP;
     if (c.dishwasher) return LM ? LM.uppthvottavel : null; // the front is the product
     if (!fam || !LM || !LM.v1[fam]) return null;
@@ -5143,7 +5168,10 @@
         if (!v1) notes.push((c.skapategundOverride || c.label) + " " + b.widthMm + "×" + blockHeightMm(b, c) + "×" + (b.depthMm || c.d) + " mm — engin sjálfvirk vörutenging, vinsamlegast veldu Útfærslu handvirkt.");
         if (wall.island) notes.push("Skápur í eyju (" + wall.label + ") — stendur laus á gólfinu, ekki við vegg" + (wall.island.two ? "; bak í bak við aðra röð." : "."));
         if (c.ovenHeightMm) notes.push("Ofnhæð: " + c.ovenHeightMm + " mm.");
-        if (c.tofrahornId) notes.push("Breidd á töfrahorns-front: " + b.widthMm + " mm.");
+        if (c.tofrahornIds){
+          notes.push("Breidd á töfrahorns-front: " + b.widthMm + " mm. Hurðin er á " + (b.swing === "vinstri" ? "vinstri" : "hægri") + " helmingi.");
+          if (!c.tofrahornIds.haegri[state.carcass]) notes.push("Töfrahorn er ekki til í þessum skrokklit — veldu útfærslu handvirkt.");
+        }
         if (isDrawerUnit(b)){ // the stack as drawn, top → bottom, with front heights — also when it matched a combo
           var dCodes = KP3D.drawerCodes(b.interior, drawerSys()), dFr = KP3D.drawerFrontsMm(dCodes, drawerBodyMm(b, c)) || [];
           notes.push("Skúffur (" + DRAWER_SYSTEMS[drawerSys()].label + ", ofan frá): " + dCodes.map(function(cd, i){ return cd + (dFr[i] ? " " + Math.round(dFr[i]) + " mm" : ""); }).reverse().join(" / ") +
@@ -5177,15 +5205,6 @@
     submitBtn.disabled = true;
     submitBtn.textContent = "Sendi...";
     try{
-      var contact = await airtableCreate("tblQ8zeUanriESWvL", {
-        "Fornafn ⬅️": document.getElementById("cFornafn").value.trim(),
-        "Eftirnafn ➡️": document.getElementById("cEftirnafn").value.trim(),
-        "Netfang 📧": document.getElementById("cNetfang").value.trim(),
-        "Símanúmer ☎️": document.getElementById("cSimi").value.trim(),
-        "Tegund tengiliðs 👥": "Einstaklingur / heimili",
-        "Hvaðan kom viðskiptavinurinn 📥": "Vefsíða"
-      });
-
       var lookRec = state.look ? LOOKS[state.look] : null;
       var carcassRec = state.carcass ? CARCASS[state.carcass] : null;
       // Spónagrip orders the front's own "m gripalistum" Efnislisti SKU instead of the plain one — it's
@@ -5195,28 +5214,30 @@
       var hw = handleHardwareSummary();
       var colorKey = state.handleColor ? HANDLE_COLOR_AIRTABLE[state.handleColor] : null;
       var note = intakeNote();
-      var opp = await airtableCreate("tbl4LMXlQjp66RFKI", Object.assign({
-        "Tengiliður verkefnis 👤": [contact.id]
-      }, carcassRec ? {
-        "Skrokka efni 🔲 viðskiptavinar": [carcassRec.efnislistiId]
-      } : {}, frontEfnislistiId ? {
-        "Fronta efni viðskiptavinar 🖼️": [frontEfnislistiId]
-      } : {}, hw ? {
-        "Höldur Viðskiptavinar ✊": hw.ids,
-        "Magn Halda 1": hw.count
-      } : {}, hw && colorKey ? {
-        "Litur á höldum 🎨": colorKey
-      } : {}, note ? {
-        "Skilaboð til skipulags": note
-      } : {}, {
-        "Sjálfsafgreiðsla skipulag (JSON) 📐": JSON.stringify(state)
-      }));
+      var project = {};
+      if (carcassRec) project["Skrokka efni 🔲 viðskiptavinar"] = [carcassRec.efnislistiId];
+      if (frontEfnislistiId) project["Fronta efni viðskiptavinar 🖼️"] = [frontEfnislistiId];
+      if (hw){ project["Höldur Viðskiptavinar ✊"] = hw.ids; project["Magn Halda 1"] = hw.count; }
+      if (hw && colorKey) project["Litur á höldum 🎨"] = colorKey;
+      if (note) project["Skilaboð til skipulags"] = note;
 
-      var rows = collectLineItems();
-      for (var i = 0; i < rows.length; i++){
-        rows[i]["Tækifæri 📣 (projects)"] = [opp.id];
-        await airtableCreate("tblFcsUoGxsuUwNEH", rows[i]);
-      }
+      // One request does the whole submission (api/kp-submit.js): contact → Tækifæri → Line Items. The
+      // submission id stays in the draft, so retrying — here, or the customer pressing "Senda inn" again
+      // after a failure — resumes the same Tækifæri instead of creating a second one.
+      if (!state.submissionId){ state.submissionId = newSubmissionId(); save(); }
+      var opp = await postWithRetry("/api/kp-submit", {
+        sid: state.submissionId,
+        contact: {
+          fornafn: document.getElementById("cFornafn").value.trim(),
+          eftirnafn: document.getElementById("cEftirnafn").value.trim(),
+          netfang: document.getElementById("cNetfang").value.trim(),
+          simi: document.getElementById("cSimi").value.trim()
+        },
+        project: project,
+        state: state,
+        lineItems: collectLineItems()
+      }, function(n){ submitBtn.textContent = "Sendi... (tilraun " + (n + 1) + ")"; });
+      opp.id = opp.recordId;
 
       // Drawings PDF (X-ray elevations, corner views, top view, plan) onto the Tækifæri. The lead is
       // already saved at this point, so a failure here is only reported, never shown as a failed submit.
@@ -5227,7 +5248,8 @@
         if (lastPdfUrl) URL.revokeObjectURL(lastPdfUrl);
         lastPdfUrl = URL.createObjectURL(pdf);
         var up = await fetch("/api/kp-drawings?recordId=" + encodeURIComponent(opp.id), { method:"POST", headers:{ "Content-Type":"application/octet-stream" }, body:pdf });
-        if (!up.ok) throw new Error("kp-drawings " + up.status + ": " + (await up.text()).slice(0, 300));
+        // 409 = this Tækifæri already has its drawings (a resumed submission) — fine.
+        if (!up.ok && up.status !== 409) throw new Error("kp-drawings " + up.status + ": " + (await up.text()).slice(0, 300));
       }catch(de){
         sendIssueReport("Sjálfvirk villa", "Teikningar (PDF) mistókust: " + de.message, (de.stack || "") + "\nTækifæri: " + opp.id);
       }

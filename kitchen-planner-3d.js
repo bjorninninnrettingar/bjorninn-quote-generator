@@ -14,7 +14,7 @@
   // paused, not deleted-forever — they'll come back as "underskápar"
   // variants once this base 3-type model is settled; see kitchen-planner.html's
   // collectEyðublaðRows(), which already no-ops cleanly on their absence
-  // (its ovenHeightMm/tofrahornId branches just never fire for these 3).
+  // (its ovenHeightMm/tofrahornIds branches just never fire for these 3).
   var CATALOG = {
     // Every dimension is editable per cabinet (typed in the properties panel,
     // clamped to minW..maxW etc.); w/h/d here are just the starting size.
@@ -48,7 +48,9 @@
     // Hár veggskápur: a shallower tall unit (500 deep, 2000 high)
     harveggskapur:{ label:"Hár veggskápur", zone:"floor", cls:"tall", defaultW:600, minW:300, maxW:1200, h:2000, d:500, minH:1500, maxH:2600, minD:300, maxD:600, hasInterior:true, drawerCountRange:[1,4], shelfRange:[0,6,4] },
     tofrahorn:   { label:"Töfrahorn (kapphorn)", zone:"floor", cls:"corner", defaultW:1200, minW:900, maxW:1500, h:800, d:600, minH:600, maxH:1000, minD:500, maxD:900, hasInterior:false, counter:true,
-                   skapategundOverride:"Grunnskápur", tofrahornId:"rec9PD5fCZGUpwAon" },
+                   skapategundOverride:"Grunnskápur",
+                   // Útfærslur "Le mans Töfrahorn" by door half (b.swing) × carcass colour — no light grey exists
+                   tofrahornIds:{ haegri:{ dokkgra:"rec7qJxtUZFofq7CW", hvit:"recrLoaCJMoB0LGo4" }, vinstri:{ dokkgra:"recAxPR5s5jKnktRm", hvit:"recdfMCuUnPyRV8rV" } } },
     vaskaskapur: { label:"Vaskaskápur", zone:"floor", cls:"floor", defaultW:800, minW:500, maxW:1500, h:800, d:600, minH:600, maxH:1000, minD:400, maxD:750, hasInterior:false, counter:true, sink:true,
                    skapategundOverride:"Grunnskápur", note:"Vaskaskápur — útskurður fyrir vask og lagnir; vinsamlegast staðfestu vaskstærð og gerð." },
     opnarhillur: { label:"Opnar hillur", zone:"wall", cls:"wall", defaultW:600, minW:200, maxW:1200, h:700, d:300, minH:200, maxH:1200, minD:200, maxD:450, hasInterior:false, open:true, shelfRange:[1,5,3],
