@@ -23,6 +23,7 @@ const ctx = { window: {}, console };
 vm.runInNewContext(read("kitchen-planner-models.js"), ctx);
 vm.runInNewContext(read("kitchen-planner-linemap.js"), ctx);
 vm.runInNewContext(read("kitchen-planner-catalog.js"), ctx);
+vm.runInNewContext(read("kitchen-planner-egger.js"), ctx);
 
 const want = { efnislisti: new Set(), vorulisti: new Set(), utfaerslur: new Set() };
 // handles → Vörulisti
@@ -31,7 +32,8 @@ for (const h of Object.values(ctx.window.KPMODELS.handles || {})) for (const o o
 (function walk(o) { for (const v of Object.values(o)) if (v && typeof v === "object") { if (typeof v.id === "string") want.utfaerslur.add(v.id); walk(v); } })(ctx.window.KP_LINEMAP);
 const tof = read("kitchen-planner-3d.js").match(/tofrahornIds:(\{[^\n]+\} \})/);
 for (const m of (tof ? tof[1] : "").matchAll(/"(rec\w{14})"/g)) want.utfaerslur.add(m[1]);
-// fronts / carcass → Efnislisti
+// Egger decors, fronts / carcass → Efnislisti
+for (const d of Object.values(ctx.window.KPEGGER.decors)) for (const r of d.rows) want.efnislisti.add(r.id);
 for (const src of [read("kitchen-planner-catalog.js"), read("kitchen-planner-3d.js")]) {
   for (const m of src.matchAll(/(?:efnislistiId|gripalistarId)\s*:\s*"(rec\w{14})"/g)) want.efnislisti.add(m[1]);
 }

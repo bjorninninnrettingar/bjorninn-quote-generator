@@ -24,7 +24,7 @@ const PROJECT_NAME = "Heiti tækifæris / verkefnis"; // primary field, "T-227 |
 const LINK_TO_PROJECT = "Tækifæri 📣 (projects)";
 
 // What the client may set (everything else is dropped silently, like the proxy's CREATABLE_FIELDS).
-export const PROJECT_FIELDS = ["Skrokka efni 🔲 viðskiptavinar", "Fronta efni viðskiptavinar 🖼️", "Skilaboð til skipulags",
+export const PROJECT_FIELDS = ["Skrokka efni 🔲 viðskiptavinar", "Fronta efni viðskiptavinar 🖼️", "Borðplata viðskiptavinar 🍽️", "Skilaboð til skipulags",
   "Höldur Viðskiptavinar ✊", "Litur á höldum 🎨", "Magn Halda 1"];
 export const LINE_FIELDS = ["Rými 🏡", "Vöru reitur 1", "Vöru reitur 2", "Magn", "🔑", "Skilaboð til skipulags"];
 // A self-serve submission must never look like reviewed designer work or enter production by itself.
@@ -104,7 +104,7 @@ export function validate(body) {
     if (keys.has(li["🔑"])) return "Tvítekinn 🔑";
     keys.add(li["🔑"]);
   }
-  for (const v of [b.project?.["Skrokka efni 🔲 viðskiptavinar"], b.project?.["Fronta efni viðskiptavinar 🖼️"], b.project?.["Höldur Viðskiptavinar ✊"]]) {
+  for (const v of [b.project?.["Skrokka efni 🔲 viðskiptavinar"], b.project?.["Fronta efni viðskiptavinar 🖼️"], b.project?.["Borðplata viðskiptavinar 🍽️"], b.project?.["Höldur Viðskiptavinar ✊"]]) {
     if (v != null && !(Array.isArray(v) && v.every((x) => REC_RE.test(x)))) return "Ógild tenging";
   }
   return null;

@@ -29,6 +29,7 @@
 </script>
 <script src="kitchen-planner-materials.js"></script>
 <script src="kitchen-planner-catalog.js"></script>
+<script src="kitchen-planner-egger.js"></script>
 <script src="kitchen-planner-handles.js"></script>
 <script src="kitchen-planner-models.js"></script>
 <script src="kitchen-planner-linemap.js"></script>
@@ -405,7 +406,8 @@
   .sw-tile.active::after{ content:"✓"; position:absolute; top:6px; right:6px; width:20px; height:20px; border-radius:50%; background:var(--blue); color:#fff; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; }
   .h-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; }
   .h-grid .sw-tile img{ object-fit:contain; background:#fafafa; }
-  .h-grid .sw-name small{ display:block; font-weight:400; color:var(--ink-soft); margin-top:2px; font-size:11px; }
+  .sw-search{ width:100%; box-sizing:border-box; margin:0 0 10px; padding:9px 12px; border:1px solid var(--line, #ddd); border-radius:10px; font:inherit; font-size:14px; background:#fff; }
+  .h-grid .sw-name small, .sw-tile .sw-name small{ display:block; font-weight:400; color:var(--ink-soft); margin-top:2px; font-size:11px; }
   /* ---- define your space ---- */
   .shape-group-title{ font-size:15px; font-weight:600; margin:22px 0 10px; }
   .shape-group-title span{ font-weight:400; font-size:12.5px; color:var(--ink-soft); }
@@ -715,6 +717,7 @@
         <div class="wiz-panel" data-mp="2">
           <div class="tabs-row" id="frontTabs"></div>
           <p class="tab-blurb" id="frontBlurb"></p>
+          <input type="search" class="sw-search" id="lookSearch" placeholder="Leita — t.d. eik, hnota, grár eða H1180" autocomplete="off">
           <div class="sw-grid" id="lookCards"></div>
         </div>
         <div class="wiz-panel" data-mp="3">
@@ -3794,8 +3797,14 @@
 
   // which tab is open in the front / worktop pickers (jumps to the group of the current pick)
   var matTab = { front:"vidarliki", top:"limtre", handle:"ofan-a" };
-  function frontsOf(cat){ return Object.keys(LOOKS).filter(function(k){ return !LOOKS[k].hidden && LOOKS[k].category === cat; }); }
-  function topsOf(group){ return Object.keys(TOPS).filter(function(k){ return TOPS[k].group === group; }); }
+  var lookQuery = "";
+  function lookMatches(l){
+    if (!lookQuery) return true;
+    var hay = l.search || (l.label + " " + (l.desc || "")).toLowerCase();
+    return lookQuery.split(/\s+/).every(function(w){ return hay.indexOf(w) >= 0; });
+  }
+  function frontsOf(cat){ return Object.keys(LOOKS).filter(function(k){ return !LOOKS[k].hidden && LOOKS[k].category === cat && lookMatches(LOOKS[k]); }); }
+  function topsOf(group){ return Object.keys(TOPS).filter(function(k){ return !TOPS[k].hidden && TOPS[k].group === group; }); }
 
   function tabsHTML(groups, countOf, activeKey, attr){
     return groups.map(function(g){
@@ -3809,12 +3818,27 @@
     tabs.innerHTML = tabsHTML(LOOK_CATEGORIES, function(k){ return frontsOf(k).length; }, cat.key, "data-ftab");
     tabs.querySelectorAll("[data-ftab]").forEach(function(b){ b.addEventListener("click", function(){ matTab.front = b.dataset.ftab; renderLookCards(); }); });
     document.getElementById("frontBlurb").textContent = cat.blurb;
+    var search = document.getElementById("lookSearch");
+    if (!search.dataset.wired){
+      search.dataset.wired = "1";
+      search.addEventListener("input", function(){
+        lookQuery = search.value.trim().toLowerCase();
+        // jump to the first tab that has hits when the open one has none
+        if (lookQuery && !frontsOf(matTab.front).length){
+          var hit = LOOK_CATEGORIES.find(function(c){ return frontsOf(c.key).length; });
+          if (hit) matTab.front = hit.key;
+        }
+        renderLookCards();
+      });
+    }
     var container = document.getElementById("lookCards");
-    container.innerHTML = frontsOf(cat.key).map(function(key){
+    var keys = frontsOf(cat.key);
+    if (!keys.length && lookQuery){ container.innerHTML = '<p class="tab-blurb" style="grid-column:1/-1;">Ekkert fannst — prófaðu annað orð.</p>'; return; }
+    container.innerHTML = keys.map(function(key){
       var l = LOOKS[key];
       return '<button type="button" class="sw-tile' + (state.look === key ? ' active' : '') + '" data-look="' + key + '" title="' + l.label + '">' +
         (l.img ? '<img src="' + l.img + '" alt="' + l.label + '" loading="lazy">' : '<div class="sw-fill" style="background:' + l.color3d + ';"></div>') +
-        '<div class="sw-name">' + l.label + '</div></button>';
+        '<div class="sw-name">' + l.label + (l.code ? '<small>' + l.code + '</small>' : '') + '</div></button>';
     }).join("");
     container.querySelectorAll("[data-look]").forEach(function(card){
       card.addEventListener("click", function(){ selectLook(card.dataset.look); });
@@ -3833,7 +3857,7 @@
       var t = TOPS[key];
       return '<button type="button" class="sw-tile' + (active === key ? ' active' : '') + '" data-top="' + key + '" title="' + t.label + '">' +
         (t.img ? '<img src="' + t.img + '" alt="' + t.label + '" loading="lazy">' : '<div class="sw-fill" style="background:linear-gradient(135deg,#f0ece4,#d9d3c6);"></div>') +
-        '<div class="sw-name">' + t.label + '</div></button>';
+        '<div class="sw-name">' + t.label + (t.code ? '<small>' + t.code + '</small>' : '') + '</div></button>';
     }).join("");
     container.querySelectorAll("[data-top]").forEach(function(card){
       card.addEventListener("click", function(){ selectTop(card.dataset.top); });
@@ -4902,8 +4926,8 @@
     if (state.intake.delivery) lines.push("Æskileg afhending: " + state.intake.delivery);
     if (state.intake.budget) lines.push("Áætlað fjárhagsrými: " + state.intake.budget);
     var lk = state.look ? LOOKS[state.look] : null, tp = TOPS[state.top || "steinn"], hd = state.handle ? HANDLES[state.handle] : null;
-    if (lk) lines.push("Valin framhlið: " + lk.label + " (" + ((LOOK_CATEGORIES.find(function(x){ return x.key === lk.category; }) || {}).label || lk.category) + ")");
-    if (tp) lines.push("Valin borðplata: " + tp.label + (tp.group === "steinn" ? " (pöntuð sérstaklega)" : " (" + ((TOP_GROUPS.find(function(x){ return x.key === tp.group; }) || {}).label || "") + ")"));
+    if (lk) lines.push("Valin framhlið: " + lk.label + (lk.code ? " — Egger " + lk.code : "") + " (" + ((LOOK_CATEGORIES.find(function(x){ return x.key === lk.category; }) || {}).label || lk.category) + ")");
+    if (tp) lines.push("Valin borðplata: " + tp.label + (tp.code ? " — Egger " + tp.code : "") + (tp.group === "steinn" ? " (pöntuð sérstaklega)" : " (" + ((TOP_GROUPS.find(function(x){ return x.key === tp.group; }) || {}).label || "") + ")"));
     if (hd) lines.push("Valið handfang: " + hd.label + (KP3D.handleFinishFor(state.handle, state.handleColor) ? " — " + KP3D.handleFinishFor(state.handle, state.handleColor).label.toLowerCase() : ""));
     // Spónagrip is really the front's own "m gripalistum" SKU, not a separate machining step (2026-09-29)
     // — if this front species has no such variant in Efnislisti, flag it so staff confirm by hand rather
@@ -5217,6 +5241,8 @@
       var project = {};
       if (carcassRec) project["Skrokka efni 🔲 viðskiptavinar"] = [carcassRec.efnislistiId];
       if (frontEfnislistiId) project["Fronta efni viðskiptavinar 🖼️"] = [frontEfnislistiId];
+      var topRec = state.top ? TOPS[state.top] : null; // Egger worktops carry their Efnislisti board (2026-10-01)
+      if (topRec && topRec.efnislistiId) project["Borðplata viðskiptavinar 🍽️"] = [topRec.efnislistiId];
       if (hw){ project["Höldur Viðskiptavinar ✊"] = hw.ids; project["Magn Halda 1"] = hw.count; }
       if (hw && colorKey) project["Litur á höldum 🎨"] = colorKey;
       if (note) project["Skilaboð til skipulags"] = note;
