@@ -130,6 +130,8 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
   const pin = String(q.pin || "").replace(/\D/g, "");
   if (pin.length < 3) return res.status(400).json({ error: "BAD_PIN" });
+  // an all-zero PIN equals a BLANK PIN field in an Airtable formula ("000" logged in as an employee with no PIN set)
+  if (!/[1-9]/.test(pin)) return res.status(400).json({ error: "BAD_PIN" });
   const emp = await getEmployee(airtableToken, { pin });
   if (emp === "NOT_OWNER") return res.status(403).json({ error: "NOT_OWNER" });
   if (!emp) return res.status(401).json({ error: "BAD_PIN" });

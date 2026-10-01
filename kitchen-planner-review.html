@@ -107,7 +107,8 @@
   var viewMode = "3d";
 
   async function airtableGet(pathSuffix){
-    var r = await fetch("/api/airtable?path=" + encodeURIComponent(pathSuffix));
+    var k = params.get("k"); // VERK_KEY: unlocks the customer's contact details (not public since 2026-10-01)
+    var r = await fetch("/api/airtable?path=" + encodeURIComponent(pathSuffix) + (k ? "&k=" + encodeURIComponent(k) : ""));
     var data = await r.json();
     if (!r.ok) throw new Error(data.error || ("Airtable GET " + r.status));
     return data;
@@ -155,9 +156,9 @@
     body.innerHTML =
       '<span class="badge ' + (pending ? "pending" : "done") + '">' + (pending ? "⚠️ Óyfirfarið" : "✅ Yfirfarið") + '</span>' +
       '<div class="card"><h3>Tengiliður</h3><div class="contact-line">' +
-        '<span><b>' + esc(f["Fullt nafn 👤"] || "—") + '</b></span>' +
-        '<span>' + esc(f["Netfang 📧"] || "—") + '</span>' +
-        '<span>' + esc(f["☎️ Símanúmer"] || "—") + '</span>' +
+        (f["Fullt nafn 👤"] || f["Netfang 📧"] || f["☎️ Símanúmer"]
+          ? '<span><b>' + esc(f["Fullt nafn 👤"] || "—") + '</b></span><span>' + esc(f["Netfang 📧"] || "—") + '</span><span>' + esc(f["☎️ Símanúmer"] || "—") + '</span>'
+          : '<span class="note">Tengiliðaupplýsingar eru á færslunni í Airtable (eða opnaðu síðuna með &amp;k= lyklinum).</span>') +
       '</div>' +
         ((intake.delivery || intake.budget) ? '<p class="note" style="margin:10px 0 0">' +
           (intake.delivery ? 'Afhending: <b>' + esc(intake.delivery) + '</b>' : '') +

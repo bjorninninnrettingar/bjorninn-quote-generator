@@ -69,9 +69,8 @@ const ALLOWED_FIELDS = {
     "Mynd Höldur Viðskiptavinar ✊2.0",
     // ── Kitchen planner self-serve submissions (kitchen-planner.html /
     // kitchen-planner-review.html) ──
-    "Fullt nafn 👤",                                 // contact name, shown on Rakel's review page
-    "Netfang 📧",
-    "☎️ Símanúmer",
+    // (contact name / email / phone moved to VERK_ONLY_FIELDS on 2026-10-01 — they were readable by
+    // anyone; the review page now passes ?k= to see them)
     "Sjálfsafgreiðsla — óyfirfarið ⚠️",              // true until Rakel reviews it — see api/airtable.js's FORCED_CREATE_FIELDS
     "Sjálfsafgreiðsla skipulag (JSON) 📐",           // the exact planner state, so the review page renders the same 3D/2D scene
   ],
@@ -118,10 +117,9 @@ const ALLOWED_FIELDS = {
     "Höldur 1", "Höldur 1 magn", // set instead of Grip? when a real Vörulisti handle is chosen
     "Hæð ofns", "Töfrahorn útfærsla", "Breidd á töfra front", // Ofnaskápur / Töfrahorn cabinet types
   ],
-  "tblQ8zeUanriESWvL": [ // Tengiliðir 👤 — created by kitchen-planner.html's contact-capture step
-    "Fornafn ⬅️", "Eftirnafn ➡️", "Netfang 📧", "Símanúmer ☎️",
-    "Tegund tengiliðs 👥", "Hvaðan kom viðskiptavinurinn 📥",
-  ],
+  // Tengiliðir 👤 is deliberately NOT readable here (2026-10-01): it was listed with names, emails and
+  // phone numbers, so anyone could GET the whole customer contact list through this open proxy. The
+  // kitchen planner only CREATES contacts (CREATABLE_FIELDS below) and needs nothing back but the id.
   "tblzuuRSRkeXaLWxC": [ // Vörulisti 🚪 — resolves hardware-link names for /eining (name only, no cost)
     "Heiti vöru 📣",
   ],
@@ -175,7 +173,8 @@ const ALLOWED_FIELDS = {
   ],
   "tblhglpjQkczdG1AY": [ // Starfsmenn 👷🏼‍♂️ — stimpilklukka PIN lookup only.
     "Nafn starfsmanns 👷",
-    "PIN 🔢",
+    // "PIN 🔢" deliberately NOT returned (2026-10-01): with a match-all filter anyone could list every
+    // employee's PIN. Clients only filter BY it (STRICT_FILTERS below), they never read it back.
     "Er starfandi? ✅",
     "Kyn",
     "Starfsheiti 💼", // drives which project list the clock-out allocation screen shows
@@ -242,6 +241,10 @@ const ALLOWED_FIELDS = {
 // shop printer bakes into the QR on each Zebra label).
 const VERK_ONLY_FIELDS = {
   "tbl4LMXlQjp66RFKI": [
+    // customer contact details for Rakel's kitchen-planner review page (kitchen-planner-review.html)
+    "Fullt nafn 👤",
+    "Netfang 📧",
+    "☎️ Símanúmer",
     "Forgangur framleiðslu 🥇",
     "Upphafs framleiðsludagur verks",
     "🎯 Markmið:",
@@ -312,6 +315,19 @@ const VERK_ONLY_FIELDS = {
 // at once. Require the caller to filter to a single lookup instead of
 // listing the whole table.
 const REQUIRE_FILTER = new Set(["tblhglpjQkczdG1AY", "tbl3e5o0Klv9RcNQ4", "tblzkw70E2xoX9RmK", "tbltD1UNpqj05WtMx"]);
+// "A filter is required" alone was not a guard: filterByFormula=TRUE() matched every row (2026-10-01 —
+// employee PINs and customer contacts were listable). These tables only accept the exact query shape
+// their own pages send.
+const STRICT_FILTERS = {
+  // stimpilklukka.html + app.html: one active employee by PIN
+  // (a PIN of all zeros is refused: a blank PIN field equals 0 in an Airtable formula, so "0000" used to log in
+  // as any active employee who had no PIN set)
+  "tblhglpjQkczdG1AY": /^AND\(\{PIN 🔢\}=0*[1-9]\d{0,9},\{Er starfandi\? ✅\}=1\)$/,
+  // stimpilklukka.html + app.html: always one employee by name first
+  "tbl3e5o0Klv9RcNQ4": /^AND\(\{Starfsmaður\}="[^"]+",/,
+};
+// Logged by the site (chatbot, planner error reports) and reviewed in Airtable only — never read back.
+const WRITE_ONLY = new Set(["tbltD1UNpqj05WtMx", "tbl7K8v94Pf6Ausk3"]);
 
 // The kiosk's clock-out flow writes one Verktímar row per project the
 // employee split their shift across (Dagsetning + Klst + links). Like
@@ -520,8 +536,12 @@ export default async function handler(req, res) {
     const [tableId, recordId] = String(path).split("/");
     const baseFields = ALLOWED_FIELDS[tableId];
     if (!baseFields) return res.status(403).json({ error: "Table not allowed" });
+    if (WRITE_ONLY.has(tableId)) return res.status(403).json({ error: "Table not readable" });
     if (!recordId && REQUIRE_FILTER.has(tableId) && !params.filterByFormula) {
       return res.status(403).json({ error: "filterByFormula required for this table" });
+    }
+    if (STRICT_FILTERS[tableId] && (recordId || !STRICT_FILTERS[tableId].test(String(params.filterByFormula || "")))) {
+      return res.status(403).json({ error: "Query not allowed for this table" });
     }
 
     // ?k= widens the field set for the internal /verk floor page. A present

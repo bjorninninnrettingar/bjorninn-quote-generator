@@ -68,6 +68,8 @@ export default async function handler(req, res) {
   if (q.pin != null) {
     const pin = String(q.pin).replace(/\D/g, "");
     if (pin.length < 3) return res.status(400).json({ error: "BAD_PIN" });
+    // an all-zero PIN equals a BLANK PIN field in an Airtable formula ("000" logged in as an employee with no PIN set)
+    if (!/[1-9]/.test(pin)) return res.status(400).json({ error: "BAD_PIN" });
     const { ok, data } = await at(airtableToken, "GET",
       `${STARFSMENN_TABLE}?filterByFormula=${encodeURIComponent(`AND({PIN 🔢}=${pin},{Er starfandi? ✅}=1)`)}&maxRecords=1&fields[]=${encodeURIComponent("PIN 🔢")}`);
     if (!ok) return res.status(502).json({ error: "LOOKUP_FAILED" });
