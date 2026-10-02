@@ -1254,7 +1254,7 @@
     var boxGeo = window.__RoundedBox__
       ? new window.__RoundedBox__(widthM, bodyH, bodyD, 3, 0.004)
       : new THREE.BoxGeometry(widthM, bodyH, bodyD);
-    scaleFrontUV(boxGeo, widthM, bodyH, frontMat.userData && frontMat.userData.tile);
+    scaleFrontUV(boxGeo, widthM, bodyH, frontMat.userData && frontMat.userData.tile, false, { u:offsetM, v:bodyBase });
     var useFrontMat = frontMat;
     if (selected){
       useFrontMat = frontMat.clone();
@@ -1324,7 +1324,9 @@
       var topGeo = new THREE.BoxGeometry(widthM + 0.001, 0.032, depthM + 0.02);
       scaleFrontUV(topGeo, widthM, depthM + 0.02, meta.stoneMat.userData && meta.stoneMat.userData.tile, meta.stoneMat.userData && meta.stoneMat.userData.rotateTex);
       var top = new THREE.Mesh(topGeo, meta.stoneMat);
-      top.position.copy(local(0, baseYM + heightM + 0.016, (depthM + 0.02) / 2));
+      // 1 mm proud of the carcass top: an open (articulated) carcass shows its top board from inside, and a
+      // worktop underside in the very same plane z-fought with it (striped, 2026-10-02)
+      top.position.copy(local(0, baseYM + heightM + 0.017, (depthM + 0.02) / 2));
       top.quaternion.copy(quat);
       top.castShadow = true; top.receiveShadow = true;
       group.add(top);
@@ -1452,10 +1454,12 @@
       // a Jey profile REPLACES stripMm of the front: the slab is that much shorter (top strip) or narrower (side strip on tall units)
       var slabW = w - 0.004 - (vertA ? stripA : 0), slabH = fh - (vertA ? 0 : stripA);
       var notchA = hcfgA && hcfgA.kind === "hexxa" && !vertA ? { len:Math.max(0.05, slabW - 2 * (hcfgA.marginMm || 50) / 1000), h:0.03 } : null;
+      var slabCx = cxL + (vertA ? (freeSideA === "right" ? -stripA / 2 : stripA / 2) : 0), slabCy = (y0 + y1) / 2 - (vertA ? 0 : stripA / 2);
+      var grainOff = { u:offsetM + widthM / 2 + slabCx - slabW / 2, v:slabCy - slabH / 2 }; // continuous grain (see scaleFrontUV)
       var slab = hcfgA && hcfgA.kind === "jey" && (hcfgA.profileMm || 0) > (hcfgA.stripMm || 27)
-        ? frontSlabLip(THREE, slabW, slabH, frontMat, (hcfgA.profileMm - (hcfgA.stripMm || 27)) / 1000, 0.002, vertA ? freeSideA : "top")
-        : frontSlab(THREE, slabW, slabH, frontMat, notchA);
-      slab.position.set(cxL - pivotX + (vertA ? (freeSideA === "right" ? -stripA / 2 : stripA / 2) : 0), (y0 + y1) / 2 - (vertA ? 0 : stripA / 2), CD + FRONT_T / 2);
+        ? frontSlabLip(THREE, slabW, slabH, frontMat, (hcfgA.profileMm - (hcfgA.stripMm || 27)) / 1000, 0.002, vertA ? freeSideA : "top", grainOff)
+        : frontSlab(THREE, slabW, slabH, frontMat, notchA, grainOff);
+      slab.position.set(slabCx - pivotX, slabCy, CD + FRONT_T / 2);
       slab.castShadow = true; slab.receiveShadow = true;
       g.add(slab); meshes.push(slab);
       if (meta.handle){
@@ -1506,7 +1510,7 @@
         makeLeaf(idx++, left ? -hw / 2 : hw / 2, hw, y0, y1, left ? "left" : "right", f, fi);
         addLeMansTrays(THREE, frame, parts[parts.length - 1], left ? -hw / 2 : hw / 2, hw, CD, bodyBase, bodyH, left, meta, pickables);
         var blind = new THREE.Mesh(new THREE.BoxGeometry(hw - 0.004, y1 - y0, FRONT_T), frontMat); // fixed blind panel on the other half
-        scaleFrontUV(blind.geometry, hw - 0.004, y1 - y0, frontMat.userData && frontMat.userData.tile);
+        scaleFrontUV(blind.geometry, hw - 0.004, y1 - y0, frontMat.userData && frontMat.userData.tile, false, { u:offsetM + widthM / 2 + (left ? 0 : -hw), v:y0 });
         blind.position.set(left ? hw / 2 : -hw / 2, (y0 + y1) / 2, CD + FRONT_T / 2); blind.castShadow = true;
         frame.add(blind);
       } else if (wide){
@@ -2269,19 +2273,22 @@
   // Rescale a box's UVs so one texture tile covers tile.w × tile.h metres.
   // `swap` transposes u/v first — a 90° turn of the texture's own pattern (e.g. Límtré's grain,
   // stored running "up" the source photo) onto the box's other axis, without touching the geometry.
-  function scaleFrontUV(geo, widthM, heightM, tile, swap){
+  // `off` {u, v} (metres) shifts the texture by where the panel really sits — along the wall and up from the
+  // floor — so the grain runs on from one drawer front to the next and into the neighbouring cabinet
+  // instead of restarting on every front (user, 2026-10-02).
+  function scaleFrontUV(geo, widthM, heightM, tile, swap, off){
     if (!tile) return;
-    var uv = geo.attributes.uv;
+    var uv = geo.attributes.uv, ou = off ? off.u : 0, ov = off ? off.v : 0;
     for (var i = 0; i < uv.count; i++){
       var u = uv.getX(i), v = uv.getY(i);
-      if (swap) uv.setXY(i, v * widthM / tile.w, u * heightM / tile.h);
-      else uv.setXY(i, u * widthM / tile.w, v * heightM / tile.h);
+      if (swap) uv.setXY(i, (v * widthM + ou) / tile.w, (u * heightM + ov) / tile.h);
+      else uv.setXY(i, (u * widthM + ou) / tile.w, (v * heightM + ov) / tile.h);
     }
     uv.needsUpdate = true;
   }
 
   // A 20 mm front panel; `notch` {len, h} cuts a recess out of the top edge, centred (Hexxa is milled into the front).
-  function frontSlab(THREE, w, h, frontMat, notch){
+  function frontSlab(THREE, w, h, frontMat, notch, off){
     var geo;
     if (notch && notch.len > 0.02 && notch.len < w - 0.02){
       var hw2 = w / 2, nl = notch.len / 2, sh = new THREE.Shape();
@@ -2291,14 +2298,14 @@
       for (var i = 0; i < ps.count; i++) uv.setXY(i, (ps.getX(i) + hw2) / w, ps.getY(i) / h);
       geo.translate(0, -h / 2, -FRONT_T / 2); // same centring as a box
     } else geo = new THREE.BoxGeometry(w, h, FRONT_T);
-    scaleFrontUV(geo, w, h, frontMat.userData && frontMat.userData.tile);
+    scaleFrontUV(geo, w, h, frontMat.userData && frontMat.userData.tile, false, off);
     return new THREE.Mesh(geo, frontMat);
   }
 
   // A 20 mm front whose top (or side) strip has its BACK cut away, leaving only a thin front skin: the part of the
   // front that overlaps a Jey grip (the grip is 10 mm taller than the 27 mm it takes) — so the panel no longer
   // shows through the grip's channel. edge: "top" | "left" | "right".
-  function frontSlabLip(THREE, w, h, frontMat, cutM, skinM, edge){
+  function frontSlabLip(THREE, w, h, frontMat, cutM, skinM, edge, off){
     var T = FRONT_T, A = edge === "top" ? h : w, E = edge === "top" ? w : h, sh = new THREE.Shape();
     var hiEnd = edge !== "left"; // which end of the axis the cut sits at
     if (hiEnd){ sh.moveTo(0, 0); sh.lineTo(T, 0); sh.lineTo(T, A - cutM); sh.lineTo(skinM, A - cutM); sh.lineTo(skinM, A); sh.lineTo(0, A); }
@@ -2310,7 +2317,7 @@
     var bb = geo.boundingBox; geo.translate(-(bb.min.x + bb.max.x) / 2, -(bb.min.y + bb.max.y) / 2, T / 2);
     var ps = geo.attributes.position, uv = geo.attributes.uv;
     for (var i = 0; i < ps.count; i++) uv.setXY(i, (ps.getX(i) + w / 2) / w, (ps.getY(i) + h / 2) / h);
-    scaleFrontUV(geo, w, h, frontMat.userData && frontMat.userData.tile);
+    scaleFrontUV(geo, w, h, frontMat.userData && frontMat.userData.tile, false, off);
     return new THREE.Mesh(geo, frontMat);
   }
 
@@ -2910,7 +2917,7 @@
       var topGeo = new THREE.BoxGeometry(W + 0.001, 0.032, D + 0.02);
       scaleFrontUV(topGeo, W + 0.001, D + 0.02, topMat.userData && topMat.userData.tile, topMat.userData && topMat.userData.rotateTex); // over the top face (width × depth), not the thin edge
       var topMesh = new THREE.Mesh(topGeo, topMat);
-      topMesh.position.set(0, H + 0.016, (D + 0.02) / 2); topMesh.castShadow = true; topMesh.receiveShadow = true;
+      topMesh.position.set(0, H + 0.017, (D + 0.02) / 2); // 1 mm proud of the carcass top (z-fighting seen from inside) topMesh.castShadow = true; topMesh.receiveShadow = true;
       group.add(topMesh);
     }
 
@@ -2930,8 +2937,8 @@
         var jcfgW = cfg.showHandle && cfg.handle && window.KPMODELS && window.KPMODELS.handles && window.KPMODELS.handles[cfg.handle], stripW = jcfgW && jcfgW.kind === "jey" ? (jcfgW.stripMm || 27) / 1000 : 0; // Jey takes its height off the front
         var notchW = jcfgW && jcfgW.kind === "hexxa" ? { len:Math.max(0.05, W - 0.004 - 2 * (jcfgW.marginMm || 50) / 1000), h:0.03 } : null;
         var slab = jcfgW && jcfgW.kind === "jey" && (jcfgW.profileMm || 0) > (jcfgW.stripMm || 27)
-          ? frontSlabLip(THREE, W - 0.004, fh - stripW, frontMat, (jcfgW.profileMm - (jcfgW.stripMm || 27)) / 1000, 0.002, "top")
-          : frontSlab(THREE, W - 0.004, fh - stripW, frontMat, notchW);
+          ? frontSlabLip(THREE, W - 0.004, fh - stripW, frontMat, (jcfgW.profileMm - (jcfgW.stripMm || 27)) / 1000, 0.002, "top", { u:0, v:y0 })
+          : frontSlab(THREE, W - 0.004, fh - stripW, frontMat, notchW, { u:0, v:y0 });
         slab.position.set(0, (y0 + y1) / 2 - stripW / 2, CD + FRONT_T / 2); slab.castShadow = true; slab.receiveShadow = true;
         dg.add(slab); pickables.push(slab);
         if (cfg.showHandle && cfg.handle){
