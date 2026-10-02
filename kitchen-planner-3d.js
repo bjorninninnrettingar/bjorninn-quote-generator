@@ -855,7 +855,7 @@
       bar(widthM, 0.012, WALL_THICKNESS_M, 0, baseYM + heightM - 0.006, rv);
       bar(0.012, heightM, WALL_THICKNESS_M, -(widthM / 2 - 0.006), baseYM + heightM / 2, rv);
       bar(0.012, heightM, WALL_THICKNESS_M, widthM / 2 - 0.006, baseYM + heightM / 2, rv);
-      return;
+      return group;
     }
     bar(widthM, fw, 0.05, 0, baseYM + heightM - fw / 2, fo);                       // head
     bar(fw, heightM, 0.05, -(widthM / 2 - fw / 2), baseYM + heightM / 2, fo);      // left jamb
@@ -868,6 +868,7 @@
       var handleMat = new THREE.MeshStandardMaterial({ color:0x55575a, metalness:0.7, roughness:0.35 });
       bar(0.14, 0.02, 0.04, widthM / 2 - 0.1, 1.0, 0.04, handleMat);               // lever handle
     }
+    return group;
   }
 
   function addDrawerSeams(THREE, scene, geom, offsetM, widthM, heightM, baseYM, depthM, count, fractions){
@@ -1694,8 +1695,8 @@
         return;
       }
       if (mesh.userData.isPart && !mesh.userData.locked && mesh.userData.bodyMesh) mesh = mesh.userData.bodyMesh; // fronts of an unlocked cabinet are just its body
-      if (mesh.userData.locked && mesh.userData.zone !== "opening"){
-        // locked cabinet: it cannot be dragged, so the press is left to OrbitControls; a tap opens/closes a drawer/door or selects
+      if (mesh.userData.locked){
+        // locked cabinet / window / door: it cannot be dragged, so the press is left to OrbitControls; a tap opens/closes a drawer/door or selects
         lockTap = { meta:mesh.userData, x:evt.clientX, y:evt.clientY };
         return;
       }
@@ -2425,7 +2426,7 @@
       var wid = state.walls[gi] && state.walls[gi].id;
       var gaps = (state.doors || []).filter(function(d){ return d.gap && d.wallId === wid; })
         .map(function(d){ return { offM:d.offsetMm / 1000, widM:d.widthMm / 1000, hM:Math.min(d.heightMm, roomHeightMm) / 1000 }; });
-      wallFades.push({ mesh:addWallPlane(THREE, scene, g, WALL_H, mat, gaps), geom:g, mat:mat });
+      wallFades.push({ mesh:addWallPlane(THREE, scene, g, WALL_H, mat, gaps), geom:g, mat:mat, wallId:wid, openings:[] });
     });
 
     function geomForWall(wallId){
@@ -2434,19 +2435,34 @@
       return wi === -1 || state.walls[wi].open ? null : geoms[wi];
     }
     var pickables = [];
+    // A window/door/opening fades together with its wall: seen from outside the room through a faded wall,
+    // the frame and door leaf used to stay solid and block the view (user, 2026-10-02).
+    function fadeWithWall(wallId, group){
+      var w = group && wallFades.find(function(x){ return x.wallId === wallId; });
+      if (!w) return;
+      var mats = [];
+      group.traverse(function(o){
+        if (!o.material) return;
+        o.material.transparent = true;
+        o.material.userData.baseOpacity = o.material.opacity;
+        o.material.userData.baseDepthWrite = o.material.depthWrite;
+        mats.push({ mat:o.material, mesh:o, shadow:o.castShadow });
+      });
+      w.openings.push(mats);
+    }
     (state.windows || []).forEach(function(win){
       var g = geomForWall(win.wallId);
       if (!g) return;
-      addOpeningMarker(THREE, scene, g, win.offsetMm / 1000, win.widthMm / 1000, win.heightMm / 1000,
+      fadeWithWall(win.wallId, addOpeningMarker(THREE, scene, g, win.offsetMm / 1000, win.widthMm / 1000, win.heightMm / 1000,
         win.sillHeightMm / 1000, WINDOW_MARKER_COLOR, 0.55,
-        { wallId:win.wallId, zone:"opening", kind:"window", blockId:win.id, widthMm:win.widthMm, depthMm:10, heightMm:win.heightMm, elevMm:win.sillHeightMm }, opts.selectedId === win.id, pickables);
+        { wallId:win.wallId, zone:"opening", kind:"window", locked:!win.unlocked && !!opts.onSelect, blockId:win.id, widthMm:win.widthMm, depthMm:10, heightMm:win.heightMm, elevMm:win.sillHeightMm }, opts.selectedId === win.id, pickables));
     });
     (state.doors || []).forEach(function(door){
       var g = geomForWall(door.wallId);
       if (!g) return;
-      addOpeningMarker(THREE, scene, g, door.offsetMm / 1000, door.widthMm / 1000, door.heightMm / 1000,
+      fadeWithWall(door.wallId, addOpeningMarker(THREE, scene, g, door.offsetMm / 1000, door.widthMm / 1000, door.heightMm / 1000,
         0, DOOR_MARKER_COLOR, 0.85,
-        { wallId:door.wallId, zone:"opening", kind:"door", gap:!!door.gap, blockId:door.id, widthMm:door.widthMm, depthMm:10, heightMm:door.heightMm, elevMm:0 }, opts.selectedId === door.id, pickables);
+        { wallId:door.wallId, zone:"opening", kind:"door", locked:!door.unlocked && !!opts.onSelect, gap:!!door.gap, blockId:door.id, widthMm:door.widthMm, depthMm:10, heightMm:door.heightMm, elevMm:0 }, opts.selectedId === door.id, pickables));
     });
 
     // built-in fridge reads as an appliance: brushed-steel front instead of the kitchen's fronts
@@ -2655,6 +2671,14 @@
         w.mat.opacity += (target - w.mat.opacity) * 0.2;
         w.mat.depthWrite = w.mat.opacity > 0.6;
         w.mesh.visible = w.mat.opacity > 0.02;
+        var k = w.mat.opacity; // 1 = wall solid, 0.1 = faded (0 for export shots)
+        w.openings.forEach(function(mats){
+          mats.forEach(function(m){
+            m.mat.opacity = m.mat.userData.baseOpacity * k;
+            m.mat.depthWrite = k > 0.6 && m.mat.userData.baseDepthWrite;
+            m.mesh.castShadow = m.shadow && k > 0.6;
+          });
+        });
       });
     }
 

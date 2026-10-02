@@ -3249,10 +3249,8 @@
       }
       st.controls.target.set(cx, cy, cz);
       st.controls.minPolarAngle = 0.2;
-      var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      st.controls.autoRotate = !reduce; st.controls.autoRotateSpeed = 1.2;
-      var resume = null;
-      st.renderer.domElement.addEventListener("pointerdown", function(){ st.controls.autoRotate = false; clearTimeout(resume); resume = setTimeout(function(){ if (KP3D._three() === st && !reduce) st.controls.autoRotate = true; }, 5000); });
+      st.controls.maxPolarAngle = 1.45; // never from below the floor
+      swayPreview(st, Math.atan2(g.normal.x, g.normal.z));
       st.controls.update();
       if (uwView.frontsOff) KP3D.setXrayFronts(true);
       if (uwView.open) KP3D.setAllParts(true);
@@ -3280,11 +3278,31 @@
       var st = KP3D._three(); if (!st) return;
       var cx = 0, cz = 3, dist = 3.6;
       KP3D.setCameraLookAt({ x:cx + dist * 0.7, y:2.1, z:cz + dist * 0.75 }, { x:cx, y:0.45, z:cz });
-      var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      st.controls.autoRotate = !reduce; st.controls.autoRotateSpeed = 1.2;
+      swayPreview(st, Math.atan2(0.7, 0.75));
       st.controls.update();
       syncUwTools();
     }, 8000);
+  }
+  // The wizard cabinet sways gently around its front instead of spinning all the way round (user, 2026-10-02:
+  // "fronturinn má ekki leave the field of view"): the orbit is limited to ±45° either side of the front, by
+  // hand too, and the slow auto-turn reverses at each end. Stops on a press, resumes 5 s later.
+  var SWAY = 0.78;
+  function swayPreview(st, frontAz){
+    var c = st.controls, reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    c.minAzimuthAngle = frontAz - SWAY; c.maxAzimuthAngle = frontAz + SWAY;
+    c.autoRotate = !reduce; c.autoRotateSpeed = 0.9;
+    var resume = null;
+    st.renderer.domElement.addEventListener("pointerdown", function(){
+      c.autoRotate = false; clearTimeout(resume);
+      resume = setTimeout(function(){ if (KP3D._three() === st && !reduce) c.autoRotate = true; }, 5000);
+    });
+    var tick = setInterval(function(){
+      if (KP3D._three() !== st){ clearInterval(tick); return; }
+      var a = c.getAzimuthalAngle(), d = Math.atan2(Math.sin(a - frontAz), Math.cos(a - frontAz));
+      // autoRotateSpeed > 0 turns the camera towards smaller azimuth
+      if (d > SWAY - 0.04) c.autoRotateSpeed = 0.9;
+      else if (d < -SWAY + 0.04) c.autoRotateSpeed = -0.9;
+    }, 120);
   }
   function newPreviewBlock(type){ // step 2 shows the category's first variant while you choose
     var o = UNIT_TREE[uw.cat].opts[uw.hover || 0];
@@ -3597,11 +3615,19 @@
     return d ? { kind:"door", o:d } : null;
   }
 
+  // Windows/doors/openings are LOCKED in the editor unless unlocked (`o.unlocked`) — the room step is
+  // where they're placed, so arranging cabinets around them must never shift one by accident
+  // (user, 2026-10-02). The room step itself ignores this.
+  function opLocked(o){ return !o.unlocked; }
+  function opLockedToast(){ toast("Gluggar og hurðir eru læst 🔒 á meðan þú raðar — smelltu á 🔓 til að færa."); }
+  function toggleOpeningLock(o){ if (o.unlocked) delete o.unlocked; else o.unlocked = true; save(); refreshAfterEdit(); }
+
   // Re-seat an existing window/door (dragged in 3D or 2D): same wall-end
   // snapping as placing a new one, on whichever wall it was dropped on.
   function moveOpening(id, wallId, alongMm, elevMm){
     var f = findOpening(id), wall = state.walls.find(function(w){ return w.id === wallId; });
     if (!f || !wall || wall.open) return;
+    if (opLocked(f.o)){ opLockedToast(); refreshAfterEdit(); return; }
     var newSill = f.kind === "window" && elevMm != null ? openingSill(f.o.heightMm, elevMm, "gluggi") : null; // dragged up/down the wall
     var vs = openingVSpan(newSill != null ? { sillHeightMm:newSill, heightMm:f.o.heightMm } : f.o);
     var off = snappedOpeningOffset(wall, Math.min(f.o.widthMm, wall.lengthMm), alongMm, f.o.id, vs);
@@ -3719,6 +3745,13 @@
     evt.stopPropagation();
     var f = findOpening(id);
     if (!f) return;
+    if (opLocked(f.o)){ // a tap selects; a drag only explains the lock
+      var sx = evt.clientX, sy = evt.clientY;
+      window.addEventListener("pointerup", function(e2){
+        if (Math.hypot(e2.clientX - sx, e2.clientY - sy) < 6) onCabinetSelect({ blockId:id, zone:"opening" }); else opLockedToast();
+      }, { once:true });
+      return;
+    }
     var ghost = document.createElement("div");
     ghost.className = "drag-ghost";
     ghost.textContent = f.kind === "window" ? "Gluggi" : "Hurð";
@@ -4181,7 +4214,8 @@
   document.getElementById("floatBar").addEventListener("click", function(e){
     var btn = e.target.closest("[data-fb]");
     var opening = selectedBlockId ? findOpening(selectedBlockId) : null;
-    if (btn && opening && btn.dataset.fb === "del"){ selectedBlockId = null; removeOpening(opening.kind, opening.o.id); return; }
+    if (btn && opening && btn.dataset.fb === "lock"){ toggleOpeningLock(opening.o); return; }
+    if (btn && opening && btn.dataset.fb === "del"){ if (opLocked(opening.o)){ opLockedToast(); return; } selectedBlockId = null; removeOpening(opening.kind, opening.o.id); return; }
     var found = selectedBlockId ? findBlock(selectedBlockId) : null;
     if (!btn || !found) return;
     var act = btn.dataset.fb;
@@ -4300,9 +4334,9 @@
       : op ? op.o.widthMm + " × " + op.o.heightMm : "";
     chip.classList.toggle("editable", !!((fb && !fb.block.panel && !CATALOG[fb.block.type].panel && !CATALOG[fb.block.type].shelfStack) || op));
     chip.title = chip.classList.contains("editable") ? "Smelltu til að slá inn mál" : "";
-    var lk = document.getElementById("fbLock"), isLocked = !!(fb && fb.block.locked);
+    var lk = document.getElementById("fbLock"), isLocked = fb ? !!fb.block.locked : !!(op && opLocked(op.o));
     lk.textContent = isLocked ? "🔒" : "🔓";
-    lk.title = isLocked ? "Skápurinn er læstur — smelltu til að opna" : "Læsa skáp";
+    lk.title = op ? (isLocked ? "Læst — smelltu til að geta fært" : "Læsa") : isLocked ? "Skápurinn er læstur — smelltu til að opna" : "Læsa skáp";
     lk.classList.toggle("on", isLocked);
     document.querySelectorAll('#floatBar [data-fb="left"], #floatBar [data-fb="right"], #floatBar [data-fb="del"]').forEach(function(btn){ btn.disabled = isLocked; });
   }
@@ -4485,9 +4519,12 @@
           '<button class="iconbtn" data-role="close" title="Loka">✕</button></div>' +
         '<div class="edit-field"><label>Mál (mm) — sláðu inn</label><div class="dim-grid">' + field("widthMm", "Breidd") + field("heightMm", "Hæð") + (isWin ? field("sillHeightMm", "Frá gólfi") : "") + '</div>' +
           (isWin ? '<p class="ov-mat" style="margin:8px 0 0;">Dragðu gluggann upp og niður á veggnum í 3D til að breyta hæðinni.</p>' : '') + '</div>' +
-        '<div class="edit-actions"><button class="iconbtn del" data-role="delete" title="Fjarlægja">✕ Fjarlægja</button></div>' +
+        '<div class="edit-field lock-row"><button type="button" class="iconbtn lockbtn' + (opLocked(o) ? ' on' : '') + '" data-role="oplock">' + (opLocked(o) ? '🔒 Læst — smelltu til að geta fært' : '🔓 Hægt að færa — smelltu til að læsa') + '</button>' +
+          '<p class="ov-mat" style="margin:6px 0 0;">' + (opLocked(o) ? 'Læst á meðan þú raðar skápum, svo ' + (isWin ? 'glugginn' : 'hurðin') + ' færist ekki óvart. Málin hér að ofan má samt slá inn.' : 'Dragðu til í 3D eða 2D. Læstu aftur þegar staðsetningin er rétt.') + '</p></div>' +
+        '<div class="edit-actions"><button class="iconbtn del" data-role="delete" title="Fjarlægja"' + (opLocked(o) ? ' disabled' : '') + '>✕ Fjarlægja</button></div>' +
       '</div>';
     host.querySelector('[data-role="close"]').addEventListener("click", function(){ onCabinetSelect(null); });
+    host.querySelector('[data-role="oplock"]').addEventListener("click", function(){ toggleOpeningLock(o); });
     host.querySelector('[data-role="toWall"]').addEventListener("click", function(e){ e.preventDefault(); if (wall) onWallSelect(wall.id); });
     host.querySelector('[data-role="delete"]').addEventListener("click", function(){ selectedBlockId = null; removeOpening(f.kind, o.id); });
     host.querySelectorAll("[data-op]").forEach(function(inp){
@@ -5743,7 +5780,7 @@
     if (e.key === "Delete" || e.key === "Backspace"){
       var found = findBlock(selectedBlockId), op = found ? null : findOpening(selectedBlockId);
       if (found){ e.preventDefault(); selectedBlockId = null; removeBlock(found.wall, found.zone, found.block.id); }
-      else if (op){ e.preventDefault(); selectedBlockId = null; removeOpening(op.kind, op.o.id); }
+      else if (op){ e.preventDefault(); if (opLocked(op.o)){ opLockedToast(); return; } selectedBlockId = null; removeOpening(op.kind, op.o.id); }
     } else if (e.key === "Escape"){ onCabinetSelect(null); }
   });
 
