@@ -1369,8 +1369,21 @@
   // Lives outside the scene so a rebuild (any edit re-renders the room) keeps them as they were.
   var PART_STATE = {};
   function partEase(p){ return p.cur * p.cur * (3 - 2 * p.cur); }
+  function smooth01(x){ x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); }
   function applyPart(p){
     var e = partEase(p);
+    if (p.kind === "lemans"){
+      // Le Mans corner (Töfrahorn): the door swings open first, then the two trays glide out through the
+      // opening on a curve — out, a little sideways and turned, settling square in front of the cabinet;
+      // the upper tray follows the lower one. Closing plays it backwards.
+      p.group.rotation.y = (p.hinge === "left" ? -1 : 1) * 1.75 * smooth01(p.cur * 2.2);
+      p.trays.forEach(function(t, i){
+        var k = smooth01((p.cur - 0.3 - i * 0.14) / 0.56), arc = Math.sin(Math.PI * k);
+        t.group.position.set(t.xIn + (t.xOut - t.xIn) * k, t.y, t.z0 + t.outZ * k);
+        t.group.rotation.y = t.turn * arc;
+      });
+      return;
+    }
     if (p.kind === "drawer") p.group.position.z = p.slide * e;
     else p.group.rotation.y = (p.hinge === "left" ? -1 : 1) * 1.75 * e;
   }
@@ -1491,6 +1504,7 @@
       else if (meta.corner){
         var left = meta.doorSide === "left", hw = widthM / 2;
         makeLeaf(idx++, left ? -hw / 2 : hw / 2, hw, y0, y1, left ? "left" : "right", f, fi);
+        addLeMansTrays(THREE, frame, parts[parts.length - 1], left ? -hw / 2 : hw / 2, hw, CD, bodyBase, bodyH, left, meta, pickables);
         var blind = new THREE.Mesh(new THREE.BoxGeometry(hw - 0.004, y1 - y0, FRONT_T), frontMat); // fixed blind panel on the other half
         scaleFrontUV(blind.geometry, hw - 0.004, y1 - y0, frontMat.userData && frontMat.userData.tile);
         blind.position.set(left ? hw / 2 : -hw / 2, (y0 + y1) / 2, CD + FRONT_T / 2); blind.castShadow = true;
@@ -1500,6 +1514,47 @@
         makeLeaf(idx++, widthM / 4, widthM / 2, y0, y1, "right", f, fi);
       } else makeLeaf(idx++, 0, widthM, y0, y1, meta.hingeRight ? "right" : "left", f, fi);
     });
+  }
+
+  // Kesseböhmer Le Mans (Töfrahorn): two kidney-shaped trays with a chrome rail behind the door half. No
+  // CAD model (Kesseböhmer's STEP files sit behind their CAD portal login) — drawn here, and they ride the
+  // door's part so one tap opens door + trays (applyPart "lemans").
+  var LEMANS_MATS = null;
+  function leMansTray(THREE, w, d){
+    if (!LEMANS_MATS) LEMANS_MATS = {
+      plate:new THREE.MeshStandardMaterial({ color:0x55575b, roughness:0.55, metalness:0.15 }),
+      rail:new THREE.MeshStandardMaterial({ color:0xd6d9dd, roughness:0.22, metalness:0.9 })
+    };
+    function outline(sh, w2, d2, rFront, rBack, inset){ // x across, y = depth (front at +y)
+      var x0 = -w2 / 2 + inset, x1 = w2 / 2 - inset, y0 = -d2 / 2 + inset, y1 = d2 / 2 - inset;
+      sh.moveTo(x0 + rBack, y0); sh.lineTo(x1 - rBack, y0); sh.quadraticCurveTo(x1, y0, x1, y0 + rBack);
+      sh.lineTo(x1, y1 - rFront); sh.quadraticCurveTo(x1, y1, x1 - rFront, y1);
+      sh.lineTo(x0 + rFront, y1); sh.quadraticCurveTo(x0, y1, x0, y1 - rFront);
+      sh.lineTo(x0, y0 + rBack); sh.quadraticCurveTo(x0, y0, x0 + rBack, y0);
+      return sh;
+    }
+    var rF = Math.min(w, d) * 0.42, rB = 0.03, g = new THREE.Group();
+    var plate = new THREE.Mesh(new THREE.ExtrudeGeometry(outline(new THREE.Shape(), w, d, rF, rB, 0), { depth:0.01, bevelEnabled:false }), LEMANS_MATS.plate);
+    var ringShape = outline(new THREE.Shape(), w, d, rF, rB, 0);
+    ringShape.holes.push(outline(new THREE.Path(), w, d, Math.max(0.01, rF - 0.008), rB, 0.008));
+    var rail = new THREE.Mesh(new THREE.ExtrudeGeometry(ringShape, { depth:0.055, bevelEnabled:false }), LEMANS_MATS.rail);
+    [plate, rail].forEach(function(m){ m.rotation.x = -Math.PI / 2; m.castShadow = true; m.receiveShadow = true; g.add(m); });
+    return g;
+  }
+  function addLeMansTrays(THREE, frame, doorPart, cxDoor, hw, CD, bodyBase, bodyH, left, meta, pickables){
+    if (!doorPart) return;
+    var w = Math.max(0.3, hw - 0.07), d = Math.max(0.3, Math.min(0.5, CD - 0.08)), trays = [];
+    var pmeta = Object.assign({}, meta, { isPart:true, partKey:doorPart.key });
+    [0.08, 0.5].forEach(function(f){
+      var g = leMansTray(THREE, w, d), y = bodyBase + bodyH * f;
+      frame.add(g);
+      g.traverse(function(o){ if (o.isMesh){ o.userData = pmeta; pickables.push(o); } });
+      // closed: tucked partly into the blind corner; open: out through the door, square in front of it
+      var inward = left ? 1 : -1;
+      trays.push({ group:g, xIn:cxDoor + inward * hw * 0.35, xOut:cxDoor - inward * 0.03, y:y, z0:CD - 0.03 - d / 2, outZ:d + 0.1, turn:-inward * 0.55 });
+    });
+    doorPart.kind = "lemans"; doorPart.trays = trays;
+    applyPart(doorPart);
   }
 
   // Stainless sink basin + tap on top of a worktop.
