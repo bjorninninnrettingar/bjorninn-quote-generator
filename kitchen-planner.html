@@ -484,6 +484,15 @@
   .dw-row{ display:flex; align-items:center; gap:8px; padding:4px 8px; border:1px solid var(--line); border-radius:6px; background:#fff; font-size:12.5px; min-height:26px; }
   .dw-row b{ font-size:14px; min-width:14px; }
   .dw-row span{ color:var(--ink-soft); flex:1; }
+  .dw-row small{ color:var(--ink-soft); font-size:11px; }
+  .dw-grip{ cursor:grab; color:var(--ink-soft); font-size:14px; flex:0 0 auto !important; touch-action:none; user-select:none; }
+  .dw-row.dragging{ opacity:.55; }
+  .dw-row.drop{ border-color:var(--blue); box-shadow:0 0 0 2px rgba(61,97,193,.18); }
+  .dw-mm{ width:58px; padding:2px 4px; border:1px solid var(--line); border-radius:5px; font:inherit; font-size:12.5px; text-align:right; }
+  .dw-seam{ height:7px; margin:-5px 0; position:relative; z-index:1; cursor:ns-resize; touch-action:none; }
+  .dw-seam::after{ content:""; position:absolute; left:30%; right:30%; top:2px; height:3px; border-radius:2px; background:var(--line); }
+  .dw-seam:hover::after, .dw-seam.on::after{ background:var(--blue); }
+  .dw-reset{ margin-top:6px; border:0; background:none; color:var(--blue); font:inherit; font-size:12.5px; cursor:pointer; padding:0; }
   .dw-x{ border:0; background:none; color:var(--ink-soft); cursor:pointer; font-size:13px; padding:2px 4px; }
   .dw-x:hover{ color:#c0392b; }
   .dw-add{ display:flex; align-items:center; gap:4px; margin-top:8px; flex-wrap:wrap; font-size:12.5px; color:var(--ink-soft); }
@@ -2658,11 +2667,18 @@
       '</div>';
     if (!isDrawer) return html;
     var sys = drawerSys(), D = KP3D.DRAWER_CODES[sys], codes = KP3D.drawerCodes(b.interior, sys), inner = b.interior.inner || null;
-    var fronts = KP3D.drawerFrontsMm(codes, drawerBodyMm(b, c)) || [];
-    html += '<div class="dw-stack">' + codes.map(function(code, i){ return { code:code, i:i, mm:fronts[i] }; }).reverse().map(function(d){
-      return '<div class="dw-row" style="flex-grow:' + Math.max(1, Math.round((d.mm || 150) / 40)) + '"><b>' + d.code + '</b><span>' + CODE_LABEL[d.code] + (d.mm ? ' · ' + Math.round(d.mm) + ' mm' : '') + '</span>' +
-        (codes.length > 1 ? '<button type="button" class="dw-x" data-dw-del="' + d.i + '" title="Taka skúffu">✕</button>' : '') + '</div>';
-    }).join("") + '</div>';
+    var fronts = KP3D.stackFrontsMm(b.interior, codes, drawerBodyMm(b, c)) || [], multi = codes.length > 1;
+    // top drawer first, as the cabinet stands; ⠿ drags a drawer to another place in the stack, the line
+    // between two drawers drags their shared seam, and each height can be typed (2026-10-02)
+    html += '<div class="dw-stack" data-dw-stack>' + codes.map(function(code, i){ return { code:code, i:i, mm:fronts[i] }; }).reverse().map(function(d, k){
+      return (k ? '<div class="dw-seam" data-dw-seam="' + d.i + '" title="Dragðu til að breyta hæð skúffanna"></div>' : '') +
+        '<div class="dw-row" data-dw-row="' + d.i + '" style="flex-grow:' + Math.max(1, Math.round((d.mm || 150) / 40)) + '">' +
+        (multi ? '<span class="dw-grip" data-dw-grip="' + d.i + '" title="Dragðu til að færa skúffuna">⠿</span>' : '') +
+        '<b>' + d.code + '</b><span>' + CODE_LABEL[d.code] + '</span>' +
+        (d.mm ? (multi ? '<input class="dw-mm" type="number" step="1" data-dw-mm="' + d.i + '" value="' + Math.round(d.mm) + '" title="Hæð framhliðar (mm)"><small>mm</small>' : '<small>' + Math.round(d.mm) + ' mm</small>') : '') +
+        (multi ? '<button type="button" class="dw-x" data-dw-del="' + d.i + '" title="Taka skúffu">✕</button>' : '') + '</div>';
+    }).join("") + '</div>' +
+    (b.interior.frontsMm && multi ? '<button type="button" class="dw-reset" data-dw-reset>↺ Sjálfgefnar hæðir</button>' : '');
     html += '<div class="dw-add"><span>Bæta við:</span>' + D.codes.map(function(code){
       var next = sortStack(codes.concat([code]));
       var ok = codes.length < 4 && (stackAllowed(b, c, next, inner) || stackAllowed(b, c, next, null)); // may cost the inner drawer (see the click handler)
@@ -2702,11 +2718,81 @@
     var b = wall[zone].find(function(x){ return x.id === id; });
     if (!b || !b.interior) return;
     if (b.locked){ lockedToast(); return; }
-    b.interior.codes = sortStack(codes);
+    if (codes.join("") !== KP3D.drawerCodes(b.interior, drawerSys()).join("")) delete b.interior.frontsMm; // a new stack starts from the default heights
+    b.interior.codes = codes.slice(); // callers sort a new stack themselves; a reordered one keeps its order
     b.interior.inner = inner || null;
     b.interior.count = b.interior.codes.length;
     save();
     refreshAfterEdit();
+  }
+  // ⠿ reorder, typed front heights, seam drag and "reset heights" in a drawer stack (hardwareHTML).
+  // commit(codes, frontsMm|null) applies it — the wizard just redraws, the side panel saves.
+  function wireDrawerStack(host, b, c, commit){
+    var stack = host.querySelector("[data-dw-stack]");
+    if (!stack) return;
+    var codes = function(){ return KP3D.drawerCodes(b.interior, drawerSys()); };
+    var fronts = function(){ return KP3D.stackFrontsMm(b.interior, codes(), drawerBodyMm(b, c)) || []; };
+    var rst = host.querySelector("[data-dw-reset]");
+    if (rst) rst.addEventListener("click", function(){ commit(codes(), null); });
+    host.querySelectorAll("[data-dw-mm]").forEach(function(inp){
+      inp.addEventListener("change", function(){
+        var i = +inp.dataset.dwMm, cc = codes(), v = Math.round(parseFloat(inp.value));
+        var nf = isNaN(v) ? null : KP3D.resizeFront(fronts(), cc, i, v);
+        if (!nf){ toast("Þessi hæð gengur ekki — " + CODE_LABEL[cc[i]].toLowerCase() + " skúffa er minnst " + KP3D.FRONT_MIN[cc[i]] + " mm og hinar þurfa sitt pláss."); inp.value = Math.round(fronts()[i]); return; }
+        commit(cc, nf);
+      });
+      inp.addEventListener("keydown", function(e){ if (e.key === "Enter") inp.blur(); });
+    });
+    // seam between drawer l (below) and l+1 (above): dragging it down grows the upper front
+    stack.querySelectorAll("[data-dw-seam]").forEach(function(seam){
+      seam.addEventListener("pointerdown", function(e){
+        e.preventDefault();
+        var l = +seam.dataset.dwSeam, cc = codes(), base = fronts(), mins = cc.map(function(x){ return KP3D.FRONT_MIN[x]; });
+        var rowsPx = 0; stack.querySelectorAll(".dw-row").forEach(function(r){ rowsPx += r.getBoundingClientRect().height; });
+        var mmPerPx = base.reduce(function(a, x){ return a + x; }, 0) / Math.max(40, rowsPx), y0 = e.clientY, cur = base;
+        seam.classList.add("on"); try{ seam.setPointerCapture(e.pointerId); }catch(er){}
+        function move(ev){
+          var d = (ev.clientY - y0) * mmPerPx;
+          d = Math.max(-(base[l + 1] - mins[l + 1]), Math.min(base[l] - mins[l], d));
+          cur = base.slice(); cur[l] = Math.round(base[l] - d); cur[l + 1] = Math.round(base[l + 1] + d);
+          [l, l + 1].forEach(function(i){
+            var row = stack.querySelector('[data-dw-row="' + i + '"]'); if (!row) return;
+            row.style.flexGrow = Math.max(1, Math.round(cur[i] / 40));
+            var inp = row.querySelector("[data-dw-mm]"); if (inp) inp.value = cur[i];
+          });
+        }
+        function up(){
+          seam.classList.remove("on");
+          seam.removeEventListener("pointermove", move); seam.removeEventListener("pointerup", up); seam.removeEventListener("pointercancel", up);
+          if (cur !== base) commit(cc, cur);
+        }
+        seam.addEventListener("pointermove", move); seam.addEventListener("pointerup", up); seam.addEventListener("pointercancel", up);
+      });
+    });
+    // ⠿: drag a drawer up/down the stack; its height travels with it
+    stack.querySelectorAll("[data-dw-grip]").forEach(function(grip){
+      grip.addEventListener("pointerdown", function(e){
+        e.preventDefault();
+        var from = +grip.dataset.dwGrip, row = grip.closest(".dw-row"), to = from;
+        row.classList.add("dragging"); try{ grip.setPointerCapture(e.pointerId); }catch(er){}
+        function move(ev){
+          var rows = Array.prototype.slice.call(stack.querySelectorAll(".dw-row"));
+          to = from;
+          rows.forEach(function(r){ var rc = r.getBoundingClientRect(); if (ev.clientY >= rc.top && ev.clientY <= rc.bottom) to = +r.dataset.dwRow; });
+          rows.forEach(function(r){ r.classList.toggle("drop", +r.dataset.dwRow === to && to !== from); });
+        }
+        function up(){
+          row.classList.remove("dragging");
+          stack.querySelectorAll(".dw-row.drop").forEach(function(r){ r.classList.remove("drop"); });
+          grip.removeEventListener("pointermove", move); grip.removeEventListener("pointerup", up); grip.removeEventListener("pointercancel", up);
+          if (to === from) return;
+          var cc = codes(), ff = fronts(), code = cc.splice(from, 1)[0], h = ff.splice(from, 1)[0];
+          cc.splice(to, 0, code); ff.splice(to, 0, h);
+          commit(cc, b.interior.frontsMm ? ff : null);
+        }
+        grip.addEventListener("pointermove", move); grip.addEventListener("pointerup", up); grip.addEventListener("pointercancel", up);
+      });
+    });
   }
 
   // ---------- walls step: catalog drag-and-drop (Phase 7d-3) ----------
@@ -3172,7 +3258,15 @@
       renderUnitWizard();
     }); });
     var cur = function(){ return KP3D.drawerCodes(b.interior, drawerSys()); };
-    function setStack(codes, inner){ b.interior.codes = sortStack(codes); b.interior.inner = inner || null; b.interior.count = b.interior.codes.length; renderUnitWizard(); }
+    function setStack(codes, inner){
+      if (codes.join("") !== cur().join("")) delete b.interior.frontsMm; // a new stack starts from the default heights
+      b.interior.codes = codes.slice(); b.interior.inner = inner || null; b.interior.count = b.interior.codes.length; renderUnitWizard();
+    }
+    wireDrawerStack(side, b, c, function(codes, frontsMm){
+      b.interior.codes = codes; b.interior.count = codes.length;
+      if (frontsMm) b.interior.frontsMm = frontsMm; else delete b.interior.frontsMm;
+      renderUnitWizard();
+    });
     side.querySelectorAll("[data-dw-add]").forEach(function(el){ el.addEventListener("click", function(){
       var next = sortStack(cur().concat([el.dataset.dwAdd])), keep = b.interior.inner && stackAllowed(b, c, next, b.interior.inner);
       if (b.interior.inner && !keep) toast("Innskúffan passar ekki með " + next.length + " skúffum — hún var tekin út.");
@@ -4738,6 +4832,12 @@
       host.querySelectorAll('[data-dw-inner]').forEach(function(btn){
         btn.addEventListener("click", function(){ setDrawerStack(wall, zone, b.id, curCodes(), b.interior.inner === btn.dataset.dwInner ? null : btn.dataset.dwInner); });
       });
+      wireDrawerStack(host, b, c, function(codes, frontsMm){
+        if (b.locked){ lockedToast(); renderEditPanel(); return; }
+        b.interior.codes = codes; b.interior.count = codes.length;
+        if (frontsMm) b.interior.frontsMm = frontsMm; else delete b.interior.frontsMm;
+        save(); refreshAfterEdit();
+      });
     }
     function setShelves(delta){
       b.shelves = Math.max(c.shelfRange[0], Math.min(c.shelfRange[1], KP3D.shelvesOf(b) + delta));
@@ -5280,7 +5380,7 @@
           if (!c.tofrahornIds.haegri[state.carcass]) notes.push("Töfrahorn er ekki til í þessum skrokklit — veldu útfærslu handvirkt.");
         }
         if (isDrawerUnit(b)){ // the stack as drawn, top → bottom, with front heights — also when it matched a combo
-          var dCodes = KP3D.drawerCodes(b.interior, drawerSys()), dFr = KP3D.drawerFrontsMm(dCodes, drawerBodyMm(b, c)) || [];
+          var dCodes = KP3D.drawerCodes(b.interior, drawerSys()), dFr = KP3D.stackFrontsMm(b.interior, dCodes, drawerBodyMm(b, c)) || [];
           notes.push("Skúffur (" + DRAWER_SYSTEMS[drawerSys()].label + ", ofan frá): " + dCodes.map(function(cd, i){ return cd + (dFr[i] ? " " + Math.round(dFr[i]) + " mm" : ""); }).reverse().join(" / ") +
             (b.interior.inner ? " + innskúffa (" + b.interior.inner + ")" : "") + (v2 ? "" : " — ekki til sem stöðluð samsetning, vinsamlegast staðfestu."));
         } else if (b.interior && b.interior.mode === "hillur" && !v2){

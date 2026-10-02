@@ -263,6 +263,32 @@
     var wsum = codes.reduce(function(a, c){ return a + (FRONT_WEIGHT[c] || 200); }, 0);
     return codes.map(function(c){ return (FRONT_MIN[c] || 150) + spare * (FRONT_WEIGHT[c] || 200) / wsum; });
   }
+  // The customer's own front heights (interior.frontsMm, bottom → top — typed or dragged in the drawer
+  // builder, 2026-10-02) when they still match this stack and body; otherwise the defaults above.
+  function stackFrontsMm(interior, codes, bodyMm){
+    var f = interior && interior.frontsMm;
+    if (f && f.length === codes.length && codes.length > 1){
+      var sum = f.reduce(function(a, x){ return a + x; }, 0) + (codes.length - 1) * DRAWER_GAP_MM;
+      var ok = Math.abs(sum - bodyMm) < 1.5 && f.every(function(h, i){ return h >= (FRONT_MIN[codes[i]] || 150) - 0.5; });
+      if (ok) return f.slice();
+    }
+    return drawerFrontsMm(codes, bodyMm);
+  }
+  // Front i set to v mm: the other drawers give or take the difference, nearest first (the one above, then
+  // below, ...), never going under their own minimum. null when it can't be done.
+  function resizeFront(fronts, codes, i, v){
+    var mins = codes.map(function(c){ return FRONT_MIN[c] || 150; });
+    if (codes.length < 2 || v < mins[i] - 0.5) return null;
+    var out = fronts.slice(), rem = v - out[i], order = [];
+    out[i] = v;
+    for (var d = 1; d < codes.length; d++){ if (i + d < codes.length) order.push(i + d); if (i - d >= 0) order.push(i - d); }
+    for (var k = 0; k < order.length && Math.abs(rem) > 0.01; k++){
+      var j = order[k];
+      if (rem > 0){ var take = Math.min(rem, out[j] - mins[j]); out[j] -= take; rem -= take; }
+      else { out[j] -= rem; rem = 0; }
+    }
+    return rem > 0.5 ? null : out.map(function(h){ return Math.round(h * 10) / 10; });
+  }
   // seams as fractions of the body (bottom → top), like drawerFractions()
   function frontsToFractions(fronts, bodyMm){
     var out = [], acc = 0;
@@ -2556,7 +2582,7 @@
         var inter = b.interior;
         if (c.rusl) inter = { mode:"skuffur", codes:[state.drawerSystem === "merivo" ? "E" : "C"], count:1 }; // one tall pull-out
         if (inter && inter.mode === "skuffur"){ // the real stack: one Blum code per drawer, fronts sized from the codes
-          var dcodes = drawerCodes(inter, state.drawerSystem), dbody = hM * 1000 - 100, dfr = drawerFrontsMm(dcodes, dbody);
+          var dcodes = drawerCodes(inter, state.drawerSystem), dbody = hM * 1000 - 100, dfr = stackFrontsMm(inter, dcodes, dbody);
           inter = Object.assign({}, inter, { codes:dcodes, count:dcodes.length, fractions:dfr ? frontsToFractions(dfr, dbody) : null });
         }
         addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, carcassMat, c.fridge ? steelMat : frontMat, inter,
@@ -3366,7 +3392,7 @@
     DRAWER_CODES: DRAWER_CODES,
     FRONT_MIN: FRONT_MIN,
     drawerCodes: drawerCodes,
-    drawerFrontsMm: drawerFrontsMm,
+    drawerFrontsMm: drawerFrontsMm, stackFrontsMm: stackFrontsMm, resizeFront: resizeFront,
     drawerComboKey: drawerComboKey,
     ovenCodesOf: ovenCodesOf,
     OVEN_DEFAULT: OVEN_DEFAULT,
