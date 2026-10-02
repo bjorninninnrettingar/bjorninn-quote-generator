@@ -2458,6 +2458,18 @@ function resetLayout() {
 // purely so the office can see how many sheets the WHOLE material needs
 // when ordering, since Cutty itself has no such estimate (it doesn't nest,
 // just lists pieces for the saw's own optimizer).
+//
+// Also flags a genuinely stale LOCAL copy (found 2026-10-02: two office
+// people on T-15, one on a device whose localStorage still held an old
+// pre-scope-shrink or just less-efficiently-packed layout, saw 21 and 12
+// boards while a from-scratch rebuild needed only 4 — all three numbers
+// are real, no data was missing, it's purely that a device's own cached
+// `grain:layout:*` always wins over Airtable on load and nothing ever told
+// either person their copy wasn't the shared one). Only warns when a fresh
+// keepTogether-only repack would need FEWER sheets than what's currently
+// loaded — never when it'd need the same or more, since that's the normal
+// case for manual arranging that's already better than a blind auto-nest,
+// not staleness.
 let estimateShown = false;
 function estimateAllSheets() {
   const card = $("estimateCard");
@@ -2471,11 +2483,24 @@ function estimateAllSheets() {
   const colFirst = packGuillotine(allGroups, u.w, u.l, groupWidth, groupLen);
   const rowFirst = packGuillotine(allGroups, u.l, u.w, groupLen, groupWidth);
   const allSheets = Math.min(colFirst.sheets.length, rowFirst.sheets.length);
+
+  const ktGroups = allGroups.filter(g => g.keepTogether);
+  const ktColFirst = packGuillotine(ktGroups, u.w, u.l, groupWidth, groupLen);
+  const ktRowFirst = packGuillotine(ktGroups, u.l, u.w, groupLen, groupWidth);
+  const freshKtSheets = Math.min(ktColFirst.sheets.length, ktRowFirst.sheets.length);
   groups = realGroups;   // restore — the estimate must never replace the real plan
+
+  const staleWarning = freshKtSheets < currentSheets ? `
+    <div class="hint" style="color:#ffb27a;margin-top:8px;">
+      ⚠ Ný útreikningur úr Sögunarlista kæmi þessu fyrir á <b>${freshKtSheets}</b> plötum (núna hlaðið: ${currentSheets}).
+      Þitt eintak gæti verið úrelt (staðbundið, ekki endilega það sem aðrir sjá).
+      <button class="ghost small" style="margin-top:6px;" onclick="estimateAllSheets();resetLayout()">Uppfæra mál núna</button>
+    </div>` : "";
 
   card.innerHTML = `<div class="card" style="border-color:#2a5a8f;background:#12202a;">
     <label style="color:#7ac2ff;">📐 Áætlað fyrir allt efnið (æðahópar hér + einingar sem Cutty sagar): ~${allSheets} plötur</label>
     <div class="hint">Núverandi röðun hér (aðeins samfellu-hópar): ${currentSheets} plötur. Gróf áætlun til að panta efni — breytir engu í röðuninni sjálfri.</div>
+    ${staleWarning}
   </div>`;
   estimateShown = true;
 }
