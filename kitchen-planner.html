@@ -149,6 +149,7 @@
   .warn-item{ display:block; width:100%; text-align:left; font:inherit; font-size:12.5px; line-height:1.4; color:#6b4210; background:none; border:none; padding:5px 0; cursor:pointer; border-top:1px solid #f4dcb8; }
   .warn-item:first-of-type{ border-top:none; }
   .warn-item:hover{ color:#a85a0e; text-decoration:underline; }
+  .ed-newunit{ margin-left:auto; padding:8px 16px; font-size:14px; white-space:nowrap; flex:0 0 auto; }
   .ed-hint{ font-size:12.5px; color:var(--ink-soft); text-align:right; flex:1 1 0; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .view-toggle button{ white-space:nowrap; }
   .cat-title{ font-size:11.5px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--gold); margin:4px 0 8px; }
@@ -406,6 +407,9 @@
   .sw-tile.active::after{ content:"✓"; position:absolute; top:6px; right:6px; width:20px; height:20px; border-radius:50%; background:var(--blue); color:#fff; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; }
   .h-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; }
   .h-grid .sw-tile img{ object-fit:contain; background:#fafafa; }
+  .fit-ask{ position:fixed; left:50%; bottom:28px; transform:translateX(-50%); z-index:300; background:#fff; color:var(--ink, #191919); border:1px solid var(--line); border-radius:14px; box-shadow:0 12px 36px rgba(0,0,0,.18); padding:14px 16px; max-width:440px; width:calc(100% - 32px); font-size:14px; }
+  .fit-ask p{ margin:0 0 10px; line-height:1.4; }
+  .fit-ask-btns{ display:flex; gap:8px; justify-content:flex-end; }
   .sw-search{ width:100%; box-sizing:border-box; margin:0 0 10px; padding:9px 12px; border:1px solid var(--line, #ddd); border-radius:10px; font:inherit; font-size:14px; background:#fff; }
   .h-grid .sw-name small, .sw-tile .sw-name small{ display:block; font-weight:400; color:var(--ink-soft); margin-top:2px; font-size:11px; }
   /* ---- define your space ---- */
@@ -830,7 +834,7 @@
             <button type="button" id="undoBtn" title="Afturkalla (⌘Z)" disabled>↶</button>
             <button type="button" id="redoBtn" title="Endurgera (⌘⇧Z)" disabled>↷</button>
           </div>
-          <span class="ed-hint">＋ Ný eining bætir við skáp · smelltu á skáp til að breyta</span>
+          <button type="button" class="btn btn-primary ed-newunit" id="edNewUnit">＋ Ný eining</button>
         </div>
         <div class="three-wrap" id="threeWrap"></div>
         <div class="three-wrap" id="planWrap" hidden></div>
@@ -2448,12 +2452,17 @@
   // grows right; if a neighbour or the wall end blocks that, it grows LEFT
   // instead (its right edge stays put). Returns false when even the whole free
   // stretch between its neighbours is too small.
-  function growBlock(wall, zone, b, w){
-    if (wall.island){ b.widthMm = w; return true; } // island rows are packed: they just re-pack
+  // the free stretch b could fill between its neighbours: [lo, hi]
+  function growRoom(wall, zone, b){
     var list = wall[zone], idx = list.indexOf(b), spans = spansOf(wall, zone), me = spans[idx];
     var lo = idx > 0 ? spans[idx - 1].end : cornerClearance(wall, zone);
     var hi = idx < spans.length - 1 ? spans[idx + 1].start : wall.lengthMm;
-    var cb = crossBounds(wall, zone, b, me, lo, hi); lo = cb[0]; hi = cb[1];
+    var cb = crossBounds(wall, zone, b, me, lo, hi);
+    return { lo:cb[0], hi:cb[1], me:me };
+  }
+  function growBlock(wall, zone, b, w){
+    if (wall.island){ b.widthMm = w; return true; } // island rows are packed: they just re-pack
+    var room = growRoom(wall, zone, b), lo = room.lo, hi = room.hi, me = room.me;
     if (w > hi - lo) return false;
     var start = me.start;
     if (start + w > hi) start = hi - w; // right side is blocked: grow to the left
@@ -2483,7 +2492,11 @@
     }
     if (key === "widthMm"){
       if (v !== b.widthMm && !growBlock(f.wall, f.zone, b, v)){
-        toast("Ekki nóg pláss á " + f.wall.label.toLowerCase() + " fyrir þessa breidd.");
+        var room = growRoom(f.wall, f.zone, b), fitW = Math.min(c.maxW, Math.floor((room.hi - room.lo) / 10) * 10);
+        if (fitW >= c.minW && fitW > b.widthMm) offerFit(c.label + " " + v + " mm passar ekki á " + wallDat(f.wall) + ".", fitW, function(){
+          if (growBlock(f.wall, f.zone, b, fitW)){ save(); refreshAfterEdit(); }
+        });
+        else toast("Ekki nóg pláss á " + f.wall.label.toLowerCase() + " fyrir þessa breidd.");
         return false;
       }
     } else {
@@ -3124,12 +3137,12 @@
       }
       html += variantHTML(b, c);
       html += '<div class="edit-field"><label>Hvar?</label><select data-uw-wall>' + walls.map(function(w){
-        return '<option value="' + w.id + '"' + (w.id === uw.wallId ? ' selected' : '') + (uwFits(w, b) ? '' : ' disabled') + '>' + w.label + (uwFits(w, b) ? '' : ' — ekki pláss') + '</option>';
+        return '<option value="' + w.id + '"' + (w.id === uw.wallId ? ' selected' : '') + '>' + w.label + (uwFits(w, b) ? '' : ' — passar ekki í þessari breidd') + '</option>';
       }).join("") + '</select></div>';
       var target = walls.find(function(w){ return w.id === uw.wallId; }), ok = !!(target && uwFits(target, b));
       html += '<div class="uw-actions"><button type="button" class="btn btn-secondary btn-small" data-uw-back>← Til baka</button>' +
-        '<button type="button" class="btn btn-primary" data-uw-add' + (ok ? '' : ' disabled') + '>Setja inn</button></div>' +
-        (ok ? '' : '<p class="sec-note">Ekki nóg pláss á þessum vegg — veldu annan eða mjórri skáp.</p>');
+        '<button type="button" class="btn btn-primary" data-uw-add' + (target ? '' : ' disabled') + '>Setja inn</button></div>' +
+        (ok || !target ? '' : '<p class="sec-note">Passar ekki á þessum vegg í þessari breidd — „Setja inn“ býður mjórri skáp sem passar.</p>');
     }
     side.innerHTML = html;
     wireUnitWizard(side);
@@ -3186,7 +3199,13 @@
       var wall = surfaces().find(function(w){ return w.id === uw.wallId; });
       if (!wall) return;
       var pl = appendPlacement(wall, c.zone, b.widthMm, probeSpan(c.zone, b));
-      if (!pl.fits){ toast("Ekki nóg pláss á " + wall.label.toLowerCase() + " fyrir " + c.label.toLowerCase() + "."); return; }
+      if (!pl.fits){
+        var widest = Math.max.apply(null, [0].concat(freeIntervals(wall, c.zone, null, probeSpan(c.zone, b)).map(function(iv){ return iv[1] - iv[0]; })));
+        var fitW = wall.island ? 0 : Math.min(c.maxW, Math.floor(widest / 10) * 10);
+        if (fitW >= c.minW) offerFit(c.label + " " + b.widthMm + " mm passar ekki á " + wallDat(wall) + ".", fitW, function(){ b.widthMm = fitW; add.click(); });
+        else toast("Ekki nóg pláss á " + wall.label.toLowerCase() + " fyrir " + c.label.toLowerCase() + ".");
+        return;
+      }
       insertBlockAt(wall, c.zone, b, pl.offsetMm);
       matchPanelToNeighbour(wall, c.zone, b);
       landedBlockId = b.id; selectedBlockId = b.id; selectedWallId = null;
@@ -3380,8 +3399,7 @@
       '<button type="button" class="btn btn-secondary btn-small" data-act="shape">Breyta lögun og lengd veggja</button>';
     var html = sec("rymi", "Breyta rými", roomBody);
 
-    // --- cabinets: one button into the "Ný eining" wizard (the old drag catalog is gone, 2026-09-30) ---
-    html = '<button type="button" class="btn btn-primary uw-open" data-act="newunit">＋ Ný eining</button>' + html;
+    // (cabinets: "＋ Ný eining" sits at the right end of the 3D toolbar, #edNewUnit — moved there 2026-10-02)
     // --- windows + doors ---
     html += sec("gluggar", "Hurðir og gluggar",
       item("opening", "gluggi", "window", "Gluggi", WINDOW_DEFAULT.heightMm + ' × ' + WINDOW_DEFAULT.widthMm + ' mm', true) +
@@ -3663,7 +3681,18 @@
     var pl = placeInWall(targetWall, zone, found.block.widthMm, alongMm, blockId,
       probeSpan(zone, found.block, zone === "wall" && elevMm != null ? snapElev(targetWall, found.block, elevMm) : null));
     if (!pl.fits){
-      toast("Ekki nóg pláss á " + targetWall.label.toLowerCase() + ".");
+      // dropped into a gap that's too narrow: offer to shrink it to fit that gap
+      var cc = CATALOG[found.block.type], probeD = probeSpan(zone, found.block);
+      var gap = targetWall.island ? null : freeIntervals(targetWall, zone, blockId, probeD).find(function(iv){ return alongMm >= iv[0] && alongMm <= iv[1]; });
+      var fitW = gap ? Math.min(cc.maxW, Math.floor((gap[1] - gap[0]) / 10) * 10) : 0;
+      if (fitW >= cc.minW && fitW < found.block.widthMm) offerFit(cc.label + " " + found.block.widthMm + " mm passar ekki í þetta bil.", fitW, function(){
+        var bb = detachBlock(found.wall, zone, blockId);
+        bb.widthMm = fitW;
+        insertBlockAt(targetWall, zone, bb, gap[0]);
+        matchPanelToNeighbour(targetWall, zone, bb);
+        landedBlockId = bb.id; save(); refreshAfterEdit();
+      });
+      else toast("Ekki nóg pláss á " + targetWall.label.toLowerCase() + ".");
       return;
     }
     var b = detachBlock(found.wall, zone, blockId);
@@ -4822,12 +4851,29 @@
   // ---------- summary step ----------
   // ---------- toast ----------
   var toastTimer;
+  // "X passar ekki — viltu setja Y mm í staðinn?" (user, 2026-10-02): offered instead of a flat refusal
+  // whenever a narrower cabinet would fit the space.
+  function wallDat(w){ return /^Veggur\b/.test(w.label) ? w.label.replace(/^Veggur/, "vegg") : w.label.toLowerCase(); } // "á vegg 2"
+  function offerFit(msg, fitW, onYes){
+    var old = document.getElementById("fitAsk"); if (old) old.remove();
+    var el = document.createElement("div");
+    el.id = "fitAsk"; el.className = "fit-ask"; el.setAttribute("role", "dialog");
+    el.innerHTML = '<p>' + msg + ' <b>Viltu setja hann ' + fitW + ' mm breiðan í staðinn?</b></p>' +
+      '<div class="fit-ask-btns"><button type="button" class="btn btn-primary" data-fit="yes">Já, ' + fitW + ' mm</button><button type="button" class="btn" data-fit="no">Nei takk</button></div>';
+    document.body.appendChild(el);
+    function close(){ el.remove(); document.removeEventListener("keydown", onKey); }
+    function onKey(e){ if (e.key === "Escape") close(); else if (e.key === "Enter"){ close(); onYes(); } }
+    el.querySelector('[data-fit="yes"]').addEventListener("click", function(){ close(); onYes(); });
+    el.querySelector('[data-fit="no"]').addEventListener("click", close);
+    document.addEventListener("keydown", onKey);
+    el.querySelector('[data-fit="yes"]').focus();
+  }
   function toast(msg){
     var el = document.getElementById("toastEl");
     if (!el){
       el = document.createElement("div");
       el.id = "toastEl";
-      el.style.cssText = "position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#191919;color:#fff;padding:10px 16px;border-radius:8px;font-size:13.5px;z-index:50;box-shadow:0 6px 20px rgba(0,0,0,.2);";
+      el.style.cssText = "position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#191919;color:#fff;padding:10px 16px;border-radius:8px;font-size:13.5px;z-index:300;box-shadow:0 6px 20px rgba(0,0,0,.2);";
       document.body.appendChild(el);
     }
     el.textContent = msg;
@@ -5391,6 +5437,7 @@
   });
 
   document.getElementById("resetBtn").addEventListener("click", resetAll);
+  document.getElementById("edNewUnit").addEventListener("click", function(){ openUnitWizard(); });
   document.getElementById("reportBtn").addEventListener("click", openReportPop);
 
   document.getElementById("warnChip").addEventListener("click", function(){
