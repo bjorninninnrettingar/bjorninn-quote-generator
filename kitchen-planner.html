@@ -480,16 +480,19 @@
   .hw-count{ display:flex; align-items:center; gap:4px; font-size:12.5px; color:var(--ink-soft); }
   .hw-count b{ color:var(--ink); min-width:14px; text-align:center; }
   /* drawer builder: the stack drawn as fronts (top drawer first), then add / inner-drawer buttons */
-  .dw-stack{ display:flex; flex-direction:column; gap:3px; margin-top:8px; min-height:120px; }
-  .dw-row{ display:flex; align-items:center; gap:8px; padding:4px 8px; border:1px solid var(--line); border-radius:6px; background:#fff; font-size:12.5px; min-height:26px; }
+  .dw-stack{ display:flex; flex-direction:column; gap:7px; margin-top:8px; min-height:150px; }
+  .dw-row{ display:flex; align-items:center; gap:8px; padding:6px 10px; transition:transform .16s ease; border:1px solid var(--line); border-radius:6px; background:#fff; font-size:12.5px; min-height:36px; }
   .dw-row b{ font-size:14px; min-width:14px; }
   .dw-row span{ color:var(--ink-soft); flex:1; }
   .dw-row small{ color:var(--ink-soft); font-size:11px; }
   .dw-grip{ cursor:grab; color:var(--ink-soft); font-size:14px; flex:0 0 auto !important; touch-action:none; user-select:none; }
-  .dw-row.dragging{ opacity:.55; }
+  .dw-row.dragging{ position:relative; z-index:3; transition:none; box-shadow:0 8px 20px rgba(0,0,0,.16); border-color:var(--blue); cursor:grabbing; }
+  .dw-stack.reordering .dw-seam{ opacity:0; }
   .dw-row.drop{ border-color:var(--blue); box-shadow:0 0 0 2px rgba(61,97,193,.18); }
-  .dw-mm{ width:58px; padding:2px 4px; border:1px solid var(--line); border-radius:5px; font:inherit; font-size:12.5px; text-align:right; }
-  .dw-seam{ height:7px; margin:-5px 0; position:relative; z-index:1; cursor:ns-resize; touch-action:none; }
+  .dw-row span{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .dw-mm{ width:68px; flex:0 0 auto; padding:4px 6px; border:1px solid var(--line); border-radius:6px; font:inherit; font-size:13px; text-align:right; -moz-appearance:textfield; appearance:textfield; }
+  .dw-mm::-webkit-outer-spin-button, .dw-mm::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+  .dw-seam{ height:9px; margin:-8px 0; position:relative; z-index:1; cursor:ns-resize; touch-action:none; }
   .dw-seam::after{ content:""; position:absolute; left:30%; right:30%; top:2px; height:3px; border-radius:2px; background:var(--line); }
   .dw-seam:hover::after, .dw-seam.on::after{ background:var(--blue); }
   .dw-reset{ margin-top:6px; border:0; background:none; color:var(--blue); font:inherit; font-size:12.5px; cursor:pointer; padding:0; }
@@ -2227,6 +2230,10 @@
     if (wall.island) return 0; // free-standing rows have no corner
     return KP3D.cornerClearanceMm(KP3D.surfacesOf(state), state.walls.indexOf(wall), zoneKey);
   }
+  // 19 mm áfella kept free where a run would touch a wall face (KP3D.afellaMm) — the usable stretch of a wall
+  function afella(wall, zoneKey){ return wall.island ? { start:0, end:0 } : KP3D.afellaMm(KP3D.surfacesOf(state), state.walls.indexOf(wall), zoneKey); }
+  function runStartMm(wall, zoneKey){ return cornerClearance(wall, zoneKey) + afella(wall, zoneKey).start; }
+  function runEndMm(wall, zoneKey){ return wall.lengthMm - afella(wall, zoneKey).end; }
 
   // ---------- free placement along a wall ----------
   // Cabinets may stand anywhere along a wall with gaps between them (b.gapMm =
@@ -2287,15 +2294,15 @@
     return [lo, hi];
   }
   function freeIntervals(wall, zone, excludeId, probe){
-    var pos = cornerClearance(wall, zone), out = [];
+    var pos = runStartMm(wall, zone), out = [], endMm = runEndMm(wall, zone);
     if (!probe && excludeId){ var pf = findBlock(excludeId); if (pf && pf.zone === zone) probe = probeSpan(zone, pf.block); }
     var all = spansOf(wall, zone, excludeId).concat(crossSpans(wall, zone, probe)).sort(function(a, b){ return a.start - b.start; });
     all.forEach(function(sp){
       if (sp.start > pos) out.push([pos, sp.start]);
       pos = Math.max(pos, sp.end);
     });
-    if (wall.lengthMm > pos) out.push([pos, wall.lengthMm]);
-    return out;
+    if (endMm > pos) out.push([pos, endMm]);
+    return out.filter(function(iv){ return iv[0] < endMm; }).map(function(iv){ return [iv[0], Math.min(iv[1], endMm)]; });
   }
   function canFit(wall, zone, widthMm, probe){
     if (wall.open) return false;
@@ -2324,7 +2331,7 @@
       if (!best || d < best.d) best = { s:s0, d:d };
     });
     var spans = spansOf(wall, zone, excludeId);
-    var at = best ? best.s : Math.max(cornerClearance(wall, zone), Math.min(wall.lengthMm - widthMm, want));
+    var at = best ? best.s : Math.max(runStartMm(wall, zone), Math.min(runEndMm(wall, zone) - widthMm, want));
     return { offsetMm:at, index:spans.filter(function(sp){ return sp.start < at; }).length, fits:!!best };
   }
   // first free spot after the last cabinet (or wherever there's room)
@@ -2426,8 +2433,8 @@
     if (wall.island){ moveBlock(wall, zone, id, dir); return; } // island rows are packed: ◀▶ reorders
     var b = list[i], spans = spansOf(wall, zone);
     var me = spans[i];
-    var lo = i > 0 ? spans[i - 1].end : cornerClearance(wall, zone);
-    var hi = i < spans.length - 1 ? spans[i + 1].start : wall.lengthMm;
+    var lo = i > 0 ? spans[i - 1].end : Math.min(me.start, runStartMm(wall, zone)); // keeps the áfella free at a wall
+    var hi = i < spans.length - 1 ? spans[i + 1].start : Math.max(me.end, runEndMm(wall, zone));
     var cb = crossBounds(wall, zone, b, me, lo, hi); lo = cb[0]; hi = cb[1];
     var target = me.start + dir * stepMm;
     var ns = Math.max(lo, Math.min(hi - b.widthMm, target));
@@ -2464,8 +2471,8 @@
   // the free stretch b could fill between its neighbours: [lo, hi]
   function growRoom(wall, zone, b){
     var list = wall[zone], idx = list.indexOf(b), spans = spansOf(wall, zone), me = spans[idx];
-    var lo = idx > 0 ? spans[idx - 1].end : cornerClearance(wall, zone);
-    var hi = idx < spans.length - 1 ? spans[idx + 1].start : wall.lengthMm;
+    var lo = idx > 0 ? spans[idx - 1].end : Math.min(me.start, runStartMm(wall, zone)); // (old drafts may sit closer than the áfella)
+    var hi = idx < spans.length - 1 ? spans[idx + 1].start : Math.max(me.end, runEndMm(wall, zone));
     var cb = crossBounds(wall, zone, b, me, lo, hi);
     return { lo:cb[0], hi:cb[1], me:me };
   }
@@ -2547,6 +2554,116 @@
   function setBlockElev(b, wall, mm){
     var v = snapElev(wall, b, mm);
     if (v === KP3D.defaultElevOf(b.type)) delete b.elevMm; else b.elevMm = v;
+  }
+
+  // ---- úthliða-catch (2026-10-02): every visible cabinet side should get a 19 mm end panel (úthlið) ----
+  // A side is visible when nothing covers it: the run ends there (not against a wall/áfella or the other
+  // wall's run in a corner), there is a gap, or the neighbour is clearly lower/shallower (a tall unit next
+  // to a base unit). Island rows: both ends. Panels/shelf stacks never need one.
+  function bodyLike(b){ var c = CATALOG[b.type]; return !c.panel && !c.shelfStack; }
+  function missingEndPanels(){
+    var out = [];
+    surfaces().forEach(function(wall){
+      if (wall.open) return;
+      ["floor", "wall"].forEach(function(zone){
+        var sp = spansOf(wall, zone);
+        if (!sp.length) return;
+        var startCovered = !wall.island && (afella(wall, zone).start > 0 || cornerClearance(wall, zone) > 0);
+        var endCovered = !wall.island && afella(wall, zone).end > 0;
+        var rs = runStartMm(wall, zone), re = runEndMm(wall, zone);
+        sp.forEach(function(me, k){
+          if (!bodyLike(me.b)) return;
+          var c = CATALOG[me.b.type], h = blockHeightMm(me.b, c), d = me.b.depthMm || c.d;
+          var mine = probeSpan(zone, me.b), myLo = mine.lo, myHi = zone === "floor" ? h : mine.hi;
+          [[-1, sp[k - 1]], [1, sp[k + 1]]].forEach(function(pair){
+            var dir = pair[0], nb = pair[1], exposed, bareLo = myLo; // bareLo: the visible part of the side starts here
+            // (old drafts may stand flush to the wall itself, without an áfella — that side is covered too)
+            if (!nb) exposed = !(dir < 0 ? startCovered && (Math.abs(me.start - rs) < 2 || Math.abs(me.start - cornerClearance(wall, zone)) < 2)
+                                        : endCovered && (Math.abs(me.end - re) < 2 || Math.abs(me.end - wall.lengthMm) < 2));
+            else {
+              var gap = dir < 0 ? me.start - nb.end : nb.start - me.end;
+              if (CATALOG[nb.b.type].panel && gap < 2) exposed = false;
+              else {
+                var nc = CATALOG[nb.b.type], nh = blockHeightMm(nb.b, nc), nd = nb.b.depthMm || nc.d;
+                exposed = gap > 2 || nh < h - 50 || nd < d - 50;
+                if (gap <= 2 && nd >= d - 50 && nh < h - 50) bareLo = zone === "floor" ? nh + (nc.counter ? 32 : 0) : myLo; // only the part above the lower neighbour shows
+              }
+            }
+            if (exposed && !wall.island){ // a tall unit / wall unit (other zone) right against this side covers it — if it covers all of the bare part
+              var edge = dir < 0 ? me.start : me.end, other = zone === "floor" ? "wall" : "floor";
+              var covers = crossSpans(wall, zone, probeSpan(zone, me.b)).filter(function(o){ return o.b && Math.abs((dir < 0 ? o.end : o.start) - edge) < 2; })
+                .map(function(o){ return probeSpan(other, o.b); });
+              if (covers.some(function(v){ return v.lo <= bareLo + 20 && v.hi >= myHi - 20; })) exposed = false;
+            }
+            if (exposed) out.push({ wall:wall, zone:zone, b:me.b, dir:dir });
+          });
+        });
+      });
+    });
+    return out;
+  }
+  // put a matching end panel on side `dir` (-1 left / 1 right) of b; pushes the cabinets beyond it along
+  // when there is room further on. false (nothing changed) when it can't fit.
+  function addEndPanel(wall, zone, b, dir){
+    var list = wall[zone], i = list.indexOf(b);
+    if (i < 0) return false;
+    var snapshot = JSON.stringify(list), c = CATALOG[b.type];
+    var type = zone === "wall" ? "uthlidefri" : (c.cls === "tall" || c.fridge || c.cls === "oven") ? "uthlidhar" : "uthlid";
+    var pc = CATALOG[type], p = newBlock(type);
+    var h = Math.max(pc.minH, Math.min(dimRange(pc, "heightMm")[1], blockHeightMm(b, c))), d = Math.max(pc.minD, Math.min(pc.maxD, b.depthMm || c.d));
+    if (h !== pc.h) p.heightMm = h;
+    if (d !== pc.d) p.depthMm = d;
+    if (zone === "wall"){ var e = KP3D.elevOf(b); if (e !== KP3D.defaultElevOf(type)) p.elevMm = e; }
+    var W = p.widthMm, at = dir < 0 ? i : i + 1;
+    if (dir < 0 && (list[i].gapMm || 0) >= W){ p.gapMm = list[i].gapMm - W; delete list[i].gapMm; list.splice(i, 0, p); } // room before it
+    else {
+      // panel right after list[at-1]; everything from `at` on moves right until a gap swallows the 19 mm
+      var need = W;
+      if (dir < 0){ need = W - (list[i].gapMm || 0); p.gapMm = list[i].gapMm || 0; delete list[i].gapMm; }
+      list.splice(at, 0, p);
+      for (var k = at + 1; k < list.length && need > 0; k++){
+        var g = list[k].gapMm || 0, take = Math.min(g, need);
+        if (take){ list[k].gapMm = g - take; if (!list[k].gapMm) delete list[k].gapMm; need -= take; }
+      }
+      var sp = spansOf(wall, zone);
+      if (!wall.island && sp[sp.length - 1].end > runEndMm(wall, zone) + 0.5){ wall[zone] = JSON.parse(snapshot); return false; } // island rows just grow
+    }
+    if (p.gapMm != null && p.gapMm <= 0) delete p.gapMm;
+    // a tall panel (or a tall unit pushed along by one) may now run into a wall unit next to it: those wall
+    // units move along by the same 19 mm (their own run absorbs it in the next gap)
+    var otherSnap = null;
+    if (zone === "floor" && !wall.island){
+      var wl = wall.wall;
+      var hits = function(x){ // overlap of more than 2 mm with a tall floor unit (crossOverlap tolerates 20)
+        var me = spansOf(wall, "wall").find(function(sp){ return sp.b.id === x.id; });
+        return me && crossSpans(wall, "wall", probeSpan("wall", x)).some(function(o){ return o.b && Math.min(o.end, me.end) - Math.max(o.start, me.start) > 2; });
+      };
+      for (var j = 0; j < wl.length; j++){
+        if (!hits(wl[j])) continue;
+        if (!otherSnap) otherSnap = JSON.stringify(wl);
+        wl[j].gapMm = (wl[j].gapMm || 0) + W; var rest = W;
+        for (var q = j + 1; q < wl.length && rest > 0; q++){ var gq = wl[q].gapMm || 0, tq = Math.min(gq, rest); if (tq){ wl[q].gapMm = gq - tq; rest -= tq; } }
+      }
+    }
+    var wsn = spansOf(wall, "wall");
+    var bad = list.some(function(x){ return crossOverlap(wall, zone, x); }) || (otherSnap && (wall.wall.some(function(x){ return crossOverlap(wall, "wall", x); }) || (wsn.length && wsn[wsn.length - 1].end > runEndMm(wall, "wall") + 0.5)));
+    if (bad){ wall[zone] = JSON.parse(snapshot); if (otherSnap) wall.wall = JSON.parse(otherSnap); return false; }
+    return true;
+  }
+  var panelsAskedFor = null; // the plan we already asked about (don't nag twice for the same thing)
+  function checkEndPanelsThen(go){
+    var miss = missingEndPanels(), sig = JSON.stringify(state.walls.map(function(w){ return [w.floor, w.wall]; })) + JSON.stringify(state.islands);
+    if (!miss.length || panelsAskedFor === sig){ go(); return; }
+    askChoice('<b>Það vantar úthliðar á ' + miss.length + ' ' + plural(miss.length, "stað", "stöðum") + '.</b> Sýnilegar hliðar á skápum fá 19 mm úthlið í framhliðaefninu. Viltu að við bætum þeim við?',
+      "Já, bæta við", "Nei, halda áfram",
+      function(){
+        var added = 0, failed = 0;
+        missingEndPanels().forEach(function(m){ if (addEndPanel(m.wall, m.zone, m.b, m.dir)) added++; else failed++; });
+        save(); refreshAfterEdit();
+        panelsAskedFor = JSON.stringify(state.walls.map(function(w){ return [w.floor, w.wall]; })) + JSON.stringify(state.islands);
+        toast("Bætti við " + added + " " + plural(added, "úthlið", "úthliðum") + (failed ? " — " + failed + " komust ekki fyrir, færðu skápana aðeins til" : "") + ". Skoðaðu og ýttu aftur á Áfram.");
+      },
+      function(){ panelsAskedFor = sig; go(); });
   }
 
   // Úthlið (19 mm end panel) placed against a cabinet takes that cabinet's
@@ -2644,9 +2761,19 @@
     var LM = window.KP_LINEMAP; if (!LM) return "";
     var opts = [], cur = null, label = "";
     if (c.oven){
+      // "Í háum skáp" (ofnaskapur, OFN1–5/7) or "Í grunnskáp" (ofnaskapurLagur, OFN6) — user, 2026-10-02
+      var pills = '<div class="edit-field"><label>Ofninn er</label><div class="hw-toggle">' +
+        '<button type="button" class="hw-btn' + (!c.lowOven ? ' active' : '') + '" data-oven-type="ofnaskapur">Í háum skáp</button>' +
+        '<button type="button" class="hw-btn' + (c.lowOven ? ' active' : '') + '" data-oven-type="ofnaskapurLagur">Í grunnskáp</button></div></div>';
+      if (c.lowOven) return pills + '<p class="sec-note">Ofninn undir borðplötu, K-skúffa undir honum.</p>';
       label = "Undir ofninum"; cur = ovenKeyOf(b);
       opts = Object.keys(LM.ofn[drawerSys()] || {}).map(function(k){ return [k, comboLabel(k)]; });
       opts.push(["", "Skápur með hurð (engar skúffur)"]);
+      var ovCodes = KP3D.ovenCodesOf(b, drawerSys()), ovStack = cur === "" ? "" : '<div class="edit-field"><label>Frontahæðir undir ofni</label>' +
+        drawerRowsHTML(ovCodes, ovenStackModel(b).fronts(), { custom:!!b.ovenFrontsMm }) + '</div>';
+      return pills + '<div class="edit-field"><label>' + label + '</label><select data-role="variant">' + opts.map(function(o){
+        return '<option value="' + o[0] + '"' + (o[0] === cur ? ' selected' : '') + '>' + o[1] + '</option>';
+      }).join("") + '</select><p class="sec-note">Aðeins samsetningar sem Björninn smíðar (' + DRAWER_SYSTEMS[drawerSys()].label + ').</p></div>' + ovStack;
     } else if (c.bur){
       label = "Innvols"; cur = burKeyOf(b);
       opts = Object.keys(LM.bur[drawerSys()] || {}).map(function(k){ return [k, comboLabel(k) + " + hillur"]; });
@@ -2658,6 +2785,26 @@
       return '<option value="' + o[0] + '"' + (o[0] === cur ? ' selected' : '') + '>' + o[1] + '</option>';
     }).join("") + '</select>' + (c.oven || c.bur ? '<p class="sec-note">Aðeins samsetningar sem Björninn smíðar (' + DRAWER_SYSTEMS[drawerSys()].label + ').</p>' : '') + '</div>';
   }
+  // The drawer stack as rows, top drawer first as the cabinet stands: ⠿ drags a drawer to another place in
+  // the stack (opts.reorder), the line between two drawers drags their shared seam, each height can be typed
+  // (2026-10-02). Shared by the drawer builder and the drawers under an oven.
+  function drawerRowsHTML(codes, fronts, opts){
+    var multi = codes.length > 1;
+    return '<div class="dw-stack" data-dw-stack>' + codes.map(function(code, i){ return { code:code, i:i, mm:fronts[i] }; }).reverse().map(function(d, k){
+      return (k ? '<div class="dw-seam" data-dw-seam="' + d.i + '" title="Dragðu til að breyta hæð skúffanna"></div>' : '') +
+        '<div class="dw-row" data-dw-row="' + d.i + '" style="flex-grow:' + Math.max(1, Math.round((d.mm || 150) / 40)) + '">' +
+        (multi && opts.reorder ? '<span class="dw-grip" data-dw-grip="' + d.i + '" title="Dragðu til að færa skúffuna">⠿</span>' : '') +
+        '<b>' + d.code + '</b><span>' + CODE_LABEL[d.code] + '</span>' +
+        (d.mm ? (multi ? '<input class="dw-mm" type="number" step="1" data-dw-mm="' + d.i + '" value="' + Math.round(d.mm) + '" title="Hæð framhliðar (mm)"><small>mm</small>' : '<small>' + Math.round(d.mm) + ' mm</small>') : '') +
+        (multi && opts.del ? '<button type="button" class="dw-x" data-dw-del="' + d.i + '" title="Taka skúffu">✕</button>' : '') + '</div>';
+    }).join("") + '</div>' +
+    (opts.custom && multi ? '<button type="button" class="dw-reset" data-dw-reset>↺ Sjálfgefnar hæðir</button>' : '');
+  }
+  // the drawers under a tall oven, for wireDrawerStack: their own zone and their own custom heights
+  function ovenStackModel(b){
+    var codes = function(){ return KP3D.ovenCodesOf(b, drawerSys()); };
+    return { codes:codes, fronts:function(){ var cc = codes(); return KP3D.stackFrontsMm({ frontsMm:b.ovenFrontsMm }, cc, KP3D.ovenZoneMm(cc)) || []; } };
+  }
   function hardwareHTML(b, c){
     if (!c.hasInterior) return "";
     var isDrawer = b.interior.mode === "skuffur";
@@ -2667,18 +2814,8 @@
       '</div>';
     if (!isDrawer) return html;
     var sys = drawerSys(), D = KP3D.DRAWER_CODES[sys], codes = KP3D.drawerCodes(b.interior, sys), inner = b.interior.inner || null;
-    var fronts = KP3D.stackFrontsMm(b.interior, codes, drawerBodyMm(b, c)) || [], multi = codes.length > 1;
-    // top drawer first, as the cabinet stands; ⠿ drags a drawer to another place in the stack, the line
-    // between two drawers drags their shared seam, and each height can be typed (2026-10-02)
-    html += '<div class="dw-stack" data-dw-stack>' + codes.map(function(code, i){ return { code:code, i:i, mm:fronts[i] }; }).reverse().map(function(d, k){
-      return (k ? '<div class="dw-seam" data-dw-seam="' + d.i + '" title="Dragðu til að breyta hæð skúffanna"></div>' : '') +
-        '<div class="dw-row" data-dw-row="' + d.i + '" style="flex-grow:' + Math.max(1, Math.round((d.mm || 150) / 40)) + '">' +
-        (multi ? '<span class="dw-grip" data-dw-grip="' + d.i + '" title="Dragðu til að færa skúffuna">⠿</span>' : '') +
-        '<b>' + d.code + '</b><span>' + CODE_LABEL[d.code] + '</span>' +
-        (d.mm ? (multi ? '<input class="dw-mm" type="number" step="1" data-dw-mm="' + d.i + '" value="' + Math.round(d.mm) + '" title="Hæð framhliðar (mm)"><small>mm</small>' : '<small>' + Math.round(d.mm) + ' mm</small>') : '') +
-        (multi ? '<button type="button" class="dw-x" data-dw-del="' + d.i + '" title="Taka skúffu">✕</button>' : '') + '</div>';
-    }).join("") + '</div>' +
-    (b.interior.frontsMm && multi ? '<button type="button" class="dw-reset" data-dw-reset>↺ Sjálfgefnar hæðir</button>' : '');
+    var fronts = KP3D.stackFrontsMm(b.interior, codes, drawerBodyMm(b, c)) || [];
+    html += drawerRowsHTML(codes, fronts, { reorder:true, del:true, custom:!!b.interior.frontsMm });
     html += '<div class="dw-add"><span>Bæta við:</span>' + D.codes.map(function(code){
       var next = sortStack(codes.concat([code]));
       var ok = codes.length < 4 && (stackAllowed(b, c, next, inner) || stackAllowed(b, c, next, null)); // may cost the inner drawer (see the click handler)
@@ -2727,11 +2864,11 @@
   }
   // ⠿ reorder, typed front heights, seam drag and "reset heights" in a drawer stack (hardwareHTML).
   // commit(codes, frontsMm|null) applies it — the wizard just redraws, the side panel saves.
-  function wireDrawerStack(host, b, c, commit){
+  function wireDrawerStack(host, b, c, commit, model){
     var stack = host.querySelector("[data-dw-stack]");
     if (!stack) return;
-    var codes = function(){ return KP3D.drawerCodes(b.interior, drawerSys()); };
-    var fronts = function(){ return KP3D.stackFrontsMm(b.interior, codes(), drawerBodyMm(b, c)) || []; };
+    var codes = model ? model.codes : function(){ return KP3D.drawerCodes(b.interior, drawerSys()); };
+    var fronts = model ? model.fronts : function(){ return KP3D.stackFrontsMm(b.interior, codes(), drawerBodyMm(b, c)) || []; };
     var rst = host.querySelector("[data-dw-reset]");
     if (rst) rst.addEventListener("click", function(){ commit(codes(), null); });
     host.querySelectorAll("[data-dw-mm]").forEach(function(inp){
@@ -2773,22 +2910,30 @@
     stack.querySelectorAll("[data-dw-grip]").forEach(function(grip){
       grip.addEventListener("pointerdown", function(e){
         e.preventDefault();
-        var from = +grip.dataset.dwGrip, row = grip.closest(".dw-row"), to = from;
-        row.classList.add("dragging"); try{ grip.setPointerCapture(e.pointerId); }catch(er){}
+        // the held drawer follows the pointer and the others slide out of its way before it is dropped
+        var from = +grip.dataset.dwGrip, row = grip.closest(".dw-row"), to = from, y0 = e.clientY;
+        var rows = Array.prototype.slice.call(stack.querySelectorAll(".dw-row")), n = rows.length, P = rows.indexOf(row);
+        var centers = rows.map(function(r){ var rc = r.getBoundingClientRect(); return rc.top + rc.height / 2; });
+        var shift = row.getBoundingClientRect().height + 7;
+        row.classList.add("dragging"); stack.classList.add("reordering"); try{ grip.setPointerCapture(e.pointerId); }catch(er){}
         function move(ev){
-          var rows = Array.prototype.slice.call(stack.querySelectorAll(".dw-row"));
-          to = from;
-          rows.forEach(function(r){ var rc = r.getBoundingClientRect(); if (ev.clientY >= rc.top && ev.clientY <= rc.bottom) to = +r.dataset.dwRow; });
-          rows.forEach(function(r){ r.classList.toggle("drop", +r.dataset.dwRow === to && to !== from); });
+          var dy = ev.clientY - y0, c = centers[P] + dy, Q = 0;
+          rows.forEach(function(r, k){ if (k !== P && centers[k] < c) Q++; });
+          row.style.transform = "translateY(" + dy + "px)";
+          rows.forEach(function(r, k){
+            if (k === P) return;
+            r.style.transform = P < Q && k > P && k <= Q ? "translateY(" + (-shift) + "px)" : Q < P && k >= Q && k < P ? "translateY(" + shift + "px)" : "";
+          });
+          to = n - 1 - Q; // displayed top-first → stack index bottom-first
         }
         function up(){
-          row.classList.remove("dragging");
-          stack.querySelectorAll(".dw-row.drop").forEach(function(r){ r.classList.remove("drop"); });
+          row.classList.remove("dragging"); stack.classList.remove("reordering");
+          rows.forEach(function(r){ r.style.transform = ""; });
           grip.removeEventListener("pointermove", move); grip.removeEventListener("pointerup", up); grip.removeEventListener("pointercancel", up);
           if (to === from) return;
           var cc = codes(), ff = fronts(), code = cc.splice(from, 1)[0], h = ff.splice(from, 1)[0];
           cc.splice(to, 0, code); ff.splice(to, 0, h);
-          commit(cc, b.interior.frontsMm ? ff : null);
+          commit(cc, b.interior && b.interior.frontsMm ? ff : null);
         }
         grip.addEventListener("pointermove", move); grip.addEventListener("pointerup", up); grip.addEventListener("pointercancel", up);
       });
@@ -3283,9 +3428,18 @@
     }); });
     var vs = side.querySelector('[data-role="variant"]');
     if (vs) vs.addEventListener("change", function(){
-      if (c.oven) b.ovenCombo = vs.value; else if (c.bur) b.burCombo = vs.value; else if (c.thvo) b.thvo = vs.value;
+      if (c.oven){ b.ovenCombo = vs.value; delete b.ovenFrontsMm; } else if (c.bur) b.burCombo = vs.value; else if (c.thvo) b.thvo = vs.value;
       renderUnitWizard();
     });
+    side.querySelectorAll("[data-oven-type]").forEach(function(el){ el.addEventListener("click", function(){
+      if (b.type === el.dataset.ovenType) return;
+      b.type = el.dataset.ovenType; delete b.heightMm; delete b.ovenFrontsMm;
+      renderUnitWizard();
+    }); });
+    if (c.oven && !c.lowOven) wireDrawerStack(side, b, c, function(codes, frontsMm){
+      if (frontsMm) b.ovenFrontsMm = frontsMm; else delete b.ovenFrontsMm;
+      renderUnitWizard();
+    }, ovenStackModel(b));
     var ws = side.querySelector("[data-uw-wall]");
     if (ws) ws.addEventListener("change", function(){ uw.wallId = ws.value; renderUnitWizard(); });
     var add = side.querySelector("[data-uw-add]");
@@ -4806,11 +4960,19 @@
     var variantSel = host.querySelector('[data-role="variant"]');
     if (variantSel) variantSel.addEventListener("change", function(){
       if (b.locked){ lockedToast(); renderEditPanel(); return; }
-      if (c.oven) b.ovenCombo = variantSel.value;
+      if (c.oven){ b.ovenCombo = variantSel.value; delete b.ovenFrontsMm; }
       else if (c.bur) b.burCombo = variantSel.value;
       else if (c.thvo) b.thvo = variantSel.value;
       save(); refreshAfterEdit();
     });
+    host.querySelectorAll("[data-oven-type]").forEach(function(btn){
+      btn.addEventListener("click", function(){ if (b.type !== btn.dataset.ovenType) changeBlockType(wall, zone, b.id, btn.dataset.ovenType); });
+    });
+    if (c.oven && !c.lowOven) wireDrawerStack(host, b, c, function(codes, frontsMm){
+      if (b.locked){ lockedToast(); renderEditPanel(); return; }
+      if (frontsMm) b.ovenFrontsMm = frontsMm; else delete b.ovenFrontsMm;
+      save(); refreshAfterEdit();
+    }, ovenStackModel(b));
     if (c.hasInterior){
       host.querySelectorAll('[data-hw]').forEach(function(btn){
         btn.addEventListener("click", function(){ setInterior(wall, zone, b.id, btn.dataset.hw); });
@@ -4953,6 +5115,19 @@
   var toastTimer;
   // "X passar ekki — viltu setja Y mm í staðinn?" (user, 2026-10-02): offered instead of a flat refusal
   // whenever a narrower cabinet would fit the space.
+  function askChoice(msgHTML, yes, no, onYes, onNo){
+    var old = document.getElementById("fitAsk"); if (old) old.remove();
+    var el = document.createElement("div");
+    el.id = "fitAsk"; el.className = "fit-ask"; el.setAttribute("role", "dialog");
+    el.innerHTML = '<p>' + msgHTML + '</p><div class="fit-ask-btns"><button type="button" class="btn btn-primary" data-fit="yes">' + yes + '</button><button type="button" class="btn" data-fit="no">' + no + '</button></div>';
+    document.body.appendChild(el);
+    function close(){ el.remove(); document.removeEventListener("keydown", onKey); }
+    function onKey(e){ if (e.key === "Escape") close(); }
+    el.querySelector('[data-fit="yes"]').addEventListener("click", function(){ close(); onYes(); });
+    el.querySelector('[data-fit="no"]').addEventListener("click", function(){ close(); if (onNo) onNo(); });
+    document.addEventListener("keydown", onKey);
+    el.querySelector('[data-fit="yes"]').focus();
+  }
   function wallDat(w){ return /^Veggur\b/.test(w.label) ? w.label.replace(/^Veggur/, "vegg") : w.label.toLowerCase(); } // "á vegg 2"
   function offerFit(msg, fitW, onYes){
     var old = document.getElementById("fitAsk"); if (old) old.remove();
@@ -5254,7 +5429,7 @@
   // combo, and everything with a door as the CLOSED body (LGR/LHA/LEF…) — the planner used to send
   // LGR + drawers, i.e. a door that isn't there (fixed 2026-09-30, confirmed with the user).
   var V1_FAMILY = { grunnskapur:"grunnskapur", vaskaskapur:"grunnskapur", ruslaskapur:"grunnskapur", harskapur:"harskapur", isskapur:"harskapur",
-    ofnaskapur:"harskapur", burskapur:"harskapur", thvottavel:"harskapur", efriskapur:"efriskapur", opnarhillur:"efriskapur",
+    ofnaskapur:"harskapur", ofnaskapurLagur:"grunnskapur", burskapur:"harskapur", thvottavel:"harskapur", efriskapur:"efriskapur", opnarhillur:"efriskapur",
     litillkassi:"litillkassi", harveggskapur:"harveggskapur" };
   function isDrawerUnit(b){ return !!(b.interior && b.interior.mode === "skuffur"); }
   // No clamp on purpose: a width outside the product range (e.g. a 1400 mm sink cabinet) must find
@@ -5276,6 +5451,7 @@
   function v2RecordFor(b, c){
     var LM = window.KP_LINEMAP; if (!LM) return null;
     if (c.fridge) return LM.isskapur;
+    if (c.lowOven) return (LM.ofnLow || {})[drawerSys()] || null; // OFN6
     if (c.oven){
       var ok = ovenKeyOf(b);
       return ok === "" ? LM.ofnNoDrawers : ((LM.ofn[drawerSys()] || {})[ok] || null);
@@ -5310,6 +5486,7 @@
     var w = b.widthMm;
     if (c.hasInterior && b.interior && b.interior.mode === "skuffur") return [{ mm:w, count:b.interior.count }];
     if (c.rusl) return [{ mm:w, count:1 }];
+    if (c.lowOven) return [{ mm:w, count:1 }]; // one drawer under the oven
     if (c.oven) return [{ mm:w, count:Math.max(1, KP3D.ovenCodesOf(b, state.drawerSystem).length) }, { mm:w, count:1 }]; // drawers/door under the oven + door above
     if (c.thvo && b.thvo !== "hurdir") return [{ mm:w, count:1 }].concat([0.5, 0.5].map(function(){ return { mm:(blockHeightMm(b, c) - 500) * 0.5, count:1 }; }));
     // Matches `meta.tall` in kitchen-planner-3d.js (c.cls==="tall" || c.fridge): a tall unit gets TWO
@@ -5320,9 +5497,10 @@
     // vertical Jey/Hexxa treatment, regardless of the chosen handle.
     if (c.cls === "tall" || c.fridge){
       var h = blockHeightMm(b, c), split = c.fridge ? 0.74 : 0.55;
-      return [{ mm:h * split, count:1 }, { mm:h * (1 - split), count:1 }];
+      var leaves = w > 600 && !c.fridge ? 2 : 1; // a tall unit over 600 mm has two leaves per front, each with its own pull
+      return [{ mm:h * split, count:leaves }, { mm:h * (1 - split), count:leaves }];
     }
-    var wide = w >= 750 && c.cls !== "corner";
+    var wide = w > 600 && c.cls !== "corner"; // two doors above 600 mm, same rule as the 3D
     return wide ? [{ mm:w / 2, count:2 }] : [{ mm:w, count:1 }];
   }
   // Jey/Jey2/Hexxa: cut-to-size stock — smallest pre-cut ≥ needed, else the bulk (3000 mm) bar
@@ -5529,7 +5707,9 @@
       box.hidden = false;
     }
   }
-  document.getElementById("toContactBtn").addEventListener("click", function(){ captureThumb(); goto("intake"); }); // 3D scene must still be alive for the thumbnail
+  document.getElementById("toContactBtn").addEventListener("click", function(){
+    checkEndPanelsThen(function(){ captureThumb(); goto("intake"); }); // 3D scene must still be alive for the thumbnail
+  });
   document.getElementById("backToEditorBtn").addEventListener("click", function(){ goto("editor"); });
   document.getElementById("submitBtn").addEventListener("click", function(){
     if (!validateContact()) return;

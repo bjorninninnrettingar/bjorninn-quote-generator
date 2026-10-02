@@ -33,9 +33,11 @@
     // schema of their own, so they submit as Grunnskápur / Efriskápur plus a
     // plain note for Rakel.
     // b.ovenCombo = the drawer combo under the oven (an Útfærslur key, "" = cabinet door, no drawers)
-    ofnaskapur:  { label:"Ofnaskápur",  zone:"floor", cls:"oven",  defaultW:600, minW:500, maxW:900, h:2400, d:600, minH:1800, maxH:2600, minD:500, maxD:750, hasInterior:false, ovenHeightMm:595, oven:true },
+    // ovens are 600 wide (user, 2026-10-02); "Í grunnskáp" = the low oven cabinet below (OFN6)
+    ofnaskapur:  { label:"Ofnaskápur",  zone:"floor", cls:"oven",  defaultW:600, minW:600, maxW:600, h:2400, d:600, minH:1800, maxH:2600, minD:500, maxD:750, hasInterior:false, ovenHeightMm:595, oven:true },
     // ---- 2026-09-30: types that exist as real Útfærslur (see kitchen-planner-linemap.js) ----
     // Búrskápur: tall pantry, doors outside, a real drawer/shelf set inside (b.burCombo)
+    ofnaskapurLagur:{ label:"Ofnaskápur (í grunnskáp)", zone:"floor", cls:"floor", defaultW:600, minW:600, maxW:600, h:800, d:600, minH:750, maxH:950, minD:550, maxD:700, hasInterior:false, counter:true, oven:true, lowOven:true },
     burskapur:   { label:"Búrskápur", zone:"floor", cls:"tall", defaultW:600, minW:300, maxW:1200, h:2400, d:600, minH:1800, maxH:2600, minD:400, maxD:700, hasInterior:false, bur:true },
     // Þvottavélaskápur: washer/dryer tower; b.thvo = "skuffa" (a drawer at the bottom to raise the machine) | "hurdir" (doors only)
     thvottavel:  { label:"Þvottavélaskápur", zone:"floor", cls:"tall", defaultW:600, minW:600, maxW:900, h:2400, d:600, minH:1800, maxH:2600, minD:600, maxD:750, hasInterior:false, thvo:true, fixedFronts:true },
@@ -229,6 +231,7 @@
   var FRONT_WEIGHT = { N:100, M:150, K:200, E:400, C:400, F:800 };
   var CODE_ORDER = "NMKECF"; // smallest → tallest; also the order Útfærslur combo keys use
   var DRAWER_GAP_MM = 3;
+  var WIDE_DOOR_M = 0.6005; // a door unit wider than 600 mm is built with two doors
   // a sensible stack for N drawers when nothing has been picked (bottom → top)
   var DEFAULT_CODES = {
     legra:  { 1:["C"], 2:["C", "C"], 3:["F", "K", "M"], 4:["C", "K", "K", "M"] },
@@ -242,6 +245,8 @@
     var letters = String(key).split("+")[0].split("");
     return letters.sort(function(a, c){ return CODE_ORDER.indexOf(c) - CODE_ORDER.indexOf(a); }).map(function(c){ return (CODE_SWAP[sys] && CODE_SWAP[sys][c]) || c; });
   }
+  // Height of the drawer zone under a tall oven: 600 mm of body (worktop height), 700 when a combo needs it
+  function ovenZoneMm(codes){ return !codes.length || drawerFrontsMm(codes, 600) ? 600 : 700; }
   // Inner drawers of a Búrskápur (bottom → top) from b.burCombo, a real BUR Útfærsla key like "MKCC".
   var BUR_DEFAULT = { legra:"MKCC", merivo:"MKEE" };
   function burCodesOf(b, sysKey){
@@ -563,6 +568,25 @@
     // (No exemption for Töfrahorn any more: it is drawn as a plain 1200 × 600 box,
     // so the neighbouring wall's run has to start after its depth like any cabinet.)
     return prevLast.depthMm || CATALOG[prevLast.type].d;
+  }
+
+  // Áfella (19 mm filler) between a cabinet run and a wall face it would otherwise touch (user, 2026-10-02):
+  // a run may not stand flush against a wall — placement keeps AFELLA_MM free at a wall end, and the 3D
+  // draws a filler in the front material there (worktop over it) when a cabinet sits right at that limit.
+  // A wall "end" is solid when the neighbouring wall turns inwards (left) and isn't an open edge. At the
+  // start of a floor run that already begins after the previous wall's cabinets (corner clearance), the run
+  // meets their side panel, not the wall — no áfella there.
+  var AFELLA_MM = 19;
+  function realWallCount(walls){ var n = 0; while (n < walls.length && !walls[n].island) n++; return n; }
+  function afellaMm(walls, wallIndex, zoneKey){
+    var w = walls[wallIndex], n = realWallCount(walls);
+    if (!w || w.island || w.open || wallIndex >= n) return { start:0, end:0 };
+    var prev = wallIndex > 0 ? walls[wallIndex - 1] : walls.closed ? walls[n - 1] : null;
+    var next = wallIndex < n - 1 ? walls[wallIndex + 1] : walls.closed ? walls[0] : null;
+    var startSolid = !!prev && prev !== w && prev.turnAfter === "left" && !prev.open;
+    var endSolid = !!next && next !== w && w.turnAfter === "left" && !next.open;
+    if (startSolid && zoneKey === "floor" && cornerClearanceMm(walls, wallIndex, "floor") > 0) startSolid = false;
+    return { start:startSolid ? AFELLA_MM : 0, end:endSolid ? AFELLA_MM : 0 };
   }
 
   // Free positioning along a wall: each block may carry `gapMm` = empty space
@@ -1133,8 +1157,9 @@
     // handle), door above.
     if (isOven){
       // the oven sits on a 700 mm drawer/cabinet zone (worktop height), its combo drawn as real drawer fronts
-      var zoneH = 0.70, oy = baseYM + zoneH, oh = 0.595;
-      var ovCodes = (meta && meta.ovenCodes) || [], ovFr = ovCodes.length ? drawerFrontsMm(ovCodes, zoneH * 1000) : null;
+      var ovCodes = (meta && meta.ovenCodes) || [], oh = 0.595;
+      var zoneH = meta && meta.lowOven ? Math.max(0.05, heightM - oh) : ovenZoneMm(ovCodes) / 1000, oy = baseYM + zoneH;
+      var ovFr = meta && meta.lowOven ? [zoneH * 1000] : ovCodes.length ? stackFrontsMm({ frontsMm:meta && meta.ovenFrontsMm }, ovCodes, zoneH * 1000) : null;
       var glassMat = new THREE.MeshStandardMaterial({ color:0x141518, roughness:0.12, metalness:0.5 });
       [oy, oy + oh].forEach(function(y){ place(new THREE.Mesh(new THREE.PlaneGeometry(widthM + 0.002, 0.005), seamMat), y, 0.004); });
       place(new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.9, oh - 0.13, 0.012), glassMat), oy + (oh - 0.13) / 2 + 0.005, 0.006);
@@ -1151,13 +1176,13 @@
       } else tops.push(oy);
       if (handleKey && hstyle !== "none" && hstyle !== "groove"){
         tops.forEach(function(t){ hbar(Math.min(0.24, widthM * 0.5), t - 0.04, 0); }); // drawers / door below the oven
-        hbar(Math.min(0.24, widthM * 0.5), oy + oh + 0.06, 0);               // door above
+        if (!(meta && meta.lowOven)) hbar(Math.min(0.24, widthM * 0.5), oy + oh + 0.06, 0); // door above
       }
       return;
     }
 
-    // Wide door units (≥ 750 mm) read as double doors: a centre seam.
-    var wideDoor = !drawers && widthM >= 0.75 && !(meta && meta.fridge) && !isCorner;
+    // Door units wider than 600 mm get two doors (user, 2026-10-02 — was ≥ 750): a centre seam.
+    var wideDoor = !drawers && widthM > WIDE_DOOR_M && !(meta && meta.fridge) && !isCorner;
     if (wideDoor || isCorner){
       place(new THREE.Mesh(new THREE.PlaneGeometry(0.008, heightM * 0.97), seamMat), baseYM + heightM / 2, 0.004);
     }
@@ -1195,13 +1220,15 @@
         if (vertical){ sides.forEach(function(sg){ place(new THREE.Mesh(new THREE.BoxGeometry(0.012, Math.max(0.05, doorH - 2 * hm2), 0.0015), dark), (top + bottom) / 2, 0.0008, edgeAlong(sg, 0.02)); }); }
         else {
           var hl = Math.max(0.05, hw - 2 * hm2);
+          // wall units: the slot is milled into the BOTTOM edge (mirror of the base-unit one)
+          var ed = atBottom ? bottom : top, sgn = atBottom ? 1 : -1;
           if (meta && meta.slab){ // the front is really cut away there: a dark back wall and a floor inside the notch
             // 1–2 mm smaller than the notch and lifted 1 mm off its floor, so nothing shares a plane with the panel (that z-fought)
-            place(new THREE.Mesh(new THREE.BoxGeometry(hl - 0.002, 0.028, 0.003), dark), top - 0.0155, -FRONT_T + 0.0025, hOff);
-            place(new THREE.Mesh(new THREE.BoxGeometry(hl - 0.002, 0.001, FRONT_T - 0.003), handleMat), top - 0.0295, -FRONT_T / 2 + 0.0005, hOff);
+            place(new THREE.Mesh(new THREE.BoxGeometry(hl - 0.002, 0.028, 0.003), dark), ed + sgn * 0.0155, -FRONT_T + 0.0025, hOff);
+            place(new THREE.Mesh(new THREE.BoxGeometry(hl - 0.002, 0.001, FRONT_T - 0.003), handleMat), ed + sgn * 0.0295, -FRONT_T / 2 + 0.0005, hOff);
           } else {
-            place(new THREE.Mesh(new THREE.BoxGeometry(hl, 0.03, 0.0015), dark), top - 0.015, 0.0008, hOff);
-            place(new THREE.Mesh(new THREE.BoxGeometry(hl, 0.003, 0.004), handleMat), top - 0.0315, 0.002, hOff);
+            place(new THREE.Mesh(new THREE.BoxGeometry(hl, 0.03, 0.0015), dark), ed + sgn * 0.015, 0.0008, hOff);
+            place(new THREE.Mesh(new THREE.BoxGeometry(hl, 0.003, 0.004), handleMat), ed + sgn * 0.0315, 0.002, hOff);
           }
         }
         return;
@@ -1221,6 +1248,10 @@
             rot.rotation.z = sg > 0 ? Math.PI / 2 : -Math.PI / 2; h2.add(rot);
             place(h2, (top + bottom) / 2, jout, twoLeaf ? 0 : sg * hw / 2 + hOff);
           }); }
+          else if (atBottom){ // wall units: the profile runs along the bottom edge, upside down (finger lip facing down)
+            var jr = new THREE.Group(), jh = new THREE.Group(); jr.add(jp); jr.rotation.z = Math.PI; jh.add(jr);
+            place(jh, bottom, jout, hOff);
+          }
           else place(jp, top, jout, hOff);
           return;
         }
@@ -1283,10 +1314,12 @@
     // up and a dark, set-back block fills the gap, as in a real kitchen.
     var plinthM = meta && meta.plinth ? 0.1 : 0;
     var bodyBase = baseYM + plinthM, bodyH = heightM - plinthM;
-    var boxGeo = window.__RoundedBox__
+    var panelBox = !!(meta && meta.panel);
+    var boxGeo = window.__RoundedBox__ && !panelBox
       ? new window.__RoundedBox__(widthM, bodyH, bodyD, 3, 0.004)
       : new THREE.BoxGeometry(widthM, bodyH, bodyD);
-    scaleFrontUV(boxGeo, widthM, bodyH, frontMat.userData && frontMat.userData.tile, false, { u:offsetM, v:bodyBase });
+    if (panelBox) panelUV(boxGeo, widthM, bodyH, bodyD, frontMat.userData && frontMat.userData.tile);
+    else scaleFrontUV(boxGeo, widthM, bodyH, frontMat.userData && frontMat.userData.tile, false, { u:offsetM, v:bodyBase });
     var useFrontMat = frontMat;
     if (selected){
       useFrontMat = frontMat.clone();
@@ -1476,7 +1509,7 @@
     else fronts.push({ y0:0, y1:1 });
     var sysKey = meta.drawerSystem || "legra";
     var dcodes = drawers && interior.codes && interior.codes.length === drawers ? interior.codes : null; // bottom → top
-    var wide = !drawers && widthM >= 0.75 && !meta.fridge && !meta.corner;
+    var wide = !drawers && widthM > WIDE_DOOR_M && !meta.fridge && !meta.corner;
     var parts = (scene.userData.parts = scene.userData.parts || []);
 
     function makeLeaf(idx, cxL, w, y0, y1, hinge, f, fi){
@@ -1491,11 +1524,13 @@
       // a Jey profile REPLACES stripMm of the front: the slab is that much shorter (top strip) or narrower (side strip on tall units)
       var slabW = w - 0.004 - (vertA ? stripA : 0), slabH = fh - (vertA ? 0 : stripA);
       var notchA = hcfgA && hcfgA.kind === "hexxa" && !vertA ? { len:Math.max(0.05, slabW - 2 * (hcfgA.marginMm || 50) / 1000), h:0.03 } : null;
-      var slabCx = cxL + (vertA ? (freeSideA === "right" ? -stripA / 2 : stripA / 2) : 0), slabCy = (y0 + y1) / 2 - (vertA ? 0 : stripA / 2);
+      var wallA = meta.zone === "wall"; // wall units: Jey strip / Hexxa notch along the BOTTOM edge
+      var slabCx = cxL + (vertA ? (freeSideA === "right" ? -stripA / 2 : stripA / 2) : 0), slabCy = (y0 + y1) / 2 + (vertA ? 0 : (wallA ? stripA / 2 : -stripA / 2));
       var grainOff = { u:offsetM + widthM / 2 + slabCx - slabW / 2, v:slabCy - slabH / 2 }; // continuous grain (see scaleFrontUV)
       var slab = hcfgA && hcfgA.kind === "jey" && (hcfgA.profileMm || 0) > (hcfgA.stripMm || 27)
         ? frontSlabLip(THREE, slabW, slabH, frontMat, (hcfgA.profileMm - (hcfgA.stripMm || 27)) / 1000, 0.002, vertA ? freeSideA : "top", grainOff)
         : frontSlab(THREE, slabW, slabH, frontMat, notchA, grainOff);
+      if (wallA && !vertA && (notchA || stripA)) slab.rotation.z = Math.PI; // the notch/lip edge turned to the bottom
       slab.position.set(slabCx - pivotX, slabCy, CD + FRONT_T / 2);
       slab.castShadow = true; slab.receiveShadow = true;
       g.add(slab); meshes.push(slab);
@@ -1572,8 +1607,9 @@
     // Ofnaskápur: the real Útfærsla — drawers (or a door, OFN7) under the oven, the oven, and a cabinet above
     // it with two vent shelves behind its door
     if (meta.oven){
-      var ovCodesA = meta.ovenCodes || [], zoneMm = 600, ovFrA = ovCodesA.length ? (drawerFrontsMm(ovCodesA, zoneMm) || drawerFrontsMm(ovCodesA, (zoneMm = 700))) : null;
-      var ovY = bodyBase + zoneMm / 1000, ovH = 0.595, wideA = widthM >= 0.75, hingeA = meta.hingeRight ? "right" : "left";
+      var ovCodesA = meta.ovenCodes || [], zoneMm = meta.lowOven ? Math.max(50, bodyH * 1000 - 595 - 3) : ovenZoneMm(ovCodesA);
+      var ovFrA = meta.lowOven ? [zoneMm] : ovCodesA.length ? stackFrontsMm({ frontsMm:meta.ovenFrontsMm }, ovCodesA, zoneMm) : null;
+      var ovY = bodyBase + zoneMm / 1000, ovH = 0.595, wideA = widthM > WIDE_DOOR_M, hingeA = meta.hingeRight ? "right" : "left";
       if (ovFrA){
         dcodes = ovCodesA;
         var accA = bodyBase;
@@ -1593,6 +1629,7 @@
       addBox(widthM - 0.006, ovH - 0.13, FRONT_T, 0, ovY + (ovH - 0.13) / 2 + 0.004, CD + FRONT_T / 2, new THREE.MeshStandardMaterial({ color:0x141518, roughness:0.12, metalness:0.5 }));
       addBox(widthM - 0.006, 0.115, FRONT_T, 0, ovY + ovH - 0.06, CD + FRONT_T / 2, new THREE.MeshStandardMaterial({ color:0x2b2c30, roughness:0.4, metalness:0.4 }));
       addBox(widthM * 0.7, 0.018, 0.028, 0, ovY + ovH - 0.145, CD + FRONT_T + 0.014, new THREE.MeshStandardMaterial({ color:0xb9bec4, metalness:0.85, roughness:0.28 }));
+      if (meta.lowOven) return; // low oven (OFN6): the oven sits right under the worktop, nothing above
       // cabinet above: 2 vent shelves (loftunarhillur) with slots
       var upY0 = ovY + ovH + 0.003, upY1 = bodyBase + bodyH;
       for (var vs = 1; vs <= 2; vs++){
@@ -2406,6 +2443,17 @@
   // Rescale a box's UVs so one texture tile covers tile.w × tile.h metres.
   // `swap` transposes u/v first — a 90° turn of the texture's own pattern (e.g. Límtré's grain,
   // stored running "up" the source photo) onto the box's other axis, without touching the geometry.
+  // An end panel (úthlið, 19 mm): every face gets the texture at its real size, grain running UP the panel
+  // on its big side and its edges — scaling all faces by the 19 mm width blew the grain up (user, 2026-10-02).
+  function panelUV(geo, w, h, d, tile){
+    if (!tile) return;
+    var uv = geo.attributes.uv, dims = [[d, h], [d, h], [w, d], [w, d], [w, h], [w, h]]; // BoxGeometry faces: ±x, ±y, ±z
+    for (var i = 0; i < uv.count; i++){
+      var f = dims[Math.floor(i / 4)] || [w, h];
+      uv.setXY(i, uv.getX(i) * f[0] / tile.w, uv.getY(i) * f[1] / tile.h);
+    }
+    uv.needsUpdate = true;
+  }
   // `off` {u, v} (metres) shifts the texture by where the panel really sits — along the wall and up from the
   // floor — so the grain runs on from one drawer front to the next and into the neighbouring cabinet
   // instead of restarting on every front (user, 2026-10-02).
@@ -2676,11 +2724,45 @@
     var plinthDark = new THREE.MeshStandardMaterial({ color:0x26262a, roughness:0.85 });
     var plinthMat = look ? [plinthDark, plinthDark, plinthDark, plinthDark, frontMat, plinthDark] : plinthDark;
 
+    // the áfellur of one wall (see afellaMm): a 19 mm panel in the front material from the floor (or the
+    // cabinet's bottom, for wall units) to its top, the worktop running on over it
+    function addAfellur(g, wall, wi, fStarts, wStarts){
+      [["floor", fStarts, cornerClearanceMm(surfaces, wi, "floor")], ["wall", wStarts, 0]].forEach(function(z){
+        var list = wall[z[0]], starts = z[1], af = afellaMm(surfaces, wi, z[0]);
+        if (!list.length) return;
+        var ends = [];
+        if (af.start && Math.abs(starts[0] - z[2] - AFELLA_MM) < 1) ends.push({ b:list[0], at:z[2] });
+        var li = list.length - 1;
+        if (af.end && Math.abs(g.lenM * 1000 - AFELLA_MM - (starts[li] + list[li].widthMm)) < 1) ends.push({ b:list[li], at:g.lenM * 1000 - AFELLA_MM });
+        ends.forEach(function(e){
+          var c = CATALOG[e.b.type];
+          if (c.panel || c.shelfStack) return; // an end panel already closes it
+          var hM = Math.min(e.b.heightMm || c.h, roomHeightMm) / 1000, dM = (e.b.depthMm || c.d) / 1000;
+          var y0 = z[0] === "wall" ? elevOf(e.b) / 1000 : 0, w = AFELLA_MM / 1000;
+          var geo = new THREE.BoxGeometry(w, hM, dM);
+          panelUV(geo, w, hM, dM, frontMat.userData && frontMat.userData.tile);
+          var m = new THREE.Mesh(geo, frontMat), along = e.at / 1000 + w / 2;
+          m.position.set(g.origin.x + g.axis.x * along + g.normal.x * dM / 2, y0 + hM / 2, g.origin.z + g.axis.z * along + g.normal.z * dM / 2);
+          m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(g.axis.x, 0, g.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(g.normal.x, 0, g.normal.z)));
+          m.castShadow = true; m.receiveShadow = true;
+          scene.add(m);
+          if (z[0] === "floor" && c.counter){ // the worktop covers the áfella too
+            var tg = new THREE.BoxGeometry(w + 0.001, 0.032, dM + 0.02);
+            var t = new THREE.Mesh(tg, stoneMat);
+            t.position.set(g.origin.x + g.axis.x * along + g.normal.x * (dM + 0.02) / 2, hM + 0.017, g.origin.z + g.axis.z * along + g.normal.z * (dM + 0.02) / 2);
+            t.quaternion.copy(m.quaternion); t.castShadow = true; t.receiveShadow = true;
+            scene.add(t);
+          }
+        });
+      });
+    }
+
     surfaces.forEach(function(wall, wi){
       var g = allGeoms[wi];
       if (!g || (iso && !isoHas(wall.id))) return;
       var fStarts = blockStartsMm(wall.floor, cornerClearanceMm(surfaces, wi, "floor")), wStarts = blockStartsMm(wall.wall, 0);
       var islandId = wall.island ? wall.island.id : undefined;
+      if (!opts.people) addAfellur(g, wall, wi, fStarts, wStarts);
       wall.floor.forEach(function(b, bi){
         var offset = fStarts[bi];
         var c = CATALOG[b.type];
@@ -2697,9 +2779,10 @@
             openMat:openMat, hiddenMat:hiddenMat, drawerSystem:state.drawerSystem, carcassKey:state.carcass,
             warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), heightMm:hM * 1000, elevMm:0, handle:state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0.55,
             plinth:!c.panel, counter:!!c.counter, sink:!!c.sink, oven:!!c.oven, panel:!!c.panel, plinthMat:plinthMat, stoneMat:stoneMat,
-            ovenCodes:c.oven ? ovenCodesOf(b, state.drawerSystem) : null, fixedFronts:!!c.fixedFronts,
+            ovenCodes:c.lowOven ? ["K"] : c.oven ? ovenCodesOf(b, state.drawerSystem) : null, fixedFronts:!!c.fixedFronts,
             burCodes:c.bur ? burCodesOf(b, state.drawerSystem) : null, dishwasher:!!c.dishwasher,
-            ovenInner:c.oven ? (String(b.ovenCombo == null ? OVEN_DEFAULT[state.drawerSystem === "merivo" ? "merivo" : "legra"] : b.ovenCombo).split("+")[1] || null) : null,
+            lowOven:!!c.lowOven, ovenFrontsMm:c.oven ? b.ovenFrontsMm || null : null,
+            ovenInner:c.oven && !c.lowOven ? (String(b.ovenCombo == null ? OVEN_DEFAULT[state.drawerSystem === "merivo" ? "merivo" : "legra"] : b.ovenCombo).split("+")[1] || null) : null,
             washerDrawerM:c.thvo && b.thvo !== "hurdir" ? 0.40 : 0 }, selected, pickables);
       });
       wall.wall.forEach(function(b, bi){
@@ -3455,7 +3538,7 @@
     HANDLE_FINISHES: HANDLE_FINISHES,
     handleFinishFor: handleFinishFor,
     wallGeometry3D: wallGeometry3D,
-    cornerClearanceMm: cornerClearanceMm,
+    cornerClearanceMm: cornerClearanceMm, afellaMm: afellaMm, AFELLA_MM: AFELLA_MM,
     blockStartsMm: blockStartsMm,
     planTransform: planTransform,
     rectCornersWorld: rectCornersWorld,
@@ -3503,7 +3586,7 @@
     drawerCodes: drawerCodes,
     drawerFrontsMm: drawerFrontsMm, stackFrontsMm: stackFrontsMm, resizeFront: resizeFront,
     drawerComboKey: drawerComboKey,
-    ovenCodesOf: ovenCodesOf,
+    ovenCodesOf: ovenCodesOf, ovenZoneMm: ovenZoneMm,
     OVEN_DEFAULT: OVEN_DEFAULT,
     modelsPending: modelsPending,
     shelvesOf: shelvesOf,
