@@ -242,6 +242,12 @@
     var letters = String(key).split("+")[0].split("");
     return letters.sort(function(a, c){ return CODE_ORDER.indexOf(c) - CODE_ORDER.indexOf(a); }).map(function(c){ return (CODE_SWAP[sys] && CODE_SWAP[sys][c]) || c; });
   }
+  // Inner drawers of a Búrskápur (bottom → top) from b.burCombo, a real BUR Útfærsla key like "MKCC".
+  var BUR_DEFAULT = { legra:"MKCC", merivo:"MKEE" };
+  function burCodesOf(b, sysKey){
+    var sys = sysKey === "merivo" ? "merivo" : "legra", key = b.burCombo || BUR_DEFAULT[sys];
+    return String(key).split("+")[0].split("").sort(function(a, c){ return CODE_ORDER.indexOf(c) - CODE_ORDER.indexOf(a); }).map(function(c){ return (CODE_SWAP[sys] && CODE_SWAP[sys][c]) || c; });
+  }
   // a code from the other system → the nearest one in this system (switching Legra ↔ Merivo)
   var CODE_SWAP = { legra:{ N:"M", E:"C" }, merivo:{ C:"E", F:"E" } };
   // The drawer stack of a cabinet, bottom → top, in the kitchen's drawer system. Old drafts only
@@ -1269,7 +1275,7 @@
   function addCabinetBox(THREE, scene, geom, offsetM, widthM, heightM, depthM, baseYM, carcassMat, frontMat, interior, meta, selected, pickables){
     // A locked cabinet is built in parts (open carcass + 20 mm fronts + drawer boxes) so its
     // drawers and doors can be opened and closed; an unlocked one stays a single solid box.
-    var art = !!(meta && (meta.locked || meta.slabFronts) && meta.openMat && !meta.oven && !meta.fixedFronts && !meta.open && !meta.panel && meta.zone !== "opening");
+    var art = !!(meta && (meta.locked || meta.slabFronts) && meta.openMat && !meta.fixedFronts && !meta.open && !meta.panel && meta.zone !== "opening");
     var bodyD = art ? depthM - FRONT_T : depthM;
     var cx = geom.origin.x + geom.axis.x * (offsetM + widthM / 2) + geom.normal.x * (bodyD / 2);
     var cz = geom.origin.z + geom.axis.z * (offsetM + widthM / 2) + geom.normal.z * (bodyD / 2);
@@ -1412,6 +1418,11 @@
       });
       return;
     }
+    if (p.kind === "flap"){ // dishwasher door: tips down on its bottom edge, then the racks roll out
+      p.group.rotation.x = 1.45 * smooth01(p.cur * 1.6);
+      if (p.racks) p.racks.position.z = p.racksOut * smooth01((p.cur - 0.5) / 0.5);
+      return;
+    }
     if (p.kind === "drawer") p.group.position.z = p.slide * e;
     else p.group.rotation.y = (p.hinge === "left" ? -1 : 1) * 1.75 * e;
   }
@@ -1470,7 +1481,7 @@
 
     function makeLeaf(idx, cxL, w, y0, y1, hinge, f, fi){
       var key = meta.blockId + ":" + idx;
-      var g = new THREE.Group(), pivotX = f.drawer ? 0 : (hinge === "left" ? cxL - w / 2 : cxL + w / 2), fh = y1 - y0;
+      var g = new THREE.Group(), pivotX = f.drawer || hinge === "bottom" ? cxL : (hinge === "left" ? cxL - w / 2 : cxL + w / 2), fh = y1 - y0;
       g.position.set(pivotX, 0, 0);
       var pmeta = Object.assign({}, meta, { isPart:true, partKey:key }), meshes = [];
       var hcfgA = meta.handle && window.KPMODELS && window.KPMODELS.handles && window.KPMODELS.handles[meta.handle];
@@ -1507,7 +1518,7 @@
           bx = buildDrawerBox(THREE, sysKey, meta.carcassKey, side, Math.max(0.2, widthM - 2 * T - 0.026), Math.max(0.2, Math.min(0.5, CD - 0.06)), code);
           bx.position.set(0, y1 - 0.03 - side / 1000, CD - 0.005);
         }
-        if (interior.inner && fi === drawers - 1 && fh > 0.2){ // inner drawer (innskúffa) behind the top front: a low drawer riding in the upper part of the tall one
+        if (interior && interior.inner && fi === drawers - 1 && fh > 0.2){ // inner drawer (innskúffa) behind the top front: a low drawer riding in the upper part of the tall one
           var innerCode = interior.inner === "IK" ? "K" : "M", innerSide = (sysD && sysD.side[innerCode]) || 90;
           var ib = buildDrawerBox(THREE, sysKey, meta.carcassKey, innerSide, Math.max(0.18, widthM - 2 * T - 0.06), Math.max(0.2, Math.min(0.46, CD - 0.1)), null);
           ib.position.set(0, y1 - 0.02 - innerSide / 1000, CD - 0.045);
@@ -1519,15 +1530,83 @@
       if (!f.drawer){ // a door hinges on the FRONT edge of the carcass (not at the wall): move the pivot forward to z = CD
         g.children.forEach(function(ch){ ch.position.z -= CD; });
         g.position.z = CD;
+        if (hinge === "bottom"){ g.children.forEach(function(ch){ ch.position.y -= y0; }); g.position.y = y0; } // a flap pivots on its lower edge
       }
       meshes.forEach(function(m){ m.userData = pmeta; pickables.push(m); });
       var prev = PART_STATE[key];
-      var part = { key:key, group:g, kind:f.drawer ? "drawer" : "door", hinge:hinge, slide:Math.min(0.34, CD * 0.6), cur:prev ? prev.cur : 0, target:prev ? prev.target : 0 };
+      var part = { key:key, group:g, kind:f.drawer ? "drawer" : hinge === "bottom" ? "flap" : "door", hinge:hinge, slide:Math.min(0.34, CD * 0.6), cur:prev ? prev.cur : 0, target:prev ? prev.target : 0 };
       PART_STATE[key] = part; parts.push(part); applyPart(part);
       frame.add(g);
     }
 
     var idx = 0;
+    var steel = function(){ return new THREE.MeshStandardMaterial({ color:0xc3c7cc, metalness:0.85, roughness:0.32, side:THREE.DoubleSide }); };
+    function addBox(w, h, d, x, y, z, mat){ var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; frame.add(m); return m; }
+
+    // Uppþvottavél (UÞVFR): one integrated front that tips down; a stainless tub with two racks that roll out
+    if (meta.dishwasher){
+      var st = steel(), tw = widthM - 2 * T - 0.01, td = CD - 0.04, tb = bodyBase + 0.01, th = bodyH - 0.03;
+      addBox(tw, th, 0.004, 0, tb + th / 2, 0.02, st);                                 // back
+      addBox(0.004, th, td, -tw / 2, tb + th / 2, 0.02 + td / 2, st);                   // sides
+      addBox(0.004, th, td, tw / 2, tb + th / 2, 0.02 + td / 2, st);
+      addBox(tw, 0.004, td, 0, tb + th, 0.02 + td / 2, st);                              // top
+      addBox(tw, 0.004, td, 0, tb + 0.005, 0.02 + td / 2, st);                           // floor
+      var racks = new THREE.Group(), wire = new THREE.MeshStandardMaterial({ color:0x9aa0a6, metalness:0.6, roughness:0.4 });
+      [[tb + 0.06, 0.2], [tb + th * 0.55, 0.15]].forEach(function(r){ // lower + upper basket: rim, floor rods, tines
+        var rw = tw - 0.04, rd = td - 0.05, y = r[0], rh = r[1];
+        [[rw, 0.006, 0.006, 0, y, 0], [rw, 0.006, 0.006, 0, y, rd], [0.006, 0.006, rd, -rw / 2, y, rd / 2], [0.006, 0.006, rd, rw / 2, y, rd / 2],
+         [rw, 0.004, 0.004, 0, y + rh, 0], [rw, 0.004, 0.004, 0, y + rh, rd], [0.004, 0.004, rd, -rw / 2, y + rh, rd / 2], [0.004, 0.004, rd, rw / 2, y + rh, rd / 2]].forEach(function(b){
+          var m = new THREE.Mesh(new THREE.BoxGeometry(b[0], b[1], b[2]), wire); m.position.set(b[3], b[4], b[5] + 0.04); racks.add(m);
+        });
+        for (var rx = -rw / 2 + 0.03; rx < rw / 2 - 0.02; rx += 0.035){
+          var rod = new THREE.Mesh(new THREE.BoxGeometry(0.003, 0.003, rd), wire); rod.position.set(rx, y, rd / 2 + 0.04); racks.add(rod);
+          var tine = new THREE.Mesh(new THREE.BoxGeometry(0.003, rh * 0.6, 0.003), wire); tine.position.set(rx, y + rh * 0.3, rd * 0.55 + 0.04); racks.add(tine);
+        }
+      });
+      frame.add(racks);
+      makeLeaf(idx++, 0, widthM, bodyBase + 0.0015, bodyBase + bodyH - 0.0015, "bottom", { y0:0, y1:1 }, 0);
+      var dwPart = parts[parts.length - 1]; dwPart.racks = racks; dwPart.racksOut = td * 0.8; applyPart(dwPart);
+      return;
+    }
+
+    // Ofnaskápur: the real Útfærsla — drawers (or a door, OFN7) under the oven, the oven, and a cabinet above
+    // it with two vent shelves behind its door
+    if (meta.oven){
+      var ovCodesA = meta.ovenCodes || [], zoneMm = 600, ovFrA = ovCodesA.length ? (drawerFrontsMm(ovCodesA, zoneMm) || drawerFrontsMm(ovCodesA, (zoneMm = 700))) : null;
+      var ovY = bodyBase + zoneMm / 1000, ovH = 0.595, wideA = widthM >= 0.75, hingeA = meta.hingeRight ? "right" : "left";
+      if (ovFrA){
+        dcodes = ovCodesA;
+        var accA = bodyBase;
+        ovFrA.forEach(function(h, i){ makeLeaf(idx++, 0, widthM, accA + 0.0015, accA + h / 1000 - 0.0015, "left", { drawer:true }, i); accA += h / 1000 + DRAWER_GAP_MM / 1000; });
+        if (meta.ovenInner){ // "+IM"/"+IK": an inner drawer riding inside the top drawer (OFN2)
+          var topPart = parts[parts.length - 1], sysO = DRAWER_CODES[sysKey], iCode = meta.ovenInner === "IK" ? "K" : "M", iSide = (sysO && sysO.side[iCode]) || 90;
+          var ibO = buildDrawerBox(THREE, sysKey, meta.carcassKey, iSide, Math.max(0.18, widthM - 2 * T - 0.06), Math.max(0.2, Math.min(0.46, CD - 0.1)), null);
+          ibO.position.set(0, accA - DRAWER_GAP_MM / 1000 - 0.02 - iSide / 1000, CD - 0.045);
+          topPart.group.add(ibO);
+          var pmO = Object.assign({}, meta, { isPart:true, partKey:topPart.key });
+          ibO.traverse(function(o){ if (o.isMesh){ o.userData = pmO; pickables.push(o); } });
+        }
+      } else makeLeaf(idx++, 0, widthM, bodyBase + 0.0015, ovY - 0.0015, hingeA, { y0:0, y1:1 }, 0);
+      // the oven itself: dark body in the niche, glass door, control strip, bar handle
+      var dark = new THREE.MeshStandardMaterial({ color:0x1c1d20, roughness:0.4, metalness:0.4 });
+      addBox(widthM - 0.006, ovH - 0.004, CD - 0.02, 0, ovY + ovH / 2, (CD - 0.02) / 2 + 0.01, dark);
+      addBox(widthM - 0.006, ovH - 0.13, FRONT_T, 0, ovY + (ovH - 0.13) / 2 + 0.004, CD + FRONT_T / 2, new THREE.MeshStandardMaterial({ color:0x141518, roughness:0.12, metalness:0.5 }));
+      addBox(widthM - 0.006, 0.115, FRONT_T, 0, ovY + ovH - 0.06, CD + FRONT_T / 2, new THREE.MeshStandardMaterial({ color:0x2b2c30, roughness:0.4, metalness:0.4 }));
+      addBox(widthM * 0.7, 0.018, 0.028, 0, ovY + ovH - 0.145, CD + FRONT_T + 0.014, new THREE.MeshStandardMaterial({ color:0xb9bec4, metalness:0.85, roughness:0.28 }));
+      // cabinet above: 2 vent shelves (loftunarhillur) with slots
+      var upY0 = ovY + ovH + 0.003, upY1 = bodyBase + bodyH;
+      for (var vs = 1; vs <= 2; vs++){
+        var vy = upY0 + (upY1 - upY0) * vs / 3;
+        addBox(widthM - 2 * T, 0.018, CD - 0.05, 0, vy, (CD - 0.05) / 2 + 0.01, meta.openMat);
+        for (var sx = -widthM / 2 + 0.08; sx < widthM / 2 - 0.07; sx += 0.06) addBox(0.012, 0.02, CD * 0.5, sx, vy + 0.0005, CD * 0.45, dark);
+      }
+      if (wideA){
+        makeLeaf(idx++, -widthM / 4, widthM / 2, upY0 + 0.0015, upY1 - 0.0015, "left", { y0:0, y1:1 }, 1);
+        makeLeaf(idx++, widthM / 4, widthM / 2, upY0 + 0.0015, upY1 - 0.0015, "right", { y0:0, y1:1 }, 1);
+      } else makeLeaf(idx++, 0, widthM, upY0 + 0.0015, upY1 - 0.0015, hingeA, { y0:0, y1:1 }, 1);
+      return;
+    }
+
     fronts.forEach(function(f, fi){
       var y0 = bodyBase + bodyH * f.y0 + 0.0015, y1 = bodyBase + bodyH * f.y1 - 0.0015;
       if (f.drawer) makeLeaf(idx++, 0, widthM, y0, y1, "left", f, fi);
@@ -1544,6 +1623,34 @@
         makeLeaf(idx++, widthM / 4, widthM / 2, y0, y1, "right", f, fi);
       } else makeLeaf(idx++, 0, widthM, y0, y1, meta.hingeRight ? "right" : "left", f, fi);
     });
+
+    // Búrskápur: inner drawers (a real BUR Útfærsla) stacked from the bottom behind the doors, 2 shelves above;
+    // each inner drawer pulls out on its own once the doors are open
+    if (meta.burCodes && meta.burCodes.length){
+      var sysB = DRAWER_CODES[sysKey], yb = bodyBase + 0.03, ibw = Math.max(0.2, widthM - 2 * T - 0.026), ibd = Math.max(0.2, Math.min(0.5, CD - 0.08));
+      meta.burCodes.forEach(function(code, k){
+        var side = (sysB && sysB.side[code]) || 120, key = meta.blockId + ":b" + k, g = new THREE.Group(), meshes = [];
+        var bx = buildDrawerBox(THREE, sysKey, meta.carcassKey, side, ibw, ibd, code);
+        bx.position.set(0, yb, CD - 0.045);
+        g.add(bx); bx.traverse(function(o){ if (o.isMesh) meshes.push(o); });
+        if (bx.userData && bx.userData.runners){ var rgB = bx.userData.runners; rgB.position.copy(bx.position); frame.add(rgB); }
+        var ifh = side / 1000 + 0.02, ifr = new THREE.Mesh(new THREE.BoxGeometry(ibw + 0.016, ifh, 0.016), meta.openMat); // inner front, carcass colour
+        ifr.position.set(0, yb + ifh / 2, CD - 0.037); ifr.castShadow = true; g.add(ifr); meshes.push(ifr);
+        var pm = Object.assign({}, meta, { isPart:true, partKey:key });
+        meshes.forEach(function(m){ m.userData = pm; pickables.push(m); });
+        var prevB = PART_STATE[key];
+        var partB = { key:key, group:g, kind:"drawer", slide:Math.min(0.34, CD * 0.6), cur:prevB ? prevB.cur : 0, target:prevB ? prevB.target : 0 };
+        PART_STATE[key] = partB; parts.push(partB); applyPart(partB);
+        frame.add(g);
+        yb += ifh + 0.035;
+      });
+      var topB = bodyBase + bodyH;
+      for (var bs = 1; bs <= 2; bs++){
+        var shB = new THREE.Mesh(new THREE.BoxGeometry(widthM - 2 * T, 0.018, CD - 0.03), meta.openMat);
+        shB.position.set(0, yb + (topB - yb) * bs / 3, (CD - 0.03) / 2 + 0.005); shB.castShadow = true; shB.receiveShadow = true;
+        frame.add(shB);
+      }
+    }
   }
 
   // Kesseböhmer Le Mans (Töfrahorn): two kidney-shaped trays with a chrome rail behind the door half. No
@@ -2591,6 +2698,8 @@
             warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), heightMm:hM * 1000, elevMm:0, handle:state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0.55,
             plinth:!c.panel, counter:!!c.counter, sink:!!c.sink, oven:!!c.oven, panel:!!c.panel, plinthMat:plinthMat, stoneMat:stoneMat,
             ovenCodes:c.oven ? ovenCodesOf(b, state.drawerSystem) : null, fixedFronts:!!c.fixedFronts,
+            burCodes:c.bur ? burCodesOf(b, state.drawerSystem) : null, dishwasher:!!c.dishwasher,
+            ovenInner:c.oven ? (String(b.ovenCombo == null ? OVEN_DEFAULT[state.drawerSystem === "merivo" ? "merivo" : "legra"] : b.ovenCombo).split("+")[1] || null) : null,
             washerDrawerM:c.thvo && b.thvo !== "hurdir" ? 0.40 : 0 }, selected, pickables);
       });
       wall.wall.forEach(function(b, bi){
