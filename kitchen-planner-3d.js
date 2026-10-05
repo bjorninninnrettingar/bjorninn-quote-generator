@@ -376,6 +376,10 @@
     var wsum = codes.reduce(function(a, c){ return a + (FRONT_WEIGHT[c] || 200); }, 0);
     return codes.map(function(c){ return (FRONT_MIN[c] || 150) + spare * (FRONT_WEIGHT[c] || 200) / wsum; });
   }
+  // A drawer box sits at the BOTTOM of its front's zone (20 mm up, on its runners) and the space above it is
+  // what's left over — the way a Blum drawer is built (user, 2026-10-05: they hung from the top before,
+  // which wasted the bottom of every drawer). Never sticks out above the front.
+  function drawerBoxY(y0, y1, boxH){ return Math.max(y0 + 0.004, Math.min(y0 + 0.02, y1 - 0.01 - boxH)); }
   // The customer's own front heights (interior.frontsMm, bottom → top — typed or dragged in the drawer
   // builder, 2026-10-02) when they still match this stack and body; otherwise the defaults above.
   function stackFrontsMm(interior, codes, bodyMm){
@@ -1695,15 +1699,15 @@
         if (real){
           var rb = new THREE.Box3().setFromObject(real), rs = rb.getSize(new THREE.Vector3());
           bx = new THREE.Group(); real.position.set(0, 0, -rb.max.z); bx.add(real);
-          bx.position.set(0, y1 - 0.03 - rs.y, CD - 0.005);
+          bx.position.set(0, drawerBoxY(y0, y1, rs.y), CD - 0.005);
         } else {
           bx = buildDrawerBox(THREE, sysKey, meta.carcassKey, side, Math.max(0.2, widthM - 2 * T - 0.026), Math.max(0.2, Math.min(0.5, CD - 0.06)), code);
-          bx.position.set(0, y1 - 0.03 - side / 1000, CD - 0.005);
+          bx.position.set(0, drawerBoxY(y0, y1, side / 1000), CD - 0.005);
         }
         if (interior && interior.inner && fi === drawers - 1 && fh > 0.2){ // inner drawer (innskúffa) behind the top front: a low drawer riding in the upper part of the tall one
           var innerCode = interior.inner === "IK" ? "K" : "M", innerSide = (sysD && sysD.side[innerCode]) || 90;
           var ib = buildDrawerBox(THREE, sysKey, meta.carcassKey, innerSide, Math.max(0.18, widthM - 2 * T - 0.06), Math.max(0.2, Math.min(0.46, CD - 0.1)), null);
-          ib.position.set(0, y1 - 0.02 - innerSide / 1000, CD - 0.045);
+          ib.position.set(0, Math.max(bx.position.y + 0.02, drawerBoxY(y0, y1, side / 1000) + side / 1000 - 0.012 - innerSide / 1000), CD - 0.045); // in the upper part of the tall drawer
           g.add(ib); ib.traverse(function(o){ if (o.isMesh) meshes.push(o); });
         }
         g.add(bx); bx.traverse(function(o){ if (o.isMesh) meshes.push(o); });
@@ -3414,10 +3418,10 @@
         if (real){ // real model: front edge at the front, top just under the drawer front's top
           var rb = new THREE.Box3().setFromObject(real), rs = rb.getSize(new THREE.Vector3());
           bx = new THREE.Group(); real.position.set(0, 0, -rb.max.z); bx.add(real);
-          bx.position.set(0, y1 - 0.03 - rs.y, CD - 0.005);
+          bx.position.set(0, drawerBoxY(y0, y1, rs.y), CD - 0.005);
         } else {
           bx = buildDrawerBox(THREE, cfg.drawer, cfg.carcass, sides[i], null, null, L ? L.codes[2 - i] : null);
-          bx.position.set(0, y1 - 0.03 - sides[i] / 1000, CD - 0.005);
+          bx.position.set(0, drawerBoxY(y0, y1, sides[i] / 1000), CD - 0.005);
         }
         dg.add(bx);
         if (bx.userData && bx.userData.runners){ var rgW = bx.userData.runners; rgW.position.copy(bx.position); group.add(rgW); } // runners stay in the cabinet
