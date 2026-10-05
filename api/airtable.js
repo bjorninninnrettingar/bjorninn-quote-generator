@@ -262,7 +262,8 @@ const VERK_ONLY_FIELDS = {
     "Teikningar af tækifæri ✍️",
     "Heimilistæki verkefnis",
     "Framvinda sögunar",
-    "Framvinda almennar framleiðslu",
+    "Fjöldi hluta til að fræsa 🔬", // /verk Framvinda: Fræsing row (rows marked Yfirfr.)
+    "Fjöldi hluta fræstir 🔬",      // …and of those, ticked Fræst
     "Fjöldi varahluta til að saga",
     "Fjöldi varahluta sagaðir",
     "Staða á efnispöntun",

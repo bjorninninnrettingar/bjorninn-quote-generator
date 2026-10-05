@@ -313,12 +313,10 @@
     dAppl:"Heimilistæki verkefnis",
 
     pgSaw:"Framvinda sögunar",
-    pgMill:"Framvinda fræsingar",
-    pgGen:"Framvinda almennar framleiðslu",
     sawTodo:"Fjöldi varahluta til að saga",
     sawDone:"Fjöldi varahluta sagaðir",
-    millTodo:"Fjöldi eininga til að fræsa",
-    millDone:"Fjöldi eininga búið að fræsa ✅",
+    millTodo:"Fjöldi hluta til að fræsa 🔬",
+    millDone:"Fjöldi hluta fræstir 🔬",
     orderStatus:"Staða á efnispöntun",
 
     mCarcase:"Heiti efnis (from Skrokka efni 🔲 viðskiptavinar)",
@@ -526,9 +524,12 @@
   function renderProg(f){
     var sawT=num(f[F.sawTodo]), sawD=num(f[F.sawDone]);
     var milT=num(f[F.millTodo]), milD=num(f[F.millDone]);
+    // Fræsing = Sögunarlisti rows marked Yfirfr. vs those ticked Fræst
+    // (/fraesing or the "Merkja fræst" QR button). Heild = the same
+    // Framvinda framleiðslu [weighted] the TV/app/customer portal show.
     progRow("Sögun", pct(f[F.pgSaw]), sawT?sawD+"/"+sawT+" varahlutir":"");
-    progRow("Fræsing", pct(f[F.pgMill]), milT?milD+"/"+milT+" einingar":"");
-    progRow("Almenn framleiðsla", pct(f[F.pgGen]), "");
+    if (milT) progRow("Fræsing", pct(Math.min(milD, milT)/milT), milD+"/"+milT+" hlutir");
+    progRow("Heild", pct(f[F.weighted]), "");
     if ($("prog").children.length) show($("progSec"));
   }
 
