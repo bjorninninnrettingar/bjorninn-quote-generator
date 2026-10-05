@@ -418,6 +418,7 @@
   .fit-ask p{ margin:0 0 10px; line-height:1.4; }
   .fit-ask-btns{ display:flex; gap:8px; justify-content:flex-end; }
   .hw-btn.maybe{ border-style:dashed; }
+  #floatBar.decor-sel{ display:none !important; }
   .light-btns{ display:flex; flex-direction:column; gap:6px; margin-bottom:8px; }
   .light-btns .hw-btn{ text-align:left; }
   #moodBtn.active{ background:#1e2433; color:#ffe2a8; }
@@ -3873,6 +3874,13 @@
       '<div class="light-btns">' + lbtn("underWall", "LED undir efri skápum") + lbtn("shelves", "LED í opnum hillum") + '</div>' +
       '<button type="button" class="btn btn-secondary btn-small" data-act="mood">' + (moodOn ? '☀️ Dagsbirta' : '🌙 Sjá í kvöldstemningu') + '</button>' +
       (bom ? '<p class="sec-note">' + bom.join(" · ") + '</p>' : '<p class="sec-note">Smelltu á efri skáp til að kveikja eða slökkva á ljósi undir honum einum.</p>'));
+    var DEC = KP3D.DECOR;
+    html += sec("skraut", "Húsgögn og skraut",
+      KP3D.DECOR_GROUPS.map(function(gp){
+        return '<div class="cat-title">' + gp.label + '</div><div class="light-btns">' + Object.keys(DEC).filter(function(k){ return DEC[k].group === gp.key; }).map(function(k){
+          return '<button type="button" class="hw-btn" data-decor-add="' + k + '">＋ ' + DEC[k].label + '</button>';
+        }).join("") + '</div>';
+      }).join("") + '<p class="sec-note">Bara til að sjá rýmið fyrir sér — ekki hluti af pöntuninni. Dragðu hlutina til í 3D.</p>');
     html += sec("efni", "Efni og útlit",
       '<p class="sec-note">Framhlið: <b>' + (state.look && LOOKS[state.look] ? LOOKS[state.look].label : "—") + '</b><br>Borðplata: <b>' + (TOPS[state.top || "steinn"] ? TOPS[state.top || "steinn"].label : "—") + '</b><br>Opnun: <b>' + (state.handle ? HANDLES[state.handle].label : "—") + '</b></p>' +
       '<button type="button" class="btn btn-secondary btn-small" data-act="materials">Breyta efni (framhlið, höldur, borðplata)</button>');
@@ -3885,6 +3893,7 @@
         try{ localStorage.setItem(SEC_KEY, JSON.stringify(openSecs)); }catch(e){}
       });
     });
+    host.querySelectorAll("[data-decor-add]").forEach(function(b){ b.addEventListener("click", function(){ addDecor(b.dataset.decorAdd); }); });
     host.querySelectorAll("[data-light]").forEach(function(b){
       b.addEventListener("click", function(){
         var L2 = lighting(); L2[b.dataset.light] = !L2[b.dataset.light];
@@ -4623,9 +4632,11 @@
 
   function onCabinetSelect(meta){
     var hadWall = !!selectedWallId;
+    var wasDecor = selectedBlockId && findDecor(selectedBlockId);
     selectedBlockId = meta ? meta.blockId : null;
     selectedWallId = null;
     renderEditPanel();
+    if (wasDecor || (meta && meta.kind === "decor")){ renderView(); return; } // its selection ring is part of the scene
     // 3D: just move the highlight (no scene rebuild); 2D / cold scene: re-render
     if (viewMode === "3d" && KP3D.setSelected3D(selectedBlockId) && KP3D.setSelectedWall3D(null)) syncFloatBarKind();
     else renderView();
@@ -4784,7 +4795,7 @@
         return;
       }
       wrap.innerHTML = "";
-      KP3D.buildScene(wrap, state, { selectedId:selectedBlockId, selectedWallId:selectedWallId, onWallSelect:onWallSelect, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, onIslandDragEnd:onIslandDragEnd, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList(),
+      KP3D.buildScene(wrap, state, { selectedId:selectedBlockId, selectedWallId:selectedWallId, onWallSelect:onWallSelect, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, onIslandDragEnd:onIslandDragEnd, onDecorDragEnd:onDecorDragEnd, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList(),
         xray:inspect.on }); // inspect mode: every cabinet built in parts (drawers/doors tap open, nothing drags)
       landedBlockId = null;
       applyInspect();
@@ -5058,6 +5069,9 @@
     if (opening){ renderOpeningPanel(host, opening); return; }
     var island = !found && !opening && selectedBlockId ? findIsland(selectedBlockId) : null;
     if (island){ renderIslandPanel(host, island); return; }
+    var decor = !found && !opening && !island && selectedBlockId ? findDecor(selectedBlockId) : null;
+    document.getElementById("floatBar").classList.toggle("decor-sel", !!decor); // the cabinet toolbar means nothing for a prop
+    if (decor){ renderDecorPanel(host, decor); return; }
     var selWall = !found && !selectedBlockId && selectedWallId ? state.walls.find(function(w){ return w.id === selectedWallId; }) : null;
     if (selWall){ renderWallPanel(host, selWall); return; }
     if (!found){
@@ -5365,6 +5379,55 @@
   // ---------- summary step ----------
   // ---------- toast ----------
   var toastTimer;
+  // ---- Húsgögn og skraut (2026-10-05): view-only props in state.decor [{id, kind, xMm, zMm, rot}] ----
+  var decorSeq = 1;
+  function findDecor(id){ return (state.decor || []).find(function(d){ return d.id === id; }) || null; }
+  function addDecor(kind){
+    var def = KP3D.DECOR[kind], rb = KP3D.roomBounds(state), at = null;
+    if (!def) return;
+    state.decor = state.decor || [];
+    if (def.group === "top"){ // onto a worktop: the first cabinet with a counter, a little out from the wall
+      surfaces().some(function(w, wi){
+        if (w.open) return false;
+        var g = KP3D.surfaceGeoms(state)[KP3D.surfacesOf(state).findIndex(function(x){ return x.id === w.id; })];
+        var sp = spansOf(w, "floor").filter(function(x){ var c = CATALOG[x.b.type]; return c.counter && !c.sink; });
+        var pick = sp[(state.decor.length) % Math.max(1, sp.length)];
+        if (!g || !pick) return false;
+        var along = (pick.start + pick.end) / 2000, out = (pick.b.depthMm || CATALOG[pick.b.type].d) * 0.55 / 1000;
+        at = { x:(g.origin.x + g.axis.x * along + g.normal.x * out) * 1000, z:(g.origin.z + g.axis.z * along + g.normal.z * out) * 1000 };
+        return true;
+      });
+      if (!at){ toast("Settu fyrst inn skáp með borðplötu — þá fer hluturinn ofan á hana."); return; }
+    } else if (def.group === "ceiling" && state.islands && state.islands.length){
+      var isl = state.islands[0]; at = { x:isl.xMm, z:isl.zMm };
+    }
+    if (!at){ // the middle of the room, each new floor item a step round from the last so they don't pile up
+      var n = state.decor.filter(function(x){ return KP3D.DECOR[x.kind] && KP3D.DECOR[x.kind].group === def.group; }).length, ang = n * 2.1, r = n ? 700 : 0;
+      at = rb ? { x:(rb.minX + rb.maxX) * 500 + Math.cos(ang) * r, z:(rb.minZ + rb.maxZ) * 500 + Math.sin(ang) * r } : { x:0, z:0 };
+    }
+    var d = { id:"d" + (decorSeq++) + "_" + Date.now().toString(36), kind:kind, xMm:Math.round(at.x), zMm:Math.round(at.z), rot:0 };
+    state.decor.push(d);
+    selectedBlockId = d.id; save(); refreshAfterEdit();
+  }
+  function onDecorDragEnd(id, dxMm, dzMm){
+    var d = findDecor(id); if (!d) return;
+    var rb = KP3D.roomBounds(state);
+    d.xMm += dxMm; d.zMm += dzMm;
+    if (rb){ d.xMm = Math.max(rb.minX * 1000, Math.min(rb.maxX * 1000, d.xMm)); d.zMm = Math.max(rb.minZ * 1000, Math.min(rb.maxZ * 1000, d.zMm)); }
+    selectedBlockId = id; save(); refreshAfterEdit();
+  }
+  function removeDecor(id){ state.decor = (state.decor || []).filter(function(d){ return d.id !== id; }); if (selectedBlockId === id) selectedBlockId = null; save(); refreshAfterEdit(); }
+  function renderDecorPanel(host, d){
+    var def = KP3D.DECOR[d.kind];
+    host.innerHTML = '<div class="edit-panel"><div class="edit-panel-head"><div><h4>' + def.label + '</h4><div class="sub">Húsgögn og skraut — ekki í pöntun</div></div><button class="iconbtn" data-role="close" title="Loka">✕</button></div>' +
+      '<div class="edit-actions"><button class="iconbtn" data-role="rotL">↺ 45°</button><button class="iconbtn" data-role="rotR">↻ 45°</button><button class="iconbtn del" data-role="delete">✕ Fjarlægja</button></div>' +
+      '<p class="ov-mat" style="margin-top:10px;">Dragðu hlutinn til í 3D.' + (def.group === "top" ? ' Hann sest ofan á borðplötuna sem hann lendir á.' : '') + '</p></div>';
+    host.querySelector('[data-role="close"]').addEventListener("click", function(){ onCabinetSelect(null); });
+    host.querySelector('[data-role="rotL"]').addEventListener("click", function(){ d.rot = ((d.rot || 0) + 315) % 360; save(); refreshAfterEdit(); });
+    host.querySelector('[data-role="rotR"]').addEventListener("click", function(){ d.rot = ((d.rot || 0) + 45) % 360; save(); refreshAfterEdit(); });
+    host.querySelector('[data-role="delete"]').addEventListener("click", function(){ removeDecor(d.id); });
+  }
+
   // ---- Lýsing (2026-10-05): what's lit, and the products it takes (Útfærslur "Ljós og lýsing") ----
   function lighting(){ return state.lighting || (state.lighting = { underWall:false, shelves:false, plinth:false }); }
   function lightingOn(){ var L = lighting(); return L.underWall || L.shelves || surfaces().some(function(w){ return w.wall.some(function(b){ return b.led; }); }); }
@@ -6409,6 +6472,7 @@
       var found = findBlock(selectedBlockId), op = found ? null : findOpening(selectedBlockId);
       if (found){ e.preventDefault(); selectedBlockId = null; removeBlock(found.wall, found.zone, found.block.id); }
       else if (op){ e.preventDefault(); if (opLocked(op.o)){ opLockedToast(); return; } selectedBlockId = null; removeOpening(op.kind, op.o.id); }
+      else if (findDecor(selectedBlockId)){ e.preventDefault(); removeDecor(selectedBlockId); }
     } else if (e.key === "Escape"){ onCabinetSelect(null); }
   });
 

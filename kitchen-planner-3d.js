@@ -2096,6 +2096,12 @@
         return;
       }
       evt.stopPropagation();
+      if (mesh.userData.kind === "decor"){ // furniture/decor: slides over the floor as one piece
+        var dg = mesh; while (dg.parent && !dg.parent.isScene) dg = dg.parent;
+        drag = { meta:mesh.userData, mesh:mesh, group:dg, island:true, decor:true, startX:evt.clientX, startY:evt.clientY, moved:false, pt0:floorHit(evt), dx:0, dz:0, groups:[dg] };
+        controls.enabled = false;
+        return;
+      }
       if (mesh.userData.kind === "island"){ // island move-handle: slides the island's cabinets as one
         var iid = mesh.userData.islandId;
         drag = { meta:mesh.userData, mesh:mesh, group:mesh.parent, island:true, startX:evt.clientX, startY:evt.clientY, moved:false,
@@ -2133,6 +2139,11 @@
         var pt = floorHit(evt);
         if (!pt || !drag.pt0) return;
         drag.dx = pt.x - drag.pt0.x; drag.dz = pt.z - drag.pt0.z;
+        if (drag.decor){ // its own position/rotation: just move it
+          if (!drag.base) drag.base = drag.group.position.clone();
+          drag.group.position.set(drag.base.x + drag.dx, drag.base.y, drag.base.z + drag.dz);
+          return;
+        }
         drag.groups.forEach(function(g){ g.matrixAutoUpdate = false; g.matrix.makeTranslation(drag.dx, 0, drag.dz); g.matrixWorldNeedsUpdate = true; });
         return;
       }
@@ -2208,9 +2219,10 @@
         controls.enabled = true;
         renderer.domElement.style.cursor = "";
         if (d0.moved){
-          d0.groups.forEach(function(g){ g.matrix.identity(); g.matrixWorldNeedsUpdate = true; });
+          if (!d0.decor) d0.groups.forEach(function(g){ g.matrix.identity(); g.matrixWorldNeedsUpdate = true; });
           suppressClick = true;
-          if (opts.onIslandDragEnd) opts.onIslandDragEnd(d0.meta.islandId, Math.round(d0.dx * 1000), Math.round(d0.dz * 1000));
+          if (d0.decor){ if (opts.onDecorDragEnd) opts.onDecorDragEnd(d0.meta.decorId, Math.round(d0.dx * 1000), Math.round(d0.dz * 1000)); }
+          else if (opts.onIslandDragEnd) opts.onIslandDragEnd(d0.meta.islandId, Math.round(d0.dx * 1000), Math.round(d0.dz * 1000));
         } else if (opts.onSelect){
           opts.onSelect(d0.meta);
         }
@@ -3050,6 +3062,8 @@
       });
     }
 
+    if (!opts.people && !iso) addDecorItems(THREE, scene, state, opts, pickables);
+
     // Soft daylight: sky/ground hemisphere fill + a warm key light with soft
     // shadows fitted to the room + a faint cool fill from the other side.
     var hemi = new THREE.HemisphereLight(0xffffff, 0xbdb4a4, 0.5);
@@ -3599,6 +3613,117 @@
     return [corners[0][0], corners[1][0], corners[1][1], corners[0][1]];
   }
 
+  // ---- Furniture & decor (2026-10-05): drawn from simple shapes, placed freely, never ordered ----
+  // kind: "floor" stands on the floor, "top" sits on whatever worktop is under it, "ceiling" hangs from it.
+  var DECOR = {
+    bordFer:    { label:"Borðstofuborð + 6 stólar", group:"floor", w:1600, d:900 },
+    bordHring:  { label:"Hringborð + 4 stólar",     group:"floor", w:1100, d:1100 },
+    barstoll:   { label:"Barstóll",                 group:"floor", w:420, d:420 },
+    planta:     { label:"Pottaplanta",              group:"floor", w:450, d:450 },
+    motta:      { label:"Gólfmotta",                group:"floor", w:2000, d:1400 },
+    kaffivel:   { label:"Kaffivél",                 group:"top",   w:300, d:380 },
+    ketill:     { label:"Ketill",                   group:"top",   w:220, d:180 },
+    skal:       { label:"Ávaxtaskál",               group:"top",   w:280, d:280 },
+    plantaLitil:{ label:"Lítil planta",             group:"top",   w:160, d:160 },
+    bretti:     { label:"Skurðarbretti",            group:"top",   w:450, d:300 },
+    hengiljos:  { label:"Hengiljós",                group:"ceiling", w:320, d:320 }
+  };
+  var DECOR_GROUPS = [{ key:"floor", label:"Á gólfið" }, { key:"top", label:"Á borðplötuna" }, { key:"ceiling", label:"Í loftið" }];
+  // height of the worktop (or other top) under a point of the room, 0 = the floor
+  function surfaceTopAt(state, xMm, zMm){
+    var surf = surfacesOf(state), geoms = surfaceGeoms(state), x = xMm / 1000, z = zMm / 1000, top = 0;
+    surf.forEach(function(w, wi){
+      var g = geoms[wi]; if (!g || w.open) return;
+      var starts = blockStartsMm(w.floor, cornerClearanceMm(surf, wi, "floor"));
+      w.floor.forEach(function(b, i){
+        var c = CATALOG[b.type], q = rectCornersWorld(g, starts[i], b.widthMm, b.depthMm || c.d);
+        var inside = true;
+        for (var k = 0; k < 4; k++){ var a = q[k], bb = q[(k + 1) % 4]; if ((bb.x - a.x) * (z - a.z) - (bb.z - a.z) * (x - a.x) < 0){ inside = false; break; } }
+        var inside2 = true;
+        for (var k2 = 0; k2 < 4; k2++){ var a2 = q[k2], b2 = q[(k2 + 1) % 4]; if ((b2.x - a2.x) * (z - a2.z) - (b2.z - a2.z) * (x - a2.x) > 0){ inside2 = false; break; } }
+        if (inside || inside2) top = Math.max(top, Math.min(b.heightMm || c.h, state.roomHeightMm || 2500) / 1000 + (c.counter ? 0.032 : 0));
+      });
+    });
+    return top;
+  }
+  function buildDecor(THREE, key){
+    var gr = new THREE.Group();
+    function mat(c, r, m){ return new THREE.MeshStandardMaterial({ color:c, roughness:r == null ? 0.6 : r, metalness:m || 0 }); }
+    function box(w, h, d, x, y, z, m){ var o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); o.castShadow = true; o.receiveShadow = true; gr.add(o); return o; }
+    function cyl(rt, rb, h, x, y, z, m, seg){ var o = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg || 24), m); o.position.set(x, y, z); o.castShadow = true; o.receiveShadow = true; gr.add(o); return o; }
+    function ball(r, x, y, z, m){ var o = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 1), m); o.position.set(x, y, z); o.castShadow = true; gr.add(o); return o; }
+    var oak = mat(0xb48a5f, 0.55), dark = mat(0x2e2e31, 0.5), leaf = mat(0x4d7a46, 0.8), leaf2 = mat(0x3f6a3c, 0.8), white = mat(0xf2f0eb, 0.4);
+    function chair(x, z, rot){
+      var c = new THREE.Group();
+      [[-0.19, -0.19], [0.19, -0.19], [-0.19, 0.19], [0.19, 0.19]].forEach(function(p){ var l = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.012, 0.45, 10), dark); l.position.set(p[0], 0.225, p[1]); l.castShadow = true; c.add(l); });
+      var seat = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.03, 0.44), oak); seat.position.y = 0.46; seat.castShadow = true; c.add(seat);
+      var back = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.34, 0.02), oak); back.position.set(0, 0.64, -0.2); back.castShadow = true; c.add(back);
+      c.position.set(x, 0, z); c.rotation.y = rot; gr.add(c);
+    }
+    if (key === "bordFer" || key === "bordHring"){
+      var round = key === "bordHring";
+      if (round){ cyl(0.55, 0.55, 0.035, 0, 0.74, 0, oak, 48); cyl(0.05, 0.06, 0.7, 0, 0.36, 0, dark); cyl(0.28, 0.3, 0.025, 0, 0.012, 0, dark, 32); }
+      else { box(1.6, 0.035, 0.9, 0, 0.74, 0, oak); [[-0.72, -0.37], [0.72, -0.37], [-0.72, 0.37], [0.72, 0.37]].forEach(function(p){ box(0.05, 0.72, 0.05, p[0], 0.36, p[1], dark); }); }
+      if (round) [0, 1, 2, 3].forEach(function(i){ var a = i * Math.PI / 2; chair(Math.sin(a) * 0.72, Math.cos(a) * 0.72, a + Math.PI); });
+      else [-0.5, 0, 0.5].forEach(function(x){ chair(x, -0.68, 0); chair(x, 0.68, Math.PI); });
+    } else if (key === "barstoll"){
+      cyl(0.19, 0.19, 0.05, 0, 0.75, 0, oak, 28); cyl(0.022, 0.022, 0.72, 0, 0.38, 0, dark, 12); cyl(0.2, 0.22, 0.02, 0, 0.01, 0, dark, 28);
+      var ring = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.01, 8, 28), dark); ring.rotation.x = Math.PI / 2; ring.position.y = 0.3; gr.add(ring);
+    } else if (key === "planta" || key === "plantaLitil"){
+      var sc = key === "planta" ? 1 : 0.38;
+      cyl(0.17 * sc, 0.13 * sc, 0.34 * sc, 0, 0.17 * sc, 0, key === "planta" ? mat(0xb5653c, 0.8) : white);
+      // a loose crown of small leaf clumps on a few stems (golden-angle spread, so it reads as one plant)
+      var nL = key === "planta" ? 34 : 14, crownH = key === "planta" ? 1.05 : 0.3, base = 0.34 * sc;
+      if (key === "planta") [[0.03, 0], [-0.03, 0.02], [0, -0.03]].forEach(function(p){ cyl(0.008, 0.01, 0.6, p[0], base + 0.3, p[1], dark, 6); });
+      for (var i = 0; i < nL; i++){
+        var f = i / nL, a = i * 2.399, r = (0.06 + 0.2 * Math.sqrt(f)) * (key === "planta" ? 1 : 0.42), yL = base + 0.08 * sc + (crownH - 0.1) * (0.35 + 0.65 * (1 - f));
+        var lf = new THREE.Mesh(new THREE.SphereGeometry(key === "planta" ? 0.07 : 0.035, 10, 6), i % 3 ? leaf : leaf2);
+        lf.scale.set(1.5, 0.45, 0.8); lf.position.set(Math.cos(a) * r, yL, Math.sin(a) * r); lf.rotation.set(0.3 * Math.sin(i), a, 0.5 * Math.cos(i)); lf.castShadow = true; gr.add(lf);
+      }
+    } else if (key === "motta"){
+      var rug = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.008, 1.4), mat(0xcbbfae, 0.95)); rug.position.y = 0.004; rug.receiveShadow = true; gr.add(rug);
+      var inner = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.009, 1.2), mat(0xb7a993, 0.95)); inner.position.y = 0.005; inner.receiveShadow = true; gr.add(inner);
+    } else if (key === "kaffivel"){
+      box(0.28, 0.34, 0.36, 0, 0.17, 0, mat(0x1d1d20, 0.35, 0.3)); box(0.12, 0.05, 0.12, 0, 0.06, 0.08, mat(0xb9bec4, 0.25, 0.85));
+      cyl(0.04, 0.035, 0.08, 0, 0.12, 0.08, white, 16);
+    } else if (key === "ketill"){
+      cyl(0.075, 0.09, 0.2, 0, 0.11, 0, mat(0xc9ccd1, 0.25, 0.85), 28); cyl(0.09, 0.09, 0.015, 0, 0.008, 0, dark, 28);
+      var hd = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.012, 8, 20, Math.PI), dark); hd.position.set(-0.08, 0.15, 0); hd.rotation.z = -Math.PI / 2; gr.add(hd);
+    } else if (key === "skal"){
+      var bowl = new THREE.Mesh(new THREE.SphereGeometry(0.13, 28, 14, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), white); bowl.rotation.x = Math.PI; bowl.position.y = 0.13; bowl.castShadow = true; gr.add(bowl);
+      [[0xf08a24, -0.04, 0.02], [0x9bc53d, 0.05, -0.02], [0xc0392b, 0.0, 0.05], [0xf2c94c, -0.02, -0.05]].forEach(function(f){ ball(0.045, f[1], 0.1, f[2], mat(f[0], 0.5)); });
+    } else if (key === "bretti"){
+      box(0.45, 0.025, 0.3, 0, 0.0125, 0, oak); ball(0.04, 0.12, 0.06, 0.05, mat(0xc0392b, 0.5));
+    } else if (key === "hengiljos"){ // hangs from y = 0 down: cord, shade, bulb (lights up in the evening view)
+      cyl(0.004, 0.004, 0.7, 0, -0.35, 0, dark, 8);
+      var shade = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.2, 32, 1, true), new THREE.MeshStandardMaterial({ color:0x1f1f22, roughness:0.4, metalness:0.3, side:THREE.DoubleSide }));
+      shade.position.y = -0.8; shade.castShadow = true; gr.add(shade);
+      var bulb = new THREE.Mesh(new THREE.SphereGeometry(0.04, 16, 10), new THREE.MeshBasicMaterial({ color:0xfff1d8, toneMapped:false })); bulb.position.y = -0.87; gr.add(bulb);
+      gr.userData.bulb = bulb;
+    }
+    return gr;
+  }
+  function addDecorItems(THREE, scene, state, opts, pickables){
+    (state.decor || []).forEach(function(d){
+      var def = DECOR[d.kind]; if (!def) return;
+      var gr = buildDecor(THREE, d.kind);
+      var y = def.group === "ceiling" ? (state.roomHeightMm || 2500) / 1000 : def.group === "top" ? surfaceTopAt(state, d.xMm, d.zMm) : 0;
+      gr.position.set(d.xMm / 1000, y, d.zMm / 1000); gr.rotation.y = (d.rot || 0) * Math.PI / 180;
+      var meta = { kind:"decor", blockId:d.id, decorId:d.id, zone:"decor", widthMm:def.w, depthMm:def.d };
+      gr.traverse(function(o){ if (o.isMesh){ o.userData = meta; pickables.push(o); } });
+      if (opts.selectedId === d.id){ // a blue ring round the selected one
+        var r = Math.max(def.w, def.d) / 2000 + 0.05, ring = new THREE.Mesh(new THREE.RingGeometry(r, r + 0.02, 48), new THREE.MeshBasicMaterial({ color:SELECT_COLOR, side:THREE.DoubleSide }));
+        ring.rotation.x = -Math.PI / 2; ring.position.y = def.group === "ceiling" ? -0.92 : 0.006; gr.add(ring);
+      }
+      scene.add(gr);
+      if (gr.userData.bulb){ // the pendant lights the table under it in the evening
+        var L = (scene.userData.leds = scene.userData.leds || { glows:[] }); (L.strips = L.strips || []).push(gr.userData.bulb);
+        ledSpot(THREE, scene, gr, 0, -0.88, 0, -y + 0.75);
+        var sp = L.lights[L.lights.length - 1]; if (sp && sp.isSpotLight){ sp.angle = 0.9; sp.distance = 3; sp.userData.full = 5; }
+      }
+    });
+  }
+
   function buildPlan2D(container, state, opts){
     opts = opts || {};
     var geoms = wallGeoms(state);
@@ -3787,7 +3912,7 @@
     cornerClearanceMm: cornerClearanceMm, afellaMm: afellaMm, AFELLA_MM: AFELLA_MM,
     blockStartsMm: blockStartsMm,
     planTransform: planTransform,
-    rectCornersWorld: rectCornersWorld,
+    rectCornersWorld: rectCornersWorld, DECOR: DECOR, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt,
     WALL_COLORS: WALL_COLORS,
     WINDOW_DEFAULT: WINDOW_DEFAULT,
     _handleProfile: handleProfile,
