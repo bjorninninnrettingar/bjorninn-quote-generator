@@ -249,10 +249,15 @@
   var MOOD = false, GLOW_TEX = null;
   function glowTexture(THREE){
     if (GLOW_TEX) return GLOW_TEX;
-    var cv = document.createElement("canvas"); cv.width = 4; cv.height = 128;
+    // bright at the light's edge fading away from it, and soft towards both ends (no hard rectangle on the worktop)
+    var cv = document.createElement("canvas"); cv.width = 64; cv.height = 128;
     var cx = cv.getContext("2d"), gr = cx.createLinearGradient(0, 0, 0, 128);
     gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(0.35, "rgba(255,255,255,0.45)"); gr.addColorStop(1, "rgba(255,255,255,0)");
-    cx.fillStyle = gr; cx.fillRect(0, 0, 4, 128);
+    cx.fillStyle = gr; cx.fillRect(0, 0, 64, 128);
+    cx.globalCompositeOperation = "destination-in";
+    var side = cx.createLinearGradient(0, 0, 64, 0);
+    side.addColorStop(0, "rgba(0,0,0,0)"); side.addColorStop(0.18, "rgba(0,0,0,1)"); side.addColorStop(0.82, "rgba(0,0,0,1)"); side.addColorStop(1, "rgba(0,0,0,0)");
+    cx.fillStyle = side; cx.fillRect(0, 0, 64, 128);
     GLOW_TEX = new THREE.CanvasTexture(cv); GLOW_TEX.userData.keep = true;
     return GLOW_TEX;
   }
@@ -263,9 +268,10 @@
     scene.add(f); return f;
   }
   function ledStrip(THREE, scene, f, x, w, y, z, spot){
-    var m = new THREE.Mesh(spot ? new THREE.CylinderGeometry(0.018, 0.018, 0.004, 20) : new THREE.BoxGeometry(w, 0.005, 0.01), new THREE.MeshBasicMaterial({ color:0xfff1d8 }));
+    var m = new THREE.Mesh(spot ? new THREE.CylinderGeometry(0.018, 0.018, 0.004, 20) : new THREE.BoxGeometry(w, 0.005, 0.01), new THREE.MeshBasicMaterial({ color:0xfff1d8, toneMapped:false }));
     m.position.set(x, y, z); f.add(m);
-    (scene.userData.leds = scene.userData.leds || { glows:[] });
+    var L = (scene.userData.leds = scene.userData.leds || { glows:[] });
+    (L.strips = L.strips || []).push(m);
     return m;
   }
   // a glow lying on a surface at height y, from zNear (bright) to zFar (faded), w wide
@@ -279,12 +285,46 @@
     (scene.userData.leds = scene.userData.leds || { glows:[] }).glows.push(m);
     return m;
   }
-  function applyMood(scene){
-    var L = scene && scene.userData.sceneLights;
-    if (L) L.forEach(function(l){ l.light.intensity = l.base * (MOOD ? l.mood : 1); });
-    ((scene && scene.userData.leds) || { glows:[] }).glows.forEach(function(m){ m.material.opacity = m.userData.glow * (MOOD ? 1 : 0.3); });
+  // real lights for the evening: a soft area light under each lit wall unit, a spot under each ATOM
+  // (capped so a big kitchen stays fast)
+  function ledAreaLight(THREE, scene, f, w, y, z){
+    var L = (scene.userData.leds = scene.userData.leds || { glows:[] });
+    L.lights = L.lights || [];
+    if (!THREE.RectAreaLight || L.lights.filter(function(l){ return l.isRectAreaLight; }).length >= 14) return;
+    var a = new THREE.RectAreaLight(0xffcf96, 0, w, 0.03);
+    a.position.set(0, y, z); a.rotation.x = -Math.PI / 2; a.userData.full = 9; // shines straight down
+    f.add(a); L.lights.push(a);
   }
-  function setMood(on){ MOOD = !!on; if (THREE_STATE) applyMood(THREE_STATE.scene); return MOOD; }
+  function ledSpot(THREE, scene, f, x, y, z, floorY){
+    var L = (scene.userData.leds = scene.userData.leds || { glows:[] });
+    L.lights = L.lights || [];
+    if (L.lights.filter(function(l){ return l.isSpotLight; }).length >= 12) return;
+    var sp = new THREE.SpotLight(0xffd3a0, 0, 1.6, 0.75, 0.85, 2);
+    sp.position.set(x, y, z); sp.target.position.set(x, floorY, z); sp.userData.full = 1.6;
+    f.add(sp); f.add(sp.target); L.lights.push(sp);
+  }
+  // MOOD_T eases toward MOOD (0 = day, 1 = evening) so switching fades instead of jumping
+  var MOOD_T = 0;
+  function applyMood(scene){
+    if (!scene) return;
+    var t = scene.userData.noMood ? 0 : MOOD_T, L = scene.userData.sceneLights;
+    if (L) L.forEach(function(l){ l.light.intensity = l.base * (1 - t + t * l.mood); });
+    if (scene.userData.hemi){ scene.userData.hemi.color.setRGB(1 - t * 0.42, 1 - t * 0.33, 1 - t * 0.16); scene.userData.hemi.groundColor.setRGB(0.74 - t * 0.6, 0.71 - t * 0.6, 0.64 - t * 0.56); } // dusk blue above, dark below
+    var leds = scene.userData.leds || { glows:[] };
+    leds.glows.forEach(function(m){ m.material.opacity = m.userData.glow * (0.3 + 0.7 * t); });
+    (leds.lights || []).forEach(function(l){ l.intensity = l.userData.full * (0.15 + 0.85 * t); });
+    (leds.strips || []).forEach(function(m){ var k = 1 + t * 2.2; m.material.color.setRGB(k, k * 0.93, k * 0.82); }); // brighter than white → blooms
+    if (scene.background && scene.userData.dayBg) scene.background.copy(scene.userData.dayBg).lerp(scene.userData.nightBg, t);
+    if (scene.userData.env !== undefined) scene.environment = t > 0.5 ? null : scene.userData.env; // the image-based light washes out the evening
+  }
+  function stepMood(scene){
+    var want = scene.userData.noMood ? 0 : (MOOD ? 1 : 0);
+    if (scene.userData.moodApplied === MOOD_T && Math.abs(MOOD_T - want) < 0.003) return;
+    if (Math.abs(MOOD_T - want) < 0.003) MOOD_T = want; else MOOD_T += (want - MOOD_T) * 0.09;
+    scene.userData.moodApplied = MOOD_T;
+    applyMood(scene);
+  }
+  function setMood(on){ MOOD = !!on; return MOOD; }
   function addCarcassBoards(THREE, parent, widthM, bodyH, bodyBase, depth, mat){
     var T = CARCASS_T, inner = widthM - 2 * T;
     function board(w, h, d, x, y, z){ var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m; }
@@ -2483,6 +2523,7 @@
     };
     cancelAnimationFrame(THREE_STATE.rafId);
     window.removeEventListener("resize", THREE_STATE.onResize);
+    if (THREE_STATE.composer){ THREE_STATE.composer.dispose(); THREE_STATE.composer = null; } // the evening bloom's render targets
     if (THREE_STATE.cleanupInteraction) THREE_STATE.cleanupInteraction();
     THREE_STATE.controls.dispose();
     disposeScene(THREE_STATE.scene);
@@ -2737,6 +2778,7 @@
     var iso = opts.onlySurfaceId || null; // one surface id, or an array of them (both rows of an island)
     function isoHas(id){ return Array.isArray(iso) ? iso.indexOf(id) >= 0 : id === iso; }
     scene.background = new THREE.Color(iso ? 0xffffff : 0xf7f6f2);
+    scene.userData.dayBg = scene.background.clone(); scene.userData.nightBg = new THREE.Color(0x1c2029);
 
     var nBeforeFloor = scene.children.length;
     var bbox = addFloor(THREE, scene, geoms, floorMat, stateBounds(state, geoms));
@@ -2935,7 +2977,7 @@
             ovenInner:c.oven && !c.lowOven ? (String(b.ovenCombo == null ? OVEN_DEFAULT[state.drawerSystem === "merivo" ? "merivo" : "legra"] : b.ovenCombo).split("+")[1] || null) : null,
             washerDrawerM:c.thvo && b.thvo !== "hurdir" ? 0.40 : 0 }, selected, pickables);
         // LED in the plinth: a strip at the foot of the plinth and a glow on the floor in front of it
-        if (LIGHT.plinth && !c.panel && !c.appliance && !opts.people){
+        if (false){ // (plinth LED taken out 2026-10-05)
           var pf = ledFrame(THREE, scene, g, offset / 1000, b.widthMm / 1000), pw = b.widthMm / 1000;
           ledStrip(THREE, scene, pf, 0, pw - 0.02, 0.008, dM - 0.058);
           ledGlow(THREE, scene, pf, 0, pw, dM - 0.06, dM + 0.32, 0.003, 0.75);
@@ -2968,13 +3010,18 @@
           var mid = offset + b.widthMm / 2, under = wall.floor.find(function(fb, fi){ return fStarts[fi] <= mid && mid <= fStarts[fi] + fb.widthMm; });
           var uc = under && CATALOG[under.type], topY = under ? Math.min(under.heightMm || uc.h, roomHeightMm) / 1000 + (uc.counter ? 0.033 : 0.001) : 0.003;
           var reach = under ? Math.min(0.62, (under.depthMm || uc.d) / 1000 + 0.01) : 0.7;
-          if (topY < elevM - 0.05) ledGlow(THREE, scene, wf, 0, ww * 1.1, 0.02, reach, topY + 0.001, 0.95);
+          if (topY < elevM - 0.05) ledGlow(THREE, scene, wf, 0, ww * 1.1, 0.02, reach, topY + 0.001, 0.55);
+          ledAreaLight(THREE, scene, wf, ww - 0.04, elevM - 0.008, dM - 0.05);
         }
         // ATOM spots in an open shelf unit: under the top board, each shelf and the bottom glow
         if (c.open && LIGHT.shelves){
           wf = wf || ledFrame(THREE, scene, g, offset / 1000, ww);
           var nS = Math.max(1, Math.round(ww / 0.4)), inner = ww - 2 * CARCASS_T;
-          for (var si = 0; si < nS; si++) ledStrip(THREE, scene, wf, -inner / 2 + inner * (si + 0.5) / nS, 0, elevM + hM - CARCASS_T - 0.003, dM * 0.55, true);
+          for (var si = 0; si < nS; si++){
+            var sxp = -inner / 2 + inner * (si + 0.5) / nS;
+            ledStrip(THREE, scene, wf, sxp, 0, elevM + hM - CARCASS_T - 0.003, dM * 0.55, true);
+            ledSpot(THREE, scene, wf, sxp, elevM + hM - CARCASS_T - 0.006, dM * 0.55, elevM);
+          }
           var nShelf = shelvesOf(b) || 0;
           for (var sl = 0; sl <= nShelf; sl++){
             var sy = sl === 0 ? elevM + CARCASS_T : elevM + hM * sl / (nShelf + 1) + 0.009;
@@ -3019,7 +3066,9 @@
     var fill = new THREE.DirectionalLight(0xdfe8ff, 0.22);
     fill.position.set(bbox.cx - 3, 3, bbox.cz - 3);
     scene.add(fill);
-    scene.userData.sceneLights = [{ light:hemi, base:0.5, mood:0.22 }, { light:dir, base:1.0, mood:0.08 }, { light:fill, base:0.22, mood:0.25 }];
+    scene.userData.sceneLights = [{ light:hemi, base:0.5, mood:0.3 }, { light:dir, base:1.0, mood:0.04 }, { light:fill, base:0.22, mood:0.35 }];
+    scene.userData.hemi = hemi;
+    scene.userData.noMood = !!(opts.clean || opts.people); // previews and the drawing export always show daylight
     applyMood(scene);
 
     var camera = new THREE.PerspectiveCamera(45, 1, 0.05, 100);
@@ -3059,7 +3108,7 @@
         sharedEnv = pmrem.fromScene(new window.__RoomEnvironment__(renderer), 0.04).texture;
         pmrem.dispose();
       }
-      scene.environment = sharedEnv;
+      scene.environment = sharedEnv; scene.userData.env = sharedEnv;
     }
     var maxAniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
     scene.traverse(function(o){
@@ -3097,6 +3146,7 @@
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
+      if (THREE_STATE && THREE_STATE.composer) THREE_STATE.composer.setSize(w, h);
     }
     resize();
     window.addEventListener("resize", resize);
@@ -3203,8 +3253,19 @@
       fadeWalls();
       fadeCabinets();
       stepParts(scene);
+      stepMood(scene);
       if (people) people.people.forEach(function(m){ m.rotation.y = Math.atan2(camera.position.x - m.position.x, camera.position.z - m.position.z); });
-      renderer.render(scene, camera);
+      // evening: bloom so the LED strips glow; daylight renders straight
+      if (MOOD_T > 0.02 && !scene.userData.noMood && window.__POST__){
+        if (!THREE_STATE.composer){
+          var P = window.__POST__, sz = renderer.getSize(new THREE.Vector2()), cmp = new P.EffectComposer(renderer);
+          cmp.addPass(new P.RenderPass(scene, camera));
+          cmp.addPass(new P.UnrealBloomPass(sz, 0.55, 0.45, 0.92));
+          cmp.addPass(new P.OutputPass());
+          THREE_STATE.composer = cmp;
+        }
+        THREE_STATE.composer.render();
+      } else renderer.render(scene, camera);
       placeFloatBar();
     }
     loop();
