@@ -2797,12 +2797,32 @@
       });
     }
 
+    // "Bak á eyju" (2026-10-05): a single-row island's open back clad with one 19 mm panel in the front
+    // material over its whole length, the worktop running on over it
+    function addIslandBack(g, wall, starts){
+      var last = wall.floor.length - 1, from = starts[0] / 1000, to = (starts[last] + wall.floor[last].widthMm) / 1000;
+      var hM = wall.floor.reduce(function(m, b){ var c = CATALOG[b.type]; return Math.max(m, Math.min(b.heightMm || c.h, roomHeightMm) / 1000); }, 0);
+      var len = to - from, w = 0.019, along = from + len / 2;
+      var q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(g.axis.x, 0, g.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(g.normal.x, 0, g.normal.z)));
+      var geo = new THREE.BoxGeometry(len, hM, w - 0.002);
+      scaleFrontUV(geo, len, hM, frontMat.userData && frontMat.userData.tile);
+      var m = new THREE.Mesh(geo, frontMat);
+      m.position.set(g.origin.x + g.axis.x * along - g.normal.x * w / 2, hM / 2, g.origin.z + g.axis.z * along - g.normal.z * w / 2);
+      m.quaternion.copy(q); m.castShadow = true; m.receiveShadow = true; scene.add(m);
+      if (wall.floor.some(function(b){ return CATALOG[b.type].counter; })){
+        var t = new THREE.Mesh(new THREE.BoxGeometry(len + 0.001, 0.032, w), stoneMat);
+        t.position.set(g.origin.x + g.axis.x * along - g.normal.x * w / 2, hM + 0.017, g.origin.z + g.axis.z * along - g.normal.z * w / 2);
+        t.quaternion.copy(q); t.castShadow = true; scene.add(t);
+      }
+    }
+
     surfaces.forEach(function(wall, wi){
       var g = allGeoms[wi];
       if (!g || (iso && !isoHas(wall.id))) return;
       var fStarts = blockStartsMm(wall.floor, cornerClearanceMm(surfaces, wi, "floor")), wStarts = blockStartsMm(wall.wall, 0);
       var islandId = wall.island ? wall.island.id : undefined;
       if (!opts.people) addAfellur(g, wall, wi, fStarts, wStarts);
+      if (wall.island && wall.island.back && !wall.island.two && wall.floor.length) addIslandBack(g, wall, fStarts);
       wall.floor.forEach(function(b, bi){
         var offset = fStarts[bi];
         var c = CATALOG[b.type];

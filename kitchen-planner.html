@@ -580,6 +580,12 @@
   /* ---- catalog accordion (left sidebar) ---- */
   .cat-sec{ border-bottom:1px solid var(--line); }
   /* "Ný eining" wizard */
+  .isl-row{ display:flex; align-items:stretch; gap:4px; margin:6px 0; }
+  .isl-row > span{ flex:0 0 74px; font-size:11.5px; color:var(--ink-soft); align-self:center; }
+  .isl-box{ flex:1 1 0; min-width:34px; border:1px solid var(--line); background:#fff; border-radius:7px; padding:6px 2px; font:inherit; font-size:12.5px; font-weight:700; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:1px; }
+  .isl-box small{ font-weight:400; color:var(--ink-soft); font-size:10.5px; }
+  .isl-box.on{ border-color:var(--blue); background:var(--blue-soft, #e9eefb); box-shadow:0 0 0 2px rgba(61,97,193,.15); }
+  .isl-plus{ flex:0 0 30px; border:1px dashed var(--line); background:none; border-radius:7px; cursor:pointer; color:var(--ink-soft); font-size:15px; }
   .uw-group{ grid-column:1/-1; margin:10px 0 -2px; font-size:11.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--ink-soft); }
   .uw-group:empty{ margin:4px 0 0; }
   .uw-gap{ grid-column:1/-1; height:8px; }
@@ -3296,7 +3302,8 @@
     { key:"uthlid", label:"Úthliðar", desc:"19 mm, framhliðaefni", icon:"uthlidhar", opts:[
       { label:"Úthlið — neðri", type:"uthlid" },
       { label:"Úthlið — há", type:"uthlidhar" },
-      { label:"Úthlið — efri", type:"uthlidefri" } ] }
+      { label:"Úthlið — efri", type:"uthlidefri" },
+      { label:"Bak á eyju", islandBack:true, gap:true } ] }
   ];
   var uw = null; // { step, cat, opt, b, wallId }
   function uwSurfaces(zone){ return zone === "wall" ? state.walls.filter(function(w){ return !w.open; }) : surfaces().filter(function(w){ return !w.open; }); }
@@ -3331,6 +3338,53 @@
     leaveUnitWizard();
     renderView();
     restoreEditorCam();
+  }
+  // ---- island boxes in "＋ Ný eining" (2026-10-05): every grunnskápur option except the corner units ----
+  var ISLAND_BOX_OPTS = [
+    { label:"Skúffur", type:"grunnskapur", drawers:true }, { label:"Hurð með hillum", type:"grunnskapur" },
+    { label:"Vaskaskápur", type:"vaskaskapur" }, { label:"Ruslaskápur", type:"ruslaskapur" },
+    { label:"Uppþvottavél", type:"uppthvottavel" }, { label:"Lítill kassi", type:"litillkassi", drawers:true } ];
+  function islandBoxOpt(b){
+    return ISLAND_BOX_OPTS.findIndex(function(o){ return o.type === b.type && (!CATALOG[o.type].hasInterior || !!o.drawers === (b.interior && b.interior.mode === "skuffur")); });
+  }
+  function islandBoxesHTML(){
+    var I = uw.island, rows = I.b ? [["a", "Röð A"], ["b", "Röð B (bakhlið)"]] : [["a", "Kassar"]];
+    var html = '<div class="edit-field"><label>Smelltu á kassa og veldu útfærslu</label>' + rows.map(function(r){
+      return '<div class="isl-row"><span>' + r[1] + '</span>' + I[r[0]].map(function(bx, i){
+        return '<button type="button" class="isl-box' + (bx === uw.b ? ' on' : '') + '" data-isl-sel="' + r[0] + ':' + i + '" style="flex-grow:' + bx.widthMm + '">' +
+          r[0].toUpperCase() + (i + 1) + '<small>' + (bx.widthMm / 10) + '</small></button>';
+      }).join("") + '<button type="button" class="isl-plus" data-isl-new="' + r[0] + '" title="Bæta við kassa">＋</button></div>';
+    }).join("") + '</div>';
+    var cur = islandBoxOpt(uw.b);
+    html += '<div class="edit-field"><label>' + (uw.island.b && uw.island.b.indexOf(uw.b) >= 0 ? "B" : "A") + ((uw.island.a.indexOf(uw.b) >= 0 ? uw.island.a : uw.island.b).indexOf(uw.b) + 1) + ' — útfærsla</label><div class="uw-chips">' +
+      ISLAND_BOX_OPTS.map(function(o, i){ return '<button type="button" class="hw-btn' + (i === cur ? ' active' : '') + '" data-isl-type="' + i + '">' + o.label + '</button>'; }).join("") +
+      '</div>' + (uw.island.a.length + (uw.island.b ? uw.island.b.length : 0) > 1 ? '<button type="button" class="dw-reset" data-isl-del>✕ Fjarlægja þennan kassa</button>' : '') + '</div>';
+    return html;
+  }
+  function wireIslandConfig(side){
+    var I = uw.island;
+    function rowOf(bx){ return I.a.indexOf(bx) >= 0 ? I.a : I.b; }
+    side.querySelectorAll("[data-isl-sel]").forEach(function(el){ el.addEventListener("click", function(){
+      var p = el.dataset.islSel.split(":"); uw.b = I[p[0]][+p[1]]; renderUnitWizard();
+    }); });
+    side.querySelectorAll("[data-isl-new]").forEach(function(el){ el.addEventListener("click", function(){
+      var nb = uwStartBlock(ISLAND_BOX_OPTS[1]); I[el.dataset.islNew].push(nb); uw.b = nb; renderUnitWizard();
+    }); });
+    side.querySelectorAll("[data-isl-type]").forEach(function(el){ el.addEventListener("click", function(){
+      var row = rowOf(uw.b), i = row.indexOf(uw.b), nb = uwStartBlock(ISLAND_BOX_OPTS[+el.dataset.islType]), nc = CATALOG[nb.type];
+      nb.widthMm = Math.max(nc.minW, Math.min(nc.maxW, uw.b.widthMm)); // keep its width when the new type allows it
+      row[i] = nb; uw.b = nb; renderUnitWizard();
+    }); });
+    var del = side.querySelector("[data-isl-del]");
+    if (del) del.addEventListener("click", function(){
+      var row = rowOf(uw.b), i = row.indexOf(uw.b); row.splice(i, 1);
+      uw.b = row[Math.min(i, row.length - 1)] || (I.a[0] || I.b[0]); renderUnitWizard();
+    });
+    var go = side.querySelector("[data-isl-add]");
+    if (go) go.addEventListener("click", function(){
+      var rows = { a:I.a.slice(), b:I.b ? I.b.slice() : null }, type = I.type;
+      leaveUnitWizard(); uwEditorCam = null; addIsland(type, null, rows);
+    });
   }
   function uwStartBlock(opt){
     var b = newBlock(opt.type), c = CATALOG[opt.type];
@@ -3369,13 +3423,14 @@
         var head = o.group && o.group !== lastGroup ? '<p class="uw-group">' + o.group + '</p>' : (!o.group && lastGroup ? '<p class="uw-group"></p>' : '');
         lastGroup = o.group || null;
         if (o.soon) return head + '<button type="button" class="uw-card soon" disabled>' + catIcon("cabinet", "harskapur") + '<span><b>' + o.label + '</b><small>Væntanlegt</small></span></button>';
-        return head + (o.gap ? '<div class="uw-gap"></div>' : '') + '<button type="button" class="uw-card" data-uw-opt="' + i + '">' + (o.island ? catIcon("island", o.island) : catIcon("cabinet", o.type)) + '<span><b>' + o.label + '</b>' +
+        return head + (o.gap ? '<div class="uw-gap"></div>' : '') + '<button type="button" class="uw-card" data-uw-opt="' + i + '">' + (o.island ? catIcon("island", o.island) : o.islandBack ? catIcon("island", "island1") : catIcon("cabinet", o.type)) + '<span><b>' + o.label + '</b>' +
           (o.island ? '<small>' + ISLAND_TYPES[o.island].dim + ' · veldu útfærslu á hverjum kassa</small>' : '') + '</span></button>';
       }).join("") + '</div><div class="uw-actions"><button type="button" class="btn btn-secondary btn-small" data-uw-back>← Til baka</button></div>';
     } else {
       var b = uw.b, c = CATALOG[b.type], opt = UNIT_TREE[uw.cat].opts[uw.opt];
       var widths = uwWidthOptions(c), walls = uwSurfaces(c.zone);
       html = '<p class="uw-kicker">' + UNIT_TREE[uw.cat].label + '</p><h3>' + opt.label + '</h3>';
+      if (uw.island) html += islandBoxesHTML();
       if (!c.panel){
         html += '<div class="edit-field"><label>Breidd</label><div class="uw-chips">' + widths.map(function(w){
           return '<button type="button" class="hw-btn' + (b.widthMm === w ? ' active' : '') + '" data-uw-w="' + w + '">' + (w / 10) + '</button>';
@@ -3388,6 +3443,11 @@
         html += '<div class="edit-field"><label>Hillur</label><div class="hw-count"><button class="iconbtn" data-uw-sh="-1"' + (shelfN <= rng[0] ? " disabled" : "") + '>−</button><b>' + shelfN + '</b><button class="iconbtn" data-uw-sh="1"' + (shelfN >= rng[1] ? " disabled" : "") + '>+</button><span>' + plural(shelfN, "hilla", "hillur") + '</span></div></div>';
       }
       html += variantHTML(b, c);
+      if (uw.island){
+        side.innerHTML = html + '<div class="uw-actions"><button type="button" class="btn btn-secondary btn-small" data-uw-back>← Til baka</button>' +
+          '<button type="button" class="btn btn-primary" data-isl-add>Setja inn eyju</button></div>';
+        wireUnitWizard(side); schedulePreview(); return;
+      }
       html += '<div class="edit-field"><label>Hvar?</label><select data-uw-wall>' + walls.map(function(w){
         return '<option value="' + w.id + '"' + (w.id === uw.wallId ? ' selected' : '') + '>' + w.label + (uwFits(w, b) ? '' : ' — passar ekki í þessari breidd') + '</option>';
       }).join("") + '</select></div>';
@@ -3405,10 +3465,28 @@
     side.querySelectorAll("[data-uw-opt]").forEach(function(el){ el.addEventListener("mouseenter", function(){ uw.hover = +el.dataset.uwOpt; schedulePreview(); }); });
     side.querySelectorAll("[data-uw-opt]").forEach(function(el){ el.addEventListener("click", function(){
       var io = UNIT_TREE[uw.cat].opts[+el.dataset.uwOpt];
-      if (io.island){ leaveUnitWizard(); uwEditorCam = null; addIsland(io.island, null); return; } // islands have nothing to configure first
+      if (io.islandBack){ // the back of a single-row island, clad in one 19 mm panel
+        var singles = (state.islands || []).filter(function(x){ return !x.two; });
+        if (!singles.length){ toast("Settu fyrst inn eyju með einni röð — bakið fer aftan á hana."); return; }
+        if (singles.length === 1){ singles[0].back = true; save(); leaveUnitWizard(); refreshAfterEdit(); restoreEditorCam(); toast("Bak sett á " + singles[0].label.toLowerCase() + "."); return; }
+        side.innerHTML = '<p class="uw-kicker">Úthliðar</p><h3>Bak á eyju</h3><div class="uw-grid">' + singles.map(function(x){
+          return '<button type="button" class="uw-card" data-isl-back="' + x.id + '"><span><b>' + x.label + '</b><small>' + x.lengthMm + ' mm' + (x.back ? ' · er með bak' : '') + '</small></span></button>';
+        }).join("") + '</div><div class="uw-actions"><button type="button" class="btn btn-secondary btn-small" data-uw-back>← Til baka</button></div>';
+        side.querySelectorAll("[data-isl-back]").forEach(function(c){ c.addEventListener("click", function(){
+          var x = state.islands.find(function(i){ return i.id === c.dataset.islBack; }); x.back = true; save(); leaveUnitWizard(); refreshAfterEdit(); restoreEditorCam();
+        }); });
+        side.querySelector("[data-uw-back]").addEventListener("click", function(){ renderUnitWizard(); });
+        return;
+      }
+      if (io.island){ // each box of the island is chosen one by one (2026-10-05)
+        var two = ISLAND_TYPES[io.island].two, mk = function(){ return [0, 1, 2].map(function(){ return uwStartBlock(ISLAND_BOX_OPTS[1]); }); };
+        uw.opt = +el.dataset.uwOpt; uw.island = { type:io.island, a:mk(), b:two ? mk() : null };
+        uw.b = uw.island.a[0]; uw.step = 3; renderUnitWizard(); return;
+      }
       uw.opt = +el.dataset.uwOpt; uw.b = uwStartBlock(UNIT_TREE[uw.cat].opts[uw.opt]); uw.step = 3; renderUnitWizard();
     }); });
-    side.querySelectorAll("[data-uw-back]").forEach(function(el){ el.addEventListener("click", function(){ uw.step--; if (uw.step < 3) uw.b = null; renderUnitWizard(); }); });
+    side.querySelectorAll("[data-uw-back]").forEach(function(el){ el.addEventListener("click", function(){ uw.step--; if (uw.step < 3){ uw.b = null; uw.island = null; } renderUnitWizard(); }); });
+    if (uw.step === 3 && uw.island) wireIslandConfig(side);
     if (uw.step !== 3) return;
     var b = uw.b, c = CATALOG[b.type];
     side.querySelectorAll("[data-uw-w]").forEach(function(el){ el.addEventListener("click", function(){ b.widthMm = +el.dataset.uwW; renderUnitWizard(); }); });
@@ -3510,6 +3588,7 @@
     var host = document.getElementById("uwPreview");
     if (!uw || !host) return;
     var hovOpt = uw.step === 2 ? UNIT_TREE[uw.cat].opts[uw.hover || 0] : null;
+    if (uw.island){ renderIslandPreview(host, uw.island.type, uw.island, uw.b && uw.b.id); return; }
     if (!uw.b && hovOpt && hovOpt.island){ renderIslandPreview(host, hovOpt.island); return; }
     var type = uw.b ? uw.b.type : (hovOpt ? hovOpt.type : null);
     if (!type){ // step 1: nothing to show yet
@@ -3549,15 +3628,23 @@
     }, 8000);
   }
   // An island preview: 1800 mm of base units (one row, or two back to back), shown on their own
-  function renderIslandPreview(host, islandType){
-    var key = "island:" + islandType + ":" + state.look + state.top;
+  function renderIslandPreview(host, islandType, rows, selId){
+    var key = "island:" + islandType + ":" + state.look + state.top + (rows ? JSON.stringify(rows) + selId : "");
     if (key === uwPrevKey && KP3D._three()) return;
+    var sameIsland = rows && uwPrevKey.indexOf("island:" + islandType) === 0 && KP3D._three();
     uwPrevKey = key;
     var two = ISLAND_TYPES[islandType].two, isl = { id:"UWI", label:"Eyja", lengthMm:1800, xMm:0, zMm:3000, rot:0, two:two, a:[] };
-    var saved = blockSeq;
-    fillIslandRow(isl.a, 1800);
-    if (two){ isl.b = []; fillIslandRow(isl.b, 1800); }
-    blockSeq = saved;
+    if (rows){
+      isl.a = rows.a.map(function(x){ return Object.assign({}, x, { locked:false }); });
+      if (two) isl.b = (rows.b || []).map(function(x){ return Object.assign({}, x, { locked:false }); });
+      isl.lengthMm = Math.max(300, isl.a.reduce(function(t, x){ return t + x.widthMm; }, 0), (isl.b || []).reduce(function(t, x){ return t + x.widthMm; }, 0));
+    } else {
+      var saved = blockSeq;
+      fillIslandRow(isl.a, 1800);
+      if (two){ isl.b = []; fillIslandRow(isl.b, 1800); }
+      blockSeq = saved;
+    }
+    var prevCamI = sameIsland ? { p:KP3D._three().camera.position.clone(), t:KP3D._three().controls.target.clone() } : null;
     var pv = { carcass:state.carcass, drawerSystem:state.drawerSystem, look:state.look, handle:state.handle, handleColor:state.handleColor, top:state.top, floor:state.floor, wallColor:state.wallColor,
       roomHeightMm:state.roomHeightMm, closed:false, windows:[], doors:[], islands:[isl],
       walls:[{ id:"UWP", label:"", lengthMm:600, floor:[], wall:[] }] };
@@ -3565,10 +3652,16 @@
       if (!ok || !uw) return;
       KP3D.teardown3D(true);
       host.innerHTML = "";
-      KP3D.buildScene(host, pv, { xray:true, clean:true, noGhost:true, onlySurfaceId:two ? ["UWIa", "UWIb"] : ["UWIa"], freshCamera:true });
+      KP3D.buildScene(host, pv, { xray:true, clean:true, noGhost:true, onlySurfaceId:two ? ["UWIa", "UWIb"] : ["UWIa"], freshCamera:true, selectedId:selId || null });
       var st = KP3D._three(); if (!st) return;
+      if (selId){ // the box being set up rises a little out of the island
+        var lifted = [];
+        st.scene.traverse(function(o){ if (o.userData && o.userData.blockId === selId && o.parent && lifted.indexOf(o.parent) < 0) lifted.push(o.parent); });
+        lifted.forEach(function(gp){ gp.position.y += 0.07; });
+      }
       var cx = 0, cz = 3, dist = 3.6;
-      KP3D.setCameraLookAt({ x:cx + dist * 0.7, y:2.1, z:cz + dist * 0.75 }, { x:cx, y:0.45, z:cz });
+      if (prevCamI){ st.camera.position.copy(prevCamI.p); st.controls.target.copy(prevCamI.t); }
+      else KP3D.setCameraLookAt({ x:cx + dist * 0.7, y:2.1, z:cz + dist * 0.75 }, { x:cx, y:0.45, z:cz });
       swayPreview(st, Math.atan2(0.7, 0.75));
       st.controls.update();
       syncUwTools();
@@ -3779,7 +3872,7 @@
   }
   // Default spot: centred on the first wall, a 1 m walkway out from its base
   // cabinets. A single row faces the wall (rot 180); a double row's B side does.
-  function addIsland(type, at){
+  function addIsland(type, at, rows){
     var two = ISLAND_TYPES[type].two;
     var wi = state.walls.findIndex(function(w){ return !w.open; }); if (wi < 0) wi = 0;
     var w0 = state.walls[wi], g = KP3D.wallGeoms(state)[wi];
@@ -3789,8 +3882,14 @@
     var cx = g.origin.x * 1000 + g.axis.x * w0.lengthMm / 2 + g.normal.x * 2200, cz = g.origin.z * 1000 + g.axis.z * w0.lengthMm / 2 + g.normal.z * 2200;
     var isl = { id:"I" + (islandSeq++), label:"Eyja " + (state.islands.length + 1), lengthMm:len,
       xMm:at ? at.xMm : Math.round(cx), zMm:at ? at.zMm : Math.round(cz), rot:(Math.max(0, wallRot) * 90 + (two ? 0 : 180)) % 360, two:two, a:[] };
-    fillIslandRow(isl.a, len);
-    if (two){ isl.b = []; fillIslandRow(isl.b, len); }
+    if (rows){ // boxes chosen in "＋ Ný eining"
+      isl.a = rows.a.filter(Boolean); if (two) isl.b = (rows.b || []).filter(Boolean);
+      var sum = function(r){ return (r || []).reduce(function(t, x){ return t + x.widthMm; }, 0); };
+      isl.lengthMm = Math.max(sum(isl.a), sum(isl.b), 300);
+    } else {
+      fillIslandRow(isl.a, len);
+      if (two){ isl.b = []; fillIslandRow(isl.b, len); }
+    }
     state.islands.push(isl);
     clampIslands();
     selectedBlockId = isl.id;
@@ -4761,6 +4860,7 @@
           '<p class="ov-mat" style="margin:6px 0 0;">Örvar á lyklaborði færa líka (Shift = 10 mm)</p></div>' +
         '<div class="edit-actions">' +
           '<button class="iconbtn" data-role="rot">↻ Snúa 90°</button>' +
+          (!isl.two ? '<button class="iconbtn' + (isl.back ? ' on' : '') + '" data-role="back">' + (isl.back ? '✓ Bak á eyju' : '＋ Bak á eyju') + '</button>' : '') +
           '<button class="iconbtn" data-role="addA">＋ Skápur' + (isl.two ? ' (röð A)' : '') + '</button>' +
           (isl.two ? '<button class="iconbtn" data-role="addB">＋ Skápur (röð B)</button>' : '') +
           '<button class="iconbtn del" data-role="delete">✕ Fjarlægja eyju</button>' +
@@ -4775,6 +4875,8 @@
       btn.addEventListener("click", function(){ var d = btn.dataset.mv.split(","); moveIsland(isl, 100 * parseInt(d[0], 10), 100 * parseInt(d[1], 10)); });
     });
     host.querySelector('[data-role="rot"]').addEventListener("click", function(){ isl.rot = ((isl.rot || 0) + 90) % 360; save(); refreshAfterEdit(); });
+    var backBtn = host.querySelector('[data-role="back"]');
+    if (backBtn) backBtn.addEventListener("click", function(){ if (isl.back) delete isl.back; else isl.back = true; save(); refreshAfterEdit(); });
     host.querySelector('[data-role="addA"]').addEventListener("click", function(){ addBlock(surfaceById(isl.id + "a"), "grunnskapur"); });
     var addB = host.querySelector('[data-role="addB"]');
     if (addB) addB.addEventListener("click", function(){ addBlock(surfaceById(isl.id + "b"), "grunnskapur"); });
@@ -5335,6 +5437,7 @@
     // Windows/doors are room-level, not cabinets — no Eyðublað row of their
     // own, so this note (plus the JSON blob the review page renders from)
     // is the only place Rakel sees them were drawn in at all.
+    (state.islands || []).forEach(function(x){ if (x.back && !x.two) lines.push("Bak á eyju (" + x.label + "): 19 mm úthlið í framhliðaefni, " + x.lengthMm + " mm löng"); });
     var appl = [];
     surfaces().forEach(function(w){ w.floor.forEach(function(b){ var c = CATALOG[b.type]; if (c.notOrdered) appl.push(c.label + " " + b.widthMm + " mm"); }); });
     if (appl.length) lines.push("Pláss fyrir tæki viðskiptavinar (ekki hluti af pöntun): " + appl.join(", "));
