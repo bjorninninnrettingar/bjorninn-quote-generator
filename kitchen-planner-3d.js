@@ -2050,8 +2050,9 @@
         return;
       }
       var drop = dropAt(evt);
-      followCursor(drop);
-      if (opts.onCabinetDragMove) opts.onCabinetDragMove(drag.meta, drop);
+      // the editor may hand back where the cabinet would land (alignment snap): the cabinet follows that
+      var landed = opts.onCabinetDragMove ? opts.onCabinetDragMove(drag.meta, drop) : null;
+      followCursor(landed && drop && landed.alongMm != null && !drag.meta.kind ? Object.assign({}, drop, { alongMm:landed.alongMm }) : drop);
     }
     // The real cabinet slides along the wall under the cursor (free, not
     // snapped — the blue/red footprint shows where it will actually land),

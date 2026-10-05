@@ -2335,7 +2335,7 @@
       var at = idx < sp.length ? sp[idx].start : (sp.length ? sp[sp.length - 1].end : 0);
       return { offsetMm:at, index:idx, fits:true };
     }
-    var want = Math.round((centerAlongMm - widthMm / 2) / 10) * 10;
+    var want = alignSnap(wall, zone, widthMm, Math.round((centerAlongMm - widthMm / 2) / 10) * 10, excludeId);
     var best = null;
     freeIntervals(wall, zone, excludeId, probe).forEach(function(iv){
       if (iv[1] - iv[0] < widthMm) return;
@@ -2348,6 +2348,23 @@
     var spans = spansOf(wall, zone, excludeId);
     var at = best ? best.s : Math.max(runStartMm(wall, zone), Math.min(runEndMm(wall, zone) - widthMm, want));
     return { offsetMm:at, index:spans.filter(function(sp){ return sp.start < at; }).length, fits:!!best };
+  }
+  // Invisible alignment grid (user, 2026-10-05): while a cabinet moves along a wall, its left or right edge
+  // catches on the edges of the cabinets in the OTHER row of the same wall (wall units ↔ base/tall units)
+  // when within ALIGN_SNAP_MM, and lets go again once you drag on past.
+  var ALIGN_SNAP_MM = 40;
+  function alignSnap(wall, zone, widthMm, startMm, excludeId){
+    if (wall.island) return startMm;
+    var other = zone === "floor" ? "wall" : "floor", best = null;
+    spansOf(wall, other).forEach(function(sp){
+      if (sp.b.id === excludeId) return;
+      [sp.start, sp.end].forEach(function(e){
+        [[e, Math.abs(startMm - e)], [e - widthMm, Math.abs(startMm + widthMm - e)]].forEach(function(c){
+          if (c[1] <= ALIGN_SNAP_MM && (!best || c[1] < best[1])) best = c;
+        });
+      });
+    });
+    return best ? best[0] : startMm;
   }
   // first free spot after the last cabinet (or wherever there's room)
   function appendPlacement(wall, zone, widthMm, probe){
@@ -4616,6 +4633,8 @@
     var base = found.zone === "wall" ? (drop.elevMm != null ? snapElev(wall, found.block, drop.elevMm) : KP3D.elevOf(found.block)) : 0;
     var packed = placeInWall(wall, found.zone, found.block.widthMm, drop.alongMm, found.block.id, probeSpan(found.zone, found.block, found.zone === "wall" ? base : null));
     KP3D.updateDragPreview3D(drop.wallId, packed.offsetMm, found.block.widthMm, found.block.depthMm || c.d, packed.fits, blockHeightMm(found.block, c), base);
+    // the dragged cabinet itself sits where it would land (so it visibly "stops" on an alignment line)
+    return packed.fits ? { alongMm:packed.offsetMm + found.block.widthMm / 2 } : null;
   }
 
   function on3DDragEnd(meta, drop){
