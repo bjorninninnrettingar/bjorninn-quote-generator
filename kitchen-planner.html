@@ -410,6 +410,9 @@
   .fit-ask{ position:fixed; left:50%; bottom:28px; transform:translateX(-50%); z-index:300; background:#fff; color:var(--ink, #191919); border:1px solid var(--line); border-radius:14px; box-shadow:0 12px 36px rgba(0,0,0,.18); padding:14px 16px; max-width:440px; width:calc(100% - 32px); font-size:14px; }
   .fit-ask p{ margin:0 0 10px; line-height:1.4; }
   .fit-ask-btns{ display:flex; gap:8px; justify-content:flex-end; }
+  .light-btns{ display:flex; flex-direction:column; gap:6px; margin-bottom:8px; }
+  .light-btns .hw-btn{ text-align:left; }
+  #moodBtn.active{ background:#1e2433; color:#ffe2a8; }
   .sw-search{ width:100%; box-sizing:border-box; margin:0 0 10px; padding:9px 12px; border:1px solid var(--line, #ddd); border-radius:10px; font:inherit; font-size:14px; background:#fff; }
   .h-grid .sw-name small, .sw-tile .sw-name small{ display:block; font-weight:400; color:var(--ink-soft); margin-top:2px; font-size:11px; }
   /* ---- define your space ---- */
@@ -852,6 +855,7 @@
             <button type="button" id="snapBtn" title="Vista mynd af skipulaginu">📷</button>
           </div>
           <button type="button" class="warn-chip" id="warnChip" hidden></button>
+          <div class="view-toggle" id="moodToggle" title="Kvöldstemning: dimmir herbergið svo lýsingin sjáist"><button type="button" id="moodBtn">🌙 Kvöld</button></div>
           <div class="view-toggle" id="inspectToggle" title="Skoða innvols: opna skúffur og hurðir, taka framhliðar af">
             <button type="button" id="inspectBtn">🔍 Innvols</button>
             <button type="button" id="frontsBtn" hidden>Framhliðar á</button>
@@ -3825,6 +3829,12 @@
       item("opening", "gat", "gap", "Op í vegg (án hurðar)", GAP_DEFAULT.heightMm + ' × ' + GAP_DEFAULT.widthMm + ' mm', true));
     // (islands are added from "＋ Ný eining" → Eyja since 2026-09-30)
     // --- materials ---
+    var L = lighting(), lbtn = function(key, label){ return '<button type="button" class="hw-btn' + (L[key] ? ' active' : '') + '" data-light="' + key + '">' + (L[key] ? '✓ ' : '') + label + '</button>'; };
+    var bom = lightingBOM();
+    html += sec("lysing", "Lýsing",
+      '<div class="light-btns">' + lbtn("underWall", "LED undir efri skápum") + lbtn("shelves", "LED í opnum hillum") + lbtn("plinth", "LED í sökkli") + '</div>' +
+      '<button type="button" class="btn btn-secondary btn-small" data-act="mood">' + (moodOn ? '☀️ Dagsbirta' : '🌙 Sjá í kvöldstemningu') + '</button>' +
+      (bom ? '<p class="sec-note">' + bom.join(" · ") + '</p>' : '<p class="sec-note">Smelltu á efri skáp til að kveikja eða slökkva á ljósi undir honum einum.</p>'));
     html += sec("efni", "Efni og útlit",
       '<p class="sec-note">Framhlið: <b>' + (state.look && LOOKS[state.look] ? LOOKS[state.look].label : "—") + '</b><br>Borðplata: <b>' + (TOPS[state.top || "steinn"] ? TOPS[state.top || "steinn"].label : "—") + '</b><br>Opnun: <b>' + (state.handle ? HANDLES[state.handle].label : "—") + '</b></p>' +
       '<button type="button" class="btn btn-secondary btn-small" data-act="materials">Breyta efni (framhlið, höldur, borðplata)</button>');
@@ -3835,6 +3845,14 @@
       d.addEventListener("toggle", function(){
         openSecs[d.dataset.sec] = d.open;
         try{ localStorage.setItem(SEC_KEY, JSON.stringify(openSecs)); }catch(e){}
+      });
+    });
+    host.querySelectorAll("[data-light]").forEach(function(b){
+      b.addEventListener("click", function(){
+        var L2 = lighting(); L2[b.dataset.light] = !L2[b.dataset.light];
+        if (b.dataset.light === "underWall") surfaces().forEach(function(w){ w.wall.forEach(function(x){ delete x.led; }); }); // the all-switch resets per-cabinet choices
+        if (L2[b.dataset.light] && !moodOn) setMoodView(true); // show it straight away
+        save(); refreshAfterEdit(); renderCatalogPanel();
       });
     });
     host.querySelectorAll("[data-floorpick]").forEach(function(b){
@@ -3869,6 +3887,7 @@
     host.querySelectorAll("[data-act]").forEach(function(b){
       b.addEventListener("click", function(){
         if (b.dataset.act === "newunit"){ openUnitWizard(); return; }
+        if (b.dataset.act === "mood"){ setMoodView(!moodOn); renderCatalogPanel(); return; }
         if (b.dataset.act === "shape"){ shapePhase = "size"; goto("shape"); }
         else jumpTo(b.dataset.act);
       });
@@ -5065,6 +5084,7 @@
         '<div class="edit-panel-head"><div><h4>' + c.label + '</h4><div class="sub"><a href="#" data-role="toWall" style="color:var(--blue);text-decoration:none;font-weight:600;">' + wall.label + '</a>' + (wall.island ? "" : ' · ' + (zone === "wall" ? "efri röð" : "neðri röð")) + '</div></div>' +
           (wall.island ? '<button class="iconbtn" data-role="toIsland" title="Velja eyjuna" style="margin-right:6px;">Eyja</button>' : '') +
           '<button class="iconbtn" data-role="close" title="Loka">✕</button></div>' +
+        (zone === "wall" && !c.panel && !c.shelfStack ? '<div class="edit-field"><button type="button" class="iconbtn' + ((b.led != null ? b.led : lighting().underWall) ? ' on' : '') + '" data-role="led">💡 LED undir skápnum: ' + ((b.led != null ? b.led : lighting().underWall) ? 'á' : 'af') + '</button></div>' : '') +
         '<div class="edit-field lock-row"><button type="button" class="iconbtn lockbtn' + (b.locked ? ' on' : '') + '" data-role="lock" data-keep="1">' + (b.locked ? '🔒 Læstur — smelltu til að opna' : '🔓 Læsa skápnum') + '</button>' +
           '<p class="ov-mat" style="margin:6px 0 0;">' + (b.locked ? 'Ekki hægt að færa hann eða breyta. Smelltu á skúffur og hurðir í 3D til að opna og loka þeim.' : 'Þegar hann er réttur — læstu honum svo hann færist ekki óvart. Þá má opna og loka skúffum og hurðum í 3D.') + '</p></div>' +
         '<div class="edit-field"><label>Tegund</label><select data-role="type">' + typeOptions + '</select></div>' +
@@ -5101,6 +5121,12 @@
 
     host.querySelector('[data-role="close"]').addEventListener("click", function(){ onCabinetSelect(null); });
     host.querySelector('[data-role="lock"]').addEventListener("click", function(){ toggleLock(b.id); });
+    var ledBtn = host.querySelector('[data-role="led"]');
+    if (ledBtn) ledBtn.addEventListener("click", function(){
+      var now = b.led != null ? b.led : lighting().underWall;
+      b.led = !now; if (b.led === lighting().underWall) delete b.led; // only store a difference from the all-switch
+      save(); refreshAfterEdit(); renderCatalogPanel();
+    });
     var toIsl = host.querySelector('[data-role="toIsland"]');
     if (toIsl) toIsl.addEventListener("click", function(){ onCabinetSelect({ blockId:wall.island.id }); });
     var toWall = host.querySelector('[data-role="toWall"]');
@@ -5301,6 +5327,38 @@
   // ---------- summary step ----------
   // ---------- toast ----------
   var toastTimer;
+  // ---- Lýsing (2026-10-05): what's lit, and the products it takes (Útfærslur "Ljós og lýsing") ----
+  function lighting(){ return state.lighting || (state.lighting = { underWall:false, shelves:false, plinth:false }); }
+  function lightingOn(){ var L = lighting(); return L.underWall || L.shelves || L.plinth || surfaces().some(function(w){ return w.wall.some(function(b){ return b.led; }); }); }
+  var BASKI = [100, 90, 80, 60, 50, 45]; // cm, BASKI LED under-cabinet lights
+  var BASKI_W_PER_M = 10, LED_W_PER_M = 9.6, ATOM_W = 3; // rough power, for the transformer size
+  // the lighting the plan takes: [{code, n, why}] + the transformer, an estimate the söluaðili confirms
+  function lightingBOM(){
+    var L = lighting(), out = {}, watts = 0, plinthMm = 0;
+    function add(code, n){ out[code] = (out[code] || 0) + n; }
+    surfaces().forEach(function(w){
+      w.wall.forEach(function(b){
+        var c = CATALOG[b.type]; if (c.panel || c.shelfStack) return;
+        if (b.led != null ? b.led : L.underWall){ // BASKI pieces that fill the cabinet's width
+          var left = b.widthMm / 10;
+          while (left >= 45){ var pc = BASKI.find(function(x){ return x <= left; }); add("BASKI " + pc, 1); watts += pc / 100 * BASKI_W_PER_M; left -= pc; }
+        }
+        if (c.open && L.shelves){ var n = Math.max(1, Math.round(b.widthMm / 400)); add("ATOM", n); watts += n * ATOM_W; }
+      });
+      if (L.plinth) w.floor.forEach(function(b){ var c = CATALOG[b.type]; if (!c.panel && !c.appliance) plinthMm += b.widthMm; });
+    });
+    if (plinthMm){
+      var m = Math.ceil(plinthMm / 1000), m3 = Math.floor(m / 3), rest = m - m3 * 3;
+      if (m3) add("LED43 (3 m)", m3); if (rest === 2) add("LED42 (2 m)", 1); if (rest === 1) add("LED41 (1 m)", 1);
+      watts += m * LED_W_PER_M;
+    }
+    var codes = Object.keys(out);
+    if (!codes.length) return null;
+    var need = watts * 1.25, drivers = [15, 30, 60, 100], d = drivers.find(function(x){ return x >= need; });
+    if (d) add("STRM" + d + " (straumbreytir)", 1); else add("STRM100 (straumbreytir)", Math.ceil(need / 100));
+    return Object.keys(out).map(function(k){ return k + " ×" + out[k]; });
+  }
+
   // "X passar ekki — viltu setja Y mm í staðinn?" (user, 2026-10-02): offered instead of a flat refusal
   // whenever a narrower cabinet would fit the space.
   function askChoice(msgHTML, yes, no, onYes, onNo){
@@ -5491,6 +5549,8 @@
     // own, so this note (plus the JSON blob the review page renders from)
     // is the only place Rakel sees them were drawn in at all.
     (state.islands || []).forEach(function(x){ if (x.back && !x.two) lines.push("Bak á eyju (" + x.label + "): 19 mm úthlið í framhliðaefni, " + x.lengthMm + " mm löng"); });
+    var bom = lightingBOM();
+    if (bom) lines.push("Lýsing (áætlun, söluaðili staðfestir): " + bom.join(", "));
     var appl = [];
     surfaces().forEach(function(w){ w.floor.forEach(function(b){ var c = CATALOG[b.type]; if (c.notOrdered) appl.push(c.label + " " + b.widthMm + " mm"); }); });
     if (appl.length) lines.push("Pláss fyrir tæki viðskiptavinar (ekki hluti af pöntun): " + appl.join(", "));
@@ -5912,6 +5972,12 @@
 
   document.getElementById("resetBtn").addEventListener("click", resetAll);
   document.getElementById("edNewUnit").addEventListener("click", function(){ openUnitWizard(); });
+  var moodOn = false; // evening view (view only, never saved)
+  function setMoodView(on){ moodOn = !!on; KP3D.setMood(moodOn); var mb = document.getElementById("moodBtn"); if (mb) mb.classList.toggle("active", moodOn); }
+  document.getElementById("moodBtn").addEventListener("click", function(){
+    if (!moodOn && !lightingOn()) toast("Kveiktu á lýsingu undir „Lýsing“ til vinstri til að sjá hana í kvöldstemningu.");
+    setMoodView(!moodOn);
+  });
   document.getElementById("reportBtn").addEventListener("click", openReportPop);
 
   document.getElementById("warnChip").addEventListener("click", function(){

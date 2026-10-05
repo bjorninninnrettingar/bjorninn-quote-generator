@@ -242,6 +242,49 @@
   // Board thickness of an open / articulated carcass: built from real 16 mm boards (sides, top, bottom) and a
   // thin back — it used to be the faces of one box, so the sides had no thickness at the front edge (2026-10-05)
   var CARCASS_T = 0.016, BACK_T = 0.008;
+
+  // ---- Lighting (2026-10-05): LED under wall units, ATOM spots in open shelves, LED in the plinth ----
+  // Each light = a small bright strip/spot + a soft additive "glow" plane on the surface it lights (cheap,
+  // no real lights). MOOD = evening view: the room's own lights dim and the glows come up (view only).
+  var MOOD = false, GLOW_TEX = null;
+  function glowTexture(THREE){
+    if (GLOW_TEX) return GLOW_TEX;
+    var cv = document.createElement("canvas"); cv.width = 4; cv.height = 128;
+    var cx = cv.getContext("2d"), gr = cx.createLinearGradient(0, 0, 0, 128);
+    gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(0.35, "rgba(255,255,255,0.45)"); gr.addColorStop(1, "rgba(255,255,255,0)");
+    cx.fillStyle = gr; cx.fillRect(0, 0, 4, 128);
+    GLOW_TEX = new THREE.CanvasTexture(cv); GLOW_TEX.userData.keep = true;
+    return GLOW_TEX;
+  }
+  function ledFrame(THREE, scene, g, offsetM, widthM){ // x along the wall (0 = the cabinet's centre), z out of the wall
+    var f = new THREE.Group();
+    f.position.set(g.origin.x + g.axis.x * (offsetM + widthM / 2), 0, g.origin.z + g.axis.z * (offsetM + widthM / 2));
+    f.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(g.axis.x, 0, g.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(g.normal.x, 0, g.normal.z)));
+    scene.add(f); return f;
+  }
+  function ledStrip(THREE, scene, f, x, w, y, z, spot){
+    var m = new THREE.Mesh(spot ? new THREE.CylinderGeometry(0.018, 0.018, 0.004, 20) : new THREE.BoxGeometry(w, 0.005, 0.01), new THREE.MeshBasicMaterial({ color:0xfff1d8 }));
+    m.position.set(x, y, z); f.add(m);
+    (scene.userData.leds = scene.userData.leds || { glows:[] });
+    return m;
+  }
+  // a glow lying on a surface at height y, from zNear (bright) to zFar (faded), w wide
+  function ledGlow(THREE, scene, f, x, w, zNear, zFar, y, strength){
+    var len = Math.abs(zFar - zNear), m = new THREE.Mesh(new THREE.PlaneGeometry(w, len), new THREE.MeshBasicMaterial({
+      map:glowTexture(THREE), color:0xffd49a, transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false }));
+    m.rotation.x = -Math.PI / 2;
+    if (zFar < zNear) m.rotation.z = Math.PI; // texture's bright edge toward zNear
+    m.position.set(x, y, (zNear + zFar) / 2); m.renderOrder = 2; m.userData.glow = strength;
+    f.add(m);
+    (scene.userData.leds = scene.userData.leds || { glows:[] }).glows.push(m);
+    return m;
+  }
+  function applyMood(scene){
+    var L = scene && scene.userData.sceneLights;
+    if (L) L.forEach(function(l){ l.light.intensity = l.base * (MOOD ? l.mood : 1); });
+    ((scene && scene.userData.leds) || { glows:[] }).glows.forEach(function(m){ m.material.opacity = m.userData.glow * (MOOD ? 1 : 0.3); });
+  }
+  function setMood(on){ MOOD = !!on; if (THREE_STATE) applyMood(THREE_STATE.scene); return MOOD; }
   function addCarcassBoards(THREE, parent, widthM, bodyH, bodyBase, depth, mat){
     var T = CARCASS_T, inner = widthM - 2 * T;
     function board(w, h, d, x, y, z){ var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m; }
@@ -2801,6 +2844,7 @@
       ? makeFrontMaterial(THREE, state.look, look)
       : new THREE.MeshStandardMaterial({ color: look ? look.color3d : 0xb7b2a4, roughness:0.7 });
     var frontOpenMat = frontMat.clone(); frontOpenMat.side = THREE.DoubleSide; // open shelf units built all in the front material (b.frontAll)
+    var LIGHT = state.lighting || {}; // { underWall, shelves, plinth } — see the "Lýsing" section of the editor
     // the plinth (sökkull): its FRONT face is clad in the front material once one is chosen (box face 4 = +z = out
     // of the wall); the sides and back stay the dark plinth colour
     var plinthDark = new THREE.MeshStandardMaterial({ color:0x26262a, roughness:0.85 });
@@ -2890,6 +2934,12 @@
             lowOven:!!c.lowOven, ovenFrontsMm:c.oven ? b.ovenFrontsMm || null : null,
             ovenInner:c.oven && !c.lowOven ? (String(b.ovenCombo == null ? OVEN_DEFAULT[state.drawerSystem === "merivo" ? "merivo" : "legra"] : b.ovenCombo).split("+")[1] || null) : null,
             washerDrawerM:c.thvo && b.thvo !== "hurdir" ? 0.40 : 0 }, selected, pickables);
+        // LED in the plinth: a strip at the foot of the plinth and a glow on the floor in front of it
+        if (LIGHT.plinth && !c.panel && !c.appliance && !opts.people){
+          var pf = ledFrame(THREE, scene, g, offset / 1000, b.widthMm / 1000), pw = b.widthMm / 1000;
+          ledStrip(THREE, scene, pf, 0, pw - 0.02, 0.008, dM - 0.058);
+          ledGlow(THREE, scene, pf, 0, pw, dM - 0.06, dM + 0.32, 0.003, 0.75);
+        }
       });
       wall.wall.forEach(function(b, bi){
         var offset = wStarts[bi];
@@ -2909,6 +2959,28 @@
         }
         addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, elevM, carcassMat, frontMat, null,
           Object.assign(metaBase, { open:!!c.open, panel:!!c.panel, openMat:c.open && b.frontAll ? frontOpenMat : openMat, hiddenMat:hiddenMat, shelves:c.open ? shelvesOf(b) : (c.shelfRange ? (shelvesOf(b) || 0) : 0) }), selected, pickables);
+        if (c.panel || opts.people) return;
+        var wf = null, ww = b.widthMm / 1000;
+        // LED under the wall unit: a strip under its front edge, a glow on what's below (worktop / floor unit / floor)
+        if (b.led != null ? b.led : LIGHT.underWall){
+          wf = ledFrame(THREE, scene, g, offset / 1000, ww);
+          ledStrip(THREE, scene, wf, 0, ww - 0.04, elevM - 0.004, dM - 0.05);
+          var mid = offset + b.widthMm / 2, under = wall.floor.find(function(fb, fi){ return fStarts[fi] <= mid && mid <= fStarts[fi] + fb.widthMm; });
+          var uc = under && CATALOG[under.type], topY = under ? Math.min(under.heightMm || uc.h, roomHeightMm) / 1000 + (uc.counter ? 0.033 : 0.001) : 0.003;
+          var reach = under ? Math.min(0.62, (under.depthMm || uc.d) / 1000 + 0.01) : 0.7;
+          if (topY < elevM - 0.05) ledGlow(THREE, scene, wf, 0, ww * 1.1, 0.02, reach, topY + 0.001, 0.95);
+        }
+        // ATOM spots in an open shelf unit: under the top board, each shelf and the bottom glow
+        if (c.open && LIGHT.shelves){
+          wf = wf || ledFrame(THREE, scene, g, offset / 1000, ww);
+          var nS = Math.max(1, Math.round(ww / 0.4)), inner = ww - 2 * CARCASS_T;
+          for (var si = 0; si < nS; si++) ledStrip(THREE, scene, wf, -inner / 2 + inner * (si + 0.5) / nS, 0, elevM + hM - CARCASS_T - 0.003, dM * 0.55, true);
+          var nShelf = shelvesOf(b) || 0;
+          for (var sl = 0; sl <= nShelf; sl++){
+            var sy = sl === 0 ? elevM + CARCASS_T : elevM + hM * sl / (nShelf + 1) + 0.009;
+            ledGlow(THREE, scene, wf, 0, inner, 0.02, dM - 0.02, sy + 0.001, 0.55 - sl * 0.08);
+          }
+        }
       });
     });
 
@@ -2931,7 +3003,8 @@
 
     // Soft daylight: sky/ground hemisphere fill + a warm key light with soft
     // shadows fitted to the room + a faint cool fill from the other side.
-    scene.add(new THREE.HemisphereLight(0xffffff, 0xbdb4a4, 0.5));
+    var hemi = new THREE.HemisphereLight(0xffffff, 0xbdb4a4, 0.5);
+    scene.add(hemi);
     var dir = new THREE.DirectionalLight(0xfff5e6, 1.0);
     dir.position.set(bbox.cx + 3.2, 5.5, bbox.cz + 4);
     dir.target.position.set(bbox.cx, 0.8, bbox.cz);
@@ -2946,6 +3019,8 @@
     var fill = new THREE.DirectionalLight(0xdfe8ff, 0.22);
     fill.position.set(bbox.cx - 3, 3, bbox.cz - 3);
     scene.add(fill);
+    scene.userData.sceneLights = [{ light:hemi, base:0.5, mood:0.22 }, { light:dir, base:1.0, mood:0.08 }, { light:fill, base:0.22, mood:0.25 }];
+    applyMood(scene);
 
     var camera = new THREE.PerspectiveCamera(45, 1, 0.05, 100);
     var dist = Math.max(bbox.w, bbox.d) * (geoms.closed ? 0.95 : 0.74) + (geoms.closed ? 1.7 : 1.2);
@@ -3694,7 +3769,7 @@
     drawerCodes: drawerCodes,
     drawerFrontsMm: drawerFrontsMm, stackFrontsMm: stackFrontsMm, resizeFront: resizeFront,
     drawerComboKey: drawerComboKey,
-    ovenCodesOf: ovenCodesOf, ovenZoneMm: ovenZoneMm,
+    ovenCodesOf: ovenCodesOf, ovenZoneMm: ovenZoneMm, setMood: setMood,
     OVEN_DEFAULT: OVEN_DEFAULT,
     modelsPending: modelsPending,
     shelvesOf: shelvesOf,
