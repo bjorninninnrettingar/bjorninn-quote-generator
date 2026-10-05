@@ -239,6 +239,18 @@
   var CODE_ORDER = "NMKECF"; // smallest → tallest; also the order Útfærslur combo keys use
   var DRAWER_GAP_MM = 3;
   var WIDE_DOOR_M = 0.6005; // a door unit wider than 600 mm is built with two doors
+  // Board thickness of an open / articulated carcass: built from real 16 mm boards (sides, top, bottom) and a
+  // thin back — it used to be the faces of one box, so the sides had no thickness at the front edge (2026-10-05)
+  var CARCASS_T = 0.016, BACK_T = 0.008;
+  function addCarcassBoards(THREE, parent, widthM, bodyH, bodyBase, depth, mat){
+    var T = CARCASS_T, inner = widthM - 2 * T;
+    function board(w, h, d, x, y, z){ var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m; }
+    board(T, bodyH, depth, -widthM / 2 + T / 2, bodyBase + bodyH / 2, depth / 2);   // sides
+    board(T, bodyH, depth, widthM / 2 - T / 2, bodyBase + bodyH / 2, depth / 2);
+    board(inner, T, depth - BACK_T, 0, bodyBase + bodyH - T / 2, BACK_T + (depth - BACK_T) / 2); // top + bottom, in front of the back
+    board(inner, T, depth - BACK_T, 0, bodyBase + T / 2, BACK_T + (depth - BACK_T) / 2);
+    board(inner, bodyH - 2 * T, BACK_T, 0, bodyBase + bodyH / 2, BACK_T / 2);          // back
+  }
   // a sensible stack for N drawers when nothing has been picked (bottom → top)
   var DEFAULT_CODES = {
     legra:  { 1:["C"], 2:["C", "C"], 3:["F", "K", "M"], 4:["C", "K", "K", "M"] },
@@ -1337,9 +1349,7 @@
     }
     var isOpen = !!(meta && meta.open && meta.openMat);
     var isPanel = !!(meta && meta.panel); // úthlið / loose shelf: solid board in the front material on every face
-    var mesh = new THREE.Mesh(boxGeo, art ? [meta.openMat, meta.openMat, meta.openMat, meta.openMat, meta.hiddenMat, meta.openMat]
-      : isOpen
-      ? [meta.openMat, meta.openMat, meta.openMat, meta.openMat, meta.hiddenMat, meta.openMat] // no front, inside faces visible
+    var mesh = new THREE.Mesh(boxGeo, art || isOpen ? meta.hiddenMat // the real boards are added below; the box stays only to pick/drag
       : isPanel ? [frontMat, frontMat, frontMat, frontMat, useFrontMat, frontMat]
       : [carcassMat, carcassMat, carcassMat, carcassMat, useFrontMat, carcassMat]);
     mesh.position.set(cx, bodyBase + bodyH / 2, cz);
@@ -1352,6 +1362,7 @@
     mesh.receiveShadow = true;
     if (meta) mesh.userData = meta;
     if (meta){ meta.selected = !!selected; meta.baseFront = frontMat; meta.art = art; meta.bodyMesh = mesh; }
+    if (art || isOpen) mesh.castShadow = false;
     // One group per cabinet (body + outline + plinth + worktop + details) so a
     // drag can move the whole thing by setting a single matrix; the group stays
     // at identity otherwise. The pickable mesh is a child, so raycasts still hit it.
@@ -1373,7 +1384,8 @@
     if (meta) meta.edgesObj = edges;
     if (meta && meta.zone !== "opening"){ // back-face fade (see fadeCabinets in buildScene)
       group.userData.cab = { blockId:meta.blockId, nx:geom.normal.x, nz:geom.normal.z, d:geom.normal.x * geom.origin.x + geom.normal.z * geom.origin.z, t:0, items:null,
-        edgesMat:edges.material, edgesBaseOpacity:edges.material.opacity };
+        edgesMat:edges.material, edgesBaseOpacity:edges.material.opacity,
+        hide:!!(meta.panel && !meta.shelfBoard) }; // an end panel disappears completely seen from behind (2026-10-05)
       (scene.userData.cabs = scene.userData.cabs || []).push(group);
     }
 
@@ -1407,9 +1419,17 @@
       if (meta.sink) addSink(THREE, group, local, quat, widthM, depthM, baseYM + heightM + 0.032);
     }
 
+    if (art || isOpen){ // the carcass as real boards, in the cabinet's own frame (x along the wall, z out of it)
+      var cframe = new THREE.Group();
+      cframe.position.set(geom.origin.x + geom.axis.x * (offsetM + widthM / 2), 0, geom.origin.z + geom.axis.z * (offsetM + widthM / 2));
+      cframe.quaternion.copy(quat);
+      addCarcassBoards(THREE, cframe, widthM, bodyH, bodyBase, art ? depthM - FRONT_T : depthM, meta.openMat);
+      cframe.traverse(function(o){ if (o.isMesh) o.userData = meta; }); // a click on a board = a click on the cabinet
+      group.add(cframe);
+    }
     if (isOpen){ // shelf boards
       for (var sh = 1; sh <= (meta.shelves || 0); sh++){
-        var board = new THREE.Mesh(new THREE.BoxGeometry(widthM - 0.002, 0.018, depthM - 0.02), meta.openMat); // side to side (user, 2026-10-05)
+        var board = new THREE.Mesh(new THREE.BoxGeometry(widthM - 2 * CARCASS_T - 0.001, 0.018, depthM - 0.02), meta.openMat); // side to side (user, 2026-10-05)
         board.position.copy(local(0, bodyBase + bodyH * sh / ((meta.shelves || 0) + 1), (depthM - 0.02) / 2 + 0.005));
         board.quaternion.copy(quat); board.castShadow = true; board.receiveShadow = true;
         group.add(board);
@@ -1539,7 +1559,7 @@
     var drawers = interior && interior.mode === "skuffur" ? interior.count : 0;
     var nShelves = drawers ? 0 : (meta.shelves || 0);
     for (var sh = 1; sh <= nShelves; sh++){
-      var board = new THREE.Mesh(new THREE.BoxGeometry(widthM - 0.002, 0.018, CD - 0.03), meta.openMat); // shelves reach the sides
+      var board = new THREE.Mesh(new THREE.BoxGeometry(widthM - 2 * CARCASS_T - 0.001, 0.018, CD - 0.03), meta.openMat); // shelves reach the sides
       board.position.set(0, bodyBase + bodyH * sh / (nShelves + 1), (CD - 0.03) / 2 + 0.005);
       board.castShadow = true; board.receiveShadow = true;
       frame.add(board);
@@ -1669,7 +1689,7 @@
       } else makeLeaf(idx++, 0, widthM, bodyBase + 0.0015, ovY - 0.0015, hingeA, { y0:0, y1:1 }, 0);
       // the oven itself: dark body in the niche, glass door, control strip, bar handle
       var dark = new THREE.MeshStandardMaterial({ color:0x1c1d20, roughness:0.4, metalness:0.4 });
-      addBox(widthM - 0.006, ovH - 0.004, CD - 0.02, 0, ovY + ovH / 2, (CD - 0.02) / 2 + 0.01, dark);
+      addBox(widthM - 2 * CARCASS_T - 0.004, ovH - 0.004, CD - 0.02, 0, ovY + ovH / 2, (CD - 0.02) / 2 + 0.01, dark);
       addBox(widthM - 0.006, ovH - 0.13, FRONT_T, 0, ovY + (ovH - 0.13) / 2 + 0.004, CD + FRONT_T / 2, new THREE.MeshStandardMaterial({ color:0x141518, roughness:0.12, metalness:0.5 }));
       addBox(widthM - 0.006, 0.115, FRONT_T, 0, ovY + ovH - 0.06, CD + FRONT_T / 2, new THREE.MeshStandardMaterial({ color:0x2b2c30, roughness:0.4, metalness:0.4 }));
       addBox(widthM * 0.7, 0.018, 0.028, 0, ovY + ovH - 0.145, CD + FRONT_T + 0.014, new THREE.MeshStandardMaterial({ color:0xb9bec4, metalness:0.85, roughness:0.28 }));
@@ -1677,18 +1697,24 @@
       // cabinet above: a fixed shelf right on top of the oven, then 2 vent shelves (loftunarhillur) — each
       // with one slot through it at the back: 60 mm from the back, 100 mm in from both sides, 60 mm wide
       // (user, 2026-10-05). Every shelf reaches the carcass sides.
-      var upY0 = ovY + ovH + 0.003, upY1 = bodyBase + bodyH, shW = widthM - 0.002, shD = CD - 0.02;
-      addBox(shW, 0.018, shD, 0, ovY + ovH + 0.009, shD / 2 + 0.001, meta.openMat);
+      var upY0 = ovY + ovH + 0.003, upY1 = bodyBase + bodyH, shW = widthM - 2 * CARCASS_T - 0.001, shD = CD - 0.02 - BACK_T;
+      addBox(shW, 0.018, shD, 0, ovY + ovH + 0.009, BACK_T + shD / 2 + 0.001, meta.openMat);
       var vent = new THREE.Shape(); // x across, y = distance from the back
       vent.moveTo(-shW / 2, 0); vent.lineTo(shW / 2, 0); vent.lineTo(shW / 2, shD); vent.lineTo(-shW / 2, shD); vent.lineTo(-shW / 2, 0);
-      var slotX = Math.max(0.02, widthM / 2 - 0.1), hole = new THREE.Path();
-      hole.moveTo(-slotX, 0.06); hole.lineTo(-slotX, 0.12); hole.lineTo(slotX, 0.12); hole.lineTo(slotX, 0.06); hole.lineTo(-slotX, 0.06);
-      vent.holes.push(hole);
+      // slots milled through it: 60 mm long at 45°, one every 32 mm across the width (100 mm in from the
+      // sides), in a band 60 mm from the back (user, 2026-10-05)
+      var slotHalf = 0.03, slotW = 0.008, dx = slotHalf * Math.SQRT1_2, edgeX = widthM / 2 - 0.1, cyS = 0.06 + dx;
+      var ux = Math.SQRT1_2, uy = Math.SQRT1_2, px = -uy * slotW / 2, py = ux * slotW / 2; // along / across the slot
+      for (var sxC = -edgeX + dx; sxC <= edgeX - dx + 1e-6; sxC += 0.032){
+        var hp = new THREE.Path(), ax = sxC - ux * slotHalf, ay = cyS - uy * slotHalf, bx2 = sxC + ux * slotHalf, by2 = cyS + uy * slotHalf;
+        hp.moveTo(ax + px, ay + py); hp.lineTo(bx2 + px, by2 + py); hp.lineTo(bx2 - px, by2 - py); hp.lineTo(ax - px, ay - py); hp.lineTo(ax + px, ay + py);
+        vent.holes.push(hp);
+      }
       var ventGeo = new THREE.ExtrudeGeometry(vent, { depth:0.018, bevelEnabled:false });
       ventGeo.rotateX(Math.PI / 2); // shape y → depth into the room, thickness downwards from y = 0
       for (var vs = 1; vs <= 2; vs++){
         var vm = new THREE.Mesh(ventGeo, meta.openMat), vy = upY0 + (upY1 - upY0) * vs / 3;
-        vm.position.set(0, vy + 0.009, 0.001); vm.castShadow = true; vm.receiveShadow = true; frame.add(vm);
+        vm.position.set(0, vy + 0.009, BACK_T + 0.001); vm.castShadow = true; vm.receiveShadow = true; frame.add(vm);
       }
       if (wideA){
         makeLeaf(idx++, -widthM / 4, widthM / 2, upY0 + 0.0015, upY1 - 0.0015, "left", { y0:0, y1:1 }, 1);
@@ -1736,7 +1762,7 @@
       });
       var topB = bodyBase + bodyH;
       for (var bs = 1; bs <= 2; bs++){
-        var shB = new THREE.Mesh(new THREE.BoxGeometry(widthM - 0.002, 0.018, CD - 0.03), meta.openMat);
+        var shB = new THREE.Mesh(new THREE.BoxGeometry(widthM - 2 * CARCASS_T - 0.001, 0.018, CD - 0.03), meta.openMat);
         shB.position.set(0, yb + (topB - yb) * bs / 3, (CD - 0.03) / 2 + 0.005); shB.castShadow = true; shB.receiveShadow = true;
         frame.add(shB);
       }
@@ -2800,13 +2826,15 @@
           m.position.set(g.origin.x + g.axis.x * along + g.normal.x * dM / 2, y0 + hM / 2, g.origin.z + g.axis.z * along + g.normal.z * dM / 2);
           m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(g.axis.x, 0, g.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(g.normal.x, 0, g.normal.z)));
           m.castShadow = true; m.receiveShadow = true;
-          scene.add(m);
+          var ag = new THREE.Group(); ag.add(m); scene.add(ag);
+          ag.userData.cab = { blockId:null, nx:g.normal.x, nz:g.normal.z, d:g.normal.x * g.origin.x + g.normal.z * g.origin.z, t:0, items:null, hide:true };
+          (scene.userData.cabs = scene.userData.cabs || []).push(ag);
           if (z[0] === "floor" && c.counter){ // the worktop covers the áfella too
             var tg = new THREE.BoxGeometry(w + 0.001, 0.032, dM + 0.02);
             var t = new THREE.Mesh(tg, stoneMat);
             t.position.set(g.origin.x + g.axis.x * along + g.normal.x * (dM + 0.02) / 2, hM + 0.017, g.origin.z + g.axis.z * along + g.normal.z * (dM + 0.02) / 2);
             t.quaternion.copy(m.quaternion); t.castShadow = true; t.receiveShadow = true;
-            scene.add(t);
+            ag.add(t);
           }
         });
       });
@@ -3067,9 +3095,11 @@
       // opacity while the faces underneath faded to near-nothing — two coincident semi-transparent surfaces
       // with no stable draw order, which is what read as a flickering/speckled dark edge on a ghosted cabinet
       // seen from behind. Fading the outline down together with the faces removes the coincidence.
-      if (c.edgesMat){ c.edgesMat.opacity = c.edgesBaseOpacity - (c.edgesBaseOpacity - GHOST_OPACITY) * t; c.edgesMat.depthWrite = t < 0.4; }
+      var floor = c.hide ? 0 : GHOST_OPACITY; // end panels / áfellur go all the way to invisible
+      if (c.edgesMat){ c.edgesMat.opacity = c.edgesBaseOpacity - (c.edgesBaseOpacity - floor) * t; c.edgesMat.depthWrite = t < 0.4; }
       c.items.forEach(function(it){
-        (Array.isArray(it.ghost) ? it.ghost : [it.ghost]).forEach(function(m){ m.opacity = 1 - (1 - GHOST_OPACITY) * t; m.depthWrite = t < 0.4; });
+        (Array.isArray(it.ghost) ? it.ghost : [it.ghost]).forEach(function(m){ m.opacity = 1 - (1 - floor) * t; m.depthWrite = t < 0.4; });
+        if (c.hide) it.o.visible = t < 0.97;
         it.o.material = t > 0.01 ? it.ghost : it.orig;
         it.o.castShadow = t > 0.01 ? false : it.cast; // a see-through cabinet casting a full shadow left blotchy shadow patterns on what's behind it
       });
@@ -3079,7 +3109,7 @@
         var c = gr.userData.cab;
         var cp = (THREE_STATE.fadeCam || camera).position;
         var behind = cp.x * c.nx + cp.z * c.nz - c.d < -0.05;
-        var want = behind && !opts.noGhost && !THREE_STATE.fadeCam && !THREE_STATE.dragging && opts.selectedId !== c.blockId ? 1 : 0; // export shots: never see-through
+        var want = behind && !opts.noGhost && !THREE_STATE.fadeCam && !THREE_STATE.dragging && (c.blockId == null || opts.selectedId !== c.blockId) ? 1 : 0; // export shots: never see-through
         if (c.t === want) return;
         c.t = Math.abs(want - c.t) < 0.01 ? want : c.t + (want - c.t) * 0.2;
         ghostApply(gr, c.t);
