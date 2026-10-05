@@ -292,7 +292,7 @@
     L.lights = L.lights || [];
     if (!THREE.RectAreaLight || L.lights.filter(function(l){ return l.isRectAreaLight; }).length >= 14) return;
     var a = new THREE.RectAreaLight(0xffcf96, 0, w, 0.03);
-    a.position.set(0, y, z); a.rotation.x = -Math.PI / 2; a.userData.full = 9; // shines straight down
+    a.position.set(0, y, z); a.rotation.x = -Math.PI / 2; a.userData.full = 11; // shines straight down
     f.add(a); L.lights.push(a);
   }
   function ledSpot(THREE, scene, f, x, y, z, floorY){
@@ -309,7 +309,7 @@
     if (!scene) return;
     var t = scene.userData.noMood ? 0 : MOOD_T, L = scene.userData.sceneLights;
     if (L) L.forEach(function(l){ l.light.intensity = l.base * (1 - t + t * l.mood); });
-    if (scene.userData.hemi){ scene.userData.hemi.color.setRGB(1 - t * 0.42, 1 - t * 0.33, 1 - t * 0.16); scene.userData.hemi.groundColor.setRGB(0.74 - t * 0.6, 0.71 - t * 0.6, 0.64 - t * 0.56); } // dusk blue above, dark below
+    if (scene.userData.hemi){ scene.userData.hemi.color.setRGB(1 - t * 0.32, 1 - t * 0.24, 1 - t * 0.1); scene.userData.hemi.groundColor.setRGB(0.74 - t * 0.45, 0.71 - t * 0.45, 0.64 - t * 0.4); } // dusk blue above, darker below
     var leds = scene.userData.leds || { glows:[] };
     leds.glows.forEach(function(m){ m.material.opacity = m.userData.glow * (0.3 + 0.7 * t); });
     (leds.lights || []).forEach(function(l){ l.intensity = l.userData.full * (0.15 + 0.85 * t); });
@@ -2782,7 +2782,7 @@
     var iso = opts.onlySurfaceId || null; // one surface id, or an array of them (both rows of an island)
     function isoHas(id){ return Array.isArray(iso) ? iso.indexOf(id) >= 0 : id === iso; }
     scene.background = new THREE.Color(iso ? 0xffffff : 0xf7f6f2);
-    scene.userData.dayBg = scene.background.clone(); scene.userData.nightBg = new THREE.Color(0x1c2029);
+    scene.userData.dayBg = scene.background.clone(); scene.userData.nightBg = new THREE.Color(0x2b303b);
 
     var nBeforeFloor = scene.children.length;
     var bbox = addFloor(THREE, scene, geoms, floorMat, stateBounds(state, geoms));
@@ -3017,19 +3017,17 @@
           if (topY < elevM - 0.05) ledGlow(THREE, scene, wf, 0, ww * 1.1, 0.02, reach, topY + 0.001, 0.55);
           ledAreaLight(THREE, scene, wf, ww - 0.04, elevM - 0.008, dM - 0.05);
         }
-        // ATOM spots in an open shelf unit: under the top board, each shelf and the bottom glow
+        // LED strips in an open shelf unit (ATOM spots left out for now, 2026-10-05): one under the top and under
+        // each shelf, along the front, lighting the shelf below it
         if (c.open && LIGHT.shelves){
           wf = wf || ledFrame(THREE, scene, g, offset / 1000, ww);
-          var nS = Math.max(1, Math.round(ww / 0.4)), inner = ww - 2 * CARCASS_T;
-          for (var si = 0; si < nS; si++){
-            var sxp = -inner / 2 + inner * (si + 0.5) / nS;
-            ledStrip(THREE, scene, wf, sxp, 0, elevM + hM - CARCASS_T - 0.003, dM * 0.55, true);
-            ledSpot(THREE, scene, wf, sxp, elevM + hM - CARCASS_T - 0.006, dM * 0.55, elevM);
-          }
-          var nShelf = shelvesOf(b) || 0;
+          var inner = ww - 2 * CARCASS_T, nShelf = shelvesOf(b) || 0;
           for (var sl = 0; sl <= nShelf; sl++){
-            var sy = sl === 0 ? elevM + CARCASS_T : elevM + hM * sl / (nShelf + 1) + 0.009;
-            ledGlow(THREE, scene, wf, 0, inner, 0.02, dM - 0.02, sy + 0.001, 0.55 - sl * 0.08);
+            var under = sl === nShelf ? elevM + hM - CARCASS_T : elevM + hM * (sl + 1) / (nShelf + 1);  // underside of the board above this level
+            var floorY = sl === 0 ? elevM + CARCASS_T : elevM + hM * sl / (nShelf + 1) + 0.009;      // the level it lights
+            ledStrip(THREE, scene, wf, 0, inner - 0.02, under - 0.004, dM - 0.04);
+            ledGlow(THREE, scene, wf, 0, inner, dM - 0.03, 0.02, floorY + 0.001, 0.6);
+            ledAreaLight(THREE, scene, wf, inner - 0.02, under - 0.008, dM - 0.04);
           }
         }
       });
@@ -3070,7 +3068,7 @@
     var fill = new THREE.DirectionalLight(0xdfe8ff, 0.22);
     fill.position.set(bbox.cx - 3, 3, bbox.cz - 3);
     scene.add(fill);
-    scene.userData.sceneLights = [{ light:hemi, base:0.5, mood:0.3 }, { light:dir, base:1.0, mood:0.04 }, { light:fill, base:0.22, mood:0.35 }];
+    scene.userData.sceneLights = [{ light:hemi, base:0.5, mood:0.55 }, { light:dir, base:1.0, mood:0.12 }, { light:fill, base:0.22, mood:0.6 }]; // evening a bit brighter (2026-10-05)
     scene.userData.hemi = hemi;
     scene.userData.noMood = !!(opts.clean || opts.people); // previews and the drawing export always show daylight
     applyMood(scene);

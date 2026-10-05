@@ -417,6 +417,7 @@
   .fit-ask{ position:fixed; left:50%; bottom:28px; transform:translateX(-50%); z-index:300; background:#fff; color:var(--ink, #191919); border:1px solid var(--line); border-radius:14px; box-shadow:0 12px 36px rgba(0,0,0,.18); padding:14px 16px; max-width:440px; width:calc(100% - 32px); font-size:14px; }
   .fit-ask p{ margin:0 0 10px; line-height:1.4; }
   .fit-ask-btns{ display:flex; gap:8px; justify-content:flex-end; }
+  .hw-btn.maybe{ border-style:dashed; }
   .light-btns{ display:flex; flex-direction:column; gap:6px; margin-bottom:8px; }
   .light-btns .hw-btn{ text-align:left; }
   #moodBtn.active{ background:#1e2433; color:#ffe2a8; }
@@ -2853,6 +2854,34 @@
     var codes = function(){ return KP3D.ovenCodesOf(b, drawerSys()); };
     return { codes:codes, fronts:function(){ var cc = codes(); return KP3D.stackFrontsMm({ frontsMm:b.ovenFrontsMm }, cc, KP3D.ovenZoneMm(cc)) || []; } };
   }
+  // Inner drawers only exist as products with one or two drawers (KP_LINEMAP "…+IK"/"…+IM"): the stacks that
+  // carry one, and the closest of them that fits this cabinet (same number of drawers first)
+  function innerStacks(ik){
+    var LM = window.KP_LINEMAP, sys = drawerSys();
+    return Object.keys((LM && LM.v2Drawers[sys]) || {}).filter(function(k){ return k.indexOf("+") > 0 && (!ik || k.split("+")[1] === ik); })
+      .map(function(k){ return sortStack(k.split("+")[0].split("")).join("·") + (ik ? "" : " +" + (k.split("+")[1] === "IK" ? "K" : "M")); })
+      .filter(function(v, i, a){ return a.indexOf(v) === i; });
+  }
+  function innerAlternative(b, c, ik){
+    var cur = KP3D.drawerCodes(b.interior, drawerSys()), best = null;
+    innerStacks(ik).forEach(function(lbl){
+      var codes = lbl.split("·");
+      if (!stackAllowed(b, c, codes, ik)) return;
+      var score = Math.abs(codes.length - cur.length) * 10 + codes.filter(function(x){ return cur.indexOf(x) < 0; }).length;
+      if (!best || score < best.score) best = { codes:codes, score:score };
+    });
+    return best ? best.codes : null;
+  }
+  // click on an inner-drawer button: toggle it, or offer the nearest stack that has it
+  function innerDrawerClick(b, c, ik, apply){
+    var cur = KP3D.drawerCodes(b.interior, drawerSys());
+    if (b.interior.inner === ik){ apply(cur, null); return; }
+    if (stackAllowed(b, c, cur, ik)){ apply(cur, ik); return; }
+    var alt = innerAlternative(b, c, ik);
+    if (!alt){ toast("Innskúffa er ekki til fyrir þennan skáp."); return; }
+    askChoice('Innskúffa fæst ekki með <b>' + cur.join(" · ") + '</b> — hún er bara til með 1–2 skúffum. Viltu skipta yfir í <b>' + alt.join(" · ") + ' + ' + (ik === "IK" ? "miðlungs" : "lága") + ' innskúffu</b>?',
+      "Já, skipta", "Nei takk", function(){ apply(alt, ik); });
+  }
   function hardwareHTML(b, c){
     if (!c.hasInterior) return "";
     var isDrawer = b.interior.mode === "skuffur";
@@ -2870,9 +2899,11 @@
       return '<button type="button" class="hw-btn" data-dw-add="' + code + '"' + (ok ? '' : ' disabled') + ' title="' + CODE_LABEL[code] + ' skúffa">' + code + '</button>';
     }).join("") + '</div>';
     html += '<div class="dw-add"><span>Innskúffa:</span>' + D.inner.map(function(ik){
-      var on = inner === ik, ok = on || stackAllowed(b, c, codes, ik);
-      return '<button type="button" class="hw-btn' + (on ? ' active' : '') + '" data-dw-inner="' + ik + '"' + (ok ? '' : ' disabled') + '>' + (ik === "IK" ? "Miðlungs (K)" : "Lág (M)") + '</button>';
-    }).join("") + '</div>';
+      var on = inner === ik, ok = on || stackAllowed(b, c, codes, ik), alt = !ok && innerAlternative(b, c, ik);
+      // never greyed out without a reason: when this stack has no such product, the click offers one that does
+      return '<button type="button" class="hw-btn' + (on ? ' active' : '') + (ok ? '' : ' maybe') + '" data-dw-inner="' + ik + '"' + (ok || alt ? '' : ' disabled') +
+        ' title="' + (ok ? '' : alt ? 'Fæst með ' + alt.join(" · ") + ' — smelltu til að skipta' : 'Ekki til fyrir þennan skáp') + '">' + (ik === "IK" ? "Miðlungs (K)" : "Lág (M)") + '</button>';
+    }).join("") + '</div>' + (!inner && !D.inner.some(function(ik){ return stackAllowed(b, c, codes, ik); }) ? '<p class="sec-note">Innskúffa fæst með 1–2 skúffum (' + innerStacks().join(", ") + ').</p>' : '');
     if (!stackAllowed(b, c, codes, inner)) html += '<p class="sec-note">⚠️ Þessi samsetning er ekki til sem stöðluð vara — söluaðili staðfestir hana.</p>';
     return html;
   }
@@ -3559,7 +3590,7 @@
     side.querySelectorAll("[data-dw-del]").forEach(function(el){ el.addEventListener("click", function(){
       var cc = cur(); cc.splice(+el.dataset.dwDel, 1); setStack(cc, stackAllowed(b, c, sortStack(cc), b.interior.inner) ? b.interior.inner : null);
     }); });
-    side.querySelectorAll("[data-dw-inner]").forEach(function(el){ el.addEventListener("click", function(){ setStack(cur(), b.interior.inner === el.dataset.dwInner ? null : el.dataset.dwInner); }); });
+    side.querySelectorAll("[data-dw-inner]").forEach(function(el){ el.addEventListener("click", function(){ innerDrawerClick(b, c, el.dataset.dwInner, setStack); }); });
     side.querySelectorAll("[data-uw-sh]").forEach(function(el){ el.addEventListener("click", function(){
       var d = +el.dataset.uwSh;
       b.shelves = Math.max(c.shelfRange[0], Math.min(c.shelfRange[1], KP3D.shelvesOf(b) + d));
@@ -5213,7 +5244,7 @@
         });
       });
       host.querySelectorAll('[data-dw-inner]').forEach(function(btn){
-        btn.addEventListener("click", function(){ setDrawerStack(wall, zone, b.id, curCodes(), b.interior.inner === btn.dataset.dwInner ? null : btn.dataset.dwInner); });
+        btn.addEventListener("click", function(){ innerDrawerClick(b, c, btn.dataset.dwInner, function(codes, ik){ setDrawerStack(wall, zone, b.id, codes, ik); }); });
       });
       wireDrawerStack(host, b, c, function(codes, frontsMm){
         if (b.locked){ lockedToast(); renderEditPanel(); return; }
@@ -5350,7 +5381,10 @@
           var mStrip = Math.max(1, Math.ceil(b.widthMm / 1000));
           add(mStrip >= 3 ? "LED43 (3 m)" : mStrip === 2 ? "LED42 (2 m)" : "LED41 (1 m)", 1); watts += b.widthMm / 1000 * LED_W_PER_M;
         }
-        if (c.open && L.shelves){ var n = Math.max(1, Math.round(b.widthMm / 400)); add("ATOM", n); watts += n * ATOM_W; }
+        if (c.open && L.shelves){ // a LED strip under the top and under each shelf (ATOM spots left out for now)
+          var levels = (KP3D.shelvesOf(b) || 0) + 1, mS = Math.max(1, Math.ceil(b.widthMm / 1000));
+          add(mS >= 3 ? "LED43 (3 m)" : mS === 2 ? "LED42 (2 m)" : "LED41 (1 m)", levels); watts += levels * b.widthMm / 1000 * LED_W_PER_M;
+        }
       });
       // (no plinth LED — taken out 2026-10-05)
     });
