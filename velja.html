@@ -54,6 +54,27 @@
   .choice.verk .t, .choice.verk .d { color:#1a1400; }
   .choice.verk .d { opacity:.75; }
 
+  /* "Merkja fræst" — only shown when the scanned piece is marked Yfirfr.
+     One tap = the whole Sögunarlisti row is fræst; counts toward
+     Framvinda framleiðslu, same as a tap on /fraesing. */
+  .mill { margin-top:24px; border:1px solid #1f6b3a; background:#0d2016; border-radius:16px; padding:16px 18px 18px; }
+  .mill-piece { font-size:1.15rem; font-weight:700; margin-top:2px; }
+  .mill-btn {
+    display:flex; align-items:center; justify-content:center; gap:12px; width:100%;
+    margin-top:14px; padding:22px 18px; border-radius:14px; border:1px solid #3ddc84;
+    background:#1f9d55; color:#fff; font-family:var(--font); font-size:1.35rem; font-weight:800;
+    cursor:pointer; -webkit-tap-highlight-color:transparent;
+  }
+  .mill-btn:active { filter:brightness(1.1); }
+  .mill-btn[disabled] { opacity:.6; cursor:default; }
+  .mill-done { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:14px; }
+  .mill-done .ok { font-size:1.35rem; font-weight:800; color:#3ddc84; }
+  .mill-undo {
+    font-family:var(--font); font-size:.95rem; font-weight:700; color:var(--text);
+    background:transparent; border:1px solid var(--line); border-radius:10px; padding:10px 14px; cursor:pointer;
+  }
+  .mill-err { margin-top:10px; color:#ff6b6b; font-weight:600; }
+
   #loading,#error { text-align:center; color:var(--muted); padding-top:40px; }
   #error strong { display:block; color:var(--text); font-size:1.1rem; margin-bottom:6px; }
   .hidden { display:none !important; }
@@ -72,6 +93,17 @@
     <div class="field hidden" id="roomField"><span class="flabel">Rými</span><br><span class="fval" id="roomVal"></span></div>
     <div class="field hidden" id="tegundField"><span class="flabel">Tegund einingu</span><br><span class="fval" id="tegundVal"></span></div>
     <div class="proj-name" id="projName"></div>
+
+    <div class="mill hidden" id="millCard">
+      <span class="flabel">Skannaður hlutur · þarf að fræsa</span>
+      <div class="mill-piece" id="millPiece"></div>
+      <button type="button" class="mill-btn" id="millBtn">🔬 Merkja fræst</button>
+      <div class="mill-done hidden" id="millDone">
+        <span class="ok" id="millOk">✅ Fræst</span>
+        <button type="button" class="mill-undo" id="millUndo">Afturkalla</button>
+      </div>
+      <div class="mill-err hidden" id="millErr"></div>
+    </div>
 
     <div class="choices">
       <a class="choice eining" id="btnEining">
@@ -123,9 +155,93 @@
   // re-derived from Eyðublað's own project link here, which has been found
   // to carry stray extra links on some units (see api/v.js).
   var q = new URLSearchParams(location.search);
-  var u = q.get("u"), p = q.get("p"), k = q.get("k");
+  var u = q.get("u"), p = q.get("p"), s = q.get("s"), k = q.get("k");
   if (!u || !/^rec[A-Za-z0-9]{14}$/.test(u) || !k) {
     hide($("loading")); show($("error")); return;
+  }
+
+  // ── Merkja fræst ──────────────────────────────────────────────────────
+  // s = the scanned piece (Sögunarlisti row), added by /v. When that row is
+  // marked Yfirfr., one tap sets it fully fræst — the same fields /fraesing
+  // writes (Fræst + Magn fræst, and the per-side counts for a V/H hlið
+  // pair sharing one row), so both pages agree. Afturkalla puts back exactly
+  // what was there before.
+  var SOG_TABLE = "tblhdgyvTcBfP8kov";
+  var MILL_FIELDS = ["Fræst", "Magn fræst", "V hlið magn fræst", "H hlið magn fræst"];
+
+  function patchPiece(fields){
+    var qs = "path=" + encodeURIComponent(SOG_TABLE + "/" + s);
+    return fetch(PROXY + "?" + qs, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fields: fields })
+    }).then(function(r){
+      return r.ok ? r.json() : Promise.reject(new Error("HTTP "+r.status));
+    });
+  }
+
+  function num(v){ var n = Number(v); return isFinite(n) ? n : 0; }
+
+  function setupMill(piece){
+    var f = piece.fields || {};
+    if (!f["Yfirfr."]) return; // nothing to mill on this piece — no button
+    var m = Math.max(1, num(f["M"]));
+    var before = {};
+    MILL_FIELDS.forEach(function(k2){
+      before[k2] = k2 === "Fræst" ? !!f[k2] : num(f[k2]);
+    });
+    var done = !!f["Fræst"];
+
+    var dims = [num(f["H"]), num(f["B"])].filter(Boolean).join(" × ");
+    $("millPiece").textContent = [txt(f["Partur"]) || "Hlutur", dims, m > 1 ? m + " stk" : ""]
+      .filter(Boolean).join(" · ");
+
+    function render(state){
+      hide($("millErr"));
+      $("millBtn").disabled = state === "saving";
+      $("millBtn").textContent = state === "saving" ? "Vista…" : "🔬 Merkja fræst";
+      if (state === "done" || state === "already") {
+        hide($("millBtn")); show($("millDone"));
+        $("millOk").textContent = state === "already" ? "✅ Þegar merkt fræst" : "✅ Fræst";
+      } else {
+        show($("millBtn")); hide($("millDone"));
+      }
+    }
+    function fail(e){
+      console.error(e);
+      $("millErr").textContent = "Tókst ekki að vista — reyndu aftur.";
+      show($("millErr"));
+    }
+
+    $("millBtn").onclick = function(){
+      render("saving");
+      var fields = { "Fræst": true, "Magn fræst": m };
+      if (m % 2 === 0) { fields["V hlið magn fræst"] = m / 2; fields["H hlið magn fræst"] = m / 2; }
+      patchPiece(fields)
+        .then(function(){ done = true; render("done"); })
+        .catch(function(e){ render("todo"); fail(e); });
+    };
+    $("millUndo").onclick = function(){
+      $("millUndo").disabled = true;
+      // Already fræst when scanned → "before" is the done state itself, so
+      // undo clears it instead of restoring it.
+      var fields = before["Fræst"]
+        ? { "Fræst": false, "Magn fræst": 0, "V hlið magn fræst": 0, "H hlið magn fræst": 0 }
+        : before;
+      patchPiece(fields)
+        .then(function(){ done = false; before = { "Fræst": false, "Magn fræst": 0, "V hlið magn fræst": 0, "H hlið magn fræst": 0 }; render("todo"); })
+        .catch(fail)
+        .then(function(){ $("millUndo").disabled = false; });
+    };
+
+    render(done ? "already" : "todo");
+    show($("millCard"));
+  }
+
+  if (s && /^rec[A-Za-z0-9]{14}$/.test(s)) {
+    fetchJson(SOG_TABLE + "/" + s, k)
+      .then(setupMill)
+      .catch(function(e){ console.error("Hlutur fannst ekki:", e); });
   }
 
   $("btnEining").href = "/eining?u=" + encodeURIComponent(u) +

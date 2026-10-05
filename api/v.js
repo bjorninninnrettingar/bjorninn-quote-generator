@@ -1,5 +1,5 @@
 // Short redirect for the QR code on Zebra piece labels.
-// /v/<Sögunarlisti piece recordId>  →  302 → /velja?u=<unitId>&p=<projectId>&k=<VERK_KEY>
+// /v/<Sögunarlisti piece recordId>  →  302 → /velja?u=<unitId>&p=<projectId>&s=<pieceId>&k=<VERK_KEY>
 //
 // Takes the PIECE's record id (what print-server.js already has in hand when
 // it prints that label) rather than the unit or project id directly, and
@@ -43,6 +43,9 @@ export default async function handler(req, res) {
   const dest = new URL("/velja", `https://${req.headers.host}`);
   dest.searchParams.set("u", unitId);
   if (projectId) dest.searchParams.set("p", projectId);
+  // The scanned piece itself — /velja offers "Merkja fræst" for it when it's
+  // marked Yfirfr., so the fræsari can tick it off with one scan + one tap.
+  dest.searchParams.set("s", id);
   dest.searchParams.set("k", key);
 
   res.writeHead(302, { Location: dest.pathname + dest.search });
