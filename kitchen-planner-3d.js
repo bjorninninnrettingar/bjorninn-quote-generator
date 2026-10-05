@@ -38,6 +38,11 @@
     // ---- 2026-09-30: types that exist as real Útfærslur (see kitchen-planner-linemap.js) ----
     // Búrskápur: tall pantry, doors outside, a real drawer/shelf set inside (b.burCombo)
     ofnaskapurLagur:{ label:"Ofnaskápur (í grunnskáp)", zone:"floor", cls:"floor", defaultW:600, minW:600, maxW:600, h:800, d:600, minH:750, maxH:950, minD:550, maxD:700, hasInterior:false, counter:true, oven:true, lowOven:true },
+    // Blint horn með hillum: the Töfrahorn's shape (door on one half, blind panel on the other) with plain shelves
+    hornskapur:  { label:"Hornskápur með hillum", zone:"floor", cls:"corner", defaultW:1200, minW:900, maxW:1500, h:800, d:600, minH:600, maxH:1000, minD:500, maxD:900, hasInterior:false, counter:true, shelfRange:[0, 3, 1], skapategundOverride:"Grunnskápur" },
+    // Free-standing appliances (2026-10-05): a gap with the appliance drawn in, not ordered from Björninn
+    isskapurFri: { label:"Frístandandi ísskápur", zone:"floor", cls:"tall", defaultW:600, minW:600, maxW:900, widths:[600, 700, 900], h:1850, d:650, minH:1700, maxH:2000, minD:600, maxD:750, hasInterior:false, appliance:"fridge", notOrdered:true },
+    thvottavelFri:{ label:"Þvottavél (frístandandi)", zone:"floor", cls:"floor", defaultW:600, minW:600, maxW:600, h:800, d:600, minH:800, maxH:900, minD:550, maxD:700, hasInterior:false, counter:true, appliance:"washer", notOrdered:true },
     burskapur:   { label:"Búrskápur", zone:"floor", cls:"tall", defaultW:600, minW:300, maxW:1200, h:2400, d:600, minH:1800, maxH:2600, minD:400, maxD:700, hasInterior:false, bur:true },
     // Þvottavélaskápur: washer/dryer tower; b.thvo = "skuffa" (a drawer at the bottom to raise the machine) | "hurdir" (doors only)
     thvottavel:  { label:"Þvottavélaskápur", zone:"floor", cls:"tall", defaultW:600, minW:600, maxW:900, h:2400, d:600, minH:1800, maxH:2600, minD:600, maxD:750, hasInterior:false, thvo:true, fixedFronts:true },
@@ -59,7 +64,7 @@
                    skapategundOverride:"Efriskápur", note:"Opnar hillur — engin hurð; viðskiptavinur óskar eftir opnum hillum." },
     // Úthlið (end panel): 19 mm thick, same material as the fronts. Placed at
     // the end of a run it copies height/depth from the cabinet it butts up to.
-    uthlid:      { label:"Úthlið — neðri", zone:"floor", cls:"floor", defaultW:19, minW:19, maxW:19, h:800, d:600, minH:300, maxH:1000, minD:100, maxD:750, hasInterior:false, panel:true,
+    uthlid:      { label:"Úthlið — neðri", zone:"floor", cls:"floor", defaultW:19, minW:19, maxW:19, h:800, d:600, minH:300, maxH:1000, minD:100, maxD:750, hasInterior:false, panel:true, counter:true, // the worktop runs on over it
                    skapategundOverride:"Grunnskápur", note:"Úthlið, 19 mm þykk, sama efni og framhliðar (stendur við enda á skápalínu)." },
     uthlidhar:   { label:"Úthlið — há", zone:"floor", cls:"tall", defaultW:19, minW:19, maxW:19, h:2400, d:600, minH:1000, maxH:2600, minD:100, maxD:750, hasInterior:false, panel:true,
                    skapategundOverride:"Hárskápur", note:"Úthlið, 19 mm þykk, sama efni og framhliðar (stendur við enda á skápalínu)." },
@@ -1315,9 +1320,11 @@
     var plinthM = meta && meta.plinth ? 0.1 : 0;
     var bodyBase = baseYM + plinthM, bodyH = heightM - plinthM;
     var panelBox = !!(meta && meta.panel);
+    // an end panel stops 1 mm short of each neighbour: sharing the carcass side's plane z-fought, seen from
+    // inside an open cabinet (2026-10-05)
     var boxGeo = window.__RoundedBox__ && !panelBox
       ? new window.__RoundedBox__(widthM, bodyH, bodyD, 3, 0.004)
-      : new THREE.BoxGeometry(widthM, bodyH, bodyD);
+      : new THREE.BoxGeometry(panelBox ? Math.max(0.005, widthM - 0.002) : widthM, bodyH, bodyD);
     if (panelBox) panelUV(boxGeo, widthM, bodyH, bodyD, frontMat.userData && frontMat.userData.tile);
     else scaleFrontUV(boxGeo, widthM, bodyH, frontMat.userData && frontMat.userData.tile, false, { u:offsetM, v:bodyBase });
     var useFrontMat = frontMat;
@@ -1411,7 +1418,38 @@
     }
     if (meta && meta.locked && !meta.suppressBadge && meta.zone !== "opening") addLockBadge(THREE, group, local(0, baseYM + heightM + (meta.counter ? 0.16 : 0.1), depthM / 2));
     if (art) addArticulated(THREE, scene, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta, useFrontMat, pickables);
-    else if (meta && meta.zone !== "opening" && !isPanel) addFrontDetails(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta.handle, !!meta.tall, meta.zone === "wall", meta.split || 0.55, meta, useFrontMat);
+    else if (meta && meta.zone !== "opening" && !isPanel && !meta.appliance) addFrontDetails(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta.handle, !!meta.tall, meta.zone === "wall", meta.split || 0.55, meta, useFrontMat);
+    if (meta && meta.appliance) addApplianceDetails(THREE, group, geom, offsetM, widthM, heightM, depthM, meta.appliance);
+    return group;
+  }
+  // A free-standing fridge (steel; side by side doors when ≥ 850 mm) or washer (white, porthole door) drawn on
+  // its box — these are spaces for the customer's own appliance, not Björninn products.
+  function addApplianceDetails(THREE, group, geom, offsetM, widthM, heightM, depthM, kind){
+    var quat = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(geom.axis.x, 0, geom.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(geom.normal.x, 0, geom.normal.z)));
+    function put(mesh, along, y, out){
+      var a = offsetM + widthM / 2 + along;
+      mesh.position.set(geom.origin.x + geom.axis.x * a + geom.normal.x * (depthM + out), y, geom.origin.z + geom.axis.z * a + geom.normal.z * (depthM + out));
+      mesh.quaternion.premultiply(quat); mesh.castShadow = true; group.add(mesh); return mesh;
+    }
+    var dark = new THREE.MeshStandardMaterial({ color:0x2a2b2e, roughness:0.4, metalness:0.3 });
+    if (kind === "fridge"){
+      var bar = new THREE.MeshStandardMaterial({ color:0x9ca1a7, metalness:0.85, roughness:0.25 });
+      if (widthM >= 0.85){ // side by side
+        put(new THREE.Mesh(new THREE.PlaneGeometry(0.005, heightM - 0.02), dark), 0, heightM / 2, 0.002);
+        [-0.04, 0.04].forEach(function(x){ put(new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.55, 0.025), bar), x, heightM * 0.6, 0.02); });
+      } else { // fridge above, freezer below
+        var sy = heightM * 0.36;
+        put(new THREE.Mesh(new THREE.PlaneGeometry(widthM - 0.01, 0.005), dark), 0, sy, 0.002);
+        put(new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.4, 0.025), bar), widthM / 2 - 0.06, sy + 0.35, 0.02);
+        put(new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.2, 0.025), bar), widthM / 2 - 0.06, sy - 0.16, 0.02);
+      }
+    } else if (kind === "washer"){
+      var r = Math.min(widthM, heightM) * 0.27, cy = heightM * 0.45;
+      put(new THREE.Mesh(new THREE.TorusGeometry(r, 0.025, 12, 48), new THREE.MeshStandardMaterial({ color:0xb8bcc2, metalness:0.7, roughness:0.3 })), 0, cy, 0.015);
+      put(new THREE.Mesh(new THREE.CircleGeometry(r - 0.012, 40), new THREE.MeshStandardMaterial({ color:0x3a4550, roughness:0.08, metalness:0.2, transparent:true, opacity:0.85 })), 0, cy, 0.012);
+      put(new THREE.Mesh(new THREE.BoxGeometry(widthM - 0.04, 0.09, 0.01), new THREE.MeshStandardMaterial({ color:0xe4e6e8, roughness:0.5 })), 0, heightM - 0.07, 0.005);
+      put(new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.015, 24), dark).rotateX(Math.PI / 2), widthM * 0.3, heightM - 0.07, 0.012);
+    }
   }
 
   // Small padlock floating over a locked cabinet.
@@ -1650,7 +1688,7 @@
       else if (meta.corner){
         var left = meta.doorSide === "left", hw = widthM / 2;
         makeLeaf(idx++, left ? -hw / 2 : hw / 2, hw, y0, y1, left ? "left" : "right", f, fi);
-        addLeMansTrays(THREE, frame, parts[parts.length - 1], left ? -hw / 2 : hw / 2, hw, CD, bodyBase, bodyH, left, meta, pickables);
+        if (meta.leMans) addLeMansTrays(THREE, frame, parts[parts.length - 1], left ? -hw / 2 : hw / 2, hw, CD, bodyBase, bodyH, left, meta, pickables);
         var blind = new THREE.Mesh(new THREE.BoxGeometry(hw - 0.004, y1 - y0, FRONT_T), frontMat); // fixed blind panel on the other half
         scaleFrontUV(blind.geometry, hw - 0.004, y1 - y0, frontMat.userData && frontMat.userData.tile, false, { u:offsetM + widthM / 2 + (left ? 0 : -hw), v:y0 });
         blind.position.set(left ? hw / 2 : -hw / 2, (y0 + y1) / 2, CD + FRONT_T / 2); blind.castShadow = true;
@@ -2710,6 +2748,7 @@
 
     // built-in fridge reads as an appliance: brushed-steel front instead of the kitchen's fronts
     var steelMat = new THREE.MeshStandardMaterial({ color:0xc9ccd1, metalness:0.75, roughness:0.32 });
+    var washerMat = new THREE.MeshStandardMaterial({ color:0xf3f4f5, roughness:0.35, metalness:0.05 });
     // shared by every floor unit: recessed plinth + honed-stone worktop
     // open-shelf units: inside faces must render (double-sided) and the front is left out
     var openMat = carcassMat.clone(); openMat.side = THREE.DoubleSide;
@@ -2719,6 +2758,7 @@
     var frontMat = look && window.KPMat
       ? makeFrontMaterial(THREE, state.look, look)
       : new THREE.MeshStandardMaterial({ color: look ? look.color3d : 0xb7b2a4, roughness:0.7 });
+    var frontOpenMat = frontMat.clone(); frontOpenMat.side = THREE.DoubleSide; // open shelf units built all in the front material (b.frontAll)
     // the plinth (sökkull): its FRONT face is clad in the front material once one is chosen (box face 4 = +z = out
     // of the wall); the sides and back stay the dark plinth colour
     var plinthDark = new THREE.MeshStandardMaterial({ color:0x26262a, roughness:0.85 });
@@ -2739,7 +2779,7 @@
           if (c.panel || c.shelfStack) return; // an end panel already closes it
           var hM = Math.min(e.b.heightMm || c.h, roomHeightMm) / 1000, dM = (e.b.depthMm || c.d) / 1000;
           var y0 = z[0] === "wall" ? elevOf(e.b) / 1000 : 0, w = AFELLA_MM / 1000;
-          var geo = new THREE.BoxGeometry(w, hM, dM);
+          var geo = new THREE.BoxGeometry(w - 0.002, hM, dM); // 1 mm off the wall and the cabinet: no shared planes
           panelUV(geo, w, hM, dM, frontMat.userData && frontMat.userData.tile);
           var m = new THREE.Mesh(geo, frontMat), along = e.at / 1000 + w / 2;
           m.position.set(g.origin.x + g.axis.x * along + g.normal.x * dM / 2, y0 + hM / 2, g.origin.z + g.axis.z * along + g.normal.z * dM / 2);
@@ -2774,12 +2814,13 @@
           var dcodes = drawerCodes(inter, state.drawerSystem), dbody = hM * 1000 - 100, dfr = stackFrontsMm(inter, dcodes, dbody);
           inter = Object.assign({}, inter, { codes:dcodes, count:dcodes.length, fractions:dfr ? frontsToFractions(dfr, dbody) : null });
         }
-        addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, carcassMat, c.fridge ? steelMat : frontMat, inter,
+        var applMat = c.appliance === "fridge" ? steelMat : c.appliance === "washer" ? washerMat : null;
+        addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, applMat || carcassMat, c.fridge ? steelMat : applMat || frontMat, inter,
           { islandId:islandId, locked:!!b.locked || !!opts.xray, suppressBadge:!!opts.xray, slabFronts:jeyOn, corner:c.cls === "corner", doorSide:b.swing === "vinstri" ? "left" : "right", hingeRight:b.swing === "haegri", shelves:(c.hasInterior || c.shelfRange) && !(b.interior && b.interior.mode === "skuffur") ? (shelvesOf(b) || 0) : 0,
             openMat:openMat, hiddenMat:hiddenMat, drawerSystem:state.drawerSystem, carcassKey:state.carcass,
-            warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), heightMm:hM * 1000, elevMm:0, handle:state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0.55,
-            plinth:!c.panel, counter:!!c.counter, sink:!!c.sink, oven:!!c.oven, panel:!!c.panel, plinthMat:plinthMat, stoneMat:stoneMat,
-            ovenCodes:c.lowOven ? ["M"] : c.oven ? ovenCodesOf(b, state.drawerSystem) : null, fixedFronts:!!c.fixedFronts,
+            warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), heightMm:hM * 1000, elevMm:0, handle:c.appliance ? null : state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0.55,
+            plinth:!c.panel && !c.appliance, appliance:c.appliance || null, leMans:!!c.tofrahornIds, counter:!!c.counter, sink:!!c.sink, oven:!!c.oven, panel:!!c.panel, plinthMat:plinthMat, stoneMat:stoneMat,
+            ovenCodes:c.lowOven ? ["M"] : c.oven ? ovenCodesOf(b, state.drawerSystem) : null, fixedFronts:!!c.fixedFronts || !!c.appliance,
             burCodes:c.bur ? burCodesOf(b, state.drawerSystem) : null, dishwasher:!!c.dishwasher,
             lowOven:!!c.lowOven, ovenFrontsMm:c.oven ? b.ovenFrontsMm || null : null,
             ovenInner:c.oven && !c.lowOven ? (String(b.ovenCombo == null ? OVEN_DEFAULT[state.drawerSystem === "merivo" ? "merivo" : "legra"] : b.ovenCombo).split("+")[1] || null) : null,
@@ -2802,7 +2843,7 @@
           return;
         }
         addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, elevM, carcassMat, frontMat, null,
-          Object.assign(metaBase, { open:!!c.open, panel:!!c.panel, openMat:openMat, hiddenMat:hiddenMat, shelves:c.open ? shelvesOf(b) : (c.shelfRange ? (shelvesOf(b) || 0) : 0) }), selected, pickables);
+          Object.assign(metaBase, { open:!!c.open, panel:!!c.panel, openMat:c.open && b.frontAll ? frontOpenMat : openMat, hiddenMat:hiddenMat, shelves:c.open ? shelvesOf(b) : (c.shelfRange ? (shelvesOf(b) || 0) : 0) }), selected, pickables);
       });
     });
 

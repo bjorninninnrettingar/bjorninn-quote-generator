@@ -580,6 +580,10 @@
   /* ---- catalog accordion (left sidebar) ---- */
   .cat-sec{ border-bottom:1px solid var(--line); }
   /* "Ný eining" wizard */
+  .uw-group{ grid-column:1/-1; margin:10px 0 -2px; font-size:11.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--ink-soft); }
+  .uw-group:empty{ margin:4px 0 0; }
+  .uw-gap{ grid-column:1/-1; height:8px; }
+  .uw-card.soon{ opacity:.45; cursor:not-allowed; }
   .uw-open{ width:100%; margin:4px 0 12px; padding:12px; font-size:15px; }
   .uw-modal{ position:fixed; inset:0; z-index:200; background:rgba(25,25,25,.45); display:flex; align-items:center; justify-content:center; padding:24px; }
   .uw-modal[hidden]{ display:none; }
@@ -2774,6 +2778,11 @@
       return pills + '<div class="edit-field"><label>' + label + '</label><select data-role="variant">' + opts.map(function(o){
         return '<option value="' + o[0] + '"' + (o[0] === cur ? ' selected' : '') + '>' + o[1] + '</option>';
       }).join("") + '</select><p class="sec-note">Aðeins samsetningar sem Björninn smíðar (' + DRAWER_SYSTEMS[drawerSys()].label + ').</p></div>' + ovStack;
+    } else if (c.open && c.zone === "wall"){
+      // "Opinn skápur með hillum": carcass material, or everything (box + shelves) in the front material
+      return '<div class="edit-field"><label>Efni</label><div class="hw-toggle">' +
+        '<button type="button" class="hw-btn' + (!b.frontAll ? ' active' : '') + '" data-front-all="0">Skrokkefni</button>' +
+        '<button type="button" class="hw-btn' + (b.frontAll ? ' active' : '') + '" data-front-all="1">Allt úr framhliðaefni</button></div></div>';
     } else if (c.bur){
       label = "Innvols"; cur = burKeyOf(b);
       opts = Object.keys(LM.bur[drawerSys()] || {}).map(function(k){ return [k, comboLabel(k) + " + hillur"]; });
@@ -3252,32 +3261,39 @@
   // Replaces dragging from a long catalog: category → variant → configure, with ONE spinning 3D cabinet
   // (like the materials wizard) that updates as you choose. Only things Björninn makes can be picked;
   // sizes stay free (benches and odd builds are the point), a non-standard width just becomes a note.
+  // Categories as Björninn sells them (user, 2026-10-05). `group` puts a small heading over the options that
+  // follow it, `gap` leaves a little space before an option, `soon` shows it greyed out ("Væntanlegt").
   var UNIT_TREE = [
-    { key:"grunn", label:"Grunnskápur", desc:"Undir borðplötu", icon:"grunnskapur", opts:[
+    { key:"grunn", label:"Grunnskápar", desc:"Undir borðplötu", icon:"grunnskapur", opts:[
       { label:"Skúffur", type:"grunnskapur", drawers:true },
       { label:"Hurð með hillum", type:"grunnskapur" },
       { label:"Vaskaskápur", type:"vaskaskapur" },
       { label:"Ruslaskápur", type:"ruslaskapur" },
-      { label:"Uppþvottavél", type:"uppthvottavel" },
-      { label:"Lítill kassi (bekkur)", type:"litillkassi", drawers:true } ] },
-    { key:"har", label:"Hár skápur", desc:"Upp undir loft", icon:"harskapur", opts:[
+      { label:"Töfrahorn", type:"tofrahorn", group:"Hornskápur" },
+      { label:"Hillur", type:"hornskapur", group:"Hornskápur" },
+      { label:"Lítill kassi", type:"litillkassi", drawers:true, gap:true } ] },
+    { key:"har", label:"Háir skápar", desc:"Upp undir loft", icon:"harskapur", opts:[
       { label:"Hurðir með hillum", type:"harskapur" },
       { label:"Búrskápur", type:"burskapur" },
-      { label:"Hár veggskápur (50 cm djúpur)", type:"harveggskapur" } ] },
-    { key:"efri", label:"Efri skápur", desc:"Á vegg", icon:"efriskapur", opts:[
-      { label:"Hurð með hillum", type:"efriskapur" },
-      { label:"Opnar hillur", type:"opnarhillur" },
+      { label:"Hár veggskápur (50 cm djúpur)", type:"harveggskapur", gap:true } ] },
+    { key:"efri", label:"Efri skápar", desc:"Á vegg", icon:"efriskapur", opts:[
+      { label:"Lokaður skápur með hillum", type:"efriskapur" },
+      { label:"Opinn skápur með hillum", type:"opnarhillur" },
       { label:"Lausar hillur (38 mm)", type:"laushilla" } ] },
-    { key:"taeki", label:"Tækjaskápur", desc:"Ofn, ísskápur, vélar", icon:"ofnaskapur", opts:[
-      { label:"Ofnaskápur", type:"ofnaskapur" },
-      { label:"Innbyggður ísskápur", type:"isskapur" },
-      { label:"Þvottavélaskápur", type:"thvottavel" },
-      { label:"Uppþvottavél", type:"uppthvottavel" } ] },
+    { key:"taeki", label:"Tækjaskápar", desc:"Ofn, ísskápur, vélar", icon:"ofnaskapur", opts:[
+      { label:"Í háum skáp", type:"ofnaskapur", group:"Ofnaskápar" },
+      { label:"Í lágum skáp", type:"ofnaskapurLagur", group:"Ofnaskápar" },
+      { label:"Frístandandi ísskápur", type:"isskapurFri", group:"Ísskápar" },
+      { label:"Innbyggður ísskápur", type:"isskapur", group:"Ísskápar" },
+      { label:"Innbyggð þvottavél", type:"thvottavel", group:"Þvottavélar" },
+      { label:"Þvottavél undir borðplötu", type:"thvottavelFri", group:"Þvottavélar" },
+      { label:"Uppþvottavél", type:"uppthvottavel", group:"Uppþvottavél" },
+      { label:"Vasahurðir", soon:true, group:"Hurðir fyrir tæki" },
+      { label:"Fellihurðir", soon:true, group:"Hurðir fyrir tæki" } ] },
     { key:"eyja", label:"Eyja", desc:"Stendur laus á gólfinu", icon:"island1", iconKind:"island", opts:[
       { label:"Ein röð", island:"island1" },
       { label:"Tvær raðir (bak í bak)", island:"island2" } ] },
-    { key:"annad", label:"Horn og úthliðar", desc:"Töfrahorn, úthliðar", icon:"tofrahorn", opts:[
-      { label:"Töfrahorn", type:"tofrahorn" },
+    { key:"uthlid", label:"Úthliðar", desc:"19 mm, framhliðaefni", icon:"uthlidhar", opts:[
       { label:"Úthlið — neðri", type:"uthlid" },
       { label:"Úthlið — há", type:"uthlidhar" },
       { label:"Úthlið — efri", type:"uthlidefri" } ] }
@@ -3337,6 +3353,7 @@
     for (var w = 300; w <= 1200; w += 100) if (w >= c.minW && w <= c.maxW) out.push(w);
     if (c.rusl) out = [600, 800];
     if (c.dishwasher) out = [450, 600];
+    if (c.widths) out = c.widths.slice();
     return out;
   }
   function renderUnitWizard(){
@@ -3347,9 +3364,13 @@
       }).join("") + '</div>';
     } else if (uw.step === 2){
       var cat = UNIT_TREE[uw.cat];
+      var lastGroup = null;
       html = '<p class="uw-kicker">' + cat.label + '</p><h3>Veldu útfærslu</h3><div class="uw-grid">' + cat.opts.map(function(o, i){
-        return '<button type="button" class="uw-card" data-uw-opt="' + i + '">' + (o.island ? catIcon("island", o.island) : catIcon("cabinet", o.type)) + '<span><b>' + o.label + '</b>' +
-          (o.island ? '<small>' + ISLAND_TYPES[o.island].dim + ' · grunnskápar sem þú breytir svo</small>' : '') + '</span></button>';
+        var head = o.group && o.group !== lastGroup ? '<p class="uw-group">' + o.group + '</p>' : (!o.group && lastGroup ? '<p class="uw-group"></p>' : '');
+        lastGroup = o.group || null;
+        if (o.soon) return head + '<button type="button" class="uw-card soon" disabled>' + catIcon("cabinet", "harskapur") + '<span><b>' + o.label + '</b><small>Væntanlegt</small></span></button>';
+        return head + (o.gap ? '<div class="uw-gap"></div>' : '') + '<button type="button" class="uw-card" data-uw-opt="' + i + '">' + (o.island ? catIcon("island", o.island) : catIcon("cabinet", o.type)) + '<span><b>' + o.label + '</b>' +
+          (o.island ? '<small>' + ISLAND_TYPES[o.island].dim + ' · veldu útfærslu á hverjum kassa</small>' : '') + '</span></button>';
       }).join("") + '</div><div class="uw-actions"><button type="button" class="btn btn-secondary btn-small" data-uw-back>← Til baka</button></div>';
     } else {
       var b = uw.b, c = CATALOG[b.type], opt = UNIT_TREE[uw.cat].opts[uw.opt];
@@ -3431,6 +3452,9 @@
       if (c.oven){ b.ovenCombo = vs.value; delete b.ovenFrontsMm; } else if (c.bur) b.burCombo = vs.value; else if (c.thvo) b.thvo = vs.value;
       renderUnitWizard();
     });
+    side.querySelectorAll("[data-front-all]").forEach(function(el){ el.addEventListener("click", function(){
+      if (el.dataset.frontAll === "1") b.frontAll = true; else delete b.frontAll; renderUnitWizard();
+    }); });
     side.querySelectorAll("[data-oven-type]").forEach(function(el){ el.addEventListener("click", function(){
       if (b.type === el.dataset.ovenType) return;
       b.type = el.dataset.ovenType; delete b.heightMm; delete b.ovenFrontsMm;
@@ -3600,8 +3624,11 @@
     } else if (c.shelfStack){
       g = r(6, 8, 28, 3.5, body) + r(6, 17, 28, 3.5, body) + r(6, 26, 28, 3.5, body) + ln(9, 11.5, 9, 17, "#8a8577", 1) + ln(31, 11.5, 31, 17, "#8a8577", 1);
     } else if (c.panel){
-      g = r(17, c.zone === "wall" ? 6 : 4, 6, c.cls === "tall" ? 33 : c.zone === "wall" ? 17 : 22, body) + (c.zone === "wall" ? ln(6, 3, 34, 3, "#b8b4a8", 1) : ln(6, 37, 34, 37, "#b8b4a8", 1));
-    } else if (c.fridge){
+      var ph = c.cls === "tall" ? 33 : c.zone === "wall" ? 17 : 22; // floor panels stand ON the floor line, wall ones hang from the ceiling line
+      g = r(17, c.zone === "wall" ? 3 : 37 - ph, 6, ph, body) + (c.zone === "wall" ? ln(6, 3, 34, 3, "#b8b4a8", 1) : ln(6, 37, 34, 37, "#b8b4a8", 1));
+    } else if (c.appliance === "washer"){
+      g = r(9, 9, 22, 28, "#f3f4f5") + '<circle cx="20" cy="24" r="6.5" fill="#3a4550" stroke="' + line + '" stroke-width="1.1"/>' + ln(9, 14, 31, 14);
+    } else if (c.fridge || c.appliance === "fridge"){
       g = r(12, 3, 16, 34, steel) + ln(12, 13, 28, 13) + ln(25, 6, 25, 10, "#55575a", 1.6) + ln(25, 16, 25, 24, "#55575a", 1.6);
     } else if (c.oven){
       g = r(12, 3, 16, 34, body) + r(14, 12, 12, 10, dark, dark) + ln(14, 25, 26, 25) + ln(18, 9, 22, 9, "#55575a", 1.6);
@@ -4965,6 +4992,12 @@
       else if (c.thvo) b.thvo = variantSel.value;
       save(); refreshAfterEdit();
     });
+    host.querySelectorAll("[data-front-all]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        if (b.locked){ lockedToast(); return; }
+        if (btn.dataset.frontAll === "1") b.frontAll = true; else delete b.frontAll; save(); refreshAfterEdit();
+      });
+    });
     host.querySelectorAll("[data-oven-type]").forEach(function(btn){
       btn.addEventListener("click", function(){ if (b.type !== btn.dataset.ovenType) changeBlockType(wall, zone, b.id, btn.dataset.ovenType); });
     });
@@ -5302,6 +5335,9 @@
     // Windows/doors are room-level, not cabinets — no Eyðublað row of their
     // own, so this note (plus the JSON blob the review page renders from)
     // is the only place Rakel sees them were drawn in at all.
+    var appl = [];
+    surfaces().forEach(function(w){ w.floor.forEach(function(b){ var c = CATALOG[b.type]; if (c.notOrdered) appl.push(c.label + " " + b.widthMm + " mm"); }); });
+    if (appl.length) lines.push("Pláss fyrir tæki viðskiptavinar (ekki hluti af pöntun): " + appl.join(", "));
     if (state.windows.length || state.doors.length){
       lines.push("Teiknaði inn " + state.windows.length + " glugga, " + realDoors().length + " hurð(ir)" + (gapDoors().length ? " og " + gapDoors().length + " op í vegg (án hurðar)" : "") + " í rýmið — sjá teikningu");
     }
@@ -5429,7 +5465,7 @@
   // combo, and everything with a door as the CLOSED body (LGR/LHA/LEF…) — the planner used to send
   // LGR + drawers, i.e. a door that isn't there (fixed 2026-09-30, confirmed with the user).
   var V1_FAMILY = { grunnskapur:"grunnskapur", vaskaskapur:"grunnskapur", ruslaskapur:"grunnskapur", harskapur:"harskapur", isskapur:"harskapur",
-    ofnaskapur:"harskapur", ofnaskapurLagur:"grunnskapur", burskapur:"harskapur", thvottavel:"harskapur", efriskapur:"efriskapur", opnarhillur:"efriskapur",
+    ofnaskapur:"harskapur", ofnaskapurLagur:"grunnskapur", hornskapur:"grunnskapur", burskapur:"harskapur", thvottavel:"harskapur", efriskapur:"efriskapur", opnarhillur:"efriskapur",
     litillkassi:"litillkassi", harveggskapur:"harveggskapur" };
   function isDrawerUnit(b){ return !!(b.interior && b.interior.mode === "skuffur"); }
   // No clamp on purpose: a width outside the product range (e.g. a 1400 mm sink cabinet) must find
@@ -5469,7 +5505,7 @@
     }
     if (c.shelfRange && !c.hasInterior){
       var n = KP3D.shelvesOf(b);
-      return n ? ((c.open ? LM.v2ShelvesFrontaefni : LM.v2ShelvesPlain)[n] || null) : null;
+      return n ? ((c.open && b.frontAll ? LM.v2ShelvesFrontaefni : LM.v2ShelvesPlain)[n] || null) : null;
     }
     return null;
   }
@@ -5546,6 +5582,7 @@
     surfaces().forEach(function(wall){
       wall.floor.concat(wall.wall).forEach(function(b){
         var c = CATALOG[b.type];
+        if (c.notOrdered) return; // the customer's own free-standing appliance (listed in the Tækifæri note)
         var fields = { "Rými 🏡":"Eldhús", "Magn":1, "🔑":keys[b.id] }; // same numbers the drawings print
         var v1 = v1RecordFor(b, c); if (v1) fields["Vöru reitur 1"] = [v1.id];
         var v2 = v2RecordFor(b, c); if (v2) fields["Vöru reitur 2"] = [v2.id];
@@ -5743,7 +5780,7 @@
   // collectLineItems() writes, so "Sk4" on a drawing is "Sk4" in Line Items.
   function skKeys(){
     var map = {}, n = 0;
-    surfaces().forEach(function(w){ w.floor.concat(w.wall).forEach(function(b){ n++; map[b.id] = "Sk" + n; }); });
+    surfaces().forEach(function(w){ w.floor.concat(w.wall).forEach(function(b){ if (CATALOG[b.type].notOrdered) return; n++; map[b.id] = "Sk" + n; }); }); // free-standing appliances aren't units
     return map;
   }
   function exportHost(){
