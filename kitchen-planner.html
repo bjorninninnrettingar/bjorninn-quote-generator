@@ -3646,6 +3646,7 @@
     var sameIsland = rows && uwPrevKey.indexOf("island:" + islandType) === 0 && KP3D._three();
     uwPrevKey = key;
     var two = ISLAND_TYPES[islandType].two, isl = { id:"UWI", label:"Eyja", lengthMm:1800, xMm:0, zMm:3000, rot:0, two:two, a:[] };
+    if (!two) isl.back = true; // the back panel a single-row island gets, shown in the preview too
     if (rows){
       isl.a = rows.a.map(function(x){ return Object.assign({}, x, { locked:false }); });
       if (two) isl.b = (rows.b || []).map(function(x){ return Object.assign({}, x, { locked:false }); });
@@ -3680,7 +3681,8 @@
       var cx = 0, cz = 3, dist = 3.6;
       if (prevCamI){ st.camera.position.copy(prevCamI.p); st.controls.target.copy(prevCamI.t); }
       else KP3D.setCameraLookAt({ x:cx + dist * 0.7, y:2.1, z:cz + dist * 0.75 }, { x:cx, y:0.45, z:cz });
-      swayPreview(st, Math.atan2(0.7, 0.75));
+      if (two) spinPreview(st); // back to back: both sides are fronts — turn it all the way round (2026-10-05)
+      else swayPreview(st, Math.atan2(0.7, 0.75));
       st.controls.update();
       syncUwTools();
     }, 8000);
@@ -3689,6 +3691,17 @@
   // "fronturinn má ekki leave the field of view"): the orbit is limited to ±45° either side of the front, by
   // hand too, and the slow auto-turn reverses at each end. Stops on a press, resumes 5 s later.
   var SWAY = 0.78;
+  // a full slow turn (no azimuth limits), stopping on a press and resuming 5 s later
+  function spinPreview(st){
+    var c = st.controls, reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    c.minAzimuthAngle = -Infinity; c.maxAzimuthAngle = Infinity;
+    c.autoRotate = !reduce; c.autoRotateSpeed = 0.9;
+    var resume = null;
+    st.renderer.domElement.addEventListener("pointerdown", function(){
+      c.autoRotate = false; clearTimeout(resume);
+      resume = setTimeout(function(){ if (KP3D._three() === st && !reduce) c.autoRotate = true; }, 5000);
+    });
+  }
   function swayPreview(st, frontAz){
     var c = st.controls, reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     c.minAzimuthAngle = frontAz - SWAY; c.maxAzimuthAngle = frontAz + SWAY;
@@ -3902,6 +3915,7 @@
     var cx = g.origin.x * 1000 + g.axis.x * w0.lengthMm / 2 + g.normal.x * 2200, cz = g.origin.z * 1000 + g.axis.z * w0.lengthMm / 2 + g.normal.z * 2200;
     var isl = { id:"I" + (islandSeq++), label:"Eyja " + (state.islands.length + 1), lengthMm:len,
       xMm:at ? at.xMm : Math.round(cx), zMm:at ? at.zMm : Math.round(cz), rot:(Math.max(0, wallRot) * 90 + (two ? 0 : 180)) % 360, two:two, a:[] };
+    if (!two) isl.back = true; // a single-row island gets its back clad automatically (2026-10-05; can be switched off on the island)
     if (rows){ // boxes chosen in "＋ Ný eining"
       isl.a = rows.a.filter(Boolean); if (two) isl.b = (rows.b || []).filter(Boolean);
       var sum = function(r){ return (r || []).reduce(function(t, x){ return t + x.widthMm; }, 0); };
