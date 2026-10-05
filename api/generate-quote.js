@@ -8,6 +8,7 @@ const AIRTABLE_BASE       = "app91U15z9K704Okd";
 const PROJECTS_TABLE      = "tbl4LMXlQjp66RFKI";
 const LINE_ITEMS_TABLE    = "tblFcsUoGxsuUwNEH";
 const ATTACHMENT_FIELD    = "flddIR5JAm8ZM753V";
+const ADDENDUM_FIELD      = "fldDS2vYYUURbPaVT"; // Viðbótartilboð 📄 — appended to, never cleared (history)
 const LINKED_FIELD        = "Vöru línur ➖📦 (Line item's)";
 const INSTALL_PRICE_FIELD  = "Uppsetningarverð Verkefnis";
 const DELIVERY_PRICE_FIELD = "heimsendingaverð";
@@ -112,9 +113,9 @@ async function clearAttachments(token, recordId) {
   if (!res.ok) console.warn(`clearAttachments: ${res.status} ${await res.text()}`);
 }
 
-async function uploadPdf(token, recordId, pdfBytes, filename = "tilbod.pdf") {
+async function uploadPdf(token, recordId, pdfBytes, filename = "tilbod.pdf", fieldId = ATTACHMENT_FIELD) {
   const res = await fetch(
-    `https://content.airtable.com/v0/${AIRTABLE_BASE}/${recordId}/${ATTACHMENT_FIELD}/uploadAttachment`,
+    `https://content.airtable.com/v0/${AIRTABLE_BASE}/${recordId}/${fieldId}/uploadAttachment`,
     {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -816,6 +817,203 @@ async function buildInstallationPdf(project, installPriceExVat, deliveryPriceInc
   return doc.save();
 }
 
+// ── Viðbótartilboð (addendum) ─────────────────────────────────────────────────
+//
+// Only what changed after the quote was confirmed, priced the way Airtable's
+// "Viðbætur (kr) 💰" prices it (Fjárhagsáfangi 3): new lines in full, a line
+// whose product/material changed at its new price, extra pieces of the same
+// product at the LOCKED price, changed handles, and the installation for all of
+// that. Removed items / fewer pieces ("Frádráttur til mats") are deliberately
+// left off — they're evaluated by hand, not promised to the customer here.
+
+function num(v) {
+  const n = parseFloat(lv(v));
+  return Number.isFinite(n) ? n : 0;
+}
+
+export function buildAddendumData(project, lineItems) {
+  const rows = [];
+  for (const item of lineItems) {
+    const change = String(item["Breyting eftir staðfestingu"] || "");
+    const amount = num(item["Viðbót (kr)"]);
+    if (!change || amount <= 0) continue;
+    const more = change.includes("Fleiri");
+    rows.push({
+      room:   item["Rými 🏡"] || "",
+      key:    item["🔑"] || "",
+      vara:   [item["Vara 🚪"], item["útfærsla 🎨"]].filter(Boolean).join(" — "),
+      change: more ? "Fleiri stk." : change.includes("Breytt") ? "Breytt" : "Ný",
+      qty:    more ? num(item["Magn"]) - num(item["Læst magn 🔒"]) : num(item["Magn"]),
+      unit:   more ? num(item["Læst einingarverð 🔒"]) : num(item["Einingarverð"]),
+      total:  amount,
+    });
+  }
+
+  const handleLock = String(project["Læstur hölduverðlykill 🔒"] || "");
+  if (handleLock && handleLock !== String(project["Hölduverðlykill"] || "")) {
+    const amount = num(project["Samtals hölduverð m.vsk"]);
+    if (amount > 0) {
+      const names = HANDLE_SLOTS.map((s) => lv(project[s.name])).filter(Boolean).join(" / ");
+      rows.push({ room: HANDLE_ROOM, key: "", vara: names || "Höldur", change: "Breytt", qty: null, unit: null, total: amount });
+    }
+  }
+
+  const install = num(project["Samþykkt upps. eftir næsta samþykki (hjálp)"]) - num(project["Samþykktar viðbætur uppsetningar 🔒"]);
+  if (install > 0) {
+    rows.push({ room: "Uppsetning", key: "", vara: "Uppsetning á viðbótum", change: "Ný", qty: null, unit: null, total: install });
+  }
+
+  const confirmed = num(project["Staðfest tilboðsupphæð 🔒"]);
+  const prior     = num(project["Samþykktar viðbætur (kr) 💰"]);
+  const these     = num(project["Viðbætur (kr) 💰"]);
+  const rowsSum   = rows.reduce((s, r) => s + r.total, 0);
+  return { rows, confirmed, prior, these, rowsSum, newTotal: confirmed + prior + these };
+}
+
+export async function buildAddendumPdf(project, data) {
+  const doc      = await PDFDocument.create();
+  const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const fontReg  = await doc.embedFont(StandardFonts.Helvetica);
+
+  const logoBytes = await getLogo();
+  let logoImg = null;
+  if (logoBytes) {
+    try { logoImg = await doc.embedPng(logoBytes); } catch (e) {
+      console.warn("Logo embed failed:", e.message);
+    }
+  }
+
+  const PW = 595.28;
+  const PH = 841.89;
+  const CW = PW - MARGIN * 2;
+  const ROW_H = 15;
+
+  let page = doc.addPage([PW, PH]);
+  let y = drawHeader(page, project, logoImg, PW, PH, fontBold, fontReg);
+
+  function checkBreak(reserve = 100) {
+    if (y > MARGIN + reserve) return;
+    drawFooter(page, PW, fontReg);
+    page = doc.addPage([PW, PH]);
+    line(page, MARGIN, PH - 28, PW - MARGIN, PH - 28, GOLD, 0.5);
+    txt(page, "BJÖRNINN INNRÉTTINGAR — viðbótartilboð, framhald", MARGIN, PH - 20, fontReg, 7.5, GRAY);
+    y = PH - 48;
+  }
+
+  txt(page, (project[PROJECT_NAME_FIELD] || "Tilboð") + " — Viðbótartilboð", MARGIN, y, fontBold, 14, DARK);
+  y -= 16;
+  const confirmedOn = project["Verk staðfest þann"] ? formatDate(project["Verk staðfest þann"]) : null;
+  txt(page,
+    confirmedOn
+      ? `Viðbætur og breytingar eftir að tilboð var staðfest ${confirmedOn}.`
+      : "Viðbætur og breytingar eftir að tilboð var staðfest.",
+    MARGIN, y, fontReg, 8.5, GRAY);
+  y -= 22;
+
+  txt(page, "TENGILIÐUR", MARGIN, y, fontBold, 7, GOLD);
+  y -= 13;
+  txt(page, lv(project["Fullt nafn 👤"]), MARGIN, y, fontBold, 10, DARK);
+  y -= 13;
+  const phone = lv(project["Símanúmer ☎️"]);
+  const email = lv(project["Netfang 📧"]);
+  if (phone) { txt(page, String(phone), MARGIN, y, fontReg, 8.5, GRAY); y -= 12; }
+  if (email) { txt(page, String(email), MARGIN, y, fontReg, 8.5, GRAY); y -= 12; }
+  y -= 10;
+
+  line(page, MARGIN, y, PW - MARGIN, y, GOLD, 0.75);
+  y -= 20;
+
+  const cols = [
+    { label: "Rými",            w: 0.12, align: "left"   },
+    { label: "Eining",          w: 0.08, align: "left"   },
+    { label: "Vara",            w: 0.36, align: "left"   },
+    { label: "Breyting",        w: 0.10, align: "left"   },
+    { label: "Magn",            w: 0.07, align: "center" },
+    { label: "Einingarverð",    w: 0.13, align: "right"  },
+    { label: "Samtals m. vsk.", w: 0.14, align: "right"  },
+  ];
+  let xCur = MARGIN;
+  const colDefs = cols.map((c) => {
+    const def = { ...c, x: xCur, pw: CW * c.w };
+    xCur += def.pw;
+    return def;
+  });
+
+  function cell(col, value, font = fontReg, color = DARK) {
+    const val = truncate(font, String(value ?? ""), 8, col.pw - 6);
+    const vw = font.widthOfTextAtSize(val, 8);
+    const vx = col.align === "right"  ? col.x + col.pw - vw - 3
+             : col.align === "center" ? col.x + (col.pw - vw) / 2
+             : col.x + 3;
+    txt(page, val, vx, y, font, 8, color);
+  }
+
+  rect(page, MARGIN, y - 5, CW, 18, GOLD_TINT);
+  for (const col of colDefs) cell(col, col.label, fontBold);
+  y -= 16;
+  line(page, MARGIN, y, PW - MARGIN, y, GOLD, 0.5);
+  y -= 4;
+
+  data.rows.forEach((r, i) => {
+    checkBreak(140);
+    if (i % 2 === 0) rect(page, MARGIN, y - 3, CW, ROW_H, LIGHT);
+    const values = [
+      r.room, r.key, r.vara, r.change,
+      r.qty == null ? "" : (r.qty % 1 === 0 ? String(r.qty) : r.qty.toFixed(1)),
+      r.unit == null ? "" : formatISK(r.unit),
+      formatISK(r.total),
+    ];
+    colDefs.forEach((col, ci) => cell(col, values[ci]));
+    y -= ROW_H;
+  });
+
+  checkBreak(150);
+  y -= 16;
+  line(page, MARGIN, y, PW - MARGIN, y, GRAY, 0.4);
+  y -= 16;
+
+  const totalsX = PW - MARGIN - 250;
+  const summary = [
+    { label: "Staðfest tilboð m. vsk.:", value: data.confirmed },
+    ...(data.prior > 0 ? [{ label: "Áður samþykktar viðbætur:", value: data.prior }] : []),
+  ];
+  for (const s of summary) {
+    txt(page, s.label, totalsX, y, fontReg, 9, GRAY);
+    const v = formatISK(s.value);
+    txt(page, v, PW - MARGIN - fontReg.widthOfTextAtSize(v, 9), y, fontReg, 9, GRAY);
+    y -= 13;
+  }
+  txt(page, "Viðbætur í þessu tilboði:", totalsX, y, fontBold, 10, DARK);
+  const tv = formatISK(data.these);
+  txt(page, tv, PW - MARGIN - fontBold.widthOfTextAtSize(tv, 11), y, fontBold, 11, GOLD);
+  y -= 8;
+  line(page, totalsX, y, PW - MARGIN, y, GOLD, 0.75);
+  y -= 15;
+  txt(page, "Ný heildarupphæð m. vsk.:", totalsX, y, fontBold, 11, DARK);
+  const nv = formatISK(data.newTotal);
+  txt(page, nv, PW - MARGIN - fontBold.widthOfTextAtSize(nv, 13), y, fontBold, 13, DARK);
+
+  y -= 32;
+  const lastPayment = lv(project["Skipting greiðslu"]) === "100%"
+    ? "Viðbætur eru innheimtar með sérstökum lokareikningi."
+    : "Viðbætur leggjast við lokagreiðslu verksins.";
+  const notes = [
+    "Verð á því sem var í staðfestu tilboði helst óbreytt. Nýjar og breyttar einingar eru verðlagðar samkvæmt gildandi verðskrá.",
+    lastPayment,
+    "Með samþykki þessa viðbótartilboðs staðfestir viðskiptavinur ofangreindar breytingar.",
+  ];
+  for (const para of notes) {
+    for (const l of wrapText(fontReg, para, 8, CW)) {
+      txt(page, l, MARGIN, y, fontReg, 8, GRAY);
+      y -= 11;
+    }
+    y -= 3;
+  }
+
+  drawFooter(page, PW, fontReg);
+  return doc.save();
+}
+
 // ── Build the PDF(s) for a mode (no Airtable writes — also used for testing) ──
 
 // mode: "cabinets" / "separate" → 2 PDFs (cabinets + installation)
@@ -931,6 +1129,31 @@ export default async function handler(req, res) {
     const project   = await getProject(token, recordId);
     const linkedIds = project[LINKED_FIELD] || [];
     const lineItems = await getLineItems(token, linkedIds);
+
+    // Viðbótartilboð — its own attachment field, appended (never cleared) so
+    // every version the customer was sent stays on the project.
+    if (mode === "vidbot") {
+      if (!project["Staðfest tilboðsupphæð 🔒"]) {
+        return res.status(400).json({ error: "Verkið er ekki staðfest — ekkert viðbótartilboð." });
+      }
+      const data = buildAddendumData(project, lineItems);
+      if (!(data.these > 0) || data.rows.length === 0) {
+        return res.status(400).json({ error: "Engar ósamþykktar viðbætur á verkinu." });
+      }
+      if (Math.abs(data.rowsSum - data.these) > 1) {
+        console.warn(`Viðbótarlínur (${formatISK(data.rowsSum)}) ≠ Viðbætur (kr) 💰 (${formatISK(data.these)}) — prenta Airtable-upphæðina`);
+      }
+      const safeTitle = (project[PROJECT_NAME_FIELD] || recordId).replace(/[/\\:*?"<>]/g, "-").trim();
+      const stamp = formatDate().replace(/\./g, "-");
+      await uploadPdf(token, recordId, await buildAddendumPdf(project, data), `${safeTitle} (Viðbótartilboð ${stamp}).pdf`, ADDENDUM_FIELD);
+      return res.status(200).json({
+        success: true, recordId, mode,
+        rows: data.rows.length,
+        vidbaetur: Math.round(data.these),
+        rowsSum: Math.round(data.rowsSum),
+        nyHeildarupphaed: Math.round(data.newTotal),
+      });
+    }
 
     const { files, totals } = await buildQuoteFiles(project, lineItems, mode, recordId);
 
