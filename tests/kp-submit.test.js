@@ -81,3 +81,49 @@ test("validate rejects bad input", () => {
   assert.ok(validate({ ...body(), project: { "Fronta efni viðskiptavinar 🖼️": ["nope"] } }));
   assert.ok(validate({ ...body(), lineItems: Array.from({ length: 201 }, (_, i) => ({ "🔑": "Sk" + i })) }));
 });
+
+test("V3 accessories: Vöru reitur 3 set from aukahlutir + one Einingar aukahlutir row each", async () => {
+  const b = body(2);
+  b.lineItems[0].aukahlutir = [{ id: "recLEDLEDLEDLED01", magn: 3, code: "LED41" }, { id: "recSTRMSTRMSTRM01", magn: 1, code: "STRM30" }];
+  b.lineItems[0]["Vöru reitur 3"] = ["recSNEAKYSNEAKY01"];                                 // client V3 is ignored
+  const f = fakeFetch((c) => {
+    if (c.method === "POST" && c.url.endsWith("tblQ8zeUanriESWvL")) return { status: 200, body: { id: "recCONTACT0000000" } };
+    if (c.method === "POST" && c.url.endsWith("tbl4LMXlQjp66RFKI")) return { status: 200, body: { id: "recOPP00000000000", fields: {} } };
+    if (c.method === "POST" && c.url.endsWith("tblFcsUoGxsuUwNEH")) return { status: 200, body: { records: c.body.records.map((_, i) => ({ id: "recLINE" + i })) } };
+    if (c.method === "POST") return { status: 200, body: { records: [] } };
+  });
+  const out = await submit(makeAirtable("t", { fetchImpl: f, ...NO_WAIT }), b);
+  assert.equal(out.accessories, 2);
+  const li = f.calls.find((c) => c.method === "POST" && c.url.endsWith("tblFcsUoGxsuUwNEH")).body.records;
+  assert.deepEqual(li[0].fields["Vöru reitur 3"], ["recLEDLEDLEDLED01", "recSTRMSTRMSTRM01"]);
+  assert.equal(li[0].fields.aukahlutir, undefined);
+  assert.equal(li[1].fields["Vöru reitur 3"], undefined);
+  const j = f.calls.filter((c) => c.method === "POST" && c.url.endsWith("tbloRPRxopiQptiXP")).flatMap((c) => c.body.records.map((r) => r.fields));
+  assert.deepEqual(j.map((x) => [x["Vöru lína"][0], x["Útfærsla"][0], x["Magn per einingu"], x.Heiti]),
+    [["recLINE0", "recLEDLEDLEDLED01", 3, "Sk1 | LED41 | 3"], ["recLINE0", "recSTRMSTRMSTRM01", 1, "Sk1 | STRM30 | 1"]]);
+});
+
+test("V3 accessories on a retry: rows the existing line already has are not written again", async () => {
+  const b = body(1);
+  b.lineItems[0].aukahlutir = [{ id: "recLEDLEDLEDLED01", magn: 3, code: "LED41" }, { id: "recSTRMSTRMSTRM01", magn: 1, code: "STRM30" }];
+  const f = fakeFetch((c) => {
+    if (isList(c, "tbl4LMXlQjp66RFKI")) return { status: 200, body: { records: [{ id: "recOPP00000000000", fields: { "Heiti tækifæris / verkefnis": "T-301 | Anna - " } }] } };
+    if (isList(c, "tblFcsUoGxsuUwNEH")) return { status: 200, body: { records: [
+      { id: "recLINEEXISTING01", fields: { "🔑": "Sk1", "Tækifæri 📣 (projects)": ["recOPP00000000000"], "Einingar aukahlutir 🧩": ["recJUNCTION000001"] } }] } };
+    if (isList(c, "tbloRPRxopiQptiXP")) return { status: 200, body: { records: [{ id: "recJUNCTION000001", fields: { "Útfærsla": ["recLEDLEDLEDLED01"] } }] } };
+    if (c.method === "POST") return { status: 200, body: { records: [] } };
+  });
+  const out = await submit(makeAirtable("t", { fetchImpl: f, ...NO_WAIT }), b);
+  assert.equal(out.created, 0);
+  const j = f.calls.filter((c) => c.method === "POST" && c.url.endsWith("tbloRPRxopiQptiXP")).flatMap((c) => c.body.records.map((r) => r.fields));
+  assert.deepEqual(j.map((x) => [x["Vöru lína"][0], x["Útfærsla"][0]]), [["recLINEEXISTING01", "recSTRMSTRMSTRM01"]]);
+});
+
+test("validate rejects bad aukahlutir", () => {
+  const withA = (a) => { const b = body(1); b.lineItems[0].aukahlutir = a; return b; };
+  assert.equal(validate(withA([{ id: "recLEDLEDLEDLED01", magn: 2 }])), null);
+  assert.ok(validate(withA([{ id: "nope", magn: 2 }])));
+  assert.ok(validate(withA([{ id: "recLEDLEDLEDLED01", magn: 0 }])));
+  assert.ok(validate(withA([{ id: "recLEDLEDLEDLED01", magn: 1 }, { id: "recLEDLEDLEDLED01", magn: 1 }])));
+  assert.ok(validate(withA("x")));
+});

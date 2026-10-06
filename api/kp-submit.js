@@ -13,12 +13,18 @@
 // So the client can simply retry the same POST until it gets 200, and the result is exactly one
 // Tækifæri with exactly one Line Item per cabinet.
 //
-// The proxy (/api/airtable) no longer allows creating these three tables at all — this is the only path.
+// V3 accessories (lighting, 2026-10-06): a line may carry `aukahlutir: [{id, magn, code}]`. The server sets
+// "Vöru reitur 3" from them and writes one Einingar aukahlutir row per product (Útfærsla + Magn per einingu) —
+// ⚠️ Skipulagsvilla wants exactly one such row per V3 link. On a retry, rows a line already has are skipped.
+//
+// The proxy (/api/airtable) no longer allows creating these tables at all — this is the only path.
 
 const AIRTABLE_BASE = "app91U15z9K704Okd";
 const CONTACTS = "tblQ8zeUanriESWvL";          // Tengiliðir
 const PROJECTS = "tbl4LMXlQjp66RFKI";          // Tækifæri 📣 (projects)
 const LINE_ITEMS = "tblFcsUoGxsuUwNEH";        // Vöru línur ➖📦 (Line item's)
+const JUNCTION = "tbloRPRxopiQptiXP";          // Einingar aukahlutir 🧩 — one row per V3 product, carries its quantity
+const LINE_JUNCTION = "Einingar aukahlutir 🧩"; // the Line Item's link to those rows
 const PLANNER_JSON = "Sjálfsafgreiðsla skipulag (JSON) 📐";
 const PROJECT_NAME = "Heiti tækifæris / verkefnis"; // primary field, "T-227 | Name - "
 const LINK_TO_PROJECT = "Tækifæri 📣 (projects)";
@@ -27,6 +33,7 @@ const LINK_TO_PROJECT = "Tækifæri 📣 (projects)";
 export const PROJECT_FIELDS = ["Skrokka efni 🔲 viðskiptavinar", "Fronta efni viðskiptavinar 🖼️", "Borðplata viðskiptavinar 🍽️", "Skilaboð til skipulags",
   "Höldur Viðskiptavinar ✊", "Litur á höldum 🎨", "Magn Halda 1"];
 export const LINE_FIELDS = ["Rými 🏡", "Vöru reitur 1", "Vöru reitur 2", "Magn", "🔑", "Skilaboð til skipulags"];
+const MAX_AUKA = 5;
 // A self-serve submission must never look like reviewed designer work or enter production by itself.
 export const PROJECT_FORCED = {
   "Staða í söluferli": "Hönnun & Ráðgjöf 🖊️✨",
@@ -103,6 +110,16 @@ export function validate(body) {
     if (!li || !String(li["🔑"] || "")) return "Lína án 🔑";
     if (keys.has(li["🔑"])) return "Tvítekinn 🔑";
     keys.add(li["🔑"]);
+    if (li.aukahlutir != null){
+      const a = li.aukahlutir;
+      if (!Array.isArray(a) || a.length > MAX_AUKA) return "Ógildir aukahlutir";
+      const ids = new Set();
+      for (const x of a){
+        if (!x || !REC_RE.test(String(x.id)) || !Number.isInteger(x.magn) || x.magn < 1 || x.magn > 100) return "Ógildur aukahlutur";
+        if (ids.has(x.id)) return "Tvítekinn aukahlutur";
+        ids.add(x.id);
+      }
+    }
   }
   for (const v of [b.project?.["Skrokka efni 🔲 viðskiptavinar"], b.project?.["Fronta efni viðskiptavinar 🖼️"], b.project?.["Borðplata viðskiptavinar 🍽️"], b.project?.["Höldur Viðskiptavinar ✊"]]) {
     if (v != null && !(Array.isArray(v) && v.every((x) => REC_RE.test(x)))) return "Ógild tenging";
@@ -150,22 +167,46 @@ export async function submit(at, body) {
 
   // 4. Line Items — skip the 🔑s this Tækifæri already has, create the rest 10 at a time.
   let have = new Set();
+  const lineId = {};      // 🔑 → Line Item id (existing + created)
+  const haveJ = {};       // 🔑 → its existing junction row ids
   if (resumed) {
     const name = String((opp.fields || {})[PROJECT_NAME] || "");
     const prefix = name.split("|")[0].trim();           // "T-227"
     if (prefix) {
       const rows = await listAll(at, LINE_ITEMS,
-        `FIND("${q(prefix)} |",ARRAYJOIN({${LINK_TO_PROJECT}}))`, ["🔑", LINK_TO_PROJECT]);
-      have = new Set(rows.filter((r) => (r.fields[LINK_TO_PROJECT] || []).includes(opp.id)).map((r) => r.fields["🔑"]));
+        `FIND("${q(prefix)} |",ARRAYJOIN({${LINK_TO_PROJECT}}))`, ["🔑", LINK_TO_PROJECT, LINE_JUNCTION]);
+      const mine = rows.filter((r) => (r.fields[LINK_TO_PROJECT] || []).includes(opp.id));
+      have = new Set(mine.map((r) => r.fields["🔑"]));
+      for (const r of mine){ lineId[r.fields["🔑"]] = r.id; haveJ[r.fields["🔑"]] = r.fields[LINE_JUNCTION] || []; }
     }
   }
   const todo = body.lineItems.filter((li) => !have.has(li["🔑"]));
   for (let i = 0; i < todo.length; i += 10) {
-    await at("POST", LINE_ITEMS, { typecast: true, records: todo.slice(i, i + 10).map((li) => ({
-      fields: Object.assign(pick(li, LINE_FIELDS), { [LINK_TO_PROJECT]: [opp.id] }),
+    const chunk = todo.slice(i, i + 10);
+    const made = await at("POST", LINE_ITEMS, { typecast: true, records: chunk.map((li) => ({
+      fields: Object.assign(pick(li, LINE_FIELDS), { [LINK_TO_PROJECT]: [opp.id] },
+        li.aukahlutir && li.aukahlutir.length ? { "Vöru reitur 3": li.aukahlutir.map((x) => x.id) } : {}),
     })) });
+    (made.records || []).forEach((r, j) => { if (r && r.id) lineId[chunk[j]["🔑"]] = r.id; });
   }
-  return { recordId: opp.id, created: todo.length, skipped: body.lineItems.length - todo.length, resumed };
+
+  // 5. Einingar aukahlutir — one row per V3 product; a resumed line skips the products it already has a row for.
+  const want = [];
+  for (const li of body.lineItems){
+    if (!li.aukahlutir || !li.aukahlutir.length || !lineId[li["🔑"]]) continue;
+    let done = new Set();
+    const ex = haveJ[li["🔑"]] || [];
+    if (ex.length){
+      const rows = await listAll(at, JUNCTION, "OR(" + ex.map((id) => `RECORD_ID()='${id}'`).join(",") + ")", ["Útfærsla"]);
+      done = new Set(rows.flatMap((r) => r.fields["Útfærsla"] || []));
+    }
+    for (const x of li.aukahlutir) if (!done.has(x.id)) want.push({ fields: {
+      "Heiti": `${li["🔑"]} | ${String(x.code || "").slice(0, 20)} | ${x.magn}`,
+      "Vöru lína": [lineId[li["🔑"]]], "Útfærsla": [x.id], "Magn per einingu": x.magn,
+    } });
+  }
+  for (let i = 0; i < want.length; i += 10) await at("POST", JUNCTION, { typecast: true, records: want.slice(i, i + 10) });
+  return { recordId: opp.id, created: todo.length, skipped: body.lineItems.length - todo.length, resumed, accessories: want.length };
 }
 
 export default async function handler(req, res) {
