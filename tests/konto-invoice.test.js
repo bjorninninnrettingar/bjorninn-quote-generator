@@ -61,6 +61,19 @@ test("a logged draft blocks the same payment; an error line does not", () => {
   assert.equal(alreadyDrafted(log, "G2"), false);
 });
 
+test("Konto draft: customer = Konto's own record, our contact only fills blanks", () => {
+  const d = kontoDraft({
+    customer: { guid: "g-9", name: "Í Konto", registration_no: "0101012345", output_select: "2", due_date: 14, updated_timestamp: "x" },
+    contact: { name: "Úr Airtable", kennitala: "0101012345", email: "a@b.is" },
+    description: "T-1", lines: [{ description: "x", amountInclVat: 1240 }], today: new Date(Date.UTC(2026, 9, 5)),
+  });
+  assert.equal(d.customer.name, "Í Konto");
+  assert.equal(d.customer.output_select, "2");
+  assert.equal(d.customer.due_date, 14);
+  assert.equal(d.customer.email, "a@b.is");
+  assert.equal("updated_timestamp" in d.customer, false);
+});
+
 test("Konto draft: claim, 24% VAT, amounts ex VAT on the lines", () => {
   const d = kontoDraft({ customerGuid: "g-1", contact: { name: "Prufa", kennitala: "0101012345", email: "a@b.is" }, description: "T-1", lines: [{ description: "x", amountInclVat: 124_000 }], today: new Date(Date.UTC(2026, 9, 5)), holidays: new Set() });
   assert.equal(d.customer.guid, "g-1");

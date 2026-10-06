@@ -119,18 +119,23 @@ export function alreadyDrafted(log, payment) {
   return String(log || "").split("\n").some((l) => l.includes(`· ${payment} · drög`));
 }
 
-// Konto validates the customer on the draft itself: {guid} alone → "Vinsamlegast skrá
-// rétta kennitölu", {guid, registration_no} → "Name is required". So send the full details.
-export function kontoDraft({ customerGuid, contact, description, lines, today, holidays }) {
+// Konto validates the customer inline on the draft, one field at a time ({guid} alone →
+// "rétta kennitölu", then "Name is required", then "Output select is required"). So send
+// Konto's own customer record back (every field it requires, as it stores them), with
+// our contact's name/kennitala/email filled in where Konto's are blank.
+export function kontoDraft({ customer = {}, customerGuid, contact, description, lines, today, holidays }) {
+  const { updated_timestamp, photo, ...konto } = customer;
   return {
     customer: {
-      guid: customerGuid,
-      name: contact.name,
-      registration_no: contact.kennitala,
-      email: contact.email || "",
-      address: contact.address || "",
-      currency: "ISK",
-      lang: "is",
+      ...konto,
+      guid: customerGuid || konto.guid,
+      name: konto.name || contact.name,
+      registration_no: konto.registration_no || contact.kennitala,
+      email: konto.email || contact.email || "",
+      address: konto.address || contact.address || "",
+      currency: konto.currency || "ISK",
+      lang: konto.lang || "is",
+      output_select: konto.output_select || "3", // 3 = no XML (PDF by e-mail); 2 = e-invoice, 4 = print
     },
     kennitala: contact.kennitala,
     currency: "ISK",
@@ -262,7 +267,8 @@ export default async function handler(req, res) {
       let contact;
       try {
         contact = await loadContact(project);
-        const found = customersFrom(await kontoGet("get-customers-by-kennitala", { kennitala: contact.kennitala }));
+        const found = customersFrom(await kontoGet("get-customers-by-kennitala", { kennitala: contact.kennitala }))
+          .filter((c) => String(c.registration_no || "").replace(/\D/g, "") === contact.kennitala);
         out.push(`Viðskiptavinur: ${contact.name} (${contact.kennitala}) — ${found.length ? `til í Konto (${found[0].name})` : "ekki til, yrði stofnaður"}`);
       } catch (e) { out.push(`Viðskiptavinur: ❌ ${e.message}`); }
       out.push(`Gjalddagi ${addWorkdays(today, 3, holidays)} · eindagi ${addWorkdays(today, 5, holidays)} · krafa í banka`);
@@ -284,7 +290,8 @@ export default async function handler(req, res) {
     if (skip) return res.status(200).json({ ok: true, skipped: skip });
 
     const contact = await loadContact(project);
-    const found = customersFrom(await kontoGet("get-customers-by-kennitala", { kennitala: contact.kennitala }));
+    let found = customersFrom(await kontoGet("get-customers-by-kennitala", { kennitala: contact.kennitala }))
+      .filter((c) => String(c.registration_no || "").replace(/\D/g, "") === contact.kennitala);
     let customerGuid = found[0] && found[0].guid;
     if (!customerGuid) {
       const created = await kontoPost("create-customer", {
@@ -293,8 +300,11 @@ export default async function handler(req, res) {
       });
       customerGuid = typeof created.result === "string" ? created.result : created.result?.guid;
       if (!customerGuid) throw new Error(`Konto skilaði ekki auðkenni nýs viðskiptavinar: ${JSON.stringify(created).slice(0, 200)}`);
+      found = customersFrom(await kontoGet("get-customers-by-kennitala", { kennitala: contact.kennitala }))
+        .filter((c) => c.guid === customerGuid);
     }
     const draft = kontoDraft({
+      customer: found[0],
       customerGuid,
       contact,
       description: String(project[P.name] || "").trim(),
