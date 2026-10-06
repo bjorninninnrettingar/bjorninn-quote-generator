@@ -5801,24 +5801,23 @@
   // LGR + drawers, i.e. a door that isn't there (fixed 2026-09-30, confirmed with the user).
   var STOK = { utfaerslaId:"recPsA7OPmB76qyUF" }; // Útfærsla "Stök vara"
   var V1_FAMILY = { grunnskapur:"grunnskapur", vaskaskapur:"grunnskapur", ruslaskapur:"grunnskapur", harskapur:"harskapur", isskapur:"harskapur",
-    ofnaskapur:"harskapur", ofnaskapurLagur:"grunnskapur", hornskapur:"grunnskapur", burskapur:"harskapur", thvottavel:"harskapur", efriskapur:"efriskapur", opnarhillur:"efriskapur",
+    ofnaskapur:"harskapur", ofnaskapurLagur:"grunnskapur", hornskapur:"grunnskapur", tofrahorn:"grunnskapur", burskapur:"harskapur", thvottavel:"harskapur", efriskapur:"efriskapur", opnarhillur:"efriskapur",
     litillkassi:"litillkassi", harveggskapur:"harveggskapur" };
   function isDrawerUnit(b){ return !!(b.interior && b.interior.mode === "skuffur"); }
   // No clamp on purpose: a width outside the product range (e.g. a 1400 mm sink cabinet) must find
   // NO match (→ note + Skipulagsvilla), not silently the widest product.
   function widthFamily(mm){ return Math.round(mm / 100) * 100; }
   function v1RecordFor(b, c){
-    if (c.tofrahornIds){
-      // (until 2026-10-01 this sent a Vörulisti id into a field that links to Útfærslur → 422 on submit)
-      var side = c.tofrahornIds[b.swing === "vinstri" ? "vinstri" : "haegri"], tid = side[state.carcass];
-      return tid ? { id:tid } : null;
-    }
+    // Úthlið = its own Útfærsla by height (UHGR/UHLK/UHHA/UHVS/UHEF, user 2026-10-06)
+    if (c.panelIds){ var h = blockHeightMm(b, c); var pid = c.panelIds.find(function(x){ return !x.maxH || h <= x.maxH; }); return pid ? { id:pid.utfaerslaId } : null; }
+    // Lausar hillur = "Stök vara" + H1/H2/H3 in V2 (the shape Keyra skipulag turns into an Eyðublað)
+    if (c.shelfStack) return { id:STOK.utfaerslaId };
     var fam = V1_FAMILY[b.type], LM = window.KP_LINEMAP;
     // dishwasher = "Stök vara" + its front (UÞVFR) in V2 — how Rakel enters it; UÞVFR alone in V1 has no
     // route, so Keyra skipulag skipped the line without a word (found 2026-10-06)
     if (c.dishwasher) return { id:STOK.utfaerslaId };
     if (!fam || !LM || !LM.v1[fam]) return null;
-    var open = isDrawerUnit(b) || !!c.open || !!c.rusl; // opnar hillur = "Efri skápur" without "Lokaður"; bin = GR + RUSL
+    var open = isDrawerUnit(b) || !!c.open || !!c.rusl; // Töfrahorn = CLOSED grunnskápur + its TOFRA in V3; opnar hillur = "Efri skápur" without "Lokaður"; bin = GR + RUSL
     return LM.v1[fam][open ? "open" : "closed"][widthFamily(b.widthMm)] || null;
   }
   // V2 = what makes the box specific: the drawer combo, the shelves, or the appliance's own Útfærsla.
@@ -5826,6 +5825,7 @@
     var LM = window.KP_LINEMAP; if (!LM) return null;
     if (c.fridge) return LM.isskapur;
     if (c.dishwasher) return LM.uppthvottavel || null;
+    if (c.shelfStack) return LM.v2ShelvesPlain[b.count] || null; // H1–H5
     if (c.lowOven) return (LM.ofnLow || {})[drawerSys()] || null; // OFN6
     if (c.oven){
       var ok = ovenKeyOf(b);
@@ -5853,6 +5853,8 @@
   function v3RecordsFor(b, c){
     var LM = window.KP_LINEMAP, out = [];
     if (c.rusl && LM){ var r = LM.rusl[String(widthFamily(b.widthMm))]; if (r) out.push(r.id); }
+    // Le Mans by door half × carcass colour (route "Töfrahorn"; no light grey one exists)
+    if (c.tofrahornIds){ var tid = c.tofrahornIds[b.swing === "vinstri" ? "vinstri" : "haegri"][state.carcass]; if (tid) out.push(tid); }
     return out;
   }
 
@@ -5939,7 +5941,7 @@
         if (c.lowOven) notes.push("Lágur ofnaskápur: M-skúffa undir ofninum (OFN6 er skráð með K-skúffu).");
         if (c.tofrahornIds){
           notes.push("Breidd á töfrahorns-front: " + b.widthMm + " mm. Hurðin er á " + (b.swing === "vinstri" ? "vinstri" : "hægri") + " helmingi.");
-          if (!c.tofrahornIds.haegri[state.carcass]) notes.push("Töfrahorn er ekki til í þessum skrokklit — veldu útfærslu handvirkt.");
+          if (!c.tofrahornIds.haegri[state.carcass]) notes.push("Le Mans töfrahorn er ekki til í þessum skrokklit — bættu því við í V3 handvirkt.");
         }
         if (isDrawerUnit(b)){ // the stack as drawn, top → bottom, with front heights — also when it matched a combo
           var dCodes = KP3D.drawerCodes(b.interior, drawerSys()), dFr = KP3D.stackFrontsMm(b.interior, dCodes, drawerBodyMm(b, c)) || [];

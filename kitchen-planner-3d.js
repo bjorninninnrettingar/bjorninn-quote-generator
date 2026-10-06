@@ -67,11 +67,16 @@
     // Úthlið (end panel): 19 mm thick, same material as the fronts. Placed at
     // the end of a run it copies height/depth from the cabinet it butts up to.
     uthlid:      { label:"Úthlið — neðri", zone:"floor", cls:"floor", defaultW:19, minW:19, maxW:19, h:800, d:600, minH:300, maxH:1000, minD:100, maxD:750, hasInterior:false, panel:true, counter:true, // the worktop runs on over it
-                   skapategundOverride:"Grunnskápur", note:"Úthlið, 19 mm þykk, sama efni og framhliðar (stendur við enda á skápalínu)." },
+                   skapategundOverride:"Grunnskápur", note:"Úthlið, 19 mm þykk, sama efni og framhliðar (stendur við enda á skápalínu).",
+                   // Útfærslur "Úthliðar" (V1): UHGR, or UHLK beside a lítill kassi (≤ 600 mm high)
+                   panelIds:[{ maxH:600, utfaerslaId:"recEpLxCpHtbBHRkV" }, { utfaerslaId:"recUKqD3UKKWQ8J7g" }] },
     uthlidhar:   { label:"Úthlið — há", zone:"floor", cls:"tall", defaultW:19, minW:19, maxW:19, h:2400, d:600, minH:1000, maxH:2600, minD:100, maxD:750, hasInterior:false, panel:true,
-                   skapategundOverride:"Hárskápur", note:"Úthlið, 19 mm þykk, sama efni og framhliðar (stendur við enda á skápalínu)." },
+                   skapategundOverride:"Hárskápur", note:"Úthlið, 19 mm þykk, sama efni og framhliðar (stendur við enda á skápalínu).",
+                   // UHVS beside a hár veggskápur (≤ 2100 mm), else UHHA
+                   panelIds:[{ maxH:2100, utfaerslaId:"recjkbrTcZZgSazX5" }, { utfaerslaId:"recgcU94bpLvATm0r" }] },
     uthlidefri:  { label:"Úthlið — efri", zone:"wall", cls:"wall", defaultW:19, minW:19, maxW:19, h:1000, d:300, minH:200, maxH:1200, minD:100, maxD:450, hasInterior:false, panel:true,
-                   skapategundOverride:"Efriskápur", note:"Úthlið, 19 mm þykk, sama efni og framhliðar (stendur við enda á skápalínu)." },
+                   skapategundOverride:"Efriskápur", note:"Úthlið, 19 mm þykk, sama efni og framhliðar (stendur við enda á skápalínu).",
+                   panelIds:[{ utfaerslaId:"recvaMCqmYlQur8Wr" }] }, // UHEF
     // Lausar hillur: 38 mm boards on the wall, 1–5 stacked above each other.
     // b.count = boards, b.vgapMm = clear gap between boards; b.heightMm is kept
     // equal to the whole stack's height (see stackHeightMm) so every height

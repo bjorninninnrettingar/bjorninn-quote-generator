@@ -33,7 +33,7 @@ for (const h of Object.values(ctx.window.KPMODELS.handles || {})) for (const o o
 const tof = read("kitchen-planner-3d.js").match(/tofrahornIds:(\{[^\n]+\} \})/);
 for (const m of (tof ? tof[1] : "").matchAll(/"(rec\w{14})"/g)) want.utfaerslur.add(m[1]);
 // lighting products (LIGHT_PRODUCTS in the planner) → Útfærslur
-for (const m of read("kitchen-planner.html").matchAll(/utfaerslaId\s*:\s*"(rec\w{14})"/g)) want.utfaerslur.add(m[1]);
+for (const m of (read("kitchen-planner.html") + read("kitchen-planner-3d.js")).matchAll(/utfaerslaId\s*:\s*"(rec\w{14})"/g)) want.utfaerslur.add(m[1]);
 // Egger decors, fronts / carcass → Efnislisti
 for (const d of Object.values(ctx.window.KPEGGER.decors)) for (const r of d.rows) want.efnislisti.add(r.id);
 for (const src of [read("kitchen-planner-catalog.js"), read("kitchen-planner-3d.js")]) {
