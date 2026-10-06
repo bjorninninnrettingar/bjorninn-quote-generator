@@ -3401,8 +3401,6 @@
     // renderShot() settles the fades itself (synchronously) — rAF doesn't run in a background tab,
     // and a customer switching tabs mid-submit must not stall the drawing export.
     THREE_STATE.stepFades = function(){ fadeWalls(); fadeCabinets(); };
-    var lastMove = performance.now();
-    controls.addEventListener("change", function(){ lastMove = performance.now(); });
     renderer.setPixelRatio(qualityPixelRatio());
     // one frame: the evening bloom, or the still-view AO, or a straight render while things move
     function renderFrame(forceAO){
@@ -3417,8 +3415,9 @@
         THREE_STATE.composer.render();
         return;
       }
-      var still = forceAO || (!THREE_STATE.dragging && performance.now() - lastMove > 250);
-      if (still && QUALITY.level === 0 && !opts.noAO){
+      // AO on every frame at quality 0 (2026-10-06): switching it off while the camera moved and back on when it
+      // stopped made the shading pop in and out on every orbit. A slow machine drops to level 1 (no AO at all) instead.
+      if (QUALITY.level === 0 && !opts.noAO){
         if (!THREE_STATE.aoComposer){ THREE_STATE.aoComposer = makeAOComposer(THREE, renderer, scene, camera); if (THREE_STATE.aoComposer){ var s2 = renderer.getSize(new THREE.Vector2()); THREE_STATE.aoComposer.setSize(s2.x, s2.y); } }
         if (THREE_STATE.aoComposer){ THREE_STATE.aoComposer.render(); return; }
       }
