@@ -119,8 +119,9 @@ export function alreadyDrafted(log, payment) {
   return String(log || "").split("\n").some((l) => l.includes(`· ${payment} · drög`));
 }
 
-export function kontoDraft({ kennitala, description, lines, today, holidays }) {
+export function kontoDraft({ customerGuid, kennitala, description, lines, today, holidays }) {
   return {
+    customer: { guid: customerGuid }, // Konto: "Customer is required" without it — kennitala alone isn't enough
     kennitala,
     currency: "ISK",
     description,
@@ -274,13 +275,17 @@ export default async function handler(req, res) {
 
     const contact = await loadContact(project);
     const found = customersFrom(await kontoGet("get-customers-by-kennitala", { kennitala: contact.kennitala }));
-    if (!found.length) {
-      await kontoPost("create-customer", {
+    let customerGuid = found[0] && found[0].guid;
+    if (!customerGuid) {
+      const created = await kontoPost("create-customer", {
         name: contact.name, registration_no: contact.kennitala, email: contact.email,
         address: contact.address, currency: "ISK", lang: "is",
       });
+      customerGuid = typeof created.result === "string" ? created.result : created.result?.guid;
+      if (!customerGuid) throw new Error(`Konto skilaði ekki auðkenni nýs viðskiptavinar: ${JSON.stringify(created).slice(0, 200)}`);
     }
     const draft = kontoDraft({
+      customerGuid,
       kennitala: contact.kennitala,
       description: String(project[P.name] || "").trim(),
       lines, today, holidays,

@@ -62,7 +62,8 @@ test("a logged draft blocks the same payment; an error line does not", () => {
 });
 
 test("Konto draft: claim, 24% VAT, amounts ex VAT on the lines", () => {
-  const d = kontoDraft({ kennitala: "0101012345", description: "T-1", lines: [{ description: "x", amountInclVat: 124_000 }], today: new Date(Date.UTC(2026, 9, 5)), holidays: new Set() });
+  const d = kontoDraft({ customerGuid: "g-1", kennitala: "0101012345", description: "T-1", lines: [{ description: "x", amountInclVat: 124_000 }], today: new Date(Date.UTC(2026, 9, 5)), holidays: new Set() });
+  assert.deepEqual(d.customer, { guid: "g-1" });
   assert.equal(d.is_claim, true);
   assert.equal(d.items[0].tax, "S");
   assert.equal(d.items[0].unit_price, 100_000);
