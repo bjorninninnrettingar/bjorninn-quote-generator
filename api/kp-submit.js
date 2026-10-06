@@ -94,6 +94,15 @@ async function listAll(at, table, formula, fields) {
   return out;
 }
 
+// Every field name this endpoint uses, per table (api/field-check.js checks them daily).
+export function fieldDeps() {
+  return {
+    [CONTACTS]: new Set(["Fornafn ⬅️", "Eftirnafn ➡️", "Netfang 📧", "Símanúmer ☎️", "Tegund tengiliðs 👥", "Hvaðan kom viðskiptavinurinn 📥"]),
+    [PROJECTS]: new Set([...PROJECT_FIELDS, ...Object.keys(PROJECT_FORCED), "Tengiliður verkefnis 👤", PLANNER_JSON, PROJECT_NAME, "Teikningar úr skipuleggjara 📐"]),
+    [LINE_ITEMS]: new Set([...LINE_FIELDS, LINK_TO_PROJECT]),
+  };
+}
+
 export function validate(body) {
   const b = body || {};
   if (!SID_RE.test(String(b.sid || ""))) return "Ógilt sid";

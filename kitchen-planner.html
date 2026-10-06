@@ -6052,6 +6052,9 @@
       render();
       renderPreviews();
     }catch(e){
+      // A failed submission is a lead that would otherwise vanish — file it with the whole draft (contact
+      // details included) so sales can reach the customer even if they give up (2026-10-06).
+      sendIssueReport("Sjálfvirk villa", "Innsending mistókst: " + e.message, "Tengiliður: " + ["cFornafn", "cEftirnafn", "cNetfang", "cSimi"].map(function(id){ return document.getElementById(id).value.trim(); }).join(" · ") + "\n" + (e.stack || ""));
       errEl.textContent = "Eitthvað fór úrskeiðis við að senda inn. Prófaðu aftur — " + e.message;
       errEl.style.display = "block";
       submitBtn.disabled = false;

@@ -501,6 +501,18 @@ async function fetchAirtableFiltered(url, allowedFields, token) {
   }
 }
 
+// Every field name this proxy reads or writes, per table — api/field-check.js verifies them against the live
+// base each morning (a field renamed in Airtable otherwise just goes missing: reads drop it silently, writes 422).
+export function fieldDeps() {
+  const out = {};
+  const add = (t, names) => { out[t] = out[t] || new Set(); names.forEach((n) => out[t].add(n)); };
+  for (const m of [ALLOWED_FIELDS, VERK_ONLY_FIELDS, CREATABLE_FIELDS, WRITABLE_FIELDS]) for (const [t, f] of Object.entries(m)) add(t, f);
+  for (const [t, f] of Object.entries(FORCED_CREATE_FIELDS)) add(t, Object.keys(typeof f === "function" ? f({ Til: 1 }) : f));
+  add("tblhglpjQkczdG1AY", ["PIN 🔢", "Er starfandi? ✅"]);       // STRICT_FILTERS formula, never returned
+  add("tbl3e5o0Klv9RcNQ4", ["Starfsmaður"]);
+  return out;
+}
+
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
 
