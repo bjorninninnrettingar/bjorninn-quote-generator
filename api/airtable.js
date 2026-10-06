@@ -271,6 +271,12 @@ const VERK_ONLY_FIELDS = {
     "Fjöldi varahluta til að saga",
     "Fjöldi varahluta sagaðir",
     "Staða á efnispöntun",
+    // /verk "Smíðaupplýsingar" (replaces Airtable's Verkstæði 2.0 page)
+    "Kantlíming skrokka",
+    "Tegund fronta 1",
+    "Tegund fronta 2",
+    "Litur á skúffum [Handvalið]",
+    "Samsetningarlisti [flatp. eða rastex]",
   ],
   // /eining (unit page) — mirrors exactly what the "samsetningar prentunar"
   // Eyðublað automation puts on the physical assembly label, so the digital

@@ -213,7 +213,6 @@
   .tool2.c-green { border-color:var(--green); }
   .tool2.c-green .t2-t { color:var(--green); }
 
-
   /* production stage — stepper + the one manual step the floor owns next
      (Má afhenda / Afhent). Writes go through /api/verk-status (VERK_KEY),
      never the public proxy. Two taps to commit, Afturkalla for 10 s. */
@@ -257,7 +256,6 @@
   .sagbtn { flex:none; border:1px solid var(--green); background:none; color:var(--green); border-radius:10px; padding:10px 14px; font-family:var(--font); font-weight:800; font-size:.9rem; cursor:pointer; }
   .sagrow.done .sagbtn { border-color:var(--line); color:var(--muted); }
 
-
   /* Sögunarlisti — every piece of the project, grouped by unit. Read-only
      overview for the floor tablet (replaces Airtable's Sögunarlisti page). */
   #sogSec .sec-h { color:var(--sec-prog); display:flex; justify-content:space-between; gap:10px; }
@@ -292,6 +290,18 @@
   .piece-more .k { color:var(--muted); font-weight:700; }
   .sog-empty { color:var(--muted); text-align:center; padding:18px; }
 
+  /* Smíðaupplýsingar — build facts from Airtable's Verkstæði 2.0 page */
+  #buildSec .sec-h { color:var(--sec-mat); }
+  .build { background:var(--surface); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  .build > * { border-top:1px solid var(--line); }
+  .build > *:first-child { border-top:0; }
+  .brow { display:grid; grid-template-columns:150px 1fr; gap:12px; padding:12px 14px; font-size:.95rem; }
+  .brow .bk { color:var(--muted); font-weight:700; font-size:.85rem; }
+  .brow .bv { font-weight:700; }
+  .blist { list-style:none; display:flex; flex-direction:column; gap:3px; }
+  .build .note { border:0; border-radius:0; margin:0; background:none; }
+  @media (max-width:420px){ .brow { grid-template-columns:1fr; gap:2px; } }
+
   #loading,#error { text-align:center; color:var(--muted); padding:70px 20px; }
   #error strong { display:block; color:var(--text); font-size:1.1rem; margin-bottom:6px; }
   .hidden { display:none !important; }
@@ -324,7 +334,6 @@
       <div class="bar-lbl">Heildarframvinda framleiðslu · <span id="wbarPct">0%</span></div>
     </div>
 
-
     <section id="stageSec" class="hidden">
       <div class="sec-h">Staða verksins</div>
       <div class="stagecard">
@@ -338,17 +347,16 @@
       </div>
     </section>
 
-    <section id="notesSec" class="hidden">
-      <div class="sec-h">⚠️ Muna</div>
-      <div id="notes"></div>
-    </section>
-
     <section id="drawsSec" class="hidden">
       <div class="sec-h">Teikningar</div>
       <div class="draws" id="draws"></div>
       <div class="imgs" id="imgs"></div>
     </section>
 
+    <section id="toolsSec">
+      <div class="sec-h">Opna</div>
+      <div class="tools" id="tools"></div>
+    </section>
 
     <section id="sogSec" class="hidden">
       <div class="sec-h"><span>🪚 Sögunarlisti</span><span class="sog-count" id="sogCount"></span></div>
@@ -363,14 +371,24 @@
       <div id="sogList"></div>
     </section>
 
-    <section id="progSec" class="hidden">
-      <div class="sec-h">Framvinda</div>
-      <div id="prog"></div>
+    <section id="notesSec" class="hidden">
+      <div class="sec-h">⚠️ Muna</div>
+      <div id="notes"></div>
+    </section>
+
+    <section id="buildSec" class="hidden">
+      <div class="sec-h">🔧 Smíðaupplýsingar</div>
+      <div class="build" id="build"></div>
     </section>
 
     <section id="matSec" class="hidden">
       <div class="sec-h">Efni</div>
       <div class="mat" id="mat"></div>
+    </section>
+
+    <section id="progSec" class="hidden">
+      <div class="sec-h">Framvinda</div>
+      <div id="prog"></div>
     </section>
 
     <section id="unitsSec" class="hidden">
@@ -379,10 +397,6 @@
       <div id="unitsList"></div>
     </section>
 
-    <section id="toolsSec">
-      <div class="sec-h">Opna</div>
-      <div class="tools" id="tools"></div>
-    </section>
   </div>
   <div class="toast hidden" id="toast" role="status"><span id="toastMsg"></span><button type="button" id="toastUndo">Afturkalla</button></div>
 </div>
@@ -426,6 +440,11 @@
     millTodo:"Fjöldi hluta til að fræsa 🔬",
     millDone:"Fjöldi hluta fræstir 🔬",
     orderStatus:"Staða á efnispöntun",
+    bEdge:"Kantlíming skrokka",
+    bFront1:"Tegund fronta 1",
+    bFront2:"Tegund fronta 2",
+    bDrawerColor:"Litur á skúffum [Handvalið]",
+    bAssembly:"Samsetningarlisti [flatp. eða rastex]",
 
     mCarcase:"Heiti efnis (from Skrokka efni 🔲 viðskiptavinar)",
     mFront1:"Heiti efnis (from Fronta efni viðskiptavinar 🖼️)",
@@ -558,7 +577,6 @@
 
     note(box, "Spónlagning 🪵", f[F.nSpon], {warn:true});
     note(box, "Verklýsing teiknara 📝", f[F.nTeikn]);
-    collapsibleNote(box, "Skúffusamantekt", f[F.nDrawers]);
     note(box, "Verkfundur 🗒️", f[F.nMeeting], {md:true});
 
     if (box.children.length) show($("notesSec"));
@@ -844,7 +862,6 @@
       });
   }
 
-
   // ── Staða verksins ────────────────────────────────────────────────────
   // Tilbúið / Verk í vinnslu / Samsetning move on their own (Airtable
   // automations off "Framleiðslustaða skv. gögnum 🤖"); the floor owns the
@@ -966,7 +983,6 @@
     show(box);
   }
 
-
   // ── Sögunarlisti ──────────────────────────────────────────────────────
   var sog = { rows:[], units:{}, filter:"all", q:"", open:{} };
   var EDGES = [["F","Kant F_h"],["B","Kant B_h"],["V","Kant V_h"],["H","Kant H_h"]];
@@ -1066,6 +1082,21 @@
     }).catch(function(e){ console.error("Sögunarlisti failed:", e); });
   }
 
+
+  function renderBuild(f){
+    var rows = [];
+    function row(k, v){ if (v) rows.push('<div class="brow"><span class="bk">'+esc(k)+'</span><span class="bv">'+v+'</span></div>'); }
+    row("Kantlíming skrokka", esc(txt(f[F.bEdge])));
+    var fronts = [].concat(arr(f[F.bFront1]), arr(f[F.bFront2])).filter(function(x, i, a){ return x && a.indexOf(x) === i; });
+    row("Frontar", esc(fronts.join(" + ")));
+    row("Litur á skúffum", esc(txt(f[F.bDrawerColor])));
+    var asm = String(txt(f[F.bAssembly])).split("\n").map(function(l){ return l.replace(/^[·•\s]+/, "").trim(); }).filter(Boolean);
+    if (asm.length) row("Samsetning", '<ul class="blist">'+asm.map(function(l){ return "<li>"+esc(l)+"</li>"; }).join("")+'</ul>');
+    $("build").innerHTML = rows.join("");
+    collapsibleNote($("build"), "Skúffusamantekt", f[F.nDrawers]);
+    if ($("build").children.length) show($("buildSec"));
+  }
+
   function render(rec, projectId, k){
     var f = rec.fields || {};
     // rawName (unstripped) is what Eyðublað's ARRAYJOIN({Tækifæri...}) will
@@ -1101,6 +1132,7 @@
     try { renderNotes(f); } catch(e){}
     try { renderDraws(f); } catch(e){}
     try { renderProg(f); } catch(e){}
+    try { renderBuild(f); } catch(e){ console.error(e); }
     try { renderMat(f); } catch(e){}
     var unitsP = rawName ? fetchUnits(rawName, k) : Promise.resolve([]);
     var piecesP = rawName ? fetchPieces(rawName) : Promise.resolve([]);
