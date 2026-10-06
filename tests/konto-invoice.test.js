@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { invoiceLines, addWorkdays, alreadyDrafted, kontoDraft } from "../api/konto-invoice.js";
+import { invoiceLines, addWorkdays, alreadyDrafted, kontoDraft, chatText } from "../api/konto-invoice.js";
 
 const base = {
   "Heiti tækifæris / verkefnis": "T-1 | Prufa",
@@ -93,4 +93,13 @@ test("installment lines are short — the project name lives in the invoice desc
   const p = { ...base, "Skipting greiðslu": "40% - 30% - 30%", "Uppsetning Bjarnarins 🪛🐻": false };
   assert.equal(invoiceLines(p, "G1").lines[0].description, "Greiðsla 1 af 3 (40%) — innréttingar");
   assert.equal(invoiceLines(p, "LOK").lines[0].description, "Lokagreiðsla 3 af 3 (30%) — innréttingar");
+});
+
+test("chat text names the project, lines, total and links the record", () => {
+  const t = chatText({ name: "T-1 | Prufa", recordId: "recAAAAAAAAAAAAAA", payment: "G2", amount: 124_000, lines: [{ description: "Greiðsla 2 af 3 (30%) — innréttingar", amountInclVat: 124_000 }], dueDate: "2026-10-09" });
+  assert.match(t, /Ný drög í Konto\* — Greiðsla 2/);
+  assert.match(t, /T-1 \| Prufa/);
+  assert.match(t, /124\.000 kr/);
+  assert.match(t, /recAAAAAAAAAAAAAA/);
+  assert.match(chatText({ name: "T-1", recordId: "recAAAAAAAAAAAAAA", payment: "LOK", error: "Konto 500" }), /tókust ekki.*Lokagreiðsla[\s\S]*Konto 500/);
 });
