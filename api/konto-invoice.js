@@ -119,10 +119,20 @@ export function alreadyDrafted(log, payment) {
   return String(log || "").split("\n").some((l) => l.includes(`· ${payment} · drög`));
 }
 
-export function kontoDraft({ customerGuid, kennitala, description, lines, today, holidays }) {
+// Konto validates the customer on the draft itself: {guid} alone → "Vinsamlegast skrá
+// rétta kennitölu", {guid, registration_no} → "Name is required". So send the full details.
+export function kontoDraft({ customerGuid, contact, description, lines, today, holidays }) {
   return {
-    customer: { guid: customerGuid }, // Konto: "Customer is required" without it — kennitala alone isn't enough
-    kennitala,
+    customer: {
+      guid: customerGuid,
+      name: contact.name,
+      registration_no: contact.kennitala,
+      email: contact.email || "",
+      address: contact.address || "",
+      currency: "ISK",
+      lang: "is",
+    },
+    kennitala: contact.kennitala,
     currency: "ISK",
     description,
     amount: lines.reduce((s, l) => s + l.amountInclVat, 0),
@@ -286,7 +296,7 @@ export default async function handler(req, res) {
     }
     const draft = kontoDraft({
       customerGuid,
-      kennitala: contact.kennitala,
+      contact,
       description: String(project[P.name] || "").trim(),
       lines, today, holidays,
     });
@@ -295,11 +305,9 @@ export default async function handler(req, res) {
     // in order and stop at the first one Konto accepts — a rejected attempt
     // creates nothing, so at most one draft is ever made. The winner is logged
     // so the code can be narrowed to it later.
-    const kt = contact.kennitala;
     const variants = [
-      ["customer-only", (d) => { const { kennitala, ...rest } = d; return rest; }],
-      ["customer+kt", (d) => { const { kennitala, ...rest } = d; return { ...rest, customer: { guid: customerGuid, registration_no: kt } }; }],
-      ["kt-hyphen", (d) => ({ ...d, kennitala: `${kt.slice(0, 6)}-${kt.slice(6)}`, customer: { guid: customerGuid, registration_no: kt } })],
+      ["full-customer", (d) => d],
+      ["full-customer-no-top-kt", (d) => { const { kennitala, ...rest } = d; return rest; }],
     ];
     let result, used;
     const tried = [];
@@ -310,7 +318,7 @@ export default async function handler(req, res) {
         break;
       } catch (e) {
         tried.push(`${label}: ${e.message.replace(/^Konto create-draft-invoice \d+: /, "")}`);
-        if (!/kennit/i.test(e.message)) break; // a different complaint — stop and report it
+        if (!/kennit/i.test(e.message)) break; // a different complaint — stop and report it (a different variant won't fix it)
       }
     }
     if (!result) throw new Error(`Konto hafnaði drögum — ${tried.join(" | ")}`);
