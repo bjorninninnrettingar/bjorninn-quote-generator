@@ -333,6 +333,34 @@
   }
   .stat-row .label { color:var(--muted); font-size:.95rem; }
   .stat-row .value { font-size:1.15rem; font-weight:800; font-variant-numeric:tabular-nums; }
+
+  /* Home: Verk í vinnslu — the floor's start screen. Active production
+     projects, highest priority first, one tap opens /verk. */
+  .home-verk { margin:4px 0 18px; display:flex; flex-direction:column; gap:10px; }
+  .hv-h { display:flex; align-items:baseline; justify-content:space-between; }
+  .hv-h h2 { font-size:.8rem; font-weight:800; text-transform:uppercase; letter-spacing:.12em; color:var(--amber); margin:0; }
+  .hv-h span { font-size:.8rem; color:var(--muted); font-weight:700; }
+  .hv-list { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:10px; }
+  .hv-card {
+    display:flex; flex-direction:column; gap:8px; text-align:left; cursor:pointer; width:100%;
+    background:var(--surface); border:1px solid var(--line); border-left:4px solid var(--line);
+    border-radius:14px; padding:14px; color:var(--text); font-family:inherit;
+  }
+  .hv-card:active { filter:brightness(1.15); }
+  .hv-card:focus-visible { outline:3px solid var(--blue); outline-offset:2px; }
+  .hv-card.p1 { border-left-color:var(--gold); }
+  .hv-top { display:flex; align-items:flex-start; gap:10px; }
+  .hv-name { font-size:1.05rem; font-weight:800; line-height:1.25; flex:1; min-width:0; }
+  .hv-prio { flex:none; font-size:.78rem; font-weight:800; color:var(--gold); white-space:nowrap; }
+  .hv-meta { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:.8rem; color:var(--muted); font-weight:600; }
+  .hv-stage { border-radius:999px; padding:3px 10px; font-weight:800; font-size:.74rem; background:var(--surface2); color:var(--text); }
+  .hv-stage.s-work { background:rgba(255,214,10,.16); color:var(--amber); }
+  .hv-stage.s-asm { background:rgba(10,132,255,.16); color:var(--blue); }
+  .hv-stage.s-deliver { background:rgba(76,175,80,.18); color:var(--green); }
+  .hv-late { color:var(--red); font-weight:800; }
+  .hv-bar { height:6px; background:var(--surface2); border-radius:4px; overflow:hidden; }
+  .hv-bar i { display:block; height:100%; background:var(--amber); border-radius:4px; }
+  .hv-empty { color:var(--muted); font-size:.9rem; padding:6px 2px; }
 </style>
 </head>
 <body>
@@ -586,8 +614,13 @@
       </div>
     </div>
 
+    <div class="home-verk" id="homeVerk">
+      <div class="hv-h"><h2>📋 Verk í vinnslu</h2><span id="hvCount"></span></div>
+      <div class="hv-list" id="hvList"><div class="hv-empty">Sæki verk…</div></div>
+    </div>
+
     <div class="tilegrid">
-      <div class="tile2 c-yellow" id="tileVerkIGangi">
+      <div class="tile2 c-yellow" id="tileVerkIGangi" style="display:none;">
         <div class="ic">📋</div><div class="t">Verk í vinnslu</div>
         <div class="t-sub" id="projTileSub">Ekkert verk valið</div>
       </div>
@@ -830,8 +863,7 @@
   // the Verk í vinnslu list, not just the home grid.
   (function () {
     if (new URLSearchParams(location.search).get("screen") !== "verk") return;
-    history.replaceState({}, "", "/app");
-    openVerkList();
+    history.replaceState({}, "", "/app"); // the list is on the home screen now
   })();
 
   wireTiles();
@@ -875,8 +907,74 @@
   // /verk-i-gangi — still deployed/reachable for old links), Sög and
   // Yfirfræsing all reuse this, each with its own colour, filter, and what
   // happens when a project is tapped. ──
-  function hideTilegrid() { $("menuArea").querySelectorAll(".tilegrid").forEach(function (el) { el.style.display = "none"; }); }
-  function showTilegrid() { $("menuArea").querySelectorAll(".tilegrid").forEach(function (el) { el.style.display = ""; }); }
+  function hideTilegrid() { $("menuArea").querySelectorAll(".tilegrid, .home-verk").forEach(function (el) { el.style.display = "none"; }); }
+  function showTilegrid() { $("menuArea").querySelectorAll(".tilegrid, .home-verk").forEach(function (el) { el.style.display = ""; }); }
+
+  // ── Home: Verk í vinnslu ── every project in production (Tilbúið →
+  // Má afhenda), priority 1–3 first, then by delivery date. Forgangur is a
+  // VERK_KEY field, so this list passes k.
+  var ACTIVE_FILTER = "AND({" + P_STADA_SOLU + "} = \"🏆 Tækifæri unnið\", {" + P_STADA_SKIP + "} = \"Klárt til framleiðslu\", {" + P_STADA_FRAM + "} != \"\", {" + P_STADA_FRAM + "} != \"Afhent (LOKIÐ ✅)\")";
+  var STAGE_CHIP = {
+    "Tilbúið til framleiðslu 📋": ["Tilbúið", ""],
+    "Verk í vinnslu 🔨": ["Í vinnslu", "s-work"],
+    "Samsetning og pökkun 🪛📦": ["Samsetning", "s-asm"],
+    "Má Afhenda 🚚": ["Má afhenda 🚚", "s-deliver"],
+  };
+  var IS_MON = ["jan.", "feb.", "mar.", "apr.", "maí", "jún.", "júl.", "ágú.", "sep.", "okt.", "nóv.", "des."];
+  function prioRank(p) { var m = String(p || "").match(/^(\d)/); return m ? Number(m[1]) : 9; }
+  async function loadHomeVerk() {
+    var list = $("hvList");
+    try {
+      var recs = await airtableFetch(PROJECTS_TABLE, {
+        filterByFormula: ACTIVE_FILTER,
+        "fields[]": [P_NAME, P_DATE, P_PROGRESS, P_PRIORITY, P_STADA_FRAM],
+        pageSize: 100,
+        k: verkKey(),
+      });
+      recs.sort(function (a, b) {
+        var pa = prioRank(a.fields[P_PRIORITY]), pb = prioRank(b.fields[P_PRIORITY]);
+        if (pa !== pb) return pa - pb;
+        var da = a.fields[P_DATE] || "9999", db = b.fields[P_DATE] || "9999";
+        return da < db ? -1 : da > db ? 1 : 0;
+      });
+      $("hvCount").textContent = recs.length ? recs.length + " verk" : "";
+      if (!recs.length) { list.innerHTML = '<div class="hv-empty">Ekkert verk í framleiðslu núna.</div>'; return; }
+      var today = new Date().toISOString().slice(0, 10);
+      list.innerHTML = "";
+      recs.forEach(function (rec) {
+        var f = rec.fields;
+        var name = String(f[P_NAME] || "(nafnlaust verk)").replace(/[\s,–—-]+$/, "").trim();
+        var chip = STAGE_CHIP[f[P_STADA_FRAM]] || [f[P_STADA_FRAM] || "", ""];
+        var pct = f[P_PROGRESS] != null && f[P_PROGRESS] !== "" ? Math.round(f[P_PROGRESS] * 100) : null;
+        var prio = prioRank(f[P_PRIORITY]);
+        var d = String(f[P_DATE] || "").slice(0, 10), dateTxt = "";
+        if (d) {
+          var parts = d.split("-");
+          dateTxt = '<span class="' + (d < today ? "hv-late" : "") + '">Afh. ' + Number(parts[2]) + ". " + IS_MON[Number(parts[1]) - 1] + (d < today ? " ⚠️" : "") + "</span>";
+        }
+        var card = document.createElement("button");
+        card.type = "button";
+        card.className = "hv-card" + (prio === 1 ? " p1" : "");
+        card.innerHTML =
+          '<div class="hv-top"><span class="hv-name">' + escapeHtml(name) + "</span>" +
+          (prio < 9 ? '<span class="hv-prio">' + escapeHtml(f[P_PRIORITY]) + "</span>" : "") + "</div>" +
+          '<div class="hv-meta"><span class="hv-stage ' + chip[1] + '">' + escapeHtml(chip[0]) + "</span>" +
+          dateTxt + (pct != null ? "<span>" + pct + "% búið</span>" : "") + "</div>" +
+          (pct != null ? '<div class="hv-bar"><i style="width:' + pct + '%"></i></div>' : "");
+        card.addEventListener("click", function () {
+          setProject({ id: rec.id, name: f[P_NAME] || name });
+          location.href = "/verk?t=" + encodeURIComponent(rec.id) + "&k=" + encodeURIComponent(verkKey());
+        });
+        list.appendChild(card);
+      });
+    } catch (e) {
+      list.innerHTML = '<div class="hv-empty">Gat ekki sótt verk — reyndu aftur.</div>';
+    }
+  }
+  loadHomeVerk();
+  // Coming back to the app (from /verk or another app) shows fresh statuses.
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) loadHomeVerk(); });
+  window.addEventListener("pageshow", function (e) { if (e.persisted) loadHomeVerk(); });
 
   async function loadProjectList(formula, statusEl, itemsEl, emptyEl, colorClass, showProgress, onPick) {
     statusEl.style.display = "block";
