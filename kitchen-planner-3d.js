@@ -321,7 +321,9 @@
     (leds.strips || []).forEach(function(m){ var k = 1 + t * 2.2; m.material.color.setRGB(k, k * 0.93, k * 0.82); }); // brighter than white → blooms
     if (scene.background && scene.userData.dayBg) scene.background.copy(scene.userData.dayBg).lerp(scene.userData.nightBg, t);
     if (scene.userData.env !== undefined) scene.environment = t > 0.5 ? null : scene.userData.env; // the image-based light washes out the evening
+    (scene.userData.windowGlass || []).forEach(function(m){ m.color.copy(m.userData.day).lerp(NIGHT_GLASS, t); }); // daylight → a deep dusk blue
   }
+  var NIGHT_GLASS = { r:0.05, g:0.07, b:0.13, isColor:true };
   function stepMood(scene){
     var want = scene.userData.noMood ? 0 : (MOOD ? 1 : 0);
     if (scene.userData.moodApplied === MOOD_T && Math.abs(MOOD_T - want) < 0.003) return;
@@ -961,11 +963,58 @@
       var mid = (pc[0] + pc[1]) / 2;
       m.position.set(geom.origin.x + geom.axis.x * mid - geom.normal.x * back, (pc[2] + pc[3]) / 2, geom.origin.z + geom.axis.z * mid - geom.normal.z * back);
       m.receiveShadow = true;
-      m.castShadow = true;
+      m.castShadow = false; // shadows come from the room's shadow shell (addSunShell), which has the window holes
       scene.add(m);
       if (!mesh) mesh = m;
     });
     return mesh;
+  }
+
+  // Sunlight through a window (visual pass 3, 2026-10-06). The visible walls fade and have no holes for windows,
+  // so shadows come from an invisible shell instead: every solid wall with real openings for its windows (and plain
+  // openings), plus a ceiling. colorWrite/depthWrite off = it never shows, it only casts. The key light then becomes a
+  // low, warm sun outside the biggest window, so a bright patch of window light falls across the floor and units.
+  function addSunShell(THREE, scene, state, geoms, wallH, isOpenGeom, bbox){
+    var mat = new THREE.MeshBasicMaterial({ colorWrite:false, depthWrite:false });
+    var T = 0.12;
+    geoms.forEach(function(g, gi){
+      if (isOpenGeom(gi)) return;
+      var wid = state.walls[gi] && state.walls[gi].id;
+      var holes = (state.windows || []).filter(function(o){ return o.wallId === wid; }).map(function(o){ return { a:o.offsetMm / 1000, b:(o.offsetMm + o.widthMm) / 1000, lo:o.sillHeightMm / 1000, hi:(o.sillHeightMm + o.heightMm) / 1000 }; })
+        .concat((state.doors || []).filter(function(d){ return d.gap && d.wallId === wid; }).map(function(d){ return { a:d.offsetMm / 1000, b:(d.offsetMm + d.widthMm) / 1000, lo:0, hi:d.heightMm / 1000 }; }))
+        .sort(function(x, y){ return x.a - y.a; });
+      var q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(g.axis.x, 0, g.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(g.normal.x, 0, g.normal.z)));
+      function piece(a, b, lo, hi){
+        if (b - a < 0.005 || hi - lo < 0.005) return;
+        var m = new THREE.Mesh(new THREE.BoxGeometry(b - a, hi - lo, T), mat);
+        var mid = (a + b) / 2;
+        m.position.set(g.origin.x + g.axis.x * mid - g.normal.x * (T / 2 + 0.01), (lo + hi) / 2, g.origin.z + g.axis.z * mid - g.normal.z * (T / 2 + 0.01));
+        m.quaternion.copy(q); m.castShadow = true; m.receiveShadow = false; m.userData.sunShell = true;
+        scene.add(m);
+      }
+      var pos = -0.2; // run past the corners so no light leaks there
+      holes.forEach(function(h){
+        piece(pos, h.a, 0, wallH + 0.15);
+        piece(h.a, h.b, 0, h.lo); piece(h.a, h.b, h.hi, wallH + 0.15);
+        pos = h.b;
+      });
+      piece(pos, g.lenM + 0.2, 0, wallH + 0.15);
+    });
+    var lid = new THREE.Mesh(new THREE.BoxGeometry(bbox.w + 1, 0.1, bbox.d + 1), mat);
+    lid.position.set(bbox.cx, wallH + 0.06, bbox.cz); lid.castShadow = true; lid.userData.sunShell = true; scene.add(lid);
+  }
+  // the biggest window on a solid wall: { center, normal (into the room), axis, w, h } or null
+  function sunWindow(state, geoms, isOpenGeom){
+    var best = null;
+    (state.windows || []).forEach(function(o){
+      var gi = state.walls.findIndex(function(w){ return w.id === o.wallId; });
+      if (gi < 0 || isOpenGeom(gi)) return;
+      var g = geoms[gi], area = o.widthMm * o.heightMm;
+      if (best && best.area >= area) return;
+      var along = (o.offsetMm + o.widthMm / 2) / 1000;
+      best = { area:area, g:g, center:{ x:g.origin.x + g.axis.x * along, y:(o.sillHeightMm + o.heightMm / 2) / 1000, z:g.origin.z + g.axis.z * along }, w:o.widthMm / 1000, h:o.heightMm / 1000 };
+    });
+    return best;
   }
 
   // Window/door markers (Phase 7e) — a flat panel on the wall's inner face
@@ -980,9 +1029,9 @@
     var mat = isGap
       ? new THREE.MeshBasicMaterial({ color:SELECT_COLOR, transparent:true, opacity:selected ? 0.25 : 0, depthWrite:false, side:THREE.DoubleSide })
       : isWin
-      ? new THREE.MeshPhysicalMaterial({ color:0xbfd8e8, roughness:0.05, metalness:0, transparent:true, opacity:0.32, side:THREE.DoubleSide })
+      ? new THREE.MeshBasicMaterial({ color:selected ? 0xc9d4f4 : 0xf2f6f9, transparent:true, opacity:0.95, side:THREE.DoubleSide, toneMapped:false }) // daylight outside: the window reads as the bright light source it is; dusk blue in the evening (applyMood)
       : new THREE.MeshStandardMaterial({ color:0xd9d2c4, roughness:0.55, transparent:true, opacity:1, side:THREE.DoubleSide });
-    if (selected && !isGap){ mat.emissive = new THREE.Color(SELECT_COLOR); mat.emissiveIntensity = 0.55; }
+    if (selected && !isGap && !isWin){ mat.emissive = new THREE.Color(SELECT_COLOR); mat.emissiveIntensity = 0.55; }
     var mesh = new THREE.Mesh(new THREE.PlaneGeometry(widthM, heightM), mat);
     var cx = geom.origin.x + geom.axis.x * (offsetM + widthM / 2);
     var cz = geom.origin.z + geom.axis.z * (offsetM + widthM / 2);
@@ -1001,6 +1050,9 @@
     group.add(mesh);
     scene.add(group);
     if (pickables && meta) pickables.push(mesh);
+    if (isWin && !selected){ // brighter than white: the post-processing tone maps the whole frame, so daylight needs headroom
+      mat.color.setRGB(1.8, 1.86, 1.95); mat.userData.day = mat.color.clone(); (scene.userData.windowGlass = scene.userData.windowGlass || []).push(mat);
+    }
 
     // Frame, sill / door leaf detail — all children of the same group, so a
     // drag or selection treats the opening as one object.
@@ -3140,18 +3192,35 @@
     var dir = new THREE.DirectionalLight(0xfff5e6, 1.0);
     dir.position.set(bbox.cx + 3.2, 5.5, bbox.cz + 4);
     dir.target.position.set(bbox.cx, 0.8, bbox.cz);
+    var sunWin = !iso && !opts.people && geoms.closed ? sunWindow(state, geoms, isOpenGeom) : null;
+    var dirBase = 1.0;
+    if (sunWin){ // a low, warm sun outside the biggest window, slanting in across the room
+      addSunShell(THREE, scene, state, geoms, WALL_H, isOpenGeom, bbox);
+      var n = sunWin.g.normal, ax = sunWin.g.axis, elev = 0.52, skew = 0.45; // ~30° up, swung ~25° along the wall
+      var dx = n.x + ax.x * skew, dz = n.z + ax.z * skew, dl = Math.hypot(dx, dz); dx /= dl; dz /= dl; // horizontal heading into the room
+      var tgt = { x:sunWin.center.x + dx * 2.2, y:0, z:sunWin.center.z + dz * 2.2 };
+      dir.target.position.set(tgt.x, tgt.y, tgt.z);
+      dir.position.set(tgt.x - dx * 9 * Math.cos(elev), 9 * Math.sin(elev), tgt.z - dz * 9 * Math.cos(elev));
+      dir.color.set(0xffe4bd); dirBase = 4.6;
+      hemi.intensity = 0.62; // the shell blocks the sky light, so a little more fill
+    }
+    dir.intensity = dirBase;
+    if (!sunWin){ // no window to shine through: the walls themselves cast, as before
+      var wallMats = wallFades.map(function(w){ return w.mat; });
+      scene.children.forEach(function(o){ if (o.isMesh && wallMats.indexOf(o.material) >= 0) o.castShadow = true; });
+    }
     scene.add(dir.target);
     dir.castShadow = true;
     dir.shadow.mapSize.set(2048, 2048);
-    var SR = Math.max(bbox.w, bbox.d) * 0.75 + 1;
+    var SR = Math.max(bbox.w, bbox.d) * 0.75 + (sunWin ? 2.5 : 1);
     dir.shadow.camera.left = -SR; dir.shadow.camera.right = SR; dir.shadow.camera.top = SR; dir.shadow.camera.bottom = -SR;
-    dir.shadow.camera.near = 0.5; dir.shadow.camera.far = 18;
+    dir.shadow.camera.near = 0.5; dir.shadow.camera.far = sunWin ? 24 : 18;
     dir.shadow.bias = -0.0004; dir.shadow.normalBias = 0.02; dir.shadow.radius = 3;
     scene.add(dir);
     var fill = new THREE.DirectionalLight(0xdfe8ff, 0.22);
     fill.position.set(bbox.cx - 3, 3, bbox.cz - 3);
     scene.add(fill);
-    scene.userData.sceneLights = [{ light:hemi, base:0.5, mood:0.55 }, { light:dir, base:1.0, mood:0.12 }, { light:fill, base:0.22, mood:0.6 }]; // evening a bit brighter (2026-10-05)
+    scene.userData.sceneLights = [{ light:hemi, base:hemi.intensity, mood:0.55 }, { light:dir, base:dirBase, mood:sunWin ? 0 : 0.12 }, { light:fill, base:0.22, mood:0.6 }]; // evening a bit brighter (2026-10-05); no sun at night
     scene.userData.hemi = hemi;
     scene.userData.noMood = !!(opts.clean || opts.people); // previews and the drawing export always show daylight
     applyMood(scene);
@@ -4323,6 +4392,7 @@
     hideDragPreview3D: hideDragPreview3D,
     teardown3D: teardown3D,
     _three: function(){ return THREE_STATE; },
-    _quality: QUALITY
+    _quality: QUALITY,
+    _stepMood: function(n){ for (var i = 0; i < (n || 60); i++) if (THREE_STATE) stepMood(THREE_STATE.scene); return MOOD_T; } // debugging: rAF doesn't run in a hidden tab
   };
 })();
