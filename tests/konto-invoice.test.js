@@ -88,3 +88,9 @@ test("Konto draft: claim, 24% VAT, amounts ex VAT on the lines", () => {
   assert.equal(d.due_date, "2026-10-08");
   assert.equal(d.settlement_date, "2026-10-12");
 });
+
+test("installment lines are short — the project name lives in the invoice description", () => {
+  const p = { ...base, "Skipting greiðslu": "40% - 30% - 30%", "Uppsetning Bjarnarins 🪛🐻": false };
+  assert.equal(invoiceLines(p, "G1").lines[0].description, "Greiðsla 1 af 3 (40%) — innréttingar");
+  assert.equal(invoiceLines(p, "LOK").lines[0].description, "Lokagreiðsla 3 af 3 (30%) — innréttingar");
+});

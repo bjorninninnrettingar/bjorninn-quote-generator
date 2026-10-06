@@ -82,7 +82,6 @@ export function invoiceLines(project, payment) {
   const pct = SPLITS[split];
   if (!pct) return { lines: [], skip: `Skipting greiðslu vantar eða er óþekkt („${split}“)` };
 
-  const name = String(project[P.name] || "").trim();
   const n = pct.length;
   const confirmed = num(project[P.confirmed]);
   const base = confirmed || num(project[P.live]);
@@ -95,13 +94,13 @@ export function invoiceLines(project, payment) {
   const lines = [];
 
   if (payment === "G1") {
-    lines.push(line(`Greiðsla 1 af ${n} (${pctLabel(0)}) — innréttingar · ${name}`, base * pct[0]));
+    lines.push(line(`Greiðsla 1 af ${n} (${pctLabel(0)}) — innréttingar`, base * pct[0]));
     if (install > 0) lines.push(line("Uppsetning — 50% við staðfestingu", install * 0.5));
   } else if (payment === "G2") {
     if (n !== 3) return { lines: [], skip: `Greiðsla 2 á aðeins við 40–30–30 (verkið er ${split})` };
-    lines.push(line(`Greiðsla 2 af 3 (${pctLabel(1)}) — innréttingar · ${name}`, base * pct[1]));
+    lines.push(line(`Greiðsla 2 af 3 (${pctLabel(1)}) — innréttingar`, base * pct[1]));
   } else if (payment === "LOK") {
-    if (n > 1) lines.push(line(`Lokagreiðsla ${n} af ${n} (${pctLabel(n - 1)}) — innréttingar · ${name}`, base * pct[n - 1]));
+    if (n > 1) lines.push(line(`Lokagreiðsla ${n} af ${n} (${pctLabel(n - 1)}) — innréttingar`, base * pct[n - 1]));
     if (addInnr > 0) lines.push(line("Viðbætur skv. viðbótartilboði — innréttingar", addInnr));
     if (addUpps > 0) lines.push(line("Viðbætur skv. viðbótartilboði — uppsetning", addUpps));
     if (!lines.length) return { lines, skip: "100% greitt við staðfestingu og engar samþykktar viðbætur" };
