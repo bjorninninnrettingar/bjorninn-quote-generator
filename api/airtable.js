@@ -98,6 +98,10 @@ const ALLOWED_FIELDS = {
     "V hlið magn fræst", // per-side partial done tracking for a V/H hlið pair sharing one row (M=2×unit count)
     "H hlið magn fræst",
     "Eyðublað ✏️", // used by fraesing.html to group parts by unit
+    // Edge banding per edge (type + material) and the arrow summary — shown in
+    // /verk's Sögunarlisti section.
+    "KL🔄", "Kant F_h", "Kant B_h", "Kant V_h", "Kant H_h",
+    "Kant F_h efni", "Kant B_h efni", "Kant V_h efni", "Kant H_h efni",
   ],
   "tbl0WcyHhz63pSzZX": [ // Eyðublað ✏️ — read-only, used by fraesing.html to render one card per unit
     "Athugasemd", // primary field — the unit's own short name (e.g. "SK 20")

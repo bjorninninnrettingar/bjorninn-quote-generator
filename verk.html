@@ -257,6 +257,41 @@
   .sagbtn { flex:none; border:1px solid var(--green); background:none; color:var(--green); border-radius:10px; padding:10px 14px; font-family:var(--font); font-weight:800; font-size:.9rem; cursor:pointer; }
   .sagrow.done .sagbtn { border-color:var(--line); color:var(--muted); }
 
+
+  /* Sögunarlisti — every piece of the project, grouped by unit. Read-only
+     overview for the floor tablet (replaces Airtable's Sögunarlisti page). */
+  #sogSec .sec-h { color:var(--sec-prog); display:flex; justify-content:space-between; gap:10px; }
+  #sogSec .sec-h .sog-count { color:var(--muted); letter-spacing:.04em; }
+  .sog-tools { display:flex; flex-direction:column; gap:8px; margin-bottom:10px; }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; }
+  .chip { border:1px solid var(--line); background:var(--surface); color:var(--text); border-radius:999px; padding:8px 14px; font-family:var(--font); font-weight:700; font-size:.88rem; cursor:pointer; }
+  .chip.on { background:var(--blue); border-color:var(--blue); color:#fff; }
+  .chip:focus-visible, .sgrp-h:focus-visible, .piece:focus-visible { outline:3px solid var(--blue); outline-offset:2px; }
+  .sgrp { background:var(--surface); border:1px solid var(--line); border-radius:10px; overflow:hidden; margin-bottom:8px; }
+  .sgrp-h { display:flex; align-items:center; gap:10px; padding:13px 14px; cursor:pointer; width:100%; background:none; border:0; color:var(--text); font-family:var(--font); text-align:left; }
+  .sgrp-h .gn { font-weight:800; font-size:1rem; }
+  .sgrp-h .gt { color:var(--muted); font-size:.82rem; font-weight:500; }
+  .sgrp-h .gc { margin-left:auto; font-size:.82rem; font-weight:700; color:var(--muted); white-space:nowrap; }
+  .sgrp-h .gc.all { color:var(--green); }
+  .sgrp-h .cv { color:var(--muted); font-size:.85rem; transition:transform .15s; }
+  .sgrp.open .sgrp-h .cv { transform:rotate(90deg); }
+  .sgrp-b { display:none; }
+  .sgrp.open .sgrp-b { display:block; }
+  .piece { border-top:1px solid var(--line); padding:11px 14px; cursor:pointer; }
+  .piece-top { display:flex; align-items:baseline; gap:10px; }
+  .piece-n { font-weight:800; font-size:.98rem; flex:1; min-width:0; }
+  .pill { font-size:.72rem; font-weight:800; border-radius:999px; padding:3px 9px; white-space:nowrap; }
+  .pill.ok { background:rgba(76,175,80,.18); color:var(--green); }
+  .pill.todo { background:rgba(255,214,10,.16); color:var(--amber); }
+  .pill.mill { background:rgba(10,132,255,.16); color:var(--blue); }
+  .piece-dim { font-size:1.05rem; font-weight:700; font-variant-numeric:tabular-nums; margin-top:2px; }
+  .piece-sub { color:var(--muted); font-size:.82rem; margin-top:2px; }
+  .piece-note { font-size:.85rem; margin-top:4px; color:var(--amber); }
+  .piece-more { display:none; margin-top:8px; font-size:.84rem; grid-template-columns:auto 1fr; gap:3px 12px; }
+  .piece.open .piece-more { display:grid; }
+  .piece-more .k { color:var(--muted); font-weight:700; }
+  .sog-empty { color:var(--muted); text-align:center; padding:18px; }
+
   #loading,#error { text-align:center; color:var(--muted); padding:70px 20px; }
   #error strong { display:block; color:var(--text); font-size:1.1rem; margin-bottom:6px; }
   .hidden { display:none !important; }
@@ -312,6 +347,20 @@
       <div class="sec-h">Teikningar</div>
       <div class="draws" id="draws"></div>
       <div class="imgs" id="imgs"></div>
+    </section>
+
+
+    <section id="sogSec" class="hidden">
+      <div class="sec-h"><span>🪚 Sögunarlisti</span><span class="sog-count" id="sogCount"></span></div>
+      <div class="sog-tools">
+        <input type="search" class="usearch" id="sogSearch" placeholder="Leita: partur, eining, mál eða efni…" autocomplete="off" style="margin-bottom:0">
+        <div class="chips" role="group" aria-label="Sía">
+          <button type="button" class="chip on" data-f="all">Allt</button>
+          <button type="button" class="chip" data-f="todo">Ósagað</button>
+          <button type="button" class="chip" data-f="mill">Yfirfræsing</button>
+        </div>
+      </div>
+      <div id="sogList"></div>
     </section>
 
     <section id="progSec" class="hidden">
@@ -668,11 +717,13 @@
   // (old + new; some units are only linked via the old one), same reasoning
   // as everywhere else: FIND/substring is fine at the project-name level
   // (long, distinctive strings) but exact equality is what's safe.
-  function renderUnits(projectName, projectId, k){
-    if (!projectName) return;
+  function fetchUnits(projectName, k){
     var formula = "OR(ARRAYJOIN({Tækifæri 📣 (projects)})=\""+projectName.replace(/"/g,'\\"')+"\", "+
                   "ARRAYJOIN({Tækifæri 📣})=\""+projectName.replace(/"/g,'\\"')+"\")";
-    fetchAll(UNIT_TABLE, { filterByFormula: formula, pageSize: 100 }, k)
+    return fetchAll(UNIT_TABLE, { filterByFormula: formula, pageSize: 100 }, k);
+  }
+  function renderUnits(unitsP, projectId, k){
+    unitsP
       .then(function(recs){
         if (!recs.length) return;
 
@@ -743,7 +794,7 @@
   // /saga floor mode) — the last one previously linked to plain "/saga"
   // with no ?recordId=, so the floor guide never actually opened THIS
   // project; fixed here.
-  function renderTools(t, f, rawName){
+  function renderTools(t, f, piecesP){
     $("tools").innerHTML =
       '<a class="tool2 c-purple" href="#progSec">'+
         '<span class="t2-ic">📊</span><span class="t2-t">Framvinda</span>'+
@@ -755,7 +806,7 @@
       '<a class="tool2 c-blue" href="/saga?recordId='+encodeURIComponent(t)+'">'+
         '<span class="t2-ic">🪚</span><span class="t2-t">F2 – Vígindi</span></a>';
 
-    loadFramvindaStat(rawName);
+    loadFramvindaStat(piecesP);
   }
 
   // The Framvinda tile's SÖG/Fræs readout used to read the Tækifæri rollup
@@ -764,11 +815,14 @@
   // live query against Sögunarlisti found a real unit needing milling).
   // Computed live from Sögunarlisti instead — same source, same fields
   // (Lokið/Yfirfr./Fræst), as eining.html's own per-unit SÖG/FRÆS table.
-  function loadFramvindaStat(rawName){
-    var el = $("framvindaStat");
-    if (!el || !rawName) return;
+  function fetchPieces(rawName){
     var formula = "ARRAYJOIN({Tækifæri 📣 (projects)})=\""+rawName.replace(/"/g,'\\"')+"\"";
-    fetchAll(SOGUNARLISTI_TABLE, { filterByFormula: formula, pageSize: 100 }, null)
+    return fetchAll(SOGUNARLISTI_TABLE, { filterByFormula: formula, pageSize: 100 }, null);
+  }
+  function loadFramvindaStat(piecesP){
+    var el = $("framvindaStat");
+    if (!el) return;
+    piecesP
       .then(function(recs){
         var sawDone = true, needsMill = false, millDone = true;
         var unsawn = [];
@@ -912,6 +966,106 @@
     show(box);
   }
 
+
+  // ── Sögunarlisti ──────────────────────────────────────────────────────
+  var sog = { rows:[], units:{}, filter:"all", q:"", open:{} };
+  var EDGES = [["F","Kant F_h"],["B","Kant B_h"],["V","Kant V_h"],["H","Kant H_h"]];
+
+  function pieceText(r){
+    var f = r.fields || {}, u = sog.units[arr(f["Eyðublað ✏️"])[0]] || {};
+    return [txt(f.Partur), u.name, txt(f.Athugasemd), f.H, f.B, f["Þ"], txt(f["Efni:"])].join(" ").toLowerCase();
+  }
+  function pieceVisible(r){
+    var f = r.fields || {};
+    if (sog.filter === "todo" && f["Lokið"]) return false;
+    if (sog.filter === "mill" && !f["Yfirfr."]) return false;
+    return !sog.q || pieceText(r).indexOf(sog.q) !== -1;
+  }
+  function pieceHTML(r){
+    var f = r.fields || {};
+    var pills = (f["Lokið"] ? '<span class="pill ok">Sagað ✓</span>' : '<span class="pill todo">Ósagað</span>') +
+      (f["Yfirfr."] ? (f["Fræst"] ? ' <span class="pill ok">Fræst ✓</span>' : ' <span class="pill mill">🔬 Fræsa</span>') : '');
+    var dims = [f.H, f.B, f["Þ"]].filter(function(x){ return x != null && x !== ""; }).join(" × ");
+    var kl = txt(f["KL🔄"]);
+    var note = String(txt(f.Athugasemd)).split("|").slice(1).join("|").trim();
+    var more = EDGES.map(function(e){
+      var t = txt(f[e[1]]); if (!t) return "";
+      var m = txt(f[e[1]+" efni"]);
+      return '<span class="k">Kantur '+e[0]+'</span><span>'+esc(t)+(m ? " — "+esc(m) : "")+'</span>';
+    }).join("");
+    if (f["Skurðarnúmer"]) more += '<span class="k">Kóði</span><span>'+esc(String(txt(f["Skurðarskrá"])).replace(/^CUTLST00-(\d+).*/, "$1"))+"·"+esc(f["Skurðarnúmer"])+'</span>';
+    if (txt(f["Villa?"])) more += '<span class="k">Villa</span><span>'+esc(txt(f["Villa?"]))+'</span>';
+    return '<div class="piece" tabindex="0" data-id="'+r.id+'">'+
+      '<div class="piece-top"><span class="piece-n">'+esc(txt(f.Partur) || "Hluti")+'</span>'+pills+'</div>'+
+      '<div class="piece-dim">'+esc(dims ? dims+" mm" : "")+(f.M ? ' · '+esc(f.M)+' stk' : '')+'</div>'+
+      '<div class="piece-sub">'+esc(txt(f["Efni:"]))+(kl ? ' · Kantur '+esc(kl) : '')+'</div>'+
+      (note ? '<div class="piece-note">'+esc(note)+'</div>' : '')+
+      (more ? '<div class="piece-more">'+more+'</div>' : '')+
+    '</div>';
+  }
+  function renderSog(){
+    var groups = new Map();
+    sog.rows.forEach(function(r){
+      var uid = arr((r.fields||{})["Eyðublað ✏️"])[0] || "_";
+      if (!groups.has(uid)) groups.set(uid, []);
+      groups.get(uid).push(r);
+    });
+    var done = sog.rows.filter(function(r){ return (r.fields||{})["Lokið"]; }).length;
+    $("sogCount").textContent = done + " / " + sog.rows.length + " sagað";
+    // A unit with no name of its own falls back to the name on its pieces
+    // (Sögunarlisti "Athugasemd" = "SK 12 HELLUBORÐ | note").
+    groups.forEach(function(rows, uid){
+      var u = sog.units[uid] = sog.units[uid] || {};
+      if (!u.name) u.name = String(txt((rows[0].fields||{}).Athugasemd)).split("|")[0].trim();
+    });
+    var keys = [...groups.keys()].sort(function(a, b){
+      var na = (sog.units[a]||{}).name || "~", nb = (sog.units[b]||{}).name || "~";
+      return na.localeCompare(nb, "is", { numeric:true });
+    });
+    var html = keys.map(function(uid){
+      var rows = groups.get(uid), vis = rows.filter(pieceVisible);
+      if (!vis.length) return "";
+      vis.sort(function(a, b){ return txt(a.fields.Partur).localeCompare(txt(b.fields.Partur), "is"); });
+      var u = sog.units[uid] || {}, d = rows.filter(function(r){ return r.fields["Lokið"]; }).length;
+      var open = sog.q || sog.filter !== "all" || sog.open[uid];
+      return '<div class="sgrp'+(open ? " open" : "")+'" data-u="'+esc(uid)+'">'+
+        '<button type="button" class="sgrp-h"><span><span class="gn">'+esc(u.name || "Án einingar")+'</span>'+
+        (u.type ? ' <span class="gt">'+esc(u.type)+'</span>' : '')+'</span>'+
+        '<span class="gc'+(d === rows.length ? " all" : "")+'">'+d+'/'+rows.length+'</span><span class="cv">▸</span></button>'+
+        '<div class="sgrp-b">'+vis.map(pieceHTML).join("")+'</div></div>';
+    }).join("");
+    $("sogList").innerHTML = html || '<div class="sog-empty">Ekkert passar við leitina.</div>';
+  }
+  $("sogList").addEventListener("click", function(e){
+    var h = e.target.closest(".sgrp-h");
+    if (h) { var g = h.parentNode; g.classList.toggle("open"); sog.open[g.dataset.u] = g.classList.contains("open"); return; }
+    var p = e.target.closest(".piece");
+    if (p) p.classList.toggle("open");
+  });
+  $("sogList").addEventListener("keydown", function(e){
+    var p = e.target.closest(".piece");
+    if (p && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); p.classList.toggle("open"); }
+  });
+  $("sogSearch").addEventListener("input", function(){ sog.q = this.value.trim().toLowerCase(); renderSog(); });
+  document.querySelectorAll("#sogSec .chip").forEach(function(c){
+    c.addEventListener("click", function(){
+      document.querySelectorAll("#sogSec .chip").forEach(function(x){ x.classList.toggle("on", x === c); });
+      sog.filter = c.dataset.f; renderSog();
+    });
+  });
+  function loadSog(piecesP, unitsP){
+    Promise.all([piecesP, unitsP.catch(function(){ return []; })]).then(function(res){
+      sog.rows = res[0] || [];
+      if (!sog.rows.length) return;
+      (res[1] || []).forEach(function(u){
+        var uf = u.fields || {};
+        sog.units[u.id] = { name: txt(uf["Athugasemd"]), type: txt(uf["Tegund einingu"]) };
+      });
+      renderSog();
+      show($("sogSec"));
+    }).catch(function(e){ console.error("Sögunarlisti failed:", e); });
+  }
+
   function render(rec, projectId, k){
     var f = rec.fields || {};
     // rawName (unstripped) is what Eyðublað's ARRAYJOIN({Tækifæri...}) will
@@ -948,8 +1102,11 @@
     try { renderDraws(f); } catch(e){}
     try { renderProg(f); } catch(e){}
     try { renderMat(f); } catch(e){}
-    try { renderUnits(rawName, projectId, k); } catch(e){}
-    renderTools(projectId, f, rawName);
+    var unitsP = rawName ? fetchUnits(rawName, k) : Promise.resolve([]);
+    var piecesP = rawName ? fetchPieces(rawName) : Promise.resolve([]);
+    try { renderUnits(unitsP, projectId, k); } catch(e){}
+    try { loadSog(piecesP, unitsP); } catch(e){ console.error(e); }
+    renderTools(projectId, f, piecesP);
 
     hide($("loading"));
     show($("content"));
