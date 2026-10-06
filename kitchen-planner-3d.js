@@ -2545,6 +2545,7 @@
     cancelAnimationFrame(THREE_STATE.rafId);
     window.removeEventListener("resize", THREE_STATE.onResize);
     if (THREE_STATE.composer){ THREE_STATE.composer.dispose(); THREE_STATE.composer = null; } // the evening bloom's render targets
+    if (THREE_STATE.aoComposer){ THREE_STATE.aoComposer.dispose(); THREE_STATE.aoComposer = null; }
     if (THREE_STATE.cleanupInteraction) THREE_STATE.cleanupInteraction();
     THREE_STATE.controls.dispose();
     disposeScene(THREE_STATE.scene);
@@ -3119,6 +3120,7 @@
         window.dispatchEvent(new Event("kp3d-context-lost"));
       });
     }
+    applyToneMapping(THREE, renderer);
     wrap.appendChild(renderer.domElement);
 
     // Subtle image-based lighting so steel, handles and the satin finish pick up
@@ -3168,6 +3170,7 @@
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
       if (THREE_STATE && THREE_STATE.composer) THREE_STATE.composer.setSize(w, h);
+      if (THREE_STATE && THREE_STATE.aoComposer) THREE_STATE.aoComposer.setSize(w, h);
     }
     resize();
     window.addEventListener("resize", resize);
@@ -3266,17 +3269,11 @@
     // renderShot() settles the fades itself (synchronously) — rAF doesn't run in a background tab,
     // and a customer switching tabs mid-submit must not stall the drawing export.
     THREE_STATE.stepFades = function(){ fadeWalls(); fadeCabinets(); };
-    function loop(){
-      THREE_STATE.rafId = requestAnimationFrame(loop);
-      controls.update();
-      settleLanded();
-      if (THREE_STATE.dragStep) THREE_STATE.dragStep();
-      fadeWalls();
-      fadeCabinets();
-      stepParts(scene);
-      stepMood(scene);
-      if (people) people.people.forEach(function(m){ m.rotation.y = Math.atan2(camera.position.x - m.position.x, camera.position.z - m.position.z); });
-      // evening: bloom so the LED strips glow; daylight renders straight
+    var lastMove = performance.now();
+    controls.addEventListener("change", function(){ lastMove = performance.now(); });
+    renderer.setPixelRatio(qualityPixelRatio());
+    // one frame: the evening bloom, or the still-view AO, or a straight render while things move
+    function renderFrame(forceAO){
       if (MOOD_T > 0.02 && !scene.userData.noMood && window.__POST__){
         if (!THREE_STATE.composer){
           var P = window.__POST__, sz = renderer.getSize(new THREE.Vector2()), cmp = new P.EffectComposer(renderer);
@@ -3286,7 +3283,28 @@
           THREE_STATE.composer = cmp;
         }
         THREE_STATE.composer.render();
-      } else renderer.render(scene, camera);
+        return;
+      }
+      var still = forceAO || (!THREE_STATE.dragging && performance.now() - lastMove > 250);
+      if (still && QUALITY.level === 0 && !opts.noAO){
+        if (!THREE_STATE.aoComposer){ THREE_STATE.aoComposer = makeAOComposer(THREE, renderer, scene, camera); if (THREE_STATE.aoComposer){ var s2 = renderer.getSize(new THREE.Vector2()); THREE_STATE.aoComposer.setSize(s2.x, s2.y); } }
+        if (THREE_STATE.aoComposer){ THREE_STATE.aoComposer.render(); return; }
+      }
+      renderer.render(scene, camera);
+    }
+    THREE_STATE.renderFrame = renderFrame;
+    function loop(ts){
+      THREE_STATE.rafId = requestAnimationFrame(loop);
+      qualityTick(ts || performance.now(), renderer, resize);
+      controls.update();
+      settleLanded();
+      if (THREE_STATE.dragStep) THREE_STATE.dragStep();
+      fadeWalls();
+      fadeCabinets();
+      stepParts(scene);
+      stepMood(scene);
+      if (people) people.people.forEach(function(m){ m.rotation.y = Math.atan2(camera.position.x - m.position.x, camera.position.z - m.position.z); });
+      renderFrame(false);
       placeFloatBar();
     }
     loop();
@@ -3499,6 +3517,7 @@
       });
     }
     renderer.domElement.style.width = "100%"; renderer.domElement.style.height = "100%"; // the shared canvas may carry pixel sizes from the room view
+    applyToneMapping(THREE, renderer);
     wrap.appendChild(renderer.domElement);
     if (window.__RoomEnvironment__){
       if (!sharedEnv){
@@ -3651,59 +3670,328 @@
     });
     return top;
   }
+  // Where a new decor item goes (2026-10-06): floor items take the most open spot (away from cabinets, islands,
+  // walls and other furniture, then nearest the room centre); bar stools line up behind an island; a rug goes under
+  // the dining table; worktop items take the next free spot along a counter (never on top of each other or in a
+  // sink); a pendant hangs over the island / table. Returns {x, z} in mm, or null (top item but no counter).
+  var DECOR_FOOT = { bordFer:[1.75, 1.85], bordHring:[1.6, 1.6], barstoll:[0.45, 0.45], planta:[0.5, 0.5], motta:[2.0, 1.4], hengiljos:[0.4, 0.4] };
+  function floorRects(state){ // every floor cabinet as a corner quad (m), walls and islands
+    var surf = surfacesOf(state), geoms = surfaceGeoms(state), out = [];
+    surf.forEach(function(w, wi){
+      var g = geoms[wi]; if (!g || w.open) return;
+      var starts = blockStartsMm(w.floor, cornerClearanceMm(surf, wi, "floor"));
+      w.floor.forEach(function(b, i){ out.push({ q:rectCornersWorld(g, starts[i], b.widthMm, b.depthMm || CATALOG[b.type].d), b:b, g:g, start:starts[i] }); });
+    });
+    return out;
+  }
+  function distToSeg(px, pz, a, b){
+    var vx = b.x - a.x, vz = b.z - a.z, t = Math.max(0, Math.min(1, ((px - a.x) * vx + (pz - a.z) * vz) / (vx * vx + vz * vz || 1)));
+    return Math.hypot(px - (a.x + vx * t), pz - (a.z + vz * t));
+  }
+  function inPoly(px, pz, pts){
+    var inside = false;
+    for (var i = 0, j = pts.length - 1; i < pts.length; j = i++){
+      if (((pts[i].z > pz) !== (pts[j].z > pz)) && (px < (pts[j].x - pts[i].x) * (pz - pts[i].z) / (pts[j].z - pts[i].z) + pts[i].x)) inside = !inside;
+    }
+    return inside;
+  }
+  function decorSpot(state, kind){
+    var def = DECOR[kind]; if (!def) return null;
+    var decor = state.decor || [], rb = roomBounds(state); if (!rb) return null;
+    var cx = (rb.minX + rb.maxX) / 2, cz = (rb.minZ + rb.maxZ) / 2;
+    var rad = function(k){ var f = DECOR_FOOT[k] || [(DECOR[k].w || 300) / 1000, (DECOR[k].d || 300) / 1000]; return Math.hypot(f[0], f[1]) / 2 * 0.78; };
+    var table = decor.find(function(d){ return d.kind === "bordFer" || d.kind === "bordHring"; });
+    if (def.group === "ceiling"){
+      var isl = (state.islands || [])[0], n = decor.filter(function(d){ return d.kind === kind; }).length;
+      var at = isl ? { x:isl.xMm / 1000, z:isl.zMm / 1000, ax:islandFrame(isl).axis, len:isl.lengthMm / 1000 } : table ? { x:table.xMm / 1000, z:table.zMm / 1000, ax:{ x:1, z:0 }, len:1.2 } : { x:cx, z:cz, ax:{ x:1, z:0 }, len:1 };
+      var off = n ? ((n % 2 ? 1 : -1) * Math.ceil(n / 2) * Math.min(0.7, at.len / 3)) : 0;
+      return { x:Math.round((at.x + at.ax.x * off) * 1000), z:Math.round((at.z + at.ax.z * off) * 1000) };
+    }
+    if (def.group === "top"){
+      var tops = decor.filter(function(d){ return DECOR[d.kind] && DECOR[d.kind].group === "top"; });
+      var me = Math.max(def.w, def.d) / 2000, best = null;
+      floorRects(state).some(function(r){
+        var c = CATALOG[r.b.type]; if (!c.counter || c.sink || c.panel) return false;
+        var depth = (r.b.depthMm || c.d) / 1000, wM = r.b.widthMm / 1000;
+        for (var t = me + 0.04; t <= wM - me - 0.04 + 1e-6; t += 0.05){
+          var along = r.start / 1000 + t, out = Math.min(depth - me - 0.05, Math.max(me + 0.08, depth * 0.55));
+          var p = { x:r.g.origin.x + r.g.axis.x * along + r.g.normal.x * out, z:r.g.origin.z + r.g.axis.z * along + r.g.normal.z * out };
+          var free = tops.every(function(d){ return Math.hypot(d.xMm / 1000 - p.x, d.zMm / 1000 - p.z) > me + Math.max(DECOR[d.kind].w, DECOR[d.kind].d) / 2000 + 0.03; });
+          if (free){ best = p; return true; }
+        }
+        return false;
+      });
+      return best ? { x:Math.round(best.x * 1000), z:Math.round(best.z * 1000) } : null;
+    }
+    if (kind === "motta" && table) return { x:table.xMm, z:table.zMm };
+    if (kind === "barstoll" && (state.islands || []).length){
+      var isl2 = state.islands[0], f2 = islandFrame(isl2), L2 = isl2.lengthMm / 1000, stools = decor.filter(function(d){ return d.kind === "barstoll"; });
+      var backOut = isl2.two ? -(0.6 + 0.35) : -0.36; // behind a one-row island (its back), or past the B row
+      for (var s = 0; s < 8; s++){
+        var along2 = -L2 / 2 + 0.3 + s * 0.55; if (along2 > L2 / 2 - 0.2) break;
+        var q = { x:isl2.xMm / 1000 + f2.axis.x * along2 + f2.normal.x * backOut, z:isl2.zMm / 1000 + f2.axis.z * along2 + f2.normal.z * backOut };
+        if (stools.every(function(d){ return Math.hypot(d.xMm / 1000 - q.x, d.zMm / 1000 - q.z) > 0.4; })) return { x:Math.round(q.x * 1000), z:Math.round(q.z * 1000) };
+      }
+    }
+    // the most open spot on the floor
+    var walls = wallGeoms(state), poly = walls.map(function(g){ return g.origin; });
+    var rects = floorRects(state), others = decor.filter(function(d){ return DECOR[d.kind] && DECOR[d.kind].group === "floor" && d.kind !== "motta"; });
+    var myR = rad(kind), pick = null, pickScore = -1e9;
+    for (var x = rb.minX + 0.2; x <= rb.maxX - 0.2; x += 0.1){
+      for (var z = rb.minZ + 0.2; z <= rb.maxZ - 0.2; z += 0.1){
+        if (walls.closed && poly.length >= 3 && !inPoly(x, z, poly)) continue;
+        var clear = 9;
+        walls.forEach(function(g, i){ if (!walls.closed && i === walls.length - 1) return; var e = { x:g.origin.x + g.axis.x * g.lenM, z:g.origin.z + g.axis.z * g.lenM }; clear = Math.min(clear, distToSeg(x, z, g.origin, e)); });
+        rects.forEach(function(r){ var q = r.q; if (inPoly(x, z, q)) clear = -1; else for (var k = 0; k < 4; k++) clear = Math.min(clear, distToSeg(x, z, q[k], q[(k + 1) % 4]) - (kind === "motta" ? 0 : 0.3)); });
+        others.forEach(function(d){ clear = Math.min(clear, Math.hypot(d.xMm / 1000 - x, d.zMm / 1000 - z) - rad(d.kind) - 0.1); });
+        clear -= myR;
+        // no room anywhere (a big table in a small kitchen): the spot that overlaps least, never the island's middle
+        var score = clear < 0 ? -10 + clear * 5 : Math.min(clear, 0.5) * 2 - Math.hypot(x - cx, z - cz) * 0.25;
+        if (score > pickScore){ pickScore = score; pick = { x:x, z:z }; }
+      }
+    }
+    if (!pick) pick = { x:cx, z:cz };
+    return { x:Math.round(pick.x / 0.05) * 50, z:Math.round(pick.z / 0.05) * 50 };
+  }
+  // Furniture & decor models (rebuilt 2026-10-06 for realism): still procedural (no downloads, instant), but turned
+  // profiles (LatheGeometry), rounded edges, real leaf shapes, wood grain and woven textures. Shared geometries and
+  // textures are cached per page (DECOR_CACHE) so a rebuild of the scene costs next to nothing.
+  var DECOR_CACHE = {};
+
+  // ---- Render quality (2026-10-06 visual pass) ----
+  // Filmic tone mapping on every scene; ambient occlusion (GTAOPass) only while the view is still, so orbiting and
+  // dragging stay as fast as before; and a governor that steps quality down when frames get slow on a weak machine
+  // (0 = AO + full pixel ratio, 1 = no AO, 2 = pixel ratio ≤ 1.5, 3 = pixel ratio 1) and back up when there's room.
+  var QUALITY = { level:/[?&]q=low\b/.test(location.search) ? 3 : 0, ema:16, slowSince:0, fastSince:0, last:0 };
+  function applyToneMapping(THREE, renderer){
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+  }
+  function qualityPixelRatio(){ var d = window.devicePixelRatio || 1; return Math.min(d, QUALITY.level >= 3 ? 1 : QUALITY.level >= 2 ? 1.5 : 2); }
+  function qualityTick(ts, renderer, onChange){
+    if (document.visibilityState !== "visible"){ QUALITY.last = 0; return; }
+    var dt = QUALITY.last ? ts - QUALITY.last : 16; QUALITY.last = ts;
+    if (dt > 250) return; // tab was hidden / throttled — not a real frame time
+    QUALITY.ema += (dt - QUALITY.ema) * 0.05;
+    var now = ts;
+    if (QUALITY.ema > 33){ QUALITY.fastSince = 0; QUALITY.slowSince = QUALITY.slowSince || now; }
+    else if (QUALITY.ema < 12){ QUALITY.slowSince = 0; QUALITY.fastSince = QUALITY.fastSince || now; }
+    else { QUALITY.slowSince = 0; QUALITY.fastSince = 0; }
+    var lvl = QUALITY.level;
+    if (QUALITY.slowSince && now - QUALITY.slowSince > 2000 && lvl < 3){ lvl++; QUALITY.slowSince = 0; QUALITY.ema = 20; }
+    else if (QUALITY.fastSince && now - QUALITY.fastSince > 8000 && lvl > 0 && !/[?&]q=low\b/.test(location.search)){ lvl--; QUALITY.fastSince = 0; }
+    if (lvl !== QUALITY.level){
+      QUALITY.level = lvl;
+      var pr = qualityPixelRatio();
+      if (renderer.getPixelRatio() !== pr){ renderer.setPixelRatio(pr); if (onChange) onChange(); }
+    }
+  }
+  // Ambient occlusion composer for the room view. Things that must not darken their surroundings — faded walls,
+  // see-through cabinets, LED strips/glows, outlines, selection rings — are hidden for GTAO's own depth/normal pass.
+  function makeAOComposer(THREE, renderer, scene, camera){
+    var P = window.__POST__; if (!P || !P.GTAOPass) return null;
+    var sz = renderer.getSize(new THREE.Vector2()), cmp = new P.EffectComposer(renderer);
+    cmp.addPass(new P.RenderPass(scene, camera));
+    var ao = new P.GTAOPass(scene, camera, sz.x, sz.y);
+    ao.updateGtaoMaterial({ radius:0.2, distanceExponent:1.2, thickness:0.25, scale:2.2, distanceFallOff:0.5, samples:16 }); // low thickness = no dark halos round things in front of a wall
+    ao.updatePdMaterial({ lumaPhi:10, depthPhi:2, normalPhi:3, radius:12, rings:3, samples:24 });
+    ao.blendIntensity = 1;
+    var orig = ao.render.bind(ao);
+    ao.render = function(r, w, rd, dt, m){
+      var hidden = [];
+      scene.traverse(function(o){
+        if (!o.visible || !(o.isMesh || o.isLine || o.isLineSegments || o.isPoints || o.isSprite)) return;
+        var ms = Array.isArray(o.material) ? o.material : [o.material];
+        var skip = !o.isMesh || ms.some(function(mm){ return !mm || mm.isMeshBasicMaterial || (mm.transparent && (mm.opacity < 0.95 || mm.blending !== THREE.NormalBlending)) || mm.visible === false; });
+        if (skip){ o.visible = false; hidden.push(o); }
+      });
+      orig(r, w, rd, dt, m);
+      hidden.forEach(function(o){ o.visible = true; });
+    };
+    cmp.addPass(ao);
+    cmp.addPass(new P.OutputPass());
+    return cmp;
+  }
+  function decorTex(THREE, key, make, rx, ry, rot){
+    var t = DECOR_CACHE["tex:" + key];
+    if (!t){ t = new THREE.CanvasTexture(make()); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; DECOR_CACHE["tex:" + key] = t; }
+    if (rx){ t = t.clone(); t.needsUpdate = true; t.repeat.set(rx, ry || rx); if (rot){ t.center.set(0.5, 0.5); t.rotation = rot; } }
+    return t;
+  }
+  // Straight-grained oak for furniture: fine fibres and soft growth bands along v, built only from periodic
+  // functions so the tile repeats with no seam (one tile ≈ 0.25 m across × 1 m along the grain).
+  function oakCanvas(hex){
+    var W = 512, H = 512, c = document.createElement("canvas"); c.width = W; c.height = H;
+    var x = c.getContext("2d"), img = x.createImageData(W, H), d = img.data;
+    var base = [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)], TAU = Math.PI * 2;
+    var fib = []; for (var i = 0; i < W; i++) fib.push(Math.random());
+    for (var j = 0; j < H; j++) for (var i2 = 0; i2 < W; i2++){
+      var u = i2 / W, v = j / H;
+      var wob = 0.004 * Math.sin(TAU * (2 * v + 3 * u)) + 0.002 * Math.sin(TAU * 5 * v);
+      var band = 0.5 + 0.5 * Math.sin(TAU * (7 * (u + wob)) + 1.7 * Math.sin(TAU * 2 * u));
+      var band2 = 0.5 + 0.5 * Math.sin(TAU * (19 * (u + wob * 1.3)));
+      var f = fib[i2] * 0.5 + fib[(i2 + 1) % W] * 0.25 + fib[(i2 + W - 1) % W] * 0.25;
+      var l = 0.9 + 0.1 * band + 0.05 * band2 - 0.07 * Math.pow(f, 3) + 0.025 * Math.sin(TAU * 3 * v + u * 9);
+      var k = (j * W + i2) * 4;
+      d[k] = Math.min(255, base[0] * l); d[k + 1] = Math.min(255, base[1] * l * 0.99); d[k + 2] = Math.min(255, base[2] * l * 0.97); d[k + 3] = 255;
+    }
+    x.putImageData(img, 0, 0); return c;
+  }
+  // rx/ry = tiles across/along the face; the grain runs along v (rot = π/2 lays it along u)
+  function decorWoodMat(THREE, hex, rx, ry, rough, rot){
+    var map = decorTex(THREE, "oak" + hex, function(){ return oakCanvas(hex); }, rx || 1, ry || 1, rot);
+    return new THREE.MeshStandardMaterial({ color:map ? 0xffffff : hex, map:map, roughness:rough == null ? 0.55 : rough, metalness:0 });
+  }
+  function rugCanvas(){ // woven wool: fine weft noise, a two-tone border and a soft herringbone body
+    var S = 512, c = document.createElement("canvas"); c.width = c.height = S;
+    var x = c.getContext("2d"), img = x.createImageData(S, S), d = img.data;
+    for (var j = 0; j < S; j++) for (var i = 0; i < S; i++){
+      var k = (j * S + i) * 4, b = Math.min(i, j, S - 1 - i, S - 1 - j);
+      var base = b < 22 ? [92, 84, 74] : b < 34 ? [214, 205, 190] : [196, 186, 170];
+      var weave = ((i >> 2) + (j >> 2)) % 2 ? 1.03 : 0.97, hb = (((i + (j % 16 < 8 ? j : -j)) >> 3) % 2) ? 1.02 : 0.98;
+      var n = 0.94 + Math.random() * 0.12, f = weave * n * (b < 34 ? 1 : hb);
+      d[k] = Math.min(255, base[0] * f); d[k + 1] = Math.min(255, base[1] * f); d[k + 2] = Math.min(255, base[2] * f); d[k + 3] = 255;
+    }
+    x.putImageData(img, 0, 0); return c;
+  }
+  function leafGeometry(THREE, len, wid, bend, notch){
+    var key = "leaf" + [len, wid, bend, notch].join("_"), g = DECOR_CACHE[key];
+    if (g) return g;
+    var s = new THREE.Shape();
+    s.moveTo(0, 0);
+    s.bezierCurveTo(wid * 0.9, len * 0.12, wid * 1.05, len * 0.62, 0, len);
+    s.bezierCurveTo(-wid * 1.05, len * 0.62, -wid * 0.9, len * 0.12, 0, 0);
+    g = new THREE.ShapeGeometry(s, 10);
+    var p = g.attributes.position;
+    for (var i = 0; i < p.count; i++){ // cup across the width, arch along the length, a slight twist
+      var X = p.getX(i), Y = p.getY(i), t = Y / len;
+      var z = -Math.pow(X / wid, 2) * wid * 0.35 + Math.sin(t * Math.PI) * len * 0.06 - t * t * len * bend;
+      if (notch && Math.abs(X) > wid * 0.45 && Math.sin(t * 18) > 0.6) z -= 0.004; // monstera-ish ribs
+      p.setZ(i, z);
+    }
+    g.rotateX(-Math.PI / 2); g.computeVertexNormals();
+    return (DECOR_CACHE[key] = g);
+  }
   function buildDecor(THREE, key){
-    var gr = new THREE.Group();
-    function mat(c, r, m){ return new THREE.MeshStandardMaterial({ color:c, roughness:r == null ? 0.6 : r, metalness:m || 0 }); }
-    function box(w, h, d, x, y, z, m){ var o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); o.castShadow = true; o.receiveShadow = true; gr.add(o); return o; }
-    function cyl(rt, rb, h, x, y, z, m, seg){ var o = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg || 24), m); o.position.set(x, y, z); o.castShadow = true; o.receiveShadow = true; gr.add(o); return o; }
-    function ball(r, x, y, z, m){ var o = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 1), m); o.position.set(x, y, z); o.castShadow = true; gr.add(o); return o; }
-    var oak = mat(0xb48a5f, 0.55), dark = mat(0x2e2e31, 0.5), leaf = mat(0x4d7a46, 0.8), leaf2 = mat(0x3f6a3c, 0.8), white = mat(0xf2f0eb, 0.4);
-    function chair(x, z, rot){
-      var c = new THREE.Group();
-      [[-0.19, -0.19], [0.19, -0.19], [-0.19, 0.19], [0.19, 0.19]].forEach(function(p){ var l = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.012, 0.45, 10), dark); l.position.set(p[0], 0.225, p[1]); l.castShadow = true; c.add(l); });
-      var seat = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.03, 0.44), oak); seat.position.y = 0.46; seat.castShadow = true; c.add(seat);
-      var back = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.34, 0.02), oak); back.position.set(0, 0.64, -0.2); back.castShadow = true; c.add(back);
+    var gr = new THREE.Group(), RB = window.__RoundedBox__;
+    function mat(c, r, m, extra){ return new THREE.MeshStandardMaterial(Object.assign({ color:c, roughness:r == null ? 0.6 : r, metalness:m || 0 }, extra || {})); }
+    function add(o, parent){ o.castShadow = true; o.receiveShadow = true; (parent || gr).add(o); return o; }
+    function rbox(w, h, d, r, x, y, z, m, parent){
+      var geo = RB ? new RB(w, h, d, 3, Math.min(r, w / 2 - 1e-4, h / 2 - 1e-4, d / 2 - 1e-4)) : new THREE.BoxGeometry(w, h, d);
+      var o = new THREE.Mesh(geo, m); o.position.set(x, y, z); return add(o, parent);
+    }
+    function cyl(rt, rb, h, x, y, z, m, seg, parent){ var o = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg || 24), m); o.position.set(x, y, z); return add(o, parent); }
+    function lathe(pts, m, seg, x, y, z, parent){ var o = new THREE.Mesh(new THREE.LatheGeometry(pts.map(function(p){ return new THREE.Vector2(p[0], p[1]); }), seg || 40), m); o.position.set(x || 0, y || 0, z || 0); return add(o, parent); }
+    function tube(pts, r, m, parent){ var o = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(function(p){ return new THREE.Vector3(p[0], p[1], p[2]); })), 24, r, 8, false), m); return add(o, parent); }
+    var dark = mat(0x26262a, 0.45, 0.2), steel = mat(0xc8ccd2, 0.22, 0.9), blackMetal = mat(0x1b1b1e, 0.35, 0.6);
+    var oak = function(rx, ry, rot){ return decorWoodMat(THREE, "#b8936a", rx, ry, null, rot); };
+
+    function chair(x, z, rot){ // oak dining chair: tapered legs, aprons, a curved back rail
+      var c = new THREE.Group(), wood = oak(1.8, 0.6);
+      [[-0.19, -0.18, 0.46], [0.19, -0.18, 0.46], [-0.19, 0.18, 0.86], [0.19, 0.18, 0.86]].forEach(function(p){
+        var l = cyl(0.016, 0.012, p[2], p[0], p[2] / 2, p[1], wood, 12, c);
+        if (p[1] > 0) l.rotation.x = -0.06;
+      });
+      rbox(0.44, 0.035, 0.42, 0.012, 0, 0.46, 0, wood, c);
+      rbox(0.36, 0.05, 0.02, 0.006, 0, 0.41, -0.18, wood, c); rbox(0.36, 0.05, 0.02, 0.006, 0, 0.41, 0.18, wood, c);
+      var rail = rbox(0.42, 0.075, 0.02, 0.008, 0, 0.8, 0.195, wood, c); rail.rotation.x = -0.06; // back rail between the rear legs
+      rbox(0.36, 0.022, 0.018, 0.005, 0, 0.62, 0.19, wood, c);
       c.position.set(x, 0, z); c.rotation.y = rot; gr.add(c);
     }
-    if (key === "bordFer" || key === "bordHring"){
-      var round = key === "bordHring";
-      if (round){ cyl(0.55, 0.55, 0.035, 0, 0.74, 0, oak, 48); cyl(0.05, 0.06, 0.7, 0, 0.36, 0, dark); cyl(0.28, 0.3, 0.025, 0, 0.012, 0, dark, 32); }
-      else { box(1.6, 0.035, 0.9, 0, 0.74, 0, oak); [[-0.72, -0.37], [0.72, -0.37], [-0.72, 0.37], [0.72, 0.37]].forEach(function(p){ box(0.05, 0.72, 0.05, p[0], 0.36, p[1], dark); }); }
-      if (round) [0, 1, 2, 3].forEach(function(i){ var a = i * Math.PI / 2; chair(Math.sin(a) * 0.72, Math.cos(a) * 0.72, a + Math.PI); });
-      else [-0.5, 0, 0.5].forEach(function(x){ chair(x, -0.68, 0); chair(x, 0.68, Math.PI); });
+    if (key === "bordFer"){
+      rbox(1.6, 0.032, 0.9, 0.01, 0, 0.744, 0, oak(3.6, 1.6)); // RoundedBox top: v runs along x, so the grain follows the length
+      var lw = oak(0.3, 1);
+      [[-0.7, -0.36], [0.7, -0.36], [-0.7, 0.36], [0.7, 0.36]].forEach(function(p){ var l = cyl(0.026, 0.018, 0.73, p[0], 0.365, p[1], lw, 14); l.rotation.z = p[0] > 0 ? -0.03 : 0.03; });
+      rbox(1.36, 0.07, 0.022, 0.005, 0, 0.69, -0.36, lw); rbox(1.36, 0.07, 0.022, 0.005, 0, 0.69, 0.36, lw);
+      rbox(0.022, 0.07, 0.68, 0.005, -0.7, 0.69, 0, lw); rbox(0.022, 0.07, 0.68, 0.005, 0.7, 0.69, 0, lw);
+      [-0.5, 0, 0.5].forEach(function(x){ chair(x, -0.66, 0); chair(x, 0.66, Math.PI); });
+    } else if (key === "bordHring"){
+      lathe([[0, 0.725], [0.53, 0.725], [0.55, 0.735], [0.55, 0.752], [0.535, 0.76], [0, 0.76]], oak(1, 1), 64);
+      lathe([[0, 0], [0.26, 0], [0.27, 0.012], [0.12, 0.05], [0.055, 0.2], [0.045, 0.5], [0.09, 0.69], [0.2, 0.725], [0, 0.725]], mat(0xf0ede6, 0.4), 48);
+      [0, 1, 2, 3].forEach(function(i){ var a = i * Math.PI / 2 + Math.PI / 4; chair(Math.sin(a) * 0.7, Math.cos(a) * 0.7, a + Math.PI); });
     } else if (key === "barstoll"){
-      cyl(0.19, 0.19, 0.05, 0, 0.75, 0, oak, 28); cyl(0.022, 0.022, 0.72, 0, 0.38, 0, dark, 12); cyl(0.2, 0.22, 0.02, 0, 0.01, 0, dark, 28);
-      var ring = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.01, 8, 28), dark); ring.rotation.x = Math.PI / 2; ring.position.y = 0.3; gr.add(ring);
+      var sw = oak(0.6, 0.7);
+      lathe([[0, 0.72], [0.17, 0.72], [0.185, 0.73], [0.19, 0.755], [0.175, 0.765], [0.08, 0.752], [0, 0.75]], sw, 40);
+      for (var li = 0; li < 4; li++){
+        var a = li * Math.PI / 2 + Math.PI / 4, top = [Math.cos(a) * 0.1, 0.72, Math.sin(a) * 0.1], bot = [Math.cos(a) * 0.2, 0, Math.sin(a) * 0.2];
+        tube([bot, [(bot[0] + top[0]) / 2, 0.36, (bot[2] + top[2]) / 2], top], 0.013, blackMetal);
+      }
+      var fr = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.008, 8, 36), blackMetal); fr.rotation.x = Math.PI / 2; fr.position.y = 0.27; add(fr);
     } else if (key === "planta" || key === "plantaLitil"){
-      var sc = key === "planta" ? 1 : 0.38;
-      cyl(0.17 * sc, 0.13 * sc, 0.34 * sc, 0, 0.17 * sc, 0, key === "planta" ? mat(0xb5653c, 0.8) : white);
-      // a loose crown of small leaf clumps on a few stems (golden-angle spread, so it reads as one plant)
-      var nL = key === "planta" ? 34 : 14, crownH = key === "planta" ? 1.05 : 0.3, base = 0.34 * sc;
-      if (key === "planta") [[0.03, 0], [-0.03, 0.02], [0, -0.03]].forEach(function(p){ cyl(0.008, 0.01, 0.6, p[0], base + 0.3, p[1], dark, 6); });
-      for (var i = 0; i < nL; i++){
-        var f = i / nL, a = i * 2.399, r = (0.06 + 0.2 * Math.sqrt(f)) * (key === "planta" ? 1 : 0.42), yL = base + 0.08 * sc + (crownH - 0.1) * (0.35 + 0.65 * (1 - f));
-        var lf = new THREE.Mesh(new THREE.SphereGeometry(key === "planta" ? 0.07 : 0.035, 10, 6), i % 3 ? leaf : leaf2);
-        lf.scale.set(1.5, 0.45, 0.8); lf.position.set(Math.cos(a) * r, yL, Math.sin(a) * r); lf.rotation.set(0.3 * Math.sin(i), a, 0.5 * Math.cos(i)); lf.castShadow = true; gr.add(lf);
+      var big = key === "planta", sc = big ? 1 : 0.42;
+      var potM = big ? mat(0xd9d3c7, 0.85) : mat(0xe9e4da, 0.35);
+      lathe([[0, 0], [0.12, 0], [0.13, 0.01], [0.165, 0.3], [0.17, 0.32], [0.158, 0.32], [0.152, 0.3], [0, 0.3]].map(function(p){ return [p[0] * sc, p[1] * sc]; }), potM, 40);
+      cyl(0.152 * sc, 0.152 * sc, 0.01, 0, 0.29 * sc, 0, mat(0x3b2d22, 1), 32);
+      var h0 = 0.29 * sc; // soil level
+      var greens = [0x2f5a2c, 0x3b6a35, 0x2a4f27, 0x45753c];
+      function leafAt(px, py, pz, ang, up, L, i){ // a leaf whose base sits at (px,py,pz), pointing outward along ang, tilted up by `up`
+        var Wd = L * (big ? 0.45 : 0.36);
+        var lf = new THREE.Mesh(leafGeometry(THREE, +L.toFixed(3), +Wd.toFixed(3), big ? 0.12 : 0.1, false), mat(greens[i % greens.length], 0.45, 0, { side:THREE.DoubleSide }));
+        lf.position.set(px, py, pz); lf.rotation.order = "YXZ";
+        lf.rotation.y = Math.atan2(-Math.cos(ang), -Math.sin(ang)); // the leaf's tip (-z) points out along (cos ang, sin ang)
+        lf.rotation.x = up; lf.rotation.z = 0.25 * Math.sin(i * 2.3);
+        add(lf);
+      }
+      if (big){ // rubber plant: three woody stems, leaves spiralling up them
+        var stemM = mat(0x4b3a2a, 0.8), li2 = 0;
+        [[0.0, 1.1, 0.0], [0.07, 0.95, 2.1], [0.06, 0.8, 4.2]].forEach(function(st){
+          var lean = st[0], H = st[1], dir = st[2], top = [Math.cos(dir) * lean * 2.2, h0 + H, Math.sin(dir) * lean * 2.2];
+          var curve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, h0, 0), new THREE.Vector3(top[0] * 0.3, h0 + H * 0.5, top[2] * 0.3), new THREE.Vector3(top[0], top[1], top[2])]);
+          add(new THREE.Mesh(new THREE.TubeGeometry(curve, 20, 0.009, 6, false), stemM));
+          for (var t = 0.38; t <= 1.0001; t += 0.075){
+            var pt = curve.getPoint(t), ang = li2 * 2.399 + dir, L = 0.27 - 0.08 * t;
+            leafAt(pt.x, pt.y, pt.z, ang, 0.15 + t * 0.55, L, li2++);
+          }
+        });
+      } else { // a small leafy pot plant: a rosette from the soil
+        for (var j = 0; j < 9; j++){
+          var a2 = j * 2.399, L2 = 0.1 + 0.025 * Math.sin(j * 1.3);
+          leafAt(Math.cos(a2) * 0.01, h0 + 0.01 + j * 0.004, Math.sin(a2) * 0.01, a2, 0.45 + 0.35 * (j % 3) / 2, L2, j);
+        }
       }
     } else if (key === "motta"){
-      var rug = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.008, 1.4), mat(0xcbbfae, 0.95)); rug.position.y = 0.004; rug.receiveShadow = true; gr.add(rug);
-      var inner = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.009, 1.2), mat(0xb7a993, 0.95)); inner.position.y = 0.005; inner.receiveShadow = true; gr.add(inner);
-    } else if (key === "kaffivel"){
-      box(0.28, 0.34, 0.36, 0, 0.17, 0, mat(0x1d1d20, 0.35, 0.3)); box(0.12, 0.05, 0.12, 0, 0.06, 0.08, mat(0xb9bec4, 0.25, 0.85));
-      cyl(0.04, 0.035, 0.08, 0, 0.12, 0.08, white, 16);
-    } else if (key === "ketill"){
-      cyl(0.075, 0.09, 0.2, 0, 0.11, 0, mat(0xc9ccd1, 0.25, 0.85), 28); cyl(0.09, 0.09, 0.015, 0, 0.008, 0, dark, 28);
-      var hd = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.012, 8, 20, Math.PI), dark); hd.position.set(-0.08, 0.15, 0); hd.rotation.z = -Math.PI / 2; gr.add(hd);
-    } else if (key === "skal"){
-      var bowl = new THREE.Mesh(new THREE.SphereGeometry(0.13, 28, 14, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), white); bowl.rotation.x = Math.PI; bowl.position.y = 0.13; bowl.castShadow = true; gr.add(bowl);
-      [[0xf08a24, -0.04, 0.02], [0x9bc53d, 0.05, -0.02], [0xc0392b, 0.0, 0.05], [0xf2c94c, -0.02, -0.05]].forEach(function(f){ ball(0.045, f[1], 0.1, f[2], mat(f[0], 0.5)); });
-    } else if (key === "bretti"){
-      box(0.45, 0.025, 0.3, 0, 0.0125, 0, oak); ball(0.04, 0.12, 0.06, 0.05, mat(0xc0392b, 0.5));
-    } else if (key === "hengiljos"){ // hangs from y = 0 down: cord, shade, bulb (lights up in the evening view)
-      cyl(0.004, 0.004, 0.7, 0, -0.35, 0, dark, 8);
-      var shade = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.2, 32, 1, true), new THREE.MeshStandardMaterial({ color:0x1f1f22, roughness:0.4, metalness:0.3, side:THREE.DoubleSide }));
-      shade.position.y = -0.8; shade.castShadow = true; gr.add(shade);
-      var bulb = new THREE.Mesh(new THREE.SphereGeometry(0.04, 16, 10), new THREE.MeshBasicMaterial({ color:0xfff1d8, toneMapped:false })); bulb.position.y = -0.87; gr.add(bulb);
+      var rugM = new THREE.MeshStandardMaterial({ map:decorTex(THREE, "rug", rugCanvas), roughness:0.98, metalness:0 });
+      var rug = rbox(2.0, 0.01, 1.4, 0.004, 0, 0.005, 0, rugM); rug.castShadow = false;
+    } else if (key === "kaffivel"){ // espresso machine: brushed steel body, group head, portafilter, drip tray, cups
+      rbox(0.3, 0.34, 0.34, 0.02, 0, 0.17, -0.02, steel);
+      rbox(0.26, 0.05, 0.3, 0.008, 0, 0.375, -0.03, blackMetal);
+      rbox(0.28, 0.22, 0.01, 0.004, 0, 0.21, 0.152, mat(0x2b2b2f, 0.3, 0.4));
+      cyl(0.04, 0.04, 0.04, 0, 0.24, 0.17, steel, 24);
+      cyl(0.034, 0.03, 0.025, 0, 0.21, 0.175, steel, 24);
+      var pf = rbox(0.022, 0.02, 0.14, 0.008, 0, 0.2, 0.25, blackMetal); pf.rotation.x = 0.1;
+      rbox(0.26, 0.012, 0.11, 0.003, 0, 0.012, 0.21, steel);
+      [-0.06, 0.06].forEach(function(cx){ lathe([[0, 0], [0.022, 0], [0.028, 0.055], [0.026, 0.055], [0.02, 0.004], [0, 0.004]], mat(0xf4f1ea, 0.3), 24, cx, 0.42, -0.05); });
+      cyl(0.016, 0.016, 0.02, 0.1, 0.3, 0.16, blackMetal, 16).rotation.x = Math.PI / 2;
+    } else if (key === "ketill"){ // turned kettle with a spout and a curved handle
+      var km = mat(0xe9e6df, 0.35, 0.1);
+      cyl(0.085, 0.09, 0.018, 0, 0.009, 0, dark, 32);
+      lathe([[0, 0.018], [0.08, 0.018], [0.088, 0.05], [0.082, 0.15], [0.06, 0.2], [0.03, 0.21], [0, 0.21]], km, 40);
+      cyl(0.006, 0.012, 0.02, 0, 0.222, 0, dark, 12);
+      var sp = cyl(0.011, 0.02, 0.1, 0.105, 0.13, 0, km, 16); sp.rotation.z = -0.9;
+      tube([[-0.07, 0.17, 0], [-0.13, 0.17, 0], [-0.14, 0.1, 0], [-0.085, 0.05, 0]], 0.011, dark);
+    } else if (key === "skal"){ // stoneware bowl with fruit
+      var bm = mat(0xe8e2d6, 0.5);
+      lathe([[0, 0], [0.06, 0], [0.065, 0.006], [0.13, 0.07], [0.14, 0.085], [0.13, 0.086], [0.12, 0.075], [0.058, 0.014], [0, 0.014]], bm, 48);
+      [[0xb3261e, -0.04, 0.05, 0.02, 0.038], [0xd9531e, 0.045, 0.055, -0.01, 0.04], [0x8fb339, 0.0, 0.06, -0.05, 0.036], [0xc0392b, 0.02, 0.09, 0.03, 0.035]].forEach(function(fd){
+        var fr = new THREE.Mesh(new THREE.SphereGeometry(fd[4], 20, 14), mat(fd[0], 0.45, 0, { emissive:0x000000 })); fr.scale.y = 0.9; fr.position.set(fd[1], fd[2], fd[3]); add(fr);
+        cyl(0.002, 0.002, 0.014, fd[1], fd[2] + fd[4] * 0.9, fd[3], mat(0x5a3d22, 0.9), 6);
+      });
+      tube([[-0.07, 0.07, -0.02], [-0.02, 0.1, -0.01], [0.05, 0.095, -0.03], [0.08, 0.08, -0.045]], 0.016, mat(0xf2d25a, 0.6));
+    } else if (key === "bretti"){ // end-grain oak board with a handle hole, two lemons
+      var sh = new THREE.Shape(), BW = 0.42, BD = 0.28, R = 0.03;
+      sh.moveTo(-BW / 2 + R, -BD / 2); sh.lineTo(BW / 2 - R, -BD / 2); sh.quadraticCurveTo(BW / 2, -BD / 2, BW / 2, -BD / 2 + R); sh.lineTo(BW / 2, BD / 2 - R);
+      sh.quadraticCurveTo(BW / 2, BD / 2, BW / 2 - R, BD / 2); sh.lineTo(-BW / 2 + R, BD / 2); sh.quadraticCurveTo(-BW / 2, BD / 2, -BW / 2, BD / 2 - R); sh.lineTo(-BW / 2, -BD / 2 + R); sh.quadraticCurveTo(-BW / 2, -BD / 2, -BW / 2 + R, -BD / 2);
+      var hole = new THREE.Path(); hole.absellipse(-BW / 2 + 0.05, 0, 0.018, 0.035, 0, Math.PI * 2, false, 0); sh.holes.push(hole);
+      var bg = new THREE.ExtrudeGeometry(sh, { depth:0.022, bevelEnabled:true, bevelThickness:0.003, bevelSize:0.003, bevelSegments:2 }); bg.rotateX(-Math.PI / 2);
+      var board = new THREE.Mesh(bg, oak(1.5, 1.5)); board.position.y = 0.003; add(board);
+      [[0.1, 0.06], [0.15, -0.04]].forEach(function(p){ var l = new THREE.Mesh(new THREE.SphereGeometry(0.032, 18, 12), mat(0xf2d230, 0.5)); l.scale.set(1.25, 0.95, 0.95); l.position.set(p[0], 0.058, p[1]); add(l); });
+    } else if (key === "hengiljos"){ // hangs from y = 0 down: canopy, cord, a turned metal dome, bulb (lights up in the evening)
+      cyl(0.05, 0.05, 0.02, 0, -0.01, 0, blackMetal, 32);
+      cyl(0.003, 0.003, 0.68, 0, -0.36, 0, dark, 8);
+      var dome = [[0.012, 0], [0.03, -0.005], [0.12, -0.08], [0.17, -0.17], [0.18, -0.2]].map(function(p){ return [p[0], p[1] - 0.68]; });
+      lathe(dome, mat(0x1f1f22, 0.4, 0.5, { side:THREE.DoubleSide }), 48);
+      var lip = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.004, 6, 48), mat(0xb08d57, 0.3, 0.9)); lip.rotation.x = Math.PI / 2; lip.position.y = -0.88; add(lip); // brass rim
+      var bulb = new THREE.Mesh(new THREE.SphereGeometry(0.045, 20, 14), new THREE.MeshBasicMaterial({ color:0xfff1d8, toneMapped:false })); bulb.position.y = -0.84; gr.add(bulb);
       gr.userData.bulb = bulb;
     }
     return gr;
@@ -3718,7 +4006,7 @@
       gr.traverse(function(o){ if (o.isMesh){ o.userData = meta; pickables.push(o); } });
       if (opts.selectedId === d.id){ // a blue ring round the selected one
         var r = Math.max(def.w, def.d) / 2000 + 0.05, ring = new THREE.Mesh(new THREE.RingGeometry(r, r + 0.02, 48), new THREE.MeshBasicMaterial({ color:SELECT_COLOR, side:THREE.DoubleSide }));
-        ring.rotation.x = -Math.PI / 2; ring.position.y = def.group === "ceiling" ? -0.92 : 0.006; gr.add(ring);
+        ring.rotation.x = -Math.PI / 2; ring.position.y = def.group === "ceiling" ? -0.9 : 0.006; gr.add(ring);
       }
       scene.add(gr);
       if (gr.userData.bulb){ // the pendant lights the table under it in the evening
@@ -3940,6 +4228,7 @@
     surfaceGeoms: surfaceGeoms,
     islandHandlePos: islandHandlePos,
     roomBounds: roomBounds,
+    decorSpot: decorSpot,
     nearestWallDrop: nearestWallDrop,
     setSelected3D: setSelected3D,
     setSelectedWall3D: setSelectedWall3D,
@@ -3968,6 +4257,7 @@
     shelvesOf: shelvesOf,
     hideDragPreview3D: hideDragPreview3D,
     teardown3D: teardown3D,
-    _three: function(){ return THREE_STATE; }
+    _three: function(){ return THREE_STATE; },
+    _quality: QUALITY
   };
 })();

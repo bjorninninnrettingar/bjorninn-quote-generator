@@ -26,8 +26,9 @@
   import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
   import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
   import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+  import { GTAOPass } from "three/addons/postprocessing/GTAOPass.js";
   RectAreaLightUniformsLib.init(); // real area lights under wall units (the evening view)
-  window.__POST__ = { EffectComposer:EffectComposer, RenderPass:RenderPass, UnrealBloomPass:UnrealBloomPass, OutputPass:OutputPass };
+  window.__POST__ = { EffectComposer:EffectComposer, RenderPass:RenderPass, UnrealBloomPass:UnrealBloomPass, OutputPass:OutputPass, GTAOPass:GTAOPass };
   window.__THREE__ = THREE;
   window.__OrbitControls__ = OrbitControls;
   window.__RoomEnvironment__ = RoomEnvironment;
@@ -5383,29 +5384,16 @@
   var decorSeq = 1;
   function findDecor(id){ return (state.decor || []).find(function(d){ return d.id === id; }) || null; }
   function addDecor(kind){
-    var def = KP3D.DECOR[kind], rb = KP3D.roomBounds(state), at = null;
+    var def = KP3D.DECOR[kind];
     if (!def) return;
     state.decor = state.decor || [];
-    if (def.group === "top"){ // onto a worktop: the first cabinet with a counter, a little out from the wall
-      surfaces().some(function(w, wi){
-        if (w.open) return false;
-        var g = KP3D.surfaceGeoms(state)[KP3D.surfacesOf(state).findIndex(function(x){ return x.id === w.id; })];
-        var sp = spansOf(w, "floor").filter(function(x){ var c = CATALOG[x.b.type]; return c.counter && !c.sink; });
-        var pick = sp[(state.decor.length) % Math.max(1, sp.length)];
-        if (!g || !pick) return false;
-        var along = (pick.start + pick.end) / 2000, out = (pick.b.depthMm || CATALOG[pick.b.type].d) * 0.55 / 1000;
-        at = { x:(g.origin.x + g.axis.x * along + g.normal.x * out) * 1000, z:(g.origin.z + g.axis.z * along + g.normal.z * out) * 1000 };
-        return true;
-      });
-      if (!at){ toast("Settu fyrst inn skáp með borðplötu — þá fer hluturinn ofan á hana."); return; }
-    } else if (def.group === "ceiling" && state.islands && state.islands.length){
-      var isl = state.islands[0]; at = { x:isl.xMm, z:isl.zMm };
+    var at = KP3D.decorSpot(state, kind); // a free spot: no piling up, nothing inside a cabinet or the island
+    if (!at){ toast("Settu fyrst inn skáp með borðplötu — þá fer hluturinn ofan á hana."); return; }
+    var d = { id:"d" + (decorSeq++) + "_" + Date.now().toString(36), kind:kind, xMm:at.x, zMm:at.z, rot:0 };
+    if (kind === "barstoll" && state.islands && state.islands.length){ // facing the island
+      var f = KP3D.islandFrame ? KP3D.islandFrame(state.islands[0]) : null;
+      if (f) d.rot = Math.round(Math.atan2(f.normal.x, f.normal.z) * 180 / Math.PI);
     }
-    if (!at){ // the middle of the room, each new floor item a step round from the last so they don't pile up
-      var n = state.decor.filter(function(x){ return KP3D.DECOR[x.kind] && KP3D.DECOR[x.kind].group === def.group; }).length, ang = n * 2.1, r = n ? 700 : 0;
-      at = rb ? { x:(rb.minX + rb.maxX) * 500 + Math.cos(ang) * r, z:(rb.minZ + rb.maxZ) * 500 + Math.sin(ang) * r } : { x:0, z:0 };
-    }
-    var d = { id:"d" + (decorSeq++) + "_" + Date.now().toString(36), kind:kind, xMm:Math.round(at.x), zMm:Math.round(at.z), rot:0 };
     state.decor.push(d);
     selectedBlockId = d.id; save(); refreshAfterEdit();
   }
