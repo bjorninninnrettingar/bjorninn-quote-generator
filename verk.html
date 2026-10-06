@@ -213,6 +213,50 @@
   .tool2.c-green { border-color:var(--green); }
   .tool2.c-green .t2-t { color:var(--green); }
 
+
+  /* production stage — stepper + the one manual step the floor owns next
+     (Má afhenda / Afhent). Writes go through /api/verk-status (VERK_KEY),
+     never the public proxy. Two taps to commit, Afturkalla for 10 s. */
+  #stageSec .sec-h { color:var(--amber); }
+  .stagecard { background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:14px; display:flex; flex-direction:column; gap:14px; }
+  .steps { display:grid; grid-template-columns:repeat(5,1fr); gap:4px; }
+  .step { display:flex; flex-direction:column; gap:6px; align-items:stretch; text-align:center; }
+  .step i { display:block; height:6px; border-radius:3px; background:var(--surface2); }
+  .step span { font-size:.66rem; font-weight:700; color:var(--muted); line-height:1.2; }
+  .step.past i { background:var(--green); }
+  .step.now i { background:var(--amber); }
+  .step.now span { color:var(--text); font-weight:800; }
+  .stage-now { font-size:1.15rem; font-weight:800; }
+  .stage-hint { font-size:.85rem; color:var(--muted); margin-top:2px; }
+  .bigbtn {
+    width:100%; border:0; border-radius:14px; padding:20px 16px; cursor:pointer;
+    font-family:var(--font); font-size:1.15rem; font-weight:800; color:#0b0b0c; background:var(--green);
+  }
+  .bigbtn.deliver { background:var(--amber); }
+  .bigbtn.armed { background:var(--red); color:#fff; }
+  .bigbtn:disabled { opacity:.55; cursor:default; }
+  .bigbtn:focus-visible, .sagbtn:focus-visible, .toast button:focus-visible { outline:3px solid var(--blue); outline-offset:2px; }
+  .toast {
+    position:fixed; left:50%; bottom:calc(18px + env(safe-area-inset-bottom, 0px)); transform:translateX(-50%);
+    width:min(560px, calc(100% - 28px)); z-index:50;
+    background:var(--surface2); border:1px solid var(--line); border-radius:12px; padding:12px 14px;
+    display:flex; align-items:center; gap:12px; font-weight:700; box-shadow:0 8px 30px rgba(0,0,0,.45);
+  }
+  .toast span { flex:1; }
+  .toast button { border:0; background:none; color:var(--blue); font-family:var(--font); font-weight:800; font-size:1rem; cursor:pointer; padding:6px 4px; }
+  .unsawn { background:var(--surface); border:1px solid var(--line); border-left:3px solid var(--amber); border-radius:10px; overflow:hidden; }
+  .unsawn summary { list-style:none; cursor:pointer; padding:13px 14px; font-weight:800; display:flex; align-items:center; gap:10px; }
+  .unsawn summary::-webkit-details-marker { display:none; }
+  .unsawn summary .cv { margin-left:auto; color:var(--muted); font-size:.85rem; transition:transform .15s; }
+  .unsawn[open] summary .cv { transform:rotate(90deg); }
+  .sagrow { display:flex; align-items:center; gap:12px; padding:11px 14px; border-top:1px solid var(--line); }
+  .sagrow.done { opacity:.45; }
+  .sagrow .sg-t { flex:1; min-width:0; }
+  .sagrow .sg-n { font-weight:700; font-size:.92rem; }
+  .sagrow .sg-d { color:var(--muted); font-size:.8rem; }
+  .sagbtn { flex:none; border:1px solid var(--green); background:none; color:var(--green); border-radius:10px; padding:10px 14px; font-family:var(--font); font-weight:800; font-size:.9rem; cursor:pointer; }
+  .sagrow.done .sagbtn { border-color:var(--line); color:var(--muted); }
+
   #loading,#error { text-align:center; color:var(--muted); padding:70px 20px; }
   #error strong { display:block; color:var(--text); font-size:1.1rem; margin-bottom:6px; }
   .hidden { display:none !important; }
@@ -244,6 +288,20 @@
       <div class="bar"><i id="wbarFill" style="width:0%"></i></div>
       <div class="bar-lbl">Heildarframvinda framleiðslu · <span id="wbarPct">0%</span></div>
     </div>
+
+
+    <section id="stageSec" class="hidden">
+      <div class="sec-h">Staða verksins</div>
+      <div class="stagecard">
+        <div class="steps" id="steps"></div>
+        <div><div class="stage-now" id="stageNow"></div><div class="stage-hint" id="stageHint"></div></div>
+        <button type="button" class="bigbtn hidden" id="stageBtn"></button>
+        <details class="unsawn hidden" id="unsawn">
+          <summary><span id="unsawnTitle"></span><span class="cv">›</span></summary>
+          <div id="unsawnList"></div>
+        </details>
+      </div>
+    </section>
 
     <section id="notesSec" class="hidden">
       <div class="sec-h">⚠️ Muna</div>
@@ -277,6 +335,7 @@
       <div class="tools" id="tools"></div>
     </section>
   </div>
+  <div class="toast hidden" id="toast" role="status"><span id="toastMsg"></span><button type="button" id="toastUndo">Afturkalla</button></div>
 </div>
 
 <script>
@@ -712,21 +771,145 @@
     fetchAll(SOGUNARLISTI_TABLE, { filterByFormula: formula, pageSize: 100 }, null)
       .then(function(recs){
         var sawDone = true, needsMill = false, millDone = true;
+        var unsawn = [];
         recs.forEach(function(r){
           var rf = r.fields || {};
-          if (!rf["Lokið"]) sawDone = false;
+          if (!rf["Lokið"]) { sawDone = false; unsawn.push(r); }
           if (rf["Yfirfr."]) { needsMill = true; if (!rf["Fræst"]) millDone = false; }
         });
         var sawIc = recs.length ? (sawDone ? "✅" : "□") : "–";
         var milIc = !needsMill ? "–" : (millDone ? "✅" : "□");
         var target = $("framvindaStat");
         if (target) target.textContent = "SÖG "+sawIc+" · Fræs "+milIc;
+        if (stageState.t) renderUnsawn(unsawn);
       })
       .catch(function(e){
         console.error("Sögunarlisti fetch for Framvinda failed:", e);
         var target = $("framvindaStat");
         if (target) target.textContent = "";
       });
+  }
+
+
+  // ── Staða verksins ────────────────────────────────────────────────────
+  // Tilbúið / Verk í vinnslu / Samsetning move on their own (Airtable
+  // automations off "Framleiðslustaða skv. gögnum 🤖"); the floor owns the
+  // last two: Má afhenda and Afhent.
+  var STAGES = [
+    { key:"Tilbúið til framleiðslu 📋", short:"Tilbúið" },
+    { key:"Verk í vinnslu 🔨", short:"Í vinnslu" },
+    { key:"Samsetning og pökkun 🪛📦", short:"Samsetning" },
+    { key:"Má Afhenda 🚚", short:"Má afhenda" },
+    { key:"Afhent (LOKIÐ ✅)", short:"Afhent" }
+  ];
+  var SAW_TARGET = 0.95, MILL_TARGET = 0.6;
+  var stageState = { t:null, k:null, stage:"", f:null };
+
+  function post(body){
+    return fetch("/api/verk-status", {
+      method:"POST", headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify(Object.assign({ t:stageState.t, k:stageState.k }, body))
+    }).then(function(r){
+      return r.json().catch(function(){ return {}; }).then(function(j){
+        if (!r.ok) { var e = new Error(j.error || ("Villa "+r.status)); e.stage = j.stage; throw e; }
+        return j;
+      });
+    });
+  }
+
+  var toastTimer = null;
+  function toast(msg, undo){
+    $("toastMsg").textContent = msg;
+    var b = $("toastUndo");
+    b.classList.toggle("hidden", !undo);
+    b.onclick = function(){ hide($("toast")); clearTimeout(toastTimer); if (undo) undo(); };
+    show($("toast"));
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ hide($("toast")); }, undo ? 10000 : 4000);
+  }
+
+  function setStage(to, from, label){
+    var btn = $("stageBtn");
+    btn.disabled = true;
+    return post({ action:"status", from:from, to:to }).then(function(){
+      stageState.stage = to;
+      renderStage();
+      if (label) toast(label, function(){ setStage(from, to, null).then(function(){ toast("Afturkallað"); }); });
+    }).catch(function(e){
+      if (e.stage != null) { stageState.stage = e.stage; renderStage(); }
+      toast(e.message);
+    }).then(function(){ btn.disabled = false; });
+  }
+
+  function millRatio(f){
+    var t = num(f[F.millTodo]); return t ? Math.min(num(f[F.millDone]), t) / t : 1;
+  }
+
+  function renderStage(){
+    var f = stageState.f, cur = stageState.stage;
+    var idx = -1;
+    STAGES.forEach(function(s, i){ if (s.key === cur) idx = i; });
+    $("steps").innerHTML = STAGES.map(function(s, i){
+      return '<div class="step '+(i < idx ? "past" : i === idx ? "now" : "")+'"><i></i><span>'+esc(s.short)+'</span></div>';
+    }).join("");
+    $("stageNow").textContent = cur || "Ekki komið í framleiðslu";
+    $("stageVal").textContent = cur;
+    var saw = pct(f[F.pgSaw]) || 0, mill = Math.round(millRatio(f) * 100);
+    var hint = "", btn = $("stageBtn"), next = null;
+    if (idx <= 1) hint = "Fer sjálfkrafa í samsetningu þegar sögun nær "+(SAW_TARGET*100)+"% og fræsing "+(MILL_TARGET*100)+"% (núna "+saw+"% / "+mill+"%).";
+    if (idx >= 0 && idx <= 2) next = { to:STAGES[3].key, text:"🚚 Allt pakkað — má afhenda", cls:"deliver", done:"Verkið má afhenda — skrifstofan fær að vita" };
+    else if (idx === 3) { next = { to:STAGES[4].key, text:"✅ Verkið er afhent", cls:"", done:"Verkið er merkt afhent" }; hint = "Ýttu þegar verkið er komið til kúnnans."; }
+    else if (idx === 4) hint = "Verkinu er lokið.";
+    else hint = "Staðan færist sjálfkrafa þegar skipulag er klárt.";
+    $("stageHint").textContent = hint;
+    btn.classList.toggle("hidden", !next);
+    btn.classList.remove("armed");
+    if (next) {
+      btn.className = "bigbtn " + next.cls;
+      btn.textContent = next.text;
+      var armed = false, armTimer = null;
+      btn.onclick = function(){
+        if (!armed) {
+          armed = true; btn.classList.add("armed"); btn.textContent = "Ýttu aftur til að staðfesta";
+          armTimer = setTimeout(function(){ armed = false; btn.classList.remove("armed"); btn.textContent = next.text; }, 4000);
+          return;
+        }
+        clearTimeout(armTimer);
+        setStage(next.to, cur, next.done);
+      };
+    }
+    show($("stageSec"));
+  }
+
+  function renderUnsawn(rows){
+    var box = $("unsawn"), list = $("unsawnList");
+    if (!rows.length) { hide(box); return; }
+    function title(){
+      var left = rows.filter(function(r){ return !r._done; }).length;
+      $("unsawnTitle").textContent = "🪚 Ósagaðir hlutar ("+left+")";
+    }
+    list.innerHTML = "";
+    rows.sort(function(a, b){ return String(a.fields.Partur||"").localeCompare(String(b.fields.Partur||""), "is"); });
+    rows.forEach(function(r){
+      var rf = r.fields || {};
+      var d = document.createElement("div");
+      d.className = "sagrow";
+      var dims = [rf.H, rf.B].filter(function(x){ return x != null && x !== ""; }).join(" × ");
+      d.innerHTML = '<div class="sg-t"><div class="sg-n">'+esc(txt(rf.Partur) || "Hluti")+'</div>'+
+        '<div class="sg-d">'+esc([dims ? dims+" mm" : "", rf.M ? rf.M+" stk" : "", txt(rf["Efni:"])].filter(Boolean).join(" · "))+'</div></div>'+
+        '<button type="button" class="sagbtn">Sagað</button>';
+      var b = d.querySelector("button");
+      function mark(done){
+        b.disabled = true;
+        return post({ action:"sagad", pieceId:r.id, done:done }).then(function(){
+          r._done = done; d.classList.toggle("done", done); b.textContent = done ? "Sagað ✓" : "Sagað"; title();
+        }).catch(function(e){ toast(e.message); }).then(function(){ b.disabled = false; });
+      }
+      b.onclick = function(){ mark(!r._done); };
+      list.appendChild(d);
+    });
+    title();
+    show(box);
   }
 
   function render(rec, projectId, k){
@@ -741,7 +924,8 @@
     $("pname").textContent = pname;
 
     var stage = txt(f[F.stage]);
-    if (stage) { $("stageVal").textContent = stage; show($("stageField")); }
+    stageState = { t:projectId, k:k, stage:stage, f:f };
+    try { renderStage(); } catch(e){ console.error(e); }
 
     var prio = txt(f[F.prio]);
     if (prio) {
