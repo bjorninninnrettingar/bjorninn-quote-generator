@@ -5432,9 +5432,10 @@
   function lighting(){ return state.lighting || (state.lighting = { underWall:false, shelves:false, plinth:false }); }
   function lightingOn(){ var L = lighting(); return L.underWall || L.shelves || surfaces().some(function(w){ return w.wall.some(function(b){ return b.led; }); }); }
   var LED_W_PER_M = 9.6; // rough power of the 4×8 mm strip, for the transformer size
-  // The products, as real Útfærslur (Flokkur "Ljós og lýsing"). User, 2026-10-06: the LED goes in V3 of the
-  // cabinet it lights (for planning — V3 carries no quantity or price), and the price comes from separate
-  // Line Items, one per product (V1 = the product, Magn = how many, transformer included).
+  // The products, as real Útfærslur (Flokkur "Ljós og lýsing"). They go in V3 of the cabinet they light, one
+  // of each (V3 has no quantity, and is priced once in Söluverð): ONE reel per cabinet that covers all its strips
+  // (under it + under each open shelf), the transformer in V3 of the first lit cabinet. User, 2026-10-06:
+  // "það sem er einfaldara í notkun" — no extra Line Items, no Airtable change.
   var LIGHT_PRODUCTS = {
     LED41: { label:"LED-borði 4×8 mm, 1 m", utfaerslaId:"recfMqPJ94czDOqS8" },
     LED42: { label:"LED-borði 4×8 mm, 2 m", utfaerslaId:"recUJdx6TiAB8qRsU" },
@@ -5446,10 +5447,10 @@
   };
   function stripCode(mm){ var m = Math.max(1, Math.ceil(mm / 1000)); return m >= 3 ? "LED43" : m === 2 ? "LED42" : "LED41"; }
   // the lighting the plan takes: [{code, n, label, id, where[]}] incl. the transformer — an estimate the söluaðili confirms.
-  // bom.perUnit = {blockId: {code, n}} (one reel size per cabinet: the strips under it and in its shelves share its width)
+  // bom.perUnit = {blockId: {code, mm}} — one reel per cabinet, long enough for all its strips (mm = their total)
   function lightingBOM(){
     var L = lighting(), out = {}, order = [], watts = 0, keys = skKeys(), perUnit = {};
-    function unit(b, code, n){ var u = perUnit[b.id] || (perUnit[b.id] = { code:code, n:0 }); u.n += n; }
+    function unit(b, mm){ var u = perUnit[b.id] || (perUnit[b.id] = { mm:0 }); u.mm += mm; }
     function add(code, n, where){
       if (!out[code]){ out[code] = { code:code, n:0, label:LIGHT_PRODUCTS[code].label, id:LIGHT_PRODUCTS[code].utfaerslaId, where:[] }; order.push(code); }
       out[code].n += n; if (where && out[code].where.indexOf(where) < 0) out[code].where.push(where);
@@ -5458,14 +5459,15 @@
       w.wall.forEach(function(b){
         var c = CATALOG[b.type]; if (c.panel || c.shelfStack) return;
         if (b.led != null ? b.led : L.underWall){ // a LED strip (4×8 mm) under each one, cut from the 1/2/3 m reels
-          add(stripCode(b.widthMm), 1, keys[b.id]); unit(b, stripCode(b.widthMm), 1); watts += b.widthMm / 1000 * LED_W_PER_M;
+          unit(b, b.widthMm); watts += b.widthMm / 1000 * LED_W_PER_M;
         }
         if (c.open && L.shelves){ // a LED strip under the top and under each shelf (ATOM spots left out for now)
           var levels = (KP3D.shelvesOf(b) || 0) + 1;
-          add(stripCode(b.widthMm), levels, keys[b.id]); unit(b, stripCode(b.widthMm), levels); watts += levels * b.widthMm / 1000 * LED_W_PER_M;
+          unit(b, levels * b.widthMm); watts += levels * b.widthMm / 1000 * LED_W_PER_M;
         }
       });
     });
+    Object.keys(perUnit).forEach(function(id){ var u = perUnit[id]; u.code = stripCode(u.mm); add(u.code, 1, keys[id]); });
     if (!order.length) return null;
     var need = watts * 1.25, drivers = [15, 30, 60, 100], d = drivers.find(function(x){ return x >= need; });
     var drv = d ? { code:"STRM" + d, n:1 } : { code:"STRM100", n:Math.ceil(need / 100) };
@@ -5667,7 +5669,7 @@
     // is the only place Rakel sees them were drawn in at all.
     (state.islands || []).forEach(function(x){ if (x.back && !x.two) lines.push("Bak á eyju (" + x.label + "): 19 mm úthlið í framhliðaefni, " + x.lengthMm + " mm löng"); });
     var bom = lightingBOM();
-    if (bom) lines.push("Lýsing (áætlun, söluaðili staðfestir — í V3 á skápunum, verð á Ljós-línunum): " + lightingText(bom).join(", "));
+    if (bom) lines.push("Lýsing (áætlun, söluaðili staðfestir — í V3 á skápunum): " + lightingText(bom).join(", "));
     var appl = [];
     surfaces().forEach(function(w){ w.floor.forEach(function(b){ var c = CATALOG[b.type]; if (c.notOrdered) appl.push(c.label + " " + b.widthMm + " mm"); }); });
     if (appl.length) lines.push("Pláss fyrir tæki viðskiptavinar (ekki hluti af pöntun): " + appl.join(", "));
@@ -5922,7 +5924,7 @@
   var HANDLE_COLOR_AIRTABLE = { svart:"Svartar ⚫", stal:"Silfur 🥈", messing:"Gyllt / Látún 🥇", kopar:"Kopar 🥉", brons:"Kopar 🥉" };
 
   function collectLineItems(){
-    var rows = [], keys = skKeys(), bom = lightingBOM();
+    var rows = [], keys = skKeys(), bom = lightingBOM(), driverPlaced = false;
     surfaces().forEach(function(wall){
       wall.floor.concat(wall.wall).forEach(function(b){
         var c = CATALOG[b.type];
@@ -5960,20 +5962,25 @@
         }
         var v3 = v1 ? v3RecordsFor(b, c) : [];
         var lit = bom && bom.perUnit[b.id];
-        if (lit){ // the LED this cabinet carries → V3 (planning only); the priced reels are on the "Ljós" lines
-          if (v1) v3.push(LIGHT_PRODUCTS[lit.code].utfaerslaId);
-          notes.push("Lýsing: " + LIGHT_PRODUCTS[lit.code].label + " ×" + lit.n + (v1 ? "" : " (ekki í V3 því V1 vantar)") + " — verðið er á línunni „Ljós " + lit.code + "“.");
+        if (lit && v1){ // its LED reel (+ the transformer on the first lit cabinet) → V3, one of each, priced there
+          v3.push(LIGHT_PRODUCTS[lit.code].utfaerslaId);
+          notes.push("Lýsing: " + LIGHT_PRODUCTS[lit.code].label + " fyrir " + (lit.mm / 1000).toFixed(1).replace(".", ",") + " m af borða" +
+            (lit.mm > 3000 ? " — meira en ein 3 m rúlla, bættu við" : "") + " (áætlun, söluaðili staðfestir).");
+          if (!driverPlaced){
+            v3.push(LIGHT_PRODUCTS[bom.driver.code].utfaerslaId);
+            notes.push(LIGHT_PRODUCTS[bom.driver.code].label + (bom.driver.n > 1 ? " ×" + bom.driver.n + " (bættu við)" : "") + " fyrir alla LED-borðana í eldhúsinu.");
+            driverPlaced = true;
+          }
+        } else if (lit){
+          notes.push("Lýsing óskast: " + LIGHT_PRODUCTS[lit.code].label + " — ekki sett í V3 því V1 vantar.");
         }
         if (v3.length) fields["Vöru reitur 3"] = v3;
         if (notes.length) fields["Skilaboð til skipulags"] = notes.join(" ");
         rows.push(fields);
       });
     });
-    // Priced lighting: one line per product (V1 = the LED reel / transformer, Magn = how many), 🔑 "Ljós LED42".
-    (bom || []).forEach(function(x){
-      rows.push({ "Rými 🏡":"Eldhús", "Magn":x.n, "🔑":"Ljós " + x.code, "Vöru reitur 1":[x.id],
-        "Skilaboð til skipulags": x.label + (x.where.length ? " — undir/í " + x.where.join(", ") : " — fyrir alla LED-borðana") + ". Áætlun úr skipuleggjaranum, söluaðili staðfestir magn og lengdir." });
-    });
+    if (bom && !driverPlaced && rows.length) rows[0]["Skilaboð til skipulags"] = ((rows[0]["Skilaboð til skipulags"] || "") + " " +
+      LIGHT_PRODUCTS[bom.driver.code].label + " vantar í V3 — enginn upplýstur skápur með V1.").trim();
     return rows;
   }
 
