@@ -108,28 +108,34 @@
   // Oak plank floor. Tile = 2 m × 2 m, 1024 px; 14 rows of ~14 cm planks running
   // along x, each with a staggered end joint, its own tint and grain offset.
   function plankFloorTexture(baseHex, rowsOpt){
-    var key = "floor:" + baseHex + ":" + (rowsOpt || 14);
+    var key = "floor2:" + baseHex + ":" + (rowsOpt || 14);
     if (cache[key]) return cache[key];
-    var S = 1024, rows = rowsOpt || 14, rowH = S / rows, rnd = mulberry32(2026), wood = makeWood(4242, 2, 16, 0.8, 1.6), base = hexToRgb(baseHex);
+    // visual pass 2 (2026-10-06): hairline joints (~1 mm, a soft shadow, not a painted line), two planks per row
+    // per tile at staggered lengths, stronger grain and a wider spread of tone from plank to plank
+    var S = 1024, rows = rowsOpt || 14, rowH = S / rows, rnd = mulberry32(2026), wood = makeWood(4242, 3, 34, 1.25, 1.8), base = hexToRgb(baseHex);
     var joints = [], tint = [], offs = [];
     for (var r = 0; r < rows; r++){
-      joints.push(0.15 + rnd() * 0.7);
-      tint.push([0.955 + rnd() * 0.09, 0.955 + rnd() * 0.09]);
-      offs.push([rnd(), rnd()]);
+      var j0 = 0.08 + rnd() * 0.4; joints.push([j0, j0 + 0.35 + rnd() * 0.2]);
+      tint.push([0.9 + rnd() * 0.18, 0.9 + rnd() * 0.18, 0.9 + rnd() * 0.18]);
+      offs.push([rnd(), rnd(), rnd()]);
     }
     var color = document.createElement("canvas"), bump = document.createElement("canvas");
     color.width = bump.width = S; color.height = bump.height = S;
     var cx = color.getContext("2d"), bx = bump.getContext("2d"), ci = cx.createImageData(S, S), bi = bx.createImageData(S, S);
+    var JW = 0.0016, EW = 0.0011; // joint half-widths: across a plank (fraction of its width), at plank ends (of the tile)
     for (var y = 0; y < S; y++){
-      var row = Math.min(rows - 1, Math.floor(y / rowH)), across = (y - row * rowH) / rowH;
+      var row = Math.min(rows - 1, Math.floor(y / rowH)), across = (y - row * rowH) / rowH, J = joints[row];
       for (var x = 0; x < S; x++){
-        var s = x / S, seg = s < joints[row] ? 0 : 1, along = ((s - joints[row]) % 1 + 1) % 1;
-        var w = wood(((across * 0.92 + offs[row][seg]) % 1), ((along * 0.5 + offs[row][1 - seg]) % 1));
-        var t = tint[row][seg], k = (y * S + x) * 4;
-        var groove = across < 0.03 || across > 0.97 || Math.abs(s - joints[row]) < 0.0025 || (s < 0.0025);
-        var l = groove ? 0.62 : w.light * t;
-        ci.data[k] = clamp(base[0] * l); ci.data[k + 1] = clamp(base[1] * l * 0.985); ci.data[k + 2] = clamp(base[2] * l * 0.96); ci.data[k + 3] = 255;
-        var g = groove ? 20 : Math.round(w.bump * 255); bi.data[k] = bi.data[k + 1] = bi.data[k + 2] = g; bi.data[k + 3] = 255;
+        var s = x / S, seg = s < J[0] ? 0 : s < J[1] ? 1 : 2, start = seg === 0 ? J[1] - 1 : seg === 1 ? J[0] : J[1];
+        var along = ((s - start) % 1 + 1) % 1, sg = seg === 0 ? 2 : seg; // the first piece continues the last one across the tile edge
+        var w = wood(((across * 0.9 + offs[row][sg]) % 1), ((along * 0.45 + offs[row][(sg + 1) % 3]) % 1));
+        var t = tint[row][sg], k = (y * S + x) * 4;
+        var dAcross = Math.min(across, 1 - across) * rowH / S, dEnd = Math.min(Math.abs(s - J[0]), Math.abs(s - J[1]), s, 1 - s);
+        var dj = Math.min(dAcross / JW * 0.5, dEnd / EW * 0.5); // 0 at the joint centre, ≥1 off it
+        var shade = dj < 1 ? 0.72 + 0.28 * dj * dj : 1;
+        var l = w.light * t * shade;
+        ci.data[k] = clamp(base[0] * l); ci.data[k + 1] = clamp(base[1] * l * 0.985); ci.data[k + 2] = clamp(base[2] * l * 0.955); ci.data[k + 3] = 255;
+        var g = dj < 1 ? Math.round(20 + 200 * dj * dj * w.bump) : Math.round(w.bump * 255); bi.data[k] = bi.data[k + 1] = bi.data[k + 2] = g; bi.data[k + 3] = 255;
       }
     }
     cx.putImageData(ci, 0, 0); bx.putImageData(bi, 0, 0);

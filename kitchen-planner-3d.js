@@ -904,9 +904,8 @@
       var fm = floorMat.clone();
       fm.side = THREE.DoubleSide;
       if (floorMat.map && floorMat.userData.tile){
-        fm.map = floorMat.map; fm.bumpMap = floorMat.bumpMap; // shared, kept textures
-        floorMat.map.repeat.set(1 / floorMat.userData.tile, 1 / floorMat.userData.tile);
-        if (floorMat.bumpMap) floorMat.bumpMap.repeat.set(1 / floorMat.userData.tile, 1 / floorMat.userData.tile);
+        fm.map = floorMat.map; fm.bumpMap = floorMat.bumpMap; fm.roughnessMap = floorMat.roughnessMap; // shared, kept textures
+        [floorMat.map, floorMat.bumpMap, floorMat.roughnessMap].forEach(function(t){ if (t) t.repeat.set(1 / floorMat.userData.tile, 1 / floorMat.userData.tile); });
       }
       var pm = new THREE.Mesh(new THREE.ShapeGeometry(shape), fm);
       pm.rotation.x = -Math.PI / 2;
@@ -917,8 +916,7 @@
     var mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, d), floorMat);
     if (floorMat.map && floorMat.userData.tile){ // one 2 m tile of oak planks, repeated to the room size
       var rx = w / floorMat.userData.tile, ry = d / floorMat.userData.tile;
-      floorMat.map.repeat.set(rx, ry);
-      if (floorMat.bumpMap) floorMat.bumpMap.repeat.set(rx, ry);
+      [floorMat.map, floorMat.bumpMap, floorMat.roughnessMap].forEach(function(t){ if (t) t.repeat.set(rx, ry); });
     }
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.set(cx, 0, cz);
@@ -1271,10 +1269,13 @@
       var ovCodes = (meta && meta.ovenCodes) || [], oh = 0.595;
       var zoneH = meta && meta.lowOven ? Math.max(0.05, heightM - oh) : ovenZoneMm(ovCodes) / 1000, oy = baseYM + zoneH;
       var ovFr = meta && meta.lowOven ? [zoneH * 1000] : ovCodes.length ? stackFrontsMm({ frontsMm:meta && meta.ovenFrontsMm }, ovCodes, zoneH * 1000) : null;
-      var glassMat = new THREE.MeshStandardMaterial({ color:0x141518, roughness:0.12, metalness:0.5 });
+      var glassMat = new THREE.MeshPhysicalMaterial({ color:0x0c0d0f, roughness:0.06, metalness:0.1, clearcoat:1, clearcoatRoughness:0.03 }); // dark glass that mirrors the room
       [oy, oy + oh].forEach(function(y){ place(new THREE.Mesh(new THREE.PlaneGeometry(widthM + 0.002, 0.005), seamMat), y, 0.004); });
       place(new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.9, oh - 0.13, 0.012), glassMat), oy + (oh - 0.13) / 2 + 0.005, 0.006);
+      place(new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.94, oh - 0.006, 0.006), new THREE.MeshStandardMaterial({ color:0x9fa4aa, roughness:0.3, metalness:0.9 })), oy + oh / 2, 0.003); // steel frame behind the glass
       place(new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.9, 0.06, 0.012), new THREE.MeshStandardMaterial({ color:0x2b2c30, roughness:0.4, metalness:0.4 })), oy + oh - 0.05, 0.006);
+      [-0.22, -0.15, 0.15, 0.22].forEach(function(f){ var kn = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.016, 0.018, 20), new THREE.MeshStandardMaterial({ color:0xb7bcc2, roughness:0.25, metalness:0.95 })); kn.rotation.x = Math.PI / 2; place(kn, oy + oh - 0.05, 0.02, widthM * f); });
+      place(new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.022, 0.002), new THREE.MeshBasicMaterial({ color:0x0b0b0c })), oy + oh - 0.05, 0.013); // display
       place(new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.7, 0.018, 0.028), handleMat), oy + oh - 0.105, 0.024);
       var tops = [];
       if (ovFr){ // seams between the drawers under the oven; a handle at the top of each
@@ -1443,7 +1444,7 @@
     var isPanel = !!(meta && meta.panel); // úthlið / loose shelf: solid board in the front material on every face
     var mesh = new THREE.Mesh(boxGeo, art || isOpen ? meta.hiddenMat // the real boards are added below; the box stays only to pick/drag
       : isPanel ? [frontMat, frontMat, frontMat, frontMat, useFrontMat, frontMat]
-      : [carcassMat, carcassMat, carcassMat, carcassMat, useFrontMat, carcassMat]);
+      : [carcassMat, carcassMat, meta && meta.sink ? meta.hiddenMat : carcassMat, carcassMat, useFrontMat, carcassMat]); // a sink's body is open on top: the basin sinks into it
     mesh.position.set(cx, bodyBase + bodyH / 2, cz);
     var xAxis = new THREE.Vector3(geom.axis.x, 0, geom.axis.z);
     var yAxis = new THREE.Vector3(0, 1, 0);
@@ -1467,7 +1468,7 @@
     // light wall/floor — a soft dark outline keeps every cabinet readable.
     var edges = new THREE.LineSegments(
       new THREE.EdgesGeometry(new THREE.BoxGeometry(widthM, bodyH, depthM)),
-      new THREE.LineBasicMaterial({ color: selected ? SELECT_COLOR : (meta && meta.warn ? WARN_COLOR : 0x2a2a2a), transparent:true, opacity: (selected || (meta && meta.warn)) ? 1 : 0.4 })
+      new THREE.LineBasicMaterial({ color: selected ? SELECT_COLOR : (meta && meta.warn ? WARN_COLOR : 0x2a2a2a), transparent:true, opacity: (selected || (meta && meta.warn)) ? 1 : 0.2 })
     );
     edges.position.copy(mesh.position);
     if (art) edges.position.x += geom.normal.x * FRONT_T / 2, edges.position.z += geom.normal.z * FRONT_T / 2; // the outline wraps the fronts too
@@ -1499,8 +1500,9 @@
       group.add(pl);
     }
     if (meta && meta.counter && meta.stoneMat){
-      var topGeo = new THREE.BoxGeometry(widthM + 0.001, 0.032, depthM + 0.02);
-      scaleFrontUV(topGeo, widthM, depthM + 0.02, meta.stoneMat.userData && meta.stoneMat.userData.tile, meta.stoneMat.userData && meta.stoneMat.userData.rotateTex);
+      var sinkHole = meta.sink ? sinkSize(widthM, depthM) : null;
+      var topGeo = sinkHole ? worktopWithHole(THREE, widthM + 0.001, 0.032, depthM + 0.02, sinkHole) : new THREE.BoxGeometry(widthM + 0.001, 0.032, depthM + 0.02);
+      worktopUV(topGeo, meta.stoneMat.userData && meta.stoneMat.userData.tile, meta.stoneMat.userData && meta.stoneMat.userData.rotateTex, offsetM + widthM / 2);
       var top = new THREE.Mesh(topGeo, meta.stoneMat);
       // 1 mm proud of the carcass top: an open (articulated) carcass shows its top board from inside, and a
       // worktop underside in the very same plane z-fought with it (striped, 2026-10-02)
@@ -1902,20 +1904,47 @@
     applyPart(doorPart);
   }
 
-  // Stainless sink basin + tap on top of a worktop.
+  // Stainless inset sink (visual pass 2): the worktop has a real cut-out, a brushed-steel basin with rounded walls
+  // sinks 18 cm into the (open-topped) sink cabinet, a flush rim, a drain, and a gooseneck tap with a lever.
+  function sinkSize(widthM, depthM){ return { w:Math.min(0.62, widthM * 0.72), d:Math.min(0.42, depthM * 0.62), r:0.02 }; }
+  function roundedRectShape(THREE, w, d, r, path){
+    var s2 = path || new THREE.Shape(), x0 = -w / 2, y0 = -d / 2;
+    s2.moveTo(x0 + r, y0); s2.lineTo(x0 + w - r, y0); s2.quadraticCurveTo(x0 + w, y0, x0 + w, y0 + r); s2.lineTo(x0 + w, y0 + d - r);
+    s2.quadraticCurveTo(x0 + w, y0 + d, x0 + w - r, y0 + d); s2.lineTo(x0 + r, y0 + d); s2.quadraticCurveTo(x0, y0 + d, x0, y0 + d - r); s2.lineTo(x0, y0 + r); s2.quadraticCurveTo(x0, y0, x0 + r, y0);
+    return s2;
+  }
+  // a worktop slab (centred like a BoxGeometry) with a rounded-rect hole in the middle; UVs 0..1 like a box face
+  function worktopWithHole(THREE, w, h, d, hole){
+    var sh = new THREE.Shape(); sh.moveTo(-w / 2, -d / 2); sh.lineTo(w / 2, -d / 2); sh.lineTo(w / 2, d / 2); sh.lineTo(-w / 2, d / 2); sh.lineTo(-w / 2, -d / 2);
+    sh.holes.push(roundedRectShape(THREE, hole.w, hole.d, hole.r, new THREE.Path()));
+    var g = new THREE.ExtrudeGeometry(sh, { depth:h, bevelEnabled:false, curveSegments:6 });
+    g.rotateX(-Math.PI / 2); g.translate(0, -h / 2, 0); // shape y → -z, extrusion → up
+    var p = g.attributes.position, uv = g.attributes.uv;
+    for (var i = 0; i < p.count; i++) uv.setXY(i, (p.getX(i) + w / 2) / w, (p.getZ(i) + d / 2) / d);
+    return g;
+  }
   function addSink(THREE, group, local, quat, widthM, depthM, topY){
-    var steel = new THREE.MeshStandardMaterial({ color:0xb9bec4, metalness:0.85, roughness:0.28 });
-    var w = Math.min(0.62, widthM * 0.72), d = Math.min(0.42, depthM * 0.62);
-    var basin = new THREE.Mesh(new THREE.BoxGeometry(w, 0.004, d), steel);
-    basin.position.copy(local(0, topY + 0.002, depthM * 0.5 + 0.01)); basin.quaternion.copy(quat);
-    var inner = new THREE.Mesh(new THREE.BoxGeometry(w - 0.05, 0.005, d - 0.05), new THREE.MeshStandardMaterial({ color:0x6f757b, metalness:0.7, roughness:0.4 }));
-    inner.position.copy(local(0, topY + 0.004, depthM * 0.5 + 0.01)); inner.quaternion.copy(quat);
-    var stem = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.014, 0.2, 14), steel);
-    stem.position.copy(local(0, topY + 0.1, 0.07));
-    var spout = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.16, 12), steel);
-    spout.rotation.x = Math.PI / 2; spout.quaternion.premultiply(quat);
-    spout.position.copy(local(0, topY + 0.2, 0.15));
-    [basin, inner, stem, spout].forEach(function(m){ m.castShadow = true; group.add(m); });
+    var hs = sinkSize(widthM, depthM), depth = 0.18, zc = depthM * 0.5 + 0.01;
+    var steel = new THREE.MeshStandardMaterial({ color:0xc4c8cc, metalness:0.9, roughness:0.32 });
+    var steelIn = new THREE.MeshStandardMaterial({ color:0xaeb3b8, metalness:0.85, roughness:0.38, side:THREE.BackSide });
+    function put(m, y, out, along){ m.position.copy(local(along || 0, y, out)); m.quaternion.copy(quat); m.castShadow = true; m.receiveShadow = true; group.add(m); return m; }
+    // basin: a rounded box seen from inside (BackSide), its top face is what the hole frames
+    var basin = new THREE.Mesh(window.__RoundedBox__ ? new window.__RoundedBox__(hs.w - 0.002, depth, hs.d - 0.002, 4, 0.03) : new THREE.BoxGeometry(hs.w, depth, hs.d), steelIn);
+    put(basin, topY - depth / 2 + 0.001, zc);
+    // flush rim round the hole
+    var rimSh = roundedRectShape(THREE, hs.w + 0.03, hs.d + 0.03, hs.r + 0.015); rimSh.holes.push(roundedRectShape(THREE, hs.w, hs.d, hs.r, new THREE.Path()));
+    var rimG = new THREE.ExtrudeGeometry(rimSh, { depth:0.0015, bevelEnabled:false, curveSegments:6 }); rimG.rotateX(-Math.PI / 2);
+    put(new THREE.Mesh(rimG, steel), topY, zc);
+    // drain
+    var drain = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.003, 28), new THREE.MeshStandardMaterial({ color:0x9a9fa5, metalness:0.9, roughness:0.25 }));
+    put(drain, topY - depth + 0.006, zc, hs.w * 0.25);
+    // tap: round base, gooseneck, lever
+    var back = zc - hs.d / 2 - 0.045;
+    put(new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.026, 0.03, 24), steel), topY + 0.015, back);
+    var neck = new THREE.Group(); neck.position.copy(local(0, topY + 0.03, back)); neck.quaternion.copy(quat); group.add(neck);
+    var curve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0.2, 0), new THREE.Vector3(0, 0.3, 0.06), new THREE.Vector3(0, 0.27, 0.17), new THREE.Vector3(0, 0.2, 0.2)]);
+    var tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 40, 0.012, 14, false), steel); tube.castShadow = true; neck.add(tube);
+    var lever = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.08, 10), steel); lever.rotation.z = Math.PI / 2 - 0.3; lever.position.set(0.045, 0.1, 0); lever.castShadow = true; neck.add(lever);
   }
 
   function disposeScene(scene){
@@ -2610,6 +2639,21 @@
     return new THREE.MeshStandardMaterial({ color:0xe4dfd6, roughness:0.4 });
   }
 
+  // A roughness canvas from a bump canvas: dark bump (joints, grout) = matte, the rest `base` ± a soft `spread`.
+  var ROUGH_CACHE = new Map();
+  function roughFromBump(bump, base, spread){
+    var k = ROUGH_CACHE.get(bump); if (k && k[base + ":" + spread]) return k[base + ":" + spread];
+    var W = bump.width, H = bump.height, c = document.createElement("canvas"); c.width = W; c.height = H;
+    var src = bump.getContext("2d").getImageData(0, 0, W, H).data, x = c.getContext("2d"), img = x.createImageData(W, H), d = img.data;
+    for (var i = 0; i < src.length; i += 4){
+      var b = src[i] / 255, r = b < 0.12 ? 0.95 : base + (0.5 - b) * spread * 2;
+      var v = Math.max(0, Math.min(255, Math.round(r * 255))); d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255;
+    }
+    x.putImageData(img, 0, 0);
+    if (!k){ k = {}; ROUGH_CACHE.set(bump, k); } k[base + ":" + spread] = c;
+    return c;
+  }
+
   function makeFrontMaterial(THREE, lookKey, look){
     if (look.tex){ // a real board texture from the gallery
       var im = new THREE.MeshStandardMaterial({ map:imgTex(THREE, look.tex), roughness:0.58 });
@@ -2650,6 +2694,22 @@
       var u = uv.getX(i), v = uv.getY(i);
       if (swap) uv.setXY(i, (v * widthM + ou) / tile.w, (u * heightM + ov) / tile.h);
       else uv.setXY(i, (u * widthM + ou) / tile.w, (v * heightM + ov) / tile.h);
+    }
+    uv.needsUpdate = true;
+  }
+
+  // Worktop UVs at real size on every face (visual pass 2): the 32 mm front edge used to get the whole depth's
+  // texture squeezed into it (streaks). Each face is mapped by its own normal; `uOff` = where the slab sits along
+  // the wall, so the pattern runs on from one cabinet's worktop into the next instead of restarting.
+  function worktopUV(geo, tile, swap, uOff){
+    if (!tile) return;
+    var p = geo.attributes.position, n = geo.attributes.normal, uv = geo.attributes.uv;
+    for (var i = 0; i < p.count; i++){
+      var ax = Math.abs(n.getX(i)), ay = Math.abs(n.getY(i)), az = Math.abs(n.getZ(i)), a, b;
+      if (ay >= ax && ay >= az){ a = p.getX(i) + uOff; b = p.getZ(i); }
+      else if (az >= ax){ a = p.getX(i) + uOff; b = p.getY(i); }
+      else { a = p.getZ(i); b = p.getY(i); }
+      if (swap) uv.setXY(i, b / tile.w, a / tile.h); else uv.setXY(i, a / tile.w, b / tile.h);
     }
     uv.needsUpdate = true;
   }
@@ -2788,7 +2848,10 @@
     var floorMat;
     if (window.KPMat){
       var ft = floorTexture(state.floor, state), isTile = (FLOORS[state.floor] || {}).kind === "tile";
-      floorMat = new THREE.MeshStandardMaterial({ map:canvasTex(THREE, ft.color, true), bumpMap:canvasTex(THREE, ft.bump, false), bumpScale:isTile ? 0.35 : 0.7, roughness:isTile ? 0.38 : 0.58 });
+      // gloss varies (visual pass 2): lacquered planks / glazed tiles catch a soft sheen, joints and grout stay matte
+      floorMat = new THREE.MeshStandardMaterial({ map:canvasTex(THREE, ft.color, true), bumpMap:canvasTex(THREE, ft.bump, false), bumpScale:isTile ? 0.35 : 0.7,
+        roughnessMap:canvasTex(THREE, roughFromBump(ft.bump, isTile ? 0.28 : 0.42, isTile ? 0.04 : 0.12), false), roughness:1, envMapIntensity:0.55 });
+      floorMat.userData.envKeep = true;
       floorMat.userData.tile = ft.tileW;
     } else {
       floorMat = new THREE.MeshStandardMaterial({ color:0xd8d3c6, roughness:1 });
@@ -3137,7 +3200,7 @@
     scene.traverse(function(o){
       if (!o.material) return;
       (Array.isArray(o.material) ? o.material : [o.material]).forEach(function(m){
-        if (m.envMapIntensity !== undefined) m.envMapIntensity = m.metalness > 0.5 ? 1.0 : 0.3;
+        if (m.envMapIntensity !== undefined && !(m.userData && m.userData.envKeep)) m.envMapIntensity = m.metalness > 0.5 ? 1.0 : 0.3;
         if (m.map) m.map.anisotropy = maxAniso;
         if (m.bumpMap) m.bumpMap.anisotropy = maxAniso;
       });
@@ -3801,8 +3864,10 @@
       var hidden = [];
       scene.traverse(function(o){
         if (!o.visible || !(o.isMesh || o.isLine || o.isLineSegments || o.isPoints || o.isSprite)) return;
-        var ms = Array.isArray(o.material) ? o.material : [o.material];
-        var skip = !o.isMesh || ms.some(function(mm){ return !mm || mm.isMeshBasicMaterial || (mm.transparent && (mm.opacity < 0.95 || mm.blending !== THREE.NormalBlending)) || mm.visible === false; });
+        // judge only the materials that actually draw: a cabinet body with one invisible face (a sink's open top)
+        // must still occlude, or the AO "sees" the basin straight through the front
+        var ms = (Array.isArray(o.material) ? o.material : [o.material]).filter(function(mm){ return mm && mm.visible !== false; });
+        var skip = !o.isMesh || !ms.length || ms.some(function(mm){ return mm.isMeshBasicMaterial || (mm.transparent && (mm.opacity < 0.95 || mm.blending !== THREE.NormalBlending)); });
         if (skip){ o.visible = false; hidden.push(o); }
       });
       orig(r, w, rd, dt, m);
