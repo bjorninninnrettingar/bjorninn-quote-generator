@@ -3873,7 +3873,7 @@
     html += sec("lysing", "Lýsing",
       '<div class="light-btns">' + lbtn("underWall", "LED undir efri skápum") + lbtn("shelves", "LED í opnum hillum") + '</div>' +
       '<button type="button" class="btn btn-secondary btn-small" data-act="mood">' + (moodOn ? '☀️ Dagsbirta' : '🌙 Sjá í kvöldstemningu') + '</button>' +
-      (bom ? '<p class="sec-note">' + bom.join(" · ") + '</p>' : '<p class="sec-note">Smelltu á efri skáp til að kveikja eða slökkva á ljósi undir honum einum.</p>'));
+      (bom ? '<p class="sec-note">' + lightingText(bom).join(" · ") + '</p>' : '<p class="sec-note">Smelltu á efri skáp til að kveikja eða slökkva á ljósi undir honum einum.</p>'));
     var DEC = KP3D.DECOR;
     html += sec("skraut", "Húsgögn og skraut",
       KP3D.DECOR_GROUPS.map(function(gp){
@@ -5431,37 +5431,45 @@
   // ---- Lýsing (2026-10-05): what's lit, and the products it takes (Útfærslur "Ljós og lýsing") ----
   function lighting(){ return state.lighting || (state.lighting = { underWall:false, shelves:false, plinth:false }); }
   function lightingOn(){ var L = lighting(); return L.underWall || L.shelves || surfaces().some(function(w){ return w.wall.some(function(b){ return b.led; }); }); }
-  var BASKI = [100, 90, 80, 60, 50, 45]; // cm, BASKI LED under-cabinet lights
-  var BASKI_W_PER_M = 10, LED_W_PER_M = 9.6, ATOM_W = 3; // rough power, for the transformer size
-  // the lighting the plan takes: [{code, n, why}] + the transformer, an estimate the söluaðili confirms
+  var LED_W_PER_M = 9.6; // rough power of the 4×8 mm strip, for the transformer size
+  // The products, as real Útfærslur (Flokkur "Ljós og lýsing"). Each one becomes its own Line Item
+  // (V1 = the product, Magn = how many) — how the söluaðili enters lighting by hand, and the shape
+  // ⚠️ Skipulagsvilla accepts (V3 on a cabinet line needs junction rows, so it isn't used).
+  var LIGHT_PRODUCTS = {
+    LED41: { label:"LED-borði 4×8 mm, 1 m", utfaerslaId:"recfMqPJ94czDOqS8" },
+    LED42: { label:"LED-borði 4×8 mm, 2 m", utfaerslaId:"recUJdx6TiAB8qRsU" },
+    LED43: { label:"LED-borði 4×8 mm, 3 m", utfaerslaId:"recmigGLYHgQgxnak" },
+    STRM15: { label:"Straumbreytir D-power 15 W", utfaerslaId:"recNaVFYyd9MzHIR3" },
+    STRM30: { label:"Straumbreytir D-power 30 W", utfaerslaId:"recS9jA4zVFjUyvsr" },
+    STRM60: { label:"Straumbreytir D-power 60 W", utfaerslaId:"rec9msFWprQWuYp4K" },
+    STRM100: { label:"Straumbreytir D-power 100 W", utfaerslaId:"recfjgueX1s18wxYS" }
+  };
+  function stripCode(mm){ var m = Math.max(1, Math.ceil(mm / 1000)); return m >= 3 ? "LED43" : m === 2 ? "LED42" : "LED41"; }
+  // the lighting the plan takes: [{code, n, label, id, where[]}] incl. the transformer — an estimate the söluaðili confirms
   function lightingBOM(){
-    var L = lighting(), out = {}, watts = 0, plinthMm = 0;
-    function add(code, n){ out[code] = (out[code] || 0) + n; }
+    var L = lighting(), out = {}, order = [], watts = 0, keys = skKeys();
+    function add(code, n, where){
+      if (!out[code]){ out[code] = { code:code, n:0, label:LIGHT_PRODUCTS[code].label, id:LIGHT_PRODUCTS[code].utfaerslaId, where:[] }; order.push(code); }
+      out[code].n += n; if (where && out[code].where.indexOf(where) < 0) out[code].where.push(where);
+    }
     surfaces().forEach(function(w){
       w.wall.forEach(function(b){
         var c = CATALOG[b.type]; if (c.panel || c.shelfStack) return;
         if (b.led != null ? b.led : L.underWall){ // a LED strip (4×8 mm) under each one, cut from the 1/2/3 m reels
-          var mStrip = Math.max(1, Math.ceil(b.widthMm / 1000));
-          add(mStrip >= 3 ? "LED43 (3 m)" : mStrip === 2 ? "LED42 (2 m)" : "LED41 (1 m)", 1); watts += b.widthMm / 1000 * LED_W_PER_M;
+          add(stripCode(b.widthMm), 1, keys[b.id]); watts += b.widthMm / 1000 * LED_W_PER_M;
         }
         if (c.open && L.shelves){ // a LED strip under the top and under each shelf (ATOM spots left out for now)
-          var levels = (KP3D.shelvesOf(b) || 0) + 1, mS = Math.max(1, Math.ceil(b.widthMm / 1000));
-          add(mS >= 3 ? "LED43 (3 m)" : mS === 2 ? "LED42 (2 m)" : "LED41 (1 m)", levels); watts += levels * b.widthMm / 1000 * LED_W_PER_M;
+          var levels = (KP3D.shelvesOf(b) || 0) + 1;
+          add(stripCode(b.widthMm), levels, keys[b.id]); watts += levels * b.widthMm / 1000 * LED_W_PER_M;
         }
       });
-      // (no plinth LED — taken out 2026-10-05)
     });
-    if (plinthMm){
-      var m = Math.ceil(plinthMm / 1000), m3 = Math.floor(m / 3), rest = m - m3 * 3;
-      if (m3) add("LED43 (3 m)", m3); if (rest === 2) add("LED42 (2 m)", 1); if (rest === 1) add("LED41 (1 m)", 1);
-      watts += m * LED_W_PER_M;
-    }
-    var codes = Object.keys(out);
-    if (!codes.length) return null;
+    if (!order.length) return null;
     var need = watts * 1.25, drivers = [15, 30, 60, 100], d = drivers.find(function(x){ return x >= need; });
-    if (d) add("STRM" + d + " (straumbreytir)", 1); else add("STRM100 (straumbreytir)", Math.ceil(need / 100));
-    return Object.keys(out).map(function(k){ return k + " ×" + out[k]; });
+    if (d) add("STRM" + d, 1); else add("STRM100", Math.ceil(need / 100));
+    return order.map(function(k){ return out[k]; });
   }
+  function lightingText(bom){ return bom.map(function(x){ return x.code + " ×" + x.n; }); }
 
   // "X passar ekki — viltu setja Y mm í staðinn?" (user, 2026-10-02): offered instead of a flat refusal
   // whenever a narrower cabinet would fit the space.
@@ -5654,7 +5662,7 @@
     // is the only place Rakel sees them were drawn in at all.
     (state.islands || []).forEach(function(x){ if (x.back && !x.two) lines.push("Bak á eyju (" + x.label + "): 19 mm úthlið í framhliðaefni, " + x.lengthMm + " mm löng"); });
     var bom = lightingBOM();
-    if (bom) lines.push("Lýsing (áætlun, söluaðili staðfestir): " + bom.join(", "));
+    if (bom) lines.push("Lýsing (áætlun, söluaðili staðfestir — sjá Ljós-línurnar): " + lightingText(bom).join(", "));
     var appl = [];
     surfaces().forEach(function(w){ w.floor.forEach(function(b){ var c = CATALOG[b.type]; if (c.notOrdered) appl.push(c.label + " " + b.widthMm + " mm"); }); });
     if (appl.length) lines.push("Pláss fyrir tæki viðskiptavinar (ekki hluti af pöntun): " + appl.join(", "));
@@ -5937,6 +5945,11 @@
         if (notes.length) fields["Skilaboð til skipulags"] = notes.join(" ");
         rows.push(fields);
       });
+    });
+    // Lighting: one line per product (V1 = the LED reel / transformer, Magn = how many), 🔑 "Ljós LED42".
+    (lightingBOM() || []).forEach(function(x){
+      rows.push({ "Rými 🏡":"Eldhús", "Magn":x.n, "🔑":"Ljós " + x.code, "Vöru reitur 1":[x.id],
+        "Skilaboð til skipulags": x.label + (x.where.length ? " — undir/í " + x.where.join(", ") : " — fyrir LED-borðana") + ". Áætlun úr skipuleggjaranum, söluaðili staðfestir magn og lengdir." });
     });
     return rows;
   }
