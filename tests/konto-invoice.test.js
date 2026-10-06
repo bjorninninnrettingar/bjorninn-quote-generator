@@ -84,6 +84,7 @@ test("Konto draft: claim, 24% VAT, amounts ex VAT on the lines", () => {
   assert.equal(d.items[0].tax, "S");
   assert.equal(d.items[0].unit_price, 100_000);
   assert.equal(d.amount, 124_000);
+  assert.equal(d.issue_date, "2026-10-05");
   assert.equal(d.due_date, "2026-10-08");
   assert.equal(d.settlement_date, "2026-10-12");
 });

@@ -141,6 +141,8 @@ export function kontoDraft({ customer = {}, customerGuid, contact, description, 
     currency: "ISK",
     description,
     amount: lines.reduce((s, l) => s + l.amountInclVat, 0),
+    issue_date: today.toISOString().slice(0, 10),    // Konto: "Issue date is required"
+    delivery_date: today.toISOString().slice(0, 10),
     due_date: addWorkdays(today, 3, holidays),
     settlement_date: addWorkdays(today, 5, holidays),
     is_claim: true,
