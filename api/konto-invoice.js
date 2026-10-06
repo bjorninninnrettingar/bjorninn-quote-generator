@@ -290,9 +290,33 @@ export default async function handler(req, res) {
       description: String(project[P.name] || "").trim(),
       lines, today, holidays,
     });
-    const result = await kontoPost("create-draft-invoice", draft);
+    // Konto's docs are vague about where the bill-to kennitala goes on a draft
+    // (first try → "Vinsamlegast skrá rétta kennitölu"). Try the plausible shapes
+    // in order and stop at the first one Konto accepts — a rejected attempt
+    // creates nothing, so at most one draft is ever made. The winner is logged
+    // so the code can be narrowed to it later.
+    const kt = contact.kennitala;
+    const variants = [
+      ["customer-only", (d) => { const { kennitala, ...rest } = d; return rest; }],
+      ["customer+kt", (d) => { const { kennitala, ...rest } = d; return { ...rest, customer: { guid: customerGuid, registration_no: kt } }; }],
+      ["kt-hyphen", (d) => ({ ...d, kennitala: `${kt.slice(0, 6)}-${kt.slice(6)}`, customer: { guid: customerGuid, registration_no: kt } })],
+    ];
+    let result, used;
+    const tried = [];
+    for (const [label, shape] of variants) {
+      try {
+        result = await kontoPost("create-draft-invoice", shape(draft));
+        used = label;
+        break;
+      } catch (e) {
+        tried.push(`${label}: ${e.message.replace(/^Konto create-draft-invoice \d+: /, "")}`);
+        if (!/kennit/i.test(e.message)) break; // a different complaint — stop and report it
+      }
+    }
+    if (!result) throw new Error(`Konto hafnaði drögum — ${tried.join(" | ")}`);
     const guid = (result && (result.guid || result.result?.guid || result.result)) || "?";
-    await appendLog(recordId, project, `${stamp} · ${payment} · drög ${typeof guid === "string" ? guid : JSON.stringify(guid)} · ${isk(draft.amount)}`);
+    console.log(`konto-invoice: draft accepted with shape "${used}"`);
+    await appendLog(recordId, project, `${stamp} · ${payment} · drög ${typeof guid === "string" ? guid : JSON.stringify(guid)} · ${isk(draft.amount)} · (${used})`);
     return res.status(200).json({ ok: true, payment, amount: draft.amount, guid });
   } catch (e) {
     console.error("konto-invoice:", e);
