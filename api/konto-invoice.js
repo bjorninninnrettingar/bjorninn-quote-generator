@@ -116,7 +116,8 @@ export function invoiceLines(project, payment) {
 
 const PAYMENT_LABEL = { G1: "Greiðsla 1", G2: "Greiðsla 2", LOK: "Lokagreiðsla", UPPGJOR: "Uppgjör (uppsetning + heimsending)" };
 
-// Google Chat text for a draft (or a failed attempt). Sent to KONTO_CHAT_WEBHOOK.
+// Google Chat text for a draft (or a failed attempt). Returned as `chat`; the Airtable
+// automation posts it to its own webhook, so the Chat space is changed in Airtable.
 export function chatText({ name, recordId, payment, amount, lines = [], dueDate, error }) {
   const link = `https://airtable.com/app91U15z9K704Okd/tbl4LMXlQjp66RFKI/${recordId}`;
   const what = PAYMENT_LABEL[payment] || payment;
@@ -131,15 +132,6 @@ export function chatText({ name, recordId, payment, amount, lines = [], dueDate,
   ].join("\n");
 }
 
-async function notifyChat(text) {
-  const url = process.env.KONTO_CHAT_WEBHOOK;
-  if (!url) return;
-  try {
-    await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
-  } catch (e) {
-    console.error("konto-invoice: chat failed", e.message);
-  }
-}
 
 export function alreadyDrafted(log, payment) {
   return String(log || "").split("\n").some((l) => l.includes(`· ${payment} · drög`));
@@ -363,12 +355,12 @@ export default async function handler(req, res) {
     const guid = (result && (result.guid || result.result?.guid || result.result)) || "?";
     console.log(`konto-invoice: draft accepted with shape "${used}"`);
     await appendLog(recordId, project, `${stamp} · ${payment} · drög ${typeof guid === "string" ? guid : JSON.stringify(guid)} · ${isk(draft.amount)} · (${used})`);
-    await notifyChat(chatText({ name: draft.description, recordId, payment, amount: draft.amount, lines, dueDate: draft.due_date }));
-    return res.status(200).json({ ok: true, payment, amount: draft.amount, guid });
+    const chat = chatText({ name: draft.description, recordId, payment, amount: draft.amount, lines, dueDate: draft.due_date });
+    return res.status(200).json({ ok: true, payment, amount: draft.amount, guid, chat });
   } catch (e) {
     console.error("konto-invoice:", e);
     try { await appendLog(recordId, project, `${stamp} · ${payment} · ❌ ${e.message}`); } catch {}
-    await notifyChat(chatText({ name: String(project[P.name] || "").trim(), recordId, payment, error: e.message }));
-    return res.status(500).json({ error: e.message });
+    const chat = chatText({ name: String(project[P.name] || "").trim(), recordId, payment, error: e.message });
+    return res.status(500).json({ error: e.message, chat });
   }
 }
