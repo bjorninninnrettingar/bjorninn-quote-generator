@@ -5797,6 +5797,7 @@
   // real table). Real Line Items show drawer cabinets as the OPEN body (GR/HA — no door) + a drawer
   // combo, and everything with a door as the CLOSED body (LGR/LHA/LEF…) — the planner used to send
   // LGR + drawers, i.e. a door that isn't there (fixed 2026-09-30, confirmed with the user).
+  var STOK = { utfaerslaId:"recPsA7OPmB76qyUF" }; // Útfærsla "Stök vara"
   var V1_FAMILY = { grunnskapur:"grunnskapur", vaskaskapur:"grunnskapur", ruslaskapur:"grunnskapur", harskapur:"harskapur", isskapur:"harskapur",
     ofnaskapur:"harskapur", ofnaskapurLagur:"grunnskapur", hornskapur:"grunnskapur", burskapur:"harskapur", thvottavel:"harskapur", efriskapur:"efriskapur", opnarhillur:"efriskapur",
     litillkassi:"litillkassi", harveggskapur:"harveggskapur" };
@@ -5811,7 +5812,9 @@
       return tid ? { id:tid } : null;
     }
     var fam = V1_FAMILY[b.type], LM = window.KP_LINEMAP;
-    if (c.dishwasher) return LM ? LM.uppthvottavel : null; // the front is the product
+    // dishwasher = "Stök vara" + its front (UÞVFR) in V2 — how Rakel enters it; UÞVFR alone in V1 has no
+    // route, so Keyra skipulag skipped the line without a word (found 2026-10-06)
+    if (c.dishwasher) return { id:STOK.utfaerslaId };
     if (!fam || !LM || !LM.v1[fam]) return null;
     var open = isDrawerUnit(b) || !!c.open || !!c.rusl; // opnar hillur = "Efri skápur" without "Lokaður"; bin = GR + RUSL
     return LM.v1[fam][open ? "open" : "closed"][widthFamily(b.widthMm)] || null;
@@ -5820,6 +5823,7 @@
   function v2RecordFor(b, c){
     var LM = window.KP_LINEMAP; if (!LM) return null;
     if (c.fridge) return LM.isskapur;
+    if (c.dishwasher) return LM.uppthvottavel || null;
     if (c.lowOven) return (LM.ofnLow || {})[drawerSys()] || null; // OFN6
     if (c.oven){
       var ok = ovenKeyOf(b);
@@ -5827,7 +5831,7 @@
     }
     if (c.bur) return (LM.bur[drawerSys()] || {})[burKeyOf(b)] || null;
     if (c.thvo) return b.thvo === "hurdir" ? LM.thvottavel.doors : LM.thvottavel[drawerSys()];
-    if (c.rusl) return LM.rusl[String(widthFamily(b.widthMm))] || null;
+    // (rusl: an accessory, so it goes in V3 — see v3RecordsFor; in V2 it is a ⛔ Skipulagsvilla)
     if (c.hasInterior && b.interior){
       if (isDrawerUnit(b)) return drawerComboRec(KP3D.drawerCodes(b.interior, drawerSys()), b.interior.inner || null);
       // Shelves = KP3D.shelvesOf(b) (b.shelves) — what the side panel's "Lausar hillur" −/+ edits and
@@ -5841,6 +5845,13 @@
       return n ? ((c.open && b.frontAll ? LM.v2ShelvesFrontaefni : LM.v2ShelvesPlain)[n] || null) : null;
     }
     return null;
+  }
+
+  // V3 = accessories with an Aukahlutategund route: the bin insert (+ the LED, added in collectLineItems)
+  function v3RecordsFor(b, c){
+    var LM = window.KP_LINEMAP, out = [];
+    if (c.rusl && LM){ var r = LM.rusl[String(widthFamily(b.widthMm))]; if (r) out.push(r.id); }
+    return out;
   }
 
   // ---------- handle hardware (Tækifæri-level, not per-line — 2026-09-29) ----------
@@ -5947,11 +5958,13 @@
         if (b.swing && !(b.interior && b.interior.mode === "skuffur")){
           notes.push("Viðskiptavinur óskar eftir að lamir séu " + (b.swing === "vinstri" ? "vinstra" : "hægra") + " megin (séð framan frá).");
         }
+        var v3 = v1 ? v3RecordsFor(b, c) : [];
         var lit = bom && bom.perUnit[b.id];
         if (lit){ // the LED this cabinet carries → V3 (planning only); the priced reels are on the "Ljós" lines
-          if (v1) fields["Vöru reitur 3"] = [LIGHT_PRODUCTS[lit.code].utfaerslaId];
+          if (v1) v3.push(LIGHT_PRODUCTS[lit.code].utfaerslaId);
           notes.push("Lýsing: " + LIGHT_PRODUCTS[lit.code].label + " ×" + lit.n + (v1 ? "" : " (ekki í V3 því V1 vantar)") + " — verðið er á línunni „Ljós " + lit.code + "“.");
         }
+        if (v3.length) fields["Vöru reitur 3"] = v3;
         if (notes.length) fields["Skilaboð til skipulags"] = notes.join(" ");
         rows.push(fields);
       });
