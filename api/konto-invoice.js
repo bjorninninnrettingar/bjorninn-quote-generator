@@ -244,7 +244,9 @@ export default async function handler(req, res) {
       const out = [`🧪 PRUFA ${stamp} — ekkert búið til í Konto`];
       try {
         const hello = await kontoGet("hello", { username: process.env.KONTO_USERNAME || "", api_key: process.env.KONTO_API_KEY || "" });
-        out.push(`Konto aðgangur: ${typeof hello === "string" ? hello : JSON.stringify(hello).slice(0, 120)}`);
+        out.push(typeof hello === "object" && hello
+          ? `Konto aðgangur: ${hello.status ? "✅" : "❌"} ${hello.message || ""} (${hello.name || "?"})`
+          : `Konto aðgangur: ${String(hello).slice(0, 120)}`);
       } catch (e) { out.push(`Konto aðgangur: ❌ ${e.message}`); }
       let contact;
       try {
