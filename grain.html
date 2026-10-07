@@ -667,6 +667,7 @@ let currentProjectId = null;
 let projectName = "";
 let allFronts = [];          // {id, partur, h, b, th, m, efni, unitId, unitName, err}
 let skippedFronts = [];      // rows that look like fronts but were dropped (missing dims / unknown Partur)
+let hiddenPieces = [];       // inner drawer fronts — never on the grain plan, but cut from the same board, so they count in the order estimate
 let boards = [];             // Efnislisti rows
 let materials = [];          // {key, label, efni, th, grain, pieces, area}
 let selectedKey = null;
@@ -1132,6 +1133,7 @@ async function loadProject(id) {
     });
     const isFront = p => (FRONT_RE.test(p.partur) || p.frontMat) && !HIDDEN_RE.test(p.partur);
     allFronts = parsed.filter(p => isFront(p) && p.h > 0 && p.b > 0);
+    hiddenPieces = parsed.filter(p => HIDDEN_RE.test(p.partur) && p.h > 0 && p.b > 0);
     // front-material rows (or explicit "frontur") that got dropped — usually missing dims
     skippedFronts = parsed.filter(p => !allFronts.includes(p) && !HIDDEN_RE.test(p.partur) &&
       (p.frontMat || /\bfrontur\b/i.test(p.partur))).map(p => ({
@@ -2483,6 +2485,13 @@ function allSheetsEstimate() {
   buildGroups();   // clobbers `groups` with the full set — restored right below
   const allGroups = groups;
   groups = realGroups;   // restore — the estimate must never replace the real plan
+  // Inner drawer fronts of this material: one free-standing piece each.
+  for (const p of hiddenPieces.filter(p => `${p.efni}||${p.th}` === selectedKey)) {
+    for (let i = 0; i < p.m; i++) {
+      allGroups.push({ id: `hidden~${p.id}~${i}`, width: Math.round(p.b), orient: "v", keepTogether: false, kind: "",
+        fronts: [{ pieceId: p.id, uid: `${p.id}~${i}`, label: p.partur, h: Math.round(p.h), code: "" }] });
+    }
+  }
   const u = usable();
   const sheetsOf = list => Math.min(
     packGuillotine(list, u.w, u.l, groupWidth, groupLen).sheets.length,
@@ -4209,7 +4218,7 @@ if (FLOOR_MODE) setInterval(checkFloorPlan, 90 * 1000);
 
 // ── INIT ─────────────────────────────────────────────────────────────────
 function resetAll() {
-  currentProjectId = null; selectedKey = null; selectedGid = null; selectedFrontKey = null; curPlan = null; manualFronts = []; skippedFronts = []; pieceSearchQuery = "";
+  currentProjectId = null; selectedKey = null; selectedGid = null; selectedFrontKey = null; curPlan = null; manualFronts = []; skippedFronts = []; hiddenPieces = []; pieceSearchQuery = "";
   projectDrawings = []; activeDrawingIndex = -1; closeDrawings();
   resetHistory();
   clearTimeout(planSaveTimer);
