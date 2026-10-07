@@ -1626,7 +1626,7 @@ function selectMaterial(key) {
   selectedKey = key;
   selectedGid = null;
   selectedFrontKey = null;
-  estimateShown = false; if ($("estimateCard")) $("estimateCard").innerHTML = "";
+  estimateShown = false; allSheetsCache = null; if ($("estimateCard")) $("estimateCard").innerHTML = "";
   // Start every project/material from an empty layout. autoNest() keeps any
   // board marked done (🔒 Læsa plötu) as-is, so a layout left over from the
   // previously opened project would otherwise leak its locked boards into
@@ -2471,24 +2471,34 @@ function resetLayout() {
 // case for manual arranging that's already better than a blind auto-nest,
 // not staleness.
 let estimateShown = false;
+// Whole-material sheet estimate (grain runs here + the pieces Cutty cuts) —
+// what to ORDER. Computed once per material load; the header shows it next to
+// the plan's own sheet count. Office only (/saga has no Sögunarlisti loaded).
+let allSheetsCache = null;
+function allSheetsEstimate() {
+  if (FLOOR_MODE) return null;
+  if (allSheetsCache) return allSheetsCache;
+  if (!groups.length) return null;   // not loaded yet — don't cache a 0
+  const realGroups = groups;
+  buildGroups();   // clobbers `groups` with the full set — restored right below
+  const allGroups = groups;
+  groups = realGroups;   // restore — the estimate must never replace the real plan
+  const u = usable();
+  const sheetsOf = list => Math.min(
+    packGuillotine(list, u.w, u.l, groupWidth, groupLen).sheets.length,
+    packGuillotine(list, u.l, u.w, groupLen, groupWidth).sheets.length);
+  allSheetsCache = { all: sheetsOf(allGroups), kt: sheetsOf(allGroups.filter(g => g.keepTogether)) };
+  return allSheetsCache;
+}
 function estimateAllSheets() {
   const card = $("estimateCard");
   if (estimateShown) { card.innerHTML = ""; estimateShown = false; return; }
 
-  const realGroups = groups;
   const currentSheets = layout.boards.length;
-  buildGroups();   // clobbers `groups` with the full set — restored right below
-  const allGroups = groups;
-  const u = usable();
-  const colFirst = packGuillotine(allGroups, u.w, u.l, groupWidth, groupLen);
-  const rowFirst = packGuillotine(allGroups, u.l, u.w, groupLen, groupWidth);
-  const allSheets = Math.min(colFirst.sheets.length, rowFirst.sheets.length);
-
-  const ktGroups = allGroups.filter(g => g.keepTogether);
-  const ktColFirst = packGuillotine(ktGroups, u.w, u.l, groupWidth, groupLen);
-  const ktRowFirst = packGuillotine(ktGroups, u.l, u.w, groupLen, groupWidth);
-  const freshKtSheets = Math.min(ktColFirst.sheets.length, ktRowFirst.sheets.length);
-  groups = realGroups;   // restore — the estimate must never replace the real plan
+  allSheetsCache = null;   // fresh from Sögunarlisti when asked explicitly
+  const est = allSheetsEstimate() || { all: 0, kt: 0 };
+  const allSheets = est.all, freshKtSheets = est.kt;
+  renderStats();
 
   const staleWarning = freshKtSheets < currentSheets ? `
     <div class="hint" style="color:#ffb27a;margin-top:8px;">
@@ -2568,7 +2578,9 @@ function render() {
 
 function renderStats() {
   const nB = layout.boards.filter(b => Object.keys(b.placements).length).length;
-  $("statRow").innerHTML = `<div class="stat"><b>${nB}</b> plötur (${board.w}×${board.l})</div>`;
+  const est = allSheetsEstimate();
+  $("statRow").innerHTML = `<div class="stat"><b>${nB}</b> plötur í æðaröðun (${board.w}×${board.l})</div>` +
+    (est ? `<div class="stat" title="Æðahóparnir hér + allir aðrir hlutar úr þessu efni sem Cutty sagar. Gróf áætlun til að panta efni.">📦 <b>~${est.all}</b> plötur alls að panta</div>` : "");
 }
 
 function renderOverflow() {
