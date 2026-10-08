@@ -32,7 +32,9 @@
     // Used with this lock on T-49 and T-54 leaves. The strike-plate macro is the one named after it in the
     // master but has not been confirmed on a real door yet → "check" until it has.
     recgXxgK8jwfkFyhp: { name: "JNF lykill m. segli 60", leaf: "IN_20_835_60_BA", jamb: "IN_20_835_60_BA_SLUTJARN", confirm: "Slúttjárn-makró IN_20_835_60_BA_SLUTJARN ekki staðfest á hurð" },
-    // recp1YcZFduuzhpkb "JNF hurðaskrá euro f/ WC 20mm" — macro pair not known yet (user: "comes up next one")
+    // Likely pair (2026-10-08): EN12209's tooltip is "JNF Lashus" and JNF_SLUTTJARN's parameter is labelled "EN12209";
+    // both sit (switched off) in the shop's own leaf/jamb masters. Not used on a door yet → "check".
+    recp1YcZFduuzhpkb: { name: "JNF euro WC 20mm", leaf: "EN12209", jamb: "JNF_SLUTTJARN", confirm: "WC-skrá: EN12209 + JNF_SLUTTJARN ekki staðfest á hurð (JNF_SLUTTJARN miðar við 36 mm karm)" },
   };
   var THRESHOLDS = {
     recRJ3d2MCFv4DDJi: { name: "Felliþröskuldur", leaf: "FELLI_THROSKULDUR" },

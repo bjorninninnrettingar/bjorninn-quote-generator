@@ -38,7 +38,7 @@ test("missing data stops the door, unknown lock only warns", () => {
   const stop = C.doorPlan({ ...DOOR, "Þykkt karms [Hurð]": null, "Lamir [Hurð]": [] });
   assert.equal(stop.status, "stop");
   assert.equal(stop.values, null);
-  const lock = C.doorPlan({ ...DOOR, "Skrá [Hurð]": ["recp1YcZFduuzhpkb"] });
+  const lock = C.doorPlan({ ...DOOR, "Skrá [Hurð]": ["recUNKNOWNLOCK0001"] });
   assert.equal(lock.status, "check");
   assert.deepEqual(lock.on.jambStrike, []);
 });
