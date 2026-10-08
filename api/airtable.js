@@ -312,6 +312,8 @@ const VERK_ONLY_FIELDS = {
     "Grip?", "Skúffutegund", "Skúffu dýptir fyrir prentara",
     "Skipting fronta [Lárétt]", "Skipting fronta [Lóðrétt]", "Skipting fronta [Tækja]",
     "Opnun [Hurð]", "Hurðaefni",
+    // /hurdir (hurdir.html) — door programs for the CNC: jamb + leaf numbers and which project a door belongs to
+    "Þykkt karms [Hurð]", "Karmabil frá vegg [Hurð]", "Toppstykki hurðakarms", "Athugasemd + Tækifæri (fyrir yfirfara)",
     "Sérhæð N fronts", "Sérhæð M fronts", "Sérhæð K fronts",
     "Sérhæð C fronts", "Sérhæð F fronts", "Sérhæð E fronts",
     "Tvípress / Eurolight", "Sérsmíði tegund", "Sérsmíði efni",

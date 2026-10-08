@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex" />
+<title>Hurðir — CNC — Björninn</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  /* hurdir.html (/hurdir) — door programs for the Rover-B: karmur (lamir / slúttjárn / toppstykki) + hurðablað,
+     all four from ONE door Eyðublað, written onto the USB next to a Hurðaskrá log. The masters are read from the
+     same stick ([05] - Hurdir), so the shop's own masters stay the only source of the machining.
+     Rule that solves "the leaf doesn't fit the jamb": once a jamb file made here exists on the stick, the leaf is
+     made from the numbers saved IN that jamb file, never from Airtable again. Logic lives in cnc-doors.js. */
+  :root {
+    --bg:#0b0b0c; --surface:#161618; --surface2:#1e1e21; --line:#2a2a2e; --text:#f2f2f3; --muted:#c9c9d0;
+    --blue:#0a84ff; --green:#30d158; --amber:#ffd60a; --red:#ff453a;
+    --font:"Kumbh Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; line-height:1.45; }
+  .wrap { max-width:1100px; margin:0 auto; padding:20px 18px 60px; }
+  .kicker { font-size:.74rem; font-weight:700; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); }
+  h1 { font-size:1.8rem; font-weight:800; margin-top:4px; }
+  .sub { color:var(--muted); font-size:.92rem; margin-top:4px; max-width:70ch; }
+  .bar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:18px; }
+  select, button { font:inherit; color:var(--text); background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:10px 14px; }
+  select { min-width:340px; }
+  button { cursor:pointer; font-weight:700; }
+  button.primary { background:var(--blue); border-color:#3d9bff; }
+  button:disabled { opacity:.4; cursor:default; }
+  label.opt { display:flex; gap:8px; align-items:center; font-size:.88rem; color:var(--muted); }
+  .door { display:grid; grid-template-columns:28px 1fr 190px; gap:14px; background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:14px; margin-top:12px; }
+  .door.stop { opacity:.75; }
+  .door h3 { font-size:1.15rem; font-weight:800; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .chip { font-size:.72rem; font-weight:800; padding:2px 9px; border-radius:99px; letter-spacing:.04em; }
+  .chip.ok { background:#123d1e; color:var(--green); } .chip.check { background:#3d3410; color:var(--amber); } .chip.stop { background:#40100e; color:var(--red); }
+  .kv { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:4px 18px; margin-top:8px; font-size:.88rem; }
+  .kv span.k { color:var(--muted); }
+  .notes { margin-top:8px; font-size:.86rem; }
+  .notes li { margin-left:18px; }
+  .notes .stop { color:var(--red); } .notes .check { color:var(--amber); }
+  .files { margin-top:8px; font-size:.8rem; color:var(--muted); }
+  svg text { font-family:var(--font); }
+  #log { margin-top:22px; background:#050506; border:1px solid var(--line); border-radius:12px; padding:12px; font:12px/1.5 ui-monospace,Menlo,monospace; white-space:pre-wrap; max-height:340px; overflow:auto; display:none; }
+  .empty { color:var(--muted); margin-top:20px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="kicker">CNC · Rover-B</div>
+  <h1>Hurðir</h1>
+  <div class="sub">Karmur og hurðablað úr sömu tölunum. Tölurnar eru vistaðar inni í hverri skrá og í Hurðaskrá á lyklinum —
+    þegar karmur hefur verið gerður hér er hurðablaðið alltaf gert eftir tölum karmsins.</div>
+
+  <div class="bar">
+    <select id="projSel"><option value="">Hleð hurðum…</option></select>
+    <button class="primary" id="writeBtn" disabled>💾 Skrifa á USB</button>
+    <label class="opt"><input type="checkbox" id="overwriteJamb" /> Yfirskrifa karma sem eru til (aðeins ef karmurinn hefur EKKI verið fræstur)</label>
+  </div>
+  <div id="doors"></div>
+  <div id="log"></div>
+</div>
+
+<script src="/cnc-doors.js"></script>
+<script>
+(function () {
+  "use strict";
+  var C = window.CNCDOORS;
+  var PROXY = "/api/airtable";
+  var UNIT = "tbl0WcyHhz63pSzZX", PRODUCTS = "tblzuuRSRkeXaLWxC";
+  // Same internal key app.html already carries (it widens Eyðublað to the door fields); ?k= overrides.
+  var KEY = new URLSearchParams(location.search).get("k") || "bjorn-verk-7Kq2mP9xLd4";
+  var FIELDS = ["Athugasemd", "Athugasemd + Tækifæri (fyrir yfirfara)", "Sérsmíði tegund", "Hæð", "Breidd", "Dýpt", "Fjöldi eininga",
+    "Þykkt karms [Hurð]", "Karmabil frá vegg [Hurð]", "Toppstykki hurðakarms", "Opnun [Hurð]", "Lamir [Hurð]", "Skrá [Hurð]", "Felliþr. [Hurð]"];
+
+  var all = [], productNames = {}, current = [];
+  var $ = function (id) { return document.getElementById(id); };
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function log(s) { var el = $("log"); el.style.display = "block"; el.textContent += s + "\n"; el.scrollTop = el.scrollHeight; }
+  function safe(s) { return String(s).replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim(); }
+
+  // encodeURIComponent, never URLSearchParams ("+" breaks {Field} refs — see CLAUDE.md).
+  async function fetchAll(table, params) {
+    var qs = ["path=" + encodeURIComponent(table), "k=" + encodeURIComponent(KEY)];
+    Object.keys(params).forEach(function (k) { [].concat(params[k]).forEach(function (v) { qs.push(encodeURIComponent(k) + "=" + encodeURIComponent(v)); }); });
+    var recs = [], offset;
+    do {
+      var r = await fetch(PROXY + "?" + qs.concat(offset ? ["offset=" + encodeURIComponent(offset)] : []).join("&"));
+      if (!r.ok) throw new Error("Airtable " + r.status);
+      var d = await r.json(); recs = recs.concat(d.records || []); offset = d.offset;
+    } while (offset);
+    return recs;
+  }
+
+  // "HU 4.1 || T-49 | Haukur … - Austurás " → "T-49 | Haukur … - Austurás"
+  function projectOf(rec) { var s = String(rec.fields["Athugasemd + Tækifæri (fyrir yfirfara)"] || ""); var i = s.indexOf("||"); return i >= 0 ? s.slice(i + 2).trim() : "(ekkert verkefni)"; }
+  function tNum(p) { var m = p.match(/^T-(\d+)/); return m ? +m[1] : -1; }
+  function prefixOf(p) { var m = p.match(/^(T-\d+)/); return m ? m[1] : safe(p).slice(0, 20); }
+  function folderOf(p) { return safe(p.replace(/\s*\|\s*/, " ")); }
+
+  async function load() {
+    try {
+      all = await fetchAll(UNIT, { filterByFormula: '{Sérsmíði tegund}="Hurð"', "fields[]": FIELDS });
+    } catch (e) { $("projSel").innerHTML = '<option value="">Gat ekki sótt hurðir: ' + esc(e.message) + "</option>"; return; }
+    // Names for hinge/lock/threshold products we have no macro for, so the note says WHICH product it is.
+    var ids = {};
+    all.forEach(function (r) { ["Lamir [Hurð]", "Skrá [Hurð]", "Felliþr. [Hurð]"].forEach(function (f) { (r.fields[f] || []).forEach(function (id) { ids[typeof id === "string" ? id : id.id] = 1; }); }); });
+    var idList = Object.keys(ids);
+    if (idList.length) {
+      try {
+        var prods = await fetchAll(PRODUCTS, { filterByFormula: "OR(" + idList.map(function (id) { return 'RECORD_ID()="' + id + '"'; }).join(",") + ")", "fields[]": ["Heiti vöru 📣"] });
+        prods.forEach(function (p) { productNames[p.id] = p.fields["Heiti vöru 📣"]; });
+      } catch (e) { /* names are only for the notes */ }
+    }
+    var projects = {};
+    all.forEach(function (r) { var p = projectOf(r); (projects[p] = projects[p] || []).push(r); });
+    var keys = Object.keys(projects).sort(function (a, b) { return tNum(b) - tNum(a) || a.localeCompare(b); });
+    $("projSel").innerHTML = '<option value="">Veldu verkefni (' + keys.length + " með hurðum)</option>" +
+      keys.map(function (k) { return '<option value="' + esc(k) + '">' + esc(k) + " — " + projects[k].length + " hurð" + (projects[k].length > 1 ? "ir" : "") + "</option>"; }).join("");
+    var want = new URLSearchParams(location.search).get("t");
+    if (want) { var hit = keys.find(function (k) { return k.indexOf(want + " ") === 0 || k.indexOf(want + "|") === 0; }); if (hit) { $("projSel").value = hit; } }
+    $("projSel").onchange = render;
+    render();
+  }
+
+  function idSort(a, b) { return String(a.plan.id).localeCompare(String(b.plan.id), "is", { numeric: true }); }
+
+  function render() {
+    var p = $("projSel").value;
+    current = !p ? [] : all.filter(function (r) { return projectOf(r) === p; }).map(function (r) { return { rec: r, plan: C.doorPlan(r.fields) }; }).sort(idSort);
+    current.forEach(function (d) {
+      // Name the unknown product in the note.
+      ["Lamir [Hurð]", "Skrá [Hurð]", "Felliþr. [Hurð]"].forEach(function (f) {
+        var id = (d.rec.fields[f] || [])[0]; id = id && (id.id || id);
+        if (id && productNames[id]) { d.plan.stop = d.plan.stop.map(function (s) { return s.replace(id, productNames[id]); }); d.plan.check = d.plan.check.map(function (s) { return s.replace("(" + id + ")", "(" + productNames[id] + ")").replace("þessa skrá", "„" + productNames[id] + "“"); }); }
+      });
+    });
+    var pref = prefixOf(p);
+    $("doors").innerHTML = !p ? '<div class="empty">Veldu verkefni.</div>' : current.map(function (d, i) {
+      var pl = d.plan, v = pl.values || {};
+      var notes = pl.stop.map(function (s) { return '<li class="stop">⛔ ' + esc(s) + "</li>"; }).concat(pl.check.map(function (s) { return '<li class="check">⚠️ ' + esc(s) + "</li>"; })).join("");
+      return '<div class="door ' + pl.status + '">' +
+        '<input type="checkbox" data-i="' + i + '" ' + (pl.status === "stop" ? "disabled" : "checked") + ' style="width:20px;height:20px;margin-top:4px" />' +
+        "<div><h3>" + esc(pl.id) + ' <span class="chip ' + pl.status + '">' + { ok: "✅ Tilbúið", check: "⚠️ Athuga", stop: "⛔ Vantar gögn" }[pl.status] + "</span>" +
+        '<span style="font-size:.85rem;font-weight:500;color:var(--muted)">' + esc(d.rec.fields["Athugasemd"]) + "</span></h3>" +
+        '<div class="kv">' +
+          "<div><span class='k'>Op (H × B):</span> " + esc(d.rec.fields["Hæð"]) + " × " + esc(d.rec.fields["Breidd"]) + "</div>" +
+          (pl.values ? "<div><span class='k'>Hurðablað:</span> <b>" + v.HURD_H + " × " + v.HURD_B + " × " + v.HURD_Z + "</b></div>" : "") +
+          (pl.values ? "<div><span class='k'>Karmur:</span> " + v.KARMAR_Z + " × " + v.KARMAR_B + " · " + esc(pl.topp) + "</div>" : "") +
+          "<div><span class='k'>Opnun:</span> " + esc(pl.opnun || "—") + "</div>" +
+          "<div><span class='k'>Lamir:</span> " + esc(pl.hinge || "—") + "</div>" +
+          "<div><span class='k'>Skrá:</span> " + esc(pl.lock || "—") + "</div>" +
+          "<div><span class='k'>Þröskuldur:</span> " + esc(pl.threshold || "—") + "</div>" +
+        "</div>" + (notes ? '<ul class="notes">' + notes + "</ul>" : "") +
+        (pl.status !== "stop" ? '<div class="files">' + C.filesFor(pl, pref).map(function (f) { return esc(f.name); }).join(" · ") + "</div>" : "") +
+        "</div><div>" + (pl.values ? elevation(pl.values) : "") + "</div></div>";
+    }).join("");
+    $("writeBtn").disabled = !current.some(function (d) { return d.plan.status !== "stop"; });
+  }
+
+  // Leaf next to its hinge-side jamb, to scale, floor at the bottom: hinges and the lock must line up across.
+  function elevation(v) {
+    var H = v.HURD_H + v.HG_BIL + v.HK_BIL, s = 200 / H, W = 190, base = 214;
+    var y = function (fromFloor) { return base - fromFloor * s; };
+    var lx = 30, lw = 60, jx = 120, jw = 14;
+    var marks = [
+      { at: v.HG_BIL + v.HURD_H - v.LOM1, c: "#0a84ff" }, { at: v.HG_BIL + v.HURD_H - v.LOM2, c: "#0a84ff" }, { at: v.HG_BIL + v.LOM3, c: "#0a84ff" },
+      { at: v.HG_BIL + v.HANDFANG, c: "#ffd60a" },
+    ];
+    var g = '<svg width="' + W + '" height="230" viewBox="0 0 ' + W + ' 230">' +
+      '<line x1="0" y1="' + base + '" x2="' + W + '" y2="' + base + '" stroke="#555"/>' +
+      '<rect x="' + lx + '" y="' + y(v.HG_BIL + v.HURD_H) + '" width="' + lw + '" height="' + v.HURD_H * s + '" fill="#2a2a2e" stroke="#777"/>' +
+      '<rect x="' + jx + '" y="' + y(H) + '" width="' + jw + '" height="' + H * s + '" fill="#3a3326" stroke="#777"/>' +
+      '<text x="' + (lx + lw / 2) + '" y="226" fill="#c9c9d0" font-size="9" text-anchor="middle">blað</text>' +
+      '<text x="' + (jx + jw / 2) + '" y="226" fill="#c9c9d0" font-size="9" text-anchor="middle">karmur</text>';
+    marks.forEach(function (m) {
+      g += '<line x1="' + (lx + lw - 6) + '" y1="' + y(m.at) + '" x2="' + (jx + jw) + '" y2="' + y(m.at) + '" stroke="' + m.c + '" stroke-width="2"/>' +
+        '<text x="' + (jx + jw + 4) + '" y="' + (y(m.at) + 3) + '" fill="' + m.c + '" font-size="9">' + Math.round(m.at) + "</text>";
+    });
+    return g + '<text x="2" y="10" fill="#c9c9d0" font-size="8">mm frá gólfi</text></svg>';
+  }
+
+  // ── USB ──────────────────────────────────────────────────────────────────────────────────────────────
+  async function sub(dir, name, create) { return dir.getDirectoryHandle(name, { create: !!create }); }
+  async function tryFile(dir, name) { try { return await (await dir.getFileHandle(name)).getFile(); } catch (e) { return null; } }
+  async function readText(file) { return new TextDecoder("windows-1252").decode(await file.arrayBuffer()); }
+  async function writeBytes(dir, name, bytes) { var w = await (await dir.getFileHandle(name, { create: true })).createWritable(); await w.write(bytes); await w.close(); }
+  // The user may pick the stick itself or the "[01] - AÐALMÖPPUR …" folder — find the folder that holds [05] - Hurdir.
+  async function findRoot(picked) {
+    try { await sub(picked, "[05] - Hurdir"); return picked; } catch (e) {}
+    for await (var entry of picked.values()) {
+      if (entry.kind !== "directory") continue;
+      try { await sub(entry, "[05] - Hurdir"); return entry; } catch (e) {}
+    }
+    return null;
+  }
+  var masterCache = {};
+  async function readMaster(root, parts) {
+    var key = parts.join("/"); if (masterCache[key]) return masterCache[key];
+    var d = root; for (var i = 0; i < parts.length - 1; i++) d = await sub(d, parts[i]);
+    var f = await tryFile(d, parts[parts.length - 1]);
+    if (!f) throw new Error("Master fannst ekki: " + key);
+    return (masterCache[key] = await readText(f));
+  }
+
+  async function writeUsb(pickedDir) {
+    var p = $("projSel").value, pref = prefixOf(p), overwrite = $("overwriteJamb").checked;
+    var picked = Array.prototype.map.call(document.querySelectorAll("#doors input[type=checkbox]:checked"), function (c) { return current[+c.dataset.i]; });
+    if (!picked.length) return;
+    if (!pickedDir) {
+      if (!("showDirectoryPicker" in window)) { alert("Þessi vafri styður ekki að skrifa beint á USB. Notaðu Chrome eða Edge."); return; }
+      try { pickedDir = await window.showDirectoryPicker({ mode: "readwrite" }); } catch (e) { return; }
+    }
+    $("writeBtn").disabled = true; masterCache = {};
+    try {
+      var root = await findRoot(pickedDir);
+      if (!root) { log("⛔ Fann ekki „[05] - Hurdir“ — veldu lykilinn sjálfan eða „[01] - AÐALMÖPPUR …“ möppuna."); return; }
+      var job = await sub(await sub(root, "[99] - VERKEFNI", true), folderOf(p), true);
+      log("Mappa: [99] - VERKEFNI/" + folderOf(p));
+      var when = new Date().toLocaleString("is-IS"), logBlocks = [];
+      for (var d of picked) {
+        var pl = d.plan, files = C.filesFor(pl, pref), values = pl.values, jambKept = false;
+        // Was the jamb already made (by this page)? Then its saved numbers decide the leaf.
+        var jambFile = await tryFile(job, files[1].name);
+        if (jambFile) {
+          var saved = C.readValues(await readText(jambFile));
+          if (!saved) {
+            log("⚠️ " + pl.id + ": „" + files[1].name + "“ er til en var ekki gerður hér — tölur hans eru óþekktar. " + (overwrite ? "Yfirskrifa." : "Karmar ekki snertir; blað gert eftir Airtable — BERA SAMAN við karminn."));
+            jambKept = !overwrite;
+          } else if (!overwrite) {
+            var diff = C.diffValues(saved, pl.values);
+            if (diff.length) log("⚠️ " + pl.id + ": Airtable hefur breyst síðan karmurinn var gerður (karmur → Airtable: " + diff.join(", ") + "). Blaðið er gert eftir KARMINUM — lagaðu Airtable eða yfirskrifaðu karminn ef hann er ekki farinn.");
+            values = saved; jambKept = true;
+          }
+        }
+        for (var f of files) {
+          if (f.kind !== "leaf" && jambKept) { log("   = " + f.name + " (óbreyttur, karmur til)"); continue; }
+          var r = C.renderBpp(await readMaster(root, f.master), values, f.managed, f.on);
+          if (r.errors.length) { log("⛔ " + f.name + " EKKI skrifað: " + r.errors.join(" · ")); continue; }
+          await writeBytes(job, f.name, C.toCp1252(r.text));
+          log("✅ " + f.name);
+        }
+        logBlocks.push(C.logText(Object.assign({}, pl, { values: values }), p, when));
+      }
+      // Hurðaskrá = append-only history next to the programs.
+      var logName = pref + " Hurðaskrá.txt", old = await tryFile(job, logName);
+      var prev = old ? await readText(old) : "";
+      await writeBytes(job, logName, C.toCp1252(prev + (prev ? "\r\n" : "") + logBlocks.join("\r\n" + "-".repeat(60) + "\r\n")));
+      log("📒 " + logName + " uppfærð. Búið.");
+    } catch (e) {
+      log("⛔ Villa: " + e.message);
+    } finally { $("writeBtn").disabled = false; }
+  }
+  $("writeBtn").onclick = function () { writeUsb(); };
+  window.__hurdirWrite = writeUsb; // tests: pass an in-memory directory handle
+
+  load();
+})();
+</script>
+</body>
+</html>
