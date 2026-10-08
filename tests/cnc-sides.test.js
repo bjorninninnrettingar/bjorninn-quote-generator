@@ -120,3 +120,26 @@ test("a door taller than its space (wall cabinet with a lip) hangs on the side's
   const o = ops(S.unitPlan("Sk 6-8", [row("Grunnskápur hlið", 824, 300, 16, 2), row("Frontur", 864, 597, 19, 1)])).filter((x) => x.startsWith("LOM"));
   assert.deepEqual(o, ['LOM: 80, 37, "2,3"']);
 });
+
+test("Smíðagögn: the designer's hinges and door type win when its doors match Sögunarlisti", () => {
+  const rows = [row("Grunnskápur hlið", 2190, 580, 16, 2), row("Frontur", 2187, 597, 19, 1)];
+  assert.deepEqual(S.defaultHingeSpec(800), [{ from: "bottom", mm: 80 }, { from: "top", mm: 80 }]);
+  const smida = JSON.stringify({ v: 1, doors: [{ h: 2190, type: "hinged", hinges: [{ from: "bottom", mm: 120 }, { from: "bottom", mm: 900 }, { from: "top", mm: 80 }] }] });
+  const p = S.unitPlan("Sk 13", rows, { smida });
+  assert.deepEqual(ops(p).filter((x) => x.startsWith("LOM")), ['LOM: 120, 37, "2"', 'LOM: 900, 37, "2"', 'LOM: 80, 37, "3"']);
+  assert.ok(!p.check.some((c) => c.startsWith("Lamir: sjálfgefið")));
+  assert.deepEqual(p.doors[0].frontHinges, [119, 899, 2111]);   // the same positions on the front (79 / −1)
+});
+
+test("Smíðagögn: a different door count is ignored, a height difference is flagged, lift-up = no side hinges", () => {
+  const rows = [row("Grunnskápur hlið", 470, 580, 16, 2), row("Frontur", 467, 797, 19, 1)];
+  const bad = S.unitPlan("Sk 7", rows, { smida: { v: 1, doors: [{ h: 300, type: "hinged", hinges: [] }, { h: 167, type: "hinged", hinges: [] }] } });
+  assert.ok(bad.check.some((c) => c.startsWith("Smíðagögn passa ekki")));
+  assert.ok(ops(bad).includes('LOM: 80, 37, "2,3"'));
+  const off = S.unitPlan("Sk 7", rows, { smida: { v: 1, doors: [{ h: 367, type: "hinged", hinges: [{ from: "bottom", mm: 90 }, { from: "top", mm: 90 }] }] } });
+  assert.deepEqual(ops(off).filter((x) => x.startsWith("LOM")), ['LOM: 90, 37, "2"', 'LOM: 90, 37, "3"']);
+  assert.ok(off.check.some((c) => c.startsWith("Hurð 1: hönnuður 367")));
+  const lift = S.unitPlan("Sk 7", rows, { smida: { v: 1, doors: [{ h: 467, type: "lift" }] } });
+  assert.ok(!ops(lift).some((x) => x.startsWith("LOM")));
+  assert.ok(lift.check.some((c) => c.startsWith("Lyftihurð")));
+});

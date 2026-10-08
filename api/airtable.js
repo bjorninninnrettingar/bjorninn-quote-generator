@@ -314,6 +314,7 @@ const VERK_ONLY_FIELDS = {
     "Opnun [Hurð]", "Hurðaefni",
     // /hurdir (hurdir.html) — door programs for the CNC: jamb + leaf numbers and which project a door belongs to
     "Þykkt karms [Hurð]", "Karmabil frá vegg [Hurð]", "Toppstykki hurðakarms", "Athugasemd + Tækifæri (fyrir yfirfara)",
+    "Smíðagögn (JSON) 🔧", // /cnc: positions from the designer's pro mode (hinges, door type …)
     "Sérhæð N fronts", "Sérhæð M fronts", "Sérhæð K fronts",
     "Sérhæð C fronts", "Sérhæð F fronts", "Sérhæð E fronts",
     "Tvípress / Eurolight", "Sérsmíði tegund", "Sérsmíði efni",

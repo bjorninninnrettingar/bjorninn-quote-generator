@@ -79,7 +79,7 @@
   // Same internal key app.html already carries (widens Eyðublað to the door fields); ?k= overrides.
   var KEY = new URLSearchParams(location.search).get("k") || "bjorn-verk-7Kq2mP9xLd4";
   var UNIT_FIELDS = ["Athugasemd", "Sérsmíði tegund", "Hæð", "Breidd", "Dýpt", "Fjöldi eininga",
-    "Þykkt karms [Hurð]", "Karmabil frá vegg [Hurð]", "Toppstykki hurðakarms", "Opnun [Hurð]", "Lamir [Hurð]", "Skrá [Hurð]", "Felliþr. [Hurð]"];
+    "Þykkt karms [Hurð]", "Karmabil frá vegg [Hurð]", "Toppstykki hurðakarms", "Opnun [Hurð]", "Lamir [Hurð]", "Skrá [Hurð]", "Felliþr. [Hurð]", "Smíðagögn (JSON) 🔧"];
   var SAW_FIELDS = ["Partur", "H", "B", "Þ", "M", "Tegund einingu", "Eyðublað ✏️"];
 
   var project = null, doors = [], groups = [], stopped = [], productNames = {}, sideInput = null;
@@ -130,8 +130,8 @@
       var rows = await fetchAll(SAW, { filterByFormula: 'FIND("' + q + ' |",ARRAYJOIN({Tækifæri 📣 (projects)}))', "fields[]": SAW_FIELDS });
     } catch (e) { $("out").innerHTML = '<div class="empty">Villa: ' + esc(e.message) + "</div>"; return; }
     project = { id: id, name: name, prefix: pre };
-    var unitName = {}, isDoor = {}, unitH = {};
-    units.forEach(function (u) { unitName[u.id] = u.fields["Athugasemd"] || "(nafnlaust)"; unitH[u.id] = u.fields["Hæð"]; isDoor[u.id] = String(u.fields["Sérsmíði tegund"] || "") === "Hurð"; });
+    var unitName = {}, isDoor = {}, unitH = {}, unitSmida = {};
+    units.forEach(function (u) { unitName[u.id] = u.fields["Athugasemd"] || "(nafnlaust)"; unitH[u.id] = u.fields["Hæð"]; unitSmida[u.id] = u.fields["Smíðagögn (JSON) 🔧"] || null; isDoor[u.id] = String(u.fields["Sérsmíði tegund"] || "") === "Hurð"; });
 
     // Doors
     doors = units.filter(function (u) { return isDoor[u.id]; }).map(function (u) { return { rec: u, plan: D.doorPlan(u.fields) }; })
@@ -149,7 +149,7 @@
     // Sides — every non-door unit's Sögunarlisti rows.
     var byUnit = {};
     rows.forEach(function (r) { var u = (r.fields["Eyðublað ✏️"] || [])[0]; u = u && (u.id || u); if (!u || isDoor[u]) return; (byUnit[u] = byUnit[u] || []).push(r.fields); });
-    sideInput = { byUnit: byUnit, unitName: unitName, unitH: unitH };
+    sideInput = { byUnit: byUnit, unitName: unitName, unitH: unitH, unitSmida: unitSmida };
     planSides();
   }
 
@@ -157,7 +157,7 @@
   function planSides() {
     if (!sideInput) return;
     var grip = +$("gripMm").value || 0, I = sideInput;
-    var plans = Object.keys(I.byUnit).map(function (u) { return SD.unitPlan(I.unitName[u] || u, I.byUnit[u], { unitHeight: I.unitH[u], gripMm: grip }); });
+    var plans = Object.keys(I.byUnit).map(function (u) { return SD.unitPlan(I.unitName[u] || u, I.byUnit[u], { unitHeight: I.unitH[u], gripMm: grip, smida: I.unitSmida[u] }); });
     groups = SD.groupPlans(plans);
     stopped = plans.filter(function (p) { return p.status === "stop"; }).sort(function (a, b) { return a.id.localeCompare(b.id, "is", { numeric: true }); });
     render();

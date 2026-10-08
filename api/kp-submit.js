@@ -83,7 +83,7 @@ function listPath(table, formula, fields, max) {
   return `${table}?${p.toString().replace(/\+/g, "%20")}`;
 }
 
-async function listAll(at, table, formula, fields) {
+export async function listAll(at, table, formula, fields) {
   const out = [];
   let offset;
   do {

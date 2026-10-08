@@ -81,6 +81,23 @@
     return h.at.map(function (x) { return x < len / 2 ? x - HINGE_FRONT_OFFSET : x + HINGE_FRONT_OFFSET; });
   }
 
+  // ── Smíðagögn (2026-10-08): positions decided in the designer's pro mode, carried Line Item → Eyðublað ──
+  // { v:1, doors:[ { h: front mm, type:"hinged"|"lift", side:"vinstri"|"haegri"|null,
+  //                  hinges:[ {from:"bottom"|"top", mm} ] } ] }   doors listed top → bottom.
+  // Hinge positions are measured from the door's own ends, so they follow small size changes in ÚRVINNSLA.
+  var SMIDA_TOLERANCE = 20; // a designer door matches a Sögunarlisti front within ±20 mm
+  function parseSmida(v) {
+    if (!v) return null;
+    if (typeof v === "object") return v;
+    try { var o = JSON.parse(String(v)); return o && o.v === 1 ? o : null; } catch (e) { return null; }
+  }
+  function defaultHingeSpec(boxLen) {
+    return hingePositions(boxLen).at.map(function (x) { return x <= boxLen / 2 ? { from: "bottom", mm: r1(x) } : { from: "top", mm: r1(boxLen - x) }; });
+  }
+  function specToPositions(spec, boxLen) {
+    return (spec || []).map(function (h) { return r1(h.from === "top" ? boxLen - h.mm : h.mm); }).sort(function (a, b) { return a - b; });
+  }
+
   // One unit's Sögunarlisti rows → what its sides need. rows: [{Partur, H, B, Þ, M, Tegund einingu}]
   // opts.unitHeight = the Eyðublað's Hæð (only to tell which way a side is stored — Sögunarlisti has some tall
   //   sides as H 580 × B 2470); opts.gripMm = grip strip on the drawer fronts (slot = cut front + grip).
@@ -193,16 +210,35 @@
       }
     }
 
-    // Hinges: per door, 80 from each end of its box; corner "2" = from the bottom, "3" = from the top.
-    var hingeAt = [];
-    doors.forEach(function (d) {
-      var len = r1(d.to - d.from);
+    // Hinges: per door, 80 from each end of its box + evenly between (default), or exactly where the designer put
+    // them (Smíðagögn) when its doors match Sögunarlisti; corner "2" = from the bottom, "3" = from the top.
+    var smida = parseSmida(opts.smida), sd = null;
+    if (smida && doors.length) {
+      var sdoors = smida.doors || [];
+      // Same number of doors → the designer's hinges are used (they're measured from each door's ends, so a few
+      // mm of difference doesn't move them off the door); a height that differs by more than 20 mm is flagged.
+      if (sdoors.length === doors.length) {
+        sd = sdoors; info.push("Lamir úr hönnuði (Smíðagögn)");
+        sdoors.forEach(function (x, i) { var dh = Math.abs((num(x.h) || 0) - doors[i].H);
+          if (dh > SMIDA_TOLERANCE) check.push("Hurð " + (i + 1) + ": hönnuður " + x.h + " mm, Sögunarlisti " + doors[i].H + " mm — lamir miðaðar við enda hurðar, athuga"); });
+      } else check.push("Smíðagögn passa ekki við Sögunarlista (" + sdoors.length + " hurðir í hönnuði, " + doors.length + " í Sögunarlista) — sjálfgefnar lamir notaðar");
+    }
+    var hingeAt = [], defaulted = false;
+    doors.forEach(function (d, i) {
+      var len = r1(d.to - d.from), mine = sd && sd[i];
       var avoid = shelfRows.concat(runners).filter(function (x) { return x > d.from && x < d.to; }).map(function (x) { return r1(x - d.from); });
-      var h = hingePositions(len, avoid);
-      h.moved.forEach(function (m) { check.push("Löm færð frá hillu/skúffu: " + m + " (frá neðri brún hurðar)"); });
-      h.blocked.forEach(function (m) { check.push("Löm við " + m + " rekst á hillu/skúffu — setja handvirkt"); });
-      h.at.forEach(function (p) { hingeAt.push(r1(d.from + p)); });
-      d.hinges = h.at; d.frontHinges = frontHinges(len, avoid);
+      if (mine && mine.type === "lift") { d.type = "lift"; d.hinges = []; check.push("Lyftihurð (" + d.H + "): engar lamir á hlið — lamirnar fara í toppborðið"); return; }
+      var at;
+      if (mine && mine.hinges && mine.hinges.length) {
+        at = specToPositions(mine.hinges, len);
+        at.forEach(function (p) { if (avoid.some(function (a) { return Math.abs(a - p) < 40; })) check.push("Löm við " + p + " (hönnuður) er nálægt hillu/skúffu — athuga"); });
+      } else {
+        var h = hingePositions(len, avoid); at = h.at; defaulted = true;
+        h.moved.forEach(function (m) { check.push("Löm færð frá hillu/skúffu: " + m + " (frá neðri brún hurðar)"); });
+        h.blocked.forEach(function (m) { check.push("Löm við " + m + " rekst á hillu/skúffu — setja handvirkt"); });
+      }
+      at.forEach(function (p) { hingeAt.push(r1(d.from + p)); });
+      d.hinges = at; d.frontHinges = at.map(function (x) { return x < len / 2 ? x - HINGE_FRONT_OFFSET : x + HINGE_FRONT_OFFSET; });
     });
     hingeAt.sort(function (a, b) { return a - b; });
     hingeAt.forEach(function (x) {
@@ -211,7 +247,7 @@
       if (Math.abs(fromTop - HINGE_END) < 0.01 && hingeAt.indexOf(HINGE_END) >= 0) { op("LOM", "Löm", HINGE_END + ', 37, "2,3"'); return; }
       if (x <= H / 2) op("LOM", "Löm", x + ', 37, "2"'); else op("LOM", "Löm", fromTop + ', 37, "3"');
     });
-    if (doors.length) check.push("Lamir: sjálfgefið 80 frá endum + jafnt á milli — ef lyftihurð fara lamirnar í toppinn, ekki hliðina");
+    if (defaulted) check.push("Lamir: sjálfgefið 80 frá endum + jafnt á milli — ef lyftihurð fara lamirnar í toppinn, ekki hliðina");
 
     plan.drawers = drawers; plan.doors = doors; plan.loose = loose;
     plan.status = stop.length ? "stop" : check.length ? "check" : "ok";
@@ -280,7 +316,7 @@
 
   var MARKER = "GLB=HS_HLID|";
   var api = { MARKER: MARKER, MASTER: MASTER, MANAGED: MANAGED, unitId: unitId, kind: kind, unitPlan: unitPlan, hingePositions: hingePositions,
-    frontHinges: frontHinges, signature: signature, groupPlans: groupPlans, fileName: fileName, renderSide: renderSide };
+    frontHinges: frontHinges, parseSmida: parseSmida, defaultHingeSpec: defaultHingeSpec, specToPositions: specToPositions, signature: signature, groupPlans: groupPlans, fileName: fileName, renderSide: renderSide };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   root.CNCSIDES = api;
 })(typeof window !== "undefined" ? window : globalThis);

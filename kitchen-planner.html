@@ -42,6 +42,7 @@
 <script src="kitchen-planner-models.js"></script>
 <script src="kitchen-planner-linemap.js"></script>
 <script src="kitchen-planner-3d.js"></script>
+<script src="cnc-sides.js"></script>
 <style>
   :root{
     --bg:#ffffff;
@@ -669,6 +670,27 @@
   .dim-f small{ display:block; font-size:10.5px; color:var(--ink-soft); margin-top:2px; }
   .dim-f.fixed b{ display:block; padding:7px 0; font-size:14px; }
   .wall-badge{ display:inline-block; font-size:11.5px; font-weight:700; color:#fff; background:var(--blue); border-radius:999px; padding:2px 9px; margin-left:6px; vertical-align:middle; }
+  /* ---------- pro mode (Rakel, ?pro=<Tækifæri>&k=…) ---------- */
+  body.pro #toContactBtn { display:none; }
+  #proBar { position:fixed; top:10px; right:12px; z-index:400; display:flex; gap:10px; align-items:center; background:#1d2633; color:#fff; padding:8px 12px; border-radius:12px; font:600 13px/1.3 inherit; box-shadow:0 6px 20px rgba(0,0,0,.25); max-width:60vw; }
+  #proBar .pb-name { opacity:.85; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:28vw; }
+  #proBar button { font:inherit; border:0; border-radius:8px; padding:7px 12px; cursor:pointer; background:#0a84ff; color:#fff; }
+  #proBar button:disabled { opacity:.5; cursor:default; }
+  #proBar .pb-dirty { color:#ffd60a; }
+  .pro-open { width:100%; margin:0 0 12px; padding:10px 12px; border-radius:10px; border:0; background:#1d2633; color:#fff; font:700 14px/1.2 inherit; cursor:pointer; }
+  #proEd { position:fixed; inset:0; z-index:350; background:rgba(15,18,24,.55); display:flex; align-items:center; justify-content:center; }
+  #proEd .pe-card { background:#fff; color:#1b1f24; border-radius:16px; width:min(980px,94vw); max-height:92vh; overflow:auto; display:grid; grid-template-columns:auto 1fr; gap:22px; padding:20px 22px; box-shadow:0 20px 60px rgba(0,0,0,.35); }
+  #proEd h3 { margin:0 0 4px; font-size:18px; }
+  #proEd .pe-sub { color:#5b6470; font-size:13px; margin-bottom:12px; }
+  #proEd svg { background:#f4f5f7; border-radius:12px; touch-action:none; user-select:none; }
+  #proEd .pe-door { border:1px solid #e1e4e8; border-radius:12px; padding:10px 12px; margin-bottom:10px; }
+  #proEd .pe-door h4 { margin:0 0 8px; font-size:14px; }
+  #proEd .pe-row { display:flex; gap:8px; align-items:center; margin:4px 0; font-size:13px; }
+  #proEd .pe-row input { width:76px; padding:5px 7px; border:1px solid #cfd4da; border-radius:7px; font:inherit; }
+  #proEd .pe-btn { border:1px solid #cfd4da; background:#fff; border-radius:8px; padding:5px 10px; cursor:pointer; font:600 13px/1.2 inherit; }
+  #proEd .pe-btn.on { background:#1d2633; color:#fff; border-color:#1d2633; }
+  #proEd .pe-close { float:right; }
+  #proEd .pe-note { font-size:12.5px; color:#5b6470; margin-top:6px; }
 </style>
 </head>
 <body>
@@ -971,7 +993,10 @@
 (function(){
   "use strict";
 
-  var STORAGE_KEY = "bjorninn:kitchenPlanner:draft:v1";
+  // Pro mode (2026-10-08): Rakel opens an existing project from the Tækifæri (?pro=<recordId>&k=<office key>).
+  // It edits its own local copy (never the customer draft) and "Vista í Airtable" writes back to that project.
+  var PRO = (function(){ try{ var q = new URLSearchParams(location.search), id = q.get("pro"); return id && /^rec[A-Za-z0-9]{14}$/.test(id) ? { id:id, k:q.get("k") || "" } : null; }catch(e){ return null; } })();
+  var STORAGE_KEY = PRO ? "bjorninn:kitchenPlanner:pro:" + PRO.id : "bjorninn:kitchenPlanner:draft:v1";
 
   var KP3D = window.KP3D;
   var CATALOG = KP3D.CATALOG;
@@ -1078,8 +1103,9 @@
   // ---------- persistence ----------
   function save(){
     normalizeIslands();
-    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); if (PRO) localStorage.setItem(STORAGE_KEY + ":dirty", "1"); }catch(e){}
     pushHistory();
+    if (PRO) proBar();
   }
 
   // ---------- undo / redo (editor step only) ----------
@@ -4853,6 +4879,7 @@
   // so both can exist in the DOM at once without colliding.
   function renderEditPanel(){
     renderEditPanelInto(document.getElementById("cabinetEditPanel"));
+    if (PRO) proPanelButton(document.getElementById("cabinetEditPanel"));
     // size chip on the floating toolbar
     var chip = document.getElementById("fbDim"), fb = selectedBlockId ? findBlock(selectedBlockId) : null, op = !fb && selectedBlockId ? findOpening(selectedBlockId) : null;
     chip.textContent = fb ? fb.block.widthMm + " × " + blockHeightMm(fb.block, CATALOG[fb.block.type]) + " × " + (fb.block.depthMm || CATALOG[fb.block.type].d)
@@ -6529,15 +6556,245 @@
     return isSmall;
   }
 
+  // ---------- pro mode: box editor + Smíðagögn ----------
+  // Rakel clicks a cabinet → "🔧 Smíða" opens a box editor (like Ný eining, but on the existing box): door type,
+  // hinge markers she drags up and down, and the drawer seams. Hinge positions are measured from each door's own
+  // ends and stored on the block (b.smida); "Vista í Airtable" sends them per Sk number as Smíðagögn, which
+  // Keyra skipulag copies to the Eyðublað and /cnc drills (cnc-sides.js — the same hinge function as here).
+  var PRO_FIELD = "Sjálfsafgreiðsla skipulag (JSON) 📐";
+  function proBodyMm(b, c, zone){ var h = blockHeightMm(b, c); return zone === "floor" && !c.panel && !c.appliance ? h - 100 : h; }
+  // The door openings of a cabinet, top → bottom, as the 3D draws them (wide units: two leaves = one opening).
+  function proDoorsOf(b, c, zone){
+    if (!c || c.panel || c.shelfStack || c.open || c.appliance || c.fixedFronts) return [];
+    if (b.interior && b.interior.mode === "skuffur") return [];
+    var body = proBodyMm(b, c, zone);
+    if (c.oven){
+      if (c.lowOven) return [];
+      var top = body - KP3D.ovenZoneMm(KP3D.ovenCodesOf(b, state.drawerSystem) || []) - 595;
+      return top > 150 ? [{ box:Math.round(top), label:"Hurð fyrir ofan ofn" }] : [];
+    }
+    if (c.cls === "tall" || c.fridge){ var sp = c.fridge ? 0.74 : 0.55;
+      return [{ box:Math.round(body * (1 - sp)), label:"Efri hurð" }, { box:Math.round(body * sp), label:"Neðri hurð" }]; }
+    return [{ box:body, label:"Hurð" }];
+  }
+  function proSpec(b, doors, i){
+    var mine = b.smida && b.smida.doors && b.smida.doors.length === doors.length ? b.smida.doors[i] : null;
+    return mine ? JSON.parse(JSON.stringify(mine)) : { type:"hinged", hinges:CNCSIDES.defaultHingeSpec(doors[i].box) };
+  }
+  function proSetSpec(b, doors, i, spec){
+    var all = doors.map(function(d, j){ return j === i ? spec : proSpec(b, doors, j); });
+    b.smida = { doors:all };
+    save();
+  }
+  function proPanelButton(host){
+    var fb = selectedBlockId ? findBlock(selectedBlockId) : null;
+    if (!fb || !host) return;
+    var c = CATALOG[fb.block.type], doors = proDoorsOf(fb.block, c, fb.zone), drawers = fb.block.interior && fb.block.interior.mode === "skuffur";
+    if (!doors.length && !drawers) return;
+    var btn = document.createElement("button");
+    btn.type = "button"; btn.className = "pro-open";
+    btn.textContent = "🔧 Smíða — " + (doors.length ? "lamir og hurðir" : "skúffuskil") + (fb.block.smida ? " ✓" : "");
+    btn.addEventListener("click", function(){ openBoxEditor(fb.block.id); });
+    host.insertBefore(btn, host.firstChild);
+  }
+
+  var proEdId = null;
+  function openBoxEditor(id){ proEdId = id; renderBoxEditor(); }
+  function closeBoxEditor(){ proEdId = null; var el = document.getElementById("proEd"); if (el) el.remove(); refreshAfterEdit(); }
+  function renderBoxEditor(){
+    var fb = proEdId ? findBlock(proEdId) : null;
+    var el = document.getElementById("proEd");
+    if (!fb){ if (el) el.remove(); return; }
+    if (!el){ el = document.createElement("div"); el.id = "proEd"; document.body.appendChild(el);
+      el.addEventListener("pointerdown", function(e){ if (e.target === el) closeBoxEditor(); }); }
+    var b = fb.block, c = CATALOG[b.type], doors = proDoorsOf(b, c, fb.zone), key = skKeys()[b.id] || "";
+    var body = proBodyMm(b, c, fb.zone), S = 520 / body, W = Math.max(90, Math.min(260, b.widthMm * S)), X0 = 40, Y0 = 20;
+    var hingeLeft = b.swing === "vinstri";
+    var svg = '<svg id="peSvg" width="' + (W + 150) + '" height="' + (body * S + 40) + '">';
+    svg += '<rect x="' + X0 + '" y="' + Y0 + '" width="' + W + '" height="' + body * S + '" fill="#fff" stroke="#8a929c"/>';
+    // drawers (bottom → top) with draggable seams
+    var dr = b.interior && b.interior.mode === "skuffur", codes = [], fronts = [];
+    if (dr){
+      codes = KP3D.drawerCodes(b.interior, drawerSys()); fronts = KP3D.stackFrontsMm(b.interior, codes, drawerBodyMm(b, c)) || [];
+      var acc = 0;
+      fronts.forEach(function(h, i){
+        var yb = Y0 + body * S - acc * S, yt = yb - h * S;
+        svg += '<rect x="' + (X0 + 3) + '" y="' + yt + '" width="' + (W - 6) + '" height="' + h * S + '" fill="#e9eef5" stroke="#9aa5b1" rx="2"/>' +
+          '<text x="' + (X0 + W / 2) + '" y="' + (yt + h * S / 2 + 4) + '" text-anchor="middle" font-size="12" fill="#3b4652">' + codes[i] + " · " + Math.round(h) + '</text>';
+        acc += h + 3;
+        if (i < fronts.length - 1) svg += '<line class="pe-seam" data-seam="' + i + '" x1="' + X0 + '" x2="' + (X0 + W) + '" y1="' + (yb - (h + 1.5) * S) + '" y2="' + (yb - (h + 1.5) * S) + '" stroke="#0a84ff" stroke-width="6" stroke-opacity=".35" style="cursor:ns-resize"/>';
+      });
+    }
+    // doors (top → bottom) with hinge markers on the hinge side
+    var yTop = Y0;
+    doors.forEach(function(d, i){
+      var sp = proSpec(b, doors, i), h = d.box * S;
+      svg += '<rect x="' + (X0 + 3) + '" y="' + (yTop + 1) + '" width="' + (W - 6) + '" height="' + (h - 2) + '" fill="' + (sp.type === "lift" ? "#fff6dc" : "#eef6ee") + '" stroke="#9aa5b1" rx="2"/>' +
+        '<text x="' + (X0 + W / 2) + '" y="' + (yTop + h / 2) + '" text-anchor="middle" font-size="12" fill="#3b4652">' + d.label + " · " + d.box + '</text>';
+      if (sp.type !== "lift"){
+        var hx = hingeLeft ? X0 + 8 : X0 + W - 8;
+        CNCSIDES.specToPositions(sp.hinges, d.box).forEach(function(p, j){
+          var y = yTop + h - p * S;
+          svg += '<g class="pe-hinge" data-door="' + i + '" data-pos="' + p + '" style="cursor:ns-resize"><circle cx="' + hx + '" cy="' + y + '" r="8" fill="#0a84ff"/>' +
+            '<text x="' + (hingeLeft ? X0 - 6 : X0 + W + 8) + '" y="' + (y + 4) + '" font-size="12" text-anchor="' + (hingeLeft ? "end" : "start") + '" fill="#0a84ff">' +
+            (p <= d.box / 2 ? "↓" + Math.round(p) : "↑" + Math.round(d.box - p)) + '</text></g>';
+        });
+      } else svg += '<text x="' + (X0 + W / 2) + '" y="' + (yTop + 16) + '" text-anchor="middle" font-size="11" fill="#9a6b00">lamir í toppborð</text>';
+      d._y = yTop; yTop += h;
+    });
+    svg += '</svg>';
+
+    var right = '<button type="button" class="pe-btn pe-close" data-pe="close">Loka ✕</button>' +
+      '<h3>' + (key ? key + " · " : "") + c.label + '</h3><div class="pe-sub">' + b.widthMm + ' × ' + blockHeightMm(b, c) + ' mm · ' +
+      (b.smida ? "Smíðagögn vistuð á skápnum" : "Sjálfgefið (ekkert breytt)") + '</div>';
+    if (doors.length) right += '<div class="pe-row">Lamir:<button type="button" class="pe-btn' + (hingeLeft ? " on" : "") + '" data-pe="side" data-v="vinstri">Vinstri</button>' +
+      '<button type="button" class="pe-btn' + (!hingeLeft ? " on" : "") + '" data-pe="side" data-v="haegri">Hægri</button></div>';
+    doors.forEach(function(d, i){
+      var sp = proSpec(b, doors, i);
+      right += '<div class="pe-door"><h4>' + d.label + ' — ' + d.box + ' mm</h4><div class="pe-row">' +
+        '<button type="button" class="pe-btn' + (sp.type !== "lift" ? " on" : "") + '" data-pe="type" data-door="' + i + '" data-v="hinged">Á lömum</button>' +
+        '<button type="button" class="pe-btn' + (sp.type === "lift" ? " on" : "") + '" data-pe="type" data-door="' + i + '" data-v="lift">Lyftihurð</button></div>';
+      if (sp.type === "lift") right += '<div class="pe-note">Lyftihurð: engar lamir í hliðum — lamirnar fara í toppborðið.</div>';
+      else {
+        sp.hinges.forEach(function(hg, j){
+          right += '<div class="pe-row">Löm ' + (j + 1) + ': <input type="number" min="30" step="1" value="' + hg.mm + '" data-pe="mm" data-door="' + i + '" data-h="' + j + '"> mm frá ' +
+            '<button type="button" class="pe-btn" data-pe="from" data-door="' + i + '" data-h="' + j + '">' + (hg.from === "top" ? "toppi ↑" : "botni ↓") + '</button>' +
+            '<button type="button" class="pe-btn" data-pe="del" data-door="' + i + '" data-h="' + j + '" title="Taka löm">✕</button></div>';
+        });
+        right += '<div class="pe-row"><button type="button" class="pe-btn" data-pe="add" data-door="' + i + '">＋ Löm</button>' +
+          '<button type="button" class="pe-btn" data-pe="reset" data-door="' + i + '">Sjálfgefið</button></div>';
+      }
+      right += '</div>';
+    });
+    if (dr) right += '<div class="pe-note">Skúffur: dragðu bláu skilin upp og niður. Hæðirnar fylgja skúffunum í hliðarpanelnum.</div>';
+    right += '<div class="pe-note">Lamir eru mældar frá enda hurðarinnar (80 mm sjálfgefið + jafnt á milli). Sama regla og /cnc notar.</div>';
+    el.innerHTML = '<div class="pe-card"><div>' + svg + '</div><div>' + right + '</div></div>';
+
+    function act(sel, fn){ el.querySelectorAll(sel).forEach(function(n){ n.addEventListener(n.tagName === "INPUT" ? "change" : "click", function(){ fn(n); }); }); }
+    act('[data-pe="close"]', closeBoxEditor);
+    act('[data-pe="side"]', function(n){ b.swing = n.dataset.v; save(); renderBoxEditor(); });
+    act('[data-pe="type"]', function(n){ var i = +n.dataset.door, sp = proSpec(b, doors, i); sp.type = n.dataset.v; if (sp.type === "hinged" && !(sp.hinges && sp.hinges.length)) sp.hinges = CNCSIDES.defaultHingeSpec(doors[i].box); proSetSpec(b, doors, i, sp); renderBoxEditor(); });
+    act('[data-pe="mm"]', function(n){ var i = +n.dataset.door, sp = proSpec(b, doors, i), v = Math.round(+n.value);
+      if (!(v >= 30 && v <= doors[i].box - 30)){ toast("Löm þarf að vera 30 mm eða meira frá enda hurðar."); renderBoxEditor(); return; }
+      sp.hinges[+n.dataset.h].mm = v; proSetSpec(b, doors, i, sp); renderBoxEditor(); });
+    act('[data-pe="from"]', function(n){ var i = +n.dataset.door, sp = proSpec(b, doors, i), hg = sp.hinges[+n.dataset.h];
+      hg.mm = Math.round(doors[i].box - hg.mm); hg.from = hg.from === "top" ? "bottom" : "top"; proSetSpec(b, doors, i, sp); renderBoxEditor(); });
+    act('[data-pe="del"]', function(n){ var i = +n.dataset.door, sp = proSpec(b, doors, i); if (sp.hinges.length <= 2){ toast("Hurð þarf minnst tvær lamir."); return; }
+      sp.hinges.splice(+n.dataset.h, 1); proSetSpec(b, doors, i, sp); renderBoxEditor(); });
+    act('[data-pe="add"]', function(n){ var i = +n.dataset.door, sp = proSpec(b, doors, i), pos = [0].concat(CNCSIDES.specToPositions(sp.hinges, doors[i].box), [doors[i].box]), best = 0;
+      for (var j = 1; j < pos.length; j++) if (pos[j] - pos[j - 1] > pos[best + 1] - pos[best]) best = j - 1;
+      var mid = Math.round((pos[best] + pos[best + 1]) / 2); sp.hinges.push(mid <= doors[i].box / 2 ? { from:"bottom", mm:mid } : { from:"top", mm:doors[i].box - mid });
+      proSetSpec(b, doors, i, sp); renderBoxEditor(); });
+    act('[data-pe="reset"]', function(n){ var i = +n.dataset.door, sp = proSpec(b, doors, i); sp.hinges = CNCSIDES.defaultHingeSpec(doors[i].box); proSetSpec(b, doors, i, sp); renderBoxEditor(); });
+
+    // dragging: hinge markers move along their door, drawer seams move the drawer below
+    var svgEl = el.querySelector("#peSvg");
+    function svgY(e){ var r = svgEl.getBoundingClientRect(); return e.clientY - r.top; }
+    el.querySelectorAll(".pe-hinge").forEach(function(g){
+      g.addEventListener("pointerdown", function(e){
+        e.preventDefault(); g.setPointerCapture(e.pointerId);
+        var i = +g.dataset.door, d = doors[i], startPos = +g.dataset.pos, circ = g.querySelector("circle"), txt = g.querySelector("text"), last = startPos;
+        function mv(ev){ last = Math.max(30, Math.min(d.box - 30, Math.round((d._y + d.box * S - svgY(ev)) / S)));
+          var y = d._y + d.box * S - last * S; circ.setAttribute("cy", y); txt.setAttribute("y", y + 4); txt.textContent = last <= d.box / 2 ? "↓" + last : "↑" + (d.box - last); }
+        function up(){ g.removeEventListener("pointermove", mv); g.removeEventListener("pointerup", up);
+          if (last === startPos) return;
+          var sp = proSpec(b, doors, i), list = CNCSIDES.specToPositions(sp.hinges, d.box), k = list.indexOf(startPos);
+          if (k >= 0) list[k] = last;
+          sp.hinges = list.sort(function(a, z){ return a - z; }).map(function(p){ return p <= d.box / 2 ? { from:"bottom", mm:p } : { from:"top", mm:d.box - p }; });
+          proSetSpec(b, doors, i, sp); renderBoxEditor(); }
+        g.addEventListener("pointermove", mv); g.addEventListener("pointerup", up);
+      });
+    });
+    el.querySelectorAll(".pe-seam").forEach(function(line){
+      line.addEventListener("pointerdown", function(e){
+        e.preventDefault(); line.setPointerCapture(e.pointerId);
+        var i = +line.dataset.seam, below = 0; for (var q = 0; q < i; q++) below += fronts[q] + 3;
+        var nf = null;
+        function mv(ev){ var v = Math.round((Y0 + body * S - svgY(ev)) / S - below - 1.5);
+          var cand = KP3D.resizeFront(fronts, codes, i, v); if (!cand) return; nf = cand;
+          var y = Y0 + body * S - (below + v + 1.5) * S; line.setAttribute("y1", y); line.setAttribute("y2", y); }
+        function up(){ line.removeEventListener("pointermove", mv); line.removeEventListener("pointerup", up);
+          if (!nf) return; b.interior.frontsMm = nf; save(); refreshAfterEdit(); renderBoxEditor(); }
+        line.addEventListener("pointermove", mv); line.addEventListener("pointerup", up);
+      });
+    });
+  }
+
+  // Smíðagögn per Sk number — what /api/kp-pro writes to each Line Item.
+  function proSmida(){
+    var keys = skKeys(), out = {};
+    surfaces().forEach(function(w){ ["floor", "wall"].forEach(function(zone){ w[zone].forEach(function(b){
+      var key = keys[b.id], c = CATALOG[b.type]; if (!key) return;
+      var doors = proDoorsOf(b, c, zone);
+      // only cabinets Rakel actually set up in the box editor — the rest stay on /cnc's identical default
+      out[key] = doors.length && b.smida ? { v:1, doors:doors.map(function(d, i){ var sp = proSpec(b, doors, i);
+        return { h:d.box - 3, type:sp.type, side:b.swing || null, hinges:sp.type === "lift" ? [] : sp.hinges }; }) } : null;
+    }); }); });
+    return out;
+  }
+  function proDirty(){ try{ return localStorage.getItem(STORAGE_KEY + ":dirty") === "1"; }catch(e){ return false; } }
+  function proBar(msg){
+    if (!PRO) return;
+    var el = document.getElementById("proBar");
+    if (!el){ el = document.createElement("div"); el.id = "proBar"; document.body.appendChild(el); }
+    el.innerHTML = '<span>🔧 PRO</span><span class="pb-name">' + escapeHtmlPro(PRO.name || "") + '</span>' +
+      (msg ? '<span>' + escapeHtmlPro(msg) + '</span>' : (proDirty() ? '<span class="pb-dirty">● óvistað</span>' : '<span>✓ vistað</span>')) +
+      '<button type="button" id="proSave"' + (PRO.ready ? "" : " disabled") + '>💾 Vista í Airtable</button>';
+    var bt = el.querySelector("#proSave"); if (bt) bt.addEventListener("click", proSave);
+  }
+  function escapeHtmlPro(s){ return String(s).replace(/[&<>"]/g, function(ch){ return { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[ch]; }); }
+  async function proSave(){
+    var bt = document.getElementById("proSave"); if (bt) bt.disabled = true;
+    proBar("Vista…");
+    try{
+      var r = await fetch("/api/kp-pro", { method:"POST", headers:{ "Content-Type":"application/json" },
+        body:JSON.stringify({ k:PRO.k, recordId:PRO.id, state:state, smida:proSmida() }) });
+      var d = await r.json().catch(function(){ return {}; });
+      if (!r.ok) throw new Error(d.error || ("HTTP " + r.status));
+      try{ localStorage.removeItem(STORAGE_KEY + ":dirty"); }catch(e){}
+      proBar();
+      toast("Vistað í Airtable: " + d.updated + " " + plural(d.updated, "lína uppfærð", "línur uppfærðar") + ", " + d.unchanged + " óbreyttar" +
+        (d.missing && d.missing.length ? ". ⚠️ Fann ekki Line Item fyrir " + d.missing.join(", ") + " — nýir skápar þurfa línu fyrst." : "."));
+    }catch(e){ proBar("⛔ " + e.message); }
+  }
+  async function proBoot(){
+    document.body.classList.add("pro");
+    proBar("Sæki verkefni…");
+    var rec;
+    try{
+      var r = await fetch("/api/airtable?path=" + encodeURIComponent("tbl4LMXlQjp66RFKI/" + PRO.id) + "&k=" + encodeURIComponent(PRO.k));
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      rec = await r.json();
+    }catch(e){ proBar("⛔ Gat ekki sótt verkefnið: " + e.message); return; }
+    var raw = (rec.fields || {})[PRO_FIELD];
+    PRO.name = (rec.fields || {})["Heiti tækifæris / verkefnis"] || PRO.id;
+    if (!raw){ proBar("⛔ Þetta verkefni var ekki teiknað í skipuleggjaranum"); return; }
+    var keepLocal = false;
+    try{ keepLocal = proDirty() && !!localStorage.getItem(STORAGE_KEY) &&
+      confirm("Það eru óvistaðar breytingar á þessu verkefni í þessum vafra.\n\nOK = halda áfram með þær\nHætta við = sækja útgáfuna úr Airtable"); }catch(e){}
+    if (!keepLocal){
+      try{ var st = JSON.parse(raw); st.step = "editor"; localStorage.setItem(STORAGE_KEY, JSON.stringify(st)); localStorage.removeItem(STORAGE_KEY + ":dirty"); }
+      catch(e){ proBar("⛔ Skipulagið í Airtable er skemmt"); return; }
+    }
+    if (!load()){ proBar("⛔ Gat ekki opnað skipulagið"); return; }
+    state.step = "editor";
+    PRO.ready = true;
+    render();
+    proBar();
+  }
+
   // ---------- init ----------
   // Checked once at load, not on resize — a desktop window getting
   // resized narrow mid-session shouldn't yank a real in-progress draft out
   // from under someone; this is about keeping phones from ever loading the
   // untested drag UI in the first place, not policing window width live.
   if (!checkMobileGate()){
-    load();
-    if (state.closed && state.walls.length) shapePhase = "size"; // a saved room opens on the sizing drawing
-    render();
+    if (PRO) proBoot();
+    else {
+      load();
+      if (state.closed && state.walls.length) shapePhase = "size"; // a saved room opens on the sizing drawing
+      render();
+    }
   }
 })();
 </script>
