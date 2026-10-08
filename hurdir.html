@@ -232,8 +232,12 @@
             jambKept = !overwrite;
           } else if (!overwrite) {
             var diff = C.diffValues(saved, pl.values);
-            if (diff.length) log("⚠️ " + pl.id + ": Airtable hefur breyst síðan karmurinn var gerður (karmur → Airtable: " + diff.join(", ") + "). Blaðið er gert eftir KARMINUM — lagaðu Airtable eða yfirskrifaðu karminn ef hann er ekki farinn.");
-            values = saved; jambKept = true;
+            // Same numbers → rewriting the jamb changes nothing on the part, and refreshes files made by an
+            // older version of this page. Different numbers → the jamb that may already exist wins.
+            if (diff.length) {
+              log("⚠️ " + pl.id + ": Airtable hefur breyst síðan karmurinn var gerður (karmur → Airtable: " + diff.join(", ") + "). Blaðið er gert eftir KARMINUM — lagaðu Airtable eða yfirskrifaðu karminn ef hann er ekki farinn.");
+              values = saved; jambKept = true;
+            }
           }
         }
         for (var f of files) {

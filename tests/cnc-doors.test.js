@@ -54,7 +54,8 @@ test("renderBpp: numbers in, managed macros switched, other sections untouched, 
   assert.ok(L.some((l) => l.startsWith("' IN05020_KARMLOM_JNF,")));
   assert.ok(L.some((l) => l.startsWith("Rem ' BASIC_LOM_4")));
   assert.ok(L.includes("Name=HURD_H stays here"));
-  assert.ok(L.includes("GLB=HURD_Z|38|Hurdaskra|0|"));
+  assert.ok(L.includes("GLB=HS_HURD_Z|38|Hurdaskra|0|"));
+  assert.ok(!L.some((l) => /^GLB=HURD_[HBZ]\|/.test(l)));        // never redefine the machine's own names
   assert.ok(r.text.includes("\r\n") && !/[^\r]\n/.test(r.text));   // CRLF kept
   assert.deepEqual(C.readValues(r.text), p.values);               // the file is its own record
 });
@@ -79,4 +80,10 @@ test("door ids", () => {
   assert.equal(C.doorId("Hurð 7"), "HU7");
   assert.equal(C.doorId("HURÐ 3  BAÐHERBERGI "), "HU3");
   assert.equal(C.doorId("Robust 15 HU1 | HU1"), "Robust 15 HU1 - HU1");
+});
+
+test("readValues also reads the first-version files (GLB=HURD_H|…|Hurdaskra)", () => {
+  const v = C.doorPlan(DOOR).values;
+  const old = Object.keys(v).map((k) => `GLB=${k}|${v[k]}|Hurdaskra|0|`).join("\r\n");
+  assert.deepEqual(C.readValues(old), v);
 });

@@ -189,16 +189,17 @@
       var left = l.match(new RegExp("\\b(" + VARS.join("|") + ")\\b", "i"));
       if (left) errors.push("Breyta " + left[1] + " óleyst: " + l.slice(0, 80));
     });
-    // The macros themselves still read some of these at run time (the locks and strike plates centre on
-    // HURD_Z), so every variable is also defined in the file as a global — after the last PAN line, where
-    // the masters keep their own GLB lines. This is also what makes a finished file its own record.
+    // The numbers are also saved in the file as globals so a finished file is its own record — under an
+    // "HS_" prefix: the machine already defines HURD_B etc. itself (Piece Data), and a GLB with the same
+    // name stops the program with "Variable HURD_B cannot be evaluated … Name redefined" (shop test,
+    // 2026-10-08). The macros that read HURD_Z inside themselves get the machine's own value (38).
     var at = -1, inVars = false;
     out.forEach(function (l, i) {
       if (/^\[VARIABLES\]/.test(l)) inVars = true; else if (/^\[/.test(l)) inVars = false;
       if (inVars && /^PAN=/.test(l)) at = i;
     });
     if (at < 0) errors.push("Fann engar PAN-línur í [VARIABLES]");
-    else out.splice.apply(out, [at + 1, 0].concat(VARS.map(function (k) { return "GLB=" + k + "|" + values[k] + "|Hurdaskra|0|"; })));
+    else out.splice.apply(out, [at + 1, 0].concat(VARS.map(function (k) { return "GLB=HS_" + k + "|" + values[k] + "|Hurdaskra|0|"; })));
     return { text: out.join(nl), errors: errors };
   }
 
@@ -239,8 +240,9 @@
   function readValues(text) {
     var v = {}, n = 0;
     String(text).split(/\r?\n/).forEach(function (l) {
-      var m = l.match(/^GLB=([A-Z_0-9]+)\|([^|]*)\|Hurdaskra\|/);
-      if (m && VARS.indexOf(m[1]) >= 0) { v[m[1]] = num(m[2]); n++; }
+      // "HS_HURD_H" (current) or "HURD_H" (the first files, 2026-10-08 morning, which the machine rejected).
+      var m = l.match(/^GLB=(?:HS_)?([A-Z_0-9]+)\|([^|]*)\|Hurdaskra\|/);
+      if (m && VARS.indexOf(m[1]) >= 0 && !(m[1] in v)) { v[m[1]] = num(m[2]); n++; }
     });
     return n === VARS.length ? v : null;
   }
