@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex" />
+<title>CNC — Björninn</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  /* cnc.html (/cnc, /hurdir) — ONE export per project for the Rover-B: cabinet sides (from Sögunarlisti, cnc-sides.js)
+     and doors (karmur + hurðablað from the door Eyðublöð, cnc-doors.js), all into [99] - VERKEFNI/<T-xx name>/ on
+     the USB stick, with the shop's own masters read from the same stick. "T-xx CNC skrá.txt" lists what was made,
+     what to check and what is missing. Agreed with the user 2026-10-08 — see CLAUDE.md "CNC". */
+  :root {
+    --bg:#0b0b0c; --surface:#161618; --line:#2a2a2e; --text:#f2f2f3; --muted:#c9c9d0;
+    --blue:#0a84ff; --green:#30d158; --amber:#ffd60a; --red:#ff453a;
+    --font:"Kumbh Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; line-height:1.45; }
+  .wrap { max-width:1100px; margin:0 auto; padding:20px 18px 60px; }
+  .kicker { font-size:.74rem; font-weight:700; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); }
+  h1 { font-size:1.8rem; font-weight:800; margin-top:4px; }
+  h2 { font-size:1.15rem; font-weight:800; margin-top:26px; display:flex; gap:10px; align-items:baseline; }
+  h2 small { font-size:.85rem; font-weight:500; color:var(--muted); }
+  .sub { color:var(--muted); font-size:.92rem; margin-top:4px; max-width:75ch; }
+  .bar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:18px; position:sticky; top:0; background:var(--bg); padding:10px 0; z-index:2; }
+  select, button { font:inherit; color:var(--text); background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:10px 14px; }
+  select { min-width:360px; max-width:100%; }
+  button { cursor:pointer; font-weight:700; }
+  button.primary { background:var(--blue); border-color:#3d9bff; }
+  button:disabled { opacity:.4; cursor:default; }
+  label.opt { display:flex; gap:8px; align-items:center; font-size:.85rem; color:var(--muted); }
+  .card { display:grid; grid-template-columns:26px 1fr auto; gap:12px; background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:12px 14px; margin-top:10px; }
+  .card.stop { opacity:.8; }
+  .card h3 { font-size:1.05rem; font-weight:800; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .chip { font-size:.72rem; font-weight:800; padding:2px 9px; border-radius:99px; letter-spacing:.04em; white-space:nowrap; }
+  .chip.ok { background:#123d1e; color:var(--green); } .chip.check { background:#3d3410; color:var(--amber); } .chip.stop { background:#40100e; color:var(--red); }
+  .meta { font-size:.86rem; color:var(--muted); margin-top:4px; }
+  .meta b { color:var(--text); }
+  ul.notes { margin-top:6px; font-size:.85rem; }
+  ul.notes li { margin-left:18px; }
+  li.stop { color:var(--red); } li.check { color:var(--amber); }
+  .ops { margin-top:6px; font:12px/1.5 ui-monospace,Menlo,monospace; color:#a9b4c2; }
+  .fname { font-size:.78rem; color:var(--muted); margin-top:4px; }
+  svg text { font-family:var(--font); }
+  #log { margin-top:22px; background:#050506; border:1px solid var(--line); border-radius:12px; padding:12px; font:12px/1.5 ui-monospace,Menlo,monospace; white-space:pre-wrap; max-height:380px; overflow:auto; display:none; }
+  .empty { color:var(--muted); margin-top:16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="kicker">CNC · Rover-B</div>
+  <h1>CNC útflutningur</h1>
+  <div class="sub">Hliðar úr Sögunarlista og hurðir (karmur + blað) í eina möppu á lyklinum: <b>[99] - VERKEFNI/&lt;verkefni&gt;</b>.
+    Ef eitthvað er rangt hér er það rangt í Sögunarlista / Eyðublaði — lagaðu það þar.</div>
+
+  <div class="bar">
+    <select id="projSel"><option value="">Hleð verkefnum…</option></select>
+    <button class="primary" id="writeBtn" disabled>💾 Skrifa á USB</button>
+    <label class="opt"><input type="checkbox" id="overwriteJamb" /> Yfirskrifa karma sem eru til (aðeins ef þeir hafa EKKI verið fræstir)</label>
+  </div>
+  <div id="out"></div>
+  <div id="log"></div>
+</div>
+
+<script src="/cnc-doors.js"></script>
+<script src="/cnc-sides.js"></script>
+<script>
+(function () {
+  "use strict";
+  var D = window.CNCDOORS, SD = window.CNCSIDES;
+  var PROXY = "/api/airtable";
+  var PROJECTS = "tbl4LMXlQjp66RFKI", UNIT = "tbl0WcyHhz63pSzZX", SAW = "tblhdgyvTcBfP8kov", PRODUCTS = "tblzuuRSRkeXaLWxC";
+  var PNAME = "Heiti tækifæris / verkefnis";
+  // Same internal key app.html already carries (widens Eyðublað to the door fields); ?k= overrides.
+  var KEY = new URLSearchParams(location.search).get("k") || "bjorn-verk-7Kq2mP9xLd4";
+  var UNIT_FIELDS = ["Athugasemd", "Sérsmíði tegund", "Hæð", "Breidd", "Dýpt", "Fjöldi eininga",
+    "Þykkt karms [Hurð]", "Karmabil frá vegg [Hurð]", "Toppstykki hurðakarms", "Opnun [Hurð]", "Lamir [Hurð]", "Skrá [Hurð]", "Felliþr. [Hurð]"];
+  var SAW_FIELDS = ["Partur", "H", "B", "Þ", "M", "Tegund einingu", "Eyðublað ✏️"];
+
+  var project = null, doors = [], groups = [], stopped = [], productNames = {};
+  var $ = function (id) { return document.getElementById(id); };
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function log(s) { var el = $("log"); el.style.display = "block"; el.textContent += s + "\n"; el.scrollTop = el.scrollHeight; }
+  function safe(s) { return String(s).replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim(); }
+  function prefixOf(n) { var m = n.match(/^(T-\d+)/); return m ? m[1] : safe(n).slice(0, 20); }
+  function folderOf(n) { return safe(n.replace(/\s*\|\s*/, " ")); }
+
+  // encodeURIComponent, never URLSearchParams ("+" breaks {Field} refs — see CLAUDE.md).
+  async function fetchAll(table, params) {
+    var qs = ["path=" + encodeURIComponent(table), "k=" + encodeURIComponent(KEY)];
+    Object.keys(params).forEach(function (k) { [].concat(params[k]).forEach(function (v) { qs.push(encodeURIComponent(k) + "=" + encodeURIComponent(v)); }); });
+    var recs = [], offset;
+    do {
+      var r = await fetch(PROXY + "?" + qs.concat(offset ? ["offset=" + encodeURIComponent(offset)] : []).join("&"));
+      if (!r.ok) throw new Error("Airtable " + r.status);
+      var d = await r.json(); recs = recs.concat(d.records || []); offset = d.offset;
+    } while (offset);
+    return recs;
+  }
+
+  async function loadProjects() {
+    var recs;
+    try {
+      recs = await fetchAll(PROJECTS, { filterByFormula: 'AND({Staða í söluferli}="🏆 Tækifæri unnið",{Staða í framleiðslu}!="Afhent (LOKIÐ ✅)")', "fields[]": [PNAME] });
+    } catch (e) { $("projSel").innerHTML = '<option value="">Gat ekki sótt verkefni: ' + esc(e.message) + "</option>"; return; }
+    var tn = function (r) { var m = String(r.fields[PNAME] || "").match(/^T-(\d+)/); return m ? +m[1] : -1; };
+    recs.sort(function (a, b) { return tn(b) - tn(a); });
+    $("projSel").innerHTML = '<option value="">Veldu verkefni</option>' + recs.map(function (r) {
+      return '<option value="' + esc(r.id) + '">' + esc(String(r.fields[PNAME] || r.id).trim()) + "</option>"; }).join("");
+    var want = new URLSearchParams(location.search).get("t");
+    if (want) { var hit = recs.find(function (r) { var n = String(r.fields[PNAME] || ""); return n.indexOf(want + " ") === 0 || n.indexOf(want + "|") === 0; }); if (hit) $("projSel").value = hit.id; }
+    $("projSel").onchange = loadProject;
+    if ($("projSel").value) loadProject();
+  }
+
+  async function loadProject() {
+    var id = $("projSel").value; project = null; doors = []; groups = []; stopped = [];
+    $("writeBtn").disabled = true;
+    if (!id) { $("out").innerHTML = ""; return; }
+    var name = $("projSel").selectedOptions[0].textContent.trim();
+    $("out").innerHTML = '<div class="empty">Sæki Sögunarlista og einingar…</div>';
+    var pre = prefixOf(name), q = pre.replace(/"/g, '\\"');
+    try {
+      var units = await fetchAll(UNIT, { filterByFormula: 'FIND("' + q + ' |",{Athugasemd + Tækifæri (fyrir yfirfara)})', "fields[]": UNIT_FIELDS });
+      var rows = await fetchAll(SAW, { filterByFormula: 'FIND("' + q + ' |",ARRAYJOIN({Tækifæri 📣 (projects)}))', "fields[]": SAW_FIELDS });
+    } catch (e) { $("out").innerHTML = '<div class="empty">Villa: ' + esc(e.message) + "</div>"; return; }
+    project = { id: id, name: name, prefix: pre };
+    var unitName = {}, isDoor = {};
+    units.forEach(function (u) { unitName[u.id] = u.fields["Athugasemd"] || "(nafnlaust)"; isDoor[u.id] = String(u.fields["Sérsmíði tegund"] || "") === "Hurð"; });
+
+    // Doors
+    doors = units.filter(function (u) { return isDoor[u.id]; }).map(function (u) { return { rec: u, plan: D.doorPlan(u.fields) }; })
+      .sort(function (a, b) { return a.plan.id.localeCompare(b.plan.id, "is", { numeric: true }); });
+    var ids = {};
+    doors.forEach(function (d) { ["Lamir [Hurð]", "Skrá [Hurð]", "Felliþr. [Hurð]"].forEach(function (f) { (d.rec.fields[f] || []).forEach(function (x) { ids[x.id || x] = 1; }); }); });
+    if (Object.keys(ids).length) {
+      try { (await fetchAll(PRODUCTS, { filterByFormula: "OR(" + Object.keys(ids).map(function (x) { return 'RECORD_ID()="' + x + '"'; }).join(",") + ")", "fields[]": ["Heiti vöru 📣"] }))
+        .forEach(function (p) { productNames[p.id] = p.fields["Heiti vöru 📣"]; }); } catch (e) { /* names only */ }
+    }
+    doors.forEach(function (d) { Object.keys(productNames).forEach(function (pid) {
+      d.plan.stop = d.plan.stop.map(function (s) { return s.replace(pid, productNames[pid]); });
+      d.plan.check = d.plan.check.map(function (s) { return s.replace("(" + pid + ")", "(" + productNames[pid] + ")"); }); }); });
+
+    // Sides — every non-door unit's Sögunarlisti rows.
+    var byUnit = {};
+    rows.forEach(function (r) { var u = (r.fields["Eyðublað ✏️"] || [])[0]; u = u && (u.id || u); if (!u || isDoor[u]) return; (byUnit[u] = byUnit[u] || []).push(r.fields); });
+    var plans = Object.keys(byUnit).map(function (u) { return SD.unitPlan(unitName[u] || u, byUnit[u]); });
+    groups = SD.groupPlans(plans);
+    stopped = plans.filter(function (p) { return p.status === "stop"; }).sort(function (a, b) { return a.id.localeCompare(b.id, "is", { numeric: true }); });
+    render();
+  }
+
+  function render() {
+    if (!project) return;
+    var pre = project.prefix, h = "";
+    var nSide = groups.length, nCab = groups.reduce(function (a, g) { return a + g.cabinets; }, 0);
+    h += "<h2>Hliðar <small>" + nSide + " skrár · " + nCab + " skápar" + (stopped.length ? " · " + stopped.length + " ⛔" : "") + "</small></h2>";
+    if (!nSide && !stopped.length) h += '<div class="empty">Engar skápahliðar í Sögunarlista.</div>';
+    groups.forEach(function (g, i) {
+      var p = g.plans[0], st = g.plans.some(function (x) { return x.status === "check"; }) ? "check" : "ok";
+      var notes = [];
+      g.plans.forEach(function (x) { x.check.forEach(function (c) { if (notes.indexOf(c) < 0) notes.push(c); }); });
+      h += '<div class="card ' + st + '"><input type="checkbox" data-side="' + i + '" checked style="width:20px;height:20px;margin-top:3px" />' +
+        "<div><h3>" + esc(g.label) + ' <span class="chip ' + st + '">' + (st === "ok" ? "✅ Tilbúið" : "⚠️ Athuga") + "</span></h3>" +
+        '<div class="meta"><b>' + p.LPX + " × " + p.LPY + " × " + p.LPZ + "</b> · " + g.cabinets + " skáp" + (g.cabinets > 1 ? "ar" : "ur") + " (" + g.cabinets * 2 + " hliðar) · " +
+          esc(g.plans.map(function (x) { return x.name; }).join(", ")) + (p.groove ? " · masonít-rauf" : " · engin rauf") + "</div>" +
+        (notes.length ? '<ul class="notes">' + notes.map(function (n) { return '<li class="check">⚠️ ' + esc(n) + "</li>"; }).join("") + "</ul>" : "") +
+        '<div class="ops">' + p.ops.slice(2).map(function (o) { return esc(o.name + " " + o.params); }).join("<br>") + "</div>" +
+        '<div class="fname">' + esc(SD.fileName(pre, g)) + "</div></div><div></div></div>";
+    });
+    stopped.forEach(function (p) {
+      h += '<div class="card stop"><span></span><div><h3>' + esc(p.name) + ' <span class="chip stop">⛔ Ekki gert</span></h3><ul class="notes">' +
+        p.stop.map(function (s) { return '<li class="stop">' + esc(s) + "</li>"; }).join("") + "</ul></div><div></div></div>";
+    });
+
+    h += "<h2>Hurðir <small>" + doors.length + "</small></h2>";
+    if (!doors.length) h += '<div class="empty">Engar hurðir í þessu verkefni.</div>';
+    doors.forEach(function (d, i) {
+      var pl = d.plan, v = pl.values || {};
+      var notes = pl.stop.map(function (s) { return '<li class="stop">⛔ ' + esc(s) + "</li>"; }).concat(pl.check.map(function (s) { return '<li class="check">⚠️ ' + esc(s) + "</li>"; })).join("");
+      h += '<div class="card ' + pl.status + '"><input type="checkbox" data-door="' + i + '" ' + (pl.status === "stop" ? "disabled" : "checked") + ' style="width:20px;height:20px;margin-top:3px" />' +
+        "<div><h3>" + esc(pl.id) + ' <span class="chip ' + pl.status + '">' + { ok: "✅ Tilbúið", check: "⚠️ Athuga", stop: "⛔ Vantar gögn" }[pl.status] + "</span></h3>" +
+        '<div class="meta">Op ' + esc(d.rec.fields["Hæð"]) + " × " + esc(d.rec.fields["Breidd"]) +
+          (pl.values ? " · blað <b>" + v.HURD_H + " × " + v.HURD_B + " × " + v.HURD_Z + "</b> · karmur " + v.KARMAR_Z + " × " + v.KARMAR_B + " · " + esc(pl.topp) : "") +
+          " · " + esc(pl.opnun || "?") + " · " + esc(pl.hinge || "—") + " · " + esc(pl.lock || "—") + "</div>" +
+        (notes ? '<ul class="notes">' + notes + "</ul>" : "") + "</div>" +
+        "<div>" + (pl.values ? elevation(v) : "") + "</div></div>";
+    });
+    $("out").innerHTML = h;
+    $("writeBtn").disabled = !(groups.length || doors.some(function (d) { return d.plan.status !== "stop"; }));
+  }
+
+  // Door leaf next to its hinge-side jamb, to scale, floor at the bottom — hinges and lock must line up across.
+  function elevation(v) {
+    var H = v.HURD_H + v.HG_BIL + v.HK_BIL, s = 120 / H, W = 150, base = 128, y = function (f) { return base - f * s; };
+    var g = '<svg width="' + W + '" height="140" viewBox="0 0 ' + W + ' 140"><line x1="0" y1="' + base + '" x2="' + W + '" y2="' + base + '" stroke="#555"/>' +
+      '<rect x="20" y="' + y(v.HG_BIL + v.HURD_H) + '" width="40" height="' + v.HURD_H * s + '" fill="#2a2a2e" stroke="#777"/>' +
+      '<rect x="80" y="' + y(H) + '" width="10" height="' + H * s + '" fill="#3a3326" stroke="#777"/>';
+    [[v.HG_BIL + v.HURD_H - v.LOM1, "#0a84ff"], [v.HG_BIL + v.HURD_H - v.LOM2, "#0a84ff"], [v.HG_BIL + v.LOM3, "#0a84ff"], [v.HG_BIL + v.HANDFANG, "#ffd60a"]].forEach(function (m) {
+      g += '<line x1="56" y1="' + y(m[0]) + '" x2="90" y2="' + y(m[0]) + '" stroke="' + m[1] + '" stroke-width="2"/><text x="94" y="' + (y(m[0]) + 3) + '" fill="' + m[1] + '" font-size="9">' + Math.round(m[0]) + "</text>";
+    });
+    return g + "</svg>";
+  }
+
+  // ── USB ──────────────────────────────────────────────────────────────────────────────────────────────
+  async function sub(dir, name, create) { return dir.getDirectoryHandle(name, { create: !!create }); }
+  async function tryFile(dir, name) { try { return await (await dir.getFileHandle(name)).getFile(); } catch (e) { return null; } }
+  async function readText(file) { return new TextDecoder("windows-1252").decode(await file.arrayBuffer()); }
+  async function writeBytes(dir, name, bytes) { var w = await (await dir.getFileHandle(name, { create: true })).createWritable(); await w.write(bytes); await w.close(); }
+  // The user may pick the stick itself or the "[01] - AÐALMÖPPUR …" folder — find the folder holding the masters.
+  async function findRoot(picked) {
+    try { await sub(picked, "[05] - Hurdir"); return picked; } catch (e) {}
+    for await (var entry of picked.values()) {
+      if (entry.kind !== "directory") continue;
+      try { await sub(entry, "[05] - Hurdir"); return entry; } catch (e) {}
+    }
+    return null;
+  }
+  var masterCache = {};
+  async function readMaster(root, parts) {
+    var key = parts.join("/"); if (masterCache[key]) return masterCache[key];
+    var d = root; for (var i = 0; i < parts.length - 1; i++) d = await sub(d, parts[i]);
+    var f = await tryFile(d, parts[parts.length - 1]);
+    if (!f) throw new Error("Master fannst ekki: " + key);
+    return (masterCache[key] = await readText(f));
+  }
+
+  async function writeUsb(pickedDir) {
+    if (!project) return;
+    var pre = project.prefix, overwrite = $("overwriteJamb").checked;
+    var sideSel = Array.prototype.map.call(document.querySelectorAll("[data-side]:checked"), function (c) { return groups[+c.dataset.side]; });
+    var doorSel = Array.prototype.map.call(document.querySelectorAll("[data-door]:checked"), function (c) { return doors[+c.dataset.door]; });
+    if (!sideSel.length && !doorSel.length) return;
+    if (!pickedDir) {
+      if (!("showDirectoryPicker" in window)) { alert("Þessi vafri styður ekki að skrifa beint á USB. Notaðu Chrome eða Edge."); return; }
+      try { pickedDir = await window.showDirectoryPicker({ mode: "readwrite" }); } catch (e) { return; }
+    }
+    $("writeBtn").disabled = true; masterCache = {}; $("log").textContent = "";
+    var when = new Date().toLocaleString("is-IS"), made = [], warn = [], missing = [];
+    try {
+      var root = await findRoot(pickedDir);
+      if (!root) { log("⛔ Fann ekki masterana — veldu lykilinn sjálfan eða „[01] - AÐALMÖPPUR …“ möppuna."); return; }
+      var job = await sub(await sub(root, "[99] - VERKEFNI", true), folderOf(project.name), true);
+      log("Mappa: [99] - VERKEFNI/" + folderOf(project.name));
+
+      // Sides. Files this page made before (marked inside) that this export no longer produces are removed, so a
+      // regrouped project never leaves a stale side program behind. Hand-made files are never touched.
+      var sideNames = {};
+      for (var g of sideSel) {
+        var fname = SD.fileName(pre, g), r = SD.renderSide(await readMaster(root, SD.MASTER), g.plans[0]);
+        if (r.errors.length) { log("⛔ " + fname + " EKKI skrifað: " + r.errors.join(" · ")); missing.push(fname + ": " + r.errors.join(" · ")); continue; }
+        await writeBytes(job, fname, D.toCp1252(r.text)); sideNames[fname] = 1;
+        log("✅ " + fname); made.push(fname + "  (" + g.plans[0].LPX + "×" + g.plans[0].LPY + "×" + g.plans[0].LPZ + ", " + g.cabinets * 2 + " hliðar)");
+        g.plans.forEach(function (p) { p.check.forEach(function (c) { var s = g.label + ": " + c; if (warn.indexOf(s) < 0) warn.push(s); }); });
+      }
+      if (sideSel.length === groups.length) {
+        for await (var entry of job.values()) {
+          if (entry.kind !== "file" || sideNames[entry.name] || !/ Hliðar\.bpp$/.test(entry.name) || entry.name.indexOf(pre + " ") !== 0) continue;
+          var old = await readText(await entry.getFile());
+          if (old.indexOf(SD.MARKER) >= 0) { await job.removeEntry(entry.name); log("🗑 " + entry.name + " (úrelt — búið til hér áður)"); }
+        }
+      }
+      stopped.forEach(function (p) { missing.push(p.name + ": " + p.stop.join(" · ")); });
+
+      // Doors — the jamb that may already exist decides the leaf (see cnc-doors.js).
+      var logBlocks = [];
+      for (var d of doorSel) {
+        var pl = d.plan, files = D.filesFor(pl, pre), values = pl.values, jambKept = false;
+        var jambFile = await tryFile(job, files[1].name);
+        if (jambFile) {
+          var saved = D.readValues(await readText(jambFile));
+          if (!saved) { log("⚠️ " + pl.id + ": „" + files[1].name + "“ er til en var ekki gerður hér. " + (overwrite ? "Yfirskrifa." : "Karmar ekki snertir; blað gert eftir Airtable — BERA SAMAN við karminn.")); jambKept = !overwrite; }
+          else if (!overwrite) {
+            var diff = D.diffValues(saved, pl.values);
+            if (diff.length) { log("⚠️ " + pl.id + ": Airtable hefur breyst síðan karmurinn var gerður (karmur → Airtable: " + diff.join(", ") + "). Blaðið er gert eftir KARMINUM."); values = saved; jambKept = true; warn.push(pl.id + ": blað gert eftir karmi (" + diff.join(", ") + ")"); }
+          }
+        }
+        for (var f of files) {
+          if (f.kind !== "leaf" && jambKept) { log("   = " + f.name + " (óbreyttur, karmur til)"); continue; }
+          var rr = D.renderBpp(await readMaster(root, f.master), values, f.managed, f.on);
+          if (rr.errors.length) { log("⛔ " + f.name + " EKKI skrifað: " + rr.errors.join(" · ")); missing.push(f.name + ": " + rr.errors.join(" · ")); continue; }
+          await writeBytes(job, f.name, D.toCp1252(rr.text)); log("✅ " + f.name); made.push(f.name);
+        }
+        pl.check.forEach(function (c) { warn.push(pl.id + ": " + c); });
+        logBlocks.push(D.logText(Object.assign({}, pl, { values: values }), project.name, when));
+      }
+      doors.filter(function (d) { return d.plan.status === "stop"; }).forEach(function (d) { missing.push(d.plan.id + ": " + d.plan.stop.join(" · ")); });
+      if (logBlocks.length) {
+        var logName = pre + " Hurðaskrá.txt", oldLog = await tryFile(job, logName), prev = oldLog ? await readText(oldLog) : "";
+        await writeBytes(job, logName, D.toCp1252(prev + (prev ? "\r\n" : "") + logBlocks.join("\r\n" + "-".repeat(60) + "\r\n")));
+      }
+      // The one sheet that goes with the stick: made / check / missing.
+      var sheet = ["CNC — " + project.name, "Búið til: " + when, "",
+        "SKRÁR (" + made.length + "):"].concat(made.map(function (s) { return "  " + s; }),
+        ["", "ATHUGA (" + warn.length + "):"], warn.map(function (s) { return "  " + s; }),
+        ["", "EKKI GERT — þarf að forrita í höndunum eða laga gögn (" + missing.length + "):"], missing.map(function (s) { return "  " + s; }));
+      await writeBytes(job, pre + " CNC skrá.txt", D.toCp1252(sheet.join("\r\n") + "\r\n"));
+      log("📒 " + pre + " CNC skrá.txt — " + made.length + " skrár, " + warn.length + " ⚠, " + missing.length + " ⛔. Búið.");
+    } catch (e) {
+      log("⛔ Villa: " + e.message);
+    } finally { $("writeBtn").disabled = false; }
+  }
+  $("writeBtn").onclick = function () { writeUsb(); };
+  window.__cncWrite = writeUsb; // tests: pass an in-memory directory handle
+
+  loadProjects();
+})();
+</script>
+</body>
+</html>
