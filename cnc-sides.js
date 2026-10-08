@@ -17,9 +17,10 @@
   var BOX_GAP = 3;          // every front is 3 mm shorter than its box (one 3 mm gap per front)
   var HINGE_END = 80;       // hinge centre from each end of the side
   var HINGE_FRONT_OFFSET = 1; // …and 79 on the front itself
-  var INNER_GAP_AIM = 20, INNER_GAP_MIN = 4;
+  var INNER_TOP_GAP = 32;  // inner drawer front top sits 32 mm under the top of the zone it hides in (T-33, T-56)
+  var FIXED_FRONT_MAX = 350; // a "Frontur" this low in a drawer cabinet is a fixed (false) front — FAST_FRAMSTYKKI, no hinges
   var INNER_RUNNER = 54;    // MERVIBOX_INNSKUFFA: the inner front starts 54 mm below X ("st_5mm frontur er 54 fyrir neðan")
-  var TALL_EXTRA_RAIL = 1500; // sides taller than this get the extra rail ("Auka slár", lpx/3) — T-56 SK 10.1 / SK 17
+  var TALL_EXTRA_RAIL = 1000; // sides taller than this get the extra rail ("Auka slár", lpx/3) — user 2026-10-08 (T-33 Sk 34 = 1040)
   // Bottom → top order of a drawer stack: deepest box first.
   var CODE_ORDER = ["F", "E", "C", "K", "M", "N"];
   // Every macro this generator decides about. All master lines with these names are switched off and the
@@ -46,7 +47,7 @@
     var p = lc(partur);
     if (/úthlið|blindlok/.test(p)) return "uthlid";
     if (/karm|slaglist|kjötlist|gerefti|hurðablað/.test(p)) return "doorPart"; // door jambs ("Karmur – Hliðar") are /cnc's door half
-    if (/^fre\b/.test(p) && /hlið/.test(p)) return "freSide";
+    if (/^fre\d*\b/.test(p) && /hlið/.test(p)) return "freSide"; // "FRE - Hlið", "FRE2 - Hlið"
     if (/hlið/.test(p)) return "side";
     var dm = String(partur).match(/^(inn)?skúffufrontur\s+([NMKCFE])\b.*?(merivo|legra)/i);
     if (dm) return dm[1] ? "inner" : "drawer";
@@ -81,7 +82,10 @@
   }
 
   // One unit's Sögunarlisti rows → what its sides need. rows: [{Partur, H, B, Þ, M, Tegund einingu}]
-  function unitPlan(name, rows) {
+  // opts.unitHeight = the Eyðublað's Hæð (only to tell which way a side is stored — Sögunarlisti has some tall
+  //   sides as H 580 × B 2470); opts.gripMm = grip strip on the drawer fronts (slot = cut front + grip).
+  function unitPlan(name, rows, opts) {
+    opts = opts || {};
     var stop = [], check = [], info = [];
     var by = {}; rows.forEach(function (r) { var k = kind(r.Partur); (by[k] = by[k] || []).push(r); });
     var tegund = String([].concat((rows[0] || {})["Tegund einingu"] || "")[0] || "");
@@ -93,7 +97,8 @@
       var sz = by.side.map(function (r) { return r.H + "×" + r.B + "×" + r["Þ"]; });
       if (sz.some(function (s) { return s !== sz[0]; })) { stop.push("Hliðar af ólíkri stærð í sömu einingu (" + sz.join(", ") + ") — skipta einingunni"); plan.status = "stop"; return plan; }
     }
-    var s = by.side[0], H = num(s.H), B = num(s.B), T = num(s["Þ"]);
+    var s = by.side[0], H = num(s.H), B = num(s.B), T = num(s["Þ"]), hh = num(opts.unitHeight);
+    if (hh && H != null && B != null && Math.abs(B - hh) < Math.abs(H - hh)) { var t0 = H; H = B; B = t0; info.push("Hlið snúin: Sögunarlisti " + s.H + "×" + s.B); }
     var sideCount = by.side.reduce(function (a, r) { return a + (num(r.M) || 0); }, 0);
     if (H == null || B == null || T == null) { stop.push("Hlið vantar H/B/Þ í Sögunarlista"); plan.status = "stop"; return plan; }
     var cab = sideCount / 2;
@@ -108,10 +113,12 @@
     op("SLA_HLID", "Slár", 'LPZ, bora_i_gegn, lpz+1, 0, "1,4"');
     if (H > TALL_EXTRA_RAIL) op("SLA_HLID", "Auka Slár", 'LPZ, bora_i_gegn, lpz+1, lpx/3, "1,4"');
     // Masonite groove unless it's a plumbing (lagna) side — the master's own note: "Ef lagna = ekki masonit".
-    plan.groove = !/lagna/i.test(s.Partur);
+    plan.groove = !/lagna/i.test(s.Partur); // and FRE sides never (they stop before this)
+    var grip = num(opts.gripMm) || 0;
 
     // Drawers, bottom → top, from the real front heights.
-    var drawers = expand(by.drawer, function (r) { var m = r.Partur.match(/skúffufrontur\s+([NMKCFE])\b.*?(merivo|legra)/i); return { code: m[1].toUpperCase(), sys: lc(m[2]), H: num(r.H) }; });
+    var drawers = expand(by.drawer, function (r) { var m = r.Partur.match(/skúffufrontur\s+([NMKCFE])\b.*?(merivo|legra)/i); return { code: m[1].toUpperCase(), sys: lc(m[2]), front: num(r.H), H: r1(num(r.H) + grip) }; });
+    if (grip && by.drawer) info.push("Skúffuhólf = front + " + grip + " mm grip");
     drawers.sort(function (a, b) { return CODE_ORDER.indexOf(a.code) - CODE_ORDER.indexOf(b.code) || b.H - a.H; });
     var sys = {}; drawers.forEach(function (d) { sys[d.sys] = 1; });
     if (Object.keys(sys).length > 1) { stop.push("Merivo og Legra í sama skáp"); plan.status = "stop"; return plan; }
@@ -127,10 +134,22 @@
     drawerTop = y;
     if (drawers.some(function (d) { return d.sys === "legra"; })) check.push("Legra: staðsetning eftir sama mynstri og Merivo — bera saman við fyrsta Legra-skáp");
 
-    // Doors: stacked from the top of the side down (above the drawers).
+    // Doors, stacked from the top of the side down (above the drawers).
+    //  - a low "Frontur" in a drawer cabinet is a fixed front (FAST_FRAMSTYKKI), not a door;
+    //  - two identical fronts that don't fit on top of each other are the leaves of ONE opening (vænghurð);
+    //  - a front taller than the space (wall cabinets with a lip below) → the opening is the side's space.
     var doors = expand(by.door, function (r) { return { H: num(r.H), partur: r.Partur }; });
-    var top = H;
-    doors.forEach(function (d) { d.to = top; d.from = r1(top - d.H - BOX_GAP); top = d.from; });
+    var fixedFronts = drawers.length ? doors.filter(function (d) { return d.H <= FIXED_FRONT_MAX; }) : [];
+    doors = doors.filter(function (d) { return fixedFronts.indexOf(d) < 0; });
+    fixedFronts.forEach(function (d) { op("FAST_FRAMSTYKKI", "Fast framstykki", r1(d.H) + ", LPX, 0, 0"); });
+    var room = H - drawerTop - fixedFronts.reduce(function (a, d) { return a + d.H + BOX_GAP; }, 0);
+    var sumDoors = doors.reduce(function (a, d) { return a + d.H + BOX_GAP; }, 0);
+    if (doors.length > 1 && (sumDoors > room + 5 || doors.some(function (d) { return /væng/i.test(d.partur); }))) {
+      var seen = {}; doors = doors.filter(function (d) { var k = Math.round(d.H); if (seen[k]) return false; seen[k] = 1; return true; });
+      info.push("Vænghurð: hurðir hlið við hlið");
+    }
+    var top = H - fixedFronts.reduce(function (a, d) { return a + d.H + BOX_GAP; }, 0);
+    doors.forEach(function (d) { d.to = top; d.from = r1(Math.max(drawerTop, top - d.H - BOX_GAP)); top = d.from; });
     var oven = /ofn/i.test(tegund) || (by.door || []).some(function (r) { return /ofn/i.test(r.Partur); });
     var stackSum = r1(drawerTop + (H - top));
     if (!oven && (drawers.length || doors.length) && Math.abs(stackSum - H) > 1.5)
@@ -149,30 +168,28 @@
     var fixed = expand(by.fixedShelf, function (r) { return r; }).length;
     if (fixed && !oven) check.push("Föst hilla (" + fixed + ") — staðsetning ekki í gögnum, settu inn eftir teikningu");
 
-    // Inner drawers.
-    //  - inside the top drawer (base cabinets): top of the inner front ≥ 4 mm below the underside of the cabinet
-    //    top (or the drawer box top), aim 20 for a finger pull (user, 2026-10-08);
-    //  - behind a door (tall cabinets): stacked from the bottom like the shop does it (T-56 SK 17: first front 5 mm
-    //    above the bottom board, 85 mm between fronts) — flagged, the drawing decides.
+    // Inner drawers (user 2026-10-08): on the cabinet sides like any runner, 32 mm back, hidden behind the front
+    // of the drawer whose zone it sits in — the tallest drawer zone (tie → the top one); its front top 32 mm under
+    // the top of that zone (or of the cabinet's top board). Behind a door (tall cabinets/pantries) the designer
+    // places them; until then from the bottom, start 5 mm over the bottom board, front + 80 apart (⚠).
     var inner = expand(by.inner, function (r) { var m = r.Partur.match(/skúffufrontur\s+([NMKCFE])\b.*?(merivo|legra)/i); return { code: m[1].toUpperCase(), sys: lc(m[2]), H: num(r.H) }; });
     if (inner.length) {
       var macroOf = function (d) { return d.sys === "merivo" ? "MERVIBOX_INNSKUFFA" : "LEGRABOX_INNSKUFFA"; };
       if (drawers.length) {
-        var topD = drawers[drawers.length - 1], ceil = topD.to >= H - 1.5 ? H - T : topD.to, floor = topD.from, edge = ceil;
-        inner.forEach(function (d, i) {
-          var gap = i === 0 ? INNER_GAP_AIM : BOX_GAP;
-          if (edge - gap - d.H < floor) gap = i === 0 ? INNER_GAP_MIN : 0;
-          var frontTop = r1(edge - gap);
-          if (frontTop - d.H < floor) stop.push("Innskúffa " + d.code + " (" + d.H + ") kemst ekki fyrir í efstu skúffunni");
-          runners.push(r1(frontTop - d.H + INNER_RUNNER)); op(macroOf(d), "Innskúffa " + d.code, d.H + ", " + r1(frontTop - d.H + INNER_RUNNER) + ", " + d.code);
-          edge = r1(frontTop - d.H);
+        var zone = drawers.reduce(function (z, d) { return !z || d.H >= z.H ? d : z; }, null);
+        var edge = r1((zone.to >= H - 1.5 ? H - T : zone.to) - INNER_TOP_GAP);
+        inner.forEach(function (d) {
+          var x = r1(edge - d.H + INNER_RUNNER);
+          if (edge - d.H < zone.from + 60) check.push("Innskúffa " + d.code + " (" + d.H + ") — lítið pláss fyrir neðan í hólfi " + zone.code + ", athuga");
+          runners.push(x); op(macroOf(d), "Innskúffa " + d.code, d.H + ", " + x + ", " + d.code);
+          edge = r1(edge - d.H - BOX_GAP);
         });
         if (inner.length > 1 || oven) check.push("Innskúffur (" + inner.length + "): athuga staðsetningu eftir teikningu");
       } else {
         var bottom = T + 5;
-        inner.forEach(function (d) { runners.push(r1(bottom + INNER_RUNNER)); op(macroOf(d), "Innskúffa " + d.code, d.H + ", " + r1(bottom + INNER_RUNNER) + ", " + d.code); bottom = r1(bottom + d.H + 85); });
+        inner.forEach(function (d) { runners.push(r1(bottom + INNER_RUNNER)); op(macroOf(d), "Innskúffa " + d.code, d.H + ", " + r1(bottom + INNER_RUNNER) + ", " + d.code); bottom = r1(bottom + d.H + 80); });
         if (bottom > H - T) stop.push("Innskúffur komast ekki fyrir");
-        check.push("Innskúffur bak við hurð (" + inner.length + "): neðan frá, 85 mm á milli — athuga eftir teikningu");
+        check.push("Innskúffur bak við hurð (" + inner.length + "): sjálfgefið neðan frá, framhlið + 80 á milli — hönnuður staðsetur");
       }
     }
 
@@ -194,7 +211,7 @@
       if (Math.abs(fromTop - HINGE_END) < 0.01 && hingeAt.indexOf(HINGE_END) >= 0) { op("LOM", "Löm", HINGE_END + ', 37, "2,3"'); return; }
       if (x <= H / 2) op("LOM", "Löm", x + ', 37, "2"'); else op("LOM", "Löm", fromTop + ', 37, "3"');
     });
-    if (doors.length) check.push("Lamir: sjálfgefið 80 frá endum hverrar hurðar — ef lyftihurð/push, taktu þær út");
+    if (doors.length) check.push("Lamir: sjálfgefið 80 frá endum + jafnt á milli — ef lyftihurð fara lamirnar í toppinn, ekki hliðina");
 
     plan.drawers = drawers; plan.doors = doors; plan.loose = loose;
     plan.status = stop.length ? "stop" : check.length ? "check" : "ok";

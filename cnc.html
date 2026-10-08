@@ -60,6 +60,7 @@
   <div class="bar">
     <select id="projSel"><option value="">Hleð verkefnum…</option></select>
     <button class="primary" id="writeBtn" disabled>💾 Skrifa á USB</button>
+    <label class="opt" title="Skúffuhólf = skorinn front + grip. Kemur seinna af höldunni sjálfri (Vörulisti).">Grip á skúffufrontum <input type="number" id="gripMm" value="0" min="0" max="60" step="0.5" style="width:70px;padding:6px 8px" /> mm</label>
     <label class="opt"><input type="checkbox" id="overwriteJamb" /> Yfirskrifa karma sem eru til (aðeins ef þeir hafa EKKI verið fræstir)</label>
   </div>
   <div id="out"></div>
@@ -81,7 +82,7 @@
     "Þykkt karms [Hurð]", "Karmabil frá vegg [Hurð]", "Toppstykki hurðakarms", "Opnun [Hurð]", "Lamir [Hurð]", "Skrá [Hurð]", "Felliþr. [Hurð]"];
   var SAW_FIELDS = ["Partur", "H", "B", "Þ", "M", "Tegund einingu", "Eyðublað ✏️"];
 
-  var project = null, doors = [], groups = [], stopped = [], productNames = {};
+  var project = null, doors = [], groups = [], stopped = [], productNames = {}, sideInput = null;
   var $ = function (id) { return document.getElementById(id); };
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   function log(s) { var el = $("log"); el.style.display = "block"; el.textContent += s + "\n"; el.scrollTop = el.scrollHeight; }
@@ -129,8 +130,8 @@
       var rows = await fetchAll(SAW, { filterByFormula: 'FIND("' + q + ' |",ARRAYJOIN({Tækifæri 📣 (projects)}))', "fields[]": SAW_FIELDS });
     } catch (e) { $("out").innerHTML = '<div class="empty">Villa: ' + esc(e.message) + "</div>"; return; }
     project = { id: id, name: name, prefix: pre };
-    var unitName = {}, isDoor = {};
-    units.forEach(function (u) { unitName[u.id] = u.fields["Athugasemd"] || "(nafnlaust)"; isDoor[u.id] = String(u.fields["Sérsmíði tegund"] || "") === "Hurð"; });
+    var unitName = {}, isDoor = {}, unitH = {};
+    units.forEach(function (u) { unitName[u.id] = u.fields["Athugasemd"] || "(nafnlaust)"; unitH[u.id] = u.fields["Hæð"]; isDoor[u.id] = String(u.fields["Sérsmíði tegund"] || "") === "Hurð"; });
 
     // Doors
     doors = units.filter(function (u) { return isDoor[u.id]; }).map(function (u) { return { rec: u, plan: D.doorPlan(u.fields) }; })
@@ -148,11 +149,20 @@
     // Sides — every non-door unit's Sögunarlisti rows.
     var byUnit = {};
     rows.forEach(function (r) { var u = (r.fields["Eyðublað ✏️"] || [])[0]; u = u && (u.id || u); if (!u || isDoor[u]) return; (byUnit[u] = byUnit[u] || []).push(r.fields); });
-    var plans = Object.keys(byUnit).map(function (u) { return SD.unitPlan(unitName[u] || u, byUnit[u]); });
+    sideInput = { byUnit: byUnit, unitName: unitName, unitH: unitH };
+    planSides();
+  }
+
+  // Sides are re-planned when the grip changes (drawer slot = cut front + grip).
+  function planSides() {
+    if (!sideInput) return;
+    var grip = +$("gripMm").value || 0, I = sideInput;
+    var plans = Object.keys(I.byUnit).map(function (u) { return SD.unitPlan(I.unitName[u] || u, I.byUnit[u], { unitHeight: I.unitH[u], gripMm: grip }); });
     groups = SD.groupPlans(plans);
     stopped = plans.filter(function (p) { return p.status === "stop"; }).sort(function (a, b) { return a.id.localeCompare(b.id, "is", { numeric: true }); });
     render();
   }
+  $("gripMm").oninput = planSides;
 
   function render() {
     if (!project) return;
@@ -294,7 +304,7 @@
         await writeBytes(job, logName, D.toCp1252(prev + (prev ? "\r\n" : "") + logBlocks.join("\r\n" + "-".repeat(60) + "\r\n")));
       }
       // The one sheet that goes with the stick: made / check / missing.
-      var sheet = ["CNC — " + project.name, "Búið til: " + when, "",
+      var sheet = ["CNC — " + project.name, "Búið til: " + when, "Grip á skúffufrontum: " + (+$("gripMm").value || 0) + " mm", "",
         "SKRÁR (" + made.length + "):"].concat(made.map(function (s) { return "  " + s; }),
         ["", "ATHUGA (" + warn.length + "):"], warn.map(function (s) { return "  " + s; }),
         ["", "EKKI GERT — þarf að forrita í höndunum eða laga gögn (" + missing.length + "):"], missing.map(function (s) { return "  " + s; }));

@@ -25,7 +25,7 @@ const MASTER = ["[VARIABLES]", "PAN=LPX|600||4|", "PAN=LPY|100||4|", "PAN=LPZ|19
 
 const ops = (p) => p.ops.map((o) => o.name + ": " + o.params);
 
-test("base cabinet = the shop's own T-56 program (sizes, joints, drawers), inner drawer 20 mm under the top", () => {
+test("base cabinet = the shop's own T-56 program, inner drawer included (32 mm under the top board)", () => {
   const p = S.unitPlan("SK 1", SK1);
   assert.equal(p.status, "ok");
   assert.deepEqual([p.LPX, p.LPY, p.LPZ, p.groove], [800, 580, 16, true]);
@@ -34,7 +34,7 @@ test("base cabinet = the shop's own T-56 program (sizes, joints, drawers), inner
     'SLA_HLID: LPZ, bora_i_gegn, lpz+1, 0, "1,4"',
     "MERIVOBOX_V2: -3, 0, 0, 0, 0, 0, 397, E",
     "MERIVOBOX_V2: 397, 0, 0, 0, 0, 0, 397, K",       // the hand file has "400-3"
-    "MERVIBOX_INNSKUFFA: 106, 712, M",                // 800 − 16 − 20 = 764 top of front → 764 − 106 + 54
+    "MERVIBOX_INNSKUFFA: 106, 700, M",                // = the hand file: 800 − 16 − 32 = 752 top of front → 752 − 106 + 54
   ]);
 });
 
@@ -46,9 +46,9 @@ test("identical sides share one file, whatever the cabinet count", () => {
   assert.equal(S.fileName("T-56", g[0]), "T-56 SK01+09.1+11-13 Hliðar.bpp");
 });
 
-test("tall cabinet: inner drawers behind the door from the bottom like T-56 SK 17 (75, 304, 533, 762), hinges flagged", () => {
+test("tall cabinet: inner drawers behind the door default from the bottom (75, front + 80), hinges flagged", () => {
   const p = S.unitPlan("SK 17 ANDYRI", SK17);
-  assert.deepEqual(ops(p).filter((o) => o.startsWith("MERVIBOX")), [75, 304, 533, 762].map((x) => `MERVIBOX_INNSKUFFA: 144, ${x}, K`));
+  assert.deepEqual(ops(p).filter((o) => o.startsWith("MERVIBOX")), [75, 299, 523, 747].map((x) => `MERVIBOX_INNSKUFFA: 144, ${x}, K`));
   assert.ok(ops(p).includes('LOM: 80, 37, "2,3"'));
   assert.equal(p.status, "check");
   assert.ok(p.check.some((c) => c.startsWith("Lamir")));
@@ -84,4 +84,39 @@ test("renderSide: numbers in, master's managed lines off, generated lines in pla
   // generated drawer lines sit right after the master's own (switched-off) drawer line
   const i = L.findIndex((l) => l.startsWith("' MERIVOBOX_V2,"));
   assert.ok(L[i + 1].startsWith("@ MERIVOBOX_V2,"));
+});
+
+test("grip: drawer slots = cut front + grip strip; inner drawer in the tallest zone (T-33 Sk 2: E567 + M227, inner K at 447)", () => {
+  const rows = [row("Grunnskápur hlið", 800, 580, 16, 2), row("Skúffufrontur E - Merivo", 540, 597, 19, 1),
+    row("Skúffufrontur M - Merivo", 200, 597, 19, 1), row("Innskúffufrontur K - Merivo Skrokkaefni", 144, 562, 16, 1)];
+  const o = ops(S.unitPlan("Sk 2", rows, { gripMm: 27 }));
+  assert.ok(o.includes("MERIVOBOX_V2: -3, 0, 0, 0, 0, 0, 567, E"));
+  assert.ok(o.includes("MERIVOBOX_V2: 567, 0, 0, 0, 0, 0, 227, M"));
+  assert.ok(o.includes("MERVIBOX_INNSKUFFA: 144, 448, K"));   // hand file: 447
+});
+
+test("two identical door fronts that can't stack are leaves of one opening (no negative hinges)", () => {
+  const rows = [row("Grunnskápur hlið", 800, 580, 16, 2), row("Frontur", 797, 397, 19, 2)];
+  const o = ops(S.unitPlan("Sk 16", rows)).filter((x) => x.startsWith("LOM"));
+  assert.deepEqual(o, ['LOM: 80, 37, "2,3"']);
+});
+
+test("a low front in a drawer cabinet is a fixed front, not a door", () => {
+  const rows = [row("Grunnskápur hlið", 800, 580, 16, 2), row("Skúffufrontur E - Merivo", 597, 597, 19, 1), row("Frontur", 162, 597, 19, 1)];
+  const o = ops(S.unitPlan("Sk 4", rows));
+  assert.ok(o.includes("FAST_FRAMSTYKKI: 162, LPX, 0, 0"));
+  assert.ok(!o.some((x) => x.startsWith("LOM")));
+});
+
+test("a side stored rotated in Sögunarlisti is turned by the unit's height; rail over 1000; FRE2 is FRE", () => {
+  const p = S.unitPlan("Sk 19", [row("Grunnskápur hlið", 580, 2470, 16, 2)], { unitHeight: 2470 });
+  assert.deepEqual([p.LPX, p.LPY], [2470, 580]);
+  assert.equal(ops(p).filter((x) => x.startsWith("SLA_HLID")).length, 2);
+  assert.equal(ops(S.unitPlan("x", [row("Grunnskápur hlið", 1040, 300, 16, 2)])).filter((x) => x.startsWith("SLA_HLID")).length, 2);
+  assert.equal(S.unitPlan("Sk 6", [row("FRE2 - Hlið", 1670, 580, 19, 2)]).status, "stop");
+});
+
+test("a door taller than its space (wall cabinet with a lip) hangs on the side's own length", () => {
+  const o = ops(S.unitPlan("Sk 6-8", [row("Grunnskápur hlið", 824, 300, 16, 2), row("Frontur", 864, 597, 19, 1)])).filter((x) => x.startsWith("LOM"));
+  assert.deepEqual(o, ['LOM: 80, 37, "2,3"']);
 });
