@@ -1978,13 +1978,28 @@
     for (var i = 0; i < p.count; i++) uv.setXY(i, (p.getX(i) + w / 2) / w, (p.getZ(i) + d / 2) / d);
     return g;
   }
+  // Drops every triangle that lies entirely above yCut (local y) — turns a closed box into an open bowl.
+  function openTopGeometry(THREE, geo, yCut){
+    var g = geo.index ? geo.toNonIndexed() : geo, pos = g.attributes.position, keep = [];
+    for (var t = 0; t < pos.count; t += 3) if (!(pos.getY(t) > yCut && pos.getY(t + 1) > yCut && pos.getY(t + 2) > yCut)) keep.push(t);
+    var out = new THREE.BufferGeometry();
+    Object.keys(g.attributes).forEach(function(name){
+      var src = g.attributes[name], n = src.itemSize, arr = new src.array.constructor(keep.length * 3 * n);
+      keep.forEach(function(t, k){ for (var v = 0; v < 3 * n; v++) arr[k * 3 * n + v] = src.array[t * n + v]; });
+      out.setAttribute(name, new THREE.BufferAttribute(arr, n));
+    });
+    return out;
+  }
   function addSink(THREE, group, local, quat, widthM, depthM, topY){
     var hs = sinkSize(widthM, depthM), depth = 0.18, zc = depthM * 0.5 + 0.01;
     var steel = new THREE.MeshStandardMaterial({ color:0xc4c8cc, metalness:0.9, roughness:0.32 });
-    var steelIn = new THREE.MeshStandardMaterial({ color:0xaeb3b8, metalness:0.85, roughness:0.38, side:THREE.BackSide });
+    // a solid bowl: seen from inside from above, and from outside (an open sink cabinet) — it used to be a
+    // BackSide box, so its near wall vanished from the front and the inside read almost black (user, 2026-10-09)
+    var steelIn = new THREE.MeshStandardMaterial({ color:0xc9cdd1, metalness:0.55, roughness:0.35, side:THREE.DoubleSide });
     function put(m, y, out, along){ m.position.copy(local(along || 0, y, out)); m.quaternion.copy(quat); m.castShadow = true; m.receiveShadow = true; group.add(m); return m; }
-    // basin: a rounded box seen from inside (BackSide), its top face is what the hole frames
-    var basin = new THREE.Mesh(window.__RoundedBox__ ? new window.__RoundedBox__(hs.w - 0.002, depth, hs.d - 0.002, 4, 0.03) : new THREE.BoxGeometry(hs.w, depth, hs.d), steelIn);
+    // basin: a rounded box with its top (lid + upper rounded band, hidden in the 32 mm worktop anyway) cut away
+    var basinGeo = window.__RoundedBox__ ? new window.__RoundedBox__(hs.w - 0.002, depth, hs.d - 0.002, 4, 0.03) : new THREE.BoxGeometry(hs.w, depth, hs.d);
+    var basin = new THREE.Mesh(openTopGeometry(THREE, basinGeo, depth / 2 - 0.029), steelIn);
     put(basin, topY - depth / 2 + 0.001, zc);
     // flush rim round the hole
     var rimSh = roundedRectShape(THREE, hs.w + 0.03, hs.d + 0.03, hs.r + 0.015); rimSh.holes.push(roundedRectShape(THREE, hs.w, hs.d, hs.r, new THREE.Path()));
