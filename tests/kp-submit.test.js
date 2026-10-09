@@ -96,6 +96,14 @@ test("Vöru reitur 3 is passed through as a plain link (no Einingar aukahlutir r
   assert.ok(!f.calls.some((c) => c.url.includes("tbloRPRxopiQptiXP")), "the junction table is never touched");
 });
 
+test("validate: Smíðagögn must be a v:1 JSON string", () => {
+  const withS = (v) => ({ ...body(1), lineItems: [{ "🔑": "Sk1", "Smíðagögn (JSON) 🔧": v }] });
+  assert.equal(validate(withS('{"v":1,"w":600,"h":800,"d":600}')), null);
+  assert.ok(validate(withS({ v: 1 })));
+  assert.ok(validate(withS('{"w":600}')));
+  assert.ok(validate(withS('{"v":1,"x":"' + "a".repeat(20001) + '"}')));
+});
+
 test("validate rejects bad Vöru reitur links", () => {
   const withV = (v) => { const b = body(1); b.lineItems[0]["Vöru reitur 3"] = v; return b; };
   assert.equal(validate(withV(["recLEDLEDLEDLED01"])), null);

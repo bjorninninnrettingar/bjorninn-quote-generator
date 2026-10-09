@@ -6001,6 +6001,7 @@
           notes.push("Lýsing óskast: " + LIGHT_PRODUCTS[lit.code].label + " — ekki sett í V3 því V1 vantar.");
         }
         if (v3.length) fields["Vöru reitur 3"] = v3;
+        fields["Smíðagögn (JSON) 🔧"] = JSON.stringify(smidaFor(b, c, zone_ofBlock(wall, b))); // sizes + contents → Eyðublað
         if (notes.length) fields["Skilaboð til skipulags"] = notes.join(" ");
         rows.push(fields);
       });
@@ -6729,15 +6730,37 @@
     });
   }
 
-  // Smíðagögn per Sk number — what /api/kp-pro writes to each Line Item.
+  // Smíðagögn of one cabinet (2026-10-09): the drawing fills the Eyðublað. Keyra skipulag reads it into
+  // Breidd/Hæð/Dýpt, Sérhæð fronts, Lausar hillur and the oven fields; /cnc reads `doors`.
+  //   { v:1, w, h, d,                      h WITHOUT the plinth (floor units −100), d WITH the front
+  //     fronts:[{code, mm}],               drawer fronts bottom → top (also the drawers under an oven)
+  //     oven:{h, under}, shelves:{loose},  only when the cabinet has them
+  //     doors:[…] }                        only when Rakel set them up in the box editor (else /cnc's default)
+  // End panels: w = the panel's depth, d = 19 (that's how the Eyðublað describes a side).
+  function smidaFor(b, c, zone){
+    var h = proBodyMm(b, c, zone), d = b.depthMm || c.d;
+    var o = c.panel ? { v:1, w:d, h:h, d:19 } : { v:1, w:b.widthMm, h:h, d:d };
+    var codes = null, fronts = null;
+    if (isDrawerUnit(b)){ codes = KP3D.drawerCodes(b.interior, drawerSys()); fronts = KP3D.stackFrontsMm(b.interior, codes, drawerBodyMm(b, c)); }
+    else if (c.lowOven){ codes = ["M"]; fronts = [Math.max(50, h - 595 - 3)]; } // same zone the 3D draws under OFN6
+    else if (c.oven){ codes = KP3D.ovenCodesOf(b, state.drawerSystem);
+      fronts = codes.length ? KP3D.stackFrontsMm({ frontsMm:b.ovenFrontsMm }, codes, KP3D.ovenZoneMm(codes)) : null; }
+    if (codes && codes.length && fronts && fronts.length === codes.length)
+      o.fronts = codes.map(function(cd, i){ return { code:cd, mm:Math.round(fronts[i]) }; });
+    if (c.oven) o.oven = { h:c.ovenHeightMm || 595,
+      under:c.lowOven ? o.fronts[0].mm : KP3D.ovenZoneMm(KP3D.ovenCodesOf(b, state.drawerSystem)) };
+    if (c.shelfStack) o.shelves = { loose:b.count || 1 };
+    else if (!isDrawerUnit(b) && !c.oven && KP3D.shelvesOf(b) != null) o.shelves = { loose:KP3D.shelvesOf(b) };
+    var doors = proDoorsOf(b, c, zone);
+    if (doors.length && b.smida) o.doors = doors.map(function(dr, i){ var sp = proSpec(b, doors, i);
+      return { h:dr.box - 3, type:sp.type, side:b.swing || null, hinges:sp.type === "lift" ? [] : sp.hinges }; });
+    return o;
+  }
+  // Smíðagögn per Sk number — every ordered cabinet — what /api/kp-pro writes to each Line Item.
   function proSmida(){
     var keys = skKeys(), out = {};
     surfaces().forEach(function(w){ ["floor", "wall"].forEach(function(zone){ w[zone].forEach(function(b){
-      var key = keys[b.id], c = CATALOG[b.type]; if (!key) return;
-      var doors = proDoorsOf(b, c, zone);
-      // only cabinets Rakel actually set up in the box editor — the rest stay on /cnc's identical default
-      out[key] = doors.length && b.smida ? { v:1, doors:doors.map(function(d, i){ var sp = proSpec(b, doors, i);
-        return { h:d.box - 3, type:sp.type, side:b.swing || null, hinges:sp.type === "lift" ? [] : sp.hinges }; }) } : null;
+      var key = keys[b.id]; if (key) out[key] = smidaFor(b, CATALOG[b.type], zone);
     }); }); });
     return out;
   }

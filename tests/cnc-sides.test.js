@@ -143,3 +143,10 @@ test("Smíðagögn: a different door count is ignored, a height difference is fl
   assert.ok(!ops(lift).some((x) => x.startsWith("LOM")));
   assert.ok(lift.check.some((c) => c.startsWith("Lyftihurð")));
 });
+
+test("Smíðagögn with sizes only (no doors) = /cnc's default hinges, no mismatch warning", () => {
+  const rows = [row("Grunnskápur hlið", 470, 580, 16, 2), row("Frontur", 467, 797, 19, 1)];
+  const p = S.unitPlan("Sk 7", rows, { smida: JSON.stringify({ v: 1, w: 800, h: 800, d: 600, shelves: { loose: 1 } }) });
+  assert.ok(!p.check.some((c) => c.startsWith("Smíðagögn passa ekki")));
+  assert.ok(ops(p).includes('LOM: 80, 37, "2,3"'));
+});

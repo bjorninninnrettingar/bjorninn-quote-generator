@@ -2,7 +2,8 @@
 // Kitchen planner "pro mode" save (2026-10-08) — Rakel finishes a project in the same designer the customer used,
 // opened from the Tækifæri with the office key. Saving writes back to the SAME project:
 //   - the whole designer state → Tækifæri "Sjálfsafgreiðsla skipulag (JSON) 📐" (its submissionId is kept);
-//   - each cabinet's Smíðagögn (hinges, door type …) → its Line Item "Smíðagögn (JSON) 🔧", matched by 🔑 (Sk1, Sk2…).
+//   - every cabinet's Smíðagögn (sizes, drawer fronts, shelves, oven; hinges/door type once edited in the box editor)
+//     → its Line Item "Smíðagögn (JSON) 🔧", matched by 🔑 (Sk1, Sk2…). Keyra skipulag fills the Eyðublað from it.
 // Only Line Items whose Smíðagögn actually changed are written, so "⚠️ Breytt eftir stofnun" (which watches that
 // field's last-modified time) only lights up for real changes; Keyra skipulag then copies it to the Eyðublað and
 // /cnc drills it. No Line Item is created or deleted here — cabinets added in pro mode are reported as missing.

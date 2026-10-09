@@ -30,7 +30,7 @@ const LINK_TO_PROJECT = "Tækifæri 📣 (projects)";
 // What the client may set (everything else is dropped silently, like the proxy's CREATABLE_FIELDS).
 export const PROJECT_FIELDS = ["Skrokka efni 🔲 viðskiptavinar", "Fronta efni viðskiptavinar 🖼️", "Borðplata viðskiptavinar 🍽️", "Skilaboð til skipulags",
   "Höldur Viðskiptavinar ✊", "Litur á höldum 🎨", "Magn Halda 1"];
-export const LINE_FIELDS = ["Rými 🏡", "Vöru reitur 1", "Vöru reitur 2", "Vöru reitur 3", "Magn", "🔑", "Skilaboð til skipulags"];
+export const LINE_FIELDS = ["Rými 🏡", "Vöru reitur 1", "Vöru reitur 2", "Vöru reitur 3", "Magn", "🔑", "Skilaboð til skipulags", "Smíðagögn (JSON) 🔧"];
 // A self-serve submission must never look like reviewed designer work or enter production by itself.
 export const PROJECT_FORCED = {
   "Staða í söluferli": "Hönnun & Ráðgjöf 🖊️✨",
@@ -120,6 +120,8 @@ export function validate(body) {
       const v = li[f];
       if (v != null && !(Array.isArray(v) && v.length <= 5 && v.every((x) => REC_RE.test(x)))) return "Ógild tenging";
     }
+    const sm = li["Smíðagögn (JSON) 🔧"];
+    if (sm != null && !(typeof sm === "string" && sm.length <= 20000 && /^\{"v":1[,}]/.test(sm))) return "Ógild Smíðagögn";
   }
   for (const v of [b.project?.["Skrokka efni 🔲 viðskiptavinar"], b.project?.["Fronta efni viðskiptavinar 🖼️"], b.project?.["Borðplata viðskiptavinar 🍽️"], b.project?.["Höldur Viðskiptavinar ✊"]]) {
     if (v != null && !(Array.isArray(v) && v.every((x) => REC_RE.test(x)))) return "Ógild tenging";
