@@ -2967,7 +2967,7 @@
     // no floor, walls, skirting, windows/doors or other cabinets in front of or around them.
     var iso = opts.onlySurfaceId || null; // one surface id, or an array of them (both rows of an island)
     function isoHas(id){ return Array.isArray(iso) ? iso.indexOf(id) >= 0 : id === iso; }
-    scene.background = new THREE.Color(iso ? 0xffffff : 0xf7f6f2);
+    scene.background = new THREE.Color(opts.darkBg ? (iso ? 0x1a2029 : 0x12161d) : iso ? 0xffffff : 0xf7f6f2); // darkBg = pro mode
     scene.userData.dayBg = scene.background.clone(); scene.userData.nightBg = new THREE.Color(0x2b303b);
 
     var nBeforeFloor = scene.children.length;

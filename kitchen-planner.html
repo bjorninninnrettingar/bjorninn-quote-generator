@@ -692,6 +692,33 @@
   #proEd .pe-btn.on { background:#1d2633; color:#fff; border-color:#1d2633; }
   #proEd .pe-close { float:right; }
   #proEd .pe-note { font-size:12.5px; color:#5b6470; margin-top:6px; }
+
+  /* Pro mode is dark, so Rakel always knows she is in her own tool and not the customer's planner. */
+  body.pro{
+    --bg:#12161d; --panel:#1a2029; --card:#222a35; --ink:#e7eaee; --ink-soft:#9aa4b0; --line:#323b48;
+    --blue:#5b8cff; --blue-deep:#8fb0ff; --blue-soft:#1e2a44; --gold:#c9bf8a; --gold-soft:#24271f;
+    --danger:#ff7a63; --danger-soft:#3a201b;
+    color-scheme:dark;
+  }
+  body.pro :is(.float-bar, .cat-item, .ov-item, .wallchain-row, .field input[type=number], .btn-secondary, .op-row, .op-f input, .op-row select,
+    .opw-btn, .quiz-opt, .wall-row, .drawer-card, .tab-btn, .sw-tile, .fit-ask, .sw-search, .shape-card, .dim-pop, .look-card,
+    .view-toggle button, .hw-btn, .dw-row, .edit-field input, .edit-field select, .isl-box, .isl-x, .uw-box, .uw-preview, .uw-tools button,
+    .uw-card, .hc-sw, .fl-sw, .dim-f input, .wrap.wide .actions, select, textarea){
+    background:var(--card); color:var(--ink); border-color:var(--line);
+  }
+  body.pro .stepper .st{ background:var(--card); }
+  body.pro .stepper .st.done{ background:var(--gold-soft); border-color:#4a4630; }
+  body.pro .tab-btn.active, body.pro .opw-btn.next{ background:var(--ink); color:var(--bg); }
+  body.pro .stage-empty:not([hidden]){ background:rgba(26,32,41,.92); }
+  body.pro .cab-preview, body.pro .mat-preview, body.pro .shape-canvas{ background:var(--panel); }
+  body.pro .warn-chip:not([hidden]), body.pro .warn-box{ background:#3a2a14; color:#ffcf8a; border-color:#6b4c1e; }
+  body.pro .warn-item{ color:#ffd9a6; border-top-color:#5a4220; }
+  body.pro #proBar{ background:#000; border:1px solid #3a4352; }
+  body.pro #proEd .pe-card{ background:var(--panel); color:var(--ink); }
+  body.pro #proEd .pe-sub, body.pro #proEd .pe-note{ color:var(--ink-soft); }
+  body.pro #proEd .pe-door{ border-color:var(--line); }
+  body.pro #proEd .pe-btn, body.pro #proEd .pe-row input{ background:var(--card); color:var(--ink); border-color:var(--line); }
+  body.pro #proEd .pe-btn.on{ background:var(--blue); color:#fff; border-color:var(--blue); }
 </style>
 </head>
 <body>
@@ -2212,7 +2239,7 @@
     var fresh = !heightScene;
     KP3D.teardown3D(false); // keep the orbit while the height changes
     host.innerHTML = "";
-    KP3D.buildScene(host, state, { people:true, freshCamera:fresh });
+    KP3D.buildScene(host, state, { people:true, freshCamera:fresh, darkBg:!!PRO });
     heightScene = true;
   }
   function personSvg(key, x, feetY, pxPerM){
@@ -3812,7 +3839,7 @@
       var prevCam = KP3D._three() ? { p:KP3D._three().camera.position.clone(), t:KP3D._three().controls.target.clone() } : null;
       KP3D.teardown3D(true);
       host.innerHTML = "";
-      KP3D.buildScene(host, pv, { xray:true, clean:true, noGhost:true, onlySurfaceId:"UWP", freshCamera:true });
+      KP3D.buildScene(host, pv, { xray:true, clean:true, noGhost:true, onlySurfaceId:"UWP", freshCamera:true, darkBg:!!PRO });
       var st = KP3D._three(); if (!st) return;
       var g = KP3D.surfaceGeoms(pv)[0], hM = blockHeightMm(b, c) / 1000, elevM = c.zone === "wall" ? (KP3D.elevOf(b) || 0) / 1000 : 0;
       var along = 0.4 + b.widthMm / 2000, cx = g.origin.x + g.axis.x * along, cz = g.origin.z + g.axis.z * along, cy = elevM + hM / 2;
@@ -3858,7 +3885,7 @@
       if (!ok || !uw) return;
       KP3D.teardown3D(true);
       host.innerHTML = "";
-      KP3D.buildScene(host, pv, { xray:true, clean:true, noGhost:true, onlySurfaceId:two ? ["UWIa", "UWIb"] : ["UWIa"], freshCamera:true, selectedId:selId || null });
+      KP3D.buildScene(host, pv, { xray:true, clean:true, noGhost:true, onlySurfaceId:two ? ["UWIa", "UWIb"] : ["UWIa"], freshCamera:true, selectedId:selId || null, darkBg:!!PRO });
       var st = KP3D._three(); if (!st) return;
       if (selId){ // the box being set up rises a little out of the island
         // lift the whole cabinet ONCE: its top-level group (lifting every part's own parent too moved drawers,
@@ -4993,7 +5020,7 @@
         return;
       }
       wrap.innerHTML = "";
-      KP3D.buildScene(wrap, state, { selectedId:selectedBlockId, selectedWallId:selectedWallId, onWallSelect:onWallSelect, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, onIslandDragEnd:onIslandDragEnd, onDecorDragEnd:onDecorDragEnd, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList(),
+      KP3D.buildScene(wrap, state, { darkBg:!!PRO, selectedId:selectedBlockId, selectedWallId:selectedWallId, onWallSelect:onWallSelect, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, onIslandDragEnd:onIslandDragEnd, onDecorDragEnd:onDecorDragEnd, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList(),
         xray:inspect.on }); // inspect mode: every cabinet built in parts (drawers/doors tap open, nothing drags)
       landedBlockId = null;
       applyInspect();
