@@ -9,11 +9,21 @@
 // /cnc drills it. Cabinets with no Line Item yet (a drawing Rakel started, or cabinets she added) get one, built by
 // the designer exactly like a customer submission (lineItems, same fields). Nothing is ever deleted: Line Items
 // whose Sk number is no longer in the drawing are reported as `removed` for her to delete by hand.
+//
+// V1/V2/V3 on existing lines (2026-10-09): the drawing should update the quote, but Rakel may also change a line in
+// Airtable. The planner JSON keeps what the drawing last sent per line (`liSent`, see kp-submit.js). Per field:
+//   Airtable = drawing                      → nothing to do;
+//   Airtable = last sent, drawing changed   → the drawing wins (written);
+//   drawing = last sent, Airtable changed   → Airtable's hand pick stays;
+//   both changed / nothing sent yet         → nothing written, reported as a `conflict` for Rakel to settle
+//                                             (body.resolve = {Sk5:"drawing"|"airtable"} on the next Vista).
 // Behind VERK_KEY: the public proxy can't write Line Items at all.
 
-import { makeAirtable, listAll, validateLineItems, LINE_FIELDS } from "./kp-submit.js";
+import { makeAirtable, listAll, validateLineItems, LINE_FIELDS, PRODUCT_FIELDS, idsKey, sentOf } from "./kp-submit.js";
 
 const PROJECTS = "tbl4LMXlQjp66RFKI";
+const VARIANTS = "tbl8HjvBwNJ41cTV0";              // Útfærslur 🎨 (what V1/V2/V3 link to)
+const VARIANT_NAME = "fldbG3jw1tEPEchGr";        // its name, e.g. "Merivo E-skúff"
 const LINE_ITEMS = "tblFcsUoGxsuUwNEH";
 const PLANNER_JSON = "Sjálfsafgreiðsla skipulag (JSON) 📐";
 const PROJECT_NAME = "Heiti tækifæris / verkefnis";
@@ -40,22 +50,30 @@ export function validate(body) {
     if (bad) return bad;
     if (b.lineItems.some((li) => !KEY_RE.test(String(li["🔑"])))) return "Ógilt 🔑 á línu";
   }
+  if (b.resolve != null) {
+    if (typeof b.resolve !== "object") return "Ógilt resolve";
+    for (const [k, v] of Object.entries(b.resolve)) if (!KEY_RE.test(k) || (v !== "drawing" && v !== "airtable")) return "Ógilt resolve: " + k;
+  }
   return null;
 }
 
 export async function save(at, body) {
   const opp = await at("GET", `${PROJECTS}/${body.recordId}`);
   const old = (() => { try { return JSON.parse((opp.fields || {})[PLANNER_JSON] || "{}"); } catch (e) { return {}; } })();
-  const json = JSON.stringify(Object.assign({}, body.state, old.submissionId ? { submissionId: old.submissionId } : {}, { proSavedAt: new Date().toISOString() }));
-  await at("PATCH", PROJECTS, { records: [{ id: opp.id, fields: { [PLANNER_JSON]: json } }] });
+  const lastSent = old.liSent && typeof old.liSent === "object" ? old.liSent : {};
+  const resolve = body.resolve || {};
 
   const prefix = String((opp.fields || {})[PROJECT_NAME] || "").split("|")[0].trim(); // "T-227"
-  const rows = prefix ? (await listAll(at, LINE_ITEMS, `FIND("${prefix.replace(/"/g, '\\"')} |",ARRAYJOIN({${LINK_TO_PROJECT}}))`, ["🔑", SMIDA, LINK_TO_PROJECT]))
+  const rows = prefix ? (await listAll(at, LINE_ITEMS, `FIND("${prefix.replace(/"/g, '\\"')} |",ARRAYJOIN({${LINK_TO_PROJECT}}))`, ["🔑", SMIDA, LINK_TO_PROJECT, ...PRODUCT_FIELDS]))
     .filter((r) => (r.fields[LINK_TO_PROJECT] || []).includes(opp.id)) : [];
   const byKey = new Map(rows.map((r) => [String(r.fields["🔑"] || "").trim(), r]));
-  const updates = [], missing = [], creates = [];
+  const patch = new Map(); // row id → fields to write
+  const put = (row, f, v) => { if (!patch.has(row.id)) patch.set(row.id, {}); patch.get(row.id)[f] = v; };
+  const missing = [], creates = [], conflicts = [], liSent = {};
   const newLines = new Map((body.lineItems || []).map((li) => [li["🔑"], li]));
   let unchanged = 0;
+
+  // Smíðagögn (sizes, fronts, hinges) — the drawing always owns it.
   for (const [key, val] of Object.entries(body.smida)) {
     const row = byKey.get(key);
     if (!row) {
@@ -64,17 +82,52 @@ export async function save(at, body) {
         const fields = { [LINK_TO_PROJECT]: [opp.id] };
         for (const f of LINE_FIELDS) if (li[f] != null && li[f] !== "") fields[f] = li[f];
         creates.push({ fields });
+        liSent[key] = sentOf(li);
       } else if (val) missing.push(key);
       continue;
     }
     const next = val ? JSON.stringify(val) : "";
-    if ((row.fields[SMIDA] || "") === next) { unchanged++; continue; }
-    updates.push({ id: row.id, fields: { [SMIDA]: next || null } });
+    if ((row.fields[SMIDA] || "") !== next) put(row, SMIDA, next || null);
   }
+
+  // V1/V2/V3 — see the rule at the top.
+  for (const [key, li] of newLines) {
+    const row = byKey.get(key);
+    if (!row) continue;
+    const prev = Array.isArray(lastSent[key]) ? lastSent[key] : null;
+    liSent[key] = PRODUCT_FIELDS.map((f, i) => {
+      const D = idsKey(li[f]), A = idsKey(row.fields[f]), B = prev && typeof prev[i] === "string" ? prev[i] : undefined;
+      if (A === D) return D;
+      if (resolve[key] === "drawing" || (B !== undefined && A === B)) { put(row, f, li[f] || []); return D; }
+      if (resolve[key] === "airtable") return D;          // Airtable's pick stays; this drawing value counts as seen
+      if (B !== undefined && D === B) return B;            // only Airtable changed
+      conflicts.push({ key, field: "V" + (i + 1), drawing: D ? D.split(",") : [], airtable: A ? A.split(",") : [] });
+      return B === undefined ? null : B;           // null = still nothing known for this field
+    });
+  }
+
+  const updates = [...patch].map(([id, fields]) => ({ id, fields }));
+  unchanged = rows.filter((r) => { const k = String(r.fields["🔑"] || "").trim(); return !patch.has(r.id) && (k in body.smida || newLines.has(k)); }).length;
   for (let i = 0; i < updates.length; i += 10) await at("PATCH", LINE_ITEMS, { records: updates.slice(i, i + 10) });
   for (let i = 0; i < creates.length; i += 10) await at("POST", LINE_ITEMS, { typecast: true, records: creates.slice(i, i + 10) });
+
+  // The state goes last, so liSent only ever records what really reached the Line Items.
+  const json = JSON.stringify(Object.assign({}, body.state, old.submissionId ? { submissionId: old.submissionId } : {},
+    { liSent, proSavedAt: new Date().toISOString() }));
+  await at("PATCH", PROJECTS, { records: [{ id: opp.id, fields: { [PLANNER_JSON]: json } }] });
+
+  // Product names for the conflict question (the ids alone mean nothing to Rakel).
+  const ids = [...new Set(conflicts.flatMap((c) => [...c.drawing, ...c.airtable]))];
+  const names = {};
+  for (let i = 0; i < ids.length; i += 50) {
+    const f = "OR(" + ids.slice(i, i + 50).map((id) => `RECORD_ID()='${id}'`).join(",") + ")";
+    const d = await at("GET", `${VARIANTS}?filterByFormula=${encodeURIComponent(f)}&fields%5B%5D=${VARIANT_NAME}&returnFieldsByFieldId=true`);
+    for (const r of d.records || []) names[r.id] = (r.fields || {})[VARIANT_NAME] || r.id;
+  }
+  const named = (a) => a.map((id) => names[id] || id);
   const removed = [...byKey.keys()].filter((k) => KEY_RE.test(k) && !(k in body.smida)).sort((a, z) => a.slice(2) - z.slice(2));
-  return { recordId: opp.id, project: (opp.fields || {})[PROJECT_NAME] || "", created: creates.length, updated: updates.length, unchanged, missing, removed };
+  return { recordId: opp.id, project: (opp.fields || {})[PROJECT_NAME] || "", created: creates.length, updated: updates.length, unchanged, missing, removed,
+    conflicts: conflicts.map((c) => Object.assign(c, { drawingNames: named(c.drawing), airtableNames: named(c.airtable) })), liSent };
 }
 
 export default async function handler(req, res) {

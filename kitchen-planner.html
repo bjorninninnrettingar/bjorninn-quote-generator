@@ -7055,18 +7055,34 @@
     el.innerHTML = '<span>🔧 PRO</span><span class="pb-name">' + escapeHtmlPro(PRO.name || "") + '</span>' +
       (msg ? '<span>' + escapeHtmlPro(msg) + '</span>' : (proDirty() ? '<span class="pb-dirty">● óvistað</span>' : '<span>✓ vistað</span>')) +
       '<button type="button" id="proSave"' + (PRO.ready ? "" : " disabled") + '>💾 Vista í Airtable</button>';
-    var bt = el.querySelector("#proSave"); if (bt) bt.addEventListener("click", proSave);
+    var bt = el.querySelector("#proSave"); if (bt) bt.addEventListener("click", function(){ proSave(); });
   }
   function escapeHtmlPro(s){ return String(s).replace(/[&<>"]/g, function(ch){ return { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[ch]; }); }
-  async function proSave(){
+  // V1/V2/V3 that differ between the drawing and Airtable, where the server can't tell who is right (both changed, or
+  // a line from before the drawing remembered what it sent): Rakel decides per Sk number, then Vista runs again.
+  function proAskConflicts(conflicts){
+    var bySk = {}, resolve = {};
+    conflicts.forEach(function(c){ (bySk[c.key] = bySk[c.key] || []).push(c); });
+    Object.keys(bySk).forEach(function(sk){
+      var lines = bySk[sk].map(function(c){
+        return c.field + ":\n   Teikning: " + (c.drawingNames.join(", ") || "(tómt)") + "\n   Airtable: " + (c.airtableNames.join(", ") || "(tómt)");
+      }).join("\n");
+      resolve[sk] = confirm(sk + " — teikningin og Airtable eru ósammála:\n\n" + lines +
+        "\n\nOK = teikningin gildir (Airtable uppfært)\nHætta við = Airtable gildir (teikningin skrifar ekki yfir)") ? "drawing" : "airtable";
+    });
+    return resolve;
+  }
+  async function proSave(resolve){
     var bt = document.getElementById("proSave"); if (bt) bt.disabled = true;
     proBar("Vista…");
     try{
       var r = await fetch("/api/kp-pro", { method:"POST", headers:{ "Content-Type":"application/json" },
-        body:JSON.stringify({ k:PRO.k, recordId:PRO.id, state:(freezeSk(), state), smida:proSmida(), lineItems:collectLineItems() }) });
+        body:JSON.stringify({ k:PRO.k, recordId:PRO.id, state:(freezeSk(), state), smida:proSmida(), lineItems:collectLineItems(), resolve:resolve || undefined }) });
       var d = await r.json().catch(function(){ return {}; });
       if (!r.ok) throw new Error(d.error || ("HTTP " + r.status));
+      if (d.liSent) state.liSent = d.liSent;
       save(); // keeps the frozen Sk numbers
+      if (d.conflicts && d.conflicts.length && !resolve) return proSave(proAskConflicts(d.conflicts));
       try{ localStorage.removeItem(STORAGE_KEY + ":dirty"); }catch(e){}
       proBar();
       toast("Vistað í Airtable: " + (d.created ? d.created + " " + plural(d.created, "ný lína", "nýjar línur") + ", " : "") +

@@ -27,6 +27,7 @@ test("fresh submission: contact, Tækifæri with forced fields + sid, Line Items
   for (const [k, v] of Object.entries(PROJECT_FORCED)) assert.deepEqual(opp[k], v, k);   // client can't override
   assert.deepEqual(opp["Tengiliður verkefnis 👤"], ["recCONTACT0000000"]);
   assert.equal(JSON.parse(opp["Sjálfsafgreiðsla skipulag (JSON) 📐"]).submissionId, body().sid);
+  assert.deepEqual(JSON.parse(opp["Sjálfsafgreiðsla skipulag (JSON) 📐"]).liSent.Sk1, ["", "", ""]); // what the drawing sent, for pro Vista
   const batches = f.calls.filter((c) => c.method === "POST" && c.url.endsWith("tblFcsUoGxsuUwNEH"));
   assert.deepEqual(batches.map((b) => b.body.records.length), [10, 10, 3]);
   const li = batches[0].body.records[0].fields;

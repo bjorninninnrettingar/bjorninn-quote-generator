@@ -27,6 +27,12 @@ const PLANNER_JSON = "Sjálfsafgreiðsla skipulag (JSON) 📐";
 const PROJECT_NAME = "Heiti tækifæris / verkefnis"; // primary field, "T-227 | Name - "
 const LINK_TO_PROJECT = "Tækifæri 📣 (projects)";
 
+// V1/V2/V3 as last sent by the designer, per Sk number — kept in the planner JSON as `liSent` so pro Vista can tell
+// "changed in the drawing" from "changed by hand in Airtable" (api/kp-pro.js). One string per field: sorted ids.
+export const PRODUCT_FIELDS = ["Vöru reitur 1", "Vöru reitur 2", "Vöru reitur 3"];
+export const idsKey = (v) => (Array.isArray(v) ? v.slice().sort().join(",") : "");
+export const sentOf = (li) => PRODUCT_FIELDS.map((f) => idsKey(li[f]));
+
 // What the client may set (everything else is dropped silently, like the proxy's CREATABLE_FIELDS).
 export const PROJECT_FIELDS = ["Skrokka efni 🔲 viðskiptavinar", "Fronta efni viðskiptavinar 🖼️", "Borðplata viðskiptavinar 🍽️", "Skilaboð til skipulags",
   "Höldur Viðskiptavinar ✊", "Litur á höldum 🎨", "Magn Halda 1"];
@@ -166,7 +172,9 @@ export async function submit(at, body) {
       } });
     }
     // 3. Tækifæri — the sid is written into the JSON here (server-side, so it is always there).
-    const json = JSON.stringify(Object.assign({}, body.state, { submissionId: sid }));
+    const liSent = {};
+    for (const li of body.lineItems) liSent[li["🔑"]] = sentOf(li);
+    const json = JSON.stringify(Object.assign({}, body.state, { submissionId: sid, liSent }));
     opp = await at("POST", PROJECTS, { typecast: true, fields: Object.assign(
       pick(body.project, PROJECT_FIELDS),
       { "Tengiliður verkefnis 👤": [contact.id], [PLANNER_JSON]: json },
