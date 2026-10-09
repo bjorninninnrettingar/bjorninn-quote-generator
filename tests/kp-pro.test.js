@@ -36,3 +36,17 @@ test("needs the office key and valid input", async () => {
   assert.equal(validate({ recordId: OPP, state: { walls: [] }, smida: { "Sk1; DROP": null } }), "Ógilt 🔑: Sk1; DROP");
   assert.equal(validate({ recordId: OPP, state: { walls: [] }, smida: { Sk1: { v: 2 } } }), "Ógild Smíðagögn: Sk1");
 });
+
+test("cabinets without a Line Item get one (same fields as a submission); lines no longer drawn are reported, never deleted", async () => {
+  const f = fakeFetch(routes);
+  const li = (k, extra) => Object.assign({ "🔑": k, "Rými 🏡": "Eldhús", "Magn": 1, "Vöru reitur 1": ["recV1V1V1V1V1V1V1"], "Smíðagögn (JSON) 🔧": '{"v":1,"w":600}', "Bull": "x" }, extra);
+  const out = await save(makeAirtable("t", { fetchImpl: f, delays: [] }), {
+    recordId: OPP, state: { walls: [] }, smida: { Sk1: SM(797), Sk4: { v: 1, w: 600 } }, lineItems: [li("Sk1"), li("Sk4")] });
+  assert.deepEqual([out.created, out.updated, out.removed], [1, 0, ["Sk2"]]);
+  const post = f.calls.find((c) => c.method === "POST");
+  assert.equal(post.body.typecast, true);
+  assert.deepEqual(post.body.records, [{ fields: { "Tækifæri 📣 (projects)": [OPP], "Rými 🏡": "Eldhús", "Magn": 1, "Vöru reitur 1": ["recV1V1V1V1V1V1V1"], "🔑": "Sk4", "Smíðagögn (JSON) 🔧": '{"v":1,"w":600}' } }]);
+  assert.ok(!f.calls.some((c) => c.method === "DELETE"));
+  assert.equal(validate({ recordId: OPP, state: { walls: [] }, smida: {}, lineItems: [{ "🔑": "Sk 1" }] }), "Ógilt 🔑 á línu");
+  assert.equal(validate({ recordId: OPP, state: { walls: [] }, smida: {}, lineItems: [{ "🔑": "Sk1", "Vöru reitur 1": ["nope"] }] }), "Ógild tenging");
+});

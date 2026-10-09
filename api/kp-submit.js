@@ -110,9 +110,19 @@ export function validate(body) {
   if (!String(c.fornafn || "").trim()) return "Nafn vantar";
   if (!EMAIL_RE.test(String(c.netfang || "").trim())) return "Ógilt netfang";
   if (typeof b.state !== "object" || !b.state) return "Skipulag vantar";
-  if (!Array.isArray(b.lineItems) || b.lineItems.length > MAX_LINES) return "Ógildar línur";
+  const bad = validateLineItems(b.lineItems);
+  if (bad) return bad;
+  for (const v of [b.project?.["Skrokka efni 🔲 viðskiptavinar"], b.project?.["Fronta efni viðskiptavinar 🖼️"], b.project?.["Borðplata viðskiptavinar 🍽️"], b.project?.["Höldur Viðskiptavinar ✊"]]) {
+    if (v != null && !(Array.isArray(v) && v.every((x) => REC_RE.test(x)))) return "Ógild tenging";
+  }
+  return null;
+}
+
+// Line Items as the designer sends them — also checked by api/kp-pro.js (pro Vista creates the missing ones).
+export function validateLineItems(lineItems) {
+  if (!Array.isArray(lineItems) || lineItems.length > MAX_LINES) return "Ógildar línur";
   const keys = new Set();
-  for (const li of b.lineItems) {
+  for (const li of lineItems) {
     if (!li || !String(li["🔑"] || "")) return "Lína án 🔑";
     if (keys.has(li["🔑"])) return "Tvítekinn 🔑";
     keys.add(li["🔑"]);
@@ -122,9 +132,6 @@ export function validate(body) {
     }
     const sm = li["Smíðagögn (JSON) 🔧"];
     if (sm != null && !(typeof sm === "string" && sm.length <= 20000 && /^\{"v":1[,}]/.test(sm))) return "Ógild Smíðagögn";
-  }
-  for (const v of [b.project?.["Skrokka efni 🔲 viðskiptavinar"], b.project?.["Fronta efni viðskiptavinar 🖼️"], b.project?.["Borðplata viðskiptavinar 🍽️"], b.project?.["Höldur Viðskiptavinar ✊"]]) {
-    if (v != null && !(Array.isArray(v) && v.every((x) => REC_RE.test(x)))) return "Ógild tenging";
   }
   return null;
 }

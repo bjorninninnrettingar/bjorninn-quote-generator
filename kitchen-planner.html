@@ -4762,6 +4762,7 @@
     var copy = JSON.parse(JSON.stringify(src)); // every setting comes along: size, hardware, hinge side, height…
     copy.id = "b" + (blockSeq++);
     delete copy.gapMm;
+    delete copy.sk; // a copy is a new cabinet with its own Line Item
     insertBlockAt(wall, zone, copy, pl.offsetMm);
     selectedBlockId = copy.id;
     landedBlockId = copy.id;
@@ -5563,6 +5564,7 @@
   var STEP_LABELS = { intake:"Spurningar", materials:"Efni", shape:"Rými", editor:"Skipulag", contact:"Senda inn" };
   function cabinetTotal(){ return surfaces().reduce(function(sum, w){ return sum + w.floor.length + w.wall.length; }, 0); }
   function canGoTo(step){
+    if (PRO && (step === "intake" || step === "contact")) return { ok:false, why:"Í pro er vistað með „Vista í Airtable“." };
     if (state.step === "done") return { ok:false, why:"Skipulagið hefur verið sent inn." };
     if (step === "shape") return { ok:true };
     if (!state.closed || !state.walls.length) return { ok:false, why:"Smíðaðu rýmið fyrst (Rými)." };
@@ -6040,6 +6042,7 @@
       // submission id stays in the draft, so retrying — here, or the customer pressing "Senda inn" again
       // after a failure — resumes the same Tækifæri instead of creating a second one.
       if (!state.submissionId){ state.submissionId = newSubmissionId(); save(); }
+      freezeSk(); // the numbers on the Line Items stay with their cabinets when Rakel edits in pro mode
       var opp = await postWithRetry("/api/kp-submit", {
         sid: state.submissionId,
         contact: {
@@ -6177,10 +6180,22 @@
   var EXPORT_W = 1600, EXPORT_H = 1000;
   // One number per cabinet in surface order, floor units before wall units — the same order
   // collectLineItems() writes, so "Sk4" on a drawing is "Sk4" in Line Items.
+  // A cabinet keeps its number once it has one (b.sk, frozen by freezeSk() at submit / pro load / pro Vista) —
+  // its Line Item is found by that number, so adding or moving cabinets must never renumber the others.
+  // New cabinets get the next number after the highest one; a fresh drawing numbers in surface order as before.
   function skKeys(){
-    var map = {}, n = 0;
-    surfaces().forEach(function(w){ w.floor.concat(w.wall).forEach(function(b){ if (CATALOG[b.type].notOrdered) return; n++; map[b.id] = "Sk" + n; }); }); // free-standing appliances aren't units
+    var map = {}, used = {}, all = [], n = 0;
+    surfaces().forEach(function(w){ w.floor.concat(w.wall).forEach(function(b){ if (!CATALOG[b.type].notOrdered) all.push(b); }); }); // free-standing appliances aren't units
+    all.forEach(function(b){
+      if (!/^Sk\d+$/.test(b.sk || "") || used[b.sk]) return;
+      used[b.sk] = true; map[b.id] = b.sk; n = Math.max(n, +b.sk.slice(2));
+    });
+    all.forEach(function(b){ if (!map[b.id]) map[b.id] = "Sk" + (++n); });
     return map;
+  }
+  function freezeSk(){
+    var keys = skKeys();
+    surfaces().forEach(function(w){ w.floor.concat(w.wall).forEach(function(b){ if (keys[b.id]) b.sk = keys[b.id]; }); });
   }
   function exportHost(){
     var el = document.getElementById("exportHost");
@@ -6780,13 +6795,15 @@
     proBar("Vista…");
     try{
       var r = await fetch("/api/kp-pro", { method:"POST", headers:{ "Content-Type":"application/json" },
-        body:JSON.stringify({ k:PRO.k, recordId:PRO.id, state:state, smida:proSmida() }) });
+        body:JSON.stringify({ k:PRO.k, recordId:PRO.id, state:(freezeSk(), state), smida:proSmida(), lineItems:collectLineItems() }) });
       var d = await r.json().catch(function(){ return {}; });
       if (!r.ok) throw new Error(d.error || ("HTTP " + r.status));
+      save(); // keeps the frozen Sk numbers
       try{ localStorage.removeItem(STORAGE_KEY + ":dirty"); }catch(e){}
       proBar();
-      toast("Vistað í Airtable: " + d.updated + " " + plural(d.updated, "lína uppfærð", "línur uppfærðar") + ", " + d.unchanged + " óbreyttar" +
-        (d.missing && d.missing.length ? ". ⚠️ Fann ekki Line Item fyrir " + d.missing.join(", ") + " — nýir skápar þurfa línu fyrst." : "."));
+      toast("Vistað í Airtable: " + (d.created ? d.created + " " + plural(d.created, "ný lína", "nýjar línur") + ", " : "") +
+        d.updated + " " + plural(d.updated, "lína uppfærð", "línur uppfærðar") + ", " + d.unchanged + " óbreyttar" +
+        (d.removed && d.removed.length ? ". ⚠️ " + d.removed.join(", ") + " " + plural(d.removed.length, "er", "eru") + " ekki lengur í teikningunni — eyddu línunni (og Eyðublaðinu) í Airtable ef skápurinn á að fara." : "."));
     }catch(e){ proBar("⛔ " + e.message); }
   }
   async function proBoot(){
@@ -6800,8 +6817,12 @@
     }catch(e){ proBar("⛔ Gat ekki sótt verkefnið: " + e.message); return; }
     var raw = (rec.fields || {})[PRO_FIELD];
     PRO.name = (rec.fields || {})["Heiti tækifæris / verkefnis"] || PRO.id;
-    if (!raw){ proBar("⛔ Þetta verkefni var ekki teiknað í skipuleggjaranum"); return; }
     var keepLocal = false;
+    if (!raw){ // Rakel draws every project (2026-10-09): no drawing yet = start one, from the room step
+      var local = null; try{ local = proDirty() ? localStorage.getItem(STORAGE_KEY) : null; }catch(e){}
+      if (!local || !load()){ state = freshState("shape"); shapePhase = "pick"; save(); }
+      freezeSk(); PRO.ready = true; render(); proBar(); return;
+    }
     try{ keepLocal = proDirty() && !!localStorage.getItem(STORAGE_KEY) &&
       confirm("Það eru óvistaðar breytingar á þessu verkefni í þessum vafra.\n\nOK = halda áfram með þær\nHætta við = sækja útgáfuna úr Airtable"); }catch(e){}
     if (!keepLocal){
@@ -6810,6 +6831,7 @@
     }
     if (!load()){ proBar("⛔ Gat ekki opnað skipulagið"); return; }
     state.step = "editor";
+    freezeSk(); // the numbers the Line Items already have
     PRO.ready = true;
     render();
     proBar();
