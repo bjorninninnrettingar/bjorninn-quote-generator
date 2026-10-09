@@ -62,7 +62,7 @@
                    skapategundOverride:"Grunnskápur",
                    // Útfærslur "Le mans Töfrahorn" by door half (b.swing) × carcass colour — no light grey exists
                    tofrahornIds:{ haegri:{ dokkgra:"rec7qJxtUZFofq7CW", hvit:"recrLoaCJMoB0LGo4" }, vinstri:{ dokkgra:"recAxPR5s5jKnktRm", hvit:"recdfMCuUnPyRV8rV" } } },
-    vaskaskapur: { label:"Vaskaskápur", zone:"floor", cls:"floor", defaultW:800, minW:500, maxW:1500, h:900, d:600, minH:600, maxH:1100, minD:400, maxD:750, hasInterior:false, counter:true, sink:true,
+    vaskaskapur: { label:"Vaskaskápur", zone:"floor", cls:"floor", defaultW:800, minW:500, maxW:1500, h:900, d:600, minH:600, maxH:1100, minD:400, maxD:750, hasInterior:true, drawerCountRange:[1,3], counter:true, sink:true,
                    skapategundOverride:"Grunnskápur", note:"Vaskaskápur — útskurður fyrir vask og lagnir; vinsamlegast staðfestu vaskstærð og gerð." },
     opnarhillur: { label:"Opnar hillur", zone:"wall", cls:"wall", defaultW:600, minW:200, maxW:1200, h:700, d:300, minH:200, maxH:1200, minD:200, maxD:450, hasInterior:false, open:true, shelfRange:[1,5,3],
                    skapategundOverride:"Efriskápur", note:"Opnar hillur — engin hurð; viðskiptavinur óskar eftir opnum hillum." },
@@ -1752,7 +1752,8 @@
         addFrontDetails(THREE, tmp, fake, 0, w, fh, y0, depthM, { mode:"skuffur", count:1 }, meta.handle, false, meta.zone === "wall" || (meta.tall && fi > 0 && !f.drawer), 0.55, { vertical:vertA, freeSide:freeSideA, slab:true }, frontMat);
         tmp.children.slice().forEach(function(ch){ ch.position.x -= pivotX; g.add(ch); if (ch.isMesh) meshes.push(ch); else ch.traverse(function(o){ if (o.isMesh) meshes.push(o); }); });
       }
-      if (f.drawer){
+      var fixedTop = f.drawer && meta.sinkFixedTop && fi === drawers - 1; // sink cabinet: a fixed front over the basin, no drawer behind it
+      if (f.drawer && !fixedTop){
         var code = dcodes ? dcodes[fi] : null, sysD = DRAWER_CODES[sysKey];
         var side = code && sysD && sysD.side[code] ? sysD.side[code] : Math.max(50, Math.min(200, Math.round(fh * 1000 - 55)));
         side = Math.max(40, Math.min(side, fh * 1000 - 40));
@@ -1781,7 +1782,7 @@
       }
       meshes.forEach(function(m){ m.userData = pmeta; pickables.push(m); });
       var prev = PART_STATE[key];
-      var part = { key:key, group:g, kind:f.drawer ? "drawer" : hinge === "bottom" ? "flap" : "door", hinge:hinge, slide:Math.min(0.34, CD * 0.6), cur:prev ? prev.cur : 0, target:prev ? prev.target : 0 };
+      var part = { key:key, group:g, kind:f.drawer ? "drawer" : hinge === "bottom" ? "flap" : "door", hinge:hinge, slide:fixedTop ? 0 : Math.min(0.34, CD * 0.6), cur:prev ? prev.cur : 0, target:prev ? prev.target : 0 };
       PART_STATE[key] = part; parts.push(part); applyPart(part);
       frame.add(g);
     }
@@ -2107,10 +2108,22 @@
         -((evt.clientY - rect.top) / rect.height) * 2 + 1
       );
     }
+    // What you can't see you can't grab (user, 2026-10-09): a cabinet that has turned see-through (seen from
+    // behind) and a window/door/opening in a faded wall are skipped, so the ray goes on to what's behind them —
+    // looking in over wall 2 grabs the cabinet on wall 4, not the ghost on wall 2.
+    function seeThrough(o){
+      for (var p = o; p; p = p.parent){
+        var c = p.userData && p.userData.cab;
+        if (c && c.t > 0.5) return true;
+        if (p.__fadeWall && p.__fadeWall.mat.opacity < 0.5) return true;
+      }
+      return false;
+    }
     function pickMeshAt(evt){
       raycaster.setFromCamera(ndc(evt), camera);
       var hits = raycaster.intersectObjects(pickables, false);
-      return hits.length ? hits[0].object : null;
+      for (var i = 0; i < hits.length; i++) if (!seeThrough(hits[i].object)) return hits[i].object;
+      return null;
     }
     // Cast onto the horizontal plane through the dragged item's own mid-height,
     // not the floor: with the pointer over the cabinet body the floor hit lies
@@ -2987,6 +3000,7 @@
     function fadeWithWall(wallId, group){
       var w = group && wallFades.find(function(x){ return x.wallId === wallId; });
       if (!w) return;
+      group.__fadeWall = w; // picking skips it while the wall is faded
       var mats = [];
       group.traverse(function(o){
         if (!o.material) return;
@@ -3113,6 +3127,7 @@
             ovenCodes:c.lowOven ? ["M"] : c.oven ? ovenCodesOf(b, state.drawerSystem) : null, fixedFronts:!!c.fixedFronts || !!c.appliance,
             burCodes:c.bur ? burCodesOf(b, state.drawerSystem) : null, dishwasher:!!c.dishwasher,
             lowOven:!!c.lowOven, ovenFrontsMm:c.oven ? b.ovenFrontsMm || null : null,
+            sinkFixedTop:!!c.sink && b.sinkTop === "fastur" && !!(b.interior && b.interior.mode === "skuffur"),
             ovenInner:c.oven && !c.lowOven ? (String(b.ovenCombo == null ? OVEN_DEFAULT[state.drawerSystem === "merivo" ? "merivo" : "legra"] : b.ovenCombo).split("+")[1] || null) : null,
             washerDrawerM:c.thvo && b.thvo !== "hurdir" ? 0.40 : 0 }, selected, pickables);
         // LED in the plinth: a strip at the foot of the plinth and a glow on the floor in front of it
@@ -3419,7 +3434,8 @@
       }
       // AO on every frame at quality 0 (2026-10-06): switching it off while the camera moved and back on when it
       // stopped made the shading pop in and out on every orbit. A slow machine drops to level 1 (no AO at all) instead.
-      if (QUALITY.level === 0 && !opts.noAO){
+      // AO only on high-density screens: on a 1× monitor its soft shading reads as fuzz (user, 2026-10-09)
+      if (QUALITY.level === 0 && !opts.noAO && (window.devicePixelRatio || 1) >= 1.5){
         if (!THREE_STATE.aoComposer){ THREE_STATE.aoComposer = makeAOComposer(THREE, renderer, scene, camera); if (THREE_STATE.aoComposer){ var s2 = renderer.getSize(new THREE.Vector2()); THREE_STATE.aoComposer.setSize(s2.x, s2.y); } }
         if (THREE_STATE.aoComposer){ THREE_STATE.aoComposer.render(); return; }
       }
@@ -3923,7 +3939,11 @@
   // see-through cabinets, LED strips/glows, outlines, selection rings — are hidden for GTAO's own depth/normal pass.
   function makeAOComposer(THREE, renderer, scene, camera){
     var P = window.__POST__; if (!P || !P.GTAOPass) return null;
-    var sz = renderer.getSize(new THREE.Vector2()), cmp = new P.EffectComposer(renderer);
+    // The composer's own buffers have no MSAA, so every edge lost its anti-aliasing while AO was on — a
+    // multisampled render target keeps edges as sharp as a plain render.
+    var sz = renderer.getSize(new THREE.Vector2()), pr = renderer.getPixelRatio();
+    var rt = new THREE.WebGLRenderTarget(Math.max(1, sz.x * pr), Math.max(1, sz.y * pr), { type:THREE.HalfFloatType, samples:4 });
+    var cmp = new P.EffectComposer(renderer, rt);
     cmp.addPass(new P.RenderPass(scene, camera));
     var ao = new P.GTAOPass(scene, camera, sz.x, sz.y);
     ao.updateGtaoMaterial({ radius:0.2, distanceExponent:1.2, thickness:0.25, scale:2.2, distanceFallOff:0.5, samples:16 }); // low thickness = no dark halos round things in front of a wall
