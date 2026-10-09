@@ -113,7 +113,16 @@
     $("projSel").innerHTML = '<option value="">Veldu verkefni</option>' + recs.map(function (r) {
       return '<option value="' + esc(r.id) + '">' + esc(String(r.fields[PNAME] || r.id).trim()) + "</option>"; }).join("");
     var want = new URLSearchParams(location.search).get("t");
-    if (want) { var hit = recs.find(function (r) { var n = String(r.fields[PNAME] || ""); return n.indexOf(want + " ") === 0 || n.indexOf(want + "|") === 0; }); if (hit) $("projSel").value = hit.id; }
+    if (want) {
+      var match = function (r) { var n = String(r.fields[PNAME] || ""); return n.indexOf(want + " ") === 0 || n.indexOf(want + "|") === 0; };
+      var hit = recs.find(match);
+      // ?t=T-32 opens a project that isn't won yet (test runs, a drawing checked before the deal closes)
+      if (!hit && /^T-\d+$/.test(want)) {
+        try { hit = (await fetchAll(PROJECTS, { filterByFormula: 'FIND("' + want + ' |",{' + PNAME + '})', "fields[]": [PNAME] })).find(match); } catch (e) {}
+        if (hit) $("projSel").insertAdjacentHTML("beforeend", '<option value="' + esc(hit.id) + '">' + esc(String(hit.fields[PNAME]).trim()) + " (ekki unnið)</option>");
+      }
+      if (hit) $("projSel").value = hit.id;
+    }
     $("projSel").onchange = loadProject;
     if ($("projSel").value) loadProject();
   }

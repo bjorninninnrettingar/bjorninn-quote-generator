@@ -135,6 +135,18 @@
 
     // Drawers, bottom → top, from the real front heights.
     var drawers = expand(by.drawer, function (r) { var m = r.Partur.match(/skúffufrontur\s+([NMKCFE])\b.*?(merivo|legra)/i); return { code: m[1].toUpperCase(), sys: lc(m[2]), front: num(r.H), H: r1(num(r.H) + grip) }; });
+    // A drawer whose front is listed as a plain "Frontur" (the low oven OFN6: "Frontur" 202 + "Skúffubak K - Merivo",
+    // no "Skúffufrontur K") — the low front becomes that drawer, not a door with hinges (T-32 pilot, 2026-10-09).
+    if (!drawers.length) {
+      var backs = expand(rows.filter(function (r) { return /^skúffubak\s+[NMKCFE]\b.*?(merivo|legra)/i.test(r.Partur); }), function (r) {
+        var m = r.Partur.match(/^skúffubak\s+([NMKCFE])\b.*?(merivo|legra)/i); return { code: m[1].toUpperCase(), sys: lc(m[2]) }; });
+      var lowDoors = (by.door || []).filter(function (r) { return /^frontur$/i.test(String(r.Partur).trim()) && num(r.H) <= FIXED_FRONT_MAX; });
+      if (backs.length && backs.length === lowDoors.reduce(function (a, r) { return a + per(r); }, 0)) {
+        lowDoors.forEach(function (r) { for (var k = 0; k < per(r); k++) { var bk = backs.shift(); drawers.push({ code: bk.code, sys: bk.sys, front: num(r.H), H: r1(num(r.H) + grip) }); } });
+        by.door = (by.door || []).filter(function (r) { return lowDoors.indexOf(r) < 0; });
+        info.push("„Frontur“ " + drawers.map(function (d) { return d.front; }).join(", ") + " mm = skúffa " + drawers.map(function (d) { return d.code; }).join(", ") + " (skúffubak í Sögunarlista)");
+      }
+    }
     if (grip && by.drawer) info.push("Skúffuhólf = front + " + grip + " mm grip");
     drawers.sort(function (a, b) { return CODE_ORDER.indexOf(a.code) - CODE_ORDER.indexOf(b.code) || b.H - a.H; });
     var sys = {}; drawers.forEach(function (d) { sys[d.sys] = 1; });

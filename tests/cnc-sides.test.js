@@ -150,3 +150,10 @@ test("Smíðagögn with sizes only (no doors) = /cnc's default hinges, no mismat
   assert.ok(!p.check.some((c) => c.startsWith("Smíðagögn passa ekki")));
   assert.ok(ops(p).includes('LOM: 80, 37, "2,3"'));
 });
+
+test("low oven: a plain 'Frontur' with a drawer back in the list is that drawer, not a door (T-32 Sk11)", () => {
+  const rows = [row("Skápur hlið", 800, 583, 16, 2), row("Frontur", 202, 597, 16, 1), row("Skúffubak K - Merivo", 121, 517, 16, 1), row("Skúffubotn - Merivo", 474, 517, 16, 1)];
+  const p = S.unitPlan("Sk 11", rows, {});
+  assert.ok(ops(p).includes("MERIVOBOX_V2: -1.5, 0, 0, 0, 0, 0, 202, K"));
+  assert.ok(!ops(p).some((x) => x.startsWith("LOM")));
+});
