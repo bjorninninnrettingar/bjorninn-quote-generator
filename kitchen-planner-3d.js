@@ -21,13 +21,14 @@
     // Floor-unit h INCLUDES the 100 mm plinth: base units are 900 = 800 box + 100 plinth (production size,
     // 2026-10-09), so the worktop sits at ~932. Was 800 (700 box) until then.
     grunnskapur: { label:"Grunnskápur", zone:"floor", cls:"floor", defaultW:600, minW:200, maxW:1200, h:900,  d:600, minH:600,  maxH:1100, minD:300, maxD:700, hasInterior:true, drawerCountRange:[1,4], shelfRange:[0,4,1], counter:true },
-    harskapur:   { label:"Hárskápur",   zone:"floor", cls:"tall",  defaultW:600, minW:300, maxW:1200,  h:2400, d:600, minH:1800, maxH:2600, minD:300, maxD:700, hasInterior:true, drawerCountRange:[1,5], shelfRange:[0,8,5] },
+    // tall units: 2400 box + 100 plinth (user, 2026-10-09 — they were 2300 + plinth)
+    harskapur:   { label:"Hárskápur",   zone:"floor", cls:"tall",  defaultW:600, minW:300, maxW:1200,  h:2500, d:600, minH:1800, maxH:2600, minD:300, maxD:700, hasInterior:true, drawerCountRange:[1,5], shelfRange:[0,8,5] },
     efriskapur:  { label:"Efriskápur",  zone:"wall",  cls:"wall",  defaultW:600, minW:200, maxW:1200, h:1000, d:300, minH:300,  maxH:1200, minD:200, maxD:450, hasInterior:false, shelfRange:[0,5,2] },
     // Built-in fridge: NOT its own Skápategund in the schema (Skápategund has
     // Grunn/Hár/Efri/Lagna/Ofna/Loftunarskápur only) — physically a Hárskápur
     // housing a bought appliance, so it submits as Hárskápur plus a plain note
     // (same pattern as the drawer note) and Rakel confirms the niche size.
-    isskapur:    { label:"Ísskápur (innbyggður)", zone:"floor", cls:"fridge", defaultW:600, minW:500, maxW:1000, h:2400, d:600, minH:1700, maxH:2600, minD:500, maxD:750, hasInterior:false,
+    isskapur:    { label:"Ísskápur (innbyggður)", zone:"floor", cls:"fridge", defaultW:600, minW:500, maxW:1000, h:2500, d:600, minH:1700, maxH:2600, minD:500, maxD:750, hasInterior:false,
                    skapategundOverride:"Hárskápur", fridge:true,
                    note:"Viðskiptavinur óskar eftir innbyggðum ísskáp í þessum skáp — vinsamlegast staðfestu stærð tækis (nisju) og hurðargerð." },
     // Special units: oven tower and Le Mans corner map to real Airtable fields
@@ -36,7 +37,7 @@
     // plain note for Rakel.
     // b.ovenCombo = the drawer combo under the oven (an Útfærslur key, "" = cabinet door, no drawers)
     // ovens are 600 wide (user, 2026-10-02); "Í grunnskáp" = the low oven cabinet below (OFN6)
-    ofnaskapur:  { label:"Ofnaskápur",  zone:"floor", cls:"oven",  defaultW:600, minW:600, maxW:600, h:2400, d:600, minH:1800, maxH:2600, minD:500, maxD:750, hasInterior:false, ovenHeightMm:595, oven:true },
+    ofnaskapur:  { label:"Ofnaskápur",  zone:"floor", cls:"oven",  defaultW:600, minW:600, maxW:600, h:2500, d:600, minH:1800, maxH:2600, minD:500, maxD:750, hasInterior:false, ovenHeightMm:595, oven:true },
     // ---- 2026-09-30: types that exist as real Útfærslur (see kitchen-planner-linemap.js) ----
     // Búrskápur: tall pantry, doors outside, a real drawer/shelf set inside (b.burCombo)
     ofnaskapurLagur:{ label:"Ofnaskápur (í grunnskáp)", zone:"floor", cls:"floor", defaultW:600, minW:600, maxW:600, h:900, d:600, minH:850, maxH:1000, minD:550, maxD:700, hasInterior:false, counter:true, oven:true, lowOven:true },
@@ -47,13 +48,13 @@
     uppthvottavelFri:{ label:"Uppþvottavél (frístandandi)", zone:"floor", cls:"floor", defaultW:600, minW:450, maxW:600, widths:[450, 600], h:900, d:600, minH:800, maxH:950, minD:550, maxD:700, hasInterior:false, counter:true, appliance:"dishwasher", notOrdered:true },
     // (no longer offered — "nú erum við að gera eldhús", 2026-10-05; kept so older drafts still load)
     thvottavelFri:{ label:"Þvottavél (frístandandi)", zone:"floor", cls:"floor", defaultW:600, minW:600, maxW:600, h:900, d:600, minH:800, maxH:950, minD:550, maxD:700, hasInterior:false, counter:true, appliance:"washer", notOrdered:true },
-    burskapur:   { label:"Búrskápur", zone:"floor", cls:"tall", defaultW:600, minW:300, maxW:1200, h:2400, d:600, minH:1800, maxH:2600, minD:400, maxD:700, hasInterior:false, bur:true },
+    burskapur:   { label:"Búrskápur", zone:"floor", cls:"tall", defaultW:600, minW:300, maxW:1200, h:2500, d:600, minH:1800, maxH:2600, minD:400, maxD:700, hasInterior:false, bur:true },
     // Þvottavélaskápur: washer/dryer tower; b.thvo = "skuffa" (a drawer at the bottom to raise the machine) | "hurdir" (doors only)
-    thvottavel:  { label:"Þvottavélaskápur", zone:"floor", cls:"tall", defaultW:600, minW:600, maxW:900, h:2400, d:600, minH:1800, maxH:2600, minD:600, maxD:750, hasInterior:false, thvo:true, fixedFronts:true },
+    thvottavel:  { label:"Þvottavélaskápur", zone:"floor", cls:"tall", defaultW:600, minW:600, maxW:900, h:2500, d:600, minH:1800, maxH:2600, minD:600, maxD:750, hasInterior:false, thvo:true, fixedFronts:true },
     // Uppþvottavél: integrated dishwasher behind one full front (V1 = the front itself)
     uppthvottavel:{ label:"Uppþvottavél", zone:"floor", cls:"floor", defaultW:600, minW:450, maxW:600, h:900, d:600, minH:850, maxH:1000, minD:550, maxD:700, hasInterior:false, counter:true, dishwasher:true },
     // Ruslaskápur: one tall pull-out with bins (RUSL60 / RUSL80)
-    ruslaskapur: { label:"Ruslaskápur", zone:"floor", cls:"floor", defaultW:600, minW:600, maxW:800, h:900, d:600, minH:600, maxH:1100, minD:500, maxD:700, hasInterior:false, counter:true, rusl:true },
+    ruslaskapur: { label:"Ruslaskápur", zone:"floor", cls:"floor", defaultW:600, minW:600, maxW:800, h:900, d:600, minH:600, maxH:1100, minD:500, maxD:700, hasInterior:true, drawerCountRange:[1,3], drawersOnly:true, counter:true, rusl:true }, // a drawer stack like any drawer unit (bins in the bottom one), 2026-10-09
     // Lítill kassi: a low box (benches, window seats, TV units) — no worktop by default
     litillkassi: { label:"Lítill kassi", zone:"floor", cls:"floor", defaultW:600, minW:200, maxW:1200, h:500, d:600, minH:300, maxH:700, minD:300, maxD:700, hasInterior:true, drawerCountRange:[1,4], shelfRange:[0,2,1] },
     // Hár veggskápur: a shallower tall unit (500 deep, 2000 high)
@@ -72,7 +73,7 @@
                    skapategundOverride:"Grunnskápur", note:"Úthlið, 19 mm þykk, sama efni og framhliðar (stendur við enda á skápalínu).",
                    // Útfærslur "Úthliðar" (V1): UHGR, or UHLK beside a lítill kassi (≤ 600 mm high)
                    panelIds:[{ maxH:600, utfaerslaId:"recEpLxCpHtbBHRkV" }, { utfaerslaId:"recUKqD3UKKWQ8J7g" }] },
-    uthlidhar:   { label:"Úthlið — há", zone:"floor", cls:"tall", defaultW:19, minW:19, maxW:19, h:2400, d:600, minH:1000, maxH:2600, minD:100, maxD:750, hasInterior:false, panel:true,
+    uthlidhar:   { label:"Úthlið — há", zone:"floor", cls:"tall", defaultW:19, minW:19, maxW:19, h:2500, d:600, minH:1000, maxH:2600, minD:100, maxD:750, hasInterior:false, panel:true,
                    skapategundOverride:"Hárskápur", note:"Úthlið, 19 mm þykk, sama efni og framhliðar (stendur við enda á skápalínu).",
                    // UHVS beside a hár veggskápur (≤ 2100 mm), else UHHA
                    panelIds:[{ maxH:2100, utfaerslaId:"recjkbrTcZZgSazX5" }, { utfaerslaId:"recgcU94bpLvATm0r" }] },
@@ -375,15 +376,17 @@
       : (DEFAULT_CODES[sys][Math.max(1, Math.min(4, interior.count || 3))] || DEFAULT_CODES[sys][3]).slice();
     return codes.map(function(c){ return (CODE_SWAP[sys] && CODE_SWAP[sys][c]) || c; });
   }
-  // Front heights (mm, bottom → top) for a stack in a body of bodyMm, or null when it doesn't fit.
+  // Drawer heights are SLOTS (user, 2026-10-09): the number shown/typed is the drawer's "Sérhæð", the slots
+  // fill the body exactly (400 + 400 = 800) and each front is cut 3 mm smaller (397) — the 3 mm is its gap.
+  function slotMin(c){ return (FRONT_MIN[c] || 150) + DRAWER_GAP_MM; }
+  // Slot heights (mm, bottom → top) for a stack in a body of bodyMm, or null when it doesn't fit.
   function drawerFrontsMm(codes, bodyMm){
     if (!codes.length) return [];
-    var gaps = (codes.length - 1) * DRAWER_GAP_MM;
-    var min = codes.reduce(function(a, c){ return a + (FRONT_MIN[c] || 150); }, 0);
-    var spare = bodyMm - gaps - min;
+    var min = codes.reduce(function(a, c){ return a + slotMin(c); }, 0);
+    var spare = bodyMm - min;
     if (spare < -0.5) return null;
     var wsum = codes.reduce(function(a, c){ return a + (FRONT_WEIGHT[c] || 200); }, 0);
-    return codes.map(function(c){ return (FRONT_MIN[c] || 150) + spare * (FRONT_WEIGHT[c] || 200) / wsum; });
+    return codes.map(function(c){ return slotMin(c) + spare * (FRONT_WEIGHT[c] || 200) / wsum; });
   }
   // A drawer box sits at the BOTTOM of its front's zone (20 mm up, on its runners) and the space above it is
   // what's left over — the way a Blum drawer is built (user, 2026-10-05: they hung from the top before,
@@ -394,8 +397,13 @@
   function stackFrontsMm(interior, codes, bodyMm){
     var f = interior && interior.frontsMm;
     if (f && f.length === codes.length && codes.length > 1){
-      var sum = f.reduce(function(a, x){ return a + x; }, 0) + (codes.length - 1) * DRAWER_GAP_MM;
-      var ok = Math.abs(sum - bodyMm) < 1.5 && f.every(function(h, i){ return h >= (FRONT_MIN[codes[i]] || 150) - 0.5; });
+      var sum = f.reduce(function(a, x){ return a + x; }, 0);
+      // drafts from before 2026-10-09 stored front heights with 3 mm between them: turn them into slots
+      if (Math.abs(sum + (codes.length - 1) * DRAWER_GAP_MM - bodyMm) < 1.5){
+        var below = 0; f = f.map(function(h, i){ var sl = i < f.length - 1 ? h + DRAWER_GAP_MM : bodyMm - below; below += sl; return sl; });
+        sum = bodyMm;
+      }
+      var ok = Math.abs(sum - bodyMm) < 1.5 && f.every(function(h, i){ return h >= slotMin(codes[i]) - 0.5; });
       if (ok) return f.slice();
     }
     return drawerFrontsMm(codes, bodyMm);
@@ -403,7 +411,7 @@
   // Front i set to v mm: the other drawers give or take the difference, nearest first (the one above, then
   // below, ...), never going under their own minimum. null when it can't be done.
   function resizeFront(fronts, codes, i, v){
-    var mins = codes.map(function(c){ return FRONT_MIN[c] || 150; });
+    var mins = codes.map(slotMin);
     if (codes.length < 2 || v < mins[i] - 0.5) return null;
     var out = fronts.slice(), rem = v - out[i], order = [];
     out[i] = v;
@@ -418,7 +426,7 @@
   // seams as fractions of the body (bottom → top), like drawerFractions()
   function frontsToFractions(fronts, bodyMm){
     var out = [], acc = 0;
-    fronts.slice(0, -1).forEach(function(h){ acc += h + DRAWER_GAP_MM / 2; out.push(acc / bodyMm); acc += DRAWER_GAP_MM / 2; });
+    fronts.slice(0, -1).forEach(function(h){ acc += h; out.push(acc / bodyMm); }); // slot boundaries; each front is drawn 3 mm inside its slot
     return out;
   }
   // Útfærslur combo key: letters in N M K E C F order, then "+IK"/"+IM" for an inner drawer
@@ -1275,6 +1283,19 @@
   // anything else → one door. Purely visual — nothing here is submitted.
   // Handles, seams and grips drawn on a front are tagged (__frontDetail) so "fronts off" can hide them
   // with the fronts. Oven glass/controls are an appliance, not a front: left alone.
+  // A door front split into 2–3 stacked fronts in Smíða: splitFr = the seams as fractions of the body, bottom → top.
+  function pushSplitFronts(fronts, splitFr){
+    var edges = [0].concat(splitFr, [1]);
+    for (var i = 0; i < edges.length - 1; i++) fronts.push({ y0:edges[i], y1:edges[i + 1] });
+  }
+  // Smíða's split (slots in mm, top → bottom) → seams as fractions of the body, bottom → top; null when not split.
+  function splitFractions(b, bodyMm){
+    var sp = b && b.smida && b.smida.split;
+    if (!sp || sp.length < 2 || !bodyMm) return null;
+    var out = [], acc = 0, up = sp.slice().reverse();
+    up.slice(0, -1).forEach(function(h){ acc += h; out.push(acc / bodyMm); });
+    return out;
+  }
   function addFrontDetails(THREE, group, geom, offsetM, widthM, heightM, baseYM, depthM, interior, handleKey, isTall, isWallRow, split, meta, frontMat){
     var n0 = group.children.length;
     addFrontDetailsInner.apply(null, arguments);
@@ -1298,7 +1319,8 @@
       var wd = meta.washerDrawerM / heightM, sp2 = wd + (1 - wd) * 0.5;
       fronts.push({ y0:0, y1:wd, drawer:true }, { y0:wd, y1:sp2 }, { y0:sp2, y1:1 });
     }
-    else if (isTall && !isOven){ fronts.push({ y0:0, y1:split }, { y0:split, y1:1 }); }
+    else if (meta && meta.splitFr && !isOven) pushSplitFronts(fronts, meta.splitFr); // fronts split in Smíða
+    else if (isTall && !isOven && split){ fronts.push({ y0:0, y1:split }, { y0:split, y1:1 }); } // integrated fridge: two doors
     else if (!isOven) fronts.push({ y0:0, y1:1 });
 
     var cx = geom.origin.x + geom.axis.x * (offsetM + widthM / 2), cz = geom.origin.z + geom.axis.z * (offsetM + widthM / 2);
@@ -1335,8 +1357,8 @@
       if (ovFr){ // seams between the drawers under the oven; a handle at the top of each
         var accY = baseYM;
         ovFr.forEach(function(h, i){
-          accY += h / 1000 + (i < ovFr.length - 1 ? DRAWER_GAP_MM / 1000 : 0);
-          tops.push(accY);
+          accY += h / 1000; // slots (see drawerFrontsMm)
+          tops.push(accY - DRAWER_GAP_MM / 1000);
           if (i < ovFr.length - 1) place(new THREE.Mesh(new THREE.PlaneGeometry(widthM + 0.002, 0.005), seamMat), accY - DRAWER_GAP_MM / 2000, 0.004);
         });
       } else tops.push(oy);
@@ -1588,7 +1610,7 @@
     }
     if (meta && meta.locked && !meta.suppressBadge && meta.zone !== "opening") addLockBadge(THREE, group, local(0, baseYM + heightM + (meta.counter ? 0.16 : 0.1), depthM / 2));
     if (art) addArticulated(THREE, scene, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta, useFrontMat, pickables);
-    else if (meta && meta.zone !== "opening" && !isPanel && !meta.appliance) addFrontDetails(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta.handle, !!meta.tall, meta.zone === "wall", meta.split || 0.55, meta, useFrontMat);
+    else if (meta && meta.zone !== "opening" && !isPanel && !meta.appliance) addFrontDetails(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta.handle, !!meta.tall, meta.zone === "wall", meta.split || 0, meta, useFrontMat);
     if (meta && meta.appliance) addApplianceDetails(THREE, group, geom, offsetM, widthM, heightM, depthM, meta.appliance);
     return group;
   }
@@ -1717,7 +1739,8 @@
     if (drawers){
       var fr = interior.fractions && interior.fractions.length === drawers - 1 ? interior.fractions : null;
       for (var i = 0; i < drawers; i++) fronts.push({ y0:fr ? (i === 0 ? 0 : fr[i - 1]) : i / drawers, y1:fr ? (i === drawers - 1 ? 1 : fr[i]) : (i + 1) / drawers, drawer:true });
-    } else if (meta.tall && !meta.corner){ var sp = meta.split || 0.55; fronts.push({ y0:0, y1:sp }, { y0:sp, y1:1 }); }
+    } else if (meta.splitFr && !meta.corner) pushSplitFronts(fronts, meta.splitFr);
+    else if (meta.tall && !meta.corner && meta.split){ var sp = meta.split; fronts.push({ y0:0, y1:sp }, { y0:sp, y1:1 }); }
     else fronts.push({ y0:0, y1:1 });
     var sysKey = meta.drawerSystem || "legra";
     var dcodes = drawers && interior.codes && interior.codes.length === drawers ? interior.codes : null; // bottom → top
@@ -1826,7 +1849,7 @@
       if (ovFrA){
         dcodes = ovCodesA;
         var accA = bodyBase;
-        ovFrA.forEach(function(h, i){ makeLeaf(idx++, 0, widthM, accA + 0.0015, accA + h / 1000 - 0.0015, "left", { drawer:true }, i); accA += h / 1000 + DRAWER_GAP_MM / 1000; });
+        ovFrA.forEach(function(h, i){ makeLeaf(idx++, 0, widthM, accA + 0.0015, accA + h / 1000 - 0.0015, "left", { drawer:true }, i); accA += h / 1000; }); // slots: front = slot − 3
         if (meta.ovenInner){ // "+IM"/"+IK": an inner drawer riding inside the top drawer (OFN2)
           var topPart = parts[parts.length - 1], sysO = DRAWER_CODES[sysKey], iCode = meta.ovenInner === "IK" ? "K" : "M", iSide = (sysO && sysO.side[iCode]) || 90;
           var ibO = buildDrawerBox(THREE, sysKey, meta.carcassKey, iSide, Math.max(0.18, widthM - 2 * T - 0.06), Math.max(0.2, Math.min(0.46, CD - 0.1)), null);
@@ -3127,7 +3150,7 @@
         var hM = Math.min(b.heightMm || c.h, roomHeightMm) / 1000, dM = (b.depthMm || c.d) / 1000;
         var selected = opts.selectedId === b.id;
         var inter = b.interior;
-        if (c.rusl) inter = { mode:"skuffur", codes:[state.drawerSystem === "merivo" ? "E" : "C"], count:1 }; // one tall pull-out
+        if (c.rusl && !(inter && inter.mode === "skuffur")) inter = { mode:"skuffur", codes:[state.drawerSystem === "merivo" ? "E" : "C"], count:1 }; // old drafts: one tall pull-out
         if (inter && inter.mode === "skuffur"){ // the real stack: one Blum code per drawer, fronts sized from the codes
           var dcodes = drawerCodes(inter, state.drawerSystem), dbody = hM * 1000 - 100, dfr = stackFrontsMm(inter, dcodes, dbody);
           inter = Object.assign({}, inter, { codes:dcodes, count:dcodes.length, fractions:dfr ? frontsToFractions(dfr, dbody) : null });
@@ -3137,7 +3160,8 @@
         addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, applMat || carcassMat, applMat || frontMat, inter,
           { islandId:islandId, locked:!!b.locked || !!opts.xray, suppressBadge:!!opts.xray, slabFronts:jeyOn, corner:c.cls === "corner", doorSide:b.swing === "vinstri" ? "left" : "right", hingeRight:b.swing === "haegri", shelves:(c.hasInterior || c.shelfRange) && !(b.interior && b.interior.mode === "skuffur") ? (shelvesOf(b) || 0) : 0,
             openMat:openMat, hiddenMat:hiddenMat, drawerSystem:state.drawerSystem, carcassKey:state.carcass,
-            warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), heightMm:hM * 1000, elevMm:0, handle:c.appliance ? null : state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0.55,
+            warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), heightMm:hM * 1000, elevMm:0, handle:c.appliance ? null : state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0, // tall units: one door unless split in Smíða (2026-10-09)
+            splitFr:c.oven || c.fridge || c.fixedFronts ? null : splitFractions(b, hM * 1000 - (c.panel || c.appliance ? 0 : 100)),
             plinth:!c.panel && !c.appliance, appliance:c.appliance || null, leMans:!!c.tofrahornIds, counter:!!c.counter, sink:!!c.sink, oven:!!c.oven, panel:!!c.panel, plinthMat:plinthMat, stoneMat:stoneMat,
             ovenCodes:c.lowOven ? ["M"] : c.oven ? ovenCodesOf(b, state.drawerSystem) : null, fixedFronts:!!c.fixedFronts || !!c.appliance,
             burCodes:c.bur ? burCodesOf(b, state.drawerSystem) : null, dishwasher:!!c.dishwasher,
@@ -3159,7 +3183,7 @@
         var selected = opts.selectedId === b.id;
         var elevM = elevOf(b) / 1000;
         var metaBase = { locked:!!b.locked || !!opts.xray, suppressBadge:!!opts.xray, slabFronts:jeyOn, drawerSystem:state.drawerSystem, carcassKey:state.carcass, warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"wall", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d),
-          heightMm:hM * 1000, elevMm:elevM * 1000, handle:state.handle };
+          heightMm:hM * 1000, elevMm:elevM * 1000, handle:state.handle, splitFr:c.open ? null : splitFractions(b, hM * 1000) };
         if (c.shelfStack){ // 1–5 boards of 38 mm above each other: one pickable box per board, all sharing the block id
           var n = Math.max(1, Math.min(SHELF_STACK_MAX, b.count || 3)), gap = b.vgapMm != null ? b.vgapMm : SHELF_GAP_DEFAULT;
           for (var k = 0; k < n; k++){
@@ -4417,14 +4441,14 @@
     renderShot: renderShot,
     setAllParts: setAllParts,
     DRAWER_CODES: DRAWER_CODES,
-    FRONT_MIN: FRONT_MIN,
+    FRONT_MIN: FRONT_MIN, slotMin: slotMin,
     drawerCodes: drawerCodes,
     drawerFrontsMm: drawerFrontsMm, stackFrontsMm: stackFrontsMm, resizeFront: resizeFront,
     drawerComboKey: drawerComboKey,
     ovenCodesOf: ovenCodesOf, ovenZoneMm: ovenZoneMm, setMood: setMood,
     OVEN_DEFAULT: OVEN_DEFAULT,
     modelsPending: modelsPending,
-    shelvesOf: shelvesOf,
+    shelvesOf: shelvesOf, burCodesOf: burCodesOf,
     hideDragPreview3D: hideDragPreview3D,
     teardown3D: teardown3D,
     _three: function(){ return THREE_STATE; },

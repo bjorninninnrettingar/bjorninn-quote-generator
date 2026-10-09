@@ -51,7 +51,7 @@
     if (/hlið/.test(p)) return "side";
     var dm = String(partur).match(/^(inn)?skúffufrontur\s+([NMKCFE])\b.*?(merivo|legra)/i);
     if (dm) return dm[1] ? "inner" : "drawer";
-    if (/^frontur/.test(p)) return "door";
+    if (/^(skiptur )?frontur/.test(p)) return "door"; // "Skiptur frontur 1/2/3" = a front split in Smíða
     if (/laus.*hill/.test(p)) return "looseShelf";
     if (/föst.*hill/.test(p)) return "fixedShelf";
     if (/bak$/.test(p) || / bak\b/.test(p)) return "back";
@@ -158,6 +158,9 @@
     //  - two identical fronts that don't fit on top of each other are the leaves of ONE opening (vænghurð);
     //  - a front taller than the space (wall cabinets with a lip below) → the opening is the side's space.
     var doors = expand(by.door, function (r) { return { H: num(r.H), partur: r.Partur }; });
+    // split fronts top → bottom by their number (Skiptur frontur 1 = top, as the designer writes Hæð frontur 1)
+    var splitNo = function (d) { var m = /skiptur frontur\s*(\d)/i.exec(d.partur); return m ? +m[1] : 0; };
+    if (doors.some(splitNo)) doors.sort(function (a, b) { return splitNo(a) - splitNo(b); });
     var fixedFronts = drawers.length ? doors.filter(function (d) { return d.H <= FIXED_FRONT_MAX; }) : [];
     doors = doors.filter(function (d) { return fixedFronts.indexOf(d) < 0; });
     fixedFronts.forEach(function (d) { op("FAST_FRAMSTYKKI", "Fast framstykki", r1(d.H) + ", LPX, 0, 0"); });
