@@ -1058,6 +1058,7 @@
     waterWall: null,    // wall id the water supply is on (sink is seeded there)
     waterAlongMm: null, // where along that wall (centre of the sink, mm from the wall start); null = middle
     seeded: false,      // sink already seeded once
+    base900: true,      // drawn with 900 base units (see load())
     islands: [], // {id, label, lengthMm, xMm, zMm, rot, two, a:[blocks], b:[blocks]} — free-standing cabinet runs
     walls: freshWalls() // {id,label,lengthMm,turnAfter, floor:[block], wall:[block]}
   };
@@ -1065,7 +1066,7 @@
   var islandSeq = 1;
   function freshState(step){
     return { step:step, intake:{delivery:null,budget:null,room:"Eldhús"}, carcass:null, drawerSystem:null, look:null, handle:null, top:null, floor:null,
-      roomHeightMm:DEFAULT_ROOM_HEIGHT_MM, wallColor:null, windows:[], doors:[], closed:false, waterWall:null, seeded:false, islands:[], walls:freshWalls() };
+      roomHeightMm:DEFAULT_ROOM_HEIGHT_MM, wallColor:null, windows:[], doors:[], closed:false, waterWall:null, seeded:false, base900:true, islands:[], walls:freshWalls() };
   }
 
   // A cabinet can never render/write taller than the room itself (Phase 7c) —
@@ -1169,6 +1170,14 @@
           seen.push(o);
         });
       });
+      // 2026-10-09: base units went 800 → 900 (800 box + 100 plinth), so a window on the old default
+      // 900 sill would sit behind the worktop: move those to the new default sill once.
+      if (!state.base900){
+        (state.windows || []).forEach(function(o){
+          if (o.sillHeightMm === 900 && WINDOW_DEFAULT.sillHeightMm + o.heightMm <= (state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM)) o.sillHeightMm = WINDOW_DEFAULT.sillHeightMm;
+        });
+        state.base900 = true;
+      }
       if (state.openingsDone === undefined) state.openingsDone = !!((state.windows || []).length || (state.doors || []).length || state.waterWall || state.step !== "shape");
       if (state.carcass === undefined) state.carcass = null;
       if (state.drawerSystem === undefined) state.drawerSystem = null;
@@ -4549,7 +4558,7 @@
 
   // ======================================================================
   // Materials as a wizard: one choice per page, with ONE big 3D base cabinet
-  // (600 × 800 × 600) that gains a level per page — carcass colour → drawer
+  // (600 × 900 × 600) that gains a level per page — carcass colour → drawer
   // system → fronts (the cabinet closes) → handles → worktop.
   // ======================================================================
   var MAT_PHASES = [

@@ -18,7 +18,9 @@
   var CATALOG = {
     // Every dimension is editable per cabinet (typed in the properties panel,
     // clamped to minW..maxW etc.); w/h/d here are just the starting size.
-    grunnskapur: { label:"Grunnskápur", zone:"floor", cls:"floor", defaultW:600, minW:200, maxW:1200, h:800,  d:600, minH:600,  maxH:1000, minD:300, maxD:700, hasInterior:true, drawerCountRange:[1,4], shelfRange:[0,4,1], counter:true },
+    // Floor-unit h INCLUDES the 100 mm plinth: base units are 900 = 800 box + 100 plinth (production size,
+    // 2026-10-09), so the worktop sits at ~932. Was 800 (700 box) until then.
+    grunnskapur: { label:"Grunnskápur", zone:"floor", cls:"floor", defaultW:600, minW:200, maxW:1200, h:900,  d:600, minH:600,  maxH:1100, minD:300, maxD:700, hasInterior:true, drawerCountRange:[1,4], shelfRange:[0,4,1], counter:true },
     harskapur:   { label:"Hárskápur",   zone:"floor", cls:"tall",  defaultW:600, minW:300, maxW:1200,  h:2400, d:600, minH:1800, maxH:2600, minD:300, maxD:700, hasInterior:true, drawerCountRange:[1,5], shelfRange:[0,8,5] },
     efriskapur:  { label:"Efriskápur",  zone:"wall",  cls:"wall",  defaultW:600, minW:200, maxW:1200, h:1000, d:300, minH:300,  maxH:1200, minD:200, maxD:450, hasInterior:false, shelfRange:[0,5,2] },
     // Built-in fridge: NOT its own Skápategund in the schema (Skápategund has
@@ -37,36 +39,36 @@
     ofnaskapur:  { label:"Ofnaskápur",  zone:"floor", cls:"oven",  defaultW:600, minW:600, maxW:600, h:2400, d:600, minH:1800, maxH:2600, minD:500, maxD:750, hasInterior:false, ovenHeightMm:595, oven:true },
     // ---- 2026-09-30: types that exist as real Útfærslur (see kitchen-planner-linemap.js) ----
     // Búrskápur: tall pantry, doors outside, a real drawer/shelf set inside (b.burCombo)
-    ofnaskapurLagur:{ label:"Ofnaskápur (í grunnskáp)", zone:"floor", cls:"floor", defaultW:600, minW:600, maxW:600, h:800, d:600, minH:750, maxH:950, minD:550, maxD:700, hasInterior:false, counter:true, oven:true, lowOven:true },
+    ofnaskapurLagur:{ label:"Ofnaskápur (í grunnskáp)", zone:"floor", cls:"floor", defaultW:600, minW:600, maxW:600, h:900, d:600, minH:850, maxH:1000, minD:550, maxD:700, hasInterior:false, counter:true, oven:true, lowOven:true },
     // Blint horn með hillum: the Töfrahorn's shape (door on one half, blind panel on the other) with plain shelves
-    hornskapur:  { label:"Hornskápur með hillum", zone:"floor", cls:"corner", defaultW:1200, minW:900, maxW:1500, h:800, d:600, minH:600, maxH:1000, minD:500, maxD:900, hasInterior:false, counter:true, shelfRange:[0, 3, 1], skapategundOverride:"Grunnskápur" },
+    hornskapur:  { label:"Hornskápur með hillum", zone:"floor", cls:"corner", defaultW:1200, minW:900, maxW:1500, h:900, d:600, minH:600, maxH:1100, minD:500, maxD:900, hasInterior:false, counter:true, shelfRange:[0, 3, 1], skapategundOverride:"Grunnskápur" },
     // Free-standing appliances (2026-10-05): a gap with the appliance drawn in, not ordered from Björninn
     isskapurFri: { label:"Frístandandi ísskápur", zone:"floor", cls:"tall", defaultW:600, minW:600, maxW:900, widths:[600, 700, 900], h:1850, d:650, minH:1700, maxH:2000, minD:600, maxD:750, hasInterior:false, appliance:"fridge", notOrdered:true },
-    uppthvottavelFri:{ label:"Uppþvottavél (frístandandi)", zone:"floor", cls:"floor", defaultW:600, minW:450, maxW:600, widths:[450, 600], h:800, d:600, minH:800, maxH:900, minD:550, maxD:700, hasInterior:false, counter:true, appliance:"dishwasher", notOrdered:true },
+    uppthvottavelFri:{ label:"Uppþvottavél (frístandandi)", zone:"floor", cls:"floor", defaultW:600, minW:450, maxW:600, widths:[450, 600], h:900, d:600, minH:800, maxH:950, minD:550, maxD:700, hasInterior:false, counter:true, appliance:"dishwasher", notOrdered:true },
     // (no longer offered — "nú erum við að gera eldhús", 2026-10-05; kept so older drafts still load)
-    thvottavelFri:{ label:"Þvottavél (frístandandi)", zone:"floor", cls:"floor", defaultW:600, minW:600, maxW:600, h:800, d:600, minH:800, maxH:900, minD:550, maxD:700, hasInterior:false, counter:true, appliance:"washer", notOrdered:true },
+    thvottavelFri:{ label:"Þvottavél (frístandandi)", zone:"floor", cls:"floor", defaultW:600, minW:600, maxW:600, h:900, d:600, minH:800, maxH:950, minD:550, maxD:700, hasInterior:false, counter:true, appliance:"washer", notOrdered:true },
     burskapur:   { label:"Búrskápur", zone:"floor", cls:"tall", defaultW:600, minW:300, maxW:1200, h:2400, d:600, minH:1800, maxH:2600, minD:400, maxD:700, hasInterior:false, bur:true },
     // Þvottavélaskápur: washer/dryer tower; b.thvo = "skuffa" (a drawer at the bottom to raise the machine) | "hurdir" (doors only)
     thvottavel:  { label:"Þvottavélaskápur", zone:"floor", cls:"tall", defaultW:600, minW:600, maxW:900, h:2400, d:600, minH:1800, maxH:2600, minD:600, maxD:750, hasInterior:false, thvo:true, fixedFronts:true },
     // Uppþvottavél: integrated dishwasher behind one full front (V1 = the front itself)
-    uppthvottavel:{ label:"Uppþvottavél", zone:"floor", cls:"floor", defaultW:600, minW:450, maxW:600, h:800, d:600, minH:750, maxH:900, minD:550, maxD:700, hasInterior:false, counter:true, dishwasher:true },
+    uppthvottavel:{ label:"Uppþvottavél", zone:"floor", cls:"floor", defaultW:600, minW:450, maxW:600, h:900, d:600, minH:850, maxH:1000, minD:550, maxD:700, hasInterior:false, counter:true, dishwasher:true },
     // Ruslaskápur: one tall pull-out with bins (RUSL60 / RUSL80)
-    ruslaskapur: { label:"Ruslaskápur", zone:"floor", cls:"floor", defaultW:600, minW:600, maxW:800, h:800, d:600, minH:600, maxH:1000, minD:500, maxD:700, hasInterior:false, counter:true, rusl:true },
+    ruslaskapur: { label:"Ruslaskápur", zone:"floor", cls:"floor", defaultW:600, minW:600, maxW:800, h:900, d:600, minH:600, maxH:1100, minD:500, maxD:700, hasInterior:false, counter:true, rusl:true },
     // Lítill kassi: a low box (benches, window seats, TV units) — no worktop by default
     litillkassi: { label:"Lítill kassi", zone:"floor", cls:"floor", defaultW:600, minW:200, maxW:1200, h:500, d:600, minH:300, maxH:700, minD:300, maxD:700, hasInterior:true, drawerCountRange:[1,4], shelfRange:[0,2,1] },
     // Hár veggskápur: a shallower tall unit (500 deep, 2000 high)
     harveggskapur:{ label:"Hár veggskápur", zone:"floor", cls:"tall", defaultW:600, minW:300, maxW:1200, h:2000, d:500, minH:1500, maxH:2600, minD:300, maxD:600, hasInterior:true, drawerCountRange:[1,4], shelfRange:[0,6,4] },
-    tofrahorn:   { label:"Töfrahorn (kapphorn)", zone:"floor", cls:"corner", defaultW:1200, minW:900, maxW:1500, h:800, d:600, minH:600, maxH:1000, minD:500, maxD:900, hasInterior:false, counter:true,
+    tofrahorn:   { label:"Töfrahorn (kapphorn)", zone:"floor", cls:"corner", defaultW:1200, minW:900, maxW:1500, h:900, d:600, minH:600, maxH:1100, minD:500, maxD:900, hasInterior:false, counter:true,
                    skapategundOverride:"Grunnskápur",
                    // Útfærslur "Le mans Töfrahorn" by door half (b.swing) × carcass colour — no light grey exists
                    tofrahornIds:{ haegri:{ dokkgra:"rec7qJxtUZFofq7CW", hvit:"recrLoaCJMoB0LGo4" }, vinstri:{ dokkgra:"recAxPR5s5jKnktRm", hvit:"recdfMCuUnPyRV8rV" } } },
-    vaskaskapur: { label:"Vaskaskápur", zone:"floor", cls:"floor", defaultW:800, minW:500, maxW:1500, h:800, d:600, minH:600, maxH:1000, minD:400, maxD:750, hasInterior:false, counter:true, sink:true,
+    vaskaskapur: { label:"Vaskaskápur", zone:"floor", cls:"floor", defaultW:800, minW:500, maxW:1500, h:900, d:600, minH:600, maxH:1100, minD:400, maxD:750, hasInterior:false, counter:true, sink:true,
                    skapategundOverride:"Grunnskápur", note:"Vaskaskápur — útskurður fyrir vask og lagnir; vinsamlegast staðfestu vaskstærð og gerð." },
     opnarhillur: { label:"Opnar hillur", zone:"wall", cls:"wall", defaultW:600, minW:200, maxW:1200, h:700, d:300, minH:200, maxH:1200, minD:200, maxD:450, hasInterior:false, open:true, shelfRange:[1,5,3],
                    skapategundOverride:"Efriskápur", note:"Opnar hillur — engin hurð; viðskiptavinur óskar eftir opnum hillum." },
     // Úthlið (end panel): 19 mm thick, same material as the fronts. Placed at
     // the end of a run it copies height/depth from the cabinet it butts up to.
-    uthlid:      { label:"Úthlið — neðri", zone:"floor", cls:"floor", defaultW:19, minW:19, maxW:19, h:800, d:600, minH:300, maxH:1000, minD:100, maxD:750, hasInterior:false, panel:true, counter:true, // the worktop runs on over it
+    uthlid:      { label:"Úthlið — neðri", zone:"floor", cls:"floor", defaultW:19, minW:19, maxW:19, h:900, d:600, minH:300, maxH:1100, minD:100, maxD:750, hasInterior:false, panel:true, counter:true, // the worktop runs on over it
                    skapategundOverride:"Grunnskápur", note:"Úthlið, 19 mm þykk, sama efni og framhliðar (stendur við enda á skápalínu).",
                    // Útfærslur "Úthliðar" (V1): UHGR, or UHLK beside a lítill kassi (≤ 600 mm high)
                    panelIds:[{ maxH:600, utfaerslaId:"recEpLxCpHtbBHRkV" }, { utfaerslaId:"recUKqD3UKKWQ8J7g" }] },
@@ -462,7 +464,7 @@
   // against cabinets on the same wall; real-world conflicts (a window where
   // a cabinet was about to go) are exactly the kind of judgment call left
   // for Rakel's review, not something this tool tries to solve.
-  var WINDOW_DEFAULT = { widthMm:1200, heightMm:1000, sillHeightMm:900 };
+  var WINDOW_DEFAULT = { widthMm:1200, heightMm:1000, sillHeightMm:1000 }; // sill clears the worktop (base units 900 + 32 mm top)
   var DOOR_DEFAULT = { widthMm:800, heightMm:2000 };
   var GAP_DEFAULT = { widthMm:900, heightMm:2100 }; // a plain opening in the wall (no door)
 
@@ -3442,7 +3444,7 @@
   }
 
   // ============================================================
-  // Materials wizard: ONE 600 × 800 × 600 base cabinet you can spin around.
+  // Materials wizard: ONE 600 × 900 × 600 base cabinet you can spin around.
   // Each wizard page adds a level: carcass colour (open box) → drawer system
   // (drawer boxes inside) → front material (the cabinet closes) → handles →
   // worktop. cfg = {carcass, drawer, look, handle, top, showDrawers, showFronts,
@@ -3523,7 +3525,7 @@
     if (PREVIEW.group){ PREVIEW.scene.remove(PREVIEW.group); disposeScene(PREVIEW.group); }
     var group = new THREE.Group();
     PREVIEW.group = group;
-    var W = 0.6, H = 0.8, PL = 0.1, D = 0.6, CD = D - FRONT_T, T = 0.018, BODY = H - PL;
+    var W = 0.6, H = 0.9, PL = 0.1, D = 0.6, CD = D - FRONT_T, T = 0.018, BODY = H - PL;
     var carc = cfg.carcass && CARCASS[cfg.carcass];
     var carcassMat = new THREE.MeshStandardMaterial({ color:carc ? carc.color3d : "#cdc8bd", roughness:0.9 });
     var look = cfg.look && LOOKS[cfg.look];
