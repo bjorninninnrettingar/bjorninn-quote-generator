@@ -6913,16 +6913,26 @@
   function smidaFor(b, c, zone){
     var h = proBodyMm(b, c, zone), d = b.depthMm || c.d;
     var o = c.panel ? { v:1, w:d, h:h, d:19 } : { v:1, w:b.widthMm, h:h, d:d };
-    var codes = null, fronts = null;
-    if (isDrawerUnit(b)){ codes = KP3D.drawerCodes(b.interior, drawerSys()); fronts = KP3D.stackFrontsMm(b.interior, codes, drawerBodyMm(b, c)); }
-    else if (c.lowOven){ codes = ["M"]; fronts = [Math.max(50, h - 595 - 3)]; } // same zone the 3D draws under OFN6
-    else if (c.oven){ codes = KP3D.ovenCodesOf(b, state.drawerSystem);
-      fronts = codes.length ? KP3D.stackFrontsMm({ frontsMm:b.ovenFrontsMm }, codes, KP3D.ovenZoneMm(codes)) : null; }
-    if (codes && codes.length && fronts && fronts.length === codes.length)
-      o.fronts = codes.map(function(cd, i){ return { code:sinkFixedTop(b, c) && i === codes.length - 1 ? "fast" : cd, mm:Math.round(fronts[i]) }; });
+    // fronts[].mm = the drawer's SLOT = its "Sérhæð" on the Eyðublað: ÚRVINNSLA cuts each front 3 mm shorter
+    // than its slot and the slots fill the space exactly (T-56: 2 × 400 in an 800 body → fronts 397). The designer
+    // draws fronts with 3 mm between them and none above the top one, so each slot = front + 3 and the top slot
+    // takes what's left — production then matches the drawing, the top front 3 mm lower (like a door: 800 → 797).
+    // (Before 2026-10-09 the drawn front went straight into Sérhæð and every front came out 3 mm short.)
+    var codes = null, fronts = null, space = 0;
+    if (isDrawerUnit(b)){ codes = KP3D.drawerCodes(b.interior, drawerSys()); space = drawerBodyMm(b, c); fronts = KP3D.stackFrontsMm(b.interior, codes, space); }
+    else if (c.lowOven){ codes = ["M"]; space = Math.max(53, h - 595); fronts = [space - 3]; } // same zone the 3D draws under OFN6
+    else if (c.oven){ codes = KP3D.ovenCodesOf(b, state.drawerSystem); space = KP3D.ovenZoneMm(codes);
+      fronts = codes.length ? KP3D.stackFrontsMm({ frontsMm:b.ovenFrontsMm }, codes, space) : null; }
+    if (codes && codes.length && fronts && fronts.length === codes.length){
+      var below = 0;
+      o.fronts = codes.map(function(cd, i){
+        var slot = i < codes.length - 1 ? Math.round(fronts[i]) + 3 : Math.round(space) - below; below += slot;
+        return { code:sinkFixedTop(b, c) && i === codes.length - 1 ? "fast" : cd, mm:slot };
+      });
+    }
     if (c.sink && isDrawerUnit(b)) o.sink = { depth:SINK_DEPTH_MM, top:sinkFixedTop(b, c) ? "fastur" : "skuffa", bins:"bottom" };
     if (c.oven) o.oven = { h:c.ovenHeightMm || 595,
-      under:c.lowOven ? o.fronts[0].mm : KP3D.ovenZoneMm(KP3D.ovenCodesOf(b, state.drawerSystem)) };
+      under:c.lowOven ? o.fronts[0].mm : KP3D.ovenZoneMm(KP3D.ovenCodesOf(b, state.drawerSystem)) }; // = Σ slots
     if (c.shelfStack) o.shelves = { loose:b.count || 1 };
     else if (!isDrawerUnit(b) && !c.oven && KP3D.shelvesOf(b) != null) o.shelves = { loose:KP3D.shelvesOf(b) };
     var doors = proDoorsOf(b, c, zone);
