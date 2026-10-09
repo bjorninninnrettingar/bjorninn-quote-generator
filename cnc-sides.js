@@ -142,7 +142,9 @@
     var y = 0, runners = [], drawerTop = 0;
     drawers.forEach(function (d, i) {
       var below = r1(y - BOX_GAP);
-      if (d.sys === "merivo") op("MERIVOBOX_V2", "Skúffa " + d.code, below + ", 0, 0, 0, 0, 0, " + d.H + ", " + d.code);
+      // bottom Merivo drawer: runner at 80 (user, 2026-10-09): V2 puts it at 1.5 + 80 + slot, so slot −1.5
+      // (the old −3 gave 78.5, copied from the T-56 hand files)
+      if (d.sys === "merivo") op("MERIVOBOX_V2", "Skúffa " + d.code, (i === 0 ? -1.5 : below) + ", 0, 0, 0, 0, 0, " + d.H + ", " + d.code);
       else if (i === 0) op("LEGRABOX_NEDSTA_SKUFFA", "Skúffa " + d.code, d.H + ", " + d.code);
       else op("LEGRABOX_SKUFFA", "Skúffa " + d.code, below + ", 0, 0, 0, 0, 0, " + d.H + ", " + d.code);
       runners.push(r1(y + (d.sys === "merivo" ? 80 : 62.5)));

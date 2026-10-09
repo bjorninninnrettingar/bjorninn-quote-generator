@@ -6718,6 +6718,13 @@
   // ends and stored on the block (b.smida); "Vista í Airtable" sends them per Sk number as Smíðagögn, which
   // Keyra skipulag copies to the Eyðublað and /cnc drills (cnc-sides.js — the same hinge function as here).
   var PRO_FIELD = "Sjálfsafgreiðsla skipulag (JSON) 📐";
+  // Front-fixing holes of a drawer front (Ø10), exactly as the shop's GLOBAL front macros drill them — every
+  // drawer front is drilled like a bottom drawer (user, 2026-10-09). [from each side, from the bottom] in mm.
+  var FRONT_HOLES = {
+    merivo: { base:[35.5, 58, "K_M_NEDSTI_FRONTUR_MERIVO"], E:[35.5, 218, "E_NEDSTI_FRONTUR_MERIVO"] },
+    legra:  { base:[28.5, 75.5, "K_M_NEDSTI_FRONTUR_LEGRABOX"], C:[29, 203.5, "C_NEDSTI_FRONTUR_LEGRA"], F:[29, 235.5, "F_NEDSTA_SKUFFA_LEGRABOX"] }
+  };
+  function frontHoles(code){ var H = FRONT_HOLES[drawerSys()]; return [H.base].concat(H[code] ? [H[code]] : []); }
   function proBodyMm(b, c, zone){ var h = blockHeightMm(b, c); return zone === "floor" && !c.panel && !c.appliance ? h - 100 : h; }
   // The door openings of a cabinet, top → bottom, as the 3D draws them (wide units: two leaves = one opening).
   function proDoorsOf(b, c, zone){
@@ -6779,6 +6786,11 @@
         var yb = Y0 + body * S - acc * S, yt = yb - h * S, sh = Math.min(h - 6, sides[codes[i]] || 0) * S;
         svg += '<rect x="' + (X0 + 3) + '" y="' + yt + '" width="' + (W - 6) + '" height="' + h * S + '" fill="#e9eef5" stroke="#9aa5b1" rx="2"/>' +
           (sh > 0 ? '<rect x="' + (X0 + 14) + '" y="' + (yb - 15 * S - sh) + '" width="' + (W - 28) + '" height="' + sh + '" fill="none" stroke="#c07a1f" stroke-dasharray="4 3"/>' : '') +
+          frontHoles(codes[i]).map(function(hh){ // the real front holes, both sides
+            var sx = (W - 6) / b.widthMm, cy = yb - hh[1] * S, r = Math.max(2.2, 5 * S), tip = '<title>Ø10 · ' + hh[0] + ' frá hlið · ' + hh[1] + ' frá botni fronts (' + hh[2] + ')</title>';
+            return hh[1] < h ? '<circle cx="' + (X0 + 3 + hh[0] * sx) + '" cy="' + cy + '" r="' + r + '" fill="#d23c3c">' + tip + '</circle>' +
+              '<circle cx="' + (X0 + W - 3 - hh[0] * sx) + '" cy="' + cy + '" r="' + r + '" fill="#d23c3c">' + tip + '</circle>' : '';
+          }).join("") +
           '<text x="' + (X0 + W / 2) + '" y="' + (yt + h * S / 2 + 4) + '" text-anchor="middle" font-size="12" fill="#3b4652">' + codes[i] + " · " + Math.round(h) +
           (sides[codes[i]] ? ' / hlið ' + Math.round(sides[codes[i]]) : '') + '</text>';
         acc += h + 3;
@@ -6833,7 +6845,9 @@
     });
     if (dr || (c.oven && !c.lowOven)) right += '<div class="pe-door"><h4>' + (dr ? "Skúffur" : "Undir ofninum") + '</h4><div id="peInterior">' +
       (dr ? hardwareHTML(b, c, { sides:true }) : variantHTML(b, c, { sides:true })) + '</div>' +
-      '<div class="pe-note">Sláðu inn frontahæð, dragðu bláu skilin á teikningunni eða ⠿ til að færa skúffu. Strikaða línan er Blum-hliðin (hlið = hæð hennar).</div></div>';
+      '<div class="pe-note">Sláðu inn frontahæð, dragðu bláu skilin á teikningunni eða ⠿ til að færa skúffu. Strikaða línan er Blum-hliðin (hlið = hæð hennar; staðsetningin er nálgun). ' +
+      'Rauðu götin eru festigötin eins og global front-makróin bora þau — öll skúffufront eins og neðsta skúffa: ' +
+      (drawerSys() === "merivo" ? '35,5 frá hlið, 58 frá botni (+ 218 á E).' : '28,5 frá hlið, 75,5 frá botni (+ 203,5 á C, 235,5 á F).') + '</div></div>';
     right += '<div class="pe-note">Lamir eru mældar frá enda hurðarinnar (80 mm sjálfgefið + jafnt á milli). Sama regla og /cnc notar.</div>';
     el.innerHTML = '<div class="pe-card"><div>' + svg + '</div><div>' + right + '</div></div>';
     var peInt = el.querySelector("#peInterior");

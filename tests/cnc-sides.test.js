@@ -32,7 +32,7 @@ test("base cabinet = the shop's own T-56 program, inner drawer included (32 mm u
   assert.deepEqual(ops(p), [
     'TOPP_BOTN: Bora_I_Gegn, LPZ, 1, "1,4"',
     'SLA_HLID: LPZ, bora_i_gegn, lpz+1, 0, "1,4"',
-    "MERIVOBOX_V2: -3, 0, 0, 0, 0, 0, 397, E",
+    "MERIVOBOX_V2: -1.5, 0, 0, 0, 0, 0, 397, E",     // bottom runner at 80 (the hand file has -3 = 78.5; user: 80 is right)
     "MERIVOBOX_V2: 397, 0, 0, 0, 0, 0, 397, K",       // the hand file has "400-3"
     "MERVIBOX_INNSKUFFA: 106, 700, M",                // = the hand file: 800 − 16 − 32 = 752 top of front → 752 − 106 + 54
   ]);
@@ -90,7 +90,7 @@ test("grip: drawer slots = cut front + grip strip; inner drawer in the tallest z
   const rows = [row("Grunnskápur hlið", 800, 580, 16, 2), row("Skúffufrontur E - Merivo", 540, 597, 19, 1),
     row("Skúffufrontur M - Merivo", 200, 597, 19, 1), row("Innskúffufrontur K - Merivo Skrokkaefni", 144, 562, 16, 1)];
   const o = ops(S.unitPlan("Sk 2", rows, { gripMm: 27 }));
-  assert.ok(o.includes("MERIVOBOX_V2: -3, 0, 0, 0, 0, 0, 567, E"));
+  assert.ok(o.includes("MERIVOBOX_V2: -1.5, 0, 0, 0, 0, 0, 567, E"));
   assert.ok(o.includes("MERIVOBOX_V2: 567, 0, 0, 0, 0, 0, 227, M"));
   assert.ok(o.includes("MERVIBOX_INNSKUFFA: 144, 448, K"));   // hand file: 447
 });
