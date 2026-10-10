@@ -61,21 +61,27 @@
   // Hinge centres on a door/box of length `len` (mm from the bottom end): 80 from each end + middle ones by the
   // Eyðublað rule (≤1000: 2, ≤1500: 3, ≤2000: 4, else 5), middle ones moved just below anything they'd hit
   // (`avoid` = positions within the same span, e.g. shelf rows or drawer runners). Returns { at:[…], moved:[…], blocked:[…] }.
+  // A hinge plate needs HINGE_CLEAR mm from a shelf hole / fixed shelf / runner row (same line, 37 mm from the front).
+  // A middle hinge that would hit one moves to the nearest clear spot (down first, then up, 5 mm steps, ≤ 250 mm).
+  var HINGE_CLEAR = 30;
   function hingePositions(len, avoid) {
     var n = len <= 1000 ? 2 : len <= 1500 ? 3 : len <= 2000 ? 4 : 5;
     var at = [HINGE_END, len - HINGE_END], moved = [], blocked = [];
+    function clear(q) { return !(avoid || []).some(function (a) { return Math.abs(a - q) < HINGE_CLEAR; }); }
     for (var i = 1; i < n - 1; i++) {
       var p = r1(HINGE_END + (len - 2 * HINGE_END) * i / (n - 1));
-      var hit = (avoid || []).filter(function (a) { return Math.abs(a - p) < 50; });
-      if (hit.length) {
-        var q = r1(Math.min.apply(null, hit) - 50);
-        var still = (avoid || []).some(function (a) { return Math.abs(a - q) < 50; });
-        if (still || q < HINGE_END + 100) blocked.push(p); else { moved.push(p + "→" + q); p = q; }
+      if (!clear(p)) {
+        var q = null;
+        for (var d = 5; d <= 250 && q == null; d += 5) {
+          [p - d, p + d].forEach(function (c) { if (q == null && c >= HINGE_END + 100 && c <= len - HINGE_END - 100 && clear(c)) q = r1(c); });
+        }
+        if (q == null) blocked.push(p); else { moved.push(p + "→" + q); p = q; }
       }
       at.push(p);
     }
     return { at: at.sort(function (a, b) { return a - b; }), moved: moved, blocked: blocked };
   }
+
   function frontHinges(len, avoid) { // the same positions as seen from the front (79 instead of 80)
     var h = hingePositions(len, avoid);
     return h.at.map(function (x) { return x < len / 2 ? x - HINGE_FRONT_OFFSET : x + HINGE_FRONT_OFFSET; });
@@ -92,8 +98,8 @@
     if (typeof v === "object") return v;
     try { var o = JSON.parse(String(v)); return o && o.v === 1 ? o : null; } catch (e) { return null; }
   }
-  function defaultHingeSpec(boxLen) {
-    return hingePositions(boxLen).at.map(function (x) { return x <= boxLen / 2 ? { from: "bottom", mm: r1(x) } : { from: "top", mm: r1(boxLen - x) }; });
+  function defaultHingeSpec(boxLen, avoid) { // avoid = shelf rows etc. measured from the door's bottom (the designer passes them)
+    return hingePositions(boxLen, avoid).at.map(function (x) { return x <= boxLen / 2 ? { from: "bottom", mm: r1(x) } : { from: "top", mm: r1(boxLen - x) }; });
   }
   function specToPositions(spec, boxLen) {
     return (spec || []).map(function (h) { return r1(h.from === "top" ? boxLen - h.mm : h.mm); }).sort(function (a, b) { return a - b; });
@@ -196,23 +202,38 @@
     // shelves above, fixed = FOST_HILLA at its top face, loose = LAUS_HILLA with `pos` holes 50 apart, the middle
     // one under the shelf. mm are from the bottom of the side, like everything here.
     var so = (parseSmida(opts.smida) || {}).oven, shelfRows = [], ovenDone = false;
+    // fixed = FOST_HILLA at its top face; loose = LAUS_HILLA with `pos` holes 50 apart, the middle one under the shelf.
+    // Board thickness from Sögunarlisti's own shelf row when there is one. Counts are compared with Sögunarlisti.
+    function emitShelves(list, above, noCount) {
+      var tF = num(((by.fixedShelf || [])[0] || {})["Þ"]) || OVEN_BOARD, tL = num(((by.looseShelf || [])[0] || {})["Þ"]) || OVEN_BOARD;
+      var sl = (list || []).filter(function (x) { return num(x.mm) > above && num(x.mm) < H; });
+      sl.forEach(function (x) {
+        var mm = r1(num(x.mm));
+        if (x.fixed) { op("FOST_HILLA", "Föst hilla", tF + ", " + mm + ", 2, lpy-22, lpz+5"); shelfRows.push(r1(mm - tF / 2)); return; }
+        var n = Math.max(1, Math.min(9, Math.round(num(x.pos) || 3))), mid = r1(mm - tL), first = r1(mid - Math.floor((n - 1) / 2) * 50);
+        op("LAUS_HILLA", "Laus hilla (" + n + " stillingar)", first + ", " + n + ", 37, 20+60, 50");
+        for (var k = 0; k < n; k++) shelfRows.push(r1(first + k * 50));
+      });
+      if (!noCount) {
+        var nL = sl.filter(function (x) { return !x.fixed; }).length, nF = sl.length - nL;
+        var rL = expand(by.looseShelf, function (r) { return r; }).length, rF = expand(by.fixedShelf, function (r) { return r; }).length;
+        if (nL !== rL) check.push("Lausar hillur: " + nL + " í hönnuði, " + rL + " í Sögunarlista — keyra skipulag/per unit aftur?");
+        if (nF !== rF) check.push("Fastar hillur: " + nF + " í hönnuði, " + rF + " í Sögunarlista — keyra skipulag/per unit aftur?");
+      }
+      return sl;
+    }
     if (oven && so && num(so.under) > 0 && num(so.h) > 0) {
       var nb = r1(num(so.under)), nt = r1(nb + num(so.h) + OVEN_BOARD);
       op("FOST_HILLA", "Loftunarbotn (ofn stendur á)", OVEN_BOARD + ", " + nb + ", 2, lpy-22, lpz+5"); shelfRows.push(nb);
       if (nt <= H - T) { op("FOST_HILLA", "Loftunartoppur", OVEN_BOARD + ", " + nt + ", 2, lpy-22, lpz+5"); shelfRows.push(nt); }
       var hasShelves = Array.isArray(so.shelves); // older Smíðagögn: niche only, shelves spread by default below
-      var sl = (hasShelves ? so.shelves : []).filter(function (x) { return num(x.mm) > nt && num(x.mm) < H; });
-      sl.forEach(function (x) {
-        var mm = r1(num(x.mm));
-        if (x.fixed) { op("FOST_HILLA", "Föst hilla", OVEN_BOARD + ", " + mm + ", 2, lpy-22, lpz+5"); shelfRows.push(mm); return; }
-        var n = Math.max(1, Math.min(9, Math.round(num(x.pos) || 3))), mid = r1(mm - OVEN_BOARD), first = r1(mid - Math.floor((n - 1) / 2) * 50);
-        op("LAUS_HILLA", "Laus hilla (" + n + " stillingar)", first + ", " + n + ", 37, 20+60, 50"); shelfRows.push(mid);
-      });
-      var nLoose = sl.filter(function (x) { return !x.fixed; }).length, rowsLoose = expand(by.looseShelf, function (r) { return r; }).length;
-      if (hasShelves && nLoose !== rowsLoose) check.push("Lausar hillur: " + nLoose + " í hönnuði, " + rowsLoose + " í Sögunarlista — keyra skipulag/per unit aftur?");
+      var sl = emitShelves(hasShelves ? so.shelves : [], nt, !hasShelves);
       info.push("Ofn úr hönnuði: " + num(so.h) + " mm, " + nb + " undir, " + sl.length + " hillur fyrir ofan");
       ovenDone = hasShelves;
     } else if (oven) check.push("Ofnaskápur: föstu hillurnar og ofninn bíða hönnuðar — settu þær inn eftir teikningu");
+    // any other cabinet: the shelves where they're drawn in Smíða (Smíðagögn shelves.list, 2026-10-10)
+    var sms = parseSmida(opts.smida) || {};
+    if (!oven && sms.shelves && Array.isArray(sms.shelves.list)) { emitShelves(sms.shelves.list, 0, !!(sms.shelves.loose == null && sms.shelves.fixed == null)); ovenDone = true; }
 
     // Loose shelves: one row of 3 holes each, spread evenly over the door space (default — per drawing).
     var loose = ovenDone ? 0 : expand(by.looseShelf, function (r) { return r; }).length;
@@ -222,7 +243,7 @@
       check.push("Lausar hillur (" + loose + "): sjálfgefin staðsetning — breyttu eftir teikningu ef þarf");
     }
     var fixed = expand(by.fixedShelf, function (r) { return r; }).length;
-    if (fixed && !oven) check.push("Föst hilla (" + fixed + ") — staðsetning ekki í gögnum, settu inn eftir teikningu");
+    if (fixed && !oven && !ovenDone) check.push("Föst hilla (" + fixed + ") — staðsetning ekki í gögnum, settu inn eftir teikningu");
 
     // Inner drawers (user 2026-10-08): on the cabinet sides like any runner, 32 mm back, hidden behind the front
     // of the drawer whose zone it sits in — the tallest drawer zone (tie → the top one); its front top 32 mm under
@@ -272,7 +293,7 @@
       var at;
       if (mine && mine.hinges && mine.hinges.length) {
         at = specToPositions(mine.hinges, len);
-        at.forEach(function (p) { if (avoid.some(function (a) { return Math.abs(a - p) < 40; })) check.push("Löm við " + p + " (hönnuður) er nálægt hillu/skúffu — athuga"); });
+        at.forEach(function (p) { if (avoid.some(function (a) { return Math.abs(a - p) < HINGE_CLEAR; })) check.push("Löm við " + p + " (hönnuður) er nálægt hillu/skúffu — athuga"); });
       } else {
         var h = hingePositions(len, avoid); at = h.at; defaulted = true;
         h.moved.forEach(function (m) { check.push("Löm færð frá hillu/skúffu: " + m + " (frá neðri brún hurðar)"); });

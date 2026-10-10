@@ -391,6 +391,34 @@
     var lo = ovenUnderOf(b, sysKey, bodyMm) + ovenHOf(b) + OVEN_BOARD_MM;
     return { lo:lo, hi:bodyMm - OVEN_BOARD_MM };
   }
+  // Shelves behind the doors of any cabinet (Smíða, 2026-10-10): b.shelfPos = [{mm, fixed, pos}], same meaning as
+  // the oven's. Default = shelvesOf(b) loose shelves spread evenly (as the 3D always drew them), 3 positions each;
+  // a búrskápur's 2 shelves sit above its inner drawers. The oven keeps its own list (ovenShelvesOf).
+  function burTopMm(b, sysKey){ // top of a búrskápur's inner drawer stack, as the 3D builds it (30 mm up, front + 20, 35 apart)
+    var sys = DRAWER_CODES[sysKey === "merivo" ? "merivo" : "legra"], y = 30;
+    burCodesOf(b, sysKey).forEach(function(code){ y += ((sys && sys.side[code]) || 120) + 20 + 35; });
+    return y;
+  }
+  function hasShelfLayout(b){ var c = CATALOG[b.type]; return !!c && !c.oven && !c.open && !(b.interior && b.interior.mode === "skuffur") && (!!c.bur || shelvesOf(b) != null); }
+  function shelfSpaceMm(b, bodyMm, sysKey){
+    var c = CATALOG[b.type];
+    if (c && c.oven) return ovenUpperMm(b, sysKey, bodyMm);
+    return { lo:c && c.bur ? burTopMm(b, sysKey) : OVEN_BOARD_MM, hi:bodyMm - OVEN_BOARD_MM };
+  }
+  function shelfLayoutOf(b, bodyMm, sysKey){
+    var c = CATALOG[b.type];
+    if (!c) return [];
+    if (c.oven) return c.lowOven ? [] : ovenShelvesOf(b, sysKey, bodyMm);
+    if (!hasShelfLayout(b)) return [];
+    var r = shelfSpaceMm(b, bodyMm, sysKey);
+    if (Array.isArray(b.shelfPos)) return b.shelfPos
+      .filter(function(x){ return x && x.mm > r.lo + OVEN_BOARD_MM && x.mm < r.hi - 10; })
+      .map(function(x){ return { mm:Math.round(x.mm), fixed:!!x.fixed, pos:x.fixed ? 1 : Math.max(1, Math.min(9, Math.round(x.pos) || 3)) }; })
+      .sort(function(a, z){ return a.mm - z.mm; });
+    var n = c.bur ? 2 : (shelvesOf(b) || 0), out = [];
+    for (var k = 1; k <= n; k++) out.push({ mm:Math.round(c.bur ? r.lo + (r.hi - r.lo) * k / 3 : bodyMm * k / (n + 1) + 9), fixed:false, pos:3 });
+    return out;
+  }
   // the shelves above the oven, bottom → top; default = 2 loose vent shelves at thirds, 3 positions each
   function ovenShelvesOf(b, sysKey, bodyMm){
     var r = ovenUpperMm(b, sysKey, bodyMm);
@@ -1912,13 +1940,16 @@
     frame.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(geom.axis.x, 0, geom.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(geom.normal.x, 0, geom.normal.z)));
     group.add(frame);
     var drawers = interior && interior.mode === "skuffur" ? interior.count : 0;
-    var nShelves = drawers ? 0 : (meta.shelves || 0);
-    for (var sh = 1; sh <= nShelves; sh++){
+    // shelves where Rakel put them in Smíða (or spread evenly); the oven and the búrskápur draw their own below
+    var shelfList = drawers || meta.oven || (meta.burCodes && meta.burCodes.length) ? [] :
+      meta.shelfBlock && hasShelfLayout(meta.shelfBlock) ? shelfLayoutOf(meta.shelfBlock, bodyH * 1000, meta.drawerSystem) :
+      (function(n){ var o = []; for (var k = 1; k <= n; k++) o.push({ mm:bodyH * 1000 * k / (n + 1) + 9 }); return o; })(meta.shelves || 0);
+    shelfList.forEach(function(shf){
       var board = new THREE.Mesh(new THREE.BoxGeometry(widthM - 2 * CARCASS_T - 0.001, 0.018, CD - 0.03), meta.openMat); // shelves reach the sides
-      board.position.set(0, bodyBase + bodyH * sh / (nShelves + 1), (CD - 0.03) / 2 + 0.005);
+      board.position.set(0, bodyBase + shf.mm / 1000 - 0.009, (CD - 0.03) / 2 + 0.005);
       board.castShadow = true; board.receiveShadow = true;
       frame.add(board);
-    }
+    });
     // the fronts of this cabinet
     var fronts = [];
     if (drawers){
@@ -2126,12 +2157,12 @@
         frame.add(g);
         yb += ifh + 0.035;
       });
-      var topB = bodyBase + bodyH;
-      for (var bs = 1; bs <= 2; bs++){
+      var burShelves = meta.shelfBlock ? shelfLayoutOf(meta.shelfBlock, bodyH * 1000, sysKey) : [1, 2].map(function(k){ return { mm:((yb - bodyBase) + (bodyH - (yb - bodyBase)) * k / 3) * 1000 + 9 }; });
+      burShelves.forEach(function(shf){
         var shB = new THREE.Mesh(new THREE.BoxGeometry(widthM - 2 * CARCASS_T - 0.001, 0.018, CD - 0.03), meta.openMat);
-        shB.position.set(0, yb + (topB - yb) * bs / 3, (CD - 0.03) / 2 + 0.005); shB.castShadow = true; shB.receiveShadow = true;
+        shB.position.set(0, bodyBase + shf.mm / 1000 - 0.009, (CD - 0.03) / 2 + 0.005); shB.castShadow = true; shB.receiveShadow = true;
         frame.add(shB);
-      }
+      });
     }
   }
 
@@ -3355,7 +3386,7 @@
         addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, applMat || carcassMat, applMat || frontMat, inter,
           { islandId:islandId, locked:!!b.locked || !!opts.xray, suppressBadge:!!opts.xray, slabFronts:jeyOn, corner:c.cls === "corner", doorSide:b.swing === "vinstri" ? "left" : "right", hingeRight:b.swing === "haegri", shelves:(c.hasInterior || c.shelfRange) && !(b.interior && b.interior.mode === "skuffur") ? (shelvesOf(b) || 0) : 0,
             openMat:openMat, hiddenMat:hiddenMat, drawerSystem:state.drawerSystem, carcassKey:state.carcass,
-            warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), ready:!!(opts.readyIds && opts.readyIds.indexOf(b.id) >= 0), doorLimit:DOOR_LIMITS[b.id] || null, wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), heightMm:hM * 1000, elevMm:0, handle:c.appliance ? null : state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0, // tall units: one door unless split in Smíða (2026-10-09)
+            warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), ready:!!(opts.readyIds && opts.readyIds.indexOf(b.id) >= 0), doorLimit:DOOR_LIMITS[b.id] || null, shelfBlock:b, wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), heightMm:hM * 1000, elevMm:0, handle:c.appliance ? null : state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0, // tall units: one door unless split in Smíða (2026-10-09)
             splitFr:c.oven || c.fridge || c.fixedFronts ? null : splitFractions(b, hM * 1000 - (c.panel || c.appliance ? 0 : 100)),
             plinth:!c.panel && !c.appliance, appliance:c.appliance || null, leMans:!!c.tofrahornIds, counter:!!c.counter, sink:!!c.sink, oven:!!c.oven, panel:!!c.panel, plinthMat:plinthMat, stoneMat:stoneMat,
             ovenCodes:c.lowOven ? ["M"] : c.oven ? ovenCodesOf(b, state.drawerSystem) : null, fixedFronts:!!c.fixedFronts || !!c.appliance,
@@ -3377,7 +3408,7 @@
         var hM = Math.min(b.heightMm || c.h, roomHeightMm) / 1000, dM = (b.depthMm || c.d) / 1000;
         var selected = opts.selectedId === b.id;
         var elevM = elevOf(b) / 1000;
-        var metaBase = { locked:!!b.locked || !!opts.xray, suppressBadge:!!opts.xray, slabFronts:jeyOn, drawerSystem:state.drawerSystem, carcassKey:state.carcass, warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), ready:!!(opts.readyIds && opts.readyIds.indexOf(b.id) >= 0), doorLimit:DOOR_LIMITS[b.id] || null, wallId:wall.id, zone:"wall", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d),
+        var metaBase = { locked:!!b.locked || !!opts.xray, suppressBadge:!!opts.xray, slabFronts:jeyOn, drawerSystem:state.drawerSystem, carcassKey:state.carcass, warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), ready:!!(opts.readyIds && opts.readyIds.indexOf(b.id) >= 0), doorLimit:DOOR_LIMITS[b.id] || null, shelfBlock:b, wallId:wall.id, zone:"wall", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d),
           heightMm:hM * 1000, elevMm:elevM * 1000, handle:state.handle, splitFr:c.open ? null : splitFractions(b, hM * 1000) };
         if (c.shelfStack){ // 1–5 boards of 38 mm above each other: one pickable box per board, all sharing the block id
           var n = Math.max(1, Math.min(SHELF_STACK_MAX, b.count || 3)), gap = b.vgapMm != null ? b.vgapMm : SHELF_GAP_DEFAULT;
@@ -4641,6 +4672,7 @@
     drawerFrontsMm: drawerFrontsMm, stackFrontsMm: stackFrontsMm, resizeFront: resizeFront,
     drawerComboKey: drawerComboKey,
     ovenCodesOf: ovenCodesOf, ovenZoneMm: ovenZoneMm, setMood: setMood, OVEN_HEIGHTS: OVEN_HEIGHTS, OVEN_BOARD_MM: OVEN_BOARD_MM,
+    shelfLayoutOf: shelfLayoutOf, shelfSpaceMm: shelfSpaceMm, hasShelfLayout: hasShelfLayout, burTopMm: burTopMm,
     ovenHOf: ovenHOf, ovenUnderOf: ovenUnderOf, ovenUnderMinMm: ovenUnderMinMm, ovenUnderMaxMm: ovenUnderMaxMm, ovenUpperMm: ovenUpperMm, ovenShelvesOf: ovenShelvesOf,
     OVEN_DEFAULT: OVEN_DEFAULT,
     modelsPending: modelsPending,

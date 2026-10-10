@@ -64,7 +64,9 @@ test("hinges: 80 from each end, middle ones by height and moved off shelves; fro
   assert.deepEqual(S.hingePositions(797).at, [80, 717]);
   assert.deepEqual(S.hingePositions(1400).at, [80, 700, 1320]);
   const h = S.hingePositions(1400, [710]);
-  assert.deepEqual(h.at, [80, 660, 1320]);
+  assert.deepEqual(h.at, [80, 680, 1320]); // nearest spot 30 mm clear of the shelf row
+  // a loose shelf's hole band (3 holes 50 apart): the middle hinge of a 2400 door leaves the band
+  assert.deepEqual(S.hingePositions(2400, [1143, 1193, 1243]).at, [80, 640, 1275, 1760, 2320]);
   assert.deepEqual(S.frontHinges(797), [79, 718]);
 });
 
@@ -235,4 +237,17 @@ test("a cabinet drawn in the designer but not marked ready gets a warning; marke
   assert.ok(S.unitPlan("Sk5", rows, { smida: '{"v":1,"w":800}' }).check.some((c) => /Klár til framleiðslu/.test(c)));
   assert.ok(!S.unitPlan("Sk5", rows, { smida: '{"v":1,"w":800,"ready":true}' }).check.some((c) => /Klár til framleiðslu/.test(c)));
   assert.ok(!S.unitPlan("Sk5", rows).check.some((c) => /Klár til framleiðslu/.test(c))); // not from the designer at all
+});
+
+test("shelves from Smíða in any cabinet: fixed at its top face, loose with its own holes; hinges stay off them", () => {
+  const rows = [row("Skápur hlið", 2400, 583, 16, 2), row("Frontur", 2397, 597, 19, 1), row("Laus hilla", 558, 566, 16, 1), row("Föst hilla", 558, 566, 19, 1)];
+  const smida = JSON.stringify({ v: 1, shelves: { loose: 1, fixed: 1, list: [{ mm: 900, fixed: true, pos: 1 }, { mm: 1600, fixed: false, pos: 5 }] } });
+  const p = S.unitPlan("Sk2", rows, { smida });
+  assert.deepEqual(ops(p).filter((x) => /HILLA/.test(x)), ["FOST_HILLA: 19, 900, 2, lpy-22, lpz+5", "LAUS_HILLA: 1484, 5, 37, 20+60, 50"]);
+  assert.ok(!p.check.some((c) => /hillur:|staðsetning ekki í gögnum|sjálfgefin staðsetning/.test(c)));
+  // a default hinge in the middle of the door would land on a hole row → it is moved off it
+  assert.ok(ops(p).filter((x) => /^LOM/.test(x)).every((x) => { const v = +x.split(": ")[1].split(",")[0]; return Math.abs(v - 1584) >= 30 || /"3"/.test(x); }));
+  // counts that differ from Sögunarlisti are flagged
+  const q = S.unitPlan("Sk2", rows.slice(0, 3), { smida });
+  assert.ok(q.check.some((c) => /Fastar hillur: 1 í hönnuði, 0 í Sögunarlista/.test(c)));
 });
