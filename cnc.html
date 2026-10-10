@@ -192,7 +192,9 @@
           esc(p.name) + (p.groove ? " · masonít-rauf" : " · engin rauf") + "</div>" +
         (notes.length ? '<ul class="notes">' + notes.map(function (n) { return '<li class="check">⚠️ ' + esc(n) + "</li>"; }).join("") + "</ul>" : "") +
         '<div class="ops">' + p.ops.slice(2).map(function (o) { return esc(o.name + " " + o.params); }).join("<br>") + "</div>" +
-        '<div class="fname">Skápar/' + esc(g.label) + "/ → " + g.files.map(function (f) { return esc(SD.sideFileName(pre, p, f)) + " ×" + f.count; }).join(" · ") + "</div></div><div></div></div>";
+        '<div class="fname">Skápar/' + esc(g.label) + "/ → " + g.files.map(function (f) { return esc(SD.sideFileName(pre, p, f)) + " ×" + f.count; }).join(" · ") +
+          (p.fronts && p.fronts.length ? "<br>Frontar: " + p.fronts.map(function (f) { return esc(f.name) + ".bpp ×" + f.count + (f.ops.length ? "" : " (engin borun)"); }).join(" · ") : "") +
+          (p.frontCheck && p.frontCheck.length ? "<br>⚠️ " + esc(p.frontCheck.join(" · ")) : "") + "</div></div><div></div></div>";
     });
     stopped.forEach(function (p) {
       h += '<div class="card stop"><span></span><div><h3>' + esc(p.name) + ' <span class="chip stop">⛔ Ekki gert</span></h3><ul class="notes">' +
@@ -282,7 +284,16 @@
           await writeBytes(dir, fname, D.toCp1252(r.text)); names[fname] = 1;
           log("✅ Skápar/" + g.label + "/" + fname); made.push("Skápar/" + g.label + "/" + fname + "  (" + p0.LPX + "×" + p0.LPY + "×" + p0.LPZ + ", keyra ×" + sf.count + ")");
         }
-        p0.check.forEach(function (c) { var s = g.label + ": " + c; if (warn.indexOf(s) < 0) warn.push(s); });
+        // the cabinet's fronts: drawer fronts on the global front masters, door fronts with their hinge cups
+        for (var fr of (p0.fronts || [])) {
+          var frName = fr.name.replace(/[\\/:*?"<>|]+/g, "-") + ".bpp", rf;
+          try { rf = SD.renderSide(await readMaster(root, SD.FRONT_MASTERS[fr.master]), fr, SD.FRONT_MANAGED[fr.master]); }
+          catch (e) { log("⛔ " + g.label + "/" + frName + ": " + e.message); missing.push(g.label + "/" + frName + ": " + e.message); continue; }
+          if (rf.errors.length) { log("⛔ " + g.label + "/" + frName + " EKKI skrifað: " + rf.errors.join(" · ")); missing.push(frName + ": " + rf.errors.join(" · ")); continue; }
+          await writeBytes(dir, frName, D.toCp1252(rf.text)); names[frName] = 1;
+          log("✅ Skápar/" + g.label + "/" + frName); made.push("Skápar/" + g.label + "/" + frName + "  (" + fr.LPX + "×" + fr.LPY + "×" + fr.LPZ + ", keyra ×" + fr.count + ")");
+        }
+        p0.check.concat(p0.frontCheck || []).forEach(function (c) { var s = g.label + ": " + c; if (warn.indexOf(s) < 0) warn.push(s); });
       }
       // Files this page made before (marked inside) that this export no longer produces are removed — a regrouped
       // project never leaves a stale program behind. Hand-made files are never touched. Only on a full export.

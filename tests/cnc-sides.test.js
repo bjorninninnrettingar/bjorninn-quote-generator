@@ -194,3 +194,38 @@ test("older oven Smíðagögn (no shelf list): niche boards + the loose shelves 
   assert.deepEqual(o, ["FOST_HILLA: 16, 600, 2, lpy-22, lpz+5", "FOST_HILLA: 16, 1211, 2, lpy-22, lpz+5",
     "LAUS_HILLA: 1557.3, 3, 37, 20+60, 50", "LAUS_HILLA: 1953.7, 3, 37, 20+60, 50"]);
 });
+
+test("fronts: global drawer fronts by code, door fronts with hinge cups from the side's hinges, leaves counted", () => {
+  const rows = [row("Grunnskápur hlið", 800, 580, 16, 2), row("Skúffufrontur E - Merivo", 374, 597, 19, 1),
+    row("Skúffufrontur K - Merivo", 243, 597, 19, 1), row("Skúffufrontur M - Merivo", 171, 597, 19, 1)];
+  const f = S.unitPlan("Sk1", rows).fronts;
+  assert.deepEqual(f.map((x) => [x.name, x.master, x.LPX, x.LPY, x.ops.map((o) => o.name).join("+"), x.count]), [
+    ["Skúffufrontur E 374", "merivo", 597, 374, "K_M_NEDSTI_FRONTUR_MERIVO+E_NEDSTI_FRONTUR_MERIVO", 1],
+    ["Skúffufrontur K 243", "merivo", 597, 243, "K_M_NEDSTI_FRONTUR_MERIVO", 1],
+    ["Skúffufrontur M 171", "merivo", 597, 171, "K_M_NEDSTI_FRONTUR_MERIVO", 1]]);
+  // a 90 cm wing door: two leaves, hinges 80 from each end → cups 79 from both ends, one file run ×2
+  const wing = S.unitPlan("Sk12", [row("Grunnskápur hlið", 800, 580, 16, 2), row("Frontur vænghurð", 797, 442, 19, 2)]).fronts;
+  assert.deepEqual(wing.map((x) => [x.name, x.master, x.LPX, x.LPY, x.ops.map((o) => o.params), x.count]),
+    [["Frontur vænghurð 797", "door", 797, 442, ['79, 0, "2,3"'], 2]]);
+  // a Smíðagögn door with a middle hinge: cups from the nearest end
+  const tall = S.unitPlan("Sk2", [row("Skápur hlið", 2400, 583, 16, 2), row("Frontur", 2397, 597, 19, 1)],
+    { smida: JSON.stringify({ v: 1, doors: [{ h: 2397, type: "hinged", hinges: [{ from: "bottom", mm: 80 }, { from: "bottom", mm: 1200 }, { from: "top", mm: 80 }] }] }) }).fronts;
+  assert.deepEqual(tall[0].ops.map((o) => o.params), ['79, 0, "2,3"', '1199, 0, "2"']);
+});
+
+test("renderSide with a front master: parameterless macros switched on/off by the plan", () => {
+  const master = ["[VARIABLES]", "PAN=LPX|597||4|", "PAN=LPY|597||4|", "PAN=LPZ|19||4|", "[PROGRAM]",
+    '@ K_M_NEDSTI_FRONTUR_MERIVO, "", "", 67399988, "", 0 :', '@ E_NEDSTI_FRONTUR_MERIVO, "", "", 67342012, "", 0 :', '@ STAT_BLOCK, "", "", 132215068, "", 0 : 0, LPY+100, 1'].join("\r\n");
+  const r = S.renderSide(master, { LPX: 597, LPY: 243, LPZ: 19, ops: [{ name: "K_M_NEDSTI_FRONTUR_MERIVO", label: "", params: "" }] }, S.FRONT_MANAGED.merivo);
+  const L = r.text.split("\r\n");
+  assert.deepEqual(r.errors, []);
+  assert.ok(L.includes("PAN=LPY|243||4|"));
+  assert.ok(L.some((l) => /^@ K_M_NEDSTI_FRONTUR_MERIVO, "", "", \d+, "", 0 :$/.test(l)));
+  assert.ok(L.includes(`' E_NEDSTI_FRONTUR_MERIVO, "", "", 67342012, "", 0 :`));
+});
+
+test("a drawer front too low for its code's extra row gets only the base row, with a warning", () => {
+  const p = S.unitPlan("Sk7", [row("Grunnskápur hlið", 800, 580, 16, 2), row("Skúffufrontur E - Merivo", 209, 667, 19, 1)]);
+  assert.deepEqual(p.fronts[0].ops.map((o) => o.name), ["K_M_NEDSTI_FRONTUR_MERIVO"]);
+  assert.ok(p.frontCheck.some((c) => /E-gatið \(218\)/.test(c)));
+});

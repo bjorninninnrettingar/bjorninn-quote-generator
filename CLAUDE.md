@@ -133,7 +133,7 @@ One page, one button: pick a project → everything is written to `[99] - VERKEF
 [99] - VERKEFNI/T-32 <name>/
   Skápar/<Sk1 - Grunnskápur>/   Hliðar.bpp                                 (no hinges: one file, run ×2)
          <Sk2 - Hárskápur>/     Vinstri hlið.bpp + Hægri hlið - lamir.bpp  (only the hinge side is drilled)
-                                (+ fronts — next step)
+                                + Skúffufrontur E 374.bpp, Frontur 2397.bpp … (fronts, see below)
   Hurðir/<HU01>/                Karmur lamir · Karmur slúttjárn · Karmur toppstykki · Hurðablað
   (file names are short inside the folders — no project / Sk / HU in them; a folder only exists when the project has it)
   Annað/                        úthliðar/blindlok etc. — later
@@ -157,6 +157,9 @@ One folder per cabinet, identical cabinets are NOT merged (the old `SK01+02+05 H
 - **Smíðagögn** (Eyðublað `Smíðagögn (JSON) 🔧`, written by the designer's pro mode): `{v:1, doors:[{h, type:"hinged"|"lift", side, hinges:[{from:"bottom"|"top", mm}]}]}`, doors top → bottom. When the door count matches Sögunarlisti, its hinges replace the default (positions from each door's ends; > 20 mm height difference = ⚠); lift-up = no hinges on the side (⚠ "lamirnar fara í toppborðið"); a different door count = ignored + ⚠.
 - Identical machining → one file (`T-56 SK01+02+05+06+09.1+11-13+14-16+15 Hliðar.bpp`). Generated side files carry `GLB=HS_HLID|1|…`; a full re-export deletes earlier marked files it no longer produces, never hand-made ones. Door-part rows and door units are excluded; units without a carcass side are skipped quietly; FRE/FRE2 cabinets stop (designer upgrade pending), oven cabinets get ⚠.
 - Verified against the hand programs: T-56 SK 1-group (incl. inner drawer 700), 12, 18, 9.3 identical; after the rules session drawer differences across all 8 projects went 23 → 11 (the rest are data errors or old formats).
+
+### Frontar (cnc-sides.js `frontPlans`, 2026-10-10)
+Every front goes in its cabinet's folder, identical ones once with "keyra ×n". Masters from the stick: drawer fronts `[03] - Skúffur/01 - MERIVO/[01] - Global MERIVO Frontar.bpp` / `02 - LEGRA/01 - Global Frontar - LEGRABOX.bpp` (LPX = width, LPY = height; the base `K_M_NEDSTI_FRONTUR_*` always, `E_NEDSTI_FRONTUR_MERIVO` / `C_NEDSTI_FRONTUR_LEGRA` / `F_NEDSTA_SKUFFA_LEGRABOX` only on that code's front, and not when its row (218 / 203.5 / 235.5) would land within 10 mm of the top — ⚠); door fronts `[02] - Frontar/[01] - Lama frontar/[01] - Frontur Breytiskjal.bpp` (LPX = height, LPY = width) with `IKEALOM` cups at the side's hinges measured from the front's ends (80 → 79; "2" bottom, "3" top, "2,3" both; mid-door hinge counts from the bottom like LOM). Wing doors: one file × leaves. Not drilled yet (⚠ in `plan.frontCheck`, which never changes the side status): fixed fronts (Blindlok master), inner drawer fronts, lift doors. `renderSide(text, plan, managed)` renders fronts too (parameterless macros end in `0 :`). Verified on T-32 with an OPFS stand-in for the stick.
 
 ### Hurðir (cnc-doors.js)
 

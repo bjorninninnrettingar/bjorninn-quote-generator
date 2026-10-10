@@ -135,7 +135,7 @@
     var grip = num(opts.gripMm) || 0;
 
     // Drawers, bottom → top, from the real front heights.
-    var drawers = expand(by.drawer, function (r) { var m = r.Partur.match(/skúffufrontur\s+([NMKCFE])\b.*?(merivo|legra)/i); return { code: m[1].toUpperCase(), sys: lc(m[2]), front: num(r.H), H: r1(num(r.H) + grip) }; });
+    var drawers = expand(by.drawer, function (r) { var m = r.Partur.match(/skúffufrontur\s+([NMKCFE])\b.*?(merivo|legra)/i); return { code: m[1].toUpperCase(), sys: lc(m[2]), front: num(r.H), B: num(r.B), T: num(r["Þ"]), H: r1(num(r.H) + grip) }; });
     // A drawer whose front is listed as a plain "Frontur" (the low oven OFN6: "Frontur" 202 + "Skúffubak K - Merivo",
     // no "Skúffufrontur K") — the low front becomes that drawer, not a door with hinges (T-32 pilot, 2026-10-09).
     if (!drawers.length) {
@@ -143,7 +143,7 @@
         var m = r.Partur.match(/^skúffubak\s+([NMKCFE])\b.*?(merivo|legra)/i); return { code: m[1].toUpperCase(), sys: lc(m[2]) }; });
       var lowDoors = (by.door || []).filter(function (r) { return /^frontur$/i.test(String(r.Partur).trim()) && num(r.H) <= FIXED_FRONT_MAX; });
       if (backs.length && backs.length === lowDoors.reduce(function (a, r) { return a + per(r); }, 0)) {
-        lowDoors.forEach(function (r) { for (var k = 0; k < per(r); k++) { var bk = backs.shift(); drawers.push({ code: bk.code, sys: bk.sys, front: num(r.H), H: r1(num(r.H) + grip) }); } });
+        lowDoors.forEach(function (r) { for (var k = 0; k < per(r); k++) { var bk = backs.shift(); drawers.push({ code: bk.code, sys: bk.sys, front: num(r.H), B: num(r.B), T: num(r["Þ"]), H: r1(num(r.H) + grip) }); } });
         by.door = (by.door || []).filter(function (r) { return lowDoors.indexOf(r) < 0; });
         info.push("„Frontur“ " + drawers.map(function (d) { return d.front; }).join(", ") + " mm = skúffa " + drawers.map(function (d) { return d.code; }).join(", ") + " (skúffubak í Sögunarlista)");
       }
@@ -170,16 +170,18 @@
     //  - a low "Frontur" in a drawer cabinet is a fixed front (FAST_FRAMSTYKKI), not a door;
     //  - two identical fronts that don't fit on top of each other are the leaves of ONE opening (vænghurð);
     //  - a front taller than the space (wall cabinets with a lip below) → the opening is the side's space.
-    var doors = expand(by.door, function (r) { return { H: num(r.H), partur: r.Partur }; });
+    var doors = expand(by.door, function (r) { return { H: num(r.H), B: num(r.B), T: num(r["Þ"]), partur: r.Partur }; });
     // split fronts top → bottom by their number (Skiptur frontur 1 = top, as the designer writes Hæð frontur 1)
     var splitNo = function (d) { var m = /skiptur frontur\s*(\d)/i.exec(d.partur); return m ? +m[1] : 0; };
     if (doors.some(splitNo)) doors.sort(function (a, b) { return splitNo(a) - splitNo(b); });
+    var leaves = null;
     var fixedFronts = drawers.length ? doors.filter(function (d) { return d.H <= FIXED_FRONT_MAX; }) : [];
     doors = doors.filter(function (d) { return fixedFronts.indexOf(d) < 0; });
     fixedFronts.forEach(function (d) { op("FAST_FRAMSTYKKI", "Fast framstykki", r1(d.H) + ", LPX, 0, 0"); });
     var room = H - drawerTop - fixedFronts.reduce(function (a, d) { return a + d.H + BOX_GAP; }, 0);
     var sumDoors = doors.reduce(function (a, d) { return a + d.H + BOX_GAP; }, 0);
     if (doors.length > 1 && (sumDoors > room + 5 || doors.some(function (d) { return /væng/i.test(d.partur); }))) {
+      leaves = doors.slice(); // every leaf is still its own front
       var seen = {}; doors = doors.filter(function (d) { var k = Math.round(d.H); if (seen[k]) return false; seen[k] = 1; return true; });
       info.push("Vænghurð: hurðir hlið við hlið");
     }
@@ -292,9 +294,59 @@
     plan.hingeSide = hs;
     if (hingeAt.length && !hs) check.push("Lamahlið óþekkt — lamagöt í báðar hliðar (vista skápinn í hönnuðinum svo /cnc viti hvorum megin)");
 
+    plan.frontCheck = []; // front notes stay out of the side status
+    plan.fronts = frontPlans(drawers, doors, fixedFronts, by, plan.frontCheck, leaves);
     plan.drawers = drawers; plan.doors = doors; plan.loose = loose;
     plan.status = stop.length ? "stop" : check.length ? "check" : "ok";
     return plan;
+  }
+
+  // ── Fronts (2026-10-10) ─────────────────────────────────────────────────────────────────────────────────
+  // Drawer fronts: the shop's GLOBAL front masters (user: every drawer front is drilled like a bottom drawer), panel
+  // LPX = width, LPY = height; the base K/M row always, the E (Merivo) / C / F (Legra) row only on that code's front.
+  // Door fronts: the "Lama frontar" master, LPX = height (hinges run along X), LPY = width; IKEALOM cups where the
+  // hinges are on the side, measured from the front's own ends (80 on the side = 79 on the front), corner "2" =
+  // from the bottom, "3" = from the top, "2,3" = both. Fixed/inner/lift fronts aren't drilled here yet (⚠).
+  var FRONT_MASTERS = {
+    merivo: ["[03] - Skúffur", "01 - MERIVO", "[01] - Global MERIVO Frontar.bpp"],
+    legra: ["[03] - Skúffur", "02 - LEGRA", "01 - Global Frontar - LEGRABOX.bpp"],
+    door: ["[02] - Frontar", "[01] - Lama frontar", "[01] - Frontur Breytiskjal.bpp"],
+  };
+  var FRONT_MANAGED = {
+    merivo: ["K_M_NEDSTI_FRONTUR_MERIVO", "E_NEDSTI_FRONTUR_MERIVO"],
+    legra: ["K_M_NEDSTI_FRONTUR_LEGRABOX", "C_NEDSTI_FRONTUR_LEGRA", "F_NEDSTA_SKUFFA_LEGRABOX"],
+    door: ["IKEALOM", "LOM"],
+  };
+  var FRONT_EXTRA = { merivo: { E: "E_NEDSTI_FRONTUR_MERIVO" }, legra: { C: "C_NEDSTI_FRONTUR_LEGRA", F: "F_NEDSTA_SKUFFA_LEGRABOX" } };
+  // where each extra row sits (from the bottom of the front, as the macros on the stick drill it)
+  var FRONT_EXTRA_MM = { E_NEDSTI_FRONTUR_MERIVO: 218, C_NEDSTI_FRONTUR_LEGRA: 203.5, F_NEDSTA_SKUFFA_LEGRABOX: 235.5 };
+  function frontPlans(drawers, doors, fixedFronts, by, check, leaves) {
+    var out = [], seen = {};
+    function add(f) { var k = f.name + "|" + JSON.stringify(f.ops) + "|" + f.LPX + "|" + f.LPY + "|" + f.LPZ; if (seen[k]) { seen[k].count++; return; } f.count = 1; seen[k] = f; out.push(f); }
+    drawers.forEach(function (d) {
+      var base = d.sys === "merivo" ? "K_M_NEDSTI_FRONTUR_MERIVO" : "K_M_NEDSTI_FRONTUR_LEGRABOX", extra = FRONT_EXTRA[d.sys][d.code];
+      if (extra && FRONT_EXTRA_MM[extra] + 10 > d.front) { // the row would land on/above the front's top edge
+        check.push(d.code + "-frontur " + r1(d.front) + " mm: " + d.code + "-gatið (" + FRONT_EXTRA_MM[extra] + ") kemst ekki á hann — ekki borað, athuga skúffuna");
+        extra = null;
+      }
+      var ops = [{ name: base, label: "", params: "" }].concat(extra ? [{ name: extra, label: "", params: "" }] : []);
+      add({ name: "Skúffufrontur " + d.code + " " + r1(d.front), master: d.sys, LPX: d.B, LPY: r1(d.front), LPZ: d.T, ops: ops });
+    });
+    doors.forEach(function (d) {
+      if (d.type === "lift") { check.push("Lyftihurð " + d.H + ": frontur ekki boraður hér"); return; }
+      var len = r1(d.to - d.from), ops = [], H = d.H;
+      var pos = (d.hinges || []).map(function (x) { return x <= len / 2 ? { end: "2", mm: r1(x - HINGE_FRONT_OFFSET) } : { end: "3", mm: r1(len - x - HINGE_FRONT_OFFSET) }; });
+      pos.forEach(function (p, i) {
+        var twin = pos.find(function (q, j) { return j !== i && q.end !== p.end && q.mm === p.mm; });
+        if (twin && p.end === "3") return; // emitted once as "2,3"
+        ops.push({ name: "IKEALOM", label: "Lamaskál", params: p.mm + ', 0, "' + (twin ? "2,3" : p.end) + '"' });
+      });
+      var n = leaves ? leaves.filter(function (l) { return Math.round(l.H) === Math.round(H) && l.partur === d.partur; }).length : 1;
+      for (var k = 0; k < Math.max(1, n); k++) add({ name: String(d.partur).trim() + " " + r1(H), master: "door", LPX: r1(H), LPY: d.B, LPZ: d.T, ops: ops });
+    });
+    if (fixedFronts.length) check.push("Fast framstykki (" + fixedFronts.length + "): frontur ekki boraður hér");
+    if (by.inner) check.push("Innskúffufrontar: ekki boraðir hér");
+    return out;
   }
 
   // Same machining → same file. Name doesn't matter, only what the machine does.
@@ -336,7 +388,8 @@
 
   // Master text (CRLF, decoded) + one plan → program. Managed master lines are switched off, generated lines
   // inserted right after the first master line of the same macro (new unique object ids), sizes as numbers.
-  function renderSide(text, p) {
+  function renderSide(text, p, managed) {
+    managed = managed || MANAGED;
     var nl = text.indexOf("\r\n") >= 0 ? "\r\n" : "\n";
     var lines = text.split(/\r?\n/), errors = [], section = "", used = {};
     lines.forEach(function (l) { var m = l.match(/, (\d{8,9}), "", 0 :/); if (m) used[m[1]] = 1; });
@@ -352,7 +405,7 @@
       if (section === "PROGRAM") {
         var m = l.match(/^([@'])( +)([A-Z0-9_]+), "", "([^"]*)",(.*)$/);
         if (m && m[3] === "CUT_X" && lc(m[4]).indexOf(GROOVE_LABEL) >= 0) l = (p.groove ? "@" : "'") + m[2] + "CUT_X, \"\", \"" + m[4] + "\"," + m[5];
-        else if (m && MANAGED.indexOf(m[3]) >= 0) { l = "'" + m[2] + m[3] + ', "", "' + m[4] + '",' + m[5]; if (firstAt[m[3]] == null) firstAt[m[3]] = out.length; }
+        else if (m && managed.indexOf(m[3]) >= 0) { l = "'" + m[2] + m[3] + ', "", "' + m[4] + '",' + m[5]; if (firstAt[m[3]] == null) firstAt[m[3]] = out.length; }
       }
       out.push(l);
     });
@@ -364,7 +417,7 @@
       .forEach(function (g) {
         if (g.at < 0) { errors.push("Fann ekki stað fyrir " + g.n + " í master"); return; }
         if (firstAt[g.n] == null) errors.push("Makró " + g.n + " er ekki í master — bætt við á undan STAT_BLOCK");
-        var add = groups[g.n].map(function (o) { return "@ " + o.name + ', "", "' + o.label + '", ' + newId() + ', "", 0 : ' + o.params; });
+        var add = groups[g.n].map(function (o) { return "@ " + o.name + ', "", "' + o.label + '", ' + newId() + ', "", 0 :' + (o.params ? " " + o.params : ""); });
         out.splice.apply(out, [g.at, 0].concat(add));
       });
     var lastPan = -1; out.forEach(function (l, i) { if (/^PAN=LP[XYZ]\|/.test(l)) lastPan = i; });
@@ -374,7 +427,7 @@
   }
 
   var MARKER = "GLB=HS_HLID|";
-  var api = { MARKER: MARKER, sideFiles: sideFiles, cabinetFolder: cabinetFolder, sideFileName: sideFileName, shortName: shortName, MASTER: MASTER, MANAGED: MANAGED, unitId: unitId, kind: kind, unitPlan: unitPlan, hingePositions: hingePositions,
+  var api = { MARKER: MARKER, FRONT_MASTERS: FRONT_MASTERS, FRONT_MANAGED: FRONT_MANAGED, frontPlans: frontPlans, sideFiles: sideFiles, cabinetFolder: cabinetFolder, sideFileName: sideFileName, shortName: shortName, MASTER: MASTER, MANAGED: MANAGED, unitId: unitId, kind: kind, unitPlan: unitPlan, hingePositions: hingePositions,
     frontHinges: frontHinges, parseSmida: parseSmida, defaultHingeSpec: defaultHingeSpec, specToPositions: specToPositions, signature: signature, groupPlans: groupPlans, fileName: fileName, renderSide: renderSide };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   root.CNCSIDES = api;
