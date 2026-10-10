@@ -242,7 +242,9 @@
     legra:  { codes:["M", "K", "C", "F"], side:{ M:90.5, K:128.5, C:177, F:241 }, inner:["IK", "IM"] },
     merivo: { codes:["N", "M", "K", "E"], side:{ N:63, M:91, K:129, E:192 },     inner:["IM"] }
   };
-  var FRONT_MIN = { N:85, M:110, K:150, E:212, C:197, F:261 };
+  // E and C are raised so the global front macro's extra row always lands on the front: E row at 218, C at 203.5
+  // (+10 mm to the top edge; user, 2026-10-10 — was E 212 / C 197, and a 212 E front can't take its 218 holes)
+  var FRONT_MIN = { N:85, M:110, K:150, E:228, C:214, F:261 };
   var FRONT_WEIGHT = { N:100, M:150, K:200, E:400, C:400, F:800 };
   var CODE_ORDER = "NMKECF"; // smallest → tallest; also the order Útfærslur combo keys use
   var DRAWER_GAP_MM = 3;
