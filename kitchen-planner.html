@@ -1073,7 +1073,7 @@
   ];
 
   var DEFAULT_ROOM_HEIGHT_MM = 2600; // matches the historical fixed 3D wall height
-  var MIN_ROOM_HEIGHT_MM = 2500;
+  var MIN_ROOM_HEIGHT_MM = 2450; // (2500 until 2026-10-10)
 
   // A fresh room always starts as one wall — the customer extends it by
   // turning left/right (Phase 7d-1, replaces the old straight/L/U presets).
@@ -1494,8 +1494,15 @@
     if (frozenView){
       // the chain is drawn from wall 1's start, so sliding wall 1 (or the wall that closes the loop) would drag
       // the whole drawing along: hold a vertex that isn't part of the moved wall still on screen instead
-      var ref = v[frozenView.ref];
-      return { pts:v, scale:frozenView.scale, ox:frozenView.ox + (frozenView.refX - ref.x) * frozenView.scale, oy:frozenView.oy + (frozenView.refZ - ref.z) * frozenView.scale };
+      var ref = v[frozenView.ref], fv = { pts:v, scale:frozenView.scale, ox:frozenView.ox + (frozenView.refX - ref.x) * frozenView.scale, oy:frozenView.oy + (frozenView.refZ - ref.z) * frozenView.scale };
+      // dragged out past the frame: zoom out to keep the whole room in view (the drag keeps following the pointer,
+      // see onSlideMove — it converts each step with the current scale), then hold the picture still again (2026-10-10)
+      var pad = 40, over = v.some(function(p){ var X = fv.ox + p.x * fv.scale, Y = fv.oy + p.z * fv.scale; return X < pad || Y < pad || X > width - pad || Y > height - pad; });
+      if (!over) return fv;
+      var sc2 = Math.min(frozenView.scale, (width - 2 * pad) / Math.max(1, maxX - minX), (height - 2 * pad) / Math.max(1, maxZ - minZ));
+      var cv = { pts:v, scale:sc2, ox:(width - (maxX - minX) * sc2) / 2 - minX * sc2, oy:(height - (maxZ - minZ) * sc2) / 2 - minZ * sc2 };
+      frozenView = { scale:cv.scale, ox:cv.ox, oy:cv.oy, ref:frozenView.ref, refX:ref.x, refZ:ref.z };
+      return cv;
     }
     var m = shapePhase === "water" || shapePhase === "openings" ? 70 : 120, sc = Math.min((width - 2 * m) / Math.max(1, maxX - minX), (height - 2 * m) / Math.max(1, maxZ - minZ));
     sc = Math.min(sc, 0.12);
@@ -1727,14 +1734,17 @@
   function onSlideMove(evt){
     var st = slideState;
     if (!st) return;
-    var dpx = (evt.clientX - st.x0) * st.n.x + (evt.clientY - st.y0) * st.n.z;
     if (!st.moved && Math.hypot(evt.clientX - st.x0, evt.clientY - st.y0) < 4) return;
     st.moved = true;
+    // each pointer step in mm at the picture's CURRENT scale (it zooms out when the room outgrows the frame)
+    var px = st.px != null ? st.px : st.x0, py = st.py != null ? st.py : st.y0;
+    st.accMm = (st.accMm || 0) + ((evt.clientX - px) * st.n.x + (evt.clientY - py) * st.n.z) / (frozenView ? frozenView.scale : st.view.scale);
+    st.px = evt.clientX; st.py = evt.clientY;
     var step = evt.shiftKey ? 10 : 50;
-    var d = Math.round((dpx / st.view.scale) / step) * step;
+    var d = Math.round(st.accMm / step) * step;
     if (d === st.lastD) return;
     var lens = slideLens(st.base, st.i, d);
-    if (lensValid(lens)) return; // blocked: keep the last valid picture
+    if (lensValid(lens)){ st.accMm = st.lastD; return; } // blocked: keep the last valid picture (and don't run on past it)
     st.lastD = d;
     applyLens(lens);
     renderShapeCanvas();
