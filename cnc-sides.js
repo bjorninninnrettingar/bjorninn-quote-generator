@@ -198,7 +198,8 @@
       var nb = r1(num(so.under)), nt = r1(nb + num(so.h) + OVEN_BOARD);
       op("FOST_HILLA", "Loftunarbotn (ofn stendur á)", OVEN_BOARD + ", " + nb + ", 2, lpy-22, lpz+5"); shelfRows.push(nb);
       if (nt <= H - T) { op("FOST_HILLA", "Loftunartoppur", OVEN_BOARD + ", " + nt + ", 2, lpy-22, lpz+5"); shelfRows.push(nt); }
-      var sl = (Array.isArray(so.shelves) ? so.shelves : []).filter(function (x) { return num(x.mm) > nt && num(x.mm) < H; });
+      var hasShelves = Array.isArray(so.shelves); // older Smíðagögn: niche only, shelves spread by default below
+      var sl = (hasShelves ? so.shelves : []).filter(function (x) { return num(x.mm) > nt && num(x.mm) < H; });
       sl.forEach(function (x) {
         var mm = r1(num(x.mm));
         if (x.fixed) { op("FOST_HILLA", "Föst hilla", OVEN_BOARD + ", " + mm + ", 2, lpy-22, lpz+5"); shelfRows.push(mm); return; }
@@ -206,17 +207,16 @@
         op("LAUS_HILLA", "Laus hilla (" + n + " stillingar)", first + ", " + n + ", 37, 20+60, 50"); shelfRows.push(mid);
       });
       var nLoose = sl.filter(function (x) { return !x.fixed; }).length, rowsLoose = expand(by.looseShelf, function (r) { return r; }).length;
-      if (nLoose !== rowsLoose) check.push("Lausar hillur: " + nLoose + " í hönnuði, " + rowsLoose + " í Sögunarlista — keyra skipulag/per unit aftur?");
+      if (hasShelves && nLoose !== rowsLoose) check.push("Lausar hillur: " + nLoose + " í hönnuði, " + rowsLoose + " í Sögunarlista — keyra skipulag/per unit aftur?");
       info.push("Ofn úr hönnuði: " + num(so.h) + " mm, " + nb + " undir, " + sl.length + " hillur fyrir ofan");
-      ovenDone = true;
+      ovenDone = hasShelves;
     } else if (oven) check.push("Ofnaskápur: föstu hillurnar og ofninn bíða hönnuðar — settu þær inn eftir teikningu");
 
     // Loose shelves: one row of 3 holes each, spread evenly over the door space (default — per drawing).
     var loose = ovenDone ? 0 : expand(by.looseShelf, function (r) { return r; }).length;
     if (loose) {
-      var a = doors.length ? Math.max(drawerTop, top) : drawerTop, b = H;
-      for (var i = 1; i <= loose; i++) shelfRows.push(r1(a + (b - a) * i / (loose + 1)));
-      shelfRows.forEach(function (x) { op("LAUS_HILLA", "Laus hilla", r1(x - 50) + ", 3, 37, 20+60, 50"); });
+      var a = so && num(so.under) > 0 && num(so.h) > 0 ? r1(num(so.under) + num(so.h) + OVEN_BOARD) : doors.length ? Math.max(drawerTop, top) : drawerTop, b = H;
+      for (var i = 1; i <= loose; i++) { var x = r1(a + (b - a) * i / (loose + 1)); shelfRows.push(x); op("LAUS_HILLA", "Laus hilla", r1(x - 50) + ", 3, 37, 20+60, 50"); }
       check.push("Lausar hillur (" + loose + "): sjálfgefin staðsetning — breyttu eftir teikningu ef þarf");
     }
     var fixed = expand(by.fixedShelf, function (r) { return r; }).length;
@@ -286,6 +286,12 @@
     });
     if (defaulted) check.push("Lamir: sjálfgefið 80 frá endum + jafnt á milli — ef lyftihurð fara lamirnar í toppinn, ekki hliðina");
 
+    // Which side carries the hinges (2026-10-10, user: only the hinge side is drilled for them): Smíðagögn `hinge`
+    // ("vinstri" / "haegri" / "baedi", seen from the front), else its first door's side. Unknown → both sides, as before.
+    var hs = hingeAt.length ? (smida && (smida.hinge || (smida.doors && smida.doors[0] && smida.doors[0].side))) || null : null;
+    plan.hingeSide = hs;
+    if (hingeAt.length && !hs) check.push("Lamahlið óþekkt — lamagöt í báðar hliðar (vista skápinn í hönnuðinum svo /cnc viti hvorum megin)");
+
     plan.drawers = drawers; plan.doors = doors; plan.loose = loose;
     plan.status = stop.length ? "stop" : check.length ? "check" : "ok";
     return plan;
@@ -310,6 +316,22 @@
     });
     return groups.sort(function (a, b) { return a.label.localeCompare(b.label, "is", { numeric: true }); });
   }
+  // The side programs of one cabinet (2026-10-10): no hinges → one "Hliðar" run on both; hinges on one side → that
+  // side with them and the other without; hinges on both (two doors) or side unknown → one file with hinges for both.
+  function isHinge(o) { return o.name === "LOM" || o.name === "IKEALOM"; }
+  function sideFiles(p) {
+    if (!p.ops.some(isHinge)) return [{ name: "Hliðar", count: 2 * p.cabinets, plan: p }];
+    if (p.hingeSide === "vinstri" || p.hingeSide === "haegri") {
+      var bare = Object.assign({}, p, { ops: p.ops.filter(function (o) { return !isHinge(o); }) }), left = p.hingeSide === "vinstri";
+      return [{ name: "Vinstri hlið" + (left ? " - lamir" : ""), count: p.cabinets, plan: left ? p : bare },
+        { name: "Hægri hlið" + (left ? "" : " - lamir"), count: p.cabinets, plan: left ? bare : p }];
+    }
+    return [{ name: "Hliðar - lamir báðum megin", count: 2 * p.cabinets, plan: p }];
+  }
+  var BAD = /[\\/:*?"<>|]+/g;
+  function shortName(p) { return String(p.name || p.id).split("|")[0].trim() || p.id; } // "Sk10 | LHA60 | 1E1K1M" → "Sk10"
+  function cabinetFolder(p) { return (shortName(p) + (p.tegund ? " - " + p.tegund : "")).replace(BAD, "-").trim(); }
+  function sideFileName(prefix, p, f) { return ((prefix ? prefix + " " : "") + shortName(p) + " " + f.name).replace(BAD, "-") + ".bpp"; }
   function fileName(prefix, group) { return (prefix ? prefix + " " : "") + group.label.replace(/[\\/:*?"<>|]+/g, "-") + " Hliðar.bpp"; }
 
   // Master text (CRLF, decoded) + one plan → program. Managed master lines are switched off, generated lines
@@ -352,7 +374,7 @@
   }
 
   var MARKER = "GLB=HS_HLID|";
-  var api = { MARKER: MARKER, MASTER: MASTER, MANAGED: MANAGED, unitId: unitId, kind: kind, unitPlan: unitPlan, hingePositions: hingePositions,
+  var api = { MARKER: MARKER, sideFiles: sideFiles, cabinetFolder: cabinetFolder, sideFileName: sideFileName, shortName: shortName, MASTER: MASTER, MANAGED: MANAGED, unitId: unitId, kind: kind, unitPlan: unitPlan, hingePositions: hingePositions,
     frontHinges: frontHinges, parseSmida: parseSmida, defaultHingeSpec: defaultHingeSpec, specToPositions: specToPositions, signature: signature, groupPlans: groupPlans, fileName: fileName, renderSide: renderSide };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   root.CNCSIDES = api;

@@ -126,7 +126,19 @@ HomeByMe-style self-serve planner that ends in a lead: steps intake → material
 
 ## CNC (`/cnc`, 2026-10-08)
 
-One page, one button: pick a project → sides + doors are written to `[99] - VERKEFNI/T-56 <name>/` on the stick (masters read from the same stick) plus `T-56 CNC skrá.txt` (made / ATHUGA / EKKI GERT). `/hurdir` is the same page.
+One page, one button: pick a project → everything is written to `[99] - VERKEFNI/T-56 <name>/` on the stick (masters read from the same stick) plus `T-56 CNC skrá.txt` (made / ATHUGA / EKKI GERT). `/hurdir` is the same page.
+
+**USB layout (user, 2026-10-10)** — the end goal:
+```
+[99] - VERKEFNI/T-32 <name>/
+  Skápar/<Sk1 - Grunnskápur>/   T-32 Sk1 Hliðar.bpp                       (no hinges: one file, run ×2)
+         <Sk2 - Hárskápur>/     T-32 Sk2 Vinstri hlið.bpp + T-32 Sk2 Hægri hlið - lamir.bpp   (only the hinge side is drilled)
+                                (+ fronts — next step)
+  Hurðir/<HU01>/                Karmur lamir · Karmur slúttjárn · Karmur toppstykki · Hurðablað
+  Annað/                        úthliðar/blindlok etc. — later
+  T-32 CNC skrá.txt, T-32 Hurðaskrá.txt
+```
+One folder per cabinet, identical cabinets are NOT merged (the old `SK01+02+05 Hliðar.bpp` grouping is gone from the export; `groupPlans` is kept for tests). Folder = Sk number + Tegund einingu (`SD.cabinetFolder`). The hinge side comes from Smíðagögn `hinge` ("vinstri"/"haegri"/"baedi", seen from the front — the designer sends it for every door cabinet; > 600 mm wide = two doors = both) or the first door's `side`; unknown → one "Hliðar - lamir báðum megin" file + ⚠ (what every side got before). A full export deletes marked side files from the old flat layout and marked files/empty folders under Skápar/ that it no longer produces. A door whose jamb was made in the old flat layout keeps its files there (jamb wins); new doors go to `Hurðir/<id>/`. Verified with an OPFS stand-in for the stick (`showDirectoryPicker` stubbed) on T-32.
 
 ### Hliðar (cnc-sides.js)
 - **Only from Sögunarlisti** (user: one source, so Eyðublað/Sögunarlisti is the one place to fix): the unit's "…hlið" row = LPX × LPY × LPZ (H × B × Þ). Some sides are stored rotated (T-31 tall: H 580 × B 2470) — `opts.unitHeight` (Eyðublað Hæð) only decides which way round.

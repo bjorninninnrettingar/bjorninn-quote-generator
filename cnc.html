@@ -54,7 +54,7 @@
 <div class="wrap">
   <div class="kicker">CNC · Rover-B</div>
   <h1>CNC útflutningur</h1>
-  <div class="sub">Hliðar úr Sögunarlista og hurðir (karmur + blað) í eina möppu á lyklinum: <b>[99] - VERKEFNI/&lt;verkefni&gt;</b>.
+  <div class="sub">Hliðar úr Sögunarlista og hurðir (karmur + blað) á lykilinn: <b>[99] - VERKEFNI/&lt;verkefni&gt;/Skápar/&lt;Sk - tegund&gt;</b> og <b>…/Hurðir/&lt;HU&gt;</b>.
     Ef eitthvað er rangt hér er það rangt í Sögunarlista / Eyðublaði — lagaðu það þar.</div>
 
   <div class="bar">
@@ -167,7 +167,10 @@
     if (!sideInput) return;
     var grip = +$("gripMm").value || 0, I = sideInput;
     var plans = Object.keys(I.byUnit).map(function (u) { return SD.unitPlan(I.unitName[u] || u, I.byUnit[u], { unitHeight: I.unitH[u], gripMm: grip, smida: I.unitSmida[u] }); });
-    groups = SD.groupPlans(plans);
+    // one entry per cabinet (2026-10-10: a folder each, no merging of identical cabinets)
+    groups = plans.filter(function (p) { return p.status !== "stop" && p.status !== "skip"; })
+      .sort(function (a, b) { return a.id.localeCompare(b.id, "is", { numeric: true }); })
+      .map(function (p) { return { plans: [p], label: SD.cabinetFolder(p), cabinets: p.cabinets, files: SD.sideFiles(p) }; });
     stopped = plans.filter(function (p) { return p.status === "stop"; }).sort(function (a, b) { return a.id.localeCompare(b.id, "is", { numeric: true }); });
     render();
   }
@@ -177,7 +180,7 @@
     if (!project) return;
     var pre = project.prefix, h = "";
     var nSide = groups.length, nCab = groups.reduce(function (a, g) { return a + g.cabinets; }, 0);
-    h += "<h2>Hliðar <small>" + nSide + " skrár · " + nCab + " skápar" + (stopped.length ? " · " + stopped.length + " ⛔" : "") + "</small></h2>";
+    h += "<h2>Skápar <small>" + nSide + " möppur · " + nCab + " skápar" + (stopped.length ? " · " + stopped.length + " ⛔" : "") + "</small></h2>";
     if (!nSide && !stopped.length) h += '<div class="empty">Engar skápahliðar í Sögunarlista.</div>';
     groups.forEach(function (g, i) {
       var p = g.plans[0], st = g.plans.some(function (x) { return x.status === "check"; }) ? "check" : "ok";
@@ -185,11 +188,11 @@
       g.plans.forEach(function (x) { x.check.forEach(function (c) { if (notes.indexOf(c) < 0) notes.push(c); }); });
       h += '<div class="card ' + st + '"><input type="checkbox" data-side="' + i + '" checked style="width:20px;height:20px;margin-top:3px" />' +
         "<div><h3>" + esc(g.label) + ' <span class="chip ' + st + '">' + (st === "ok" ? "✅ Tilbúið" : "⚠️ Athuga") + "</span></h3>" +
-        '<div class="meta"><b>' + p.LPX + " × " + p.LPY + " × " + p.LPZ + "</b> · " + g.cabinets + " skáp" + (g.cabinets > 1 ? "ar" : "ur") + " (" + g.cabinets * 2 + " hliðar) · " +
-          esc(g.plans.map(function (x) { return x.name; }).join(", ")) + (p.groove ? " · masonít-rauf" : " · engin rauf") + "</div>" +
+        '<div class="meta"><b>' + p.LPX + " × " + p.LPY + " × " + p.LPZ + "</b> · " + g.cabinets + " skáp" + (g.cabinets > 1 ? "ar" : "ur") + " · " +
+          esc(p.name) + (p.groove ? " · masonít-rauf" : " · engin rauf") + "</div>" +
         (notes.length ? '<ul class="notes">' + notes.map(function (n) { return '<li class="check">⚠️ ' + esc(n) + "</li>"; }).join("") + "</ul>" : "") +
         '<div class="ops">' + p.ops.slice(2).map(function (o) { return esc(o.name + " " + o.params); }).join("<br>") + "</div>" +
-        '<div class="fname">' + esc(SD.fileName(pre, g)) + "</div></div><div></div></div>";
+        '<div class="fname">Skápar/' + esc(g.label) + "/ → " + g.files.map(function (f) { return esc(SD.sideFileName(pre, p, f)) + " ×" + f.count; }).join(" · ") + "</div></div><div></div></div>";
     });
     stopped.forEach(function (p) {
       h += '<div class="card stop"><span></span><div><h3>' + esc(p.name) + ' <span class="chip stop">⛔ Ekki gert</span></h3><ul class="notes">' +
@@ -268,28 +271,45 @@
 
       // Sides. Files this page made before (marked inside) that this export no longer produces are removed, so a
       // regrouped project never leaves a stale side program behind. Hand-made files are never touched.
-      var sideNames = {};
+      // Skápar/<Sk - tegund>/ — one folder per cabinet, its side files (left/right when only one side has hinges)
+      var cabDir = await sub(job, "Skápar", true), madeIn = {};
       for (var g of sideSel) {
-        var fname = SD.fileName(pre, g), r = SD.renderSide(await readMaster(root, SD.MASTER), g.plans[0]);
-        if (r.errors.length) { log("⛔ " + fname + " EKKI skrifað: " + r.errors.join(" · ")); missing.push(fname + ": " + r.errors.join(" · ")); continue; }
-        await writeBytes(job, fname, D.toCp1252(r.text)); sideNames[fname] = 1;
-        log("✅ " + fname); made.push(fname + "  (" + g.plans[0].LPX + "×" + g.plans[0].LPY + "×" + g.plans[0].LPZ + ", " + g.cabinets * 2 + " hliðar)");
-        g.plans.forEach(function (p) { p.check.forEach(function (c) { var s = g.label + ": " + c; if (warn.indexOf(s) < 0) warn.push(s); }); });
+        var p0 = g.plans[0], dir = await sub(cabDir, g.label, true), names = madeIn[g.label] = {};
+        for (var sf of g.files) {
+          var fname = SD.sideFileName(pre, p0, sf), r = SD.renderSide(await readMaster(root, SD.MASTER), sf.plan);
+          if (r.errors.length) { log("⛔ " + g.label + "/" + fname + " EKKI skrifað: " + r.errors.join(" · ")); missing.push(fname + ": " + r.errors.join(" · ")); continue; }
+          await writeBytes(dir, fname, D.toCp1252(r.text)); names[fname] = 1;
+          log("✅ Skápar/" + g.label + "/" + fname); made.push("Skápar/" + g.label + "/" + fname + "  (" + p0.LPX + "×" + p0.LPY + "×" + p0.LPZ + ", keyra ×" + sf.count + ")");
+        }
+        p0.check.forEach(function (c) { var s = g.label + ": " + c; if (warn.indexOf(s) < 0) warn.push(s); });
       }
+      // Files this page made before (marked inside) that this export no longer produces are removed — a regrouped
+      // project never leaves a stale program behind. Hand-made files are never touched. Only on a full export.
       if (sideSel.length === groups.length) {
-        for await (var entry of job.values()) {
-          if (entry.kind !== "file" || sideNames[entry.name] || !/ Hliðar\.bpp$/.test(entry.name) || entry.name.indexOf(pre + " ") !== 0) continue;
-          var old = await readText(await entry.getFile());
-          if (old.indexOf(SD.MARKER) >= 0) { await job.removeEntry(entry.name); log("🗑 " + entry.name + " (úrelt — búið til hér áður)"); }
+        var dropMarked = async function (dir, keep, label) {
+          for await (var en of dir.values()) {
+            if (en.kind !== "file" || keep[en.name] || !/\.bpp$/i.test(en.name)) continue;
+            if ((await readText(await en.getFile())).indexOf(SD.MARKER) >= 0) { await dir.removeEntry(en.name); log("🗑 " + label + en.name + " (úrelt — búið til hér áður)"); }
+          }
+        };
+        await dropMarked(job, {}, ""); // the old flat layout (before 2026-10-10): side files straight in the project folder
+        for await (var cd of cabDir.values()) {
+          if (cd.kind !== "directory") continue;
+          await dropMarked(cd, madeIn[cd.name] || {}, "Skápar/" + cd.name + "/");
+          if (!madeIn[cd.name]) { var left = 0; for await (var _x of cd.values()) left++; if (!left) { await cabDir.removeEntry(cd.name); log("🗑 Skápar/" + cd.name + "/ (tóm)"); } }
         }
       }
       stopped.forEach(function (p) { missing.push(p.name + ": " + p.stop.join(" · ")); });
 
       // Doors — the jamb that may already exist decides the leaf (see cnc-doors.js).
       var logBlocks = [];
+      var doorDir = doorSel.length ? await sub(job, "Hurðir", true) : null;
       for (var d of doorSel) {
         var pl = d.plan, files = D.filesFor(pl, pre), values = pl.values, jambKept = false;
-        var jambFile = await tryFile(job, files[1].name);
+        // Hurðir/<HU>/ — unless this door's jamb was made in the old flat layout: then its files stay next to it
+        var oldJamb = await tryFile(job, files[1].name), ddir = oldJamb ? job : await sub(doorDir, pl.id.replace(/[\\/:*?"<>|]+/g, "-"), true);
+        var where = ddir === job ? "" : "Hurðir/" + pl.id + "/";
+        var jambFile = oldJamb || await tryFile(ddir, files[1].name);
         if (jambFile) {
           var saved = D.readValues(await readText(jambFile));
           if (!saved) { log("⚠️ " + pl.id + ": „" + files[1].name + "“ er til en var ekki gerður hér. " + (overwrite ? "Yfirskrifa." : "Karmar ekki snertir; blað gert eftir Airtable — BERA SAMAN við karminn.")); jambKept = !overwrite; }
@@ -299,10 +319,10 @@
           }
         }
         for (var f of files) {
-          if (f.kind !== "leaf" && jambKept) { log("   = " + f.name + " (óbreyttur, karmur til)"); continue; }
+          if (f.kind !== "leaf" && jambKept) { log("   = " + where + f.name + " (óbreyttur, karmur til)"); continue; }
           var rr = D.renderBpp(await readMaster(root, f.master), values, f.managed, f.on);
           if (rr.errors.length) { log("⛔ " + f.name + " EKKI skrifað: " + rr.errors.join(" · ")); missing.push(f.name + ": " + rr.errors.join(" · ")); continue; }
-          await writeBytes(job, f.name, D.toCp1252(rr.text)); log("✅ " + f.name); made.push(f.name);
+          await writeBytes(ddir, f.name, D.toCp1252(rr.text)); log("✅ " + where + f.name); made.push(where + f.name);
         }
         pl.check.forEach(function (c) { warn.push(pl.id + ": " + c); });
         logBlocks.push(D.logText(Object.assign({}, pl, { values: values }), project.name, when));

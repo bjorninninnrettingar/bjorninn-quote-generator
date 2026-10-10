@@ -7097,6 +7097,7 @@
   //     fronts:[{code, mm}],               drawer fronts bottom → top (also the drawers under an oven)
   //     oven:{h, under, shelves:[{mm, fixed, pos}]}, shelves:{loose, fixed},  only when the cabinet has them
   //                                    (oven h 595/455/1050; shelf mm = top face from the body's bottom)
+  //     hinge:"vinstri"|"haegri"|"baedi",  the carcass side(s) with hinges (door cabinets)
   //     doors:[…] }                        only when Rakel set them up in the box editor (else /cnc's default)
   // End panels: w = the panel's depth, d = 19 (that's how the Eyðublað describes a side).
   function smidaFor(b, c, zone){
@@ -7130,6 +7131,8 @@
     var spl = !c.fridge && !c.oven ? proSplit(b, h) : null;
     if (spl) o.split = spl; // fronts split in Smíða: slots top → bottom → Skipting fronta [Lárétt] + Hæð frontur 1–3
     var doors = proDoorsOf(b, c, zone);
+    // which carcass side takes the hinges, seen from the front (/cnc drills only that side): two doors = both
+    if (doors.length) o.hinge = b.widthMm > 600 && !c.fridge && c.cls !== "corner" ? "baedi" : b.swing === "haegri" ? "haegri" : "vinstri";
     if (doors.length && b.smida) o.doors = doors.map(function(dr, i){ var sp = proSpec(b, doors, i);
       return { h:dr.box - 3, type:sp.type, side:b.swing || null, hinges:sp.type === "lift" ? [] : sp.hinges }; });
     return o;

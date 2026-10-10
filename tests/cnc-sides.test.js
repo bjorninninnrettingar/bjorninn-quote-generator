@@ -172,3 +172,25 @@ test("oven from Smíðagögn: niche boards, fixed shelf and loose shelf with its
   // without Smíðagögn: still the old warning
   assert.ok(S.unitPlan("Sk 10", rows).check.some((c) => /bíða hönnuðar/.test(c)));
 });
+
+test("side files per cabinet: hinges only on the hinge side; no hinges = one file for both; unknown = both with hinges", () => {
+  const rows = [row("Grunnskápur hlið", 800, 580, 16, 2), row("Frontur", 797, 597, 19, 1)];
+  const left = S.unitPlan("Sk4 | LGR60", rows, { smida: JSON.stringify({ v: 1, hinge: "vinstri" }) });
+  const f = S.sideFiles(left);
+  assert.deepEqual(f.map((x) => [x.name, x.count, x.plan.ops.some((o) => o.name === "LOM")]), [["Vinstri hlið - lamir", 1, true], ["Hægri hlið", 1, false]]);
+  assert.equal(S.cabinetFolder(left), "Sk4 - Grunnskápur");
+  assert.equal(S.sideFileName("T-32", left, f[0]), "T-32 Sk4 Vinstri hlið - lamir.bpp");
+  assert.deepEqual(S.sideFiles(S.unitPlan("Sk4", rows, { smida: JSON.stringify({ v: 1, hinge: "haegri" }) })).map((x) => x.name), ["Vinstri hlið", "Hægri hlið - lamir"]);
+  const unknown = S.unitPlan("Sk4", rows);
+  assert.deepEqual(S.sideFiles(unknown).map((x) => [x.name, x.count]), [["Hliðar - lamir báðum megin", 2]]);
+  assert.ok(unknown.check.some((c) => /Lamahlið óþekkt/.test(c)));
+  assert.deepEqual(S.sideFiles(S.unitPlan("Sk1", SK1)).map((x) => [x.name, x.count]), [["Hliðar", 2]]);
+});
+
+test("older oven Smíðagögn (no shelf list): niche boards + the loose shelves spread above the niche", () => {
+  const r = (Partur, H, B, Þ, M) => ({ Partur, H, B, "Þ": Þ, M, "Tegund einingu": ["Ofnaskápur"] });
+  const rows = [r("Skápur hlið", 2400, 583, 16, 2), r("Laus loftunarhilla", 558, 568, 16, 2), r("Frontur f. ofan ofn", 1202, 597, 19, 1)];
+  const o = ops(S.unitPlan("Sk 10", rows, { smida: JSON.stringify({ v: 1, oven: { h: 595, under: 600 } }) })).filter((x) => /HILLA/.test(x));
+  assert.deepEqual(o, ["FOST_HILLA: 16, 600, 2, lpy-22, lpz+5", "FOST_HILLA: 16, 1211, 2, lpy-22, lpz+5",
+    "LAUS_HILLA: 1557.3, 3, 37, 20+60, 50", "LAUS_HILLA: 1953.7, 3, 37, 20+60, 50"]);
+});
