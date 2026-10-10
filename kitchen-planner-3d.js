@@ -394,12 +394,23 @@
   // Shelves behind the doors of any cabinet (Smíða, 2026-10-10): b.shelfPos = [{mm, fixed, pos}], same meaning as
   // the oven's. Default = shelvesOf(b) loose shelves spread evenly (as the 3D always drew them), 3 positions each;
   // a búrskápur's 2 shelves sit above its inner drawers. The oven keeps its own list (ovenShelvesOf).
-  function burTopMm(b, sysKey){ // top of a búrskápur's inner drawer stack, as the 3D builds it (30 mm up, front + 20, 35 apart)
-    var sys = DRAWER_CODES[sysKey === "merivo" ? "merivo" : "legra"], y = 30;
-    burCodesOf(b, sysKey).forEach(function(code){ y += ((sys && sys.side[code]) || 120) + 20 + 35; });
-    return y;
+  // A búrskápur's inner drawers, bottom → top: [{code, mm = bottom of its inner front from the body's bottom, h = front}].
+  // Default 60 mm up (its runner then clears the bottom hinge at 80 — was 30, runner on the hinge), 35 apart;
+  // b.burPos = Rakel's positions from Smíða (2026-10-10).
+  function burDrawersOf(b, sysKey){
+    var sys = DRAWER_CODES[sysKey === "merivo" ? "merivo" : "legra"], codes = burCodesOf(b, sysKey), y = 60;
+    var custom = Array.isArray(b.burPos) && b.burPos.length === codes.length ? b.burPos : null;
+    return codes.map(function(code, k){
+      var h = ((sys && sys.side[code]) || 120) + 20, mm = custom ? Math.round(custom[k]) : y;
+      y = mm + h + 35;
+      return { code:code, mm:mm, h:h };
+    });
   }
-  function hasShelfLayout(b){ var c = CATALOG[b.type]; return !!c && !c.oven && !c.open && !(b.interior && b.interior.mode === "skuffur") && (!!c.bur || shelvesOf(b) != null); }
+  function burTopMm(b, sysKey){ // above the inner drawers: where the shelves may start
+    var d = burDrawersOf(b, sysKey), last = d[d.length - 1];
+    return last ? last.mm + last.h + 35 : 30;
+  }
+  function hasShelfLayout(b){ var c = CATALOG[b.type]; return !!c && !c.oven && !(b.interior && b.interior.mode === "skuffur") && (!!c.bur || shelvesOf(b) != null); }
   function shelfSpaceMm(b, bodyMm, sysKey){
     var c = CATALOG[b.type];
     if (c && c.oven) return ovenUpperMm(b, sysKey, bodyMm);
@@ -923,7 +934,7 @@
           doorLeaves(b, c).forEach(function(leaf){
             var g = null, P = Infinity, zLo = 0, why = "", blockerId = null, cornerRun = false;
             if (leaf.hinge === "left"){
-              if (i === 0 && zone === "floor" && clear > 0 && prev){ if (cornerWin){ g = from - clear; P = cornerWin.hi; zLo = cornerWin.lo; why = "skápunum á " + String(prev.label || "").replace(/^Veggur/, "vegg"); cornerRun = true; } } // the other run's fronts (their handles: below)
+              if (i === 0 && zone === "floor" && clear > 0 && prev){ if (cornerWin){ g = from - clear; P = cornerWin.hi; zLo = cornerWin.lo; why = "skápana á " + String(prev.label || "").replace(/^Veggur/, "vegg"); cornerRun = true; } } // the other run's fronts (their handles: below)
               else if (i === 0 && af.start > 0){ g = from; why = "vegginn"; }
               else if (i > 0 && depthOf(list[i - 1]) > depthOf(b) + 20){ var pb = list[i - 1]; g = from - (starts[i - 1] + pb.widthMm); P = depthOf(pb) - depthOf(b); why = "skápinn við hliðina (" + CATALOG[pb.type].label.toLowerCase() + ")"; blockerId = pb.id; }
             } else {
@@ -1801,10 +1812,12 @@
       cframe.traverse(function(o){ if (o.isMesh) o.userData = meta; }); // a click on a board = a click on the cabinet
       group.add(cframe);
     }
-    if (isOpen){ // shelf boards
-      for (var sh = 1; sh <= (meta.shelves || 0); sh++){
+    if (isOpen){ // shelf boards — where Smíða put them, else spread evenly
+      var openList = meta.shelfBlock ? shelfLayoutOf(meta.shelfBlock, bodyH * 1000, meta.drawerSystem)
+        : (function(n){ var o = []; for (var k = 1; k <= n; k++) o.push({ mm:bodyH * 1000 * k / (n + 1) + 9 }); return o; })(meta.shelves || 0);
+      for (var sh = 0; sh < openList.length; sh++){
         var board = new THREE.Mesh(new THREE.BoxGeometry(widthM - 2 * CARCASS_T - 0.001, 0.018, depthM - 0.02), meta.openMat); // side to side (user, 2026-10-05)
-        board.position.copy(local(0, bodyBase + bodyH * sh / ((meta.shelves || 0) + 1), (depthM - 0.02) / 2 + 0.005));
+        board.position.copy(local(0, bodyBase + openList[sh].mm / 1000 - 0.009, (depthM - 0.02) / 2 + 0.005));
         board.quaternion.copy(quat); board.castShadow = true; board.receiveShadow = true;
         group.add(board);
       }
@@ -2140,8 +2153,10 @@
     // Búrskápur: inner drawers (a real BUR Útfærsla) stacked from the bottom behind the doors, 2 shelves above;
     // each inner drawer pulls out on its own once the doors are open
     if (meta.burCodes && meta.burCodes.length){
-      var sysB = DRAWER_CODES[sysKey], yb = bodyBase + 0.03, ibw = Math.max(0.2, widthM - 2 * T - 0.026), ibd = Math.max(0.2, Math.min(0.5, CD - 0.08));
+      var sysB = DRAWER_CODES[sysKey], yb = bodyBase + 0.06, ibw = Math.max(0.2, widthM - 2 * T - 0.026), ibd = Math.max(0.2, Math.min(0.5, CD - 0.08));
+      var burAt = meta.shelfBlock ? burDrawersOf(meta.shelfBlock, sysKey) : null; // Rakel's positions (Smíða)
       meta.burCodes.forEach(function(code, k){
+        if (burAt && burAt[k]) yb = bodyBase + burAt[k].mm / 1000;
         var side = (sysB && sysB.side[code]) || 120, key = meta.blockId + ":b" + k, g = new THREE.Group(), meshes = [];
         var bx = buildDrawerBox(THREE, sysKey, meta.carcassKey, side, ibw, ibd, code);
         bx.position.set(0, yb, CD - 0.045);
@@ -3387,7 +3402,7 @@
           { islandId:islandId, locked:!!b.locked || !!opts.xray, suppressBadge:!!opts.xray, slabFronts:jeyOn, corner:c.cls === "corner", doorSide:b.swing === "vinstri" ? "left" : "right", hingeRight:b.swing === "haegri", shelves:(c.hasInterior || c.shelfRange) && !(b.interior && b.interior.mode === "skuffur") ? (shelvesOf(b) || 0) : 0,
             openMat:openMat, hiddenMat:hiddenMat, drawerSystem:state.drawerSystem, carcassKey:state.carcass,
             warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), ready:!!(opts.readyIds && opts.readyIds.indexOf(b.id) >= 0), doorLimit:DOOR_LIMITS[b.id] || null, shelfBlock:b, wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), heightMm:hM * 1000, elevMm:0, handle:c.appliance ? null : state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0, // tall units: one door unless split in Smíða (2026-10-09)
-            splitFr:c.oven || c.fridge || c.fixedFronts ? null : splitFractions(b, hM * 1000 - (c.panel || c.appliance ? 0 : 100)),
+            splitFr:c.oven || c.fixedFronts ? null : splitFractions(b, hM * 1000 - (c.panel || c.appliance ? 0 : 100)), // a fridge too, once its split is changed in Smíða
             plinth:!c.panel && !c.appliance, appliance:c.appliance || null, leMans:!!c.tofrahornIds, counter:!!c.counter, sink:!!c.sink, oven:!!c.oven, panel:!!c.panel, plinthMat:plinthMat, stoneMat:stoneMat,
             ovenCodes:c.lowOven ? ["M"] : c.oven ? ovenCodesOf(b, state.drawerSystem) : null, fixedFronts:!!c.fixedFronts || !!c.appliance,
             burCodes:c.bur ? burCodesOf(b, state.drawerSystem) : null, dishwasher:!!c.dishwasher,
@@ -4672,7 +4687,7 @@
     drawerFrontsMm: drawerFrontsMm, stackFrontsMm: stackFrontsMm, resizeFront: resizeFront,
     drawerComboKey: drawerComboKey,
     ovenCodesOf: ovenCodesOf, ovenZoneMm: ovenZoneMm, setMood: setMood, OVEN_HEIGHTS: OVEN_HEIGHTS, OVEN_BOARD_MM: OVEN_BOARD_MM,
-    shelfLayoutOf: shelfLayoutOf, shelfSpaceMm: shelfSpaceMm, hasShelfLayout: hasShelfLayout, burTopMm: burTopMm,
+    shelfLayoutOf: shelfLayoutOf, burDrawersOf: burDrawersOf, shelfSpaceMm: shelfSpaceMm, hasShelfLayout: hasShelfLayout, burTopMm: burTopMm,
     ovenHOf: ovenHOf, ovenUnderOf: ovenUnderOf, ovenUnderMinMm: ovenUnderMinMm, ovenUnderMaxMm: ovenUnderMaxMm, ovenUpperMm: ovenUpperMm, ovenShelvesOf: ovenShelvesOf,
     OVEN_DEFAULT: OVEN_DEFAULT,
     modelsPending: modelsPending,

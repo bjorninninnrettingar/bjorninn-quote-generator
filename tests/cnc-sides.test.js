@@ -46,9 +46,9 @@ test("identical sides share one file, whatever the cabinet count", () => {
   assert.equal(S.fileName("T-56", g[0]), "T-56 SK01+09.1+11-13 Hliðar.bpp");
 });
 
-test("tall cabinet: inner drawers behind the door default from the bottom (75, front + 80), hinges flagged", () => {
+test("tall cabinet: inner drawers behind the door default from the bottom (front at 60, + 80 apart), hinges flagged", () => {
   const p = S.unitPlan("SK 17 ANDYRI", SK17);
-  assert.deepEqual(ops(p).filter((o) => o.startsWith("MERVIBOX")), [75, 299, 523, 747].map((x) => `MERVIBOX_INNSKUFFA: 144, ${x}, K`));
+  assert.deepEqual(ops(p).filter((o) => o.startsWith("MERVIBOX")), [114, 338, 562, 786].map((x) => `MERVIBOX_INNSKUFFA: 144, ${x}, K`));
   assert.ok(ops(p).includes('LOM: 80, 37, "2,3"'));
   assert.equal(p.status, "check");
   assert.ok(p.check.some((c) => c.startsWith("Lamir")));
@@ -250,4 +250,11 @@ test("shelves from Smíða in any cabinet: fixed at its top face, loose with its
   // counts that differ from Sögunarlisti are flagged
   const q = S.unitPlan("Sk2", rows.slice(0, 3), { smida });
   assert.ok(q.check.some((c) => /Fastar hillur: 1 í hönnuði, 0 í Sögunarlista/.test(c)));
+});
+
+test("inner drawers behind a door at the designer's positions (búrskápur in Smíða)", () => {
+  const smida = JSON.stringify({ v: 1, inner: [{ code: "K", mm: 30 }, { code: "K", mm: 400 }, { code: "K", mm: 650 }, { code: "K", mm: 900 }] });
+  const p = S.unitPlan("SK 17 ANDYRI", SK17, { smida });
+  assert.deepEqual(ops(p).filter((o) => o.startsWith("MERVIBOX")), [84, 454, 704, 954].map((x) => `MERVIBOX_INNSKUFFA: 144, ${x}, K`));
+  assert.ok(!p.check.some((c) => /hönnuður staðsetur/.test(c)));
 });

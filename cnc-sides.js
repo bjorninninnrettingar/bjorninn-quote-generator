@@ -263,10 +263,21 @@
         });
         if (inner.length > 1 || oven) check.push("Innskúffur (" + inner.length + "): athuga staðsetningu eftir teikningu");
       } else {
-        var bottom = T + 5;
-        inner.forEach(function (d) { runners.push(r1(bottom + INNER_RUNNER)); op(macroOf(d), "Innskúffa " + d.code, d.H + ", " + r1(bottom + INNER_RUNNER) + ", " + d.code); bottom = r1(bottom + d.H + 80); });
-        if (bottom > H - T) stop.push("Innskúffur komast ekki fyrir");
-        check.push("Innskúffur bak við hurð (" + inner.length + "): sjálfgefið neðan frá, framhlið + 80 á milli — hönnuður staðsetur");
+        // behind a door: where the designer put them (Smíðagögn inner = [{code, mm = bottom of the inner front}], búrskápur
+        // in Smíða, 2026-10-10), matched by code; otherwise from the bottom, front + 80 apart (⚠)
+        var sInner = (parseSmida(opts.smida) || {}).inner, left = inner.slice(), placed = [];
+        if (Array.isArray(sInner) && sInner.length === inner.length) {
+          sInner.forEach(function (x) { var i = left.findIndex(function (d) { return d.code === x.code; }); if (i >= 0) placed.push({ d: left.splice(i, 1)[0], mm: num(x.mm) }); });
+        }
+        if (placed.length === inner.length && placed.every(function (p) { return p.mm > 0; })) {
+          placed.forEach(function (p) { var x = r1(p.mm + INNER_RUNNER); runners.push(x); op(macroOf(p.d), "Innskúffa " + p.d.code, p.d.H + ", " + x + ", " + p.d.code); });
+          info.push("Innskúffur staðsettar í hönnuði");
+        } else {
+          var bottom = 60; // the designer's default too: the bottom runner (60 + 54) clears the bottom hinge at 80
+          inner.forEach(function (d) { runners.push(r1(bottom + INNER_RUNNER)); op(macroOf(d), "Innskúffa " + d.code, d.H + ", " + r1(bottom + INNER_RUNNER) + ", " + d.code); bottom = r1(bottom + d.H + 80); });
+          if (bottom > H - T) stop.push("Innskúffur komast ekki fyrir");
+          check.push("Innskúffur bak við hurð (" + inner.length + "): sjálfgefið neðan frá, framhlið + 80 á milli — hönnuður staðsetur");
+        }
       }
     }
 

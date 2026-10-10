@@ -6791,7 +6791,10 @@
       var top = body - ovenUnderMm(b) - KP3D.ovenHOf(b, c);
       return top > 150 ? [{ box:Math.round(top), label:"Hurð fyrir ofan ofn" }] : [];
     }
-    if (c.fridge) return [{ box:Math.round(body * 0.26), label:"Efri hurð" }, { box:Math.round(body * 0.74), label:"Neðri hurð" }];
+    if (c.fridge){ // two doors; their split can be changed in Smíða (else the appliance's usual 26 / 74)
+      var spF = proSplit(b, body), up = spF ? spF[0] : Math.round(body * 0.26);
+      return [{ box:up, label:"Efri hurð" }, { box:spF ? spF[1] : body - up, label:"Neðri hurð" }];
+    }
     // one front unless Rakel split it in Smíða (b.smida.split = slots top → bottom, summing to the body)
     var sp = proSplit(b, body);
     if (sp) return sp.map(function(mm, i){ return { box:mm, label:(sp.length === 2 ? ["Efri", "Neðri"] : ["Efsti", "Mið", "Neðsti"])[i] + " frontur" }; });
@@ -6818,6 +6821,7 @@
   // what a hinge must keep clear of, mm from the bottom of the body: fixed shelves and every loose shelf's holes
   function proShelfRows(b, body){
     var rows = [];
+    if (CATALOG[b.type].bur) KP3D.burDrawersOf(b, drawerSys()).forEach(function(dd){ rows.push({ at:dd.mm + 54, what:"braut innskúffu " + dd.code, fix:"innskúffuna" }); }); // runner = front bottom + 54 (/cnc)
     KP3D.shelfLayoutOf(b, body, drawerSys()).forEach(function(sh){
       if (sh.fixed){ rows.push({ at:sh.mm - 8, what:"föstu hillunni í " + sh.mm }); return; }
       var first = sh.mm - 16 - Math.floor((sh.pos - 1) / 2) * 50;
@@ -6837,7 +6841,7 @@
         if (pos.length < need) out.push(d.label + ": " + d.box + " mm hurð þarf minnst " + need + " lamir (" + pos.length + " núna).");
         pos.forEach(function(p){
           var hit = rows.find(function(r){ return Math.abs(bottom + p - r.at) < 30; });
-          if (hit) out.push(d.label + ": löm " + (p <= d.box / 2 ? "↓" + Math.round(p) : "↑" + Math.round(d.box - p)) + " lendir á " + hit.what + " — færðu lömina eða hilluna.");
+          if (hit) out.push(d.label + ": löm " + (p <= d.box / 2 ? "↓" + Math.round(p) : "↑" + Math.round(d.box - p)) + " lendir á " + hit.what + " — færðu lömina eða " + (hit.fix || "hilluna") + ".");
         });
       }
       top = bottom;
@@ -6912,9 +6916,11 @@
         if (i < fronts.length - 1) svg += '<line class="pe-seam" data-seam="' + i + '" x1="' + X0 + '" x2="' + (X0 + W) + '" y1="' + (yb - (h - 1.5) * S) + '" y2="' + (yb - (h - 1.5) * S) + '" stroke="#0a84ff" stroke-width="6" stroke-opacity=".35" style="cursor:ns-resize"/>';
       });
     }
+    // the fronts' split (top → bottom): Rakel's, or the integrated fridge's usual two doors
+    function splitNow(){ return proSplit(b, body) || (c.fridge ? doors.map(function(d){ return d.box; }) : null); }
     var ovUnder = c.oven ? ovenUnderMm(b) : 0, ovH = c.oven ? KP3D.ovenHOf(b, c) : 0, ovShelfSvg = "";
     // shelves behind the doors (any door cabinet with shelves, the oven's above the oven): typed / dragged here (2026-10-10)
-    var shelfOn = !!(doors.length && (c.oven ? !c.lowOven : KP3D.hasShelfLayout(b)));
+    var shelfOn = !!((doors.length || c.open) && (c.oven ? !c.lowOven : KP3D.hasShelfLayout(b)));
     function shelfList(){ return KP3D.shelfLayoutOf(b, body, drawerSys()); }
     var shelfCustom = c.oven ? Array.isArray(b.ovenShelves) : Array.isArray(b.shelfPos);
     if (c.oven){ // the oven itself (60+45 = two ovens), above its drawer/door zone; the line under it drags the zone
@@ -6960,19 +6966,18 @@
       if (ovShelfSvg && i === doors.length - 1) svg += ovShelfSvg; // on top of the doors (their hinges stay draggable)
       if (i < doors.length - 1) svg += '<line class="pe-dseam" data-k="' + i + '" x1="' + X0 + '" x2="' + (X0 + W) + '" y1="' + yTop + '" y2="' + yTop + '" stroke="#0a84ff" stroke-width="6" stroke-opacity=".35" style="cursor:ns-resize"/>';
     });
+    if (ovShelfSvg && !doors.length) svg += ovShelfSvg; // open shelves: no doors to draw them over
     // what's behind the doors, so hinges can be kept clear of it: shelves (as the 3D spreads them) and the
     // inner drawers of a búrskápur (from the bottom, as the 3D builds them)
     if (doors.length){
       var behind = function(yMm, label){ var y = Y0 + body * S - yMm * S;
         return '<line x1="' + (X0 + 6) + '" x2="' + (X0 + W - 6) + '" y1="' + y + '" y2="' + y + '" stroke="#6b7480" stroke-width="2" stroke-dasharray="6 4"/>' +
           '<text x="' + (X0 + W - 8) + '" y="' + (y - 3) + '" text-anchor="end" font-size="10" fill="#6b7480">' + label + ' ' + Math.round(yMm) + '</text>'; };
-      if (c.bur){
-        var sysB = KP3D.DRAWER_CODES[drawerSys()], yb = 30;
-        KP3D.burCodesOf(b, drawerSys()).forEach(function(code){
-          var ih = (sysB.side[code] || 120) + 20, y0 = Y0 + body * S - (yb + ih) * S;
-          svg += '<rect x="' + (X0 + 12) + '" y="' + y0 + '" width="' + (W - 24) + '" height="' + ih * S + '" fill="rgba(192,122,31,.12)" stroke="#c07a1f" stroke-dasharray="4 3"/>' +
-            '<text x="' + (X0 + W / 2) + '" y="' + (y0 + ih * S / 2 + 4) + '" text-anchor="middle" font-size="10" fill="#9a5a10">innskúffa ' + code + '</text>';
-          yb += ih + 35;
+      if (c.bur){ // inner drawers where they are (drag them up/down)
+        KP3D.burDrawersOf(b, drawerSys()).forEach(function(dd, k){
+          var y0 = Y0 + body * S - (dd.mm + dd.h) * S;
+          svg += '<g class="pe-burdr" data-k="' + k + '" style="cursor:ns-resize"><rect x="' + (X0 + 18) + '" y="' + y0 + '" width="' + (W - 36) + '" height="' + dd.h * S + '" fill="rgba(192,122,31,.18)" stroke="#c07a1f" stroke-dasharray="4 3"/>' +
+            '<text x="' + (X0 + W / 2) + '" y="' + (y0 + dd.h * S / 2 + 4) + '" text-anchor="middle" font-size="10" fill="#9a5a10">innskúffa ' + dd.code + ' · ' + dd.mm + '</text></g>';
         });
       }
     }
@@ -6983,11 +6988,13 @@
       (b.smida ? "Smíðagögn vistuð á skápnum" : "Sjálfgefið (ekkert breytt)") + '</div>';
     if (doors.length) right += '<div class="pe-row">Lamir:<button type="button" class="pe-btn' + (hingeLeft ? " on" : "") + '" data-pe="side" data-v="vinstri">Vinstri</button>' +
       '<button type="button" class="pe-btn' + (!hingeLeft ? " on" : "") + '" data-pe="side" data-v="haegri">Hægri</button></div>';
-    var canSplit = doors.length && !c.fridge && !c.oven && !c.corner;
+    var canSplit = doors.length && !c.oven && !c.corner;
     if (canSplit){
-      var spl = proSplit(b, body);
-      right += '<div class="pe-door"><h4>Skipting fronta</h4><div class="pe-row">' + [1, 2, 3].map(function(n){
-        return '<button type="button" class="pe-btn' + ((spl ? spl.length : 1) === n ? " on" : "") + '" data-pe="split" data-v="' + n + '">' + n + (n === 1 ? " frontur" : " frontar") + '</button>'; }).join("") + '</div>' +
+      var spl = splitNow();
+      right += '<div class="pe-door"><h4>Skipting fronta</h4><div class="pe-row">' + (c.fridge
+        ? 'Ísskápur: tvær hurðir' + (proSplit(b, body) ? ' <button type="button" class="pe-btn" data-pe="split" data-v="1">Sjálfgefið (26/74)</button>' : '')
+        : [1, 2, 3].map(function(n){
+        return '<button type="button" class="pe-btn' + ((spl ? spl.length : 1) === n ? " on" : "") + '" data-pe="split" data-v="' + n + '">' + n + (n === 1 ? " frontur" : " frontar") + '</button>'; }).join("")) + '</div>' +
         (spl ? spl.map(function(mm, k){ return '<div class="pe-row">' + doors[k].label + ': <input type="number" step="1" value="' + mm + '" data-pe="splitmm" data-k="' + k + '"> mm <span class="pe-note" style="margin:0">(frontur ' + (mm - 3) + ')</span></div>'; }).join("") +
           '<div class="pe-note">Hæðirnar fylla skápinn (' + body + ' mm) og hver frontur er 3 mm minni. Dragðu bláu skilin á teikningunni eða sláðu inn.</div>' : '') + '</div>';
     }
@@ -7018,6 +7025,12 @@
           '<div class="pe-note" style="margin-top:0">Upp að ofni (efri brún Loftunarbotns). ' + uMin + '–' + uMax + ' mm; skúffurnar fylla hæðina. Appelsínugula línan á teikningunni dregst.</div>';
       }
       right += '</div>';
+    }
+    if (c.bur && doors.length){
+      right += '<div class="pe-door"><h4>Innskúffur</h4>' + KP3D.burDrawersOf(b, drawerSys()).map(function(dd, k){
+          return '<div class="pe-row">Innskúffa ' + dd.code + ': <input type="number" step="1" value="' + dd.mm + '" data-pe="burmm" data-k="' + k + '"> mm frá botni (framhlið ' + dd.h + ')</div>'; }).join("") +
+        (Array.isArray(b.burPos) ? '<div class="pe-row"><button type="button" class="pe-btn" data-pe="burreset">Sjálfgefið</button></div>' : '') +
+        '<div class="pe-note">Neðri brún innri framhliðar frá botni skáps. Dragðu innskúffurnar á teikningunni. Hillurnar byrja fyrir ofan þær.</div></div>';
     }
     if (shelfOn){
       right += '<div class="pe-door"><h4>' + (c.oven ? "Hillur fyrir ofan ofn" : "Hillur") + '</h4>';
@@ -7065,7 +7078,7 @@
       if (v < SPLIT_MIN || nv < SPLIT_MIN) return null;
       var out = list.slice(); out[k] = v; out[j] = nv; return out;
     }
-    act('[data-pe="splitmm"]', function(n){ var list = proSplit(b, body), v = Math.round(+n.value), out = list && resizeSplit(list, +n.dataset.k, v);
+    act('[data-pe="splitmm"]', function(n){ var list = splitNow(), v = Math.round(+n.value), out = list && resizeSplit(list, +n.dataset.k, v);
       if (!out){ toast("Hver frontur þarf að vera minnst " + SPLIT_MIN + " mm og þeir fylla skápinn saman."); renderBoxEditor(); return; }
       proSetSplit(b, body, out); });
     act('[data-pe="side"]', function(n){ b.swing = n.dataset.v; save(); renderBoxEditor(); });
@@ -7103,6 +7116,28 @@
       var mid = Math.round((pts[best] + pts[best + 1]) / 2);
       if (!shelfOk(mid)){ toast("Ekki pláss fyrir fleiri hillur."); return; }
       list.push({ mm:mid, fixed:false, pos:3 }); setShelves(list); });
+    function setBur(k, v){ // move inner drawer k; the ones above keep their gaps but may not overlap, all must stay in the body
+      var list = KP3D.burDrawersOf(b, drawerSys()), pos = list.map(function(d){ return d.mm; });
+      pos[k] = Math.round(v);
+      for (var j = 0; j < list.length; j++){
+        var floor = j === 0 ? 20 : pos[j - 1] + list[j - 1].h + 10;
+        if (pos[j] < floor) pos[j] = floor;
+      }
+      var last = list.length - 1;
+      if (pos[last] + list[last].h > body - 60){ toast("Innskúffurnar komast ekki fyrir svona ofarlega."); renderBoxEditor(); return; }
+      b.burPos = pos; ovenDone();
+    }
+    act('[data-pe="burmm"]', function(n){ setBur(+n.dataset.k, +n.value); });
+    act('[data-pe="burreset"]', function(){ delete b.burPos; ovenDone(); });
+    el.querySelectorAll(".pe-burdr").forEach(function(g){
+      g.addEventListener("pointerdown", function(e){
+        e.preventDefault(); g.setPointerCapture(e.pointerId);
+        var k = +g.dataset.k, dd = KP3D.burDrawersOf(b, drawerSys())[k], startY = svgY(e), v = dd.mm;
+        function mv(ev){ v = Math.max(20, Math.round(dd.mm + (startY - svgY(ev)) / S)); g.setAttribute("transform", "translate(0," + ((dd.mm - v) * S) + ")"); }
+        function up(){ g.removeEventListener("pointermove", mv); g.removeEventListener("pointerup", up); if (v !== dd.mm) setBur(k, v); }
+        g.addEventListener("pointermove", mv); g.addEventListener("pointerup", up);
+      });
+    });
     act('[data-pe="oshreset"]', function(){ if (c.oven) delete b.ovenShelves; else delete b.shelfPos; ovenDone(); });
     act('[data-pe="type"]', function(n){ var i = +n.dataset.door, sp = proSpec(b, doors, i); sp.type = n.dataset.v; if (sp.type === "hinged" && !(sp.hinges && sp.hinges.length)) sp.hinges = proDefaultHinges(b, doors, i); proSetSpec(b, doors, i, sp); renderBoxEditor(); });
     act('[data-pe="mm"]', function(n){ var i = +n.dataset.door, sp = proSpec(b, doors, i), v = Math.round(+n.value);
@@ -7158,7 +7193,7 @@
     el.querySelectorAll(".pe-dseam").forEach(function(line){ // seam between two split fronts
       line.addEventListener("pointerdown", function(e){
         e.preventDefault(); line.setPointerCapture(e.pointerId);
-        var k = +line.dataset.k, list = proSplit(b, body), above = 0; for (var q = 0; q < k; q++) above += list[q];
+        var k = +line.dataset.k, list = splitNow(), above = 0; for (var q = 0; q < k; q++) above += list[q];
         var out = null;
         function mv(ev){ var v = Math.round((svgY(ev) - Y0) / S - above), cand = list && resizeSplit(list, k, v); if (!cand) return; out = cand;
           var y = Y0 + (above + v) * S; line.setAttribute("y1", y); line.setAttribute("y2", y); }
@@ -7224,7 +7259,8 @@
       o.shelves = c.bur ? { list:sl } : Object.assign({ loose:sl.filter(function(x){ return !x.fixed; }).length, list:sl },
         Array.isArray(b.shelfPos) ? { fixed:sl.filter(function(x){ return x.fixed; }).length } : {});
     }
-    var spl = !c.fridge && !c.oven ? proSplit(b, h) : null;
+    if (c.bur) o.inner = KP3D.burDrawersOf(b, state.drawerSystem).map(function(dd){ return { code:dd.code, mm:dd.mm }; }); // inner drawers behind the doors → /cnc
+    var spl = !c.oven ? proSplit(b, h) : null; // (a fridge only once Rakel changed its split — else V2 decides)
     if (spl) o.split = spl; // fronts split in Smíða: slots top → bottom → Skipting fronta [Lárétt] + Hæð frontur 1–3
     var doors = proDoorsOf(b, c, zone);
     // which carcass side takes the hinges, seen from the front (/cnc drills only that side): two doors = both
