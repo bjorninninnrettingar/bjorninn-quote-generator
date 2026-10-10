@@ -376,7 +376,7 @@
   }
   // the zone under the oven, mm; c.lowOven = the oven under the worktop, one slot of body − oven − 3
   function ovenUnderOf(b, sysKey, bodyMm, c){
-    if (c && c.lowOven) return Math.max(53, bodyMm - ovenHOf(b, c) - 3);
+    if (c && c.lowOven) return Math.max(53, bodyMm - ovenHOf(b, c)); // one slot: slot + oven = body (front = slot − 3)
     var u = +b.ovenUnderMm, def = ovenZoneMm(ovenCodesOf(b, sysKey));
     if (!(u > 0)) return def;
     u = Math.max(u, ovenUnderMinMm(b, sysKey));
