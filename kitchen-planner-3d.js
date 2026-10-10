@@ -359,6 +359,45 @@
   }
   // Height of the drawer zone under a tall oven: 600 mm of body (worktop height), 700 when a combo needs it
   function ovenZoneMm(codes){ return !codes.length || drawerFrontsMm(codes, 600) ? 600 : 700; }
+  // Oven settings, set in Smíða (2026-10-10): the oven's height 60 / 45 / 60+45 (b.ovenH = 595 / 455 / 1050), the
+  // height under it (b.ovenUnderMm = Σ slots of the drawers / door below = top of the Loftunarbotn the oven stands on;
+  // default by combo) and the shelves in the cabinet above (b.ovenShelves = [{mm, fixed, pos}]: mm = the shelf's top
+  // face from the bottom of the body, pos = how many hole positions a loose one gets). The niche is closed above by
+  // the Loftunartoppur; boards are carcass (16).
+  var OVEN_HEIGHTS = [{ mm:595, label:"60" }, { mm:455, label:"45" }, { mm:1050, label:"60+45" }];
+  var OVEN_BOARD_MM = 16, OVEN_DOOR_MIN = 150;
+  function ovenHOf(b, c){
+    var h = +(b && b.ovenH);
+    return OVEN_HEIGHTS.some(function(o){ return o.mm === h; }) && !(c && c.lowOven && h > 600) ? h : 595;
+  }
+  function ovenUnderMinMm(b, sysKey){
+    var codes = ovenCodesOf(b, sysKey);
+    return codes.length ? codes.reduce(function(a, k){ return a + slotMin(k); }, 0) : OVEN_DOOR_MIN;
+  }
+  // the zone under the oven, mm; c.lowOven = the oven under the worktop, one slot of body − oven − 3
+  function ovenUnderOf(b, sysKey, bodyMm, c){
+    if (c && c.lowOven) return Math.max(53, bodyMm - ovenHOf(b, c) - 3);
+    var u = +b.ovenUnderMm, def = ovenZoneMm(ovenCodesOf(b, sysKey));
+    if (!(u > 0)) return def;
+    u = Math.max(u, ovenUnderMinMm(b, sysKey));
+    if (bodyMm) u = Math.min(u, ovenUnderMaxMm(b, bodyMm));
+    return Math.round(u);
+  }
+  function ovenUnderMaxMm(b, bodyMm){ return bodyMm - ovenHOf(b) - OVEN_BOARD_MM - OVEN_DOOR_MIN; }
+  // the space for shelves above the niche: top of the Loftunartoppur → under the top board
+  function ovenUpperMm(b, sysKey, bodyMm){
+    var lo = ovenUnderOf(b, sysKey, bodyMm) + ovenHOf(b) + OVEN_BOARD_MM;
+    return { lo:lo, hi:bodyMm - OVEN_BOARD_MM };
+  }
+  // the shelves above the oven, bottom → top; default = 2 loose vent shelves at thirds, 3 positions each
+  function ovenShelvesOf(b, sysKey, bodyMm){
+    var r = ovenUpperMm(b, sysKey, bodyMm);
+    if (Array.isArray(b.ovenShelves)) return b.ovenShelves
+      .filter(function(x){ return x && x.mm > r.lo + OVEN_BOARD_MM && x.mm < r.hi - 10; })
+      .map(function(x){ return { mm:Math.round(x.mm), fixed:!!x.fixed, pos:x.fixed ? 1 : Math.max(1, Math.min(9, Math.round(x.pos) || 3)) }; })
+      .sort(function(a, z){ return a.mm - z.mm; });
+    return [1, 2].map(function(k){ return { mm:Math.round(r.lo + (r.hi - r.lo) * k / 3), fixed:false, pos:3 }; });
+  }
   // Inner drawers of a Búrskápur (bottom → top) from b.burCombo, a real BUR Útfærsla key like "MKCC".
   var BUR_DEFAULT = { legra:"MKCC", merivo:"MKEE" };
   function burCodesOf(b, sysKey){
@@ -1342,17 +1381,22 @@
     // handle), door above.
     if (isOven){
       // the oven sits on a 700 mm drawer/cabinet zone (worktop height), its combo drawn as real drawer fronts
-      var ovCodes = (meta && meta.ovenCodes) || [], oh = 0.595;
-      var zoneH = meta && meta.lowOven ? Math.max(0.05, heightM - oh) : ovenZoneMm(ovCodes) / 1000, oy = baseYM + zoneH;
+      var ovCodes = (meta && meta.ovenCodes) || [], ovB = (meta && meta.ovenBlock) || {}, ovSys = meta && meta.drawerSystem;
+      var oh = ovenHOf(ovB, meta && meta.ovenCat) / 1000;
+      var zoneH = meta && meta.lowOven ? Math.max(0.05, heightM - oh) : ovenUnderOf(ovB, ovSys, heightM * 1000) / 1000, oy = baseYM + zoneH;
       var ovFr = meta && meta.lowOven ? [zoneH * 1000] : ovCodes.length ? stackFrontsMm({ frontsMm:meta && meta.ovenFrontsMm }, ovCodes, zoneH * 1000) : null;
       var glassMat = new THREE.MeshPhysicalMaterial({ color:0x0c0d0f, roughness:0.06, metalness:0.1, clearcoat:1, clearcoatRoughness:0.03 }); // dark glass that mirrors the room
       [oy, oy + oh].forEach(function(y){ place(new THREE.Mesh(new THREE.PlaneGeometry(widthM + 0.002, 0.005), seamMat), y, 0.004); });
-      place(new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.9, oh - 0.13, 0.012), glassMat), oy + (oh - 0.13) / 2 + 0.005, 0.006);
-      place(new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.94, oh - 0.006, 0.006), new THREE.MeshStandardMaterial({ color:0x9fa4aa, roughness:0.3, metalness:0.9 })), oy + oh / 2, 0.003); // steel frame behind the glass
-      place(new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.9, 0.06, 0.012), new THREE.MeshStandardMaterial({ color:0x2b2c30, roughness:0.4, metalness:0.4 })), oy + oh - 0.05, 0.006);
-      [-0.22, -0.15, 0.15, 0.22].forEach(function(f){ var kn = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.016, 0.018, 20), new THREE.MeshStandardMaterial({ color:0xb7bcc2, roughness:0.25, metalness:0.95 })); kn.rotation.x = Math.PI / 2; place(kn, oy + oh - 0.05, 0.02, widthM * f); });
-      place(new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.022, 0.002), new THREE.MeshBasicMaterial({ color:0x0b0b0c })), oy + oh - 0.05, 0.013); // display
-      place(new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.7, 0.018, 0.028), handleMat), oy + oh - 0.105, 0.024);
+      // 60+45 = a 595 oven with a 455 compact oven on top
+      (oh > 1 ? [[oy, 0.595], [oy + 0.595, 0.455]] : [[oy, oh]]).forEach(function(seg){
+        var sy = seg[0], sh = seg[1];
+        place(new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.9, sh - 0.13, 0.012), glassMat), sy + (sh - 0.13) / 2 + 0.005, 0.006);
+        place(new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.94, sh - 0.006, 0.006), new THREE.MeshStandardMaterial({ color:0x9fa4aa, roughness:0.3, metalness:0.9 })), sy + sh / 2, 0.003); // steel frame behind the glass
+        place(new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.9, 0.06, 0.012), new THREE.MeshStandardMaterial({ color:0x2b2c30, roughness:0.4, metalness:0.4 })), sy + sh - 0.05, 0.006);
+        [-0.22, -0.15, 0.15, 0.22].forEach(function(f){ var kn = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.016, 0.018, 20), new THREE.MeshStandardMaterial({ color:0xb7bcc2, roughness:0.25, metalness:0.95 })); kn.rotation.x = Math.PI / 2; place(kn, sy + sh - 0.05, 0.02, widthM * f); });
+        place(new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.022, 0.002), new THREE.MeshBasicMaterial({ color:0x0b0b0c })), sy + sh - 0.05, 0.013); // display
+        place(new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.7, 0.018, 0.028), handleMat), sy + sh - 0.105, 0.024);
+      });
       var tops = [];
       if (ovFr){ // seams between the drawers under the oven; a handle at the top of each
         var accY = baseYM;
@@ -1843,9 +1887,10 @@
     // Ofnaskápur: the real Útfærsla — drawers (or a door, OFN7) under the oven, the oven, and a cabinet above
     // it with two vent shelves behind its door
     if (meta.oven){
-      var ovCodesA = meta.ovenCodes || [], zoneMm = meta.lowOven ? Math.max(50, bodyH * 1000 - 595 - 3) : ovenZoneMm(ovCodesA);
+      var ovCodesA = meta.ovenCodes || [], ovBA = meta.ovenBlock || {}, ovHmm = ovenHOf(ovBA, meta.ovenCat);
+      var zoneMm = meta.lowOven ? Math.max(50, bodyH * 1000 - ovHmm - 3) : ovenUnderOf(ovBA, meta.drawerSystem, bodyH * 1000);
       var ovFrA = meta.lowOven ? [zoneMm] : ovCodesA.length ? stackFrontsMm({ frontsMm:meta.ovenFrontsMm }, ovCodesA, zoneMm) : null;
-      var ovY = bodyBase + zoneMm / 1000, ovH = 0.595, wideA = widthM > WIDE_DOOR_M, hingeA = meta.hingeRight ? "right" : "left";
+      var ovY = bodyBase + zoneMm / 1000, ovH = ovHmm / 1000, wideA = widthM > WIDE_DOOR_M, hingeA = meta.hingeRight ? "right" : "left";
       if (ovFrA){
         dcodes = ovCodesA;
         var accA = bodyBase;
@@ -1861,16 +1906,19 @@
       } else makeLeaf(idx++, 0, widthM, bodyBase + 0.0015, ovY - 0.0015, hingeA, { y0:0, y1:1 }, 0);
       // the oven itself: dark body in the niche, glass door, control strip, bar handle
       var dark = new THREE.MeshStandardMaterial({ color:0x1c1d20, roughness:0.4, metalness:0.4 });
-      addBox(widthM - 2 * CARCASS_T - 0.004, ovH - 0.004, CD - 0.02, 0, ovY + ovH / 2, (CD - 0.02) / 2 + 0.01, dark);
-      addBox(widthM - 0.006, ovH - 0.13, FRONT_T, 0, ovY + (ovH - 0.13) / 2 + 0.004, CD + FRONT_T / 2, new THREE.MeshStandardMaterial({ color:0x141518, roughness:0.12, metalness:0.5 }));
-      addBox(widthM - 0.006, 0.115, FRONT_T, 0, ovY + ovH - 0.06, CD + FRONT_T / 2, new THREE.MeshStandardMaterial({ color:0x2b2c30, roughness:0.4, metalness:0.4 }));
-      addBox(widthM * 0.7, 0.018, 0.028, 0, ovY + ovH - 0.145, CD + FRONT_T + 0.014, new THREE.MeshStandardMaterial({ color:0xb9bec4, metalness:0.85, roughness:0.28 }));
+      (ovH > 1 ? [[ovY, 0.595], [ovY + 0.595, 0.455]] : [[ovY, ovH]]).forEach(function(seg){ // 60+45 = two ovens
+        var sy = seg[0], sh = seg[1];
+        addBox(widthM - 2 * CARCASS_T - 0.004, sh - 0.004, CD - 0.02, 0, sy + sh / 2, (CD - 0.02) / 2 + 0.01, dark);
+        addBox(widthM - 0.006, sh - 0.13, FRONT_T, 0, sy + (sh - 0.13) / 2 + 0.004, CD + FRONT_T / 2, new THREE.MeshStandardMaterial({ color:0x141518, roughness:0.12, metalness:0.5 }));
+        addBox(widthM - 0.006, 0.115, FRONT_T, 0, sy + sh - 0.06, CD + FRONT_T / 2, new THREE.MeshStandardMaterial({ color:0x2b2c30, roughness:0.4, metalness:0.4 }));
+        addBox(widthM * 0.7, 0.018, 0.028, 0, sy + sh - 0.145, CD + FRONT_T + 0.014, new THREE.MeshStandardMaterial({ color:0xb9bec4, metalness:0.85, roughness:0.28 }));
+      });
       if (meta.lowOven) return; // low oven (OFN6): the oven sits right under the worktop, nothing above
       // cabinet above: a fixed shelf right on top of the oven, then 2 vent shelves (loftunarhillur) — each
       // with one slot through it at the back: 60 mm from the back, 100 mm in from both sides, 60 mm wide
       // (user, 2026-10-05). Every shelf reaches the carcass sides.
       var upY0 = ovY + ovH + 0.003, upY1 = bodyBase + bodyH, shW = widthM - 2 * CARCASS_T - 0.001, shD = CD - 0.02 - BACK_T;
-      addBox(shW, 0.018, shD, 0, ovY + ovH + 0.009, BACK_T + shD / 2 + 0.001, meta.openMat);
+      addBox(shW, 0.018, shD, 0, ovY + ovH + 0.009, BACK_T + shD / 2 + 0.001, meta.openMat); // Loftunartoppur
       var vent = new THREE.Shape(); // x across, y = distance from the back
       vent.moveTo(-shW / 2, 0); vent.lineTo(shW / 2, 0); vent.lineTo(shW / 2, shD); vent.lineTo(-shW / 2, shD); vent.lineTo(-shW / 2, 0);
       // slots milled through it: 60 mm long at 45°, one every 32 mm across the width (100 mm in from the
@@ -1884,10 +1932,13 @@
       }
       var ventGeo = new THREE.ExtrudeGeometry(vent, { depth:0.018, bevelEnabled:false });
       ventGeo.rotateX(Math.PI / 2); // shape y → depth into the room, thickness downwards from y = 0
-      for (var vs = 1; vs <= 2; vs++){
-        var vm = new THREE.Mesh(ventGeo, meta.openMat), vy = upY0 + (upY1 - upY0) * vs / 3;
-        vm.position.set(0, vy + 0.009, BACK_T + 0.001); vm.castShadow = true; vm.receiveShadow = true; frame.add(vm);
-      }
+      // the shelves Rakel set in Smíða (default: 2 loose at thirds); fixed ones are plain boards, loose ones vent shelves
+      ovenShelvesOf(ovBA, meta.drawerSystem, bodyH * 1000).forEach(function(sh){
+        var top = bodyBase + sh.mm / 1000;
+        if (sh.fixed){ addBox(shW, 0.016, shD, 0, top - 0.008, BACK_T + shD / 2 + 0.001, meta.openMat); return; }
+        var vm = new THREE.Mesh(ventGeo, meta.openMat);
+        vm.position.set(0, top, BACK_T + 0.001); vm.castShadow = true; vm.receiveShadow = true; frame.add(vm);
+      });
       if (wideA){
         makeLeaf(idx++, -widthM / 4, widthM / 2, upY0 + 0.0015, upY1 - 0.0015, "left", { y0:0, y1:1 }, 1);
         makeLeaf(idx++, widthM / 4, widthM / 2, upY0 + 0.0015, upY1 - 0.0015, "right", { y0:0, y1:1 }, 1);
@@ -3165,7 +3216,7 @@
             plinth:!c.panel && !c.appliance, appliance:c.appliance || null, leMans:!!c.tofrahornIds, counter:!!c.counter, sink:!!c.sink, oven:!!c.oven, panel:!!c.panel, plinthMat:plinthMat, stoneMat:stoneMat,
             ovenCodes:c.lowOven ? ["M"] : c.oven ? ovenCodesOf(b, state.drawerSystem) : null, fixedFronts:!!c.fixedFronts || !!c.appliance,
             burCodes:c.bur ? burCodesOf(b, state.drawerSystem) : null, dishwasher:!!c.dishwasher,
-            lowOven:!!c.lowOven, ovenFrontsMm:c.oven ? b.ovenFrontsMm || null : null,
+            lowOven:!!c.lowOven, ovenFrontsMm:c.oven ? b.ovenFrontsMm || null : null, ovenBlock:c.oven ? b : null, ovenCat:c.oven ? c : null,
             sinkFixedTop:!!c.sink && b.sinkTop === "fastur" && !!(b.interior && b.interior.mode === "skuffur"),
             ovenInner:c.oven && !c.lowOven ? (String(b.ovenCombo == null ? OVEN_DEFAULT[state.drawerSystem === "merivo" ? "merivo" : "legra"] : b.ovenCombo).split("+")[1] || null) : null,
             washerDrawerM:c.thvo && b.thvo !== "hurdir" ? 0.40 : 0 }, selected, pickables);
@@ -4445,7 +4496,8 @@
     drawerCodes: drawerCodes,
     drawerFrontsMm: drawerFrontsMm, stackFrontsMm: stackFrontsMm, resizeFront: resizeFront,
     drawerComboKey: drawerComboKey,
-    ovenCodesOf: ovenCodesOf, ovenZoneMm: ovenZoneMm, setMood: setMood,
+    ovenCodesOf: ovenCodesOf, ovenZoneMm: ovenZoneMm, setMood: setMood, OVEN_HEIGHTS: OVEN_HEIGHTS, OVEN_BOARD_MM: OVEN_BOARD_MM,
+    ovenHOf: ovenHOf, ovenUnderOf: ovenUnderOf, ovenUnderMinMm: ovenUnderMinMm, ovenUnderMaxMm: ovenUnderMaxMm, ovenUpperMm: ovenUpperMm, ovenShelvesOf: ovenShelvesOf,
     OVEN_DEFAULT: OVEN_DEFAULT,
     modelsPending: modelsPending,
     shelvesOf: shelvesOf, burCodesOf: burCodesOf,

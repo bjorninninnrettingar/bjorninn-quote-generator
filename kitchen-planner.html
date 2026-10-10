@@ -2983,8 +2983,11 @@
   // the drawers under a tall oven, for wireDrawerStack: their own zone and their own custom heights
   function ovenStackModel(b){
     var codes = function(){ return KP3D.ovenCodesOf(b, drawerSys()); };
-    return { codes:codes, fronts:function(){ var cc = codes(); return KP3D.stackFrontsMm({ frontsMm:b.ovenFrontsMm }, cc, KP3D.ovenZoneMm(cc)) || []; } };
+    return { codes:codes, fronts:function(){ var cc = codes(); return KP3D.stackFrontsMm({ frontsMm:b.ovenFrontsMm }, cc, ovenUnderMm(b)) || []; } };
   }
+  // a tall oven's body (no plinth) and the zone under the oven, as the 3D and Smíðagögn use them
+  function ovenBodyMm(b){ return blockHeightMm(b, CATALOG[b.type]) - 100; }
+  function ovenUnderMm(b){ return KP3D.ovenUnderOf(b, drawerSys(), ovenBodyMm(b), CATALOG[b.type]); }
   // Inner drawers only exist as products with one or two drawers (KP_LINEMAP "…+IK"/"…+IM"): the stacks that
   // carry one, and the closest of them that fits this cabinet (same number of drawers first)
   function innerStacks(ik){
@@ -6120,7 +6123,7 @@
         var notes = [];
         if (!v1) notes.push((c.skapategundOverride || c.label) + " " + b.widthMm + "×" + blockHeightMm(b, c) + "×" + (b.depthMm || c.d) + " mm — engin sjálfvirk vörutenging, vinsamlegast veldu Útfærslu handvirkt.");
         if (wall.island) notes.push("Skápur í eyju (" + wall.label + ") — stendur laus á gólfinu, ekki við vegg" + (wall.island.two ? "; bak í bak við aðra röð." : "."));
-        if (c.ovenHeightMm) notes.push("Ofnhæð: " + c.ovenHeightMm + " mm.");
+        if (c.oven) notes.push("Ofnhæð: " + KP3D.ovenHOf(b, c) + " mm" + (KP3D.ovenHOf(b, c) > 1000 ? " (60+45)" : "") + ".");
         if (c.lowOven) notes.push("Lágur ofnaskápur: M-skúffa undir ofninum (OFN6 er skráð með K-skúffu).");
         if (c.tofrahornIds){
           notes.push("Breidd á töfrahorns-front: " + b.widthMm + " mm. Hurðin er á " + (b.swing === "vinstri" ? "vinstri" : "hægri") + " helmingi.");
@@ -6763,7 +6766,7 @@
     var body = proBodyMm(b, c, zone);
     if (c.oven){
       if (c.lowOven) return [];
-      var top = body - KP3D.ovenZoneMm(KP3D.ovenCodesOf(b, state.drawerSystem) || []) - 595;
+      var top = body - ovenUnderMm(b) - KP3D.ovenHOf(b, c);
       return top > 150 ? [{ box:Math.round(top), label:"Hurð fyrir ofan ofn" }] : [];
     }
     if (c.fridge) return [{ box:Math.round(body * 0.26), label:"Efri hurð" }, { box:Math.round(body * 0.74), label:"Neðri hurð" }];
@@ -6843,10 +6846,27 @@
         if (i < fronts.length - 1) svg += '<line class="pe-seam" data-seam="' + i + '" x1="' + X0 + '" x2="' + (X0 + W) + '" y1="' + (yb - (h - 1.5) * S) + '" y2="' + (yb - (h - 1.5) * S) + '" stroke="#0a84ff" stroke-width="6" stroke-opacity=".35" style="cursor:ns-resize"/>';
       });
     }
-    if (c.oven && !c.lowOven){ // the oven itself, above its drawer/door zone
-      var zoneMm = KP3D.ovenZoneMm(KP3D.ovenCodesOf(b, drawerSys())), oy = Y0 + body * S - (zoneMm + 595) * S;
-      svg += '<rect x="' + (X0 + 3) + '" y="' + oy + '" width="' + (W - 6) + '" height="' + 595 * S + '" fill="#2b2f36" rx="2"/>' +
-        '<text x="' + (X0 + W / 2) + '" y="' + (oy + 595 * S / 2 + 4) + '" text-anchor="middle" font-size="12" fill="#fff">Ofn 595</text>';
+    var ovUnder = c.oven ? ovenUnderMm(b) : 0, ovH = c.oven ? KP3D.ovenHOf(b, c) : 0, ovShelfSvg = "";
+    if (c.oven){ // the oven itself (60+45 = two ovens), above its drawer/door zone; the line under it drags the zone
+      var segs = ovH > 1000 ? [[ovUnder, 595], [ovUnder + 595, 455]] : [[ovUnder, ovH]];
+      segs.forEach(function(sg){ var oy = Y0 + body * S - (sg[0] + sg[1]) * S;
+        svg += '<rect x="' + (X0 + 3) + '" y="' + oy + '" width="' + (W - 6) + '" height="' + sg[1] * S + '" fill="#2b2f36" stroke="#fff" rx="2"/>' +
+          '<text x="' + (X0 + W / 2) + '" y="' + (oy + sg[1] * S / 2 + 4) + '" text-anchor="middle" font-size="12" fill="#fff">Ofn ' + sg[1] + '</text>'; });
+      if (!c.lowOven){
+        var uy = Y0 + body * S - ovUnder * S;
+        svg += '<line class="pe-ounder" x1="' + X0 + '" x2="' + (X0 + W) + '" y1="' + uy + '" y2="' + uy + '" stroke="#e0662c" stroke-width="7" stroke-opacity=".55" style="cursor:ns-resize"><title>Hæð undir ofni — dragðu</title></line>' +
+          '<text x="' + (X0 - 4) + '" y="' + (uy + 4) + '" text-anchor="end" font-size="11" fill="#e0662c">' + ovUnder + '</text>';
+        // shelves above the oven: solid = fixed, dashed = loose (with its hole positions); drag them up/down
+        KP3D.ovenShelvesOf(b, drawerSys(), body).forEach(function(sh, k){
+          var y = Y0 + body * S - sh.mm * S, holes = "";
+          if (!sh.fixed) for (var hp = 0; hp < sh.pos; hp++){ var hy = Y0 + body * S - (sh.mm - 16 + (hp - Math.floor((sh.pos - 1) / 2)) * 50) * S;
+            holes += '<circle cx="' + (X0 + 5) + '" cy="' + hy + '" r="2.4" fill="#6b7480" pointer-events="none"/><circle cx="' + (X0 + W - 5) + '" cy="' + hy + '" r="2.4" fill="#6b7480" pointer-events="none"/>'; }
+          ovShelfSvg += '<g class="pe-oshelf" data-k="' + k + '" style="cursor:ns-resize">' + holes +
+            '<line x1="' + (X0 + 18) + '" x2="' + (X0 + W - 18) + '" y1="' + y + '" y2="' + y + '" stroke="' + (sh.fixed ? "#3b4652" : "#6b7480") + '" stroke-width="' + (sh.fixed ? 4 : 2.5) + '"' + (sh.fixed ? '' : ' stroke-dasharray="6 4"') + '/>' +
+            '<line x1="' + (X0 + 18) + '" x2="' + (X0 + W - 18) + '" y1="' + y + '" y2="' + y + '" stroke="transparent" stroke-width="12"/>' +
+            '<text x="' + (X0 + W - 8) + '" y="' + (y - 4) + '" text-anchor="end" font-size="10" fill="#3b4652">' + (sh.fixed ? "föst" : "laus ×" + sh.pos) + ' ' + sh.mm + '</text></g>';
+        });
+      }
     }
     // doors (top → bottom) with hinge markers on the hinge side
     var yTop = Y0;
@@ -6864,6 +6884,7 @@
         });
       } else svg += '<text x="' + (X0 + W / 2) + '" y="' + (yTop + 16) + '" text-anchor="middle" font-size="11" fill="#9a6b00">lamir í toppborð</text>';
       d._y = yTop; yTop += h;
+      if (ovShelfSvg && i === doors.length - 1) svg += ovShelfSvg; // on top of the door above the oven (its hinges stay draggable)
       if (i < doors.length - 1) svg += '<line class="pe-dseam" data-k="' + i + '" x1="' + X0 + '" x2="' + (X0 + W) + '" y1="' + yTop + '" y2="' + yTop + '" stroke="#0a84ff" stroke-width="6" stroke-opacity=".35" style="cursor:ns-resize"/>';
     });
     // what's behind the doors, so hinges can be kept clear of it: shelves (as the 3D spreads them) and the
@@ -6918,6 +6939,28 @@
       }
       right += '</div>';
     });
+    if (c.oven){
+      var uMin = KP3D.ovenUnderMinMm(b, drawerSys()), uMax = KP3D.ovenUnderMaxMm(b, body);
+      right += '<div class="pe-door"><h4>Ofn</h4><div class="pe-row">Hæð ofns: ' + KP3D.OVEN_HEIGHTS.filter(function(o){ return !(c.lowOven && o.mm > 600); }).map(function(o){
+          return '<button type="button" class="pe-btn' + (ovH === o.mm ? " on" : "") + '" data-pe="ovh" data-v="' + o.mm + '">' + o.label + '</button>'; }).join("") + '</div>';
+      if (!c.lowOven){
+        right += '<div class="pe-row">Hæð undir ofni: <input type="number" step="1" value="' + ovUnder + '" data-pe="ounder"> mm' +
+          (b.ovenUnderMm ? ' <button type="button" class="pe-btn" data-pe="ounderReset">Sjálfgefið</button>' : '') + '</div>' +
+          '<div class="pe-note" style="margin-top:0">Upp að ofni (efri brún Loftunarbotns). ' + uMin + '–' + uMax + ' mm; skúffurnar fylla hæðina. Appelsínugula línan á teikningunni dregst.</div>' +
+          '<h4 style="margin-top:10px">Hillur fyrir ofan ofn</h4>';
+        KP3D.ovenShelvesOf(b, drawerSys(), body).forEach(function(sh, k){
+          right += '<div class="pe-row">Hilla ' + (k + 1) + ': <input type="number" step="1" value="' + sh.mm + '" data-pe="oshmm" data-k="' + k + '"> mm ' +
+            '<button type="button" class="pe-btn' + (sh.fixed ? " on" : "") + '" data-pe="oshtype" data-k="' + k + '" data-v="1">Föst</button>' +
+            '<button type="button" class="pe-btn' + (!sh.fixed ? " on" : "") + '" data-pe="oshtype" data-k="' + k + '" data-v="0">Laus</button>' +
+            (sh.fixed ? '' : ' Stillingar <input type="number" min="1" max="9" step="1" style="width:46px" value="' + sh.pos + '" data-pe="oshpos" data-k="' + k + '">') +
+            '<button type="button" class="pe-btn" data-pe="oshdel" data-k="' + k + '" title="Taka hillu">✕</button></div>';
+        });
+        right += '<div class="pe-row"><button type="button" class="pe-btn" data-pe="oshadd">＋ Hilla</button>' +
+          (Array.isArray(b.ovenShelves) ? '<button type="button" class="pe-btn" data-pe="oshreset">Sjálfgefið</button>' : '') + '</div>' +
+          '<div class="pe-note">Hæð = efri brún hillunnar frá botni skáps. Laus hilla: stillingar = fjöldi gata hvoru megin (50 mm á milli, miðjugatið undir hillunni). Dragðu hillurnar á teikningunni.</div>';
+      }
+      right += '</div>';
+    }
     if (dr || (c.oven && !c.lowOven)) right += '<div class="pe-door"><h4>' + (dr ? "Skúffur" : "Undir ofninum") + '</h4><div id="peInterior">' +
       (dr ? hardwareHTML(b, c, { sides:true }) : variantHTML(b, c, { sides:true })) + '</div>' +
       '<div class="pe-note">Sláðu inn frontahæð, dragðu bláu skilin á teikningunni eða ⠿ til að færa skúffu. Strikaða línan er Blum-hliðin (hlið = hæð hennar; staðsetningin er nálgun). ' +
@@ -6944,6 +6987,33 @@
       if (!out){ toast("Hver frontur þarf að vera minnst " + SPLIT_MIN + " mm og þeir fylla skápinn saman."); renderBoxEditor(); return; }
       proSetSplit(b, body, out); });
     act('[data-pe="side"]', function(n){ b.swing = n.dataset.v; save(); renderBoxEditor(); });
+    // oven: height, height under it, shelves above (2026-10-10). A new height/zone drops custom drawer heights.
+    function ovenDone(){ save(); refreshAfterEdit(); renderBoxEditor(); }
+    function setUnder(v){
+      var lo = KP3D.ovenUnderMinMm(b, drawerSys()), hi = KP3D.ovenUnderMaxMm(b, body);
+      if (!(v >= lo && v <= hi)){ toast("Hæð undir ofni: " + lo + "–" + hi + " mm fyrir þessar skúffur og þessa ofnhæð."); renderBoxEditor(); return; }
+      b.ovenUnderMm = v; delete b.ovenFrontsMm; ovenDone();
+    }
+    function shelvesNow(){ return KP3D.ovenShelvesOf(b, drawerSys(), body); }
+    function setShelves(list){ b.ovenShelves = list.sort(function(a, z){ return a.mm - z.mm; }); ovenDone(); }
+    function shelfOk(mm){ var r = KP3D.ovenUpperMm(b, drawerSys(), body); return mm > r.lo + KP3D.OVEN_BOARD_MM && mm < r.hi - 10; }
+    act('[data-pe="ovh"]', function(n){ var v = +n.dataset.v, keep = b.ovenH; b.ovenH = v;
+      if (!c.lowOven && ovenUnderMm(b) > KP3D.ovenUnderMaxMm(b, body)){ b.ovenH = keep; toast("Ofninn kemst ekki fyrir með þessa hæð undir honum — lækkaðu hana fyrst."); renderBoxEditor(); return; }
+      if (v === 595) delete b.ovenH; delete b.ovenFrontsMm; ovenDone(); });
+    act('[data-pe="ounder"]', function(n){ setUnder(Math.round(+n.value)); });
+    act('[data-pe="ounderReset"]', function(){ delete b.ovenUnderMm; delete b.ovenFrontsMm; ovenDone(); });
+    act('[data-pe="oshmm"]', function(n){ var list = shelvesNow(), v = Math.round(+n.value);
+      if (!shelfOk(v)){ var r = KP3D.ovenUpperMm(b, drawerSys(), body); toast("Hilla þarf að vera á milli " + (r.lo + 17) + " og " + (r.hi - 11) + " mm."); renderBoxEditor(); return; }
+      list[+n.dataset.k].mm = v; setShelves(list); });
+    act('[data-pe="oshtype"]', function(n){ var list = shelvesNow(), sh = list[+n.dataset.k]; sh.fixed = n.dataset.v === "1"; if (!sh.fixed && !(sh.pos > 0)) sh.pos = 3; setShelves(list); });
+    act('[data-pe="oshpos"]', function(n){ var list = shelvesNow(); list[+n.dataset.k].pos = Math.max(1, Math.min(9, Math.round(+n.value) || 1)); setShelves(list); });
+    act('[data-pe="oshdel"]', function(n){ var list = shelvesNow(); list.splice(+n.dataset.k, 1); setShelves(list); });
+    act('[data-pe="oshadd"]', function(){ var list = shelvesNow(), r = KP3D.ovenUpperMm(b, drawerSys(), body), pts = [r.lo].concat(list.map(function(x){ return x.mm; }), [r.hi]), best = 0;
+      for (var j = 1; j < pts.length; j++) if (pts[j] - pts[j - 1] > pts[best + 1] - pts[best]) best = j - 1;
+      var mid = Math.round((pts[best] + pts[best + 1]) / 2);
+      if (!shelfOk(mid)){ toast("Ekki pláss fyrir fleiri hillur."); return; }
+      list.push({ mm:mid, fixed:false, pos:3 }); setShelves(list); });
+    act('[data-pe="oshreset"]', function(){ delete b.ovenShelves; ovenDone(); });
     act('[data-pe="type"]', function(n){ var i = +n.dataset.door, sp = proSpec(b, doors, i); sp.type = n.dataset.v; if (sp.type === "hinged" && !(sp.hinges && sp.hinges.length)) sp.hinges = CNCSIDES.defaultHingeSpec(doors[i].box); proSetSpec(b, doors, i, sp); renderBoxEditor(); });
     act('[data-pe="mm"]', function(n){ var i = +n.dataset.door, sp = proSpec(b, doors, i), v = Math.round(+n.value);
       if (!(v >= 30 && v <= doors[i].box - 30)){ toast("Löm þarf að vera 30 mm eða meira frá enda hurðar."); renderBoxEditor(); return; }
@@ -6973,6 +7043,25 @@
           if (k >= 0) list[k] = last;
           sp.hinges = list.sort(function(a, z){ return a - z; }).map(function(p){ return p <= d.box / 2 ? { from:"bottom", mm:p } : { from:"top", mm:d.box - p }; });
           proSetSpec(b, doors, i, sp); renderBoxEditor(); }
+        g.addEventListener("pointermove", mv); g.addEventListener("pointerup", up);
+      });
+    });
+    var ou = el.querySelector(".pe-ounder");
+    if (ou) ou.addEventListener("pointerdown", function(e){ // the height under the oven
+      e.preventDefault(); ou.setPointerCapture(e.pointerId);
+      var lo = KP3D.ovenUnderMinMm(b, drawerSys()), hi = KP3D.ovenUnderMaxMm(b, body), v = null;
+      function mv(ev){ v = Math.max(lo, Math.min(hi, Math.round((Y0 + body * S - svgY(ev)) / S))); var y = Y0 + body * S - v * S; ou.setAttribute("y1", y); ou.setAttribute("y2", y); }
+      function up(){ ou.removeEventListener("pointermove", mv); ou.removeEventListener("pointerup", up); if (v != null && v !== ovUnder) setUnder(v); }
+      ou.addEventListener("pointermove", mv); ou.addEventListener("pointerup", up);
+    });
+    el.querySelectorAll(".pe-oshelf").forEach(function(g){ // a shelf above the oven
+      g.addEventListener("pointerdown", function(e){
+        e.preventDefault(); g.setPointerCapture(e.pointerId);
+        var k = +g.dataset.k, start = shelvesNow()[k].mm, v = start, y0 = Y0 + body * S - start * S;
+        function mv(ev){ var cand = Math.round((Y0 + body * S - svgY(ev)) / S); if (!shelfOk(cand)) return; v = cand;
+          g.setAttribute("transform", "translate(0," + (Y0 + body * S - v * S - y0) + ")"); }
+        function up(){ g.removeEventListener("pointermove", mv); g.removeEventListener("pointerup", up);
+          if (v === start) return; var list = shelvesNow(); list[k].mm = v; setShelves(list); }
         g.addEventListener("pointermove", mv); g.addEventListener("pointerup", up);
       });
     });
@@ -7006,7 +7095,8 @@
   // Breidd/Hæð/Dýpt, Sérhæð fronts, Lausar hillur and the oven fields; /cnc reads `doors`.
   //   { v:1, w, h, d,                      h WITHOUT the plinth (floor units −100), d WITH the front
   //     fronts:[{code, mm}],               drawer fronts bottom → top (also the drawers under an oven)
-  //     oven:{h, under}, shelves:{loose},  only when the cabinet has them
+  //     oven:{h, under, shelves:[{mm, fixed, pos}]}, shelves:{loose, fixed},  only when the cabinet has them
+  //                                    (oven h 595/455/1050; shelf mm = top face from the body's bottom)
   //     doors:[…] }                        only when Rakel set them up in the box editor (else /cnc's default)
   // End panels: w = the panel's depth, d = 19 (that's how the Eyðublað describes a side).
   function smidaFor(b, c, zone){
@@ -7017,8 +7107,8 @@
     // (400 → 397). Rounded here; the top one takes what's left so they still add up.
     var codes = null, fronts = null, space = 0;
     if (isDrawerUnit(b)){ codes = KP3D.drawerCodes(b.interior, drawerSys()); space = drawerBodyMm(b, c); fronts = KP3D.stackFrontsMm(b.interior, codes, space); }
-    else if (c.lowOven){ codes = ["M"]; space = Math.max(53, h - 595); fronts = [space]; } // the zone under OFN6 is one slot
-    else if (c.oven){ codes = KP3D.ovenCodesOf(b, state.drawerSystem); space = KP3D.ovenZoneMm(codes);
+    else if (c.lowOven){ codes = ["M"]; space = Math.max(53, h - KP3D.ovenHOf(b, c) - 3); fronts = [space]; } // the zone under OFN6 is one slot
+    else if (c.oven){ codes = KP3D.ovenCodesOf(b, state.drawerSystem); space = KP3D.ovenUnderOf(b, state.drawerSystem, h, c);
       fronts = codes.length ? KP3D.stackFrontsMm({ frontsMm:b.ovenFrontsMm }, codes, space) : null; }
     if (codes && codes.length && fronts && fronts.length === codes.length){
       var below = 0;
@@ -7028,8 +7118,13 @@
       });
     }
     if (c.sink && isDrawerUnit(b)) o.sink = { depth:SINK_DEPTH_MM, top:sinkFixedTop(b, c) ? "fastur" : "skuffa", bins:"bottom" };
-    if (c.oven) o.oven = { h:c.ovenHeightMm || 595,
-      under:c.lowOven ? o.fronts[0].mm : KP3D.ovenZoneMm(KP3D.ovenCodesOf(b, state.drawerSystem)) }; // = Σ slots
+    if (c.oven){ // h = 595 / 455 / 1050 (60+45); under = Σ slots under it; shelves = above it, top face from the body's bottom
+      o.oven = { h:KP3D.ovenHOf(b, c), under:c.lowOven ? o.fronts[0].mm : KP3D.ovenUnderOf(b, state.drawerSystem, h, c) };
+      if (!c.lowOven){
+        o.oven.shelves = KP3D.ovenShelvesOf(b, state.drawerSystem, h);
+        o.shelves = { loose:o.oven.shelves.filter(function(x){ return !x.fixed; }).length, fixed:o.oven.shelves.filter(function(x){ return x.fixed; }).length };
+      }
+    }
     if (c.shelfStack) o.shelves = { loose:b.count || 1 };
     else if (!isDrawerUnit(b) && !c.oven && KP3D.shelvesOf(b) != null) o.shelves = { loose:KP3D.shelvesOf(b) };
     var spl = !c.fridge && !c.oven ? proSplit(b, h) : null;

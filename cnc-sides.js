@@ -85,7 +85,8 @@
   // { v:1, doors:[ { h: front mm, type:"hinged"|"lift", side:"vinstri"|"haegri"|null,
   //                  hinges:[ {from:"bottom"|"top", mm} ] } ] }   doors listed top → bottom.
   // Hinge positions are measured from the door's own ends, so they follow small size changes in ÚRVINNSLA.
-  var SMIDA_TOLERANCE = 20; // a designer door matches a Sögunarlisti front within ±20 mm
+  var SMIDA_TOLERANCE = 20;
+  var OVEN_BOARD = 16; // Loftunarbotn / Loftunartoppur / shelves in an oven cabinet (carcass board) // a designer door matches a Sögunarlisti front within ±20 mm
   function parseSmida(v) {
     if (!v) return null;
     if (typeof v === "object") return v;
@@ -188,11 +189,30 @@
     var stackSum = r1(drawerTop + (H - top));
     if (!oven && (drawers.length || doors.length) && Math.abs(stackSum - H) > 1.5)
       check.push("Frontar (" + stackSum + ") passa ekki við hlið (" + H + ") — athuga röðun/hæðir");
-    if (oven) check.push("Ofnaskápur: föstu hillurnar og ofninn bíða hönnuðar — settu þær inn eftir teikningu");
+    // Oven from the designer (Smíðagögn oven = {h, under, shelves:[{mm, fixed, pos}]}, 2026-10-10): the niche boards
+    // (Loftunarbotn the oven stands on, top face at `under`; Loftunartoppur over it — none under a worktop) and the
+    // shelves above, fixed = FOST_HILLA at its top face, loose = LAUS_HILLA with `pos` holes 50 apart, the middle
+    // one under the shelf. mm are from the bottom of the side, like everything here.
+    var so = (parseSmida(opts.smida) || {}).oven, shelfRows = [], ovenDone = false;
+    if (oven && so && num(so.under) > 0 && num(so.h) > 0) {
+      var nb = r1(num(so.under)), nt = r1(nb + num(so.h) + OVEN_BOARD);
+      op("FOST_HILLA", "Loftunarbotn (ofn stendur á)", OVEN_BOARD + ", " + nb + ", 2, lpy-22, lpz+5"); shelfRows.push(nb);
+      if (nt <= H - T) { op("FOST_HILLA", "Loftunartoppur", OVEN_BOARD + ", " + nt + ", 2, lpy-22, lpz+5"); shelfRows.push(nt); }
+      var sl = (Array.isArray(so.shelves) ? so.shelves : []).filter(function (x) { return num(x.mm) > nt && num(x.mm) < H; });
+      sl.forEach(function (x) {
+        var mm = r1(num(x.mm));
+        if (x.fixed) { op("FOST_HILLA", "Föst hilla", OVEN_BOARD + ", " + mm + ", 2, lpy-22, lpz+5"); shelfRows.push(mm); return; }
+        var n = Math.max(1, Math.min(9, Math.round(num(x.pos) || 3))), mid = r1(mm - OVEN_BOARD), first = r1(mid - Math.floor((n - 1) / 2) * 50);
+        op("LAUS_HILLA", "Laus hilla (" + n + " stillingar)", first + ", " + n + ", 37, 20+60, 50"); shelfRows.push(mid);
+      });
+      var nLoose = sl.filter(function (x) { return !x.fixed; }).length, rowsLoose = expand(by.looseShelf, function (r) { return r; }).length;
+      if (nLoose !== rowsLoose) check.push("Lausar hillur: " + nLoose + " í hönnuði, " + rowsLoose + " í Sögunarlista — keyra skipulag/per unit aftur?");
+      info.push("Ofn úr hönnuði: " + num(so.h) + " mm, " + nb + " undir, " + sl.length + " hillur fyrir ofan");
+      ovenDone = true;
+    } else if (oven) check.push("Ofnaskápur: föstu hillurnar og ofninn bíða hönnuðar — settu þær inn eftir teikningu");
 
     // Loose shelves: one row of 3 holes each, spread evenly over the door space (default — per drawing).
-    var loose = expand(by.looseShelf, function (r) { return r; }).length;
-    var shelfRows = [];
+    var loose = ovenDone ? 0 : expand(by.looseShelf, function (r) { return r; }).length;
     if (loose) {
       var a = doors.length ? Math.max(drawerTop, top) : drawerTop, b = H;
       for (var i = 1; i <= loose; i++) shelfRows.push(r1(a + (b - a) * i / (loose + 1)));

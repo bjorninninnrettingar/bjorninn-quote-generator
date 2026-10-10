@@ -157,3 +157,18 @@ test("low oven: a plain 'Frontur' with a drawer back in the list is that drawer,
   assert.ok(ops(p).includes("MERIVOBOX_V2: -1.5, 0, 0, 0, 0, 0, 202, K"));
   assert.ok(!ops(p).some((x) => x.startsWith("LOM")));
 });
+
+test("oven from Smíðagögn: niche boards, fixed shelf and loose shelf with its own number of positions", () => {
+  const r = (Partur, H, B, Þ, M) => ({ Partur, H, B, "Þ": Þ, M, "Tegund einingu": ["Ofnaskápur"] });
+  const rows = [r("Skápur hlið", 2400, 583, 16, 2), r("Skúffufrontur E - Merivo", 397, 597, 19, 1), r("Skúffubak E - Merivo", 184, 517, 16, 1),
+    r("Loftunarbotn", 582, 568, 16, 1), r("Loftunartoppur", 562, 568, 16, 1), r("Laus loftunarhilla", 558, 568, 16, 1), r("Frontur f. ofan ofn", 1202, 597, 19, 1)];
+  const smida = JSON.stringify({ v: 1, oven: { h: 595, under: 600, shelves: [{ mm: 1600, fixed: true, pos: 1 }, { mm: 2000, fixed: false, pos: 5 }] } });
+  const p = S.unitPlan("Sk 10", rows, { smida });
+  const o = ops(p).filter((x) => /HILLA/.test(x));
+  assert.deepEqual(o, ["FOST_HILLA: 16, 600, 2, lpy-22, lpz+5", "FOST_HILLA: 16, 1211, 2, lpy-22, lpz+5",
+    "FOST_HILLA: 16, 1600, 2, lpy-22, lpz+5", "LAUS_HILLA: 1884, 5, 37, 20+60, 50"]);
+  assert.ok(!p.check.some((c) => /bíða hönnuðar/.test(c)));
+  assert.ok(!p.check.some((c) => /Lausar hillur:/.test(c))); // 1 loose in the drawing = 1 in Sögunarlisti
+  // without Smíðagögn: still the old warning
+  assert.ok(S.unitPlan("Sk 10", rows).check.some((c) => /bíða hönnuðar/.test(c)));
+});
