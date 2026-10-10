@@ -670,6 +670,9 @@
   .dim-f input:focus{ outline:none; border-color:var(--blue); }
   .dim-f small{ display:block; font-size:10.5px; color:var(--ink-soft); margin-top:2px; }
   .dim-f.fixed b{ display:block; padding:7px 0; font-size:14px; }
+  .mat-sel{ display:block; margin:0 0 9px; font-size:12px; color:var(--ink-soft); }
+  .mat-sel span{ display:block; margin-bottom:3px; font-weight:600; }
+  .mat-sel select{ width:100%; font:inherit; font-size:13.5px; padding:7px 8px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); }
   .wall-badge{ display:inline-block; font-size:11.5px; font-weight:700; color:#fff; background:var(--blue); border-radius:999px; padding:2px 9px; margin-left:6px; vertical-align:middle; }
   /* ---------- pro mode (Rakel, ?pro=<Tækifæri>&k=…) ---------- */
   body.pro #toContactBtn { display:none; }
@@ -4061,9 +4064,26 @@
           return '<button type="button" class="hw-btn" data-decor-add="' + k + '">＋ ' + DEC[k].label + '</button>';
         }).join("") + '</div>';
       }).join("") + '<p class="sec-note">Bara til að sjá rýmið fyrir sér — ekki hluti af pöntuninni. Dragðu hlutina til í 3D.</p>');
-    html += sec("efni", "Efni og útlit",
-      '<p class="sec-note">Framhlið: <b>' + (state.look && LOOKS[state.look] ? LOOKS[state.look].label : "—") + '</b><br>Borðplata: <b>' + (TOPS[state.top || "steinn"] ? TOPS[state.top || "steinn"].label : "—") + '</b><br>Opnun: <b>' + (state.handle ? HANDLES[state.handle].label : "—") + '</b></p>' +
-      '<button type="button" class="btn btn-secondary btn-small" data-act="materials">Breyta efni (framhlið, höldur, borðplata)</button>');
+    // --- materials, changed right here mid-design (2026-10-10) ---
+    function matSel(key, label, groups, value){ // groups: [{label|null, items:[[val, text]]}]
+      var known = groups.some(function(g){ return g.items.some(function(it){ return it[0] === value; }); });
+      return '<label class="mat-sel"><span>' + label + '</span><select data-matsel="' + key + '">' +
+        (!known ? '<option value="' + (value || "") + '" selected>' + (value ? "(eldra val)" : "— veldu —") + '</option>' : '') +
+        groups.map(function(g){
+          var opts = g.items.map(function(it){ return '<option value="' + it[0] + '"' + (it[0] === value ? " selected" : "") + '>' + escapeHtmlPro(it[1]) + '</option>'; }).join("");
+          return g.label ? '<optgroup label="' + escapeHtmlPro(g.label) + '">' + opts + '</optgroup>' : opts;
+        }).join("") + '</select></label>';
+    }
+    var visLooks = function(cat){ return Object.keys(LOOKS).filter(function(k){ return !LOOKS[k].hidden && LOOKS[k].category === cat; }); };
+    var matBody =
+      matSel("carcass", "Skrokkur", [{ items:Object.keys(CARCASS).map(function(k){ return [k, CARCASS[k].label]; }) }], state.carcass) +
+      matSel("look", "Framhlið", LOOK_CATEGORIES.map(function(cg){ return { label:cg.label, items:visLooks(cg.key).map(function(k){ return [k, LOOKS[k].label + (LOOKS[k].code ? " · " + LOOKS[k].code : "")]; }) }; }), state.look) +
+      matSel("top", "Borðplata", TOP_GROUPS.map(function(g){ return { label:g.label, items:topsOf(g.key).map(function(k){ return [k, TOPS[k].label + (TOPS[k].code ? " · " + TOPS[k].code : "")]; }) }; }), state.top || "steinn") +
+      matSel("handle", "Höldur / opnun", KP3D.HANDLE_GROUPS.map(function(g){ return { label:g.label, items:handlesOf(g.key).map(function(k){ return [k, HANDLES[k].label]; }) }; }), state.handle) +
+      (handleColorable(state.handle) ? matSel("handleColor", "Litur á höldum", [{ items:[["", "Eins og á mynd"]].concat(Object.keys(KP3D.HANDLE_FINISHES).map(function(k){ return [k, KP3D.HANDLE_FINISHES[k].label]; })) }], state.handleColor || "") : "") +
+      matSel("drawerSystem", "Skúffukerfi", [{ items:Object.keys(DRAWER_SYSTEMS).map(function(k){ return [k, DRAWER_SYSTEMS[k].label]; }) }], state.drawerSystem) +
+      '<button type="button" class="btn btn-secondary btn-small" data-act="materials" style="margin-top:6px;">Sjá myndir af efnunum</button>';
+    html += sec("efni", "Efni og útlit", matBody);
     host.innerHTML = html;
     host.scrollTop = keepScroll;
 
@@ -4074,6 +4094,19 @@
       });
     });
     host.querySelectorAll("[data-decor-add]").forEach(function(b){ b.addEventListener("click", function(){ addDecor(b.dataset.decorAdd); }); });
+    host.querySelectorAll("[data-matsel]").forEach(function(sel){
+      sel.addEventListener("change", function(){
+        var key = sel.dataset.matsel, v = sel.value || null;
+        if (key === "drawerSystem" && v !== state.drawerSystem){
+          var n = 0; surfaces().forEach(function(w){ ["floor", "wall"].forEach(function(z){ w[z].forEach(function(b){ if ((b.interior && b.interior.mode === "skuffur") || CATALOG[b.type].oven || CATALOG[b.type].bur) n++; }); }); });
+          if (n && !confirm("Skipta í " + DRAWER_SYSTEMS[v].label + "?\n\n" + n + " " + (n === 1 ? "skápur með skúffum breytist" : "skápar með skúffum breytast") + " — skúffuhæðir og vörur (V2) fylgja nýja kerfinu.")){ sel.value = state.drawerSystem; return; }
+        }
+        if (key === "look") selectLookQuiet(v);
+        else state[key] = v;
+        if (key === "handle" && !handleColorable(v)) state.handleColor = null;
+        save(); refreshAfterEdit(); renderCatalogPanel();
+      });
+    });
     host.querySelectorAll("[data-light]").forEach(function(b){
       b.addEventListener("click", function(){
         var L2 = lighting(); L2[b.dataset.light] = !L2[b.dataset.light];
@@ -4512,6 +4545,12 @@
     save(); renderMaterials();
   }
   function selectTop(key){ state.top = key; save(); renderMaterials(); }
+  // the front from the editor's dropdown: same rule as selectLook (a handle that needs another front category is dropped)
+  function selectLookQuiet(key){
+    state.look = key;
+    var l = LOOKS[key], h = state.handle ? HANDLES[state.handle] : null;
+    if (h && h.requiresFrontCategory && (!l || l.category !== h.requiresFrontCategory)){ state.handle = null; toast(h.label + " fylgir bara " + h.requiresFrontCategory + "-frontum — veldu höldur aftur."); }
+  }
   function selectHandle(key){ state.handle = key; save(); renderMaterials(); }
   function selectDrawerSystem(key){ state.drawerSystem = key; save(); renderMaterials(); }
 
