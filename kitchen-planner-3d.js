@@ -814,6 +814,135 @@
     });
     out.forEach(function(w){ if (w.count > 1) w.msg = w.msg.replace(/\.$/, "") + " (" + w.count + " skápar)."; });
     islandWarnings(state, function(msg, ids){ out.push({ msg:msg, ids:ids, count:1 }); });
+    openingIssues(state).warn.forEach(function(w){ out.push({ msg:w.msg, ids:w.ids, count:1 }); });
+    return out;
+  }
+
+  // ── Fronts meeting walls and corners (2026-10-10) ──────────────────────────────────────────────────────
+  // A hinged door on concealed hinges turns roughly about the FRONT corner of its hinge edge (the hinge's crank
+  // carries the door forward — it doesn't sweep its full thickness past the carcass side). Seen from above, with
+  // that pivot at x = 0, the door running along +x and the room at +z, a point s along the door and v out from
+  // its front face (−19 = its back face) is at x = s·cosθ − v·sinθ, z = s·sinθ + v·cosθ. Beside the hinge side there may be a
+  // blocker: a plane x = −g (g = the free gap, an áfella is 19) reaching P mm in front of the door face — a wall
+  // (P = ∞), the fronts of the other run in an inside corner (P = ∞, their handles eat into g), or a deeper
+  // neighbour (a tall unit beside a wall unit). The door may open until its free end or its handle
+  // (v = projection) would cross that plane — otherwise the designer showed doors swinging through
+  // walls, which looks cheap (user, 2026-10-10). Drawers only run straight out: they're blocked when the other
+  // run of an inside corner stands in front of them (the "dead corner").
+  var DOOR_OPEN_DEG = 100, FRONT_MM = 19;
+  var HANDLE_PROJ = {}; // measured from the real models once loaded (handleProfile), mm out from the front face
+  function handleProjMm(key){
+    if (!key) return 0;
+    if (HANDLE_PROJ[key] != null) return HANDLE_PROJ[key];
+    var cfg = window.KPMODELS && window.KPMODELS.handles && window.KPMODELS.handles[key], st = (HANDLES[key] || {}).style;
+    if (cfg && (cfg.kind === "jey" || cfg.kind === "hexxa")) return 0;
+    if (cfg && cfg.kind === "topmount") return 40;
+    if (cfg && cfg.kind === "bar") return 35;
+    return st === "knob" ? 30 : st === "bar" || st === "tab" ? 30 : 0; // edge / groove / none / push-to-open: flush
+  }
+  // the hinged leaves of a cabinet (as the 3D draws them): [{hinge:"left"|"right", w}] — none for drawer units,
+  // corner units (they have their own check), appliances, panels, open shelves, flaps and fixed fronts
+  function doorLeaves(b, c){
+    if (!c || c.panel || c.shelfStack || c.appliance || c.open || c.fixedFronts || c.dishwasher || c.cls === "corner" || c.lowOven || c.drawersOnly) return [];
+    if (!c.oven && b.interior && b.interior.mode === "skuffur") return [];
+    if (b.widthMm > WIDE_DOOR_M * 1000 && !c.fridge) return [{ hinge:"left", w:b.widthMm / 2 }, { hinge:"right", w:b.widthMm / 2 }];
+    return [{ hinge:b.swing === "haegri" ? "right" : "left", w:b.widthMm }];
+  }
+  function hasOpenings(b, c){ return !!c && !(c.panel || c.shelfStack || c.appliance || c.open); }
+  // the widest the leaf can open (degrees) against a blocker g mm away reaching P mm in front of the door face
+  function doorMaxDeg(L, g, P, handle, vertical, zMin){ // zMin: the blocker only starts this far in front of the face
+    var t = FRONT_MM, h = handleProjMm(handle), us = [];
+    if (h > 0){
+      if (vertical) us = [L - 45]; // tall units: an upright pull on the free side
+      else { var len = Math.min(320, Math.max(80, L - 200)); us = [Math.max(20, L / 2 - len / 2), Math.min(L - 20, L / 2 + len / 2)]; }
+    }
+    function hits(deg){
+      var a = deg * Math.PI / 180, cs = Math.cos(a), sn = Math.sin(a);
+      function bad(sv, v){ var x = sv * cs - v * sn, z = sv * sn + v * cs; return x < -g - 0.5 && z < P && z >= (zMin || 0); }
+      if (bad(L, 0) || bad(L, -t) || bad(0, -t)) return true;
+      return us.some(function(u){ return bad(u, h); });
+    }
+    for (var d = 1; d <= DOOR_OPEN_DEG; d += 0.5) if (hits(d)) return d - 0.5;
+    return DOOR_OPEN_DEG;
+  }
+  function openingIssues(state){
+    var walls = surfacesOf(state), n = realWallCount(walls), out = { warn:[], limit:{} }, proj = handleProjMm(state.handle); // (surfacesOf carries `closed`)
+    function lim(id, hinge, deg){ var l = out.limit[id] = out.limit[id] || {}; l[hinge] = Math.min(l[hinge] == null ? DOOR_OPEN_DEG : l[hinge], deg); }
+    function depthOf(b){ return b.depthMm || CATALOG[b.type].d; }
+    function hOf(b){ return b.heightMm || CATALOG[b.type].h; }
+    function nm(b, w){ return CATALOG[b.type].label + " á " + String(w.label || "").replace(/^Veggur/, "vegg"); }
+    for (var wi = 0; wi < n; wi++){
+      var wall = walls[wi];
+      if (wall.open) continue;
+      var clear = cornerClearanceMm(walls, wi, "floor"), prevIdx = wi > 0 ? wi - 1 : walls.closed ? n - 1 : -1, prev = prevIdx >= 0 && prevIdx !== wi ? walls[prevIdx] : null;
+      // in an inside corner, how far the previous wall's cabinets reach out in front of this run's first one
+      // (mm from its front face): their fronts are the blocker beside its hinge side — only where they are
+      var cornerWin = null;
+      if (clear > 0 && prev && (wall.floor || []).length){
+        var pS = blockStartsMm(prev.floor || [], cornerClearanceMm(walls, prevIdx, "floor")), Lp0 = prev.lengthMm || 0, dC0 = depthOf(wall.floor[0]);
+        (prev.floor || []).forEach(function(pb, j){
+          var zFrom = Lp0 - (pS[j] + pb.widthMm) - dC0, zTo = Lp0 - pS[j] - dC0;
+          if (zTo <= 0) return;
+          cornerWin = cornerWin ? { lo:Math.min(cornerWin.lo, Math.max(0, zFrom)), hi:Math.max(cornerWin.hi, zTo) } : { lo:Math.max(0, zFrom), hi:zTo };
+        });
+      }
+      ["floor", "wall"].forEach(function(zone){
+        var list = wall[zone] || [], starts = blockStartsMm(list, zone === "floor" ? clear : 0), af = afellaMm(walls, wi, zone);
+        var floorStarts = zone === "wall" ? blockStartsMm(wall.floor || [], clear) : null;
+        list.forEach(function(b, i){
+          var c = CATALOG[b.type]; if (!c) return;
+          var from = starts[i], to = from + b.widthMm, tall = c.cls === "tall" || !!c.fridge;
+          doorLeaves(b, c).forEach(function(leaf){
+            var g = null, P = Infinity, zLo = 0, why = "", blockerId = null, cornerRun = false;
+            if (leaf.hinge === "left"){
+              if (i === 0 && zone === "floor" && clear > 0 && prev){ if (cornerWin){ g = from - clear; P = cornerWin.hi; zLo = cornerWin.lo; why = "skápunum á " + String(prev.label || "").replace(/^Veggur/, "vegg"); cornerRun = true; } } // the other run's fronts (their handles: below)
+              else if (i === 0 && af.start > 0){ g = from; why = "vegginn"; }
+              else if (i > 0 && depthOf(list[i - 1]) > depthOf(b) + 20){ var pb = list[i - 1]; g = from - (starts[i - 1] + pb.widthMm); P = depthOf(pb) - depthOf(b); why = "skápinn við hliðina (" + CATALOG[pb.type].label.toLowerCase() + ")"; blockerId = pb.id; }
+            } else {
+              if (i === list.length - 1 && af.end > 0){ g = (wall.lengthMm || 0) - to; why = "vegginn"; }
+              else if (i < list.length - 1 && depthOf(list[i + 1]) > depthOf(b) + 20){ var nb = list[i + 1]; g = starts[i + 1] - to; P = depthOf(nb) - depthOf(b); why = "skápinn við hliðina (" + CATALOG[nb.type].label.toLowerCase() + ")"; blockerId = nb.id; }
+            }
+            // a wall unit beside a tall floor unit on the same wall: the tall one stands out by the depth difference
+            // (the nearer blocker wins over a wall further away)
+            if (zone === "wall") (wall.floor || []).forEach(function(f, fi){
+              var fc = CATALOG[f.type]; if (!fc || hOf(f) < elevOf(b) + 50) return;
+              var fFrom = floorStarts[fi], fTo = fFrom + f.widthMm, gap = leaf.hinge === "left" ? from - fTo : fFrom - to;
+              if (gap >= -1 && gap < 100 && depthOf(f) > depthOf(b) + 20 && (g == null || gap < g)){ g = Math.max(0, gap); P = depthOf(f) - depthOf(b); zLo = 0; why = "skápinn við hliðina (" + fc.label.toLowerCase() + ")"; blockerId = f.id; cornerRun = false; }
+            });
+            if (g == null || g > 400) return;
+            var deg = doorMaxDeg(leaf.w, g, P, state.handle, tall, zLo);
+            // inside corner: the other run's handles stand out of its fronts (somewhere out along this door, ≥ 100 mm)
+            if (cornerRun && proj > 0) deg = Math.min(deg, doorMaxDeg(leaf.w, g - proj, P, state.handle, tall, Math.max(zLo, 100)));
+            if (deg >= DOOR_OPEN_DEG) return;
+            lim(b.id, leaf.hinge, deg);
+            var handleLimits = doorMaxDeg(leaf.w, g, P, null, tall) > deg;
+            if (deg < 90) out.warn.push({ msg:nm(b, wall) + ": hurðin opnast aðeins " + Math.round(deg) + "° — " + (handleLimits ? "höldurnar rekast á " : "hún rekst á ") + why +
+              (handleLimits ? " (breiðari áfella, lamir hinum megin eða grip)" : " (breiðari áfella eða lamir hinum megin)") + ".", ids:[b.id].concat(blockerId ? [blockerId] : []) });
+            if (deg < 95 && (c.bur || c.leMans)) out.warn.push({ msg:nm(b, wall) + ": innskúffurnar komast ekki út þegar hurðin opnast aðeins " + Math.round(deg) + "°.", ids:[b.id] });
+          });
+        });
+      });
+      // the dead corner: this run starts after the previous wall's cabinets, so its first cabinet stands in front
+      // of the end of that wall's run — anything there that opens can't
+      if (clear > 0 && prev && (wall.floor || []).length){
+        var first = wall.floor[0], firstFrom = clear + (first.gapMm || 0), dC = depthOf(first), Lp = prev.lengthMm || 0;
+        var pStarts = blockStartsMm(prev.floor || [], cornerClearanceMm(walls, prevIdx, "floor"));
+        if (firstFrom - clear < 450) (prev.floor || []).forEach(function(pb, j){
+          var pc = CATALOG[pb.type], f0 = pStarts[j], f1 = f0 + pb.widthMm;
+          if (!hasOpenings(pb, pc)) return;
+          var covered = Math.min(f1, Lp) - Math.max(f0, Lp - dC - (firstFrom - clear));
+          if (covered <= 20) return;
+          // a corner unit is fine when its door is on the half away from the corner (the end of that wall = its right)
+          if (pc.cls === "corner" && pb.swing === "vinstri" && f1 - pb.widthMm / 2 <= Lp - dC + 20) return;
+          out.warn.push({ msg:nm(pb, prev) + " opnast ekki: " + nm(first, wall) + " stendur fyrir framan hann í horninu (notaðu hornskáp/Töfrahorn, blindlok eða færðu skápana).", ids:[pb.id, first.id] });
+        });
+        // the first cabinet's drawers slide past the other run's handles in the corner — only where there are
+        // cabinets with fronts along the drawers' run (≈ 450 mm out from its front)
+        var firstC = CATALOG[first.type], drawers = first.interior && first.interior.mode === "skuffur" || firstC.drawersOnly;
+        var alongside = (prev.floor || []).some(function(pb, j){ var f0 = pStarts[j], f1 = f0 + pb.widthMm; return hasOpenings(pb, CATALOG[pb.type]) && Math.min(f1, Lp - dC) - Math.max(f0, Lp - dC - 450) > 20; });
+        if (drawers && alongside && proj > firstFrom - clear) out.warn.push({ msg:nm(first, wall) + ": skúffurnar rekast á höldurnar á " + String(prev.label || "").replace(/^Veggur/, "vegg") + " í horninu (bil " + Math.round(firstFrom - clear) + " mm, höldur " + proj + " mm).", ids:[first.id] });
+      }
+    }
     return out;
   }
 
@@ -1274,6 +1403,7 @@
     if (lenM) inner.scale.x = lenM / Math.max(1e-6, b.max.x - b.min.x);
     g.add(inner);
     g.userData.size = { len:lenM || (b.max.x - b.min.x), h:b.max.y - b.min.y, d:b.max.z - b.min.z };
+    if (cfg.kind !== "jey") HANDLE_PROJ[key] = Math.round((b.max.z - b.min.z) * 1000 - (cfg.embedMm || 0)); // how far it stands out (openingIssues)
     return g;
   }
   // The largest of a handle's real orderable lengths (`cfg.lenOptions`, mm + Vörulisti id) that still fits
@@ -1746,7 +1876,7 @@
       return;
     }
     if (p.kind === "drawer") p.group.position.z = p.slide * e;
-    else p.group.rotation.y = (p.hinge === "left" ? -1 : 1) * 1.75 * e;
+    else p.group.rotation.y = (p.hinge === "left" ? -1 : 1) * (p.maxRad || 1.75) * e;
   }
   function stepParts(scene){
     (scene.userData.parts || []).forEach(function(p){
@@ -1853,14 +1983,16 @@
         g.add(bx); bx.traverse(function(o){ if (o.isMesh) meshes.push(o); });
         if (bx.userData && bx.userData.runners){ var rgR = bx.userData.runners; rgR.position.copy(bx.position); frame.add(rgR); } // runners stay in the cabinet
       }
-      if (!f.drawer){ // a door hinges on the FRONT edge of the carcass (not at the wall): move the pivot forward to z = CD
-        g.children.forEach(function(ch){ ch.position.z -= CD; });
-        g.position.z = CD;
+      if (!f.drawer){ // a door turns about the front corner of its hinge edge (concealed hinges carry it forward): pivot at z = CD + front
+        var pz = hinge === "bottom" ? CD : CD + FRONT_T; // (a flap still tips on its back edge)
+        g.children.forEach(function(ch){ ch.position.z -= pz; });
+        g.position.z = pz;
         if (hinge === "bottom"){ g.children.forEach(function(ch){ ch.position.y -= y0; }); g.position.y = y0; } // a flap pivots on its lower edge
       }
       meshes.forEach(function(m){ m.userData = pmeta; pickables.push(m); });
       var prev = PART_STATE[key];
-      var part = { key:key, group:g, kind:f.drawer ? "drawer" : hinge === "bottom" ? "flap" : "door", hinge:hinge, slide:fixedTop ? 0 : Math.min(0.34, CD * 0.6), cur:prev ? prev.cur : 0, target:prev ? prev.target : 0 };
+      var maxDeg = meta.doorLimit && meta.doorLimit[hinge] != null ? meta.doorLimit[hinge] : DOOR_OPEN_DEG; // stops at a wall / corner
+      var part = { key:key, group:g, kind:f.drawer ? "drawer" : hinge === "bottom" ? "flap" : "door", hinge:hinge, maxRad:maxDeg * Math.PI / 180, slide:fixedTop ? 0 : Math.min(0.34, CD * 0.6), cur:prev ? prev.cur : 0, target:prev ? prev.target : 0 };
       PART_STATE[key] = part; parts.push(part); applyPart(part);
       frame.add(g);
     }
@@ -3029,6 +3161,7 @@
     // no floor, walls, skirting, windows/doors or other cabinets in front of or around them.
     var iso = opts.onlySurfaceId || null; // one surface id, or an array of them (both rows of an island)
     function isoHas(id){ return Array.isArray(iso) ? iso.indexOf(id) >= 0 : id === iso; }
+    var DOOR_LIMITS = {}; try{ DOOR_LIMITS = openingIssues(state).limit; }catch(e){} // how far each door may open (walls, corners)
     scene.background = new THREE.Color(opts.darkBg ? (iso ? 0x1a2029 : 0x12161d) : iso ? 0xffffff : 0xf7f6f2); // darkBg = pro mode
     scene.userData.dayBg = scene.background.clone(); scene.userData.nightBg = new THREE.Color(0x2b303b);
 
@@ -3222,7 +3355,7 @@
         addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, applMat || carcassMat, applMat || frontMat, inter,
           { islandId:islandId, locked:!!b.locked || !!opts.xray, suppressBadge:!!opts.xray, slabFronts:jeyOn, corner:c.cls === "corner", doorSide:b.swing === "vinstri" ? "left" : "right", hingeRight:b.swing === "haegri", shelves:(c.hasInterior || c.shelfRange) && !(b.interior && b.interior.mode === "skuffur") ? (shelvesOf(b) || 0) : 0,
             openMat:openMat, hiddenMat:hiddenMat, drawerSystem:state.drawerSystem, carcassKey:state.carcass,
-            warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), ready:!!(opts.readyIds && opts.readyIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), heightMm:hM * 1000, elevMm:0, handle:c.appliance ? null : state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0, // tall units: one door unless split in Smíða (2026-10-09)
+            warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), ready:!!(opts.readyIds && opts.readyIds.indexOf(b.id) >= 0), doorLimit:DOOR_LIMITS[b.id] || null, wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), heightMm:hM * 1000, elevMm:0, handle:c.appliance ? null : state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0, // tall units: one door unless split in Smíða (2026-10-09)
             splitFr:c.oven || c.fridge || c.fixedFronts ? null : splitFractions(b, hM * 1000 - (c.panel || c.appliance ? 0 : 100)),
             plinth:!c.panel && !c.appliance, appliance:c.appliance || null, leMans:!!c.tofrahornIds, counter:!!c.counter, sink:!!c.sink, oven:!!c.oven, panel:!!c.panel, plinthMat:plinthMat, stoneMat:stoneMat,
             ovenCodes:c.lowOven ? ["M"] : c.oven ? ovenCodesOf(b, state.drawerSystem) : null, fixedFronts:!!c.fixedFronts || !!c.appliance,
@@ -3244,7 +3377,7 @@
         var hM = Math.min(b.heightMm || c.h, roomHeightMm) / 1000, dM = (b.depthMm || c.d) / 1000;
         var selected = opts.selectedId === b.id;
         var elevM = elevOf(b) / 1000;
-        var metaBase = { locked:!!b.locked || !!opts.xray, suppressBadge:!!opts.xray, slabFronts:jeyOn, drawerSystem:state.drawerSystem, carcassKey:state.carcass, warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), ready:!!(opts.readyIds && opts.readyIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"wall", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d),
+        var metaBase = { locked:!!b.locked || !!opts.xray, suppressBadge:!!opts.xray, slabFronts:jeyOn, drawerSystem:state.drawerSystem, carcassKey:state.carcass, warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), ready:!!(opts.readyIds && opts.readyIds.indexOf(b.id) >= 0), doorLimit:DOOR_LIMITS[b.id] || null, wallId:wall.id, zone:"wall", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d),
           heightMm:hM * 1000, elevMm:elevM * 1000, handle:state.handle, splitFr:c.open ? null : splitFractions(b, hM * 1000) };
         if (c.shelfStack){ // 1–5 boards of 38 mm above each other: one pickable box per board, all sharing the block id
           var n = Math.max(1, Math.min(SHELF_STACK_MAX, b.count || 3)), gap = b.vgapMm != null ? b.vgapMm : SHELF_GAP_DEFAULT;
@@ -4495,7 +4628,7 @@
     SHELF_STACK_MAX: SHELF_STACK_MAX,
     SHELF_GAP_DEFAULT: SHELF_GAP_DEFAULT,
     debugInfo: function(){ return sharedRenderer ? { memory:sharedRenderer.info.memory, programs:(sharedRenderer.info.programs || []).length } : null; },
-    fitWarnings: fitWarnings,
+    fitWarnings: fitWarnings, openingIssues: openingIssues, doorMaxDeg: doorMaxDeg, handleProjMm: handleProjMm,
     WALL_UNIT_BASE_MM: WALL_UNIT_BASE_MM,
     snapshot3D: snapshot3D,
     setXrayFronts: setXrayFronts,
