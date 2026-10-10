@@ -179,7 +179,7 @@ test("side files per cabinet: hinges only on the hinge side; no hinges = one fil
   const f = S.sideFiles(left);
   assert.deepEqual(f.map((x) => [x.name, x.count, x.plan.ops.some((o) => o.name === "LOM")]), [["Vinstri hlið - lamir", 1, true], ["Hægri hlið", 1, false]]);
   assert.equal(S.cabinetFolder(left), "Sk4 - Grunnskápur");
-  assert.equal(S.sideFileName("T-32", left, f[0]), "T-32 Sk4 Vinstri hlið - lamir.bpp");
+  assert.equal(S.sideFileName("T-32", left, f[0]), "Vinstri hlið - lamir.bpp");
   assert.deepEqual(S.sideFiles(S.unitPlan("Sk4", rows, { smida: JSON.stringify({ v: 1, hinge: "haegri" }) })).map((x) => x.name), ["Vinstri hlið", "Hægri hlið - lamir"]);
   const unknown = S.unitPlan("Sk4", rows);
   assert.deepEqual(S.sideFiles(unknown).map((x) => [x.name, x.count]), [["Hliðar - lamir báðum megin", 2]]);

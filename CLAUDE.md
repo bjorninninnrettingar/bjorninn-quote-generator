@@ -131,10 +131,11 @@ One page, one button: pick a project → everything is written to `[99] - VERKEF
 **USB layout (user, 2026-10-10)** — the end goal:
 ```
 [99] - VERKEFNI/T-32 <name>/
-  Skápar/<Sk1 - Grunnskápur>/   T-32 Sk1 Hliðar.bpp                       (no hinges: one file, run ×2)
-         <Sk2 - Hárskápur>/     T-32 Sk2 Vinstri hlið.bpp + T-32 Sk2 Hægri hlið - lamir.bpp   (only the hinge side is drilled)
+  Skápar/<Sk1 - Grunnskápur>/   Hliðar.bpp                                 (no hinges: one file, run ×2)
+         <Sk2 - Hárskápur>/     Vinstri hlið.bpp + Hægri hlið - lamir.bpp  (only the hinge side is drilled)
                                 (+ fronts — next step)
   Hurðir/<HU01>/                Karmur lamir · Karmur slúttjárn · Karmur toppstykki · Hurðablað
+  (file names are short inside the folders — no project / Sk / HU in them; a folder only exists when the project has it)
   Annað/                        úthliðar/blindlok etc. — later
   T-32 CNC skrá.txt, T-32 Hurðaskrá.txt
 ```

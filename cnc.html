@@ -272,7 +272,8 @@
       // Sides. Files this page made before (marked inside) that this export no longer produces are removed, so a
       // regrouped project never leaves a stale side program behind. Hand-made files are never touched.
       // Skápar/<Sk - tegund>/ — one folder per cabinet, its side files (left/right when only one side has hinges)
-      var cabDir = await sub(job, "Skápar", true), madeIn = {};
+      // folders only for what the project has (no Skápar/ without cabinets, no Hurðir/ without doors)
+      var cabDir = sideSel.length ? await sub(job, "Skápar", true) : await sub(job, "Skápar").catch(function () { return null; }), madeIn = {};
       for (var g of sideSel) {
         var p0 = g.plans[0], dir = await sub(cabDir, g.label, true), names = madeIn[g.label] = {};
         for (var sf of g.files) {
@@ -293,7 +294,7 @@
           }
         };
         await dropMarked(job, {}, ""); // the old flat layout (before 2026-10-10): side files straight in the project folder
-        for await (var cd of cabDir.values()) {
+        if (cabDir) for await (var cd of cabDir.values()) {
           if (cd.kind !== "directory") continue;
           await dropMarked(cd, madeIn[cd.name] || {}, "Skápar/" + cd.name + "/");
           if (!madeIn[cd.name]) { var left = 0; for await (var _x of cd.values()) left++; if (!left) { await cabDir.removeEntry(cd.name); log("🗑 Skápar/" + cd.name + "/ (tóm)"); } }
@@ -306,8 +307,9 @@
       var doorDir = doorSel.length ? await sub(job, "Hurðir", true) : null;
       for (var d of doorSel) {
         var pl = d.plan, files = D.filesFor(pl, pre), values = pl.values, jambKept = false;
-        // Hurðir/<HU>/ — unless this door's jamb was made in the old flat layout: then its files stay next to it
+        // Hurðir/<HU>/ with short names — unless this door's jamb was made in the old flat layout: then its files stay next to it
         var oldJamb = await tryFile(job, files[1].name), ddir = oldJamb ? job : await sub(doorDir, pl.id.replace(/[\\/:*?"<>|]+/g, "-"), true);
+        if (!oldJamb) files = D.filesFor(pl, pre, true);
         var where = ddir === job ? "" : "Hurðir/" + pl.id + "/";
         var jambFile = oldJamb || await tryFile(ddir, files[1].name);
         if (jambFile) {

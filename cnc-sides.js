@@ -331,7 +331,7 @@
   var BAD = /[\\/:*?"<>|]+/g;
   function shortName(p) { return String(p.name || p.id).split("|")[0].trim() || p.id; } // "Sk10 | LHA60 | 1E1K1M" → "Sk10"
   function cabinetFolder(p) { return (shortName(p) + (p.tegund ? " - " + p.tegund : "")).replace(BAD, "-").trim(); }
-  function sideFileName(prefix, p, f) { return ((prefix ? prefix + " " : "") + shortName(p) + " " + f.name).replace(BAD, "-") + ".bpp"; }
+  function sideFileName(prefix, p, f) { return f.name.replace(BAD, "-") + ".bpp"; } // inside Skápar/<Sk - tegund>/: no project / Sk in the name (user, 2026-10-10)
   function fileName(prefix, group) { return (prefix ? prefix + " " : "") + group.label.replace(/[\\/:*?"<>|]+/g, "-") + " Hliðar.bpp"; }
 
   // Master text (CRLF, decoded) + one plan → program. Managed master lines are switched off, generated lines

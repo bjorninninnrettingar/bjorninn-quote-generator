@@ -131,14 +131,16 @@
   }
 
   // Which master each output file comes from, and which managed macros it may switch.
-  function filesFor(plan, prefix) {
+  // short = inside the door's own folder (Hurðir/HU01/), where the project and door are already in the path
+  // (user, 2026-10-10); the long names are the old flat layout, still looked up for jambs made there.
+  function filesFor(plan, prefix, short) {
     var m = MASTERS[plan.topp]; if (!m) return [];
-    var base = (prefix ? prefix + " " : "") + plan.id;
+    var base = short ? "" : (prefix ? prefix + " " : "") + plan.id;
     return [
-      { kind: "leaf", name: base + " Hurðablað.bpp", master: MASTERS.leaf.path, managed: MANAGED.leaf, on: plan.on.leaf },
-      { kind: "lamir", name: base + " Karmur lamir.bpp", master: MASTER_DIR.concat([m.dir, m.lamir]), managed: MANAGED.jambHinge, on: plan.on.jambHinge, need: plan.on.jambHinge },
-      { kind: "slut", name: base + " Karmur slúttjárn.bpp", master: MASTER_DIR.concat([m.dir, m.slut]), managed: MANAGED.jambStrike, on: plan.on.jambStrike },
-      { kind: "topp", name: base + " Karmur toppstykki.bpp", master: MASTER_DIR.concat([m.dir, m.topp]), managed: MANAGED.jambTop, on: [] },
+      { kind: "leaf", name: (base ? base + " " : "") + "Hurðablað.bpp", master: MASTERS.leaf.path, managed: MANAGED.leaf, on: plan.on.leaf },
+      { kind: "lamir", name: (base ? base + " " : "") + "Karmur lamir.bpp", master: MASTER_DIR.concat([m.dir, m.lamir]), managed: MANAGED.jambHinge, on: plan.on.jambHinge, need: plan.on.jambHinge },
+      { kind: "slut", name: (base ? base + " " : "") + "Karmur slúttjárn.bpp", master: MASTER_DIR.concat([m.dir, m.slut]), managed: MANAGED.jambStrike, on: plan.on.jambStrike },
+      { kind: "topp", name: (base ? base + " " : "") + "Karmur toppstykki.bpp", master: MASTER_DIR.concat([m.dir, m.topp]), managed: MANAGED.jambTop, on: [] },
     ];
   }
 
