@@ -252,6 +252,8 @@
     // Hinges: per door, 80 from each end of its box + evenly between (default), or exactly where the designer put
     // them (Smíðagögn) when its doors match Sögunarlisti; corner "2" = from the bottom, "3" = from the top.
     var smida = parseSmida(opts.smida), sd = null;
+    // drawn in the designer but not marked "✅ Klár til framleiðslu" in Smíða (or changed after it was)
+    if (smida && !smida.ready) check.push("Ekki merktur „Klár til framleiðslu“ í hönnuðinum");
     if (smida && Array.isArray(smida.doors) && doors.length) { // no doors = sizes only, /cnc default
       var sdoors = smida.doors || [];
       // Same number of doors → the designer's hinges are used (they're measured from each door's ends, so a few

@@ -229,3 +229,10 @@ test("a drawer front too low for its code's extra row gets only the base row, wi
   assert.deepEqual(p.fronts[0].ops.map((o) => o.name), ["K_M_NEDSTI_FRONTUR_MERIVO"]);
   assert.ok(p.frontCheck.some((c) => /E-gatið \(218\)/.test(c)));
 });
+
+test("a cabinet drawn in the designer but not marked ready gets a warning; marked = none", () => {
+  const rows = [row("Grunnskápur hlið", 800, 580, 16, 2), row("Skúffufrontur E - Merivo", 797, 597, 19, 1)];
+  assert.ok(S.unitPlan("Sk5", rows, { smida: '{"v":1,"w":800}' }).check.some((c) => /Klár til framleiðslu/.test(c)));
+  assert.ok(!S.unitPlan("Sk5", rows, { smida: '{"v":1,"w":800,"ready":true}' }).check.some((c) => /Klár til framleiðslu/.test(c)));
+  assert.ok(!S.unitPlan("Sk5", rows).check.some((c) => /Klár til framleiðslu/.test(c))); // not from the designer at all
+});

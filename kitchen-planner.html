@@ -679,6 +679,9 @@
   #proBar button:disabled { opacity:.5; cursor:default; }
   #proBar .pb-dirty { color:#ffd60a; }
   .pro-open { width:100%; margin:0 0 12px; padding:10px 12px; border-radius:10px; border:0; background:#1d2633; color:#fff; font:700 14px/1.2 inherit; cursor:pointer; }
+  .pro-open.todo { background:#b3261e; } .pro-open.ready { background:#1f9d55; }
+  #proEd .pe-ready { width:100%; margin-top:14px; padding:11px; border:0; border-radius:10px; font:700 14px/1.2 inherit; cursor:pointer; color:#fff; background:#1f9d55; }
+  #proEd .pe-ready.undo { background:transparent; color:inherit; border:1px solid var(--line, #cfd4da); font-weight:600; }
   #proEd { position:fixed; inset:0; z-index:350; background:rgba(15,18,24,.55); display:flex; align-items:center; justify-content:center; padding-top:52px; box-sizing:border-box; } /* clear of the PRO bar */
   #proEd .pe-card { background:#fff; color:#1b1f24; border-radius:16px; width:min(980px,94vw); max-height:calc(96vh - 52px); overflow:auto; display:grid; grid-template-columns:auto 1fr; gap:22px; padding:20px 22px; box-shadow:0 20px 60px rgba(0,0,0,.35); }
   #proEd h3 { margin:0 0 4px; font-size:18px; }
@@ -708,6 +711,8 @@
   }
   body.pro .stepper .st{ background:var(--card); }
   body.pro .stepper .st.done{ background:var(--gold-soft); border-color:#4a4630; }
+  /* Rakel uses this every day: no customer hints (2026-10-10) */
+  body.pro #tipBar, body.pro #stageEmpty, body.pro #uwTools span{ display:none !important; }
   body.pro .tab-btn.active, body.pro .opw-btn.next{ background:var(--ink); color:var(--bg); }
   body.pro .stage-empty:not([hidden]){ background:rgba(26,32,41,.92); }
   body.pro .cab-preview, body.pro .mat-preview, body.pro .shape-canvas{ background:var(--panel); }
@@ -999,6 +1004,7 @@
         <div class="uw-tools" id="uwTools" hidden>
           <button type="button" data-uwt="fronts">Framhliðar: á</button>
           <button type="button" data-uwt="open">Opna</button>
+          <button type="button" data-uwt="spin">Snúa: á</button>
           <span>Smelltu á skúffu eða hurð til að opna</span>
         </div>
       </div>
@@ -3802,7 +3808,8 @@
   }
   // The spinning preview: a one-wall scene holding just the cabinet being configured (isolated like the
   // drawing export, built articulated so drawers and doors can be tapped open).
-  var uwPrevTimer = null, uwPrevKey = "", uwView = { frontsOff:false, open:false };
+  var uwPrevTimer = null, uwPrevKey = "", uwView = { frontsOff:false, open:false, spin:(function(){ try{ return localStorage.getItem("bjorninn:kitchenPlanner:uwSpin") !== "0"; }catch(e){ return true; } })() };
+  var UW_SPIN = 0.55; // slower than before (0.9), user 2026-10-10
   function syncUwTools(){
     var t = document.getElementById("uwTools");
     t.hidden = !(uw && (uw.b || uw.step === 2));
@@ -3810,10 +3817,16 @@
     t.querySelector('[data-uwt="fronts"]').classList.toggle("active", uwView.frontsOff);
     t.querySelector('[data-uwt="open"]').textContent = uwView.open ? "Loka" : "Opna";
     t.querySelector('[data-uwt="open"]').classList.toggle("active", uwView.open);
+    t.querySelector('[data-uwt="spin"]').textContent = "Snúa: " + (uwView.spin ? "á" : "af");
+    t.querySelector('[data-uwt="spin"]').classList.toggle("active", !uwView.spin);
   }
   document.querySelectorAll("#uwTools [data-uwt]").forEach(function(btn){
     btn.addEventListener("click", function(){
-      if (btn.dataset.uwt === "fronts"){ uwView.frontsOff = !uwView.frontsOff; KP3D.setXrayFronts(uwView.frontsOff); }
+      if (btn.dataset.uwt === "spin"){
+        uwView.spin = !uwView.spin; try{ localStorage.setItem("bjorninn:kitchenPlanner:uwSpin", uwView.spin ? "1" : "0"); }catch(e){}
+        var st3 = KP3D._three(); if (st3) st3.controls.autoRotate = uwView.spin && !reduceMotionPref();
+      }
+      else if (btn.dataset.uwt === "fronts"){ uwView.frontsOff = !uwView.frontsOff; KP3D.setXrayFronts(uwView.frontsOff); }
       else { uwView.open = !uwView.open; KP3D.setAllParts(uwView.open); }
       syncUwTools();
     });
@@ -3830,7 +3843,7 @@
       KP3D.teardown3D(true); host.innerHTML = '<div class="uw-empty">Veldu tegund — skápurinn birtist hér.</div>'; uwPrevKey = ""; syncUwTools(); return;
     }
     var b = uw.b || newPreviewBlock(type), c = CATALOG[b.type];
-    var key = JSON.stringify(b);
+    var key = JSON.stringify(b), keepCam = uwKeepCam;
     if (key === uwPrevKey && KP3D._three()) return;
     uwPrevKey = key;
     var lenMm = Math.max(1200, b.widthMm + 800);
@@ -3847,7 +3860,7 @@
       var g = KP3D.surfaceGeoms(pv)[0], hM = blockHeightMm(b, c) / 1000, elevM = c.zone === "wall" ? (KP3D.elevOf(b) || 0) / 1000 : 0;
       var along = 0.4 + b.widthMm / 2000, cx = g.origin.x + g.axis.x * along, cz = g.origin.z + g.axis.z * along, cy = elevM + hM / 2;
       var size = Math.max(hM, b.widthMm / 1000 * 0.7, 0.9), dist = size / 2 / Math.tan(22.5 * Math.PI / 180) * 1.35 + 0.45; // fit the height in the 45° lens, with room for drawers pulled out
-      if (prevCam && uw.b && prevCam.t.distanceTo(new (window.__THREE__.Vector3)(cx, cy, cz)) < 1.5){ // same cabinet being tweaked: keep the angle the customer turned it to
+      if (prevCam && (uw.b || keepCam) && prevCam.t.distanceTo(new (window.__THREE__.Vector3)(cx, cy, cz)) < 1.5){ // same cabinet being tweaked: keep the angle the customer turned it to
         st.camera.position.copy(prevCam.p); st.controls.target.copy(prevCam.t);
       } else {
         KP3D.setCameraLookAt({ x:cx + g.normal.x * dist + g.axis.x * dist * 0.55, y:cy + size * 0.25, z:cz + g.normal.z * dist + g.axis.z * dist * 0.55 }, { x:cx, y:cy, z:cz });
@@ -3866,7 +3879,7 @@
   function renderIslandPreview(host, islandType, rows, selId){
     var key = "island:" + islandType + ":" + state.look + state.top + (rows ? JSON.stringify(rows) + selId : "");
     if (key === uwPrevKey && KP3D._three()) return;
-    var sameIsland = rows && uwPrevKey.indexOf("island:" + islandType) === 0 && KP3D._three();
+    var sameIsland = ((rows && uwPrevKey.indexOf("island:" + islandType) === 0) || uwKeepCam) && KP3D._three();
     uwPrevKey = key;
     var two = ISLAND_TYPES[islandType].two, isl = { id:"UWI", label:"Eyja", lengthMm:1800, xMm:0, zMm:3000, rot:0, two:two, a:[] };
     if (!two) isl.back = true; // the back panel a single-row island gets, shown in the preview too
@@ -3918,30 +3931,31 @@
   function spinPreview(st){
     var c = st.controls, reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     c.minAzimuthAngle = -Infinity; c.maxAzimuthAngle = Infinity;
-    c.autoRotate = !reduce; c.autoRotateSpeed = 0.9;
+    c.autoRotate = !reduce && uwView.spin; c.autoRotateSpeed = UW_SPIN;
     var resume = null;
     st.renderer.domElement.addEventListener("pointerdown", function(){
       c.autoRotate = false; clearTimeout(resume);
-      resume = setTimeout(function(){ if (KP3D._three() === st && !reduce) c.autoRotate = true; }, 5000);
+      resume = setTimeout(function(){ if (KP3D._three() === st && !reduce && uwView.spin) c.autoRotate = true; }, 5000);
     });
   }
   function swayPreview(st, frontAz){
     var c = st.controls, reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     c.minAzimuthAngle = frontAz - SWAY; c.maxAzimuthAngle = frontAz + SWAY;
-    c.autoRotate = !reduce; c.autoRotateSpeed = 0.9;
+    c.autoRotate = !reduce && uwView.spin; c.autoRotateSpeed = UW_SPIN;
     var resume = null;
     st.renderer.domElement.addEventListener("pointerdown", function(){
       c.autoRotate = false; clearTimeout(resume);
-      resume = setTimeout(function(){ if (KP3D._three() === st && !reduce) c.autoRotate = true; }, 5000);
+      resume = setTimeout(function(){ if (KP3D._three() === st && !reduce && uwView.spin) c.autoRotate = true; }, 5000);
     });
     var tick = setInterval(function(){
       if (KP3D._three() !== st){ clearInterval(tick); return; }
       var a = c.getAzimuthalAngle(), d = Math.atan2(Math.sin(a - frontAz), Math.cos(a - frontAz));
       // autoRotateSpeed > 0 turns the camera towards smaller azimuth
-      if (d > SWAY - 0.04) c.autoRotateSpeed = 0.9;
-      else if (d < -SWAY + 0.04) c.autoRotateSpeed = -0.9;
+      if (d > SWAY - 0.04) c.autoRotateSpeed = UW_SPIN;
+      else if (d < -SWAY + 0.04) c.autoRotateSpeed = -UW_SPIN;
     }, 120);
   }
+  function reduceMotionPref(){ return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); }
   function newPreviewBlock(type){ // step 2 shows the category's first variant while you choose
     var o = UNIT_TREE[uw.cat].opts[uw.hover || 0];
     var saved = blockSeq, b = uwStartBlock(o); blockSeq = saved; b.id = "uwprev";
@@ -4734,8 +4748,13 @@
   }
 
   // a real .glb finished loading: redraw whatever 3D view is showing
+  var uwModelTimer = null, uwKeepCam = false;
   window.addEventListener("kp3d-model-loaded", function(){
     if (exporting) return; // the drawing export rebuilds its own off-screen scene once models are in
+    // the "＋ Ný eining" wizard owns the only 3D scene while it's open: rebuilding the room here tore its preview
+    // down once per model file the first time it opened (the glitch, 2026-10-10). Redraw the preview once the
+    // burst of loads is over, keeping the angle.
+    if (uw){ clearTimeout(uwModelTimer); uwModelTimer = setTimeout(function(){ if (!uw) return; uwPrevKey = ""; uwKeepCam = true; renderUnitPreview(); uwKeepCam = false; }, 250); return; }
     if (state.step === "materials" && KP3D.hasCabinetPreview()) KP3D.setCabinetPreview(cabCfg());
     else if (state.step === "editor") renderView();
   });
@@ -5023,7 +5042,7 @@
         return;
       }
       wrap.innerHTML = "";
-      KP3D.buildScene(wrap, state, { darkBg:!!PRO, selectedId:selectedBlockId, selectedWallId:selectedWallId, onWallSelect:onWallSelect, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, onIslandDragEnd:onIslandDragEnd, onDecorDragEnd:onDecorDragEnd, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList(),
+      KP3D.buildScene(wrap, state, { darkBg:!!PRO, selectedId:selectedBlockId, selectedWallId:selectedWallId, onWallSelect:onWallSelect, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, onIslandDragEnd:onIslandDragEnd, onDecorDragEnd:onDecorDragEnd, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList(), readyIds:PRO ? proReadyIds() : null,
         xray:inspect.on }); // inspect mode: every cabinet built in parts (drawers/doors tap open, nothing drags)
       landedBlockId = null;
       applyInspect();
@@ -6802,10 +6821,10 @@
     var fb = selectedBlockId ? findBlock(selectedBlockId) : null;
     if (!fb || !host) return;
     var c = CATALOG[fb.block.type], doors = proDoorsOf(fb.block, c, fb.zone), drawers = fb.block.interior && fb.block.interior.mode === "skuffur";
-    if (!doors.length && !drawers) return;
-    var btn = document.createElement("button");
-    btn.type = "button"; btn.className = "pro-open";
-    btn.textContent = "🔧 Smíða — " + (doors.length && (drawers || c.oven) ? "hurðir og skúffur" : doors.length ? "lamir og hurðir" : "skúffur") + (fb.block.smida ? " ✓" : "");
+    if (!skKeys()[fb.block.id]) return; // only ordered cabinets (they have an Sk number and a Line Item)
+    var ready = proReady(fb.block), btn = document.createElement("button");
+    btn.type = "button"; btn.className = "pro-open " + (ready ? "ready" : "todo");
+    btn.textContent = (ready ? "✅ Smíða — klár til framleiðslu" : "🔧 Smíða — " + (doors.length && (drawers || c.oven) ? "hurðir og skúffur" : doors.length ? "lamir og hurðir" : drawers ? "skúffur" : "yfirfara"));
     btn.addEventListener("click", function(){ openBoxEditor(fb.block.id); });
     host.insertBefore(btn, host.firstChild);
   }
@@ -6966,13 +6985,20 @@
       '<div class="pe-note">Sláðu inn frontahæð, dragðu bláu skilin á teikningunni eða ⠿ til að færa skúffu. Strikaða línan er Blum-hliðin (hlið = hæð hennar; staðsetningin er nálgun). ' +
       'Rauðu götin eru festigötin eins og global front-makróin bora þau — öll skúffufront eins og neðsta skúffa: ' +
       (drawerSys() === "merivo" ? '35,5 frá hlið, 58 frá botni (+ 218 á E).' : '28,5 frá hlið, 75,5 frá botni (+ 203,5 á C, 235,5 á F).') + '</div></div>';
-    right += '<div class="pe-note">Lamir eru mældar frá enda hurðarinnar (80 mm sjálfgefið + jafnt á milli). Sama regla og /cnc notar.</div>';
+    if (doors.length) right += '<div class="pe-note">Lamir eru mældar frá enda hurðarinnar (80 mm sjálfgefið + jafnt á milli). Sama regla og /cnc notar.</div>';
+    var isReady = proReady(b);
+    right += isReady
+      ? '<div class="pe-note">✅ Merktur klár til framleiðslu ' + (b.smidaReadyAt ? new Date(b.smidaReadyAt).toLocaleString("is-IS") : "") + '. Breyting á skápnum tekur merkinguna af.</div>' +
+        '<button type="button" class="pe-ready undo" data-pe="ready" data-v="0">Taka merkinguna af</button>'
+      : (b.smidaReady ? '<div class="pe-note">⚠️ Skápnum var breytt eftir að hann var merktur klár — yfirfara og merkja aftur.</div>' : '') +
+        '<button type="button" class="pe-ready" data-pe="ready" data-v="1">✅ Klár til framleiðslu</button>';
     el.innerHTML = '<div class="pe-card"><div>' + svg + '</div><div>' + right + '</div></div>';
     var peInt = el.querySelector("#peInterior");
     if (peInt) wireInteriorControls(peInt, fb.wall, fb.zone, b, c); // every change ends in refreshAfterEdit → redraws this editor
 
     function act(sel, fn){ el.querySelectorAll(sel).forEach(function(n){ n.addEventListener(n.tagName === "INPUT" ? "change" : "click", function(){ fn(n); }); }); }
     act('[data-pe="close"]', closeBoxEditor);
+    act('[data-pe="ready"]', function(n){ proSetReady(b, n.dataset.v === "1"); renderBoxEditor(); });
     var SPLIT_MIN = 150;
     act('[data-pe="split"]', function(n){ var k = +n.dataset.v;
       if (k === 1){ proSetSplit(b, body, null); return; }
@@ -7135,7 +7161,24 @@
     if (doors.length) o.hinge = b.widthMm > 600 && !c.fridge && c.cls !== "corner" ? "baedi" : b.swing === "haegri" ? "haegri" : "vinstri";
     if (doors.length && b.smida) o.doors = doors.map(function(dr, i){ var sp = proSpec(b, doors, i);
       return { h:dr.box - 3, type:sp.type, side:b.swing || null, hinges:sp.type === "lift" ? [] : sp.hinges }; });
+    if (b.smidaReady && b.smidaReady === smidaHash(o)) o.ready = true; // "Klár til framleiðslu" — only while nothing changed since
     return o;
+  }
+  // "✅ Klár til framleiðslu" (pro, 2026-10-10): Rakel marks a cabinet once she's checked it in Smíða. The mark is
+  // the hash of its Smíðagögn at that moment (b.smidaReady), so ANY later change to what gets built (size, drawers,
+  // shelves, oven, hinges…) drops it by itself. /cnc warns about cabinets that aren't marked.
+  function smidaHash(o){ var str = JSON.stringify(o), h = 5381; for (var i = 0; i < str.length; i++) h = ((h * 33) ^ str.charCodeAt(i)) >>> 0; return h.toString(36); }
+  function proReady(b){ var fb = findBlock(b.id); return !!(fb && b.smidaReady && smidaFor(b, CATALOG[b.type], fb.zone).ready); }
+  function proSetReady(b, on){
+    var fb = findBlock(b.id); if (!fb) return;
+    if (on){ delete b.smidaReady; b.smidaReady = smidaHash(smidaFor(b, CATALOG[b.type], fb.zone)); b.smidaReadyAt = new Date().toISOString(); }
+    else { delete b.smidaReady; delete b.smidaReadyAt; }
+    save(); refreshAfterEdit();
+  }
+  function proReadyIds(){
+    var out = [];
+    surfaces().forEach(function(w){ ["floor", "wall"].forEach(function(zone){ w[zone].forEach(function(b){ if (b.smidaReady && proReady(b)) out.push(b.id); }); }); });
+    return out;
   }
   // Smíðagögn per Sk number — every ordered cabinet — what /api/kp-pro writes to each Line Item.
   function proSmida(){

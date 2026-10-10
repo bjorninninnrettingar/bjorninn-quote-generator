@@ -1655,6 +1655,7 @@
       addDrawerSeams(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior.count, interior.fractions);
     }
     if (meta && meta.locked && !meta.suppressBadge && meta.zone !== "opening") addLockBadge(THREE, group, local(0, baseYM + heightM + (meta.counter ? 0.16 : 0.1), depthM / 2));
+    if (meta && meta.ready) addLockBadge(THREE, group, local(widthM / 2 - 0.07, baseYM + heightM + (meta.counter ? 0.16 : 0.1), depthM / 2), true); // pro: "Klár til framleiðslu"
     if (art) addArticulated(THREE, scene, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta, useFrontMat, pickables);
     else if (meta && meta.zone !== "opening" && !isPanel && !meta.appliance) addFrontDetails(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta.handle, !!meta.tall, meta.zone === "wall", meta.split || 0, meta, useFrontMat);
     if (meta && meta.appliance) addApplianceDetails(THREE, group, geom, offsetM, widthM, heightM, depthM, meta.appliance);
@@ -1695,9 +1696,17 @@
   }
 
   // Small padlock floating over a locked cabinet.
-  var LOCK_TEX = null;
-  function addLockBadge(THREE, group, pos){
-    if (!LOCK_TEX){
+  var LOCK_TEX = null, READY_TEX = null;
+  function addLockBadge(THREE, group, pos, ready){
+    if (ready && !READY_TEX){ // green ✅ — the cabinet is ready for production (pro mode)
+      var rc = document.createElement("canvas"); rc.width = rc.height = 96;
+      var rx = rc.getContext("2d");
+      rx.fillStyle = "#1f9d55"; rx.beginPath(); rx.arc(48, 48, 46, 0, Math.PI * 2); rx.fill();
+      rx.strokeStyle = "#fff"; rx.lineWidth = 11; rx.lineCap = "round"; rx.lineJoin = "round";
+      rx.beginPath(); rx.moveTo(26, 50); rx.lineTo(42, 66); rx.lineTo(71, 33); rx.stroke();
+      READY_TEX = new THREE.CanvasTexture(rc); READY_TEX.userData = { keep:true };
+    }
+    if (!ready && !LOCK_TEX){
       var cv = document.createElement("canvas"); cv.width = cv.height = 96;
       var cx = cv.getContext("2d");
       cx.fillStyle = "rgba(25,25,25,.9)"; cx.beginPath(); cx.arc(48, 48, 46, 0, Math.PI * 2); cx.fill();
@@ -1707,7 +1716,7 @@
       cx.fillStyle = "#191919"; cx.beginPath(); cx.arc(48, 57, 4.5, 0, Math.PI * 2); cx.fill(); cx.fillRect(46, 57, 4, 10);
       LOCK_TEX = new THREE.CanvasTexture(cv); LOCK_TEX.userData = { keep:true };
     }
-    var sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:LOCK_TEX, depthTest:false, transparent:true }));
+    var sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:ready ? READY_TEX : LOCK_TEX, depthTest:false, transparent:true }));
     sp.scale.set(0.11, 0.11, 1); sp.position.copy(pos); sp.renderOrder = 9;
     group.add(sp);
   }
@@ -3213,7 +3222,7 @@
         addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, applMat || carcassMat, applMat || frontMat, inter,
           { islandId:islandId, locked:!!b.locked || !!opts.xray, suppressBadge:!!opts.xray, slabFronts:jeyOn, corner:c.cls === "corner", doorSide:b.swing === "vinstri" ? "left" : "right", hingeRight:b.swing === "haegri", shelves:(c.hasInterior || c.shelfRange) && !(b.interior && b.interior.mode === "skuffur") ? (shelvesOf(b) || 0) : 0,
             openMat:openMat, hiddenMat:hiddenMat, drawerSystem:state.drawerSystem, carcassKey:state.carcass,
-            warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), heightMm:hM * 1000, elevMm:0, handle:c.appliance ? null : state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0, // tall units: one door unless split in Smíða (2026-10-09)
+            warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), ready:!!(opts.readyIds && opts.readyIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), heightMm:hM * 1000, elevMm:0, handle:c.appliance ? null : state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0, // tall units: one door unless split in Smíða (2026-10-09)
             splitFr:c.oven || c.fridge || c.fixedFronts ? null : splitFractions(b, hM * 1000 - (c.panel || c.appliance ? 0 : 100)),
             plinth:!c.panel && !c.appliance, appliance:c.appliance || null, leMans:!!c.tofrahornIds, counter:!!c.counter, sink:!!c.sink, oven:!!c.oven, panel:!!c.panel, plinthMat:plinthMat, stoneMat:stoneMat,
             ovenCodes:c.lowOven ? ["M"] : c.oven ? ovenCodesOf(b, state.drawerSystem) : null, fixedFronts:!!c.fixedFronts || !!c.appliance,
@@ -3235,7 +3244,7 @@
         var hM = Math.min(b.heightMm || c.h, roomHeightMm) / 1000, dM = (b.depthMm || c.d) / 1000;
         var selected = opts.selectedId === b.id;
         var elevM = elevOf(b) / 1000;
-        var metaBase = { locked:!!b.locked || !!opts.xray, suppressBadge:!!opts.xray, slabFronts:jeyOn, drawerSystem:state.drawerSystem, carcassKey:state.carcass, warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"wall", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d),
+        var metaBase = { locked:!!b.locked || !!opts.xray, suppressBadge:!!opts.xray, slabFronts:jeyOn, drawerSystem:state.drawerSystem, carcassKey:state.carcass, warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), ready:!!(opts.readyIds && opts.readyIds.indexOf(b.id) >= 0), wallId:wall.id, zone:"wall", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d),
           heightMm:hM * 1000, elevMm:elevM * 1000, handle:state.handle, splitFr:c.open ? null : splitFractions(b, hM * 1000) };
         if (c.shelfStack){ // 1–5 boards of 38 mm above each other: one pickable box per board, all sharing the block id
           var n = Math.max(1, Math.min(SHELF_STACK_MAX, b.count || 3)), gap = b.vgapMm != null ? b.vgapMm : SHELF_GAP_DEFAULT;
