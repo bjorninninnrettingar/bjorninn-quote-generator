@@ -839,19 +839,28 @@
         });
       });
       var ops = (state.windows || []).filter(function(o){ return o.wallId === wall.id; }).map(function(o){ return { kind:"gluggi", o:o, lo:o.sillHeightMm, hi:o.sillHeightMm + o.heightMm }; })
-        .concat((state.doors || []).filter(function(o){ return o.wallId === wall.id; }).map(function(o){ return { kind:o.gap ? "op" : "hurð", o:o, lo:0, hi:o.heightMm }; }));
+        .concat((state.doors || []).filter(function(o){ return o.wallId === wall.id; }).map(function(o){ return { kind:o.gap ? "op" : "hurð", o:o, lo:0, hi:o.heightMm }; }))
+        .concat((state.obstacles || []).filter(function(o){ return o.wallId === wall.id && OBSTACLES[o.kind] && OBSTACLES[o.kind].blocks && (o.outMm || 0) < 600; })
+          .map(function(o){ var v = obstacleVSpan(state, o); return { kind:"hindrun", o:o, lo:v.lo, hi:v.hi }; }));
       spans.forEach(function(sp){
         ops.forEach(function(op){
           var hOverlap = Math.min(sp.to, op.o.offsetMm + op.o.widthMm) - Math.max(sp.from, op.o.offsetMm);
           var vOverlap = Math.min(sp.hi, op.hi) - Math.max(sp.lo, op.lo);
           if (hOverlap > 20 && vOverlap > 20){
-            add(sp.c.label + " skarast við " + (op.kind === "gluggi" ? "glugga" : op.kind === "op" ? "op í vegg" : "hurð") + " á " + acc(wall.label) + ".", [sp.b.id, op.o.id]);
+            add(sp.c.label + " skarast við " + (op.kind === "gluggi" ? "glugga" : op.kind === "op" ? "op í vegg" : op.kind === "hindrun" ? OBSTACLES[op.o.kind].label.toLowerCase() : "hurð") + " á " + acc(wall.label) + ".", [sp.b.id, op.o.id]);
           }
         });
         if (sp.rawH > roomH) add(sp.c.label + " á " + acc(wall.label) + " er hærri en loftið (" + roomH + " mm).", [sp.b.id]);
       });
     });
     out.forEach(function(w){ if (w.count > 1) w.msg = w.msg.replace(/\.$/, "") + " (" + w.count + " skápar)."; });
+    (state.obstacles || []).forEach(function(o){
+      if (o.kind !== "vatn") return;
+      var wall = state.walls.find(function(w){ return w.id === o.wallId; }); if (!wall) return;
+      var wi = state.walls.indexOf(wall), starts = blockStartsMm(wall.floor, cornerClearanceMm(state.walls, wi, "floor"));
+      var behind = wall.floor.some(function(b, i){ var c = CATALOG[b.type]; return (c.sink || b.type === "dishwasher" || /uppthvottavel|thvottavel/.test(b.type)) && starts[i] < o.offsetMm + o.widthMm && starts[i] + b.widthMm > o.offsetMm; });
+      if (!behind) out.push({ msg:"Vatnsinntak / niðurfall á " + acc(wall.label) + " er ekki á bak við vaskaskáp eða uppþvottavél.", ids:[o.id], count:1 });
+    });
     islandWarnings(state, function(msg, ids){ out.push({ msg:msg, ids:ids, count:1 }); });
     openingIssues(state).warn.forEach(function(w){ out.push({ msg:w.msg, ids:w.ids, count:1 }); });
     return out;
@@ -3322,6 +3331,42 @@
         { wallId:door.wallId, zone:"opening", kind:"door", locked:!door.unlocked && !!opts.onSelect, gap:!!door.gap, blockId:door.id, widthMm:door.widthMm, depthMm:10, heightMm:door.heightMm, elevMm:0 }, opts.selectedId === door.id, pickables));
     });
 
+    // Hindranir: boxes in the wall colour (pipe box, column, partition, beam), a white radiator, a grey fuse box,
+    // a chrome pipe stub, a stone sill. Tap = select (they never drag; moved in the panel / ◀ ▶).
+    (state.obstacles || []).forEach(function(o){
+      var def = OBSTACLES[o.kind], g = geomForWall(o.wallId); if (!def || !g) return;
+      var v = obstacleVSpan(state, o), sel = opts.selectedId === o.id, hM = (v.hi - v.lo) / 1000;
+      var wM = o.widthMm / 1000, dM = o.depthMm / 1000, outM = (o.outMm || 0) / 1000;
+      var meta = { kind:"obstacle", zone:"obstacle", blockId:o.id, wallId:o.wallId, locked:!!opts.onSelect, widthMm:o.widthMm, depthMm:o.depthMm, heightMm:v.hi - v.lo };
+      var grp = new THREE.Group();
+      grp.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(g.axis.x, 0, g.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(g.normal.x, 0, g.normal.z)));
+      var along = o.offsetMm / 1000 + wM / 2;
+      grp.position.set(g.origin.x + g.axis.x * along + g.normal.x * (outM + dM / 2), v.lo / 1000, g.origin.z + g.axis.z * along + g.normal.z * (outM + dM / 2));
+      function part(geo, color, rough, metal, x, y, z){
+        var m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color:color, roughness:rough, metalness:metal || 0 }));
+        if (sel){ m.material.emissive = new THREE.Color(SELECT_COLOR); m.material.emissiveIntensity = 0.55; }
+        m.position.set(x || 0, y, z || 0); m.castShadow = true; m.receiveShadow = true; m.userData = meta;
+        grp.add(m); pickables.push(m); return m;
+      }
+      if (def.look === "radiator"){
+        var fins = Math.max(3, Math.round(wM / 0.05));
+        for (var fi = 0; fi < fins; fi++) part(new THREE.BoxGeometry(wM / fins * 0.8, hM, dM * 0.7), 0xf4f4f2, 0.4, 0, -wM / 2 + (fi + 0.5) * wM / fins, hM / 2, -dM * 0.1);
+        part(new THREE.BoxGeometry(wM, 0.04, dM * 0.4), 0xf4f4f2, 0.4, 0, hM - 0.06, -dM * 0.2);
+      } else if (def.look === "panel"){
+        part(new THREE.BoxGeometry(wM, hM, dM), 0xd9dadc, 0.5, 0.1, 0, hM / 2, 0);
+        part(new THREE.BoxGeometry(wM * 0.9, hM * 0.9, 0.004), 0xc4c6c9, 0.45, 0.1, 0, hM / 2, dM / 2 + 0.002);
+      } else if (def.look === "pipe"){
+        part(new THREE.CylinderGeometry(0.02, 0.02, dM, 16).rotateX(Math.PI / 2), 0xc8ccd2, 0.25, 0.9, -wM / 4, hM / 2, 0);
+        part(new THREE.CylinderGeometry(0.025, 0.025, dM, 16).rotateX(Math.PI / 2), 0x9a9da3, 0.35, 0.6, wM / 4, hM / 2, 0);
+      } else if (def.look === "sill"){
+        part(new THREE.BoxGeometry(wM, hM, dM), 0xe6e2da, 0.35, 0, 0, hM / 2, 0);
+      } else {
+        part(new THREE.BoxGeometry(wM, hM, dM), new THREE.Color(wallColor).getHex(), 1, 0, 0, hM / 2, 0);
+      }
+      scene.add(grp);
+      if (!outM && def.look === "wall") fadeWithWall(o.wallId, grp); // a pipe box / beam on a faded wall fades with it
+    });
+
     // built-in fridge reads as an appliance: brushed-steel front instead of the kitchen's fronts
     var steelMat = new THREE.MeshStandardMaterial({ color:0xc9ccd1, metalness:0.75, roughness:0.32 });
     var washerMat = new THREE.MeshStandardMaterial({ color:0xf3f4f5, roughness:0.35, metalness:0.05 });
@@ -4085,6 +4130,36 @@
 
   // ---- Furniture & decor (2026-10-05): drawn from simple shapes, placed freely, never ordered ----
   // kind: "floor" stands on the floor, "top" sits on whatever worktop is under it, "ceiling" hangs from it.
+  // ---- Hindranir (obstacles, 2026-10-11): fixed things in the room the kitchen must go round ----
+  // state.obstacles = [{id, kind, wallId, offsetMm (from the wall's left corner), widthMm (along the wall), depthMm
+  // (out into the room), heightMm (null = floor to ceiling), elevMm (bottom above the floor), outMm (gap to the wall,
+  // free-standing column)}]. h:null = floor to ceiling; beam = hangs from the ceiling. `blocks` = cabinets can't
+  // stand where it is at that height (openingSpans in the editor), vatn is only a marker.
+  var OBSTACLES = {
+    lagnastokkur:{ label:"Lagnastokkur",          w:200, d:200, h:null, elev:0,    blocks:true,  look:"wall" },
+    stolpi:      { label:"Burðarstólpi",          w:300, d:300, h:null, elev:0,    blocks:true,  look:"wall", free:true },
+    milliveggur: { label:"Milliveggur",           w:100, d:600, h:null, elev:0,    blocks:true,  look:"wall" },
+    biti:        { label:"Biti í lofti",          w:0,   d:300, h:250,  elev:null, blocks:true,  look:"wall", ceiling:true },
+    ofn:         { label:"Ofn (miðstöð)",         w:1000, d:100, h:600, elev:150,  blocks:true,  look:"radiator" },
+    tafla:       { label:"Rafmagnstafla",         w:400, d:120, h:600,  elev:1400, blocks:true,  look:"panel" },
+    vatn:        { label:"Vatnsinntak / niðurfall", w:150, d:60, h:150, elev:450,  blocks:false, look:"pipe" },
+    kista:       { label:"Gluggakista",           w:1300, d:200, h:40,  elev:960,  blocks:true,  look:"sill" }
+  };
+  // its height range above the floor (mm)
+  function obstacleVSpan(state, o){
+    var roomH = state.roomHeightMm || 2500, def = OBSTACLES[o.kind] || {};
+    if (def.ceiling) return { lo:roomH - (o.heightMm || def.h), hi:roomH };
+    if (o.heightMm == null) return { lo:0, hi:roomH };
+    var lo = o.elevMm != null ? o.elevMm : def.elev || 0;
+    return { lo:lo, hi:Math.min(roomH, lo + o.heightMm) };
+  }
+  // its footprint on the floor plan (m, world corners) — null when the wall isn't there
+  function obstacleQuad(state, o){
+    var walls = wallGeoms(state), wi = state.walls.findIndex(function(w){ return w.id === o.wallId; }), g = walls[wi];
+    if (!g || state.walls[wi].open) return null;
+    var a = o.offsetMm / 1000, b = a + o.widthMm / 1000, n0 = (o.outMm || 0) / 1000, n1 = n0 + o.depthMm / 1000;
+    return [[a, n0], [b, n0], [b, n1], [a, n1]].map(function(p){ return { x:g.origin.x + g.axis.x * p[0] + g.normal.x * p[1], z:g.origin.z + g.axis.z * p[0] + g.normal.z * p[1] }; });
+  }
   var DECOR = {
     bordFer:    { label:"Borðstofuborð",            group:"floor", w:1600, d:900, seats:[4, 6, 8], seatsDefault:6 },
     bordHring:  { label:"Hringborð",                group:"floor", w:1100, d:1100, seats:[4, 6, 8], seatsDefault:4 },
@@ -4132,7 +4207,8 @@
     }
     if (closed && !pts.every(function(p){ return inPoly(p.x, p.z, poly); })) return false;
     if (d.kind === "motta") return true;
-    var rects = floorRects(state);
+    var rects = floorRects(state).concat((state.obstacles || []).filter(function(o){ return OBSTACLES[o.kind] && obstacleVSpan(state, o).lo < 900; })
+      .map(function(o){ return { q:obstacleQuad(state, o) }; }).filter(function(r){ return r.q; }));
     for (var r = 0; r < rects.length; r++){
       var q = rects[r].q, rq = q.slice().reverse();
       for (var k = 0; k < pts.length; k++) if (inPoly(pts[k].x, pts[k].z, q) || inPoly(pts[k].x, pts[k].z, rq)) return false;
@@ -4638,6 +4714,11 @@
     }
     (state.windows || []).forEach(function(w){ openingSegment(w, 'data-window-id', "#5b8fae", false); });
     (state.doors || []).forEach(function(d){ openingSegment(d, 'data-door-id', "#8a6a4a", true); });
+    (state.obstacles || []).forEach(function(o){
+      var q = obstacleQuad(state, o), def = OBSTACLES[o.kind]; if (!q || !def) return;
+      var sel = opts.selectedId === o.id, fill = def.look === "wall" ? "#9a958a" : def.look === "radiator" ? "#ffffff" : def.look === "sill" ? "#e6e2da" : "#c4c6c9";
+      svg += '<polygon data-obstacle-id="' + o.id + '" points="' + q.map(function(p){ return X(p.x) + "," + Y(p.z); }).join(" ") + '" fill="' + fill + '" fill-opacity="' + (def.ceiling ? 0.35 : 0.9) + '" stroke="' + (sel ? "#3d61c1" : "#4a4740") + '" stroke-width="' + (sel ? 2.5 : 1.2) + '"' + (def.ceiling ? ' stroke-dasharray="6,4"' : '') + ' style="cursor:pointer;"><title>' + def.label + '</title></polygon>';
+    });
 
     function drawCabinetRect(bl, c, g, wallId, zone, offsetMm, isWallRow){
       var widthM = bl.widthMm / 1000;
@@ -4701,6 +4782,9 @@
           opts.onSelect({ wallId: el.dataset.wallId, zone: el.dataset.zone, blockId: el.dataset.blockId });
         });
       });
+      container.querySelectorAll("[data-obstacle-id]").forEach(function(el){
+        el.addEventListener("click", function(evt){ evt.stopPropagation(); opts.onSelect({ blockId:el.dataset.obstacleId, kind:"obstacle", zone:"obstacle" }); });
+      });
       container.querySelectorAll("[data-window-id],[data-door-id]").forEach(function(el){
         el.addEventListener("click", function(evt){
           evt.stopPropagation();
@@ -4746,7 +4830,7 @@
     cornerClearanceMm: cornerClearanceMm, afellaMm: afellaMm, AFELLA_MM: AFELLA_MM,
     blockStartsMm: blockStartsMm,
     planTransform: planTransform,
-    rectCornersWorld: rectCornersWorld, DECOR: DECOR, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
+    rectCornersWorld: rectCornersWorld, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, DECOR: DECOR, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
     WALL_COLORS: WALL_COLORS,
     WINDOW_DEFAULT: WINDOW_DEFAULT,
     _handleProfile: handleProfile,

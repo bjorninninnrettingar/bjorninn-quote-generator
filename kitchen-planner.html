@@ -425,6 +425,8 @@
   #floatBar.decor-sel .fb-dim, #floatBar.decor-sel [data-fb="left"], #floatBar.decor-sel [data-fb="right"], #floatBar.decor-sel [data-fb="dup"]{ display:none; }
   #floatBar.decor-sel [data-fb^="rot"]{ display:flex; }
   #floatBar.decor-sel button{ width:44px; height:44px; font-size:20px; }
+  #floatBar.obst-sel .fb-dim, #floatBar.obst-sel [data-fb="lock"], #floatBar.obst-sel [data-fb="dup"]{ display:none; }
+  .ob-full{ display:flex; align-items:center; gap:8px; font-size:13px; margin-top:8px; }
   .dec-seats{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
   .dec-seats .hw-btn{ display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 4px; }
   .dec-seats small{ font-size:11px; font-weight:400; opacity:.75; }
@@ -1243,6 +1245,7 @@
       if (state.wallColor === undefined) state.wallColor = null;
       if (!state.windows) state.windows = [];
       if (!state.doors) state.doors = [];
+      state.obstacles = (state.obstacles || []).filter(function(o){ return KP3D.OBSTACLES[o.kind] && state.walls.some(function(w){ return w.id === o.wallId; }); });
       if (!state.islands) state.islands = [];
       if (state.closed === undefined) state.closed = false;
       if (state.floor === undefined || (state.floor && !KP3D.FLOORS[state.floor])) state.floor = null;
@@ -1478,7 +1481,7 @@
     if (hasStuff && !confirm("Þetta breytir lögun rýmisins og fjarlægir skápa, glugga og hurðir sem þú ert búin(n) að setja inn. Halda áfram?")) return;
     state.walls = templateWalls(key);
     state.closed = true;
-    state.windows = []; state.doors = []; state.islands = [];
+    state.windows = []; state.doors = []; state.islands = []; state.obstacles = [];
     state.waterWall = null; state.waterAlongMm = null; state.seeded = false; state.openingsDone = false;
     selectedEdge = null;
     shapePhase = "size";
@@ -1814,6 +1817,7 @@
         w.floor = []; w.wall = [];
         state.windows = state.windows.filter(function(o){ return o.wallId !== w.id; });
         state.doors = state.doors.filter(function(o){ return o.wallId !== w.id; });
+        state.obstacles = (state.obstacles || []).filter(function(o){ return o.wallId !== w.id; });
         if (state.waterWall === w.id){ state.waterWall = null; state.waterAlongMm = null; }
       }
       w.open = e.target.checked;
@@ -2411,7 +2415,17 @@
     return openingsOnWall(wall.id).filter(function(o){
       var v = openingVSpan(o);
       return Math.min(v.hi, probe.hi) - Math.max(v.lo, probe.lo) > 20;
-    }).map(function(o){ return { start:o.offsetMm, end:o.offsetMm + o.widthMm, opening:o }; });
+    }).map(function(o){ return { start:o.offsetMm, end:o.offsetMm + o.widthMm, opening:o }; })
+      .concat(obstacleSpans(wall, probe));
+  }
+  // Hindranir (2026-10-11): a pipe box, column, partition, radiator, fuse box or window sill blocks cabinets at its
+  // height, a beam blocks anything that reaches up into it; the water point doesn't (the sink goes over it).
+  function obstacleSpans(wall, probe){
+    return (state.obstacles || []).filter(function(o){
+      var def = KP3D.OBSTACLES[o.kind]; if (o.wallId !== wall.id || !def || !def.blocks || (o.outMm || 0) >= 600) return false;
+      var v = KP3D.obstacleVSpan(state, o);
+      return Math.min(v.hi, probe.hi) - Math.max(v.lo, probe.lo) > 20;
+    }).map(function(o){ return { start:o.offsetMm, end:o.offsetMm + o.widthMm, obstacle:o }; });
   }
   // does this block (already in its list) collide with something in the other row?
   function crossOverlap(wall, zone, b){
@@ -4075,7 +4089,10 @@
     html += sec("gluggar", "Hurðir og gluggar",
       item("opening", "gluggi", "window", "Gluggi", WINDOW_DEFAULT.heightMm + ' × ' + WINDOW_DEFAULT.widthMm + ' mm', true) +
       item("opening", "hurd", "door", "Hurð", DOOR_DEFAULT.heightMm + ' × ' + DOOR_DEFAULT.widthMm + ' mm', true) +
-      item("opening", "gat", "gap", "Op í vegg (án hurðar)", GAP_DEFAULT.heightMm + ' × ' + GAP_DEFAULT.widthMm + ' mm', true));
+      item("opening", "gat", "gap", "Op í vegg (án hurðar)", GAP_DEFAULT.heightMm + ' × ' + GAP_DEFAULT.widthMm + ' mm', true) +
+      '<div class="cat-title">Hindranir</div><div class="light-btns">' + Object.keys(KP3D.OBSTACLES).map(function(k){
+        return '<button type="button" class="hw-btn" data-obst-add="' + k + '">＋ ' + KP3D.OBSTACLES[k].label + '</button>';
+      }).join("") + '</div><p class="sec-note">Fer á valinn vegg (annars vegg 1). Skápar komast ekki fyrir þar sem hindrunin er.</p>');
     // (islands are added from "＋ Ný eining" → Eyja since 2026-09-30)
     // --- materials ---
     var L = lighting(), lbtn = function(key, label){ return '<button type="button" class="hw-btn' + (L[key] ? ' active' : '') + '" data-light="' + key + '">' + (L[key] ? '✓ ' : '') + label + '</button>'; };
@@ -4124,6 +4141,7 @@
       });
     });
     host.querySelectorAll("[data-decor-add]").forEach(function(b){ b.addEventListener("click", function(){ addDecor(b.dataset.decorAdd); }); });
+    host.querySelectorAll("[data-obst-add]").forEach(function(b){ b.addEventListener("click", function(){ addObstacle(b.dataset.obstAdd); }); });
     host.querySelectorAll("[data-decor-all]").forEach(function(b){
       b.addEventListener("click", function(){
         if (b.dataset.decorAll === "hide"){ state.decorHidden = !state.decorHidden; if (state.decorHidden && findDecor(selectedBlockId)) selectedBlockId = null; }
@@ -5067,6 +5085,12 @@
     var opening = selectedBlockId ? findOpening(selectedBlockId) : null;
     if (btn && opening && btn.dataset.fb === "lock"){ toggleOpeningLock(opening.o); return; }
     if (btn && opening && btn.dataset.fb === "del"){ if (opLocked(opening.o)){ opLockedToast(); return; } selectedBlockId = null; removeOpening(opening.kind, opening.o.id); return; }
+    var obs = selectedBlockId ? findObstacle(selectedBlockId) : null;
+    if (btn && obs){
+      if (btn.dataset.fb === "left") nudgeObstacle(obs, -100); else if (btn.dataset.fb === "right") nudgeObstacle(obs, 100);
+      else if (btn.dataset.fb === "del") removeObstacle(obs.id);
+      return;
+    }
     var dec = selectedBlockId ? findDecor(selectedBlockId) : null;
     if (btn && dec){
       var a = btn.dataset.fb;
@@ -5406,6 +5430,9 @@
     if (opening){ renderOpeningPanel(host, opening); return; }
     var island = !found && !opening && selectedBlockId ? findIsland(selectedBlockId) : null;
     if (island){ renderIslandPanel(host, island); return; }
+    var obst = !found && !opening && !island && selectedBlockId ? findObstacle(selectedBlockId) : null;
+    document.getElementById("floatBar").classList.toggle("obst-sel", !!obst);
+    if (obst){ document.getElementById("floatBar").classList.remove("decor-sel"); renderObstaclePanel(host, obst); return; }
     var decor = !found && !opening && !island && selectedBlockId ? findDecor(selectedBlockId) : null;
     document.getElementById("floatBar").classList.toggle("decor-sel", !!decor); // the cabinet toolbar means nothing for a prop
     if (decor){ renderDecorPanel(host, decor); return; }
@@ -5679,6 +5706,84 @@
   // ---------- summary step ----------
   // ---------- toast ----------
   var toastTimer;
+  // ---- Hindranir (2026-10-11): state.obstacles, see KP3D.OBSTACLES ----
+  var obstacleSeq = 1;
+  function findObstacle(id){ return (state.obstacles || []).find(function(o){ return o.id === id; }) || null; }
+  function addObstacle(kind){
+    var def = KP3D.OBSTACLES[kind]; if (!def) return;
+    var solid = state.walls.filter(function(w){ return !w.open; });
+    var sel = selectedBlockId ? findBlock(selectedBlockId) || findOpening(selectedBlockId) || (findObstacle(selectedBlockId) ? { o:findObstacle(selectedBlockId) } : null) : null;
+    var wallId = selectedWallId || (sel && (sel.wall ? sel.wall.id : sel.o && sel.o.wallId)) || (solid[0] && solid[0].id);
+    var wall = state.walls.find(function(w){ return w.id === wallId && !w.open; }) || solid[0];
+    if (!wall){ toast("Teiknaðu rýmið fyrst."); return; }
+    var o = { id:"h" + (obstacleSeq++) + "_" + Date.now().toString(36), kind:kind, wallId:wall.id, widthMm:Math.min(def.w || wall.lengthMm, wall.lengthMm), depthMm:def.d, heightMm:def.h, elevMm:def.elev };
+    o.offsetMm = Math.round((wall.lengthMm - o.widthMm) / 2);
+    if (kind === "biti") o.offsetMm = 0;
+    if (kind === "kista"){ // under a window on this wall (or the first window anywhere)
+      var win = state.windows.find(function(w){ return w.wallId === wall.id; }) || state.windows[0];
+      if (win){ wall = state.walls.find(function(w){ return w.id === win.wallId; }) || wall; o.wallId = wall.id; o.widthMm = Math.min(win.widthMm + 100, wall.lengthMm); o.offsetMm = Math.max(0, Math.min(wall.lengthMm - o.widthMm, win.offsetMm - 50)); o.elevMm = Math.max(0, win.sillHeightMm - 40); }
+    }
+    state.obstacles = state.obstacles || [];
+    state.obstacles.push(o);
+    selectedBlockId = o.id; selectedWallId = null;
+    save(); refreshAfterEdit();
+  }
+  function removeObstacle(id){
+    state.obstacles = (state.obstacles || []).filter(function(o){ return o.id !== id; });
+    if (selectedBlockId === id) selectedBlockId = null;
+    save(); refreshAfterEdit();
+  }
+  function nudgeObstacle(o, d){
+    var wall = state.walls.find(function(w){ return w.id === o.wallId; }); if (!wall) return;
+    o.offsetMm = Math.max(0, Math.min(wall.lengthMm - o.widthMm, o.offsetMm + d));
+    save(); refreshAfterEdit();
+  }
+  function renderObstaclePanel(host, o){
+    var def = KP3D.OBSTACLES[o.kind], wall = state.walls.find(function(w){ return w.id === o.wallId; }), roomH = state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM;
+    var full = o.heightMm == null, L = wall ? wall.lengthMm : 0;
+    function fld(key, label, val, lo, hi, dis){
+      return '<div class="dim-f"><label>' + label + '</label><input type="number" data-ob="' + key + '" value="' + val + '" min="' + lo + '" max="' + hi + '" step="10"' + (dis ? ' disabled' : '') + '><small>' + lo + '–' + hi + '</small></div>';
+    }
+    var v = KP3D.obstacleVSpan(state, o);
+    host.innerHTML = '<div class="edit-panel"><div class="edit-panel-head"><div><h4>' + def.label + '</h4><div class="sub">Hindrun í rýminu — ekki í pöntun</div></div><button class="iconbtn" data-role="close" title="Loka">✕</button></div>' +
+      '<div class="edit-field"><label>Veggur</label><select data-ob="wallId">' + state.walls.filter(function(w){ return !w.open; }).map(function(w){
+        return '<option value="' + w.id + '"' + (w.id === o.wallId ? ' selected' : '') + '>' + w.label + ' · ' + w.lengthMm + ' mm</option>';
+      }).join("") + '</select></div>' +
+      '<div class="edit-field"><label>Mál (mm)</label><div class="dim-grid">' +
+        fld("offsetMm", "Frá vinstra horni", o.offsetMm, 0, Math.max(0, L - o.widthMm)) +
+        fld("widthMm", o.kind === "milliveggur" ? "Þykkt" : "Breidd", o.widthMm, 20, L) +
+        fld("depthMm", o.kind === "milliveggur" ? "Lengd út í rýmið" : "Dýpt út frá vegg", o.depthMm, 20, 3000) +
+        (full ? '' : fld("heightMm", "Hæð", o.heightMm, 20, roomH)) +
+        (full || def.ceiling ? '' : fld("elevMm", "Frá gólfi", o.elevMm, 0, roomH - (o.heightMm || 0))) +
+        (def.free ? fld("outMm", "Bil frá vegg", o.outMm || 0, 0, 5000) : '') +
+      '</div>' +
+      (def.h == null ? '<label class="ob-full"><input type="checkbox" data-ob="full"' + (full ? ' checked' : '') + '> Frá gólfi upp í loft</label>' : '') +
+      '<p class="ov-mat" style="margin:8px 0 0;">' + (def.ceiling ? 'Hangir niður úr loftinu: neðri brún í ' + v.lo + ' mm — skápar sem ná hærra komast ekki fyrir undir honum.' :
+        def.blocks ? 'Nær ' + v.lo + '–' + v.hi + ' mm frá gólfi. Skápar í þeirri hæð komast ekki fyrir hér.' + (def.free && (o.outMm || 0) >= 600 ? ' (Stendur frítt — lokar ekki á skápa við vegginn.)' : '') : 'Merki fyrir lagnir — vaskaskápur eða uppþvottavél á að fara yfir það.') + '</p></div>' +
+      '<div class="edit-actions"><button class="iconbtn" data-role="left">◀ 100</button><button class="iconbtn" data-role="right">100 ▶</button><button class="iconbtn del" data-role="delete">✕ Fjarlægja</button></div></div>';
+    host.querySelector('[data-role="close"]').addEventListener("click", function(){ onCabinetSelect(null); });
+    host.querySelector('[data-role="left"]').addEventListener("click", function(){ nudgeObstacle(o, -100); });
+    host.querySelector('[data-role="right"]').addEventListener("click", function(){ nudgeObstacle(o, 100); });
+    host.querySelector('[data-role="delete"]').addEventListener("click", function(){ removeObstacle(o.id); });
+    host.querySelectorAll("[data-ob]").forEach(function(inp){
+      inp.addEventListener("change", function(){
+        var k = inp.dataset.ob;
+        if (k === "full") o.heightMm = inp.checked ? null : Math.min(1000, roomH);
+        else if (k === "wallId"){
+          var nw = state.walls.find(function(w){ return w.id === inp.value; }); if (!nw) return;
+          o.wallId = nw.id; o.widthMm = Math.min(o.widthMm, nw.lengthMm); o.offsetMm = Math.min(o.offsetMm, nw.lengthMm - o.widthMm);
+        } else {
+          var val = Math.round(+inp.value); if (!isFinite(val)){ renderEditPanel(); return; }
+          var lo = +inp.min, hi = +inp.max; val = Math.max(lo, Math.min(hi, val));
+          o[k] = val;
+          if (k === "widthMm") o.offsetMm = Math.max(0, Math.min(o.offsetMm, L - o.widthMm));
+          if (k === "heightMm" && o.elevMm != null) o.elevMm = Math.min(o.elevMm, Math.max(0, roomH - val));
+        }
+        save(); refreshAfterEdit();
+      });
+    });
+  }
+
   // ---- Húsgögn og skraut (2026-10-05): view-only props in state.decor [{id, kind, xMm, zMm, rot}] ----
   var decorSeq = 1;
   function findDecor(id){ return (state.decor || []).find(function(d){ return d.id === id; }) || null; }
@@ -6019,6 +6124,10 @@
     if (state.windows.length || state.doors.length){
       lines.push("Teiknaði inn " + state.windows.length + " glugga, " + realDoors().length + " hurð(ir)" + (gapDoors().length ? " og " + gapDoors().length + " op í vegg (án hurðar)" : "") + " í rýmið — sjá teikningu");
     }
+    if ((state.obstacles || []).length) lines.push("Hindranir í rýminu: " + state.obstacles.map(function(o){
+      var w = state.walls.find(function(x){ return x.id === o.wallId; }), v = KP3D.obstacleVSpan(state, o);
+      return KP3D.OBSTACLES[o.kind].label + " á " + (w ? w.label.replace(/^Veggur/, "vegg") : "?") + " (" + o.offsetMm + " mm frá horni, " + o.widthMm + " × " + o.depthMm + " mm, " + v.lo + "–" + v.hi + " mm frá gólfi)";
+    }).join("; "));
     computeWarnings().slice(0, 8).forEach(function(w){ lines.push("Athugasemd frá skipulagstóli: " + w.msg.replace(/\.$/, "")); });
     if (!lines.length) return "";
     // Values like "2–4 m.kr." already end in a period — strip any trailing
@@ -6867,6 +6976,13 @@
     if (mod && e.key.toLowerCase() === "y"){ e.preventDefault(); stepHistory(1); return; }
     if (!selectedBlockId && selectedWallId && e.key === "Escape"){ onCabinetSelect(null); return; }
     if (!selectedBlockId) return;
+    var obk = findObstacle(selectedBlockId);
+    if (obk){
+      if (e.key === "ArrowLeft" || e.key === "ArrowRight"){ e.preventDefault(); nudgeObstacle(obk, (e.key === "ArrowLeft" ? -1 : 1) * (e.shiftKey ? 10 : 100)); }
+      else if (e.key === "Delete" || e.key === "Backspace"){ e.preventDefault(); removeObstacle(obk.id); }
+      else if (e.key === "Escape") onCabinetSelect(null);
+      return;
+    }
     var isl = findIsland(selectedBlockId);
     if (isl){
       var stepI = e.shiftKey ? 10 : 100;
