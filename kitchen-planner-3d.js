@@ -1444,6 +1444,19 @@
     var raw = rawModel(cfg.file);
     if (!raw) return null;
     var A = { x:0, y:1, z:2 }, rows = (cfg.map || ["x", "y", "z"]).map(function(t){ var r = [0, 0, 0]; r[A[t.replace("-", "")]] = t.charAt(0) === "-" ? -1 : 1; return r; });
+    if (cfg.growBar){ // the light bar shares its surface with a dark core / the brackets → z-fighting (Crossing, 2026-10-11):
+      // make it a hair thicker across its length so it cleanly covers them
+      raw.traverse(function(o){
+        if (!o.isMesh || !o.material || Array.isArray(o.material) || !o.material.color) return;
+        var col = o.material.color; if (col.r + col.g + col.b < 0.9) return; // only the light (wooden) part
+        if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+        var bb = o.geometry.boundingBox, sz = bb.getSize(new THREE.Vector3()), c = bb.getCenter(new THREE.Vector3());
+        var longAx = sz.x >= sz.y && sz.x >= sz.z ? "x" : sz.y >= sz.z ? "y" : "z", k = cfg.growBar;
+        var sc = new THREE.Vector3(longAx === "x" ? 1 : k, longAx === "y" ? 1 : k, longAx === "z" ? 1 : k);
+        var d = new THREE.Vector3(c.x * (1 - sc.x), c.y * (1 - sc.y), c.z * (1 - sc.z)).multiply(o.scale).applyQuaternion(o.quaternion);
+        o.position.add(d); o.scale.multiply(sc);
+      });
+    }
     var w = new THREE.Group();
     w.add(raw);
     w.applyMatrix4(new THREE.Matrix4().set(rows[0][0], rows[0][1], rows[0][2], 0, rows[1][0], rows[1][1], rows[1][2], 0, rows[2][0], rows[2][1], rows[2][2], 0, 0, 0, 0, 1));

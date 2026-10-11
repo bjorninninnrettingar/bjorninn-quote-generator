@@ -74,7 +74,7 @@ window.KPMODELS = {
     angle:              { file:"models/handles/angle.glb", kind:"bar", map:["-z", "y", "x"], color:"#17171a", fitMarginMm:100,
                             lenOptions:[{ mm:100, vorulistiId:"recVR0zhe2B29nykK" }, { mm:200, vorulistiId:"recShNvBhme2tEaSV" }, { mm:300, vorulistiId:"recNvdiWxt85OT23i" }] },
     // "Crossing hnúði" (a knob, not a bar) also exists in the same product line but isn't this shape — left out.
-    crossing:           { file:"models/handles/crossing.glb", kind:"bar", map:["-z", "-x", "y"], fitMarginMm:100,
+    crossing:           { file:"models/handles/crossing.glb", kind:"bar", map:["-z", "-x", "y"], fitMarginMm:100, growBar:1.05,
                             lenOptions:[{ mm:170, vorulistiId:"rec6jtUYpkgKbDkdJ" }, { mm:330, vorulistiId:"recuTvYTlOrGGjgjQ" }] },
     // "Graf mini" is a different, smaller product — not mapped here, only the "Graf Big" this model represents.
     graf:               { file:"models/handles/graf-big.glb", kind:"bar", map:["y", "-x", "z"], posts:true, color:"#1e1d1d", fitMarginMm:100,

@@ -587,6 +587,14 @@
   .dw-add{ display:flex; align-items:center; gap:4px; margin-top:8px; flex-wrap:wrap; font-size:12.5px; color:var(--ink-soft); }
   .dw-add span{ margin-right:2px; }
   .dw-add .hw-btn{ min-width:34px; }
+  .dw-add-h{ width:100%; font-weight:600; color:var(--ink); margin-bottom:2px; }
+  .dw-add .dw-addbtn{ display:flex; align-items:flex-end; gap:8px; text-align:left; flex:1 1 calc(50% - 4px); min-width:0; padding:7px 9px; }
+  .dw-addbtn span{ display:flex; flex-direction:column; font-weight:600; line-height:1.2; }
+  .dw-addbtn small, .dw-nm small{ font-weight:400; color:var(--ink-soft); font-size:11px; }
+  .dw-ico{ display:inline-block; flex:none; width:16px; border:1.5px solid currentColor; border-top:0; border-radius:0 0 3px 3px; opacity:.7; align-self:center; }
+  .dw-nm{ display:flex; flex-direction:column; line-height:1.15; min-width:0; flex:1; }
+  .dw-nm small{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .dw-code{ font-style:normal; font-size:10.5px; color:var(--ink-soft); border:1px solid var(--line); border-radius:4px; padding:0 4px; }
   .dw-add .hw-btn:disabled{ opacity:.35; cursor:not-allowed; }
 
   /* ---- cabinet edit panel (click-to-select in 3D/2D) ---- */
@@ -674,10 +682,14 @@
     .wrap.wide .stepper .st{ padding:3px 8px; font-size:12px; }
     .wrap.wide .stepper .st i{ width:18px; height:18px; font-size:10.5px; }
     .wrap.wide .stepper .bar{ height:3px; }
-    .editor{ grid-template-columns:minmax(0,1fr) 336px; }
+    .editor{ grid-template-columns:minmax(0,1fr); position:relative; overflow:hidden; }
+    /* the side panel slides in OVER the designer (2026-10-11): the 3D view keeps its size, nothing jumps */
+    .ed-props{ position:absolute !important; top:var(--tb-h, 52px); right:0; bottom:0; width:372px; height:auto !important; z-index:30; background:var(--panel); box-shadow:-10px 0 30px rgba(0,0,0,.10); transform:translateX(0); transition:transform .22s cubic-bezier(.2,.7,.2,1), opacity .18s; }
+    .editor.no-sel .ed-props{ display:block; transform:translateX(104%); opacity:0; pointer-events:none; }
   }
   .editor.no-sel{ grid-template-columns:minmax(0,1fr) !important; }
-  .editor.no-sel .ed-props{ display:none; }
+  @media (max-width:980px){ .editor.no-sel .ed-props{ display:none; } }
+  @media (prefers-reduced-motion:reduce){ .ed-props{ transition:none !important; } }
   .ed-toolbar{ position:relative; }
   .ed-right{ display:flex; gap:8px; align-items:center; margin-left:auto; }
   .ed-tbtn{ padding:8px 14px; font-size:13.5px; }
@@ -3370,7 +3382,14 @@
   // ---- drawer builder (2026-09-30): the customer stacks real Blum drawer codes (Merivo N/M/K/E,
   // Legra M/K/C/F) plus an optional inner drawer. Only stacks that fit the cabinet body AND exist as a
   // real "Skúffu samsetning" Útfærsla can be built, so every drawer cabinet maps to a real V2.
-  var CODE_LABEL = { N:"Mjög lág", M:"Lág", K:"Miðlungs", E:"Há", C:"Há", F:"Mjög há" };
+  // Drawers named by what they're for, not by Blum's letter (2026-10-11): the letter stays small for the shop
+  var CODE_LABEL = { N:"Mjög lág", M:"Lág", K:"Miðlungs", E:"Djúp", C:"Djúp", F:"Mjög djúp" };
+  var CODE_USE = { N:"krydd, smáhlutir", M:"hnífapör, áhöld", K:"viskustykki, box", E:"pottar og pönnur", C:"pottar og pönnur", F:"flöskur, stórir pottar" };
+  var CODE_PLURAL = { N:"mjög lágar", M:"lágar", K:"miðlungs", E:"djúpar", C:"djúpar", F:"mjög djúpar" };
+  function dwIcon(code){ // a little box as tall as the drawer side, so the difference shows at a glance
+    var side = KP3D.DRAWER_CODES[drawerSys()].side[code] || (KP3D.DRAWER_CODES.legra.side[code]) || 120;
+    return '<i class="dw-ico" style="height:' + Math.round(5 + side / 241 * 17) + 'px"></i>';
+  }
   function drawerSys(){ return state.drawerSystem === "merivo" ? "merivo" : "legra"; }
   function drawerBodyMm(b, c){ return KP3D.drawerZoneMm(c, blockHeightMm(b, c) - 100); } // same 100 mm plinth the 3D uses; a tall unit's drawers stop at 1200 mm
   function sortStack(codes){ // tallest at the bottom — how Björninn builds them
@@ -3396,13 +3415,13 @@
   // the popular sets in one click (the BUR Útfærslur — only those get a V2; anything else goes in the note)
   function burSetupHTML(b){
     var LM = window.KP_LINEMAP, sys = drawerSys(), combos = Object.keys((LM && LM.bur && LM.bur[sys]) || {}), cur = burKeyOf(b);
-    var codes = KP3D.burCodesOf(b, sys), shelves = b.burShelves != null ? b.burShelves : 2, names = { N:"Mjög lág", M:"Lág", K:"Miðlungs", E:"Djúp", C:"Djúp", F:"Mjög djúp" };
+    var codes = KP3D.burCodesOf(b, sys), shelves = b.burShelves != null ? b.burShelves : 2, names = CODE_LABEL;
     return '<div class="edit-field"><label>Vinsælar lausnir — einn smellur</label><div class="bur-presets">' + combos.map(function(k){
         return '<button type="button" class="hw-btn' + (k === cur && shelves === 2 ? ' active' : '') + '" data-bur-preset="' + k + '">' + comboLabel(k) + ' + 2 hillur</button>';
       }).join("") + '</div></div>' +
       '<div class="edit-field"><label>Innskúffur (neðan frá)</label>' +
-      (codes.length ? '<div class="bur-list">' + codes.map(function(cd, i){ return '<span class="bur-chip"><b>' + cd + '</b> ' + names[cd] + '<button type="button" data-bur-del="' + i + '" title="Fjarlægja">✕</button></span>'; }).join("") + '</div>' : '<p class="ov-mat" style="margin:0 0 6px;">Engar innskúffur enn.</p>') +
-      '<div class="hw-toggle" style="flex-wrap:wrap;">' + KP3D.DRAWER_CODES[sys].codes.map(function(cd){ return '<button type="button" class="hw-btn" data-bur-add="' + cd + '">＋ ' + cd + ' · ' + names[cd] + '</button>'; }).join("") + '</div></div>' +
+      (codes.length ? '<div class="bur-list">' + codes.map(function(cd, i){ return '<span class="bur-chip">' + dwIcon(cd) + ' ' + names[cd] + '<button type="button" data-bur-del="' + i + '" title="Fjarlægja">✕</button></span>'; }).join("") + '</div>' : '<p class="ov-mat" style="margin:0 0 6px;">Engar innskúffur enn.</p>') +
+      '<div class="hw-toggle" style="flex-wrap:wrap;">' + KP3D.DRAWER_CODES[sys].codes.map(function(cd){ return '<button type="button" class="hw-btn" data-bur-add="' + cd + '" title="' + CODE_USE[cd] + '">＋ ' + names[cd] + '</button>'; }).join("") + '</div></div>' +
       '<div class="edit-field"><label>Hillur fyrir ofan</label><div class="hw-count"><button class="iconbtn" data-bur-sh="-1"' + (shelves <= 0 ? ' disabled' : '') + '>−</button><b>' + shelves + '</b><button class="iconbtn" data-bur-sh="1"' + (shelves >= 8 ? ' disabled' : '') + '>+</button><span>' + plural(shelves, "hilla", "hillur") + '</span></div>' +
       (cur && !combos.includes(cur) || (!cur && !shelves) ? '<p class="sec-note">' + (cur ? 'Sérsamsetning — söluaðili staðfestir verð.' : 'Tómur skápur — bættu við innskúffum og hillum eða veldu lausn hér að ofan.') + '</p>' : '') + '</div>';
   }
@@ -3429,7 +3448,10 @@
   function comboLabel(key){
     var parts = String(key).split("+"), o = "NMKECF";
     var codes = parts[0].split("").sort(function(a, b){ return o.indexOf(b) - o.indexOf(a); });
-    return codes.length + " " + plural(codes.length, "skúffa", "skúffur") + ": " + codes.join(" · ") +
+    // in words, tallest first: "4 skúffur: 2 djúpar, 1 miðlungs, 1 lág" (the codes stay in the tooltip / Smíða)
+    var groups = [];
+    codes.forEach(function(cd){ var nm = CODE_LABEL[cd], g = groups.find(function(x){ return x.nm === nm; }); if (g) g.n++; else groups.push({ nm:nm, cd:cd, n:1 }); });
+    return codes.length + " " + plural(codes.length, "skúffa", "skúffur") + ": " + groups.map(function(g){ return g.n + " " + (g.n > 1 ? CODE_PLURAL[g.cd] : g.nm.toLowerCase()); }).join(", ") +
       (parts[1] ? " + " + (parts[1] === "IK" ? "miðlungs" : "lág") + " innskúffa" : "");
   }
   function variantHTML(b, c, ro){
@@ -3473,7 +3495,7 @@
       return (k ? '<div class="dw-seam" data-dw-seam="' + d.i + '" title="Dragðu til að breyta hæð skúffanna"></div>' : '') +
         '<div class="dw-row" data-dw-row="' + d.i + '" style="flex-grow:' + Math.max(1, Math.round((d.mm || 150) / 40)) + '">' +
         (multi && opts.reorder ? '<span class="dw-grip" data-dw-grip="' + d.i + '" title="Dragðu til að færa skúffuna">⠿</span>' : '') +
-        '<b>' + d.code + '</b><span>' + CODE_LABEL[d.code] + '</span>' +
+        dwIcon(d.code) + '<span class="dw-nm"><b>' + CODE_LABEL[d.code] + '</b><small>' + CODE_USE[d.code] + '</small></span><em class="dw-code" title="Blum-kóði">' + d.code + '</em>' +
         (d.mm ? (multi ? '<input class="dw-mm" type="number" step="1" data-dw-mm="' + d.i + '" value="' + Math.round(d.mm) + '" title="Hæð framhliðar (mm)"><small>mm</small>' : '<small>' + Math.round(d.mm) + ' mm</small>') : '') +
         (opts.sides ? '<small class="dw-side" title="Hæð Blum-hliðar — berðu saman við frontinn">hlið ' + Math.round(KP3D.DRAWER_CODES[drawerSys()].side[d.code] || 0) + '</small>' : '') +
         (multi && opts.del ? '<button type="button" class="dw-x" data-dw-del="' + d.i + '" title="Taka skúffu">✕</button>' : '') + '</div>';
@@ -3527,16 +3549,16 @@
     var sys = drawerSys(), D = KP3D.DRAWER_CODES[sys], codes = KP3D.drawerCodes(b.interior, sys), inner = b.interior.inner || null;
     var fronts = KP3D.stackFrontsMm(b.interior, codes, drawerBodyMm(b, c)) || [];
     html += drawerRowsHTML(codes, fronts, { reorder:true, del:true, custom:!!b.interior.frontsMm, sides:ro && ro.sides });
-    html += '<div class="dw-add"><span>Bæta við:</span>' + D.codes.map(function(code){
+    html += '<div class="dw-add"><span class="dw-add-h">Bæta við skúffu</span>' + D.codes.map(function(code){
       var next = sortStack(codes.concat([code]));
       var ok = codes.length < 4 && (stackAllowed(b, c, next, inner) || stackAllowed(b, c, next, null)); // may cost the inner drawer (see the click handler)
-      return '<button type="button" class="hw-btn" data-dw-add="' + code + '"' + (ok ? '' : ' disabled') + ' title="' + CODE_LABEL[code] + ' skúffa">' + code + '</button>';
+      return '<button type="button" class="hw-btn dw-addbtn" data-dw-add="' + code + '"' + (ok ? '' : ' disabled') + ' title="' + CODE_LABEL[code] + ' skúffa — ' + CODE_USE[code] + '">' + dwIcon(code) + '<span>＋ ' + CODE_LABEL[code] + '<small>' + CODE_USE[code] + '</small></span></button>';
     }).join("") + '</div>';
     html += '<div class="dw-add"><span>Innskúffa:</span>' + D.inner.map(function(ik){
       var on = inner === ik, ok = on || stackAllowed(b, c, codes, ik), alt = !ok && innerAlternative(b, c, ik);
       // never greyed out without a reason: when this stack has no such product, the click offers one that does
       return '<button type="button" class="hw-btn' + (on ? ' active' : '') + (ok ? '' : ' maybe') + '" data-dw-inner="' + ik + '"' + (ok || alt ? '' : ' disabled') +
-        ' title="' + (ok ? '' : alt ? 'Fæst með ' + alt.join(" · ") + ' — smelltu til að skipta' : 'Ekki til fyrir þennan skáp') + '">' + (ik === "IK" ? "Miðlungs (K)" : "Lág (M)") + '</button>';
+        ' title="' + (ok ? '' : alt ? 'Fæst með ' + alt.join(" · ") + ' — smelltu til að skipta' : 'Ekki til fyrir þennan skáp') + '">' + (ik === "IK" ? "Miðlungs" : "Lág") + '</button>';
     }).join("") + '</div>' + (!inner && !D.inner.some(function(ik){ return stackAllowed(b, c, codes, ik); }) ? '<p class="sec-note">Innskúffa fæst með 1–2 skúffum (' + innerStacks().join(", ") + ').</p>' : '');
     if (c.sink) html += sinkTopHTML(b, c, codes, fronts);
     else if (!stackAllowed(b, c, codes, inner)) html += '<p class="sec-note">⚠️ Þessi samsetning er ekki til sem stöðluð vara — söluaðili staðfestir hana.</p>';
@@ -5912,10 +5934,10 @@
     });
   }
 
-  function setPanelShown(on){ // show / hide the right column; the 3D canvas follows the new stage size
+  function setPanelShown(on){ // slide the side panel in / out over the designer (no resize, no jump)
     var g = document.getElementById("editorGrid"); if (!g || g.classList.contains("no-sel") === !on) return;
+    var tb = document.querySelector(".ed-toolbar"); if (tb) g.style.setProperty("--tb-h", tb.offsetHeight + "px");
     g.classList.toggle("no-sel", !on);
-    requestAnimationFrame(function(){ window.dispatchEvent(new Event("resize")); });
   }
   function renderEditPanelInto(host){
     if (host && host.id === "cabinetEditPanel") setPanelShown(!!(selectedBlockId || selectedWallId));
