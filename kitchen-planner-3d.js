@@ -536,8 +536,9 @@
   }
 
   var DRAWER_SYSTEMS = {
-    legra:  { label:"Legra",  desc:"Blum Legrabox — grannar, beinar stálhliðar og mjúklokun.", airtableName:"LEGRA" },
-    merivo: { label:"Merivo", desc:"Blum Merivobox — sterkbyggðar skúffur með mjúklokun.",   airtableName:"MERIVO" }
+    // texts from Björninn (2026-10-11), shortened: Merivo the sensible everyday choice, Legra the luxury line
+    legra:  { label:"Legra",  desc:"Lúxuslínan frá Blum. Grannar, beinar hliðar og einstaklega fágað útlit, þegar smáatriðin skipta öllu. Ljúflokun, þrýstiopnun í boði.", airtableName:"LEGRA" },
+    merivo: { label:"Merivo", desc:"Okkar algengasta lausn. Sterkt og nákvæmt kerfi með hreinu útliti, án óþarfa kostnaðar. Ljúflokun, þrýstiopnun í boði.", airtableName:"MERIVO", popular:true }
   };
 
   // Room wall color (Phase 7e) — purely a visualization preference, not a
@@ -4063,6 +4064,13 @@
   }
 
   var PREVIEW_SPIN_KEY = "bjorninn:kitchenPlanner:uwSpin"; // shared with the "＋ Ný eining" wizard's "Snúa" switch
+  // the drawer page opens: one drawer slides half out and back, so it's clear they can be opened (2026-10-11)
+  function previewPeek(i){
+    if (!PREVIEW || !PREVIEW.drawers[i]) return;
+    var d = PREVIEW.drawers[i]; if (d.target) return;
+    d.target = 0.6; PREVIEW.drawerState[i] = d;
+    setTimeout(function(){ var d2 = PREVIEW && PREVIEW.drawers[i]; if (d2 && d2.target === 0.6){ d2.target = 0; PREVIEW.drawerState[i] = d2; } }, 1100);
+  }
   function previewSpinOn(){ try{ return localStorage.getItem(PREVIEW_SPIN_KEY) !== "0"; }catch(e){ return true; } }
   function setPreviewSpin(on){
     try{ localStorage.setItem(PREVIEW_SPIN_KEY, on ? "1" : "0"); }catch(e){}
@@ -4980,7 +4988,7 @@
     surfacesOf: surfacesOf,
     islandFrame: islandFrame,
     wallGeoms: wallGeoms,
-    buildCabinetPreview: buildCabinetPreview, previewSpinOn: previewSpinOn, setPreviewSpin: setPreviewSpin,
+    buildCabinetPreview: buildCabinetPreview, previewPeek: previewPeek, previewSpinOn: previewSpinOn, setPreviewSpin: setPreviewSpin,
     setCabinetPreview: setCabinetPreview,
     teardownCabinetPreview: teardownCabinetPreview,
     hasCabinetPreview: function(){ return !!PREVIEW; },

@@ -448,6 +448,9 @@
   .drawer-card.active{ border-color:var(--blue); box-shadow:0 0 0 3px var(--blue-soft); }
   .drawer-card .dc-ico{ flex:none; width:64px; height:64px; border-radius:12px; background:var(--panel); display:flex; align-items:center; justify-content:center; font-size:28px; }
   .drawer-card .dc-name{ font-size:16px; font-weight:600; }
+  .drawer-card{ position:relative; }
+  .drawer-card.active::after{ content:"✓"; position:absolute; top:8px; right:8px; width:20px; height:20px; border-radius:50%; background:var(--blue); color:#fff; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; }
+  .dc-badge{ display:inline-block; vertical-align:2px; margin-left:6px; background:var(--gold); color:#fff; font-size:10.5px; font-weight:700; padding:2px 7px; border-radius:999px; }
   .drawer-card .dc-desc{ font-size:13px; color:var(--ink-soft); margin-top:3px; line-height:1.5; }
   .mat-layout{ display:grid; grid-template-columns:minmax(0,1fr) 380px; gap:32px; align-items:start; }
   @media (max-width:1000px){ .mat-layout{ grid-template-columns:1fr; } .mat-aside{ order:-1; position:static !important; } }
@@ -5423,12 +5426,25 @@
       '</p>';
   }
 
+  // a drawer seen from the front: two sides + bottom. Legra = thin straight steel sides, Merivo = thicker sides
+  // with a rounded top cap (as the Blum models)
+  function drawerSideSvg(key){
+    var legra = key === "legra", wall = legra ? 3 : 6, col = legra ? "#8d9096" : "#f6f5f2", edge = legra ? "#4f5258" : "#7d7a73";
+    function side(x){
+      return legra ? '<rect x="' + x + '" y="14" width="' + wall + '" height="36" rx="0.6" fill="' + col + '" stroke="' + edge + '" stroke-width="0.8"/>'
+        : '<path d="M' + x + ' 50 V' + (17 + wall / 2) + ' a' + wall / 2 + ' ' + wall / 2 + ' 0 0 1 ' + wall + ' 0 V50 Z" fill="' + col + '" stroke="' + edge + '" stroke-width="0.8"/>';
+    }
+    return '<svg viewBox="0 0 64 64" width="56" height="56" aria-hidden="true">' + side(10) + side(54 - wall) +
+      '<rect x="' + (10 + wall) + '" y="46" width="' + (44 - 2 * wall) + '" height="4" fill="#d8d2c4" stroke="#a9a196" stroke-width="0.6"/>' +
+      '<line x1="6" y1="54" x2="58" y2="54" stroke="#c9c4b8" stroke-width="1"/></svg>';
+  }
   function renderDrawerSystemCards(){
     var container = document.getElementById("drawerSystemCards");
-    container.innerHTML = Object.keys(DRAWER_SYSTEMS).map(function(key){
+    // the popular one first; each card shows its drawer side in profile (2026-10-11)
+    container.innerHTML = Object.keys(DRAWER_SYSTEMS).sort(function(a, b){ return (DRAWER_SYSTEMS[b].popular ? 1 : 0) - (DRAWER_SYSTEMS[a].popular ? 1 : 0); }).map(function(key){
       var d = DRAWER_SYSTEMS[key];
       return '<button type="button" class="drawer-card' + (state.drawerSystem === key ? ' active' : '') + '" data-drawersys="' + key + '">' +
-        '<div class="dc-ico">🗄️</div><div><div class="dc-name">' + d.label + '</div><div class="dc-desc">' + d.desc + '</div></div></button>';
+        '<div class="dc-ico">' + drawerSideSvg(key) + '</div><div><div class="dc-name">' + d.label + (d.popular ? ' <span class="dc-badge">Vinsælast</span>' : '') + '</div><div class="dc-desc">' + d.desc + '</div></div></button>';
     }).join("");
     container.querySelectorAll("[data-drawersys]").forEach(function(card){
       card.addEventListener("click", function(){ selectDrawerSystem(card.dataset.drawersys); });
@@ -5522,7 +5538,7 @@
     document.getElementById("matTitle").textContent = ph.title;
     // the 3D hint sits on the subtitle line (like the height page), so the frame gets the height; it only says what
     // you can do on this page (opening drawers: the drawer page)
-    document.getElementById("matSub").innerHTML = ph.sub + '<span class="sub-hint"> · Dragðu til að snúa · Skrollaðu til að þysja' + (matPhase === 1 ? " · Smelltu á skúffu til að opna hana" : "") + '</span>';
+    document.getElementById("matSub").innerHTML = ph.sub + '<span class="sub-hint"> · Dragðu til að snúa · ' + (matPhase === 1 ? "Smelltu á skúffu til að opna hana" : "Skrollaðu til að þysja") + '</span>';
     document.querySelectorAll(".wiz-panel").forEach(function(el){ el.hidden = parseInt(el.dataset.mp, 10) !== matPhase; });
     if (matPhase === 0) renderCarcassCards();
     if (matPhase === 1) renderDrawerSystemCards();
@@ -5531,7 +5547,11 @@
     if (matPhase === 4) renderTopCards();
     renderMatActions();
     updateCabinetPreview();
+    if (matPhase === 1 && lastMatPhase !== 1 && !(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches))
+      setTimeout(function(){ if (state.step === "materials" && matPhase === 1) KP3D.previewPeek(2); }, 900);
+    lastMatPhase = matPhase;
   }
+  var lastMatPhase = null;
 
   // ---------- 3D / 2D view (rendering itself lives in kitchen-planner-3d.js,
   // shared with Rakel's review page — this just orchestrates which view is
