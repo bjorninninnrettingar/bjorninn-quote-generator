@@ -437,6 +437,10 @@
   .wiz-steps .ws span{ font-size:13px; color:var(--ink-soft); }
   .wiz-steps .ws.go{ cursor:pointer; }
   .wiz-steps .ws.go:hover span{ color:var(--ink); text-decoration:underline; }
+  .tone-row{ display:flex; flex-wrap:wrap; gap:6px; margin:0 0 8px; }
+  .tone-row[hidden]{ display:none; }
+  .look-picked{ font-size:13px; color:var(--ink-soft); margin:0 0 8px; }
+  .look-picked b{ color:var(--ink); font-weight:600; }
   .sw-badge{ position:absolute; top:6px; left:6px; background:var(--gold); color:#fff; font-size:10.5px; font-weight:700; padding:2px 7px; border-radius:999px; z-index:1; }
   .wiz-steps .ws.active span{ color:var(--ink); font-weight:600; }
   .wiz-panel{ margin-top:6px; }
@@ -726,7 +730,12 @@
     #screen-materials .mat-stage{ position:static; display:flex; flex-direction:column; min-height:0; }
     #screen-materials .cab-preview-wrap{ flex:1; min-height:0; }
     #screen-materials .cab-preview{ height:100%; min-height:300px; }
-    #screen-materials .mat-side{ position:static; max-height:none; min-height:0; }
+    /* only the pictures scroll: the steps, tabs, search and filters stay put (2026-10-11) */
+    #screen-materials .mat-side{ position:static; max-height:none; min-height:0; overflow:hidden; display:flex; flex-direction:column; padding-bottom:0; }
+    #screen-materials .mat-side > *{ flex:none; }
+    #screen-materials .wiz-panel:not([hidden]){ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
+    #screen-materials .wiz-panel > *{ flex:none; }
+    #screen-materials .wiz-panel > .sw-grid, #screen-materials .wiz-panel > .h-grid, #screen-materials .wiz-panel > .drawer-cards{ flex:0 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:3px 6px 12px 3px; margin:0 -6px 0 -3px; align-content:start; grid-auto-rows:max-content; }
   }
   /* ---- editor round 2026-10-11: full-screen designer. Header in one thin row (title, stepper, links), the left
      sidebar became dropdown menus in the toolbar, the right panel only shows while something is selected ---- */
@@ -996,6 +1005,8 @@
           <div class="tabs-row" id="frontTabs"></div>
           <p class="tab-blurb" id="frontBlurb"></p>
           <input type="search" class="sw-search" id="lookSearch" placeholder="Leita — t.d. eik, hnota, grár eða H1180" autocomplete="off">
+          <div class="tone-row" id="lookTones"></div>
+          <p class="look-picked" id="lookPicked"></p>
           <div class="sw-grid" id="lookCards"></div>
         </div>
         <div class="wiz-panel" data-mp="3">
@@ -5276,11 +5287,17 @@
     }).join("");
   }
 
+  var lookToneSel = "";
+  function lookTone(l){
+    var h = String(l.color3d || "#888888").replace("#", ""), r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+    var y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    return y < 100 ? "dokkt" : y < 150 ? "midlungs" : "ljost";
+  }
   function renderLookCards(){
     var cat = LOOK_CATEGORIES.find(function(c){ return c.key === matTab.front; }) || LOOK_CATEGORIES[0];
     var tabs = document.getElementById("frontTabs");
     tabs.innerHTML = tabsHTML(LOOK_CATEGORIES, function(k){ return frontsOf(k).length; }, cat.key, "data-ftab");
-    tabs.querySelectorAll("[data-ftab]").forEach(function(b){ b.addEventListener("click", function(){ matTab.front = b.dataset.ftab; renderLookCards(); }); });
+    tabs.querySelectorAll("[data-ftab]").forEach(function(b){ b.addEventListener("click", function(){ matTab.front = b.dataset.ftab; lookToneSel = ""; renderLookCards(); document.getElementById("lookCards").scrollTop = 0; }); });
     document.getElementById("frontBlurb").textContent = cat.blurb;
     var search = document.getElementById("lookSearch");
     if (!search.dataset.wired){
@@ -5297,6 +5314,19 @@
     }
     var container = document.getElementById("lookCards");
     var keys = frontsOf(cat.key);
+    // tone chips (2026-10-11) on a long list: Ljóst / Miðlungs / Dökkt by the decor's average colour
+    var toneBox = document.getElementById("lookTones");
+    if (keys.length > 10){
+      toneBox.hidden = false;
+      toneBox.innerHTML = [["", "Allt"], ["ljost", "Ljóst"], ["midlungs", "Miðlungs"], ["dokkt", "Dökkt"]].map(function(t){
+        var n = t[0] ? keys.filter(function(k){ return lookTone(LOOKS[k]) === t[0]; }).length : keys.length;
+        return '<button type="button" class="tab-btn' + (lookToneSel === t[0] ? ' active' : '') + '" data-tone="' + t[0] + '">' + t[1] + '<span class="n">' + n + '</span></button>';
+      }).join("");
+      toneBox.querySelectorAll("[data-tone]").forEach(function(b){ b.addEventListener("click", function(){ lookToneSel = b.dataset.tone; renderLookCards(); document.getElementById("lookCards").scrollTop = 0; }); });
+      if (lookToneSel) keys = keys.filter(function(k){ return lookTone(LOOKS[k]) === lookToneSel; });
+    } else toneBox.hidden = true;
+    var picked = state.look && LOOKS[state.look];
+    document.getElementById("lookPicked").innerHTML = picked ? 'Valið: <b>' + picked.label + '</b>' + (picked.code ? ' · ' + picked.code : '') : 'Ekkert valið enn';
     if (!keys.length && lookQuery){ container.innerHTML = '<p class="tab-blurb" style="grid-column:1/-1;">Ekkert fannst — prófaðu annað orð.</p>'; return; }
     container.innerHTML = keys.map(function(key){
       var l = LOOKS[key];
