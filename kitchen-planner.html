@@ -369,6 +369,10 @@
   .mat-wiz{ display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,1fr); gap:32px; align-items:start; }
   @media (max-width:900px){ .mat-wiz{ grid-template-columns:1fr; } }
   .mat-stage{ position:sticky; top:16px; }
+  /* the material list scrolls on its own, only under the mouse — the page and the 3D cabinet stay put (2026-10-11) */
+  .mat-side{ position:sticky; top:16px; max-height:calc(100vh - 32px); overflow-y:auto; overscroll-behavior:contain; padding-right:6px; }
+  @media (max-width:900px){ .mat-side{ position:static; max-height:none; overflow:visible; } }
+  .cab-preview-wrap{ position:relative; }
   .cab-preview{ height:min(74vh,640px); min-height:380px; border-radius:18px; overflow:hidden; background:#f4f1ea; border:1px solid var(--line); }
   .cab-preview canvas{ display:block; width:100%; height:100%; cursor:grab; }
   .cab-preview .mock{ padding:24px; }
@@ -824,7 +828,8 @@
   <section id="screen-materials" hidden>
     <div class="mat-wiz">
       <div class="mat-stage">
-        <div class="cab-preview" id="cabPreview"></div>
+        <div class="cab-preview-wrap"><div class="cab-preview" id="cabPreview"></div>
+          <div class="uw-tools"><button type="button" id="matSpin">Snúa: á</button></div></div>
         <p class="cab-hint">Dragðu til að snúa skápnum · skrollaðu til að þysja · smelltu á skúffu til að opna hana</p>
       </div>
       <div class="mat-side">
@@ -1521,10 +1526,13 @@
       // dragged out past the frame: zoom out to keep the whole room in view (the drag keeps following the pointer,
       // see onSlideMove — it converts each step with the current scale), then hold the picture still again (2026-10-10)
       var pad = 40, over = v.some(function(p){ var X = fv.ox + p.x * fv.scale, Y = fv.oy + p.z * fv.scale; return X < pad || Y < pad || X > width - pad || Y > height - pad; });
-      if (!over) return fv;
-      var sc2 = Math.min(frozenView.scale, (width - 2 * pad) / Math.max(1, maxX - minX), (height - 2 * pad) / Math.max(1, maxZ - minZ));
+      var scale0 = frozenView.scale0 || frozenView.scale, fit = Math.min((width - 2 * pad) / Math.max(1, maxX - minX), (height - 2 * pad) / Math.max(1, maxZ - minZ));
+      // ...and when the room is made small again in the same drag, zoom back in (never past the scale the drag started at, 2026-10-11)
+      var grow = !over && frozenView.scale < scale0 && Math.min(scale0, fit) > frozenView.scale * 1.05;
+      if (!over && !grow) return fv;
+      var sc2 = over ? Math.min(frozenView.scale, fit) : Math.min(scale0, fit);
       var cv = { pts:v, scale:sc2, ox:(width - (maxX - minX) * sc2) / 2 - minX * sc2, oy:(height - (maxZ - minZ) * sc2) / 2 - minZ * sc2 };
-      frozenView = { scale:cv.scale, ox:cv.ox, oy:cv.oy, ref:frozenView.ref, refX:ref.x, refZ:ref.z };
+      frozenView = { scale:cv.scale, scale0:scale0, ox:cv.ox, oy:cv.oy, ref:frozenView.ref, refX:ref.x, refZ:ref.z };
       return cv;
     }
     var m = shapePhase === "water" || shapePhase === "openings" ? 70 : 120, sc = Math.min((width - 2 * m) / Math.max(1, maxX - minX), (height - 2 * m) / Math.max(1, maxZ - minZ));
@@ -2660,9 +2668,10 @@
   // Upper units / open shelves and tall floor units share one wall: wherever their
   // heights overlap they block each other, so neither can be dropped, grown or
   // nudged into the other. `probe` = {lo, hi} (mm above the floor) of the thing being placed.
+  function topMm(){ return Math.round(KP3D.topThickM(state.top) * 1000) + 1; } // worktop thickness (+1 mm proud)
   function probeSpan(zone, b, elevMm){
     var c = CATALOG[b.type], h = blockHeightMm(b, c);
-    if (zone === "floor") return { lo:0, hi:h + (c.counter ? 32 : 0) };
+    if (zone === "floor") return { lo:0, hi:h + (c.counter ? topMm() : 0) };
     var e = elevMm != null ? elevMm : KP3D.elevOf(b);
     return { lo:e, hi:e + h };
   }
@@ -3053,7 +3062,7 @@
               else {
                 var nc = CATALOG[nb.b.type], nh = blockHeightMm(nb.b, nc), nd = nb.b.depthMm || nc.d;
                 exposed = gap > 2 || nh < h - 50 || nd < d - 50;
-                if (gap <= 2 && nd >= d - 50 && nh < h - 50) bareLo = zone === "floor" ? nh + (nc.counter ? 32 : 0) : myLo; // only the part above the lower neighbour shows
+                if (gap <= 2 && nd >= d - 50 && nh < h - 50) bareLo = zone === "floor" ? nh + (nc.counter ? topMm() : 0) : myLo; // only the part above the lower neighbour shows
               }
             }
             if (exposed && !wall.island){ // a tall unit / wall unit (other zone) right against this side covers it — if it covers all of the bare part
@@ -4945,6 +4954,13 @@
     });
   }
 
+  var marbleSwatches = {};
+  function marbleSwatch(m){ // the veined stones have no photo: a crop of their own texture
+    var k = m.base + m.vein + m.seed; if (marbleSwatches[k]) return marbleSwatches[k];
+    var t = KPMat.marbleTexture(m.base, m.vein, m.seed), c = document.createElement("canvas"); c.width = 240; c.height = 180;
+    c.getContext("2d").drawImage(t.color, 0, 0, 340, 255, 0, 0, 240, 180);
+    return (marbleSwatches[k] = c.toDataURL("image/jpeg", 0.85));
+  }
   function renderTopCards(){
     var grp = TOP_GROUPS.find(function(g){ return g.key === matTab.top; }) || TOP_GROUPS[0];
     var tabs = document.getElementById("topTabs");
@@ -4956,7 +4972,7 @@
     container.innerHTML = topsOf(grp.key).map(function(key){
       var t = TOPS[key];
       return '<button type="button" class="sw-tile' + (active === key ? ' active' : '') + '" data-top="' + key + '" title="' + t.label + '">' +
-        (t.img ? '<img src="' + t.img + '" alt="' + t.label + '" loading="lazy">' : '<div class="sw-fill" style="background:linear-gradient(135deg,#f0ece4,#d9d3c6);"></div>') +
+        (t.img ? '<img src="' + t.img + '" alt="' + t.label + '" loading="lazy">' : t.marble && window.KPMat && KPMat.marbleTexture ? '<img src="' + marbleSwatch(t.marble) + '" alt="' + t.label + '">' : '<div class="sw-fill" style="background:linear-gradient(135deg,#f0ece4,#d9d3c6);"></div>') +
         '<div class="sw-name">' + t.label + (t.code ? '<small>' + t.code + '</small>' : '') + '</div></button>';
     }).join("");
     container.querySelectorAll("[data-top]").forEach(function(card){
@@ -5104,6 +5120,12 @@
     }, 8000);
   }
 
+  (function(){ // materials preview: "Snúa: á/af" (same remembered setting as the unit wizard)
+    var b = document.getElementById("matSpin");
+    function sync(){ var on = KP3D.previewSpinOn(); b.textContent = "Snúa: " + (on ? "á" : "af"); b.classList.toggle("active", on); }
+    b.addEventListener("click", function(){ KP3D.setPreviewSpin(!KP3D.previewSpinOn()); uwView.spin = KP3D.previewSpinOn(); sync(); });
+    sync();
+  })();
   function renderMatActions(){
     var box = document.getElementById("matActions"), last = matPhase === MAT_PHASES.length - 1;
     box.innerHTML = '<button class="btn btn-secondary" id="mtBack" type="button">← ' + (matPhase === 0 ? "Til baka í rýmið" : "Til baka") + '</button>' +

@@ -241,8 +241,31 @@
     return (cache[key] = { color: color, tileW: 0.8, tileH: 0.8 });
   }
 
+  // Veined stone (2026-10-11, inspired by quartz/marble worktops): a seamless 512 px tile (1.2 m) — soft cloudy base
+  // + one family of long, wandering, fine veins (domain-warped, tileable noise) and a fainter second family.
+  function marbleTexture(baseHex, veinHex, seed){
+    var key = "marble:" + baseHex + ":" + veinHex + ":" + (seed || 1);
+    if (cache[key]) return cache[key];
+    var S = 512, base = hexToRgb(baseHex), vein = hexToRgb(veinHex);
+    var w1 = tileNoise((seed || 1) * 31, 3, 3), w2 = tileNoise((seed || 1) * 37 + 5, 9, 9), cl = tileNoise((seed || 1) * 41 + 9, 5, 5), sp = tileNoise((seed || 1) * 43, 128, 128);
+    var color = document.createElement("canvas"); color.width = color.height = S;
+    var cx = color.getContext("2d"), ci = cx.createImageData(S, S);
+    for (var y = 0; y < S; y++) for (var x = 0; x < S; x++){
+      var u = x / S, v = y / S, k = (y * S + x) * 4;
+      // long gentle diagonal veins: a low-frequency warp, plus a little high-frequency wobble so the edges aren't smooth
+      var warp = (w1(u * 3, v * 3) - 0.5) * 0.5 + (w2(u * 9, v * 9) - 0.5) * 0.06;
+      var t1 = Math.abs(Math.sin(Math.PI * (u + v + warp))), t2 = Math.abs(Math.sin(Math.PI * 2 * (u - v * 0.5 + warp * 1.3 + 0.3)));
+      var main = Math.pow(1 - t1, 60) * 0.95 + Math.pow(1 - t1, 9) * 0.12, fine = Math.pow(1 - t2, 90) * 0.4, cloud = (cl(u * 5, v * 5) - 0.5) * 0.08;
+      var m = Math.min(1, main + fine), l = 1 + cloud + (sp(u * 128, v * 128) - 0.5) * 0.03;
+      for (var c = 0; c < 3; c++) ci.data[k + c] = clamp((base[c] * l) * (1 - m) + vein[c] * m);
+      ci.data[k + 3] = 255;
+    }
+    cx.putImageData(ci, 0, 0);
+    return (cache[key] = { color: color, tileW: 1.2, tileH: 1.2 });
+  }
+
   function clamp(v){ return v < 0 ? 0 : v > 255 ? 255 : v; }
   function hashKey(str){ var h = 2166136261; for (var i = 0; i < str.length; i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 
-  window.KPMat = { woodTexture: woodTexture, paintTexture: paintTexture, plankFloorTexture: plankFloorTexture, tileFloorTexture: tileFloorTexture, herringboneFloorTexture: herringboneFloorTexture, stoneTexture: stoneTexture };
+  window.KPMat = { woodTexture: woodTexture, paintTexture: paintTexture, plankFloorTexture: plankFloorTexture, tileFloorTexture: tileFloorTexture, herringboneFloorTexture: herringboneFloorTexture, stoneTexture: stoneTexture, marbleTexture: marbleTexture };
 })();
