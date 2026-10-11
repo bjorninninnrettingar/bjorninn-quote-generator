@@ -2379,7 +2379,7 @@
     });
     return best;
   }
-  function isWallItem(meta){ return !!meta && (meta.zone === "wall" || meta.kind === "window" || meta.kind === "door"); }
+  function isWallItem(meta){ return !!meta && (meta.zone === "wall" || meta.kind === "window" || meta.kind === "door" || meta.kind === "obstacle"); }
 
   function setupCabinetInteraction(THREE, wrap, renderer, camera, controls, pickables, geoms, walls, opts, roomHM){
     var raycaster = new THREE.Raycaster();
@@ -2767,6 +2767,10 @@
       if (!!u.selected === want) return;
       u.selected = want;
       if (u.isPart) return; // fronts of a locked cabinet: only the outline shows the selection
+      if (u.kind === "obstacle"){ // the invisible grab box: tint its visible parts
+        m.children.forEach(function(ch){ if (ch.material && ch.material.emissive){ ch.material.emissive = new THREE.Color(want ? SELECT_COLOR : 0x000000); ch.material.emissiveIntensity = want ? 0.55 : 0; } });
+        return;
+      }
       var cab = m.parent && m.parent.userData && m.parent.userData.cab;
       if (cab && cab.items && cab.t > 0){ cab.items.forEach(function(it){ it.o.material = it.orig; }); cab.t = 0; } // back to solid before the material slots are touched
       if (Array.isArray(m.material)){ // cabinet
@@ -3335,18 +3339,21 @@
     // a chrome pipe stub, a stone sill. Tap = select (they never drag; moved in the panel / ◀ ▶).
     (state.obstacles || []).forEach(function(o){
       var def = OBSTACLES[o.kind], g = geomForWall(o.wallId); if (!def || !g) return;
-      var v = obstacleVSpan(state, o), sel = opts.selectedId === o.id, hM = (v.hi - v.lo) / 1000;
+      var v = obstacleVSpan(state, o), sel = opts.selectedId === o.id, hM = Math.max(0.01, (v.hi - v.lo) / 1000);
       var wM = o.widthMm / 1000, dM = o.depthMm / 1000, outM = (o.outMm || 0) / 1000;
-      var meta = { kind:"obstacle", zone:"obstacle", blockId:o.id, wallId:o.wallId, locked:!!opts.onSelect, widthMm:o.widthMm, depthMm:o.depthMm, heightMm:v.hi - v.lo };
-      var grp = new THREE.Group();
-      grp.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(g.axis.x, 0, g.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(g.normal.x, 0, g.normal.z)));
+      // dragged along / up and down the wall in the editor like a window (2026-10-11)
+      var meta = { kind:"obstacle", zone:"obstacle", blockId:o.id, wallId:o.wallId, locked:!opts.onCabinetDragEnd, widthMm:o.widthMm, depthMm:o.depthMm, heightMm:v.hi - v.lo, elevMm:v.lo };
+      // one invisible box = what you grab (world position, like a window plane); the visible parts are its children
+      var grp = new THREE.Group(), proxy = new THREE.Mesh(new THREE.BoxGeometry(wM, hM, dM), new THREE.MeshBasicMaterial({ visible:false }));
+      proxy.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(g.axis.x, 0, g.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(g.normal.x, 0, g.normal.z)));
       var along = o.offsetMm / 1000 + wM / 2;
-      grp.position.set(g.origin.x + g.axis.x * along + g.normal.x * (outM + dM / 2), v.lo / 1000, g.origin.z + g.axis.z * along + g.normal.z * (outM + dM / 2));
-      function part(geo, color, rough, metal, x, y, z){
+      proxy.position.set(g.origin.x + g.axis.x * along + g.normal.x * (outM + dM / 2), v.lo / 1000 + hM / 2, g.origin.z + g.axis.z * along + g.normal.z * (outM + dM / 2));
+      proxy.userData = meta; grp.add(proxy); pickables.push(proxy);
+      function part(geo, color, rough, metal, x, y, z){ // y from the bottom, z from the depth centre
         var m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color:color, roughness:rough, metalness:metal || 0 }));
         if (sel){ m.material.emissive = new THREE.Color(SELECT_COLOR); m.material.emissiveIntensity = 0.55; }
-        m.position.set(x || 0, y, z || 0); m.castShadow = true; m.receiveShadow = true; m.userData = meta;
-        grp.add(m); pickables.push(m); return m;
+        m.position.set(x || 0, y - hM / 2, z || 0); m.castShadow = true; m.receiveShadow = true;
+        proxy.add(m); return m;
       }
       if (def.look === "radiator"){
         var fins = Math.max(3, Math.round(wM / 0.05));
@@ -3361,7 +3368,7 @@
       } else if (def.look === "sill"){
         part(new THREE.BoxGeometry(wM, hM, dM), 0xe6e2da, 0.35, 0, 0, hM / 2, 0);
       } else {
-        part(new THREE.BoxGeometry(wM, hM, dM), new THREE.Color(wallColor).getHex(), 1, 0, 0, hM / 2, 0);
+        part(new THREE.BoxGeometry(wM, hM, dM), new THREE.Color(wallColor).lerp(new THREE.Color(0x8a857a), 0.18).getHex(), 1, 0, 0, hM / 2, 0); // a shade darker than the wall, so it reads on a white wall
       }
       scene.add(grp);
       if (!outM && def.look === "wall") fadeWithWall(o.wallId, grp); // a pipe box / beam on a faded wall fades with it

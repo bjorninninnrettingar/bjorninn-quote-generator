@@ -298,6 +298,12 @@
   .opw-dots i.on{ background:#0058a3; }
   .opw-q{ font-weight:600; margin:0 0 10px; }
   .opw-btns{ display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-bottom:8px; }
+  .opw-obst{ margin:4px 0 10px; font-size:13.5px; }
+  .opw-obst summary{ cursor:pointer; font-weight:600; color:var(--ink-soft); padding:4px 0; }
+  .opw-obst-btns{ display:grid; grid-template-columns:repeat(2,1fr); gap:6px; margin-top:6px; }
+  .opw-obst-btns .hw-btn{ font-size:12.5px; padding:7px 8px; text-align:left; }
+  .elev-svg [data-elid]{ cursor:grab; }
+  .elev-svg [data-elid]:active{ cursor:grabbing; }
   .opw-btn{ display:flex; align-items:center; gap:10px; font:inherit; font-size:14.5px; font-weight:600; padding:12px 14px; background:#fff; color:var(--ink); border:1.5px solid var(--line); border-radius:12px; cursor:pointer; text-align:left; }
   .opw-btn:hover{ border-color:var(--blue); }
   .opw-btn span{ font-size:20px; width:24px; text-align:center; }
@@ -887,7 +893,7 @@
           <div id="shapeHeightBox" hidden>
             <div class="mat-section">
               <div id="roomHeightBox2" style="max-width:260px;"></div>
-              <p class="mat-section-sub">Dragðu sleðann eða sláðu inn töluna. Lágmark 2500 mm.</p>
+              <p class="mat-section-sub">Dragðu sleðann eða sláðu inn töluna. Lágmark 2450 mm.</p>
             </div>
           </div>
           <div id="shapeExtras">
@@ -1536,6 +1542,7 @@
     if (!host || !state.closed) return;
     if (shapePhase === "height"){ renderHeightCanvas(); return; }
     endHeightScene();
+    if (shapePhase === "openings"){ renderWallElevation(); return; }
     var W = host.clientWidth || 800, H = host.clientHeight || 480;
     var view = shapeView(W, H), sc = view.scale, pts = view.pts, n = pts.length;
     function X(p){ return p.x * sc + view.ox; }
@@ -1890,7 +1897,7 @@
       pick:  ["Skilgreindu rýmið", "Veldu lögun sem líkist rýminu þínu best — næst dregur þú veggina í rétta stærð."],
       size:  ["Stilltu stærðina", "Dragðu vegg með örvunum til að stækka eða minnka rýmið, eða smelltu á málið til að slá inn nákvæma lengd."],
       height: ["Lofthæð, gólf og veggir", "Stilltu lofthæðina og veldu gólfefni og vegglit — fólkið í rýminu er 180 og 168 cm á hæð til viðmiðunar."],
-      openings: ["Gluggar, hurðir og op", "Förum yfir veggina einn í einu — merktur veggur er sá sem við erum að skoða."],
+      openings: ["Gluggar, hurðir og hindranir", "Förum yfir veggina einn í einu — þú sérð vegginn beint framan á."],
       water: ["Hvar er vatnið?", "Bættu vatninu við og dragðu dropann á réttan stað — þar er vaskurinn settur."]
     };
     document.getElementById("shapeTitle").textContent = titles[shapePhase][0];
@@ -1916,7 +1923,7 @@
       document.getElementById("shapeToolbar").textContent = shapePhase === "size"
         ? "Strikalínu (opinn veggur) býrðu til með því að smella á málið og haka við „Opinn“."
         : shapePhase === "height" ? "Dragðu til að snúa rýminu og skrollaðu til að þysja. Lofthæðina stillir þú til hægri."
-        : shapePhase === "openings" ? "Blái veggurinn er sá sem við erum að skoða — svaraðu til hægri."
+        : shapePhase === "openings" ? "Þú horfir beint á vegginn innan úr rýminu. Dragðu glugga, hurðir og hindranir til, eða smelltu á málin til að slá inn."
         : "Smelltu á „＋ Vatn“ og dragðu svo dropann þangað sem vatnslögnin kemur inn — vaskaskápurinn er settur þar.";
       if (shapePhase === "openings") renderOpeningsBox();
       if (shapePhase === "size") renderWallList();
@@ -2163,7 +2170,8 @@
     if (!walls.some(function(w){ return w.id === openWallId; })) openWallId = walls.length ? walls[0].id : null;
     function wallOpts(sel){ return walls.map(function(w){ return '<option value="' + w.id + '"' + (w.id === sel ? " selected" : "") + '>' + w.label + ' · ' + w.lengthMm + ' mm</option>'; }).join(""); }
     var wi = walls.findIndex(function(w){ return w.id === openWallId; }), cur = walls[wi], last = wi === walls.length - 1;
-    var onWall = state.windows.concat(state.doors).filter(function(o){ return cur && o.wallId === cur.id; }).length;
+    var obsOnWall = (state.obstacles || []).filter(function(o){ return cur && o.wallId === cur.id; }).length;
+    var onWall = state.windows.concat(state.doors).filter(function(o){ return cur && o.wallId === cur.id; }).length + obsOnWall;
     var num = cur ? state.walls.indexOf(cur) + 1 : 0;
     var add = document.getElementById("opAdd");
     add.innerHTML = cur ? '<div class="opw-head"><span class="opw-num">' + num + '</span><div><b>Veggur ' + num + '</b><small>' + cur.lengthMm + ' mm · ' + (wi + 1) + ' af ' + walls.length + '</small></div>' +
@@ -2171,6 +2179,9 @@
       '<p class="opw-q">' + (onWall ? "Er eitthvað fleira á þessum vegg?" : "Er gluggi, hurð eða op á þessum vegg?") + '</p>' +
       '<div class="opw-btns"><button type="button" class="opw-btn" data-add="gluggi"><span>🪟</span>Gluggi</button><button type="button" class="opw-btn" data-add="hurd"><span>🚪</span>Hurð</button><button type="button" class="opw-btn" data-add="gat"><span>⬚</span>Op</button>' +
       '<button type="button" class="opw-btn next" id="opwNext"><span>' + (last ? "✓" : "→") + '</span>' + (onWall ? (last ? "Búið — áfram" : "Búið — næsti veggur") : (last ? "Ekkert — áfram" : "Ekkert — næsti veggur")) + '</button></div>' +
+      '<details class="opw-obst"' + (obsOnWall ? ' open' : '') + '><summary>Hindranir á veggnum (lagnir, stólpar, ofnar…)</summary><div class="opw-obst-btns">' + Object.keys(KP3D.OBSTACLES).map(function(k){
+        return '<button type="button" class="hw-btn" data-addobst="' + k + '">＋ ' + KP3D.OBSTACLES[k].label + '</button>';
+      }).join("") + '</div></details>' +
       (wi > 0 ? '<button type="button" class="skip-link" id="opwPrev">← Fyrri veggur</button>' : '') : '';
     add.querySelectorAll("[data-opwjump]").forEach(function(d){
       d.addEventListener("click", function(){ openWallId = d.dataset.opwjump; selectedOpeningId = null; renderOpeningsBox(); renderShapeCanvas(); });
@@ -2186,11 +2197,19 @@
         renderOpeningsBox(); renderShapeCanvas(); updateStepper();
       });
     });
+    add.querySelectorAll("[data-addobst]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var o = addObstacle(btn.dataset.addobst, openWallId); if (!o) return;
+        selectedOpeningId = o.id; renderOpeningsBox(); renderShapeCanvas();
+      });
+    });
     renderShapeActions(); // the step's "Áfram" appears once every wall is answered
     var rows = state.windows.map(function(o){ return { kind:"window", o:o }; }).concat(state.doors.map(function(o){ return { kind:"door", o:o }; }))
       .filter(function(f){ return cur && f.o.wallId === cur.id; });
     var list = document.getElementById("opList");
-    if (!rows.length){ list.innerHTML = ""; return; }
+    var obRows = (state.obstacles || []).filter(function(o){ return cur && o.wallId === cur.id; });
+    if (!rows.length && !obRows.length){ list.innerHTML = ""; return; }
+    var roomHmm = state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM;
     list.innerHTML = rows.map(function(f){
       var o = f.o, wall = state.walls.find(function(w){ return w.id === o.wallId; }), lim = openingLimits(f);
       function fld(key, lab, r){ return '<label class="op-f"><span>' + lab + '</span><input type="number" data-op="' + o.id + '" data-key="' + key + '" value="' + o[key] + '" min="' + r[0] + '" max="' + r[1] + '" step="1"></label>'; }
@@ -2199,7 +2218,28 @@
         fld("offsetMm", "Frá vinstra horni", [0, Math.max(0, (wall ? wall.lengthMm : 3000) - o.widthMm)]) + fld("widthMm", "Breidd", lim.widthMm) + fld("heightMm", "Hæð", lim.heightMm) +
         (f.kind === "window" ? fld("sillHeightMm", "Frá gólfi", lim.sillHeightMm) : "") +
         '<button type="button" class="iconbtn del" data-opdel="' + o.id + '" title="Fjarlægja">✕</button></div>';
+    }).join("") + obRows.map(function(o){
+      var def = KP3D.OBSTACLES[o.kind], L = cur.lengthMm;
+      function fld(key, lab, lo, hi){ return '<label class="op-f"><span>' + lab + '</span><input type="number" data-obk="' + key + '" data-obid="' + o.id + '" value="' + o[key] + '" min="' + lo + '" max="' + hi + '" step="10"></label>'; }
+      return '<div class="op-row' + (selectedOpeningId === o.id ? " sel" : "") + '" data-oprow="' + o.id + '"><b class="op-nm">' + def.label + '</b>' +
+        fld("offsetMm", "Frá vinstra horni", 0, Math.max(0, L - o.widthMm)) + fld("widthMm", o.kind === "milliveggur" ? "Þykkt" : "Breidd", 20, L) +
+        fld("depthMm", o.kind === "milliveggur" ? "Út í rýmið" : "Dýpt", 20, 3000) +
+        (o.heightMm == null ? '' : fld("heightMm", "Hæð", 20, roomHmm)) + (o.heightMm == null || def.ceiling ? '' : fld("elevMm", "Frá gólfi", 0, roomHmm)) +
+        '<button type="button" class="iconbtn del" data-obdel="' + o.id + '" title="Fjarlægja">✕</button></div>';
     }).join("");
+    list.querySelectorAll("[data-obk]").forEach(function(inp){
+      inp.addEventListener("change", function(){
+        var o = findObstacle(inp.dataset.obid), v = Math.round(parseFloat(inp.value)); if (!o || isNaN(v)){ renderOpeningsBox(); return; }
+        o[inp.dataset.obk] = Math.max(+inp.min, Math.min(+inp.max, v));
+        var w = state.walls.find(function(x){ return x.id === o.wallId; });
+        if (w){ o.widthMm = Math.min(o.widthMm, w.lengthMm); o.offsetMm = Math.max(0, Math.min(o.offsetMm, w.lengthMm - o.widthMm)); }
+        if (o.heightMm != null && o.elevMm != null) o.elevMm = Math.min(o.elevMm, Math.max(0, roomHmm - o.heightMm));
+        save(); renderOpeningsBox(); renderShapeCanvas();
+      });
+    });
+    list.querySelectorAll("[data-obdel]").forEach(function(btn){
+      btn.addEventListener("click", function(){ state.obstacles = state.obstacles.filter(function(o){ return o.id !== btn.dataset.obdel; }); save(); renderOpeningsBox(); renderShapeCanvas(); });
+    });
     function redraw(){ save(); renderOpeningsBox(); renderShapeCanvas(); }
     list.querySelectorAll("[data-oprow]").forEach(function(row){
       row.addEventListener("focusin", function(){ if (selectedOpeningId !== row.dataset.oprow){ selectedOpeningId = row.dataset.oprow; highlightOpRow(); renderShapeCanvas(); } });
@@ -2287,6 +2327,173 @@
   function personSvg(key, x, feetY, pxPerM){
     var P = KP3D.PEOPLE[key], hPx = P.h * pxPerM, k = hPx / 200;
     return '<g transform="translate(' + (x - 50 * k) + ',' + (feetY - hPx) + ') scale(' + k + ')"><path d="' + P.d + (P.cut ? " " + P.cut : "") + '" fill="#26241f" fill-rule="evenodd"/></g>';
+  }
+  // ---------- openings phase: the wall seen straight on from inside the room (2026-10-11, user: option b) ----------
+  // One wall at a time (openWallId). Windows, doors, openings and obstacles are drawn to scale and dragged
+  // sideways (windows and obstacles with a height also up and down); the selected one shows its measurements
+  // as pills that open the typed-measurement popup. A small plan in the corner shows which wall this is.
+  var elDrag = null;
+  function elItems(wallId){
+    var out = [];
+    state.windows.forEach(function(o){ if (o.wallId === wallId) out.push({ id:o.id, t:"window", o:o, lo:o.sillHeightMm, hi:o.sillHeightMm + o.heightMm }); });
+    state.doors.forEach(function(o){ if (o.wallId === wallId) out.push({ id:o.id, t:o.gap ? "gap" : "door", o:o, lo:0, hi:o.heightMm }); });
+    (state.obstacles || []).forEach(function(o){ if (o.wallId === wallId){ var v = KP3D.obstacleVSpan(state, o); out.push({ id:o.id, t:"obst", o:o, lo:v.lo, hi:v.hi }); } });
+    return out;
+  }
+  function renderWallElevation(){
+    var host = document.getElementById("shapeCanvas");
+    if (!host) return;
+    var walls = solidWalls();
+    if (!walls.some(function(w){ return w.id === openWallId; })) openWallId = walls.length ? walls[0].id : null;
+    var wall = state.walls.find(function(w){ return w.id === openWallId; });
+    if (!wall){ host.innerHTML = ""; return; }
+    var W = host.clientWidth || 800, H = host.clientHeight || 480, roomH = state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM, L = wall.lengthMm;
+    var sc = Math.min((W - 130) / L, (H - 150) / roomH), x0 = (W - L * sc) / 2, floorY = H - 78, top = floorY - roomH * sc;
+    function X(mm){ return x0 + mm * sc; }
+    function Y(mm){ return floorY - mm * sc; }
+    var wi = state.walls.indexOf(wall), n = state.walls.length;
+    var wallHex = (WALL_COLORS[state.wallColor] || { hex:"#f2efe8" }).hex;
+    var svg = '<svg class="elev-svg" viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg" style="font-family:\'Kumbh Sans\',Arial,sans-serif;">' +
+      '<rect x="' + (x0 - 30) + '" y="' + floorY + '" width="' + (L * sc + 60) + '" height="10" fill="' + KP3D.floorPlanColor(state.floor) + '"/>' +
+      '<rect x="' + x0 + '" y="' + top + '" width="' + L * sc + '" height="' + roomH * sc + '" fill="' + wallHex + '" stroke="#b9b4a8" stroke-width="1.5"/>' +
+      '<text x="' + (x0 + L * sc / 2) + '" y="' + (top - 14) + '" font-size="15" font-weight="700" text-anchor="middle" fill="#191919">Veggur ' + (wi + 1) + ' · ' + L + ' mm</text>';
+    // the neighbouring walls at the corners
+    var prev = state.walls[(wi - 1 + n) % n], next = state.walls[(wi + 1) % n];
+    if (state.closed || wi > 0) svg += '<text x="' + (x0 - 12) + '" y="' + (top + roomH * sc / 2) + '" font-size="12" text-anchor="middle" fill="#6f6d66" transform="rotate(-90 ' + (x0 - 12) + ' ' + (top + roomH * sc / 2) + ')">← Veggur ' + (state.walls.indexOf(prev) + 1) + (prev.open ? ' (opinn)' : '') + '</text>';
+    if (state.closed || wi < n - 1) svg += '<text x="' + (x0 + L * sc + 14) + '" y="' + (top + roomH * sc / 2) + '" font-size="12" text-anchor="middle" fill="#6f6d66" transform="rotate(90 ' + (x0 + L * sc + 14) + ' ' + (top + roomH * sc / 2) + ')">Veggur ' + (state.walls.indexOf(next) + 1) + (next.open ? ' (opinn)' : '') + ' →</text>';
+    var items = elItems(wall.id), pills = "";
+    items.forEach(function(it){
+      var o = it.o, x = X(o.offsetMm), w = o.widthMm * sc, y = Y(it.hi), h = (it.hi - it.lo) * sc, sel = selectedOpeningId === it.id;
+      var stroke = sel ? "#0058a3" : null, g = '<g data-elid="' + it.id + '">';
+      if (it.t === "window"){
+        g += '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" fill="#dcecf6" stroke="' + (stroke || "#5b8fae") + '" stroke-width="' + (sel ? 3 : 2) + '"/>' +
+          '<line x1="' + (x + w / 2) + '" y1="' + y + '" x2="' + (x + w / 2) + '" y2="' + (y + h) + '" stroke="#5b8fae" stroke-width="1.2"/>';
+      } else if (it.t === "door"){
+        g += '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" fill="#d8b98f" stroke="' + (stroke || "#8a6a4a") + '" stroke-width="' + (sel ? 3 : 2) + '"/>' +
+          '<circle cx="' + (x + w - 10) + '" cy="' + Y(1050) + '" r="3.5" fill="#5c4630"/>';
+      } else if (it.t === "gap"){
+        g += '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" fill="#fbfaf7" stroke="' + (stroke || "#8a6a4a") + '" stroke-width="' + (sel ? 3 : 1.6) + '" stroke-dasharray="6,4"/>';
+      } else {
+        var def = KP3D.OBSTACLES[o.kind], fill = def.look === "radiator" ? "#ffffff" : def.look === "panel" ? "#d2d4d7" : def.look === "sill" ? "#e6e2da" : def.look === "pipe" ? "#c8ccd2" : "#cfcabe";
+        g += '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + Math.max(2, h) + '" fill="' + fill + '" stroke="' + (stroke || "#6f6a5f") + '" stroke-width="' + (sel ? 3 : 1.4) + '"/>';
+        if (def.look === "radiator") for (var k = 1; k * 50 * sc < w; k++) g += '<line x1="' + (x + k * 50 * sc) + '" y1="' + (y + 3) + '" x2="' + (x + k * 50 * sc) + '" y2="' + (y + h - 3) + '" stroke="#c9c9c4" stroke-width="1"/>';
+        if (def.look === "wall") g += '<path d="M' + x + ' ' + y + ' l' + w + ' ' + h + '" stroke="#a9a397" stroke-width="1"/>';
+        g += '<title>' + def.label + '</title>';
+        var lw = def.label.length * 6.2;
+        if (w > lw + 8 && h > 16) g += '<text x="' + (x + w / 2) + '" y="' + (y + h / 2 + 4) + '" font-size="11" text-anchor="middle" fill="#3b3830" style="pointer-events:none;">' + def.label + '</text>';
+        else if (h > lw + 8 && w > 14) g += '<text x="' + (x + w / 2 + 4) + '" y="' + (y + h / 2) + '" font-size="11" text-anchor="middle" fill="#3b3830" transform="rotate(-90 ' + (x + w / 2 + 4) + ' ' + (y + h / 2) + ')" style="pointer-events:none;">' + def.label + '</text>';
+      }
+      svg += g + '</g>';
+      if (!sel) return;
+      function pill(px, py, txt, key){
+        var tw = String(txt).length * 7.4 + 14;
+        return '<g class="dim" data-eldim="' + it.id + ':' + key + '" style="cursor:pointer;"><rect x="' + (px - tw / 2) + '" y="' + (py - 10) + '" width="' + tw + '" height="20" rx="4" fill="#fff" stroke="#0058a3"/><text x="' + px + '" y="' + (py + 4.5) + '" font-size="12" text-anchor="middle" fill="#191919" style="pointer-events:none;">' + txt + '</text></g>';
+      }
+      var dy = floorY + 30, gB = L - o.offsetMm - o.widthMm;
+      svg += '<line x1="' + x0 + '" y1="' + dy + '" x2="' + X(L) + '" y2="' + dy + '" stroke="#8a8f9a" stroke-width="1"/>' +
+        [0, o.offsetMm, o.offsetMm + o.widthMm, L].map(function(m){ return '<line x1="' + X(m) + '" y1="' + (dy - 6) + '" x2="' + X(m) + '" y2="' + (dy + 6) + '" stroke="#8a8f9a" stroke-width="1"/>'; }).join("");
+      if (o.offsetMm > 0) pills += pill(X(o.offsetMm / 2), dy, o.offsetMm, "offsetMm");
+      pills += pill(X(o.offsetMm + o.widthMm / 2), dy, o.widthMm, "widthMm");
+      if (gB > 0) pills += pill(X(o.offsetMm + o.widthMm + gB / 2), dy, gB, "endGap");
+      var vx = X(o.offsetMm + o.widthMm) + 30, canH = it.t !== "obst" || o.heightMm != null, canLo = it.t === "window" || (it.t === "obst" && o.heightMm != null && !KP3D.OBSTACLES[o.kind].ceiling);
+      if (vx > X(L) - 10) vx = X(o.offsetMm) - 30;
+      svg += '<line x1="' + vx + '" y1="' + Y(it.hi) + '" x2="' + vx + '" y2="' + floorY + '" stroke="#8a8f9a" stroke-width="1"/>';
+      if (canH) pills += pill(vx, Y((it.lo + it.hi) / 2), it.hi - it.lo, "heightMm");
+      if (canLo && it.lo > 0) pills += pill(vx, Y(it.lo / 2), it.lo, "elev");
+    });
+    // which wall this is: a small plan, click a wall to jump there
+    var iw = 150, ih = 104, iox = W - iw - 10, ioy = 10;
+    var lens = state.walls.map(function(w2){ return w2.lengthMm; }), turns = state.walls.map(function(w2){ return w2.turnAfter; });
+    var v = chainVertices(lens, turns).pts, xs = v.map(function(p){ return p.x; }), zs = v.map(function(p){ return p.z; });
+    var minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs), minZ = Math.min.apply(null, zs), maxZ = Math.max.apply(null, zs);
+    var isc = Math.min((iw - 24) / Math.max(1, maxX - minX), (ih - 24) / Math.max(1, maxZ - minZ));
+    var ix = iox + (iw - (maxX - minX) * isc) / 2 - minX * isc, iy = ioy + (ih - (maxZ - minZ) * isc) / 2 - minZ * isc;
+    svg += '<rect x="' + iox + '" y="' + ioy + '" width="' + iw + '" height="' + ih + '" rx="8" fill="#fff" stroke="#e4e1d8"/>' +
+      '<polygon points="' + v.map(function(p){ return (p.x * isc + ix) + "," + (p.z * isc + iy); }).join(" ") + '" fill="' + KP3D.floorPlanColor(state.floor) + '"/>';
+    state.walls.forEach(function(w2, k){
+      var a = v[k], b = v[(k + 1) % v.length]; if (!b || (!state.closed && k === n - 1 && v.length === n)) return;
+      var on = w2.id === wall.id;
+      svg += '<line ' + (w2.open ? '' : 'data-eljump="' + w2.id + '" ') + 'x1="' + (a.x * isc + ix) + '" y1="' + (a.z * isc + iy) + '" x2="' + (b.x * isc + ix) + '" y2="' + (b.z * isc + iy) + '" stroke="' + (on ? "#0058a3" : w2.open ? "#9a978e" : "#c9ccd4") + '" stroke-width="' + (on ? 6 : 4) + '"' + (w2.open ? ' stroke-dasharray="4,3"' : ' style="cursor:pointer;"') + '/>';
+    });
+    host.innerHTML = svg + pills + '</svg>';
+    host.querySelectorAll("[data-eljump]").forEach(function(el){
+      el.addEventListener("click", function(){ openWallId = el.dataset.eljump; selectedOpeningId = null; renderOpeningsBox(); renderShapeCanvas(); });
+    });
+    host.querySelectorAll("[data-elid]").forEach(function(el){ el.addEventListener("pointerdown", function(evt){ startElDrag(el.dataset.elid, evt, sc); }); });
+    host.querySelectorAll("[data-eldim]").forEach(function(el){
+      el.addEventListener("click", function(evt){
+        var pr = el.dataset.eldim.split(":"), r = host.getBoundingClientRect();
+        openElPop(pr[0], pr[1], evt.clientX - r.left, evt.clientY - r.top);
+      });
+    });
+    host.querySelector("svg").addEventListener("pointerdown", function(evt){
+      if (evt.target.tagName === "svg" || (evt.target.tagName === "rect" && !evt.target.closest("[data-elid],[data-eldim]"))){ if (selectedOpeningId){ selectedOpeningId = null; highlightOpRow(); renderShapeCanvas(); } }
+    });
+  }
+  function startElDrag(id, evt, sc){
+    evt.preventDefault(); evt.stopPropagation();
+    var it = elItems(openWallId).find(function(x){ return x.id === id; }); if (!it) return;
+    elDrag = { id:id, x0:evt.clientX, y0:evt.clientY, off0:it.o.offsetMm, lo0:it.lo, sc:sc, moved:false };
+    selectedOpeningId = id;
+    document.getElementById("dimPop").hidden = true;
+    window.addEventListener("pointermove", onElDragMove);
+    window.addEventListener("pointerup", onElDragUp, { once:true });
+    highlightOpRow(); renderShapeCanvas();
+  }
+  function onElDragMove(evt){
+    var st = elDrag; if (!st) return;
+    if (!st.moved && Math.hypot(evt.clientX - st.x0, evt.clientY - st.y0) < 4) return;
+    st.moved = true;
+    var wall = state.walls.find(function(w){ return w.id === openWallId; }), dx = (evt.clientX - st.x0) / st.sc, dy = -(evt.clientY - st.y0) / st.sc;
+    var ob = findObstacle(st.id);
+    if (ob){
+      var p = obstaclePlace(ob, wall, st.off0 + dx, st.lo0 + dy);
+      ob.offsetMm = p.offsetMm; if (p.elevMm != null) ob.elevMm = p.elevMm;
+    } else {
+      var f = findOpening(st.id); if (!f) return;
+      var o = f.o, sill = f.kind === "window" ? openingSill(o.heightMm, Math.round((st.lo0 + dy) / 10) * 10, "gluggi") : 0;
+      var off = snappedOpeningOffset(wall, o.widthMm, st.off0 + dx + o.widthMm / 2, o.id, { lo:sill, hi:sill + o.heightMm });
+      if (off === null) return; // something in the way: stay put
+      o.offsetMm = off; if (f.kind === "window") o.sillHeightMm = sill;
+    }
+    renderShapeCanvas();
+  }
+  function onElDragUp(){
+    window.removeEventListener("pointermove", onElDragMove);
+    var st = elDrag; elDrag = null;
+    if (st && st.moved){ save(); renderOpeningsBox(); }
+    renderShapeCanvas();
+  }
+  // typed measurement from a pill on the elevation
+  function openElPop(id, key, cx, cy){
+    var ob = findObstacle(id), f = ob ? null : findOpening(id), o = ob || (f && f.o); if (!o) return;
+    var host = document.getElementById("shapeCanvas"), pop = document.getElementById("dimPop"), wall = state.walls.find(function(w){ return w.id === o.wallId; });
+    var it = elItems(o.wallId).find(function(x){ return x.id === id; });
+    var val = key === "endGap" ? wall.lengthMm - o.offsetMm - o.widthMm : key === "elev" ? it.lo : key === "heightMm" ? it.hi - it.lo : o[key];
+    var name = { offsetMm:"Bil frá vinstra horni", endGap:"Bil að hægra horni", widthMm:ob && ob.kind === "milliveggur" ? "Þykkt" : "Breidd", heightMm:"Hæð", elev:"Frá gólfi" }[key];
+    pop.innerHTML = '<div class="dp-row"><span style="font-size:13px;white-space:nowrap;">' + name + '</span><input type="number" id="opInput" value="' + val + '" step="10"><span class="u" style="font-size:12px;">mm</span><button type="button" class="go" id="opGo">OK</button></div>';
+    pop.hidden = false;
+    var pw = pop.offsetWidth, ph = pop.offsetHeight;
+    pop.style.left = Math.max(6, Math.min(host.clientWidth - pw - 6, cx - pw / 2)) + "px";
+    pop.style.top = Math.max(6, Math.min(host.clientHeight - ph - 6, cy + 14)) + "px";
+    var inp = document.getElementById("opInput"); inp.focus(); inp.select();
+    function apply(){
+      var v = Math.round(parseFloat(inp.value)); if (isNaN(v)) return;
+      var roomH = state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM, maxGap = wall.lengthMm - o.widthMm;
+      if (key === "offsetMm" || key === "endGap"){
+        if (v < 0 || v > maxGap){ toast("Bilið þarf að vera á milli 0 og " + maxGap + " mm."); return; }
+        var nv = key === "offsetMm" ? v : maxGap - v;
+        if (f && !openingClear(wall.id, nv, o.widthMm, o.id)){ toast(OVERLAP_MSG); return; }
+        o.offsetMm = nv;
+      } else if (ob){
+        if (key === "widthMm"){ ob.widthMm = Math.max(20, Math.min(wall.lengthMm, v)); ob.offsetMm = Math.min(ob.offsetMm, wall.lengthMm - ob.widthMm); }
+        else if (key === "heightMm"){ ob.heightMm = Math.max(20, Math.min(roomH, v)); if (ob.elevMm != null) ob.elevMm = Math.min(ob.elevMm, roomH - ob.heightMm); }
+        else ob.elevMm = Math.max(0, Math.min(roomH - (ob.heightMm || 0), v));
+      } else if (!applyOpeningDim(f, key === "elev" ? "sillHeightMm" : key, v)) return;
+      pop.hidden = true; save(); renderShapeCanvas(); renderOpeningsBox();
+    }
+    document.getElementById("opGo").addEventListener("click", apply);
+    inp.addEventListener("keydown", function(e){ if (e.key === "Enter") apply(); if (e.key === "Escape") pop.hidden = true; });
   }
   function miniRoomInset(ox, oy, w, h){
     // small floor-plan icon (shape + floor material + wall colour) for context, top-right corner
@@ -5031,6 +5238,13 @@
   // (onBlockDragMove/onBlockDragEnd): same packing preview, same commit via
   // moveBlockToPosition, just fed by a raycast instead of an SVG hit-test.
   function on3DDragMove(meta, drop){
+    if (meta.kind === "obstacle"){
+      var ob = findObstacle(meta.blockId), w0 = drop && state.walls.find(function(w){ return w.id === drop.wallId && !w.open; });
+      if (!ob || !w0){ KP3D.hideDragPreview3D(); return; }
+      var pp = obstaclePlace(ob, w0, drop.alongMm - ob.widthMm / 2, drop.elevMm), vs = KP3D.obstacleVSpan(state, Object.assign({}, ob, pp.elevMm != null ? { elevMm:pp.elevMm } : {}));
+      KP3D.updateDragPreview3D(drop.wallId, pp.offsetMm, pp.widthMm, ob.depthMm, true, vs.hi - vs.lo, vs.lo);
+      return;
+    }
     var wall = drop && (meta.kind ? state.walls.find(function(w){ return w.id === drop.wallId; }) : surfaceById(drop.wallId));
     if (meta.kind){
       var op = findOpening(meta.blockId);
@@ -5052,7 +5266,8 @@
   function on3DDragEnd(meta, drop){
     KP3D.hideDragPreview3D();
     if (!drop) return;
-    if (meta.kind) moveOpening(meta.blockId, drop.wallId, drop.alongMm, drop.elevMm);
+    if (meta.kind === "obstacle") moveObstacle(meta.blockId, drop.wallId, drop.alongMm, drop.elevMm);
+    else if (meta.kind) moveOpening(meta.blockId, drop.wallId, drop.alongMm, drop.elevMm);
     else moveBlockToPosition(meta.blockId, drop.wallId, drop.alongMm, drop.elevMm);
   }
 
@@ -5709,11 +5924,11 @@
   // ---- Hindranir (2026-10-11): state.obstacles, see KP3D.OBSTACLES ----
   var obstacleSeq = 1;
   function findObstacle(id){ return (state.obstacles || []).find(function(o){ return o.id === id; }) || null; }
-  function addObstacle(kind){
+  function addObstacle(kind, onWallId){
     var def = KP3D.OBSTACLES[kind]; if (!def) return;
     var solid = state.walls.filter(function(w){ return !w.open; });
     var sel = selectedBlockId ? findBlock(selectedBlockId) || findOpening(selectedBlockId) || (findObstacle(selectedBlockId) ? { o:findObstacle(selectedBlockId) } : null) : null;
-    var wallId = selectedWallId || (sel && (sel.wall ? sel.wall.id : sel.o && sel.o.wallId)) || (solid[0] && solid[0].id);
+    var wallId = onWallId || selectedWallId || (sel && (sel.wall ? sel.wall.id : sel.o && sel.o.wallId)) || (solid[0] && solid[0].id);
     var wall = state.walls.find(function(w){ return w.id === wallId && !w.open; }) || solid[0];
     if (!wall){ toast("Teiknaðu rýmið fyrst."); return; }
     var o = { id:"h" + (obstacleSeq++) + "_" + Date.now().toString(36), kind:kind, wallId:wall.id, widthMm:Math.min(def.w || wall.lengthMm, wall.lengthMm), depthMm:def.d, heightMm:def.h, elevMm:def.elev };
@@ -5725,8 +5940,27 @@
     }
     state.obstacles = state.obstacles || [];
     state.obstacles.push(o);
+    if (onWallId){ save(); return o; } // room step: it draws itself
     selectedBlockId = o.id; selectedWallId = null;
     save(); refreshAfterEdit();
+    return o;
+  }
+  // dragged in 3D (along / up and down the wall, or onto another wall)
+  function moveObstacle(id, wallId, alongMm, elevMm){
+    var o = findObstacle(id), wall = state.walls.find(function(w){ return w.id === wallId && !w.open; });
+    if (!o || !wall){ refreshAfterEdit(); return; }
+    var p = obstaclePlace(o, wall, alongMm - o.widthMm / 2, elevMm);
+    o.wallId = wall.id; o.widthMm = p.widthMm; o.offsetMm = p.offsetMm; if (p.elevMm != null) o.elevMm = p.elevMm;
+    save(); refreshAfterEdit();
+  }
+  // where an obstacle lands on a wall: offset snapped 10 mm and flush to the corners within 100 mm, height kept inside the room
+  function obstaclePlace(o, wall, offMm, elevMm){
+    var def = KP3D.OBSTACLES[o.kind], wmm = Math.min(o.widthMm, wall.lengthMm), max = wall.lengthMm - wmm;
+    var off = Math.max(0, Math.min(max, Math.round(offMm / 10) * 10));
+    if (off <= SNAP_THRESHOLD_MM) off = 0; else if (off >= max - SNAP_THRESHOLD_MM) off = max;
+    var el = null;
+    if (elevMm != null && o.heightMm != null && !def.ceiling) el = Math.max(0, Math.min((state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM) - o.heightMm, Math.round(elevMm / 10) * 10));
+    return { offsetMm:off, widthMm:wmm, elevMm:el };
   }
   function removeObstacle(id){
     state.obstacles = (state.obstacles || []).filter(function(o){ return o.id !== id; });
