@@ -3314,14 +3314,17 @@
     // dimensions on the plan); a canvas-texture sprite, drawn on top.
     function isOpenGeom(i){ return !!(state.walls[i] && state.walls[i].open); }
     if (!opts.people && !opts.clean && !iso) geoms.forEach(function(g, i){ // (the ceiling-height view has its own single label; opts.clean skips it too — drawing exports don't want it baked into the picture)
-      var cv = document.createElement("canvas"); cv.width = 420; cv.height = 64;
+      // the same small size on screen however far the wall is (2026-10-11: near ones were big, far ones tiny
+      // and they piled up in the corner) — sizeAttenuation off, scale in screen terms
+      var cv = document.createElement("canvas"); cv.width = 640; cv.height = 96;
       var cx = cv.getContext("2d");
-      cx.fillStyle = "rgba(255,255,255,.92)"; cx.strokeStyle = "#e6e3da"; cx.lineWidth = 3;
-      cx.beginPath(); cx.roundRect ? cx.roundRect(4, 4, 412, 56, 14) : cx.rect(4, 4, 412, 56); cx.fill(); cx.stroke();
-      cx.fillStyle = "#191919"; cx.font = "600 30px 'Kumbh Sans', Arial, sans-serif"; cx.textAlign = "center"; cx.textBaseline = "middle";
-      cx.fillText((state.walls[i] ? state.walls[i].label : "Veggur") + " · " + Math.round(g.lenM * 1000) + " mm", 210, 34);
-      var sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:new THREE.CanvasTexture(cv), depthTest:false, transparent:true }));
-      sp.scale.set(1.0, 0.152, 1);
+      cx.fillStyle = "rgba(255,255,255,.92)"; cx.strokeStyle = "#e6e3da"; cx.lineWidth = 4;
+      cx.beginPath(); cx.roundRect ? cx.roundRect(4, 4, 632, 88, 44) : cx.rect(4, 4, 632, 88); cx.fill(); cx.stroke();
+      cx.fillStyle = "#191919"; cx.font = "600 44px 'Kumbh Sans', Arial, sans-serif"; cx.textAlign = "center"; cx.textBaseline = "middle";
+      cx.fillText((state.walls[i] ? state.walls[i].label : "Veggur") + " · " + Math.round(g.lenM * 1000) + " mm", 320, 51);
+      var tex = new THREE.CanvasTexture(cv); tex.anisotropy = 4;
+      var sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:tex, depthTest:false, transparent:true, sizeAttenuation:false }));
+      sp.scale.set(0.19, 0.0285, 1);
       sp.position.set(g.origin.x + g.axis.x * g.lenM / 2, WALL_H + 0.16, g.origin.z + g.axis.z * g.lenM / 2);
       sp.renderOrder = 10;
       scene.add(sp);

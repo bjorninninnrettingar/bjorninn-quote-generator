@@ -139,6 +139,13 @@
   .fb-dim .x{ margin:0 3px; color:var(--ink-soft); }
   .float-bar button.on{ background:var(--blue-soft); }
   .float-bar button:disabled{ opacity:.35; cursor:not-allowed; }
+  .iconbtn{ display:inline-flex; align-items:center; gap:6px; background:#fff; border:1px solid var(--line); border-radius:999px; padding:7px 12px; font:inherit; font-size:13px; color:var(--ink); cursor:pointer; }
+  .iconbtn:hover:not(:disabled){ border-color:var(--blue); color:var(--blue); }
+  .iconbtn:disabled{ opacity:.4; cursor:not-allowed; }
+  .edit-actions select{ font:inherit; font-size:13px; padding:7px 10px; border:1px solid var(--line); border-radius:999px; background:#fff; color:var(--ink); }
+  /* removing is a quiet red link on its own line at the bottom (2026-10-11) */
+  .iconbtn.del{ flex-basis:100%; justify-content:flex-start; border:none; background:none; padding:6px 0 0; color:var(--danger); text-decoration:underline; }
+  .iconbtn.del:hover:not(:disabled){ color:var(--danger); background:none; }
   .lockbtn{ width:100%; justify-content:center; font-weight:600; }
   .lockbtn.on{ background:var(--blue-soft); color:var(--blue); }
   .fb-dim{ align-self:center; font-size:11.5px; font-weight:600; color:var(--ink-soft); padding:0 8px 0 6px; white-space:nowrap; border-right:1px solid var(--line); margin-right:2px; }
@@ -743,7 +750,8 @@
     .wrap.wide{ position:relative; }
     .wrap.wide .lede{ display:none; }
     .wrap.wide .top{ padding:8px 18px; align-items:center; }
-    .wrap.wide .top .kicker{ display:none; }
+    .wrap.wide .top > div:first-child{ display:flex; align-items:baseline; gap:10px; }
+    .wrap.wide .top .kicker{ display:block; margin:0; }
     .wrap.wide h1{ font-size:15px; margin:0; }
     .wrap.wide .stepper{ position:absolute; top:6px; left:50%; transform:translateX(-50%); width:min(620px, 48vw); margin:0; padding-bottom:6px; gap:4px; }
     .wrap.wide .stepper .st{ padding:3px 8px; font-size:12px; }
@@ -1104,9 +1112,9 @@
             <button type="button" id="snapBtn" title="Vista mynd af skipulaginu">📷</button>
           </div>
           <button type="button" class="warn-chip" id="warnChip" hidden></button>
-          <div class="view-toggle" id="moodToggle" title="Kvöldstemning: dimmir herbergið svo lýsingin sjáist"><button type="button" id="moodBtn" title="Kvöldstemning">🌙</button></div>
+          <div class="view-toggle" id="moodToggle" title="Kvöldstemning: dimmir herbergið svo lýsingin sjáist"><button type="button" id="moodBtn" title="Kvöldstemning: dimmir herbergið svo lýsingin sjáist">🌙 Kvöld</button></div>
           <div class="view-toggle" id="inspectToggle" title="Skoða innvols: opna skúffur og hurðir, taka framhliðar af">
-            <button type="button" id="inspectBtn" title="Skoða innvols: opna skúffur og hurðir, taka framhliðar af">🔍</button>
+            <button type="button" id="inspectBtn" title="Skoða innvols: opna skúffur og hurðir, taka framhliðar af">🔍 Inn í skápa</button>
             <button type="button" id="frontsBtn" hidden>Framhliðar á</button>
             <button type="button" id="openAllBtn" hidden>Opna allt</button>
           </div>
@@ -1114,9 +1122,9 @@
             <button type="button" id="undoBtn" title="Afturkalla (⌘Z)" disabled>↶</button>
             <button type="button" id="redoBtn" title="Endurgera (⌘⇧Z)" disabled>↷</button>
           </div>
+          <button type="button" class="btn btn-primary ed-newunit" id="edNewUnit">＋ Ný eining</button>
           <div class="ed-right">
             <button type="button" class="btn btn-secondary ed-tbtn" id="backToShapeBtn">← Breyta lögun</button>
-            <button type="button" class="btn btn-primary ed-newunit" id="edNewUnit">＋ Ný eining</button>
             <button type="button" class="btn btn-primary ed-tbtn" id="toContactBtn" disabled>Áfram →</button>
           </div>
           <div class="warn-pop" id="warnPop" hidden></div>
@@ -5897,7 +5905,7 @@
   function syncInspectUI(){
     var ib = document.getElementById("inspectBtn"), fb = document.getElementById("frontsBtn"), ob = document.getElementById("openAllBtn");
     ib.classList.toggle("active", inspect.on);
-    ib.textContent = inspect.on ? "✓ 🔍" : "🔍";
+    ib.textContent = inspect.on ? "✓ Inn í skápa" : "🔍 Inn í skápa";
     fb.hidden = ob.hidden = !inspect.on;
     fb.textContent = inspect.frontsOff ? "Framhliðar af" : "Framhliðar á";
     fb.classList.toggle("active", inspect.frontsOff);
@@ -6234,7 +6242,7 @@
           '<button class="iconbtn" data-role="close" title="Loka">✕</button></div>' +
         (zone === "wall" && !c.panel && !c.shelfStack ? '<div class="edit-field"><button type="button" class="iconbtn' + ((b.led != null ? b.led : lighting().underWall) ? ' on' : '') + '" data-role="led">💡 LED undir skápnum: ' + ((b.led != null ? b.led : lighting().underWall) ? 'á' : 'af') + '</button></div>' : '') +
         '<div class="edit-field lock-row"><button type="button" class="iconbtn lockbtn' + (b.locked ? ' on' : '') + '" data-role="lock" data-keep="1">' + (b.locked ? '🔒 Læstur — smelltu til að opna' : '🔓 Læsa skápnum') + '</button>' +
-          '<p class="ov-mat" style="margin:6px 0 0;">' + (b.locked ? 'Ekki hægt að færa hann eða breyta. Smelltu á skúffur og hurðir í 3D til að opna og loka þeim.' : 'Þegar hann er réttur — læstu honum svo hann færist ekki óvart. Þá má opna og loka skúffum og hurðum í 3D.') + '</p></div>' +
+          '<p class="ov-mat" style="margin:6px 0 0;">' + (b.locked ? 'Smelltu á skúffur og hurðir í 3D til að opna þær.' : 'Læstu honum þegar hann er réttur.') + '</p></div>' +
         '<div class="edit-field"><label>Tegund</label><select data-role="type">' + typeOptions + '</select></div>' +
         '<div class="edit-field"><label>Mál (mm) — sláðu inn</label>' + dims + '</div>' +
         elevField + stackField +
