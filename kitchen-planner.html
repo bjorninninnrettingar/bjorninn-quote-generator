@@ -87,6 +87,21 @@
   .help-menu button{ background:none; border:0; text-align:left; font:inherit; font-size:14px; padding:9px 12px; border-radius:8px; cursor:pointer; color:var(--ink); }
   .help-menu button:hover{ background:var(--panel); }
   .help-menu button[hidden]{ display:none; }
+  /* first-time tour */
+  .tour{ position:fixed; inset:0; z-index:400; pointer-events:none; }
+  .tour-block{ position:absolute; inset:0; pointer-events:auto; }
+  .tour.dim .tour-block{ background:rgba(25,25,25,.55); }
+  .tour-hole{ position:absolute; border-radius:12px; box-shadow:0 0 0 9999px rgba(25,25,25,.55), 0 0 0 3px #fff inset; transition:all .25s ease; pointer-events:none; }
+  .tour-hole[hidden]{ display:none; }
+  .tour-bub{ position:absolute; width:320px; background:#fff; border-radius:14px; box-shadow:0 18px 50px rgba(0,0,0,.28); padding:16px 18px 14px; pointer-events:auto; transition:left .25s ease, top .25s ease; }
+  .tour-bub h4{ margin:0 0 6px; font-size:17px; }
+  .tour-n{ margin:0 0 4px; font-size:11.5px; font-weight:700; color:var(--gold); text-transform:uppercase; letter-spacing:.04em; }
+  .tour-txt{ font-size:14px; line-height:1.5; color:var(--ink); }
+  .tour-list{ margin:4px 0 0; padding-left:18px; }
+  .tour-list li{ margin:3px 0; }
+  .tour-act{ display:flex; justify-content:space-between; align-items:center; margin-top:14px; }
+  @media (prefers-reduced-motion:reduce){ .tour-hole, .tour-bub{ transition:none; } }
+  .help-menu button[hidden]{ display:none; }
   /* welcome page (2026-10-11): one centred column — the header and the steps start on the same line, the button
      sits on the right like "Áfram →" on the pages after it */
   .wrap.welm{ max-width:640px; padding-top:clamp(28px, 9vh, 96px); }
@@ -944,6 +959,7 @@
     <div class="help-wrap">
       <button class="help-btn" id="helpBtn" type="button" aria-haspopup="true" aria-expanded="false">Hjálp</button>
       <div class="help-menu" id="helpMenu" hidden>
+        <button type="button" id="tourBtn" hidden>👋 Sýna leiðsögnina</button>
         <button type="button" id="reportBtn">⚠️ Tilkynna vandamál</button>
         <button type="button" id="resetBtn">Byrja upp á nýtt</button>
       </div>
@@ -6822,6 +6838,9 @@
     if (state.step !== "materials") KP3D.teardownCabinetPreview();
     document.getElementById("pageLede").hidden = true; // the intro is on the welcome page only (2026-10-11)
     var rb = document.getElementById("resetBtn"); if (rb) rb.hidden = state.step === "welcome" && !hasDesign(); // nothing to start over yet
+    document.getElementById("tourBtn").hidden = state.step !== "editor";
+    if (state.step !== "editor") endTour();
+    else if (!PRO) setTimeout(maybeStartTour, 700);
     if (state.step === "editor"){
       viewMode = "3d";
       document.querySelectorAll("#viewToggle button").forEach(function(btn){ btn.classList.toggle("active", btn.dataset.view === "3d"); });
@@ -7300,6 +7319,99 @@
       submitBtn.textContent = "Senda inn";
     }
   }
+
+  // ---------- first-time tour of the designer (2026-10-11, the user's script) ----------
+  // Everything fades except the part being explained; a bubble says what it is. Some steps wait for the customer
+  // to click the highlighted thing (＋ Ný eining → Grunnskápar → a variant → Setja inn). Shown once per browser,
+  // "Sýna leiðsögnina" in Hjálp replays it. Not in pro.
+  var TOUR_KEY = "bjorninn:kitchenPlanner:tourDone";
+  var tour = null;
+  function tourDone(){ try{ return localStorage.getItem(TOUR_KEY) === "1"; }catch(e){ return false; } }
+  function maybeStartTour(){ if (!tour && !tourDone() && state.step === "editor" && !uw) startTour(); }
+  var TOUR_STEPS = [
+    { center:true, title:"Hér hannar þú eldhúsið þitt", html:"Stutt yfirferð um það helsta — tekur hálfa mínútu.", next:"Sýna mér →", skip:true },
+    { el:function(){ return document.getElementById("catalogPanel"); }, title:"Hér getur þú breytt", html:
+      '<ul class="tour-list"><li><b>Rými</b> — útlitinu á rýminu</li><li><b>Gluggar og hindranir</b> — bætt við gluggum og hurðum</li>' +
+      '<li><b>Lýsing</b> — kveikt og slökkt á lýsingu</li><li><b>Húsgögn</b> — aukahlutir, best að gera það í lokin</li><li><b>Efni</b> — breytt efnisvalinu</li></ul>', next:"Næsta →" },
+    { el:function(){ return document.getElementById("edNewUnit"); }, title:"Hér skráir þú nýja einingu", html:"Smelltu á „＋ Ný eining“.", click:true,
+      done:function(){ return !!uw; } },
+    { el:function(){ return document.querySelector('#uwSide [data-uw-cat="0"]'); }, title:"Smelltu á grunnskáp", html:"Grunnskápar standa á gólfinu undir borðplötunni.", click:true,
+      done:function(){ return uw && uw.step >= 2; } },
+    { el:function(){ return document.querySelector('#uwSide .uw-grid'); }, title:"Veldu útfærslu", html:"T.d. skúffur eða hurð með hillum.", click:true,
+      done:function(){ return uw && uw.step >= 3; } },
+    { el:function(){ return document.querySelector("#unitWiz .uw-box"); }, title:"Hér stillir þú eininguna", html:"Breidd, hvað er í einingunni, skúffuhæðir, fjölda og fleira. Fiktaðu — myndin sýnir breytingarnar jafnóðum.", click:true, next:"Næsta →", place:"bottomLeft" },
+    { el:function(){ return document.querySelector("#uwSide [data-uw-add], #uwSide [data-isl-add]"); }, title:"Bættu henni síðan við", html:"Smelltu á „Setja inn“.", click:true, scroll:true,
+      done:function(){ return !uw && cabinetTotal() > tour.count0; } },
+    { el:function(){ return document.getElementById("editorGrid"); }, title:"Smelltu á eininguna", html:"Þá getur þú breytt henni, dregið hana til og <b>læst</b> henni 🔒 þegar hún er rétt.", click:true, next:"Næsta →", inside:true },
+    { center:true, title:"Gangi þér vel!", html:"Leiðsögnina finnur þú aftur undir „Hjálp“.", next:"Byrja" }
+  ];
+  function startTour(){
+    endTour();
+    tour = { i:0, count0:cabinetTotal(), root:document.createElement("div") };
+    tour.root.className = "tour";
+    tour.root.innerHTML = '<div class="tour-block"></div><div class="tour-hole"></div><div class="tour-bub" role="dialog" aria-live="polite"></div>';
+    document.body.appendChild(tour.root);
+    tour.timer = setInterval(tourTick, 150);
+    window.addEventListener("resize", tourTick);
+    showTourStep(0);
+  }
+  function endTour(finished){
+    if (!tour) return;
+    clearInterval(tour.timer); window.removeEventListener("resize", tourTick);
+    tour.root.remove(); tour = null;
+    if (finished !== false) try{ localStorage.setItem(TOUR_KEY, "1"); }catch(e){}
+  }
+  function showTourStep(i){
+    if (i >= TOUR_STEPS.length){ endTour(); return; }
+    tour.i = i;
+    var st = TOUR_STEPS[i], bub = tour.root.querySelector(".tour-bub");
+    bub.innerHTML = '<p class="tour-n">' + (st.center && i === 0 ? "Velkomin(n)" : (i === TOUR_STEPS.length - 1 ? "" : "Skref " + i + " af " + (TOUR_STEPS.length - 2))) + '</p>' +
+      '<h4>' + st.title + '</h4><div class="tour-txt">' + st.html + '</div><div class="tour-act">' +
+      (i < TOUR_STEPS.length - 1 ? '<button type="button" class="reset-link" data-tour="skip">Sleppa</button>' : '<span></span>') +
+      (st.next ? '<button type="button" class="btn btn-primary btn-small" data-tour="next">' + st.next + '</button>' : '') + '</div>';
+    bub.querySelector('[data-tour="skip"]') && bub.querySelector('[data-tour="skip"]').addEventListener("click", function(){ endTour(); });
+    bub.querySelector('[data-tour="next"]') && bub.querySelector('[data-tour="next"]').addEventListener("click", function(){ showTourStep(tour.i + 1); });
+    var tgt = st.scroll && st.el && st.el(); if (tgt) tgt.scrollIntoView({ block:"nearest" });
+    tourTick();
+  }
+  function tourTick(){
+    if (!tour) return;
+    if (state.step !== "editor"){ endTour(false); return; }
+    var st = TOUR_STEPS[tour.i];
+    if (st.done && st.done()){ showTourStep(tour.i + 1); return; }
+    // the unit wizard was closed or stepped back: pick the step that fits where they are now
+    if (tour.i >= 3 && tour.i <= 6){
+      var want = !uw ? 2 : uw.step === 1 ? 3 : uw.step === 2 ? 4 : (tour.i === 6 ? 6 : 5);
+      if (want !== tour.i){ showTourStep(want); return; }
+    }
+    var el = st.el ? st.el() : null, hole = tour.root.querySelector(".tour-hole"), block = tour.root.querySelector(".tour-block"), bub = tour.root.querySelector(".tour-bub");
+    var W = window.innerWidth, H = window.innerHeight, pad = 6, r = null;
+    if (el && el.getClientRects().length){
+      var b = el.getBoundingClientRect();
+      r = { x:Math.max(4, b.left - pad), y:Math.max(4, b.top - pad), w:Math.min(W - 8, b.width + 2 * pad), h:Math.min(H - 8, b.height + 2 * pad) };
+    }
+    if (r){
+      hole.hidden = false;
+      hole.style.cssText = "left:" + r.x + "px;top:" + r.y + "px;width:" + r.w + "px;height:" + r.h + "px;";
+      // clicks only reach the highlighted part, and only on the steps where it is meant to be clicked
+      block.style.clipPath = st.click ? 'path(evenodd, "M0 0H' + W + 'V' + H + 'H0Z M' + r.x + ' ' + r.y + 'h' + r.w + 'v' + r.h + 'h-' + r.w + 'Z")' : "none";
+    } else {
+      hole.hidden = true; block.style.clipPath = "none";
+    }
+    tour.root.classList.toggle("dim", !r);
+    // the bubble: below the hole, else above, else beside it; centred when there is nothing to point at
+    var bw = bub.offsetWidth, bh = bub.offsetHeight, x, y;
+    if (!r){ x = (W - bw) / 2; y = (H - bh) / 2; }
+    else if (st.inside){ x = r.x + 16; y = r.y + 80; } // under the toolbar
+    else if (st.place === "bottomLeft"){ x = r.x + 16; y = r.y + r.h - bh - 64; }
+    else if (st.side === "left" && r.x - bw - 16 > 8){ x = r.x - bw - 16; y = r.y + 20; }
+    else if (r.y + r.h + 12 + bh < H - 8){ x = r.x + r.w / 2 - bw / 2; y = r.y + r.h + 12; }
+    else if (r.y - 12 - bh > 8){ x = r.x + r.w / 2 - bw / 2; y = r.y - 12 - bh; }
+    else { x = r.x - bw - 16 > 8 ? r.x - bw - 16 : r.x + r.w + 16; y = r.y + 20; }
+    bub.style.left = Math.max(8, Math.min(W - bw - 8, x)) + "px";
+    bub.style.top = Math.max(8, Math.min(H - bh - 8, y)) + "px";
+  }
+  document.getElementById("tourBtn").addEventListener("click", function(){ if (uw) closeUnitWizard(); startTour(); });
 
   // ---------- wire top-level controls ----------
   // Flow order (Phase 7c): intake → materials → shape → walls → summary(3D) → contact.
