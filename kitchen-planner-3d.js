@@ -426,8 +426,8 @@
       .filter(function(x){ return x && x.mm > r.lo + OVEN_BOARD_MM && x.mm < r.hi - 10; })
       .map(function(x){ return { mm:Math.round(x.mm), fixed:!!x.fixed, pos:x.fixed ? 1 : Math.max(1, Math.min(9, Math.round(x.pos) || 3)) }; })
       .sort(function(a, z){ return a.mm - z.mm; });
-    var n = c.bur ? 2 : (shelvesOf(b) || 0), out = [];
-    for (var k = 1; k <= n; k++) out.push({ mm:Math.round(c.bur ? r.lo + (r.hi - r.lo) * k / 3 : bodyMm * k / (n + 1) + 9), fixed:false, pos:3 });
+    var n = c.bur ? (b.burShelves != null ? b.burShelves : 2) : (shelvesOf(b) || 0), out = [];
+    for (var k = 1; k <= n; k++) out.push({ mm:Math.round(c.bur ? r.lo + (r.hi - r.lo) * k / (n + 1) : bodyMm * k / (n + 1) + 9), fixed:false, pos:3 });
     return out;
   }
   // the shelves above the oven, bottom → top; default = 2 loose vent shelves at thirds, 3 positions each
@@ -442,7 +442,11 @@
   // Inner drawers of a Búrskápur (bottom → top) from b.burCombo, a real BUR Útfærsla key like "MKCC".
   var BUR_DEFAULT = { legra:"MKCC", merivo:"MKEE" };
   function burCodesOf(b, sysKey){
-    var sys = sysKey === "merivo" ? "merivo" : "legra", key = b.burCombo || BUR_DEFAULT[sys];
+    var sys = sysKey === "merivo" ? "merivo" : "legra";
+    // the customer's own set (b.burCodes, 2026-10-11) or a combo; burCombo "" = empty (new búrskápar start empty).
+    // undefined = an old draft: the default combo, as before
+    var key = Array.isArray(b.burCodes) ? b.burCodes.join("") : b.burCombo === "" ? "" : (b.burCombo || BUR_DEFAULT[sys]);
+    if (!key) return [];
     return String(key).split("+")[0].split("").sort(function(a, c){ return CODE_ORDER.indexOf(c) - CODE_ORDER.indexOf(a); }).map(function(c){ return (CODE_SWAP[sys] && CODE_SWAP[sys][c]) || c; });
   }
   // a code from the other system → the nearest one in this system (switching Legra ↔ Merivo)
@@ -915,7 +919,7 @@
   // corner units (they have their own check), appliances, panels, open shelves, flaps and fixed fronts
   function doorLeaves(b, c){
     if (!c || c.panel || c.shelfStack || c.appliance || c.open || c.fixedFronts || c.dishwasher || c.cls === "corner" || c.lowOven || c.drawersOnly) return [];
-    if (!c.oven && b.interior && b.interior.mode === "skuffur") return [];
+    if (!c.oven && b.interior && b.interior.mode === "skuffur" && c.cls !== "tall") return []; // a tall drawer unit still has its door on top
     if (b.widthMm > WIDE_DOOR_M * 1000 && !c.fridge) return [{ hinge:"left", w:b.widthMm / 2 }, { hinge:"right", w:b.widthMm / 2 }];
     return [{ hinge:b.swing === "haegri" ? "right" : "left", w:b.widthMm }];
   }
@@ -1554,8 +1558,9 @@
     var isCorner = !!(meta && meta.corner), hw = isCorner ? widthM / 2 : widthM, hOff = isCorner ? (meta.doorSide === "left" ? -widthM / 4 : widthM / 4) : 0;
     var fronts = [];
     if (drawers){
-      var fr = interior.fractions && interior.fractions.length === drawers - 1 ? interior.fractions : null;
-      for (var i = 0; i < drawers; i++) fronts.push({ y0:fr ? (i === 0 ? 0 : fr[i - 1]) : i / drawers, y1:fr ? (i === drawers - 1 ? 1 : fr[i]) : (i + 1) / drawers, drawer:true });
+      var fr = interior.fractions && interior.fractions.length === drawers - 1 ? interior.fractions : null, zt = interior.topDoorFr || 1;
+      for (var i = 0; i < drawers; i++) fronts.push({ y0:fr ? (i === 0 ? 0 : fr[i - 1]) : i / drawers * zt, y1:fr ? (i === drawers - 1 ? zt : fr[i]) : (i + 1) / drawers * zt, drawer:true });
+      if (interior.topDoorFr) fronts.push({ y0:interior.topDoorFr, y1:1 }); // tall unit: the door above the drawers
     }
     else if (isTall && !isOven && meta && meta.washerDrawerM){ // washer tower: a drawer at the bottom, two doors above
       var wd = meta.washerDrawerM / heightM, sp2 = wd + (1 - wd) * 0.5;
@@ -1856,7 +1861,9 @@
       }
     }
     if (interior && interior.mode === "skuffur" && !art){
-      addDrawerSeams(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior.count, interior.fractions);
+      if (interior.topDoorFr) addDrawerSeams(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior.count + 1,
+        (interior.fractions || Array.apply(null, Array(interior.count - 1)).map(function(_, k){ return (k + 1) / interior.count * interior.topDoorFr; })).concat([interior.topDoorFr]));
+      else addDrawerSeams(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior.count, interior.fractions);
     }
     if (meta && meta.locked && !meta.suppressBadge && meta.zone !== "opening") addLockBadge(THREE, group, local(0, baseYM + heightM + (meta.counter ? 0.16 : 0.1), depthM / 2));
     if (meta && meta.ready) addLockBadge(THREE, group, local(widthM / 2 - 0.07, baseYM + heightM + (meta.counter ? 0.16 : 0.1), depthM / 2), true); // pro: "Klár til framleiðslu"
@@ -1999,8 +2006,9 @@
     // the fronts of this cabinet
     var fronts = [];
     if (drawers){
-      var fr = interior.fractions && interior.fractions.length === drawers - 1 ? interior.fractions : null;
-      for (var i = 0; i < drawers; i++) fronts.push({ y0:fr ? (i === 0 ? 0 : fr[i - 1]) : i / drawers, y1:fr ? (i === drawers - 1 ? 1 : fr[i]) : (i + 1) / drawers, drawer:true });
+      var fr = interior.fractions && interior.fractions.length === drawers - 1 ? interior.fractions : null, zt = interior.topDoorFr || 1;
+      for (var i = 0; i < drawers; i++) fronts.push({ y0:fr ? (i === 0 ? 0 : fr[i - 1]) : i / drawers * zt, y1:fr ? (i === drawers - 1 ? zt : fr[i]) : (i + 1) / drawers * zt, drawer:true });
+      if (interior.topDoorFr) fronts.push({ y0:interior.topDoorFr, y1:1 }); // tall unit: the door above the drawers
     } else if (meta.splitFr && !meta.corner) pushSplitFronts(fronts, meta.splitFr);
     else if (meta.tall && !meta.corner && meta.split){ var sp = meta.split; fronts.push({ y0:0, y1:sp }, { y0:sp, y1:1 }); }
     else fronts.push({ y0:0, y1:1 });
@@ -3498,8 +3506,11 @@
         var inter = b.interior;
         if (c.rusl && !(inter && inter.mode === "skuffur")) inter = { mode:"skuffur", codes:[state.drawerSystem === "merivo" ? "E" : "C"], count:1 }; // old drafts: one tall pull-out
         if (inter && inter.mode === "skuffur"){ // the real stack: one Blum code per drawer, fronts sized from the codes
-          var dcodes = drawerCodes(inter, state.drawerSystem), dbody = hM * 1000 - 100, dfr = stackFrontsMm(inter, dcodes, dbody);
-          inter = Object.assign({}, inter, { codes:dcodes, count:dcodes.length, fractions:dfr ? frontsToFractions(dfr, dbody) : null });
+          var fullBody = hM * 1000 - 100, dbody = drawerZoneMm(c, fullBody), dcodes = drawerCodes(inter, state.drawerSystem), dfr = stackFrontsMm(inter, dcodes, dbody);
+          // a tall unit with drawers: the drawers fill the bottom (≤ 1200 mm), a hinged door the rest (user, 2026-10-11)
+          var zf = dbody / fullBody, topDoor = zf < 0.999 ? zf : null;
+          inter = Object.assign({}, inter, { codes:dcodes, count:dcodes.length, topDoorFr:topDoor,
+            fractions:dfr ? frontsToFractions(dfr, dbody).map(function(f){ return f * zf; }) : null });
         }
         var applMat = c.appliance === "fridge" || c.appliance === "dishwasher" ? steelMat : c.appliance === "washer" ? washerMat : null;
         // an integrated fridge wears the kitchen's fronts (user, 2026-10-05 — it was steel)
@@ -3872,6 +3883,9 @@
   // boxD = the depth there is for the drawer (m). The drawer (and its runners) take the longest Blum nominal
   // length that fits, 50 mm steps 270–650 — real size, all the way to the back of the carcass (user, 2026-10-11:
   // they were a fixed 500 and stopped well short of the back). The Blum side models are stretched to that length.
+  // Drawers in a tall unit only go up to 1200 mm from the plinth; above that it's a hinged door (user, 2026-10-11)
+  var TALL_DRAWER_MAX_MM = 1200;
+  function drawerZoneMm(c, bodyMm){ return c && c.cls === "tall" ? Math.min(bodyMm, TALL_DRAWER_MAX_MM) : bodyMm; }
   function drawerNominalM(boxD){ return Math.max(270, Math.min(650, Math.floor(((boxD || 0.562) * 1000 + 0.5) / 50) * 50)) / 1000; }
   function buildDrawerBox(THREE, sysKey, carcassKey, sideMm, boxW, boxD, code){
     var g = new THREE.Group();
@@ -4925,7 +4939,7 @@
     cornerClearanceMm: cornerClearanceMm, afellaMm: afellaMm, AFELLA_MM: AFELLA_MM,
     blockStartsMm: blockStartsMm,
     planTransform: planTransform,
-    rectCornersWorld: rectCornersWorld, islandFits: islandFits, nearestIslandFit: nearestIslandFit, topThickM: topThickM, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, DECOR: DECOR, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
+    rectCornersWorld: rectCornersWorld, drawerZoneMm: drawerZoneMm, TALL_DRAWER_MAX_MM: TALL_DRAWER_MAX_MM, doorLeaves: doorLeaves, islandFits: islandFits, nearestIslandFit: nearestIslandFit, topThickM: topThickM, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, DECOR: DECOR, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
     WALL_COLORS: WALL_COLORS,
     WINDOW_DEFAULT: WINDOW_DEFAULT,
     _handleProfile: handleProfile,

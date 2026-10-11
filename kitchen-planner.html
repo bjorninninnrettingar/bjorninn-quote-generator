@@ -299,6 +299,11 @@
   .opw-q{ font-weight:600; margin:0 0 10px; }
   .opw-btns{ display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-bottom:8px; }
   .opw-obst{ margin:4px 0 10px; font-size:13.5px; }
+  .bur-presets{ display:flex; flex-direction:column; gap:6px; }
+  .bur-presets .hw-btn{ text-align:left; }
+  .bur-list{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+  .bur-chip{ display:inline-flex; align-items:center; gap:6px; font-size:13px; padding:4px 6px 4px 10px; border:1px solid var(--line); border-radius:999px; background:var(--panel); }
+  .bur-chip button{ border:none; background:none; cursor:pointer; color:var(--ink-soft); font-size:12px; }
   .opw-obst summary{ cursor:pointer; font-weight:600; color:var(--ink-soft); padding:4px 0; }
   .opw-obst-btns{ display:grid; grid-template-columns:repeat(2,1fr); gap:6px; margin-top:6px; }
   .opw-obst-btns .hw-btn{ font-size:12.5px; padding:7px 8px; text-align:left; }
@@ -1148,6 +1153,7 @@
     var b = { id:"b" + (blockSeq++), type:type, widthMm:c.defaultW };
     if (c.hasInterior) b.interior = c.drawersOnly ? { mode:"skuffur", count:1 } : { mode:"hillur", count:3 }; // ruslaskápur: one tall drawer to start
     if (c.shelfStack) initShelfStack(b, 3, KP3D.SHELF_GAP_DEFAULT);
+    if (c.bur){ b.burCombo = ""; b.burShelves = 0; } // a new búrskápur starts empty (2026-10-11)
     return b;
   }
   // Loose shelves: count boards with a gap between; heightMm always = the whole stack.
@@ -3241,7 +3247,7 @@
   // real "Skúffu samsetning" Útfærsla can be built, so every drawer cabinet maps to a real V2.
   var CODE_LABEL = { N:"Mjög lág", M:"Lág", K:"Miðlungs", E:"Há", C:"Há", F:"Mjög há" };
   function drawerSys(){ return state.drawerSystem === "merivo" ? "merivo" : "legra"; }
-  function drawerBodyMm(b, c){ return blockHeightMm(b, c) - 100; } // same 100 mm plinth the 3D uses
+  function drawerBodyMm(b, c){ return KP3D.drawerZoneMm(c, blockHeightMm(b, c) - 100); } // same 100 mm plinth the 3D uses; a tall unit's drawers stop at 1200 mm
   function sortStack(codes){ // tallest at the bottom — how Björninn builds them
     var o = "NMKECF";
     return codes.slice().sort(function(a, b){ return o.indexOf(b) - o.indexOf(a); });
@@ -3256,7 +3262,44 @@
   // ---- appliance / pantry variants (2026-09-30): picked from the real Útfærslur list, never free ----
   function ovenKeyOf(b){ return b.ovenCombo == null ? KP3D.OVEN_DEFAULT[drawerSys()] : b.ovenCombo; }
   var BUR_DEFAULT = { legra:"MKCC", merivo:"MKEE" };
-  function burKeyOf(b){ return b.burCombo || BUR_DEFAULT[drawerSys()]; }
+  // the combo key of a búrskápur's inner drawers ("MKCC": N M K E C F order, how Útfærslur name them); "" = none
+  function burKeyOf(b){
+    if (Array.isArray(b.burCodes)) return b.burCodes.slice().sort(function(a, z){ return "NMKECF".indexOf(a) - "NMKECF".indexOf(z); }).join("");
+    return b.burCombo === "" ? "" : (b.burCombo || BUR_DEFAULT[drawerSys()]);
+  }
+  // Búrskápur set-up (user, 2026-10-11): starts empty; the customer adds inner drawers and shelves, or takes one of
+  // the popular sets in one click (the BUR Útfærslur — only those get a V2; anything else goes in the note)
+  function burSetupHTML(b){
+    var LM = window.KP_LINEMAP, sys = drawerSys(), combos = Object.keys((LM && LM.bur && LM.bur[sys]) || {}), cur = burKeyOf(b);
+    var codes = KP3D.burCodesOf(b, sys), shelves = b.burShelves != null ? b.burShelves : 2, names = { N:"Mjög lág", M:"Lág", K:"Miðlungs", E:"Djúp", C:"Djúp", F:"Mjög djúp" };
+    return '<div class="edit-field"><label>Vinsælar lausnir — einn smellur</label><div class="bur-presets">' + combos.map(function(k){
+        return '<button type="button" class="hw-btn' + (k === cur && shelves === 2 ? ' active' : '') + '" data-bur-preset="' + k + '">' + comboLabel(k) + ' + 2 hillur</button>';
+      }).join("") + '</div></div>' +
+      '<div class="edit-field"><label>Innskúffur (neðan frá)</label>' +
+      (codes.length ? '<div class="bur-list">' + codes.map(function(cd, i){ return '<span class="bur-chip"><b>' + cd + '</b> ' + names[cd] + '<button type="button" data-bur-del="' + i + '" title="Fjarlægja">✕</button></span>'; }).join("") + '</div>' : '<p class="ov-mat" style="margin:0 0 6px;">Engar innskúffur enn.</p>') +
+      '<div class="hw-toggle" style="flex-wrap:wrap;">' + KP3D.DRAWER_CODES[sys].codes.map(function(cd){ return '<button type="button" class="hw-btn" data-bur-add="' + cd + '">＋ ' + cd + ' · ' + names[cd] + '</button>'; }).join("") + '</div></div>' +
+      '<div class="edit-field"><label>Hillur fyrir ofan</label><div class="hw-count"><button class="iconbtn" data-bur-sh="-1"' + (shelves <= 0 ? ' disabled' : '') + '>−</button><b>' + shelves + '</b><button class="iconbtn" data-bur-sh="1"' + (shelves >= 8 ? ' disabled' : '') + '>+</button><span>' + plural(shelves, "hilla", "hillur") + '</span></div>' +
+      (cur && !combos.includes(cur) || (!cur && !shelves) ? '<p class="sec-note">' + (cur ? 'Sérsamsetning — söluaðili staðfestir verð.' : 'Tómur skápur — bættu við innskúffum og hillum eða veldu lausn hér að ofan.') + '</p>' : '') + '</div>';
+  }
+  function wireBurSetup(host, b, after){
+    function changed(){ delete b.burPos; delete b.shelfPos; after(); } // custom positions (Smíða) no longer match
+    host.querySelectorAll("[data-bur-preset]").forEach(function(el){ el.addEventListener("click", function(){ if (b.locked){ lockedToast(); return; } b.burCombo = el.dataset.burPreset; delete b.burCodes; b.burShelves = 2; changed(); }); });
+    host.querySelectorAll("[data-bur-add]").forEach(function(el){ el.addEventListener("click", function(){
+      if (b.locked){ lockedToast(); return; }
+      var codes = KP3D.burCodesOf(b, drawerSys()).concat([el.dataset.burAdd]);
+      var probe = Object.assign({}, b, { burCodes:codes }), c = CATALOG[b.type];
+      if (codes.length > 7 || KP3D.burTopMm(probe, drawerSys()) > blockHeightMm(b, c) - 100 - 150){ toast("Það komast ekki fleiri innskúffur fyrir í skápnum."); return; }
+      b.burCodes = codes; delete b.burCombo; changed();
+    }); });
+    host.querySelectorAll("[data-bur-del]").forEach(function(el){ el.addEventListener("click", function(){
+      if (b.locked){ lockedToast(); return; }
+      var codes = KP3D.burCodesOf(b, drawerSys()); codes.splice(+el.dataset.burDel, 1); b.burCodes = codes; delete b.burCombo; changed();
+    }); });
+    host.querySelectorAll("[data-bur-sh]").forEach(function(el){ el.addEventListener("click", function(){
+      if (b.locked){ lockedToast(); return; }
+      b.burShelves = Math.max(0, Math.min(8, (b.burShelves != null ? b.burShelves : 2) + (+el.dataset.burSh))); changed();
+    }); });
+  }
   // "MKC" → "3 skúffur: C · K · M" (tallest first = bottom first), "+IM" → "+ lág innskúffa"
   function comboLabel(key){
     var parts = String(key).split("+"), o = "NMKECF";
@@ -3287,8 +3330,7 @@
         '<button type="button" class="hw-btn' + (!b.frontAll ? ' active' : '') + '" data-front-all="0">Skrokkefni</button>' +
         '<button type="button" class="hw-btn' + (b.frontAll ? ' active' : '') + '" data-front-all="1">Allt úr framhliðaefni</button></div></div>';
     } else if (c.bur){
-      label = "Innvols"; cur = burKeyOf(b);
-      opts = Object.keys(LM.bur[drawerSys()] || {}).map(function(k){ return [k, comboLabel(k) + " + hillur"]; });
+      return burSetupHTML(b);
     } else if (c.thvo){
       label = "Útfærsla"; cur = b.thvo === "hurdir" ? "hurdir" : "skuffa";
       opts = [["skuffa", "Skúffa undir vélinni + skápur ofan við"], ["hurdir", "Hurðir alla leið, 4 loftunarhillur"]];
@@ -4094,6 +4136,7 @@
       b.shelves = Math.max(c.shelfRange[0], Math.min(c.shelfRange[1], KP3D.shelvesOf(b) + d));
       renderUnitWizard();
     }); });
+    if (c.bur) wireBurSetup(side, b, renderUnitWizard);
     var vs = side.querySelector('[data-role="variant"]');
     if (vs) vs.addEventListener("change", function(){
       if (c.oven){ b.ovenCombo = vs.value; delete b.ovenFrontsMm; } else if (c.bur) b.burCombo = vs.value; else if (c.thvo) b.thvo = vs.value;
@@ -5246,6 +5289,7 @@
         save(); refreshAfterEdit();
       });
     });
+    if (c.bur) wireBurSetup(host, b, function(){ save(); refreshAfterEdit(); });
     var variantSel = host.querySelector('[data-role="variant"]');
     if (variantSel) variantSel.addEventListener("change", function(){
       if (b.locked){ lockedToast(); renderEditPanel(); return; }
@@ -5837,11 +5881,16 @@
               '<button type="button" class="hw-btn' + (b.swing !== "vinstri" ? ' active' : '') + '" data-swing="haegri">Hægri helmingi</button></div>' +
               '<p class="ov-mat" style="margin:6px 0 0;">Töfrahorn hefur eina hurð; hinn helmingur framhliðarinnar er föst blindplata.</p></div>'
           : '') +
-        ((c.shelfRange || c.fridge) && !c.open && !(b.interior && b.interior.mode === "skuffur")
-          ? '<div class="edit-field"><label>Lamir hurðar (séð framan frá)</label><select data-role="swing">' +
-              '<option value="">Ekki valið</option><option value="vinstri"' + (b.swing === "vinstri" ? " selected" : "") + '>Vinstra megin</option>' +
-              '<option value="haegri"' + (b.swing === "haegri" ? " selected" : "") + '>Hægra megin</option></select></div>'
-          : '') +
+        // every cabinet with ONE hinged door chooses its hinge side here (user, 2026-10-11 — it used to be only shelf
+        // and fridge units, behind a select); two doors are hinged on the outer sides
+        (function(){
+          var leaves = KP3D.doorLeaves(b, c);
+          if (leaves.length === 1) return '<div class="edit-field"><label>Lamir (séð framan frá)</label><div class="hw-toggle">' +
+            '<button type="button" class="hw-btn' + (b.swing !== "haegri" ? ' active' : '') + '" data-swing="vinstri">◧ Vinstra megin</button>' +
+            '<button type="button" class="hw-btn' + (b.swing === "haegri" ? ' active' : '') + '" data-swing="haegri">Hægra megin ◨</button></div></div>';
+          if (leaves.length === 2) return '<div class="edit-field"><label>Lamir</label><p class="ov-mat" style="margin:0;">Tvær hurðir — lamirnar eru á ytri hliðunum.</p></div>';
+          return '';
+        })() +
         (c.fridge ? '<p class="ov-mat" style="margin:0 0 10px;">Söluaðili staðfestir stærð tækis og hurðargerð.</p>' : '') +
         '<div class="edit-actions">' +
           (otherWalls.length ? '<select data-role="moveWall"><option value="">Flytja á vegg…</option>' + moveOptions + '</select>' : '') +
@@ -6739,12 +6788,18 @@
         }
         if (isDrawerUnit(b)){ // the stack as drawn, top → bottom, with front heights — also when it matched a combo
           var dCodes = KP3D.drawerCodes(b.interior, drawerSys()), dFr = KP3D.stackFrontsMm(b.interior, dCodes, drawerBodyMm(b, c)) || [];
+          var tallDoor = c.cls === "tall" ? blockHeightMm(b, c) - 100 - drawerBodyMm(b, c) : 0;
+          if (tallDoor > 0) notes.push("Hárskápur með skúffum: hurð á lömum efst (" + tallDoor + " mm), skúffur undir henni (" + drawerBodyMm(b, c) + " mm).");
           notes.push("Skúffur (" + DRAWER_SYSTEMS[drawerSys()].label + ", ofan frá): " + dCodes.map(function(cd, i){ return cd + (dFr[i] ? " " + Math.round(dFr[i]) + " mm" : ""); }).reverse().join(" / ") +
             (b.interior.inner ? " + innskúffa (" + b.interior.inner + ")" : "") + (v2 ? "" : " — ekki til sem stöðluð samsetning, vinsamlegast staðfestu."));
         } else if (b.interior && b.interior.mode === "hillur" && !v2 && !(c.sink && !KP3D.shelvesOf(b))){ // a sink with doors has no shelf to mention
           notes.push("Hillufjöldi: " + (KP3D.shelvesOf(b) || 0) + " stk."); // b.shelves, as drawn — see v2RecordFor
         } else if (c.shelfRange && !c.hasInterior && !v2){
           notes.push("Hillufjöldi: " + (KP3D.shelvesOf(b) || 0) + " stk.");
+        }
+        if (c.bur){ // what's inside, as set up (an empty one or a set that isn't a BUR Útfærsla has no V2)
+          var bc = KP3D.burCodesOf(b, drawerSys()), bs = b.burShelves != null ? b.burShelves : 2;
+          notes.push("Búrskápur: " + (bc.length ? bc.length + " innskúffur (neðan frá: " + bc.join(" · ") + ")" : "engar innskúffur") + ", " + bs + " " + plural(bs, "hilla", "hillur") + (v2 ? "" : " — ekki stöðluð samsetning, söluaðili staðfestir."));
         }
         if (c.note) notes.push(c.note);
         if (c.shelfStack){
