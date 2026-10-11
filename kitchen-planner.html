@@ -1526,13 +1526,14 @@
     var isTileFloor = (KP3D.FLOORS[state.floor || "parket_eik"] || {}).kind === "tile";
     var tsz = KP3D.TILE_SIZES[state.floorTile || "60x60"], tpw = tsz.w * 1000 * sc, tph = tsz.h * 1000 * sc, bond = tsz.w !== tsz.h;
     var hb = 90 * sc, hl = 540 * sc; // herringbone plank width/length on screen
+    var floorRotAttr = state.floorRot ? ' patternTransform="rotate(90 ' + view.ox + ' ' + view.oy + ')"' : "";
     var water = shapePhase === "water", opPhase = shapePhase === "openings", polyPts = pts.map(function(p){ return X(p) + "," + Y(p); }).join(" ");
     var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg" style="font-family:\'Kumbh Sans\',Arial,sans-serif;">' +
       (isTileFloor
-        ? '<defs><pattern id="plank" x="' + view.ox + '" y="' + view.oy + '" width="' + tpw + '" height="' + (bond ? 2 * tph : tph) + '" patternUnits="userSpaceOnUse"><path d="M0 0.5 H' + tpw + ' M0.5 0 V' + tph + (bond ? ' M0 ' + (tph + 0.5) + ' H' + tpw + ' M' + (tpw / 2 + 0.5) + ' ' + tph + ' V' + (2 * tph) : '') + '" stroke="rgba(0,0,0,.16)" stroke-width="1.4" fill="none"/></pattern></defs>'
+        ? '<defs><pattern id="plank" x="' + view.ox + '" y="' + view.oy + '" width="' + tpw + '" height="' + (bond ? 2 * tph : tph) + '" patternUnits="userSpaceOnUse"' + floorRotAttr + '><path d="M0 0.5 H' + tpw + ' M0.5 0 V' + tph + (bond ? ' M0 ' + (tph + 0.5) + ' H' + tpw + ' M' + (tpw / 2 + 0.5) + ' ' + tph + ' V' + (2 * tph) : '') + '" stroke="rgba(0,0,0,.16)" stroke-width="1.4" fill="none"/></pattern></defs>'
         : state.floorPattern === "fiskibein"
-        ? '<defs><pattern id="plank" width="' + (hb * 2) + '" height="' + (hb * 2) + '" patternUnits="userSpaceOnUse"><path d="M0 ' + hb + ' L' + hb + ' 0 L' + (2 * hb) + ' ' + hb + ' M0 ' + (2 * hb) + ' L' + hb + ' ' + hb + ' L' + (2 * hb) + ' ' + (2 * hb) + '" stroke="rgba(0,0,0,.12)" stroke-width="1" fill="none"/></pattern></defs>'
-        : '<defs><pattern id="plank" width="60" height="18" patternUnits="userSpaceOnUse"><path d="M0 17.5 H60 M30 0 V17.5" stroke="rgba(0,0,0,.10)" stroke-width="1" fill="none"/></pattern></defs>') +
+        ? '<defs><pattern id="plank" width="' + (hb * 2) + '" height="' + (hb * 2) + '" patternUnits="userSpaceOnUse"' + floorRotAttr + '><path d="M0 ' + hb + ' L' + hb + ' 0 L' + (2 * hb) + ' ' + hb + ' M0 ' + (2 * hb) + ' L' + hb + ' ' + hb + ' L' + (2 * hb) + ' ' + (2 * hb) + '" stroke="rgba(0,0,0,.12)" stroke-width="1" fill="none"/></pattern></defs>'
+        : '<defs><pattern id="plank" width="60" height="18" patternUnits="userSpaceOnUse"' + floorRotAttr + '><path d="M0 17.5 H60 M30 0 V17.5" stroke="rgba(0,0,0,.10)" stroke-width="1" fill="none"/></pattern></defs>') +
       '<polygon points="' + polyPts + '" fill="' + KP3D.floorPlanColor(state.floor) + '"/><polygon points="' + polyPts + '" fill="url(#plank)"/>';
     var items = "", handles = "";
     // Wall bands sit 8 px outside the floor outline (16 px wide). Each band runs between the OFFSET corners
@@ -1682,10 +1683,11 @@
     var cur = group === "flisar" ? (state.floorTile || "60x60") : (state.floorPattern || "beint");
     return '<div class="fl-var"><span>' + (group === "flisar" ? "Stærð flísa" : "Mynstur") + '</span>' + Object.keys(opts).map(function(k){
       return '<button type="button" class="tab-btn' + (k === cur ? " active" : "") + '" ' + attr + '="' + group + ':' + k + '">' + opts[k].label + '</button>';
-    }).join("") + '</div>';
+    }).join("") + '<button type="button" class="tab-btn' + (state.floorRot ? " active" : "") + '" ' + attr + '="rot:90" title="Snúa gólfefninu um 90°">↻ 90°</button></div>';
   }
   function setFloorVariant(val){
     var pr = val.split(":");
+    if (pr[0] === "rot"){ state.floorRot = state.floorRot ? 0 : 90; return; }
     if (pr[0] === "flisar") state.floorTile = pr[1]; else state.floorPattern = pr[1];
   }
   function renderFloorPicker(){
@@ -5920,7 +5922,7 @@
       lines.push("⚠️ Viðskiptavinur valdi 'Hvítt matt' á höldur — enginn samsvarandi litur er til í Airtable, vinsamlegast staðfestu.");
     }
     var fl = KP3D.FLOORS[state.floor || "parket_eik"];
-    if (fl) lines.push("Valið gólfefni: " + fl.label + " (" + (fl.group === "flisar" ? "flísar " + KP3D.TILE_SIZES[state.floorTile || "60x60"].label : "parket" + (state.floorPattern === "fiskibein" ? ", fiskibeinamynstur" : "")) + ")");
+    if (fl) lines.push("Valið gólfefni: " + fl.label + " (" + (fl.group === "flisar" ? "flísar " + KP3D.TILE_SIZES[state.floorTile || "60x60"].label : "parket" + (state.floorPattern === "fiskibein" ? ", fiskibeinamynstur" : "")) + (state.floorRot ? ", snúið 90°" : "") + ")");
     // Windows/doors are room-level, not cabinets — no Eyðublað row of their
     // own, so this note (plus the JSON blob the review page renders from)
     // is the only place Rakel sees them were drawn in at all.

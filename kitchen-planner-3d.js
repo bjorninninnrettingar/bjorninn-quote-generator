@@ -3207,6 +3207,8 @@
         roughnessMap:canvasTex(THREE, roughFromBump(ft.bump, isTile ? 0.28 : 0.42, isTile ? 0.04 : 0.12), false), roughness:1, envMapIntensity:0.55 });
       floorMat.userData.envKeep = true;
       floorMat.userData.tile = ft.tileW;
+      // state.floorRot = 90: planks/tiles turned a quarter (textures are cached and shared, so always set it)
+      [floorMat.map, floorMat.bumpMap, floorMat.roughnessMap].forEach(function(t){ t.rotation = state.floorRot ? Math.PI / 2 : 0; });
     } else {
       floorMat = new THREE.MeshStandardMaterial({ color:0xd8d3c6, roughness:1 });
     }
