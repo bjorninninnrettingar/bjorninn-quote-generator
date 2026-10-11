@@ -1798,7 +1798,7 @@
     edges.quaternion.copy(mesh.quaternion);
     group.add(edges);
     if (meta) meta.edgesObj = edges;
-    if (meta && meta.zone !== "opening"){ // back-face fade (see fadeCabinets in buildScene)
+    if (meta && meta.zone !== "opening" && !meta.islandId){ // back-face fade (see fadeCabinets in buildScene) — never an island's boxes: they stand in the room and are seen from every side (user, 2026-10-11)
       group.userData.cab = { blockId:meta.blockId, nx:geom.normal.x, nz:geom.normal.z, d:geom.normal.x * geom.origin.x + geom.normal.z * geom.origin.z, t:0, items:null,
         edgesMat:edges.material, edgesBaseOpacity:edges.material.opacity,
         hide:!!(meta.panel && !meta.shelfBoard) }; // an end panel disappears completely seen from behind (2026-10-05)
@@ -2565,6 +2565,11 @@
           }
           drag.group.position.set(drag.base.x + drag.dx, drag.base.y, drag.base.z + drag.dz);
           return;
+        }
+        if (opts.onIslandDragMove){ // stops at walls and cabinets, slides along them
+          var okI = opts.onIslandDragMove(drag.meta.islandId, Math.round(drag.dx * 1000), Math.round(drag.dz * 1000), drag.lastDx || 0, drag.lastDz || 0);
+          if (okI){ drag.dx = okI.x / 1000; drag.dz = okI.z / 1000; }
+          drag.lastDx = Math.round(drag.dx * 1000); drag.lastDz = Math.round(drag.dz * 1000);
         }
         drag.groups.forEach(function(g){ g.matrixAutoUpdate = false; g.matrix.makeTranslation(drag.dx, 0, drag.dz); g.matrixWorldNeedsUpdate = true; });
         return;
@@ -4279,6 +4284,36 @@
     }
     return true;
   }
+  // An island may not stand through a wall, a wall's cabinets or a low obstacle (user, 2026-10-11). Its footprint:
+  // along its axis the length, across it row A's depth (+20 mm worktop) in front of the centre line and row B's
+  // depth (or the 19 mm back panel) behind it. (xMm, zMm) = a candidate centre.
+  function islandFits(state, isl, xMm, zMm){
+    var f = islandFrame(isl), L = isl.lengthMm / 1000;
+    var depth = function(row){ return (row || []).reduce(function(m, b){ return Math.max(m, (b.depthMm || CATALOG[b.type].d) / 1000); }, 0); };
+    var dA = depth(isl.a) + 0.02, dB = isl.two ? depth(isl.b) + 0.02 : (isl.back ? 0.019 : 0);
+    var x0 = (xMm == null ? isl.xMm : xMm) / 1000, z0 = (zMm == null ? isl.zMm : zMm) / 1000, pts = [];
+    for (var i = 0; i <= 10; i++) for (var j = 0; j <= 4; j++){
+      var a = (i / 10 - 0.5) * L, n = -dB + (dA + dB) * j / 4;
+      pts.push({ x:x0 + f.axis.x * a + f.normal.x * n, z:z0 + f.axis.z * a + f.normal.z * n });
+    }
+    var walls = wallGeoms(state), poly = walls.map(function(g){ return g.origin; });
+    if (walls.closed && poly.length >= 3 && !pts.every(function(p){ return inPoly(p.x, p.z, poly); })) return false;
+    var own = {}; (isl.a || []).concat(isl.b || []).forEach(function(b){ own[b.id] = 1; });
+    var others = floorRects(state).filter(function(r){ return !own[r.b.id]; }).map(function(r){ return r.q; })
+      .concat((state.obstacles || []).filter(function(o){ return OBSTACLES[o.kind] && OBSTACLES[o.kind].blocks && obstacleVSpan(state, o).lo < 900; }).map(function(o){ return obstacleQuad(state, o); }).filter(Boolean));
+    return !others.some(function(q){ var rq = q.slice().reverse(); return pts.some(function(p){ return inPoly(p.x, p.z, q) || inPoly(p.x, p.z, rq); }); });
+  }
+  function nearestIslandFit(state, isl, xMm, zMm){
+    if (islandFits(state, isl, xMm, zMm)) return { x:xMm, z:zMm };
+    for (var r = 50; r <= 4000; r += 50){
+      var n = Math.max(8, Math.round(r / 40));
+      for (var k = 0; k < n; k++){
+        var a = k / n * Math.PI * 2, px = Math.round((xMm + Math.cos(a) * r) / 10) * 10, pz = Math.round((zMm + Math.sin(a) * r) / 10) * 10;
+        if (islandFits(state, isl, px, pz)) return { x:px, z:pz };
+      }
+    }
+    return null;
+  }
   // the nearest spot (mm) where it fits, searching outwards from (xMm, zMm); null = nowhere within 3 m
   function nearestDecorFit(state, d, xMm, zMm, rot){
     if (decorFits(state, d, xMm, zMm, rot)) return { x:xMm, z:zMm };
@@ -4890,7 +4925,7 @@
     cornerClearanceMm: cornerClearanceMm, afellaMm: afellaMm, AFELLA_MM: AFELLA_MM,
     blockStartsMm: blockStartsMm,
     planTransform: planTransform,
-    rectCornersWorld: rectCornersWorld, topThickM: topThickM, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, DECOR: DECOR, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
+    rectCornersWorld: rectCornersWorld, islandFits: islandFits, nearestIslandFit: nearestIslandFit, topThickM: topThickM, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, DECOR: DECOR, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
     WALL_COLORS: WALL_COLORS,
     WINDOW_DEFAULT: WINDOW_DEFAULT,
     _handleProfile: handleProfile,

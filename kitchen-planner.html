@@ -4532,6 +4532,8 @@
     (state.islands || []).forEach(function(isl){
       var x = Math.round(Math.max(b.minX * 1000 + 300, Math.min(b.maxX * 1000 - 300, isl.xMm)) / 10) * 10;
       var z = Math.round(Math.max(b.minZ * 1000 + 300, Math.min(b.maxZ * 1000 - 300, isl.zMm)) / 10) * 10;
+      var fit = KP3D.nearestIslandFit(state, isl, x, z); // never through a wall or the wall cabinets (2026-10-11)
+      if (fit){ x = fit.x; z = fit.z; }
       if (x !== isl.xMm || z !== isl.zMm){ isl.xMm = x; isl.zMm = z; changed = true; }
     });
     return changed;
@@ -4606,6 +4608,15 @@
     refreshAfterEdit();
   }
   // 3D: the yellow puck was dragged — dx/dz in mm
+  // while dragging in 3D: the move from the start that's allowed (slides along a wall instead of going through it)
+  function onIslandDragMove(id, dxMm, dzMm, lastDx, lastDz){
+    var isl = findIsland(id); if (!isl) return null;
+    var ok = function(dx, dz){ return KP3D.islandFits(state, isl, isl.xMm + dx, isl.zMm + dz); };
+    if (ok(dxMm, dzMm)) return { x:dxMm, z:dzMm };
+    if (ok(dxMm, lastDz)) return { x:dxMm, z:lastDz };
+    if (ok(lastDx, dzMm)) return { x:lastDx, z:dzMm };
+    return { x:lastDx, z:lastDz };
+  }
   function onIslandDragEnd(id, dxMm, dzMm){
     var isl = findIsland(id);
     if (!isl) return;
@@ -5455,7 +5466,7 @@
         return;
       }
       wrap.innerHTML = "";
-      KP3D.buildScene(wrap, state, { darkBg:!!PRO, selectedId:selectedBlockId, selectedWallId:selectedWallId, onWallSelect:onWallSelect, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, onIslandDragEnd:onIslandDragEnd, onDecorDragEnd:onDecorDragEnd, onDecorDragMove:onDecorDragMove, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList(), readyIds:PRO ? proReadyIds() : null,
+      KP3D.buildScene(wrap, state, { darkBg:!!PRO, selectedId:selectedBlockId, selectedWallId:selectedWallId, onWallSelect:onWallSelect, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, onIslandDragEnd:onIslandDragEnd, onIslandDragMove:onIslandDragMove, onDecorDragEnd:onDecorDragEnd, onDecorDragMove:onDecorDragMove, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList(), readyIds:PRO ? proReadyIds() : null,
         xray:inspect.on }); // inspect mode: every cabinet built in parts (drawers/doors tap open, nothing drags)
       landedBlockId = null;
       applyInspect();
