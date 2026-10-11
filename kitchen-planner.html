@@ -520,6 +520,7 @@
   .look-head{ display:flex; flex-direction:column; margin:18px 0 10px; }
   .look-head b{ font-size:15px; }
   .look-head small{ font-size:12.5px; color:var(--ink-soft); }
+  .sub-hint{ color:var(--ink-soft); opacity:.8; }
   .sel-name{ font-weight:400; color:var(--ink-soft); }
   .fl-var .fl-rot{ font-weight:600; }
   .look-sec > summary small{ font-size:12.5px; color:var(--ink-soft); font-weight:400; }
@@ -2096,9 +2097,10 @@
         b.addEventListener("click", function(){ pendingShape = b.dataset.shape; renderShapeStep(); });
       });
     } else {
-      var tb = document.getElementById("shapeToolbar"); // only the 3D view needs a hint (2026-10-11)
-      tb.innerHTML = shapePhase === "height" ? 'Dragðu til að snúa · Skrollaðu til að þysja<span class="shape-tip" title="Fólkið sýnir stærðarhlutföll (180 og 168 cm)." aria-label="Fólkið sýnir stærðarhlutföll (180 og 168 cm).">ⓘ</span>' : "";
-      tb.hidden = shapePhase !== "height";
+      // the 3D hint goes on the subtitle's line, so the frame starts as high as on the other room pages (2026-10-11)
+      var tb = document.getElementById("shapeToolbar"); tb.innerHTML = ""; tb.hidden = true;
+      if (shapePhase === "height") document.getElementById("shapeSub").innerHTML = titles.height[1] + '<span class="sub-hint"> · Dragðu til að snúa · Skrollaðu til að þysja</span>' +
+        '<span class="shape-tip" title="Fólkið sýnir stærðarhlutföll (180 og 168 cm)." aria-label="Fólkið sýnir stærðarhlutföll (180 og 168 cm).">ⓘ</span>';
       if (shapePhase === "openings") renderOpeningsBox();
       if (shapePhase === "size") renderWallList();
       if (shapePhase === "water") renderWaterList();
