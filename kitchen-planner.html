@@ -87,7 +87,11 @@
   .help-menu button{ background:none; border:0; text-align:left; font:inherit; font-size:14px; padding:9px 12px; border-radius:8px; cursor:pointer; color:var(--ink); }
   .help-menu button:hover{ background:var(--panel); }
   .help-menu button[hidden]{ display:none; }
-  .wel-actions{ display:flex; align-items:center; gap:18px; flex-wrap:wrap; }
+  /* welcome page (2026-10-11): one centred column — the header and the steps start on the same line, the button
+     sits on the right like "Áfram →" on the pages after it */
+  .wrap.welm{ max-width:640px; padding-top:clamp(28px, 9vh, 96px); }
+  .wrap.welm .wel{ max-width:none; margin:22px 0 0; }
+  .wel-actions{ display:flex; align-items:center; justify-content:flex-end; gap:18px; flex-wrap:wrap; margin-top:8px; }
   .reset-link{ background:none; border:none; color:var(--ink-soft); font-size:13px; text-decoration:underline; cursor:pointer; padding:4px 0; white-space:nowrap; }
   .reset-link:hover{ color:var(--danger); }
 
@@ -895,8 +899,8 @@
         <li><span class="n">3</span><div><h3>Raðaðu skápunum</h3><p>Veldu skápa og raðaðu þeim í eldhúsið.</p></div></li>
       </ol>
       <div class="wel-actions">
-        <button class="btn btn-primary" id="welStart" type="button">Byrja að hanna →</button>
         <button class="reset-link" id="welReset" type="button" hidden>Byrja upp á nýtt</button>
+        <button class="btn btn-primary" id="welStart" type="button">Byrja að hanna →</button>
       </div>
     </div>
   </section>
@@ -6596,6 +6600,7 @@
     document.getElementById("mainWrap").classList.toggle("wide", state.step === "editor");
     document.getElementById("mainWrap").classList.toggle("mat", state.step === "materials");
     document.getElementById("mainWrap").classList.toggle("shp", state.step === "shape");
+    document.getElementById("mainWrap").classList.toggle("welm", state.step === "welcome");
     if (state.step !== "materials") KP3D.teardownCabinetPreview();
     document.getElementById("pageLede").hidden = true; // the intro is on the welcome page only (2026-10-11)
     var rb = document.getElementById("resetBtn"); if (rb) rb.hidden = state.step === "welcome" && !hasDesign(); // nothing to start over yet
