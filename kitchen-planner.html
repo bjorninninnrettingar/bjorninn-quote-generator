@@ -1018,6 +1018,8 @@
         <div class="wiz-panel" data-mp="4">
           <div class="tabs-row" id="topTabs"></div>
           <p class="tab-blurb" id="topBlurb"></p>
+          <div class="tone-row" id="topTones"></div>
+          <p class="look-picked" id="topPicked"></p>
           <div class="sw-grid" id="topCards"></div>
         </div>
       </div>
@@ -5293,6 +5295,18 @@
     var y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
     return y < 100 ? "dokkt" : y < 150 ? "midlungs" : "ljost";
   }
+  // tone chips Allt / Ljóst / Miðlungs / Dökkt over a long list (> 10); returns the keys left to show
+  function toneFilter(boxId, gridId, keys, src, sel, onPick){
+    var box = document.getElementById(boxId);
+    if (keys.length <= 10){ box.hidden = true; return keys; }
+    box.hidden = false;
+    box.innerHTML = [["", "Allt"], ["ljost", "Ljóst"], ["midlungs", "Miðlungs"], ["dokkt", "Dökkt"]].map(function(t){
+      var n = t[0] ? keys.filter(function(k){ return lookTone(src[k]) === t[0]; }).length : keys.length;
+      return '<button type="button" class="tab-btn' + (sel === t[0] ? ' active' : '') + '" data-tone="' + t[0] + '">' + t[1] + '<span class="n">' + n + '</span></button>';
+    }).join("");
+    box.querySelectorAll("[data-tone]").forEach(function(b){ b.addEventListener("click", function(){ onPick(b.dataset.tone); document.getElementById(gridId).scrollTop = 0; }); });
+    return sel ? keys.filter(function(k){ return lookTone(src[k]) === sel; }) : keys;
+  }
   function renderLookCards(){
     var cat = LOOK_CATEGORIES.find(function(c){ return c.key === matTab.front; }) || LOOK_CATEGORIES[0];
     var tabs = document.getElementById("frontTabs");
@@ -5315,16 +5329,7 @@
     var container = document.getElementById("lookCards");
     var keys = frontsOf(cat.key);
     // tone chips (2026-10-11) on a long list: Ljóst / Miðlungs / Dökkt by the decor's average colour
-    var toneBox = document.getElementById("lookTones");
-    if (keys.length > 10){
-      toneBox.hidden = false;
-      toneBox.innerHTML = [["", "Allt"], ["ljost", "Ljóst"], ["midlungs", "Miðlungs"], ["dokkt", "Dökkt"]].map(function(t){
-        var n = t[0] ? keys.filter(function(k){ return lookTone(LOOKS[k]) === t[0]; }).length : keys.length;
-        return '<button type="button" class="tab-btn' + (lookToneSel === t[0] ? ' active' : '') + '" data-tone="' + t[0] + '">' + t[1] + '<span class="n">' + n + '</span></button>';
-      }).join("");
-      toneBox.querySelectorAll("[data-tone]").forEach(function(b){ b.addEventListener("click", function(){ lookToneSel = b.dataset.tone; renderLookCards(); document.getElementById("lookCards").scrollTop = 0; }); });
-      if (lookToneSel) keys = keys.filter(function(k){ return lookTone(LOOKS[k]) === lookToneSel; });
-    } else toneBox.hidden = true;
+    keys = toneFilter("lookTones", "lookCards", keys, LOOKS, lookToneSel, function(t){ lookToneSel = t; renderLookCards(); });
     var picked = state.look && LOOKS[state.look];
     document.getElementById("lookPicked").innerHTML = picked ? 'Valið: <b>' + picked.label + '</b>' + (picked.code ? ' · ' + picked.code : '') : 'Ekkert valið enn';
     if (!keys.length && lookQuery){ container.innerHTML = '<p class="tab-blurb" style="grid-column:1/-1;">Ekkert fannst — prófaðu annað orð.</p>'; return; }
@@ -5346,15 +5351,20 @@
     c.getContext("2d").drawImage(t.color, 0, 0, 340, 255, 0, 0, 240, 180);
     return (marbleSwatches[k] = c.toDataURL("image/jpeg", 0.85));
   }
+  var topToneSel = "";
   function renderTopCards(){
     var grp = TOP_GROUPS.find(function(g){ return g.key === matTab.top; }) || TOP_GROUPS[0];
     var tabs = document.getElementById("topTabs");
     tabs.innerHTML = tabsHTML(TOP_GROUPS, function(k){ return topsOf(k).length; }, grp.key, "data-ttab");
-    tabs.querySelectorAll("[data-ttab]").forEach(function(b){ b.addEventListener("click", function(){ matTab.top = b.dataset.ttab; renderTopCards(); }); });
-    document.getElementById("topBlurb").textContent = grp.blurb;
-    var active = state.top || "steinn";
+    tabs.querySelectorAll("[data-ttab]").forEach(function(b){ b.addEventListener("click", function(){ matTab.top = b.dataset.ttab; topToneSel = ""; renderTopCards(); document.getElementById("topCards").scrollTop = 0; }); });
+    // the thickness per kind (KP3D.topThickM) at the end of the blurb, 2026-10-11
+    var firstKey = Object.keys(TOPS).find(function(k){ return TOPS[k].group === grp.key; });
+    document.getElementById("topBlurb").textContent = grp.blurb + " Þykkt: " + Math.round(KP3D.topThickM(firstKey) * 1000) + " mm.";
+    var active = state.top || "steinn", pickedTop = TOPS[active];
+    document.getElementById("topPicked").innerHTML = pickedTop ? 'Valið: <b>' + pickedTop.label + '</b>' + (pickedTop.code ? ' · ' + pickedTop.code : '') + (state.top ? '' : ' · sjálfgefið, veldu aðra ef þú vilt') : '';
+    var keys = toneFilter("topTones", "topCards", topsOf(grp.key), TOPS, topToneSel, function(t){ topToneSel = t; renderTopCards(); });
     var container = document.getElementById("topCards");
-    container.innerHTML = topsOf(grp.key).map(function(key){
+    container.innerHTML = keys.map(function(key){
       var t = TOPS[key];
       return '<button type="button" class="sw-tile' + (active === key ? ' active' : '') + '" data-top="' + key + '" title="' + t.label + '">' +
         (t.img ? '<img src="' + t.img + '" alt="' + t.label + '" loading="lazy">' : t.marble && window.KPMat && KPMat.marbleTexture ? '<img src="' + marbleSwatch(t.marble) + '" alt="' + t.label + '">' : '<div class="sw-fill" style="background:linear-gradient(135deg,#f0ece4,#d9d3c6);"></div>') +
@@ -5527,7 +5537,7 @@
   function renderMatActions(){
     var box = document.getElementById("matActions"), last = matPhase === MAT_PHASES.length - 1;
     box.innerHTML = '<button class="btn btn-secondary" id="mtBack" type="button">← Til baka</button>' +
-      '<button class="btn btn-primary" id="mtNext" type="button"' + (matPhaseDone(matPhase) ? "" : " disabled") + '>Áfram →</button>';
+      '<button class="btn btn-primary" id="mtNext" type="button"' + (matPhaseDone(matPhase) ? "" : " disabled") + '>' + (last ? "Áfram í skipulag →" : "Áfram →") + '</button>';
     updateStepper();
     document.getElementById("mtBack").addEventListener("click", function(){
       if (matPhase === 0){ shapePhase = "water"; goto("shape"); } else { matPhase--; renderMaterials(); }
