@@ -694,6 +694,26 @@
     .wrap.wide .tip-bar:not([hidden]){ margin:0; border-radius:0; border-width:1px 0 0; }
   }
   @media (max-width:1180px){ .wrap.wide .editor{ grid-template-columns:minmax(0,1fr) 290px; } }
+  /* ---- no page scroll (user, 2026-10-11): on a computer the page is exactly the screen; every step fills what is
+     left under the header, and only its own long parts scroll inside their frame (side panels, the material list,
+     the question / contact forms) ---- */
+  @media (min-width:981px) and (min-height:560px){
+    html, body{ height:100%; overflow:hidden; }
+    .wrap:not(.wide){ height:100vh; display:flex; flex-direction:column; padding-bottom:18px; box-sizing:border-box; }
+    .wrap:not(.wide) > section:not([hidden]){ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
+    #screen-welcome:not([hidden]), #screen-intake:not([hidden]), #screen-contact:not([hidden]), #screen-done:not([hidden]){ overflow-y:auto; overflow-x:hidden; }
+    #shapePick:not([hidden]){ flex:1; min-height:0; overflow-y:auto; }
+    #shapeDraw:not([hidden]){ flex:1; min-height:0; }
+    #shapeDraw .shape-wiz{ height:100%; align-items:stretch; }
+    .shape-stage{ position:static; display:flex; flex-direction:column; min-height:0; }
+    .shape-wiz .shape-canvas{ min-height:300px; }
+    .shape-side{ min-height:0; overflow-y:auto; padding-right:6px; }
+    #screen-materials .mat-wiz{ flex:1; min-height:0; align-items:stretch; }
+    #screen-materials .mat-stage{ position:static; display:flex; flex-direction:column; min-height:0; }
+    #screen-materials .cab-preview-wrap{ flex:1; min-height:0; }
+    #screen-materials .cab-preview{ height:100%; min-height:300px; }
+    #screen-materials .mat-side{ position:static; max-height:none; min-height:0; }
+  }
   /* ---- editor round 2026-10-11: full-screen designer. Header in one thin row (title, stepper, links), the left
      sidebar became dropdown menus in the toolbar, the right panel only shows while something is selected ---- */
   @media (min-width:981px){
@@ -1658,7 +1678,7 @@
   // the drawing is as tall as the screen allows below it, so the whole room shows without scrolling (2026-10-11)
   function fitShapeCanvas(host){
     var top = host.getBoundingClientRect().top + window.scrollY;
-    var h = Math.max(360, Math.min(900, window.innerHeight - top - 20));
+    var h = Math.max(300, Math.min(900, window.innerHeight - top - 20));
     if (Math.abs(host.offsetHeight - h) > 2) host.style.height = h + "px";
   }
   function renderShapeCanvas(){
