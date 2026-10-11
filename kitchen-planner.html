@@ -326,8 +326,10 @@
   .opw-q{ font-weight:600; margin:0 0 10px; }
   .opw-btns{ display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-bottom:8px; }
   .opw-obst{ margin:4px 0 10px; font-size:13.5px; }
-  .opw-head2{ display:flex; flex-direction:column; margin-bottom:12px; }
-  .wall-inset{ width:100%; max-width:240px; height:auto; display:block; margin:0 0 10px; background:#fff; border:1px solid var(--line); border-radius:12px; padding:8px; box-sizing:border-box; }
+  .opw-top{ display:flex; gap:12px; align-items:stretch; margin-bottom:10px; }
+  .opw-head2{ flex:none; display:flex; flex-direction:column; }
+  .opw-head2 .opw-q{ margin:auto 0 0; }
+  .wall-inset{ flex:1; min-width:0; width:100%; height:auto; display:block; margin:0; background:#fff; border:1px solid var(--line); border-radius:12px; padding:8px; box-sizing:border-box; }
   .opw-head2 b{ font-size:18px; }
   .opw-head2 small{ font-size:13px; color:var(--ink-soft); }
   .opw-btns3{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:8px; }
@@ -2426,8 +2428,7 @@
     var add = document.getElementById("opAdd");
     // 2026-10-11: "Veggur 2 af 4" + its length, three equal buttons, the obstacles behind "+ Fleiri valkostir",
     // and "Næsti veggur →" whether or not anything was added
-    add.innerHTML = cur ? wallPlanInset(cur) + '<div class="opw-head2"><b>Veggur ' + num + ' af ' + walls.length + '</b><small>' + cur.lengthMm + ' mm</small></div>' +
-      '<p class="opw-q">Bæta við</p>' +
+    add.innerHTML = cur ? '<div class="opw-top">' + wallPlanInset(cur) + '<div class="opw-head2"><b>Veggur ' + num + ' af ' + walls.length + '</b><small>' + cur.lengthMm + ' mm</small><p class="opw-q">Bæta við</p></div></div>' +
       '<div class="opw-btns3"><button type="button" class="opw-btn" data-add="gluggi"><span>🪟</span>Gluggi</button><button type="button" class="opw-btn" data-add="hurd"><span>🚪</span>Hurð</button>' +
         '<button type="button" class="opw-btn" data-add="gat" title="Op án hurðar."><span>⬚</span>Op<small>án hurðar</small></button></div>' +
       '<details class="opw-obst"' + (obsOnWall || openWallMore ? ' open' : '') + '><summary>+ Fleiri valkostir</summary><div class="opw-obst-btns">' + Object.keys(KP3D.OBSTACLES).map(function(k){
@@ -2687,23 +2688,45 @@
   // which wall this is: a small plan with numbered walls, click one to jump there (2026-10-11: in the side panel,
   // it covered the wall drawing when made bigger)
   function wallPlanInset(wall){
-    var n = state.walls.length, iw = 220, ih = 150, iox = 0, ioy = 0, svg = '<svg class="wall-inset" viewBox="0 0 ' + iw + ' ' + ih + '" xmlns="http://www.w3.org/2000/svg">';
+    var n = state.walls.length, iw = 260, ih = 180, iox = 0, ioy = 0, obs = "", svg = '<svg class="wall-inset" viewBox="0 0 ' + iw + ' ' + ih + '" xmlns="http://www.w3.org/2000/svg">';
     var lens = state.walls.map(function(w2){ return w2.lengthMm; }), turns = state.walls.map(function(w2){ return w2.turnAfter; });
     var v = chainVertices(lens, turns).pts, xs = v.map(function(p){ return p.x; }), zs = v.map(function(p){ return p.z; });
     var minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs), minZ = Math.min.apply(null, zs), maxZ = Math.max.apply(null, zs);
-    var isc = Math.min((iw - 24) / Math.max(1, maxX - minX), (ih - 24) / Math.max(1, maxZ - minZ));
+    var isc = Math.min((iw - 48) / Math.max(1, maxX - minX), (ih - 48) / Math.max(1, maxZ - minZ));
     var ix = iox + (iw - (maxX - minX) * isc) / 2 - minX * isc, iy = ioy + (ih - (maxZ - minZ) * isc) / 2 - minZ * isc;
     svg += '<polygon points="' + v.map(function(p){ return (p.x * isc + ix) + "," + (p.z * isc + iy); }).join(" ") + '" fill="' + KP3D.floorPlanColor(state.floor) + '"/>';
+    var floorEnd = svg.length;
     state.walls.forEach(function(w2, k){
       var a = v[k], b = v[(k + 1) % v.length]; if (!b || (!state.closed && k === n - 1 && v.length === n)) return;
       var on = w2.id === wall.id;
       svg += '<line ' + (w2.open ? '' : 'data-eljump="' + w2.id + '" ') + 'x1="' + (a.x * isc + ix) + '" y1="' + (a.z * isc + iy) + '" x2="' + (b.x * isc + ix) + '" y2="' + (b.z * isc + iy) + '" stroke="' + (on ? "#0058a3" : w2.open ? "#9a978e" : "#c9ccd4") + '" stroke-width="' + (on ? 6 : 4) + '"' + (w2.open ? ' stroke-dasharray="4,3"' : ' style="cursor:pointer;"') + '/>';
+      if (!w2.open) (state.obstacles || []).forEach(function(o){ // its obstacles, into the room (2026-10-11)
+        var def = KP3D.OBSTACLES[o.kind]; if (o.wallId !== w2.id || !def) return;
+        var L = Math.hypot(b.x - a.x, b.z - a.z) || 1, ax = (b.x - a.x) / L, az = (b.z - a.z) / L, nx = -az, nz = ax;
+        var mx0 = (a.x + b.x) / 2 + nx * 50, mz0 = (a.z + b.z) / 2 + nz * 50;
+        if (!pointInPoly(mx0, mz0, v)){ nx = -nx; nz = -nz; }
+        var a0 = o.offsetMm, a1 = a0 + o.widthMm, n0 = o.outMm || 0, n1 = n0 + o.depthMm;
+        var q = [[a0, n0], [a1, n0], [a1, n1], [a0, n1]].map(function(p){ return ((a.x + ax * p[0] + nx * p[1]) * isc + ix) + "," + ((a.z + az * p[0] + nz * p[1]) * isc + iy); }).join(" ");
+        var fill = def.look === "radiator" ? "#ffffff" : def.look === "panel" ? "#d2d4d7" : def.look === "sill" ? "#e6e2da" : def.look === "pipe" ? "#c8ccd2" : "#b9b4a8";
+        obs += '<polygon points="' + q + '" fill="' + fill + '" fill-opacity="' + (def.ceiling ? 0.4 : 1) + '" stroke="#6f6a5f" stroke-width="1"' + (def.ceiling ? ' stroke-dasharray="3,2"' : '') + ' style="pointer-events:none;"><title>' + def.label + '</title></polygon>';
+      });
       if (!w2.open){ // the wall's number, like on the size page
-        var mx = (a.x + b.x) / 2 * isc + ix, my = (a.z + b.z) / 2 * isc + iy;
+        // outside the wall, so it never covers what stands against it
+        var L2 = Math.hypot(b.x - a.x, b.z - a.z) || 1, onx = (b.z - a.z) / L2, onz = -(b.x - a.x) / L2;
+        if (pointInPoly((a.x + b.x) / 2 + onx * 50, (a.z + b.z) / 2 + onz * 50, v)){ onx = -onx; onz = -onz; }
+        var mx = (a.x + b.x) / 2 * isc + ix + onx * 13, my = (a.z + b.z) / 2 * isc + iy + onz * 13;
         svg += '<g data-eljump="' + w2.id + '" style="cursor:pointer;"><circle cx="' + mx + '" cy="' + my + '" r="9" fill="' + (on ? "#0058a3" : "#fff") + '" stroke="' + (on ? "#0058a3" : "#8a8f9a") + '" stroke-width="1.4"/><text x="' + mx + '" y="' + (my + 4) + '" font-size="11" font-weight="700" text-anchor="middle" fill="' + (on ? "#fff" : "#191919") + '" style="pointer-events:none;">' + (k + 1) + '</text></g>';
       }
     });
-    return svg + '</svg>';
+    return svg.slice(0, floorEnd) + obs + svg.slice(floorEnd) + '</svg>'; // obstacles under the walls and numbers
+  }
+  function pointInPoly(x, z, pts){
+    var inside = false;
+    for (var i = 0, j = pts.length - 1; i < pts.length; j = i++){
+      var a = pts[i], b = pts[j];
+      if ((a.z > z) !== (b.z > z) && x < (b.x - a.x) * (z - a.z) / (b.z - a.z) + a.x) inside = !inside;
+    }
+    return inside;
   }
   function startElDrag(id, evt, sc){
     evt.preventDefault(); evt.stopPropagation();
