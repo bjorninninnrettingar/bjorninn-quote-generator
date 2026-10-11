@@ -158,7 +158,11 @@
   .warn-item{ display:block; width:100%; text-align:left; font:inherit; font-size:12.5px; line-height:1.4; color:#6b4210; background:none; border:none; padding:5px 0; cursor:pointer; border-top:1px solid #f4dcb8; }
   .warn-item:first-of-type{ border-top:none; }
   .warn-item:hover{ color:#a85a0e; text-decoration:underline; }
-  .ed-newunit{ margin-left:auto; padding:8px 16px; font-size:14px; white-space:nowrap; flex:0 0 auto; }
+  .ed-newunit{ padding:8px 14px; font-size:13.5px; white-space:nowrap; flex:0 0 auto; }
+  .ed-toolbar{ flex-wrap:nowrap !important; gap:6px 8px !important; }
+  .ed-toolbar .view-toggle button{ padding:6px 10px; font-size:12.5px; }
+  .ed-tbtn, .ed-newunit{ white-space:nowrap; }
+  @media (max-width:1500px){ #camToggle{ display:none; } .ed-menus .cat-sec > summary{ padding:6px 9px; } }
   .ed-hint{ font-size:12.5px; color:var(--ink-soft); text-align:right; flex:1 1 0; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .view-toggle button{ white-space:nowrap; }
   .cat-title{ font-size:11.5px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--gold); margin:4px 0 8px; }
@@ -619,7 +623,34 @@
     .wrap.wide .actions{ margin:0; padding:10px 18px; border-top:1px solid var(--line); background:#fff; }
     .wrap.wide .tip-bar:not([hidden]){ margin:0; border-radius:0; border-width:1px 0 0; }
   }
-  @media (max-width:1180px){ .wrap.wide .editor{ grid-template-columns:232px minmax(0,1fr) 290px; } }
+  @media (max-width:1180px){ .wrap.wide .editor{ grid-template-columns:minmax(0,1fr) 290px; } }
+  /* ---- editor round 2026-10-11: full-screen designer. Header in one thin row (title, stepper, links), the left
+     sidebar became dropdown menus in the toolbar, the right panel only shows while something is selected ---- */
+  @media (min-width:981px){
+    .wrap.wide{ position:relative; }
+    .wrap.wide .lede{ display:none; }
+    .wrap.wide .top{ padding:8px 18px; align-items:center; }
+    .wrap.wide .top .kicker{ display:none; }
+    .wrap.wide h1{ font-size:15px; margin:0; }
+    .wrap.wide .stepper{ position:absolute; top:6px; left:50%; transform:translateX(-50%); width:min(620px, 48vw); margin:0; padding-bottom:6px; gap:4px; }
+    .wrap.wide .stepper .st{ padding:3px 8px; font-size:12px; }
+    .wrap.wide .stepper .st i{ width:18px; height:18px; font-size:10.5px; }
+    .wrap.wide .stepper .bar{ height:3px; }
+    .editor{ grid-template-columns:minmax(0,1fr) 336px; }
+  }
+  .editor.no-sel{ grid-template-columns:minmax(0,1fr) !important; }
+  .editor.no-sel .ed-props{ display:none; }
+  .ed-toolbar{ position:relative; }
+  .ed-right{ display:flex; gap:8px; align-items:center; margin-left:auto; }
+  .ed-tbtn{ padding:8px 14px; font-size:13.5px; }
+  .ed-menus{ display:flex; gap:4px; align-items:center; flex-wrap:nowrap; flex:0 0 auto; }
+  .ed-menus .cat-sec > summary, .warn-chip{ white-space:nowrap; }
+  .ed-menus .cat-sec{ position:relative; border:0; }
+  .ed-menus .cat-sec > summary{ padding:7px 12px; border:1px solid var(--line); border-radius:999px; background:#fff; font-size:13px; gap:6px; }
+  .ed-menus .cat-sec[open] > summary{ border-color:var(--blue); color:var(--blue); background:var(--blue-soft); }
+  .ed-menus .cat-sec > .sec-body{ position:absolute; top:calc(100% + 6px); left:0; z-index:60; width:330px; max-height:72vh; overflow-y:auto; background:#fff; border:1px solid var(--line); border-radius:14px; box-shadow:0 14px 40px rgba(0,0,0,.18); padding:14px 16px; }
+  .warn-pop:not([hidden]){ position:absolute; top:calc(100% + 6px); right:14px; z-index:60; width:360px; max-height:60vh; overflow-y:auto; background:#fff; border:1px solid var(--line); border-radius:14px; box-shadow:0 14px 40px rgba(0,0,0,.18); padding:12px 14px; }
+  #tipBar{ display:none !important; }
 
   /* ---- catalog accordion (left sidebar) ---- */
   .cat-sec{ border-bottom:1px solid var(--line); }
@@ -942,23 +973,22 @@
 
   <!-- ============ STEP: EDITOR (catalog | 3D/2D stage | properties) ============ -->
   <section id="screen-editor" hidden>
-    <div class="editor">
-      <aside class="ed-catalog" id="catalogPanel"></aside>
-
+    <div class="editor no-sel" id="editorGrid">
       <div class="ed-stage">
         <div class="ed-toolbar">
+          <div class="ed-menus" id="catalogPanel"></div>
           <div class="view-toggle" id="viewToggle">
-            <button type="button" class="active" data-view="3d">🧊 3D</button>
-            <button type="button" data-view="2d">📐 Teikning</button>
+            <button type="button" class="active" data-view="3d" title="3D-sýn">3D</button>
+            <button type="button" data-view="2d" title="Teikning ofan frá">2D</button>
           </div>
           <div class="view-toggle" id="camToggle">
             <button type="button" id="resetCamBtn" title="Endurstilla sýn">🎯</button>
             <button type="button" id="snapBtn" title="Vista mynd af skipulaginu">📷</button>
           </div>
           <button type="button" class="warn-chip" id="warnChip" hidden></button>
-          <div class="view-toggle" id="moodToggle" title="Kvöldstemning: dimmir herbergið svo lýsingin sjáist"><button type="button" id="moodBtn">🌙 Kvöld</button></div>
+          <div class="view-toggle" id="moodToggle" title="Kvöldstemning: dimmir herbergið svo lýsingin sjáist"><button type="button" id="moodBtn" title="Kvöldstemning">🌙</button></div>
           <div class="view-toggle" id="inspectToggle" title="Skoða innvols: opna skúffur og hurðir, taka framhliðar af">
-            <button type="button" id="inspectBtn">🔍 Innvols</button>
+            <button type="button" id="inspectBtn" title="Skoða innvols: opna skúffur og hurðir, taka framhliðar af">🔍</button>
             <button type="button" id="frontsBtn" hidden>Framhliðar á</button>
             <button type="button" id="openAllBtn" hidden>Opna allt</button>
           </div>
@@ -966,7 +996,12 @@
             <button type="button" id="undoBtn" title="Afturkalla (⌘Z)" disabled>↶</button>
             <button type="button" id="redoBtn" title="Endurgera (⌘⇧Z)" disabled>↷</button>
           </div>
-          <button type="button" class="btn btn-primary ed-newunit" id="edNewUnit">＋ Ný eining</button>
+          <div class="ed-right">
+            <button type="button" class="btn btn-secondary ed-tbtn" id="backToShapeBtn">← Breyta lögun</button>
+            <button type="button" class="btn btn-primary ed-newunit" id="edNewUnit">＋ Ný eining</button>
+            <button type="button" class="btn btn-primary ed-tbtn" id="toContactBtn" disabled>Áfram →</button>
+          </div>
+          <div class="warn-pop" id="warnPop" hidden></div>
         </div>
         <div class="three-wrap" id="threeWrap"></div>
         <div class="three-wrap" id="planWrap" hidden></div>
@@ -990,10 +1025,6 @@
       <button type="button" id="tipClose" title="Loka">✕</button>
     </div>
 
-    <div class="actions">
-      <button class="btn btn-secondary" id="backToShapeBtn" type="button">← Breyta lögun / lengdum</button>
-      <button class="btn btn-primary" id="toContactBtn" type="button" disabled>Áfram →</button>
-    </div>
   </section>
 
   <!-- ============ STEP: CONTACT ============ -->
@@ -4427,8 +4458,12 @@
 
   // ---------- left sidebar: collapsible sections ----------
   var SEC_KEY = "bjorninn:kitchenPlanner:sections";
-  var openSecs = { skapar:true };
-  try{ var savedSecs = JSON.parse(localStorage.getItem(SEC_KEY) || "null"); if (savedSecs) openSecs = savedSecs; }catch(e){}
+  var openSecs = {}; // the toolbar dropdowns start closed
+  document.addEventListener("pointerdown", function(e){ // a press outside an open dropdown / the warning list closes it
+    if (!e.target.closest || e.target.closest(".ed-menus .cat-sec, #warnPop, #warnChip, .fit-ask, #toast")) return;
+    document.querySelectorAll(".ed-menus .cat-sec[open]").forEach(function(o){ o.open = false; openSecs[o.dataset.sec] = false; });
+    var wp = document.getElementById("warnPop"); if (wp) wp.hidden = true;
+  }, true);
 
   function renderCatalogPanel(){
     var host = document.getElementById("catalogPanel");
@@ -4450,11 +4485,11 @@
       }).join("") + '</div>' +
       '<div class="cat-title">Lofthæð</div><div class="dim-f" style="margin-bottom:12px;"><input type="number" id="roomHeightInput" min="' + MIN_ROOM_HEIGHT_MM + '" max="3200" step="10" value="' + state.roomHeightMm + '"><small>mm · ' + MIN_ROOM_HEIGHT_MM + '–3200</small></div>' +
       '<button type="button" class="btn btn-secondary btn-small" data-act="shape">Breyta lögun og lengd veggja</button>';
-    var html = sec("rymi", "Breyta rými", roomBody);
+    var html = sec("rymi", "Rými", roomBody);
 
     // (cabinets: "＋ Ný eining" sits at the right end of the 3D toolbar, #edNewUnit — moved there 2026-10-02)
     // --- windows + doors ---
-    html += sec("gluggar", "Hurðir og gluggar",
+    html += sec("gluggar", "Gluggar og hindranir",
       item("opening", "gluggi", "window", "Gluggi", WINDOW_DEFAULT.heightMm + ' × ' + WINDOW_DEFAULT.widthMm + ' mm', true) +
       item("opening", "hurd", "door", "Hurð", DOOR_DEFAULT.heightMm + ' × ' + DOOR_DEFAULT.widthMm + ' mm', true) +
       item("opening", "gat", "gap", "Op í vegg (án hurðar)", GAP_DEFAULT.heightMm + ' × ' + GAP_DEFAULT.widthMm + ' mm', true) +
@@ -4470,7 +4505,7 @@
       '<button type="button" class="btn btn-secondary btn-small" data-act="mood">' + (moodOn ? '☀️ Dagsbirta' : '🌙 Sjá í kvöldstemningu') + '</button>' +
       (bom ? '<p class="sec-note">' + lightingText(bom).join(" · ") + '</p>' : '<p class="sec-note">Smelltu á efri skáp til að kveikja eða slökkva á ljósi undir honum einum.</p>'));
     var DEC = KP3D.DECOR;
-    html += sec("skraut", "Húsgögn og skraut",
+    html += sec("skraut", "Húsgögn",
       KP3D.DECOR_GROUPS.map(function(gp){
         return '<div class="cat-title">' + gp.label + '</div><div class="light-btns">' + Object.keys(DEC).filter(function(k){ return DEC[k].group === gp.key; }).map(function(k){
           return '<button type="button" class="hw-btn" data-decor-add="' + k + '">＋ ' + DEC[k].label + '</button>';
@@ -4498,14 +4533,14 @@
       (handleColorable(state.handle) ? matSel("handleColor", "Litur á höldum", [{ items:[["", "Eins og á mynd"]].concat(Object.keys(KP3D.HANDLE_FINISHES).map(function(k){ return [k, KP3D.HANDLE_FINISHES[k].label]; })) }], state.handleColor || "") : "") +
       matSel("drawerSystem", "Skúffukerfi", [{ items:Object.keys(DRAWER_SYSTEMS).map(function(k){ return [k, DRAWER_SYSTEMS[k].label]; }) }], state.drawerSystem) +
       '<button type="button" class="btn btn-secondary btn-small" data-act="materials" style="margin-top:6px;">Sjá myndir af efnunum</button>';
-    html += sec("efni", "Efni og útlit", matBody);
+    html += sec("efni", "Efni", matBody);
     host.innerHTML = html;
     host.scrollTop = keepScroll;
 
     host.querySelectorAll(".cat-sec").forEach(function(d){
-      d.addEventListener("toggle", function(){
+      d.addEventListener("toggle", function(){ // dropdowns now: one open at a time (stays open across re-renders, not across visits)
+        if (d.open) host.querySelectorAll(".cat-sec[open]").forEach(function(o){ if (o !== d){ o.open = false; openSecs[o.dataset.sec] = false; } });
         openSecs[d.dataset.sec] = d.open;
-        try{ localStorage.setItem(SEC_KEY, JSON.stringify(openSecs)); }catch(e){}
       });
     });
     host.querySelectorAll("[data-decor-add]").forEach(function(b){ b.addEventListener("click", function(){ addDecor(b.dataset.decorAdd); }); });
@@ -5574,7 +5609,7 @@
   function syncInspectUI(){
     var ib = document.getElementById("inspectBtn"), fb = document.getElementById("frontsBtn"), ob = document.getElementById("openAllBtn");
     ib.classList.toggle("active", inspect.on);
-    ib.textContent = inspect.on ? "✓ Innvols" : "🔍 Innvols";
+    ib.textContent = inspect.on ? "✓ 🔍" : "🔍";
     fb.hidden = ob.hidden = !inspect.on;
     fb.textContent = inspect.frontsOff ? "Framhliðar af" : "Framhliðar á";
     fb.classList.toggle("active", inspect.frontsOff);
@@ -5825,7 +5860,13 @@
     });
   }
 
+  function setPanelShown(on){ // show / hide the right column; the 3D canvas follows the new stage size
+    var g = document.getElementById("editorGrid"); if (!g || g.classList.contains("no-sel") === !on) return;
+    g.classList.toggle("no-sel", !on);
+    requestAnimationFrame(function(){ window.dispatchEvent(new Event("resize")); });
+  }
   function renderEditPanelInto(host){
+    if (host && host.id === "cabinetEditPanel") setPanelShown(!!(selectedBlockId || selectedWallId));
     var found = selectedBlockId ? findBlock(selectedBlockId) : null;
     var opening = !found && selectedBlockId ? findOpening(selectedBlockId) : null;
     if (opening){ renderOpeningPanel(host, opening); return; }
@@ -5841,7 +5882,9 @@
     if (selWall){ renderWallPanel(host, selWall); return; }
     if (!found){
       selectedBlockId = null;
-      host.innerHTML = overviewHTML();
+      host.innerHTML = ""; // nothing selected: no panel, the designer gets the room (2026-10-11 — was the "Eldhúsið mitt" overview)
+      setPanelShown(false);
+      return;
       host.querySelectorAll("[data-select]").forEach(function(btn){
         btn.addEventListener("click", function(){ onCabinetSelect({ blockId:btn.dataset.select }); });
       });
@@ -7038,8 +7081,12 @@
   });
   document.getElementById("reportBtn").addEventListener("click", openReportPop);
 
-  document.getElementById("warnChip").addEventListener("click", function(){
-    if (warnings.length) onCabinetSelect({ blockId:warnings[0].ids[0] });
+  document.getElementById("warnChip").addEventListener("click", function(){ // the warnings as a list (the right-hand overview is gone)
+    var pop = document.getElementById("warnPop");
+    if (!pop.hidden || !warnings.length){ pop.hidden = true; return; }
+    pop.innerHTML = '<div class="ov-wall-h">⚠ Athugið</div>' + warnings.map(function(w, i){ return '<button type="button" class="warn-item" data-warnp="' + i + '">' + w.msg + '</button>'; }).join("");
+    pop.querySelectorAll("[data-warnp]").forEach(function(b){ b.addEventListener("click", function(){ pop.hidden = true; var w = warnings[+b.dataset.warnp]; if (w && w.ids[0]) onCabinetSelect({ blockId:w.ids[0] }); }); });
+    pop.hidden = false;
   });
   window.addEventListener("kp3d-context-lost", function(){ if (state.step === "editor" && viewMode === "3d") setTimeout(renderView, 50); });
   document.getElementById("resetCamBtn").addEventListener("click", function(){
