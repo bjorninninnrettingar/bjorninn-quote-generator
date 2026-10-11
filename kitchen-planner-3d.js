@@ -2522,8 +2522,14 @@
         var pt = floorHit(evt, drag.decor ? drag.planeY : 0);
         if (!pt || !drag.pt0) return;
         drag.dx = pt.x - drag.pt0.x; drag.dz = pt.z - drag.pt0.z;
-        if (drag.decor){ // its own position/rotation: just move it
+        if (drag.decor){ // its own position/rotation: just move it — the editor stops it at walls and cabinets (opts.onDecorDragMove)
           if (!drag.base) drag.base = drag.group.position.clone();
+          if (opts.onDecorDragMove){
+            var ok = opts.onDecorDragMove(drag.meta.decorId, Math.round((drag.base.x + drag.dx) * 1000), Math.round((drag.base.z + drag.dz) * 1000),
+              Math.round(drag.group.position.x * 1000), Math.round(drag.group.position.z * 1000));
+            if (ok){ drag.dx = ok.x / 1000 - drag.base.x; drag.dz = ok.z / 1000 - drag.base.z; }
+            else { drag.dx = drag.group.position.x - drag.base.x; drag.dz = drag.group.position.z - drag.base.z; }
+          }
           drag.group.position.set(drag.base.x + drag.dx, drag.base.y, drag.base.z + drag.dz);
           return;
         }
@@ -4080,8 +4086,8 @@
   // ---- Furniture & decor (2026-10-05): drawn from simple shapes, placed freely, never ordered ----
   // kind: "floor" stands on the floor, "top" sits on whatever worktop is under it, "ceiling" hangs from it.
   var DECOR = {
-    bordFer:    { label:"Borðstofuborð + 6 stólar", group:"floor", w:1600, d:900 },
-    bordHring:  { label:"Hringborð + 4 stólar",     group:"floor", w:1100, d:1100 },
+    bordFer:    { label:"Borðstofuborð",            group:"floor", w:1600, d:900, seats:[4, 6, 8], seatsDefault:6 },
+    bordHring:  { label:"Hringborð",                group:"floor", w:1100, d:1100, seats:[4, 6, 8], seatsDefault:4 },
     barstoll:   { label:"Barstóll",                 group:"floor", w:420, d:420 },
     planta:     { label:"Pottaplanta",              group:"floor", w:450, d:450 },
     motta:      { label:"Gólfmotta",                group:"floor", w:2000, d:1400 },
@@ -4092,6 +4098,63 @@
     bretti:     { label:"Skurðarbretti",            group:"top",   w:450, d:300 },
     hengiljos:  { label:"Hengiljós",                group:"ceiling", w:320, d:320 }
   };
+  // Dining tables come in 4 / 6 / 8 seat sizes (d.seats, 2026-10-11): the table (m), where the chairs go, and the
+  // footprint incl. the chairs (what may not go through a wall or a cabinet).
+  var TABLE_SIZES = {
+    bordFer:  { 4:{ w:1.2, d:0.8, xs:[-0.3, 0.3] }, 6:{ w:1.6, d:0.9, xs:[-0.5, 0, 0.5] }, 8:{ w:2.2, d:0.95, xs:[-0.825, -0.275, 0.275, 0.825] } },
+    bordHring:{ 4:{ w:1.1, d:1.1, r:0.7, round:true }, 6:{ w:1.3, d:1.3, r:0.8, round:true }, 8:{ w:1.5, d:1.5, r:0.9, round:true } }
+  };
+  function tableOf(d){
+    var T = TABLE_SIZES[d.kind]; if (!T) return null;
+    var t = T[d.seats] || T[DECOR[d.kind].seatsDefault];
+    return { w:t.w, d:t.d, xs:t.xs, r:t.r, round:!!t.round, top:0.76, seats:T[d.seats] ? d.seats : DECOR[d.kind].seatsDefault };
+  }
+  // the item's size on the floor (m): {w, d, round} — a table with its chairs, else DECOR_FOOT / its own size
+  function decorFoot(d){
+    var t = tableOf(d);
+    if (t) return t.round ? { w:2 * (t.r + 0.22), d:2 * (t.r + 0.22), round:true } : { w:t.w + 0.15, d:t.d + 0.84 };
+    var f = DECOR_FOOT[d.kind] || [(DECOR[d.kind].w || 300) / 1000, (DECOR[d.kind].d || 300) / 1000];
+    return { w:f[0], d:f[1], round:d.kind === "barstoll" || d.kind === "planta" || d.kind === "hengiljos" };
+  }
+  // May a floor / ceiling item stand at (xMm, zMm)? Its whole footprint (rotated) inside the room, and not in a
+  // cabinet or island (a rug only has to stay in the room; a pendant only by its cord). Worktop items: decorTopAt.
+  function decorFits(state, d, xMm, zMm, rot){
+    var def = DECOR[d.kind]; if (!def || def.group === "top") return true;
+    var walls = wallGeoms(state), poly = walls.map(function(g){ return g.origin; });
+    var closed = walls.closed && poly.length >= 3, x0 = xMm / 1000, z0 = zMm / 1000;
+    if (def.group === "ceiling") return !closed || inPoly(x0, z0, poly);
+    var f = decorFoot(d), a = (rot == null ? d.rot || 0 : rot) * Math.PI / 180, ca = Math.cos(a), sa = Math.sin(a);
+    var pts = [], N = 8;
+    for (var i = 0; i <= N; i++) for (var j = 0; j <= N; j++){
+      var lx = (i / N - 0.5) * f.w, lz = (j / N - 0.5) * f.d;
+      if (f.round && Math.hypot(lx / f.w, lz / f.d) > 0.5) continue;
+      pts.push({ x:x0 + lx * ca + lz * sa, z:z0 - lx * sa + lz * ca });
+    }
+    if (closed && !pts.every(function(p){ return inPoly(p.x, p.z, poly); })) return false;
+    if (d.kind === "motta") return true;
+    var rects = floorRects(state);
+    for (var r = 0; r < rects.length; r++){
+      var q = rects[r].q, rq = q.slice().reverse();
+      for (var k = 0; k < pts.length; k++) if (inPoly(pts[k].x, pts[k].z, q) || inPoly(pts[k].x, pts[k].z, rq)) return false;
+      for (var m = 0; m < 4; m++){ // a thin cabinet / end panel between the sample points
+        var lx2 = (q[m].x - x0) * ca - (q[m].z - z0) * sa, lz2 = (q[m].x - x0) * sa + (q[m].z - z0) * ca;
+        if (f.round ? Math.hypot(lx2 / f.w, lz2 / f.d) < 0.5 : Math.abs(lx2) < f.w / 2 && Math.abs(lz2) < f.d / 2) return false;
+      }
+    }
+    return true;
+  }
+  // the nearest spot (mm) where it fits, searching outwards from (xMm, zMm); null = nowhere within 3 m
+  function nearestDecorFit(state, d, xMm, zMm, rot){
+    if (decorFits(state, d, xMm, zMm, rot)) return { x:xMm, z:zMm };
+    for (var r = 50; r <= 3000; r += 50){
+      var n = Math.max(8, Math.round(r / 40));
+      for (var k = 0; k < n; k++){
+        var a = k / n * Math.PI * 2, px = Math.round(xMm + Math.cos(a) * r), pz = Math.round(zMm + Math.sin(a) * r);
+        if (decorFits(state, d, px, pz, rot)) return { x:px, z:pz };
+      }
+    }
+    return null;
+  }
   var DECOR_GROUPS = [{ key:"floor", label:"Á gólfið" }, { key:"top", label:"Á borðplötuna" }, { key:"ceiling", label:"Í loftið" }];
   // height of the worktop (or other top) under a point of the room, 0 = the floor
   function surfaceTopAt(state, xMm, zMm){
@@ -4119,15 +4182,14 @@
       if (inPoly(x, z, r.q) || inPoly(x, z, r.q.slice().reverse())) top = Math.max(top, Math.min(r.b.heightMm || c.h, state.roomHeightMm || 2500) / 1000 + 0.032);
     });
     (state.decor || []).forEach(function(t){
-      if (t.id === excludeId || !TABLE_DECOR[t.kind]) return;
-      var T = TABLE_DECOR[t.kind], dx = x - t.xMm / 1000, dz = z - t.zMm / 1000, a = -(t.rot || 0) * Math.PI / 180;
+      if (t.id === excludeId || !TABLE_SIZES[t.kind]) return;
+      var T = tableOf(t), dx = x - t.xMm / 1000, dz = z - t.zMm / 1000, a = -(t.rot || 0) * Math.PI / 180;
       var lx = dx * Math.cos(a) - dz * Math.sin(a), lz = dx * Math.sin(a) + dz * Math.cos(a);
       var on = T.round ? Math.hypot(lx, lz) < T.w / 2 - 0.06 : Math.abs(lx) < T.w / 2 - 0.06 && Math.abs(lz) < T.d / 2 - 0.06;
       if (on) top = Math.max(top, T.top);
     });
     return top;
   }
-  var TABLE_DECOR = { bordFer:{ w:1.6, d:0.9, top:0.76 }, bordHring:{ w:1.1, d:1.1, top:0.76, round:true } };
   function nearestTopSpot(state, xMm, zMm, excludeId){
     if (decorTopAt(state, xMm, zMm, excludeId) > 0) return { x:xMm, z:zMm };
     for (var r = 50; r <= 3000; r += 50){
@@ -4168,7 +4230,7 @@
     var def = DECOR[kind]; if (!def) return null;
     var decor = state.decor || [], rb = roomBounds(state); if (!rb) return null;
     var cx = (rb.minX + rb.maxX) / 2, cz = (rb.minZ + rb.maxZ) / 2;
-    var rad = function(k){ var f = DECOR_FOOT[k] || [(DECOR[k].w || 300) / 1000, (DECOR[k].d || 300) / 1000]; return Math.hypot(f[0], f[1]) / 2 * 0.78; };
+    var rad = function(k, it){ var f = decorFoot(it || { kind:k }); return Math.hypot(f.w, f.d) / 2 * 0.78; };
     var table = decor.find(function(d){ return d.kind === "bordFer" || d.kind === "bordHring"; });
     if (def.group === "ceiling"){
       var isl = (state.islands || [])[0], n = decor.filter(function(d){ return d.kind === kind; }).length;
@@ -4212,7 +4274,7 @@
         var clear = 9;
         walls.forEach(function(g, i){ if (!walls.closed && i === walls.length - 1) return; var e = { x:g.origin.x + g.axis.x * g.lenM, z:g.origin.z + g.axis.z * g.lenM }; clear = Math.min(clear, distToSeg(x, z, g.origin, e)); });
         rects.forEach(function(r){ var q = r.q; if (inPoly(x, z, q)) clear = -1; else for (var k = 0; k < 4; k++) clear = Math.min(clear, distToSeg(x, z, q[k], q[(k + 1) % 4]) - (kind === "motta" ? 0 : 0.3)); });
-        others.forEach(function(d){ clear = Math.min(clear, Math.hypot(d.xMm / 1000 - x, d.zMm / 1000 - z) - rad(d.kind) - 0.1); });
+        others.forEach(function(d){ clear = Math.min(clear, Math.hypot(d.xMm / 1000 - x, d.zMm / 1000 - z) - rad(d.kind, d) - 0.1); });
         clear -= myR;
         // no room anywhere (a big table in a small kitchen): the spot that overlaps least, never the island's middle
         var score = clear < 0 ? -10 + clear * 5 : Math.min(clear, 0.5) * 2 - Math.hypot(x - cx, z - cz) * 0.25;
@@ -4347,7 +4409,7 @@
     g.rotateX(-Math.PI / 2); g.computeVertexNormals();
     return (DECOR_CACHE[key] = g);
   }
-  function buildDecor(THREE, key){
+  function buildDecor(THREE, key, item){
     var gr = new THREE.Group(), RB = window.__RoundedBox__;
     function mat(c, r, m, extra){ return new THREE.MeshStandardMaterial(Object.assign({ color:c, roughness:r == null ? 0.6 : r, metalness:m || 0 }, extra || {})); }
     function add(o, parent){ o.castShadow = true; o.receiveShadow = true; (parent || gr).add(o); return o; }
@@ -4374,24 +4436,27 @@
       c.position.set(x, 0, z); c.rotation.y = rot; gr.add(c);
     }
     if (key === "bordFer"){
-      rbox(1.6, 0.032, 0.9, 0.01, 0, 0.744, 0, oak(3.6, 1.6)); // RoundedBox top: v runs along x, so the grain follows the length
+      var tf = tableOf(item || { kind:key }), hw = tf.w / 2 - 0.1, hd = tf.d / 2 - 0.09;
+      rbox(tf.w, 0.032, tf.d, 0.01, 0, 0.744, 0, oak(3.6 * tf.w / 1.6, 1.6 * tf.d / 0.9)); // RoundedBox top: v runs along x, so the grain follows the length
       var lw = oak(0.3, 1);
-      [[-0.7, -0.36], [0.7, -0.36], [-0.7, 0.36], [0.7, 0.36]].forEach(function(p){ var l = cyl(0.026, 0.018, 0.73, p[0], 0.365, p[1], lw, 14); l.rotation.z = p[0] > 0 ? -0.03 : 0.03; });
-      rbox(1.36, 0.07, 0.022, 0.005, 0, 0.69, -0.36, lw); rbox(1.36, 0.07, 0.022, 0.005, 0, 0.69, 0.36, lw);
-      rbox(0.022, 0.07, 0.68, 0.005, -0.7, 0.69, 0, lw); rbox(0.022, 0.07, 0.68, 0.005, 0.7, 0.69, 0, lw);
-      [-0.5, 0, 0.5].forEach(function(x){ chair(x, -0.66, Math.PI); chair(x, 0.66, 0); }); // the back rail is at the chair's +z: facing the table (they faced away, 2026-10-10)
+      [[-hw, -hd], [hw, -hd], [-hw, hd], [hw, hd]].forEach(function(p){ var l = cyl(0.026, 0.018, 0.73, p[0], 0.365, p[1], lw, 14); l.rotation.z = p[0] > 0 ? -0.03 : 0.03; });
+      rbox(2 * hw - 0.04, 0.07, 0.022, 0.005, 0, 0.69, -hd, lw); rbox(2 * hw - 0.04, 0.07, 0.022, 0.005, 0, 0.69, hd, lw);
+      rbox(0.022, 0.07, 2 * hd - 0.04, 0.005, -hw, 0.69, 0, lw); rbox(0.022, 0.07, 2 * hd - 0.04, 0.005, hw, 0.69, 0, lw);
+      tf.xs.forEach(function(x){ chair(x, -(tf.d / 2 + 0.21), Math.PI); chair(x, tf.d / 2 + 0.21, 0); }); // the back rail is at the chair's +z: facing the table (they faced away, 2026-10-10)
     } else if (key === "bordHring"){
-      lathe([[0, 0.725], [0.53, 0.725], [0.55, 0.735], [0.55, 0.752], [0.535, 0.76], [0, 0.76]], oak(1, 1), 64);
+      var tr = tableOf(item || { kind:key }), R = tr.w / 2;
+      lathe([[0, 0.725], [R - 0.02, 0.725], [R, 0.735], [R, 0.752], [R - 0.015, 0.76], [0, 0.76]], oak(R / 0.55, R / 0.55), 64);
       lathe([[0, 0], [0.26, 0], [0.27, 0.012], [0.12, 0.05], [0.055, 0.2], [0.045, 0.5], [0.09, 0.69], [0.2, 0.725], [0, 0.725]], mat(0xf0ede6, 0.4), 48);
-      [0, 1, 2, 3].forEach(function(i){ var a = i * Math.PI / 2 + Math.PI / 4; chair(Math.sin(a) * 0.7, Math.cos(a) * 0.7, a); });
+      for (var ci = 0; ci < tr.seats; ci++){ var ca2 = ci * Math.PI * 2 / tr.seats + Math.PI / tr.seats; chair(Math.sin(ca2) * tr.r, Math.cos(ca2) * tr.r, ca2); }
     } else if (key === "barstoll"){
       var sw = oak(0.6, 0.7);
-      lathe([[0, 0.72], [0.17, 0.72], [0.185, 0.73], [0.19, 0.755], [0.175, 0.765], [0.08, 0.752], [0, 0.75]], sw, 40);
+      // seat 10 cm lower than first drawn (user, 2026-10-10): ~65 cm, a counter stool for a 93 cm worktop
+      lathe([[0, 0.62], [0.17, 0.62], [0.185, 0.63], [0.19, 0.655], [0.175, 0.665], [0.08, 0.652], [0, 0.65]], sw, 40);
       for (var li = 0; li < 4; li++){
-        var a = li * Math.PI / 2 + Math.PI / 4, top = [Math.cos(a) * 0.1, 0.72, Math.sin(a) * 0.1], bot = [Math.cos(a) * 0.2, 0, Math.sin(a) * 0.2];
-        tube([bot, [(bot[0] + top[0]) / 2, 0.36, (bot[2] + top[2]) / 2], top], 0.013, blackMetal);
+        var a = li * Math.PI / 2 + Math.PI / 4, top = [Math.cos(a) * 0.1, 0.62, Math.sin(a) * 0.1], bot = [Math.cos(a) * 0.2, 0, Math.sin(a) * 0.2];
+        tube([bot, [(bot[0] + top[0]) / 2, 0.31, (bot[2] + top[2]) / 2], top], 0.013, blackMetal);
       }
-      var fr = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.008, 8, 36), blackMetal); fr.rotation.x = Math.PI / 2; fr.position.y = 0.27; add(fr);
+      var fr = new THREE.Mesh(new THREE.TorusGeometry(0.163, 0.008, 8, 36), blackMetal); fr.rotation.x = Math.PI / 2; fr.position.y = 0.22; add(fr);
     } else if (key === "planta" || key === "plantaLitil"){
       var big = key === "planta", sc = big ? 1 : 0.42;
       var potM = big ? mat(0xd9d3c7, 0.85) : mat(0xe9e4da, 0.35);
@@ -4472,15 +4537,16 @@
     return gr;
   }
   function addDecorItems(THREE, scene, state, opts, pickables){
+    if (state.decorHidden) return; // "Fela húsgögn" (view only)
     (state.decor || []).forEach(function(d){
       var def = DECOR[d.kind]; if (!def) return;
-      var gr = buildDecor(THREE, d.kind);
+      var gr = buildDecor(THREE, d.kind, d), ft = decorFoot(d);
       var y = def.group === "ceiling" ? (state.roomHeightMm || 2500) / 1000 : def.group === "top" ? decorTopAt(state, d.xMm, d.zMm, d.id) : 0;
       gr.position.set(d.xMm / 1000, y, d.zMm / 1000); gr.rotation.y = (d.rot || 0) * Math.PI / 180;
-      var meta = { kind:"decor", blockId:d.id, decorId:d.id, zone:"decor", widthMm:def.w, depthMm:def.d };
+      var meta = { kind:"decor", blockId:d.id, decorId:d.id, zone:"decor", widthMm:Math.round(ft.w * 1000), depthMm:Math.round(ft.d * 1000), locked:!!(d.locked || state.decorLocked) && !!opts.onDecorDragEnd };
       gr.traverse(function(o){ if (o.isMesh){ o.userData = meta; pickables.push(o); } });
       if (opts.selectedId === d.id){ // a blue ring round the selected one
-        var r = Math.max(def.w, def.d) / 2000 + 0.05, ring = new THREE.Mesh(new THREE.RingGeometry(r, r + 0.02, 48), new THREE.MeshBasicMaterial({ color:SELECT_COLOR, side:THREE.DoubleSide }));
+        var r = (TABLE_SIZES[d.kind] ? Math.max(ft.w, ft.d) / 2 : Math.max(def.w, def.d) / 2000) + 0.05, ring = new THREE.Mesh(new THREE.RingGeometry(r, r + 0.02, 48), new THREE.MeshBasicMaterial({ color:SELECT_COLOR, side:THREE.DoubleSide }));
         ring.rotation.x = -Math.PI / 2; ring.position.y = def.group === "ceiling" ? -0.9 : 0.006; gr.add(ring);
       }
       scene.add(gr);
@@ -4680,7 +4746,7 @@
     cornerClearanceMm: cornerClearanceMm, afellaMm: afellaMm, AFELLA_MM: AFELLA_MM,
     blockStartsMm: blockStartsMm,
     planTransform: planTransform,
-    rectCornersWorld: rectCornersWorld, DECOR: DECOR, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
+    rectCornersWorld: rectCornersWorld, DECOR: DECOR, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
     WALL_COLORS: WALL_COLORS,
     WINDOW_DEFAULT: WINDOW_DEFAULT,
     _handleProfile: handleProfile,

@@ -420,7 +420,19 @@
   .fit-ask p{ margin:0 0 10px; line-height:1.4; }
   .fit-ask-btns{ display:flex; gap:8px; justify-content:flex-end; }
   .hw-btn.maybe{ border-style:dashed; }
-  #floatBar.decor-sel{ display:none !important; }
+  /* furniture selected: the frame bar is rotate / lock / delete, bigger (2026-10-11) */
+  .float-bar [data-fb^="rot"]{ display:none; }
+  #floatBar.decor-sel .fb-dim, #floatBar.decor-sel [data-fb="left"], #floatBar.decor-sel [data-fb="right"], #floatBar.decor-sel [data-fb="dup"]{ display:none; }
+  #floatBar.decor-sel [data-fb^="rot"]{ display:flex; }
+  #floatBar.decor-sel button{ width:44px; height:44px; font-size:20px; }
+  .dec-seats{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+  .dec-seats .hw-btn{ display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 4px; }
+  .dec-seats small{ font-size:11px; font-weight:400; opacity:.75; }
+  .dec-rot{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+  .dec-rot .hw-btn{ justify-content:center; padding:9px 4px; font-size:14px; }
+  .dec-angle{ display:flex; align-items:center; gap:10px; margin-top:8px; font-size:13px; font-weight:600; }
+  .dec-angle input{ flex:1; }
+  .dec-del{ width:100%; justify-content:center; margin-top:6px; color:var(--danger); }
   .light-btns{ display:flex; flex-direction:column; gap:6px; margin-bottom:8px; }
   .light-btns .hw-btn{ text-align:left; }
   #moodBtn.active{ background:#1e2433; color:#ffe2a8; }
@@ -943,10 +955,12 @@
         <div class="stage-empty" id="stageEmpty" hidden>Ýttu á <b>＋ Ný eining</b> til að bæta við fyrsta skápnum<br><span>hann birtist á veggnum og þú getur dregið hann til</span></div>
         <div class="float-bar" id="floatBar" hidden>
           <span class="fb-dim" id="fbDim"></span>
+          <button type="button" data-fb="rotL" title="Snúa 45° til vinstri">↺</button>
           <button type="button" data-fb="left" title="Færa til vinstri">◀</button>
           <button type="button" data-fb="right" title="Færa til hægri">▶</button>
           <button type="button" data-fb="lock" id="fbLock" title="Læsa skáp">🔓</button>
           <button type="button" data-fb="dup" title="Afrita">⧉</button>
+          <button type="button" data-fb="rotR" title="Snúa 45° til hægri">↻</button>
           <button type="button" data-fb="del" class="del" title="Fjarlægja">🗑</button>
         </div>
       </div>
@@ -4076,7 +4090,10 @@
         return '<div class="cat-title">' + gp.label + '</div><div class="light-btns">' + Object.keys(DEC).filter(function(k){ return DEC[k].group === gp.key; }).map(function(k){
           return '<button type="button" class="hw-btn" data-decor-add="' + k + '">＋ ' + DEC[k].label + '</button>';
         }).join("") + '</div>';
-      }).join("") + '<p class="sec-note">Bara til að sjá rýmið fyrir sér — ekki hluti af pöntuninni. Dragðu hlutina til í 3D.</p>');
+      }).join("") + ((state.decor || []).length ? '<div class="light-btns">' +
+        '<button type="button" class="hw-btn' + (state.decorHidden ? ' active' : '') + '" data-decor-all="hide">' + (state.decorHidden ? '👁 Sýna húsgögnin' : '🙈 Fela húsgögnin') + '</button>' +
+        '<button type="button" class="hw-btn' + (state.decorLocked ? ' active' : '') + '" data-decor-all="lock">' + (state.decorLocked ? '🔒 Öll læst — smelltu til að opna' : '🔓 Læsa öllum húsgögnum') + '</button></div>' : '') +
+      '<p class="sec-note">Bara til að sjá rýmið fyrir sér — ekki hluti af pöntuninni. Dragðu hlutina til í 3D.</p>');
     // --- materials, changed right here mid-design (2026-10-10) ---
     function matSel(key, label, groups, value){ // groups: [{label|null, items:[[val, text]]}]
       var known = groups.some(function(g){ return g.items.some(function(it){ return it[0] === value; }); });
@@ -4107,6 +4124,13 @@
       });
     });
     host.querySelectorAll("[data-decor-add]").forEach(function(b){ b.addEventListener("click", function(){ addDecor(b.dataset.decorAdd); }); });
+    host.querySelectorAll("[data-decor-all]").forEach(function(b){
+      b.addEventListener("click", function(){
+        if (b.dataset.decorAll === "hide"){ state.decorHidden = !state.decorHidden; if (state.decorHidden && findDecor(selectedBlockId)) selectedBlockId = null; }
+        else state.decorLocked = !state.decorLocked;
+        save(); refreshAfterEdit(); renderCatalogPanel();
+      });
+    });
     host.querySelectorAll("[data-matsel]").forEach(function(sel){
       sel.addEventListener("change", function(){
         var key = sel.dataset.matsel, v = sel.value || null;
@@ -5043,6 +5067,13 @@
     var opening = selectedBlockId ? findOpening(selectedBlockId) : null;
     if (btn && opening && btn.dataset.fb === "lock"){ toggleOpeningLock(opening.o); return; }
     if (btn && opening && btn.dataset.fb === "del"){ if (opLocked(opening.o)){ opLockedToast(); return; } selectedBlockId = null; removeOpening(opening.kind, opening.o.id); return; }
+    var dec = selectedBlockId ? findDecor(selectedBlockId) : null;
+    if (btn && dec){
+      var a = btn.dataset.fb;
+      if (a === "rotL") rotateDecor(dec, -45); else if (a === "rotR") rotateDecor(dec, 45);
+      else if (a === "lock") toggleDecorLock(dec); else if (a === "del") removeDecor(dec.id);
+      return;
+    }
     var found = selectedBlockId ? findBlock(selectedBlockId) : null;
     if (!btn || !found) return;
     var act = btn.dataset.fb;
@@ -5098,7 +5129,7 @@
         return;
       }
       wrap.innerHTML = "";
-      KP3D.buildScene(wrap, state, { darkBg:!!PRO, selectedId:selectedBlockId, selectedWallId:selectedWallId, onWallSelect:onWallSelect, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, onIslandDragEnd:onIslandDragEnd, onDecorDragEnd:onDecorDragEnd, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList(), readyIds:PRO ? proReadyIds() : null,
+      KP3D.buildScene(wrap, state, { darkBg:!!PRO, selectedId:selectedBlockId, selectedWallId:selectedWallId, onWallSelect:onWallSelect, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, onIslandDragEnd:onIslandDragEnd, onDecorDragEnd:onDecorDragEnd, onDecorDragMove:onDecorDragMove, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList(), readyIds:PRO ? proReadyIds() : null,
         xray:inspect.on }); // inspect mode: every cabinet built in parts (drawers/doors tap open, nothing drags)
       landedBlockId = null;
       applyInspect();
@@ -5162,11 +5193,13 @@
       : op ? op.o.widthMm + " × " + op.o.heightMm : "";
     chip.classList.toggle("editable", !!((fb && !fb.block.panel && !CATALOG[fb.block.type].panel && !CATALOG[fb.block.type].shelfStack) || op));
     chip.title = chip.classList.contains("editable") ? "Smelltu til að slá inn mál" : "";
-    var lk = document.getElementById("fbLock"), isLocked = fb ? !!fb.block.locked : !!(op && opLocked(op.o));
+    var dsel = !fb && !op && selectedBlockId ? findDecor(selectedBlockId) : null;
+    var lk = document.getElementById("fbLock"), isLocked = fb ? !!fb.block.locked : op ? opLocked(op.o) : decorIsLocked(dsel);
     lk.textContent = isLocked ? "🔒" : "🔓";
     lk.title = op ? (isLocked ? "Læst — smelltu til að geta fært" : "Læsa") : isLocked ? "Skápurinn er læstur — smelltu til að opna" : "Læsa skáp";
     lk.classList.toggle("on", isLocked);
-    document.querySelectorAll('#floatBar [data-fb="left"], #floatBar [data-fb="right"], #floatBar [data-fb="del"]').forEach(function(btn){ btn.disabled = isLocked; });
+    document.querySelectorAll('#floatBar [data-fb="left"], #floatBar [data-fb="right"], #floatBar [data-fb="del"], #floatBar [data-fb^="rot"]').forEach(function(btn){ btn.disabled = isLocked; });
+    if (dsel) lk.title = isLocked ? "Læst — smelltu til að opna" : "Læsa hlutnum";
   }
 
   // Click the size chip on the floating toolbar to type new sizes right there
@@ -5649,40 +5682,91 @@
   // ---- Húsgögn og skraut (2026-10-05): view-only props in state.decor [{id, kind, xMm, zMm, rot}] ----
   var decorSeq = 1;
   function findDecor(id){ return (state.decor || []).find(function(d){ return d.id === id; }) || null; }
+  function decorIsLocked(d){ return !!(d && (d.locked || state.decorLocked)); }
+  function decorLockedToast(){ toast(state.decorLocked ? "Húsgögnin eru læst — opnaðu þau í „Húsgögn og skraut“." : "Hluturinn er læstur — smelltu á 🔒 til að geta fært hann."); }
   function addDecor(kind){
     var def = KP3D.DECOR[kind];
     if (!def) return;
     state.decor = state.decor || [];
+    state.decorHidden = false; // adding something shows the furniture again
     var at = KP3D.decorSpot(state, kind); // a free spot: no piling up, nothing inside a cabinet or the island
     if (!at){ toast("Settu fyrst inn skáp með borðplötu — þá fer hluturinn ofan á hana."); return; }
     var d = { id:"d" + (decorSeq++) + "_" + Date.now().toString(36), kind:kind, xMm:at.x, zMm:at.z, rot:0 };
+    if (def.seats) d.seats = def.seatsDefault;
     if (kind === "barstoll" && state.islands && state.islands.length){ // facing the island
       var f = KP3D.islandFrame ? KP3D.islandFrame(state.islands[0]) : null;
       if (f) d.rot = Math.round(Math.atan2(f.normal.x, f.normal.z) * 180 / Math.PI);
     }
+    var fit = def.group !== "top" ? KP3D.nearestDecorFit(state, d, d.xMm, d.zMm) : null; // never through a wall or a cabinet
+    if (fit){ d.xMm = fit.x; d.zMm = fit.z; }
     state.decor.push(d);
     selectedBlockId = d.id; save(); refreshAfterEdit();
   }
+  // While dragging (3D): where the item may be — it stops at walls and cabinets and slides along them (2026-10-11).
+  // Worktop items move freely and land on the nearest worktop / table when dropped.
+  function onDecorDragMove(id, xMm, zMm, lastX, lastZ){
+    var d = findDecor(id); if (!d || KP3D.DECOR[d.kind].group === "top") return null;
+    if (KP3D.decorFits(state, d, xMm, zMm)) return { x:xMm, z:zMm };
+    if (KP3D.decorFits(state, d, xMm, lastZ)) return { x:xMm, z:lastZ };
+    if (KP3D.decorFits(state, d, lastX, zMm)) return { x:lastX, z:zMm };
+    return { x:lastX, z:lastZ };
+  }
   function onDecorDragEnd(id, dxMm, dzMm){
     var d = findDecor(id); if (!d) return;
+    if (decorIsLocked(d)){ decorLockedToast(); refreshAfterEdit(); return; }
     var rb = KP3D.roomBounds(state), x0 = d.xMm, z0 = d.zMm;
     d.xMm += dxMm; d.zMm += dzMm;
     if (rb){ d.xMm = Math.max(rb.minX * 1000, Math.min(rb.maxX * 1000, d.xMm)); d.zMm = Math.max(rb.minZ * 1000, Math.min(rb.maxZ * 1000, d.zMm)); }
-    if (KP3D.DECOR[d.kind].group === "top"){ // worktop items: on a worktop or a dining table, never the floor — the nearest one
-      var spot = KP3D.nearestTopSpot(state, d.xMm, d.zMm, d.id);
-      if (spot){ d.xMm = spot.x; d.zMm = spot.z; } else { d.xMm = x0; d.zMm = z0; toast("Engin borðplata eða borð til að setja þetta á."); }
-    }
+    var spot = KP3D.DECOR[d.kind].group === "top"
+      ? KP3D.nearestTopSpot(state, d.xMm, d.zMm, d.id) // worktop items: on a worktop or a dining table, never the floor — the nearest one
+      : KP3D.nearestDecorFit(state, d, d.xMm, d.zMm);  // furniture: never through a wall or a cabinet
+    if (spot){ d.xMm = spot.x; d.zMm = spot.z; }
+    else { d.xMm = x0; d.zMm = z0; toast(KP3D.DECOR[d.kind].group === "top" ? "Engin borðplata eða borð til að setja þetta á." : "Hluturinn kemst ekki fyrir þar."); }
     selectedBlockId = id; save(); refreshAfterEdit();
   }
-  function removeDecor(id){ state.decor = (state.decor || []).filter(function(d){ return d.id !== id; }); if (selectedBlockId === id) selectedBlockId = null; save(); refreshAfterEdit(); }
+  // a change of angle or size that would push it into a wall moves it to the nearest spot where it fits, or is refused
+  function placeDecorAs(d, change){
+    if (decorIsLocked(d)){ decorLockedToast(); return; }
+    var probe = Object.assign({}, d, change);
+    if (KP3D.DECOR[d.kind].group !== "top"){
+      var fit = KP3D.nearestDecorFit(state, probe, d.xMm, d.zMm);
+      if (!fit){ toast("Það kemst ekki fyrir hér — færðu hlutinn fyrst."); return; }
+      probe.xMm = fit.x; probe.zMm = fit.z;
+    }
+    Object.assign(d, change, { xMm:probe.xMm, zMm:probe.zMm });
+    save(); refreshAfterEdit();
+  }
+  function rotateDecor(d, deg){ placeDecorAs(d, { rot:(((d.rot || 0) + deg) % 360 + 360) % 360 }); }
+  function toggleDecorLock(d){
+    if (state.decorLocked){ decorLockedToast(); return; }
+    d.locked = !d.locked; save(); refreshAfterEdit();
+  }
+  function removeDecor(id){
+    if (decorIsLocked(findDecor(id))){ decorLockedToast(); return; }
+    state.decor = (state.decor || []).filter(function(d){ return d.id !== id; }); if (selectedBlockId === id) selectedBlockId = null; save(); refreshAfterEdit();
+  }
   function renderDecorPanel(host, d){
-    var def = KP3D.DECOR[d.kind];
-    host.innerHTML = '<div class="edit-panel"><div class="edit-panel-head"><div><h4>' + def.label + '</h4><div class="sub">Húsgögn og skraut — ekki í pöntun</div></div><button class="iconbtn" data-role="close" title="Loka">✕</button></div>' +
-      '<div class="edit-actions"><button class="iconbtn" data-role="rotL">↺ 45°</button><button class="iconbtn" data-role="rotR">↻ 45°</button><button class="iconbtn del" data-role="delete">✕ Fjarlægja</button></div>' +
-      '<p class="ov-mat" style="margin-top:10px;">Dragðu hlutinn til í 3D.' + (def.group === "top" ? ' Hann sest ofan á borðplötuna sem hann lendir á.' : '') + '</p></div>';
+    var def = KP3D.DECOR[d.kind], lk = decorIsLocked(d), t = KP3D.tableOf(d);
+    var seats = def.seats ? '<div class="cat-title" style="margin-top:12px;">Stærð</div><div class="dec-seats">' + def.seats.map(function(n){
+      var sz = KP3D.tableOf({ kind:d.kind, seats:n });
+      return '<button type="button" class="hw-btn' + (t.seats === n ? ' active' : '') + '" data-seats="' + n + '"' + (lk ? ' disabled' : '') + '><b>' + n + ' manna</b><small>' + (sz.round ? "Ø " + Math.round(sz.w * 100) + " cm" : Math.round(sz.w * 100) + " × " + Math.round(sz.d * 100) + " cm") + '</small></button>';
+    }).join("") + '</div>' : '';
+    host.innerHTML = '<div class="edit-panel"><div class="edit-panel-head"><div><h4>' + def.label + (t ? ' · ' + t.seats + ' manna' : '') + '</h4><div class="sub">Húsgögn og skraut — ekki í pöntun</div></div><button class="iconbtn" data-role="close" title="Loka">✕</button></div>' +
+      seats +
+      '<div class="cat-title" style="margin-top:12px;">Snúningur</div>' +
+      '<div class="dec-rot"><button type="button" class="hw-btn" data-rot="-45"' + (lk ? ' disabled' : '') + '>↺ 45°</button><button type="button" class="hw-btn" data-rot="-90"' + (lk ? ' disabled' : '') + '>↺ 90°</button>' +
+      '<button type="button" class="hw-btn" data-rot="90"' + (lk ? ' disabled' : '') + '>↻ 90°</button><button type="button" class="hw-btn" data-rot="45"' + (lk ? ' disabled' : '') + '>↻ 45°</button></div>' +
+      '<label class="dec-angle"><input type="range" min="0" max="345" step="15" value="' + ((d.rot || 0) % 360) + '"' + (lk ? ' disabled' : '') + '><span>' + ((d.rot || 0) % 360) + '°</span></label>' +
+      '<button type="button" class="btn btn-secondary lockbtn' + (lk ? ' on' : '') + '" data-role="lock" style="margin-top:12px;">' + (state.decorLocked ? '🔒 Öll húsgögn eru læst' : lk ? '🔒 Læst — smelltu til að opna' : '🔓 Læsa hlutnum') + '</button>' +
+      '<button type="button" class="btn btn-secondary dec-del" data-role="delete"' + (lk ? ' disabled' : '') + '>🗑 Fjarlægja</button>' +
+      '<p class="ov-mat" style="margin-top:10px;">Dragðu hlutinn til í 3D — hann stoppar við veggi og skápa.' + (def.group === "top" ? ' Hann sest ofan á borðplötuna eða borðið sem hann lendir á.' : '') + '</p></div>';
     host.querySelector('[data-role="close"]').addEventListener("click", function(){ onCabinetSelect(null); });
-    host.querySelector('[data-role="rotL"]').addEventListener("click", function(){ d.rot = ((d.rot || 0) + 315) % 360; save(); refreshAfterEdit(); });
-    host.querySelector('[data-role="rotR"]').addEventListener("click", function(){ d.rot = ((d.rot || 0) + 45) % 360; save(); refreshAfterEdit(); });
+    host.querySelectorAll("[data-rot]").forEach(function(b){ b.addEventListener("click", function(){ rotateDecor(d, +b.dataset.rot); }); });
+    host.querySelectorAll("[data-seats]").forEach(function(b){ b.addEventListener("click", function(){ placeDecorAs(d, { seats:+b.dataset.seats }); }); });
+    var rg = host.querySelector(".dec-angle input");
+    rg.addEventListener("input", function(){ rg.nextElementSibling.textContent = rg.value + "°"; });
+    rg.addEventListener("change", function(){ placeDecorAs(d, { rot:+rg.value }); });
+    host.querySelector('[data-role="lock"]').addEventListener("click", function(){ toggleDecorLock(d); });
     host.querySelector('[data-role="delete"]').addEventListener("click", function(){ removeDecor(d.id); });
   }
 
