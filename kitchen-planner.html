@@ -327,6 +327,7 @@
   .opw-btns{ display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-bottom:8px; }
   .opw-obst{ margin:4px 0 10px; font-size:13.5px; }
   .opw-head2{ display:flex; flex-direction:column; margin-bottom:12px; }
+  .wall-inset{ width:100%; max-width:240px; height:auto; display:block; margin:0 0 10px; background:#fff; border:1px solid var(--line); border-radius:12px; padding:8px; box-sizing:border-box; }
   .opw-head2 b{ font-size:18px; }
   .opw-head2 small{ font-size:13px; color:var(--ink-soft); }
   .opw-btns3{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:8px; }
@@ -339,7 +340,10 @@
   .bur-list{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
   .bur-chip{ display:inline-flex; align-items:center; gap:6px; font-size:13px; padding:4px 6px 4px 10px; border:1px solid var(--line); border-radius:999px; background:var(--panel); }
   .bur-chip button{ border:none; background:none; cursor:pointer; color:var(--ink-soft); font-size:12px; }
-  .opw-obst summary{ cursor:pointer; font-weight:600; color:var(--ink-soft); padding:4px 0; }
+  .opw-obst summary{ cursor:pointer; font-weight:600; color:var(--ink); padding:8px 14px; list-style:none; display:inline-block; border:1.5px solid var(--line); border-radius:999px; background:#fff; font-size:13.5px; }
+  .opw-obst summary::-webkit-details-marker{ display:none; }
+  .opw-obst summary:hover{ border-color:var(--blue); color:var(--blue); }
+  .opw-obst[open] summary{ border-color:var(--blue); background:var(--blue-soft); color:var(--blue); }
   .opw-obst-btns{ display:grid; grid-template-columns:repeat(2,1fr); gap:6px; margin-top:6px; }
   .opw-obst-btns .hw-btn{ font-size:12.5px; padding:7px 8px; text-align:left; }
   .elev-svg [data-elid]{ cursor:grab; }
@@ -2058,9 +2062,15 @@
       document.getElementById("shBack").addEventListener("click", function(){ shapePhase = "size"; renderShapeStep(); });
       document.getElementById("shNext").addEventListener("click", function(){ shapePhase = "openings"; if (!state.openingsDone) openWallId = null; renderShapeStep(); });
     } else if (shapePhase === "openings"){
-      box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">← Til baka</button>' + (state.openingsDone ? '<button class="btn btn-primary" id="shNext" type="button">Áfram →</button>' : '');
-      document.getElementById("shBack").addEventListener("click", function(){ shapePhase = "height"; renderShapeStep(); });
-      if (state.openingsDone) document.getElementById("shNext").addEventListener("click", function(){ shapePhase = "water"; renderShapeStep(); });
+      // the top buttons walk the walls (2026-10-11): Áfram = next wall (after the last: water), Til baka = previous wall
+      // (from wall 1: the ceiling page) — one blue button, always in the same place
+      box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">← Til baka</button><button class="btn btn-primary" id="shNext" type="button">Áfram →</button>';
+      document.getElementById("shBack").addEventListener("click", function(){
+        var walls = solidWalls(), i = walls.findIndex(function(w){ return w.id === openWallId; });
+        if (i > 0){ openWallId = walls[i - 1].id; selectedOpeningId = null; renderOpeningsBox(); renderShapeCanvas(); }
+        else { shapePhase = "height"; renderShapeStep(); }
+      });
+      document.getElementById("shNext").addEventListener("click", nextOpeningWall);
     } else {
       // one way on, water marked or not — nothing is placed for you when it isn't (2026-10-11)
       box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">← Til baka</button><button class="btn btn-primary" id="shNext" type="button">Áfram →</button>';
@@ -2416,15 +2426,17 @@
     var add = document.getElementById("opAdd");
     // 2026-10-11: "Veggur 2 af 4" + its length, three equal buttons, the obstacles behind "+ Fleiri valkostir",
     // and "Næsti veggur →" whether or not anything was added
-    add.innerHTML = cur ? '<div class="opw-head2"><b>Veggur ' + num + ' af ' + walls.length + '</b><small>' + cur.lengthMm + ' mm</small></div>' +
+    add.innerHTML = cur ? wallPlanInset(cur) + '<div class="opw-head2"><b>Veggur ' + num + ' af ' + walls.length + '</b><small>' + cur.lengthMm + ' mm</small></div>' +
       '<p class="opw-q">Bæta við</p>' +
       '<div class="opw-btns3"><button type="button" class="opw-btn" data-add="gluggi"><span>🪟</span>Gluggi</button><button type="button" class="opw-btn" data-add="hurd"><span>🚪</span>Hurð</button>' +
         '<button type="button" class="opw-btn" data-add="gat" title="Op án hurðar."><span>⬚</span>Op<small>án hurðar</small></button></div>' +
       '<details class="opw-obst"' + (obsOnWall || openWallMore ? ' open' : '') + '><summary>+ Fleiri valkostir</summary><div class="opw-obst-btns">' + Object.keys(KP3D.OBSTACLES).map(function(k){
         return '<button type="button" class="hw-btn" data-addobst="' + k + '">＋ ' + KP3D.OBSTACLES[k].label.replace(" (miðstöð)", "") + '</button>';
       }).join("") + '</div></details>' +
-      '<div class="opw-nav">' + (wi > 0 ? '<button type="button" class="btn btn-secondary" id="opwPrev">← Fyrri veggur</button>' : '<span></span>') +
-        '<button type="button" class="btn btn-primary" id="opwNext">' + (last ? "Áfram →" : "Næsti veggur →") + '</button></div>' : '';
+      '' : '';
+    add.querySelectorAll("[data-eljump]").forEach(function(el){
+      el.addEventListener("click", function(){ openWallId = el.dataset.eljump; selectedOpeningId = null; renderOpeningsBox(); renderShapeCanvas(); });
+    });
     add.querySelectorAll("[data-opwjump]").forEach(function(d){
       d.addEventListener("click", function(){ openWallId = d.dataset.opwjump; selectedOpeningId = null; renderOpeningsBox(); renderShapeCanvas(); });
     });
@@ -2604,9 +2616,11 @@
       '<text x="' + (x0 + L * sc / 2) + '" y="' + (top - 14) + '" font-size="15" font-weight="700" text-anchor="middle" fill="#191919">Veggur ' + (wi + 1) + ' · ' + L + ' mm</text>';
     // the neighbouring walls at the corners
     var prev = state.walls[(wi - 1 + n) % n], next = state.walls[(wi + 1) % n];
-    if (state.closed || wi > 0) svg += '<text x="' + (x0 - 12) + '" y="' + (top + roomH * sc / 2) + '" font-size="12" text-anchor="middle" fill="#6f6d66" transform="rotate(-90 ' + (x0 - 12) + ' ' + (top + roomH * sc / 2) + ')">← Veggur ' + (state.walls.indexOf(prev) + 1) + (prev.open ? ' (opinn)' : '') + '</text>';
-    if (state.closed || wi < n - 1) svg += '<text x="' + (x0 + L * sc + 14) + '" y="' + (top + roomH * sc / 2) + '" font-size="12" text-anchor="middle" fill="#6f6d66" transform="rotate(90 ' + (x0 + L * sc + 14) + ' ' + (top + roomH * sc / 2) + ')">Veggur ' + (state.walls.indexOf(next) + 1) + (next.open ? ' (opinn)' : '') + ' →</text>';
+    // the neighbouring walls, level and readable, in the wall's top corners (2026-10-11 — were tiny and turned on end)
+    if (state.closed || wi > 0) svg += '<text x="' + (x0 + 10) + '" y="' + (top + 22) + '" font-size="14" font-weight="600" fill="#8a8f9a">← Veggur ' + (state.walls.indexOf(prev) + 1) + (prev.open ? ' (opinn)' : '') + '</text>';
+    if (state.closed || wi < n - 1) svg += '<text x="' + (x0 + L * sc - 10) + '" y="' + (top + 22) + '" font-size="14" font-weight="600" text-anchor="end" fill="#8a8f9a">Veggur ' + (state.walls.indexOf(next) + 1) + (next.open ? ' (opinn)' : '') + ' →</text>';
     var items = elItems(wall.id), pills = "";
+    if (!items.length) svg += '<text x="' + (x0 + L * sc / 2) + '" y="' + (top + roomH * sc / 2) + '" font-size="15" text-anchor="middle" fill="#b3b0a8">Engir gluggar eða hurðir á þessum vegg</text>';
     items.forEach(function(it){
       var o = it.o, x = X(o.offsetMm), w = o.widthMm * sc, y = Y(it.hi), h = (it.hi - it.lo) * sc, sel = selectedOpeningId === it.id;
       var stroke = sel ? "#0058a3" : null, g = '<g data-elid="' + it.id + '">';
@@ -2654,20 +2668,6 @@
       if (canH) pills += pill(vx, Y((it.lo + it.hi) / 2), it.hi - it.lo, "heightMm");
       if (canLo && it.lo > 0) pills += pill(vx, Y(it.lo / 2), it.lo, "elev");
     });
-    // which wall this is: a small plan, click a wall to jump there
-    var iw = 150, ih = 104, iox = W - iw - 10, ioy = 10;
-    var lens = state.walls.map(function(w2){ return w2.lengthMm; }), turns = state.walls.map(function(w2){ return w2.turnAfter; });
-    var v = chainVertices(lens, turns).pts, xs = v.map(function(p){ return p.x; }), zs = v.map(function(p){ return p.z; });
-    var minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs), minZ = Math.min.apply(null, zs), maxZ = Math.max.apply(null, zs);
-    var isc = Math.min((iw - 24) / Math.max(1, maxX - minX), (ih - 24) / Math.max(1, maxZ - minZ));
-    var ix = iox + (iw - (maxX - minX) * isc) / 2 - minX * isc, iy = ioy + (ih - (maxZ - minZ) * isc) / 2 - minZ * isc;
-    svg += '<rect x="' + iox + '" y="' + ioy + '" width="' + iw + '" height="' + ih + '" rx="8" fill="#fff" stroke="#e4e1d8"/>' +
-      '<polygon points="' + v.map(function(p){ return (p.x * isc + ix) + "," + (p.z * isc + iy); }).join(" ") + '" fill="' + KP3D.floorPlanColor(state.floor) + '"/>';
-    state.walls.forEach(function(w2, k){
-      var a = v[k], b = v[(k + 1) % v.length]; if (!b || (!state.closed && k === n - 1 && v.length === n)) return;
-      var on = w2.id === wall.id;
-      svg += '<line ' + (w2.open ? '' : 'data-eljump="' + w2.id + '" ') + 'x1="' + (a.x * isc + ix) + '" y1="' + (a.z * isc + iy) + '" x2="' + (b.x * isc + ix) + '" y2="' + (b.z * isc + iy) + '" stroke="' + (on ? "#0058a3" : w2.open ? "#9a978e" : "#c9ccd4") + '" stroke-width="' + (on ? 6 : 4) + '"' + (w2.open ? ' stroke-dasharray="4,3"' : ' style="cursor:pointer;"') + '/>';
-    });
     host.innerHTML = svg + pills + '</svg>';
     host.querySelectorAll("[data-eljump]").forEach(function(el){
       el.addEventListener("click", function(){ openWallId = el.dataset.eljump; selectedOpeningId = null; renderOpeningsBox(); renderShapeCanvas(); });
@@ -2683,6 +2683,27 @@
     host.querySelector("svg").addEventListener("pointerdown", function(evt){
       if (evt.target.tagName === "svg" || (evt.target.tagName === "rect" && !evt.target.closest("[data-elid],[data-eldim]"))){ if (selectedOpeningId){ selectedOpeningId = null; highlightOpRow(); renderShapeCanvas(); } }
     });
+  }
+  // which wall this is: a small plan with numbered walls, click one to jump there (2026-10-11: in the side panel,
+  // it covered the wall drawing when made bigger)
+  function wallPlanInset(wall){
+    var n = state.walls.length, iw = 220, ih = 150, iox = 0, ioy = 0, svg = '<svg class="wall-inset" viewBox="0 0 ' + iw + ' ' + ih + '" xmlns="http://www.w3.org/2000/svg">';
+    var lens = state.walls.map(function(w2){ return w2.lengthMm; }), turns = state.walls.map(function(w2){ return w2.turnAfter; });
+    var v = chainVertices(lens, turns).pts, xs = v.map(function(p){ return p.x; }), zs = v.map(function(p){ return p.z; });
+    var minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs), minZ = Math.min.apply(null, zs), maxZ = Math.max.apply(null, zs);
+    var isc = Math.min((iw - 24) / Math.max(1, maxX - minX), (ih - 24) / Math.max(1, maxZ - minZ));
+    var ix = iox + (iw - (maxX - minX) * isc) / 2 - minX * isc, iy = ioy + (ih - (maxZ - minZ) * isc) / 2 - minZ * isc;
+    svg += '<polygon points="' + v.map(function(p){ return (p.x * isc + ix) + "," + (p.z * isc + iy); }).join(" ") + '" fill="' + KP3D.floorPlanColor(state.floor) + '"/>';
+    state.walls.forEach(function(w2, k){
+      var a = v[k], b = v[(k + 1) % v.length]; if (!b || (!state.closed && k === n - 1 && v.length === n)) return;
+      var on = w2.id === wall.id;
+      svg += '<line ' + (w2.open ? '' : 'data-eljump="' + w2.id + '" ') + 'x1="' + (a.x * isc + ix) + '" y1="' + (a.z * isc + iy) + '" x2="' + (b.x * isc + ix) + '" y2="' + (b.z * isc + iy) + '" stroke="' + (on ? "#0058a3" : w2.open ? "#9a978e" : "#c9ccd4") + '" stroke-width="' + (on ? 6 : 4) + '"' + (w2.open ? ' stroke-dasharray="4,3"' : ' style="cursor:pointer;"') + '/>';
+      if (!w2.open){ // the wall's number, like on the size page
+        var mx = (a.x + b.x) / 2 * isc + ix, my = (a.z + b.z) / 2 * isc + iy;
+        svg += '<g data-eljump="' + w2.id + '" style="cursor:pointer;"><circle cx="' + mx + '" cy="' + my + '" r="9" fill="' + (on ? "#0058a3" : "#fff") + '" stroke="' + (on ? "#0058a3" : "#8a8f9a") + '" stroke-width="1.4"/><text x="' + mx + '" y="' + (my + 4) + '" font-size="11" font-weight="700" text-anchor="middle" fill="' + (on ? "#fff" : "#191919") + '" style="pointer-events:none;">' + (k + 1) + '</text></g>';
+      }
+    });
+    return svg + '</svg>';
   }
   function startElDrag(id, evt, sc){
     evt.preventDefault(); evt.stopPropagation();
