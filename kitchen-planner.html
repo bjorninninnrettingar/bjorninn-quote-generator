@@ -275,16 +275,12 @@
   .btn-small{ padding:7px 12px; font-size:13px; border-radius:7px; }
 
   .actions{ display:flex; gap:10px; align-items:center; margin-top:8px; flex-wrap:wrap; }
-  /* the step navigation (2026-10-11): always the same place — a bar along the bottom of the screen, "← Til baka" on
-     the left, "Áfram →" on the right, lined up with the page's own edges (--navw = the step's content width) */
-  .wrap{ --navw:900px; }
-  .wrap.mat{ --navw:1200px; }
-  .wrap.shp{ --navw:1240px; }
-  .step-nav{ position:fixed; left:0; right:0; bottom:0; z-index:80; margin:0 !important; display:flex; align-items:center; gap:10px;
-    padding:12px max(24px, calc((100vw - var(--navw)) / 2 + 24px)); background:rgba(255,255,255,.94); backdrop-filter:blur(6px); border-top:1px solid var(--line); }
-  .step-nav > :first-child{ margin-right:auto; }
+  /* the step navigation (2026-10-11): always the same place — "← Til baka" and "Áfram →" side by side at the
+     right end of the page's title row, which stays put while the page scrolls (until the designer, which has its own) */
+  .title-row{ display:flex; align-items:flex-start; justify-content:space-between; gap:16px; position:sticky; top:0; z-index:40; background:var(--bg, #fff); padding:8px 0 6px; }
+  .title-row .screen-sub{ margin-bottom:0; }
+  .step-nav{ display:flex; align-items:center; gap:8px; flex:none; margin:0 !important; flex-wrap:nowrap; }
   .step-nav:empty{ display:none; }
-  #screen-shape, #screen-materials, #screen-intake, #screen-contact{ padding-bottom:76px; }
 
   .meter-note{ font-size:12.5px; color:var(--ink-soft); margin:0 0 10px; }
   .empty-note{ font-size:13px; color:var(--ink-soft); font-style:italic; padding:6px 2px; }
@@ -418,6 +414,7 @@
   @media (max-width:900px){ .mat-side{ position:static; max-height:none; overflow:visible; } }
   .cab-preview-wrap{ position:relative; }
   .mat-side{ padding-bottom:12px; }
+  .mat-side .title-row{ margin-top:6px; }
   .spin-toggle{ display:inline-flex; align-items:center; gap:8px; }
   .spin-toggle i{ width:28px; height:16px; border-radius:999px; background:var(--line); position:relative; transition:background .15s; flex:none; }
   .spin-toggle i::after{ content:""; position:absolute; top:2px; left:2px; width:12px; height:12px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.3); transition:left .15s; }
@@ -920,16 +917,16 @@
 
   <!-- ============ STEP: INTAKE ============ -->
   <section id="screen-intake" hidden>
-    <div class="screen-title">Rétt áður en þú sendir inn</div>
-    <p class="screen-sub">Þetta hjálpar söluaðila að finna lausn sem hentar þínum ramma og tímalínu — engin binding.</p>
+    <div class="title-row"><div><div class="screen-title">Rétt áður en þú sendir inn</div>
+    <p class="screen-sub">Þetta hjálpar söluaðila að finna lausn sem hentar þínum ramma og tímalínu — engin binding.</p></div>
+    <div class="actions step-nav">
+      <button class="skip-link" id="skipQuizBtn" type="button">Sleppa spurningum</button>
+      <button class="btn btn-secondary" id="intakeBackBtn" type="button">← Til baka</button>
+      <button class="btn btn-primary" id="toMaterialsBtn" type="button" disabled>Áfram →</button>
+    </div></div>
 
     <div id="intakeBody"></div>
 
-    <div class="actions step-nav">
-      <button class="btn btn-secondary" id="intakeBackBtn" type="button">← Til baka í skipulagið</button>
-      <button class="btn btn-primary" id="toMaterialsBtn" type="button" disabled>Áfram — senda inn</button>
-      <button class="skip-link" id="skipQuizBtn" type="button">Sleppa spurningum →</button>
-    </div>
   </section>
 
   <!-- ============ STEP: MATERIALS ============ -->
@@ -942,8 +939,8 @@
       </div>
       <div class="mat-side">
         <div class="wiz-steps" id="wizSteps"></div>
-        <div class="screen-title" id="matTitle" style="margin-top:14px;"></div>
-        <p class="screen-sub" id="matSub"></p>
+        <div class="title-row"><div><div class="screen-title" id="matTitle"></div>
+        <p class="screen-sub" id="matSub"></p></div><div class="actions step-nav" id="matActions"></div></div>
 
         <div class="wiz-panel" data-mp="0">
           <div class="sw-grid big" id="carcassCards"></div>
@@ -968,15 +965,14 @@
           <p class="tab-blurb" id="topBlurb"></p>
           <div class="sw-grid" id="topCards"></div>
         </div>
-        <div class="actions step-nav" id="matActions"></div>
       </div>
     </div>
   </section>
 
   <!-- ============ STEP: SHAPE ============ -->
   <section id="screen-shape" hidden>
-    <div class="screen-title" id="shapeTitle">Skilgreindu rýmið</div>
-    <p class="screen-sub" id="shapeSub"></p>
+    <div class="title-row"><div><div class="screen-title" id="shapeTitle">Skilgreindu rýmið</div>
+    <p class="screen-sub" id="shapeSub"></p></div><div class="actions step-nav" id="shapeActions"></div></div>
 
     <!-- phase 1: pick a shape -->
     <div id="shapePick">
@@ -1034,7 +1030,6 @@
       </div>
     </div>
 
-    <div class="actions step-nav" id="shapeActions"></div>
   </section>
 
   <!-- ============ STEP: EDITOR (catalog | 3D/2D stage | properties) ============ -->
@@ -1095,8 +1090,12 @@
 
   <!-- ============ STEP: CONTACT ============ -->
   <section id="screen-contact" hidden>
-    <div class="screen-title">Þínar upplýsingar</div>
-    <p class="screen-sub">Söluaðili fer yfir skipulagið þitt og hefur samband til að fullkomna hönnunina.</p>
+    <div class="title-row"><div><div class="screen-title">Þínar upplýsingar</div>
+    <p class="screen-sub">Söluaðili fer yfir skipulagið þitt og hefur samband til að fullkomna hönnunina.</p></div>
+    <div class="actions step-nav">
+      <button class="btn btn-secondary" id="backToEditorBtn" type="button">← Til baka</button>
+      <button class="btn btn-primary" id="submitBtn" type="button">Senda inn</button>
+    </div></div>
 
     <div class="contact-preview" id="contactPreview" hidden></div>
 
@@ -1126,10 +1125,6 @@
     <p class="submit-note">Við notum upplýsingarnar eingöngu til að hafa samband við þig vegna skipulagsins. Engin binding.</p>
     <p class="submit-note" id="submitError" style="display:none; color:var(--danger);"></p>
 
-    <div class="actions step-nav">
-      <button class="btn btn-secondary" id="backToEditorBtn" type="button">← Til baka</button>
-      <button class="btn btn-primary" id="submitBtn" type="button">Senda inn</button>
-    </div>
   </section>
 
   <!-- ============ STEP: DONE ============ -->
@@ -1971,6 +1966,16 @@
     if (evt.target === evt.currentTarget || evt.target.tagName === "svg" || evt.target.tagName === "polygon"){ selectedEdge = null; selectedOpeningId = null; document.getElementById("dimPop").hidden = true; renderShapeCanvas(); }
   });
   window.addEventListener("resize", function(){ if (state.step === "shape" && shapePhase !== "pick" && !heightScene) renderShapeCanvas(); });
+  // the drawing follows its own box too (it was drawn while the layout was still narrow → a tiny room, 2026-10-11)
+  if (window.ResizeObserver){
+    var shapeBoxW = 0, shapeBoxRaf = 0;
+    new ResizeObserver(function(entries){
+      var w = Math.round(entries[0].contentRect.width);
+      if (w === shapeBoxW) return; shapeBoxW = w;
+      cancelAnimationFrame(shapeBoxRaf);
+      shapeBoxRaf = requestAnimationFrame(function(){ if (state.step === "shape" && shapePhase !== "pick" && !heightScene && !slideState) renderShapeCanvas(); });
+    }).observe(document.getElementById("shapeCanvas"));
+  }
 
   // sink on the chosen water wall when the editor opens for the first time
   function seedSink(){
@@ -2049,7 +2054,7 @@
     document.getElementById("shapeWater").hidden = shapePhase !== "water";
     // the buttons sit at the bottom of the side panel while drawing, under the cards while picking a shape
     var acts = document.getElementById("shapeActions");
-    (shapePhase === "pick" ? document.getElementById("screen-shape") : document.getElementById("shapeActionsSlot")).appendChild(acts);
+    // (the nav lives in the title row on every phase now — 2026-10-11)
     if (shapePhase === "pick"){
       ["closed", "open"].forEach(function(g){
         document.getElementById(g === "closed" ? "shapeCardsClosed" : "shapeCardsOpen").innerHTML = Object.keys(SHAPE_TEMPLATES).filter(function(k){ return SHAPE_TEMPLATES[k].group === g; }).map(function(k){
