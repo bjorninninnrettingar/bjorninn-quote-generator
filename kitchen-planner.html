@@ -90,6 +90,8 @@
   /* welcome page (2026-10-11): one centred column — the header and the steps start on the same line, the button
      sits on the right like "Áfram →" on the pages after it */
   .wrap.welm{ max-width:640px; padding-top:clamp(28px, 9vh, 96px); }
+  .wrap:not(.welm):not(.wide) h1{ font-size:20px; margin-top:2px; }
+  .wrap:not(.welm):not(.wide) .top{ margin-bottom:14px; }
   .wrap.welm .wel{ max-width:none; margin:22px 0 0; }
   .wel-actions{ display:flex; align-items:center; justify-content:flex-end; gap:18px; flex-wrap:wrap; margin-top:8px; }
   .reset-link{ background:none; border:none; color:var(--ink-soft); font-size:13px; text-decoration:underline; cursor:pointer; padding:4px 0; white-space:nowrap; }
@@ -273,6 +275,16 @@
   .btn-small{ padding:7px 12px; font-size:13px; border-radius:7px; }
 
   .actions{ display:flex; gap:10px; align-items:center; margin-top:8px; flex-wrap:wrap; }
+  /* the step navigation (2026-10-11): always the same place — a bar along the bottom of the screen, "← Til baka" on
+     the left, "Áfram →" on the right, lined up with the page's own edges (--navw = the step's content width) */
+  .wrap{ --navw:900px; }
+  .wrap.mat{ --navw:1200px; }
+  .wrap.shp{ --navw:1240px; }
+  .step-nav{ position:fixed; left:0; right:0; bottom:0; z-index:80; margin:0 !important; display:flex; align-items:center; gap:10px;
+    padding:12px max(24px, calc((100vw - var(--navw)) / 2 + 24px)); background:rgba(255,255,255,.94); backdrop-filter:blur(6px); border-top:1px solid var(--line); }
+  .step-nav > :first-child{ margin-right:auto; }
+  .step-nav:empty{ display:none; }
+  #screen-shape, #screen-materials, #screen-intake, #screen-contact{ padding-bottom:76px; }
 
   .meter-note{ font-size:12.5px; color:var(--ink-soft); margin:0 0 10px; }
   .empty-note{ font-size:13px; color:var(--ink-soft); font-style:italic; padding:6px 2px; }
@@ -405,7 +417,7 @@
   .mat-side{ position:sticky; top:16px; max-height:calc(100vh - 32px); overflow-y:auto; overscroll-behavior:contain; padding-right:6px; }
   @media (max-width:900px){ .mat-side{ position:static; max-height:none; overflow:visible; } }
   .cab-preview-wrap{ position:relative; }
-  .mat-nav{ position:sticky; bottom:0; background:var(--bg, #fff); padding:12px 0 4px; margin-top:16px; }
+  .mat-side{ padding-bottom:12px; }
   .spin-toggle{ display:inline-flex; align-items:center; gap:8px; }
   .spin-toggle i{ width:28px; height:16px; border-radius:999px; background:var(--line); position:relative; transition:background .15s; flex:none; }
   .spin-toggle i::after{ content:""; position:absolute; top:2px; left:2px; width:12px; height:12px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.3); transition:left .15s; }
@@ -491,7 +503,8 @@
   /* ---- define your space ---- */
   .shape-group-title{ font-size:15px; font-weight:600; margin:22px 0 10px; }
   .shape-group-title span{ font-weight:400; font-size:12.5px; color:var(--ink-soft); }
-  .shape-cards{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; max-width:760px; }
+  .shape-cards{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; max-width:980px; }
+  .shape-card svg{ height:128px !important; }
   @media (max-width:640px){ .shape-cards{ grid-template-columns:repeat(2,1fr); } }
   .shape-card{ background:#fff; border:1.5px solid var(--line); border-radius:12px; padding:14px 12px 10px; cursor:pointer; text-align:center; font:inherit; position:relative; }
   .shape-card:hover{ border-color:var(--blue); }
@@ -509,7 +522,7 @@
   .look-sec > summary small{ font-size:12.5px; color:var(--ink-soft); font-weight:400; }
   .shape-side-actions{ margin-top:18px; }
   .water-ok{ font-size:14px; font-weight:600; color:var(--ink); margin:0 0 10px; }
-  .shape-note{ font-size:12.5px; color:var(--ink-soft); margin:8px 0 0; }
+  .shape-note{ display:flex; align-items:center; gap:10px; font-size:13px; color:var(--ink-soft); margin:16px 0 0; }
   .shape-tip{ color:var(--ink-soft); cursor:help; margin-left:6px; }
   .shape-toolbar{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:0 0 12px; font-size:13px; color:var(--ink-soft); }
   .shape-canvas-wrap{ position:relative; }
@@ -912,7 +925,7 @@
 
     <div id="intakeBody"></div>
 
-    <div class="actions">
+    <div class="actions step-nav">
       <button class="btn btn-secondary" id="intakeBackBtn" type="button">← Til baka í skipulagið</button>
       <button class="btn btn-primary" id="toMaterialsBtn" type="button" disabled>Áfram — senda inn</button>
       <button class="skip-link" id="skipQuizBtn" type="button">Sleppa spurningum →</button>
@@ -955,7 +968,7 @@
           <p class="tab-blurb" id="topBlurb"></p>
           <div class="sw-grid" id="topCards"></div>
         </div>
-        <div class="actions mat-nav" id="matActions"></div>
+        <div class="actions step-nav" id="matActions"></div>
       </div>
     </div>
   </section>
@@ -971,7 +984,7 @@
       <div class="shape-cards" id="shapeCardsClosed"></div>
       <div class="shape-group-title">Opið eldhús</div>
       <div class="shape-cards" id="shapeCardsOpen"></div>
-      <p class="shape-note">Strikalína sýnir opna hlið.</p>
+      <p class="shape-note"><svg width="34" height="8" aria-hidden="true"><line x1="1" y1="4" x2="33" y2="4" stroke="currentColor" stroke-width="2" stroke-dasharray="5,4"/></svg>Strikalína sýnir opna hlið.</p>
     </div>
 
     <!-- phases 2-4: top-down drawing on the left, everything else in the panel on the right -->
@@ -1021,7 +1034,7 @@
       </div>
     </div>
 
-    <div class="actions" id="shapeActions"></div>
+    <div class="actions step-nav" id="shapeActions"></div>
   </section>
 
   <!-- ============ STEP: EDITOR (catalog | 3D/2D stage | properties) ============ -->
@@ -1113,7 +1126,7 @@
     <p class="submit-note">Við notum upplýsingarnar eingöngu til að hafa samband við þig vegna skipulagsins. Engin binding.</p>
     <p class="submit-note" id="submitError" style="display:none; color:var(--danger);"></p>
 
-    <div class="actions">
+    <div class="actions step-nav">
       <button class="btn btn-secondary" id="backToEditorBtn" type="button">← Til baka</button>
       <button class="btn btn-primary" id="submitBtn" type="button">Senda inn</button>
     </div>
