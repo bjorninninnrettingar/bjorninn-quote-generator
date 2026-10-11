@@ -520,6 +520,8 @@
   .look-head{ display:flex; flex-direction:column; margin:18px 0 10px; }
   .look-head b{ font-size:15px; }
   .look-head small{ font-size:12.5px; color:var(--ink-soft); }
+  .sel-name{ font-weight:400; color:var(--ink-soft); }
+  .fl-var .fl-rot{ font-weight:600; }
   .look-sec > summary small{ font-size:12.5px; color:var(--ink-soft); font-weight:400; }
   .shape-side-actions{ margin-top:18px; }
   .water-ok{ font-size:14px; font-weight:600; color:var(--ink); margin:0 0 10px; }
@@ -1017,7 +1019,7 @@
               <div class="sw-grid" id="floorCards"></div>
             </div>
             <div class="mat-section">
-              <div class="mat-section-title">Vegglitur</div>
+              <div class="mat-section-title">Vegglitur <span class="sel-name" id="wallColorName"></span></div>
               <div class="wallcolor-row" id="wallColorRow"></div>
             </div>
           </div>
@@ -1861,7 +1863,7 @@
     var cur = group === "flisar" ? (state.floorTile || "60x60") : (state.floorPattern || "beint");
     return '<div class="fl-var"><span>' + (group === "flisar" ? "Stærð flísa" : "Lögn") + '</span>' + Object.keys(opts).map(function(k){
       return '<button type="button" class="tab-btn' + (k === cur ? " active" : "") + '" ' + attr + '="' + group + ':' + k + '">' + opts[k].label + '</button>';
-    }).join("") + '<button type="button" class="tab-btn' + (state.floorRot ? " active" : "") + '" ' + attr + '="rot:90" title="Snúa gólfmynstri" aria-label="Snúa gólfmynstri">↻</button></div>';
+    }).join("") + '<button type="button" class="tab-btn fl-rot' + (state.floorRot ? " active" : "") + '" ' + attr + '="rot:90" title="Snúa gólfmynstri" aria-label="Snúa gólfmynstri">↻ 90°</button></div>';
   }
   function setFloorVariant(val){
     var pr = val.split(":");
@@ -2502,7 +2504,8 @@
   }
 
   function renderWallColorRow(){
-    var row = document.getElementById("wallColorRow");
+    var row = document.getElementById("wallColorRow"), nm = document.getElementById("wallColorName");
+    if (nm) nm.textContent = WALL_COLORS[state.wallColor] ? "· " + WALL_COLORS[state.wallColor].label : ""; // the chosen colour by name (2026-10-11)
     row.innerHTML = Object.keys(WALL_COLORS).map(function(key){
       var c = WALL_COLORS[key];
       var active = state.wallColor === key;
@@ -2514,6 +2517,7 @@
         state.wallColor = btn.dataset.wallcolor;
         save();
         row.querySelectorAll(".wallcolor-swatch").forEach(function(x){ x.classList.toggle("active", x === btn); });
+        if (nm) nm.textContent = "· " + WALL_COLORS[state.wallColor].label;
         scheduleRoomPreview();
       });
     });

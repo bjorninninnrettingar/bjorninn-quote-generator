@@ -3234,7 +3234,8 @@
       scene.add(sh);
     });
     // dimension line on the wall, a little to the side of the figures
-    var dOff = -Math.min(1.3, g.lenM * 0.42);
+    // (2026-10-11) further from the figures, near the corner, and the label up by the ceiling — it sat on the man
+    var dOff = -Math.max(0.9, Math.min(g.lenM / 2 - 0.35, 1.9));
     var dx = mid.x + g.axis.x * dOff + g.normal.x * 0.02, dz = mid.z + g.axis.z * dOff + g.normal.z * 0.02;
     var wn = parseInt((wallHex || "#f1efe8").slice(1), 16), dark = (((wn >> 16) & 255) * 0.3 + ((wn >> 8) & 255) * 0.59 + (wn & 255) * 0.11) < 128;
     var lm = new THREE.LineBasicMaterial({ color:dark ? 0xf4f2ec : 0x333333 }), tick = 0.08;
@@ -3252,8 +3253,8 @@
     var lt = new THREE.CanvasTexture(lc);
     if (THREE.SRGBColorSpace) lt.colorSpace = THREE.SRGBColorSpace;
     var sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:lt, depthTest:false }));
-    sp.scale.set(0.62, 0.175, 1); sp.renderOrder = 10;
-    sp.position.set(dx + g.normal.x * 0.05, wallH / 2, dz + g.normal.z * 0.05);
+    sp.scale.set(0.95, 0.27, 1); sp.renderOrder = 10;
+    sp.position.set(dx + g.normal.x * 0.05 + g.axis.x * 0.5, wallH - 0.32, dz + g.normal.z * 0.05 + g.axis.z * 0.5);
     scene.add(sp);
     return { people:out, focus:{ x:mid.x + g.normal.x * inM, z:mid.z + g.normal.z * inM }, g:g };
   }
