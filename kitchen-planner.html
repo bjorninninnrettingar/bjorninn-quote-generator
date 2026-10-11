@@ -2135,7 +2135,8 @@
   function startObDrag(id, evt){
     evt.preventDefault(); evt.stopPropagation();
     var o = findObstacle(id), host = document.getElementById("shapeCanvas"); if (!o) return;
-    var v = shapeView(host.clientWidth, host.clientHeight), pt = canvasPointMm(evt, v), hit = nearestWallAt(v, pt);
+    var v = shapeView(host.clientWidth, host.clientHeight), pt = canvasPointMm(evt, v);
+    var hit = KP3D.OBSTACLES[o.kind].free ? wallCoordAt(v, state.walls.findIndex(function(w){ return w.id === o.wallId; }), pt) : nearestWallAt(v, pt);
     var onOwn = hit && state.walls[hit.i].id === o.wallId;
     obDrag = { id:id, x0:evt.clientX, y0:evt.clientY, moved:false, v:v,
       grip:onOwn ? hit.t - (o.offsetMm + o.widthMm / 2) : 0, gripOut:onOwn ? hit.d - ((o.outMm || 0) + o.depthMm / 2) : 0 };
@@ -2147,13 +2148,23 @@
     var st = obDrag; if (!st) return;
     if (!st.moved && Math.hypot(evt.clientX - st.x0, evt.clientY - st.y0) < 4) return;
     st.moved = true;
-    var o = findObstacle(st.id), hit = nearestWallAt(st.v, canvasPointMm(evt, st.v)); if (!o || !hit) return;
-    var wall = state.walls[hit.i], def = KP3D.OBSTACLES[o.kind];
+    var o = findObstacle(st.id); if (!o) return;
+    var def = KP3D.OBSTACLES[o.kind], pt = canvasPointMm(evt, st.v);
+    // a free-standing column keeps its own wall (user, 2026-10-11): measured along / out from that wall wherever it goes
+    var hit = def.free ? wallCoordAt(st.v, state.walls.findIndex(function(w){ return w.id === o.wallId; }), pt) : nearestWallAt(st.v, pt);
+    if (!hit) return;
+    var wall = state.walls[hit.i];
     if (wall.id !== o.wallId){ st.grip = 0; st.gripOut = 0; }
     var p = obstaclePlace(o, wall, hit.t - st.grip - o.widthMm / 2, null);
     o.wallId = wall.id; o.widthMm = p.widthMm; o.offsetMm = p.offsetMm;
     if (def.free){ var out = Math.round((hit.d - st.gripOut - o.depthMm / 2) / 10) * 10; o.outMm = out < 60 ? 0 : out; } // close to the wall = against it
     renderShapeCanvas();
+  }
+  function wallCoordAt(v, i, pt){ // -> {i, t (mm along wall i), d (mm out from it into the room)}
+    if (i < 0) return null;
+    var n = v.pts.length, p1 = v.pts[i], p2 = v.pts[(i + 1) % n], ax = p2.x - p1.x, az = p2.z - p1.z, len = Math.hypot(ax, az) || 1;
+    ax /= len; az /= len;
+    return { i:i, t:Math.max(0, Math.min(len, (pt.x - p1.x) * ax + (pt.z - p1.z) * az)), d:(pt.x - p1.x) * -az + (pt.z - p1.z) * ax };
   }
   function onObDragUp(){
     window.removeEventListener("pointermove", onObDragMove);
