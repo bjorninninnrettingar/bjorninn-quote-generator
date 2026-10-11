@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Skipuleggðu eldhúsið | BJÖRNINN</title>
+<title>Hannaðu eldhúsið þitt | BJÖRNINN</title>
 <meta name="description" content="Teiknaðu upp draumaeldhúsið í 3D — veldu skápa, efni og lögun. Gróf teikning, engin binding. Björninn Innréttingar fer yfir og fullkomnar hönnunina með þér." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -80,6 +80,14 @@
   .kicker{ font-size:11.5px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--gold); }
   h1{ font-weight:600; font-size:clamp(24px,4vw,32px); letter-spacing:-.01em; margin:6px 0 6px; }
   .lede{ font-size:15px; color:var(--ink-soft); max-width:none; margin:0 0 26px; }
+  .help-wrap{ position:relative; }
+  .help-btn{ background:#fff; border:1px solid var(--line); border-radius:999px; padding:6px 14px; font:inherit; font-size:13px; font-weight:600; color:var(--ink); cursor:pointer; }
+  .help-btn:hover{ border-color:var(--blue); color:var(--blue); }
+  .help-menu:not([hidden]){ position:absolute; right:0; top:calc(100% + 6px); z-index:200; min-width:210px; background:#fff; border:1px solid var(--line); border-radius:12px; box-shadow:0 12px 32px rgba(0,0,0,.16); padding:6px; display:flex; flex-direction:column; }
+  .help-menu button{ background:none; border:0; text-align:left; font:inherit; font-size:14px; padding:9px 12px; border-radius:8px; cursor:pointer; color:var(--ink); }
+  .help-menu button:hover{ background:var(--panel); }
+  .help-menu button[hidden]{ display:none; }
+  .wel-actions{ display:flex; align-items:center; gap:18px; flex-wrap:wrap; }
   .reset-link{ background:none; border:none; color:var(--ink-soft); font-size:13px; text-decoration:underline; cursor:pointer; padding:4px 0; white-space:nowrap; }
   .reset-link:hover{ color:var(--danger); }
 
@@ -238,6 +246,9 @@
   .field{ display:flex; flex-direction:column; gap:6px; }
   .field label{ font-size:13px; font-weight:600; color:var(--ink); }
   .h-range{ width:100%; accent-color:var(--blue); margin:4px 0 6px; }
+  .h-range.quiet{ opacity:.6; margin-top:10px; }
+  .h-range.quiet:hover, .h-range.quiet:focus{ opacity:1; }
+  .h-num{ font-size:18px !important; font-weight:600; width:120px; }
   .field .row{ display:flex; align-items:center; gap:8px; }
   .field input[type=number]{
     width:110px; padding:10px 12px; border:1px solid var(--line); border-radius:8px;
@@ -303,6 +314,14 @@
   .opw-q{ font-weight:600; margin:0 0 10px; }
   .opw-btns{ display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-bottom:8px; }
   .opw-obst{ margin:4px 0 10px; font-size:13.5px; }
+  .opw-head2{ display:flex; flex-direction:column; margin-bottom:12px; }
+  .opw-head2 b{ font-size:18px; }
+  .opw-head2 small{ font-size:13px; color:var(--ink-soft); }
+  .opw-btns3{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:8px; }
+  .opw-btns3 .opw-btn{ flex-direction:column; justify-content:center; text-align:center; gap:4px; padding:12px 8px; }
+  .opw-btns3 .opw-btn small{ font-size:11.5px; font-weight:400; color:var(--ink-soft); }
+  @media (max-width:520px){ .opw-btns3{ grid-template-columns:1fr; } }
+  .opw-nav{ display:flex; justify-content:space-between; gap:8px; margin:14px 0 6px; }
   .bur-presets{ display:flex; flex-direction:column; gap:6px; }
   .bur-presets .hw-btn{ text-align:left; }
   .bur-list{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
@@ -382,6 +401,12 @@
   .mat-side{ position:sticky; top:16px; max-height:calc(100vh - 32px); overflow-y:auto; overscroll-behavior:contain; padding-right:6px; }
   @media (max-width:900px){ .mat-side{ position:static; max-height:none; overflow:visible; } }
   .cab-preview-wrap{ position:relative; }
+  .mat-nav{ position:sticky; bottom:0; background:var(--bg, #fff); padding:12px 0 4px; margin-top:16px; }
+  .spin-toggle{ display:inline-flex; align-items:center; gap:8px; }
+  .spin-toggle i{ width:28px; height:16px; border-radius:999px; background:var(--line); position:relative; transition:background .15s; flex:none; }
+  .spin-toggle i::after{ content:""; position:absolute; top:2px; left:2px; width:12px; height:12px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.3); transition:left .15s; }
+  .spin-toggle.active i{ background:var(--blue); }
+  .spin-toggle.active i::after{ left:14px; }
   .cab-preview{ height:min(74vh,640px); min-height:380px; border-radius:18px; overflow:hidden; background:#f4f1ea; border:1px solid var(--line); }
   .cab-preview canvas{ display:block; width:100%; height:100%; cursor:grab; }
   .cab-preview .mock{ padding:24px; }
@@ -469,6 +494,19 @@
   .shape-card.active{ background:var(--blue-soft); border-color:var(--blue); }
   .shape-card svg{ width:100%; height:120px; display:block; }
   .shape-card .nm{ font-size:13px; font-weight:600; margin-top:8px; }
+  .shape-card.active::after{ content:"✓"; position:absolute; top:8px; right:8px; width:20px; height:20px; border-radius:50%; background:var(--blue); color:#fff; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; }
+  .shape-card *{ pointer-events:none; } /* the whole card is the button */
+  .look-sec{ border:1px solid var(--line); border-radius:12px; padding:0 14px; margin-bottom:16px; background:#fff; }
+  .look-sec > summary{ list-style:none; cursor:pointer; padding:12px 0; display:flex; align-items:center; justify-content:space-between; }
+  .look-sec > summary::-webkit-details-marker{ display:none; }
+  .look-sec > summary::after{ content:"▸"; color:var(--ink-soft); }
+  .look-sec[open] > summary::after{ content:"▾"; }
+  .look-sec > summary span{ display:flex; flex-direction:column; }
+  .look-sec > summary small{ font-size:12.5px; color:var(--ink-soft); font-weight:400; }
+  .shape-side-actions{ margin-top:18px; }
+  .water-ok{ font-size:14px; font-weight:600; color:var(--ink); margin:0 0 10px; }
+  .shape-note{ font-size:12.5px; color:var(--ink-soft); margin:8px 0 0; }
+  .shape-tip{ color:var(--ink-soft); cursor:help; margin-left:6px; }
   .shape-toolbar{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:0 0 12px; font-size:13px; color:var(--ink-soft); }
   .shape-canvas-wrap{ position:relative; }
   .shape-canvas{ background:#fbfaf7; border:1px solid var(--line); border-radius:14px; height:min(64vh,560px); min-height:380px; overflow:hidden; touch-action:none; user-select:none; }
@@ -813,15 +851,18 @@
 
   <div class="top">
     <div>
-      <div class="kicker" id="kicker">BJÖRNINN · Sjálfsafgreiðsla</div>
-      <h1 id="pageTitle">Skipuleggðu eldhúsið þitt</h1>
+      <div class="kicker" id="kicker">BJÖRNINN</div>
+      <h1 id="pageTitle">Hannaðu eldhúsið þitt</h1>
     </div>
-    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
-      <button class="reset-link" id="resetBtn" type="button" title="Hreinsa allt og byrja upp á nýtt">Byrja upp á nýtt</button>
-      <button class="reset-link" id="reportBtn" type="button" title="Láttu okkur vita ef eitthvað virkar ekki">⚠️ Tilkynna vandamál</button>
+    <div class="help-wrap">
+      <button class="help-btn" id="helpBtn" type="button" aria-haspopup="true" aria-expanded="false">Hjálp</button>
+      <div class="help-menu" id="helpMenu" hidden>
+        <button type="button" id="reportBtn">⚠️ Tilkynna vandamál</button>
+        <button type="button" id="resetBtn">Byrja upp á nýtt</button>
+      </div>
     </div>
   </div>
-  <p class="lede" id="pageLede">Smíðaðu rýmið, veldu efnin og raðaðu skápunum upp — gróf teikning, engin binding. Söluaðili fer svo yfir og fullkomnar hönnunina með þér.</p>
+  <p class="lede" id="pageLede" hidden></p>
 
   <nav class="stepper" id="progressSteps" aria-label="Skref">
     <button type="button" class="st" data-s="shape"><i>1</i><span>Rými</span></button>
@@ -835,14 +876,16 @@
   <!-- ============ STEP: WELCOME ============ -->
   <section id="screen-welcome" hidden>
     <div class="wel">
-      <div class="wel-meta"><span>⏱ Tekur um 10–15 mínútur</span><span>💾 Vistast sjálfkrafa</span><span>🤝 Engin binding</span></div>
+      <div class="wel-meta"><span>⏱ 10–15 mínútur</span><span>💾 Vistast sjálfkrafa</span><span>🤝 Engin binding</span></div>
       <ol class="wel-steps">
-        <li><span class="n">1</span><div><h3>Smíðaðu rýmið 📐</h3><p>Veldu lögun, stilltu mál og lofthæð, veldu gólfefni og merktu glugga, hurðir og hindranir (t.d. lagnastokk eða ofn) á hvern vegg. Þegar rýmið er rétt læsirðu því.</p></div></li>
-        <li><span class="n">2</span><div><h3>Veldu efnin 🎨</h3><p>Skrokka, skúffukerfi, framhliðar, borðplötu og höldur — eitt í einu, á skáp sem þú getur snúið og skoðað frá öllum hliðum.</p></div></li>
-        <li><span class="n">3</span><div><h3>Raðaðu innréttingunni 🏠</h3><p>Bættu við skápum með „＋ Ný eining“ og dragðu þá á sinn stað — öll mál má slá inn, líka sérmál. Læstu skápum þegar þeir eru réttir og opnaðu skúffur og hurðir til að prófa.</p></div></li>
+        <li><span class="n">1</span><div><h3>Teiknaðu rýmið</h3><p>Veldu lögun og settu inn mál, glugga og hurðir.</p></div></li>
+        <li><span class="n">2</span><div><h3>Veldu útlit</h3><p>Veldu liti, efni og höldur.</p></div></li>
+        <li><span class="n">3</span><div><h3>Raðaðu skápunum</h3><p>Veldu skápa og raðaðu þeim í eldhúsið.</p></div></li>
       </ol>
-      <p class="wel-first">Byrjum á rýminu — restin kemur svo á eftir.</p>
-      <button class="btn btn-primary" id="welStart" type="button">Byrjum →</button>
+      <div class="wel-actions">
+        <button class="btn btn-primary" id="welStart" type="button">Byrja að hanna →</button>
+        <button class="reset-link" id="welReset" type="button" hidden>Byrja upp á nýtt</button>
+      </div>
     </div>
   </section>
 
@@ -865,14 +908,13 @@
     <div class="mat-wiz">
       <div class="mat-stage">
         <div class="cab-preview-wrap"><div class="cab-preview" id="cabPreview"></div>
-          <div class="uw-tools"><button type="button" id="matSpin">Snúa: á</button></div></div>
-        <p class="cab-hint">Dragðu til að snúa skápnum · skrollaðu til að þysja · smelltu á skúffu til að opna hana</p>
+          <div class="uw-tools"><button type="button" id="matSpin" class="spin-toggle" role="switch" aria-checked="true"><i></i>Snúa sjálfkrafa</button></div></div>
+        <p class="cab-hint" id="cabHint">Dragðu til að snúa · Skrollaðu til að þysja</p>
       </div>
       <div class="mat-side">
         <div class="wiz-steps" id="wizSteps"></div>
         <div class="screen-title" id="matTitle" style="margin-top:14px;"></div>
         <p class="screen-sub" id="matSub"></p>
-        <div class="actions" id="matActions"></div>
 
         <div class="wiz-panel" data-mp="0">
           <div class="sw-grid big" id="carcassCards"></div>
@@ -897,7 +939,7 @@
           <p class="tab-blurb" id="topBlurb"></p>
           <div class="sw-grid" id="topCards"></div>
         </div>
-
+        <div class="actions mat-nav" id="matActions"></div>
       </div>
     </div>
   </section>
@@ -909,10 +951,11 @@
 
     <!-- phase 1: pick a shape -->
     <div id="shapePick">
-      <div class="shape-group-title">Lokað rými</div>
+      <div class="shape-group-title">Lokað eldhús</div>
       <div class="shape-cards" id="shapeCardsClosed"></div>
-      <div class="shape-group-title">Opið rými <span>— eldhúsið er opið að stofunni (strikalína = enginn veggur)</span></div>
+      <div class="shape-group-title">Opið eldhús</div>
       <div class="shape-cards" id="shapeCardsOpen"></div>
+      <p class="shape-note">Strikalína sýnir opna hlið.</p>
     </div>
 
     <!-- phases 2-4: top-down drawing on the left, everything else in the panel on the right -->
@@ -923,47 +966,41 @@
           <div class="shape-canvas-wrap"><div class="shape-canvas" id="shapeCanvas"></div><div class="dim-pop" id="dimPop" hidden></div></div>
         </div>
         <aside class="shape-side" id="shapeSide">
-          <div class="shape-side-actions" id="shapeActionsSlot"></div>
           <div id="shapeSizeBox" hidden>
             <div class="mat-section">
-              <div class="mat-section-title">Veggir</div>
-              <p class="mat-section-sub">Sláðu inn lengd hvers veggjar eða dragðu vegginn á teikningunni.</p>
+              <div class="mat-section-title">Veggjamál</div>
               <div id="wallList"></div>
             </div>
           </div>
           <div id="shapeHeightBox" hidden>
             <div class="mat-section">
               <div id="roomHeightBox2" style="max-width:260px;"></div>
-              <p class="mat-section-sub">Dragðu sleðann eða sláðu inn töluna. Lágmark 2450 mm.</p>
             </div>
           </div>
-          <div id="shapeExtras">
+          <details id="shapeExtras" class="look-sec">
+            <summary><span><b>Útlit rýmisins</b><small>Valfrjálst — aðeins fyrir þrívíddarmyndina.</small></span></summary>
             <div class="mat-section">
-              <div class="mat-section-title">Gólfefni</div>
-              <p class="mat-section-sub">Bara til að sjá teikninguna eins og hjá þér — ekki hluti af pöntuninni.</p>
+              <div class="mat-section-title">Gólf</div>
               <div class="tabs-row" id="floorTabs"></div>
               <div class="sw-grid" id="floorCards"></div>
             </div>
             <div class="mat-section">
-              <div class="mat-section-title">Litur á veggjum</div>
-              <p class="mat-section-sub">Bara til að sjá teikninguna eins og hjá þér — ekki hluti af pöntuninni.</p>
+              <div class="mat-section-title">Vegglitur</div>
               <div class="wallcolor-row" id="wallColorRow"></div>
             </div>
-          </div>
+          </details>
           <div id="shapeOpenings" hidden>
             <div class="mat-section">
-              <p class="mat-section-sub">Við förum hring um rýmið, einn vegg í einu. Dragðu glugga, hurðir og hindranir til á veggnum eða smelltu á málin til að slá inn. „Op“ er gat í vegginn án hurðar.</p>
               <div class="op-add" id="opAdd"></div>
               <div id="opList"></div>
             </div>
           </div>
           <div id="shapeWater" hidden>
             <div class="mat-section">
-              <div class="mat-section-title">Hvar er vatnið?</div>
-              <p class="mat-section-sub">Vaskurinn er settur á þennan vegg þegar skipulagið opnast.</p>
               <div id="waterList"></div>
             </div>
           </div>
+          <div class="shape-side-actions" id="shapeActionsSlot"></div>
         </aside>
       </div>
     </div>
@@ -1344,7 +1381,7 @@
     }catch(e){ return false; }
   }
   function resetAll(){
-    if (!confirm("Hreinsa allt skipulagið og byrja upp á nýtt?")) return;
+    if (!confirm("Byrja upp á nýtt? Núverandi hönnun verður eytt og það er ekki hægt að afturkalla.")) return;
     KP3D.teardown3D(true);
     lastThumb = null; lastSummary = "";
     try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
@@ -1429,11 +1466,11 @@
   // [length mm, turn after: L/R], open edge indexes
   var SHAPE_TEMPLATES = {
     rect:    { group:"closed", label:"Rétthyrnt", edges:[[4000,"L"],[3000,"L"],[4000,"L"],[3000,"L"]], open:[] },
-    lroom:   { group:"closed", label:"L-laga rými", edges:[[2600,"L"],[1200,"R"],[1400,"L"],[2600,"L"],[4000,"L"],[3800,"L"]], open:[] },
+    lroom:   { group:"closed", label:"L-laga", edges:[[2600,"L"],[1200,"R"],[1400,"L"],[2600,"L"],[4000,"L"],[3800,"L"]], open:[] },
     alcove:  { group:"closed", label:"Með innskoti", edges:[[1200,"R"],[600,"L"],[1600,"L"],[600,"R"],[1200,"L"],[3000,"L"],[4000,"L"],[3000,"L"]], open:[] },
-    open1:   { group:"open", label:"Ein lína, opið út", edges:[[4000,"L"],[2800,"L"],[4000,"L"],[2800,"L"]], open:[2] },
-    open2:   { group:"open", label:"Horn, opið út", edges:[[4000,"L"],[3000,"L"],[4000,"L"],[3000,"L"]], open:[1,2] },
-    open3:   { group:"open", label:"L-laga, opið", edges:[[2600,"L"],[1200,"R"],[1400,"L"],[2600,"L"],[4000,"L"],[3800,"L"]], open:[3,4] }
+    open1:   { group:"open", label:"Beint", edges:[[4000,"L"],[2800,"L"],[4000,"L"],[2800,"L"]], open:[2] },
+    open2:   { group:"open", label:"Horn", edges:[[4000,"L"],[3000,"L"],[4000,"L"],[3000,"L"]], open:[1,2] },
+    open3:   { group:"open", label:"L-laga", edges:[[2600,"L"],[1200,"R"],[1400,"L"],[2600,"L"],[4000,"L"],[3800,"L"]], open:[3,4] }
   };
 
   function turnSign(w){ return w.turnAfter === "left" ? 1 : -1; }
@@ -1524,11 +1561,13 @@
       return { id:"W" + (wallSeq++), label:"Veggur " + (i + 1), lengthMm:e[0], turnAfter:e[1] === "L" ? "left" : "right", open:t.open.indexOf(i) >= 0, floor:[], wall:[] };
     });
   }
+  var pendingShape = null; // the shape card picked on the first page, applied by "Áfram →"
   function applyShapeTemplate(key){
     var hasStuff = state.closed && (state.walls.some(function(w){ return w.floor.length || w.wall.length; }) || state.windows.length || state.doors.length || state.islands.length);
     if (hasStuff && !confirm("Þetta breytir lögun rýmisins og fjarlægir skápa, glugga og hurðir sem þú ert búin(n) að setja inn. Halda áfram?")) return;
     state.walls = templateWalls(key);
     state.closed = true;
+    state.shapeKey = key;
     state.windows = []; state.doors = []; state.islands = []; state.obstacles = [];
     state.waterWall = null; state.waterAlongMm = null; state.seeded = false; state.openingsDone = false;
     selectedEdge = null;
@@ -1771,9 +1810,9 @@
   function floorVariantRow(group, attr){
     var opts = group === "flisar" ? KP3D.TILE_SIZES : KP3D.FLOOR_PATTERNS;
     var cur = group === "flisar" ? (state.floorTile || "60x60") : (state.floorPattern || "beint");
-    return '<div class="fl-var"><span>' + (group === "flisar" ? "Stærð flísa" : "Mynstur") + '</span>' + Object.keys(opts).map(function(k){
+    return '<div class="fl-var"><span>' + (group === "flisar" ? "Stærð flísa" : "Lögn") + '</span>' + Object.keys(opts).map(function(k){
       return '<button type="button" class="tab-btn' + (k === cur ? " active" : "") + '" ' + attr + '="' + group + ':' + k + '">' + opts[k].label + '</button>';
-    }).join("") + '<button type="button" class="tab-btn' + (state.floorRot ? " active" : "") + '" ' + attr + '="rot:90" title="Snúa gólfefninu um 90°">↻ 90°</button></div>';
+    }).join("") + '<button type="button" class="tab-btn' + (state.floorRot ? " active" : "") + '" ' + attr + '="rot:90" title="Snúa gólfmynstri" aria-label="Snúa gólfmynstri">↻</button></div>';
   }
   function setFloorVariant(val){
     var pr = val.split(":");
@@ -1865,7 +1904,7 @@
     var whichA = startFirst ? "start" : "end", whichB = startFirst ? "end" : "start";
     pop.innerHTML =
       '<div class="dp-row"><button type="button" data-ap="' + whichA + '">' + lblA + '</button><input type="number" id="dimInput" value="' + w.lengthMm + '" min="' + MIN_EDGE_MM + '" max="' + MAX_EDGE_MM + '" step="10"><button type="button" class="go" data-ap="' + whichB + '">' + lblB + '</button></div>' +
-      '<div class="dp-more"><label><input type="checkbox" id="dimOpen"' + (w.open ? " checked" : "") + '> Opinn — enginn veggur</label><button type="button" id="dimClose" title="Loka">✕</button></div>';
+      '<div class="dp-more"><label title="Opinn veggur er án veggjar."><input type="checkbox" id="dimOpen"' + (w.open ? " checked" : "") + '> Opinn veggur <small style="color:var(--ink-soft);">— án veggjar</small></label><button type="button" id="dimClose" title="Loka">✕</button></div>';
     var mx = ((p1.x + p2.x) / 2) * v.scale + v.ox, my = ((p1.z + p2.z) / 2) * v.scale + v.oy;
     pop.hidden = false;
     var pw = pop.offsetWidth, ph = pop.offsetHeight;
@@ -1921,32 +1960,36 @@
   function renderShapeActions(){
     var box = document.getElementById("shapeActions");
     if (shapePhase === "pick"){
-      box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">← Til baka</button><button class="btn btn-primary" id="shNext" type="button"' + (state.closed ? "" : " disabled") + '>Áfram — stilla stærð</button>';
-      document.getElementById("shBack").addEventListener("click", function(){ goto("welcome"); });
-      document.getElementById("shNext").addEventListener("click", function(){ shapePhase = "size"; renderShapeStep(); });
+      box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">← Til baka</button><button class="btn btn-primary" id="shNext" type="button"' + (state.closed || pendingShape ? "" : " disabled") + '>Áfram →</button>';
+      document.getElementById("shBack").addEventListener("click", function(){ pendingShape = null; goto("welcome"); });
+      document.getElementById("shNext").addEventListener("click", function(){
+        var k = pendingShape; pendingShape = null;
+        if (k && (!state.closed || k !== state.shapeKey)){ applyShapeTemplate(k); return; } // applies it and opens the sizes
+        shapePhase = "size"; renderShapeStep();
+      });
     } else if (shapePhase === "size"){
-      box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">← Velja aðra lögun</button><button class="btn btn-primary" id="shNext" type="button">Áfram — lofthæð og gólf</button>';
+      box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">← Til baka</button><button class="btn btn-primary" id="shNext" type="button">Áfram →</button>';
       document.getElementById("shBack").addEventListener("click", function(){ shapePhase = "pick"; renderShapeStep(); });
       document.getElementById("shNext").addEventListener("click", function(){ shapePhase = "height"; renderShapeStep(); });
     } else if (shapePhase === "height"){
-      box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">← Stilla stærð</button><button class="btn btn-primary" id="shNext" type="button">Áfram — gluggar og hurðir</button>';
+      box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">← Til baka</button><button class="btn btn-primary" id="shNext" type="button">Áfram →</button>';
       document.getElementById("shBack").addEventListener("click", function(){ shapePhase = "size"; renderShapeStep(); });
       document.getElementById("shNext").addEventListener("click", function(){ shapePhase = "openings"; if (!state.openingsDone) openWallId = null; renderShapeStep(); });
     } else if (shapePhase === "openings"){
-      box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">← Lofthæð</button>' + (state.openingsDone ? '<button class="btn btn-primary" id="shNext" type="button">Áfram — vatn</button>' : '');
+      box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">← Til baka</button>' + (state.openingsDone ? '<button class="btn btn-primary" id="shNext" type="button">Áfram →</button>' : '');
       document.getElementById("shBack").addEventListener("click", function(){ shapePhase = "height"; renderShapeStep(); });
       if (state.openingsDone) document.getElementById("shNext").addEventListener("click", function(){ shapePhase = "water"; renderShapeStep(); });
     } else {
-      box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">← Gluggar og hurðir</button><button class="btn btn-secondary" id="shSkip" type="button">Sleppa vatni</button><button class="btn btn-primary" id="shNext" type="button">🔒 Læsa rýminu — velja efni</button>';
+      // one way on, water marked or not — nothing is placed for you when it isn't (2026-10-11)
+      box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">← Til baka</button><button class="btn btn-primary" id="shNext" type="button">Áfram →</button>';
       document.getElementById("shBack").addEventListener("click", function(){ shapePhase = "openings"; renderShapeStep(); });
-      document.getElementById("shSkip").addEventListener("click", function(){ state.waterWall = null; lockRoom(); });
       document.getElementById("shNext").addEventListener("click", lockRoom);
     }
   }
   // the room is finished: on to the materials
   function lockRoom(){
     save();
-    toast("🔒 Rýmið er tilbúið — nú velur þú efnin!");
+    toast("Rýmið er tilbúið — nú velur þú útlitið.");
     matPhase = firstMissingPhase() >= 4 ? 0 : null;
     goto("materials");
   }
@@ -1960,11 +2003,11 @@
     if (!state.closed) shapePhase = "pick";
     if (shapePhase !== "height") endHeightScene();
     var titles = {
-      pick:  ["Skilgreindu rýmið", "Veldu lögun sem líkist rýminu þínu best — næst dregur þú veggina í rétta stærð."],
-      size:  ["Stilltu stærðina", "Dragðu vegg með örvunum til að stækka eða minnka rýmið, eða smelltu á málið til að slá inn nákvæma lengd."],
-      height: ["Lofthæð, gólf og veggir", "Stilltu lofthæðina og veldu gólfefni og vegglit — fólkið í rýminu er 180 og 168 cm á hæð til viðmiðunar."],
-      openings: ["Gluggar, hurðir og hindranir", "Förum yfir veggina einn í einu — þú sérð vegginn beint framan á."],
-      water: ["Hvar er vatnið?", "Bættu vatninu við og dragðu dropann á réttan stað — þar er vaskurinn settur."]
+      pick:  ["Hvernig er eldhúsið í laginu?", "Veldu þá lögun sem passar best. Þú stillir málin næst."],
+      size:  ["Stilltu stærð rýmisins", "Sláðu inn mál eða dragðu veggina á teikningunni."],
+      height: ["Lofthæð og útlit", "Stilltu lofthæðina og útlit rýmisins."],
+      openings: ["Gluggar og hurðir", "Veldu hvað er á hverjum vegg."],
+      water: ["Hvar kemur vatnið inn?", "Merktu staðsetningu vatnslagna, ef þú veist hana."]
     };
     document.getElementById("shapeTitle").textContent = titles[shapePhase][0];
     document.getElementById("shapeSub").textContent = titles[shapePhase][1];
@@ -1984,13 +2027,17 @@
           return '<button type="button" class="shape-card" data-shape="' + k + '">' + templateIcon(k) + '<div class="nm">' + SHAPE_TEMPLATES[k].label + '</div></button>';
         }).join("");
       });
-      document.querySelectorAll("[data-shape]").forEach(function(b){ b.addEventListener("click", function(){ applyShapeTemplate(b.dataset.shape); }); });
+      // pick, then "Áfram →" (2026-10-11 — a click used to jump straight on to the sizes)
+      var curShape = pendingShape || (state.closed ? state.shapeKey : null);
+      document.querySelectorAll("[data-shape]").forEach(function(b){
+        b.classList.toggle("active", b.dataset.shape === curShape);
+        b.setAttribute("aria-pressed", String(b.dataset.shape === curShape));
+        b.addEventListener("click", function(){ pendingShape = b.dataset.shape; renderShapeStep(); });
+      });
     } else {
-      document.getElementById("shapeToolbar").textContent = shapePhase === "size"
-        ? "Strikalínu (opinn veggur) býrðu til með því að smella á málið og haka við „Opinn“."
-        : shapePhase === "height" ? "Dragðu til að snúa rýminu og skrollaðu til að þysja. Lofthæðina stillir þú til hægri."
-        : shapePhase === "openings" ? "Þú horfir beint á vegginn innan úr rýminu. Dragðu glugga, hurðir og hindranir til, eða smelltu á málin til að slá inn."
-        : "Smelltu á „＋ Vatn“ og dragðu svo dropann þangað sem vatnslögnin kemur inn — vaskaskápurinn er settur þar.";
+      var tb = document.getElementById("shapeToolbar"); // only the 3D view needs a hint (2026-10-11)
+      tb.innerHTML = shapePhase === "height" ? 'Dragðu til að snúa · Skrollaðu til að þysja<span class="shape-tip" title="Fólkið sýnir stærðarhlutföll (180 og 168 cm)." aria-label="Fólkið sýnir stærðarhlutföll (180 og 168 cm).">ⓘ</span>' : "";
+      tb.hidden = shapePhase !== "height";
       if (shapePhase === "openings") renderOpeningsBox();
       if (shapePhase === "size") renderWallList();
       if (shapePhase === "water") renderWaterList();
@@ -2002,9 +2049,9 @@
       if (shapePhase === "height"){
         var hbox = document.getElementById("roomHeightBox2");
         hbox.innerHTML = '<div class="field"><label for="roomHeight">Lofthæð</label>' +
-          '<input type="range" id="roomHeightRange" class="h-range" min="' + MIN_ROOM_HEIGHT_MM + '" max="3200" step="10" value="' + state.roomHeightMm + '">' +
-          '<div class="row"><input type="number" id="roomHeight" min="' + MIN_ROOM_HEIGHT_MM + '" max="3200" step="10" value="' + state.roomHeightMm + '"><span class="unit">mm</span></div>' +
-          '<span class="field-error">Verður að vera á milli ' + MIN_ROOM_HEIGHT_MM + ' og 3200 mm</span></div>';
+          '<div class="row"><input type="number" id="roomHeight" class="h-num" min="' + MIN_ROOM_HEIGHT_MM + '" max="3200" step="10" value="' + state.roomHeightMm + '"><span class="unit">mm</span></div>' +
+          '<input type="range" id="roomHeightRange" class="h-range quiet" min="' + MIN_ROOM_HEIGHT_MM + '" max="3200" step="10" value="' + state.roomHeightMm + '" aria-label="Lofthæð">' +
+          '<span class="field-error">Lofthæð þarf að vera ' + MIN_ROOM_HEIGHT_MM + '–3200 mm.</span></div>';
         var hr = document.getElementById("roomHeightRange"), hn = document.getElementById("roomHeight");
         hr.addEventListener("input", function(){ setRoomHeight(parseInt(hr.value, 10), hn); });
         hr.addEventListener("change", save);
@@ -2055,8 +2102,7 @@
   function renderWaterList(){
     var box = document.getElementById("waterList"), cur = state.walls.find(function(w){ return w.id === state.waterWall; });
     if (!cur){
-      box.innerHTML = '<button type="button" class="iconbtn" id="waterAddBtn">＋ Vatn</button>' +
-        '<p class="mat-section-sub" style="margin-top:12px;">Bættu vatninu við — svo dregurðu dropann á teikningunni þangað sem lögnin er.</p>';
+      box.innerHTML = '<button type="button" class="btn btn-secondary" id="waterAddBtn">＋ Merkja vatn</button>';
       document.getElementById("waterAddBtn").addEventListener("click", function(){
         var w = state.walls.find(function(x){ return !x.open; });
         if (!w){ toast("Enginn veggur til að setja vatnið á."); return; }
@@ -2065,8 +2111,8 @@
       });
       return;
     }
-    box.innerHTML = '<div class="edit-field"><label style="font-size:13px;">Staðsetning á veggnum</label><div class="wall-row" style="cursor:default;"><span class="wl">Miðja vasks, frá vinstra horni</span><input type="number" id="waterPos" value="' + waterAlong(cur) + '" min="0" max="' + cur.lengthMm + '" step="10"><span class="u">mm</span></div>' +
-      '<p class="mat-section-sub" style="margin-top:6px;">Dragðu dropann á teikningunni til að færa hann, eða sláðu inn töluna. Vaskaskápurinn (800 mm) er settur þar.</p>' +
+    box.innerHTML = '<p class="water-ok">✓ Vatn merkt á ' + cur.label.replace(/^Veggur/, "vegg") + ' — dragðu dropann til að færa það.</p>' +
+      '<div class="edit-field"><div class="wall-row" style="cursor:default;"><span class="wl">Frá vinstra horni</span><input type="number" id="waterPos" value="' + waterAlong(cur) + '" min="0" max="' + cur.lengthMm + '" step="10"><span class="u">mm</span></div>' +
       '<button type="button" class="iconbtn del" id="waterRemoveBtn" style="margin-top:10px;">✕ Fjarlægja vatn</button></div>';
     document.getElementById("waterRemoveBtn").addEventListener("click", function(){
       state.waterWall = null; state.waterAlongMm = null; state.seeded = false;
@@ -2268,6 +2314,7 @@
   // panel asks "Gluggi / Hurð / Op / Ekkert — næsti veggur". The step's own "Áfram" button only appears
   // once every wall has been answered (state.openingsDone), so nobody skips a wall by accident.
   var openWallId = null; // the wall being asked about (the "＋" buttons add to it)
+  var openWallMore = false; // "+ Fleiri valkostir" left open by the person
   function solidWalls(){ return state.walls.filter(function(w){ return !w.open; }); }
   function nextOpeningWall(){
     var walls = solidWalls(), i = walls.findIndex(function(w){ return w.id === openWallId; });
@@ -2284,18 +2331,21 @@
     var onWall = state.windows.concat(state.doors).filter(function(o){ return cur && o.wallId === cur.id; }).length + obsOnWall;
     var num = cur ? state.walls.indexOf(cur) + 1 : 0;
     var add = document.getElementById("opAdd");
-    add.innerHTML = cur ? '<div class="opw-head"><span class="opw-num">' + num + '</span><div><b>Veggur ' + num + '</b><small>' + cur.lengthMm + ' mm · ' + (wi + 1) + ' af ' + walls.length + '</small></div>' +
-        '<div class="opw-dots">' + walls.map(function(w, k){ return '<i class="' + (k < wi ? "done" : k === wi ? "on" : "") + '" data-opwjump="' + w.id + '" title="Veggur ' + (state.walls.indexOf(w) + 1) + '"></i>'; }).join("") + '</div></div>' +
-      '<p class="opw-q">' + (onWall ? "Er eitthvað fleira á þessum vegg?" : "Er gluggi, hurð eða op á þessum vegg?") + '</p>' +
-      '<div class="opw-btns"><button type="button" class="opw-btn" data-add="gluggi"><span>🪟</span>Gluggi</button><button type="button" class="opw-btn" data-add="hurd"><span>🚪</span>Hurð</button><button type="button" class="opw-btn" data-add="gat"><span>⬚</span>Op</button>' +
-      '<button type="button" class="opw-btn next" id="opwNext"><span>' + (last ? "✓" : "→") + '</span>' + (onWall ? (last ? "Búið — áfram" : "Búið — næsti veggur") : (last ? "Ekkert — áfram" : "Ekkert — næsti veggur")) + '</button></div>' +
-      '<details class="opw-obst"' + (obsOnWall ? ' open' : '') + '><summary>Hindranir á veggnum (lagnir, stólpar, ofnar…)</summary><div class="opw-obst-btns">' + Object.keys(KP3D.OBSTACLES).map(function(k){
-        return '<button type="button" class="hw-btn" data-addobst="' + k + '">＋ ' + KP3D.OBSTACLES[k].label + '</button>';
+    // 2026-10-11: "Veggur 2 af 4" + its length, three equal buttons, the obstacles behind "+ Fleiri valkostir",
+    // and "Næsti veggur →" whether or not anything was added
+    add.innerHTML = cur ? '<div class="opw-head2"><b>Veggur ' + num + ' af ' + walls.length + '</b><small>' + cur.lengthMm + ' mm</small></div>' +
+      '<p class="opw-q">Bæta við</p>' +
+      '<div class="opw-btns3"><button type="button" class="opw-btn" data-add="gluggi"><span>🪟</span>Gluggi</button><button type="button" class="opw-btn" data-add="hurd"><span>🚪</span>Hurð</button>' +
+        '<button type="button" class="opw-btn" data-add="gat" title="Op án hurðar."><span>⬚</span>Op<small>án hurðar</small></button></div>' +
+      '<details class="opw-obst"' + (obsOnWall || openWallMore ? ' open' : '') + '><summary>+ Fleiri valkostir</summary><div class="opw-obst-btns">' + Object.keys(KP3D.OBSTACLES).map(function(k){
+        return '<button type="button" class="hw-btn" data-addobst="' + k + '">＋ ' + KP3D.OBSTACLES[k].label.replace(" (miðstöð)", "") + '</button>';
       }).join("") + '</div></details>' +
-      (wi > 0 ? '<button type="button" class="skip-link" id="opwPrev">← Fyrri veggur</button>' : '') : '';
+      '<div class="opw-nav">' + (wi > 0 ? '<button type="button" class="btn btn-secondary" id="opwPrev">← Fyrri veggur</button>' : '<span></span>') +
+        '<button type="button" class="btn btn-primary" id="opwNext">' + (last ? "Áfram →" : "Næsti veggur →") + '</button></div>' : '';
     add.querySelectorAll("[data-opwjump]").forEach(function(d){
       d.addEventListener("click", function(){ openWallId = d.dataset.opwjump; selectedOpeningId = null; renderOpeningsBox(); renderShapeCanvas(); });
     });
+    var more = add.querySelector(".opw-obst"); if (more) more.addEventListener("toggle", function(){ openWallMore = more.open; });
     var nx = add.querySelector("#opwNext"); if (nx) nx.addEventListener("click", nextOpeningWall);
     var pv = add.querySelector("#opwPrev"); if (pv) pv.addEventListener("click", function(){ openWallId = walls[wi - 1].id; selectedOpeningId = null; renderOpeningsBox(); renderShapeCanvas(); });
     add.querySelectorAll("[data-add]").forEach(function(btn){
@@ -5222,7 +5272,7 @@
   // system → fronts (the cabinet closes) → handles → worktop.
   // ======================================================================
   var MAT_PHASES = [
-    { label:"Skrokkur",  title:"Veldu lit á skrokknum",   sub:"Innviðir skápanna — sést innan í skápum og á hliðum. Snúðu skápnum og skoðaðu hann frá öllum hliðum." },
+    { label:"Skrokkur",  title:"Veldu skrokkalit",        sub:"Liturinn innan í skápunum og á hillum." },
     { label:"Skúffur",   title:"Veldu skúffukerfi",       sub:"Skúffurnar birtast inni í skápnum." },
     { label:"Framhlið",  title:"Veldu framhlið",          sub:"Skápurinn lokast með framhliðinni sem þú velur." },
     { label:"Höldur",    title:"Veldu höldu",             sub:"Handfangið fer á skápinn — sama aðferð er notuð á alla skápa. „Falið grip“ þýðir ekkert áfast handfang." },
@@ -5255,14 +5305,14 @@
 
   (function(){ // materials preview: "Snúa: á/af" (same remembered setting as the unit wizard)
     var b = document.getElementById("matSpin");
-    function sync(){ var on = KP3D.previewSpinOn(); b.textContent = "Snúa: " + (on ? "á" : "af"); b.classList.toggle("active", on); }
+    function sync(){ var on = KP3D.previewSpinOn(); b.classList.toggle("active", on); b.setAttribute("aria-checked", String(on)); b.title = on ? "Slökkva á sjálfvirkum snúningi" : "Kveikja á sjálfvirkum snúningi"; }
     b.addEventListener("click", function(){ KP3D.setPreviewSpin(!KP3D.previewSpinOn()); uwView.spin = KP3D.previewSpinOn(); sync(); });
     sync();
   })();
   function renderMatActions(){
     var box = document.getElementById("matActions"), last = matPhase === MAT_PHASES.length - 1;
-    box.innerHTML = '<button class="btn btn-secondary" id="mtBack" type="button">← ' + (matPhase === 0 ? "Til baka í rýmið" : "Til baka") + '</button>' +
-      '<button class="btn btn-primary" id="mtNext" type="button"' + (matPhaseDone(matPhase) ? "" : " disabled") + '>' + (last ? "Áfram — raða skápum" : "Áfram") + '</button>';
+    box.innerHTML = '<button class="btn btn-secondary" id="mtBack" type="button">← Til baka</button>' +
+      '<button class="btn btn-primary" id="mtNext" type="button"' + (matPhaseDone(matPhase) ? "" : " disabled") + '>Áfram →</button>';
     updateStepper();
     document.getElementById("mtBack").addEventListener("click", function(){
       if (matPhase === 0){ shapePhase = "water"; goto("shape"); } else { matPhase--; renderMaterials(); }
@@ -5295,6 +5345,8 @@
     }).join("");
     document.getElementById("matTitle").textContent = ph.title;
     document.getElementById("matSub").textContent = ph.sub;
+    // the hint under the cabinet only says what you can do on this page (opening drawers: the drawer page)
+    document.getElementById("cabHint").textContent = "Dragðu til að snúa · Skrollaðu til að þysja" + (matPhase === 1 ? " · Smelltu á skúffu til að opna hana" : "");
     document.querySelectorAll(".wiz-panel").forEach(function(el){ el.hidden = parseInt(el.dataset.mp, 10) !== matPhase; });
     if (matPhase === 0) renderCarcassCards();
     if (matPhase === 1) renderDrawerSystemCards();
@@ -6488,7 +6540,7 @@
       el.querySelector("i").textContent = i < idx ? "✓" : String(i + 1);
     });
     var k = document.getElementById("kicker");
-    k.innerHTML = idx >= 0 ? 'BJÖRNINN · Skref <b>' + (idx + 1) + ' af 5</b> · ' + STEP_LABELS[state.step] : "BJÖRNINN · Sjálfsafgreiðsla";
+    k.textContent = "BJÖRNINN"; // the stepper already says where you are (2026-10-11)
   }
   function jumpTo(step){
     if (step === state.step) return;
@@ -6516,13 +6568,15 @@
     updateStepper();
 
     if (state.step === "intake") renderIntake();
+    if (state.step === "welcome") renderWelcome();
     if (state.step === "shape") renderShapeStep();
     if (state.step === "materials") renderMaterials();
     document.getElementById("mainWrap").classList.toggle("wide", state.step === "editor");
     document.getElementById("mainWrap").classList.toggle("mat", state.step === "materials");
     document.getElementById("mainWrap").classList.toggle("shp", state.step === "shape");
     if (state.step !== "materials") KP3D.teardownCabinetPreview();
-    document.getElementById("pageLede").hidden = state.step === "editor" || state.step === "welcome";
+    document.getElementById("pageLede").hidden = true; // the intro is on the welcome page only (2026-10-11)
+    var rb = document.getElementById("resetBtn"); if (rb) rb.hidden = state.step === "welcome" && !hasDesign(); // nothing to start over yet
     if (state.step === "editor"){
       viewMode = "3d";
       document.querySelectorAll("#viewToggle button").forEach(function(btn){ btn.classList.toggle("active", btn.dataset.view === "3d"); });
@@ -7004,7 +7058,27 @@
 
   // ---------- wire top-level controls ----------
   // Flow order (Phase 7c): intake → materials → shape → walls → summary(3D) → contact.
-  document.getElementById("welStart").addEventListener("click", function(){ goto("shape"); });
+  // Welcome (2026-10-11): a saved design → "Halda áfram →" (back where you were) + a quiet "Byrja upp á nýtt"
+  function hasDesign(){ return !!(state.closed || cabinetTotal() > 0 || (state.resumeStep && state.resumeStep !== "shape")); }
+  function renderWelcome(){
+    var has = hasDesign();
+    document.getElementById("welStart").textContent = has ? "Halda áfram →" : "Byrja að hanna →";
+    document.getElementById("welReset").hidden = !has;
+  }
+  document.getElementById("welStart").addEventListener("click", function(){
+    var to = state.resumeStep && state.resumeStep !== "welcome" ? state.resumeStep : "shape";
+    delete state.resumeStep;
+    if (to !== "shape" && !canGoTo(to).ok) to = "shape";
+    if (to === "shape" && state.closed && state.walls.length && shapePhase === "pick") shapePhase = "size";
+    if (to === "materials") matPhase = firstMissingPhase() >= 4 ? 0 : null;
+    goto(to);
+  });
+  document.getElementById("welReset").addEventListener("click", resetAll);
+  document.getElementById("helpBtn").addEventListener("click", function(e){
+    var m = document.getElementById("helpMenu"); m.hidden = !m.hidden; this.setAttribute("aria-expanded", String(!m.hidden)); e.stopPropagation();
+  });
+  document.addEventListener("click", function(e){ var m = document.getElementById("helpMenu"); if (m && !m.hidden && !e.target.closest(".help-wrap")) m.hidden = true; });
+  document.getElementById("helpMenu").addEventListener("click", function(){ this.hidden = true; });
   document.getElementById("intakeBackBtn").addEventListener("click", function(){ goto("editor"); });
   document.getElementById("toMaterialsBtn").addEventListener("click", function(){ goto("contact"); renderPreviews(); });
   document.getElementById("skipQuizBtn").addEventListener("click", function(){ goto("contact"); renderPreviews(); });
@@ -8125,6 +8199,8 @@
     else {
       load();
       if (state.closed && state.walls.length) shapePhase = "size"; // a saved room opens on the sizing drawing
+      // a returning visitor with a design lands on the welcome page: "Halda áfram →" takes them back to that step
+      if (state.step !== "welcome" && state.step !== "done" && hasDesign()){ state.resumeStep = state.step; state.step = "welcome"; }
       render();
     }
   }
