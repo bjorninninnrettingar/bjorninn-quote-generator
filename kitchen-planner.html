@@ -434,7 +434,10 @@
   .wiz-steps .ws i{ display:block; height:4px; border-radius:2px; background:#e5e1d6; margin-bottom:6px; }
   .wiz-steps .ws.done i{ background:var(--gold); }
   .wiz-steps .ws.active i{ background:var(--blue); }
-  .wiz-steps .ws span{ font-size:11.5px; color:var(--ink-soft); }
+  .wiz-steps .ws span{ font-size:13px; color:var(--ink-soft); }
+  .wiz-steps .ws.go{ cursor:pointer; }
+  .wiz-steps .ws.go:hover span{ color:var(--ink); text-decoration:underline; }
+  .sw-badge{ position:absolute; top:6px; left:6px; background:var(--gold); color:#fff; font-size:10.5px; font-weight:700; padding:2px 7px; border-radius:999px; z-index:1; }
   .wiz-steps .ws.active span{ color:var(--ink); font-weight:600; }
   .wiz-panel{ margin-top:6px; }
   .sw-grid.big{ grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); }
@@ -976,7 +979,6 @@
       <div class="mat-stage">
         <div class="cab-preview-wrap"><div class="cab-preview" id="cabPreview"></div>
           <div class="uw-tools"><button type="button" id="matSpin" class="spin-toggle" role="switch" aria-checked="true"><i></i>Snúa sjálfkrafa</button></div></div>
-        <p class="cab-hint" id="cabHint">Dragðu til að snúa · Skrollaðu til að þysja</p>
       </div>
       <div class="mat-side">
         <div class="wiz-steps" id="wizSteps"></div>
@@ -5246,6 +5248,7 @@
     container.innerHTML = Object.keys(CARCASS).map(function(key){
       var c = CARCASS[key];
       return '<button type="button" class="sw-tile' + (state.carcass === key ? ' active' : '') + '" data-carcass="' + key + '" title="' + c.label + '">' +
+        (key === "dokkgra" ? '<span class="sw-badge">Vinsælast</span>' : '') +
         '<div class="sw-fill" style="background:' + c.color3d + ';"></div><div class="sw-name">' + c.label + '</div></button>';
     }).join("");
     container.querySelectorAll("[data-carcass]").forEach(function(card){
@@ -5507,12 +5510,19 @@
     if (state.top && TOPS[state.top]) matTab.top = TOPS[state.top].group;
     var ph = MAT_PHASES[matPhase];
     document.getElementById("wizSteps").innerHTML = MAT_PHASES.map(function(p, i){
-      return '<div class="ws' + (i === matPhase ? " active" : (i < matPhase && matPhaseDone(i) ? " done" : "")) + '"><i></i><span>' + (i + 1) + '. ' + p.label + '</span></div>';
+      // a page you can reach (an earlier one, or every page before it is done) is a button (2026-10-11)
+      var can = i !== matPhase && (i < matPhase || i <= firstMissingPhase());
+      return '<div class="ws' + (i === matPhase ? " active" : (i < matPhase && matPhaseDone(i) ? " done" : "")) + (can ? " go" : "") + '"' + (can ? ' data-mpgo="' + i + '" role="button" tabindex="0"' : '') + '><i></i><span>' + (i + 1) + '. ' + p.label + '</span></div>';
     }).join("");
+    document.querySelectorAll("#wizSteps [data-mpgo]").forEach(function(el){
+      function go(){ matPhase = +el.dataset.mpgo; renderMaterials(); }
+      el.addEventListener("click", go);
+      el.addEventListener("keydown", function(e){ if (e.key === "Enter" || e.key === " "){ e.preventDefault(); go(); } });
+    });
     document.getElementById("matTitle").textContent = ph.title;
-    document.getElementById("matSub").textContent = ph.sub;
-    // the hint under the cabinet only says what you can do on this page (opening drawers: the drawer page)
-    document.getElementById("cabHint").textContent = "Dragðu til að snúa · Skrollaðu til að þysja" + (matPhase === 1 ? " · Smelltu á skúffu til að opna hana" : "");
+    // the 3D hint sits on the subtitle line (like the height page), so the frame gets the height; it only says what
+    // you can do on this page (opening drawers: the drawer page)
+    document.getElementById("matSub").innerHTML = ph.sub + '<span class="sub-hint"> · Dragðu til að snúa · Skrollaðu til að þysja' + (matPhase === 1 ? " · Smelltu á skúffu til að opna hana" : "") + '</span>';
     document.querySelectorAll(".wiz-panel").forEach(function(el){ el.hidden = parseInt(el.dataset.mp, 10) !== matPhase; });
     if (matPhase === 0) renderCarcassCards();
     if (matPhase === 1) renderDrawerSystemCards();
