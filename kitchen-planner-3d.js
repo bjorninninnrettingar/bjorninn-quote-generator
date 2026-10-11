@@ -2056,7 +2056,7 @@
           bx = new THREE.Group(); real.position.set(0, 0, -rb.max.z); bx.add(real);
           bx.position.set(0, drawerBoxY(y0, y1, rs.y), CD - 0.005);
         } else {
-          bx = buildDrawerBox(THREE, sysKey, meta.carcassKey, side, Math.max(0.2, widthM - 2 * T - 0.026), Math.max(0.2, CD - BACK_T - 0.01), code);
+          bx = buildDrawerBox(THREE, sysKey, meta.carcassKey, side, Math.max(0.2, widthM - 2 * T - 0.026), Math.max(0.2, CD - BACK_T - 0.01), code, widthM - 2 * CARCASS_T);
           bx.position.set(0, drawerBoxY(y0, y1, side / 1000), CD - 0.005);
         }
         if (interior && interior.inner && fi === drawers - 1 && fh > 0.2){ // inner drawer (innskúffa) behind the top front: a low drawer riding in the upper part of the tall one
@@ -2199,7 +2199,7 @@
       meta.burCodes.forEach(function(code, k){
         if (burAt && burAt[k]) yb = bodyBase + burAt[k].mm / 1000;
         var side = (sysB && sysB.side[code]) || 120, key = meta.blockId + ":b" + k, g = new THREE.Group(), meshes = [];
-        var bx = buildDrawerBox(THREE, sysKey, meta.carcassKey, side, ibw, ibd, code);
+        var bx = buildDrawerBox(THREE, sysKey, meta.carcassKey, side, ibw, ibd, code, widthM - 2 * CARCASS_T);
         bx.position.set(0, yb, CD - 0.045);
         g.add(bx); bx.traverse(function(o){ if (o.isMesh) meshes.push(o); });
         if (bx.userData && bx.userData.runners){ var rgB = bx.userData.runners; rgB.position.copy(bx.position); frame.add(rgB); }
@@ -3887,7 +3887,9 @@
   var TALL_DRAWER_MAX_MM = 1200;
   function drawerZoneMm(c, bodyMm){ return c && c.cls === "tall" ? Math.min(bodyMm, TALL_DRAWER_MAX_MM) : bodyMm; }
   function drawerNominalM(boxD){ return Math.max(270, Math.min(650, Math.floor(((boxD || 0.562) * 1000 + 0.5) / 50) * 50)) / 1000; }
-  function buildDrawerBox(THREE, sysKey, carcassKey, sideMm, boxW, boxD, code){
+  // innerW (m, optional) = the carcass's inside width: the drawer is then made as wide as it takes for the runners
+  // to sit right against the cabinet sides, as they're mounted (user, 2026-10-11 — they floated in from the sides)
+  function buildDrawerBox(THREE, sysKey, carcassKey, sideMm, boxW, boxD, code, innerW){
     var g = new THREE.Group();
     var dark = carcassKey === "dokkgra", nomD = drawerNominalM(boxD);
     if (code && nomD >= 0.45){
@@ -3906,6 +3908,15 @@
           }
           if (pr[0] === "left"){ inset = wl.x1 - b.min.x; sideH = b.max.y - b.min.y; }
         });
+        if (innerW && g.userData.runners){ // push both sides (and their runners) out until the runners meet the carcass
+          g.userData.runners.updateMatrixWorld(true);
+          var rbx = new THREE.Box3().setFromObject(g.userData.runners), reach = Math.max(-rbx.min.x, rbx.max.x), grow = innerW / 2 - reach;
+          if (Math.abs(grow) > 0.0005){
+            g.children.forEach(function(h){ h.position.x += h.position.x < 0 ? -grow : grow; });
+            g.userData.runners.children.forEach(function(h){ h.position.x += h.position.x < 0 ? -grow : grow; });
+            bwR += 2 * grow;
+          }
+        }
         var boardY = (rs.e.boardMm || 17.6) / 1000, inner = bwR - 2 * inset + 0.004;
         var bm = new THREE.MeshStandardMaterial({ color:dark ? 0x22231f : 0xe4e2d6, roughness:0.5, metalness:0.05 });
         function pnl(w, h, d, x, y, z){ var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), bm); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; g.add(m); }
@@ -3916,7 +3927,7 @@
       }
     }
     var mat = new THREE.MeshStandardMaterial({ color:dark ? 0x64676c : 0xf0efeb, metalness:dark ? 0.45 : 0.1, roughness:0.4 });
-    var legra = sysKey !== "merivo", t = legra ? 0.0128 : 0.016, bw = boxW || 0.5, bd = nomD, h = sideMm / 1000;
+    var legra = sysKey !== "merivo", t = legra ? 0.0128 : 0.016, bw = innerW ? innerW - 0.026 : boxW || 0.5, bd = nomD, h = sideMm / 1000;
     function panel(w, hh, d, x, y, z){
       var m = new THREE.Mesh(new THREE.BoxGeometry(w, hh, d), mat);
       m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; g.add(m);
@@ -4008,7 +4019,7 @@
           bx = new THREE.Group(); real.position.set(0, 0, -rb.max.z); bx.add(real);
           bx.position.set(0, drawerBoxY(y0, y1, rs.y), CD - 0.005);
         } else {
-          bx = buildDrawerBox(THREE, cfg.drawer, cfg.carcass, sides[i], null, null, L ? L.codes[2 - i] : null);
+          bx = buildDrawerBox(THREE, cfg.drawer, cfg.carcass, sides[i], null, null, L ? L.codes[2 - i] : null, W - 2 * T);
           bx.position.set(0, drawerBoxY(y0, y1, sides[i] / 1000), CD - 0.005);
         }
         dg.add(bx);

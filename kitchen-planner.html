@@ -2464,6 +2464,14 @@
       }
       svg += g + '</g>';
       if (!sel) return;
+      // resize handles (2026-10-11): sides = width, top = height, bottom = from the floor (windows / obstacles with a height)
+      var ceil = it.t === "obst" && KP3D.OBSTACLES[o.kind].ceiling; // a beam hangs from the ceiling: only its bottom edge moves
+      var canBottom = it.t === "window" || (it.t === "obst" && o.heightMm != null);
+      var canTop = !ceil && (it.t !== "obst" || o.heightMm != null);
+      function hdl(cx, cy, w2, h2, edge, cur){ return '<rect data-elrz="' + it.id + ':' + edge + '" x="' + (cx - w2 / 2) + '" y="' + (cy - h2 / 2) + '" width="' + w2 + '" height="' + h2 + '" rx="3" fill="#fff" stroke="#0058a3" stroke-width="2" style="cursor:' + cur + ';"/>'; }
+      pills += hdl(x, y + h / 2, 10, Math.min(34, Math.max(14, h - 8)), "l", "ew-resize") + hdl(x + w, y + h / 2, 10, Math.min(34, Math.max(14, h - 8)), "r", "ew-resize");
+      if (canTop) pills += hdl(x + w / 2, y, Math.min(34, Math.max(14, w - 8)), 10, "t", "ns-resize");
+      if (canBottom) pills += hdl(x + w / 2, y + h, Math.min(34, Math.max(14, w - 8)), 10, "b", "ns-resize");
       function pill(px, py, txt, key){
         var tw = String(txt).length * 7.4 + 14;
         return '<g class="dim" data-eldim="' + it.id + ':' + key + '" style="cursor:pointer;"><rect x="' + (px - tw / 2) + '" y="' + (py - 10) + '" width="' + tw + '" height="20" rx="4" fill="#fff" stroke="#0058a3"/><text x="' + px + '" y="' + (py + 4.5) + '" font-size="12" text-anchor="middle" fill="#191919" style="pointer-events:none;">' + txt + '</text></g>';
@@ -2499,6 +2507,7 @@
       el.addEventListener("click", function(){ openWallId = el.dataset.eljump; selectedOpeningId = null; renderOpeningsBox(); renderShapeCanvas(); });
     });
     host.querySelectorAll("[data-elid]").forEach(function(el){ el.addEventListener("pointerdown", function(evt){ startElDrag(el.dataset.elid, evt, sc); }); });
+    host.querySelectorAll("[data-elrz]").forEach(function(el){ el.addEventListener("pointerdown", function(evt){ var pr = el.dataset.elrz.split(":"); startElResize(pr[0], pr[1], evt, sc); }); });
     host.querySelectorAll("[data-eldim]").forEach(function(el){
       el.addEventListener("click", function(evt){
         var pr = el.dataset.eldim.split(":"), r = host.getBoundingClientRect();
@@ -2536,6 +2545,41 @@
       o.offsetMm = off; if (f.kind === "window") o.sillHeightMm = sill;
     }
     renderShapeCanvas();
+  }
+  // drag an edge of the selected window / door / opening / obstacle: width from either side, height from the top,
+  // the bottom edge moves the sill (top stays). Same limits and overlap rules as typing the numbers.
+  var elRz = null;
+  function startElResize(id, edge, evt, sc){
+    evt.preventDefault(); evt.stopPropagation();
+    var ob = findObstacle(id), f = ob ? null : findOpening(id), o = ob || (f && f.o); if (!o) return;
+    var it = elItems(o.wallId).find(function(x){ return x.id === id; });
+    elRz = { id:id, edge:edge, x0:evt.clientX, y0:evt.clientY, sc:sc, off0:o.offsetMm, w0:o.widthMm, lo0:it.lo, hi0:it.hi };
+    window.addEventListener("pointermove", onElResizeMove);
+    window.addEventListener("pointerup", onElResizeUp, { once:true });
+  }
+  function onElResizeMove(evt){
+    var st = elRz; if (!st) return;
+    var ob = findObstacle(st.id), f = ob ? null : findOpening(st.id), o = ob || (f && f.o); if (!o) return;
+    var wall = state.walls.find(function(w){ return w.id === o.wallId; }), roomH = state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM;
+    var dx = Math.round((evt.clientX - st.x0) / st.sc / 10) * 10, dy = -Math.round((evt.clientY - st.y0) / st.sc / 10) * 10;
+    var minW = ob ? 20 : 400, minH = ob ? 20 : 600, off = st.off0, w = st.w0, lo = st.lo0, hi = st.hi0;
+    if (st.edge === "r") w = Math.max(minW, Math.min(wall.lengthMm - st.off0, st.w0 + dx));
+    if (st.edge === "l"){ var nl = Math.max(0, Math.min(st.off0 + st.w0 - minW, st.off0 + dx)); w = st.off0 + st.w0 - nl; off = nl; }
+    if (st.edge === "t") hi = Math.max(lo + minH, Math.min(ob ? roomH : Math.min(roomH, lo + (f.kind === "window" ? 2500 : 2500)), st.hi0 + dy));
+    if (st.edge === "b") lo = Math.max(0, Math.min(st.hi0 - minH, st.lo0 + dy));
+    if (ob){
+      o.offsetMm = off; o.widthMm = w;
+      if (o.heightMm != null){ if (KP3D.OBSTACLES[o.kind].ceiling) o.heightMm = hi - lo; else { o.elevMm = lo; o.heightMm = hi - lo; } }
+    } else {
+      var cand = { sillHeightMm:f.kind === "window" ? lo : 0, heightMm:hi - lo };
+      if (!openingClear(wall.id, off, w, o.id, openingVSpan(cand))) return; // would run into another opening or a cabinet: stop
+      o.offsetMm = off; o.widthMm = w; o.heightMm = hi - lo; if (f.kind === "window") o.sillHeightMm = lo;
+    }
+    renderShapeCanvas();
+  }
+  function onElResizeUp(){
+    window.removeEventListener("pointermove", onElResizeMove);
+    elRz = null; save(); renderOpeningsBox(); renderShapeCanvas();
   }
   function onElDragUp(){
     window.removeEventListener("pointermove", onElDragMove);
