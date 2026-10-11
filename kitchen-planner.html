@@ -1618,7 +1618,8 @@
         var a0 = o.offsetMm * sc, a1 = (o.offsetMm + o.widthMm) * sc, n0 = (o.outMm || 0) * sc, n1 = ((o.outMm || 0) + o.depthMm) * sc;
         var q = [[a0, n0], [a1, n0], [a1, n1], [a0, n1]].map(function(p){ return (x1 + ax * p[0] + nx * p[1]) + "," + (y1 + az * p[0] + nz * p[1]); }).join(" ");
         var fill = def.look === "radiator" ? "#ffffff" : def.look === "panel" ? "#d2d4d7" : def.look === "sill" ? "#e6e2da" : def.look === "pipe" ? "#c8ccd2" : "#b9b4a8";
-        items += '<polygon points="' + q + '" fill="' + fill + '" fill-opacity="' + (def.ceiling ? 0.35 : 0.95) + '" stroke="#6f6a5f" stroke-width="1.2"' + (def.ceiling ? ' stroke-dasharray="6,4"' : '') + ' style="pointer-events:none;"><title>' + def.label + '</title></polygon>';
+        var obSel = obDrag && obDrag.id === o.id;
+        items += '<polygon data-obdrag="' + o.id + '" points="' + q + '" fill="' + fill + '" fill-opacity="' + (def.ceiling ? 0.35 : 0.95) + '" stroke="' + (obSel ? "#0058a3" : "#6f6a5f") + '" stroke-width="' + (obSel ? 2.5 : 1.2) + '"' + (def.ceiling ? ' stroke-dasharray="6,4"' : '') + ' style="cursor:grab;"><title>' + def.label + ' — dragðu til að færa</title></polygon>';
       });
       if (opPhase && !w.open){
         var bx0 = (x1 + x2) / 2 + nx * 26, by0 = (y1 + y2) / 2 + nz * 26, onw = openWallId === w.id;
@@ -1682,6 +1683,9 @@
     });
     host.querySelectorAll("[data-opid]").forEach(function(el){
       el.addEventListener("pointerdown", function(evt){ startOpDrag(el.dataset.opid, evt); });
+    });
+    host.querySelectorAll("[data-obdrag]").forEach(function(el){
+      el.addEventListener("pointerdown", function(evt){ startObDrag(el.dataset.obdrag, evt); });
     });
     host.querySelectorAll("[data-opdim]").forEach(function(g){
       g.addEventListener("click", function(){ var pr = g.dataset.opdim.split(":"), r = g.querySelector("rect"); openOpPop(pr[0], pr[1], +r.getAttribute("x") + (+r.getAttribute("width")) / 2, +r.getAttribute("y") + 10); });
@@ -2123,6 +2127,38 @@
     window.removeEventListener("pointermove", onOpDragMove);
     var st = opDrag; opDrag = null;
     if (st && st.moved){ save(); renderOpeningsBox(); }
+    renderShapeCanvas();
+  }
+  // obstacles on the top-down drawing (2026-10-11): slide along a wall or onto another one; a free-standing
+  // column also moves out from the wall (outMm)
+  var obDrag = null;
+  function startObDrag(id, evt){
+    evt.preventDefault(); evt.stopPropagation();
+    var o = findObstacle(id), host = document.getElementById("shapeCanvas"); if (!o) return;
+    var v = shapeView(host.clientWidth, host.clientHeight), pt = canvasPointMm(evt, v), hit = nearestWallAt(v, pt);
+    var onOwn = hit && state.walls[hit.i].id === o.wallId;
+    obDrag = { id:id, x0:evt.clientX, y0:evt.clientY, moved:false, v:v,
+      grip:onOwn ? hit.t - (o.offsetMm + o.widthMm / 2) : 0, gripOut:onOwn ? hit.d - ((o.outMm || 0) + o.depthMm / 2) : 0 };
+    window.addEventListener("pointermove", onObDragMove);
+    window.addEventListener("pointerup", onObDragUp, { once:true });
+    renderShapeCanvas();
+  }
+  function onObDragMove(evt){
+    var st = obDrag; if (!st) return;
+    if (!st.moved && Math.hypot(evt.clientX - st.x0, evt.clientY - st.y0) < 4) return;
+    st.moved = true;
+    var o = findObstacle(st.id), hit = nearestWallAt(st.v, canvasPointMm(evt, st.v)); if (!o || !hit) return;
+    var wall = state.walls[hit.i], def = KP3D.OBSTACLES[o.kind];
+    if (wall.id !== o.wallId){ st.grip = 0; st.gripOut = 0; }
+    var p = obstaclePlace(o, wall, hit.t - st.grip - o.widthMm / 2, null);
+    o.wallId = wall.id; o.widthMm = p.widthMm; o.offsetMm = p.offsetMm;
+    if (def.free){ var out = Math.round((hit.d - st.gripOut - o.depthMm / 2) / 10) * 10; o.outMm = out < 60 ? 0 : out; } // close to the wall = against it
+    renderShapeCanvas();
+  }
+  function onObDragUp(){
+    window.removeEventListener("pointermove", onObDragMove);
+    var st = obDrag; obDrag = null;
+    if (st && st.moved) save();
     renderShapeCanvas();
   }
   function highlightOpRow(){
