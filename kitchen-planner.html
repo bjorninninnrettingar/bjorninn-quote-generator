@@ -781,7 +781,7 @@
       <button class="reset-link" id="reportBtn" type="button" title="Láttu okkur vita ef eitthvað virkar ekki">⚠️ Tilkynna vandamál</button>
     </div>
   </div>
-  <p class="lede" id="pageLede">Svaraðu nokkrum spurningum, smíðaðu rýmið, veldu efnin og raðaðu skápum upp — gróf teikning, engin binding. Söluaðili fer svo yfir og fullkomnar hönnunina með þér.</p>
+  <p class="lede" id="pageLede">Smíðaðu rýmið, veldu efnin og raðaðu skápunum upp — gróf teikning, engin binding. Söluaðili fer svo yfir og fullkomnar hönnunina með þér.</p>
 
   <nav class="stepper" id="progressSteps" aria-label="Skref">
     <button type="button" class="st" data-s="shape"><i>1</i><span>Rými</span></button>
@@ -797,9 +797,9 @@
     <div class="wel">
       <div class="wel-meta"><span>⏱ Tekur um 10–15 mínútur</span><span>💾 Vistast sjálfkrafa</span><span>🤝 Engin binding</span></div>
       <ol class="wel-steps">
-        <li><span class="n">1</span><div><h3>Smíðaðu rýmið 📐</h3><p>Veldu lögun, stilltu mál og lofthæð, veldu gólfefni og settu inn glugga, hurðir og op. Þegar rýmið er rétt læsirðu því.</p></div></li>
+        <li><span class="n">1</span><div><h3>Smíðaðu rýmið 📐</h3><p>Veldu lögun, stilltu mál og lofthæð, veldu gólfefni og merktu glugga, hurðir og hindranir (t.d. lagnastokk eða ofn) á hvern vegg. Þegar rýmið er rétt læsirðu því.</p></div></li>
         <li><span class="n">2</span><div><h3>Veldu efnin 🎨</h3><p>Skrokka, skúffukerfi, framhliðar, borðplötu og höldur — eitt í einu, á skáp sem þú getur snúið og skoðað frá öllum hliðum.</p></div></li>
-        <li><span class="n">3</span><div><h3>Raðaðu innréttingunni 🏠</h3><p>Dragðu skápa inn í rýmið og raðaðu þeim eins og þú vilt — jafnvel sérsmíðuðum einingum, þú slærð inn öll mál sjálf/ur. Læstu skápum þegar þeir eru réttir og opnaðu skúffur og hurðir til að prófa.</p></div></li>
+        <li><span class="n">3</span><div><h3>Raðaðu innréttingunni 🏠</h3><p>Bættu við skápum með „＋ Ný eining“ og dragðu þá á sinn stað — öll mál má slá inn, líka sérmál. Læstu skápum þegar þeir eru réttir og opnaðu skúffur og hurðir til að prófa.</p></div></li>
       </ol>
       <p class="wel-first">Byrjum á rýminu — restin kemur svo á eftir.</p>
       <button class="btn btn-primary" id="welStart" type="button">Byrjum →</button>
@@ -911,7 +911,7 @@
           </div>
           <div id="shapeOpenings" hidden>
             <div class="mat-section">
-              <p class="mat-section-sub">Við förum hring um rýmið, einn vegg í einu. Dragðu glugga og hurðir til á teikningunni eða smelltu á málin til að slá inn. „Op“ er gat í vegginn án hurðar.</p>
+              <p class="mat-section-sub">Við förum hring um rýmið, einn vegg í einu. Dragðu glugga, hurðir og hindranir til á veggnum eða smelltu á málin til að slá inn. „Op“ er gat í vegginn án hurðar.</p>
               <div class="op-add" id="opAdd"></div>
               <div id="opList"></div>
             </div>
@@ -1459,14 +1459,14 @@
     });
   }
   // typed length: the chosen end of the wall moves (which slides the neighbouring wall on that side)
-  function setEdgeLength(i, newLen, endSide){
+  function setEdgeLength(i, newLen, endSide, quiet){
     var n = state.walls.length, w = state.walls[i], delta = newLen - w.lengthMm;
     if (!delta) return true;
     var j = endSide === "start" ? (i - 1 + n) % n : (i + 1) % n;
     var d = -delta * turnSign(endSide === "start" ? state.walls[j] : w);
     var lens = slideLens(state.walls.map(function(x){ return x.lengthMm; }), j, d);
     var err = lensValid(lens);
-    if (err){ toast(err); return false; }
+    if (err){ if (!quiet) toast(err); return false; }
     var turns = state.walls.map(function(x){ return x.turnAfter; }), refI = (j + 2) % n;
     var before = chainVertices(state.walls.map(function(x){ return x.lengthMm; }), turns).pts[refI];
     applyLens(lens);
@@ -1560,6 +1560,7 @@
         : '<defs><pattern id="plank" width="60" height="18" patternUnits="userSpaceOnUse"' + floorRotAttr + '><path d="M0 17.5 H60 M30 0 V17.5" stroke="rgba(0,0,0,.10)" stroke-width="1" fill="none"/></pattern></defs>') +
       '<polygon points="' + polyPts + '" fill="' + KP3D.floorPlanColor(state.floor) + '"/><polygon points="' + polyPts + '" fill="url(#plank)"/>';
     var items = "", handles = "";
+    var dimBoxes = []; // placed wall-length labels (centre + width), to keep them apart
     // Wall bands sit 8 px outside the floor outline (16 px wide). Each band runs between the OFFSET corners
     // (corner − both walls' normals × 8, exact for 90° corners, inward and reflex alike) with butt ends, and a
     // 16 px square is laid on every corner where two solid walls meet — so both outer (convex) and inner
@@ -1629,7 +1630,15 @@
       if (opPhase){ continue; }
       if (water) continue; // the water marker is drawn after the loop
       // dimension line, 72px outside the wall (clear of the slide arrows)
-      var dxo = -nx * 72, dzo = -nz * 72;
+      // labels round an inside (reflex) corner can land on each other: push this one further out until it's clear (2026-10-11)
+      var offOut = 72, txt0 = w.lengthMm + " mm", tw0 = txt0.length * 7.2 + 14;
+      for (var tries = 0; tries < 5; tries++){
+        var cxl = (x1 + x2) / 2 - nx * offOut, cyl = (y1 + y2) / 2 - nz * offOut;
+        if (!dimBoxes.some(function(bx){ return Math.abs(bx.x - cxl) < (bx.w + tw0) / 2 + 4 && Math.abs(bx.y - cyl) < 26; })) break;
+        offOut += 30;
+      }
+      dimBoxes.push({ x:(x1 + x2) / 2 - nx * offOut, y:(y1 + y2) / 2 - nz * offOut, w:tw0 });
+      var dxo = -nx * offOut, dzo = -nz * offOut;
       items += '<line x1="' + (x1 + dxo) + '" y1="' + (y1 + dzo) + '" x2="' + (x2 + dxo) + '" y2="' + (y2 + dzo) + '" stroke="#444" stroke-width="1"/>' +
         '<line x1="' + (x1 + dxo - nx * 6) + '" y1="' + (y1 + dzo - nz * 6) + '" x2="' + (x1 + dxo + nx * 6) + '" y2="' + (y1 + dzo + nz * 6) + '" stroke="#444"/>' +
         '<line x1="' + (x2 + dxo - nx * 6) + '" y1="' + (y2 + dzo - nz * 6) + '" x2="' + (x2 + dxo + nx * 6) + '" y2="' + (y2 + dzo + nz * 6) + '" stroke="#444"/>';
@@ -1980,7 +1989,8 @@
       inp.addEventListener("change", function(){
         var val = parseInt(inp.value, 10);
         if (isNaN(val) || val < MIN_EDGE_MM || val > MAX_EDGE_MM){ toast("Veggur má vera " + MIN_EDGE_MM + "–" + MAX_EDGE_MM + " mm."); inp.value = state.walls[i].lengthMm; return; }
-        if (!setEdgeLength(i, val, "end")) inp.value = state.walls[i].lengthMm;
+        // the wall's right end moves; when that can't work (an L-room's long wall), its left end does (2026-10-11)
+        if (!setEdgeLength(i, val, "end", true) && !setEdgeLength(i, val, "start")) inp.value = state.walls[i].lengthMm;
         renderShapeCanvas();
       });
     });
@@ -6373,8 +6383,8 @@
     count(function(b){ return CATALOG[b.type].sink; }, "vaskaskápur", "vaskaskápar");
     count(function(b){ return CATALOG[b.type].cls === "corner"; }, "hornskápur", "hornskápar");
     count(function(b){ return CATALOG[b.type].open; }, "opnar hillur", "opnar hillur");
-    return "Sjálfsafgreiðsla: " + shape + " eldhús, " + all.length + " " + plural(all.length, "skápur", "skápar") +
-      (extras.length ? " (" + extras.join(", ") + ")" : "") +
+    var uc = unitCountText();
+    return "Sjálfsafgreiðsla: " + shape + " eldhús, " + uc[0] + (extras.length ? " (" + extras.join(", ") + ")" : "") + (uc.length > 1 ? ", " + uc.slice(1).join(", ") : "") +
       (state.islands.length ? ", " + state.islands.length + " " + plural(state.islands.length, "eyja", "eyjur") : "") +
       (state.windows.length ? ", " + state.windows.length + " " + plural(state.windows.length, "gluggi", "gluggar") : "") +
       (realDoors().length ? ", " + realDoors().length + " " + plural(realDoors().length, "hurð", "hurðir") : "") +
@@ -6698,7 +6708,7 @@
           var dCodes = KP3D.drawerCodes(b.interior, drawerSys()), dFr = KP3D.stackFrontsMm(b.interior, dCodes, drawerBodyMm(b, c)) || [];
           notes.push("Skúffur (" + DRAWER_SYSTEMS[drawerSys()].label + ", ofan frá): " + dCodes.map(function(cd, i){ return cd + (dFr[i] ? " " + Math.round(dFr[i]) + " mm" : ""); }).reverse().join(" / ") +
             (b.interior.inner ? " + innskúffa (" + b.interior.inner + ")" : "") + (v2 ? "" : " — ekki til sem stöðluð samsetning, vinsamlegast staðfestu."));
-        } else if (b.interior && b.interior.mode === "hillur" && !v2){
+        } else if (b.interior && b.interior.mode === "hillur" && !v2 && !(c.sink && !KP3D.shelvesOf(b))){ // a sink with doors has no shelf to mention
           notes.push("Hillufjöldi: " + (KP3D.shelvesOf(b) || 0) + " stk."); // b.shelves, as drawn — see v2RecordFor
         } else if (c.shelfRange && !c.hasInterior && !v2){
           notes.push("Hillufjöldi: " + (KP3D.shelvesOf(b) || 0) + " stk.");
@@ -6845,9 +6855,20 @@
       img.src = url;
     }catch(e){}
   }
+  // cabinets and end panels / loose shelves counted apart ("7 skápar" counted 3 end panels as cabinets, 2026-10-11)
+  function unitCounts(){
+    var n = { cab:0, panel:0, shelf:0 };
+    surfaces().forEach(function(w){ w.floor.concat(w.wall).forEach(function(b){ var c = CATALOG[b.type]; if (c.panel) n.panel++; else if (c.shelfStack) n.shelf++; else n.cab++; }); });
+    return n;
+  }
+  function unitCountText(){
+    var n = unitCounts(), parts = [n.cab + " " + plural(n.cab, "skápur", "skápar")];
+    if (n.panel) parts.push(n.panel + " " + plural(n.panel, "úthlið", "úthliðar"));
+    if (n.shelf) parts.push(n.shelf + " " + plural(n.shelf, "hillusett", "hillusett"));
+    return parts;
+  }
   function planSummaryText(){
-    var cab = surfaces().reduce(function(sum, w){ return sum + w.floor.length + w.wall.length; }, 0);
-    var parts = [cab + " " + plural(cab, "skápur", "skápar")];
+    var parts = unitCountText();
     if (state.windows.length) parts.push(state.windows.length + " " + plural(state.windows.length, "gluggi", "gluggar"));
     if (realDoors().length) parts.push(realDoors().length + " " + plural(realDoors().length, "hurð", "hurðir"));
     if (gapDoors().length) parts.push(gapDoors().length + " op í vegg");

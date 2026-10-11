@@ -466,7 +466,13 @@
     var spare = bodyMm - min;
     if (spare < -0.5) return null;
     var wsum = codes.reduce(function(a, c){ return a + (FRONT_WEIGHT[c] || 200); }, 0);
-    return codes.map(function(c){ return slotMin(c) + spare * (FRONT_WEIGHT[c] || 200) / wsum; });
+    var raw = codes.map(function(c){ return slotMin(c) + spare * (FRONT_WEIGHT[c] || 200) / wsum; });
+    // whole millimetres that still add up to the body (largest remainder): the panel, the note and Smíðagögn showed
+    // 174 / 234 / 393 = 801 vs 800 when each was rounded on its own (2026-10-11)
+    var out = raw.map(Math.floor), left = Math.round(bodyMm) - out.reduce(function(a, x){ return a + x; }, 0);
+    raw.map(function(x, i){ return { i:i, r:x - Math.floor(x) }; }).sort(function(a, b){ return b.r - a.r; })
+      .forEach(function(o){ if (left > 0){ out[o.i]++; left--; } });
+    return out;
   }
   // A drawer box sits at the BOTTOM of its front's zone (20 mm up, on its runners) and the space above it is
   // what's left over — the way a Blum drawer is built (user, 2026-10-05: they hung from the top before,
@@ -526,8 +532,8 @@
   }
 
   var DRAWER_SYSTEMS = {
-    legra:  { label:"Legra",  desc:"Skúffukerfi sem Björninn notar reglulega.", airtableName:"LEGRA" },
-    merivo: { label:"Merivo", desc:"Annað skúffukerfi í boði hjá Birninum.",   airtableName:"MERIVO" }
+    legra:  { label:"Legra",  desc:"Blum Legrabox — grannar, beinar stálhliðar og mjúklokun.", airtableName:"LEGRA" },
+    merivo: { label:"Merivo", desc:"Blum Merivobox — sterkbyggðar skúffur með mjúklokun.",   airtableName:"MERIVO" }
   };
 
   // Room wall color (Phase 7e) — purely a visualization preference, not a
