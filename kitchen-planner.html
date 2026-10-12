@@ -42,6 +42,7 @@
 <script src="kitchen-planner-models.js"></script>
 <script src="kitchen-planner-linemap.js"></script>
 <script src="kitchen-planner-3d.js"></script>
+<script src="kitchen-planner-showcase.js"></script>
 <script src="cnc-sides.js"></script>
 <style>
   :root{
@@ -112,6 +113,13 @@
   .wel-main{ grid-column:1; grid-row:1; }
   .wel-hero{ grid-column:2; grid-row:1; margin:0; position:relative; }
   .wel-hero img{ display:block; width:100%; height:auto; max-height:calc(100vh - 260px); object-fit:cover; border-radius:18px; box-shadow:0 24px 60px rgba(25,25,25,.18), 0 4px 14px rgba(25,25,25,.08); }
+  /* the live, slowly turning 3D kitchen over the picture (2026-10-12); the picture stays as the poster underneath */
+  .wel-scene{ position:absolute; inset:0; border-radius:18px; overflow:hidden; opacity:0; transition:opacity .8s ease; z-index:1; }
+  .wel-scene.on{ opacity:1; }
+  .wel-scene canvas{ display:block; width:100%; height:100%; cursor:grab; }
+  .wel-drag{ display:none; }
+  .wel-hero.live .wel-drag{ display:inline; }
+  .wel-hero figcaption{ z-index:2; }
   .wel-hero figcaption{ position:absolute; left:14px; bottom:12px; font-size:12px; font-weight:600; color:#fff; background:rgba(25,25,25,.55); padding:4px 10px; border-radius:999px; backdrop-filter:blur(4px); }
   @media (max-width:980px){ .wrap.welm .wel{ grid-template-columns:1fr; gap:24px; } .wel-hero{ grid-row:auto; grid-column:1; } .wel-main{ grid-row:auto; } }
   .wel-actions{ display:flex; align-items:center; justify-content:flex-end; gap:18px; flex-wrap:wrap; margin-top:8px; }
@@ -1013,7 +1021,7 @@
   <section id="screen-welcome" hidden>
     <div class="wel">
       <!-- 2026-10-12: a kitchen drawn in the planner itself, next to the steps -->
-      <figure class="wel-hero"><img src="images/welcome-kitchen.jpg" alt="Eldhús hannað í hönnunartólinu: dökkblá innrétting, hvítur marmari og messinghöldur" width="1600" height="942"><figcaption>Hannað hér í hönnunartólinu</figcaption></figure>
+      <figure class="wel-hero"><div class="wel-scene" id="welScene" aria-hidden="true"></div><img src="images/welcome-kitchen.jpg" alt="Eldhús hannað í hönnunartólinu: dökkblá innrétting, hvítur marmari og messinghöldur" width="1600" height="942"><figcaption>Hannað hér í hönnunartólinu<span class="wel-drag"> · dragðu til að snúa</span></figcaption></figure>
       <div class="wel-main">
       <div class="wel-meta"><span>⏱ 10–15 mínútur</span><span>💾 Vistast sjálfkrafa</span><span>🤝 Engin binding</span></div>
       <ol class="wel-steps">
@@ -5652,6 +5660,7 @@
     // down once per model file the first time it opened (the glitch, 2026-10-10). Redraw the preview once the
     // burst of loads is over, keeping the angle.
     if (uw){ clearTimeout(uwModelTimer); uwModelTimer = setTimeout(function(){ if (!uw) return; uwPrevKey = ""; uwKeepCam = true; renderUnitPreview(); uwKeepCam = false; }, 250); return; }
+    if (welSceneOn){ clearTimeout(welModelTimer); welModelTimer = setTimeout(function(){ if (welSceneOn) startWelcomeScene(true); }, 300); return; } // handle/drawer models arrived: redraw, same angle
     if (state.step === "materials" && KP3D.hasCabinetPreview()) KP3D.setCabinetPreview(cabCfg());
     else if (state.step === "editor") renderView();
   });
@@ -6829,6 +6838,7 @@
 
   // ---------- screen switching ----------
   function goto(step){
+    if (step !== "welcome") stopWelcomeScene();
     if (state.step === "editor" && step !== "editor"){ KP3D.teardown3D(); selectedBlockId = null; selectedWallId = null; }
     if (step !== "shape") endHeightScene();
     if (step === "editor" && state.step !== "editor"){ undoStack = []; histIdx = -1; seedSink(); }
@@ -7501,7 +7511,44 @@
   // Flow order (Phase 7c): intake → materials → shape → walls → summary(3D) → contact.
   // Welcome (2026-10-11): a saved design → "Halda áfram →" (back where you were) + a quiet "Byrja upp á nýtt"
   function hasDesign(){ return !!(state.closed || cabinetTotal() > 0 || (state.resumeStep && state.resumeStep !== "shape")); }
+  // The welcome page's kitchen turns slowly in 3D (user, 2026-10-12: "smá skyn um hvað þetta er smooth"). Built a
+  // moment after the page shows, faded in over the picture; drag turns it, it carries on after 4 s. Not for reduced
+  // motion or without WebGL — the picture stays. Torn down when the welcome page is left (one 3D scene at a time).
+  var welSceneOn = false, welResume = 0, welModelTimer = 0;
+  function startWelcomeScene(keepCam){
+    var host = document.getElementById("welScene");
+    if (!host || !window.KP_SHOWCASE || state.step !== "welcome") return;
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (window.innerWidth < 981) return;
+    var st0 = keepCam && KP3D._three(), cam = st0 ? { p:st0.camera.position.clone(), t:st0.controls.target.clone() } : null;
+    try{
+      KP3D.teardown3D(true);
+      host.innerHTML = "";
+      KP3D.buildScene(host, JSON.parse(JSON.stringify(window.KP_SHOWCASE)), { clean:true, freshCamera:true, noGhost:true });
+    }catch(e){ host.innerHTML = ""; return; }
+    var st = KP3D._three(); if (!st) return;
+    st.camera.fov = 42; st.camera.updateProjectionMatrix();
+    if (cam) KP3D.setCameraLookAt(cam.p, cam.t);
+    else KP3D.setCameraLookAt({ x:5.9, y:2.55, z:5.5 }, { x:2.8, y:1.0, z:1.9 });
+    for (var k = 0; k < 40; k++) if (st.stepFades) st.stepFades(); // walls in the way already faded on the first frame
+    var c = st.controls;
+    c.enableZoom = false; c.enablePan = false;
+    c.minPolarAngle = 0.75; c.maxPolarAngle = 1.25;
+    c.autoRotate = true; c.autoRotateSpeed = 0.7;
+    c.addEventListener("start", function(){ c.autoRotate = false; clearTimeout(welResume); });
+    c.addEventListener("end", function(){ clearTimeout(welResume); welResume = setTimeout(function(){ if (welSceneOn) c.autoRotate = true; }, 4000); });
+    welSceneOn = true;
+    setTimeout(function(){ if (welSceneOn){ host.classList.add("on"); host.parentNode.classList.add("live"); } }, 60); // fades in over the picture
+  }
+  function stopWelcomeScene(){
+    if (!welSceneOn) return;
+    welSceneOn = false; clearTimeout(welResume); clearTimeout(welModelTimer);
+    KP3D.teardown3D(true);
+    var host = document.getElementById("welScene");
+    if (host){ host.classList.remove("on"); host.parentNode.classList.remove("live"); host.innerHTML = ""; }
+  }
   function renderWelcome(){
+    if (!welSceneOn) setTimeout(function(){ if (state.step === "welcome" && !welSceneOn) startWelcomeScene(); }, 350);
     var has = hasDesign();
     document.getElementById("welStart").textContent = has ? "Halda áfram →" : "Byrja að hanna →";
     document.getElementById("welReset").hidden = !has;
