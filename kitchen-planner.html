@@ -404,8 +404,9 @@
 
   /* ---- intake step ---- */
   .quiz-q{ margin-bottom:26px; }
+  #intakeBody{ margin-top:22px; }
   .quiz-q .qtitle{ font-size:15px; font-weight:600; margin:0 0 12px; }
-  .quiz-options{ display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
+  .quiz-options{ display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; } /* one row on a computer (2026-10-12) */
   @media (max-width:560px){ .quiz-options{ grid-template-columns:1fr; } }
   .quiz-opt{
     background:#fff; border:1.5px solid var(--line); border-radius:12px;
@@ -427,7 +428,8 @@
   .swatch-color{ width:100%; aspect-ratio:4/3; display:block; }
   .swatch-glyph{ width:100%; aspect-ratio:4/3; display:flex; align-items:center; justify-content:center; font-size:28px; background:var(--panel); }
 
-  .wrap.mat{ max-width:1240px; } /* same width as the room pages, so the nav sits in the same spot */
+  .wrap.mat{ max-width:1240px; }
+  .wrap.intk{ max-width:1240px; } /* same width as the room pages, so the nav sits in the same spot */
   .wrap.shp{ max-width:1240px; }
   .shape-wiz{ display:grid; grid-template-columns:minmax(0,1.6fr) minmax(300px,1fr); gap:28px; align-items:start; }
   @media (max-width:980px){ .shape-wiz{ grid-template-columns:1fr; } }
@@ -1006,11 +1008,10 @@
   <!-- ============ STEP: INTAKE ============ -->
   <section id="screen-intake" hidden>
     <div class="title-row"><div><div class="screen-title">Rétt áður en þú sendir inn</div>
-    <p class="screen-sub">Þetta hjálpar söluaðila að finna lausn sem hentar þínum ramma og tímalínu — engin binding.</p></div>
+    <p class="screen-sub">Hjálpar söluaðila að finna lausn sem hentar — engin binding.</p></div>
     <div class="actions step-nav">
-      <button class="skip-link" id="skipQuizBtn" type="button">Sleppa spurningum</button>
       <button class="btn btn-secondary" id="intakeBackBtn" type="button">← Til baka</button>
-      <button class="btn btn-primary" id="toMaterialsBtn" type="button" disabled>Áfram →</button>
+      <button class="btn btn-primary" id="toMaterialsBtn" type="button">Áfram →</button>
     </div></div>
 
     <div id="intakeBody"></div>
@@ -1279,13 +1280,8 @@
     { key:"delivery", q:"Hvenær væri best að fá eldhúsið afhent?",
       options:["Sem fyrst", "Innan 3ja mánaða", "Eftir 3–6 mánuði", "Er ekki að flýta mér"] },
     { key:"budget", q:"Hvert er áætlað fjárhagsrými fyrir verkefnið?",
-      options:["Undir 2 m.kr.", "2–4 m.kr.", "4–7 m.kr.", "Yfir 7 m.kr.", "Óviss — vil ráðgjöf"] },
-    { key:"room", q:"Hvaða rými ertu að skipuleggja?",
-      options:[
-        { t:"Eldhús", enabled:true },
-        { t:"Fataherbergi / skápar", enabled:false, note:"kemur síðar" },
-        { t:"Baðherbergi", enabled:false, note:"kemur síðar" }
-      ] }
+      options:["Undir 2 m.kr.", "2–4 m.kr.", "4–7 m.kr.", "Yfir 7 m.kr.", "Óviss — vil ráðgjöf"] }
+    // "Hvaða rými?" is gone until wardrobes / bathrooms exist (2026-10-12)
   ];
 
   var DEFAULT_ROOM_HEIGHT_MM = 2600; // matches the historical fixed 3D wall height
@@ -1534,8 +1530,7 @@
       btn.addEventListener("click", function(){ answerIntake(btn.dataset.key, btn.dataset.val); });
     });
 
-    document.getElementById("toMaterialsBtn").disabled = !(state.intake.delivery && state.intake.budget);
-    updateStepper();
+    updateStepper(); // Áfram is always on — the questions are optional (2026-10-12)
   }
 
   // ---------- shape step (Phase 7d-1: guided wall-chain builder) ----------
@@ -6887,6 +6882,7 @@
     document.getElementById("mainWrap").classList.toggle("mat", state.step === "materials");
     document.getElementById("mainWrap").classList.toggle("shp", state.step === "shape");
     document.getElementById("mainWrap").classList.toggle("welm", state.step === "welcome");
+    document.getElementById("mainWrap").classList.toggle("intk", state.step === "intake"); // same width as the room pages
     if (state.step !== "materials") KP3D.teardownCabinetPreview();
     document.getElementById("pageLede").hidden = true; // the intro is on the welcome page only (2026-10-11)
     var rb = document.getElementById("resetBtn"); if (rb) rb.hidden = state.step === "welcome" && !hasDesign(); // nothing to start over yet
@@ -7493,7 +7489,6 @@
   document.getElementById("helpMenu").addEventListener("click", function(){ this.hidden = true; });
   document.getElementById("intakeBackBtn").addEventListener("click", function(){ goto("editor"); });
   document.getElementById("toMaterialsBtn").addEventListener("click", function(){ goto("contact"); renderPreviews(); });
-  document.getElementById("skipQuizBtn").addEventListener("click", function(){ goto("contact"); renderPreviews(); });
 
   document.getElementById("backToShapeBtn").addEventListener("click", function(){ shapePhase = "size"; goto("shape"); });
 
