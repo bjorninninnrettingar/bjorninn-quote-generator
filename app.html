@@ -190,6 +190,16 @@
   }
   .qf-detail-action.progress { background:var(--amber); color:#2a2000; }
   .qf-detail-action.done { background:var(--green); color:#062b0a; }
+  .qf-proj { background:var(--surface2); border:1px solid var(--line); border-radius:14px; padding:16px; margin-top:12px; }
+  .qf-proj .pj-name { font-weight:800; font-size:1rem; }
+  .qf-proj .pj-k { font-size:.72rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin:14px 0 6px; }
+  .qf-proj .pj-txt { font-size:.9rem; white-space:pre-wrap; line-height:1.45; }
+  .qf-proj .pj-draw { display:flex; align-items:center; gap:10px; padding:11px 12px; margin-top:6px; border-radius:10px;
+    background:var(--surface); border:1px solid var(--line); color:var(--text); text-decoration:none; font-weight:700; font-size:.9rem; }
+  .qf-proj .pj-draw .ct { margin-left:auto; font-size:.72rem; color:var(--muted); }
+  .qf-proj .pj-imgs { display:grid; grid-template-columns:repeat(2,1fr); gap:6px; margin-top:6px; }
+  .qf-proj .pj-imgs img { width:100%; border-radius:8px; display:block; }
+  .qf-proj .pj-muted { font-size:.85rem; color:var(--muted); }
 
   /* ── tool tiles — 2-column grid of big square-ish cards (2026-09-22 round 2:
      taller, icon-over-label, so each is unambiguous without a description
@@ -438,6 +448,7 @@
         <div class="meta-row" id="qfDetailMeta"></div>
       </div>
       <button type="button" class="qf-detail-action" id="qfDetailActionBtn"></button>
+      <div class="qf-proj" id="qfDetailProj" style="display:none;"></div>
     </div>
 
     <div id="verkScreen" class="screen-wrap" style="display:none;">
@@ -1310,13 +1321,13 @@
   // same "go to a page that gives the choice" pattern as the /verkstaedi hub
   // instead of a small anchored dropdown. ──
   function openQfChoice() {
-    $("menuArea").querySelectorAll(".tilegrid").forEach(function (el) { el.style.display = "none"; });
+    hideTilegrid();
     $("qfChoice").style.display = "block";
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   function closeQfChoice() {
     $("qfChoice").style.display = "none";
-    $("menuArea").querySelectorAll(".tilegrid").forEach(function (el) { el.style.display = ""; });
+    showTilegrid();
     checkMyQuickFix();
   }
   $("tileQF").addEventListener("click", openQfChoice);
@@ -1342,13 +1353,13 @@
   $("themeLightBtn").addEventListener("click", function () { setTheme("light"); });
 
   function openSettings() {
-    $("menuArea").querySelectorAll(".tilegrid").forEach(function (el) { el.style.display = "none"; });
+    hideTilegrid();
     $("settingsPanel").style.display = "block";
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   function closeSettings() {
     $("settingsPanel").style.display = "none";
-    $("menuArea").querySelectorAll(".tilegrid").forEach(function (el) { el.style.display = ""; });
+    showTilegrid();
     checkMyQuickFix();
   }
   $("tileSettings").addEventListener("click", openSettings);
@@ -1565,7 +1576,7 @@
   function openQf(mode) {
     $("qfChoice").style.display = "none";
     $("qfDetail").style.display = "none";
-    $("menuArea").querySelectorAll(".tilegrid").forEach(function (el) { el.style.display = "none"; });
+    hideTilegrid();
     $("qfCard").style.display = "block";
     $("qfCreatePane").style.display = mode === "new" ? "block" : "none";
     $("qfManagePane").style.display = mode === "manage" ? "block" : "none";
@@ -1612,8 +1623,59 @@
     } else {
       btn.style.display = "none";
     }
+    renderQfProject(f[QF_LINK]);
     $("qfDetail").style.display = "block";
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  // Linked project: open its /verk page (same as tapping it in Verk í
+  // vinnslu) + show its Lokateikningar and Verklýsing teiknara right here.
+  // Both are VERK_ONLY fields on Tækifæri, so the fetch passes k.
+  var P_TEIKN = "Ýtarleg verklýsing teiknara📝";
+  var P_FINAL = "Loka teikningar verkefnis 📋";
+  var qfProjSeq = 0;
+  function renderQfProject(link) {
+    var box = $("qfDetailProj");
+    var seq = ++qfProjSeq;
+    var id = Array.isArray(link) ? link[0] : null;
+    if (id && typeof id === "object") id = id.id;
+    if (!id) { box.style.display = "none"; box.innerHTML = ""; return; }
+    box.style.display = "block";
+    box.innerHTML = '<div class="pj-muted">Sæki verk…</div>';
+    airtableFetch(PROJECTS_TABLE, { "fields[]": [P_NAME, P_TEIKN, P_FINAL], k: verkKey() }, id).then(function (rec) {
+      if (seq !== qfProjSeq) return;
+      var f = rec.fields || {};
+      var name = String(f[P_NAME] || "(nafnlaust verk)").replace(/[\s,–—-]+$/, "").trim();
+      var html = '<div class="pj-name">📋 ' + escapeHtml(name) + "</div>" +
+        '<button type="button" class="link-btn" id="qfOpenVerkBtn" style="width:100%;border:none;cursor:pointer;font-family:var(--font);">Opna verkið ›</button>';
+      var atts = Array.isArray(f[P_FINAL]) ? f[P_FINAL] : [];
+      html += '<div class="pj-k">Lokateikningar</div>';
+      if (atts.length) {
+        var imgs = atts.filter(function (a) { return /^image\//.test(a.type || ""); });
+        atts.filter(function (a) { return !/^image\//.test(a.type || ""); }).forEach(function (a) {
+          var ext = (a.filename || "").split(".").pop().toUpperCase();
+          html += '<a class="pj-draw" href="' + escapeHtml(a.url) + '" target="_blank" rel="noopener"><span>📄</span><span>' +
+            escapeHtml((a.filename || "Teikning").replace(/\.[^.]+$/, "")) + '</span><span class="ct">' + escapeHtml(ext) + "</span></a>";
+        });
+        if (imgs.length) html += '<div class="pj-imgs">' + imgs.map(function (a) {
+          var t = (a.thumbnails && (a.thumbnails.large || a.thumbnails.full)) || {};
+          return '<a href="' + escapeHtml(a.url) + '" target="_blank" rel="noopener"><img src="' + escapeHtml(t.url || a.url) + '" alt="Lokateikning" loading="lazy"></a>';
+        }).join("") + "</div>";
+      } else {
+        html += '<div class="pj-muted">Engar lokateikningar komnar.</div>';
+      }
+      var teikn = String(f[P_TEIKN] || "").trim();
+      html += '<div class="pj-k">Verklýsing teiknara</div>' +
+        (teikn ? '<div class="pj-txt">' + escapeHtml(teikn) + "</div>" : '<div class="pj-muted">Engin verklýsing skráð.</div>');
+      box.innerHTML = html;
+      $("qfOpenVerkBtn").addEventListener("click", function () {
+        setProject({ id: id, name: f[P_NAME] || name });
+        location.href = "/verk?t=" + encodeURIComponent(id) + "&k=" + encodeURIComponent(verkKey());
+      });
+    }).catch(function () {
+      if (seq !== qfProjSeq) return;
+      box.innerHTML = '<div class="pj-muted">Gat ekki sótt tengt verk.</div>';
+    });
   }
   function closeQfDetail() {
     $("qfDetail").style.display = "none";
@@ -1669,7 +1731,7 @@
     try {
       var recs = await airtableFetch(QUICKFIX_TABLE, {
         filterByFormula: '{' + QF_STATUS + '} != "Lokið ✅"',
-        "fields[]": [QF_ISSUE, QF_OWNER, QF_STATUS, QF_CREATED, QF_FROM, QF_DUE],
+        "fields[]": [QF_ISSUE, QF_OWNER, QF_STATUS, QF_CREATED, QF_FROM, QF_DUE, QF_LINK],
         pageSize: 25,
       });
       recs.sort(function (a, b) {
