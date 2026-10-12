@@ -319,6 +319,9 @@ const VERK_ONLY_FIELDS = {
     "Sérhæð C fronts", "Sérhæð F fronts", "Sérhæð E fronts",
     "Tvípress / Eurolight", "Sérsmíði tegund", "Sérsmíði efni",
   ],
+  // QUICK FIX❗ — the planner's own drawings + work description, shown in /app's
+  // Quick Fix detail. Internal, so behind the same VERK_KEY gate.
+  "tblDQWuf4OSjUv2XI": ["Loka teikningar f. QUICK FIX❗", "Verklýsing skipuleggjara", "Mynd eða skjal"],
 };
 
 // Tables that hold credential-like, health-adjacent, or visitor-PII data — a

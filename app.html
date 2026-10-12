@@ -192,6 +192,7 @@
   .qf-detail-action.done { background:var(--green); color:#062b0a; }
   .qf-proj { background:var(--surface2); border:1px solid var(--line); border-radius:14px; padding:16px; margin-top:12px; }
   .qf-proj .pj-name { font-weight:800; font-size:1rem; }
+  .qf-proj > .pj-k:first-child { margin-top:0; }
   .qf-proj .pj-k { font-size:.72rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin:14px 0 6px; }
   .qf-proj .pj-txt { font-size:.9rem; white-space:pre-wrap; line-height:1.45; }
   .qf-proj .pj-draw { display:flex; align-items:center; gap:10px; padding:11px 12px; margin-top:6px; border-radius:10px;
@@ -447,6 +448,7 @@
         <div class="issue" id="qfDetailIssue"></div>
         <div class="meta-row" id="qfDetailMeta"></div>
       </div>
+      <div class="qf-proj" id="qfDetailOwn" style="display:none;"></div>
       <button type="button" class="qf-detail-action" id="qfDetailActionBtn"></button>
       <div class="qf-proj" id="qfDetailProj" style="display:none;"></div>
     </div>
@@ -739,6 +741,18 @@
   var QF_LINK   = "Tengt verkefni";
   var QF_STATUS = "Staða";
   var QF_CREATED = "Skráð þann:";
+  // Filled in Airtable by the planner — VERK_KEY fields, so fetched with k.
+  var QF_DRAWINGS = "Loka teikningar f. QUICK FIX❗";
+  var QF_PLAN = "Verklýsing skipuleggjara";
+  var QF_FILES = "Mynd eða skjal";
+  // Items made in Airtable often leave Vandamálið blank and use the
+  // planner's description (or "Nafn þitt") instead — show whichever exists.
+  function qfTitle(f) {
+    var t = String(f[QF_ISSUE] || "").trim();
+    if (!t) t = String(f[QF_FROM] || "").trim();
+    if (!t) t = String(f[QF_PLAN] || "").trim().split("\n")[0];
+    return t || "(engin lýsing)";
+  }
 
   var OWNERS = ["Kári Freyr (jr.) 🦆", "Anton Pétur 🐕‍🦺", "Þóhallur 🦇", "Dolli W. 🦊", "Jóel 🦁", "Ísak 🐻‍❄️"];
   var NEXT_STATUS = { "opið 😠": "Í vinnslu ⚙️", "Í vinnslu ⚙️": "Lokið ✅" };
@@ -1597,14 +1611,23 @@
     var f = rec.fields;
     var status = f[QF_STATUS] || "opið 😠";
     $("qfCard").style.display = "none";
-    $("qfDetailIssue").textContent = f[QF_ISSUE] || "";
+    $("qfDetailIssue").textContent = qfTitle(f);
     var rows = [];
     rows.push("<div><b>Ábyrgðarmaður:</b> " + escapeHtml(f[QF_OWNER] || "—") + "</div>");
-    if (f[QF_FROM]) rows.push("<div><b>Frá:</b> " + escapeHtml(f[QF_FROM]) + "</div>");
+    if (f[QF_FROM] && String(f[QF_ISSUE] || "").trim()) rows.push("<div><b>Frá:</b> " + escapeHtml(f[QF_FROM]) + "</div>");
     if (f[QF_DUE]) rows.push("<div><b>Skiladagur:</b> " + escapeHtml(f[QF_DUE]) + "</div>");
     rows.push("<div><b>Staða:</b> " + escapeHtml(status) + "</div>");
     rows.push("<div><b>Skráð:</b> " + timeAgo(f[QF_CREATED]) + " síðan</div>");
     $("qfDetailMeta").innerHTML = rows.join("");
+
+    // The Quick Fix's own drawings + planner's description, right under it.
+    var own = "";
+    var plan = String(f[QF_PLAN] || "").trim();
+    if (plan) own += '<div class="pj-k">Verklýsing skipuleggjara</div><div class="pj-txt">' + escapeHtml(plan) + "</div>";
+    if ((f[QF_DRAWINGS] || []).length) own += '<div class="pj-k">Lokateikningar</div>' + attachmentsHTML(f[QF_DRAWINGS]);
+    if ((f[QF_FILES] || []).length) own += '<div class="pj-k">Mynd eða skjal</div>' + attachmentsHTML(f[QF_FILES]);
+    $("qfDetailOwn").innerHTML = own;
+    $("qfDetailOwn").style.display = own ? "block" : "none";
 
     var next = NEXT_STATUS[status];
     var btn = $("qfDetailActionBtn");
@@ -1631,6 +1654,21 @@
   // Linked project: open its /verk page (same as tapping it in Verk í
   // vinnslu) + show its Lokateikningar and Verklýsing teiknara right here.
   // Both are VERK_ONLY fields on Tækifæri, so the fetch passes k.
+  function attachmentsHTML(atts) {
+    var html = "";
+    var imgs = atts.filter(function (a) { return /^image\//.test(a.type || ""); });
+    atts.filter(function (a) { return !/^image\//.test(a.type || ""); }).forEach(function (a) {
+      var ext = (a.filename || "").split(".").pop().toUpperCase();
+      html += '<a class="pj-draw" href="' + escapeHtml(a.url) + '" target="_blank" rel="noopener"><span>📄</span><span>' +
+        escapeHtml((a.filename || "Teikning").replace(/\.[^.]+$/, "")) + '</span><span class="ct">' + escapeHtml(ext) + "</span></a>";
+    });
+    if (imgs.length) html += '<div class="pj-imgs">' + imgs.map(function (a) {
+      var t = (a.thumbnails && (a.thumbnails.large || a.thumbnails.full)) || {};
+      return '<a href="' + escapeHtml(a.url) + '" target="_blank" rel="noopener"><img src="' + escapeHtml(t.url || a.url) + '" alt="Lokateikning" loading="lazy"></a>';
+    }).join("") + "</div>";
+    return html;
+  }
+
   var P_TEIKN = "Ýtarleg verklýsing teiknara📝";
   var P_FINAL = "Loka teikningar verkefnis 📋";
   var qfProjSeq = 0;
@@ -1649,18 +1687,9 @@
       var html = '<div class="pj-name">📋 ' + escapeHtml(name) + "</div>" +
         '<button type="button" class="link-btn" id="qfOpenVerkBtn" style="width:100%;border:none;cursor:pointer;font-family:var(--font);">Opna verkið ›</button>';
       var atts = Array.isArray(f[P_FINAL]) ? f[P_FINAL] : [];
-      html += '<div class="pj-k">Lokateikningar</div>';
+      html += '<div class="pj-k">Lokateikningar verksins</div>';
       if (atts.length) {
-        var imgs = atts.filter(function (a) { return /^image\//.test(a.type || ""); });
-        atts.filter(function (a) { return !/^image\//.test(a.type || ""); }).forEach(function (a) {
-          var ext = (a.filename || "").split(".").pop().toUpperCase();
-          html += '<a class="pj-draw" href="' + escapeHtml(a.url) + '" target="_blank" rel="noopener"><span>📄</span><span>' +
-            escapeHtml((a.filename || "Teikning").replace(/\.[^.]+$/, "")) + '</span><span class="ct">' + escapeHtml(ext) + "</span></a>";
-        });
-        if (imgs.length) html += '<div class="pj-imgs">' + imgs.map(function (a) {
-          var t = (a.thumbnails && (a.thumbnails.large || a.thumbnails.full)) || {};
-          return '<a href="' + escapeHtml(a.url) + '" target="_blank" rel="noopener"><img src="' + escapeHtml(t.url || a.url) + '" alt="Lokateikning" loading="lazy"></a>';
-        }).join("") + "</div>";
+        html += attachmentsHTML(atts);
       } else {
         html += '<div class="pj-muted">Engar lokateikningar komnar.</div>';
       }
@@ -1731,8 +1760,9 @@
     try {
       var recs = await airtableFetch(QUICKFIX_TABLE, {
         filterByFormula: '{' + QF_STATUS + '} != "Lokið ✅"',
-        "fields[]": [QF_ISSUE, QF_OWNER, QF_STATUS, QF_CREATED, QF_FROM, QF_DUE, QF_LINK],
+        "fields[]": [QF_ISSUE, QF_OWNER, QF_STATUS, QF_CREATED, QF_FROM, QF_DUE, QF_LINK, QF_DRAWINGS, QF_PLAN, QF_FILES],
         pageSize: 25,
+        k: verkKey(),
       });
       recs.sort(function (a, b) {
         var da = a.fields[QF_CREATED] || "";
@@ -1748,7 +1778,8 @@
         row.className = "qf-row";
         row.innerHTML =
           '<div class="txt">' +
-            '<div class="issue">' + escapeHtml(f[QF_ISSUE] || "") + "</div>" +
+            '<div class="issue">' + escapeHtml(qfTitle(f)) + "</div>" +
+            ((f[QF_DRAWINGS] || []).length ? '<div class="meta">📐 Teikning fylgir</div>' : "") +
             '<div class="owner">👤 ' + escapeHtml(f[QF_OWNER] || "—") + "</div>" +
             '<div class="meta">' + timeAgo(f[QF_CREATED]) + " síðan</div>" +
           "</div>" +
