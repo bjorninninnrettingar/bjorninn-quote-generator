@@ -7514,7 +7514,7 @@
   // The welcome page's kitchen turns slowly in 3D (user, 2026-10-12: "smá skyn um hvað þetta er smooth"). Built a
   // moment after the page shows, faded in over the picture; drag turns it, it carries on after 4 s. Not for reduced
   // motion or without WebGL — the picture stays. Torn down when the welcome page is left (one 3D scene at a time).
-  var welSceneOn = false, welResume = 0, welModelTimer = 0;
+  var welSceneOn = false, welResume = 0, welModelTimer = 0, welSway = 0, welAz0 = null;
   function startWelcomeScene(keepCam){
     var host = document.getElementById("welScene");
     if (!host || !window.KP_SHOWCASE || state.step !== "welcome") return;
@@ -7529,12 +7529,19 @@
     var st = KP3D._three(); if (!st) return;
     st.camera.fov = 42; st.camera.updateProjectionMatrix();
     if (cam) KP3D.setCameraLookAt(cam.p, cam.t);
-    else KP3D.setCameraLookAt({ x:5.9, y:2.55, z:5.5 }, { x:2.8, y:1.0, z:1.9 });
+    else KP3D.setCameraLookAt({ x:5.15, y:2.25, z:4.75 }, { x:2.8, y:1.05, z:1.8 }); // close in (user, 2026-10-12)
     for (var k = 0; k < 40; k++) if (st.stepFades) st.stepFades(); // walls in the way already faded on the first frame
     var c = st.controls;
     c.enableZoom = false; c.enablePan = false;
     c.minPolarAngle = 0.75; c.maxPolarAngle = 1.25;
-    c.autoRotate = true; c.autoRotateSpeed = 0.7;
+    // sways ±50° in front of the kitchen (a full turn showed the cabinets from behind); turns back at each end
+    if (!cam || welAz0 == null) welAz0 = c.getAzimuthalAngle(); // the sway's centre stays put when models arrive and the scene is redrawn
+    var az0 = welAz0, SW = 50 * Math.PI / 180, SPD = 0.55;
+    c.minAzimuthAngle = az0 - SW - 0.02; c.maxAzimuthAngle = az0 + SW + 0.02;
+    c.autoRotate = true; c.autoRotateSpeed = SPD;
+    clearInterval(welSway);
+    welSway = setInterval(function(){ if (!welSceneOn) return; var d = c.getAzimuthalAngle() - az0;
+      if (d < -SW + 0.03) c.autoRotateSpeed = -SPD; else if (d > SW - 0.03) c.autoRotateSpeed = SPD; }, 80);
     c.addEventListener("start", function(){ c.autoRotate = false; clearTimeout(welResume); });
     c.addEventListener("end", function(){ clearTimeout(welResume); welResume = setTimeout(function(){ if (welSceneOn) c.autoRotate = true; }, 4000); });
     welSceneOn = true;
@@ -7542,7 +7549,7 @@
   }
   function stopWelcomeScene(){
     if (!welSceneOn) return;
-    welSceneOn = false; clearTimeout(welResume); clearTimeout(welModelTimer);
+    welSceneOn = false; clearTimeout(welResume); clearTimeout(welModelTimer); clearInterval(welSway); welAz0 = null;
     KP3D.teardown3D(true);
     var host = document.getElementById("welScene");
     if (host){ host.classList.remove("on"); host.parentNode.classList.remove("live"); host.innerHTML = ""; }
