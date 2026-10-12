@@ -692,10 +692,25 @@
   /* ---- contact step ---- */
   .contact-preview:not([hidden]){ display:flex; align-items:center; gap:16px; max-width:560px; margin:0 0 22px; padding:12px; background:var(--panel); border:1px solid var(--line); border-radius:14px; }
   .contact-preview img{ width:190px; border-radius:9px; border:1px solid var(--line); flex:none; }
+  .contact-grid .contact-preview:not([hidden]){ flex-direction:column; align-items:stretch; max-width:none; margin:0; padding:14px; }
+  .contact-grid .contact-preview img, .contact-grid .cp-plan{ width:100%; border-radius:10px; border:1px solid var(--line); background:#fff; }
+  .cp-plan svg{ display:block; width:100%; height:auto; max-height:300px; }
+  .cp-mats{ display:grid; grid-template-columns:auto 1fr; gap:4px 14px; margin:12px 0 0; font-size:13.5px; }
+  .cp-mats dt{ color:var(--ink-soft); }
+  .cp-mats dd{ margin:0; font-weight:600; color:var(--ink); }
   .contact-preview .cp-text{ font-size:13.5px; color:var(--ink-soft); line-height:1.5; }
   .contact-preview .cp-text strong{ color:var(--ink); }
   .contact-preview a{ color:var(--blue); font-size:13px; }
-  .contact-fields{ display:flex; flex-direction:column; gap:14px; max-width:420px; margin-bottom:8px; }
+  .contact-grid{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:32px; align-items:start; margin-top:14px; }
+  @media (max-width:900px){ .contact-grid{ grid-template-columns:1fr; } }
+  .contact-fields{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:8px; }
+  .contact-fields .cf-wide{ grid-column:1 / -1; }
+  .contact-fields .field{ display:flex; flex-direction:column; gap:5px; }
+  .contact-fields label{ font-size:13px; font-weight:700; }
+  .cf-opt{ font-weight:400; color:var(--ink-soft); font-size:12px; margin-left:4px; }
+  .contact-fields textarea{ padding:10px 12px; border:1px solid var(--line); border-radius:8px; font:inherit; font-size:15px; color:var(--ink); background:#fff; resize:vertical; }
+  .contact-fields textarea:focus{ outline:none; border-color:var(--blue); }
+  .contact-form .submit-note{ font-size:12px; opacity:.85; }
   .contact-fields input[type=text], .contact-fields input[type=email], .contact-fields input[type=tel]{
     padding:10px 12px; border:1px solid var(--line); border-radius:8px; font-size:15px; color:var(--ink); background:#fff;
   }
@@ -1190,8 +1205,10 @@
       <button class="btn btn-primary" id="submitBtn" type="button">Senda inn</button>
     </div></div>
 
+    <!-- 2026-10-12: two columns — what you are sending (picture + materials) | the form -->
+    <div class="contact-grid">
     <div class="contact-preview" id="contactPreview" hidden></div>
-
+    <div class="contact-form">
     <div class="contact-fields" id="contactFields">
       <div class="field" id="field-fornafn">
         <label for="cFornafn">Fornafn</label>
@@ -1213,10 +1230,15 @@
         <input type="tel" id="cSimi" autocomplete="tel">
         <span class="field-error">Vantar símanúmer</span>
       </div>
+      <div class="field cf-wide">
+        <label for="cAths">Eitthvað sem söluaðili ætti að vita? <span class="cf-opt">Valfrjálst</span></label>
+        <textarea id="cAths" rows="3" placeholder="T.d. hvenær best er að hafa samband, eða sérstakar óskir"></textarea>
+      </div>
     </div>
-
     <p class="submit-note">Við notum upplýsingarnar eingöngu til að hafa samband við þig vegna skipulagsins. Engin binding.</p>
     <p class="submit-note" id="submitError" style="display:none; color:var(--danger);"></p>
+    </div>
+    </div>
 
   </section>
 
@@ -6878,11 +6900,12 @@
     if (state.step === "welcome") renderWelcome();
     if (state.step === "shape") renderShapeStep();
     if (state.step === "materials") renderMaterials();
+    if (state.step === "contact"){ renderPreviews(); var ca = document.getElementById("cAths"); if (ca && !ca.value && state.intake.note) ca.value = state.intake.note; }
     document.getElementById("mainWrap").classList.toggle("wide", state.step === "editor");
     document.getElementById("mainWrap").classList.toggle("mat", state.step === "materials");
     document.getElementById("mainWrap").classList.toggle("shp", state.step === "shape");
     document.getElementById("mainWrap").classList.toggle("welm", state.step === "welcome");
-    document.getElementById("mainWrap").classList.toggle("intk", state.step === "intake"); // same width as the room pages
+    document.getElementById("mainWrap").classList.toggle("intk", state.step === "intake" || state.step === "contact"); // same width as the room pages
     if (state.step !== "materials") KP3D.teardownCabinetPreview();
     document.getElementById("pageLede").hidden = true; // the intro is on the welcome page only (2026-10-11)
     var rb = document.getElementById("resetBtn"); if (rb) rb.hidden = state.step === "welcome" && !hasDesign(); // nothing to start over yet
@@ -6930,6 +6953,7 @@
     var lines = [planHeadline()];
     if (state.intake.delivery) lines.push("Æskileg afhending: " + state.intake.delivery);
     if (state.intake.budget) lines.push("Áætlað fjárhagsrými: " + state.intake.budget);
+    if (state.intake.note) lines.push("Athugasemd viðskiptavinar: " + state.intake.note);
     var lk = state.look ? LOOKS[state.look] : null, tp = TOPS[state.top || "steinn"], hd = state.handle ? HANDLES[state.handle] : null;
     if (lk) lines.push("Valin framhlið: " + lk.label + (lk.code ? " — Egger " + lk.code : "") + " (" + ((LOOK_CATEGORIES.find(function(x){ return x.key === lk.category; }) || {}).label || lk.category) + ")");
     if (tp) lines.push("Valin borðplata: " + tp.label + (tp.code ? " — Egger " + tp.code : "") + (tp.group === "steinn" ? " (pöntuð sérstaklega)" : " (" + ((TOP_GROUPS.find(function(x){ return x.key === tp.group; }) || {}).label || "") + ")"));
@@ -7537,6 +7561,15 @@
       var text = state.step === "contact" ? planSummaryText() : lastSummary;
       lastSummary = state.step === "contact" ? text : lastSummary;
       var box = document.getElementById(state.step === "contact" ? "contactPreview" : "donePreview");
+      if (state.step === "contact"){ // the picture (or, after a reload, the drawing from above) + what was picked (2026-10-12)
+        var lk = state.look && LOOKS[state.look], tp = TOPS[state.top || "steinn"], hd = state.handle && HANDLES[state.handle], ca = CARCASS[state.carcass], ds = DRAWER_SYSTEMS[state.drawerSystem];
+        var mats = [["Framhlið", lk && lk.label], ["Borðplata", tp && tp.label], ["Höldur", hd && hd.label], ["Skrokkur", ca && ca.label], ["Skúffukerfi", ds && ds.label]]
+          .filter(function(r){ return r[1]; }).map(function(r){ return '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>'; }).join("");
+        box.innerHTML = (lastThumb ? html : '<div class="cp-plan" id="cpPlan"></div>') + '<div class="cp-text"><strong>Skipulagið þitt</strong> · ' + text + '</div><dl class="cp-mats">' + mats + '</dl>';
+        box.hidden = false;
+        if (!lastThumb){ try{ KP3D.buildPlan2D(document.getElementById("cpPlan"), state, {}); }catch(e){} }
+        return;
+      }
       box.innerHTML = html + '<div class="cp-text"><strong>Skipulagið þitt</strong><br>' + text +
         (lastThumb ? '<br><a href="' + lastThumb + '" download="eldhus-skipulag.jpg">Sækja mynd</a>' : "") +
         (state.step === "done" && lastPdfUrl ? '<br><a href="' + lastPdfUrl + '" download="eldhus-teikningar.pdf"><strong>Sækja teikningar (PDF)</strong></a>' : "") + '</div>';
@@ -7547,6 +7580,7 @@
     checkEndPanelsThen(function(){ captureThumb(); goto("intake"); }); // 3D scene must still be alive for the thumbnail
   });
   document.getElementById("backToEditorBtn").addEventListener("click", function(){ goto("editor"); });
+  document.getElementById("cAths").addEventListener("input", function(e){ state.intake.note = e.target.value.trim().slice(0, 1000); save(); });
   document.getElementById("submitBtn").addEventListener("click", function(){
     if (!validateContact()) return;
     submitPlan();
