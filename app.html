@@ -116,9 +116,6 @@
   .qf-card textarea { min-height:64px; resize:vertical; }
   .qf-card .field .lbl { font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); display:block; margin-bottom:5px; }
   .qf-card .field .lbl .hint { text-transform:none; font-weight:600; letter-spacing:0; color:var(--dim); }
-  .qf-link { font-size:.82rem; color:var(--muted); }
-  .qf-link b { color:var(--text); }
-  .qf-link a { color:var(--blue); text-decoration:none; font-weight:700; }
   .qf-submit {
     margin-top:2px; font-family:var(--font); font-weight:800; font-size:1rem; border:none; border-radius:11px;
     background:var(--red); color:#2a0a0a; padding:13px; cursor:pointer;
@@ -411,6 +408,12 @@
         <h2>❗ Skrá verkefni / vandamál</h2>
         <form id="qfForm">
           <div class="field">
+            <span class="lbl">Verk <span class="hint">(valfrjálst)</span></span>
+            <select id="qfProj">
+              <option value="">Ekkert ákveðið verk</option>
+            </select>
+          </div>
+          <div class="field">
             <span class="lbl">Hvað þarf að gera? <span class="hint">(Ýtarleg lýsing)</span></span>
             <textarea id="qfIssue" required placeholder="Lýstu verkinu eða vandamálinu…"></textarea>
           </div>
@@ -428,7 +431,6 @@
             <span class="lbl">Frá hverjum (valfrjálst)</span>
             <input type="text" id="qfFrom" placeholder="Nafn þitt" />
           </div>
-          <div class="qf-link" id="qfProjLink"></div>
           <button class="qf-submit" type="submit" id="qfSubmitBtn">➕ Skrá</button>
           <div class="qf-msg" id="qfMsg"></div>
         </form>
@@ -874,11 +876,22 @@
     var p = getProject();
     $("projTileSub").textContent = p ? p.name : "Ekkert verk valið";
 
-    // QUICK FIX form's project link line
-    var link = $("qfProjLink");
-    link.innerHTML = p
-      ? "Tengist verki: <b>" + escapeHtml(p.name) + "</b> — <a href=\"/verk-i-gangi\">breyta</a>"
-      : "Ekki tengt ákveðnu verki — <a href=\"/verk-i-gangi\">velja verk</a> (valfrjálst)";
+    // QUICK FIX form: the current project is the default pick
+    selectQfProject(p);
+  }
+
+  // ── QUICK FIX form: project dropdown — every won, not-yet-delivered
+  // project (the same BROAD list the search uses), filled when it loads. ──
+  function addQfProjOption(id, name) {
+    var sel = $("qfProj");
+    if (!id || sel.querySelector('option[value="' + id + '"]')) return;
+    var o = document.createElement("option");
+    o.value = id; o.textContent = name;
+    sel.appendChild(o);
+  }
+  function selectQfProject(p) {
+    if (p) addQfProjOption(p.id, p.name);
+    $("qfProj").value = p ? p.id : "";
   }
 
   // Support landing on /app?recordId=recXXXX (e.g. an Airtable button), same
@@ -1712,6 +1725,8 @@
   }
   $("qfDetailBackBtn").addEventListener("click", closeQfDetail);
 
+  $("qfProj").addEventListener("change", function () { $("qfForm").dataset.touched = "1"; });
+
   // ── QUICK FIX: submit ──
   $("qfForm").addEventListener("submit", async function (e) {
     e.preventDefault();
@@ -1728,14 +1743,16 @@
     if (from) fields[QF_FROM] = from;
     var due = $("qfDue").value;
     if (due) fields[QF_DUE] = due;
-    var p = getProject();
-    if (p) fields[QF_LINK] = [p.id];
+    var projId = $("qfProj").value;
+    if (projId) fields[QF_LINK] = [projId];
 
     var btn = $("qfSubmitBtn");
     btn.disabled = true; btn.textContent = "Skrái…";
     try {
       await airtableCreate(QUICKFIX_TABLE, fields);
       $("qfForm").reset();
+      delete $("qfForm").dataset.touched;
+      selectQfProject(getProject());
       msg.className = "qf-msg ok"; msg.textContent = "✅ Skráð — " + owner + " sér um þetta.";
     } catch (err) {
       msg.className = "qf-msg err"; msg.textContent = "Tókst ekki að skrá — reyndu aftur.";
@@ -1819,6 +1836,13 @@
   var PROJECT_INDEX = [];
   airtableFetch(PROJECTS_TABLE, { filterByFormula: BROAD_FILTER, "fields[]": [P_NAME], pageSize: 100 })
     .then(function (recs) {
+      recs.slice().sort(function (a, b) {
+        var na = a.fields[P_NAME] || "", nb = b.fields[P_NAME] || "";
+        var ta = Number((na.match(/^T-(\d+)/) || [])[1] || 0), tb = Number((nb.match(/^T-(\d+)/) || [])[1] || 0);
+        return tb - ta || na.localeCompare(nb, "is");
+      }).forEach(function (r) { addQfProjOption(r.id, r.fields[P_NAME] || "(nafnlaust verk)"); });
+      var cur = getProject();
+      if (cur && !$("qfForm").dataset.touched) $("qfProj").value = cur.id;
       PROJECT_INDEX = recs.map(function (r) {
         var name = r.fields[P_NAME] || "";
         return {
