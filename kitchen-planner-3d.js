@@ -2730,12 +2730,9 @@
     function onClickEmpty(evt){
       if (suppressClick){ suppressClick = false; return; }
       if (pickMeshAt(evt)) return; // a tap on a cabinet was already handled in onUp
-      if (opts.onWallSelect){ // a click on a wall (not on the floor in front of it) selects that wall
-        raycaster.setFromCamera(ndc(evt), camera);
-        var wh = wallPlaneHit(raycaster.ray, geoms, walls, 0, roomHM), fp = new THREE.Vector3();
-        var floorT = raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), fp) ? fp.distanceTo(raycaster.ray.origin) : Infinity;
-        if (wh && wh.t < floorT){ opts.onWallSelect(wh.wallId); return; }
-      }
+      // A bare wall surface looks exactly like empty space in 3D (no highlight, no cursor cue) — unlike the
+      // 2D plan's own wall line (a deliberate, clearly-clickable stroke), so a click here no longer opens the
+      // wall panel (user, 2026-10-13): "blank space" should just deselect, not select the wall underneath it.
       if (opts.onSelect) opts.onSelect(null);
     }
 
