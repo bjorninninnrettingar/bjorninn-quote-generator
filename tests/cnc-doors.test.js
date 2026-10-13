@@ -29,6 +29,7 @@ test("door sizes follow ÚRVINNSLA and match the shop's own T-49 HU 4.1 leaf (23
   assert.equal(p.values.HURD_H, 2350);
   assert.equal(p.values.HURD_B, 815);
   assert.equal(p.values.KARMAR_B, 129);
+  assert.equal(p.values.HANDFANG, 1040); // 1040 from the leaf's bottom + HG_BIL 10 = 1050 from the floor (user, 2026-10-13)
   assert.deepEqual(p.on.jambHinge, ["COPLAN_KARM"]);
   assert.deepEqual(p.on.leaf, ["COPLAN", "IN_20_835_60_BA", "FELLI_THROSKULDUR"]);
   assert.equal(p.status, "check"); // strike plate macro not confirmed yet
@@ -58,6 +59,38 @@ test("renderBpp: numbers in, managed macros switched, other sections untouched, 
   assert.ok(!L.some((l) => /^GLB=HURD_[HBZ]\|/.test(l)));        // never redefine the machine's own names
   assert.ok(r.text.includes("\r\n") && !/[^\r]\n/.test(r.text));   // CRLF kept
   assert.deepEqual(C.readValues(r.text), p.values);               // the file is its own record
+});
+
+test("leaf and jamb strike-plate end up with the literal same hinge/handle numbers (not just in theory)", () => {
+  // Two DIFFERENT master texts (one standing in for the leaf, one for the jamb's strike plate),
+  // each referencing HANDFANG/LOM1 in their own macro line — rendered separately, like the real
+  // export does. If they ever disagreed, it would mean a hinge hole and its matching strike-plate
+  // hole were cut from different numbers — the exact mistake this generator exists to prevent.
+  const LEAF = [
+    "[HEADER]", "TYPE=BPP", "", "[VARIABLES]",
+    "PAN=LPX|HURD_B||4|", "PAN=LPY|HURD_H||4|", "PAN=LPZ|HURD_Z||4|", "",
+    "[PROGRAM]", "",
+    `@ COPLAN, "", "", 1, "", 0 : LOM1, LOM2, LOM3`,
+    `@ IN_20_835_60_BA, "", "", 2, "", 0 : HANDFANG`,
+    `' FELLI_THROSKULDUR, "", "", 3, "", 0 : 0`,
+    "",
+  ].join("\r\n");
+  const JAMB_STRIKE = [
+    "[HEADER]", "TYPE=BPP", "", "[VARIABLES]",
+    "PAN=LPX|HURD_H+HG_BIL+HK_BIL+KARMAR_Z||4|", "PAN=LPY|KARMAR_B||4|", "PAN=LPZ|KARMAR_Z||4|", "",
+    "[PROGRAM]", "",
+    `@ IN_20_835_60_BA_SLUTJARN, "", "", 1, "", 0 : HG_BIL+HANDFANG`,
+    "",
+  ].join("\r\n");
+  const p = C.doorPlan(DOOR);
+  const leaf = C.renderBpp(LEAF, p.values, C.MANAGED.leaf, p.on.leaf);
+  const strike = C.renderBpp(JAMB_STRIKE, p.values, C.MANAGED.jambStrike, p.on.jambStrike);
+  assert.deepEqual(leaf.errors, []); assert.deepEqual(strike.errors, []);
+  assert.ok(leaf.text.includes(`@ IN_20_835_60_BA, "", "", 2, "", 0 : ${p.values.HANDFANG}`));
+  assert.ok(strike.text.includes(`@ IN_20_835_60_BA_SLUTJARN, "", "", 1, "", 0 : ${p.values.HG_BIL}+${p.values.HANDFANG}`));
+  // the record block every file carries (GLB=HS_…) — same source, so it must read back identical
+  assert.deepEqual(C.readValues(leaf.text), C.readValues(strike.text));
+  assert.equal(C.readValues(leaf.text).HANDFANG, 1040);
 });
 
 test("a macro the master doesn't have is an error, not a silent skip", () => {
