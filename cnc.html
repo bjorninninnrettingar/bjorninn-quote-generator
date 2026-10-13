@@ -62,6 +62,7 @@
   .help-close { float:right; background:none; border:none; color:var(--muted); font-size:1.1rem; cursor:pointer; padding:0 4px; }
 
   .gripWarn { display:flex; gap:8px; align-items:center; font-size:.84rem; color:var(--amber); background:#3d3410; border:1px solid #5c4f14; border-radius:10px; padding:9px 14px; margin-top:10px; }
+  .gripInfo { color:var(--dim); font-size:.8rem; }
 
   .summary { display:flex; gap:10px; align-items:center; flex-wrap:wrap; font-size:.84rem; color:var(--muted); background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:9px 14px; margin-top:10px; }
   .summary b { color:var(--text); }
@@ -131,7 +132,7 @@
   <div class="bar2">
     <input type="text" id="search" placeholder="🔎 Leita — Sk, HU, tegund…" />
     <select id="typeFilter"><option value="">Allar tegundir</option></select>
-    <label class="opt" id="gripRow" title="Kemur sjálfkrafa per einingu af höldunni hennar (Vörulisti → Grip mm) þegar hún er tengd. Þessi tala er bara varaleið fyrir einingar sem hafa enga Höldu tengda (gamla „Grip?" hakið).">Grip — varaleið án Höldu <input type="number" id="gripMm" value="0" min="0" max="60" step="0.5" style="width:70px;padding:6px 8px" /> mm</label>
+    <label class="opt" id="gripRow" title="Kemur sjálfkrafa per einingu af höldunni hennar (Vörulisti → Grip mm) þegar hún er tengd. Þessi tala er bara varaleið fyrir einingar sem hafa enga Höldu tengda (gamla „Grip?" hakið).">Grip — varaleið án Höldu <input type="number" id="gripMm" value="0" min="0" max="60" step="0.5" style="width:70px;padding:6px 8px" /> mm <span id="gripInfo" class="gripInfo"></span></label>
     <label class="opt"><input type="checkbox" id="overwriteJamb" /> Yfirskrifa karma sem eru til</label>
   </div>
   <div id="gripWarn"></div>
@@ -173,7 +174,7 @@
     "Grip mm (Höldur 1)"]; // per-unit, via its own Höldur; falls back to the manual field below when absent
   var SAW_FIELDS = ["Partur", "H", "B", "Þ", "M", "Tegund einingu", "Eyðublað ✏️"];
 
-  var project = null, doors = [], groups = [], stopped = [], productNames = {}, sideInput = null;
+  var project = null, doors = [], groups = [], stopped = [], productNames = {}, sideInput = null, lastTally = null;
   var statusFilter = null; // null = all; else "ok"|"review"|"check"|"stop"
   var $ = function (id) { return document.getElementById(id); };
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
@@ -242,7 +243,7 @@
   async function loadProject() {
     var id = $("projSel").value; project = null; doors = []; groups = []; stopped = []; statusFilter = null; $("search").value = "";
     $("writeBtn").disabled = true;
-    if (!id) { $("out").innerHTML = ""; $("summaryBar").innerHTML = ""; $("gripWarn").innerHTML = ""; return; }
+    if (!id) { $("out").innerHTML = ""; $("summaryBar").innerHTML = ""; $("gripWarn").innerHTML = ""; $("gripInfo").textContent = ""; return; }
     var name = $("projSel").selectedOptions[0].textContent.trim();
     $("out").innerHTML = '<div class="empty">Sæki Sögunarlista og einingar…</div>';
     var pre = prefixOf(name), q = pre.replace(/"/g, '\\"');
@@ -286,22 +287,34 @@
   // its own Höldu's "Grip mm" on Vörulisti when that's set (2026-10-13); the manual field is only the
   // fallback for units with no Vörulisti handle linked (older "Grip?" checkbox units).
   var DRAWER_FRONT_RE = /skúffufrontur\s+[nmkcfe]\b.*?(merivo|legra)/i; // same test cnc-sides.js uses to find drawers
+  // Which units actually care about grip (have a drawer front) and where each one's number comes from —
+  // shared by the always-on toolbar count, the "grip left at 0" banner, and the pre-write confirmation,
+  // so the three never drift apart on what they call "on the fallback".
+  function gripFallbackInfo() {
+    var fallbackGrip = +$("gripMm").value || 0, I = sideInput;
+    var drawerUnits = Object.keys(I.byUnit).filter(function (u) { return I.byUnit[u].some(function (r) { return DRAWER_FRONT_RE.test(r.Partur || ""); }); });
+    var fallback = drawerUnits.filter(function (u) { return I.unitGrip[u] == null; });
+    var own = drawerUnits.filter(function (u) { return I.unitGrip[u] != null; });
+    return { fallbackGrip: fallbackGrip, drawerUnits: drawerUnits, fallback: fallback, own: own, unitName: I.unitName };
+  }
   function planSides() {
     if (!sideInput) return;
-    var fallbackGrip = +$("gripMm").value || 0, I = sideInput;
+    var I = sideInput;
     var plans = Object.keys(I.byUnit).map(function (u) {
-      var g = I.unitGrip[u]; g = g == null ? fallbackGrip : g;
+      var g = I.unitGrip[u]; g = g == null ? +$("gripMm").value || 0 : g;
       return SD.unitPlan(I.unitName[u] || u, I.byUnit[u], { unitHeight: I.unitH[u], gripMm: g, smida: I.unitSmida[u] });
     });
+    // Always-on: how many drawer-bearing units are on the toolbar number vs their own Vörulisti grip.
+    var gi = gripFallbackInfo();
+    $("gripInfo").textContent = gi.drawerUnits.length
+      ? "(" + gi.fallback.length + " á þessari tölu" + (gi.own.length ? ", " + gi.own.length + " með eigið Grip mm" : "") + ")" : "";
     // 2026-10-13 (user): grip left at 0 is easy to miss — flag it when some unit actually depends on it
     // (no Höldu linked, so it's the manual field or nothing) and has Merivo/Legra drawer fronts that would
     // want a reveal. A unit with its own Vörulisti grip (even 0) is a deliberate value, not this mistake.
-    var missingGripUnits = fallbackGrip === 0 ? Object.keys(I.byUnit).filter(function (u) {
-      return I.unitGrip[u] == null && I.byUnit[u].some(function (r) { return DRAWER_FRONT_RE.test(r.Partur || ""); });
-    }) : [];
+    var missingGripUnits = gi.fallbackGrip === 0 ? gi.fallback : [];
     $("gripWarn").innerHTML = missingGripUnits.length
       ? '<div class="gripWarn">⚠️ Grip er á 0 mm en ' + missingGripUnits.length + " eining" + (missingGripUnits.length === 1 ? "" : "ar") +
-        " (" + missingGripUnits.map(function (u) { return esc(I.unitName[u] || u); }).join(", ") +
+        " (" + missingGripUnits.map(function (u) { return esc(gi.unitName[u] || u); }).join(", ") +
         ') er með skúffufrontum og enga Höldu tengda — líklega gleymdist að stilla "Grip — varaleið" fyrir þetta verkefni.</div>'
       : "";
     // one entry per cabinet (2026-10-10: a folder each, no merging of identical cabinets)
@@ -385,6 +398,7 @@
         "<div>" + (pl.values ? elevation(v) : "") + "</div></div>";
     });
     $("out").innerHTML = h;
+    lastTally = tally; // read by the pre-write confirmation, so it always matches what's on screen
     var canWrite = choice.sides && groups.length || choice.doors && doors.some(function (d) { return d.plan.status !== "stop"; });
     $("writeBtn").disabled = !canWrite;
 
@@ -469,6 +483,15 @@
     var doorSel = Array.prototype.map.call(document.querySelectorAll("[data-door]:checked"), function (c) { return doors[+c.dataset.door]; });
     if (!sideSel.length && !doorSel.length) return;
     if (!pickedDir) {
+      // 2026-10-13 (user): one line summary before the write actually starts — counts + which grip number
+      // is in play — so "Skrifa á USB" is never a single blind click.
+      var t = lastTally || { ok: 0, check: 0, stop: 0, files: 0 }, gi = sideInput ? gripFallbackInfo() : null;
+      var msg = "Skrifa á USB — " + project.name + "\n\n" +
+        "✅ " + t.ok + " tilbúið\n⚠️ " + t.check + " athuga" + (t.stop ? "\n⛔ " + t.stop + " vantar gögn (sleppt, engar skrár)" : "") + "\n\n" +
+        (gi && gi.drawerUnits.length ? "Grip: " + gi.fallbackGrip + " mm (" + gi.fallback.length + " eining" + (gi.fallback.length === 1 ? "" : "ar") +
+          " á þessari tölu" + (gi.own.length ? ", " + gi.own.length + " með eigið Grip mm" : "") + ")\n\n" : "") +
+        t.files + " skrár verða skrifaðar.\n\nHalda áfram?";
+      if (!confirm(msg)) return;
       if (!("showDirectoryPicker" in window)) { alert("Þessi vafri styður ekki að skrifa beint á USB. Notaðu Chrome eða Edge."); return; }
       try { pickedDir = await window.showDirectoryPicker({ mode: "readwrite" }); } catch (e) { return; }
     }
