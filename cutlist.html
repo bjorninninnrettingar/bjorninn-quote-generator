@@ -334,13 +334,18 @@ function resolveLabel(partur) {
 // readable outside the CUTLST00 workflow, where the raw Efni text at 38mm
 // was just confusing rather than useful.
 const EUROLIGHT_38MM = "Eurolight 38 mm 207x280 cm";
-// Exception to the 38mm→Eurolight rule above: karmur pieces at 38mm are
-// built from MDF Karma-samloka instead. Matched on Partur containing the
-// "karm" root (not the exact-match Set the other overrides use, since karmur
-// Partur text varies — and must catch every Icelandic declension: karmur,
-// karmar, karms, karmi, karma, etc, not just the one form) — confirmed
-// against Efnislisti.
-const KARMA_SAMLOKA_38MM = "MDF Karma-samloka";
+// Exception to the 38mm→Eurolight rule above: karmur pieces are built from
+// Tvípress 35mm instead (two sheets glued then ripped into strips — fixed
+// at 35mm since 2026-10-13, was a drifting 35-38mm depending on the glue-up
+// before that). Matched on Partur containing the "karm" root (not the
+// exact-match Set the other overrides use, since karmur Partur text varies
+// — and must catch every Icelandic declension: karmur, karmar, karms,
+// karmi, karma, etc, not just the one form) — confirmed against Efnislisti.
+// Dead in practice today: "Karmur – Hliðar"/"Karmur – Toppstykki" are both
+// in EXCLUDED_PARTUR below (hand-built, never reach board-matching), so
+// this branch never actually fires on current data — kept correct anyway
+// so it isn't a landmine if Karmur is ever un-excluded later.
+const TVIPRESS_35MM = "Tvípress 35mm";
 
 // Doors (Eyðublað "Tegund einingu" = "Hurð") are always cut from 38mm
 // Eurolight — no exceptions — but the per-piece Þ field is manually
@@ -364,6 +369,16 @@ function resolveThickness(p) {
   const partur = normalizePartur(p.partur);
   if (SLAGLISTI_PARTUR.has(partur)) return 12;
   if (KJOTLISTI_PARTUR.has(partur)) return 22;
+  // Karmur is fixed at 35mm by Partur alone, not gated on the recorded Þ —
+  // real data shows Þ already drifting 35/37/38mm on Karmur rows well
+  // before this fix, same class of bug as Slaglisti/Kjötlisti above. Must
+  // come BEFORE isDoorTegund: karmur pieces live on Hurð-type units (a
+  // karmur literally is a door frame), so the door override would
+  // otherwise win and force them to 38mm Eurolight instead — caught live
+  // on T-49, same precedence bug Slaglisti/Kjötlisti already had fixed.
+  // Dead in cutlist.html specifically (see TVIPRESS_35MM's own comment),
+  // kept correct anyway.
+  if (partur.includes("karm")) return 35;
   if (isDoorTegund(p)) return 38;
   return p.th;
 }
@@ -372,8 +387,8 @@ function resolveMaterialKey(p) {
   const partur = normalizePartur(p.partur);
   if (SLAGLISTI_PARTUR.has(partur)) return "MDF 12mm";
   if (KJOTLISTI_PARTUR.has(partur)) return KJOTLISTI_MATERIAL;
+  if (partur.includes("karm")) return TVIPRESS_35MM;
   if (isDoorTegund(p)) return EUROLIGHT_38MM;
-  if (p.th === 38 && partur.includes("karm")) return KARMA_SAMLOKA_38MM;
   if (p.th === 38) return EUROLIGHT_38MM;
   return normalizeMaterialKey(p.efni);
 }

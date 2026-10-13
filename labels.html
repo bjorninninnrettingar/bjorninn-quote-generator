@@ -305,7 +305,14 @@ const SLAGLISTI_PARTUR = new Set(["Slaglisti – Hliðar", "Slaglisti – Toppur
 const KJOTLISTI_PARTUR = new Set(["Kjötlisti – Hlið", "Kjötlisti – Efri / Neðri"].map(normalizePartur));
 const KJOTLISTI_MATERIAL = "Spónaplötur 22 mm 207 x 280 cm";
 const EUROLIGHT_38MM = "Eurolight 38 mm 207x280 cm";
-const KARMA_SAMLOKA_38MM = "MDF Karma-samloka";
+// Karmur pieces are built from Tvípress 35mm (two sheets glued then ripped
+// into strips) — fixed at 35mm since 2026-10-13, was a drifting 35-38mm
+// depending on the glue-up before that. Unlike cutlist.html, this branch is
+// NOT dead code here — labels.html has no EXCLUDED_PARTUR, so Karmur rows
+// do reach this and their resolved material/thickness drives which filter
+// bucket they show under on screen (the actual printed label still reads
+// the row's own real fields directly, unaffected by this).
+const TVIPRESS_35MM = "Tvípress 35mm";
 
 // Doors (Eyðublað "Tegund einingu" = "Hurð") are always cut from 38mm
 // Eurolight — no exceptions — but the per-piece Þ field is manually
@@ -326,6 +333,14 @@ function resolveThickness(p) {
   const partur = normalizePartur(p.partur);
   if (SLAGLISTI_PARTUR.has(partur)) return 12;
   if (KJOTLISTI_PARTUR.has(partur)) return 22;
+  // Karmur is fixed at 35mm by Partur alone, not gated on the recorded Þ —
+  // real data shows Þ already drifting 35/37/38mm on Karmur rows well
+  // before this fix, same class of bug as the Slaglisti/Kjötlisti one
+  // above. Must come BEFORE isDoorTegund: karmur pieces live on Hurð-type
+  // units (a karmur literally is a door frame), so the door override would
+  // otherwise win and force them to 38mm Eurolight instead — caught live
+  // on T-49, same precedence bug Slaglisti/Kjötlisti already had fixed.
+  if (partur.includes("karm")) return 35;
   if (isDoorTegund(p)) return 38;
   return p.th;
 }
@@ -333,8 +348,8 @@ function resolveMaterialKey(p) {
   const partur = normalizePartur(p.partur);
   if (SLAGLISTI_PARTUR.has(partur)) return "MDF 12mm";
   if (KJOTLISTI_PARTUR.has(partur)) return KJOTLISTI_MATERIAL;
+  if (partur.includes("karm")) return TVIPRESS_35MM;
   if (isDoorTegund(p)) return EUROLIGHT_38MM;
-  if (p.th === 38 && partur.includes("karm")) return KARMA_SAMLOKA_38MM;
   if (p.th === 38) return EUROLIGHT_38MM;
   return String(p.efni || "").trim().replace(/\s+[–-]\s*$/, "").trim();
 }
