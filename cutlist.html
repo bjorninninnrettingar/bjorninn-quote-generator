@@ -278,8 +278,12 @@ function normalizePartur(s) {
   return String(s || "").trim().toLowerCase().replace(/\s+/g, " ").replace(/[–-]/g, "-");
 }
 
-// Karmur is glued/built-up (like Sérsmíði) — not a single saw cut, excluded entirely.
-const EXCLUDED_PARTUR = new Set(["Sérsmíði", "Karmur – Hliðar", "Karmur – Toppstykki"].map(normalizePartur));
+// Karmur used to be excluded here too (glued/built-up, not a single saw
+// cut) — since 2026-10-13 it's cut from Tvípress 35mm like any other part
+// (resolveMaterialKey/resolveThickness below), so Cutty's own nesting can
+// save material instead of every strip being hand-cut with no yield
+// optimization. See TVIPRESS_35MM's comment for the material itself.
+const EXCLUDED_PARTUR = new Set(["Sérsmíði"].map(normalizePartur));
 
 // "Efni: (undirstaða)" has no override for Slaglisti/Karmur, so it falls through
 // to the customer's carcass-laminate lookup — which isn't a real board at these
@@ -341,10 +345,6 @@ const EUROLIGHT_38MM = "Eurolight 38 mm 207x280 cm";
 // exact-match Set the other overrides use, since karmur Partur text varies
 // — and must catch every Icelandic declension: karmur, karmar, karms,
 // karmi, karma, etc, not just the one form) — confirmed against Efnislisti.
-// Dead in practice today: "Karmur – Hliðar"/"Karmur – Toppstykki" are both
-// in EXCLUDED_PARTUR below (hand-built, never reach board-matching), so
-// this branch never actually fires on current data — kept correct anyway
-// so it isn't a landmine if Karmur is ever un-excluded later.
 const TVIPRESS_35MM = "Tvípress 35mm";
 
 // Doors (Eyðublað "Tegund einingu" = "Hurð") are always cut from 38mm
@@ -376,8 +376,6 @@ function resolveThickness(p) {
   // karmur literally is a door frame), so the door override would
   // otherwise win and force them to 38mm Eurolight instead — caught live
   // on T-49, same precedence bug Slaglisti/Kjötlisti already had fixed.
-  // Dead in cutlist.html specifically (see TVIPRESS_35MM's own comment),
-  // kept correct anyway.
   if (partur.includes("karm")) return 35;
   if (isDoorTegund(p)) return 38;
   return p.th;
