@@ -10,7 +10,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <style>
   /* cnc.html (/cnc, /hurdir) — ONE export per project for the Rover-B: cabinet sides (from Sögunarlisti, cnc-sides.js)
-     and doors (karmur + hurðablað from the door Eyðublöð, cnc-doors.js), all into [99] - VERKEFNI/<T-xx name>/ on
+     and doors (karmur + hurðablað from the door Eyðublöð, cnc-doors.js), directly into <T-xx name>/ on
      the USB stick, with the shop's own masters read from the same stick. "T-xx CNC skrá.txt" lists what was made,
      what to check and what is missing. Agreed with the user 2026-10-08 — see CLAUDE.md "CNC". */
   :root {
@@ -56,7 +56,7 @@
 <div class="wrap">
   <div class="kicker">CNC · Rover-B</div>
   <h1>CNC útflutningur</h1>
-  <div class="sub">Hliðar úr Sögunarlista og hurðir (karmur + blað) á lykilinn: <b>[99] - VERKEFNI/&lt;verkefni&gt;/Skápar/&lt;Sk - tegund&gt;</b> og <b>…/Hurðir/&lt;HU&gt;</b>.
+  <div class="sub">Hliðar úr Sögunarlista og hurðir (karmur + blað) beint á USB-kubbinn: <b>&lt;verkefni&gt;/Skápar/&lt;Sk - tegund&gt;</b> og <b>…/Hurðir/&lt;HU&gt;</b>. Færðu verkefnamöppuna í Aðalmöppur → Verkefni á fræsaranum.
     Ef eitthvað er rangt hér er það rangt í Sögunarlista / Eyðublaði — lagaðu það þar.</div>
 
   <div class="bar">
@@ -314,8 +314,8 @@
     try {
       var root = await findRoot(pickedDir);
       if (!root) { log("⛔ Fann ekki masterana — veldu lykilinn sjálfan eða „[01] - AÐALMÖPPUR …“ möppuna."); return; }
-      var job = await sub(await sub(root, "[99] - VERKEFNI", true), folderOf(project.name), true);
-      log("Mappa: [99] - VERKEFNI/" + folderOf(project.name));
+      var job = await sub(pickedDir, folderOf(project.name), true);
+      log("USB verkefnamappa: " + folderOf(project.name));
 
       // Sides. Files this page made before (marked inside) that this export no longer produces are removed, so a
       // regrouped project never leaves a stale side program behind. Hand-made files are never touched.
