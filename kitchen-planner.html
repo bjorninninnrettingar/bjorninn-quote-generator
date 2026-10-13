@@ -640,8 +640,24 @@
 
   .view-toggle{ display:flex; gap:6px; margin-bottom:10px; }
   .view-toggle[hidden]{ display:none; }
-  #wallCycle{ align-items:center; gap:8px; font-size:12.5px; font-weight:600; color:var(--ink-soft); }
-  #wallCycle button{ font:inherit; font-size:13px; font-weight:600; cursor:pointer; background:#fff; border:1.5px solid var(--line); border-radius:8px; padding:4px 10px; color:var(--ink); }
+  #wallPrevBtn, #wallNextBtn, #wallCycleLabel{ font:inherit; }
+  /* "Veggur" view: the elevation sits in a small centered card, with big round nav arrows flanking it — more of
+     an IKEA-planner feel than the full-bleed 3D/2D stage. #wallCycle's children are direct children of
+     .ed-stage (not of .ed-toolbar, which is itself position:relative and would otherwise become their
+     containing block instead of the stage) so top:50% centers them against the whole stage. */
+  .ed-stage.wall-mode #threeWrap{
+    flex:0 0 auto; width:min(1000px, 92%); height:min(640px, 72vh); margin:auto; align-self:center;
+    border:1.5px solid var(--line); border-radius:18px; box-shadow:0 10px 32px rgba(0,0,0,.14);
+  }
+  .ed-stage.wall-mode #wallPrevBtn, .ed-stage.wall-mode #wallNextBtn{
+    position:absolute; top:50%; transform:translateY(-50%); z-index:5;
+    width:48px; height:48px; border-radius:50%; font-size:19px; padding:0;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--card,#fff); border:1.5px solid var(--line); color:var(--ink); box-shadow:0 4px 14px rgba(0,0,0,.16);
+  }
+  .ed-stage.wall-mode #wallPrevBtn{ left:14px; }
+  .ed-stage.wall-mode #wallNextBtn{ right:14px; }
+  .ed-stage.wall-mode #wallCycleLabel{ position:absolute; left:50%; top:10px; transform:translateX(-50%); z-index:5; background:var(--card,#fff); border:1px solid var(--line); border-radius:999px; padding:4px 12px; }
   .view-toggle button{
     font:inherit; font-size:13.5px; font-weight:600; cursor:pointer;
     background:#fff; border:1.5px solid var(--line); border-radius:8px; padding:8px 14px; color:var(--ink);
@@ -1171,11 +1187,6 @@
             <button type="button" data-view="2d" title="Teikning ofan frá">2D</button>
             <button type="button" data-view="wall" title="Hanna einn vegg í einu, málsettan">Veggur</button>
           </div>
-          <div class="view-toggle" id="wallCycle" hidden>
-            <button type="button" id="wallPrevBtn" title="Fyrri veggur">◀</button>
-            <span id="wallCycleLabel"></span>
-            <button type="button" id="wallNextBtn" title="Næsti veggur">▶</button>
-          </div>
           <div class="view-toggle" id="camToggle">
             <button type="button" id="resetCamBtn" title="Endurstilla sýn">🎯</button>
             <button type="button" id="snapBtn" title="Vista mynd af skipulaginu">📷</button>
@@ -1200,6 +1211,11 @@
         </div>
         <div class="three-wrap" id="threeWrap"></div>
         <div class="three-wrap" id="planWrap" hidden></div>
+        <div class="wall-cycle" id="wallCycle" hidden>
+          <button type="button" id="wallPrevBtn" title="Fyrri veggur">◀</button>
+          <span id="wallCycleLabel"></span>
+          <button type="button" id="wallNextBtn" title="Næsti veggur">▶</button>
+        </div>
         <div class="stage-empty" id="stageEmpty" hidden>Ýttu á <b>＋ Ný eining</b> til að bæta við fyrsta skápnum<br><span>hann birtist á veggnum og þú getur dregið hann til</span></div>
         <div class="float-bar" id="floatBar" hidden>
           <span class="fb-dim" id="fbDim"></span>
@@ -5726,9 +5742,18 @@
   }
   function syncWallCycleUI(){
     var list = solidWalls(), i = list.findIndex(function(w){ return w.id === wallViewId; });
-    document.getElementById("wallCycle").hidden = viewMode !== "wall";
+    var inWall = viewMode === "wall";
+    document.getElementById("wallCycle").hidden = !inWall;
     document.getElementById("wallCycleLabel").textContent = list.length ? "Veggur " + (i + 1) + " af " + list.length : "";
+    var stage = document.querySelector(".ed-stage");
+    stage.classList.toggle("wall-mode", inWall);
+    if (inWall){ // the arrows flank the framed elevation itself, not the whole stage — align to #threeWrap's own box
+      var sr = stage.getBoundingClientRect(), wr = document.getElementById("threeWrap").getBoundingClientRect();
+      var midY = (wr.top - sr.top) + wr.height / 2;
+      ["wallPrevBtn", "wallNextBtn"].forEach(function(id){ document.getElementById(id).style.top = midY + "px"; });
+    }
   }
+  window.addEventListener("resize", function(){ if (viewMode === "wall") syncWallCycleUI(); });
 
   function surfaces(){ return KP3D.surfacesOf(state); } // real walls + island rows
   function surfaceById(id){ return surfaces().find(function(w){ return w.id === id; }) || null; }

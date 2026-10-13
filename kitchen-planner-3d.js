@@ -3717,7 +3717,7 @@
         var yhis = [0.1].concat(funits.map(function(u){ return u.y1; }));
         var flo = Math.min.apply(null, los) - 0.35, fhi = Math.max.apply(null, los) + 0.35;
         var fyHi = Math.max.apply(null, yhis) + 0.35;
-        focusBounds = { g:fg, lo:flo, hi:fhi, yLo:-0.45, yHi:fyHi, units:funits, lenM:fg.lenM };
+        focusBounds = { g:fg, lo:flo, hi:fhi, yLo:-0.45, yHi:Math.max(fyHi, roomHeightMm / 1000 + 0.35), units:funits, lenM:fg.lenM, roomHM:roomHeightMm / 1000 };
       }
     }
 
@@ -3888,16 +3888,15 @@
         var p0 = P(u.a0, -0.12), p1 = P(u.a1, -0.12);
         svg += dimTick(p0.x, p0.y, p1.x, p1.y, String(u.widthMm), false, color);
       });
-      if (floorU.length > 1){
-        var f0 = Math.min.apply(null, floorU.map(function(u){ return u.a0; })), f1 = Math.max.apply(null, floorU.map(function(u){ return u.a1; }));
-        var p0t = P(f0, -0.3), p1t = P(f1, -0.3);
-        svg += dimTick(p0t.x, p0t.y, p1t.x, p1t.y, Math.round((f1 - f0) * 1000) + " mm", false, color);
-      }
       wallU.forEach(function(u){
         var p0 = P(u.a0, focusBounds.yHi - 0.22), p1 = P(u.a1, focusBounds.yHi - 0.22);
         svg += dimTick(p0.x, p0.y, p1.x, p1.y, String(u.widthMm), false, color);
       });
-      var ys = [0].concat(floorU.map(function(u){ return u.y1; }));
+      // the wall's own full width/height, always shown (not just the cabinet run) — a bare wall still gets
+      // dimensioned, same as the room's own wall-length label does on the 2D plan
+      var p0w = P(0, -0.32), p1w = P(focusBounds.lenM, -0.32);
+      svg += dimTick(p0w.x, p0w.y, p1w.x, p1w.y, Math.round(focusBounds.lenM * 1000) + " mm", false, color);
+      var ys = [0, focusBounds.roomHM].concat(floorU.map(function(u){ return u.y1; }));
       if (wallU.length){ ys.push(Math.min.apply(null, wallU.map(function(u){ return u.y0; }))); ys.push(Math.max.apply(null, wallU.map(function(u){ return u.y1; }))); }
       ys = ys.filter(function(y, i){ return ys.findIndex(function(z){ return Math.abs(z - y) < 0.005; }) === i; }).sort(function(a, b){ return a - b; });
       var hx = focusBounds.lo + 0.15;
@@ -5076,13 +5075,11 @@
         var p1 = { x:g.origin.x + g.axis.x * a1 + g.normal.x * off / PX_PER_M, z:g.origin.z + g.axis.z * a1 + g.normal.z * off / PX_PER_M };
         s += planDimLine(p0.x, p0.z, p1.x, p1.z, bl.widthMm, g.normal.x, g.normal.z);
       });
-      if (floor.length > 1){
-        var f0 = starts[0] / 1000, last = floor.length - 1, f1 = (starts[last] + floor[last].widthMm) / 1000;
-        var off2 = off - 16;
-        var q0 = { x:g.origin.x + g.axis.x * f0 + g.normal.x * off2 / PX_PER_M, z:g.origin.z + g.axis.z * f0 + g.normal.z * off2 / PX_PER_M };
-        var q1 = { x:g.origin.x + g.axis.x * f1 + g.normal.x * off2 / PX_PER_M, z:g.origin.z + g.axis.z * f1 + g.normal.z * off2 / PX_PER_M };
-        s += planDimLine(q0.x, q0.z, q1.x, q1.z, Math.round((f1 - f0) * 1000) + " mm", g.normal.x, g.normal.z);
-      }
+      // the wall's own full length, always shown (not just the cabinet run) — a bare wall still gets dimensioned
+      var off2 = off - (floor.length ? 16 : 0);
+      var q0 = { x:g.origin.x + g.normal.x * off2 / PX_PER_M, z:g.origin.z + g.normal.z * off2 / PX_PER_M };
+      var q1 = { x:g.origin.x + g.axis.x * g.lenM + g.normal.x * off2 / PX_PER_M, z:g.origin.z + g.axis.z * g.lenM + g.normal.z * off2 / PX_PER_M };
+      s += planDimLine(q0.x, q0.z, q1.x, q1.z, Math.round(g.lenM * 1000) + " mm", g.normal.x, g.normal.z);
       return s;
     }
 
@@ -5092,7 +5089,7 @@
       var fStarts = blockStartsMm(wall.floor, cornerClearanceMm(surfaces, wi, "floor")), wStarts = blockStartsMm(wall.wall, 0);
       wall.floor.forEach(function(bl, bi){ drawCabinetRect(bl, CATALOG[bl.type], g, wall.id, "floor", fStarts[bi], false); });
       wall.wall.forEach(function(bl, bi){ drawCabinetRect(bl, CATALOG[bl.type], g, wall.id, "wall", wStarts[bi], true); });
-      if (!wall.island && wall.floor.length) svg += wallDimChain(g, wall.floor, fStarts);
+      if (!wall.island) svg += wallDimChain(g, wall.floor, fStarts);
     });
 
     // island move-handles (drag = slide the island, tap = select it)
