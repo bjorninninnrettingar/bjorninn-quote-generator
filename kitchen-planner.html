@@ -1927,19 +1927,24 @@
         continue;
       }
       // dimension line, 72px outside the wall (clear of the slide arrows)
-      // labels round an inside (reflex) corner can land on each other: push this one further out until it's clear (2026-10-11)
+      // A label at the pure midpoint of a short wall next to an inside (reflex/innskot) corner sits right on
+      // top of the neighbouring wall's own label — slide it toward whichever end is the convex (outer) corner
+      // first (2026-10-13), then still push it further out if it's somehow still crowded (2026-10-11).
+      var startReflex = state.walls[(i - 1 + n) % n].turnAfter === "right", endReflex = w.turnAfter === "right";
+      var biasT = startReflex && !endReflex ? 0.7 : endReflex && !startReflex ? 0.3 : 0.5;
+      var mx = x1 + (x2 - x1) * biasT, my = y1 + (y2 - y1) * biasT;
       var offOut = 72, txt0 = w.lengthMm + " mm", tw0 = txt0.length * 7.2 + 14;
       for (var tries = 0; tries < 5; tries++){
-        var cxl = (x1 + x2) / 2 - nx * offOut, cyl = (y1 + y2) / 2 - nz * offOut;
+        var cxl = mx - nx * offOut, cyl = my - nz * offOut;
         if (!dimBoxes.some(function(bx){ return Math.abs(bx.x - cxl) < (bx.w + tw0) / 2 + 4 && Math.abs(bx.y - cyl) < 26; })) break;
         offOut += 30;
       }
-      dimBoxes.push({ x:(x1 + x2) / 2 - nx * offOut, y:(y1 + y2) / 2 - nz * offOut, w:tw0 });
+      dimBoxes.push({ x:mx - nx * offOut, y:my - nz * offOut, w:tw0 });
       var dxo = -nx * offOut, dzo = -nz * offOut;
       items += '<line x1="' + (x1 + dxo) + '" y1="' + (y1 + dzo) + '" x2="' + (x2 + dxo) + '" y2="' + (y2 + dzo) + '" stroke="#444" stroke-width="1"/>' +
         '<line x1="' + (x1 + dxo - nx * 6) + '" y1="' + (y1 + dzo - nz * 6) + '" x2="' + (x1 + dxo + nx * 6) + '" y2="' + (y1 + dzo + nz * 6) + '" stroke="#444"/>' +
         '<line x1="' + (x2 + dxo - nx * 6) + '" y1="' + (y2 + dzo - nz * 6) + '" x2="' + (x2 + dxo + nx * 6) + '" y2="' + (y2 + dzo + nz * 6) + '" stroke="#444"/>';
-      var lx = (x1 + x2) / 2 + dxo, ly = (y1 + y2) / 2 + dzo, txt = w.lengthMm + " mm", tw = txt.length * 7.2 + 14;
+      var lx = mx + dxo, ly = my + dzo, txt = w.lengthMm + " mm", tw = txt.length * 7.2 + 14;
       items += '<g class="dim" data-dim="' + i + '"><rect x="' + (lx - tw / 2) + '" y="' + (ly - 11) + '" width="' + tw + '" height="22" rx="4" fill="#fbfaf7" stroke="' + (sel ? "#0d8fbf" : "none") + '"/>' +
         '<text x="' + lx + '" y="' + (ly + 4.5) + '" font-size="13" text-anchor="middle" fill="#191919" style="pointer-events:none;">' + txt + '</text></g>';
       // slide arrows (perpendicular to the wall)
