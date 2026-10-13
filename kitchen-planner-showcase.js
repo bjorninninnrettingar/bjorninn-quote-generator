@@ -3,7 +3,7 @@
 // the saved state back here. Never saved or submitted.
 window.KP_SHOWCASE = {"step":"editor","intake":{},"carcass":"hvit","drawerSystem":"merivo","look":"eg_U590","top":"steinn_hvitur","floor":"parket_eik","handle":"graf","roomHeightMm":2600,"wallColor":"hreinhvitt",
   "windows":[{"id":"o1","wallId":"W1","offsetMm":2219,"widthMm":1200,"heightMm":1100,"sillHeightMm":1050}],
-  "doors":[{"id":"sd1","wallId":"W4","offsetMm":1700,"widthMm":900,"heightMm":2050}],"closed":true,"waterWall":"W1","waterAlongMm":2819,"seeded":true,"base900":true,
+  "doors":[{"id":"sd1","wallId":"W4","offsetMm":2600,"widthMm":900,"heightMm":2050}],"closed":true,"waterWall":"W1","waterAlongMm":2819,"seeded":true,"base900":true,
   "islands":[{"id":"i1","label":"Eyja 1","lengthMm":2438,"xMm":2781,"zMm":2550,"rot":180,"two":false,"back":true,"a":[
     {"id":"ip1","type":"uthlid","widthMm":19},
     {"id":"ia1","type":"grunnskapur","widthMm":800,"interior":{"mode":"skuffur","codes":["E","K","M"],"count":3}},
@@ -38,4 +38,4 @@ window.KP_SHOWCASE = {"step":"editor","intake":{},"carcass":"hvit","drawerSystem
     {"id":"d3","kind":"barstoll","xMm":2200,"zMm":3200,"rot":180},{"id":"d4","kind":"barstoll","xMm":2800,"zMm":3200,"rot":180},{"id":"d5","kind":"barstoll","xMm":3400,"zMm":3200,"rot":180},
     {"id":"d7","kind":"skal","xMm":2900,"zMm":2250,"rot":0},{"id":"d8","kind":"kaffivel","xMm":4300,"zMm":300,"rot":0},
     {"id":"d9","kind":"bretti","xMm":1500,"zMm":300,"rot":0},{"id":"d10","kind":"plantaLitil","xMm":3550,"zMm":250,"rot":0},
-    {"id":"d11","kind":"planta","xMm":250,"zMm":1300,"rot":0}]};
+    {"id":"d11","kind":"planta","xMm":250,"zMm":600,"rot":0}]};
