@@ -98,10 +98,20 @@
   .toolnav-item.active { background: #2196f3; border-color: #2196f3; color: #fff; cursor: default; }
   .toolnav-item:not(.active):hover { border-color: #2196f3; color: #fff; }
 
-  #aedarStatus { margin: 2px 0 10px; font-size: 0.85rem; }
-  #aedarStatus .ok { color: #4caf50; font-weight: 600; }
-  #aedarStatus .warn { color: #f5c518; font-weight: 600; }
-  #aedarStatus a { color: #f5c518; }
+  /* Prominent-but-compact status banner — replaces the old inline aedarStatus
+     text line. Shown right under the project header so it can't be missed,
+     while the actual piece list collapses behind <details> in aedarCard. */
+  .aedarBanner {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin-top: 10px; padding: 10px 14px; border-radius: 8px;
+    font-size: 0.88rem; font-weight: 600;
+  }
+  .aedarBanner.warn { background: #2e2408; border: 1px solid #5a4a22; color: #f5c518; }
+  .aedarBanner.ok { background: #122a16; border: 1px solid #2c5a33; color: #6fcf7d; }
+  .aedarBanner a { color: inherit; font-weight: 800; text-decoration: underline; }
+  .aedarChip { font-size: 0.78rem; font-weight: 700; padding: 2px 9px; border-radius: 10px; background: rgba(255,255,255,0.1); }
+
+  #groupsTable th.checkCol, #groupsTable td.checkCol { width: 28px; text-align: center; padding-right: 0; }
 </style>
 </head>
 <body>
@@ -110,9 +120,9 @@
   <div class="sub">Býr til CUTLST-skrár beint á USB-drif, flokkað eftir efni og þykkt.</div>
 
   <div class="toolnav">
-    <span class="toolnav-item active">📐 CUTTY</span>
-    <a class="toolnav-item" id="navAedar" href="/aedar">🪵 ÆÐAR</a>
-    <a class="toolnav-item" id="navMerkingar" href="/labels">🏷️ MERKINGAR</a>
+    <span class="toolnav-item active">📐 F6 - CUTTY</span>
+    <a class="toolnav-item" id="navAedar" href="/aedar">🪵 F2 - ÆÐAR</a>
+    <a class="toolnav-item" id="navMerkingar" href="/labels">🏷️ SÖGUNARLISTI</a>
   </div>
 
   <div class="card" id="searchCard">
@@ -125,12 +135,14 @@
   <div class="card hidden" id="projectCard">
     <div class="project-name" id="projectName"></div>
     <div class="sub" id="projectStatus">Sæki Sögunarlisti færslur…</div>
+    <div class="aedarBanner hidden" id="aedarBanner"></div>
   </div>
 
   <div class="card hidden" id="aedarCard" style="border-color:#5a4a22;background:#211c12;">
-    <label style="color:#f5c518;">Þurfa æðasamfellu — sagast í gegnum <a href="/aedar" id="aedarCardLink" target="_blank" style="color:#f5c518;">/aedar</a>, ekki hér</label>
-    <div id="aedarStatus"></div>
-    <ul id="aedarList" style="font-size:0.85rem;color:#ddd;padding-left:20px;"></ul>
+    <details>
+      <summary style="cursor:pointer;color:#f5c518;font-weight:600;">Sjá <span id="aedarCount">0</span> stykki sem þurfa æðasamfellu — sagast í gegnum <a href="/aedar" id="aedarCardLink" target="_blank" style="color:#f5c518;">/aedar</a>, ekki hér</summary>
+      <ul id="aedarList" style="font-size:0.85rem;color:#ddd;padding-left:20px;margin-top:10px;"></ul>
+    </details>
   </div>
 
   <div class="card hidden" id="missingDimsCard">
@@ -144,23 +156,38 @@
   </div>
 
   <div class="card hidden" id="groupsCard">
-    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px;">
-      <div>
-        <label>Efni</label>
-        <select id="materialFilterSelect" onchange="renderGroups()" style="max-width:280px;">
-          <option value="">Öll efni</option>
-        </select>
+    <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:14px;align-items:flex-start;">
+      <div style="display:flex;gap:14px;flex-wrap:wrap;">
+        <div>
+          <label>Efni</label>
+          <select id="materialFilterSelect" onchange="renderGroups()" style="max-width:280px;">
+            <option value="">Öll efni</option>
+          </select>
+        </div>
+        <div>
+          <label>Þykkt</label>
+          <select id="thicknessFilterSelect" onchange="renderGroups()" style="max-width:160px;">
+            <option value="">Allar þykktir</option>
+          </select>
+        </div>
       </div>
-      <div>
-        <label>Þykkt</label>
-        <select id="thicknessFilterSelect" onchange="renderGroups()" style="max-width:160px;">
-          <option value="">Allar þykktir</option>
-        </select>
+      <!-- Log sits beside the filters (not at the bottom of the page) so a
+           USB write in progress stays visible without scrolling. -->
+      <div class="card hidden" id="logCard" style="flex:1;min-width:260px;margin:0;">
+        <label>Log</label>
+        <div id="log"></div>
       </div>
+    </div>
+
+    <div style="margin-bottom:8px;font-size:0.8rem;">
+      <a href="#" id="selectAllLink" onclick="toggleAllGroups(true);return false;" style="color:#2196f3;text-decoration:none;">Velja allt</a>
+      &nbsp;·&nbsp;
+      <a href="#" id="selectNoneLink" onclick="toggleAllGroups(false);return false;" style="color:#2196f3;text-decoration:none;">Hreinsa val</a>
     </div>
     <table id="groupsTable">
       <thead>
         <tr>
+          <th class="checkCol"><input type="checkbox" id="selectAllGroups" checked onchange="toggleAllGroups(this.checked)" /></th>
           <th>Efni</th>
           <th>Þykkt</th>
           <th>Plötustærð</th>
@@ -179,11 +206,6 @@
       <button id="writeBtn">Velja USB-drif og skrifa skurðarlista</button>
       <button class="secondary" id="resetBtn">Byrja upp á nýtt</button>
     </div>
-  </div>
-
-  <div class="card hidden" id="logCard">
-    <label>Log</label>
-    <div id="log"></div>
   </div>
 
 <script src="front-classify.js"></script>
@@ -391,6 +413,28 @@ const F9_LINE  = "F9 0 0.000 0 0.000 0.000 0.000 20.000 20.000 10 0 4.400 0 0 0 
 
 let currentProject = null;
 let currentGroups = [];
+// g.key values currently ticked for the USB write — lets the operator run a
+// subset of materials (e.g. skip door-only efni while the door plan isn't
+// ready yet) instead of always writing everything in one go.
+let selectedGroupKeys = new Set();
+// materialKey() values already written to a USB stick THIS project (per
+// localStorage, so it survives a reload but not a different computer/stick —
+// see writeToUsb's own comment). Drives the "✅ á USB" badge per row, and
+// freshly-added groups default unchecked so a resumed session doesn't
+// silently rewrite material that's already done.
+let writtenMaterialKeys = new Set();
+
+function materialKey(g) { return `${g.thickness}|${g.material}`; }
+function writtenStorageKey(projectId) { return `bjorninn:cutty:written:${projectId}`; }
+function loadWrittenMaterials(projectId) {
+  try {
+    const raw = localStorage.getItem(writtenStorageKey(projectId));
+    return new Set(raw ? JSON.parse(raw) : []);
+  } catch { return new Set(); }
+}
+function saveWrittenMaterials(projectId, keys) {
+  try { localStorage.setItem(writtenStorageKey(projectId), JSON.stringify([...keys])); } catch {}
+}
 
 function log(msg) {
   const el = document.getElementById("log");
@@ -565,32 +609,41 @@ async function fetchAedarPlanStatus(projectName) {
   });
 }
 
-// Shown only when this project actually has æðasamfellu pieces (same gate
-// as aedarCard itself) — a project with none needs no plan at all.
+// Prominent-but-compact banner right under the project header — shown only
+// when this project actually has æðasamfellu pieces (same gate as aedarCard
+// itself). Deliberately NOT a full sentence per material; just enough to be
+// unmissable and point at /aedar, since the actual piece list already lives
+// (collapsed) in aedarCard below.
 async function renderAedarStatus(projectName) {
-  const el = document.getElementById("aedarStatus");
-  el.textContent = "";
+  const banner = document.getElementById("aedarBanner");
+  const href = document.getElementById("aedarCardLink")?.href || "/aedar";
   let plans;
   try {
     plans = await fetchAedarPlanStatus(projectName);
   } catch {
-    return; // non-essential — leave the status line empty rather than block the page
-  }
-  if (!plans.length) {
-    el.innerHTML = `<span class="warn">⚠ Ekkert æðaskipulag byrjað enn</span>`;
+    banner.classList.add("hidden"); // non-essential — don't block the page over this
     return;
   }
-  el.innerHTML = plans
+  if (!plans.length) {
+    banner.className = "aedarBanner warn";
+    banner.innerHTML = `⚠ <b>Æðaskipulag ekki byrjað</b> — verður að klára áður en verkið fer á gólfið &nbsp; <a href="${href}" target="_blank">Byrja í Æðar →</a>`;
+    return;
+  }
+  const allConfirmed = plans.every(p => p.fields[PL_CONFIRM]);
+  const chips = plans
     .map(p => {
       // Æðaplan's Efni field stores grain.html's own raw material key —
       // "<nafn>||<þykkt>" (see buildMaterials()), not a display name.
       const [name, th] = String(p.fields[PL_EFNI] || "?").split("||");
       const efni = escapeHtml(th ? `${name} (${th}mm)` : name);
-      return p.fields[PL_CONFIRM]
-        ? `<span class="ok">✅ ${efni}: staðfest</span>`
-        : `<span class="warn">✏️ ${efni}: drög, ekki staðfest</span>`;
+      const ok = !!p.fields[PL_CONFIRM];
+      return `<span class="aedarChip">${ok ? "✅" : "✏️"} ${efni}</span>`;
     })
-    .join(" &nbsp;·&nbsp; ");
+    .join("");
+  banner.className = `aedarBanner ${allConfirmed ? "ok" : "warn"}`;
+  banner.innerHTML = allConfirmed
+    ? `✅ <b>Æðaskipulag staðfest</b> ${chips}`
+    : `⚠ <b>Æðaskipulag ekki klárt</b> — verður að klára áður en verkið fer á gólfið ${chips} &nbsp; <a href="${href}" target="_blank">Klára í Æðar →</a>`;
 }
 
 // Scoped to one project server-side via the project's own name text, instead
@@ -903,18 +956,20 @@ async function loadProject(projectId) {
     applyBoardToGroup(groupObj);
   }
 
-  const groupedCount =
-    [...groupMap.values()].reduce((s, g) => s + g.rows.length, 0) +
-    [...sokkullGroupMap.values()].reduce((s, g) => s + g.rows.length, 0);
-  const sersmidiCount = pieces.length - groupedCount - allMissingDims.length;
-  document.getElementById("projectStatus").textContent =
-    `${allRows.length} línur sóttar` +
-    (manualCount ? `, ${manualCount} þegar merktar handskornar` : "") +
-    (aedarPieces.length ? `, ${aedarPieces.length} þurfa æðasamfellu (fara í gegnum /aedar)` : "") +
-    (sersmidiCount ? `, ${sersmidiCount} Sérsmíði/Karmur-línur sleppt` : "") +
-    (allMissingDims.length ? `, ${allMissingDims.length} línur vantar mál (líklega ekki skurðarpartar)` : "") +
-    `, ${currentGroups.length} efni/þykktar-hópar fundnir.` +
-    (currentOversized.length ? ` ⚠ ${currentOversized.length} passa ekki á plötu.` : "");
+  // Everything informational here (line counts, group counts, etc.) already
+  // has its own warning card when it actually matters (oversizedCard,
+  // missingDimsCard, the æðar banner) — a plain success-path summary
+  // sentence was pure noise on top of those, so this page shows nothing
+  // when there's nothing wrong.
+  document.getElementById("projectStatus").textContent = "";
+
+  // Resume where a previous USB write left off: materials already written
+  // (per this browser's localStorage) default unchecked, everything else
+  // defaults checked — see writeToUsb()'s own partial-write comment.
+  writtenMaterialKeys = loadWrittenMaterials(projectId);
+  selectedGroupKeys = new Set(
+    currentGroups.filter(g => !writtenMaterialKeys.has(materialKey(g))).map(g => g.key)
+  );
 
   renderAedarPieces(aedarPieces);
   if (aedarPieces.length) renderAedarStatus(projectName);
@@ -946,8 +1001,10 @@ function renderAedarPieces(aedarPieces) {
   const list = document.getElementById("aedarList");
   if (!aedarPieces.length) {
     card.classList.add("hidden");
+    document.getElementById("aedarBanner").classList.add("hidden");
     return;
   }
+  document.getElementById("aedarCount").textContent = aedarPieces.length;
   list.innerHTML = aedarPieces
     .map(p => `<li>${escapeHtml(p.label || "(án Partur)")} — ${p.h}×${p.b}mm</li>`)
     .join("");
@@ -1007,7 +1064,11 @@ function renderGroups() {
     } else {
       statusHtml = `<span class="status-ok">Fann plötu</span>`;
     }
+    if (writtenMaterialKeys.has(materialKey(g))) {
+      statusHtml += ` <span class="status-ok" style="margin-left:6px;">· ✅ á USB</span>`;
+    }
     tr.innerHTML = `
+      <td class="checkCol"><input type="checkbox" class="groupCheck" ${selectedGroupKeys.has(g.key) ? "checked" : ""} onchange="toggleGroupSelected('${g.key}', this.checked)" /></td>
       <td>${escapeHtml(g.material)}</td>
       <td>${g.thickness}mm</td>
       <td>${boardSize}</td>
@@ -1017,6 +1078,21 @@ function renderGroups() {
     `;
     tbody.appendChild(tr);
   }
+  const allBtn = document.getElementById("selectAllGroups");
+  if (allBtn) allBtn.checked = currentGroups.length > 0 && currentGroups.every(g => selectedGroupKeys.has(g.key));
+}
+
+function toggleGroupSelected(key, checked) {
+  if (checked) selectedGroupKeys.add(key); else selectedGroupKeys.delete(key);
+  const allBtn = document.getElementById("selectAllGroups");
+  if (allBtn) allBtn.checked = currentGroups.length > 0 && currentGroups.every(g => selectedGroupKeys.has(g.key));
+  updateWriteButtonState();
+}
+
+function toggleAllGroups(checked) {
+  selectedGroupKeys = checked ? new Set(currentGroups.map(g => g.key)) : new Set();
+  renderGroups();
+  updateWriteButtonState();
 }
 
 // Blocking by design — an oversized piece that's silently skipped is a piece
@@ -1052,9 +1128,14 @@ function renderOversized() {
   updateWriteButtonState();
 }
 
+// Scoped to the SELECTED groups only — an oversized/unresolved piece in a
+// material the operator deliberately unchecked (e.g. doors not ready yet)
+// must not block writing the materials that are actually fine.
 function updateWriteButtonState() {
-  const unresolvedAmbiguous = currentGroups.some(g => g.ambiguous && !g.board);
-  document.getElementById("writeBtn").disabled = currentOversized.length > 0 || unresolvedAmbiguous;
+  const selected = currentGroups.filter(g => selectedGroupKeys.has(g.key));
+  const unresolvedAmbiguous = selected.some(g => g.ambiguous && !g.board);
+  const blockingOversized = currentOversized.some(o => selectedGroupKeys.has(o.groupKey));
+  document.getElementById("writeBtn").disabled = !selected.length || blockingOversized || unresolvedAmbiguous;
 }
 
 async function fixOversized(idx) {
@@ -1082,6 +1163,9 @@ async function writeToUsb() {
     alert("Þessi vafri styður ekki að skrifa beint á USB. Notaðu Chrome eða Edge.");
     return;
   }
+  const groupsToWrite = currentGroups.filter(g => selectedGroupKeys.has(g.key));
+  if (!groupsToWrite.length) return; // writeBtn should already be disabled, but guard anyway
+
   const writeBtn = document.getElementById("writeBtn");
   writeBtn.disabled = true; // guards against double-clicks starting two overlapping writes
 
@@ -1104,27 +1188,31 @@ async function writeToUsb() {
   const jobDirName = sanitizeFolderName(`${jobName} - Sögunarlisti`);
 
   try {
-    // Wipe any previous run for this project before writing fresh — otherwise
-    // a re-run after fixing data (e.g. an Efnislisti correction) can leave
-    // stale files from the old grouping sitting alongside the new ones.
-    try {
-      await rootDir.getDirectoryHandle(jobDirName, { create: false });
-      log(`Hreinsa eldri möppu: ${jobDirName}`);
-      await rootDir.removeEntry(jobDirName, { recursive: true });
-    } catch (e) {
-      // didn't exist yet — nothing to wipe, proceed to create it fresh
-    }
-
     log(`Skrifa í möppu: ${jobDirName}`);
     const jobDir = await rootDir.getDirectoryHandle(jobDirName, { create: true });
 
     let totalFiles = 0;
-    for (const g of currentGroups) {
+    for (const g of groupsToWrite) {
       if (!g.board) {
         log(`SLEPPT: ${g.material} (${g.thickness}mm) — engin plata fannst í Efnislisti.`);
         continue;
       }
       const folderName = sanitizeFolderName(`${g.thickness}mm - ${g.material}`);
+
+      // Wipe just THIS material's own folder before rewriting it — a re-run
+      // of one material (e.g. after fixing a board match) must not leave
+      // stale files from its own earlier attempt, but must never touch any
+      // OTHER material's folder: a partial run (see the per-row checkboxes
+      // above) can deliberately leave other materials' USB files from an
+      // earlier run sitting there untouched. Used to wipe the whole project
+      // folder up front instead — that broke partial/incremental runs.
+      try {
+        await jobDir.getDirectoryHandle(folderName, { create: false });
+        log(`Hreinsa eldri möppu: ${folderName}`);
+        await jobDir.removeEntry(folderName, { recursive: true });
+      } catch (e) {
+        // didn't exist yet — nothing to wipe, proceed to create it fresh
+      }
       const matDir = await jobDir.getDirectoryHandle(folderName, { create: true });
 
       for (let i = 0; i < g.files.length; i++) {
@@ -1160,12 +1248,15 @@ async function writeToUsb() {
           }
         }
       }
+      writtenMaterialKeys.add(materialKey(g));
     }
+    saveWrittenMaterials(currentProject.id, writtenMaterialKeys);
     log(`Búið. ${totalFiles} skrár skrifaðar á USB.`);
   } catch (e) {
     log(`VILLA: ${e.message}`);
     alert(`Villa við að skrifa á USB: ${e.message}`);
   } finally {
+    renderGroups(); // refresh "✅ á USB" badges
     updateWriteButtonState();
   }
 }
