@@ -42,6 +42,19 @@
   .toolnav-item.active { background: #2196f3; border-color: #2196f3; color: #fff; cursor: default; }
   .toolnav-item:not(.active):hover { border-color: #2196f3; color: #fff; }
 
+  /* Same classes/markup as cutlist.html's own status banner (there: æðar
+     status; here: Cutty status) — shared styling so the two tools' header
+     areas read as one consistent system when jumping between them. */
+  .statusBanner {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin-top: 10px; padding: 10px 14px; border-radius: 8px;
+    font-size: 0.88rem; font-weight: 600;
+  }
+  .statusBanner.warn { background: #2e2408; border: 1px solid #5a4a22; color: #f5c518; }
+  .statusBanner.ok { background: #122a16; border: 1px solid #2c5a33; color: #6fcf7d; }
+  .statusBanner a { color: inherit; font-weight: 800; text-decoration: underline; }
+  .statusChip { font-size: 0.78rem; font-weight: 700; padding: 2px 9px; border-radius: 10px; background: rgba(255,255,255,0.1); }
+
   .card {
     background: #161616;
     border: 1px solid #222;
@@ -515,6 +528,11 @@
          boards themselves — this is exactly the number that decides whether
          the current layout/order is good, so it needs to be seen first. -->
     <div class="stat-row no-print" id="statRow" style="margin-bottom:0;"></div>
+    <!-- Mirrors cutlist.html's own æðar-status banner, reciprocally: has
+         Cutty (F6) written this project's USB export yet? Office only —
+         /saga never fetches Sögunarlisti rows, so this just stays empty
+         there regardless of the class. -->
+    <div class="statusBanner hidden office-only" id="cuttyBanner"></div>
     <div id="planStrip" class="no-print"></div>
     <div class="project-actions">
       <button class="ghost small" onclick="resetAll()">← Annað verkefni</button>
@@ -659,6 +677,7 @@ const S_EFNI_BASE = "Efni: (undirstaða)";
 const S_EYDUBLAD  = "Eyðublað ✏️";
 const S_VILLA     = "Villa?";
 const S_PLANMSG   = "Skilaboð til skipulags";   // part-level note to the planners
+const S_SKURDARSKRA = "Skurðarskrá";   // only ever written by cutlist.html's own USB-export step — see renderCuttyStatus()
 const S_NEEDS_AEDAR = "Þarf æðasamfellu";   // audit/visibility only — see syncGrainContinuityFlags()
 const S_BAS   = "B.A.S.";   // checked -> print-server.js (shop PC) prints one label, then unchecks it
 const S_LOKID = "Lokið";    // read-only here; print-server sets it once every copy (Magn) is printed
@@ -895,7 +914,7 @@ async function fetchFrontsForProject(name) {
   const formula = `FIND("${escd}", ARRAYJOIN({${S_PROJECT_LINK}})) > 0`;
   return airtableFetch(SOGUNARLISTI_TABLE, {
     filterByFormula: formula,
-    "fields[]": [S_PARTUR, S_H, S_B, S_TH, S_M, S_EFNI, S_EFNI_BASE, S_EYDUBLAD, S_VILLA, S_PLANMSG, S_NEEDS_AEDAR],
+    "fields[]": [S_PARTUR, S_H, S_B, S_TH, S_M, S_EFNI, S_EFNI_BASE, S_EYDUBLAD, S_VILLA, S_PLANMSG, S_NEEDS_AEDAR, S_SKURDARSKRA],
     pageSize: 100,
   });
 }
@@ -1055,6 +1074,24 @@ async function fetchPlans(name) {
   } catch { return []; }   // table missing / not wired yet → behave as "no plans"
 }
 
+// Reciprocal of cutlist.html's own æðar-status banner: has Cutty (F6)
+// written this project's USB export yet, at all? Skurðarskrá is only ever
+// set by that one USB-write step, so "at least one row has it" is a simple,
+// honest signal — checking "every row" would be misleading, since rows
+// routed through /aedar (and Sérsmíði/Karmur rows) never get it even when
+// Cutty has correctly finished everything it's responsible for.
+function renderCuttyStatus(rows) {
+  const banner = $("cuttyBanner");
+  if (!banner) return;
+  if (!rows.length) { banner.classList.add("hidden"); return; }
+  const href = $("navCutty")?.href || "/cutlist";
+  const anyWritten = rows.some(r => String(r.fields[S_SKURDARSKRA] || "").trim());
+  banner.className = `statusBanner office-only ${anyWritten ? "ok" : "warn"}`;
+  banner.innerHTML = anyWritten
+    ? `✅ <b>Cutty: USB skrifað</b> &nbsp; <a href="${href}" target="_blank">Opna í Cutty →</a>`
+    : `⚠ <b>Cutty: USB ekki skrifað enn</b> &nbsp; <a href="${href}" target="_blank">Opna í Cutty →</a>`;
+}
+
 async function populateProjects() {
   const recs = await fetchEligibleProjects();
   recs.sort((a, b) => (a.fields[P_NAME_FIELD] || "").localeCompare(b.fields[P_NAME_FIELD] || "", "is"));
@@ -1129,6 +1166,7 @@ async function loadProject(id) {
       fetchFrontsForProject(name), fetchBoards(), fetchPlans(name), fetchUnitNames(name),
     ]);
     projectPlans = plans;
+    renderCuttyStatus(rows);
     boards = brd.map(r => ({
       name: r.fields[E_HEITI] || "", w: num(r.fields[E_BREIDD]), l: num(r.fields[E_LENGD]), th: num(r.fields[E_THYKKT]),
       sub: r.fields[E_SUB]?.name || r.fields[E_SUB] || "",

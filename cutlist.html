@@ -100,16 +100,19 @@
 
   /* Prominent-but-compact status banner — replaces the old inline aedarStatus
      text line. Shown right under the project header so it can't be missed,
-     while the actual piece list collapses behind <details> in aedarCard. */
-  .aedarBanner {
+     while the actual piece list collapses behind <details> in aedarCard.
+     Shared (same class names) with grain.html's own cuttyBanner, so the two
+     tools' header areas read as one consistent system when jumping between
+     them — see grain.html for the reciprocal "has Cutty run" banner. */
+  .statusBanner {
     display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
     margin-top: 10px; padding: 10px 14px; border-radius: 8px;
     font-size: 0.88rem; font-weight: 600;
   }
-  .aedarBanner.warn { background: #2e2408; border: 1px solid #5a4a22; color: #f5c518; }
-  .aedarBanner.ok { background: #122a16; border: 1px solid #2c5a33; color: #6fcf7d; }
-  .aedarBanner a { color: inherit; font-weight: 800; text-decoration: underline; }
-  .aedarChip { font-size: 0.78rem; font-weight: 700; padding: 2px 9px; border-radius: 10px; background: rgba(255,255,255,0.1); }
+  .statusBanner.warn { background: #2e2408; border: 1px solid #5a4a22; color: #f5c518; }
+  .statusBanner.ok { background: #122a16; border: 1px solid #2c5a33; color: #6fcf7d; }
+  .statusBanner a { color: inherit; font-weight: 800; text-decoration: underline; }
+  .statusChip { font-size: 0.78rem; font-weight: 700; padding: 2px 9px; border-radius: 10px; background: rgba(255,255,255,0.1); }
 
   #groupsTable th.checkCol, #groupsTable td.checkCol { width: 28px; text-align: center; padding-right: 0; }
 </style>
@@ -135,7 +138,7 @@
   <div class="card hidden" id="projectCard">
     <div class="project-name" id="projectName"></div>
     <div class="sub" id="projectStatus">Sæki Sögunarlisti færslur…</div>
-    <div class="aedarBanner hidden" id="aedarBanner"></div>
+    <div class="statusBanner hidden" id="aedarBanner"></div>
   </div>
 
   <div class="card hidden" id="aedarCard" style="border-color:#5a4a22;background:#211c12;">
@@ -625,7 +628,7 @@ async function renderAedarStatus(projectName) {
     return;
   }
   if (!plans.length) {
-    banner.className = "aedarBanner warn";
+    banner.className = "statusBanner warn";
     banner.innerHTML = `⚠ <b>Æðaskipulag ekki byrjað</b> — verður að klára áður en verkið fer á gólfið &nbsp; <a href="${href}" target="_blank">Byrja í Æðar →</a>`;
     return;
   }
@@ -637,10 +640,10 @@ async function renderAedarStatus(projectName) {
       const [name, th] = String(p.fields[PL_EFNI] || "?").split("||");
       const efni = escapeHtml(th ? `${name} (${th}mm)` : name);
       const ok = !!p.fields[PL_CONFIRM];
-      return `<span class="aedarChip">${ok ? "✅" : "✏️"} ${efni}</span>`;
+      return `<span class="statusChip">${ok ? "✅" : "✏️"} ${efni}</span>`;
     })
     .join("");
-  banner.className = `aedarBanner ${allConfirmed ? "ok" : "warn"}`;
+  banner.className = `statusBanner ${allConfirmed ? "ok" : "warn"}`;
   banner.innerHTML = allConfirmed
     ? `✅ <b>Æðaskipulag staðfest</b> ${chips}`
     : `⚠ <b>Æðaskipulag ekki klárt</b> — verður að klára áður en verkið fer á gólfið ${chips} &nbsp; <a href="${href}" target="_blank">Klára í Æðar →</a>`;
