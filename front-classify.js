@@ -91,14 +91,27 @@
     return GRAIN_RE.test(name);
   }
 
+  // Only a vertical split ("skiptur frontur") actually needs /aedar's manual
+  // continuity sequencing — Björninn grain-matches down a panel (vertical),
+  // never across the seam between two side-by-side wing-door panels
+  // (horizontal), confirmed by the user 2026-10-13. Wing pairs (væng) used
+  // to share KEEPTOGETHER_RE with split fronts here and got pulled into
+  // /aedar the same way; now they're solo grain fronts like any other —
+  // Cutty nests them directly (grainLock still stops either panel being
+  // rotated, just no forced pairing/continuity with its sibling panel).
+  // KEEPTOGETHER_RE/SIDEBYSIDE_RE themselves are untouched — grain.html's own
+  // orient="s" layout logic still applies to a wing front if one does end up
+  // planned in /aedar anyway (manually added, or an older saved plan).
+  const AEDAR_BUCKET_RE = /skipt/i;
+
   // grain.html's buildGroups() keys a row into its group by unit + rounded
   // width (+material) — EXCEPT a drawer row (DRAWER_RE), which gets its own
   // per-copy-index key instead (`baseKey|i`) and so never actually lands in
   // the same group as a sibling plain front, even one sharing its exact
-  // width. Only a wing/split row (KEEPTOGETHER_RE — "væng"/"skipt") uses the
-  // plain baseKey, so ONLY that can pull an unrelated plain front along with
-  // it into needing /aedar. A drawer row still always needs /aedar itself —
-  // it just doesn't spread that requirement to its width-siblings. Mirrors
+  // width. Only a split row (AEDAR_BUCKET_RE — "skipt") uses the plain
+  // baseKey, so ONLY that can pull an unrelated plain front along with it
+  // into needing /aedar. A drawer row still always needs /aedar itself — it
+  // just doesn't spread that requirement to its width-siblings. Mirrors
   // buildGroups()'s gk/keepTogether logic exactly; this is the one place
   // that rule lives, so grain.html and cutlist.html can't disagree on it.
   function aedarBucketKey(unitId, width, efni, th) {
@@ -106,14 +119,14 @@
   }
   // fronts: [{unitId, width, efni, th, partur}] — every grain-material front
   // row for a project (any material, any unit). Returns a Set of bucket
-  // keys that need /aedar via the wing/split-sharing-a-width rule; look a
-  // row up with aedarBucketKey(...). Combine with a direct DRAWER_RE test
-  // on the row's own Partur for the full per-row answer (see needsAedarRow
-  // in cutlist.html / syncGrainContinuityFlags in grain.html).
+  // keys that need /aedar via the split-sharing-a-width rule; look a row up
+  // with aedarBucketKey(...). Combine with a direct DRAWER_RE test on the
+  // row's own Partur for the full per-row answer (see needsAedarRow in
+  // cutlist.html / syncGrainContinuityFlags in grain.html).
   function computeAedarBuckets(fronts) {
     const needs = new Set();
     for (const f of fronts) {
-      if (KEEPTOGETHER_RE.test(f.partur || "")) {
+      if (AEDAR_BUCKET_RE.test(f.partur || "")) {
         needs.add(aedarBucketKey(f.unitId, f.width, f.efni, f.th));
       }
     }
