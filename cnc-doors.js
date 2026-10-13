@@ -20,7 +20,7 @@
     LOM1: 237,      // top hinge: 237 mm from the TOP of the leaf
     LOM2: 607,      // middle hinge: 607 mm from the TOP of the leaf
     LOM3: 237,      // bottom hinge: 237 mm from the BOTTOM of the leaf
-    HANDFANG: 1050, // handle / lock centre: 1050 mm from the bottom of the leaf (= 1060 from the floor)
+    HANDFANG: 1040, // handle / lock centre: 1040 mm from the bottom of the leaf (= 1050 from the floor, user 2026-10-13)
   };
 
   // ── Hardware → which macros to switch on (keyed by Vörulisti record id, as linked on the Eyðublað) ──
