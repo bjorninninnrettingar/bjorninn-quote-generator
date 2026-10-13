@@ -80,9 +80,22 @@
     return m ? "HU" + m[1].replace(/[.\-]$/, "") : s.replace(/[\\/:*?"<>|]+/g, "-") || "Hurð";
   }
 
+  // catalog[id] → { name, leaf, jamb? } straight from Vörulisti's "CNC macró — blað/karmur" fields
+  // (fetched by cnc.html, per-product, not hardcoded here). Only consulted for an id NOT already in
+  // HINGES/LOCKS/THRESHOLDS below — those three stay the single source of truth for the products
+  // already verified against a real master (including any open caveats, e.g. LOCKS' WC entry). A
+  // product only reaches here once someone has read the real master and typed the macro name into
+  // Airtable by hand (2026-10-13, user) — an empty Vörulisti field behaves exactly like today: unknown
+  // hardware stops the door (⛔) rather than guessing.
+  function fromCatalog(catalog, id) {
+    var c = catalog && id && catalog[id];
+    if (!c || !c.leaf) return null;
+    return { name: c.name || id, leaf: c.leaf, jamb: c.jamb || null };
+  }
+
   // One door Eyðublað (fields by name) → every number the programs need + what could not be filled.
   // status: "ok" | "check" (files made, something to confirm) | "stop" (no files — data missing).
-  function doorPlan(f) {
+  function doorPlan(f, catalog) {
     f = f || {};
     var stop = [], check = [];
     var H = num(f["Hæð"]), B = num(f["Breidd"]), D = num(f["Dýpt"]);
@@ -96,9 +109,9 @@
     if (!MASTERS[topp]) stop.push("Toppstykki hurðakarms vantar (Ofan á / Á milli)");
 
     var hingeId = firstId(f["Lamir [Hurð]"]), lockId = firstId(f["Skrá [Hurð]"]), thrId = firstId(f["Felliþr. [Hurð]"]);
-    var hinge = hingeId ? HINGES[hingeId] : null;
-    var lock = lockId ? LOCKS[lockId] : null;
-    var thr = thrId ? THRESHOLDS[thrId] : null;
+    var hinge = hingeId ? (HINGES[hingeId] || fromCatalog(catalog, hingeId)) : null;
+    var lock = lockId ? (LOCKS[lockId] || fromCatalog(catalog, lockId)) : null;
+    var thr = thrId ? (THRESHOLDS[thrId] || fromCatalog(catalog, thrId)) : null;
     if (!hingeId) stop.push("Lamir vantar");
     else if (!hinge) stop.push("Lamir: þekki ekki makró fyrir þessa löm (" + hingeId + ")");
     if (!lockId) check.push("Engin skrá valin — engin skrá fræst");
@@ -123,8 +136,8 @@
       if (v.HURD_H < 1500 || v.HURD_H > 3000 || v.HURD_B < 300 || v.HURD_B > 1300) check.push("Óvenjuleg stærð á blaði: " + v.HURD_H + " × " + v.HURD_B);
     }
     var on = { leaf: [], jambHinge: [], jambStrike: [], jambTop: [] };
-    if (hinge) { on.leaf.push(hinge.leaf); on.jambHinge.push(hinge.jamb); }
-    if (lock) { on.leaf.push(lock.leaf); on.jambStrike.push(lock.jamb); }
+    if (hinge) { on.leaf.push(hinge.leaf); if (hinge.jamb) on.jambHinge.push(hinge.jamb); }
+    if (lock) { on.leaf.push(lock.leaf); if (lock.jamb) on.jambStrike.push(lock.jamb); }
     if (thr) on.leaf.push(thr.leaf);
     return {
       id: doorId(f["Athugasemd"]), topp: topp, opnun: opnun, qty: qty,

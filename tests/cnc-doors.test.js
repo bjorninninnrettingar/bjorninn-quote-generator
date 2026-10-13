@@ -44,6 +44,33 @@ test("missing data stops the door, unknown lock only warns", () => {
   assert.deepEqual(lock.on.jambStrike, []);
 });
 
+// ── Vörulisti-driven catalog, for hardware not in HINGES/LOCKS/THRESHOLDS (user, 2026-10-13) ─────
+test("a hinge/threshold unknown to the hardcoded dicts is picked up from an Airtable-provided catalog", () => {
+  const catalog = {
+    recNEWHINGE0000001: { name: "Ný löm", leaf: "NEW_HINGE_LEAF", jamb: "NEW_HINGE_JAMB" },
+    recNEWTHRESH000001: { name: "Nýr þröskuldur", leaf: "NEW_THRESH" }, // leaf-only, like THRESHOLDS entries
+  };
+  const p = C.doorPlan({ ...DOOR, "Lamir [Hurð]": ["recNEWHINGE0000001"], "Felliþr. [Hurð]": ["recNEWTHRESH000001"] }, catalog);
+  assert.equal(p.hinge, "Ný löm");
+  assert.equal(p.threshold, "Nýr þröskuldur");
+  assert.ok(p.on.leaf.includes("NEW_HINGE_LEAF"));
+  assert.ok(p.on.leaf.includes("NEW_THRESH"));
+  assert.deepEqual(p.on.jambHinge, ["NEW_HINGE_JAMB"]);
+});
+test("an empty Vörulisti macró field is still unknown — stops exactly like today, catalog or not", () => {
+  const catalog = { recUNFILLEDHINGE01: { name: "Hálfkláruð vara" } }; // name set but no leaf macro yet
+  const p = C.doorPlan({ ...DOOR, "Lamir [Hurð]": ["recUNFILLEDHINGE01"] }, catalog);
+  assert.equal(p.status, "stop");
+  assert.ok(p.stop.some((s) => s.includes("Lamir")));
+});
+test("a hardcoded HINGES/LOCKS/THRESHOLDS entry always wins over the catalog, even if both have the id", () => {
+  const catalog = { recoQeJKpvKLowWK3: { name: "Should never be used", leaf: "WRONG_MACRO" } };
+  const p = C.doorPlan(DOOR, catalog);
+  assert.equal(p.hinge, "JNF Coplan (innfelld)");
+  assert.ok(p.on.leaf.includes("COPLAN"));
+  assert.ok(!p.on.leaf.includes("WRONG_MACRO"));
+});
+
 test("renderBpp: numbers in, managed macros switched, other sections untouched, values saved as GLB", () => {
   const p = C.doorPlan(DOOR);
   const r = C.renderBpp(JAMB, p.values, C.MANAGED.jambHinge, p.on.jambHinge);

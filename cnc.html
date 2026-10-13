@@ -250,15 +250,17 @@
     var unitName = {}, isDoor = {}, unitH = {}, unitSmida = {};
     units.forEach(function (u) { unitName[u.id] = u.fields["Athugasemd"] || "(nafnlaust)"; unitH[u.id] = u.fields["Hæð"]; unitSmida[u.id] = u.fields["Smíðagögn (JSON) 🔧"] || null; isDoor[u.id] = String(u.fields["Sérsmíði tegund"] || "") === "Hurð"; });
 
-    // Doors
-    doors = units.filter(function (u) { return isDoor[u.id]; }).map(function (u) { return { rec: u, plan: D.doorPlan(u.fields) }; })
-      .sort(function (a, b) { return a.plan.id.localeCompare(b.plan.id, "is", { numeric: true }); });
-    var ids = {};
-    doors.forEach(function (d) { ["Lamir [Hurð]", "Skrá [Hurð]", "Felliþr. [Hurð]"].forEach(function (f) { (d.rec.fields[f] || []).forEach(function (x) { ids[x.id || x] = 1; }); }); });
+    // Doors — Vörulisti first (names always; CNC macró fields are the catalog fallback for a hinge/lock/
+    // threshold not already hardcoded in cnc-doors.js, 2026-10-13), THEN plan, so doorPlan can use it.
+    var doorUnits = units.filter(function (u) { return isDoor[u.id]; });
+    var ids = {}, catalog = {};
+    doorUnits.forEach(function (u) { ["Lamir [Hurð]", "Skrá [Hurð]", "Felliþr. [Hurð]"].forEach(function (f) { (u.fields[f] || []).forEach(function (x) { ids[x.id || x] = 1; }); }); });
     if (Object.keys(ids).length) {
-      try { (await fetchAll(PRODUCTS, { filterByFormula: "OR(" + Object.keys(ids).map(function (x) { return 'RECORD_ID()="' + x + '"'; }).join(",") + ")", "fields[]": ["Heiti vöru 📣"] }))
-        .forEach(function (p) { productNames[p.id] = p.fields["Heiti vöru 📣"]; }); } catch (e) { /* names only */ }
+      try { (await fetchAll(PRODUCTS, { filterByFormula: "OR(" + Object.keys(ids).map(function (x) { return 'RECORD_ID()="' + x + '"'; }).join(",") + ")", "fields[]": ["Heiti vöru 📣", "CNC macró — blað", "CNC macró — karmur"] }))
+        .forEach(function (p) { productNames[p.id] = p.fields["Heiti vöru 📣"]; catalog[p.id] = { name: p.fields["Heiti vöru 📣"], leaf: p.fields["CNC macró — blað"], jamb: p.fields["CNC macró — karmur"] }; }); } catch (e) { /* names only */ }
     }
+    doors = doorUnits.map(function (u) { return { rec: u, plan: D.doorPlan(u.fields, catalog) }; })
+      .sort(function (a, b) { return a.plan.id.localeCompare(b.plan.id, "is", { numeric: true }); });
     doors.forEach(function (d) { Object.keys(productNames).forEach(function (pid) {
       d.plan.stop = d.plan.stop.map(function (s) { return s.replace(pid, productNames[pid]); });
       d.plan.check = d.plan.check.map(function (s) { return s.replace("(" + pid + ")", "(" + productNames[pid] + ")"); }); }); });

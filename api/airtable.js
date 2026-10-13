@@ -126,6 +126,9 @@ const ALLOWED_FIELDS = {
   // kitchen planner only CREATES contacts (CREATABLE_FIELDS below) and needs nothing back but the id.
   "tblzuuRSRkeXaLWxC": [ // Vörulisti 🚪 — resolves hardware-link names for /eining (name only, no cost)
     "Heiti vöru 📣",
+    // /cnc (cnc-doors.js, 2026-10-13): macro names for hinge/lock/threshold products not already hardcoded
+    // in HINGES/LOCKS/THRESHOLDS — filled in by hand only after reading the real master off the stick.
+    "CNC macró — blað", "CNC macró — karmur",
   ],
   "tbl8CrVWKF8CuI7HD": [ // Efnislisti 🧱
     "Heiti efnis",
