@@ -9,62 +9,146 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <style>
-  /* cnc.html (/cnc, /hurdir) — ONE export per project for the Rover-B: cabinet sides (from Sögunarlisti, cnc-sides.js)
-     and doors (karmur + hurðablað from the door Eyðublöð, cnc-doors.js), directly into <T-xx name>/ on
-     the USB stick, with the shop's own masters read from the same stick. "T-xx CNC skrá.txt" lists what was made,
-     what to check and what is missing. Agreed with the user 2026-10-08 — see CLAUDE.md "CNC". */
+  /* cnc.html (/cnc, /hurdir) — ONE export per project for the Rover-B: cabinet sides (from Sögunarlisti,
+     cnc-sides.js) and doors (karmur + hurðablað from the door Eyðublöð, cnc-doors.js), directly into
+     <T-xx name>/ on the USB stick, with the shop's own masters read from the same stick. "T-xx CNC skrá.txt"
+     lists what was made, what to check and what is missing. Agreed with the user 2026-10-08 — see
+     CLAUDE.md "CNC". Redesigned 2026-10-13 (layout/status review): lighter cutlist-matched background,
+     search + type filter, a collapsed help panel instead of always-on prose, and a 3rd status tier ("note"
+     — pure scope statements like "ekki boraðir hér" that are always true and need no judgment call, split
+     out from "check" items that genuinely need a human look). Grip input stays manual for now — Vörulisti
+     has no per-handle "Grip mm" field yet to source it from automatically (see docs/cnc.md). */
   :root {
-    --bg:#0b0b0c; --surface:#161618; --line:#2a2a2e; --text:#f2f2f3; --muted:#c9c9d0;
-    --blue:#0a84ff; --green:#30d158; --amber:#ffd60a; --red:#ff453a;
+    --bg:#2a2a2a; --surface:#1c1c1c; --surface2:#242424; --line:#383838; --text:#f0f0f0; --muted:#aaa; --dim:#888;
+    --blue:#2196f3; --green:#30d158; --amber:#ffd60a; --red:#ff453a; --purple:#bf5af2;
     --font:"Kumbh Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
   * { box-sizing:border-box; margin:0; padding:0; }
   html,body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; line-height:1.45; }
   .wrap { max-width:1100px; margin:0 auto; padding:20px 18px 60px; }
+  .topline { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
   .kicker { font-size:.74rem; font-weight:700; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); }
   h1 { font-size:1.8rem; font-weight:800; margin-top:4px; }
-  h2 { font-size:1.15rem; font-weight:800; margin-top:26px; display:flex; gap:10px; align-items:baseline; }
+  h2 { font-size:1.15rem; font-weight:800; margin-top:26px; display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; }
   h2 small { font-size:.85rem; font-weight:500; color:var(--muted); }
-  .sub { color:var(--muted); font-size:.92rem; margin-top:4px; max-width:75ch; }
-  .bar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:18px; position:sticky; top:0; background:var(--bg); padding:10px 0; z-index:2; }
-  select, button { font:inherit; color:var(--text); background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:10px 14px; }
-  select { min-width:360px; max-width:100%; }
+  .sub { color:var(--muted); font-size:.88rem; margin-top:4px; max-width:70ch; }
+
+  select, button, input[type=text], input[type=number] { font:inherit; color:var(--text); background:var(--surface2); border:1px solid var(--line); border-radius:10px; padding:10px 14px; }
   button { cursor:pointer; font-weight:700; }
-  button.primary { background:var(--blue); border-color:#3d9bff; }
+  button.primary { background:var(--blue); border-color:#5bacff; }
   button:disabled { opacity:.4; cursor:default; }
   label.opt { display:flex; gap:8px; align-items:center; font-size:.85rem; color:var(--muted); }
-  .card { display:grid; grid-template-columns:26px 1fr auto; gap:12px; background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:12px 14px; margin-top:10px; }
-  .card.stop { opacity:.8; }
-  .card h3 { font-size:1.05rem; font-weight:800; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-  .chip { font-size:.72rem; font-weight:800; padding:2px 9px; border-radius:99px; letter-spacing:.04em; white-space:nowrap; }
-  .chip.ok { background:#123d1e; color:var(--green); } .chip.check { background:#3d3410; color:var(--amber); } .chip.stop { background:#40100e; color:var(--red); }
+
+  .bar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:18px; position:sticky; top:0; background:var(--bg); padding:10px 0 6px; z-index:3; }
+  .bar2 { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:8px; }
+  #search { min-width:220px; }
+  #typeFilter { min-width:160px; }
+
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:10px; overflow:hidden; background:var(--surface2); }
+  .seg label { position:relative; padding:9px 14px; font-size:.86rem; font-weight:700; color:var(--muted); cursor:pointer; border-right:1px solid var(--line); }
+  .seg label:last-child { border-right:none; }
+  .seg input { position:absolute; opacity:0; width:0; height:0; }
+  .seg label:has(input:checked) { background:var(--blue); }
+  .seg label:has(input:checked) span { color:#fff; }
+
+  .help-btn { width:36px; height:36px; border-radius:50%; background:var(--surface2); border:1px solid var(--line); font-weight:800; flex:none; padding:0; }
+  .help-panel { display:none; position:fixed; right:18px; bottom:18px; width:360px; max-width:calc(100vw - 36px); max-height:70vh; overflow:auto; background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:18px; z-index:10; box-shadow:0 10px 40px rgba(0,0,0,.5); }
+  .help-panel.open { display:block; }
+  .help-panel h4 { font-size:.95rem; margin-top:14px; }
+  .help-panel h4:first-child { margin-top:0; }
+  .help-panel p, .help-panel ul { font-size:.84rem; color:var(--muted); margin-top:6px; }
+  .help-panel ul { margin-left:18px; }
+  .help-panel code { background:var(--surface2); padding:1px 5px; border-radius:5px; font-size:.82em; }
+  .help-close { float:right; background:none; border:none; color:var(--muted); font-size:1.1rem; cursor:pointer; padding:0 4px; }
+
+  .summary { display:flex; gap:10px; align-items:center; flex-wrap:wrap; font-size:.84rem; color:var(--muted); background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:9px 14px; margin-top:10px; }
+  .summary b { color:var(--text); }
+  .summary .count { display:flex; gap:5px; align-items:center; background:none; border:1px solid transparent; border-radius:99px; padding:3px 9px 3px 7px; cursor:pointer; }
+  .summary .count:hover { border-color:var(--line); }
+  .summary .count.active { background:var(--surface2); border-color:var(--dim); color:var(--text); }
+  .summary .dest { margin-left:auto; color:var(--dim); font-size:.8rem; }
+  .summary .shown { color:var(--dim); }
+  .dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
+  .dot.ok { background:var(--green); } .dot.review { background:var(--purple); } .dot.check { background:var(--amber); } .dot.stop { background:var(--red); }
+
+  .card { background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:12px 14px; margin-top:10px; display:grid; grid-template-columns:26px 1fr auto; gap:12px; }
+  .card.stop { opacity:.85; }
+  .card.hide { display:none; }
+  .card h3 { font-size:1.05rem; font-weight:800; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .chip { font-size:.72rem; font-weight:800; padding:2px 9px; border-radius:99px; letter-spacing:.04em; white-space:nowrap; display:inline-flex; gap:4px; align-items:center; }
+  .chip.ok { background:#123d1e; color:var(--green); }
+  .chip.check { background:#3d3410; color:var(--amber); }
+  .chip.stop { background:#40100e; color:var(--red); }
+  .chip.review { background:#2a1733; color:#d9a3ff; font-weight:700; }
   .meta { font-size:.86rem; color:var(--muted); margin-top:4px; }
   .meta b { color:var(--text); }
   ul.notes { margin-top:6px; font-size:.85rem; }
   ul.notes li { margin-left:18px; }
   li.stop { color:var(--red); } li.check { color:var(--amber); }
+  ul.scope { margin-top:4px; font-size:.78rem; color:var(--dim); }
+  ul.scope li { margin-left:18px; }
+
+  details.ops-details { margin-top:8px; }
+  details.ops-details summary { cursor:pointer; font-size:.78rem; color:var(--dim); list-style:none; display:inline-flex; gap:6px; align-items:center; }
+  details.ops-details summary::-webkit-details-marker { display:none; }
+  details.ops-details summary::before { content:"▸"; font-size:.7rem; transition:transform .1s; }
+  details.ops-details[open] summary::before { transform:rotate(90deg); }
+  details.ops-details summary:hover { color:var(--text); }
   .ops { margin-top:6px; font:12px/1.5 ui-monospace,Menlo,monospace; color:#a9b4c2; }
-  .fname { font-size:.78rem; color:var(--muted); margin-top:4px; }
+  .fname { font-size:.78rem; color:var(--muted); margin-top:6px; }
+
   svg text { font-family:var(--font); }
-  #log { margin-top:22px; background:#050506; border:1px solid var(--line); border-radius:12px; padding:12px; font:12px/1.5 ui-monospace,Menlo,monospace; white-space:pre-wrap; max-height:380px; overflow:auto; display:none; }
+  #log { margin-top:22px; background:#111; border:1px solid var(--line); border-radius:12px; padding:12px; font:12px/1.5 ui-monospace,Menlo,monospace; white-space:pre-wrap; max-height:380px; overflow:auto; display:none; }
   .empty { color:var(--muted); margin-top:16px; }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="kicker">CNC · Rover-B</div>
-  <h1>CNC útflutningur</h1>
-  <div class="sub">Hliðar úr Sögunarlista og hurðir (karmur + blað) beint á USB-kubbinn: <b>&lt;verkefni&gt;/Skápar/&lt;Sk - tegund&gt;</b> og <b>…/Hurðir/&lt;HU&gt;</b>. Færðu verkefnamöppuna í Aðalmöppur → Verkefni á fræsaranum.
-    Ef eitthvað er rangt hér er það rangt í Sögunarlista / Eyðublaði — lagaðu það þar.</div>
+  <div class="topline">
+    <div>
+      <div class="kicker">CNC · Rover-B</div>
+      <h1>CNC útflutningur</h1>
+      <div class="sub">Yfirfara og skrifa á USB-kubbinn. Rangt hér → lagaðu í Sögunarlista / Eyðublaði, ekki hér.</div>
+    </div>
+    <button class="help-btn" id="helpBtn" title="Hjálp">❓</button>
+  </div>
 
   <div class="bar">
     <select id="projSel"><option value="">Hleð verkefnum…</option></select>
-    <label class="opt"><input type="checkbox" id="selectAll" checked> Allt</label><label class="opt"><input type="checkbox" id="selectSides"> Skápar</label><label class="opt"><input type="checkbox" id="selectDoors"> Hurðir</label><label class="opt"><input type="checkbox" id="selectManual"> Handvalið</label><button class="primary" id="writeBtn" disabled>💾 Skrifa á USB</button>
-    <label class="opt" title="Skúffuhólf = skorinn front + grip. Kemur seinna af höldunni sjálfri (Vörulisti).">Grip á skúffufrontum <input type="number" id="gripMm" value="0" min="0" max="60" step="0.5" style="width:70px;padding:6px 8px" /> mm</label>
-    <label class="opt"><input type="checkbox" id="overwriteJamb" /> Yfirskrifa karma sem eru til (aðeins ef þeir hafa EKKI verið fræstir)</label>
+    <div class="seg" role="radiogroup" aria-label="Hvað á að skrifa">
+      <label><input type="radio" name="mode" id="modeAll" checked /><span>Allt</span></label>
+      <label><input type="radio" name="mode" id="modeSides" /><span>Skápar</span></label>
+      <label><input type="radio" name="mode" id="modeDoors" /><span>Hurðir</span></label>
+      <label><input type="radio" name="mode" id="modeManual" /><span>Handvalið</span></label>
+    </div>
+    <button class="primary" id="writeBtn" disabled>💾 Skrifa á USB</button>
   </div>
+  <div class="bar2">
+    <input type="text" id="search" placeholder="🔎 Leita — Sk, HU, tegund…" />
+    <select id="typeFilter"><option value="">Allar tegundir</option></select>
+    <label class="opt" id="gripRow" title="Kemur sjálfkrafa af höldunni í Vörulista þegar sá reitur er til — handstillt hér þangað til.">Grip á skúffufrontum (handstillt enn) <input type="number" id="gripMm" value="0" min="0" max="60" step="0.5" style="width:70px;padding:6px 8px" /> mm</label>
+    <label class="opt"><input type="checkbox" id="overwriteJamb" /> Yfirskrifa karma sem eru til</label>
+  </div>
+  <div id="summaryBar"></div>
+
   <div id="out"></div>
   <div id="log"></div>
+</div>
+
+<div class="help-panel" id="helpPanel">
+  <button class="help-close" id="helpClose">✕</button>
+  <h4>Hvert fara skrárnar</h4>
+  <p><code>&lt;verkefni&gt;/Skápar/&lt;Sk - tegund&gt;/</code> og <code>…/Hurðir/&lt;HU&gt;/</code> á USB-kubbinum sem þú velur þegar þú skrifar. Færðu verkefnamöppuna svo í Aðalmöppur → Verkefni á fræsaranum.</p>
+  <h4>Hvað merkin þýða</h4>
+  <ul>
+    <li><span class="chip ok">✅ Tilbúið</span> — engar athugasemdir.</li>
+    <li><span class="chip review">📝 Ekki yfirfarið</span> — ekki merkt „Klár til framleiðslu" í hönnuðinum enn. Vinnuflæðisstaða, ekki fræsivandamál.</li>
+    <li><span class="chip check">⚠️ Athuga</span> — eitthvað hér þarf mannsauga áður en þú treystir skránni (sjálfgefin staðsetning, gögn vantar, mál stemma ekki).</li>
+    <li><span class="chip stop">⛔ Vantar gögn</span> — ekkert skrifað; gögn vantar eða eru ógild.</li>
+  </ul>
+  <p>Grá smáatriði neðst á hverju korti (t.d. „ekki borað hér") eru föst takmörkun útflutningsins — alltaf sönn, ekkert að yfirfara, ekki talin með í „Athuga".</p>
+  <h4>Leit og sía</h4>
+  <p>Leitin og tegundasían fela kort, þær breyta ekki hvað er valið — veldu með hökunum eða Allt/Skápar/Hurðir/Handvalið.</p>
 </div>
 
 <script src="/cnc-doors.js"></script>
@@ -83,12 +167,33 @@
   var SAW_FIELDS = ["Partur", "H", "B", "Þ", "M", "Tegund einingu", "Eyðublað ✏️"];
 
   var project = null, doors = [], groups = [], stopped = [], productNames = {}, sideInput = null;
+  var statusFilter = null; // null = all; else "ok"|"review"|"check"|"stop"
   var $ = function (id) { return document.getElementById(id); };
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   function log(s) { var el = $("log"); el.style.display = "block"; el.textContent += s + "\n"; el.scrollTop = el.scrollHeight; }
   function safe(s) { return String(s).replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim(); }
   function prefixOf(n) { var m = n.match(/^(T-\d+)/); return m ? m[1] : safe(n).slice(0, 20); }
   function folderOf(n) { return safe(n.replace(/\s*\|\s*/, " ")); }
+
+  // ── status + note split ────────────────────────────────────────────────────────────────
+  // "check" from cnc-sides.js mixes three different things: (a) a pure workflow flag ("not
+  // reviewed by the designer yet"), (b) pure scope statements that are ALWAYS true regardless of
+  // data quality ("inner drawer fronts aren't drilled here"), and (c) genuine judgment calls
+  // ("default hinge position — correct unless it's a lift door"). Only (c) should read as an
+  // amber "go check this." Matched by fixed strings here rather than in cnc-sides.js itself, so
+  // the machining logic stays untouched — a cleaner version would have cnc-sides.js emit these
+  // as separate structured fields instead of baking them into one `check` array of strings.
+  var NOT_REVIEWED = "Klár til framleiðslu";
+  var SCOPE_PATTERNS = [/ekki boraðir? hér$/, /: frontur ekki boraður hér$/];
+  function splitChecks(list) {
+    var real = [], scope = [], notReviewed = false;
+    (list || []).forEach(function (c) {
+      if (c.indexOf(NOT_REVIEWED) >= 0) { notReviewed = true; return; }
+      if (SCOPE_PATTERNS.some(function (re) { return re.test(c); })) { scope.push(c); return; }
+      real.push(c);
+    });
+    return { real: real, scope: scope, notReviewed: notReviewed };
+  }
 
   // encodeURIComponent, never URLSearchParams ("+" breaks {Field} refs — see CLAUDE.md).
   async function fetchAll(table, params) {
@@ -128,9 +233,9 @@
   }
 
   async function loadProject() {
-    var id = $("projSel").value; project = null; doors = []; groups = []; stopped = [];
+    var id = $("projSel").value; project = null; doors = []; groups = []; stopped = []; statusFilter = null; $("search").value = "";
     $("writeBtn").disabled = true;
-    if (!id) { $("out").innerHTML = ""; return; }
+    if (!id) { $("out").innerHTML = ""; $("summaryBar").innerHTML = ""; return; }
     var name = $("projSel").selectedOptions[0].textContent.trim();
     $("out").innerHTML = '<div class="empty">Sæki Sögunarlista og einingar…</div>';
     var pre = prefixOf(name), q = pre.replace(/"/g, '\\"');
@@ -176,42 +281,56 @@
   }
   $("gripMm").oninput = planSides;
 
-  function exportChoice(){
-    var all=$("selectAll").checked,manual=$("selectManual").checked;
-    return {manual:manual,sides:all||manual||$("selectSides").checked,doors:all||manual||$("selectDoors").checked};
+  function exportChoice() {
+    var manual = $("modeManual").checked, all = $("modeAll").checked;
+    return { manual: manual, sides: all || manual || $("modeSides").checked, doors: all || manual || $("modeDoors").checked };
   }
-  ["selectAll","selectSides","selectDoors","selectManual"].forEach(function(id){
-    $(id).onchange=function(){
-      if(this.checked){
-        ["selectAll","selectSides","selectDoors","selectManual"].forEach(function(other){
-          if(other!==id && (id==="selectAll"||id==="selectManual"||other==="selectAll"||other==="selectManual"))$(other).checked=false;
-        });
-      }
-      render();
-    };
-  });
+  ["modeAll", "modeSides", "modeDoors", "modeManual"].forEach(function (id) { $(id).onchange = render; });
+
+  // cabinet "Tegund" is just the text after " - " in its label (e.g. "Sk1 - Grunnskápur") — read
+  // straight off whatever's already shown, so the filter list is always exactly what this
+  // project actually has, no hardcoded type vocabulary to keep in sync.
+  function typeOf(label) { var m = label.match(/-\s*([^-]+)$/); return m ? m[1].trim() : label; }
+
   function render() {
-    if (!project) return;
-    var pre = project.prefix, h = "", choice=exportChoice();
+    if (!project) { $("summaryBar").innerHTML = ""; return; }
+    var pre = project.prefix, h = "", choice = exportChoice();
     var nSide = groups.length, nCab = groups.reduce(function (a, g) { return a + g.cabinets; }, 0);
+    var tally = { ok: 0, review: 0, check: 0, stop: stopped.length, files: 0 };
+    var types = {};
+
     h += "<h2>Skápar <small>" + nSide + " möppur · " + nCab + " skápar" + (stopped.length ? " · " + stopped.length + " ⛔" : "") + "</small></h2>";
     if (!nSide && !stopped.length) h += '<div class="empty">Engar skápahliðar í Sögunarlista.</div>';
     groups.forEach(function (g, i) {
-      var p = g.plans[0], st = g.plans.some(function (x) { return x.status === "check"; }) ? "check" : "ok";
-      var notes = [];
-      g.plans.forEach(function (x) { x.check.forEach(function (c) { if (notes.indexOf(c) < 0) notes.push(c); }); });
-      h += '<div class="card ' + st + '"><input type="checkbox" data-side="' + i + '" ' + (choice.sides?"checked":"") + (choice.manual?"":" disabled") + ' style="width:20px;height:20px;margin-top:3px" />' +
-        "<div><h3>" + esc(g.label) + ' <span class="chip ' + st + '">' + (st === "ok" ? "✅ Tilbúið" : "⚠️ Athuga") + "</span></h3>" +
+      var p = g.plans[0], allChecks = [];
+      g.plans.forEach(function (x) { x.check.forEach(function (c) { if (allChecks.indexOf(c) < 0) allChecks.push(c); }); });
+      var split = splitChecks(allChecks.concat(p.frontCheck || []));
+      var st = split.real.length ? "check" : "ok";
+      if (st === "ok") tally.ok++; else tally.check++;
+      if (split.notReviewed) tally.review++;
+      var type = typeOf(g.label); types[type] = 1;
+      var checked = choice.sides, nFiles = g.files.reduce(function (a, f) { return a + f.count; }, 0) + (p.fronts || []).reduce(function (a, f) { return a + f.count; }, 0);
+      if (checked) tally.files += nFiles;
+      var searchKey = esc((g.label + " " + type).toLowerCase());
+      h += '<div class="card ' + st + '" data-type="' + esc(type) + '" data-status="' + (st === "ok" && split.notReviewed ? "review" : st) + '" data-search="' + searchKey + '">' +
+        '<input type="checkbox" data-side="' + i + '" ' + (checked ? "checked" : "") + (choice.manual ? "" : " disabled") + ' style="width:20px;height:20px;margin-top:3px" />' +
+        "<div><h3>" + esc(g.label) +
+          ' <span class="chip ' + st + '">' + (st === "ok" ? "✅ Tilbúið" : "⚠️ Athuga") + "</span>" +
+          (split.notReviewed ? ' <span class="chip review">📝 Ekki yfirfarið</span>' : "") +
+          "</h3>" +
         '<div class="meta"><b>' + p.LPX + " × " + p.LPY + " × " + p.LPZ + "</b> · " + g.cabinets + " skáp" + (g.cabinets > 1 ? "ar" : "ur") + " · " +
-          esc(p.name) + (p.groove ? " · masonít-rauf" : " · engin rauf") + "</div>" +
-        (notes.length ? '<ul class="notes">' + notes.map(function (n) { return '<li class="check">⚠️ ' + esc(n) + "</li>"; }).join("") + "</ul>" : "") +
+          esc(p.name) + (p.groove ? " · masonít-rauf" : " · engin rauf") + " · " + nFiles + " skrár</div>" +
+        (split.real.length ? '<ul class="notes">' + split.real.map(function (n) { return '<li class="check">⚠️ ' + esc(n) + "</li>"; }).join("") + "</ul>" : "") +
+        (split.scope.length ? '<ul class="scope">' + split.scope.map(function (n) { return "<li>· " + esc(n) + "</li>"; }).join("") + "</ul>" : "") +
+        '<details class="ops-details"><summary>Fræsiskipanir og skráarheiti</summary>' +
         '<div class="ops">' + p.ops.slice(2).map(function (o) { return esc(o.name + " " + o.params); }).join("<br>") + "</div>" +
         '<div class="fname">Skápar/' + esc(g.label) + "/ → " + g.files.map(function (f) { return esc(SD.sideFileName(pre, p, f)) + " ×" + f.count; }).join(" · ") +
           (p.fronts && p.fronts.length ? "<br>Frontar: " + p.fronts.map(function (f) { return esc(f.name) + ".bpp ×" + f.count + (f.ops.length ? "" : " (engin borun)"); }).join(" · ") : "") +
-          (p.frontCheck && p.frontCheck.length ? "<br>⚠️ " + esc(p.frontCheck.join(" · ")) : "") + "</div></div><div></div></div>";
+          "</div></details></div><div></div></div>";
     });
     stopped.forEach(function (p) {
-      h += '<div class="card stop"><span></span><div><h3>' + esc(p.name) + ' <span class="chip stop">⛔ Ekki gert</span></h3><ul class="notes">' +
+      types["Vantar gögn"] = 1;
+      h += '<div class="card stop" data-type="Vantar gögn" data-status="stop" data-search="' + esc(p.name.toLowerCase()) + '"><span></span><div><h3>' + esc(p.name) + ' <span class="chip stop">⛔ Ekki gert</span></h3><ul class="notes">' +
         p.stop.map(function (s) { return '<li class="stop">' + esc(s) + "</li>"; }).join("") + "</ul></div><div></div></div>";
     });
 
@@ -219,8 +338,13 @@
     if (!doors.length) h += '<div class="empty">Engar hurðir í þessu verkefni.</div>';
     doors.forEach(function (d, i) {
       var pl = d.plan, v = pl.values || {};
+      if (pl.status === "ok") tally.ok++; else if (pl.status === "check") tally.check++; else tally.stop++;
+      types["Hurð"] = 1;
+      var checked = pl.status !== "stop" && choice.doors;
+      if (checked) tally.files += (pl.status === "stop" ? 0 : 1);
       var notes = pl.stop.map(function (s) { return '<li class="stop">⛔ ' + esc(s) + "</li>"; }).concat(pl.check.map(function (s) { return '<li class="check">⚠️ ' + esc(s) + "</li>"; })).join("");
-      h += '<div class="card ' + pl.status + '"><input type="checkbox" data-door="' + i + '" ' + (pl.status==="stop"?"disabled":(choice.doors?"checked":"")+(choice.manual?"":" disabled")) + ' style="width:20px;height:20px;margin-top:3px" />' +
+      h += '<div class="card ' + pl.status + '" data-type="Hurð" data-status="' + pl.status + '" data-search="' + esc(pl.id.toLowerCase()) + ' hurð">' +
+        '<input type="checkbox" data-door="' + i + '" ' + (pl.status === "stop" ? "disabled" : (checked ? "checked" : "") + (choice.manual ? "" : " disabled")) + ' style="width:20px;height:20px;margin-top:3px" />' +
         "<div><h3>" + esc(pl.id) + ' <span class="chip ' + pl.status + '">' + { ok: "✅ Tilbúið", check: "⚠️ Athuga", stop: "⛔ Vantar gögn" }[pl.status] + "</span></h3>" +
         '<div class="meta">Op ' + esc(d.rec.fields["Hæð"]) + " × " + esc(d.rec.fields["Breidd"]) +
           (pl.values ? " · blað <b>" + v.HURD_H + " × " + v.HURD_B + " × " + v.HURD_Z + "</b> · karmur " + v.KARMAR_Z + " × " + v.KARMAR_B + " · " + esc(pl.topp) : "") +
@@ -229,8 +353,47 @@
         "<div>" + (pl.values ? elevation(v) : "") + "</div></div>";
     });
     $("out").innerHTML = h;
-    $("writeBtn").disabled = !(choice.sides&&groups.length || choice.doors&&doors.some(function(d){return d.plan.status!=="stop";}));
+    var canWrite = choice.sides && groups.length || choice.doors && doors.some(function (d) { return d.plan.status !== "stop"; });
+    $("writeBtn").disabled = !canWrite;
+
+    var typeSel = $("typeFilter"), prevType = typeSel.value;
+    typeSel.innerHTML = '<option value="">Allar tegundir</option>' + Object.keys(types).sort().map(function (t) { return '<option value="' + esc(t) + '">' + esc(t) + "</option>"; }).join("");
+    if (Object.keys(types).indexOf(prevType) >= 0) typeSel.value = prevType;
+
+    var mk = function (key, dotClass, n, label) {
+      if (!n) return "";
+      return '<span class="count' + (statusFilter === key ? " active" : "") + '" data-filter="' + key + '"><span class="dot ' + dotClass + '"></span>' + n + " " + label + "</span>";
+    };
+    $("summaryBar").innerHTML = '<div class="summary">' +
+      mk("ok", "ok", tally.ok, "tilbúið") + mk("review", "review", tally.review, "ekki yfirfarið") + mk("check", "check", tally.check, "athuga") + mk("stop", "stop", tally.stop, "vantar gögn") +
+      (canWrite ? "<b>" + tally.files + "</b> skrár verða skrifaðar núna" : "<span>veldu Skápar/Hurðir/Allt til að skrifa eitthvað</span>") +
+      '<span class="shown" id="shownCount"></span>' +
+      '<span class="dest">→ ' + esc(folderOf(project.name)) + "/ á lyklinum sem þú velur</span></div>";
+    document.querySelectorAll(".summary .count").forEach(function (el) {
+      el.onclick = function () { statusFilter = statusFilter === el.dataset.filter ? null : el.dataset.filter; render(); };
+    });
+    applyFilters();
   }
+
+  // Search + type + status filters only hide cards — they never change what's ticked, so the
+  // index-based data-side/data-door selection used for the actual write stays untouched.
+  function applyFilters() {
+    var q = $("search").value.trim().toLowerCase(), type = $("typeFilter").value, shown = 0, total = 0;
+    document.querySelectorAll("#out .card").forEach(function (card) {
+      total++;
+      var ok = (!q || (card.dataset.search || "").indexOf(q) >= 0) &&
+        (!type || card.dataset.type === type) &&
+        (!statusFilter || card.dataset.status === statusFilter);
+      card.classList.toggle("hide", !ok);
+      if (ok) shown++;
+    });
+    var el = $("shownCount");
+    if (el) el.textContent = (q || type || statusFilter) ? shown + " af " + total + " sýnd" : "";
+  }
+  $("search").oninput = applyFilters;
+  $("typeFilter").onchange = applyFilters;
+  $("helpBtn").onclick = function () { $("helpPanel").classList.add("open"); };
+  $("helpClose").onclick = function () { $("helpPanel").classList.remove("open"); };
 
   // Door leaf next to its hinge-side jamb, to scale, floor at the bottom — hinges and lock must line up across.
   function elevation(v) {
@@ -238,7 +401,7 @@
     var g = '<svg width="' + W + '" height="140" viewBox="0 0 ' + W + ' 140"><line x1="0" y1="' + base + '" x2="' + W + '" y2="' + base + '" stroke="#555"/>' +
       '<rect x="20" y="' + y(v.HG_BIL + v.HURD_H) + '" width="40" height="' + v.HURD_H * s + '" fill="#2a2a2e" stroke="#777"/>' +
       '<rect x="80" y="' + y(H) + '" width="10" height="' + H * s + '" fill="#3a3326" stroke="#777"/>';
-    [[v.HG_BIL + v.HURD_H - v.LOM1, "#0a84ff"], [v.HG_BIL + v.HURD_H - v.LOM2, "#0a84ff"], [v.HG_BIL + v.LOM3, "#0a84ff"], [v.HG_BIL + v.HANDFANG, "#ffd60a"]].forEach(function (m) {
+    [[v.HG_BIL + v.HURD_H - v.LOM1, "#2196f3"], [v.HG_BIL + v.HURD_H - v.LOM2, "#2196f3"], [v.HG_BIL + v.LOM3, "#2196f3"], [v.HG_BIL + v.HANDFANG, "#ffd60a"]].forEach(function (m) {
       g += '<line x1="56" y1="' + y(m[0]) + '" x2="90" y2="' + y(m[0]) + '" stroke="' + m[1] + '" stroke-width="2"/><text x="94" y="' + (y(m[0]) + 3) + '" fill="' + m[1] + '" font-size="9">' + Math.round(m[0]) + "</text>";
     });
     return g + "</svg>";
