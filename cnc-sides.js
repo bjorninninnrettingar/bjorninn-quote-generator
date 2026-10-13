@@ -325,13 +325,22 @@
       if (Math.abs(fromTop - HINGE_END) < 0.01 && hingeAt.indexOf(HINGE_END) >= 0) { op("LOM", "Löm", HINGE_END + ', 37, "2,3"'); return; }
       if (x <= H / 2) op("LOM", "Löm", x + ', 37, "2"'); else op("LOM", "Löm", fromTop + ', 37, "3"');
     });
-    if (defaulted) check.push("Lamir: sjálfgefið 80 frá endum + jafnt á milli — ef lyftihurð fara lamirnar í toppinn, ekki hliðina");
-
     // Which side carries the hinges (2026-10-10, user: only the hinge side is drilled for them): Smíðagögn `hinge`
     // ("vinstri" / "haegri" / "baedi", seen from the front), else its first door's side. Unknown → both sides, as before.
     var hs = hingeAt.length ? (smida && (smida.hinge || (smida.doors && smida.doors[0] && smida.doors[0].side))) || null : null;
     plan.hingeSide = hs;
-    if (hingeAt.length && !hs) check.push("Lamahlið óþekkt — lamagöt í báðar hliðar (vista skápinn í hönnuðinum svo /cnc viti hvorum megin)");
+    // Default hinge positions (80 from each end + evenly between) are confirmed against the real masters
+    // (2026-10-13), so that formula itself is no longer worth a warning. What's still real: (a) a defaulted door
+    // that's actually lift-up would get hinges drilled on the side instead of the top (only the designer can tell
+    // us that), (b) an unknown hinge side bores both sides. One line, merged when both apply (no Smíðagögn at all
+    // — the common case) so a door with real designer data never fires either.
+    var noDesignerHingeSide = hingeAt.length && !hs;
+    if (defaulted && noDesignerHingeSide)
+      check.push("Lamir: sjálfgefin staðsetning, lamahlið óþekkt (lamagöt í báðar hliðar) — ef lyftihurð fara lamirnar í toppinn, ekki hliðina; vista skápinn í hönnuðinum til að staðfesta");
+    else {
+      if (defaulted) check.push("Lamir: sjálfgefin staðsetning — ef lyftihurð fara lamirnar í toppinn, ekki hliðina");
+      if (noDesignerHingeSide) check.push("Lamahlið óþekkt — lamagöt í báðar hliðar (vista skápinn í hönnuðinum svo /cnc viti hvorum megin)");
+    }
 
     plan.frontCheck = []; // front notes stay out of the side status
     plan.fronts = frontPlans(drawers, doors, fixedFronts, by, plan.frontCheck, leaves);

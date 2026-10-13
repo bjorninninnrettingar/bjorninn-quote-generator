@@ -182,6 +182,22 @@ test("Smíðagögn with sizes only (no doors) = /cnc's default hinges, no mismat
   assert.ok(ops(p).includes('LOM: 80, 37, "2,3"'));
 });
 
+// 2026-10-13 (user): the default 80mm-from-ends formula is confirmed against the real masters, so it's no longer
+// worth a warning on its own — only merge the two real risks (lift-up door on the side, unknown hinge side bores
+// both) into one line when neither is known from the designer, and drop whichever half IS known.
+test("default-hinge and hinge-side checks merge when neither is known, split or drop when the designer covers one", () => {
+  const rows = [row("Grunnskápur hlið", 800, 580, 16, 2), row("Frontur", 797, 597, 19, 1)];
+  const lamChecks = (p) => p.check.filter((c) => /^Lamir|^Lamahlið/.test(c));
+  assert.deepEqual(lamChecks(S.unitPlan("Sk9", rows)),
+    ["Lamir: sjálfgefin staðsetning, lamahlið óþekkt (lamagöt í báðar hliðar) — ef lyftihurð fara lamirnar í toppinn, ekki hliðina; vista skápinn í hönnuðinum til að staðfesta"]);
+  assert.deepEqual(lamChecks(S.unitPlan("Sk9", rows, { smida: JSON.stringify({ v: 1, hinge: "vinstri" }) })),
+    ["Lamir: sjálfgefin staðsetning — ef lyftihurð fara lamirnar í toppinn, ekki hliðina"]);
+  const designerHinges = { v: 1, doors: [{ h: 797, type: "hinged", hinges: [{ from: "bottom", mm: 80 }, { from: "top", mm: 80 }] }] };
+  assert.deepEqual(lamChecks(S.unitPlan("Sk9", rows, { smida: JSON.stringify(designerHinges) })),
+    ["Lamahlið óþekkt — lamagöt í báðar hliðar (vista skápinn í hönnuðinum svo /cnc viti hvorum megin)"]);
+  assert.deepEqual(lamChecks(S.unitPlan("Sk9", rows, { smida: JSON.stringify(Object.assign({ hinge: "vinstri" }, designerHinges)) })), []);
+});
+
 test("low oven: a plain 'Frontur' with a drawer back in the list is that drawer, not a door (T-32 Sk11)", () => {
   const rows = [row("Skápur hlið", 800, 583, 16, 2), row("Frontur", 202, 597, 16, 1), row("Skúffubak K - Merivo", 121, 517, 16, 1), row("Skúffubotn - Merivo", 474, 517, 16, 1)];
   const p = S.unitPlan("Sk 11", rows, {});
@@ -214,7 +230,7 @@ test("side files per cabinet: hinges only on the hinge side; no hinges = one fil
   assert.deepEqual(S.sideFiles(S.unitPlan("Sk4", rows, { smida: JSON.stringify({ v: 1, hinge: "haegri" }) })).map((x) => x.name), ["Vinstri hlið", "Hægri hlið - lamir"]);
   const unknown = S.unitPlan("Sk4", rows);
   assert.deepEqual(S.sideFiles(unknown).map((x) => [x.name, x.count]), [["Hliðar - lamir báðum megin", 2]]);
-  assert.ok(unknown.check.some((c) => /Lamahlið óþekkt/.test(c)));
+  assert.ok(unknown.check.some((c) => /lamahlið óþekkt/i.test(c)));
   assert.deepEqual(S.sideFiles(S.unitPlan("Sk1", SK1)).map((x) => [x.name, x.count]), [["Hliðar", 2]]);
 });
 
@@ -273,7 +289,7 @@ test("shelves from Smíða in any cabinet: fixed at its top face, loose with its
   const smida = JSON.stringify({ v: 1, shelves: { loose: 1, fixed: 1, list: [{ mm: 900, fixed: true, pos: 1 }, { mm: 1600, fixed: false, pos: 5 }] } });
   const p = S.unitPlan("Sk2", rows, { smida });
   assert.deepEqual(ops(p).filter((x) => /HILLA/.test(x)), ["FOST_HILLA: 19, 900, 2, lpy-22, lpz+5", "LAUS_HILLA: 1484, 5, 37, 20+60, 50"]);
-  assert.ok(!p.check.some((c) => /hillur:|staðsetning ekki í gögnum|sjálfgefin staðsetning/.test(c)));
+  assert.ok(!p.check.some((c) => /^(Lausar hillur|Föst hilla|Fastar hillur)/.test(c))); // shelves are from the designer; the doors' default hinges are a separate, expected check
   // a default hinge in the middle of the door would land on a hole row → it is moved off it
   assert.ok(ops(p).filter((x) => /^LOM/.test(x)).every((x) => { const v = +x.split(": ")[1].split(",")[0]; return Math.abs(v - 1584) >= 30 || /"3"/.test(x); }));
   // counts that differ from Sögunarlisti are flagged
