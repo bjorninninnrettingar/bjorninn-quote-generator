@@ -288,7 +288,17 @@ const KARMA_SAMLOKA_38MM = "MDF Karma-samloka";
 function isDoorTegund(p) {
   return String(p.tegund || "").trim().toLowerCase() === "hurð";
 }
+// Mirrors resolveMaterialKey's own priority below: Slaglisti/Kjötlisti pieces
+// keep their real 12mm/22mm thickness even on a door-type (Hurð) unit, so the
+// door override only applies once those two are ruled out. Being out of sync
+// with resolveMaterialKey caused T-15's SLEPPT lines — material forced to
+// "MDF 12mm"/"Spónaplötur 22 mm 207 x 280 cm" but thickness still forced to
+// 38 here, so findBoard looked for a 38mm board under those names and found
+// none.
 function resolveThickness(p) {
+  const partur = normalizePartur(p.partur);
+  if (SLAGLISTI_PARTUR.has(partur)) return 12;
+  if (KJOTLISTI_PARTUR.has(partur)) return 22;
   if (isDoorTegund(p)) return 38;
   return p.th;
 }
@@ -415,10 +425,15 @@ function stringToLatin1Bytes(str) {
 }
 
 // print-server.js already retries its own Airtable calls on 429 — this
-// mirrors that here, since writeToUsb can fire dozens of sequential PATCHes
-// (one per piece, for Skurðarskrá) and previously any rate-limit hit would
-// just abort that single piece's write with no retry at all.
-async function fetchWithRetry(url, options, maxRetries = 3) {
+// mirrors that here, since writeToUsb can fire dozens (or on a big project,
+// hundreds) of sequential PATCHes (one per piece, for Skurðarskrá) and
+// previously any rate-limit hit would just abort that single piece's write
+// with no retry at all. maxRetries=3 (~6s of backoff) proved too short on
+// T-15 (~280 pieces): the base's shared 5 req/s limit stayed saturated long
+// enough that many individual piece writes exhausted their retries and
+// logged ⚠ even though the USB files themselves wrote fine. 6 retries
+// (~21s of backoff) rides out a longer congestion window.
+async function fetchWithRetry(url, options, maxRetries = 6) {
   for (let attempt = 0; ; attempt++) {
     const res = await fetch(url, options);
     if (res.status !== 429 || attempt >= maxRetries) return res;
