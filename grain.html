@@ -669,6 +669,7 @@ const E_MYND = "Mynd 🖼️";          // material swatch photo, shown in the p
 
 const EYDUBLAD_TABLE = "tbl0WcyHhz63pSzZX";
 const U_NAME = "Athugasemd";               // Eyðublað's own primary field ("Sk 20-22")
+const U_FJOLDI = "Fjöldi eininga";         // how many duplicate physical cabinets this one Eyðublað row represents
 const U_PROJECT_LINK = "Tækifæri 📣 (projects)", U_PROJECT_LINK_OLD = "Tækifæri 📣";
 
 // Front/grain classification (is this a front? does it need /aedar?) lives
@@ -1036,9 +1037,9 @@ async function fetchUnitNames(name) {
   const escd = name.replace(/"/g, '\\"');
   const formula = `OR(FIND("${escd}", ARRAYJOIN({${U_PROJECT_LINK}})) > 0, FIND("${escd}", ARRAYJOIN({${U_PROJECT_LINK_OLD}})) > 0)`;
   try {
-    const recs = await airtableFetch(EYDUBLAD_TABLE, { filterByFormula: formula, "fields[]": [U_NAME], pageSize: 100 });
+    const recs = await airtableFetch(EYDUBLAD_TABLE, { filterByFormula: formula, "fields[]": [U_NAME, U_FJOLDI], pageSize: 100 });
     const map = {};
-    for (const r of recs) map[r.id] = r.fields[U_NAME] || "";
+    for (const r of recs) map[r.id] = { name: r.fields[U_NAME] || "", fjoldi: Math.max(1, num(r.fields[U_FJOLDI]) || 1) };
     return map;
   } catch { return {}; }
 }
@@ -1149,7 +1150,8 @@ async function loadProject(id) {
         h: num(f[S_H]), b: num(f[S_B]), th: num(f[S_TH]), m: Math.max(1, num(f[S_M]) || 1),
         efni, frontMat,
         unitId: id || "?",
-        unitName: (id && unitNames[id]) || (typeof uid === "object" ? uid?.name : "") || "óþekkt eining",
+        unitName: (id && unitNames[id]?.name) || (typeof uid === "object" ? uid?.name : "") || "óþekkt eining",
+        unitFjoldi: (id && unitNames[id]?.fjoldi) || 1,
         err: !!f[S_VILLA],
         planMsg: (f[S_PLANMSG] || "").trim(),
         needsAedarStored: !!f[S_NEEDS_AEDAR],
@@ -1859,6 +1861,24 @@ function buildGroups() {
   const mat = materials.find(m => m.key === selectedKey);
   const rows = allFronts.filter(p => `${p.efni}||${p.th}` === selectedKey);
 
+  // Pre-count distinct drawer-height ROWS per unit+width (not fronts/copies
+  // — rows), to tell a genuine multi-height stack (several different
+  // Skúffufrontur heights at this unit+width, each row's own Magn ≈ Fjöldi
+  // eininga — one drawer of that height per cabinet) apart from a single
+  // height row whose own Magn already covers every drawer of that height
+  // across every cabinet (Magn = Fjöldi eininga × drawers-of-this-height-
+  // per-cabinet). Only the latter needs `i % Fjöldi eininga` below — found
+  // live on T-15's "Sk 38,40" (Fjöldi eininga=2, one "Skúffufrontur E" row,
+  // M=4: 2 cabinets × 2 same-height drawers each) and "Sk 17-19" (Fjöldi
+  // eininga=3, one row, M=6) — both scattered into M separate single-front
+  // groups instead of Fjöldi-eininga groups of M/Fjöldi-eininga fronts.
+  const drawerRowCounts = new Map();
+  for (const p of rows) {
+    if (!DRAWER_RE.test(p.partur)) continue;
+    const bk = `${p.unitId}|${Math.round(p.b)}`;
+    drawerRowCounts.set(bk, (drawerRowCounts.get(bk) || 0) + 1);
+  }
+
   // group by unit + rounded width — a grain run is a strip of same-width fronts
   const map = new Map();
   const drawerBuckets = new Map();   // base key -> [group, group, ...] for later "· N" labeling
@@ -1867,6 +1887,8 @@ function buildGroups() {
     const sbs = SIDEBYSIDE_RE.test(p.partur);
     const keep = KEEPTOGETHER_RE.test(p.partur);
     const drw = DRAWER_RE.test(p.partur);
+    const fe = p.unitFjoldi || 1;
+    const singleHeightRow = drw && drawerRowCounts.get(baseKey) === 1;
     for (let i = 0; i < p.m; i++) {
       // A drawer front row's Magn (M) is an AGGREGATE count — Sögunarlisti
       // doesn't say which physical duplicate cabinet (Fjöldi eininga >= 2)
@@ -1885,7 +1907,18 @@ function buildGroups() {
       // Plain (non-drawer) fronts are untouched — they keep the original
       // shared-width grouping, where M > 1 just means "N identical copies
       // of this one front," not "N different drawer positions."
-      const gk = drw ? `${baseKey}|${i}` : baseKey;
+      //
+      // A lone height row at this unit+width (singleHeightRow) has no
+      // sibling row to pair against by shared index, so the above scheme
+      // degenerates to one group per copy regardless of Fjöldi eininga —
+      // exactly the Sk 28 / Sk 38,40 bug. There, `i` is grouped by cabinet
+      // via `i % fe` instead: a single cabinet (fe=1) always collapses to
+      // one group (i % 1 === 0 for every copy); fe>1 wraps every `fe`-th
+      // copy back into the same cabinet's group.
+      const gk = !drw ? baseKey
+        : singleHeightRow ? `${baseKey}|${i % fe}`
+        : fe > 1 ? `${baseKey}|${i}`
+        : baseKey;
       if (!map.has(gk)) {
         const g = {
           id: gk, unitName: p.unitName, width: Math.round(p.b),
