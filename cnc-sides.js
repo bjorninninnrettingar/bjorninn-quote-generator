@@ -63,13 +63,18 @@
   // (`avoid` = positions within the same span, e.g. shelf rows or drawer runners). Returns { at:[…], moved:[…], blocked:[…] }.
   // A hinge plate needs HINGE_CLEAR mm from a shelf hole / fixed shelf / runner row (same line, 37 mm from the front).
   // A middle hinge that would hit one moves to the nearest clear spot (down first, then up, 5 mm steps, ≤ 250 mm).
+  // Middle spacing confirmed against real masters 2026-10-13 (Emilia Barugata sk1.bpp, 1980 mm door: hinges at
+  // 80, 1980/3=660, 1980/3*2=1320, 1980-80=1900; Birgitta Axlaras sk12/13 wip.bpp, 1990 mm door, same len×i/(n-1)
+  // pattern before its hand-adjustments) — middle hinges sit at plain fractions of the FULL door length, not
+  // evenly divided between the two 80 mm end hinges as this used to compute (that gave 640/1760 instead of the
+  // real 660/1320 for a 1980 mm, 4-hinge door — ~27 mm off).
   var HINGE_CLEAR = 30;
   function hingePositions(len, avoid) {
     var n = len <= 1000 ? 2 : len <= 1500 ? 3 : len <= 2000 ? 4 : 5;
     var at = [HINGE_END, len - HINGE_END], moved = [], blocked = [];
     function clear(q) { return !(avoid || []).some(function (a) { return Math.abs(a - q) < HINGE_CLEAR; }); }
     for (var i = 1; i < n - 1; i++) {
-      var p = r1(HINGE_END + (len - 2 * HINGE_END) * i / (n - 1));
+      var p = r1(len * i / (n - 1));
       if (!clear(p)) {
         var q = null;
         for (var d = 5; d <= 250 && q == null; d += 5) {

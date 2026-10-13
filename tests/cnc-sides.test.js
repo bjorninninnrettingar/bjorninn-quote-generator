@@ -66,8 +66,17 @@ test("hinges: 80 from each end, middle ones by height and moved off shelves; fro
   const h = S.hingePositions(1400, [710]);
   assert.deepEqual(h.at, [80, 680, 1320]); // nearest spot 30 mm clear of the shelf row
   // a loose shelf's hole band (3 holes 50 apart): the middle hinge of a 2400 door leaves the band
-  assert.deepEqual(S.hingePositions(2400, [1143, 1193, 1243]).at, [80, 640, 1275, 1760, 2320]);
+  assert.deepEqual(S.hingePositions(2400, [1143, 1193, 1243]).at, [80, 600, 1275, 1800, 2320]);
   assert.deepEqual(S.frontHinges(797), [79, 718]);
+});
+
+// 2026-10-13: confirmed against real masters on the USB stick — Emilia Barugata sk1.bpp, a 1980 mm, 4-hinge door
+// (`@ LOM : 80,37,"2,3"` / `1980/3,37,"2"` / `1980/3*2,37,"2"` / `1980-80,37,"2"`), and independently Birgitta
+// Axlaras sk12/sk13 wip.bpp, a 1990 mm door with the same `len/3`, `len/3*2` pattern (plus hand-adjustments for
+// obstacles). Middle hinges are plain fractions of the full door length, NOT evenly divided between the two
+// 80 mm end hinges — the old formula gave 640/1760 for a 1980 mm door, ~27 mm off the real 660/1320.
+test("middle-hinge spacing matches the real master convention (len×i/(n-1), not the end-trimmed span)", () => {
+  assert.deepEqual(S.hingePositions(1980).at, [80, 660, 1320, 1900]);
 });
 
 test("renderSide: numbers in, master's managed lines off, generated lines in place with fresh ids", () => {
