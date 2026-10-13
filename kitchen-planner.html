@@ -4687,6 +4687,9 @@
       st.controls.maxPolarAngle = 1.45; // never from below the floor
       swayPreview(st, Math.atan2(g.normal.x, g.normal.z));
       st.controls.update();
+      // Configuring inner drawers (a plain drawer stack, or a búrskápur's own drawers behind its door) —
+      // show them open by default so the customer can see what they're adjusting, instead of a closed box.
+      if ((b.interior && b.interior.mode === "skuffur") || (c.bur && b.burCodes && b.burCodes.length)) uwView.open = true;
       if (uwView.frontsOff) KP3D.setXrayFronts(true);
       if (uwView.open) KP3D.setAllParts(true);
       syncUwTools();
@@ -7602,7 +7605,10 @@
     try{
       KP3D.teardown3D(true);
       host.innerHTML = "";
-      KP3D.buildScene(host, JSON.parse(JSON.stringify(window.KP_SHOWCASE)), { clean:true, freshCamera:true, noGhost:true });
+      // xray:true (2026-10-13, user): build every cabinet articulated so a visitor can tap a drawer/door open,
+      // same mechanism as the "＋ Ný eining" wizard preview — setupCabinetInteraction's read-only tap path
+      // already runs on every buildScene() call, this just gives it real openable parts to find.
+      KP3D.buildScene(host, JSON.parse(JSON.stringify(window.KP_SHOWCASE)), { clean:true, freshCamera:true, noGhost:true, xray:true });
     }catch(e){ host.innerHTML = ""; return; }
     var st = KP3D._three(); if (!st) return;
     st.camera.fov = 42; st.camera.updateProjectionMatrix();
