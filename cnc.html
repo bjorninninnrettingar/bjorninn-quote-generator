@@ -61,6 +61,8 @@
   .help-panel code { background:var(--surface2); padding:1px 5px; border-radius:5px; font-size:.82em; }
   .help-close { float:right; background:none; border:none; color:var(--muted); font-size:1.1rem; cursor:pointer; padding:0 4px; }
 
+  .gripWarn { display:flex; gap:8px; align-items:center; font-size:.84rem; color:var(--amber); background:#3d3410; border:1px solid #5c4f14; border-radius:10px; padding:9px 14px; margin-top:10px; }
+
   .summary { display:flex; gap:10px; align-items:center; flex-wrap:wrap; font-size:.84rem; color:var(--muted); background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:9px 14px; margin-top:10px; }
   .summary b { color:var(--text); }
   .summary .count { display:flex; gap:5px; align-items:center; background:none; border:1px solid transparent; border-radius:99px; padding:3px 9px 3px 7px; cursor:pointer; }
@@ -132,6 +134,7 @@
     <label class="opt" id="gripRow" title="Kemur sjálfkrafa per einingu af höldunni hennar (Vörulisti → Grip mm) þegar hún er tengd. Þessi tala er bara varaleið fyrir einingar sem hafa enga Höldu tengda (gamla „Grip?" hakið).">Grip — varaleið án Höldu <input type="number" id="gripMm" value="0" min="0" max="60" step="0.5" style="width:70px;padding:6px 8px" /> mm</label>
     <label class="opt"><input type="checkbox" id="overwriteJamb" /> Yfirskrifa karma sem eru til</label>
   </div>
+  <div id="gripWarn"></div>
   <div id="summaryBar"></div>
 
   <div id="out"></div>
@@ -239,7 +242,7 @@
   async function loadProject() {
     var id = $("projSel").value; project = null; doors = []; groups = []; stopped = []; statusFilter = null; $("search").value = "";
     $("writeBtn").disabled = true;
-    if (!id) { $("out").innerHTML = ""; $("summaryBar").innerHTML = ""; return; }
+    if (!id) { $("out").innerHTML = ""; $("summaryBar").innerHTML = ""; $("gripWarn").innerHTML = ""; return; }
     var name = $("projSel").selectedOptions[0].textContent.trim();
     $("out").innerHTML = '<div class="empty">Sæki Sögunarlista og einingar…</div>';
     var pre = prefixOf(name), q = pre.replace(/"/g, '\\"');
@@ -282,6 +285,7 @@
   // Sides are re-planned when the grip changes (drawer slot = cut front + grip). Grip is per-unit via
   // its own Höldu's "Grip mm" on Vörulisti when that's set (2026-10-13); the manual field is only the
   // fallback for units with no Vörulisti handle linked (older "Grip?" checkbox units).
+  var DRAWER_FRONT_RE = /skúffufrontur\s+[nmkcfe]\b.*?(merivo|legra)/i; // same test cnc-sides.js uses to find drawers
   function planSides() {
     if (!sideInput) return;
     var fallbackGrip = +$("gripMm").value || 0, I = sideInput;
@@ -289,6 +293,17 @@
       var g = I.unitGrip[u]; g = g == null ? fallbackGrip : g;
       return SD.unitPlan(I.unitName[u] || u, I.byUnit[u], { unitHeight: I.unitH[u], gripMm: g, smida: I.unitSmida[u] });
     });
+    // 2026-10-13 (user): grip left at 0 is easy to miss — flag it when some unit actually depends on it
+    // (no Höldu linked, so it's the manual field or nothing) and has Merivo/Legra drawer fronts that would
+    // want a reveal. A unit with its own Vörulisti grip (even 0) is a deliberate value, not this mistake.
+    var missingGripUnits = fallbackGrip === 0 ? Object.keys(I.byUnit).filter(function (u) {
+      return I.unitGrip[u] == null && I.byUnit[u].some(function (r) { return DRAWER_FRONT_RE.test(r.Partur || ""); });
+    }) : [];
+    $("gripWarn").innerHTML = missingGripUnits.length
+      ? '<div class="gripWarn">⚠️ Grip er á 0 mm en ' + missingGripUnits.length + " eining" + (missingGripUnits.length === 1 ? "" : "ar") +
+        " (" + missingGripUnits.map(function (u) { return esc(I.unitName[u] || u); }).join(", ") +
+        ') er með skúffufrontum og enga Höldu tengda — líklega gleymdist að stilla "Grip — varaleið" fyrir þetta verkefni.</div>'
+      : "";
     // one entry per cabinet (2026-10-10: a folder each, no merging of identical cabinets)
     groups = plans.filter(function (p) { return p.status !== "stop" && p.status !== "skip"; })
       .sort(function (a, b) { return a.id.localeCompare(b.id, "is", { numeric: true }); })
