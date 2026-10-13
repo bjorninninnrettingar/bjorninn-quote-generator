@@ -83,12 +83,37 @@
 
   .project-name { font-size: 1.15rem; font-weight: 700; margin-bottom: 4px; }
   .hidden { display: none; }
+
+  /* Tool switcher — same project, jump straight to Æðar or Merkingar instead
+     of going back through /skipulag. Hrefs are filled in once a project id
+     is known (updateToolNav()); plain /aedar, /labels with no project
+     selected yet. */
+  .toolnav { display: flex; gap: 8px; margin-bottom: 22px; flex-wrap: wrap; }
+  .toolnav-item {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 14px; border-radius: 20px;
+    font-size: 0.78rem; font-weight: 700; letter-spacing: 0.04em;
+    text-decoration: none; border: 1px solid #333; color: #bbb; background: #1b1b1b;
+  }
+  .toolnav-item.active { background: #2196f3; border-color: #2196f3; color: #fff; cursor: default; }
+  .toolnav-item:not(.active):hover { border-color: #2196f3; color: #fff; }
+
+  #aedarStatus { margin: 2px 0 10px; font-size: 0.85rem; }
+  #aedarStatus .ok { color: #4caf50; font-weight: 600; }
+  #aedarStatus .warn { color: #f5c518; font-weight: 600; }
+  #aedarStatus a { color: #f5c518; }
 </style>
 </head>
 <body>
 
   <h1>Sögunarlisti fyrir Cutty</h1>
   <div class="sub">Býr til CUTLST-skrár beint á USB-drif, flokkað eftir efni og þykkt.</div>
+
+  <div class="toolnav">
+    <span class="toolnav-item active">📐 CUTTY</span>
+    <a class="toolnav-item" id="navAedar" href="/aedar">🪵 ÆÐAR</a>
+    <a class="toolnav-item" id="navMerkingar" href="/labels">🏷️ MERKINGAR</a>
+  </div>
 
   <div class="card" id="searchCard">
     <label>Veldu verkefni (Tækifæri)</label>
@@ -103,7 +128,8 @@
   </div>
 
   <div class="card hidden" id="aedarCard" style="border-color:#5a4a22;background:#211c12;">
-    <label style="color:#f5c518;">Þurfa æðasamfellu — sagast í gegnum <a href="/aedar" target="_blank" style="color:#f5c518;">/aedar</a>, ekki hér</label>
+    <label style="color:#f5c518;">Þurfa æðasamfellu — sagast í gegnum <a href="/aedar" id="aedarCardLink" target="_blank" style="color:#f5c518;">/aedar</a>, ekki hér</label>
+    <div id="aedarStatus"></div>
     <ul id="aedarList" style="font-size:0.85rem;color:#ddd;padding-left:20px;"></ul>
   </div>
 
@@ -195,6 +221,13 @@ const S_EFNI              = "Efni:";
 const S_VILLA             = "Villa?";
 const S_TEGUND            = "Tegund einingu";
 const S_EYDUBLAD          = "Eyðublað ✏️"; // for the aedar-bucket unit+width grouping, same field grain.html uses
+
+// Æðaplan 📐 — same table/field names grain.html uses, read-only here (just
+// a status line + link, not the editor). One row per project+material.
+const PLAN_TABLE  = "tblzkw70E2xoX9RmK";
+const PL_PROJECT  = "Tækifæri 📣";
+const PL_EFNI     = "Efni";
+const PL_CONFIRM  = "Staðfest ✅";
 
 const E_HEITI   = "Heiti efnis";
 const E_BREIDD  = "Breidd (mm)";
@@ -509,6 +542,57 @@ async function fetchProjectById(id) {
   return airtableFetch(PROJECTS_TABLE, {}, id);
 }
 
+// Points the tool-switcher pills at the same project instead of a bare
+// /aedar, /labels (which would make you pick the project again there).
+function updateToolNav(projectId) {
+  const qs = projectId ? `?recordId=${encodeURIComponent(projectId)}` : "";
+  document.getElementById("navAedar").href = `/aedar${qs}`;
+  document.getElementById("navMerkingar").href = `/labels${qs}`;
+  const cardLink = document.getElementById("aedarCardLink");
+  if (cardLink) cardLink.href = `/aedar${qs}`;
+}
+
+// One row per project+material in Æðaplan — same FIND/ARRAYJOIN-by-name
+// query grain.html's own annotateProjectsWithPlans() uses, so this can't
+// quietly disagree with what /aedar itself considers confirmed.
+async function fetchAedarPlanStatus(projectName) {
+  const escaped = projectName.replace(/"/g, '\\"');
+  const formula = `FIND("${escaped}", ARRAYJOIN({${PL_PROJECT}})) > 0`;
+  return airtableFetch(PLAN_TABLE, {
+    filterByFormula: formula,
+    "fields[]": [PL_EFNI, PL_CONFIRM],
+    pageSize: 100,
+  });
+}
+
+// Shown only when this project actually has æðasamfellu pieces (same gate
+// as aedarCard itself) — a project with none needs no plan at all.
+async function renderAedarStatus(projectName) {
+  const el = document.getElementById("aedarStatus");
+  el.textContent = "";
+  let plans;
+  try {
+    plans = await fetchAedarPlanStatus(projectName);
+  } catch {
+    return; // non-essential — leave the status line empty rather than block the page
+  }
+  if (!plans.length) {
+    el.innerHTML = `<span class="warn">⚠ Ekkert æðaskipulag byrjað enn</span>`;
+    return;
+  }
+  el.innerHTML = plans
+    .map(p => {
+      // Æðaplan's Efni field stores grain.html's own raw material key —
+      // "<nafn>||<þykkt>" (see buildMaterials()), not a display name.
+      const [name, th] = String(p.fields[PL_EFNI] || "?").split("||");
+      const efni = escapeHtml(th ? `${name} (${th}mm)` : name);
+      return p.fields[PL_CONFIRM]
+        ? `<span class="ok">✅ ${efni}: staðfest</span>`
+        : `<span class="warn">✏️ ${efni}: drög, ekki staðfest</span>`;
+    })
+    .join(" &nbsp;·&nbsp; ");
+}
+
 // Scoped to one project server-side via the project's own name text, instead
 // of pulling the whole table (1800+ rows and growing) and filtering
 // client-side. Airtable can't filter a linked-record field by ID directly
@@ -705,6 +789,7 @@ async function loadProject(projectId) {
   currentProject = project;
   const projectName = project.fields[P_NAME_FIELD] || project.id;
   document.getElementById("projectName").textContent = projectName;
+  updateToolNav(projectId);
 
   const [rows, boards] = await Promise.all([
     fetchSogunarlistiForProject(projectName),
@@ -788,6 +873,7 @@ async function loadProject(projectId) {
 
   if (!pieces.length) {
     renderAedarPieces(aedarPieces);
+    if (aedarPieces.length) renderAedarStatus(projectName);
     document.getElementById("projectStatus").textContent = aedarPieces.length
       ? `Engar Sögunarlisti færslur fyrir Cutty — öll ${aedarPieces.length} stykki þurfa æðasamfellu, fara í gegnum /aedar.`
       : "Engar Sögunarlisti færslur fundust fyrir þetta verkefni.";
@@ -831,6 +917,7 @@ async function loadProject(projectId) {
     (currentOversized.length ? ` ⚠ ${currentOversized.length} passa ekki á plötu.` : "");
 
   renderAedarPieces(aedarPieces);
+  if (aedarPieces.length) renderAedarStatus(projectName);
   renderMissingDims(allMissingDims);
   renderOversized();
   populateGroupFilters();

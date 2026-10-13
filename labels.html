@@ -22,6 +22,17 @@
   .exit-back { display: inline-block; color: #888; text-decoration: none; font-size: 0.85rem; font-weight: 700; margin-bottom: 14px; }
   .exit-back:hover { color: #fff; }
 
+  /* Tool switcher — same project, jump straight to Cutty or Æðar. */
+  .toolnav { display: flex; gap: 8px; margin-bottom: 22px; flex-wrap: wrap; }
+  .toolnav-item {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 14px; border-radius: 20px;
+    font-size: 0.78rem; font-weight: 700; letter-spacing: 0.04em;
+    text-decoration: none; border: 1px solid #333; color: #bbb; background: #1b1b1b;
+  }
+  .toolnav-item.active { background: #2196f3; border-color: #2196f3; color: #fff; cursor: default; }
+  .toolnav-item:not(.active):hover { border-color: #2196f3; color: #fff; }
+
   .card {
     background: #161616;
     border: 1px solid #222;
@@ -184,6 +195,12 @@
   <h1>Merkingar — Sögun</h1>
   <div class="sub">Veldu verkefni, ýttu á prent-hnapp til að merkja og prenta miða.</div>
 
+  <div class="toolnav">
+    <a class="toolnav-item" id="navCutty" href="/cutlist">📐 CUTTY</a>
+    <a class="toolnav-item" id="navAedar" href="/aedar">🪵 ÆÐAR</a>
+    <span class="toolnav-item active">🏷️ MERKINGAR</span>
+  </div>
+
   <div class="modal-overlay hidden" id="cuttyWarningOverlay">
     <div class="modal-box">
       <h2>⚠️ Skurðarlisti (Cutty) hefur ekki verið keyrt</h2>
@@ -301,7 +318,14 @@ const KARMA_SAMLOKA_38MM = "MDF Karma-samloka";
 function isDoorTegund(p) {
   return String(p.tegund || "").trim().toLowerCase() === "hurð";
 }
+// Mirrors resolveMaterialKey's own priority below: Slaglisti/Kjötlisti pieces
+// keep their real 12mm/22mm thickness even on a door-type (Hurð) unit — see
+// cutlist.html's identical fix (2026-10-13, found on T-15) for the full
+// explanation. This file had the same bug from the same copy-paste origin.
 function resolveThickness(p) {
+  const partur = normalizePartur(p.partur);
+  if (SLAGLISTI_PARTUR.has(partur)) return 12;
+  if (KJOTLISTI_PARTUR.has(partur)) return 22;
   if (isDoorTegund(p)) return 38;
   return p.th;
 }
@@ -668,6 +692,8 @@ async function loadProject(projectId) {
 
   const exitBack = document.getElementById("exitBack");
   if (exitBack) exitBack.href = `/verk?t=${encodeURIComponent(projectId)}&k=${encodeURIComponent(VERK_KEY)}`;
+  document.getElementById("navCutty").href = `/cutlist?recordId=${encodeURIComponent(projectId)}`;
+  document.getElementById("navAedar").href = `/aedar?recordId=${encodeURIComponent(projectId)}`;
 
   // Read name from dropdown option to avoid an extra API call — but when
   // opened via a direct ?recordId= link (Sög's F6/F2 choice, verk.html's

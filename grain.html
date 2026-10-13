@@ -29,6 +29,19 @@
   .exit-back:hover { color: #fff; }
   body.floor .exit-back { font-size: 0.95rem; padding: 4px 0; }
 
+  /* Tool switcher — same project, jump straight to Cutty or Merkingar.
+     Office only (office-only hides it on /saga, see body.floor rule above);
+     the floor already has its own dedicated nav. */
+  .toolnav { display: flex; gap: 8px; margin-bottom: 22px; flex-wrap: wrap; }
+  .toolnav-item {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 14px; border-radius: 20px;
+    font-size: 0.78rem; font-weight: 700; letter-spacing: 0.04em;
+    text-decoration: none; border: 1px solid #333; color: #bbb; background: #1b1b1b;
+  }
+  .toolnav-item.active { background: #2196f3; border-color: #2196f3; color: #fff; cursor: default; }
+  .toolnav-item:not(.active):hover { border-color: #2196f3; color: #fff; }
+
   .card {
     background: #161616;
     border: 1px solid #222;
@@ -471,6 +484,12 @@
   <a class="exit-back no-print" id="exitBack" href="/app">‹ Til baka</a>
   <h1>Æðaskipulag</h1>
   <div class="sub">Raðar frontum með samfelldri viðaræð á plötu — það sem Cutty getur ekki gert.</div>
+
+  <div class="toolnav no-print office-only">
+    <a class="toolnav-item" id="navCutty" href="/cutlist">📐 CUTTY</a>
+    <span class="toolnav-item active">🪵 ÆÐAR</span>
+    <a class="toolnav-item" id="navMerkingar" href="/labels">🏷️ MERKINGAR</a>
+  </div>
 
   <div class="card no-print" id="searchCard">
     <label>Veldu verkefni (Tækifæri)</label>
@@ -1088,6 +1107,8 @@ async function loadProject(id) {
   $("workspaceCard").classList.add("hidden");
   $("projectStatus").textContent = FLOOR_MODE ? "Sæki staðfest skipulag…" : "Sæki Sögunarlista…";
   if ($("exitBack")) $("exitBack").href = `/verk?t=${encodeURIComponent(id)}&k=${encodeURIComponent(VERK_KEY)}`;
+  if ($("navCutty")) $("navCutty").href = `/cutlist?recordId=${encodeURIComponent(id)}`;
+  if ($("navMerkingar")) $("navMerkingar").href = `/labels?recordId=${encodeURIComponent(id)}`;
 
   try {
     const projectRecordPromise = fetchProjectById(id).catch(() => null);
