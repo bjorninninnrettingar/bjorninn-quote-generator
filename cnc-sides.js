@@ -189,15 +189,20 @@
     var fixedFronts = drawers.length ? doors.filter(function (d) { return d.H <= FIXED_FRONT_MAX; }) : [];
     doors = doors.filter(function (d) { return fixedFronts.indexOf(d) < 0; });
     fixedFronts.forEach(function (d) { op("FAST_FRAMSTYKKI", "Fast framstykki", r1(d.H) + ", LPX, 0, 0"); });
-    var room = H - drawerTop - fixedFronts.reduce(function (a, d) { return a + d.H + grip + BOX_GAP; }, 0);
-    var sumDoors = doors.reduce(function (a, d) { return a + d.H + grip + BOX_GAP; }, 0);
+    // Grip on a door/fixed front (2026-10-13, user): a positive grip (Jey and the like — a real handle sitting on
+    // the face) always applies, any height, same as before. A negative grip (fræst grip — a groove milled into
+    // the front's own material, not a handle) only applies under 900mm; a door/fixed front 900mm or taller gets
+    // none of it. Drawer fronts are unconditional either way (set above, in `drawers`) — not part of this rule.
+    function doorGrip(d) { return grip < 0 && d.H >= 900 ? 0 : grip; }
+    var room = H - drawerTop - fixedFronts.reduce(function (a, d) { return a + d.H + doorGrip(d) + BOX_GAP; }, 0);
+    var sumDoors = doors.reduce(function (a, d) { return a + d.H + doorGrip(d) + BOX_GAP; }, 0);
     if (doors.length > 1 && (sumDoors > room + 5 || doors.some(function (d) { return /væng/i.test(d.partur); }))) {
       leaves = doors.slice(); // every leaf is still its own front
       var seen = {}; doors = doors.filter(function (d) { var k = Math.round(d.H); if (seen[k]) return false; seen[k] = 1; return true; });
       info.push("Vænghurð: hurðir hlið við hlið");
     }
-    var top = H - fixedFronts.reduce(function (a, d) { return a + d.H + grip + BOX_GAP; }, 0);
-    doors.forEach(function (d) { d.to = r1(top - grip); d.from = r1(Math.max(drawerTop, d.to - d.H - BOX_GAP)); top = d.from; });
+    var top = H - fixedFronts.reduce(function (a, d) { return a + d.H + doorGrip(d) + BOX_GAP; }, 0);
+    doors.forEach(function (d) { d.to = r1(top - doorGrip(d)); d.from = r1(Math.max(drawerTop, d.to - d.H - BOX_GAP)); top = d.from; });
     var oven = /ofn/i.test(tegund) || (by.door || []).some(function (r) { return /ofn/i.test(r.Partur); });
     var stackSum = r1(drawerTop + (H - top));
     if (!oven && (drawers.length || doors.length) && Math.abs(stackSum - H) > 1.5)

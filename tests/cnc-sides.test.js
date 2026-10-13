@@ -126,6 +126,24 @@ test("grip: drawer slots = cut front + grip strip; inner drawer in the tallest z
   assert.ok(o.includes("MERVIBOX_INNSKUFFA: 144, 448, K"));   // hand file: 447
 });
 
+// 2026-10-13 (user): fræst grip (a groove milled into the front itself, not a handle — Vörulisti "Fræst grip",
+// Grip mm -35) only shrinks a door/fixed front under 900mm; Jey and any other positive-grip handle still applies
+// to every front in the unit regardless of height, unchanged. Drawer fronts always take grip either way (tested
+// above/below) — the 900mm cutoff is only about doors/fixed fronts.
+test("fræst grip (negative) only shrinks doors/fixed fronts under 900mm; positive grip (Jey) ignores the cutoff", () => {
+  const drawerRows = [row("Grunnskápur hlið", 800, 580, 16, 2), row("Skúffufrontur K - Merivo", 600, 597, 19, 1)];
+  assert.ok(ops(S.unitPlan("Sk D", drawerRows, { gripMm: -35 })).includes("MERIVOBOX_V2: -1.5, 0, 0, 0, 0, 0, 565, K"));
+
+  const under900 = S.unitPlan("A", [row("Grunnskápur hlið", 600, 580, 16, 2), row("Frontur", 632, 597, 19, 1)], { gripMm: -35 });
+  assert.deepEqual([under900.doors[0].to, under900.doors[0].from], [635, 0]); // -35 applied: 600 − (−35) = 635
+
+  const over900 = S.unitPlan("B", [row("Grunnskápur hlið", 1000, 580, 16, 2), row("Frontur", 1032, 597, 19, 1)], { gripMm: -35 });
+  assert.deepEqual([over900.doors[0].to, over900.doors[0].from], [1000, 0]); // door ≥900mm: no shrink, stays at the ceiling
+
+  const jeyTall = S.unitPlan("C", [row("Grunnskápur hlið", 1000, 580, 16, 2), row("Frontur", 970, 597, 19, 1)], { gripMm: 27 });
+  assert.deepEqual([jeyTall.doors[0].to, jeyTall.doors[0].from], [973, 0]); // positive grip: applies to a tall door too
+});
+
 test("two identical door fronts that can't stack are leaves of one opening (no negative hinges)", () => {
   const rows = [row("Grunnskápur hlið", 800, 580, 16, 2), row("Frontur", 797, 397, 19, 2)];
   const o = ops(S.unitPlan("Sk 16", rows)).filter((x) => x.startsWith("LOM"));
