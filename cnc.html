@@ -176,9 +176,23 @@
   }
   $("gripMm").oninput = planSides;
 
+  function exportChoice(){
+    var all=$("selectAll").checked,manual=$("selectManual").checked;
+    return {manual:manual,sides:all||manual||$("selectSides").checked,doors:all||manual||$("selectDoors").checked};
+  }
+  ["selectAll","selectSides","selectDoors","selectManual"].forEach(function(id){
+    $(id).onchange=function(){
+      if(this.checked){
+        ["selectAll","selectSides","selectDoors","selectManual"].forEach(function(other){
+          if(other!==id && (id==="selectAll"||id==="selectManual"||other==="selectAll"||other==="selectManual"))$(other).checked=false;
+        });
+      }
+      render();
+    };
+  });
   function render() {
     if (!project) return;
-    var pre = project.prefix, h = "";
+    var pre = project.prefix, h = "", choice=exportChoice();
     var nSide = groups.length, nCab = groups.reduce(function (a, g) { return a + g.cabinets; }, 0);
     h += "<h2>Skápar <small>" + nSide + " möppur · " + nCab + " skápar" + (stopped.length ? " · " + stopped.length + " ⛔" : "") + "</small></h2>";
     if (!nSide && !stopped.length) h += '<div class="empty">Engar skápahliðar í Sögunarlista.</div>';
@@ -186,7 +200,7 @@
       var p = g.plans[0], st = g.plans.some(function (x) { return x.status === "check"; }) ? "check" : "ok";
       var notes = [];
       g.plans.forEach(function (x) { x.check.forEach(function (c) { if (notes.indexOf(c) < 0) notes.push(c); }); });
-      h += '<div class="card ' + st + '"><input type="checkbox" data-side="' + i + '" ' + "checked" + ' style="width:20px;height:20px;margin-top:3px" />' +
+      h += '<div class="card ' + st + '"><input type="checkbox" data-side="' + i + '" ' + (choice.sides?"checked":"") + (choice.manual?"":" disabled") + ' style="width:20px;height:20px;margin-top:3px" />' +
         "<div><h3>" + esc(g.label) + ' <span class="chip ' + st + '">' + (st === "ok" ? "✅ Tilbúið" : "⚠️ Athuga") + "</span></h3>" +
         '<div class="meta"><b>' + p.LPX + " × " + p.LPY + " × " + p.LPZ + "</b> · " + g.cabinets + " skáp" + (g.cabinets > 1 ? "ar" : "ur") + " · " +
           esc(p.name) + (p.groove ? " · masonít-rauf" : " · engin rauf") + "</div>" +
@@ -206,7 +220,7 @@
     doors.forEach(function (d, i) {
       var pl = d.plan, v = pl.values || {};
       var notes = pl.stop.map(function (s) { return '<li class="stop">⛔ ' + esc(s) + "</li>"; }).concat(pl.check.map(function (s) { return '<li class="check">⚠️ ' + esc(s) + "</li>"; })).join("");
-      h += '<div class="card ' + pl.status + '"><input type="checkbox" data-door="' + i + '" ' + (pl.status === "stop" ? "disabled" : "checked") + ' style="width:20px;height:20px;margin-top:3px" />' +
+      h += '<div class="card ' + pl.status + '"><input type="checkbox" data-door="' + i + '" ' + (pl.status==="stop"?"disabled":(choice.doors?"checked":"")+(choice.manual?"":" disabled")) + ' style="width:20px;height:20px;margin-top:3px" />' +
         "<div><h3>" + esc(pl.id) + ' <span class="chip ' + pl.status + '">' + { ok: "✅ Tilbúið", check: "⚠️ Athuga", stop: "⛔ Vantar gögn" }[pl.status] + "</span></h3>" +
         '<div class="meta">Op ' + esc(d.rec.fields["Hæð"]) + " × " + esc(d.rec.fields["Breidd"]) +
           (pl.values ? " · blað <b>" + v.HURD_H + " × " + v.HURD_B + " × " + v.HURD_Z + "</b> · karmur " + v.KARMAR_Z + " × " + v.KARMAR_B + " · " + esc(pl.topp) : "") +
@@ -215,7 +229,7 @@
         "<div>" + (pl.values ? elevation(v) : "") + "</div></div>";
     });
     $("out").innerHTML = h;
-    $("writeBtn").disabled = !(groups.length || doors.some(function(d){return d.plan.status !== "stop";}));
+    $("writeBtn").disabled = !(choice.sides&&groups.length || choice.doors&&doors.some(function(d){return d.plan.status!=="stop";}));
   }
 
   // Door leaf next to its hinge-side jamb, to scale, floor at the bottom — hinges and lock must line up across.
