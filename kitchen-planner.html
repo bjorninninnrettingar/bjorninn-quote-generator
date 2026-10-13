@@ -657,7 +657,17 @@
   }
   .ed-stage.wall-mode #wallPrevBtn{ left:14px; }
   .ed-stage.wall-mode #wallNextBtn{ right:14px; }
-  .ed-stage.wall-mode #wallCycleLabel{ position:absolute; left:50%; top:10px; transform:translateX(-50%); z-index:5; background:var(--card,#fff); border:1px solid var(--line); border-radius:999px; padding:4px 12px; }
+  .ed-stage.wall-mode #wallCycleLabel{
+    position:absolute; left:50%; transform:translateX(-50%); z-index:5;
+    background:var(--card,#fff); border:1px solid var(--line); border-radius:999px;
+    padding:7px 18px; font-size:16px; font-weight:700;
+  }
+  .ed-stage.wall-mode #wallMiniMap{
+    position:absolute; right:18px; bottom:18px; z-index:5; width:190px; height:140px;
+    border:1.5px solid var(--line); border-radius:12px; overflow:hidden; box-shadow:0 6px 20px rgba(0,0,0,.16);
+    background:var(--panel,#fff);
+  }
+  .ed-stage.wall-mode #wallMiniMap svg{ width:100%; height:100%; }
   .view-toggle button{
     font:inherit; font-size:13.5px; font-weight:600; cursor:pointer;
     background:#fff; border:1.5px solid var(--line); border-radius:8px; padding:8px 14px; color:var(--ink);
@@ -1216,6 +1226,7 @@
           <span id="wallCycleLabel"></span>
           <button type="button" id="wallNextBtn" title="Næsti veggur">▶</button>
         </div>
+        <div class="wall-minimap" id="wallMiniMap" hidden></div>
         <div class="stage-empty" id="stageEmpty" hidden>Ýttu á <b>＋ Ný eining</b> til að bæta við fyrsta skápnum<br><span>hann birtist á veggnum og þú getur dregið hann til</span></div>
         <div class="float-bar" id="floatBar" hidden>
           <span class="fb-dim" id="fbDim"></span>
@@ -5745,12 +5756,19 @@
     var inWall = viewMode === "wall";
     document.getElementById("wallCycle").hidden = !inWall;
     document.getElementById("wallCycleLabel").textContent = list.length ? "Veggur " + (i + 1) + " af " + list.length : "";
+    document.getElementById("wallMiniMap").hidden = !inWall;
     var stage = document.querySelector(".ed-stage");
     stage.classList.toggle("wall-mode", inWall);
     if (inWall){ // the arrows flank the framed elevation itself, not the whole stage — align to #threeWrap's own box
       var sr = stage.getBoundingClientRect(), wr = document.getElementById("threeWrap").getBoundingClientRect();
       var midY = (wr.top - sr.top) + wr.height / 2;
       ["wallPrevBtn", "wallNextBtn"].forEach(function(id){ document.getElementById(id).style.top = midY + "px"; });
+      document.getElementById("wallCycleLabel").style.top = Math.max(0, wr.top - sr.top - 44) + "px";
+      // a small top-down minimap (reuses the 2D plan renderer) with the wall being viewed highlighted blue,
+      // like IKEA's mini-map — click another wall on it to jump straight there
+      KP3D.buildPlan2D(document.getElementById("wallMiniMap"), state, {
+        mini:true, selectedWallId:wallViewId, onSelect:function(){}, onWallSelect:function(id){ wallViewId = id; renderView(); }
+      });
     }
   }
   window.addEventListener("resize", function(){ if (viewMode === "wall") syncWallCycleUI(); });
@@ -6558,7 +6576,7 @@
         '<div class="edit-actions" style="margin-top:12px;">' +
           '<button class="iconbtn" data-role="addWin">＋ Gluggi</button><button class="iconbtn" data-role="addDoor">＋ Hurð</button><button class="iconbtn" data-role="addGap">＋ Op</button>' +
         '</div>' +
-        '<div class="ov-links"><button type="button" class="btn btn-secondary btn-small" data-role="wallview">🧱 Skoða þennan vegg</button><button type="button" class="btn btn-secondary btn-small" data-role="shape">Breyta lengd veggja</button></div>' +
+        '<div class="ov-links"><button type="button" class="btn btn-secondary btn-small" data-role="shape">Breyta lengd veggja</button></div>' +
       '</div>';
     host.querySelector('[data-role="close"]').addEventListener("click", function(){ onCabinetSelect(null); });
     host.querySelectorAll("[data-select]").forEach(function(btn){
@@ -6568,7 +6586,6 @@
     host.querySelector('[data-role="addDoor"]').addEventListener("click", function(){ addOpening("hurd", wall.id, Math.round(wall.lengthMm / 2)); });
     host.querySelector('[data-role="addGap"]').addEventListener("click", function(){ addOpening("gat", wall.id, Math.round(wall.lengthMm / 2)); });
     host.querySelector('[data-role="shape"]').addEventListener("click", function(){ shapePhase = "size"; goto("shape"); });
-    host.querySelector('[data-role="wallview"]').addEventListener("click", function(){ wallViewId = wall.id; setViewMode("wall"); });
   }
 
   function moveBlockToWall(blockId, newWallId){

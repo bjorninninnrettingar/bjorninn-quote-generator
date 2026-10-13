@@ -4972,9 +4972,13 @@
       svg += isOpen
         ? '<line data-wall-line-id="' + wallId + '" x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="#6f6d66" stroke-width="2.4" stroke-dasharray="8,6"/>'
         : '<line data-wall-line-id="' + wallId + '" x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + (opts.selectedWallId === wallId ? "#3d61c1" : "#2b2b2e") + '" stroke-width="' + (opts.selectedWallId === wallId ? 11 : 9) + '" stroke-linecap="square"' + (opts.onWallSelect ? ' style="cursor:pointer;"' : '') + '/>';
-      var midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
-      var lx = midX - g.normal.x * 14, ly = midY - g.normal.z * 14, wsel = opts.selectedWallId === wallId;
-      svg += '<text x="' + lx + '" y="' + ly + '" font-size="' + (wsel ? 12.5 : 11) + '" font-weight="' + (wsel ? 700 : 400) + '" fill="' + (wsel ? "#3d61c1" : "#6f6d66") + '" text-anchor="middle" style="pointer-events:none;">' + (state.walls[gi] ? state.walls[gi].label + ' · ' : '') + Math.round(g.lenM * 1000) + ' mm</text>';
+      if (!opts.mini){
+        var midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
+        var lx = midX - g.normal.x * 14, ly = midY - g.normal.z * 14, wsel = opts.selectedWallId === wallId;
+        // just the wall's name here — its length is now on the dimension chain (wallDimChain) instead,
+        // so this doesn't duplicate/overlap that number
+        svg += '<text x="' + lx + '" y="' + ly + '" font-size="' + (wsel ? 12.5 : 11) + '" font-weight="' + (wsel ? 700 : 400) + '" fill="' + (wsel ? "#3d61c1" : "#6f6d66") + '" text-anchor="middle" style="pointer-events:none;">' + (state.walls[gi] ? state.walls[gi].label : Math.round(g.lenM * 1000) + ' mm') + '</text>';
+      }
     });
 
     // Window/door markers: a thick colored segment over the wall line at
@@ -5046,7 +5050,7 @@
         var q = [m(widthM / 2 - bw / 2, oc - bd / 2), m(widthM / 2 + bw / 2, oc - bd / 2), m(widthM / 2 + bw / 2, oc + bd / 2), m(widthM / 2 - bw / 2, oc + bd / 2)];
         svg += '<polygon points="' + q.map(function(p){ return X(p.x) + "," + Y(p.z); }).join(" ") + '" fill="#b9bec4" stroke="#7d848b" stroke-width="1" style="pointer-events:none;"/>';
       }
-      if (widthM * PX_PER_M > 30 && !thin){
+      if (widthM * PX_PER_M > 30 && !thin && !opts.mini){
         var cx = (X(corners[0].x) + X(corners[2].x)) / 2;
         var cy = (Y(corners[0].z) + Y(corners[2].z)) / 2;
         var label = bl.widthMm + (bl.interior && bl.interior.mode === "skuffur" ? " · " + bl.interior.count + "sk" : "");
@@ -5089,7 +5093,7 @@
       var fStarts = blockStartsMm(wall.floor, cornerClearanceMm(surfaces, wi, "floor")), wStarts = blockStartsMm(wall.wall, 0);
       wall.floor.forEach(function(bl, bi){ drawCabinetRect(bl, CATALOG[bl.type], g, wall.id, "floor", fStarts[bi], false); });
       wall.wall.forEach(function(bl, bi){ drawCabinetRect(bl, CATALOG[bl.type], g, wall.id, "wall", wStarts[bi], true); });
-      if (!wall.island) svg += wallDimChain(g, wall.floor, fStarts);
+      if (!wall.island && !opts.mini) svg += wallDimChain(g, wall.floor, fStarts);
     });
 
     // island move-handles (drag = slide the island, tap = select it)
