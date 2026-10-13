@@ -129,7 +129,7 @@
   <div class="bar2">
     <input type="text" id="search" placeholder="🔎 Leita — Sk, HU, tegund…" />
     <select id="typeFilter"><option value="">Allar tegundir</option></select>
-    <label class="opt" id="gripRow" title="Kemur sjálfkrafa af höldunni í Vörulista þegar sá reitur er til — handstillt hér þangað til.">Grip á skúffufrontum (handstillt enn) <input type="number" id="gripMm" value="0" min="0" max="60" step="0.5" style="width:70px;padding:6px 8px" /> mm</label>
+    <label class="opt" id="gripRow" title="Kemur sjálfkrafa per einingu af höldunni hennar (Vörulisti → Grip mm) þegar hún er tengd. Þessi tala er bara varaleið fyrir einingar sem hafa enga Höldu tengda (gamla „Grip?" hakið).">Grip — varaleið án Höldu <input type="number" id="gripMm" value="0" min="0" max="60" step="0.5" style="width:70px;padding:6px 8px" /> mm</label>
     <label class="opt"><input type="checkbox" id="overwriteJamb" /> Yfirskrifa karma sem eru til</label>
   </div>
   <div id="summaryBar"></div>
@@ -166,7 +166,8 @@
   // Same internal key app.html already carries (widens Eyðublað to the door fields); ?k= overrides.
   var KEY = new URLSearchParams(location.search).get("k") || "bjorn-verk-7Kq2mP9xLd4";
   var UNIT_FIELDS = ["Athugasemd", "Sérsmíði tegund", "Hæð", "Breidd", "Dýpt", "Fjöldi eininga",
-    "Þykkt karms [Hurð]", "Karmabil frá vegg [Hurð]", "Toppstykki hurðakarms", "Opnun [Hurð]", "Lamir [Hurð]", "Skrá [Hurð]", "Felliþr. [Hurð]", "Smíðagögn (JSON) 🔧"];
+    "Þykkt karms [Hurð]", "Karmabil frá vegg [Hurð]", "Toppstykki hurðakarms", "Opnun [Hurð]", "Lamir [Hurð]", "Skrá [Hurð]", "Felliþr. [Hurð]", "Smíðagögn (JSON) 🔧",
+    "Grip mm (Höldur 1)"]; // per-unit, via its own Höldur; falls back to the manual field below when absent
   var SAW_FIELDS = ["Partur", "H", "B", "Þ", "M", "Tegund einingu", "Eyðublað ✏️"];
 
   var project = null, doors = [], groups = [], stopped = [], productNames = {}, sideInput = null;
@@ -247,8 +248,14 @@
       var rows = await fetchAll(SAW, { filterByFormula: 'FIND("' + q + ' |",ARRAYJOIN({Tækifæri 📣 (projects)}))', "fields[]": SAW_FIELDS });
     } catch (e) { $("out").innerHTML = '<div class="empty">Villa: ' + esc(e.message) + "</div>"; return; }
     project = { id: id, name: name, prefix: pre };
-    var unitName = {}, isDoor = {}, unitH = {}, unitSmida = {};
-    units.forEach(function (u) { unitName[u.id] = u.fields["Athugasemd"] || "(nafnlaust)"; unitH[u.id] = u.fields["Hæð"]; unitSmida[u.id] = u.fields["Smíðagögn (JSON) 🔧"] || null; isDoor[u.id] = String(u.fields["Sérsmíði tegund"] || "") === "Hurð"; });
+    var unitName = {}, isDoor = {}, unitH = {}, unitSmida = {}, unitGrip = {};
+    units.forEach(function (u) {
+      unitName[u.id] = u.fields["Athugasemd"] || "(nafnlaust)"; unitH[u.id] = u.fields["Hæð"]; unitSmida[u.id] = u.fields["Smíðagögn (JSON) 🔧"] || null;
+      isDoor[u.id] = String(u.fields["Sérsmíði tegund"] || "") === "Hurð";
+      // multipleLookupValues always comes back as an array, even through a single-record link.
+      var g = u.fields["Grip mm (Höldur 1)"]; g = Array.isArray(g) ? g[0] : g;
+      unitGrip[u.id] = typeof g === "number" ? g : null;
+    });
 
     // Doors — Vörulisti first (names always; CNC macró fields are the catalog fallback for a hinge/lock/
     // threshold not already hardcoded in cnc-doors.js, 2026-10-13), THEN plan, so doorPlan can use it.
@@ -268,15 +275,20 @@
     // Sides — every non-door unit's Sögunarlisti rows.
     var byUnit = {};
     rows.forEach(function (r) { var u = (r.fields["Eyðublað ✏️"] || [])[0]; u = u && (u.id || u); if (!u || isDoor[u]) return; (byUnit[u] = byUnit[u] || []).push(r.fields); });
-    sideInput = { byUnit: byUnit, unitName: unitName, unitH: unitH, unitSmida: unitSmida };
+    sideInput = { byUnit: byUnit, unitName: unitName, unitH: unitH, unitSmida: unitSmida, unitGrip: unitGrip };
     planSides();
   }
 
-  // Sides are re-planned when the grip changes (drawer slot = cut front + grip).
+  // Sides are re-planned when the grip changes (drawer slot = cut front + grip). Grip is per-unit via
+  // its own Höldu's "Grip mm" on Vörulisti when that's set (2026-10-13); the manual field is only the
+  // fallback for units with no Vörulisti handle linked (older "Grip?" checkbox units).
   function planSides() {
     if (!sideInput) return;
-    var grip = +$("gripMm").value || 0, I = sideInput;
-    var plans = Object.keys(I.byUnit).map(function (u) { return SD.unitPlan(I.unitName[u] || u, I.byUnit[u], { unitHeight: I.unitH[u], gripMm: grip, smida: I.unitSmida[u] }); });
+    var fallbackGrip = +$("gripMm").value || 0, I = sideInput;
+    var plans = Object.keys(I.byUnit).map(function (u) {
+      var g = I.unitGrip[u]; g = g == null ? fallbackGrip : g;
+      return SD.unitPlan(I.unitName[u] || u, I.byUnit[u], { unitHeight: I.unitH[u], gripMm: g, smida: I.unitSmida[u] });
+    });
     // one entry per cabinet (2026-10-10: a folder each, no merging of identical cabinets)
     groups = plans.filter(function (p) { return p.status !== "stop" && p.status !== "skip"; })
       .sort(function (a, b) { return a.id.localeCompare(b.id, "is", { numeric: true }); })
@@ -528,7 +540,7 @@
         await writeBytes(job, logName, D.toCp1252(prev + (prev ? "\r\n" : "") + logBlocks.join("\r\n" + "-".repeat(60) + "\r\n")));
       }
       // The one sheet that goes with the stick: made / check / missing.
-      var sheet = ["CNC — " + project.name, "Búið til: " + when, "Grip á skúffufrontum: " + (+$("gripMm").value || 0) + " mm", "",
+      var sheet = ["CNC — " + project.name, "Búið til: " + when, "Grip — varaleið (einingar með tengda Höldu nota hennar eigið Grip mm): " + (+$("gripMm").value || 0) + " mm", "",
         "SKRÁR (" + made.length + "):"].concat(made.map(function (s) { return "  " + s; }),
         ["", "ATHUGA (" + warn.length + "):"], warn.map(function (s) { return "  " + s; }),
         ["", "EKKI GERT — þarf að forrita í höndunum eða laga gögn (" + missing.length + "):"], missing.map(function (s) { return "  " + s; }));

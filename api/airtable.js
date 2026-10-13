@@ -119,6 +119,7 @@ const ALLOWED_FIELDS = {
     "Heiti rýmis", "Breidd", "Hæð", "Dýpt", "Fjöldi eininga", "Grip?",
     "Skilaboð til Skipulags 📝", // plain-language "customer wants N drawers, not shelves" note
     "Höldur 1", "Höldur 1 magn", // set instead of Grip? when a real Vörulisti handle is chosen
+    "Grip mm (Höldur 1)", // /cnc (2026-10-13): lookup through Höldur 1 → Vörulisti's own "Grip mm"
     "Hæð ofns", "Töfrahorn útfærsla", "Breidd á töfra front", // Ofnaskápur / Töfrahorn cabinet types
   ],
   // Tengiliðir 👤 is deliberately NOT readable here (2026-10-01): it was listed with names, emails and
