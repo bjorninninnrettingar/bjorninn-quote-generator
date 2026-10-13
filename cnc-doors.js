@@ -158,7 +158,13 @@
   // Master text (CRLF, already decoded from Windows-1252) → finished program.
   //  - every Piece-Data variable is replaced by its number in [VARIABLES] and [PROGRAM] (other sections untouched);
   //  - PAN=LPX/LPY/LPZ are computed to plain numbers (as the shop's own finished files have them);
-  //  - managed macros: switched on (@) if in `on`, off (') otherwise; "Rem" lines are never touched;
+  //  - managed macros: a macro in `on` is switched on (@) and kept; a managed macro NOT in `on` is DROPPED
+  //    from the file entirely (user, 2026-10-13 — e.g. a Coplan-hinge door should show no trace of the
+  //    other hinge options, a door with no threshold selected should show no FELLI_THROSKULDUR line at
+  //    all), not just left switched off with a leading '. Confirmed safe on the real masters: every
+  //    managed hardware-choice macro is its own single line, never a block with indented children —
+  //    base panel geometry (GEO/ROUTG/BH…) and the GLB=HS_ record block below are never in `managed`, so
+  //    this never touches them regardless. "Rem" lines are never touched either way.
   //  - errors: a macro to switch on that the master doesn't contain, or a variable left unresolved.
   function renderBpp(text, values, managed, on) {
     var nl = text.indexOf("\r\n") >= 0 ? "\r\n" : "\n";
@@ -180,12 +186,13 @@
         var mm = l.match(/^([@'])( +)([A-Z0-9_]+),(.*)$/);
         if (mm && managed.indexOf(mm[3]) >= 0) {
           var want = on.indexOf(mm[3]) >= 0;
-          if (want) found[mm[3]] = true;
-          l = (want ? "@" : "'") + mm[2] + mm[3] + "," + mm[4];
+          if (!want) return null;
+          found[mm[3]] = true;
+          l = "@" + mm[2] + mm[3] + "," + mm[4];
         }
       }
       return l;
-    });
+    }).filter(function (l) { return l !== null; });
     on.forEach(function (name) { if (!found[name]) errors.push("Makró " + name + " fannst ekki í master — ekki hægt að kveikja á því"); });
     // Anything still named like a Piece-Data variable in an active line means the file would ask the machine for it.
     var sec2 = "";

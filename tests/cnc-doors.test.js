@@ -52,13 +52,37 @@ test("renderBpp: numbers in, managed macros switched, other sections untouched, 
   assert.ok(L.includes("PAN=LPX|2400||4|"));                     // 2350 + 10 + 3 + 37
   assert.ok(L.includes("GLB=LOM_1|10+2350-237|Too save data write it here|0|"));
   assert.ok(L.some((l) => l.startsWith("@ COPLAN_KARM,")));
-  assert.ok(L.some((l) => l.startsWith("' IN05020_KARMLOM_JNF,")));
-  assert.ok(L.some((l) => l.startsWith("Rem ' BASIC_LOM_4")));
+  assert.ok(!L.some((l) => l.includes("IN05020_KARMLOM_JNF")));  // not this door's hinge — dropped, not just switched off
+  assert.ok(L.some((l) => l.startsWith("Rem ' BASIC_LOM_4")));   // untouched: not a managed macro at all
   assert.ok(L.includes("Name=HURD_H stays here"));
   assert.ok(L.includes("GLB=HS_HURD_Z|38|Hurdaskra|0|"));
   assert.ok(!L.some((l) => /^GLB=HURD_[HBZ]\|/.test(l)));        // never redefine the machine's own names
   assert.ok(r.text.includes("\r\n") && !/[^\r]\n/.test(r.text));   // CRLF kept
   assert.deepEqual(C.readValues(r.text), p.values);               // the file is its own record
+});
+
+test("a managed macro not chosen for this door is dropped from the file entirely — not switched off (user, 2026-10-13)", () => {
+  // Three hinge options and a threshold, all present in the master and all switched off by default —
+  // the finished file should show only the one hinge this door actually uses, and no threshold line at
+  // all when the door has none. This is what the operator reads; it should never show options that
+  // don't apply.
+  const master = [
+    "[VARIABLES]", "PAN=LPX|HURD_B||4|", "PAN=LPY|HURD_H||4|", "PAN=LPZ|HURD_Z||4|", "",
+    "[PROGRAM]", "",
+    `' COPLAN, "", "", 1, "", 0 : LOM1, LOM2, LOM3`,
+    `' LAMIR_89_HURD, "", "", 2, "", 0 : LOM3`,
+    `' IN05020_LAMIR_JNF, "", "", 3, "", 0 : LOM3`,
+    `' FELLI_THROSKULDUR, "", "", 4, "", 0 : 0`,
+    "",
+  ].join("\r\n");
+  const p = C.doorPlan(DOOR);
+  const r = C.renderBpp(master, p.values, C.MANAGED.leaf, ["COPLAN"]); // only the hinge this door actually has
+  assert.deepEqual(r.errors, []);
+  const L = r.text.split("\r\n");
+  assert.ok(L.some((l) => l.startsWith("@ COPLAN,")));
+  assert.ok(!L.some((l) => l.includes("LAMIR_89_HURD")));
+  assert.ok(!L.some((l) => l.includes("IN05020_LAMIR_JNF")));
+  assert.ok(!L.some((l) => l.includes("FELLI_THROSKULDUR")));       // no threshold on this door → no line
 });
 
 // ── Strike plate height, confirmed against the real masters (2026-10-13) ─────────────────────
