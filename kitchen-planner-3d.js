@@ -3326,10 +3326,15 @@
     }
 
     var scene = new THREE.Scene();
-    // opts.onlySurfaceId (drawing export): only that one wall's / island row's cabinets are built —
-    // no floor, walls, skirting, windows/doors or other cabinets in front of or around them.
-    var iso = opts.onlySurfaceId || null; // one surface id, or an array of them (both rows of an island)
+    // opts.onlySurfaceId (drawing export / unit wizard preview): only that one wall's / island row's
+    // cabinets are built — no floor, walls, skirting, windows/doors or other cabinets around them.
+    // opts.focusWallId (2026-10-13, live "Veggur" view): isolates cabinets the same way, but keeps
+    // that ONE real wall's own plane + windows/doors/obstacles (geomForWall below), since this is a
+    // real wall the customer/Rakel is looking at face-on, not a fake preview surface or an X-ray export.
+    var iso = opts.onlySurfaceId || opts.focusWallId || null; // one surface id, or an array of them (both rows of an island)
+    var focusWallId = opts.focusWallId || null;
     function isoHas(id){ return Array.isArray(iso) ? iso.indexOf(id) >= 0 : id === iso; }
+    function isFocusWall(wallId){ return !!focusWallId && wallId === focusWallId; }
     var DOOR_LIMITS = {}; try{ DOOR_LIMITS = openingIssues(state).limit; }catch(e){} // how far each door may open (walls, corners)
     scene.background = new THREE.Color(opts.darkBg ? (iso ? 0x1a2029 : 0x12161d) : iso ? 0xffffff : 0xf7f6f2); // darkBg = pro mode
     scene.userData.dayBg = scene.background.clone(); scene.userData.nightBg = new THREE.Color(0x2b303b);
@@ -3385,17 +3390,17 @@
     });
     var wallFades = [];
     geoms.forEach(function(g, gi){
-      if (isOpenGeom(gi) || iso) return;
+      var wid = state.walls[gi] && state.walls[gi].id;
+      if (isOpenGeom(gi) || (iso && !isFocusWall(wid))) return;
       var mat = wallMat.clone();
       mat.transparent = true;
-      var wid = state.walls[gi] && state.walls[gi].id;
       var gaps = (state.doors || []).filter(function(d){ return d.gap && d.wallId === wid; })
         .map(function(d){ return { offM:d.offsetMm / 1000, widM:d.widthMm / 1000, hM:Math.min(d.heightMm, roomHeightMm) / 1000 }; });
       wallFades.push({ mesh:addWallPlane(THREE, scene, g, WALL_H, mat, gaps), geom:g, mat:mat, wallId:wid, openings:[] });
     });
 
     function geomForWall(wallId){
-      if (iso) return null;
+      if (iso && !isFocusWall(wallId)) return null;
       var wi = state.walls.findIndex(function(w){ return w.id === wallId; });
       return wi === -1 || state.walls[wi].open ? null : geoms[wi];
     }
@@ -3690,9 +3695,46 @@
     scene.userData.noMood = !!(opts.clean || opts.people); // previews and the drawing export always show daylight
     applyMood(scene);
 
-    var camera = new THREE.PerspectiveCamera(45, 1, 0.05, 100);
+    // Wall-view (opts.focusWallId): bounds come from THIS wall's own units, not the room bbox — an
+    // orthographic camera face-on, sized to fit them (elevationShot in kitchen-planner.html does the
+    // same thing for the PDF export's X-ray elevations; this is the live, interactive equivalent).
+    var focusBounds = null;
+    if (focusWallId){
+      var fsIdx = surfaces.findIndex(function(w){ return w.id === focusWallId; });
+      if (fsIdx >= 0){
+        var fg = allGeoms[fsIdx], fw = surfaces[fsIdx];
+        var ffs = blockStartsMm(fw.floor, cornerClearanceMm(surfaces, fsIdx, "floor")), fws = blockStartsMm(fw.wall, 0);
+        var funits = []; // for the dimension overlay: one entry per cabinet on this wall
+        fw.floor.forEach(function(b, bi){
+          var c = CATALOG[b.type], h = Math.min(b.heightMm || c.h, roomHeightMm) / 1000;
+          funits.push({ a0:ffs[bi] / 1000, a1:(ffs[bi] + b.widthMm) / 1000, y0:0, y1:h, widthMm:b.widthMm, zone:"floor" });
+        });
+        fw.wall.forEach(function(b, bi){
+          var c = CATALOG[b.type], h = Math.min(b.heightMm || c.h, roomHeightMm) / 1000, y0 = elevOf(b) / 1000;
+          funits.push({ a0:fws[bi] / 1000, a1:(fws[bi] + b.widthMm) / 1000, y0:y0, y1:y0 + h, widthMm:b.widthMm, zone:"wall" });
+        });
+        var los = [0, fg.lenM].concat(funits.map(function(u){ return u.a0; }), funits.map(function(u){ return u.a1; }));
+        var yhis = [0.1].concat(funits.map(function(u){ return u.y1; }));
+        var flo = Math.min.apply(null, los) - 0.35, fhi = Math.max.apply(null, los) + 0.35;
+        var fyHi = Math.max.apply(null, yhis) + 0.35;
+        focusBounds = { g:fg, lo:flo, hi:fhi, yLo:-0.45, yHi:fyHi, units:funits, lenM:fg.lenM };
+      }
+    }
+
+    var camera;
+    if (focusBounds){
+      var fb = focusBounds, fhw = (fb.hi - fb.lo) / 2, fhh = (fb.yHi - fb.yLo) / 2;
+      camera = new THREE.OrthographicCamera(-fhw, fhw, fhh, -fhh, 0.05, 100);
+      camera.userData.focusBounds = fb; // resize() refits this without distorting the elevation
+      var fc = (fb.lo + fb.hi) / 2, fmid = (fb.yLo + fb.yHi) / 2;
+      var fP = { x:fb.g.origin.x + fb.g.axis.x * fc, z:fb.g.origin.z + fb.g.axis.z * fc };
+      camera.position.set(fP.x + fb.g.normal.x * 6, fmid, fP.z + fb.g.normal.z * 6);
+      camera.lookAt(fP.x, fmid, fP.z);
+    } else {
+      camera = new THREE.PerspectiveCamera(45, 1, 0.05, 100);
+    }
     var dist = Math.max(bbox.w, bbox.d) * (geoms.closed ? 0.95 : 0.74) + (geoms.closed ? 1.7 : 1.2);
-    camera.position.set(bbox.cx + dist * 0.6, dist * 0.55, bbox.cz + dist * 0.9);
+    if (!focusBounds) camera.position.set(bbox.cx + dist * 0.6, dist * 0.55, bbox.cz + dist * 0.9);
     var people = opts.people && geoms.length ? addPeople(THREE, scene, geoms, WALL_H, roomHeightMm, state.walls, wallColor) : null;
     if (people){ // stand inside the room at eye height, facing the figures and their wall (wide lens so floor + ceiling fit)
       var pg = people.g, depth = Math.abs(pg.normal.x) > 0.5 ? bbox.w : bbox.d, back = Math.max(1.9, Math.min(4.2, depth - 0.7 - 0.25)); // keep the camera inside the room when it fits
@@ -3719,6 +3761,17 @@
     }
     applyToneMapping(THREE, renderer);
     wrap.appendChild(renderer.domElement);
+
+    // "Veggur" view: an SVG overlay drawn on top of the canvas with IKEA-style chained dimensions
+    // (per-cabinet width + one wall total + a height chain), projected live from the real 3D points —
+    // elevationShot in kitchen-planner.html draws the same information once, offline, for the PDF export.
+    var dimSvg = null;
+    if (focusBounds){
+      if (getComputedStyle(wrap).position === "static") wrap.style.position = "relative";
+      dimSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      dimSvg.setAttribute("style", "position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;");
+      wrap.appendChild(dimSvg);
+    }
 
     // Subtle image-based lighting so steel, handles and the satin finish pick up
     // believable reflections; plus sharper textures at glancing angles.
@@ -3749,7 +3802,13 @@
     controls.enableDamping = true;
     controls.dampingFactor = 0.08;
     if (people) controls.target.set(people.focus.x - people.g.normal.x * 0.6, WALL_H * 0.46, people.focus.z - people.g.normal.z * 0.6);
-    if (savedCameraState && !opts.freshCamera){
+    if (focusBounds){ // "Veggur" view: a fixed architectural elevation, not an orbit — only zoom
+      controls.enableRotate = false;
+      controls.enablePan = false;
+      controls.minZoom = 0.4; controls.maxZoom = 4;
+      var fc2 = (focusBounds.lo + focusBounds.hi) / 2, fmid2 = (focusBounds.yLo + focusBounds.yHi) / 2;
+      controls.target.set(focusBounds.g.origin.x + focusBounds.g.axis.x * fc2, fmid2, focusBounds.g.origin.z + focusBounds.g.axis.z * fc2);
+    } else if (savedCameraState && !opts.freshCamera){
       camera.position.copy(savedCameraState.position);
       controls.target.copy(savedCameraState.target);
     }
@@ -3763,7 +3822,14 @@
     function resize(){
       var w = wrap.clientWidth, h = wrap.clientHeight;
       if (!w || !h) return;
-      camera.aspect = w / h;
+      if (camera.isOrthographicCamera && camera.userData.focusBounds){
+        // "contain"-fit the wall's content in the pane without distorting the elevation
+        var fb2 = camera.userData.focusBounds, cw = (fb2.hi - fb2.lo) / 2, ch = (fb2.yHi - fb2.yLo) / 2, contAspect = w / h;
+        if (contAspect > cw / ch){ camera.top = ch; camera.bottom = -ch; camera.left = -ch * contAspect; camera.right = ch * contAspect; }
+        else { camera.left = -cw; camera.right = cw; camera.top = cw / contAspect; camera.bottom = -cw / contAspect; }
+      } else if (!camera.isOrthographicCamera){
+        camera.aspect = w / h;
+      }
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
       if (THREE_STATE && THREE_STATE.composer) THREE_STATE.composer.setSize(w, h);
@@ -3789,6 +3855,57 @@
       el.style.left = Math.max(60, Math.min(pr.width - 60, x)) + "px";
       el.style.top = Math.max(46, y - 10) + "px";
       el.hidden = false;
+    }
+
+    // "Veggur" view's dimension chain — projected fresh every frame (cheap: at most ~a dozen ticks)
+    // since zoom can still change the camera's framing even though rotate/pan are locked.
+    var dimV = new THREE.Vector3();
+    function dimTick(x0, y0, x1, y1, text, vertical, color){
+      var t = 6;
+      var s = '<line x1="' + x0 + '" y1="' + y0 + '" x2="' + x1 + '" y2="' + y1 + '" stroke="' + color + '" stroke-width="1.4"/>';
+      [[x0, y0], [x1, y1]].forEach(function(p){
+        s += '<line x1="' + (p[0] - (vertical ? t : 0)) + '" y1="' + (p[1] - (vertical ? 0 : t)) + '" x2="' + (p[0] + (vertical ? t : 0)) + '" y2="' + (p[1] + (vertical ? 0 : t)) + '" stroke="' + color + '" stroke-width="1.4"/>';
+      });
+      var mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+      s += '<text x="' + mx + '" y="' + (my - 5) + '" font-size="12" font-weight="600" fill="' + color + '" text-anchor="middle"' +
+        (vertical ? ' transform="rotate(-90 ' + mx + ' ' + my + ')"' : '') + '>' + text + '</text>';
+      return s;
+    }
+    function placeDims(){
+      if (!dimSvg || !focusBounds) return;
+      var cr = renderer.domElement.getBoundingClientRect();
+      if (!cr.width || !cr.height) return;
+      dimSvg.setAttribute("viewBox", "0 0 " + cr.width + " " + cr.height);
+      var g = focusBounds.g, color = opts.darkBg ? "#cfd6e3" : "#3a3a3d";
+      function P(a, y){ // a = along the wall (m), y = world height (m) — screen X/Y don't depend on normal offset for an ortho camera looking straight at the wall
+        dimV.set(g.origin.x + g.axis.x * a, y, g.origin.z + g.axis.z * a).project(camera);
+        return { x:(dimV.x * 0.5 + 0.5) * cr.width, y:(-dimV.y * 0.5 + 0.5) * cr.height };
+      }
+      var floorU = focusBounds.units.filter(function(u){ return u.zone === "floor"; });
+      var wallU = focusBounds.units.filter(function(u){ return u.zone === "wall"; });
+      var svg = "";
+      floorU.forEach(function(u){
+        var p0 = P(u.a0, -0.12), p1 = P(u.a1, -0.12);
+        svg += dimTick(p0.x, p0.y, p1.x, p1.y, String(u.widthMm), false, color);
+      });
+      if (floorU.length > 1){
+        var f0 = Math.min.apply(null, floorU.map(function(u){ return u.a0; })), f1 = Math.max.apply(null, floorU.map(function(u){ return u.a1; }));
+        var p0t = P(f0, -0.3), p1t = P(f1, -0.3);
+        svg += dimTick(p0t.x, p0t.y, p1t.x, p1t.y, Math.round((f1 - f0) * 1000) + " mm", false, color);
+      }
+      wallU.forEach(function(u){
+        var p0 = P(u.a0, focusBounds.yHi - 0.22), p1 = P(u.a1, focusBounds.yHi - 0.22);
+        svg += dimTick(p0.x, p0.y, p1.x, p1.y, String(u.widthMm), false, color);
+      });
+      var ys = [0].concat(floorU.map(function(u){ return u.y1; }));
+      if (wallU.length){ ys.push(Math.min.apply(null, wallU.map(function(u){ return u.y0; }))); ys.push(Math.max.apply(null, wallU.map(function(u){ return u.y1; }))); }
+      ys = ys.filter(function(y, i){ return ys.findIndex(function(z){ return Math.abs(z - y) < 0.005; }) === i; }).sort(function(a, b){ return a - b; });
+      var hx = focusBounds.lo + 0.15;
+      for (var k = 1; k < ys.length; k++){
+        var ph0 = P(hx, ys[k - 1]), ph1 = P(hx, ys[k]);
+        svg += dimTick(ph0.x, ph0.y, ph1.x, ph1.y, String(Math.round((ys[k] - ys[k - 1]) * 1000)), true, color);
+      }
+      dimSvg.innerHTML = svg;
     }
 
     var wallVec = new THREE.Vector3();
@@ -3903,6 +4020,7 @@
       if (people) people.people.forEach(function(m){ m.rotation.y = Math.atan2(camera.position.x - m.position.x, camera.position.z - m.position.z); });
       renderFrame(false);
       placeFloatBar();
+      placeDims();
     }
     loop();
   }
@@ -4937,12 +5055,44 @@
       }
     }
 
+    // Chained dimensions along a real wall's floor row (IKEA-style): a tick + width per cabinet,
+    // plus one total — drawn just outside the wall line, away from the room, so it never overlaps
+    // the cabinets themselves. Walls only (v1) — island rows keep just their own on-cabinet labels.
+    function planDimLine(ax, az, bx, bz, text, nx, nz){
+      var x0 = X(ax), y0 = Y(az), x1 = X(bx), y1 = Y(bz), t = 5;
+      var s = '<line x1="' + x0 + '" y1="' + y0 + '" x2="' + x1 + '" y2="' + y1 + '" stroke="#8a857a" stroke-width="1" style="pointer-events:none;"/>';
+      [[x0, y0], [x1, y1]].forEach(function(p){
+        s += '<line x1="' + (p[0] - nx * t) + '" y1="' + (p[1] - nz * t) + '" x2="' + (p[0] + nx * t) + '" y2="' + (p[1] + nz * t) + '" stroke="#8a857a" stroke-width="1" style="pointer-events:none;"/>';
+      });
+      s += '<text x="' + ((x0 + x1) / 2) + '" y="' + ((y0 + y1) / 2 - 3) + '" font-size="9.5" fill="#6f6d66" text-anchor="middle" style="pointer-events:none;">' + text + '</text>';
+      return s;
+    }
+    function wallDimChain(g, floor, starts){
+      var off = -22; // outward from the wall, away from the room (cabinets sit on the +normal side)
+      var s = "";
+      floor.forEach(function(bl, bi){
+        var a0 = starts[bi] / 1000, a1 = (starts[bi] + bl.widthMm) / 1000;
+        var p0 = { x:g.origin.x + g.axis.x * a0 + g.normal.x * off / PX_PER_M, z:g.origin.z + g.axis.z * a0 + g.normal.z * off / PX_PER_M };
+        var p1 = { x:g.origin.x + g.axis.x * a1 + g.normal.x * off / PX_PER_M, z:g.origin.z + g.axis.z * a1 + g.normal.z * off / PX_PER_M };
+        s += planDimLine(p0.x, p0.z, p1.x, p1.z, bl.widthMm, g.normal.x, g.normal.z);
+      });
+      if (floor.length > 1){
+        var f0 = starts[0] / 1000, last = floor.length - 1, f1 = (starts[last] + floor[last].widthMm) / 1000;
+        var off2 = off - 16;
+        var q0 = { x:g.origin.x + g.axis.x * f0 + g.normal.x * off2 / PX_PER_M, z:g.origin.z + g.axis.z * f0 + g.normal.z * off2 / PX_PER_M };
+        var q1 = { x:g.origin.x + g.axis.x * f1 + g.normal.x * off2 / PX_PER_M, z:g.origin.z + g.axis.z * f1 + g.normal.z * off2 / PX_PER_M };
+        s += planDimLine(q0.x, q0.z, q1.x, q1.z, Math.round((f1 - f0) * 1000) + " mm", g.normal.x, g.normal.z);
+      }
+      return s;
+    }
+
     surfaces.forEach(function(wall, wi){
       var g = allGeoms[wi];
       if (!g) return;
       var fStarts = blockStartsMm(wall.floor, cornerClearanceMm(surfaces, wi, "floor")), wStarts = blockStartsMm(wall.wall, 0);
       wall.floor.forEach(function(bl, bi){ drawCabinetRect(bl, CATALOG[bl.type], g, wall.id, "floor", fStarts[bi], false); });
       wall.wall.forEach(function(bl, bi){ drawCabinetRect(bl, CATALOG[bl.type], g, wall.id, "wall", wStarts[bi], true); });
+      if (!wall.island && wall.floor.length) svg += wallDimChain(g, wall.floor, fStarts);
     });
 
     // island move-handles (drag = slide the island, tap = select it)

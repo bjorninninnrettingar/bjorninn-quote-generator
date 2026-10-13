@@ -639,6 +639,9 @@
   .three-hint{ font-size:12.5px; color:var(--ink-soft); margin:0 0 22px; }
 
   .view-toggle{ display:flex; gap:6px; margin-bottom:10px; }
+  .view-toggle[hidden]{ display:none; }
+  #wallCycle{ align-items:center; gap:8px; font-size:12.5px; font-weight:600; color:var(--ink-soft); }
+  #wallCycle button{ font:inherit; font-size:13px; font-weight:600; cursor:pointer; background:#fff; border:1.5px solid var(--line); border-radius:8px; padding:4px 10px; color:var(--ink); }
   .view-toggle button{
     font:inherit; font-size:13.5px; font-weight:600; cursor:pointer;
     background:#fff; border:1.5px solid var(--line); border-radius:8px; padding:8px 14px; color:var(--ink);
@@ -1166,6 +1169,12 @@
           <div class="view-toggle" id="viewToggle">
             <button type="button" class="active" data-view="3d" title="3D-sýn">3D</button>
             <button type="button" data-view="2d" title="Teikning ofan frá">2D</button>
+            <button type="button" data-view="wall" title="Hanna einn vegg í einu, málsettan">Veggur</button>
+          </div>
+          <div class="view-toggle" id="wallCycle" hidden>
+            <button type="button" id="wallPrevBtn" title="Fyrri veggur">◀</button>
+            <span id="wallCycleLabel"></span>
+            <button type="button" id="wallNextBtn" title="Næsti veggur">▶</button>
           </div>
           <div class="view-toggle" id="camToggle">
             <button type="button" id="resetCamBtn" title="Endurstilla sýn">🎯</button>
@@ -5702,8 +5711,24 @@
   // ---------- 3D / 2D view (rendering itself lives in kitchen-planner-3d.js,
   // shared with Rakel's review page — this just orchestrates which view is
   // showing and feeds it the current state) ----------
-  var viewMode = "3d"; // "3d" | "2d", not persisted — always opens on 3D
+  var viewMode = "3d"; // "3d" | "2d" | "wall", not persisted — always opens on 3D
+  var wallViewId = null; // which wall "Veggur" mode is focused on
   var selectedBlockId = null; // not part of state — never persisted/submitted
+
+  function solidWalls(){ return (state.walls || []).filter(function(w){ return !w.open; }); } // "Veggur" only cycles through real walls, not open edges
+  function cycleWallView(dir){
+    var list = solidWalls();
+    if (!list.length) return;
+    var i = list.findIndex(function(w){ return w.id === wallViewId; });
+    wallViewId = list[(i < 0 ? 0 : i + dir + list.length) % list.length].id;
+    selectedBlockId = null;
+    renderView();
+  }
+  function syncWallCycleUI(){
+    var list = solidWalls(), i = list.findIndex(function(w){ return w.id === wallViewId; });
+    document.getElementById("wallCycle").hidden = viewMode !== "wall";
+    document.getElementById("wallCycleLabel").textContent = list.length ? "Veggur " + (i + 1) + " af " + list.length : "";
+  }
 
   function surfaces(){ return KP3D.surfacesOf(state); } // real walls + island rows
   function surfaceById(id){ return surfaces().find(function(w){ return w.id === id; }) || null; }
@@ -5958,12 +5983,15 @@
     renderView();
   }
 
+  var lastRenderedViewMode = null;
   function renderView(){
     var wrap = document.getElementById("threeWrap");
     var plan = document.getElementById("planWrap");
-    KP3D.teardown3D();
+    KP3D.teardown3D(viewMode === "wall" || lastRenderedViewMode === "wall"); // entering/leaving "Veggur" shouldn't hand its fixed elevation camera to the other mode
+    lastRenderedViewMode = viewMode;
     document.getElementById("floatBar").hidden = true;
     syncFloatBarKind();
+    syncWallCycleUI();
 
     if (viewMode === "2d"){
       wrap.hidden = true; plan.hidden = false;
@@ -5977,14 +6005,15 @@
     if (!KP3D.hasWebGL()){ fall2D("3D er ekki stutt í þessum vafra — þú getur skipulagt í teikningunni."); return; }
     wrap.innerHTML = '<div class="three-note">Hleð 3D…</div>';
     KP3D.waitForThree(function(ok){
-      if (state.step !== "editor" || viewMode !== "3d") return; // navigated away while waiting
+      if (state.step !== "editor" || (viewMode !== "3d" && viewMode !== "wall")) return; // navigated away while waiting
       if (!ok){
         fall2D("3D tókst ekki að hlaða — þú getur skipulagt í teikningunni.");
         return;
       }
       wrap.innerHTML = "";
       KP3D.buildScene(wrap, state, { darkBg:!!PRO, selectedId:selectedBlockId, selectedWallId:selectedWallId, onWallSelect:onWallSelect, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, onIslandDragEnd:onIslandDragEnd, onIslandDragMove:onIslandDragMove, onDecorDragEnd:onDecorDragEnd, onDecorDragMove:onDecorDragMove, onObstacleFloorEnd:onObstacleFloorEnd, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList(), readyIds:PRO ? proReadyIds() : null,
-        xray:inspect.on }); // inspect mode: every cabinet built in parts (drawers/doors tap open, nothing drags)
+        xray:inspect.on, // inspect mode: every cabinet built in parts (drawers/doors tap open, nothing drags)
+        focusWallId:viewMode === "wall" ? wallViewId : null, freshCamera:viewMode === "wall" });
       landedBlockId = null;
       applyInspect();
     }, 8000);
@@ -6504,7 +6533,7 @@
         '<div class="edit-actions" style="margin-top:12px;">' +
           '<button class="iconbtn" data-role="addWin">＋ Gluggi</button><button class="iconbtn" data-role="addDoor">＋ Hurð</button><button class="iconbtn" data-role="addGap">＋ Op</button>' +
         '</div>' +
-        '<div class="ov-links"><button type="button" class="btn btn-secondary btn-small" data-role="shape">Breyta lengd veggja</button></div>' +
+        '<div class="ov-links"><button type="button" class="btn btn-secondary btn-small" data-role="wallview">🧱 Skoða þennan vegg</button><button type="button" class="btn btn-secondary btn-small" data-role="shape">Breyta lengd veggja</button></div>' +
       '</div>';
     host.querySelector('[data-role="close"]').addEventListener("click", function(){ onCabinetSelect(null); });
     host.querySelectorAll("[data-select]").forEach(function(btn){
@@ -6514,6 +6543,7 @@
     host.querySelector('[data-role="addDoor"]').addEventListener("click", function(){ addOpening("hurd", wall.id, Math.round(wall.lengthMm / 2)); });
     host.querySelector('[data-role="addGap"]').addEventListener("click", function(){ addOpening("gat", wall.id, Math.round(wall.lengthMm / 2)); });
     host.querySelector('[data-role="shape"]').addEventListener("click", function(){ shapePhase = "size"; goto("shape"); });
+    host.querySelector('[data-role="wallview"]').addEventListener("click", function(){ wallViewId = wall.id; setViewMode("wall"); });
   }
 
   function moveBlockToWall(blockId, newWallId){
@@ -6539,8 +6569,14 @@
     document.querySelectorAll("#viewToggle button").forEach(function(btn){
       btn.classList.toggle("active", btn.dataset.view === mode);
     });
+    if (mode === "wall"){
+      var list = solidWalls();
+      if (!list.some(function(w){ return w.id === wallViewId; })) wallViewId = (selectedWallId && list.some(function(w){ return w.id === selectedWallId; }) ? selectedWallId : (list[0] || {}).id) || null;
+    }
     renderView();
   }
+  document.getElementById("wallPrevBtn").addEventListener("click", function(){ cycleWallView(-1); });
+  document.getElementById("wallNextBtn").addEventListener("click", function(){ cycleWallView(1); });
 
   // ---------- summary step ----------
   // ---------- toast ----------
