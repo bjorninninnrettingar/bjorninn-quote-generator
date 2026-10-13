@@ -65,7 +65,6 @@
       <label class="opt"><input type="checkbox" data-cut="all" checked /> Allt</label>
       <label class="opt"><input type="checkbox" data-cut="locks" /> Hurðaskrár</label>
       <label class="opt"><input type="checkbox" data-cut="hinges" /> Lamir</label>
-      <label class="opt"><input type="checkbox" data-cut="jambs" /> Karmar</label>
       <label class="opt"><input type="checkbox" data-cut="custom" /> Handvirkt val</label>
     </div>
     <button class="primary" id="writeBtn" disabled>💾 Skrifa á USB</button>
@@ -202,7 +201,7 @@
     var fs = D.filesFor(plan, prefix, true), leaf = fs.find(function(f){return f.kind === "leaf";});
     var lockMacros = ["EN12209", "IN_20_835_60_BA", "IN_20_937"];
     var hingeMacros = ["COPLAN", "LAMIR_89_HURD", "IN05020_LAMIR_JNF", "HYDRAULIC_PIVOT_W_SYSTEM"];
-    var kinds = chosen.includes("jambs") ? ["lamir", "slut", "topp"] : [];
+    var kinds = [];
     if (chosen.includes("locks") && !kinds.includes("slut")) kinds.push("slut");
     if (chosen.includes("hinges") && !kinds.includes("lamir")) kinds.push("lamir");
     var out = [];
@@ -219,7 +218,7 @@
     return out;
   }
   function selectedDoor(plan, selected) {
-    return selected.includes("all") || selected.includes("custom") || selected.includes("jambs") ||
+    return selected.includes("all") || selected.includes("custom") ||
       (selected.includes("locks") && plan.on.jambStrike.length > 0) ||
       (selected.includes("hinges") && plan.on.jambHinge.length > 0);
   }
