@@ -50,6 +50,11 @@
     margin-top: 10px; padding: 10px 14px; border-radius: 8px;
     font-size: 0.88rem; font-weight: 600;
   }
+  /* .statusBanner's own display:flex above has the SAME specificity as the
+     shared .hidden{display:none} rule, and comes later in the stylesheet —
+     so .hidden alone never actually hid it (same class of cascade bug this
+     file's own popover history already found once). Two classes beats one. */
+  .statusBanner.hidden { display: none; }
   .statusBanner.warn { background: #2e2408; border: 1px solid #5a4a22; color: #f5c518; }
   .statusBanner.ok { background: #122a16; border: 1px solid #2c5a33; color: #6fcf7d; }
   .statusBanner a { color: inherit; font-weight: 800; text-decoration: underline; }
@@ -1146,6 +1151,14 @@ async function loadProject(id) {
   $("projectCard").classList.remove("hidden");
   $("materialCard").classList.add("hidden");
   $("workspaceCard").classList.add("hidden");
+  // Clear the previous project's Cutty-status banner — loadProject() can run
+  // a second time in the same page load (via "← Annað verkefni"), and
+  // projectCard becoming visible again here happens well before the new
+  // project's own async renderCuttyStatus() resolves. Same bug/fix as
+  // cutlist.html's own æðar banner (2026-10-14): the .statusBanner.hidden
+  // CSS fix makes "hidden" actually take effect now, but it still needs to
+  // be added here so the stale content is actually hidden during the gap.
+  if ($("cuttyBanner")) $("cuttyBanner").classList.add("hidden");
   $("projectStatus").textContent = FLOOR_MODE ? "Sæki staðfest skipulag…" : "Sæki Sögunarlista…";
   if ($("exitBack")) $("exitBack").href = `/verk?t=${encodeURIComponent(id)}&k=${encodeURIComponent(VERK_KEY)}`;
   if ($("navCutty")) $("navCutty").href = `/cutlist?recordId=${encodeURIComponent(id)}`;

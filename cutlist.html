@@ -114,6 +114,11 @@
     margin-top: 10px; padding: 10px 14px; border-radius: 8px;
     font-size: 0.88rem; font-weight: 600;
   }
+  /* .statusBanner's own display:flex above has the SAME specificity as the
+     shared .hidden{display:none} rule, and comes later in the stylesheet —
+     so .hidden alone never actually hid it (same class of cascade bug
+     grain.html's popover history already found once). Two classes beats one. */
+  .statusBanner.hidden { display: none; }
   .statusBanner.warn { background: #2e2408; border: 1px solid #5a4a22; color: #f5c518; }
   .statusBanner.ok { background: #122a16; border: 1px solid #2c5a33; color: #6fcf7d; }
   .statusBanner a { color: inherit; font-weight: 800; text-decoration: underline; }
@@ -145,6 +150,7 @@
     <div class="project-name" id="projectName"></div>
     <div class="sub" id="projectStatus">Sæki Sögunarlisti færslur…</div>
     <div class="statusBanner hidden" id="aedarBanner"></div>
+    <button class="secondary" style="margin-top:12px;" onclick="resetToSearch()">← Annað verkefni</button>
   </div>
 
   <div class="card hidden" id="aedarCard" style="border-color:#5a4a22;background:#211c12;">
@@ -881,6 +887,19 @@ async function loadProject(projectId) {
   document.getElementById("searchCard").classList.add("hidden");
   document.getElementById("projectCard").classList.remove("hidden");
   document.getElementById("projectStatus").textContent = "Sæki gögn…";
+  // Clear anything left over from a PREVIOUS project — loadProject() can now
+  // run a second time in the same page load (via "← Annað verkefni"), and
+  // projectCard becoming visible again here happens well before the new
+  // project's own async renderAedarStatus() resolves. Without this, the old
+  // project's banner (confirmed/material name and all) briefly shows under
+  // the new project's name — caught live switching T-15 → T-33.
+  document.getElementById("aedarBanner").classList.add("hidden");
+  document.getElementById("aedarCard").classList.add("hidden");
+  document.getElementById("missingDimsCard").classList.add("hidden");
+  document.getElementById("oversizedCard").classList.add("hidden");
+  document.getElementById("groupsCard").classList.add("hidden");
+  document.getElementById("logCard").classList.add("hidden");
+  document.getElementById("log").innerHTML = "";
 
   const project = await fetchProjectById(projectId);
   currentProject = project;
@@ -1347,6 +1366,39 @@ async function populateProjectDropdown() {
   }
 }
 
+// Pick a different project without leaving the page — previously the only
+// way back to the picker was "Byrja upp á nýtt", which just reloads the
+// page and (if opened via ?recordId=, e.g. from the Æðar/Merkingar nav
+// pills or an Airtable button) lands right back on the SAME project.
+// Mirrors grain.html's/labels.html's own "← Annað verkefni"/"← Til baka".
+let projectDropdownPopulated = false;
+function resetToSearch() {
+  currentProject = null;
+  currentGroups = [];
+  currentOversized = [];
+  selectedGroupKeys = new Set();
+  writtenMaterialKeys = new Set();
+  document.getElementById("searchCard").classList.remove("hidden");
+  document.getElementById("projectCard").classList.add("hidden");
+  document.getElementById("aedarCard").classList.add("hidden");
+  document.getElementById("missingDimsCard").classList.add("hidden");
+  document.getElementById("oversizedCard").classList.add("hidden");
+  document.getElementById("groupsCard").classList.add("hidden");
+  document.getElementById("logCard").classList.add("hidden");
+  document.getElementById("log").innerHTML = "";
+  document.getElementById("projectSelect").value = "";
+  // The dropdown is only ever populated up front when the page opens WITHOUT
+  // ?recordId= (see the bottom of this file) — the common case is opening
+  // straight into a project via a link, which skips it entirely as a perf
+  // optimization that predates this button. Fill it in lazily the first
+  // time it's actually needed instead.
+  if (!projectDropdownPopulated) {
+    projectDropdownPopulated = true;
+    populateProjectDropdown();
+  }
+  updateToolNav(null);
+}
+
 document.getElementById("projectSelect").addEventListener("change", (e) => {
   if (e.target.value) loadProject(e.target.value);
 });
@@ -1360,6 +1412,7 @@ const recordIdParam = params.get("recordId");
 if (recordIdParam) {
   loadProject(recordIdParam);
 } else {
+  projectDropdownPopulated = true;
   populateProjectDropdown();
 }
 </script>
