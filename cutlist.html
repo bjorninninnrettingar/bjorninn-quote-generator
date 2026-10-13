@@ -13,8 +13,13 @@
     min-height: 100vh;
     padding: 24px 40px 60px;
   }
-  h1 { font-size: 1.4rem; letter-spacing: 0.03em; margin-bottom: 4px; }
-  .sub { color: #888; font-size: 0.85rem; margin-bottom: 24px; }
+  h1 { font-size: 1.6rem; letter-spacing: 0.03em; margin-bottom: 4px; }
+  .sub { color: #888; font-size: 0.95rem; margin-bottom: 24px; }
+  /* Same markup/position as grain.html's and labels.html's own exit-back —
+     identical header layout across all three so the pills land in the same
+     screen spot when jumping between tools. */
+  .exit-back { display: inline-block; color: #888; text-decoration: none; font-size: 0.85rem; font-weight: 700; margin-bottom: 14px; }
+  .exit-back:hover { color: #fff; }
 
   .card {
     background: #161616;
@@ -119,6 +124,7 @@
 </head>
 <body>
 
+  <a class="exit-back" id="exitBack" href="/app">‹ Til baka</a>
   <h1>Sögunarlisti fyrir Cutty</h1>
   <div class="sub">Býr til CUTLST-skrár beint á USB-drif, flokkað eftir efni og þykkt.</div>
 
@@ -222,6 +228,7 @@ const PROXY_URL = "/api/airtable";
 // Table IDs, not names — the proxy path only needs to survive as a plain
 // query-string value, and IDs avoid encoding table names with emoji.
 const PROJECTS_TABLE     = "tbl4LMXlQjp66RFKI"; // Tækifæri 📣 (projects)
+const VERK_KEY = "bjorn-verk-7Kq2mP9xLd4"; // same key grain.html/labels.html use for their own exitBack → /verk link
 const SOGUNARLISTI_TABLE = "tblhdgyvTcBfP8kov"; // Sögunarlisti 🪚
 const EFNISLISTI_TABLE   = "tbl8CrVWKF8CuI7HD"; // Efnislisti 🧱
 
@@ -597,6 +604,10 @@ function updateToolNav(projectId) {
   document.getElementById("navMerkingar").href = `/labels${qs}`;
   const cardLink = document.getElementById("aedarCardLink");
   if (cardLink) cardLink.href = `/aedar${qs}`;
+  const exitBack = document.getElementById("exitBack");
+  if (exitBack) exitBack.href = projectId
+    ? `/verk?t=${encodeURIComponent(projectId)}&k=${encodeURIComponent(VERK_KEY)}`
+    : "/app";
 }
 
 // One row per project+material in Æðaplan — same FIND/ARRAYJOIN-by-name
