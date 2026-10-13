@@ -715,6 +715,10 @@
   .dw-nm small{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .dw-code{ font-style:normal; font-size:10.5px; color:var(--ink-soft); border:1px solid var(--line); border-radius:4px; padding:0 4px; }
   .dw-add .hw-btn:disabled{ opacity:.35; cursor:not-allowed; }
+  /* customer-facing drawer stack (no grip/mm/codes — see drawerSimpleHTML) */
+  .dw-stack-simple{ display:flex; flex-direction:column; gap:6px; margin-top:8px; }
+  .dw-row-simple{ display:flex; align-items:center; gap:10px; padding:6px 10px; border:1px solid var(--line); border-radius:6px; background:#fff; }
+  .dw-row-simple select{ flex:1; border:0; background:none; font:inherit; font-weight:600; color:var(--ink); }
 
   /* ---- cabinet edit panel (click-to-select in 3D/2D) ---- */
   .edit-panel{
@@ -3843,6 +3847,46 @@
     askChoice('Innskúffa fæst ekki með <b>' + cur.join(" · ") + '</b> — hún er bara til með 1–2 skúffum. Viltu skipta yfir í <b>' + alt.join(" · ") + ' + ' + (ik === "IK" ? "miðlungs" : "lága") + ' innskúffu</b>?',
       "Já, skipta", "Nei takk", function(){ apply(alt, ik); });
   }
+  // The customer-facing drawer stack (wizard + regular side panel, NOT PRO's Smíða — ro.sides marks that one):
+  // just a count stepper + one depth dropdown per drawer. No drag-reorder, no typed mm, no Blum code letters —
+  // Rakel still has all of that in Smíða, a customer doesn't need it (user, 2026-10-13).
+  function drawerSimpleHTML(b, c, codes, inner){
+    var n = codes.length;
+    var rows = codes.map(function(code, i){ return { code:code, i:i }; }).reverse().map(function(d){
+      var opts = KP3D.DRAWER_CODES[drawerSys()].codes.filter(function(cd){
+        if (cd === d.code) return true;
+        var next = codes.slice(); next[d.i] = cd;
+        return stackAllowed(b, c, sortStack(next), inner);
+      });
+      return '<div class="dw-row-simple">' + dwIcon(d.code) + '<select data-dw-depth="' + d.i + '">' + opts.map(function(cd){
+        return '<option value="' + cd + '"' + (cd === d.code ? ' selected' : '') + '>' + CODE_LABEL[cd] + '</option>';
+      }).join("") + '</select></div>';
+    }).join("");
+    return '<div class="dw-stack-simple">' + rows + '</div>' +
+      '<div class="hw-count"><button class="iconbtn" data-dw-count="-1"' + (n <= 1 ? ' disabled' : '') + '>−</button><b>' + n + '</b>' +
+      '<button class="iconbtn" data-dw-count="1"' + (n >= 4 ? ' disabled' : '') + '>+</button><span>' + plural(n, "skúffa", "skúffur") + '</span></div>';
+  }
+  // count stepper: regrows/shrinks to Björninn's usual stack for the new count (same fallback the "Hillur/Skúffur"
+  // toggle already uses), rather than asking the customer to hand-pick which code to add/remove
+  function drawerCountDelta(b, c, delta){
+    var n = Math.max(1, Math.min(4, KP3D.drawerCodes(b.interior, drawerSys()).length + delta));
+    for (var k = n; k >= 1; k--){
+      var cand = KP3D.drawerCodes({ mode:"skuffur", count:k }, drawerSys());
+      if (stackAllowed(b, c, cand, b.interior.inner) || k === 1) return cand;
+    }
+  }
+  function wireDrawerSimple(host, b, c, commit){
+    host.querySelectorAll("[data-dw-depth]").forEach(function(sel){
+      sel.addEventListener("change", function(){
+        var codes = KP3D.drawerCodes(b.interior, drawerSys());
+        codes[+sel.dataset.dwDepth] = sel.value;
+        commit(sortStack(codes), b.interior.inner);
+      });
+    });
+    host.querySelectorAll("[data-dw-count]").forEach(function(btn){
+      btn.addEventListener("click", function(){ commit(drawerCountDelta(b, c, +btn.dataset.dwCount), null); });
+    });
+  }
   function hardwareHTML(b, c, ro){
     if (!c.hasInterior) return "";
     var isDrawer = b.interior.mode === "skuffur";
@@ -3852,13 +3896,17 @@
       '</div>';
     if (!isDrawer) return html;
     var sys = drawerSys(), D = KP3D.DRAWER_CODES[sys], codes = KP3D.drawerCodes(b.interior, sys), inner = b.interior.inner || null;
-    var fronts = KP3D.stackFrontsMm(b.interior, codes, drawerBodyMm(b, c)) || [];
-    html += drawerRowsHTML(codes, fronts, { reorder:true, del:true, custom:!!b.interior.frontsMm, sides:ro && ro.sides });
-    html += '<div class="dw-add"><span class="dw-add-h">Bæta við skúffu</span>' + D.codes.map(function(code){
-      var next = sortStack(codes.concat([code]));
-      var ok = codes.length < 4 && (stackAllowed(b, c, next, inner) || stackAllowed(b, c, next, null)); // may cost the inner drawer (see the click handler)
-      return '<button type="button" class="hw-btn dw-addbtn" data-dw-add="' + code + '"' + (ok ? '' : ' disabled') + ' title="' + CODE_LABEL[code] + ' skúffa — ' + CODE_USE[code] + '">' + dwIcon(code) + '<span>＋ ' + CODE_LABEL[code] + '<small>' + CODE_USE[code] + '</small></span></button>';
-    }).join("") + '</div>';
+    if (ro && ro.sides){ // PRO's Smíða only — full detail stays
+      var fronts = KP3D.stackFrontsMm(b.interior, codes, drawerBodyMm(b, c)) || [];
+      html += drawerRowsHTML(codes, fronts, { reorder:true, del:true, custom:!!b.interior.frontsMm, sides:true });
+      html += '<div class="dw-add"><span class="dw-add-h">Bæta við skúffu</span>' + D.codes.map(function(code){
+        var next = sortStack(codes.concat([code]));
+        var ok = codes.length < 4 && (stackAllowed(b, c, next, inner) || stackAllowed(b, c, next, null)); // may cost the inner drawer (see the click handler)
+        return '<button type="button" class="hw-btn dw-addbtn" data-dw-add="' + code + '"' + (ok ? '' : ' disabled') + ' title="' + CODE_LABEL[code] + ' skúffa — ' + CODE_USE[code] + '">' + dwIcon(code) + '<span>＋ ' + CODE_LABEL[code] + '<small>' + CODE_USE[code] + '</small></span></button>';
+      }).join("") + '</div>';
+    } else {
+      html += drawerSimpleHTML(b, c, codes, inner);
+    }
     html += '<div class="dw-add"><span>Innskúffa:</span>' + D.inner.map(function(ik){
       var on = inner === ik, ok = on || stackAllowed(b, c, codes, ik), alt = !ok && innerAlternative(b, c, ik);
       // never greyed out without a reason: when this stack has no such product, the click offers one that does
@@ -4583,6 +4631,7 @@
       var cc = cur(); cc.splice(+el.dataset.dwDel, 1); setStack(cc, stackAllowed(b, c, sortStack(cc), b.interior.inner) ? b.interior.inner : null);
     }); });
     side.querySelectorAll("[data-dw-inner]").forEach(function(el){ el.addEventListener("click", function(){ innerDrawerClick(b, c, el.dataset.dwInner, setStack); }); });
+    wireDrawerSimple(side, b, c, setStack);
     side.querySelectorAll("[data-uw-sh]").forEach(function(el){ el.addEventListener("click", function(){
       var d = +el.dataset.uwSh;
       b.shelves = Math.max(c.shelfRange[0], Math.min(c.shelfRange[1], KP3D.shelvesOf(b) + d));
@@ -5888,6 +5937,10 @@
         b.interior.codes = codes; b.interior.count = codes.length;
         if (frontsMm) b.interior.frontsMm = frontsMm; else delete b.interior.frontsMm;
         save(); refreshAfterEdit();
+      });
+      wireDrawerSimple(host, b, c, function(codes, inner){
+        if (b.locked){ lockedToast(); renderEditPanel(); return; }
+        setDrawerStack(wall, zone, b.id, codes, inner);
       });
     }
   }

@@ -3264,6 +3264,20 @@
       sh.rotation.x = -Math.PI / 2; sh.scale.set(1, 0.55, 1);
       sh.position.set(m.position.x, 0.003, m.position.z);
       scene.add(sh);
+      // the figure's own height, so it reads as a real measurement and not just "a person for scale"
+      // (user, 2026-10-13: style redesign shelved for later, but keep this)
+      var pc = document.createElement("canvas"); pc.width = 160; pc.height = 56;
+      var px = pc.getContext("2d");
+      px.fillStyle = "#ffffff"; px.strokeStyle = "#8a8f9a"; px.lineWidth = 3;
+      if (px.roundRect){ px.beginPath(); px.roundRect(4, 4, 152, 48, 12); px.fill(); px.stroke(); } else { px.fillRect(4, 4, 152, 48); px.strokeRect(4, 4, 152, 48); }
+      px.fillStyle = "#191919"; px.font = "700 24px 'Kumbh Sans', Arial, sans-serif"; px.textAlign = "center"; px.textBaseline = "middle";
+      px.fillText(P.label, 80, 30);
+      var pt = new THREE.CanvasTexture(pc);
+      if (THREE.SRGBColorSpace) pt.colorSpace = THREE.SRGBColorSpace;
+      var psp = new THREE.Sprite(new THREE.SpriteMaterial({ map:pt, depthTest:false }));
+      psp.scale.set(0.42, 0.147, 1); psp.renderOrder = 10;
+      psp.position.set(m.position.x, P.h + 0.14, m.position.z);
+      scene.add(psp);
     });
     // dimension line on the wall, a little to the side of the figures
     // (2026-10-11) further from the figures, near the corner, and the label up by the ceiling — it sat on the man
@@ -4084,7 +4098,9 @@
           }
         }
         var boardY = (rs.e.boardMm || 17.6) / 1000, inner = bwR - 2 * inset + 0.004;
-        var bm = new THREE.MeshStandardMaterial({ color:dark ? 0x22231f : 0xe4e2d6, roughness:0.5, metalness:0.05 });
+        // lightened a tone (user, 2026-10-13): the bottom/back board read as flat black at a glance,
+        // for both drawer systems — still dark, just visibly dark grey instead.
+        var bm = new THREE.MeshStandardMaterial({ color:dark ? 0x3c3d3a : 0xe4e2d6, roughness:0.5, metalness:0.05 });
         function pnl(w, h, d, x, y, z){ var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), bm); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; g.add(m); }
         pnl(inner, 0.016, len - 0.02, 0, boardY + 0.008, -(len - 0.02) / 2 - 0.01);                                   // bottom
         var backH = sideH - boardY;                                                                                   // back: as tall as the sides
