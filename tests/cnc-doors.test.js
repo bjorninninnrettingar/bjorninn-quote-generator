@@ -32,7 +32,7 @@ test("door sizes follow ÚRVINNSLA and match the shop's own T-49 HU 4.1 leaf (23
   assert.equal(p.values.HANDFANG, 1040); // 1040 from the leaf's bottom + HG_BIL 10 = 1050 from the floor (user, 2026-10-13)
   assert.deepEqual(p.on.jambHinge, ["COPLAN_KARM"]);
   assert.deepEqual(p.on.leaf, ["COPLAN", "IN_20_835_60_BA", "FELLI_THROSKULDUR"]);
-  assert.equal(p.status, "check"); // strike plate macro not confirmed yet
+  assert.equal(p.status, "ok"); // strike-plate macro confirmed 2026-10-13 against the real master
 });
 
 test("missing data stops the door, unknown lock only warns", () => {
@@ -61,34 +61,33 @@ test("renderBpp: numbers in, managed macros switched, other sections untouched, 
   assert.deepEqual(C.readValues(r.text), p.values);               // the file is its own record
 });
 
-// ── What's actually confirmed vs assumed about the strike plate (2026-10-13 correction) ──────
-// The hinge side IS confirmed: the JAMB fixture above is a trimmed copy of the shop's real
-// karmur_lamir_M.bpp, and it shows the jamb computing HG_BIL+LOM3 / HG_BIL+HURD_H-LOM1 itself —
-// i.e. the real master already adds the floor gap on the jamb side, in its own coordinate frame.
-// The lock/strike side is NOT confirmed the same way (see LOCKS[...].confirm, surfaced as a ⚠️
-// on every door that uses this lock) — nobody has read the real karmur_sluttjarn master, so
-// nobody knows what expression it actually uses for the strike-plate height, or whether this
-// hardware's latch sits at the same height as its own handle centre (a HANDFANG+offset would be
-// a per-product hardware spec, not something this code can derive). A prior version of this test
-// invented a "HG_BIL+HANDFANG" jamb formula to mirror the hinge pattern and asserted it matched —
-// that only proved the invented formula was internally consistent with itself, not that it's the
-// real one. Removed; don't re-add a strike-plate formula here without reading the real master.
-test("renderBpp substitutes the same HANDFANG number everywhere it's referenced, regardless of the surrounding formula", () => {
-  // This is the one thing we CAN prove without the real strike-plate master: whatever expression
-  // the real master turns out to use, every literal occurrence of the word HANDFANG in it will be
-  // replaced by the exact same number doorPlan() computed — because renderBpp does a single blind
-  // text substitution, not a per-file recomputation. It does not prove the expression is correct.
+// ── Strike plate height, confirmed against the real masters (2026-10-13) ─────────────────────
+// A prior version of this test invented a "HG_BIL+HANDFANG" jamb formula by analogy with the
+// (already-confirmed) hinge pattern and asserted it matched — that only proved the invented
+// formula was consistent with itself, not that it's real. Fixed by reading the actual USB stick:
+// leaf's [01] - Hurd.bpp has `GLB=HANDFANG_|HANDFANG||0|` (leaf-relative — no correction needed,
+// HANDFANG is already measured from the leaf's own bottom) and `IN_20_835_60_BA ... : HANDFANG_`;
+// both jamb variants (karmur_sluttjarn.bpp and _M.bpp) have `GLB=HANDFANG_|HG_BIL+HANDFANG||0|`
+// (jamb is floor-relative, so it adds the leaf-to-floor gap) and `IN_20_835_60_BA_SLUTJARN ...
+// : Handfang_` — the exact same leaf/jamb split already confirmed for LOM1-3 above. LOCKS[...]
+// no longer carries a `confirm` flag for this lock as a result.
+const LEAF_LOCK = [
+  "[VARIABLES]", "PAN=LPX|HURD_B||4|", "PAN=LPY|HURD_H||4|", "PAN=LPZ|HURD_Z||4|", "GLB=HANDFANG_|HANDFANG||0|", "",
+  "[PROGRAM]", "", `@ IN_20_835_60_BA, "", "", 132087908, "", 0 : HANDFANG_`, "",
+].join("\r\n");
+const JAMB_STRIKE = [
+  "[VARIABLES]", "PAN=LPX|HURD_H+HG_BIL+HK_BIL||4|", "PAN=LPY|KARMAR_B||4|", "PAN=LPZ|KARMAR_Z||4|", "GLB=HANDFANG_|HG_BIL+HANDFANG||0|", "",
+  "[PROGRAM]", "", `' IN_20_835_60_BA_SLUTJARN, "", "", 131820940, "", 0 : Handfang_`, "",
+].join("\r\n");
+test("leaf and jamb strike plate both resolve to 1050mm from the floor, via the real masters' own formulas", () => {
   const p = C.doorPlan(DOOR);
-  const master = [
-    "[VARIABLES]", "PAN=LPX|HANDFANG||4|", "PAN=LPY|HG_BIL+HANDFANG||4|", "PAN=LPZ|2*HANDFANG||4|", "",
-    "[PROGRAM]", "", `@ IN_20_835_60_BA, "", "", 1, "", 0 : HANDFANG`, "",
-  ].join("\r\n");
-  const r = C.renderBpp(master, p.values, C.MANAGED.leaf, ["IN_20_835_60_BA"]);
-  assert.deepEqual(r.errors, []);
-  assert.ok(r.text.includes("PAN=LPX|1040|"));
-  assert.ok(r.text.includes("PAN=LPY|1050|"));           // 10 + 1040, if the real master turns out to use this form
-  assert.ok(r.text.includes(`: ${p.values.HANDFANG}`));
-  assert.equal(p.values.HANDFANG, 1040);
+  const leaf = C.renderBpp(LEAF_LOCK, p.values, C.MANAGED.leaf, ["IN_20_835_60_BA"]);
+  const jamb = C.renderBpp(JAMB_STRIKE, p.values, C.MANAGED.jambStrike, ["IN_20_835_60_BA_SLUTJARN"]);
+  assert.deepEqual(leaf.errors, []); assert.deepEqual(jamb.errors, []);
+  assert.ok(leaf.text.includes("GLB=HANDFANG_|1040||0|"));      // leaf's own zero = leaf's bottom
+  assert.ok(jamb.text.includes("GLB=HANDFANG_|10+1040||0|"));   // jamb's own zero = the floor
+  assert.ok(leaf.text.includes('@ IN_20_835_60_BA, "", "", 132087908, "", 0 : HANDFANG_'));
+  assert.ok(jamb.text.includes('@ IN_20_835_60_BA_SLUTJARN, "", "", 131820940, "", 0 : Handfang_')); // switched on
 });
 
 test("a macro the master doesn't have is an error, not a silent skip", () => {
