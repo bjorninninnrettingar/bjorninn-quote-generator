@@ -25,6 +25,13 @@ CACHE = os.path.join(ROOT, "tools", ".egger-cache.json")
 CATS = {"Frontaefni": "front", "Borðplata": "top"}
 TRY = ["9", "40", "32", "PM", "PA", "10", "12", "19", "22", "28", "38", "76", "87", "36", "15", "2", "75", "20", "7", "37", "TM9", "TM12", "TM28", "TM37", "PG", "SM", "11", "16", "24", "25", "29", "30", "33", "35", "39"]
 LABEL_OVERRIDES = {}
+# A uni colour sold under the "PerfectSense" name is Egger's soft-matte PM structure — but plenty of these
+# codes *also* have an ST9 (plain melamine) or other decor page for the same colour, and "9" sits earlier than
+# "PM" in TRY above, so an Airtable row like "PerfectSense matt 19 mm U665 Stone Green" (no structure code in
+# the name) silently matched the wrong, non-PerfectSense page (2026-10-13). Codes with their own explicit,
+# conflicting structure hint (e.g. U999/W1100 also have a "PerfectSense TM9 ..." row) need a hard override
+# rather than the generic empty-hints fallback below.
+STRUCTURE_OVERRIDES = {"U999": "PM", "W1100": "PM"}
 UA = {"User-Agent": "Mozilla/5.0 (Bjorninn kitchen planner decor sync)"}
 
 def http(url, binary=False):
@@ -93,6 +100,13 @@ def main():
         d = decors.setdefault(code, {"code": code, "hints": [], "rows": []})
         d["hints"] += [h for h in structures_from_name(name) if h not in d["hints"]]
         d["rows"].append({"id": r["id"], "cat": cat, "name": name, "mm": f.get("Þykkt (mm)")})
+    for code, d in decors.items():
+        if code in STRUCTURE_OVERRIDES:
+            ov = STRUCTURE_OVERRIDES[code]
+            if ov in d["hints"]: d["hints"].remove(ov)
+            d["hints"].insert(0, ov)
+        elif code[0] != "H" and not d["hints"] and any("perfectsense" in row["name"].lower() for row in d["rows"]):
+            d["hints"] = ["PM"]
     codes = sorted(decors)[:limit] if limit else sorted(decors)
     result, missing = {}, []
     # look the pages up 6 at a time (most of the time goes into probing structures that 404)
