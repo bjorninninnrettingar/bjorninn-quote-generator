@@ -33,6 +33,8 @@
   button.primary { background:var(--blue); border-color:#3d9bff; }
   button:disabled { opacity:.4; cursor:default; }
   label.opt { display:flex; gap:8px; align-items:center; font-size:.85rem; color:var(--muted); }
+  .mode-picker { display:flex; flex-wrap:wrap; gap:12px; padding:9px 12px; border:1px solid var(--line); background:var(--surface); border-radius:10px; }
+  .mode-picker input { accent-color:var(--blue); width:17px; height:17px; }
   .card { display:grid; grid-template-columns:26px 1fr auto; gap:12px; background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:12px 14px; margin-top:10px; }
   .card.stop { opacity:.8; }
   .card h3 { font-size:1.05rem; font-weight:800; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
@@ -59,7 +61,14 @@
 
   <div class="bar">
     <select id="projSel"><option value="">Hleð verkefnum…</option></select>
-    <label class="opt">Fræsa <select id="cutMode" style="min-width:190px"><option value="all">Allt</option><option value="locks">Aðeins hurðaskrár</option><option value="hinges">Aðeins lamir</option><option value="jambs">Aðeins karmar</option><option value="custom">Handvirkt val</option></select></label><button class="primary" id="writeBtn" disabled>💾 Skrifa á USB</button>
+    <div class="mode-picker" id="modePicker" aria-label="Fræsival">
+      <label class="opt"><input type="checkbox" data-cut="all" checked /> Allt</label>
+      <label class="opt"><input type="checkbox" data-cut="locks" /> Hurðaskrár</label>
+      <label class="opt"><input type="checkbox" data-cut="hinges" /> Lamir</label>
+      <label class="opt"><input type="checkbox" data-cut="jambs" /> Karmar</label>
+      <label class="opt"><input type="checkbox" data-cut="custom" /> Handvirkt val</label>
+    </div>
+    <button class="primary" id="writeBtn" disabled>💾 Skrifa á USB</button>
     <label class="opt" title="Skúffuhólf = skorinn front + grip. Kemur seinna af höldunni sjálfri (Vörulisti).">Grip á skúffufrontum <input type="number" id="gripMm" value="0" min="0" max="60" step="0.5" style="width:70px;padding:6px 8px" /> mm</label>
     <label class="opt"><input type="checkbox" id="overwriteJamb" /> Yfirskrifa karma sem eru til (aðeins ef þeir hafa EKKI verið fræstir)</label>
   </div>
@@ -176,24 +185,47 @@
   }
   $("gripMm").oninput = planSides;
 
-  function mode() { return $("cutMode").value; }
-  $("cutMode").addEventListener("change", render);
+  function modes() {
+    return Array.from(document.querySelectorAll("[data-cut]:checked")).map(function(e){return e.dataset.cut;});
+  }
+  document.querySelectorAll("[data-cut]").forEach(function(box) {
+    box.addEventListener("change", function() {
+      if (box.checked && (box.dataset.cut === "all" || box.dataset.cut === "custom")) {
+        document.querySelectorAll("[data-cut]").forEach(function(x){if(x !== box)x.checked=false;});
+      } else if (box.checked) {
+        document.querySelectorAll('[data-cut="all"],[data-cut="custom"]').forEach(function(x){x.checked=false;});
+      }
+      render();
+    });
+  });
   function specialFiles(plan, prefix, chosen) {
-    var fs = D.filesFor(plan, prefix, true);
-    if (chosen === "locks") return fs.filter(f => f.kind === "leaf" || f.kind === "slut").map(f => Object.assign({}, f, {
-      name: f.kind === "leaf" ? "Hurðaskrá blað.bpp" : "Hurðaskrá slúttjárn.bpp",
-      on: f.kind === "leaf" ? plan.on.leaf.filter(x => x === "EN12209" || x === "IN_20_835_60_BA" || x === "IN_20_937") : f.on
-    }));
-    if (chosen === "hinges") return fs.filter(f => f.kind === "leaf" || f.kind === "lamir").map(f => Object.assign({}, f, {
-      name: f.kind === "leaf" ? "Lamir blað.bpp" : "Lamir karmur.bpp",
-      on: f.kind === "leaf" ? plan.on.leaf.filter(x => x === "COPLAN" || x === "LAMIR_89_HURD" || x === "IN05020_LAMIR_JNF" || x === "HYDRAULIC_PIVOT_W_SYSTEM") : f.on
-    }));
-    if (chosen === "jambs") return fs.filter(f => f.kind !== "leaf").map(f => Object.assign({}, f, { name: "Karmar " + f.name }));
-    return fs;
+    var fs = D.filesFor(plan, prefix, true), leaf = fs.find(function(f){return f.kind === "leaf";});
+    var lockMacros = ["EN12209", "IN_20_835_60_BA", "IN_20_937"];
+    var hingeMacros = ["COPLAN", "LAMIR_89_HURD", "IN05020_LAMIR_JNF", "HYDRAULIC_PIVOT_W_SYSTEM"];
+    var kinds = chosen.includes("jambs") ? ["lamir", "slut", "topp"] : [];
+    if (chosen.includes("locks") && !kinds.includes("slut")) kinds.push("slut");
+    if (chosen.includes("hinges") && !kinds.includes("lamir")) kinds.push("lamir");
+    var out = [];
+    if (chosen.includes("locks") || chosen.includes("hinges")) {
+      out.push(Object.assign({},leaf,{
+        name:"Sérfræsing hurðablað.bpp",
+        on:plan.on.leaf.filter(function(x){return (chosen.includes("locks") && lockMacros.includes(x)) || (chosen.includes("hinges") && hingeMacros.includes(x));})
+      }));
+    }
+    kinds.forEach(function(k) {
+      var f=fs.find(function(x){return x.kind===k;});
+      if(f) out.push(Object.assign({},f,{name:"Sérfræsing "+f.name}));
+    });
+    return out;
+  }
+  function selectedDoor(plan, selected) {
+    return selected.includes("all") || selected.includes("custom") || selected.includes("jambs") ||
+      (selected.includes("locks") && plan.on.jambStrike.length > 0) ||
+      (selected.includes("hinges") && plan.on.jambHinge.length > 0);
   }
   function render() {
     if (!project) return;
-    var pre = project.prefix, h = "", choice = mode();
+    var pre = project.prefix, h = "", selected = modes(), full = selected.includes("all"), manual = selected.includes("custom");
     var nSide = groups.length, nCab = groups.reduce(function (a, g) { return a + g.cabinets; }, 0);
     h += "<h2>Skápar <small>" + nSide + " möppur · " + nCab + " skápar" + (stopped.length ? " · " + stopped.length + " ⛔" : "") + "</small></h2>";
     if (!nSide && !stopped.length) h += '<div class="empty">Engar skápahliðar í Sögunarlista.</div>';
@@ -201,7 +233,7 @@
       var p = g.plans[0], st = g.plans.some(function (x) { return x.status === "check"; }) ? "check" : "ok";
       var notes = [];
       g.plans.forEach(function (x) { x.check.forEach(function (c) { if (notes.indexOf(c) < 0) notes.push(c); }); });
-      h += '<div class="card ' + st + '"><input type="checkbox" data-side="' + i + '" ' + (choice === "all" || choice === "custom" ? "checked" : "disabled") + ' style="width:20px;height:20px;margin-top:3px" />' +
+      h += '<div class="card ' + st + '"><input type="checkbox" data-side="' + i + '" ' + (full || manual ? "checked" : "disabled") + ' style="width:20px;height:20px;margin-top:3px" />' +
         "<div><h3>" + esc(g.label) + ' <span class="chip ' + st + '">' + (st === "ok" ? "✅ Tilbúið" : "⚠️ Athuga") + "</span></h3>" +
         '<div class="meta"><b>' + p.LPX + " × " + p.LPY + " × " + p.LPZ + "</b> · " + g.cabinets + " skáp" + (g.cabinets > 1 ? "ar" : "ur") + " · " +
           esc(p.name) + (p.groove ? " · masonít-rauf" : " · engin rauf") + "</div>" +
@@ -221,7 +253,7 @@
     doors.forEach(function (d, i) {
       var pl = d.plan, v = pl.values || {};
       var notes = pl.stop.map(function (s) { return '<li class="stop">⛔ ' + esc(s) + "</li>"; }).concat(pl.check.map(function (s) { return '<li class="check">⚠️ ' + esc(s) + "</li>"; })).join("");
-      h += '<div class="card ' + pl.status + '"><input type="checkbox" data-door="' + i + '" ' + (pl.status === "stop" ? "disabled" : (choice === "all" || choice === "custom" || choice === "jambs" || (choice === "locks" && pl.on.jambStrike.length) || (choice === "hinges" && pl.on.jambHinge.length) ? "checked" : "")) + (choice === "custom" ? "" : " disabled") + ' style="width:20px;height:20px;margin-top:3px" />' +
+      h += '<div class="card ' + pl.status + '"><input type="checkbox" data-door="' + i + '" ' + (pl.status === "stop" ? "disabled" : (selectedDoor(pl, selected) ? "checked" : "")) + (manual ? "" : " disabled") + ' style="width:20px;height:20px;margin-top:3px" />' +
         "<div><h3>" + esc(pl.id) + ' <span class="chip ' + pl.status + '">' + { ok: "✅ Tilbúið", check: "⚠️ Athuga", stop: "⛔ Vantar gögn" }[pl.status] + "</span></h3>" +
         '<div class="meta">Op ' + esc(d.rec.fields["Hæð"]) + " × " + esc(d.rec.fields["Breidd"]) +
           (pl.values ? " · blað <b>" + v.HURD_H + " × " + v.HURD_B + " × " + v.HURD_Z + "</b> · karmur " + v.KARMAR_Z + " × " + v.KARMAR_B + " · " + esc(pl.topp) : "") +
@@ -230,7 +262,7 @@
         "<div>" + (pl.values ? elevation(v) : "") + "</div></div>";
     });
     $("out").innerHTML = h;
-    $("writeBtn").disabled = !(groups.length || doors.some(function (d) { return d.plan.status !== "stop"; }));
+    $("writeBtn").disabled = !selected.length || !(full || manual ? (groups.length || doors.some(function(d){return d.plan.status !== "stop";})) : doors.some(function(d){return d.plan.status !== "stop" && selectedDoor(d.plan,selected);}));
   }
 
   // Door leaf next to its hinge-side jamb, to scale, floor at the bottom — hinges and lock must line up across.
@@ -270,7 +302,7 @@
 
   async function writeUsb(pickedDir) {
     if (!project) return;
-    var pre = project.prefix, overwrite = $("overwriteJamb").checked, choice = mode(), partial = choice !== "all" && choice !== "custom";
+    var pre = project.prefix, overwrite = $("overwriteJamb").checked, selected = modes(), partial = !selected.includes("all") && !selected.includes("custom"), selectionKey = selected.slice().sort().join("-");
     var sideSel = partial ? [] : Array.prototype.map.call(document.querySelectorAll("[data-side]:checked"), function (c) { return groups[+c.dataset.side]; });
     var doorSel = Array.prototype.map.call(document.querySelectorAll("[data-door]:checked"), function (c) { return doors[+c.dataset.door]; });
     if (!sideSel.length && !doorSel.length) return;
@@ -336,8 +368,8 @@
         // Hurðir/<HU>/ with short names — unless this door's jamb was made in the old flat layout: then its files stay next to it
         var oldJamb = partial ? null : await tryFile(job, files[1].name), ddir = oldJamb ? job : await sub(doorDir, pl.id.replace(/[\\/:*?"<>|]+/g, "-"), true);
         if (!oldJamb) files = D.filesFor(pl, pre, true);
-        if (partial) { ddir = await sub(await sub(ddir, "Sérfræsing", true), choice, true); files = specialFiles(pl, pre, choice); }
-        var where = ddir === job ? "" : "Hurðir/" + pl.id + "/" + (partial ? "Sérfræsing/" + choice + "/" : "");
+        if (partial) { ddir = await sub(await sub(ddir, "Sérfræsing", true), selectionKey, true); files = specialFiles(pl, pre, selected); }
+        var where = ddir === job ? "" : "Hurðir/" + pl.id + "/" + (partial ? "Sérfræsing/" + selectionKey + "/" : "");
         var jambFile = partial ? null : oldJamb || await tryFile(ddir, files[1].name);
         if (jambFile) {
           var saved = D.readValues(await readText(jambFile));
@@ -366,7 +398,7 @@
         "SKRÁR (" + made.length + "):"].concat(made.map(function (s) { return "  " + s; }),
         ["", "ATHUGA (" + warn.length + "):"], warn.map(function (s) { return "  " + s; }),
         ["", "EKKI GERT — þarf að forrita í höndunum eða laga gögn (" + missing.length + "):"], missing.map(function (s) { return "  " + s; }));
-      await writeBytes(job, pre + " CNC" + (partial ? " " + choice : "") + " skrá.txt", D.toCp1252(sheet.join("\r\n") + "\r\n"));
+      await writeBytes(job, pre + " CNC" + (partial ? " " + selectionKey : "") + " skrá.txt", D.toCp1252(sheet.join("\r\n") + "\r\n"));
       log("📒 " + pre + " CNC skrá.txt — " + made.length + " skrár, " + warn.length + " ⚠, " + missing.length + " ⛔. Búið.");
     } catch (e) {
       log("⛔ Villa: " + e.message);
