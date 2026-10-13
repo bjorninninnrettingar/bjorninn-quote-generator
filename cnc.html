@@ -59,7 +59,7 @@
 
   <div class="bar">
     <select id="projSel"><option value="">Hleð verkefnum…</option></select>
-    <button class="primary" id="writeBtn" disabled>💾 Skrifa á USB</button>
+    <label class="opt">Fræsa <select id="cutMode" style="min-width:190px"><option value="all">Allt</option><option value="locks">Aðeins hurðaskrár</option><option value="hinges">Aðeins lamir</option><option value="jambs">Aðeins karmar</option><option value="custom">Handvirkt val</option></select></label><button class="primary" id="writeBtn" disabled>💾 Skrifa á USB</button>
     <label class="opt" title="Skúffuhólf = skorinn front + grip. Kemur seinna af höldunni sjálfri (Vörulisti).">Grip á skúffufrontum <input type="number" id="gripMm" value="0" min="0" max="60" step="0.5" style="width:70px;padding:6px 8px" /> mm</label>
     <label class="opt"><input type="checkbox" id="overwriteJamb" /> Yfirskrifa karma sem eru til (aðeins ef þeir hafa EKKI verið fræstir)</label>
   </div>
@@ -176,9 +176,24 @@
   }
   $("gripMm").oninput = planSides;
 
+  function mode() { return $("cutMode").value; }
+  $("cutMode").addEventListener("change", render);
+  function specialFiles(plan, prefix, chosen) {
+    var fs = D.filesFor(plan, prefix, true);
+    if (chosen === "locks") return fs.filter(f => f.kind === "leaf" || f.kind === "slut").map(f => Object.assign({}, f, {
+      name: f.kind === "leaf" ? "Hurðaskrá blað.bpp" : "Hurðaskrá slúttjárn.bpp",
+      on: f.kind === "leaf" ? plan.on.leaf.filter(x => x === "EN12209" || x === "IN_20_835_60_BA" || x === "IN_20_937") : f.on
+    }));
+    if (chosen === "hinges") return fs.filter(f => f.kind === "leaf" || f.kind === "lamir").map(f => Object.assign({}, f, {
+      name: f.kind === "leaf" ? "Lamir blað.bpp" : "Lamir karmur.bpp",
+      on: f.kind === "leaf" ? plan.on.leaf.filter(x => x === "COPLAN" || x === "LAMIR_89_HURD" || x === "IN05020_LAMIR_JNF" || x === "HYDRAULIC_PIVOT_W_SYSTEM") : f.on
+    }));
+    if (chosen === "jambs") return fs.filter(f => f.kind !== "leaf").map(f => Object.assign({}, f, { name: "Karmar " + f.name }));
+    return fs;
+  }
   function render() {
     if (!project) return;
-    var pre = project.prefix, h = "";
+    var pre = project.prefix, h = "", choice = mode();
     var nSide = groups.length, nCab = groups.reduce(function (a, g) { return a + g.cabinets; }, 0);
     h += "<h2>Skápar <small>" + nSide + " möppur · " + nCab + " skápar" + (stopped.length ? " · " + stopped.length + " ⛔" : "") + "</small></h2>";
     if (!nSide && !stopped.length) h += '<div class="empty">Engar skápahliðar í Sögunarlista.</div>';
@@ -186,7 +201,7 @@
       var p = g.plans[0], st = g.plans.some(function (x) { return x.status === "check"; }) ? "check" : "ok";
       var notes = [];
       g.plans.forEach(function (x) { x.check.forEach(function (c) { if (notes.indexOf(c) < 0) notes.push(c); }); });
-      h += '<div class="card ' + st + '"><input type="checkbox" data-side="' + i + '" checked style="width:20px;height:20px;margin-top:3px" />' +
+      h += '<div class="card ' + st + '"><input type="checkbox" data-side="' + i + '" ' + (choice === "all" || choice === "custom" ? "checked" : "disabled") + ' style="width:20px;height:20px;margin-top:3px" />' +
         "<div><h3>" + esc(g.label) + ' <span class="chip ' + st + '">' + (st === "ok" ? "✅ Tilbúið" : "⚠️ Athuga") + "</span></h3>" +
         '<div class="meta"><b>' + p.LPX + " × " + p.LPY + " × " + p.LPZ + "</b> · " + g.cabinets + " skáp" + (g.cabinets > 1 ? "ar" : "ur") + " · " +
           esc(p.name) + (p.groove ? " · masonít-rauf" : " · engin rauf") + "</div>" +
@@ -206,7 +221,7 @@
     doors.forEach(function (d, i) {
       var pl = d.plan, v = pl.values || {};
       var notes = pl.stop.map(function (s) { return '<li class="stop">⛔ ' + esc(s) + "</li>"; }).concat(pl.check.map(function (s) { return '<li class="check">⚠️ ' + esc(s) + "</li>"; })).join("");
-      h += '<div class="card ' + pl.status + '"><input type="checkbox" data-door="' + i + '" ' + (pl.status === "stop" ? "disabled" : "checked") + ' style="width:20px;height:20px;margin-top:3px" />' +
+      h += '<div class="card ' + pl.status + '"><input type="checkbox" data-door="' + i + '" ' + (pl.status === "stop" ? "disabled" : (choice === "all" || choice === "custom" || choice === "jambs" || (choice === "locks" && pl.on.jambStrike.length) || (choice === "hinges" && pl.on.jambHinge.length) ? "checked" : "")) + (choice === "custom" ? "" : " disabled") + ' style="width:20px;height:20px;margin-top:3px" />' +
         "<div><h3>" + esc(pl.id) + ' <span class="chip ' + pl.status + '">' + { ok: "✅ Tilbúið", check: "⚠️ Athuga", stop: "⛔ Vantar gögn" }[pl.status] + "</span></h3>" +
         '<div class="meta">Op ' + esc(d.rec.fields["Hæð"]) + " × " + esc(d.rec.fields["Breidd"]) +
           (pl.values ? " · blað <b>" + v.HURD_H + " × " + v.HURD_B + " × " + v.HURD_Z + "</b> · karmur " + v.KARMAR_Z + " × " + v.KARMAR_B + " · " + esc(pl.topp) : "") +
@@ -255,8 +270,8 @@
 
   async function writeUsb(pickedDir) {
     if (!project) return;
-    var pre = project.prefix, overwrite = $("overwriteJamb").checked;
-    var sideSel = Array.prototype.map.call(document.querySelectorAll("[data-side]:checked"), function (c) { return groups[+c.dataset.side]; });
+    var pre = project.prefix, overwrite = $("overwriteJamb").checked, choice = mode(), partial = choice !== "all" && choice !== "custom";
+    var sideSel = partial ? [] : Array.prototype.map.call(document.querySelectorAll("[data-side]:checked"), function (c) { return groups[+c.dataset.side]; });
     var doorSel = Array.prototype.map.call(document.querySelectorAll("[data-door]:checked"), function (c) { return doors[+c.dataset.door]; });
     if (!sideSel.length && !doorSel.length) return;
     if (!pickedDir) {
@@ -297,7 +312,7 @@
       }
       // Files this page made before (marked inside) that this export no longer produces are removed — a regrouped
       // project never leaves a stale program behind. Hand-made files are never touched. Only on a full export.
-      if (sideSel.length === groups.length) {
+      if (!partial && sideSel.length === groups.length) {
         var dropMarked = async function (dir, keep, label) {
           for await (var en of dir.values()) {
             if (en.kind !== "file" || keep[en.name] || !/\.bpp$/i.test(en.name)) continue;
@@ -319,10 +334,11 @@
       for (var d of doorSel) {
         var pl = d.plan, files = D.filesFor(pl, pre), values = pl.values, jambKept = false;
         // Hurðir/<HU>/ with short names — unless this door's jamb was made in the old flat layout: then its files stay next to it
-        var oldJamb = await tryFile(job, files[1].name), ddir = oldJamb ? job : await sub(doorDir, pl.id.replace(/[\\/:*?"<>|]+/g, "-"), true);
+        var oldJamb = partial ? null : await tryFile(job, files[1].name), ddir = oldJamb ? job : await sub(doorDir, pl.id.replace(/[\\/:*?"<>|]+/g, "-"), true);
         if (!oldJamb) files = D.filesFor(pl, pre, true);
-        var where = ddir === job ? "" : "Hurðir/" + pl.id + "/";
-        var jambFile = oldJamb || await tryFile(ddir, files[1].name);
+        if (partial) { ddir = await sub(await sub(ddir, "Sérfræsing", true), choice, true); files = specialFiles(pl, pre, choice); }
+        var where = ddir === job ? "" : "Hurðir/" + pl.id + "/" + (partial ? "Sérfræsing/" + choice + "/" : "");
+        var jambFile = partial ? null : oldJamb || await tryFile(ddir, files[1].name);
         if (jambFile) {
           var saved = D.readValues(await readText(jambFile));
           if (!saved) { log("⚠️ " + pl.id + ": „" + files[1].name + "“ er til en var ekki gerður hér. " + (overwrite ? "Yfirskrifa." : "Karmar ekki snertir; blað gert eftir Airtable — BERA SAMAN við karminn.")); jambKept = !overwrite; }
@@ -341,7 +357,7 @@
         logBlocks.push(D.logText(Object.assign({}, pl, { values: values }), project.name, when));
       }
       doors.filter(function (d) { return d.plan.status === "stop"; }).forEach(function (d) { missing.push(d.plan.id + ": " + d.plan.stop.join(" · ")); });
-      if (logBlocks.length) {
+      if (!partial && logBlocks.length) {
         var logName = pre + " Hurðaskrá.txt", oldLog = await tryFile(job, logName), prev = oldLog ? await readText(oldLog) : "";
         await writeBytes(job, logName, D.toCp1252(prev + (prev ? "\r\n" : "") + logBlocks.join("\r\n" + "-".repeat(60) + "\r\n")));
       }
@@ -350,7 +366,7 @@
         "SKRÁR (" + made.length + "):"].concat(made.map(function (s) { return "  " + s; }),
         ["", "ATHUGA (" + warn.length + "):"], warn.map(function (s) { return "  " + s; }),
         ["", "EKKI GERT — þarf að forrita í höndunum eða laga gögn (" + missing.length + "):"], missing.map(function (s) { return "  " + s; }));
-      await writeBytes(job, pre + " CNC skrá.txt", D.toCp1252(sheet.join("\r\n") + "\r\n"));
+      await writeBytes(job, pre + " CNC" + (partial ? " " + choice : "") + " skrá.txt", D.toCp1252(sheet.join("\r\n") + "\r\n"));
       log("📒 " + pre + " CNC skrá.txt — " + made.length + " skrár, " + warn.length + " ⚠, " + missing.length + " ⛔. Búið.");
     } catch (e) {
       log("⛔ Villa: " + e.message);
