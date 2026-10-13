@@ -13,7 +13,7 @@
      close to /saga going into real use. */
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    background: #0a0a0a;
+    background: #2a2a2a;
     color: #f0f0f0;
     font-family: "Kumbh Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
     min-height: 100vh;
@@ -511,6 +511,10 @@
       </div>
     </div>
     <div class="sub" id="projectStatus" style="margin:0;">Sæki Sögunarlista…</div>
+    <!-- Board-count stats live in the header pill, not buried down by the
+         boards themselves — this is exactly the number that decides whether
+         the current layout/order is good, so it needs to be seen first. -->
+    <div class="stat-row no-print" id="statRow" style="margin-bottom:0;"></div>
     <div id="planStrip" class="no-print"></div>
     <div class="project-actions">
       <button class="ghost small" onclick="resetAll()">← Annað verkefni</button>
@@ -602,7 +606,6 @@
     <div id="matchNote" class="hint no-print" style="margin-bottom:10px;"></div>
     <div id="overflowWarn"></div>
 
-    <div class="stat-row no-print" id="statRow"></div>
     <div id="estimateCard" class="no-print"></div>
 
     <div class="workspace">
@@ -1675,8 +1678,11 @@ function selectMaterial(key) {
   } else {
     board = { w: 2070, l: 2800, name: "" };
   }
+  // Only a real problem (no board match — the size field must be entered by
+  // hand) is worth a note here; a successful match is the expected case and
+  // doesn't need to be announced, same as elsewhere on this page.
   $("matchNote").innerHTML = bd
-    ? `Plata fundin: <b>${esc(bd.name)}</b> (${bd.w}×${bd.l}×${bd.th} mm). Breyttu að ofan ef rangt.`
+    ? ""
     : `⚠ Engin plata fannst fyrir "${esc(mat.efni)}" ${mat.th} mm í Efnislista — sláðu inn plötustærð að ofan.`;
 
   manualFronts = loadManual();
@@ -2514,10 +2520,27 @@ function allSheetsEstimate() {
     }
   }
   const u = usable();
+  // Keep the actual winning placement (not just the sheet count) for "all" —
+  // estimateAllSheets() renders it read-only so the office can SEE every
+  // board and every front the order covers, not just a number. Same
+  // col-vs-row-first tie-break autoNest() uses for the real plan.
+  const colFirst = packGuillotine(allGroups, u.w, u.l, groupWidth, groupLen);
+  const rowFirst = packGuillotine(allGroups, u.l, u.w, groupLen, groupWidth);
+  const useRowFirst = rowFirst.sheets.length < colFirst.sheets.length;
+  const winner = useRowFirst ? rowFirst : colFirst;
+  const toXY = useRowFirst ? (p => ({ x: p.secondary, y: p.primary })) : (p => ({ x: p.primary, y: p.secondary }));
+  const allBoards = winner.sheets.map(s => {
+    const xy = {};
+    for (const [gid, p] of Object.entries(s.place)) xy[gid] = toXY(p);
+    return { placements: offsetPlace(xy) };
+  });
   const sheetsOf = list => Math.min(
     packGuillotine(list, u.w, u.l, groupWidth, groupLen).sheets.length,
     packGuillotine(list, u.l, u.w, groupLen, groupWidth).sheets.length);
-  allSheetsCache = { all: sheetsOf(allGroups), kt: sheetsOf(allGroups.filter(g => g.keepTogether)) };
+  allSheetsCache = {
+    all: allBoards.length, kt: sheetsOf(allGroups.filter(g => g.keepTogether)),
+    allGroups, allBoards,
+  };
   return allSheetsCache;
 }
 function estimateAllSheets() {
@@ -2542,7 +2565,71 @@ function estimateAllSheets() {
     <div class="hint">Núverandi röðun hér (aðeins samfellu-hópar): ${currentSheets} plötur. Gróf áætlun til að panta efni — breytir engu í röðuninni sjálfri.</div>
     ${staleWarning}
   </div>`;
+  if (est.allBoards?.length) {
+    card.querySelector(".card").appendChild(renderEstimateBoards(est.allGroups, est.allBoards));
+  }
   estimateShown = true;
+}
+
+// Read-only preview of the whole-material estimate above — every board AND
+// every front it covers, not just the sheet count, so the office can
+// actually look at what they're about to order. Deliberately NOT the
+// interactive renderBoards(): no drag, no lock/remove buttons, nothing that
+// could mutate `layout`/`groups` — this is a throwaway packing (see
+// allSheetsEstimate), never the real plan, and must stay impossible to edit.
+function renderEstimateBoards(groupsForEstimate, boards) {
+  const col = document.createElement("div");
+  col.style.cssText = "display:flex;flex-wrap:wrap;gap:14px;margin-top:14px;";
+  const svgNS = "http://www.w3.org/2000/svg";
+  const PXW = 260; // smaller than the real board-wrap (680) — a glance-only preview
+  const scale = PXW / board.w;
+  const svgW = board.w * scale, svgH = board.l * scale;
+
+  boards.forEach((b, bi) => {
+    const wrap = document.createElement("div");
+    wrap.innerHTML = `<div style="font-size:0.75rem;color:#9fc6ff;margin-bottom:3px;">Plata ${bi + 1}</div>`;
+    const svg = document.createElementNS(svgNS, "svg");
+    svg.setAttribute("viewBox", `0 0 ${svgW} ${svgH}`);
+    svg.setAttribute("width", svgW);
+    svg.setAttribute("height", svgH);
+    svg.style.cssText = "background:#171310;border:1px solid #2a2a2a;border-radius:4px;";
+
+    Object.keys(b.placements).forEach(gid => {
+      const g = groupsForEstimate.find(x => x.id === gid);
+      if (!g) return;
+      const p = b.placements[gid];
+      const color = groupColor(g);
+      const gx = p.x * scale, gy = p.y * scale;
+      const horiz = g.orient !== "v";
+      let off = 0;
+      g.fronts.forEach(f => {
+        const cw = (g.orient === "h" ? f.h : g.width) * scale;
+        const ch = (g.orient === "s" ? f.h : g.orient === "h" ? g.width : f.h) * scale;
+        const cx = horiz ? p.x * scale + off : gx;
+        const cy = horiz ? gy : gy + off;
+        off += frontExtent(g, f) * scale + settings.kerf * scale;
+
+        const r = document.createElementNS(svgNS, "rect");
+        r.setAttribute("x", cx); r.setAttribute("y", cy);
+        r.setAttribute("width", cw); r.setAttribute("height", ch);
+        r.setAttribute("fill", color); r.setAttribute("fill-opacity", "0.45");
+        r.setAttribute("stroke", color); r.setAttribute("stroke-width", "1");
+        svg.appendChild(r);
+
+        if (cw > 24 && ch > 10) {
+          const t = document.createElementNS(svgNS, "text");
+          t.setAttribute("x", cx + 2); t.setAttribute("y", cy + 9);
+          t.setAttribute("fill", "#fff"); t.setAttribute("font-size", "7");
+          t.textContent = `${g.unitName || ""}`.trim();
+          svg.appendChild(t);
+        }
+      });
+    });
+
+    wrap.appendChild(svg);
+    col.appendChild(wrap);
+  });
+  return col;
 }
 
 // ── TOOLBAR ──────────────────────────────────────────────────────────────
