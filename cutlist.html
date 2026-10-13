@@ -574,11 +574,28 @@ async function airtableFetch(table, params, recordId) {
   return records;
 }
 
+// Proactive throttle, on top of fetchWithRetry's reactive retry-after-429
+// above: writeToUsb fires a PATCH per piece in a tight sequential loop with
+// no gap at all, so on a big project (T-15: ~280 pieces) it was essentially
+// guaranteed to hit Airtable's shared 5 req/s base limit by itself, before
+// any other traffic on the base even counts. Spacing our own calls ~210ms
+// apart keeps Cutty comfortably under 5/s on its own, so retries (and the
+// ⚠ warnings that mean "gave up after retrying") become the rare case
+// instead of the expected one on a large write.
+let lastPatchAt = 0;
+const PATCH_MIN_GAP_MS = 210;
+async function throttlePatch() {
+  const wait = lastPatchAt + PATCH_MIN_GAP_MS - Date.now();
+  if (wait > 0) await new Promise(r => setTimeout(r, wait));
+  lastPatchAt = Date.now();
+}
+
 // Narrow write path for the oversized-piece resolution flow (mark as manual
 // cut, or fix the recorded H/B). The proxy only allows this on Sögunarlisti,
 // and only on the fields listed in WRITABLE_FIELDS server-side — this client
 // code can't expand that, it's enforced independently on the server.
 async function patchSogunarlisti(recordId, fields) {
+  await throttlePatch();
   const url = new URL(PROXY_URL, window.location.origin);
   url.searchParams.set("path", `${SOGUNARLISTI_TABLE}/${recordId}`);
   const res = await fetchWithRetry(url.toString(), {
@@ -1219,6 +1236,7 @@ async function writeToUsb() {
     const jobDir = await rootDir.getDirectoryHandle(jobDirName, { create: true });
 
     let totalFiles = 0;
+    const failedWrites = []; // {pieceId, label, fileName, pieceNum} — retried once more after the full write, below
     for (const g of groupsToWrite) {
       if (!g.board) {
         log(`SLEPPT: ${g.material} (${g.thickness}mm) — engin plata fannst í Efnislisti.`);
@@ -1271,13 +1289,39 @@ async function writeToUsb() {
           try {
             await patchSogunarlisti(p.id, { "Skurðarskrá": fileName, "Skurðarnúmer": j + 1 });
           } catch (e) {
-            log(`  ⚠ Skurðarskrá ekki vistað fyrir ${p.label}: ${e.message}`);
+            failedWrites.push({ pieceId: p.id, label: p.label, fileName, pieceNum: j + 1 });
           }
         }
       }
       writtenMaterialKeys.add(materialKey(g));
     }
     saveWrittenMaterials(currentProject.id, writtenMaterialKeys);
+
+    // A 429 that outlasted fetchWithRetry's own ~21s backoff budget usually
+    // means the base was saturated by something else entirely (another
+    // automation, another user) right when we hit that one piece — not a
+    // permanent problem with that piece. By the time every other piece in
+    // the project has also been written (each now throttled, see
+    // throttlePatch), that congestion window has almost always passed, so
+    // one more pass over just the stragglers quietly cleans up the common
+    // case instead of leaving the operator to notice ⚠ lines and re-run
+    // the whole material by hand.
+    let stillFailed = failedWrites;
+    if (failedWrites.length) {
+      log(`Endurtek ${failedWrites.length} stykki sem náðu ekki að vistast…`);
+      stillFailed = [];
+      for (const f of failedWrites) {
+        try {
+          await patchSogunarlisti(f.pieceId, { "Skurðarskrá": f.fileName, "Skurðarnúmer": f.pieceNum });
+        } catch (e) {
+          stillFailed.push(f);
+        }
+      }
+    }
+    if (stillFailed.length) {
+      log(`⚠ ${stillFailed.length} stykki fengu ekki vistaðan kóða þrátt fyrir endurtekningu — kóðalaus í Merkingar, skurðarskráin sjálf er samt rétt: ${stillFailed.map(f => f.label).join(", ")}`);
+    }
+
     log(`Búið. ${totalFiles} skrár skrifaðar á USB.`);
   } catch (e) {
     log(`VILLA: ${e.message}`);
