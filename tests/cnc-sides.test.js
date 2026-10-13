@@ -76,16 +76,36 @@ test("renderSide: numbers in, master's managed lines off, generated lines in pla
   assert.deepEqual(r.errors, []);
   const L = r.text.split("\r\n");
   assert.ok(L.includes("PAN=LPX|800||4|") && L.includes("PAN=LPY|580||4|") && L.includes("PAN=LPZ|16||4|"));
-  assert.ok(L.some((l) => /^' LOM, "", "80"/.test(l)));                    // master's own hinge switched off
+  assert.ok(!L.some((l) => l.includes("LOM,")));                          // no hinges on this cabinet — gone, not just off
   assert.ok(L.some((l) => /^@ CUT_X, "", "Sögun f. masonit"/.test(l)));    // groove on
   assert.ok(L.some((l) => /^' CUT_X, "", "LED/.test(l)));                  // LED groove untouched
   const active = L.filter((l) => /^@ (TOPP_BOTN|SLA_HLID|MERIVOBOX_V2|MERVIBOX_INNSKUFFA),/.test(l));
   assert.equal(active.length, 5);
   const ids = L.map((l) => (l.match(/, (\d{9}), "", 0 :/) || [])[1]).filter(Boolean);
   assert.equal(new Set(ids).size, ids.length);                               // no duplicate object ids
-  // generated drawer lines sit right after the master's own (switched-off) drawer line
-  const i = L.findIndex((l) => l.startsWith("' MERIVOBOX_V2,"));
-  assert.ok(L[i + 1].startsWith("@ MERIVOBOX_V2,"));
+  // the master's own MERIVOBOX_V2 template (with its own example numbers) is gone entirely — only the
+  // two real generated lines take its place, right where the template used to be. LAUS_HILLA (no loose
+  // shelf on this cabinet) leaves no trace either, so the groove CUT_X line lands right before them.
+  assert.ok(!L.some((l) => l.startsWith("' MERIVOBOX_V2,")));
+  assert.ok(!L.some((l) => l.includes("LAUS_HILLA")));
+  const i = L.findIndex((l) => l.startsWith("@ MERIVOBOX_V2,"));
+  assert.ok(L[i - 1].startsWith("@ CUT_X, \"\", \"Sögun f. masonit\""));
+});
+
+test("a Merivo-only cabinet shows no Legra macro at all, and vice versa (user, 2026-10-13)", () => {
+  const master = ["[VARIABLES]", "PAN=LPX|600||4|", "PAN=LPY|100||4|", "PAN=LPZ|19||4|", "", "[PROGRAM]",
+    `' TOPP_BOTN, "", "Toppur / Botn", 160000000, "", 0 : Bora_I_Gegn, LPZ, 0, "1,4"`,
+    `' SLA_HLID, "", "Slár", 160000004, "", 0 : LPZ, bora_i_gegn, lpz+1, 0, "1,4"`,
+    `' LEGRABOX_NEDSTA_SKUFFA, "", "", 160000001, "", 0 : 397, E`,
+    `' MERIVOBOX_V2, "", "", 160000002, "", 0 : -3, 0, 0, 0, 0, 0, 397, E`,
+    `' MERVIBOX_INNSKUFFA, "", "", 160000005, "", 0 : 106, 700, M`,
+    `@ STAT_BLOCK, "", "", 160000003, "", 0 : 0, LPY+100, 1`, ""].join("\r\n");
+  const merivo = S.unitPlan("SK 1", SK1); // Merivo rows only
+  const rm = S.renderSide(master, merivo);
+  assert.deepEqual(rm.errors, []);
+  const Lm = rm.text.split("\r\n");
+  assert.ok(Lm.some((l) => l.includes("MERIVOBOX_V2")));
+  assert.ok(!Lm.some((l) => l.includes("LEGRABOX")));   // not this cabinet's drawer system — no trace
 });
 
 test("grip: drawer slots = cut front + grip strip; inner drawer in the tallest zone (T-33 Sk 2: E567 + M227, inner K at 447)", () => {
@@ -223,7 +243,7 @@ test("renderSide with a front master: parameterless macros switched on/off by th
   assert.deepEqual(r.errors, []);
   assert.ok(L.includes("PAN=LPY|243||4|"));
   assert.ok(L.some((l) => /^@ K_M_NEDSTI_FRONTUR_MERIVO, "", "", \d+, "", 0 :$/.test(l)));
-  assert.ok(L.includes(`' E_NEDSTI_FRONTUR_MERIVO, "", "", 67342012, "", 0 :`));
+  assert.ok(!L.some((l) => l.includes("E_NEDSTI_FRONTUR_MERIVO")));  // not used on this front — gone, not just off
 });
 
 test("a drawer front too low for its code's extra row gets only the base row, with a warning", () => {

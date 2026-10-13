@@ -429,7 +429,19 @@
     lines.forEach(function (l) { var m = l.match(/, (\d{8,9}), "", 0 :/); if (m) used[m[1]] = 1; });
     var seed = 0; p.ops.forEach(function (o) { for (var i = 0; i < o.params.length; i++) seed = (seed * 31 + o.params.charCodeAt(i)) >>> 0; });
     function newId() { var id; do { seed = (seed * 1103515245 + 12345) >>> 0; id = String(100000000 + (seed % 99999999)); } while (used[id]); used[id] = 1; return id; }
-    var firstAt = {}, out = [];
+    // A managed macro's own template line is dropped from the output entirely, never left visible
+    // switched off — whether this cabinet has no ops for it at all (e.g. a Merivo-only cabinet showing
+    // no trace of LEGRABOX_*, a cabinet with no door showing no LOM line) or it does, in which case the
+    // real generated lines are written in its place, right there in one pass — not spliced in afterward
+    // next to a leftover disabled copy of the template with its own example numbers (user, 2026-10-13 —
+    // same rule as the door programs). Doing the substitution in a single top-to-bottom pass (rather
+    // than drop-then-reinsert-by-index) is what keeps several adjacent managed macros in the master's
+    // own relative order even though none of their template lines survive to anchor that order by
+    // position. CUT_X (the masonite groove) is a plain yes/no toggle for the whole cabinet, not an
+    // enumerable op list, so it keeps the old on/off behavior.
+    function render(o) { return "@ " + o.name + ', "", "' + o.label + '", ' + newId() + ', "", 0 :' + (o.params ? " " + o.params : ""); }
+    var groups = {}; p.ops.forEach(function (o) { (groups[o.name] = groups[o.name] || []).push(o); });
+    var foundTemplate = {}, out = [];
     lines.forEach(function (l) {
       var sec = l.match(/^\[([A-Z]+)\]\s*$/); if (sec) section = sec[1];
       if (section === "VARIABLES") {
@@ -438,22 +450,29 @@
       }
       if (section === "PROGRAM") {
         var m = l.match(/^([@'])( +)([A-Z0-9_]+), "", "([^"]*)",(.*)$/);
-        if (m && m[3] === "CUT_X" && lc(m[4]).indexOf(GROOVE_LABEL) >= 0) l = (p.groove ? "@" : "'") + m[2] + "CUT_X, \"\", \"" + m[4] + "\"," + m[5];
-        else if (m && managed.indexOf(m[3]) >= 0) { l = "'" + m[2] + m[3] + ', "", "' + m[4] + '",' + m[5]; if (firstAt[m[3]] == null) firstAt[m[3]] = out.length; }
+        if (m && m[3] === "CUT_X" && lc(m[4]).indexOf(GROOVE_LABEL) >= 0) { out.push((p.groove ? "@" : "'") + m[2] + "CUT_X, \"\", \"" + m[4] + "\"," + m[5]); return; }
+        if (m && managed.indexOf(m[3]) >= 0) {
+          foundTemplate[m[3]] = true;
+          (groups[m[3]] || []).forEach(function (o) { out.push(render(o)); });
+          return;
+        }
       }
       out.push(l);
     });
-    // Insert in reverse so earlier indexes stay valid; ops with the same macro keep their order.
-    var groups = {}; p.ops.forEach(function (o) { (groups[o.name] = groups[o.name] || []).push(o); });
-    var stat = out.findIndex(function (l) { return /^@ STAT_BLOCK,/.test(l); });
-    Object.keys(groups).map(function (n) { return { n: n, at: firstAt[n] != null ? firstAt[n] + 1 : (stat >= 0 ? stat : -1) }; })
-      .sort(function (a, b) { return b.at - a.at; })
-      .forEach(function (g) {
-        if (g.at < 0) { errors.push("Fann ekki stað fyrir " + g.n + " í master"); return; }
-        if (firstAt[g.n] == null) errors.push("Makró " + g.n + " er ekki í master — bætt við á undan STAT_BLOCK");
-        var add = groups[g.n].map(function (o) { return "@ " + o.name + ', "", "' + o.label + '", ' + newId() + ', "", 0 :' + (o.params ? " " + o.params : ""); });
-        out.splice.apply(out, [g.at, 0].concat(add));
+    // Ops whose macro has no template anywhere in this master at all — never seen above, so insert
+    // before STAT_BLOCK and flag it (the file is still made; the master just doesn't match what the
+    // plan expected, worth a human glance).
+    var missing = Object.keys(groups).filter(function (n) { return !foundTemplate[n]; });
+    if (missing.length) {
+      var stat = out.findIndex(function (l) { return /^@ STAT_BLOCK,/.test(l); });
+      var add = [];
+      missing.forEach(function (n) {
+        if (stat < 0) { errors.push("Fann ekki stað fyrir " + n + " í master"); return; }
+        errors.push("Makró " + n + " er ekki í master — bætt við á undan STAT_BLOCK");
+        groups[n].forEach(function (o) { add.push(render(o)); });
       });
+      if (stat >= 0) out.splice.apply(out, [stat, 0].concat(add));
+    }
     var lastPan = -1; out.forEach(function (l, i) { if (/^PAN=LP[XYZ]\|/.test(l)) lastPan = i; });
     if (lastPan < 0) errors.push("Fann ekki PAN=LPX í master");
     else out.splice(lastPan + 1, 0, "GLB=HS_HLID|1|Bjorninn CNC|0|"); // marks a file made by /cnc (re-exports may replace it)
