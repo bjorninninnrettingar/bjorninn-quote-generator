@@ -61,36 +61,34 @@ test("renderBpp: numbers in, managed macros switched, other sections untouched, 
   assert.deepEqual(C.readValues(r.text), p.values);               // the file is its own record
 });
 
-test("leaf and jamb strike-plate end up with the literal same hinge/handle numbers (not just in theory)", () => {
-  // Two DIFFERENT master texts (one standing in for the leaf, one for the jamb's strike plate),
-  // each referencing HANDFANG/LOM1 in their own macro line — rendered separately, like the real
-  // export does. If they ever disagreed, it would mean a hinge hole and its matching strike-plate
-  // hole were cut from different numbers — the exact mistake this generator exists to prevent.
-  const LEAF = [
-    "[HEADER]", "TYPE=BPP", "", "[VARIABLES]",
-    "PAN=LPX|HURD_B||4|", "PAN=LPY|HURD_H||4|", "PAN=LPZ|HURD_Z||4|", "",
-    "[PROGRAM]", "",
-    `@ COPLAN, "", "", 1, "", 0 : LOM1, LOM2, LOM3`,
-    `@ IN_20_835_60_BA, "", "", 2, "", 0 : HANDFANG`,
-    `' FELLI_THROSKULDUR, "", "", 3, "", 0 : 0`,
-    "",
-  ].join("\r\n");
-  const JAMB_STRIKE = [
-    "[HEADER]", "TYPE=BPP", "", "[VARIABLES]",
-    "PAN=LPX|HURD_H+HG_BIL+HK_BIL+KARMAR_Z||4|", "PAN=LPY|KARMAR_B||4|", "PAN=LPZ|KARMAR_Z||4|", "",
-    "[PROGRAM]", "",
-    `@ IN_20_835_60_BA_SLUTJARN, "", "", 1, "", 0 : HG_BIL+HANDFANG`,
-    "",
-  ].join("\r\n");
+// ── What's actually confirmed vs assumed about the strike plate (2026-10-13 correction) ──────
+// The hinge side IS confirmed: the JAMB fixture above is a trimmed copy of the shop's real
+// karmur_lamir_M.bpp, and it shows the jamb computing HG_BIL+LOM3 / HG_BIL+HURD_H-LOM1 itself —
+// i.e. the real master already adds the floor gap on the jamb side, in its own coordinate frame.
+// The lock/strike side is NOT confirmed the same way (see LOCKS[...].confirm, surfaced as a ⚠️
+// on every door that uses this lock) — nobody has read the real karmur_sluttjarn master, so
+// nobody knows what expression it actually uses for the strike-plate height, or whether this
+// hardware's latch sits at the same height as its own handle centre (a HANDFANG+offset would be
+// a per-product hardware spec, not something this code can derive). A prior version of this test
+// invented a "HG_BIL+HANDFANG" jamb formula to mirror the hinge pattern and asserted it matched —
+// that only proved the invented formula was internally consistent with itself, not that it's the
+// real one. Removed; don't re-add a strike-plate formula here without reading the real master.
+test("renderBpp substitutes the same HANDFANG number everywhere it's referenced, regardless of the surrounding formula", () => {
+  // This is the one thing we CAN prove without the real strike-plate master: whatever expression
+  // the real master turns out to use, every literal occurrence of the word HANDFANG in it will be
+  // replaced by the exact same number doorPlan() computed — because renderBpp does a single blind
+  // text substitution, not a per-file recomputation. It does not prove the expression is correct.
   const p = C.doorPlan(DOOR);
-  const leaf = C.renderBpp(LEAF, p.values, C.MANAGED.leaf, p.on.leaf);
-  const strike = C.renderBpp(JAMB_STRIKE, p.values, C.MANAGED.jambStrike, p.on.jambStrike);
-  assert.deepEqual(leaf.errors, []); assert.deepEqual(strike.errors, []);
-  assert.ok(leaf.text.includes(`@ IN_20_835_60_BA, "", "", 2, "", 0 : ${p.values.HANDFANG}`));
-  assert.ok(strike.text.includes(`@ IN_20_835_60_BA_SLUTJARN, "", "", 1, "", 0 : ${p.values.HG_BIL}+${p.values.HANDFANG}`));
-  // the record block every file carries (GLB=HS_…) — same source, so it must read back identical
-  assert.deepEqual(C.readValues(leaf.text), C.readValues(strike.text));
-  assert.equal(C.readValues(leaf.text).HANDFANG, 1040);
+  const master = [
+    "[VARIABLES]", "PAN=LPX|HANDFANG||4|", "PAN=LPY|HG_BIL+HANDFANG||4|", "PAN=LPZ|2*HANDFANG||4|", "",
+    "[PROGRAM]", "", `@ IN_20_835_60_BA, "", "", 1, "", 0 : HANDFANG`, "",
+  ].join("\r\n");
+  const r = C.renderBpp(master, p.values, C.MANAGED.leaf, ["IN_20_835_60_BA"]);
+  assert.deepEqual(r.errors, []);
+  assert.ok(r.text.includes("PAN=LPX|1040|"));
+  assert.ok(r.text.includes("PAN=LPY|1050|"));           // 10 + 1040, if the real master turns out to use this form
+  assert.ok(r.text.includes(`: ${p.values.HANDFANG}`));
+  assert.equal(p.values.HANDFANG, 1040);
 });
 
 test("a macro the master doesn't have is an error, not a silent skip", () => {
