@@ -5542,8 +5542,10 @@
     container.innerHTML = keys.map(function(key){
       var l = LOOKS[key];
       return '<button type="button" class="sw-tile' + (state.look === key ? ' active' : '') + '" data-look="' + key + '" title="' + l.label + '">' +
-        // Björninn's spónlagt photos are a sheet on a grey background: zoomed in so the wood fills the tile (2026-10-12)
-        (l.img ? (l.category === "sponlagt" ? '<div class="sw-crop"><img src="' + l.img + '" alt="' + l.label + '" loading="lazy"></div>' : '<img src="' + l.img + '" alt="' + l.label + '" loading="lazy">') : '<div class="sw-fill" style="background:' + l.color3d + ';"></div>') +
+        // Björninn's spónlagt photos are a sheet on a grey background: zoomed in so the wood fills the tile (2026-10-12).
+        // A handful of Egger decors whose Raport CAD image reads "zoomed out"/patchy get their own picker-only
+        // zoom the same way (l.zoom, a scale factor — EGGER_PICKER_ZOOM in kitchen-planner-3d.js, 2026-10-14).
+        (l.img ? ((l.category === "sponlagt" || l.zoom) ? '<div class="sw-crop"><img src="' + l.img + '" alt="' + l.label + '"' + (l.zoom ? ' style="transform:scale(' + l.zoom + ')"' : '') + ' loading="lazy"></div>' : '<img src="' + l.img + '" alt="' + l.label + '" loading="lazy">') : '<div class="sw-fill" style="background:' + l.color3d + ';"></div>') +
         '<div class="sw-name">' + l.label + (l.code ? '<small>' + l.code + '</small>' : '') + '</div></button>';
     }).join("");
     container.querySelectorAll("[data-look]").forEach(function(card){

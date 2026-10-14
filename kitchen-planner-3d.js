@@ -636,6 +636,14 @@
   // plank widths of Halifax oak); a 600 mm front shows a ~half-tile-wide slice of it, as on a real board.
   var KPEG = window.KPEGGER || { decors:{} };
   var EGGER_TILE = { w:1.3, h:2.8 };
+  // Egger's "Raport" CAD download is exported at a fixed pixel size regardless of a decor's real physical
+  // repeat length (root-caused 2026-10-13, docs/kitchen-planner.md) — no metadata exists to derive a per-decor
+  // scale automatically, so these are a one-time manual pick (user, 2026-10-14, pointed at exactly these 19 as
+  // reading "zoomed out"/patchwork in the picker). Picker-only (same device the 3D texture already uses the
+  // full image at 1:1 via EGGER_TILE) — a CSS crop+scale on the swatch tile, the same mechanism `.sw-crop`
+  // already uses for Spónlagt photos, not a source-image edit.
+  var EGGER_PICKER_ZOOM = { H1176:1.6, H1227:1.6, H1250:1.6, H1379:1.6, H1386:1.6, H1384:1.6, H3003:1.6, H3041:1.6,
+    H3131:1.6, H3157:1.6, H3158:1.6, H3165:1.6, H3171:1.6, H3176:1.6, H3180:1.6, H3198:1.6, H3349:1.6, H3430:1.6, H3730:1.6 };
   function eggerRow(d, cat){
     var rows = d.rows.filter(function(r){ return r.cat === cat; });
     return rows.find(function(r){ return r.mm === 19; }) || rows[0] || null;
@@ -654,7 +662,7 @@
         label:label, code:code, egger:true, search:search, img:d.thumb, color3d:d.color || "#cccccc", efnislistiId:fr.id, desc:"Egger " + code,
         // uni colours read better as the satin paint material than as a flat photo
         category:d.kind === "wood" ? "vidarliki" : d.kind === "uni" ? "framhlidaefni" : "steinaferd",
-        tex:d.kind === "uni" ? null : d.tex, tile:EGGER_TILE,
+        tex:d.kind === "uni" ? null : d.tex, tile:EGGER_TILE, zoom:EGGER_PICKER_ZOOM[code] || null,
         // offered (user, 2026-10-11): Framhliðaefni only in Egger's PM (PerfectSense Matt) finish, no stone/metal fronts —
         // the rest stay so old drafts still render
         hidden:d.kind === "stone" || (d.kind === "uni" && d.structure !== "PM")
