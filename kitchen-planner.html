@@ -883,7 +883,7 @@
   .uw-group{ grid-column:1/-1; margin:10px 0 -2px; font-size:11.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--ink-soft); }
   .uw-group:empty{ margin:4px 0 0; }
   .uw-gap{ grid-column:1/-1; height:8px; }
-  .uw-card.soon{ opacity:.45; cursor:not-allowed; }
+  .uw-card.soon, .shape-card.soon{ opacity:.45; cursor:not-allowed; }
   .uw-open{ width:100%; margin:4px 0 12px; padding:12px; font-size:15px; }
   .uw-modal{ position:fixed; inset:0; z-index:200; background:rgba(25,25,25,.45); display:flex; align-items:center; justify-content:center; padding:24px; }
   .uw-modal[hidden]{ display:none; }
@@ -1077,6 +1077,17 @@
     </div>
   </section>
 
+  <!-- ============ STEP: BYRJA (category picker, 2026-10-14) ============ -->
+  <section id="screen-byrja" hidden>
+    <div class="title-row"><div><div class="screen-title">Hvað erum við að skoða?</div>
+    <p class="screen-sub">Veldu eitt eða fleiri — við tökum þau fyrir eitt í einu.</p></div>
+    <div class="actions step-nav">
+      <button class="btn btn-secondary" id="byrjaBackBtn" type="button">← Til baka</button>
+      <button class="btn btn-primary" id="byrjaNextBtn" type="button" disabled>Áfram →</button>
+    </div></div>
+    <div class="shape-cards" id="byrjaCards"></div>
+  </section>
+
   <!-- ============ STEP: INTAKE ============ -->
   <section id="screen-intake" hidden>
     <div class="title-row"><div><div class="screen-title">Rétt áður en þú sendir inn</div>
@@ -1141,6 +1152,10 @@
 
     <!-- phase 1: pick a shape -->
     <div id="shapePick">
+      <div id="shapeRoomPick" class="mat-section" hidden>
+        <div class="mat-section-title">Hvaða rými er þetta?</div>
+        <select id="fataskaparRoom" class="h-num" style="max-width:260px;"></select>
+      </div>
       <div class="shape-group-title">Lokað eldhús</div>
       <div class="shape-cards" id="shapeCardsClosed"></div>
       <div class="shape-group-title">Opið eldhús</div>
@@ -1381,6 +1396,9 @@
 
   var state = {
     step: "welcome",
+    categoryQueue: null,  // ["eldhus","fataskapar",...] — set once Byrja is confirmed; null = not picked yet
+    categoryData: {},     // category key -> that category's parked ROOM_FIELDS blob (see startCategory/finishCategory)
+    activeCategory: null, // which category currently occupies the room fields below
     intake: { delivery:null, budget:null, room:"Eldhús" },
     carcass: null,
     drawerSystem: null,
@@ -1477,6 +1495,35 @@
     updateHistoryButtons();
     refreshAfterEdit();
   }
+  // Re-derives blockSeq/wallSeq/openingSeq/islandSeq from whatever's actually in the live state —
+  // used after load() and after swapping a parked category's blob into the live fields (startCategory),
+  // since those counters only ever need to be unique within whichever room is currently live.
+  function resyncSeqCounters(){
+    blockSeq = 1;
+    wallSeq = 2;
+    openingSeq = 1;
+    state.walls.forEach(function(w){
+      var wn = parseInt(String(w.id).replace("W", ""), 10);
+      if (!isNaN(wn) && wn >= wallSeq) wallSeq = wn + 1;
+      w.floor.concat(w.wall).forEach(function(b){
+        var n = parseInt(String(b.id).replace("b",""), 10);
+        if (!isNaN(n) && n >= blockSeq) blockSeq = n + 1;
+      });
+    });
+    normalizeIslands();
+    state.islands.forEach(function(isl){
+      var n = parseInt(String(isl.id).replace("I", ""), 10);
+      if (!isNaN(n) && n >= islandSeq) islandSeq = n + 1;
+      (isl.a || []).concat(isl.b || []).forEach(function(b){
+        var m = parseInt(String(b.id).replace("b", ""), 10);
+        if (!isNaN(m) && m >= blockSeq) blockSeq = m + 1;
+      });
+    });
+    state.windows.concat(state.doors).forEach(function(o){
+      var n = parseInt(String(o.id).replace("o", ""), 10);
+      if (!isNaN(n) && n >= openingSeq) openingSeq = n + 1;
+    });
+  }
   function load(){
     try{
       var raw = localStorage.getItem(STORAGE_KEY);
@@ -1551,30 +1598,9 @@
       if (state.step === "quiz") state.step = "intake";
       if (state.step === "walls" || state.step === "summary") state.step = "editor"; // the two steps merged into one editor
       if (state.step === "look" || state.step === "handle") state.step = "materials";
-      blockSeq = 1;
-      wallSeq = 2;
-      openingSeq = 1;
-      state.walls.forEach(function(w){
-        var wn = parseInt(String(w.id).replace("W", ""), 10);
-        if (!isNaN(wn) && wn >= wallSeq) wallSeq = wn + 1;
-        w.floor.concat(w.wall).forEach(function(b){
-          var n = parseInt(String(b.id).replace("b",""), 10);
-          if (!isNaN(n) && n >= blockSeq) blockSeq = n + 1;
-        });
-      });
-      normalizeIslands();
-      state.islands.forEach(function(isl){
-        var n = parseInt(String(isl.id).replace("I", ""), 10);
-        if (!isNaN(n) && n >= islandSeq) islandSeq = n + 1;
-        (isl.a || []).concat(isl.b || []).forEach(function(b){
-          var m = parseInt(String(b.id).replace("b", ""), 10);
-          if (!isNaN(m) && m >= blockSeq) blockSeq = m + 1;
-        });
-      });
-      state.windows.concat(state.doors).forEach(function(o){
-        var n = parseInt(String(o.id).replace("o", ""), 10);
-        if (!isNaN(n) && n >= openingSeq) openingSeq = n + 1;
-      });
+      // Pre-Byrja drafts (2026-10-14) have no category queue at all — they're always a single kitchen.
+      if (state.categoryQueue == null){ state.categoryQueue = ["eldhus"]; state.activeCategory = "eldhus"; state.categoryData = {}; }
+      resyncSeqCounters();
       return true;
     }catch(e){ return false; }
   }
@@ -2224,7 +2250,7 @@
       // black "Næsti veggur →" under "Veggur N af M" in the panel
       box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">← Til baka</button><button class="btn btn-primary" id="shNext" type="button">Áfram →</button>';
       document.getElementById("shBack").addEventListener("click", function(){ shapePhase = "height"; renderShapeStep(); });
-      document.getElementById("shNext").addEventListener("click", function(){ state.openingsDone = true; save(); shapePhase = "water"; renderShapeStep(); });
+      document.getElementById("shNext").addEventListener("click", afterOpenings);
     } else {
       // one way on, water marked or not — nothing is placed for you when it isn't (2026-10-11)
       box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">← Til baka</button><button class="btn btn-primary" id="shNext" type="button">Áfram →</button>';
@@ -2249,7 +2275,9 @@
     if (!state.closed) shapePhase = "pick";
     if (shapePhase !== "height") endHeightScene();
     var titles = {
-      pick:  ["Hvernig er eldhúsið í laginu?", "Veldu þá lögun sem passar best. Þú stillir málin næst."],
+      pick: state.activeCategory === "fataskapar"
+        ? ["Hvernig er rýmið í laginu?", "Veldu þá lögun sem passar best. Þú stillir málin næst."]
+        : ["Hvernig er eldhúsið í laginu?", "Veldu þá lögun sem passar best. Þú stillir málin næst."],
       size:  ["Stilltu stærð rýmisins", "Sláðu inn mál eða dragðu veggina á teikningunni."],
       height: ["Lofthæð og útlit", "Stilltu lofthæðina og útlit rýmisins."],
       openings: ["Gluggar og hurðir", "Veldu hvað er á hverjum vegg."],
@@ -2268,6 +2296,16 @@
     var acts = document.getElementById("shapeActions");
     // (the nav lives in the title row on every phase now — 2026-10-11)
     if (shapePhase === "pick"){
+      var rp = document.getElementById("shapeRoomPick");
+      rp.hidden = state.activeCategory !== "fataskapar";
+      if (state.activeCategory === "fataskapar"){
+        var sel = document.getElementById("fataskaparRoom");
+        if (!sel.options.length){
+          sel.innerHTML = RYMI_CHOICES.map(function(r){ return '<option value="' + r + '">' + r + '</option>'; }).join("");
+          sel.addEventListener("change", function(){ state.intake.room = sel.value; save(); });
+        }
+        sel.value = state.intake.room;
+      }
       ["closed", "open"].forEach(function(g){
         document.getElementById(g === "closed" ? "shapeCardsClosed" : "shapeCardsOpen").innerHTML = Object.keys(SHAPE_TEMPLATES).filter(function(k){ return SHAPE_TEMPLATES[k].group === g; }).map(function(k){
           return '<button type="button" class="shape-card" data-shape="' + k + '">' + templateIcon(k) + '<div class="nm">' + SHAPE_TEMPLATES[k].label + '</div></button>';
@@ -2584,8 +2622,14 @@
   function nextOpeningWall(){
     var walls = solidWalls(), i = walls.findIndex(function(w){ return w.id === openWallId; });
     if (i < walls.length - 1){ openWallId = walls[i + 1].id; selectedOpeningId = null; renderOpeningsBox(); renderShapeCanvas(); return; }
+    afterOpenings();
+  }
+  // Every category draws its room the same way, but a wardrobe/closet has no water supply to mark —
+  // Fataskápar (and any future non-kitchen category) skips straight to the materials step instead.
+  function afterOpenings(){
     state.openingsDone = true; save();
-    shapePhase = "water"; renderShapeStep();
+    if (state.activeCategory === "fataskapar") lockRoom();
+    else { shapePhase = "water"; renderShapeStep(); }
   }
   function renderOpeningsBox(){
     var walls = solidWalls();
@@ -4413,6 +4457,23 @@
       { label:"Úthlið — efri", type:"uthlidefri" },
       { label:"Bak á eyju", islandBack:true, gap:true } ] }
   ];
+  // Fataskápar (and any future non-kitchen category) only offers structural cabinet groups — appliances
+  // (taeki) and islands (eyja) aren't a typical wardrobe layout. A few individual options are kitchen-only
+  // even within an otherwise-generic group (vaskaskápur/ruslaskápur/töfrahorn/hornskápur, mixed into "grunn").
+  var CATEGORY_CABINET_GROUPS = { fataskapar: ["grunn", "har", "efri", "uthlid"] };
+  // grunnskapur is excluded too (not just the obviously kitchen-only ones): its whole concept is "goes
+  // under a worktop" (CATALOG's counter:true, which drives worktop-slab geometry in kitchen-planner-3d.js
+  // in several places) — a room with no worktop has no coherent use for it. "Lítill kassi" (litillkassi,
+  // already counter-free, documented as generic low furniture) stays available in the same group.
+  var CATEGORY_EXCLUDED_TYPES = { fataskapar: ["vaskaskapur", "ruslaskapur", "tofrahorn", "hornskapur", "grunnskapur"] };
+  function unitCatAllowed(cat){
+    var allow = CATEGORY_CABINET_GROUPS[state.activeCategory];
+    return !allow || allow.indexOf(cat.key) >= 0;
+  }
+  function unitOptAllowed(o){
+    var excl = CATEGORY_EXCLUDED_TYPES[state.activeCategory];
+    return !excl || !o.type || excl.indexOf(o.type) < 0;
+  }
   var uw = null; // { step, cat, opt, b, wallId }
   function uwSurfaces(zone){ return zone === "wall" ? state.walls.filter(function(w){ return !w.open; }) : surfaces().filter(function(w){ return !w.open; }); }
   function uwFits(w, b){ var c = CATALOG[b.type]; return canFit(w, c.zone, b.widthMm, probeSpan(c.zone, b)); }
@@ -4530,12 +4591,14 @@
     var side = document.getElementById("uwSide"), html = "";
     if (uw.step === 1){
       html = '<p class="uw-kicker">Ný eining</p><h3>Hvað viltu bæta við?</h3><div class="uw-grid">' + UNIT_TREE.map(function(cat, i){
+        if (!unitCatAllowed(cat)) return "";
         return '<button type="button" class="uw-card" data-uw-cat="' + i + '">' + catIcon(cat.iconKind || "cabinet", cat.icon) + '<span><b>' + cat.label + '</b><small>' + cat.desc + '</small></span></button>';
       }).join("") + '</div>';
     } else if (uw.step === 2){
       var cat = UNIT_TREE[uw.cat];
       var lastGroup = null;
       html = '<p class="uw-kicker">' + cat.label + '</p><h3>Veldu útfærslu</h3><div class="uw-grid">' + cat.opts.map(function(o, i){
+        if (!unitOptAllowed(o)) return "";
         var head = o.group && o.group !== lastGroup ? '<p class="uw-group">' + o.group + '</p>' : (!o.group && lastGroup ? '<p class="uw-group"></p>' : '');
         lastGroup = o.group || null;
         if (o.soon) return head + '<button type="button" class="uw-card soon" disabled>' + catIcon("cabinet", "harskapur") + '<span><b>' + o.label + '</b><small>Væntanlegt</small></span></button>';
@@ -5732,6 +5795,9 @@
   var cabPreviewLoading = false;
   function matPhaseDone(i){ return [state.carcass, state.drawerSystem, state.look, state.handle, true][i]; }
   function firstMissingPhase(){ for (var i = 0; i < 4; i++) if (!matPhaseDone(i)) return i; return 4; }
+  // Borðplata (worktop, the last MAT_PHASES entry) only applies to Eldhús — a wardrobe has nothing to
+  // put a worktop on. Every other phase (carcass/drawers/fronts/handles) applies to any category.
+  function matPhaseCount(){ return state.activeCategory === "fataskapar" ? MAT_PHASES.length - 1 : MAT_PHASES.length; }
 
   function cabCfg(){
     return { carcass:state.carcass, drawer:state.drawerSystem, look:state.look, handle:state.handle, handleColor:state.handleColor, top:state.top || "steinn",
@@ -5760,12 +5826,12 @@
     sync();
   })();
   function renderMatActions(){
-    var box = document.getElementById("matActions"), last = matPhase === MAT_PHASES.length - 1;
+    var box = document.getElementById("matActions"), last = matPhase === matPhaseCount() - 1;
     box.innerHTML = '<button class="btn btn-secondary" id="mtBack" type="button">← Til baka</button>' +
       '<button class="btn btn-primary" id="mtNext" type="button"' + (matPhaseDone(matPhase) ? "" : " disabled") + '>' + (last ? "Áfram í skipulag →" : "Áfram →") + '</button>';
     updateStepper();
     document.getElementById("mtBack").addEventListener("click", function(){
-      if (matPhase === 0){ shapePhase = "water"; goto("shape"); } else { matPhase--; renderMaterials(); }
+      if (matPhase === 0){ shapePhase = state.activeCategory === "fataskapar" ? "openings" : "water"; goto("shape"); } else { matPhase--; renderMaterials(); }
     });
     document.getElementById("mtNext").addEventListener("click", function(){
       if (last){ toast("🎨 Efnin eru valin — nú raðar þú innréttingunni!"); goto("editor"); } else { matPhase++; renderMaterials(); }
@@ -5791,7 +5857,7 @@
     if (state.look && LOOKS[state.look] && !LOOKS[state.look].hidden) matTab.front = LOOKS[state.look].category;
     if (state.top && TOPS[state.top]) matTab.top = TOPS[state.top].group;
     var ph = MAT_PHASES[matPhase];
-    document.getElementById("wizSteps").innerHTML = MAT_PHASES.map(function(p, i){
+    document.getElementById("wizSteps").innerHTML = MAT_PHASES.slice(0, matPhaseCount()).map(function(p, i){
       // a page you can reach (an earlier one, or every page before it is done) is a button (2026-10-11)
       var can = i !== matPhase && (i < matPhase || i <= firstMissingPhase());
       return '<div class="ws' + (i === matPhase ? " active" : (i < matPhase && matPhaseDone(i) ? " done" : "")) + (can ? " go" : "") + '"' + (can ? ' data-mpgo="' + i + '" role="button" tabindex="0"' : '') + '><i></i><span>' + (i + 1) + '. ' + p.label + '</span></div>';
@@ -7033,6 +7099,42 @@
     render();
   }
 
+  // ---------- Byrja category queue (2026-10-14) ----------
+  // The fields that describe ONE room's design — everything freshState() seeds. These are the fields
+  // swapped in/out of the live `state` object as the user moves between categories (Eldhús, Fataskápar,
+  // ...); categoryQueue/categoryData/activeCategory themselves are never part of this list.
+  var ROOM_FIELDS = ["intake", "carcass", "drawerSystem", "look", "handle", "top", "floor", "roomHeightMm",
+    "wallColor", "windows", "doors", "closed", "waterWall", "waterAlongMm", "seeded", "base900", "islands", "walls"];
+  function serializeRoom(){
+    var blob = {};
+    ROOM_FIELDS.forEach(function(k){ blob[k] = state[k]; });
+    return JSON.parse(JSON.stringify(blob)); // deep clone — this is about to be parked while another category is edited
+  }
+  // Swaps the given category's room data onto the live state fields (a parked blob if one exists, else a
+  // fresh room) and opens it at the shape step. Every existing renderer keeps working unmodified since it's
+  // still just reading state.walls/state.carcass/etc. — only WHICH room's data lives there changes.
+  function startCategory(type){
+    state.activeCategory = type;
+    var existing = state.categoryData[type];
+    var blob = existing ? JSON.parse(JSON.stringify(existing)) : freshState("shape");
+    ROOM_FIELDS.forEach(function(k){ state[k] = blob[k]; });
+    if (!existing && type === "fataskapar") state.intake.room = "Fatask.";
+    shapePhase = "pick";
+    matPhase = null;
+    selectedBlockId = null; selectedWallId = null; openWallId = null;
+    undoStack = []; histIdx = -1;
+    resyncSeqCounters();
+    goto("shape");
+  }
+  // Parks the current room under its category, then moves on to the next queued category — or, once the
+  // queue is exhausted, on to the combined Spurningar/Senda inn that covers every category together.
+  function finishCategory(){
+    state.categoryData[state.activeCategory] = serializeRoom();
+    var idx = state.categoryQueue.indexOf(state.activeCategory), next = state.categoryQueue[idx + 1];
+    if (next) startCategory(next);
+    else { state.activeCategory = null; goto("intake"); }
+  }
+
   // ---------- progress stepper: shows where you are and jumps between steps ----------
   // Forward jumps are only allowed once what the later step needs exists (the
   // same conditions the "Áfram" buttons already enforce); going back is always fine.
@@ -7053,14 +7155,14 @@
   function stepFrac(){
     if (state.step === "intake") return ((state.intake.delivery ? 1 : 0) + (state.intake.budget ? 1 : 0)) / 2 * 0.9;
     if (state.step === "shape") return { pick:0, size:0.2, height:0.4, openings:0.6, water:0.85 }[shapePhase] || 0;
-    if (state.step === "materials") return matPhase == null ? 0 : Math.min(0.95, matPhase / MAT_PHASES.length);
+    if (state.step === "materials") return matPhase == null ? 0 : Math.min(0.95, matPhase / matPhaseCount());
     if (state.step === "editor") return cabinetTotal() > 0 ? 0.6 : 0.1;
     if (state.step === "contact") return 0.5;
     return 0;
   }
   function updateStepper(){
     var idx = FLOW.indexOf(state.step);
-    document.getElementById("progressSteps").hidden = state.step === "welcome";
+    document.getElementById("progressSteps").hidden = state.step === "welcome" || state.step === "byrja";
     var pct = state.step === "done" ? 100 : idx < 0 ? 0 : Math.round((idx + stepFrac()) / FLOW.length * 100);
     document.getElementById("stepFill").style.width = pct + "%";
     document.querySelectorAll("#progressSteps .st").forEach(function(el){
@@ -7091,8 +7193,8 @@
   // 2026-09-22: room first (shape + openings), then materials, then the layout editor, then the
   // intake questions right before contact — the customer used to answer them cold, before seeing
   // anything; now they're a quick check-in just ahead of sending the plan in.
-  var FLOW = ["shape", "materials", "editor", "intake", "contact"]; // the stepper (the welcome screen sits before it)
-  var STEP_ORDER = ["welcome"].concat(FLOW, ["done"]);
+  var FLOW = ["shape", "materials", "editor", "intake", "contact"]; // the stepper (the welcome + byrja screens sit before it)
+  var STEP_ORDER = ["welcome", "byrja"].concat(FLOW, ["done"]);
 
   function render(){
     STEP_ORDER.forEach(function(s){
@@ -7102,6 +7204,7 @@
 
     if (state.step === "intake") renderIntake();
     if (state.step === "welcome") renderWelcome();
+    if (state.step === "byrja") renderByrja();
     if (state.step === "shape") renderShapeStep();
     if (state.step === "materials") renderMaterials();
     if (state.step === "contact"){ renderPreviews(); var ca = document.getElementById("cAths"); if (ca && !ca.value && state.intake.note) ca.value = state.intake.note; }
@@ -7451,7 +7554,7 @@
       wall.floor.concat(wall.wall).forEach(function(b){
         var c = CATALOG[b.type];
         if (c.notOrdered) return; // the customer's own free-standing appliance (listed in the Tækifæri note)
-        var fields = { "Rými 🏡":"Eldhús", "Magn":1, "🔑":keys[b.id] }; // same numbers the drawings print
+        var fields = { "Rými 🏡":state.intake.room || "Eldhús", "Magn":1, "🔑":keys[b.id] }; // same numbers the drawings print
         var v1 = v1RecordFor(b, c); if (v1) fields["Vöru reitur 1"] = [v1.id];
         var v2 = v2RecordFor(b, c); if (v2) fields["Vöru reitur 2"] = [v2.id];
         var notes = [];
@@ -7546,7 +7649,8 @@
       // submission id stays in the draft, so retrying — here, or the customer pressing "Senda inn" again
       // after a failure — resumes the same Tækifæri instead of creating a second one.
       if (!state.submissionId){ state.submissionId = newSubmissionId(); save(); }
-      freezeSk(); // the numbers on the Line Items stay with their cabinets when Rakel edits in pro mode
+      // the numbers on the Line Items stay with their cabinets when Rakel edits in pro mode — frozen,
+      // per category, inside collectAllLineItems() itself (so every category's numbers line up correctly)
       var opp = await postWithRetry("/api/kp-submit", {
         sid: state.submissionId,
         contact: {
@@ -7556,8 +7660,8 @@
           simi: document.getElementById("cSimi").value.trim()
         },
         project: project,
-        state: state,
-        lineItems: collectLineItems()
+        lineItems: collectAllLineItems(),
+        state: state
       }, function(n){ submitBtn.textContent = "Sendi... (tilraun " + (n + 1) + ")"; });
       opp.id = opp.recordId;
 
@@ -7770,14 +7874,49 @@
     document.getElementById("welReset").hidden = !has;
   }
   document.getElementById("welStart").addEventListener("click", function(){
-    var to = state.resumeStep && state.resumeStep !== "welcome" ? state.resumeStep : "shape";
+    var hasQueue = !!(state.categoryQueue && state.categoryQueue.length);
+    var to = state.resumeStep && state.resumeStep !== "welcome" ? state.resumeStep : (hasQueue ? "shape" : "byrja");
     delete state.resumeStep;
-    if (to !== "shape" && !canGoTo(to).ok) to = "shape";
+    if (to !== "shape" && to !== "byrja" && !canGoTo(to).ok) to = "shape";
     if (to === "shape" && state.closed && state.walls.length && shapePhase === "pick") shapePhase = "size";
     if (to === "materials") matPhase = firstMissingPhase() >= 4 ? 0 : null;
     goto(to);
   });
   document.getElementById("welReset").addEventListener("click", resetAll);
+
+  // ---------- Byrja: "Hvað erum við að skoða?" category picker ----------
+  // The real Rými 🏡 singleSelect choices in Airtable, minus "Eldhús" (implicit for that category).
+  var RYMI_CHOICES = ["Fatask.", "Hjónah.", "Barnah.", "Barnah. 2", "Svefnh.", "Gangur", "Forstofa", "Andyri",
+    "Baðh.", "Baðh. 2", "Þvottah.", "Alrými", "Stofa", "Búr", "Skrifst."];
+  var CATEGORIES = [
+    { key:"eldhus", label:"Eldhús" },
+    { key:"fataskapar", label:"Fataskápar" },
+    { key:"bad", label:"Bað", soon:true },
+    { key:"hurdir", label:"Hurðir", soon:true }
+  ];
+  var byrjaSel = []; // unconfirmed picks for this visit only — state.categoryQueue is set once "Áfram" is pressed
+  function renderByrja(){
+    document.getElementById("byrjaCards").innerHTML = CATEGORIES.map(function(c){
+      if (c.soon) return '<button type="button" class="shape-card soon" disabled><div class="nm">' + c.label + '</div><small>Væntanlegt</small></button>';
+      var active = byrjaSel.indexOf(c.key) >= 0;
+      return '<button type="button" class="shape-card' + (active ? " active" : "") + '" data-cat="' + c.key + '"><div class="nm">' + c.label + '</div></button>';
+    }).join("");
+    document.getElementById("byrjaNextBtn").disabled = byrjaSel.length === 0;
+  }
+  document.getElementById("byrjaCards").addEventListener("click", function(e){
+    var btn = e.target.closest(".shape-card");
+    if (!btn || btn.disabled) return;
+    var key = btn.dataset.cat, i = byrjaSel.indexOf(key);
+    if (i >= 0) byrjaSel.splice(i, 1); else byrjaSel.push(key);
+    renderByrja();
+  });
+  document.getElementById("byrjaBackBtn").addEventListener("click", function(){ goto("welcome"); });
+  document.getElementById("byrjaNextBtn").addEventListener("click", function(){
+    if (!byrjaSel.length) return;
+    state.categoryQueue = byrjaSel.slice();
+    state.categoryData = {};
+    startCategory(state.categoryQueue[0]);
+  });
   document.getElementById("helpBtn").addEventListener("click", function(e){
     var m = document.getElementById("helpMenu"); m.hidden = !m.hidden; this.setAttribute("aria-expanded", String(!m.hidden)); e.stopPropagation();
   });
@@ -7849,7 +7988,7 @@
     }
   }
   document.getElementById("toContactBtn").addEventListener("click", function(){
-    checkEndPanelsThen(function(){ captureThumb(); goto("intake"); }); // 3D scene must still be alive for the thumbnail
+    checkEndPanelsThen(function(){ captureThumb(); finishCategory(); }); // 3D scene must still be alive for the thumbnail
   });
   document.getElementById("backToEditorBtn").addEventListener("click", function(){ goto("editor"); });
   document.getElementById("cAths").addEventListener("input", function(e){ state.intake.note = e.target.value.trim().slice(0, 1000); save(); });
@@ -7895,8 +8034,11 @@
   // A cabinet keeps its number once it has one (b.sk, frozen by freezeSk() at submit / pro load / pro Vista) —
   // its Line Item is found by that number, so adding or moving cabinets must never renumber the others.
   // New cabinets get the next number after the highest one; a fresh drawing numbers in surface order as before.
-  function skKeys(){
-    var map = {}, used = {}, all = [], n = 0;
+  // startAt (2026-10-14): a combined multi-category submit numbers each category's cabinets in its own
+  // local pass (see withEachCategory) and needs each later category's fresh "Sk" numbers to continue on
+  // from the one before it rather than also starting at Sk1 — see withEachCategory for why that's safe.
+  function skKeys(startAt){
+    var map = {}, used = {}, all = [], n = startAt || 0;
     surfaces().forEach(function(w){ w.floor.concat(w.wall).forEach(function(b){ if (!CATALOG[b.type].notOrdered) all.push(b); }); }); // free-standing appliances aren't units
     all.forEach(function(b){
       if (!/^Sk\d+$/.test(b.sk || "") || used[b.sk]) return;
@@ -7905,9 +8047,32 @@
     all.forEach(function(b){ if (!map[b.id]) map[b.id] = "Sk" + (++n); });
     return map;
   }
-  function freezeSk(){
-    var keys = skKeys();
+  function freezeSk(startAt){
+    var keys = skKeys(startAt);
     surfaces().forEach(function(w){ w.floor.concat(w.wall).forEach(function(b){ if (keys[b.id]) b.sk = keys[b.id]; }); });
+  }
+  // Runs fn once per queued category, with that category's room data swapped onto the live state fields
+  // (the active category uses the live fields directly; parked ones are swapped in from categoryData) and
+  // its own Sk numbers frozen starting after the previous category's highest — so a combined submission
+  // never produces two cabinets both called "Sk1". Restores the live room exactly as it was afterward.
+  function withEachCategory(fn){
+    var queue = (state.categoryQueue && state.categoryQueue.length) ? state.categoryQueue : [state.activeCategory || "eldhus"];
+    var offset = 0, savedActive = {};
+    ROOM_FIELDS.forEach(function(k){ savedActive[k] = state[k]; });
+    queue.forEach(function(cat){
+      var blob = cat === state.activeCategory ? savedActive : state.categoryData[cat];
+      if (!blob) return; // queued but never actually drawn yet
+      ROOM_FIELDS.forEach(function(k){ state[k] = blob[k]; });
+      freezeSk(offset);
+      fn(cat);
+      offset += cabinetTotal();
+    });
+    ROOM_FIELDS.forEach(function(k){ state[k] = savedActive[k]; });
+  }
+  function collectAllLineItems(){
+    var rows = [];
+    withEachCategory(function(){ rows = rows.concat(collectLineItems()); });
+    return rows;
   }
   function exportHost(){
     var el = document.getElementById("exportHost");
@@ -8934,6 +9099,12 @@
     }); }); });
     return out;
   }
+  // proSmida() + collectLineItems(), but across every queued category, numbered so they never collide.
+  function proSmidaAll(){
+    var out = {};
+    withEachCategory(function(){ var o = proSmida(); Object.keys(o).forEach(function(k){ out[k] = o[k]; }); });
+    return out;
+  }
   function proDirty(){ try{ return localStorage.getItem(STORAGE_KEY + ":dirty") === "1"; }catch(e){ return false; } }
   function proBar(msg){
     if (!PRO) return;
@@ -8964,7 +9135,7 @@
     proBar("Vista…");
     try{
       var r = await fetch("/api/kp-pro", { method:"POST", headers:{ "Content-Type":"application/json" },
-        body:JSON.stringify({ k:PRO.k, recordId:PRO.id, state:(freezeSk(), state), smida:proSmida(), lineItems:collectLineItems(), resolve:resolve || undefined }) });
+        body:JSON.stringify({ k:PRO.k, recordId:PRO.id, smida:proSmidaAll(), lineItems:collectAllLineItems(), state:state, resolve:resolve || undefined }) });
       var d = await r.json().catch(function(){ return {}; });
       if (!r.ok) throw new Error(d.error || ("HTTP " + r.status));
       if (d.liSent) state.liSent = d.liSent;
@@ -8989,9 +9160,9 @@
     var raw = (rec.fields || {})[PRO_FIELD];
     PRO.name = (rec.fields || {})["Heiti tækifæris / verkefnis"] || PRO.id;
     var keepLocal = false;
-    if (!raw){ // Rakel draws every project (2026-10-09): no drawing yet = start one, from the room step
+    if (!raw){ // Rakel draws every project (2026-10-09): no drawing yet = start one, from the Byrja category picker
       var local = null; try{ local = proDirty() ? localStorage.getItem(STORAGE_KEY) : null; }catch(e){}
-      if (!local || !load()){ state = freshState("shape"); shapePhase = "pick"; save(); }
+      if (!local || !load()){ state = freshState("byrja"); save(); }
       freezeSk(); PRO.ready = true; render(); proBar(); return;
     }
     try{ keepLocal = proDirty() && !!localStorage.getItem(STORAGE_KEY) &&
