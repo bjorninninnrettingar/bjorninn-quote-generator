@@ -8487,6 +8487,7 @@
     var dr = isDrawerUnit(b), ov = !!(c.oven && !c.lowOven && ovenKeyOf(b) !== ""), codes = [], fronts = [];
     if (dr){ codes = KP3D.drawerCodes(b.interior, drawerSys()); fronts = KP3D.stackFrontsMm(b.interior, codes, drawerBodyMm(b, c)) || []; }
     else if (ov){ codes = KP3D.ovenCodesOf(b, drawerSys()); fronts = ovenStackModel(b).fronts(); }
+    else if (c.lowOven){ codes = ["M"]; fronts = [Math.max(53, body - KP3D.ovenHOf(b, c))]; } // OFN6: one fixed M front under the oven, nothing to configure
     if (fronts.length){
       var acc = 0, sides = KP3D.DRAWER_CODES[drawerSys()].side;
       fronts.forEach(function(h, i){
