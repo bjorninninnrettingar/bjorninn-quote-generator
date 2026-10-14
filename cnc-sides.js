@@ -496,6 +496,13 @@
     // own relative order even though none of their template lines survive to anchor that order by
     // position. CUT_X (the masonite groove) is a plain yes/no toggle for the whole cabinet, not an
     // enumerable op list, so it keeps the old on/off behavior.
+    // A master can have MORE THAN ONE template line for the same managed macro name (e.g. the side
+    // master's own SLA_HLID/MERIVOBOX_V2 each have 2 example lines, the door-front master has 5 IKEALOM
+    // lines — one per hinge-count example) — only the FIRST such line gets the real generated ops
+    // written in its place; every later template line for that same name is dropped like an empty group
+    // would be, not re-populated, otherwise the whole op group was being written out once per template
+    // line and every real file with 2+ Merivo/Legra drawers (or any door front) ended up drilling/cutting
+    // its managed macros 2–5× over (found via the /bpp viewer against the real masters, 2026-10-14).
     function render(o) { return "@ " + o.name + ', "", "' + o.label + '", ' + newId() + ', "", 0 :' + (o.params ? " " + o.params : ""); }
     var groups = {}; p.ops.forEach(function (o) { (groups[o.name] = groups[o.name] || []).push(o); });
     var foundTemplate = {}, out = [];
@@ -509,8 +516,7 @@
         var m = l.match(/^([@'])( +)([A-Z0-9_]+), "", "([^"]*)",(.*)$/);
         if (m && m[3] === "CUT_X" && lc(m[4]).indexOf(GROOVE_LABEL) >= 0) { out.push((p.groove ? "@" : "'") + m[2] + "CUT_X, \"\", \"" + m[4] + "\"," + m[5]); return; }
         if (m && managed.indexOf(m[3]) >= 0) {
-          foundTemplate[m[3]] = true;
-          (groups[m[3]] || []).forEach(function (o) { out.push(render(o)); });
+          if (!foundTemplate[m[3]]) { foundTemplate[m[3]] = true; (groups[m[3]] || []).forEach(function (o) { out.push(render(o)); }); }
           return;
         }
       }

@@ -117,6 +117,22 @@ test("a Merivo-only cabinet shows no Legra macro at all, and vice versa (user, 2
   assert.ok(!Lm.some((l) => l.includes("LEGRABOX")));   // not this cabinet's drawer system — no trace
 });
 
+test("renderSide: a managed macro with 2+ template lines in the master emits its ops only once, not once per template line (2026-10-14 bug, found via /bpp)", () => {
+  const master = ["[VARIABLES]", "PAN=LPX|600||4|", "PAN=LPY|100||4|", "PAN=LPZ|19||4|", "", "[PROGRAM]",
+    `' TOPP_BOTN, "", "Toppur / Botn", 170000000, "", 0 : Bora_I_Gegn, LPZ, 0, "1,4"`,
+    `' SLA_HLID, "", "Slár", 170000001, "", 0 : LPZ, bora_i_gegn, lpz+1, 0, "1,4"`,
+    `' MERIVOBOX_V2, "", "", 170000002, "", 0 : -3, 0, 0, 0, 0, 0, 397, E`,     // first example (E)
+    `' MERIVOBOX_V2, "", "", 170000003, "", 0 : 400-3, 0, 0, 0, 0, 0, 397, K`, // second example (K) — same macro name
+    `' MERVIBOX_INNSKUFFA, "", "", 170000005, "", 0 : 144, 650, M`,
+    `@ STAT_BLOCK, "", "", 170000004, "", 0 : 0, LPY+100, 1`, ""].join("\r\n");
+  const p = S.unitPlan("SK 1", SK1); // one Merivo drawer code (K) on this cabinet's own data
+  const r = S.renderSide(master, p);
+  assert.deepEqual(r.errors, []);
+  const active = r.text.split("\r\n").filter((l) => l.startsWith("@ MERIVOBOX_V2,"));
+  assert.equal(active.length, p.ops.filter((o) => o.name === "MERIVOBOX_V2").length); // not doubled by the 2nd template line
+  assert.ok(!r.text.includes("' MERIVOBOX_V2,")); // the 2nd template line is dropped too, not left as a disabled leftover
+});
+
 test("grip: drawer slots = cut front + grip strip; inner drawer in the tallest zone (T-33 Sk 2: E567 + M227, inner K at 447)", () => {
   const rows = [row("Grunnskápur hlið", 800, 580, 16, 2), row("Skúffufrontur E - Merivo", 540, 597, 19, 1),
     row("Skúffufrontur M - Merivo", 200, 597, 19, 1), row("Innskúffufrontur K - Merivo Skrokkaefni", 144, 562, 16, 1)];
