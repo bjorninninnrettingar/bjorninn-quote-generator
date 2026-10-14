@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex" />
+<title>BPP skoðari — Björninn</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  /* bpp-viewer.html (/bpp) — drag in .bpp files made by /cnc (cnc-sides.js / cnc-doors.js) and see a 2D
+     elevation of what the program actually drills/cuts, without walking down to the machine to check a USB
+     stick. Only understands the macro vocabulary /cnc itself writes (drawer boxes, hinges, shelves, door
+     leaf/jamb hardware) — a hand-made shop master uses many macros this never learned, so those files show
+     the panel outline + a raw op dump instead of a (possibly wrong) drawing. 2026-10-14, agreed with the
+     user: visual 2D render, /cnc output only, drag-and-drop/file picker — see CLAUDE.md "CNC".
+     Reconstructs positions the same way the generators compute them (bottom-up stacking with a 3mm gap,
+     corner-coded hinge/shelf math) rather than trying to replicate the real Biesse macro's own internal
+     geometry — correct for OUR files because we know exactly how we wrote them. */
+  :root {
+    --bg:#2a2a2a; --surface:#1c1c1c; --surface2:#242424; --line:#383838; --text:#f0f0f0; --muted:#aaa; --dim:#888;
+    --blue:#2196f3; --green:#30d158; --amber:#ffd60a; --red:#ff453a; --purple:#bf5af2;
+    --font:"Kumbh Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; line-height:1.45; }
+  .wrap { max-width:900px; margin:0 auto; padding:20px 18px 60px; }
+  .kicker { font-size:.74rem; font-weight:700; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); }
+  h1 { font-size:1.8rem; font-weight:800; margin-top:4px; }
+  .sub { color:var(--muted); font-size:.88rem; margin-top:6px; max-width:68ch; }
+
+  #drop { margin-top:20px; border:2px dashed var(--line); border-radius:14px; padding:34px 20px; text-align:center; color:var(--muted); transition:.15s; }
+  #drop.over { border-color:var(--blue); background:#15202b; color:var(--text); }
+  #drop b { color:var(--text); }
+  #drop input { display:none; }
+  #drop .pick { display:inline-block; margin-top:10px; background:var(--surface2); border:1px solid var(--line); border-radius:10px; padding:9px 16px; font-weight:700; cursor:pointer; font-size:.88rem; }
+  #drop .pick:hover { border-color:var(--dim); }
+
+  #toolbar { display:flex; justify-content:flex-end; margin-top:10px; }
+  #toolbar button { background:none; border:1px solid var(--line); border-radius:9px; color:var(--muted); font-size:.8rem; padding:6px 12px; cursor:pointer; }
+  #toolbar button:hover { color:var(--text); border-color:var(--dim); }
+  #toolbar.hide { display:none; }
+
+  #out { margin-top:18px; display:flex; flex-direction:column; gap:16px; }
+  .card { background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:16px 18px; }
+  .card .head { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+  .card .fname { font-weight:800; font-size:1rem; word-break:break-all; }
+  .card .remove { background:none; border:none; color:var(--dim); font-size:1rem; cursor:pointer; padding:2px 6px; flex:none; }
+  .card .remove:hover { color:var(--red); }
+  .chip { font-size:.72rem; font-weight:800; padding:2px 9px; border-radius:99px; letter-spacing:.04em; white-space:nowrap; display:inline-block; }
+  .chip.kind { background:#13304d; color:#7cc3ff; }
+  .chip.unknown { background:#3d1010; color:var(--red); }
+  .dims { color:var(--muted); font-size:.84rem; margin-top:4px; }
+  .dims b { color:var(--text); font-weight:700; }
+
+  .panelwrap { margin-top:12px; display:flex; justify-content:center; background:var(--surface2); border-radius:10px; padding:14px; }
+  svg.plan { display:block; }
+  .legend { display:flex; gap:14px; flex-wrap:wrap; margin-top:10px; font-size:.76rem; color:var(--muted); }
+  .legend span { display:inline-flex; align-items:center; gap:5px; }
+  .legend i { width:11px; height:11px; border-radius:3px; display:inline-block; flex:none; }
+
+  .note { margin-top:10px; font-size:.84rem; border-radius:10px; padding:9px 13px; }
+  .note.warn { background:#3d3410; color:var(--amber); border:1px solid #5c4f14; }
+  .note.err { background:#40100e; color:var(--red); border:1px solid #5c1a16; }
+  .note.info { background:#132c18; color:var(--green); border:1px solid #1d4425; }
+
+  details.raw { margin-top:12px; }
+  details.raw summary { cursor:pointer; font-size:.82rem; color:var(--muted); font-weight:700; }
+  details.raw summary:hover { color:var(--text); }
+  .rawlist { margin-top:8px; font-size:.78rem; color:var(--dim); font-family:ui-monospace,Menlo,Consolas,monospace; max-height:240px; overflow:auto; background:var(--bg); border-radius:8px; padding:8px 10px; }
+  .rawlist div { padding:2px 0; }
+  .rawlist .off { opacity:.45; }
+
+  .empty { color:var(--dim); font-size:.9rem; text-align:center; margin-top:30px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="kicker">Björninn Innréttingar</div>
+  <h1>BPP skoðari</h1>
+  <div class="sub">Slepptu <code>.bpp</code> skrám sem /cnc bjó til (Hliðar, Frontar, Hurðablað, Karmur …) inn hér til að sjá hvernig forritið lítur út — án þess að fara niður með USB-kubb. Virkar bara fyrir skrár /cnc skrifaði; handgerðar master-skrár úr búðinni nota fullt af öðrum makróum sem þessi síða þekkir ekki og fá bara hráan lista.</div>
+
+  <div id="drop">
+    <div>Slepptu <b>.bpp</b> skrám hér</div>
+    <label class="pick">Velja skrár<input id="file" type="file" accept=".bpp" multiple /></label>
+  </div>
+
+  <div id="toolbar" class="hide"><button id="clearAll">Hreinsa allt</button></div>
+
+  <div id="out"></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ── decode / generic parsing ────────────────────────────────────────────────────────────────────────
+  function splitParams(raw) {
+    var out = [], cur = "", inQ = false;
+    for (var i = 0; i < raw.length; i++) {
+      var c = raw[i];
+      if (c === '"') { inQ = !inQ; continue; }
+      if (c === "," && !inQ) { out.push(cur.trim()); cur = ""; continue; }
+      cur += c;
+    }
+    out.push(cur.trim());
+    return raw.trim() === "" ? [] : out;
+  }
+  function num(raw, vars) {
+    if (raw == null) return null;
+    var s = String(raw).trim();
+    var sub = s.replace(/\b(lpx|lpy|lpz)\b/gi, function (m) { var v = vars[m.toUpperCase()]; return v == null ? m : String(v); });
+    if (!/^[0-9.+\-*/() ]+$/.test(sub)) return null;
+    try { var v = Function('"use strict";return (' + sub + ")")(); return isFinite(v) ? Math.round(v * 10) / 10 : null; } catch (e) { return null; }
+  }
+  var PAN_RE = /^PAN=(LPX|LPY|LPZ)\|([^|]*)\|/;
+  var GLB_RE = /^GLB=([A-Za-z0-9_]+)\|([^|]*)\|/;
+  var OP_RE = /^\s*([@'])\s+([A-Za-z0-9_]+),\s*"([^"]*)",\s*"([^"]*)",\s*(-?\d+),\s*"([^"]*)",\s*(-?\d+)\s*:\s*(.*)$/;
+
+  function parseBpp(text) {
+    var lines = text.split(/\r?\n/);
+    var vars = {}, glb = {}, ops = [], section = "";
+    lines.forEach(function (l) {
+      var sec = l.match(/^\[([A-Z]+)\]\s*$/);
+      if (sec) { section = sec[1]; return; }
+      var g = l.match(GLB_RE);
+      if (g) glb[g[1].toUpperCase()] = g[2];
+      if (section === "VARIABLES") {
+        var p = l.match(PAN_RE);
+        if (p) vars[p[1]] = parseFloat(p[2]);
+      }
+      if (section === "PROGRAM") {
+        var m = l.match(OP_RE);
+        if (m) ops.push({ active: m[1] === "@", name: m[2], label: m[4], params: splitParams(m[8]), raw: l.trim() });
+      }
+    });
+    return { vars: vars, glb: glb, ops: ops };
+  }
+
+  // ── which kind of /cnc file is this? ────────────────────────────────────────────────────────────────
+  var LEAF_HW = ["COPLAN", "LAMIR_89_HURD", "IN05020_LAMIR_JNF", "HYDRAULIC_PIVOT_W_SYSTEM",
+    "IN_20_835_60_BA", "EN12209", "IN_20_937", "HAWAJ_80B", "FELLI_THROSKULDUR"];
+  var JAMB_HINGE_HW = ["COPLAN_KARM", "LAMIR_89", "IN05020_KARMLOM_JNF"];
+  var JAMB_STRIKE_HW = ["IN_20_835_60_BA_SLUTJARN", "IN_20_937_SLUTTJARN", "KFV_SLUTTJARN", "SEGUL_SLUTTJARN", "JNF_SLUTTJARN"];
+  var JAMB_TOP_HW = ["HYDRAULIC_PIVOT_W_SYSTEM_FRAME_INSERT"];
+  var FRONT_EXTRA_MM = { E_NEDSTI_FRONTUR_MERIVO: 218, C_NEDSTI_FRONTUR_LEGRA: 203.5, F_NEDSTA_SKUFFA_LEGRABOX: 235.5 };
+  var DOOR_VARS = ["HURD_H", "HURD_B", "LOM1", "LOM2", "LOM3", "HANDFANG"];
+
+  function detectKind(parsed) {
+    var names = parsed.ops.map(function (o) { return o.name; });
+    var has = function (list) { return list.some(function (n) { return names.indexOf(n) >= 0; }); };
+    var isDoorFamily = DOOR_VARS.some(function (k) { return ("HS_" + k) in parsed.glb; });
+    if (isDoorFamily) {
+      if (has(JAMB_HINGE_HW)) return "karmur-lamir";
+      if (has(JAMB_STRIKE_HW)) return "karmur-slut";
+      if (has(JAMB_TOP_HW)) return "karmur-topp";
+      if (has(LEAF_HW)) return "hurdablad";
+      return "karmur-topp"; // toppstykki switches nothing itself besides the pivot insert
+    }
+    // Note: fronts also carry GLB=HS_HLID (renderSide stamps every file it writes the same way), so TOPP_BOTN/
+    // SLA_HLID — ops every side gets unconditionally and no front master has — are the only reliable "side" signal.
+    if (names.indexOf("TOPP_BOTN") >= 0 || names.indexOf("SLA_HLID") >= 0) return "hlid";
+    if (has(Object.keys(FRONT_EXTRA_MM)) || names.indexOf("K_M_NEDSTI_FRONTUR_MERIVO") >= 0 || names.indexOf("K_M_NEDSTI_FRONTUR_LEGRABOX") >= 0) return "front-skuffa";
+    if (names.indexOf("IKEALOM") >= 0) return "front-hurd";
+    return "unknown";
+  }
+  var KIND_LABEL = { "hlid": "Hlið", "front-skuffa": "Skúffufrontur", "front-hurd": "Hurðafrontur",
+    "hurdablad": "Hurðablað", "karmur-lamir": "Karmur — lamir", "karmur-slut": "Karmur — slúttjárn",
+    "karmur-topp": "Karmur — toppstykki", "unknown": "Óþekkt" };
+
+  // ── side / door-front feature reconstruction (mirrors cnc-sides.js unitPlan's own math) ───────────────
+  function hingeFeature(op, vars) {
+    var mm = num(op.params[0], vars);
+    if (mm == null) return null;
+    var corners = (op.params[2] || "").split(",").map(function (s) { return s.trim(); });
+    var out = [];
+    if (corners.indexOf("2") >= 0) out.push({ type: "hinge", y: mm, label: (op.label || "Löm") + " — " + mm + " mm frá botni" });
+    if (corners.indexOf("3") >= 0) out.push({ type: "hinge", y: vars.LPX - mm, label: (op.label || "Löm") + " — " + mm + " mm frá toppi" });
+    if (!out.length) out.push({ type: "hinge", y: mm, label: (op.label || "Löm") + " — " + mm + " mm", unsure: true });
+    return out;
+  }
+  function buildSideFeatures(ops, vars) {
+    var features = [], unknown = [], info = [];
+    var drawerCursor = 0, fixedCursor = 0;
+    ops.filter(function (o) { return o.active; }).forEach(function (op) {
+      var p = op.params;
+      switch (op.name) {
+        case "TOPP_BOTN": break; // always identical, not worth drawing
+        case "SLA_HLID": {
+          var y = num(p[3], vars);
+          if (y != null && y > 1) features.push({ type: "rail", y: y, label: op.label || "Slá" });
+          break;
+        }
+        case "LOM": case "IKEALOM": {
+          var hf = hingeFeature(op, vars);
+          if (hf) features = features.concat(hf); else unknown.push(op);
+          break;
+        }
+        case "FOST_HILLA": {
+          var mm = num(p[1], vars);
+          if (mm == null) { unknown.push(op); break; }
+          features.push({ type: "shelfFixed", y: mm, label: op.label || "Föst hilla" });
+          break;
+        }
+        case "LAUS_HILLA": {
+          var first = num(p[0], vars), n = num(p[1], vars), spacing = num(p[4], vars) || 50;
+          if (first == null || n == null) { unknown.push(op); break; }
+          var ys = []; for (var k = 0; k < n; k++) ys.push(first + k * spacing);
+          features.push({ type: "shelfLoose", ys: ys, label: op.label || "Laus hilla" });
+          break;
+        }
+        case "LEGRABOX_NEDSTA_SKUFFA": {
+          var H = num(p[0], vars), code = p[1];
+          if (H == null) { unknown.push(op); break; }
+          drawerCursor = 0;
+          features.push({ type: "drawer", from: 0, to: H, label: "Skúffa " + code + " (" + H + " mm)" });
+          drawerCursor = H + 3;
+          break;
+        }
+        case "LEGRABOX_SKUFFA": case "MERIVOBOX_V2": {
+          var H2 = num(p[6], vars), code2 = p[7];
+          if (H2 == null) { unknown.push(op); break; }
+          var from = drawerCursor;
+          features.push({ type: "drawer", from: from, to: from + H2, label: "Skúffa " + code2 + " (" + H2 + " mm)" });
+          drawerCursor = from + H2 + 3;
+          break;
+        }
+        case "LEGRABOX_INNSKUFFA": case "MERVIBOX_INNSKUFFA": {
+          var H3 = num(p[0], vars), x = num(p[1], vars), code3 = p[2];
+          if (H3 == null || x == null) { unknown.push(op); break; }
+          features.push({ type: "inner", from: x, to: x + H3, label: "Innskúffa " + code3 + " (" + H3 + " mm)" });
+          break;
+        }
+        case "FAST_FRAMSTYKKI": {
+          var H4 = num(p[0], vars);
+          if (H4 == null) { unknown.push(op); break; }
+          var to = vars.LPX - fixedCursor, from2 = to - H4;
+          features.push({ type: "fixed", from: from2, to: to, label: "Fast framstykki (" + H4 + " mm)" });
+          fixedCursor += H4 + 3;
+          break;
+        }
+        case "CUT_X": {
+          info.push((op.label || "Sögun") + ": virk");
+          break;
+        }
+        case "GEO": case "ENDPATH": case "GEOTEXT": case "STAT_BLOCK": case "BG": case "RECTANGLE": case "MOVENTO_BAKKI":
+          break; // decorative / unmanaged shop-master furniture, not drawn
+        default:
+          unknown.push(op);
+      }
+    });
+    return { features: features, unknown: unknown, info: info };
+  }
+
+  function buildFrontSkuffaFeatures(ops, vars) {
+    var features = [], names = ops.filter(function (o) { return o.active; }).map(function (o) { return o.name; });
+    Object.keys(FRONT_EXTRA_MM).forEach(function (n) {
+      if (names.indexOf(n) >= 0) features.push({ type: "shelfFixed", y: FRONT_EXTRA_MM[n], label: n + " — " + FRONT_EXTRA_MM[n] + " mm frá botni" });
+    });
+    return { features: features, unknown: [], info: [] };
+  }
+
+  function buildDoorFeatures(kind, ops, glb) {
+    var g = {};
+    Object.keys(glb).forEach(function (k) { if (/^HS_/.test(k)) g[k.slice(3)] = parseFloat(glb[k]); });
+    var names = ops.filter(function (o) { return o.active; }).map(function (o) { return o.name; });
+    var has = function (list) { return list.some(function (n) { return names.indexOf(n) >= 0; }); };
+    var floorRel = kind !== "hurdablad";
+    var HG = g.HG_BIL || 0, H = g.HURD_H;
+    function fromTop(mm) { var y = H - mm; return floorRel ? HG + y : y; }
+    function fromBottom(mm) { return floorRel ? HG + mm : mm; }
+    var hingeHW = kind === "hurdablad" ? LEAF_HW.slice(0, 4) : kind === "karmur-lamir" ? JAMB_HINGE_HW : [];
+    var lockHW = kind === "hurdablad" ? LEAF_HW.slice(4, 8) : kind === "karmur-slut" ? JAMB_STRIKE_HW : [];
+    var thrHW = kind === "hurdablad" ? ["FELLI_THROSKULDUR"] : [];
+    var features = [], info = [];
+    if (H == null) { return { features: [], unknown: [], info: ["Engin GLB=HS_HURD_H fannst — mál óþekkt"] }; }
+    var suffix = floorRel ? " (mælt frá gólfi, blaðsmál + " + HG + " mm bil)" : " frá botni/toppi blaðs";
+    if (has(hingeHW)) {
+      if (g.LOM1 != null) features.push({ type: "hinge", y: fromTop(g.LOM1), label: "Löm 1 — " + g.LOM1 + " mm" + suffix });
+      if (g.LOM2 != null) features.push({ type: "hinge", y: fromTop(g.LOM2), label: "Löm 2 — " + g.LOM2 + " mm" + suffix });
+      if (g.LOM3 != null) features.push({ type: "hinge", y: fromBottom(g.LOM3), label: "Löm 3 — " + g.LOM3 + " mm" + suffix });
+    } else info.push("Engin löm virk í þessari skrá");
+    if (has(lockHW)) { if (g.HANDFANG != null) features.push({ type: "handle", y: fromBottom(g.HANDFANG), label: "Handfang/skrá — " + g.HANDFANG + " mm" + suffix }); }
+    if (has(thrHW)) features.push({ type: "threshold", y: 0, label: "Felliþröskuldur" });
+    return { features: features, unknown: [], info: info, HURD_B: g.HURD_B, KARMAR_B: g.KARMAR_B };
+  }
+
+  // ── rendering ────────────────────────────────────────────────────────────────────────────────────────
+  var COLORS = { drawer: "#2196f3", inner: "#bf5af2", fixed: "#ff9f0a", hinge: "#30d158", handle: "#30d158",
+    shelfFixed: "#ffd60a", shelfLoose: "#ffd60a", rail: "#aaa", threshold: "#ff453a" };
+
+  function svgEl(tag, attrs) {
+    var el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+    Object.keys(attrs || {}).forEach(function (k) { el.setAttribute(k, attrs[k]); });
+    return el;
+  }
+
+  function renderPlan(panelW, panelH, features, depthLabel) {
+    var maxW = 440, maxH = 620;
+    var scale = Math.min(maxW / panelW, maxH / panelH);
+    var W = panelW * scale, H = panelH * scale;
+    var mmPx = function (px) { return px / scale; };
+    var svg = svgEl("svg", { class: "plan", width: W, height: H, viewBox: "0 0 " + panelW + " " + panelH });
+    svg.appendChild(svgEl("rect", { x: 0, y: 0, width: panelW, height: panelH, fill: "#1c1c1c", stroke: "#666", "stroke-width": mmPx(1.5) }));
+    var toSvgY = function (y) { return panelH - y; };
+    var fontMm = mmPx(10.5), strokeMm = mmPx(1.2);
+
+    var order = { drawer: 0, inner: 0, fixed: 0, rail: 1, shelfFixed: 1, shelfLoose: 1, hinge: 2, handle: 2, threshold: 2 };
+    var sorted = features.slice().sort(function (a, b) { return (order[a.type] || 0) - (order[b.type] || 0); });
+    sorted.forEach(function (f) {
+      if (f.type === "drawer" || f.type === "inner" || f.type === "fixed") {
+        var y0 = Math.max(0, Math.min(panelH, f.from)), y1 = Math.max(0, Math.min(panelH, f.to));
+        var top = toSvgY(y1), h = Math.max(1, y1 - y0);
+        var fill = f.type === "drawer" ? "#1a3a5c" : f.type === "inner" ? "#2e1a3e" : "#4a3414";
+        svg.appendChild(svgEl("rect", { x: 0, y: top, width: panelW, height: h, fill: fill, "fill-opacity": .55, stroke: COLORS[f.type], "stroke-width": strokeMm, "stroke-dasharray": f.type === "inner" ? mmPx(5) + "," + mmPx(4) : "none" }));
+        var t = svgEl("text", { x: panelW / 2, y: top + h / 2, "text-anchor": "middle", "dominant-baseline": "middle", fill: "#fff", "font-size": fontMm, "font-weight": "700" });
+        t.textContent = f.label; svg.appendChild(t);
+      } else if (f.type === "hinge" || f.type === "handle") {
+        var cy = toSvgY(f.y), cx = mmPx(26);
+        var r = mmPx(7);
+        var shape = f.type === "hinge"
+          ? svgEl("circle", { cx: cx, cy: cy, r: r, fill: COLORS[f.type], "fill-opacity": f.unsure ? .4 : .9 })
+          : svgEl("rect", { x: cx - r, y: cy - r, width: r * 2, height: r * 2, fill: COLORS[f.type], "fill-opacity": .9 });
+        svg.appendChild(shape);
+        svg.appendChild(svgEl("line", { x1: cx + r, y1: cy, x2: panelW - mmPx(6), y2: cy, stroke: COLORS[f.type], "stroke-width": strokeMm * .6, "stroke-dasharray": mmPx(4) + "," + mmPx(3) }));
+        var lt = svgEl("text", { x: cx + r + mmPx(6), y: cy - mmPx(6), fill: COLORS[f.type], "font-size": fontMm * .92, "font-weight": "700" });
+        lt.textContent = f.label; svg.appendChild(lt);
+      } else if (f.type === "shelfFixed") {
+        var yy = toSvgY(f.y);
+        svg.appendChild(svgEl("line", { x1: 0, y1: yy, x2: panelW, y2: yy, stroke: COLORS.shelfFixed, "stroke-width": strokeMm, "stroke-dasharray": mmPx(14) + "," + mmPx(6) }));
+        var st = svgEl("text", { x: panelW - mmPx(6), y: yy - mmPx(5), "text-anchor": "end", fill: COLORS.shelfFixed, "font-size": fontMm * .9, "font-weight": "700" });
+        st.textContent = f.label; svg.appendChild(st);
+      } else if (f.type === "shelfLoose") {
+        f.ys.forEach(function (y, i) {
+          var yy2 = toSvgY(y);
+          svg.appendChild(svgEl("line", { x1: 0, y1: yy2, x2: panelW, y2: yy2, stroke: COLORS.shelfLoose, "stroke-width": strokeMm * .6, "stroke-dasharray": mmPx(8) + "," + mmPx(5), opacity: .75 }));
+          if (i === 0) {
+            var slt = svgEl("text", { x: panelW - mmPx(6), y: yy2 - mmPx(5), "text-anchor": "end", fill: COLORS.shelfLoose, "font-size": fontMm * .9, "font-weight": "700" });
+            slt.textContent = f.label; svg.appendChild(slt);
+          }
+        });
+      } else if (f.type === "rail") {
+        var yr = toSvgY(f.y);
+        svg.appendChild(svgEl("line", { x1: 0, y1: yr, x2: panelW, y2: yr, stroke: COLORS.rail, "stroke-width": strokeMm }));
+        var rt = svgEl("text", { x: mmPx(6), y: yr - mmPx(5), fill: COLORS.rail, "font-size": fontMm * .85 });
+        rt.textContent = f.label; svg.appendChild(rt);
+      } else if (f.type === "threshold") {
+        svg.appendChild(svgEl("rect", { x: 0, y: panelH - mmPx(6), width: panelW, height: mmPx(6), fill: COLORS.threshold, "fill-opacity": .6 }));
+      }
+    });
+    if (depthLabel) {
+      var dl = svgEl("text", { x: panelW / 2, y: panelH - mmPx(6), "text-anchor": "middle", fill: "#777", "font-size": fontMm * .8 });
+      dl.textContent = depthLabel; svg.appendChild(dl);
+    }
+    return svg;
+  }
+
+  var LEGEND_ITEMS = [
+    ["drawer", "Skúffa"], ["inner", "Innskúffa"], ["fixed", "Fast framstykki"], ["hinge", "Löm"],
+    ["handle", "Handfang/skrá"], ["shelfFixed", "Föst hilla"], ["shelfLoose", "Laus hilla"], ["rail", "Slá"], ["threshold", "Þröskuldur"],
+  ];
+
+  // A master with 2+ template lines for the same managed macro makes renderSide (cnc-sides.js /
+  // cnc-doors.js) re-emit that macro's whole op group at every template occurrence — a real, confirmed
+  // generator bug (2026-10-14), not a viewer artifact. Flag it whenever the exact same active macro call
+  // (name + params) repeats, since a legitimate file never issues the identical command twice.
+  var DUP_IGNORE = { ENDPATH: 1, GEO: 1 }; // legitimately repeat identically, not a sign of duplication
+  function findDuplicateOps(ops) {
+    var seen = {}, dups = [];
+    ops.filter(function (o) { return o.active && !DUP_IGNORE[o.name]; }).forEach(function (o) {
+      var k = o.name + "|" + o.params.join(",");
+      seen[k] = (seen[k] || 0) + 1;
+    });
+    Object.keys(seen).forEach(function (k) { if (seen[k] > 1) dups.push(k.split("|")[0] + " (" + seen[k] + "×): " + k.split("|")[1]); });
+    return dups;
+  }
+
+  // ── per-file card ────────────────────────────────────────────────────────────────────────────────────
+  function buildCard(file, text) {
+    var card = document.createElement("div"); card.className = "card";
+    var head = document.createElement("div"); head.className = "head";
+    var fname = document.createElement("div"); fname.className = "fname"; fname.textContent = file.name;
+    var rm = document.createElement("button"); rm.className = "remove"; rm.textContent = "✕"; rm.title = "Fjarlægja";
+    rm.onclick = function () { card.remove(); if (!document.getElementById("out").children.length) document.getElementById("toolbar").classList.add("hide"); };
+    head.appendChild(fname); head.appendChild(rm);
+    card.appendChild(head);
+
+    var parsed;
+    try { parsed = parseBpp(text); } catch (e) {
+      var errNote = document.createElement("div"); errNote.className = "note err"; errNote.textContent = "Gat ekki lesið skrána: " + e.message;
+      card.appendChild(errNote); return card;
+    }
+    var kind = detectKind(parsed);
+    var kchip = document.createElement("span"); kchip.className = "chip kind" + (kind === "unknown" ? " unknown" : "");
+    kchip.textContent = KIND_LABEL[kind]; head.insertBefore(kchip, rm);
+
+    var vars = parsed.vars;
+    if (vars.LPX == null || vars.LPY == null) {
+      card.appendChild(mkNote("warn", "Fann ekki PAN=LPX/LPY í skránni — ekki hægt að teikna."));
+      return card;
+    }
+    var dims = document.createElement("div"); dims.className = "dims";
+    dims.innerHTML = "LPX <b>" + vars.LPX + "</b> × LPY <b>" + vars.LPY + "</b>" + (vars.LPZ != null ? " × LPZ <b>" + vars.LPZ + "</b> mm" : " mm");
+    card.appendChild(dims);
+
+    if (kind === "unknown") {
+      card.appendChild(mkNote("warn", "Þekki ekki þessa skrá sem /cnc-skrá (engin GLB=HS_ merking fannst) — útlitið gæti verið rangt. Sýni bara hráar virkar aðgerðir."));
+    }
+    if (kind === "karmur-topp") {
+      card.appendChild(mkNote("info", "Toppstykki: engin staðsetningarmerki sýnd hér (láréttur bútur, ekki sama hnitakerfi og hurð/karmur) — bara mál."));
+    }
+    var dupOps = findDuplicateOps(parsed.ops);
+    if (dupOps.length) {
+      card.appendChild(mkNote("err", "Sama aðgerðin kemur fram " + dupOps.length + "× of oft í skránni (líklega vegna þess að master-skráin er með fleiri en eina sniðmátslínu fyrir sama makró) — vélin myndi keyra þetta tvisvar/oftar: " + dupOps.join("; ")));
+    }
+
+    var built;
+    if (kind === "hlid" || kind === "front-hurd") built = buildSideFeatures(parsed.ops, vars);
+    else if (kind === "front-skuffa") built = buildFrontSkuffaFeatures(parsed.ops, vars);
+    else if (kind === "hurdablad" || kind === "karmur-lamir" || kind === "karmur-slut" || kind === "karmur-topp") built = buildDoorFeatures(kind, parsed.ops, parsed.glb);
+    else built = { features: [], unknown: parsed.ops.filter(function (o) { return o.active; }), info: [] };
+
+    var panelW, panelH, depthLabel;
+    if (kind === "front-skuffa") { panelW = vars.LPX; panelH = vars.LPY; depthLabel = null; }
+    else { panelW = vars.LPY; panelH = vars.LPX; depthLabel = "dýpt " + vars.LPY + " mm"; }
+
+    if (built.features.length || kind !== "unknown") {
+      var pw = document.createElement("div"); pw.className = "panelwrap";
+      pw.appendChild(renderPlan(panelW, panelH, built.features, kind === "front-skuffa" ? null : depthLabel));
+      card.appendChild(pw);
+
+      if (built.features.length) {
+        var usedTypes = {}; built.features.forEach(function (f) { usedTypes[f.type] = 1; });
+        var legend = document.createElement("div"); legend.className = "legend";
+        LEGEND_ITEMS.filter(function (it) { return usedTypes[it[0]]; }).forEach(function (it) {
+          var s = document.createElement("span"); var i = document.createElement("i"); i.style.background = COLORS[it[0]];
+          s.appendChild(i); s.appendChild(document.createTextNode(it[1])); legend.appendChild(s);
+        });
+        card.appendChild(legend);
+      }
+    }
+
+    (built.info || []).forEach(function (t) { card.appendChild(mkNote("info", t)); });
+    if (built.unknown && built.unknown.length) {
+      card.appendChild(mkNote("warn", built.unknown.length + " virk(ar) aðgerð(ir) sem þessi skoðari teiknar ekki — sjá hráan lista hér fyrir neðan."));
+    }
+
+    var raw = document.createElement("details"); raw.className = "raw";
+    var sum = document.createElement("summary"); sum.textContent = "Hráar aðgerðir (" + parsed.ops.filter(function (o) { return o.active; }).length + " virkar)";
+    raw.appendChild(sum);
+    var list = document.createElement("div"); list.className = "rawlist";
+    parsed.ops.forEach(function (o) {
+      var d = document.createElement("div"); if (!o.active) d.className = "off";
+      d.textContent = (o.active ? "@ " : "' ") + o.name + (o.label ? " \"" + o.label + "\"" : "") + ": " + o.params.join(", ");
+      list.appendChild(d);
+    });
+    raw.appendChild(list); card.appendChild(raw);
+    return card;
+  }
+  function mkNote(cls, text) { var n = document.createElement("div"); n.className = "note " + cls; n.textContent = text; return n; }
+
+  // ── drag & drop / file picker plumbing ──────────────────────────────────────────────────────────────
+  var drop = document.getElementById("drop"), out = document.getElementById("out"), toolbar = document.getElementById("toolbar");
+  function decode(buf) {
+    try { return new TextDecoder("windows-1252").decode(buf); } catch (e) { return new TextDecoder("utf-8").decode(buf); }
+  }
+  function addFiles(files) {
+    Array.prototype.slice.call(files).forEach(function (f) {
+      if (!/\.bpp$/i.test(f.name)) return;
+      f.arrayBuffer().then(function (buf) {
+        var text = decode(buf);
+        out.appendChild(buildCard(f, text));
+        toolbar.classList.remove("hide");
+      });
+    });
+  }
+  drop.addEventListener("dragover", function (e) { e.preventDefault(); drop.classList.add("over"); });
+  drop.addEventListener("dragleave", function () { drop.classList.remove("over"); });
+  drop.addEventListener("drop", function (e) {
+    e.preventDefault(); drop.classList.remove("over");
+    addFiles(e.dataTransfer.files);
+  });
+  document.getElementById("file").addEventListener("change", function (e) { addFiles(e.target.files); e.target.value = ""; });
+  document.getElementById("clearAll").addEventListener("click", function () { out.innerHTML = ""; toolbar.classList.add("hide"); });
+})();
+</script>
+</body>
+</html>

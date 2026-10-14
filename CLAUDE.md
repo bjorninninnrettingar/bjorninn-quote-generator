@@ -38,6 +38,7 @@ since GitHub push protection blocks committing an Airtable PAT directly).
 | `/skipuleggja` | [kitchen-planner.html](kitchen-planner.html) | **Eldhússkipulag (sjálfsafgreiðsla)** — customer-facing kitchen planner, see docs/kitchen-planner.md. Desktop only (<768px shows a gate). |
 | `/eldhus-yfirferd` | [kitchen-planner-review.html](kitchen-planner-review.html) | Rakel's read-only review of a submitted plan (`?recordId=` of the Tækifæri); renders the same 3D/2D via the shared module |
 | `/cnc` (`/hurdir`) | [cnc.html](cnc.html) + [cnc-sides.js](cnc-sides.js) + [cnc-doors.js](cnc-doors.js) | **CNC útflutningur (Rover-B)** — one export per project: cabinet sides from Sögunarlisti + doors (karmur + hurðablað) into `[99] - VERKEFNI/<T-xx name>/` on the USB stick. See docs/cnc.md. |
+| `/bpp` | [bpp-viewer.html](bpp-viewer.html) | **BPP skoðari** — drag in a `.bpp` file `/cnc` wrote and see a 2D elevation of drawers/hinges/shelves/door hardware, without walking to the machine. See docs/cnc.md. |
 
 Rewrites live in [vercel.json](vercel.json) (`source` = short path, `destination` = the `.html` file); push to
 `main` redeploys. Hub pages `/skipulag` and `/verkstaedi` just forward `?recordId=` into the tool picked.
