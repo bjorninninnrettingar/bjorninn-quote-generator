@@ -88,6 +88,19 @@ test("renderBpp: numbers in, managed macros switched, other sections untouched, 
   assert.deepEqual(C.readValues(r.text), p.values);               // the file is its own record
 });
 
+// 2026-10-14 (user asked to confirm): the "Karmur toppstykki" file goes through the exact same renderBpp()
+// as the leaf/lamir/slúttjárn files (cnc.html's write loop calls it uniformly for every kind — see filesFor()),
+// and renderBpp's GLB=HS_ block never looks at which macro set or `on` list it was called with. Confirmed
+// against a real generated file too (T-49 HU3.3 Karmur toppstykki.bpp on the shop's own stick already carries
+// all 11 GLB=HS_ lines).
+test("the toppstykki file gets the GLB=HS_ record block too, same as every other door file", () => {
+  const p = C.doorPlan(DOOR);
+  const r = C.renderBpp(JAMB, p.values, C.MANAGED.jambTop, []); // topp files never switch a managed macro — filesFor's own `on: []`
+  assert.deepEqual(r.errors, []);
+  assert.ok(r.text.split("\r\n").includes("GLB=HS_HURD_Z|38|Hurdaskra|0|"));
+  assert.deepEqual(C.readValues(r.text), p.values);
+});
+
 test("a managed macro not chosen for this door is dropped from the file entirely — not switched off (user, 2026-10-13)", () => {
   // Three hinge options and a threshold, all present in the master and all switched off by default —
   // the finished file should show only the one hinge this door actually uses, and no threshold line at
