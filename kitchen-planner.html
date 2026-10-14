@@ -8312,6 +8312,10 @@
     legra:  { base:[28.5, 75.5, "K_M_NEDSTI_FRONTUR_LEGRABOX"], C:[29, 203.5, "C_NEDSTI_FRONTUR_LEGRA"], F:[29, 235.5, "F_NEDSTA_SKUFFA_LEGRABOX"] }
   };
   function frontHoles(code){ var H = FRONT_HOLES[drawerSys()]; return [H.base].concat(H[code] ? [H[code]] : []); }
+  // Grip svæði (Fræst grip, 2026-10-14): "alla" (lárétt only — see Keyra skipulag) shrinks the front by this
+  // many mm, same as the old -35mm Höldur-1 hack it replaces. "hluti" never changes a dimension.
+  var GRIP_SHRINK_MM = 35;
+  var GRIP_LEN_DEFAULT_MM = 300;
   function proBodyMm(b, c, zone){ var h = blockHeightMm(b, c); return zone === "floor" && !c.panel && !c.appliance ? h - 100 : h; }
   // The door openings of a cabinet, top → bottom, as the 3D draws them (wide units: two leaves = one opening).
   function proDoorsOf(b, c, zone){
@@ -8399,6 +8403,57 @@
     var all = doors.map(function(d, j){ return j === i ? spec : proSpec(b, doors, j); });
     b.smida = Object.assign({}, b.smida || {}, { doors:all }); // keeps the split
     save();
+  }
+  // Grip svæði (Fræst grip, 2026-10-14): every front that can carry a grip zone, with its own identity and
+  // position. Drawer/oven-understack fronts (codes/fronts, bottom → top) target their Sérhæð code — "alla" can
+  // shrink that code's height on Eyðublað (Keyra skipulag). Split fronts (front1 = efst) target "frontN" the
+  // same way. Any other door (single, fridge leaf, oven door) has no per-door field on Eyðublað, so it only
+  // gets "door0"/"door1"… and can only use "hluti" (no dimension change, just drawing/CNC metadata).
+  function proGripTargets(b, c, zone, body, doors, codes, fronts){
+    var out = [];
+    if (codes && fronts && fronts.length === codes.length){
+      var below = 0;
+      codes.forEach(function(code, i){
+        out.push({ target:code, label:"Skúffa " + code, allowAlla:true, bottomMm:below, heightMm:fronts[i] - 3 });
+        below += fronts[i];
+      });
+    }
+    var spl = doors.length ? proSplit(b, body) : null, isSplit = !!spl && spl.length === doors.length, above = 0;
+    doors.forEach(function(d, i){
+      var bottomMm = body - above - d.box;
+      out.push({
+        target: isSplit ? "front" + (i + 1) : "door" + i,
+        label: d.label, allowAlla: isSplit, bottomMm: bottomMm,
+        heightMm: isSplit ? d.box - 3 : d.box
+      });
+      above += d.box;
+    });
+    return out;
+  }
+  function proGripZones(b){ return Array.isArray(b.smida && b.smida.grip) ? b.smida.grip.slice() : []; }
+  function proGripOf(b, target){ return proGripZones(b).find(function(g){ return g.target === target; }) || null; }
+  // absolute floor height of this front's own bottom edge: plinth (100, same as proBodyMm) for a normal floor
+  // cabinet, 0 for a floor appliance (fridge/oven sit straight on the floor), or the wall unit's "Frá gólfi"
+  function proGripFloorOffset(b, c, zone){ return zone === "wall" ? (KP3D.elevOf(b) || 0) : (c.panel || c.appliance ? 0 : 100); }
+  // Type 2 ("hluti") default: center the zone at ~1000 mm absolute from the real floor — "where most people
+  // like to grab" (2026-10-14 design) — clamped inside the front. No such ergonomic rule for wall units (rare
+  // in practice); centers the zone on the front instead.
+  function proGripDefaultStart(b, c, zone, t){
+    var len = GRIP_LEN_DEFAULT_MM;
+    if (zone !== "wall"){
+      var off = proGripFloorOffset(b, c, zone), targetAbs = off + 900, frontAbs = off + t.bottomMm;
+      return Math.max(0, Math.min(t.heightMm - len, Math.round(targetAbs - frontAbs - len / 2)));
+    }
+    return Math.max(0, Math.round((t.heightMm - len) / 2));
+  }
+  function proSetGrip(b, target, patch){ // patch: grip fields to set (no "target" key needed), or null to remove the zone
+    var list = proGripZones(b).filter(function(g){ return g.target !== target; });
+    if (patch) list.push(Object.assign({ target:target }, patch));
+    var o = Object.assign({}, b.smida || {});
+    if (list.length) o.grip = list; else delete o.grip;
+    b.smida = Object.keys(o).length ? o : null;
+    if (!b.smida) delete b.smida;
+    save(); refreshAfterEdit(); renderBoxEditor();
   }
   function proPanelButton(host){
     var fb = selectedBlockId ? findBlock(selectedBlockId) : null;
@@ -8586,6 +8641,29 @@
       'Rauðu götin eru festigötin eins og global front-makróin bora þau — öll skúffufront eins og neðsta skúffa: ' +
       (drawerSys() === "merivo" ? '35,5 frá hlið, 58 frá botni (+ 218 á E).' : '28,5 frá hlið, 75,5 frá botni (+ 203,5 á C, 235,5 á F).') + '</div></div>';
     if (doors.length) right += '<div class="pe-note">Lamir eru mældar frá enda hurðarinnar (80 mm sjálfgefið + jafnt á milli). Sama regla og /cnc notar.</div>';
+    // Grip svæði (Fræst grip): one card per eligible front, type Ekkert/Alla leið/Hluti
+    var gripTargets = proGripTargets(b, c, fb.zone, body, doors, codes, fronts);
+    gripTargets.forEach(function(t){
+      var g = proGripOf(b, t.target), type = g ? g.type : "none";
+      right += '<div class="pe-door"><h4>Grip — ' + t.label + ' (' + t.heightMm + ' mm)</h4><div class="pe-row">' +
+        '<button type="button" class="pe-btn' + (type === "none" ? " on" : "") + '" data-pe="griptype" data-t="' + t.target + '" data-v="none">Ekkert</button>' +
+        (t.allowAlla ? '<button type="button" class="pe-btn' + (type === "alla" ? " on" : "") + '" data-pe="griptype" data-t="' + t.target + '" data-v="alla">Alla leið</button>' : '') +
+        '<button type="button" class="pe-btn' + (type === "hluti" ? " on" : "") + '" data-pe="griptype" data-t="' + t.target + '" data-v="hluti">Hluti</button></div>';
+      if (type === "alla") right += '<div class="pe-row">Brún: ' +
+          '<button type="button" class="pe-btn' + (g.brun === "efst" ? " on" : "") + '" data-pe="gripbrun" data-t="' + t.target + '" data-v="efst">Efst</button>' +
+          '<button type="button" class="pe-btn' + (g.brun === "neðst" ? " on" : "") + '" data-pe="gripbrun" data-t="' + t.target + '" data-v="neðst">Neðst</button></div>' +
+          '<div class="pe-note">Lárétt rauf, ' + GRIP_SHRINK_MM + ' mm — fronturinn verður ' + Math.max(0, t.heightMm - GRIP_SHRINK_MM) + ' mm eftir skerðingu.</div>';
+      else if (type === "hluti"){
+        var gatt = g.att || "lárétt", gstart = g.start != null ? g.start : proGripDefaultStart(b, c, fb.zone, t), glen = g.length || GRIP_LEN_DEFAULT_MM;
+        right += '<div class="pe-row">Átt: ' +
+          '<button type="button" class="pe-btn' + (gatt === "lárétt" ? " on" : "") + '" data-pe="gripatt" data-t="' + t.target + '" data-v="lárétt">Lárétt</button>' +
+          '<button type="button" class="pe-btn' + (gatt === "lóðrétt" ? " on" : "") + '" data-pe="gripatt" data-t="' + t.target + '" data-v="lóðrétt">Lóðrétt</button></div>' +
+          '<div class="pe-row">Frá botni: <input type="number" min="0" max="' + Math.max(0, t.heightMm - 20) + '" step="1" value="' + gstart + '" data-pe="gripstart" data-t="' + t.target + '"> mm · Lengd: <input type="number" min="20" max="' + t.heightMm + '" step="1" value="' + glen + '" data-pe="griplen" data-t="' + t.target + '"> mm ' +
+          '<button type="button" class="pe-btn" data-pe="gripreset" data-t="' + t.target + '">Sjálfgefið</button></div>' +
+          '<div class="pe-note">Engin mál breytast — bara staðsetning fyrir teikningu og /cnc (frá botni fronts að botni raufar).</div>';
+      }
+      right += '</div>';
+    });
     var isReady = proReady(b), issues = proIssues(b, c, fb.zone);
     if (issues.length) right += '<div class="pe-issues">' + issues.map(function(x){ return '<div>⛔ ' + escapeHtmlPro(x) + '</div>'; }).join("") + '</div>';
     right += isReady
@@ -8661,6 +8739,26 @@
     }
     act('[data-pe="burmm"]', function(n){ setBur(+n.dataset.k, +n.value); });
     act('[data-pe="burreset"]', function(){ delete b.burPos; ovenDone(); });
+    function gripPatch(target, extra){ // merges onto the zone's existing fields (e.g. changing átt keeps start/length)
+      var g = proGripOf(b, target) || {};
+      return Object.assign({ type:g.type, att:g.att, brun:g.brun, start:g.start, length:g.length }, extra);
+    }
+    act('[data-pe="griptype"]', function(n){
+      var t = n.dataset.t, tg = gripTargets.find(function(x){ return x.target === t; }), v = n.dataset.v;
+      if (v === "none") proSetGrip(b, t, null);
+      else if (v === "alla") proSetGrip(b, t, { type:"alla", att:"lárétt", brun:"efst" });
+      else proSetGrip(b, t, { type:"hluti", att:"lárétt", start:proGripDefaultStart(b, c, fb.zone, tg), length:GRIP_LEN_DEFAULT_MM });
+    });
+    act('[data-pe="gripbrun"]', function(n){ proSetGrip(b, n.dataset.t, gripPatch(n.dataset.t, { brun:n.dataset.v })); });
+    act('[data-pe="gripatt"]', function(n){ proSetGrip(b, n.dataset.t, gripPatch(n.dataset.t, { att:n.dataset.v })); });
+    act('[data-pe="gripstart"]', function(n){ var t = n.dataset.t, tg = gripTargets.find(function(x){ return x.target === t; }), v = Math.round(+n.value);
+      if (!(v >= 0 && v <= tg.heightMm - 20)){ toast("Upphaf grips er utan marka."); renderBoxEditor(); return; }
+      proSetGrip(b, t, gripPatch(t, { start:v })); });
+    act('[data-pe="griplen"]', function(n){ var t = n.dataset.t, tg = gripTargets.find(function(x){ return x.target === t; }), v = Math.round(+n.value);
+      if (!(v >= 20 && v <= tg.heightMm)){ toast("Lengd grips er utan marka."); renderBoxEditor(); return; }
+      proSetGrip(b, t, gripPatch(t, { length:v })); });
+    act('[data-pe="gripreset"]', function(n){ var t = n.dataset.t, tg = gripTargets.find(function(x){ return x.target === t; });
+      proSetGrip(b, t, gripPatch(t, { start:proGripDefaultStart(b, c, fb.zone, tg), length:GRIP_LEN_DEFAULT_MM })); });
     el.querySelectorAll(".pe-burdr").forEach(function(g){
       g.addEventListener("pointerdown", function(e){
         e.preventDefault(); g.setPointerCapture(e.pointerId);
@@ -8799,6 +8897,15 @@
     if (doors.length) o.hinge = b.widthMm > 600 && !c.fridge && c.cls !== "corner" ? "baedi" : b.swing === "haegri" ? "haegri" : "vinstri";
     if (doors.length && b.smida) o.doors = doors.map(function(dr, i){ var sp = proSpec(b, doors, i);
       return { h:dr.box - 3, type:sp.type, side:b.swing || null, hinges:sp.type === "lift" ? [] : sp.hinges }; });
+    // Grip svæði (Fræst grip) → Keyra skipulag (Eyðublað "Grip svæði (JSON)" + "alla" shrinks Sérhæð/Hæð frontur N
+    // directly) → teikning + /cnc. Re-validated against the cabinet's CURRENT fronts, same as proSplit above —
+    // a resized/reconfigured cabinet drops a grip zone whose front no longer exists instead of sending stale data.
+    if (b.smida && Array.isArray(b.smida.grip) && b.smida.grip.length){
+      var gripOk = {};
+      proGripTargets(b, c, zone, h, doors, codes, fronts).forEach(function(t){ gripOk[t.target] = true; });
+      var grip = b.smida.grip.filter(function(g){ return g && gripOk[g.target]; });
+      if (grip.length) o.grip = grip;
+    }
     if (b.smidaReady && b.smidaReady === smidaHash(o)) o.ready = true; // "Klár til framleiðslu" — only while nothing changed since
     return o;
   }
