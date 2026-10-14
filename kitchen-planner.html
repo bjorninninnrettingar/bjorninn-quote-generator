@@ -3754,7 +3754,7 @@
     return '<i class="dw-ico" style="height:' + Math.round(5 + side / 241 * 17) + 'px"></i>';
   }
   function drawerSys(){ return state.drawerSystem === "merivo" ? "merivo" : "legra"; }
-  function drawerBodyMm(b, c){ return KP3D.drawerZoneMm(c, blockHeightMm(b, c) - 100); } // same 100 mm plinth the 3D uses; a tall unit's drawers stop at 1200 mm
+  function drawerBodyMm(b, c){ return KP3D.drawerZoneMm(c, blockHeightMm(b, c) - 100, b.drawerZoneMm); } // same 100 mm plinth the 3D uses; a tall unit's drawers stop at 1200 mm (or b.drawerZoneMm, PRO)
   function sortStack(codes){ // tallest at the bottom — how Björninn builds them
     var o = "NMKECF";
     return codes.slice().sort(function(a, b){ return o.indexOf(b) - o.indexOf(a); });
@@ -3959,7 +3959,7 @@
       html += '<div class="dw-add"><span class="dw-add-h">Bæta við skúffu</span>' + D.codes.filter(function(code){ return code !== "N"; }).map(function(code){
         var next = sortStack(codes.concat([code]));
         var ok = codes.length < 4 && (stackAllowed(b, c, next, inner) || stackAllowed(b, c, next, null)); // may cost the inner drawer (see the click handler)
-        return '<button type="button" class="hw-btn dw-addbtn" data-dw-add="' + code + '"' + (ok ? '' : ' disabled') + ' title="' + CODE_LABEL[code] + ' skúffa — ' + CODE_USE[code] + '">' + dwIcon(code) + '<span>＋ ' + CODE_LABEL[code] + '<small>' + CODE_USE[code] + '</small></span></button>';
+        return '<button type="button" class="hw-btn dw-addbtn" data-dw-add="' + code + '"' + (ok ? '' : ' disabled') + ' title="Skúffa ' + code + ' — ' + CODE_USE[code] + '"><span>＋ <b>' + code + '</b><small>' + CODE_USE[code] + '</small></span></button>';
       }).join("") + '</div>';
     } else {
       html += drawerSimpleHTML(b, c, codes, inner);
@@ -4041,11 +4041,26 @@
     var codes = model ? model.codes : function(){ return KP3D.drawerCodes(b.interior, drawerSys()); };
     var fronts = model ? model.fronts : function(){ return KP3D.stackFrontsMm(b.interior, codes(), drawerBodyMm(b, c)) || []; };
     var rst = host.querySelector("[data-dw-reset]");
-    if (rst) rst.addEventListener("click", function(){ commit(codes(), null); });
+    if (rst) rst.addEventListener("click", function(){ delete b.drawerZoneMm; commit(codes(), null); });
     host.querySelectorAll("[data-dw-mm]").forEach(function(inp){
       inp.addEventListener("change", function(){
         var i = +inp.dataset.dwMm, cc = codes(), v = Math.round(parseFloat(inp.value));
-        var nf = isNaN(v) ? null : KP3D.resizeFront(fronts(), cc, i, v);
+        if (isNaN(v)){ inp.value = Math.round(fronts()[i]); return; }
+        if (c.cls === "tall" && !model){ // a tall unit's door above the drawers flexes instead of the other fronts
+          var mins = cc.map(function(x){ return KP3D.slotMin(x); });
+          if (v < mins[i] - 0.5){ toast("Þessi hæð gengur ekki — " + CODE_LABEL[cc[i]].toLowerCase() + " skúffa er minnst " + KP3D.slotMin(cc[i]) + " mm."); inp.value = Math.round(fronts()[i]); return; }
+          var cur = fronts().slice(); cur[i] = v; // slots already carry their own gap (KP3D.slotMin), so they sum straight to the zone
+          var zoneMm = Math.round(cur.reduce(function(a, h){ return a + h; }, 0));
+          var fullBody = blockHeightMm(b, c) - 100;
+          if (zoneMm > fullBody - KP3D.DRAWER_TOPDOOR_MIN_MM){
+            toast("Þá yrði hurðin fyrir ofan of lítil — veldu lægri skúffu eða stækkaðu skápinn.");
+            inp.value = Math.round(fronts()[i]); return;
+          }
+          b.drawerZoneMm = zoneMm;
+          commit(cc, cur.map(function(h){ return Math.round(h); }));
+          return;
+        }
+        var nf = KP3D.resizeFront(fronts(), cc, i, v);
         if (!nf){ toast("Þessi hæð gengur ekki — " + CODE_LABEL[cc[i]].toLowerCase() + " skúffa er minnst " + KP3D.slotMin(cc[i]) + " mm og hinar þurfa sitt pláss."); inp.value = Math.round(fronts()[i]); return; }
         commit(cc, nf);
       });
@@ -4752,6 +4767,7 @@
       leaveUnitWizard();
       refreshAfterEdit();
       restoreEditorCam();
+      if (PRO) openBoxEditor(b.id); // new unit in PRO: step 2 is Smíða (user, 2026-10-14)
     });
   }
   // The spinning preview: a one-wall scene holding just the cabinet being configured (isolated like the
@@ -8507,8 +8523,14 @@
   // The door openings of a cabinet, top → bottom, as the 3D draws them (wide units: two leaves = one opening).
   function proDoorsOf(b, c, zone){
     if (!c || c.panel || c.shelfStack || c.open || c.appliance || c.fixedFronts) return [];
-    if (b.interior && b.interior.mode === "skuffur") return [];
     var body = proBodyMm(b, c, zone);
+    if (b.interior && b.interior.mode === "skuffur"){ // a tall unit's door above the drawer stack (Smíða, 2026-10-14)
+      if (c.cls !== "tall") return [];
+      var top = body - drawerBodyMm(b, c);
+      // >= not >: the drawer zone can be committed right up to this floor (wireDrawerStack), so a door at exactly
+      // the minimum must still show, not vanish from hinge-editing and the Smíðagögn export.
+      return top >= KP3D.DRAWER_TOPDOOR_MIN_MM ? [{ box:Math.round(top), label:"Hurð fyrir ofan skúffur" }] : [];
+    }
     if (c.oven){
       if (c.lowOven) return [];
       var top = body - ovenUnderMm(b) - KP3D.ovenHOf(b, c);

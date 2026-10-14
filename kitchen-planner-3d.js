@@ -3594,7 +3594,7 @@
         var inter = b.interior;
         if (c.rusl && !(inter && inter.mode === "skuffur")) inter = { mode:"skuffur", codes:[state.drawerSystem === "merivo" ? "E" : "C"], count:1 }; // old drafts: one tall pull-out
         if (inter && inter.mode === "skuffur"){ // the real stack: one Blum code per drawer, fronts sized from the codes
-          var fullBody = hM * 1000 - 100, dbody = drawerZoneMm(c, fullBody), dcodes = drawerCodes(inter, state.drawerSystem), dfr = stackFrontsMm(inter, dcodes, dbody);
+          var fullBody = hM * 1000 - 100, dbody = drawerZoneMm(c, fullBody, b.drawerZoneMm), dcodes = drawerCodes(inter, state.drawerSystem), dfr = stackFrontsMm(inter, dcodes, dbody);
           // a tall unit with drawers: the drawers fill the bottom (≤ 1200 mm), a hinged door the rest (user, 2026-10-11)
           var zf = dbody / fullBody, topDoor = zf < 0.999 ? zf : null;
           inter = Object.assign({}, inter, { codes:dcodes, count:dcodes.length, topDoorFr:topDoor,
@@ -4085,7 +4085,15 @@
   // they were a fixed 500 and stopped well short of the back). The Blum side models are stretched to that length.
   // Drawers in a tall unit only go up to 1200 mm from the plinth; above that it's a hinged door (user, 2026-10-11)
   var TALL_DRAWER_MAX_MM = 1200;
-  function drawerZoneMm(c, bodyMm){ return c && c.cls === "tall" ? Math.min(bodyMm, TALL_DRAWER_MAX_MM) : bodyMm; }
+  // The door above a drawer stack may shrink to absorb a typed drawer-front height, but never below this (user,
+  // 2026-10-14 — "lama frontarnir lækka bara í staðinn"), same convention as the oven's OVEN_DOOR_MIN.
+  var DRAWER_TOPDOOR_MIN_MM = 150;
+  // override = a persisted b.drawerZoneMm (Smíða/PRO only); clamped so the door above never drops under its min.
+  function drawerZoneMm(c, bodyMm, override){
+    if (!(c && c.cls === "tall")) return bodyMm;
+    var def = Math.min(bodyMm, TALL_DRAWER_MAX_MM), v = +override;
+    return v > 0 ? Math.max(0, Math.min(bodyMm - DRAWER_TOPDOOR_MIN_MM, v)) : def;
+  }
   function drawerNominalM(boxD){ return Math.max(270, Math.min(650, Math.floor(((boxD || 0.562) * 1000 + 0.5) / 50) * 50)) / 1000; }
   // innerW (m, optional) = the carcass's inside width: the drawer is then made as wide as it takes for the runners
   // to sit right against the cabinet sides, as they're mounted (user, 2026-10-11 — they floated in from the sides)
@@ -5193,7 +5201,7 @@
     cornerClearanceMm: cornerClearanceMm, afellaMm: afellaMm, AFELLA_MM: AFELLA_MM,
     blockStartsMm: blockStartsMm,
     planTransform: planTransform,
-    rectCornersWorld: rectCornersWorld, drawerZoneMm: drawerZoneMm, TALL_DRAWER_MAX_MM: TALL_DRAWER_MAX_MM, doorLeaves: doorLeaves, islandFits: islandFits, nearestIslandFit: nearestIslandFit, topThickM: topThickM, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, DECOR: DECOR, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
+    rectCornersWorld: rectCornersWorld, drawerZoneMm: drawerZoneMm, TALL_DRAWER_MAX_MM: TALL_DRAWER_MAX_MM, DRAWER_TOPDOOR_MIN_MM: DRAWER_TOPDOOR_MIN_MM, doorLeaves: doorLeaves, islandFits: islandFits, nearestIslandFit: nearestIslandFit, topThickM: topThickM, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, DECOR: DECOR, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
     WALL_COLORS: WALL_COLORS,
     WINDOW_DEFAULT: WINDOW_DEFAULT,
     _handleProfile: handleProfile,
