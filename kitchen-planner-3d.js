@@ -1648,10 +1648,13 @@
       return;
     }
 
-    // Door units wider than 600 mm get two doors (user, 2026-10-02 — was ≥ 750): a centre seam.
-    var wideDoor = !drawers && widthM > WIDE_DOOR_M && !(meta && meta.fridge) && !isCorner;
-    if (wideDoor || isCorner){
-      place(new THREE.Mesh(new THREE.PlaneGeometry(0.008, heightM * 0.97), seamMat), baseYM + heightM / 2, 0.004);
+    // Door units wider than 600 mm get two doors (user, 2026-10-02 — was ≥ 750; 2026-10-14 — also the door
+    // zone above a drawer stack, not just drawer-free cabinets). The seam only spans the door's own zone,
+    // not the drawers below it (drawers never split into two leaves regardless of width).
+    var wideDoor = widthM > WIDE_DOOR_M && !(meta && meta.fridge) && !isCorner;
+    if ((wideDoor && (!drawers || interior.topDoorFr)) || isCorner){
+      var doorY0 = drawers && interior.topDoorFr ? interior.topDoorFr : 0, doorSpanM = (1 - doorY0) * heightM;
+      place(new THREE.Mesh(new THREE.PlaneGeometry(0.008, doorSpanM * 0.97), seamMat), baseYM + heightM * doorY0 + doorSpanM / 2, 0.004);
     }
 
     fronts.forEach(function(f, idx){
@@ -2041,7 +2044,10 @@
     else fronts.push({ y0:0, y1:1 });
     var sysKey = meta.drawerSystem || "legra";
     var dcodes = drawers && interior.codes && interior.codes.length === drawers ? interior.codes : null; // bottom → top
-    var wide = !drawers && widthM > WIDE_DOOR_M && !meta.fridge && !meta.corner;
+    // A door zone over 600 mm still splits into two leaves even when there are drawers below it (owner,
+    // 2026-10-14) — drawer fronts are already routed to their own "if (f.drawer)" branch below regardless
+    // of this flag, so dropping the old "!drawers" gate here only affects the door-zone front, correctly.
+    var wide = widthM > WIDE_DOOR_M && !meta.fridge && !meta.corner;
     var parts = (scene.userData.parts = scene.userData.parts || []);
 
     function makeLeaf(idx, cxL, w, y0, y1, hinge, f, fi){
