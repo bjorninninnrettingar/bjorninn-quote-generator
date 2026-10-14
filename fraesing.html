@@ -740,6 +740,7 @@ async function loadProject(projectId) {
         innihald: buildInnihald(u),
         note: String(u.fields[U_CNC_NOTE] || "").trim(),
         isLagnaskapur: singleSelectName(u.fields[U_SKAPATEGUND]) === "Lagnaskápur",
+        opnun,
         pieceGroups: buildPieceGroups(ownPieces, opnun),
       };
     })
@@ -941,7 +942,7 @@ function renderUnits(visible) {
 
     div.innerHTML = `
       <div class="unit-head">
-        <div class="unit-name">${escapeHtml(u.name)}</div>
+        <div class="unit-name">${escapeHtml(u.name)}${u.opnun ? ` - ${escapeHtml(u.opnun)}` : ""}</div>
         ${u.tegund ? `<div class="unit-tegund">${escapeHtml(u.tegund)}</div>` : ""}
       </div>
       ${u.innihald ? `<div class="unit-innihald">${escapeHtml(u.innihald)}</div>` : ""}
