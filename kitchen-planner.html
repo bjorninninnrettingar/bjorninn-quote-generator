@@ -3953,7 +3953,10 @@
     if (ro && ro.sides){ // PRO's Smíða only — full detail stays
       var fronts = KP3D.stackFrontsMm(b.interior, codes, drawerBodyMm(b, c)) || [];
       html += drawerRowsHTML(codes, fronts, { reorder:true, del:true, custom:!!b.interior.frontsMm, sides:true });
-      html += '<div class="dw-add"><span class="dw-add-h">Bæta við skúffu</span>' + D.codes.map(function(code){
+      // PRO only offers C/K/M/E/F as NEW drawer picks (not N — Merivo's shallowest code) — user, 2026-10-14.
+      // Existing N-coded drawers from before this change still render/validate/export fine; this only hides
+      // N from the "add a drawer" buttons, it isn't removed from KP3D.DRAWER_CODES itself.
+      html += '<div class="dw-add"><span class="dw-add-h">Bæta við skúffu</span>' + D.codes.filter(function(code){ return code !== "N"; }).map(function(code){
         var next = sortStack(codes.concat([code]));
         var ok = codes.length < 4 && (stackAllowed(b, c, next, inner) || stackAllowed(b, c, next, null)); // may cost the inner drawer (see the click handler)
         return '<button type="button" class="hw-btn dw-addbtn" data-dw-add="' + code + '"' + (ok ? '' : ' disabled') + ' title="' + CODE_LABEL[code] + ' skúffa — ' + CODE_USE[code] + '">' + dwIcon(code) + '<span>＋ ' + CODE_LABEL[code] + '<small>' + CODE_USE[code] + '</small></span></button>';
@@ -4611,7 +4614,7 @@
           return '<button type="button" class="hw-btn' + (b.widthMm === w ? ' active' : '') + '" data-uw-w="' + w + '">' + (w / 10) + '</button>';
         }).join("") + '</div><div class="uw-custom"><input type="number" data-uw-wcustom min="' + c.minW + '" max="' + c.maxW + '" step="10" value="' + b.widthMm + '"><small>mm · sérmál ' + c.minW + '–' + c.maxW + '</small></div></div>';
       }
-      if (c.hasInterior) html += '<div class="edit-field">' + hardwareHTML(b, c) + '</div>';
+      if (c.hasInterior) html += '<div class="edit-field">' + hardwareHTML(b, c, PRO ? { sides:true } : null) + '</div>';
       var shelfN = c.shelfRange && !(c.hasInterior && b.interior.mode === "skuffur") ? KP3D.shelvesOf(b) : null; // b.shelves, same as the side panel + 3D
       if (shelfN != null){
         var rng = [c.shelfRange[0], c.shelfRange[1]];
@@ -4623,9 +4626,9 @@
           '<button type="button" class="btn btn-primary" data-isl-add>Setja inn eyju</button></div>';
         wireUnitWizard(side); schedulePreview(); return;
       }
-      html += '<div class="edit-field"><label>Hvar?</label><select data-uw-wall>' + walls.map(function(w){
-        return '<option value="' + w.id + '"' + (w.id === uw.wallId ? ' selected' : '') + '>' + w.label + (uwFits(w, b) ? '' : ' — passar ekki í þessari breidd') + '</option>';
-      }).join("") + '</select></div>';
+      // No "Hvar?" picker (2026-10-14, both customer and PRO) — uwStartBlock() already chose a sensible
+      // wall (the one selected in the editor if it fits, else the first that does); drag the cabinet to
+      // move it afterward, same as moving any already-placed cabinet.
       var target = walls.find(function(w){ return w.id === uw.wallId; }), ok = !!(target && uwFits(target, b));
       html += '<div class="uw-actions"><button type="button" class="btn btn-secondary btn-small" data-uw-back>← Til baka</button>' +
         '<button type="button" class="btn btn-primary" data-uw-add' + (target ? '' : ' disabled') + '>Setja inn</button></div>' +
@@ -4730,8 +4733,6 @@
       if (frontsMm) b.ovenFrontsMm = frontsMm; else delete b.ovenFrontsMm;
       renderUnitWizard();
     }, ovenStackModel(b));
-    var ws = side.querySelector("[data-uw-wall]");
-    if (ws) ws.addEventListener("change", function(){ uw.wallId = ws.value; renderUnitWizard(); });
     var add = side.querySelector("[data-uw-add]");
     if (add) add.addEventListener("click", function(){
       var wall = surfaces().find(function(w){ return w.id === uw.wallId; });
@@ -5894,6 +5895,7 @@
   var viewMode = "3d"; // "3d" | "2d" | "wall", not persisted — always opens on 3D
   var wallViewId = null; // which wall "Veggur" mode is focused on
   var selectedBlockId = null; // not part of state — never persisted/submitted
+  var proTab = "mal"; // PRO's Mál/Innvols/Annað tab in the per-cabinet edit panel — not part of state
 
   function solidWalls(){ return (state.walls || []).filter(function(w){ return !w.open; }); } // "Veggur" only cycles through real walls, not open edges
   function cycleWallView(dir){
@@ -6577,20 +6579,11 @@
         (b.count > 1 ? '<div class="edit-field"><label>Bil á milli hilla</label><div class="dim-grid"><div class="dim-f"><input type="number" data-role="st-gap" value="' + b.vgapMm + '" min="50" max="800" step="1"><small>mm · 50–800</small></div></div></div>' : '')
       : '';
 
-    host.innerHTML =
-      '<div class="edit-panel">' +
-        '<div class="edit-panel-head"><div><h4>' + c.label + '</h4><div class="sub"><a href="#" data-role="toWall" style="color:var(--blue);text-decoration:none;font-weight:600;">' + wall.label + '</a>' + (wall.island ? "" : ' · ' + (zone === "wall" ? "efri röð" : "neðri röð")) + '</div></div>' +
-          (wall.island ? '<button class="iconbtn" data-role="toIsland" title="Velja eyjuna" style="margin-right:6px;">Eyja</button>' : '') +
-          '<button class="iconbtn" data-role="close" title="Loka">✕</button></div>' +
-        (zone === "wall" && !c.panel && !c.shelfStack ? '<div class="edit-field"><button type="button" class="iconbtn' + ((b.led != null ? b.led : lighting().underWall) ? ' on' : '') + '" data-role="led">💡 LED undir skápnum: ' + ((b.led != null ? b.led : lighting().underWall) ? 'á' : 'af') + '</button></div>' : '') +
-        '<div class="edit-field lock-row"><button type="button" class="iconbtn lockbtn' + (b.locked ? ' on' : '') + '" data-role="lock" data-keep="1" title="' + (b.locked ? 'Smelltu á skúffur og hurðir í 3D til að opna þær' : 'Læstu honum þegar hann er réttur') + '">' + (b.locked ? '🔒 Læstur' : '🔓 Læsa') + '</button></div>' +
-        '<div class="edit-field"><label>Tegund</label><select data-role="type">' + typeOptions + '</select></div>' +
-        '<div class="edit-field"><label>Mál (mm)</label>' + dims + '</div>' +
-        elevField + stackField +
-        (!c.panel && !c.shelfStack && !c.notOrdered ? '<div class="edit-field"><label>Úthlið</label><div class="hw-toggle">' +
-          '<button type="button" class="hw-btn" data-add-panel="-1" title="19 mm úthlið — fylgir skápnum">＋ Vinstri</button><button type="button" class="hw-btn" data-add-panel="1" title="19 mm úthlið — fylgir skápnum">＋ Hægri</button></div></div>' : '') +
-        (c.panel ? '<div class="edit-field"><button type="button" class="iconbtn" data-role="match" title="Tekur hæð, dýpt og hæð frá gólfi af skápnum sem hún liggur að">↔ Passa við skápinn</button></div>' : '') +
-        (c.hasInterior ? '<div class="edit-field">' + hardwareHTML(b, c) + '</div>' : '') + variantHTML(b, c) +
+    // PRO groups the fields below into Mál / Innvols / Annað tabs (one at a time, re-rendered on switch) —
+    // customers keep the flat single-column layout, unchanged (user, 2026-10-14).
+    var malHtml = '<div class="edit-field"><label>Mál (mm)</label>' + dims + '</div>' + elevField + stackField +
+      (c.panel ? '<div class="edit-field"><button type="button" class="iconbtn" data-role="match" title="Tekur hæð, dýpt og hæð frá gólfi af skápnum sem hún liggur að">↔ Passa við skápinn</button></div>' : '');
+    var innvolsHtml = (c.hasInterior ? '<div class="edit-field">' + hardwareHTML(b, c, PRO ? { sides:true } : null) + '</div>' : '') +
         (c.shelfRange && !(b.interior && b.interior.mode === "skuffur")
           ? '<div class="edit-field"><label>Lausar hillur</label><div class="hw-count">' +
               '<button class="iconbtn" data-role="sh-dec" ' + (KP3D.shelvesOf(b) <= c.shelfRange[0] ? "disabled" : "") + '>−</button>' +
@@ -6611,8 +6604,28 @@
             '<button type="button" class="hw-btn' + (b.swing !== "haegri" ? ' active' : '') + '" data-swing="vinstri">◧ Vinstri</button>' +
             '<button type="button" class="hw-btn' + (b.swing === "haegri" ? ' active' : '') + '" data-swing="haegri">Hægri ◨</button></div></div>';
           return '';
-        })() +
-        (c.fridge ? '<p class="ov-mat" style="margin:0 0 10px;">Söluaðili staðfestir stærð tækis og hurðargerð.</p>' : '') +
+        })();
+    var annadHtml = (zone === "wall" && !c.panel && !c.shelfStack ? '<div class="edit-field"><button type="button" class="iconbtn' + ((b.led != null ? b.led : lighting().underWall) ? ' on' : '') + '" data-role="led">💡 LED undir skápnum: ' + ((b.led != null ? b.led : lighting().underWall) ? 'á' : 'af') + '</button></div>' : '') +
+        '<div class="edit-field lock-row"><button type="button" class="iconbtn lockbtn' + (b.locked ? ' on' : '') + '" data-role="lock" data-keep="1" title="' + (b.locked ? 'Smelltu á skúffur og hurðir í 3D til að opna þær' : 'Læstu honum þegar hann er réttur') + '">' + (b.locked ? '🔒 Læstur' : '🔓 Læsa') + '</button></div>' +
+        '<div class="edit-field"><label>Tegund</label><select data-role="type">' + typeOptions + '</select></div>' +
+        (!c.panel && !c.shelfStack && !c.notOrdered ? '<div class="edit-field"><label>Úthlið</label><div class="hw-toggle">' +
+          '<button type="button" class="hw-btn" data-add-panel="-1" title="19 mm úthlið — fylgir skápnum">＋ Vinstri</button><button type="button" class="hw-btn" data-add-panel="1" title="19 mm úthlið — fylgir skápnum">＋ Hægri</button></div></div>' : '') +
+        variantHTML(b, c) +
+        (c.fridge ? '<p class="ov-mat" style="margin:0 0 10px;">Söluaðili staðfestir stærð tækis og hurðargerð.</p>' : '');
+    var proTabLabels = { mal:"Mál", innvols:"Innvols", annad:"Annað" };
+    var bodyHtml;
+    if (PRO){
+      if (proTab !== "mal" && proTab !== "innvols" && proTab !== "annad") proTab = "mal";
+      bodyHtml = '<div class="hw-toggle" data-role="pro-tabs">' + Object.keys(proTabLabels).map(function(t){
+        return '<button type="button" class="hw-btn' + (proTab === t ? ' active' : '') + '" data-protab="' + t + '">' + proTabLabels[t] + '</button>';
+      }).join("") + '</div>' + { mal:malHtml, innvols:innvolsHtml, annad:annadHtml }[proTab];
+    } else bodyHtml = malHtml + innvolsHtml + annadHtml;
+    host.innerHTML =
+      '<div class="edit-panel">' +
+        '<div class="edit-panel-head"><div><h4>' + c.label + '</h4><div class="sub"><a href="#" data-role="toWall" style="color:var(--blue);text-decoration:none;font-weight:600;">' + wall.label + '</a>' + (wall.island ? "" : ' · ' + (zone === "wall" ? "efri röð" : "neðri röð")) + '</div></div>' +
+          (wall.island ? '<button class="iconbtn" data-role="toIsland" title="Velja eyjuna" style="margin-right:6px;">Eyja</button>' : '') +
+          '<button class="iconbtn" data-role="close" title="Loka">✕</button></div>' +
+        bodyHtml +
         '<div class="edit-actions">' +
           '<button class="iconbtn" data-role="left" title="Færa til vinstri">◀</button>' +
           '<button class="iconbtn" data-role="right" title="Færa til hægri">▶</button>' +
@@ -6621,7 +6634,11 @@
       '</div>';
 
     host.querySelector('[data-role="close"]').addEventListener("click", function(){ onCabinetSelect(null); });
-    host.querySelector('[data-role="lock"]').addEventListener("click", function(){ toggleLock(b.id); });
+    host.querySelectorAll('[data-protab]').forEach(function(btn){
+      btn.addEventListener("click", function(){ proTab = btn.dataset.protab; renderEditPanel(); });
+    });
+    var lockBtn = host.querySelector('[data-role="lock"]');
+    if (lockBtn) lockBtn.addEventListener("click", function(){ toggleLock(b.id); });
     var ledBtn = host.querySelector('[data-role="led"]');
     if (ledBtn) ledBtn.addEventListener("click", function(){
       var now = b.led != null ? b.led : lighting().underWall;
@@ -6632,7 +6649,8 @@
     if (toIsl) toIsl.addEventListener("click", function(){ onCabinetSelect({ blockId:wall.island.id }); });
     var toWall = host.querySelector('[data-role="toWall"]');
     if (toWall) toWall.addEventListener("click", function(e){ e.preventDefault(); if (!wall.island) onWallSelect(wall.id); });
-    host.querySelector('[data-role="type"]').addEventListener("change", function(e){
+    var typeSel = host.querySelector('[data-role="type"]');
+    if (typeSel) typeSel.addEventListener("change", function(e){
       changeBlockType(wall, zone, b.id, e.target.value);
     });
     host.querySelectorAll("[data-dim]").forEach(function(inp){
@@ -6705,10 +6723,10 @@
         if (e.target.value) moveBlockToWall(b.id, e.target.value);
       });
     }
-    if (b.locked){ // everything but the lock itself is frozen
+    if (b.locked){ // everything but the lock itself (and PRO's tab switcher, so Annað — and the lock button on it — stays reachable) is frozen
       host.querySelectorAll("input, select, button").forEach(function(el){
         var role = el.dataset.role;
-        if (el.dataset.keep || role === "close" || role === "toWall" || role === "toIsland") return;
+        if (el.dataset.keep || el.dataset.protab || role === "close" || role === "toWall" || role === "toIsland") return;
         el.disabled = true;
       });
     }
