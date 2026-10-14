@@ -4457,23 +4457,21 @@
       { label:"Úthlið — efri", type:"uthlidefri" },
       { label:"Bak á eyju", islandBack:true, gap:true } ] }
   ];
-  // Fataskápar (and any future non-kitchen category) only offers structural cabinet groups — appliances
-  // (taeki) and islands (eyja) aren't a typical wardrobe layout. A few individual options are kitchen-only
-  // even within an otherwise-generic group (vaskaskápur/ruslaskápur/töfrahorn/hornskápur, mixed into "grunn").
-  var CATEGORY_CABINET_GROUPS = { fataskapar: ["grunn", "har", "efri", "uthlid"] };
-  // grunnskapur is excluded too (not just the obviously kitchen-only ones): its whole concept is "goes
-  // under a worktop" (CATALOG's counter:true, which drives worktop-slab geometry in kitchen-planner-3d.js
-  // in several places) — a room with no worktop has no coherent use for it. "Lítill kassi" (litillkassi,
-  // already counter-free, documented as generic low furniture) stays available in the same group.
-  var CATEGORY_EXCLUDED_TYPES = { fataskapar: ["vaskaskapur", "ruslaskapur", "tofrahorn", "hornskapur", "grunnskapur"] };
-  function unitCatAllowed(cat){
-    var allow = CATEGORY_CABINET_GROUPS[state.activeCategory];
-    return !allow || allow.indexOf(cat.key) >= 0;
-  }
-  function unitOptAllowed(o){
-    var excl = CATEGORY_EXCLUDED_TYPES[state.activeCategory];
-    return !excl || !o.type || excl.indexOf(o.type) < 0;
-  }
+  // Fataskápar's own cabinet picker (2026-10-14, replaces an earlier filtered-kitchen-groups attempt) —
+  // four purpose-built types, each its own single-option group so step 1 of "Ný eining" IS the real choice
+  // (see the single-option auto-skip in wireUnitWizard). No Efri skápar (wall cabinets) — not a typical
+  // closet component. harskapurOpinn is the open (no front) variant of harskapur, built in CATALOG.
+  var FATASKAPAR_TREE = [
+    { key:"lokadur", label:"Lokaður skápur", desc:"Með framhlið", icon:"harskapur", opts:[
+      { label:"Lokaður skápur", type:"harskapur" } ] },
+    { key:"opinn", label:"Opinn skápur", desc:"Engin framhlið — hillur í framhliðaefni", icon:"harskapurOpinn", opts:[
+      { label:"Opinn skápur", type:"harskapurOpinn" } ] },
+    { key:"grunn", label:"Grunnskápur", desc:"Lágur skápur", icon:"grunnskapur", opts:[
+      { label:"Grunnskápur", type:"grunnskapur" } ] },
+    { key:"hillur", label:"Hillur", desc:"Lausar hillur", icon:"laushilla", opts:[
+      { label:"Hillur", type:"laushilla" } ] }
+  ];
+  function activeUnitTree(){ return state.activeCategory === "fataskapar" ? FATASKAPAR_TREE : UNIT_TREE; }
   var uw = null; // { step, cat, opt, b, wallId }
   function uwSurfaces(zone){ return zone === "wall" ? state.walls.filter(function(w){ return !w.open; }) : surfaces().filter(function(w){ return !w.open; }); }
   function uwFits(w, b){ var c = CATALOG[b.type]; return canFit(w, c.zone, b.widthMm, probeSpan(c.zone, b)); }
@@ -4590,15 +4588,13 @@
   function renderUnitWizard(){
     var side = document.getElementById("uwSide"), html = "";
     if (uw.step === 1){
-      html = '<p class="uw-kicker">Ný eining</p><h3>Hvað viltu bæta við?</h3><div class="uw-grid">' + UNIT_TREE.map(function(cat, i){
-        if (!unitCatAllowed(cat)) return "";
+      html = '<p class="uw-kicker">Ný eining</p><h3>Hvað viltu bæta við?</h3><div class="uw-grid">' + activeUnitTree().map(function(cat, i){
         return '<button type="button" class="uw-card" data-uw-cat="' + i + '">' + catIcon(cat.iconKind || "cabinet", cat.icon) + '<span><b>' + cat.label + '</b><small>' + cat.desc + '</small></span></button>';
       }).join("") + '</div>';
     } else if (uw.step === 2){
-      var cat = UNIT_TREE[uw.cat];
+      var cat = activeUnitTree()[uw.cat];
       var lastGroup = null;
       html = '<p class="uw-kicker">' + cat.label + '</p><h3>Veldu útfærslu</h3><div class="uw-grid">' + cat.opts.map(function(o, i){
-        if (!unitOptAllowed(o)) return "";
         var head = o.group && o.group !== lastGroup ? '<p class="uw-group">' + o.group + '</p>' : (!o.group && lastGroup ? '<p class="uw-group"></p>' : '');
         lastGroup = o.group || null;
         if (o.soon) return head + '<button type="button" class="uw-card soon" disabled>' + catIcon("cabinet", "harskapur") + '<span><b>' + o.label + '</b><small>Væntanlegt</small></span></button>';
@@ -4606,9 +4602,9 @@
           (o.island ? '<small>' + ISLAND_TYPES[o.island].dim + ' · veldu útfærslu á hverjum kassa</small>' : '') + '</span></button>';
       }).join("") + '</div><div class="uw-actions"><button type="button" class="btn btn-secondary btn-small" data-uw-back>← Til baka</button></div>';
     } else {
-      var b = uw.b, c = CATALOG[b.type], opt = UNIT_TREE[uw.cat].opts[uw.opt];
+      var b = uw.b, c = CATALOG[b.type], opt = activeUnitTree()[uw.cat].opts[uw.opt];
       var widths = uwWidthOptions(c), walls = uwSurfaces(c.zone);
-      html = '<p class="uw-kicker">' + UNIT_TREE[uw.cat].label + '</p><h3>' + (opt.group ? opt.group + ': ' : '') + opt.label + '</h3>';
+      html = '<p class="uw-kicker">' + activeUnitTree()[uw.cat].label + '</p><h3>' + (opt.group ? opt.group + ': ' : '') + opt.label + '</h3>';
       if (uw.island) html += islandBoxesHTML();
       if (!c.panel){
         html += '<div class="edit-field"><label>Breidd</label><div class="uw-chips">' + widths.map(function(w){
@@ -4640,10 +4636,17 @@
     schedulePreview();
   }
   function wireUnitWizard(side){
-    side.querySelectorAll("[data-uw-cat]").forEach(function(el){ el.addEventListener("click", function(){ uw.cat = +el.dataset.uwCat; uw.hover = 0; uw.step = 2; renderUnitWizard(); }); });
+    side.querySelectorAll("[data-uw-cat]").forEach(function(el){ el.addEventListener("click", function(){
+      uw.cat = +el.dataset.uwCat; uw.hover = 0;
+      var opts = activeUnitTree()[uw.cat].opts;
+      if (opts.length === 1 && !opts[0].soon && !opts[0].island && !opts[0].islandBack){ // one real option: skip the redundant step 2 (Fataskápar's groups)
+        uw.opt = 0; uw.b = uwStartBlock(opts[0]); uw.step = 3;
+      } else uw.step = 2;
+      renderUnitWizard();
+    }); });
     side.querySelectorAll("[data-uw-opt]").forEach(function(el){ el.addEventListener("mouseenter", function(){ uw.hover = +el.dataset.uwOpt; schedulePreview(); }); });
     side.querySelectorAll("[data-uw-opt]").forEach(function(el){ el.addEventListener("click", function(){
-      var io = UNIT_TREE[uw.cat].opts[+el.dataset.uwOpt];
+      var io = activeUnitTree()[uw.cat].opts[+el.dataset.uwOpt];
       if (io.islandBack){ // the back of a single-row island, clad in one 19 mm panel
         var singles = (state.islands || []).filter(function(x){ return !x.two; });
         if (!singles.length){ toast("Settu fyrst inn eyju með einni röð — bakið fer aftan á hana."); return; }
@@ -4662,7 +4665,7 @@
         uw.opt = +el.dataset.uwOpt; uw.island = { type:io.island, a:mk(), b:two ? mk() : null };
         uw.b = uw.island.a[0]; uw.step = 3; renderUnitWizard(); return;
       }
-      uw.opt = +el.dataset.uwOpt; uw.b = uwStartBlock(UNIT_TREE[uw.cat].opts[uw.opt]); uw.step = 3; renderUnitWizard();
+      uw.opt = +el.dataset.uwOpt; uw.b = uwStartBlock(activeUnitTree()[uw.cat].opts[uw.opt]); uw.step = 3; renderUnitWizard();
     }); });
     side.querySelectorAll("[data-uw-back]").forEach(function(el){ el.addEventListener("click", function(){ uw.step--; if (uw.step < 3){ uw.b = null; uw.island = null; } renderUnitWizard(); }); });
     if (uw.step === 3 && uw.island) wireIslandConfig(side);
@@ -4779,7 +4782,7 @@
   function renderUnitPreview(){
     var host = document.getElementById("uwPreview");
     if (!uw || !host) return;
-    var hovOpt = uw.step === 2 ? UNIT_TREE[uw.cat].opts[uw.hover || 0] : null;
+    var hovOpt = uw.step === 2 ? activeUnitTree()[uw.cat].opts[uw.hover || 0] : null;
     if (uw.island){ renderIslandPreview(host, uw.island.type, uw.island, uw.b && uw.b.id); return; }
     if (!uw.b && hovOpt && hovOpt.island){ renderIslandPreview(host, hovOpt.island); return; }
     var type = uw.b ? uw.b.type : (hovOpt ? hovOpt.type : null);
@@ -4919,7 +4922,7 @@
   }
   function reduceMotionPref(){ return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); }
   function newPreviewBlock(type){ // step 2 shows the category's first variant while you choose
-    var o = UNIT_TREE[uw.cat].opts[uw.hover || 0];
+    var o = activeUnitTree()[uw.cat].opts[uw.hover || 0];
     var saved = blockSeq, b = uwStartBlock(o); blockSeq = saved; b.id = "uwprev";
     return b;
   }
