@@ -241,14 +241,19 @@
     return b;
   }
 
+  // What "Hægri"/"Vinstri" (the Opnun [Hurð] value) means for the operator standing at the
+  // machine: which side of it this door's karmur goes on (user, 2026-10-14).
+  var OPNUN_VEL_SIDE = { "Hægri": "hægrameginn í vél", "Vinstri": "vinstrameginn í vél" };
+
   // The "Hurðaskrá" — every number each program was made with, human-readable, saved next to the files.
   function logText(plan, project, when) {
     var v = plan.values || {};
+    var opnunVel = OPNUN_VEL_SIDE[plan.opnun];
     var L = [
       "HURÐASKRÁ — " + project + " — " + plan.id,
       "Búið til: " + when,
       "",
-      "Toppstykki: " + plan.topp + "   Opnun: " + (plan.opnun || "?") + "   Fjöldi: " + plan.qty,
+      "Toppstykki: " + plan.topp + "   Opnun: " + (plan.opnun || "?") + (opnunVel ? " (" + opnunVel + ")" : "") + "   Fjöldi: " + plan.qty,
       "Lamir: " + (plan.hinge || "-") + "   Skrá: " + (plan.lock || "-") + "   Þröskuldur: " + (plan.threshold || "-"),
       "",
       "Hurðablað  HURD_H " + v.HURD_H + "  HURD_B " + v.HURD_B + "  HURD_Z " + v.HURD_Z,
