@@ -114,6 +114,7 @@ const ALLOWED_FIELDS = {
     "Frontur / Hlið tegund",
     "Skúffutegund",
     "LED magn",
+    "Opnun [Hurð]", // fraesing.html: door swing direction, shown next to Karmur - lamir/slúttjárn
     "N", "M", "K", "C", "F", "E", "IN", "IM", "IK", "IC", "IF", "IE",
     // ── kitchen-planner.html write-back ──
     "Heiti rýmis", "Breidd", "Hæð", "Dýpt", "Fjöldi eininga", "Grip?",

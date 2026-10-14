@@ -243,6 +243,7 @@ const U_SERSMIDI_TEGUND  = "Sérsmíði tegund";
 const U_FRONT_HLID_TEGUND = "Frontur / Hlið tegund";
 const U_SKUFFUTEGUND     = "Skúffutegund";
 const U_LED_MAGN         = "LED magn";
+const U_OPNUN            = "Opnun [Hurð]"; // door swing direction, choices "Hægri 👉"/"Vinstri 👈"
 const U_DRAWER_FIELDS    = ["N", "M", "K", "C", "F", "E", "IN", "IM", "IK", "IC", "IF", "IE"];
 
 // Part types that always come in a matched pair of mirror-image panels —
@@ -365,7 +366,7 @@ async function fetchEyðublaðForProject(projectName) {
     filterByFormula: formula,
     "fields[]": [
       U_NAME, U_PROJECT_LINK, U_PROJECT_LINK_OLD, U_HVAD_VILTU_SMIDA, U_CNC_NOTE,
-      U_SKAPATEGUND, U_SERSMIDI_TEGUND, U_FRONT_HLID_TEGUND, U_SKUFFUTEGUND, U_LED_MAGN,
+      U_SKAPATEGUND, U_SERSMIDI_TEGUND, U_FRONT_HLID_TEGUND, U_SKUFFUTEGUND, U_LED_MAGN, U_OPNUN,
       ...U_DRAWER_FIELDS,
     ],
     pageSize: 100,
@@ -448,18 +449,28 @@ function buildInnihald(u) {
 // (Revego) is deliberately left alone for now — those two names are actually
 // "innri"/"ytri" (inner/outer), not a real left/right pair, and need their
 // own fix later rather than a label slapped on the current V/H split.
-function sideLabel(partur, side) {
+function sideLabel(partur, side, opnun) {
   const p = partur.toLowerCase();
   if (p.startsWith("lagna")) return `${side} Lagna-hlið`;
   if (p.startsWith("fre2")) return `FRE2- ${side} hlið`;
   if (p.startsWith("fre") && !p.startsWith("fre-vasi")) return `FRE- ${side} hlið`;
   if (p.startsWith("tækja")) return `Tækja- ${side} hlið`;
-  if (p.startsWith("karmur")) return `Karmur- ${side} hlið`;
+  // Karmur's two blanks aren't a symmetric left/right pair — one gets milled
+  // for the hinges (lamir), the other for the strike plate (slúttjárn), same
+  // fixed pair the CNC export always produces (see cnc-doors.js). "V"/"H"
+  // here is just the internal bookkeeping split (first half / second half of
+  // the row's quantity, or first/second record) — relabel it by what the
+  // piece actually is, and separately note which way the door opens so the
+  // operator still knows the physical side.
+  if (p.startsWith("karmur")) {
+    const kind = side === "V" ? "lamir" : "slúttjárn";
+    return opnun ? `Karmur - ${kind} (${opnun})` : `Karmur - ${kind}`;
+  }
   if (p.startsWith("fronta")) return `Fronta- ${side} hlið`;
   return `${side} hlið`;
 }
 
-function buildPieceGroups(pieces) {
+function buildPieceGroups(pieces, opnun) {
   const byPartur = new Map();
   for (const p of pieces) {
     if (!byPartur.has(p.partur)) byPartur.set(p.partur, []);
@@ -473,8 +484,8 @@ function buildPieceGroups(pieces) {
     const isSide = SIDE_PARTUR_NAMES.has(partur);
 
     if (isSide && records.length === 2) {
-      groupsOut.push({ key: `g${i++}`, label: sideLabel(partur, "V"), records: [records[0]], cyclable: false });
-      groupsOut.push({ key: `g${i++}`, label: sideLabel(partur, "H"), records: [records[1]], cyclable: false });
+      groupsOut.push({ key: `g${i++}`, label: sideLabel(partur, "V", opnun), records: [records[0]], cyclable: false });
+      groupsOut.push({ key: `g${i++}`, label: sideLabel(partur, "H", opnun), records: [records[1]], cyclable: false });
     } else if (isSide && records.length === 1 && totalQty >= 2 && totalQty % 2 === 0) {
       // Both sides live on the SAME Airtable row (M = 2 × unit count, e.g. a
       // unit with Fjöldi eininga=2 gives M=4: 2 of each side, not 4 of one
@@ -483,8 +494,8 @@ function buildPieceGroups(pieces) {
       // fræst" count on that one record — half the total quantity each —
       // letting each side be tracked (and partially tracked) independently.
       const sideQty = totalQty / 2;
-      groupsOut.push({ key: `g${i++}`, label: sideLabel(partur, "V"), records: [records[0]], side: "V", sideQty, cyclable: true });
-      groupsOut.push({ key: `g${i++}`, label: sideLabel(partur, "H"), records: [records[0]], side: "H", sideQty, cyclable: true });
+      groupsOut.push({ key: `g${i++}`, label: sideLabel(partur, "V", opnun), records: [records[0]], side: "V", sideQty, cyclable: true });
+      groupsOut.push({ key: `g${i++}`, label: sideLabel(partur, "H", opnun), records: [records[0]], side: "H", sideQty, cyclable: true });
     } else if (records.length === 1 && totalQty > 1) {
       groupsOut.push({ key: `g${i++}`, label: partur, records, qty: totalQty, cyclable: true });
     } else {
@@ -721,6 +732,7 @@ async function loadProject(projectId) {
   units = unitRowsInProject
     .map(u => {
       const ownPieces = pieces.filter(p => p.unitId === u.id);
+      const opnun = singleSelectName(u.fields[U_OPNUN]).replace(/[^A-Za-zÁ-ÿ ]/g, "").trim();
       return {
         id: u.id,
         name: u.fields[U_NAME] || u.id,
@@ -728,7 +740,7 @@ async function loadProject(projectId) {
         innihald: buildInnihald(u),
         note: String(u.fields[U_CNC_NOTE] || "").trim(),
         isLagnaskapur: singleSelectName(u.fields[U_SKAPATEGUND]) === "Lagnaskápur",
-        pieceGroups: buildPieceGroups(ownPieces),
+        pieceGroups: buildPieceGroups(ownPieces, opnun),
       };
     })
     .filter(u => u.pieceGroups.length > 0); // only units that actually need milling
