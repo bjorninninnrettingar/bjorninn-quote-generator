@@ -7699,11 +7699,32 @@
   // moment after the page shows, faded in over the picture; drag turns it, it carries on after 4 s. Not for reduced
   // motion or without WebGL — the picture stays. Torn down when the welcome page is left (one 3D scene at a time).
   var welSceneOn = false, welResume = 0, welModelTimer = 0, welSway = 0, welAz0 = null;
+  // The showcase kitchen is editable live (2026-10-14, user): Rakel/owner rearranges it in PRO mode against a
+  // dedicated scratch Tækifæri (rec2uQvvYyNyuJcq0 — see docs/kitchen-planner.md) and hits "Vista í Airtable";
+  // the welcome page then just needs a refresh to pick it up, no file edit or deploy. `window.KP_SHOWCASE`
+  // (kitchen-planner-showcase.js) stays as the zero-latency first paint AND the offline/error fallback — the
+  // live fetch only ever *replaces* it in place via the same keepCam redraw the model-loading debounce already
+  // uses, so a slow or failed Airtable read never blocks or breaks the welcome page.
+  var welLiveState = null, welLiveTried = false;
+  function fetchWelcomeLive(){
+    if (welLiveTried) return; welLiveTried = true;
+    fetch("/api/airtable?path=" + encodeURIComponent("tbl4LMXlQjp66RFKI/rec2uQvvYyNyuJcq0"))
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(data){
+        var raw = data && data.fields && data.fields["Sjálfsafgreiðsla skipulag (JSON) 📐"];
+        var parsed = raw && JSON.parse(raw);
+        if (!parsed || !parsed.walls || !parsed.walls.length) return; // malformed/empty: keep the static fallback
+        welLiveState = parsed;
+        if (welSceneOn) startWelcomeScene(true); // already showing the static one: swap in place, same angle
+      })
+      .catch(function(){}); // offline/blocked/etc: the static KP_SHOWCASE already rendered, nothing to undo
+  }
   function startWelcomeScene(keepCam){
     var host = document.getElementById("welScene");
     if (!host || !window.KP_SHOWCASE || state.step !== "welcome") return;
     if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     if (window.innerWidth < 981) return;
+    fetchWelcomeLive();
     var st0 = keepCam && KP3D._three(), cam = st0 ? { p:st0.camera.position.clone(), t:st0.controls.target.clone() } : null;
     try{
       KP3D.teardown3D(true);
@@ -7711,7 +7732,7 @@
       // xray:true (2026-10-13, user): build every cabinet articulated so a visitor can tap a drawer/door open,
       // same mechanism as the "＋ Ný eining" wizard preview — setupCabinetInteraction's read-only tap path
       // already runs on every buildScene() call, this just gives it real openable parts to find.
-      KP3D.buildScene(host, JSON.parse(JSON.stringify(window.KP_SHOWCASE)), { clean:true, freshCamera:true, noGhost:true, xray:true });
+      KP3D.buildScene(host, JSON.parse(JSON.stringify(welLiveState || window.KP_SHOWCASE)), { clean:true, freshCamera:true, noGhost:true, xray:true });
     }catch(e){ host.innerHTML = ""; return; }
     var st = KP3D._three(); if (!st) return;
     st.camera.fov = 42; st.camera.updateProjectionMatrix();
