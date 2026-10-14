@@ -141,13 +141,21 @@ test("grip (Jey and the like, via Höldur 1) applies to every door/fixed front a
 
 // Fræst grip Type 1/2 (2026-10-14): Keyra skipulag already bakes a "alla" zone's shrink into Sérhæð/Hæð frontur N
 // (so Sögunarlisti's H is already the shrunk size by the time it reaches here) — cnc-sides.js only has to surface
-// where to mill, not recompute a dimension. No real master file with a milling macro has been seen yet, so this
-// is a flagged-for-manual-work note, not a generated macro call.
-test("grip svæði (Fræst grip): flagged for manual milling, by target — drawer code, split front, or door index", () => {
+// where to mill, not recompute a dimension. A drawer-code "alla"+lárétt zone is now actually milled via the real
+// HARDVIDAR_GRIP_ENDA_TIL_ENDA macro (found on the USB, disabled template line added to both front masters
+// 2026-10-14) — frontPlans() below emits it. Everything else (split fronts, every "hluti" zone) is still a
+// flagged-for-manual-work note, not a generated macro call.
+test("grip svæði (Fræst grip): a drawer-code alla/lárétt zone is milled; everything else stays a manual flag", () => {
   const rows = [row("Grunnskápur hlið", 800, 580, 16, 2), row("Skúffufrontur K - Merivo", 397, 797, 19, 1),
     row("Skúffufrontur E - Merivo", 397, 797, 19, 1)];
   const withZone = S.unitPlan("Sk G", rows, { grip: [{ target: "K", type: "alla", att: "lárétt", brun: "efst" }] });
-  assert.ok(withZone.check.some((c) => c.indexOf("Grip — Skúffa K") === 0 && c.indexOf("fræst í höndunum") >= 0));
+  assert.ok(withZone.info.some((c) => c.indexOf("Grip — Skúffa K") === 0 && c.indexOf("HARDVIDAR_GRIP_ENDA_TIL_ENDA") >= 0));
+  const kFront = withZone.fronts.find((f) => f.name.startsWith("Skúffufrontur K"));
+  assert.deepEqual(kFront.ops.find((o) => o.name === "HARDVIDAR_GRIP_ENDA_TIL_ENDA").params, "397, 30"); // efst: FINALSTAERD = front height (already shrunk)
+
+  const bottom = S.unitPlan("Sk G1b", rows, { grip: [{ target: "K", type: "alla", att: "lárétt", brun: "neðst" }] });
+  const kFrontB = bottom.fronts.find((f) => f.name.startsWith("Skúffufrontur K"));
+  assert.deepEqual(kFrontB.ops.find((o) => o.name === "HARDVIDAR_GRIP_ENDA_TIL_ENDA").params, "30, 30"); // neðst: flush at the bottom
 
   const partial = S.unitPlan("Sk G2", rows, { grip: [{ target: "E", type: "hluti", att: "lóðrétt", start: 100, length: 300 }] });
   assert.ok(partial.check.some((c) => c.indexOf("Grip — Skúffa E") === 0 && c.indexOf("100–400 mm") >= 0));

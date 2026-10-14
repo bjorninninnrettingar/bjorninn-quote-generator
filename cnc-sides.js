@@ -21,6 +21,7 @@
   var FIXED_FRONT_MAX = 350; // a "Frontur" this low in a drawer cabinet is a fixed (false) front — FAST_FRAMSTYKKI, no hinges
   var INNER_RUNNER = 54;    // MERVIBOX_INNSKUFFA: the inner front starts 54 mm below X ("st_5mm frontur er 54 fyrir neðan")
   var TALL_EXTRA_RAIL = 1000; // sides taller than this get the extra rail ("Auka slár", lpx/3) — user 2026-10-08 (T-33 Sk 34 = 1040)
+  var GRIP_MILL_DEPTH = 30; // HARDVIDAR_GRIP_* DEPTH param — matches every real master/test default seen on the USB (2026-10-14)
   // Bottom → top order of a drawer stack: deepest box first.
   var CODE_ORDER = ["F", "E", "C", "K", "M", "N"];
   // Every macro this generator decides about. All master lines with these names are switched off and the
@@ -349,9 +350,12 @@
 
     // Grip svæði (Fræst grip, 2026-10-14): per-front milling metadata from Eyðublað's own "Grip svæði (JSON)" —
     // Keyra skipulag has already validated it and, for "alla", already baked the height shrink into that front's
-    // own Sérhæð/Hæð frontur N (so H/d.H above are already the shrunk size, nothing to adjust here). No macro for
-    // the actual milled channel is known yet (would need a real master file with one, same as every other macro
-    // in this file), so this only flags where/what to mill by hand — not a guess at machine code.
+    // own Sérhæð/Hæð frontur N (so H/d.H above are already the shrunk size, nothing to adjust here).
+    // 2026-10-13/14: found the real master macro on the USB (Frontar/Höldur/Hardvidar grip + /Macros/HARDVIDAR_*)
+    // and added a disabled HARDVIDAR_GRIP_ENDA_TIL_ENDA template line to both drawer-front masters — a type:"alla"
+    // zone on a drawer code is now actually milled (frontPlans() below), not just flagged. Everything else (split
+    // fronts — frontPlans() gives them LPX=height there, so this edge-to-edge macro would cut the wrong axis —
+    // and every "hluti" zone, whose real placement still isn't confirmed on the machine) stays a manual flag.
     (Array.isArray(opts.grip) ? opts.grip : []).forEach(function (g) {
       if (!g || !g.target) return;
       var dw = drawers.filter(function (d) { return d.code === g.target; })[0];
@@ -360,6 +364,10 @@
         : mf && doors[+mf[1] - 1] ? "Frontur " + mf[1] + " (" + r1(doors[+mf[1] - 1].H) + " mm)"
           : md && doors[+md[1]] ? "Hurð " + (+md[1] + 1) + " (" + r1(doors[+md[1]].H) + " mm)" : null;
       if (!label) { check.push("Grip \"" + g.target + "\": fronturinn finnst ekki (breytt/fjarlægður eftir að grip var sett) — athuga teikningu"); return; }
+      if (dw && g.type === "alla" && g.att === "lárétt") {
+        info.push("Grip — " + label + ": alla leið, lárétt frá " + g.brun + " — fræst af HARDVIDAR_GRIP_ENDA_TIL_ENDA (⚠ ekki keyrt á vélinni enn, prófa á afskurði fyrst).");
+        return;
+      }
       var what = g.type === "alla"
         ? "alla leið, " + g.att + " frá " + g.brun + " (mál þegar stytt á Eyðublaði)"
         : "hluti, " + g.att + ", " + r1(num(g.start)) + "–" + r1(num(g.start) + num(g.length)) + " mm frá botni fronts";
@@ -367,7 +375,7 @@
     });
 
     plan.frontCheck = []; // front notes stay out of the side status
-    plan.fronts = frontPlans(drawers, doors, fixedFronts, by, plan.frontCheck, leaves);
+    plan.fronts = frontPlans(drawers, doors, fixedFronts, by, plan.frontCheck, leaves, opts.grip);
     plan.drawers = drawers; plan.doors = doors; plan.loose = loose;
     plan.status = stop.length ? "stop" : check.length ? "check" : "ok";
     return plan;
@@ -385,16 +393,22 @@
     door: ["[02] - Frontar", "[01] - Lama frontar", "[01] - Frontur Breytiskjal.bpp"],
   };
   var FRONT_MANAGED = {
-    merivo: ["K_M_NEDSTI_FRONTUR_MERIVO", "E_NEDSTI_FRONTUR_MERIVO"],
-    legra: ["K_M_NEDSTI_FRONTUR_LEGRABOX", "C_NEDSTI_FRONTUR_LEGRA", "F_NEDSTA_SKUFFA_LEGRABOX"],
+    merivo: ["K_M_NEDSTI_FRONTUR_MERIVO", "E_NEDSTI_FRONTUR_MERIVO", "HARDVIDAR_GRIP_ENDA_TIL_ENDA"],
+    legra: ["K_M_NEDSTI_FRONTUR_LEGRABOX", "C_NEDSTI_FRONTUR_LEGRA", "F_NEDSTA_SKUFFA_LEGRABOX", "HARDVIDAR_GRIP_ENDA_TIL_ENDA"],
     door: ["IKEALOM", "LOM"],
   };
   var FRONT_EXTRA = { merivo: { E: "E_NEDSTI_FRONTUR_MERIVO" }, legra: { C: "C_NEDSTI_FRONTUR_LEGRA", F: "F_NEDSTA_SKUFFA_LEGRABOX" } };
   // where each extra row sits (from the bottom of the front, as the macros on the stick drill it)
   var FRONT_EXTRA_MM = { E_NEDSTI_FRONTUR_MERIVO: 218, C_NEDSTI_FRONTUR_LEGRA: 203.5, F_NEDSTA_SKUFFA_LEGRABOX: 235.5 };
-  function frontPlans(drawers, doors, fixedFronts, by, check, leaves) {
+  function frontPlans(drawers, doors, fixedFronts, by, check, leaves, grip) {
     var out = [], seen = {};
     function add(f) { var k = f.name + "|" + JSON.stringify(f.ops) + "|" + f.LPX + "|" + f.LPY + "|" + f.LPZ; if (seen[k]) { seen[k].count++; return; } f.count = 1; seen[k] = f; out.push(f); }
+    // Grip svæði (Fræst grip, 2026-10-14): only type:"alla" + lárétt on a drawer code is milled here (real master
+    // macro HARDVIDAR_GRIP_ENDA_TIL_ENDA, confirmed on the USB — see unitPlan's grip block above). FINALSTAERD is
+    // where the channel's far edge sits, measured from the bottom of this front: the front's own (already-shrunk)
+    // height for "efst" (top), or just the mill depth for "neðst" (bottom) — both already known, no extra input.
+    var gripByCode = {};
+    (Array.isArray(grip) ? grip : []).forEach(function (g) { if (g && g.type === "alla" && g.att === "lárétt" && g.brun) gripByCode[g.target] = g; });
     drawers.forEach(function (d) {
       var base = d.sys === "merivo" ? "K_M_NEDSTI_FRONTUR_MERIVO" : "K_M_NEDSTI_FRONTUR_LEGRABOX", extra = FRONT_EXTRA[d.sys][d.code];
       if (extra && FRONT_EXTRA_MM[extra] + 10 > d.front) { // the row would land on/above the front's top edge
@@ -402,6 +416,11 @@
         extra = null;
       }
       var ops = [{ name: base, label: "", params: "" }].concat(extra ? [{ name: extra, label: "", params: "" }] : []);
+      var g = gripByCode[d.code];
+      if (g) {
+        var finalstaerd = g.brun === "efst" ? r1(d.front) : GRIP_MILL_DEPTH;
+        ops.push({ name: "HARDVIDAR_GRIP_ENDA_TIL_ENDA", label: "Harðviðargrip", params: finalstaerd + ", " + GRIP_MILL_DEPTH });
+      }
       add({ name: "Skúffufrontur " + d.code + " " + r1(d.front), master: d.sys, LPX: d.B, LPY: r1(d.front), LPZ: d.T, ops: ops });
     });
     doors.forEach(function (d) {
