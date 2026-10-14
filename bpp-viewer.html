@@ -22,6 +22,11 @@
     --bg:#2a2a2a; --surface:#1c1c1c; --surface2:#242424; --line:#383838; --text:#f0f0f0; --muted:#aaa; --dim:#888;
     --blue:#2196f3; --green:#30d158; --amber:#ffd60a; --red:#ff453a; --purple:#bf5af2;
     --font:"Kumbh Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    /* BiesseWorks piece-editor palette, sampled from a real screenshot of the machine (2026-10-14):
+       olive/tan title bar, warm light-gray chrome + canvas, teal annotation overlay, blue-gray hinge pills. */
+    --bw-title1:#5c4a2e; --bw-title2:#9c8a6b; --bw-chrome:#d6d3c6; --bw-chrome-dark:#9b9686;
+    --bw-list-bg:#e2dfd2; --bw-row-line:#cac6b6; --bw-canvas:#eeede6; --bw-ink:#333;
+    --bw-teal:#2f7f6a; --bw-pill:#c3d3e1; --bw-pill-ink:#4f7294; --bw-font:Tahoma,"Segoe UI",Verdana,sans-serif;
   }
   * { box-sizing:border-box; margin:0; padding:0; }
   html,body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; line-height:1.45; }
@@ -43,22 +48,33 @@
   #toolbar.hide { display:none; }
 
   #out { margin-top:18px; display:flex; flex-direction:column; gap:16px; }
-  .card { background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:16px 18px; }
-  .card .head { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
-  .card .fname { font-weight:800; font-size:1rem; word-break:break-all; }
-  .card .remove { background:none; border:none; color:var(--dim); font-size:1rem; cursor:pointer; padding:2px 6px; flex:none; }
-  .card .remove:hover { color:var(--red); }
-  .chip { font-size:.72rem; font-weight:800; padding:2px 9px; border-radius:99px; letter-spacing:.04em; white-space:nowrap; display:inline-block; }
-  .chip.kind { background:#13304d; color:#7cc3ff; }
-  .chip.unknown { background:#3d1010; color:var(--red); }
-  .dims { color:var(--muted); font-size:.84rem; margin-top:4px; }
-  .dims b { color:var(--text); font-weight:700; }
+  .card { background:none; border:none; padding:0; }
 
-  .panelwrap { margin-top:12px; display:flex; justify-content:center; background:var(--surface2); border-radius:10px; padding:14px; }
+  /* ── "BiesseWorks editor" window chrome ───────────────────────────────────────────────────────── */
+  .bw-window { background:var(--bw-chrome); border:1px solid var(--bw-chrome-dark); border-radius:5px; overflow:hidden; box-shadow:0 6px 18px rgba(0,0,0,.35); }
+  .bw-titlebar { background:linear-gradient(180deg, var(--bw-title1), var(--bw-title2)); color:#f3ecdd; padding:6px 7px 6px 10px; display:flex; align-items:center; gap:8px; font-family:var(--bw-font); }
+  .bw-titlebar .ttl { font-size:.8rem; font-weight:700; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-shadow:0 1px 1px rgba(0,0,0,.4); }
+  .bw-titlebar .remove { background:#00000030; border:1px solid #ffffff40; color:#fff; width:20px; height:18px; border-radius:3px; cursor:pointer; font-size:.72rem; line-height:1; flex:none; }
+  .bw-titlebar .remove:hover { background:#c0392b; }
+  .chip { font-size:.68rem; font-weight:800; padding:2px 8px; border-radius:3px; letter-spacing:.03em; white-space:nowrap; display:inline-block; flex:none; }
+  .chip.kind { background:#ffffffcc; color:#4a3c22; }
+  .chip.unknown { background:#c0392b; color:#fff; }
+  .bw-body { display:flex; align-items:stretch; }
+  .bw-list { width:184px; flex:none; background:var(--bw-list-bg); border-right:1px solid var(--bw-chrome-dark); max-height:480px; overflow:auto; font-family:var(--bw-font); }
+  .bw-row { display:flex; align-items:center; gap:5px; padding:2.5px 6px; border-bottom:1px solid var(--bw-row-line); white-space:nowrap; }
+  .bw-row.child { padding-left:22px; }
+  .bw-row.hi { background:#c7d8e8; }
+  .bw-chk { width:10px; height:10px; border:1px solid #767262; background:#fff; flex:none; display:inline-flex; align-items:center; justify-content:center; border-radius:1px; }
+  .bw-chk.on::after { content:""; width:6px; height:6px; background:#2f2f2f; display:block; }
+  .bw-icon { width:12px; height:12px; border-radius:2px; flex:none; border:1px solid rgba(0,0,0,.3); }
+  .bw-row .nm { color:#1a1a1a; font-size:.72rem; overflow:hidden; text-overflow:ellipsis; }
+  .bw-canvas-wrap { flex:1; background:var(--bw-canvas); padding:16px; display:flex; justify-content:center; align-items:center; min-width:0; overflow:auto; }
   svg.plan { display:block; }
-  .legend { display:flex; gap:14px; flex-wrap:wrap; margin-top:10px; font-size:.76rem; color:var(--muted); }
+
+  .legend { display:flex; gap:14px; flex-wrap:wrap; padding:8px 14px 12px; font-size:.74rem; color:#5c5848; background:var(--bw-chrome); font-family:var(--bw-font); }
   .legend span { display:inline-flex; align-items:center; gap:5px; }
   .legend i { width:11px; height:11px; border-radius:3px; display:inline-block; flex:none; }
+  .meta-row { padding:6px 14px; background:var(--bw-chrome); border-top:1px solid var(--bw-chrome-dark); font-family:var(--bw-font); font-size:.74rem; color:#5c5848; display:flex; gap:14px; flex-wrap:wrap; }
 
   .note { margin-top:10px; font-size:.84rem; border-radius:10px; padding:9px 13px; }
   .note.warn { background:#3d3410; color:var(--amber); border:1px solid #5c4f14; }
@@ -116,7 +132,7 @@
   }
   var PAN_RE = /^PAN=(LPX|LPY|LPZ)\|([^|]*)\|/;
   var GLB_RE = /^GLB=([A-Za-z0-9_]+)\|([^|]*)\|/;
-  var OP_RE = /^\s*([@'])\s+([A-Za-z0-9_]+),\s*"([^"]*)",\s*"([^"]*)",\s*(-?\d+),\s*"([^"]*)",\s*(-?\d+)\s*:\s*(.*)$/;
+  var OP_RE = /^(\s*)([@'])\s+([A-Za-z0-9_]+),\s*"([^"]*)",\s*"([^"]*)",\s*(-?\d+),\s*"([^"]*)",\s*(-?\d+)\s*:\s*(.*)$/;
 
   function parseBpp(text) {
     var lines = text.split(/\r?\n/);
@@ -132,7 +148,7 @@
       }
       if (section === "PROGRAM") {
         var m = l.match(OP_RE);
-        if (m) ops.push({ active: m[1] === "@", name: m[2], label: m[4], params: splitParams(m[8]), raw: l.trim() });
+        if (m) ops.push({ active: m[2] === "@", child: m[1].length >= 2, name: m[3], label: m[5], params: splitParams(m[9]), raw: l.trim() });
       }
     });
     return { vars: vars, glb: glb, ops: ops };
@@ -256,7 +272,7 @@
   function buildFrontSkuffaFeatures(ops, vars) {
     var features = [], names = ops.filter(function (o) { return o.active; }).map(function (o) { return o.name; });
     Object.keys(FRONT_EXTRA_MM).forEach(function (n) {
-      if (names.indexOf(n) >= 0) features.push({ type: "shelfFixed", y: FRONT_EXTRA_MM[n], label: n + " — " + FRONT_EXTRA_MM[n] + " mm frá botni" });
+      if (names.indexOf(n) >= 0) features.push({ type: "shelfFixed", y: FRONT_EXTRA_MM[n], axis: "y", label: n + " — " + FRONT_EXTRA_MM[n] + " mm frá botni" });
     });
     return { features: features, unknown: [], info: [] };
   }
@@ -286,9 +302,12 @@
     return { features: features, unknown: [], info: info, HURD_B: g.HURD_B, KARMAR_B: g.KARMAR_B };
   }
 
-  // ── rendering ────────────────────────────────────────────────────────────────────────────────────────
-  var COLORS = { drawer: "#2196f3", inner: "#bf5af2", fixed: "#ff9f0a", hinge: "#30d158", handle: "#30d158",
-    shelfFixed: "#ffd60a", shelfLoose: "#ffd60a", rail: "#aaa", threshold: "#ff453a" };
+  // ── rendering — styled after a real BiesseWorks piece-editor screen (2026-10-14, user-supplied photo):
+  // light warm-gray canvas, the piece always drawn "sideways" (PAN=LPX horizontal — that's literally the
+  // machine's own X axis, confirmed by the photo's "Piece width (mm): HURD_H" field being bound to X),
+  // teal annotation text/leader-lines, hinge/lock positions as pill-shaped markers docked on the top edge.
+  var ZONE_FILL = { drawer: "#9db8cf", inner: "#c7a9d6", fixed: "#d9b98a" };
+  var ZONE_STROKE = { drawer: "#4f7294", inner: "#8a5fa3", fixed: "#a3773f" };
 
   function svgEl(tag, attrs) {
     var el = document.createElementNS("http://www.w3.org/2000/svg", tag);
@@ -296,62 +315,77 @@
     return el;
   }
 
-  function renderPlan(panelW, panelH, features, depthLabel) {
-    var maxW = 440, maxH = 620;
+  var gridPatternN = 0;
+  function renderPlan(panelW, panelH, features, dims) {
+    var maxW = 640, maxH = 300;
     var scale = Math.min(maxW / panelW, maxH / panelH);
     var W = panelW * scale, H = panelH * scale;
     var mmPx = function (px) { return px / scale; };
     var svg = svgEl("svg", { class: "plan", width: W, height: H, viewBox: "0 0 " + panelW + " " + panelH });
-    svg.appendChild(svgEl("rect", { x: 0, y: 0, width: panelW, height: panelH, fill: "#1c1c1c", stroke: "#666", "stroke-width": mmPx(1.5) }));
-    var toSvgY = function (y) { return panelH - y; };
-    var fontMm = mmPx(10.5), strokeMm = mmPx(1.2);
+    var fontMm = mmPx(10), strokeMm = mmPx(1.1);
+
+    var patId = "bwgrid" + (++gridPatternN);
+    var defs = svgEl("defs", {});
+    var grid = mmPx(22);
+    var pattern = svgEl("pattern", { id: patId, width: grid, height: grid, patternUnits: "userSpaceOnUse" });
+    pattern.appendChild(svgEl("circle", { cx: 1, cy: 1, r: mmPx(0.6), fill: "#00000014" }));
+    defs.appendChild(pattern); svg.appendChild(defs);
+    svg.appendChild(svgEl("rect", { x: 0, y: 0, width: panelW, height: panelH, fill: "#fbfaf6" }));
+    svg.appendChild(svgEl("rect", { x: 0, y: 0, width: panelW, height: panelH, fill: "url(#" + patId + ")" }));
+    svg.appendChild(svgEl("rect", { x: 0, y: 0, width: panelW, height: panelH, fill: "none", stroke: "var(--bw-ink)", "stroke-width": strokeMm * 1.3 }));
+
+    var toSvgYbottomUp = function (y) { return panelH - y; }; // only for axis:"y" features (front-skuffa)
 
     var order = { drawer: 0, inner: 0, fixed: 0, rail: 1, shelfFixed: 1, shelfLoose: 1, hinge: 2, handle: 2, threshold: 2 };
     var sorted = features.slice().sort(function (a, b) { return (order[a.type] || 0) - (order[b.type] || 0); });
+    var markerIx = 0; // staggers hinge/handle labels so close-together markers don't overlap text
     sorted.forEach(function (f) {
       if (f.type === "drawer" || f.type === "inner" || f.type === "fixed") {
-        var y0 = Math.max(0, Math.min(panelH, f.from)), y1 = Math.max(0, Math.min(panelH, f.to));
-        var top = toSvgY(y1), h = Math.max(1, y1 - y0);
-        var fill = f.type === "drawer" ? "#1a3a5c" : f.type === "inner" ? "#2e1a3e" : "#4a3414";
-        svg.appendChild(svgEl("rect", { x: 0, y: top, width: panelW, height: h, fill: fill, "fill-opacity": .55, stroke: COLORS[f.type], "stroke-width": strokeMm, "stroke-dasharray": f.type === "inner" ? mmPx(5) + "," + mmPx(4) : "none" }));
-        var t = svgEl("text", { x: panelW / 2, y: top + h / 2, "text-anchor": "middle", "dominant-baseline": "middle", fill: "#fff", "font-size": fontMm, "font-weight": "700" });
+        var x0 = Math.max(0, Math.min(panelW, f.from)), x1 = Math.max(0, Math.min(panelW, f.to));
+        var left = x0, w = Math.max(1, x1 - x0);
+        svg.appendChild(svgEl("rect", { x: left, y: 0, width: w, height: panelH, fill: ZONE_FILL[f.type], "fill-opacity": .45, stroke: ZONE_STROKE[f.type], "stroke-width": strokeMm, "stroke-dasharray": f.type === "inner" ? mmPx(5) + "," + mmPx(4) : "none" }));
+        var t = svgEl("text", { x: left + w / 2, y: panelH / 2, "text-anchor": "middle", "dominant-baseline": "middle", fill: "#2a2a2a", "font-size": fontMm, "font-weight": "700", "font-family": "var(--bw-font)" });
         t.textContent = f.label; svg.appendChild(t);
       } else if (f.type === "hinge" || f.type === "handle") {
-        var cy = toSvgY(f.y), cx = mmPx(26);
-        var r = mmPx(7);
+        var cx = f.y, topY = mmPx(2);
+        var pw = mmPx(f.type === "hinge" ? 20 : 12), ph = mmPx(9);
         var shape = f.type === "hinge"
-          ? svgEl("circle", { cx: cx, cy: cy, r: r, fill: COLORS[f.type], "fill-opacity": f.unsure ? .4 : .9 })
-          : svgEl("rect", { x: cx - r, y: cy - r, width: r * 2, height: r * 2, fill: COLORS[f.type], "fill-opacity": .9 });
+          ? svgEl("rect", { x: cx - pw / 2, y: topY, width: pw, height: ph, rx: ph / 2, fill: "var(--bw-pill)", stroke: "var(--bw-pill-ink)", "stroke-width": strokeMm, "fill-opacity": f.unsure ? .5 : 1 })
+          : svgEl("rect", { x: cx - pw / 2, y: topY, width: pw, height: ph, fill: "var(--bw-pill)", stroke: "var(--bw-pill-ink)", "stroke-width": strokeMm });
         svg.appendChild(shape);
-        svg.appendChild(svgEl("line", { x1: cx + r, y1: cy, x2: panelW - mmPx(6), y2: cy, stroke: COLORS[f.type], "stroke-width": strokeMm * .6, "stroke-dasharray": mmPx(4) + "," + mmPx(3) }));
-        var lt = svgEl("text", { x: cx + r + mmPx(6), y: cy - mmPx(6), fill: COLORS[f.type], "font-size": fontMm * .92, "font-weight": "700" });
+        var stagger = (markerIx++ % 2) * mmPx(16);
+        svg.appendChild(svgEl("line", { x1: cx, y1: topY + ph, x2: cx, y2: topY + ph + mmPx(16) + stagger, stroke: "var(--bw-teal)", "stroke-width": strokeMm * .7, "stroke-dasharray": mmPx(3) + "," + mmPx(2) }));
+        var lt = svgEl("text", { x: cx, y: topY + ph + mmPx(26) + stagger, "text-anchor": "middle", fill: "var(--bw-teal)", "font-size": fontMm * .88, "font-style": "italic", "font-family": "var(--bw-font)" });
         lt.textContent = f.label; svg.appendChild(lt);
-      } else if (f.type === "shelfFixed") {
-        var yy = toSvgY(f.y);
-        svg.appendChild(svgEl("line", { x1: 0, y1: yy, x2: panelW, y2: yy, stroke: COLORS.shelfFixed, "stroke-width": strokeMm, "stroke-dasharray": mmPx(14) + "," + mmPx(6) }));
-        var st = svgEl("text", { x: panelW - mmPx(6), y: yy - mmPx(5), "text-anchor": "end", fill: COLORS.shelfFixed, "font-size": fontMm * .9, "font-weight": "700" });
-        st.textContent = f.label; svg.appendChild(st);
-      } else if (f.type === "shelfLoose") {
-        f.ys.forEach(function (y, i) {
-          var yy2 = toSvgY(y);
-          svg.appendChild(svgEl("line", { x1: 0, y1: yy2, x2: panelW, y2: yy2, stroke: COLORS.shelfLoose, "stroke-width": strokeMm * .6, "stroke-dasharray": mmPx(8) + "," + mmPx(5), opacity: .75 }));
-          if (i === 0) {
-            var slt = svgEl("text", { x: panelW - mmPx(6), y: yy2 - mmPx(5), "text-anchor": "end", fill: COLORS.shelfLoose, "font-size": fontMm * .9, "font-weight": "700" });
-            slt.textContent = f.label; svg.appendChild(slt);
+      } else if (f.type === "shelfFixed" || f.type === "shelfLoose") {
+        var ys = f.type === "shelfLoose" ? f.ys : [f.y];
+        ys.forEach(function (y, i) {
+          if (f.axis === "y") {
+            var sy = toSvgYbottomUp(y);
+            svg.appendChild(svgEl("line", { x1: 0, y1: sy, x2: panelW, y2: sy, stroke: "var(--bw-teal)", "stroke-width": strokeMm * .8, "stroke-dasharray": mmPx(12) + "," + mmPx(5) }));
+            if (i === 0) { var st = svgEl("text", { x: panelW - mmPx(6), y: sy - mmPx(5), "text-anchor": "end", fill: "var(--bw-teal)", "font-size": fontMm * .85, "font-style": "italic", "font-family": "var(--bw-font)" }); st.textContent = f.label; svg.appendChild(st); }
+          } else {
+            svg.appendChild(svgEl("line", { x1: y, y1: 0, x2: y, y2: panelH, stroke: "var(--bw-teal)", "stroke-width": strokeMm * .8, "stroke-dasharray": mmPx(12) + "," + mmPx(5) }));
+            if (i === 0) { var st2 = svgEl("text", { x: y + mmPx(5), y: mmPx(14), fill: "var(--bw-teal)", "font-size": fontMm * .85, "font-style": "italic", "font-family": "var(--bw-font)" }); st2.textContent = f.label; svg.appendChild(st2); }
           }
         });
       } else if (f.type === "rail") {
-        var yr = toSvgY(f.y);
-        svg.appendChild(svgEl("line", { x1: 0, y1: yr, x2: panelW, y2: yr, stroke: COLORS.rail, "stroke-width": strokeMm }));
-        var rt = svgEl("text", { x: mmPx(6), y: yr - mmPx(5), fill: COLORS.rail, "font-size": fontMm * .85 });
+        svg.appendChild(svgEl("line", { x1: f.y, y1: 0, x2: f.y, y2: panelH, stroke: "#8a8878", "stroke-width": strokeMm }));
+        var rt = svgEl("text", { x: f.y + mmPx(5), y: panelH - mmPx(6), fill: "#726f5e", "font-size": fontMm * .8, "font-family": "var(--bw-font)" });
         rt.textContent = f.label; svg.appendChild(rt);
       } else if (f.type === "threshold") {
-        svg.appendChild(svgEl("rect", { x: 0, y: panelH - mmPx(6), width: panelW, height: mmPx(6), fill: COLORS.threshold, "fill-opacity": .6 }));
+        svg.appendChild(svgEl("rect", { x: 0, y: 0, width: mmPx(7), height: panelH, fill: "#b05c4a", "fill-opacity": .6 }));
       }
     });
-    if (depthLabel) {
-      var dl = svgEl("text", { x: panelW / 2, y: panelH - mmPx(6), "text-anchor": "middle", fill: "#777", "font-size": fontMm * .8 });
-      dl.textContent = depthLabel; svg.appendChild(dl);
+
+    if (dims) {
+      var bx = mmPx(10), by = mmPx(10), bw2 = mmPx(90), bh2 = mmPx(16 + (dims.LPZ != null ? 15.5 * 3 : 15.5 * 2));
+      svg.appendChild(svgEl("rect", { x: bx, y: by, width: bw2, height: bh2, fill: "#fff", stroke: "#555", "stroke-width": strokeMm, rx: mmPx(3) }));
+      var lines = ["X = " + dims.LPX, "Y = " + dims.LPY]; if (dims.LPZ != null) lines.push("Z = " + dims.LPZ);
+      lines.forEach(function (line, i) {
+        var dt = svgEl("text", { x: bx + mmPx(8), y: by + mmPx(14 + i * 15.5), fill: "#222", "font-size": fontMm * .95, "font-family": "ui-monospace,Menlo,Consolas,monospace", "font-weight": "700" });
+        dt.textContent = line; svg.appendChild(dt);
+      });
     }
     return svg;
   }
@@ -360,6 +394,7 @@
     ["drawer", "Skúffa"], ["inner", "Innskúffa"], ["fixed", "Fast framstykki"], ["hinge", "Löm"],
     ["handle", "Handfang/skrá"], ["shelfFixed", "Föst hilla"], ["shelfLoose", "Laus hilla"], ["rail", "Slá"], ["threshold", "Þröskuldur"],
   ];
+  var LEGEND_COLOR = { drawer: "#9db8cf", inner: "#c7a9d6", fixed: "#d9b98a", hinge: "#4f7294", handle: "#4f7294", shelfFixed: "#2f7f6a", shelfLoose: "#2f7f6a", rail: "#8a8878", threshold: "#b05c4a" };
 
   // A master with 2+ template lines for the same managed macro makes renderSide (cnc-sides.js /
   // cnc-doors.js) re-emit that macro's whole op group at every template occurrence — a real, confirmed
@@ -376,44 +411,65 @@
     return dups;
   }
 
+  // ── macro list panel (left side, like BiesseWorks' own program tree) ───────────────────────────────────
+  var ICON_CAT = [
+    [/^(LOM|IKEALOM|COPLAN|LAMIR_89|IN05020_)/, "#4f7294"],                 // hinges — blue
+    [/^(IN_20_835|IN_20_937|EN12209|KFV_|SEGUL_|JNF_|HAWAJ_)/, "#a3773f"],  // locks/strike — tan/orange
+    [/^(LEGRABOX|MERIVOBOX|MERVIBOX)/, "#5b8f6b"],                          // drawer boxes — green
+    [/^(GEO|ENDPATH|GEOTEXT|STAT_BLOCK|RECTANGLE|START_POINT|LINC_EP)/, "#8a8878"], // structural — neutral
+    [/^(FELLI_THROSKULDUR|HYDRAULIC)/, "#8a5fa3"],                          // threshold/pivot — purple
+  ];
+  function iconColor(name) {
+    for (var i = 0; i < ICON_CAT.length; i++) if (ICON_CAT[i][0].test(name)) return ICON_CAT[i][1];
+    return "#9b9686";
+  }
+  function buildMacroList(ops) {
+    var list = document.createElement("div"); list.className = "bw-list";
+    ops.forEach(function (o) {
+      var row = document.createElement("div"); row.className = "bw-row" + (o.child ? " child" : "");
+      var chk = document.createElement("span"); chk.className = "bw-chk" + (o.active ? " on" : "");
+      var icon = document.createElement("span"); icon.className = "bw-icon"; icon.style.background = iconColor(o.name);
+      var nm = document.createElement("span"); nm.className = "nm"; nm.textContent = o.label && o.label !== o.name ? o.name + " (" + o.label + ")" : o.name;
+      row.appendChild(chk); row.appendChild(icon); row.appendChild(nm);
+      row.title = (o.active ? "virk" : "óvirk") + ": " + o.name + (o.params.length ? " : " + o.params.join(", ") : "");
+      list.appendChild(row);
+    });
+    return list;
+  }
+
   // ── per-file card ────────────────────────────────────────────────────────────────────────────────────
   function buildCard(file, text) {
     var card = document.createElement("div"); card.className = "card";
-    var head = document.createElement("div"); head.className = "head";
-    var fname = document.createElement("div"); fname.className = "fname"; fname.textContent = file.name;
+    var win = document.createElement("div"); win.className = "bw-window"; card.appendChild(win);
+
+    var titlebar = document.createElement("div"); titlebar.className = "bw-titlebar";
+    var ttl = document.createElement("div"); ttl.className = "ttl"; ttl.textContent = "Editor — " + file.name;
     var rm = document.createElement("button"); rm.className = "remove"; rm.textContent = "✕"; rm.title = "Fjarlægja";
     rm.onclick = function () { card.remove(); if (!document.getElementById("out").children.length) document.getElementById("toolbar").classList.add("hide"); };
-    head.appendChild(fname); head.appendChild(rm);
-    card.appendChild(head);
+    titlebar.appendChild(ttl); titlebar.appendChild(rm);
+    win.appendChild(titlebar);
+
+    var notes = document.createElement("div"); // appended after the window, kept in page-dark style
 
     var parsed;
     try { parsed = parseBpp(text); } catch (e) {
-      var errNote = document.createElement("div"); errNote.className = "note err"; errNote.textContent = "Gat ekki lesið skrána: " + e.message;
-      card.appendChild(errNote); return card;
+      notes.appendChild(mkNote("err", "Gat ekki lesið skrána: " + e.message));
+      card.appendChild(notes); return card;
     }
     var kind = detectKind(parsed);
     var kchip = document.createElement("span"); kchip.className = "chip kind" + (kind === "unknown" ? " unknown" : "");
-    kchip.textContent = KIND_LABEL[kind]; head.insertBefore(kchip, rm);
+    kchip.textContent = KIND_LABEL[kind]; titlebar.insertBefore(kchip, rm);
 
     var vars = parsed.vars;
     if (vars.LPX == null || vars.LPY == null) {
-      card.appendChild(mkNote("warn", "Fann ekki PAN=LPX/LPY í skránni — ekki hægt að teikna."));
-      return card;
+      notes.appendChild(mkNote("warn", "Fann ekki PAN=LPX/LPY í skránni — ekki hægt að teikna."));
+      card.appendChild(notes); return card;
     }
-    var dims = document.createElement("div"); dims.className = "dims";
-    dims.innerHTML = "LPX <b>" + vars.LPX + "</b> × LPY <b>" + vars.LPY + "</b>" + (vars.LPZ != null ? " × LPZ <b>" + vars.LPZ + "</b> mm" : " mm");
-    card.appendChild(dims);
 
-    if (kind === "unknown") {
-      card.appendChild(mkNote("warn", "Þekki ekki þessa skrá sem /cnc-skrá (engin GLB=HS_ merking fannst) — útlitið gæti verið rangt. Sýni bara hráar virkar aðgerðir."));
-    }
-    if (kind === "karmur-topp") {
-      card.appendChild(mkNote("info", "Toppstykki: engin staðsetningarmerki sýnd hér (láréttur bútur, ekki sama hnitakerfi og hurð/karmur) — bara mál."));
-    }
+    if (kind === "unknown") notes.appendChild(mkNote("warn", "Þekki ekki þessa skrá sem /cnc-skrá (engin GLB=HS_ merking fannst) — útlitið gæti verið rangt. Sýni bara hráan lista."));
+    if (kind === "karmur-topp") notes.appendChild(mkNote("info", "Toppstykki: engin staðsetningarmerki sýnd hér (láréttur bútur, ekki sama hnitakerfi og hurð/karmur) — bara mál."));
     var dupOps = findDuplicateOps(parsed.ops);
-    if (dupOps.length) {
-      card.appendChild(mkNote("err", "Sama aðgerðin kemur fram " + dupOps.length + "× of oft í skránni (líklega vegna þess að master-skráin er með fleiri en eina sniðmátslínu fyrir sama makró) — vélin myndi keyra þetta tvisvar/oftar: " + dupOps.join("; ")));
-    }
+    if (dupOps.length) notes.appendChild(mkNote("err", "Sama aðgerðin kemur fram " + dupOps.length + "× of oft í skránni (líklega vegna þess að master-skráin er með fleiri en eina sniðmátslínu fyrir sama makró) — vélin myndi keyra þetta tvisvar/oftar: " + dupOps.join("; ")));
 
     var built;
     if (kind === "hlid" || kind === "front-hurd") built = buildSideFeatures(parsed.ops, vars);
@@ -421,41 +477,39 @@
     else if (kind === "hurdablad" || kind === "karmur-lamir" || kind === "karmur-slut" || kind === "karmur-topp") built = buildDoorFeatures(kind, parsed.ops, parsed.glb);
     else built = { features: [], unknown: parsed.ops.filter(function (o) { return o.active; }), info: [] };
 
-    var panelW, panelH, depthLabel;
-    if (kind === "front-skuffa") { panelW = vars.LPX; panelH = vars.LPY; depthLabel = null; }
-    else { panelW = vars.LPY; panelH = vars.LPX; depthLabel = "dýpt " + vars.LPY + " mm"; }
+    var body = document.createElement("div"); body.className = "bw-body";
+    body.appendChild(buildMacroList(parsed.ops));
+    var canvasWrap = document.createElement("div"); canvasWrap.className = "bw-canvas-wrap";
+    canvasWrap.appendChild(renderPlan(vars.LPX, vars.LPY, built.features, { LPX: vars.LPX, LPY: vars.LPY, LPZ: vars.LPZ }));
+    body.appendChild(canvasWrap);
+    win.appendChild(body);
 
-    if (built.features.length || kind !== "unknown") {
-      var pw = document.createElement("div"); pw.className = "panelwrap";
-      pw.appendChild(renderPlan(panelW, panelH, built.features, kind === "front-skuffa" ? null : depthLabel));
-      card.appendChild(pw);
-
-      if (built.features.length) {
-        var usedTypes = {}; built.features.forEach(function (f) { usedTypes[f.type] = 1; });
-        var legend = document.createElement("div"); legend.className = "legend";
-        LEGEND_ITEMS.filter(function (it) { return usedTypes[it[0]]; }).forEach(function (it) {
-          var s = document.createElement("span"); var i = document.createElement("i"); i.style.background = COLORS[it[0]];
-          s.appendChild(i); s.appendChild(document.createTextNode(it[1])); legend.appendChild(s);
-        });
-        card.appendChild(legend);
-      }
+    if (built.features.length) {
+      var usedTypes = {}; built.features.forEach(function (f) { usedTypes[f.type] = 1; });
+      var legend = document.createElement("div"); legend.className = "legend";
+      LEGEND_ITEMS.filter(function (it) { return usedTypes[it[0]]; }).forEach(function (it) {
+        var s = document.createElement("span"); var i = document.createElement("i"); i.style.background = LEGEND_COLOR[it[0]];
+        s.appendChild(i); s.appendChild(document.createTextNode(it[1])); legend.appendChild(s);
+      });
+      win.appendChild(legend);
     }
 
-    (built.info || []).forEach(function (t) { card.appendChild(mkNote("info", t)); });
+    (built.info || []).forEach(function (t) { notes.appendChild(mkNote("info", t)); });
     if (built.unknown && built.unknown.length) {
-      card.appendChild(mkNote("warn", built.unknown.length + " virk(ar) aðgerð(ir) sem þessi skoðari teiknar ekki — sjá hráan lista hér fyrir neðan."));
+      notes.appendChild(mkNote("warn", built.unknown.length + " virk(ar) aðgerð(ir) sem þessi skoðari teiknar ekki á myndina (sjá gátreit-listann til vinstri fyrir heiti, eða \"Hráar aðgerðir\" fyrir færibreytur)."));
     }
+    card.appendChild(notes);
 
     var raw = document.createElement("details"); raw.className = "raw";
-    var sum = document.createElement("summary"); sum.textContent = "Hráar aðgerðir (" + parsed.ops.filter(function (o) { return o.active; }).length + " virkar)";
+    var sum = document.createElement("summary"); sum.textContent = "Hráar aðgerðir með færibreytum (" + parsed.ops.filter(function (o) { return o.active; }).length + " virkar)";
     raw.appendChild(sum);
-    var list = document.createElement("div"); list.className = "rawlist";
+    var rlist = document.createElement("div"); rlist.className = "rawlist";
     parsed.ops.forEach(function (o) {
       var d = document.createElement("div"); if (!o.active) d.className = "off";
       d.textContent = (o.active ? "@ " : "' ") + o.name + (o.label ? " \"" + o.label + "\"" : "") + ": " + o.params.join(", ");
-      list.appendChild(d);
+      rlist.appendChild(d);
     });
-    raw.appendChild(list); card.appendChild(raw);
+    raw.appendChild(rlist); card.appendChild(raw);
     return card;
   }
   function mkNote(cls, text) { var n = document.createElement("div"); n.className = "note " + cls; n.textContent = text; return n; }
