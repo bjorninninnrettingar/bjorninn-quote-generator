@@ -4389,8 +4389,7 @@
       { label:"Lítill kassi", type:"litillkassi", drawers:true, gap:true } ] },
     { key:"har", label:"Háir skápar", desc:"Upp undir loft", icon:"harskapur", opts:[
       { label:"Hurðir með hillum", type:"harskapur" },
-      { label:"Búrskápur", type:"burskapur" },
-      { label:"Hár veggskápur (50 cm djúpur)", type:"harveggskapur", gap:true } ] },
+      { label:"Búrskápur", type:"burskapur" } ] },
     { key:"efri", label:"Efri skápar", desc:"Á vegg", icon:"efriskapur", opts:[
       { label:"Lokaður skápur með hillum", type:"efriskapur" },
       { label:"Opinn skápur með hillum", type:"opnarhillur" },
@@ -4740,9 +4739,23 @@
       var st = KP3D._three(); if (!st) return;
       var g = KP3D.surfaceGeoms(pv)[0], hM = blockHeightMm(b, c) / 1000, elevM = c.zone === "wall" ? (KP3D.elevOf(b) || 0) / 1000 : 0;
       var along = 0.4 + b.widthMm / 2000, cx = g.origin.x + g.axis.x * along, cz = g.origin.z + g.axis.z * along, cy = elevM + hM / 2;
-      var size = Math.max(hM, b.widthMm / 1000 * 0.7, 0.9), dist = size / 2 / Math.tan(22.5 * Math.PI / 180) * 1.35 + 0.45; // fit the height in the 45° lens, with room for drawers pulled out
-      if (prevCam && (uw.b || keepCam) && prevCam.t.distanceTo(new (window.__THREE__.Vector3)(cx, cy, cz)) < 1.5){ // same cabinet being tweaked: keep the angle the customer turned it to
-        st.camera.position.copy(prevCam.p); st.controls.target.copy(prevCam.t);
+      // Fit height AND width in the lens, each against its own actual half-FOV — the preview pane is usually
+      // portrait (aspect < 1), so the horizontal FOV is narrower than the vertical 45°, and a wide cabinet
+      // (mainly grunnskápar up to 1200 mm) needs a bigger pull-back than treating both axes the same would give
+      // (2026-10-14, user: the wizard preview didn't zoom out as a cabinet widened). `size` stays height-only —
+      // it's also used below just to lift the camera a bit for drawers pulled out, not for framing width.
+      var size = Math.max(hM, 0.9), vHalf = (st.camera.fov || 45) * Math.PI / 360, hHalf = Math.atan(Math.tan(vHalf) * (st.camera.aspect || 1));
+      var apparentW = b.widthMm / 1000 * 0.88; // ~3/4-view foreshortening
+      var dist = Math.max(size / 2 / Math.tan(vHalf), apparentW / 2 / Math.tan(hHalf)) * 1.35 + 0.45;
+      if (prevCam && (uw.b || keepCam) && prevCam.t.distanceTo(new (window.__THREE__.Vector3)(cx, cy, cz)) < 1.5){
+        // same cabinet being tweaked: keep the angle the customer turned it to, but if it grew wide enough that the
+        // old framing would now clip it, pull straight back along that same angle instead of leaving it cropped
+        // (2026-10-14, user: the wizard preview didn't zoom out as a cabinet widened, mainly base cabinets) —
+        // never zooms IN below whatever the customer already had, only out when `dist` now needs more room.
+        var newTarget = new (window.__THREE__.Vector3)(cx, cy, cz);
+        var curDist = prevCam.p.distanceTo(prevCam.t), dir = prevCam.p.clone().sub(prevCam.t).normalize();
+        st.camera.position.copy(newTarget).addScaledVector(dir, Math.max(curDist, dist));
+        st.controls.target.copy(newTarget);
       } else {
         KP3D.setCameraLookAt({ x:cx + g.normal.x * dist + g.axis.x * dist * 0.55, y:cy + size * 0.25, z:cz + g.normal.z * dist + g.axis.z * dist * 0.55 }, { x:cx, y:cy, z:cz });
       }
@@ -4751,9 +4764,10 @@
       st.controls.maxPolarAngle = 1.45; // never from below the floor
       swayPreview(st, Math.atan2(g.normal.x, g.normal.z));
       st.controls.update();
-      // Configuring inner drawers (a plain drawer stack, or a búrskápur's own drawers behind its door) —
-      // show them open by default so the customer can see what they're adjusting, instead of a closed box.
-      if ((b.interior && b.interior.mode === "skuffur") || (c.bur && b.burCodes && b.burCodes.length)) uwView.open = true;
+      // A plain drawer stack is already its own fronts — nothing hidden to reveal, so it stays closed by default
+      // (user, 2026-10-14: only auto-open a front that's actually hiding something behind it). A búrskápur's
+      // door hides its inner drawers though, so that one still opens — only once it actually has an innskúffa.
+      if (c.bur && b.burCodes && b.burCodes.length) uwView.open = true;
       if (uwView.frontsOff) KP3D.setXrayFronts(true);
       if (uwView.open) KP3D.setAllParts(true);
       syncUwTools();
@@ -6843,7 +6857,11 @@
   // While dragging (3D): where the item may be — it stops at walls and cabinets and slides along them (2026-10-11).
   // Worktop items move freely and land on the nearest worktop / table when dropped.
   function onDecorDragMove(id, xMm, zMm, lastX, lastZ){
-    var d = findDecor(id); if (!d || KP3D.DECOR[d.kind].group === "top") return null;
+    var d = findDecor(id); if (!d) return null;
+    // Worktop items track the cursor with no constraint while dragging (returning null here reads as "rejected,
+    // snap back to the last spot" to the 3D engine's move handler — it never moved at all, 2026-10-14 bug fix) —
+    // they only snap to the nearest real worktop/table once dropped, in onDecorDragEnd.
+    if (KP3D.DECOR[d.kind].group === "top") return { x:xMm, z:zMm };
     if (KP3D.decorFits(state, d, xMm, zMm)) return { x:xMm, z:zMm };
     if (KP3D.decorFits(state, d, xMm, lastZ)) return { x:xMm, z:lastZ };
     if (KP3D.decorFits(state, d, lastX, zMm)) return { x:lastX, z:zMm };
