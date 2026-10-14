@@ -189,11 +189,11 @@
     var fixedFronts = drawers.length ? doors.filter(function (d) { return d.H <= FIXED_FRONT_MAX; }) : [];
     doors = doors.filter(function (d) { return fixedFronts.indexOf(d) < 0; });
     fixedFronts.forEach(function (d) { op("FAST_FRAMSTYKKI", "Fast framstykki", r1(d.H) + ", LPX, 0, 0"); });
-    // Grip on a door/fixed front (2026-10-13, user): a positive grip (Jey and the like — a real handle sitting on
-    // the face) always applies, any height, same as before. A negative grip (fræst grip — a groove milled into
-    // the front's own material, not a handle) only applies under 900mm; a door/fixed front 900mm or taller gets
-    // none of it. Drawer fronts are unconditional either way (set above, in `drawers`) — not part of this rule.
-    function doorGrip(d) { return grip < 0 && d.H >= 900 ? 0 : grip; }
+    // Grip on a door/fixed front: a positive grip (Jey and the like — a real handle sitting on the face) always
+    // applies, any height. The old "fræst grip" branch here (a negative Höldur-1 Grip mm, zeroed above 900mm) is
+    // retired (2026-10-14) — Fræst grip no longer goes through Höldur 1 at all, so `grip` itself is never negative
+    // any more; see the Grip svæði block below instead. Drawer fronts are unconditional either way (set above).
+    function doorGrip(d) { return grip; }
     var room = H - drawerTop - fixedFronts.reduce(function (a, d) { return a + d.H + doorGrip(d) + BOX_GAP; }, 0);
     var sumDoors = doors.reduce(function (a, d) { return a + d.H + doorGrip(d) + BOX_GAP; }, 0);
     if (doors.length > 1 && (sumDoors > room + 5 || doors.some(function (d) { return /væng/i.test(d.partur); }))) {
@@ -346,6 +346,25 @@
       if (defaulted) check.push("Lamir: sjálfgefin staðsetning — ef lyftihurð fara lamirnar í toppinn, ekki hliðina");
       if (noDesignerHingeSide) check.push("Lamahlið óþekkt — lamagöt í báðar hliðar (vista skápinn í hönnuðinum svo /cnc viti hvorum megin)");
     }
+
+    // Grip svæði (Fræst grip, 2026-10-14): per-front milling metadata from Eyðublað's own "Grip svæði (JSON)" —
+    // Keyra skipulag has already validated it and, for "alla", already baked the height shrink into that front's
+    // own Sérhæð/Hæð frontur N (so H/d.H above are already the shrunk size, nothing to adjust here). No macro for
+    // the actual milled channel is known yet (would need a real master file with one, same as every other macro
+    // in this file), so this only flags where/what to mill by hand — not a guess at machine code.
+    (Array.isArray(opts.grip) ? opts.grip : []).forEach(function (g) {
+      if (!g || !g.target) return;
+      var dw = drawers.filter(function (d) { return d.code === g.target; })[0];
+      var mf = /^front([1-3])$/.exec(g.target), md = /^door([0-9]+)$/.exec(g.target);
+      var label = dw ? "Skúffa " + g.target + " (" + dw.front + " mm)"
+        : mf && doors[+mf[1] - 1] ? "Frontur " + mf[1] + " (" + r1(doors[+mf[1] - 1].H) + " mm)"
+          : md && doors[+md[1]] ? "Hurð " + (+md[1] + 1) + " (" + r1(doors[+md[1]].H) + " mm)" : null;
+      if (!label) { check.push("Grip \"" + g.target + "\": fronturinn finnst ekki (breytt/fjarlægður eftir að grip var sett) — athuga teikningu"); return; }
+      var what = g.type === "alla"
+        ? "alla leið, " + g.att + " frá " + g.brun + " (mál þegar stytt á Eyðublaði)"
+        : "hluti, " + g.att + ", " + r1(num(g.start)) + "–" + r1(num(g.start) + num(g.length)) + " mm frá botni fronts";
+      check.push("Grip — " + label + ": " + what + " — fræst í höndunum, ekki í þessu útflutti.");
+    });
 
     plan.frontCheck = []; // front notes stay out of the side status
     plan.fronts = frontPlans(drawers, doors, fixedFronts, by, plan.frontCheck, leaves);

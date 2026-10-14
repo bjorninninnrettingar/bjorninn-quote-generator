@@ -171,7 +171,8 @@
   var KEY = new URLSearchParams(location.search).get("k") || "bjorn-verk-7Kq2mP9xLd4";
   var UNIT_FIELDS = ["Athugasemd", "Sérsmíði tegund", "Hæð", "Breidd", "Dýpt", "Fjöldi eininga",
     "Þykkt karms [Hurð]", "Karmabil frá vegg [Hurð]", "Toppstykki hurðakarms", "Opnun [Hurð]", "Lamir [Hurð]", "Skrá [Hurð]", "Felliþr. [Hurð]", "Smíðagögn (JSON) 🔧",
-    "Grip mm (Höldur 1)"]; // per-unit, via its own Höldur; falls back to the manual field below when absent
+    "Grip mm (Höldur 1)", // per-unit, via its own Höldur; falls back to the manual field below when absent
+    "Grip svæði (JSON) 🪚"]; // Fræst grip zones (2026-10-14) — Keyra skipulag's validated copy of Smíðagögn's grip[]; "Grip mm (Höldur 1)" is unrelated to this (real handle hardware only, Fræst grip doesn't use it any more)
   var SAW_FIELDS = ["Partur", "H", "B", "Þ", "M", "Tegund einingu", "Eyðublað ✏️"];
 
   var project = null, doors = [], groups = [], stopped = [], productNames = {}, sideInput = null, lastTally = null;
@@ -252,13 +253,16 @@
       var rows = await fetchAll(SAW, { filterByFormula: 'FIND("' + q + ' |",ARRAYJOIN({Tækifæri 📣 (projects)}))', "fields[]": SAW_FIELDS });
     } catch (e) { $("out").innerHTML = '<div class="empty">Villa: ' + esc(e.message) + "</div>"; return; }
     project = { id: id, name: name, prefix: pre };
-    var unitName = {}, isDoor = {}, unitH = {}, unitSmida = {}, unitGrip = {};
+    var unitName = {}, isDoor = {}, unitH = {}, unitSmida = {}, unitGrip = {}, unitGripZones = {};
     units.forEach(function (u) {
       unitName[u.id] = u.fields["Athugasemd"] || "(nafnlaust)"; unitH[u.id] = u.fields["Hæð"]; unitSmida[u.id] = u.fields["Smíðagögn (JSON) 🔧"] || null;
       isDoor[u.id] = String(u.fields["Sérsmíði tegund"] || "") === "Hurð";
       // multipleLookupValues always comes back as an array, even through a single-record link.
       var g = u.fields["Grip mm (Höldur 1)"]; g = Array.isArray(g) ? g[0] : g;
       unitGrip[u.id] = typeof g === "number" ? g : null;
+      // Fræst grip zones (2026-10-14): Keyra skipulag's own validated JSON, not Smíðagögn directly — already
+      // has the dimension shrink baked elsewhere (Sérhæð/Hæð frontur N), this is milling-position metadata only.
+      try { var gz = JSON.parse(u.fields["Grip svæði (JSON) 🪚"] || "[]"); unitGripZones[u.id] = Array.isArray(gz) ? gz : []; } catch (e) { unitGripZones[u.id] = []; }
     });
 
     // Doors — Vörulisti first (names always; CNC macró fields are the catalog fallback for a hinge/lock/
@@ -279,7 +283,7 @@
     // Sides — every non-door unit's Sögunarlisti rows.
     var byUnit = {};
     rows.forEach(function (r) { var u = (r.fields["Eyðublað ✏️"] || [])[0]; u = u && (u.id || u); if (!u || isDoor[u]) return; (byUnit[u] = byUnit[u] || []).push(r.fields); });
-    sideInput = { byUnit: byUnit, unitName: unitName, unitH: unitH, unitSmida: unitSmida, unitGrip: unitGrip };
+    sideInput = { byUnit: byUnit, unitName: unitName, unitH: unitH, unitSmida: unitSmida, unitGrip: unitGrip, unitGripZones: unitGripZones };
     planSides();
   }
 
@@ -302,7 +306,7 @@
     var I = sideInput;
     var plans = Object.keys(I.byUnit).map(function (u) {
       var g = I.unitGrip[u]; g = g == null ? +$("gripMm").value || 0 : g;
-      return SD.unitPlan(I.unitName[u] || u, I.byUnit[u], { unitHeight: I.unitH[u], gripMm: g, smida: I.unitSmida[u] });
+      return SD.unitPlan(I.unitName[u] || u, I.byUnit[u], { unitHeight: I.unitH[u], gripMm: g, smida: I.unitSmida[u], grip: I.unitGripZones[u] });
     });
     // Always-on: how many drawer-bearing units are on the toolbar number vs their own Vörulisti grip.
     var gi = gripFallbackInfo();

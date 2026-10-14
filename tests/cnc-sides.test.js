@@ -126,22 +126,37 @@ test("grip: drawer slots = cut front + grip strip; inner drawer in the tallest z
   assert.ok(o.includes("MERVIBOX_INNSKUFFA: 144, 448, K"));   // hand file: 447
 });
 
-// 2026-10-13 (user): fræst grip (a groove milled into the front itself, not a handle — Vörulisti "Fræst grip",
-// Grip mm -35) only shrinks a door/fixed front under 900mm; Jey and any other positive-grip handle still applies
-// to every front in the unit regardless of height, unchanged. Drawer fronts always take grip either way (tested
-// above/below) — the 900mm cutoff is only about doors/fixed fronts.
-test("fræst grip (negative) only shrinks doors/fixed fronts under 900mm; positive grip (Jey) ignores the cutoff", () => {
+// 2026-10-13: grip (Vörulisti "Grip mm" via Höldur 1 — Jey and the like, a real handle sitting on the face)
+// applies to every door/fixed front and every drawer front, any height, unconditionally.
+// 2026-10-14: the "fræst grip" branch that used to live here (a negative Höldur-1 Grip mm, zeroed on doors/fixed
+// fronts ≥900mm) is retired — Fræst grip no longer goes through Höldur 1 at all, so `grip` is never negative any
+// more (see cnc.html's "Grip svæði (JSON)" + the check-list test below instead).
+test("grip (Jey and the like, via Höldur 1) applies to every door/fixed front and drawer front, any height", () => {
   const drawerRows = [row("Grunnskápur hlið", 800, 580, 16, 2), row("Skúffufrontur K - Merivo", 600, 597, 19, 1)];
-  assert.ok(ops(S.unitPlan("Sk D", drawerRows, { gripMm: -35 })).includes("MERIVOBOX_V2: -1.5, 0, 0, 0, 0, 0, 565, K"));
-
-  const under900 = S.unitPlan("A", [row("Grunnskápur hlið", 600, 580, 16, 2), row("Frontur", 632, 597, 19, 1)], { gripMm: -35 });
-  assert.deepEqual([under900.doors[0].to, under900.doors[0].from], [635, 0]); // -35 applied: 600 − (−35) = 635
-
-  const over900 = S.unitPlan("B", [row("Grunnskápur hlið", 1000, 580, 16, 2), row("Frontur", 1032, 597, 19, 1)], { gripMm: -35 });
-  assert.deepEqual([over900.doors[0].to, over900.doors[0].from], [1000, 0]); // door ≥900mm: no shrink, stays at the ceiling
+  assert.ok(ops(S.unitPlan("Sk D", drawerRows, { gripMm: 27 })).includes("MERIVOBOX_V2: -1.5, 0, 0, 0, 0, 0, 627, K"));
 
   const jeyTall = S.unitPlan("C", [row("Grunnskápur hlið", 1000, 580, 16, 2), row("Frontur", 970, 597, 19, 1)], { gripMm: 27 });
   assert.deepEqual([jeyTall.doors[0].to, jeyTall.doors[0].from], [973, 0]); // positive grip: applies to a tall door too
+});
+
+// Fræst grip Type 1/2 (2026-10-14): Keyra skipulag already bakes a "alla" zone's shrink into Sérhæð/Hæð frontur N
+// (so Sögunarlisti's H is already the shrunk size by the time it reaches here) — cnc-sides.js only has to surface
+// where to mill, not recompute a dimension. No real master file with a milling macro has been seen yet, so this
+// is a flagged-for-manual-work note, not a generated macro call.
+test("grip svæði (Fræst grip): flagged for manual milling, by target — drawer code, split front, or door index", () => {
+  const rows = [row("Grunnskápur hlið", 800, 580, 16, 2), row("Skúffufrontur K - Merivo", 397, 797, 19, 1),
+    row("Skúffufrontur E - Merivo", 397, 797, 19, 1)];
+  const withZone = S.unitPlan("Sk G", rows, { grip: [{ target: "K", type: "alla", att: "lárétt", brun: "efst" }] });
+  assert.ok(withZone.check.some((c) => c.indexOf("Grip — Skúffa K") === 0 && c.indexOf("fræst í höndunum") >= 0));
+
+  const partial = S.unitPlan("Sk G2", rows, { grip: [{ target: "E", type: "hluti", att: "lóðrétt", start: 100, length: 300 }] });
+  assert.ok(partial.check.some((c) => c.indexOf("Grip — Skúffa E") === 0 && c.indexOf("100–400 mm") >= 0));
+
+  const stale = S.unitPlan("Sk G3", rows, { grip: [{ target: "front2", type: "alla", att: "lárétt", brun: "efst" }] });
+  assert.ok(stale.check.some((c) => c.indexOf('Grip "front2"') === 0 && c.indexOf("finnst ekki") >= 0));
+
+  const none = S.unitPlan("Sk G4", rows);
+  assert.ok(!none.check.some((c) => c.indexOf("Grip") === 0));
 });
 
 test("two identical door fronts that can't stack are leaves of one opening (no negative hinges)", () => {
