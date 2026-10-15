@@ -4747,6 +4747,23 @@
       var cc = cur(); cc.splice(+el.dataset.dwDel, 1); setStack(cc, stackAllowed(b, c, sortStack(cc), b.interior.inner) ? b.interior.inner : null);
     }); });
     side.querySelectorAll("[data-dw-inner]").forEach(function(el){ el.addEventListener("click", function(){ innerDrawerClick(b, c, el.dataset.dwInner, setStack); }); });
+    // PRO-only controls hardwareHTML's detailed drawerRowsHTML also renders here (ro.sides, since PRO is true even
+    // in the "+ Ný eining" wizard) — wireInteriorControls wires these for an already-placed cabinet's edit panel
+    // and Smíða, but the wizard's own wiring never did, so a code picked here never reached b.interior.codes: the
+    // next render (e.g. clicking Fataslár's +/-) rebuilt the stack from scratch and silently fell back to the
+    // cabinet's default codes (user, 2026-10-16 — typed K,K,K here, Smíða still showed the default E/K/M).
+    side.querySelectorAll('[data-dw-addsel]').forEach(function(sel){ sel.addEventListener("change", function(){
+      var code = sel.value; if (!code) return;
+      var next = sortStack(cur().concat([code])), keep = b.interior.inner && stackAllowed(b, c, next, b.interior.inner);
+      if (b.interior.inner && !keep) toast("Innskúffan passar ekki með " + next.length + " skúffum — hún var tekin út.");
+      setStack(next, keep ? b.interior.inner : null);
+    }); });
+    side.querySelectorAll('[data-dw-type]').forEach(function(sel){ sel.addEventListener("change", function(){
+      var cc = cur(); cc[+sel.dataset.dwType] = sel.value;
+      var keep = b.interior.inner && stackAllowed(b, c, cc, b.interior.inner);
+      if (b.interior.inner && !keep) toast("Innskúffan passar ekki með þessari breytingu — hún var tekin út.");
+      setStack(cc, keep ? b.interior.inner : null);
+    }); });
     wireDrawerSimple(side, b, c, setStack);
     side.querySelectorAll("[data-uw-sh]").forEach(function(el){ el.addEventListener("click", function(){
       var d = +el.dataset.uwSh;

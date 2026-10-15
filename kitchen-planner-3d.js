@@ -1929,8 +1929,10 @@
     }
 
     if (plinthM && meta && meta.plinthMat){
-      // a hair shorter than the gap so its top never shares a plane with the body's underside (z-fighting showed through an open cabinet)
-      var plGeo = new THREE.BoxGeometry(widthM - 0.004, plinthM - 0.004, depthM - 0.063);
+      // full width (user, 2026-10-16): plinths of neighbouring units may run together with no visual break between
+      // them, like a real continuous kickboard — only its height is a hair short, so its top never shares a plane
+      // with the body's underside (z-fighting showed through an open cabinet).
+      var plGeo = new THREE.BoxGeometry(widthM, plinthM - 0.004, depthM - 0.063);
       var plFace = Array.isArray(meta.plinthMat) ? meta.plinthMat[4] : meta.plinthMat;
       scaleFrontUV(plGeo, widthM, plinthM, plFace.userData && plFace.userData.tile); // the plinth's front is clad in the front material
       var pl = new THREE.Mesh(plGeo, meta.plinthMat);
