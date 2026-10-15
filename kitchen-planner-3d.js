@@ -24,7 +24,9 @@
     // tall units: 2400 box + 100 plinth (user, 2026-10-09 — they were 2300 + plinth)
     harskapur:   { label:"Hárskápur",   zone:"floor", cls:"tall",  defaultW:600, minW:300, maxW:1200,  h:2500, d:600, minH:1800, maxH:2700, minD:300, maxD:700, hasInterior:true, drawerCountRange:[1,5], shelfRange:[0,8,5], railRange:[0,2,0] },
     // same body as harskapur, no front at all — open shelving, always built in the front material (2026-10-14)
-    harskapurOpinn: { label:"Opinn hárskápur", zone:"floor", cls:"tall", defaultW:600, minW:300, maxW:1200, h:2500, d:600, minH:1800, maxH:2700, minD:300, maxD:700, hasInterior:false, shelfRange:[0,8,5], railRange:[0,2,0], open:true },
+    // drawerCountRange starts at 0 (off) — unlike the hasInterior types, drawers here sit ALONGSIDE
+    // shelves/fataslá (always at the bottom, see addFrontDetailsInner), not instead of them (2026-10-22).
+    harskapurOpinn: { label:"Opinn hárskápur", zone:"floor", cls:"tall", defaultW:600, minW:300, maxW:1200, h:2500, d:600, minH:1800, maxH:2700, minD:300, maxD:700, hasInterior:false, shelfRange:[0,8,5], railRange:[0,2,0], drawerCountRange:[0,4], open:true },
     efriskapur:  { label:"Efriskápur",  zone:"wall",  cls:"wall",  defaultW:600, minW:200, maxW:1200, h:1000, d:300, minH:300,  maxH:1200, minD:200, maxD:450, hasInterior:false, shelfRange:[0,5,2] },
     // Built-in fridge: NOT its own Skápategund in the schema (Skápategund has
     // Grunn/Hár/Efri/Lagna/Ofna/Loftunarskápur only) — physically a Hárskápur
@@ -247,14 +249,20 @@
   // fronts in Sögunarlisti: Merivo M 98, K 162, E 270). FRONT_WEIGHT = how spare height is shared
   // out on top of the minimums (the "Sérhæð … fronts" defaults on Eyðublað) — so a Merivo E+K+M in a
   // 700 mm body comes out ≈ 334/211/156, close to the real medians (397/247/147).
+  // "P" (Föst framhlið, user 2026-10-19): a plain fixed front — no drawer behind it, no real Vörulisti product,
+  // height-adjustable like any other front. Reuses the exact "front slot, no box" path addCabinetBox already
+  // has for a sink's fixed top front (meta.sinkFixedTop) — see makeLeaf's `fixedTop`. Lives in both systems'
+  // own `codes` (so it shows in every drawer-type dropdown) with side:0 (no Blum hardware) — stackAllowed/
+  // ensureCombo (kitchen-planner.html) skip the Útfærslur combo lookup entirely whenever it's in a stack.
+  var FIXED_FRONT_CODE = "P";
   var DRAWER_CODES = {
-    legra:  { codes:["M", "K", "C", "F"], side:{ M:90.5, K:128.5, C:177, F:241 }, inner:["IK", "IM"] },
-    merivo: { codes:["N", "M", "K", "E"], side:{ N:63, M:91, K:129, E:192 },     inner:["IM"] }
+    legra:  { codes:["M", "K", "C", "F", "P"], side:{ M:90.5, K:128.5, C:177, F:241, P:0 }, inner:["IK", "IM"] },
+    merivo: { codes:["N", "M", "K", "E", "P"], side:{ N:63, M:91, K:129, E:192, P:0 },     inner:["IM"] }
   };
   // E and C are raised so the global front macro's extra row always lands on the front: E row at 218, C at 203.5
   // (+10 mm to the top edge; user, 2026-10-10 — was E 212 / C 197, and a 212 E front can't take its 218 holes)
-  var FRONT_MIN = { N:85, M:110, K:150, E:228, C:214, F:261 };
-  var FRONT_WEIGHT = { N:100, M:150, K:200, E:400, C:400, F:800 };
+  var FRONT_MIN = { N:85, M:110, K:150, E:228, C:214, F:261, P:40 }; // P: a plain panel, no Blum minimum behind it
+  var FRONT_WEIGHT = { N:100, M:150, K:200, E:400, C:400, F:800, P:150 };
   var CODE_ORDER = "NMKECF"; // smallest → tallest; also the order Útfærslur combo keys use
   var DRAWER_GAP_MM = 3;
   var WIDE_DOOR_M = 0.6005; // a door unit wider than 600 mm is built with two doors
@@ -1737,7 +1745,12 @@
     group.children.slice(n0).forEach(function(o){ o.__frontDetail = true; });
   }
   function addFrontDetailsInner(THREE, group, geom, offsetM, widthM, heightM, baseYM, depthM, interior, handleKey, isTall, isWallRow, split, meta, frontMat){
-    if (meta && meta.open) return; // open shelves have no fronts
+    // An open cabinet (Fataskápar's "Opinn skápur") has no door — but it can still have a real drawer
+    // stack at the bottom, zoned off from the open shelves/fataslá above it exactly like a tall door
+    // cabinet's own drawers-below/door-above split (interior.topDoorFr, set in buildScene) — just with
+    // nothing drawn in that "door" zone (2026-10-22). Open + no drawers at all: still no front, as before.
+    var isOpenDrawers = !!(meta && meta.open) && interior && interior.mode === "skuffur" && interior.count > 0;
+    if (meta && meta.open && !isOpenDrawers) return; // open shelves have no fronts
     var xAxis = new THREE.Vector3(geom.axis.x, 0, geom.axis.z);
     var quat = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(xAxis, new THREE.Vector3(0, 1, 0), new THREE.Vector3(geom.normal.x, 0, geom.normal.z)));
     var drawers = interior && interior.mode === "skuffur" ? interior.count : 0;
@@ -1748,7 +1761,7 @@
     if (drawers){
       var fr = interior.fractions && interior.fractions.length === drawers - 1 ? interior.fractions : null, zt = interior.topDoorFr || 1;
       for (var i = 0; i < drawers; i++) fronts.push({ y0:fr ? (i === 0 ? 0 : fr[i - 1]) : i / drawers * zt, y1:fr ? (i === drawers - 1 ? zt : fr[i]) : (i + 1) / drawers * zt, drawer:true });
-      if (interior.topDoorFr) fronts.push({ y0:interior.topDoorFr, y1:1 }); // tall unit: the door above the drawers
+      if (interior.topDoorFr && !isOpenDrawers) fronts.push({ y0:interior.topDoorFr, y1:1 }); // tall unit: the door above the drawers — never for an open cabinet, that zone stays open shelves
     }
     else if (isTall && !isOven && meta && meta.washerDrawerM){ // washer tower: a drawer at the bottom, two doors above
       var wd = meta.washerDrawerM / heightM, sp2 = wd + (1 - wd) * 0.5;
@@ -1813,7 +1826,7 @@
     // zone above a drawer stack, not just drawer-free cabinets). The seam only spans the door's own zone,
     // not the drawers below it (drawers never split into two leaves regardless of width).
     var wideDoor = widthM > WIDE_DOOR_M && !(meta && meta.fridge) && !isCorner;
-    if ((wideDoor && (!drawers || interior.topDoorFr)) || isCorner){
+    if (((wideDoor && (!drawers || interior.topDoorFr)) || isCorner) && !isOpenDrawers){ // no door seam to draw — an open cabinet's zone above the drawers has no door at all
       var doorY0 = drawers && interior.topDoorFr ? interior.topDoorFr : 0, doorSpanM = (1 - doorY0) * heightM;
       place(new THREE.Mesh(new THREE.PlaneGeometry(0.008, doorSpanM * 0.97), seamMat), baseYM + heightM * doorY0 + doorSpanM / 2, 0.004);
     }
@@ -2088,9 +2101,9 @@
       }
     }
     if (interior && interior.mode === "skuffur" && !art){
-      if (interior.topDoorFr) addDrawerSeams(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior.count + 1,
+      if (interior.topDoorFr && !(meta && meta.open)) addDrawerSeams(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior.count + 1,
         (interior.fractions || Array.apply(null, Array(interior.count - 1)).map(function(_, k){ return (k + 1) / interior.count * interior.topDoorFr; })).concat([interior.topDoorFr]));
-      else addDrawerSeams(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior.count, interior.fractions);
+      else addDrawerSeams(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior.count, interior.fractions); // open: just the seams between drawers, no extra "door starts here" line floating in open air
     }
     if (meta && meta.locked && !meta.suppressBadge && meta.zone !== "opening") addLockBadge(THREE, group, local(0, baseYM + heightM + (meta.counter ? 0.16 : 0.1), depthM / 2));
     if (meta && meta.ready) addLockBadge(THREE, group, local(widthM / 2 - 0.07, baseYM + heightM + (meta.counter ? 0.16 : 0.1), depthM / 2), true); // pro: "Klár til framleiðslu"
@@ -2292,7 +2305,8 @@
         addFrontDetails(THREE, tmp, fake, 0, w, fh, y0, depthM, { mode:"skuffur", count:1 }, meta.handle, false, meta.zone === "wall" || (meta.tall && fi > 0 && !f.drawer), 0.55, { vertical:vertA, freeSide:freeSideA, slab:true }, frontMat);
         tmp.children.slice().forEach(function(ch){ ch.position.x -= pivotX; g.add(ch); if (ch.isMesh) meshes.push(ch); else ch.traverse(function(o){ if (o.isMesh) meshes.push(o); }); });
       }
-      var fixedTop = f.drawer && meta.sinkFixedTop && fi === drawers - 1; // sink cabinet: a fixed front over the basin, no drawer behind it
+      // a front slot with no drawer behind it: a sink's fixed top front, or any "P" (Föst framhlið) position
+      var fixedTop = f.drawer && ((meta.sinkFixedTop && fi === drawers - 1) || (dcodes && dcodes[fi] === FIXED_FRONT_CODE));
       if (f.drawer && !fixedTop){
         var code = dcodes ? dcodes[fi] : null, sysD = DRAWER_CODES[sysKey];
         var side = code && sysD && sysD.side[code] ? sysD.side[code] : Math.max(50, Math.min(200, Math.round(fh * 1000 - 55)));
@@ -5648,7 +5662,7 @@
     setCameraLookAt: setCameraLookAt,
     renderShot: renderShot,
     setAllParts: setAllParts,
-    DRAWER_CODES: DRAWER_CODES,
+    DRAWER_CODES: DRAWER_CODES, FIXED_FRONT_CODE: FIXED_FRONT_CODE,
     FRONT_MIN: FRONT_MIN, slotMin: slotMin,
     drawerCodes: drawerCodes,
     drawerFrontsMm: drawerFrontsMm, stackFrontsMm: stackFrontsMm, resizeFront: resizeFront, resizeFrontFree: resizeFrontFree,

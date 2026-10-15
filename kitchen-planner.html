@@ -3798,7 +3798,7 @@
   // Legra M/K/C/F) plus an optional inner drawer. Only stacks that fit the cabinet body AND exist as a
   // real "Skúffu samsetning" Útfærsla can be built, so every drawer cabinet maps to a real V2.
   // Drawers named by what they're for, not by Blum's letter (2026-10-11): the letter stays small for the shop
-  var CODE_LABEL = { N:"Mjög lág", M:"Lág", K:"Miðlungs", E:"Djúp", C:"Djúp", F:"Mjög djúp" };
+  var CODE_LABEL = { N:"Mjög lág", M:"Lág", K:"Miðlungs", E:"Djúp", C:"Djúp", F:"Mjög djúp", P:"Föst framhlið" };
   var CODE_PLURAL = { N:"mjög lágar", M:"lágar", K:"miðlungs", E:"djúpar", C:"djúpar", F:"mjög djúpar" };
   function dwIcon(code){ // a little box as tall as the drawer side, so the difference shows at a glance
     var side = KP3D.DRAWER_CODES[drawerSys()].side[code] || (KP3D.DRAWER_CODES.legra.side[code]) || 120;
@@ -3824,7 +3824,7 @@
     return KP3D.drawerZoneMm(c, full, b.drawerZoneMm);
   }
   function sortStack(codes){ // tallest at the bottom — how Björninn builds them
-    var o = "NMKECF";
+    var o = "NMKECFP"; // P (föst framhlið) sorts last by default — drag the ⠿ grip to move it anywhere after
     return codes.slice().sort(function(a, b){ return o.indexOf(b) - o.indexOf(a); });
   }
   function drawerComboRec(codes, inner){
@@ -3839,6 +3839,10 @@
     return codes.length >= 1 && codes.length <= MAX_DRAWERS && !!KP3D.drawerFrontsMm(codes, drawerBodyMm(b, c));
   }
   function stackAllowed(b, c, codes, inner){
+    // "P" (Föst framhlið, user 2026-10-19) carries no Vörulisti product of its own — a stack that has one
+    // just needs to physically fit, never a combo lookup (there's no Útfærslur row for a combo with a letter
+    // that doesn't exist in any system).
+    if (codes.indexOf(KP3D.FIXED_FRONT_CODE) >= 0) return stackFits(b, c, codes);
     return stackFits(b, c, codes) && !!drawerComboRec(codes, inner);
   }
   // Create-on-demand (user, 2026-10-19): the wizard offers any physically-fitting combo, not just ones
@@ -3847,6 +3851,7 @@
   // KP_LINEMAP for the rest of this session so it's usable immediately, no reload. Inner-drawer combos stay
   // out of scope — those still have to already exist.
   function ensureCombo(codes, inner, cb){
+    if (codes.indexOf(KP3D.FIXED_FRONT_CODE) >= 0){ cb(true); return; } // no product to look up or create
     if (drawerComboRec(codes, inner)){ cb(true); return; }
     if (inner){ toast("Þessi samsetning með innskúffu er ekki til."); cb(false); return; }
     var sys = drawerSys();
@@ -3972,7 +3977,7 @@
         (multi && opts.reorder ? '<span class="dw-grip" data-dw-grip="' + d.i + '" title="Dragðu til að færa skúffuna">⠿</span>' : '') +
         '<span class="dw-nm">' + (typeSel || '<b>' + d.code + '</b>') + '</span>' +
         (d.mm ? (multi ? '<input class="dw-mm" type="number" step="1" data-dw-mm="' + d.i + '" value="' + Math.round(d.mm) + '" title="Hæð framhliðar (mm)"><small>mm</small>' : '<small>' + Math.round(d.mm) + ' mm</small>') : '') +
-        (opts.sides ? '<small class="dw-side" title="Hæð Blum-hliðar — berðu saman við frontinn">hlið ' + Math.round(KP3D.DRAWER_CODES[sys].side[d.code] || 0) + '</small>' : '') +
+        (opts.sides && d.code !== KP3D.FIXED_FRONT_CODE ? '<small class="dw-side" title="Hæð Blum-hliðar — berðu saman við frontinn">hlið ' + Math.round(KP3D.DRAWER_CODES[sys].side[d.code] || 0) + '</small>' : '') +
         (multi && opts.del ? '<button type="button" class="dw-x" data-dw-del="' + d.i + '" title="Taka skúffu">✕</button>' : '') + '</div>';
     }).join("") + '</div>' +
     (opts.custom && multi ? '<button type="button" class="dw-reset" data-dw-reset>↺ Sjálfgefnar hæðir</button>' : '');
@@ -4782,6 +4787,14 @@
         var rrng = [c.railRange[0], c.railRange[1]];
         html += '<div class="edit-field"><label>Fataslár</label><div class="hw-count"><button class="iconbtn" data-uw-rail="-1"' + (railN <= rrng[0] ? " disabled" : "") + '>−</button><b>' + railN + '</b><button class="iconbtn" data-uw-rail="1"' + (railN >= rrng[1] ? " disabled" : "") + '>+</button><span>' + plural(railN, "fataslá", "fataslár") + '</span></div></div>';
       }
+      // Skúffur í opnum skáp (2026-10-22): sitja ALLTAF neðst, hillur/fataslár fylla restina fyrir ofan —
+      // ekki sama "hillur eða skúffur" víxl og c.hasInterior týpur hafa (sjá CATALOG-athugasemdina við
+      // harskapurOpinn). Fyrsta útgáfa: bara valið hér í wizard-num, ekki breytanlegt eftir á.
+      var drawerN = (c.open && c.drawerCountRange) ? ((b.interior && b.interior.mode === "skuffur") ? b.interior.count : 0) : null;
+      if (drawerN != null){
+        var drng = c.drawerCountRange;
+        html += '<div class="edit-field"><label>Skúffur</label><div class="hw-count"><button class="iconbtn" data-uw-drawer="-1"' + (drawerN <= drng[0] ? " disabled" : "") + '>−</button><b>' + drawerN + '</b><button class="iconbtn" data-uw-drawer="1"' + (drawerN >= drng[1] ? " disabled" : "") + '>+</button><span>' + plural(drawerN, "skúffa", "skúffur") + '</span></div></div>';
+      }
       html += variantHTML(b, c);
       if (uw.island){
         side.innerHTML = html + '<div class="uw-actions"><button type="button" class="btn btn-secondary btn-small" data-uw-back>← Til baka</button>' +
@@ -4905,6 +4918,13 @@
       var d = +el.dataset.uwRail;
       b.rails = Math.max(c.railRange[0], Math.min(c.railRange[1], KP3D.railsOf(b) + d));
       delete b.railPos; // see the side panel's own setRails
+      renderUnitWizard();
+    }); });
+    side.querySelectorAll("[data-uw-drawer]").forEach(function(el){ el.addEventListener("click", function(){
+      var d = +el.dataset.uwDrawer, cur = (b.interior && b.interior.mode === "skuffur") ? b.interior.count : 0;
+      var n = Math.max(c.drawerCountRange[0], Math.min(c.drawerCountRange[1], cur + d));
+      if (n <= 0) delete b.interior;
+      else b.interior = { mode:"skuffur", count:n, codes:KP3D.drawerCodes({ mode:"skuffur", count:n }, drawerSys()) };
       renderUnitWizard();
     }); });
     if (c.bur) wireBurSetup(side, b, renderUnitWizard);
