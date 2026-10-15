@@ -22,6 +22,7 @@
   var INNER_RUNNER = 54;    // MERVIBOX_INNSKUFFA: the inner front starts 54 mm below X ("st_5mm frontur er 54 fyrir neðan")
   var TALL_EXTRA_RAIL = 1000; // sides taller than this get the extra rail ("Auka slár", lpx/3) — user 2026-10-08 (T-33 Sk 34 = 1040)
   var GRIP_MILL_DEPTH = 30; // HARDVIDAR_GRIP_* DEPTH param — matches every real master/test default seen on the USB (2026-10-14)
+  var RADBORUN_PITCH = 32;  // Raðborun (continuous shelf-pin drilling, 2026-10-15): one LAUS_HILLA run at this pitch — see kitchen-planner-3d.js RADBORUN_PITCH_MM
   // Bottom → top order of a drawer stack: deepest box first.
   var CODE_ORDER = ["F", "E", "C", "K", "M", "N"];
   // Every macro this generator decides about. All master lines with these names are switched off and the
@@ -215,16 +216,24 @@
     var so = (parseSmida(opts.smida) || {}).oven, shelfRows = [], ovenDone = false;
     // fixed = FOST_HILLA at its top face; loose = LAUS_HILLA with `pos` holes 50 apart, the middle one under the shelf.
     // Board thickness from Sögunarlisti's own shelf row when there is one. Counts are compared with Sögunarlisti.
-    function emitShelves(list, above, noCount) {
+    function emitShelves(list, above, noCount, radborun) {
       var tF = num(((by.fixedShelf || [])[0] || {})["Þ"]) || OVEN_BOARD, tL = num(((by.looseShelf || [])[0] || {})["Þ"]) || OVEN_BOARD;
       var sl = (list || []).filter(function (x) { return num(x.mm) > above && num(x.mm) < H; });
       sl.forEach(function (x) {
         var mm = r1(num(x.mm));
         if (x.fixed) { op("FOST_HILLA", "Föst hilla", tF + ", " + mm + ", 2, lpy-22, lpz+5"); shelfRows.push(r1(mm - tF / 2)); return; }
+        if (radborun) { shelfRows.push(r1(mm - tL)); return; } // its holes come from the one continuous run below
         var n = Math.max(1, Math.min(9, Math.round(num(x.pos) || 3))), mid = r1(mm - tL), first = r1(mid - Math.floor((n - 1) / 2) * 50);
         op("LAUS_HILLA", "Laus hilla (" + n + " stillingar)", first + ", " + n + ", 37, 20+60, 50");
         for (var k = 0; k < n; k++) shelfRows.push(r1(first + k * 50));
       });
+      // Raðborun (continuous/IKEA-style drilling): one LAUS_HILLA run spanning the whole span at a fixed pitch,
+      // instead of each loose shelf's own small cluster — any loose shelf above can sit anywhere in that run.
+      if (radborun && num(radborun.from) != null && num(radborun.to) != null && num(radborun.to) > num(radborun.from)) {
+        var rFrom = r1(num(radborun.from)), rN = Math.max(1, Math.floor((num(radborun.to) - rFrom) / RADBORUN_PITCH) + 1);
+        op("LAUS_HILLA", "Raðborun (" + rN + " göt)", rFrom + ", " + rN + ", 37, 20+60, " + RADBORUN_PITCH);
+        for (var rk = 0; rk < rN; rk++) shelfRows.push(r1(rFrom + rk * RADBORUN_PITCH));
+      }
       if (!noCount) {
         var nL = sl.filter(function (x) { return !x.fixed; }).length, nF = sl.length - nL;
         var rL = expand(by.looseShelf, function (r) { return r; }).length, rF = expand(by.fixedShelf, function (r) { return r; }).length;
@@ -244,7 +253,7 @@
     } else if (oven) check.push("Ofnaskápur: föstu hillurnar og ofninn bíða hönnuðar — settu þær inn eftir teikningu");
     // any other cabinet: the shelves where they're drawn in Smíða (Smíðagögn shelves.list, 2026-10-10)
     var sms = parseSmida(opts.smida) || {};
-    if (!oven && sms.shelves && Array.isArray(sms.shelves.list)) { emitShelves(sms.shelves.list, 0, !!(sms.shelves.loose == null && sms.shelves.fixed == null)); ovenDone = true; }
+    if (!oven && sms.shelves && Array.isArray(sms.shelves.list)) { emitShelves(sms.shelves.list, 0, !!(sms.shelves.loose == null && sms.shelves.fixed == null), sms.shelves.radborun); ovenDone = true; }
 
     // Loose shelves: one row of 3 holes each, spread evenly over the door space (default — per drawing).
     var loose = ovenDone ? 0 : expand(by.looseShelf, function (r) { return r; }).length;

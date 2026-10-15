@@ -3855,14 +3855,27 @@
   // the stack (opts.reorder), the line between two drawers drags their shared seam, each height can be typed
   // (2026-10-02). Shared by the drawer builder and the drawers under an oven.
   function drawerRowsHTML(codes, fronts, opts){
-    var multi = codes.length > 1;
+    var multi = codes.length > 1, sys = drawerSys();
     return '<div class="dw-stack" data-dw-stack>' + codes.map(function(code, i){ return { code:code, i:i, mm:fronts[i] }; }).reverse().map(function(d, k){
+      // PRO/Smíða: change this row's own code in place instead of delete-then-re-add (user, 2026-10-15) — only
+      // offers codes that keep the stack a real product, same check drawerSimpleHTML's customer picker already uses
+      var typeSel = '';
+      if (opts.changeType){
+        var typeCodes = KP3D.DRAWER_CODES[sys].codes.filter(function(cd){
+          if (cd === d.code) return true;
+          var next = sortStack(codes.slice().map(function(x, j){ return j === d.i ? cd : x; }));
+          return stackAllowed(opts.b, opts.c, next, opts.inner);
+        });
+        typeSel = '<select class="dw-type-sel" data-dw-type="' + d.i + '" title="Breyta skúffugerð">' + typeCodes.map(function(cd){
+          return '<option value="' + cd + '"' + (cd === d.code ? ' selected' : '') + '>' + cd + '</option>';
+        }).join("") + '</select>';
+      }
       return (k ? '<div class="dw-seam" data-dw-seam="' + d.i + '" title="Dragðu til að breyta hæð skúffanna"></div>' : '') +
         '<div class="dw-row" data-dw-row="' + d.i + '" style="flex-grow:' + Math.max(1, Math.round((d.mm || 150) / 40)) + '">' +
         (multi && opts.reorder ? '<span class="dw-grip" data-dw-grip="' + d.i + '" title="Dragðu til að færa skúffuna">⠿</span>' : '') +
-        '<span class="dw-nm"><b>' + d.code + '</b><small>' + CODE_USE[d.code] + '</small></span>' +
+        '<span class="dw-nm">' + (typeSel || '<b>' + d.code + '</b>') + '<small>' + CODE_USE[d.code] + '</small></span>' +
         (d.mm ? (multi ? '<input class="dw-mm" type="number" step="1" data-dw-mm="' + d.i + '" value="' + Math.round(d.mm) + '" title="Hæð framhliðar (mm)"><small>mm</small>' : '<small>' + Math.round(d.mm) + ' mm</small>') : '') +
-        (opts.sides ? '<small class="dw-side" title="Hæð Blum-hliðar — berðu saman við frontinn">hlið ' + Math.round(KP3D.DRAWER_CODES[drawerSys()].side[d.code] || 0) + '</small>' : '') +
+        (opts.sides ? '<small class="dw-side" title="Hæð Blum-hliðar — berðu saman við frontinn">hlið ' + Math.round(KP3D.DRAWER_CODES[sys].side[d.code] || 0) + '</small>' : '') +
         (multi && opts.del ? '<button type="button" class="dw-x" data-dw-del="' + d.i + '" title="Taka skúffu">✕</button>' : '') + '</div>';
     }).join("") + '</div>' +
     (opts.custom && multi ? '<button type="button" class="dw-reset" data-dw-reset>↺ Sjálfgefnar hæðir</button>' : '');
@@ -3954,15 +3967,18 @@
     var sys = drawerSys(), D = KP3D.DRAWER_CODES[sys], codes = KP3D.drawerCodes(b.interior, sys), inner = b.interior.inner || null;
     if (ro && ro.sides){ // PRO's Smíða only — full detail stays
       var fronts = KP3D.stackFrontsMm(b.interior, codes, drawerBodyMm(b, c)) || [];
-      html += drawerRowsHTML(codes, fronts, { reorder:true, del:true, custom:!!b.interior.frontsMm, sides:true });
+      html += drawerRowsHTML(codes, fronts, { reorder:true, del:true, custom:!!b.interior.frontsMm, sides:true, changeType:true, b:b, c:c, inner:inner });
       // PRO only offers C/K/M/E/F as NEW drawer picks (not N — Merivo's shallowest code) — user, 2026-10-14.
       // Existing N-coded drawers from before this change still render/validate/export fine; this only hides
       // N from the "add a drawer" buttons, it isn't removed from KP3D.DRAWER_CODES itself.
-      html += '<div class="dw-add"><span class="dw-add-h">Bæta við skúffu</span>' + D.codes.filter(function(code){ return code !== "N"; }).map(function(code){
-        var next = sortStack(codes.concat([code]));
-        var ok = codes.length < 4 && (stackAllowed(b, c, next, inner) || stackAllowed(b, c, next, null)); // may cost the inner drawer (see the click handler)
-        return '<button type="button" class="hw-btn dw-addbtn" data-dw-add="' + code + '"' + (ok ? '' : ' disabled') + ' title="Skúffa ' + code + ' — ' + CODE_USE[code] + '"><span>＋ <b>' + code + '</b><small>' + CODE_USE[code] + '</small></span></button>';
-      }).join("") + '</div>';
+      // A small "+" select instead of a full card per code (user, 2026-10-15) — same compact shape as changing
+      // a row's own type above; picking a value adds it, then the select snaps back to the "+" placeholder.
+      html += '<div class="dw-add dw-add-compact"><select class="hw-btn dw-addsel" data-dw-addsel title="Bæta við skúffu"><option value="">＋</option>' +
+        D.codes.filter(function(code){ return code !== "N"; }).map(function(code){
+          var next = sortStack(codes.concat([code]));
+          var ok = codes.length < 4 && (stackAllowed(b, c, next, inner) || stackAllowed(b, c, next, null)); // may cost the inner drawer (see the click handler)
+          return '<option value="' + code + '"' + (ok ? '' : ' disabled') + '>' + code + ' — ' + CODE_USE[code] + '</option>';
+        }).join("") + '</select></div>';
     } else {
       html += drawerSimpleHTML(b, c, codes, inner);
     }
@@ -6046,6 +6062,22 @@
           var next = sortStack(curCodes().concat([btn.dataset.dwAdd])), keep = b.interior.inner && stackAllowed(b, c, next, b.interior.inner);
           if (b.interior.inner && !keep) toast("Innskúffan passar ekki með " + next.length + " skúffum — hún var tekin út.");
           setDrawerStack(wall, zone, b.id, next, keep ? b.interior.inner : null);
+        });
+      });
+      host.querySelectorAll('[data-dw-addsel]').forEach(function(sel){ // compact "+" add select (SMÍÐA)
+        sel.addEventListener("change", function(){
+          var code = sel.value; if (!code) return;
+          var next = sortStack(curCodes().concat([code])), keep = b.interior.inner && stackAllowed(b, c, next, b.interior.inner);
+          if (b.interior.inner && !keep) toast("Innskúffan passar ekki með " + next.length + " skúffum — hún var tekin út.");
+          setDrawerStack(wall, zone, b.id, next, keep ? b.interior.inner : null);
+        });
+      });
+      host.querySelectorAll('[data-dw-type]').forEach(function(sel){ // change one row's own code in place (SMÍÐA)
+        sel.addEventListener("change", function(){
+          var cc = curCodes(); cc[+sel.dataset.dwType] = sel.value;
+          var keep = b.interior.inner && stackAllowed(b, c, cc, b.interior.inner);
+          if (b.interior.inner && !keep) toast("Innskúffan passar ekki með þessari breytingu — hún var tekin út.");
+          setDrawerStack(wall, zone, b.id, cc, keep ? b.interior.inner : null);
         });
       });
       host.querySelectorAll('[data-dw-del]').forEach(function(btn){
@@ -8706,7 +8738,8 @@
   }
 
   var proEdId = null;
-  function openBoxEditor(id){ proEdId = id; renderBoxEditor(); }
+  var peCollapsed = {}; // Smíða section collapse state, by position — reset per cabinet (positions are stable within one cabinet's own set of sections)
+  function openBoxEditor(id){ proEdId = id; peCollapsed = {}; renderBoxEditor(); }
   function closeBoxEditor(){ proEdId = null; var el = document.getElementById("proEd"); if (el) el.remove(); refreshAfterEdit(); }
   function renderBoxEditor(){
     var fb = proEdId ? findBlock(proEdId) : null;
@@ -8771,6 +8804,13 @@
             '<line x1="' + (X0 + 18) + '" x2="' + (X0 + W - 18) + '" y1="' + y + '" y2="' + y + '" stroke="transparent" stroke-width="12"/>' +
             '<text x="' + (X0 + W - 8) + '" y="' + (y - 4) + '" text-anchor="end" font-size="10" fill="#3b4652">' + (sh.fixed ? "föst" : "laus ×" + sh.pos) + ' ' + sh.mm + '</text></g>';
         });
+      }
+    }
+    if (shelfOn && b.radborun){ // raðborun: one continuous column of holes instead of each loose shelf's own cluster
+      var rSpan = KP3D.radborunSpanMm(b, body, drawerSys());
+      for (var ry = rSpan.from; ry <= rSpan.to; ry += KP3D.RADBORUN_PITCH_MM){
+        var ryy = Y0 + body * S - ry * S;
+        ovShelfSvg += '<circle cx="' + (X0 + 5) + '" cy="' + ryy + '" r="2" fill="#9aa5b1" pointer-events="none"/><circle cx="' + (X0 + W - 5) + '" cy="' + ryy + '" r="2" fill="#9aa5b1" pointer-events="none"/>';
       }
     }
     // doors (top → bottom) with hinge markers on the hinge side
@@ -8868,12 +8908,24 @@
           right += '<div class="pe-row">Hilla ' + (k + 1) + ': <input type="number" step="1" value="' + sh.mm + '" data-pe="oshmm" data-k="' + k + '"> mm ' +
             '<button type="button" class="pe-btn' + (sh.fixed ? " on" : "") + '" data-pe="oshtype" data-k="' + k + '" data-v="1">Föst</button>' +
             '<button type="button" class="pe-btn' + (!sh.fixed ? " on" : "") + '" data-pe="oshtype" data-k="' + k + '" data-v="0">Laus</button>' +
-            (sh.fixed ? '' : ' Stillingar <input type="number" min="1" max="9" step="1" style="width:46px" value="' + sh.pos + '" data-pe="oshpos" data-k="' + k + '">') +
+            (sh.fixed || b.radborun ? '' : ' Stillingar <input type="number" min="1" max="9" step="1" style="width:46px" value="' + sh.pos + '" data-pe="oshpos" data-k="' + k + '">') +
             '<button type="button" class="pe-btn" data-pe="oshdel" data-k="' + k + '" title="Taka hillu">✕</button></div>';
         });
         right += '<div class="pe-row"><button type="button" class="pe-btn" data-pe="oshadd">＋ Hilla</button>' +
           (shelfCustom ? '<button type="button" class="pe-btn" data-pe="oshreset">Sjálfgefið</button>' : '') + '</div>' +
           '<div class="pe-note">Hæð = efri brún hillunnar frá botni skáps. Laus hilla: stillingar = fjöldi gata hvoru megin (50 mm á milli, miðjugatið undir hillunni). Dragðu hillurnar á teikningunni.</div>';
+      }
+      right += '</div>';
+    }
+    if (shelfOn){
+      var rb = b.radborun, rSpanNow = KP3D.radborunSpanMm(b, body, drawerSys());
+      right += '<div class="pe-door"><h4>Raðborun</h4><div class="pe-row">' +
+        '<button type="button" class="pe-btn' + (!rb ? " on" : "") + '" data-pe="radborun" data-v="0">Af</button>' +
+        '<button type="button" class="pe-btn' + (rb ? " on" : "") + '" data-pe="radborun" data-v="1">Á</button></div>';
+      if (rb){
+        right += '<div class="pe-row">Topp: <input type="number" step="1" value="' + (rb.topMm || KP3D.RADBORUN_MARGIN_DEFAULT_MM) + '" data-pe="radborunTop"> mm · Botn: <input type="number" step="1" value="' + (rb.bottomMm || KP3D.RADBORUN_MARGIN_DEFAULT_MM) + '" data-pe="radborunBottom"> mm' +
+          (rb.topMm || rb.bottomMm ? ' <button type="button" class="pe-btn" data-pe="radborunReset">Sjálfgefið</button>' : '') + '</div>' +
+          '<div class="pe-note">Samfelld götun (' + KP3D.RADBORUN_PITCH_MM + ' mm á milli) frá ' + rSpanNow.from + ' til ' + rSpanNow.to + ' mm frá botni — í stað stakra hillugata. Hillur mega standa hvar sem er á því bili.</div>';
       }
       right += '</div>';
     }
@@ -8928,6 +8980,22 @@
     el.innerHTML = '<div class="pe-card"><div>' + svg + '</div><div>' + right + '</div></div>';
     var peInt = el.querySelector("#peInterior");
     if (peInt) wireInteriorControls(peInt, fb.wall, fb.zone, b, c); // every change ends in refreshAfterEdit → redraws this editor
+    // Collapsible sections (user, 2026-10-15): the whole panel is rebuilt from scratch on every edit, so collapse
+    // state lives outside this render (peCollapsed, by position) rather than native <details open> — that would
+    // snap back open/closed every keystroke. Click a section's own <h4> to toggle it.
+    el.querySelectorAll(".pe-door").forEach(function(sec, idx){
+      var h4 = sec.querySelector("h4"); if (!h4) return;
+      var kids = Array.prototype.slice.call(sec.children).filter(function(ch){ return ch !== h4; });
+      h4.dataset.peBase = h4.textContent;
+      h4.style.cursor = "pointer";
+      function apply(){
+        var collapsed = !!peCollapsed[idx];
+        kids.forEach(function(ch){ ch.style.display = collapsed ? "none" : ""; });
+        h4.textContent = (collapsed ? "▸ " : "▾ ") + h4.dataset.peBase;
+      }
+      h4.addEventListener("click", function(){ peCollapsed[idx] = !peCollapsed[idx]; apply(); });
+      apply();
+    });
 
     function act(sel, fn){ el.querySelectorAll(sel).forEach(function(n){ n.addEventListener(n.tagName === "INPUT" ? "change" : "click", function(){ fn(n); }); }); }
     act('[data-pe="close"]', closeBoxEditor);
@@ -8980,6 +9048,23 @@
       var mid = Math.round((pts[best] + pts[best + 1]) / 2);
       if (!shelfOk(mid)){ toast("Ekki pláss fyrir fleiri hillur."); return; }
       list.push({ mm:mid, fixed:false, pos:3 }); setShelves(list); });
+    act('[data-pe="radborun"]', function(n){
+      if (n.dataset.v === "1") b.radborun = b.radborun || {}; else delete b.radborun;
+      ovenDone();
+    });
+    function setRadborun(patch){
+      var span = KP3D.shelfSpaceMm(b, body, drawerSys());
+      var topMm = patch.topMm != null ? patch.topMm : (b.radborun && b.radborun.topMm) || KP3D.RADBORUN_MARGIN_DEFAULT_MM;
+      var bottomMm = patch.bottomMm != null ? patch.bottomMm : (b.radborun && b.radborun.bottomMm) || KP3D.RADBORUN_MARGIN_DEFAULT_MM;
+      if (topMm < 0 || bottomMm < 0 || (span.hi - topMm) - (span.lo + bottomMm) < KP3D.RADBORUN_PITCH_MM){
+        toast("Spönnin er of lítil fyrir þessi mörk."); renderBoxEditor(); return;
+      }
+      b.radborun = { topMm:topMm, bottomMm:bottomMm };
+      ovenDone();
+    }
+    act('[data-pe="radborunTop"]', function(n){ setRadborun({ topMm:Math.round(+n.value) }); });
+    act('[data-pe="radborunBottom"]', function(n){ setRadborun({ bottomMm:Math.round(+n.value) }); });
+    act('[data-pe="radborunReset"]', function(){ b.radborun = {}; ovenDone(); });
     function railsNow(){ return railList(); }
     function setRailList(list){
       list.sort(function(a, z){ return a.mm - z.mm; });
@@ -9162,6 +9247,8 @@
       // the fixed count only once Rakel set the shelves up herself — until then V2 / Airtable keep deciding fixed shelves
       o.shelves = c.bur ? { list:sl } : Object.assign({ loose:sl.filter(function(x){ return !x.fixed; }).length, list:sl },
         Array.isArray(b.shelfPos) ? { fixed:sl.filter(function(x){ return x.fixed; }).length } : {});
+      // raðborun (continuous shelf-pin drilling) → /cnc: one LAUS_HILLA run over the span instead of per-shelf ones
+      if (b.radborun) o.shelves.radborun = KP3D.radborunSpanMm(b, h, state.drawerSystem);
     }
     if (c.railRange){ // Fataslá → /cnc, same zone as o.shelves (never changes what's ordered, see o.shelves)
       var rl = KP3D.railLayoutOf(b, h, state.drawerSystem);

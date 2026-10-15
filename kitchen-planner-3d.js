@@ -450,6 +450,17 @@
     for (var k = 1; k <= n; k++) out.push({ mm:Math.round(scoped ? r.lo + (r.hi - r.lo) * k / (n + 1) : bodyMm * k / (n + 1) + 9), fixed:false, pos:3 });
     return out;
   }
+  // Raðborun (continuous/IKEA-style shelf-pin drilling, 2026-10-15): b.radborun = null (off, today's discrete
+  // per-shelf hole clusters) or {topMm, bottomMm} (on — margins kept clear at the top/bottom of the same zone
+  // shelves already use). Pitch is fixed for now; nothing stops making it configurable too later.
+  var RADBORUN_PITCH_MM = 32, RADBORUN_MARGIN_DEFAULT_MM = 100;
+  function radborunSpanMm(b, bodyMm, sysKey){
+    var r = shelfSpaceMm(b, bodyMm, sysKey), rb = b.radborun;
+    var topMm = rb && rb.topMm > 0 ? rb.topMm : RADBORUN_MARGIN_DEFAULT_MM;
+    var bottomMm = rb && rb.bottomMm > 0 ? rb.bottomMm : RADBORUN_MARGIN_DEFAULT_MM;
+    var from = r.lo + bottomMm, to = r.hi - topMm;
+    return { from:Math.round(from), to:Math.round(Math.max(from, to)) };
+  }
   var RAIL_D_MM = 25, RAIL_TOP_OFFSET_MM = 120, RAIL_GAP_MM = 450; // Fataslá: rod diameter, clearance under the top board, double-hang spacing
   // Fataslá positions bottom → top: b.railPos (Smíða, mm only — no hole drilling like a shelf) in the same zone
   // shelves use (shelfSpaceMm), else spread from the top down (a rail wants headroom above it, unlike a shelf).
@@ -5317,6 +5328,7 @@
     modelsPending: modelsPending,
     shelvesOf: shelvesOf, burCodesOf: burCodesOf,
     railsOf: railsOf, railLayoutOf: railLayoutOf,
+    radborunSpanMm: radborunSpanMm, RADBORUN_PITCH_MM: RADBORUN_PITCH_MM, RADBORUN_MARGIN_DEFAULT_MM: RADBORUN_MARGIN_DEFAULT_MM,
     hideDragPreview3D: hideDragPreview3D,
     teardown3D: teardown3D,
     _three: function(){ return THREE_STATE; },
