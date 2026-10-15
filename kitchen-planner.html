@@ -5310,8 +5310,11 @@
     var rh = document.getElementById("roomHeightInput");
     if (rh) rh.addEventListener("change", function(){
       var v = parseInt(rh.value, 10);
-      if (isNaN(v) || v < MIN_ROOM_HEIGHT_MM || v > 3200){ toast("Lofthæð þarf að vera á milli " + MIN_ROOM_HEIGHT_MM + " og 3200 mm."); rh.value = state.roomHeightMm; return; }
-      state.roomHeightMm = v;
+      if (isNaN(v)) return; // nothing sensible to commit — leave it as the person is still typing
+      // Accept + warn instead of reverting (user, 2026-10-19) — same standard as the shape step's own room-height
+      // field just below (which already never reverts, only marks invalid) and everywhere else tonight.
+      if (v < MIN_ROOM_HEIGHT_MM || v > 3200) toast("⚠️ Lofthæð er utan " + MIN_ROOM_HEIGHT_MM + "–3200 mm — lagaðu áður en gengið er frá.");
+      state.roomHeightMm = Math.max(100, v);
       state.walls.concat(state.islands).forEach(function(w){ (w.wall || []).concat(w.floor || []).forEach(clampElev); });
       save();
       KP3D.teardown3D(true); // ceiling changed: re-frame the room
