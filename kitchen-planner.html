@@ -3521,6 +3521,20 @@
     save();
     refreshAfterEdit();
   }
+  // "Hæð" means the carcass alone, everywhere a human reads or types it (user, 2026-10-18 — it used to be full
+  // height on the side panel and the floating chip but carcass-only in Smíða, "bundið saman á mismunandi
+  // stöðum"). b.heightMm itself, and blockHeightMm(), stay untouched — still the real overall height Airtable's
+  // own "Hæð" field, the 3D build, Útfærsla/product matching and every other internal calc need. These two
+  // functions are the ONE place the ±100 mm plinth crosses between "what's stored" and "what's shown/typed" —
+  // every panel (Smíða, the side panel, the floating chip, the room overview) now goes through them, so there's
+  // exactly one meaning of "Hæð" to learn. Never for a wall cabinet, panel or appliance — no plinth there.
+  var PLINTH_MM = 100;
+  function plinthMmOf(c, zone){ return zone === "floor" && !c.panel && !c.appliance ? PLINTH_MM : 0; }
+  function carcassHeightMm(b, c, zone){ return blockHeightMm(b, c) - plinthMmOf(c, zone); }
+  function carcassHeightRange(c, zone){ var r = dimRange(c, "heightMm"), p = plinthMmOf(c, zone); return [r[0] - p, r[1] - p]; }
+  function setCarcassHeightMm(blockId, zone, c, raw){
+    setBlockDim(blockId, "heightMm", (parseFloat(String(raw).replace(",", ".")) || 0) + plinthMmOf(c, zone));
+  }
   function clampElev(b){
     var c = CATALOG[b.type], roomH = state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM, h = blockHeightMm(b, c);
     if (b.elevMm != null && b.elevMm + h > roomH) b.elevMm = Math.max(0, roomH - h);
@@ -6355,7 +6369,7 @@
     if (PRO) proPanelButton(document.getElementById("cabinetEditPanel"));
     // size chip on the floating toolbar
     var chip = document.getElementById("fbDim"), fb = selectedBlockId ? findBlock(selectedBlockId) : null, op = !fb && selectedBlockId ? findOpening(selectedBlockId) : null;
-    chip.textContent = fb ? fb.block.widthMm + " × " + blockHeightMm(fb.block, CATALOG[fb.block.type]) + " × " + (fb.block.depthMm || CATALOG[fb.block.type].d)
+    chip.textContent = fb ? fb.block.widthMm + " × " + carcassHeightMm(fb.block, CATALOG[fb.block.type], fb.zone) + " × " + (fb.block.depthMm || CATALOG[fb.block.type].d)
       : op ? op.o.widthMm + " × " + op.o.heightMm : "";
     chip.classList.toggle("editable", !!((fb && !fb.block.panel && !CATALOG[fb.block.type].panel && !CATALOG[fb.block.type].shelfStack) || op));
     chip.title = chip.classList.contains("editable") ? "Smelltu til að slá inn mál" : "";
@@ -6375,7 +6389,8 @@
     if (!chip.classList.contains("editable") || chip.querySelector("input")) return;
     var fb = selectedBlockId ? findBlock(selectedBlockId) : null, op = !fb && selectedBlockId ? findOpening(selectedBlockId) : null;
     if (fb && fb.block.locked){ lockedToast(); return; }
-    var fields = fb ? [["widthMm", fb.block.widthMm, "Breidd"], ["heightMm", blockHeightMm(fb.block, CATALOG[fb.block.type]), "Hæð"], ["depthMm", fb.block.depthMm || CATALOG[fb.block.type].d, "Dýpt"]]
+    var fbPlinth = fb ? plinthMmOf(CATALOG[fb.block.type], fb.zone) : 0;
+    var fields = fb ? [["widthMm", fb.block.widthMm, "Breidd"], ["heightMm", carcassHeightMm(fb.block, CATALOG[fb.block.type], fb.zone), fbPlinth ? "Hæð (skrokkur)" : "Hæð"], ["depthMm", fb.block.depthMm || CATALOG[fb.block.type].d, "Dýpt"]]
       : op ? [["widthMm", op.o.widthMm, "Breidd"], ["heightMm", op.o.heightMm, "Hæð"]] : null;
     if (!fields) return;
     chip.innerHTML = fields.map(function(f){ return '<input type="number" data-k="' + f[0] + '" value="' + f[1] + '" title="' + f[2] + ' (mm)" step="1">'; }).join('<span class="x">×</span>');
@@ -6387,7 +6402,8 @@
       inputs.forEach(function(inp, i){
         if (!ok || String(fields[i][1]) === inp.value.trim()) return;
         changed = true;
-        ok = fb ? applyBlockDim(fb.block.id, fields[i][0], inp.value) : applyOpeningDim(op, fields[i][0], inp.value);
+        var raw = fields[i][0] === "heightMm" && fb ? (parseFloat(inp.value.replace(",", ".")) || 0) + fbPlinth : inp.value;
+        ok = fb ? applyBlockDim(fb.block.id, fields[i][0], raw) : applyOpeningDim(op, fields[i][0], raw);
       });
       if (changed) save();
       if (changed) refreshAfterEdit(); else renderEditPanel();
@@ -6423,11 +6439,11 @@
       html += '<div class="ov-wall"><button type="button" class="ov-wall-h" data-wallsel="' + wall.id + '" title="Velja vegginn">' + wall.label + ' · ' + wall.lengthMm + ' mm ›</button>';
       if (!items.length) html += '<div class="empty-note">Ekkert ennþá</div>';
       items.forEach(function(b){
-        var c = CATALOG[b.type];
+        var c = CATALOG[b.type], zn = wall.floor.indexOf(b) >= 0 ? "floor" : "wall";
         var hw = b.interior && b.interior.mode === "skuffur" ? " · " + b.interior.count + " " + plural(b.interior.count, "skúffa", "skúffur")
           : c.shelfStack ? " · " + b.count + " " + plural(b.count, "hilla", "hillur")
           : c.shelfRange ? " · " + KP3D.shelvesOf(b) + " " + plural(KP3D.shelvesOf(b), "hilla", "hillur") : "";
-        html += '<button type="button" class="ov-item" data-select="' + b.id + '"><span style="color:var(--ink);font-weight:600;">' + c.label + hw + '</span><span>' + b.widthMm + '×' + blockHeightMm(b, c) + '×' + (b.depthMm || c.d) + '</span></button>';
+        html += '<button type="button" class="ov-item" data-select="' + b.id + '"><span style="color:var(--ink);font-weight:600;">' + c.label + hw + '</span><span>' + b.widthMm + '×' + carcassHeightMm(b, c, zn) + '×' + (b.depthMm || c.d) + '</span></button>';
       });
       html += '</div>';
     });
@@ -6437,7 +6453,7 @@
       islandRowList(isl).forEach(function(row){
         row.forEach(function(b){
           var c = CATALOG[b.type];
-          html += '<button type="button" class="ov-item" data-select="' + b.id + '"><span style="color:var(--ink);font-weight:600;">' + c.label + '</span><span>' + b.widthMm + '×' + blockHeightMm(b, c) + '×' + (b.depthMm || c.d) + '</span></button>';
+          html += '<button type="button" class="ov-item" data-select="' + b.id + '"><span style="color:var(--ink);font-weight:600;">' + c.label + '</span><span>' + b.widthMm + '×' + carcassHeightMm(b, c, "floor") + '×' + (b.depthMm || c.d) + '</span></button>';
         });
       });
       html += '</div>';
@@ -6631,7 +6647,7 @@
     }
     var dims = '<div class="dim-grid">' +
       (c.panel ? '<div class="dim-f fixed"><label>Þykkt</label><b>19 mm</b></div>' : dimF("widthMm", c.shelfStack ? "Lengd" : "Breidd", b.widthMm, dimRange(c, "widthMm"))) +
-      (c.shelfStack ? '<div class="dim-f fixed"><label>Heildarhæð</label><b>' + hNow + '</b></div>' : dimF("heightMm", "Hæð", hNow, dimRange(c, "heightMm"))) +
+      (c.shelfStack ? '<div class="dim-f fixed"><label>Heildarhæð</label><b>' + hNow + '</b></div>' : dimF("heightMm", plinthMmOf(c, zone) ? "Hæð (skrokkur)" : "Hæð", carcassHeightMm(b, c, zone), carcassHeightRange(c, zone))) +
       dimF("depthMm", "Dýpt", dNow, dimRange(c, "depthMm")) +
     '</div>';
     var elevNow = KP3D.elevOf(b);
@@ -6647,7 +6663,9 @@
 
     // PRO groups the fields below into Mál / Innvols / Annað tabs (one at a time, re-rendered on switch) —
     // customers keep the flat single-column layout, unchanged (user, 2026-10-14).
-    var malHtml = '<div class="edit-field"><label>Mál (mm)</label>' + dims + '</div>' + elevField + stackField +
+    var malHtml = '<div class="edit-field"><label>Mál (mm)</label>' + dims +
+      (plinthMmOf(c, zone) ? '<p class="sec-note">+ ' + PLINTH_MM + ' mm sökkull (almenn hæð fyrir alla skápa, ekki hluti af Hæð hér).</p>' : '') +
+      '</div>' + elevField + stackField +
       (c.panel ? '<div class="edit-field"><button type="button" class="iconbtn" data-role="match" title="Tekur hæð, dýpt og hæð frá gólfi af skápnum sem hún liggur að">↔ Passa við skápinn</button></div>' : '');
     var innvolsHtml = (c.hasInterior ? '<div class="edit-field">' + hardwareHTML(b, c, PRO ? { sides:true } : null) + '</div>' : '') +
         (c.shelfRange && !(b.interior && b.interior.mode === "skuffur" && c.cls !== "tall")
@@ -6727,7 +6745,10 @@
       changeBlockType(wall, zone, b.id, e.target.value);
     });
     host.querySelectorAll("[data-dim]").forEach(function(inp){
-      inp.addEventListener("change", function(){ setBlockDim(b.id, inp.dataset.dim, inp.value); });
+      inp.addEventListener("change", function(){
+        if (inp.dataset.dim === "heightMm") setCarcassHeightMm(b.id, zone, c, inp.value);
+        else setBlockDim(b.id, inp.dataset.dim, inp.value);
+      });
     });
     var elevInp = host.querySelector('[data-role="elev"]');
     if (elevInp) elevInp.addEventListener("change", function(){
@@ -6832,8 +6853,8 @@
     var ops = state.windows.filter(function(o){ return o.wallId === wall.id; }).map(function(o){ return { kind:"window", o:o, label:"Gluggi" }; })
       .concat(state.doors.filter(function(o){ return o.wallId === wall.id; }).map(function(o){ return { kind:"door", o:o, label:o.gap ? "Op í vegg" : "Hurð" }; }));
     var list = items.map(function(b){
-      var c = CATALOG[b.type];
-      return '<button type="button" class="ov-item" data-select="' + b.id + '"><span style="color:var(--ink);font-weight:600;">' + c.label + '</span><span>' + b.widthMm + '×' + blockHeightMm(b, c) + '×' + (b.depthMm || c.d) + '</span></button>';
+      var c = CATALOG[b.type], zn = wall.floor.indexOf(b) >= 0 ? "floor" : "wall";
+      return '<button type="button" class="ov-item" data-select="' + b.id + '"><span style="color:var(--ink);font-weight:600;">' + c.label + '</span><span>' + b.widthMm + '×' + carcassHeightMm(b, c, zn) + '×' + (b.depthMm || c.d) + '</span></button>';
     }).concat(ops.map(function(x){
       return '<button type="button" class="ov-item" data-select="' + x.o.id + '"><span style="color:var(--ink);font-weight:600;">' + x.label + '</span><span>' + x.o.widthMm + '×' + x.o.heightMm + '</span></button>';
     })).join("");
@@ -8990,15 +9011,14 @@
     })();
     svg += '</svg>';
 
-    // Hæð in Smíða means the carcass alone, never the plinth (user, 2026-10-17) — same 100 mm every other
-    // "frá botni skáps" measurement here already excludes (proBodyMm), so the whole panel stays in one frame:
-    // 0 = top of the plinth, not the floor. b.heightMm itself is untouched (still the real overall height
-    // Airtable's own "Hæð" field and everything outside Smíða uses) — only converted at this panel's edges.
-    var hasPlinth = fb.zone === "floor" && !c.panel && !c.appliance;
-    var plinthMm = hasPlinth ? 100 : 0;
-    var carcassMm = blockHeightMm(b, c) - plinthMm;
+    // Hæð in Smíða means the carcass alone, never the plinth (user, 2026-10-17/18) — same carcassHeightMm/
+    // setCarcassHeightMm every other "Hæð" in the app now goes through (the side panel, the floating chip, the
+    // room overview), so there's exactly one meaning to learn. Same 100 mm every other "frá botni skáps"
+    // measurement here already excludes (proBodyMm): 0 = top of the plinth, not the floor.
+    var plinthMm = plinthMmOf(c, fb.zone);
+    var carcassMm = carcassHeightMm(b, c, fb.zone);
     var right = '<button type="button" class="pe-btn pe-close" data-pe="close">Loka ✕</button>' +
-      '<h3>' + (key ? key + " · " : "") + c.label + '</h3><div class="pe-sub">' + b.widthMm + ' × ' + carcassMm + ' mm' + (hasPlinth ? " (skrokkur, + 100 mm sökkull)" : "") + ' · ' +
+      '<h3>' + (key ? key + " · " : "") + c.label + '</h3><div class="pe-sub">' + b.widthMm + ' × ' + carcassMm + ' mm' + (plinthMm ? " (skrokkur, + " + plinthMm + " mm sökkull)" : "") + ' · ' +
       (b.smida ? "Smíðagögn vistuð á skápnum" : "Sjálfgefið (ekkert breytt)") + '</div>';
     // Mál (2026-10-17, user — "Smíða er final design á þessu algjörlega svo hér þarf að vera hægt að fínpússa
     // allt"): width/height/depth used to be editable only on the regular side panel, outside Smíða — same
@@ -9009,10 +9029,10 @@
     // default below skips it; it lives in .pe-img (sticky with the drawing), not the scrolling controls column.
     var malHtml = "";
     if (!c.panel){
-      var dW = dimRange(c, "widthMm"), dH = dimRange(c, "heightMm"), dD = dimRange(c, "depthMm");
+      var dW = dimRange(c, "widthMm"), dH = carcassHeightRange(c, fb.zone), dD = dimRange(c, "depthMm");
       malHtml = '<div class="pe-mal"><h4>Mál</h4>' +
         '<div class="pe-row">Breidd: <input type="number" step="1" min="' + dW[0] + '" max="' + dW[1] + '" value="' + b.widthMm + '" data-pe="dimw"> mm</div>' +
-        '<div class="pe-row">Hæð' + (hasPlinth ? " (skrokkur)" : "") + ': <input type="number" step="1" min="' + (dH[0] - plinthMm) + '" max="' + (dH[1] - plinthMm) + '" value="' + carcassMm + '" data-pe="dimh"> mm' + (hasPlinth ? ' <small class="pe-note" style="display:inline">+ 100 mm sökkull</small>' : '') + '</div>' +
+        '<div class="pe-row">Hæð' + (plinthMm ? " (skrokkur)" : "") + ': <input type="number" step="1" min="' + dH[0] + '" max="' + dH[1] + '" value="' + carcassMm + '" data-pe="dimh"> mm' + (plinthMm ? ' <small class="pe-note" style="display:inline">+ ' + plinthMm + ' mm sökkull</small>' : '') + '</div>' +
         '<div class="pe-row">Dýpt: <input type="number" step="1" min="' + dD[0] + '" max="' + dD[1] + '" value="' + (b.depthMm || c.d) + '" data-pe="dimd"> mm</div>' +
         '</div>';
     }
