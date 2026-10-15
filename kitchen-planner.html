@@ -979,6 +979,8 @@
   #proEd svg { background:#f4f5f7; border-radius:12px; touch-action:none; user-select:none; }
   #proEd .pe-door { border:1px solid #e1e4e8; border-radius:12px; padding:10px 12px; margin-bottom:10px; }
   #proEd .pe-door h4 { margin:0 0 8px; font-size:14px; }
+  #proEd .pe-mal { border:1px solid #e1e4e8; border-radius:12px; padding:10px 12px; margin-top:10px; }
+  #proEd .pe-mal h4 { margin:0 0 8px; font-size:14px; }
   #proEd .pe-row { display:flex; gap:8px; align-items:center; margin:4px 0; font-size:13px; }
   #proEd .pe-row input { width:76px; padding:5px 7px; border:1px solid #cfd4da; border-radius:7px; font:inherit; }
   #proEd .pe-btn { border:1px solid #cfd4da; background:#fff; color:#1b1f24; border-radius:8px; padding:5px 10px; cursor:pointer; font-family:inherit; font-weight:600; font-size:13px; line-height:1.2; }
@@ -1013,6 +1015,7 @@
   body.pro #proEd .pe-card{ background:var(--panel); color:var(--ink); }
   body.pro #proEd .pe-sub, body.pro #proEd .pe-note{ color:var(--ink-soft); }
   body.pro #proEd .pe-door{ border-color:var(--line); }
+  body.pro #proEd .pe-mal{ border-color:var(--line); }
   body.pro #proEd .pe-btn, body.pro #proEd .pe-row input{ background:var(--card); color:var(--ink); border-color:var(--line); }
   body.pro #proEd .pe-btn.on{ background:var(--blue); color:#fff; border-color:var(--blue); }
 </style>
@@ -8829,13 +8832,13 @@
     if (!el){ el = document.createElement("div"); el.id = "proEd"; document.body.appendChild(el);
       el.addEventListener("pointerdown", function(e){ if (e.target === el) closeBoxEditor(); }); }
     var b = fb.block, c = CATALOG[b.type], doors = proDoorsOf(b, c, fb.zone), key = skKeys()[b.id] || "";
-    var body = proBodyMm(b, c, fb.zone), S = 520 / body, W = Math.max(90, Math.min(260, b.widthMm * S)), X0 = 40, Y0 = 20;
+    var body = proBodyMm(b, c, fb.zone), S = 520 / body, W = Math.max(90, Math.min(260, b.widthMm * S)), X0 = 64, Y0 = 20;
     var hingeLeft = b.swing === "vinstri";
     // Wide/wing doors get hinges on BOTH sides for real (same rule smidaFor's o.hinge uses, so the preview never
     // disagrees with what actually gets drilled) — Vinstri/Hægri is then not a real choice, so show both at once
     // instead of picking one (user, 2026-10-15).
     var bothHinges = !!(doors.length && b.widthMm > 600 && !c.fridge && c.cls !== "corner");
-    var svg = '<svg id="peSvg" width="' + (W + 150) + '" height="' + (body * S + 40) + '">';
+    var svg = '<svg id="peSvg" width="' + (W + 210) + '" height="' + (body * S + 80) + '">';
     svg += '<rect x="' + X0 + '" y="' + Y0 + '" width="' + W + '" height="' + body * S + '" fill="#fff" stroke="#8a929c"/>';
     // drawers (bottom → top) with draggable seams — a drawer unit's stack, or the drawers under a tall oven.
     // Each front shows its Blum side (dashed) so the front/box balance can be judged (2026-10-09).
@@ -8954,6 +8957,37 @@
         });
       }
     }
+    // Málsetningar (dimension lines, 2026-10-18, user): right = total carcass height, bottom = total width —
+    // both read straight off the drawing itself (body, b.widthMm), not a separate calc. Left = a running chain
+    // between every real boundary in the stack (drawer fronts, shelves, rail, door tops/bottoms) — deliberately
+    // never hinges, which already have their own ↓/↑ labels on the door itself.
+    (function(){
+      var yTopPx = Y0, yBotPx = Y0 + body * S;
+      svg += '<line x1="' + (X0 + W + 70) + '" x2="' + (X0 + W + 70) + '" y1="' + yTopPx + '" y2="' + yBotPx + '" stroke="#5b6470" stroke-width="1"/>' +
+        '<line x1="' + (X0 + W + 66) + '" x2="' + (X0 + W + 74) + '" y1="' + yTopPx + '" y2="' + yTopPx + '" stroke="#5b6470" stroke-width="1"/>' +
+        '<line x1="' + (X0 + W + 66) + '" x2="' + (X0 + W + 74) + '" y1="' + yBotPx + '" y2="' + yBotPx + '" stroke="#5b6470" stroke-width="1"/>' +
+        '<text x="' + (X0 + W + 78) + '" y="' + ((yTopPx + yBotPx) / 2 + 4) + '" font-size="11" font-weight="700" fill="#3b4652">' + Math.round(body) + ' mm</text>';
+      var byPx = yBotPx + 24;
+      svg += '<line x1="' + X0 + '" x2="' + (X0 + W) + '" y1="' + byPx + '" y2="' + byPx + '" stroke="#5b6470" stroke-width="1"/>' +
+        '<line x1="' + X0 + '" x2="' + X0 + '" y1="' + (byPx - 4) + '" y2="' + (byPx + 4) + '" stroke="#5b6470" stroke-width="1"/>' +
+        '<line x1="' + (X0 + W) + '" x2="' + (X0 + W) + '" y1="' + (byPx - 4) + '" y2="' + (byPx + 4) + '" stroke="#5b6470" stroke-width="1"/>' +
+        '<text x="' + (X0 + W / 2) + '" y="' + (byPx + 15) + '" text-anchor="middle" font-size="11" font-weight="700" fill="#3b4652">' + b.widthMm + ' mm</text>';
+      var pts = [0, body];
+      if (fronts.length){ var acc2 = 0; fronts.forEach(function(h){ acc2 = Math.round(acc2 + h); pts.push(acc2); }); }
+      if (shelfOn) shelfList().forEach(function(sh){ pts.push(Math.round(sh.mm)); });
+      if (railOn) railList().forEach(function(rl){ pts.push(Math.round(rl.mm)); });
+      if (doors.length){ var dtop = body; doors.forEach(function(d){ pts.push(Math.round(dtop)); dtop = Math.round(dtop - d.box); pts.push(Math.round(dtop)); }); }
+      pts = pts.filter(function(v, i, a){ return a.indexOf(v) === i; }).sort(function(a, z){ return a - z; });
+      var dx = 16, y0px = Y0 + body * S - pts[0] * S, y1px = Y0 + body * S - pts[pts.length - 1] * S;
+      svg += '<line x1="' + dx + '" x2="' + dx + '" y1="' + y0px + '" y2="' + y1px + '" stroke="#c7ccd2" stroke-width="1"/>';
+      pts.forEach(function(mm){ var y = Y0 + body * S - mm * S;
+        svg += '<line x1="' + (dx - 3) + '" x2="' + (dx + 3) + '" y1="' + y + '" y2="' + y + '" stroke="#c7ccd2" stroke-width="1"/>'; });
+      for (var pi = 1; pi < pts.length; pi++){
+        var span = pts[pi] - pts[pi - 1]; if (span <= 0) continue;
+        var ya = Y0 + body * S - pts[pi - 1] * S, yb2 = Y0 + body * S - pts[pi] * S;
+        if (Math.abs(ya - yb2) > 13) svg += '<text x="' + (dx - 5) + '" y="' + ((ya + yb2) / 2 + 3) + '" text-anchor="end" font-size="8.5" fill="#8a929c">' + span + '</text>';
+      }
+    })();
     svg += '</svg>';
 
     // Hæð in Smíða means the carcass alone, never the plinth (user, 2026-10-17) — same 100 mm every other
@@ -8971,9 +9005,12 @@
     // applyBlockDim the floating-toolbar size chip and the side panel's own Mál tab already use, so a change
     // here obeys the exact same limits (room height, wall fit, no crashing into another cabinet) and stays in
     // sync with them. Not for a panel cabinet (úthlið/laus hilla) — no interior/doors reach Smíða for those.
+    // Pinned under the drawing, always open (2026-10-18, user) — not a .pe-door, so the collapse-everything
+    // default below skips it; it lives in .pe-img (sticky with the drawing), not the scrolling controls column.
+    var malHtml = "";
     if (!c.panel){
       var dW = dimRange(c, "widthMm"), dH = dimRange(c, "heightMm"), dD = dimRange(c, "depthMm");
-      right += '<div class="pe-door"><h4>Mál</h4>' +
+      malHtml = '<div class="pe-mal"><h4>Mál</h4>' +
         '<div class="pe-row">Breidd: <input type="number" step="1" min="' + dW[0] + '" max="' + dW[1] + '" value="' + b.widthMm + '" data-pe="dimw"> mm</div>' +
         '<div class="pe-row">Hæð' + (hasPlinth ? " (skrokkur)" : "") + ': <input type="number" step="1" min="' + (dH[0] - plinthMm) + '" max="' + (dH[1] - plinthMm) + '" value="' + carcassMm + '" data-pe="dimh"> mm' + (hasPlinth ? ' <small class="pe-note" style="display:inline">+ 100 mm sökkull</small>' : '') + '</div>' +
         '<div class="pe-row">Dýpt: <input type="number" step="1" min="' + dD[0] + '" max="' + dD[1] + '" value="' + (b.depthMm || c.d) + '" data-pe="dimd"> mm</div>' +
@@ -9054,11 +9091,9 @@
           (shelfCustom ? '<button type="button" class="pe-btn" data-pe="oshreset">Sjálfgefið</button>' : '') + '</div>' +
           '<div class="pe-note">Hæð = efri brún hillunnar frá botni skáps. Laus hilla: stillingar = fjöldi gata hvoru megin (50 mm á milli, miðjugatið undir hillunni). Dragðu hillurnar á teikningunni.</div>';
       }
-      right += '</div>';
-    }
-    if (shelfOn){
+      // Raðborun (2026-10-18, user): folded into Hillur — it's the same hole pattern, not a separate concern.
       var rb = b.radborun, rSpanNow = KP3D.radborunSpanMm(b, body, drawerSys());
-      right += '<div class="pe-door"><h4>Raðborun</h4><div class="pe-row">' +
+      right += '<div class="pe-row" style="margin-top:10px;padding-top:10px;border-top:1px solid #e1e4e8">Raðborun:' +
         '<button type="button" class="pe-btn' + (!rb ? " on" : "") + '" data-pe="radborun" data-v="0">Af</button>' +
         '<button type="button" class="pe-btn' + (rb ? " on" : "") + '" data-pe="radborun" data-v="1">Á</button></div>';
       if (rb){
@@ -9120,7 +9155,7 @@
         '<button type="button" class="pe-ready undo" data-pe="ready" data-v="0">Taka merkinguna af</button>'
       : (b.smidaReady ? '<div class="pe-note">⚠️ Skápnum var breytt eftir að hann var merktur klár — yfirfara og merkja aftur.</div>' : '') +
         '<button type="button" class="pe-ready" data-pe="ready" data-v="1"' + (issues.length ? ' disabled title="Lagaðu ⛔ fyrst"' : '') + '>✅ Klár til framleiðslu</button>';
-    el.innerHTML = '<div class="pe-card"><div class="pe-img">' + svg + '</div><div class="pe-content">' + right + '</div></div>';
+    el.innerHTML = '<div class="pe-card"><div class="pe-img">' + svg + malHtml + '</div><div class="pe-content">' + right + '</div></div>';
     var peInt = el.querySelector("#peInterior");
     if (peInt) wireInteriorControls(peInt, fb.wall, fb.zone, b, c); // every change ends in refreshAfterEdit → redraws this editor
     // Collapsible sections (user, 2026-10-15; auto-collapsed by default, 2026-10-17): the whole panel is rebuilt
