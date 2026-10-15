@@ -4114,7 +4114,11 @@
     var b = wall[zone].find(function(x){ return x.id === id; });
     if (!b || !b.interior) return;
     if (b.locked){ lockedToast(); return; }
-    if (codes.join("") !== KP3D.drawerCodes(b.interior, drawerSys()).join("")) delete b.interior.frontsMm; // a new stack starts from the default heights
+    // a new stack starts from the default heights — and claims back whatever headroom a tall unit's custom
+    // drawerZoneMm (the declared zone a door above the stack leaves room for, set alongside frontsMm when a
+    // front is typed — wireDrawerStack) had reserved for the OLD stack; left behind, it silently shrinks that
+    // door by the difference (2026-10-19, user: "why is the door 1505 when the drawers are only 840?").
+    if (codes.join("") !== KP3D.drawerCodes(b.interior, drawerSys()).join("")){ delete b.interior.frontsMm; delete b.drawerZoneMm; }
     b.interior.codes = codes.slice(); // callers sort a new stack themselves; a reordered one keeps its order
     b.interior.inner = inner || null;
     b.interior.count = b.interior.codes.length;
@@ -4800,12 +4804,12 @@
     }); });
     var cur = function(){ return KP3D.drawerCodes(b.interior, drawerSys()); };
     function setStack(codes, inner){
-      if (codes.join("") !== cur().join("")) delete b.interior.frontsMm; // a new stack starts from the default heights
+      if (codes.join("") !== cur().join("")){ delete b.interior.frontsMm; delete b.drawerZoneMm; } // see setDrawerStack
       b.interior.codes = codes.slice(); b.interior.inner = inner || null; b.interior.count = b.interior.codes.length; renderUnitWizard();
     }
     wireDrawerStack(side, b, c, function(codes, frontsMm){
       b.interior.codes = codes; b.interior.count = codes.length;
-      if (frontsMm) b.interior.frontsMm = frontsMm; else delete b.interior.frontsMm;
+      if (frontsMm) b.interior.frontsMm = frontsMm; else { delete b.interior.frontsMm; delete b.drawerZoneMm; }
       renderUnitWizard();
     });
     side.querySelectorAll("[data-dw-add]").forEach(function(el){ el.addEventListener("click", function(){
@@ -6180,7 +6184,7 @@
       wireDrawerStack(host, b, c, function(codes, frontsMm){
         if (b.locked){ lockedToast(); renderEditPanel(); return; }
         b.interior.codes = codes; b.interior.count = codes.length;
-        if (frontsMm) b.interior.frontsMm = frontsMm; else delete b.interior.frontsMm;
+        if (frontsMm) b.interior.frontsMm = frontsMm; else { delete b.interior.frontsMm; delete b.drawerZoneMm; } // see setDrawerStack
         save(); refreshAfterEdit();
       });
       wireDrawerSimple(host, b, c, function(codes, inner){
