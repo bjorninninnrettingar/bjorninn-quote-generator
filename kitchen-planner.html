@@ -81,6 +81,7 @@
   .kicker{ font-size:11.5px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--gold); }
   h1{ font-weight:600; font-size:clamp(24px,4vw,32px); letter-spacing:-.01em; margin:6px 0 6px; }
   .lede{ font-size:15px; color:var(--ink-soft); max-width:none; margin:0 0 26px; }
+  .top-actions{ display:flex; align-items:center; gap:14px; }
   .help-wrap{ position:relative; }
   .help-btn{ background:#fff; border:1px solid var(--line); border-radius:999px; padding:6px 14px; font:inherit; font-size:13px; font-weight:600; color:var(--ink); cursor:pointer; }
   .help-btn:hover{ border-color:var(--blue); color:var(--blue); }
@@ -909,11 +910,13 @@
   .wall-badge{ display:inline-block; font-size:11.5px; font-weight:700; color:#fff; background:var(--blue); border-radius:999px; padding:2px 9px; margin-left:6px; vertical-align:middle; }
   /* ---------- pro mode (Rakel, ?pro=<Tækifæri>&k=…) ---------- */
   body.pro #toContactBtn { display:none; }
-  #proBar { position:fixed; top:10px; right:12px; z-index:400; display:flex; gap:10px; align-items:center; background:#1d2633; color:#fff; padding:8px 12px; border-radius:12px; font:600 13px/1.3 inherit; box-shadow:0 6px 20px rgba(0,0,0,.25); max-width:60vw; }
-  #proBar .pb-name { opacity:.85; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:28vw; }
-  #proBar button { font:inherit; border:0; border-radius:8px; padding:7px 12px; cursor:pointer; background:#0a84ff; color:#fff; }
+  #proBar { display:flex; gap:10px; align-items:center; font:600 13px/1.3 inherit; color:var(--ink); }
+  #proBar[hidden] { display:none; }
+  #proBar .pb-name { opacity:.7; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:28vw; }
+  #proBar button { font:inherit; border:1px solid var(--line); border-radius:999px; padding:6px 14px; cursor:pointer; background:var(--blue); border-color:var(--blue); color:#fff; }
   #proBar button:disabled { opacity:.5; cursor:default; }
-  #proBar .pb-dirty { color:#ffd60a; }
+  #proBar .pb-dirty { color:#b3261e; font-weight:700; }
+  body.pro #proBar .pb-dirty { color:#ffd60a; }
   .pro-open { width:100%; margin:0 0 12px; padding:10px 12px; border-radius:10px; border:0; background:#1d2633; color:#fff; font:700 14px/1.2 inherit; cursor:pointer; }
   .pro-open.todo { background:#b3261e; } .pro-open.ready { background:#1f9d55; }
   #proEd .pe-ready { width:100%; margin-top:14px; padding:11px; border:0; border-radius:10px; font:700 14px/1.2 inherit; cursor:pointer; color:#fff; background:#1f9d55; }
@@ -921,7 +924,7 @@
   #proEd .pe-issues { margin-top:12px; padding:9px 11px; border-radius:10px; background:#3a1f1b; color:#ffb4a6; font-size:13px; line-height:1.4; }
   #proEd .pe-issues div + div { margin-top:4px; }
   #proEd .pe-ready.undo { background:transparent; color:inherit; border:1px solid var(--line, #cfd4da); font-weight:600; }
-  #proEd { position:fixed; inset:0; z-index:350; background:rgba(15,18,24,.55); display:flex; align-items:center; justify-content:center; padding-top:52px; box-sizing:border-box; } /* clear of the PRO bar */
+  #proEd { position:fixed; inset:0; z-index:350; background:rgba(15,18,24,.55); display:flex; align-items:center; justify-content:center; padding:20px; box-sizing:border-box; }
   #proEd .pe-card { background:#fff; color:#1b1f24; border-radius:16px; width:min(980px,94vw); max-height:calc(96vh - 52px); overflow:auto; display:grid; grid-template-columns:auto 1fr; align-items:start; gap:22px; padding:20px 22px; box-shadow:0 20px 60px rgba(0,0,0,.35); }
   /* the drawing stays put while the controls scroll past it (user, 2026-10-16) — sticky inside .pe-card's own scroll */
   #proEd .pe-img { position:sticky; top:0; align-self:start; }
@@ -963,7 +966,6 @@
   body.pro .cab-preview, body.pro .mat-preview, body.pro .shape-canvas{ background:var(--panel); }
   body.pro .warn-chip:not([hidden]), body.pro .warn-box{ background:#3a2a14; color:#ffcf8a; border-color:#6b4c1e; }
   body.pro .warn-item{ color:#ffd9a6; border-top-color:#5a4220; }
-  body.pro #proBar{ background:#000; border:1px solid #3a4352; }
   body.pro #proEd .pe-card{ background:var(--panel); color:var(--ink); }
   body.pro #proEd .pe-sub, body.pro #proEd .pe-note{ color:var(--ink-soft); }
   body.pro #proEd .pe-door{ border-color:var(--line); }
@@ -996,12 +998,15 @@
       <div class="kicker" id="kicker">BJÖRNINN</div>
       <h1 id="pageTitle">Hannaðu eldhúsið þitt</h1>
     </div>
-    <div class="help-wrap">
-      <button class="help-btn" id="helpBtn" type="button" aria-haspopup="true" aria-expanded="false">Hjálp</button>
-      <div class="help-menu" id="helpMenu" hidden>
-        <button type="button" id="tourBtn" hidden>👋 Sýna leiðsögnina</button>
-        <button type="button" id="reportBtn">⚠️ Tilkynna vandamál</button>
-        <button type="button" id="resetBtn">Byrja upp á nýtt</button>
+    <div class="top-actions">
+      <div id="proBar" hidden></div>
+      <div class="help-wrap">
+        <button class="help-btn" id="helpBtn" type="button" aria-haspopup="true" aria-expanded="false">Hjálp</button>
+        <div class="help-menu" id="helpMenu" hidden>
+          <button type="button" id="tourBtn" hidden>👋 Sýna leiðsögnina</button>
+          <button type="button" id="reportBtn">⚠️ Tilkynna vandamál</button>
+          <button type="button" id="resetBtn">Byrja upp á nýtt</button>
+        </div>
       </div>
     </div>
   </div>
@@ -9550,7 +9555,8 @@
   function proBar(msg){
     if (!PRO) return;
     var el = document.getElementById("proBar");
-    if (!el){ el = document.createElement("div"); el.id = "proBar"; document.body.appendChild(el); }
+    if (!el) return;
+    el.hidden = false;
     el.innerHTML = '<span>🔧 PRO</span><span class="pb-name">' + escapeHtmlPro(PRO.name || "") + '</span>' +
       (msg ? '<span>' + escapeHtmlPro(msg) + '</span>' : (proDirty() ? '<span class="pb-dirty">● óvistað</span>' : '<span>✓ vistað</span>')) +
       '<button type="button" id="proSave"' + (PRO.ready ? "" : " disabled") + '>💾 Vista í Airtable</button>';
