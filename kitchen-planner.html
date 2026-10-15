@@ -9142,7 +9142,20 @@
   }
   function proIssues(b, c, zone){
     var doors = proDoorsOf(b, c, zone), body = proBodyMm(b, c, zone), out = [];
-    if (!doors.length) return out;
+    // A drawer stack that doesn't fill the body yet (or a front under its own minimum) is a real gate now that
+    // typing/dragging a front never blocks or reverts (2026-10-19) — the editor warns as you go, but nothing
+    // used to stop the cabinet from being marked "Klár til framleiðslu" like this before the export itself
+    // (smidaFor) silently corrupted into a negative mm. This catches it before Keyra skipulag/CNC ever sees it.
+    if (isDrawerUnit(b)){
+      var dCodes = KP3D.drawerCodes(b.interior, drawerSys()), dSpace = drawerBodyMm(b, c);
+      var dFronts = KP3D.stackFrontsMm(b.interior, dCodes, dSpace);
+      if (dFronts && dFronts.length === dCodes.length){
+        var dSum = dFronts.reduce(function(a, h){ return a + h; }, 0);
+        if (Math.abs(dSum - dSpace) > 1.5) out.push("Skúffuhæðir eru samtals " + Math.round(dSum) + " mm — þurfa að fylla " + Math.round(dSpace) + " mm.");
+        dFronts.forEach(function(h, i){ if (h < KP3D.slotMin(dCodes[i]) - 0.5) out.push(CODE_LABEL[dCodes[i]].toLowerCase() + " skúffa er " + Math.round(h) + " mm — undir " + KP3D.slotMin(dCodes[i]) + " mm lágmarkinu."); });
+      }
+    }
+    if (!doors.length) return out.filter(function(x, k){ return out.indexOf(x) === k; });
     var rows = proShelfRows(b, body);
     var top = body; // doors stack from the top
     doors.forEach(function(d, i){
@@ -9918,10 +9931,13 @@
     else if (c.oven){ codes = KP3D.ovenCodesOf(b, state.drawerSystem); space = KP3D.ovenUnderOf(b, state.drawerSystem, h, c);
       fronts = codes.length ? KP3D.stackFrontsMm({ frontsMm:b.ovenFrontsMm }, codes, space) : null; }
     if (codes && codes.length && fronts && fronts.length === codes.length){
-      var below = 0;
+      // Each front's own real value (2026-10-19) — used to subtract "whatever's left" for the last slot,
+      // which relied on stackFrontsMm always summing exactly to `space`; that guarantee is gone (a mid-edit
+      // stack that doesn't add up yet is now kept as typed, not silently reset) so the old subtraction could
+      // go negative the moment the earlier fronts alone already exceeded the body. KP3D.drawerFrontsMm's own
+      // largest-remainder rounding already makes the computed-default case sum exactly on its own.
       o.fronts = codes.map(function(cd, i){
-        var slot = i < codes.length - 1 ? Math.round(fronts[i]) : Math.round(space) - below; below += slot;
-        return { code:sinkFixedTop(b, c) && i === codes.length - 1 ? "fast" : cd, mm:slot };
+        return { code:sinkFixedTop(b, c) && i === codes.length - 1 ? "fast" : cd, mm:Math.round(fronts[i]) };
       });
     }
     if (c.sink && isDrawerUnit(b)) o.sink = { depth:SINK_DEPTH_MM, top:sinkFixedTop(b, c) ? "fastur" : "skuffa", bins:"bottom" };
