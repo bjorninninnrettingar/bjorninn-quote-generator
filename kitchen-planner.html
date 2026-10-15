@@ -940,6 +940,8 @@
   #proEd .pe-row input { width:76px; padding:5px 7px; border:1px solid #cfd4da; border-radius:7px; font:inherit; }
   #proEd .pe-btn { border:1px solid #cfd4da; background:#fff; color:#1b1f24; border-radius:8px; padding:5px 10px; cursor:pointer; font-family:inherit; font-weight:600; font-size:13px; line-height:1.2; }
   #proEd .pe-btn.on { background:#1d2633; color:#fff; border-color:#1d2633; }
+  #proEd .pe-lock { border:none; background:none; padding:2px 4px; cursor:pointer; font-size:15px; line-height:1; opacity:.45; }
+  #proEd .pe-lock.on { opacity:1; }
   #proEd .pe-close { float:right; }
   #proEd .pe-note { font-size:12.5px; color:#5b6470; margin-top:6px; }
 
@@ -9100,17 +9102,16 @@
       right += '<div class="pe-door"><h4>' + (c.oven ? "Hillur fyrir ofan ofn" : "Hillur") + '</h4>';
       {
         shelfList().forEach(function(sh, k){
-          right += '<div class="pe-row">Hilla ' + (k + 1) + ': <input type="number" step="1" value="' + sh.mm + '" data-pe="oshmm" data-k="' + k + '"> mm ' +
+          right += '<div class="pe-row">Hilla ' + (k + 1) + ': <input type="number" step="1" style="width:66px" value="' + sh.mm + '" data-pe="oshmm" data-k="' + k + '"> mm ' +
             '<button type="button" class="pe-btn' + (sh.fixed ? " on" : "") + '" data-pe="oshtype" data-k="' + k + '" data-v="1">Föst</button>' +
             '<button type="button" class="pe-btn' + (!sh.fixed ? " on" : "") + '" data-pe="oshtype" data-k="' + k + '" data-v="0">Laus</button>' +
-            (sh.fixed ? '' : '<button type="button" class="pe-btn' + (sh.locked ? " on" : "") + '" data-pe="oshlock" data-k="' + k + '" title="Læst hilla heldur sinni hæð þegar lausum er dreift jafnt">' + (sh.locked ? "🔒 Læst" : "🔓 Læsa") + '</button>') +
-            (sh.fixed || b.radborun ? '' : ' Stillingar <input type="number" min="1" max="9" step="1" style="width:46px" value="' + sh.pos + '" data-pe="oshpos" data-k="' + k + '">') +
+            '<button type="button" class="pe-lock' + (sh.locked ? " on" : "") + '" data-pe="oshlock" data-k="' + k + '" title="Læst hilla heldur sinni hæð þegar ólæstum er dreift jafnt">' + (sh.locked ? "🔒" : "🔓") + '</button>' +
+            (sh.fixed || b.radborun ? '' : ' Stillingar <input type="number" min="1" max="9" step="1" style="width:38px" value="' + sh.pos + '" data-pe="oshpos" data-k="' + k + '">') +
             '<button type="button" class="pe-btn" data-pe="oshdel" data-k="' + k + '" title="Taka hillu">✕</button></div>';
         });
         right += '<div class="pe-row"><button type="button" class="pe-btn" data-pe="oshadd">＋ Hilla</button>' +
-          '<button type="button" class="pe-btn" data-pe="oshspread" title="Dreifir lausum, ólæstum hillum jafnt á milli fastra/læstra hilla og skápsendanna">⇅ Dreifa ólæstum jafnt</button>' +
-          (shelfCustom ? '<button type="button" class="pe-btn" data-pe="oshreset">Sjálfgefið</button>' : '') + '</div>' +
-          '<div class="pe-note">Hæð = efri brún hillunnar frá botni skáps. Laus hilla: stillingar = fjöldi gata hvoru megin (50 mm á milli, miðjugatið undir hillunni). Læst hilla heldur sæti sínu — "Dreifa ólæstum jafnt" raðar hinum lausu jafnt í bilin sem eftir eru. Dragðu hillurnar á teikningunni.</div>';
+          '<button type="button" class="pe-btn" data-pe="oshspread" title="Dreifir öllum ólæstum hillum jafnt á milli læstra hilla og skápsendanna">⇅ Dreifa ólæstum jafnt</button>' +
+          (shelfCustom ? '<button type="button" class="pe-btn" data-pe="oshreset">Sjálfgefið</button>' : '') + '</div>';
       }
       // Raðborun (2026-10-18, user): folded into Hillur — it's the same hole pattern, not a separate concern.
       var rb = b.radborun, rSpanNow = KP3D.radborunSpanMm(b, body, drawerSys());
@@ -9253,15 +9254,15 @@
     act('[data-pe="oshpos"]', function(n){ var list = shelvesNow(); list[+n.dataset.k].pos = Math.max(1, Math.min(9, Math.round(+n.value) || 1)); setShelves(list); });
     act('[data-pe="oshdel"]', function(n){ var list = shelvesNow(); list.splice(+n.dataset.k, 1); setShelves(list); });
     act('[data-pe="oshlock"]', function(n){ var list = shelvesNow(), sh = list[+n.dataset.k]; sh.locked = !sh.locked; setShelves(list); });
-    // "Dreifa ólæstum jafnt" (user, 2026-10-19): a fixed shelf, or a loose one you've locked, is a pin — the
-    // zone it sits in splits around it. Every other loose shelf (not fixed, not locked) gets redistributed,
-    // one gap at a time, proportionally by that gap's own share of the total free run (largest-remainder
-    // rounding, same idea stackFrontsMm/drawerFrontsMm already use for drawer fronts), evenly spaced within it.
+    // "Dreifa ólæstum jafnt" (user, 2026-10-19): only a locked shelf (fixed or loose) is a pin — the zone it
+    // sits in splits around it. Every other shelf, fixed or loose, gets redistributed, one gap at a time,
+    // proportionally by that gap's own share of the total free run (largest-remainder rounding, same idea
+    // stackFrontsMm/drawerFrontsMm already use for drawer fronts), evenly spaced within it.
     act('[data-pe="oshspread"]', function(){
       var list = shelvesNow(), r = KP3D.shelfSpaceMm(b, body, drawerSys());
-      var free = list.filter(function(s){ return !s.fixed && !s.locked; });
-      if (!free.length){ toast("Engar lausar, ólæstar hillur til að dreifa — læstu eina upp eða bættu við hillu."); return; }
-      var pinned = [r.lo, r.hi].concat(list.filter(function(s){ return s.fixed || s.locked; }).map(function(s){ return s.mm; }));
+      var free = list.filter(function(s){ return !s.locked; });
+      if (!free.length){ toast("Engar ólæstar hillur til að dreifa — læstu eina upp eða bættu við hillu."); return; }
+      var pinned = [r.lo, r.hi].concat(list.filter(function(s){ return s.locked; }).map(function(s){ return s.mm; }));
       pinned = pinned.filter(function(v, i, a){ return a.indexOf(v) === i; }).sort(function(a, z){ return a - z; });
       var gaps = [];
       for (var i = 1; i < pinned.length; i++) gaps.push({ lo:pinned[i - 1], hi:pinned[i], size:pinned[i] - pinned[i - 1] });
