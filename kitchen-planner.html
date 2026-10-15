@@ -961,14 +961,18 @@
   }
   body.pro .stepper .st{ background:var(--card); }
   body.pro .stepper .st.done{ background:var(--gold-soft); border-color:#4a4630; }
-  /* pro never reaches these (saved via "Vista í Airtable", not submitted) — drop them so there's less to
-     collide with the PRO bar in the header (user, 2026-10-15) */
+  /* pro never reaches these (saved via "Vista í Airtable", not submitted) — drop them, there's no room for
+     dead steps in the compact header stepper below */
   body.pro .stepper [data-s="intake"], body.pro .stepper [data-s="contact"]{ display:none; }
-  /* the editor round's stepper is centered absolutely over the header row, sized for the project's own
-     title — the PRO bar (project name + save button) sits in that same row and is often wider than the
-     gap the centering left, so it always collides regardless of stepper width. Drop it back into normal
-     flow, under the header, instead of trying to out-narrow a banner of unpredictable length. */
-  body.pro .wrap.wide .stepper{ position:static; left:auto; transform:none; width:auto; margin:4px 18px 8px; }
+  /* small, in the header row itself, between the title and the PRO bar (user, 2026-10-15) — moved there in
+     JS (see proBoot), since it's a sibling of .top in the markup, not a child. Un-absolute it (it was
+     centered over the whole row, sized for the 5-step case) and stop its pills stretching to fill space. */
+  body.pro .top .stepper{ position:static; left:auto; transform:none; width:auto; margin:0; padding-bottom:0; flex:none; }
+  body.pro .top .stepper .bar{ display:none; }
+  body.pro .top .stepper .st{ flex:none; }
+  /* the title never needs to shrink (it's always this one short sentence) — let the PRO bar's own name,
+     which already ellipsizes, give up the room instead when things get tight */
+  body.pro .top > div:first-child{ flex:none; white-space:nowrap; }
   /* Rakel uses this every day: no customer hints (2026-10-10) */
   body.pro #tipBar, body.pro #stageEmpty, body.pro #uwTools span{ display:none !important; }
   body.pro .tab-btn.active, body.pro .opw-btn.next{ background:var(--ink); color:var(--bg); }
@@ -9635,6 +9639,11 @@
   }
   async function proBoot(){
     document.body.classList.add("pro");
+    // small stepper sits inline in the header, between the title and the PRO bar (user, 2026-10-15) — it's
+    // a sibling of .top in the markup (shared with the customer-facing flow), so move it in here rather
+    // than duplicating the whole header for pro.
+    var topActions = document.querySelector(".top-actions"), steps = document.getElementById("progressSteps");
+    if (topActions && steps) topActions.parentNode.insertBefore(steps, topActions);
     proBar("Sæki verkefni…");
     var rec;
     try{
