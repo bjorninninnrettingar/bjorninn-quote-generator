@@ -3825,7 +3825,19 @@
     return '<i class="dw-ico" style="height:' + Math.round(5 + side / 241 * 17) + 'px"></i>';
   }
   function drawerSys(){ return state.drawerSystem === "merivo" ? "merivo" : "legra"; }
-  function drawerBodyMm(b, c){ return KP3D.drawerZoneMm(c, blockHeightMm(b, c) - 100, b.drawerZoneMm); } // same 100 mm plinth the 3D uses; a tall unit's drawers stop at 1200 mm (or b.drawerZoneMm, PRO)
+  // same 100 mm plinth the 3D uses; a tall unit's drawers stop at 1200 mm (or b.drawerZoneMm, PRO) — unless the
+  // stack has real custom heights (b.interior.frontsMm), in which case THEIR sum is the zone, full stop. b.drawerZoneMm
+  // is written alongside frontsMm (wireDrawerStack's tall-unit path) but is a second copy of the same number —
+  // trusting it separately let it drift from what the drawers actually sum to (user, 2026-10-19: a door reading
+  // 1505 mm over drawers that plainly summed to 840, not the 880 the stale zone still claimed).
+  function drawerBodyMm(b, c){
+    var full = blockHeightMm(b, c) - 100;
+    if (b.interior && Array.isArray(b.interior.frontsMm) && b.interior.frontsMm.length > 1){
+      var sum = Math.round(b.interior.frontsMm.reduce(function(a, h){ return a + h; }, 0));
+      return Math.max(0, Math.min(full - KP3D.DRAWER_TOPDOOR_MIN_MM, sum));
+    }
+    return KP3D.drawerZoneMm(c, full, b.drawerZoneMm);
+  }
   function sortStack(codes){ // tallest at the bottom — how Björninn builds them
     var o = "NMKECF";
     return codes.slice().sort(function(a, b){ return o.indexOf(b) - o.indexOf(a); });
