@@ -6390,7 +6390,7 @@
     var fb = selectedBlockId ? findBlock(selectedBlockId) : null, op = !fb && selectedBlockId ? findOpening(selectedBlockId) : null;
     if (fb && fb.block.locked){ lockedToast(); return; }
     var fbPlinth = fb ? plinthMmOf(CATALOG[fb.block.type], fb.zone) : 0;
-    var fields = fb ? [["widthMm", fb.block.widthMm, "Breidd"], ["heightMm", carcassHeightMm(fb.block, CATALOG[fb.block.type], fb.zone), fbPlinth ? "Hæð (skrokkur)" : "Hæð"], ["depthMm", fb.block.depthMm || CATALOG[fb.block.type].d, "Dýpt"]]
+    var fields = fb ? [["widthMm", fb.block.widthMm, "Breidd"], ["heightMm", carcassHeightMm(fb.block, CATALOG[fb.block.type], fb.zone), "Hæð"], ["depthMm", fb.block.depthMm || CATALOG[fb.block.type].d, "Dýpt"]]
       : op ? [["widthMm", op.o.widthMm, "Breidd"], ["heightMm", op.o.heightMm, "Hæð"]] : null;
     if (!fields) return;
     chip.innerHTML = fields.map(function(f){ return '<input type="number" data-k="' + f[0] + '" value="' + f[1] + '" title="' + f[2] + ' (mm)" step="1">'; }).join('<span class="x">×</span>');
@@ -6647,7 +6647,7 @@
     }
     var dims = '<div class="dim-grid">' +
       (c.panel ? '<div class="dim-f fixed"><label>Þykkt</label><b>19 mm</b></div>' : dimF("widthMm", c.shelfStack ? "Lengd" : "Breidd", b.widthMm, dimRange(c, "widthMm"))) +
-      (c.shelfStack ? '<div class="dim-f fixed"><label>Heildarhæð</label><b>' + hNow + '</b></div>' : dimF("heightMm", plinthMmOf(c, zone) ? "Hæð (skrokkur)" : "Hæð", carcassHeightMm(b, c, zone), carcassHeightRange(c, zone))) +
+      (c.shelfStack ? '<div class="dim-f fixed"><label>Heildarhæð</label><b>' + hNow + '</b></div>' : dimF("heightMm", "Hæð", carcassHeightMm(b, c, zone), carcassHeightRange(c, zone))) +
       dimF("depthMm", "Dýpt", dNow, dimRange(c, "depthMm")) +
     '</div>';
     var elevNow = KP3D.elevOf(b);
@@ -6664,7 +6664,6 @@
     // PRO groups the fields below into Mál / Innvols / Annað tabs (one at a time, re-rendered on switch) —
     // customers keep the flat single-column layout, unchanged (user, 2026-10-14).
     var malHtml = '<div class="edit-field"><label>Mál (mm)</label>' + dims +
-      (plinthMmOf(c, zone) ? '<p class="sec-note">+ ' + PLINTH_MM + ' mm sökkull (almenn hæð fyrir alla skápa, ekki hluti af Hæð hér).</p>' : '') +
       '</div>' + elevField + stackField +
       (c.panel ? '<div class="edit-field"><button type="button" class="iconbtn" data-role="match" title="Tekur hæð, dýpt og hæð frá gólfi af skápnum sem hún liggur að">↔ Passa við skápinn</button></div>' : '');
     var innvolsHtml = (c.hasInterior ? '<div class="edit-field">' + hardwareHTML(b, c, PRO ? { sides:true } : null) + '</div>' : '') +
@@ -8999,7 +8998,7 @@
       if (railOn) railList().forEach(function(rl){ pts.push(Math.round(rl.mm)); });
       if (doors.length){ var dtop = body; doors.forEach(function(d){ pts.push(Math.round(dtop)); dtop = Math.round(dtop - d.box); pts.push(Math.round(dtop)); }); }
       pts = pts.filter(function(v, i, a){ return a.indexOf(v) === i; }).sort(function(a, z){ return a - z; });
-      var dx = 16, y0px = Y0 + body * S - pts[0] * S, y1px = Y0 + body * S - pts[pts.length - 1] * S;
+      var dx = X0 - 26, y0px = Y0 + body * S - pts[0] * S, y1px = Y0 + body * S - pts[pts.length - 1] * S;
       svg += '<line x1="' + dx + '" x2="' + dx + '" y1="' + y0px + '" y2="' + y1px + '" stroke="#c7ccd2" stroke-width="1"/>';
       pts.forEach(function(mm){ var y = Y0 + body * S - mm * S;
         svg += '<line x1="' + (dx - 3) + '" x2="' + (dx + 3) + '" y1="' + y + '" y2="' + y + '" stroke="#c7ccd2" stroke-width="1"/>'; });
@@ -9018,7 +9017,7 @@
     var plinthMm = plinthMmOf(c, fb.zone);
     var carcassMm = carcassHeightMm(b, c, fb.zone);
     var right = '<button type="button" class="pe-btn pe-close" data-pe="close">Loka ✕</button>' +
-      '<h3>' + (key ? key + " · " : "") + c.label + '</h3><div class="pe-sub">' + b.widthMm + ' × ' + carcassMm + ' mm' + (plinthMm ? " (skrokkur, + " + plinthMm + " mm sökkull)" : "") + ' · ' +
+      '<h3>' + (key ? key + " · " : "") + c.label + '</h3><div class="pe-sub">' + b.widthMm + ' × ' + carcassMm + ' mm · ' +
       (b.smida ? "Smíðagögn vistuð á skápnum" : "Sjálfgefið (ekkert breytt)") + '</div>';
     // Mál (2026-10-17, user — "Smíða er final design á þessu algjörlega svo hér þarf að vera hægt að fínpússa
     // allt"): width/height/depth used to be editable only on the regular side panel, outside Smíða — same
@@ -9032,7 +9031,7 @@
       var dW = dimRange(c, "widthMm"), dH = carcassHeightRange(c, fb.zone), dD = dimRange(c, "depthMm");
       malHtml = '<div class="pe-mal"><h4>Mál</h4>' +
         '<div class="pe-row">Breidd: <input type="number" step="1" min="' + dW[0] + '" max="' + dW[1] + '" value="' + b.widthMm + '" data-pe="dimw"> mm</div>' +
-        '<div class="pe-row">Hæð' + (plinthMm ? " (skrokkur)" : "") + ': <input type="number" step="1" min="' + dH[0] + '" max="' + dH[1] + '" value="' + carcassMm + '" data-pe="dimh"> mm' + (plinthMm ? ' <small class="pe-note" style="display:inline">+ ' + plinthMm + ' mm sökkull</small>' : '') + '</div>' +
+        '<div class="pe-row">Hæð: <input type="number" step="1" min="' + dH[0] + '" max="' + dH[1] + '" value="' + carcassMm + '" data-pe="dimh"> mm</div>' +
         '<div class="pe-row">Dýpt: <input type="number" step="1" min="' + dD[0] + '" max="' + dD[1] + '" value="' + (b.depthMm || c.d) + '" data-pe="dimd"> mm</div>' +
         '</div>';
     }
