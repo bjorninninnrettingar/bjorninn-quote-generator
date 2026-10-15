@@ -266,13 +266,15 @@
     if (fixed && !oven && !ovenDone) check.push("Föst hilla (" + fixed + ") — staðsetning ekki í gögnum, settu inn eftir teikningu");
 
     // Fataslá (clothes rail): positions come from Smíðagögn's own o.rails (Smíða, 2026-10-15 — "same zone as
-    // o.shelves", bottom-up mm like a shelf), now that a real drilling macro exists (FATASLA: Ø5 × 12mm deep,
-    // two holes 32mm apart on X, 2026-10-15). Ops here apply to the whole side program, so both of the unit's
-    // physical side panels get it (see module header: "identical sides share one file") — centered on the
-    // panel's own depth (B/2 = LPY/2) since nothing says the depth should vary per unit. No Smíða position yet
-    // (older project, or Rakel hasn't opened Smíða for this unit) → fall back to the old flag-only reminder.
+    // o.shelves", bottom-up mm like a shelf). A real drilling macro (FATASLA) was added 2026-10-15, but the
+    // reference master this export reads isn't guaranteed to have it defined — a plan referencing an undefined
+    // macro gets inserted before STAT_BLOCK anyway (cnc.html's own check), but cnc.html's write gate then
+    // refuses to write ANY file whose plan has a non-empty errors/check list at all, macro-related or not — so
+    // a real "not in master" case blocked the whole side file outright instead of just flagging it (found
+    // live, T-80 Sk1-3, 2026-10-19). Back to flag-only until the master is confirmed to carry FATASLA — same
+    // "no position" message below, just with the real Smíða position included so it's a two-second manual job.
     if (Array.isArray(sms.rails) && sms.rails.length) {
-      sms.rails.forEach(function (rl) { op("FATASLA", "Fataslá", r1(num(rl.mm)) + ", " + r1(B / 2)); });
+      check.push("Fataslá (" + sms.rails.length + "): " + sms.rails.map(function (rl) { return r1(num(rl.mm)); }).join(", ") + " mm frá botni (úr Smíða) — borað handvirkt þangað til FATASLA er staðfest í master.");
       if (opts.fataslar && opts.fataslar.magn && opts.fataslar.magn !== sms.rails.length)
         check.push("Fataslá: magn í Pöntunarlista (" + opts.fataslar.magn + ") og staðsetningar í Smíða (" + sms.rails.length + ") stemma ekki — keyra skipulag/per unit aftur?");
     } else if (opts.fataslar && opts.fataslar.magn) {
