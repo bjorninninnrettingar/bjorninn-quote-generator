@@ -486,7 +486,7 @@
     var r = shelfSpaceMm(b, bodyMm, sysKey);
     if (Array.isArray(b.shelfPos)) return b.shelfPos
       .filter(function(x){ return x && x.mm > r.lo + OVEN_BOARD_MM && x.mm < r.hi - 10; })
-      .map(function(x){ return { mm:Math.round(x.mm), fixed:!!x.fixed, pos:x.fixed ? 1 : Math.max(1, Math.min(9, Math.round(x.pos) || 3)) }; })
+      .map(function(x){ return { mm:Math.round(x.mm), fixed:!!x.fixed, pos:x.fixed ? 1 : Math.max(1, Math.min(9, Math.round(x.pos) || 3)), locked:!!x.locked }; }) // locked: Smíða-only bookkeeping ("Dreifa ólæstum jafnt") — passed through so every setShelves read-then-rewrite doesn't silently drop it
       .sort(function(a, z){ return a.mm - z.mm; });
     var scoped = c.bur || inDrawerShelfZone(b, c);
     var n = c.bur ? (b.burShelves != null ? b.burShelves : 2) : (shelvesOf(b) || 0), out = [];
@@ -524,7 +524,7 @@
     var r = ovenUpperMm(b, sysKey, bodyMm);
     if (Array.isArray(b.ovenShelves)) return b.ovenShelves
       .filter(function(x){ return x && x.mm > r.lo + OVEN_BOARD_MM && x.mm < r.hi - 10; })
-      .map(function(x){ return { mm:Math.round(x.mm), fixed:!!x.fixed, pos:x.fixed ? 1 : Math.max(1, Math.min(9, Math.round(x.pos) || 3)) }; })
+      .map(function(x){ return { mm:Math.round(x.mm), fixed:!!x.fixed, pos:x.fixed ? 1 : Math.max(1, Math.min(9, Math.round(x.pos) || 3)), locked:!!x.locked }; })
       .sort(function(a, z){ return a.mm - z.mm; });
     return [1, 2].map(function(k){ return { mm:Math.round(r.lo + (r.hi - r.lo) * k / 3), fixed:false, pos:3 }; });
   }
