@@ -558,6 +558,7 @@
   .light-btns{ display:flex; flex-direction:column; gap:6px; margin-bottom:8px; }
   .light-btns .hw-btn{ text-align:left; }
   #moodBtn.active{ background:#1e2433; color:#ffe2a8; }
+  #measureBtn.active{ background:#0a84ff; color:#fff; }
   .sw-search{ width:100%; box-sizing:border-box; margin:0 0 10px; padding:9px 12px; border:1px solid var(--line, #ddd); border-radius:10px; font:inherit; font-size:14px; background:#fff; }
   .h-grid .sw-name small, .sw-tile .sw-name small{ display:block; font-weight:400; color:var(--ink-soft); margin-top:2px; font-size:11px; }
   /* ---- define your space ---- */
@@ -969,7 +970,10 @@
   #proEd .pe-issues div + div { margin-top:4px; }
   #proEd .pe-ready.undo { background:transparent; color:inherit; border:1px solid var(--line, #cfd4da); font-weight:600; }
   #proEd { position:fixed; inset:0; z-index:350; background:rgba(15,18,24,.55); display:flex; align-items:center; justify-content:center; padding-top:52px; box-sizing:border-box; } /* clear of the PRO bar */
-  #proEd .pe-card { background:#fff; color:#1b1f24; border-radius:16px; width:min(980px,94vw); max-height:calc(96vh - 52px); overflow:auto; display:grid; grid-template-columns:auto 1fr; gap:22px; padding:20px 22px; box-shadow:0 20px 60px rgba(0,0,0,.35); }
+  #proEd .pe-card { background:#fff; color:#1b1f24; border-radius:16px; width:min(980px,94vw); max-height:calc(96vh - 52px); overflow:auto; display:grid; grid-template-columns:auto 1fr; align-items:start; gap:22px; padding:20px 22px; box-shadow:0 20px 60px rgba(0,0,0,.35); }
+  /* the drawing stays put while the controls scroll past it (user, 2026-10-16) — sticky inside .pe-card's own scroll */
+  #proEd .pe-img { position:sticky; top:0; align-self:start; }
+  #proEd .pe-content { min-width:0; }
   #proEd h3 { margin:0 0 4px; font-size:18px; }
   #proEd .pe-sub { color:#5b6470; font-size:13px; margin-bottom:12px; }
   #proEd svg { background:#f4f5f7; border-radius:12px; touch-action:none; user-select:none; }
@@ -1229,6 +1233,7 @@
           </div>
           <button type="button" class="warn-chip" id="warnChip" hidden></button>
           <div class="view-toggle" id="moodToggle" title="Kvöldstemning: dimmir herbergið svo lýsingin sjáist"><button type="button" id="moodBtn" title="Kvöldstemning: dimmir herbergið svo lýsingin sjáist">🌙 Kvöld</button></div>
+          <div class="view-toggle" id="measureToggle" title="Málband: smelltu á tvo punkta til að mæla á milli þeirra"><button type="button" id="measureBtn" title="Málband: smelltu á tvo punkta til að mæla á milli þeirra">📏 Málband</button></div>
           <div class="view-toggle" id="inspectToggle" title="Skoða innvols: opna skúffur og hurðir, taka framhliðar af">
             <button type="button" id="inspectBtn" title="Skoða innvols: opna skúffur og hurðir, taka framhliðar af">🔍 Inn í skápa</button>
             <button type="button" id="frontsBtn" hidden>Framhliðar á</button>
@@ -8120,6 +8125,70 @@
     if (!moodOn && !lightingOn()) toast("Kveiktu á lýsingu undir „Lýsing“ til vinstri til að sjá hana í kvöldstemningu.");
     setMoodView(!moodOn);
   });
+
+  // Málband (tape measure, 2026-10-16, user — both customer and PRO): click two points in the 3D view, see the
+  // distance between them. Lives entirely here, not in kitchen-planner-3d.js — it only reads the live scene via
+  // KP3D._three() (same handle the welcome showcase already uses) and adds its own objects, so it never touches
+  // the drag/select state machine setupCabinetInteraction owns. Captured on #threeWrap (stable across buildScene
+  // rebuilds, unlike the canvas inside it) in the CAPTURE phase so it runs and can stop the click reaching
+  // cabinet drag/select underneath while measuring is on.
+  var measureOn = false, measurePts = [], measureObjs = [];
+  function clearMeasureObjs(){ var st = KP3D._three(); if (st) measureObjs.forEach(function(o){ st.scene.remove(o); }); measureObjs = []; }
+  function measureSprite(T, text, pos, w, h){
+    var cv = document.createElement("canvas"); cv.width = 160; cv.height = 64;
+    var cx = cv.getContext("2d");
+    cx.fillStyle = "rgba(10,132,255,.94)"; cx.beginPath();
+    if (cx.roundRect) cx.roundRect(4, 4, 152, 56, 16); else cx.rect(4, 4, 152, 56); cx.fill();
+    cx.fillStyle = "#fff"; cx.font = "700 30px 'Kumbh Sans', Arial, sans-serif"; cx.textAlign = "center"; cx.textBaseline = "middle";
+    cx.fillText(text, 80, 32);
+    var tex = new T.CanvasTexture(cv);
+    var sp = new T.Sprite(new T.SpriteMaterial({ map:tex, depthTest:false, transparent:true, sizeAttenuation:false }));
+    sp.scale.set(w, h, 1); sp.position.copy(pos); sp.renderOrder = 999;
+    return sp;
+  }
+  function measureClick(e){
+    if (!measureOn) return;
+    var st = KP3D._three(), T = window.__THREE__; if (!st || !T) return;
+    var rect = st.renderer.domElement.getBoundingClientRect();
+    var ndc = new T.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+    var ray = new T.Raycaster(); ray.setFromCamera(ndc, st.camera);
+    // the whole scene, not just pickables (cabinets) — walls, floor and worktops need to be measurable points
+    // too; only an empty click (outside the room, above a wall) falls back to the floor plane, and even then
+    // only if that plane is actually ahead of the camera (a grazing ray near the horizon could otherwise land
+    // tens of metres away — the wild distance that first surfaced this).
+    var hits = ray.intersectObjects(st.scene.children, true).filter(function(h){ return h.object.visible && measureObjs.indexOf(h.object) < 0 && !(h.object.material && h.object.material.depthTest === false); });
+    var point;
+    if (hits.length) point = hits[0].point;
+    else {
+      var p = new T.Vector3(), hit = ray.ray.intersectPlane(new T.Plane(new T.Vector3(0, 1, 0), 0), p);
+      if (!hit || p.distanceTo(st.camera.position) > 20) return;
+      point = p;
+    }
+    e.preventDefault(); e.stopPropagation(); if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+    if (measurePts.length >= 2){ clearMeasureObjs(); measurePts = []; }
+    measurePts.push(point.clone());
+    var dot = new T.Mesh(new T.SphereGeometry(0.012, 12, 12), new T.MeshBasicMaterial({ color:0x0a84ff, depthTest:false }));
+    dot.position.copy(point); dot.renderOrder = 999;
+    st.scene.add(dot); measureObjs.push(dot);
+    if (measurePts.length === 2){
+      var a = measurePts[0], b = measurePts[1], mm = a.distanceTo(b) * 1000;
+      var line = new T.Line(new T.BufferGeometry().setFromPoints([a, b]), new T.LineDashedMaterial({ color:0x0a84ff, dashSize:0.04, gapSize:0.02, depthTest:false }));
+      line.computeLineDistances(); line.renderOrder = 999;
+      st.scene.add(line); measureObjs.push(line);
+      var mid = a.clone().lerp(b, 0.5); mid.y += 0.04;
+      var label = measureSprite(T, Math.round(mm) + " mm", mid, 0.05, 0.02);
+      st.scene.add(label); measureObjs.push(label);
+    }
+  }
+  function setMeasureMode(on){
+    measureOn = !!on;
+    if (!measureOn){ clearMeasureObjs(); measurePts = []; }
+    var mb = document.getElementById("measureBtn"); if (mb) mb.classList.toggle("active", measureOn);
+    var st = KP3D._three(); if (st) st.renderer.domElement.style.cursor = measureOn ? "crosshair" : "";
+  }
+  document.getElementById("threeWrap").addEventListener("pointerdown", measureClick, true);
+  document.getElementById("measureBtn").addEventListener("click", function(){ setMeasureMode(!measureOn); });
+  document.addEventListener("keydown", function(e){ if (e.key === "Escape" && measureOn) setMeasureMode(false); });
   document.getElementById("reportBtn").addEventListener("click", openReportPop);
 
   document.getElementById("warnChip").addEventListener("click", function(){ // the warnings as a list (the right-hand overview is gone)
@@ -8989,29 +9058,35 @@
       (dr ? hardwareHTML(b, c, { sides:true }) : variantHTML(b, c, { sides:true })) + '</div>' +
       '<div class="pe-note">Sláðu inn frontahæð, dragðu bláu skilin á teikningunni eða ⠿ til að færa skúffu. Strikaða línan er Blum-hliðin (hlið = hæð hennar; staðsetningin er nálgun).</div></div>';
     if (doors.length) right += '<div class="pe-note">Lamir eru mældar frá enda hurðarinnar (80 mm sjálfgefið + jafnt á milli). Sama regla og /cnc notar.</div>';
-    // Grip svæði (Fræst grip): one card per eligible front, type Ekkert/Alla leið/Hluti
+    // Grip svæði (Fræst grip): every eligible front's controls in one collapsible group (user, 2026-10-16 —
+    // was one separate collapsible card per front, which buried a multi-front cabinet's Smíða panel in cards).
     var gripTargets = proGripTargets(b, c, fb.zone, body, doors, codes, fronts);
-    gripTargets.forEach(function(t){
-      var g = proGripOf(b, t.target), type = g ? g.type : "none";
-      right += '<div class="pe-door"><h4>Grip — ' + t.label + ' (' + t.heightMm + ' mm)</h4><div class="pe-row">' +
-        '<button type="button" class="pe-btn' + (type === "none" ? " on" : "") + '" data-pe="griptype" data-t="' + t.target + '" data-v="none">Ekkert</button>' +
-        (t.allowAlla ? '<button type="button" class="pe-btn' + (type === "alla" ? " on" : "") + '" data-pe="griptype" data-t="' + t.target + '" data-v="alla">Alla leið</button>' : '') +
-        '<button type="button" class="pe-btn' + (type === "hluti" ? " on" : "") + '" data-pe="griptype" data-t="' + t.target + '" data-v="hluti">Hluti</button></div>';
-      if (type === "alla") right += '<div class="pe-row">Brún: ' +
-          '<button type="button" class="pe-btn' + (g.brun === "efst" ? " on" : "") + '" data-pe="gripbrun" data-t="' + t.target + '" data-v="efst">Efst</button>' +
-          '<button type="button" class="pe-btn' + (g.brun === "neðst" ? " on" : "") + '" data-pe="gripbrun" data-t="' + t.target + '" data-v="neðst">Neðst</button></div>' +
-          '<div class="pe-note">Lárétt rauf, ' + GRIP_SHRINK_MM + ' mm — fronturinn verður ' + Math.max(0, t.heightMm - GRIP_SHRINK_MM) + ' mm eftir skerðingu.</div>';
-      else if (type === "hluti"){
-        var gatt = g.att || "lárétt", gstart = g.start != null ? g.start : proGripDefaultStart(b, c, fb.zone, t), glen = g.length || GRIP_LEN_DEFAULT_MM;
-        right += '<div class="pe-row">Átt: ' +
-          '<button type="button" class="pe-btn' + (gatt === "lárétt" ? " on" : "") + '" data-pe="gripatt" data-t="' + t.target + '" data-v="lárétt">Lárétt</button>' +
-          '<button type="button" class="pe-btn' + (gatt === "lóðrétt" ? " on" : "") + '" data-pe="gripatt" data-t="' + t.target + '" data-v="lóðrétt">Lóðrétt</button></div>' +
-          '<div class="pe-row">Frá botni: <input type="number" min="0" max="' + Math.max(0, t.heightMm - 20) + '" step="1" value="' + gstart + '" data-pe="gripstart" data-t="' + t.target + '"> mm · Lengd: <input type="number" min="20" max="' + t.heightMm + '" step="1" value="' + glen + '" data-pe="griplen" data-t="' + t.target + '"> mm ' +
-          '<button type="button" class="pe-btn" data-pe="gripreset" data-t="' + t.target + '">Sjálfgefið</button></div>' +
-          '<div class="pe-note">Engin mál breytast — bara staðsetning fyrir teikningu og /cnc (frá botni fronts að botni raufar).</div>';
-      }
+    if (gripTargets.length){
+      right += '<div class="pe-door"><h4>Grip</h4>';
+      gripTargets.forEach(function(t, gi){
+        var g = proGripOf(b, t.target), type = g ? g.type : "none";
+        right += '<div class="pe-grip-target"' + (gi ? ' style="margin-top:10px;padding-top:10px;border-top:1px solid #e1e4e8"' : '') + '>' +
+          '<div class="pe-row"><b>' + t.label + ' (' + t.heightMm + ' mm)</b></div><div class="pe-row">' +
+          '<button type="button" class="pe-btn' + (type === "none" ? " on" : "") + '" data-pe="griptype" data-t="' + t.target + '" data-v="none">Ekkert</button>' +
+          (t.allowAlla ? '<button type="button" class="pe-btn' + (type === "alla" ? " on" : "") + '" data-pe="griptype" data-t="' + t.target + '" data-v="alla">Alla leið</button>' : '') +
+          '<button type="button" class="pe-btn' + (type === "hluti" ? " on" : "") + '" data-pe="griptype" data-t="' + t.target + '" data-v="hluti">Hluti</button></div>';
+        if (type === "alla") right += '<div class="pe-row">Brún: ' +
+            '<button type="button" class="pe-btn' + (g.brun === "efst" ? " on" : "") + '" data-pe="gripbrun" data-t="' + t.target + '" data-v="efst">Efst</button>' +
+            '<button type="button" class="pe-btn' + (g.brun === "neðst" ? " on" : "") + '" data-pe="gripbrun" data-t="' + t.target + '" data-v="neðst">Neðst</button></div>' +
+            '<div class="pe-note">Lárétt rauf, ' + GRIP_SHRINK_MM + ' mm — fronturinn verður ' + Math.max(0, t.heightMm - GRIP_SHRINK_MM) + ' mm eftir skerðingu.</div>';
+        else if (type === "hluti"){
+          var gatt = g.att || "lárétt", gstart = g.start != null ? g.start : proGripDefaultStart(b, c, fb.zone, t), glen = g.length || GRIP_LEN_DEFAULT_MM;
+          right += '<div class="pe-row">Átt: ' +
+            '<button type="button" class="pe-btn' + (gatt === "lárétt" ? " on" : "") + '" data-pe="gripatt" data-t="' + t.target + '" data-v="lárétt">Lárétt</button>' +
+            '<button type="button" class="pe-btn' + (gatt === "lóðrétt" ? " on" : "") + '" data-pe="gripatt" data-t="' + t.target + '" data-v="lóðrétt">Lóðrétt</button></div>' +
+            '<div class="pe-row">Frá botni: <input type="number" min="0" max="' + Math.max(0, t.heightMm - 20) + '" step="1" value="' + gstart + '" data-pe="gripstart" data-t="' + t.target + '"> mm · Lengd: <input type="number" min="20" max="' + t.heightMm + '" step="1" value="' + glen + '" data-pe="griplen" data-t="' + t.target + '"> mm ' +
+            '<button type="button" class="pe-btn" data-pe="gripreset" data-t="' + t.target + '">Sjálfgefið</button></div>' +
+            '<div class="pe-note">Engin mál breytast — bara staðsetning fyrir teikningu og /cnc (frá botni fronts að botni raufar).</div>';
+        }
+        right += '</div>';
+      });
       right += '</div>';
-    });
+    }
     var isReady = proReady(b), issues = proIssues(b, c, fb.zone);
     if (issues.length) right += '<div class="pe-issues">' + issues.map(function(x){ return '<div>⛔ ' + escapeHtmlPro(x) + '</div>'; }).join("") + '</div>';
     right += isReady
@@ -9019,7 +9094,7 @@
         '<button type="button" class="pe-ready undo" data-pe="ready" data-v="0">Taka merkinguna af</button>'
       : (b.smidaReady ? '<div class="pe-note">⚠️ Skápnum var breytt eftir að hann var merktur klár — yfirfara og merkja aftur.</div>' : '') +
         '<button type="button" class="pe-ready" data-pe="ready" data-v="1"' + (issues.length ? ' disabled title="Lagaðu ⛔ fyrst"' : '') + '>✅ Klár til framleiðslu</button>';
-    el.innerHTML = '<div class="pe-card"><div>' + svg + '</div><div>' + right + '</div></div>';
+    el.innerHTML = '<div class="pe-card"><div class="pe-img">' + svg + '</div><div class="pe-content">' + right + '</div></div>';
     var peInt = el.querySelector("#peInterior");
     if (peInt) wireInteriorControls(peInt, fb.wall, fb.zone, b, c); // every change ends in refreshAfterEdit → redraws this editor
     // Collapsible sections (user, 2026-10-15): the whole panel is rebuilt from scratch on every edit, so collapse
