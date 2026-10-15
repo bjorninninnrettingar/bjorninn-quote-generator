@@ -4190,9 +4190,15 @@
           commit(cc, cur.map(function(h){ return Math.round(h); }));
           return;
         }
-        var r = KP3D.resizeFrontFree(fronts(), cc, i, v);
-        if (r.invalid.length) toast("⚠️ " + r.invalid.map(function(idx){ return CODE_LABEL[cc[idx]].toLowerCase() + " (" + Math.round(r.fronts[idx]) + " mm, lágmark " + KP3D.slotMin(cc[idx]) + " mm)"; }).join(", ") + " undir lágmarki — lagaðu áður en skápurinn er merktur klár.");
-        commit(cc, r.fronts);
+        // Only this one front changes — the others stay exactly what they were typed/dragged to (user,
+        // 2026-10-19: editing one field while another was mid-edit kept bumping the other's number; every
+        // field is now independent, same as the tall-unit branch above always was). The stack not summing to
+        // the body yet is fine — stackFrontsMm no longer resets it, it's just not finished.
+        var cur = fronts().slice(); cur[i] = Math.max(5, v);
+        var invalid = [];
+        cur.forEach(function(h, idx){ if (h < KP3D.slotMin(cc[idx]) - 0.5) invalid.push(idx); });
+        if (invalid.length) toast("⚠️ " + invalid.map(function(idx){ return CODE_LABEL[cc[idx]].toLowerCase() + " (" + Math.round(cur[idx]) + " mm, lágmark " + KP3D.slotMin(cc[idx]) + " mm)"; }).join(", ") + " undir lágmarki — lagaðu áður en skápurinn er merktur klár.");
+        commit(cc, cur);
       });
       inp.addEventListener("keydown", function(e){ if (e.key === "Enter") inp.blur(); });
     });

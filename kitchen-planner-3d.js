@@ -580,10 +580,13 @@
       // drafts from before 2026-10-09 stored front heights with 3 mm between them: turn them into slots
       if (Math.abs(sum + (codes.length - 1) * DRAWER_GAP_MM - bodyMm) < 1.5){
         var below = 0; f = f.map(function(h, i){ var sl = i < f.length - 1 ? h + DRAWER_GAP_MM : bodyMm - below; below += sl; return sl; });
-        sum = bodyMm;
       }
-      var ok = Math.abs(sum - bodyMm) < 1.5 && f.every(function(h, i){ return h >= slotMin(codes[i]) - 0.5; });
-      if (ok) return f.slice();
+      // Typed heights are used as-is while mid-edit (user, 2026-10-19: editing one front kept getting
+      // overwritten by this falling back to the computed defaults the moment the sum/minimums weren't right
+      // yet) — they don't have to sum to the body or clear each drawer's own minimum until the stack is
+      // actually finished; only a sane floor so the 3D geometry never goes to zero/negative. A short or tall
+      // stack just shows a gap/overhang, which is the signal to keep going, not a silent reset.
+      return f.map(function(h){ return Math.max(5, Math.round(h * 10) / 10); });
     }
     return drawerFrontsMm(codes, bodyMm);
   }
