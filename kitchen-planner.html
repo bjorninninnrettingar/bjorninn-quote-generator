@@ -3525,27 +3525,61 @@
   // height on the side panel and the floating chip but carcass-only in Smíða, "bundið saman á mismunandi
   // stöðum"). b.heightMm itself, and blockHeightMm(), stay untouched — still the real overall height Airtable's
   // own "Hæð" field, the 3D build, Útfærsla/product matching and every other internal calc need. These two
-  // functions are the ONE place the ±100 mm plinth crosses between "what's stored" and "what's shown/typed" —
+  // functions are the ONE place the ±plinth-mm crosses between "what's stored" and "what's shown/typed" —
   // every panel (Smíða, the side panel, the floating chip, the room overview) now goes through them, so there's
   // exactly one meaning of "Hæð" to learn. Never for a wall cabinet, panel or appliance — no plinth there.
-  var PLINTH_MM = 100;
-  function plinthMmOf(c, zone){ return zone === "floor" && !c.panel && !c.appliance ? PLINTH_MM : 0; }
-  function carcassHeightMm(b, c, zone){ return blockHeightMm(b, c) - plinthMmOf(c, zone); }
-  function carcassHeightRange(c, zone){ var r = dimRange(c, "heightMm"), p = plinthMmOf(c, zone); return [r[0] - p, r[1] - p]; }
+  var PLINTH_MM = 100; // default when a wall/island hasn't set its own (2026-10-18, user: per wall + island)
+  // A real wall, a raw island (state.islands[i]), or a surfaces()-wrapped island row (.island backref) all
+  // resolve to the one object that actually carries .plinthMm — the real wall, or the real island either way.
+  function plinthSourceOf(wall){ return (wall && wall.island) || wall; }
+  function plinthMmOf(c, zone, wall){
+    if (zone !== "floor" || c.panel || c.appliance) return 0;
+    var src = plinthSourceOf(wall);
+    return (src && typeof src.plinthMm === "number") ? src.plinthMm : PLINTH_MM;
+  }
+  function carcassHeightMm(b, c, zone, wall){ return blockHeightMm(b, c) - plinthMmOf(c, zone, wall); }
+  function carcassHeightRange(c, zone, wall){ var r = dimRange(c, "heightMm"), p = plinthMmOf(c, zone, wall); return [r[0] - p, r[1] - p]; }
   // Validated here, in carcass terms, rather than left to applyBlockDim's own dimRange check: that check (and
   // its toast) works in full-height mm, which would quote the wrong numbers for a value typed as carcass mm.
-  function applyCarcassHeightMm(blockId, zone, c, raw){ // -> true when applied (no save / re-render, same as applyBlockDim)
-    var v = Math.round(parseFloat(String(raw).replace(",", ".")) || 0), r = carcassHeightRange(c, zone);
+  function applyCarcassHeightMm(blockId, zone, wall, c, raw){ // -> true when applied (no save / re-render, same as applyBlockDim)
+    var v = Math.round(parseFloat(String(raw).replace(",", ".")) || 0), r = carcassHeightRange(c, zone, wall);
     if (isNaN(v) || v < r[0] || v > r[1]){
       toast("Hæð þarf að vera á milli " + r[0] + " og " + r[1] + " mm.");
       return false;
     }
-    return applyBlockDim(blockId, "heightMm", v + plinthMmOf(c, zone));
+    return applyBlockDim(blockId, "heightMm", v + plinthMmOf(c, zone, wall));
   }
-  function setCarcassHeightMm(blockId, zone, c, raw){
-    if (!applyCarcassHeightMm(blockId, zone, c, raw)){ renderEditPanel(); return; }
+  function setCarcassHeightMm(blockId, zone, wall, c, raw){
+    if (!applyCarcassHeightMm(blockId, zone, wall, c, raw)){ renderEditPanel(); return; }
     save();
     refreshAfterEdit();
+  }
+  var PLINTH_RANGE = [0, 300];
+  // One wall or island's own sökkulhæð (PRO, 2026-10-18, user) — changes only how much of each floor cabinet's
+  // already-stored full height displays/edits as "carcass" here; b.heightMm itself never moves, so this never
+  // resizes or relocates anything already built.
+  function setWallPlinthMm(wall, raw){
+    var v = Math.round(parseFloat(String(raw).replace(",", ".")) || 0);
+    if (isNaN(v) || v < PLINTH_RANGE[0] || v > PLINTH_RANGE[1]){
+      toast("Sökkulhæð þarf að vera á milli " + PLINTH_RANGE[0] + " og " + PLINTH_RANGE[1] + " mm.");
+      return false;
+    }
+    plinthSourceOf(wall).plinthMm = v;
+    save();
+    refreshAfterEdit();
+    return true;
+  }
+  function setAllPlinthMm(raw){
+    var v = Math.round(parseFloat(String(raw).replace(",", ".")) || 0);
+    if (isNaN(v) || v < PLINTH_RANGE[0] || v > PLINTH_RANGE[1]){
+      toast("Sökkulhæð þarf að vera á milli " + PLINTH_RANGE[0] + " og " + PLINTH_RANGE[1] + " mm.");
+      return false;
+    }
+    state.walls.forEach(function(w){ w.plinthMm = v; });
+    (state.islands || []).forEach(function(isl){ isl.plinthMm = v; });
+    save();
+    refreshAfterEdit();
+    return true;
   }
   function clampElev(b){
     var c = CATALOG[b.type], roomH = state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM, h = blockHeightMm(b, c);
@@ -6381,7 +6415,7 @@
     if (PRO) proPanelButton(document.getElementById("cabinetEditPanel"));
     // size chip on the floating toolbar
     var chip = document.getElementById("fbDim"), fb = selectedBlockId ? findBlock(selectedBlockId) : null, op = !fb && selectedBlockId ? findOpening(selectedBlockId) : null;
-    chip.textContent = fb ? fb.block.widthMm + " × " + carcassHeightMm(fb.block, CATALOG[fb.block.type], fb.zone) + " × " + (fb.block.depthMm || CATALOG[fb.block.type].d)
+    chip.textContent = fb ? fb.block.widthMm + " × " + carcassHeightMm(fb.block, CATALOG[fb.block.type], fb.zone, fb.wall) + " × " + (fb.block.depthMm || CATALOG[fb.block.type].d)
       : op ? op.o.widthMm + " × " + op.o.heightMm : "";
     chip.classList.toggle("editable", !!((fb && !fb.block.panel && !CATALOG[fb.block.type].panel && !CATALOG[fb.block.type].shelfStack) || op));
     chip.title = chip.classList.contains("editable") ? "Smelltu til að slá inn mál" : "";
@@ -6401,7 +6435,7 @@
     if (!chip.classList.contains("editable") || chip.querySelector("input")) return;
     var fb = selectedBlockId ? findBlock(selectedBlockId) : null, op = !fb && selectedBlockId ? findOpening(selectedBlockId) : null;
     if (fb && fb.block.locked){ lockedToast(); return; }
-    var fields = fb ? [["widthMm", fb.block.widthMm, "Breidd"], ["heightMm", carcassHeightMm(fb.block, CATALOG[fb.block.type], fb.zone), "Hæð"], ["depthMm", fb.block.depthMm || CATALOG[fb.block.type].d, "Dýpt"]]
+    var fields = fb ? [["widthMm", fb.block.widthMm, "Breidd"], ["heightMm", carcassHeightMm(fb.block, CATALOG[fb.block.type], fb.zone, fb.wall), "Hæð"], ["depthMm", fb.block.depthMm || CATALOG[fb.block.type].d, "Dýpt"]]
       : op ? [["widthMm", op.o.widthMm, "Breidd"], ["heightMm", op.o.heightMm, "Hæð"]] : null;
     if (!fields) return;
     chip.innerHTML = fields.map(function(f){ return '<input type="number" data-k="' + f[0] + '" value="' + f[1] + '" title="' + f[2] + ' (mm)" step="1">'; }).join('<span class="x">×</span>');
@@ -6414,7 +6448,7 @@
         if (!ok || String(fields[i][1]) === inp.value.trim()) return;
         changed = true;
         ok = fb
-          ? (fields[i][0] === "heightMm" ? applyCarcassHeightMm(fb.block.id, fb.zone, CATALOG[fb.block.type], inp.value) : applyBlockDim(fb.block.id, fields[i][0], inp.value))
+          ? (fields[i][0] === "heightMm" ? applyCarcassHeightMm(fb.block.id, fb.zone, fb.wall, CATALOG[fb.block.type], inp.value) : applyBlockDim(fb.block.id, fields[i][0], inp.value))
           : applyOpeningDim(op, fields[i][0], inp.value);
       });
       if (changed) save();
@@ -6455,7 +6489,7 @@
         var hw = b.interior && b.interior.mode === "skuffur" ? " · " + b.interior.count + " " + plural(b.interior.count, "skúffa", "skúffur")
           : c.shelfStack ? " · " + b.count + " " + plural(b.count, "hilla", "hillur")
           : c.shelfRange ? " · " + KP3D.shelvesOf(b) + " " + plural(KP3D.shelvesOf(b), "hilla", "hillur") : "";
-        html += '<button type="button" class="ov-item" data-select="' + b.id + '"><span style="color:var(--ink);font-weight:600;">' + c.label + hw + '</span><span>' + b.widthMm + '×' + carcassHeightMm(b, c, zn) + '×' + (b.depthMm || c.d) + '</span></button>';
+        html += '<button type="button" class="ov-item" data-select="' + b.id + '"><span style="color:var(--ink);font-weight:600;">' + c.label + hw + '</span><span>' + b.widthMm + '×' + carcassHeightMm(b, c, zn, wall) + '×' + (b.depthMm || c.d) + '</span></button>';
       });
       html += '</div>';
     });
@@ -6465,7 +6499,7 @@
       islandRowList(isl).forEach(function(row){
         row.forEach(function(b){
           var c = CATALOG[b.type];
-          html += '<button type="button" class="ov-item" data-select="' + b.id + '"><span style="color:var(--ink);font-weight:600;">' + c.label + '</span><span>' + b.widthMm + '×' + carcassHeightMm(b, c, "floor") + '×' + (b.depthMm || c.d) + '</span></button>';
+          html += '<button type="button" class="ov-item" data-select="' + b.id + '"><span style="color:var(--ink);font-weight:600;">' + c.label + '</span><span>' + b.widthMm + '×' + carcassHeightMm(b, c, "floor", isl) + '×' + (b.depthMm || c.d) + '</span></button>';
         });
       });
       html += '</div>';
@@ -6506,6 +6540,8 @@
         '<div class="edit-field"><label>Raðir</label><div class="hw-toggle">' +
           '<button type="button" class="hw-btn' + (!isl.two ? ' active' : '') + '" data-rows="1">Ein röð</button>' +
           '<button type="button" class="hw-btn' + (isl.two ? ' active' : '') + '" data-rows="2">Tvær raðir</button></div></div>' +
+        (PRO ? '<div class="edit-field"><label>Sökkulhæð</label><div class="dim-grid"><div class="dim-f"><input type="number" data-role="plinth" value="' + plinthMmOf({}, "floor", isl) + '" min="' + PLINTH_RANGE[0] + '" max="' + PLINTH_RANGE[1] + '" step="1"><small>mm · ' + PLINTH_RANGE[0] + '–' + PLINTH_RANGE[1] + '</small></div></div>' +
+          '<button type="button" class="btn btn-secondary btn-small" data-role="plinthAll" style="margin-top:6px;">Nota á alla veggi og eyjur</button></div>' : '') +
         '<div class="edit-field"><label>Staðsetning — dragðu gula punktinn á gólfinu, eða notaðu örvarnar</label><div class="hw-count">' +
           '<button class="iconbtn" data-mv="-1,0" title="Vinstri">◀</button><button class="iconbtn" data-mv="0,-1" title="Upp">▲</button>' +
           '<button class="iconbtn" data-mv="0,1" title="Niður">▼</button><button class="iconbtn" data-mv="1,0" title="Hægri">▶</button></div>' +
@@ -6527,6 +6563,11 @@
       btn.addEventListener("click", function(){ var d = btn.dataset.mv.split(","); moveIsland(isl, 100 * parseInt(d[0], 10), 100 * parseInt(d[1], 10)); });
     });
     host.querySelector('[data-role="rot"]').addEventListener("click", function(){ isl.rot = ((isl.rot || 0) + 90) % 360; save(); refreshAfterEdit(); });
+    var plinthInp = host.querySelector('[data-role="plinth"]');
+    if (plinthInp){
+      plinthInp.addEventListener("change", function(){ if (!setWallPlinthMm(isl, plinthInp.value)) plinthInp.value = plinthMmOf({}, "floor", isl); });
+      host.querySelector('[data-role="plinthAll"]').addEventListener("click", function(){ setAllPlinthMm(plinthInp.value); });
+    }
     var backBtn = host.querySelector('[data-role="back"]');
     if (backBtn) backBtn.addEventListener("click", function(){ if (isl.back) delete isl.back; else isl.back = true; save(); refreshAfterEdit(); });
     host.querySelector('[data-role="addA"]').addEventListener("click", function(){ addBlock(surfaceById(isl.id + "a"), "grunnskapur"); });
@@ -6659,7 +6700,7 @@
     }
     var dims = '<div class="dim-grid">' +
       (c.panel ? '<div class="dim-f fixed"><label>Þykkt</label><b>19 mm</b></div>' : dimF("widthMm", c.shelfStack ? "Lengd" : "Breidd", b.widthMm, dimRange(c, "widthMm"))) +
-      (c.shelfStack ? '<div class="dim-f fixed"><label>Heildarhæð</label><b>' + hNow + '</b></div>' : dimF("heightMm", "Hæð", carcassHeightMm(b, c, zone), carcassHeightRange(c, zone))) +
+      (c.shelfStack ? '<div class="dim-f fixed"><label>Heildarhæð</label><b>' + hNow + '</b></div>' : dimF("heightMm", "Hæð", carcassHeightMm(b, c, zone, wall), carcassHeightRange(c, zone, wall))) +
       dimF("depthMm", "Dýpt", dNow, dimRange(c, "depthMm")) +
     '</div>';
     var elevNow = KP3D.elevOf(b);
@@ -6757,7 +6798,7 @@
     });
     host.querySelectorAll("[data-dim]").forEach(function(inp){
       inp.addEventListener("change", function(){
-        if (inp.dataset.dim === "heightMm") setCarcassHeightMm(b.id, zone, c, inp.value);
+        if (inp.dataset.dim === "heightMm") setCarcassHeightMm(b.id, zone, wall, c, inp.value);
         else setBlockDim(b.id, inp.dataset.dim, inp.value);
       });
     });
@@ -6865,7 +6906,7 @@
       .concat(state.doors.filter(function(o){ return o.wallId === wall.id; }).map(function(o){ return { kind:"door", o:o, label:o.gap ? "Op í vegg" : "Hurð" }; }));
     var list = items.map(function(b){
       var c = CATALOG[b.type], zn = wall.floor.indexOf(b) >= 0 ? "floor" : "wall";
-      return '<button type="button" class="ov-item" data-select="' + b.id + '"><span style="color:var(--ink);font-weight:600;">' + c.label + '</span><span>' + b.widthMm + '×' + carcassHeightMm(b, c, zn) + '×' + (b.depthMm || c.d) + '</span></button>';
+      return '<button type="button" class="ov-item" data-select="' + b.id + '"><span style="color:var(--ink);font-weight:600;">' + c.label + '</span><span>' + b.widthMm + '×' + carcassHeightMm(b, c, zn, wall) + '×' + (b.depthMm || c.d) + '</span></button>';
     }).concat(ops.map(function(x){
       return '<button type="button" class="ov-item" data-select="' + x.o.id + '"><span style="color:var(--ink);font-weight:600;">' + x.label + '</span><span>' + x.o.widthMm + '×' + x.o.heightMm + '</span></button>';
     })).join("");
@@ -6874,6 +6915,8 @@
         '<div class="edit-panel-head"><div><h4>' + wall.label + '<span class="wall-badge">valinn</span></h4><div class="sub">' + wall.lengthMm + ' mm langur · lofthæð ' + roomH + ' mm</div></div>' +
           '<button class="iconbtn" data-role="close" title="Loka">✕</button></div>' +
         '<p class="ov-mat" style="margin:0 0 10px;">Laust pláss: neðri röð <b>' + freeMm("floor") + ' mm</b> · efri röð <b>' + freeMm("wall") + ' mm</b></p>' +
+        (PRO ? '<div class="edit-field"><label>Sökkulhæð</label><div class="dim-grid"><div class="dim-f"><input type="number" data-role="plinth" value="' + plinthMmOf({}, "floor", wall) + '" min="' + PLINTH_RANGE[0] + '" max="' + PLINTH_RANGE[1] + '" step="1"><small>mm · ' + PLINTH_RANGE[0] + '–' + PLINTH_RANGE[1] + '</small></div></div>' +
+          '<button type="button" class="btn btn-secondary btn-small" data-role="plinthAll" style="margin-top:6px;">Nota á alla veggi og eyjur</button></div>' : '') +
         '<div class="ov-wall-h" style="margin-bottom:6px;">Á þessum vegg</div>' +
         (list || '<div class="empty-note">Ekkert ennþá — dragðu skáp úr vörulistanum á vegginn.</div>') +
         '<div class="edit-actions" style="margin-top:12px;">' +
@@ -6885,6 +6928,11 @@
     host.querySelectorAll("[data-select]").forEach(function(btn){
       btn.addEventListener("click", function(){ onCabinetSelect({ blockId:btn.dataset.select }); });
     });
+    var plinthInp = host.querySelector('[data-role="plinth"]');
+    if (plinthInp){
+      plinthInp.addEventListener("change", function(){ if (!setWallPlinthMm(wall, plinthInp.value)) plinthInp.value = plinthMmOf({}, "floor", wall); });
+      host.querySelector('[data-role="plinthAll"]').addEventListener("click", function(){ setAllPlinthMm(plinthInp.value); });
+    }
     host.querySelector('[data-role="addWin"]').addEventListener("click", function(){ addOpening("gluggi", wall.id, Math.round(wall.lengthMm / 2)); });
     host.querySelector('[data-role="addDoor"]').addEventListener("click", function(){ addOpening("hurd", wall.id, Math.round(wall.lengthMm / 2)); });
     host.querySelector('[data-role="addGap"]').addEventListener("click", function(){ addOpening("gat", wall.id, Math.round(wall.lengthMm / 2)); });
@@ -9026,7 +9074,7 @@
     // applyCarcassHeightMm every other "Hæð" in the app now goes through (the side panel, the floating chip, the
     // room overview), so there's exactly one meaning to learn. Same 100 mm every other "frá botni skáps"
     // measurement here already excludes (proBodyMm): 0 = top of the plinth, not the floor.
-    var carcassMm = carcassHeightMm(b, c, fb.zone);
+    var carcassMm = carcassHeightMm(b, c, fb.zone, fb.wall);
     var right = '<button type="button" class="pe-btn pe-close" data-pe="close">Loka ✕</button>' +
       '<h3>' + (key ? key + " · " : "") + c.label + '</h3><div class="pe-sub">' + b.widthMm + ' × ' + carcassMm + ' mm · ' +
       (b.smida ? "Smíðagögn vistuð á skápnum" : "Sjálfgefið (ekkert breytt)") + '</div>';
@@ -9039,7 +9087,7 @@
     // default below skips it; it lives in .pe-img (sticky with the drawing), not the scrolling controls column.
     var malHtml = "";
     if (!c.panel){
-      var dW = dimRange(c, "widthMm"), dH = carcassHeightRange(c, fb.zone), dD = dimRange(c, "depthMm");
+      var dW = dimRange(c, "widthMm"), dH = carcassHeightRange(c, fb.zone, fb.wall), dD = dimRange(c, "depthMm");
       malHtml = '<div class="pe-mal"><h4>Mál</h4>' +
         '<div class="pe-row">Breidd: <input type="number" step="1" min="' + dW[0] + '" max="' + dW[1] + '" value="' + b.widthMm + '" data-pe="dimw"> mm</div>' +
         '<div class="pe-row">Hæð: <input type="number" step="1" min="' + dH[0] + '" max="' + dH[1] + '" value="' + carcassMm + '" data-pe="dimh"> mm</div>' +
@@ -9230,7 +9278,7 @@
     }
     act('[data-pe="dimw"]', function(n){ setDim("widthMm", n.value); });
     act('[data-pe="dimh"]', function(n){ // typed as carcass, validated and stored as the real overall height
-      if (!applyCarcassHeightMm(b.id, fb.zone, c, n.value)){ renderBoxEditor(); return; }
+      if (!applyCarcassHeightMm(b.id, fb.zone, fb.wall, c, n.value)){ renderBoxEditor(); return; }
       save(); refreshAfterEdit(); renderBoxEditor();
     });
     act('[data-pe="dimd"]', function(n){ setDim("depthMm", n.value); });
