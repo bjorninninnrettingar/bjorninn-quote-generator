@@ -4630,10 +4630,15 @@
         }).join("") + '</div><div class="uw-custom"><input type="number" data-uw-wcustom min="' + c.minW + '" max="' + c.maxW + '" step="10" value="' + b.widthMm + '"><small>mm · sérmál ' + c.minW + '–' + c.maxW + '</small></div></div>';
       }
       if (c.hasInterior) html += '<div class="edit-field">' + hardwareHTML(b, c, PRO ? { sides:true } : null) + '</div>';
-      var shelfN = c.shelfRange && !(c.hasInterior && b.interior.mode === "skuffur") ? KP3D.shelvesOf(b) : null; // b.shelves, same as the side panel + 3D
+      var shelfN = c.shelfRange && !(c.hasInterior && b.interior.mode === "skuffur" && c.cls !== "tall") ? KP3D.shelvesOf(b) : null; // b.shelves, same as the side panel + 3D
       if (shelfN != null){
         var rng = [c.shelfRange[0], c.shelfRange[1]];
         html += '<div class="edit-field"><label>Hillur</label><div class="hw-count"><button class="iconbtn" data-uw-sh="-1"' + (shelfN <= rng[0] ? " disabled" : "") + '>−</button><b>' + shelfN + '</b><button class="iconbtn" data-uw-sh="1"' + (shelfN >= rng[1] ? " disabled" : "") + '>+</button><span>' + plural(shelfN, "hilla", "hillur") + '</span></div></div>';
+      }
+      var railN = c.railRange ? KP3D.railsOf(b) : null; // Fataslá
+      if (railN != null){
+        var rrng = [c.railRange[0], c.railRange[1]];
+        html += '<div class="edit-field"><label>Fataslár</label><div class="hw-count"><button class="iconbtn" data-uw-rail="-1"' + (railN <= rrng[0] ? " disabled" : "") + '>−</button><b>' + railN + '</b><button class="iconbtn" data-uw-rail="1"' + (railN >= rrng[1] ? " disabled" : "") + '>+</button><span>' + plural(railN, "fataslá", "fataslár") + '</span></div></div>';
       }
       html += variantHTML(b, c);
       if (uw.island){
@@ -4728,6 +4733,11 @@
     side.querySelectorAll("[data-uw-sh]").forEach(function(el){ el.addEventListener("click", function(){
       var d = +el.dataset.uwSh;
       b.shelves = Math.max(c.shelfRange[0], Math.min(c.shelfRange[1], KP3D.shelvesOf(b) + d));
+      renderUnitWizard();
+    }); });
+    side.querySelectorAll("[data-uw-rail]").forEach(function(el){ el.addEventListener("click", function(){
+      var d = +el.dataset.uwRail;
+      b.rails = Math.max(c.railRange[0], Math.min(c.railRange[1], KP3D.railsOf(b) + d));
       renderUnitWizard();
     }); });
     if (c.bur) wireBurSetup(side, b, renderUnitWizard);
@@ -6600,12 +6610,19 @@
     var malHtml = '<div class="edit-field"><label>Mál (mm)</label>' + dims + '</div>' + elevField + stackField +
       (c.panel ? '<div class="edit-field"><button type="button" class="iconbtn" data-role="match" title="Tekur hæð, dýpt og hæð frá gólfi af skápnum sem hún liggur að">↔ Passa við skápinn</button></div>' : '');
     var innvolsHtml = (c.hasInterior ? '<div class="edit-field">' + hardwareHTML(b, c, PRO ? { sides:true } : null) + '</div>' : '') +
-        (c.shelfRange && !(b.interior && b.interior.mode === "skuffur")
+        (c.shelfRange && !(b.interior && b.interior.mode === "skuffur" && c.cls !== "tall")
           ? '<div class="edit-field"><label>Lausar hillur</label><div class="hw-count">' +
               '<button class="iconbtn" data-role="sh-dec" ' + (KP3D.shelvesOf(b) <= c.shelfRange[0] ? "disabled" : "") + '>−</button>' +
               '<b>' + KP3D.shelvesOf(b) + '</b>' +
               '<button class="iconbtn" data-role="sh-inc" ' + (KP3D.shelvesOf(b) >= c.shelfRange[1] ? "disabled" : "") + '>+</button>' +
               '<span>' + plural(KP3D.shelvesOf(b), "hilla", "hillur") + '</span></div></div>'
+          : '') +
+        (c.railRange
+          ? '<div class="edit-field"><label>Fataslár</label><div class="hw-count">' +
+              '<button class="iconbtn" data-role="rail-dec" ' + (KP3D.railsOf(b) <= c.railRange[0] ? "disabled" : "") + '>−</button>' +
+              '<b>' + KP3D.railsOf(b) + '</b>' +
+              '<button class="iconbtn" data-role="rail-inc" ' + (KP3D.railsOf(b) >= c.railRange[1] ? "disabled" : "") + '>+</button>' +
+              '<span>' + plural(KP3D.railsOf(b), "fataslá", "fataslár") + '</span></div></div>'
           : '') +
         (c.cls === "corner"
           ? '<div class="edit-field"><label title="Ein hurð; hinn helmingurinn er föst blindplata">Hurðin er</label><div class="hw-toggle" data-role="swing-toggle">' +
@@ -6715,6 +6732,11 @@
       save();
       refreshAfterEdit();
     }
+    function setRails(delta){
+      b.rails = Math.max(c.railRange[0], Math.min(c.railRange[1], KP3D.railsOf(b) + delta));
+      save();
+      refreshAfterEdit();
+    }
     var swingSel = host.querySelector('[data-role="swing"]');
     if (swingSel) swingSel.addEventListener("change", function(e){
       if (e.target.value) b.swing = e.target.value; else delete b.swing;
@@ -6727,6 +6749,9 @@
     var shDec = host.querySelector('[data-role="sh-dec"]'), shInc = host.querySelector('[data-role="sh-inc"]');
     if (shDec) shDec.addEventListener("click", function(){ setShelves(-1); });
     if (shInc) shInc.addEventListener("click", function(){ setShelves(1); });
+    var railDec = host.querySelector('[data-role="rail-dec"]'), railInc = host.querySelector('[data-role="rail-inc"]');
+    if (railDec) railDec.addEventListener("click", function(){ setRails(-1); });
+    if (railInc) railInc.addEventListener("click", function(){ setRails(1); });
     host.querySelector('[data-role="left"]').addEventListener("click", function(){ nudgeBlock(wall, zone, b.id, -1, 100); });
     host.querySelector('[data-role="right"]').addEventListener("click", function(){ nudgeBlock(wall, zone, b.id, 1, 100); });
     host.querySelector('[data-role="delete"]').addEventListener("click", function(){
@@ -7613,11 +7638,13 @@
           if (tallDoor > 0) notes.push("Hárskápur með skúffum: hurð á lömum efst (" + tallDoor + " mm), skúffur undir henni (" + drawerBodyMm(b, c) + " mm).");
           notes.push("Skúffur (" + DRAWER_SYSTEMS[drawerSys()].label + ", ofan frá): " + dCodes.map(function(cd, i){ return cd + (dFr[i] ? " " + Math.round(dFr[i]) + " mm" : ""); }).reverse().join(" / ") +
             (b.interior.inner ? " + innskúffa (" + b.interior.inner + ")" : "") + (v2 ? "" : " — ekki til sem stöðluð samsetning, vinsamlegast staðfestu."));
-        } else if (b.interior && b.interior.mode === "hillur" && !v2 && !(c.sink && !KP3D.shelvesOf(b))){ // a sink with doors has no shelf to mention
-          notes.push("Hillufjöldi: " + (KP3D.shelvesOf(b) || 0) + " stk."); // b.shelves, as drawn — see v2RecordFor
+        }
+        if (b.interior && KP3D.hasShelfLayout(b) && !v2 && !(c.sink && !KP3D.shelvesOf(b))){ // a sink with doors has no shelf to mention; fires alongside the drawer note above for a tall combo cabinet
+          notes.push("Hillufjöldi: " + (KP3D.shelvesOf(b) || 0) + " stk." + (isDrawerUnit(b) ? " (í hurðinni efst, fyrir ofan skúffurnar)" : "")); // b.shelves, as drawn — see v2RecordFor
         } else if (c.shelfRange && !c.hasInterior && !v2){
           notes.push("Hillufjöldi: " + (KP3D.shelvesOf(b) || 0) + " stk.");
         }
+        if (c.railRange && KP3D.railsOf(b)) notes.push("Fataslá: " + KP3D.railsOf(b) + " stk.");
         if (c.bur){ // what's inside, as set up (an empty one or a set that isn't a BUR Útfærsla has no V2)
           var bc = KP3D.burCodesOf(b, drawerSys()), bs = b.burShelves != null ? b.burShelves : 2;
           notes.push("Búrskápur: " + (bc.length ? bc.length + " innskúffur (neðan frá: " + bc.join(" · ") + ")" : "engar innskúffur") + ", " + bs + " " + plural(bs, "hilla", "hillur") + (v2 ? "" : " — ekki stöðluð samsetning, söluaðili staðfestir."));
@@ -7629,7 +7656,7 @@
           notes.push("Neðri brún er " + b.elevMm + " mm frá gólfi.");
         }
         if (c.panel) notes.push("Úthlið: " + blockHeightMm(b, c) + " mm há, " + (b.depthMm || c.d) + " mm djúp" + (c.zone === "wall" ? ", neðri brún " + KP3D.elevOf(b) + " mm frá gólfi" : "") + ".");
-        if (b.swing && !(b.interior && b.interior.mode === "skuffur")){
+        if (b.swing && !(b.interior && b.interior.mode === "skuffur" && c.cls !== "tall")){
           notes.push("Viðskiptavinur óskar eftir að lamir séu " + (b.swing === "vinstri" ? "vinstra" : "hægra") + " megin (séð framan frá).");
         }
         var v3 = v1 ? v3RecordsFor(b, c) : [];
@@ -8845,6 +8872,20 @@
       }
       right += '</div>';
     }
+    var railOn = !!c.railRange;
+    function railList(){ return KP3D.railLayoutOf(b, body, drawerSys()); }
+    var railCustom = Array.isArray(b.railPos);
+    if (railOn){
+      right += '<div class="pe-door"><h4>Fataslár</h4>';
+      railList().forEach(function(rl, k){
+        right += '<div class="pe-row">Slá ' + (k + 1) + ': <input type="number" step="1" value="' + rl.mm + '" data-pe="railmm" data-k="' + k + '"> mm ' +
+          '<button type="button" class="pe-btn" data-pe="raildel" data-k="' + k + '" title="Taka slá">✕</button></div>';
+      });
+      right += '<div class="pe-row"><button type="button" class="pe-btn" data-pe="railadd">＋ Slá</button>' +
+        (railCustom ? '<button type="button" class="pe-btn" data-pe="railreset">Sjálfgefið</button>' : '') + '</div>' +
+        '<div class="pe-note">Hæð = miðja slárinnar frá botni skáps.</div>';
+      right += '</div>';
+    }
     if (dr || (c.oven && !c.lowOven)) right += '<div class="pe-door"><h4>' + (dr ? "Skúffur" : "Undir ofninum") + '</h4><div id="peInterior">' +
       (dr ? hardwareHTML(b, c, { sides:true }) : variantHTML(b, c, { sides:true })) + '</div>' +
       '<div class="pe-note">Sláðu inn frontahæð, dragðu bláu skilin á teikningunni eða ⠿ til að færa skúffu. Strikaða línan er Blum-hliðin (hlið = hæð hennar; staðsetningin er nálgun).</div></div>';
@@ -8934,6 +8975,26 @@
       var mid = Math.round((pts[best] + pts[best + 1]) / 2);
       if (!shelfOk(mid)){ toast("Ekki pláss fyrir fleiri hillur."); return; }
       list.push({ mm:mid, fixed:false, pos:3 }); setShelves(list); });
+    function railsNow(){ return railList(); }
+    function setRailList(list){
+      list.sort(function(a, z){ return a.mm - z.mm; });
+      for (var q = 1; q < list.length; q++) if (list[q].mm - list[q - 1].mm < 40){ toast("Fataslár þurfa minnst 40 mm á milli sín."); renderBoxEditor(); return; }
+      b.railPos = list; if (c.railRange) b.rails = list.length;
+      ovenDone();
+    }
+    function railOk(mm){ var r = KP3D.shelfSpaceMm(b, body, drawerSys()); return mm > r.lo + KP3D.OVEN_BOARD_MM && mm < r.hi - 10; }
+    act('[data-pe="railmm"]', function(n){ var list = railsNow(), v = Math.round(+n.value);
+      if (!railOk(v)){ var r = KP3D.shelfSpaceMm(b, body, drawerSys()); toast("Sláin þarf að vera á milli " + (r.lo + 17) + " og " + (r.hi - 11) + " mm."); renderBoxEditor(); return; }
+      list[+n.dataset.k].mm = v; setRailList(list); });
+    act('[data-pe="raildel"]', function(n){ var list = railsNow(); list.splice(+n.dataset.k, 1); setRailList(list); });
+    act('[data-pe="railadd"]', function(){ var list = railsNow(), r = KP3D.shelfSpaceMm(b, body, drawerSys());
+      if (c.railRange && list.length >= c.railRange[1]){ toast(c.label + " tekur mest " + c.railRange[1] + " fataslár."); return; }
+      var pts = [r.lo].concat(list.map(function(x){ return x.mm; }), [r.hi]), best = 0;
+      for (var j = 1; j < pts.length; j++) if (pts[j] - pts[j - 1] > pts[best + 1] - pts[best]) best = j - 1;
+      var mid = Math.round((pts[best] + pts[best + 1]) / 2);
+      if (!railOk(mid)){ toast("Ekki pláss fyrir fleiri slár."); return; }
+      list.push({ mm:mid }); setRailList(list); });
+    act('[data-pe="railreset"]', function(){ delete b.railPos; ovenDone(); });
     function setBur(k, v){ // move inner drawer k; the ones above keep their gaps but may not overlap, all must stay in the body
       var list = KP3D.burDrawersOf(b, drawerSys()), pos = list.map(function(d){ return d.mm; });
       pos[k] = Math.round(v);
@@ -9096,6 +9157,10 @@
       // the fixed count only once Rakel set the shelves up herself — until then V2 / Airtable keep deciding fixed shelves
       o.shelves = c.bur ? { list:sl } : Object.assign({ loose:sl.filter(function(x){ return !x.fixed; }).length, list:sl },
         Array.isArray(b.shelfPos) ? { fixed:sl.filter(function(x){ return x.fixed; }).length } : {});
+    }
+    if (c.railRange){ // Fataslá → /cnc, same zone as o.shelves (never changes what's ordered, see o.shelves)
+      var rl = KP3D.railLayoutOf(b, h, state.drawerSystem);
+      if (rl.length) o.rails = rl;
     }
     if (c.bur) o.inner = KP3D.burDrawersOf(b, state.drawerSystem).map(function(dd){ return { code:dd.code, mm:dd.mm }; }); // inner drawers behind the doors → /cnc
     var spl = !c.oven ? proSplit(b, h) : null; // (a fridge only once Rakel changed its split — else V2 decides)

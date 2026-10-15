@@ -22,9 +22,9 @@
     // 2026-10-09), so the worktop sits at ~932. Was 800 (700 box) until then.
     grunnskapur: { label:"Grunnskápur", zone:"floor", cls:"floor", defaultW:600, minW:200, maxW:1200, h:900,  d:600, minH:600,  maxH:1100, minD:300, maxD:700, hasInterior:true, drawerCountRange:[1,4], shelfRange:[0,4,1], counter:true },
     // tall units: 2400 box + 100 plinth (user, 2026-10-09 — they were 2300 + plinth)
-    harskapur:   { label:"Hárskápur",   zone:"floor", cls:"tall",  defaultW:600, minW:300, maxW:1200,  h:2500, d:600, minH:1800, maxH:2600, minD:300, maxD:700, hasInterior:true, drawerCountRange:[1,5], shelfRange:[0,8,5] },
+    harskapur:   { label:"Hárskápur",   zone:"floor", cls:"tall",  defaultW:600, minW:300, maxW:1200,  h:2500, d:600, minH:1800, maxH:2600, minD:300, maxD:700, hasInterior:true, drawerCountRange:[1,5], shelfRange:[0,8,5], railRange:[0,2,0] },
     // same body as harskapur, no front at all — open shelving, always built in the front material (2026-10-14)
-    harskapurOpinn: { label:"Opinn hárskápur", zone:"floor", cls:"tall", defaultW:600, minW:300, maxW:1200, h:2500, d:600, minH:1800, maxH:2600, minD:300, maxD:700, hasInterior:false, shelfRange:[0,8,5], open:true },
+    harskapurOpinn: { label:"Opinn hárskápur", zone:"floor", cls:"tall", defaultW:600, minW:300, maxW:1200, h:2500, d:600, minH:1800, maxH:2600, minD:300, maxD:700, hasInterior:false, shelfRange:[0,8,5], railRange:[0,2,0], open:true },
     efriskapur:  { label:"Efriskápur",  zone:"wall",  cls:"wall",  defaultW:600, minW:200, maxW:1200, h:1000, d:300, minH:300,  maxH:1200, minD:200, maxD:450, hasInterior:false, shelfRange:[0,5,2] },
     // Built-in fridge: NOT its own Skápategund in the schema (Skápategund has
     // Grunn/Hár/Efri/Lagna/Ofna/Loftunarskápur only) — physically a Hárskápur
@@ -98,6 +98,12 @@
     var c = CATALOG[b.type];
     if (!c || !c.shelfRange) return null;
     return b.shelves != null ? Math.max(c.shelfRange[0], Math.min(c.shelfRange[1], b.shelves)) : c.shelfRange[2];
+  }
+  // Fataslá (clothes rail, 2026-10-15): loose count like shelvesOf, only set on the two tall closet types.
+  function railsOf(b){
+    var c = CATALOG[b.type];
+    if (!c || !c.railRange) return null;
+    return b.rails != null ? Math.max(c.railRange[0], Math.min(c.railRange[1], b.rails)) : c.railRange[2];
   }
   // Height (mm) of a wall unit's bottom edge above the floor; 0 for floor units.
   var WALL_UNIT_BASE_MM = 1400;
@@ -413,10 +419,20 @@
     var d = burDrawersOf(b, sysKey), last = d[d.length - 1];
     return last ? last.mm + last.h + 35 : 30;
   }
-  function hasShelfLayout(b){ var c = CATALOG[b.type]; return !!c && !c.oven && !(b.interior && b.interior.mode === "skuffur") && (!!c.bur || shelvesOf(b) != null); }
+  // A tall closet's door above its drawer stack can hold shelves too (user, 2026-10-15) — the zone above
+  // drawerZoneMm(), same as a búrskápur's shelves sit above its inner drawers. Never for a non-tall cabinet: its
+  // drawer stack already fills the whole body (drawerZoneMm returns bodyMm unchanged), so there's no zone left.
+  function inDrawerShelfZone(b, c){ return !!c && c.cls === "tall" && !!(b.interior && b.interior.mode === "skuffur"); }
+  function hasShelfLayout(b){
+    var c = CATALOG[b.type];
+    if (!c || c.oven) return false;
+    if (b.interior && b.interior.mode === "skuffur" && !inDrawerShelfZone(b, c)) return false;
+    return !!c.bur || shelvesOf(b) != null;
+  }
   function shelfSpaceMm(b, bodyMm, sysKey){
     var c = CATALOG[b.type];
     if (c && c.oven) return ovenUpperMm(b, sysKey, bodyMm);
+    if (inDrawerShelfZone(b, c)) return { lo:drawerZoneMm(c, bodyMm, b.drawerZoneMm) + OVEN_BOARD_MM, hi:bodyMm - OVEN_BOARD_MM };
     return { lo:c && c.bur ? burTopMm(b, sysKey) : OVEN_BOARD_MM, hi:bodyMm - OVEN_BOARD_MM };
   }
   function shelfLayoutOf(b, bodyMm, sysKey){
@@ -429,9 +445,25 @@
       .filter(function(x){ return x && x.mm > r.lo + OVEN_BOARD_MM && x.mm < r.hi - 10; })
       .map(function(x){ return { mm:Math.round(x.mm), fixed:!!x.fixed, pos:x.fixed ? 1 : Math.max(1, Math.min(9, Math.round(x.pos) || 3)) }; })
       .sort(function(a, z){ return a.mm - z.mm; });
+    var scoped = c.bur || inDrawerShelfZone(b, c);
     var n = c.bur ? (b.burShelves != null ? b.burShelves : 2) : (shelvesOf(b) || 0), out = [];
-    for (var k = 1; k <= n; k++) out.push({ mm:Math.round(c.bur ? r.lo + (r.hi - r.lo) * k / (n + 1) : bodyMm * k / (n + 1) + 9), fixed:false, pos:3 });
+    for (var k = 1; k <= n; k++) out.push({ mm:Math.round(scoped ? r.lo + (r.hi - r.lo) * k / (n + 1) : bodyMm * k / (n + 1) + 9), fixed:false, pos:3 });
     return out;
+  }
+  var RAIL_D_MM = 25, RAIL_TOP_OFFSET_MM = 120, RAIL_GAP_MM = 450; // Fataslá: rod diameter, clearance under the top board, double-hang spacing
+  // Fataslá positions bottom → top: b.railPos (Smíða, mm only — no hole drilling like a shelf) in the same zone
+  // shelves use (shelfSpaceMm), else spread from the top down (a rail wants headroom above it, unlike a shelf).
+  function railLayoutOf(b, bodyMm, sysKey){
+    var c = CATALOG[b.type];
+    if (!c || !c.railRange) return [];
+    var r = shelfSpaceMm(b, bodyMm, sysKey);
+    if (Array.isArray(b.railPos)) return b.railPos
+      .filter(function(x){ return x && x.mm > r.lo + OVEN_BOARD_MM && x.mm < r.hi - 10; })
+      .map(function(x){ return { mm:Math.round(x.mm) }; })
+      .sort(function(a, z){ return a.mm - z.mm; });
+    var n = railsOf(b) || 0, out = [];
+    for (var k = 0; k < n; k++) out.push({ mm:Math.round(Math.max(r.lo + 10, r.hi - RAIL_TOP_OFFSET_MM - k * RAIL_GAP_MM)) });
+    return out.sort(function(a, z){ return a.mm - z.mm; });
   }
   // the shelves above the oven, bottom → top; default = 2 loose vent shelves at thirds, 3 positions each
   function ovenShelvesOf(b, sysKey, bodyMm){
@@ -1889,6 +1921,20 @@
         board.quaternion.copy(quat); board.castShadow = true; board.receiveShadow = true;
         group.add(board);
       }
+      // Fataslá (clothes rail, 2026-10-15): same zone/gating as the shelf boards above.
+      var openRails = meta.shelfBlock && CATALOG[meta.shelfBlock.type] && CATALOG[meta.shelfBlock.type].railRange
+        ? railLayoutOf(meta.shelfBlock, bodyH * 1000, meta.drawerSystem) : [];
+      if (openRails.length){
+        var openRailMat = new THREE.MeshStandardMaterial({ color:0xb0b4ba, metalness:0.8, roughness:0.3 });
+        var railLocalQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2);
+        openRails.forEach(function(rl){
+          var rod = new THREE.Mesh(new THREE.CylinderGeometry(RAIL_D_MM / 2000, RAIL_D_MM / 2000, widthM - 2 * CARCASS_T - 0.02, 16), openRailMat);
+          rod.quaternion.copy(quat).multiply(railLocalQ);
+          rod.position.copy(local(0, bodyBase + rl.mm / 1000, (depthM - 0.02) / 2 + 0.005));
+          rod.castShadow = true;
+          group.add(rod);
+        });
+      }
     }
     if (interior && interior.mode === "skuffur" && !art){
       if (interior.topDoorFr) addDrawerSeams(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior.count + 1,
@@ -2023,9 +2069,12 @@
     frame.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(geom.axis.x, 0, geom.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(geom.normal.x, 0, geom.normal.z)));
     group.add(frame);
     var drawers = interior && interior.mode === "skuffur" ? interior.count : 0;
-    // shelves where Rakel put them in Smíða (or spread evenly); the oven and the búrskápur draw their own below
-    var shelfList = drawers || meta.oven || (meta.burCodes && meta.burCodes.length) ? [] :
+    // shelves where Rakel put them in Smíða (or spread evenly); the oven and the búrskápur draw their own below.
+    // A tall drawer unit's door-above-drawers zone can hold shelves too — hasShelfLayout decides (not `drawers`
+    // alone), so a non-tall drawer unit (no zone left) still gets none.
+    var shelfList = meta.oven || (meta.burCodes && meta.burCodes.length) ? [] :
       meta.shelfBlock && hasShelfLayout(meta.shelfBlock) ? shelfLayoutOf(meta.shelfBlock, bodyH * 1000, meta.drawerSystem) :
+      drawers ? [] :
       (function(n){ var o = []; for (var k = 1; k <= n; k++) o.push({ mm:bodyH * 1000 * k / (n + 1) + 9 }); return o; })(meta.shelves || 0);
     shelfList.forEach(function(shf){
       var board = new THREE.Mesh(new THREE.BoxGeometry(widthM - 2 * CARCASS_T - 0.001, 0.018, CD - 0.03), meta.openMat); // shelves reach the sides
@@ -2033,6 +2082,20 @@
       board.castShadow = true; board.receiveShadow = true;
       frame.add(board);
     });
+    // Fataslá (clothes rail, 2026-10-15): same zone/gating as shelfList, a plain steel rod across the width.
+    var railList = meta.oven || (meta.burCodes && meta.burCodes.length) ? [] :
+      meta.shelfBlock && meta.shelfBlock.type && CATALOG[meta.shelfBlock.type] && CATALOG[meta.shelfBlock.type].railRange ?
+        railLayoutOf(meta.shelfBlock, bodyH * 1000, meta.drawerSystem) : [];
+    if (railList.length){
+      var railMat = new THREE.MeshStandardMaterial({ color:0xb0b4ba, metalness:0.8, roughness:0.3 });
+      railList.forEach(function(rl){
+        var rod = new THREE.Mesh(new THREE.CylinderGeometry(RAIL_D_MM / 2000, RAIL_D_MM / 2000, widthM - 2 * CARCASS_T - 0.02, 16), railMat);
+        rod.rotation.z = Math.PI / 2;
+        rod.position.set(0, bodyBase + rl.mm / 1000, (CD - 0.03) / 2 + 0.005);
+        rod.castShadow = true;
+        frame.add(rod);
+      });
+    }
     // the fronts of this cabinet
     var fronts = [];
     if (drawers){
@@ -5253,6 +5316,7 @@
     OVEN_DEFAULT: OVEN_DEFAULT,
     modelsPending: modelsPending,
     shelvesOf: shelvesOf, burCodesOf: burCodesOf,
+    railsOf: railsOf, railLayoutOf: railLayoutOf,
     hideDragPreview3D: hideDragPreview3D,
     teardown3D: teardown3D,
     _three: function(){ return THREE_STATE; },
