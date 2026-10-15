@@ -2116,6 +2116,12 @@
     }
     if (meta && meta.locked && !meta.suppressBadge && meta.zone !== "opening") addLockBadge(THREE, group, local(0, baseYM + heightM + (meta.counter ? 0.16 : 0.1), depthM / 2));
     if (meta && meta.ready) addLockBadge(THREE, group, local(widthM / 2 - 0.07, baseYM + heightM + (meta.counter ? 0.16 : 0.1), depthM / 2), true); // pro: "Klár til framleiðslu"
+    // Always-on W×H×D (Fataskápar, 2026-10-22): closets have far fewer pieces than a kitchen, so baking
+    // the size onto every unit (PAX's own "dimensions always on" — the single thing most asked for in that
+    // research round) doesn't clutter the way it would across a dozen kitchen cabinets; gated on
+    // meta.alwaysDims (buildScene: state.activeCategory === "fataskapar"), not a per-type flag, so it
+    // covers every Fataskápar piece (floor and wall) uniformly.
+    if (meta && meta.alwaysDims && meta.zone !== "opening") addDimLabel(THREE, group, local(0, baseYM + heightM + 0.22, depthM / 2), Math.round(widthM * 1000) + " x " + Math.round(heightM * 1000) + " x " + Math.round(depthM * 1000));
     if (art) addArticulated(THREE, scene, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta, useFrontMat, pickables);
     else if (meta && meta.zone !== "opening" && !isPanel && !meta.appliance) addFrontDetails(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta.handle, !!meta.tall, meta.zone === "wall", meta.split || 0, meta, useFrontMat);
     if (meta && meta.appliance) addApplianceDetails(THREE, group, geom, offsetM, widthM, heightM, depthM, meta.appliance);
@@ -2178,6 +2184,22 @@
     }
     var sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:ready ? READY_TEX : LOCK_TEX, depthTest:false, transparent:true }));
     sp.scale.set(0.11, 0.11, 1); sp.position.copy(pos); sp.renderOrder = 9;
+    group.add(sp);
+  }
+  // A plain white W×H×D chip (2026-10-22), always visible — not the usual blue drag/gap-feedback colour,
+  // since this is passive info sitting in the room rather than a response to the pointer. One texture per
+  // cabinet, painted once at build time (buildScene rebuilds the whole scene on every real change anyway,
+  // so there's no live text to repaint here the way the shelf gap labels need).
+  function addDimLabel(THREE, group, pos, text){
+    var cv = document.createElement("canvas"); cv.width = 220; cv.height = 60;
+    var cx = cv.getContext("2d");
+    cx.fillStyle = "rgba(255,255,255,.95)"; cx.strokeStyle = "rgba(0,0,0,.14)"; cx.lineWidth = 2; cx.beginPath();
+    if (cx.roundRect) cx.roundRect(4, 4, cv.width - 8, cv.height - 8, 16); else cx.rect(4, 4, cv.width - 8, cv.height - 8);
+    cx.fill(); cx.stroke();
+    cx.fillStyle = "#3b4652"; cx.font = "700 26px 'Kumbh Sans', Arial, sans-serif"; cx.textAlign = "center"; cx.textBaseline = "middle";
+    cx.fillText(text, cv.width / 2, cv.height / 2 + 1);
+    var sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:new THREE.CanvasTexture(cv), depthTest:false, transparent:true, sizeAttenuation:false }));
+    sp.scale.set(0.1, 0.027, 1); sp.position.copy(pos); sp.renderOrder = 997;
     group.add(sp);
   }
 
@@ -4038,7 +4060,7 @@
             lowOven:!!c.lowOven, ovenFrontsMm:c.oven ? b.ovenFrontsMm || null : null, ovenBlock:c.oven ? b : null, ovenCat:c.oven ? c : null,
             sinkFixedTop:!!c.sink && b.sinkTop === "fastur" && !!(b.interior && b.interior.mode === "skuffur"),
             ovenInner:c.oven && !c.lowOven ? (String(b.ovenCombo == null ? OVEN_DEFAULT[state.drawerSystem === "merivo" ? "merivo" : "legra"] : b.ovenCombo).split("+")[1] || null) : null,
-            washerDrawerM:c.thvo && b.thvo !== "hurdir" ? 0.40 : 0 }, selected, pickables);
+            washerDrawerM:c.thvo && b.thvo !== "hurdir" ? 0.40 : 0, alwaysDims:state.activeCategory === "fataskapar" }, selected, pickables);
       });
       wall.wall.forEach(function(b, bi){
         var offset = wStarts[bi];
@@ -4047,7 +4069,7 @@
         var selected = opts.selectedId === b.id;
         var elevM = elevOf(b) / 1000;
         var metaBase = { locked:!!b.locked || !!opts.xray, suppressBadge:!!opts.xray, slabFronts:jeyOn, drawerSystem:state.drawerSystem, carcassKey:state.carcass, warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), ready:!!(opts.readyIds && opts.readyIds.indexOf(b.id) >= 0), doorLimit:DOOR_LIMITS[b.id] || null, shelfBlock:b, wallId:wall.id, zone:"wall", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d),
-          heightMm:hM * 1000, elevMm:elevM * 1000, handle:state.handle, splitFr:c.open ? null : splitFractions(b, hM * 1000) };
+          heightMm:hM * 1000, elevMm:elevM * 1000, handle:state.handle, splitFr:c.open ? null : splitFractions(b, hM * 1000), alwaysDims:state.activeCategory === "fataskapar" };
         if (c.shelfStack){ // 1–5 boards of 38 mm above each other: one pickable box per board, all sharing the block id
           var n = Math.max(1, Math.min(SHELF_STACK_MAX, b.count || 3)), gap = b.vgapMm != null ? b.vgapMm : SHELF_GAP_DEFAULT;
           for (var k = 0; k < n; k++){
