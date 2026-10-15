@@ -611,44 +611,6 @@
     }
     return drawerFrontsMm(codes, bodyMm);
   }
-  // Front i set to v mm: the other drawers give or take the difference, nearest first (the one above, then
-  // below, ...), never going under their own minimum. null when it can't be done.
-  function resizeFront(fronts, codes, i, v){
-    var mins = codes.map(slotMin);
-    if (codes.length < 2 || v < mins[i] - 0.5) return null;
-    var out = fronts.slice(), rem = v - out[i], order = [];
-    out[i] = v;
-    for (var d = 1; d < codes.length; d++){ if (i + d < codes.length) order.push(i + d); if (i - d >= 0) order.push(i - d); }
-    for (var k = 0; k < order.length && Math.abs(rem) > 0.01; k++){
-      var j = order[k];
-      if (rem > 0){ var take = Math.min(rem, out[j] - mins[j]); out[j] -= take; rem -= take; }
-      else { out[j] -= rem; rem = 0; }
-    }
-    return rem > 0.5 ? null : out.map(function(h){ return Math.round(h * 10) / 10; });
-  }
-  // Same redistribution as resizeFront, but for while the customer/Rakel is still planning (user, 2026-10-19):
-  // never refuses — the others give way past their own minimum instead of blocking the edit, so a half-built
-  // stack that doesn't "make sense" yet can still be typed in. Always returns an array summing to the body
-  // (so stackFrontsMm still accepts it on the next render); `invalid` lists indices now below their real
-  // minimum, for a non-blocking warning at the call site — never a revert.
-  function resizeFrontFree(fronts, codes, i, v){
-    var mins = codes.map(slotMin), FLOOR = 5; // mm — keeps geometry sane, not a real constraint
-    var out = fronts.slice();
-    v = Math.max(FLOOR, Math.round(v * 10) / 10);
-    var rem = v - out[i], order = [];
-    out[i] = v;
-    for (var d = 1; d < codes.length; d++){ if (i + d < codes.length) order.push(i + d); if (i - d >= 0) order.push(i - d); }
-    for (var k = 0; k < order.length && Math.abs(rem) > 0.01; k++){
-      var j = order[k];
-      if (rem > 0){ var take = Math.max(0, Math.min(rem, out[j] - FLOOR)); out[j] -= take; rem -= take; }
-      else { out[j] -= rem; rem = 0; }
-    }
-    if (rem > 0.5) out[i] = Math.max(FLOOR, out[i] - rem); // even everyone else at the floor isn't enough — v itself gives way
-    out = out.map(function(h){ return Math.round(h * 10) / 10; });
-    var invalid = [];
-    out.forEach(function(h, idx){ if (h < mins[idx] - 0.5) invalid.push(idx); });
-    return { fronts:out, invalid:invalid };
-  }
   // seams as fractions of the body (bottom → top), like drawerFractions()
   function frontsToFractions(fronts, bodyMm){
     var out = [], acc = 0;
@@ -5696,7 +5658,7 @@
     DRAWER_CODES: DRAWER_CODES, FIXED_FRONT_CODE: FIXED_FRONT_CODE,
     FRONT_MIN: FRONT_MIN, slotMin: slotMin,
     drawerCodes: drawerCodes,
-    drawerFrontsMm: drawerFrontsMm, stackFrontsMm: stackFrontsMm, resizeFront: resizeFront, resizeFrontFree: resizeFrontFree,
+    drawerFrontsMm: drawerFrontsMm, stackFrontsMm: stackFrontsMm,
     drawerComboKey: drawerComboKey, comboVorunumer: comboVorunumer,
     ovenCodesOf: ovenCodesOf, ovenZoneMm: ovenZoneMm, setMood: setMood, OVEN_HEIGHTS: OVEN_HEIGHTS, OVEN_BOARD_MM: OVEN_BOARD_MM,
     shelfLayoutOf: shelfLayoutOf, burDrawersOf: burDrawersOf, shelfSpaceMm: shelfSpaceMm, hasShelfLayout: hasShelfLayout, burTopMm: burTopMm, drawerBoxTopMm: drawerBoxTopMm,

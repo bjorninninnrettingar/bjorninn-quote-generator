@@ -9904,14 +9904,18 @@
       line.addEventListener("pointerdown", function(e){
         e.preventDefault(); line.setPointerCapture(e.pointerId);
         var i = +line.dataset.seam, below = 0; for (var q = 0; q < i; q++) below += fronts[q];
-        var nf = null, invalid = [];
-        function mv(ev){ var v = Math.round((Y0 + body * S - svgY(ev)) / S - below + 1.5); // slot i ends at the middle of the gap
-          var r = KP3D.resizeFrontFree(fronts, codes, i, v); nf = r.fronts; invalid = r.invalid; // never refuses while dragging (user, 2026-10-19) — warns instead, same as the typed input
+        var v = null;
+        // Only front i moves — never redistributes onto its neighbour, even when i's own hardware (hlið) is
+        // taller than the front (user, 2026-10-19: a resize must never touch any drawer but the one being
+        // resized). The stack simply not reconnecting at this seam any more is the same tolerated "not
+        // finished yet" state typing a height already allows — warn on drop, never during the drag itself.
+        function mv(ev){ v = Math.max(5, Math.round((Y0 + body * S - svgY(ev)) / S - below + 1.5)); // slot i ends at the middle of the gap
           var y = Y0 + body * S - (below + v - 1.5) * S; line.setAttribute("y1", y); line.setAttribute("y2", y); }
         function up(){ line.removeEventListener("pointermove", mv); line.removeEventListener("pointerup", up);
-          if (!nf) return;
-          if (invalid.length) toast("⚠️ " + invalid.map(function(idx){ return CODE_LABEL[codes[idx]].toLowerCase() + " (" + Math.round(nf[idx]) + " mm, lágmark " + KP3D.slotMin(codes[idx]) + " mm)"; }).join(", ") + " undir lágmarki — lagaðu áður en skápurinn er merktur klár.");
-          if (ov) b.ovenFrontsMm = nf; else b.interior.frontsMm = nf; save(); refreshAfterEdit(); renderBoxEditor(); }
+          if (v == null) return;
+          var cur = fronts.slice(); cur[i] = v;
+          if (v < KP3D.slotMin(codes[i]) - 0.5) toast("⚠️ " + CODE_LABEL[codes[i]].toLowerCase() + " (" + v + " mm, lágmark " + KP3D.slotMin(codes[i]) + " mm) undir lágmarki — lagaðu áður en skápurinn er merktur klár.");
+          if (ov) b.ovenFrontsMm = cur; else b.interior.frontsMm = cur; save(); refreshAfterEdit(); renderBoxEditor(); }
         line.addEventListener("pointermove", mv); line.addEventListener("pointerup", up);
       });
     });
