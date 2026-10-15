@@ -6440,7 +6440,7 @@
         return;
       }
       wrap.innerHTML = "";
-      KP3D.buildScene(wrap, state, { darkBg:!!PRO, selectedId:selectedBlockId, selectedWallId:selectedWallId, onWallSelect:onWallSelect, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, onIslandDragEnd:onIslandDragEnd, onIslandDragMove:clampIslandDragMove, onDecorDragEnd:onDecorDragEnd, onDecorDragMove:onDecorDragMove, onObstacleFloorEnd:onObstacleFloorEnd, onObstacleResizeMove:onObstacleResizeMove, onObstacleResizeEnd:onObstacleResizeEnd, onShelfPosMove:onShelfPosMove, onShelfPosEnd:onShelfPosEnd, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList(), readyIds:PRO ? proReadyIds() : null,
+      KP3D.buildScene(wrap, state, { darkBg:!!PRO, selectedId:selectedBlockId, selectedWallId:selectedWallId, onWallSelect:onWallSelect, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, onIslandDragEnd:onIslandDragEnd, onIslandDragMove:clampIslandDragMove, onDecorDragEnd:onDecorDragEnd, onDecorDragMove:onDecorDragMove, onObstacleFloorEnd:onObstacleFloorEnd, onObstacleResizeMove:onObstacleResizeMove, onObstacleResizeEnd:onObstacleResizeEnd, onShelfPosMove:onShelfPosMove, onShelfPosEnd:onShelfPosEnd, onShelfPosInfo:onShelfPosInfo, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList(), readyIds:PRO ? proReadyIds() : null,
         xray:inspect.on, // inspect mode: every cabinet built in parts (drawers/doors tap open, nothing drags)
         focusWallId:viewMode === "wall" ? wallViewId : null, freshCamera:viewMode === "wall" });
       landedBlockId = null;
@@ -7062,30 +7062,40 @@
   // lightweight live-feedback pattern already used for islands/decor); state still updates every move,
   // just the expensive rebuild waits for onShelfPosEnd (pointerup).
   var SHELF_DRAG_MIN_GAP_MM = 40;
-  function onShelfPosMove(blockId, itemKind, idx, newMm){
+  // Shared by the live drag (mutates) and the read-only hover query (doesn't) below — both need the exact
+  // same neighbour/zone bounds so the hover number and the drag number never disagree (2026-10-22).
+  function shelfPosBounds(blockId, itemKind, idx){
     var fb = findBlock(blockId); if (!fb) return null;
     var b = fb.block, c = CATALOG[b.type]; if (!c) return null;
-    var bodyMm = proBodyMm(b, c, fb.zone), sysKey = drawerSys(), r = KP3D.shelfSpaceMm(b, bodyMm, sysKey), clamped;
+    var bodyMm = proBodyMm(b, c, fb.zone), sysKey = drawerSys(), r = KP3D.shelfSpaceMm(b, bodyMm, sysKey);
     if (itemKind === "rail"){
       var rlist = KP3D.railLayoutOf(b, bodyMm, sysKey).map(function(x){ return { mm:x.mm }; });
       if (!rlist[idx]) return null;
-      var rlo = idx > 0 ? rlist[idx - 1].mm + SHELF_DRAG_MIN_GAP_MM : r.lo + KP3D.OVEN_BOARD_MM + 1;
-      var rhi = idx < rlist.length - 1 ? rlist[idx + 1].mm - SHELF_DRAG_MIN_GAP_MM : r.hi - 10;
-      clamped = Math.round(Math.max(rlo, Math.min(rhi, newMm)));
-      rlist[idx].mm = clamped;
-      b.railPos = rlist; if (c.railRange) b.rails = rlist.length;
-    } else {
-      var list = KP3D.shelfLayoutOf(b, bodyMm, sysKey).map(function(s){ return { mm:s.mm, fixed:s.fixed, pos:s.pos, locked:s.locked }; });
-      if (!list[idx] || list[idx].fixed || list[idx].locked) return null;
-      var lo = idx > 0 ? list[idx - 1].mm + SHELF_DRAG_MIN_GAP_MM : r.lo + KP3D.OVEN_BOARD_MM + 1;
-      var hi = idx < list.length - 1 ? list[idx + 1].mm - SHELF_DRAG_MIN_GAP_MM : r.hi - 10;
-      clamped = Math.round(Math.max(lo, Math.min(hi, newMm)));
-      list[idx].mm = clamped;
-      b.shelfPos = list; if (!c.bur && c.shelfRange) b.shelves = list.length;
+      return { b:b, c:c, list:rlist, idx:idx, locked:false,
+        lo: idx > 0 ? rlist[idx - 1].mm + SHELF_DRAG_MIN_GAP_MM : r.lo + KP3D.OVEN_BOARD_MM + 1,
+        hi: idx < rlist.length - 1 ? rlist[idx + 1].mm - SHELF_DRAG_MIN_GAP_MM : r.hi - 10 };
     }
-    return clamped;
+    var list = KP3D.shelfLayoutOf(b, bodyMm, sysKey).map(function(s){ return { mm:s.mm, fixed:s.fixed, pos:s.pos, locked:s.locked }; });
+    if (!list[idx]) return null;
+    return { b:b, c:c, list:list, idx:idx, locked:!!(list[idx].fixed || list[idx].locked),
+      lo: idx > 0 ? list[idx - 1].mm + SHELF_DRAG_MIN_GAP_MM : r.lo + KP3D.OVEN_BOARD_MM + 1,
+      hi: idx < list.length - 1 ? list[idx + 1].mm - SHELF_DRAG_MIN_GAP_MM : r.hi - 10 };
+  }
+  function onShelfPosMove(blockId, itemKind, idx, newMm){
+    var info = shelfPosBounds(blockId, itemKind, idx); if (!info || info.locked) return null;
+    var clamped = Math.round(Math.max(info.lo, Math.min(info.hi, newMm)));
+    info.list[idx].mm = clamped;
+    if (itemKind === "rail"){ info.b.railPos = info.list; if (info.c.railRange) info.b.rails = info.list.length; }
+    else { info.b.shelfPos = info.list; if (!info.c.bur && info.c.shelfRange) info.b.shelves = info.list.length; }
+    return { mm:clamped, lo:info.lo, hi:info.hi };
   }
   function onShelfPosEnd(blockId){ save(); refreshAfterEdit(); }
+  // Read-only: the gap-to-neighbour label on hover (2026-10-22) needs the current position + the same
+  // bounds, without nudging anything — never called mid-drag (onShelfPosMove's own return covers that).
+  function onShelfPosInfo(blockId, itemKind, idx){
+    var info = shelfPosBounds(blockId, itemKind, idx); if (!info) return null;
+    return { mm:info.list[idx].mm, lo:info.lo, hi:info.hi };
+  }
   // where an obstacle lands on a wall: offset snapped 10 mm and flush to the corners within 100 mm, height kept inside the room
   function obstaclePlace(o, wall, offMm, elevMm){
     var def = KP3D.OBSTACLES[o.kind], wmm = Math.min(o.widthMm, wall.lengthMm), max = wall.lengthMm - wmm;

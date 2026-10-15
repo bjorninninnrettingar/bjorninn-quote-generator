@@ -2049,7 +2049,7 @@
         // draggable up/down in 3D (2026-10-21): writes the same b.shelfPos Smíða's own box editor reads —
         // only for a real block (the synthetic even-spread fallback above has nothing to write back to)
         if (meta.shelfBlock && pickables){
-          board.userData = { kind:"shelf-item", itemKind:"shelf", blockId:meta.shelfBlock.id, idx:sh, locked:meta.locked, bodyBaseY:bodyBase };
+          board.userData = { kind:"shelf-item", itemKind:"shelf", blockId:meta.shelfBlock.id, idx:sh, locked:meta.locked, bodyBaseY:bodyBase, widthM:widthM };
           pickables.push(board);
           var boardEdges = new THREE.LineSegments(new THREE.EdgesGeometry(board.geometry), new THREE.LineBasicMaterial({ color:SELECT_COLOR, transparent:true, opacity:0 }));
           boardEdges.position.copy(board.position); boardEdges.quaternion.copy(board.quaternion);
@@ -2070,7 +2070,7 @@
           rod.castShadow = true;
           group.add(rod);
           if (pickables){
-            rod.userData = { kind:"rail-item", itemKind:"rail", blockId:meta.shelfBlock.id, idx:ri, locked:meta.locked, bodyBaseY:bodyBase };
+            rod.userData = { kind:"rail-item", itemKind:"rail", blockId:meta.shelfBlock.id, idx:ri, locked:meta.locked, bodyBaseY:bodyBase, widthM:widthM };
             pickables.push(rod);
             var rodEdges = new THREE.LineSegments(new THREE.EdgesGeometry(rod.geometry), new THREE.LineBasicMaterial({ color:SELECT_COLOR, transparent:true, opacity:0 }));
             rodEdges.position.copy(rod.position); rodEdges.quaternion.copy(rod.quaternion);
@@ -2836,6 +2836,43 @@
       return e && (e.isLineSegments || e.isLine) ? e : null;
     }
     function isShelfOrRail(m){ return m && (m.userData.kind === "shelf-item" || m.userData.kind === "rail-item"); }
+    // Gap-to-neighbour label (2026-10-22): one reused sprite (repainted only when its text actually
+    // changes, like málband's own measureSprite/measureSpriteSetText) shown on hover AND mid-drag, so
+    // "how much room is here" is visible before you commit to grabbing something, not just while dragging.
+    var gapLabel = null;
+    function gapLabelPaint(cv, text){
+      var cx = cv.getContext("2d");
+      cx.clearRect(0, 0, cv.width, cv.height);
+      cx.fillStyle = "rgba(61,97,193,.92)"; cx.beginPath();
+      if (cx.roundRect) cx.roundRect(3, 3, cv.width - 6, cv.height - 6, 13); else cx.rect(3, 3, cv.width - 6, cv.height - 6); cx.fill();
+      cx.fillStyle = "#fff"; cx.font = "700 24px 'Kumbh Sans', Arial, sans-serif"; cx.textAlign = "center"; cx.textBaseline = "middle";
+      cx.fillText(text, cv.width / 2, cv.height / 2 + 1);
+    }
+    function shelfLabelPos(mesh){ // just past the item's own end, at its own height — never overlaps it
+      var wp = new THREE.Vector3(); mesh.getWorldPosition(wp);
+      var wq = new THREE.Quaternion(); mesh.getWorldQuaternion(wq);
+      var dir = new THREE.Vector3(1, 0, 0).applyQuaternion(wq);
+      return wp.addScaledVector(dir, (mesh.userData.widthM || 0.6) / 2 + 0.07);
+    }
+    function showGapLabel(mesh, mm, lo, hi){
+      var text = Math.round(mm - lo) + "↓ " + Math.round(hi - mm) + "↑ mm";
+      if (!gapLabel){
+        var cv = document.createElement("canvas"); cv.width = 220; cv.height = 56;
+        gapLabelPaint(cv, text);
+        var tex = new THREE.CanvasTexture(cv);
+        gapLabel = new THREE.Sprite(new THREE.SpriteMaterial({ map:tex, depthTest:false, transparent:true, sizeAttenuation:false }));
+        gapLabel.scale.set(0.085, 0.022, 1); gapLabel.renderOrder = 999;
+        gapLabel.userData.canvas = cv; gapLabel.userData.lastText = text;
+        if (THREE_STATE && THREE_STATE.scene) THREE_STATE.scene.add(gapLabel);
+      } else if (gapLabel.userData.lastText !== text){
+        gapLabelPaint(gapLabel.userData.canvas, text);
+        gapLabel.material.map.needsUpdate = true;
+        gapLabel.userData.lastText = text;
+      }
+      gapLabel.position.copy(shelfLabelPos(mesh));
+      gapLabel.visible = true;
+    }
+    function hideGapLabel(){ if (gapLabel) gapLabel.visible = false; }
     function setHover(mesh){
       if (mesh === hovered) return;
       if (hovered){
@@ -2853,6 +2890,10 @@
           else if (e1.material.color) e1.material.color.set(SELECT_COLOR);
         }
       }
+      if (isShelfOrRail(hovered) && opts.onShelfPosInfo){
+        var info = opts.onShelfPosInfo(hovered.userData.blockId, hovered.userData.itemKind, hovered.userData.idx);
+        if (info) showGapLabel(hovered, info.mm, info.lo, info.hi); else hideGapLabel();
+      } else hideGapLabel();
       renderer.domElement.style.cursor = hovered ? (hovered.userData.locked ? (hovered.userData.isPart ? "pointer" : "default") :
         (hovered.userData.kind === "shelf-item" || hovered.userData.kind === "rail-item") ? "ns-resize" : "grab") : "";
     }
@@ -2878,15 +2919,16 @@
         var sPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(toCam, wpS);
         var sPt = new THREE.Vector3();
         if (raycaster.ray.intersectPlane(sPlane, sPt) && opts.onShelfPosMove){
-          var clampedMm = opts.onShelfPosMove(drag.meta.blockId, drag.meta.itemKind, drag.meta.idx, Math.round((sPt.y - drag.meta.bodyBaseY) * 1000));
+          var res = opts.onShelfPosMove(drag.meta.blockId, drag.meta.itemKind, drag.meta.idx, Math.round((sPt.y - drag.meta.bodyBaseY) * 1000));
           // moves the mesh (and its hover outline) directly — no scene rebuild mid-drag, so the window
           // pointermove/pointerup listeners this gesture is riding on never get torn out from under it
           // (a renderView() rebuild recreates setupCabinetInteraction, which is what "losing grip" was)
-          if (clampedMm != null){
+          if (res){
             var boardOffM = drag.meta.itemKind === "shelf" ? -0.009 : 0; // matches the board/rod's own render offset
-            var newY = drag.meta.bodyBaseY + clampedMm / 1000 + boardOffM;
+            var newY = drag.meta.bodyBaseY + res.mm / 1000 + boardOffM;
             drag.mesh.position.y = newY;
             if (drag.mesh.userData.edgesObj) drag.mesh.userData.edgesObj.position.y = newY;
+            showGapLabel(drag.mesh, res.mm, res.lo, res.hi);
           }
         }
         return;
@@ -2995,6 +3037,7 @@
       if (drag.shelfDrag){
         var dS = drag;
         drag = null; controls.enabled = true; renderer.domElement.style.cursor = "";
+        hideGapLabel(); hovered = null; // onMove's hover branch was skipped all through the drag — force it to re-evaluate fresh on the next move
         if (dS.moved){ suppressClick = true; if (opts.onShelfPosEnd) opts.onShelfPosEnd(dS.meta.blockId); }
         return;
       }
