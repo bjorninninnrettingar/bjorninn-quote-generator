@@ -8956,8 +8956,15 @@
     }
     svg += '</svg>';
 
+    // Hæð in Smíða means the carcass alone, never the plinth (user, 2026-10-17) — same 100 mm every other
+    // "frá botni skáps" measurement here already excludes (proBodyMm), so the whole panel stays in one frame:
+    // 0 = top of the plinth, not the floor. b.heightMm itself is untouched (still the real overall height
+    // Airtable's own "Hæð" field and everything outside Smíða uses) — only converted at this panel's edges.
+    var hasPlinth = fb.zone === "floor" && !c.panel && !c.appliance;
+    var plinthMm = hasPlinth ? 100 : 0;
+    var carcassMm = blockHeightMm(b, c) - plinthMm;
     var right = '<button type="button" class="pe-btn pe-close" data-pe="close">Loka ✕</button>' +
-      '<h3>' + (key ? key + " · " : "") + c.label + '</h3><div class="pe-sub">' + b.widthMm + ' × ' + blockHeightMm(b, c) + ' mm · ' +
+      '<h3>' + (key ? key + " · " : "") + c.label + '</h3><div class="pe-sub">' + b.widthMm + ' × ' + carcassMm + ' mm' + (hasPlinth ? " (skrokkur, + 100 mm sökkull)" : "") + ' · ' +
       (b.smida ? "Smíðagögn vistuð á skápnum" : "Sjálfgefið (ekkert breytt)") + '</div>';
     // Mál (2026-10-17, user — "Smíða er final design á þessu algjörlega svo hér þarf að vera hægt að fínpússa
     // allt"): width/height/depth used to be editable only on the regular side panel, outside Smíða — same
@@ -8968,7 +8975,7 @@
       var dW = dimRange(c, "widthMm"), dH = dimRange(c, "heightMm"), dD = dimRange(c, "depthMm");
       right += '<div class="pe-door"><h4>Mál</h4>' +
         '<div class="pe-row">Breidd: <input type="number" step="1" min="' + dW[0] + '" max="' + dW[1] + '" value="' + b.widthMm + '" data-pe="dimw"> mm</div>' +
-        '<div class="pe-row">Hæð: <input type="number" step="1" min="' + dH[0] + '" max="' + dH[1] + '" value="' + blockHeightMm(b, c) + '" data-pe="dimh"> mm</div>' +
+        '<div class="pe-row">Hæð' + (hasPlinth ? " (skrokkur)" : "") + ': <input type="number" step="1" min="' + (dH[0] - plinthMm) + '" max="' + (dH[1] - plinthMm) + '" value="' + carcassMm + '" data-pe="dimh"> mm' + (hasPlinth ? ' <small class="pe-note" style="display:inline">+ 100 mm sökkull</small>' : '') + '</div>' +
         '<div class="pe-row">Dýpt: <input type="number" step="1" min="' + dD[0] + '" max="' + dD[1] + '" value="' + (b.depthMm || c.d) + '" data-pe="dimd"> mm</div>' +
         '</div>';
     }
@@ -9157,7 +9164,7 @@
       save(); refreshAfterEdit(); renderBoxEditor();
     }
     act('[data-pe="dimw"]', function(n){ setDim("widthMm", n.value); });
-    act('[data-pe="dimh"]', function(n){ setDim("heightMm", n.value); });
+    act('[data-pe="dimh"]', function(n){ setDim("heightMm", (parseFloat(n.value) || 0) + plinthMm); }); // typed as carcass, stored as the real overall height
     act('[data-pe="dimd"]', function(n){ setDim("depthMm", n.value); });
     // oven: height, height under it, shelves above (2026-10-10). A new height/zone drops custom drawer heights.
     function ovenDone(){ save(); refreshAfterEdit(); renderBoxEditor(); }
