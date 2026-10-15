@@ -2755,6 +2755,11 @@
         controls.enabled = false;
         return;
       }
+      if (mesh.userData.kind === "obstacle-resize"){ // milliveggur far-end handle: stretches/shrinks it along its own wall's normal (2026-10-20)
+        drag = { meta:mesh.userData, mesh:mesh, resize:true, startX:evt.clientX, startY:evt.clientY, moved:false };
+        controls.enabled = false;
+        return;
+      }
       if (mesh.userData.kind === "obstacle" && mesh.userData.free){ // a column / partition slides over the floor, anywhere in the room (2026-10-12)
         var og = mesh; while (og.parent && !og.parent.isScene) og = og.parent;
         var ow = new THREE.Vector3(); mesh.getWorldPosition(ow); // moved on a level plane at its own mid-height: no parallax
@@ -2790,6 +2795,10 @@
     }
     function onMove(evt){
       if (!drag){
+        // málband (user, 2026-10-20): while measuring, the cursor is the tool's own crosshair (set by
+        // setMeasureMode) — hovering a cabinet used to flip it to "grab" anyway, since this hover/cursor
+        // logic ran unconditionally and MEASURING only ever gated onDown, not onMove
+        if (MEASURING) return;
         if (evt.target === renderer.domElement) setHover(pickMeshAt(evt));
         else setHover(null);
         return;
@@ -2797,6 +2806,17 @@
       if (!drag.moved){
         if (Math.hypot(evt.clientX - drag.startX, evt.clientY - drag.startY) < CABINET_DRAG_PX) return;
         drag.moved = true;
+      }
+      if (drag.resize){
+        var wiR = walls.findIndex(function(w){ return w.id === drag.meta.wallId; }), gR = geoms[wiR];
+        if (gR){
+          var ptR = floorHit(evt, drag.mesh.position.y); // the handle's own height, not the floor — truer to where the cursor visually is
+          if (ptR){
+            var ddR = (ptR.x - gR.origin.x) * gR.normal.x + (ptR.z - gR.origin.z) * gR.normal.z; // metres, perpendicular from the anchor wall
+            if (opts.onObstacleResizeMove) opts.onObstacleResizeMove(drag.meta.obstacleId, Math.round(ddR * 1000) - drag.meta.outMm);
+          }
+        }
+        return;
       }
       if (drag.island){
         var pt = floorHit(evt, drag.decor ? drag.planeY : 0);
@@ -2888,6 +2908,12 @@
         return;
       }
       if (!drag) return;
+      if (drag.resize){
+        var dR = drag;
+        drag = null; controls.enabled = true; renderer.domElement.style.cursor = "";
+        if (dR.moved){ suppressClick = true; if (opts.onObstacleResizeEnd) opts.onObstacleResizeEnd(dR.meta.obstacleId); }
+        return;
+      }
       if (drag.island){
         var d0 = drag;
         drag = null; haveTarget = false;
@@ -3703,6 +3729,16 @@
       }
       scene.add(grp);
       if (!outM && def.look === "wall") fadeWithWall(o.wallId, grp); // a pipe box / beam on a faded wall fades with it
+      // a milliveggur's far-end handle (2026-10-20): drag it to stretch/shrink the partition instead of
+      // only typing "Lengd út í rýmið" — a small ball at the tip, mid-height, always there (not just while
+      // selected, same as the island puck) so it reads as grabbable at a glance
+      if (o.kind === "milliveggur" && def.free && opts.onObstacleResizeMove){
+        var tipAlong = o.offsetMm / 1000 + wM / 2, tipOut = outM + dM;
+        var rH = new THREE.Mesh(new THREE.SphereGeometry(0.035, 16, 16), new THREE.MeshBasicMaterial({ color:sel ? 0x0d8fbf : 0xf5c518 }));
+        rH.position.set(g.origin.x + g.axis.x * tipAlong + g.normal.x * tipOut, v.lo / 1000 + hM / 2, g.origin.z + g.axis.z * tipAlong + g.normal.z * tipOut);
+        rH.userData = { kind:"obstacle-resize", obstacleId:o.id, wallId:o.wallId, outMm:o.outMm || 0 };
+        scene.add(rH); pickables.push(rH);
+      }
     });
 
     // built-in fridge reads as an appliance: brushed-steel front instead of the kitchen's fronts
