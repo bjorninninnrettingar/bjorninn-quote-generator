@@ -3876,7 +3876,7 @@
         var funits = []; // for the dimension overlay: one entry per cabinet on this wall
         fw.floor.forEach(function(b, bi){
           var c = CATALOG[b.type], h = Math.min(b.heightMm || c.h, roomHeightMm) / 1000;
-          funits.push({ a0:ffs[bi] / 1000, a1:(ffs[bi] + b.widthMm) / 1000, y0:0, y1:h, widthMm:b.widthMm, zone:"floor" });
+          funits.push({ a0:ffs[bi] / 1000, a1:(ffs[bi] + b.widthMm) / 1000, y0:0, y1:h, widthMm:b.widthMm, zone:"floor", plinth:!c.panel && !c.appliance });
         });
         fw.wall.forEach(function(b, bi){
           var c = CATALOG[b.type], h = Math.min(b.heightMm || c.h, roomHeightMm) / 1000, y0 = elevOf(b) / 1000;
@@ -3884,7 +3884,9 @@
         });
         var los = [0, fg.lenM].concat(funits.map(function(u){ return u.a0; }), funits.map(function(u){ return u.a1; }));
         var yhis = [0.1].concat(funits.map(function(u){ return u.y1; }));
-        var flo = Math.min.apply(null, los) - 0.35, fhi = Math.max.apply(null, los) + 0.35;
+        // a little extra left margin (was 0.35) — the height chain now draws two lines (total room height,
+        // plus the plinth/carcass/ceiling-gap breakdown) instead of one, side by side
+        var flo = Math.min.apply(null, los) - 0.46, fhi = Math.max.apply(null, los) + 0.35;
         var fyHi = Math.max.apply(null, yhis) + 0.35;
         focusBounds = { g:fg, lo:flo, hi:fhi, yLo:-0.45, yHi:Math.max(fyHi, roomHeightMm / 1000 + 0.35), units:funits, lenM:fg.lenM, roomHM:roomHeightMm / 1000 };
       }
@@ -4065,10 +4067,18 @@
       // dimensioned, same as the room's own wall-length label does on the 2D plan
       var p0w = P(0, -0.32), p1w = P(focusBounds.lenM, -0.32);
       svg += dimTick(p0w.x, p0w.y, p1w.x, p1w.y, Math.round(focusBounds.lenM * 1000) + " mm", false, color);
-      var ys = [0, focusBounds.roomHM].concat(floorU.map(function(u){ return u.y1; }));
+      // Two height lines (2026-10-19, user): an outer one for the room's total floor-to-ceiling height, always
+      // a single span; and an inner one, closer to the cabinets, chained through every real boundary — same
+      // boundaries as before, plus a plinth/carcass split for each floor unit that actually sits on one (not an
+      // appliance or panel) — so a single floor cabinet reads plinth · carcass · gap-to-ceiling, top to bottom.
+      var p0r = P(focusBounds.lo + 0.08, 0), p1r = P(focusBounds.lo + 0.08, focusBounds.roomHM);
+      svg += dimTick(p0r.x, p0r.y, p1r.x, p1r.y, Math.round(focusBounds.roomHM * 1000) + " mm", true, color);
+      var plinthSrc = fw.island || fw, plinthM = ((plinthSrc && typeof plinthSrc.plinthMm === "number") ? plinthSrc.plinthMm : 100) / 1000;
+      var ys = [0, focusBounds.roomHM];
+      floorU.forEach(function(u){ if (u.plinth) ys.push(Math.min(plinthM, u.y1)); ys.push(u.y1); });
       if (wallU.length){ ys.push(Math.min.apply(null, wallU.map(function(u){ return u.y0; }))); ys.push(Math.max.apply(null, wallU.map(function(u){ return u.y1; }))); }
       ys = ys.filter(function(y, i){ return ys.findIndex(function(z){ return Math.abs(z - y) < 0.005; }) === i; }).sort(function(a, b){ return a - b; });
-      var hx = focusBounds.lo + 0.15;
+      var hx = focusBounds.lo + 0.30;
       for (var k = 1; k < ys.length; k++){
         var ph0 = P(hx, ys[k - 1]), ph1 = P(hx, ys[k]);
         svg += dimTick(ph0.x, ph0.y, ph1.x, ph1.y, String(Math.round((ys[k] - ys[k - 1]) * 1000)), true, color);

@@ -1240,6 +1240,9 @@
           <div class="view-toggle" id="inspectToggle" title="X-Ray: framhliðar af, smelltu á skúffu eða hurð til að opna hana">
             <button type="button" id="inspectBtn" title="X-Ray: framhliðar af, smelltu á skúffu eða hurð til að opna hana">🔍 X-Ray</button>
           </div>
+          <div class="view-toggle" id="plinthToggle" title="Sökkulhæð á veggjum og eyjum" hidden>
+            <button type="button" id="plinthBtn" title="Sökkulhæð á veggjum og eyjum">🪜 Sökkull</button>
+          </div>
           <div class="view-toggle" id="histToggle">
             <button type="button" id="undoBtn" title="Afturkalla (⌘Z)" disabled>↶</button>
             <button type="button" id="redoBtn" title="Endurgera (⌘⇧Z)" disabled>↷</button>
@@ -1250,6 +1253,7 @@
             <button type="button" class="btn btn-primary ed-tbtn" id="toContactBtn" disabled>Áfram →</button>
           </div>
           <div class="warn-pop" id="warnPop" hidden></div>
+          <div class="warn-pop" id="plinthPop" hidden></div>
         </div>
         <div class="three-wrap" id="threeWrap"></div>
         <div class="three-wrap" id="planWrap" hidden></div>
@@ -5107,9 +5111,10 @@
   var SEC_KEY = "bjorninn:kitchenPlanner:sections";
   var openSecs = {}; // the toolbar dropdowns start closed
   document.addEventListener("pointerdown", function(e){ // a press outside an open dropdown / the warning list closes it
-    if (!e.target.closest || e.target.closest(".ed-menus .cat-sec, #warnPop, #warnChip, .fit-ask, #toast")) return;
+    if (!e.target.closest || e.target.closest(".ed-menus .cat-sec, #warnPop, #warnChip, #plinthPop, #plinthBtn, .fit-ask, #toast")) return;
     document.querySelectorAll(".ed-menus .cat-sec[open]").forEach(function(o){ o.open = false; openSecs[o.dataset.sec] = false; });
     var wp = document.getElementById("warnPop"); if (wp) wp.hidden = true;
+    var pp = document.getElementById("plinthPop"); if (pp) pp.hidden = true;
   }, true);
 
   function renderCatalogPanel(){
@@ -8274,6 +8279,43 @@
     if (!pop.hidden || !warnings.length){ pop.hidden = true; return; }
     pop.innerHTML = '<div class="ov-wall-h">⚠ Athugið</div>' + warnings.map(function(w, i){ return '<button type="button" class="warn-item" data-warnp="' + i + '">' + w.msg + '</button>'; }).join("");
     pop.querySelectorAll("[data-warnp]").forEach(function(b){ b.addEventListener("click", function(){ pop.hidden = true; var w = warnings[+b.dataset.warnp]; if (w && w.ids[0]) onCabinetSelect({ blockId:w.ids[0] }); }); });
+    pop.hidden = false;
+  });
+  // Sökkulhæð (PRO, 2026-10-19, user — "make it more obvious where Sökkul is, just next to X-Ray"): every
+  // wall + island listed at once, so there's no need to hunt for a wall by clicking it in 3D first.
+  function plinthRow(label, obj){
+    return '<div class="dim-f" style="display:flex;align-items:center;gap:8px;margin:4px 0;">' +
+      '<label style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + label + '</label>' +
+      '<input type="number" data-plinth-id="' + obj.id + '" value="' + plinthMmOf({}, "floor", obj) + '" min="' + PLINTH_RANGE[0] + '" max="' + PLINTH_RANGE[1] + '" step="1" style="width:70px;flex:none;"></div>';
+  }
+  function renderPlinthPop(){
+    var pop = document.getElementById("plinthPop");
+    var objs = state.walls.filter(function(w){ return !w.open; }).concat(state.islands || []);
+    var rows = state.walls.filter(function(w){ return !w.open; }).map(function(w){ return plinthRow(w.label, w); }).join("")
+      + (state.islands || []).map(function(isl){ return plinthRow(isl.label, isl); }).join("");
+    pop.innerHTML = '<div class="ov-wall-h">Sökkulhæð</div>' +
+      '<p class="ov-mat" style="margin:0 0 8px;">Breytir aðeins hvað "Hæð" sýnir/tekur við sem skrokkur — raunhæð skápsins stendur í stað.</p>' +
+      '<div class="dim-f" style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">' +
+        '<input type="number" id="plinthAllInp" placeholder="mm" min="' + PLINTH_RANGE[0] + '" max="' + PLINTH_RANGE[1] + '" step="1" style="width:70px;flex:none;">' +
+        '<button type="button" class="btn btn-secondary btn-small" id="plinthAllBtn">Á alla veggi og eyjur</button></div>' +
+      rows;
+    pop.querySelectorAll("[data-plinth-id]").forEach(function(inp){
+      inp.addEventListener("change", function(){
+        var o = objs.find(function(x){ return x.id === inp.dataset.plinthId; });
+        if (o && !setWallPlinthMm(o, inp.value)) inp.value = plinthMmOf({}, "floor", o);
+      });
+    });
+    var allBtn = document.getElementById("plinthAllBtn");
+    if (allBtn) allBtn.addEventListener("click", function(){
+      if (setAllPlinthMm(document.getElementById("plinthAllInp").value)) renderPlinthPop();
+    });
+  }
+  var plinthToggleEl = document.getElementById("plinthToggle");
+  if (PRO && plinthToggleEl) plinthToggleEl.hidden = false;
+  document.getElementById("plinthBtn").addEventListener("click", function(){
+    var pop = document.getElementById("plinthPop");
+    if (!pop.hidden){ pop.hidden = true; return; }
+    renderPlinthPop();
     pop.hidden = false;
   });
   window.addEventListener("kp3d-context-lost", function(){ if (state.step === "editor" && viewMode === "3d") setTimeout(renderView, 50); });
