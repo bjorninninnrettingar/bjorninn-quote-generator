@@ -22,15 +22,15 @@
     // 2026-10-09), so the worktop sits at ~932. Was 800 (700 box) until then.
     grunnskapur: { label:"Grunnskápur", zone:"floor", cls:"floor", defaultW:600, minW:200, maxW:1200, h:900,  d:600, minH:600,  maxH:1100, minD:300, maxD:700, hasInterior:true, drawerCountRange:[1,4], shelfRange:[0,4,1], counter:true },
     // tall units: 2400 box + 100 plinth (user, 2026-10-09 — they were 2300 + plinth)
-    harskapur:   { label:"Hárskápur",   zone:"floor", cls:"tall",  defaultW:600, minW:300, maxW:1200,  h:2500, d:600, minH:1800, maxH:2600, minD:300, maxD:700, hasInterior:true, drawerCountRange:[1,5], shelfRange:[0,8,5], railRange:[0,2,0] },
+    harskapur:   { label:"Hárskápur",   zone:"floor", cls:"tall",  defaultW:600, minW:300, maxW:1200,  h:2500, d:600, minH:1800, maxH:2700, minD:300, maxD:700, hasInterior:true, drawerCountRange:[1,5], shelfRange:[0,8,5], railRange:[0,2,0] },
     // same body as harskapur, no front at all — open shelving, always built in the front material (2026-10-14)
-    harskapurOpinn: { label:"Opinn hárskápur", zone:"floor", cls:"tall", defaultW:600, minW:300, maxW:1200, h:2500, d:600, minH:1800, maxH:2600, minD:300, maxD:700, hasInterior:false, shelfRange:[0,8,5], railRange:[0,2,0], open:true },
+    harskapurOpinn: { label:"Opinn hárskápur", zone:"floor", cls:"tall", defaultW:600, minW:300, maxW:1200, h:2500, d:600, minH:1800, maxH:2700, minD:300, maxD:700, hasInterior:false, shelfRange:[0,8,5], railRange:[0,2,0], open:true },
     efriskapur:  { label:"Efriskápur",  zone:"wall",  cls:"wall",  defaultW:600, minW:200, maxW:1200, h:1000, d:300, minH:300,  maxH:1200, minD:200, maxD:450, hasInterior:false, shelfRange:[0,5,2] },
     // Built-in fridge: NOT its own Skápategund in the schema (Skápategund has
     // Grunn/Hár/Efri/Lagna/Ofna/Loftunarskápur only) — physically a Hárskápur
     // housing a bought appliance, so it submits as Hárskápur plus a plain note
     // (same pattern as the drawer note) and Rakel confirms the niche size.
-    isskapur:    { label:"Ísskápur (innbyggður)", zone:"floor", cls:"fridge", defaultW:600, minW:500, maxW:1000, h:2500, d:600, minH:1700, maxH:2600, minD:500, maxD:750, hasInterior:false,
+    isskapur:    { label:"Ísskápur (innbyggður)", zone:"floor", cls:"fridge", defaultW:600, minW:500, maxW:1000, h:2500, d:600, minH:1700, maxH:2700, minD:500, maxD:750, hasInterior:false,
                    skapategundOverride:"Hárskápur", fridge:true,
                    note:"Viðskiptavinur óskar eftir innbyggðum ísskáp í þessum skáp — vinsamlegast staðfestu stærð tækis (nisju) og hurðargerð." },
     // Special units: oven tower and Le Mans corner map to real Airtable fields
@@ -39,7 +39,7 @@
     // plain note for Rakel.
     // b.ovenCombo = the drawer combo under the oven (an Útfærslur key, "" = cabinet door, no drawers)
     // ovens are 600 wide (user, 2026-10-02); "Í grunnskáp" = the low oven cabinet below (OFN6)
-    ofnaskapur:  { label:"Ofnaskápur",  zone:"floor", cls:"oven",  defaultW:600, minW:600, maxW:600, h:2500, d:600, minH:1800, maxH:2600, minD:500, maxD:750, hasInterior:false, ovenHeightMm:595, oven:true },
+    ofnaskapur:  { label:"Ofnaskápur",  zone:"floor", cls:"oven",  defaultW:600, minW:600, maxW:600, h:2500, d:600, minH:1800, maxH:2700, minD:500, maxD:750, hasInterior:false, ovenHeightMm:595, oven:true },
     // ---- 2026-09-30: types that exist as real Útfærslur (see kitchen-planner-linemap.js) ----
     // Búrskápur: tall pantry, doors outside, a real drawer/shelf set inside (b.burCombo)
     ofnaskapurLagur:{ label:"Ofnaskápur (í grunnskáp)", zone:"floor", cls:"floor", defaultW:600, minW:600, maxW:600, h:900, d:600, minH:850, maxH:1000, minD:550, maxD:700, hasInterior:false, counter:true, oven:true, lowOven:true },
@@ -50,9 +50,9 @@
     uppthvottavelFri:{ label:"Uppþvottavél (frístandandi)", zone:"floor", cls:"floor", defaultW:600, minW:450, maxW:600, widths:[450, 600], h:900, d:600, minH:800, maxH:950, minD:550, maxD:700, hasInterior:false, counter:true, appliance:"dishwasher", notOrdered:true },
     // (no longer offered — "nú erum við að gera eldhús", 2026-10-05; kept so older drafts still load)
     thvottavelFri:{ label:"Þvottavél (frístandandi)", zone:"floor", cls:"floor", defaultW:600, minW:600, maxW:600, h:900, d:600, minH:800, maxH:950, minD:550, maxD:700, hasInterior:false, counter:true, appliance:"washer", notOrdered:true },
-    burskapur:   { label:"Búrskápur", zone:"floor", cls:"tall", defaultW:600, minW:300, maxW:1200, h:2500, d:600, minH:1800, maxH:2600, minD:400, maxD:700, hasInterior:false, bur:true },
+    burskapur:   { label:"Búrskápur", zone:"floor", cls:"tall", defaultW:600, minW:300, maxW:1200, h:2500, d:600, minH:1800, maxH:2700, minD:400, maxD:700, hasInterior:false, bur:true },
     // Þvottavélaskápur: washer/dryer tower; b.thvo = "skuffa" (a drawer at the bottom to raise the machine) | "hurdir" (doors only)
-    thvottavel:  { label:"Þvottavélaskápur", zone:"floor", cls:"tall", defaultW:600, minW:600, maxW:900, h:2500, d:600, minH:1800, maxH:2600, minD:600, maxD:750, hasInterior:false, thvo:true, fixedFronts:true },
+    thvottavel:  { label:"Þvottavélaskápur", zone:"floor", cls:"tall", defaultW:600, minW:600, maxW:900, h:2500, d:600, minH:1800, maxH:2700, minD:600, maxD:750, hasInterior:false, thvo:true, fixedFronts:true },
     // Uppþvottavél: integrated dishwasher behind one full front (V1 = the front itself)
     uppthvottavel:{ label:"Uppþvottavél", zone:"floor", cls:"floor", defaultW:600, minW:450, maxW:600, h:900, d:600, minH:850, maxH:1000, minD:550, maxD:700, hasInterior:false, counter:true, dishwasher:true },
     // Ruslaskápur: one tall pull-out with bins (RUSL60 / RUSL80)
@@ -60,7 +60,7 @@
     // Lítill kassi: a low box (benches, window seats, TV units) — no worktop by default
     litillkassi: { label:"Lítill kassi", zone:"floor", cls:"floor", defaultW:600, minW:200, maxW:1200, h:500, d:600, minH:300, maxH:700, minD:300, maxD:700, hasInterior:true, drawerCountRange:[1,4], shelfRange:[0,2,1] },
     // Hár veggskápur: a shallower tall unit (500 deep, 2000 high)
-    harveggskapur:{ label:"Hár veggskápur", zone:"floor", cls:"tall", defaultW:600, minW:300, maxW:1200, h:2000, d:500, minH:1500, maxH:2600, minD:300, maxD:600, hasInterior:true, drawerCountRange:[1,4], shelfRange:[0,6,4] },
+    harveggskapur:{ label:"Hár veggskápur", zone:"floor", cls:"tall", defaultW:600, minW:300, maxW:1200, h:2000, d:500, minH:1500, maxH:2700, minD:300, maxD:600, hasInterior:true, drawerCountRange:[1,4], shelfRange:[0,6,4] },
     tofrahorn:   { label:"Töfrahorn (kapphorn)", zone:"floor", cls:"corner", defaultW:1200, minW:900, maxW:1500, h:900, d:600, minH:600, maxH:1100, minD:500, maxD:900, hasInterior:false, counter:true,
                    skapategundOverride:"Grunnskápur",
                    // Útfærslur "Le mans Töfrahorn" by door half (b.swing) × carcass colour — no light grey exists
@@ -75,7 +75,7 @@
                    skapategundOverride:"Grunnskápur", note:"Úthlið, 19 mm þykk, sama efni og framhliðar (stendur við enda á skápalínu).",
                    // Útfærslur "Úthliðar" (V1): UHGR, or UHLK beside a lítill kassi (≤ 600 mm high)
                    panelIds:[{ maxH:600, utfaerslaId:"recEpLxCpHtbBHRkV" }, { utfaerslaId:"recUKqD3UKKWQ8J7g" }] },
-    uthlidhar:   { label:"Úthlið — há", zone:"floor", cls:"tall", defaultW:19, minW:19, maxW:19, h:2500, d:600, minH:1000, maxH:2600, minD:100, maxD:750, hasInterior:false, panel:true,
+    uthlidhar:   { label:"Úthlið — há", zone:"floor", cls:"tall", defaultW:19, minW:19, maxW:19, h:2500, d:600, minH:1000, maxH:2700, minD:100, maxD:750, hasInterior:false, panel:true,
                    skapategundOverride:"Hárskápur", note:"Úthlið, 19 mm þykk, sama efni og framhliðar (stendur við enda á skápalínu).",
                    // UHVS beside a hár veggskápur (≤ 2100 mm), else UHHA
                    panelIds:[{ maxH:2100, utfaerslaId:"recjkbrTcZZgSazX5" }, { utfaerslaId:"recgcU94bpLvATm0r" }] },
@@ -602,6 +602,29 @@
     }
     return rem > 0.5 ? null : out.map(function(h){ return Math.round(h * 10) / 10; });
   }
+  // Same redistribution as resizeFront, but for while the customer/Rakel is still planning (user, 2026-10-19):
+  // never refuses — the others give way past their own minimum instead of blocking the edit, so a half-built
+  // stack that doesn't "make sense" yet can still be typed in. Always returns an array summing to the body
+  // (so stackFrontsMm still accepts it on the next render); `invalid` lists indices now below their real
+  // minimum, for a non-blocking warning at the call site — never a revert.
+  function resizeFrontFree(fronts, codes, i, v){
+    var mins = codes.map(slotMin), FLOOR = 5; // mm — keeps geometry sane, not a real constraint
+    var out = fronts.slice();
+    v = Math.max(FLOOR, Math.round(v * 10) / 10);
+    var rem = v - out[i], order = [];
+    out[i] = v;
+    for (var d = 1; d < codes.length; d++){ if (i + d < codes.length) order.push(i + d); if (i - d >= 0) order.push(i - d); }
+    for (var k = 0; k < order.length && Math.abs(rem) > 0.01; k++){
+      var j = order[k];
+      if (rem > 0){ var take = Math.max(0, Math.min(rem, out[j] - FLOOR)); out[j] -= take; rem -= take; }
+      else { out[j] -= rem; rem = 0; }
+    }
+    if (rem > 0.5) out[i] = Math.max(FLOOR, out[i] - rem); // even everyone else at the floor isn't enough — v itself gives way
+    out = out.map(function(h){ return Math.round(h * 10) / 10; });
+    var invalid = [];
+    out.forEach(function(h, idx){ if (h < mins[idx] - 0.5) invalid.push(idx); });
+    return { fronts:out, invalid:invalid };
+  }
   // seams as fractions of the body (bottom → top), like drawerFractions()
   function frontsToFractions(fronts, bodyMm){
     var out = [], acc = 0;
@@ -826,6 +849,14 @@
     return { axis:axis, normal:normalFromAxis(axis) };
   }
   var ISLAND_MAX_MM = 6000;
+  // ---------- milliveggir (partition walls, 2026-10-15) ----------
+  // A "milliveggur" is an obstacle (state.obstacles, kind:"milliveggur" — see OBSTACLES below) that also
+  // works as a real surface: cabinets can stand against either of its two long faces, same as an island's
+  // two back-to-back rows. Unlike an island, its length (o.depthMm — "how far it reaches into the room")
+  // is a fixed, user-set dimension, not grown from its cabinets, so it's used directly as the surface's
+  // lengthMm (the same way a real wall's own lengthMm is its placement capacity). Cabinets live in the
+  // obstacle's own o.sideA / o.sideB arrays (parallel to an island's a / b), keyed "<id>a" / "<id>b".
+  function partitionObstacles(state){ return (state.obstacles || []).filter(function(o){ return o.kind === "milliveggur"; }); }
   function surfacesOf(state){
     var out = state.walls.slice();
     out.closed = !!state.closed;
@@ -837,6 +868,29 @@
         if (!isl.b) isl.b = [];
         out.push({ id:isl.id + "b", label:isl.label + " · röð B", lengthMm:ISLAND_MAX_MM, floor:isl.b, wall:[], island:isl, side:"b" });
       }
+    });
+    partitionObstacles(state).forEach(function(o){
+      if (!o.sideA) o.sideA = [];
+      if (!o.sideB) o.sideB = [];
+      out.push({ id:o.id + "a", label:"Milliveggur · hlið A", lengthMm:o.depthMm, floor:o.sideA, wall:[], partition:o, side:"a" });
+      out.push({ id:o.id + "b", label:"Milliveggur · hlið B", lengthMm:o.depthMm, floor:o.sideB, wall:[], partition:o, side:"b" });
+    });
+    return out;
+  }
+  // Each face runs along the obstacle's own depthMm direction (perpendicular to its anchor wall), the two
+  // faces separated by its thickness (widthMm) — exactly the two long edges of its footprint rectangle
+  // (see obstacleQuad below, same corners). Skipped if its anchor wall is missing or open (nothing to
+  // measure the offset/outMm from).
+  function milliveggGeoms(state){
+    var out = [], walls = wallGeoms(state);
+    partitionObstacles(state).forEach(function(o){
+      var wi = state.walls.findIndex(function(w){ return w.id === o.wallId; }), g = walls[wi];
+      if (!g || state.walls[wi].open) return;
+      var a = o.offsetMm / 1000, b = a + o.widthMm / 1000, n0 = (o.outMm || 0) / 1000, lenM = o.depthMm / 1000;
+      var pA = { x:g.origin.x + g.axis.x * a + g.normal.x * n0, z:g.origin.z + g.axis.z * a + g.normal.z * n0 };
+      var pB = { x:g.origin.x + g.axis.x * b + g.normal.x * n0, z:g.origin.z + g.axis.z * b + g.normal.z * n0 };
+      out.push({ origin:pA, axis:g.normal, normal:{ x:-g.axis.x, z:-g.axis.z }, lenM:lenM });
+      out.push({ origin:pB, axis:g.normal, normal:{ x:g.axis.x, z:g.axis.z }, lenM:lenM });
     });
     return out;
   }
@@ -860,7 +914,7 @@
     g.closed = !!state.closed;
     return g;
   }
-  function surfaceGeoms(state){ return wallGeoms(state).concat(islandGeoms(state)); }
+  function surfaceGeoms(state){ return wallGeoms(state).concat(islandGeoms(state)).concat(milliveggGeoms(state)); }
   // where the move-handle "puck" of an island sits: on the floor just past its start
   function islandHandlePos(isl){
     var f = islandFrame(isl), lenM = isl.lengthMm / 1000;
@@ -883,11 +937,11 @@
   var CORNER_CLEARANCE_MM = 600;
   function cornerClearanceMm(walls, wallIndex, zoneKey){
     if (zoneKey !== "floor" || wallIndex < 0) return 0;
-    if (walls[wallIndex] && walls[wallIndex].island) return 0; // free-standing rows have no corner
+    if (walls[wallIndex] && (walls[wallIndex].island || walls[wallIndex].partition)) return 0; // free-standing rows have no corner
     var prevIdx = wallIndex > 0 ? wallIndex - 1 : -1;
     if (prevIdx < 0 && walls.closed){ // closed room: the last real wall meets the first
       prevIdx = walls.length - 1;
-      while (prevIdx > 0 && walls[prevIdx].island) prevIdx--;
+      while (prevIdx > 0 && (walls[prevIdx].island || walls[prevIdx].partition)) prevIdx--;
     }
     if (prevIdx < 0 || prevIdx === wallIndex) return 0;
     var prev = walls[prevIdx];
@@ -907,10 +961,10 @@
   // start of a floor run that already begins after the previous wall's cabinets (corner clearance), the run
   // meets their side panel, not the wall — no áfella there.
   var AFELLA_MM = 19;
-  function realWallCount(walls){ var n = 0; while (n < walls.length && !walls[n].island) n++; return n; }
+  function realWallCount(walls){ var n = 0; while (n < walls.length && !walls[n].island && !walls[n].partition) n++; return n; }
   function afellaMm(walls, wallIndex, zoneKey){
     var w = walls[wallIndex], n = realWallCount(walls);
-    if (!w || w.island || w.open || wallIndex >= n) return { start:0, end:0 };
+    if (!w || w.island || w.partition || w.open || wallIndex >= n) return { start:0, end:0 };
     var prev = wallIndex > 0 ? walls[wallIndex - 1] : walls.closed ? walls[n - 1] : null;
     var next = wallIndex < n - 1 ? walls[wallIndex + 1] : walls.closed ? walls[0] : null;
     var startSolid = !!prev && prev !== w && prev.turnAfter === "left" && !prev.open;
@@ -2527,15 +2581,16 @@
     var best = null, bestDist = Infinity, bestAlongM = 0;
     geoms.forEach(function(g, i){
       if (walls[i].open) return; // open edges take nothing
-      if (wallsOnly && walls[i].island) return; // windows/doors only go on real walls
+      if (wallsOnly && (walls[i].island || walls[i].partition)) return; // windows/doors only go on real walls
       var x1 = g.origin.x, z1 = g.origin.z;
       var dx = g.axis.x * g.lenM, dz = g.axis.z * g.lenM;
       var lenSq = dx * dx + dz * dz;
       var t = lenSq > 0 ? ((worldX - x1) * dx + (worldZ - z1) * dz) / lenSq : 0;
       t = Math.max(0, Math.min(1, t));
       var d = Math.hypot(worldX - (x1 + t * dx), worldZ - (z1 + t * dz));
-      // back-to-back island rows share one seam: pick the row whose front the cursor is on
+      // back-to-back island rows (or the two faces of a milliveggur) share one seam: pick the one whose front the cursor is on
       if (walls[i].island && walls[i].island.two && (worldX - x1) * g.normal.x + (worldZ - z1) * g.normal.z < 0) d += 5;
+      if (walls[i].partition && (worldX - x1) * g.normal.x + (worldZ - z1) * g.normal.z < 0) d += 5;
       if (d < bestDist){ bestDist = d; best = i; bestAlongM = t * g.lenM; }
     });
     return best === null ? null : { wallId:walls[best].id, alongMm:Math.round(bestAlongM * 1000) };
@@ -2553,7 +2608,7 @@
     var best = null, o = ray.origin, d = ray.direction;
     geoms.forEach(function(g, i){
       var w = walls[i];
-      if (!w || w.open || w.island) return;
+      if (!w || w.open || w.island || w.partition) return; // no wall-mounted (upper) units on a milliveggur yet
       var dn = d.x * g.normal.x + d.z * g.normal.z;
       if (dn > -1e-6) return;
       var t = ((g.origin.x + g.normal.x * depthM - o.x) * g.normal.x + (g.origin.z + g.normal.z * depthM - o.z) * g.normal.z) / dn;
@@ -3464,7 +3519,7 @@
     var OrbitControls = window.__OrbitControls__;
 
     var geoms = wallGeoms(state);
-    var surfaces = surfacesOf(state), allGeoms = geoms.concat(islandGeoms(state)); // walls + island rows
+    var surfaces = surfacesOf(state), allGeoms = geoms.concat(islandGeoms(state)).concat(milliveggGeoms(state)); // walls + island rows + milliveggir
     var carcass = state.carcass ? CARCASS[state.carcass] : null;
     var jeyOn = !!(state.handle && window.KPMODELS && window.KPMODELS.handles && window.KPMODELS.handles[state.handle] && /^(jey|hexxa)$/.test(window.KPMODELS.handles[state.handle].kind)); // Jey (on top of the front, incl. Spónagrip — same kind) and Hexxa (cut into it) need separate fronts
     var carcassMat = new THREE.MeshStandardMaterial({ color: carcass ? carcass.color3d : "#3a3a3a", roughness:0.9 });
@@ -4575,8 +4630,8 @@
     if (!geoms.length) return null;
     var b = stateBounds(state, geoms);
     var margin = 0.8;
-    // geoms/surfaces include free-standing island rows after the real walls
-    return { minX: b.minX - margin, minZ: b.minZ - margin, pxPerM: PX_PER_M, geoms: geoms.concat(islandGeoms(state)), surfaces: surfacesOf(state) };
+    // geoms/surfaces include free-standing island rows and milliveggir after the real walls
+    return { minX: b.minX - margin, minZ: b.minZ - margin, pxPerM: PX_PER_M, geoms: geoms.concat(islandGeoms(state)).concat(milliveggGeoms(state)), surfaces: surfacesOf(state) };
   }
 
   // Phase 8: shared corner math for a rectangle sitting on a wall (offset
@@ -5136,7 +5191,7 @@
     opts = opts || {};
     var geoms = wallGeoms(state);
     if (!geoms.length){ container.innerHTML = ""; return; }
-    var surfaces = surfacesOf(state), allGeoms = geoms.concat(islandGeoms(state));
+    var surfaces = surfacesOf(state), allGeoms = geoms.concat(islandGeoms(state)).concat(milliveggGeoms(state));
 
     var b = stateBounds(state, geoms);
     var margin = 0.8;
@@ -5406,7 +5461,7 @@
     DRAWER_CODES: DRAWER_CODES,
     FRONT_MIN: FRONT_MIN, slotMin: slotMin,
     drawerCodes: drawerCodes,
-    drawerFrontsMm: drawerFrontsMm, stackFrontsMm: stackFrontsMm, resizeFront: resizeFront,
+    drawerFrontsMm: drawerFrontsMm, stackFrontsMm: stackFrontsMm, resizeFront: resizeFront, resizeFrontFree: resizeFrontFree,
     drawerComboKey: drawerComboKey,
     ovenCodesOf: ovenCodesOf, ovenZoneMm: ovenZoneMm, setMood: setMood, OVEN_HEIGHTS: OVEN_HEIGHTS, OVEN_BOARD_MM: OVEN_BOARD_MM,
     shelfLayoutOf: shelfLayoutOf, burDrawersOf: burDrawersOf, shelfSpaceMm: shelfSpaceMm, hasShelfLayout: hasShelfLayout, burTopMm: burTopMm, drawerBoxTopMm: drawerBoxTopMm,

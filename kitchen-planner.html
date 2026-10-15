@@ -127,8 +127,8 @@
   .reset-link{ background:none; border:none; color:var(--ink-soft); font-size:13px; text-decoration:underline; cursor:pointer; padding:4px 0; white-space:nowrap; }
   .reset-link:hover{ color:var(--danger); }
 
-  .screen-title{ font-size:18px; font-weight:600; margin:0 0 4px; }
-  .screen-sub{ font-size:14px; color:var(--ink-soft); margin:0 0 20px; }
+  .screen-title{ font-size:18px; font-weight:600; margin:0; }
+  .screen-sub{ font-size:13px; color:var(--ink-soft); margin:0; }
 
   /* ---- shape step (Phase 7d-1: guided wall-chain builder) ---- */
   .room-preview{
@@ -304,7 +304,11 @@
   .actions{ display:flex; gap:10px; align-items:center; margin-top:8px; flex-wrap:wrap; }
   /* the step navigation (2026-10-11): always the same place — "← Til baka" and "Áfram →" side by side at the
      right end of the page's title row, which stays put while the page scrolls (until the designer, which has its own) */
-  .title-row{ display:flex; align-items:flex-start; justify-content:space-between; gap:16px; position:sticky; top:0; z-index:40; background:var(--bg, #fff); padding:8px 0 6px; }
+  .title-row{ display:flex; align-items:flex-start; justify-content:space-between; gap:16px; position:sticky; top:0; z-index:40; background:var(--bg, #fff); padding:8px 0 14px; }
+  /* 2026-10-15: title + description on one line (was stacked) — shortens the sticky header so the actual
+     frame below (cards / drawing / wizard) starts higher; flex-wrap is a fallback for a description too
+     long to fit next to the title at the window's current width, not the normal case on this desktop-only page */
+  .title-row > div:first-child{ display:flex; align-items:baseline; flex-wrap:wrap; column-gap:10px; row-gap:2px; }
   .title-row .screen-sub{ margin-bottom:0; }
   .step-nav{ display:flex; align-items:center; gap:8px; flex:none; margin:0 !important; flex-wrap:nowrap; }
   .step-nav:empty{ display:none; }
@@ -912,6 +916,8 @@
   .mat-sel{ display:block; margin:0 0 9px; font-size:12px; color:var(--ink-soft); }
   .mat-sel span{ display:block; margin-bottom:3px; font-weight:600; }
   .mat-sel select{ width:100%; font:inherit; font-size:13.5px; padding:7px 8px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); }
+  .room-pick-select{ width:100%; font:inherit; font-size:14px; font-weight:600; padding:8px 10px; border:1px solid var(--line); border-radius:999px; background:#fff; color:var(--ink); }
+  .room-pick-select:focus{ outline:none; border-color:var(--blue); }
   .wall-badge{ display:inline-block; font-size:11.5px; font-weight:700; color:#fff; background:var(--blue); border-radius:999px; padding:2px 9px; margin-left:6px; vertical-align:middle; }
   /* ---------- pro mode (Rakel, ?pro=<Tækifæri>&k=…) ---------- */
   body.pro #toContactBtn { display:none; }
@@ -1137,7 +1143,7 @@
     <div id="shapePick">
       <div id="shapeRoomPick" class="mat-section" hidden>
         <div class="mat-section-title">Hvaða rými er þetta?</div>
-        <select id="fataskaparRoom" class="h-num" style="max-width:260px;"></select>
+        <select id="fataskaparRoom" class="room-pick-select" style="max-width:260px;"></select>
       </div>
       <div class="shape-group-title">Lokað eldhús</div>
       <div class="shape-cards" id="shapeCardsClosed"></div>
@@ -1412,7 +1418,7 @@
   }
 
   // A cabinet can never render/write taller than the room itself (Phase 7c) —
-  // matters for Hárskápur, whose real range tops out at 2600mm.
+  // matters for Hárskápur, whose real range tops out at 2700mm.
   function blockHeightMm(b, c){ return Math.min(b.heightMm || c.h, state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM); }
   var blockSeq = 1;
   var wallSeq = 2; // W1 already used by the starting wall
@@ -1841,7 +1847,30 @@
         : '<defs><pattern id="plank" width="60" height="18" patternUnits="userSpaceOnUse"' + floorRotAttr + '><path d="M0 17.5 H60 M30 0 V17.5" stroke="rgba(0,0,0,.10)" stroke-width="1" fill="none"/></pattern></defs>') +
       '<polygon points="' + polyPts + '" fill="' + KP3D.floorPlanColor(state.floor) + '"/><polygon points="' + polyPts + '" fill="url(#plank)"/>';
     var items = "", handles = "";
-    var dimBoxes = []; // placed wall-length labels (centre + width), to keep them apart
+    var dimBoxes = []; // placed wall-length labels (chain + position along it), to keep them apart
+    // Dimension chain (2026-10-15): every wall's length measurement lands on ONE shared line per facing
+    // (above the room / below it / left of it / right of it) instead of its own private offset from
+    // itself — an L-shape or an innskot used to crowd short walls' ticks right into the inside corner
+    // (messy, and the tick could overlap the corner's own band square). Walls only ever turn 90°, so
+    // every wall's own interior normal is purely N/S/E/W; group by that, and each side's shared line sits
+    // outside the farthest wall on that side — a wall set back from the others (the innskot step) just
+    // gets a witness line out to the shared line instead of its own close-in measurement. A plain
+    // rectangle has only one wall per side, so its witness lines are zero-length and nothing changes
+    // visually there.
+    var DIM_OFFSET = 72, dimGroup = {}, dimExtreme = { N:Infinity, S:-Infinity, W:Infinity, E:-Infinity };
+    for (var di = 0; di < n; di++){
+      var dw1 = pts[di], dw2 = pts[(di + 1) % n];
+      var dax = dw2.x - dw1.x, daz = dw2.z - dw1.z, dlen = Math.hypot(dax, daz) || 1; dax /= dlen; daz /= dlen;
+      var dnx = -daz, dnz = dax, dHoriz = Math.abs(daz) < Math.abs(dax);
+      var dg = dHoriz ? (dnz > 0 ? "N" : "S") : (dnx > 0 ? "W" : "E");
+      dimGroup[di] = dg;
+      var gx1 = X(dw1), gy1 = Y(dw1);
+      if (dg === "N") dimExtreme.N = Math.min(dimExtreme.N, gy1);
+      else if (dg === "S") dimExtreme.S = Math.max(dimExtreme.S, gy1);
+      else if (dg === "W") dimExtreme.W = Math.min(dimExtreme.W, gx1);
+      else dimExtreme.E = Math.max(dimExtreme.E, gx1);
+    }
+    var dimLine = { N:dimExtreme.N - DIM_OFFSET, S:dimExtreme.S + DIM_OFFSET, W:dimExtreme.W - DIM_OFFSET, E:dimExtreme.E + DIM_OFFSET };
     // Wall bands sit 8 px outside the floor outline (16 px wide). Each band runs between the OFFSET corners
     // (corner − both walls' normals × 8, exact for 90° corners, inward and reflex alike) with butt ends, and a
     // 16 px square is laid on every corner where two solid walls meet — so both outer (convex) and inner
@@ -1914,25 +1943,24 @@
         handles += '<g data-waterwall="' + w.id + '" style="cursor:pointer;"><title>Setja vatnið á vegg ' + (i + 1) + '</title><circle cx="' + wbx + '" cy="' + wby + '" r="13" fill="' + (onW ? "#0058a3" : "#fff") + '" stroke="' + (onW ? "#0058a3" : "#8a8f9a") + '" stroke-width="1.5"/><text x="' + wbx + '" y="' + (wby + 4.5) + '" font-size="13" font-weight="700" text-anchor="middle" fill="' + (onW ? "#fff" : "#191919") + '" style="pointer-events:none;">' + (i + 1) + '</text></g>';
         continue;
       }
-      // dimension line, 72px outside the wall (clear of the slide arrows)
-      // A label at the pure midpoint of a short wall next to an inside (reflex/innskot) corner sits right on
-      // top of the neighbouring wall's own label — slide it toward whichever end is the convex (outer) corner
-      // first (2026-10-13), then still push it further out if it's somehow still crowded (2026-10-11).
-      var startReflex = state.walls[(i - 1 + n) % n].turnAfter === "right", endReflex = w.turnAfter === "right";
-      var biasT = startReflex && !endReflex ? 0.7 : endReflex && !startReflex ? 0.3 : 0.5;
-      var mx = x1 + (x2 - x1) * biasT, my = y1 + (y2 - y1) * biasT;
-      var offOut = 72, txt0 = w.lengthMm + " mm", tw0 = txt0.length * 7.2 + 14;
-      for (var tries = 0; tries < 5; tries++){
-        var cxl = mx - nx * offOut, cyl = my - nz * offOut;
-        if (!dimBoxes.some(function(bx){ return Math.abs(bx.x - cxl) < (bx.w + tw0) / 2 + 4 && Math.abs(bx.y - cyl) < 26; })) break;
-        offOut += 30;
-      }
-      dimBoxes.push({ x:mx - nx * offOut, y:my - nz * offOut, w:tw0 });
-      var dxo = -nx * offOut, dzo = -nz * offOut;
-      items += '<line x1="' + (x1 + dxo) + '" y1="' + (y1 + dzo) + '" x2="' + (x2 + dxo) + '" y2="' + (y2 + dzo) + '" stroke="#444" stroke-width="1"/>' +
-        '<line x1="' + (x1 + dxo - nx * 6) + '" y1="' + (y1 + dzo - nz * 6) + '" x2="' + (x1 + dxo + nx * 6) + '" y2="' + (y1 + dzo + nz * 6) + '" stroke="#444"/>' +
-        '<line x1="' + (x2 + dxo - nx * 6) + '" y1="' + (y2 + dzo - nz * 6) + '" x2="' + (x2 + dxo + nx * 6) + '" y2="' + (y2 + dzo + nz * 6) + '" stroke="#444"/>';
-      var lx = mx + dxo, ly = my + dzo, txt = w.lengthMm + " mm", tw = txt.length * 7.2 + 14;
+      // dimension: a witness line from each end of this wall out to its side's shared chain line
+      // (dimLine[N/S/W/E], from the pre-pass above) — see the big comment up there.
+      var dg = dimGroup[i], chainVert = dg === "N" || dg === "S"; // the chain line itself runs horizontally
+      var qx1, qy1, qx2, qy2; // this wall's own segment of the shared line
+      if (chainVert){ qx1 = x1; qy1 = dimLine[dg]; qx2 = x2; qy2 = dimLine[dg]; }
+      else { qx1 = dimLine[dg]; qy1 = y1; qx2 = dimLine[dg]; qy2 = y2; }
+      items += '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + qx1 + '" y2="' + qy1 + '" stroke="#d9d5cb" stroke-width="1"/>' +
+        '<line x1="' + x2 + '" y1="' + y2 + '" x2="' + qx2 + '" y2="' + qy2 + '" stroke="#d9d5cb" stroke-width="1"/>' +
+        '<line x1="' + qx1 + '" y1="' + qy1 + '" x2="' + qx2 + '" y2="' + qy2 + '" stroke="#444" stroke-width="1"/>' +
+        '<line x1="' + (qx1 - nx * 6) + '" y1="' + (qy1 - nz * 6) + '" x2="' + (qx1 + nx * 6) + '" y2="' + (qy1 + nz * 6) + '" stroke="#444"/>' +
+        '<line x1="' + (qx2 - nx * 6) + '" y1="' + (qy2 - nz * 6) + '" x2="' + (qx2 + nx * 6) + '" y2="' + (qy2 + nz * 6) + '" stroke="#444"/>';
+      var lx = (qx1 + qx2) / 2, ly = (qy1 + qy2) / 2, txt = w.lengthMm + " mm", tw = txt.length * 7.2 + 14;
+      // two walls sharing one chain only ever clash along the chain itself now (never across it) — nudge
+      // the later one clear if its label would overlap one already placed on the same chain
+      var along = chainVert ? lx : ly;
+      if (dimBoxes.some(function(bx){ return bx.line === dg && Math.abs(bx.at - along) < (bx.w + tw) / 2 + 4; })) along += tw / 2 + 8;
+      dimBoxes.push({ line:dg, at:along, w:tw });
+      if (chainVert) lx = along; else ly = along;
       items += '<g class="dim" data-dim="' + i + '"><rect x="' + (lx - tw / 2) + '" y="' + (ly - 11) + '" width="' + tw + '" height="22" rx="4" fill="#fbfaf7" stroke="' + (sel ? "#0d8fbf" : "none") + '"/>' +
         '<text x="' + lx + '" y="' + (ly + 4.5) + '" font-size="13" text-anchor="middle" fill="#191919" style="pointer-events:none;">' + txt + '</text></g>';
       // slide arrows (perpendicular to the wall)
@@ -1942,9 +1970,10 @@
         return '<polygon points="' + (bx + px) + ',' + (by + py) + ' ' + (bx - px) + ',' + (by - py) + ' ' + tipx + ',' + tipy + '" fill="#fff" stroke="#666" stroke-width="2.2" stroke-linejoin="round"/>';
       };
       handles += '<g data-slide="' + i + '" class="slide' + (sel ? ' on' : '') + '" style="cursor:' + cur + ';"><circle cx="' + hx + '" cy="' + hy + '" r="30" fill="transparent"/>' + tri(1) + tri(-1) + '</g>';
-      // the wall's number on its band, the same number as in the "Veggjamál" list (2026-10-11)
-      var bx0 = hx - nx * 8, by0 = hy - nz * 8, along0 = Math.min(46, Math.hypot(x2 - x1, y2 - y1) / 4);
-      bx0 -= ax * along0; by0 -= az * along0; // a little before the middle, clear of the arrows
+      // the wall's number on its band, the same number as in the "Veggjamál" list (2026-10-11) — always at
+      // the wall's true middle (2026-10-15): it used to sit off to one side to dodge the slide arrows, but
+      // those are invisible until hover/select, so there was never really anything to dodge.
+      var bx0 = hx - nx * 8, by0 = hy - nz * 8;
       handles += '<g class="wall-no' + (sel ? ' on' : '') + '" data-wallno="' + i + '" style="cursor:pointer;"><circle cx="' + bx0 + '" cy="' + by0 + '" r="11" fill="' + (sel ? "#0d8fbf" : "#fff") + '" stroke="' + (sel ? "#0d8fbf" : "#8a8f9a") + '" stroke-width="1.5"/><text x="' + bx0 + '" y="' + (by0 + 4.5) + '" font-size="12" font-weight="700" text-anchor="middle" fill="' + (sel ? "#fff" : "#191919") + '" style="pointer-events:none;">' + (i + 1) + '</text></g>';
     }
     if (water && state.waterWall){ // the water supply: a droplet you drag along the wall, with the sink cabinet's footprint
@@ -2192,7 +2221,7 @@
     var box = document.getElementById("shapeActions");
     if (shapePhase === "pick"){
       box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">← Til baka</button><button class="btn btn-primary" id="shNext" type="button"' + (state.closed || pendingShape ? "" : " disabled") + '>Áfram →</button>';
-      document.getElementById("shBack").addEventListener("click", function(){ pendingShape = null; goto("welcome"); });
+      document.getElementById("shBack").addEventListener("click", function(){ pendingShape = null; goto("byrja"); });
       document.getElementById("shNext").addEventListener("click", function(){
         var k = pendingShape; pendingShape = null;
         if (k && (!state.closed || k !== state.shapeKey)){ applyShapeTemplate(k); return; } // applies it and opens the sizes
@@ -2235,8 +2264,9 @@
   function renderShapeStep(){
     if (!state.closed) shapePhase = "pick";
     if (shapePhase !== "height") endHeightScene();
+    var catDef = categoryDef(state.activeCategory);
     var titles = {
-      pick: state.activeCategory === "fataskapar"
+      pick: catDef && catDef.roomPicker
         ? ["Hvernig er rýmið í laginu?", "Veldu þá lögun sem passar best. Þú stillir málin næst."]
         : ["Hvernig er eldhúsið í laginu?", "Veldu þá lögun sem passar best. Þú stillir málin næst."],
       size:  ["Stilltu stærð rýmisins", "Sláðu inn mál eða dragðu veggina á teikningunni."],
@@ -2258,8 +2288,8 @@
     // (the nav lives in the title row on every phase now — 2026-10-11)
     if (shapePhase === "pick"){
       var rp = document.getElementById("shapeRoomPick");
-      rp.hidden = state.activeCategory !== "fataskapar";
-      if (state.activeCategory === "fataskapar"){
+      rp.hidden = !(catDef && catDef.roomPicker);
+      if (catDef && catDef.roomPicker){
         var sel = document.getElementById("fataskaparRoom");
         if (!sel.options.length){
           sel.innerHTML = RYMI_CHOICES.map(function(r){ return '<option value="' + r + '">' + r + '</option>'; }).join("");
@@ -2588,7 +2618,8 @@
   // Fataskápar (and any future non-kitchen category) skips straight to the materials step instead.
   function afterOpenings(){
     state.openingsDone = true; save();
-    if (state.activeCategory === "fataskapar") lockRoom();
+    var cd = categoryDef(state.activeCategory);
+    if (cd && cd.water === false) lockRoom();
     else { shapePhase = "water"; renderShapeStep(); }
   }
   function renderOpeningsBox(){
@@ -3082,11 +3113,11 @@
 
   // ---------- walls step ----------
   function cornerClearance(wall, zoneKey){
-    if (wall.island) return 0; // free-standing rows have no corner
+    if (wall.island || wall.partition) return 0; // free-standing rows / milliveggir have no corner
     return KP3D.cornerClearanceMm(KP3D.surfacesOf(state), state.walls.indexOf(wall), zoneKey);
   }
   // 19 mm áfella kept free where a run would touch a wall face (KP3D.afellaMm) — the usable stretch of a wall
-  function afella(wall, zoneKey){ return wall.island ? { start:0, end:0 } : KP3D.afellaMm(KP3D.surfacesOf(state), state.walls.indexOf(wall), zoneKey); }
+  function afella(wall, zoneKey){ return (wall.island || wall.partition) ? { start:0, end:0 } : KP3D.afellaMm(KP3D.surfacesOf(state), state.walls.indexOf(wall), zoneKey); }
   function runStartMm(wall, zoneKey){ return cornerClearance(wall, zoneKey) + afella(wall, zoneKey).start; }
   function runEndMm(wall, zoneKey){ return wall.lengthMm - afella(wall, zoneKey).end; }
 
@@ -3119,7 +3150,7 @@
     return probeSpan(c.zone, t, elevMm);
   }
   function crossSpans(wall, zone, probe){
-    if (wall.island || !probe) return [];
+    if (wall.island || wall.partition || !probe) return [];
     var other = zone === "floor" ? "wall" : "floor";
     return spansOf(wall, other).filter(function(sp){
       var v = probeSpan(other, sp.b);
@@ -3179,7 +3210,7 @@
   // stretch's ends when close. {offsetMm, index (slot in the list), fits}.
   function placeInWall(wall, zone, widthMm, centerAlongMm, excludeId, probe){
     if (wall.open) return { offsetMm:0, index:0, fits:false }; // an open edge has no wall to stand on
-    if (wall.island && zone !== "floor") return { offsetMm:0, index:0, fits:false }; // wall units only go on real walls
+    if ((wall.island || wall.partition) && zone !== "floor") return { offsetMm:0, index:0, fits:false }; // wall units only go on real walls
     if (wall.island){ // island rows stay packed: pick the slot by neighbours' centres, insert there
       var sp = spansOf(wall, zone, excludeId), idx = sp.length;
       for (var si = 0; si < sp.length; si++){ if (centerAlongMm < (sp[si].start + sp[si].end) / 2){ idx = si; break; } }
@@ -3205,7 +3236,7 @@
   // when within ALIGN_SNAP_MM, and lets go again once you drag on past.
   var ALIGN_SNAP_MM = 40;
   function alignSnap(wall, zone, widthMm, startMm, excludeId){
-    if (wall.island) return startMm;
+    if (wall.island || wall.partition) return startMm;
     var other = zone === "floor" ? "wall" : "floor", best = null;
     spansOf(wall, other).forEach(function(sp){
       if (sp.b.id === excludeId) return;
@@ -4106,21 +4137,20 @@
         if (isNaN(v)){ inp.value = Math.round(fronts()[i]); return; }
         if (c.cls === "tall" && !model){ // a tall unit's door above the drawers flexes instead of the other fronts
           var mins = cc.map(function(x){ return KP3D.slotMin(x); });
-          if (v < mins[i] - 0.5){ toast("Þessi hæð gengur ekki — " + CODE_LABEL[cc[i]].toLowerCase() + " skúffa er minnst " + KP3D.slotMin(cc[i]) + " mm."); inp.value = Math.round(fronts()[i]); return; }
-          var cur = fronts().slice(); cur[i] = v; // slots already carry their own gap (KP3D.slotMin), so they sum straight to the zone
+          var cur = fronts().slice(); cur[i] = Math.max(5, v); // slots already carry their own gap (KP3D.slotMin), so they sum straight to the zone
           var zoneMm = Math.round(cur.reduce(function(a, h){ return a + h; }, 0));
           var fb = findBlock(b.id), fullBody = blockHeightMm(b, c) - plinthMmOf(c, "floor", fb && fb.wall);
-          if (zoneMm > fullBody - KP3D.DRAWER_TOPDOOR_MIN_MM){
-            toast("Þá yrði hurðin fyrir ofan of lítil — veldu lægri skúffu eða stækkaðu skápinn.");
-            inp.value = Math.round(fronts()[i]); return;
-          }
+          var warn = [];
+          if (v < mins[i] - 0.5) warn.push(CODE_LABEL[cc[i]].toLowerCase() + " skúffa er undir " + KP3D.slotMin(cc[i]) + " mm lágmarkinu");
+          if (zoneMm > fullBody - KP3D.DRAWER_TOPDOOR_MIN_MM) warn.push("hurðin fyrir ofan er orðin of lítil");
+          if (warn.length) toast("⚠️ " + warn.join(" og ") + " — lagaðu áður en skápurinn er merktur klár.");
           b.drawerZoneMm = zoneMm;
           commit(cc, cur.map(function(h){ return Math.round(h); }));
           return;
         }
-        var nf = KP3D.resizeFront(fronts(), cc, i, v);
-        if (!nf){ toast("Þessi hæð gengur ekki — " + CODE_LABEL[cc[i]].toLowerCase() + " skúffa er minnst " + KP3D.slotMin(cc[i]) + " mm og hinar þurfa sitt pláss."); inp.value = Math.round(fronts()[i]); return; }
-        commit(cc, nf);
+        var r = KP3D.resizeFrontFree(fronts(), cc, i, v);
+        if (r.invalid.length) toast("⚠️ " + r.invalid.map(function(idx){ return CODE_LABEL[cc[idx]].toLowerCase() + " (" + Math.round(r.fronts[idx]) + " mm, lágmark " + KP3D.slotMin(cc[idx]) + " mm)"; }).join(", ") + " undir lágmarki — lagaðu áður en skápurinn er merktur klár.");
+        commit(cc, r.fronts);
       });
       inp.addEventListener("keydown", function(e){ if (e.key === "Enter") inp.blur(); });
     });
@@ -4536,7 +4566,7 @@
     { key:"hillur", label:"Hillur", desc:"Lausar hillur", icon:"laushilla", opts:[
       { label:"Hillur", type:"laushilla" } ] }
   ];
-  function activeUnitTree(){ return state.activeCategory === "fataskapar" ? FATASKAPAR_TREE : UNIT_TREE; }
+  function activeUnitTree(){ var cd = categoryDef(state.activeCategory); return (cd && cd.tree) || UNIT_TREE; }
   var uw = null; // { step, cat, opt, b, wallId }
   function uwSurfaces(zone){ return zone === "wall" ? state.walls.filter(function(w){ return !w.open; }) : surfaces().filter(function(w){ return !w.open; }); }
   function uwFits(w, b){ var c = CATALOG[b.type]; return canFit(w, c.zone, b.widthMm, probeSpan(c.zone, b)); }
@@ -5896,9 +5926,10 @@
   var cabPreviewLoading = false;
   function matPhaseDone(i){ return [state.carcass, state.drawerSystem, state.look, state.handle, true][i]; }
   function firstMissingPhase(){ for (var i = 0; i < 4; i++) if (!matPhaseDone(i)) return i; return 4; }
-  // Borðplata (worktop, the last MAT_PHASES entry) only applies to Eldhús — a wardrobe has nothing to
-  // put a worktop on. Every other phase (carcass/drawers/fronts/handles) applies to any category.
-  function matPhaseCount(){ return state.activeCategory === "fataskapar" ? MAT_PHASES.length - 1 : MAT_PHASES.length; }
+  // Borðplata (worktop, the last MAT_PHASES entry) only applies when the category's own `worktop` flag
+  // says so (Eldhús: yes; Fataskápar: no wardrobe has anything to put a worktop on). Every other phase
+  // (carcass/drawers/fronts/handles) applies to any category.
+  function matPhaseCount(){ var cd = categoryDef(state.activeCategory); return (cd && cd.worktop === false) ? MAT_PHASES.length - 1 : MAT_PHASES.length; }
 
   function cabCfg(){
     return { carcass:state.carcass, drawer:state.drawerSystem, look:state.look, handle:state.handle, handleColor:state.handleColor, top:state.top || "steinn",
@@ -5932,7 +5963,7 @@
       '<button class="btn btn-primary" id="mtNext" type="button"' + (matPhaseDone(matPhase) ? "" : " disabled") + '>' + (last ? "Áfram í skipulag →" : "Áfram →") + '</button>';
     updateStepper();
     document.getElementById("mtBack").addEventListener("click", function(){
-      if (matPhase === 0){ shapePhase = state.activeCategory === "fataskapar" ? "openings" : "water"; goto("shape"); } else { matPhase--; renderMaterials(); }
+      if (matPhase === 0){ var cdBack = categoryDef(state.activeCategory); shapePhase = (cdBack && cdBack.water === false) ? "openings" : "water"; goto("shape"); } else { matPhase--; renderMaterials(); }
     });
     document.getElementById("mtNext").addEventListener("click", function(){
       if (last){ toast("🎨 Efnin eru valin — nú raðar þú innréttingunni!"); goto("editor"); } else { matPhase++; renderMaterials(); }
@@ -5995,12 +6026,16 @@
   var proTab = "mal"; // PRO's Mál/Innvols/Annað tab in the per-cabinet edit panel — not part of state
 
   function solidWalls(){ return (state.walls || []).filter(function(w){ return !w.open; }); } // "Veggur" only cycles through real walls, not open edges
+  // clears any open cabinet/opening selection AND its side panel — plain `selectedBlockId = null` isn't
+  // enough on its own, since renderView() never touches the panel (it only re-renders the 3D/2D scene), so
+  // the previous cabinet's menu stayed on screen when the wall being viewed changed underneath it (2026-10-15)
+  function deselectBlock(){ selectedBlockId = null; renderEditPanel(); }
   function cycleWallView(dir){
     var list = solidWalls();
     if (!list.length) return;
     var i = list.findIndex(function(w){ return w.id === wallViewId; });
     wallViewId = list[(i < 0 ? 0 : i + dir + list.length) % list.length].id;
-    selectedBlockId = null;
+    deselectBlock();
     renderView();
   }
   function syncWallCycleUI(){
@@ -6019,7 +6054,7 @@
       // a small top-down minimap (reuses the 2D plan renderer) with the wall being viewed highlighted blue,
       // like IKEA's mini-map — click another wall on it to jump straight there
       KP3D.buildPlan2D(document.getElementById("wallMiniMap"), state, {
-        mini:true, selectedWallId:wallViewId, onSelect:function(){}, onWallSelect:function(id){ wallViewId = id; renderView(); }
+        mini:true, selectedWallId:wallViewId, onSelect:function(){}, onWallSelect:function(id){ wallViewId = id; deselectBlock(); renderView(); }
       });
     }
   }
@@ -6358,8 +6393,7 @@
   function applyInspect(){ if (inspect.on) KP3D.setXrayFronts(true); }
   function syncInspectUI(){
     var ib = document.getElementById("inspectBtn");
-    ib.classList.toggle("active", inspect.on);
-    ib.textContent = inspect.on ? "✓ X-Ray" : "🔍 X-Ray";
+    ib.classList.toggle("active", inspect.on); // the blue fill alone says it's on — no checkmark needed
   }
   document.getElementById("inspectBtn").addEventListener("click", function(){
     inspect.on = !inspect.on;
@@ -6878,6 +6912,7 @@
     if (mode === "wall"){
       var list = solidWalls();
       if (!list.some(function(w){ return w.id === wallViewId; })) wallViewId = (selectedWallId && list.some(function(w){ return w.id === selectedWallId; }) ? selectedWallId : (list[0] || {}).id) || null;
+      if (selectedBlockId) deselectBlock();
     }
     renderView();
   }
@@ -6939,6 +6974,11 @@
     return { offsetMm:off, widthMm:wmm, elevMm:el };
   }
   function removeObstacle(id){
+    var o = findObstacle(id);
+    if (o && o.kind === "milliveggur" && (((o.sideA || []).length) || ((o.sideB || []).length))){
+      toast("Fjarlægðu skápana af milliveggnum fyrst.");
+      return;
+    }
     state.obstacles = (state.obstacles || []).filter(function(o){ return o.id !== id; });
     if (selectedBlockId === id) selectedBlockId = null;
     save(); refreshAfterEdit();
@@ -6984,6 +7024,18 @@
         } else {
           var val = Math.round(+inp.value); if (!isFinite(val)){ renderEditPanel(); return; }
           var lo = +inp.min, hi = +inp.max; val = Math.max(lo, Math.min(hi, val));
+          // a milliveggur's depthMm doubles as its two cabinet surfaces' length (lengthMm) — refuse to
+          // shrink it past cabinets already standing on either face, same spirit as a room wall rejecting
+          // a resize its cabinets no longer fit (2026-10-15)
+          if (k === "depthMm" && o.kind === "milliveggur"){
+            var usedEnd = function(list){
+              if (!list || !list.length) return 0;
+              var starts = KP3D.blockStartsMm(list, 0), last = list.length - 1;
+              return starts[last] + list[last].widthMm;
+            };
+            var minNeeded = Math.max(usedEnd(o.sideA), usedEnd(o.sideB));
+            if (val < minNeeded){ toast("Það eru skápar á milliveggnum sem passa ekki í styttri vegg — fjarlægðu þá fyrst."); renderEditPanel(); return; }
+          }
           o[k] = val;
           if (k === "widthMm") o.offsetMm = Math.max(0, Math.min(o.offsetMm, L - o.widthMm));
           if (k === "heightMm" && o.elevMm != null) o.elevMm = Math.min(o.elevMm, Math.max(0, roomH - val));
@@ -7189,17 +7241,28 @@
     if (step !== "shape") endHeightScene();
     if (step === "editor" && state.step !== "editor"){ undoStack = []; histIdx = -1; seedSink(); }
     if (step === "shape" && state.closed && shapePhase === "pick" && state.walls.length) shapePhase = "size";
+    // park the room being worked on so its data survives a trip back to "Hvað erum við að skoða?"
+    // (byrjaSel is synced here too — re-entering byrja from mid-flow should show the real queue, not
+    // whatever was left over from the very first visit)
+    if (step === "byrja"){
+      if (state.activeCategory) state.categoryData[state.activeCategory] = serializeRoom();
+      byrjaSel = (state.categoryQueue || []).slice();
+    }
     state.step = step;
     save();
     render();
   }
 
   // ---------- Byrja category queue (2026-10-14) ----------
-  // The fields that describe ONE room's design — everything freshState() seeds. These are the fields
-  // swapped in/out of the live `state` object as the user moves between categories (Eldhús, Fataskápar,
-  // ...); categoryQueue/categoryData/activeCategory themselves are never part of this list.
-  var ROOM_FIELDS = ["intake", "carcass", "drawerSystem", "look", "handle", "top", "floor", "roomHeightMm",
-    "wallColor", "windows", "doors", "closed", "waterWall", "waterAlongMm", "seeded", "base900", "islands", "walls"];
+  // The fields that describe ONE room's design — everything freshState() seeds, PLUS a few added after this
+  // list was first written (obstacles/decor 2026-10-11, handleColor/floorTile/floorPattern/floorRot,
+  // openingsDone, shapeKey) that had never been added here — without them, switching categories left the
+  // previous room's hindranir/húsgögn/gólf/handle colour bleeding into the next room instead of being
+  // parked with everything else (2026-10-15 fix). These are the fields swapped in/out of the live `state`
+  // object as the user moves between categories (Eldhús, Fataskápar, ...); categoryQueue/categoryData/
+  // activeCategory themselves are never part of this list.
+  var ROOM_FIELDS = ["intake", "carcass", "drawerSystem", "look", "handle", "handleColor", "top", "floor", "floorTile", "floorPattern", "floorRot", "roomHeightMm",
+    "wallColor", "windows", "doors", "closed", "shapeKey", "waterWall", "waterAlongMm", "seeded", "base900", "islands", "walls", "obstacles", "decor", "openingsDone"];
   function serializeRoom(){
     var blob = {};
     ROOM_FIELDS.forEach(function(k){ blob[k] = state[k]; });
@@ -7213,7 +7276,8 @@
     var existing = state.categoryData[type];
     var blob = existing ? JSON.parse(JSON.stringify(existing)) : freshState("shape");
     ROOM_FIELDS.forEach(function(k){ state[k] = blob[k]; });
-    if (!existing && type === "fataskapar") state.intake.room = "Fatask.";
+    var cdNew = categoryDef(type);
+    if (!existing && cdNew && cdNew.defaultRoom) state.intake.room = cdNew.defaultRoom;
     shapePhase = "pick";
     matPhase = null;
     selectedBlockId = null; selectedWallId = null; openWallId = null;
@@ -7655,6 +7719,7 @@
         var notes = [];
         if (!v1) notes.push((c.skapategundOverride || c.label) + " " + b.widthMm + "×" + blockHeightMm(b, c) + "×" + (b.depthMm || c.d) + " mm — engin sjálfvirk vörutenging, vinsamlegast veldu Útfærslu handvirkt.");
         if (wall.island) notes.push("Skápur í eyju (" + wall.label + ") — stendur laus á gólfinu, ekki við vegg" + (wall.island.two ? "; bak í bak við aðra röð." : "."));
+        if (wall.partition) notes.push("Skápur á milliveggnum á " + (state.walls.find(function(w){ return w.id === wall.partition.wallId; }) || {}).label + " (" + wall.label + ") — ekki á útvegg.");
         if (c.oven) notes.push("Ofnhæð: " + KP3D.ovenHOf(b, c) + " mm" + (KP3D.ovenHOf(b, c) > 1000 ? " (60+45)" : "") + ".");
         if (c.lowOven) notes.push("Lágur ofnaskápur: M-skúffa undir ofninum (OFN6 er skráð með K-skúffu).");
         if (c.tofrahornIds){
@@ -7985,12 +8050,18 @@
   // The real Rými 🏡 singleSelect choices in Airtable, minus "Eldhús" (implicit for that category).
   var RYMI_CHOICES = ["Fatask.", "Hjónah.", "Barnah.", "Barnah. 2", "Svefnh.", "Gangur", "Forstofa", "Andyri",
     "Baðh.", "Baðh. 2", "Þvottah.", "Alrými", "Stofa", "Búr", "Skrifst."];
+  // Fataskápar's own flags (user, 2026-10-19: "move it to all other units if it makes sense") — not
+  // hardcoded to "fataskapar" through the file any more, so the next non-kitchen category (Bað, Hurðir —
+  // still soon:true, no catalog of their own yet) only needs its own tree/water/worktop/defaultRoom here,
+  // not a new "=== fataskapar" check somewhere. roomPicker = several rooms of this kind can exist in one
+  // project (closets in different bedrooms); water/worktop = whether that shape/materials step applies.
   var CATEGORIES = [
-    { key:"eldhus", label:"Eldhús" },
-    { key:"fataskapar", label:"Fataskápar" },
+    { key:"eldhus", label:"Eldhús", water:true, worktop:true },
+    { key:"fataskapar", label:"Fataskápar", tree:FATASKAPAR_TREE, roomPicker:true, defaultRoom:"Fatask.", water:false, worktop:false },
     { key:"bad", label:"Bað", soon:true },
     { key:"hurdir", label:"Hurðir", soon:true }
   ];
+  function categoryDef(key){ return CATEGORIES.find(function(c){ return c.key === key; }) || null; }
   var byrjaSel = []; // unconfirmed picks for this visit only — state.categoryQueue is set once "Áfram" is pressed
   function renderByrja(){
     document.getElementById("byrjaCards").innerHTML = CATEGORIES.map(function(c){
@@ -8010,9 +8081,12 @@
   document.getElementById("byrjaBackBtn").addEventListener("click", function(){ goto("welcome"); });
   document.getElementById("byrjaNextBtn").addEventListener("click", function(){
     if (!byrjaSel.length) return;
-    state.categoryQueue = byrjaSel.slice();
-    state.categoryData = {};
-    startCategory(state.categoryQueue[0]);
+    var prevActive = state.activeCategory, newQueue = byrjaSel.slice();
+    // dropping a category on a return trip drops its parked room data with it; keeping one picks
+    // back up exactly where that room was left (startCategory reads state.categoryData[type])
+    Object.keys(state.categoryData).forEach(function(k){ if (newQueue.indexOf(k) < 0) delete state.categoryData[k]; });
+    state.categoryQueue = newQueue;
+    startCategory(prevActive && newQueue.indexOf(prevActive) >= 0 ? prevActive : newQueue[0]);
   });
   document.getElementById("helpBtn").addEventListener("click", function(e){
     var m = document.getElementById("helpMenu"); m.hidden = !m.hidden; this.setAttribute("aria-expanded", String(!m.hidden)); e.stopPropagation();
