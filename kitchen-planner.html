@@ -558,7 +558,7 @@
   .light-btns{ display:flex; flex-direction:column; gap:6px; margin-bottom:8px; }
   .light-btns .hw-btn{ text-align:left; }
   #moodBtn.active{ background:#1e2433; color:#ffe2a8; }
-  #measureBtn.active{ background:#0a84ff; color:#fff; }
+  #measureBtn.active, #inspectBtn.active{ background:#0a84ff; color:#fff; }
   .sw-search{ width:100%; box-sizing:border-box; margin:0 0 10px; padding:9px 12px; border:1px solid var(--line, #ddd); border-radius:10px; font:inherit; font-size:14px; background:#fff; }
   .h-grid .sw-name small, .sw-tile .sw-name small{ display:block; font-weight:400; color:var(--ink-soft); margin-top:2px; font-size:11px; }
   /* ---- define your space ---- */
@@ -3819,7 +3819,6 @@
   // real "Skúffu samsetning" Útfærsla can be built, so every drawer cabinet maps to a real V2.
   // Drawers named by what they're for, not by Blum's letter (2026-10-11): the letter stays small for the shop
   var CODE_LABEL = { N:"Mjög lág", M:"Lág", K:"Miðlungs", E:"Djúp", C:"Djúp", F:"Mjög djúp" };
-  var CODE_USE = { N:"krydd, smáhlutir", M:"hnífapör, áhöld", K:"viskustykki, box", E:"pottar og pönnur", C:"pottar og pönnur", F:"flöskur, stórir pottar" };
   var CODE_PLURAL = { N:"mjög lágar", M:"lágar", K:"miðlungs", E:"djúpar", C:"djúpar", F:"mjög djúpar" };
   function dwIcon(code){ // a little box as tall as the drawer side, so the difference shows at a glance
     var side = KP3D.DRAWER_CODES[drawerSys()].side[code] || (KP3D.DRAWER_CODES.legra.side[code]) || 120;
@@ -3856,7 +3855,7 @@
       }).join("") + '</div></div>' +
       '<div class="edit-field"><label>Innskúffur (neðan frá)</label>' +
       (codes.length ? '<div class="bur-list">' + codes.map(function(cd, i){ return '<span class="bur-chip">' + dwIcon(cd) + ' ' + names[cd] + '<button type="button" data-bur-del="' + i + '" title="Fjarlægja">✕</button></span>'; }).join("") + '</div>' : '<p class="ov-mat" style="margin:0 0 6px;">Engar innskúffur enn.</p>') +
-      '<div class="hw-toggle" style="flex-wrap:wrap;">' + KP3D.DRAWER_CODES[sys].codes.map(function(cd){ return '<button type="button" class="hw-btn" data-bur-add="' + cd + '" title="' + CODE_USE[cd] + '">＋ ' + names[cd] + '</button>'; }).join("") + '</div></div>' +
+      '<div class="hw-toggle" style="flex-wrap:wrap;">' + KP3D.DRAWER_CODES[sys].codes.map(function(cd){ return '<button type="button" class="hw-btn" data-bur-add="' + cd + '">＋ ' + names[cd] + '</button>'; }).join("") + '</div></div>' +
       '<div class="edit-field"><label>Hillur fyrir ofan</label><div class="hw-count"><button class="iconbtn" data-bur-sh="-1"' + (shelves <= 0 ? ' disabled' : '') + '>−</button><b>' + shelves + '</b><button class="iconbtn" data-bur-sh="1"' + (shelves >= 8 ? ' disabled' : '') + '>+</button><span>' + plural(shelves, "hilla", "hillur") + '</span></div>' +
       (cur && !combos.includes(cur) || (!cur && !shelves) ? '<p class="sec-note">' + (cur ? 'Sérsamsetning — söluaðili staðfestir verð.' : 'Tómur skápur — bættu við innskúffum og hillum eða veldu lausn hér að ofan.') + '</p>' : '') + '</div>';
   }
@@ -3943,7 +3942,7 @@
       return (k ? '<div class="dw-seam" data-dw-seam="' + d.i + '" title="Dragðu til að breyta hæð skúffanna"></div>' : '') +
         '<div class="dw-row" data-dw-row="' + d.i + '" style="flex-grow:' + Math.max(1, Math.round((d.mm || 150) / 40)) + '">' +
         (multi && opts.reorder ? '<span class="dw-grip" data-dw-grip="' + d.i + '" title="Dragðu til að færa skúffuna">⠿</span>' : '') +
-        '<span class="dw-nm">' + (typeSel || '<b>' + d.code + '</b>') + '<small>' + CODE_USE[d.code] + '</small></span>' +
+        '<span class="dw-nm">' + (typeSel || '<b>' + d.code + '</b>') + '</span>' +
         (d.mm ? (multi ? '<input class="dw-mm" type="number" step="1" data-dw-mm="' + d.i + '" value="' + Math.round(d.mm) + '" title="Hæð framhliðar (mm)"><small>mm</small>' : '<small>' + Math.round(d.mm) + ' mm</small>') : '') +
         (opts.sides ? '<small class="dw-side" title="Hæð Blum-hliðar — berðu saman við frontinn">hlið ' + Math.round(KP3D.DRAWER_CODES[sys].side[d.code] || 0) + '</small>' : '') +
         (multi && opts.del ? '<button type="button" class="dw-x" data-dw-del="' + d.i + '" title="Taka skúffu">✕</button>' : '') + '</div>';
@@ -4047,7 +4046,7 @@
         D.codes.filter(function(code){ return code !== "N"; }).map(function(code){
           var next = sortStack(codes.concat([code]));
           var ok = codes.length < 4 && (stackAllowed(b, c, next, inner) || stackAllowed(b, c, next, null)); // may cost the inner drawer (see the click handler)
-          return '<option value="' + code + '"' + (ok ? '' : ' disabled') + '>' + code + ' — ' + CODE_USE[code] + '</option>';
+          return '<option value="' + code + '"' + (ok ? '' : ' disabled') + '>' + code + '</option>';
         }).join("") + '</select></div>';
     } else {
       html += drawerSimpleHTML(b, c, codes, inner);
@@ -9111,7 +9110,7 @@
       for (var pi = 1; pi < pts.length; pi++){
         var span = pts[pi] - pts[pi - 1]; if (span <= 0) continue;
         var ya = Y0 + body * S - pts[pi - 1] * S, yb2 = Y0 + body * S - pts[pi] * S;
-        if (Math.abs(ya - yb2) > 13) svg += '<text x="' + (dx - 5) + '" y="' + ((ya + yb2) / 2 + 3) + '" text-anchor="end" font-size="8.5" fill="#8a929c">' + span + '</text>';
+        if (Math.abs(ya - yb2) > 13) svg += '<text x="' + (dx - 5) + '" y="' + ((ya + yb2) / 2 + 3) + '" text-anchor="end" font-size="8.5" fill="#3b4652">' + span + '</text>';
       }
     })();
     svg += '</svg>';

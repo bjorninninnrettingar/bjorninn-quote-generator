@@ -1883,6 +1883,7 @@
       useFrontMat = frontMat.clone();
       useFrontMat.emissive = new THREE.Color(SELECT_COLOR);
       useFrontMat.emissiveIntensity = 0.35;
+      useFrontMat.__xrayBase = frontMat; // setXrayFronts: a selected cabinet's own clone, not the shared material it toggles — tagged (own property, not userData, so clone()/copy() never carries it onto the original) so it's found too
     }
     var isOpen = !!(meta && meta.open && meta.openMat);
     var isPanel = !!(meta && meta.panel); // úthlið / loose shelf: solid board in the front material on every face
@@ -3078,20 +3079,27 @@
   function setXrayFronts(on){
     if (!THREE_STATE || !THREE_STATE.frontMat) return false;
     var m = THREE_STATE.frontMat;
-    m.transparent = true;
-    m.opacity = on ? 0.1 : 1;
-    m.depthWrite = !on;
-    m.needsUpdate = true;
+    function strip(mat){
+      mat.transparent = true;
+      mat.opacity = on ? 0.1 : 1;
+      mat.depthWrite = !on;
+      mat.needsUpdate = true;
+    }
+    strip(m);
     // See-through fronts must not cast shadows (thin slabs gave striped shadow acne under the worktop),
     // and their handles / seams go with them. Tagged objects are hidden, not removed — "on" restores them.
+    // The selected cabinet's front is its own clone of `m` (addCabinetBox, for the blue highlight tint) —
+    // never `m` itself, so it never showed through X-ray until toggled a second time (once it lost
+    // selection): stripped here too via its __xrayBase tag back to `m`.
     THREE_STATE.scene.traverse(function(o){
       if (o.__frontDetail){ o.visible = !on; return; }
       if (!o.isMesh) return;
       var mats = Array.isArray(o.material) ? o.material : [o.material];
-      if (mats.indexOf(m) >= 0){
-        if (o.__castShadow0 == null) o.__castShadow0 = o.castShadow;
-        o.castShadow = on ? false : o.__castShadow0;
-      }
+      var hit = mats.some(function(mat){ return mat === m || mat.__xrayBase === m; });
+      if (!hit) return;
+      mats.forEach(function(mat){ if (mat !== m && mat.__xrayBase === m) strip(mat); });
+      if (o.__castShadow0 == null) o.__castShadow0 = o.castShadow;
+      o.castShadow = on ? false : o.__castShadow0;
     });
     return true;
   }
@@ -3657,9 +3665,12 @@
     if (state.activeCategory === "fataskapar") stoneMat = frontMat;
     var LIGHT = state.lighting || {}; // { underWall, shelves, plinth } — see the "Lýsing" section of the editor
     // the plinth (sökkull): its FRONT face is clad in the front material once one is chosen (box face 4 = +z = out
-    // of the wall); the sides and back stay the dark plinth colour
+    // of the wall); the sides and back stay the dark plinth colour. Its own clone, not `frontMat` itself (user,
+    // 2026-10-19 — "X ray á ekki að taka sökkulcoverið burt"): setXrayFronts strips `frontMat` to see inside the
+    // doors/drawers built from it, which doesn't apply to a plinth — there's nothing behind it to reveal.
     var plinthDark = new THREE.MeshStandardMaterial({ color:0x26262a, roughness:0.85 });
-    var plinthMat = look ? [plinthDark, plinthDark, plinthDark, plinthDark, frontMat, plinthDark] : plinthDark;
+    var plinthFrontMat = frontMat.clone();
+    var plinthMat = look ? [plinthDark, plinthDark, plinthDark, plinthDark, plinthFrontMat, plinthDark] : plinthDark;
 
     // the áfellur of one wall (see afellaMm): a 19 mm panel in the front material from the floor (or the
     // cabinet's bottom, for wall units) to its top, the worktop running on over it
