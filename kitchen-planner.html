@@ -1455,7 +1455,9 @@
   function clampWidth(type, w){
     var c = CATALOG[type];
     if (isNaN(w)) return c.defaultW;
-    return Math.max(c.minW, Math.min(c.maxW, Math.round(w / 10) * 10));
+    // whole mm, not rounded to 10 — a "sérmál" width like 929 must hold exactly (user, 2026-10-15), same
+    // precision the properties panel's own width field already uses after a cabinet is placed (applyBlockDim)
+    return Math.max(c.minW, Math.min(c.maxW, Math.round(w)));
   }
 
   // ---------- persistence ----------
@@ -4627,7 +4629,7 @@
       if (!c.panel){
         html += '<div class="edit-field"><label>Breidd</label><div class="uw-chips">' + widths.map(function(w){
           return '<button type="button" class="hw-btn' + (b.widthMm === w ? ' active' : '') + '" data-uw-w="' + w + '">' + (w / 10) + '</button>';
-        }).join("") + '</div><div class="uw-custom"><input type="number" data-uw-wcustom min="' + c.minW + '" max="' + c.maxW + '" step="10" value="' + b.widthMm + '"><small>mm · sérmál ' + c.minW + '–' + c.maxW + '</small></div></div>';
+        }).join("") + '</div><div class="uw-custom"><input type="number" data-uw-wcustom min="' + c.minW + '" max="' + c.maxW + '" step="1" value="' + b.widthMm + '"><small>mm · sérmál ' + c.minW + '–' + c.maxW + '</small></div></div>';
       }
       if (c.hasInterior) html += '<div class="edit-field">' + hardwareHTML(b, c, PRO ? { sides:true } : null) + '</div>';
       var shelfN = c.shelfRange && !(c.hasInterior && b.interior.mode === "skuffur" && c.cls !== "tall") ? KP3D.shelvesOf(b) : null; // b.shelves, same as the side panel + 3D
