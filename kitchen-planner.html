@@ -3532,8 +3532,20 @@
   function plinthMmOf(c, zone){ return zone === "floor" && !c.panel && !c.appliance ? PLINTH_MM : 0; }
   function carcassHeightMm(b, c, zone){ return blockHeightMm(b, c) - plinthMmOf(c, zone); }
   function carcassHeightRange(c, zone){ var r = dimRange(c, "heightMm"), p = plinthMmOf(c, zone); return [r[0] - p, r[1] - p]; }
+  // Validated here, in carcass terms, rather than left to applyBlockDim's own dimRange check: that check (and
+  // its toast) works in full-height mm, which would quote the wrong numbers for a value typed as carcass mm.
+  function applyCarcassHeightMm(blockId, zone, c, raw){ // -> true when applied (no save / re-render, same as applyBlockDim)
+    var v = Math.round(parseFloat(String(raw).replace(",", ".")) || 0), r = carcassHeightRange(c, zone);
+    if (isNaN(v) || v < r[0] || v > r[1]){
+      toast("Hæð þarf að vera á milli " + r[0] + " og " + r[1] + " mm.");
+      return false;
+    }
+    return applyBlockDim(blockId, "heightMm", v + plinthMmOf(c, zone));
+  }
   function setCarcassHeightMm(blockId, zone, c, raw){
-    setBlockDim(blockId, "heightMm", (parseFloat(String(raw).replace(",", ".")) || 0) + plinthMmOf(c, zone));
+    if (!applyCarcassHeightMm(blockId, zone, c, raw)){ renderEditPanel(); return; }
+    save();
+    refreshAfterEdit();
   }
   function clampElev(b){
     var c = CATALOG[b.type], roomH = state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM, h = blockHeightMm(b, c);
@@ -6389,7 +6401,6 @@
     if (!chip.classList.contains("editable") || chip.querySelector("input")) return;
     var fb = selectedBlockId ? findBlock(selectedBlockId) : null, op = !fb && selectedBlockId ? findOpening(selectedBlockId) : null;
     if (fb && fb.block.locked){ lockedToast(); return; }
-    var fbPlinth = fb ? plinthMmOf(CATALOG[fb.block.type], fb.zone) : 0;
     var fields = fb ? [["widthMm", fb.block.widthMm, "Breidd"], ["heightMm", carcassHeightMm(fb.block, CATALOG[fb.block.type], fb.zone), "Hæð"], ["depthMm", fb.block.depthMm || CATALOG[fb.block.type].d, "Dýpt"]]
       : op ? [["widthMm", op.o.widthMm, "Breidd"], ["heightMm", op.o.heightMm, "Hæð"]] : null;
     if (!fields) return;
@@ -6402,8 +6413,9 @@
       inputs.forEach(function(inp, i){
         if (!ok || String(fields[i][1]) === inp.value.trim()) return;
         changed = true;
-        var raw = fields[i][0] === "heightMm" && fb ? (parseFloat(inp.value.replace(",", ".")) || 0) + fbPlinth : inp.value;
-        ok = fb ? applyBlockDim(fb.block.id, fields[i][0], raw) : applyOpeningDim(op, fields[i][0], raw);
+        ok = fb
+          ? (fields[i][0] === "heightMm" ? applyCarcassHeightMm(fb.block.id, fb.zone, CATALOG[fb.block.type], inp.value) : applyBlockDim(fb.block.id, fields[i][0], inp.value))
+          : applyOpeningDim(op, fields[i][0], inp.value);
       });
       if (changed) save();
       if (changed) refreshAfterEdit(); else renderEditPanel();
@@ -9011,10 +9023,9 @@
     svg += '</svg>';
 
     // Hæð in Smíða means the carcass alone, never the plinth (user, 2026-10-17/18) — same carcassHeightMm/
-    // setCarcassHeightMm every other "Hæð" in the app now goes through (the side panel, the floating chip, the
+    // applyCarcassHeightMm every other "Hæð" in the app now goes through (the side panel, the floating chip, the
     // room overview), so there's exactly one meaning to learn. Same 100 mm every other "frá botni skáps"
     // measurement here already excludes (proBodyMm): 0 = top of the plinth, not the floor.
-    var plinthMm = plinthMmOf(c, fb.zone);
     var carcassMm = carcassHeightMm(b, c, fb.zone);
     var right = '<button type="button" class="pe-btn pe-close" data-pe="close">Loka ✕</button>' +
       '<h3>' + (key ? key + " · " : "") + c.label + '</h3><div class="pe-sub">' + b.widthMm + ' × ' + carcassMm + ' mm · ' +
@@ -9218,7 +9229,10 @@
       save(); refreshAfterEdit(); renderBoxEditor();
     }
     act('[data-pe="dimw"]', function(n){ setDim("widthMm", n.value); });
-    act('[data-pe="dimh"]', function(n){ setDim("heightMm", (parseFloat(n.value) || 0) + plinthMm); }); // typed as carcass, stored as the real overall height
+    act('[data-pe="dimh"]', function(n){ // typed as carcass, validated and stored as the real overall height
+      if (!applyCarcassHeightMm(b.id, fb.zone, c, n.value)){ renderBoxEditor(); return; }
+      save(); refreshAfterEdit(); renderBoxEditor();
+    });
     act('[data-pe="dimd"]', function(n){ setDim("depthMm", n.value); });
     // oven: height, height under it, shelves above (2026-10-10). A new height/zone drops custom drawer heights.
     function ovenDone(){ save(); refreshAfterEdit(); renderBoxEditor(); }
