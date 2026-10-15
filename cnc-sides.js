@@ -28,7 +28,7 @@
   // Every macro this generator decides about. All master lines with these names are switched off and the
   // generated ones are inserted next to them. CUT_X only for the masonite groove (the LED CUT_X lines stay as they are).
   var MANAGED = ["TOPP_BOTN", "GRUNNUR_SKAPUR_TB", "SLA_HLID", "LOM", "IKEALOM", "FOST_HILLA", "LAUS_HILLA",
-    "LEGRABOX_NEDSTA_SKUFFA", "LEGRABOX_SKUFFA", "LEGRABOX_INNSKUFFA", "MERIVOBOX_BOTNSKUFFA", "MERIVOBOX_V2", "MERVIBOX_INNSKUFFA"];
+    "LEGRABOX_NEDSTA_SKUFFA", "LEGRABOX_SKUFFA", "LEGRABOX_INNSKUFFA", "MERIVOBOX_BOTNSKUFFA", "MERIVOBOX_V2", "MERVIBOX_INNSKUFFA", "FATASLA"];
   var GROOVE_LABEL = "masonit";
 
   function num(v) { var n = typeof v === "number" ? v : parseFloat(String(v == null ? "" : v).replace(",", ".")); return isFinite(n) ? n : null; }
@@ -265,9 +265,19 @@
     var fixed = expand(by.fixedShelf, function (r) { return r; }).length;
     if (fixed && !oven && !ovenDone) check.push("Föst hilla (" + fixed + ") — staðsetning ekki í gögnum, settu inn eftir teikningu");
 
-    // Fataslá (clothes rail, 2026-10-15): pure hardware off Eyðublað's own Fataslár link — no cut part, no
-    // drilling macro for the bracket exists on the stick yet, so this is a flag-only reminder like Gler/speglar.
-    if (opts.fataslar && opts.fataslar.magn) check.push("Fataslá (" + opts.fataslar.magn + "): " + (opts.fataslar.names || []).join(", ") + " — ekki boruð hér, settu upp eftir teikningu");
+    // Fataslá (clothes rail): positions come from Smíðagögn's own o.rails (Smíða, 2026-10-15 — "same zone as
+    // o.shelves", bottom-up mm like a shelf), now that a real drilling macro exists (FATASLA: Ø5 × 12mm deep,
+    // two holes 32mm apart on X, 2026-10-15). Ops here apply to the whole side program, so both of the unit's
+    // physical side panels get it (see module header: "identical sides share one file") — centered on the
+    // panel's own depth (B/2 = LPY/2) since nothing says the depth should vary per unit. No Smíða position yet
+    // (older project, or Rakel hasn't opened Smíða for this unit) → fall back to the old flag-only reminder.
+    if (Array.isArray(sms.rails) && sms.rails.length) {
+      sms.rails.forEach(function (rl) { op("FATASLA", "Fataslá", r1(num(rl.mm)) + ", " + r1(B / 2)); });
+      if (opts.fataslar && opts.fataslar.magn && opts.fataslar.magn !== sms.rails.length)
+        check.push("Fataslá: magn í Pöntunarlista (" + opts.fataslar.magn + ") og staðsetningar í Smíða (" + sms.rails.length + ") stemma ekki — keyra skipulag/per unit aftur?");
+    } else if (opts.fataslar && opts.fataslar.magn) {
+      check.push("Fataslá (" + opts.fataslar.magn + "): " + (opts.fataslar.names || []).join(", ") + " — staðsetning vantar í Smíða, settu upp eftir teikningu");
+    }
 
     // Inner drawers (user 2026-10-08): on the cabinet sides like any runner, 32 mm back, hidden behind the front
     // of the drawer whose zone it sits in — the tallest drawer zone (tie → the top one); its front top 32 mm under

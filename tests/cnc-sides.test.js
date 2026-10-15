@@ -361,12 +361,33 @@ test("inner drawers behind a door at the designer's positions (búrskápur in Sm
   assert.ok(!p.check.some((c) => /hönnuður staðsetur/.test(c)));
 });
 
-// Fataslá (closet clothes rail, 2026-10-15): pure hardware off Eyðublað's own link field, no cut part and no
-// drilling macro on the stick yet — same real T-80 Sigurjón data (SK 1-3 has one, SK 4 next to it has none).
-test("Fataslá: flagged as a manual mounting step when the unit has one, silent when it doesn't", () => {
+// Fataslá (closet clothes rail): off Eyðublað's own link field for ordering (magn/names), but drilled from
+// Smíðagögn's own o.rails (Smíða, 2026-10-15 — bottom-up mm like a shelf) now that a real macro exists
+// (FATASLA, 2026-10-15) — same real T-80 Sigurjón data (SK 1-3 has one, SK 4 next to it has none).
+test("Fataslá: no Smíða position yet → flagged as a manual step; no rail → silent", () => {
   const rows = [row("Grunnskápur hlið", 2385, 580, 16, 2), row("Frontur vænghurð", 1553, 461.5, 19, 2)];
   const withRail = S.unitPlan("SK 1-3", rows, { fataslar: { magn: 1, names: ["Fataslá Svört 1m Hafele"] } });
-  assert.ok(withRail.check.includes("Fataslá (1): Fataslá Svört 1m Hafele — ekki boruð hér, settu upp eftir teikningu"));
+  assert.ok(withRail.check.includes("Fataslá (1): Fataslá Svört 1m Hafele — staðsetning vantar í Smíða, settu upp eftir teikningu"));
+  assert.ok(!ops(withRail).some((o) => o.startsWith("FATASLA")));
   const noRail = S.unitPlan("SK 4", rows);
   assert.ok(!noRail.check.some((c) => /Fataslá/.test(c)));
+});
+
+test("Fataslá: Smíða position → drilled (Ø5×12, 32mm apart on X), centered on the side's own depth", () => {
+  const rows = [row("Grunnskápur hlið", 2385, 580, 16, 2), row("Frontur vænghurð", 1553, 461.5, 19, 2)];
+  const p = S.unitPlan("SK 1-3", rows, {
+    fataslar: { magn: 1, names: ["Fataslá Svört 1m Hafele"] },
+    smida: JSON.stringify({ v: 1, rails: [{ mm: 1800 }] }),
+  });
+  assert.deepEqual(ops(p).filter((o) => o.startsWith("FATASLA")), ["FATASLA: 1800, 290"]);
+  assert.ok(!p.check.some((c) => /Fataslá/.test(c)));
+});
+
+test("Fataslá: magn in Pöntunarlisti disagreeing with Smíða's own rail count gets flagged", () => {
+  const rows = [row("Grunnskápur hlið", 2385, 580, 16, 2), row("Frontur vænghurð", 1553, 461.5, 19, 2)];
+  const p = S.unitPlan("SK 1-3", rows, {
+    fataslar: { magn: 2, names: ["Fataslá Svört 1m Hafele"] },
+    smida: JSON.stringify({ v: 1, rails: [{ mm: 1800 }] }),
+  });
+  assert.ok(p.check.some((c) => /magn í Pöntunarlista \(2\) og staðsetningar í Smíða \(1\)/.test(c)));
 });
