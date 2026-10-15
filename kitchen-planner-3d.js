@@ -26,7 +26,16 @@
     // same body as harskapur, no front at all — open shelving, always built in the front material (2026-10-14)
     // drawerCountRange starts at 0 (off) — unlike the hasInterior types, drawers here sit ALONGSIDE
     // shelves/fataslá (always at the bottom, see addFrontDetailsInner), not instead of them (2026-10-22).
-    harskapurOpinn: { label:"Opinn hárskápur", zone:"floor", cls:"tall", defaultW:600, minW:300, maxW:1200, h:2500, d:600, minH:1800, maxH:2700, minD:300, maxD:700, hasInterior:false, shelfRange:[0,8,5], railRange:[0,2,0], drawerCountRange:[0,4], open:true },
+    // presets (2026-10-22): a quick-start recipe row in the wizard, set all three counts at once — the
+    // manual steppers stay right below for fine-tuning, nothing is lost by picking one.
+    harskapurOpinn: { label:"Opinn hárskápur", zone:"floor", cls:"tall", defaultW:600, minW:300, maxW:1200, h:2500, d:600, minH:1800, maxH:2700, minD:300, maxD:700, hasInterior:false, shelfRange:[0,8,5], railRange:[0,2,0], drawerCountRange:[0,4], open:true,
+      presets: [
+        { key:"shelves", label:"Bara hillur", shelves:8, rails:0, drawers:0 },
+        { key:"shelvesRail", label:"Hillur + fatasláar", shelves:5, rails:1, drawers:0 },
+        { key:"doubleRail", label:"Tvöföld fatasláar", shelves:0, rails:2, drawers:0 },
+        { key:"drawers", label:"Skúffuskápur", shelves:1, rails:0, drawers:4 },
+        { key:"mixed", label:"Blandað", shelves:2, rails:1, drawers:2 }
+      ] },
     efriskapur:  { label:"Efriskápur",  zone:"wall",  cls:"wall",  defaultW:600, minW:200, maxW:1200, h:1000, d:300, minH:300,  maxH:1200, minD:200, maxD:450, hasInterior:false, shelfRange:[0,5,2] },
     // Built-in fridge: NOT its own Skápategund in the schema (Skápategund has
     // Grunn/Hár/Efri/Lagna/Ofna/Loftunarskápur only) — physically a Hárskápur

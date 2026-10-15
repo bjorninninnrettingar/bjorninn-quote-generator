@@ -4777,6 +4777,14 @@
         }).join("") + '</div><div class="uw-custom"><input type="number" data-uw-dcustom min="' + c.minD + '" max="' + c.maxD + '" step="1" value="' + curD + '"><small>mm · sérmál ' + c.minD + '–' + c.maxD + '</small></div></div>';
       }
       if (c.hasInterior) html += '<div class="edit-field">' + hardwareHTML(b, c, PRO ? { sides:true } : null) + '</div>';
+      // Preset samsetningar (2026-10-22): sama "hillur ALLTAF neðst-óháð, skúffur alltaf neðst" líkan og
+      // steppararnir hér fyrir neðan — bara fljótleg byrjun, ekki endapunktur. Steppararnir sjálfir eru
+      // áfram virkir eftir að preset er valið, svo ekkert tapast við að fínstilla á eftir.
+      if (c.presets){
+        html += '<div class="edit-field"><label>Samsetning</label><div class="uw-chips">' + c.presets.map(function(p){
+          return '<button type="button" class="hw-btn" data-uw-preset="' + p.key + '">' + p.label + '</button>';
+        }).join("") + '</div></div>';
+      }
       var shelfN = c.shelfRange && !(c.hasInterior && b.interior.mode === "skuffur" && c.cls !== "tall") ? KP3D.shelvesOf(b) : null; // b.shelves, same as the side panel + 3D
       if (shelfN != null){
         var rng = [c.shelfRange[0], c.shelfRange[1]];
@@ -4925,6 +4933,20 @@
       var n = Math.max(c.drawerCountRange[0], Math.min(c.drawerCountRange[1], cur + d));
       if (n <= 0) delete b.interior;
       else b.interior = { mode:"skuffur", count:n, codes:KP3D.drawerCodes({ mode:"skuffur", count:n }, drawerSys()) };
+      renderUnitWizard();
+    }); });
+    // Preset samsetningar: setur hillur/fataslár/skúffur allar í einu — steppararnir hér fyrir ofan eru
+    // áfram virkir á eftir, svo valið er bara fljótleg byrjun, ekki endapunktur (2026-10-22).
+    side.querySelectorAll("[data-uw-preset]").forEach(function(el){ el.addEventListener("click", function(){
+      var p = (c.presets || []).find(function(x){ return x.key === el.dataset.uwPreset; });
+      if (!p) return;
+      if (c.shelfRange){ b.shelves = Math.max(c.shelfRange[0], Math.min(c.shelfRange[1], p.shelves)); delete b.shelfPos; }
+      if (c.railRange){ b.rails = Math.max(c.railRange[0], Math.min(c.railRange[1], p.rails)); delete b.railPos; }
+      if (c.drawerCountRange){
+        var n = Math.max(c.drawerCountRange[0], Math.min(c.drawerCountRange[1], p.drawers));
+        if (n <= 0) delete b.interior;
+        else b.interior = { mode:"skuffur", count:n, codes:KP3D.drawerCodes({ mode:"skuffur", count:n }, drawerSys()) };
+      }
       renderUnitWizard();
     }); });
     if (c.bur) wireBurSetup(side, b, renderUnitWizard);
