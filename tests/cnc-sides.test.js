@@ -189,11 +189,12 @@ test("two identical door fronts that can't stack are leaves of one opening (no n
   assert.deepEqual(o, ['LOM: 80, 37, "2,3"']);
 });
 
-test("a low front in a drawer cabinet is a fixed front, not a door", () => {
+test("a low front in a drawer cabinet is a fixed front, not a door — flagged, not drilled (2026-10-19: FAST_FRAMSTYKKI isn't guaranteed to exist in the reference master, and referencing it used to block the whole side file from writing, not just this op; found live, T-70 Sk2)", () => {
   const rows = [row("Grunnskápur hlið", 800, 580, 16, 2), row("Skúffufrontur E - Merivo", 597, 597, 19, 1), row("Frontur", 162, 597, 19, 1)];
-  const o = ops(S.unitPlan("Sk 4", rows));
-  assert.ok(o.includes("FAST_FRAMSTYKKI: 162, LPX, 0, 0"));
-  assert.ok(!o.some((x) => x.startsWith("LOM")));
+  const p = S.unitPlan("Sk 4", rows);
+  assert.ok(!ops(p).some((x) => x.startsWith("FAST_FRAMSTYKKI")));
+  assert.ok(!ops(p).some((x) => x.startsWith("LOM"))); // still no hinges — that exclusion never depended on the op
+  assert.ok(p.check.includes("Fast framstykki (162 mm): engar lamir, en borað handvirkt þangað til FAST_FRAMSTYKKI er staðfest í master."));
 });
 
 test("a side stored rotated in Sögunarlisti is turned by the unit's height; rail over 1000; FRE2 is FRE", () => {

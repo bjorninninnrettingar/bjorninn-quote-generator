@@ -190,7 +190,12 @@
     var leaves = null;
     var fixedFronts = drawers.length ? doors.filter(function (d) { return d.H <= FIXED_FRONT_MAX; }) : [];
     doors = doors.filter(function (d) { return fixedFronts.indexOf(d) < 0; });
-    fixedFronts.forEach(function (d) { op("FAST_FRAMSTYKKI", "Fast framstykki", r1(d.H) + ", LPX, 0, 0"); });
+    // Not drilled (2026-10-19, same reason as Fataslá just above): this reference master isn't guaranteed to
+    // have FAST_FRAMSTYKKI defined, and cnc.html's write gate refuses to write the WHOLE side file the moment
+    // any op references an undefined macro — found live, T-70 Sk2. The real safety property (no hinges on a
+    // fixed front) doesn't depend on this op at all — `doors` already excludes every fixedFront above, so it
+    // was never going to get hinge holes drilled either way; this was purely an extra alignment/marking step.
+    fixedFronts.forEach(function (d) { check.push("Fast framstykki (" + r1(d.H) + " mm): engar lamir, en borað handvirkt þangað til FAST_FRAMSTYKKI er staðfest í master."); });
     // Grip on a door/fixed front: a positive grip (Jey and the like — a real handle sitting on the face) always
     // applies, any height. The old "fræst grip" branch here (a negative Höldur-1 Grip mm, zeroed above 900mm) is
     // retired (2026-10-14) — Fræst grip no longer goes through Höldur 1 at all, so `grip` itself is never negative
