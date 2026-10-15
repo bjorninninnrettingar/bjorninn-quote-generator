@@ -1866,9 +1866,10 @@
     var bodyD = art ? depthM - FRONT_T : depthM;
     var cx = geom.origin.x + geom.axis.x * (offsetM + widthM / 2) + geom.normal.x * (bodyD / 2);
     var cz = geom.origin.z + geom.axis.z * (offsetM + widthM / 2) + geom.normal.z * (bodyD / 2);
-    // Floor units stand on a recessed plinth (sökkull): the body starts 100 mm
-    // up and a dark, set-back block fills the gap, as in a real kitchen.
-    var plinthM = meta && meta.plinth ? 0.1 : 0;
+    // Floor units stand on a recessed plinth (sökkull): the body starts up by the wall/island's own plinth
+    // height (100 mm default, Sökkulhæð overrides it — meta.plinthMm, set once per wall in buildScene) and a
+    // dark, set-back block fills the gap, as in a real kitchen.
+    var plinthM = meta && meta.plinth ? (typeof meta.plinthMm === "number" ? meta.plinthMm : 100) / 1000 : 0;
     var bodyBase = baseYM + plinthM, bodyH = heightM - plinthM;
     var panelBox = !!(meta && meta.panel);
     // an end panel stops 1 mm short of each neighbour: sharing the carcass side's plane z-fought, seen from
@@ -2996,6 +2997,9 @@
         else if (want){
           var c = u.baseFront.clone();
           c.emissive = new THREE.Color(SELECT_COLOR); c.emissiveIntensity = 0.35;
+          c.__xrayBase = u.baseFront; // same tag as addCabinetBox's build-time selection clone — setXrayFronts
+          // only strips THREE_STATE.frontMat plus anything tagged back to it; this runtime clone (selecting
+          // without a full rebuild) was missing it, so the one cabinet you had selected stayed opaque under X-ray
           m.material[4] = c;
         } else {
           if (m.material[4] !== u.baseFront) m.material[4].dispose();
@@ -3732,6 +3736,10 @@
       if (!g || (iso && !isoHas(wall.id) && !neighborOnly)) return;
       var fStarts = blockStartsMm(wall.floor, cornerClearanceMm(surfaces, wi, "floor")), wStarts = blockStartsMm(wall.wall, 0);
       var islandId = wall.island ? wall.island.id : undefined;
+      // This wall/island's own plinth (Sökkulhæð) — same resolver buildPlan2D's dimension chain already uses
+      // (plinthMmOf in kitchen-planner.html); floor-unit geometry below used to hardcode 100 regardless, so a
+      // custom Sökkulhæð changed the numbers shown but never what was actually drawn.
+      var plinthSrcW = wall.island || wall, plinthMmW = (plinthSrcW && typeof plinthSrcW.plinthMm === "number") ? plinthSrcW.plinthMm : 100;
       if (!opts.people && !neighborOnly) addAfellur(g, wall, wi, fStarts, wStarts);
       if (wall.island && wall.island.back && !wall.island.two && wall.floor.length && !neighborOnly) addIslandBack(g, wall, fStarts);
       wall.floor.forEach(function(b, bi){
@@ -3743,7 +3751,7 @@
         var inter = b.interior;
         if (c.rusl && !(inter && inter.mode === "skuffur")) inter = { mode:"skuffur", codes:[state.drawerSystem === "merivo" ? "E" : "C"], count:1 }; // old drafts: one tall pull-out
         if (inter && inter.mode === "skuffur"){ // the real stack: one Blum code per drawer, fronts sized from the codes
-          var fullBody = hM * 1000 - 100, dbody = drawerZoneMm(c, fullBody, b.drawerZoneMm), dcodes = drawerCodes(inter, state.drawerSystem), dfr = stackFrontsMm(inter, dcodes, dbody);
+          var fullBody = hM * 1000 - plinthMmW, dbody = drawerZoneMm(c, fullBody, b.drawerZoneMm), dcodes = drawerCodes(inter, state.drawerSystem), dfr = stackFrontsMm(inter, dcodes, dbody);
           // a tall unit with drawers: the drawers fill the bottom (≤ 1200 mm), a hinged door the rest (user, 2026-10-11)
           var zf = dbody / fullBody, topDoor = zf < 0.999 ? zf : null;
           inter = Object.assign({}, inter, { codes:dcodes, count:dcodes.length, topDoorFr:topDoor,
@@ -3755,20 +3763,14 @@
           { islandId:islandId, locked:!!b.locked || !!opts.xray, suppressBadge:!!opts.xray, slabFronts:jeyOn, corner:c.cls === "corner", doorSide:b.swing === "vinstri" ? "left" : "right", hingeRight:b.swing === "haegri", shelves:(c.hasInterior || c.shelfRange) && !(b.interior && b.interior.mode === "skuffur") ? (shelvesOf(b) || 0) : 0,
             openMat:c.open ? frontOpenMat : openMat, open:!!c.open, hiddenMat:hiddenMat, drawerSystem:state.drawerSystem, carcassKey:state.carcass,
             warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), ready:!!(opts.readyIds && opts.readyIds.indexOf(b.id) >= 0), doorLimit:DOOR_LIMITS[b.id] || null, shelfBlock:b, wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), heightMm:hM * 1000, elevMm:0, handle:c.appliance ? null : state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0, // tall units: one door unless split in Smíða (2026-10-09)
-            splitFr:c.oven || c.fixedFronts ? null : splitFractions(b, hM * 1000 - (c.panel || c.appliance ? 0 : 100)), // a fridge too, once its split is changed in Smíða
-            plinth:!c.panel && !c.appliance, appliance:c.appliance || null, leMans:!!c.tofrahornIds, counter:!!c.counter, sink:!!c.sink, oven:!!c.oven, panel:!!c.panel, plinthMat:plinthMat, stoneMat:stoneMat,
+            splitFr:c.oven || c.fixedFronts ? null : splitFractions(b, hM * 1000 - (c.panel || c.appliance ? 0 : plinthMmW)), // a fridge too, once its split is changed in Smíða
+            plinth:!c.panel && !c.appliance, plinthMm:plinthMmW, appliance:c.appliance || null, leMans:!!c.tofrahornIds, counter:!!c.counter, sink:!!c.sink, oven:!!c.oven, panel:!!c.panel, plinthMat:plinthMat, stoneMat:stoneMat,
             ovenCodes:c.lowOven ? ["M"] : c.oven ? ovenCodesOf(b, state.drawerSystem) : null, fixedFronts:!!c.fixedFronts || !!c.appliance,
             burCodes:c.bur ? burCodesOf(b, state.drawerSystem) : null, dishwasher:!!c.dishwasher,
             lowOven:!!c.lowOven, ovenFrontsMm:c.oven ? b.ovenFrontsMm || null : null, ovenBlock:c.oven ? b : null, ovenCat:c.oven ? c : null,
             sinkFixedTop:!!c.sink && b.sinkTop === "fastur" && !!(b.interior && b.interior.mode === "skuffur"),
             ovenInner:c.oven && !c.lowOven ? (String(b.ovenCombo == null ? OVEN_DEFAULT[state.drawerSystem === "merivo" ? "merivo" : "legra"] : b.ovenCombo).split("+")[1] || null) : null,
             washerDrawerM:c.thvo && b.thvo !== "hurdir" ? 0.40 : 0 }, selected, pickables);
-        // LED in the plinth: a strip at the foot of the plinth and a glow on the floor in front of it
-        if (false){ // (plinth LED taken out 2026-10-05)
-          var pf = ledFrame(THREE, scene, g, offset / 1000, b.widthMm / 1000), pw = b.widthMm / 1000;
-          ledStrip(THREE, scene, pf, 0, pw - 0.02, 0.008, dM - 0.058);
-          ledGlow(THREE, scene, pf, 0, pw, dM - 0.06, dM + 0.32, 0.003, 0.75);
-        }
       });
       wall.wall.forEach(function(b, bi){
         var offset = wStarts[bi];
