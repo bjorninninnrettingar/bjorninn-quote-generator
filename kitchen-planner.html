@@ -3825,13 +3825,18 @@
     return '<i class="dw-ico" style="height:' + Math.round(5 + side / 241 * 17) + 'px"></i>';
   }
   function drawerSys(){ return state.drawerSystem === "merivo" ? "merivo" : "legra"; }
-  // same 100 mm plinth the 3D uses; a tall unit's drawers stop at 1200 mm (or b.drawerZoneMm, PRO) — unless the
-  // stack has real custom heights (b.interior.frontsMm), in which case THEIR sum is the zone, full stop. b.drawerZoneMm
-  // is written alongside frontsMm (wireDrawerStack's tall-unit path) but is a second copy of the same number —
-  // trusting it separately let it drift from what the drawers actually sum to (user, 2026-10-19: a door reading
-  // 1505 mm over drawers that plainly summed to 840, not the 880 the stale zone still claimed).
+  // The wall/island's own plinth (PLINTH_MM default unless Sökkulhæð overrode it) — a tall unit's drawers stop
+  // at 1200 mm (or b.drawerZoneMm, PRO) — unless the stack has real custom heights (b.interior.frontsMm), in
+  // which case THEIR sum is the zone, full stop. b.drawerZoneMm is written alongside frontsMm (wireDrawerStack's
+  // tall-unit path) but is a second copy of the same number — trusting it separately let it drift from what the
+  // drawers actually sum to (user, 2026-10-19: a door reading 1505 mm over drawers that plainly summed to 840,
+  // not the 880 the stale zone still claimed). b.id resolves its own wall (not threaded as a param, like
+  // carcassHeightMm's — every caller already has `b`, not all of them also have `wall` at hand) so this stays
+  // in step with carcassHeightMm's own per-wall plinth instead of always assuming the 100 mm default (same user,
+  // same bug report: still 1505 after that fix — this wall's plinth is no longer 100).
   function drawerBodyMm(b, c){
-    var full = blockHeightMm(b, c) - 100;
+    var f = findBlock(b.id);
+    var full = blockHeightMm(b, c) - plinthMmOf(c, "floor", f && f.wall);
     if (b.interior && Array.isArray(b.interior.frontsMm) && b.interior.frontsMm.length > 1){
       var sum = Math.round(b.interior.frontsMm.reduce(function(a, h){ return a + h; }, 0));
       return Math.max(0, Math.min(full - KP3D.DRAWER_TOPDOOR_MIN_MM, sum));
@@ -7774,7 +7779,7 @@
         }
         if (isDrawerUnit(b)){ // the stack as drawn, top → bottom, with front heights — also when it matched a combo
           var dCodes = KP3D.drawerCodes(b.interior, drawerSys()), dFr = KP3D.stackFrontsMm(b.interior, dCodes, drawerBodyMm(b, c)) || [];
-          var tallDoor = c.cls === "tall" ? blockHeightMm(b, c) - 100 - drawerBodyMm(b, c) : 0;
+          var tallDoor = c.cls === "tall" ? proBodyMm(b, c, "floor") - drawerBodyMm(b, c) : 0;
           if (tallDoor > 0) notes.push("Hárskápur með skúffum: hurð á lömum efst (" + tallDoor + " mm), skúffur undir henni (" + drawerBodyMm(b, c) + " mm).");
           notes.push("Skúffur (" + DRAWER_SYSTEMS[drawerSys()].label + ", ofan frá): " + dCodes.map(function(cd, i){ return cd + (dFr[i] ? " " + Math.round(dFr[i]) + " mm" : ""); }).reverse().join(" / ") +
             (b.interior.inner ? " + innskúffa (" + b.interior.inner + ")" : "") + (v2 ? "" : " — ekki til sem stöðluð samsetning, vinsamlegast staðfestu."));
@@ -8801,7 +8806,9 @@
   // many mm, same as the old -35mm Höldur-1 hack it replaces. "hluti" never changes a dimension.
   var GRIP_SHRINK_MM = 35;
   var GRIP_LEN_DEFAULT_MM = 300;
-  function proBodyMm(b, c, zone){ var h = blockHeightMm(b, c); return zone === "floor" && !c.panel && !c.appliance ? h - 100 : h; }
+  // Same per-wall plinth as carcassHeightMm (not always 100 any more — Sökkulhæð, 2026-10-18); b.id resolves its
+  // own wall since not every caller already has it at hand the way carcassHeightMm's callers do.
+  function proBodyMm(b, c, zone){ var h = blockHeightMm(b, c), f = findBlock(b.id); return h - plinthMmOf(c, zone, f && f.wall); }
   // The door openings of a cabinet, top → bottom, as the 3D draws them (wide units: two leaves = one opening).
   function proDoorsOf(b, c, zone){
     if (!c || c.panel || c.shelfStack || c.open || c.appliance || c.fixedFronts) return [];
