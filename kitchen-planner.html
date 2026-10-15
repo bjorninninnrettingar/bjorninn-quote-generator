@@ -7053,30 +7053,36 @@
   // Smíða box editor already reads (shelfLayoutOf/railLayoutOf) — a drag just materialises the current
   // (still even-spread, if never customised) layout into that array, then nudges the one item, clamped
   // against its neighbours and the same zone shelfSpaceMm already enforces for every other consumer
-  // (oven board margins, drawer zone, búrskápur zone, …). Same rAF-coalesced live-mutate pattern as the
-  // milliveggur resize handle above.
-  var SHELF_DRAG_MIN_GAP_MM = 40, shelfPosRAF = null;
+  // (oven board margins, drawer zone, búrskápur zone, …). Unlike the milliveggur resize handle above,
+  // this does NOT call renderView() on every move: a full scene rebuild tears down and recreates
+  // setupCabinetInteraction (see KP3D.teardown3D → THREE_STATE.cleanupInteraction), which drops the
+  // window pointermove/pointerup listeners mid-gesture — the user loses "grip" after the first rebuilt
+  // frame. Returning the clamped mm instead lets the 3D side move the dragged mesh directly (same
+  // lightweight live-feedback pattern already used for islands/decor); state still updates every move,
+  // just the expensive rebuild waits for onShelfPosEnd (pointerup).
+  var SHELF_DRAG_MIN_GAP_MM = 40;
   function onShelfPosMove(blockId, itemKind, idx, newMm){
-    var fb = findBlock(blockId); if (!fb) return;
-    var b = fb.block, c = CATALOG[b.type]; if (!c) return;
-    var bodyMm = proBodyMm(b, c, fb.zone), sysKey = drawerSys(), r = KP3D.shelfSpaceMm(b, bodyMm, sysKey);
+    var fb = findBlock(blockId); if (!fb) return null;
+    var b = fb.block, c = CATALOG[b.type]; if (!c) return null;
+    var bodyMm = proBodyMm(b, c, fb.zone), sysKey = drawerSys(), r = KP3D.shelfSpaceMm(b, bodyMm, sysKey), clamped;
     if (itemKind === "rail"){
       var rlist = KP3D.railLayoutOf(b, bodyMm, sysKey).map(function(x){ return { mm:x.mm }; });
-      if (!rlist[idx]) return;
+      if (!rlist[idx]) return null;
       var rlo = idx > 0 ? rlist[idx - 1].mm + SHELF_DRAG_MIN_GAP_MM : r.lo + KP3D.OVEN_BOARD_MM + 1;
       var rhi = idx < rlist.length - 1 ? rlist[idx + 1].mm - SHELF_DRAG_MIN_GAP_MM : r.hi - 10;
-      rlist[idx].mm = Math.round(Math.max(rlo, Math.min(rhi, newMm)));
+      clamped = Math.round(Math.max(rlo, Math.min(rhi, newMm)));
+      rlist[idx].mm = clamped;
       b.railPos = rlist; if (c.railRange) b.rails = rlist.length;
     } else {
       var list = KP3D.shelfLayoutOf(b, bodyMm, sysKey).map(function(s){ return { mm:s.mm, fixed:s.fixed, pos:s.pos, locked:s.locked }; });
-      if (!list[idx] || list[idx].fixed || list[idx].locked) return;
+      if (!list[idx] || list[idx].fixed || list[idx].locked) return null;
       var lo = idx > 0 ? list[idx - 1].mm + SHELF_DRAG_MIN_GAP_MM : r.lo + KP3D.OVEN_BOARD_MM + 1;
       var hi = idx < list.length - 1 ? list[idx + 1].mm - SHELF_DRAG_MIN_GAP_MM : r.hi - 10;
-      list[idx].mm = Math.round(Math.max(lo, Math.min(hi, newMm)));
+      clamped = Math.round(Math.max(lo, Math.min(hi, newMm)));
+      list[idx].mm = clamped;
       b.shelfPos = list; if (!c.bur && c.shelfRange) b.shelves = list.length;
     }
-    if (shelfPosRAF) return;
-    shelfPosRAF = requestAnimationFrame(function(){ shelfPosRAF = null; renderView(); });
+    return clamped;
   }
   function onShelfPosEnd(blockId){ save(); refreshAfterEdit(); }
   // where an obstacle lands on a wall: offset snapped 10 mm and flush to the corners within 100 mm, height kept inside the room

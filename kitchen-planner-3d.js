@@ -2051,6 +2051,10 @@
         if (meta.shelfBlock && pickables){
           board.userData = { kind:"shelf-item", itemKind:"shelf", blockId:meta.shelfBlock.id, idx:sh, locked:meta.locked, bodyBaseY:bodyBase };
           pickables.push(board);
+          var boardEdges = new THREE.LineSegments(new THREE.EdgesGeometry(board.geometry), new THREE.LineBasicMaterial({ color:SELECT_COLOR, transparent:true, opacity:0 }));
+          boardEdges.position.copy(board.position); boardEdges.quaternion.copy(board.quaternion);
+          group.add(boardEdges);
+          board.userData.edgesObj = boardEdges;
         }
       }
       // Fataslá (clothes rail, 2026-10-15): same zone/gating as the shelf boards above.
@@ -2068,6 +2072,10 @@
           if (pickables){
             rod.userData = { kind:"rail-item", itemKind:"rail", blockId:meta.shelfBlock.id, idx:ri, locked:meta.locked, bodyBaseY:bodyBase };
             pickables.push(rod);
+            var rodEdges = new THREE.LineSegments(new THREE.EdgesGeometry(rod.geometry), new THREE.LineBasicMaterial({ color:SELECT_COLOR, transparent:true, opacity:0 }));
+            rodEdges.position.copy(rod.position); rodEdges.quaternion.copy(rod.quaternion);
+            group.add(rodEdges);
+            rod.userData.edgesObj = rodEdges;
           }
         });
       }
@@ -2827,11 +2835,24 @@
       var e = m.userData.edgesObj || (m.parent && m.parent.children[1]);
       return e && (e.isLineSegments || e.isLine) ? e : null;
     }
+    function isShelfOrRail(m){ return m && (m.userData.kind === "shelf-item" || m.userData.kind === "rail-item"); }
     function setHover(mesh){
       if (mesh === hovered) return;
-      if (hovered){ var e0 = edgesOf(hovered); if (e0 && e0.material && !hovered.userData.selected) e0.material.color.set(hovered.userData.warn ? WARN_COLOR : 0x2a2a2a); }
+      if (hovered){
+        var e0 = edgesOf(hovered);
+        if (e0 && e0.material){
+          if (isShelfOrRail(hovered)) e0.material.opacity = 0; // always blue — only its visibility toggles
+          else if (!hovered.userData.selected) e0.material.color.set(hovered.userData.warn ? WARN_COLOR : 0x2a2a2a);
+        }
+      }
       hovered = mesh;
-      if (hovered){ var e1 = edgesOf(hovered); if (e1 && e1.material && e1.material.color) e1.material.color.set(SELECT_COLOR); }
+      if (hovered){
+        var e1 = edgesOf(hovered);
+        if (e1 && e1.material){
+          if (isShelfOrRail(hovered)) e1.material.opacity = 1;
+          else if (e1.material.color) e1.material.color.set(SELECT_COLOR);
+        }
+      }
       renderer.domElement.style.cursor = hovered ? (hovered.userData.locked ? (hovered.userData.isPart ? "pointer" : "default") :
         (hovered.userData.kind === "shelf-item" || hovered.userData.kind === "rail-item") ? "ns-resize" : "grab") : "";
     }
@@ -2857,7 +2878,16 @@
         var sPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(toCam, wpS);
         var sPt = new THREE.Vector3();
         if (raycaster.ray.intersectPlane(sPlane, sPt) && opts.onShelfPosMove){
-          opts.onShelfPosMove(drag.meta.blockId, drag.meta.itemKind, drag.meta.idx, Math.round((sPt.y - drag.meta.bodyBaseY) * 1000));
+          var clampedMm = opts.onShelfPosMove(drag.meta.blockId, drag.meta.itemKind, drag.meta.idx, Math.round((sPt.y - drag.meta.bodyBaseY) * 1000));
+          // moves the mesh (and its hover outline) directly — no scene rebuild mid-drag, so the window
+          // pointermove/pointerup listeners this gesture is riding on never get torn out from under it
+          // (a renderView() rebuild recreates setupCabinetInteraction, which is what "losing grip" was)
+          if (clampedMm != null){
+            var boardOffM = drag.meta.itemKind === "shelf" ? -0.009 : 0; // matches the board/rod's own render offset
+            var newY = drag.meta.bodyBaseY + clampedMm / 1000 + boardOffM;
+            drag.mesh.position.y = newY;
+            if (drag.mesh.userData.edgesObj) drag.mesh.userData.edgesObj.position.y = newY;
+          }
         }
         return;
       }
