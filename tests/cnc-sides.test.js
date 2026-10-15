@@ -360,3 +360,13 @@ test("inner drawers behind a door at the designer's positions (búrskápur in Sm
   assert.deepEqual(ops(p).filter((o) => o.startsWith("MERVIBOX")), [84, 454, 704, 954].map((x) => `MERVIBOX_INNSKUFFA: 144, ${x}, K`));
   assert.ok(!p.check.some((c) => /hönnuður staðsetur/.test(c)));
 });
+
+// Fataslá (closet clothes rail, 2026-10-15): pure hardware off Eyðublað's own link field, no cut part and no
+// drilling macro on the stick yet — same real T-80 Sigurjón data (SK 1-3 has one, SK 4 next to it has none).
+test("Fataslá: flagged as a manual mounting step when the unit has one, silent when it doesn't", () => {
+  const rows = [row("Grunnskápur hlið", 2385, 580, 16, 2), row("Frontur vænghurð", 1553, 461.5, 19, 2)];
+  const withRail = S.unitPlan("SK 1-3", rows, { fataslar: { magn: 1, names: ["Fataslá Svört 1m Hafele"] } });
+  assert.ok(withRail.check.includes("Fataslá (1): Fataslá Svört 1m Hafele — ekki boruð hér, settu upp eftir teikningu"));
+  const noRail = S.unitPlan("SK 4", rows);
+  assert.ok(!noRail.check.some((c) => /Fataslá/.test(c)));
+});

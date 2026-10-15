@@ -265,6 +265,10 @@
     var fixed = expand(by.fixedShelf, function (r) { return r; }).length;
     if (fixed && !oven && !ovenDone) check.push("Föst hilla (" + fixed + ") — staðsetning ekki í gögnum, settu inn eftir teikningu");
 
+    // Fataslá (clothes rail, 2026-10-15): pure hardware off Eyðublað's own Fataslár link — no cut part, no
+    // drilling macro for the bracket exists on the stick yet, so this is a flag-only reminder like Gler/speglar.
+    if (opts.fataslar && opts.fataslar.magn) check.push("Fataslá (" + opts.fataslar.magn + "): " + (opts.fataslar.names || []).join(", ") + " — ekki boruð hér, settu upp eftir teikningu");
+
     // Inner drawers (user 2026-10-08): on the cabinet sides like any runner, 32 mm back, hidden behind the front
     // of the drawer whose zone it sits in — the tallest drawer zone (tie → the top one); its front top 32 mm under
     // the top of that zone (or of the cabinet's top board). Behind a door (tall cabinets/pantries) the designer

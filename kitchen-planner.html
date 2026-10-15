@@ -8750,11 +8750,21 @@
     var b = fb.block, c = CATALOG[b.type], doors = proDoorsOf(b, c, fb.zone), key = skKeys()[b.id] || "";
     var body = proBodyMm(b, c, fb.zone), S = 520 / body, W = Math.max(90, Math.min(260, b.widthMm * S)), X0 = 40, Y0 = 20;
     var hingeLeft = b.swing === "vinstri";
+    // Wide/wing doors get hinges on BOTH sides for real (same rule smidaFor's o.hinge uses, so the preview never
+    // disagrees with what actually gets drilled) — Vinstri/Hægri is then not a real choice, so show both at once
+    // instead of picking one (user, 2026-10-15).
+    var bothHinges = !!(doors.length && b.widthMm > 600 && !c.fridge && c.cls !== "corner");
     var svg = '<svg id="peSvg" width="' + (W + 150) + '" height="' + (body * S + 40) + '">';
     svg += '<rect x="' + X0 + '" y="' + Y0 + '" width="' + W + '" height="' + body * S + '" fill="#fff" stroke="#8a929c"/>';
     // drawers (bottom → top) with draggable seams — a drawer unit's stack, or the drawers under a tall oven.
     // Each front shows its Blum side (dashed) so the front/box balance can be judged (2026-10-09).
     var dr = isDrawerUnit(b), ov = !!(c.oven && !c.lowOven && ovenKeyOf(b) !== ""), codes = [], fronts = [];
+    // Innskúffur behind a door, free-form (user, 2026-10-16): same spot a búrskápur's own inner drawers sit in,
+    // but for any other tall closet with a door and no drawer stack of its own (T-80 Sigurjón's SK17-style
+    // "andyri" unit) — /cnc already reads a generic Smíðagögn "inner" list by code, no Búrskápur combo needed.
+    // Never together with a drawer stack: cnc-sides.js only reads this list when the unit has none of its own
+    // (a drawer-stack unit's inner drawers are placed automatically, in its tallest zone, and ignore Smíðagögn).
+    var innerOn = !c.bur && c.cls === "tall" && !dr;
     if (dr){ codes = KP3D.drawerCodes(b.interior, drawerSys()); fronts = KP3D.stackFrontsMm(b.interior, codes, drawerBodyMm(b, c)) || []; }
     else if (ov){ codes = KP3D.ovenCodesOf(b, drawerSys()); fronts = ovenStackModel(b).fronts(); }
     else if (c.lowOven){ codes = ["M"]; fronts = [Math.max(53, body - KP3D.ovenHOf(b, c))]; } // OFN6: one fixed M front under the oven, nothing to configure
@@ -8820,12 +8830,15 @@
       svg += '<rect x="' + (X0 + 3) + '" y="' + (yTop + 1) + '" width="' + (W - 6) + '" height="' + (h - 2) + '" fill="' + (sp.type === "lift" ? "#fff6dc" : "#eef6ee") + '" stroke="#9aa5b1" rx="2"/>' +
         '<text x="' + (X0 + W / 2) + '" y="' + (yTop + h / 2) + '" text-anchor="middle" font-size="12" fill="#3b4652">' + d.label + " · " + d.box + '</text>';
       if (sp.type !== "lift"){
-        var hx = hingeLeft ? X0 + 8 : X0 + W - 8;
-        CNCSIDES.specToPositions(sp.hinges, d.box).forEach(function(p, j){
-          var y = yTop + h - p * S;
-          svg += '<g class="pe-hinge" data-door="' + i + '" data-pos="' + p + '" style="cursor:ns-resize"><circle cx="' + hx + '" cy="' + y + '" r="8" fill="#0a84ff"/>' +
-            '<text x="' + (hingeLeft ? X0 - 6 : X0 + W + 8) + '" y="' + (y + 4) + '" font-size="12" text-anchor="' + (hingeLeft ? "end" : "start") + '" fill="#0a84ff">' +
-            (p <= d.box / 2 ? "↓" + Math.round(p) : "↑" + Math.round(d.box - p)) + '</text></g>';
+        var sides = bothHinges ? [true, false] : [hingeLeft];
+        sides.forEach(function(left){
+          var hx = left ? X0 + 8 : X0 + W - 8;
+          CNCSIDES.specToPositions(sp.hinges, d.box).forEach(function(p, j){
+            var y = yTop + h - p * S;
+            svg += '<g class="pe-hinge" data-door="' + i + '" data-pos="' + p + '" style="cursor:ns-resize"><circle cx="' + hx + '" cy="' + y + '" r="8" fill="#0a84ff"/>' +
+              '<text x="' + (left ? X0 - 6 : X0 + W + 8) + '" y="' + (y + 4) + '" font-size="12" text-anchor="' + (left ? "end" : "start") + '" fill="#0a84ff">' +
+              (p <= d.box / 2 ? "↓" + Math.round(p) : "↑" + Math.round(d.box - p)) + '</text></g>';
+          });
         });
       } else svg += '<text x="' + (X0 + W / 2) + '" y="' + (yTop + 16) + '" text-anchor="middle" font-size="11" fill="#9a6b00">lamir í toppborð</text>';
       d._y = yTop; yTop += h;
@@ -8839,8 +8852,8 @@
       var behind = function(yMm, label){ var y = Y0 + body * S - yMm * S;
         return '<line x1="' + (X0 + 6) + '" x2="' + (X0 + W - 6) + '" y1="' + y + '" y2="' + y + '" stroke="#6b7480" stroke-width="2" stroke-dasharray="6 4"/>' +
           '<text x="' + (X0 + W - 8) + '" y="' + (y - 3) + '" text-anchor="end" font-size="10" fill="#6b7480">' + label + ' ' + Math.round(yMm) + '</text>'; };
-      if (c.bur){ // inner drawers where they are (drag them up/down)
-        KP3D.burDrawersOf(b, drawerSys()).forEach(function(dd, k){
+      if (c.bur || innerOn){ // inner drawers where they are (drag them up/down)
+        (c.bur ? KP3D.burDrawersOf(b, drawerSys()) : KP3D.innerDrawersOf(b, drawerSys())).forEach(function(dd, k){
           var y0 = Y0 + body * S - (dd.mm + dd.h) * S;
           svg += '<g class="pe-burdr" data-k="' + k + '" style="cursor:ns-resize"><rect x="' + (X0 + 18) + '" y="' + y0 + '" width="' + (W - 36) + '" height="' + dd.h * S + '" fill="rgba(192,122,31,.18)" stroke="#c07a1f" stroke-dasharray="4 3"/>' +
             '<text x="' + (X0 + W / 2) + '" y="' + (y0 + dd.h * S / 2 + 4) + '" text-anchor="middle" font-size="10" fill="#9a5a10">innskúffa ' + dd.code + ' · ' + dd.mm + '</text></g>';
@@ -8852,8 +8865,10 @@
     var right = '<button type="button" class="pe-btn pe-close" data-pe="close">Loka ✕</button>' +
       '<h3>' + (key ? key + " · " : "") + c.label + '</h3><div class="pe-sub">' + b.widthMm + ' × ' + blockHeightMm(b, c) + ' mm · ' +
       (b.smida ? "Smíðagögn vistuð á skápnum" : "Sjálfgefið (ekkert breytt)") + '</div>';
-    if (doors.length) right += '<div class="pe-row">Lamir:<button type="button" class="pe-btn' + (hingeLeft ? " on" : "") + '" data-pe="side" data-v="vinstri">Vinstri</button>' +
-      '<button type="button" class="pe-btn' + (!hingeLeft ? " on" : "") + '" data-pe="side" data-v="haegri">Hægri</button></div>';
+    if (doors.length) right += bothHinges
+      ? '<div class="pe-row">Lamir: <button type="button" class="pe-btn on" disabled>Vinstri</button><button type="button" class="pe-btn on" disabled>Hægri</button> <span class="pe-note" style="display:inline">(breiðari en 600 mm — lamir báðum megin)</span></div>'
+      : '<div class="pe-row">Lamir:<button type="button" class="pe-btn' + (hingeLeft ? " on" : "") + '" data-pe="side" data-v="vinstri">Vinstri</button>' +
+        '<button type="button" class="pe-btn' + (!hingeLeft ? " on" : "") + '" data-pe="side" data-v="haegri">Hægri</button></div>';
     // never for a drawer unit's door-above-drawers zone (user, 2026-10-15): proDoorsOf gives that zone exactly
     // one door entry, but a 2/3-front split here would index past it (doors[1]/doors[2] undefined) and crash —
     // and a single ~1200mm zone that already sits on top of a drawer stack has no real need to be split further.
@@ -8900,6 +8915,16 @@
           return '<div class="pe-row">Innskúffa ' + dd.code + ': <input type="number" step="1" value="' + dd.mm + '" data-pe="burmm" data-k="' + k + '"> mm frá botni (framhlið ' + dd.h + ')</div>'; }).join("") +
         (Array.isArray(b.burPos) ? '<div class="pe-row"><button type="button" class="pe-btn" data-pe="burreset">Sjálfgefið</button></div>' : '') +
         '<div class="pe-note">Neðri brún innri framhliðar frá botni skáps. Dragðu innskúffurnar á teikningunni. Hillurnar byrja fyrir ofan þær.</div></div>';
+    }
+    // Free-form innskúffur (2026-10-16): same spot, but for any other tall closet with a door — no Búrskápur
+    // combo behind it, just codes + positions, straight into Smíðagögn's generic "inner" list.
+    if (innerOn && doors.length){
+      right += '<div class="pe-door"><h4>Innskúffur</h4>' + KP3D.innerDrawersOf(b, drawerSys()).map(function(dd, k){
+          return '<div class="pe-row"><button type="button" class="pe-btn" data-pe="innercode" data-k="' + k + '" title="Skipta um stærð">' + dd.code + '</button>' +
+            ' <input type="number" step="1" value="' + dd.mm + '" data-pe="innermm" data-k="' + k + '"> mm frá botni' +
+            '<button type="button" class="pe-btn" data-pe="innerdel" data-k="' + k + '" title="Taka innskúffu">✕</button></div>'; }).join("") +
+        '<div class="pe-row"><button type="button" class="pe-btn" data-pe="inneradd">＋ Innskúffa</button></div>' +
+        '<div class="pe-note">Neðri brún innri framhliðar frá botni skáps. Smelltu á bókstafinn til að skipta um stærð. Dragðu innskúffurnar á teikningunni.</div></div>';
     }
     if (shelfOn){
       right += '<div class="pe-door"><h4>' + (c.oven ? "Hillur fyrir ofan ofn" : "Hillur") + '</h4>';
@@ -9098,6 +9123,36 @@
     }
     act('[data-pe="burmm"]', function(n){ setBur(+n.dataset.k, +n.value); });
     act('[data-pe="burreset"]', function(){ delete b.burPos; ovenDone(); });
+    // Free-form innskúffur: same stacking rule as setBur (own gap kept, no overlap, stays in the body), but the
+    // list itself (codes + positions) lives directly on the block — no registered combo underneath it.
+    function setInner(list){
+      var last = list.length - 1;
+      if (last >= 0 && list[last].mm + list[last].h > body - 60){ toast("Innskúffurnar komast ekki fyrir svona ofarlega."); renderBoxEditor(); return; }
+      b.innerCodes = list.map(function(d){ return d.code; }); b.innerPos = list.map(function(d){ return d.mm; }); ovenDone();
+    }
+    function moveInner(k, v){
+      var list = KP3D.innerDrawersOf(b, drawerSys());
+      list[k] = { code:list[k].code, h:list[k].h, mm:Math.round(v) };
+      for (var j = 0; j < list.length; j++){
+        var floor = j === 0 ? 20 : list[j - 1].mm + list[j - 1].h + 10;
+        if (list[j].mm < floor) list[j].mm = floor;
+      }
+      setInner(list);
+    }
+    act('[data-pe="innermm"]', function(n){ moveInner(+n.dataset.k, +n.value); });
+    act('[data-pe="innercode"]', function(n){
+      var list = KP3D.innerDrawersOf(b, drawerSys()), k = +n.dataset.k, sysCodes = KP3D.DRAWER_CODES[drawerSys()].codes;
+      var i = sysCodes.indexOf(list[k].code);
+      list[k] = { code:sysCodes[(i + 1) % sysCodes.length], mm:list[k].mm };
+      setInner(list);
+    });
+    act('[data-pe="innerdel"]', function(n){ var list = KP3D.innerDrawersOf(b, drawerSys()); list.splice(+n.dataset.k, 1); setInner(list); });
+    act('[data-pe="inneradd"]', function(){
+      var list = KP3D.innerDrawersOf(b, drawerSys()), sysCodes = KP3D.DRAWER_CODES[drawerSys()].codes, code = sysCodes[0];
+      var mm = list.length ? list[list.length - 1].mm + list[list.length - 1].h + 35 : 60, h = (KP3D.DRAWER_CODES[drawerSys()].side[code] || 120) + 20;
+      if (mm + h > body - 60){ toast("Ekki pláss fyrir fleiri innskúffur."); return; }
+      list.push({ code:code, mm:mm }); setInner(list);
+    });
     function gripPatch(target, extra){ // merges onto the zone's existing fields (e.g. changing átt keeps start/length)
       var g = proGripOf(b, target) || {};
       return Object.assign({ type:g.type, att:g.att, brun:g.brun, start:g.start, length:g.length }, extra);
@@ -9121,9 +9176,9 @@
     el.querySelectorAll(".pe-burdr").forEach(function(g){
       g.addEventListener("pointerdown", function(e){
         e.preventDefault(); g.setPointerCapture(e.pointerId);
-        var k = +g.dataset.k, dd = KP3D.burDrawersOf(b, drawerSys())[k], startY = svgY(e), v = dd.mm;
+        var k = +g.dataset.k, dd = (c.bur ? KP3D.burDrawersOf(b, drawerSys()) : KP3D.innerDrawersOf(b, drawerSys()))[k], startY = svgY(e), v = dd.mm;
         function mv(ev){ v = Math.max(20, Math.round(dd.mm + (startY - svgY(ev)) / S)); g.setAttribute("transform", "translate(0," + ((dd.mm - v) * S) + ")"); }
-        function up(){ g.removeEventListener("pointermove", mv); g.removeEventListener("pointerup", up); if (v !== dd.mm) setBur(k, v); }
+        function up(){ g.removeEventListener("pointermove", mv); g.removeEventListener("pointerup", up); if (v !== dd.mm){ if (c.bur) setBur(k, v); else moveInner(k, v); } }
         g.addEventListener("pointermove", mv); g.addEventListener("pointerup", up);
       });
     });
@@ -9254,7 +9309,11 @@
       var rl = KP3D.railLayoutOf(b, h, state.drawerSystem);
       if (rl.length) o.rails = rl;
     }
-    if (c.bur) o.inner = KP3D.burDrawersOf(b, state.drawerSystem).map(function(dd){ return { code:dd.code, mm:dd.mm }; }); // inner drawers behind the doors → /cnc
+    // inner drawers behind the doors → /cnc's generic Smíðagögn "inner" list (Búrskápur's own registered combo,
+    // or free-form codes+positions for any other tall closet with a door and no drawer stack of its own)
+    if (c.bur) o.inner = KP3D.burDrawersOf(b, state.drawerSystem).map(function(dd){ return { code:dd.code, mm:dd.mm }; });
+    else if (c.cls === "tall" && !isDrawerUnit(b) && Array.isArray(b.innerCodes) && b.innerCodes.length)
+      o.inner = KP3D.innerDrawersOf(b, state.drawerSystem).map(function(dd){ return { code:dd.code, mm:dd.mm }; });
     var spl = !c.oven ? proSplit(b, h) : null; // (a fridge only once Rakel changed its split — else V2 decides)
     if (spl) o.split = spl; // fronts split in Smíða: slots top → bottom → Skipting fronta [Lárétt] + Hæð frontur 1–3
     var doors = proDoorsOf(b, c, zone);

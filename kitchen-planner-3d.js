@@ -419,6 +419,25 @@
     var d = burDrawersOf(b, sysKey), last = d[d.length - 1];
     return last ? last.mm + last.h + 35 : 30;
   }
+  // Free-form innskúffur behind a door (2026-10-16): same spot a búrskápur's own inner drawers sit in, but for
+  // any other tall closet with a door and no drawer stack of its own — just b.innerCodes (any codes, any count,
+  // no registered combo behind them) + b.innerPos, straight into Smíðagögn's generic "inner" list (the same
+  // field name cnc-sides.js already reads for ANY cabinet, búrskápur or not — only the designer UI was
+  // búrskápur-only before this). Positioning convention mirrors burDrawersOf exactly (60 mm up, 35 mm apart) so
+  // the two feel the same to use.
+  function innerDrawersOf(b, sysKey){
+    var sys = DRAWER_CODES[sysKey === "merivo" ? "merivo" : "legra"], codes = Array.isArray(b.innerCodes) ? b.innerCodes : [], y = 60;
+    var custom = Array.isArray(b.innerPos) && b.innerPos.length === codes.length ? b.innerPos : null;
+    return codes.map(function(code, k){
+      var h = ((sys && sys.side[code]) || 120) + 20, mm = custom ? Math.round(custom[k]) : y;
+      y = mm + h + 35;
+      return { code:code, mm:mm, h:h };
+    });
+  }
+  function innerTopMm(b, sysKey){ // above the inner drawers: where the shelves may start
+    var d = innerDrawersOf(b, sysKey), last = d[d.length - 1];
+    return last ? last.mm + last.h + 35 : OVEN_BOARD_MM;
+  }
   // A tall closet's door above its drawer stack can hold shelves too (user, 2026-10-15) — the zone above
   // drawerZoneMm(), same as a búrskápur's shelves sit above its inner drawers. Never for a non-tall cabinet: its
   // drawer stack already fills the whole body (drawerZoneMm returns bodyMm unchanged), so there's no zone left.
@@ -429,11 +448,31 @@
     if (b.interior && b.interior.mode === "skuffur" && !inDrawerShelfZone(b, c)) return false;
     return !!c.bur || shelvesOf(b) != null;
   }
+  // Where the top drawer's real hardware ends (user, 2026-10-16): the FRONT still closes over a shelf sitting
+  // inside its nominal slot — only the physical box/runner on the side panel (drawerBoxY's own "20 up, its
+  // nominal side height tall, 10 clear of the slot top" placement, same table the Blum-side preview draws) is a
+  // real obstruction. A shelf right above a closet's drawers only needs to clear THIS, not the whole declared
+  // drawer-zone sum.
+  function drawerBoxTopMm(b, zoneMm, sysKey){
+    var sys = DRAWER_CODES[sysKey] ? sysKey : "legra", codes = drawerCodes(b.interior, sysKey);
+    if (!codes.length) return 0;
+    var fronts = stackFrontsMm(b.interior, codes, zoneMm);
+    if (!fronts || !fronts.length) return 0;
+    var top = fronts.length - 1, y0 = 0;
+    for (var i = 0; i < top; i++) y0 += fronts[i];
+    var y1 = y0 + fronts[top], side = DRAWER_CODES[sys].side[codes[top]] || 0;
+    return Math.min(y0 + 20 + side, y1 - 10);
+  }
   function shelfSpaceMm(b, bodyMm, sysKey){
     var c = CATALOG[b.type];
     if (c && c.oven) return ovenUpperMm(b, sysKey, bodyMm);
-    if (inDrawerShelfZone(b, c)) return { lo:drawerZoneMm(c, bodyMm, b.drawerZoneMm) + OVEN_BOARD_MM, hi:bodyMm - OVEN_BOARD_MM };
-    return { lo:c && c.bur ? burTopMm(b, sysKey) : OVEN_BOARD_MM, hi:bodyMm - OVEN_BOARD_MM };
+    // the generic consumers below (shelfOk/railOk and their layout filters) all add one OVEN_BOARD_MM of their
+    // own on top of r.lo (same convention burTopMm/the plain OVEN_BOARD_MM floor use) — this used to ALSO bake
+    // a board thickness into r.lo itself, double-margining a closet shelf 32 mm above the drawer zone instead
+    // of 16; drawerBoxTopMm is the raw boundary now, same shape as the other two branches.
+    if (inDrawerShelfZone(b, c)) return { lo:drawerBoxTopMm(b, drawerZoneMm(c, bodyMm, b.drawerZoneMm), sysKey), hi:bodyMm - OVEN_BOARD_MM };
+    var innerLo = c && c.bur ? burTopMm(b, sysKey) : Array.isArray(b.innerCodes) && b.innerCodes.length ? innerTopMm(b, sysKey) : OVEN_BOARD_MM;
+    return { lo:innerLo, hi:bodyMm - OVEN_BOARD_MM };
   }
   function shelfLayoutOf(b, bodyMm, sysKey){
     var c = CATALOG[b.type];
@@ -5322,7 +5361,8 @@
     drawerFrontsMm: drawerFrontsMm, stackFrontsMm: stackFrontsMm, resizeFront: resizeFront,
     drawerComboKey: drawerComboKey,
     ovenCodesOf: ovenCodesOf, ovenZoneMm: ovenZoneMm, setMood: setMood, OVEN_HEIGHTS: OVEN_HEIGHTS, OVEN_BOARD_MM: OVEN_BOARD_MM,
-    shelfLayoutOf: shelfLayoutOf, burDrawersOf: burDrawersOf, shelfSpaceMm: shelfSpaceMm, hasShelfLayout: hasShelfLayout, burTopMm: burTopMm,
+    shelfLayoutOf: shelfLayoutOf, burDrawersOf: burDrawersOf, shelfSpaceMm: shelfSpaceMm, hasShelfLayout: hasShelfLayout, burTopMm: burTopMm, drawerBoxTopMm: drawerBoxTopMm,
+    innerDrawersOf: innerDrawersOf, innerTopMm: innerTopMm,
     ovenHOf: ovenHOf, ovenUnderOf: ovenUnderOf, ovenUnderMinMm: ovenUnderMinMm, ovenUnderMaxMm: ovenUnderMaxMm, ovenUpperMm: ovenUpperMm, ovenShelvesOf: ovenShelvesOf,
     OVEN_DEFAULT: OVEN_DEFAULT,
     modelsPending: modelsPending,
