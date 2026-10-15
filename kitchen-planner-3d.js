@@ -361,8 +361,8 @@
   }
   // a sensible stack for N drawers when nothing has been picked (bottom → top)
   var DEFAULT_CODES = {
-    legra:  { 1:["C"], 2:["C", "C"], 3:["F", "K", "M"], 4:["C", "K", "K", "M"] },
-    merivo: { 1:["E"], 2:["E", "E"], 3:["E", "K", "M"], 4:["E", "K", "K", "M"] }
+    legra:  { 1:["C"], 2:["C", "C"], 3:["F", "K", "M"], 4:["C", "K", "K", "M"], 5:["C", "K", "K", "K", "M"], 6:["C", "C", "K", "K", "K", "M"] },
+    merivo: { 1:["E"], 2:["E", "E"], 3:["E", "K", "M"], 4:["E", "K", "K", "M"], 5:["E", "K", "K", "K", "M"], 6:["E", "E", "K", "K", "K", "M"] }
   };
   // Drawers under the oven (bottom → top) from b.ovenCombo, an Útfærslur key like "MKE" / "CC+IM".
   // undefined = the usual 3 drawers; "" = a cabinet door instead of drawers (OFN7).
@@ -546,7 +546,7 @@
     if (!interior || interior.mode !== "skuffur") return [];
     var sys = DRAWER_CODES[sysKey] ? sysKey : "legra";
     var codes = interior.codes && interior.codes.length ? interior.codes.slice()
-      : (DEFAULT_CODES[sys][Math.max(1, Math.min(4, interior.count || 3))] || DEFAULT_CODES[sys][3]).slice();
+      : (DEFAULT_CODES[sys][Math.max(1, Math.min(6, interior.count || 3))] || DEFAULT_CODES[sys][3]).slice();
     return codes.map(function(c){ return (CODE_SWAP[sys] && CODE_SWAP[sys][c]) || c; });
   }
   // Drawer heights are SLOTS (user, 2026-10-09): the number shown/typed is the drawer's "Sérhæð", the slots
@@ -634,6 +634,20 @@
   // Útfærslur combo key: letters in N M K E C F order, then "+IK"/"+IM" for an inner drawer
   function drawerComboKey(codes, inner){
     return codes.slice().sort(function(a, b){ return CODE_ORDER.indexOf(a) - CODE_ORDER.indexOf(b); }).join("") + (inner ? "+" + inner : "");
+  }
+  // The real Vörunúmer a new Útfærslur row for this combo would get (reverse-engineered from ~115 real
+  // rows, 2026-10-19): letters tallest-first (reverse CODE_ORDER), count 1 bare / 2 repeated / 3+ as a
+  // digit (e.g. "E3K" = 3 E-drawers + 1 K-drawer, "KKMM" = 2+2 — never "K2M2"), prefixed "M-"/"L-", inner
+  // suffix (e.g. "IM") appended bare with no separator. Used both to look an existing combo up by its
+  // human SKU and, if it doesn't exist yet, to create one with the right name (api/drawer-combo.js).
+  function comboVorunumer(sys, codes, inner){
+    var order = CODE_ORDER.split("").reverse().join(""), counts = {};
+    codes.forEach(function(c){ counts[c] = (counts[c] || 0) + 1; });
+    var body = order.split("").filter(function(l){ return counts[l]; }).map(function(l){
+      var n = counts[l];
+      return n === 1 ? l : n === 2 ? l + l : l + n;
+    }).join("");
+    return (sys === "merivo" ? "M-" : "L-") + body + (inner || "");
   }
   // cumulative front boundaries bottom → top (fractions of the body height, one per seam)
   function drawerFractions(sysKey, bodyMm, gapMm){
@@ -2032,6 +2046,12 @@
         board.position.copy(local(0, bodyBase + openList[sh].mm / 1000 - 0.009, (depthM - 0.02) / 2 + 0.005));
         board.quaternion.copy(quat); board.castShadow = true; board.receiveShadow = true;
         group.add(board);
+        // draggable up/down in 3D (2026-10-21): writes the same b.shelfPos Smíða's own box editor reads —
+        // only for a real block (the synthetic even-spread fallback above has nothing to write back to)
+        if (meta.shelfBlock && pickables){
+          board.userData = { kind:"shelf-item", itemKind:"shelf", blockId:meta.shelfBlock.id, idx:sh, locked:meta.locked, bodyBaseY:bodyBase };
+          pickables.push(board);
+        }
       }
       // Fataslá (clothes rail, 2026-10-15): same zone/gating as the shelf boards above.
       var openRails = meta.shelfBlock && CATALOG[meta.shelfBlock.type] && CATALOG[meta.shelfBlock.type].railRange
@@ -2039,12 +2059,16 @@
       if (openRails.length){
         var openRailMat = new THREE.MeshStandardMaterial({ color:0xb0b4ba, metalness:0.8, roughness:0.3 });
         var railLocalQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2);
-        openRails.forEach(function(rl){
+        openRails.forEach(function(rl, ri){
           var rod = new THREE.Mesh(new THREE.CylinderGeometry(RAIL_D_MM / 2000, RAIL_D_MM / 2000, widthM - 2 * CARCASS_T - 0.02, 16), openRailMat);
           rod.quaternion.copy(quat).multiply(railLocalQ);
           rod.position.copy(local(0, bodyBase + rl.mm / 1000, (depthM - 0.02) / 2 + 0.005));
           rod.castShadow = true;
           group.add(rod);
+          if (pickables){
+            rod.userData = { kind:"rail-item", itemKind:"rail", blockId:meta.shelfBlock.id, idx:ri, locked:meta.locked, bodyBaseY:bodyBase };
+            pickables.push(rod);
+          }
         });
       }
     }
@@ -2650,8 +2674,20 @@
     function pickMeshAt(evt){
       raycaster.setFromCamera(ndc(evt), camera);
       var hits = raycaster.intersectObjects(pickables, false);
-      for (var i = 0; i < hits.length; i++) if (!seeThrough(hits[i].object)) return hits[i].object;
-      return null;
+      var first = null;
+      for (var i = 0; i < hits.length; i++) if (!seeThrough(hits[i].object)){ first = hits[i].object; break; }
+      if (!first) return null;
+      // an open cabinet's own invisible pick box (its only click target, since isOpen never adds its
+      // carcass boards to pickables) sits in front of its loose shelves/fataslá along this same ray —
+      // prefer the one you're actually pointing at, from the SAME cabinet, over the whole box (2026-10-21)
+      if (first.userData.kind !== "shelf-item" && first.userData.kind !== "rail-item" && first.userData.blockId){
+        for (var j = 0; j < hits.length; j++){
+          var o = hits[j].object;
+          if (seeThrough(o)) continue;
+          if ((o.userData.kind === "shelf-item" || o.userData.kind === "rail-item") && o.userData.blockId === first.userData.blockId) return o;
+        }
+      }
+      return first;
     }
     // Cast onto the horizontal plane through the dragged item's own mid-height,
     // not the floor: with the pointer over the cabinet body the floor hit lies
@@ -2775,6 +2811,11 @@
         controls.enabled = false;
         return;
       }
+      if (mesh.userData.kind === "shelf-item" || mesh.userData.kind === "rail-item"){ // a loose shelf/fataslá in an open cabinet: drag it up/down (2026-10-21)
+        drag = { meta:mesh.userData, mesh:mesh, shelfDrag:true, startX:evt.clientX, startY:evt.clientY, moved:false };
+        controls.enabled = false;
+        return;
+      }
       var grip = gripOffsetMm(evt, mesh), bid = mesh.userData.blockId;
       drag = { meta:mesh.userData, mesh:mesh, group:mesh.parent, startX:evt.clientX, startY:evt.clientY, moved:false, gripMm:grip.along, gripYmm:grip.y,
         // a stack of shelves is several pickable boards under one block id: they all move together
@@ -2791,7 +2832,8 @@
       if (hovered){ var e0 = edgesOf(hovered); if (e0 && e0.material && !hovered.userData.selected) e0.material.color.set(hovered.userData.warn ? WARN_COLOR : 0x2a2a2a); }
       hovered = mesh;
       if (hovered){ var e1 = edgesOf(hovered); if (e1 && e1.material && e1.material.color) e1.material.color.set(SELECT_COLOR); }
-      renderer.domElement.style.cursor = hovered ? (hovered.userData.locked ? (hovered.userData.isPart ? "pointer" : "default") : "grab") : "";
+      renderer.domElement.style.cursor = hovered ? (hovered.userData.locked ? (hovered.userData.isPart ? "pointer" : "default") :
+        (hovered.userData.kind === "shelf-item" || hovered.userData.kind === "rail-item") ? "ns-resize" : "grab") : "";
     }
     function onMove(evt){
       if (!drag){
@@ -2806,6 +2848,18 @@
       if (!drag.moved){
         if (Math.hypot(evt.clientX - drag.startX, evt.clientY - drag.startY) < CABINET_DRAG_PX) return;
         drag.moved = true;
+      }
+      if (drag.shelfDrag){ // a plane through the item facing the camera, horizontally — any camera angle still gives a clean vertical drag
+        raycaster.setFromCamera(ndc(evt), camera);
+        var wpS = new THREE.Vector3(); drag.mesh.getWorldPosition(wpS);
+        var toCam = camera.position.clone().sub(wpS); toCam.y = 0;
+        if (toCam.lengthSq() < 1e-6) toCam.set(0, 0, 1); else toCam.normalize();
+        var sPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(toCam, wpS);
+        var sPt = new THREE.Vector3();
+        if (raycaster.ray.intersectPlane(sPlane, sPt) && opts.onShelfPosMove){
+          opts.onShelfPosMove(drag.meta.blockId, drag.meta.itemKind, drag.meta.idx, Math.round((sPt.y - drag.meta.bodyBaseY) * 1000));
+        }
+        return;
       }
       if (drag.resize){
         var wiR = walls.findIndex(function(w){ return w.id === drag.meta.wallId; }), gR = geoms[wiR];
@@ -2908,6 +2962,12 @@
         return;
       }
       if (!drag) return;
+      if (drag.shelfDrag){
+        var dS = drag;
+        drag = null; controls.enabled = true; renderer.domElement.style.cursor = "";
+        if (dS.moved){ suppressClick = true; if (opts.onShelfPosEnd) opts.onShelfPosEnd(dS.meta.blockId); }
+        return;
+      }
       if (drag.resize){
         var dR = drag;
         drag = null; controls.enabled = true; renderer.domElement.style.cursor = "";
@@ -5498,7 +5558,7 @@
     FRONT_MIN: FRONT_MIN, slotMin: slotMin,
     drawerCodes: drawerCodes,
     drawerFrontsMm: drawerFrontsMm, stackFrontsMm: stackFrontsMm, resizeFront: resizeFront, resizeFrontFree: resizeFrontFree,
-    drawerComboKey: drawerComboKey,
+    drawerComboKey: drawerComboKey, comboVorunumer: comboVorunumer,
     ovenCodesOf: ovenCodesOf, ovenZoneMm: ovenZoneMm, setMood: setMood, OVEN_HEIGHTS: OVEN_HEIGHTS, OVEN_BOARD_MM: OVEN_BOARD_MM,
     shelfLayoutOf: shelfLayoutOf, burDrawersOf: burDrawersOf, shelfSpaceMm: shelfSpaceMm, hasShelfLayout: hasShelfLayout, burTopMm: burTopMm, drawerBoxTopMm: drawerBoxTopMm,
     innerDrawersOf: innerDrawersOf, innerTopMm: innerTopMm,

@@ -3831,8 +3831,37 @@
     var LM = window.KP_LINEMAP;
     return LM && LM.v2Drawers[drawerSys()] ? LM.v2Drawers[drawerSys()][KP3D.drawerComboKey(codes, inner)] || null : null;
   }
+  var MAX_DRAWERS = 6; // user, 2026-10-19 — matches Útfærslur's 6 price slots (api/drawer-combo.js)
+  // physically possible (right length, fits the body) regardless of whether it's a real product yet —
+  // stackAllowed below is this PLUS "already a real product"; the wizard uses stackFits so it can offer a
+  // combo that doesn't exist yet and create it on the spot (ensureCombo), PRO keeps the stricter stackAllowed.
+  function stackFits(b, c, codes){
+    return codes.length >= 1 && codes.length <= MAX_DRAWERS && !!KP3D.drawerFrontsMm(codes, drawerBodyMm(b, c));
+  }
   function stackAllowed(b, c, codes, inner){
-    return codes.length >= 1 && codes.length <= 4 && !!KP3D.drawerFrontsMm(codes, drawerBodyMm(b, c)) && !!drawerComboRec(codes, inner);
+    return stackFits(b, c, codes) && !!drawerComboRec(codes, inner);
+  }
+  // Create-on-demand (user, 2026-10-19): the wizard offers any physically-fitting combo, not just ones
+  // already in Útfærslur — api/drawer-combo.js creates the real product (same price formula Airtable already
+  // uses for every other combo) the first time anyone picks it, and the new product is merged into
+  // KP_LINEMAP for the rest of this session so it's usable immediately, no reload. Inner-drawer combos stay
+  // out of scope — those still have to already exist.
+  function ensureCombo(codes, inner, cb){
+    if (drawerComboRec(codes, inner)){ cb(true); return; }
+    if (inner){ toast("Þessi samsetning með innskúffu er ekki til."); cb(false); return; }
+    var sys = drawerSys();
+    toast("Býr til nýja samsetningu…");
+    fetch("/api/drawer-combo", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ sys:sys, codes:codes }) })
+      .then(function(r){ return r.json().then(function(d){ return { ok:r.ok, d:d }; }); })
+      .then(function(res){
+        if (!res.ok){ toast("Ekki tókst að búa til samsetningu" + (res.d && res.d.error ? ": " + res.d.error : "") + "."); cb(false); return; }
+        var key = KP3D.drawerComboKey(codes, inner);
+        window.KP_LINEMAP = window.KP_LINEMAP || { v2Drawers:{} };
+        window.KP_LINEMAP.v2Drawers[sys] = window.KP_LINEMAP.v2Drawers[sys] || {};
+        window.KP_LINEMAP.v2Drawers[sys][key] = { id:res.d.id, name:res.d.name, sku:res.d.sku };
+        cb(true);
+      })
+      .catch(function(){ toast("Ekki tókst að búa til samsetningu — reyndu aftur."); cb(false); });
   }
   // ---- appliance / pantry variants (2026-09-30): picked from the real Útfærslur list, never free ----
   function ovenKeyOf(b){ return b.ovenCombo == null ? KP3D.OVEN_DEFAULT[drawerSys()] : b.ovenCombo; }
@@ -3993,8 +4022,10 @@
     var rows = codes.map(function(code, i){ return { code:code, i:i }; }).reverse().map(function(d){
       var opts = KP3D.DRAWER_CODES[drawerSys()].codes.filter(function(cd){
         if (cd === d.code) return true;
-        var next = codes.slice(); next[d.i] = cd;
-        return stackAllowed(b, c, sortStack(next), inner);
+        var next = codes.slice(); next[d.i] = cd; next = sortStack(next);
+        // with an inner drawer, stay existence-only (ensureCombo declines to create those); otherwise any
+        // combo that physically fits is offered — picking one that isn't a real product yet creates it
+        return inner ? stackAllowed(b, c, next, inner) : stackFits(b, c, next);
       });
       return '<div class="dw-row-simple">' + dwIcon(d.code) + '<select data-dw-depth="' + d.i + '">' + opts.map(function(cd){
         return '<option value="' + cd + '"' + (cd === d.code ? ' selected' : '') + '>' + CODE_LABEL[cd] + '</option>';
@@ -4002,27 +4033,35 @@
     }).join("");
     return '<div class="dw-stack-simple">' + rows + '</div>' +
       '<div class="hw-count"><button class="iconbtn" data-dw-count="-1"' + (n <= 1 ? ' disabled' : '') + '>−</button><b>' + n + '</b>' +
-      '<button class="iconbtn" data-dw-count="1"' + (n >= 4 ? ' disabled' : '') + '>+</button><span>' + plural(n, "skúffa", "skúffur") + '</span></div>';
+      '<button class="iconbtn" data-dw-count="1"' + (n >= MAX_DRAWERS ? ' disabled' : '') + '>+</button><span>' + plural(n, "skúffa", "skúffur") + '</span></div>';
   }
   // count stepper: regrows/shrinks to Björninn's usual stack for the new count (same fallback the "Hillur/Skúffur"
   // toggle already uses), rather than asking the customer to hand-pick which code to add/remove
   function drawerCountDelta(b, c, delta){
-    var n = Math.max(1, Math.min(4, KP3D.drawerCodes(b.interior, drawerSys()).length + delta));
+    var n = Math.max(1, Math.min(MAX_DRAWERS, KP3D.drawerCodes(b.interior, drawerSys()).length + delta));
+    var fits = b.interior.inner ? stackAllowed : stackFits; // inner combos still need to already exist
     for (var k = n; k >= 1; k--){
       var cand = KP3D.drawerCodes({ mode:"skuffur", count:k }, drawerSys());
-      if (stackAllowed(b, c, cand, b.interior.inner) || k === 1) return cand;
+      if (fits(b, c, cand, b.interior.inner) || k === 1) return cand;
     }
   }
   function wireDrawerSimple(host, b, c, commit){
     host.querySelectorAll("[data-dw-depth]").forEach(function(sel){
       sel.addEventListener("change", function(){
         var codes = KP3D.drawerCodes(b.interior, drawerSys());
+        var prev = codes[+sel.dataset.dwDepth];
         codes[+sel.dataset.dwDepth] = sel.value;
-        commit(sortStack(codes), b.interior.inner);
+        var next = sortStack(codes);
+        ensureCombo(next, b.interior.inner, function(ok){
+          if (ok) commit(next, b.interior.inner); else sel.value = prev;
+        });
       });
     });
     host.querySelectorAll("[data-dw-count]").forEach(function(btn){
-      btn.addEventListener("click", function(){ commit(drawerCountDelta(b, c, +btn.dataset.dwCount), null); });
+      btn.addEventListener("click", function(){
+        var next = drawerCountDelta(b, c, +btn.dataset.dwCount);
+        ensureCombo(next, null, function(ok){ if (ok) commit(next, null); });
+      });
     });
   }
   function hardwareHTML(b, c, ro){
@@ -4045,7 +4084,7 @@
       html += '<div class="dw-add dw-add-compact"><select class="hw-btn dw-addsel" data-dw-addsel title="Bæta við skúffu"><option value="">＋</option>' +
         D.codes.filter(function(code){ return code !== "N"; }).map(function(code){
           var next = sortStack(codes.concat([code]));
-          var ok = codes.length < 4 && (stackAllowed(b, c, next, inner) || stackAllowed(b, c, next, null)); // may cost the inner drawer (see the click handler)
+          var ok = codes.length < MAX_DRAWERS && (stackAllowed(b, c, next, inner) || stackAllowed(b, c, next, null)); // may cost the inner drawer (see the click handler)
           return '<option value="' + code + '"' + (ok ? '' : ' disabled') + '>' + code + '</option>';
         }).join("") + '</select></div>';
     } else {
@@ -6400,7 +6439,7 @@
         return;
       }
       wrap.innerHTML = "";
-      KP3D.buildScene(wrap, state, { darkBg:!!PRO, selectedId:selectedBlockId, selectedWallId:selectedWallId, onWallSelect:onWallSelect, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, onIslandDragEnd:onIslandDragEnd, onIslandDragMove:clampIslandDragMove, onDecorDragEnd:onDecorDragEnd, onDecorDragMove:onDecorDragMove, onObstacleFloorEnd:onObstacleFloorEnd, onObstacleResizeMove:onObstacleResizeMove, onObstacleResizeEnd:onObstacleResizeEnd, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList(), readyIds:PRO ? proReadyIds() : null,
+      KP3D.buildScene(wrap, state, { darkBg:!!PRO, selectedId:selectedBlockId, selectedWallId:selectedWallId, onWallSelect:onWallSelect, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, onIslandDragEnd:onIslandDragEnd, onIslandDragMove:clampIslandDragMove, onDecorDragEnd:onDecorDragEnd, onDecorDragMove:onDecorDragMove, onObstacleFloorEnd:onObstacleFloorEnd, onObstacleResizeMove:onObstacleResizeMove, onObstacleResizeEnd:onObstacleResizeEnd, onShelfPosMove:onShelfPosMove, onShelfPosEnd:onShelfPosEnd, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList(), readyIds:PRO ? proReadyIds() : null,
         xray:inspect.on, // inspect mode: every cabinet built in parts (drawers/doors tap open, nothing drags)
         focusWallId:viewMode === "wall" ? wallViewId : null, freshCamera:viewMode === "wall" });
       landedBlockId = null;
@@ -7010,6 +7049,36 @@
     millResizeRAF = requestAnimationFrame(function(){ millResizeRAF = null; renderView(); });
   }
   function onObstacleResizeEnd(id){ save(); refreshAfterEdit(); }
+  // Shelf/fataslá dragged by hand in 3D (2026-10-21): writes the same b.shelfPos/b.railPos arrays Rakel's
+  // Smíða box editor already reads (shelfLayoutOf/railLayoutOf) — a drag just materialises the current
+  // (still even-spread, if never customised) layout into that array, then nudges the one item, clamped
+  // against its neighbours and the same zone shelfSpaceMm already enforces for every other consumer
+  // (oven board margins, drawer zone, búrskápur zone, …). Same rAF-coalesced live-mutate pattern as the
+  // milliveggur resize handle above.
+  var SHELF_DRAG_MIN_GAP_MM = 40, shelfPosRAF = null;
+  function onShelfPosMove(blockId, itemKind, idx, newMm){
+    var fb = findBlock(blockId); if (!fb) return;
+    var b = fb.block, c = CATALOG[b.type]; if (!c) return;
+    var bodyMm = proBodyMm(b, c, fb.zone), sysKey = drawerSys(), r = KP3D.shelfSpaceMm(b, bodyMm, sysKey);
+    if (itemKind === "rail"){
+      var rlist = KP3D.railLayoutOf(b, bodyMm, sysKey).map(function(x){ return { mm:x.mm }; });
+      if (!rlist[idx]) return;
+      var rlo = idx > 0 ? rlist[idx - 1].mm + SHELF_DRAG_MIN_GAP_MM : r.lo + KP3D.OVEN_BOARD_MM + 1;
+      var rhi = idx < rlist.length - 1 ? rlist[idx + 1].mm - SHELF_DRAG_MIN_GAP_MM : r.hi - 10;
+      rlist[idx].mm = Math.round(Math.max(rlo, Math.min(rhi, newMm)));
+      b.railPos = rlist; if (c.railRange) b.rails = rlist.length;
+    } else {
+      var list = KP3D.shelfLayoutOf(b, bodyMm, sysKey).map(function(s){ return { mm:s.mm, fixed:s.fixed, pos:s.pos, locked:s.locked }; });
+      if (!list[idx] || list[idx].fixed || list[idx].locked) return;
+      var lo = idx > 0 ? list[idx - 1].mm + SHELF_DRAG_MIN_GAP_MM : r.lo + KP3D.OVEN_BOARD_MM + 1;
+      var hi = idx < list.length - 1 ? list[idx + 1].mm - SHELF_DRAG_MIN_GAP_MM : r.hi - 10;
+      list[idx].mm = Math.round(Math.max(lo, Math.min(hi, newMm)));
+      b.shelfPos = list; if (!c.bur && c.shelfRange) b.shelves = list.length;
+    }
+    if (shelfPosRAF) return;
+    shelfPosRAF = requestAnimationFrame(function(){ shelfPosRAF = null; renderView(); });
+  }
+  function onShelfPosEnd(blockId){ save(); refreshAfterEdit(); }
   // where an obstacle lands on a wall: offset snapped 10 mm and flush to the corners within 100 mm, height kept inside the room
   function obstaclePlace(o, wall, offMm, elevMm){
     var def = KP3D.OBSTACLES[o.kind], wmm = Math.min(o.widthMm, wall.lengthMm), max = wall.lengthMm - wmm;
