@@ -266,6 +266,10 @@
   // Each light = a small bright strip/spot + a soft additive "glow" plane on the surface it lights (cheap,
   // no real lights). MOOD = evening view: the room's own lights dim and the glows come up (view only).
   var MOOD = false, GLOW_TEX = null;
+  // Málband (tape measure, 2026-10-17): while on, every cabinet click/drag/select here is a no-op — the tool
+  // itself (kitchen-planner.html) handles clicks, and the camera is left entirely to OrbitControls.
+  var MEASURING = false;
+  function setMeasuring(on){ MEASURING = !!on; }
   function glowTexture(THREE){
     if (GLOW_TEX) return GLOW_TEX;
     // bright at the light's edge fading away from it, and soft towards both ends (no hard rectangle on the worktop)
@@ -2672,6 +2676,7 @@
 
     function onDown(evt){
       if (evt.button !== undefined && evt.button !== 0) return;
+      if (MEASURING) return; // málband (user, 2026-10-17): every click is left to OrbitControls and the tape tool, nothing here drags or selects
       var readOnly = !opts.onSelect && !opts.onCabinetDragEnd; // review page / wizard preview
       var mesh = pickMeshAt(evt);
       if (!mesh) return;
@@ -3477,6 +3482,22 @@
     var focusWallId = opts.focusWallId || null;
     function isoHas(id){ return Array.isArray(iso) ? iso.indexOf(id) >= 0 : id === iso; }
     function isFocusWall(wallId){ return !!focusWallId && wallId === focusWallId; }
+    // Veggur view, corner return (user, 2026-10-17): the previous wall's last floor cabinet already sits with
+    // its SIDE flush into this wall's starting corner whenever cornerClearanceMm pushed this wall's own run back
+    // to make room for it (see that function's own comment) — same cabinet, same real position, just owned by
+    // the other wall. A real elevation of this wall shows it; the plain isoHas() cabinet filter below doesn't,
+    // since it only ever kept cabinets whose own wall.id matches. Never for a drawing-export preview
+    // (opts.onlySurfaceId) — only a live "Veggur" look at a real wall needs its real neighbour.
+    var neighborCabinetId = null;
+    if (focusWallId){
+      var fwIdx = surfaces.findIndex(function(w){ return w.id === focusWallId; });
+      if (cornerClearanceMm(surfaces, fwIdx, "floor") > 0){
+        var pwIdx = fwIdx > 0 ? fwIdx - 1 : -1;
+        if (pwIdx < 0 && surfaces.closed){ pwIdx = surfaces.length - 1; while (pwIdx > 0 && surfaces[pwIdx].island) pwIdx--; }
+        var pw = pwIdx >= 0 ? surfaces[pwIdx] : null, pwLast = pw && pw.floor[pw.floor.length - 1];
+        if (pwLast) neighborCabinetId = pwLast.id;
+      }
+    }
     var DOOR_LIMITS = {}; try{ DOOR_LIMITS = openingIssues(state).limit; }catch(e){} // how far each door may open (walls, corners)
     scene.background = new THREE.Color(opts.darkBg ? (iso ? 0x1a2029 : 0x12161d) : iso ? 0xffffff : 0xf7f6f2); // darkBg = pro mode
     scene.userData.dayBg = scene.background.clone(); scene.userData.nightBg = new THREE.Color(0x2b303b);
@@ -3696,12 +3717,14 @@
 
     surfaces.forEach(function(wall, wi){
       var g = allGeoms[wi];
-      if (!g || (iso && !isoHas(wall.id))) return;
+      var neighborOnly = !!(iso && !isoHas(wall.id) && neighborCabinetId && wall.floor.some(function(b){ return b.id === neighborCabinetId; }));
+      if (!g || (iso && !isoHas(wall.id) && !neighborOnly)) return;
       var fStarts = blockStartsMm(wall.floor, cornerClearanceMm(surfaces, wi, "floor")), wStarts = blockStartsMm(wall.wall, 0);
       var islandId = wall.island ? wall.island.id : undefined;
-      if (!opts.people) addAfellur(g, wall, wi, fStarts, wStarts);
-      if (wall.island && wall.island.back && !wall.island.two && wall.floor.length) addIslandBack(g, wall, fStarts);
+      if (!opts.people && !neighborOnly) addAfellur(g, wall, wi, fStarts, wStarts);
+      if (wall.island && wall.island.back && !wall.island.two && wall.floor.length && !neighborOnly) addIslandBack(g, wall, fStarts);
       wall.floor.forEach(function(b, bi){
+        if (neighborOnly && b.id !== neighborCabinetId) return;
         var offset = fStarts[bi];
         var c = CATALOG[b.type];
         var hM = Math.min(b.heightMm || c.h, roomHeightMm) / 1000, dM = (b.depthMm || c.d) / 1000;
@@ -5371,6 +5394,7 @@
     shelvesOf: shelvesOf, burCodesOf: burCodesOf,
     railsOf: railsOf, railLayoutOf: railLayoutOf,
     radborunSpanMm: radborunSpanMm, RADBORUN_PITCH_MM: RADBORUN_PITCH_MM, RADBORUN_MARGIN_DEFAULT_MM: RADBORUN_MARGIN_DEFAULT_MM,
+    setMeasuring: setMeasuring,
     hideDragPreview3D: hideDragPreview3D,
     teardown3D: teardown3D,
     _three: function(){ return THREE_STATE; },
