@@ -8873,6 +8873,8 @@
     var shelfOn = !!((doors.length || c.open) && (c.oven ? !c.lowOven : KP3D.hasShelfLayout(b)));
     function shelfList(){ return KP3D.shelfLayoutOf(b, body, drawerSys()); }
     var shelfCustom = c.oven ? Array.isArray(b.ovenShelves) : Array.isArray(b.shelfPos);
+    var railOn = !!c.railRange; // Fataslá (clothes rail)
+    function railList(){ return KP3D.railLayoutOf(b, body, drawerSys()); }
     if (c.oven){ // the oven itself (60+45 = two ovens), above its drawer/door zone; the line under it drags the zone
       var segs = ovH > 1000 ? [[ovUnder, 595], [ovUnder + 595, 455]] : [[ovUnder, ovH]];
       segs.forEach(function(sg){ var oy = Y0 + body * S - (sg[0] + sg[1]) * S;
@@ -8896,6 +8898,17 @@
             '<text x="' + (X0 + W - 8) + '" y="' + (y - 4) + '" text-anchor="end" font-size="10" fill="#3b4652">' + (sh.fixed ? "föst" : "laus ×" + sh.pos) + ' ' + sh.mm + '</text></g>';
         });
       }
+    }
+    if (railOn){ // Fataslá: a rod at its own mm (centre height), drag it like a shelf — user, 2026-10-17 ("ekki að sjá það": it had no drawing, only the mm list on the right)
+      railList().forEach(function(rl, k){
+        var y = Y0 + body * S - rl.mm * S;
+        ovShelfSvg += '<g class="pe-orail" data-k="' + k + '" style="cursor:ns-resize">' +
+          '<circle cx="' + (X0 + 14) + '" cy="' + y + '" r="4" fill="none" stroke="#a9772f" stroke-width="2.5"/>' +
+          '<circle cx="' + (X0 + W - 14) + '" cy="' + y + '" r="4" fill="none" stroke="#a9772f" stroke-width="2.5"/>' +
+          '<line x1="' + (X0 + 18) + '" x2="' + (X0 + W - 18) + '" y1="' + y + '" y2="' + y + '" stroke="#a9772f" stroke-width="3.5"/>' +
+          '<line x1="' + (X0 + 18) + '" x2="' + (X0 + W - 18) + '" y1="' + y + '" y2="' + y + '" stroke="transparent" stroke-width="12"/>' +
+          '<text x="' + (X0 + W / 2) + '" y="' + (y - 7) + '" text-anchor="middle" font-size="10" fill="#a9772f">slá ' + rl.mm + '</text></g>';
+      });
     }
     if (shelfOn && b.radborun){ // raðborun: one continuous column of holes instead of each loose shelf's own cluster
       var rSpan = KP3D.radborunSpanMm(b, body, drawerSys());
@@ -8946,6 +8959,19 @@
     var right = '<button type="button" class="pe-btn pe-close" data-pe="close">Loka ✕</button>' +
       '<h3>' + (key ? key + " · " : "") + c.label + '</h3><div class="pe-sub">' + b.widthMm + ' × ' + blockHeightMm(b, c) + ' mm · ' +
       (b.smida ? "Smíðagögn vistuð á skápnum" : "Sjálfgefið (ekkert breytt)") + '</div>';
+    // Mál (2026-10-17, user — "Smíða er final design á þessu algjörlega svo hér þarf að vera hægt að fínpússa
+    // allt"): width/height/depth used to be editable only on the regular side panel, outside Smíða — same
+    // applyBlockDim the floating-toolbar size chip and the side panel's own Mál tab already use, so a change
+    // here obeys the exact same limits (room height, wall fit, no crashing into another cabinet) and stays in
+    // sync with them. Not for a panel cabinet (úthlið/laus hilla) — no interior/doors reach Smíða for those.
+    if (!c.panel){
+      var dW = dimRange(c, "widthMm"), dH = dimRange(c, "heightMm"), dD = dimRange(c, "depthMm");
+      right += '<div class="pe-door"><h4>Mál</h4>' +
+        '<div class="pe-row">Breidd: <input type="number" step="1" min="' + dW[0] + '" max="' + dW[1] + '" value="' + b.widthMm + '" data-pe="dimw"> mm</div>' +
+        '<div class="pe-row">Hæð: <input type="number" step="1" min="' + dH[0] + '" max="' + dH[1] + '" value="' + blockHeightMm(b, c) + '" data-pe="dimh"> mm</div>' +
+        '<div class="pe-row">Dýpt: <input type="number" step="1" min="' + dD[0] + '" max="' + dD[1] + '" value="' + (b.depthMm || c.d) + '" data-pe="dimd"> mm</div>' +
+        '</div>';
+    }
     if (doors.length) right += bothHinges
       ? '<div class="pe-row">Lamir: <button type="button" class="pe-btn on" disabled>Vinstri</button><button type="button" class="pe-btn on" disabled>Hægri</button> <span class="pe-note" style="display:inline">(breiðari en 600 mm — lamir báðum megin)</span></div>'
       : '<div class="pe-row">Lamir:<button type="button" class="pe-btn' + (hingeLeft ? " on" : "") + '" data-pe="side" data-v="vinstri">Vinstri</button>' +
@@ -9035,8 +9061,6 @@
       }
       right += '</div>';
     }
-    var railOn = !!c.railRange;
-    function railList(){ return KP3D.railLayoutOf(b, body, drawerSys()); }
     var railCustom = Array.isArray(b.railPos);
     if (railOn){
       right += '<div class="pe-door"><h4>Fataslár</h4>';
@@ -9092,20 +9116,22 @@
     el.innerHTML = '<div class="pe-card"><div class="pe-img">' + svg + '</div><div class="pe-content">' + right + '</div></div>';
     var peInt = el.querySelector("#peInterior");
     if (peInt) wireInteriorControls(peInt, fb.wall, fb.zone, b, c); // every change ends in refreshAfterEdit → redraws this editor
-    // Collapsible sections (user, 2026-10-15): the whole panel is rebuilt from scratch on every edit, so collapse
-    // state lives outside this render (peCollapsed, by position) rather than native <details open> — that would
-    // snap back open/closed every keystroke. Click a section's own <h4> to toggle it.
+    // Collapsible sections (user, 2026-10-15; auto-collapsed by default, 2026-10-17): the whole panel is rebuilt
+    // from scratch on every edit, so collapse state lives outside this render (peCollapsed, by position) rather
+    // than native <details open> — that would snap back open/closed every keystroke. Every section starts
+    // collapsed (peCollapsed[idx] unset = collapsed); click a section's own <h4> to open/close it — opening one
+    // doesn't close the others, so several can stay open while fine-tuning a cabinet.
     el.querySelectorAll(".pe-door").forEach(function(sec, idx){
       var h4 = sec.querySelector("h4"); if (!h4) return;
       var kids = Array.prototype.slice.call(sec.children).filter(function(ch){ return ch !== h4; });
       h4.dataset.peBase = h4.textContent;
       h4.style.cursor = "pointer";
       function apply(){
-        var collapsed = !!peCollapsed[idx];
+        var collapsed = peCollapsed[idx] !== false;
         kids.forEach(function(ch){ ch.style.display = collapsed ? "none" : ""; });
         h4.textContent = (collapsed ? "▸ " : "▾ ") + h4.dataset.peBase;
       }
-      h4.addEventListener("click", function(){ peCollapsed[idx] = !peCollapsed[idx]; apply(); });
+      h4.addEventListener("click", function(){ peCollapsed[idx] = peCollapsed[idx] !== false ? false : true; apply(); });
       apply();
     });
 
@@ -9126,6 +9152,13 @@
       if (!out){ toast("Hver frontur þarf að vera minnst " + SPLIT_MIN + " mm og þeir fylla skápinn saman."); renderBoxEditor(); return; }
       proSetSplit(b, body, out); });
     act('[data-pe="side"]', function(n){ b.swing = n.dataset.v; save(); renderBoxEditor(); });
+    function setDim(dkey, v){
+      if (!applyBlockDim(b.id, dkey, v)){ renderBoxEditor(); return; }
+      save(); refreshAfterEdit(); renderBoxEditor();
+    }
+    act('[data-pe="dimw"]', function(n){ setDim("widthMm", n.value); });
+    act('[data-pe="dimh"]', function(n){ setDim("heightMm", n.value); });
+    act('[data-pe="dimd"]', function(n){ setDim("depthMm", n.value); });
     // oven: height, height under it, shelves above (2026-10-10). A new height/zone drops custom drawer heights.
     function ovenDone(){ save(); refreshAfterEdit(); renderBoxEditor(); }
     function setUnder(v){
@@ -9318,6 +9351,17 @@
           g.setAttribute("transform", "translate(0," + (Y0 + body * S - v * S - y0) + ")"); }
         function up(){ g.removeEventListener("pointermove", mv); g.removeEventListener("pointerup", up);
           if (v === start) return; var list = shelvesNow(); list[k].mm = v; setShelves(list); }
+        g.addEventListener("pointermove", mv); g.addEventListener("pointerup", up);
+      });
+    });
+    el.querySelectorAll(".pe-orail").forEach(function(g){ // Fataslá: drag the rod up/down
+      g.addEventListener("pointerdown", function(e){
+        e.preventDefault(); g.setPointerCapture(e.pointerId);
+        var k = +g.dataset.k, start = railsNow()[k].mm, v = start, y0 = Y0 + body * S - start * S;
+        function mv(ev){ var cand = Math.round((Y0 + body * S - svgY(ev)) / S); if (!railOk(cand)) return; v = cand;
+          g.setAttribute("transform", "translate(0," + (Y0 + body * S - v * S - y0) + ")"); }
+        function up(){ g.removeEventListener("pointermove", mv); g.removeEventListener("pointerup", up);
+          if (v === start) return; var list = railsNow(); list[k].mm = v; setRailList(list); }
         g.addEventListener("pointermove", mv); g.addEventListener("pointerup", up);
       });
     });
