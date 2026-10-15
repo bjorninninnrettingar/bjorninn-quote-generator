@@ -7069,7 +7069,13 @@
   // just the expensive rebuild waits for onShelfPosEnd (pointerup).
   var SHELF_DRAG_MIN_GAP_MM = 40;
   // Shared by the live drag (mutates) and the read-only hover query (doesn't) below — both need the exact
-  // same neighbour/zone bounds so the hover number and the drag number never disagree (2026-10-22).
+  // same bounds so the hover number and the drag number never disagree (2026-10-22). Two different
+  // distances: lo/hi is how far a DRAG may actually go (kept short of the real neighbour/zone edge by
+  // SHELF_DRAG_MIN_GAP_MM, or the shelfLayoutOf/railLayoutOf read-side's own OVEN_BOARD_MM margin at a
+  // zone edge — cross either and the shelf would overlap its neighbour, or fall outside the range
+  // shelfLayoutOf still accepts and quietly vanish next read); trueLo/trueHi is the REAL neighbour's own
+  // mm, or the zone's raw edge — what the gap label/line actually show, since "how much room is here" is
+  // a more honest answer than "how much further could I still drag it".
   function shelfPosBounds(blockId, itemKind, idx){
     var fb = findBlock(blockId); if (!fb) return null;
     var b = fb.block, c = CATALOG[b.type]; if (!c) return null;
@@ -7079,13 +7085,17 @@
       if (!rlist[idx]) return null;
       return { b:b, c:c, list:rlist, idx:idx, locked:false,
         lo: idx > 0 ? rlist[idx - 1].mm + SHELF_DRAG_MIN_GAP_MM : r.lo + KP3D.OVEN_BOARD_MM + 1,
-        hi: idx < rlist.length - 1 ? rlist[idx + 1].mm - SHELF_DRAG_MIN_GAP_MM : r.hi - 10 };
+        hi: idx < rlist.length - 1 ? rlist[idx + 1].mm - SHELF_DRAG_MIN_GAP_MM : r.hi - 10,
+        trueLo: idx > 0 ? rlist[idx - 1].mm : r.lo,
+        trueHi: idx < rlist.length - 1 ? rlist[idx + 1].mm : r.hi };
     }
     var list = KP3D.shelfLayoutOf(b, bodyMm, sysKey).map(function(s){ return { mm:s.mm, fixed:s.fixed, pos:s.pos, locked:s.locked }; });
     if (!list[idx]) return null;
     return { b:b, c:c, list:list, idx:idx, locked:!!(list[idx].fixed || list[idx].locked),
       lo: idx > 0 ? list[idx - 1].mm + SHELF_DRAG_MIN_GAP_MM : r.lo + KP3D.OVEN_BOARD_MM + 1,
-      hi: idx < list.length - 1 ? list[idx + 1].mm - SHELF_DRAG_MIN_GAP_MM : r.hi - 10 };
+      hi: idx < list.length - 1 ? list[idx + 1].mm - SHELF_DRAG_MIN_GAP_MM : r.hi - 10,
+      trueLo: idx > 0 ? list[idx - 1].mm : r.lo,
+      trueHi: idx < list.length - 1 ? list[idx + 1].mm : r.hi };
   }
   function onShelfPosMove(blockId, itemKind, idx, newMm){
     var info = shelfPosBounds(blockId, itemKind, idx); if (!info || info.locked) return null;
@@ -7093,14 +7103,14 @@
     info.list[idx].mm = clamped;
     if (itemKind === "rail"){ info.b.railPos = info.list; if (info.c.railRange) info.b.rails = info.list.length; }
     else { info.b.shelfPos = info.list; if (!info.c.bur && info.c.shelfRange) info.b.shelves = info.list.length; }
-    return { mm:clamped, lo:info.lo, hi:info.hi };
+    return { mm:clamped, trueLo:info.trueLo, trueHi:info.trueHi };
   }
   function onShelfPosEnd(blockId){ save(); refreshAfterEdit(); }
   // Read-only: the gap-to-neighbour label on hover (2026-10-22) needs the current position + the same
   // bounds, without nudging anything — never called mid-drag (onShelfPosMove's own return covers that).
   function onShelfPosInfo(blockId, itemKind, idx){
     var info = shelfPosBounds(blockId, itemKind, idx); if (!info) return null;
-    return { mm:info.list[idx].mm, lo:info.lo, hi:info.hi };
+    return { mm:info.list[idx].mm, trueLo:info.trueLo, trueHi:info.trueHi };
   }
   // where an obstacle lands on a wall: offset snapped 10 mm and flush to the corners within 100 mm, height kept inside the room
   function obstaclePlace(o, wall, offMm, elevMm){
@@ -9049,7 +9059,18 @@
   function proSplit(b, body){
     var sp = b.smida && b.smida.split;
     if (!sp || sp.length < 2) return null;
-    return Math.abs(sp.reduce(function(a, x){ return a + x; }, 0) - body) < 1.5 ? sp.slice() : null;
+    var sum = sp.reduce(function(a, x){ return a + x; }, 0);
+    if (Math.abs(sum - body) < 1.5) return sp.slice();
+    // The carcass height (or a wall's sökkulhæð) changed since this split was set — rescale it proportionally
+    // instead of silently dropping back to one full-height door (user, 2026-10-19: same bug class as the
+    // drawer-front fix — changing the plinth on a wall used to erase every tall/fridge unit's custom split on
+    // that wall with zero warning). b.smida.split itself is never touched, so this re-derives cleanly every
+    // time rather than compounding rounding drift.
+    var scaled = sp.map(function(h){ return h * body / sum; });
+    var out = scaled.map(Math.floor), left = Math.round(body) - out.reduce(function(a, x){ return a + x; }, 0);
+    scaled.map(function(x, i){ return { i:i, r:x - Math.floor(x) }; }).sort(function(a, z){ return z.r - a.r; })
+      .forEach(function(o){ if (left > 0){ out[o.i]++; left--; } });
+    return out;
   }
   function proSetSplit(b, body, list){ // list = slots top → bottom, or null for one front; hinges start over
     var o = Object.assign({}, b.smida || {});
@@ -9539,14 +9560,20 @@
       if (k === 1){ proSetSplit(b, body, null); return; }
       var each = Math.floor(body / k), list = []; for (var q = 0; q < k; q++) list.push(q < k - 1 ? each : body - each * (k - 1));
       proSetSplit(b, body, list); });
+    // Never refuses (user, 2026-10-19) — the one below/above takes whatever's left, even past SPLIT_MIN; the
+    // caller warns instead of reverting, same as every other Smíða field now.
     function resizeSplit(list, k, v){ // front k set to v: the one below takes the difference (the one above for the last)
-      var j = k < list.length - 1 ? k + 1 : k - 1, nv = list[j] - (v - list[k]);
-      if (v < SPLIT_MIN || nv < SPLIT_MIN) return null;
+      var j = k < list.length - 1 ? k + 1 : k - 1;
+      v = Math.max(5, v);
+      var nv = Math.max(5, list[j] - (v - list[k]));
       var out = list.slice(); out[k] = v; out[j] = nv; return out;
     }
     act('[data-pe="splitmm"]', function(n){ var list = splitNow(), v = Math.round(+n.value), out = list && resizeSplit(list, +n.dataset.k, v);
-      if (!out){ toast("Hver frontur þarf að vera minnst " + SPLIT_MIN + " mm og þeir fylla skápinn saman."); renderBoxEditor(); return; }
-      proSetSplit(b, body, out); });
+      if (out){
+        if (out.some(function(h){ return h < SPLIT_MIN - 0.5; })) toast("⚠️ Hver frontur þarf að vera minnst " + SPLIT_MIN + " mm — lagaðu áður en skápurinn er merktur klár.");
+        proSetSplit(b, body, out);
+      }
+    });
     act('[data-pe="side"]', function(n){ b.swing = n.dataset.v; save(); renderBoxEditor(); });
     function setDim(dkey, v){
       if (!applyBlockDim(b.id, dkey, v)){ renderBoxEditor(); return; }
@@ -9562,13 +9589,15 @@
     function ovenDone(){ save(); refreshAfterEdit(); renderBoxEditor(); }
     function setUnder(v){
       var lo = KP3D.ovenUnderMinMm(b, drawerSys()), hi = KP3D.ovenUnderMaxMm(b, body);
-      if (!(v >= lo && v <= hi)){ toast("Hæð undir ofni: " + lo + "–" + hi + " mm fyrir þessar skúffur og þessa ofnhæð."); renderBoxEditor(); return; }
-      b.ovenUnderMm = v; delete b.ovenFrontsMm; ovenDone();
+      if (!(v >= lo && v <= hi)) toast("⚠️ Hæð undir ofni er utan " + lo + "–" + hi + " mm fyrir þessar skúffur og þessa ofnhæð — lagaðu áður en skápurinn er merktur klár.");
+      b.ovenUnderMm = Math.max(5, v); delete b.ovenFrontsMm; ovenDone();
     }
     function shelvesNow(){ return shelfList(); }
     function setShelves(list){
       list.sort(function(a, z){ return a.mm - z.mm; });
-      for (var q = 1; q < list.length; q++) if (list[q].mm - list[q - 1].mm < 40){ toast("Hillur þurfa minnst 40 mm á milli sín."); renderBoxEditor(); return; }
+      var tooClose = false;
+      for (var q = 1; q < list.length; q++) if (list[q].mm - list[q - 1].mm < 40) tooClose = true;
+      if (tooClose) toast("⚠️ Hillur eru nær hvor annarri en 40 mm — lagaðu áður en skápurinn er merktur klár.");
       if (c.oven) b.ovenShelves = list;
       else { b.shelfPos = list; if (!c.bur && c.shelfRange) b.shelves = list.length; } // the count still picks V2 (N hillur)
       ovenDone();
@@ -9580,7 +9609,7 @@
     act('[data-pe="ounder"]', function(n){ setUnder(Math.round(+n.value)); });
     act('[data-pe="ounderReset"]', function(){ delete b.ovenUnderMm; delete b.ovenFrontsMm; ovenDone(); });
     act('[data-pe="oshmm"]', function(n){ var list = shelvesNow(), v = Math.round(+n.value);
-      if (!shelfOk(v)){ var r = KP3D.shelfSpaceMm(b, body, drawerSys()); toast("Hilla þarf að vera á milli " + (r.lo + 17) + " og " + (r.hi - 11) + " mm."); renderBoxEditor(); return; }
+      if (!shelfOk(v)){ var r = KP3D.shelfSpaceMm(b, body, drawerSys()); toast("⚠️ Hilla er utan " + (r.lo + 17) + "–" + (r.hi - 11) + " mm bilsins — lagaðu áður en skápurinn er merktur klár."); }
       list[+n.dataset.k].mm = v; setShelves(list); });
     act('[data-pe="oshtype"]', function(n){ var list = shelvesNow(), sh = list[+n.dataset.k]; sh.fixed = n.dataset.v === "1"; if (!sh.fixed && !(sh.pos > 0)) sh.pos = 3; setShelves(list); });
     act('[data-pe="oshpos"]', function(n){ var list = shelvesNow(); list[+n.dataset.k].pos = Math.max(1, Math.min(9, Math.round(+n.value) || 1)); setShelves(list); });
@@ -9625,11 +9654,9 @@
     });
     function setRadborun(patch){
       var span = KP3D.shelfSpaceMm(b, body, drawerSys());
-      var topMm = patch.topMm != null ? patch.topMm : (b.radborun && b.radborun.topMm) || KP3D.RADBORUN_MARGIN_DEFAULT_MM;
-      var bottomMm = patch.bottomMm != null ? patch.bottomMm : (b.radborun && b.radborun.bottomMm) || KP3D.RADBORUN_MARGIN_DEFAULT_MM;
-      if (topMm < 0 || bottomMm < 0 || (span.hi - topMm) - (span.lo + bottomMm) < KP3D.RADBORUN_PITCH_MM){
-        toast("Spönnin er of lítil fyrir þessi mörk."); renderBoxEditor(); return;
-      }
+      var topMm = Math.max(0, patch.topMm != null ? patch.topMm : (b.radborun && b.radborun.topMm) || KP3D.RADBORUN_MARGIN_DEFAULT_MM);
+      var bottomMm = Math.max(0, patch.bottomMm != null ? patch.bottomMm : (b.radborun && b.radborun.bottomMm) || KP3D.RADBORUN_MARGIN_DEFAULT_MM);
+      if ((span.hi - topMm) - (span.lo + bottomMm) < KP3D.RADBORUN_PITCH_MM) toast("⚠️ Spönnin er of lítil fyrir þessi mörk — lagaðu áður en skápurinn er merktur klár.");
       b.radborun = { topMm:topMm, bottomMm:bottomMm };
       ovenDone();
     }
@@ -9639,13 +9666,15 @@
     function railsNow(){ return railList(); }
     function setRailList(list){
       list.sort(function(a, z){ return a.mm - z.mm; });
-      for (var q = 1; q < list.length; q++) if (list[q].mm - list[q - 1].mm < 40){ toast("Fataslár þurfa minnst 40 mm á milli sín."); renderBoxEditor(); return; }
+      var tooClose = false;
+      for (var q = 1; q < list.length; q++) if (list[q].mm - list[q - 1].mm < 40) tooClose = true;
+      if (tooClose) toast("⚠️ Fataslár eru nær hvor annarri en 40 mm — lagaðu áður en skápurinn er merktur klár.");
       b.railPos = list; if (c.railRange) b.rails = list.length;
       ovenDone();
     }
     function railOk(mm){ var r = KP3D.shelfSpaceMm(b, body, drawerSys()); return mm > r.lo + KP3D.OVEN_BOARD_MM && mm < r.hi - 10; }
     act('[data-pe="railmm"]', function(n){ var list = railsNow(), v = Math.round(+n.value);
-      if (!railOk(v)){ var r = KP3D.shelfSpaceMm(b, body, drawerSys()); toast("Sláin þarf að vera á milli " + (r.lo + 17) + " og " + (r.hi - 11) + " mm."); renderBoxEditor(); return; }
+      if (!railOk(v)){ var r = KP3D.shelfSpaceMm(b, body, drawerSys()); toast("⚠️ Sláin er utan " + (r.lo + 17) + "–" + (r.hi - 11) + " mm bilsins — lagaðu áður en skápurinn er merktur klár."); }
       list[+n.dataset.k].mm = v; setRailList(list); });
     act('[data-pe="raildel"]', function(n){ var list = railsNow(); list.splice(+n.dataset.k, 1); setRailList(list); });
     act('[data-pe="railadd"]', function(){ var list = railsNow(), r = KP3D.shelfSpaceMm(b, body, drawerSys());
@@ -9664,7 +9693,7 @@
         if (pos[j] < floor) pos[j] = floor;
       }
       var last = list.length - 1;
-      if (pos[last] + list[last].h > body - 60){ toast("Innskúffurnar komast ekki fyrir svona ofarlega."); renderBoxEditor(); return; }
+      if (pos[last] + list[last].h > body - 60) toast("⚠️ Innskúffurnar eru komnar of ofarlega — lagaðu áður en skápurinn er merktur klár.");
       b.burPos = pos; ovenDone();
     }
     act('[data-pe="burmm"]', function(n){ setBur(+n.dataset.k, +n.value); });
@@ -9673,7 +9702,7 @@
     // list itself (codes + positions) lives directly on the block — no registered combo underneath it.
     function setInner(list){
       var last = list.length - 1;
-      if (last >= 0 && list[last].mm + list[last].h > body - 60){ toast("Innskúffurnar komast ekki fyrir svona ofarlega."); renderBoxEditor(); return; }
+      if (last >= 0 && list[last].mm + list[last].h > body - 60) toast("⚠️ Innskúffurnar eru komnar of ofarlega — lagaðu áður en skápurinn er merktur klár.");
       b.innerCodes = list.map(function(d){ return d.code; }); b.innerPos = list.map(function(d){ return d.mm; }); ovenDone();
     }
     function moveInner(k, v){
@@ -9712,11 +9741,11 @@
     act('[data-pe="gripbrun"]', function(n){ proSetGrip(b, n.dataset.t, gripPatch(n.dataset.t, { brun:n.dataset.v })); });
     act('[data-pe="gripatt"]', function(n){ proSetGrip(b, n.dataset.t, gripPatch(n.dataset.t, { att:n.dataset.v })); });
     act('[data-pe="gripstart"]', function(n){ var t = n.dataset.t, tg = gripTargets.find(function(x){ return x.target === t; }), v = Math.round(+n.value);
-      if (!(v >= 0 && v <= tg.heightMm - 20)){ toast("Upphaf grips er utan marka."); renderBoxEditor(); return; }
-      proSetGrip(b, t, gripPatch(t, { start:v })); });
+      if (!(v >= 0 && v <= tg.heightMm - 20)) toast("⚠️ Upphaf grips er utan marka — lagaðu áður en skápurinn er merktur klár.");
+      proSetGrip(b, t, gripPatch(t, { start:Math.max(0, v) })); });
     act('[data-pe="griplen"]', function(n){ var t = n.dataset.t, tg = gripTargets.find(function(x){ return x.target === t; }), v = Math.round(+n.value);
-      if (!(v >= 20 && v <= tg.heightMm)){ toast("Lengd grips er utan marka."); renderBoxEditor(); return; }
-      proSetGrip(b, t, gripPatch(t, { length:v })); });
+      if (!(v >= 20 && v <= tg.heightMm)) toast("⚠️ Lengd grips er utan marka — lagaðu áður en skápurinn er merktur klár.");
+      proSetGrip(b, t, gripPatch(t, { length:Math.max(1, v) })); });
     act('[data-pe="gripreset"]', function(n){ var t = n.dataset.t, tg = gripTargets.find(function(x){ return x.target === t; });
       proSetGrip(b, t, gripPatch(t, { start:proGripDefaultStart(b, c, fb.zone, tg), length:GRIP_LEN_DEFAULT_MM })); });
     el.querySelectorAll(".pe-burdr").forEach(function(g){
@@ -9731,8 +9760,8 @@
     act('[data-pe="oshreset"]', function(){ if (c.oven) delete b.ovenShelves; else delete b.shelfPos; ovenDone(); });
     act('[data-pe="type"]', function(n){ var i = +n.dataset.door, sp = proSpec(b, doors, i); sp.type = n.dataset.v; if (sp.type === "hinged" && !(sp.hinges && sp.hinges.length)) sp.hinges = proDefaultHinges(b, doors, i); proSetSpec(b, doors, i, sp); renderBoxEditor(); });
     act('[data-pe="mm"]', function(n){ var i = +n.dataset.door, sp = proSpec(b, doors, i), v = Math.round(+n.value);
-      if (!(v >= 30 && v <= doors[i].box - 30)){ toast("Löm þarf að vera 30 mm eða meira frá enda hurðar."); renderBoxEditor(); return; }
-      sp.hinges[+n.dataset.h].mm = v; proSetSpec(b, doors, i, sp); renderBoxEditor(); });
+      if (!(v >= 30 && v <= doors[i].box - 30)) toast("⚠️ Löm er nær enda hurðar en 30 mm — lagaðu áður en skápurinn er merktur klár.");
+      sp.hinges[+n.dataset.h].mm = Math.max(1, v); proSetSpec(b, doors, i, sp); renderBoxEditor(); });
     act('[data-pe="from"]', function(n){ var i = +n.dataset.door, sp = proSpec(b, doors, i), hg = sp.hinges[+n.dataset.h];
       hg.mm = Math.round(doors[i].box - hg.mm); hg.from = hg.from === "top" ? "bottom" : "top"; proSetSpec(b, doors, i, sp); renderBoxEditor(); });
     act('[data-pe="del"]', function(n){ var i = +n.dataset.door, sp = proSpec(b, doors, i), need = proHingeMin(doors[i].box); if (sp.hinges.length <= need){ toast(doors[i].box + " mm hurð þarf minnst " + need + " lamir."); return; }
@@ -9773,10 +9802,12 @@
       g.addEventListener("pointerdown", function(e){
         e.preventDefault(); g.setPointerCapture(e.pointerId);
         var k = +g.dataset.k, start = shelvesNow()[k].mm, v = start, y0 = Y0 + body * S - start * S;
-        function mv(ev){ var cand = Math.round((Y0 + body * S - svgY(ev)) / S); if (!shelfOk(cand)) return; v = cand;
+        function mv(ev){ v = Math.round((Y0 + body * S - svgY(ev)) / S); // never refuses mid-drag — shelfOk only warns on drop
           g.setAttribute("transform", "translate(0," + (Y0 + body * S - v * S - y0) + ")"); }
         function up(){ g.removeEventListener("pointermove", mv); g.removeEventListener("pointerup", up);
-          if (v === start) return; var list = shelvesNow(); list[k].mm = v; setShelves(list); }
+          if (v === start) return;
+          if (!shelfOk(v)) toast("⚠️ Hilla er utan leyfilegs bils — lagaðu áður en skápurinn er merktur klár.");
+          var list = shelvesNow(); list[k].mm = v; setShelves(list); }
         g.addEventListener("pointermove", mv); g.addEventListener("pointerup", up);
       });
     });
@@ -9784,10 +9815,12 @@
       g.addEventListener("pointerdown", function(e){
         e.preventDefault(); g.setPointerCapture(e.pointerId);
         var k = +g.dataset.k, start = railsNow()[k].mm, v = start, y0 = Y0 + body * S - start * S;
-        function mv(ev){ var cand = Math.round((Y0 + body * S - svgY(ev)) / S); if (!railOk(cand)) return; v = cand;
+        function mv(ev){ v = Math.round((Y0 + body * S - svgY(ev)) / S); // never refuses mid-drag — railOk only warns on drop
           g.setAttribute("transform", "translate(0," + (Y0 + body * S - v * S - y0) + ")"); }
         function up(){ g.removeEventListener("pointermove", mv); g.removeEventListener("pointerup", up);
-          if (v === start) return; var list = railsNow(); list[k].mm = v; setRailList(list); }
+          if (v === start) return;
+          if (!railOk(v)) toast("⚠️ Sláin er utan leyfilegs bils — lagaðu áður en skápurinn er merktur klár.");
+          var list = railsNow(); list[k].mm = v; setRailList(list); }
         g.addEventListener("pointermove", mv); g.addEventListener("pointerup", up);
       });
     });

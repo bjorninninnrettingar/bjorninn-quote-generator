@@ -484,9 +484,13 @@
     if (c.oven) return c.lowOven ? [] : ovenShelvesOf(b, sysKey, bodyMm);
     if (!hasShelfLayout(b)) return [];
     var r = shelfSpaceMm(b, bodyMm, sysKey);
+    // Clamped into the current band, never dropped (user, 2026-10-19): a stored shelf used to vanish for good
+    // the moment some unrelated edit (the drawer stack under it, the body height) moved r.lo/r.hi past it —
+    // same "a custom value shouldn't disappear just because something else moved the target" bug as the
+    // drawer-front and door-split fixes, just one layer down (the geometry reader, not the editor).
     if (Array.isArray(b.shelfPos)) return b.shelfPos
-      .filter(function(x){ return x && x.mm > r.lo + OVEN_BOARD_MM && x.mm < r.hi - 10; })
-      .map(function(x){ return { mm:Math.round(x.mm), fixed:!!x.fixed, pos:x.fixed ? 1 : Math.max(1, Math.min(9, Math.round(x.pos) || 3)), locked:!!x.locked }; }) // locked: Smíða-only bookkeeping ("Dreifa ólæstum jafnt") — passed through so every setShelves read-then-rewrite doesn't silently drop it
+      .filter(function(x){ return x && typeof x.mm === "number"; })
+      .map(function(x){ return { mm:Math.round(Math.min(Math.max(x.mm, r.lo + OVEN_BOARD_MM + 1), r.hi - 11)), fixed:!!x.fixed, pos:x.fixed ? 1 : Math.max(1, Math.min(9, Math.round(x.pos) || 3)), locked:!!x.locked }; }) // locked: Smíða-only bookkeeping ("Dreifa ólæstum jafnt") — passed through so every setShelves read-then-rewrite doesn't silently drop it
       .sort(function(a, z){ return a.mm - z.mm; });
     var scoped = c.bur || inDrawerShelfZone(b, c);
     var n = c.bur ? (b.burShelves != null ? b.burShelves : 2) : (shelvesOf(b) || 0), out = [];
@@ -511,9 +515,9 @@
     var c = CATALOG[b.type];
     if (!c || !c.railRange) return [];
     var r = shelfSpaceMm(b, bodyMm, sysKey);
-    if (Array.isArray(b.railPos)) return b.railPos
-      .filter(function(x){ return x && x.mm > r.lo + OVEN_BOARD_MM && x.mm < r.hi - 10; })
-      .map(function(x){ return { mm:Math.round(x.mm) }; })
+    if (Array.isArray(b.railPos)) return b.railPos // clamped into the current band, never dropped — see shelfLayoutOf
+      .filter(function(x){ return x && typeof x.mm === "number"; })
+      .map(function(x){ return { mm:Math.round(Math.min(Math.max(x.mm, r.lo + OVEN_BOARD_MM + 1), r.hi - 11)) }; })
       .sort(function(a, z){ return a.mm - z.mm; });
     var n = railsOf(b) || 0, out = [];
     for (var k = 0; k < n; k++) out.push({ mm:Math.round(Math.max(r.lo + 10, r.hi - RAIL_TOP_OFFSET_MM - k * RAIL_GAP_MM)) });
@@ -522,9 +526,9 @@
   // the shelves above the oven, bottom → top; default = 2 loose vent shelves at thirds, 3 positions each
   function ovenShelvesOf(b, sysKey, bodyMm){
     var r = ovenUpperMm(b, sysKey, bodyMm);
-    if (Array.isArray(b.ovenShelves)) return b.ovenShelves
-      .filter(function(x){ return x && x.mm > r.lo + OVEN_BOARD_MM && x.mm < r.hi - 10; })
-      .map(function(x){ return { mm:Math.round(x.mm), fixed:!!x.fixed, pos:x.fixed ? 1 : Math.max(1, Math.min(9, Math.round(x.pos) || 3)), locked:!!x.locked }; })
+    if (Array.isArray(b.ovenShelves)) return b.ovenShelves // clamped into the current band, never dropped — see shelfLayoutOf
+      .filter(function(x){ return x && typeof x.mm === "number"; })
+      .map(function(x){ return { mm:Math.round(Math.min(Math.max(x.mm, r.lo + OVEN_BOARD_MM + 1), r.hi - 11)), fixed:!!x.fixed, pos:x.fixed ? 1 : Math.max(1, Math.min(9, Math.round(x.pos) || 3)), locked:!!x.locked }; })
       .sort(function(a, z){ return a.mm - z.mm; });
     return [1, 2].map(function(k){ return { mm:Math.round(r.lo + (r.hi - r.lo) * k / 3), fixed:false, pos:3 }; });
   }
@@ -2839,43 +2843,57 @@
       return e && (e.isLineSegments || e.isLine) ? e : null;
     }
     function isShelfOrRail(m){ return m && (m.userData.kind === "shelf-item" || m.userData.kind === "rail-item"); }
-    // Gap-to-neighbour label (2026-10-22): one reused sprite (repainted only when its text actually
-    // changes, like málband's own measureSprite/measureSpriteSetText) shown on hover AND mid-drag, so
-    // "how much room is here" is visible before you commit to grabbing something, not just while dragging.
-    var gapLabel = null;
+    // Gap-to-neighbour indicator (2026-10-22): a blue line + big label for the space BELOW the item and
+    // another for the space ABOVE, each spanning from the item's own position to its real neighbour (or
+    // the zone's floor/ceiling when there's none) — shown on hover AND mid-drag, so "how much room is
+    // here" is visible before you commit to grabbing something, not just while dragging. Each label is one
+    // reused sprite, repainted only when its text actually changes (like málband's own measureSprite/
+    // measureSpriteSetText), and the line is a real cylinder mesh (WebGL ignores LineBasicMaterial.
+    // linewidth almost everywhere, same reason málband's own tape line isn't a THREE.Line either).
+    var GAP_LINE_T = 0.01, GAP_COLOR = 0x3d61c1; // --blue in kitchen-planner.html's own CSS
+    var gapBelow = { line:null, label:null }, gapAbove = { line:null, label:null };
     function gapLabelPaint(cv, text){
       var cx = cv.getContext("2d");
       cx.clearRect(0, 0, cv.width, cv.height);
-      cx.fillStyle = "rgba(61,97,193,.92)"; cx.beginPath();
-      if (cx.roundRect) cx.roundRect(3, 3, cv.width - 6, cv.height - 6, 13); else cx.rect(3, 3, cv.width - 6, cv.height - 6); cx.fill();
-      cx.fillStyle = "#fff"; cx.font = "700 24px 'Kumbh Sans', Arial, sans-serif"; cx.textAlign = "center"; cx.textBaseline = "middle";
-      cx.fillText(text, cv.width / 2, cv.height / 2 + 1);
+      cx.fillStyle = "rgba(61,97,193,.96)"; cx.beginPath();
+      if (cx.roundRect) cx.roundRect(4, 4, cv.width - 8, cv.height - 8, 22); else cx.rect(4, 4, cv.width - 8, cv.height - 8); cx.fill();
+      cx.fillStyle = "#fff"; cx.font = "800 50px 'Kumbh Sans', Arial, sans-serif"; cx.textAlign = "center"; cx.textBaseline = "middle";
+      cx.fillText(text, cv.width / 2, cv.height / 2 + 2);
     }
-    function shelfLabelPos(mesh){ // just past the item's own end, at its own height — never overlaps it
+    function ensureGapPart(part){
+      if (part.label) return;
+      var cv = document.createElement("canvas"); cv.width = 260; cv.height = 92;
+      var tex = new THREE.CanvasTexture(cv);
+      part.label = new THREE.Sprite(new THREE.SpriteMaterial({ map:tex, depthTest:false, transparent:true, sizeAttenuation:false }));
+      part.label.scale.set(0.17, 0.06, 1); part.label.renderOrder = 999;
+      part.label.userData.canvas = cv; part.label.userData.lastText = "";
+      part.line = new THREE.Mesh(new THREE.CylinderGeometry(GAP_LINE_T / 2, GAP_LINE_T / 2, 1, 8),
+        new THREE.MeshBasicMaterial({ color:GAP_COLOR, depthTest:false, transparent:true, opacity:0.92 }));
+      part.line.renderOrder = 998;
+      if (THREE_STATE && THREE_STATE.scene){ THREE_STATE.scene.add(part.label); THREE_STATE.scene.add(part.line); }
+    }
+    function setGapPart(part, text, x, z, ay, by){ // ay/by: world Y of the two ends (either order)
+      ensureGapPart(part);
+      if (part.label.userData.lastText !== text){
+        gapLabelPaint(part.label.userData.canvas, text);
+        part.label.material.map.needsUpdate = true;
+        part.label.userData.lastText = text;
+      }
+      var lenM = Math.max(1e-4, Math.abs(by - ay)), midY = (ay + by) / 2;
+      part.line.position.set(x, midY, z); part.line.scale.set(1, lenM, 1);
+      part.label.position.set(x, midY, z);
+      part.line.visible = true; part.label.visible = true;
+    }
+    function showGapInfo(mesh, mm, trueLo, trueHi){ // mm/trueLo/trueHi: the item's own mm + its real neighbours'/zone's
       var wp = new THREE.Vector3(); mesh.getWorldPosition(wp);
       var wq = new THREE.Quaternion(); mesh.getWorldQuaternion(wq);
       var dir = new THREE.Vector3(1, 0, 0).applyQuaternion(wq);
-      return wp.addScaledVector(dir, (mesh.userData.widthM || 0.6) / 2 + 0.07);
+      var off = wp.clone().addScaledVector(dir, (mesh.userData.widthM || 0.6) / 2 + 0.09); // just past the item's own end
+      var baseY = mesh.userData.bodyBaseY, itemY = baseY + mm / 1000;
+      setGapPart(gapBelow, Math.round(mm - trueLo) + " mm", off.x, off.z, baseY + trueLo / 1000, itemY);
+      setGapPart(gapAbove, Math.round(trueHi - mm) + " mm", off.x, off.z, itemY, baseY + trueHi / 1000);
     }
-    function showGapLabel(mesh, mm, lo, hi){
-      var text = Math.round(mm - lo) + "↓ " + Math.round(hi - mm) + "↑ mm";
-      if (!gapLabel){
-        var cv = document.createElement("canvas"); cv.width = 220; cv.height = 56;
-        gapLabelPaint(cv, text);
-        var tex = new THREE.CanvasTexture(cv);
-        gapLabel = new THREE.Sprite(new THREE.SpriteMaterial({ map:tex, depthTest:false, transparent:true, sizeAttenuation:false }));
-        gapLabel.scale.set(0.085, 0.022, 1); gapLabel.renderOrder = 999;
-        gapLabel.userData.canvas = cv; gapLabel.userData.lastText = text;
-        if (THREE_STATE && THREE_STATE.scene) THREE_STATE.scene.add(gapLabel);
-      } else if (gapLabel.userData.lastText !== text){
-        gapLabelPaint(gapLabel.userData.canvas, text);
-        gapLabel.material.map.needsUpdate = true;
-        gapLabel.userData.lastText = text;
-      }
-      gapLabel.position.copy(shelfLabelPos(mesh));
-      gapLabel.visible = true;
-    }
-    function hideGapLabel(){ if (gapLabel) gapLabel.visible = false; }
+    function hideGapInfo(){ [gapBelow, gapAbove].forEach(function(p){ if (p.label) p.label.visible = false; if (p.line) p.line.visible = false; }); }
     function setHover(mesh){
       if (mesh === hovered) return;
       if (hovered){
@@ -2895,8 +2913,8 @@
       }
       if (isShelfOrRail(hovered) && opts.onShelfPosInfo){
         var info = opts.onShelfPosInfo(hovered.userData.blockId, hovered.userData.itemKind, hovered.userData.idx);
-        if (info) showGapLabel(hovered, info.mm, info.lo, info.hi); else hideGapLabel();
-      } else hideGapLabel();
+        if (info) showGapInfo(hovered, info.mm, info.trueLo, info.trueHi); else hideGapInfo();
+      } else hideGapInfo();
       renderer.domElement.style.cursor = hovered ? (hovered.userData.locked ? (hovered.userData.isPart ? "pointer" : "default") :
         (hovered.userData.kind === "shelf-item" || hovered.userData.kind === "rail-item") ? "ns-resize" : "grab") : "";
     }
@@ -2931,7 +2949,7 @@
             var newY = drag.meta.bodyBaseY + res.mm / 1000 + boardOffM;
             drag.mesh.position.y = newY;
             if (drag.mesh.userData.edgesObj) drag.mesh.userData.edgesObj.position.y = newY;
-            showGapLabel(drag.mesh, res.mm, res.lo, res.hi);
+            showGapInfo(drag.mesh, res.mm, res.trueLo, res.trueHi);
           }
         }
         return;
@@ -3040,7 +3058,7 @@
       if (drag.shelfDrag){
         var dS = drag;
         drag = null; controls.enabled = true; renderer.domElement.style.cursor = "";
-        hideGapLabel(); hovered = null; // onMove's hover branch was skipped all through the drag — force it to re-evaluate fresh on the next move
+        hideGapInfo(); hovered = null; // onMove's hover branch was skipped all through the drag — force it to re-evaluate fresh on the next move
         if (dS.moved){ suppressClick = true; if (opts.onShelfPosEnd) opts.onShelfPosEnd(dS.meta.blockId); }
         return;
       }
