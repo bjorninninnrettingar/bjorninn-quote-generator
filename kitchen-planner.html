@@ -3819,7 +3819,14 @@
     var full = blockHeightMm(b, c) - plinthMmOf(c, "floor", f && f.wall);
     if (b.interior && Array.isArray(b.interior.frontsMm) && b.interior.frontsMm.length > 1){
       var sum = Math.round(b.interior.frontsMm.reduce(function(a, h){ return a + h; }, 0));
-      return Math.max(0, Math.min(full - KP3D.DRAWER_TOPDOOR_MIN_MM, sum));
+      // Only a tall unit (door above the drawer stack) reserves DRAWER_TOPDOOR_MIN_MM — a regular floor
+      // cabinet's drawers fill the WHOLE carcass, same as KP3D.drawerZoneMm's own "else return bodyMm" for
+      // non-tall types just below. This branch (custom frontsMm) never had that guard, so a grunnskápur's
+      // usable drawer space was silently capped 150 mm short of its real body (found live, 2026-10-19 — a
+      // 735 mm carcass only ever had 585 mm to work with, no explanation given either before tonight's warn
+      // or after — this is almost certainly the original "allt bannað" complaint from earlier tonight too).
+      var reserve = c.cls === "tall" ? KP3D.DRAWER_TOPDOOR_MIN_MM : 0;
+      return Math.max(0, Math.min(full - reserve, sum));
     }
     return KP3D.drawerZoneMm(c, full, b.drawerZoneMm);
   }
