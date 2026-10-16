@@ -95,6 +95,20 @@
     background: #260d0d; border: 1px solid #4a1414; border-radius: 6px;
     padding: 6px 10px; display: inline-block;
   }
+  .hw-dropdown {
+    margin-bottom: 12px; display: inline-block;
+    background: #11161c; border: 1px solid #263140; border-radius: 6px;
+  }
+  .hw-dropdown summary {
+    color: #6bb8ff; font-size: 0.88rem; font-weight: 700; cursor: pointer;
+    padding: 6px 10px; list-style: none;
+  }
+  .hw-dropdown summary::-webkit-details-marker { display: none; }
+  .hw-dropdown summary::before { content: "▸ "; }
+  .hw-dropdown[open] summary::before { content: "▾ "; }
+  .hw-body { padding: 2px 10px 10px 10px; font-size: 0.86rem; color: #ccc; }
+  .hw-body div { margin-top: 4px; }
+  .hw-body span { color: #777; display: inline-block; min-width: 110px; }
 
   .pieces { display: flex; flex-wrap: wrap; gap: 8px; }
 
@@ -200,6 +214,7 @@ const PROXY_URL = "/api/airtable";
 const PROJECTS_TABLE     = "tbl4LMXlQjp66RFKI"; // Tækifæri 📣 (projects)
 const SOGUNARLISTI_TABLE = "tblhdgyvTcBfP8kov"; // Sögunarlisti 🪚
 const EYDUBLAD_TABLE     = "tbl0WcyHhz63pSzZX"; // Eyðublað ✏️
+const PRODUCTS_TABLE     = "tblzuuRSRkeXaLWxC"; // Vörulisti 🚪 — resolves door-hardware link names
 
 const P_NAME_FIELD = "Heiti tækifæris / verkefnis";
 // Same non-strong-secret constant app.html/verk.html use — only needed here
@@ -244,6 +259,9 @@ const U_FRONT_HLID_TEGUND = "Frontur / Hlið tegund";
 const U_SKUFFUTEGUND     = "Skúffutegund";
 const U_LED_MAGN         = "LED magn";
 const U_OPNUN            = "Opnun [Hurð]"; // door swing direction, choices "Hægri 👉"/"Vinstri 👈"
+const U_LAMIR            = "Lamir [Hurð]"; // hinge hardware (Vörulisti link)
+const U_SKRA             = "Skrá [Hurð]"; // lock hardware (Vörulisti link)
+const U_FELLITHR         = "Felliþr. [Hurð]"; // threshold hardware (Vörulisti link)
 const U_DRAWER_FIELDS    = ["N", "M", "K", "C", "F", "E", "IN", "IM", "IK", "IC", "IF", "IE"];
 
 // Part types that always come in a matched pair of mirror-image panels —
@@ -278,6 +296,25 @@ function toNumber(v) {
 
 function singleSelectName(v) {
   return v && typeof v === "object" ? String(v.name || "") : String(v || "");
+}
+
+// multipleRecordLinks fields come back as plain record-id strings, e.g.
+// ["recXXXXXXXXXXXXXX"] — just the id of the first (and for these hardware
+// fields, only) linked product. Resolved to a name separately via Vörulisti
+// (fetchHardwareNames), same pattern as eining.html's HW_LINKS.
+function firstLinkId(v) {
+  return Array.isArray(v) && v[0] ? String(v[0]) : "";
+}
+
+// door-hardware product ids (Lamir/Skrá/Felliþr. [Hurð]) → "Heiti vöru 📣",
+// one batched OR(RECORD_ID()=…) fetch for every id used across the project.
+async function fetchHardwareNames(ids) {
+  if (!ids.length) return {};
+  const formula = "OR(" + ids.map(id => `RECORD_ID()='${id}'`).join(",") + ")";
+  const recs = await airtableFetch(PRODUCTS_TABLE, { filterByFormula: formula, "fields[]": ["Heiti vöru 📣"] });
+  const names = {};
+  recs.forEach(r => { names[r.id] = String((r.fields || {})["Heiti vöru 📣"] || "").trim() || r.id; });
+  return names;
 }
 
 function escapeHtml(s) {
@@ -367,8 +404,13 @@ async function fetchEyðublaðForProject(projectName) {
     "fields[]": [
       U_NAME, U_PROJECT_LINK, U_PROJECT_LINK_OLD, U_HVAD_VILTU_SMIDA, U_CNC_NOTE,
       U_SKAPATEGUND, U_SERSMIDI_TEGUND, U_FRONT_HLID_TEGUND, U_SKUFFUTEGUND, U_LED_MAGN, U_OPNUN,
+      U_LAMIR, U_SKRA, U_FELLITHR,
       ...U_DRAWER_FIELDS,
     ],
+    // Lamir/Skrá/Felliþr. [Hurð] are VERK_ONLY_FIELDS (api/airtable.js) — internal door-hardware
+    // detail, stripped from the public proxy response unless k= matches VERK_KEY. /fraesing is an
+    // internal shop-floor page (same class as /verk, /cnc), so it carries the key too.
+    k: VERK_KEY,
     pageSize: 100,
   });
 }
@@ -729,10 +771,23 @@ async function loadProject(projectId) {
       unitId: (r.fields[S_EYDUBLAD_LINK] || [])[0] || null,
     }));
 
+  const hardwareIds = new Set();
+  unitRowsInProject.forEach(u => {
+    [firstLinkId(u.fields[U_LAMIR]), firstLinkId(u.fields[U_SKRA]), firstLinkId(u.fields[U_FELLITHR])]
+      .forEach(id => { if (id) hardwareIds.add(id); });
+  });
+  const hardwareNames = await fetchHardwareNames([...hardwareIds]);
+
   units = unitRowsInProject
     .map(u => {
       const ownPieces = pieces.filter(p => p.unitId === u.id);
       const opnun = singleSelectName(u.fields[U_OPNUN]).replace(/[^A-Za-zÁ-ÿ ]/g, "").trim();
+      const nameOf = id => (id && hardwareNames[id]) || "";
+      const hardware = {
+        lamir: nameOf(firstLinkId(u.fields[U_LAMIR])),
+        skra: nameOf(firstLinkId(u.fields[U_SKRA])),
+        fellithr: nameOf(firstLinkId(u.fields[U_FELLITHR])),
+      };
       return {
         id: u.id,
         name: u.fields[U_NAME] || u.id,
@@ -741,6 +796,8 @@ async function loadProject(projectId) {
         note: String(u.fields[U_CNC_NOTE] || "").trim(),
         isLagnaskapur: singleSelectName(u.fields[U_SKAPATEGUND]) === "Lagnaskápur",
         opnun,
+        hardware,
+        hasHardware: !!(hardware.lamir || hardware.skra || hardware.fellithr),
         pieceGroups: buildPieceGroups(ownPieces, opnun),
       };
     })
@@ -946,6 +1003,16 @@ function renderUnits(visible) {
         ${u.tegund ? `<div class="unit-tegund">${escapeHtml(u.tegund)}</div>` : ""}
       </div>
       ${u.innihald ? `<div class="unit-innihald">${escapeHtml(u.innihald)}</div>` : ""}
+      ${u.hasHardware ? `
+        <details class="hw-dropdown">
+          <summary>🔧 Hardware í hurðinni</summary>
+          <div class="hw-body">
+            ${u.hardware.lamir ? `<div><span>Lamir</span>${escapeHtml(u.hardware.lamir)}</div>` : ""}
+            ${u.hardware.skra ? `<div><span>Skrá</span>${escapeHtml(u.hardware.skra)}</div>` : ""}
+            ${u.hardware.fellithr ? `<div><span>Felliþröskuldur</span>${escapeHtml(u.hardware.fellithr)}</div>` : ""}
+          </div>
+        </details>
+      ` : ""}
       ${u.isLagnaskapur ? `<div class="unit-warning">⚠️ Lagna - Ekki saga f. masoniti!</div>` : ""}
       ${u.note ? `<div class="unit-note">📝 ${escapeHtml(u.note)}</div>` : ""}
       <div class="pieces">${piecesHtml}</div>
