@@ -182,8 +182,8 @@ test("readValues also reads the first-version files (GLB=HURD_H|…|Hurdaskra)",
   assert.deepEqual(C.readValues(old), v);
 });
 
-test("door files: short names inside Hurðir/<HU>/, long names for jambs in the old flat layout", () => {
+test("door files: short names inside Hurðir/<HU>/ still carry the door id (not the project), long names for jambs in the old flat layout", () => {
   const plan = { id: "HU01", topp: "Ofan á hliðum", on: { leaf: [], jambHinge: [], jambStrike: [] } };
-  assert.deepEqual(C.filesFor(plan, "T-49", true).map((f) => f.name), ["Hurðablað.bpp", "Karmur lamir.bpp", "Karmur slúttjárn.bpp", "Karmur toppstykki.bpp"]);
+  assert.deepEqual(C.filesFor(plan, "T-49", true).map((f) => f.name), ["HU01 Hurðablað.bpp", "HU01 Karmur lamir.bpp", "HU01 Karmur slúttjárn.bpp", "HU01 Karmur toppstykki.bpp"]);
   assert.equal(C.filesFor(plan, "T-49")[1].name, "T-49 HU01 Karmur lamir.bpp");
 });

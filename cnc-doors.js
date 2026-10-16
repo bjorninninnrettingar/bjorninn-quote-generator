@@ -148,11 +148,13 @@
   }
 
   // Which master each output file comes from, and which managed macros it may switch.
-  // short = inside the door's own folder (Hurðir/HU01/), where the project and door are already in the path
-  // (user, 2026-10-10); the long names are the old flat layout, still looked up for jambs made there.
+  // short = inside the door's own folder (Hurðir/HU01/), so the project prefix is dropped (already in the
+  // path) — but the door id itself stays on every filename (user, 2026-10-16): BiesseWorks shows the loaded
+  // program's own name, not its folder, so without the id the operator can't tell which door is open. The
+  // long names are the old flat layout, still looked up for jambs made there.
   function filesFor(plan, prefix, short) {
     var m = MASTERS[plan.topp]; if (!m) return [];
-    var base = short ? "" : (prefix ? prefix + " " : "") + plan.id;
+    var base = (short ? "" : (prefix ? prefix + " " : "")) + plan.id;
     return [
       { kind: "leaf", name: (base ? base + " " : "") + "Hurðablað.bpp", master: MASTERS.leaf.path, managed: MANAGED.leaf, on: plan.on.leaf },
       { kind: "lamir", name: (base ? base + " " : "") + "Karmur lamir.bpp", master: MASTER_DIR.concat([m.dir, m.lamir]), managed: MANAGED.jambHinge, on: plan.on.jambHinge, need: plan.on.jambHinge },
