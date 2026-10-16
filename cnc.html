@@ -511,17 +511,15 @@
       var job = await sub(pickedDir, folderOf(project.name), true);
       log("USB verkefnamappa: " + folderOf(project.name));
 
-      // Sides. Files this page made before (marked inside) that this export no longer produces are removed, so a
-      // regrouped project never leaves a stale side program behind. Hand-made files are never touched.
-      // Skápar/<Sk - tegund>/ — one folder per cabinet, its side files (left/right when only one side has hinges)
-      // folders only for what the project has (no Skápar/ without cabinets, no Hurðir/ without doors)
-      var cabDir = sideSel.length ? await sub(job, "Skápar", true) : await sub(job, "Skápar").catch(function () { return null; }), madeIn = {};
+      // Sides. Skápar/<Sk - tegund>/ — one folder per cabinet, its side files (left/right when only one side
+      // has hinges), folders only for what the project has (no Skápar/ without cabinets, no Hurðir/ without doors).
+      var cabDir = sideSel.length ? await sub(job, "Skápar", true) : await sub(job, "Skápar").catch(function () { return null; });
       for (var g of sideSel) {
-        var p0 = g.plans[0], dir = await sub(cabDir, g.label, true), names = madeIn[g.label] = {};
+        var p0 = g.plans[0], dir = await sub(cabDir, g.label, true);
         for (var sf of g.files) {
           var fname = SD.sideFileName(pre, p0, sf), r = SD.renderSide(await readMaster(root, SD.MASTER), sf.plan);
           if (r.errors.length) { log("⛔ " + g.label + "/" + fname + " EKKI skrifað: " + r.errors.join(" · ")); missing.push(fname + ": " + r.errors.join(" · ")); continue; }
-          await writeBytes(dir, fname, D.toCp1252(r.text)); names[fname] = 1;
+          await writeBytes(dir, fname, D.toCp1252(r.text));
           log("✅ Skápar/" + g.label + "/" + fname); made.push("Skápar/" + g.label + "/" + fname + "  (" + p0.LPX + "×" + p0.LPY + "×" + p0.LPZ + ", keyra ×" + sf.count + ")");
         }
         // the cabinet's fronts: drawer fronts on the global front masters, door fronts with their hinge cups
@@ -530,27 +528,14 @@
           try { rf = SD.renderSide(await readMaster(root, SD.FRONT_MASTERS[fr.master]), fr, SD.FRONT_MANAGED[fr.master]); }
           catch (e) { log("⛔ " + g.label + "/" + frName + ": " + e.message); missing.push(g.label + "/" + frName + ": " + e.message); continue; }
           if (rf.errors.length) { log("⛔ " + g.label + "/" + frName + " EKKI skrifað: " + rf.errors.join(" · ")); missing.push(frName + ": " + rf.errors.join(" · ")); continue; }
-          await writeBytes(dir, frName, D.toCp1252(rf.text)); names[frName] = 1;
+          await writeBytes(dir, frName, D.toCp1252(rf.text));
           log("✅ Skápar/" + g.label + "/" + frName); made.push("Skápar/" + g.label + "/" + frName + "  (" + fr.LPX + "×" + fr.LPY + "×" + fr.LPZ + ", keyra ×" + fr.count + ")");
         }
         p0.check.concat(p0.frontCheck || []).forEach(function (c) { var s = g.label + ": " + c; if (warn.indexOf(s) < 0) warn.push(s); });
       }
-      // Files this page made before (marked inside) that this export no longer produces are removed — a regrouped
-      // project never leaves a stale program behind. Hand-made files are never touched. Only on a full export.
-      if (sideSel.length === groups.length) {
-        var dropMarked = async function (dir, keep, label) {
-          for await (var en of dir.values()) {
-            if (en.kind !== "file" || keep[en.name] || !/\.bpp$/i.test(en.name)) continue;
-            if ((await readText(await en.getFile())).indexOf(SD.MARKER) >= 0) { await dir.removeEntry(en.name); log("🗑 " + label + en.name + " (úrelt — búið til hér áður)"); }
-          }
-        };
-        await dropMarked(job, {}, ""); // the old flat layout (before 2026-10-10): side files straight in the project folder
-        if (cabDir) for await (var cd of cabDir.values()) {
-          if (cd.kind !== "directory") continue;
-          await dropMarked(cd, madeIn[cd.name] || {}, "Skápar/" + cd.name + "/");
-          if (!madeIn[cd.name]) { var left = 0; for await (var _x of cd.values()) left++; if (!left) { await cabDir.removeEntry(cd.name); log("🗑 Skápar/" + cd.name + "/ (tóm)"); } }
-        }
-      }
+      // Stale-file cleanup removed 2026-10-16 (user): workflow is now "delete the whole project folder, then
+      // export fresh" — not a partial re-export — so sweeping for and deleting old marked files is unneeded
+      // noise in the log. Hand-made files were never touched by it either way.
       stopped.forEach(function (p) { missing.push(p.name + ": " + p.stop.join(" · ")); });
 
       // Doors — the jamb that may already exist decides the leaf (see cnc-doors.js).
