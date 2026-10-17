@@ -169,10 +169,15 @@
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ pin: pin })
-    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, data: d }; }); })
       .then(function (res) {
         if (!res.ok) {
-          errEl.textContent = "Rangt PIN";
+          // Surface the real reason instead of always saying "wrong PIN" — a
+          // 500 here means the server itself isn't configured (e.g. a
+          // missing env var on this deployment), which looks identical to a
+          // typo'd PIN otherwise and is much harder to diagnose remotely.
+          var code = (res.data && res.data.error) || ("HTTP " + (res.status || "?"));
+          errEl.textContent = code === "BAD_PIN" ? "Rangt PIN" : "Villa: " + code;
           shake();
           pin = "";
           renderDots();
