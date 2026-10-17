@@ -163,8 +163,14 @@
       body: JSON.stringify({ fields: fields })
     }).then(function (r) { return r.json(); });
   }
-  function fml(rid) {
-    return "FIND(%22" + rid + "%22,ARRAYJOIN(%7BEy%C3%B0ubla%C3%B0%20%E2%9C%8F%EF%B8%8F%7D))";
+  // Airtable's ARRAYJOIN on a linked-record field resolves to the linked
+  // record's NAME (its primary field), not its id — confirmed by direct
+  // testing against the live base (an id-based FIND never matched, a
+  // name-based one did). So this matches by the unit's own display name
+  // (Athugasemd) via exact equality, not by record id.
+  function eqFilterEydublad(name) {
+    var e = String(name).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    return "%7BEy%C3%B0ubla%C3%B0%20%E2%9C%8F%EF%B8%8F%7D%3D" + encodeURIComponent('"' + e + '"');
   }
 
   // ---- Picker ----
@@ -201,11 +207,15 @@
 
   // ---- Load wizard ----
   document.getElementById("loading").style.display = "block";
-  Promise.all([
-    api(EYDUBLAD + "/" + recordId),
-    api(SOGUNARLISTI, "filterByFormula=" + fml(recordId) + "&maxRecords=200"),
-    api(VORUR, "filterByFormula=" + fml(recordId) + "&maxRecords=200")
-  ]).then(function (res) {
+  api(EYDUBLAD + "/" + recordId).then(function (unit) {
+    var unitName = (unit.fields || {})["Athugasemd"] || "";
+    var matchFml = eqFilterEydublad(unitName);
+    return Promise.all([
+      Promise.resolve(unit),
+      api(SOGUNARLISTI, "filterByFormula=" + matchFml + "&maxRecords=200"),
+      api(VORUR, "filterByFormula=" + matchFml + "&maxRecords=200")
+    ]);
+  }).then(function (res) {
     document.getElementById("loading").style.display = "none";
     document.getElementById("wizard").style.display = "block";
     renderUnit(res[0], res[1].records || [], res[2].records || []);
