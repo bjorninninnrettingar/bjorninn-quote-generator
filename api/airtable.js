@@ -287,6 +287,7 @@ const VERK_ONLY_FIELDS = {
     "5. Efni lent í húsi",
     "6. CNC yfirfarið",
     "Framvinda Pöntunarlista stemmir🔒 skipulag 2.0📝",
+    "🔄 Keyra Skipulag", // PRO mode's "Keyra skipulag" button
     "Loka teikningar verkefnis 📋",
     "Sér fræsi teikningar",
     "Málsettar myndir af rými 🖼️",
@@ -533,6 +534,8 @@ const WRITABLE_FIELDS = {
     "1. Dagssetningar ákveðnar", "2. Cutty keyrður fyrir þetta verkefni og kominn á USB?",
     "3. Teikningar prentaðar 2x", "4. Verkfundur tekinn", "5. Efni lent í húsi", "6. CNC yfirfarið",
     "Staða í skipulagi",
+    // PRO mode's "Keyra skipulag" button (Forskipulag area).
+    "🔄 Keyra Skipulag",
   ],
   // /app's recent-QUICK-FIX list lets anyone tap a card to advance
   // opið → Í vinnslu → Lokið — unlike Fjarvistir's vacation-request "Staða"
