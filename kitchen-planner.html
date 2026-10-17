@@ -928,6 +928,10 @@
   #proBar button:disabled { opacity:.5; cursor:default; }
   #proBar .pb-dirty { color:#b3261e; font-weight:700; }
   body.pro #proBar .pb-dirty { color:#ffd60a; }
+  #proBar .pb-locked { color:#b3261e; font-weight:700; }
+  body.pro #proBar .pb-locked { color:#ffd60a; }
+  #proBar button.pb-unlock { background:transparent; border-color:currentColor; color:#b3261e; }
+  body.pro #proBar button.pb-unlock { color:#ffd60a; }
   .pro-open { width:100%; margin:0 0 12px; padding:10px 12px; border-radius:10px; border:0; background:#1d2633; color:#fff; font:700 14px/1.2 inherit; cursor:pointer; }
   .pro-open.todo { background:#b3261e; } .pro-open.ready { background:#1f9d55; }
   #proEd .pe-ready { width:100%; margin-top:14px; padding:11px; border:0; border-radius:10px; font:700 14px/1.2 inherit; cursor:pointer; color:#fff; background:#1f9d55; }
@@ -10034,10 +10038,25 @@
     var el = document.getElementById("proBar");
     if (!el) return;
     el.hidden = false;
+    if (PRO.locked && !PRO.unlocked){
+      el.innerHTML = '<span>🔧 PRO</span><span class="pb-name">' + escapeHtmlPro(PRO.name || "") + '</span>' +
+        '<span class="pb-locked">🔒 Í skipulagi (' + escapeHtmlPro(PRO.lockStatus) + ') — skoðunarhamur</span>' +
+        '<button type="button" id="proUnlock" class="pb-unlock">🔓 Opna til breytinga</button>';
+      var ub = el.querySelector("#proUnlock"); if (ub) ub.addEventListener("click", proUnlock);
+      return;
+    }
     el.innerHTML = '<span>🔧 PRO</span><span class="pb-name">' + escapeHtmlPro(PRO.name || "") + '</span>' +
+      (PRO.locked ? '<span class="pb-locked">🔓 opnað til breytinga</span>' : "") +
       (msg ? '<span>' + escapeHtmlPro(msg) + '</span>' : (proDirty() ? '<span class="pb-dirty">● óvistað</span>' : '<span>✓ vistað</span>')) +
       '<button type="button" id="proSave"' + (PRO.ready ? "" : " disabled") + '>💾 Vista í Airtable</button>';
     var bt = el.querySelector("#proSave"); if (bt) bt.addEventListener("click", function(){ proSave(); });
+  }
+  // Meðvituð leið út úr skoðunarhamnum (sama session — sækir aftur = spyr á ný). Flaggar að
+  // Sögunarlisti/Pöntunarlisti/CNC eru byggð á gömlu teikningunni og þurfa að keyra aftur eftir þessa breytingu.
+  function proUnlock(){
+    if (!confirm("Verkefnið er komið í skipulag (" + PRO.lockStatus + ") — Sögunarlisti, Pöntunarlisti og CNC-útflutningur eru þegar byggð á þessari teikningu.\n\nBreytir þú henni núna þarf að keyra skipulag/yfirfara/pöntunarlista aftur eftir á, annars verða þau gögn úrelt.\n\nOpna til breytinga?")) return;
+    PRO.unlocked = true;
+    proBar();
   }
   function escapeHtmlPro(s){ return String(s).replace(/[&<>"]/g, function(ch){ return { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[ch]; }); }
   // V1/V2/V3 that differ between the drawing and Airtable, where the server can't tell who is right (both changed, or
@@ -10088,6 +10107,14 @@
     }catch(e){ proBar("⛔ Gat ekki sótt verkefnið: " + e.message); return; }
     var raw = (rec.fields || {})[PRO_FIELD];
     PRO.name = (rec.fields || {})["Heiti tækifæris / verkefnis"] || PRO.id;
+    // "Keyra skipulag" (handvirkt í Airtable) er "græna ljósið" — það ýtir Staða í skipulagi úr
+    // "For-skipulag" og býr til Eyðublað úr Line Items. Eftir það er teikningin hér læst (skoðunarhamur,
+    // ekkert "Vista í Airtable") svo breyting hér skrifi ekki þegjandi yfir það sem Yfirfara/Sögunarlisti/
+    // Pöntunarlisti/CNC eru þegar byggð á — Rakel ákveðið 2026-10-16 (sjá kafla 2/3 scoping-samtalið).
+    // Meðvitað "opna aftur" (proUnlock) er alltaf í boði, en þarf staðfestingu í hvert skipti verkefnið er sótt.
+    PRO.lockStatus = (rec.fields || {})["Staða í skipulagi"] || "For-skipulag";
+    PRO.locked = PRO.lockStatus !== "For-skipulag";
+    PRO.unlocked = false;
     var keepLocal = false;
     if (!raw){ // Rakel draws every project (2026-10-09): no drawing yet = start one, from the Byrja category picker
       var local = null; try{ local = proDirty() ? localStorage.getItem(STORAGE_KEY) : null; }catch(e){}
