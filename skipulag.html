@@ -9,18 +9,24 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <style>
-  /* skipulag.html — office-side hub for the sögun/æðar tools. One link from
-     Airtable lands here instead of two separate buttons (Cutty + Æðar); this
-     picks the tool and forwards the project (?recordId=) into it. Same visual
-     language as velja.html — solid-fill choice cards, Kumbh Sans, dark. */
+  /* skipulag.html — office-side hub for sögun/æðar/CNC. Redesigned 2026-10-17 (was a flat 2-choice picker,
+     Cutty/Æðar, with /cnc living nowhere in the navigation at all — a real gap, since CNC isn't an
+     alternative to Cutty, it's the step that runs AFTER Cutty on the same project). Now a 3-step pipeline
+     (Skurðarlisti → Æðar → CNC), each row still its own full link into that tool (nothing here is gated —
+     you can always jump straight to any step), with a real status chip per step where one honestly exists:
+     Cutty's comes from Sögunarlisti's own "Skurðarskrá" field (the same signal grain.html's own
+     renderCuttyStatus() already reads — reused here, not reinvented), Æðar's from the Æðaplan table's
+     "Staðfest ✅". CNC has no such signal — nothing writes back to Airtable when /cnc exports to the USB
+     stick, the stick itself is the only record — so its row never claims a status, just "Opna →": a real
+     technical limit, not an oversight, worth knowing before trusting a future "✓ keyrt" badge on it. */
   :root {
-    --bg:#0b0b0c; --surface:#161618; --line:#2a2a2e; --text:#f2f2f3; --muted:#e8e8ec;
-    --blue:#0a84ff; --amber:#ffd60a;
+    --bg:#0b0b0c; --surface:#161618; --surface2:#1e1e21; --line:#2a2a2e; --text:#f2f2f3; --muted:#a9a9b0; --dim:#6b6b72;
+    --blue:#0a84ff; --amber:#ffd60a; --green:#30d158;
     --font:"Kumbh Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
   * { box-sizing:border-box; margin:0; padding:0; }
   html,body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; line-height:1.5; }
-  .wrap { max-width:520px; margin:0 auto; padding:20px 18px 40px; }
+  .wrap { max-width:560px; margin:0 auto; padding:20px 18px 40px; }
 
   .kicker { font-size:.74rem; font-weight:700; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); }
   h1 { font-size:1.9rem; font-weight:800; letter-spacing:-.01em; margin-top:6px; }
@@ -28,19 +34,25 @@
   .proj { margin-top:18px; padding:12px 14px; background:var(--surface); border:1px solid var(--line); border-radius:12px; font-weight:700; }
   .proj .lbl { display:block; font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:var(--muted); margin-bottom:2px; }
 
-  .choices { display:flex; flex-direction:column; gap:14px; margin-top:26px; }
-  .choice {
-    display:flex; align-items:center; gap:16px; text-decoration:none; color:var(--text);
-    border-radius:16px; padding:22px 18px; border:1px solid var(--line);
+  .steps { display:flex; flex-direction:column; gap:12px; margin-top:26px; }
+  .step {
+    display:flex; align-items:center; gap:14px; text-decoration:none; color:var(--text);
+    border-radius:16px; padding:18px 18px; border:1px solid var(--line); background:var(--surface);
+    position:relative;
   }
-  .choice .ic { font-size:2.2rem; flex:none; }
-  .choice .t { font-size:1.25rem; font-weight:800; letter-spacing:.02em; color:var(--text); }
-  .choice .d { font-size:.88rem; color:var(--text); margin-top:3px; }
-  .choice:active { filter:brightness(1.1); }
-  .choice.cutty { background:#1668d9; border-color:#3d8bff; }
-  .choice.aedar { background:var(--amber); border-color:#c9a800; }
-  .choice.aedar .t, .choice.aedar .d { color:#1a1400; }
-  .choice.aedar .d { opacity:.75; }
+  .step:active { filter:brightness(1.15); }
+  .step.next { border-color:var(--blue); box-shadow:0 0 0 1px var(--blue) inset; }
+  .step .num { font-size:1rem; font-weight:800; width:30px; height:30px; flex:none; border-radius:50%; background:var(--surface2); display:flex; align-items:center; justify-content:center; color:var(--muted); }
+  .step.next .num { background:var(--blue); color:#fff; }
+  .step .body { flex:1; min-width:0; }
+  .step .t { font-size:1.08rem; font-weight:800; letter-spacing:.01em; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .step .d { font-size:.84rem; color:var(--muted); margin-top:3px; }
+  .step .arrow { font-size:1.3rem; color:var(--dim); flex:none; }
+
+  .chip { font-size:.7rem; font-weight:800; padding:3px 10px; border-radius:99px; letter-spacing:.03em; white-space:nowrap; }
+  .chip.ok { background:#123d1e; color:var(--green); }
+  .chip.todo { background:#2a2a2e; color:var(--muted); }
+  .chip.partial { background:#3d3410; color:var(--amber); }
 
   #err { display:none; text-align:center; color:var(--muted); padding-top:20px; }
   #err strong { display:block; color:var(--text); font-size:1.05rem; margin-bottom:6px; }
@@ -50,24 +62,40 @@
 <div class="wrap">
   <div class="kicker">Saga</div>
   <h1>Skipulag</h1>
-  <div class="sub">Veldu verkfæri fyrir skipulagsstigið.</div>
+  <div class="sub">Röðin á verkefninu — veldu skref.</div>
 
   <div class="proj" id="projBox" style="display:none;">
     <span class="lbl">Verkefni</span><span id="projName">—</span>
   </div>
 
-  <div class="choices">
-    <a class="choice cutty" id="btnCutty">
-      <div class="ic">📐</div>
-      <div><div class="t">CUTTY</div><div class="d">Skurðarlisti og útflutningur á USB fyrir sögina</div></div>
+  <div class="steps" id="steps">
+    <a class="step" id="stepCutty">
+      <div class="num">1</div>
+      <div class="body">
+        <div class="t">Skurðarlisti (Cutty)<span class="chip todo" id="chipCutty" hidden></span></div>
+        <div class="d">Sögunarlisti → útflutningur á USB fyrir sögina</div>
+      </div>
+      <div class="arrow">→</div>
     </a>
-    <a class="choice aedar" id="btnAedar">
-      <div class="ic">🪵</div>
-      <div><div class="t">ÆÐAR</div><div class="d">Æðaskipulag — viðarmynstursfrontar sem Cutty getur ekki raðað</div></div>
+    <a class="step" id="stepAedar">
+      <div class="num">2</div>
+      <div class="body">
+        <div class="t">Æðar (viðarmynstur)<span class="chip todo" id="chipAedar" hidden></span></div>
+        <div class="d">Viðarmynstursfrontar sem Cutty getur ekki raðað</div>
+      </div>
+      <div class="arrow">→</div>
+    </a>
+    <a class="step" id="stepCnc">
+      <div class="num">3</div>
+      <div class="body">
+        <div class="t">CNC vélun</div>
+        <div class="d">Hliðar, frontar, hurðir — vélun fyrir Rover-B eftir sögun</div>
+      </div>
+      <div class="arrow">→</div>
     </a>
   </div>
 
-  <div id="err"><strong>Fann ekki verkefnið</strong>Skoðaðu samt bæði verkfærin — þú getur valið verkefni þar.</div>
+  <div id="err"><strong>Fann ekki verkefnið</strong>Skoðaðu samt verkfærin — þú getur valið verkefni í hverju þeirra.</div>
 </div>
 
 <script>
@@ -75,23 +103,40 @@
   "use strict";
   var PROXY = "/api/airtable";
   var PROJECTS_TABLE = "tbl4LMXlQjp66RFKI";        // Tækifæri 📣
+  var SOGUNARLISTI_TABLE = "tblhdgyvTcBfP8kov";     // Sögunarlisti 🪚
+  var PLAN_TABLE = "tblzkw70E2xoX9RmK";             // Æðaplan 📐
   var P_NAME_FIELD = "Heiti tækifæris / verkefnis";
+  var S_PROJECT_LINK = "Tækifæri 📣 (projects)", S_SKURDARSKRA = "Skurðarskrá";
+  var PL_PROJECT = "Tækifæri 📣", PL_CONFIRM = "Staðfest ✅";
 
   function $(id) { return document.getElementById(id); }
 
-  // Both cutlist.html and grain.html (/aedar) already auto-load a project
-  // from ?recordId=recXXXX — forward it straight through so picking a tool
-  // here doesn't mean picking the project again.
+  // Both cutlist.html, grain.html (/aedar) and cnc.html already auto-load a project from
+  // ?recordId=recXXXX — forward it straight through so picking a step here doesn't mean picking the
+  // project again.
   var params = new URLSearchParams(location.search);
   var recordId = params.get("recordId");
   var qs = recordId ? "?recordId=" + encodeURIComponent(recordId) : "";
-  $("btnCutty").href = "/cutlist" + qs;
-  $("btnAedar").href = "/aedar" + qs;
+  $("stepCutty").href = "/cutlist" + qs;
+  $("stepAedar").href = "/aedar" + qs;
+  $("stepCnc").href = "/cnc" + qs;
 
   if (!recordId) return;
 
-  // encodeURIComponent, NOT URLSearchParams — see grain.html for why (the
-  // local proxy doesn't decode "+" back to a space).
+  // encodeURIComponent, NOT URLSearchParams — the proxy doesn't decode "+" back to a space, which a
+  // filterByFormula field reference needs (see grain.html for the same note).
+  function airtableFetch(table, formula, fields) {
+    var qsParts = ["path=" + encodeURIComponent(table)];
+    if (formula) qsParts.push("filterByFormula=" + encodeURIComponent(formula));
+    fields.forEach(function (f) { qsParts.push("fields[]=" + encodeURIComponent(f)); });
+    qsParts.push("pageSize=100");
+    return fetch(PROXY + "?" + qsParts.join("&"))
+      .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error("HTTP " + r.status)); })
+      .then(function (d) { return d.records || []; })
+      .catch(function () { return []; });
+  }
+  function setChip(id, cls, text) { var el = $(id); el.className = "chip " + cls; el.textContent = text; el.hidden = false; }
+
   fetch(PROXY + "?path=" + encodeURIComponent(PROJECTS_TABLE + "/" + recordId))
     .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error("HTTP " + r.status)); })
     .then(function (rec) {
@@ -99,6 +144,30 @@
       if (!name) return;
       $("projName").textContent = name;
       $("projBox").style.display = "block";
+
+      var escd = name.replace(/"/g, '\\"');
+      var cuttyFormula = 'FIND("' + escd + '", ARRAYJOIN({' + S_PROJECT_LINK + '})) > 0';
+      var aedarFormula = 'FIND("' + escd + '", ARRAYJOIN({' + PL_PROJECT + '})) > 0';
+
+      Promise.all([
+        airtableFetch(SOGUNARLISTI_TABLE, cuttyFormula, [S_SKURDARSKRA]),
+        airtableFetch(PLAN_TABLE, aedarFormula, [PL_CONFIRM]),
+      ]).then(function (res) {
+        var sawRows = res[0], planRows = res[1];
+        var cuttyDone = sawRows.some(function (r) { return String((r.fields || {})[S_SKURDARSKRA] || "").trim(); });
+        setChip("chipCutty", cuttyDone ? "ok" : "todo", cuttyDone ? "✓ keyrt" : "ekki keyrt enn");
+
+        if (!planRows.length) setChip("chipAedar", "todo", "sleppt");
+        else {
+          var anyConfirmed = planRows.some(function (r) { return !!(r.fields || {})[PL_CONFIRM]; });
+          setChip("chipAedar", anyConfirmed ? "ok" : "partial", anyConfirmed ? "✓ staðfest" : "drög, ekki staðfest");
+        }
+
+        // Highlight the first step not yet done — a nudge, not a gate; every row stays a full link either way.
+        if (!cuttyDone) $("stepCutty").classList.add("next");
+        else if (planRows.length && !planRows.some(function (r) { return !!(r.fields || {})[PL_CONFIRM]; })) $("stepAedar").classList.add("next");
+        else $("stepCnc").classList.add("next");
+      });
     })
     .catch(function () { $("err").style.display = "block"; });
 })();
