@@ -56,7 +56,12 @@ export default async function handler(req, res) {
   const rec = (data.records || [])[0];
   if (!rec) return res.status(401).json({ error: "BAD_PIN" });
 
-  const title = rec.fields["Starfsheiti 💼"]?.name || "";
+  // Airtable's real REST API returns a singleSelect field as a plain string
+  // (not {name} — that's how the Airtable MCP research tool normalizes it,
+  // not how api.airtable.com itself responds; eigandi-clock.js's own direct
+  // string comparison a few lines above the one this file was modeled on is
+  // the correct precedent).
+  const title = rec.fields["Starfsheiti 💼"] || "";
   const roles = TITLE_ROLES[title] || [];
   return res.status(200).json({
     token: skrifstofaDayToken(secret, 0),
