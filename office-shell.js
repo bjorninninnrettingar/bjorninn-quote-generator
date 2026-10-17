@@ -54,11 +54,9 @@
     var el = document.createElement("style");
     el.id = STYLE_ID;
     el.textContent =
-      '.osBrand{display:flex;align-items:center;gap:10px;padding:16px 16px 14px;border-bottom:1px solid #2a3442;margin-bottom:8px;}' +
-      '.osLogo{width:40px;height:40px;border-radius:9px;background:#fff;object-fit:contain;padding:4px;flex:none;}' +
-      '.osBrandText{min-width:0;}' +
-      '.osCompany{color:#fff;font-weight:700;font-size:1rem;line-height:1.15;letter-spacing:-.01em;}' +
-      '.osUser{color:#8aa4c7;font-size:.78rem;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}' +
+      '.osBrand{padding:16px 16px 14px;border-bottom:1px solid #2a3442;margin-bottom:8px;}' +
+      '.osLogo{display:block;width:100%;height:auto;background:#fff;border-radius:10px;padding:10px 14px;box-sizing:border-box;}' +
+      '.osUser{color:#8aa4c7;font-size:.78rem;margin-top:10px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}' +
       'html[data-os-density="compact"] .sidebar nav a,html[data-os-density="compact"] .sidebar nav .navItem{padding:5px 18px !important;font-size:.82rem !important;}' +
       '.osBottom{padding:10px 10px 14px;border-top:1px solid #2a3442;margin-top:8px;display:flex;flex-direction:column;gap:2px;}' +
       '.osSettingsBtn,.osLogoutBtn{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;color:#8aa4c7;font-size:.82rem;cursor:pointer;font-family:inherit;}' +
@@ -132,10 +130,7 @@
       topEl.className = "osBrand";
       topEl.innerHTML =
         '<img class="osLogo" src="/logo-bjorninn.png" alt="Björninn Innréttingar" />' +
-        '<div class="osBrandText">' +
-          '<div class="osCompany">Björninn Innréttingar</div>' +
-          '<div class="osUser">' + esc(record.name || "") + '</div>' +
-        '</div>';
+        '<div class="osUser">' + esc(record.name || "") + '</div>';
     }
 
     var navEl = document.getElementById("officeNav");
