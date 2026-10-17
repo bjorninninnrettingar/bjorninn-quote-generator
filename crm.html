@@ -81,6 +81,42 @@
   .detail .actions a { color:var(--accent); font-size:.85rem; text-decoration:none; }
   .detail .close { background:none; border:none; color:var(--muted); font-size:.85rem; font-family:inherit; }
 
+  /* Vörulínur editor (2026-10-17) — "patch and review" pre-staðfest only */
+  .liToggle { all:unset; display:block; width:100%; box-sizing:border-box; margin-top:12px; padding:9px 12px; background:var(--bg); border:1px dashed var(--line); border-radius:10px; color:var(--muted); font-size:.85rem; font-weight:600; cursor:pointer; text-align:left; }
+  .liBody { display:none; margin-top:10px; }
+  .liBody.open { display:block; }
+  .liGridWrap { overflow-x:auto; border:1px solid var(--line); border-radius:10px; }
+  .liGrid { border-collapse:collapse; width:100%; font-size:.78rem; }
+  .liGrid th { text-align:left; padding:6px 8px; background:var(--bg); color:var(--muted); font-weight:700; font-size:.68rem; text-transform:uppercase; white-space:nowrap; }
+  .liGrid td { padding:5px 8px; border-top:1px solid var(--line); white-space:nowrap; }
+  .liGrid td.num input { width:56px; font:inherit; font-size:.78rem; border:1px solid var(--line); border-radius:6px; padding:3px 5px; background:var(--surface); color:var(--text); }
+  .liGrid select { font:inherit; font-size:.78rem; border:1px solid var(--line); border-radius:6px; padding:3px 5px; background:var(--surface); color:var(--text); }
+  .liPickBtn { all:unset; cursor:pointer; color:var(--accent); font-size:.76rem; max-width:140px; overflow:hidden; text-overflow:ellipsis; display:inline-block; vertical-align:middle; }
+  .liWarn { color:var(--bad); margin-right:3px; }
+  .liTag { font-size:.62rem; font-weight:700; background:var(--good-soft, #e5f6ea); color:var(--good); padding:1px 5px; border-radius:999px; margin-left:4px; }
+  .liLocked { color:var(--dim); font-size:.76rem; }
+  .liDelBtn { all:unset; cursor:pointer; color:var(--bad); font-size:.9rem; padding:0 4px; }
+  .liAddBtn { all:unset; display:inline-block; margin-top:8px; color:var(--accent); font-size:.82rem; font-weight:600; cursor:pointer; }
+  .liMatSection { margin-top:16px; }
+  .liMatSection h3 { font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:12px 0 6px; }
+  .liMatGrid { display:flex; flex-direction:column; gap:4px; }
+  .liMatRow { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:5px 0; border-bottom:1px solid var(--line); font-size:.82rem; }
+  .liMatRow:last-child { border-bottom:none; }
+  .liMatRow .k { color:var(--muted); flex:none; }
+  .liMatRow .v { text-align:right; }
+
+  /* generic search-link picker modal, shared by every Vörulínur/efni/handle field */
+  .lpModalBg { display:none; position:fixed; inset:0; background:rgba(10,14,20,.45); z-index:250; align-items:flex-start; justify-content:center; padding:60px 20px; overflow:auto; }
+  .lpModalBg.open { display:flex; }
+  .lpModal { background:var(--surface); border-radius:14px; max-width:420px; width:100%; padding:18px; max-height:70vh; overflow:auto; }
+  .lpClose { float:right; background:none; border:none; font-size:1.2rem; color:var(--muted); cursor:pointer; }
+  .lpTitle { font-weight:700; font-size:.95rem; }
+  .lpSearch { width:100%; box-sizing:border-box; margin-top:10px; padding:8px 11px; border:1px solid var(--line); border-radius:8px; font:inherit; font-size:.85rem; background:var(--bg); color:var(--text); }
+  .lpResults { margin-top:8px; max-height:300px; overflow:auto; }
+  .lpResult { padding:8px 9px; border-radius:8px; cursor:pointer; font-size:.85rem; }
+  .lpResult:hover { background:var(--bg); }
+  .lpResult .sub { color:var(--muted); font-size:.72rem; }
+
   .loading { text-align:center; color:var(--muted); padding:60px 0; }
   .empty { text-align:center; color:var(--muted); padding:16px 0; font-size:.82rem; }
 </style>
@@ -123,12 +159,38 @@
     <div class="row"><label>Næsta skref dags.</label><input type="date" id="dStepDate" /></div>
     <div class="row"><label>Verk ósnert</label><span id="dStale"></span></div>
     <div class="row"><label>Eftirfylgni</label><span id="dFollow"></span></div>
+
+    <div id="liWrap" style="display:none;">
+      <button class="liToggle" id="liToggleBtn" type="button">📦 Vörulínur ▾</button>
+      <div id="liBody" class="liBody">
+        <div class="liGridWrap"><table class="liGrid" id="liGrid"><thead><tr>
+          <th>Rými</th><th>V1</th><th>V2</th><th>V3</th><th>Magn</th><th>Afsl. %</th><th>Ein.verð</th><th>Verð</th><th></th>
+        </tr></thead><tbody id="liRows"></tbody></table></div>
+        <button class="liAddBtn" id="liAddBtn" type="button">+ Ný lína</button>
+
+        <div class="liMatSection">
+          <h3>Efni verkefnis</h3>
+          <div class="liMatGrid" id="liEfniGrid"></div>
+          <h3>Aukahlutir</h3>
+          <div class="liMatGrid" id="liAukaGrid"></div>
+        </div>
+      </div>
+    </div>
+
     <div class="actions">
       <a id="dOpenPro" href="#" target="_blank">Opna í hönnuðinum →</a>
       <button class="close" id="dClose">Loka</button>
     </div>
   </div>
 </div>
+
+<div class="lpModalBg" id="lpModalBg">
+  <div class="lpModal">
+    <button class="lpClose" id="lpClose" type="button">✕</button>
+    <div class="lpTitle" id="lpTitle">Veldu</div>
+    <input class="lpSearch" id="lpSearch" type="text" placeholder="Leita…" />
+    <div class="lpResults" id="lpResults"></div>
+  </div>
 </div>
 
 <script src="/office-shell.js"></script>
@@ -302,6 +364,7 @@
     document.getElementById("dStale").textContent = (f["Verk ósnert dagar 📅"] || 0) + " dagar";
     document.getElementById("dFollow").textContent = f["Eftirfylgnisstaða❓"] || "—";
     document.getElementById("dOpenPro").href = "/skipuleggja?pro=" + r.id + (k ? "&k=" + encodeURIComponent(k) : "");
+    setupLineItems(r);
 
     stageSel.onchange = function () {
       var next = stageSel.value;
@@ -321,6 +384,224 @@
     d.classList.add("open");
     d.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
+  // ---- Vörulínur editor (2026-10-17) — "patch and review" only, pre-staðfest.
+  // Grounded against the live "Nýtt verkefni" Airtable interface + a real record
+  // (T-242) before writing any of this, not guessed from the schema alone. ----
+  var LINEITEMS = "tblFcsUoGxsuUwNEH", UTFAERSLUR = "tbl8HjvBwNJ41cTV0", EFNISLISTI = "tbl8CrVWKF8CuI7HD", VORULISTI = "tblzuuRSRkeXaLWxC";
+  var RYMI_CHOICES = ["Eldhús", "Baðh.", "Baðh. 2", "Andyri", "Þvottah.", "Alrými", "Hjónah.", "Barnah.", "Barnah. 2", "Svefnh.", "Stofa", "Búr", "Skrifst.", "Gangur", "Fatask.", "Forstofa"];
+  var LITUR_HOLDUR_CHOICES = ["Svartar ⚫", "Hvítar ⚪", "Stál 🦾", "Silfur 🥈", "Gyllt / Látún 🥇", "Kopar 🥉"];
+  var LITUR_SKUFFUM_CHOICES = ["Dökkgráar ⬛", "Hvítar ⬜", "Svartar ⚫"];
+  var MAT_FIELDS = [
+    { field: "Skrokka efni 🔲 viðskiptavinar", lookup: "Heiti efnis (from Skrokka efni 🔲 viðskiptavinar)", label: "Skrokkaefni", type: "link", table: EFNISLISTI, search: "Heiti efnis" },
+    { field: "Fronta efni viðskiptavinar 🖼️", lookup: "Heiti efnis (from Fronta efni viðskiptavinar 🖼️)", label: "Frontaefni", type: "link", table: EFNISLISTI, search: "Heiti efnis" },
+    { field: "Fronta efni 2.0 Viðskiptavinar 🖼️", lookup: "Heiti efnis (from Fronta efni 2.0 Viðskiptavinar 🖼️)", label: "Frontaefni 2", type: "link", table: EFNISLISTI, search: "Heiti efnis" },
+    { field: "Borðplata viðskiptavinar 🍽️", lookup: "Heiti efnis (from Borðplata viðskiptavinar 🍽️)", label: "Borðplata", type: "link", table: EFNISLISTI, search: "Heiti efnis" },
+    { field: "Hurðaefni viðskiptavinar 🚪", lookup: "Heiti efnis (from Hurðaefni viðskiptavinar 🚪)", label: "Hurðaefni", type: "link", table: EFNISLISTI, search: "Heiti efnis" },
+  ];
+  var AUKA_FIELDS = [
+    { field: "Höldur Viðskiptavinar ✊", lookup: "Heiti vöru 📣 (from Höldur Viðskiptavinar ✊)", label: "Höldur", type: "link", table: VORULISTI, search: "Heiti vöru 📣" },
+    { field: "Höldur Viðskiptavinar ✊2.0", lookup: "Heiti vöru 📣 (from Höldur Viðskiptavinar ✊2.0)", label: "Höldur 2.0", type: "link", table: VORULISTI, search: "Heiti vöru 📣" },
+    { field: "Litur á höldum 🎨", label: "Litur á höldum", type: "select", choices: LITUR_HOLDUR_CHOICES },
+    { field: "Litur á höldum 2.0 🎨", label: "Litur á höldum 2.0", type: "select", choices: LITUR_HOLDUR_CHOICES },
+    { field: "Litur á skúffum [Handvalið]", label: "Litur á skúffum", type: "select", choices: LITUR_SKUFFUM_CHOICES },
+    { field: "Kantlíming skrokka", label: "Kantlíming skrokka", type: "select", choices: ["Skrokkaefni", "Frontaefni", "Frontaefni 2", "Ál", "Ál og gler"] },
+  ];
+
+  function apiPatchLi(id, fields) {
+    return fetch("/api/airtable?path=" + encodeURIComponent(LINEITEMS + "/" + id), {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fields: fields })
+    }).then(function (r) { return r.json(); });
+  }
+  function apiCreateLi(fields) {
+    return fetch("/api/airtable?path=" + encodeURIComponent(LINEITEMS) + "&k=" + encodeURIComponent(k), {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fields: fields })
+    }).then(function (r) { return r.json(); });
+  }
+  function fmtKr(n) { return n == null ? "" : Math.round(n).toLocaleString("is-IS"); }
+
+  var liLoaded = false, liCurrent = null;
+  function setupLineItems(r) {
+    liCurrent = r;
+    liLoaded = false;
+    var wrap = document.getElementById("liWrap"), body = document.getElementById("liBody"), btn = document.getElementById("liToggleBtn");
+    var isOpen = CLOSED_STAGES.indexOf(r.fields["Staða í söluferli"]) === -1;
+    wrap.style.display = isOpen ? "block" : "none";
+    body.classList.remove("open");
+    btn.textContent = "📦 Vörulínur ▾";
+    btn.onclick = function () {
+      var open = body.classList.toggle("open");
+      btn.textContent = "📦 Vörulínur " + (open ? "▴" : "▾");
+      if (open && !liLoaded) { liLoaded = true; loadAndRenderLi(); renderMatSections(); }
+    };
+  }
+
+  function loadAndRenderLi() {
+    var name = liCurrent.fields["Heiti tækifæris / verkefnis"] || "";
+    var escd = name.replace(/"/g, '\\"');
+    var fml = 'FIND("' + escd + '", ARRAYJOIN({Tækifæri 📣 (projects)})) > 0';
+    api(LINEITEMS, "filterByFormula=" + encodeURIComponent(fml) + "&maxRecords=200")
+      .then(function (d) { renderLiRows(d.records || []); });
+  }
+
+  function renderLiRows(records) {
+    var tbody = document.getElementById("liRows");
+    tbody.innerHTML = "";
+    records.forEach(function (li) { tbody.appendChild(liRowEl(li)); });
+  }
+
+  function liRowEl(li) {
+    var f = li.fields;
+    var locked = !!f["Læstur verðlykill 🔒"];
+    var tr = document.createElement("tr");
+    if ((f["Magn"] || 0) === 0) tr.style.opacity = ".4";
+
+    var rymiTd = document.createElement("td");
+    if (locked) { rymiTd.innerHTML = '<span class="liLocked">' + esc(f["Rými 🏡"] || "—") + '</span>'; }
+    else {
+      var sel = document.createElement("select");
+      sel.innerHTML = '<option value="">—</option>' + RYMI_CHOICES.map(function (c) { return '<option value="' + esc(c) + '"' + (c === f["Rými 🏡"] ? " selected" : "") + '>' + esc(c) + '</option>'; }).join("");
+      sel.onchange = function () { apiPatchLi(li.id, { "Rými 🏡": sel.value || null }); };
+      rymiTd.appendChild(sel);
+    }
+    tr.appendChild(rymiTd);
+
+    [["Vöru reitur 1", "Vara 🚪"], ["Vöru reitur 2", "útfærsla 🎨"], ["Vöru reitur 3", "Aukahlutir 🧩"]].forEach(function (pair) {
+      var td = document.createElement("td");
+      var label = (f[pair[1]] || [])[0] || "—";
+      if (locked) { td.innerHTML = '<span class="liLocked">' + esc(label) + '</span>'; }
+      else {
+        var btn = document.createElement("button");
+        btn.className = "liPickBtn"; btn.type = "button"; btn.title = label; btn.textContent = label;
+        btn.onclick = function () {
+          openPicker(UTFAERSLUR, "Lýsing á útfærslu", "Vörunúmer", function (rec) {
+            var ff = {}; ff[pair[0]] = [rec.id];
+            apiPatchLi(li.id, ff).then(function () { loadAndRenderLi(); });
+          });
+        };
+        td.appendChild(btn);
+      }
+      tr.appendChild(td);
+    });
+
+    function numTd(field, isPercent) {
+      var td = document.createElement("td");
+      td.className = "num";
+      if (locked) { td.innerHTML = '<span class="liLocked">' + (isPercent ? Math.round((f[field] || 0) * 100) + "%" : (f[field] || 0)) + '</span>'; return td; }
+      var input = document.createElement("input");
+      input.type = "number";
+      input.value = isPercent ? Math.round((f[field] || 0) * 100) : (f[field] || 0);
+      input.onchange = function () {
+        var v = Number(input.value) || 0;
+        var ff = {}; ff[field] = isPercent ? v / 100 : v;
+        apiPatchLi(li.id, ff).then(function () { if (!isPercent) loadAndRenderLi(); });
+      };
+      td.appendChild(input);
+      return td;
+    }
+    tr.appendChild(numTd("Magn", false));
+    tr.appendChild(numTd("Afsl. %", true));
+
+    var priceTd = document.createElement("td"); priceTd.textContent = fmtKr(f["Einingarverð"]); tr.appendChild(priceTd);
+    var totalTd = document.createElement("td");
+    totalTd.innerHTML = (f["⚠️ Skipulagsvilla"] ? '<span class="liWarn" title="' + esc(f["⚠️ Skipulagsvilla"]) + '">⚠️</span>' : "") +
+      esc(fmtKr(f["Endanlegt söluverð 💲"])) +
+      (f["Breyting eftir staðfestingu"] ? '<span class="liTag">' + esc(f["Breyting eftir staðfestingu"]) + '</span>' : "");
+    tr.appendChild(totalTd);
+
+    var delTd = document.createElement("td");
+    if (!locked) {
+      var delBtn = document.createElement("button");
+      delBtn.className = "liDelBtn"; delBtn.type = "button"; delBtn.title = "Fjarlægja (setur Magn á 0)"; delBtn.textContent = "✕";
+      delBtn.onclick = function () {
+        if (!confirm("Fjarlægja þessa línu? (Magn fer á 0 — línan sjálf er ekki eytt.)")) return;
+        apiPatchLi(li.id, { "Magn": 0 }).then(function () { loadAndRenderLi(); });
+      };
+      delTd.appendChild(delBtn);
+    }
+    tr.appendChild(delTd);
+
+    return tr;
+  }
+
+  document.getElementById("liAddBtn").addEventListener("click", function () {
+    if (!liCurrent) return;
+    apiCreateLi({ "Tækifæri 📣 (projects)": [liCurrent.id], "Magn": 1 }).then(function (d) {
+      if (d.error) { alert("Tókst ekki að búa til línu: " + d.error); return; }
+      loadAndRenderLi();
+    });
+  });
+
+  function renderMatSections() {
+    var f = liCurrent.fields;
+    document.getElementById("liEfniGrid").innerHTML = "";
+    document.getElementById("liAukaGrid").innerHTML = "";
+    MAT_FIELDS.forEach(function (m) { document.getElementById("liEfniGrid").appendChild(matRowEl(m, f)); });
+    AUKA_FIELDS.forEach(function (m) { document.getElementById("liAukaGrid").appendChild(matRowEl(m, f)); });
+  }
+
+  function matRowEl(m, f) {
+    var row = document.createElement("div");
+    row.className = "liMatRow";
+    var vEl;
+    if (m.type === "select") {
+      vEl = document.createElement("select");
+      vEl.innerHTML = '<option value="">—</option>' + m.choices.map(function (c) { return '<option value="' + esc(c) + '"' + (c === f[m.field] ? " selected" : "") + '>' + esc(c) + '</option>'; }).join("");
+      vEl.onchange = function () { apiPatch(liCurrent.id, (function () { var ff = {}; ff[m.field] = vEl.value || null; return ff; })()); };
+    } else {
+      vEl = document.createElement("button");
+      vEl.className = "liPickBtn";
+      var current = (f[m.lookup] || [])[0] || "—";
+      vEl.textContent = current; vEl.title = current; vEl.type = "button";
+      vEl.onclick = function () {
+        openPicker(m.table, m.search, null, function (rec) {
+          var ff = {}; ff[m.field] = [rec.id];
+          apiPatch(liCurrent.id, ff).then(function () {
+            var lookupField = {}; lookupField[m.lookup] = [rec.name];
+            Object.assign(liCurrent.fields, lookupField);
+            renderMatSections();
+          });
+        });
+      };
+    }
+    row.innerHTML = '<span class="k">' + esc(m.label) + '</span>';
+    row.appendChild(vEl);
+    return row;
+  }
+
+  // ---- Generic search-link picker — shared by Vörulínur V1/V2/V3 and every efni/handle field ----
+  function openPicker(table, searchField, subField, onPick) {
+    var bg = document.getElementById("lpModalBg"), input = document.getElementById("lpSearch"), results = document.getElementById("lpResults");
+    bg.classList.add("open");
+    input.value = ""; results.innerHTML = '<div class="empty">Byrjaðu að skrifa…</div>';
+    input.focus();
+    var timer = null;
+    input.oninput = function () {
+      clearTimeout(timer);
+      var term = input.value.trim();
+      if (!term) { results.innerHTML = '<div class="empty">Byrjaðu að skrifa…</div>'; return; }
+      timer = setTimeout(function () {
+        var fml = "SEARCH(LOWER(\"" + term.replace(/"/g, '\\"') + "\"),LOWER({" + searchField + "}))";
+        var extra = "filterByFormula=" + encodeURIComponent(fml) + "&maxRecords=20";
+        if (subField) extra += "&fields%5B%5D=" + encodeURIComponent(searchField) + "&fields%5B%5D=" + encodeURIComponent(subField);
+        api(table, extra).then(function (d) {
+          var recs = d.records || [];
+          if (!recs.length) { results.innerHTML = '<div class="empty">Ekkert fannst</div>'; return; }
+          results.innerHTML = "";
+          recs.forEach(function (rec) {
+            var name = rec.fields[searchField] || "(ónefnt)";
+            var el = document.createElement("div");
+            el.className = "lpResult";
+            el.innerHTML = esc(name) + (subField && rec.fields[subField] ? '<div class="sub">' + esc(rec.fields[subField]) + '</div>' : "");
+            el.addEventListener("click", function () { bg.classList.remove("open"); onPick({ id: rec.id, name: name }); });
+            results.appendChild(el);
+          });
+        });
+      }, 250);
+    };
+  }
+  document.getElementById("lpClose").addEventListener("click", function () { document.getElementById("lpModalBg").classList.remove("open"); });
+  document.getElementById("lpModalBg").addEventListener("click", function (e) { if (e.target === e.currentTarget) e.currentTarget.classList.remove("open"); });
+
   document.getElementById("dClose").addEventListener("click", function () { document.getElementById("detail").classList.remove("open"); });
   document.getElementById("toggleClosed").addEventListener("click", function () {
     showClosed = !showClosed;
