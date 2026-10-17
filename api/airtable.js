@@ -244,6 +244,14 @@ const ALLOWED_FIELDS = {
     "Röð",
     "Falið",
   ],
+  // /pontun (Pöntunarlisti area, 2026-10-17) — order lines, grouped per-supplier
+  // orders, and the supplementary "forgotten items" list. All three were
+  // completely unreachable through this proxy before; internal-only (cost data),
+  // so the base set is empty and every field lives behind VERK_KEY instead
+  // (see VERK_ONLY_FIELDS below), same pattern as Vörur per eining.
+  "tbloXR7f9Q943O9el": [], // Pöntunarlisti 📋 (order lines)
+  "tblSccfV2lBp4FiFU": [], // Pantaðir listar (per-supplier orders)
+  "tblHGYgrvvDqyKOAe": [], // Auka-Pöntunarlisti 💻
 };
 
 // Extra Tækifæri fields the internal floor page (/verk, verk.html) needs —
@@ -344,6 +352,23 @@ const VERK_ONLY_FIELDS = {
     "Skúffu dýpt",
     "Hvað viltu panta?", "Hvert fer það?", "Þykkt", "Breidd (mm)", "Hæð (mm)",
     "Kantvinnsla", "Hert gler", "Göt / úrtök / athugasemd", "⛔ Villa",
+  ],
+  // /pontun (Pöntunarlisti area, 2026-10-17)
+  "tbloXR7f9Q943O9el": [ // Pöntunarlisti 📋 — order lines
+    "Pönt.NR", "Tækifæri 📣", "Verkheiti", "Vörulisti 🚪", "Efnislisti 🧱",
+    "Vörulisti txt", "Gerð", "Athugasemd", "Magn", "Mynd af vöru", "Mynd af efni",
+    "Litur", "Birgir 👴", "Stemmir 🔒 Skipulag 2.0📝", "Pantaðir listar",
+    "Einingaverð 🔍", "Áætlaður kostnaður", "Breidd (mm)", "Hæð (mm)",
+  ],
+  "tblSccfV2lBp4FiFU": [ // Pantaðir listar — one record per (project, supplier)
+    "Stöðu kenni", "Staða", "Afhending óskuð", "Sent dags.", "Raunkostnaður",
+    "Tækifæri 📣", "Birgir", "Pöntunarlistar PDF", "Netfang birgis 🔍",
+    "Pöntunarlisti 📋", "Áætlaður kostnaður", "Gler & speglar 🪟",
+    "📧 Senda á birgja",
+  ],
+  "tblHGYgrvvDqyKOAe": [ // Auka-Pöntunarlisti 💻 — forgotten-item supplementary orders
+    "Name", "Tækifæri 📣 (projects)", "Pöntunarlisti 📋",
+    "Áætlaður kostnaður Rollup (from Pöntunarlisti 📋)", "Auka pöntunarlisti PDF",
   ],
 };
 
@@ -480,6 +505,11 @@ const WRITABLE_FIELDS = {
   // (the Interface button it used to require has no API equivalent — see
   // memory: project_vercel_migration). Never touches any other Eyðublað field.
   "tbl0WcyHhz63pSzZX": ["🔄 Keyra Yfirferð 3.0"],
+  // /pontun — the ONLY writable fields on Pantaðir listar: the action
+  // checkbox (retriggers BIRGJA) and Staða, for a manual status correction
+  // (e.g. marking "Komið í hús" once material physically arrives — nothing
+  // automates that step).
+  "tblSccfV2lBp4FiFU": ["📧 Senda á birgja", "Staða"],
   // Closes an open shift (stimpilklukka's ÚT button). "Inn" is intentionally
   // not writable here — a shift's start time is only ever set at creation.
   "tblnFIO8RB6HcelXF": ["Út"],
@@ -488,7 +518,7 @@ const WRITABLE_FIELDS = {
   "tblzkw70E2xoX9RmK": ["Nafn", "Skipulag", "Staðfest ✅"],
   // kitchen-planner-review.html: Rakel's "✅ Yfirfarið" button unchecks the
   // review flag (that's the approval action — no separate status field).
-  "tbl4LMXlQjp66RFKI": ["Sjálfsafgreiðsla — óyfirfarið ⚠️", "Upphafs framleiðsludagur verks", "Áætlaður afhendingardagur Björninn (internal)", "Viðskiptavinur sækir þann:"],
+  "tbl4LMXlQjp66RFKI": ["Sjálfsafgreiðsla — óyfirfarið ⚠️", "Upphafs framleiðsludagur verks", "Áætlaður afhendingardagur Björninn (internal)", "Viðskiptavinur sækir þann:", "🔄 Keyra Pöntunarlista 4.0"],
   // /app's recent-QUICK-FIX list lets anyone tap a card to advance
   // opið → Í vinnslu → Lokið — unlike Fjarvistir's vacation-request "Staða"
   // this isn't an approval gate, so any floor device may set it.
