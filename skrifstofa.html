@@ -60,7 +60,7 @@
   .pageHd h1 { font-size:1.35rem; font-weight:700; }
   .pageHd .date { color:var(--muted); font-size:.85rem; }
 
-  .kpiRow { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
+  .kpiRow { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:20px; }
   .kpi { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
   .kpi .lbl { font-size:.76rem; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; font-weight:600; }
   .kpi .val { font-size:1.5rem; font-weight:700; margin-top:5px; }
@@ -73,6 +73,8 @@
   .panel h2.qfHead { background:#e23d28; color:#fff; border-bottom:none; }
   .panel h2.qfHead .cnt { color:#ffd9d2; }
   .panel h2.qfHead button { background:rgba(255,255,255,.22); border:none; color:#fff; width:22px; height:22px; border-radius:50%; font-size:1rem; line-height:1; cursor:pointer; }
+  .panel h2.prodHead { background:#e9b000; color:#fff; border-bottom:none; }
+  .panel h2.prodHead .cnt { color:#fff6d9; }
   .qfForm { display:flex; gap:6px; padding:10px 14px; border-bottom:1px solid var(--line); }
   .qfForm input { flex:1; padding:6px 9px; border-radius:6px; border:1px solid var(--line); background:var(--bg); color:var(--text); font:inherit; font-size:.82rem; }
   .qfForm button { background:var(--text); color:var(--bg); border:none; border-radius:6px; padding:6px 12px; font:inherit; font-size:.8rem; cursor:pointer; }
@@ -130,12 +132,11 @@
       <div class="kpi"><div class="lbl">Virk tilboð</div><div class="val" id="kpiSales">—</div><div class="sub" id="kpiSalesSub"></div></div>
       <div class="kpi"><div class="lbl">Innkaup — ólokin verk</div><div class="val" id="kpiCost">—</div><div class="sub">Pantaðir listar, ekki komið í hús</div></div>
       <div class="kpi"><div class="lbl">Verk í framleiðslu</div><div class="val" id="kpiProd">—</div><div class="sub">Tilbúið → Má afhenda</div></div>
-      <div class="kpi"><div class="lbl">Opin Quick Fix</div><div class="val" id="kpiQf">—</div><div class="sub" id="kpiQfSub"></div></div>
     </div>
 
     <div class="board">
       <div class="panel">
-        <h2>Verk í vinnslu <span class="cnt" id="prodCnt"></span></h2>
+        <h2 class="prodHead">Verk í vinnslu <span class="cnt" id="prodCnt"></span></h2>
         <div class="body" id="prodList"><div class="empty">Sæki…</div></div>
       </div>
       <div class="sideStack">
@@ -155,7 +156,7 @@
           <div class="body" id="qfList"><div class="empty">Sæki…</div></div>
         </div>
         <div class="panel">
-          <h2>Virkni <span class="cnt" id="feedCnt"></span></h2>
+          <h2>Virkni fyrirtækisins <span class="cnt" id="feedCnt"></span></h2>
           <div class="body" id="feed"><div class="empty">Sæki…</div></div>
         </div>
       </div>
@@ -300,14 +301,6 @@
       .then(function (d) {
         var sum = (d.records || []).reduce(function (s, r) { return s + (r.fields["Áætlaður kostnaður"] || 0); }, 0);
         document.getElementById("kpiCost").textContent = kr(sum);
-      });
-
-    api(QUICKFIX, "filterByFormula=" + encodeURIComponent('{Staða}!="Lokið ✅"') + "&pageSize=100")
-      .then(function (d) {
-        var recs = d.records || [];
-        document.getElementById("kpiQf").textContent = recs.length;
-        var unassigned = recs.filter(function (r) { return !r.fields["Ábyrgðarmaður"]; }).length;
-        document.getElementById("kpiQfSub").textContent = unassigned ? unassigned + " án ábyrgðarmanns" : "";
       });
   }
 
