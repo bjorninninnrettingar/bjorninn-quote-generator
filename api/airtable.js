@@ -252,6 +252,7 @@ const ALLOWED_FIELDS = {
   "tbloXR7f9Q943O9el": [], // Pöntunarlisti 📋 (order lines)
   "tblSccfV2lBp4FiFU": [], // Pantaðir listar (per-supplier orders)
   "tblHGYgrvvDqyKOAe": [], // Auka-Pöntunarlisti 💻
+  "tblPPMTlFhW0snk24": [], // Virkni 🔔 (activity feed, /skrifstofa dashboard)
 };
 
 // Extra Tækifæri fields the internal floor page (/verk, verk.html) needs —
@@ -557,6 +558,9 @@ const WRITABLE_FIELDS = {
     // "Staða í söluferli" exactly as they do today, nothing new triggered.
     "Staða í söluferli", "Næsta skref", "Næsta skref dags.",
   ],
+  // /skrifstofa's activity feed — read-only, nothing writes here except the
+  // 3 new Virkni automations.
+  "tblPPMTlFhW0snk24": ["Texti", "Tækifæri", "Flokkur", "Tími"],
   // /app's recent-QUICK-FIX list lets anyone tap a card to advance
   // opið → Í vinnslu → Lokið — unlike Fjarvistir's vacation-request "Staða"
   // this isn't an approval gate, so any floor device may set it.
