@@ -49,8 +49,10 @@
   /* ---- Kanban ---- */
   .board { display:flex; gap:14px; overflow-x:auto; padding-bottom:10px; }
   .col { flex:0 0 240px; }
-  .col h2 { font-size:.78rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.02em; margin-bottom:8px; display:flex; justify-content:space-between; }
+  .col h2 { font-size:.78rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.02em; margin-bottom:8px; display:flex; align-items:center; gap:6px; }
+  .col h2 .colLabel { flex:1; }
   .col h2 .cnt { color:var(--dim); font-weight:500; }
+  .col h2 .colorDot { width:8px; height:8px; border-radius:50%; flex:none; }
   .cards { display:flex; flex-direction:column; gap:8px; }
   .kcard { background:var(--surface); border-radius:12px; padding:11px 13px; box-shadow:0 1px 3px rgba(0,0,0,.05); text-decoration:none; color:var(--text); display:block; font-size:.86rem; font-weight:600; }
   .empty { text-align:center; color:var(--muted); padding:16px 0; font-size:.8rem; }
@@ -83,10 +85,18 @@
   .stemmir { font-size:.8rem; color:var(--muted); margin-top:8px; }
 
   .pipeSteps { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
-  .pipeStep { display:flex; align-items:center; gap:10px; text-decoration:none; color:var(--text); border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-size:.85rem; }
-  .pipeStep .chip { font-size:.68rem; padding:2px 8px; border-radius:999px; background:var(--line); color:var(--muted); }
+  .pipeStepWrap { border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  .pipeStep { display:flex; align-items:center; gap:10px; color:var(--text); padding:10px 12px; font-size:.85rem; }
+  .pipeStep .pipeLabel { flex:1; }
+  .pipeStep .chip { font-size:.68rem; padding:2px 8px; border-radius:999px; background:var(--line); color:var(--muted); flex:none; }
   .pipeStep .chip.ok { background:var(--good); color:#fff; }
   .pipeStep .chip.partial { background:#fdf2d9; color:var(--warn); }
+  .inlineToggle { all:unset; flex:none; font-size:.76rem; color:var(--accent); cursor:pointer; font-weight:600; padding:2px 4px; }
+  .newTab { flex:none; color:var(--muted); text-decoration:none; font-size:.9rem; padding:2px 4px; }
+  .inlineFrame { display:none; border-top:1px solid var(--line); background:var(--bg); }
+  .inlineFrame.open { display:block; }
+  .inlineFrame iframe { width:100%; height:70vh; border:none; display:block; }
+  .autoTag { font-size:.65rem; color:var(--dim); font-weight:500; }
 
   .bppToggle { margin-top:10px; background:none; border:1px dashed var(--line); border-radius:10px; color:var(--muted); font-size:.82rem; padding:9px 12px; width:100%; text-align:left; font-family:inherit; cursor:pointer; }
   #bppArea { display:none; margin-top:10px; }
@@ -247,12 +257,16 @@
   var FIELD_PROJECT_ON_EYDUBLAD = "%7BT%C3%A6kif%C3%A6ri%20%F0%9F%93%A3%7D"; // {Tækifæri 📣}
   var FIELD_PROJECT_ON_PANTADIR = "%7BT%C3%A6kif%C3%A6ri%20%F0%9F%93%A3%7D";
 
+  // "Klárt til framleiðslu" is deliberately not a shown column (user, 2026-10-17): once
+  // skipulag is done, the project graduates off this board — except Pöntunarlisti, which stays
+  // since a still-open supplier order is real active work someone here should keep tracking.
   var STAGES = [
-    { id: "forskipulag", match: "For-skipulag", label: "For-skipulag" },
-    { id: "skipulag", match: "Í skipulagningu", label: "Í skipulagningu" },
-    { id: "yfirfara", match: "Yfirfara", label: "Yfirfara" },
-    { id: "klart", match: "Klárt til framleiðslu", label: "Klárt til framleiðslu" },
+    { id: "forskipulag", match: "For-skipulag", label: "For-skipulag", color: "#e9b000" },
+    { id: "skipulag", match: "Í skipulagningu", label: "Í skipulagningu", color: "#d6473c" },
+    { id: "yfirfara", match: "Yfirfara", label: "Yfirfara", color: "#0f6cbd" },
   ];
+  var PONTUN_COLOR = "#8250df";
+  var PROD_DONE = "Afhent (LOKIÐ ✅)";
 
   if (!recordId) {
     loadBoard();
@@ -266,7 +280,7 @@
     document.getElementById("loading").style.display = "block";
     var fml = '{Staða í söluferli}="🏆 Tækifæri unnið"';
     Promise.all([
-      api(TAEKIFAERI, "filterByFormula=" + encodeURIComponent(fml) + "&fields%5B%5D=Heiti%20t%C3%A6kif%C3%A6ris%20%2F%20verkefnis&fields%5B%5D=Sta%C3%B0a%20%C3%AD%20skipulagi&pageSize=100"),
+      api(TAEKIFAERI, "filterByFormula=" + encodeURIComponent(fml) + "&fields%5B%5D=Heiti%20t%C3%A6kif%C3%A6ris%20%2F%20verkefnis&fields%5B%5D=Sta%C3%B0a%20%C3%AD%20skipulagi&fields%5B%5D=Sta%C3%B0a%20%C3%AD%20framlei%C3%B0slu&pageSize=100"),
       api(PANTADIR, "pageSize=100")
     ]).then(function (res) {
       document.getElementById("loading").style.display = "none";
@@ -293,16 +307,17 @@
 
     var board = document.getElementById("board");
     board.innerHTML = "";
-    var cols = STAGES.map(function (s) { return { id: s.id, label: s.label, items: [] }; });
-    cols.push({ id: "pontun", label: "Pöntunarlisti", items: [] });
+    var cols = STAGES.map(function (s) { return { id: s.id, label: s.label, color: s.color, items: [] }; });
+    cols.push({ id: "pontun", label: "Pöntunarlisti", color: PONTUN_COLOR, items: [] });
 
     projects.forEach(function (p) {
       var f = p.fields || {};
+      if (f["Staða í framleiðslu"] === PROD_DONE) return; // production already delivered — off this board
       var stNow = f["Staða í skipulagi"] || "";
       var name = f["Heiti tækifæris / verkefnis"] || "";
       if (stNow === "Klárt til framleiðslu") {
         var hasOpenOrder = Object.keys(openOrderNames).some(function (label) { return label.indexOf(name) === 0; });
-        (hasOpenOrder ? cols[4] : cols[3]).items.push(p);
+        if (hasOpenOrder) cols[3].items.push(p); // else: skipulag done, no open orders — graduates off the board
       } else {
         var idx = STAGES.findIndex(function (s) { return s.match === stNow; });
         if (idx === -1) idx = 0; // empty/unknown Staða í skipulagi → For-skipulag
@@ -313,12 +328,13 @@
     cols.forEach(function (col) {
       var el = document.createElement("div");
       el.className = "col";
-      el.innerHTML = '<h2>' + esc(col.label) + '<span class="cnt">' + col.items.length + '</span></h2><div class="cards"></div>';
+      el.innerHTML = '<h2><span class="colorDot" style="background:' + col.color + '"></span><span class="colLabel">' + esc(col.label) + '</span><span class="cnt">' + col.items.length + '</span></h2><div class="cards"></div>';
       var cardsEl = el.querySelector(".cards");
       if (!col.items.length) cardsEl.innerHTML = '<div class="empty">Ekkert hér</div>';
       col.items.forEach(function (p) {
         var a = document.createElement("a");
         a.className = "kcard";
+        a.style.borderLeft = "3px solid " + col.color;
         a.href = "/ferli?recordId=" + p.id + (k ? "&k=" + encodeURIComponent(k) : "");
         a.textContent = p.fields["Heiti tækifæris / verkefnis"] || "(ónefnt)";
         cardsEl.appendChild(a);
@@ -439,13 +455,23 @@
       .then(function (d) { return d.records || []; })
       .catch(function () { return []; });
   }
+  // 2026-10-17: user's own authoritative reshuffle — 5 items, Efni lent í húsi moved last as
+  // "basically the only manual box", everything else auto-updates from a real signal where one
+  // exists. "Teikningar prentaðar 2x" has no software signal (it's a physical printer action,
+  // confirmed via research — no automation or client-side hook touches it) so it stays manual
+  // too, same as before, until there's something real to tie it to.
+  var DATES_FIELD = "Áætlaður afhendingardagur Björninn (internal)";
   var CHECKLIST = [
-    { field: "1. Dagssetningar ákveðnar", label: "Dagssetningar ákveðnar" },
-    { field: "2. Cutty keyrður fyrir þetta verkefni og kominn á USB?", label: "Cutty keyrður og á USB" },
+    { field: "1. Dagssetningar ákveðnar", label: "Dagssetningar ákveðnar", auto: true },
+    { field: "2. Cutty keyrður fyrir þetta verkefni og kominn á USB?", label: "Cutty keyrður og á USB", auto: true },
     { field: "3. Teikningar prentaðar 2x", label: "Teikningar prentaðar 2x" },
-    { field: "4. Verkfundur tekinn", label: "Verkfundur tekinn" },
+    { field: "6. CNC yfirfarið", label: "Bpp yfirfarið (CNC útflutningur)", auto: true },
     { field: "5. Efni lent í húsi", label: "Efni lent í húsi" },
-    { field: "6. CNC yfirfarið", label: "CNC yfirfarið (.bpp)" },
+  ];
+  var PIPE_TOOLS = [
+    { id: "cutlist", num: "1", label: "Skurðarlisti (Cutty)", path: "/cutlist", chip: "chipCutty" },
+    { id: "aedar", num: "2", label: "Æðar (F2, viðarmynstur)", path: "/aedar", chip: "chipAedar" },
+    { id: "cnc", num: "3", label: "CNC vélun", path: "/cnc", chip: null },
   ];
   function fillYfirfara(proj) {
     var el = document.getElementById("content-yfirfara");
@@ -453,9 +479,17 @@
     var qs = "?recordId=" + proj.id;
     el.innerHTML =
       '<div class="pipeSteps">' +
-        '<a class="pipeStep" target="_blank" href="/cutlist' + qs + '">1. Skurðarlisti (Cutty) <span class="chip" id="chipCutty">…</span></a>' +
-        '<a class="pipeStep" target="_blank" href="/aedar' + qs + '">2. Æðar (viðarmynstur) <span class="chip" id="chipAedar">…</span></a>' +
-        '<a class="pipeStep" target="_blank" href="/cnc' + qs + '">3. CNC vélun <span class="chip">Opna →</span></a>' +
+        PIPE_TOOLS.map(function (t) {
+          return '<div class="pipeStepWrap">' +
+            '<div class="pipeStep">' +
+              '<span class="pipeLabel">' + t.num + '. ' + t.label + '</span>' +
+              (t.chip ? '<span class="chip" id="' + t.chip + '">…</span>' : '<span class="chip">Vélun</span>') +
+              '<button type="button" class="inlineToggle" data-tool="' + t.id + '">Opna hér ▾</button>' +
+              '<a class="newTab" target="_blank" title="Opna í nýjum flipa" href="' + t.path + qs + '">↗</a>' +
+            '</div>' +
+            '<div class="inlineFrame" id="frame-' + t.id + '"></div>' +
+          '</div>';
+        }).join("") +
       '</div>' +
       '<div class="sectionTitle">Gátlisti</div>' +
       '<div class="checklist" id="checklist"></div>' +
@@ -465,12 +499,26 @@
       '<button class="gateBtn" id="gateBtn">✅ Merkja Klárt til framleiðslu</button>' +
       '<div class="gateMsg" id="gateMsg"></div>';
 
+    el.querySelectorAll(".inlineToggle").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var tool = PIPE_TOOLS.filter(function (t) { return t.id === btn.dataset.tool; })[0];
+        var frame = document.getElementById("frame-" + tool.id);
+        var open = frame.classList.toggle("open");
+        btn.textContent = open ? "Loka ▲" : "Opna hér ▾";
+        if (open && !frame.dataset.loaded) {
+          frame.dataset.loaded = "1";
+          frame.innerHTML = '<iframe src="' + tool.path + qs + '" loading="lazy"></iframe>';
+        }
+      });
+    });
+
     var wrap = document.getElementById("checklist");
+    var rowEls = {};
     CHECKLIST.forEach(function (item) {
       var on = !!f[item.field];
       var row = document.createElement("div");
       row.className = "chkRow" + (on ? " on" : "");
-      row.innerHTML = '<div class="box">' + (on ? "✓" : "") + '</div><div>' + item.label + '</div>';
+      row.innerHTML = '<div class="box">' + (on ? "✓" : "") + '</div><div>' + item.label + (item.auto ? ' <span class="autoTag">sjálfvirkt</span>' : '') + '</div>';
       row.addEventListener("click", function () {
         var next = !row.classList.contains("on");
         row.classList.toggle("on", next);
@@ -479,7 +527,18 @@
         apiPatch(TAEKIFAERI + "/" + proj.id, ff);
       });
       wrap.appendChild(row);
+      rowEls[item.field] = row;
     });
+    function reconcileAuto(field, autoVal) {
+      var row = rowEls[field];
+      if (!row || row.classList.contains("on") === autoVal) return;
+      row.classList.toggle("on", autoVal);
+      row.querySelector(".box").textContent = autoVal ? "✓" : "";
+      var ff = {}; ff[field] = autoVal;
+      apiPatch(TAEKIFAERI + "/" + proj.id, ff);
+    }
+    reconcileAuto("1. Dagssetningar ákveðnar", !!f[DATES_FIELD]);
+
     var stemmir = f["Framvinda Pöntunarlista stemmir🔒 skipulag 2.0📝"];
     document.getElementById("stemmirLine").textContent = (stemmir !== null && stemmir !== undefined && stemmir !== "") ? "Pöntunarlisti stemmir: " + Math.round(stemmir * 100) + "%" : "";
 
@@ -525,6 +584,7 @@
         var chipCutty = document.getElementById("chipCutty");
         chipCutty.className = "chip" + (cuttyDone ? " ok" : "");
         chipCutty.textContent = cuttyDone ? "✓ keyrt" : "ekki keyrt enn";
+        reconcileAuto("2. Cutty keyrður fyrir þetta verkefni og kominn á USB?", cuttyDone);
         var chipAedar = document.getElementById("chipAedar");
         if (!planRows.length) { chipAedar.textContent = "sleppt"; }
         else {

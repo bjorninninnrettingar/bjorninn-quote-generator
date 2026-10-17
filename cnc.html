@@ -635,6 +635,16 @@
         ["", "EKKI GERT — þarf að forrita í höndunum eða laga gögn (" + missing.length + "):"], missing.map(function (s) { return "  " + s; }));
       await writeBytes(job, pre + " CNC skrá.txt", D.toCp1252(sheet.join("\r\n") + "\r\n"));
       log("📒 " + pre + " CNC skrá.txt — " + made.length + " skrár, " + warn.length + " ⚠, " + missing.length + " ⛔. Búið.");
+      // 2026-10-17 (user): "Bpp yfirfarið" on /ferli's Loka yfirferð checklist should auto-tick
+      // once CNC has actually been exported to USB, instead of staying a manual box — this is the
+      // one real signal that export happened, so self-report it here rather than relying on
+      // someone remembering to tick it by hand.
+      if (made.length) {
+        fetch(PROXY + "?path=" + encodeURIComponent(PROJECTS + "/" + project.id), {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fields: { "6. CNC yfirfarið": true } })
+        }).catch(function () {});
+      }
       await previewExported(preview);
     } catch (e) {
       log("⛔ Villa: " + e.message);
