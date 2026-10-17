@@ -228,6 +228,10 @@ const ALLOWED_FIELDS = {
     "Flokkur 🗂️",
     "Undirflokkur 📁",
   ],
+  // Vörur per eining 📦 — purely internal per-unit product review data, no public
+  // use case, so the base set is empty and every field lives behind VERK_KEY
+  // (see VERK_ONLY_FIELDS below) rather than the usual "baseline + more" split.
+  "tblszHaBrwhYNV68z": [],
   "tblDwYfZWPmgGpjio": [ // Vélar 🏭 — read-only machine SOPs for /velar
     "Heiti vélar",
     "Mynd 🖼️",
@@ -323,10 +327,24 @@ const VERK_ONLY_FIELDS = {
     "Sérhæð N fronts", "Sérhæð M fronts", "Sérhæð K fronts",
     "Sérhæð C fronts", "Sérhæð F fronts", "Sérhæð E fronts",
     "Tvípress / Eurolight", "Sérsmíði tegund", "Sérsmíði efni",
+    // /yfirferd (Skipulag review wizard, 2026-10-17) — mismatch pre-checks shown
+    // at the top of the wizard, computed by Airtable so the review tool never
+    // has to re-derive this logic itself.
+    "Skúffur stemma ekki ⚠️", "Vantar hluta ⚠️",
   ],
   // QUICK FIX❗ — the planner's own drawings + work description, shown in /app's
   // Quick Fix detail. Internal, so behind the same VERK_KEY gate.
   "tblDQWuf4OSjUv2XI": ["Loka teikningar f. QUICK FIX❗", "Verklýsing skipuleggjara", "Mynd eða skjal"],
+  // /yfirferd (Skipulag review wizard) — this unit's own product/quantity rows
+  // (drawers' depth overrides, handles, glass/mirror lines), one per product,
+  // never aggregated across units (see CLAUDE.md: "Vörur á einingu replaced
+  // Pöntunarlisti's abandoned per-unit review attempt").
+  "tblszHaBrwhYNV68z": [
+    "Tegund", "Vörulisti 🚪", "Eyðublað ✏️", "Magn", "Mynd 🖼️", "Rétt",
+    "Skúffu dýpt",
+    "Hvað viltu panta?", "Hvert fer það?", "Þykkt", "Breidd (mm)", "Hæð (mm)",
+    "Kantvinnsla", "Hert gler", "Göt / úrtök / athugasemd", "⛔ Villa",
+  ],
 };
 
 // Tables that hold credential-like, health-adjacent, or visitor-PII data — a
