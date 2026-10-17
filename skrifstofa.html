@@ -113,14 +113,11 @@
 
 <div id="shell">
   <div class="sidebar">
-    <div class="brand">🐻 Björninn</div>
+    <div id="officeSidebarTop"></div>
     <div class="searchWrap"><input id="projSearch" type="text" placeholder="Leita að verki…" /></div>
     <div class="searchResults" id="projResults"></div>
-    <nav id="nav"></nav>
-    <div class="user">
-      <span id="userName"></span>
-      <button id="logoutBtn" type="button">Útskrá</button>
-    </div>
+    <nav id="officeNav"></nav>
+    <div id="officeSidebarBottom"></div>
   </div>
 
   <div class="main">
@@ -166,6 +163,7 @@
   </div>
 </div>
 
+<script src="/office-shell.js"></script>
 <script>
 (function () {
   "use strict";
@@ -177,14 +175,8 @@
   var VIRKNI = "tblPPMTlFhW0snk24";
   var PANTADIR = "tblSccfV2lBp4FiFU";
 
-  var NAV = [
-    { id: "ferli", label: "📐 Skipulagsferli", roles: ["skipulag", "allt"], href: "/ferli" },
-    { id: "crm",   label: "📇 CRM",            roles: ["allt"], href: "/crm" },
-  ];
-
   function loadSession() { try { return JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); } catch (e) { return null; } }
   function saveSession(s) { try { localStorage.setItem(SESSION_KEY, JSON.stringify(s)); } catch (e) {} }
-  function clearSession() { try { localStorage.removeItem(SESSION_KEY); } catch (e) {} }
   (function () {
     var fromUrl = new URLSearchParams(location.search).get("k");
     if (fromUrl) { try { localStorage.setItem(K_STORE, fromUrl); } catch (e) {} }
@@ -250,19 +242,9 @@
     currentUserName = record.name || "";
     document.getElementById("pinScreen").style.display = "none";
     document.getElementById("shell").classList.add("open");
-    document.getElementById("userName").textContent = (record.name || "").split(" ")[0];
     document.getElementById("todayDate").textContent = new Date().toLocaleDateString("is-IS", { weekday: "long", day: "numeric", month: "long" });
 
-    var roles = record.roles || [];
-    var k = getK();
-    var navEl = document.getElementById("nav");
-    navEl.innerHTML = "";
-    NAV.filter(function (a) { return a.roles.some(function (r) { return roles.indexOf(r) !== -1; }); }).forEach(function (a) {
-      var el = document.createElement("a");
-      el.href = a.href + (k ? "?k=" + encodeURIComponent(k) : "");
-      el.textContent = a.label;
-      navEl.appendChild(el);
-    });
+    window.OfficeShell.renderChrome(record, "home");
 
     loadKpis();
     loadFeed();
@@ -419,8 +401,6 @@
   });
   document.getElementById("qfSubmit").addEventListener("click", createQuickFix);
   document.getElementById("qfInput").addEventListener("keydown", function (e) { if (e.key === "Enter") createQuickFix(); });
-
-  document.getElementById("logoutBtn").addEventListener("click", function () { clearSession(); location.reload(); });
 
   buildKeypad();
   renderDots();
