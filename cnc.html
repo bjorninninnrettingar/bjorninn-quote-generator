@@ -22,6 +22,11 @@
     --bg:#2a2a2a; --surface:#1c1c1c; --surface2:#242424; --line:#383838; --text:#f0f0f0; --muted:#aaa; --dim:#888;
     --blue:#2196f3; --green:#30d158; --amber:#ffd60a; --red:#ff453a; --purple:#bf5af2;
     --font:"Kumbh Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    /* BiesseWorks piece-editor palette for the post-export preview cards (same vars as bpp-viewer.html /
+       cnc-bpp.js draws with — kept identical so a card looks the same whether it's reached via /bpp or here). */
+    --bw-title1:#5c4a2e; --bw-title2:#9c8a6b; --bw-chrome:#d6d3c6; --bw-chrome-dark:#9b9686;
+    --bw-list-bg:#e2dfd2; --bw-row-line:#cac6b6; --bw-canvas:#eeede6; --bw-ink:#333;
+    --bw-teal:#2f7f6a; --bw-pill:#c3d3e1; --bw-pill-ink:#4f7294; --bw-font:Tahoma,"Segoe UI",Verdana,sans-serif;
   }
   * { box-sizing:border-box; margin:0; padding:0; }
   html,body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; line-height:1.45; }
@@ -106,6 +111,49 @@
   svg text { font-family:var(--font); }
   #log { margin-top:22px; background:#111; border:1px solid var(--line); border-radius:12px; padding:12px; font:12px/1.5 ui-monospace,Menlo,monospace; white-space:pre-wrap; max-height:380px; overflow:auto; display:none; }
   .empty { color:var(--muted); margin-top:16px; }
+
+  /* ── post-export preview (2026-10-17) — same cnc-bpp.js cards /bpp shows, read straight back off the USB
+     directory handle writeUsb() already holds, so nothing needs to be dragged in by hand. Namespaced
+     .bpp-*/.bw-* classes so they never collide with this page's own .card/.chip (the pre-export review
+     cards above, a completely different thing). ────────────────────────────────────────────────────── */
+  #bppSection { margin-top:30px; }
+  #bppToolbar { display:flex; justify-content:flex-end; margin-top:10px; }
+  #bppToolbar button { background:none; border:1px solid var(--line); border-radius:9px; color:var(--muted); font-size:.8rem; padding:6px 12px; cursor:pointer; }
+  #bppToolbar button:hover { color:var(--text); border-color:var(--dim); }
+  #bppToolbar.hide { display:none; }
+  #bppOut { margin-top:10px; display:flex; flex-direction:column; gap:16px; }
+  .bpp-card { background:none; border:none; padding:0; }
+  .bw-window { background:var(--bw-chrome); border:1px solid var(--bw-chrome-dark); border-radius:5px; overflow:hidden; box-shadow:0 6px 18px rgba(0,0,0,.35); }
+  .bw-titlebar { background:linear-gradient(180deg, var(--bw-title1), var(--bw-title2)); color:#f3ecdd; padding:6px 7px 6px 10px; display:flex; align-items:center; gap:8px; font-family:var(--bw-font); }
+  .bw-titlebar .ttl { font-size:.8rem; font-weight:700; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-shadow:0 1px 1px rgba(0,0,0,.4); }
+  .bw-titlebar .remove { background:#00000030; border:1px solid #ffffff40; color:#fff; width:20px; height:18px; border-radius:3px; cursor:pointer; font-size:.72rem; line-height:1; flex:none; }
+  .bw-titlebar .remove:hover { background:#c0392b; }
+  .bpp-chip { font-size:.68rem; font-weight:800; padding:2px 8px; border-radius:3px; letter-spacing:.03em; white-space:nowrap; display:inline-block; flex:none; }
+  .bpp-chip.kind { background:#ffffffcc; color:#4a3c22; }
+  .bpp-chip.unknown { background:#c0392b; color:#fff; }
+  .bw-body { display:flex; align-items:stretch; }
+  .bw-list { width:184px; flex:none; background:var(--bw-list-bg); border-right:1px solid var(--bw-chrome-dark); max-height:480px; overflow:auto; font-family:var(--bw-font); }
+  .bw-row { display:flex; align-items:center; gap:5px; padding:2.5px 6px; border-bottom:1px solid var(--bw-row-line); white-space:nowrap; }
+  .bw-row.child { padding-left:22px; }
+  .bw-chk { width:10px; height:10px; border:1px solid #767262; background:#fff; flex:none; display:inline-flex; align-items:center; justify-content:center; border-radius:1px; }
+  .bw-chk.on::after { content:""; width:6px; height:6px; background:#2f2f2f; display:block; }
+  .bw-icon { width:12px; height:12px; border-radius:2px; flex:none; border:1px solid rgba(0,0,0,.3); }
+  .bw-row .nm { color:#1a1a1a; font-size:.72rem; overflow:hidden; text-overflow:ellipsis; }
+  .bw-canvas-wrap { flex:1; background:var(--bw-canvas); padding:16px; display:flex; justify-content:center; align-items:center; min-width:0; overflow:auto; }
+  svg.plan { display:block; }
+  .bpp-legend { display:flex; gap:14px; flex-wrap:wrap; padding:8px 14px 12px; font-size:.74rem; color:#5c5848; background:var(--bw-chrome); font-family:var(--bw-font); }
+  .bpp-legend span { display:inline-flex; align-items:center; gap:5px; }
+  .bpp-legend i { width:11px; height:11px; border-radius:3px; display:inline-block; flex:none; }
+  .bpp-note { margin-top:10px; font-size:.84rem; border-radius:10px; padding:9px 13px; }
+  .bpp-note.warn { background:#3d3410; color:var(--amber); border:1px solid #5c4f14; }
+  .bpp-note.err { background:#40100e; color:var(--red); border:1px solid #5c1a16; }
+  .bpp-note.info { background:#132c18; color:var(--green); border:1px solid #1d4425; }
+  .bpp-raw { margin-top:12px; }
+  .bpp-raw summary { cursor:pointer; font-size:.82rem; color:var(--muted); font-weight:700; }
+  .bpp-raw summary:hover { color:var(--text); }
+  .bpp-rawlist { margin-top:8px; font-size:.78rem; color:var(--dim); font-family:ui-monospace,Menlo,Consolas,monospace; max-height:240px; overflow:auto; background:var(--bg); border-radius:8px; padding:8px 10px; }
+  .bpp-rawlist div { padding:2px 0; }
+  .bpp-rawlist .off { opacity:.45; }
 </style>
 </head>
 <body>
@@ -140,6 +188,12 @@
 
   <div id="out"></div>
   <div id="log"></div>
+
+  <div id="bppSection">
+    <h2>Skoðun útflutnings 🔍 <small>— sömu kort og <a href="/bpp" target="_blank" style="color:inherit">/bpp</a> sýnir, lesin beint af pinnanum eftir skrif, engin handvirk dragning</small></h2>
+    <div id="bppToolbar" class="hide"><button id="bppClear">Hreinsa skoðun</button></div>
+    <div id="bppOut"></div>
+  </div>
 </div>
 
 <div class="help-panel" id="helpPanel">
@@ -160,10 +214,11 @@
 
 <script src="/cnc-doors.js"></script>
 <script src="/cnc-sides.js"></script>
+<script src="/cnc-bpp.js"></script>
 <script>
 (function () {
   "use strict";
-  var D = window.CNCDOORS, SD = window.CNCSIDES;
+  var D = window.CNCDOORS, SD = window.CNCSIDES, BPP = window.CNCBPP;
   var PROXY = "/api/airtable";
   var PROJECTS = "tbl4LMXlQjp66RFKI", UNIT = "tbl0WcyHhz63pSzZX", SAW = "tblhdgyvTcBfP8kov", PRODUCTS = "tblzuuRSRkeXaLWxC";
   var PNAME = "Heiti tækifæris / verkefnis";
@@ -504,7 +559,7 @@
       try { pickedDir = await window.showDirectoryPicker({ mode: "readwrite" }); } catch (e) { return; }
     }
     $("writeBtn").disabled = true; masterCache = {}; $("log").textContent = "";
-    var when = new Date().toLocaleString("is-IS"), made = [], warn = [], missing = [];
+    var when = new Date().toLocaleString("is-IS"), made = [], warn = [], missing = [], preview = [];
     try {
       var root = await findRoot(pickedDir);
       if (!root) { log("⛔ Fann ekki masterana — veldu lykilinn sjálfan eða „[01] - AÐALMÖPPUR …“ möppuna."); return; }
@@ -521,6 +576,7 @@
           if (r.errors.length) { log("⛔ " + g.label + "/" + fname + " EKKI skrifað: " + r.errors.join(" · ")); missing.push(fname + ": " + r.errors.join(" · ")); continue; }
           await writeBytes(dir, fname, D.toCp1252(r.text));
           log("✅ Skápar/" + g.label + "/" + fname); made.push("Skápar/" + g.label + "/" + fname + "  (" + p0.LPX + "×" + p0.LPY + "×" + p0.LPZ + ", keyra ×" + sf.count + ")");
+          preview.push({ dir: dir, name: fname });
         }
         // the cabinet's fronts: drawer fronts on the global front masters, door fronts with their hinge cups
         for (var fr of (p0.fronts || [])) {
@@ -530,6 +586,7 @@
           if (rf.errors.length) { log("⛔ " + g.label + "/" + frName + " EKKI skrifað: " + rf.errors.join(" · ")); missing.push(frName + ": " + rf.errors.join(" · ")); continue; }
           await writeBytes(dir, frName, D.toCp1252(rf.text));
           log("✅ Skápar/" + g.label + "/" + frName); made.push("Skápar/" + g.label + "/" + frName + "  (" + fr.LPX + "×" + fr.LPY + "×" + fr.LPZ + ", keyra ×" + fr.count + ")");
+          preview.push({ dir: dir, name: frName });
         }
         p0.check.concat(p0.frontCheck || []).forEach(function (c) { var s = g.label + ": " + c; if (warn.indexOf(s) < 0) warn.push(s); });
       }
@@ -557,10 +614,11 @@
           }
         }
         for (var f of files) {
-          if (f.kind !== "leaf" && jambKept) { log("   = " + where + f.name + " (óbreyttur, karmur til)"); continue; }
+          if (f.kind !== "leaf" && jambKept) { log("   = " + where + f.name + " (óbreyttur, karmur til)"); preview.push({ dir: ddir, name: f.name }); continue; }
           var rr = D.renderBpp(await readMaster(root, f.master), values, f.managed, f.on);
           if (rr.errors.length) { log("⛔ " + f.name + " EKKI skrifað: " + rr.errors.join(" · ")); missing.push(f.name + ": " + rr.errors.join(" · ")); continue; }
           await writeBytes(ddir, f.name, D.toCp1252(rr.text)); log("✅ " + where + f.name); made.push(where + f.name);
+          preview.push({ dir: ddir, name: f.name });
         }
         pl.check.forEach(function (c) { warn.push(pl.id + ": " + c); });
         logBlocks.push(D.logText(Object.assign({}, pl, { values: values }), project.name, when));
@@ -577,10 +635,29 @@
         ["", "EKKI GERT — þarf að forrita í höndunum eða laga gögn (" + missing.length + "):"], missing.map(function (s) { return "  " + s; }));
       await writeBytes(job, pre + " CNC skrá.txt", D.toCp1252(sheet.join("\r\n") + "\r\n"));
       log("📒 " + pre + " CNC skrá.txt — " + made.length + " skrár, " + warn.length + " ⚠, " + missing.length + " ⛔. Búið.");
+      await previewExported(preview);
     } catch (e) {
       log("⛔ Villa: " + e.message);
     } finally { $("writeBtn").disabled = false; }
   }
+  // Reads every file this export just wrote (or left alone because a jamb already existed) straight back
+  // off the same directory handle writeUsb() already has open, and renders it with the exact same cards
+  // /bpp shows for a dragged-in file — so "did this actually come out right" is answered right here, no
+  // second trip to /bpp and no re-granting file-system access. 2026-10-17, agreed with the user.
+  async function previewExported(entries) {
+    var out = $("bppOut"), toolbar = $("bppToolbar");
+    out.innerHTML = ""; toolbar.classList.add("hide");
+    if (!entries.length) return;
+    for (var e of entries) {
+      var file = await tryFile(e.dir, e.name);
+      if (!file) continue;
+      var text = await readText(file);
+      out.appendChild(BPP.buildCard(file, text, out, toolbar));
+    }
+    if (out.children.length) toolbar.classList.remove("hide");
+  }
+  $("bppClear").onclick = function () { $("bppOut").innerHTML = ""; $("bppToolbar").classList.add("hide"); };
+
   $("writeBtn").onclick = function () { writeUsb(); };
   window.__cncWrite = writeUsb; // tests: pass an in-memory directory handle
 
