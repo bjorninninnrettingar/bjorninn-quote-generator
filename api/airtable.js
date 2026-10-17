@@ -253,6 +253,7 @@ const ALLOWED_FIELDS = {
   "tblSccfV2lBp4FiFU": [], // Pantaðir listar (per-supplier orders)
   "tblHGYgrvvDqyKOAe": [], // Auka-Pöntunarlisti 💻
   "tblPPMTlFhW0snk24": [], // Virkni 🔔 (activity feed, /skrifstofa dashboard)
+  "tblhP1FMM4QJfwxat": [], // Fjárhagsstaða 📊 (cash position — internal, VERK_ONLY_FIELDS below)
 };
 
 // Extra Tækifæri fields the internal floor page (/verk, verk.html) needs —
@@ -296,6 +297,10 @@ const VERK_ONLY_FIELDS = {
     // /crm (2026-10-17) — pipeline/follow-up fields, all pre-existing.
     "Næsta skref", "Næsta skref dags.", "Verk ósnert dagar 📅",
     "Eftirfylgnisstaða❓", "Svar við eftirfylgni", "Tilboð sent þann",
+    // /crm KPI row (2026-10-17) — monthly sales + transfers tiles.
+    "Verk staðfest þann", "Ár staðfestingar", "Mánuður staðfestingar",
+    "Staðfestingargjald", "Eftirstöðvar (kr) 💰", "Staðfest tilboðsupphæð 🔒",
+    "Greiðsla 2 greidd þann", "Greiðsla 3 greidd þann",
     "Loka teikningar verkefnis 📋",
     "Sér fræsi teikningar",
     "Málsettar myndir af rými 🖼️",
@@ -388,6 +393,13 @@ const VERK_ONLY_FIELDS = {
   "tblHGYgrvvDqyKOAe": [ // Auka-Pöntunarlisti 💻 — forgotten-item supplementary orders
     "Name", "Tækifæri 📣 (projects)", "Pöntunarlisti 📋",
     "Áætlaður kostnaður Rollup (from Pöntunarlisti 📋)", "Auka pöntunarlisti PDF",
+  ],
+  // /crm KPI row (2026-10-17) — "Sölumarkmið mánaðarins" tile. One row per
+  // financial snapshot date; only the computed target + its own date are
+  // needed (cash position / overdraft fields stay unexposed — not this
+  // page's business, and genuinely sensitive).
+  "tblhP1FMM4QJfwxat": [ // Fjárhagsstaða 📊
+    "Dagsetning", "Sölumarkmið (Fastur kostnaður x2)",
   ],
 };
 

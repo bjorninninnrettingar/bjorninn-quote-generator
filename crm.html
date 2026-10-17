@@ -35,12 +35,31 @@
 
   .hd { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
   .title { font-size:1.3rem; font-weight:700; letter-spacing:-.01em; }
-  .toggleClosed { background:none; border:1px solid var(--line); border-radius:999px; padding:6px 13px; font-size:.82rem; color:var(--muted); font-family:inherit; }
+  .hdRight { display:flex; align-items:center; gap:10px; }
+  .searchBox { font:inherit; font-size:.85rem; border:1px solid var(--line); border-radius:999px; padding:7px 14px; width:200px; background:var(--surface); }
+  .toggleClosed { background:none; border:1px solid var(--line); border-radius:999px; padding:6px 13px; font-size:.82rem; color:var(--muted); font-family:inherit; cursor:pointer; }
+
+  .kpiRow { display:flex; gap:12px; margin-bottom:18px; flex-wrap:wrap; }
+  .kpi { background:var(--surface); border-radius:14px; padding:13px 16px; box-shadow:0 1px 3px rgba(0,0,0,.05); flex:1; min-width:150px; }
+  .kpi .lbl { font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+  .kpi .val { font-size:1.4rem; font-weight:700; margin-top:4px; }
+  .kpi .sub { font-size:.74rem; color:var(--dim); margin-top:2px; }
+
+  .nextSteps { margin-bottom:20px; }
+  .nextSteps h2 { font-size:.8rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.02em; margin-bottom:8px; }
+  .nsRow { display:flex; gap:10px; overflow-x:auto; padding-bottom:4px; }
+  .nsCard { flex:0 0 220px; background:var(--surface); border-radius:12px; padding:11px 13px; box-shadow:0 1px 3px rgba(0,0,0,.05); cursor:pointer; border-left:3px solid var(--bad); }
+  .nsCard.soon { border-left-color:var(--warn); }
+  .nsCard .nm { font-weight:600; font-size:.85rem; }
+  .nsCard .step { font-size:.78rem; color:var(--muted); margin-top:4px; }
+  .nsCard .when { font-size:.72rem; color:var(--dim); margin-top:3px; }
 
   .board { display:flex; gap:14px; overflow-x:auto; padding-bottom:10px; margin-top:16px; }
   .col { flex:0 0 260px; }
-  .col h2 { font-size:.8rem; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.02em; margin-bottom:8px; display:flex; justify-content:space-between; }
+  .col h2 { font-size:.8rem; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.02em; margin-bottom:8px; display:flex; align-items:center; gap:6px; }
+  .col h2 .colLabel { flex:1; }
   .col h2 .cnt { color:var(--dim); font-weight:500; }
+  .col h2 .colorDot { width:8px; height:8px; border-radius:50%; flex:none; }
   .cards { display:flex; flex-direction:column; gap:8px; }
 
   .card { background:var(--surface); border-radius:14px; padding:12px 13px; box-shadow:0 1px 3px rgba(0,0,0,.05); cursor:pointer; }
@@ -76,7 +95,22 @@
 <div class="wrap">
   <div class="hd">
     <div class="title">CRM</div>
-    <button class="toggleClosed" id="toggleClosed">Sýna líka unnin/töpuð</button>
+    <div class="hdRight">
+      <input class="searchBox" id="search" type="text" placeholder="Leita að tækifæri…" />
+      <button class="toggleClosed" id="toggleClosed">Sýna líka unnin/töpuð</button>
+    </div>
+  </div>
+
+  <div class="kpiRow" id="kpiRow">
+    <div class="kpi"><div class="lbl">Heildarvirði</div><div class="val" id="kpiTotal">—</div><div class="sub" id="kpiTotalSub"></div></div>
+    <div class="kpi"><div class="lbl">Sölumarkmið mánaðarins</div><div class="val" id="kpiTarget">—</div></div>
+    <div class="kpi"><div class="lbl">Sala þessa mánaðar</div><div class="val" id="kpiSold">—</div></div>
+    <div class="kpi"><div class="lbl">Millifærslur þennan mánuð</div><div class="val" id="kpiTransfers">—</div><div class="sub">Staðfestingargjöld + eftirstöðvar</div></div>
+  </div>
+
+  <div class="nextSteps" id="nextSteps" style="display:none;">
+    <h2>Næstu skref</h2>
+    <div class="nsRow" id="nsRow"></div>
   </div>
 
   <div id="loading" class="loading">Sæki verkefni…</div>
@@ -108,11 +142,12 @@
   var k = shellInfo.k;
 
   var STAGES = [
-    { name: "Hönnun & Ráðgjöf 🖊️✨", short: "Hönnun" },
-    { name: "✍️ Teikna og yfirfara tilboð", short: "Teikna/yfirfara" },
-    { name: "📤 Tilboð sent", short: "Tilboð sent" },
-    { name: "🔥 Líklegt tækifæri", short: "Líklegt" },
+    { name: "Hönnun & Ráðgjöf 🖊️✨", short: "Hönnun", color: "#e05d9e" },
+    { name: "✍️ Teikna og yfirfara tilboð", short: "Teikna/yfirfara", color: "#d6473c" },
+    { name: "📤 Tilboð sent", short: "Tilboð sent", color: "#e9b000" },
+    { name: "🔥 Líklegt tækifæri", short: "Líklegt", color: "#7ac77a" },
   ];
+  var FJARHAG = "tblhP1FMM4QJfwxat";
   var CLOSED_STAGES = ["🏆 Tækifæri unnið", "🥀 Tækifæri tapað", "🚫 Tækifæri neitað"];
   var STEP_CHOICES = ["📞 Hringja í viðskiptavin", "📧 Senda póst", "📐 Klára teikningu / hönnun", "💰 Senda tilboð", "⏳ Bíða eftir svari frá viðskiptavini", "🤝 Verkfundur / heimsókn", "Annað"];
 
@@ -129,9 +164,11 @@
     }).then(function (r) { return r.json(); });
   }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }); }
+  function kr(n) { return n == null ? "—" : Math.round(n).toLocaleString("is-IS") + " kr."; }
 
   var showClosed = false;
   var records = [];
+  var searchTerm = "";
 
   function load() {
     document.getElementById("loading").style.display = "block";
@@ -144,31 +181,39 @@
         document.getElementById("loading").style.display = "none";
         document.getElementById("board").style.display = "flex";
         render();
+        renderNextSteps();
+        loadKpis();
       })
       .catch(function () { document.getElementById("loading").textContent = "Tókst ekki að sækja gögn."; });
+  }
+
+  function matchesSearch(r) {
+    if (!searchTerm) return true;
+    return (r.fields["Heiti tækifæris / verkefnis"] || "").toLowerCase().indexOf(searchTerm) !== -1;
   }
 
   function render() {
     var board = document.getElementById("board");
     board.innerHTML = "";
-    var cols = showClosed ? STAGES.concat(CLOSED_STAGES.map(function (s) { return { name: s, short: s }; })) : STAGES;
+    var cols = showClosed ? STAGES.concat(CLOSED_STAGES.map(function (s) { return { name: s, short: s, color: "#9aa3ad" }; })) : STAGES;
     cols.forEach(function (stage) {
-      var items = records.filter(function (r) { return (r.fields["Staða í söluferli"] || "") === stage.name; });
+      var items = records.filter(function (r) { return (r.fields["Staða í söluferli"] || "") === stage.name && matchesSearch(r); });
       items.sort(function (a, b) { return (b.fields["Verk ósnert dagar 📅"] || 0) - (a.fields["Verk ósnert dagar 📅"] || 0); });
       var col = document.createElement("div");
       col.className = "col";
-      col.innerHTML = '<h2>' + esc(stage.short) + '<span class="cnt">' + items.length + '</span></h2><div class="cards"></div>';
+      col.innerHTML = '<h2><span class="colorDot" style="background:' + stage.color + '"></span><span class="colLabel">' + esc(stage.short) + '</span><span class="cnt">' + items.length + '</span></h2><div class="cards"></div>';
       var cardsEl = col.querySelector(".cards");
       if (!items.length) cardsEl.innerHTML = '<div class="empty">Ekkert hér</div>';
-      items.forEach(function (r) { cardsEl.appendChild(cardEl(r)); });
+      items.forEach(function (r) { cardsEl.appendChild(cardEl(r, stage.color)); });
       board.appendChild(col);
     });
   }
 
-  function cardEl(r) {
+  function cardEl(r, color) {
     var f = r.fields;
     var el = document.createElement("div");
     el.className = "card";
+    el.style.borderLeft = "3px solid " + color;
     var stale = f["Verk ósnert dagar 📅"] || 0;
     var step = f["Næsta skref"] || "";
     var stepDate = f["Næsta skref dags."] || "";
@@ -181,6 +226,61 @@
       '</div>';
     el.addEventListener("click", function () { openDetail(r); });
     return el;
+  }
+
+  // ---- Næstu skref — every open deal with a Næsta skref dags. set, soonest/overdue first ----
+  function renderNextSteps() {
+    var withStep = records.filter(function (r) { return r.fields["Næsta skref dags."]; });
+    withStep.sort(function (a, b) { return a.fields["Næsta skref dags."] < b.fields["Næsta skref dags."] ? -1 : 1; });
+    var wrap = document.getElementById("nextSteps"), row = document.getElementById("nsRow");
+    if (!withStep.length) { wrap.style.display = "none"; return; }
+    wrap.style.display = "block";
+    row.innerHTML = "";
+    var today = new Date().toISOString().slice(0, 10);
+    withStep.slice(0, 12).forEach(function (r) {
+      var f = r.fields;
+      var d = f["Næsta skref dags."];
+      var el = document.createElement("div");
+      el.className = "nsCard" + (d >= today ? " soon" : "");
+      el.innerHTML =
+        '<div class="nm">' + esc(f["Heiti tækifæris / verkefnis"] || "(ónefnt)") + '</div>' +
+        '<div class="step">' + esc(f["Næsta skref"] || "—") + '</div>' +
+        '<div class="when">' + (d < today ? "⚠️ " : "") + esc(d) + '</div>';
+      el.addEventListener("click", function () { openDetail(r); });
+      row.appendChild(el);
+    });
+  }
+
+  // ---- KPI row — total value + count of open deals (always from the open-stage set,
+  // regardless of the "sýna líka unnin/töpuð" toggle), plus two tiles grounded on real
+  // date fields rather than guessed singleSelect choice strings: IS_SAME(..., TODAY(), "month")
+  // against "Verk staðfest þann" (confirmed this month) and the two installment-paid dates. ----
+  function loadKpis() {
+    var openItems = records.filter(function (r) { return STAGES.some(function (s) { return s.name === r.fields["Staða í söluferli"]; }); });
+    var total = openItems.reduce(function (sum, r) { return sum + (r.fields["💰 Tilboðsupphæð"] || 0); }, 0);
+    document.getElementById("kpiTotal").textContent = kr(total);
+    document.getElementById("kpiTotalSub").textContent = openItems.length + " opin tækifæri";
+
+    api(FJARHAG, "sort%5B0%5D%5Bfield%5D=Dagsetning&sort%5B0%5D%5Bdirection%5D=desc&maxRecords=1")
+      .then(function (d) {
+        var rec = (d.records || [])[0];
+        var target = rec && rec.fields["Sölumarkmið (Fastur kostnaður x2)"];
+        document.getElementById("kpiTarget").textContent = target != null ? kr(target) : "—";
+      });
+
+    var confirmedFml = 'IS_SAME({Verk staðfest þann}, TODAY(), "month")';
+    var paidFml = 'OR(IS_SAME({Greiðsla 2 greidd þann}, TODAY(), "month"), IS_SAME({Greiðsla 3 greidd þann}, TODAY(), "month"))';
+    Promise.all([
+      api(TAEKIFAERI, "filterByFormula=" + encodeURIComponent(confirmedFml) + "&fields%5B%5D=Sta%C3%B0fest%20tilbo%C3%B0sup%C3%A6%C3%B0%20%F0%9F%94%92&fields%5B%5D=%F0%9F%92%B0%20Tilbo%C3%B0sup%C3%A6%C3%B0&fields%5B%5D=Sta%C3%B0festingargjald&pageSize=100"),
+      api(TAEKIFAERI, "filterByFormula=" + encodeURIComponent(paidFml) + "&fields%5B%5D=Eftirst%C3%B6%C3%B0var%20(kr)%20%F0%9F%92%B0&pageSize=100"),
+    ]).then(function (res) {
+      var confirmed = res[0].records || [], paid = res[1].records || [];
+      var sold = confirmed.reduce(function (sum, r) { return sum + (r.fields["Staðfest tilboðsupphæð 🔒"] || r.fields["💰 Tilboðsupphæð"] || 0); }, 0);
+      document.getElementById("kpiSold").textContent = kr(sold);
+      var transfers = confirmed.reduce(function (sum, r) { return sum + (r.fields["Staðfestingargjald"] || 0); }, 0) +
+        paid.reduce(function (sum, r) { return sum + (r.fields["Eftirstöðvar (kr) 💰"] || 0); }, 0);
+      document.getElementById("kpiTransfers").textContent = kr(transfers);
+    });
   }
 
   function openDetail(r) {
@@ -226,6 +326,10 @@
     showClosed = !showClosed;
     document.getElementById("toggleClosed").textContent = showClosed ? "Fela unnin/töpuð" : "Sýna líka unnin/töpuð";
     load();
+  });
+  document.getElementById("search").addEventListener("input", function (e) {
+    searchTerm = e.target.value.trim().toLowerCase();
+    render();
   });
 
   load();
