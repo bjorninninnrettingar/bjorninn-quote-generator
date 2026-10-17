@@ -10048,8 +10048,32 @@
     el.innerHTML = '<span>🔧 PRO</span><span class="pb-name">' + escapeHtmlPro(PRO.name || "") + '</span>' +
       (PRO.locked ? '<span class="pb-locked">🔓 opnað til breytinga</span>' : "") +
       (msg ? '<span>' + escapeHtmlPro(msg) + '</span>' : (proDirty() ? '<span class="pb-dirty">● óvistað</span>' : '<span>✓ vistað</span>')) +
-      '<button type="button" id="proSave"' + (PRO.ready ? "" : " disabled") + '>💾 Vista í Airtable</button>';
+      '<button type="button" id="proSave"' + (PRO.ready ? "" : " disabled") + '>💾 Vista í Airtable</button>' +
+      '<button type="button" id="proRunSkipulag"' + (PRO.ready ? "" : " disabled") + '>📐 Keyra skipulag</button>';
     var bt = el.querySelector("#proSave"); if (bt) bt.addEventListener("click", function(){ proSave(); });
+    var rs = el.querySelector("#proRunSkipulag"); if (rs) rs.addEventListener("click", proRunSkipulag);
+  }
+  // "Keyra skipulag" — í stað gamla Interface-takkans í Airtable (sem hefur ekkert API-jafngildi): skrifar
+  // gátreitinn "🔄 Keyra Skipulag" false→true á Tækifæri, sem retriggerar sjálfa Airtable-automationina
+  // (Line Items → Eyðublöð). Eftir þetta læsist teikningin hér (sjá proBoot()'s PRO.locked-skýringu að ofan)
+  // — vista fyrst, svo keyra skipulag, í þessari röð, annars vinnur hún með gömlu Line Items.
+  async function proRunSkipulag(){
+    if (proDirty() || !state.liSent){
+      if (!confirm("Það eru óvistaðar breytingar — vista fyrst í Airtable áður en skipulag er keyrt?\n\nOK = vista fyrst\nHætta við = keyra samt á núverandi vistaða gögn")) {} else { await proSave(); if (proDirty()) return; }
+    }
+    if (!confirm("Keyra skipulag núna? Þetta býr til/samstillir Eyðublöð úr teikningunni og læsir henni hér á eftir — Sögunarlisti/Pöntunarlisti/CNC taka þá við.")) return;
+    var rs = document.getElementById("proRunSkipulag"); if (rs) rs.disabled = true;
+    proBar("Keyri skipulag…");
+    try{
+      var path = encodeURIComponent("tbl4LMXlQjp66RFKI/" + PRO.id);
+      await fetch("/api/airtable?path=" + path, { method:"PATCH", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ fields:{ "🔄 Keyra Skipulag": false } }) });
+      await fetch("/api/airtable?path=" + path, { method:"PATCH", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ fields:{ "🔄 Keyra Skipulag": true } }) });
+      toast("Skipulag keyrt — opnaðu verkefnið aftur til að sjá það læst");
+      proBar();
+    }catch(e){
+      proBar("⛔ Tókst ekki að keyra skipulag: " + e.message);
+      if (rs) rs.disabled = false;
+    }
   }
   // Meðvituð leið út úr skoðunarhamnum (sama session — sækir aftur = spyr á ný). Flaggar að
   // Sögunarlisti/Pöntunarlisti/CNC eru byggð á gömlu teikningunni og þurfa að keyra aftur eftir þessa breytingu.
