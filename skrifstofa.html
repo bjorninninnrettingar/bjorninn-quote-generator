@@ -68,8 +68,14 @@
 
   .board { display:grid; grid-template-columns:1.3fr 1fr; gap:16px; align-items:start; }
   .panel { background:var(--surface); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
-  .panel h2 { font-size:.82rem; font-weight:700; padding:12px 16px; border-bottom:1px solid var(--line); color:var(--text); display:flex; justify-content:space-between; }
+  .panel h2 { font-size:.82rem; font-weight:700; padding:12px 16px; border-bottom:1px solid var(--line); color:var(--text); display:flex; justify-content:space-between; align-items:center; }
   .panel h2 .cnt { color:var(--muted); font-weight:500; }
+  .panel h2.qfHead { background:#e23d28; color:#fff; border-bottom:none; }
+  .panel h2.qfHead .cnt { color:#ffd9d2; }
+  .panel h2.qfHead button { background:rgba(255,255,255,.22); border:none; color:#fff; width:22px; height:22px; border-radius:50%; font-size:1rem; line-height:1; cursor:pointer; }
+  .qfForm { display:flex; gap:6px; padding:10px 14px; border-bottom:1px solid var(--line); }
+  .qfForm input { flex:1; padding:6px 9px; border-radius:6px; border:1px solid var(--line); background:var(--bg); color:var(--text); font:inherit; font-size:.82rem; }
+  .qfForm button { background:var(--text); color:var(--bg); border:none; border-radius:6px; padding:6px 12px; font:inherit; font-size:.8rem; cursor:pointer; }
   .panel .body { max-height:460px; overflow:auto; }
   .row { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 16px; border-bottom:1px solid var(--line); font-size:.86rem; }
   .row:last-child { border-bottom:none; }
@@ -132,8 +138,8 @@
 
     <div class="board">
       <div class="panel">
-        <h2>Virkni <span class="cnt" id="feedCnt"></span></h2>
-        <div class="body" id="feed"><div class="empty">Sæki…</div></div>
+        <h2>Verk í vinnslu <span class="cnt" id="prodCnt"></span></h2>
+        <div class="body" id="prodList"><div class="empty">Sæki…</div></div>
       </div>
       <div class="sideStack">
         <div class="panel">
@@ -141,12 +147,19 @@
           <div class="placeholder" id="calBox">Google Calendar — ekki tengt enn</div>
         </div>
         <div class="panel">
-          <h2>Verk í vinnslu <span class="cnt" id="prodCnt"></span></h2>
-          <div class="body" id="prodList"><div class="empty">Sæki…</div></div>
+          <h2 class="qfHead">
+            <span>🚨 Quick Fix <span class="cnt" id="qfCnt"></span></span>
+            <button id="qfAddBtn" type="button" title="Skrá nýtt Quick Fix">+</button>
+          </h2>
+          <div id="qfForm" class="qfForm" style="display:none;">
+            <input id="qfInput" type="text" placeholder="Hvað er að?" />
+            <button id="qfSubmit" type="button">Skrá</button>
+          </div>
+          <div class="body" id="qfList"><div class="empty">Sæki…</div></div>
         </div>
         <div class="panel">
-          <h2>Quick Fix <span class="cnt" id="qfCnt"></span></h2>
-          <div class="body" id="qfList"><div class="empty">Sæki…</div></div>
+          <h2>Virkni <span class="cnt" id="feedCnt"></span></h2>
+          <div class="body" id="feed"><div class="empty">Sæki…</div></div>
         </div>
       </div>
     </div>
@@ -234,7 +247,9 @@
   }
 
   // ---- Shell ----
+  var currentUserName = "";
   function showShell(record) {
+    currentUserName = record.name || "";
     document.getElementById("pinScreen").style.display = "none";
     document.getElementById("shell").classList.add("open");
     document.getElementById("userName").textContent = (record.name || "").split(" ")[0];
@@ -382,6 +397,30 @@
         }).join("");
       });
   }
+
+  function createQuickFix() {
+    var txt = document.getElementById("qfInput").value.trim();
+    if (!txt) return;
+    var submitBtn = document.getElementById("qfSubmit");
+    submitBtn.disabled = true;
+    fetch("/api/airtable?path=" + encodeURIComponent(QUICKFIX), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fields: { "Vandamálið": txt, "Nafn þitt": currentUserName } })
+    }).then(function () {
+      document.getElementById("qfInput").value = "";
+      document.getElementById("qfForm").style.display = "none";
+      submitBtn.disabled = false;
+      loadQuickFix();
+    }).catch(function () { submitBtn.disabled = false; });
+  }
+
+  document.getElementById("qfAddBtn").addEventListener("click", function () {
+    var form = document.getElementById("qfForm");
+    form.style.display = form.style.display === "none" ? "flex" : "none";
+    if (form.style.display === "flex") document.getElementById("qfInput").focus();
+  });
+  document.getElementById("qfSubmit").addEventListener("click", createQuickFix);
+  document.getElementById("qfInput").addEventListener("keydown", function (e) { if (e.key === "Enter") createQuickFix(); });
 
   document.getElementById("logoutBtn").addEventListener("click", function () { clearSession(); location.reload(); });
 
