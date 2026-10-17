@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="robots" content="noindex" />
+<title>CRM — Björninn</title>
+<link rel="icon" href="/icons/icon-192.png" />
+<style>
+  /* crm.html — the CRM area (2026-10-17), last of the 6 agreed areas. A kanban over
+     "Staða í söluferli" — all fields here already existed on Tækifæri (Næsta skref,
+     Eftirfylgnisstaða, Verk ósnert dagar …), this just surfaces them instead of
+     Airtable's own grid/kanban view. Same Apple-minimal CSS as /skrifstofa, /yfirferd,
+     /pontun — this is a new page, not an extension of an old dark-themed one. */
+  :root {
+    --bg:#f5f5f7; --surface:#ffffff; --line:#e3e3e6;
+    --text:#1d1d1f; --muted:#6e6e73; --dim:#aeaeb2;
+    --accent:#0071e3; --warn:#ff9500; --bad:#ff3b30; --good:#34c759;
+    --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:#000000; --surface:#1c1c1e; --line:#2c2c2e;
+      --text:#f5f5f7; --muted:#a1a1a6; --dim:#6e6e73;
+    }
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; line-height:1.4; }
+  .wrap { max-width:1200px; margin:0 auto; padding:calc(20px + env(safe-area-inset-top)) 18px calc(32px + env(safe-area-inset-bottom)); }
+
+  .hd { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
+  .hd a { color:var(--accent); text-decoration:none; font-size:.9rem; }
+  .title { font-size:1.3rem; font-weight:600; letter-spacing:-.01em; }
+  .toggleClosed { background:none; border:1px solid var(--line); border-radius:999px; padding:6px 13px; font-size:.82rem; color:var(--muted); font-family:inherit; }
+
+  .board { display:flex; gap:14px; overflow-x:auto; padding-bottom:10px; margin-top:16px; }
+  .col { flex:0 0 260px; }
+  .col h2 { font-size:.8rem; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.02em; margin-bottom:8px; display:flex; justify-content:space-between; }
+  .col h2 .cnt { color:var(--dim); font-weight:500; }
+  .cards { display:flex; flex-direction:column; gap:8px; }
+
+  .card { background:var(--surface); border-radius:14px; padding:12px 13px; box-shadow:0 1px 3px rgba(0,0,0,.05); cursor:pointer; }
+  .card .nm { font-weight:600; font-size:.88rem; }
+  .card .step { font-size:.78rem; color:var(--muted); margin-top:5px; }
+  .card .flags { display:flex; gap:5px; margin-top:7px; flex-wrap:wrap; }
+  .pill { font-size:.68rem; font-weight:600; padding:2px 8px; border-radius:999px; white-space:nowrap; }
+  .pill.stale { background:#ffe8e6; color:#b3261e; }
+  .pill.follow { background:#eef1f4; color:var(--muted); }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .pill.stale { background:#3a0f0c; color:#ff8a80; }
+    :root:not([data-theme="light"]) .pill.follow { background:#2c2c2e; color:var(--muted); }
+  }
+
+  .detail { display:none; background:var(--surface); border-radius:16px; padding:16px; margin-top:16px; }
+  .detail.open { display:block; }
+  .detail .dTitle { font-weight:600; font-size:1rem; margin-bottom:10px; }
+  .detail .row { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:7px 0; border-bottom:1px solid var(--line); font-size:.88rem; }
+  .detail .row:last-of-type { border-bottom:none; }
+  .detail .row label { color:var(--muted); }
+  .detail select, .detail input[type="date"] { font:inherit; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:6px 9px; }
+  .detail .actions { display:flex; justify-content:space-between; margin-top:12px; }
+  .detail .actions a { color:var(--accent); font-size:.85rem; text-decoration:none; }
+  .detail .close { background:none; border:none; color:var(--muted); font-size:.85rem; font-family:inherit; }
+
+  .loading { text-align:center; color:var(--muted); padding:60px 0; }
+  .empty { text-align:center; color:var(--muted); padding:16px 0; font-size:.82rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hd">
+    <a href="/skrifstofa">← Skrifstofa</a>
+    <button class="toggleClosed" id="toggleClosed">Sýna líka unnin/töpuð</button>
+  </div>
+  <div class="title">CRM</div>
+
+  <div id="loading" class="loading">Sæki verkefni…</div>
+  <div class="board" id="board" style="display:none;"></div>
+
+  <div class="detail" id="detail">
+    <div class="dTitle" id="dName"></div>
+    <div class="row"><label>Staða í söluferli</label><select id="dStage"></select></div>
+    <div class="row"><label>Næsta skref</label><select id="dStep"></select></div>
+    <div class="row"><label>Næsta skref dags.</label><input type="date" id="dStepDate" /></div>
+    <div class="row"><label>Verk ósnert</label><span id="dStale"></span></div>
+    <div class="row"><label>Eftirfylgni</label><span id="dFollow"></span></div>
+    <div class="actions">
+      <a id="dOpenPro" href="#" target="_blank">Opna í hönnuðinum →</a>
+      <button class="close" id="dClose">Loka</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var TAEKIFAERI = "tbl4LMXlQjp66RFKI";
+  var params = new URLSearchParams(location.search);
+  var k = params.get("k") || "";
+
+  var STAGES = [
+    { name: "Hönnun & Ráðgjöf 🖊️✨", short: "Hönnun" },
+    { name: "✍️ Teikna og yfirfara tilboð", short: "Teikna/yfirfara" },
+    { name: "📤 Tilboð sent", short: "Tilboð sent" },
+    { name: "🔥 Líklegt tækifæri", short: "Líklegt" },
+  ];
+  var CLOSED_STAGES = ["🏆 Tækifæri unnið", "🥀 Tækifæri tapað", "🚫 Tækifæri neitað"];
+  var STEP_CHOICES = ["📞 Hringja í viðskiptavin", "📧 Senda póst", "📐 Klára teikningu / hönnun", "💰 Senda tilboð", "⏳ Bíða eftir svari frá viðskiptavini", "🤝 Verkfundur / heimsókn", "Annað"];
+
+  function api(path, extra) {
+    var u = "/api/airtable?path=" + encodeURIComponent(path);
+    if (k) u += "&k=" + encodeURIComponent(k);
+    if (extra) u += "&" + extra;
+    return fetch(u).then(function (r) { return r.json(); });
+  }
+  function apiPatch(id, fields) {
+    return fetch("/api/airtable?path=" + encodeURIComponent(TAEKIFAERI + "/" + id), {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fields: fields })
+    }).then(function (r) { return r.json(); });
+  }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }); }
+
+  var showClosed = false;
+  var records = [];
+
+  function load() {
+    document.getElementById("loading").style.display = "block";
+    document.getElementById("board").style.display = "none";
+    var stageList = showClosed ? STAGES.map(function (s) { return s.name; }).concat(CLOSED_STAGES) : STAGES.map(function (s) { return s.name; });
+    var formula = "OR(" + stageList.map(function (s) { return '{Staða í söluferli}="' + s.replace(/"/g, '\\"') + '"'; }).join(",") + ")";
+    api(TAEKIFAERI, "filterByFormula=" + encodeURIComponent(formula) + "&pageSize=100")
+      .then(function (d) {
+        records = d.records || [];
+        document.getElementById("loading").style.display = "none";
+        document.getElementById("board").style.display = "flex";
+        render();
+      })
+      .catch(function () { document.getElementById("loading").textContent = "Tókst ekki að sækja gögn."; });
+  }
+
+  function render() {
+    var board = document.getElementById("board");
+    board.innerHTML = "";
+    var cols = showClosed ? STAGES.concat(CLOSED_STAGES.map(function (s) { return { name: s, short: s }; })) : STAGES;
+    cols.forEach(function (stage) {
+      var items = records.filter(function (r) { return (r.fields["Staða í söluferli"] || "") === stage.name; });
+      items.sort(function (a, b) { return (b.fields["Verk ósnert dagar 📅"] || 0) - (a.fields["Verk ósnert dagar 📅"] || 0); });
+      var col = document.createElement("div");
+      col.className = "col";
+      col.innerHTML = '<h2>' + esc(stage.short) + '<span class="cnt">' + items.length + '</span></h2><div class="cards"></div>';
+      var cardsEl = col.querySelector(".cards");
+      if (!items.length) cardsEl.innerHTML = '<div class="empty">Ekkert hér</div>';
+      items.forEach(function (r) { cardsEl.appendChild(cardEl(r)); });
+      board.appendChild(col);
+    });
+  }
+
+  function cardEl(r) {
+    var f = r.fields;
+    var el = document.createElement("div");
+    el.className = "card";
+    var stale = f["Verk ósnert dagar 📅"] || 0;
+    var step = f["Næsta skref"] || "";
+    var stepDate = f["Næsta skref dags."] || "";
+    el.innerHTML =
+      '<div class="nm">' + esc(f["Heiti tækifæris / verkefnis"] || "(ónefnt)") + '</div>' +
+      (step ? '<div class="step">' + esc(step) + (stepDate ? " · " + esc(stepDate) : "") + '</div>' : '') +
+      '<div class="flags">' +
+        (stale >= 14 ? '<span class="pill stale">' + Math.round(stale) + ' d. ósnert</span>' : '') +
+        (f["Eftirfylgnisstaða❓"] ? '<span class="pill follow">' + esc(f["Eftirfylgnisstaða❓"]) + '</span>' : '') +
+      '</div>';
+    el.addEventListener("click", function () { openDetail(r); });
+    return el;
+  }
+
+  function openDetail(r) {
+    var f = r.fields;
+    var d = document.getElementById("detail");
+    document.getElementById("dName").textContent = f["Heiti tækifæris / verkefnis"] || "(ónefnt)";
+
+    var stageSel = document.getElementById("dStage");
+    stageSel.innerHTML = STAGES.concat(CLOSED_STAGES.map(function (s) { return { name: s }; })).map(function (s) {
+      return '<option value="' + esc(s.name) + '"' + (s.name === f["Staða í söluferli"] ? " selected" : "") + '>' + esc(s.short || s.name) + '</option>';
+    }).join("");
+
+    var stepSel = document.getElementById("dStep");
+    stepSel.innerHTML = '<option value="">—</option>' + STEP_CHOICES.map(function (s) {
+      return '<option value="' + esc(s) + '"' + (s === f["Næsta skref"] ? " selected" : "") + '>' + esc(s) + '</option>';
+    }).join("");
+
+    document.getElementById("dStepDate").value = f["Næsta skref dags."] || "";
+    document.getElementById("dStale").textContent = (f["Verk ósnert dagar 📅"] || 0) + " dagar";
+    document.getElementById("dFollow").textContent = f["Eftirfylgnisstaða❓"] || "—";
+    document.getElementById("dOpenPro").href = "/skipuleggja?pro=" + r.id + (k ? "&k=" + encodeURIComponent(k) : "");
+
+    stageSel.onchange = function () {
+      var next = stageSel.value;
+      if (CLOSED_STAGES.indexOf(next) !== -1 && !confirm('Færa í "' + next + '"? Þetta er lokastaða og kveikir á tengdum automationum (t.d. tölvupóstum).')) {
+        stageSel.value = f["Staða í söluferli"];
+        return;
+      }
+      apiPatch(r.id, { "Staða í söluferli": next }).then(function () { f["Staða í söluferli"] = next; load(); });
+    };
+    stepSel.onchange = function () {
+      apiPatch(r.id, { "Næsta skref": stepSel.value || null }).then(function () { f["Næsta skref"] = stepSel.value; });
+    };
+    document.getElementById("dStepDate").onchange = function (e) {
+      apiPatch(r.id, { "Næsta skref dags.": e.target.value || null }).then(function () { f["Næsta skref dags."] = e.target.value; });
+    };
+
+    d.classList.add("open");
+    d.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+  document.getElementById("dClose").addEventListener("click", function () { document.getElementById("detail").classList.remove("open"); });
+  document.getElementById("toggleClosed").addEventListener("click", function () {
+    showClosed = !showClosed;
+    document.getElementById("toggleClosed").textContent = showClosed ? "Fela unnin/töpuð" : "Sýna líka unnin/töpuð";
+    load();
+  });
+
+  load();
+})();
+</script>
+</body>
+</html>

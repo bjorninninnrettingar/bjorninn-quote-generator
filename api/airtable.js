@@ -292,6 +292,9 @@ const VERK_ONLY_FIELDS = {
     // pricing fields (also listed in WRITABLE_FIELDS above).
     "💰 Tilboðsupphæð", "Ósýnilegur afsláttur %", "Afsláttur í uppsetningu",
     "Smáverka álagning", "Smáverka álagning [uppsetning]",
+    // /crm (2026-10-17) — pipeline/follow-up fields, all pre-existing.
+    "Næsta skref", "Næsta skref dags.", "Verk ósnert dagar 📅",
+    "Eftirfylgnisstaða❓", "Svar við eftirfylgni", "Tilboð sent þann",
     "Loka teikningar verkefnis 📋",
     "Sér fræsi teikningar",
     "Málsettar myndir af rými 🖼️",
@@ -548,6 +551,11 @@ const WRITABLE_FIELDS = {
     // Tilboðsupphæð) do the math exactly as they do today.
     "Ósýnilegur afsláttur %", "Afsláttur í uppsetningu",
     "Smáverka álagning", "Smáverka álagning [uppsetning]",
+    // /crm — moving a card between pipeline stages, and editing the
+    // follow-up next-step. Same fields Rakel already edits in Airtable;
+    // existing automations (F1 emails, Konto drafts, price locks) react to
+    // "Staða í söluferli" exactly as they do today, nothing new triggered.
+    "Staða í söluferli", "Næsta skref", "Næsta skref dags.",
   ],
   // /app's recent-QUICK-FIX list lets anyone tap a card to advance
   // opið → Í vinnslu → Lokið — unlike Fjarvistir's vacation-request "Staða"
