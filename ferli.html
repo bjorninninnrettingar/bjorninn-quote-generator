@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex" />
+<title>Skipulagsferli — Björninn</title>
+<link rel="icon" href="/icons/icon-192.png" />
+<style>
+  /* ferli.html — the unified skipulag-process workspace (2026-10-17), replacing
+     /yfirferd, /skipulag and PRO mode's "Keyra skipulag" button as three
+     separate things. One kanban (columns = Staða í skipulagi's 4 real stages,
+     plus a computed 5th "Pöntunarlisti" column — same "Klárt til framleiðslu"
+     status, split by whether its Pantaðir listar are all "Komið í hús" yet)
+     over every confirmed project (Staða í söluferli = Tækifæri unnið). Opening
+     a card shows ALL stage sections stacked — the current stage expanded and
+     highlighted, earlier ones collapsed but never hidden ("kemst alltaf í
+     reiti úr skrefinu á undan", user's own words) — rather than a UI that
+     replaces itself and loses access to earlier data.
+     Per-unit review reuses /yfirferd's exact box-render + tab logic, just
+     inlined into a modal instead of its own page. Loka yfirferð reuses
+     /skipulag's exact checklist + BPP-viewer + Cutty/Æðar/CNC pipeline code.
+     Pöntunarlisti here is a summary + link — /pontun stays the real tool for
+     actually managing orders. */
+  :root {
+    --bg:#f3f4f6; --surface:#ffffff; --line:#e1e4e8; --sidebar:#1b2430;
+    --text:#1a1d21; --muted:#5d6670; --dim:#9aa3ad;
+    --accent:#0f6cbd; --warn:#9a6700; --bad:#c4291c; --good:#1a7d36;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; line-height:1.4; }
+
+  #shell { display:flex; min-height:100vh; }
+  .sidebar { width:224px; flex:none; background:var(--sidebar); color:#cfd5dd; display:flex; flex-direction:column; padding:18px 0; min-height:100vh; }
+  .sidebar .brand { padding:0 18px 18px; font-weight:700; color:#fff; font-size:1.05rem; border-bottom:1px solid #2a3442; margin-bottom:10px; }
+  .sidebar nav { display:flex; flex-direction:column; gap:1px; flex:1; }
+  .sidebar nav a { display:flex; align-items:center; gap:10px; padding:9px 18px; text-decoration:none; color:#cfd5dd; font-size:.88rem; }
+  .sidebar nav a:hover { background:#242e3b; }
+  .sidebar nav a.active { background:var(--accent); color:#fff; }
+  .sidebar .user { padding:14px 18px 0; border-top:1px solid #2a3442; margin-top:10px; font-size:.82rem; display:flex; justify-content:space-between; align-items:center; }
+  .sidebar .user button { background:none; border:none; color:#8aa4c7; font:inherit; font-size:.8rem; cursor:pointer; }
+
+  .main { flex:1; padding:24px 28px 40px; max-width:1500px; }
+  .pageHd { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:16px; }
+  .pageHd h1 { font-size:1.35rem; font-weight:700; }
+  .pageHd a { color:var(--accent); text-decoration:none; font-size:.85rem; }
+
+  /* ---- Kanban ---- */
+  .board { display:flex; gap:14px; overflow-x:auto; padding-bottom:10px; }
+  .col { flex:0 0 240px; }
+  .col h2 { font-size:.78rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.02em; margin-bottom:8px; display:flex; justify-content:space-between; }
+  .col h2 .cnt { color:var(--dim); font-weight:500; }
+  .cards { display:flex; flex-direction:column; gap:8px; }
+  .kcard { background:var(--surface); border-radius:12px; padding:11px 13px; box-shadow:0 1px 3px rgba(0,0,0,.05); text-decoration:none; color:var(--text); display:block; font-size:.86rem; font-weight:600; }
+  .empty { text-align:center; color:var(--muted); padding:16px 0; font-size:.8rem; }
+  .loading { text-align:center; color:var(--muted); padding:60px 0; }
+
+  /* ---- Detail ---- */
+  .projHd { background:var(--surface); border-radius:12px; padding:14px 18px; margin-bottom:18px; }
+  .projHd .nm { font-size:1.1rem; font-weight:700; }
+  .projHd .st { color:var(--muted); font-size:.85rem; margin-top:3px; }
+
+  .stage { background:var(--surface); border-radius:12px; margin-bottom:12px; overflow:hidden; border:1px solid var(--line); }
+  .stage.current { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+  .stageHd { display:flex; align-items:center; justify-content:space-between; padding:13px 18px; cursor:pointer; }
+  .stageHd .t { font-weight:700; font-size:.95rem; display:flex; align-items:center; gap:8px; }
+  .stageHd .badge { font-size:.68rem; font-weight:700; padding:2px 9px; border-radius:999px; background:var(--accent); color:#fff; }
+  .stageHd .chev { color:var(--dim); font-size:.8rem; }
+  .stageBody { display:none; padding:0 18px 18px; border-top:1px solid var(--line); padding-top:14px; }
+  .stageBody.open { display:block; }
+
+  .unitRow { display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-bottom:1px solid var(--line); cursor:pointer; font-size:.88rem; }
+  .unitRow:last-child { border-bottom:none; }
+  .unitRow .chip { font-size:.7rem; padding:2px 8px; border-radius:999px; background:var(--good); color:#fff; }
+  .unitRow .chip.todo { background:var(--line); color:var(--muted); }
+
+  .sectionTitle { font-size:.74rem; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:var(--muted); margin:14px 0 8px; }
+  .checklist { display:flex; flex-direction:column; gap:7px; }
+  .chkRow { display:flex; align-items:center; gap:10px; background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:10px 12px; cursor:pointer; font-size:.85rem; }
+  .chkRow .box { width:19px; height:19px; border-radius:5px; border:2px solid var(--dim); flex:none; display:flex; align-items:center; justify-content:center; font-size:.78rem; }
+  .chkRow.on .box { background:var(--good); border-color:var(--good); color:#fff; }
+  .stemmir { font-size:.8rem; color:var(--muted); margin-top:8px; }
+
+  .pipeSteps { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+  .pipeStep { display:flex; align-items:center; gap:10px; text-decoration:none; color:var(--text); border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-size:.85rem; }
+  .pipeStep .chip { font-size:.68rem; padding:2px 8px; border-radius:999px; background:var(--line); color:var(--muted); }
+  .pipeStep .chip.ok { background:var(--good); color:#fff; }
+  .pipeStep .chip.partial { background:#fdf2d9; color:var(--warn); }
+
+  .bppToggle { margin-top:10px; background:none; border:1px dashed var(--line); border-radius:10px; color:var(--muted); font-size:.82rem; padding:9px 12px; width:100%; text-align:left; font-family:inherit; cursor:pointer; }
+  #bppArea { display:none; margin-top:10px; }
+  #bppArea.open { display:block; }
+  #bppDrop { border:2px dashed var(--line); border-radius:12px; padding:20px 14px; text-align:center; color:var(--muted); font-size:.82rem; }
+  #bppDrop.over { border-color:var(--accent); }
+  #bppDrop input { display:none; }
+  #bppDrop .pick { display:inline-block; margin-top:8px; background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:6px 12px; font-weight:700; cursor:pointer; font-size:.8rem; }
+  #bppOut { margin-top:12px; display:flex; flex-direction:column; gap:12px; }
+  .bpp-card { background:none; border:none; padding:0; }
+  .bw-window { background:#d6d3c6; border:1px solid #9b9686; border-radius:5px; overflow:hidden; box-shadow:0 6px 18px rgba(0,0,0,.35); }
+  .bw-titlebar { background:linear-gradient(180deg,#5c4a2e,#9c8a6b); color:#f3ecdd; padding:6px 7px 6px 10px; display:flex; align-items:center; gap:8px; font-family:Tahoma,"Segoe UI",Verdana,sans-serif; }
+  .bw-titlebar .ttl { font-size:.8rem; font-weight:700; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-shadow:0 1px 1px rgba(0,0,0,.4); }
+  .bw-titlebar .remove { background:#00000030; border:1px solid #ffffff40; color:#fff; width:20px; height:18px; border-radius:3px; cursor:pointer; font-size:.72rem; line-height:1; flex:none; }
+  .bpp-chip { font-size:.68rem; font-weight:800; padding:2px 8px; border-radius:3px; letter-spacing:.03em; white-space:nowrap; display:inline-block; flex:none; }
+  .bpp-chip.kind { background:#ffffffcc; color:#4a3c22; }
+  .bpp-chip.unknown { background:#c0392b; color:#fff; }
+  .bw-body { display:flex; align-items:stretch; }
+  .bw-list { width:150px; flex:none; background:#e2dfd2; border-right:1px solid #9b9686; max-height:360px; overflow:auto; font-family:Tahoma,"Segoe UI",Verdana,sans-serif; }
+  .bw-row { display:flex; align-items:center; gap:5px; padding:2.5px 6px; border-bottom:1px solid #cac6b6; white-space:nowrap; }
+  .bw-row.child { padding-left:22px; }
+  .bw-row.hi { background:#c7d8e8; }
+  .bw-chk { width:10px; height:10px; border:1px solid #767262; background:#fff; flex:none; display:inline-flex; align-items:center; justify-content:center; border-radius:1px; }
+  .bw-chk.on::after { content:""; width:6px; height:6px; background:#2f2f2f; display:block; }
+  .bw-icon { width:12px; height:12px; border-radius:2px; flex:none; border:1px solid rgba(0,0,0,.3); }
+  .bw-row .nm { color:#1a1a1a; font-size:.72rem; overflow:hidden; text-overflow:ellipsis; }
+  .bw-canvas-wrap { flex:1; background:#eeede6; padding:14px; display:flex; justify-content:center; align-items:center; min-width:0; overflow:auto; }
+  svg.plan { display:block; max-width:100%; }
+  .bpp-legend { display:flex; gap:14px; flex-wrap:wrap; padding:8px 14px 12px; font-size:.72rem; color:#5c5848; background:#d6d3c6; font-family:Tahoma,"Segoe UI",Verdana,sans-serif; }
+  .bpp-legend span { display:inline-flex; align-items:center; gap:5px; }
+  .bpp-legend i { width:11px; height:11px; border-radius:3px; display:inline-block; flex:none; }
+  .bpp-note { margin-top:8px; font-size:.8rem; border-radius:8px; padding:8px 12px; }
+  .bpp-note.warn { background:#fdf2d9; color:var(--warn); }
+  .bpp-note.err { background:#fbe9e7; color:var(--bad); }
+  .bpp-note.info { background:#e5f6ea; color:var(--good); }
+  .bpp-raw { margin-top:8px; }
+  .bpp-raw summary { cursor:pointer; font-size:.78rem; color:var(--muted); font-weight:700; }
+  .bpp-rawlist { margin-top:6px; font-size:.74rem; color:var(--dim); font-family:ui-monospace,Menlo,Consolas,monospace; max-height:180px; overflow:auto; background:var(--bg); border-radius:8px; padding:8px 10px; }
+
+  .gateBtn { width:100%; margin-top:14px; background:var(--good); color:#fff; border:none; border-radius:10px; padding:12px; font-size:.92rem; font-weight:700; font-family:inherit; cursor:pointer; }
+  .gateBtn:disabled { opacity:.45; }
+  .gateMsg { text-align:center; font-size:.8rem; color:var(--muted); margin-top:6px; min-height:1.1em; }
+  .runBtn { background:var(--accent); color:#fff; border:none; border-radius:10px; padding:10px 16px; font:inherit; font-size:.85rem; font-weight:600; cursor:pointer; }
+  .proLink { display:inline-block; margin-top:8px; color:var(--accent); font-size:.85rem; text-decoration:none; }
+
+  /* ---- Unit wizard modal (ported from /yfirferd) ---- */
+  .modalBg { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:50; align-items:flex-start; justify-content:center; padding:40px 20px; overflow:auto; }
+  .modalBg.open { display:flex; }
+  .modal { background:var(--surface); border-radius:14px; max-width:520px; width:100%; padding:20px; max-height:85vh; overflow:auto; }
+  .modal .mTitle { font-size:1.1rem; font-weight:700; }
+  .modal .mSub { color:var(--muted); font-size:.85rem; margin-top:2px; }
+  .modal .mClose { float:right; background:none; border:none; font-size:1.2rem; color:var(--muted); cursor:pointer; }
+  .wFlags { display:flex; flex-direction:column; gap:6px; margin:12px 0; }
+  .wFlag { background:#fdf2d9; color:var(--warn); border-radius:8px; padding:8px 11px; font-size:.82rem; }
+  .wTabs { display:flex; gap:6px; margin:14px 0 10px; overflow-x:auto; }
+  .wTab { flex:0 0 auto; padding:6px 12px; border-radius:999px; background:var(--bg); color:var(--muted); font-size:.8rem; font-weight:500; border:1px solid var(--line); }
+  .wTab.active { background:var(--text); color:var(--surface); border-color:var(--text); }
+  .wPanel { display:none; }
+  .wPanel.active { display:block; }
+  .wCard { background:var(--bg); border-radius:12px; padding:13px; margin-bottom:10px; }
+  .wCard h3 { font-size:.74rem; font-weight:600; color:var(--muted); text-transform:uppercase; margin-bottom:8px; }
+  .wRow { display:flex; justify-content:space-between; gap:10px; padding:6px 0; border-bottom:1px solid var(--line); font-size:.85rem; }
+  .wRow:last-child { border-bottom:none; }
+  .wRow .k { color:var(--muted); }
+  .boxSvg { width:100%; height:auto; display:block; }
+  .boxSvg text { font-family:var(--font); fill:var(--text); }
+  .boxSvg .dim { stroke:var(--muted); stroke-width:1; }
+  .boxSvg .dimTxt { font-size:11px; fill:var(--muted); }
+  .boxSvg .shell { fill:var(--surface); stroke:var(--text); stroke-width:1.5; }
+  .boxSvg .div { stroke:var(--line); stroke-width:1.5; }
+  .approveBtn { width:100%; background:var(--good); color:#fff; border:none; border-radius:10px; padding:13px; font-size:.92rem; font-weight:700; font-family:inherit; margin-top:8px; cursor:pointer; }
+  .approveBtn:disabled { opacity:.5; }
+  .approveMsg { text-align:center; font-size:.8rem; color:var(--muted); margin-top:6px; min-height:1.1em; }
+</style>
+</head>
+<body>
+<div id="shell">
+  <div class="sidebar">
+    <div class="brand">🐻 Björninn</div>
+    <nav id="officeNav"></nav>
+    <div class="user">
+      <span id="officeUserName"></span>
+      <button id="officeLogout" type="button">Útskrá</button>
+    </div>
+  </div>
+  <div class="main">
+    <div class="pageHd">
+      <h1 id="pageTitle">Skipulagsferli</h1>
+      <a href="/ferli" id="backToBoard" style="display:none;">← Öll verk</a>
+    </div>
+
+    <div id="loading" class="loading">Sæki…</div>
+    <div class="board" id="board" style="display:none;"></div>
+    <div id="detail" style="display:none;"></div>
+  </div>
+</div>
+
+<div class="modalBg" id="modalBg">
+  <div class="modal">
+    <button class="mClose" id="mClose">✕</button>
+    <div class="mTitle" id="unitTitle"></div>
+    <div class="mSub" id="unitSub"></div>
+    <div class="wFlags" id="flags"></div>
+    <div class="wTabs" id="tabs">
+      <button class="wTab active" data-panel="p-kassi">Kassi</button>
+      <button class="wTab" data-panel="p-innihald">Skúffur/hillur</button>
+      <button class="wTab" data-panel="p-sogun">Sögunarlisti</button>
+      <button class="wTab" data-panel="p-pontun">Pöntun</button>
+    </div>
+    <div class="wPanel active" id="p-kassi">
+      <div class="wCard"><svg class="boxSvg" id="boxSvg" viewBox="0 0 320 280"></svg></div>
+    </div>
+    <div class="wPanel" id="p-innihald">
+      <div class="wCard"><h3>Skúffur</h3><div id="drawerList"></div></div>
+      <div class="wCard"><h3>Hillur</h3><div id="shelfList"></div></div>
+      <div class="wCard"><h3>Annað</h3><div id="otherList"></div></div>
+    </div>
+    <div class="wPanel" id="p-sogun"><div class="wCard"><div id="sogunList"></div></div></div>
+    <div class="wPanel" id="p-pontun"><div class="wCard"><div id="pontunList"></div></div></div>
+    <button class="approveBtn" id="approveBtn">Samþykkja einingu</button>
+    <div class="approveMsg" id="approveMsg"></div>
+  </div>
+</div>
+
+<script src="/office-shell.js"></script>
+<script src="/cnc-bpp.js"></script>
+<script>
+(function () {
+  "use strict";
+  var TAEKIFAERI = "tbl4LMXlQjp66RFKI";
+  var EYDUBLAD = "tbl0WcyHhz63pSzZX";
+  var SOGUNARLISTI = "tblhdgyvTcBfP8kov";
+  var VORUR = "tblszHaBrwhYNV68z";
+  var PANTADIR = "tblSccfV2lBp4FiFU";
+  var PLAN_TABLE = "tblzkw70E2xoX9RmK";
+
+  var shellInfo = window.OfficeShell.boot("ferli");
+  if (!shellInfo) return;
+  var k = shellInfo.k;
+  var params = new URLSearchParams(location.search);
+  var recordId = params.get("recordId");
+  var unitParam = params.get("unit");
+
+  function api(path, extra) {
+    var u = "/api/airtable?path=" + encodeURIComponent(path);
+    if (k) u += "&k=" + encodeURIComponent(k);
+    if (extra) u += "&" + extra;
+    return fetch(u).then(function (r) { return r.json(); });
+  }
+  function apiPatch(path, fields) {
+    return fetch("/api/airtable?path=" + encodeURIComponent(path), {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fields: fields })
+    }).then(function (r) { return r.json(); });
+  }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }); }
+  function eqFilter(fieldPrefixEncoded, name) {
+    var e = String(name).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    return fieldPrefixEncoded + "%3D" + encodeURIComponent('"' + e + '"');
+  }
+  var FIELD_PROJECT_ON_EYDUBLAD = "%7BT%C3%A6kif%C3%A6ri%20%F0%9F%93%A3%7D"; // {Tækifæri 📣}
+  var FIELD_PROJECT_ON_PANTADIR = "%7BT%C3%A6kif%C3%A6ri%20%F0%9F%93%A3%7D";
+
+  var STAGES = [
+    { id: "forskipulag", match: "For-skipulag", label: "For-skipulag" },
+    { id: "skipulag", match: "Í skipulagningu", label: "Í skipulagningu" },
+    { id: "yfirfara", match: "Yfirfara", label: "Yfirfara" },
+    { id: "klart", match: "Klárt til framleiðslu", label: "Klárt til framleiðslu" },
+  ];
+
+  if (!recordId) {
+    loadBoard();
+  } else {
+    loadDetail(recordId);
+  }
+  if (unitParam) openUnitModal(unitParam);
+
+  // ======================= KANBAN =======================
+  function loadBoard() {
+    document.getElementById("loading").style.display = "block";
+    var fml = '{Staða í söluferli}="🏆 Tækifæri unnið"';
+    Promise.all([
+      api(TAEKIFAERI, "filterByFormula=" + encodeURIComponent(fml) + "&fields%5B%5D=Heiti%20t%C3%A6kif%C3%A6ris%20%2F%20verkefnis&fields%5B%5D=Sta%C3%B0a%20%C3%AD%20skipulagi&pageSize=100"),
+      api(PANTADIR, "pageSize=100")
+    ]).then(function (res) {
+      document.getElementById("loading").style.display = "none";
+      document.getElementById("board").style.display = "flex";
+      renderBoard(res[0].records || [], res[1].records || []);
+    });
+  }
+
+  function renderBoard(projects, orders) {
+    // Which project NAMES still have an open (not "Komið í hús") order —
+    // used to split "Klárt til framleiðslu" into that column vs Pöntunarlisti.
+    var openOrderNames = {};
+    orders.forEach(function (o) {
+      var f = o.fields || {};
+      if (f["Staða"] !== "Komið í hús 🐻") {
+        var links = f["Tækifæri 📣"] || [];
+        // Pantaðir listar links by id normally, but this proxy only returns
+        // ids for link fields (no name) — fall back to Stöðu kenni's own
+        // "<verk> — <birgir>" prefix, which always starts with the project name.
+        var label = f["Stöðu kenni"] || "";
+        openOrderNames[label] = true;
+      }
+    });
+
+    var board = document.getElementById("board");
+    board.innerHTML = "";
+    var cols = STAGES.map(function (s) { return { id: s.id, label: s.label, items: [] }; });
+    cols.push({ id: "pontun", label: "Pöntunarlisti", items: [] });
+
+    projects.forEach(function (p) {
+      var f = p.fields || {};
+      var stNow = f["Staða í skipulagi"] || "";
+      var name = f["Heiti tækifæris / verkefnis"] || "";
+      if (stNow === "Klárt til framleiðslu") {
+        var hasOpenOrder = Object.keys(openOrderNames).some(function (label) { return label.indexOf(name) === 0; });
+        (hasOpenOrder ? cols[4] : cols[3]).items.push(p);
+      } else {
+        var idx = STAGES.findIndex(function (s) { return s.match === stNow; });
+        if (idx === -1) idx = 0; // empty/unknown Staða í skipulagi → For-skipulag
+        cols[idx].items.push(p);
+      }
+    });
+
+    cols.forEach(function (col) {
+      var el = document.createElement("div");
+      el.className = "col";
+      el.innerHTML = '<h2>' + esc(col.label) + '<span class="cnt">' + col.items.length + '</span></h2><div class="cards"></div>';
+      var cardsEl = el.querySelector(".cards");
+      if (!col.items.length) cardsEl.innerHTML = '<div class="empty">Ekkert hér</div>';
+      col.items.forEach(function (p) {
+        var a = document.createElement("a");
+        a.className = "kcard";
+        a.href = "/ferli?recordId=" + p.id + (k ? "&k=" + encodeURIComponent(k) : "");
+        a.textContent = p.fields["Heiti tækifæris / verkefnis"] || "(ónefnt)";
+        cardsEl.appendChild(a);
+      });
+      board.appendChild(el);
+    });
+  }
+
+  // ======================= DETAIL =======================
+  function loadDetail(id) {
+    document.getElementById("loading").style.display = "block";
+    document.getElementById("backToBoard").style.display = "inline-block";
+    api(TAEKIFAERI + "/" + id).then(function (proj) {
+      document.getElementById("loading").style.display = "none";
+      var det = document.getElementById("detail");
+      det.style.display = "block";
+      renderDetail(proj);
+    });
+  }
+
+  function renderDetail(proj) {
+    var f = proj.fields || {};
+    var name = f["Heiti tækifæris / verkefnis"] || "(ónefnt)";
+    var stNow = f["Staða í skipulagi"] || "For-skipulag";
+    document.getElementById("pageTitle").textContent = name;
+
+    var det = document.getElementById("detail");
+    det.innerHTML =
+      '<div class="projHd"><div class="nm">' + esc(name) + '</div><div class="st">Staða í skipulagi: ' + esc(stNow) + '</div></div>' +
+      stageHtml("forskipulag", "1 · Forskipulag", stNow === "For-skipulag") +
+      stageHtml("skipulag", "2 · Skipulag (einingar)", stNow === "Í skipulagningu") +
+      stageHtml("yfirfara", "3 · Loka yfirferð", stNow === "Yfirfara") +
+      stageHtml("pontun", "4 · Pöntunarlisti", stNow === "Klárt til framleiðslu");
+
+    wireStageToggles();
+    document.querySelector('.stage[data-stage="' + stageIdFor(stNow) + '"]').classList.add("current");
+    document.getElementById('body-' + stageIdFor(stNow)).classList.add("open");
+
+    fillForskipulag(proj);
+    fillSkipulag(proj);
+    fillYfirfara(proj);
+    fillPontun(proj);
+  }
+  function stageIdFor(stNow) {
+    if (stNow === "For-skipulag" || !stNow) return "forskipulag";
+    if (stNow === "Í skipulagningu") return "skipulag";
+    if (stNow === "Yfirfara") return "yfirfara";
+    return "pontun";
+  }
+  function stageHtml(id, title, isCurrent) {
+    return '<div class="stage" data-stage="' + id + '">' +
+      '<div class="stageHd" data-toggle="' + id + '"><div class="t">' + title + (isCurrent ? ' <span class="badge">Núna</span>' : '') + '</div><div class="chev">▾</div></div>' +
+      '<div class="stageBody" id="body-' + id + '"><div id="content-' + id + '"></div></div>' +
+      '</div>';
+  }
+  function wireStageToggles() {
+    document.querySelectorAll(".stageHd").forEach(function (hd) {
+      hd.addEventListener("click", function () {
+        document.getElementById("body-" + hd.dataset.toggle).classList.toggle("open");
+      });
+    });
+  }
+
+  // ---- Stage 1: Forskipulag ----
+  function fillForskipulag(proj) {
+    var el = document.getElementById("content-forskipulag");
+    var k2 = k ? "&k=" + encodeURIComponent(k) : "";
+    var html = '<a class="proLink" target="_blank" href="/skipuleggja?pro=' + proj.id + k2 + '">Opna í hönnuðinum (PRO mode) →</a><br/>';
+    if ((proj.fields["Staða í skipulagi"] || "For-skipulag") === "For-skipulag" || !proj.fields["Staða í skipulagi"]) {
+      html += '<button class="runBtn" id="runSkipulagBtn" style="margin-top:10px;">📐 Keyra skipulag</button><div class="gateMsg" id="runSkipulagMsg"></div>';
+    } else {
+      html += '<div class="sectionTitle" style="margin-top:10px;">Skipulag keyrt þegar</div>';
+    }
+    el.innerHTML = html;
+    var btn = document.getElementById("runSkipulagBtn");
+    if (btn) btn.addEventListener("click", function () {
+      if (!confirm("Keyra skipulag núna? Þetta býr til/samstillir Eyðublöð úr teikningunni.")) return;
+      btn.disabled = true;
+      var msg = document.getElementById("runSkipulagMsg");
+      msg.textContent = "Keyri…";
+      apiPatch(TAEKIFAERI + "/" + proj.id, { "🔄 Keyra Skipulag": false })
+        .then(function () { return apiPatch(TAEKIFAERI + "/" + proj.id, { "🔄 Keyra Skipulag": true }); })
+        .then(function () { msg.textContent = "Sent — opnaðu verkið aftur eftir smá til að sjá Skipulag-kaflann."; })
+        .catch(function () { msg.textContent = "Tókst ekki — reyndu aftur."; btn.disabled = false; });
+    });
+  }
+
+  // ---- Stage 2: Skipulag (unit list) ----
+  function fillSkipulag(proj) {
+    var el = document.getElementById("content-skipulag");
+    var name = proj.fields["Heiti tækifæris / verkefnis"] || "";
+    if (!name) { el.innerHTML = '<div class="empty">Ekkert verkefnanafn</div>'; return; }
+    el.innerHTML = '<div class="empty">Sæki einingar…</div>';
+    api(EYDUBLAD, "filterByFormula=" + eqFilter(FIELD_PROJECT_ON_EYDUBLAD, name) + "&maxRecords=200&fields%5B%5D=Athugasemd&fields%5B%5D=Hva%C3%B0%20viltu%20sm%C3%AD%C3%B0a%3F&fields%5B%5D=Fjöldi%20pöntunarlista%20per%20eining%20")
+      .then(function (d) {
+        var recs = d.records || [];
+        if (!recs.length) { el.innerHTML = '<div class="empty">Engar einingar skráðar enn</div>'; return; }
+        el.innerHTML = recs.map(function (r) {
+          var f = r.fields || {};
+          return '<div class="unitRow" data-unit="' + r.id + '"><span>' + esc(f["Athugasemd"] || "(ónefnd)") + '</span><span class="chip">' + esc(f["Hvað viltu smíða?"] || "") + '</span></div>';
+        }).join("");
+        el.querySelectorAll(".unitRow").forEach(function (row) {
+          row.addEventListener("click", function () { openUnitModal(row.dataset.unit); });
+        });
+      });
+  }
+
+  // ---- Stage 3: Yfirfara (checklist + BPP + Cutty/Æðar/CNC pipeline) ----
+  var S_PROJECT_LINK = "Tækifæri 📣 (projects)", S_SKURDARSKRA = "Skurðarskrá";
+  var PL_PROJECT = "Tækifæri 📣", PL_CONFIRM = "Staðfest ✅";
+  function airtableFetchByName(table, formula, fields) {
+    var qsParts = ["path=" + encodeURIComponent(table)];
+    if (formula) qsParts.push("filterByFormula=" + encodeURIComponent(formula));
+    fields.forEach(function (fld) { qsParts.push("fields[]=" + encodeURIComponent(fld)); });
+    qsParts.push("pageSize=100");
+    return fetch("/api/airtable?" + qsParts.join("&") + (k ? "&k=" + encodeURIComponent(k) : ""))
+      .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error("HTTP " + r.status)); })
+      .then(function (d) { return d.records || []; })
+      .catch(function () { return []; });
+  }
+  var CHECKLIST = [
+    { field: "1. Dagssetningar ákveðnar", label: "Dagssetningar ákveðnar" },
+    { field: "2. Cutty keyrður fyrir þetta verkefni og kominn á USB?", label: "Cutty keyrður og á USB" },
+    { field: "3. Teikningar prentaðar 2x", label: "Teikningar prentaðar 2x" },
+    { field: "4. Verkfundur tekinn", label: "Verkfundur tekinn" },
+    { field: "5. Efni lent í húsi", label: "Efni lent í húsi" },
+    { field: "6. CNC yfirfarið", label: "CNC yfirfarið (.bpp)" },
+  ];
+  function fillYfirfara(proj) {
+    var el = document.getElementById("content-yfirfara");
+    var f = proj.fields || {};
+    var qs = "?recordId=" + proj.id;
+    el.innerHTML =
+      '<div class="pipeSteps">' +
+        '<a class="pipeStep" target="_blank" href="/cutlist' + qs + '">1. Skurðarlisti (Cutty) <span class="chip" id="chipCutty">…</span></a>' +
+        '<a class="pipeStep" target="_blank" href="/aedar' + qs + '">2. Æðar (viðarmynstur) <span class="chip" id="chipAedar">…</span></a>' +
+        '<a class="pipeStep" target="_blank" href="/cnc' + qs + '">3. CNC vélun <span class="chip">Opna →</span></a>' +
+      '</div>' +
+      '<div class="sectionTitle">Gátlisti</div>' +
+      '<div class="checklist" id="checklist"></div>' +
+      '<div class="stemmir" id="stemmirLine"></div>' +
+      '<button class="bppToggle" id="bppToggleBtn">🔬 Skoða CNC-forritun (.bpp) hér til að yfirfara →</button>' +
+      '<div id="bppArea"><div id="bppDrop"><div>Slepptu <b>.bpp</b> skrám hér</div><label class="pick">Velja skrár<input id="bppFile" type="file" accept=".bpp" multiple /></label></div><div id="bppOut"></div></div>' +
+      '<button class="gateBtn" id="gateBtn">✅ Merkja Klárt til framleiðslu</button>' +
+      '<div class="gateMsg" id="gateMsg"></div>';
+
+    var wrap = document.getElementById("checklist");
+    CHECKLIST.forEach(function (item) {
+      var on = !!f[item.field];
+      var row = document.createElement("div");
+      row.className = "chkRow" + (on ? " on" : "");
+      row.innerHTML = '<div class="box">' + (on ? "✓" : "") + '</div><div>' + item.label + '</div>';
+      row.addEventListener("click", function () {
+        var next = !row.classList.contains("on");
+        row.classList.toggle("on", next);
+        row.querySelector(".box").textContent = next ? "✓" : "";
+        var ff = {}; ff[item.field] = next;
+        apiPatch(TAEKIFAERI + "/" + proj.id, ff);
+      });
+      wrap.appendChild(row);
+    });
+    var stemmir = f["Framvinda Pöntunarlista stemmir🔒 skipulag 2.0📝"];
+    document.getElementById("stemmirLine").textContent = (stemmir !== null && stemmir !== undefined && stemmir !== "") ? "Pöntunarlisti stemmir: " + Math.round(stemmir * 100) + "%" : "";
+
+    var gateBtn = document.getElementById("gateBtn"), gateMsg = document.getElementById("gateMsg");
+    if (f["Staða í skipulagi"] === "Klárt til framleiðslu") {
+      gateBtn.textContent = "✓ Þegar klárt til framleiðslu";
+      gateBtn.disabled = true;
+    } else {
+      gateBtn.addEventListener("click", function () {
+        if (!confirm("Merkja verkið Klárt til framleiðslu?")) return;
+        gateBtn.disabled = true; gateMsg.textContent = "Vista…";
+        apiPatch(TAEKIFAERI + "/" + proj.id, { "Staða í skipulagi": "Klárt til framleiðslu" })
+          .then(function () { gateBtn.textContent = "✓ Þegar klárt til framleiðslu"; gateMsg.textContent = ""; })
+          .catch(function () { gateMsg.textContent = "Tókst ekki."; gateBtn.disabled = false; });
+      });
+    }
+
+    var bppToggleBtn = document.getElementById("bppToggleBtn"), bppArea = document.getElementById("bppArea"), bppDrop = document.getElementById("bppDrop"), bppOut = document.getElementById("bppOut");
+    bppToggleBtn.addEventListener("click", function () { bppArea.classList.toggle("open"); });
+    function decodeBpp(buf) { try { return new TextDecoder("windows-1252").decode(buf); } catch (e) { return new TextDecoder("utf-8").decode(buf); } }
+    function addBppFiles(files) {
+      Array.prototype.slice.call(files).forEach(function (bf) {
+        if (!/\.bpp$/i.test(bf.name)) return;
+        bf.arrayBuffer().then(function (buf) { bppOut.appendChild(window.CNCBPP.buildCard(bf, decodeBpp(buf), bppOut, null)); });
+      });
+    }
+    bppDrop.addEventListener("dragover", function (e) { e.preventDefault(); bppDrop.classList.add("over"); });
+    bppDrop.addEventListener("dragleave", function () { bppDrop.classList.remove("over"); });
+    bppDrop.addEventListener("drop", function (e) { e.preventDefault(); bppDrop.classList.remove("over"); addBppFiles(e.dataTransfer.files); });
+    document.getElementById("bppFile").addEventListener("change", function (e) { addBppFiles(e.target.files); e.target.value = ""; });
+
+    var pname = f["Heiti tækifæris / verkefnis"] || "";
+    if (pname) {
+      var escd = pname.replace(/"/g, '\\"');
+      var cuttyFormula = 'FIND("' + escd + '", ARRAYJOIN({' + S_PROJECT_LINK + '})) > 0';
+      var aedarFormula = 'FIND("' + escd + '", ARRAYJOIN({' + PL_PROJECT + '})) > 0';
+      Promise.all([
+        airtableFetchByName(SOGUNARLISTI, cuttyFormula, [S_SKURDARSKRA]),
+        airtableFetchByName(PLAN_TABLE, aedarFormula, [PL_CONFIRM]),
+      ]).then(function (res) {
+        var sawRows = res[0], planRows = res[1];
+        var cuttyDone = sawRows.some(function (r) { return String((r.fields || {})[S_SKURDARSKRA] || "").trim(); });
+        var chipCutty = document.getElementById("chipCutty");
+        chipCutty.className = "chip" + (cuttyDone ? " ok" : "");
+        chipCutty.textContent = cuttyDone ? "✓ keyrt" : "ekki keyrt enn";
+        var chipAedar = document.getElementById("chipAedar");
+        if (!planRows.length) { chipAedar.textContent = "sleppt"; }
+        else {
+          var anyConfirmed = planRows.some(function (r) { return !!(r.fields || {})[PL_CONFIRM]; });
+          chipAedar.className = "chip" + (anyConfirmed ? " ok" : " partial");
+          chipAedar.textContent = anyConfirmed ? "✓ staðfest" : "drög, ekki staðfest";
+        }
+      });
+    }
+  }
+
+  // ---- Stage 4: Pöntunarlisti (summary + link) ----
+  function fillPontun(proj) {
+    var el = document.getElementById("content-pontun");
+    var k2 = k ? "&k=" + encodeURIComponent(k) : "";
+    el.innerHTML = '<a class="proLink" href="/pontun?recordId=' + proj.id + k2 + '">Opna fullan Pöntunarlista →</a><div class="empty" id="pontunSummary">Sæki…</div>';
+    api(PANTADIR, "filterByFormula=" + eqFilter(FIELD_PROJECT_ON_PANTADIR, proj.fields["Heiti tækifæris / verkefnis"]) + "&maxRecords=50")
+      .then(function (d) {
+        var recs = d.records || [];
+        var sumEl = document.getElementById("pontunSummary");
+        if (!recs.length) { sumEl.textContent = "Engar pantanir enn"; return; }
+        sumEl.innerHTML = recs.map(function (r) {
+          var f = r.fields || {};
+          return '<div class="wRow"><span>' + esc(f["Stöðu kenni"] || "") + '</span><span class="k">' + esc(f["Staða"] || "") + '</span></div>';
+        }).join("");
+      });
+  }
+
+  // ======================= Unit wizard modal (ported from /yfirferd) =======================
+  function openUnitModal(unitId) {
+    document.getElementById("modalBg").classList.add("open");
+    api(EYDUBLAD + "/" + unitId).then(function (unit) {
+      var unitName = (unit.fields || {})["Athugasemd"] || "";
+      var fml = eqFilter("%7BEy%C3%B0ubla%C3%B0%20%E2%9C%8F%EF%B8%8F%7D", unitName);
+      return Promise.all([Promise.resolve(unit), api(SOGUNARLISTI, "filterByFormula=" + fml + "&maxRecords=200"), api(VORUR, "filterByFormula=" + fml + "&maxRecords=200")]);
+    }).then(function (res) { renderUnit(res[0], res[1].records || [], res[2].records || []); });
+  }
+  document.getElementById("mClose").addEventListener("click", function () { document.getElementById("modalBg").classList.remove("open"); });
+  document.getElementById("modalBg").addEventListener("click", function (e) { if (e.target === e.currentTarget) e.currentTarget.classList.remove("open"); });
+
+  function renderUnit(unit, sogun, vorur) {
+    var f = unit.fields || {};
+    document.getElementById("unitTitle").textContent = f["Athugasemd"] || "(ónefnd eining)";
+    document.getElementById("unitSub").textContent = [f["Heiti rýmis"], f["Hvað viltu smíða?"]].filter(Boolean).join(" · ");
+    var flagsEl = document.getElementById("flags");
+    flagsEl.innerHTML = "";
+    if (f["Skúffur stemma ekki ⚠️"]) addFlag("Skúffur stemma ekki við á milli Sögunar og Pöntunar");
+    if (f["Vantar hluta ⚠️"]) addFlag("Það vantar hluta fyrir þessa einingu");
+    function addFlag(msg) { var d = document.createElement("div"); d.className = "wFlag"; d.textContent = "⚠️ " + msg; flagsEl.appendChild(d); }
+
+    var box = parseBox(f);
+    drawBox(box);
+    renderDrawers(f); renderShelves(f); renderOther(f);
+    renderSogun(sogun); renderVorur(vorur);
+
+    document.querySelectorAll(".wTab").forEach(function (tab) {
+      tab.onclick = function () {
+        document.querySelectorAll(".wTab").forEach(function (t2) { t2.classList.remove("active"); });
+        document.querySelectorAll(".wPanel").forEach(function (p) { p.classList.remove("active"); });
+        tab.classList.add("active");
+        document.getElementById(tab.dataset.panel).classList.add("active");
+      };
+    });
+
+    var btn = document.getElementById("approveBtn"), msg = document.getElementById("approveMsg");
+    btn.disabled = false; msg.textContent = "";
+    btn.onclick = function () {
+      btn.disabled = true; msg.textContent = "Sendi…";
+      apiPatch(EYDUBLAD + "/" + unit.id, { "🔄 Keyra Yfirferð 3.0": false })
+        .then(function () { return apiPatch(EYDUBLAD + "/" + unit.id, { "🔄 Keyra Yfirferð 3.0": true }); })
+        .then(function () {
+          var now = new Date();
+          msg.textContent = "Sent kl. " + String(now.getHours()).padStart(2, "0") + ":" + String(now.getMinutes()).padStart(2, "0");
+          btn.disabled = false;
+        }).catch(function () { msg.textContent = "Tókst ekki."; btn.disabled = false; });
+    };
+  }
+  function parseBox(f) {
+    var raw = f["Smíðagögn (JSON) 🔧"];
+    if (raw) { try { var p = JSON.parse(raw); if (p && p.w && p.h) return p; } catch (e) {} }
+    return { w: f["Breidd"] || 0, h: f["Hæð"] || 0, d: f["Dýpt"] || 0, shelves: { loose: f["Lausar hillur fjöldi"] || 0, fixed: f["Fastar hillur fjöldi"] || 0 } };
+  }
+  function drawBox(box) {
+    var svg = document.getElementById("boxSvg");
+    var W = 320, H = 280, padL = 46, padR = 58, padV = 46;
+    var w = Math.max(box.w || 1, 1), h = Math.max(box.h || 1, 1);
+    var scale = Math.min((W - padL - padR) / w, (H - padV * 2) / h);
+    var bw = w * scale, bh = h * scale;
+    var x0 = padL + (W - padL - padR - bw) / 2, y0 = (H - bh) / 2 + 6;
+    var parts = ['<rect class="shell" x="' + x0 + '" y="' + y0 + '" width="' + bw + '" height="' + bh + '" rx="2"/>'];
+    var dy = y0 - 18;
+    parts.push(dimLine(x0, dy, x0 + bw, dy));
+    parts.push('<text class="dimTxt" x="' + (x0 + bw / 2) + '" y="' + (dy - 6) + '" text-anchor="middle">' + Math.round(box.w) + ' mm</text>');
+    var dx = x0 - 18;
+    parts.push(dimLine(dx, y0, dx, y0 + bh));
+    parts.push('<text class="dimTxt" x="' + (dx - 6) + '" y="' + (y0 + bh / 2) + '" text-anchor="middle" transform="rotate(-90 ' + (dx - 6) + ' ' + (y0 + bh / 2) + ')">' + Math.round(box.h) + ' mm</text>');
+    if (box.d) parts.push('<text class="dimTxt" x="' + (x0 + bw + 6) + '" y="' + (y0 + bh + 14) + '">d ' + Math.round(box.d) + ' mm</text>');
+    if (box.fronts && box.fronts.length) {
+      var totalMm = box.fronts.reduce(function (s, fr) { return s + (fr.mm || 0); }, 0) || h;
+      var cy = y0;
+      box.fronts.forEach(function (fr, i) {
+        var fh = (fr.mm || totalMm / box.fronts.length) * (bh / totalMm);
+        if (i > 0) parts.push('<line class="div" x1="' + x0 + '" y1="' + cy + '" x2="' + (x0 + bw) + '" y2="' + cy + '"/>');
+        parts.push('<text class="dimTxt" x="' + (x0 + 6) + '" y="' + (cy + fh / 2 + 3) + '">' + esc(fr.code || "") + (fr.mm ? " · " + Math.round(fr.mm) + "mm" : "") + '</text>');
+        cy += fh;
+      });
+    } else if (box.shelves && (box.shelves.loose || box.shelves.fixed)) {
+      var n = (box.shelves.loose || 0) + (box.shelves.fixed || 0);
+      for (var i = 1; i <= n; i++) {
+        var ly = y0 + (bh * i) / (n + 1);
+        parts.push('<line class="div" x1="' + x0 + '" y1="' + ly + '" x2="' + (x0 + bw) + '" y2="' + ly + '"/>');
+      }
+      parts.push('<text class="dimTxt" x="' + (x0 + 6) + '" y="' + (y0 + 14) + '">' + n + ' hillur</text>');
+    }
+    svg.innerHTML = parts.join("");
+  }
+  function dimLine(x1, y1, x2, y2) {
+    return '<line class="dim" x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '"/>' +
+      '<line class="dim" x1="' + x1 + '" y1="' + (y1 - 4) + '" x2="' + x1 + '" y2="' + (y1 + 4) + '"/>' +
+      '<line class="dim" x1="' + x2 + '" y1="' + (y2 - 4) + '" x2="' + x2 + '" y2="' + (y2 + 4) + '"/>';
+  }
+  function renderDrawers(f) {
+    var el = document.getElementById("drawerList"), rows = [];
+    if (f["Skúffutegund"]) rows.push(["Tegund", f["Skúffutegund"]]);
+    ["N", "M", "K", "C", "F", "E"].forEach(function (code) { if (f[code]) rows.push([code, f[code] + " stk"]); });
+    el.innerHTML = rows.length ? rowsHtml(rows) : '<div class="empty">Engar skúffur skráðar</div>';
+  }
+  function renderShelves(f) {
+    var el = document.getElementById("shelfList"), rows = [];
+    if (f["Fastar hillur fjöldi"]) rows.push(["Fastar hillur", f["Fastar hillur fjöldi"]]);
+    if (f["Lausar hillur fjöldi"]) rows.push(["Lausar hillur", f["Lausar hillur fjöldi"]]);
+    el.innerHTML = rows.length ? rowsHtml(rows) : '<div class="empty">Engar hillur skráðar</div>';
+  }
+  function renderOther(f) {
+    var el = document.getElementById("otherList"), rows = [];
+    if (f["Grip?"]) rows.push(["Grip", f["Grip?"]]);
+    if (f["Hæð ofns"]) rows.push(["Hæð ofns", f["Hæð ofns"] + " mm"]);
+    if (f["LED magn"]) rows.push(["LED", f["LED magn"] + " stk"]);
+    if (f["Athugasemd til fræsara 🔬"]) rows.push(["Athugasemd til fræsara", f["Athugasemd til fræsara 🔬"]]);
+    el.innerHTML = rows.length ? rowsHtml(rows) : '<div class="empty">Ekkert skráð</div>';
+  }
+  function rowsHtml(rows) {
+    return rows.map(function (r) { return '<div class="wRow"><span class="k">' + esc(r[0]) + '</span><span>' + esc(r[1]) + '</span></div>'; }).join("");
+  }
+  function renderSogun(recs) {
+    var el = document.getElementById("sogunList");
+    if (!recs.length) { el.innerHTML = '<div class="empty">Engir hlutar í Sögunarlista enn</div>'; return; }
+    el.innerHTML = recs.map(function (r) {
+      var f = r.fields || {};
+      var dims = [f["H"], f["B"], f["Þ"]].filter(function (v) { return v != null; }).join("×");
+      return '<div class="wRow"><span class="k">' + esc(f["Partur"] || "") + (f["Villa?"] ? " ⚠️" : "") + '</span><span>' + esc(dims) + (f["M"] ? " · " + f["M"] + "x" : "") + '</span></div>';
+    }).join("");
+  }
+  function renderVorur(recs) {
+    var el = document.getElementById("pontunList");
+    if (!recs.length) { el.innerHTML = '<div class="empty">Engar vörur skráðar á þessa einingu</div>'; return; }
+    el.innerHTML = recs.map(function (r) {
+      var f = r.fields || {};
+      var label = f["Tegund"] || f["Hvað viltu panta?"] || "Vara";
+      var meta = [];
+      if (f["Magn"]) meta.push(f["Magn"] + " stk");
+      if (f["Breidd (mm)"] && f["Hæð (mm)"]) meta.push(f["Breidd (mm)"] + "×" + f["Hæð (mm)"] + " mm");
+      return '<div class="wRow"><span class="k">' + esc(label) + (f["⛔ Villa"] ? " ⚠️" : "") + '</span><span>' + esc(meta.join(" · ")) + '</span></div>';
+    }).join("");
+  }
+})();
+</script>
+</body>
+</html>

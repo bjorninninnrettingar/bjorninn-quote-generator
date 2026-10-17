@@ -16,11 +16,9 @@
   var K_STORE = "bjorninn:skrifstofa:k";
 
   var NAV = [
-    { id: "home",         label: "🏠 Yfirlit",        roles: ["allt"], href: "/skrifstofa" },
-    { id: "skipulag",     label: "📐 Yfirferð",       roles: ["skipulag", "allt"], href: "/yfirferd" },
-    { id: "pontun",       label: "📋 Pöntunarlisti",  roles: ["allt"], href: "/pontun" },
-    { id: "lokayfirferd", label: "✅ Loka yfirferð",  roles: ["allt"], href: "/skipulag" },
-    { id: "crm",          label: "📇 CRM",            roles: ["allt"], href: "/crm" },
+    { id: "home",  label: "🏠 Yfirlit",         roles: ["allt"], href: "/skrifstofa" },
+    { id: "ferli", label: "📐 Skipulagsferli",  roles: ["skipulag", "allt"], href: "/ferli" },
+    { id: "crm",   label: "📇 CRM",             roles: ["allt"], href: "/crm" },
   ];
 
   function getK() {
