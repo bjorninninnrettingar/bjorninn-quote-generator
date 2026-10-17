@@ -932,6 +932,18 @@
   body.pro #proBar .pb-locked { color:#ffd60a; }
   #proBar button.pb-unlock { background:transparent; border-color:currentColor; color:#b3261e; }
   body.pro #proBar button.pb-unlock { color:#ffd60a; }
+
+  /* ── Tilboð panel (Tilboðsblað area, 2026-10-17) ── */
+  #tilbodPanel { display:none; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin:0 0 14px; }
+  #tilbodPanel.open { display:block; }
+  #tilbodPanel .tp-row { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:7px 0; border-bottom:1px solid var(--line); font-size:13px; }
+  #tilbodPanel .tp-row:last-of-type { border-bottom:none; }
+  #tilbodPanel .tp-row label { color:var(--ink-soft); }
+  #tilbodPanel input, #tilbodPanel select { font:inherit; background:var(--card); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:5px 9px; width:120px; }
+  #tilbodPanel .tp-total { font-weight:800; font-size:15px; color:var(--ink); }
+  #tilbodPanel .tp-actions { margin-top:10px; display:flex; justify-content:flex-end; gap:8px; }
+  #tilbodPanel .tp-actions button { font:inherit; border:1px solid var(--blue); border-radius:999px; padding:7px 16px; cursor:pointer; background:var(--blue); color:#fff; }
+  #tilbodPanel .tp-msg { font-size:12px; color:var(--ink-soft); margin-top:6px; text-align:right; }
   .pro-open { width:100%; margin:0 0 12px; padding:10px 12px; border-radius:10px; border:0; background:#1d2633; color:#fff; font:700 14px/1.2 inherit; cursor:pointer; }
   .pro-open.todo { background:#b3261e; } .pro-open.ready { background:#1f9d55; }
   #proEd .pe-ready { width:100%; margin-top:14px; padding:11px; border:0; border-radius:10px; font:700 14px/1.2 inherit; cursor:pointer; color:#fff; background:#1f9d55; }
@@ -1040,6 +1052,18 @@
     </div>
   </div>
   <p class="lede" id="pageLede" hidden></p>
+
+  <div id="tilbodPanel">
+    <div class="tp-row"><label>Tilboðsupphæð</label><span class="tp-total" id="tpTotal">—</span></div>
+    <div class="tp-row"><label for="tpDiscount">Ósýnilegur afsláttur %</label><input id="tpDiscount" type="number" min="0" max="100" step="1" /></div>
+    <div class="tp-row"><label for="tpInstallDiscount">Afsláttur í uppsetningu %</label><input id="tpInstallDiscount" type="number" min="0" max="100" step="1" /></div>
+    <div class="tp-row"><label for="tpMarkup">Smáverka álagning</label><select id="tpMarkup"><option value="">—</option></select></div>
+    <div class="tp-row"><label for="tpMarkupInstall">Smáverka álagning [uppsetning]</label><select id="tpMarkupInstall"><option value="">—</option></select></div>
+    <div class="tp-actions">
+      <button type="button" id="tpPrint">🖨️ Prenta tilboð</button>
+    </div>
+    <div class="tp-msg" id="tpMsg"></div>
+  </div>
 
   <nav class="stepper" id="progressSteps" aria-label="Skref">
     <button type="button" class="st" data-s="shape"><i>1</i><span>Rými</span></button>
@@ -10041,17 +10065,21 @@
     if (PRO.locked && !PRO.unlocked){
       el.innerHTML = '<span>🔧 PRO</span><span class="pb-name">' + escapeHtmlPro(PRO.name || "") + '</span>' +
         '<span class="pb-locked">🔒 Í skipulagi (' + escapeHtmlPro(PRO.lockStatus) + ') — skoðunarhamur</span>' +
+        '<button type="button" id="proTilbodToggle">💰 Tilboð</button>' +
         '<button type="button" id="proUnlock" class="pb-unlock">🔓 Opna til breytinga</button>';
       var ub = el.querySelector("#proUnlock"); if (ub) ub.addEventListener("click", proUnlock);
+      var ttb0 = el.querySelector("#proTilbodToggle"); if (ttb0) ttb0.addEventListener("click", proTilbodToggle);
       return;
     }
     el.innerHTML = '<span>🔧 PRO</span><span class="pb-name">' + escapeHtmlPro(PRO.name || "") + '</span>' +
       (PRO.locked ? '<span class="pb-locked">🔓 opnað til breytinga</span>' : "") +
       (msg ? '<span>' + escapeHtmlPro(msg) + '</span>' : (proDirty() ? '<span class="pb-dirty">● óvistað</span>' : '<span>✓ vistað</span>')) +
       '<button type="button" id="proSave"' + (PRO.ready ? "" : " disabled") + '>💾 Vista í Airtable</button>' +
-      '<button type="button" id="proRunSkipulag"' + (PRO.ready ? "" : " disabled") + '>📐 Keyra skipulag</button>';
+      '<button type="button" id="proRunSkipulag"' + (PRO.ready ? "" : " disabled") + '>📐 Keyra skipulag</button>' +
+      '<button type="button" id="proTilbodToggle">💰 Tilboð</button>';
     var bt = el.querySelector("#proSave"); if (bt) bt.addEventListener("click", function(){ proSave(); });
     var rs = el.querySelector("#proRunSkipulag"); if (rs) rs.addEventListener("click", proRunSkipulag);
+    var ttb = el.querySelector("#proTilbodToggle"); if (ttb) ttb.addEventListener("click", proTilbodToggle);
   }
   // "Keyra skipulag" — í stað gamla Interface-takkans í Airtable (sem hefur ekkert API-jafngildi): skrifar
   // gátreitinn "🔄 Keyra Skipulag" false→true á Tækifæri, sem retriggerar sjálfa Airtable-automationina
@@ -10074,6 +10102,62 @@
       proBar("⛔ Tókst ekki að keyra skipulag: " + e.message);
       if (rs) rs.disabled = false;
     }
+  }
+  // Tilboð panel — the 4 pricing fields Rakel/the owner edit by hand in
+  // Airtable today ("þetta eru allt bara fields í line item eða tækifæri
+  // sem þú getur séð og sett á tilboðsblað interfacið", user, 2026-10-17),
+  // plus the computed total (Airtable's own formula, not recomputed here)
+  // and a direct "prenta tilboð" action (api/tilbod-print.js → the same
+  // generate-quote.js the old Interface button already called).
+  var TILBOD_MARKUP_CHOICES = ["Smáverk 10%","Smáverk 20%","Smáverk 30%","Smáverk 40%","Smáverk 50%","Smáverk 60%","Smáverk 70%","Smáverk 80%","Smáverk 90%"];
+  var TILBOD_PCT_CHOICES = ["10%","20%","30%","40%","50%","60%","70%","80%","90%"];
+  var tilbodLoaded = false;
+  function proTilbodToggle(){
+    var panel = document.getElementById("tilbodPanel");
+    if (!panel) return;
+    panel.classList.toggle("open");
+    if (panel.classList.contains("open") && !tilbodLoaded) proTilbodLoad();
+  }
+  async function proTilbodLoad(){
+    var sel = document.getElementById("tpMarkup"), selI = document.getElementById("tpMarkupInstall");
+    TILBOD_MARKUP_CHOICES.forEach(function(c){ var o = document.createElement("option"); o.value = o.textContent = c; sel.appendChild(o); });
+    TILBOD_PCT_CHOICES.forEach(function(c){ var o = document.createElement("option"); o.value = o.textContent = c; selI.appendChild(o); });
+    try{
+      var r = await fetch("/api/airtable?path=" + encodeURIComponent("tbl4LMXlQjp66RFKI/" + PRO.id) + "&k=" + encodeURIComponent(PRO.k));
+      var rec = await r.json();
+      var f = (rec && rec.fields) || {};
+      document.getElementById("tpTotal").textContent = f["💰 Tilboðsupphæð"] != null ? Math.round(f["💰 Tilboðsupphæð"]).toLocaleString("is-IS") + " kr." : "—";
+      document.getElementById("tpDiscount").value = f["Ósýnilegur afsláttur %"] != null ? Math.round(f["Ósýnilegur afsláttur %"] * 100) : "";
+      document.getElementById("tpInstallDiscount").value = f["Afsláttur í uppsetningu"] != null ? Math.round(f["Afsláttur í uppsetningu"] * 100) : "";
+      sel.value = f["Smáverka álagning"] || "";
+      selI.value = f["Smáverka álagning [uppsetning]"] || "";
+      tilbodLoaded = true;
+    }catch(e){ document.getElementById("tpMsg").textContent = "Tókst ekki að sækja verðgögn."; }
+  }
+  function proTilbodPatch(fields){
+    var path = encodeURIComponent("tbl4LMXlQjp66RFKI/" + PRO.id);
+    return fetch("/api/airtable?path=" + path, { method:"PATCH", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ fields:fields }) })
+      .then(function(){ return proTilbodLoad(); });
+  }
+  document.addEventListener("change", function(e){
+    if (e.target.id === "tpDiscount") proTilbodPatch({ "Ósýnilegur afsláttur %": e.target.value === "" ? null : Number(e.target.value) / 100 });
+    if (e.target.id === "tpInstallDiscount") proTilbodPatch({ "Afsláttur í uppsetningu": e.target.value === "" ? null : Number(e.target.value) / 100 });
+    if (e.target.id === "tpMarkup") proTilbodPatch({ "Smáverka álagning": e.target.value || null });
+    if (e.target.id === "tpMarkupInstall") proTilbodPatch({ "Smáverka álagning [uppsetning]": e.target.value || null });
+  });
+  document.addEventListener("click", function(e){
+    if (e.target && e.target.id === "tpPrint") proTilbodPrint();
+  });
+  async function proTilbodPrint(){
+    var btn = document.getElementById("tpPrint"), msg = document.getElementById("tpMsg");
+    btn.disabled = true; msg.textContent = "Prenta…";
+    try{
+      var r = await fetch("/api/tilbod-print", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ recordId: PRO.id }) });
+      var d = await r.json();
+      if (!r.ok) throw new Error(d.error || ("HTTP " + r.status));
+      msg.textContent = "✓ Prentað í Airtable (Tilboð til sendingar)";
+    }catch(e){ msg.textContent = "Tókst ekki: " + e.message; }
+    btn.disabled = false;
   }
   // Meðvituð leið út úr skoðunarhamnum (sama session — sækir aftur = spyr á ný). Flaggar að
   // Sögunarlisti/Pöntunarlisti/CNC eru byggð á gömlu teikningunni og þurfa að keyra aftur eftir þessa breytingu.

@@ -288,6 +288,10 @@ const VERK_ONLY_FIELDS = {
     "6. CNC yfirfarið",
     "Framvinda Pöntunarlista stemmir🔒 skipulag 2.0📝",
     "🔄 Keyra Skipulag", // PRO mode's "Keyra skipulag" button
+    // PRO mode's "Tilboð" panel — read-only computed total + the 4 editable
+    // pricing fields (also listed in WRITABLE_FIELDS above).
+    "💰 Tilboðsupphæð", "Ósýnilegur afsláttur %", "Afsláttur í uppsetningu",
+    "Smáverka álagning", "Smáverka álagning [uppsetning]",
     "Loka teikningar verkefnis 📋",
     "Sér fræsi teikningar",
     "Málsettar myndir af rými 🖼️",
@@ -536,6 +540,14 @@ const WRITABLE_FIELDS = {
     "Staða í skipulagi",
     // PRO mode's "Keyra skipulag" button (Forskipulag area).
     "🔄 Keyra Skipulag",
+    // PRO mode's "Tilboð" panel (Tilboðsblað area, 2026-10-17) — the pricing
+    // fields Rakel/the owner edit by hand in Airtable today; surfacing them
+    // here is the actual scope (per the user: "þetta eru allt bara fields í
+    // line item eða tækifæri sem þú getur séð og sett á tilboðsblað
+    // interfacið"), not new pricing logic — Airtable's own formulas (💰
+    // Tilboðsupphæð) do the math exactly as they do today.
+    "Ósýnilegur afsláttur %", "Afsláttur í uppsetningu",
+    "Smáverka álagning", "Smáverka álagning [uppsetning]",
   ],
   // /app's recent-QUICK-FIX list lets anyone tap a card to advance
   // opið → Í vinnslu → Lokið — unlike Fjarvistir's vacation-request "Staða"
