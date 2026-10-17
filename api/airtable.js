@@ -277,6 +277,16 @@ const VERK_ONLY_FIELDS = {
     "Ýtarleg verklýsing teiknara📝",
     "Skúffusamantekt",
     "Verkfundar glósur",
+    // /skipulag (Loka yfirferð gátlista, 2026-10-17) — the 5 existing checklist
+    // checkboxes plus the new "6. CNC yfirfarið" (created for this), and the
+    // "stemmir" % so the page can show it instead of re-deriving it.
+    "1. Dagssetningar ákveðnar",
+    "2. Cutty keyrður fyrir þetta verkefni og kominn á USB?",
+    "3. Teikningar prentaðar 2x",
+    "4. Verkfundur tekinn",
+    "5. Efni lent í húsi",
+    "6. CNC yfirfarið",
+    "Framvinda Pöntunarlista stemmir🔒 skipulag 2.0📝",
     "Loka teikningar verkefnis 📋",
     "Sér fræsi teikningar",
     "Málsettar myndir af rými 🖼️",
@@ -518,7 +528,12 @@ const WRITABLE_FIELDS = {
   "tblzkw70E2xoX9RmK": ["Nafn", "Skipulag", "Staðfest ✅"],
   // kitchen-planner-review.html: Rakel's "✅ Yfirfarið" button unchecks the
   // review flag (that's the approval action — no separate status field).
-  "tbl4LMXlQjp66RFKI": ["Sjálfsafgreiðsla — óyfirfarið ⚠️", "Upphafs framleiðsludagur verks", "Áætlaður afhendingardagur Björninn (internal)", "Viðskiptavinur sækir þann:", "🔄 Keyra Pöntunarlista 4.0"],
+  "tbl4LMXlQjp66RFKI": ["Sjálfsafgreiðsla — óyfirfarið ⚠️", "Upphafs framleiðsludagur verks", "Áætlaður afhendingardagur Björninn (internal)", "Viðskiptavinur sækir þann:", "🔄 Keyra Pöntunarlista 4.0",
+    // /skipulag's Loka yfirferð checklist + final "Klárt til framleiðslu" gate.
+    "1. Dagssetningar ákveðnar", "2. Cutty keyrður fyrir þetta verkefni og kominn á USB?",
+    "3. Teikningar prentaðar 2x", "4. Verkfundur tekinn", "5. Efni lent í húsi", "6. CNC yfirfarið",
+    "Staða í skipulagi",
+  ],
   // /app's recent-QUICK-FIX list lets anyone tap a card to advance
   // opið → Í vinnslu → Lokið — unlike Fjarvistir's vacation-request "Staða"
   // this isn't an approval gate, so any floor device may set it.
