@@ -132,6 +132,11 @@ const ALLOWED_FIELDS = {
     // in HINGES/LOCKS/THRESHOLDS — filled in by hand only after reading the real master off the stick.
     "CNC macró — blað", "CNC macró — karmur",
   ],
+  "tbl8HjvBwNJ41cTV0": [ // Útfærslur 🎨 — search source for /crm's Vörulínur V1/V2/V3 picker (name/category only)
+    "Lýsing á útfærslu",
+    "Vörunúmer",
+    "Flokkur",
+  ],
   "tbl8CrVWKF8CuI7HD": [ // Efnislisti 🧱
     "Heiti efnis",
     "Breidd (mm)",
@@ -254,6 +259,7 @@ const ALLOWED_FIELDS = {
   "tblHGYgrvvDqyKOAe": [], // Auka-Pöntunarlisti 💻
   "tblPPMTlFhW0snk24": [], // Virkni 🔔 (activity feed, /skrifstofa dashboard)
   "tblhP1FMM4QJfwxat": [], // Fjárhagsstaða 📊 (cash position — internal, VERK_ONLY_FIELDS below)
+  "tblFcsUoGxsuUwNEH": [], // Vöru línur ➖📦 (Line item's) — pricing-sensitive, VERK_ONLY_FIELDS below
 };
 
 // Extra Tækifæri fields the internal floor page (/verk, verk.html) needs —
@@ -301,6 +307,15 @@ const VERK_ONLY_FIELDS = {
     "Verk staðfest þann", "Ár staðfestingar", "Mánuður staðfestingar",
     "Staðfestingargjald", "Eftirstöðvar (kr) 💰", "Staðfest tilboðsupphæð 🔒",
     "Greiðsla 2 greidd þann", "Greiðsla 3 greidd þann",
+    // /crm Vörulínur editor (2026-10-17) — "Efni verkefnis"/"Aukahlutir" project-
+    // level material/handle pickers, same fields "Nýtt verkefni" shows in Airtable.
+    // The lookup-derived *names* of these were already public (customer portal);
+    // the actual link fields themselves are internal, hence VERK_ONLY here.
+    "Skrokka efni 🔲 viðskiptavinar", "Fronta efni viðskiptavinar 🖼️",
+    "Fronta efni 2.0 Viðskiptavinar 🖼️", "Borðplata viðskiptavinar 🍽️",
+    "Hurðaefni viðskiptavinar 🚪", "Hurðaefni viðskiptavinar 🚪 2.0",
+    "Höldur Viðskiptavinar ✊", "Höldur Viðskiptavinar ✊2.0",
+    "Litur á höldum 🎨", "Litur á höldum 2.0 🎨", "Innskúffufrontar [Handvalið]",
     "Loka teikningar verkefnis 📋",
     "Sér fræsi teikningar",
     "Málsettar myndir af rými 🖼️",
@@ -401,6 +416,21 @@ const VERK_ONLY_FIELDS = {
   "tblhP1FMM4QJfwxat": [ // Fjárhagsstaða 📊
     "Dagsetning", "Sölumarkmið (Fastur kostnaður x2)",
   ],
+  // /crm Vörulínur editor (2026-10-17) — "patch and review" only, never a
+  // replacement for drawing in the designer (user, 2026-10-17): Rými and the
+  // V1/V2/V3 product links plus Magn/Afsl. % are the only genuinely hand-
+  // edited fields on this ~200-field pricing-engine table (confirmed against
+  // the live "Nýtt verkefni" Airtable interface, not guessed) — everything
+  // else here is read-only context (resolved product/útfærsla/aukahlutir
+  // names, computed prices, the Skipulagsvilla warning, and the lock/viðbót
+  // state so the editor can block edits to confirmed lines and let a new
+  // post-staðfest row flow into the existing "🆕 Viðbót" machinery untouched).
+  "tblFcsUoGxsuUwNEH": [
+    "Tækifæri 📣 (projects)", "Rými 🏡", "Vöru reitur 1", "Vöru reitur 2", "Vöru reitur 3",
+    "Vara 🚪", "útfærsla 🎨", "Aukahlutir 🧩", "Magn", "Afsl. %",
+    "Einingarverð", "Endanlegt söluverð 💲", "⚠️ Skipulagsvilla",
+    "Læstur verðlykill 🔒", "Breyting eftir staðfestingu", "Viðbót (kr)",
+  ],
 };
 
 // Tables that hold credential-like, health-adjacent, or visitor-PII data — a
@@ -467,7 +497,20 @@ const CREATABLE_FIELDS = {
   // kitchen-planner.html's error reporter — see FORCED_CREATE_FIELDS below for
   // why "Staða" isn't here (every report starts "Ný", reviewed in Airtable).
   "tbl7K8v94Pf6Ausk3": ["Titill", "Tími", "Tegund", "Skref", "Villuboð", "Ástand (JSON)", "Vafri", "Slóð"],
+  // /crm Vörulínur editor's "+ Ný lína" — unlike the 2026-10-01 decision to
+  // keep Line Items uncreatable (an open create path was "only a spam
+  // vector" for a table with no caller back then), this one IS needed now —
+  // gated behind VERK_KEY via CREATE_REQUIRES_KEY below instead of left
+  // open, so the spam-vector concern doesn't apply here the way it did then.
+  "tblFcsUoGxsuUwNEH": ["Tækifæri 📣 (projects)", "Rými 🏡", "Vöru reitur 1", "Vöru reitur 2", "Vöru reitur 3", "Magn", "Afsl. %"],
 };
+
+// Tables where POST (create) additionally requires ?k=VERK_KEY, the same
+// gate GET's VERK_ONLY_FIELDS uses — unlike every other writable table here,
+// CREATE is a flooding/spam vector (anyone who finds the table id could
+// otherwise mint unlimited rows), not just a scoped edit to a record whose
+// id you'd already need to know, so it gets the stricter gate.
+const CREATE_REQUIRES_KEY = new Set(["tblFcsUoGxsuUwNEH"]);
 
 // Fields forced to a fixed value on create, regardless of what (or whether)
 // the client sends — applied after CREATABLE_FIELDS filtering, so these
@@ -569,6 +612,13 @@ const WRITABLE_FIELDS = {
     // existing automations (F1 emails, Konto drafts, price locks) react to
     // "Staða í söluferli" exactly as they do today, nothing new triggered.
     "Staða í söluferli", "Næsta skref", "Næsta skref dags.",
+    // /crm Vörulínur editor (2026-10-17) — "Efni verkefnis"/"Aukahlutir" pickers.
+    "Skrokka efni 🔲 viðskiptavinar", "Fronta efni viðskiptavinar 🖼️",
+    "Fronta efni 2.0 Viðskiptavinar 🖼️", "Borðplata viðskiptavinar 🍽️",
+    "Hurðaefni viðskiptavinar 🚪", "Hurðaefni viðskiptavinar 🚪 2.0",
+    "Höldur Viðskiptavinar ✊", "Höldur Viðskiptavinar ✊2.0",
+    "Litur á höldum 🎨", "Litur á höldum 2.0 🎨", "Innskúffufrontar [Handvalið]",
+    "Kantlíming skrokka", "Litur á skúffum [Handvalið]",
   ],
   // /skrifstofa's activity feed — read-only, nothing writes here except the
   // 3 new Virkni automations.
@@ -577,6 +627,13 @@ const WRITABLE_FIELDS = {
   // opið → Í vinnslu → Lokið — unlike Fjarvistir's vacation-request "Staða"
   // this isn't an approval gate, so any floor device may set it.
   "tblDQWuf4OSjUv2XI": ["Staða", "Skiladagur"],
+  // /crm Vörulínur editor — only the same fields a person actually edits
+  // (see VERK_ONLY_FIELDS comment above). The editor itself refuses to send
+  // a PATCH for a line whose "Læstur verðlykill 🔒" is already set (confirmed
+  // project), but that's a client-side courtesy, not the security boundary —
+  // same as every other write in this proxy, the boundary is the field
+  // allowlist, not who's asking.
+  "tblFcsUoGxsuUwNEH": ["Rými 🏡", "Vöru reitur 1", "Vöru reitur 2", "Vöru reitur 3", "Magn", "Afsl. %"],
 };
 
 // URLSearchParams serializes spaces as "+" (application/x-www-form-urlencoded).
@@ -716,6 +773,10 @@ export default async function handler(req, res) {
     if (!creatable) return res.status(403).json({ error: "Create not allowed for this table" });
     if (KIOSK_LOCKED_TABLES.has(tableId) && !isKioskPaired(req)) {
       return res.status(403).json({ error: "DEVICE_NOT_PAIRED" });
+    }
+    if (CREATE_REQUIRES_KEY.has(tableId)) {
+      const verkKey = process.env.VERK_KEY;
+      if (!verkKey || req.query.k !== verkKey) return res.status(403).json({ error: "Invalid key" });
     }
 
     const requestedFields = req.body?.fields || {};
