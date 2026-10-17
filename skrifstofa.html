@@ -223,6 +223,11 @@
           return;
         }
         saveSession({ token: res.data.token, record: res.data.record, ts: Date.now() });
+        // Other office pages redirect here with ?return= when a page is
+        // opened without a session — send the person straight back once
+        // they've logged in, instead of stranding them on the dashboard.
+        var ret = new URLSearchParams(location.search).get("return");
+        if (ret) { location.href = ret; return; }
         showShell(res.data.record);
       })
       .catch(function () { errEl.textContent = "Tókst ekki að tengjast"; pin = ""; renderDots(); });
@@ -383,7 +388,11 @@
   buildKeypad();
   renderDots();
   var existing = loadSession();
-  if (existing && existing.record) showShell(existing.record);
+  if (existing && existing.record) {
+    var ret0 = new URLSearchParams(location.search).get("return");
+    if (ret0) { location.href = ret0; }
+    else showShell(existing.record);
+  }
 })();
 </script>
 </body>

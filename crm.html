@@ -13,24 +13,28 @@
      Airtable's own grid/kanban view. Same Apple-minimal CSS as /skrifstofa, /yfirferd,
      /pontun — this is a new page, not an extension of an old dark-themed one. */
   :root {
-    --bg:#f5f5f7; --surface:#ffffff; --line:#e3e3e6;
-    --text:#1d1d1f; --muted:#6e6e73; --dim:#aeaeb2;
-    --accent:#0071e3; --warn:#ff9500; --bad:#ff3b30; --good:#34c759;
-    --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Helvetica,Arial,sans-serif;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --bg:#000000; --surface:#1c1c1e; --line:#2c2c2e;
-      --text:#f5f5f7; --muted:#a1a1a6; --dim:#6e6e73;
-    }
+    --bg:#f3f4f6; --surface:#ffffff; --line:#e1e4e8; --sidebar:#1b2430;
+    --text:#1a1d21; --muted:#5d6670; --dim:#9aa3ad;
+    --accent:#0f6cbd; --warn:#9a6700; --bad:#c4291c; --good:#1a7d36;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
   * { box-sizing:border-box; margin:0; padding:0; }
   html,body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; line-height:1.4; }
-  .wrap { max-width:1200px; margin:0 auto; padding:calc(20px + env(safe-area-inset-top)) 18px calc(32px + env(safe-area-inset-bottom)); }
+
+  #shell { display:flex; min-height:100vh; }
+  .sidebar { width:224px; flex:none; background:var(--sidebar); color:#cfd5dd; display:flex; flex-direction:column; padding:18px 0; min-height:100vh; }
+  .sidebar .brand { padding:0 18px 18px; font-weight:700; color:#fff; font-size:1.05rem; border-bottom:1px solid #2a3442; margin-bottom:10px; }
+  .sidebar nav { display:flex; flex-direction:column; gap:1px; flex:1; }
+  .sidebar nav a { display:flex; align-items:center; gap:10px; padding:9px 18px; text-decoration:none; color:#cfd5dd; font-size:.88rem; }
+  .sidebar nav a:hover { background:#242e3b; }
+  .sidebar nav a.active { background:var(--accent); color:#fff; }
+  .sidebar .user { padding:14px 18px 0; border-top:1px solid #2a3442; margin-top:10px; font-size:.82rem; display:flex; justify-content:space-between; align-items:center; }
+  .sidebar .user button { background:none; border:none; color:#8aa4c7; font:inherit; font-size:.8rem; cursor:pointer; }
+
+  .wrap { flex:1; max-width:1300px; padding:24px 28px 40px; }
 
   .hd { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
-  .hd a { color:var(--accent); text-decoration:none; font-size:.9rem; }
-  .title { font-size:1.3rem; font-weight:600; letter-spacing:-.01em; }
+  .title { font-size:1.3rem; font-weight:700; letter-spacing:-.01em; }
   .toggleClosed { background:none; border:1px solid var(--line); border-radius:999px; padding:6px 13px; font-size:.82rem; color:var(--muted); font-family:inherit; }
 
   .board { display:flex; gap:14px; overflow-x:auto; padding-bottom:10px; margin-top:16px; }
@@ -46,10 +50,6 @@
   .pill { font-size:.68rem; font-weight:600; padding:2px 8px; border-radius:999px; white-space:nowrap; }
   .pill.stale { background:#ffe8e6; color:#b3261e; }
   .pill.follow { background:#eef1f4; color:var(--muted); }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) .pill.stale { background:#3a0f0c; color:#ff8a80; }
-    :root:not([data-theme="light"]) .pill.follow { background:#2c2c2e; color:var(--muted); }
-  }
 
   .detail { display:none; background:var(--surface); border-radius:16px; padding:16px; margin-top:16px; }
   .detail.open { display:block; }
@@ -67,12 +67,20 @@
 </style>
 </head>
 <body>
+<div id="shell">
+  <div class="sidebar">
+    <div class="brand">🐻 Björninn</div>
+    <nav id="officeNav"></nav>
+    <div class="user">
+      <span id="officeUserName"></span>
+      <button id="officeLogout" type="button">Útskrá</button>
+    </div>
+  </div>
 <div class="wrap">
   <div class="hd">
-    <a href="/skrifstofa">← Skrifstofa</a>
+    <div class="title">CRM</div>
     <button class="toggleClosed" id="toggleClosed">Sýna líka unnin/töpuð</button>
   </div>
-  <div class="title">CRM</div>
 
   <div id="loading" class="loading">Sæki verkefni…</div>
   <div class="board" id="board" style="display:none;"></div>
@@ -90,13 +98,17 @@
     </div>
   </div>
 </div>
+</div>
 
+<script src="/office-shell.js"></script>
 <script>
 (function () {
   "use strict";
   var TAEKIFAERI = "tbl4LMXlQjp66RFKI";
-  var params = new URLSearchParams(location.search);
-  var k = params.get("k") || "";
+
+  var shellInfo = window.OfficeShell.boot("crm");
+  if (!shellInfo) return;
+  var k = shellInfo.k;
 
   var STAGES = [
     { name: "Hönnun & Ráðgjöf 🖊️✨", short: "Hönnun" },
