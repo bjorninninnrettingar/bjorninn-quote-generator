@@ -1,6 +1,7 @@
 // kitchen-planner-3d.js — shared 3D + 2D rendering for the kitchen planner.
-// Loaded by both kitchen-planner.html (customer) and kitchen-planner-review.html
-// (Rakel's review page) so the two never drift apart. Exposes everything via
+// Loaded by kitchen-planner.html (customer flow and Rakel's PRO mode both run through this one file —
+// kitchen-planner-review.html, a separate read-only review page, was removed 2026-10-17: never opened,
+// PRO took over its job). Exposes everything via
 // window.KP3D. Depends on window.__THREE__ / window.__OrbitControls__ being
 // set by the importmap module script each host page includes in its <head>.
 (function(){
