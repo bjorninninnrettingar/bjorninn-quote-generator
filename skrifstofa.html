@@ -97,6 +97,21 @@
   .empty { text-align:center; color:var(--muted); padding:24px 0; font-size:.85rem; }
   .sideStack { display:flex; flex-direction:column; gap:16px; }
   .placeholder { padding:16px; color:var(--muted); font-size:.82rem; text-align:center; }
+  .row.clickable { cursor:pointer; }
+
+  /* Project overview modal — opened from a Verk í vinnslu row, 2026-10-17 */
+  .pvModalBg { display:none; position:fixed; inset:0; background:rgba(10,14,20,.45); z-index:150; align-items:flex-start; justify-content:center; padding:40px 20px; overflow:auto; }
+  .pvModalBg.open { display:flex; }
+  .pvModal { background:var(--surface); border-radius:16px; max-width:480px; width:100%; padding:20px; max-height:85vh; overflow:auto; }
+  .pvModal .pvClose { float:right; background:none; border:none; font-size:1.2rem; color:var(--muted); cursor:pointer; }
+  .pvModal .pvTitle { font-size:1.1rem; font-weight:700; }
+  .pvModal .pvSub { color:var(--muted); font-size:.85rem; margin-top:2px; }
+  .pvSection { margin-top:16px; }
+  .pvSection h3 { font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-bottom:8px; }
+  .pvRow { display:flex; justify-content:space-between; gap:10px; padding:6px 0; border-bottom:1px solid var(--line); font-size:.86rem; }
+  .pvRow:last-child { border-bottom:none; }
+  .pvRow .k { color:var(--muted); }
+  .pvLink { display:inline-block; margin-top:14px; color:var(--accent); font-size:.85rem; text-decoration:none; }
 </style>
 </head>
 <body>
@@ -161,6 +176,18 @@
         </div>
       </div>
     </div>
+  </div>
+</div>
+
+<div class="pvModalBg" id="pvModalBg">
+  <div class="pvModal">
+    <button class="pvClose" id="pvClose" type="button">✕</button>
+    <div class="pvTitle" id="pvTitle"></div>
+    <div class="pvSub" id="pvSub"></div>
+    <div class="pvSection"><h3>Framleiðslustaða</h3><div id="pvProd"></div></div>
+    <div class="pvSection"><h3>Peningar</h3><div id="pvMoney"></div></div>
+    <div class="pvSection"><h3>Efni</h3><div id="pvMaterial"></div></div>
+    <a class="pvLink" id="pvOpenFerli" href="#">Opna í Skipulagsferli →</a>
   </div>
 </div>
 
@@ -352,10 +379,52 @@
         if (!recs.length) { el.innerHTML = '<div class="empty">Ekkert í framleiðslu</div>'; return; }
         el.innerHTML = recs.slice(0, 12).map(function (r) {
           var f = r.fields, chip = STAGE_CHIP[f["Staða í framleiðslu"]] || [f["Staða í framleiðslu"] || "", "work"];
-          return '<div class="row"><span>' + esc(f["Heiti tækifæris / verkefnis"] || "") + '</span><span class="chip ' + chip[1] + '">' + esc(chip[0]) + '</span></div>';
+          return '<div class="row clickable" data-id="' + r.id + '"><span>' + esc(f["Heiti tækifæris / verkefnis"] || "") + '</span><span class="chip ' + chip[1] + '">' + esc(chip[0]) + '</span></div>';
         }).join("");
+        el.querySelectorAll(".row[data-id]").forEach(function (row) {
+          row.addEventListener("click", function () { openProjectModal(row.dataset.id); });
+        });
       });
   }
+
+  // ---- Project overview modal (Verk í vinnslu → click, 2026-10-17) ----
+  function openProjectModal(id) {
+    var bg = document.getElementById("pvModalBg");
+    bg.classList.add("open");
+    document.getElementById("pvTitle").textContent = "Sæki…";
+    document.getElementById("pvSub").textContent = "";
+    document.getElementById("pvProd").innerHTML = "";
+    document.getElementById("pvMoney").innerHTML = "";
+    document.getElementById("pvMaterial").innerHTML = '<div class="empty">Sæki…</div>';
+    document.getElementById("pvOpenFerli").href = "/ferli?recordId=" + id + (getK() ? "&k=" + encodeURIComponent(getK()) : "");
+
+    api(PROJECTS + "/" + id).then(function (rec) {
+      var f = rec.fields || {};
+      var name = f["Heiti tækifæris / verkefnis"] || "(ónefnt)";
+      document.getElementById("pvTitle").textContent = name;
+      document.getElementById("pvSub").textContent = f["Staða í framleiðslu"] || "";
+
+      function row(k, v) { return '<div class="pvRow"><span class="k">' + esc(k) + '</span><span>' + esc(v) + '</span></div>'; }
+      document.getElementById("pvProd").innerHTML =
+        row("Staða", f["Staða í framleiðslu"] || "—") +
+        row("Forgangur", f["Forgangur framleiðslu 🥇"] || "—") +
+        row("Áætlaður afhendingardagur", f["Áætlaður afhendingardagur Björninn (internal)"] || "—");
+      document.getElementById("pvMoney").innerHTML =
+        row("Tilboðsupphæð", kr(f["💰 Tilboðsupphæð"])) +
+        row("Staðfestingargjald", kr(f["Staðfestingargjald"])) +
+        row("Eftirstöðvar", kr(f["Eftirstöðvar (kr) 💰"]));
+
+      api(PANTADIR, "filterByFormula=" + encodeURIComponent('{Tækifæri 📣}="' + name.replace(/"/g, '\\"') + '"') + "&maxRecords=50")
+        .then(function (d) {
+          var recs = d.records || [];
+          var el = document.getElementById("pvMaterial");
+          if (!recs.length) { el.innerHTML = '<div class="empty">Engar pantanir skráðar</div>'; return; }
+          el.innerHTML = recs.map(function (r) { return row(r.fields["Stöðu kenni"] || "", r.fields["Staða"] || ""); }).join("");
+        });
+    });
+  }
+  document.getElementById("pvClose").addEventListener("click", function () { document.getElementById("pvModalBg").classList.remove("open"); });
+  document.getElementById("pvModalBg").addEventListener("click", function (e) { if (e.target === e.currentTarget) e.currentTarget.classList.remove("open"); });
 
   function loadQuickFix() {
     api(QUICKFIX, "filterByFormula=" + encodeURIComponent('{Staða}!="Lokið ✅"') + "&pageSize=100")
