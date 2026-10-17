@@ -475,6 +475,11 @@ const WRITABLE_FIELDS = {
   // anything, both recompute the classification fresh every time, so a
   // stale value here can never cause a wrong cut.
   "tblhdgyvTcBfP8kov": ["H", "B", "Þ", "Villa?", "Athugasemd", "B.A.S.", "Skurðarskrá", "Skurðarnúmer", "Fræst", "Magn fræst", "V hlið magn fræst", "H hlið magn fræst", "Skilaboð til skipulags", "Þarf æðasamfellu"],
+  // /yfirferd's "samþykkja" action — the ONLY writable field on Eyðublað, on
+  // purpose: flips a dedicated checkbox false→true to retrigger "Yfirfara 3.0"
+  // (the Interface button it used to require has no API equivalent — see
+  // memory: project_vercel_migration). Never touches any other Eyðublað field.
+  "tbl0WcyHhz63pSzZX": ["🔄 Keyra Yfirferð 3.0"],
   // Closes an open shift (stimpilklukka's ÚT button). "Inn" is intentionally
   // not writable here — a shift's start time is only ever set at creation.
   "tblnFIO8RB6HcelXF": ["Út"],
