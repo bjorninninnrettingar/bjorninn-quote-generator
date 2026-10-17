@@ -116,6 +116,17 @@
   function saveSession(s) { try { localStorage.setItem(SESSION_KEY, JSON.stringify(s)); } catch (e) {} }
   function clearSession() { try { localStorage.removeItem(SESSION_KEY); } catch (e) {} }
 
+  // The internal data key (?k=) is never requested from an API — it only ever
+  // moves through the URL, same as /verk and /eining already do. Read it once
+  // from this page's own link and remember it, so it survives a reload even
+  // if a later open of /skrifstofa doesn't repeat it.
+  var K_STORE = "bjorninn:skrifstofa:k";
+  (function () {
+    var fromUrl = new URLSearchParams(location.search).get("k");
+    if (fromUrl) { try { localStorage.setItem(K_STORE, fromUrl); } catch (e) {} }
+  })();
+  function getK() { try { return localStorage.getItem(K_STORE) || ""; } catch (e) { return ""; } }
+
   // ---- PIN screen ----
   var pin = "";
   var dotsEl = document.getElementById("dots");
@@ -193,10 +204,11 @@
       document.getElementById("emptyMsg").style.display = "block";
       return;
     }
+    var k = getK();
     visible.forEach(function (a) {
       var el = document.createElement(a.soon ? "div" : "a");
       el.className = "tile" + (a.soon ? " soon" : "");
-      if (!a.soon) el.href = a.href;
+      if (!a.soon) el.href = a.href + (k ? "?k=" + encodeURIComponent(k) : "");
       el.innerHTML = '<span class="ic">' + a.ic + '</span><span class="lbl">' + a.label + '</span><span class="meta">' + (a.soon ? "Væntanlegt" : "") + '</span>';
       tilesEl.appendChild(el);
     });
