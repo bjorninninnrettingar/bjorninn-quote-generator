@@ -25,9 +25,10 @@
   var COLLAPSED_KEY = "bjorninn:skrifstofa:collapsed";
 
   var NAV = [
-    { id: "home",  icon: "🏠", label: "Yfirlit",         roles: ["allt"], href: "/skrifstofa" },
-    { id: "ferli", icon: "📐", label: "Skipulagsferli",  roles: ["skipulag", "allt"], href: "/ferli" },
-    { id: "crm",   icon: "📇", label: "CRM",             roles: ["allt"], href: "/crm" },
+    { id: "home",   icon: "🏠", label: "Yfirlit",         roles: ["allt"], href: "/skrifstofa" },
+    { id: "ferli",  icon: "📐", label: "Skipulagsferli",  roles: ["skipulag", "allt"], href: "/ferli" },
+    { id: "verkst", icon: "🛠️", label: "Verkstæði",       roles: ["allt"], href: "/framleidsla" },
+    { id: "crm",    icon: "📇", label: "CRM",             roles: ["allt"], href: "/crm" },
   ];
 
   var ROLE_LABELS = { allt: "Allt", skipulag: "Skipulag", sala: "Sala", forskipulag: "Forskipulag" };

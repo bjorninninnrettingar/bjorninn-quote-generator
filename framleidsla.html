@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex" />
+<title>Verkstæði — Björninn</title>
+<link rel="icon" href="/icons/icon-192.png" />
+<style>
+  /* framleidsla.html — "Verkstæði" (2026-10-18), the office-side production overview the user asked
+     for by name: "í skrifstofa get ég séð það sem appið sér, ég smelli á verkstæði og fæ betra
+     yfirlit yfir hvað er að gerast á gólfinu. Ekki bogað niður í öðru noise." Not new floor
+     functionality — /verk, /app, /cutlist, /cnc, /fraesing already cover that (confirmed by reading
+     them before building anything here). This is a clean, desktop, noise-free OFFICE view of the
+     same production data, assembled from signals that already exist: the floor's own
+     "Staða í framleiðslu" stage, Sögunarlisti's Skurðarskrá (cutty-exported signal, same one /ferli's
+     Yfirfara chip already uses), the "6. CNC yfirfarið" flag (set automatically by cnc.html's export
+     since yesterday), and Pantaðir-listar open-order status (same logic /ferli's 📦 chip uses).
+     Read-only — stage advancement stays /verk's job, carefully gated there; this page only links out
+     to the real tools for taking action. */
+  :root {
+    --bg:#f3f4f6; --surface:#ffffff; --line:#e1e4e8; --sidebar:#1b2430;
+    --text:#1a1d21; --muted:#5d6670; --dim:#9aa3ad;
+    --accent:#0f6cbd; --warn:#9a6700; --bad:#c4291c; --good:#1a7d36;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; line-height:1.4; }
+
+  #shell { display:flex; min-height:100vh; }
+  .sidebar { width:224px; flex:none; background:var(--sidebar); color:#cfd5dd; display:flex; flex-direction:column; padding:18px 0; height:100vh; position:sticky; top:0; overflow-y:auto; }
+  .main { flex:1; padding:24px 28px 40px; max-width:1500px; }
+  .pageHd { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:16px; }
+  .pageHd h1 { font-size:1.35rem; font-weight:700; }
+  .pageHd a { color:var(--accent); text-decoration:none; font-size:.85rem; }
+
+  .board { display:flex; gap:14px; overflow-x:auto; padding-bottom:10px; }
+  .col { flex:0 0 260px; }
+  .col h2 { font-size:.78rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.02em; margin-bottom:8px; display:flex; align-items:center; gap:6px; }
+  .col h2 .colLabel { flex:1; }
+  .col h2 .cnt { color:var(--dim); font-weight:500; }
+  .col h2 .colorDot { width:8px; height:8px; border-radius:50%; flex:none; }
+  .cards { display:flex; flex-direction:column; gap:8px; }
+  .kcard { background:var(--surface); border-radius:12px; padding:11px 13px; box-shadow:0 1px 3px rgba(0,0,0,.05); text-decoration:none; color:var(--text); display:block; font-size:.86rem; font-weight:600; }
+  .kcard .sub { font-size:.74rem; color:var(--muted); font-weight:500; margin-top:4px; }
+  .kcard .late { color:var(--bad); }
+  .empty { text-align:center; color:var(--muted); padding:16px 0; font-size:.8rem; }
+  .loading { text-align:center; color:var(--muted); padding:60px 0; }
+
+  .projHd { background:var(--surface); border-radius:12px; padding:14px 18px; margin-bottom:18px; }
+  .projHd .nm { font-size:1.1rem; font-weight:700; }
+  .projHd .st { color:var(--muted); font-size:.85rem; margin-top:3px; }
+  .progBar { background:var(--line); border-radius:999px; height:8px; margin-top:10px; overflow:hidden; }
+  .progBar .fill { background:var(--good); height:100%; }
+  .projHd .progLbl { font-size:.74rem; color:var(--muted); margin-top:5px; }
+
+  .pSection { background:var(--surface); border-radius:12px; padding:16px 18px; margin-bottom:12px; border:1px solid var(--line); }
+  .pSection h3 { font-size:.78rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin-bottom:10px; display:flex; align-items:center; justify-content:space-between; }
+  .pSection h3 a { font-size:.78rem; font-weight:600; color:var(--accent); text-transform:none; letter-spacing:0; text-decoration:none; }
+  .pRow { display:flex; justify-content:space-between; gap:10px; padding:6px 0; border-bottom:1px solid var(--line); font-size:.86rem; }
+  .pRow:last-child { border-bottom:none; }
+  .pRow .k { color:var(--muted); }
+  .chip { font-size:.7rem; font-weight:700; padding:2px 9px; border-radius:999px; white-space:nowrap; }
+  .chip.ok { background:var(--good); color:#fff; }
+  .chip.warn { background:#fdf2d9; color:var(--warn); }
+  .chip.bad { background:#fbe9e7; color:var(--bad); }
+</style>
+</head>
+<body>
+<div id="shell">
+  <div class="sidebar">
+    <div id="officeSidebarTop"></div>
+    <nav id="officeNav"></nav>
+    <div id="officeSidebarBottom"></div>
+  </div>
+  <div class="main">
+    <div class="pageHd">
+      <h1 id="pageTitle">Verkstæði</h1>
+      <a href="/framleidsla" id="backToBoard" style="display:none;">← Öll verk</a>
+    </div>
+
+    <div id="loading" class="loading">Sæki…</div>
+    <div class="board" id="board" style="display:none;"></div>
+    <div id="detail" style="display:none;"></div>
+  </div>
+</div>
+
+<script src="/office-shell.js"></script>
+<script>
+(function () {
+  "use strict";
+  var TAEKIFAERI = "tbl4LMXlQjp66RFKI";
+  var SOGUNARLISTI = "tblhdgyvTcBfP8kov";
+  var PANTADIR = "tblSccfV2lBp4FiFU";
+
+  var shellInfo = window.OfficeShell.boot("verkst");
+  if (!shellInfo) return;
+  var k = shellInfo.k;
+  var params = new URLSearchParams(location.search);
+  var recordId = params.get("recordId");
+
+  function api(path, extra) {
+    var u = "/api/airtable?path=" + encodeURIComponent(path);
+    if (k) u += "&k=" + encodeURIComponent(k);
+    if (extra) u += "&" + extra;
+    return fetch(u).then(function (r) { return r.json(); });
+  }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }); }
+  function eqFilter(fieldPrefixEncoded, name) {
+    var e = String(name).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    return fieldPrefixEncoded + "%3D" + encodeURIComponent('"' + e + '"');
+  }
+
+  var STAGES = [
+    { match: "Tilbúið til framleiðslu 📋", label: "Tilbúið", color: "#e9b000" },
+    { match: "Verk í vinnslu 🔨", label: "Í vinnslu", color: "#0f6cbd" },
+    { match: "Samsetning og pökkun 🪛📦", label: "Samsetning", color: "#8250df" },
+    { match: "Má Afhenda 🚚", label: "Má afhenda", color: "#1a7d36" },
+  ];
+  function prioRank(p) { var m = String(p || "").match(/^(\d)/); return m ? Number(m[1]) : 9; }
+
+  if (!recordId) { loadBoard(); } else { loadDetail(recordId); }
+
+  // ======================= BOARD =======================
+  function loadBoard() {
+    document.getElementById("loading").style.display = "block";
+    var fml = 'AND({Staða í söluferli}="🏆 Tækifæri unnið",{Staða í skipulagi}="Klárt til framleiðslu",{Staða í framleiðslu}!="",{Staða í framleiðslu}!="Afhent (LOKIÐ ✅)")';
+    api(TAEKIFAERI, "filterByFormula=" + encodeURIComponent(fml) +
+      "&fields%5B%5D=Heiti%20t%C3%A6kif%C3%A6ris%20%2F%20verkefnis&fields%5B%5D=Sta%C3%B0a%20%C3%AD%20framlei%C3%B0slu" +
+      "&fields%5B%5D=Forgangur%20framlei%C3%B0slu%20%F0%9F%A5%87&fields%5B%5D=" + encodeURIComponent("Áætlaður afhendingardagur Björninn (internal)") +
+      "&fields%5B%5D=" + encodeURIComponent("Framvinda framleiðslu [weighted]") + "&pageSize=100")
+      .then(function (d) {
+        document.getElementById("loading").style.display = "none";
+        document.getElementById("board").style.display = "flex";
+        renderBoard(d.records || []);
+      });
+  }
+
+  function renderBoard(projects) {
+    var DATE_FIELD = "Áætlaður afhendingardagur Björninn (internal)";
+    var today = new Date().toISOString().slice(0, 10);
+    var board = document.getElementById("board");
+    board.innerHTML = "";
+    var cols = STAGES.map(function (s) { return { label: s.label, color: s.color, match: s.match, items: [] }; });
+    projects.forEach(function (p) {
+      var idx = STAGES.findIndex(function (s) { return s.match === p.fields["Staða í framleiðslu"]; });
+      if (idx === -1) return;
+      cols[idx].items.push(p);
+    });
+    cols.forEach(function (col) {
+      col.items.sort(function (a, b) {
+        var pa = prioRank(a.fields["Forgangur framleiðslu 🥇"]), pb = prioRank(b.fields["Forgangur framleiðslu 🥇"]);
+        if (pa !== pb) return pa - pb;
+        var da = a.fields[DATE_FIELD] || "9999", db = b.fields[DATE_FIELD] || "9999";
+        return da < db ? -1 : da > db ? 1 : 0;
+      });
+      var el = document.createElement("div");
+      el.className = "col";
+      el.innerHTML = '<h2><span class="colorDot" style="background:' + col.color + '"></span><span class="colLabel">' + esc(col.label) + '</span><span class="cnt">' + col.items.length + '</span></h2><div class="cards"></div>';
+      var cardsEl = el.querySelector(".cards");
+      if (!col.items.length) cardsEl.innerHTML = '<div class="empty">Ekkert hér</div>';
+      col.items.forEach(function (p) {
+        var f = p.fields;
+        var date = f[DATE_FIELD] || "";
+        var late = date && date < today;
+        var a = document.createElement("a");
+        a.className = "kcard";
+        a.style.borderLeft = "3px solid " + col.color;
+        a.href = "/framleidsla?recordId=" + p.id + (k ? "&k=" + encodeURIComponent(k) : "");
+        a.innerHTML = esc(f["Heiti tækifæris / verkefnis"] || "(ónefnt)") +
+          (date ? '<div class="sub' + (late ? ' late' : '') + '">' + (late ? "⚠️ " : "") + esc(date) + '</div>' : "");
+        cardsEl.appendChild(a);
+      });
+      board.appendChild(el);
+    });
+  }
+
+  // ======================= DETAIL =======================
+  function loadDetail(id) {
+    document.getElementById("loading").style.display = "block";
+    document.getElementById("backToBoard").style.display = "inline-block";
+    api(TAEKIFAERI + "/" + id).then(function (proj) {
+      document.getElementById("loading").style.display = "none";
+      document.getElementById("detail").style.display = "block";
+      renderDetail(proj);
+    });
+  }
+
+  function renderDetail(proj) {
+    var f = proj.fields || {};
+    var name = f["Heiti tækifæris / verkefnis"] || "(ónefnt)";
+    document.getElementById("pageTitle").textContent = name;
+    var pct = Math.round((f["Framvinda framleiðslu [weighted]"] || 0) * 100);
+    var det = document.getElementById("detail");
+    det.innerHTML =
+      '<div class="projHd">' +
+        '<div class="nm">' + esc(name) + '</div>' +
+        '<div class="st">' + esc(f["Staða í framleiðslu"] || "—") + ' · Forgangur ' + esc(f["Forgangur framleiðslu 🥇"] || "—") +
+          ' · Afhending ' + esc(f["Áætlaður afhendingardagur Björninn (internal)"] || "—") + '</div>' +
+        '<div class="progBar"><div class="fill" style="width:' + pct + '%"></div></div>' +
+        '<div class="progLbl">' + pct + '% framleitt</div>' +
+      '</div>' +
+      '<div class="pSection"><h3>Sögun <a href="/cutlist?recordId=' + proj.id + '" target="_blank">Opna →</a></h3><div id="sawBody"><div class="empty">Sæki…</div></div></div>' +
+      '<div class="pSection"><h3>Fræsing / CNC <a href="/fraesing?recordId=' + proj.id + '" target="_blank">Opna →</a></h3><div id="cncBody"></div></div>' +
+      '<div class="pSection"><h3>Efni <a href="/pontun?recordId=' + proj.id + (k ? "&k=" + encodeURIComponent(k) : "") + '" target="_blank">Opna →</a></h3><div id="matBody"><div class="empty">Sæki…</div></div></div>' +
+      '<a class="proLink" href="/verk?t=' + proj.id + (k ? "&k=" + encodeURIComponent(k) : "") + '" target="_blank" style="display:inline-block;margin-top:4px;color:var(--accent);font-size:.85rem;text-decoration:none;">Opna fullt yfirlit í /verk →</a>';
+
+    function row(k2, v) { return '<div class="pRow"><span class="k">' + esc(k2) + '</span><span>' + v + '</span></div>'; }
+
+    // CNC — the "6. CNC yfirfarið" flag cnc.html's own export now self-sets (2026-10-17), same
+    // signal /ferli's Loka-yfirferð checklist uses.
+    var cncOk = !!f["6. CNC yfirfarið"];
+    document.getElementById("cncBody").innerHTML =
+      row("Útflutt á USB", '<span class="chip ' + (cncOk ? "ok" : "warn") + '">' + (cncOk ? "✓ já" : "ekki enn") + '</span>');
+
+    // Sögun — reuses /ferli's exact Skurðarskrá-based signal + the sawing/milling progress counters
+    // already exposed for /verk's own Framvinda section.
+    var escd = name.replace(/"/g, '\\"');
+    var sawFml = 'FIND("' + escd + '", ARRAYJOIN({Tækifæri 📣 (projects)})) > 0';
+    api(SOGUNARLISTI, "filterByFormula=" + encodeURIComponent(sawFml) + "&fields%5B%5D=Skur%C3%B0arskr%C3%A1&maxRecords=200")
+      .then(function (d) {
+        var rows = d.records || [];
+        var cuttyDone = rows.some(function (r) { return String((r.fields || {})["Skurðarskrá"] || "").trim(); });
+        var sagad = f["Fjöldi varahluta sagaðir"] || 0, tilSaga = f["Fjöldi varahluta til að saga"] || 0;
+        var fraest = f["Fjöldi hluta fræstir 🔬"] || 0, tilFraesa = f["Fjöldi hluta til að fræsa 🔬"] || 0;
+        document.getElementById("sawBody").innerHTML =
+          row("Cutty keyrt", '<span class="chip ' + (cuttyDone ? "ok" : "warn") + '">' + (cuttyDone ? "✓ keyrt" : "ekki enn") + '</span>') +
+          row("Sagað", sagad + " / " + tilSaga) +
+          row("Fræst", fraest + " / " + tilFraesa);
+      });
+
+    // Efni — same open-order detection /ferli's 📦 chip already uses.
+    api(PANTADIR, "filterByFormula=" + eqFilter("%7BT%C3%A6kif%C3%A6ri%20%F0%9F%93%A3%7D", name) + "&maxRecords=50")
+      .then(function (d) {
+        var recs = d.records || [];
+        var el = document.getElementById("matBody");
+        if (!recs.length) { el.innerHTML = '<div class="empty">Engar pantanir skráðar</div>'; return; }
+        el.innerHTML = recs.map(function (r) {
+          var rf = r.fields || {};
+          var done = rf["Staða"] === "Komið í hús 🐻";
+          return row(rf["Stöðu kenni"] || "", '<span class="chip ' + (done ? "ok" : "bad") + '">' + esc(rf["Staða"] || "") + '</span>');
+        }).join("");
+      });
+  }
+})();
+</script>
+</body>
+</html>
