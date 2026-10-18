@@ -139,6 +139,32 @@
 
   .loading { text-align:center; color:var(--muted); padding:60px 0; }
   .empty { text-align:center; color:var(--muted); padding:16px 0; font-size:.82rem; }
+
+  /* Tengiliðir+Fyrirtæki / Útfærsla / Efni self-serve modals (2026-10-18) — reuse .lpModal's look,
+     just wider, with a plain stacked form instead of a search-result list. */
+  .wideModal { max-width:520px; }
+  .modalTabs { display:flex; gap:6px; margin-top:12px; }
+  .modalTab { all:unset; cursor:pointer; flex:1; text-align:center; padding:7px 0; border-radius:999px; font-size:.82rem; font-weight:600; color:var(--muted); background:var(--bg); }
+  .modalTab.active { background:var(--accent); color:#fff; }
+  .formGrid { display:flex; flex-direction:column; gap:9px; margin-top:12px; }
+  .formGrid label { font-size:.72rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; display:block; margin-bottom:3px; }
+  .formGrid input, .formGrid select, .formGrid textarea { width:100%; box-sizing:border-box; font:inherit; font-size:.85rem; border:1px solid var(--line); border-radius:8px; padding:8px 10px; background:var(--bg); color:var(--text); }
+  .formGrid textarea { resize:vertical; min-height:50px; }
+  .formRow2 { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+  .formRow3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:9px; }
+  .pendingPill { font-size:.68rem; font-weight:700; background:#fff3cd; color:#9a6700; padding:2px 8px; border-radius:999px; margin-left:6px; }
+  .slotRow { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 0; border-bottom:1px solid var(--line); font-size:.84rem; }
+  .slotRow:last-child { border-bottom:none; }
+  .slotRow .slotLabel { color:var(--muted); flex:none; width:38px; font-weight:700; }
+  .slotClear { all:unset; cursor:pointer; color:var(--bad); font-size:.78rem; padding:0 4px; }
+  .contactList { margin-top:8px; max-height:220px; overflow:auto; }
+  .contactRow { padding:8px 9px; border-radius:8px; cursor:pointer; font-size:.85rem; display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .contactRow:hover { background:var(--bg); }
+  .contactRow .sub { color:var(--muted); font-size:.72rem; }
+  .modalMsg { text-align:center; font-size:.8rem; color:var(--muted); margin-top:10px; min-height:1.1em; }
+  /* the generic picker can be opened from inside any of the three self-serve modals above (same
+     z-index as them otherwise, and later in DOM order, so it would paint UNDER them) — always on top */
+  #lpModalBg { z-index:260; }
 </style>
 </head>
 <body>
@@ -155,6 +181,9 @@
       <input class="searchBox" id="search" type="text" placeholder="Leita að tækifæri…" />
       <button class="toggleClosed" id="toggleClosed">Sýna líka unnin/töpuð</button>
       <button class="toggleClosed" id="toggleMine" type="button">Mínar sölur</button>
+      <button class="toggleClosed" id="contactsBtn" type="button">👤 Tengiliðir</button>
+      <button class="toggleClosed" id="newUtfBtn" type="button">🎨 Ný útfærsla</button>
+      <button class="toggleClosed" id="newEfniBtn" type="button">🧱 Nýtt efni</button>
       <button class="newProjectBtn" id="newProjectBtn" type="button">+ Nýtt verkefni</button>
     </div>
   </div>
@@ -257,12 +286,90 @@
   </div>
 </div>
 
+<!-- Tengiliðir+Fyrirtæki (2026-10-18) — search/edit/create, scoped: customers and suppliers, writes
+     only the plain "Fyrirtæki🏢" company link (the other two Tengiliðir "Fyrirtæki" fields are Airtable's
+     own reverse links for "Aðal tengiliður"/"Aðrir tengiliðir", set from the Fyrirtæki side). -->
+<div class="lpModalBg" id="contactsModalBg">
+  <div class="lpModal wideModal">
+    <button class="lpClose" id="contactsClose" type="button">✕</button>
+    <div class="lpTitle">Tengiliðir</div>
+    <div class="modalTabs">
+      <button class="modalTab active" id="cTabPerson" type="button">Fólk</button>
+      <button class="modalTab" id="cTabCompany" type="button">Fyrirtæki</button>
+    </div>
+
+    <div id="cListView">
+      <input class="lpSearch" id="cSearch" type="text" placeholder="Leita…" />
+      <div class="contactList" id="cResults"></div>
+      <button class="npPrimary" id="cNewBtn" type="button" style="margin-top:12px;">+ Nýtt</button>
+    </div>
+
+    <div id="cFormView" style="display:none;">
+      <div class="formGrid" id="cFormFields"></div>
+      <button class="npPrimary" id="cSaveBtn" type="button">Vista</button>
+      <button class="npBack" id="cBackBtn" type="button">← Til baka í leit</button>
+    </div>
+
+    <div class="modalMsg" id="cMsg"></div>
+  </div>
+</div>
+
+<!-- Ný útfærsla (2026-10-18) — assemble from EXISTING Vörulisti parts only, never a new Vörulisti row,
+     never the "Skipulag →" planner-integration fields (CRM/quoting-only, stays out of /skipuleggja). -->
+<div class="lpModalBg" id="utfModalBg">
+  <div class="lpModal wideModal">
+    <button class="lpClose" id="utfClose" type="button">✕</button>
+    <div class="lpTitle" id="utfTitle">Ný útfærsla</div>
+    <div class="formGrid">
+      <div><label>Lýsing á útfærslu *</label><input id="utfLysing" type="text" /></div>
+      <div class="formRow2">
+        <div><label>Vörunúmer</label><input id="utfVnr" type="text" /></div>
+        <div><label>Flokkur</label><select id="utfFlokkur"></select></div>
+      </div>
+    </div>
+    <div id="utfSlots"></div>
+    <button class="npPrimary" id="utfSaveBtn" type="button">Búa til útfærslu</button>
+    <div class="modalMsg" id="utfMsg"></div>
+  </div>
+</div>
+
+<!-- Nýtt efni (2026-10-18) — descriptive fields only. Purchase cost + the production-time-minutes
+     fields are NOT in this form on purpose: they feed every downstream sale price and stay an owner-
+     only edit in Airtable until the line is reviewed (see "Óyfirfarið — Rakel ⚠️"). -->
+<div class="lpModalBg" id="efniModalBg">
+  <div class="lpModal wideModal">
+    <button class="lpClose" id="efniClose" type="button">✕</button>
+    <div class="lpTitle">Nýtt efni</div>
+    <div class="formGrid">
+      <div><label>Heiti efnis *</label><input id="efHeiti" type="text" /></div>
+      <div class="formRow2">
+        <div><label>Efnisnúmer / kóði</label><input id="efKodi" type="text" /></div>
+        <div><label>Efnisflokkar</label><select id="efFlokkur"></select></div>
+      </div>
+      <div class="formRow2">
+        <div><label>Undirflokkur</label><select id="efUndirflokkur"></select></div>
+        <div><label>Spón/melamín</label><select id="efSponMel"></select></div>
+      </div>
+      <div class="formRow3">
+        <div><label>Breidd (mm)</label><input id="efBreidd" type="number" /></div>
+        <div><label>Lengd (mm)</label><input id="efLengd" type="number" /></div>
+        <div><label>Þykkt (mm)</label><input id="efThykkt" type="number" /></div>
+      </div>
+      <div><label>Pöntunareining</label><select id="efPontunareining"></select></div>
+      <div><label>Birgir</label><button class="liPickBtn" id="efBirgirBtn" type="button">— velja —</button></div>
+    </div>
+    <button class="npPrimary" id="efSaveBtn" type="button">Búa til efni</button>
+    <div class="modalMsg" id="efMsg"></div>
+  </div>
+</div>
+
 <script src="/office-shell.js"></script>
 <script>
 (function () {
   "use strict";
   var TAEKIFAERI = "tbl4LMXlQjp66RFKI";
   var CONTACTS = "tblQ8zeUanriESWvL";
+  var FYRIRTAEKI = "tbl2akoCETBx9S1SK";
 
   var shellInfo = window.OfficeShell.boot("crm");
   if (!shellInfo) return;
@@ -765,6 +872,369 @@
   }
   document.getElementById("lpClose").addEventListener("click", function () { document.getElementById("lpModalBg").classList.remove("open"); });
   document.getElementById("lpModalBg").addEventListener("click", function (e) { if (e.target === e.currentTarget) e.currentTarget.classList.remove("open"); });
+
+  // ---- apiPost/apiPatchKeyed — VERK_KEY-gated create/edit, used by the three self-serve modals below.
+  // Every new record lands flagged "Óyfirfarið — Rakel ⚠️" (forced server-side); editing an existing
+  // record takes effect immediately, no re-flagging. ----
+  function apiPost(table, fields) {
+    return fetch("/api/airtable?path=" + encodeURIComponent(table) + "&k=" + encodeURIComponent(k), {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fields: fields })
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); });
+  }
+  function apiPatchKeyed(table, id, fields) {
+    return fetch("/api/airtable?path=" + encodeURIComponent(table + "/" + id) + "&k=" + encodeURIComponent(k), {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fields: fields })
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); });
+  }
+
+  // ===================================================================================
+  // Tengiliðir + Fyrirtæki (2026-10-18) — search/view/edit any contact or company (incl.
+  // suppliers), or create a new one. New records are flagged for an owner to review in
+  // Airtable; edits to an existing record take effect immediately.
+  // ===================================================================================
+  var CONTACT_TYPE_CHOICES = ["Einstaklingur / heimili", "Arkitektar / Innanhúsarkitektar / Hönnuðir",
+    "Byggingaraðilar / Verktakar", "Húsfélög / Félagasamtök", "Opinberir aðilar / Sveitarfélög / Stofnanir",
+    "Skrifstofur / Fyrirtæki / Þjónustufyrirtæki", "📦 Birgir", "🤝 Samstarfsaðili", "📸 Ljós-/ upptökumaður",
+    "🪛 Uppsetningaraðili", "🐻 BJÖRNINN"];
+  var CONTACT_ROLE_CHOICES = ["Almennur starfsmaður", "Eigandi", "Framkvæmdastjóri", "Verkefnastjóri"];
+  var CONTACT_SOURCE_CHOICES = ["Facebook", "Instagram", "TikTok", "Tilvísun frá fyrri viðskiptavin", "Arkitekt bendi á okkur", "Vefsíða"];
+  var COMPANY_TYPE_CHOICES = ["🏗️ Byggingaverktaki", "🏠 Fasteignafélag", "🏨 Hótel / Gistiþjónusta", "🧦 Smásala / Verslun",
+    "🏛️ Opinber stofnun", "🪛 Uppsetningaraðili", "📦 Birgir", "🚚 Sendibílstjóri"];
+  var COMPANY_SIZE_CHOICES = ["1-5", "6-20", "21-50", "50+"];
+  var COMPANY_REVENUE_CHOICES = ["0-20.000.000 kr.", "20.000.000 - 50.000.000 kr.", "50.000.000 - 100.000.000 kr.",
+    "100.000.000 - 250.000.000 kr.", "250.000.000 - ♾️"];
+  var COMPANY_TERMS_CHOICES = ["Reikningsviðskipti", "Staðgreiðsla", "Fyrirframgreiðsla"];
+
+  var PERSON_FIELDS = [
+    { key: "Fornafn ⬅️", label: "Fornafn *", type: "text" },
+    { key: "Milli nafn ↔️", label: "Millinafn", type: "text" },
+    { key: "Eftirnafn ➡️", label: "Eftirnafn", type: "text" },
+    { key: "Netfang 📧", label: "Netfang", type: "text" },
+    { key: "Símanúmer ☎️", label: "Sími", type: "text" },
+    { key: "Kennitala 👤#️⃣", label: "Kennitala", type: "text" },
+    { key: "Heimilisfang 🏡", label: "Heimilisfang", type: "text" },
+    { key: "Tegund tengiliðs 👥", label: "Tegund tengiliðs", type: "select", choices: CONTACT_TYPE_CHOICES },
+    { key: "Staða innan fyrirtækis", label: "Staða innan fyrirtækis", type: "select", choices: CONTACT_ROLE_CHOICES },
+    { key: "Hvaðan kom viðskiptavinurinn 📥", label: "Hvaðan kom viðskiptavinurinn", type: "select", choices: CONTACT_SOURCE_CHOICES },
+    { key: "Fyrirtæki🏢", label: "Fyrirtæki", type: "companyLink" },
+    { key: "Glósur um viðskiptavin", label: "Glósur", type: "textarea" },
+  ];
+  var COMPANY_FIELDS = [
+    { key: "Nafn fyrirtækis", label: "Nafn fyrirtækis *", type: "text" },
+    { key: "Kennitala #️⃣", label: "Kennitala", type: "number" },
+    { key: "Netfang 📧", label: "Netfang", type: "text" },
+    { key: "Símanr. ☎️", label: "Sími", type: "text" },
+    { key: "Heimasíða", label: "Heimasíða", type: "text" },
+    { key: "Heimilisfang 🏡", label: "Heimilisfang", type: "text" },
+    { key: "Tegund fyrirtækis", label: "Tegund fyrirtækis", type: "select", choices: COMPANY_TYPE_CHOICES },
+    { key: "Stærð fyrirtækis", label: "Stærð fyrirtækis", type: "select", choices: COMPANY_SIZE_CHOICES },
+    { key: "Áætluð árs-velta", label: "Áætluð árs-velta", type: "select", choices: COMPANY_REVENUE_CHOICES },
+    { key: "Greiðsluskilmálar", label: "Greiðsluskilmálar", type: "select", choices: COMPANY_TERMS_CHOICES },
+  ];
+
+  var cMode = "person"; // "person" | "company"
+  var cEditingId = null; // null = creating new
+  var cDraft = {};
+  var cCompanyLink = null; // { id, name } | null — person-mode only
+
+  function cTable() { return cMode === "person" ? CONTACTS : FYRIRTAEKI; }
+  function cFields() { return cMode === "person" ? PERSON_FIELDS : COMPANY_FIELDS; }
+  function cNameOf(rec) {
+    return cMode === "person"
+      ? ((rec.fields["Fornafn ⬅️"] || "") + " " + (rec.fields["Eftirnafn ➡️"] || "")).trim()
+      : (rec.fields["Nafn fyrirtækis"] || "");
+  }
+
+  function contactsOpen() {
+    document.getElementById("contactsModalBg").classList.add("open");
+    cShowList();
+  }
+  function cShowList() {
+    cEditingId = null;
+    document.getElementById("cListView").style.display = "block";
+    document.getElementById("cFormView").style.display = "none";
+    document.getElementById("cMsg").textContent = "";
+    document.getElementById("cSearch").value = "";
+    document.getElementById("cResults").innerHTML = '<div class="empty">Byrjaðu að skrifa…</div>';
+    document.getElementById("cSearch").focus();
+  }
+  function cSetMode(mode) {
+    cMode = mode;
+    document.getElementById("cTabPerson").classList.toggle("active", mode === "person");
+    document.getElementById("cTabCompany").classList.toggle("active", mode === "company");
+    cShowList();
+  }
+  document.getElementById("contactsBtn").addEventListener("click", contactsOpen);
+  document.getElementById("contactsClose").addEventListener("click", function () { document.getElementById("contactsModalBg").classList.remove("open"); });
+  document.getElementById("contactsModalBg").addEventListener("click", function (e) { if (e.target === e.currentTarget) e.currentTarget.classList.remove("open"); });
+  document.getElementById("cTabPerson").addEventListener("click", function () { cSetMode("person"); });
+  document.getElementById("cTabCompany").addEventListener("click", function () { cSetMode("company"); });
+  document.getElementById("cBackBtn").addEventListener("click", cShowList);
+
+  var cSearchTimer = null;
+  document.getElementById("cSearch").addEventListener("input", function (e) {
+    clearTimeout(cSearchTimer);
+    var term = e.target.value.trim();
+    var results = document.getElementById("cResults");
+    if (!term) { results.innerHTML = '<div class="empty">Byrjaðu að skrifa…</div>'; return; }
+    cSearchTimer = setTimeout(function () {
+      var esc4 = function (s) { return String(s).replace(/"/g, '\\"'); };
+      var fml = cMode === "person"
+        ? "OR(SEARCH(LOWER(\"" + esc4(term) + "\"),LOWER({Fornafn ⬅️}&\" \"&{Eftirnafn ➡️})),SEARCH(LOWER(\"" + esc4(term) + "\"),LOWER({Netfang 📧})),SEARCH(\"" + esc4(term) + "\",{Símanúmer ☎️}))"
+        : "SEARCH(LOWER(\"" + esc4(term) + "\"),LOWER({Nafn fyrirtækis}))";
+      api(cTable(), "filterByFormula=" + encodeURIComponent(fml) + "&maxRecords=20").then(function (d) {
+        var recs = d.records || [];
+        if (!recs.length) { results.innerHTML = '<div class="empty">Ekkert fannst</div>'; return; }
+        results.innerHTML = "";
+        recs.forEach(function (rec) {
+          var name = cNameOf(rec) || "(ónefnt)";
+          var sub = cMode === "person" ? [rec.fields["Netfang 📧"], rec.fields["Símanúmer ☎️"]].filter(Boolean).join(" · ") : (rec.fields["Tegund fyrirtækis"] || "");
+          var el = document.createElement("div");
+          el.className = "contactRow";
+          el.innerHTML = "<span>" + esc(name) + (rec.fields["Óyfirfarið — Rakel ⚠️"] ? '<span class="pendingPill">Óyfirfarið</span>' : "") + '</span><span class="sub">' + esc(sub) + "</span>";
+          el.addEventListener("click", function () { cOpenRecord(rec); });
+          results.appendChild(el);
+        });
+      });
+    }, 250);
+  });
+  document.getElementById("cNewBtn").addEventListener("click", function () {
+    cEditingId = null;
+    cDraft = {};
+    cCompanyLink = null;
+    cRenderForm();
+  });
+
+  function cOpenRecord(rec) {
+    cEditingId = rec.id;
+    cDraft = Object.assign({}, rec.fields);
+    cCompanyLink = null;
+    if (cMode === "person" && rec.fields["Fyrirtæki🏢"] && rec.fields["Fyrirtæki🏢"][0]) {
+      var compId = rec.fields["Fyrirtæki🏢"][0];
+      api(FYRIRTAEKI + "/" + compId).then(function (d) {
+        cCompanyLink = { id: compId, name: d.fields ? d.fields["Nafn fyrirtækis"] : "(fannst ekki)" };
+        cRenderForm();
+      });
+    }
+    cRenderForm();
+  }
+
+  function cRenderForm() {
+    document.getElementById("cListView").style.display = "none";
+    document.getElementById("cFormView").style.display = "block";
+    document.getElementById("cMsg").textContent = "";
+    var grid = document.getElementById("cFormFields");
+    grid.innerHTML = "";
+    if (cEditingId && cDraft["Óyfirfarið — Rakel ⚠️"]) {
+      var p = document.createElement("div"); p.innerHTML = '<span class="pendingPill">Óyfirfarið af eiganda</span>';
+      grid.appendChild(p);
+    }
+    cFields().forEach(function (f) {
+      var row = document.createElement("div");
+      var label = document.createElement("label"); label.textContent = f.label;
+      row.appendChild(label);
+      if (f.type === "select") {
+        var sel = document.createElement("select");
+        sel.innerHTML = '<option value="">—</option>' + f.choices.map(function (c) { return '<option value="' + esc(c) + '"' + (c === cDraft[f.key] ? " selected" : "") + '>' + esc(c) + '</option>'; }).join("");
+        sel.onchange = function () { cDraft[f.key] = sel.value || null; };
+        row.appendChild(sel);
+      } else if (f.type === "textarea") {
+        var ta = document.createElement("textarea");
+        ta.value = cDraft[f.key] || "";
+        ta.oninput = function () { cDraft[f.key] = ta.value; };
+        row.appendChild(ta);
+      } else if (f.type === "companyLink") {
+        var btn = document.createElement("button");
+        btn.type = "button"; btn.className = "liPickBtn";
+        btn.textContent = cCompanyLink ? cCompanyLink.name : "— velja fyrirtæki —";
+        btn.onclick = function () {
+          openPicker(FYRIRTAEKI, "Nafn fyrirtækis", null, function (picked) {
+            cCompanyLink = picked; cDraft["Fyrirtæki🏢"] = [picked.id]; cRenderForm();
+          });
+        };
+        row.appendChild(btn);
+        if (cCompanyLink) {
+          var clr = document.createElement("button");
+          clr.type = "button"; clr.className = "slotClear"; clr.textContent = "✕ fjarlægja";
+          clr.onclick = function () { cCompanyLink = null; cDraft["Fyrirtæki🏢"] = null; cRenderForm(); };
+          row.appendChild(clr);
+        }
+      } else {
+        var input = document.createElement("input");
+        input.type = f.type === "number" ? "number" : "text";
+        input.value = cDraft[f.key] == null ? "" : cDraft[f.key];
+        input.oninput = function () { cDraft[f.key] = f.type === "number" ? (input.value === "" ? null : Number(input.value)) : input.value; };
+        row.appendChild(input);
+      }
+      grid.appendChild(row);
+    });
+  }
+
+  document.getElementById("cSaveBtn").addEventListener("click", function () {
+    var msg = document.getElementById("cMsg");
+    var nameKey = cMode === "person" ? "Fornafn ⬅️" : "Nafn fyrirtækis";
+    if (!cDraft[nameKey] || !String(cDraft[nameKey]).trim()) {
+      msg.textContent = cMode === "person" ? "Fornafn vantar." : "Nafn fyrirtækis vantar."; return;
+    }
+    var fields = {};
+    cFields().forEach(function (f) { if (f.key in cDraft) fields[f.key] = cDraft[f.key]; });
+    msg.textContent = "Vista…";
+    var req = cEditingId ? apiPatchKeyed(cTable(), cEditingId, fields) : apiPost(cTable(), fields);
+    req.then(function (res) {
+      if (!res.ok) { msg.textContent = "Tókst ekki: " + (res.d.error || "villa"); return; }
+      var wasNew = !cEditingId;
+      if (wasNew) { cEditingId = res.d.id; cDraft["Óyfirfarið — Rakel ⚠️"] = true; cRenderForm(); }
+      document.getElementById("cMsg").textContent = wasNew ? "✓ Búið til, flaggað til yfirferðar í Airtable." : "✓ Vistað.";
+    });
+  });
+
+  // ===================================================================================
+  // Ný útfærsla (2026-10-18) — assemble from EXISTING Vörulisti parts only. V1 is always
+  // the cabinet body, V2+ is everything type-specific (fronts/drawers/glass/etc — see
+  // docs/kitchen-planner.md). Stays CRM/quoting-only: never touches the "Skipulag →"
+  // fields the self-serve planner's linemap is generated from.
+  // ===================================================================================
+  var UTF_FLOKKUR_CHOICES = ["Grunnskápar", "Efriskápar", "Háirskápar", "Baðinnréttingar", "Lítill kassi",
+    "Veggskápur", "Grunnskápur FRE / FRE2", "Lokaðir skápar FRE / FRE2", "Þvottavél",
+    "LEGRA - Skúffu samsetning", "MERIVO - Skúffu samsetning", "Útdrög", "Rusl", "Búrskápur", "Ísskápur",
+    "Ofnaskápur", "Fataskápur", "Flókin kerfi", "Skipulag", "Ljós og lýsing", "Fataslár", "Hillur",
+    "Skúffu frontar", "Lama frontar", "Gler fulnings frontar", "Úthliðar", "Höldur",
+    "Stakar vörur / aukahlutir", "Hurðir", "Borðplötur", "Þjónustur", "Sérsmíði", "Sérsmíðaðar hillur",
+    "38mm skápar", "38mm annað", "Bogadregnir skápar", "Bogadregnir frontar", "Lokaðir Bogadregnir skápar"];
+  var UTF_SLOTS = [
+    { key: "Tengdar vörur 🚪V1 (alltaf setja Skrokka hér)", label: "V1" },
+    { key: "Tengdar vörur 🚪V2 (alltaf setja Fronta eða gler HÉR)", label: "V2" },
+    { key: "Tengdar vörur 🚪V3", label: "V3" }, { key: "Tengdar vörur 🚪V4", label: "V4" },
+    { key: "Tengdar vörur 🚪V5", label: "V5" }, { key: "Tengdar vörur 🚪V6", label: "V6" },
+    { key: "Tengdar vörur 🚪V7", label: "V7" },
+  ];
+  var utfEditingId = null, utfDraft = {}, utfSlotLinks = {}; // slot key -> { id, name } | undefined
+
+  function utfOpen() {
+    utfEditingId = null; utfDraft = {}; utfSlotLinks = {};
+    document.getElementById("utfTitle").textContent = "Ný útfærsla";
+    document.getElementById("utfLysing").value = "";
+    document.getElementById("utfVnr").value = "";
+    var sel = document.getElementById("utfFlokkur");
+    sel.innerHTML = '<option value="">—</option>' + UTF_FLOKKUR_CHOICES.map(function (c) { return '<option value="' + esc(c) + '">' + esc(c) + '</option>'; }).join("");
+    document.getElementById("utfMsg").textContent = "";
+    utfRenderSlots();
+    document.getElementById("utfModalBg").classList.add("open");
+  }
+  function utfRenderSlots() {
+    var wrap = document.getElementById("utfSlots");
+    wrap.innerHTML = "";
+    UTF_SLOTS.forEach(function (s) {
+      var row = document.createElement("div");
+      row.className = "slotRow";
+      var link = utfSlotLinks[s.key];
+      row.innerHTML = '<span class="slotLabel">' + s.label + "</span>";
+      var btn = document.createElement("button");
+      btn.type = "button"; btn.className = "liPickBtn";
+      btn.textContent = link ? link.name : "— velja —";
+      btn.onclick = function () {
+        openPicker(VORULISTI, "Heiti vöru 📣", null, function (picked) {
+          utfSlotLinks[s.key] = picked; utfRenderSlots();
+        });
+      };
+      row.appendChild(btn);
+      if (link) {
+        var clr = document.createElement("button");
+        clr.type = "button"; clr.className = "slotClear"; clr.textContent = "✕";
+        clr.onclick = function () { delete utfSlotLinks[s.key]; utfRenderSlots(); };
+        row.appendChild(clr);
+      }
+      wrap.appendChild(row);
+    });
+  }
+  document.getElementById("newUtfBtn").addEventListener("click", utfOpen);
+  document.getElementById("utfClose").addEventListener("click", function () { document.getElementById("utfModalBg").classList.remove("open"); });
+  document.getElementById("utfModalBg").addEventListener("click", function (e) { if (e.target === e.currentTarget) e.currentTarget.classList.remove("open"); });
+
+  document.getElementById("utfSaveBtn").addEventListener("click", function () {
+    var msg = document.getElementById("utfMsg");
+    var lysing = document.getElementById("utfLysing").value.trim();
+    if (!lysing) { msg.textContent = "Lýsing á útfærslu vantar."; return; }
+    var fields = {
+      "Lýsing á útfærslu": lysing,
+      "Vörunúmer": document.getElementById("utfVnr").value.trim(),
+      "Flokkur": document.getElementById("utfFlokkur").value || null,
+    };
+    UTF_SLOTS.forEach(function (s) { if (utfSlotLinks[s.key]) fields[s.key] = [utfSlotLinks[s.key].id]; });
+    msg.textContent = "Vista…";
+    var req = utfEditingId ? apiPatchKeyed(UTFAERSLUR, utfEditingId, fields) : apiPost(UTFAERSLUR, fields);
+    req.then(function (res) {
+      if (!res.ok) { msg.textContent = "Tókst ekki: " + (res.d.error || "villa"); return; }
+      if (!utfEditingId) {
+        utfEditingId = res.d.id;
+        document.getElementById("utfTitle").textContent = "Útfærsla búin til — má breyta áður en eigandi yfirfer";
+        msg.textContent = "✓ Búin til, flögguð til yfirferðar í Airtable.";
+      } else {
+        msg.textContent = "✓ Vistað.";
+      }
+    });
+  });
+
+  // ===================================================================================
+  // Nýtt efni (2026-10-18) — descriptive fields only, see the form's own comment above.
+  // ===================================================================================
+  var EFNI_FLOKKUR_CHOICES = ["EGGER 19mm", "EGGER 16mm", "Harðplast EGGER", "Hurða harðplast",
+    "Perfect sense EGGER", "EGGER SM", "Compact EGGER", "EGGER 20mm BORÐPLÖTUR", "EGGER ANNAÐ",
+    "Eurolight EGGER", "MDF", "Hreinar spónaplötur", "Spónlagt af Birninum", "MDF fulnings",
+    "Sprautulakkað", "GLER FULNINGS", "Gler og speglar", "Master eik (HEGAS)", "Kantlíming",
+    "Pfleiderer 19mm", "Bakefni 3mm", "Krossviður", "Límtré Borðplötur", "FENIX"];
+  var EFNI_UNDIRFLOKKUR_CHOICES = ["Skrokka efni", "Frontaefni", "Borðplata", "Hurð", "Harðplast", "Spónlagt"];
+  var EFNI_SPONMEL_CHOICES = ["Spónn", "Melamín"];
+  var EFNI_PONTUNAREINING_CHOICES = ["Plata", "meter", "m²", "Stk"];
+  var efEditingId = null, efBirgirLink = null;
+
+  function efOpen() {
+    efEditingId = null; efBirgirLink = null;
+    ["efHeiti", "efKodi", "efBreidd", "efLengd", "efThykkt"].forEach(function (id) { document.getElementById(id).value = ""; });
+    fillSelect("efFlokkur", EFNI_FLOKKUR_CHOICES);
+    fillSelect("efUndirflokkur", EFNI_UNDIRFLOKKUR_CHOICES);
+    fillSelect("efSponMel", EFNI_SPONMEL_CHOICES);
+    fillSelect("efPontunareining", EFNI_PONTUNAREINING_CHOICES);
+    document.getElementById("efBirgirBtn").textContent = "— velja —";
+    document.getElementById("efMsg").textContent = "";
+    document.getElementById("efniModalBg").classList.add("open");
+  }
+  function fillSelect(id, choices) {
+    document.getElementById(id).innerHTML = '<option value="">—</option>' + choices.map(function (c) { return '<option value="' + esc(c) + '">' + esc(c) + '</option>'; }).join("");
+  }
+  document.getElementById("newEfniBtn").addEventListener("click", efOpen);
+  document.getElementById("efniClose").addEventListener("click", function () { document.getElementById("efniModalBg").classList.remove("open"); });
+  document.getElementById("efniModalBg").addEventListener("click", function (e) { if (e.target === e.currentTarget) e.currentTarget.classList.remove("open"); });
+  document.getElementById("efBirgirBtn").addEventListener("click", function () {
+    openPicker(FYRIRTAEKI, "Nafn fyrirtækis", null, function (picked) {
+      efBirgirLink = picked;
+      document.getElementById("efBirgirBtn").textContent = picked.name;
+    });
+  });
+
+  document.getElementById("efSaveBtn").addEventListener("click", function () {
+    var msg = document.getElementById("efMsg");
+    var heiti = document.getElementById("efHeiti").value.trim();
+    if (!heiti) { msg.textContent = "Heiti efnis vantar."; return; }
+    function numOrNull(id) { var v = document.getElementById(id).value; return v === "" ? null : Number(v); }
+    var fields = {
+      "Heiti efnis": heiti,
+      "Efnisnúmer / kóði #️⃣": document.getElementById("efKodi").value.trim(),
+      "Efnisflokkar 🗄️": document.getElementById("efFlokkur").value || null,
+      "Undirflokkur 🗂️": document.getElementById("efUndirflokkur").value || null,
+      "Spón/melamín": document.getElementById("efSponMel").value || null,
+      "Breidd (mm)": numOrNull("efBreidd"), "Lengd (mm)": numOrNull("efLengd"), "Þykkt (mm)": numOrNull("efThykkt"),
+      "Pöntunareining": document.getElementById("efPontunareining").value || null,
+    };
+    if (efBirgirLink) fields["Birgjar 👴🏼"] = [efBirgirLink.id];
+    msg.textContent = "Vista…";
+    var req = efEditingId ? apiPatchKeyed(EFNISLISTI, efEditingId, fields) : apiPost(EFNISLISTI, fields);
+    req.then(function (res) {
+      if (!res.ok) { msg.textContent = "Tókst ekki: " + (res.d.error || "villa"); return; }
+      if (!efEditingId) { efEditingId = res.d.id; msg.textContent = "✓ Búið til, flaggað til yfirferðar í Airtable."; }
+      else { msg.textContent = "✓ Vistað."; }
+    });
+  });
 
   document.getElementById("dClose").addEventListener("click", function () { document.getElementById("detail").classList.remove("open"); });
   document.getElementById("toggleClosed").addEventListener("click", function () {

@@ -131,6 +131,11 @@ const ALLOWED_FIELDS = {
   // shape as the Starfsmenn PIN lookup). kp-submit.js's own contact CREATE still bypasses this proxy
   // entirely (direct Airtable call, its own token) — unaffected by this.
   "tblQ8zeUanriESWvL": [], // Tengiliðir 👤
+  // Fyrirtæki 🏢 (companies — also the Birgjar/supplier table Vörulisti and Efnislisti link through,
+  // and the source of "Netfang birgis 🔍" on Pantaðir listar's supplier-email automation). Same reasoning
+  // as Tengiliðir: base set empty, real fields behind VERK_KEY in VERK_ONLY_FIELDS, REQUIRE_FILTER'd so
+  // the whole company/supplier list can never be dumped in one request.
+  "tbl2akoCETBx9S1SK": [], // Fyrirtæki 🏢
   "tblzuuRSRkeXaLWxC": [ // Vörulisti 🚪 — resolves hardware-link names for /eining (name only, no cost)
     "Heiti vöru 📣",
     // /cnc (cnc-doors.js, 2026-10-13): macro names for hinge/lock/threshold products not already hardcoded
@@ -423,11 +428,42 @@ const VERK_ONLY_FIELDS = {
   "tblhP1FMM4QJfwxat": [ // Fjárhagsstaða 📊
     "Dagsetning", "Sölumarkmið (Fastur kostnaður x2)",
   ],
-  // /crm "+ Nýtt verkefni" staff contact search (2026-10-18) — name/e-mail/phone only, same fields
-  // kp-submit.js's own self-serve flow writes. REQUIRE_FILTER (below) means this can only ever be
-  // searched, never listed wholesale.
+  // /crm contacts (2026-10-18) — widened from the original "+ Nýtt verkefni" name/e-mail/phone-only set
+  // to the full contact record for the new Tengiliðir+Fyrirtæki page: person detail, company link,
+  // category/source selects, free-text notes, and the self-serve pending flag. REQUIRE_FILTER + the
+  // STRICT_FILTERS entry below mean this can only ever be searched (or opened by a known record id),
+  // never listed wholesale.
   "tblQ8zeUanriESWvL": [
-    "Fornafn ⬅️", "Eftirnafn ➡️", "Netfang 📧", "Símanúmer ☎️",
+    "Fornafn ⬅️", "Milli nafn ↔️", "Eftirnafn ➡️", "Fullt nafn 👤",
+    "Kennitala 👤#️⃣", "Heimilisfang 🏡", "Netfang 📧", "Símanúmer ☎️",
+    "Fyrirtæki🏢", "Tegund tengiliðs 👥", "Staða innan fyrirtækis",
+    "Hvaðan kom viðskiptavinurinn 📥", "Glósur um viðskiptavin",
+    "Tengiliðs-ID 🔢", "Óyfirfarið — Rakel ⚠️",
+  ],
+  // /crm contacts (2026-10-18) — Fyrirtæki (companies, also the Birgjar/supplier table). Same shape as
+  // Tengiliðir above: full record behind VERK_KEY, REQUIRE_FILTER'd search only.
+  "tbl2akoCETBx9S1SK": [
+    "Nafn fyrirtækis", "Heimasíða", "Kennitala #️⃣", "Netfang 📧", "Símanr. ☎️",
+    "Heimilisfang 🏡", "Tegund fyrirtækis", "Stærð fyrirtækis", "Áætluð árs-velta",
+    "Greiðsluskilmálar", "áreiðanleiki", "Aðal tengiliður", "Aðrir tengiliðir innan fyrirtækis",
+    "Tengiliðir 👤", "Fyrirtækja - ID", "Óyfirfarið — Rakel ⚠️",
+  ],
+  // /crm — assembling a new Útfærsla from existing Vörulisti parts (2026-10-18). The V1–V7 link
+  // fields themselves are internal (production/pricing structure); "Lýsing á útfærslu"/"Vörunúmer"/
+  // "Flokkur" stay public (ALLOWED_FIELDS above, already used by the Vörulínur picker).
+  "tbl8HjvBwNJ41cTV0": [
+    "Tengdar vörur 🚪V1 (alltaf setja Skrokka hér)",
+    "Tengdar vörur 🚪V2 (alltaf setja Fronta eða gler HÉR)",
+    "Tengdar vörur 🚪V3", "Tengdar vörur 🚪V4", "Tengdar vörur 🚪V5",
+    "Tengdar vörur 🚪V6", "Tengdar vörur 🚪V7",
+    "Óyfirfarið — Rakel ⚠️",
+  ],
+  // /crm — new material line (2026-10-18), descriptive fields only (no cost/time — those stay an
+  // owner-only Airtable edit). "Heiti efnis"/dimensions/"Undirflokkur 🗂️"/"Mynd 🖼️" stay public
+  // (ALLOWED_FIELDS above).
+  "tbl8CrVWKF8CuI7HD": [
+    "Efnisnúmer / kóði #️⃣", "Efnisflokkar 🗄️", "Spón/melamín", "Birgjar 👴🏼",
+    "Pöntunareining", "Óyfirfarið — Rakel ⚠️",
   ],
   // /crm Vörulínur editor (2026-10-17) — "patch and review" only, never a
   // replacement for drawing in the designer (user, 2026-10-17): Rými and the
@@ -453,7 +489,7 @@ const VERK_ONLY_FIELDS = {
 // Vefspjall means every site visitor's email + full conversation transcript
 // at once. Require the caller to filter to a single lookup instead of
 // listing the whole table.
-const REQUIRE_FILTER = new Set(["tblhglpjQkczdG1AY", "tbl3e5o0Klv9RcNQ4", "tblzkw70E2xoX9RmK", "tbltD1UNpqj05WtMx", "tblQ8zeUanriESWvL"]);
+const REQUIRE_FILTER = new Set(["tblhglpjQkczdG1AY", "tbl3e5o0Klv9RcNQ4", "tblzkw70E2xoX9RmK", "tbltD1UNpqj05WtMx", "tblQ8zeUanriESWvL", "tbl2akoCETBx9S1SK"]);
 // "A filter is required" alone was not a guard: filterByFormula=TRUE() matched every row (2026-10-01 —
 // employee PINs and customer contacts were listable). These tables only accept the exact query shape
 // their own pages send.
@@ -464,6 +500,14 @@ const STRICT_FILTERS = {
   "tblhglpjQkczdG1AY": /^AND\(\{PIN 🔢\}=0*[1-9]\d{0,9},\{Er starfandi\? ✅\}=1\)$/,
   // stimpilklukka.html + app.html: always one employee by name first
   "tbl3e5o0Klv9RcNQ4": /^AND\(\{Starfsmaður\}="[^"]+",/,
+  // /crm contacts search by name/e-mail/phone (2026-10-18, same shape "+ Nýtt verkefni" already sent —
+  // REQUIRE_FILTER had been listing this table since 2026-10-18 with no matching STRICT_FILTERS entry,
+  // so filterByFormula=TRUE() would have dumped every contact; closing that gap here, not just for the
+  // new code path).
+  "tblQ8zeUanriESWvL": /^OR\(SEARCH\(LOWER\("(?:[^"\\]|\\.)+"\),LOWER\(\{Fornafn ⬅️\}&" "&\{Eftirnafn ➡️\}\)\),SEARCH\(LOWER\("(?:[^"\\]|\\.)+"\),LOWER\(\{Netfang 📧\}\)\),SEARCH\("(?:[^"\\]|\\.)+",\{Símanúmer ☎️\}\)\)$/,
+  // /crm contacts — Fyrirtæki search by name only (same generic shape openPicker already sends
+  // everywhere else, parameterized to this one field).
+  "tbl2akoCETBx9S1SK": /^SEARCH\(LOWER\("(?:[^"\\]|\\.)+"\),LOWER\(\{Nafn fyrirtækis\}\)\)$/,
 };
 // Logged by the site (chatbot, planner error reports) and reviewed in Airtable only — never read back.
 const WRITE_ONLY = new Set(["tbltD1UNpqj05WtMx", "tbl7K8v94Pf6Ausk3"]);
@@ -516,6 +560,37 @@ const CREATABLE_FIELDS = {
   // gated behind VERK_KEY via CREATE_REQUIRES_KEY below instead of left
   // open, so the spam-vector concern doesn't apply here the way it did then.
   "tblFcsUoGxsuUwNEH": ["Tækifæri 📣 (projects)", "Rými 🏡", "Vöru reitur 1", "Vöru reitur 2", "Vöru reitur 3", "Magn", "Afsl. %"],
+  // /crm contacts (2026-10-18) — new Tengiliðir/Fyrirtæki, VERK_KEY-gated the same way Line Items is
+  // (CREATE_REQUIRES_KEY below). The pending flag ("Óyfirfarið — Rakel ⚠️") is never in this list — it's
+  // always forced true server-side (FORCED_CREATE_FIELDS), same self-approval-proofing pattern as every
+  // other "Staða"/review flag in this file.
+  "tblQ8zeUanriESWvL": [
+    "Fornafn ⬅️", "Milli nafn ↔️", "Eftirnafn ➡️", "Kennitala 👤#️⃣", "Heimilisfang 🏡",
+    "Netfang 📧", "Símanúmer ☎️", "Fyrirtæki🏢", "Tegund tengiliðs 👥",
+    "Staða innan fyrirtækis", "Hvaðan kom viðskiptavinurinn 📥", "Glósur um viðskiptavin",
+  ],
+  "tbl2akoCETBx9S1SK": [
+    "Nafn fyrirtækis", "Heimasíða", "Kennitala #️⃣", "Netfang 📧", "Símanr. ☎️",
+    "Heimilisfang 🏡", "Tegund fyrirtækis", "Stærð fyrirtækis", "Áætluð árs-velta",
+    "Greiðsluskilmálar",
+  ],
+  // /crm — assemble a new Útfærsla from existing Vörulisti parts only (2026-10-18, scoped: no brand-new
+  // Vörulisti rows from this flow, and never the "Skipulag →" planner-integration fields — this stays
+  // CRM/quoting-only and never surfaces in the self-serve kitchen planner).
+  "tbl8HjvBwNJ41cTV0": [
+    "Lýsing á útfærslu", "Vörunúmer", "Flokkur",
+    "Tengdar vörur 🚪V1 (alltaf setja Skrokka hér)",
+    "Tengdar vörur 🚪V2 (alltaf setja Fronta eða gler HÉR)",
+    "Tengdar vörur 🚪V3", "Tengdar vörur 🚪V4", "Tengdar vörur 🚪V5",
+    "Tengdar vörur 🚪V6", "Tengdar vörur 🚪V7",
+  ],
+  // /crm — new material line (2026-10-18), descriptive fields only. "🚨INNKAUPAVERÐ🚨" and the six
+  // production-time-minutes fields are deliberately never in this list — those feed every downstream
+  // sale price and stay an owner-only edit directly in Airtable until the line is reviewed.
+  "tbl8CrVWKF8CuI7HD": [
+    "Heiti efnis", "Efnisnúmer / kóði #️⃣", "Efnisflokkar 🗄️", "Undirflokkur 🗂️",
+    "Spón/melamín", "Breidd (mm)", "Lengd (mm)", "Þykkt (mm)", "Birgjar 👴🏼", "Pöntunareining",
+  ],
 };
 
 // Tables where POST (create) additionally requires ?k=VERK_KEY, the same
@@ -523,7 +598,13 @@ const CREATABLE_FIELDS = {
 // CREATE is a flooding/spam vector (anyone who finds the table id could
 // otherwise mint unlimited rows), not just a scoped edit to a record whose
 // id you'd already need to know, so it gets the stricter gate.
-const CREATE_REQUIRES_KEY = new Set(["tblFcsUoGxsuUwNEH"]);
+const CREATE_REQUIRES_KEY = new Set(["tblFcsUoGxsuUwNEH", "tblQ8zeUanriESWvL", "tbl2akoCETBx9S1SK", "tbl8HjvBwNJ41cTV0", "tbl8CrVWKF8CuI7HD"]);
+// Tables where PATCH (edit an existing record) additionally requires ?k=VERK_KEY. Every pre-existing
+// WRITABLE_FIELDS table relies on the field allowlist alone as its boundary (the record id itself is
+// the secret), but these four now carry PII (Tengiliðir/Fyrirtæki: kennitala, address, phone) or
+// pricing-adjacent structure (Útfærslur/Efnislisti) that didn't exist behind this proxy before — new
+// write surface gets the stricter gate from the start rather than relying on record-id obscurity.
+const PATCH_REQUIRES_KEY = new Set(["tblQ8zeUanriESWvL", "tbl2akoCETBx9S1SK", "tbl8HjvBwNJ41cTV0", "tbl8CrVWKF8CuI7HD"]);
 
 // Fields forced to a fixed value on create, regardless of what (or whether)
 // the client sends — applied after CREATABLE_FIELDS filtering, so these
@@ -537,6 +618,13 @@ const FORCED_CREATE_FIELDS = {
   "tbltD1UNpqj05WtMx": { "Staða": "Nýtt" },
   "tblDQWuf4OSjUv2XI": { "Staða": "opið 😠" },
   "tbl7K8v94Pf6Ausk3": { "Staða": "Ný" },
+  // /crm contacts + Útfærsla/material-line self-serve creates (2026-10-18) — every row Rakel creates
+  // through these four starts flagged for an owner to check in Airtable, same pattern as everywhere
+  // else in this file; cleared by hand there, no in-app review screen.
+  "tblQ8zeUanriESWvL": { "Óyfirfarið — Rakel ⚠️": true },
+  "tbl2akoCETBx9S1SK": { "Óyfirfarið — Rakel ⚠️": true },
+  "tbl8HjvBwNJ41cTV0": { "Óyfirfarið — Rakel ⚠️": true },
+  "tbl8CrVWKF8CuI7HD": { "Óyfirfarið — Rakel ⚠️": true },
   // (Tækifæri's forced self-serve fields live in api/kp-submit.js now.)
 };
 
@@ -651,6 +739,31 @@ const WRITABLE_FIELDS = {
   // same as every other write in this proxy, the boundary is the field
   // allowlist, not who's asking.
   "tblFcsUoGxsuUwNEH": ["Rými 🏡", "Vöru reitur 1", "Vöru reitur 2", "Vöru reitur 3", "Magn", "Afsl. %"],
+  // /crm contacts + Útfærsla/material-line edits (2026-10-18) — editing an EXISTING record takes effect
+  // immediately (unlike create, there's no pending flag here to re-set): fixing a supplier's e-mail on
+  // an already-linked Fyrirtæki row, for example, shouldn't need an owner's sign-off before it's live.
+  // Same field sets as CREATABLE_FIELDS above, minus nothing — PATCH_REQUIRES_KEY is the gate.
+  "tblQ8zeUanriESWvL": [
+    "Fornafn ⬅️", "Milli nafn ↔️", "Eftirnafn ➡️", "Kennitala 👤#️⃣", "Heimilisfang 🏡",
+    "Netfang 📧", "Símanúmer ☎️", "Fyrirtæki🏢", "Tegund tengiliðs 👥",
+    "Staða innan fyrirtækis", "Hvaðan kom viðskiptavinurinn 📥", "Glósur um viðskiptavin",
+  ],
+  "tbl2akoCETBx9S1SK": [
+    "Nafn fyrirtækis", "Heimasíða", "Kennitala #️⃣", "Netfang 📧", "Símanr. ☎️",
+    "Heimilisfang 🏡", "Tegund fyrirtækis", "Stærð fyrirtækis", "Áætluð árs-velta",
+    "Greiðsluskilmálar",
+  ],
+  "tbl8HjvBwNJ41cTV0": [
+    "Lýsing á útfærslu", "Vörunúmer", "Flokkur",
+    "Tengdar vörur 🚪V1 (alltaf setja Skrokka hér)",
+    "Tengdar vörur 🚪V2 (alltaf setja Fronta eða gler HÉR)",
+    "Tengdar vörur 🚪V3", "Tengdar vörur 🚪V4", "Tengdar vörur 🚪V5",
+    "Tengdar vörur 🚪V6", "Tengdar vörur 🚪V7",
+  ],
+  "tbl8CrVWKF8CuI7HD": [
+    "Heiti efnis", "Efnisnúmer / kóði #️⃣", "Efnisflokkar 🗄️", "Undirflokkur 🗂️",
+    "Spón/melamín", "Breidd (mm)", "Lengd (mm)", "Þykkt (mm)", "Birgjar 👴🏼", "Pöntunareining",
+  ],
 };
 
 // URLSearchParams serializes spaces as "+" (application/x-www-form-urlencoded).
@@ -835,6 +948,10 @@ export default async function handler(req, res) {
     }
     if (KIOSK_LOCKED_TABLES.has(tableId) && !isKioskPaired(req)) {
       return res.status(403).json({ error: "DEVICE_NOT_PAIRED" });
+    }
+    if (PATCH_REQUIRES_KEY.has(tableId)) {
+      const verkKey = process.env.VERK_KEY;
+      if (!verkKey || req.query.k !== verkKey) return res.status(403).json({ error: "Invalid key" });
     }
 
     const requestedFields = req.body?.fields || {};
