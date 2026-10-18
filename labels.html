@@ -4,80 +4,96 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Merkingar (Sögun) — Björninn</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <style>
+  /* 2026-10-18 — same Kumbh-Sans/colored-card pass as fraesing.html (both
+     "Sögun" floor tools, same look before this). Every class name kept
+     identical — pure CSS swap, no HTML/JS changed. */
+  :root {
+    --bg:#0b0b0c; --surface:#161618; --surface2:#1e1e21; --line:#2a2a2e;
+    --text:#f2f2f3; --muted:#c9c9ce; --dim:#8a8a90;
+    --blue:#0a84ff; --amber:#ffd60a; --green:#4caf50; --red:#ff5a5a;
+    --font:"Kumbh Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    background: #0a0a0a;
-    color: #f0f0f0;
-    font-family: "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    -webkit-font-smoothing: antialiased;
     min-height: 100vh;
     padding: 24px 40px 60px;
   }
-  h1 { font-size: 1.6rem; letter-spacing: 0.03em; margin-bottom: 4px; }
-  .sub { color: #888; font-size: 0.95rem; margin-bottom: 24px; }
+  h1 { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.01em; margin-bottom: 4px; }
+  .sub { color: var(--muted); font-size: 0.95rem; margin-bottom: 24px; }
   /* exit link — back to the launching app, not the in-page "← Til baka"
      (goBack()) which only resets the project picker within this tool.
      Contextual: points at /verk for the current project once one's loaded,
      so a mistap on the wrong project is one tap to undo; /app otherwise. */
-  .exit-back { display: inline-block; color: #888; text-decoration: none; font-size: 0.85rem; font-weight: 700; margin-bottom: 14px; }
-  .exit-back:hover { color: #fff; }
+  .exit-back { display: inline-block; color: var(--dim); text-decoration: none; font-size: 0.85rem; font-weight: 700; margin-bottom: 14px; }
+  .exit-back:hover { color: var(--text); }
 
   /* Tool switcher — same project, jump straight to Cutty or Æðar. */
   .toolnav { display: flex; gap: 8px; margin-bottom: 22px; flex-wrap: wrap; }
   .toolnav-item {
     display: inline-flex; align-items: center; gap: 6px;
-    padding: 7px 14px; border-radius: 20px;
+    padding: 7px 14px; border-radius: 999px;
     font-size: 0.78rem; font-weight: 700; letter-spacing: 0.04em;
-    text-decoration: none; border: 1px solid #333; color: #bbb; background: #1b1b1b;
+    text-decoration: none; border: 1px solid var(--line); color: var(--muted); background: var(--surface2);
   }
-  .toolnav-item.active { background: #2196f3; border-color: #2196f3; color: #fff; cursor: default; }
-  .toolnav-item:not(.active):hover { border-color: #2196f3; color: #fff; }
+  .toolnav-item.active { background: var(--blue); border-color: var(--blue); color: #fff; cursor: default; }
+  .toolnav-item:not(.active):hover { border-color: var(--blue); color: var(--text); }
 
   .card {
-    background: #161616;
-    border: 1px solid #222;
-    border-radius: 10px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 16px;
     padding: 18px 22px;
     margin-bottom: 18px;
   }
 
-  label { display: block; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: #999; margin-bottom: 6px; }
+  label { display: block; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 6px; }
 
   select {
-    background: #0d0d0d;
-    border: 1px solid #333;
-    color: #f0f0f0;
-    border-radius: 8px;
+    background: var(--surface2);
+    border: 1px solid var(--line);
+    color: var(--text);
+    font-family: var(--font);
+    border-radius: 10px;
     padding: 12px 14px;
     font-size: 1.1rem;
     width: 100%;
     max-width: 480px;
   }
+  select:focus { outline: none; border-color: var(--blue); }
 
   .toolbar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 6px; }
   .toolbar-right { margin-left: auto; }
 
   .filter-pill {
     display: inline-flex; align-items: center; gap: 8px;
-    font-size: 0.9rem; font-weight: 600; cursor: pointer;
-    padding: 8px 16px; border: 1.5px solid #333; border-radius: 8px;
-    user-select: none;
+    font-size: 0.9rem; font-weight: 700; cursor: pointer;
+    padding: 8px 16px; border: 1.5px solid var(--line); border-radius: 999px;
+    user-select: none; color: var(--muted);
   }
-  .filter-pill.active { border-color: #2196f3; color: #2196f3; background: #0d1a26; }
-  .filter-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: #333; }
-  .filter-pill.active .dot { background: #2196f3; }
+  .filter-pill.active { border-color: var(--blue); color: var(--blue); background: rgba(10,132,255,.12); }
+  .filter-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+  .filter-pill.active .dot { background: var(--blue); }
 
   button {
-    background: #333;
-    color: #fff;
-    border: none;
-    border-radius: 8px;
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 10px;
     padding: 10px 18px;
+    font-family: var(--font);
     font-size: 0.9rem;
-    font-weight: 600;
+    font-weight: 700;
     cursor: pointer;
   }
-  button:hover { background: #444; }
+  button:hover { border-color: var(--dim); }
 
   .rows { display: flex; flex-direction: column; gap: 10px; }
 
@@ -86,42 +102,42 @@
     grid-template-columns: 1fr auto auto auto auto 90px;
     align-items: center;
     gap: 18px;
-    background: #111;
-    border: 2px solid #262626;
-    border-radius: 10px;
+    background: var(--surface);
+    border: 2px solid var(--line);
+    border-radius: 14px;
     padding: 16px 20px;
   }
-  .row.done   { border-color: #2e7d32; background: #0f1a10; opacity: 0.7; }
-  .row.partial { border-color: #f5c518; background: #1a170d; }
-  .row.printing { border-color: #2196f3; }
+  .row.done   { border-color: var(--green); background: rgba(76,175,80,.08); opacity: 0.8; }
+  .row.partial { border-color: var(--amber); background: rgba(255,214,10,.08); }
+  .row.printing { border-color: var(--blue); }
 
-  .row-main .partur { font-size: 1.3rem; font-weight: 700; }
-  .row-main .meta { color: #999; font-size: 0.95rem; margin-top: 2px; }
+  .row-main .partur { font-size: 1.3rem; font-weight: 800; }
+  .row-main .meta { color: var(--muted); font-size: 0.95rem; margin-top: 2px; }
 
   .cabinets {
-    color: #999; font-size: 0.9rem;
+    color: var(--muted); font-size: 0.9rem;
     max-width: 220px; text-align: right;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
 
   .qty-badge {
     font-size: 1.1rem; font-weight: 700;
-    background: #222; border-radius: 8px; padding: 8px 14px;
+    background: var(--surface2); border-radius: 10px; padding: 8px 14px;
     white-space: nowrap;
   }
 
   .code-cell {
     font-family: "SF Mono", Consolas, monospace;
     font-size: 1rem; font-weight: 700;
-    color: #7fd1ff; background: #0d1a26;
-    border: 1px solid #14405e; border-radius: 8px;
+    color: #7fd1ff; background: rgba(10,132,255,.1);
+    border: 1px solid rgba(10,132,255,.3); border-radius: 10px;
     padding: 5px 11px; text-align: center; white-space: nowrap;
   }
   .code-cell .lbl {
     display: block; font-size: 0.58rem; font-weight: 700;
     letter-spacing: 0.1em; color: #5a8bb0; text-transform: uppercase;
   }
-  .code-cell .none { color: #4a4a4a; font-weight: 400; }
+  .code-cell .none { color: var(--dim); font-weight: 400; }
 
   .qty-stepper {
     display: flex; align-items: center; gap: 6px;
@@ -130,32 +146,32 @@
     width: 34px; height: 34px; padding: 0;
     font-size: 1.2rem; font-weight: 700; line-height: 1;
     display: flex; align-items: center; justify-content: center;
-    border-radius: 6px;
+    border-radius: 8px;
   }
   .qty-stepper .qty-value {
     min-width: 34px; text-align: center;
     font-size: 1.1rem; font-weight: 700;
   }
 
-  .status-text { font-size: 0.85rem; font-weight: 600; white-space: nowrap; }
-  .status-done    { color: #4caf50; }
-  .status-partial { color: #f5c518; }
-  .status-none    { color: #777; }
+  .status-text { font-size: 0.85rem; font-weight: 700; white-space: nowrap; }
+  .status-done    { color: var(--green); }
+  .status-partial { color: var(--amber); }
+  .status-none    { color: var(--dim); }
 
   .print-btn {
     width: 90px; height: 56px;
     font-size: 1.6rem;
-    background: #2196f3;
+    background: var(--blue);
     display: flex; align-items: center; justify-content: center;
   }
-  .print-btn:hover { background: #1976d2; }
-  .print-btn:disabled { background: #333; color: #666; cursor: not-allowed; }
-  .print-btn.done { background: #2e7d32; }
+  .print-btn:hover { background: #0a6fd6; }
+  .print-btn:disabled { background: var(--surface2); color: var(--dim); cursor: not-allowed; }
+  .print-btn.done { background: var(--green); }
 
   #log {
-    background: #0d0d0d;
-    border: 1px solid #222;
-    border-radius: 6px;
+    background: var(--surface2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
     padding: 12px;
     font-family: "SF Mono", Consolas, monospace;
     font-size: 0.8rem;
@@ -165,9 +181,9 @@
     color: #9ad39a;
   }
 
-  .missing-note { font-size: 0.85rem; color: #f5c518; }
+  .missing-note { font-size: 0.85rem; color: var(--amber); }
   .hidden { display: none; }
-  .empty-msg { color: #666; text-align: center; padding: 40px; font-size: 1.1rem; }
+  .empty-msg { color: var(--dim); text-align: center; padding: 40px; font-size: 1.1rem; }
 
   .modal-overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,0.75);
@@ -179,14 +195,14 @@
      below outranks both, so hiding this element actually works. */
   .modal-overlay.hidden { display: none; }
   .modal-box {
-    background: #161616; border: 1.5px solid #f5c518; border-radius: 12px;
+    background: var(--surface); border: 1.5px solid var(--amber); border-radius: 16px;
     padding: 28px; max-width: 440px;
   }
-  .modal-box h2 { font-size: 1.15rem; color: #f5c518; margin-bottom: 12px; }
-  .modal-box p { color: #ccc; font-size: 0.95rem; line-height: 1.5; margin-bottom: 20px; }
+  .modal-box h2 { font-size: 1.15rem; font-weight: 800; color: var(--amber); margin-bottom: 12px; }
+  .modal-box p { color: var(--muted); font-size: 0.95rem; line-height: 1.5; margin-bottom: 20px; }
   .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
-  .modal-actions .secondary-action { background: #262626; }
-  .modal-actions .secondary-action:hover { background: #333; }
+  .modal-actions .secondary-action { background: var(--surface2); }
+  .modal-actions .secondary-action:hover { border-color: var(--dim); }
 </style>
 </head>
 <body>
