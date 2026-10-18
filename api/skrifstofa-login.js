@@ -3,12 +3,15 @@
 // already used by /klukka and /eigandi (see api/eigandi-clock.js) — same table,
 // same field, no new Airtable schema needed.
 //
-// Role comes from "Starfsheiti 💼" (job title), not "Tegund starfsmanns" (employment
-// type) — Jóel is typed "Eigandi" but his title "Verkstjóri" is what maps him to the
-// Skipulag role, so title is the correct signal here. "Tegund starfsmanns 🧑‍💻" is
-// checked separately (2026-10-18) for the ONE place this hub does care about it: the
-// Starfsmenn overview table on Yfirlit (pay rate, hours) is Eigandi-only, same literal
-// check api/eigandi-clock.js already uses ("Eigandi 👨🏻‍💼").
+// Every real Starfsheiti 💼 (job title) maps to "allt" — Skipulagsferli, Verkstæði and
+// CRM are the same operational toolset everyone in the office actually needs day to day
+// (2026-10-18: title used to split people into narrower skipulag/sala/forskipulag
+// buckets, but Rakel and Jóel both need the full set in practice, so that distinction
+// was dropped). The one real differentiator left is ownership, not job title: "eigandi"
+// comes from "Tegund starfsmanns 🧑‍💻" (employment type) === Eigandi 👨🏻‍💼, same literal
+// check api/eigandi-clock.js already uses — gates both the Yfirlit nav tile itself and,
+// once there, the Starfsmenn overview table (pay rate, hours). Jóel is typed "Eigandi"
+// despite his "Verkstjóri" title, so he correctly gets this too; Rakel doesn't.
 //
 // POST { pin } -> { token, verkKey, record: { id, name, roles } }
 // `token` is a per-EMPLOYEE, per-day HMAC (KIOSK_DEVICE_SECRET, same secret as
@@ -39,8 +42,8 @@ const OWNER_TYPE = "Eigandi 👨🏻‍💼";
 // still logs in (so nobody's locked out), just sees no tiles yet.
 const TITLE_ROLES = {
   "Rekstrarstjóri": ["allt"],
-  "Verkstjóri": ["skipulag"],
-  "Sölumaður / Arkitekt": ["sala", "forskipulag"],
+  "Verkstjóri": ["allt"],
+  "Sölumaður / Arkitekt": ["allt"],
 };
 
 export function skrifstofaDayToken(secret, employeeId, offsetDays = 0) {

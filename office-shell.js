@@ -25,14 +25,17 @@
   var COLLAPSED_KEY = "bjorninn:skrifstofa:collapsed";
   var THEME_KEY = "bjorninn:skrifstofa:theme";
 
+  // Yfirlit is owner-only (2026-10-18) — everything else is the shared "allt" operational
+  // toolset every office title gets (see api/skrifstofa-login.js for why title no longer
+  // splits people into narrower buckets).
   var NAV = [
-    { id: "home",   icon: "🏠", label: "Yfirlit",         roles: ["allt"], href: "/skrifstofa" },
-    { id: "ferli",  icon: "📐", label: "Skipulagsferli",  roles: ["skipulag", "allt"], href: "/ferli" },
+    { id: "home",   icon: "🏠", label: "Yfirlit",         roles: ["eigandi"], href: "/skrifstofa" },
+    { id: "ferli",  icon: "📐", label: "Skipulagsferli",  roles: ["allt"], href: "/ferli" },
     { id: "verkst", icon: "🛠️", label: "Verkstæði",       roles: ["allt"], href: "/framleidsla" },
     { id: "crm",    icon: "📇", label: "CRM",             roles: ["allt"], href: "/crm" },
   ];
 
-  var ROLE_LABELS = { allt: "Allt", skipulag: "Skipulag", sala: "Sala", forskipulag: "Forskipulag" };
+  var ROLE_LABELS = { allt: "Allt", eigandi: "Eigandi" };
 
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }); }
   // Collapsed-sidebar initials (2026-10-18) — shown under the 🐻 instead of the full name once
