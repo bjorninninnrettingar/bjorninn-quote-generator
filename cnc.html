@@ -19,9 +19,18 @@
      out from "check" items that genuinely need a human look). Grip input stays manual for now — Vörulisti
      has no per-handle "Grip mm" field yet to source it from automatically (see docs/cnc.md). */
   :root {
-    --bg:#2a2a2a; --surface:#1c1c1c; --surface2:#242424; --line:#383838; --text:#f0f0f0; --muted:#aaa; --dim:#888;
-    --blue:#2196f3; --green:#30d158; --amber:#ffd60a; --red:#ff453a; --purple:#bf5af2;
-    --font:"Kumbh Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    /* 2026-10-18 — retheme to the office shell's exact tokens (same technique as
+       cutlist.html/grain.html's retheme the same day), so this embeds seamlessly
+       in Ferli's Loka-yfirferð step. The --bw-* BiesseWorks palette below is
+       DELIBERATELY left untouched — it's shared with bpp-viewer.html/cnc-bpp.js
+       specifically so a preview card looks identical whether reached via /bpp
+       or here; retheming it would break that cross-tool consistency for a
+       purely cosmetic page-chrome goal. */
+    --bg:#f3f4f6; --surface:#ffffff; --surface2:#eef1f4; --line:#e1e4e8; --text:#1a1d21; --muted:#5d6670; --dim:#9aa3ad;
+    --blue:#0f6cbd; --green:#1a7d36; --amber:#9a6700; --red:#c4291c; --purple:#8250df;
+    --warn-bg:#fdf2d9; --warn-line:#f0d78c; --good-bg:#e5f6ea; --good-line:#b7e3c2;
+    --bad-bg:#fbe4e1; --bad-line:#f0b8b0; --purple-bg:#f1e9fd; --purple-line:#ddc8f7;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     /* BiesseWorks piece-editor palette for the post-export preview cards (same vars as bpp-viewer.html /
        cnc-bpp.js draws with — kept identical so a card looks the same whether it's reached via /bpp or here). */
     --bw-title1:#5c4a2e; --bw-title2:#9c8a6b; --bw-chrome:#d6d3c6; --bw-chrome-dark:#9b9686;
@@ -31,6 +40,13 @@
   * { box-sizing:border-box; margin:0; padding:0; }
   html,body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; line-height:1.45; }
   .wrap { max-width:1500px; margin:0 auto; padding:20px 18px 60px; }
+  /* Embedded inline inside ferli.html's Loka-yfirferð step (2026-10-18) — hides
+     this page's own title block, same pattern as cutlist.html/grain.html's
+     retheme. The project <select> and help button stay (real functional UI,
+     not duplicate branding). */
+  body.embedded { background:transparent; }
+  body.embedded .wrap { padding:0; }
+  body.embedded .embedHide { display:none !important; }
   .topline { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
   .kicker { font-size:.74rem; font-weight:700; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); }
   h1 { font-size:1.8rem; font-weight:800; margin-top:4px; }
@@ -40,7 +56,7 @@
 
   select, button, input[type=text], input[type=number] { font:inherit; color:var(--text); background:var(--surface2); border:1px solid var(--line); border-radius:10px; padding:10px 14px; }
   button { cursor:pointer; font-weight:700; }
-  button.primary { background:var(--blue); border-color:#5bacff; }
+  button.primary { background:var(--blue); border-color:var(--blue); color:#fff; }
   button:disabled { opacity:.4; cursor:default; }
   label.opt { display:flex; gap:8px; align-items:center; font-size:.85rem; color:var(--muted); }
 
@@ -66,7 +82,7 @@
   .help-panel code { background:var(--surface2); padding:1px 5px; border-radius:5px; font-size:.82em; }
   .help-close { float:right; background:none; border:none; color:var(--muted); font-size:1.1rem; cursor:pointer; padding:0 4px; }
 
-  .gripWarn { display:flex; gap:8px; align-items:center; font-size:.84rem; color:var(--amber); background:#3d3410; border:1px solid #5c4f14; border-radius:10px; padding:9px 14px; margin-top:10px; }
+  .gripWarn { display:flex; gap:8px; align-items:center; font-size:.84rem; color:var(--amber); background:var(--warn-bg); border:1px solid var(--warn-line); border-radius:10px; padding:9px 14px; margin-top:10px; }
   .gripInfo { color:var(--dim); font-size:.8rem; }
 
   .summary { display:flex; gap:10px; align-items:center; flex-wrap:wrap; font-size:.84rem; color:var(--muted); background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:9px 14px; margin-top:10px; }
@@ -87,10 +103,10 @@
   .card.hide { display:none; }
   .card h3 { font-size:1.05rem; font-weight:800; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
   .chip { font-size:.72rem; font-weight:800; padding:2px 9px; border-radius:99px; letter-spacing:.04em; white-space:nowrap; display:inline-flex; gap:4px; align-items:center; }
-  .chip.ok { background:#123d1e; color:var(--green); }
-  .chip.check { background:#3d3410; color:var(--amber); }
-  .chip.stop { background:#40100e; color:var(--red); }
-  .chip.review { background:#2a1733; color:#d9a3ff; font-weight:700; }
+  .chip.ok { background:var(--good-bg); color:var(--green); }
+  .chip.check { background:var(--warn-bg); color:var(--amber); }
+  .chip.stop { background:var(--bad-bg); color:var(--red); }
+  .chip.review { background:var(--purple-bg); color:var(--purple); font-weight:700; }
   .meta { font-size:.86rem; color:var(--muted); margin-top:4px; }
   .meta b { color:var(--text); }
   ul.notes { margin-top:6px; font-size:.85rem; }
@@ -105,11 +121,11 @@
   details.ops-details summary::before { content:"▸"; font-size:.7rem; transition:transform .1s; }
   details.ops-details[open] summary::before { transform:rotate(90deg); }
   details.ops-details summary:hover { color:var(--text); }
-  .ops { margin-top:6px; font:12px/1.5 ui-monospace,Menlo,monospace; color:#a9b4c2; }
+  .ops { margin-top:6px; font:12px/1.5 ui-monospace,Menlo,monospace; color:var(--muted); }
   .fname { font-size:.78rem; color:var(--muted); margin-top:6px; }
 
   svg text { font-family:var(--font); }
-  #log { margin-top:22px; background:#111; border:1px solid var(--line); border-radius:12px; padding:12px; font:12px/1.5 ui-monospace,Menlo,monospace; white-space:pre-wrap; max-height:380px; overflow:auto; display:none; }
+  #log { margin-top:22px; background:var(--surface2); border:1px solid var(--line); border-radius:12px; padding:12px; font:12px/1.5 ui-monospace,Menlo,monospace; white-space:pre-wrap; max-height:380px; overflow:auto; display:none; }
   .empty { color:var(--muted); margin-top:16px; }
 
   /* ── post-export preview (2026-10-17) — same cnc-bpp.js cards /bpp shows, read straight back off the USB
@@ -145,9 +161,9 @@
   .bpp-legend span { display:inline-flex; align-items:center; gap:5px; }
   .bpp-legend i { width:11px; height:11px; border-radius:3px; display:inline-block; flex:none; }
   .bpp-note { margin-top:10px; font-size:.84rem; border-radius:10px; padding:9px 13px; }
-  .bpp-note.warn { background:#3d3410; color:var(--amber); border:1px solid #5c4f14; }
-  .bpp-note.err { background:#40100e; color:var(--red); border:1px solid #5c1a16; }
-  .bpp-note.info { background:#132c18; color:var(--green); border:1px solid #1d4425; }
+  .bpp-note.warn { background:var(--warn-bg); color:var(--amber); border:1px solid var(--warn-line); }
+  .bpp-note.err { background:var(--bad-bg); color:var(--red); border:1px solid var(--bad-line); }
+  .bpp-note.info { background:var(--good-bg); color:var(--green); border:1px solid var(--good-line); }
   .bpp-raw { margin-top:12px; }
   .bpp-raw summary { cursor:pointer; font-size:.82rem; color:var(--muted); font-weight:700; }
   .bpp-raw summary:hover { color:var(--text); }
@@ -159,7 +175,7 @@
 <body>
 <div class="wrap">
   <div class="topline">
-    <div>
+    <div class="embedHide">
       <div class="kicker">CNC · Rover-B</div>
       <h1>CNC útflutningur</h1>
       <div class="sub">Yfirfara og skrifa á USB-kubbinn. Rangt hér → lagaðu í Sögunarlista / Eyðublaði, ekki hér.</div>
@@ -218,6 +234,9 @@
 <script>
 (function () {
   "use strict";
+  // Embedded inline inside ferli.html (2026-10-18) — see the embedHide/
+  // body.embedded CSS above.
+  if (new URLSearchParams(location.search).get("embedded") === "1") document.body.classList.add("embedded");
   var D = window.CNCDOORS, SD = window.CNCSIDES, BPP = window.CNCBPP;
   var PROXY = "/api/airtable";
   var PROJECTS = "tbl4LMXlQjp66RFKI", UNIT = "tbl0WcyHhz63pSzZX", SAW = "tblhdgyvTcBfP8kov", PRODUCTS = "tblzuuRSRkeXaLWxC";
@@ -516,10 +535,10 @@
   // Door leaf next to its hinge-side jamb, to scale, floor at the bottom — hinges and lock must line up across.
   function elevation(v) {
     var H = v.HURD_H + v.HG_BIL + v.HK_BIL, s = 120 / H, W = 150, base = 128, y = function (f) { return base - f * s; };
-    var g = '<svg width="' + W + '" height="140" viewBox="0 0 ' + W + ' 140"><line x1="0" y1="' + base + '" x2="' + W + '" y2="' + base + '" stroke="#555"/>' +
-      '<rect x="20" y="' + y(v.HG_BIL + v.HURD_H) + '" width="40" height="' + v.HURD_H * s + '" fill="#2a2a2e" stroke="#777"/>' +
-      '<rect x="80" y="' + y(H) + '" width="10" height="' + H * s + '" fill="#3a3326" stroke="#777"/>';
-    [[v.HG_BIL + v.HURD_H - v.LOM1, "#2196f3"], [v.HG_BIL + v.HURD_H - v.LOM2, "#2196f3"], [v.HG_BIL + v.LOM3, "#2196f3"], [v.HG_BIL + v.HANDFANG, "#ffd60a"]].forEach(function (m) {
+    var g = '<svg width="' + W + '" height="140" viewBox="0 0 ' + W + ' 140"><line x1="0" y1="' + base + '" x2="' + W + '" y2="' + base + '" stroke="#9aa3ad"/>' +
+      '<rect x="20" y="' + y(v.HG_BIL + v.HURD_H) + '" width="40" height="' + v.HURD_H * s + '" fill="#eef1f4" stroke="#9aa3ad"/>' +
+      '<rect x="80" y="' + y(H) + '" width="10" height="' + H * s + '" fill="#f0e7d0" stroke="#9aa3ad"/>';
+    [[v.HG_BIL + v.HURD_H - v.LOM1, "#0f6cbd"], [v.HG_BIL + v.HURD_H - v.LOM2, "#0f6cbd"], [v.HG_BIL + v.LOM3, "#0f6cbd"], [v.HG_BIL + v.HANDFANG, "#9a6700"]].forEach(function (m) {
       g += '<line x1="56" y1="' + y(m[0]) + '" x2="90" y2="' + y(m[0]) + '" stroke="' + m[1] + '" stroke-width="2"/><text x="94" y="' + (y(m[0]) + 3) + '" fill="' + m[1] + '" font-size="9">' + Math.round(m[0]) + "</text>";
     });
     return g + "</svg>";
