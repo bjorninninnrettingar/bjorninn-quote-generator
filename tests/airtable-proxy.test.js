@@ -120,3 +120,52 @@ test("error report: Staða forced to Ný", async () => {
   assert.equal(res.statusCode, 200);
   assert.equal(f.calls.at(-1).body.fields["Staða"], "Ný");
 });
+
+// 2026-10-18 — ferli.html's "Yfirfara einingu" wizard: per-row ready checkboxes on both the
+// Sögunarlisti and Vörur á einingu tabs gate the unit's "Samþykkja einingu" button.
+
+test("Sögunarlisti: the per-row 'Tilbúið 🔒' ready checkbox is writable, no key needed", async () => {
+  const res = await patch("tblhdgyvTcBfP8kov/recAAAAAAAAAAAAAA", { "Tilbúið 🔒": true });
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(f.calls.at(-1).body.fields, { "Tilbúið 🔒": true });
+});
+
+test("Vörur á einingu: 'Rétt' is the only writable field (substitutes for 'Tilbúið 🔒', which this table has no field for)", async () => {
+  const ok = await patch("tblszHaBrwhYNV68z/recAAAAAAAAAAAAAA", { "Rétt": true });
+  assert.equal(ok.statusCode, 200);
+  assert.deepEqual(f.calls.at(-1).body.fields, { "Rétt": true });
+
+  const blocked = await patch("tblszHaBrwhYNV68z/recAAAAAAAAAAAAAA", { "Magn": 5 });
+  assert.equal(blocked.statusCode, 400); // silently dropped -> no writable fields in request
+});
+
+test("Eyðublað: 'Yfirfarin' (the unit-list ✅ cue) is readable without a key", async () => {
+  f = fakeFetch(() => ({ status: 200, body: { records: [{ id: "rec1", fields: { "Yfirfarin": true, "Tegund einingu": "Grunnskápur" } }] } }));
+  globalThis.fetch = f;
+  const res = await get({ path: "tbl0WcyHhz63pSzZX" });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.records[0].fields["Yfirfarin"], true);
+});
+
+test("Tækifæri: the two new Dagatal fields stay behind ?k=VERK_KEY on read, like the rest of the internal set", async () => {
+  f = fakeFetch(() => ({
+    status: 200,
+    body: { records: [{ id: "rec1", fields: {
+      "Heiti tækifæris / verkefnis": "T-1",
+      "Áætlaðir dagar í vinnudögum Björninn (internal)": 12,
+      "Áætlaðir Dagar í vinnu (samkvæmt tilboðsblaði)": 10,
+    } }] },
+  }));
+  globalThis.fetch = f;
+  const pub = await get({ path: "tbl4LMXlQjp66RFKI" });
+  assert.equal(pub.body.records[0].fields["Áætlaðir dagar í vinnudögum Björninn (internal)"], undefined);
+  const priv = await get({ path: "tbl4LMXlQjp66RFKI", k: "verk-secret" });
+  assert.equal(priv.body.records[0].fields["Áætlaðir dagar í vinnudögum Björninn (internal)"], 12);
+  assert.equal(priv.body.records[0].fields["Áætlaðir Dagar í vinnu (samkvæmt tilboðsblaði)"], 10);
+});
+
+test("Tækifæri: 'Áætlaðir dagar í vinnudögum Björninn (internal)' is writable from the Dagatal section", async () => {
+  const res = await patch("tbl4LMXlQjp66RFKI/recAAAAAAAAAAAAAA", { "Áætlaðir dagar í vinnudögum Björninn (internal)": 14 });
+  assert.equal(res.statusCode, 200);
+  assert.equal(f.calls.at(-1).body.fields["Áætlaðir dagar í vinnudögum Björninn (internal)"], 14);
+});

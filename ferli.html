@@ -86,6 +86,8 @@
 
   .stage { background:var(--surface); border-radius:12px; margin-bottom:12px; overflow:hidden; border:1px solid var(--line); }
   .stage.current { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+  .stage.done { border-color:var(--good); }
+  .stageHd .badge.done { background:var(--good); }
   .stageHd { display:flex; align-items:center; justify-content:space-between; padding:13px 18px; cursor:pointer; }
   .stageHd .t { font-weight:700; font-size:.95rem; display:flex; align-items:center; gap:8px; }
   .stageHd .badge { font-size:.68rem; font-weight:700; padding:2px 9px; border-radius:999px; background:var(--accent); color:#fff; }
@@ -94,11 +96,19 @@
   .stageBody.open { display:block; }
 
   .unitRow { display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-bottom:1px solid var(--line); cursor:pointer; font-size:.88rem; }
+  .unitRow.unitDone { background:var(--good-soft, #e5f6ea); margin:0 -8px; padding:9px 8px; border-radius:8px; border-bottom-color:transparent; }
   .unitRow:last-child { border-bottom:none; }
   .unitRow .chip { font-size:.7rem; padding:2px 8px; border-radius:999px; background:var(--good); color:#fff; }
   .unitRow .chip.todo { background:var(--line); color:var(--muted); }
 
   .sectionTitle { font-size:.74rem; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:var(--muted); margin:14px 0 8px; }
+  /* Loka skipulag's Dagatal section (2026-10-18) — these 4 fields were missing entirely. */
+  .dagatalCard { background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:13px; margin-bottom:14px; }
+  .dagatalGrid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+  .dagatalField label { display:block; font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.03em; color:var(--muted); margin-bottom:4px; }
+  .dagatalField input { width:100%; box-sizing:border-box; font:inherit; font-size:.92rem; border:1px solid var(--line); border-radius:8px; padding:7px 9px; background:var(--surface); color:var(--text); }
+  .dagatalComputed { margin-top:10px; font-size:.82rem; color:var(--muted); }
+  .dagatalComputed b { color:var(--text); font-size:1rem; }
   .checklist { display:flex; flex-direction:column; gap:7px; }
   .chkRow { display:flex; align-items:center; gap:10px; background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:10px 12px; cursor:pointer; font-size:.85rem; }
   .chkRow .box { width:19px; height:19px; border-radius:5px; border:2px solid var(--dim); flex:none; display:flex; align-items:center; justify-content:center; font-size:.78rem; }
@@ -182,6 +192,16 @@
   .wRow { display:flex; justify-content:space-between; gap:10px; padding:6px 0; border-bottom:1px solid var(--line); font-size:.85rem; }
   .wRow:last-child { border-bottom:none; }
   .wRow .k { color:var(--muted); }
+  /* Sögunarlisti/Pöntun tabs — per-row ready checkbox + B/H/Þ/M + thickness/Óklárt filter chips
+     (2026-10-18). .sogRow overrides .wRow's 2-column layout for a 3-part row. */
+  .wRow.sogRow { justify-content:flex-start; align-items:center; }
+  .tbCheck { flex:none; display:flex; }
+  .tbCheck input { width:18px; height:18px; cursor:pointer; accent-color:var(--good); }
+  .sogRow .k { flex:1; min-width:0; }
+  .sogDims { flex:none; color:var(--muted); font-size:.8rem; white-space:nowrap; }
+  .sogChips { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+  .sogChips .chip { all:unset; cursor:pointer; font-size:.78rem; padding:4px 11px; border-radius:999px; background:var(--surface); border:1px solid var(--line); color:var(--muted); }
+  .sogChips .chip.on { background:var(--text); color:var(--surface); border-color:var(--text); }
   .boxSvg { width:100%; height:auto; display:block; }
   .boxSvg text { font-family:var(--font); fill:var(--text); }
   .boxSvg .dim { stroke:var(--muted); stroke-width:1; }
@@ -239,11 +259,11 @@
       <div class="wCard"><svg class="boxSvg" id="boxSvg" viewBox="0 0 320 280"></svg></div>
     </div>
     <div class="wPanel" id="p-innihald">
-      <div class="wCard"><h3>Skúffur</h3><div id="drawerList"></div></div>
-      <div class="wCard"><h3>Hillur</h3><div id="shelfList"></div></div>
-      <div class="wCard"><h3>Annað</h3><div id="otherList"></div></div>
+      <div class="wCard" id="drawerCard"><h3>Skúffur</h3><div id="drawerList"></div></div>
+      <div class="wCard" id="shelfCard"><h3>Hillur</h3><div id="shelfList"></div></div>
+      <div class="wCard" id="otherCard"><h3>Annað</h3><div id="otherList"></div></div>
     </div>
-    <div class="wPanel" id="p-sogun"><div class="wCard"><div id="sogunList"></div></div></div>
+    <div class="wPanel" id="p-sogun"><div class="wCard"><div class="sogChips" id="sogunChips"></div><div id="sogunList"></div></div></div>
     <div class="wPanel" id="p-pontun"><div class="wCard"><div id="pontunList"></div></div></div>
     <button class="approveBtn" id="approveBtn">Samþykkja einingu</button>
     <div class="approveMsg" id="approveMsg"></div>
@@ -349,7 +369,10 @@
   // this board (not just Pöntunarlisti/Klárt — a project can have a real delivery date set early). ----
   function renderDelivery(projects) {
     var DATE_FIELD = "Áætlaður afhendingardagur Björninn (internal)";
-    var withDate = projects.filter(function (p) { return p.fields[DATE_FIELD]; });
+    // 2026-10-18 (user): a delivered project ("Staða í framleiðslu" = LOKIÐ) shouldn't still show
+    // up here just because it has a past delivery date — "Næstu afhendingar" means what's still
+    // coming, not history.
+    var withDate = projects.filter(function (p) { return p.fields[DATE_FIELD] && p.fields["Staða í framleiðslu"] !== PROD_DONE; });
     withDate.sort(function (a, b) { return a.fields[DATE_FIELD] < b.fields[DATE_FIELD] ? -1 : 1; });
     var wrap = document.getElementById("deliveryWrap"), row = document.getElementById("deliveryRow");
     if (!withDate.length) { wrap.style.display = "none"; return; }
@@ -448,13 +471,16 @@
     var stNow = f["Staða í skipulagi"] || "For-skipulag";
     document.getElementById("pageTitle").textContent = name;
 
+    var curRank = STAGE_ORDER.indexOf(stageIdFor(stNow));
+    function done(id) { return STAGE_ORDER.indexOf(id) < curRank; }
+
     var det = document.getElementById("detail");
     det.innerHTML =
       '<div class="projHd"><div class="nm">' + esc(name) + '</div><div class="st">Staða í skipulagi: ' + esc(stNow) + '</div></div>' +
-      stageHtml("forskipulag", "1 · Forskipulag", stNow === "For-skipulag") +
-      stageHtml("skipulag", "2 · Skipulag (einingar)", stNow === "Í skipulagningu") +
-      stageHtml("yfirfara", "3 · Loka yfirferð", stNow === "Yfirfara") +
-      stageHtml("pontun", "4 · Pöntunarlisti", stNow === "Klárt til framleiðslu");
+      stageHtml("forskipulag", "1 · Forskipulag", stNow === "For-skipulag", done("forskipulag")) +
+      stageHtml("skipulag", "2 · Skipulag (einingar)", stNow === "Í skipulagningu", done("skipulag")) +
+      stageHtml("yfirfara", "3 · Loka yfirferð", stNow === "Yfirfara", done("yfirfara")) +
+      stageHtml("pontun", "4 · Pöntunarlisti", stNow === "Klárt til framleiðslu", done("pontun"));
 
     wireStageToggles();
     document.querySelector('.stage[data-stage="' + stageIdFor(stNow) + '"]').classList.add("current");
@@ -465,15 +491,18 @@
     fillYfirfara(proj);
     fillPontun(proj);
   }
+  var STAGE_ORDER = ["forskipulag", "skipulag", "yfirfara", "pontun"];
   function stageIdFor(stNow) {
     if (stNow === "For-skipulag" || !stNow) return "forskipulag";
     if (stNow === "Í skipulagningu") return "skipulag";
     if (stNow === "Yfirfara") return "yfirfara";
     return "pontun";
   }
-  function stageHtml(id, title, isCurrent) {
-    return '<div class="stage" data-stage="' + id + '">' +
-      '<div class="stageHd" data-toggle="' + id + '"><div class="t">' + title + (isCurrent ? ' <span class="badge">Núna</span>' : '') + '</div><div class="chev">▾</div></div>' +
+  function stageHtml(id, title, isCurrent, isDone) {
+    return '<div class="stage' + (isDone ? " done" : "") + '" data-stage="' + id + '">' +
+      '<div class="stageHd" data-toggle="' + id + '"><div class="t">' + title +
+        (isCurrent ? ' <span class="badge">Núna</span>' : isDone ? ' <span class="badge done">✓ Búið</span>' : '') +
+      '</div><div class="chev">▾</div></div>' +
       '<div class="stageBody" id="body-' + id + '"><div id="content-' + id + '"></div></div>' +
       '</div>';
   }
@@ -515,13 +544,18 @@
     var name = proj.fields["Heiti tækifæris / verkefnis"] || "";
     if (!name) { el.innerHTML = '<div class="empty">Ekkert verkefnanafn</div>'; return; }
     el.innerHTML = '<div class="empty">Sæki einingar…</div>';
-    api(EYDUBLAD, "filterByFormula=" + eqFilter(FIELD_PROJECT_ON_EYDUBLAD, name) + "&maxRecords=200&fields%5B%5D=Athugasemd&fields%5B%5D=Hva%C3%B0%20viltu%20sm%C3%AD%C3%B0a%3F&fields%5B%5D=Fjöldi%20pöntunarlista%20per%20eining%20")
+    api(EYDUBLAD, "filterByFormula=" + eqFilter(FIELD_PROJECT_ON_EYDUBLAD, name) + "&maxRecords=200&fields%5B%5D=Athugasemd&fields%5B%5D=Hva%C3%B0%20viltu%20sm%C3%AD%C3%B0a%3F&fields%5B%5D=Yfirfarin")
       .then(function (d) {
         var recs = d.records || [];
         if (!recs.length) { el.innerHTML = '<div class="empty">Engar einingar skráðar enn</div>'; return; }
         el.innerHTML = recs.map(function (r) {
           var f = r.fields || {};
-          return '<div class="unitRow" data-unit="' + r.id + '"><span>' + esc(f["Athugasemd"] || "(ónefnd)") + '</span><span class="chip">' + esc(f["Hvað viltu smíða?"] || "") + '</span></div>';
+          // "Yfirfarin" visual cue (2026-10-18) — set by the Yfirfara 3.0 automation once it's
+          // actually processed this unit (not just "samþykkja" clicked — that only triggers it).
+          var done = !!f["Yfirfarin"];
+          return '<div class="unitRow' + (done ? " unitDone" : "") + '" data-unit="' + r.id + '">' +
+            '<span>' + (done ? "✅ " : "") + esc(f["Athugasemd"] || "(ónefnd)") + '</span>' +
+            '<span class="chip">' + esc(f["Hvað viltu smíða?"] || "") + '</span></div>';
         }).join("");
         el.querySelectorAll(".unitRow").forEach(function (row) {
           row.addEventListener("click", function () { openUnitModal(row.dataset.unit); });
@@ -565,6 +599,15 @@
     var f = proj.fields || {};
     var qs = "?recordId=" + proj.id;
     el.innerHTML =
+      '<div class="sectionTitle">1 · Dagatal</div>' +
+      '<div class="dagatalCard">' +
+        '<div class="dagatalGrid">' +
+          '<div class="dagatalField"><label>Áætlaðir dagar í vinnudögum</label><input type="number" id="dagVinnudagar" value="' + esc(f["Áætlaðir dagar í vinnudögum Björninn (internal)"] ?? "") + '" /></div>' +
+          '<div class="dagatalField"><label>Upphafs framleiðsludagur</label><input type="date" id="dagUpphaf" value="' + esc(f["Upphafs framleiðsludagur verks"] || "") + '" /></div>' +
+          '<div class="dagatalField"><label>Áætlaður afhendingardagur</label><input type="date" id="dagAfhending" value="' + esc(f["Áætlaður afhendingardagur Björninn (internal)"] || "") + '" /></div>' +
+        '</div>' +
+        '<div class="dagatalComputed">Áætlaðir dagar í vinnu (skv. tilboðsblaði): <b>' + esc(f["Áætlaðir Dagar í vinnu (samkvæmt tilboðsblaði)"] ?? "—") + '</b></div>' +
+      '</div>' +
       '<div class="pipeSteps">' +
         PIPE_TOOLS.map(function (t) {
           return '<div class="pipeStepWrap">' +
@@ -585,6 +628,16 @@
       '<div id="bppArea"><div id="bppDrop"><div>Slepptu <b>.bpp</b> skrám hér</div><label class="pick">Velja skrár<input id="bppFile" type="file" accept=".bpp" multiple /></label></div><div id="bppOut"></div></div>' +
       '<button class="gateBtn" id="gateBtn">✅ Merkja Klárt til framleiðslu</button>' +
       '<div class="gateMsg" id="gateMsg"></div>';
+
+    document.getElementById("dagVinnudagar").addEventListener("change", function (e) {
+      apiPatch(TAEKIFAERI + "/" + proj.id, { "Áætlaðir dagar í vinnudögum Björninn (internal)": e.target.value === "" ? null : Number(e.target.value) });
+    });
+    document.getElementById("dagUpphaf").addEventListener("change", function (e) {
+      apiPatch(TAEKIFAERI + "/" + proj.id, { "Upphafs framleiðsludagur verks": e.target.value || null });
+    });
+    document.getElementById("dagAfhending").addEventListener("change", function (e) {
+      apiPatch(TAEKIFAERI + "/" + proj.id, { "Áætlaður afhendingardagur Björninn (internal)": e.target.value || null });
+    });
 
     el.querySelectorAll(".inlineToggle").forEach(function (btn) {
       btn.addEventListener("click", function () {
@@ -725,7 +778,9 @@
     var box = parseBox(f);
     drawBox(box);
     renderDrawers(f); renderShelves(f); renderOther(f);
+    readyState = {};
     renderSogun(sogun); renderVorur(vorur);
+    updateApproveGate();
 
     document.querySelectorAll(".wTab").forEach(function (tab) {
       tab.onclick = function () {
@@ -736,9 +791,10 @@
       };
     });
 
-    var btn = document.getElementById("approveBtn"), msg = document.getElementById("approveMsg");
-    btn.disabled = false; msg.textContent = "";
-    btn.onclick = function () {
+    var msg = document.getElementById("approveMsg");
+    msg.textContent = "";
+    document.getElementById("approveBtn").onclick = function () {
+      var btn = document.getElementById("approveBtn");
       btn.disabled = true; msg.textContent = "Sendi…";
       apiPatch(EYDUBLAD + "/" + unit.id, { "🔄 Keyra Yfirferð 3.0": false })
         .then(function () { return apiPatch(EYDUBLAD + "/" + unit.id, { "🔄 Keyra Yfirferð 3.0": true }); })
@@ -793,17 +849,21 @@
       '<line class="dim" x1="' + x1 + '" y1="' + (y1 - 4) + '" x2="' + x1 + '" y2="' + (y1 + 4) + '"/>' +
       '<line class="dim" x1="' + x2 + '" y1="' + (y2 - 4) + '" x2="' + x2 + '" y2="' + (y2 + 4) + '"/>';
   }
+  // 2026-10-18 (user): don't show the Skúffur/Hillur/Annað card at all when there's nothing in
+  // it, rather than an empty-state placeholder — these three can hide independently per unit.
   function renderDrawers(f) {
     var el = document.getElementById("drawerList"), rows = [];
     if (f["Skúffutegund"]) rows.push(["Tegund", f["Skúffutegund"]]);
     ["N", "M", "K", "C", "F", "E"].forEach(function (code) { if (f[code]) rows.push([code, f[code] + " stk"]); });
-    el.innerHTML = rows.length ? rowsHtml(rows) : '<div class="empty">Engar skúffur skráðar</div>';
+    document.getElementById("drawerCard").style.display = rows.length ? "" : "none";
+    el.innerHTML = rowsHtml(rows);
   }
   function renderShelves(f) {
     var el = document.getElementById("shelfList"), rows = [];
     if (f["Fastar hillur fjöldi"]) rows.push(["Fastar hillur", f["Fastar hillur fjöldi"]]);
     if (f["Lausar hillur fjöldi"]) rows.push(["Lausar hillur", f["Lausar hillur fjöldi"]]);
-    el.innerHTML = rows.length ? rowsHtml(rows) : '<div class="empty">Engar hillur skráðar</div>';
+    document.getElementById("shelfCard").style.display = rows.length ? "" : "none";
+    el.innerHTML = rowsHtml(rows);
   }
   function renderOther(f) {
     var el = document.getElementById("otherList"), rows = [];
@@ -811,20 +871,65 @@
     if (f["Hæð ofns"]) rows.push(["Hæð ofns", f["Hæð ofns"] + " mm"]);
     if (f["LED magn"]) rows.push(["LED", f["LED magn"] + " stk"]);
     if (f["Athugasemd til fræsara 🔬"]) rows.push(["Athugasemd til fræsara", f["Athugasemd til fræsara 🔬"]]);
-    el.innerHTML = rows.length ? rowsHtml(rows) : '<div class="empty">Ekkert skráð</div>';
+    document.getElementById("otherCard").style.display = rows.length ? "" : "none";
+    el.innerHTML = rowsHtml(rows);
   }
   function rowsHtml(rows) {
     return rows.map(function (r) { return '<div class="wRow"><span class="k">' + esc(r[0]) + '</span><span>' + esc(r[1]) + '</span></div>'; }).join("");
   }
+  // ---- Sögunarlisti tab — B/H/Þ/M columns, a Tilbúið 🔒 checkbox per row (every one has to be
+  // checked before "Samþykkja einingu" unlocks — see updateApproveGate), and a thickness/Óklárt
+  // filter chip bar (2026-10-18, the image the user posted). ----
+  var sogunRecs = [], sogunFilter = "all";
   function renderSogun(recs) {
-    var el = document.getElementById("sogunList");
-    if (!recs.length) { el.innerHTML = '<div class="empty">Engir hlutar í Sögunarlista enn</div>'; return; }
-    el.innerHTML = recs.map(function (r) {
-      var f = r.fields || {};
-      var dims = [f["H"], f["B"], f["Þ"]].filter(function (v) { return v != null; }).join("×");
-      return '<div class="wRow"><span class="k">' + esc(f["Partur"] || "") + (f["Villa?"] ? " ⚠️" : "") + '</span><span>' + esc(dims) + (f["M"] ? " · " + f["M"] + "x" : "") + '</span></div>';
-    }).join("");
+    sogunRecs = recs;
+    sogunFilter = "all";
+    renderSogunFiltered();
   }
+  function renderSogunFiltered() {
+    var el = document.getElementById("sogunList");
+    var chipsEl = document.getElementById("sogunChips");
+    if (!sogunRecs.length) { chipsEl.innerHTML = ""; el.innerHTML = '<div class="empty">Engir hlutar í Sögunarlista enn</div>'; return; }
+
+    var thicknesses = Array.from(new Set(sogunRecs.map(function (r) { return r.fields["Þ"]; }).filter(function (v) { return v != null; })))
+      .sort(function (a, b) { return a - b; });
+    var chips = [{ v: "all", label: "Allt" }]
+      .concat(thicknesses.map(function (t) { return { v: "t" + t, label: t + "mm" }; }))
+      .concat([{ v: "todo", label: "Óklárt" }]);
+    chipsEl.innerHTML = chips.map(function (c) {
+      return '<button type="button" class="chip' + (sogunFilter === c.v ? " on" : "") + '" data-f="' + c.v + '">' + esc(c.label) + '</button>';
+    }).join("");
+    chipsEl.querySelectorAll(".chip").forEach(function (btn) {
+      btn.addEventListener("click", function () { sogunFilter = btn.dataset.f; renderSogunFiltered(); });
+    });
+
+    var shown = sogunRecs.filter(function (r) {
+      if (sogunFilter === "all") return true;
+      if (sogunFilter === "todo") return !r.fields["Tilbúið 🔒"];
+      return String(r.fields["Þ"]) === sogunFilter.slice(1);
+    });
+    el.innerHTML = shown.length ? shown.map(function (r) {
+      var f = r.fields || {};
+      var on = !!f["Tilbúið 🔒"];
+      readyState["sog:" + r.id] = on;
+      return '<div class="wRow sogRow">' +
+        '<label class="tbCheck"><input type="checkbox" data-id="' + r.id + '" data-kind="sog"' + (on ? " checked" : "") + ' /></label>' +
+        '<span class="k">' + esc(f["Partur"] || "") + (f["Villa?"] ? " ⚠️" : "") + '</span>' +
+        '<span class="sogDims">B ' + esc(f["B"] ?? "—") + " · H " + esc(f["H"] ?? "—") + " · Þ " + esc(f["Þ"] ?? "—") + " · M " + esc(f["M"] ?? "—") + '</span>' +
+      '</div>';
+    }).join("") : '<div class="empty">Ekkert fellur undir þessa síu</div>';
+    el.querySelectorAll('input[data-kind="sog"]').forEach(function (cb) {
+      cb.addEventListener("change", function () {
+        readyState["sog:" + cb.dataset.id] = cb.checked;
+        apiPatch(SOGUNARLISTI + "/" + cb.dataset.id, { "Tilbúið 🔒": cb.checked });
+        var rec = sogunRecs.filter(function (r) { return r.id === cb.dataset.id; })[0];
+        if (rec) rec.fields["Tilbúið 🔒"] = cb.checked;
+        updateApproveGate();
+      });
+    });
+  }
+  // ---- Pöntun tab (Vörur á einingu) — "Rétt" plays the same per-row ready role here; there's no
+  // "Tilbúið 🔒" field on this table, see the api/airtable.js comment. ----
   function renderVorur(recs) {
     var el = document.getElementById("pontunList");
     if (!recs.length) { el.innerHTML = '<div class="empty">Engar vörur skráðar á þessa einingu</div>'; return; }
@@ -834,8 +939,31 @@
       var meta = [];
       if (f["Magn"]) meta.push(f["Magn"] + " stk");
       if (f["Breidd (mm)"] && f["Hæð (mm)"]) meta.push(f["Breidd (mm)"] + "×" + f["Hæð (mm)"] + " mm");
-      return '<div class="wRow"><span class="k">' + esc(label) + (f["⛔ Villa"] ? " ⚠️" : "") + '</span><span>' + esc(meta.join(" · ")) + '</span></div>';
+      var on = !!f["Rétt"];
+      readyState["vor:" + r.id] = on;
+      return '<div class="wRow sogRow">' +
+        '<label class="tbCheck"><input type="checkbox" data-id="' + r.id + '" data-kind="vor"' + (on ? " checked" : "") + ' /></label>' +
+        '<span class="k">' + esc(label) + (f["⛔ Villa"] ? " ⚠️" : "") + '</span>' +
+        '<span class="sogDims">' + esc(meta.join(" · ")) + '</span>' +
+      '</div>';
     }).join("");
+    el.querySelectorAll('input[data-kind="vor"]').forEach(function (cb) {
+      cb.addEventListener("change", function () {
+        readyState["vor:" + cb.dataset.id] = cb.checked;
+        apiPatch(VORUR + "/" + cb.dataset.id, { "Rétt": cb.checked });
+        updateApproveGate();
+      });
+    });
+  }
+  // ---- "Samþykkja einingu" is gated on every Tilbúið/Rétt checkbox above being true (2026-10-18,
+  // user) — tracked across both tabs in one place since the button lives outside either panel. ----
+  var readyState = {};
+  function updateApproveGate() {
+    var ids = Object.keys(readyState);
+    var allReady = ids.length > 0 && ids.every(function (id) { return readyState[id]; });
+    var btn = document.getElementById("approveBtn");
+    btn.disabled = !allReady;
+    btn.title = allReady ? "" : "Merktu alla hluti í Sögunarlista og Pöntun tilbúna fyrst";
   }
 })();
 </script>

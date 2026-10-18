@@ -87,6 +87,8 @@ const ALLOWED_FIELDS = {
     "Athugasemd",
     "B.A.S.",
     "Lokið",
+    "Tilbúið 🔒", // ferli.html's Yfirfara einingu popup (2026-10-18) — per-row ready checkbox
+
     "Skurðarskrá",
     "Skurðarnúmer", // 1-based position of the piece in its CUTLST00 file = the "Code" Cutty shows; written by cutlist.html, read by labels.html
     "Skilaboð til skipulags", // grain.html: /saga flags a problematic grain front → note back to the planners (rolls up to Tækifæri)
@@ -105,6 +107,7 @@ const ALLOWED_FIELDS = {
   ],
   "tbl0WcyHhz63pSzZX": [ // Eyðublað ✏️ — read-only, used by fraesing.html to render one card per unit
     "Athugasemd", // primary field — the unit's own short name (e.g. "SK 20")
+    "Yfirfarin", // ferli.html (2026-10-18): visual cue in the unit list once Yfirfara 3.0 has run
     "Tækifæri 📣 (projects)",
     "Tækifæri 📣", // old project-link field — some units are only linked via this one
     "Hvað viltu smíða?",
@@ -336,6 +339,11 @@ const VERK_ONLY_FIELDS = {
     // own generated drawings PDF, neither previously readable through this proxy.
     "Tengiliður verkefnis 👤",
     "Teikningar úr skipuleggjara 📐",
+    // ferli.html's "Loka skipulag" Dagatal section (2026-10-18) — the date fields the user's own
+    // screenshot showed were missing: start date, planned delivery, and the two workday counts
+    // (one typed, one the real tilboðsblað formula) side by side so a mismatch is obvious.
+    "Áætlaðir dagar í vinnudögum Björninn (internal)",
+    "Áætlaðir Dagar í vinnu (samkvæmt tilboðsblaði)",
     "Heimilistæki verkefnis",
     "Framvinda sögunar",
     "Fjöldi hluta til að fræsa 🔬", // /verk Framvinda: Fræsing row (rows marked Yfirfr.)
@@ -683,7 +691,12 @@ const WRITABLE_FIELDS = {
   // field: neither grain.html nor cutlist.html reads it back to decide
   // anything, both recompute the classification fresh every time, so a
   // stale value here can never cause a wrong cut.
-  "tblhdgyvTcBfP8kov": ["H", "B", "Þ", "Villa?", "Athugasemd", "B.A.S.", "Skurðarskrá", "Skurðarnúmer", "Fræst", "Magn fræst", "V hlið magn fræst", "H hlið magn fræst", "Skilaboð til skipulags", "Þarf æðasamfellu"],
+  "tblhdgyvTcBfP8kov": ["H", "B", "Þ", "Villa?", "Athugasemd", "B.A.S.", "Skurðarskrá", "Skurðarnúmer", "Fræst", "Magn fræst", "V hlið magn fræst", "H hlið magn fræst", "Skilaboð til skipulags", "Þarf æðasamfellu", "Tilbúið 🔒"],
+  // ferli.html's Yfirfara einingu popup (2026-10-18) — Vörur á einingu has no "Tilbúið 🔒" field
+  // of its own; "Rétt" (already public via VERK_ONLY_FIELDS above) is the existing checkbox that
+  // plays the same "this row is confirmed ready" role here, so that's what the per-row checkbox
+  // on this table's tab is bound to.
+  "tblszHaBrwhYNV68z": ["Rétt"],
   // /yfirferd's "samþykkja" action — the ONLY writable field on Eyðublað, on
   // purpose: flips a dedicated checkbox false→true to retrigger "Yfirfara 3.0"
   // (the Interface button it used to require has no API equivalent — see
@@ -702,7 +715,7 @@ const WRITABLE_FIELDS = {
   "tblzkw70E2xoX9RmK": ["Nafn", "Skipulag", "Staðfest ✅"],
   // kitchen-planner-review.html: Rakel's "✅ Yfirfarið" button unchecks the
   // review flag (that's the approval action — no separate status field).
-  "tbl4LMXlQjp66RFKI": ["Sjálfsafgreiðsla — óyfirfarið ⚠️", "Upphafs framleiðsludagur verks", "Áætlaður afhendingardagur Björninn (internal)", "Viðskiptavinur sækir þann:", "🔄 Keyra Pöntunarlista 4.0",
+  "tbl4LMXlQjp66RFKI": ["Sjálfsafgreiðsla — óyfirfarið ⚠️", "Upphafs framleiðsludagur verks", "Áætlaður afhendingardagur Björninn (internal)", "Áætlaðir dagar í vinnudögum Björninn (internal)", "Viðskiptavinur sækir þann:", "🔄 Keyra Pöntunarlista 4.0",
     // /skipulag's Loka yfirferð checklist + final "Klárt til framleiðslu" gate.
     "1. Dagssetningar ákveðnar", "2. Cutty keyrður fyrir þetta verkefni og kominn á USB?",
     "3. Teikningar prentaðar 2x", "4. Verkfundur tekinn", "5. Efni lent í húsi", "6. CNC yfirfarið",
