@@ -56,7 +56,8 @@ export default async function handler(req, res) {
   listUrl.searchParams.set("pageSize", "100");
   [
     "Nafn starfsmanns 👷", "Mynd af starfsmanni", "Starfsheiti 💼", "Netfang 📧", "Símanúmer ☎️",
-    "Kaup per klst 💲", "Dagvinna í mán. ⏱️", "Yfirvinna í mán. ⏱️", "Samtals í mán. ⏱️", "Veikindadagar í mán. 🤒",
+    "Kaup per klst 💲", "Yfirvinnagjald per klst 💲💲",
+    "Dagvinna í mán. ⏱️", "Yfirvinna í mán. ⏱️", "Samtals í mán. ⏱️", "Veikindadagar í mán. 🤒",
   ].forEach((f) => listUrl.searchParams.append("fields[]", f));
   const list = await atFetch(airtableToken, listUrl);
   if (!list.ok) return res.status(502).json({ error: "AIRTABLE_ERROR" });
@@ -75,6 +76,10 @@ export default async function handler(req, res) {
 
   const records = (list.data.records || []).map((r) => {
     const f = r.fields;
+    const payRate = f["Kaup per klst 💲"] ?? null;
+    const overtimeRate = f["Yfirvinnagjald per klst 💲💲"] ?? payRate;
+    const hoursNormal = f["Dagvinna í mán. ⏱️"] ?? 0;
+    const hoursOvertime = f["Yfirvinna í mán. ⏱️"] ?? 0;
     return {
       id: r.id,
       name: f["Nafn starfsmanns 👷"] || "",
@@ -82,10 +87,15 @@ export default async function handler(req, res) {
       title: f["Starfsheiti 💼"] || "",
       email: f["Netfang 📧"] || "",
       phone: f["Símanúmer ☎️"] || "",
-      payRate: f["Kaup per klst 💲"] ?? null,
-      hoursNormal: f["Dagvinna í mán. ⏱️"] ?? 0,
-      hoursOvertime: f["Yfirvinna í mán. ⏱️"] ?? 0,
+      payRate,
+      overtimeRate,
+      hoursNormal,
+      hoursOvertime,
       hoursTotal: f["Samtals í mán. ⏱️"] ?? 0,
+      // hourly pay only — doesn't include fixed salary, bonuses, or anything else that might
+      // make up someone's real total, just the "hours worked this month × rate" figure the user
+      // asked to see per person (skrifstofa.html sums this across everyone for the table footer).
+      payThisMonth: payRate == null ? null : hoursNormal * payRate + hoursOvertime * overtimeRate,
       sickDays: f["Veikindadagar í mán. 🤒"] ?? 0,
       clockedIn: Object.prototype.hasOwnProperty.call(clockedInSince, r.id),
       clockedInSince: clockedInSince[r.id] || null,

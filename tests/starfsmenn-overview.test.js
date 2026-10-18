@@ -64,7 +64,7 @@ test("an owner's token returns the active staff list, with pay rate and clocked-
       status: 200,
       body: {
         records: [
-          { id: "recCCCCCCCCCCCCCC", fields: { "Nafn starfsmanns 👷": "Anna", "Kaup per klst 💲": 3500, "Dagvinna í mán. ⏱️": 120, "Yfirvinna í mán. ⏱️": 4, "Samtals í mán. ⏱️": 124, "Veikindadagar í mán. 🤒": 1 } },
+          { id: "recCCCCCCCCCCCCCC", fields: { "Nafn starfsmanns 👷": "Anna", "Kaup per klst 💲": 3500, "Yfirvinnagjald per klst 💲💲": 5250, "Dagvinna í mán. ⏱️": 120, "Yfirvinna í mán. ⏱️": 4, "Samtals í mán. ⏱️": 124, "Veikindadagar í mán. 🤒": 1 } },
           { id: "recDDDDDDDDDDDDDD", fields: { "Nafn starfsmanns 👷": "Björn", "Kaup per klst 💲": 4000 } },
         ],
       },
@@ -79,6 +79,8 @@ test("an owner's token returns the active staff list, with pay rate and clocked-
   assert.equal(anna.payRate, 3500);
   assert.equal(anna.hoursTotal, 124);
   assert.equal(anna.sickDays, 1);
+  // 120 × 3500 + 4 × 5250 = 420000 + 21000 = 441000
+  assert.equal(anna.payThisMonth, 441000);
   assert.equal(anna.clockedIn, true);
   assert.equal(anna.clockedInSince, "2026-10-18T08:00:00.000Z");
   const bjorn = res.body.records.find((r) => r.name === "Björn");

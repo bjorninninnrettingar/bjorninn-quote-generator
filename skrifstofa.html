@@ -88,9 +88,9 @@
 
   /* Cash info row (2026-10-18) — "at the top", per the user. Væntanlegar efnispantanir is live
      (same Pantaðir listar query the old "Innkaup — ólokin verk" tile used, just reframed as a
-     projection: total + how much of it is due within 7 days). VAT/payday are graceful
-     placeholders until Björninn's real filing/payday schedule is configured — see VAT_SCHEDULE/
-     PAYDAY_SCHEDULE below; nothing in Airtable encodes those dates, so they can't be derived. */
+     projection: total + how much of it is due within 7 days). VAT/payday countdowns are wired to
+     the real schedule — see VAT_DUE_DATES/PAYDAY_SCHEDULE below; nothing in Airtable encodes
+     those dates, so they're supplied by hand (VAT: the user's own RSK due-date table). */
   .cashRow { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:14px; }
   .cashKpi .lbl { display:flex; align-items:center; gap:6px; }
 
@@ -120,6 +120,9 @@
   .stClock { width:8px; height:8px; border-radius:50%; background:var(--line); flex:none; }
   .stClock.in { background:var(--good); }
   .stHours { font-size:.76rem; color:var(--muted); white-space:nowrap; }
+  .stPay { font-size:.82rem; font-weight:700; white-space:nowrap; width:92px; text-align:right; }
+  .stFoot { display:flex; justify-content:flex-end; gap:24px; padding:10px 16px; border-top:1px solid var(--line); font-size:.82rem; color:var(--muted); }
+  .stFoot b { color:var(--text); }
 
   .panel { background:var(--surface); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
   .panel h2 { font-size:.82rem; font-weight:700; padding:12px 16px; border-bottom:1px solid var(--line); color:var(--text); display:flex; justify-content:space-between; align-items:center; }
@@ -127,6 +130,10 @@
   .panel h2.qfHead { background:#e23d28; color:#fff; border-bottom:none; }
   .panel h2.qfHead .cnt { color:#ffd9d2; }
   .panel h2.qfHead button { background:rgba(255,255,255,.22); border:none; color:#fff; width:22px; height:22px; border-radius:50%; font-size:1rem; line-height:1; cursor:pointer; }
+  .panel h2.prodHead { background:#e9b000; color:#fff; border-bottom:none; }
+  .panel h2.prodHead .cnt { color:#fff6d9; }
+  .verkPanel { margin-bottom:20px; }
+  .verkPanel .verkBoard { margin:0; padding:12px; }
   /* Quick Fix form (2026-10-18) — expanded from a single "what's wrong" input to the full set
      of fields QUICK FIX❗ actually has (Ábyrgðarmaður/Tengt verkefni/Skiladagur), matching the
      user's "check the airtable table" instruction. "Nafn þitt" stays implicit (current user). */
@@ -170,6 +177,11 @@
   .pvModal .pvSub { color:var(--muted); font-size:.85rem; margin-top:2px; }
   .pvSection { margin-top:16px; }
   .pvSection h3 { font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-bottom:8px; }
+  /* Collapsible job-popup sections (2026-10-18) — default open, click the header to toggle. */
+  .pvSection h3.pvToggle { cursor:pointer; user-select:none; display:flex; justify-content:space-between; align-items:center; }
+  .pvChev { transition:transform .15s; }
+  .pvSection.collapsed .pvChev { transform:rotate(-90deg); }
+  .pvSection.collapsed .pvBody { display:none; }
   .pvRow { display:flex; justify-content:space-between; gap:10px; padding:6px 0; border-bottom:1px solid var(--line); font-size:.86rem; }
   .pvRow:last-child { border-bottom:none; }
   .pvRow .k { color:var(--muted); }
@@ -225,7 +237,10 @@
       <div class="kpi"><div class="lbl">Verk í framleiðslu</div><div class="val" id="kpiProd">—</div><div class="sub">Tilbúið → Má afhenda</div></div>
     </div>
 
-    <div class="verkBoard" id="verkBoard"></div>
+    <div class="panel verkPanel">
+      <h2 class="prodHead">🏭 Verk í vinnslu <span class="cnt" id="verkCnt"></span></h2>
+      <div class="verkBoard" id="verkBoard"></div>
+    </div>
 
     <div class="bottomRow">
       <div class="panel">
@@ -257,6 +272,7 @@
     <div class="panel" id="stPanel" style="display:none; margin-top:16px;">
       <h2>👥 Starfsmenn <span class="cnt" id="stCnt"></span></h2>
       <div class="body" id="stList"><div class="empty">Sæki…</div></div>
+      <div class="stFoot" id="stFoot" style="display:none;"></div>
     </div>
   </div>
 </div>
@@ -266,12 +282,12 @@
     <button class="pvClose" id="pvClose" type="button">✕</button>
     <div class="pvTitle" id="pvTitle"></div>
     <div class="pvSub" id="pvSub"></div>
-    <div class="pvSection"><h3>Almennt</h3><div id="pvProd"></div></div>
-    <div class="pvSection"><h3>Peningar</h3><div id="pvMoney"></div></div>
-    <div class="pvSection"><h3>Tengiliður</h3><div id="pvContact"></div></div>
-    <div class="pvSection"><h3>Efni</h3><div id="pvMaterial"></div><div class="pvThumbs" id="pvThumbs"></div></div>
-    <div class="pvSection"><h3>Teikningar</h3><div class="pvDocs" id="pvDrawings"></div></div>
-    <div class="pvSection"><h3>Eyðublöð</h3><div id="pvForms"></div></div>
+    <div class="pvSection"><h3 class="pvToggle">Almennt<span class="pvChev">▾</span></h3><div class="pvBody" id="pvProd"></div></div>
+    <div class="pvSection"><h3 class="pvToggle">Peningar<span class="pvChev">▾</span></h3><div class="pvBody" id="pvMoney"></div></div>
+    <div class="pvSection"><h3 class="pvToggle">Tengiliður<span class="pvChev">▾</span></h3><div class="pvBody" id="pvContact"></div></div>
+    <div class="pvSection"><h3 class="pvToggle">Efni<span class="pvChev">▾</span></h3><div class="pvBody"><div id="pvMaterial"></div><div class="pvThumbs" id="pvThumbs"></div></div></div>
+    <div class="pvSection"><h3 class="pvToggle">Teikningar<span class="pvChev">▾</span></h3><div class="pvBody"><div class="pvDocs" id="pvDrawings"></div></div></div>
+    <div class="pvSection"><h3 class="pvToggle">Eyðublöð<span class="pvChev">▾</span></h3><div class="pvBody" id="pvForms"></div></div>
     <a class="pvLink" id="pvOpenFerli" href="#">Opna í Skipulagsferli →</a>
   </div>
 </div>
@@ -313,11 +329,15 @@
   var EYDUBLAD = "tbl0WcyHhz63pSzZX";
   var CONTACTS = "tblQ8zeUanriESWvL";
 
-  // Björninn's real VAT filing / payday schedule (confirmed by the user, 2026-10-18) — standard
-  // bi-monthly Icelandic VSK, due the 5th of Jan/Mar/May/Jul/Sep/Nov; payday is the last calendar
-  // day of each month. Neither lives in Airtable, so these two configs are the one thing in this
-  // round of work supplied by hand rather than derived.
-  var VAT_SCHEDULE = { months: [1, 3, 5, 7, 9, 11], day: 5 };
+  // Björninn's real VAT filing / payday schedule — neither lives in Airtable, so these are the
+  // one thing in this round of work supplied by hand rather than derived.
+  // VAT (corrected 2026-10-18, from the real RSK due-date table the user posted): due dates are
+  // NOT a clean "5th of every other month" rule — they're ~2 months after each 2-month period
+  // ends, bumped a day or two when the 5th lands on a weekend (7. apríl not 5., 7. desember not
+  // 5.) — a bank-holiday-aware "next business day" rule, which can't be reliably derived from
+  // only 6 examples. So this is the literal due-date list from that table; extend it by hand
+  // once a year (RSK publishes the year's dates) rather than trying to re-derive the rule.
+  var VAT_DUE_DATES = ["2026-04-07", "2026-06-05", "2026-08-05", "2026-10-05", "2026-12-07", "2027-02-05"];
   var PAYDAY_SCHEDULE = { lastDayOfMonth: true };
 
   function loadSession() { try { return JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); } catch (e) { return null; } }
@@ -329,6 +349,13 @@
   function getK() { try { return localStorage.getItem(K_STORE) || ""; } catch (e) { return ""; } }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }); }
   function kr(n) { return n == null ? "0 kr." : Math.round(n).toLocaleString("is-IS") + " kr."; }
+  // toLocaleDateString("is-IS", {weekday:"long", ...}) silently fell back to English weekday/
+  // month names in the field ("Sunday 18 October" instead of "sunnudagur 18. október") — not
+  // every browser ships full is-IS ICU data for weekday/month names (number formatting above is
+  // a different, more widely-supported subsystem, so kr() is unaffected). Spelled out by hand.
+  var IS_WEEKDAYS = ["sunnudagur", "mánudagur", "þriðjudagur", "miðvikudagur", "fimmtudagur", "föstudagur", "laugardagur"];
+  var IS_MONTHS_LONG = ["janúar", "febrúar", "mars", "apríl", "maí", "júní", "júlí", "ágúst", "september", "október", "nóvember", "desember"];
+  function fmtIcelandicDate(d) { return IS_WEEKDAYS[d.getDay()] + " " + d.getDate() + ". " + IS_MONTHS_LONG[d.getMonth()]; }
 
   function api(path, extra) {
     var k = getK();
@@ -371,6 +398,9 @@
           return;
         }
         saveSession({ token: res.data.token, record: res.data.record, ts: Date.now() });
+        // See api/skrifstofa-login.js's verkKey comment — this is what used to depend
+        // entirely on having once clicked a URL with ?k= in it.
+        if (res.data.verkKey) { try { localStorage.setItem(K_STORE, res.data.verkKey); } catch (e) {} }
         // Other office pages redirect here with ?return= when a page is
         // opened without a session — send the person straight back once
         // they've logged in, instead of stranding them on the dashboard.
@@ -390,7 +420,7 @@
     currentUserToken = token || "";
     document.getElementById("pinScreen").style.display = "none";
     document.getElementById("shell").classList.add("open");
-    document.getElementById("todayDate").textContent = new Date().toLocaleDateString("is-IS", { weekday: "long", day: "numeric", month: "long" });
+    document.getElementById("todayDate").textContent = fmtIcelandicDate(new Date());
 
     window.OfficeShell.renderChrome(record, "home");
 
@@ -439,18 +469,14 @@
     var target = new Date(d); target.setHours(0, 0, 0, 0);
     return Math.round((target - today) / 86400000);
   }
-  // Next occurrence of {months, day} on or after today — VAT_SCHEDULE's bi-monthly due dates
-  // repeat every year, so this is computed from the rule rather than a finite hand-kept list.
-  function nextVat(cfg) {
-    if (!cfg) return null;
+  // Earliest VAT_DUE_DATES entry that hasn't passed yet.
+  function nextVat(dates) {
     var today = new Date(); today.setHours(0, 0, 0, 0);
-    for (var y = today.getFullYear(); y <= today.getFullYear() + 1; y++) {
-      for (var i = 0; i < cfg.months.length; i++) {
-        var d = new Date(y, cfg.months[i] - 1, cfg.day);
-        if (d >= today) return d;
-      }
-    }
-    return null;
+    var upcoming = (dates || [])
+      .map(function (s) { return new Date(s + "T00:00:00"); })
+      .filter(function (d) { return d >= today; })
+      .sort(function (a, b) { return a - b; });
+    return upcoming[0] || null;
   }
   function nextPayday(cfg) {
     if (!cfg) return null;
@@ -479,7 +505,7 @@
         document.getElementById("cashUpcomingSub").textContent = recs.length + " pantanir — " + kr(soon) + " innan 7 daga";
       });
 
-    var vat = nextVat(VAT_SCHEDULE);
+    var vat = nextVat(VAT_DUE_DATES);
     document.getElementById("cashVatTile").classList.toggle("placeholder2", !vat);
     document.getElementById("cashVat").textContent = fmtCountdown(vat) || "Ekki stillt";
     document.getElementById("cashVatSub").textContent = vat ? vat.toLocaleDateString("is-IS") : "Spyrðu Claude um VSK-tímabil Björnsins";
@@ -537,18 +563,18 @@
       });
   }
 
-  // ---- Verk í vinnslu — full pipeline kanban (2026-10-18) ----
-  // Every confirmed ("🏆 Tækifæri unnið") project that isn't delivered yet lands in exactly one
-  // of these 8 columns: the 4 "Staða í skipulagi" stages while Staða í framleiðslu is still
-  // blank, then the 4 "Staða í framleiðslu" stages once production actually starts.
+  // ---- Verk í vinnslu — pipeline kanban (2026-10-18, trimmed per the user's 2nd round: dropped
+  // "Klárt til framleiðslu" and "Samsetning og pökkun" as columns entirely — a job in either of
+  // those two real Airtable stages simply doesn't show on this board, by design, not a bug) ----
+  // Every confirmed ("🏆 Tækifæri unnið") project that isn't delivered yet and matches one of
+  // these stages lands in exactly one column: the 3 "Staða í skipulagi" stages while Staða í
+  // framleiðslu is still blank, then the 3 remaining "Staða í framleiðslu" stages.
   var VERK_STAGES = [
     { field: "skipulagi", value: "For-skipulag", label: "For-skipulag", color: "#9aa3ad" },
     { field: "skipulagi", value: "Í skipulagningu", label: "Í skipulagningu", color: "#e9b000" },
     { field: "skipulagi", value: "Yfirfara", label: "Yfirfara", color: "#c4291c" },
-    { field: "skipulagi", value: "Klárt til framleiðslu", label: "Klárt til framl.", color: "#1a7d36" },
-    { field: "framleidslu", value: "Tilbúið til framleiðslu 📋", label: "Tilbúið", color: "#0f6cbd" },
+    { field: "framleidslu", value: "Tilbúið til framleiðslu 📋", label: "Tilbúið til framleiðslu", color: "#0f6cbd" },
     { field: "framleidslu", value: "Verk í vinnslu 🔨", label: "Í vinnslu", color: "#e9b000" },
-    { field: "framleidslu", value: "Samsetning og pökkun 🪛📦", label: "Samsetning", color: "#e07b00" },
     { field: "framleidslu", value: "Má Afhenda 🚚", label: "Má afhenda", color: "#1a9e6b" },
   ];
   function prioRank(p) { var m = String(p || "").match(/^(\d)/); return m ? Number(m[1]) : 9; }
@@ -566,6 +592,7 @@
         });
         var board = document.getElementById("verkBoard");
         board.innerHTML = "";
+        var shownTotal = 0;
         VERK_STAGES.forEach(function (stage) {
           var items = recs.filter(function (r) {
             var fram = r.fields["Staða í framleiðslu"] || "";
@@ -573,6 +600,7 @@
             // skipulag columns only hold a job BEFORE production has a stage of its own
             return !fram && (r.fields["Staða í skipulagi"] || "") === stage.value;
           });
+          shownTotal += items.length;
           var col = document.createElement("div");
           col.className = "verkCol";
           col.innerHTML = '<h3><span class="dot3" style="background:' + stage.color + ';"></span>' + esc(stage.label) + '<span class="cnt">' + items.length + '</span></h3>' +
@@ -586,6 +614,7 @@
           });
           board.appendChild(col);
         });
+        document.getElementById("verkCnt").textContent = shownTotal;
       });
   }
 
@@ -612,6 +641,7 @@
   function openProjectModal(id) {
     var bg = document.getElementById("pvModalBg");
     bg.classList.add("open");
+    bg.querySelectorAll(".pvSection.collapsed").forEach(function (s) { s.classList.remove("collapsed"); });
     document.getElementById("pvTitle").textContent = "Sæki…";
     document.getElementById("pvSub").textContent = "";
     document.getElementById("pvProd").innerHTML = "";
@@ -693,7 +723,11 @@
     });
   }
   document.getElementById("pvClose").addEventListener("click", function () { document.getElementById("pvModalBg").classList.remove("open"); });
-  document.getElementById("pvModalBg").addEventListener("click", function (e) { if (e.target === e.currentTarget) e.currentTarget.classList.remove("open"); });
+  document.getElementById("pvModalBg").addEventListener("click", function (e) {
+    if (e.target === e.currentTarget) { e.currentTarget.classList.remove("open"); return; }
+    var toggle = e.target.closest(".pvToggle");
+    if (toggle) toggle.closest(".pvSection").classList.toggle("collapsed");
+  });
 
   function loadQuickFix() {
     api(QUICKFIX, "filterByFormula=" + encodeURIComponent('{Staða}!="Lokið ✅"') + "&pageSize=100")
@@ -788,12 +822,14 @@
   // beyond showing/hiding the panel. ----
   var stRecords = [];
   function loadStarfsmenn() {
+    document.getElementById("stFoot").style.display = "none";
     fetch("/api/starfsmenn-overview?id=" + encodeURIComponent(currentUserId) + "&t=" + encodeURIComponent(currentUserToken))
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
       .then(function (res) {
         var el = document.getElementById("stList");
         if (!res.ok) { el.innerHTML = '<div class="empty">Tókst ekki að sækja starfsmenn (' + esc(res.d.error || "villa") + ')</div>'; return; }
-        stRecords = res.d.records || [];
+        // Who has time this month first — more useful for a payroll glance than alphabetical.
+        stRecords = (res.d.records || []).slice().sort(function (a, b) { return (b.hoursTotal || 0) - (a.hoursTotal || 0); });
         document.getElementById("stCnt").textContent = stRecords.length;
         if (!stRecords.length) { el.innerHTML = '<div class="empty">Engir starfandi starfsmenn</div>'; return; }
         el.innerHTML = stRecords.map(function (s) {
@@ -802,12 +838,18 @@
             '<div class="stAvatar">' + (s.photo ? '<img src="' + esc(s.photo) + '" alt="" />' : esc(initials)) + '</div>' +
             '<span class="stName">' + esc(s.name) + '</span>' +
             '<span class="stHours">' + Math.round(s.hoursTotal) + ' klst' + (s.sickDays ? " · " + s.sickDays + " veikindad." : "") + '</span>' +
+            '<span class="stPay">' + (s.payThisMonth == null ? "—" : kr(s.payThisMonth)) + '</span>' +
             '<span class="stClock' + (s.clockedIn ? " in" : "") + '" title="' + (s.clockedIn ? "Stimplaður inn" : "Ekki stimplaður inn") + '"></span>' +
             '</div>';
         }).join("");
         el.querySelectorAll(".stRow").forEach(function (row) {
           row.addEventListener("click", function () { openStarfsmennModal(row.dataset.id); });
         });
+        var hoursSum = stRecords.reduce(function (s, r) { return s + (r.hoursTotal || 0); }, 0);
+        var paySum = stRecords.reduce(function (s, r) { return s + (r.payThisMonth || 0); }, 0);
+        var footEl = document.getElementById("stFoot");
+        footEl.style.display = "flex";
+        footEl.innerHTML = "Samtals þennan mánuð: <b>&nbsp;" + Math.round(hoursSum) + " klst</b>&nbsp; · &nbsp;<b>" + kr(paySum) + "</b>";
       })
       .catch(function () { document.getElementById("stList").innerHTML = '<div class="empty">Tókst ekki að tengjast</div>'; });
   }
@@ -823,6 +865,7 @@
       row("Dagvinna", Math.round(s.hoursNormal * 10) / 10 + " klst") +
       row("Yfirvinna", Math.round(s.hoursOvertime * 10) / 10 + " klst") +
       row("Samtals", Math.round(s.hoursTotal * 10) / 10 + " klst") +
+      row("Laun þennan mánuð", kr(s.payThisMonth)) +
       row("Veikindadagar", s.sickDays || 0);
     document.getElementById("stModalBg").classList.add("open");
   }

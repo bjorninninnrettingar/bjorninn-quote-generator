@@ -10,13 +10,24 @@
 // Starfsmenn overview table on Yfirlit (pay rate, hours) is Eigandi-only, same literal
 // check api/eigandi-clock.js already uses ("Eigandi 👨🏻‍💼").
 //
-// POST { pin } -> { token, record: { id, name, roles } }
+// POST { pin } -> { token, verkKey, record: { id, name, roles } }
 // `token` is a per-EMPLOYEE, per-day HMAC (KIOSK_DEVICE_SECRET, same secret as
 // eigandi-clock, new namespace so tokens don't cross over) — bound to this specific
 // record id (2026-10-18, not just "someone logged into skrifstofa today"), so another
 // endpoint can take it back, re-derive who's asking, and re-check their role server-
 // side before returning anything sensitive. api/starfsmenn-overview.js is the first
 // consumer: it never trusts the client's claimed "eigandi" role, only this token.
+//
+// `verkKey` (2026-10-18) — every office-shell page's own VERK_KEY (the `?k=` the public
+// api/airtable.js proxy needs for anything beyond its public field set) used to have NO
+// bootstrap path except a `?k=` query param somewhere in a URL the person happened to
+// click — a brand-new device/profile, a cleared browser, or a direct bookmark to plain
+// /skrifstofa never got one, so every Tengiliðir/Fyrirtæki/etc. read silently fell back
+// to the (often empty) public field set and every VERK_KEY-gated write 403'd outright.
+// Symptom reported 2026-10-18: contact search always showing "(ónefnt)", "+ Nýtt
+// verkefni" → "Teikna í hönnuði" doing nothing. Handing the key back on a successful PIN
+// login (the person already proved themselves staff) removes that bootstrap gap for
+// good; skrifstofa.html saves it into the same K_STORE the URL param used to.
 
 import crypto from "node:crypto";
 
@@ -47,7 +58,8 @@ async function atFetch(token, url) {
 export default async function handler(req, res) {
   const airtableToken = process.env.AIRTABLE_TOKEN;
   const secret = process.env.KIOSK_DEVICE_SECRET;
-  if (!airtableToken || !secret) return res.status(500).json({ error: "Server not configured" });
+  const verkKey = process.env.VERK_KEY;
+  if (!airtableToken || !secret || !verkKey) return res.status(500).json({ error: "Server not configured" });
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
 
   const q = { ...(req.query || {}), ...(req.body || {}) };
@@ -73,6 +85,7 @@ export default async function handler(req, res) {
   if (rec.fields["Tegund starfsmanns 🧑‍💻"] === OWNER_TYPE) roles.push("eigandi");
   return res.status(200).json({
     token: skrifstofaDayToken(secret, rec.id),
+    verkKey: verkKey,
     record: {
       id: rec.id,
       name: rec.fields["Nafn starfsmanns 👷"] || "",
