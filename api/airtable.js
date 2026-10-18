@@ -123,9 +123,14 @@ const ALLOWED_FIELDS = {
     "Grip mm (Höldur 1)", // /cnc (2026-10-13): lookup through Höldur 1 → Vörulisti's own "Grip mm"
     "Hæð ofns", "Töfrahorn útfærsla", "Breidd á töfra front", // Ofnaskápur / Töfrahorn cabinet types
   ],
-  // Tengiliðir 👤 is deliberately NOT readable here (2026-10-01): it was listed with names, emails and
-  // phone numbers, so anyone could GET the whole customer contact list through this open proxy. The
-  // kitchen planner only CREATES contacts (CREATABLE_FIELDS below) and needs nothing back but the id.
+  // Tengiliðir 👤 was deliberately NOT readable at all here (2026-10-01): listed with names, emails and
+  // phone numbers, anyone could GET the whole customer contact list through this open proxy. Reopened
+  // 2026-10-18, narrowly, for /crm's staff "+ Nýtt verkefni" contact search — base set stays empty (public
+  // reads see nothing), real fields live behind VERK_KEY in VERK_ONLY_FIELDS below, and the table is in
+  // REQUIRE_FILTER so a caller can search for a name/e-mail/phone but can never dump the whole table (same
+  // shape as the Starfsmenn PIN lookup). kp-submit.js's own contact CREATE still bypasses this proxy
+  // entirely (direct Airtable call, its own token) — unaffected by this.
+  "tblQ8zeUanriESWvL": [], // Tengiliðir 👤
   "tblzuuRSRkeXaLWxC": [ // Vörulisti 🚪 — resolves hardware-link names for /eining (name only, no cost)
     "Heiti vöru 📣",
     // /cnc (cnc-doors.js, 2026-10-13): macro names for hinge/lock/threshold products not already hardcoded
@@ -416,6 +421,12 @@ const VERK_ONLY_FIELDS = {
   "tblhP1FMM4QJfwxat": [ // Fjárhagsstaða 📊
     "Dagsetning", "Sölumarkmið (Fastur kostnaður x2)",
   ],
+  // /crm "+ Nýtt verkefni" staff contact search (2026-10-18) — name/e-mail/phone only, same fields
+  // kp-submit.js's own self-serve flow writes. REQUIRE_FILTER (below) means this can only ever be
+  // searched, never listed wholesale.
+  "tblQ8zeUanriESWvL": [
+    "Fornafn ⬅️", "Eftirnafn ➡️", "Netfang 📧", "Símanúmer ☎️",
+  ],
   // /crm Vörulínur editor (2026-10-17) — "patch and review" only, never a
   // replacement for drawing in the designer (user, 2026-10-17): Rými and the
   // V1/V2/V3 product links plus Magn/Afsl. % are the only genuinely hand-
@@ -440,7 +451,7 @@ const VERK_ONLY_FIELDS = {
 // Vefspjall means every site visitor's email + full conversation transcript
 // at once. Require the caller to filter to a single lookup instead of
 // listing the whole table.
-const REQUIRE_FILTER = new Set(["tblhglpjQkczdG1AY", "tbl3e5o0Klv9RcNQ4", "tblzkw70E2xoX9RmK", "tbltD1UNpqj05WtMx"]);
+const REQUIRE_FILTER = new Set(["tblhglpjQkczdG1AY", "tbl3e5o0Klv9RcNQ4", "tblzkw70E2xoX9RmK", "tbltD1UNpqj05WtMx", "tblQ8zeUanriESWvL"]);
 // "A filter is required" alone was not a guard: filterByFormula=TRUE() matched every row (2026-10-01 —
 // employee PINs and customer contacts were listable). These tables only accept the exact query shape
 // their own pages send.

@@ -932,6 +932,7 @@
   body.pro #proBar .pb-locked { color:#ffd60a; }
   #proBar button.pb-unlock { background:transparent; border-color:currentColor; color:#b3261e; }
   body.pro #proBar button.pb-unlock { color:#ffd60a; }
+  #proBar button.pb-review { background:#1a7d36; border-color:#1a7d36; }
 
   /* ── Tilboð panel (Tilboðsblað area, 2026-10-17) ── */
   #tilbodPanel { display:none; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin:0 0 14px; }
@@ -10062,24 +10063,40 @@
     var el = document.getElementById("proBar");
     if (!el) return;
     el.hidden = false;
+    var reviewBtn = PRO.needsReview ? '<button type="button" id="proReviewed" class="pb-review">✅ Yfirfarið</button>' : "";
     if (PRO.locked && !PRO.unlocked){
       el.innerHTML = '<span>🔧 PRO</span><span class="pb-name">' + escapeHtmlPro(PRO.name || "") + '</span>' +
         '<span class="pb-locked">🔒 Í skipulagi (' + escapeHtmlPro(PRO.lockStatus) + ') — skoðunarhamur</span>' +
+        reviewBtn +
         '<button type="button" id="proTilbodToggle">💰 Tilboð</button>' +
         '<button type="button" id="proUnlock" class="pb-unlock">🔓 Opna til breytinga</button>';
       var ub = el.querySelector("#proUnlock"); if (ub) ub.addEventListener("click", proUnlock);
       var ttb0 = el.querySelector("#proTilbodToggle"); if (ttb0) ttb0.addEventListener("click", proTilbodToggle);
+      var rb0 = el.querySelector("#proReviewed"); if (rb0) rb0.addEventListener("click", proMarkReviewed);
       return;
     }
     el.innerHTML = '<span>🔧 PRO</span><span class="pb-name">' + escapeHtmlPro(PRO.name || "") + '</span>' +
       (PRO.locked ? '<span class="pb-locked">🔓 opnað til breytinga</span>' : "") +
       (msg ? '<span>' + escapeHtmlPro(msg) + '</span>' : (proDirty() ? '<span class="pb-dirty">● óvistað</span>' : '<span>✓ vistað</span>')) +
+      reviewBtn +
       '<button type="button" id="proSave"' + (PRO.ready ? "" : " disabled") + '>💾 Vista í Airtable</button>' +
       '<button type="button" id="proRunSkipulag"' + (PRO.ready ? "" : " disabled") + '>📐 Keyra skipulag</button>' +
       '<button type="button" id="proTilbodToggle">💰 Tilboð</button>';
     var bt = el.querySelector("#proSave"); if (bt) bt.addEventListener("click", function(){ proSave(); });
     var rs = el.querySelector("#proRunSkipulag"); if (rs) rs.addEventListener("click", proRunSkipulag);
     var ttb = el.querySelector("#proTilbodToggle"); if (ttb) ttb.addEventListener("click", proTilbodToggle);
+    var rb = el.querySelector("#proReviewed"); if (rb) rb.addEventListener("click", proMarkReviewed);
+  }
+  // "✅ Yfirfarið" (2026-10-18) — the button referenced in old comments but never actually built. Staff
+  // looks the self-serve drawing over here, clicks this, and it's off CRM's "Til yfirferðar" strip —
+  // nothing else changes automatically (confirmed with the user: just the flag, not the sales stage).
+  function proMarkReviewed(){
+    var rb = document.getElementById("proReviewed"); if (rb) rb.disabled = true;
+    fetch("/api/airtable?path=" + encodeURIComponent("tbl4LMXlQjp66RFKI/" + PRO.id), {
+      method:"PATCH", headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ fields:{ "Sjálfsafgreiðsla — óyfirfarið ⚠️": false } })
+    }).then(function(){ PRO.needsReview = false; proBar(); })
+      .catch(function(){ if (rb) rb.disabled = false; });
   }
   // "Keyra skipulag" — í stað gamla Interface-takkans í Airtable (sem hefur ekkert API-jafngildi): skrifar
   // gátreitinn "🔄 Keyra Skipulag" false→true á Tækifæri, sem retriggerar sjálfa Airtable-automationina
@@ -10223,6 +10240,8 @@
     PRO.lockStatus = (rec.fields || {})["Staða í skipulagi"] || "For-skipulag";
     PRO.locked = PRO.lockStatus !== "For-skipulag";
     PRO.unlocked = false;
+    // CRM's "Til yfirferðar" strip (2026-10-18) — true until someone clicks ✅ Yfirfarið below.
+    PRO.needsReview = !!(rec.fields || {})["Sjálfsafgreiðsla — óyfirfarið ⚠️"];
     var keepLocal = false;
     if (!raw){ // Rakel draws every project (2026-10-09): no drawing yet = start one, from the Byrja category picker
       var local = null; try{ local = proDirty() ? localStorage.getItem(STORAGE_KEY) : null; }catch(e){}

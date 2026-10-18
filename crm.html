@@ -38,6 +38,17 @@
   .hdRight { display:flex; align-items:center; gap:10px; }
   .searchBox { font:inherit; font-size:.85rem; border:1px solid var(--line); border-radius:999px; padding:7px 14px; width:200px; background:var(--surface); }
   .toggleClosed { background:none; border:1px solid var(--line); border-radius:999px; padding:6px 13px; font-size:.82rem; color:var(--muted); font-family:inherit; cursor:pointer; }
+  .newProjectBtn { background:var(--accent); color:#fff; border:none; border-radius:999px; padding:7px 15px; font-size:.82rem; font-weight:700; font-family:inherit; cursor:pointer; }
+  .printBtn { background:none; border:1px solid var(--line); border-radius:8px; padding:7px 12px; font-size:.82rem; color:var(--text); font-family:inherit; cursor:pointer; }
+  .printMsg { text-align:center; font-size:.78rem; color:var(--muted); margin-top:8px; min-height:1.1em; }
+  .npOr { text-align:center; font-size:.76rem; color:var(--dim); margin:14px 0 8px; }
+  .npFields { display:flex; flex-direction:column; gap:7px; }
+  .npFields input { font:inherit; font-size:.85rem; border:1px solid var(--line); border-radius:8px; padding:8px 11px; background:var(--bg); color:var(--text); }
+  .npPrimary { all:unset; box-sizing:border-box; display:block; width:100%; text-align:center; margin-top:10px; background:var(--accent); color:#fff; border-radius:9px; padding:10px; font-size:.86rem; font-weight:700; cursor:pointer; }
+  .npPrimary.npSecondary { background:var(--text); }
+  .npBack { all:unset; display:block; text-align:center; width:100%; margin-top:10px; color:var(--muted); font-size:.82rem; cursor:pointer; }
+  .npChosen { text-align:center; font-weight:700; font-size:.95rem; margin-bottom:4px; }
+  .npMsg { text-align:center; font-size:.8rem; color:var(--muted); margin-top:10px; min-height:1.1em; }
 
   .kpiRow { display:flex; gap:12px; margin-bottom:18px; flex-wrap:wrap; }
   .kpi { background:var(--surface); border-radius:14px; padding:13px 16px; box-shadow:0 1px 3px rgba(0,0,0,.05); flex:1; min-width:150px; }
@@ -134,6 +145,7 @@
     <div class="hdRight">
       <input class="searchBox" id="search" type="text" placeholder="Leita að tækifæri…" />
       <button class="toggleClosed" id="toggleClosed">Sýna líka unnin/töpuð</button>
+      <button class="newProjectBtn" id="newProjectBtn" type="button">+ Nýtt verkefni</button>
     </div>
   </div>
 
@@ -142,6 +154,11 @@
     <div class="kpi"><div class="lbl">Sölumarkmið mánaðarins</div><div class="val" id="kpiTarget">—</div></div>
     <div class="kpi"><div class="lbl">Sala þessa mánaðar</div><div class="val" id="kpiSold">—</div></div>
     <div class="kpi"><div class="lbl">Millifærslur þennan mánuð</div><div class="val" id="kpiTransfers">—</div><div class="sub">Staðfestingargjöld + eftirstöðvar</div></div>
+  </div>
+
+  <div class="nextSteps" id="toReview" style="display:none;">
+    <h2>📝 Til yfirferðar — sjálfsafgreiðsla</h2>
+    <div class="nsRow" id="toReviewRow"></div>
   </div>
 
   <div class="nextSteps" id="nextSteps" style="display:none;">
@@ -179,8 +196,39 @@
 
     <div class="actions">
       <a id="dOpenPro" href="#" target="_blank">Opna í hönnuðinum →</a>
+      <button class="printBtn" id="dPrintBtn" type="button">🖨️ Prenta tilboð</button>
       <button class="close" id="dClose">Loka</button>
     </div>
+    <div class="printMsg" id="dPrintMsg"></div>
+  </div>
+</div>
+
+<div class="lpModalBg" id="npModalBg">
+  <div class="lpModal">
+    <button class="lpClose" id="npClose" type="button">✕</button>
+    <div class="lpTitle">Nýtt verkefni</div>
+
+    <div id="npStep1">
+      <input class="lpSearch" id="npSearch" type="text" placeholder="Leita að tengilið (nafn, netfang, sími)…" />
+      <div class="lpResults" id="npResults"></div>
+      <div class="npOr">— eða búa til nýjan tengilið —</div>
+      <div class="npFields">
+        <input id="npFornafn" type="text" placeholder="Fornafn *" />
+        <input id="npEftirnafn" type="text" placeholder="Eftirnafn" />
+        <input id="npNetfang" type="text" placeholder="Netfang" />
+        <input id="npSimi" type="text" placeholder="Sími" />
+      </div>
+      <button class="npPrimary" id="npUseNew" type="button">Nota þennan nýja tengilið →</button>
+    </div>
+
+    <div id="npStep2" style="display:none;">
+      <div class="npChosen" id="npChosenName"></div>
+      <button class="npPrimary" id="npDesignBtn" type="button">🎨 Teikna í hönnuði</button>
+      <button class="npPrimary npSecondary" id="npQuickBtn" type="button">📦 Fljótleg lína (engin teikning)</button>
+      <button class="npBack" id="npBackBtn" type="button">← Til baka</button>
+    </div>
+
+    <div class="npMsg" id="npMsg"></div>
   </div>
 </div>
 
@@ -198,6 +246,7 @@
 (function () {
   "use strict";
   var TAEKIFAERI = "tbl4LMXlQjp66RFKI";
+  var CONTACTS = "tblQ8zeUanriESWvL";
 
   var shellInfo = window.OfficeShell.boot("crm");
   if (!shellInfo) return;
@@ -244,6 +293,7 @@
         document.getElementById("board").style.display = "flex";
         render();
         renderNextSteps();
+        renderToReview();
         loadKpis();
       })
       .catch(function () { document.getElementById("loading").textContent = "Tókst ekki að sækja gögn."; });
@@ -313,6 +363,31 @@
     });
   }
 
+  // ---- Til yfirferðar — self-serve submissions still carrying "Sjálfsafgreiðsla — óyfirfarið ⚠️".
+  // Already in `records` (that field's in the public ALLOWED_FIELDS set, no extra fetch), since every
+  // self-serve submission starts in "Hönnun & Ráðgjöf" which is already one of the loaded stages. ----
+  function renderToReview() {
+    var pending = records.filter(function (r) { return r.fields["Sjálfsafgreiðsla — óyfirfarið ⚠️"]; });
+    pending.sort(function (a, b) { return (a.createdTime || "") < (b.createdTime || "") ? -1 : 1; });
+    var wrap = document.getElementById("toReview"), row = document.getElementById("toReviewRow");
+    if (!pending.length) { wrap.style.display = "none"; return; }
+    wrap.style.display = "block";
+    row.innerHTML = "";
+    pending.forEach(function (r) {
+      var f = r.fields;
+      var el = document.createElement("div");
+      el.className = "nsCard soon";
+      el.innerHTML =
+        '<div class="nm">' + esc(f["Heiti tækifæris / verkefnis"] || "(ónefnt)") + '</div>' +
+        '<div class="step">Sjálfsafgreiðsla — óyfirfarið</div>' +
+        '<div class="when">' + esc((r.createdTime || "").slice(0, 10)) + '</div>';
+      el.addEventListener("click", function () {
+        window.open("/skipuleggja?pro=" + r.id + (k ? "&k=" + encodeURIComponent(k) : ""), "_blank");
+      });
+      row.appendChild(el);
+    });
+  }
+
   // ---- KPI row — total value + count of open deals (always from the open-stage set,
   // regardless of the "sýna líka unnin/töpuð" toggle), plus two tiles grounded on real
   // date fields rather than guessed singleSelect choice strings: IS_SAME(..., TODAY(), "month")
@@ -364,6 +439,7 @@
     document.getElementById("dStale").textContent = (f["Verk ósnert dagar 📅"] || 0) + " dagar";
     document.getElementById("dFollow").textContent = f["Eftirfylgnisstaða❓"] || "—";
     document.getElementById("dOpenPro").href = "/skipuleggja?pro=" + r.id + (k ? "&k=" + encodeURIComponent(k) : "");
+    document.getElementById("dPrintMsg").textContent = "";
     setupLineItems(r);
 
     stageSel.onchange = function () {
@@ -612,6 +688,129 @@
     searchTerm = e.target.value.trim().toLowerCase();
     render();
   });
+
+  // ---- Prenta tilboð — same relay PRO mode's own Tilboð panel already uses (api/tilbod-print.js →
+  // generate-quote.js), reachable here too so a quick-quote (no design) project can print without ever
+  // opening the designer. Confirmed generate-quote.js works directly off Line Items, no drawing needed. ----
+  document.getElementById("dPrintBtn").addEventListener("click", function () {
+    if (!liCurrent) return;
+    var btn = document.getElementById("dPrintBtn"), msg = document.getElementById("dPrintMsg");
+    btn.disabled = true; msg.textContent = "Prenta…";
+    fetch("/api/tilbod-print", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recordId: liCurrent.id }) })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        if (!res.ok) throw new Error(res.d.error || "villa");
+        msg.textContent = "✓ Prentað í Airtable (Tilboð til sendingar)";
+      })
+      .catch(function (e) { msg.textContent = "Tókst ekki: " + e.message; })
+      .finally(function () { btn.disabled = false; });
+  });
+
+  // ---- "+ Nýtt verkefni" (2026-10-18) — staff creates a bare project for a picked or freshly-typed
+  // contact, then branches: full designer (PRO mode on the new id) or a quick line-item quote (stays
+  // right here, detail panel opens with Vörulínur expanded so staff can start typing lines immediately).
+  var npPicked = null; // { contactId } or { contact: {...} }
+  function npOpen() {
+    document.getElementById("npModalBg").classList.add("open");
+    document.getElementById("npStep1").style.display = "block";
+    document.getElementById("npStep2").style.display = "none";
+    document.getElementById("npMsg").textContent = "";
+    ["npSearch", "npFornafn", "npEftirnafn", "npNetfang", "npSimi"].forEach(function (id) { document.getElementById(id).value = ""; });
+    document.getElementById("npResults").innerHTML = "";
+    npPicked = null;
+    document.getElementById("npSearch").focus();
+  }
+  document.getElementById("newProjectBtn").addEventListener("click", npOpen);
+  document.getElementById("npClose").addEventListener("click", function () { document.getElementById("npModalBg").classList.remove("open"); });
+  document.getElementById("npModalBg").addEventListener("click", function (e) { if (e.target === e.currentTarget) e.currentTarget.classList.remove("open"); });
+
+  var npTimer = null;
+  document.getElementById("npSearch").addEventListener("input", function (e) {
+    clearTimeout(npTimer);
+    var term = e.target.value.trim();
+    var results = document.getElementById("npResults");
+    if (!term) { results.innerHTML = ""; return; }
+    npTimer = setTimeout(function () {
+      var esc4 = function (s) { return String(s).replace(/"/g, '\\"'); };
+      var fml = "OR(SEARCH(LOWER(\"" + esc4(term) + "\"),LOWER({Fornafn ⬅️}&\" \"&{Eftirnafn ➡️})),SEARCH(LOWER(\"" + esc4(term) + "\"),LOWER({Netfang 📧})),SEARCH(\"" + esc4(term) + "\",{Símanúmer ☎️}))";
+      api(CONTACTS, "filterByFormula=" + encodeURIComponent(fml) + "&maxRecords=8")
+        .then(function (d) {
+          var recs = d.records || [];
+          if (!recs.length) { results.innerHTML = '<div class="empty">Ekkert fannst</div>'; return; }
+          results.innerHTML = "";
+          recs.forEach(function (rec) {
+            var cf = rec.fields || {};
+            var name = (cf["Fornafn ⬅️"] || "") + " " + (cf["Eftirnafn ➡️"] || "");
+            var el = document.createElement("div");
+            el.className = "lpResult";
+            el.innerHTML = esc(name.trim() || "(ónefnt)") + '<div class="sub">' + esc([cf["Netfang 📧"], cf["Símanúmer ☎️"]].filter(Boolean).join(" · ")) + '</div>';
+            el.addEventListener("click", function () { npPicked = { contactId: rec.id }; npToStep2(name.trim()); });
+            results.appendChild(el);
+          });
+        });
+    }, 250);
+  });
+
+  document.getElementById("npUseNew").addEventListener("click", function () {
+    var fornafn = document.getElementById("npFornafn").value.trim();
+    if (!fornafn) { document.getElementById("npMsg").textContent = "Fornafn vantar."; return; }
+    npPicked = { contact: {
+      fornafn: fornafn,
+      eftirnafn: document.getElementById("npEftirnafn").value.trim(),
+      netfang: document.getElementById("npNetfang").value.trim(),
+      simi: document.getElementById("npSimi").value.trim(),
+    } };
+    npToStep2(fornafn + " (nýr tengiliður)");
+  });
+
+  function npToStep2(label) {
+    document.getElementById("npStep1").style.display = "none";
+    document.getElementById("npStep2").style.display = "block";
+    document.getElementById("npChosenName").textContent = label;
+  }
+  document.getElementById("npBackBtn").addEventListener("click", function () {
+    document.getElementById("npStep1").style.display = "block";
+    document.getElementById("npStep2").style.display = "none";
+  });
+
+  function npCreate() {
+    var body = npPicked.contactId ? { contactId: npPicked.contactId } : { contact: npPicked.contact };
+    return fetch("/api/staff-new-project?k=" + encodeURIComponent(k), {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); });
+  }
+  document.getElementById("npDesignBtn").addEventListener("click", function () {
+    var msg = document.getElementById("npMsg");
+    msg.textContent = "Býr til verkefni…";
+    npCreate().then(function (res) {
+      if (!res.ok) { msg.textContent = "Tókst ekki: " + (res.d.error || "villa"); return; }
+      location.href = "/skipuleggja?pro=" + res.d.recordId + (k ? "&k=" + encodeURIComponent(k) : "");
+    });
+  });
+  document.getElementById("npQuickBtn").addEventListener("click", function () {
+    var msg = document.getElementById("npMsg");
+    msg.textContent = "Býr til verkefni…";
+    npCreate().then(function (res) {
+      if (!res.ok) { msg.textContent = "Tókst ekki: " + (res.d.error || "villa"); return; }
+      document.getElementById("npModalBg").classList.remove("open");
+      openProjectById(res.d.recordId, true);
+    });
+  });
+
+  // ---- Deep-link ?open=<recordId> (used by the quick-quote redirect above, and shareable in general) ----
+  function openProjectById(id, expandLi) {
+    api(TAEKIFAERI + "/" + id).then(function (rec) {
+      if (!rec || rec.error) return;
+      if (!records.some(function (r) { return r.id === rec.id; })) records.push(rec);
+      openDetail(rec);
+      if (expandLi) {
+        var btn = document.getElementById("liToggleBtn");
+        if (btn && !document.getElementById("liBody").classList.contains("open")) btn.click();
+      }
+    });
+  }
+  var openParam = new URLSearchParams(location.search).get("open");
+  if (openParam) openProjectById(openParam, false);
 
   load();
 })();
