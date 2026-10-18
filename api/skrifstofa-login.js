@@ -44,6 +44,7 @@ const TITLE_ROLES = {
   "Rekstrarstjóri": ["allt"],
   "Verkstjóri": ["allt"],
   "Sölumaður / Arkitekt": ["allt"],
+  "Framleiðslustjóri": ["allt"],
 };
 
 export function skrifstofaDayToken(secret, employeeId, offsetDays = 0) {
