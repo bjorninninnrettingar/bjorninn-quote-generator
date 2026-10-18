@@ -6,6 +6,13 @@
 <meta name="robots" content="noindex" />
 <title>Skrifstofa — Björninn</title>
 <link rel="icon" href="/icons/icon-192.png" />
+<script>
+// Apply a saved dark-theme choice before first paint (avoids a light→dark flash) — same pattern
+// app.html/verk.html already use for the floor PWA, see office-shell.js's theme comment.
+(function () {
+  try { if (localStorage.getItem("bjorninn:skrifstofa:theme") === "dark") document.documentElement.setAttribute("data-theme", "dark"); } catch (e) {}
+})();
+</script>
 <style>
   /* skrifstofa.html — the office hub, redesigned 2026-10-17 into a "Business
      Central"-style dashboard per the user's explicit direction: dense,
@@ -20,6 +27,12 @@
     --accent:#0f6cbd; --accent-soft:#e8f1fb;
     --good:#1a7d36; --good-soft:#e5f6ea; --warn:#9a6700; --warn-soft:#fdf2d9; --bad:#c4291c; --bad-soft:#fbe9e7;
     --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  :root[data-theme="dark"] {
+    --bg:#11151c; --surface:#1a1f28; --line:#2a3140;
+    --text:#e7eaf0; --muted:#9aa3ad; --dim:#6b7380;
+    --accent:#3b9eff; --accent-soft:#15283b;
+    --good:#4caf6e; --good-soft:#15291c; --warn:#e3b341; --warn-soft:#332a12; --bad:#f2766b; --bad-soft:#3a1c18;
   }
   * { box-sizing:border-box; margin:0; padding:0; }
   html,body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; line-height:1.4; }

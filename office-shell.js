@@ -23,6 +23,7 @@
   var DENSITY_KEY = "bjorninn:skrifstofa:density";
   var NAV_ORDER_KEY = "bjorninn:skrifstofa:navOrder";
   var COLLAPSED_KEY = "bjorninn:skrifstofa:collapsed";
+  var THEME_KEY = "bjorninn:skrifstofa:theme";
 
   var NAV = [
     { id: "home",   icon: "🏠", label: "Yfirlit",         roles: ["allt"], href: "/skrifstofa" },
@@ -34,6 +35,16 @@
   var ROLE_LABELS = { allt: "Allt", skipulag: "Skipulag", sala: "Sala", forskipulag: "Forskipulag" };
 
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }); }
+  // Collapsed-sidebar initials (2026-10-18) — shown under the 🐻 instead of the full name once
+  // the sidebar is folded to icons-only. First + last word's first letter (e.g. "Rakel Hulda
+  // Bjarkadóttir" → "RB"); a one-word name just uses its own first letter.
+  function initialsOf(name) {
+    var words = String(name || "").trim().split(/\s+/).filter(Boolean);
+    if (!words.length) return "";
+    var first = words[0].charAt(0);
+    var last = words.length > 1 ? words[words.length - 1].charAt(0) : "";
+    return (first + last).toUpperCase();
+  }
 
   function getK() {
     var fromUrl = new URLSearchParams(location.search).get("k");
@@ -47,6 +58,19 @@
 
   function getDensity() { try { return localStorage.getItem(DENSITY_KEY) || "normal"; } catch (e) { return "normal"; } }
   function applyDensity(v) { try { document.documentElement.setAttribute("data-os-density", v); } catch (e) {} }
+
+  // Dark/light theme (2026-10-18) — same `data-theme` attribute + localStorage pattern app.html/
+  // verk.html already use for the floor PWA (those are dark-by-default with a `:root[data-theme=
+  // "light"]` override; office pages are the other way round — light-by-default with a
+  // `:root[data-theme="dark"]` override — but it's the same mechanism, just each page's own
+  // `:root{}` decides what "no attribute" means). office-shell.js only owns the toggle +
+  // persistence here, not the palette — each consuming page carries its own dark values.
+  // Each page must ALSO set this before first paint via its own inline <head> script (same as
+  // app.html/verk.html) — by the time office-shell.js runs (loaded in <body>), the page has
+  // already painted once; this function alone would flash light-then-dark on every load.
+  function getTheme() { try { return localStorage.getItem(THEME_KEY) || "light"; } catch (e) { return "light"; } }
+  function applyTheme(v) { try { document.documentElement.setAttribute("data-theme", v); } catch (e) {} }
+  function setTheme(v) { try { localStorage.setItem(THEME_KEY, v); } catch (e) {} applyTheme(v); }
   function setDensity(v) { try { localStorage.setItem(DENSITY_KEY, v); } catch (e) {} applyDensity(v); }
 
   function getCollapsed() { try { return localStorage.getItem(COLLAPSED_KEY) === "1"; } catch (e) { return false; } }
@@ -99,6 +123,9 @@
       'html[data-os-collapsed="1"] .sidebar{width:72px !important;}' +
       'html[data-os-collapsed="1"] .osLogo{display:none;}' +
       'html[data-os-collapsed="1"] .osBrand::before{content:"🐻";display:block;font-size:1.6rem;text-align:center;}' +
+      '.osInitials{display:none;}' +
+      // Collapsed-only: the signed-in person's initials, right under the 🐻 — see initialsOf().
+      'html[data-os-collapsed="1"] .osInitials{display:block;margin-top:4px;font-size:.62rem;font-weight:700;letter-spacing:.04em;text-align:center;color:#8aa4c7;}' +
       'html[data-os-collapsed="1"] .osUser,html[data-os-collapsed="1"] .osLabel,html[data-os-collapsed="1"] .searchWrap,html[data-os-collapsed="1"] .searchResults{display:none !important;}' +
       'html[data-os-collapsed="1"] .sidebar nav a{justify-content:center;padding:9px 0 !important;}' +
       'html[data-os-collapsed="1"] .osBottomRow{justify-content:center;}' +
@@ -116,7 +143,16 @@
       '.osSeg{display:flex;border:1px solid #e1e4e8;border-radius:9px;overflow:hidden;}' +
       '.osSegBtn{all:unset;box-sizing:border-box;flex:1;text-align:center;padding:8px 10px;font-size:.82rem;cursor:pointer;color:#5d6670;}' +
       '.osSegBtn.active{background:#0f6cbd;color:#fff;font-weight:700;}' +
-      '.osMuted{font-size:.82rem;color:#9aa3ad;}';
+      '.osMuted{font-size:.82rem;color:#9aa3ad;}' +
+      // Dark theme (2026-10-18) — this shared chrome CSS doesn't go through a page's own `:root`
+      // variables, so it gets its own override block here instead.
+      'html[data-theme="dark"] .osModal{background:#1b2029;color:#e7eaf0;}' +
+      'html[data-theme="dark"] .osModalClose{color:#9aa3ad;}' +
+      'html[data-theme="dark"] .osSection h3{color:#9aa3ad;}' +
+      'html[data-theme="dark"] .osBadge{background:#2a3140;color:#c7cdd6;}' +
+      'html[data-theme="dark"] .osSeg{border-color:#2a3140;}' +
+      'html[data-theme="dark"] .osSegBtn{color:#9aa3ad;}' +
+      'html[data-theme="dark"] .osSegBtn.active{background:#3b9eff;color:#0b1016;}';
     document.head.appendChild(el);
   }
 
@@ -133,13 +169,19 @@
     var roles = record.roles || [];
     var badges = roles.map(function (r) { return '<span class="osBadge">' + esc(ROLE_LABELS[r] || r) + '</span>'; }).join("");
     var density = getDensity();
+    var theme = getTheme();
     bg.innerHTML =
       '<div class="osModal">' +
         '<button class="osModalClose" id="osModalClose" type="button">✕</button>' +
         '<h2>Stillingar</h2>' +
         '<div class="osSection"><h3>Þú</h3><div class="osWhoName">' + esc(record.name || "") + '</div><div class="osBadges">' + badges + '</div></div>' +
         '<div class="osSection"><h3>Útlit</h3>' +
-          '<div class="osMuted" style="margin-bottom:8px;">Þéttleiki hliðarslár</div>' +
+          '<div class="osMuted" style="margin-bottom:8px;">Þema</div>' +
+          '<div class="osSeg" id="osThemeSeg">' +
+            '<button class="osSegBtn' + (theme === "light" ? " active" : "") + '" data-v="light" type="button">☀️ Ljóst</button>' +
+            '<button class="osSegBtn' + (theme === "dark" ? " active" : "") + '" data-v="dark" type="button">🌙 Dökkt</button>' +
+          '</div>' +
+          '<div class="osMuted" style="margin:14px 0 8px;">Þéttleiki hliðarslár</div>' +
           '<div class="osSeg" id="osDensitySeg">' +
             '<button class="osSegBtn' + (density === "normal" ? " active" : "") + '" data-v="normal" type="button">Venjulegt</button>' +
             '<button class="osSegBtn' + (density === "compact" ? " active" : "") + '" data-v="compact" type="button">Þétt</button>' +
@@ -150,6 +192,12 @@
       '</div>';
     bg.classList.add("open");
     document.getElementById("osModalClose").addEventListener("click", function () { bg.classList.remove("open"); });
+    document.getElementById("osThemeSeg").addEventListener("click", function (e) {
+      var btn = e.target.closest(".osSegBtn");
+      if (!btn) return;
+      setTheme(btn.dataset.v);
+      document.querySelectorAll("#osThemeSeg .osSegBtn").forEach(function (b) { b.classList.toggle("active", b === btn); });
+    });
     document.getElementById("osDensitySeg").addEventListener("click", function (e) {
       var btn = e.target.closest(".osSegBtn");
       if (!btn) return;
@@ -206,15 +254,18 @@
     injectStyle();
     applyDensity(getDensity());
     applyCollapsed(getCollapsed());
+    applyTheme(getTheme());
     var k = getK();
     var roles = record.roles || [];
 
     var topEl = document.getElementById("officeSidebarTop");
     if (topEl) {
       topEl.className = "osBrand";
+      topEl.title = record.name || "";
       topEl.innerHTML =
         '<img class="osLogo" src="/logo-bjorninn.png" alt="Björninn Innréttingar" />' +
-        '<div class="osUser">' + esc(record.name || "") + '</div>';
+        '<div class="osUser">' + esc(record.name || "") + '</div>' +
+        '<div class="osInitials">' + esc(initialsOf(record.name)) + '</div>';
     }
 
     var navEl = document.getElementById("officeNav");
@@ -263,5 +314,5 @@
     return { k: k, record: session.record };
   }
 
-  root.OfficeShell = { boot: boot, getK: getK, getSession: getSession, NAV: NAV, renderChrome: renderChrome, applyDensity: applyDensity, getDensity: getDensity };
+  root.OfficeShell = { boot: boot, getK: getK, getSession: getSession, NAV: NAV, renderChrome: renderChrome, applyDensity: applyDensity, getDensity: getDensity, applyTheme: applyTheme, getTheme: getTheme };
 })(window);
