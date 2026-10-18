@@ -47,6 +47,15 @@
   .pageHd a { color:var(--accent); text-decoration:none; font-size:.85rem; }
 
   /* ---- Kanban ---- */
+  .attnStrip { margin-bottom:18px; }
+  .attnStrip h2 { font-size:.78rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.02em; margin-bottom:8px; }
+  .nsRow { display:flex; gap:10px; overflow-x:auto; padding-bottom:4px; }
+  .nsCard { flex:0 0 220px; background:var(--surface); border-radius:12px; padding:11px 13px; box-shadow:0 1px 3px rgba(0,0,0,.05); cursor:pointer; text-decoration:none; color:var(--text); display:block; border-left:3px solid var(--bad); }
+  .nsCard .nm { font-weight:600; font-size:.85rem; }
+  .nsCard .sub { font-size:.78rem; color:var(--muted); margin-top:4px; }
+  .pontunChip { font-size:.62rem; font-weight:700; background:#f1e9fd; color:#8250df; padding:1px 6px; border-radius:999px; margin-left:5px; white-space:nowrap; }
+  .colWarn { color:var(--bad); font-weight:700; }
+
   .board { display:flex; gap:14px; overflow-x:auto; padding-bottom:10px; }
   .col { flex:0 0 240px; }
   .col h2 { font-size:.78rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.02em; margin-bottom:8px; display:flex; align-items:center; gap:6px; }
@@ -186,6 +195,17 @@
     </div>
 
     <div id="loading" class="loading">Sæki…</div>
+
+    <div class="attnStrip" id="attnWrap" style="display:none;">
+      <h2>⚠️ Þarfnast athygli — ósnert &gt;5 daga</h2>
+      <div class="nsRow" id="attnRow"></div>
+    </div>
+
+    <div class="attnStrip" id="deliveryWrap" style="display:none;">
+      <h2>📅 Næstu afhendingar</h2>
+      <div class="nsRow" id="deliveryRow"></div>
+    </div>
+
     <div class="board" id="board" style="display:none;"></div>
     <div id="detail" style="display:none;"></div>
   </div>
@@ -280,18 +300,69 @@
     document.getElementById("loading").style.display = "block";
     var fml = '{Staða í söluferli}="🏆 Tækifæri unnið"';
     Promise.all([
-      api(TAEKIFAERI, "filterByFormula=" + encodeURIComponent(fml) + "&fields%5B%5D=Heiti%20t%C3%A6kif%C3%A6ris%20%2F%20verkefnis&fields%5B%5D=Sta%C3%B0a%20%C3%AD%20skipulagi&fields%5B%5D=Sta%C3%B0a%20%C3%AD%20framlei%C3%B0slu&pageSize=100"),
+      api(TAEKIFAERI, "filterByFormula=" + encodeURIComponent(fml) + "&fields%5B%5D=Heiti%20t%C3%A6kif%C3%A6ris%20%2F%20verkefnis&fields%5B%5D=Sta%C3%B0a%20%C3%AD%20skipulagi&fields%5B%5D=Sta%C3%B0a%20%C3%AD%20framlei%C3%B0slu&fields%5B%5D=" + encodeURIComponent("Verk ósnert dagar 📅") + "&fields%5B%5D=" + encodeURIComponent("Áætlaður afhendingardagur Björninn (internal)") + "&pageSize=100"),
       api(PANTADIR, "pageSize=100")
     ]).then(function (res) {
       document.getElementById("loading").style.display = "none";
       document.getElementById("board").style.display = "flex";
-      renderBoard(res[0].records || [], res[1].records || []);
+      var projects = res[0].records || [];
+      renderBoard(projects, res[1].records || []);
+      renderAttention(projects);
+      renderDelivery(projects);
     });
   }
 
+  // ---- "Þarfnast athygli" — reuses the same "Verk ósnert dagar 📅" field CRM's own stale-pill
+  // already uses, just a tighter threshold (5 days, not 14) since active skipulag prep moves faster
+  // than early-stage sales follow-up. A rule of thumb, easy to retune if it's noisy in practice. ----
+  var STALE_DAYS = 5;
+  function renderAttention(projects) {
+    var stale = projects.filter(function (p) { return (p.fields["Verk ósnert dagar 📅"] || 0) >= STALE_DAYS; });
+    stale.sort(function (a, b) { return (b.fields["Verk ósnert dagar 📅"] || 0) - (a.fields["Verk ósnert dagar 📅"] || 0); });
+    var wrap = document.getElementById("attnWrap"), row = document.getElementById("attnRow");
+    if (!stale.length) { wrap.style.display = "none"; return; }
+    wrap.style.display = "block";
+    row.innerHTML = "";
+    stale.slice(0, 12).forEach(function (p) {
+      var a = document.createElement("a");
+      a.className = "nsCard";
+      a.href = "/ferli?recordId=" + p.id + (k ? "&k=" + encodeURIComponent(k) : "");
+      a.innerHTML = '<div class="nm">' + esc(p.fields["Heiti tækifæris / verkefnis"] || "") + '</div>' +
+        '<div class="sub">' + Math.round(p.fields["Verk ósnert dagar 📅"] || 0) + ' daga ósnert</div>';
+      row.appendChild(a);
+    });
+  }
+
+  // ---- "Næstu afhendingar" — chronological, soonest first, across every project currently on
+  // this board (not just Pöntunarlisti/Klárt — a project can have a real delivery date set early). ----
+  function renderDelivery(projects) {
+    var DATE_FIELD = "Áætlaður afhendingardagur Björninn (internal)";
+    var withDate = projects.filter(function (p) { return p.fields[DATE_FIELD]; });
+    withDate.sort(function (a, b) { return a.fields[DATE_FIELD] < b.fields[DATE_FIELD] ? -1 : 1; });
+    var wrap = document.getElementById("deliveryWrap"), row = document.getElementById("deliveryRow");
+    if (!withDate.length) { wrap.style.display = "none"; return; }
+    wrap.style.display = "block";
+    row.innerHTML = "";
+    withDate.slice(0, 12).forEach(function (p) {
+      var a = document.createElement("a");
+      a.className = "nsCard";
+      a.style.borderLeftColor = "#0f6cbd";
+      a.href = "/ferli?recordId=" + p.id + (k ? "&k=" + encodeURIComponent(k) : "");
+      a.innerHTML = '<div class="nm">' + esc(p.fields["Heiti tækifæris / verkefnis"] || "") + '</div>' +
+        '<div class="sub">' + esc(p.fields[DATE_FIELD]) + '</div>';
+      row.appendChild(a);
+    });
+  }
+
+  var BOTTLENECK_COUNT = 10;
+  function hasOpenOrderFor(name, openOrderNames) {
+    return Object.keys(openOrderNames).some(function (label) { return label.indexOf(name) === 0; });
+  }
   function renderBoard(projects, orders) {
     // Which project NAMES still have an open (not "Komið í hús") order —
-    // used to split "Klárt til framleiðslu" into that column vs Pöntunarlisti.
+    // used to split "Klárt til framleiðslu" into that column vs Pöntunarlisti, AND (2026-10-18) to
+    // show a small 📦 chip on ANY card with an open order, not just the ones in that 5th column —
+    // a project still mid-skipulag can just as easily be blocked on a slow supplier.
     var openOrderNames = {};
     orders.forEach(function (o) {
       var f = o.fields || {};
@@ -316,8 +387,7 @@
       var stNow = f["Staða í skipulagi"] || "";
       var name = f["Heiti tækifæris / verkefnis"] || "";
       if (stNow === "Klárt til framleiðslu") {
-        var hasOpenOrder = Object.keys(openOrderNames).some(function (label) { return label.indexOf(name) === 0; });
-        if (hasOpenOrder) cols[3].items.push(p); // else: skipulag done, no open orders — graduates off the board
+        if (hasOpenOrderFor(name, openOrderNames)) cols[3].items.push(p); // else: skipulag done, no open orders — graduates off the board
       } else {
         var idx = STAGES.findIndex(function (s) { return s.match === stNow; });
         if (idx === -1) idx = 0; // empty/unknown Staða í skipulagi → For-skipulag
@@ -328,7 +398,11 @@
     cols.forEach(function (col) {
       var el = document.createElement("div");
       el.className = "col";
-      el.innerHTML = '<h2><span class="colorDot" style="background:' + col.color + '"></span><span class="colLabel">' + esc(col.label) + '</span><span class="cnt">' + col.items.length + '</span></h2><div class="cards"></div>';
+      // Bottleneck flag (2026-10-18, rule of thumb >10 — easy to retune) — a loud visual nudge that
+      // a column is piling up, not a hard limit on anything.
+      var cntCls = col.items.length > BOTTLENECK_COUNT ? "cnt colWarn" : "cnt";
+      var cntTitle = col.items.length > BOTTLENECK_COUNT ? ' title="Margt hér — gæti verið flöskuháls"' : "";
+      el.innerHTML = '<h2><span class="colorDot" style="background:' + col.color + '"></span><span class="colLabel">' + esc(col.label) + '</span><span class="' + cntCls + '"' + cntTitle + '>' + (col.items.length > BOTTLENECK_COUNT ? "⚠️ " : "") + col.items.length + '</span></h2><div class="cards"></div>';
       var cardsEl = el.querySelector(".cards");
       if (!col.items.length) cardsEl.innerHTML = '<div class="empty">Ekkert hér</div>';
       col.items.forEach(function (p) {
@@ -336,7 +410,8 @@
         a.className = "kcard";
         a.style.borderLeft = "3px solid " + col.color;
         a.href = "/ferli?recordId=" + p.id + (k ? "&k=" + encodeURIComponent(k) : "");
-        a.textContent = p.fields["Heiti tækifæris / verkefnis"] || "(ónefnt)";
+        var name = p.fields["Heiti tækifæris / verkefnis"] || "(ónefnt)";
+        a.innerHTML = esc(name) + (col.id !== "pontun" && hasOpenOrderFor(name, openOrderNames) ? '<span class="pontunChip">📦 pöntun opin</span>' : "");
         cardsEl.appendChild(a);
       });
       board.appendChild(el);
