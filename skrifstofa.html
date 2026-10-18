@@ -215,8 +215,8 @@
 
     <div class="cashRow" id="cashRow">
       <div class="kpi cashKpi"><div class="lbl">📦 Væntanlegar efnispantanir</div><div class="val" id="cashUpcoming">—</div><div class="sub" id="cashUpcomingSub"></div></div>
-      <div class="kpi cashKpi placeholder2"><div class="lbl">🧾 Næsta VSK-skil</div><div class="val" id="cashVat">—</div><div class="sub" id="cashVatSub"></div></div>
-      <div class="kpi cashKpi placeholder2"><div class="lbl">💸 Næstu laun</div><div class="val" id="cashPayday">—</div><div class="sub" id="cashPaydaySub"></div></div>
+      <div class="kpi cashKpi" id="cashVatTile"><div class="lbl">🧾 Næsta VSK-skil</div><div class="val" id="cashVat">—</div><div class="sub" id="cashVatSub"></div></div>
+      <div class="kpi cashKpi" id="cashPaydayTile"><div class="lbl">💸 Næstu laun</div><div class="val" id="cashPayday">—</div><div class="sub" id="cashPaydaySub"></div></div>
     </div>
 
     <div class="kpiRow" id="kpiRow">
@@ -313,14 +313,12 @@
   var EYDUBLAD = "tbl0WcyHhz63pSzZX";
   var CONTACTS = "tblQ8zeUanriESWvL";
 
-  // Björninn's real VAT filing / payday dates aren't in Airtable anywhere — these are the one
-  // thing in this round of work that had to be supplied by hand rather than derived. Update here
-  // once confirmed; until then the two cash tiles show a plain "ekki stillt" placeholder.
-  // VAT_SCHEDULE = { dates: ["2026-12-05", "2027-02-05", ...] } — Icelandic VAT periods are
-  // bi-monthly pairs with their own due-date offset, not a clean "every N days" rule, so this
-  // takes explicit upcoming due dates rather than a formula that might be wrong.
-  var VAT_SCHEDULE = null;
-  var PAYDAY_SCHEDULE = null; // { dayOfMonth: 1 } — paid on the 1st of each month, for example
+  // Björninn's real VAT filing / payday schedule (confirmed by the user, 2026-10-18) — standard
+  // bi-monthly Icelandic VSK, due the 5th of Jan/Mar/May/Jul/Sep/Nov; payday is the last calendar
+  // day of each month. Neither lives in Airtable, so these two configs are the one thing in this
+  // round of work supplied by hand rather than derived.
+  var VAT_SCHEDULE = { months: [1, 3, 5, 7, 9, 11], day: 5 };
+  var PAYDAY_SCHEDULE = { lastDayOfMonth: true };
 
   function loadSession() { try { return JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); } catch (e) { return null; } }
   function saveSession(s) { try { localStorage.setItem(SESSION_KEY, JSON.stringify(s)); } catch (e) {} }
@@ -441,20 +439,24 @@
     var target = new Date(d); target.setHours(0, 0, 0, 0);
     return Math.round((target - today) / 86400000);
   }
-  function nextFromDates(dates) {
+  // Next occurrence of {months, day} on or after today — VAT_SCHEDULE's bi-monthly due dates
+  // repeat every year, so this is computed from the rule rather than a finite hand-kept list.
+  function nextVat(cfg) {
+    if (!cfg) return null;
     var today = new Date(); today.setHours(0, 0, 0, 0);
-    var upcoming = (dates || [])
-      .map(function (s) { return new Date(s + "T00:00:00"); })
-      .filter(function (d) { return d >= today; })
-      .sort(function (a, b) { return a - b; });
-    return upcoming[0] || null;
+    for (var y = today.getFullYear(); y <= today.getFullYear() + 1; y++) {
+      for (var i = 0; i < cfg.months.length; i++) {
+        var d = new Date(y, cfg.months[i] - 1, cfg.day);
+        if (d >= today) return d;
+      }
+    }
+    return null;
   }
   function nextPayday(cfg) {
     if (!cfg) return null;
-    var today = new Date();
-    var d = new Date(today.getFullYear(), today.getMonth(), cfg.dayOfMonth);
-    if (d < today) d = new Date(today.getFullYear(), today.getMonth() + 1, cfg.dayOfMonth);
-    return d;
+    var today = new Date(); today.setHours(0, 0, 0, 0);
+    // day 0 of next month = the last calendar day of this month (handles 28/29/30/31 correctly)
+    return new Date(today.getFullYear(), today.getMonth() + 1, 0);
   }
   function fmtCountdown(d) {
     if (!d) return null;
@@ -477,11 +479,13 @@
         document.getElementById("cashUpcomingSub").textContent = recs.length + " pantanir — " + kr(soon) + " innan 7 daga";
       });
 
-    var vat = nextFromDates(VAT_SCHEDULE ? VAT_SCHEDULE.dates : null);
+    var vat = nextVat(VAT_SCHEDULE);
+    document.getElementById("cashVatTile").classList.toggle("placeholder2", !vat);
     document.getElementById("cashVat").textContent = fmtCountdown(vat) || "Ekki stillt";
     document.getElementById("cashVatSub").textContent = vat ? vat.toLocaleDateString("is-IS") : "Spyrðu Claude um VSK-tímabil Björnsins";
 
     var payday = nextPayday(PAYDAY_SCHEDULE);
+    document.getElementById("cashPaydayTile").classList.toggle("placeholder2", !payday);
     document.getElementById("cashPayday").textContent = fmtCountdown(payday) || "Ekki stillt";
     document.getElementById("cashPaydaySub").textContent = payday ? payday.toLocaleDateString("is-IS") : "Spyrðu Claude um útborgunardag";
   }
