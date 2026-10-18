@@ -74,8 +74,10 @@
   .col h2 .colLabel { flex:1; }
   .col h2 .cnt { color:var(--dim); font-weight:500; }
   .col h2 .colorDot { width:8px; height:8px; border-radius:50%; flex:none; }
-  .cards { display:flex; flex-direction:column; gap:8px; }
+  .cards { display:flex; flex-direction:column; gap:8px; min-height:30px; border-radius:10px; transition:background .1s; }
+  .cards.dropTarget.dragover { background:rgba(130,80,223,.1); outline:2px dashed #8250df; outline-offset:-2px; }
   .kcard { background:var(--surface); border-radius:12px; padding:11px 13px; box-shadow:0 1px 3px rgba(0,0,0,.05); text-decoration:none; color:var(--text); display:block; font-size:.86rem; font-weight:600; }
+  .kcard.dragging { opacity:.4; }
   .empty { text-align:center; color:var(--muted); padding:16px 0; font-size:.8rem; }
   .loading { text-align:center; color:var(--muted); padding:60px 0; }
 
@@ -447,11 +449,46 @@
         a.href = "/ferli?recordId=" + p.id + (k ? "&k=" + encodeURIComponent(k) : "");
         var name = p.fields["Heiti tækifæris / verkefnis"] || "(ónefnt)";
         a.innerHTML = esc(name) + (col.id !== "pontun" && hasOpenOrderFor(name, openOrderNames) ? '<span class="pontunChip">📦 pöntun opin</span>' : "");
+        // Drag-and-drop (2026-10-18): the only stage a card can be dragged INTO here is
+        // "Pöntunarlisti" — it's the one transition ("Klárt til framleiðslu") the office
+        // sets by hand; every earlier column is filled by real Airtable automations
+        // (Keyra skipulag / Yfirfara 3.0 / Pöntunarlisti) running, not a status flip, so
+        // there's nothing honest to do if a card is dropped there. Same confirm wording
+        // as the per-project "Merkja Klárt til framleiðslu" button.
+        if (col.id !== "pontun") {
+          a.draggable = true;
+          a.addEventListener("dragstart", function (e) {
+            draggingProj = p;
+            a.classList.add("dragging");
+            e.dataTransfer.effectAllowed = "move";
+            e.dataTransfer.setData("text/plain", p.id);
+          });
+          a.addEventListener("dragend", function () { a.classList.remove("dragging"); draggingProj = null; });
+        }
         cardsEl.appendChild(a);
       });
+      if (col.id === "pontun") {
+        cardsEl.classList.add("dropTarget");
+        cardsEl.addEventListener("dragover", function (e) {
+          if (!draggingProj) return;
+          e.preventDefault();
+          cardsEl.classList.add("dragover");
+        });
+        cardsEl.addEventListener("dragleave", function () { cardsEl.classList.remove("dragover"); });
+        cardsEl.addEventListener("drop", function (e) {
+          e.preventDefault();
+          cardsEl.classList.remove("dragover");
+          var p = draggingProj;
+          if (!p) return;
+          var pname = p.fields["Heiti tækifæris / verkefnis"] || "(ónefnt)";
+          if (!confirm('Merkja "' + pname + '" Klárt til framleiðslu?')) return;
+          apiPatch(TAEKIFAERI + "/" + p.id, { "Staða í skipulagi": "Klárt til framleiðslu" }).then(loadBoard);
+        });
+      }
       board.appendChild(el);
     });
   }
+  var draggingProj = null;
 
   // ======================= DETAIL =======================
   function loadDetail(id) {
