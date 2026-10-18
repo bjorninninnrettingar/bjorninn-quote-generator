@@ -92,6 +92,19 @@ test("editing an existing Tengiliðir/Fyrirtæki/Útfærslur/Efnislisti record n
   }
 });
 
+test("Tengiliðir/Fyrirtæki by-id reads work (crm.html + the job popup resolve a linked contact/company this way) — a STRICT_FILTERS entry must not also block legitimate record-id lookups", async () => {
+  for (const t of ["tblQ8zeUanriESWvL", "tbl2akoCETBx9S1SK"]) {
+    const res = await get({ path: t + "/recAAAAAAAAAAAAAA", k: "verk-secret" });
+    assert.equal(res.statusCode, 200, t);
+  }
+});
+
+test("Starfsmenn/Fjarvistir by-id reads stay refused — the PIN-filter / Starfsmaður=X shape is the only intended way in, even with a real record id", async () => {
+  for (const t of ["tblhglpjQkczdG1AY", "tbl3e5o0Klv9RcNQ4"]) {
+    assert.equal((await get({ path: t + "/recAAAAAAAAAAAAAA" })).statusCode, 403, t);
+  }
+});
+
 test("Tengiliðir/Fyrirtæki search: only the exact SEARCH() shape, never TRUE() even with the key", async () => {
   for (const t of ["tblQ8zeUanriESWvL", "tbl2akoCETBx9S1SK"]) {
     assert.equal((await get({ path: t, filterByFormula: "TRUE()", k: "verk-secret" })).statusCode, 403, t);

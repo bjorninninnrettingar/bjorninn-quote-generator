@@ -84,19 +84,58 @@
   .kpi .lbl { font-size:.76rem; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; font-weight:600; }
   .kpi .val { font-size:1.5rem; font-weight:700; margin-top:5px; }
   .kpi .sub { font-size:.78rem; color:var(--muted); margin-top:3px; }
+  .kpi.placeholder2 .val { color:var(--dim); font-size:1.1rem; }
 
-  .board { display:grid; grid-template-columns:1.3fr 1fr; gap:16px; align-items:start; }
+  /* Cash info row (2026-10-18) — "at the top", per the user. Væntanlegar efnispantanir is live
+     (same Pantaðir listar query the old "Innkaup — ólokin verk" tile used, just reframed as a
+     projection: total + how much of it is due within 7 days). VAT/payday are graceful
+     placeholders until Björninn's real filing/payday schedule is configured — see VAT_SCHEDULE/
+     PAYDAY_SCHEDULE below; nothing in Airtable encodes those dates, so they can't be derived. */
+  .cashRow { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:14px; }
+  .cashKpi .lbl { display:flex; align-items:center; gap:6px; }
+
+  /* Verk í vinnslu — full-width 8-stage kanban (2026-10-18; was a flat list sharing a row with
+     the side stack). Stage order mirrors the real pipeline: 4 skipulag stages, then 4
+     framleiðsla stages — a confirmed, not-yet-delivered job always lands in exactly one. */
+  .verkBoard { display:flex; gap:12px; overflow-x:auto; padding-bottom:6px; margin-bottom:20px; }
+  .verkCol { flex:0 0 230px; background:var(--surface); border:1px solid var(--line); border-radius:10px; overflow:hidden; display:flex; flex-direction:column; }
+  .verkCol h3 { font-size:.76rem; font-weight:700; padding:10px 12px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:7px; white-space:nowrap; }
+  .verkCol h3 .dot3 { width:8px; height:8px; border-radius:50%; flex:none; }
+  .verkCol h3 .cnt { color:var(--muted); font-weight:500; margin-left:auto; }
+  .verkCol .body { max-height:360px; overflow:auto; }
+  .verkCard { padding:9px 12px; border-bottom:1px solid var(--line); font-size:.82rem; cursor:pointer; }
+  .verkCol .body > .verkCard:last-child { border-bottom:none; }
+  .verkCard:hover { background:var(--bg); }
+  .verkCard .when { font-size:.72rem; color:var(--dim); margin-top:2px; }
+
+  .bottomRow { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; align-items:start; }
+
+  /* Starfsmenn (2026-10-18, Eigandi-only — see api/starfsmenn-overview.js) */
+  .stRow { display:flex; align-items:center; gap:10px; padding:9px 16px; border-bottom:1px solid var(--line); font-size:.85rem; cursor:pointer; }
+  .stRow:last-child { border-bottom:none; }
+  .stRow:hover { background:var(--bg); }
+  .stAvatar { width:30px; height:30px; border-radius:50%; background:var(--accent-soft); color:var(--accent); display:flex; align-items:center; justify-content:center; font-size:.72rem; font-weight:700; flex:none; overflow:hidden; }
+  .stAvatar img { width:100%; height:100%; object-fit:cover; }
+  .stName { font-weight:600; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .stClock { width:8px; height:8px; border-radius:50%; background:var(--line); flex:none; }
+  .stClock.in { background:var(--good); }
+  .stHours { font-size:.76rem; color:var(--muted); white-space:nowrap; }
+
   .panel { background:var(--surface); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
   .panel h2 { font-size:.82rem; font-weight:700; padding:12px 16px; border-bottom:1px solid var(--line); color:var(--text); display:flex; justify-content:space-between; align-items:center; }
   .panel h2 .cnt { color:var(--muted); font-weight:500; }
   .panel h2.qfHead { background:#e23d28; color:#fff; border-bottom:none; }
   .panel h2.qfHead .cnt { color:#ffd9d2; }
   .panel h2.qfHead button { background:rgba(255,255,255,.22); border:none; color:#fff; width:22px; height:22px; border-radius:50%; font-size:1rem; line-height:1; cursor:pointer; }
-  .panel h2.prodHead { background:#e9b000; color:#fff; border-bottom:none; }
-  .panel h2.prodHead .cnt { color:#fff6d9; }
-  .qfForm { display:flex; gap:6px; padding:10px 14px; border-bottom:1px solid var(--line); }
-  .qfForm input { flex:1; padding:6px 9px; border-radius:6px; border:1px solid var(--line); background:var(--bg); color:var(--text); font:inherit; font-size:.82rem; }
-  .qfForm button { background:var(--text); color:var(--bg); border:none; border-radius:6px; padding:6px 12px; font:inherit; font-size:.8rem; cursor:pointer; }
+  /* Quick Fix form (2026-10-18) — expanded from a single "what's wrong" input to the full set
+     of fields QUICK FIX❗ actually has (Ábyrgðarmaður/Tengt verkefni/Skiladagur), matching the
+     user's "check the airtable table" instruction. "Nafn þitt" stays implicit (current user). */
+  .qfForm { display:flex; flex-direction:column; gap:7px; padding:10px 14px; border-bottom:1px solid var(--line); }
+  .qfForm textarea, .qfForm select, .qfForm input { width:100%; box-sizing:border-box; padding:6px 9px; border-radius:6px; border:1px solid var(--line); background:var(--bg); color:var(--text); font:inherit; font-size:.82rem; resize:vertical; }
+  .qfRow2 { display:flex; gap:6px; }
+  .qfProjBtn { all:unset; box-sizing:border-box; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:6px 9px; border-radius:6px; border:1px solid var(--line); background:var(--bg); color:var(--muted); font-size:.82rem; cursor:pointer; }
+  .qfRow2 input[type="date"] { flex:0 0 130px; }
+  .qfForm button#qfSubmit { background:var(--text); color:var(--bg); border:none; border-radius:6px; padding:7px 12px; font:inherit; font-size:.8rem; cursor:pointer; }
   .panel .body { max-height:460px; overflow:auto; }
   .row { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 16px; border-bottom:1px solid var(--line); font-size:.86rem; }
   .row:last-child { border-bottom:none; }
@@ -114,14 +153,18 @@
   .chip.deliver { background:var(--good-soft); color:var(--good); }
   .chip.warn { background:var(--warn-soft); color:var(--warn); }
   .empty { text-align:center; color:var(--muted); padding:24px 0; font-size:.85rem; }
-  .sideStack { display:flex; flex-direction:column; gap:16px; }
   .placeholder { padding:16px; color:var(--muted); font-size:.82rem; text-align:center; }
   .row.clickable { cursor:pointer; }
 
   /* Project overview modal — opened from a Verk í vinnslu row, 2026-10-17 */
   .pvModalBg { display:none; position:fixed; inset:0; background:rgba(10,14,20,.45); z-index:150; align-items:flex-start; justify-content:center; padding:40px 20px; overflow:auto; }
   .pvModalBg.open { display:flex; }
-  .pvModal { background:var(--surface); border-radius:16px; max-width:480px; width:100%; padding:20px; max-height:85vh; overflow:auto; }
+  .pvModal { background:var(--surface); border-radius:16px; max-width:640px; width:100%; padding:20px; max-height:85vh; overflow:auto; }
+  .pvThumbs { display:flex; flex-wrap:wrap; gap:8px; margin-top:4px; }
+  .pvThumbs a { display:block; width:54px; height:54px; border-radius:8px; overflow:hidden; border:1px solid var(--line); }
+  .pvThumbs img { width:100%; height:100%; object-fit:cover; display:block; }
+  .pvDocs { display:flex; flex-wrap:wrap; gap:6px; margin-top:4px; }
+  .pvDocs a { font-size:.78rem; background:var(--bg); border:1px solid var(--line); border-radius:999px; padding:4px 10px; text-decoration:none; color:var(--accent); }
   .pvModal .pvClose { float:right; background:none; border:none; font-size:1.2rem; color:var(--muted); cursor:pointer; }
   .pvModal .pvTitle { font-size:1.1rem; font-weight:700; }
   .pvModal .pvSub { color:var(--muted); font-size:.85rem; margin-top:2px; }
@@ -170,38 +213,50 @@
       </div>
     </div>
 
+    <div class="cashRow" id="cashRow">
+      <div class="kpi cashKpi"><div class="lbl">📦 Væntanlegar efnispantanir</div><div class="val" id="cashUpcoming">—</div><div class="sub" id="cashUpcomingSub"></div></div>
+      <div class="kpi cashKpi placeholder2"><div class="lbl">🧾 Næsta VSK-skil</div><div class="val" id="cashVat">—</div><div class="sub" id="cashVatSub"></div></div>
+      <div class="kpi cashKpi placeholder2"><div class="lbl">💸 Næstu laun</div><div class="val" id="cashPayday">—</div><div class="sub" id="cashPaydaySub"></div></div>
+    </div>
+
     <div class="kpiRow" id="kpiRow">
       <div class="kpi"><div class="lbl">Virk tilboð</div><div class="val" id="kpiSales">—</div><div class="sub" id="kpiSalesSub"></div></div>
       <div class="kpi"><div class="lbl">Innkaup — ólokin verk</div><div class="val" id="kpiCost">—</div><div class="sub">Pantaðir listar, ekki komið í hús</div></div>
       <div class="kpi"><div class="lbl">Verk í framleiðslu</div><div class="val" id="kpiProd">—</div><div class="sub">Tilbúið → Má afhenda</div></div>
     </div>
 
-    <div class="board">
+    <div class="verkBoard" id="verkBoard"></div>
+
+    <div class="bottomRow">
       <div class="panel">
-        <h2 class="prodHead">Verk í vinnslu <span class="cnt" id="prodCnt"></span></h2>
-        <div class="body" id="prodList"><div class="empty">Sæki…</div></div>
+        <h2>Dagatal</h2>
+        <div class="placeholder" id="calBox">Google Calendar — ekki tengt enn</div>
       </div>
-      <div class="sideStack">
-        <div class="panel">
-          <h2>Dagatal</h2>
-          <div class="placeholder" id="calBox">Google Calendar — ekki tengt enn</div>
-        </div>
-        <div class="panel">
-          <h2 class="qfHead">
-            <span>🚨 Quick Fix <span class="cnt" id="qfCnt"></span></span>
-            <button id="qfAddBtn" type="button" title="Skrá nýtt Quick Fix">+</button>
-          </h2>
-          <div id="qfForm" class="qfForm" style="display:none;">
-            <input id="qfInput" type="text" placeholder="Hvað er að?" />
-            <button id="qfSubmit" type="button">Skrá</button>
+      <div class="panel">
+        <h2 class="qfHead">
+          <span>🚨 Quick Fix <span class="cnt" id="qfCnt"></span></span>
+          <button id="qfAddBtn" type="button" title="Skrá nýtt Quick Fix">+</button>
+        </h2>
+        <div id="qfForm" class="qfForm" style="display:none;">
+          <textarea id="qfInput" placeholder="Hvað er að?" rows="2"></textarea>
+          <select id="qfAbyrgd"><option value="">Ábyrgðarmaður —</option></select>
+          <div class="qfRow2">
+            <button type="button" class="qfProjBtn" id="qfProjBtn">Tengt verkefni —</button>
+            <input id="qfSkiladagur" type="date" title="Skiladagur" />
           </div>
-          <div class="body" id="qfList"><div class="empty">Sæki…</div></div>
+          <button id="qfSubmit" type="button">Skrá Quick Fix</button>
         </div>
-        <div class="panel">
-          <h2>Virkni fyrirtækisins <span class="cnt" id="feedCnt"></span></h2>
-          <div class="body" id="feed"><div class="empty">Sæki…</div></div>
-        </div>
+        <div class="body" id="qfList"><div class="empty">Sæki…</div></div>
       </div>
+      <div class="panel">
+        <h2>Virkni fyrirtækisins <span class="cnt" id="feedCnt"></span></h2>
+        <div class="body" id="feed"><div class="empty">Sæki…</div></div>
+      </div>
+    </div>
+
+    <div class="panel" id="stPanel" style="display:none; margin-top:16px;">
+      <h2>👥 Starfsmenn <span class="cnt" id="stCnt"></span></h2>
+      <div class="body" id="stList"><div class="empty">Sæki…</div></div>
     </div>
   </div>
 </div>
@@ -211,10 +266,36 @@
     <button class="pvClose" id="pvClose" type="button">✕</button>
     <div class="pvTitle" id="pvTitle"></div>
     <div class="pvSub" id="pvSub"></div>
-    <div class="pvSection"><h3>Framleiðslustaða</h3><div id="pvProd"></div></div>
+    <div class="pvSection"><h3>Almennt</h3><div id="pvProd"></div></div>
     <div class="pvSection"><h3>Peningar</h3><div id="pvMoney"></div></div>
-    <div class="pvSection"><h3>Efni</h3><div id="pvMaterial"></div></div>
+    <div class="pvSection"><h3>Tengiliður</h3><div id="pvContact"></div></div>
+    <div class="pvSection"><h3>Efni</h3><div id="pvMaterial"></div><div class="pvThumbs" id="pvThumbs"></div></div>
+    <div class="pvSection"><h3>Teikningar</h3><div class="pvDocs" id="pvDrawings"></div></div>
+    <div class="pvSection"><h3>Eyðublöð</h3><div id="pvForms"></div></div>
     <a class="pvLink" id="pvOpenFerli" href="#">Opna í Skipulagsferli →</a>
+  </div>
+</div>
+
+<!-- Starfsmenn detail (2026-10-18) — reuses pvModal's look under its own id/bg so it never
+     conflicts with the job-detail modal above. -->
+<div class="pvModalBg" id="stModalBg">
+  <div class="pvModal">
+    <button class="pvClose" id="stClose" type="button">✕</button>
+    <div class="pvTitle" id="stTitle"></div>
+    <div class="pvSub" id="stSub"></div>
+    <div class="pvSection"><h3>Upplýsingar</h3><div id="stInfo"></div></div>
+    <div class="pvSection"><h3>Vinna þennan mánuð</h3><div id="stWork"></div></div>
+  </div>
+</div>
+
+<!-- Project picker for the Quick Fix form's "Tengt verkefni" (2026-10-18) — same generic
+     search-and-pick pattern crm.html's openPicker uses. -->
+<div class="pvModalBg" id="qfProjModalBg">
+  <div class="pvModal" style="max-width:380px;">
+    <button class="pvClose" id="qfProjClose" type="button">✕</button>
+    <div class="pvTitle">Tengt verkefni</div>
+    <input id="qfProjSearch" type="text" placeholder="Leita…" style="width:100%; box-sizing:border-box; margin-top:10px; padding:8px 11px; border:1px solid var(--line); border-radius:8px; font:inherit; font-size:.85rem; background:var(--bg); color:var(--text);" />
+    <div id="qfProjResults" style="margin-top:8px; max-height:300px; overflow:auto;"></div>
   </div>
 </div>
 
@@ -229,6 +310,17 @@
   var QUICKFIX = "tblDQWuf4OSjUv2XI";
   var VIRKNI = "tblPPMTlFhW0snk24";
   var PANTADIR = "tblSccfV2lBp4FiFU";
+  var EYDUBLAD = "tbl0WcyHhz63pSzZX";
+  var CONTACTS = "tblQ8zeUanriESWvL";
+
+  // Björninn's real VAT filing / payday dates aren't in Airtable anywhere — these are the one
+  // thing in this round of work that had to be supplied by hand rather than derived. Update here
+  // once confirmed; until then the two cash tiles show a plain "ekki stillt" placeholder.
+  // VAT_SCHEDULE = { dates: ["2026-12-05", "2027-02-05", ...] } — Icelandic VAT periods are
+  // bi-monthly pairs with their own due-date offset, not a clean "every N days" rule, so this
+  // takes explicit upcoming due dates rather than a formula that might be wrong.
+  var VAT_SCHEDULE = null;
+  var PAYDAY_SCHEDULE = null; // { dayOfMonth: 1 } — paid on the 1st of each month, for example
 
   function loadSession() { try { return JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); } catch (e) { return null; } }
   function saveSession(s) { try { localStorage.setItem(SESSION_KEY, JSON.stringify(s)); } catch (e) {} }
@@ -286,15 +378,18 @@
         // they've logged in, instead of stranding them on the dashboard.
         var ret = new URLSearchParams(location.search).get("return");
         if (ret) { location.href = ret; return; }
-        showShell(res.data.record);
+        showShell(res.data.record, res.data.token);
       })
       .catch(function () { errEl.textContent = "Tókst ekki að tengjast"; pin = ""; renderDots(); });
   }
 
   // ---- Shell ----
   var currentUserName = "";
-  function showShell(record) {
+  var currentUserId = "", currentUserToken = "";
+  function showShell(record, token) {
     currentUserName = record.name || "";
+    currentUserId = record.id || "";
+    currentUserToken = token || "";
     document.getElementById("pinScreen").style.display = "none";
     document.getElementById("shell").classList.add("open");
     document.getElementById("todayDate").textContent = new Date().toLocaleDateString("is-IS", { weekday: "long", day: "numeric", month: "long" });
@@ -302,10 +397,15 @@
     window.OfficeShell.renderChrome(record, "home");
 
     loadKpis();
+    loadCash();
     loadFeed();
-    loadProd();
+    loadVerkBoard();
     loadQuickFix();
     wireSearch();
+    if ((record.roles || []).indexOf("eigandi") !== -1) {
+      document.getElementById("stPanel").style.display = "block";
+      loadStarfsmenn();
+    }
   }
 
   function wireSearch() {
@@ -333,6 +433,57 @@
           });
       }, 250);
     });
+  }
+
+  // ---- Cash row (2026-10-18) ----
+  function daysUntil(d) {
+    var today = new Date(); today.setHours(0, 0, 0, 0);
+    var target = new Date(d); target.setHours(0, 0, 0, 0);
+    return Math.round((target - today) / 86400000);
+  }
+  function nextFromDates(dates) {
+    var today = new Date(); today.setHours(0, 0, 0, 0);
+    var upcoming = (dates || [])
+      .map(function (s) { return new Date(s + "T00:00:00"); })
+      .filter(function (d) { return d >= today; })
+      .sort(function (a, b) { return a - b; });
+    return upcoming[0] || null;
+  }
+  function nextPayday(cfg) {
+    if (!cfg) return null;
+    var today = new Date();
+    var d = new Date(today.getFullYear(), today.getMonth(), cfg.dayOfMonth);
+    if (d < today) d = new Date(today.getFullYear(), today.getMonth() + 1, cfg.dayOfMonth);
+    return d;
+  }
+  function fmtCountdown(d) {
+    if (!d) return null;
+    var n = daysUntil(d);
+    return n === 0 ? "Í dag" : n === 1 ? "Á morgun" : n + " dagar";
+  }
+  function loadCash() {
+    // Væntanlegar efnispantanir — same Pantaðir listar scope the "Innkaup — ólokin verk" KPI
+    // tile already used (not yet "Komið í hús"), reframed as a projection: total cost, plus how
+    // much of it is due to arrive within the next 7 days.
+    api(PANTADIR, "filterByFormula=" + encodeURIComponent('{Staða}!="Komið í hús 🐻"') + "&fields%5B%5D=%C3%81%C3%A6tla%C3%B0ur%20kostna%C3%B0ur&fields%5B%5D=Afhending%20%C3%B3ska%C3%B0&pageSize=100")
+      .then(function (d) {
+        var recs = d.records || [];
+        var total = recs.reduce(function (s, r) { return s + (r.fields["Áætlaður kostnaður"] || 0); }, 0);
+        var soon = recs.reduce(function (s, r) {
+          var when = r.fields["Afhending óskuð"];
+          return s + (when && daysUntil(when) <= 7 && daysUntil(when) >= 0 ? (r.fields["Áætlaður kostnaður"] || 0) : 0);
+        }, 0);
+        document.getElementById("cashUpcoming").textContent = kr(total);
+        document.getElementById("cashUpcomingSub").textContent = recs.length + " pantanir — " + kr(soon) + " innan 7 daga";
+      });
+
+    var vat = nextFromDates(VAT_SCHEDULE ? VAT_SCHEDULE.dates : null);
+    document.getElementById("cashVat").textContent = fmtCountdown(vat) || "Ekki stillt";
+    document.getElementById("cashVatSub").textContent = vat ? vat.toLocaleDateString("is-IS") : "Spyrðu Claude um VSK-tímabil Björnsins";
+
+    var payday = nextPayday(PAYDAY_SCHEDULE);
+    document.getElementById("cashPayday").textContent = fmtCountdown(payday) || "Ekki stillt";
+    document.getElementById("cashPaydaySub").textContent = payday ? payday.toLocaleDateString("is-IS") : "Spyrðu Claude um útborgunardag";
   }
 
   // ---- KPI: sölurás ----
@@ -382,17 +533,25 @@
       });
   }
 
-  // ---- Verk í vinnslu (same filter/sort as /app's home list) ----
-  var STAGE_CHIP = {
-    "Tilbúið til framleiðslu 📋": ["Tilbúið", "work"],
-    "Verk í vinnslu 🔨": ["Í vinnslu", "work"],
-    "Samsetning og pökkun 🪛📦": ["Samsetning", "work"],
-    "Má Afhenda 🚚": ["Má afhenda", "deliver"],
-  };
+  // ---- Verk í vinnslu — full pipeline kanban (2026-10-18) ----
+  // Every confirmed ("🏆 Tækifæri unnið") project that isn't delivered yet lands in exactly one
+  // of these 8 columns: the 4 "Staða í skipulagi" stages while Staða í framleiðslu is still
+  // blank, then the 4 "Staða í framleiðslu" stages once production actually starts.
+  var VERK_STAGES = [
+    { field: "skipulagi", value: "For-skipulag", label: "For-skipulag", color: "#9aa3ad" },
+    { field: "skipulagi", value: "Í skipulagningu", label: "Í skipulagningu", color: "#e9b000" },
+    { field: "skipulagi", value: "Yfirfara", label: "Yfirfara", color: "#c4291c" },
+    { field: "skipulagi", value: "Klárt til framleiðslu", label: "Klárt til framl.", color: "#1a7d36" },
+    { field: "framleidslu", value: "Tilbúið til framleiðslu 📋", label: "Tilbúið", color: "#0f6cbd" },
+    { field: "framleidslu", value: "Verk í vinnslu 🔨", label: "Í vinnslu", color: "#e9b000" },
+    { field: "framleidslu", value: "Samsetning og pökkun 🪛📦", label: "Samsetning", color: "#e07b00" },
+    { field: "framleidslu", value: "Má Afhenda 🚚", label: "Má afhenda", color: "#1a9e6b" },
+  ];
   function prioRank(p) { var m = String(p || "").match(/^(\d)/); return m ? Number(m[1]) : 9; }
-  function loadProd() {
-    var fml = 'AND({Staða í söluferli}="🏆 Tækifæri unnið",{Staða í skipulagi}="Klárt til framleiðslu",{Staða í framleiðslu}!="",{Staða í framleiðslu}!="Afhent (LOKIÐ ✅)")';
-    api(PROJECTS, "filterByFormula=" + encodeURIComponent(fml) + "&fields%5B%5D=Heiti%20t%C3%A6kif%C3%A6ris%20%2F%20verkefnis&fields%5B%5D=Sta%C3%B0a%20%C3%AD%20framlei%C3%B0slu&fields%5B%5D=Forgangur%20framlei%C3%B0slu%20%F0%9F%A5%87&fields%5B%5D=%C3%81%C3%A6tla%C3%B0ur%20afhendingardagur%20Bj%C3%B6rninn%20(internal)&pageSize=100")
+  function loadVerkBoard() {
+    var fml = 'AND({Staða í söluferli}="🏆 Tækifæri unnið",{Staða í framleiðslu}!="Afhent (LOKIÐ ✅)")';
+    api(PROJECTS, "filterByFormula=" + encodeURIComponent(fml) +
+      "&fields%5B%5D=Heiti%20t%C3%A6kif%C3%A6ris%20%2F%20verkefnis&fields%5B%5D=Sta%C3%B0a%20%C3%AD%20skipulagi&fields%5B%5D=Sta%C3%B0a%20%C3%AD%20framlei%C3%B0slu&fields%5B%5D=Forgangur%20framlei%C3%B0slu%20%F0%9F%A5%87&fields%5B%5D=%C3%81%C3%A6tla%C3%B0ur%20afhendingardagur%20Bj%C3%B6rninn%20(internal)&pageSize=100")
       .then(function (d) {
         var recs = d.records || [];
         recs.sort(function (a, b) {
@@ -401,20 +560,51 @@
           var da = a.fields["Áætlaður afhendingardagur Björninn (internal)"] || "9999", db = b.fields["Áætlaður afhendingardagur Björninn (internal)"] || "9999";
           return da < db ? -1 : da > db ? 1 : 0;
         });
-        document.getElementById("prodCnt").textContent = recs.length;
-        var el = document.getElementById("prodList");
-        if (!recs.length) { el.innerHTML = '<div class="empty">Ekkert í framleiðslu</div>'; return; }
-        el.innerHTML = recs.slice(0, 12).map(function (r) {
-          var f = r.fields, chip = STAGE_CHIP[f["Staða í framleiðslu"]] || [f["Staða í framleiðslu"] || "", "work"];
-          return '<div class="row clickable" data-id="' + r.id + '"><span>' + esc(f["Heiti tækifæris / verkefnis"] || "") + '</span><span class="chip ' + chip[1] + '">' + esc(chip[0]) + '</span></div>';
-        }).join("");
-        el.querySelectorAll(".row[data-id]").forEach(function (row) {
-          row.addEventListener("click", function () { openProjectModal(row.dataset.id); });
+        var board = document.getElementById("verkBoard");
+        board.innerHTML = "";
+        VERK_STAGES.forEach(function (stage) {
+          var items = recs.filter(function (r) {
+            var fram = r.fields["Staða í framleiðslu"] || "";
+            if (stage.field === "framleidslu") return fram === stage.value;
+            // skipulag columns only hold a job BEFORE production has a stage of its own
+            return !fram && (r.fields["Staða í skipulagi"] || "") === stage.value;
+          });
+          var col = document.createElement("div");
+          col.className = "verkCol";
+          col.innerHTML = '<h3><span class="dot3" style="background:' + stage.color + ';"></span>' + esc(stage.label) + '<span class="cnt">' + items.length + '</span></h3>' +
+            '<div class="body">' + (items.length ? items.map(function (r) {
+              var f = r.fields;
+              return '<div class="verkCard" data-id="' + r.id + '">' + esc(f["Heiti tækifæris / verkefnis"] || "(ónefnt)") +
+                '<div class="when">' + esc(f["Áætlaður afhendingardagur Björninn (internal)"] || "") + '</div></div>';
+            }).join("") : '<div class="empty">Ekkert hér</div>') + '</div>';
+          col.querySelectorAll(".verkCard").forEach(function (card) {
+            card.addEventListener("click", function () { openProjectModal(card.dataset.id); });
+          });
+          board.appendChild(col);
         });
       });
   }
 
-  // ---- Project overview modal (Verk í vinnslu → click, 2026-10-17) ----
+  // ---- Project overview modal (Verk í vinnslu → click, 2026-10-17; widened + contact/material
+  // photos/drawings/eyðublað 2026-10-18) ----
+  var PV_MATERIALS = [
+    { lookup: "Heiti efnis (from Skrokka efni 🔲 viðskiptavinar)", img: "Mynd af skrokka efni", label: "Skrokkaefni" },
+    { lookup: "Heiti efnis (from Fronta efni viðskiptavinar 🖼️)", img: "Mynd af fronta efni", label: "Frontaefni" },
+    { lookup: "Heiti efnis (from Fronta efni 2.0 Viðskiptavinar 🖼️)", img: "Mynd af fronta efni 2", label: "Frontaefni 2" },
+    { lookup: "Heiti efnis (from Borðplata viðskiptavinar 🍽️)", img: "Mynd af borðplötu viðskiptavinar", label: "Borðplata" },
+    { lookup: "Heiti efnis (from Hurðaefni viðskiptavinar 🚪)", img: "Mynd af Hurðaefni viðskiptavinar", label: "Hurðaefni" },
+    { lookup: "Heiti efnis (from Hurðaefni viðskiptavinar 🚪 2.0)", img: "Mynd af Hurðaefni viðskiptavinar 2.0", label: "Hurðaefni 2" },
+    { lookup: "Heiti vöru 📣 (from Höldur Viðskiptavinar ✊)", img: "Mynd af Höldum Viðskiptavinar ✊", label: "Höldur" },
+    { lookup: "Heiti vöru 📣 (from Höldur Viðskiptavinar ✊2.0)", img: "Mynd Höldur Viðskiptavinar ✊2.0", label: "Höldur 2" },
+  ];
+  var PV_DRAWINGS = [
+    { field: "Loka teikningar verkefnis 📋", label: "Loka teikningar" },
+    { field: "Sér fræsi teikningar", label: "Sér fræsi" },
+    { field: "Málsettar myndir af rými 🖼️", label: "Málsettar myndir" },
+    { field: "Teikningar af tækifæri ✍️", label: "Teikningar" },
+    { field: "Teikningar úr skipuleggjara 📐", label: "Úr skipuleggjara" },
+  ];
+  function row(k, v) { return '<div class="pvRow"><span class="k">' + esc(k) + '</span><span>' + esc(v) + '</span></div>'; }
   function openProjectModal(id) {
     var bg = document.getElementById("pvModalBg");
     bg.classList.add("open");
@@ -422,18 +612,22 @@
     document.getElementById("pvSub").textContent = "";
     document.getElementById("pvProd").innerHTML = "";
     document.getElementById("pvMoney").innerHTML = "";
+    document.getElementById("pvContact").innerHTML = '<div class="empty">Sæki…</div>';
     document.getElementById("pvMaterial").innerHTML = '<div class="empty">Sæki…</div>';
+    document.getElementById("pvThumbs").innerHTML = "";
+    document.getElementById("pvDrawings").innerHTML = '<div class="empty">Sæki…</div>';
+    document.getElementById("pvForms").innerHTML = '<div class="empty">Sæki…</div>';
     document.getElementById("pvOpenFerli").href = "/ferli?recordId=" + id + (getK() ? "&k=" + encodeURIComponent(getK()) : "");
 
     api(PROJECTS + "/" + id).then(function (rec) {
       var f = rec.fields || {};
       var name = f["Heiti tækifæris / verkefnis"] || "(ónefnt)";
       document.getElementById("pvTitle").textContent = name;
-      document.getElementById("pvSub").textContent = f["Staða í framleiðslu"] || "";
+      document.getElementById("pvSub").textContent = f["Staða í framleiðslu"] || f["Staða í skipulagi"] || "";
 
-      function row(k, v) { return '<div class="pvRow"><span class="k">' + esc(k) + '</span><span>' + esc(v) + '</span></div>'; }
       document.getElementById("pvProd").innerHTML =
-        row("Staða", f["Staða í framleiðslu"] || "—") +
+        row("Staða (skipulag)", f["Staða í skipulagi"] || "—") +
+        row("Staða (framleiðsla)", f["Staða í framleiðslu"] || "—") +
         row("Forgangur", f["Forgangur framleiðslu 🥇"] || "—") +
         row("Áætlaður afhendingardagur", f["Áætlaður afhendingardagur Björninn (internal)"] || "—");
       document.getElementById("pvMoney").innerHTML =
@@ -441,12 +635,56 @@
         row("Staðfestingargjald", kr(f["Staðfestingargjald"])) +
         row("Eftirstöðvar", kr(f["Eftirstöðvar (kr) 💰"]));
 
+      var contactLink = f["Tengiliður verkefnis 👤"] || [];
+      if (contactLink[0]) {
+        api(CONTACTS + "/" + contactLink[0]).then(function (c) {
+          var cf = c.fields || {};
+          var cname = ((cf["Fornafn ⬅️"] || "") + " " + (cf["Eftirnafn ➡️"] || "")).trim();
+          document.getElementById("pvContact").innerHTML =
+            row("Nafn", cname || "—") + row("Sími", cf["Símanúmer ☎️"] || "—") + row("Netfang", cf["Netfang 📧"] || "—");
+        });
+      } else {
+        document.getElementById("pvContact").innerHTML = '<div class="empty">Enginn tengiliður skráður</div>';
+      }
+
+      var matRows = "", thumbs = "";
+      PV_MATERIALS.forEach(function (m) {
+        var names = f[m.lookup] || [];
+        if (names.length) matRows += row(m.label, names.join(", "));
+        (f[m.img] || []).forEach(function (att) {
+          var url = (att.thumbnails && att.thumbnails.small && att.thumbnails.small.url) || att.url;
+          thumbs += '<a href="' + esc(att.url) + '" target="_blank" title="' + esc(m.label) + '"><img src="' + esc(url) + '" alt="' + esc(m.label) + '" /></a>';
+        });
+      });
+      document.getElementById("pvMaterial").innerHTML = matRows || '<div class="empty">Ekkert efni valið enn</div>';
+      document.getElementById("pvThumbs").innerHTML = thumbs;
+
+      var drawingLinks = "";
+      PV_DRAWINGS.forEach(function (d) {
+        (f[d.field] || []).forEach(function (att, i) {
+          drawingLinks += '<a href="' + esc(att.url) + '" target="_blank">' + esc(d.label) + (i ? " " + (i + 1) : "") + '</a>';
+        });
+      });
+      document.getElementById("pvDrawings").innerHTML = drawingLinks || '<div class="empty">Engar teikningar skráðar</div>';
+
+      // Eyðublað has two project-link fields (root CLAUDE.md: "some units are only linked via
+      // this one" — the older "Tækifæri 📣") — check both, same FIND/ARRAYJOIN formula shape
+      // crm.html's Vörulínur loader already uses successfully against the same kind of link field.
+      var nameEsc = name.replace(/"/g, '\\"');
+      api(EYDUBLAD, "filterByFormula=" + encodeURIComponent('OR(FIND("' + nameEsc + '",ARRAYJOIN({Tækifæri 📣 (projects)}))>0,FIND("' + nameEsc + '",ARRAYJOIN({Tækifæri 📣}))>0)') + "&maxRecords=100")
+        .then(function (d) {
+          var recs = d.records || [];
+          var el = document.getElementById("pvForms");
+          if (!recs.length) { el.innerHTML = '<div class="empty">Engin eyðublöð fundust</div>'; return; }
+          el.innerHTML = recs.map(function (r) { return row(r.fields["Athugasemd"] || "(ónefnt)", r.fields["Hvað viltu smíða?"] || ""); }).join("");
+        });
+
       api(PANTADIR, "filterByFormula=" + encodeURIComponent('{Tækifæri 📣}="' + name.replace(/"/g, '\\"') + '"') + "&maxRecords=50")
         .then(function (d) {
           var recs = d.records || [];
-          var el = document.getElementById("pvMaterial");
-          if (!recs.length) { el.innerHTML = '<div class="empty">Engar pantanir skráðar</div>'; return; }
-          el.innerHTML = recs.map(function (r) { return row(r.fields["Stöðu kenni"] || "", r.fields["Staða"] || ""); }).join("");
+          if (!recs.length) return;
+          document.getElementById("pvMaterial").innerHTML += '<div class="pvRow" style="margin-top:8px;"><span class="k" style="text-transform:uppercase; font-size:.7rem; letter-spacing:.06em;">Pantanir</span></div>' +
+            recs.map(function (r) { return row(r.fields["Stöðu kenni"] || "", r.fields["Staða"] || ""); }).join("");
         });
     });
   }
@@ -467,16 +705,67 @@
       });
   }
 
+  // ---- Quick Fix form (2026-10-18) — expanded to the real table's fields: Ábyrgðarmaður
+  // (fixed 7-person list), Tengt verkefni (project picker, same pattern as the sidebar search),
+  // Skiladagur. "Nafn þitt" stays implicit (current user), same as before. ----
+  var QF_ABYRGD = ["Kári Freyr (jr.) 🦆", "Anton Pétur 🐕‍🦺", "Þóhallur 🦇", "Dolli W. 🦊", "Jóel 🦁", "Ísak 🐻‍❄️", "Rakel 🐰"];
+  document.getElementById("qfAbyrgd").innerHTML += QF_ABYRGD.map(function (a) { return '<option value="' + esc(a) + '">' + esc(a) + '</option>'; }).join("");
+  var qfProject = null; // { id, name } | null
+  function qfOpenProjectPicker() {
+    var bg = document.getElementById("qfProjModalBg"), input = document.getElementById("qfProjSearch"), results = document.getElementById("qfProjResults");
+    bg.classList.add("open");
+    input.value = ""; results.innerHTML = '<div class="empty">Byrjaðu að skrifa…</div>';
+    input.focus();
+    var timer = null;
+    input.oninput = function () {
+      clearTimeout(timer);
+      var term = input.value.trim();
+      if (!term) { results.innerHTML = '<div class="empty">Byrjaðu að skrifa…</div>'; return; }
+      timer = setTimeout(function () {
+        var formula = "SEARCH(LOWER(\"" + term.toLowerCase().replace(/"/g, '\\"') + "\"),LOWER({Heiti tækifæris / verkefnis}))";
+        api(PROJECTS, "filterByFormula=" + encodeURIComponent(formula) + "&maxRecords=8&fields%5B%5D=Heiti%20t%C3%A6kif%C3%A6ris%20%2F%20verkefnis")
+          .then(function (d) {
+            var recs = d.records || [];
+            results.innerHTML = recs.length ? "" : '<div class="empty">Ekkert fannst</div>';
+            recs.forEach(function (r) {
+              var name = r.fields["Heiti tækifæris / verkefnis"] || "(ónefnt)";
+              var el = document.createElement("div");
+              el.className = "row clickable"; el.textContent = name;
+              el.addEventListener("click", function () {
+                qfProject = { id: r.id, name: name };
+                document.getElementById("qfProjBtn").textContent = name;
+                bg.classList.remove("open");
+              });
+              results.appendChild(el);
+            });
+          });
+      }, 250);
+    };
+  }
+  document.getElementById("qfProjBtn").addEventListener("click", qfOpenProjectPicker);
+  document.getElementById("qfProjClose").addEventListener("click", function () { document.getElementById("qfProjModalBg").classList.remove("open"); });
+  document.getElementById("qfProjModalBg").addEventListener("click", function (e) { if (e.target === e.currentTarget) e.currentTarget.classList.remove("open"); });
+
   function createQuickFix() {
     var txt = document.getElementById("qfInput").value.trim();
     if (!txt) return;
     var submitBtn = document.getElementById("qfSubmit");
     submitBtn.disabled = true;
+    var fields = { "Vandamálið": txt, "Nafn þitt": currentUserName };
+    var abyrgd = document.getElementById("qfAbyrgd").value;
+    if (abyrgd) fields["Ábyrgðarmaður"] = abyrgd;
+    if (qfProject) fields["Tengt verkefni"] = [qfProject.id];
+    var skiladagur = document.getElementById("qfSkiladagur").value;
+    if (skiladagur) fields["Skiladagur"] = skiladagur;
     fetch("/api/airtable?path=" + encodeURIComponent(QUICKFIX), {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fields: { "Vandamálið": txt, "Nafn þitt": currentUserName } })
+      body: JSON.stringify({ fields: fields })
     }).then(function () {
       document.getElementById("qfInput").value = "";
+      document.getElementById("qfAbyrgd").value = "";
+      document.getElementById("qfSkiladagur").value = "";
+      document.getElementById("qfProjBtn").textContent = "Tengt verkefni —";
+      qfProject = null;
       document.getElementById("qfForm").style.display = "none";
       submitBtn.disabled = false;
       loadQuickFix();
@@ -489,7 +778,52 @@
     if (form.style.display === "flex") document.getElementById("qfInput").focus();
   });
   document.getElementById("qfSubmit").addEventListener("click", createQuickFix);
-  document.getElementById("qfInput").addEventListener("keydown", function (e) { if (e.key === "Enter") createQuickFix(); });
+
+  // ---- Starfsmenn (2026-10-18, Eigandi-only) — api/starfsmenn-overview.js re-verifies the
+  // role server-side on every call; this page never trusts its own `roles` array for anything
+  // beyond showing/hiding the panel. ----
+  var stRecords = [];
+  function loadStarfsmenn() {
+    fetch("/api/starfsmenn-overview?id=" + encodeURIComponent(currentUserId) + "&t=" + encodeURIComponent(currentUserToken))
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        var el = document.getElementById("stList");
+        if (!res.ok) { el.innerHTML = '<div class="empty">Tókst ekki að sækja starfsmenn (' + esc(res.d.error || "villa") + ')</div>'; return; }
+        stRecords = res.d.records || [];
+        document.getElementById("stCnt").textContent = stRecords.length;
+        if (!stRecords.length) { el.innerHTML = '<div class="empty">Engir starfandi starfsmenn</div>'; return; }
+        el.innerHTML = stRecords.map(function (s) {
+          var initials = (s.name || "").trim().split(/\s+/).filter(Boolean).map(function (w) { return w.charAt(0); }).slice(0, 2).join("").toUpperCase();
+          return '<div class="stRow" data-id="' + s.id + '">' +
+            '<div class="stAvatar">' + (s.photo ? '<img src="' + esc(s.photo) + '" alt="" />' : esc(initials)) + '</div>' +
+            '<span class="stName">' + esc(s.name) + '</span>' +
+            '<span class="stHours">' + Math.round(s.hoursTotal) + ' klst' + (s.sickDays ? " · " + s.sickDays + " veikindad." : "") + '</span>' +
+            '<span class="stClock' + (s.clockedIn ? " in" : "") + '" title="' + (s.clockedIn ? "Stimplaður inn" : "Ekki stimplaður inn") + '"></span>' +
+            '</div>';
+        }).join("");
+        el.querySelectorAll(".stRow").forEach(function (row) {
+          row.addEventListener("click", function () { openStarfsmennModal(row.dataset.id); });
+        });
+      })
+      .catch(function () { document.getElementById("stList").innerHTML = '<div class="empty">Tókst ekki að tengjast</div>'; });
+  }
+  function openStarfsmennModal(id) {
+    var s = stRecords.filter(function (r) { return r.id === id; })[0];
+    if (!s) return;
+    document.getElementById("stTitle").textContent = s.name;
+    document.getElementById("stSub").textContent = s.title || "";
+    document.getElementById("stInfo").innerHTML =
+      row("Netfang", s.email || "—") + row("Sími", s.phone || "—") + row("Kaup á klst.", kr(s.payRate)) +
+      row("Staða", s.clockedIn ? "Stimplaður inn" : "Ekki stimplaður inn");
+    document.getElementById("stWork").innerHTML =
+      row("Dagvinna", Math.round(s.hoursNormal * 10) / 10 + " klst") +
+      row("Yfirvinna", Math.round(s.hoursOvertime * 10) / 10 + " klst") +
+      row("Samtals", Math.round(s.hoursTotal * 10) / 10 + " klst") +
+      row("Veikindadagar", s.sickDays || 0);
+    document.getElementById("stModalBg").classList.add("open");
+  }
+  document.getElementById("stClose").addEventListener("click", function () { document.getElementById("stModalBg").classList.remove("open"); });
+  document.getElementById("stModalBg").addEventListener("click", function (e) { if (e.target === e.currentTarget) e.currentTarget.classList.remove("open"); });
 
   buildKeypad();
   renderDots();
@@ -497,7 +831,7 @@
   if (existing && existing.record) {
     var ret0 = new URLSearchParams(location.search).get("return");
     if (ret0) { location.href = ret0; }
-    else showShell(existing.record);
+    else showShell(existing.record, existing.token);
   }
 })();
 </script>

@@ -332,6 +332,10 @@ const VERK_ONLY_FIELDS = {
     "Sér fræsi teikningar",
     "Málsettar myndir af rými 🖼️",
     "Teikningar af tækifæri ✍️",
+    // skrifstofa.html's job popup (2026-10-18) — contact info + the self-serve planner's
+    // own generated drawings PDF, neither previously readable through this proxy.
+    "Tengiliður verkefnis 👤",
+    "Teikningar úr skipuleggjara 📐",
     "Heimilistæki verkefnis",
     "Framvinda sögunar",
     "Fjöldi hluta til að fræsa 🔬", // /verk Framvinda: Fræsing row (rows marked Yfirfr.)
@@ -509,6 +513,11 @@ const STRICT_FILTERS = {
   // everywhere else, parameterized to this one field).
   "tbl2akoCETBx9S1SK": /^SEARCH\(LOWER\("(?:[^"\\]|\\.)+"\),LOWER\(\{Nafn fyrirtækis\}\)\)$/,
 };
+// Tables where fetching a specific record by id is refused outright, even with a real,
+// unguessable record id — PIN-filter / Fjarvistir's "Starfsmaður=X" shape is the only intended
+// way to read either of these (2026-10-01 hardening), not merely "has a STRICT_FILTERS entry"
+// (Tengiliðir/Fyrirtæki below need by-id reads for real — see the GET handler's comment).
+const BLOCK_RECORD_ID = new Set(["tblhglpjQkczdG1AY", "tbl3e5o0Klv9RcNQ4"]);
 // Logged by the site (chatbot, planner error reports) and reviewed in Airtable only — never read back.
 const WRITE_ONLY = new Set(["tbltD1UNpqj05WtMx", "tbl7K8v94Pf6Ausk3"]);
 
@@ -845,7 +854,17 @@ export default async function handler(req, res) {
     if (!recordId && REQUIRE_FILTER.has(tableId) && !params.filterByFormula) {
       return res.status(403).json({ error: "filterByFormula required for this table" });
     }
-    if (STRICT_FILTERS[tableId] && (recordId || !STRICT_FILTERS[tableId].test(String(params.filterByFormula || "")))) {
+    // A recordId bypasses STRICT_FILTERS' shape check entirely — fetching a specific record by
+    // its own (unguessable, 17-char random) id was never the thing TRUE()-style bypasses were
+    // about, and crm.html / skrifstofa.html's job popup both legitimately resolve a linked
+    // Tengiliðir/Fyrirtæki record this way. BLOCK_RECORD_ID is the separate, explicit opt-in for
+    // the two tables (Starfsmenn, Fjarvistir) where by-id lookup genuinely should stay closed —
+    // their own PIN-filter / "Starfsmaður=X" shape is the only intended way in, by design (2026-
+    // 10-01 hardening), not a side effect of merely having a STRICT_FILTERS entry.
+    if (recordId && BLOCK_RECORD_ID.has(tableId)) {
+      return res.status(403).json({ error: "Query not allowed for this table" });
+    }
+    if (!recordId && STRICT_FILTERS[tableId] && !STRICT_FILTERS[tableId].test(String(params.filterByFormula || ""))) {
       return res.status(403).json({ error: "Query not allowed for this table" });
     }
 
