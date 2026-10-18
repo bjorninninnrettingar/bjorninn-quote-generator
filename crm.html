@@ -38,6 +38,7 @@
   .hdRight { display:flex; align-items:center; gap:10px; }
   .searchBox { font:inherit; font-size:.85rem; border:1px solid var(--line); border-radius:999px; padding:7px 14px; width:200px; background:var(--surface); }
   .toggleClosed { background:none; border:1px solid var(--line); border-radius:999px; padding:6px 13px; font-size:.82rem; color:var(--muted); font-family:inherit; cursor:pointer; }
+  .toggleClosed.active { background:var(--accent); border-color:var(--accent); color:#fff; }
   .newProjectBtn { background:var(--accent); color:#fff; border:none; border-radius:999px; padding:7px 15px; font-size:.82rem; font-weight:700; font-family:inherit; cursor:pointer; }
   .printBtn { background:none; border:1px solid var(--line); border-radius:8px; padding:7px 12px; font-size:.82rem; color:var(--text); font-family:inherit; cursor:pointer; }
   .printMsg { text-align:center; font-size:.78rem; color:var(--muted); margin-top:8px; min-height:1.1em; }
@@ -59,6 +60,14 @@
   .nextSteps { margin-bottom:20px; }
   .nextSteps h2 { font-size:.8rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.02em; margin-bottom:8px; }
   .nsRow { display:flex; gap:10px; overflow-x:auto; padding-bottom:4px; }
+
+  .pipelineReport { margin-bottom:20px; }
+  .pipelineReport h2 { font-size:.8rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.02em; margin-bottom:8px; }
+  .prRow { display:flex; gap:10px; overflow-x:auto; }
+  .prCell { flex:0 0 150px; background:var(--surface); border-radius:12px; padding:11px 13px; box-shadow:0 1px 3px rgba(0,0,0,.05); border-top:3px solid var(--line); }
+  .prCell .lbl { font-size:.72rem; color:var(--muted); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .prCell .cnt { font-size:1.2rem; font-weight:700; margin-top:2px; }
+  .prCell .val { font-size:.72rem; color:var(--dim); margin-top:2px; }
   .nsCard { flex:0 0 220px; background:var(--surface); border-radius:12px; padding:11px 13px; box-shadow:0 1px 3px rgba(0,0,0,.05); cursor:pointer; border-left:3px solid var(--bad); }
   .nsCard.soon { border-left-color:var(--warn); }
   .nsCard .nm { font-weight:600; font-size:.85rem; }
@@ -145,6 +154,7 @@
     <div class="hdRight">
       <input class="searchBox" id="search" type="text" placeholder="Leita að tækifæri…" />
       <button class="toggleClosed" id="toggleClosed">Sýna líka unnin/töpuð</button>
+      <button class="toggleClosed" id="toggleMine" type="button">Mínar sölur</button>
       <button class="newProjectBtn" id="newProjectBtn" type="button">+ Nýtt verkefni</button>
     </div>
   </div>
@@ -154,6 +164,11 @@
     <div class="kpi"><div class="lbl">Sölumarkmið mánaðarins</div><div class="val" id="kpiTarget">—</div></div>
     <div class="kpi"><div class="lbl">Sala þessa mánaðar</div><div class="val" id="kpiSold">—</div></div>
     <div class="kpi"><div class="lbl">Millifærslur þennan mánuð</div><div class="val" id="kpiTransfers">—</div><div class="sub">Staðfestingargjöld + eftirstöðvar</div></div>
+  </div>
+
+  <div class="pipelineReport" id="pipelineReport">
+    <h2>Söluferli — tölfræði (allur tími)</h2>
+    <div class="prRow" id="prRow"></div>
   </div>
 
   <div class="nextSteps" id="toReview" style="display:none;">
@@ -172,6 +187,7 @@
   <div class="detail" id="detail">
     <div class="dTitle" id="dName"></div>
     <div class="row"><label>Staða í söluferli</label><select id="dStage"></select></div>
+    <div class="row"><label>Sölumaður</label><select id="dOwner"></select></div>
     <div class="row"><label>Næsta skref</label><select id="dStep"></select></div>
     <div class="row"><label>Næsta skref dags.</label><input type="date" id="dStepDate" /></div>
     <div class="row"><label>Verk ósnert</label><span id="dStale"></span></div>
@@ -251,6 +267,7 @@
   var shellInfo = window.OfficeShell.boot("crm");
   if (!shellInfo) return;
   var k = shellInfo.k;
+  var myName = (shellInfo.record && shellInfo.record.name) || "";
 
   var STAGES = [
     { name: "Hönnun & Ráðgjöf 🖊️✨", short: "Hönnun", color: "#e05d9e" },
@@ -261,6 +278,15 @@
   var FJARHAG = "tblhP1FMM4QJfwxat";
   var CLOSED_STAGES = ["🏆 Tækifæri unnið", "🥀 Tækifæri tapað", "🚫 Tækifæri neitað"];
   var STEP_CHOICES = ["📞 Hringja í viðskiptavin", "📧 Senda póst", "📐 Klára teikningu / hönnun", "💰 Senda tilboð", "⏳ Bíða eftir svari frá viðskiptavini", "🤝 Verkfundur / heimsókn", "Annað"];
+  // Næstu skref auto-default (2026-10-18, user's own table) — "Klára teikningu" first (design stage),
+  // then call/email once the drawing's done, so a deal is never left with a blank next step.
+  var SOLUMENN = ["Ísak Einar Ágústsson", "Rakel Hulda Bjarkadóttir", "Jóel Kristjánsson", "Anton Pétur Sveinsson", "Kári Freyr Finnsson", "Adolf Wendel"];
+  var NEXT_STEP_DEFAULTS = {
+    "Hönnun & Ráðgjöf 🖊️✨": { step: "📐 Klára teikningu / hönnun", days: 2 },
+    "✍️ Teikna og yfirfara tilboð": { step: "📞 Hringja í viðskiptavin", days: 3 },
+    "📤 Tilboð sent": { step: "📞 Hringja í viðskiptavin", days: 3 },
+    "🔥 Líklegt tækifæri": { step: "🤝 Verkfundur / heimsókn", days: 2 },
+  };
 
   function api(path, extra) {
     var u = "/api/airtable?path=" + encodeURIComponent(path);
@@ -295,13 +321,19 @@
         renderNextSteps();
         renderToReview();
         loadKpis();
+        loadPipelineReport();
       })
       .catch(function () { document.getElementById("loading").textContent = "Tókst ekki að sækja gögn."; });
   }
 
+  var onlyMine = false;
   function matchesSearch(r) {
     if (!searchTerm) return true;
     return (r.fields["Heiti tækifæris / verkefnis"] || "").toLowerCase().indexOf(searchTerm) !== -1;
+  }
+  function matchesOwner(r) {
+    if (!onlyMine) return true;
+    return r.fields["Sölumaður 🧑‍💼"] === myName;
   }
 
   function render() {
@@ -309,7 +341,7 @@
     board.innerHTML = "";
     var cols = showClosed ? STAGES.concat(CLOSED_STAGES.map(function (s) { return { name: s, short: s, color: "#9aa3ad" }; })) : STAGES;
     cols.forEach(function (stage) {
-      var items = records.filter(function (r) { return (r.fields["Staða í söluferli"] || "") === stage.name && matchesSearch(r); });
+      var items = records.filter(function (r) { return (r.fields["Staða í söluferli"] || "") === stage.name && matchesSearch(r) && matchesOwner(r); });
       items.sort(function (a, b) { return (b.fields["Verk ósnert dagar 📅"] || 0) - (a.fields["Verk ósnert dagar 📅"] || 0); });
       var col = document.createElement("div");
       col.className = "col";
@@ -388,6 +420,41 @@
     });
   }
 
+  // ---- Pipeline reporting (2026-10-18) — count + value per stage, ALL stages (open and closed),
+  // always regardless of the "sýna líka unnin/töpuð" toggle. Deliberately NOT "average days in stage" —
+  // there's no stage-change history tracked anywhere in the base, so that number would be fabricated;
+  // scoped down to what real data actually supports, confirmed with the user. ----
+  var ALL_STAGE_DEFS = STAGES.concat(CLOSED_STAGES.map(function (s) { return { name: s, short: s, color: "#9aa3ad" }; }));
+  // Airtable pages at 100 records — the base has well over that many Tækifæri records across all time,
+  // so "allur tími" has to actually page through `offset`, not just read the first 100 and call it done.
+  function fetchAllPages(table, extra, acc, offset) {
+    acc = acc || [];
+    var qs = extra + (offset ? "&offset=" + encodeURIComponent(offset) : "");
+    return api(table, qs).then(function (d) {
+      acc = acc.concat(d.records || []);
+      return d.offset ? fetchAllPages(table, extra, acc, d.offset) : acc;
+    });
+  }
+  function loadPipelineReport() {
+    fetchAllPages(TAEKIFAERI, "fields%5B%5D=Sta%C3%B0a%20%C3%AD%20s%C3%B6luferli&fields%5B%5D=%F0%9F%92%B0%20Tilbo%C3%B0sup%C3%A6%C3%B0&pageSize=100")
+      .then(function (all) {
+        var row = document.getElementById("prRow");
+        row.innerHTML = "";
+        ALL_STAGE_DEFS.forEach(function (s) {
+          var items = all.filter(function (r) { return (r.fields["Staða í söluferli"] || "") === s.name; });
+          // Some abandoned/incomplete deals have "💰 Tilboðsupphæð" literally equal to the Airtable
+          // formula's own string "NaN" (it couldn't compute a price) — guard rather than let it poison
+          // the whole sum via string concatenation.
+          var val = items.reduce(function (sum, r) { var v = Number(r.fields["💰 Tilboðsupphæð"]); return sum + (isFinite(v) ? v : 0); }, 0);
+          var el = document.createElement("div");
+          el.className = "prCell";
+          el.style.borderTopColor = s.color;
+          el.innerHTML = '<div class="lbl">' + esc(s.short) + '</div><div class="cnt">' + items.length + '</div><div class="val">' + kr(val) + '</div>';
+          row.appendChild(el);
+        });
+      });
+  }
+
   // ---- KPI row — total value + count of open deals (always from the open-stage set,
   // regardless of the "sýna líka unnin/töpuð" toggle), plus two tiles grounded on real
   // date fields rather than guessed singleSelect choice strings: IS_SAME(..., TODAY(), "month")
@@ -430,6 +497,14 @@
       return '<option value="' + esc(s.name) + '"' + (s.name === f["Staða í söluferli"] ? " selected" : "") + '>' + esc(s.short || s.name) + '</option>';
     }).join("");
 
+    var ownerSel = document.getElementById("dOwner");
+    ownerSel.innerHTML = '<option value="">—</option>' + SOLUMENN.map(function (s) {
+      return '<option value="' + esc(s) + '"' + (s === f["Sölumaður 🧑‍💼"] ? " selected" : "") + '>' + esc(s) + '</option>';
+    }).join("");
+    ownerSel.onchange = function () {
+      apiPatch(r.id, { "Sölumaður 🧑‍💼": ownerSel.value || null }).then(function () { f["Sölumaður 🧑‍💼"] = ownerSel.value; });
+    };
+
     var stepSel = document.getElementById("dStep");
     stepSel.innerHTML = '<option value="">—</option>' + STEP_CHOICES.map(function (s) {
       return '<option value="' + esc(s) + '"' + (s === f["Næsta skref"] ? " selected" : "") + '>' + esc(s) + '</option>';
@@ -448,7 +523,20 @@
         stageSel.value = f["Staða í söluferli"];
         return;
       }
-      apiPatch(r.id, { "Staða í söluferli": next }).then(function () { f["Staða í söluferli"] = next; load(); });
+      var patch = { "Staða í söluferli": next };
+      // Næstu skref auto-default (2026-10-18, user's own per-stage table) — moving into a stage
+      // always refreshes Næsta skref to that stage's default, so a deal is never left without one.
+      var def = NEXT_STEP_DEFAULTS[next];
+      if (def) {
+        var dd = new Date(); dd.setDate(dd.getDate() + def.days);
+        patch["Næsta skref"] = def.step;
+        patch["Næsta skref dags."] = dd.toISOString().slice(0, 10);
+      }
+      apiPatch(r.id, patch).then(function () {
+        Object.assign(f, patch);
+        if (def) { stepSel.value = def.step; document.getElementById("dStepDate").value = patch["Næsta skref dags."]; }
+        load();
+      });
     };
     stepSel.onchange = function () {
       apiPatch(r.id, { "Næsta skref": stepSel.value || null }).then(function () { f["Næsta skref"] = stepSel.value; });
@@ -683,6 +771,11 @@
     showClosed = !showClosed;
     document.getElementById("toggleClosed").textContent = showClosed ? "Fela unnin/töpuð" : "Sýna líka unnin/töpuð";
     load();
+  });
+  document.getElementById("toggleMine").addEventListener("click", function () {
+    onlyMine = !onlyMine;
+    this.classList.toggle("active", onlyMine);
+    render();
   });
   document.getElementById("search").addEventListener("input", function (e) {
     searchTerm = e.target.value.trim().toLowerCase();

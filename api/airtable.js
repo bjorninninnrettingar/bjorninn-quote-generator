@@ -308,6 +308,8 @@ const VERK_ONLY_FIELDS = {
     // /crm (2026-10-17) — pipeline/follow-up fields, all pre-existing.
     "Næsta skref", "Næsta skref dags.", "Verk ósnert dagar 📅",
     "Eftirfylgnisstaða❓", "Svar við eftirfylgni", "Tilboð sent þann",
+    // /crm deal ownership (2026-10-18).
+    "Sölumaður 🧑‍💼",
     // /crm KPI row (2026-10-17) — monthly sales + transfers tiles.
     "Verk staðfest þann", "Ár staðfestingar", "Mánuður staðfestingar",
     "Staðfestingargjald", "Eftirstöðvar (kr) 💰", "Staðfest tilboðsupphæð 🔒",
@@ -623,6 +625,10 @@ const WRITABLE_FIELDS = {
     // existing automations (F1 emails, Konto drafts, price locks) react to
     // "Staða í söluferli" exactly as they do today, nothing new triggered.
     "Staða í söluferli", "Næsta skref", "Næsta skref dags.",
+    // /crm deal ownership + pipeline reporting (2026-10-18) — new field,
+    // created for this, distinct from the pre-existing "Ábyrgðaraðili
+    // yfirferðar" (review-specific).
+    "Sölumaður 🧑‍💼",
     // /crm Vörulínur editor (2026-10-17) — "Efni verkefnis"/"Aukahlutir" pickers.
     "Skrokka efni 🔲 viðskiptavinar", "Fronta efni viðskiptavinar 🖼️",
     "Fronta efni 2.0 Viðskiptavinar 🖼️", "Borðplata viðskiptavinar 🍽️",
