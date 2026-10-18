@@ -107,6 +107,7 @@
   .pill { font-size:.68rem; font-weight:600; padding:2px 8px; border-radius:999px; white-space:nowrap; }
   .pill.stale { background:#ffe8e6; color:#b3261e; }
   .pill.follow { background:#eef1f4; color:var(--muted); }
+  .pill.answer { background:#fff4e0; color:#9a6700; }
 
   .detail { display:none; background:var(--surface); border-radius:16px; padding:16px; margin-top:16px; }
   .detail.open { display:block; }
@@ -245,6 +246,7 @@
     <div class="row"><label>Næsta skref dags.</label><input type="date" id="dStepDate" /></div>
     <div class="row"><label>Verk ósnert</label><span id="dStale"></span></div>
     <div class="row"><label>Eftirfylgni</label><span id="dFollow"></span></div>
+    <div class="row"><label>Svar v. eftirfylgni</label><span id="dAnswer"></span></div>
 
     <div id="liWrap" style="display:none;">
       <button class="liToggle" id="liToggleBtn" type="button">📦 Vörulínur ▾</button>
@@ -518,6 +520,9 @@
       '<div class="flags">' +
         (stale >= 14 ? '<span class="pill stale">' + Math.round(stale) + ' d. ósnert</span>' : '') +
         (f["Eftirfylgnisstaða❓"] ? '<span class="pill follow">' + esc(f["Eftirfylgnisstaða❓"]) + '</span>' : '') +
+        // 2026-10-18: why the customer is actually stalling (Bíður fjármagns / betri tíma / Óákveðið /
+        // Bíða e. svari) — a real, already-public field that had no UI anywhere in crm.html until now.
+        (f["Svar við eftirfylgni"] ? '<span class="pill answer">' + esc(f["Svar við eftirfylgni"]) + '</span>' : '') +
       '</div>';
     el.addEventListener("click", function () { openDetail(r); });
     el.addEventListener("dragstart", function (e) {
@@ -693,6 +698,7 @@
     document.getElementById("dStepDate").value = f["Næsta skref dags."] || "";
     document.getElementById("dStale").textContent = (f["Verk ósnert dagar 📅"] || 0) + " dagar";
     document.getElementById("dFollow").textContent = f["Eftirfylgnisstaða❓"] || "—";
+    document.getElementById("dAnswer").textContent = f["Svar við eftirfylgni"] || "—";
     document.getElementById("dOpenPro").href = "/skipuleggja?pro=" + r.id + (k ? "&k=" + encodeURIComponent(k) : "");
     document.getElementById("dPrintMsg").textContent = "";
     setupLineItems(r);
