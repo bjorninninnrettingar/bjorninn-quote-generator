@@ -13,12 +13,25 @@
      UI/UX overhaul the user asked for). The 2026-09-12 pass only swapped the
      font; the color palette was still the old flat-hex theme underneath —
      this pass replaces it with the shared :root variables. Every class name
-     and all HTML/JS kept identical on purpose — pure CSS swap. */
+     and all HTML/JS kept identical on purpose — pure CSS swap.
+
+     Retheme #2, same day: all three of /aedar's, cutlist's and cnc's real
+     usage is office-only (confirmed with the user — nobody actually runs
+     these at the machine/saw itself), so this file now shares office-shell.js
+     /ferli.html's exact light palette instead of the dark one above, so it
+     embeds seamlessly in Ferli's Loka-yfirferð step. Variable NAMES kept
+     identical (--blue/--amber/--green/--red etc.) — only values changed —
+     since every rule below already referenced them, this is a one-block
+     swap, same technique as cutlist.html's retheme. The rgba() tints
+     scattered through this file (grain-highlight glows, status-tinted
+     backgrounds) were NOT deriving from these variables, so those got a
+     matching find/replace on their RGB triples at the same time. */
   :root {
-    --bg:#0b0b0c; --surface:#161618; --surface2:#1e1e21; --line:#2a2a2e;
-    --text:#f2f2f3; --muted:#c9c9ce; --dim:#8a8a90;
-    --blue:#0a84ff; --amber:#ffd60a; --green:#4caf50; --red:#ff5a5a;
-    --font:"Kumbh Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --bg:#f3f4f6; --surface:#ffffff; --surface2:#eef1f4; --line:#e1e4e8;
+    --text:#1a1d21; --muted:#5d6670; --dim:#9aa3ad;
+    --blue:#0f6cbd; --amber:#9a6700; --green:#1a7d36; --red:#c4291c;
+    --warn-bg:#fdf2d9; --warn-line:#f0d78c; --blue-bg:#e4f0fa; --blue-line:#b7d8f0;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -65,10 +78,10 @@
      so .hidden alone never actually hid it (same class of cascade bug this
      file's own popover history already found once). Two classes beats one. */
   .statusBanner.hidden { display: none; }
-  .statusBanner.warn { background: rgba(255,214,10,.1); border: 1px solid rgba(255,214,10,.3); color: var(--amber); }
-  .statusBanner.ok { background: rgba(76,175,80,.08); border: 1px solid rgba(76,175,80,.3); color: var(--green); }
+  .statusBanner.warn { background: rgba(154,103,0,.1); border: 1px solid rgba(154,103,0,.3); color: var(--amber); }
+  .statusBanner.ok { background: rgba(26,125,54,.08); border: 1px solid rgba(26,125,54,.3); color: var(--green); }
   .statusBanner a { color: inherit; font-weight: 800; text-decoration: underline; }
-  .statusChip { font-size: 0.78rem; font-weight: 700; padding: 2px 9px; border-radius: 10px; background: rgba(255,255,255,0.1); }
+  .statusChip { font-size: 0.78rem; font-weight: 700; padding: 2px 9px; border-radius: 10px; background: rgba(0,0,0,0.06); }
 
   .card {
     background: var(--surface);
@@ -147,14 +160,14 @@
     margin-bottom: 8px; cursor: pointer;
   }
   .mat-item:hover { border-color: var(--blue); }
-  .mat-item.active { border-color: var(--blue); background: rgba(10,132,255,.1); }
+  .mat-item.active { border-color: var(--blue); background: rgba(15,108,189,.1); }
   .mat-item .mname { font-weight: 600; }
   .mat-item .mmeta { color: var(--muted); font-size: 0.82rem; margin-top: 2px; }
   .badge {
     font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em;
     padding: 3px 7px; border-radius: 6px; font-weight: 700; white-space: nowrap;
   }
-  .badge.grain { background: rgba(255,214,10,.15); color: var(--amber); }
+  .badge.grain { background: rgba(154,103,0,.15); color: var(--amber); }
 
   /* workspace */
   .workspace { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
@@ -222,7 +235,7 @@
   .done-pills {
     display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
     width: 100%; margin-bottom: 6px; padding: 10px 12px;
-    background: rgba(76,175,80,.08); border: 1px solid rgba(76,175,80,.3); border-radius: 12px;
+    background: rgba(26,125,54,.08); border: 1px solid rgba(26,125,54,.3); border-radius: 12px;
   }
   .done-pills-label { font-size: 0.8rem; font-weight: 700; color: var(--green); margin-right: 4px; }
   .done-pill {
@@ -276,7 +289,7 @@
   .drawing-head-project { color: var(--dim); font-size: 0.78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .drawing-tabs { display: flex; gap: 7px; flex-wrap: wrap; padding: 10px 14px; border-bottom: 1px solid var(--line); }
   .drawing-tab { margin: 0; padding: 7px 10px; background: var(--surface2); border: 1px solid var(--line); }
-  .drawing-tab.active { color: var(--amber); border-color: var(--amber); background: rgba(255,214,10,.12); }
+  .drawing-tab.active { color: var(--amber); border-color: var(--amber); background: rgba(154,103,0,.12); }
   .drawing-view { flex: 1; min-height: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; }
   .drawing-view iframe { width: 100%; height: 100%; border: 0; background: #fff; }
   .drawing-view img { max-width: 100%; max-height: 100%; object-fit: contain; }
@@ -287,7 +300,7 @@
      instead of an abrupt appear/disappear */
   #dragGhost {
     position: fixed; z-index: 200; pointer-events: none;
-    border: 2px solid var(--blue); background: rgba(10,132,255,0.28);
+    border: 2px solid var(--blue); background: rgba(15,108,189,0.28);
     border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,0.35);
     color: var(--text); font: 600 12px/1.2 "SF Mono", Consolas, monospace;
     padding: 3px 5px; overflow: hidden; white-space: pre;
@@ -309,9 +322,9 @@
   .grp-panel .grp {
     border: 1.5px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px;
   }
-  .grp-panel .grp.sel { border-color: var(--blue); background: rgba(10,132,255,.1); }
-  .grp-panel .grp.locked { border-color: rgba(255,214,10,.4); }
-  .grp-panel .grp.locked.sel { border-color: var(--amber); background: rgba(255,214,10,.1); }
+  .grp-panel .grp.sel { border-color: var(--blue); background: rgba(15,108,189,.1); }
+  .grp-panel .grp.locked { border-color: rgba(154,103,0,.4); }
+  .grp-panel .grp.locked.sel { border-color: var(--amber); background: rgba(154,103,0,.1); }
   .piece-search { margin: 8px 0 6px; max-width: none; }
   .piece-search-status { min-height: 18px; color: var(--muted); font-size: 0.76rem; margin-bottom: 10px; }
   .grp-panel .grp.search-hit { border-color: var(--blue); }
@@ -325,15 +338,15 @@
   .front-row .drag-grip { cursor: grab; color: var(--dim); font-size: 0.9rem; }
   .front-row.dragging { opacity: 0.4; }
   .front-row.manual .fn { color: var(--green); }
-  .front-row.search-hit { background: rgba(10,132,255,.14); border-radius: 6px; padding-left: 5px; padding-right: 5px; }
-  .front-row.selected-piece { background: rgba(255,214,10,.14); outline: 2px solid var(--amber); border-radius: 6px; padding-left: 5px; padding-right: 5px; }
+  .front-row.search-hit { background: rgba(15,108,189,.14); border-radius: 6px; padding-left: 5px; padding-right: 5px; }
+  .front-row.selected-piece { background: rgba(154,103,0,.14); outline: 2px solid var(--amber); border-radius: 6px; padding-left: 5px; padding-right: 5px; }
   input.mf-h {
     width: 48px; padding: 3px 4px; font-size: 0.78rem; text-align: right; flex: none;
-    background: var(--bg); border: 1px solid rgba(76,175,80,.4); border-radius: 6px; color: var(--green);
+    background: var(--bg); border: 1px solid rgba(26,125,54,.4); border-radius: 6px; color: var(--green);
   }
   input.mf-label {
     flex: 1; min-width: 0; padding: 3px 6px; font-size: 0.8rem;
-    background: var(--bg); border: 1px solid rgba(76,175,80,.4); border-radius: 6px; color: var(--green);
+    background: var(--bg); border: 1px solid rgba(26,125,54,.4); border-radius: 6px; color: var(--green);
   }
   .front-row.drop-above { box-shadow: inset 0 2px 0 var(--blue); }
   .front-row.drop-below { box-shadow: inset 0 -2px 0 var(--blue); }
@@ -351,12 +364,12 @@
   }
   .banner button { background: rgba(0,0,0,0.25); margin-left: 10px; }
 
-  .warn-box { background: rgba(255,90,90,.1); border: 1px solid rgba(255,90,90,.3); color: var(--red); padding: 10px 12px; border-radius: 10px; font-size: 0.85rem; margin-bottom: 12px; }
+  .warn-box { background: rgba(196,41,28,.1); border: 1px solid rgba(196,41,28,.3); color: var(--red); padding: 10px 12px; border-radius: 10px; font-size: 0.85rem; margin-bottom: 12px; }
 
   .hint { color: var(--muted); font-size: 0.8rem; margin-top: 6px; }
 
   .msg-drop {
-    border: 1px solid rgba(10,132,255,.35); background: rgba(10,132,255,.08); border-radius: 12px;
+    border: 1px solid rgba(15,108,189,.35); background: rgba(15,108,189,.08); border-radius: 12px;
     padding: 10px 14px; margin-bottom: 18px;
   }
   .msg-drop summary {
@@ -372,13 +385,18 @@
     margin-top: 12px; padding: 9px 12px; border-radius: 10px; font-size: 0.87rem;
     border: 1px solid var(--line); background: var(--surface);
   }
-  .plan-bar.confirmed { border-color: rgba(76,175,80,.4); background: rgba(76,175,80,.08); }
-  .plan-bar.draft     { border-color: rgba(255,214,10,.4); background: rgba(255,214,10,.1); }
-  .plan-bar.floor     { border-color: rgba(10,132,255,.4); background: rgba(10,132,255,.08); }
+  .plan-bar.confirmed { border-color: rgba(26,125,54,.4); background: rgba(26,125,54,.08); }
+  .plan-bar.draft     { border-color: rgba(154,103,0,.4); background: rgba(154,103,0,.1); }
+  .plan-bar.floor     { border-color: rgba(15,108,189,.4); background: rgba(15,108,189,.08); }
   .plan-bar b { color: var(--text); }
   .plan-bar .spacer { flex: 1; }
   .plan-bar .muted { color: var(--muted); }
   body.floor .office-only { display: none !important; }
+  /* Embedded inline inside ferli.html's Loka-yfirferð step (2026-10-18, office
+     mode only — never set on /saga) — hides this page's own header/tool-
+     switcher chrome, same pattern as cutlist.html's retheme. */
+  body.embedded { padding: 0; background: transparent; }
+  body.embedded .embedHide { display: none !important; }
 
   /* Shop-floor touch targets: a tablet in a dusty workshop with gloved or
      sawdust-covered fingers needs bigger hit areas than an office mouse
@@ -408,8 +426,8 @@
     padding: 4px 10px; font-size: 0.8rem; border-radius: 8px;
     background: var(--surface2); border: 1px solid var(--line); color: var(--muted);
   }
-  #guideOverlay .gboard-nav button.cur { border-color: var(--blue); color: var(--text); background: rgba(10,132,255,.18); }
-  #guideOverlay .gboard-nav button.done { color: var(--green); border-color: rgba(76,175,80,.4); }
+  #guideOverlay .gboard-nav button.cur { border-color: var(--blue); color: var(--text); background: rgba(15,108,189,.18); }
+  #guideOverlay .gboard-nav button.done { color: var(--green); border-color: rgba(26,125,54,.4); }
   #guideOverlay .gprog { height: 4px; background: var(--surface2); position: relative; }
   #guideOverlay .gprog > div { height: 100%; background: var(--blue); transition: width 0.2s; }
   #guideOverlay .gprog .tick { position: absolute; top: 0; width: 2px; height: 100%; background: var(--bg); }
@@ -433,8 +451,8 @@
   #guideOverlay .gkind.trim, #guideOverlay .gkind.scrap { color: var(--muted); }
   #guideOverlay .gtitle { font-size: 1.9rem; font-weight: 700; line-height: 1.15; }
   #guideOverlay .gmeasure {
-    display: flex; align-items: baseline; gap: 12px; background: rgba(10,132,255,.08);
-    border: 1px solid rgba(10,132,255,.3); border-radius: 16px; padding: 16px 20px;
+    display: flex; align-items: baseline; gap: 12px; background: rgba(15,108,189,.08);
+    border: 1px solid rgba(15,108,189,.3); border-radius: 16px; padding: 16px 20px;
   }
   #guideOverlay .gmeasure .num { font-size: 3.4rem; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; line-height: 1; }
   #guideOverlay .gmeasure .unit { font-size: 1.3rem; color: var(--blue); }
@@ -443,33 +461,33 @@
   #guideOverlay .gproduces label { margin-bottom: 8px; }
   #guideOverlay .gchip {
     display: inline-flex; flex-direction: column; gap: 2px;
-    background: rgba(76,175,80,.1); border: 1px solid rgba(76,175,80,.35); border-radius: 10px;
+    background: rgba(26,125,54,.1); border: 1px solid rgba(26,125,54,.35); border-radius: 10px;
     padding: 8px 12px; margin: 0 8px 8px 0; min-width: 120px;
   }
   #guideOverlay .gchip .cl { font-weight: 700; font-size: 0.95rem; }
   #guideOverlay .gchip .cd { color: var(--green); font-size: 0.82rem; font-variant-numeric: tabular-nums; }
-  #guideOverlay .gchip.warn { border-color: rgba(255,214,10,.4); background: rgba(255,214,10,.1); }
+  #guideOverlay .gchip.warn { border-color: rgba(154,103,0,.4); background: rgba(154,103,0,.1); }
   #guideOverlay .gchip-flag {
     margin-top: 6px; padding: 3px 7px; font-size: 0.72rem; font-weight: 600;
-    background: transparent; border: 1px solid rgba(255,214,10,.45); color: var(--amber); border-radius: 6px;
+    background: transparent; border: 1px solid rgba(154,103,0,.45); color: var(--amber); border-radius: 6px;
   }
   #guideOverlay .gnote { color: var(--muted); font-size: 0.9rem; }
   #guideOverlay .greorient {
     color: var(--amber); font-size: 1.15rem; font-weight: 800; line-height: 1.3;
-    background: rgba(255,214,10,.1); border: 1px solid rgba(255,214,10,.4); border-radius: 10px; padding: 10px 14px;
+    background: rgba(154,103,0,.1); border: 1px solid rgba(154,103,0,.4); border-radius: 10px; padding: 10px 14px;
   }
   #guideOverlay .greorient .gsub {
     display: block; font-size: 0.8rem; font-weight: 600; color: var(--amber); opacity: 0.85; margin-top: 3px;
   }
   #guideOverlay .gwincut {
-    background: rgba(10,132,255,.08); border: 1px solid rgba(10,132,255,.3); border-radius: 14px; padding: 14px 16px;
+    background: rgba(15,108,189,.08); border: 1px solid rgba(15,108,189,.3); border-radius: 14px; padding: 14px 16px;
   }
   #guideOverlay .gwincut-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; font-size: 1rem; color: var(--text); }
   #guideOverlay .gwincut-feed { color: var(--text); font-size: 0.95rem; }
   #guideOverlay .gwincut-table { width: 100%; border-collapse: collapse; font-size: 1.3rem; font-variant-numeric: tabular-nums; color: var(--text); }
   #guideOverlay .gwincut-table th { text-align: left; color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; padding: 4px 10px; }
-  #guideOverlay .gwincut-table td { padding: 8px 10px; border-top: 1px solid rgba(10,132,255,.3); color: var(--text); font-weight: 600; }
-  #guideOverlay .gwincut-table tr.cur td { background: rgba(76,175,80,.18); color: var(--text); font-weight: 800; font-size: 1.5rem; }
+  #guideOverlay .gwincut-table td { padding: 8px 10px; border-top: 1px solid rgba(15,108,189,.3); color: var(--text); font-weight: 600; }
+  #guideOverlay .gwincut-table tr.cur td { background: rgba(26,125,54,.18); color: var(--text); font-weight: 800; font-size: 1.5rem; }
 
   #guideOverlay .gbottom {
     display: flex; align-items: center; gap: 16px; padding: 16px 24px; border-top: 1px solid var(--line);
@@ -513,11 +531,11 @@
 </head>
 <body>
 
-  <a class="exit-back no-print" id="exitBack" href="/app">‹ Til baka</a>
-  <h1>Æðaskipulag</h1>
-  <div class="sub">Raðar frontum með samfelldri viðaræð á plötu — það sem Cutty getur ekki gert.</div>
+  <a class="exit-back no-print embedHide" id="exitBack" href="/app">‹ Til baka</a>
+  <h1 class="embedHide">Æðaskipulag</h1>
+  <div class="sub embedHide">Raðar frontum með samfelldri viðaræð á plötu — það sem Cutty getur ekki gert.</div>
 
-  <div class="toolnav no-print office-only">
+  <div class="toolnav no-print office-only embedHide">
     <a class="toolnav-item" id="navCutty" href="/cutlist">📐 F6 - CUTTY</a>
     <span class="toolnav-item active">🪵 F2 - ÆÐAR</span>
     <a class="toolnav-item" id="navMerkingar" href="/labels">🏷️ SÖGUNARLISTI</a>
@@ -675,6 +693,12 @@ const PL_PROJECT = "Tækifæri 📣", PL_EFNI = "Efni", PL_JSON = "Skipulag", PL
 // tweak locally only — no write-back).
 const FLOOR_MODE = location.pathname === "/saga";
 const PLAN_SCHEMA = 1;
+
+// Embedded inline inside ferli.html (2026-10-18) — office mode only, ferli.html
+// never embeds /saga. See the embedHide/body.embedded CSS above.
+if (!FLOOR_MODE && new URLSearchParams(location.search).get("embedded") === "1") {
+  document.body.classList.add("embedded");
+}
 
 const P_NAME_FIELD = "Heiti tækifæris / verkefnis";
 // Same non-strong-secret constant app.html/verk.html use — only needed here
@@ -1293,11 +1317,11 @@ function renderSkipped() {
   const el = $("skippedCard");
   if (FLOOR_MODE || !skippedFronts.length) { el.innerHTML = ""; return; }
   const rows = skippedFronts.map(p =>
-    `<li><b>${esc(p.unitName)}</b> — ${esc(p.partur || "(engin Partur)")} ${p.h}×${p.b} · <span style="color:#f5c518">${p.reason}</span></li>`
+    `<li><b>${esc(p.unitName)}</b> — ${esc(p.partur || "(engin Partur)")} ${p.h}×${p.b} · <span style="color:var(--amber)">${p.reason}</span></li>`
   ).join("");
-  el.innerHTML = `<div class="card" style="border-color:#5a4a22;background:#211c12;">
-    <label style="color:#f5c518;">⚠ ${skippedFronts.length} lína${skippedFronts.length > 1 ? "r" : ""} úr Sögunarlista sem líta út eins og frontar en komust ekki með</label>
-    <ul style="font-size:0.82rem;color:#ddd;padding-left:20px;margin-top:6px;">${rows}</ul>
+  el.innerHTML = `<div class="card" style="border-color:var(--warn-line);background:var(--warn-bg);">
+    <label style="color:var(--amber);">⚠ ${skippedFronts.length} lína${skippedFronts.length > 1 ? "r" : ""} úr Sögunarlista sem líta út eins og frontar en komust ekki með</label>
+    <ul style="font-size:0.82rem;color:var(--text);padding-left:20px;margin-top:6px;">${rows}</ul>
     <div class="hint">Lagaðu í Airtable (mál eða Partur) og opnaðu aftur, eða bættu þeim við handvirkt ef þeir eiga heima hér.</div>
   </div>`;
 }
@@ -1315,11 +1339,11 @@ function renderPlanMsgs() {
   const list = [...seen.values()];
   if (!list.length) { el.innerHTML = ""; return; }
   const rows = list.map(p =>
-    `<li><b>${esc(p.unitName)}</b> — ${esc(p.partur || "?")}: <span style="color:#8fbaff;white-space:pre-wrap;">${esc(p.planMsg)}</span></li>`
+    `<li><b>${esc(p.unitName)}</b> — ${esc(p.partur || "?")}: <span style="color:var(--blue);white-space:pre-wrap;">${esc(p.planMsg)}</span></li>`
   ).join("");
   el.innerHTML = `<details class="msg-drop">
     <summary>💬 ${list.length} skilaboð um fronta</summary>
-    <ul style="font-size:0.82rem;color:#ddd;padding-left:20px;margin-top:8px;">${rows}</ul>
+    <ul style="font-size:0.82rem;color:var(--text);padding-left:20px;margin-top:8px;">${rows}</ul>
     <div class="hint">Lagaðu í Airtable/Sögunarlista og hreinsaðu „Skilaboð til skipulags" þegar búið er að leysa.</div>
   </details>`;
 }
@@ -1369,7 +1393,7 @@ function renderHeaderPill() {
   $("matBadge").innerHTML = plan
     ? (plan.fields[PL_CONFIRM] ? `✅ staðfest skipulag` : `✏️ drög`)
     : `óskipulagt`;
-  $("matBadge").style.color = plan ? (plan.fields[PL_CONFIRM] ? "#4caf50" : "#f5c518") : "#d5d5d5";
+  $("matBadge").style.color = plan ? (plan.fields[PL_CONFIRM] ? "var(--green)" : "var(--amber)") : "var(--dim)";
 
   const sel = $("matSelect");
   if (materials.length > 1) {
@@ -1457,7 +1481,7 @@ function showSaveError(wasConfirm) {
   planSaveFailed = true;
   let d = $("saveErrBanner");
   if (!d) { d = document.createElement("div"); d.id = "saveErrBanner"; d.className = "banner no-print"; document.body.appendChild(d); }
-  d.style.background = "#c62828";
+  d.style.background = "var(--red)";
   d.innerHTML = `⚠ Vistun mistókst — skipulagið er <b>ekki vistað</b> í Airtable. <button onclick="retrySave(${wasConfirm ? "true" : "false"})">Reyna aftur</button>`;
 }
 function clearSaveError() {
@@ -1521,7 +1545,7 @@ function renderPlanStrip() {
   let cls, msg;
   if (confirmed) { cls = "confirmed"; msg = "✅ <b>Staðfest</b> — gólfið getur sótt þetta á /saga"; }
   else if (drifted) { cls = "draft"; msg = "⚠ <b>Óstaðfestar breytingar</b> — gólfið er enn með fyrri staðfestu útgáfu. Ýttu á ✅ Staðfesta skipulag þegar þú ert búin/n."; }
-  else { cls = "draft"; msg = '✏️ <b style="color:#f5c518">Drög</b> — óstaðfest'; }
+  else { cls = "draft"; msg = '✏️ <b style="color:var(--amber)">Drög</b> — óstaðfest'; }
   el.innerHTML = `<div class="plan-bar ${cls}">
     <span>${msg}</span>
     <span class="spacer"></span>
@@ -1850,9 +1874,9 @@ function renderDriftCard() {
   const lis = planDrift.slice(0, 12).map(d =>
     `<li><b>${esc(d.unit)}</b> — ${esc(d.label)}: ${esc(d.text)}</li>`).join("");
   const more = planDrift.length > 12 ? `<div class="hint">…og ${planDrift.length - 12} í viðbót</div>` : "";
-  el.innerHTML = `<div class="card" style="border-color:#8f4a22;background:#2a1a12;">
-    <label style="color:#ffb27a;">⚠ ${planDrift.length} stykki í skipulaginu passa ekki við Sögunarlistann</label>
-    <ul style="font-size:0.82rem;color:#ddd;padding-left:20px;margin-top:6px;">${lis}</ul>${more}
+  el.innerHTML = `<div class="card" style="border-color:var(--warn-line);background:var(--warn-bg);">
+    <label style="color:var(--amber);">⚠ ${planDrift.length} stykki í skipulaginu passa ekki við Sögunarlistann</label>
+    <ul style="font-size:0.82rem;color:var(--text);padding-left:20px;margin-top:6px;">${lis}</ul>${more}
     <div class="hint">Málin (breidd × hæð) í skipulaginu eru afrit frá því það var vistað — þau uppfærast ekki sjálf þegar Sögunarlisti breytist. Ekki er hægt að staðfesta fyrr en málin eru uppfærð.</div>
     <button class="primary small" style="margin-top:8px;" onclick="resetLayout()">Uppfæra mál</button>
   </div>`;
@@ -1876,9 +1900,9 @@ function checkNewFronts(freshGroups) {
     const names = g.fronts.map(f => esc(f.label) + " " + f.h).join(", ");
     return "<li><b>" + esc(g.unitName) + "</b> — " + names + "</li>";
   }).join("");
-  el.insertAdjacentHTML("beforeend", `<div class="card" id="newFrontsCard" style="border-color:#2f5a8c;background:#101a26;">
-    <label style="color:#8fbaff;">🆕 ${n} nýir frontar í Sögunarlista sem eru ekki í þessu skipulagi</label>
-    <ul style="font-size:0.82rem;color:#ddd;padding-left:20px;margin-top:6px;">${lis}</ul>
+  el.insertAdjacentHTML("beforeend", `<div class="card" id="newFrontsCard" style="border-color:var(--blue-line);background:var(--blue-bg);">
+    <label style="color:var(--blue);">🆕 ${n} nýir frontar í Sögunarlista sem eru ekki í þessu skipulagi</label>
+    <ul style="font-size:0.82rem;color:var(--text);padding-left:20px;margin-top:6px;">${lis}</ul>
     <button class="primary small" onclick="addNewFronts()">Bæta þeim við skipulagið</button>
   </div>`);
 }
@@ -2652,14 +2676,14 @@ function estimateAllSheets() {
   renderStats();
 
   const staleWarning = freshKtSheets < currentSheets ? `
-    <div class="hint" style="color:#ffb27a;margin-top:8px;">
+    <div class="hint" style="color:var(--amber);margin-top:8px;">
       ⚠ Ný útreikningur úr Sögunarlista kæmi þessu fyrir á <b>${freshKtSheets}</b> plötum (núna hlaðið: ${currentSheets}).
       Þitt eintak gæti verið úrelt (staðbundið, ekki endilega það sem aðrir sjá).
       <button class="ghost small" style="margin-top:6px;" onclick="estimateAllSheets();resetLayout()">Uppfæra mál núna</button>
     </div>` : "";
 
-  card.innerHTML = `<div class="card" style="border-color:#2a5a8f;background:#12202a;">
-    <label style="color:#7ac2ff;">📐 Áætlað fyrir allt efnið (æðahópar hér + einingar sem Cutty sagar): ~${allSheets} plötur</label>
+  card.innerHTML = `<div class="card" style="border-color:var(--blue-line);background:var(--blue-bg);">
+    <label style="color:var(--blue);">📐 Áætlað fyrir allt efnið (æðahópar hér + einingar sem Cutty sagar): ~${allSheets} plötur</label>
     <div class="hint">Núverandi röðun hér (aðeins samfellu-hópar): ${currentSheets} plötur. Gróf áætlun til að panta efni — breytir engu í röðuninni sjálfri.</div>
     ${staleWarning}
   </div>`;
@@ -3225,7 +3249,7 @@ function ghostShow(text, wpx, hpx, color, grab) {
   el.style.height = h + "px";
   ghostGrab = grab ? { x: clamp(grab.x, 0, w), y: clamp(grab.y, 0, h) } : { x: w / 2, y: h / 2 };
   el.style.transformOrigin = `${ghostGrab.x}px ${ghostGrab.y}px`;
-  el.style.borderColor = color || "#2196f3";
+  el.style.borderColor = color || "var(--blue)";
   el.style.background = (color ? hexA(color, 0.28) : "rgba(33,150,243,0.28)");
   ghostRevealed = false;
   document.body.classList.add("dragging");
@@ -3394,7 +3418,7 @@ function enableFrontDrag(cell, svg, bi, gid, fi, scale) {
       if (!moved) {
         moved = true;
         cell.classList.add("dragging");
-        ghostShow(`${g.unitName}\n${f.label}\n${g.width}×${f.h}`, gw, gh, "#4aa3ff", grabPx);
+        ghostShow(`${g.unitName}\n${f.label}\n${g.width}×${f.h}`, gw, gh, "var(--blue)", grabPx);
       }
       lastE = e;
       ghostMove(e.clientX, e.clientY);
@@ -3646,7 +3670,7 @@ function renderPanel() {
           ${f.manual && sel
             ? `<input class="mf-h" type="number" min="20" value="${f.h}" onclick="event.stopPropagation()" onchange="setManualFrontH('${f.mfId}',this.value)" /><span class="fdim">mm</span>`
             : `<span class="fdim">${f.h} mm</span>`}
-          ${!f.manual && (f.planMsg || _flaggedPieces.has(f.pieceId)) ? `<span title="${esc(f.planMsg || "sent til skrifstofu")}" style="color:#8fbaff;">💬</span>` : ""}
+          ${!f.manual && (f.planMsg || _flaggedPieces.has(f.pieceId)) ? `<span title="${esc(f.planMsg || "sent til skrifstofu")}" style="color:var(--blue);">💬</span>` : ""}
           ${sel && !f.manual ? `<button class="small ghost" title="Segja skrifstofu frá vandamáli" onclick="event.stopPropagation();flagFront('${g.id}',${i})">⚠</button>` : ""}
           ${sel && !g.locked ? `<button class="small ghost office-only" title="Afrita" onclick="event.stopPropagation();duplicateFront('${g.id}',${i})">⎘</button>` : ""}
           ${sel && f.manual ? `<button class="small ghost" title="Fjarlægja" onclick="event.stopPropagation();removeManualFront('${f.mfId}')">✕</button>` : ""}
@@ -4296,7 +4320,7 @@ function renderGuide() {
 
   const produces = (st.produces || []).map(p => `
     <div class="gchip ${p.err ? "warn" : ""}">
-      <span class="cl">${p.of > 1 ? `<b style="color:#ffd479">${p.n}/${p.of}</b> · ` : ""}${esc(p.label)}${p.err ? " ⚠" : ""}${_flaggedPieces.has(p.pieceId) ? " 💬" : ""}${p.pieceId && _printedPieces.has(p.pieceId) ? " 🖨✓" : ""}</span>
+      <span class="cl">${p.of > 1 ? `<b style="color:var(--amber)">${p.n}/${p.of}</b> · ` : ""}${esc(p.label)}${p.err ? " ⚠" : ""}${_flaggedPieces.has(p.pieceId) ? " 💬" : ""}${p.pieceId && _printedPieces.has(p.pieceId) ? " 🖨✓" : ""}</span>
       <span class="cd">${esc(p.unitName)} · ${Math.round(p.w)}×${Math.round(p.h)} mm</span>
       ${p.pieceId ? `<button class="gchip-flag" ${_printing ? "disabled" : ""} onclick='printPieceLabel(${JSON.stringify(p.pieceId)},${JSON.stringify(p.label)})'>🖨 prenta miða</button>` : ""}
       ${p.pieceId ? `<button class="gchip-flag" onclick='flagPiece(${JSON.stringify(p.pieceId)},${JSON.stringify(p.label)},${JSON.stringify(p.unitName)})'>⚠ vandamál með þennan part</button>` : ""}
@@ -4403,7 +4427,7 @@ async function checkFloorPlan() {
 function showFloorUpdBanner(msg) {
   if ($("floorUpdBanner")) return;
   const d = document.createElement("div");
-  d.className = "banner no-print"; d.id = "floorUpdBanner"; d.style.background = "#c62828";
+  d.className = "banner no-print"; d.id = "floorUpdBanner"; d.style.background = "var(--red)";
   d.innerHTML = `${esc(msg)} <button onclick="reloadFloorPlanFresh()">Sækja nýtt skipulag</button>`;
   document.body.appendChild(d);
 }
