@@ -68,7 +68,7 @@
   .sidebar .user { padding:14px 18px 0; border-top:1px solid #2a3442; margin-top:10px; font-size:.82rem; display:flex; justify-content:space-between; align-items:center; }
   .sidebar .user button { background:none; border:none; color:#8aa4c7; font:inherit; font-size:.8rem; cursor:pointer; }
 
-  .main { flex:1; padding:24px 28px 40px; max-width:1400px; }
+  .main { flex:1; padding:24px 28px 40px; max-width:1800px; }
   .pageHd { display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; gap:14px; flex-wrap:wrap; }
   .pageHd h1 { font-size:1.35rem; font-weight:700; }
   .pageHdRight { display:flex; align-items:center; gap:14px; }
@@ -91,7 +91,23 @@
      projection: total + how much of it is due within 7 days). VAT/payday countdowns are wired to
      the real schedule — see VAT_DUE_DATES/PAYDAY_SCHEDULE below; nothing in Airtable encodes
      those dates, so they're supplied by hand (VAT: the user's own RSK due-date table). */
-  .cashRow { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:14px; }
+  /* Arrangeable rows (2026-10-19) — cashRow's 3 KPI pills and bottomRow's 3 panels can each be
+     dragged to reorder and sized S/M/L (spans of a shared 6-column grid: S=1, M=2, L=3 — three
+     Mediums is the old fixed-thirds default, exactly filling one row). Order + size are saved to
+     localStorage per person per row, never shared — the user explicitly wants everyone free to
+     arrange their own view, not one layout for the office. */
+  .arrangeRow { display:grid; grid-template-columns:repeat(6,1fr); gap:14px; margin-bottom:14px; }
+  .arrangeRow > [data-size="S"] { grid-column:span 1; }
+  .arrangeRow > [data-size="M"] { grid-column:span 2; }
+  .arrangeRow > [data-size="L"] { grid-column:span 3; }
+  .arrangeRow > .dragging { opacity:.4; }
+  .arrangeRow.dragover > * { outline:2px dashed var(--accent); outline-offset:2px; }
+  .arrangeHandle { position:absolute; top:6px; right:6px; display:flex; gap:3px; opacity:0; transition:opacity .1s; }
+  .arrangeRow > div:hover .arrangeHandle, .bottomRow .panel:hover .arrangeHandle { opacity:1; }
+  .arrangeHandle button { all:unset; box-sizing:border-box; width:20px; height:20px; display:flex; align-items:center; justify-content:center; border-radius:5px; background:var(--bg); border:1px solid var(--line); font-size:.62rem; font-weight:700; color:var(--muted); cursor:pointer; }
+  .arrangeHandle button.sizeOn { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .arrangeHandle .dragHandle { cursor:grab; font-size:.8rem; }
+  .cashKpi { position:relative; }
   .cashKpi .lbl { display:flex; align-items:center; gap:6px; }
   .cashKpi.expandable { cursor:pointer; }
   /* Væntanlegar efnispantanir table (2026-10-19) — per-project breakdown, toggled open under the row */
@@ -120,7 +136,8 @@
   .verkCard.dragging { opacity:.4; }
   .verkCard .when { font-size:.72rem; color:var(--dim); margin-top:2px; }
 
-  .bottomRow { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; align-items:start; }
+  .bottomRow { align-items:start; }
+  .bottomRow .panel { position:relative; }
 
   /* Starfsmenn (2026-10-18, Eigandi-only — see api/starfsmenn-overview.js) */
   .stRow { display:flex; align-items:center; gap:10px; padding:9px 16px; border-bottom:1px solid var(--line); font-size:.85rem; cursor:pointer; }
@@ -237,10 +254,10 @@
       </div>
     </div>
 
-    <div class="cashRow" id="cashRow">
-      <div class="kpi cashKpi expandable" id="cashUpcomingTile" title="Smelltu til að sjá eftir verkefnum"><div class="lbl">📦 Væntanlegar efnispantanir</div><div class="val" id="cashUpcoming">—</div><div class="sub" id="cashUpcomingSub"></div></div>
-      <div class="kpi cashKpi" id="cashVatTile"><div class="lbl">🧾 Næsta VSK-skil</div><div class="val" id="cashVat">—</div><div class="sub" id="cashVatSub"></div></div>
-      <div class="kpi cashKpi" id="cashPaydayTile"><div class="lbl">💸 Næstu laun</div><div class="val" id="cashPayday">—</div><div class="sub" id="cashPaydaySub"></div></div>
+    <div class="cashRow arrangeRow" id="cashRow">
+      <div class="kpi cashKpi expandable" id="cashUpcomingTile" data-size="M" title="Smelltu til að sjá eftir verkefnum"><div class="lbl">📦 Væntanlegar efnispantanir</div><div class="val" id="cashUpcoming">—</div><div class="sub" id="cashUpcomingSub"></div></div>
+      <div class="kpi cashKpi" id="cashVatTile" data-size="M"><div class="lbl">🧾 Næsta VSK-skil</div><div class="val" id="cashVat">—</div><div class="sub" id="cashVatSub"></div></div>
+      <div class="kpi cashKpi" id="cashPaydayTile" data-size="M"><div class="lbl">💸 Næstu laun</div><div class="val" id="cashPayday">—</div><div class="sub" id="cashPaydaySub"></div></div>
     </div>
     <div class="upcomingTable" id="upcomingTable"></div>
 
@@ -255,12 +272,12 @@
       <div class="verkBoard" id="verkBoard"></div>
     </div>
 
-    <div class="bottomRow">
-      <div class="panel">
+    <div class="bottomRow arrangeRow" id="bottomRow">
+      <div class="panel" id="panelDagatal" data-size="M">
         <h2>Dagatal</h2>
         <div class="placeholder" id="calBox">Google Calendar — ekki tengt enn</div>
       </div>
-      <div class="panel">
+      <div class="panel" id="panelQuickFix" data-size="M">
         <h2 class="qfHead">
           <span>🚨 Quick Fix <span class="cnt" id="qfCnt"></span></span>
           <button id="qfAddBtn" type="button" title="Skrá nýtt Quick Fix">+</button>
@@ -276,7 +293,7 @@
         </div>
         <div class="body" id="qfList"><div class="empty">Sæki…</div></div>
       </div>
-      <div class="panel">
+      <div class="panel" id="panelVirkni" data-size="M">
         <h2>Virkni fyrirtækisins <span class="cnt" id="feedCnt"></span></h2>
         <div class="body" id="feed"><div class="empty">Sæki…</div></div>
       </div>
@@ -370,6 +387,70 @@
   var IS_MONTHS_LONG = ["janúar", "febrúar", "mars", "apríl", "maí", "júní", "júlí", "ágúst", "september", "október", "nóvember", "desember"];
   function fmtIcelandicDate(d) { return IS_WEEKDAYS[d.getDay()] + " " + d.getDate() + ". " + IS_MONTHS_LONG[d.getMonth()]; }
 
+  // Arrangeable rows (2026-10-19) — drag to reorder, S/M/L size cycle, both saved to localStorage
+  // per `storageKey` (per-browser only, never shared — see the .arrangeRow CSS comment above).
+  var SIZE_CYCLE = { S: "M", M: "L", L: "S" };
+  function makeArrangeable(rowEl, storageKey) {
+    if (!rowEl) return;
+    var lsKey = "bjorninn:skrifstofa:layout:" + storageKey;
+    var saved = {};
+    try { saved = JSON.parse(localStorage.getItem(lsKey) || "{}"); } catch (e) {}
+
+    var items = Array.prototype.slice.call(rowEl.children);
+    items.forEach(function (el) {
+      if (saved.sizes && saved.sizes[el.id]) el.dataset.size = saved.sizes[el.id];
+      var handle = document.createElement("div");
+      handle.className = "arrangeHandle";
+      handle.innerHTML =
+        '<button class="dragHandle" type="button" title="Draga til að raða" draggable="true">⠿</button>' +
+        ["S", "M", "L"].map(function (s) {
+          return '<button type="button" class="sizeBtn' + (el.dataset.size === s ? " sizeOn" : "") + '" data-s="' + s + '">' + s + "</button>";
+        }).join("");
+      el.appendChild(handle);
+      handle.querySelectorAll(".sizeBtn").forEach(function (btn) {
+        btn.addEventListener("click", function (e) {
+          e.stopPropagation();
+          el.dataset.size = btn.dataset.s;
+          handle.querySelectorAll(".sizeBtn").forEach(function (b) { b.classList.toggle("sizeOn", b === btn); });
+          saveLayout();
+        });
+      });
+      var dragHandle = handle.querySelector(".dragHandle");
+      dragHandle.addEventListener("click", function (e) { e.stopPropagation(); });
+      dragHandle.addEventListener("dragstart", function (e) {
+        draggingArrangeItem = el;
+        el.classList.add("dragging");
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", el.id);
+      });
+      dragHandle.addEventListener("dragend", function () { el.classList.remove("dragging"); rowEl.classList.remove("dragover"); draggingArrangeItem = null; });
+      el.addEventListener("dragover", function (e) {
+        if (!draggingArrangeItem || draggingArrangeItem === el || draggingArrangeItem.parentElement !== rowEl) return;
+        e.preventDefault();
+        var rect = el.getBoundingClientRect();
+        var before = (e.clientX - rect.left) < rect.width / 2;
+        rowEl.insertBefore(draggingArrangeItem, before ? el : el.nextSibling);
+      });
+      el.addEventListener("drop", function (e) { e.preventDefault(); saveLayout(); });
+    });
+
+    // Apply saved order, if any (skip unknown/missing ids rather than erroring on a stale save).
+    if (saved.order) {
+      saved.order.forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el && el.parentElement === rowEl) rowEl.appendChild(el);
+      });
+    }
+
+    function saveLayout() {
+      var order = Array.prototype.slice.call(rowEl.children).map(function (el) { return el.id; });
+      var sizes = {};
+      order.forEach(function (id) { sizes[id] = document.getElementById(id).dataset.size; });
+      try { localStorage.setItem(lsKey, JSON.stringify({ order: order, sizes: sizes })); } catch (e) {}
+    }
+  }
+  var draggingArrangeItem = null;
+
   function api(path, extra) {
     var k = getK();
     var u = "/api/airtable?path=" + encodeURIComponent(path);
@@ -436,6 +517,8 @@
     document.getElementById("todayDate").textContent = fmtIcelandicDate(new Date());
 
     window.OfficeShell.renderChrome(record, "home");
+    makeArrangeable(document.getElementById("cashRow"), "cash");
+    makeArrangeable(document.getElementById("bottomRow"), "bottom");
 
     loadKpis();
     loadCash();
