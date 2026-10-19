@@ -262,6 +262,15 @@ const ALLOWED_FIELDS = {
     "Röð",
     "Falið",
   ],
+  "tblGkKOmIIlBgOhh3": [ // Vélaleiðbeiningar 📋 — read-only how-to items for /velar
+    "Titill",
+    "Vél",
+    "Flokkur",
+    "Svar",
+    "Myndband",
+    "Röð",
+    "Falið",
+  ],
   // /pontun (Pöntunarlisti area, 2026-10-17) — order lines, grouped per-supplier
   // orders, and the supplementary "forgotten items" list. All three were
   // completely unreachable through this proxy before; internal-only (cost data),

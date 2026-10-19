@@ -10,12 +10,16 @@
 <link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <style>
   /* velar.html — /velar, the workshop's machine SOP/FAQ, pulled live from
-     Airtable's "Vélar 🏭" table (one row per machine, fixed sections:
-     Ræsing / Notkun / Drepa á / Bilanir & ráð / Öryggi). Same dark look and
-     search as sop.html, but machine-first: pick a machine → one tap per
-     section, so "how do I shut this down?" is never more than two taps.
-     Deep link: /velar?vel=<recordId>&kafli=drepa (for a QR sticker on the
-     machine itself). Reached from /app's home grid. */
+     Airtable: "Vélar 🏭" (one row per machine: name, cover photo, overview
+     video) and "Vélaleiðbeiningar 📋" (one row per tappable how-to item,
+     each tagged with a Flokkur that doubles as the old fixed category:
+     Ræsing / Notkun / Drepa á / Bilanir / Öryggi). FAQ-style: pick a
+     machine → filter by category chip → tap an item → it opens in a
+     popup, not an inline dropdown, so the list behind it never loses its
+     place. Deep link: /velar?vel=<machineId>&kafli=<raesing|...>&lid=<itemId>
+     (kafli pre-filters the chip row, lid auto-opens one item's popup) —
+     for a QR sticker on the machine itself, or on a single how-to item.
+     Reached from /app's home grid. */
   :root {
     --bg:#0b0b0c; --surface:#161618; --surface2:#1e1e21; --line:#2a2a2e;
     --text:#f2f2f3; --muted:#c9c9ce; --dim:#8a8a90;
@@ -73,18 +77,52 @@
     display:inline-flex; align-items:center; gap:8px; margin-top:12px; text-decoration:none;
     background:var(--blue); color:#fff; font-weight:800; font-size:.92rem; border-radius:11px; padding:11px 16px;
   }
-  .tabs { display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:8px; margin-top:16px; }
-  .tab {
-    font-family:var(--font); font-weight:800; font-size:.95rem; color:var(--text); cursor:pointer;
-    background:var(--surface); border:1.5px solid var(--line); border-radius:12px; padding:14px 8px; text-align:center;
-  }
-  .tab .ic { display:block; font-size:1.4rem; line-height:1; margin-bottom:5px; }
-  .tab.active { border-color:var(--tc); background:var(--surface2); color:var(--tc); }
-  .tab:disabled { opacity:.35; cursor:default; }
-  .section { margin-top:18px; background:var(--surface); border:1px solid var(--line); border-top:3px solid var(--tc); border-radius:14px; padding:16px; }
-  .section h2 { font-size:1.1rem; font-weight:800; color:var(--tc); margin-bottom:8px; }
-  .empty-sec { color:var(--muted); font-size:.9rem; }
 
+  /* category filter chips */
+  .chips { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
+  .chip {
+    font-family:var(--font); font-weight:800; font-size:.85rem; color:var(--muted); cursor:pointer;
+    background:var(--surface); border:1.5px solid var(--line); border-radius:100px; padding:8px 14px;
+    display:inline-flex; align-items:center; gap:6px;
+  }
+  .chip.active { border-color:var(--cc); background:var(--surface2); color:var(--cc); }
+
+  /* how-to item list */
+  .ilist { display:flex; flex-direction:column; gap:8px; margin-top:14px; }
+  .irow {
+    display:flex; align-items:center; gap:12px; width:100%; text-align:left; cursor:pointer; font-family:var(--font);
+    background:var(--surface); border:1px solid var(--line); border-left:3px solid var(--cc); border-radius:12px; padding:13px 14px; color:var(--text);
+  }
+  .irow:active { background:var(--surface2); }
+  .irow .ic { font-size:1.15rem; flex:none; }
+  .irow .t { font-size:.98rem; font-weight:700; flex:1 1 auto; min-width:0; }
+  .irow .arrow { color:var(--dim); flex:none; }
+  .empty-sec { color:var(--muted); font-size:.9rem; margin-top:14px; }
+
+  /* popup */
+  .overlay {
+    position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:100;
+    display:flex; align-items:flex-end; justify-content:center;
+  }
+  .modal {
+    background:var(--surface); border:1px solid var(--line); border-top:3px solid var(--cc);
+    border-radius:18px 18px 0 0; width:100%; max-width:680px; max-height:85vh; overflow-y:auto;
+    padding:18px 18px 28px; animation:slideUp .18s ease-out;
+  }
+  @media (min-width:720px) {
+    .overlay { align-items:center; }
+    .modal { border-radius:18px; max-height:80vh; }
+  }
+  @keyframes slideUp { from { transform:translateY(24px); opacity:0; } to { transform:translateY(0); opacity:1; } }
+  .modal-hd { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+  .modal-cat { font-size:.72rem; font-weight:800; text-transform:uppercase; letter-spacing:.07em; color:var(--cc); }
+  .modal-close {
+    font-family:var(--font); background:var(--surface2); border:1px solid var(--line); color:var(--text);
+    width:34px; height:34px; border-radius:50%; font-size:1.1rem; cursor:pointer; flex:none; line-height:1;
+  }
+  .modal h2 { font-size:1.25rem; font-weight:800; margin-top:6px; }
+
+  .steps { margin-top:14px; }
   .steps .step-h { font-weight:800; font-size:1rem; margin:16px 0 6px; color:var(--text); }
   .steps .step-h:first-child { margin-top:0; }
   .steps p { font-size:.97rem; margin:6px 0; }
@@ -120,8 +158,20 @@
     <img class="cover hidden" id="mCover" alt="" />
     <div class="mname" id="mName"></div>
     <a class="video-link hidden" id="mVideo" target="_blank" rel="noopener">🎬 Myndband</a>
-    <div class="tabs" id="mTabs"></div>
-    <div class="section" id="mSection"><h2 id="mSecTitle"></h2><div class="steps" id="mSecBody"></div></div>
+    <div class="chips" id="mChips"></div>
+    <div class="ilist" id="mItems"></div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="overlay">
+  <div class="modal" id="modal">
+    <div class="modal-hd">
+      <div class="modal-cat" id="iCat"></div>
+      <button class="modal-close" id="modalClose">✕</button>
+    </div>
+    <h2 id="iTitle"></h2>
+    <a class="video-link hidden" id="iVideo" target="_blank" rel="noopener">🎬 Myndband</a>
+    <div class="steps" id="iBody"></div>
   </div>
 </div>
 
@@ -130,20 +180,33 @@
   "use strict";
   var PROXY_URL = "/api/airtable";
   var VELAR_TABLE = "tblDwYfZWPmgGpjio"; // Vélar 🏭
+  var LEID_TABLE = "tblGkKOmIIlBgOhh3"; // Vélaleiðbeiningar 📋
 
   var F_NAME = "Heiti vélar";
   var F_IMG = "Mynd 🖼️";
   var F_VIDEO = "Myndband 🔗";
   var F_ORDER = "Röð";
   var F_HIDDEN = "Falið";
-  // key = what ?kafli= uses; colour doubles as the tab/section accent
+
+  var L_TITLE = "Titill";
+  var L_VEL = "Vél";
+  var L_CAT = "Flokkur";
+  var L_SVAR = "Svar";
+  var L_VIDEO = "Myndband";
+  var L_ORDER = "Röð";
+  var L_HIDDEN = "Falið";
+
+  // key = what ?kafli= uses; label doubles as the Flokkur choice name; colour
+  // is shared by the chip, the item's left border and the popup's accent.
   var SECTIONS = [
-    { key: "raesing", field: "Ræsing / setup ▶️", label: "Ræsing", ic: "▶️", color: "var(--green)" },
-    { key: "notkun",  field: "Notkun 📖",          label: "Notkun",  ic: "📖", color: "var(--blue)" },
-    { key: "drepa",   field: "Drepa á ⏹️",          label: "Drepa á", ic: "⏹️", color: "var(--red)" },
-    { key: "bilanir", field: "Bilanir & ráð 🛠️",    label: "Bilanir", ic: "🛠️", color: "var(--orange)" },
-    { key: "oryggi",  field: "Öryggi ⚠️",           label: "Öryggi",  ic: "⚠️", color: "var(--amber)" },
+    { key: "raesing", label: "Ræsing", ic: "▶️", color: "var(--green)" },
+    { key: "notkun",  label: "Notkun",  ic: "📖", color: "var(--blue)" },
+    { key: "drepa",   label: "Drepa á", ic: "⏹️", color: "var(--red)" },
+    { key: "bilanir", label: "Bilanir", ic: "🛠️", color: "var(--orange)" },
+    { key: "oryggi",  label: "Öryggi",  ic: "⚠️", color: "var(--amber)" },
   ];
+  function sectionByKey(key) { return SECTIONS.find(function (s) { return s.key === key; }); }
+  function sectionByLabel(label) { return SECTIONS.find(function (s) { return s.label === label; }); }
 
   function $(id) { return document.getElementById(id); }
   function esc(s) {
@@ -154,9 +217,9 @@
   function norm(s) { return (s || "").toLowerCase(); }
   function hasText(v) { return !!(v && String(v).trim()); }
 
-  // Same small markdown renderer as sop.html — Airtable rich text comes back
-  // as markdown: **Bold** lines / #-headings become sub-headings, "- "/"1. "
-  // lines (any indent) become nested lists, [text](url) links work.
+  // Airtable rich text comes back as markdown: **Bold** lines / #-headings
+  // become sub-headings, "- "/"1. " lines (any indent) become nested lists,
+  // [text](url) links work, ![caption](url) becomes an inline photo.
   function renderSteps(src) {
     if (!src) return "";
     var lines = String(src).split(/\r?\n/);
@@ -216,8 +279,11 @@
 
   var homeView = $("homeView"), machineView = $("machineView");
   var searchResults = $("searchResults"), searchInput = $("searchInput");
-  var machines = [];
-  var current = null;
+  var overlay = $("overlay");
+  var machines = [], items = [];
+  var itemsByMachine = {}; // machine id -> visible items, sorted
+  var current = null; // current machine record
+  var activeCat = null; // null = "Allt"
 
   function imgUrl(rec, size) {
     var att = (rec.fields[F_IMG] || [])[0];
@@ -240,11 +306,11 @@
     }
     $("mList").innerHTML = machines.map(function (rec) {
       var f = rec.fields, thumb = imgUrl(rec, "large");
-      var filled = SECTIONS.filter(function (s) { return hasText(f[s.field]); }).map(function (s) { return s.label; });
+      var n = (itemsByMachine[rec.id] || []).length;
       return '<button class="mrow" data-id="' + esc(rec.id) + '">' +
         (thumb ? '<img class="thumb" src="' + esc(thumb) + '" alt="" loading="lazy">' : '<span class="thumb">⚙️</span>') +
         '<div class="txt"><div class="t">' + esc(f[F_NAME] || "(ónefnd vél)") + "</div>" +
-        '<div class="sub">' + (filled.length ? esc(filled.join(" · ")) : "Ekkert efni komið enn") + "</div></div>" +
+        '<div class="sub">' + (n ? n + " leiðbeining" + (n === 1 ? "" : "ar") : "Ekkert efni komið enn") + "</div></div>" +
         '<span class="arrow">→</span></button>';
     }).join("");
     $("mList").querySelectorAll(".mrow").forEach(function (btn) {
@@ -252,10 +318,11 @@
     });
   }
 
-  function openMachine(id, sectionKey) {
+  function openMachine(id, catKey) {
     var rec = machines.find(function (r) { return r.id === id; });
     if (!rec) return;
     current = rec;
+    activeCat = catKey && sectionByKey(catKey) ? catKey : null;
     showOnly(machineView);
     var f = rec.fields;
     var cover = imgUrl(rec, "large");
@@ -264,27 +331,70 @@
     $("mName").textContent = f[F_NAME] || "(ónefnd vél)";
     $("mVideo").classList.toggle("hidden", !f[F_VIDEO]);
     if (f[F_VIDEO]) $("mVideo").href = f[F_VIDEO];
+    renderChipsAndItems();
+  }
 
-    $("mTabs").innerHTML = SECTIONS.map(function (s) {
-      return '<button class="tab" style="--tc:' + s.color + ';" data-key="' + s.key + '"' + (hasText(f[s.field]) ? "" : " disabled") + ">" +
-        '<span class="ic">' + s.ic + "</span>" + esc(s.label) + "</button>";
-    }).join("");
-    $("mTabs").querySelectorAll(".tab").forEach(function (btn) {
-      btn.addEventListener("click", function () { showSection(btn.dataset.key); });
+  function renderChipsAndItems() {
+    var all = itemsByMachine[current.id] || [];
+    var present = SECTIONS.filter(function (s) {
+      return all.some(function (it) { return it.fields[L_CAT] === s.label; });
     });
-    var first = SECTIONS.find(function (s) { return hasText(f[s.field]); });
-    showSection(sectionKey || (first ? first.key : "raesing"));
+    var chips = '<button class="chip' + (activeCat ? "" : " active") + '" style="--cc:var(--text);" data-key="">Allt</button>' +
+      present.map(function (s) {
+        return '<button class="chip' + (activeCat === s.key ? " active" : "") + '" style="--cc:' + s.color + ';" data-key="' + s.key + '">' + s.ic + " " + esc(s.label) + "</button>";
+      }).join("");
+    $("mChips").innerHTML = chips;
+    $("mChips").querySelectorAll(".chip").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        activeCat = btn.dataset.key || null;
+        try { history.replaceState(null, "", "?vel=" + current.id + (activeCat ? "&kafli=" + activeCat : "")); } catch (e) {}
+        renderChipsAndItems();
+      });
+    });
+
+    var shown = activeCat ? all.filter(function (it) { return it.fields[L_CAT] === sectionByKey(activeCat).label; }) : all;
+    if (!shown.length) {
+      $("mItems").innerHTML = '<div class="empty-sec">' + (all.length ? "Ekkert skráð í þessum flokki enn." : "Ekkert skráð hér enn.") + "</div>";
+      return;
+    }
+    $("mItems").innerHTML = shown.map(function (it) {
+      var s = sectionByLabel(it.fields[L_CAT]) || SECTIONS[0];
+      return '<button class="irow" style="--cc:' + s.color + ';" data-id="' + esc(it.id) + '">' +
+        '<span class="ic">' + s.ic + "</span>" +
+        '<span class="t">' + esc(it.fields[L_TITLE] || "(ónefnt)") + "</span>" +
+        '<span class="arrow">→</span></button>';
+    }).join("");
+    $("mItems").querySelectorAll(".irow").forEach(function (btn) {
+      btn.addEventListener("click", function () { openItem(btn.dataset.id); });
+    });
   }
 
-  function showSection(key) {
-    var s = SECTIONS.find(function (x) { return x.key === key; }) || SECTIONS[0];
-    var body = current.fields[s.field];
-    $("mTabs").querySelectorAll(".tab").forEach(function (b) { b.classList.toggle("active", b.dataset.key === s.key); });
-    $("mSection").style.setProperty("--tc", s.color);
-    $("mSecTitle").textContent = s.ic + " " + s.label;
-    $("mSecBody").innerHTML = hasText(body) ? renderSteps(body) : '<div class="empty-sec">Ekkert skráð hér enn.</div>';
-    try { history.replaceState(null, "", "?vel=" + current.id + "&kafli=" + s.key); } catch (e) {}
+  function openItem(id) {
+    var it = items.find(function (r) { return r.id === id; });
+    if (!it) return;
+    var s = sectionByLabel(it.fields[L_CAT]) || SECTIONS[0];
+    $("modal").style.setProperty("--cc", s.color);
+    $("iCat").textContent = s.ic + " " + s.label;
+    $("iTitle").textContent = it.fields[L_TITLE] || "(ónefnt)";
+    $("iVideo").classList.toggle("hidden", !it.fields[L_VIDEO]);
+    if (it.fields[L_VIDEO]) $("iVideo").href = it.fields[L_VIDEO];
+    $("iBody").innerHTML = hasText(it.fields[L_SVAR]) ? renderSteps(it.fields[L_SVAR]) : '<div class="empty-sec">Ekkert skráð hér enn.</div>';
+    overlay.classList.remove("hidden");
+    if (current && current.id) {
+      try { history.replaceState(null, "", "?vel=" + current.id + (activeCat ? "&kafli=" + activeCat : "") + "&lid=" + id); } catch (e) {}
+    }
   }
+
+  function closeItem() {
+    overlay.classList.add("hidden");
+    if (current) {
+      try { history.replaceState(null, "", "?vel=" + current.id + (activeCat ? "&kafli=" + activeCat : "")); } catch (e) {}
+    }
+  }
+
+  $("modalClose").addEventListener("click", closeItem);
+  overlay.addEventListener("click", function (e) { if (e.target === overlay) closeItem(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !overlay.classList.contains("hidden")) closeItem(); });
 
   $("backBtn").addEventListener("click", function () {
     current = null;
@@ -292,8 +402,8 @@
     showOnly(homeView);
   });
 
-  // Search across machine names and every section; a hit opens the machine
-  // on the section where the match was found.
+  // Search across machine names and every item's title + body; a hit opens
+  // the machine and, for an item hit, pops its popup straight away.
   searchInput.addEventListener("input", function () {
     var val = norm(searchInput.value.trim());
     if (!val) {
@@ -306,46 +416,71 @@
     searchResults.classList.add("show");
     var hits = [];
     machines.forEach(function (rec) {
-      var f = rec.fields;
-      var nameHit = norm(f[F_NAME]).indexOf(val) !== -1;
-      var secHits = SECTIONS.filter(function (s) { return norm(f[s.field]).indexOf(val) !== -1; });
-      if (nameHit && !secHits.length) hits.push({ rec: rec, sec: null, snip: "" });
-      secHits.forEach(function (s) {
-        var txt = String(f[s.field]).replace(/[*#]/g, "").replace(/\s+/g, " ");
+      var mName = rec.fields[F_NAME] || "";
+      var nameHit = norm(mName).indexOf(val) !== -1;
+      var ownItems = itemsByMachine[rec.id] || [];
+      var itemHits = ownItems.filter(function (it) {
+        return norm(it.fields[L_TITLE]).indexOf(val) !== -1 || norm(it.fields[L_SVAR]).indexOf(val) !== -1;
+      });
+      if (nameHit && !itemHits.length) hits.push({ machine: rec, item: null, snip: "" });
+      itemHits.forEach(function (it) {
+        var s = sectionByLabel(it.fields[L_CAT]) || SECTIONS[0];
+        var txt = String(it.fields[L_SVAR] || "").replace(/[*#!\[\]]/g, "").replace(/\s+/g, " ");
         var i = norm(txt).indexOf(val);
-        var snip = (i > 30 ? "…" : "") + txt.slice(Math.max(0, i - 30), i + val.length + 50) + "…";
-        hits.push({ rec: rec, sec: s, snip: snip });
+        var snip = i === -1 ? "" : (i > 30 ? "…" : "") + txt.slice(Math.max(0, i - 30), i + val.length + 50) + "…";
+        hits.push({ machine: rec, item: it, sec: s, snip: snip });
       });
     });
     searchResults.innerHTML = hits.length
       ? hits.map(function (h, i) {
-          return '<button class="search-hit" data-i="' + i + '"><span class="cat">' + esc(h.sec ? h.sec.ic + " " + h.sec.label : "Vél") + "</span>" +
-            '<span class="t">' + esc(h.rec.fields[F_NAME] || "") + "</span>" +
+          var cat = h.item ? h.sec.ic + " " + h.sec.label : "Vél";
+          var title = h.item ? h.item.fields[L_TITLE] : h.machine.fields[F_NAME];
+          return '<button class="search-hit" data-i="' + i + '"><span class="cat">' + esc(cat) + "</span>" +
+            '<span class="t">' + esc(title || "") + "</span>" +
             (h.snip ? '<div class="snip">' + esc(h.snip) + "</div>" : "") + "</button>";
         }).join("")
       : '<div class="search-empty">Ekkert fannst.</div>';
     searchResults.querySelectorAll(".search-hit").forEach(function (btn) {
       btn.addEventListener("click", function () {
         var h = hits[Number(btn.dataset.i)];
-        openMachine(h.rec.id, h.sec && h.sec.key);
+        openMachine(h.machine.id, null);
+        if (h.item) openItem(h.item.id);
       });
     });
   });
 
   (async function () {
     try {
-      var recs = await airtableFetchAll(VELAR_TABLE, { pageSize: 100 });
-      machines = recs.filter(function (r) { return !r.fields[F_HIDDEN] && hasText(r.fields[F_NAME]); });
+      var recs = await Promise.all([
+        airtableFetchAll(VELAR_TABLE, { pageSize: 100 }),
+        airtableFetchAll(LEID_TABLE, { pageSize: 100 }),
+      ]);
+      machines = recs[0].filter(function (r) { return !r.fields[F_HIDDEN] && hasText(r.fields[F_NAME]); });
       machines.sort(function (a, b) {
         var oa = a.fields[F_ORDER], ob = b.fields[F_ORDER];
         if (oa != null || ob != null) return (oa == null ? 1e9 : oa) - (ob == null ? 1e9 : ob);
         return (a.fields[F_NAME] || "").localeCompare(b.fields[F_NAME] || "", "is");
       });
+      items = recs[1].filter(function (r) { return !r.fields[L_HIDDEN] && hasText(r.fields[L_TITLE]) && (r.fields[L_VEL] || []).length; });
+      items.sort(function (a, b) {
+        var oa = a.fields[L_ORDER], ob = b.fields[L_ORDER];
+        if (oa != null || ob != null) return (oa == null ? 1e9 : oa) - (ob == null ? 1e9 : ob);
+        return (a.fields[L_TITLE] || "").localeCompare(b.fields[L_TITLE] || "", "is");
+      });
+      itemsByMachine = {};
+      items.forEach(function (it) {
+        (it.fields[L_VEL] || []).forEach(function (mid) {
+          (itemsByMachine[mid] = itemsByMachine[mid] || []).push(it);
+        });
+      });
+
       $("status").classList.add("hidden");
       renderList();
       var p = new URLSearchParams(location.search);
-      if (p.get("vel") && machines.some(function (r) { return r.id === p.get("vel"); })) openMachine(p.get("vel"), p.get("kafli"));
-      else showOnly(homeView);
+      if (p.get("vel") && machines.some(function (r) { return r.id === p.get("vel"); })) {
+        openMachine(p.get("vel"), p.get("kafli"));
+        if (p.get("lid") && items.some(function (r) { return r.id === p.get("lid"); })) openItem(p.get("lid"));
+      } else showOnly(homeView);
     } catch (e) {
       $("status").textContent = "Villa við að sækja vélar — reyndu aftur.";
     }
