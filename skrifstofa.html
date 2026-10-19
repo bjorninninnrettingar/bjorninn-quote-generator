@@ -93,6 +93,16 @@
      those dates, so they're supplied by hand (VAT: the user's own RSK due-date table). */
   .cashRow { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:14px; }
   .cashKpi .lbl { display:flex; align-items:center; gap:6px; }
+  .cashKpi.expandable { cursor:pointer; }
+  /* Væntanlegar efnispantanir table (2026-10-19) — per-project breakdown, toggled open under the row */
+  .upcomingTable { display:none; background:var(--surface); border:1px solid var(--line); border-radius:10px; margin:-4px 0 14px; overflow:hidden; }
+  .upcomingTable.open { display:block; }
+  .upcomingTable table { width:100%; border-collapse:collapse; font-size:.84rem; }
+  .upcomingTable th, .upcomingTable td { text-align:left; padding:8px 14px; border-bottom:1px solid var(--line); }
+  .upcomingTable th { color:var(--muted); font-size:.74rem; text-transform:uppercase; letter-spacing:.03em; font-weight:600; }
+  .upcomingTable td.num { text-align:right; font-variant-numeric:tabular-nums; }
+  .upcomingTable tr.sumRow td { font-weight:700; border-bottom:none; }
+  .upcomingTable tr:last-child td { border-bottom:none; }
 
   /* Verk í vinnslu — full-width 8-stage kanban (2026-10-18; was a flat list sharing a row with
      the side stack). Stage order mirrors the real pipeline: 4 skipulag stages, then 4
@@ -228,10 +238,11 @@
     </div>
 
     <div class="cashRow" id="cashRow">
-      <div class="kpi cashKpi"><div class="lbl">📦 Væntanlegar efnispantanir</div><div class="val" id="cashUpcoming">—</div><div class="sub" id="cashUpcomingSub"></div></div>
+      <div class="kpi cashKpi expandable" id="cashUpcomingTile" title="Smelltu til að sjá eftir verkefnum"><div class="lbl">📦 Væntanlegar efnispantanir</div><div class="val" id="cashUpcoming">—</div><div class="sub" id="cashUpcomingSub"></div></div>
       <div class="kpi cashKpi" id="cashVatTile"><div class="lbl">🧾 Næsta VSK-skil</div><div class="val" id="cashVat">—</div><div class="sub" id="cashVatSub"></div></div>
       <div class="kpi cashKpi" id="cashPaydayTile"><div class="lbl">💸 Næstu laun</div><div class="val" id="cashPayday">—</div><div class="sub" id="cashPaydaySub"></div></div>
     </div>
+    <div class="upcomingTable" id="upcomingTable"></div>
 
     <div class="kpiRow" id="kpiRow">
       <div class="kpi"><div class="lbl">Virk tilboð</div><div class="val" id="kpiSales">—</div><div class="sub" id="kpiSalesSub"></div></div>
@@ -495,7 +506,7 @@
     // Væntanlegar efnispantanir — same Pantaðir listar scope the "Innkaup — ólokin verk" KPI
     // tile already used (not yet "Komið í hús"), reframed as a projection: total cost, plus how
     // much of it is due to arrive within the next 7 days.
-    api(PANTADIR, "filterByFormula=" + encodeURIComponent('{Staða}!="Komið í hús 🐻"') + "&fields%5B%5D=%C3%81%C3%A6tla%C3%B0ur%20kostna%C3%B0ur&fields%5B%5D=Afhending%20%C3%B3ska%C3%B0&pageSize=100")
+    api(PANTADIR, "filterByFormula=" + encodeURIComponent('{Staða}!="Komið í hús 🐻"') + "&fields%5B%5D=%C3%81%C3%A6tla%C3%B0ur%20kostna%C3%B0ur&fields%5B%5D=Afhending%20%C3%B3ska%C3%B0&fields%5B%5D=" + encodeURIComponent("Stöðu kenni") + "&pageSize=100")
       .then(function (d) {
         var recs = d.records || [];
         var total = recs.reduce(function (s, r) { return s + (r.fields["Áætlaður kostnaður"] || 0); }, 0);
@@ -505,18 +516,75 @@
         }, 0);
         document.getElementById("cashUpcoming").textContent = kr(total);
         document.getElementById("cashUpcomingSub").textContent = recs.length + " pantanir — " + kr(soon) + " innan 7 daga";
+        renderUpcomingTable(recs, total);
       });
 
     var vat = nextVat(VAT_DUE_DATES);
     document.getElementById("cashVatTile").classList.toggle("placeholder2", !vat);
-    document.getElementById("cashVat").textContent = fmtCountdown(vat) || "Ekki stillt";
-    document.getElementById("cashVatSub").textContent = vat ? vat.toLocaleDateString("is-IS") : "Spyrðu Claude um VSK-tímabil Björnsins";
+    if (vat) {
+      var vatDue = vat.toISOString().slice(0, 10);
+      document.getElementById("cashVat").textContent = "Sæki…";
+      document.getElementById("cashVatSub").textContent = fmtCountdown(vat) + " · " + vat.toLocaleDateString("is-IS");
+      // Real VSK owed (2026-10-19) — sums Konto's own paid-invoice data for the current period
+      // instead of an Airtable "greitt"-checkbox guess; see api/konto-vat.js for why.
+      fetch("/api/konto-vat?dueDate=" + vatDue + (getK() ? "&k=" + encodeURIComponent(getK()) : ""))
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d.error) { document.getElementById("cashVat").textContent = "Villa"; return; }
+          document.getElementById("cashVat").textContent = kr(d.vatOwed);
+          document.getElementById("cashVatSub").textContent =
+            fmtCountdown(vat) + " · " + vat.toLocaleDateString("is-IS") + " · " + d.invoiceCount + " greiddir reikningar";
+        })
+        .catch(function () { document.getElementById("cashVat").textContent = "Villa"; });
+    } else {
+      document.getElementById("cashVat").textContent = "Ekki stillt";
+      document.getElementById("cashVatSub").textContent = "Spyrðu Claude um VSK-tímabil Björnsins";
+    }
 
     var payday = nextPayday(PAYDAY_SCHEDULE);
     document.getElementById("cashPaydayTile").classList.toggle("placeholder2", !payday);
     document.getElementById("cashPayday").textContent = fmtCountdown(payday) || "Ekki stillt";
     document.getElementById("cashPaydaySub").textContent = payday ? payday.toLocaleDateString("is-IS") : "Spyrðu Claude um útborgunardag";
+    // Real amount, once loadStarfsmenn() (Eigandi-only) has it — see its own paySum. Non-eigandi
+    // users keep just the countdown above; no new privileged data is fetched for them.
+    updatePaydayAmount();
   }
+  function updatePaydayAmount() {
+    if (!stRecords.length) return;
+    var paySum = stRecords.reduce(function (s, r) { return s + (r.payThisMonth || 0); }, 0);
+    document.getElementById("cashPayday").textContent = kr(paySum);
+    var payday = nextPayday(PAYDAY_SCHEDULE);
+    document.getElementById("cashPaydaySub").textContent =
+      (payday ? fmtCountdown(payday) + " · " + payday.toLocaleDateString("is-IS") : "") + " · " + stRecords.length + " starfsmenn";
+  }
+
+  // Per-project breakdown for the "Væntanlegar efnispantanir" tile (2026-10-19) — Stöðu kenni is
+  // always "<verkefni> — <birgir>" (same parsing ferli.html's board already relies on), grouped
+  // here by the verkefni half so multi-supplier projects show one row with a combined cost.
+  var upcomingOpen = false;
+  function renderUpcomingTable(recs, grandTotal) {
+    var byProject = {};
+    recs.forEach(function (r) {
+      var kenni = r.fields["Stöðu kenni"] || "";
+      var name = kenni.split(" — ")[0] || "(óþekkt verk)";
+      if (!byProject[name]) byProject[name] = { cost: 0, suppliers: [] };
+      byProject[name].cost += r.fields["Áætlaður kostnaður"] || 0;
+      var supplier = kenni.split(" — ")[1];
+      if (supplier && byProject[name].suppliers.indexOf(supplier) === -1) byProject[name].suppliers.push(supplier);
+    });
+    var rows = Object.keys(byProject).map(function (name) { return { name: name, cost: byProject[name].cost, suppliers: byProject[name].suppliers }; });
+    rows.sort(function (a, b) { return b.cost - a.cost; });
+    var html = '<table><tr><th>Verkefni</th><th>Birgjar</th><th class="num">Kostnaður</th></tr>' +
+      rows.map(function (r) {
+        return "<tr><td>" + esc(r.name) + "</td><td>" + esc(r.suppliers.join(", ")) + '</td><td class="num">' + kr(r.cost) + "</td></tr>";
+      }).join("") +
+      '<tr class="sumRow"><td colspan="2">Samtals</td><td class="num">' + kr(grandTotal) + "</td></tr></table>";
+    document.getElementById("upcomingTable").innerHTML = html;
+  }
+  document.getElementById("cashUpcomingTile").addEventListener("click", function () {
+    upcomingOpen = !upcomingOpen;
+    document.getElementById("upcomingTable").classList.toggle("open", upcomingOpen);
+  });
 
   // ---- KPI: sölurás ----
   var ACTIVE_SALES = ["Hönnun & Ráðgjöf 🖊️✨", "✍️ Teikna og yfirfara tilboð", "📤 Tilboð sent", "🔥 Líklegt tækifæri"];
@@ -902,6 +970,7 @@
         var footEl = document.getElementById("stFoot");
         footEl.style.display = "flex";
         footEl.innerHTML = "Samtals þennan mánuð: <b>&nbsp;" + Math.round(hoursSum) + " klst</b>&nbsp; · &nbsp;<b>" + kr(paySum) + "</b>";
+        updatePaydayAmount();
       })
       .catch(function () { document.getElementById("stList").innerHTML = '<div class="empty">Tókst ekki að tengjast</div>'; });
   }
