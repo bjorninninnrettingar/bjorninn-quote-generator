@@ -123,8 +123,13 @@
   .cashKpi { position:relative; }
   .cashKpi .lbl { display:flex; align-items:center; gap:6px; }
   .cashKpi.expandable { cursor:pointer; }
-  /* Væntanlegar efnispantanir table (2026-10-19) — per-project breakdown, toggled open under the row */
-  .upcomingTable { display:none; background:var(--surface); border:1px solid var(--line); border-radius:10px; margin:-4px 0 14px; overflow:hidden; }
+  .expandIcon { font-size:.7rem; color:var(--dim); transition:transform .15s; }
+  .cashKpi.expandable.open .expandIcon { transform:rotate(180deg); }
+  /* Væntanlegar efnispantanir table (2026-10-19) — nested INSIDE its tile (not a page-level
+     sibling) so it always sits directly under the pill and travels with it through a drag
+     reorder; the tile spans the full row width while open so the table has room. */
+  .cashKpi.expandable.open { grid-column:1 / -1 !important; cursor:default; }
+  .upcomingTable { display:none; background:var(--bg); border:1px solid var(--line); border-radius:10px; margin:10px -2px -2px; overflow:hidden; }
   .upcomingTable.open { display:block; }
   .upcomingTable table { width:100%; border-collapse:collapse; font-size:.84rem; }
   .upcomingTable th, .upcomingTable td { text-align:left; padding:8px 14px; border-bottom:1px solid var(--line); }
@@ -174,6 +179,9 @@
   .panel h2.qfHead button { background:rgba(255,255,255,.22); border:none; color:#fff; width:22px; height:22px; border-radius:50%; font-size:1rem; line-height:1; cursor:pointer; }
   .panel h2.prodHead { background:#e9b000; color:#fff; border-bottom:none; }
   .panel h2.prodHead .cnt { color:#fff6d9; }
+  .panel h2.calHead { background:#0f6cbd; color:#fff; border-bottom:none; }
+  .panel h2.stHead { background:#1a7d36; color:#fff; border-bottom:none; }
+  .panel h2.stHead .cnt { color:#d7f0dd; }
   .verkPanel { margin-bottom:20px; }
   .verkPanel .verkBoard { margin:0; padding:12px; }
   /* Quick Fix form (2026-10-18) — expanded from a single "what's wrong" input to the full set
@@ -270,11 +278,14 @@
     <div id="dashSections">
     <div class="dashSection" id="sectionCash">
     <div class="cashRow arrangeRow" id="cashRow">
-      <div class="kpi cashKpi expandable" id="cashUpcomingTile" data-size="M" title="Smelltu til að sjá eftir verkefnum"><div class="lbl">📦 Væntanlegar efnispantanir</div><div class="val" id="cashUpcoming">—</div><div class="sub" id="cashUpcomingSub"></div></div>
+      <div class="kpi cashKpi expandable" id="cashUpcomingTile" data-size="M" title="Smelltu til að sjá eftir verkefnum">
+        <div class="lbl">📦 Væntanlegar efnispantanir <span class="expandIcon" id="cashUpcomingChevron">▾</span></div>
+        <div class="val" id="cashUpcoming">—</div><div class="sub" id="cashUpcomingSub"></div>
+        <div class="upcomingTable" id="upcomingTable"></div>
+      </div>
       <div class="kpi cashKpi" id="cashVatTile" data-size="M"><div class="lbl">🧾 Næsta VSK-skil</div><div class="val" id="cashVat">—</div><div class="sub" id="cashVatSub"></div></div>
       <div class="kpi cashKpi" id="cashPaydayTile" data-size="M"><div class="lbl">💸 Næstu laun</div><div class="val" id="cashPayday">—</div><div class="sub" id="cashPaydaySub"></div></div>
     </div>
-    <div class="upcomingTable" id="upcomingTable"></div>
     </div>
 
     <div class="dashSection" id="sectionKpi">
@@ -295,7 +306,7 @@
     <div class="dashSection" id="sectionBottom">
     <div class="bottomRow arrangeRow" id="bottomRow">
       <div class="panel" id="panelDagatal" data-size="M">
-        <h2>Dagatal</h2>
+        <h2 class="calHead">Dagatal</h2>
         <div class="placeholder" id="calBox">Google Calendar — ekki tengt enn</div>
       </div>
       <div class="panel" id="panelQuickFix" data-size="M">
@@ -319,7 +330,7 @@
         <div class="body" id="feed"><div class="empty">Sæki…</div></div>
       </div>
       <div class="panel" id="stPanel" data-size="M" style="display:none;">
-      <h2>👥 Starfsmenn <span class="cnt" id="stCnt"></span></h2>
+      <h2 class="stHead">👥 Starfsmenn <span class="cnt" id="stCnt"></span></h2>
       <div class="body" id="stList"><div class="empty">Sæki…</div></div>
       <div class="stFoot" id="stFoot" style="display:none;"></div>
       </div>
@@ -734,21 +745,24 @@
       '<tr class="sumRow"><td colspan="2">Samtals</td><td class="num">' + kr(grandTotal) + "</td></tr></table>";
     document.getElementById("upcomingTable").innerHTML = html;
   }
-  document.getElementById("cashUpcomingTile").addEventListener("click", function () {
+  document.getElementById("cashUpcomingTile").addEventListener("click", function (e) {
+    if (e.target.closest(".arrangeHandle")) return; // dragging/resizing the tile isn't "open the table"
     upcomingOpen = !upcomingOpen;
     document.getElementById("upcomingTable").classList.toggle("open", upcomingOpen);
+    document.getElementById("cashUpcomingTile").classList.toggle("open", upcomingOpen);
   });
 
   // ---- KPI: sölurás ----
   var ACTIVE_SALES = ["Hönnun & Ráðgjöf 🖊️✨", "✍️ Teikna og yfirfara tilboð", "📤 Tilboð sent", "🔥 Líklegt tækifæri"];
   function loadKpis() {
     var salesFml = "OR(" + ACTIVE_SALES.map(function (s) { return '{Staða í söluferli}="' + s + '"'; }).join(",") + ")";
-    api(PROJECTS, "filterByFormula=" + encodeURIComponent(salesFml) + "&fields%5B%5D=Sta%C3%B0a%20%C3%AD%20s%C3%B6luferli&pageSize=100")
+    api(PROJECTS, "filterByFormula=" + encodeURIComponent(salesFml) + "&fields%5B%5D=Sta%C3%B0a%20%C3%AD%20s%C3%B6luferli&fields%5B%5D=" + encodeURIComponent("💰 Tilboðsupphæð") + "&pageSize=100")
       .then(function (d) {
         var recs = d.records || [];
         document.getElementById("kpiSales").textContent = recs.length;
+        var heildarvirdi = recs.reduce(function (s, r) { return s + (r.fields["💰 Tilboðsupphæð"] || 0); }, 0);
         var hot = recs.filter(function (r) { return r.fields["Staða í söluferli"] === "🔥 Líklegt tækifæri"; }).length;
-        document.getElementById("kpiSalesSub").textContent = hot + " líkleg";
+        document.getElementById("kpiSalesSub").textContent = kr(heildarvirdi) + " · " + hot + " líkleg";
       });
 
     var prodFml = 'AND({Staða í söluferli}="🏆 Tækifæri unnið",{Staða í skipulagi}="Klárt til framleiðslu",{Staða í framleiðslu}!="",{Staða í framleiðslu}!="Afhent (LOKIÐ ✅)")';
