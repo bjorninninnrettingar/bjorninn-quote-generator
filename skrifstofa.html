@@ -68,7 +68,7 @@
   .sidebar .user { padding:14px 18px 0; border-top:1px solid #2a3442; margin-top:10px; font-size:.82rem; display:flex; justify-content:space-between; align-items:center; }
   .sidebar .user button { background:none; border:none; color:#8aa4c7; font:inherit; font-size:.8rem; cursor:pointer; }
 
-  .main { flex:1; padding:24px 28px 40px; max-width:1800px; }
+  .main { flex:1; min-width:0; padding:24px 28px 40px; max-width:1800px; }
   .pageHd { display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; gap:14px; flex-wrap:wrap; }
   .pageHd h1 { font-size:1.35rem; font-weight:700; }
   .pageHdRight { display:flex; align-items:center; gap:14px; }
@@ -96,7 +96,8 @@
      Mediums is the old fixed-thirds default, exactly filling one row). Order + size are saved to
      localStorage per person per row, never shared — the user explicitly wants everyone free to
      arrange their own view, not one layout for the office. */
-  .arrangeRow { display:grid; grid-template-columns:repeat(6,1fr); gap:14px; margin-bottom:14px; }
+  .arrangeRow { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:14px; margin-bottom:14px; }
+  .arrangeRow > div { min-width:0; }
   .arrangeRow > [data-size="S"] { grid-column:span 1; }
   .arrangeRow > [data-size="M"] { grid-column:span 2; }
   .arrangeRow > [data-size="L"] { grid-column:span 3; }
@@ -107,6 +108,15 @@
   .arrangeHandle button { all:unset; box-sizing:border-box; width:20px; height:20px; display:flex; align-items:center; justify-content:center; border-radius:5px; background:var(--bg); border:1px solid var(--line); font-size:.62rem; font-weight:700; color:var(--muted); cursor:pointer; }
   .arrangeHandle button.sizeOn { background:var(--accent); color:#fff; border-color:var(--accent); }
   .arrangeHandle .dragHandle { cursor:grab; font-size:.8rem; }
+  /* Section-level reordering (2026-10-19) — the whole-page blocks (cash row, sales KPIs, Verk í
+     vinnslu, the bottom row) can also be dragged relative to each other, same mechanism/storage
+     pattern as the within-row dragging above, just vertical instead of horizontal. Starfsmenn
+     stays fixed at the bottom — not part of this list, the user said leave it alone. */
+  .dashSection { position:relative; }
+  .dashSection .sectionHandle { position:absolute; top:-10px; right:10px; z-index:2; width:26px; height:26px; display:flex; align-items:center; justify-content:center; border-radius:50%; background:var(--surface); border:1px solid var(--line); color:var(--muted); font-size:.85rem; cursor:grab; opacity:0; transition:opacity .1s; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .dashSection:hover .sectionHandle { opacity:1; }
+  .dashSection.dragging { opacity:.4; }
+  .dashSection.dragover { outline:2px dashed var(--accent); outline-offset:3px; border-radius:10px; }
   .cashKpi { position:relative; }
   .cashKpi .lbl { display:flex; align-items:center; gap:6px; }
   .cashKpi.expandable { cursor:pointer; }
@@ -254,24 +264,32 @@
       </div>
     </div>
 
+    <div id="dashSections">
+    <div class="dashSection" id="sectionCash">
     <div class="cashRow arrangeRow" id="cashRow">
       <div class="kpi cashKpi expandable" id="cashUpcomingTile" data-size="M" title="Smelltu til að sjá eftir verkefnum"><div class="lbl">📦 Væntanlegar efnispantanir</div><div class="val" id="cashUpcoming">—</div><div class="sub" id="cashUpcomingSub"></div></div>
       <div class="kpi cashKpi" id="cashVatTile" data-size="M"><div class="lbl">🧾 Næsta VSK-skil</div><div class="val" id="cashVat">—</div><div class="sub" id="cashVatSub"></div></div>
       <div class="kpi cashKpi" id="cashPaydayTile" data-size="M"><div class="lbl">💸 Næstu laun</div><div class="val" id="cashPayday">—</div><div class="sub" id="cashPaydaySub"></div></div>
     </div>
     <div class="upcomingTable" id="upcomingTable"></div>
+    </div>
 
+    <div class="dashSection" id="sectionKpi">
     <div class="kpiRow" id="kpiRow">
       <div class="kpi"><div class="lbl">Virk tilboð</div><div class="val" id="kpiSales">—</div><div class="sub" id="kpiSalesSub"></div></div>
       <div class="kpi"><div class="lbl">Innkaup — ólokin verk</div><div class="val" id="kpiCost">—</div><div class="sub">Pantaðir listar, ekki komið í hús</div></div>
       <div class="kpi"><div class="lbl">Verk í framleiðslu</div><div class="val" id="kpiProd">—</div><div class="sub">Tilbúið → Má afhenda</div></div>
     </div>
+    </div>
 
+    <div class="dashSection" id="sectionVerk">
     <div class="panel verkPanel">
       <h2 class="prodHead">🏭 Verk í vinnslu <span class="cnt" id="verkCnt"></span></h2>
       <div class="verkBoard" id="verkBoard"></div>
     </div>
+    </div>
 
+    <div class="dashSection" id="sectionBottom">
     <div class="bottomRow arrangeRow" id="bottomRow">
       <div class="panel" id="panelDagatal" data-size="M">
         <h2>Dagatal</h2>
@@ -297,6 +315,8 @@
         <h2>Virkni fyrirtækisins <span class="cnt" id="feedCnt"></span></h2>
         <div class="body" id="feed"><div class="empty">Sæki…</div></div>
       </div>
+    </div>
+    </div>
     </div>
 
     <div class="panel" id="stPanel" style="display:none; margin-top:16px;">
@@ -451,6 +471,53 @@
   }
   var draggingArrangeItem = null;
 
+  // Section-level reordering — same drop/dragover approach as makeArrangeable, vertical axis
+  // (clientY against each section's vertical midpoint) instead of horizontal, no size buttons.
+  function makeSectionsArrangeable(containerEl, storageKey) {
+    if (!containerEl) return;
+    var lsKey = "bjorninn:skrifstofa:layout:" + storageKey;
+    var saved = {};
+    try { saved = JSON.parse(localStorage.getItem(lsKey) || "{}"); } catch (e) {}
+
+    var items = Array.prototype.slice.call(containerEl.children);
+    items.forEach(function (el) {
+      var handle = document.createElement("div");
+      handle.className = "sectionHandle";
+      handle.title = "Draga til að raða";
+      handle.draggable = true;
+      handle.textContent = "⠿";
+      el.appendChild(handle);
+      handle.addEventListener("dragstart", function (e) {
+        draggingSection = el;
+        el.classList.add("dragging");
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", el.id);
+      });
+      handle.addEventListener("dragend", function () { el.classList.remove("dragging"); el.classList.remove("dragover"); draggingSection = null; saveSectionLayout(); });
+      el.addEventListener("dragover", function (e) {
+        if (!draggingSection || draggingSection === el || draggingSection.parentElement !== containerEl) return;
+        e.preventDefault();
+        var rect = el.getBoundingClientRect();
+        var before = (e.clientY - rect.top) < rect.height / 2;
+        containerEl.insertBefore(draggingSection, before ? el : el.nextSibling);
+      });
+      el.addEventListener("drop", function (e) { e.preventDefault(); saveSectionLayout(); });
+    });
+
+    if (saved.order) {
+      saved.order.forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el && el.parentElement === containerEl) containerEl.appendChild(el);
+      });
+    }
+
+    function saveSectionLayout() {
+      var order = Array.prototype.slice.call(containerEl.children).map(function (el) { return el.id; });
+      try { localStorage.setItem(lsKey, JSON.stringify({ order: order })); } catch (e) {}
+    }
+  }
+  var draggingSection = null;
+
   function api(path, extra) {
     var k = getK();
     var u = "/api/airtable?path=" + encodeURIComponent(path);
@@ -519,6 +586,7 @@
     window.OfficeShell.renderChrome(record, "home");
     makeArrangeable(document.getElementById("cashRow"), "cash");
     makeArrangeable(document.getElementById("bottomRow"), "bottom");
+    makeSectionsArrangeable(document.getElementById("dashSections"), "sections");
 
     loadKpis();
     loadCash();
