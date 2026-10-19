@@ -283,6 +283,11 @@ const ALLOWED_FIELDS = {
   "tblhP1FMM4QJfwxat": [], // Fjárhagsstaða 📊 (cash position — internal, VERK_ONLY_FIELDS below)
   "tblFcsUoGxsuUwNEH": [], // Vöru línur ➖📦 (Line item's) — pricing-sensitive, VERK_ONLY_FIELDS below
   "tblR1TpicLRVTXHql": [], // ⚙️ Eyðublaðs ÚRVINNSLA ⚙️ — part templates, /bakendi (admin-only), VERK_ONLY_FIELDS below
+  // /laun (2026-10-19, eigandi-only) — payroll review: Stimplanir detail (base set already
+  // public for the kiosk; widened below), plus two tables never exposed before. Both entirely
+  // internal (pay figures, vacation balances), so empty base set, VERK_ONLY_FIELDS below.
+  "tblSQ0FfGQeBttaH2": [], // Launatímabil 🧾 (pay period summary, per employee)
+  "tbljdg6uxEfHE7uCU": [], // Orlofsbeiðnir (vacation requests)
 };
 
 // Extra Tækifæri fields the internal floor page (/verk, verk.html) needs —
@@ -450,6 +455,19 @@ const VERK_ONLY_FIELDS = {
     "Partur", "Tegund", "Efnisflokkur", "Magn formúla", "Hæð formúla",
     "Breidd formúla", "Þykkt formúla", "Kantlíming", "Skúffukerfi",
     "Yfirfræsari", "Athugasemd", "Glósur", "Glósur 📝",
+  ],
+  // /laun (2026-10-19) — Stimplanir's display-formula fields (Dagur/Inn kl./Út kl./Vikudagur
+  // are just formatted views of the already-public Inn/Út, no new data) plus the period filter.
+  "tblnFIO8RB6HcelXF": ["Dagur", "Inn kl.", "Út kl.", "Vikudagur", "Tímabil 🗓️"],
+  "tblSQ0FfGQeBttaH2": [ // Launatímabil 🧾
+    "Nafn", "Starfsmaður", "Tímabil 🗓️", "Tímabil frá", "Tímabil til", "Læst",
+    "Dagvinna alls (klst)", "Greiddar klst", "Heildarlaun f. skatt", "Orlofsinneign (kr)",
+    "Veikindadagar", "Veikindadagar greitt", "Orlofsdagar teknir", "Aðrar fjarvistir (dagar)",
+    "Greiddir frídagar", "Athugasemd",
+  ],
+  "tbljdg6uxEfHE7uCU": [ // Orlofsbeiðnir
+    "Frá", "Til", "Starfsmaður", "Staða", "Dagar (virkir)",
+    "Orlofsdagar eftir (staða)", "Athugasemd", "Skráð",
   ],
   // /crm KPI row (2026-10-17) — "Sölumarkmið mánaðarins" tile. One row per
   // financial snapshot date; only the computed target + its own date are
@@ -639,7 +657,7 @@ const CREATE_REQUIRES_KEY = new Set(["tblFcsUoGxsuUwNEH", "tblQ8zeUanriESWvL", "
 // the secret), but these four now carry PII (Tengiliðir/Fyrirtæki: kennitala, address, phone) or
 // pricing-adjacent structure (Útfærslur/Efnislisti) that didn't exist behind this proxy before — new
 // write surface gets the stricter gate from the start rather than relying on record-id obscurity.
-const PATCH_REQUIRES_KEY = new Set(["tblQ8zeUanriESWvL", "tbl2akoCETBx9S1SK", "tbl8HjvBwNJ41cTV0", "tbl8CrVWKF8CuI7HD"]);
+const PATCH_REQUIRES_KEY = new Set(["tblQ8zeUanriESWvL", "tbl2akoCETBx9S1SK", "tbl8HjvBwNJ41cTV0", "tbl8CrVWKF8CuI7HD", "tbljdg6uxEfHE7uCU"]);
 
 // Fields forced to a fixed value on create, regardless of what (or whether)
 // the client sends — applied after CREATABLE_FIELDS filtering, so these
@@ -725,6 +743,10 @@ const WRITABLE_FIELDS = {
   // (e.g. marking "Komið í hús" once material physically arrives — nothing
   // automates that step).
   "tblSccfV2lBp4FiFU": ["📧 Senda á birgja", "Staða"],
+  // /laun (2026-10-19) — approve/reject a vacation request. The ONLY writable field:
+  // "Fjarvistir búnar til" is an automation-owned flag (creates the real Fjarvistir
+  // row once approved), never set by this proxy.
+  "tbljdg6uxEfHE7uCU": ["Staða"],
   // Closes an open shift (stimpilklukka's ÚT button). "Inn" is intentionally
   // not writable here — a shift's start time is only ever set at creation.
   "tblnFIO8RB6HcelXF": ["Út"],

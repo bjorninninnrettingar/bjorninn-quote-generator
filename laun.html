@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="robots" content="noindex" />
+<title>Laun — Björninn</title>
+<link rel="icon" href="/icons/icon-192.png" />
+<script>
+(function () {
+  try { if (localStorage.getItem("bjorninn:skrifstofa:theme") === "dark") document.documentElement.setAttribute("data-theme", "dark"); } catch (e) {}
+})();
+</script>
+<style>
+  /* laun.html (2026-10-19, "eigandi"-gated) — Stimplanir review + Orlofsbeiðnir approve/reject,
+     the office-app side of the already-mature payroll system built straight in Airtable (see
+     memory: project_bjorninn_hr_automation — Launatímabil/Stimplanir/Orlofsbeiðnir, August 2026
+     already locked). This is the first page here to read those 3 tables; Starfsmenn itself stays
+     untouched — deliberately hardened (BLOCK_RECORD_ID) since 2026-10-01, so the employee picker
+     is built from Launatímabil's own "Nafn" lookup instead of querying Starfsmenn directly. */
+  :root {
+    --bg:#f3f4f6; --surface:#ffffff; --line:#e1e4e8; --sidebar:#1b2430;
+    --text:#1a1d21; --muted:#5d6670; --dim:#9aa3ad;
+    --accent:#0f6cbd; --warn:#9a6700; --bad:#c4291c; --good:#1a7d36;
+    --warn-bg:#fdf2d9; --good-bg:#e5f6ea;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  :root[data-theme="dark"] {
+    --bg:#11151c; --surface:#1a1f28; --line:#2a3140;
+    --text:#e7eaf0; --muted:#9aa3ad; --dim:#6b7380;
+    --accent:#3b9eff; --warn:#e3b341; --bad:#f2766b; --good:#4caf6e;
+    --warn-bg:#332a10; --good-bg:#102414;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; line-height:1.4; }
+
+  #shell { display:flex; min-height:100vh; }
+  .sidebar { width:224px; flex:none; background:var(--sidebar); color:#cfd5dd; display:flex; flex-direction:column; padding:18px 0; height:100vh; position:sticky; top:0; overflow-y:auto; }
+  .main { flex:1; padding:24px 28px 40px; max-width:1400px; }
+  .pageHd h1 { font-size:1.35rem; font-weight:700; margin-bottom:2px; }
+  .pageHd .sub { font-size:.82rem; color:var(--muted); margin-bottom:18px; }
+
+  .card { background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-bottom:18px; }
+  .sectionTitle { font-size:.78rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.02em; margin-bottom:10px; }
+
+  .toolbar { display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center; }
+  .toolbar select { font:inherit; font-size:.85rem; background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:8px 10px; color:var(--text); min-width:200px; }
+
+  table { width:100%; border-collapse:collapse; font-size:.84rem; }
+  th, td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--line); }
+  th { color:var(--muted); text-transform:uppercase; font-size:.68rem; letter-spacing:.04em; }
+  tfoot td { font-weight:700; border-top:2px solid var(--line); border-bottom:none; }
+  .num { text-align:right; font-variant-numeric:tabular-nums; }
+
+  .kpiRow { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:4px; }
+  .kpi { flex:1 1 140px; }
+  .kpi .lbl { font-size:.7rem; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; }
+  .kpi .val { font-size:1.3rem; font-weight:700; margin-top:2px; }
+  .lockBadge { display:inline-block; font-size:.68rem; font-weight:700; padding:2px 9px; border-radius:999px; margin-left:8px; }
+  .lockBadge.locked { background:var(--good-bg); color:var(--good); }
+  .lockBadge.open { background:var(--warn-bg); color:var(--warn); }
+
+  .reqRow { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  .reqRow:last-child { border-bottom:none; }
+  .reqName { font-weight:700; min-width:150px; }
+  .reqDates { color:var(--muted); font-size:.85rem; }
+  .reqNote { color:var(--muted); font-size:.82rem; flex:1 1 200px; }
+  .reqStatus { font-size:.72rem; font-weight:700; padding:2px 9px; border-radius:999px; }
+  .reqStatus.pending { background:var(--warn-bg); color:var(--warn); }
+  .reqStatus.approved { background:var(--good-bg); color:var(--good); }
+  .reqStatus.rejected { background:#fbe4e1; color:var(--bad); }
+  .reqActions { display:flex; gap:6px; }
+  .reqActions button { font:inherit; font-size:.78rem; font-weight:700; border-radius:8px; padding:6px 12px; cursor:pointer; border:1px solid var(--line); background:var(--surface); color:var(--text); }
+  .reqActions button.approve { background:var(--good); border-color:var(--good); color:#fff; }
+  .reqActions button.reject { background:var(--bad); border-color:var(--bad); color:#fff; }
+  .reqActions button:disabled { opacity:.5; cursor:default; }
+  .emptyMsg { color:var(--muted); font-size:.85rem; padding:10px 0; }
+  .loading { color:var(--muted); font-size:.85rem; padding:20px 0; text-align:center; }
+
+  .reqFilter { display:flex; gap:6px; margin-bottom:12px; }
+  .reqFilter button { font:inherit; font-size:.78rem; font-weight:700; border-radius:999px; padding:5px 12px; cursor:pointer; border:1px solid var(--line); background:var(--surface); color:var(--muted); }
+  .reqFilter button.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+</style>
+</head>
+<body>
+<div id="shell">
+  <div class="sidebar">
+    <div id="officeSidebarTop"></div>
+    <nav id="officeNav"></nav>
+    <div id="officeSidebarBottom"></div>
+  </div>
+  <div class="main">
+    <div class="pageHd">
+      <h1>💰 Laun</h1>
+      <div class="sub">Stimplanir yfirferð og orlofsbeiðnir — til að borga rétt laun á réttum tíma.</div>
+    </div>
+
+    <div class="card">
+      <div class="sectionTitle">Orlofsbeiðnir</div>
+      <div class="reqFilter" id="reqFilter">
+        <button data-f="Í bið" class="active">Í bið</button>
+        <button data-f="">Allar</button>
+      </div>
+      <div id="reqList"><div class="loading">Sæki…</div></div>
+    </div>
+
+    <div class="card">
+      <div class="sectionTitle">Stimplanir yfirferð</div>
+      <div class="toolbar">
+        <select id="empSelect"><option value="">Sæki starfsmenn…</option></select>
+        <select id="tbSelect"><option value="">Sæki tímabil…</option></select>
+      </div>
+      <div id="kpiArea"></div>
+      <div id="tblArea"><div class="loading">Veldu starfsmann og tímabil.</div></div>
+    </div>
+  </div>
+</div>
+
+<script src="/office-shell.js"></script>
+<script>
+(function () {
+  "use strict";
+  var STIMPLANIR = "tblnFIO8RB6HcelXF";
+  var LAUNATIMABIL = "tblSQ0FfGQeBttaH2";
+  var ORLOFSBEIDNIR = "tbljdg6uxEfHE7uCU";
+
+  var shellInfo = window.OfficeShell.boot("laun");
+  if (!shellInfo) return;
+  // Soft-hidden from nav for anyone without "eigandi" already — this is a real
+  // page-level check too (payroll data), same reasoning as /bakendi's admin gate.
+  if ((shellInfo.record.roles || []).indexOf("eigandi") === -1) {
+    location.href = "/skrifstofa";
+    return;
+  }
+  var k = shellInfo.k;
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }); }
+  function isk(n) { return Math.round(Number(n) || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") + " kr."; }
+  function num(n, d) { return (Number(n) || 0).toFixed(d == null ? 1 : d); }
+
+  function api(path, extra) {
+    var u = "/api/airtable?path=" + encodeURIComponent(path);
+    if (k) u += "&k=" + encodeURIComponent(k);
+    if (extra) u += "&" + extra;
+    return fetch(u).then(function (r) { return r.json(); });
+  }
+  function patch(path, fields) {
+    var u = "/api/airtable?path=" + encodeURIComponent(path) + (k ? "&k=" + encodeURIComponent(k) : "");
+    return fetch(u, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fields: fields }) })
+      .then(function (r) { return r.json(); });
+  }
+  function fetchAllPages(table, extra, acc, offset) {
+    acc = acc || [];
+    var qs = extra + (offset ? "&offset=" + encodeURIComponent(offset) : "");
+    return api(table, qs).then(function (d) {
+      acc = acc.concat(d.records || []);
+      return d.offset ? fetchAllPages(table, extra, acc, d.offset) : acc;
+    });
+  }
+
+  // Employee id -> name, built from Launatímabil's own "Nafn" lookup — Starfsmenn
+  // itself is deliberately unreadable through this proxy (BLOCK_RECORD_ID, 2026-10-01),
+  // so this is the only way to get real names without touching that boundary.
+  var empNames = {};
+  var empList = []; // [{id, name}], de-duped, sorted
+
+  function loadEmployeesAndPeriods() {
+    return fetchAllPages(LAUNATIMABIL, "pageSize=100").then(function (records) {
+      var periods = {};
+      records.forEach(function (r) {
+        var f = r.fields || {};
+        var ids = f["Starfsmaður"] || [];
+        var names = f["Nafn"] || [];
+        if (ids[0]) empNames[ids[0]] = names[0] || ids[0];
+        // "Tímabil 🗓️" is a singleSelect — the real REST API returns it as a plain
+        // string, not {name} (see memory: reference_airtable_api_vs_mcp_shape).
+        var tb = f["Tímabil 🗓️"];
+        if (tb) periods[tb] = true;
+      });
+      empList = Object.keys(empNames).map(function (id) { return { id: id, name: empNames[id] }; })
+        .sort(function (a, b) { return a.name.localeCompare(b.name, "is"); });
+      $("empSelect").innerHTML = '<option value="">— Veldu starfsmann —</option>' +
+        empList.map(function (e) { return '<option value="' + esc(e.id) + '">' + esc(e.name) + "</option>"; }).join("");
+      var periodList = Object.keys(periods).sort().reverse();
+      $("tbSelect").innerHTML = '<option value="">— Veldu tímabil —</option>' +
+        periodList.map(function (p) { return '<option value="' + esc(p) + '">' + esc(p) + "</option>"; }).join("");
+      if (periodList.length) $("tbSelect").value = periodList[0];
+    });
+  }
+
+  // ARRAYJOIN on a multipleRecordLinks field resolves to the linked record's
+  // NAME, not its id (already found + fixed once in this project — see
+  // memory: project_bjorninn_skipulag_phase2) — so these filter on the
+  // employee's real name, never the record id, same established pattern
+  // ferli.html/pontun.html use for their own project-scoped queries.
+  function renderStimplanir() {
+    var empId = $("empSelect").value, tb = $("tbSelect").value;
+    if (!empId || !tb) { $("tblArea").innerHTML = '<div class="loading">Veldu starfsmann og tímabil.</div>'; $("kpiArea").innerHTML = ""; return; }
+    $("tblArea").innerHTML = '<div class="loading">Sæki…</div>';
+    var empName = (empNames[empId] || "").replace(/"/g, '\\"');
+
+    var shiftsFml = 'AND(FIND("' + empName + '",ARRAYJOIN({Starfsmaður}))>0,{Tímabil 🗓️}="' + tb + '")';
+    var tbFml = 'AND(FIND("' + empName + '",ARRAYJOIN({Starfsmaður}))>0,{Tímabil 🗓️}="' + tb + '")';
+
+    Promise.all([
+      fetchAllPages(STIMPLANIR, "filterByFormula=" + encodeURIComponent(shiftsFml) + "&pageSize=100"),
+      api(LAUNATIMABIL, "filterByFormula=" + encodeURIComponent(tbFml) + "&pageSize=1"),
+    ]).then(function (res) {
+      var shifts = res[0].sort(function (a, b) { return new Date(a.fields["Inn"]) - new Date(b.fields["Inn"]); });
+      var tbRec = (res[1].records || [])[0];
+
+      if (tbRec) {
+        var f = tbRec.fields || {};
+        $("kpiArea").innerHTML =
+          '<div class="kpiRow">' +
+            '<div class="kpi"><div class="lbl">Dagvinna alls</div><div class="val">' + num(f["Dagvinna alls (klst)"]) + ' klst</div></div>' +
+            '<div class="kpi"><div class="lbl">Greiddar klst</div><div class="val">' + num(f["Greiddar klst"]) + '</div></div>' +
+            '<div class="kpi"><div class="lbl">Heildarlaun f. skatt</div><div class="val">' + isk(f["Heildarlaun f. skatt"]) + '</div></div>' +
+            '<div class="kpi"><div class="lbl">Orlofsinneign</div><div class="val">' + isk(f["Orlofsinneign (kr)"]) + '</div></div>' +
+          '</div>' +
+          '<div style="margin-top:6px;">' +
+            (f["Veikindadagar"] ? ('Veikindadagar: <b>' + f["Veikindadagar"] + '</b> (' + num(f["Veikindadagar greitt"], 0) + ' greitt) · ') : "") +
+            (f["Orlofsdagar teknir"] ? ('Orlofsdagar teknir: <b>' + f["Orlofsdagar teknir"] + '</b> · ') : "") +
+            '<span class="lockBadge ' + (f["Læst"] ? "locked" : "open") + '">' + (f["Læst"] ? "🔒 Læst" : "Ólæst") + '</span>' +
+          '</div>';
+      } else {
+        $("kpiArea").innerHTML = '<div class="emptyMsg">Ekkert Launatímabil fannst fyrir þetta tímabil enn.</div>';
+      }
+
+      if (!shifts.length) { $("tblArea").innerHTML = '<div class="emptyMsg">Engar stimplanir á þessu tímabili.</div>'; return; }
+      var sumD = 0, sumY = 0, sumS = 0;
+      var rows = shifts.map(function (r) {
+        var f = r.fields || {};
+        sumD += Number(f["Dagvinna (klst)"]) || 0;
+        sumY += Number(f["Yfirvinna (klst)"]) || 0;
+        sumS += Number(f["Samtals (klst)"]) || 0;
+        return "<tr>" +
+          "<td>" + esc(f["Dagur"]) + "</td>" +
+          "<td>" + esc(f["Vikudagur"]) + "</td>" +
+          "<td>" + esc(f["Inn kl."]) + "</td>" +
+          "<td>" + esc(f["Út kl."] || "—") + "</td>" +
+          '<td class="num">' + num(f["Dagvinna (klst)"]) + "</td>" +
+          '<td class="num">' + num(f["Yfirvinna (klst)"]) + "</td>" +
+          '<td class="num">' + num(f["Samtals (klst)"]) + "</td>" +
+          "</tr>";
+      }).join("");
+      $("tblArea").innerHTML =
+        '<table><thead><tr><th>Dagur</th><th>Vikudagur</th><th>Inn kl.</th><th>Út kl.</th><th>Dagvinna</th><th>Yfirvinna</th><th>Samtals</th></tr></thead>' +
+        "<tbody>" + rows + "</tbody>" +
+        '<tfoot><tr><td colspan="4">Samtals</td><td class="num">' + num(sumD) + '</td><td class="num">' + num(sumY) + '</td><td class="num">' + num(sumS) + "</td></tr></tfoot>" +
+        "</table>";
+    }).catch(function (e) {
+      $("tblArea").innerHTML = '<div class="emptyMsg">Villa: ' + esc(e.message) + "</div>";
+    });
+  }
+
+  // ── Orlofsbeiðnir ──────────────────────────────────────────────────────
+  var reqFilterVal = "Í bið";
+  function loadRequests() {
+    $("reqList").innerHTML = '<div class="loading">Sæki…</div>';
+    var fml = reqFilterVal ? 'AND({Staða}="' + reqFilterVal + '")' : "";
+    fetchAllPages(ORLOFSBEIDNIR, (fml ? "filterByFormula=" + encodeURIComponent(fml) + "&" : "") + "pageSize=100")
+      .then(function (records) {
+        records.sort(function (a, b) { return new Date(b.fields["Frá"]) - new Date(a.fields["Frá"]); });
+        renderRequests(records);
+      })
+      .catch(function (e) { $("reqList").innerHTML = '<div class="emptyMsg">Villa: ' + esc(e.message) + "</div>"; });
+  }
+
+  function statusClass(s) { return s === "Samþykkt" ? "approved" : (s === "Hafnað" ? "rejected" : "pending"); }
+
+  function renderRequests(records) {
+    if (!records.length) { $("reqList").innerHTML = '<div class="emptyMsg">Engar beiðnir.</div>'; return; }
+    $("reqList").innerHTML = records.map(function (r) {
+      var f = r.fields || {};
+      var empId = (f["Starfsmaður"] || [])[0];
+      var name = empNames[empId] || "(óþekktur starfsmaður)";
+      var st = (f["Staða"] && f["Staða"].name) || f["Staða"] || "Í bið";
+      var pending = st === "Í bið";
+      return '<div class="reqRow" data-id="' + esc(r.id) + '">' +
+        '<span class="reqName">' + esc(name) + "</span>" +
+        '<span class="reqDates">' + esc(f["Frá"]) + " → " + esc(f["Til"]) + " · " + (f["Dagar (virkir)"] != null ? f["Dagar (virkir)"] + " dagar" : "") + "</span>" +
+        '<span class="reqNote">' + esc(f["Athugasemd"] || "") + "</span>" +
+        '<span class="reqStatus ' + statusClass(st) + '">' + esc(st) + "</span>" +
+        (pending
+          ? '<span class="reqActions"><button class="approve" data-act="Samþykkt">Samþykkja</button><button class="reject" data-act="Hafnað">Hafna</button></span>'
+          : "") +
+        "</div>";
+    }).join("");
+  }
+
+  $("reqList").addEventListener("click", function (e) {
+    var btn = e.target.closest("button[data-act]");
+    if (!btn) return;
+    var row = btn.closest(".reqRow");
+    var id = row.dataset.id;
+    var newStatus = btn.dataset.act;
+    row.querySelectorAll("button").forEach(function (b) { b.disabled = true; });
+    patch(ORLOFSBEIDNIR + "/" + id, { "Staða": newStatus }).then(function () { loadRequests(); });
+  });
+
+  $("reqFilter").addEventListener("click", function (e) {
+    var btn = e.target.closest("button[data-f]");
+    if (!btn) return;
+    reqFilterVal = btn.dataset.f;
+    $("reqFilter").querySelectorAll("button").forEach(function (b) { b.classList.toggle("active", b === btn); });
+    loadRequests();
+  });
+
+  $("empSelect").addEventListener("change", renderStimplanir);
+  $("tbSelect").addEventListener("change", renderStimplanir);
+
+  loadEmployeesAndPeriods().then(function () {
+    renderStimplanir();
+    loadRequests();
+  });
+})();
+</script>
+</body>
+</html>

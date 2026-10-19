@@ -29,12 +29,14 @@
   // toolset every office title gets (see api/skrifstofa-login.js for why title no longer
   // splits people into narrower buckets). Bakendi (2026-10-19) is narrower still — "admin"
   // only, which only the Rekstrarstjóri title holds, not every "eigandi"-typed employee
-  // (Jóel is Eigandi-typed too but shouldn't see this).
+  // (Jóel is Eigandi-typed too but shouldn't see this). Laun (2026-10-19) is "eigandi" —
+  // broader than Bakendi on purpose, Jóel/Anton should both see payroll review too.
   var NAV = [
     { id: "home",    icon: "🏠", label: "Yfirlit",         roles: ["eigandi"], href: "/skrifstofa" },
     { id: "ferli",   icon: "📐", label: "Skipulagsferli",  roles: ["allt"], href: "/ferli" },
     { id: "verkst",  icon: "🛠️", label: "Verkstæði",       roles: ["allt"], href: "/framleidsla" },
     { id: "crm",     icon: "📇", label: "CRM",             roles: ["allt"], href: "/crm" },
+    { id: "laun",    icon: "💰", label: "Laun",            roles: ["eigandi"], href: "/laun" },
     { id: "bakendi", icon: "🧰", label: "Bakendi",         roles: ["admin"], href: "/bakendi" },
   ];
 
