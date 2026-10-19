@@ -67,11 +67,24 @@
   .npChosen { text-align:center; font-weight:700; font-size:.95rem; margin-bottom:4px; }
   .npMsg { text-align:center; font-size:.8rem; color:var(--muted); margin-top:10px; min-height:1.1em; }
 
-  .kpiRow { display:flex; gap:12px; margin-bottom:18px; flex-wrap:wrap; }
-  .kpi { background:var(--surface); border-radius:14px; padding:13px 16px; box-shadow:0 1px 3px rgba(0,0,0,.05); flex:1; min-width:150px; }
+  /* Arrangeable KPI row (2026-10-19) — same mechanism as skrifstofa.html's Yfirlit dashboard:
+     drag to reorder, S/M/L size cycle (spans of a shared 6-column grid), saved to localStorage
+     per browser only. See skrifstofa.html for the fuller comment on why personal-not-shared. */
+  .kpiRow { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:12px; margin-bottom:18px; }
+  .kpiRow > div { min-width:0; }
+  .kpiRow > [data-size="S"] { grid-column:span 1; }
+  .kpiRow > [data-size="M"] { grid-column:span 2; }
+  .kpiRow > [data-size="L"] { grid-column:span 3; }
+  .kpiRow > .dragging { opacity:.4; }
+  .kpi { background:var(--surface); border-radius:14px; padding:13px 16px; box-shadow:0 1px 3px rgba(0,0,0,.05); position:relative; }
   .kpi .lbl { font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
   .kpi .val { font-size:1.4rem; font-weight:700; margin-top:4px; }
   .kpi .sub { font-size:.74rem; color:var(--dim); margin-top:2px; }
+  .kpiArrangeHandle { position:absolute; top:6px; right:6px; display:flex; gap:3px; opacity:0; transition:opacity .1s; }
+  .kpi:hover .kpiArrangeHandle { opacity:1; }
+  .kpiArrangeHandle button { all:unset; box-sizing:border-box; width:18px; height:18px; display:flex; align-items:center; justify-content:center; border-radius:5px; background:var(--bg); border:1px solid var(--line); font-size:.58rem; font-weight:700; color:var(--muted); cursor:pointer; }
+  .kpiArrangeHandle button.sizeOn { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .kpiArrangeHandle .dragHandle { cursor:grab; font-size:.75rem; }
 
   .nextSteps { margin-bottom:20px; }
   .nextSteps h2 { font-size:.8rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.02em; margin-bottom:8px; }
@@ -91,11 +104,22 @@
   .nsCard .when { font-size:.72rem; color:var(--dim); margin-top:3px; }
 
   .board { display:flex; gap:14px; overflow-x:auto; padding-bottom:10px; margin-top:16px; }
-  .col { flex:0 0 260px; }
+  .col { flex:0 0 260px; transition:opacity .1s; }
+  .col[data-colsize="S"] { flex-basis:200px; }
+  .col[data-colsize="L"] { flex-basis:340px; }
+  .col.colDragging { opacity:.4; }
+  .board.colDragover { outline:2px dashed var(--accent); outline-offset:-2px; }
   .col h2 { font-size:.8rem; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.02em; margin-bottom:8px; display:flex; align-items:center; gap:6px; }
   .col h2 .colLabel { flex:1; }
   .col h2 .cnt { color:var(--dim); font-weight:500; }
   .col h2 .colorDot { width:8px; height:8px; border-radius:50%; flex:none; }
+  /* Column-level reorder/resize (2026-10-19) — a separate drag system from the existing
+     card→column stage-change drag below: this one moves/resizes the whole column, grabbed by its
+     own handle in the header, never the card body. */
+  .colHandle { display:flex; gap:2px; margin-left:4px; }
+  .colHandle button { all:unset; box-sizing:border-box; width:16px; height:16px; display:flex; align-items:center; justify-content:center; border-radius:4px; font-size:.56rem; font-weight:700; color:var(--dim); cursor:pointer; }
+  .colHandle button:hover, .colHandle button.sizeOn { background:var(--bg); color:var(--text); }
+  .colHandle .colDragHandle { cursor:grab; font-size:.7rem; }
   .cards { display:flex; flex-direction:column; gap:8px; min-height:30px; border-radius:10px; transition:background .1s; }
   .cards.dragover { background:rgba(15,108,189,.08); outline:2px dashed var(--accent); outline-offset:-2px; }
 
@@ -214,10 +238,10 @@
   </div>
 
   <div class="kpiRow" id="kpiRow">
-    <div class="kpi"><div class="lbl">Heildarvirði</div><div class="val" id="kpiTotal">—</div><div class="sub" id="kpiTotalSub"></div></div>
-    <div class="kpi"><div class="lbl">Sölumarkmið mánaðarins</div><div class="val" id="kpiTarget">—</div></div>
-    <div class="kpi"><div class="lbl">Sala þessa mánaðar</div><div class="val" id="kpiSold">—</div></div>
-    <div class="kpi"><div class="lbl">Millifærslur þennan mánuð</div><div class="val" id="kpiTransfers">—</div><div class="sub">Staðfestingargjöld + eftirstöðvar</div></div>
+    <div class="kpi" id="kpiTotalBox" data-size="M"><div class="lbl">Heildarvirði</div><div class="val" id="kpiTotal">—</div><div class="sub" id="kpiTotalSub"></div></div>
+    <div class="kpi" id="kpiTargetBox" data-size="M"><div class="lbl">Sölumarkmið mánaðarins</div><div class="val" id="kpiTarget">—</div></div>
+    <div class="kpi" id="kpiSoldBox" data-size="M"><div class="lbl">Sala þessa mánaðar</div><div class="val" id="kpiSold">—</div></div>
+    <div class="kpi" id="kpiTransfersBox" data-size="M"><div class="lbl">Millifærslur þennan mánuð</div><div class="val" id="kpiTransfers">—</div><div class="sub">Staðfestingargjöld + eftirstöðvar</div></div>
   </div>
 
   <div class="pipelineReport" id="pipelineReport">
@@ -401,6 +425,7 @@
   if (!shellInfo) return;
   var k = shellInfo.k;
   var myName = (shellInfo.record && shellInfo.record.name) || "";
+  makeArrangeableKpiRow(document.getElementById("kpiRow"), "kpi");
 
   var STAGES = [
     { name: "Hönnun & Ráðgjöf 🖊️✨", short: "Hönnun", color: "#e05d9e" },
@@ -436,6 +461,65 @@
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }); }
   function kr(n) { return n == null ? "—" : Math.round(n).toLocaleString("is-IS") + " kr."; }
 
+  // Arrangeable KPI row (2026-10-19) — same mechanism as skrifstofa.html's Yfirlit dashboard;
+  // see there for the fuller "why personal localStorage, not shared" comment.
+  function makeArrangeableKpiRow(rowEl, storageKey) {
+    if (!rowEl) return;
+    var lsKey = "bjorninn:crm:layout:" + storageKey;
+    var saved = {};
+    try { saved = JSON.parse(localStorage.getItem(lsKey) || "{}"); } catch (e) {}
+    var dragging = null;
+    var items = Array.prototype.slice.call(rowEl.children);
+    items.forEach(function (el) {
+      if (saved.sizes && saved.sizes[el.id]) el.dataset.size = saved.sizes[el.id];
+      var handle = document.createElement("div");
+      handle.className = "kpiArrangeHandle";
+      handle.innerHTML =
+        '<button class="dragHandle" type="button" title="Draga til að raða" draggable="true">⠿</button>' +
+        ["S", "M", "L"].map(function (s) {
+          return '<button type="button" class="sizeBtn' + (el.dataset.size === s ? " sizeOn" : "") + '" data-s="' + s + '">' + s + "</button>";
+        }).join("");
+      el.appendChild(handle);
+      handle.querySelectorAll(".sizeBtn").forEach(function (btn) {
+        btn.addEventListener("click", function (e) {
+          e.stopPropagation();
+          el.dataset.size = btn.dataset.s;
+          handle.querySelectorAll(".sizeBtn").forEach(function (b) { b.classList.toggle("sizeOn", b === btn); });
+          saveLayout();
+        });
+      });
+      var dragHandle = handle.querySelector(".dragHandle");
+      dragHandle.addEventListener("click", function (e) { e.stopPropagation(); });
+      dragHandle.addEventListener("dragstart", function (e) {
+        dragging = el;
+        el.classList.add("dragging");
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", el.id);
+      });
+      dragHandle.addEventListener("dragend", function () { el.classList.remove("dragging"); dragging = null; });
+      el.addEventListener("dragover", function (e) {
+        if (!dragging || dragging === el || dragging.parentElement !== rowEl) return;
+        e.preventDefault();
+        var rect = el.getBoundingClientRect();
+        var before = (e.clientX - rect.left) < rect.width / 2;
+        rowEl.insertBefore(dragging, before ? el : el.nextSibling);
+      });
+      el.addEventListener("drop", function (e) { e.preventDefault(); saveLayout(); });
+    });
+    if (saved.order) {
+      saved.order.forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el && el.parentElement === rowEl) rowEl.appendChild(el);
+      });
+    }
+    function saveLayout() {
+      var order = Array.prototype.slice.call(rowEl.children).map(function (el) { return el.id; });
+      var sizes = {};
+      order.forEach(function (id) { sizes[id] = document.getElementById(id).dataset.size; });
+      try { localStorage.setItem(lsKey, JSON.stringify({ order: order, sizes: sizes })); } catch (e) {}
+    }
+  }
+
   var showClosed = false;
   var records = [];
   var searchTerm = "";
@@ -469,16 +553,48 @@
     return r.fields["Sölumaður 🧑‍💼"] === myName;
   }
 
+  // Column order/size (2026-10-19) — board.innerHTML is fully rebuilt on every render(), so (unlike
+  // the static KPI row above) DOM position can't carry the order; it's tracked by stage name here
+  // and in localStorage instead, applied by sorting `cols` before building.
+  var COL_LAYOUT_KEY = "bjorninn:crm:layout:columns";
+  var colLayout = {};
+  try { colLayout = JSON.parse(localStorage.getItem(COL_LAYOUT_KEY) || "{}"); } catch (e) {}
+  function saveColLayout(order, sizes) {
+    colLayout = { order: order, sizes: sizes || colLayout.sizes || {} };
+    try { localStorage.setItem(COL_LAYOUT_KEY, JSON.stringify(colLayout)); } catch (e) {}
+  }
+  function orderCols(cols) {
+    if (!colLayout.order) return cols;
+    var rank = {};
+    colLayout.order.forEach(function (name, i) { rank[name] = i; });
+    return cols.slice().sort(function (a, b) {
+      var ra = rank[a.name], rb = rank[b.name];
+      if (ra == null && rb == null) return 0;
+      if (ra == null) return 1;
+      if (rb == null) return -1;
+      return ra - rb;
+    });
+  }
+
   function render() {
     var board = document.getElementById("board");
     board.innerHTML = "";
     var cols = showClosed ? STAGES.concat(CLOSED_STAGES.map(function (s) { return { name: s, short: s, color: "#9aa3ad" }; })) : STAGES;
+    cols = orderCols(cols);
     cols.forEach(function (stage) {
       var items = records.filter(function (r) { return (r.fields["Staða í söluferli"] || "") === stage.name && matchesSearch(r) && matchesOwner(r); });
       items.sort(function (a, b) { return (b.fields["Verk ósnert dagar 📅"] || 0) - (a.fields["Verk ósnert dagar 📅"] || 0); });
       var col = document.createElement("div");
       col.className = "col";
-      col.innerHTML = '<h2><span class="colorDot" style="background:' + stage.color + '"></span><span class="colLabel">' + esc(stage.short) + '</span><span class="cnt">' + items.length + '</span></h2><div class="cards"></div>';
+      col.dataset.stage = stage.name;
+      var colSize = colLayout.sizes && colLayout.sizes[stage.name];
+      if (colSize) col.dataset.colsize = colSize;
+      col.innerHTML = '<h2><span class="colorDot" style="background:' + stage.color + '"></span><span class="colLabel">' + esc(stage.short) + '</span><span class="cnt">' + items.length + '</span>' +
+        '<span class="colHandle">' +
+          '<button class="colDragHandle" type="button" title="Draga dálk til að raða" draggable="true">⠿</button>' +
+          ["S", "M", "L"].map(function (s) { return '<button type="button" class="colSizeBtn' + (colSize === s || (!colSize && s === "M") ? " sizeOn" : "") + '" data-s="' + s + '">' + s + "</button>"; }).join("") +
+        "</span>" +
+        '</h2><div class="cards"></div>';
       var cardsEl = col.querySelector(".cards");
       if (!items.length) cardsEl.innerHTML = '<div class="empty">Ekkert hér</div>';
       items.forEach(function (r) { cardsEl.appendChild(cardEl(r, stage.color)); });
@@ -500,11 +616,49 @@
         if ((r.fields["Staða í söluferli"] || "") === stage.name) return; // dropped on its own column
         moveToStage(r, stage.name);
       });
+      // Column-level reorder (separate state from draggingRecord above — mutually exclusive, a
+      // user grabs either a card or a column handle, never both at once).
+      var colDragHandle = col.querySelector(".colDragHandle");
+      colDragHandle.addEventListener("click", function (e) { e.stopPropagation(); });
+      colDragHandle.addEventListener("dragstart", function (e) {
+        draggingColumn = col;
+        col.classList.add("colDragging");
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", stage.name);
+      });
+      colDragHandle.addEventListener("dragend", function () { col.classList.remove("colDragging"); board.classList.remove("colDragover"); draggingColumn = null; });
+      col.addEventListener("dragover", function (e) {
+        if (!draggingColumn || draggingColumn === col) return;
+        e.preventDefault();
+        e.stopPropagation(); // don't let this bubble into a card's own .cards dragover handling
+        board.classList.add("colDragover");
+        var rect = col.getBoundingClientRect();
+        var before = (e.clientX - rect.left) < rect.width / 2;
+        board.insertBefore(draggingColumn, before ? col : col.nextSibling);
+      });
+      col.addEventListener("drop", function (e) {
+        if (!draggingColumn) return;
+        e.preventDefault();
+        board.classList.remove("colDragover");
+        var order = Array.prototype.slice.call(board.children).map(function (c) { return c.dataset.stage; });
+        saveColLayout(order);
+      });
+      col.querySelectorAll(".colSizeBtn").forEach(function (btn) {
+        btn.addEventListener("click", function (e) {
+          e.stopPropagation();
+          col.dataset.colsize = btn.dataset.s;
+          col.querySelectorAll(".colSizeBtn").forEach(function (b) { b.classList.toggle("sizeOn", b === btn); });
+          var sizes = colLayout.sizes || {};
+          sizes[stage.name] = btn.dataset.s;
+          saveColLayout(colLayout.order || cols.map(function (c) { return c.name; }), sizes);
+        });
+      });
       board.appendChild(col);
     });
   }
 
   var draggingRecord = null;
+  var draggingColumn = null;
   function cardEl(r, color) {
     var f = r.fields;
     var el = document.createElement("div");

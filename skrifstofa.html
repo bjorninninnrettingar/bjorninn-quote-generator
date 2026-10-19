@@ -695,7 +695,7 @@
     // Væntanlegar efnispantanir — same Pantaðir listar scope the "Innkaup — ólokin verk" KPI
     // tile already used (not yet "Komið í hús"), reframed as a projection: total cost, plus how
     // much of it is due to arrive within the next 7 days.
-    api(PANTADIR, "filterByFormula=" + encodeURIComponent('{Staða}!="Komið í hús 🐻"') + "&fields%5B%5D=%C3%81%C3%A6tla%C3%B0ur%20kostna%C3%B0ur&fields%5B%5D=Afhending%20%C3%B3ska%C3%B0&fields%5B%5D=" + encodeURIComponent("Stöðu kenni") + "&pageSize=100")
+    api(PANTADIR, "filterByFormula=" + encodeURIComponent('{Staða}!="Komið í hús 🐻"') + "&fields%5B%5D=%C3%81%C3%A6tla%C3%B0ur%20kostna%C3%B0ur&fields%5B%5D=Afhending%20%C3%B3ska%C3%B0&fields%5B%5D=" + encodeURIComponent("Stöðu kenni") + "&fields%5B%5D=" + encodeURIComponent("Tækifæri 📣") + "&pageSize=100")
       .then(function (d) {
         var recs = d.records || [];
         var total = recs.reduce(function (s, r) { return s + (r.fields["Áætlaður kostnaður"] || 0); }, 0);
@@ -756,19 +756,53 @@
     recs.forEach(function (r) {
       var kenni = r.fields["Stöðu kenni"] || "";
       var name = kenni.split(" — ")[0] || "(óþekkt verk)";
-      if (!byProject[name]) byProject[name] = { cost: 0, suppliers: [] };
+      if (!byProject[name]) byProject[name] = { cost: 0, suppliers: [], projectId: (r.fields["Tækifæri 📣"] || [])[0] };
       byProject[name].cost += r.fields["Áætlaður kostnaður"] || 0;
       var supplier = kenni.split(" — ")[1];
       if (supplier && byProject[name].suppliers.indexOf(supplier) === -1) byProject[name].suppliers.push(supplier);
     });
-    var rows = Object.keys(byProject).map(function (name) { return { name: name, cost: byProject[name].cost, suppliers: byProject[name].suppliers }; });
+    var rows = Object.keys(byProject).map(function (name) { return { name: name, cost: byProject[name].cost, suppliers: byProject[name].suppliers, projectId: byProject[name].projectId }; });
     rows.sort(function (a, b) { return b.cost - a.cost; });
-    var html = '<table><tr><th>Verkefni</th><th>Birgjar</th><th class="num">Kostnaður</th></tr>' +
-      rows.map(function (r) {
-        return "<tr><td>" + esc(r.name) + "</td><td>" + esc(r.suppliers.join(", ")) + '</td><td class="num">' + kr(r.cost) + "</td></tr>";
-      }).join("") +
-      '<tr class="sumRow"><td colspan="2">Samtals</td><td class="num">' + kr(grandTotal) + "</td></tr></table>";
-    document.getElementById("upcomingTable").innerHTML = html;
+    function draw(efniStatus) {
+      var html = '<table><tr><th>Verkefni</th><th>Birgjar</th><th class="num">Kostnaður</th><th>Efni í húsi</th></tr>' +
+        rows.map(function (r) {
+          var checked = r.projectId && efniStatus[r.projectId];
+          var cb = r.projectId
+            ? '<input type="checkbox" class="efniCheck" data-id="' + r.projectId + '"' + (checked ? " checked" : "") + " />"
+            : "—";
+          return "<tr><td>" + esc(r.name) + "</td><td>" + esc(r.suppliers.join(", ")) + '</td><td class="num">' + kr(r.cost) + "</td><td>" + cb + "</td></tr>";
+        }).join("") +
+        '<tr class="sumRow"><td colspan="2">Samtals</td><td class="num">' + kr(grandTotal) + "</td><td></td></tr></table>";
+      var tableEl = document.getElementById("upcomingTable");
+      tableEl.innerHTML = html;
+      tableEl.querySelectorAll(".efniCheck").forEach(function (cb) {
+        cb.addEventListener("click", function (e) { e.stopPropagation(); });
+        cb.addEventListener("change", function () {
+          var id = cb.dataset.id;
+          cb.disabled = true;
+          apiPatchProject(id, { "5. Efni lent í húsi": cb.checked })
+            .then(function () { cb.disabled = false; })
+            .catch(function () { cb.checked = !cb.checked; cb.disabled = false; });
+        });
+      });
+    }
+    // Marking material arrived here ticks Tækifæri's existing "5. Efni lent í húsi" loka-yfirferð
+    // checklist box (2026-10-19, confirmed with the user) — never writes Staða í skipulagi
+    // directly, so none of today's automation-cascade risk applies.
+    var ids = rows.map(function (r) { return r.projectId; }).filter(Boolean);
+    if (!ids.length) { draw({}); return; }
+    Promise.all(ids.map(function (id) { return api(PROJECTS + "/" + id, "fields%5B%5D=" + encodeURIComponent("5. Efni lent í húsi")); }))
+      .then(function (results) {
+        var status = {};
+        results.forEach(function (r, i) { status[ids[i]] = !!(r.fields && r.fields["5. Efni lent í húsi"]); });
+        draw(status);
+      })
+      .catch(function () { draw({}); });
+  }
+  function apiPatchProject(id, fields) {
+    var u = "/api/airtable?path=" + encodeURIComponent(PROJECTS + "/" + id);
+    if (getK()) u += "&k=" + encodeURIComponent(getK());
+    return fetch(u, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fields: fields }) }).then(function (r) { return r.json(); });
   }
   document.getElementById("cashUpcomingTile").addEventListener("click", function (e) {
     if (e.target.closest(".arrangeHandle")) return; // dragging/resizing the tile isn't "open the table"
