@@ -183,6 +183,13 @@
   .panel h2.stHead { background:#1a7d36; color:#fff; border-bottom:none; }
   .panel h2.stHead .cnt { color:#d7f0dd; }
   .verkPanel { margin-bottom:20px; }
+  /* Verk í vinnslu narrow toggle (2026-10-19) — "shrink it by one S, no more than that": a single
+     grid-unit step, 6/6 (full) down to 5/6, not the full S/M/L range the pills use. */
+  .verkGrid { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); }
+  .verkGrid .verkPanel { grid-column:span 6; min-width:0; }
+  .verkGrid .verkPanel[data-width="narrow"] { grid-column:span 5; }
+  .verkWidthBtn { position:absolute; top:-10px; left:44px; z-index:2; width:26px; height:26px; display:flex; align-items:center; justify-content:center; border-radius:50%; background:var(--surface); border:1px solid var(--line); color:var(--muted); font-size:.68rem; font-weight:700; cursor:pointer; opacity:0; transition:opacity .1s; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .dashSection:hover .verkWidthBtn { opacity:1; }
   .verkPanel .verkBoard { margin:0; padding:12px; }
   /* Quick Fix form (2026-10-18) — expanded from a single "what's wrong" input to the full set
      of fields QUICK FIX❗ actually has (Ábyrgðarmaður/Tengt verkefni/Skiladagur), matching the
@@ -297,10 +304,13 @@
     </div>
 
     <div class="dashSection" id="sectionVerk">
-    <div class="panel verkPanel">
+    <div class="verkGrid">
+    <div class="panel verkPanel" id="verkPanelBox">
       <h2 class="prodHead">🏭 Verk í vinnslu <span class="cnt" id="verkCnt"></span></h2>
       <div class="verkBoard" id="verkBoard"></div>
     </div>
+    </div>
+    <button type="button" class="verkWidthBtn" id="verkWidthBtn" title="Mjórra/breiðara">⇆</button>
     </div>
 
     <div class="dashSection" id="sectionBottom">
@@ -531,6 +541,20 @@
   }
   var draggingSection = null;
 
+  function initVerkWidthToggle() {
+    var panel = document.getElementById("verkPanelBox");
+    var btn = document.getElementById("verkWidthBtn");
+    var lsKey = "bjorninn:skrifstofa:layout:verkWidth";
+    var saved = null;
+    try { saved = localStorage.getItem(lsKey); } catch (e) {}
+    if (saved === "narrow") panel.dataset.width = "narrow";
+    btn.addEventListener("click", function () {
+      var narrow = panel.dataset.width === "narrow";
+      panel.dataset.width = narrow ? "" : "narrow";
+      try { localStorage.setItem(lsKey, narrow ? "" : "narrow"); } catch (e) {}
+    });
+  }
+
   function api(path, extra) {
     var k = getK();
     var u = "/api/airtable?path=" + encodeURIComponent(path);
@@ -600,6 +624,7 @@
     makeArrangeable(document.getElementById("cashRow"), "cash");
     makeArrangeable(document.getElementById("bottomRow"), "bottom");
     makeSectionsArrangeable(document.getElementById("dashSections"), "sections");
+    initVerkWidthToggle();
 
     loadKpis();
     loadCash();
