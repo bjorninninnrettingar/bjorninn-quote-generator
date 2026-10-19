@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="robots" content="noindex" />
+<title>Bakendi — Björninn</title>
+<link rel="icon" href="/icons/icon-192.png" />
+<script>
+(function () {
+  try { if (localStorage.getItem("bjorninn:skrifstofa:theme") === "dark") document.documentElement.setAttribute("data-theme", "dark"); } catch (e) {}
+})();
+</script>
+<style>
+  /* bakendi.html (2026-10-19) — admin-only ("admin" role = Starfsheiti Rekstrarstjóri
+     specifically, not every Eigandi-typed employee, see api/skrifstofa-login.js). First
+     thing here: a read-only view of Eyðublaðs ÚRVINNSLA, the part-template formula table
+     nothing else in this app has ever surfaced. More gets added here later. Same shell/
+     theme as every other office page — not a new visual language. */
+  :root {
+    --bg:#f3f4f6; --surface:#ffffff; --line:#e1e4e8; --sidebar:#1b2430;
+    --text:#1a1d21; --muted:#5d6670; --dim:#9aa3ad;
+    --accent:#0f6cbd; --warn:#9a6700; --bad:#c4291c; --good:#1a7d36;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  :root[data-theme="dark"] {
+    --bg:#11151c; --surface:#1a1f28; --line:#2a3140;
+    --text:#e7eaf0; --muted:#9aa3ad; --dim:#6b7380;
+    --accent:#3b9eff; --warn:#e3b341; --bad:#f2766b; --good:#4caf6e;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; line-height:1.4; }
+
+  #shell { display:flex; min-height:100vh; }
+  .sidebar { width:224px; flex:none; background:var(--sidebar); color:#cfd5dd; display:flex; flex-direction:column; padding:18px 0; height:100vh; position:sticky; top:0; overflow-y:auto; }
+  .main { flex:1; padding:24px 28px 40px; max-width:1500px; }
+  .pageHd { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:16px; flex-wrap:wrap; gap:10px; }
+  .pageHd h1 { font-size:1.35rem; font-weight:700; }
+  .pageHd .sub { font-size:.82rem; color:var(--muted); margin-top:2px; }
+
+  .toolbar { display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
+  .toolbar input, .toolbar select {
+    font:inherit; font-size:.85rem; background:var(--surface); border:1px solid var(--line);
+    border-radius:8px; padding:8px 10px; color:var(--text);
+  }
+  .toolbar input { min-width:220px; }
+
+  .tableWrap { background:var(--surface); border:1px solid var(--line); border-radius:12px; overflow:auto; }
+  table { width:100%; border-collapse:collapse; font-size:.82rem; white-space:nowrap; }
+  th, td { text-align:left; padding:8px 12px; border-bottom:1px solid var(--line); }
+  th { color:var(--muted); text-transform:uppercase; font-size:.68rem; letter-spacing:.04em; position:sticky; top:0; background:var(--surface); }
+  tr:last-child td { border-bottom:none; }
+  tr:hover td { background:var(--bg); }
+  .formula { font-family:"SF Mono",Consolas,monospace; font-size:.8rem; color:var(--accent); }
+  .tag { display:inline-block; font-size:.68rem; font-weight:700; padding:2px 7px; border-radius:999px; background:var(--bg); border:1px solid var(--line); color:var(--muted); margin-right:3px; }
+  .count { font-size:.82rem; color:var(--muted); margin-bottom:10px; }
+  .loading, .empty { text-align:center; color:var(--muted); padding:40px 0; }
+</style>
+</head>
+<body>
+<div id="shell">
+  <div class="sidebar">
+    <div id="officeSidebarTop"></div>
+    <nav id="officeNav"></nav>
+    <div id="officeSidebarBottom"></div>
+  </div>
+  <div class="main">
+    <div class="pageHd">
+      <div>
+        <h1>🧰 Bakendi</h1>
+        <div class="sub">Admin-only — innviðir sem ekkert annað í appinu sýnir ennþá.</div>
+      </div>
+    </div>
+
+    <div class="sectionTitle" style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.02em;margin-bottom:8px;">⚙️ Eyðublaðs ÚRVINNSLA — pörtasniðmát</div>
+    <div class="toolbar">
+      <input id="search" type="text" placeholder="🔎 Leita að Partur…" />
+      <select id="tegundFilter"><option value="">Allar tegundir</option></select>
+    </div>
+    <div class="count" id="count"></div>
+    <div class="tableWrap">
+      <table id="tbl">
+        <thead>
+          <tr>
+            <th>Partur</th><th>Tegund</th><th>Efnisflokkur</th>
+            <th>Magn formúla</th><th>Hæð formúla</th><th>Breidd formúla</th><th>Þykkt formúla</th>
+            <th>Kantlíming</th><th>Skúffukerfi</th><th>Yfirfræsari</th><th>Athugasemd</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"><tr><td colspan="11" class="loading">Sæki…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script src="/office-shell.js"></script>
+<script>
+(function () {
+  "use strict";
+  var URVINNSLA = "tblR1TpicLRVTXHql";
+
+  var shellInfo = window.OfficeShell.boot("bakendi");
+  if (!shellInfo) return;
+  // Hard gate, not just a hidden nav tile — the user was explicit that only
+  // they (admin = Rekstrarstjóri specifically, see api/skrifstofa-login.js)
+  // should ever reach this page, so a logged-in non-admin typing /bakendi
+  // directly must not see its content either.
+  if ((shellInfo.record.roles || []).indexOf("admin") === -1) {
+    location.href = "/skrifstofa";
+    return;
+  }
+  var k = shellInfo.k;
+
+  function api(path, extra) {
+    var u = "/api/airtable?path=" + encodeURIComponent(path);
+    if (k) u += "&k=" + encodeURIComponent(k);
+    if (extra) u += "&" + extra;
+    return fetch(u).then(function (r) { return r.json(); });
+  }
+
+  // Airtable pages at 100 — this table has 133+ rows.
+  function fetchAllPages(table, extra, acc, offset) {
+    acc = acc || [];
+    var qs = extra + (offset ? "&offset=" + encodeURIComponent(offset) : "");
+    return api(table, qs).then(function (d) {
+      acc = acc.concat(d.records || []);
+      return d.offset ? fetchAllPages(table, extra, acc, d.offset) : acc;
+    });
+  }
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; });
+  }
+  function multi(v) {
+    return Array.isArray(v) ? v.map(function (x) { return x && x.name ? x.name : x; }) : (v ? [v] : []);
+  }
+  function single(v) { return v && v.name ? v.name : (v || ""); }
+
+  var allRows = [];
+
+  function render() {
+    var q = $("search").value.trim().toLowerCase();
+    var tegund = $("tegundFilter").value;
+    var rows = allRows.filter(function (r) {
+      var f = r.fields || {};
+      if (q && (f["Partur"] || "").toLowerCase().indexOf(q) === -1) return false;
+      if (tegund && multi(f["Tegund"]).indexOf(tegund) === -1) return false;
+      return true;
+    });
+    $("count").textContent = rows.length + " af " + allRows.length + " línum";
+    if (!rows.length) {
+      $("tbody").innerHTML = '<tr><td colspan="11" class="empty">Ekkert fannst.</td></tr>';
+      return;
+    }
+    $("tbody").innerHTML = rows.map(function (r) {
+      var f = r.fields || {};
+      return "<tr>" +
+        "<td><b>" + esc(f["Partur"]) + "</b></td>" +
+        "<td>" + multi(f["Tegund"]).map(function (t) { return '<span class="tag">' + esc(t) + "</span>"; }).join("") + "</td>" +
+        "<td>" + esc(single(f["Efnisflokkur"])) + "</td>" +
+        '<td class="formula">' + esc(f["Magn formúla"]) + "</td>" +
+        '<td class="formula">' + esc(f["Hæð formúla"]) + "</td>" +
+        '<td class="formula">' + esc(f["Breidd formúla"]) + "</td>" +
+        '<td class="formula">' + esc(f["Þykkt formúla"]) + "</td>" +
+        "<td>" + esc(f["Kantlíming"]) + "</td>" +
+        "<td>" + esc(single(f["Skúffukerfi"])) + "</td>" +
+        "<td>" + (f["Yfirfræsari"] ? "✅" : "") + "</td>" +
+        "<td>" + esc(f["Athugasemd"]) + "</td>" +
+        "</tr>";
+    }).join("");
+  }
+
+  function $(id) { return document.getElementById(id); }
+
+  fetchAllPages(URVINNSLA, "pageSize=100").then(function (records) {
+    allRows = records.sort(function (a, b) {
+      return (a.fields["Partur"] || "").localeCompare(b.fields["Partur"] || "", "is");
+    });
+    var tegundir = {};
+    allRows.forEach(function (r) { multi(r.fields["Tegund"]).forEach(function (t) { tegundir[t] = true; }); });
+    $("tegundFilter").innerHTML = '<option value="">Allar tegundir</option>' +
+      Object.keys(tegundir).sort().map(function (t) { return '<option value="' + esc(t) + '">' + esc(t) + "</option>"; }).join("");
+    render();
+  }).catch(function (e) {
+    $("tbody").innerHTML = '<tr><td colspan="11" class="empty">Villa: ' + esc(e.message) + "</td></tr>";
+  });
+
+  $("search").addEventListener("input", render);
+  $("tegundFilter").addEventListener("change", render);
+})();
+</script>
+</body>
+</html>

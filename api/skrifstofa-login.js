@@ -87,6 +87,11 @@ export default async function handler(req, res) {
   const title = rec.fields["Starfsheiti 💼"] || "";
   const roles = TITLE_ROLES[title] || [];
   if (rec.fields["Tegund starfsmanns 🧑‍💻"] === OWNER_TYPE) roles.push("eigandi");
+  // "admin" (2026-10-19) — deliberately narrower than "eigandi": Jóel is also
+  // Tegund starfsmanns = Eigandi (see the file header comment) but the user
+  // was explicit that only they (Rekstrarstjóri) should reach /bakendi.
+  // Titled, not employment-type, on purpose.
+  if (title === "Rekstrarstjóri") roles.push("admin");
   return res.status(200).json({
     token: skrifstofaDayToken(secret, rec.id),
     verkKey: verkKey,

@@ -282,6 +282,7 @@ const ALLOWED_FIELDS = {
   "tblPPMTlFhW0snk24": [], // Virkni 🔔 (activity feed, /skrifstofa dashboard)
   "tblhP1FMM4QJfwxat": [], // Fjárhagsstaða 📊 (cash position — internal, VERK_ONLY_FIELDS below)
   "tblFcsUoGxsuUwNEH": [], // Vöru línur ➖📦 (Line item's) — pricing-sensitive, VERK_ONLY_FIELDS below
+  "tblR1TpicLRVTXHql": [], // ⚙️ Eyðublaðs ÚRVINNSLA ⚙️ — part templates, /bakendi (admin-only), VERK_ONLY_FIELDS below
 };
 
 // Extra Tækifæri fields the internal floor page (/verk, verk.html) needs —
@@ -441,6 +442,14 @@ const VERK_ONLY_FIELDS = {
   "tblHGYgrvvDqyKOAe": [ // Auka-Pöntunarlisti 💻 — forgotten-item supplementary orders
     "Name", "Tækifæri 📣 (projects)", "Pöntunarlisti 📋",
     "Áætlaður kostnaður Rollup (from Pöntunarlisti 📋)", "Auka pöntunarlisti PDF",
+  ],
+  // /bakendi (2026-10-19) — admin-only page, read-only for now. Part-template
+  // formula table: every "Partur" (saw part) row's own H/B/Þ/qty formulas,
+  // which Tegund einingu it applies to, grain/edgeband settings.
+  "tblR1TpicLRVTXHql": [
+    "Partur", "Tegund", "Efnisflokkur", "Magn formúla", "Hæð formúla",
+    "Breidd formúla", "Þykkt formúla", "Kantlíming", "Skúffukerfi",
+    "Yfirfræsari", "Athugasemd", "Glósur", "Glósur 📝",
   ],
   // /crm KPI row (2026-10-17) — "Sölumarkmið mánaðarins" tile. One row per
   // financial snapshot date; only the computed target + its own date are

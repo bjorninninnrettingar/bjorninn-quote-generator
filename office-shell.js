@@ -27,15 +27,18 @@
 
   // Yfirlit is owner-only (2026-10-18) — everything else is the shared "allt" operational
   // toolset every office title gets (see api/skrifstofa-login.js for why title no longer
-  // splits people into narrower buckets).
+  // splits people into narrower buckets). Bakendi (2026-10-19) is narrower still — "admin"
+  // only, which only the Rekstrarstjóri title holds, not every "eigandi"-typed employee
+  // (Jóel is Eigandi-typed too but shouldn't see this).
   var NAV = [
-    { id: "home",   icon: "🏠", label: "Yfirlit",         roles: ["eigandi"], href: "/skrifstofa" },
-    { id: "ferli",  icon: "📐", label: "Skipulagsferli",  roles: ["allt"], href: "/ferli" },
-    { id: "verkst", icon: "🛠️", label: "Verkstæði",       roles: ["allt"], href: "/framleidsla" },
-    { id: "crm",    icon: "📇", label: "CRM",             roles: ["allt"], href: "/crm" },
+    { id: "home",    icon: "🏠", label: "Yfirlit",         roles: ["eigandi"], href: "/skrifstofa" },
+    { id: "ferli",   icon: "📐", label: "Skipulagsferli",  roles: ["allt"], href: "/ferli" },
+    { id: "verkst",  icon: "🛠️", label: "Verkstæði",       roles: ["allt"], href: "/framleidsla" },
+    { id: "crm",     icon: "📇", label: "CRM",             roles: ["allt"], href: "/crm" },
+    { id: "bakendi", icon: "🧰", label: "Bakendi",         roles: ["admin"], href: "/bakendi" },
   ];
 
-  var ROLE_LABELS = { allt: "Allt", eigandi: "Eigandi" };
+  var ROLE_LABELS = { allt: "Allt", eigandi: "Eigandi", admin: "Admin" };
 
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }); }
   // Collapsed-sidebar initials (2026-10-18) — shown under the 🐻 instead of the full name once
