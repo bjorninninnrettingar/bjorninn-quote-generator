@@ -250,24 +250,18 @@ const ALLOWED_FIELDS = {
   // use case, so the base set is empty and every field lives behind VERK_KEY
   // (see VERK_ONLY_FIELDS below) rather than the usual "baseline + more" split.
   "tblszHaBrwhYNV68z": [],
-  "tblDwYfZWPmgGpjio": [ // Vélar 🏭 — read-only machine SOPs for /velar
-    "Heiti vélar",
-    "Mynd 🖼️",
-    "Myndband 🔗",
-    "Ræsing / setup ▶️",
-    "Notkun 📖",
-    "Drepa á ⏹️",
-    "Bilanir & ráð 🛠️",
-    "Öryggi ⚠️",
-    "Röð",
-    "Falið",
-  ],
+  // tblDwYfZWPmgGpjio (Vélar 🏭) folded into Vélaleiðbeiningar below
+  // (2026-10-20) — "Vél" there is now a singleSelect instead of a link to a
+  // separate one-row-per-machine table, so /velar reads one table, not two.
+  // The old table itself is unreferenced but still exists — pending user
+  // deletion in the Airtable UI (table deletion needs their approval).
   "tblGkKOmIIlBgOhh3": [ // Vélaleiðbeiningar 📋 — read-only how-to items for /velar
-    "Titill",
+    "Titill (spurning)",
     "Vél",
     "Flokkur",
     "Svar",
     "Myndband",
+    "Myndir 🖼️",
     "Röð",
     "Falið",
   ],

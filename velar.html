@@ -9,14 +9,18 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <style>
-  /* velar.html — /velar, the workshop's machine SOP/FAQ, pulled live from
-     Airtable: "Vélar 🏭" (one row per machine: name, cover photo, overview
-     video) and "Vélaleiðbeiningar 📋" (one row per tappable how-to item,
-     each tagged with a Flokkur that doubles as the old fixed category:
-     Ræsing / Notkun / Drepa á / Bilanir / Öryggi). FAQ-style: pick a
-     machine → filter by category chip → tap an item → it opens in a
-     popup, not an inline dropdown, so the list behind it never loses its
-     place. Deep link: /velar?vel=<machineId>&kafli=<raesing|...>&lid=<itemId>
+  /* velar.html — /velar, the workshop's machine SOP/FAQ, pulled live from a
+     single Airtable table: "Vélaleiðbeiningar 📋", one row per tappable
+     how-to item. "Vél" (singleSelect) names the machine — there's no
+     separate one-row-per-machine table, so a brand new machine name just
+     needs one item using it, nothing to set up first. "Flokkur" tags the
+     item with the old fixed category (Ræsing/Notkun/Drepa á/Bilanir/
+     Öryggi), doubling as a filter chip. "Myndir" (attachments) drag-and-
+     drop straight into the item — shown in its popup, always fetched live
+     so the link never goes stale. FAQ-style: pick a machine → filter by
+     category chip → tap an item → it opens in a popup, not an inline
+     dropdown, so the list behind it never loses its place.
+     Deep link: /velar?vel=<machine name>&kafli=<raesing|...>&lid=<itemId>
      (kafli pre-filters the chip row, lid auto-opens one item's popup) —
      for a QR sticker on the machine itself, or on a single how-to item.
      Reached from /app's home grid. */
@@ -71,12 +75,7 @@
   .mrow .arrow { color:var(--dim); flex:none; }
 
   /* machine view */
-  .cover { width:100%; max-height:220px; object-fit:cover; border-radius:14px; margin-top:16px; border:1px solid var(--line); }
   .mname { font-size:1.45rem; font-weight:800; letter-spacing:-.01em; margin-top:14px; }
-  .video-link {
-    display:inline-flex; align-items:center; gap:8px; margin-top:12px; text-decoration:none;
-    background:var(--blue); color:#fff; font-weight:800; font-size:.92rem; border-radius:11px; padding:11px 16px;
-  }
 
   /* category filter chips */
   .chips { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
@@ -121,6 +120,12 @@
     width:34px; height:34px; border-radius:50%; font-size:1.1rem; cursor:pointer; flex:none; line-height:1;
   }
   .modal h2 { font-size:1.25rem; font-weight:800; margin-top:6px; }
+  .video-link {
+    display:inline-flex; align-items:center; gap:8px; margin-top:12px; text-decoration:none;
+    background:var(--blue); color:#fff; font-weight:800; font-size:.92rem; border-radius:11px; padding:11px 16px;
+  }
+  .photos { display:flex; flex-direction:column; gap:8px; margin-top:14px; }
+  .photos img { width:100%; border-radius:12px; border:1px solid var(--line); object-fit:cover; }
 
   .steps { margin-top:14px; }
   .steps .step-h { font-weight:800; font-size:1rem; margin:16px 0 6px; color:var(--text); }
@@ -155,9 +160,7 @@
 
   <div id="machineView" class="hidden">
     <button class="back" id="backBtn" style="margin-top:14px;">← Allar vélar</button>
-    <img class="cover hidden" id="mCover" alt="" />
     <div class="mname" id="mName"></div>
-    <a class="video-link hidden" id="mVideo" target="_blank" rel="noopener">🎬 Myndband</a>
     <div class="chips" id="mChips"></div>
     <div class="ilist" id="mItems"></div>
   </div>
@@ -171,6 +174,7 @@
     </div>
     <h2 id="iTitle"></h2>
     <a class="video-link hidden" id="iVideo" target="_blank" rel="noopener">🎬 Myndband</a>
+    <div class="photos" id="iPhotos"></div>
     <div class="steps" id="iBody"></div>
   </div>
 </div>
@@ -179,20 +183,14 @@
 (function () {
   "use strict";
   var PROXY_URL = "/api/airtable";
-  var VELAR_TABLE = "tblDwYfZWPmgGpjio"; // Vélar 🏭
   var LEID_TABLE = "tblGkKOmIIlBgOhh3"; // Vélaleiðbeiningar 📋
 
-  var F_NAME = "Heiti vélar";
-  var F_IMG = "Mynd 🖼️";
-  var F_VIDEO = "Myndband 🔗";
-  var F_ORDER = "Röð";
-  var F_HIDDEN = "Falið";
-
-  var L_TITLE = "Titill";
+  var L_TITLE = "Titill (spurning)";
   var L_VEL = "Vél";
   var L_CAT = "Flokkur";
   var L_SVAR = "Svar";
   var L_VIDEO = "Myndband";
+  var L_PHOTOS = "Myndir 🖼️";
   var L_ORDER = "Röð";
   var L_HIDDEN = "Falið";
 
@@ -219,7 +217,9 @@
 
   // Airtable rich text comes back as markdown: **Bold** lines / #-headings
   // become sub-headings, "- "/"1. " lines (any indent) become nested lists,
-  // [text](url) links work, ![caption](url) becomes an inline photo.
+  // [text](url) links work, ![caption](url) becomes an inline photo (for
+  // precise placement — the Myndir attachments field is the easy path for
+  // "just drop a photo in").
   function renderSteps(src) {
     if (!src) return "";
     var lines = String(src).split(/\r?\n/);
@@ -280,16 +280,19 @@
   var homeView = $("homeView"), machineView = $("machineView");
   var searchResults = $("searchResults"), searchInput = $("searchInput");
   var overlay = $("overlay");
-  var machines = [], items = [];
-  var itemsByMachine = {}; // machine id -> visible items, sorted
-  var current = null; // current machine record
+  var items = [];
+  var itemsByMachine = {}; // machine name -> visible items, sorted
+  var machineNames = [];
+  var current = null; // current machine name
   var activeCat = null; // null = "Allt"
 
-  function imgUrl(rec, size) {
-    var att = (rec.fields[F_IMG] || [])[0];
-    if (!att) return "";
-    var t = att.thumbnails || {};
-    return (t[size] || t.large || att).url;
+  function photoUrl(att, size) {
+    var t = (att && att.thumbnails) || {};
+    return (t[size] || t.large || att || {}).url || "";
+  }
+  function machineThumb(name) {
+    var found = (itemsByMachine[name] || []).find(function (it) { return (it.fields[L_PHOTOS] || []).length; });
+    return found ? photoUrl(found.fields[L_PHOTOS][0], "large") : "";
   }
 
   function showOnly(view) {
@@ -300,42 +303,35 @@
   }
 
   function renderList() {
-    if (!machines.length) {
-      $("mList").innerHTML = '<div class="search-empty">Engar vélar skráðar enn — bættu þeim við í Airtable-töflunni „Vélar 🏭“.</div>';
+    if (!machineNames.length) {
+      $("mList").innerHTML = '<div class="search-empty">Engar vélar skráðar enn — bættu við leiðbeiningu í Airtable-töflunni „Vélaleiðbeiningar 📋“ og veldu eða skráðu vélarheiti í „Vél“.</div>';
       return;
     }
-    $("mList").innerHTML = machines.map(function (rec) {
-      var f = rec.fields, thumb = imgUrl(rec, "large");
-      var n = (itemsByMachine[rec.id] || []).length;
-      return '<button class="mrow" data-id="' + esc(rec.id) + '">' +
+    $("mList").innerHTML = machineNames.map(function (name) {
+      var thumb = machineThumb(name);
+      var n = (itemsByMachine[name] || []).length;
+      return '<button class="mrow" data-name="' + esc(name) + '">' +
         (thumb ? '<img class="thumb" src="' + esc(thumb) + '" alt="" loading="lazy">' : '<span class="thumb">⚙️</span>') +
-        '<div class="txt"><div class="t">' + esc(f[F_NAME] || "(ónefnd vél)") + "</div>" +
-        '<div class="sub">' + (n ? n + " leiðbeining" + (n === 1 ? "" : "ar") : "Ekkert efni komið enn") + "</div></div>" +
+        '<div class="txt"><div class="t">' + esc(name) + "</div>" +
+        '<div class="sub">' + n + " leiðbeining" + (n === 1 ? "" : "ar") + "</div></div>" +
         '<span class="arrow">→</span></button>';
     }).join("");
     $("mList").querySelectorAll(".mrow").forEach(function (btn) {
-      btn.addEventListener("click", function () { openMachine(btn.dataset.id); });
+      btn.addEventListener("click", function () { openMachine(btn.dataset.name); });
     });
   }
 
-  function openMachine(id, catKey) {
-    var rec = machines.find(function (r) { return r.id === id; });
-    if (!rec) return;
-    current = rec;
+  function openMachine(name, catKey) {
+    if (!itemsByMachine[name]) return;
+    current = name;
     activeCat = catKey && sectionByKey(catKey) ? catKey : null;
     showOnly(machineView);
-    var f = rec.fields;
-    var cover = imgUrl(rec, "large");
-    $("mCover").classList.toggle("hidden", !cover);
-    if (cover) $("mCover").src = cover;
-    $("mName").textContent = f[F_NAME] || "(ónefnd vél)";
-    $("mVideo").classList.toggle("hidden", !f[F_VIDEO]);
-    if (f[F_VIDEO]) $("mVideo").href = f[F_VIDEO];
+    $("mName").textContent = name;
     renderChipsAndItems();
   }
 
   function renderChipsAndItems() {
-    var all = itemsByMachine[current.id] || [];
+    var all = itemsByMachine[current] || [];
     var present = SECTIONS.filter(function (s) {
       return all.some(function (it) { return it.fields[L_CAT] === s.label; });
     });
@@ -347,7 +343,7 @@
     $("mChips").querySelectorAll(".chip").forEach(function (btn) {
       btn.addEventListener("click", function () {
         activeCat = btn.dataset.key || null;
-        try { history.replaceState(null, "", "?vel=" + current.id + (activeCat ? "&kafli=" + activeCat : "")); } catch (e) {}
+        try { history.replaceState(null, "", "?vel=" + encodeURIComponent(current) + (activeCat ? "&kafli=" + activeCat : "")); } catch (e) {}
         renderChipsAndItems();
       });
     });
@@ -378,17 +374,21 @@
     $("iTitle").textContent = it.fields[L_TITLE] || "(ónefnt)";
     $("iVideo").classList.toggle("hidden", !it.fields[L_VIDEO]);
     if (it.fields[L_VIDEO]) $("iVideo").href = it.fields[L_VIDEO];
-    $("iBody").innerHTML = hasText(it.fields[L_SVAR]) ? renderSteps(it.fields[L_SVAR]) : '<div class="empty-sec">Ekkert skráð hér enn.</div>';
+    var photos = it.fields[L_PHOTOS] || [];
+    $("iPhotos").innerHTML = photos.map(function (att) {
+      return '<img src="' + esc(photoUrl(att, "large")) + '" alt="" loading="lazy">';
+    }).join("");
+    $("iBody").innerHTML = hasText(it.fields[L_SVAR]) ? renderSteps(it.fields[L_SVAR]) : (photos.length ? "" : '<div class="empty-sec">Ekkert skráð hér enn.</div>');
     overlay.classList.remove("hidden");
-    if (current && current.id) {
-      try { history.replaceState(null, "", "?vel=" + current.id + (activeCat ? "&kafli=" + activeCat : "") + "&lid=" + id); } catch (e) {}
+    if (current) {
+      try { history.replaceState(null, "", "?vel=" + encodeURIComponent(current) + (activeCat ? "&kafli=" + activeCat : "") + "&lid=" + id); } catch (e) {}
     }
   }
 
   function closeItem() {
     overlay.classList.add("hidden");
     if (current) {
-      try { history.replaceState(null, "", "?vel=" + current.id + (activeCat ? "&kafli=" + activeCat : "")); } catch (e) {}
+      try { history.replaceState(null, "", "?vel=" + encodeURIComponent(current) + (activeCat ? "&kafli=" + activeCat : "")); } catch (e) {}
     }
   }
 
@@ -415,26 +415,25 @@
     homeView.classList.add("hidden"); machineView.classList.add("hidden");
     searchResults.classList.add("show");
     var hits = [];
-    machines.forEach(function (rec) {
-      var mName = rec.fields[F_NAME] || "";
-      var nameHit = norm(mName).indexOf(val) !== -1;
-      var ownItems = itemsByMachine[rec.id] || [];
+    machineNames.forEach(function (name) {
+      var nameHit = norm(name).indexOf(val) !== -1;
+      var ownItems = itemsByMachine[name] || [];
       var itemHits = ownItems.filter(function (it) {
         return norm(it.fields[L_TITLE]).indexOf(val) !== -1 || norm(it.fields[L_SVAR]).indexOf(val) !== -1;
       });
-      if (nameHit && !itemHits.length) hits.push({ machine: rec, item: null, snip: "" });
+      if (nameHit && !itemHits.length) hits.push({ machine: name, item: null, snip: "" });
       itemHits.forEach(function (it) {
         var s = sectionByLabel(it.fields[L_CAT]) || SECTIONS[0];
         var txt = String(it.fields[L_SVAR] || "").replace(/[*#!\[\]]/g, "").replace(/\s+/g, " ");
         var i = norm(txt).indexOf(val);
         var snip = i === -1 ? "" : (i > 30 ? "…" : "") + txt.slice(Math.max(0, i - 30), i + val.length + 50) + "…";
-        hits.push({ machine: rec, item: it, sec: s, snip: snip });
+        hits.push({ machine: name, item: it, sec: s, snip: snip });
       });
     });
     searchResults.innerHTML = hits.length
       ? hits.map(function (h, i) {
           var cat = h.item ? h.sec.ic + " " + h.sec.label : "Vél";
-          var title = h.item ? h.item.fields[L_TITLE] : h.machine.fields[F_NAME];
+          var title = h.item ? h.item.fields[L_TITLE] : h.machine;
           return '<button class="search-hit" data-i="' + i + '"><span class="cat">' + esc(cat) + "</span>" +
             '<span class="t">' + esc(title || "") + "</span>" +
             (h.snip ? '<div class="snip">' + esc(h.snip) + "</div>" : "") + "</button>";
@@ -443,7 +442,7 @@
     searchResults.querySelectorAll(".search-hit").forEach(function (btn) {
       btn.addEventListener("click", function () {
         var h = hits[Number(btn.dataset.i)];
-        openMachine(h.machine.id, null);
+        openMachine(h.machine, null);
         if (h.item) openItem(h.item.id);
       });
     });
@@ -451,17 +450,8 @@
 
   (async function () {
     try {
-      var recs = await Promise.all([
-        airtableFetchAll(VELAR_TABLE, { pageSize: 100 }),
-        airtableFetchAll(LEID_TABLE, { pageSize: 100 }),
-      ]);
-      machines = recs[0].filter(function (r) { return !r.fields[F_HIDDEN] && hasText(r.fields[F_NAME]); });
-      machines.sort(function (a, b) {
-        var oa = a.fields[F_ORDER], ob = b.fields[F_ORDER];
-        if (oa != null || ob != null) return (oa == null ? 1e9 : oa) - (ob == null ? 1e9 : ob);
-        return (a.fields[F_NAME] || "").localeCompare(b.fields[F_NAME] || "", "is");
-      });
-      items = recs[1].filter(function (r) { return !r.fields[L_HIDDEN] && hasText(r.fields[L_TITLE]) && (r.fields[L_VEL] || []).length; });
+      items = (await airtableFetchAll(LEID_TABLE, { pageSize: 100 }))
+        .filter(function (r) { return !r.fields[L_HIDDEN] && hasText(r.fields[L_TITLE]) && hasText(r.fields[L_VEL]); });
       items.sort(function (a, b) {
         var oa = a.fields[L_ORDER], ob = b.fields[L_ORDER];
         if (oa != null || ob != null) return (oa == null ? 1e9 : oa) - (ob == null ? 1e9 : ob);
@@ -469,16 +459,17 @@
       });
       itemsByMachine = {};
       items.forEach(function (it) {
-        (it.fields[L_VEL] || []).forEach(function (mid) {
-          (itemsByMachine[mid] = itemsByMachine[mid] || []).push(it);
-        });
+        var name = it.fields[L_VEL];
+        (itemsByMachine[name] = itemsByMachine[name] || []).push(it);
       });
+      machineNames = Object.keys(itemsByMachine).sort(function (a, b) { return a.localeCompare(b, "is"); });
 
       $("status").classList.add("hidden");
       renderList();
       var p = new URLSearchParams(location.search);
-      if (p.get("vel") && machines.some(function (r) { return r.id === p.get("vel"); })) {
-        openMachine(p.get("vel"), p.get("kafli"));
+      var velName = p.get("vel");
+      if (velName && itemsByMachine[velName]) {
+        openMachine(velName, p.get("kafli"));
         if (p.get("lid") && items.some(function (r) { return r.id === p.get("lid"); })) openItem(p.get("lid"));
       } else showOnly(homeView);
     } catch (e) {
