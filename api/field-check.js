@@ -13,13 +13,14 @@
 import { fieldDeps as proxyDeps } from "./airtable.js";
 import { fieldDeps as submitDeps } from "./kp-submit.js";
 import { fieldDeps as proDeps } from "./kp-pro.js";
+import { fieldDeps as priceDeps } from "./kp-price.js";
 
 const AIRTABLE_BASE = "app91U15z9K704Okd";
 const ISSUE_TABLE = "tbl7K8v94Pf6Ausk3"; // Skipulag villur 🐞
 
 export function allDeps() {
   const out = {};
-  for (const deps of [proxyDeps(), submitDeps(), proDeps()]) {
+  for (const deps of [proxyDeps(), submitDeps(), proDeps(), priceDeps()]) {
     for (const [t, names] of Object.entries(deps)) {
       out[t] = out[t] || new Set();
       names.forEach((n) => out[t].add(n));

@@ -55,3 +55,48 @@ test("shelfSpaceMm: shelves above free-form innskúffur start above them, same a
   assert.ok(withInner.lo > bare.lo);
   assert.equal(withInner.lo, K.innerTopMm({ innerCodes: ["K"] }, "merivo"));
 });
+
+// Room doors (2026-10-23): a door's inward swing vs. floor cabinets. Square 4 m room; wall 1 starts at (4,0) and runs
+// +z with the room at −x. A door at 100 mm on wall 1 hinged on the left (= its start, by the corner with wall 0)
+// sweeps x 3.2–4, z 0.1–0.9 — exactly where the last cabinet on wall 0 (x 3.4–4, z 0–0.6) stands.
+test("roomDoorConflicts: inward swing hits the corner cabinet; outward, sliding or a cabinet further along doesn't", () => {
+  const room = (door) => ({ closed: true, roomHeightMm: 2600,
+    walls: [0, 1, 2, 3].map((i) => ({ id: "w" + i, label: "Veggur " + (i + 1), lengthMm: 4000, turnAfter: "left", floor: [], wall: [] })),
+    doors: [Object.assign({ id: "d1", wallId: "w1", offsetMm: 100, widthMm: 800, heightMm: 2100 }, door)] });
+  const st = (door) => { const s = room(door); s.walls[0].floor.push({ id: "c1", type: "grunnskapur", widthMm: 600, gapMm: 3400 }); return s; };
+  const hit = K.roomDoorConflicts(st({}));
+  assert.equal(hit.length, 1);
+  assert.deepEqual(hit[0].ids, ["c1"]);
+  assert.ok(K.fitWarnings(st({})).some((w) => /Hurðin á vegg 2 rekst á grunnskápur/.test(w.msg)));
+  assert.equal(K.roomDoorConflicts(st({ swing: "out" })).length, 0);
+  assert.equal(K.roomDoorConflicts(st({ swing: "slide" })).length, 0); // parks at z 0.9–1.7 on wall 1: nothing there
+  const sl = room({ swing: "slide", offsetMm: 1000 }); sl.walls[1].floor.push({ id: "c2", type: "grunnskapur", widthMm: 600, gapMm: 1900 }); // wall 1 run 1.9–2.5 m (wall 0 is empty → no corner clearance)
+  assert.deepEqual(K.roomDoorConflicts(sl).map((c) => [c.slide, c.ids[0]]), [[true, "c2"]]);
+  assert.equal(K.roomDoorConflicts(Object.assign(sl, { doors: [Object.assign(sl.doors[0], { hinge: "right" })] })).length, 0); // slides the other way instead
+  const far = room({}); far.walls[0].floor.push({ id: "c1", type: "grunnskapur", widthMm: 600, gapMm: 2000 });
+  assert.equal(K.roomDoorConflicts(far).length, 0);
+  const sw = K.doorSweep(room({ hinge: "right" }), room({ hinge: "right" }).doors[0]); // right hinge = the door's far end, swinging back along −axis
+  assert.deepEqual([+sw.h.x.toFixed(3), +sw.h.z.toFixed(3), sw.u.z, sw.v.x], [4, 0.9, -1, -1]);
+});
+
+// Skáveggir (2026-10-23): any corner angle. A room without angleDeg/dirDeg must come out exactly as before.
+test("wallGeometry3D: 90° rooms unchanged, a 45° turn + dirDeg turn the next wall by exactly that", () => {
+  const rect = K.wallGeometry3D([{ lengthMm: 4000, turnAfter: "left" }, { lengthMm: 3000, turnAfter: "left" }]);
+  assert.deepEqual(rect[1].axis, { x: -0, z: 1 });
+  assert.deepEqual(rect[1].origin, { x: 4, z: 0 });
+  const g = K.wallGeometry3D([{ lengthMm: 2000, turnAfter: "left", angleDeg: 45, dirDeg: 90 }, { lengthMm: 1000, turnAfter: "left" }]);
+  assert.ok(Math.abs(g[0].axis.x) < 1e-9 && Math.abs(g[0].axis.z - 1) < 1e-9, "dirDeg 90 = wall 1 runs along +z");
+  assert.ok(Math.abs(g[1].axis.x + Math.SQRT1_2) < 1e-9 && Math.abs(g[1].axis.z - Math.SQRT1_2) < 1e-9, "then 45° to the left");
+  assert.ok(Math.abs(g[0].extEndM - 0.08 * Math.tan(Math.PI / 8)) < 1e-9, "the outer corner fill follows the angle");
+});
+test("cornerClearanceMm: 90° = the previous cabinet's depth; 45° (a skáhorn) and 135° from the box geometry", () => {
+  const walls = (deg) => {
+    const w = [{ lengthMm: 4000, turnAfter: "left", floor: [{ type: "grunnskapur", widthMm: 600, depthMm: 600 }], wall: [] },
+               { lengthMm: 3000, turnAfter: "left", floor: [{ type: "grunnskapur", widthMm: 600, depthMm: 600 }], wall: [] }];
+    if (deg !== 90) w[0].angleDeg = deg;
+    return w;
+  };
+  assert.equal(K.cornerClearanceMm(walls(90), 1, "floor"), 600);
+  assert.equal(K.cornerClearanceMm(walls(45), 1, "floor"), 430);  // 600·sin45 = 424 → next 10 mm
+  assert.equal(K.cornerClearanceMm(walls(135), 1, "floor"), 1450); // (600 + 600·cos45) / sin45 = 1448.5
+});

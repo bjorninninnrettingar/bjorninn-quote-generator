@@ -35,8 +35,13 @@ export const sentOf = (li) => PRODUCT_FIELDS.map((f) => idsKey(li[f]));
 
 // What the client may set (everything else is dropped silently, like the proxy's CREATABLE_FIELDS).
 export const PROJECT_FIELDS = ["Skrokka efni 🔲 viðskiptavinar", "Fronta efni viðskiptavinar 🖼️", "Borðplata viðskiptavinar 🍽️", "Skilaboð til skipulags",
-  "Höldur Viðskiptavinar ✊", "Litur á höldum 🎨", "Magn Halda 1"];
-export const LINE_FIELDS = ["Rými 🏡", "Vöru reitur 1", "Vöru reitur 2", "Vöru reitur 3", "Magn", "🔑", "Skilaboð til skipulags", "Smíðagögn (JSON) 🔧"];
+  "Höldur Viðskiptavinar ✊", "Litur á höldum 🎨", "Magn Halda 1",
+  "Fronta efni 2.0 Viðskiptavinar 🖼️", "Innskúffufrontar [Handvalið]"]; // FR2 + inner drawer fronts default (2026-10-23)
+export const LINE_FIELDS = ["Rými 🏡", "Vöru reitur 1", "Vöru reitur 2", "Vöru reitur 3", "Magn", "🔑", "Skilaboð til skipulags", "Smíðagögn (JSON) 🔧",
+  "Frontaefni #2", "Tegund innskúffu fronts"];
+// "Tegund innskúffu fronts" (Line Item) / "Innskúffufrontar [Handvalið]" (Tækifæri) choices — anything else is dropped,
+// so typecast can never invent a new select option from a request.
+export const INNER_FRONTS = ["Skrokkaefni", "Frontaefni", "Frontaefni 2", "Ál", "Ál og gler"];
 // A self-serve submission must never look like reviewed designer work or enter production by itself.
 export const PROJECT_FORCED = {
   "Staða í söluferli": "Hönnun & Ráðgjöf 🖊️✨",
@@ -52,6 +57,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const pick = (obj, keys) => {
   const out = {};
   for (const k of keys) if (obj && obj[k] != null && obj[k] !== "") out[k] = obj[k];
+  if ("Innskúffufrontar [Handvalið]" in out && !INNER_FRONTS.includes(out["Innskúffufrontar [Handvalið]"])) delete out["Innskúffufrontar [Handvalið]"];
+  if ("Tegund innskúffu fronts" in out && !INNER_FRONTS.includes(out["Tegund innskúffu fronts"])) delete out["Tegund innskúffu fronts"];
+  if ("Frontaefni #2" in out) out["Frontaefni #2"] = out["Frontaefni #2"] === true;
   return out;
 };
 const q = (s) => String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"');

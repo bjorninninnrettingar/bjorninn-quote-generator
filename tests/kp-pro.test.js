@@ -89,3 +89,56 @@ test("V1/V2/V3: the drawing updates what Airtable hasn't touched, keeps Rakel's 
   assert.deepEqual(out.liSent.Sk4, ["", B, ""]);
   assert.equal(validate({ recordId: OPP, state: { walls: [] }, smida: {}, resolve: { Sk1: "maybe" } }), "Ógilt resolve: Sk1");
 });
+
+test("materials/handles: the drawing's pick reaches the Tækifæri unless only Airtable changed it", async () => {
+  const F1 = "recFRONT111111111", F2 = "recFRONT222222222", F3 = "recFRONT333333333";
+  const run = async (airtableFront, projSent, drawingFront) => {
+    const f = fakeFetch((call) => {
+      if (call.method === "GET" && call.url.includes(`tbl4LMXlQjp66RFKI/${OPP}`))
+        return { status: 200, body: { id: OPP, fields: { "Heiti tækifæris / verkefnis": "T-227 | Prófun", "Fronta efni viðskiptavinar 🖼️": [airtableFront], "Magn Halda 1": 765,
+          "Sjálfsafgreiðsla skipulag (JSON) 📐": JSON.stringify({ submissionId: "sid-1", projSent }) } } };
+      return routes(call);
+    });
+    const out = await save(makeAirtable("t", { fetchImpl: f, delays: [] }), { recordId: OPP, state: { walls: [] }, smida: {},
+      project: { "Fronta efni viðskiptavinar 🖼️": [drawingFront], "Magn Halda 1": 40 } });
+    const proj = f.calls.find((c) => c.method === "PATCH" && c.url.includes("tbl4LMXlQjp66RFKI")).body.records[0].fields;
+    return { out, proj };
+  };
+  // never sent before (old project): drawing wins, also fixes a wrong hand count
+  let r = await run(F1, undefined, F2);
+  assert.deepEqual(r.proj["Fronta efni viðskiptavinar 🖼️"], [F2]);
+  assert.equal(r.proj["Magn Halda 1"], 40);
+  assert.deepEqual(r.out.projectUpdated.sort(), ["Fronta efni viðskiptavinar 🖼️", "Magn Halda 1"].sort());
+  // Rakel picked F3 by hand in Airtable, drawing still has what it sent (F2) → Airtable stays
+  r = await run(F3, { "Fronta efni viðskiptavinar 🖼️": F2 }, F2);
+  assert.equal(r.proj["Fronta efni viðskiptavinar 🖼️"], undefined);
+  assert.equal(JSON.parse(r.proj["Sjálfsafgreiðsla skipulag (JSON) 📐"]).projSent["Fronta efni viðskiptavinar 🖼️"], F2);
+  // changed in the drawing since → drawing wins
+  r = await run(F3, { "Fronta efni viðskiptavinar 🖼️": F2 }, F1);
+  assert.deepEqual(r.proj["Fronta efni viðskiptavinar 🖼️"], [F1]);
+  assert.equal(validate({ recordId: OPP, state: { walls: [] }, smida: {}, project: { "Skilaboð til skipulags": "x" } }), "Ógilt efnisval: Skilaboð til skipulags");
+});
+
+test("room doors are their own lines (HU1…), validated like cabinets", () => {
+  assert.equal(validate({ recordId: OPP, state: { walls: [] }, smida: { HU1: { v: 1, door: { widthMm: 800 } } },
+    lineItems: [{ "🔑": "HU1", "Vöru reitur 1": ["rec5kbxFHLWvM02rt"], "Smíðagögn (JSON) 🔧": '{"v":1,"door":{}}' }] }), null);
+  assert.equal(validate({ recordId: OPP, state: { walls: [] }, smida: { XX1: null } }), "Ógilt 🔑: XX1");
+});
+
+test("FR2 / inner fronts on existing lines: drawing writes its picks, never clears a hand-set FR2 it never sent", async () => {
+  const run = async (rowFields, liExtra, li) => {
+    const f = fakeFetch((call) => {
+      if (call.method === "GET" && call.url.includes(`tbl4LMXlQjp66RFKI/${OPP}`))
+        return { status: 200, body: { id: OPP, fields: { "Heiti tækifæris / verkefnis": "T-227 | Prófun", "Sjálfsafgreiðsla skipulag (JSON) 📐": JSON.stringify({ submissionId: "sid-1", liExtra }) } } };
+      if (call.method === "GET" && call.url.includes("tblFcsUoGxsuUwNEH"))
+        return { status: 200, body: { records: [{ id: "recL1", fields: Object.assign({ "🔑": "Sk1", "Tækifæri 📣 (projects)": [OPP] }, rowFields) }] } };
+      return { status: 200, body: { records: [] } };
+    });
+    await save(makeAirtable("t", { fetchImpl: f, delays: [] }), { recordId: OPP, state: { walls: [] }, smida: { Sk1: null }, lineItems: [Object.assign({ "🔑": "Sk1" }, li)] });
+    const p = f.calls.find((c) => c.method === "PATCH" && c.url.includes("tblFcsUoGxsuUwNEH"));
+    return p ? p.body.records[0].fields : {};
+  };
+  assert.deepEqual(await run({}, undefined, { "Frontaefni #2": true, "Tegund innskúffu fronts": "Frontaefni 2" }), { "Frontaefni #2": true, "Tegund innskúffu fronts": "Frontaefni 2" });
+  assert.deepEqual(await run({ "Frontaefni #2": true }, undefined, { "Frontaefni #2": false }), {});            // hand-set, drawing never sent → kept
+  assert.deepEqual(await run({ "Frontaefni #2": true }, { Sk1: { "Frontaefni #2": "1" } }, { "Frontaefni #2": false }), { "Frontaefni #2": false }); // drawing turned it off
+});

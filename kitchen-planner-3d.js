@@ -60,6 +60,13 @@
     // Free-standing appliances (2026-10-05): a gap with the appliance drawn in, not ordered from Björninn
     isskapurFri: { label:"Frístandandi ísskápur", zone:"floor", cls:"tall", defaultW:600, minW:600, maxW:900, widths:[600, 700, 900], h:1850, d:650, minH:1700, maxH:2000, minD:600, maxD:750, hasInterior:false, appliance:"fridge", notOrdered:true },
     uppthvottavelFri:{ label:"Uppþvottavél (frístandandi)", zone:"floor", cls:"floor", defaultW:600, minW:450, maxW:600, widths:[450, 600], h:900, d:600, minH:800, maxH:950, minD:550, maxD:700, hasInterior:false, counter:true, appliance:"dishwasher", notOrdered:true },
+    // Tækjaskápar round (user, 2026-10-23, B1): a built-in freezer is the same cabinet + product as the built-in
+    // fridge (fridge:true → LM.isskapur), only its note differs; a wine cooler is the customer's own appliance under the
+    // worktop (like the freestanding dishwasher — nothing ordered for it). Ofn + örbylgja = ofnaskapur with ovenH 1050.
+    frystir:     { label:"Frystir (innbyggður)", zone:"floor", cls:"fridge", defaultW:600, minW:500, maxW:1000, h:2500, d:600, minH:1700, maxH:2700, minD:500, maxD:750, hasInterior:false,
+                   skapategundOverride:"Hárskápur", fridge:true,
+                   note:"Viðskiptavinur óskar eftir innbyggðum FRYSTI (ekki ísskáp) í þessum skáp — staðfestu stærð tækis (nisju) og hurðargerð." },
+    vinkaelir:   { label:"Vínkælir (undir borðplötu)", zone:"floor", cls:"floor", defaultW:600, minW:300, maxW:600, widths:[300, 450, 600], h:900, d:600, minH:820, maxH:950, minD:550, maxD:700, hasInterior:false, counter:true, appliance:"dishwasher", notOrdered:true },
     // (no longer offered — "nú erum við að gera eldhús", 2026-10-05; kept so older drafts still load)
     thvottavelFri:{ label:"Þvottavél (frístandandi)", zone:"floor", cls:"floor", defaultW:600, minW:600, maxW:600, h:900, d:600, minH:800, maxH:950, minD:550, maxD:700, hasInterior:false, counter:true, appliance:"washer", notOrdered:true },
     burskapur:   { label:"Búrskápur", zone:"floor", cls:"tall", defaultW:600, minW:300, maxW:1200, h:2500, d:600, minH:1800, maxH:2700, minD:400, maxD:700, hasInterior:false, bur:true },
@@ -817,20 +824,33 @@
     return dir === "left" ? { x:-v.z, z:v.x } : { x:v.z, z:-v.x };
   }
   function normalFromAxis(axis){ return { x:-axis.z, z:axis.x }; }
+  // Skáveggir (user, 2026-10-23): a turn may be any angle. w.angleDeg = how far the next wall turns off this one
+  // (exterior turn, 90 when absent — every older room stays exactly as it was), w.turnAfter still says which way;
+  // walls[0].dirDeg = the first wall's own direction (0 = +x when absent). 90° keeps the exact rotate90 formula.
+  function turnAngle(w){ return w && w.angleDeg != null ? w.angleDeg : 90; }
+  function turnAxis(axis, dir, deg){
+    if (dir !== "left" && dir !== "right") return axis;
+    if (deg == null || deg === 90) return rotate90(axis, dir);
+    var t = deg * Math.PI / 180 * (dir === "left" ? 1 : -1), c = Math.cos(t), sn = Math.sin(t);
+    return { x:axis.x * c - axis.z * sn, z:axis.x * sn + axis.z * c };
+  }
 
   function wallGeometry3D(walls){
     function m(mm){ return mm / 1000; }
     var geoms = [];
     var origin = { x:0, z:0 };
-    var axis = { x:1, z:0 };
-    walls.forEach(function(w){
+    var d0 = walls[0] && walls[0].dirDeg ? walls[0].dirDeg * Math.PI / 180 : 0;
+    var axis = d0 ? { x:Math.cos(d0), z:Math.sin(d0) } : { x:1, z:0 };
+    walls.forEach(function(w, i){
       var normal = normalFromAxis(axis);
       var lenM = m(w.lengthMm);
-      geoms.push({ origin:{ x:origin.x, z:origin.z }, axis:axis, normal:normal, lenM:lenM });
+      // outer-corner fill for the 3D wall box: at an inward (left) corner the two boxes' outer faces leave a wedge
+      // open behind the corner (the 8 cm square at 90°) — this wall's box runs on by thickness × tan(turn/2)
+      var nx = walls[i + 1] || walls[0], turn = turnAngle(w);
+      var ext = w.turnAfter === "left" && !w.open && nx && !nx.open && turn < 170 ? Math.min(0.4, WALL_THICKNESS_M * Math.tan(turn * Math.PI / 360)) : 0;
+      geoms.push({ origin:{ x:origin.x, z:origin.z }, axis:axis, normal:normal, lenM:lenM, extEndM:ext });
       var end = { x: origin.x + axis.x * lenM, z: origin.z + axis.z * lenM };
-      if (w.turnAfter === "left" || w.turnAfter === "right"){
-        axis = rotate90(axis, w.turnAfter);
-      }
+      axis = turnAxis(axis, w.turnAfter, w.angleDeg);
       origin = end;
     });
     return geoms;
@@ -887,11 +907,15 @@
     partitionObstacles(state).forEach(function(o){
       var wi = state.walls.findIndex(function(w){ return w.id === o.wallId; }), g = walls[wi];
       if (!g || state.walls[wi].open) return;
-      var a = o.offsetMm / 1000, b = a + o.widthMm / 1000, n0 = (o.outMm || 0) / 1000, lenM = o.depthMm / 1000;
-      var pA = { x:g.origin.x + g.axis.x * a + g.normal.x * n0, z:g.origin.z + g.axis.z * a + g.normal.z * n0 };
-      var pB = { x:g.origin.x + g.axis.x * b + g.normal.x * n0, z:g.origin.z + g.axis.z * b + g.normal.z * n0 };
-      out.push({ origin:pA, axis:g.normal, normal:{ x:-g.axis.x, z:-g.axis.z }, lenM:lenM });
-      out.push({ origin:pB, axis:g.normal, normal:{ x:g.axis.x, z:g.axis.z }, lenM:lenM });
+      var r = obstacleRect(o), a = r.a0 / 1000, b = r.a1 / 1000, n0 = r.n0 / 1000, n1 = r.n1 / 1000, lenM = o.depthMm / 1000;
+      function P(al, ou){ return { x:g.origin.x + g.axis.x * al + g.normal.x * ou, z:g.origin.z + g.axis.z * al + g.normal.z * ou }; }
+      if (!r.rot){ // runs out from the wall: faces A / B are its two sides
+        out.push({ origin:P(a, n0), axis:g.normal, normal:{ x:-g.axis.x, z:-g.axis.z }, lenM:lenM });
+        out.push({ origin:P(b, n0), axis:g.normal, normal:{ x:g.axis.x, z:g.axis.z }, lenM:lenM });
+      } else { // turned: parallel to its wall — A faces the room, B faces back toward the wall
+        out.push({ origin:P(a, n1), axis:g.axis, normal:{ x:g.normal.x, z:g.normal.z }, lenM:lenM });
+        out.push({ origin:P(b, n0), axis:{ x:-g.axis.x, z:-g.axis.z }, normal:{ x:-g.normal.x, z:-g.normal.z }, lenM:lenM });
+      }
     });
     return out;
   }
@@ -952,7 +976,16 @@
     var cur = walls[wallIndex];
     // (No exemption for Töfrahorn any more: it is drawn as a plain 1200 × 600 box,
     // so the neighbouring wall's run has to start after its depth like any cabinet.)
-    return prevLast.depthMm || CATALOG[prevLast.type].d;
+    var dPrev = prevLast.depthMm || CATALOG[prevLast.type].d;
+    var th = turnAngle(prev);
+    if (th === 90) return dPrev;
+    // any angle (skáveggir): where this wall's first box (depth dCur) stops overlapping the previous wall's last
+    // one, which is assumed to run right into the corner. In the previous wall's frame a point s along this
+    // wall, u into the room, sits at p = s·cosθ − u·sinθ along it (past its end when > 0) and q = s·sinθ + u·cosθ off it.
+    var first = cur && cur.floor && cur.floor[0], dCur = first ? (first.depthMm || (CATALOG[first.type] || {}).d || 600) : 600;
+    var t = th * Math.PI / 180, sn = Math.sin(t), cs = Math.cos(t);
+    var need = th < 90 ? Math.min(dPrev * sn, dCur * sn / cs) : (dPrev - dCur * cs) / sn;
+    return Math.max(0, Math.ceil(need / 10) * 10);
   }
 
   // Áfella (19 mm filler) between a cabinet run and a wall face it would otherwise touch (user, 2026-10-02):
@@ -968,8 +1001,8 @@
     if (!w || w.island || w.partition || w.open || wallIndex >= n) return { start:0, end:0 };
     var prev = wallIndex > 0 ? walls[wallIndex - 1] : walls.closed ? walls[n - 1] : null;
     var next = wallIndex < n - 1 ? walls[wallIndex + 1] : walls.closed ? walls[0] : null;
-    var startSolid = !!prev && prev !== w && prev.turnAfter === "left" && !prev.open;
-    var endSolid = !!next && next !== w && w.turnAfter === "left" && !next.open;
+    var startSolid = !!prev && prev !== w && prev.turnAfter === "left" && !prev.open && turnAngle(prev) > 20; // a (nearly) straight joint isn't a corner
+    var endSolid = !!next && next !== w && w.turnAfter === "left" && !next.open && turnAngle(w) > 20;
     if (startSolid && zoneKey === "floor" && cornerClearanceMm(walls, wallIndex, "floor") > 0) startSolid = false;
     return { start:startSolid ? AFELLA_MM : 0, end:endSolid ? AFELLA_MM : 0 };
   }
@@ -1022,8 +1055,8 @@
       });
       var ops = (state.windows || []).filter(function(o){ return o.wallId === wall.id; }).map(function(o){ return { kind:"gluggi", o:o, lo:o.sillHeightMm, hi:o.sillHeightMm + o.heightMm }; })
         .concat((state.doors || []).filter(function(o){ return o.wallId === wall.id; }).map(function(o){ return { kind:o.gap ? "op" : "hurð", o:o, lo:0, hi:o.heightMm }; }))
-        .concat((state.obstacles || []).filter(function(o){ return o.wallId === wall.id && OBSTACLES[o.kind] && OBSTACLES[o.kind].blocks && (o.outMm || 0) < 600; })
-          .map(function(o){ var v = obstacleVSpan(state, o); return { kind:"hindrun", o:o, lo:v.lo, hi:v.hi }; }));
+        .concat((state.obstacles || []).filter(function(o){ return o.wallId === wall.id && OBSTACLES[o.kind] && OBSTACLES[o.kind].blocks && obstacleRect(o).n0 < 600; })
+          .map(function(o){ var v = obstacleVSpan(state, o), r = obstacleRect(o); return { kind:"hindrun", o:{ id:o.id, kind:o.kind, offsetMm:r.a0, widthMm:r.a1 - r.a0 }, lo:v.lo, hi:v.hi }; }));
       spans.forEach(function(sp){
         ops.forEach(function(op){
           var hOverlap = Math.min(sp.to, op.o.offsetMm + op.o.widthMm) - Math.max(sp.from, op.o.offsetMm);
@@ -1045,6 +1078,80 @@
     });
     islandWarnings(state, function(msg, ids){ out.push({ msg:msg, ids:ids, count:1 }); });
     openingIssues(state).warn.forEach(function(w){ out.push({ msg:w.msg, ids:w.ids, count:1 }); });
+    roomDoorConflicts(state).forEach(function(cf){
+      out.push({ msg:cf.slide
+        ? "Rennihurðin á " + acc(cf.wallLabel) + " rennur þar sem " + cf.labels.join(", ").toLowerCase() + " " + (cf.labels.length > 1 ? "eru" : "er") + " — láttu hana renna í hina áttina eða færðu " + (cf.labels.length > 1 ? "skápana" : "skápinn") + "."
+        : "Hurðin á " + acc(cf.wallLabel) + " rekst á " + cf.labels.join(", ").toLowerCase() + " þegar hún opnast — snúðu henni (lamir/opnun) eða færðu " + (cf.labels.length > 1 ? "skápana" : "skápinn") + ".", ids:[cf.doorId].concat(cf.ids), count:1 });
+    });
+    return out;
+  }
+
+  // ── Room doors (2026-10-23): which way a door opens, and what it hits ─────────────────────────────────
+  // door.swing = "in" (into this room, default) | "out" (away from it) | "slide" (no swing); door.hinge = "left" |
+  // "right" as seen from INSIDE the room facing the wall. A wall's axis points to your right when you stand in the
+  // room facing it (axis × normal geometry), so a left hinge sits at the door's start (offsetMm), a right one at its end.
+  function doorSwingOf(d){ return d.swing === "out" || d.swing === "slide" ? d.swing : "in"; }
+  function doorHingeOf(d){ return d.hinge === "right" ? "right" : "left"; }
+  // the leaf's quarter circle in room coordinates (m): hinge point h, u = along the wall toward the latch, v = the
+  // side it swings to, r = leaf width. null for a slider / an opening without a leaf / a door on a missing wall.
+  function doorSweep(state, d){
+    if (d.gap || doorSwingOf(d) === "slide") return null;
+    var wi = state.walls.findIndex(function(w){ return w.id === d.wallId; });
+    var g = wallGeoms(state)[wi];
+    if (!g || state.walls[wi].open) return null;
+    var right = doorHingeOf(d) === "right", along = (d.offsetMm + (right ? d.widthMm : 0)) / 1000;
+    var sgn = doorSwingOf(d) === "out" ? -1 : 1;
+    return { h:{ x:g.origin.x + g.axis.x * along, z:g.origin.z + g.axis.z * along }, u:{ x:g.axis.x * (right ? -1 : 1), z:g.axis.z * (right ? -1 : 1) },
+      v:{ x:g.normal.x * sgn, z:g.normal.z * sgn }, r:d.widthMm / 1000, inward:sgn > 0, g:g, wi:wi };
+  }
+  function inConvex(p, poly){ // convex quad, either winding
+    var sign = 0;
+    for (var i = 0; i < poly.length; i++){
+      var a = poly[i], b = poly[(i + 1) % poly.length], cr = (b.x - a.x) * (p.z - a.z) - (b.z - a.z) * (p.x - a.x);
+      if (Math.abs(cr) < 1e-9) continue;
+      if (!sign) sign = cr > 0 ? 1 : -1; else if ((cr > 0 ? 1 : -1) !== sign) return false;
+    }
+    return true;
+  }
+  // floor-standing cabinets (any surface) whose footprint the inward swing of a door passes through. Sampled
+  // (polar grid over the quarter circle + the cabinet's corners): exact enough at mm scale, and it never misses
+  // a cabinet tucked into the corner beside the hinge, which a bounding-box test would.
+  function roomDoorConflicts(state){
+    var out = [], surf = surfacesOf(state), gs = surfaceGeoms(state), feet = [];
+    surf.forEach(function(sf, si){
+      var starts = blockStartsMm(sf.floor, cornerClearanceMm(surf, si, "floor"));
+      sf.floor.forEach(function(b, i){
+        var c = CATALOG[b.type];
+        if (!c) return;
+        feet.push({ id:b.id, label:c.label, q:rectCornersWorld(gs[si], starts[i], b.widthMm, b.depthMm || c.d) });
+      });
+    });
+    (state.doors || []).forEach(function(d){
+      if (!d.gap && doorSwingOf(d) === "slide"){ // the leaf parks on the wall beside the opening (surface track): nothing may stand there below the door's top
+        var wl = state.walls.find(function(w){ return w.id === d.wallId; }); if (!wl || wl.open) return;
+        var wix = state.walls.indexOf(wl), right = doorHingeOf(d) !== "right";
+        var p0 = right ? d.offsetMm + d.widthMm : d.offsetMm - d.widthMm, p1 = p0 + d.widthMm;
+        var fS = blockStartsMm(wl.floor, cornerClearanceMm(state.walls, wix, "floor")), wS = blockStartsMm(wl.wall, 0), sh = [];
+        wl.floor.forEach(function(b, i){ if (Math.min(p1, fS[i] + b.widthMm) - Math.max(p0, fS[i]) > 20) sh.push(b); });
+        wl.wall.forEach(function(b, i){ if (elevOf(b) < d.heightMm && Math.min(p1, wS[i] + b.widthMm) - Math.max(p0, wS[i]) > 20) sh.push(b); });
+        if (sh.length) out.push({ doorId:d.id, wallLabel:wl.label, slide:true, ids:sh.map(function(b){ return b.id; }), labels:sh.map(function(b){ return CATALOG[b.type].label; }) });
+        return;
+      }
+      var sw = doorSweep(state, d);
+      if (!sw || !sw.inward) return;
+      var r = sw.r - 0.02, pts = [];
+      for (var ri = 1; ri <= 6; ri++) for (var ai = 0; ai <= 8; ai++){
+        var rr = r * ri / 6, t = (Math.PI / 2) * ai / 8, cu = Math.cos(t), sv = Math.sin(t);
+        if (sv * rr < 0.03) continue; // hugging the wall line itself: that's the frame, not the swing
+        pts.push({ x:sw.h.x + (sw.u.x * cu + sw.v.x * sv) * rr, z:sw.h.z + (sw.u.z * cu + sw.v.z * sv) * rr });
+      }
+      function inSweep(p){
+        var dx = p.x - sw.h.x, dz = p.z - sw.h.z, a = dx * sw.u.x + dz * sw.u.z, b = dx * sw.v.x + dz * sw.v.z;
+        return a > 0.01 && b > 0.03 && a * a + b * b < r * r;
+      }
+      var hit = feet.filter(function(f){ return f.q.some(inSweep) || pts.some(function(p){ return inConvex(p, f.q); }); });
+      if (hit.length) out.push({ doorId:d.id, wallLabel:state.walls[sw.wi].label, ids:hit.map(function(f){ return f.id; }), labels:hit.map(function(f){ return f.label; }) });
+    });
     return out;
   }
 
@@ -1358,10 +1465,12 @@
       var a = Math.max(pos, gp.offM), b = Math.min(geom.lenM, gp.offM + gp.widM);
       if (b - a < 0.01) return;
       if (a > pos + 0.001) pieces.push([pos, a, 0, wallHeightM]);
+      if (gp.loM > 0.01) pieces.push([a, b, 0, gp.loM]);                        // wall under a window (2026-10-23: windows are real holes now)
       if (gp.hM < wallHeightM - 0.01) pieces.push([a, b, gp.hM, wallHeightM]); // header over the opening
       pos = b;
     });
     if (geom.lenM > pos + 0.001) pieces.push([pos, geom.lenM, 0, wallHeightM]);
+    if (geom.extEndM) pieces.forEach(function(pc){ if (Math.abs(pc[1] - geom.lenM) < 0.001) pc[1] += geom.extEndM; }); // close the outer corner (see wallGeometry3D)
     var mesh = null;
     // The room face sits 1.5 mm BEHIND the wall line: cabinet backs and the
     // skirting stand exactly on the line, and a shared plane made them z-fight
@@ -1433,6 +1542,14 @@
   // realism" approach used for cabinets/handles throughout). `baseYM` is
   // where the opening starts (sill height for a window, 0 for a door).
   var WINDOW_MARKER_COLOR = 0xa9c6d6, DOOR_MARKER_COLOR = 0x8a6a4a;
+  // Veggur merkingar — one accent colour that reads on both the light and the PRO dark elevation, a short symbol set
+  var ANNO_COLOR = "#e8590c";
+  var ANNO_SYMBOLS = {
+    innstunga:{ glyph:"⏚", label:"Innstunga" }, rofi:{ glyph:"⊘", label:"Rofi" }, ljos:{ glyph:"✦", label:"Ljós" },
+    vatn:{ glyph:"≋", label:"Vatn / frárennsli" }, net:{ glyph:"⌁", label:"Net / loftnet" }, tafla:{ glyph:"▦", label:"Rafmagnstafla" },
+    athuga:{ glyph:"!", label:"Athuga" }
+  };
+  function escSvg(t){ return String(t).replace(/[&<>"]/g, function(ch){ return { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[ch]; }); }
   function addOpeningMarker(THREE, scene, geom, offsetM, widthM, heightM, baseYM, color, opacity, meta, selected, pickables){
     var isWin = meta && meta.kind === "window";
     var isGap = !!(meta && meta.gap); // a plain opening in the wall: no door leaf, the wall itself has the hole
@@ -1460,6 +1577,7 @@
     group.add(mesh);
     scene.add(group);
     if (pickables && meta) pickables.push(mesh);
+    if (isWin) mat.userData.studio = "glass";
     if (isWin && !selected){ // brighter than white: the post-processing tone maps the whole frame, so daylight needs headroom
       mat.color.setRGB(1.8, 1.86, 1.95); mat.userData.day = mat.color.clone(); (scene.userData.windowGlass = scene.userData.windowGlass || []).push(mat);
     }
@@ -1484,16 +1602,45 @@
       bar(0.012, heightM, WALL_THICKNESS_M, widthM / 2 - 0.006, baseYM + heightM / 2, rv);
       return group;
     }
+    if (isWin){ // a real window in a real hole (2026-10-23): reveal boards, a deep outer frame, opening sashes with handles, glass set back, a sill
+      var depthIn = -(WALL_THICKNESS_M * 0.55);                                     // the frame's plane, inside the wall
+      mesh.position.set(cx + geom.normal.x * (depthIn - 0.012), baseYM + heightM / 2, cz + geom.normal.z * (depthIn - 0.012)); // glass, set back
+      var revealMat = new THREE.MeshStandardMaterial({ color:0xf3f2ee, roughness:0.85 });
+      // reveal: lines the hole through the wall, its room edge 4 mm back from the wall face (a 1.5 mm lip proud of the
+      // wall read as a dashed stripe — shadow/AO noise on a sliver)
+      var rd = WALL_THICKNESS_M - 0.004, rc = -(0.0055 + rd / 2);
+      // 1 mm in from the hole's edge: flush with the wall's own end faces they z-fought (striped shadow line)
+      [bar(widthM - 0.002, 0.012, rd, 0, baseYM + heightM - 0.007, rc, revealMat),
+       bar(0.012, heightM - 0.002, rd, -(widthM / 2 - 0.007), baseYM + heightM / 2, rc, revealMat),
+       bar(0.012, heightM - 0.002, rd, widthM / 2 - 0.007, baseYM + heightM / 2, rc, revealMat)].forEach(function(m){ m.castShadow = false; }); // a reveal's shadow on its own wall edge = acne stripes
+      var ofw = 0.055, ofd = 0.07;                                                    // outer frame (karmur): 55 × 70 mm
+      bar(widthM - 0.024, ofw, ofd, 0, baseYM + heightM - 0.012 - ofw / 2, depthIn);
+      bar(widthM - 0.024, ofw, ofd, 0, baseYM + 0.012 + ofw / 2, depthIn);
+      bar(ofw, heightM - 0.024, ofd, -(widthM / 2 - 0.012 - ofw / 2), baseYM + heightM / 2, depthIn);
+      bar(ofw, heightM - 0.024, ofd, widthM / 2 - 0.012 - ofw / 2, baseYM + heightM / 2, depthIn);
+      var leaves = widthM > 0.9 ? 2 : 1, innerW = widthM - 0.024 - 2 * ofw, innerH = heightM - 0.024 - 2 * ofw, lw = innerW / leaves, sw = 0.045, sd = 0.05;
+      var handleMatW = new THREE.MeshStandardMaterial({ color:0xe8e9ea, metalness:0.6, roughness:0.3 });
+      for (var li = 0; li < leaves; li++){                                            // sashes (opnanleg fög), each with a handle on its latch side
+        var lc = -innerW / 2 + lw * (li + 0.5), ly = baseYM + heightM / 2, lz = depthIn + 0.008;
+        bar(lw - 0.004, sw, sd, lc, ly + innerH / 2 - sw / 2, lz);
+        bar(lw - 0.004, sw, sd, lc, ly - innerH / 2 + sw / 2, lz);
+        bar(sw, innerH, sd, lc - lw / 2 + sw / 2 + 0.002, ly, lz);
+        bar(sw, innerH, sd, lc + lw / 2 - sw / 2 - 0.002, ly, lz);
+        var latch = leaves === 2 ? (li === 0 ? 1 : -1) : 1;
+        bar(0.016, 0.12, 0.022, lc + latch * (lw / 2 - sw / 2 - 0.002), ly, lz + sd / 2 + 0.011, handleMatW); // handle
+      }
+      bar(widthM + 0.06, 0.025, WALL_THICKNESS_M + 0.045, 0, baseYM - 0.0125, -WALL_THICKNESS_M / 2 + 0.0225); // sill board: through the hole + 4.5 cm into the room
+    } else {
     bar(widthM, fw, 0.05, 0, baseYM + heightM - fw / 2, fo);                       // head
     bar(fw, heightM, 0.05, -(widthM / 2 - fw / 2), baseYM + heightM / 2, fo);      // left jamb
     bar(fw, heightM, 0.05, widthM / 2 - fw / 2, baseYM + heightM / 2, fo);         // right jamb
+    }
     if (!isDoor){
-      bar(widthM, fw, 0.05, 0, baseYM + fw / 2, fo);                               // window base rail
-      bar(0.035, heightM - 2 * fw, 0.04, 0, baseYM + heightM / 2, fo);             // centre mullion
-      bar(widthM + 0.12, 0.035, 0.13, 0, baseYM - 0.0175, 0.065);                  // sill
+      // (window frame above)
     } else {
       var handleMat = new THREE.MeshStandardMaterial({ color:0x55575a, metalness:0.7, roughness:0.35 });
-      bar(0.14, 0.02, 0.04, widthM / 2 - 0.1, 1.0, 0.04, handleMat);               // lever handle
+      var hx = (meta.hingeRight ? -1 : 1) * (widthM / 2 - 0.1);                    // on the latch side, away from the hinges
+      bar(0.14, 0.02, 0.04, hx, 1.0, 0.04, handleMat);                             // lever handle
     }
     return group;
   }
@@ -1994,7 +2141,7 @@
         geom.origin.z + geom.axis.z * (offsetM + widthM / 2 + alongM) + geom.normal.z * outM);
     }
 
-    if (plinthM && meta && meta.plinthMat){
+    if (plinthM && meta && meta.plinthMat && !meta.hung){ // (a wall-hung bath unit: the "plinth" is just air under it)
       // full width (user, 2026-10-16): plinths of neighbouring units may run together with no visual break between
       // them, like a real continuous kickboard — only its height is a hair short, so its top never shares a plane
       // with the body's underside (z-fighting showed through an open cabinet).
@@ -2019,7 +2166,7 @@
       top.quaternion.copy(quat);
       top.castShadow = true; top.receiveShadow = true;
       group.add(top);
-      if (meta.sink) addSink(THREE, group, local, quat, widthM, depthM, baseYM + heightM + 0.001 + TT);
+      if (meta.sink) addSink(THREE, group, local, quat, widthM, depthM, baseYM + heightM + 0.001 + TT, meta.tapCeilM);
     }
 
     if (art || isOpen){ // the carcass as real boards, in the cabinet's own frame (x along the wall, z out of it)
@@ -2549,7 +2696,7 @@
     });
     return out;
   }
-  function addSink(THREE, group, local, quat, widthM, depthM, topY){
+  function addSink(THREE, group, local, quat, widthM, depthM, topY, ceilM){
     var hs = sinkSize(widthM, depthM), depth = 0.18, zc = depthM * 0.5 + 0.01;
     var steel = new THREE.MeshStandardMaterial({ color:0xc4c8cc, metalness:0.9, roughness:0.32 });
     // a solid bowl: seen from inside from above, and from outside (an open sink cabinet) — it used to be a
@@ -2568,9 +2715,15 @@
     var drain = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.003, 28), new THREE.MeshStandardMaterial({ color:0x9a9fa5, metalness:0.9, roughness:0.25 }));
     put(drain, topY - depth + 0.006, zc, hs.w * 0.25);
     // tap: round base, gooseneck, lever
-    var back = zc - hs.d / 2 - 0.045;
-    put(new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.026, 0.03, 24), steel), topY + 0.015, back);
-    var neck = new THREE.Group(); neck.position.copy(local(0, topY + 0.03, back)); neck.quaternion.copy(quat); group.add(neck);
+    var back = zc - hs.d / 2 - 0.045, room = ceilM != null ? ceilM - (topY + 0.03) - 0.02 : Infinity;
+    // Under a low window / sill (2026-10-23): the ~0.32 m gooseneck is lowered to fit (2 cm clear); with almost no room
+    // left (< 15 cm) it moves beside the bowl, out from under the sill, at full height, spout turned over the bowl —
+    // what a kitchen fitter does with a sink under a low window.
+    var side = room < 0.15, tapAlong = side ? hs.w / 2 + 0.05 : 0, tapOut = side ? zc - hs.d * 0.15 : back;
+    put(new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.026, 0.03, 24), steel), topY + 0.015, tapOut, tapAlong);
+    var neck = new THREE.Group(); neck.position.copy(local(tapAlong, topY + 0.03, tapOut)); neck.quaternion.copy(quat); group.add(neck);
+    if (side) neck.rotateY(-Math.PI / 2); // spout over the bowl
+    else if (room < 0.32) neck.scale.y = Math.max(0.35, room / 0.32);
     var curve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0.2, 0), new THREE.Vector3(0, 0.3, 0.06), new THREE.Vector3(0, 0.27, 0.17), new THREE.Vector3(0, 0.2, 0.2)]);
     var tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 40, 0.012, 14, false), steel); tube.castShadow = true; neck.add(tube);
     var lever = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.08, 10), steel); lever.rotation.z = Math.PI / 2 - 0.3; lever.position.set(0.045, 0.1, 0); lever.castShadow = true; neck.add(lever);
@@ -2697,6 +2850,9 @@
     function pickMeshAt(evt){
       raycaster.setFromCamera(ndc(evt), camera);
       var hits = raycaster.intersectObjects(pickables, false);
+      // a milliveggur's resize handles are drawn on top of everything, so if one is under the pointer it wins — even when
+      // it sits inside the partition (the end standing against its wall) or behind another box along the ray (2026-10-23)
+      for (var hi = 0; hi < hits.length; hi++) if (hits[hi].object.userData && hits[hi].object.userData.kind === "obstacle-resize") return hits[hi].object;
       var first = null;
       for (var i = 0; i < hits.length; i++) if (!seeThrough(hits[i].object)){ first = hits[i].object; break; }
       if (!first) return null;
@@ -2963,12 +3119,25 @@
         return;
       }
       if (drag.resize){
-        var wiR = walls.findIndex(function(w){ return w.id === drag.meta.wallId; }), gR = geoms[wiR];
+        var wiR = walls.findIndex(function(w){ return w.id === drag.meta.wallId; }), gR = geoms[wiR], mR = drag.meta;
         if (gR){
           var ptR = floorHit(evt, drag.mesh.position.y); // the handle's own height, not the floor — truer to where the cursor visually is
           if (ptR){
-            var ddR = (ptR.x - gR.origin.x) * gR.normal.x + (ptR.z - gR.origin.z) * gR.normal.z; // metres, perpendicular from the anchor wall
-            if (opts.onObstacleResizeMove) opts.onObstacleResizeMove(drag.meta.obstacleId, Math.round(ddR * 1000) - drag.meta.outMm);
+            var dir = mR.rot ? gR.axis : gR.normal; // the partition's length axis
+            var posMm = Math.round((((ptR.x - gR.origin.x) * dir.x + (ptR.z - gR.origin.z) * dir.z) * 1000 - (mR.gapMm || 0)) / 10) * 10; // 10 mm steps, from the real end (not the handle)
+            var minLen = opts.onObstacleResizeMove ? opts.onObstacleResizeMove(mR.obstacleId) : 200; // the editor's floor (cabinets standing on it)
+            var s0 = mR.s0, s1 = mR.s1;
+            if (mR.end === "far") s1 = Math.min(s0 + 6000, Math.max(s0 + minLen, posMm));
+            else s0 = Math.max(mR.rot ? 0 : 0, Math.min(s1 - minLen, posMm));
+            drag.res = { s0:s0, s1:s1 };
+            // live: stretch the box (its parts are children) along the length axis and move the handle
+            var px = mR.proxy, len0 = (mR.s1 - mR.s0) / 1000, len = (s1 - s0) / 1000, mid = (s0 + s1) / 2000, mid0 = (mR.s0 + mR.s1) / 2000;
+            if (mR.rot) px.scale.x = len / len0; else px.scale.z = len / len0;
+            if (!drag.pos0) drag.pos0 = px.position.clone();
+            px.position.set(drag.pos0.x + dir.x * (mid - mid0), drag.pos0.y, drag.pos0.z + dir.z * (mid - mid0));
+            var hp = (mR.end === "far" ? s1 : s0) / 1000, h0 = (mR.end === "far" ? mR.s1 : mR.s0) / 1000;
+            if (!drag.hpos0) drag.hpos0 = drag.mesh.position.clone();
+            drag.mesh.position.set(drag.hpos0.x + dir.x * (hp - h0), drag.hpos0.y, drag.hpos0.z + dir.z * (hp - h0));
           }
         }
         return;
@@ -3073,7 +3242,7 @@
       if (drag.resize){
         var dR = drag;
         drag = null; controls.enabled = true; renderer.domElement.style.cursor = "";
-        if (dR.moved){ suppressClick = true; if (opts.onObstacleResizeEnd) opts.onObstacleResizeEnd(dR.meta.obstacleId); }
+        if (dR.moved){ suppressClick = true; if (opts.onObstacleResizeEnd) opts.onObstacleResizeEnd(dR.meta.obstacleId, dR.res ? { s0:dR.res.s0, s1:dR.res.s1, rot:dR.meta.rot } : null); }
         return;
       }
       if (drag.island){
@@ -3396,6 +3565,193 @@
       }, 0);
     });
   }
+  // ✨ Studio mynd (2026-10-23): path-trace the live scene from the live camera (three-gpu-pathtracer, loaded on demand)
+  // → a JPEG data URL. The editor's own loop is paused meanwhile; labels, handles, see-through (faded) walls and
+  // cabinets, lines and sprites are hidden; a soft daylight sky lights it (and shows through the windows).
+  function studioSky(THREE){
+    var W = 256, H = 128, data = new Float32Array(W * H * 4);
+    for (var y = 0; y < H; y++){
+      var v = 1 - y / (H - 1), el = (v - 0.5) * Math.PI; // +π/2 zenith … −π/2 nadir
+      var t = Math.max(0, Math.sin(el)), g = Math.max(0, -Math.sin(el));
+      for (var x = 0; x < W; x++){
+        var i = (y * W + x) * 4, sunU = Math.abs((x / W) - 0.15), sun = Math.exp(-((sunU * sunU) * 400 + Math.pow(el - 0.6, 2) * 40)) * 18;
+        data[i] = 1.05 - 0.25 * t - 0.6 * g + sun; data[i + 1] = 1.08 - 0.15 * t - 0.62 * g + sun * 0.95; data[i + 2] = 1.15 + 0.05 * t - 0.65 * g + sun * 0.85; data[i + 3] = 1;
+      }
+    }
+    var tex = new THREE.DataTexture(data, W, H, THREE.RGBAFormat, THREE.FloatType);
+    tex.mapping = THREE.EquirectangularReflectionMapping; tex.needsUpdate = true;
+    return tex;
+  }
+  // The photo's own scene: only what's really visible, each mesh with a material rebuilt from its ROLE (userData.studio)
+  // — matte paint walls, the floor's planks with a satin lacquer, fronts with their decor + a light lacquer coat, a
+  // honed/polished worktop, brushed steel, real glass. Overlays (selection rings, pick boxes, shadow shell, glows,
+  // labels, faded/see-through walls) are left out entirely, so nothing invisible can block or recolour the picture.
+  function studioMaterial(THREE, m){
+    if (!m || m.visible === false || m.colorWrite === false) return null;
+    var role = m.userData && m.userData.studio;
+    if (m.transparent && m.opacity < 0.5 && role !== "glass") return null; // faded walls / x-rayed fronts
+    if (role === "glass") return new THREE.MeshPhysicalMaterial({ color:0xffffff, metalness:0, roughness:0.02, transmission:1, ior:1.5, thickness:0.004, side:THREE.DoubleSide });
+    if (m.isMeshBasicMaterial) return null; // markers, rings, badges, glows
+    var base = { color:m.color ? m.color.clone() : new THREE.Color(0xffffff), map:m.map || null, side:m.side };
+    if (m.emissive && m.emissiveIntensity > 0 && m.emissive.getHex() && role !== "front" && role !== "carcass"){ base.emissive = m.emissive.clone(); base.emissiveIntensity = m.emissiveIntensity; }
+    switch (role){
+      case "wall": return new THREE.MeshStandardMaterial({ color:base.color, roughness:0.92, metalness:0, side:THREE.FrontSide });
+      case "floor": return new THREE.MeshPhysicalMaterial({ color:base.color, map:base.map, roughness:0.55, clearcoat:0.25, clearcoatRoughness:0.35 }); // no roughnessMap: a second texture on one material came out scrambled in the path tracer
+      case "front": return new THREE.MeshPhysicalMaterial({ color:base.color, map:base.map, roughness:Math.min(0.75, m.roughness || 0.6), metalness:0, clearcoat:0.18, clearcoatRoughness:0.45 });
+      case "carcass": case "plinth": return new THREE.MeshStandardMaterial({ color:base.color, roughness:0.8, metalness:0 });
+      case "top": return new THREE.MeshPhysicalMaterial({ color:base.color, map:base.map, roughness:0.32, metalness:0, clearcoat:0.5, clearcoatRoughness:0.2 });
+      case "steel": return new THREE.MeshPhysicalMaterial({ color:base.color, metalness:1, roughness:0.28 });
+      case "appliance": return new THREE.MeshPhysicalMaterial({ color:base.color, roughness:0.3, clearcoat:0.6 });
+    }
+    var out = new THREE.MeshPhysicalMaterial({ color:base.color, map:base.map, roughness:m.roughness != null ? m.roughness : 0.6, metalness:m.metalness || 0,
+      roughnessMap:m.roughnessMap || null, normalMap:m.normalMap || null, side:base.side });
+    if (base.emissive){ out.emissive = base.emissive; out.emissiveIntensity = base.emissiveIntensity; }
+    if (m.transparent && m.opacity < 1){ out.transparent = true; out.opacity = m.opacity; }
+    return out;
+  }
+  // One mesh PER MATERIAL, world transforms baked in: the path tracer gets plain, uniform input (position + normal + uv,
+  // non-indexed, no groups, no material arrays). Handing it the editor's hundreds of meshes as they are (groups, arrays,
+  // missing uvs, shared geometry) scrambled which material landed on which surface — walls in wood, fronts black.
+  function studioScene(THREE, src, o){
+    src.updateMatrixWorld(true);
+    var rs = new THREE.Scene(), made = [], box = new THREE.Box3(), cabBox = new THREE.Box3(), roomBox = new THREE.Box3(), cache = new Map(), buckets = new Map();
+    function conv(m){
+      if (!cache.has(m)){
+        var c = studioMaterial(THREE, m);
+        if (c){ var rl = (m.userData && m.userData.studio) || "other"; c.userData.role = rl;
+          if (o && (o.noMaps || (o.mapRole && String(o.mapRole).split(",").indexOf(rl) < 0))){ c.map = null; c.roughnessMap = null; c.normalMap = null; }
+          // a texture's repeat / offset / rotation is baked into the UVs instead (push() below) and the photo gets a plain,
+          // untransformed copy of the image — transformed textures came out blank or swapped in the path tracer
+          if (c.map){
+            var src0 = c.map; src0.updateMatrix(); c.userData.uvm = src0.matrix.clone();
+            var t2 = new THREE.Texture(src0.image); t2.wrapS = t2.wrapT = THREE.RepeatWrapping; t2.colorSpace = src0.colorSpace; t2.flipY = src0.flipY; t2.needsUpdate = true;
+            c.map = t2; made.push(t2);
+          }
+          c.roughnessMap = null; c.normalMap = null; if (c.side !== THREE.DoubleSide && !c.transmission) c.side = THREE.DoubleSide; made.push(c); }
+        cache.set(m, c);
+      }
+      return cache.get(m);
+    }
+    var v = new THREE.Vector3(), nm = new THREE.Matrix3();
+    function push(mat, g, from, count, mw){
+      var b = buckets.get(mat); if (!b){ b = { p:[], n:[], u:[] }; buckets.set(mat, b); }
+      var P = g.attributes.position, N = g.attributes.normal, U = g.attributes.uv;
+      nm.getNormalMatrix(mw);
+      for (var i = from; i < from + count; i++){
+        v.fromBufferAttribute(P, i).applyMatrix4(mw); b.p.push(v.x, v.y, v.z); box.expandByPoint(v);
+        if (mat.userData.role === "front" || mat.userData.role === "carcass" || mat.userData.role === "top") cabBox.expandByPoint(v);
+        else if (mat.userData.role === "floor") roomBox.expandByPoint(v);
+        v.fromBufferAttribute(N, i).applyMatrix3(nm).normalize(); b.n.push(v.x, v.y, v.z);
+        if (U){
+          var uu = U.getX(i), vv = U.getY(i), M = mat.userData.uvm && mat.userData.uvm.elements;
+          if (M){ var u2 = M[0] * uu + M[3] * vv + M[6], v2 = M[1] * uu + M[4] * vv + M[7]; uu = u2; vv = v2; }
+          b.u.push(uu, vv);
+        } else b.u.push(0, 0);
+      }
+    }
+    src.traverseVisible(function(obj){
+      if (!obj.isMesh || obj.isInstancedMesh || obj.isSkinnedMesh || (obj.userData && obj.userData.kind === "obstacle-resize")) return;
+      var g0 = obj.geometry; if (!g0 || !g0.attributes || !g0.attributes.position) return;
+      var arr = Array.isArray(obj.material), mats = arr ? obj.material.map(conv) : [conv(obj.material)];
+      if (!mats.some(Boolean)) return;
+      var g = g0.index ? g0.toNonIndexed() : g0;
+      if (!g.attributes.normal){ if (g === g0) g = g0.clone(); g.computeVertexNormals(); }
+      var total = g.attributes.position.count;
+      if (arr && g.groups && g.groups.length){
+        g.groups.forEach(function(gr){ var m = mats[gr.materialIndex]; if (m) push(m, g, gr.start, Math.min(gr.count, total - gr.start), obj.matrixWorld); });
+      } else if (mats[0]) push(mats[0], g, 0, total, obj.matrixWorld);
+      if (g !== g0) g.dispose();
+    });
+    var geos = [];
+    buckets.forEach(function(b, mat){
+      if (!b.p.length) return;
+      var bg = new THREE.BufferGeometry();
+      bg.setAttribute("position", new THREE.Float32BufferAttribute(b.p, 3));
+      bg.setAttribute("normal", new THREE.Float32BufferAttribute(b.n, 3));
+      bg.setAttribute("uv", new THREE.Float32BufferAttribute(b.u, 2));
+      rs.add(new THREE.Mesh(bg, mat)); geos.push(bg);
+    });
+    return { scene:rs, box:box, cabBox:cabBox, roomBox:roomBox, dispose:function(){ made.forEach(function(m){ m.dispose(); }); geos.forEach(function(x){ x.dispose(); }); } };
+  }
+  // light: the neutral procedural daylight sky. Tried photographed HDRIs (Poly Haven loft / small studio): both tinted the
+  // whites and darkened the room — the even sky gave the truest colours (white worktop stays white, oak stays oak).
+  function studioEnv(THREE){ return Promise.resolve({ tex:studioSky(THREE), intensity:1, own:true }); }
+  // "view": the editor's own camera as you set it (default), or "eye" = a photographer standing in the room: 1.6 m eye
+  // height, ~26 mm lens, level (so verticals stay vertical), looking at the middle of what's drawn
+  function studioCamera(THREE, liveCam, view, aspect, built){
+    var cam = liveCam.clone(); cam.aspect = aspect;
+    var cab = built.cabBox, room = built.roomBox;
+    if (view === "eye" && !cab.isEmpty() && !room.isEmpty()){
+      // stand inside the room, on the far side from the cabinets, 1.6 m up, looking level at their middle
+      var c = cab.getCenter(new THREE.Vector3()), rc = room.getCenter(new THREE.Vector3());
+      var away = new THREE.Vector3(rc.x - c.x, 0, rc.z - c.z);
+      if (away.lengthSq() < 0.04) away.set(liveCam.position.x - c.x, 0, liveCam.position.z - c.z); // cabinets all round: use the side you were looking from
+      away.normalize();
+      var m = 0.35, x0 = room.min.x + m, x1 = room.max.x - m, z0 = room.min.z + m, z1 = room.max.z - m, t = 0, step = 0.05;
+      while (t < 12){ var px = c.x + away.x * (t + step), pz = c.z + away.z * (t + step); if (px < x0 || px > x1 || pz < z0 || pz > z1) break; t += step; } // walk back until the far wall
+      cam.position.set(c.x + away.x * t, 1.6, c.z + away.z * t);
+      cam.fov = 2 * Math.atan(24 / (2 * 24)) * 180 / Math.PI; // 24 mm on full frame (vertical) — a kitchen needs the width
+      cam.up.set(0, 1, 0); cam.lookAt(c.x, 1.2, c.z); // level-ish, so verticals stay vertical
+    }
+    cam.updateProjectionMatrix(); cam.updateMatrixWorld();
+    return cam;
+  }
+  async function studioRender(o){
+    o = o || {};
+    if (!THREE_STATE || !window.__loadPathTracer) throw new Error("3D er ekki tilbúið");
+    var st = THREE_STATE, THREE = window.__THREE__, r = st.renderer, scene = st.scene;
+    // three-gpu-pathtracer 0.0.23 reads scene.environmentRotation / backgroundRotation (three r162+); we're on r160 —
+    // give Scene those two as plain zero Eulers (what r162 defaults them to), nothing else changes
+    ["environmentRotation", "backgroundRotation"].forEach(function(k){
+      if (!(k in THREE.Scene.prototype)) Object.defineProperty(THREE.Scene.prototype, k, { configurable:true,
+        get:function(){ return this["__" + k] || (this["__" + k] = new THREE.Euler()); }, set:function(v){ this["__" + k] = v; } });
+    });
+    var lib = await window.__loadPathTracer();
+    if (THREE_STATE !== st) throw new Error("sýnin breyttist");
+    var w = o.width || 1920, h = o.height || 1200, target = o.samples || 240;
+    var built = studioScene(THREE, scene, o), rs = built.scene;
+    var env = await studioEnv(THREE);
+    rs.environment = env.tex; rs.environmentIntensity = env.intensity;
+    rs.background = o.view === "eye" ? env.tex : new THREE.Color(0xf3f2ef); // dollhouse view: a clean studio backdrop, the HDRI still lights it
+    var cam = studioCamera(THREE, st.camera, o.view, w / h, built);
+    // its OWN renderer + canvas: if the GPU gives up on a path-tracing pass, that context dies — never the editor's
+    var pr = new THREE.WebGLRenderer({ antialias:false, preserveDrawingBuffer:true, powerPreference:"high-performance" });
+    pr.setPixelRatio(1); pr.setSize(w, h, false);
+    pr.toneMapping = r.toneMapping; pr.toneMappingExposure = r.toneMappingExposure; pr.outputColorSpace = r.outputColorSpace;
+    st.studio = true; // the editor's loop sits out meanwhile (the GPU is busy enough)
+    var pt = null;
+    try{
+      pt = new lib.WebGLPathTracer(pr);
+      pt.tiles.set(3, 3); pt.minSamples = 0; // small tiles: each GPU call stays short (a long one trips the driver's watchdog → context lost)
+      pt.renderScale = 1; pt.dynamicLowRes = false; pt.filterGlossyFactor = 0.5; pt.bounces = 6;
+      if (o.onProgress) o.onProgress(0, null);
+      await new Promise(function(res){ setTimeout(res, 60); }); // let "0 %" paint before the (synchronous) BVH build
+      pt.setScene(rs, cam); // the async variant needs a BVH web worker set up; a kitchen builds in a second or two
+      return await new Promise(function(resolve, reject){
+        var last = 0, lost = false, gl = pr.getContext();
+        pr.domElement.addEventListener("webglcontextlost", function(e){ e.preventDefault(); lost = true; }, { once:true });
+        (function step(){
+          if (o.cancelled && o.cancelled()){ resolve(null); return; }
+          if (lost || (gl.isContextLost && gl.isContextLost())){ reject(new Error("skjákortið réð ekki við myndina — reyndu minni mynd eða aðra tölvu")); return; }
+          try{ pt.renderSample(); }catch(e){ reject(e); return; }
+          var p = Math.min(1, pt.samples / target), now = performance.now(), preview = null;
+          if (now - last > 1500){ last = now; preview = pr.domElement.toDataURL("image/jpeg", 0.7); }
+          if (o.onProgress) o.onProgress(p, preview);
+          if (pt.samples >= target){ resolve(pr.domElement.toDataURL("image/jpeg", 0.93)); return; }
+          setTimeout(step, 0); // not rAF: keeps going in a background tab (rAF stops there)
+        })();
+      });
+    } finally {
+      try{ if (pt) pt.dispose(); }catch(e){}
+      try{ pr.dispose(); }catch(e){}
+      built.dispose(); if (env.own) env.tex.dispose();
+      st.studio = false;
+    }
+  }
+  // 🚶 walk mode — module level so it outlives scene rebuilds
+  var WALK = { on:false, x:0, z:0, yaw:0, pitch:0 };
+  function setWalkMode(on){ if (!THREE_STATE || !THREE_STATE.setWalk){ WALK.on = false; return false; } return THREE_STATE.setWalk(!!on); }
+  function isWalking(){ return WALK.on; }
   function setCameraLookAt(pos, target){
     if (!THREE_STATE) return false;
     THREE_STATE.camera.position.set(pos.x, pos.y, pos.z);
@@ -3412,10 +3768,12 @@
 
   function teardown3D(discardCamera){
     if (!THREE_STATE) return;
+    var wo = THREE_STATE.walkOrbit && THREE_STATE.walkOrbit(); // walking: remember the orbit view from before the walk, not the eye-level one
     savedCameraState = discardCamera ? null : {
-      position: THREE_STATE.controls.object.position.clone(),
-      target: THREE_STATE.controls.target.clone()
+      position: wo ? wo.pos.clone() : THREE_STATE.controls.object.position.clone(),
+      target: wo ? wo.target.clone() : THREE_STATE.controls.target.clone()
     };
+    if (THREE_STATE.walkCleanup) THREE_STATE.walkCleanup();
     cancelAnimationFrame(THREE_STATE.rafId);
     window.removeEventListener("resize", THREE_STATE.onResize);
     if (THREE_STATE.composer){ THREE_STATE.composer.dispose(); THREE_STATE.composer = null; } // the evening bloom's render targets
@@ -3726,6 +4084,9 @@
     } else {
       floorMat = new THREE.MeshStandardMaterial({ color:0xd8d3c6, roughness:1 });
     }
+    // ✨ Studio roles, set the moment the materials exist — the floor and the walls are cloned from these before the rest
+    // of the scene is built, and a clone only carries what userData held at clone time
+    wallMat.userData.studio = "wall"; floorMat.userData.studio = "floor"; carcassMat.userData.studio = "carcass";
 
     var scene = new THREE.Scene();
     // opts.onlySurfaceId (drawing export / unit wizard preview): only that one wall's / island row's
@@ -3770,6 +4131,19 @@
     // Wall length labels floating just above each wall (HomeByMe shows room
     // dimensions on the plan); a canvas-texture sprite, drawn on top.
     function isOpenGeom(i){ return !!(state.walls[i] && state.walls[i].open); }
+    // the lowest thing hanging over a sink's tap on its wall (a window's bottom edge, a gluggakista), metres above the
+    // floor — the tap's gooseneck is lowered to fit under it instead of poking through the glass (user, 2026-10-23)
+    function tapCeilingM(wall, xMm){
+      var lo = Infinity, pad = 60;
+      (state.windows || []).forEach(function(w){ if (w.wallId === wall.id && xMm + pad > w.offsetMm && xMm - pad < w.offsetMm + w.widthMm) lo = Math.min(lo, w.sillHeightMm - 25); }); // the sill board is 25 mm under the opening
+      (state.obstacles || []).forEach(function(o){
+        if (o.wallId !== wall.id || o.kind === "vatn" || !OBSTACLES[o.kind] || !OBSTACLES[o.kind].blocks) return;
+        var r = obstacleRect(o); if (r.n0 > 150 || !(xMm + pad > r.a0 && xMm - pad < r.a1)) return; // only what's right at the wall, over the tap
+        lo = Math.min(lo, obstacleVSpan(state, o).lo);
+      });
+      return isFinite(lo) ? lo / 1000 : null;
+    }
+    var wallLabels = []; // {sp, g} — faded out in fadeWalls() while the camera is behind that wall (user, 2026-10-23)
     if (!opts.people && !opts.clean && !iso) geoms.forEach(function(g, i){ // (the ceiling-height view has its own single label; opts.clean skips it too — drawing exports don't want it baked into the picture)
       // a small "V1" bubble, the same size on screen however far the wall is (2026-10-12: "Veggur 1 · 4000 mm" was
       // too big; the lengths are on the 2D plan and in the wall's panel)
@@ -3785,6 +4159,7 @@
       sp.position.set(g.origin.x + g.axis.x * g.lenM / 2, WALL_H + 0.16, g.origin.z + g.axis.z * g.lenM / 2);
       sp.renderOrder = 10;
       scene.add(sp);
+      wallLabels.push({ sp:sp, g:g });
     });
 
     // White skirting boards along every wall (visible wherever no cabinet stands)
@@ -3813,7 +4188,9 @@
       var mat = wallMat.clone();
       mat.transparent = true;
       var gaps = (state.doors || []).filter(function(d){ return d.gap && d.wallId === wid; })
-        .map(function(d){ return { offM:d.offsetMm / 1000, widM:d.widthMm / 1000, hM:Math.min(d.heightMm, roomHeightMm) / 1000 }; });
+        .map(function(d){ return { offM:d.offsetMm / 1000, widM:d.widthMm / 1000, hM:Math.min(d.heightMm, roomHeightMm) / 1000, loM:0 }; })
+        .concat((state.windows || []).filter(function(w){ return w.wallId === wid; }).map(function(w){ // a window is a real hole: its frame sits in the reveal
+          return { offM:w.offsetMm / 1000, widM:w.widthMm / 1000, loM:w.sillHeightMm / 1000, hM:Math.min(w.sillHeightMm + w.heightMm, roomHeightMm) / 1000 }; }));
       wallFades.push({ mesh:addWallPlane(THREE, scene, g, WALL_H, mat, gaps), geom:g, mat:mat, wallId:wid, openings:[] });
     });
 
@@ -3846,12 +4223,29 @@
         win.sillHeightMm / 1000, WINDOW_MARKER_COLOR, 0.55,
         { wallId:win.wallId, zone:"opening", kind:"window", locked:!win.unlocked && !!opts.onSelect, blockId:win.id, widthMm:win.widthMm, depthMm:10, heightMm:win.heightMm, elevMm:win.sillHeightMm }, opts.selectedId === win.id, pickables));
     });
+    var doorHitIds = {}; roomDoorConflicts(state).forEach(function(cf){ doorHitIds[cf.doorId] = cf.ids; });
     (state.doors || []).forEach(function(door){
       var g = geomForWall(door.wallId);
       if (!g) return;
       fadeWithWall(door.wallId, addOpeningMarker(THREE, scene, g, door.offsetMm / 1000, door.widthMm / 1000, door.heightMm / 1000,
         0, DOOR_MARKER_COLOR, 0.85,
-        { wallId:door.wallId, zone:"opening", kind:"door", locked:!door.unlocked && !!opts.onSelect, gap:!!door.gap, blockId:door.id, widthMm:door.widthMm, depthMm:10, heightMm:door.heightMm, elevMm:0 }, opts.selectedId === door.id, pickables));
+        { wallId:door.wallId, zone:"opening", kind:"door", locked:!door.unlocked && !!opts.onSelect, gap:!!door.gap, blockId:door.id, widthMm:door.widthMm, depthMm:10, heightMm:door.heightMm, elevMm:0,
+          hingeRight:doorHingeOf(door) === "right", swingOut:doorSwingOf(door) === "out" }, opts.selectedId === door.id, pickables));
+      // the floor the leaf sweeps (editor only): a faint quarter circle, red when a cabinet stands in it
+      var sw = opts.onSelect && !opts.clean && !iso ? doorSweep(state, door) : null;
+      if (sw){
+        var bad = doorHitIds[door.id], N = 28, pos = [sw.h.x, 0.004, sw.h.z], idx = [], line = [];
+        for (var k = 0; k <= N; k++){
+          var t = (Math.PI / 2) * k / N, px = sw.h.x + (sw.u.x * Math.cos(t) + sw.v.x * Math.sin(t)) * sw.r, pz = sw.h.z + (sw.u.z * Math.cos(t) + sw.v.z * Math.sin(t)) * sw.r;
+          pos.push(px, 0.004, pz); line.push(new THREE.Vector3(px, 0.006, pz));
+          if (k) idx.push(0, k, k + 1);
+        }
+        var fg = new THREE.BufferGeometry(); fg.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); fg.setIndex(idx);
+        var fan = new THREE.Mesh(fg, new THREE.MeshBasicMaterial({ color:bad ? 0xd64545 : 0x8a6a4a, transparent:true, opacity:bad ? 0.3 : (sw.inward ? 0.12 : 0.06), depthWrite:false, side:THREE.DoubleSide }));
+        fan.renderOrder = 2; scene.add(fan);
+        var arc = new THREE.Line(new THREE.BufferGeometry().setFromPoints(line), new THREE.LineDashedMaterial({ color:bad ? 0xc0392b : 0x8a6a4a, dashSize:0.05, gapSize:0.035 }));
+        arc.computeLineDistances(); scene.add(arc);
+      }
     });
 
     // Hindranir: boxes in the wall colour (pipe box, column, partition, beam), a white radiator, a grey fuse box,
@@ -3859,13 +4253,14 @@
     (state.obstacles || []).forEach(function(o){
       var def = OBSTACLES[o.kind], g = geomForWall(o.wallId); if (!def || !g) return;
       var v = obstacleVSpan(state, o), sel = opts.selectedId === o.id, hM = Math.max(0.01, (v.hi - v.lo) / 1000);
-      var wM = o.widthMm / 1000, dM = o.depthMm / 1000, outM = (o.outMm || 0) / 1000;
-      // dragged along / up and down the wall in the editor like a window (2026-10-11)
-      var meta = { kind:"obstacle", zone:"obstacle", blockId:o.id, wallId:o.wallId, locked:!opts.onCabinetDragEnd, widthMm:o.widthMm, depthMm:o.depthMm, heightMm:v.hi - v.lo, elevMm:v.lo, free:!!def.free && !!opts.onObstacleFloorEnd };
+      var rr = obstacleRect(o), wM = (rr.a1 - rr.a0) / 1000, dM = (rr.n1 - rr.n0) / 1000, outM = rr.n0 / 1000; // wM along the wall, dM out of it (after a turn)
+      // dragged along / up and down the wall in the editor like a window (2026-10-11); 🔒 o.locked = stays put (2026-10-23)
+      var meta = { kind:"obstacle", zone:"obstacle", blockId:o.id, wallId:o.wallId, locked:!opts.onCabinetDragEnd || !!o.locked, widthMm:rr.a1 - rr.a0, depthMm:rr.n1 - rr.n0, heightMm:v.hi - v.lo, elevMm:v.lo,
+        free:!!def.free && !!opts.onObstacleFloorEnd && !o.locked };
       // one invisible box = what you grab (world position, like a window plane); the visible parts are its children
       var grp = new THREE.Group(), proxy = new THREE.Mesh(new THREE.BoxGeometry(wM, hM, dM), new THREE.MeshBasicMaterial({ visible:false }));
       proxy.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(g.axis.x, 0, g.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(g.normal.x, 0, g.normal.z)));
-      var along = o.offsetMm / 1000 + wM / 2;
+      var along = rr.a0 / 1000 + wM / 2;
       proxy.position.set(g.origin.x + g.axis.x * along + g.normal.x * (outM + dM / 2), v.lo / 1000 + hM / 2, g.origin.z + g.axis.z * along + g.normal.z * (outM + dM / 2));
       proxy.userData = meta; grp.add(proxy); pickables.push(proxy);
       function part(geo, color, rough, metal, x, y, z){ // y from the bottom, z from the depth centre
@@ -3874,18 +4269,48 @@
         m.position.set(x || 0, y - hM / 2, z || 0); m.castShadow = true; m.receiveShadow = true;
         proxy.add(m); return m;
       }
-      if (def.look === "radiator"){
-        var fins = Math.max(3, Math.round(wM / 0.05));
-        for (var fi = 0; fi < fins; fi++) part(new THREE.BoxGeometry(wM / fins * 0.8, hM, dM * 0.7), 0xf4f4f2, 0.4, 0, -wM / 2 + (fi + 0.5) * wM / fins, hM / 2, -dM * 0.1);
-        part(new THREE.BoxGeometry(wM, 0.04, dM * 0.4), 0xf4f4f2, 0.4, 0, hM - 0.06, -dM * 0.2);
-      } else if (def.look === "panel"){
-        part(new THREE.BoxGeometry(wM, hM, dM), 0xd9dadc, 0.5, 0.1, 0, hM / 2, 0);
-        part(new THREE.BoxGeometry(wM * 0.9, hM * 0.9, 0.004), 0xc4c6c9, 0.45, 0.1, 0, hM / 2, dM / 2 + 0.002);
+      if (def.look === "radiator"){ // a modern double panel radiator (type 22), no pipes (user, 2026-10-23: "remove the bottom pipe")
+        var radW = 0xf6f6f4, radD = 0xdcdcd8;
+        [-1, 1].forEach(function(side){ // front + back panel, each with its vertical convector ribs
+          var pz = side * (dM / 2 - 0.009);
+          part(new THREE.BoxGeometry(wM - 0.02, hM - 0.03, 0.014), radW, 0.28, 0.05, 0, (hM - 0.03) / 2 + 0.005, pz);
+          if (side > 0){
+            var ribs = Math.max(4, Math.round((wM - 0.04) / 0.033));
+            for (var ri = 0; ri < ribs; ri++) part(new THREE.BoxGeometry(0.003, hM - 0.08, 0.002), radD, 0.4, 0, -wM / 2 + 0.03 + ri * (wM - 0.06) / (ribs - 1), hM / 2, pz + 0.0075);
+          }
+        });
+        part(new THREE.BoxGeometry(wM - 0.02, 0.006, dM - 0.004), 0x8e9094, 0.6, 0.1, 0, hM - 0.022, 0); // the shaded gap under the top grille
+        for (var gi = 0; gi < Math.round(wM / 0.012); gi++) part(new THREE.BoxGeometry(0.004, 0.004, dM - 0.01), radW, 0.3, 0, -wM / 2 + 0.012 + gi * 0.012, hM - 0.017, 0); // grille bars
+        [-1, 1].forEach(function(side){ part(new THREE.BoxGeometry(0.008, hM - 0.01, dM), radW, 0.3, 0, side * (wM / 2 - 0.004), (hM - 0.01) / 2, 0); }); // side covers
+        // thermostatic valve head at the top corner, on the room side
+        part(new THREE.CylinderGeometry(0.009, 0.009, 0.05, 16), 0xd8d9db, 0.25, 0.8, wM / 2 - 0.03, hM - 0.06, dM / 2 + 0.025).rotation.x = Math.PI / 2;
+        part(new THREE.CylinderGeometry(0.022, 0.024, 0.055, 24), 0xfafafa, 0.35, 0, wM / 2 - 0.03, hM - 0.06, dM / 2 + 0.06).rotation.x = Math.PI / 2;
+      } else if (def.look === "panel"){ // a modern consumer unit: white enclosure, recessed door, smoked window over a row of breakers, lock
+        var encl = 0xf1f1ef;
+        part(new THREE.BoxGeometry(wM, hM, dM * 0.85), encl, 0.35, 0.02, 0, hM / 2, -dM * 0.075);
+        part(new THREE.BoxGeometry(wM - 0.03, hM - 0.03, 0.012), 0xfbfbfa, 0.3, 0, 0, hM / 2, dM / 2 - 0.006); // the door
+        part(new THREE.BoxGeometry(wM - 0.02, 0.004, 0.004), 0xd6d6d3, 0.4, 0, 0, hM - 0.016, dM / 2); // door shadow lines
+        part(new THREE.BoxGeometry(wM - 0.02, 0.004, 0.004), 0xd6d6d3, 0.4, 0, 0, 0.016, dM / 2);
+        var rows = hM > 0.45 ? 2 : 1;
+        for (var row = 0; row < rows; row++){
+          var wy = hM * (rows === 2 ? (row ? 0.36 : 0.7) : 0.6), wh = Math.min(0.11, hM * 0.2);
+          var win = part(new THREE.BoxGeometry(wM - 0.07, wh, 0.003), 0x2c3136, 0.15, 0.1, 0, wy, dM / 2 + 0.001);
+          win.material.transparent = true; win.material.opacity = 0.88;
+          var n = Math.max(3, Math.floor((wM - 0.09) / 0.018)); // breakers on the DIN rail behind the window
+          for (var bi = 0; bi < n; bi++){
+            var bx = -(wM - 0.09) / 2 + 0.009 + bi * (wM - 0.09) / n;
+            part(new THREE.BoxGeometry(0.0155, wh * 0.78, 0.003), 0xe9e9e6, 0.5, 0, bx, wy, dM / 2 + 0.0025);
+            part(new THREE.BoxGeometry(0.006, wh * 0.18, 0.004), bi % 4 === 0 ? 0x2f6fd0 : 0x1e1f21, 0.5, 0, bx, wy + wh * 0.06, dM / 2 + 0.004);
+          }
+        }
+        part(new THREE.BoxGeometry(0.012, 0.045, 0.01), 0xcfd2d5, 0.3, 0.7, wM / 2 - 0.035, hM * 0.5, dM / 2 + 0.005); // lock / handle
       } else if (def.look === "pipe"){
         part(new THREE.CylinderGeometry(0.02, 0.02, dM, 16).rotateX(Math.PI / 2), 0xc8ccd2, 0.25, 0.9, -wM / 4, hM / 2, 0);
         part(new THREE.CylinderGeometry(0.025, 0.025, dM, 16).rotateX(Math.PI / 2), 0x9a9da3, 0.35, 0.6, wM / 4, hM / 2, 0);
       } else if (def.look === "sill"){
         part(new THREE.BoxGeometry(wM, hM, dM), 0xe6e2da, 0.35, 0, 0, hM / 2, 0);
+      } else if (def.shapes && o.shape === "round"){ // a round column (2026-10-23)
+        part(new THREE.CylinderGeometry(Math.min(wM, dM) / 2, Math.min(wM, dM) / 2, hM, 40), new THREE.Color(wallColor).lerp(new THREE.Color(0x8a857a), 0.18).getHex(), 1, 0, 0, hM / 2, 0);
       } else {
         part(new THREE.BoxGeometry(wM, hM, dM), new THREE.Color(wallColor).lerp(new THREE.Color(0x8a857a), 0.18).getHex(), 1, 0, 0, hM / 2, 0); // a shade darker than the wall, so it reads on a white wall
       }
@@ -3894,12 +4319,21 @@
       // a milliveggur's far-end handle (2026-10-20): drag it to stretch/shrink the partition instead of
       // only typing "Lengd út í rýmið" — a small ball at the tip, mid-height, always there (not just while
       // selected, same as the island puck) so it reads as grabbable at a glance
-      if (o.kind === "milliveggur" && def.free && opts.onObstacleResizeMove){
-        var tipAlong = o.offsetMm / 1000 + wM / 2, tipOut = outM + dM;
-        var rH = new THREE.Mesh(new THREE.SphereGeometry(0.035, 16, 16), new THREE.MeshBasicMaterial({ color:sel ? 0x0d8fbf : 0xf5c518 }));
-        rH.position.set(g.origin.x + g.axis.x * tipAlong + g.normal.x * tipOut, v.lo / 1000 + hM / 2, g.origin.z + g.axis.z * tipAlong + g.normal.z * tipOut);
-        rH.userData = { kind:"obstacle-resize", obstacleId:o.id, wallId:o.wallId, outMm:o.outMm || 0 };
-        scene.add(rH); pickables.push(rH);
+      // Both ends (2026-10-23): either end drags, the other stays put — along its length axis (out from the wall, or along
+      // it once turned). The wall stretches live in 3D (proxy scaled, no scene rebuild — a rebuild mid-drag lost the
+      // drag, which was why it "didn't work"); onObstacleResizeEnd stores it once on release.
+      if (o.kind === "milliveggur" && def.free && opts.onObstacleResizeEnd && !o.locked){
+        ["near", "far"].forEach(function(end){
+          // 6 cm past the end, drawn on top: the end face itself (or the wall it stands against) must never win the pick
+          var push = (end === "far" ? 1 : -1) * 0.06;
+          var la = rr.rot ? (end === "far" ? rr.a1 : rr.a0) / 1000 + push : along, lo = rr.rot ? outM + dM / 2 : Math.max(0.05, (end === "far" ? rr.n1 : rr.n0) / 1000 + push);
+          var rH = new THREE.Mesh(new THREE.SphereGeometry(0.045, 16, 16), new THREE.MeshBasicMaterial({ color:sel ? 0x0d8fbf : 0xf5c518, depthTest:false }));
+          rH.renderOrder = 12;
+          rH.position.set(g.origin.x + g.axis.x * la + g.normal.x * lo, v.lo / 1000 + hM / 2, g.origin.z + g.axis.z * la + g.normal.z * lo);
+          var gapMm = Math.round(((rr.rot ? la : lo) * 1000) - (end === "far" ? (rr.rot ? rr.a1 : rr.n1) : (rr.rot ? rr.a0 : rr.n0))); // handle ↔ actual end
+          rH.userData = { kind:"obstacle-resize", obstacleId:o.id, wallId:o.wallId, end:end, rot:rr.rot, s0:rr.rot ? rr.a0 : rr.n0, s1:rr.rot ? rr.a1 : rr.n1, proxy:proxy, gapMm:gapMm };
+          scene.add(rH); pickables.push(rH);
+        });
       }
     });
 
@@ -3915,6 +4349,12 @@
     var frontMat = look && window.KPMat
       ? makeFrontMaterial(THREE, state.look, look)
       : new THREE.MeshStandardMaterial({ color: look ? look.color3d : 0xb7b2a4, roughness:0.7 });
+    // FR2 (2026-10-23): a second front material for the project; cabinets with b.front2 are built in it. Tagged back to
+    // frontMat so X-Ray strips it together with the FR1 fronts.
+    var look2 = state.look2 ? LOOKS[state.look2] : null;
+    var frontMat2 = look2 ? (window.KPMat ? makeFrontMaterial(THREE, state.look2, look2) : new THREE.MeshStandardMaterial({ color:look2.color3d, roughness:0.7 })) : null;
+    if (frontMat2) frontMat2.__xrayBase = frontMat;
+    function frontMatOf(b){ return b && b.front2 && frontMat2 ? frontMat2 : frontMat; }
     var frontOpenMat = frontMat.clone(); frontOpenMat.side = THREE.DoubleSide; // open shelf units built all in the front material (b.frontAll)
     // Fataskápar has no stone worktop — a grunnskapur's "counter" cap reads as a front-material-finished top
     // instead (owner, 2026-10-14). stoneMat is read by closure everywhere a counter slab is drawn (the cabinet's
@@ -3928,6 +4368,11 @@
     var plinthDark = new THREE.MeshStandardMaterial({ color:0x26262a, roughness:0.85 });
     var plinthFrontMat = frontMat.clone();
     var plinthMat = look ? [plinthDark, plinthDark, plinthDark, plinthDark, plinthFrontMat, plinthDark] : plinthDark;
+    // ✨ Studio: every base material says what it IS, so the photo builds its own physically-set material per role
+    // (a wall can never come out in the front's wood). Clones (selection tint, per-wall fades) carry userData along.
+    [[wallMat, "wall"], [floorMat, "floor"], [carcassMat, "carcass"], [openMat, "carcass"], [steelMat, "steel"], [washerMat, "appliance"],
+     [stoneMat, state.activeCategory === "fataskapar" ? "front" : "top"], [frontMat, "front"], [frontMat2, "front"], [frontOpenMat, "front"],
+     [plinthDark, "plinth"], [plinthFrontMat, "front"]].forEach(function(p){ if (p[0] && p[0].userData) p[0].userData.studio = p[1]; });
 
     // the áfellur of one wall (see afellaMm): a 19 mm panel in the front material from the floor (or the
     // cabinet's bottom, for wall units) to its top, the worktop running on over it
@@ -4012,18 +4457,31 @@
         }
         var applMat = c.appliance === "fridge" || c.appliance === "dishwasher" ? steelMat : c.appliance === "washer" ? washerMat : null;
         // an integrated fridge wears the kitchen's fronts (user, 2026-10-05 — it was steel)
-        addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, applMat || carcassMat, applMat || frontMat, inter,
+        addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, applMat || carcassMat, applMat || frontMatOf(b), inter,
           { islandId:islandId, locked:!!b.locked || !!opts.xray, suppressBadge:!!opts.xray, slabFronts:jeyOn, corner:c.cls === "corner", doorSide:b.swing === "vinstri" ? "left" : "right", hingeRight:b.swing === "haegri", shelves:(c.hasInterior || c.shelfRange) && !(b.interior && b.interior.mode === "skuffur") ? (shelvesOf(b) || 0) : 0,
             openMat:c.open ? frontOpenMat : openMat, open:!!c.open, hiddenMat:hiddenMat, drawerSystem:state.drawerSystem, carcassKey:state.carcass,
             warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), ready:!!(opts.readyIds && opts.readyIds.indexOf(b.id) >= 0), doorLimit:DOOR_LIMITS[b.id] || null, shelfBlock:b, wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), heightMm:hM * 1000, elevMm:0, handle:c.appliance ? null : state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0, // tall units: one door unless split in Smíða (2026-10-09)
             splitFr:c.oven || c.fixedFronts ? null : splitFractions(b, hM * 1000 - (c.panel || c.appliance ? 0 : plinthMmW)), // a fridge too, once its split is changed in Smíða
-            plinth:!c.panel && !c.appliance, plinthMm:plinthMmW, appliance:c.appliance || null, leMans:!!c.tofrahornIds, counter:!!c.counter, sink:!!c.sink, oven:!!c.oven, panel:!!c.panel, plinthMat:plinthMat, stoneMat:stoneMat,
+            plinth:!c.panel && !c.appliance, plinthMm:plinthMmW, appliance:c.appliance || null, leMans:!!c.tofrahornIds, counter:!!c.counter, sink:!!c.sink, tapCeilM:c.sink ? tapCeilingM(wall, offset + b.widthMm / 2) : null, oven:!!c.oven, panel:!!c.panel, plinthMat:plinthMat, stoneMat:stoneMat,
             ovenCodes:c.lowOven ? ["M"] : c.oven ? ovenCodesOf(b, state.drawerSystem) : null, fixedFronts:!!c.fixedFronts || !!c.appliance,
             burCodes:c.bur ? burCodesOf(b, state.drawerSystem) : null, dishwasher:!!c.dishwasher,
             lowOven:!!c.lowOven, ovenFrontsMm:c.oven ? b.ovenFrontsMm || null : null, ovenBlock:c.oven ? b : null, ovenCat:c.oven ? c : null,
             sinkFixedTop:!!c.sink && b.sinkTop === "fastur" && !!(b.interior && b.interior.mode === "skuffur"),
             ovenInner:c.oven && !c.lowOven ? (String(b.ovenCombo == null ? OVEN_DEFAULT[state.drawerSystem === "merivo" ? "merivo" : "legra"] : b.ovenCombo).split("+")[1] || null) : null,
-            washerDrawerM:c.thvo && b.thvo !== "hurdir" ? 0.40 : 0, alwaysDims:state.activeCategory === "fataskapar" }, selected, pickables);
+            washerDrawerM:c.thvo && b.thvo !== "hurdir" ? 0.40 : 0, alwaysDims:state.activeCategory === "fataskapar", hung:!!state.hungUnits }, selected, pickables);
+        // 💡 LED in a tall closet (user, 2026-10-23, C1): a vertical strip in a groove at the front edge of one side
+        // (6×6 mm), or a strip under the top shelf (4×8 mm). Behind the doors — it shows in X-ray and with doors open.
+        if (b.closetLed && c.cls === "tall" && !opts.people){
+          var lf = ledFrame(THREE, scene, g, offset / 1000, b.widthMm / 1000), inW = b.widthMm / 1000 - 2 * CARCASS_T, bodyBot = plinthMmW / 1000 + CARCASS_T, bodyTop = hM - CARCASS_T;
+          if (b.closetLed === "hlid"){
+            var sx = (b.ledSide === "vinstri" ? -1 : 1) * (inW / 2 - 0.004), strip = ledStrip(THREE, scene, lf, sx, 0.006, (bodyBot + bodyTop) / 2, dM - 0.03);
+            strip.scale.set(1, (bodyTop - bodyBot - 0.04) / 0.005, 0.6); // the 0.005 m box stood up the whole side
+          } else {
+            var shelfY = bodyTop - Math.min(0.35, (bodyTop - bodyBot) * 0.16);
+            ledStrip(THREE, scene, lf, 0, inW - 0.02, shelfY - 0.004, dM - 0.04);
+            ledGlow(THREE, scene, lf, 0, inW, dM - 0.03, 0.02, bodyBot + 0.001, 0.35);
+          }
+        }
       });
       wall.wall.forEach(function(b, bi){
         var offset = wStarts[bi];
@@ -4036,12 +4494,12 @@
         if (c.shelfStack){ // 1–5 boards of 38 mm above each other: one pickable box per board, all sharing the block id
           var n = Math.max(1, Math.min(SHELF_STACK_MAX, b.count || 3)), gap = b.vgapMm != null ? b.vgapMm : SHELF_GAP_DEFAULT;
           for (var k = 0; k < n; k++){
-            addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, SHELF_T_MM / 1000, dM, elevM + k * (SHELF_T_MM + gap) / 1000, carcassMat, frontMat, null,
+            addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, SHELF_T_MM / 1000, dM, elevM + k * (SHELF_T_MM + gap) / 1000, carcassMat, frontMatOf(b), null,
               Object.assign({}, metaBase, { panel:true, shelfBoard:true }), selected, pickables);
           }
           return;
         }
-        addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, elevM, carcassMat, frontMat, null,
+        addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, elevM, carcassMat, frontMatOf(b), null,
           Object.assign(metaBase, { open:!!c.open, panel:!!c.panel, openMat:c.open && b.frontAll ? frontOpenMat : openMat, hiddenMat:hiddenMat, shelves:c.open ? shelvesOf(b) : (c.shelfRange ? (shelvesOf(b) || 0) : 0) }), selected, pickables);
         if (c.panel || opts.people) return;
         var wf = null, ww = b.widthMm / 1000;
@@ -4202,12 +4660,15 @@
     // "Veggur" view: an SVG overlay drawn on top of the canvas with IKEA-style chained dimensions
     // (per-cabinet width + one wall total + a height chain), projected live from the real 3D points —
     // elevationShot in kitchen-planner.html draws the same information once, offline, for the PDF export.
-    var dimSvg = null;
+    var dimSvg = null, annoSvg = null;
     if (focusBounds){
       if (getComputedStyle(wrap).position === "static") wrap.style.position = "relative";
       dimSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       dimSvg.setAttribute("style", "position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;");
       wrap.appendChild(dimSvg);
+      annoSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      annoSvg.setAttribute("style", "position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;");
+      wrap.appendChild(annoSvg);
     }
 
     // Subtle image-based lighting so steel, handles and the satin finish pick up
@@ -4252,9 +4713,165 @@
     controls.update();
 
     var cleanupInteraction = setupCabinetInteraction(THREE, wrap, renderer, camera, controls, pickables, allGeoms, surfaces, opts, WALL_H);
-    THREE_STATE = { renderer:renderer, camera:camera, controls:controls, scene:scene, rafId:0, onResize:resize, cleanupInteraction:cleanupInteraction,
+    // Veggur view: screen ⇄ wall millimetres (ortho camera looking straight at the wall — see placeAnnotations)
+    var annoV = new THREE.Vector3();
+    function wallToScreen(xMm, yMm){
+      if (!focusBounds) return null;
+      var cr = renderer.domElement.getBoundingClientRect(), g = focusBounds.g;
+      annoV.set(g.origin.x + g.axis.x * xMm / 1000, yMm / 1000, g.origin.z + g.axis.z * xMm / 1000).project(camera);
+      return { x:cr.left + (annoV.x * 0.5 + 0.5) * cr.width, y:cr.top + (-annoV.y * 0.5 + 0.5) * cr.height };
+    }
+    function screenToWall(clientX, clientY){ // the camera looks straight at the wall, so screen ⇄ wall is a plain scale + offset per axis
+      var s0 = wallToScreen(0, 0), s1 = wallToScreen(1000, 1000);
+      if (!s0 || !s1 || s1.x === s0.x || s1.y === s0.y) return null;
+      return { x:Math.round((clientX - s0.x) / (s1.x - s0.x) * 1000), y:Math.round((clientY - s0.y) / (s1.y - s0.y) * 1000) };
+    }
+    THREE_STATE = { renderer:renderer, camera:camera, controls:controls, scene:scene, rafId:0, onResize:resize, cleanupInteraction:cleanupInteraction, wallToScreen:wallToScreen, screenToWall:screenToWall,
                     walls:surfaces, geoms:allGeoms, previewMesh:null, dragging:false, opts:opts, pickables:pickables, roomHM:WALL_H, wallHi:null, frontMat:frontMat };
     if (opts.selectedWallId) setSelectedWall3D(opts.selectedWallId);
+
+    // 🚶 Ganga um (user, 2026-10-23): first-person walk-through at eye height. Drag = look around, W/A/S/D or
+    // arrows (or the wheel) = walk. You can't walk through walls, milliveggir or cabinets (footprints + 25 cm),
+    // and it survives rebuilds (every edit rebuilds the scene) — WALK lives at module level.
+    var walkPrev = null, walkKeys = {}, walkLook = null, walkLast = 0, walkBlocks = null, walkV = new THREE.Vector3();
+    function walkBlocked(x, z){
+      var rb = interiorBounds(geoms, 4.2);
+      if (x < rb.minX + 0.25 || x > rb.maxX - 0.25 || z < rb.minZ + 0.25 || z > rb.maxZ - 0.25) return true;
+      if (geoms.closed){ // inside the outline
+        var inside = false;
+        geoms.forEach(function(g){ var ax = g.origin.x, az = g.origin.z, bx = ax + g.axis.x * g.lenM, bz = az + g.axis.z * g.lenM;
+          if ((az > z) !== (bz > z) && x < ax + (z - az) * (bx - ax) / (bz - az)) inside = !inside; });
+        if (!inside) return true;
+      }
+      for (var i = 0; i < allGeoms.length; i++){ // walls + island rows + milliveggir: keep 25 cm off every segment
+        var g = allGeoms[i], dx = x - g.origin.x, dz = z - g.origin.z, t = Math.max(0, Math.min(g.lenM, dx * g.axis.x + dz * g.axis.z));
+        if (Math.hypot(dx - g.axis.x * t, dz - g.axis.z * t) < 0.25) return true;
+      }
+      if (!walkBlocks){
+        walkBlocks = [];
+        pickables.forEach(function(m){ if (!m.userData.blockId) return; var b = new THREE.Box3().setFromObject(m); if (b.min.y < 0.5) walkBlocks.push(b); }); // only things standing on the floor
+      }
+      return walkBlocks.some(function(b){ return x > b.min.x - 0.25 && x < b.max.x + 0.25 && z > b.min.z - 0.25 && z < b.max.z + 0.25; });
+    }
+    function walkSpot(){ // start on the far side of the room from the cabinets, looking at all of them
+      var rb = interiorBounds(geoms, 4.2), rc = { x:(rb.minX + rb.maxX) / 2, z:(rb.minZ + rb.maxZ) / 2 };
+      walkBlocked(rc.x, rc.z); // fills walkBlocks
+      var cab = new THREE.Box3(); walkBlocks.forEach(function(bx){ cab.union(bx); });
+      var c = cab.isEmpty() ? rc : { x:(cab.min.x + cab.max.x) / 2, z:(cab.min.z + cab.max.z) / 2 };
+      var dx = rc.x - c.x, dz = rc.z - c.z, L = Math.hypot(dx, dz);
+      if (L < 0.2){ dx = camera.position.x - c.x; dz = camera.position.z - c.z; L = Math.hypot(dx, dz) || 1; }
+      dx /= L; dz /= L;
+      var best = null;
+      for (var t = 0.6; t < 12; t += 0.1){ var x = c.x + dx * t, z = c.z + dz * t; if (!walkBlocked(x, z)) best = { x:x, z:z }; else if (best) break; }
+      if (!best) for (var r = 0; r < 6 && !best; r += 0.2) for (var an = 0; an < 6.28; an += 0.4){ var x2 = rc.x + Math.cos(an) * r, z2 = rc.z + Math.sin(an) * r; if (!walkBlocked(x2, z2)){ best = { x:x2, z:z2 }; break; } }
+      best = best || rc;
+      best.yaw = Math.atan2(-(c.x - best.x), -(c.z - best.z));
+      return best;
+    }
+    // "📍 Veggur 1": stand ~2 m in front of each surface's floor cabinets, looking straight at them
+    var walkJumpCache = null;
+    function walkJumps(){
+      if (walkJumpCache) return walkJumpCache;
+      var bySurf = {};
+      pickables.forEach(function(m){ var u = m.userData; if (!u || !u.blockId || u.zone !== "floor" || !u.wallId) return; (bySurf[u.wallId] = bySurf[u.wallId] || new THREE.Box3()).union(new THREE.Box3().setFromObject(m)); });
+      walkJumpCache = [];
+      surfaces.forEach(function(sf, i){
+        var bx = bySurf[sf.id], g = allGeoms[i]; if (!bx || !g) return;
+        var c = bx.getCenter(new THREE.Vector3()), n = g.normal, spot = null;
+        [2.1, 1.7, 1.3, 2.6, 1.0].some(function(d){ var x = c.x + n.x * d, z = c.z + n.z * d; if (!walkBlocked(x, z)){ spot = { x:x, z:z }; return true; } return false; });
+        if (spot) walkJumpCache.push({ label:sf.label || ("Veggur " + (i + 1)), x:spot.x, z:spot.z, yaw:Math.atan2(n.x, n.z) });
+      });
+      return walkJumpCache;
+    }
+    function walkApply(){
+      camera.position.set(WALK.x, 1.6, WALK.z);
+      camera.rotation.set(WALK.pitch, WALK.yaw, 0, "YXZ");
+    }
+    function walkStep(ts){
+      var dt = Math.min(0.05, (ts - (walkLast || ts)) / 1000); walkLast = ts;
+      var f = (walkKeys.w || walkKeys.arrowup ? 1 : 0) - (walkKeys.s || walkKeys.arrowdown ? 1 : 0), sd = (walkKeys.d ? 1 : 0) - (walkKeys.a ? 1 : 0);
+      var turn = (walkKeys.arrowleft ? 1 : 0) - (walkKeys.arrowright ? 1 : 0);
+      if (turn) WALK.yaw += turn * 1.6 * dt;
+      if (f || sd){
+        var sp = (walkKeys.shift ? 2.4 : 1.3) * dt, fx = -Math.sin(WALK.yaw), fz = -Math.cos(WALK.yaw);
+        var nx = WALK.x + (fx * f + -fz * sd) * sp, nz = WALK.z + (fz * f + fx * sd) * sp;
+        if (!walkBlocked(nx, nz)){ WALK.x = nx; WALK.z = nz; }
+        else if (!walkBlocked(nx, WALK.z)) WALK.x = nx; // slide along whatever is in the way
+        else if (!walkBlocked(WALK.x, nz)) WALK.z = nz;
+      }
+      walkApply();
+    }
+    function walkNudge(m){ // wheel: a step forward/back
+      var nx = WALK.x - Math.sin(WALK.yaw) * m, nz = WALK.z - Math.cos(WALK.yaw) * m;
+      if (!walkBlocked(nx, nz)){ WALK.x = nx; WALK.z = nz; }
+    }
+    function walkDown(e){
+      if (!WALK.on || !wrap.contains(e.target) || e.target.closest("button,input,select,a,.kp-walk-hud")) return;
+      e.stopPropagation(); e.preventDefault(); // nothing gets picked or dragged while walking
+      walkLook = { x:e.clientX, y:e.clientY, yaw:WALK.yaw, pitch:WALK.pitch };
+    }
+    function walkMove(e){
+      if (!walkLook) return;
+      WALK.yaw = walkLook.yaw + (e.clientX - walkLook.x) * 0.0045; // drag the world: right = turn left (like Street View)
+      WALK.pitch = Math.max(-0.9, Math.min(0.7, walkLook.pitch + (e.clientY - walkLook.y) * 0.0035));
+    }
+    function walkUp(){ walkLook = null; }
+    function walkKey(e){
+      if (!WALK.on || /input|textarea|select/i.test((e.target && e.target.tagName) || "")) return;
+      var k = e.key.toLowerCase();
+      if (e.type === "keydown" && k === "escape"){ setWalk(false); if (opts.onWalkChange) opts.onWalkChange(false); return; }
+      if (!/^(w|a|s|d|shift|arrow(up|down|left|right))$/.test(k)) return;
+      walkKeys[k] = e.type === "keydown"; e.preventDefault();
+    }
+    function walkWheel(e){ if (!WALK.on || !wrap.contains(e.target)) return; e.preventDefault(); e.stopPropagation(); walkNudge(-Math.sign(e.deltaY) * 0.35); }
+    function walkHud(on){
+      var h = wrap.querySelector(".kp-walk-hud");
+      if (!on){ if (h) h.remove(); return; }
+      if (h) return;
+      h = document.createElement("div"); h.className = "kp-walk-hud";
+      h.style.cssText = "position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:6;display:flex;gap:8px;align-items:center;background:rgba(20,20,20,.72);color:#fff;font:500 12px/1.2 system-ui;padding:7px 10px;border-radius:999px;user-select:none";
+      h.style.flexWrap = "wrap"; h.style.justifyContent = "center"; h.style.maxWidth = "min(92%, 720px)"; h.style.borderRadius = "18px";
+      var pill = "all:unset;cursor:pointer;background:rgba(255,255,255,.16);color:#fff;border-radius:999px;padding:4px 10px;", arrow = "all:unset;cursor:pointer;background:#fff;color:#111;border-radius:8px;width:30px;height:28px;text-align:center;line-height:28px;font-size:14px;touch-action:none;";
+      // hold-to-move arrows (touch screens and anyone without a keyboard, H6) + jump points: stand in front of each run
+      h.innerHTML = '<span style="display:flex;gap:4px;">' +
+        '<button type="button" data-wk="arrowleft" title="Snúa til vinstri" style="' + arrow + '">⟲</button><button type="button" data-wk="w" title="Ganga áfram" style="' + arrow + '">▲</button>' +
+        '<button type="button" data-wk="s" title="Ganga aftur á bak" style="' + arrow + '">▼</button><button type="button" data-wk="arrowright" title="Snúa til hægri" style="' + arrow + '">⟳</button></span>' +
+        '<span class="kp-walk-tip">Dragðu til að líta í kring · W A S D / örvar</span>' +
+        walkJumps().map(function(j, i){ return '<button type="button" data-wj="' + i + '" style="' + pill + '">📍 ' + j.label + '</button>'; }).join("") +
+        '<button type="button" data-wq="1" style="all:unset;cursor:pointer;background:#fff;color:#111;border-radius:999px;padding:4px 10px;font-weight:600">Hætta (Esc)</button>';
+      h.querySelector("[data-wq]").addEventListener("click", function(){ setWalk(false); if (opts.onWalkChange) opts.onWalkChange(false); });
+      h.querySelectorAll("[data-wk]").forEach(function(b){
+        var k = b.dataset.wk, on = function(e){ e.preventDefault(); walkKeys[k] = true; }, off = function(){ walkKeys[k] = false; };
+        b.addEventListener("pointerdown", on); ["pointerup", "pointerleave", "pointercancel"].forEach(function(ev){ b.addEventListener(ev, off); });
+      });
+      h.querySelectorAll("[data-wj]").forEach(function(b){ b.addEventListener("click", function(){ var j = walkJumps()[+b.dataset.wj]; if (!j) return; WALK.x = j.x; WALK.z = j.z; WALK.yaw = j.yaw; WALK.pitch = -0.12; walkApply(); }); });
+      wrap.appendChild(h);
+    }
+    function setWalk(on){
+      if (!camera.isPerspectiveCamera || focusBounds) on = false;
+      if (on && !walkPrev){
+        walkPrev = { pos:camera.position.clone(), target:controls.target.clone(), fov:camera.fov };
+        if (!WALK.on || walkBlocked(WALK.x, WALK.z)){ var sp0 = walkSpot(); WALK.x = sp0.x; WALK.z = sp0.z; WALK.yaw = sp0.yaw; WALK.pitch = -0.08; }
+        WALK.on = true; controls.enabled = false; camera.fov = 62; camera.updateProjectionMatrix(); walkApply();
+      } else if (!on && WALK.on){
+        WALK.on = false; walkKeys = {}; walkLook = null; controls.enabled = true;
+        if (walkPrev){ camera.position.copy(walkPrev.pos); controls.target.copy(walkPrev.target); camera.fov = walkPrev.fov; camera.updateProjectionMatrix(); controls.update(); }
+        walkPrev = null;
+      }
+      walkHud(WALK.on);
+      return WALK.on;
+    }
+    window.addEventListener("pointerdown", walkDown, true); window.addEventListener("pointermove", walkMove); window.addEventListener("pointerup", walkUp);
+    window.addEventListener("keydown", walkKey); window.addEventListener("keyup", walkKey); wrap.addEventListener("wheel", walkWheel, { capture:true, passive:false });
+    THREE_STATE.setWalk = setWalk;
+    THREE_STATE.walkCleanup = function(){
+      window.removeEventListener("pointerdown", walkDown, true); window.removeEventListener("pointermove", walkMove); window.removeEventListener("pointerup", walkUp);
+      window.removeEventListener("keydown", walkKey); window.removeEventListener("keyup", walkKey); wrap.removeEventListener("wheel", walkWheel, { capture:true });
+      walkHud(false);
+    };
+    THREE_STATE.walkStep = walkStep;
+    THREE_STATE.walkOrbit = function(){ return walkPrev; };
+    if (WALK.on){ WALK.on = false; setWalk(true); } // a rebuild while walking: keep walking from the same spot
 
     function resize(){
       var w = wrap.clientWidth, h = wrap.clientHeight;
@@ -4350,10 +4967,51 @@
         svg += dimTick(ph0.x, ph0.y, ph1.x, ph1.y, String(Math.round((ys[k] - ys[k - 1]) * 1000)), true, color);
       }
       dimSvg.innerHTML = svg;
+      placeAnnotations(P, cr);
+    }
+    // Veggur merkingar (2026-10-23): arrows / text boxes / symbols the designer puts on this wall's elevation.
+    // Stored in wall millimetres (x = along the wall from its start, y = height above the floor) so they stay put
+    // through zoom/resize and the drawing export can draw them too. The planner owns editing (opts.annotations()
+    // returns this wall's list incl. a half-drawn one, opts.annoSelectedId() the selected id); this only draws.
+    function placeAnnotations(P, cr){
+      if (!annoSvg || !opts.annotations) return;
+      var list = opts.annotations() || [], selId = opts.annoSelectedId ? opts.annoSelectedId() : null;
+      var sig = JSON.stringify(list) + "|" + selId + "|" + cr.width + "x" + cr.height + "|" + camera.zoom + camera.left + camera.top;
+      if (sig === annoSvg.__sig) return; // nothing moved: keep the DOM (a text box's own measuring is the slow part)
+      annoSvg.__sig = sig;
+      annoSvg.setAttribute("viewBox", "0 0 " + cr.width + " " + cr.height);
+      var out = '<defs><marker id="kpAnnoHead" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="' + ANNO_COLOR + '"/></marker></defs>';
+      function Q(pt){ return P(pt.x / 1000, pt.y / 1000); }
+      list.forEach(function(an){
+        var sel = an.id === selId, p = Q(an.a);
+        if (an.kind === "arrow" && an.b){
+          var q = Q(an.b);
+          out += '<line x1="' + p.x + '" y1="' + p.y + '" x2="' + q.x + '" y2="' + q.y + '" stroke="' + ANNO_COLOR + '" stroke-width="' + (sel ? 3.4 : 2.4) + '" stroke-linecap="round" marker-end="url(#kpAnnoHead)"/>';
+          if (sel) [p, q].forEach(function(h){ out += '<circle cx="' + h.x + '" cy="' + h.y + '" r="5.5" fill="#fff" stroke="' + ANNO_COLOR + '" stroke-width="2"/>'; });
+        } else if (an.kind === "text"){
+          var lines = String(an.text || "").split("\n"), w = Math.max.apply(null, lines.map(function(l){ return l.length; })) * 7.1 + 18, h = lines.length * 16 + 10;
+          out += '<g><rect x="' + p.x + '" y="' + (p.y - h / 2) + '" width="' + w + '" height="' + h + '" rx="6" fill="#fffdf6" fill-opacity=".96" stroke="' + ANNO_COLOR + '" stroke-width="' + (sel ? 2.4 : 1.4) + '"/>' +
+            lines.map(function(l, i){ return '<text x="' + (p.x + 9) + '" y="' + (p.y - h / 2 + 18 + i * 16) + '" font-size="12.5" font-weight="600" fill="#2b2b2e">' + escSvg(l) + '</text>'; }).join("") + '</g>';
+        } else if (an.kind === "symbol"){
+          var sy = ANNO_SYMBOLS[an.sym] || ANNO_SYMBOLS.athuga;
+          out += '<circle cx="' + p.x + '" cy="' + p.y + '" r="' + (sel ? 14 : 12.5) + '" fill="' + ANNO_COLOR + '" stroke="#fff" stroke-width="2"/>' +
+            '<text x="' + p.x + '" y="' + (p.y + 4.5) + '" font-size="13" text-anchor="middle" fill="#fff" font-weight="700">' + sy.glyph + '</text>' +
+            (an.text ? '<text x="' + (p.x + 18) + '" y="' + (p.y + 4) + '" font-size="12" font-weight="600" fill="' + ANNO_COLOR + '" paint-order="stroke" stroke="#fff" stroke-width="3">' + escSvg(an.text) + '</text>' : "");
+        }
+      });
+      annoSvg.innerHTML = out;
     }
 
     var wallVec = new THREE.Vector3();
     function fadeWalls(){
+      // "V1" bubbles: drawn on top of everything (depthTest off), so a wall you're looking through would still
+      // show its label floating over the room — hide it while the camera is on that wall's outer side
+      wallLabels.forEach(function(l){
+        var cp = (THREE_STATE.fadeCam || camera).position, lx = l.g.origin.x + l.g.axis.x * l.g.lenM / 2, lz = l.g.origin.z + l.g.axis.z * l.g.lenM / 2;
+        var behind = (cp.x - lx) * l.g.normal.x + (cp.z - lz) * l.g.normal.z < 0;
+        var m = l.sp.material; m.opacity += ((behind ? 0 : 1) - m.opacity) * 0.2;
+        l.sp.visible = m.opacity > 0.02;
+      });
       wallFades.forEach(function(w){
         var cx = w.geom.origin.x + w.geom.axis.x * w.geom.lenM / 2, cz = w.geom.origin.z + w.geom.axis.z * w.geom.lenM / 2;
         // camera on the outer side of this wall (opposite its room-facing normal)?
@@ -4453,8 +5111,9 @@
     THREE_STATE.renderFrame = renderFrame;
     function loop(ts){
       THREE_STATE.rafId = requestAnimationFrame(loop);
+      if (THREE_STATE.studio) return; // ✨ Studio mynd owns the renderer while it path-traces
       qualityTick(ts || performance.now(), renderer, resize);
-      controls.update();
+      if (WALK.on) walkStep(ts || performance.now()); else controls.update();
       settleLanded();
       if (THREE_STATE.dragStep) THREE_STATE.dragStep();
       fadeWalls();
@@ -4858,9 +5517,9 @@
   // stand where it is at that height (openingSpans in the editor), vatn is only a marker.
   var OBSTACLES = {
     lagnastokkur:{ label:"Lagnastokkur",          w:200, d:200, h:null, elev:0,    blocks:true,  look:"wall" },
-    stolpi:      { label:"Burðarstólpi",          w:300, d:300, h:null, elev:0,    blocks:true,  look:"wall", free:true },
-    milliveggur: { label:"Milliveggur",           w:100, d:600, h:null, elev:0,    blocks:true,  look:"wall", free:true },
-    biti:        { label:"Biti í lofti",          w:0,   d:300, h:250,  elev:null, blocks:true,  look:"wall", ceiling:true },
+    stolpi:      { label:"Burðarstólpi",          w:300, d:300, h:null, elev:0,    blocks:true,  look:"wall", free:true, shapes:true },
+    milliveggur: { label:"Milliveggur",           w:120, d:600, h:null, elev:0,    blocks:true,  look:"wall", free:true, rotatable:true }, // 120 mm thick by default (user, 2026-10-23)
+    biti:        { label:"Biti í lofti",          w:2000, d:300, h:250, elev:null, blocks:true,  look:"wall", ceiling:true, free:true, rotatable:true }, // free + turnable (was: always along one wall, 2026-10-23)
     ofn:         { label:"Ofn (miðstöð)",         w:1000, d:100, h:600, elev:150,  blocks:true,  look:"radiator" },
     tafla:       { label:"Rafmagnstafla",         w:400, d:120, h:600,  elev:1400, blocks:true,  look:"panel" },
     vatn:        { label:"Vatnsinntak / niðurfall", w:150, d:60, h:150, elev:450,  blocks:false, look:"pipe" },
@@ -4875,10 +5534,17 @@
     return { lo:lo, hi:Math.min(roomH, lo + o.heightMm) };
   }
   // its footprint on the floor plan (m, world corners) — null when the wall isn't there
+  // An obstacle's footprint in its anchor wall's frame (mm): along the wall [a0, a1], out into the room [n0, n1].
+  // rot 90 (milliveggur / biti, 2026-10-23) = turned a quarter: widthMm then runs OUT from the wall and depthMm ALONG
+  // it (a partition parallel to its wall, a beam across the room) — everything that needs the footprint reads it here.
+  function obstacleRect(o){
+    var def = OBSTACLES[o.kind] || {}, rot = o.rot === 90 && !!def.rotatable, off = o.offsetMm || 0, out = o.outMm || 0;
+    return { a0:off, a1:off + (rot ? o.depthMm : o.widthMm), n0:out, n1:out + (rot ? o.widthMm : o.depthMm), rot:rot };
+  }
   function obstacleQuad(state, o){
     var walls = wallGeoms(state), wi = state.walls.findIndex(function(w){ return w.id === o.wallId; }), g = walls[wi];
     if (!g || state.walls[wi].open) return null;
-    var a = o.offsetMm / 1000, b = a + o.widthMm / 1000, n0 = (o.outMm || 0) / 1000, n1 = n0 + o.depthMm / 1000;
+    var r = obstacleRect(o), a = r.a0 / 1000, b = r.a1 / 1000, n0 = r.n0 / 1000, n1 = r.n1 / 1000;
     return [[a, n0], [b, n0], [b, n1], [a, n1]].map(function(p){ return { x:g.origin.x + g.axis.x * p[0] + g.normal.x * p[1], z:g.origin.z + g.axis.z * p[0] + g.normal.z * p[1] }; });
   }
   var DECOR = {
@@ -5453,11 +6119,21 @@
           var px = g.origin.x + g.axis.x * (offsetM + al), pz = g.origin.z + g.axis.z * (offsetM + al);
           svg += '<line x1="' + (X(px) - g.normal.x * 6) + '" y1="' + (Y(pz) - g.normal.z * 6) + '" x2="' + (X(px) + g.normal.x * 6) + '" y2="' + (Y(pz) + g.normal.z * 6) + '" stroke="#8a6a4a" stroke-width="2" style="pointer-events:none;"/>';
         });
+      } else if (isDoor && doorSwingOf(o) === "slide"){ // a sliding leaf: drawn parked (open) beside the opening, the opening itself dashed
+        var sdir = doorHingeOf(o) === "right" ? -1 : 1, so = 0.035;
+        var s0 = { x:(sdir > 0 ? bx : ax) + g.normal.x * so, z:(sdir > 0 ? bz : az) + g.normal.z * so }; // open = parked beside the opening
+        var s1 = { x:s0.x + g.axis.x * sdir * widthM, z:s0.z + g.axis.z * sdir * widthM };
+        svg += '<line x1="' + X(s0.x) + '" y1="' + Y(s0.z) + '" x2="' + X(s1.x) + '" y2="' + Y(s1.z) + '" stroke="#8a6a4a" stroke-width="3" style="pointer-events:none;"/>' +
+          '<line x1="' + X(ax + g.normal.x * so) + '" y1="' + Y(az + g.normal.z * so) + '" x2="' + X(bx + g.normal.x * so) + '" y2="' + Y(bz + g.normal.z * so) + '" stroke="#8a6a4a" stroke-width="1.2" stroke-dasharray="4,3" style="pointer-events:none;"/>';
       } else if (isDoor){
-        var cxp = ax + g.normal.x * widthM, czp = az + g.normal.z * widthM; // leaf tip, swung into the room
-        var cross = g.normal.x * g.axis.z - g.normal.z * g.axis.x;
-        svg += '<line x1="' + X(ax) + '" y1="' + Y(az) + '" x2="' + X(cxp) + '" y2="' + Y(czp) + '" stroke="#8a6a4a" stroke-width="2" style="pointer-events:none;"/>' +
-          '<path d="M ' + X(cxp) + ' ' + Y(czp) + ' A ' + widthM * PX_PER_M + ' ' + widthM * PX_PER_M + ' 0 0 ' + (cross > 0 ? 1 : 0) + ' ' + X(bx) + ' ' + Y(bz) + '" fill="none" stroke="#8a6a4a" stroke-width="1.2" stroke-dasharray="4,3" style="pointer-events:none;"/>';
+        var sw = doorSweep(state, o);
+        if (sw){ // leaf drawn open at 90°, its path a quarter circle; a light fill = the floor it needs, red if a cabinet is in it
+          var tip = { x:sw.h.x + sw.v.x * sw.r, z:sw.h.z + sw.v.z * sw.r }, latch = { x:sw.h.x + sw.u.x * sw.r, z:sw.h.z + sw.u.z * sw.r };
+          var crossS = sw.v.x * sw.u.z - sw.v.z * sw.u.x, rp = sw.r * PX_PER_M, bad = doorHits[o.id];
+          svg += '<path d="M ' + X(sw.h.x) + ' ' + Y(sw.h.z) + ' L ' + X(tip.x) + ' ' + Y(tip.z) + ' A ' + rp + ' ' + rp + ' 0 0 ' + (crossS > 0 ? 1 : 0) + ' ' + X(latch.x) + ' ' + Y(latch.z) + ' Z" fill="' + (bad ? "#d64545" : "#8a6a4a") + '" fill-opacity="' + (bad ? 0.22 : (sw.inward ? 0.08 : 0.04)) + '" stroke="none" style="pointer-events:none;"/>' +
+            '<line x1="' + X(sw.h.x) + '" y1="' + Y(sw.h.z) + '" x2="' + X(tip.x) + '" y2="' + Y(tip.z) + '" stroke="' + (bad ? "#c0392b" : "#8a6a4a") + '" stroke-width="2" style="pointer-events:none;"/>' +
+            '<path d="M ' + X(tip.x) + ' ' + Y(tip.z) + ' A ' + rp + ' ' + rp + ' 0 0 ' + (crossS > 0 ? 1 : 0) + ' ' + X(latch.x) + ' ' + Y(latch.z) + '" fill="none" stroke="' + (bad ? "#c0392b" : "#8a6a4a") + '" stroke-width="1.2" stroke-dasharray="4,3" style="pointer-events:none;"/>';
+        }
       } else {
         [-3, 3].forEach(function(d){
           svg += '<line x1="' + (X(ax) + g.normal.x * d) + '" y1="' + (Y(az) + g.normal.z * d) + '" x2="' + (X(bx) + g.normal.x * d) + '" y2="' + (Y(bz) + g.normal.z * d) + '" stroke="#5b8fae" stroke-width="1.6" style="pointer-events:none;"/>';
@@ -5468,6 +6144,7 @@
         '" stroke="' + (sel ? "#3d61c1" : color) + '" stroke-opacity="' + (sel ? 1 : 0.35) + '" stroke-width="' + (sel ? 11 : 9) + '" stroke-linecap="butt" style="cursor:pointer;"/>';
     }
     (state.windows || []).forEach(function(w){ openingSegment(w, 'data-window-id', "#5b8fae", false); });
+    var doorHits = {}; roomDoorConflicts(state).forEach(function(cf){ doorHits[cf.doorId] = cf.ids; });
     (state.doors || []).forEach(function(d){ openingSegment(d, 'data-door-id', "#8a6a4a", true); });
     (state.obstacles || []).forEach(function(o){
       var q = obstacleQuad(state, o), def = OBSTACLES[o.kind]; if (!q || !def) return;
@@ -5615,7 +6292,7 @@
     cornerClearanceMm: cornerClearanceMm, afellaMm: afellaMm, AFELLA_MM: AFELLA_MM,
     blockStartsMm: blockStartsMm,
     planTransform: planTransform,
-    rectCornersWorld: rectCornersWorld, drawerZoneMm: drawerZoneMm, TALL_DRAWER_MAX_MM: TALL_DRAWER_MAX_MM, DRAWER_TOPDOOR_MIN_MM: DRAWER_TOPDOOR_MIN_MM, doorLeaves: doorLeaves, islandFits: islandFits, nearestIslandFit: nearestIslandFit, topThickM: topThickM, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, DECOR: DECOR, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
+    rectCornersWorld: rectCornersWorld, drawerZoneMm: drawerZoneMm, TALL_DRAWER_MAX_MM: TALL_DRAWER_MAX_MM, DRAWER_TOPDOOR_MIN_MM: DRAWER_TOPDOOR_MIN_MM, doorLeaves: doorLeaves, islandFits: islandFits, nearestIslandFit: nearestIslandFit, topThickM: topThickM, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, obstacleRect: obstacleRect, DECOR: DECOR, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
     WALL_COLORS: WALL_COLORS,
     WINDOW_DEFAULT: WINDOW_DEFAULT,
     _handleProfile: handleProfile,
@@ -5630,7 +6307,15 @@
     floorPointFromClient: floorPointFromClient,
     surfacesOf: surfacesOf,
     islandFrame: islandFrame,
-    wallGeoms: wallGeoms,
+    wallGeoms: wallGeoms, turnAxis: turnAxis,
+    setWalkMode: setWalkMode, isWalking: isWalking,
+    debugWalk: function(key, secs){ // test aid (the pane can be hidden, so rAF never ticks): hold a key for `secs`, return where you end up
+      if (!THREE_STATE || !THREE_STATE.walkStep) return null;
+      window.dispatchEvent(new KeyboardEvent("keydown", { key:key })); var t = 1000;
+      for (var i = 0; i < secs * 30; i++){ t += 33; THREE_STATE.walkStep(t); }
+      window.dispatchEvent(new KeyboardEvent("keyup", { key:key }));
+      return { x:+WALK.x.toFixed(2), z:+WALK.z.toFixed(2), yaw:+WALK.yaw.toFixed(2) };
+    },
     buildCabinetPreview: buildCabinetPreview, previewPeek: previewPeek, previewSpinOn: previewSpinOn, setPreviewSpin: setPreviewSpin,
     setCabinetPreview: setCabinetPreview,
     teardownCabinetPreview: teardownCabinetPreview,
@@ -5648,12 +6333,22 @@
     SHELF_T_MM: SHELF_T_MM,
     SHELF_STACK_MAX: SHELF_STACK_MAX,
     SHELF_GAP_DEFAULT: SHELF_GAP_DEFAULT,
+    // devtools / browser tests: a world point (m) → client px, and the scene's resize handles (2026-10-23)
+    debugProject: function(x, y, z){ if (!THREE_STATE) return null; var V = THREE_STATE.camera.position.constructor, v = new V(x, y, z).project(THREE_STATE.camera), r = THREE_STATE.renderer.domElement.getBoundingClientRect();
+      return { x:r.left + (v.x + 1) / 2 * r.width, y:r.top + (1 - v.y) / 2 * r.height }; },
+    debugStudio: function(){ if (!THREE_STATE) return null; var b = studioScene(window.__THREE__, THREE_STATE.scene, {}), out = [];
+      b.scene.children.forEach(function(m){ var mt = m.material, t = mt.map; out.push({ tris:m.geometry.attributes.position.count / 3, color:mt.color && mt.color.getHexString(), map:t ? { cs:t.colorSpace, w:t.image && (t.image.width || t.image.videoWidth), src:t.image && (t.image.src || t.image.nodeName), rot:t.rotation, rep:[t.repeat.x, t.repeat.y] } : null }); });
+      b.dispose(); return out; },
+    debugHandles: function(){ var out = []; if (THREE_STATE) THREE_STATE.scene.traverse(function(o){ if (o.userData && o.userData.kind === "obstacle-resize") out.push({ end:o.userData.end, x:o.position.x, y:o.position.y, z:o.position.z }); }); return out; },
     debugInfo: function(){ return sharedRenderer ? { memory:sharedRenderer.info.memory, programs:(sharedRenderer.info.programs || []).length } : null; },
-    fitWarnings: fitWarnings, openingIssues: openingIssues, doorMaxDeg: doorMaxDeg, handleProjMm: handleProjMm,
+    ANNO_SYMBOLS: ANNO_SYMBOLS, ANNO_COLOR: ANNO_COLOR,
+    wallToScreen: function(x, y){ return THREE_STATE && THREE_STATE.wallToScreen ? THREE_STATE.wallToScreen(x, y) : null; },
+    screenToWall: function(x, y){ return THREE_STATE && THREE_STATE.screenToWall ? THREE_STATE.screenToWall(x, y) : null; },
+    fitWarnings: fitWarnings, openingIssues: openingIssues, roomDoorConflicts: roomDoorConflicts, doorSweep: doorSweep, doorSwingOf: doorSwingOf, doorHingeOf: doorHingeOf, doorMaxDeg: doorMaxDeg, handleProjMm: handleProjMm,
     WALL_UNIT_BASE_MM: WALL_UNIT_BASE_MM,
     snapshot3D: snapshot3D,
     setXrayFronts: setXrayFronts,
-    setCameraLookAt: setCameraLookAt,
+    setCameraLookAt: setCameraLookAt, studioRender: studioRender,
     renderShot: renderShot,
     setAllParts: setAllParts,
     DRAWER_CODES: DRAWER_CODES, FIXED_FRONT_CODE: FIXED_FRONT_CODE,
