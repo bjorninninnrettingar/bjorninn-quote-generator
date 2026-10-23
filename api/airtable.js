@@ -556,6 +556,12 @@ const STRICT_FILTERS = {
   // /crm contacts — Fyrirtæki search by name only (same generic shape openPicker already sends
   // everywhere else, parameterized to this one field).
   "tbl2akoCETBx9S1SK": /^SEARCH\(LOWER\("(?:[^"\\]|\\.)+"\),LOWER\(\{Nafn fyrirtækis\}\)\)$/,
+  // Æðaplan has been in REQUIRE_FILTER since the table was introduced but never got a matching
+  // STRICT_FILTERS entry — the same filterByFormula=TRUE() gap closed elsewhere on 2026-10-01/2026-10-18,
+  // just not here (2026-10-23). grain.html/cutlist.html/ferli.html all query by project name via
+  // FIND(...,ARRAYJOIN({Tækifæri 📣}))>0, and grain.html's picker annotation batches several of those
+  // in one OR(...) — allow both shapes, nothing else.
+  "tblzkw70E2xoX9RmK": /^(?:FIND\("(?:[^"\\]|\\.)+", ARRAYJOIN\(\{Tækifæri 📣\}\)\) > 0|OR\(FIND\("(?:[^"\\]|\\.)+", ARRAYJOIN\(\{Tækifæri 📣\}\)\) > 0(?:,FIND\("(?:[^"\\]|\\.)+", ARRAYJOIN\(\{Tækifæri 📣\}\)\) > 0)*\))$/,
 };
 // Tables where fetching a specific record by id is refused outright, even with a real,
 // unguessable record id — PIN-filter / Fjarvistir's "Starfsmaður=X" shape is the only intended
