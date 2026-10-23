@@ -1396,7 +1396,20 @@
     "Barnah.": "Kids' room",
     "Skrifst.": "Study",
     "Alrými": "Open-plan living",
-    "Búr": "Pantry"
+    "Búr": "Pantry",
+    "Smelltu til að stilla hurðina": "Click to set up the door",
+    "Smelltu nær vegg.": "Click closer to a wall.",
+    "Veggurinn er of stuttur fyrir hurð.": "The wall is too short for a door.",
+    "Það er gluggi eða hurð þarna fyrir.": "There's a window or door in the way.",
+    "Op (B × H)": "Opening (W × H)",
+    "Vara: ": "Product: ",
+    "Fjarlægja hurðina": "Remove the door",
+    "+ Setja hurð": "+ Place a door",
+    "Smelltu á vegg á myndinni þar sem hurðin á að vera. Esc hættir við.": "Click the wall on the plan where the door goes. Esc cancels.",
+    "á myndinni": "on the plan",
+    "{n} í hurðalistanum án staðsetningar": "{n} in the door list without a place",
+    "Setja á vegg": "Place on a wall",
+    "Smelltu á vegg á myndinni þar sem hurðin á að vera.": "Click the wall on the plan where the door goes."
   });
 
   // part F: stored/computed numbered labels from kitchen-planner-3d.js (CATALOG width variants, island rows, partition sides)
