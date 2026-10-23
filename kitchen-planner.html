@@ -44,6 +44,7 @@
 <script src="kitchen-planner-3d.js"></script>
 <script src="kitchen-planner-showcase.js"></script>
 <script src="cnc-sides.js"></script>
+<script src="kitchen-planner-workdraw.js"></script>
 <style>
   :root{
     --bg:#ffffff;
@@ -968,6 +969,14 @@
   #proBar button#proTilbodToggle { background:transparent; border-color:var(--blue); color:var(--ink); }
   #proBar button#proTilbodToggle.on { background:var(--blue); color:#fff; }
 
+  /* ── 2D vinnuteikningar (PRO, 2026-10-23) ── */
+  #wdOverlay { position:fixed; inset:0; z-index:80; background:rgba(12,15,20,.86); display:flex; flex-direction:column; }
+  #wdOverlay .wd-bar { display:flex; align-items:center; gap:10px; padding:10px 16px; color:#fff; font:600 14px/1.2 inherit; }
+  #wdOverlay .wd-bar span { flex:1; opacity:.85; }
+  #wdOverlay .wd-bar button { font:inherit; border:1px solid #5b8cff; border-radius:999px; padding:7px 16px; cursor:pointer; background:#5b8cff; color:#fff; }
+  #wdOverlay .wd-bar button.ghost { background:transparent; }
+  #wdOverlay .wd-pages { flex:1; overflow:auto; padding:6px 16px 30px; display:flex; flex-direction:column; align-items:center; gap:18px; }
+  #wdOverlay .wd-pages > svg { width:min(1500px, 96vw); height:auto; aspect-ratio:420 / 297; flex:0 0 auto; background:#fff; box-shadow:0 10px 30px rgba(0,0,0,.4); border-radius:2px; }
   /* ── Live tilboðsblað (PRO, 2026-10-23): slides in from the right and pushes the editor over ── */
   :root{ --tp-w:clamp(320px, 25vw, 420px); }
   #tilbodPanel { position:fixed; top:0; right:0; bottom:0; width:var(--tp-w); max-width:92vw; z-index:60; display:flex; flex-direction:column;
@@ -10586,9 +10595,11 @@
         '<span class="pb-locked">🔒 Í skipulagi (' + escapeHtmlPro(PRO.lockStatus) + ') — skoðunarhamur</span>' +
         reviewBtn +
         '<button type="button" id="proTilbodToggle"' + (tp.open ? ' class="on"' : "") + '>💰 Tilboð</button>' +
+        '<button type="button" id="proWorkDraw" title="2D vinnuteikningar fyrir verkstæðið">📐 Teikningar</button>' +
         '<button type="button" id="proUnlock" class="pb-unlock">🔓 Opna til breytinga</button>';
       var ub = el.querySelector("#proUnlock"); if (ub) ub.addEventListener("click", proUnlock);
       var ttb0 = el.querySelector("#proTilbodToggle"); if (ttb0) ttb0.addEventListener("click", proTilbodToggle);
+      var wd0 = el.querySelector("#proWorkDraw"); if (wd0) wd0.addEventListener("click", openWorkDrawings);
       var rb0 = el.querySelector("#proReviewed"); if (rb0) rb0.addEventListener("click", proMarkReviewed);
       return;
     }
@@ -10598,10 +10609,12 @@
       reviewBtn +
       '<button type="button" id="proSave"' + (PRO.ready ? "" : " disabled") + '>💾 Vista í Airtable</button>' +
       '<button type="button" id="proRunSkipulag"' + (PRO.ready ? "" : " disabled") + '>📐 Keyra skipulag</button>' +
-      '<button type="button" id="proTilbodToggle"' + (tp.open ? ' class="on"' : "") + '>💰 Tilboð</button>';
+      '<button type="button" id="proTilbodToggle"' + (tp.open ? ' class="on"' : "") + '>💰 Tilboð</button>' +
+      '<button type="button" id="proWorkDraw" title="2D vinnuteikningar fyrir verkstæðið">📐 Teikningar</button>';
     var bt = el.querySelector("#proSave"); if (bt) bt.addEventListener("click", function(){ proSave(); });
     var rs = el.querySelector("#proRunSkipulag"); if (rs) rs.addEventListener("click", proRunSkipulag);
     var ttb = el.querySelector("#proTilbodToggle"); if (ttb) ttb.addEventListener("click", proTilbodToggle);
+    var wd = el.querySelector("#proWorkDraw"); if (wd) wd.addEventListener("click", openWorkDrawings);
     var rb = el.querySelector("#proReviewed"); if (rb) rb.addEventListener("click", proMarkReviewed);
   }
   // "✅ Yfirfarið" (2026-10-18) — the button referenced in old comments but never actually built. Staff
@@ -10886,6 +10899,113 @@
     render();
     proBar();
   }
+
+  // ---------- 2D vinnuteikningar (2026-10-23) ----------
+  // wdModel() turns the drawing into plain numbers per wall (the same Smíðagögn smidaFor() sends to Keyra
+  // skipulag and /cnc, so the sheet never disagrees with what gets built); kitchen-planner-workdraw.js draws them.
+  function wdSvgParts(svgStr){ // an <svg …>…</svg> string → {viewBox, inner} for nesting into a sheet
+    var m = /<svg[^>]*viewBox="([^"]+)"[^>]*>([\s\S]*)<\/svg>\s*$/.exec(svgStr || "");
+    return m ? { viewBox:m[1], inner:m[2] } : null;
+  }
+  function wdPlanSvg(opts){
+    var host = document.createElement("div");
+    host.style.cssText = "position:fixed;left:-9999px;top:0;width:900px;height:640px;";
+    document.body.appendChild(host);
+    try{ KP3D.buildPlan2D(host, state, Object.assign({ onSelect:null }, opts || {})); return wdSvgParts(host.innerHTML); }
+    finally{ host.remove(); }
+  }
+  function wdWallSheet(wall, wi, surfs, keys, bom){
+    var sys = drawerSys(), sides = KP3D.DRAWER_CODES[sys].side, units = [], push = state.handle === "push";
+    function unitOf(b, zone, x){
+      var c = CATALOG[b.type]; if (!c) return null;
+      var plinth = plinthMmOf(c, zone, wall), body = proBodyMm(b, c, zone), sm = smidaFor(b, c, zone);
+      var u = { sk:keys[b.id] || "", zone:zone, x:x, w:b.widthMm, d:b.depthMm || c.d, h:body,
+        y0:zone === "wall" ? KP3D.elevOf(b) : plinth, plinth:zone === "floor" ? plinth : 0 };
+      if (c.panel){ u.panel = true; u.h = blockHeightMm(b, c) - (zone === "floor" ? 0 : 0); u.y0 = zone === "wall" ? KP3D.elevOf(b) : 0; u.plinth = 0; return u; }
+      if (c.appliance || c.notOrdered){ u.appliance = c.label; return u; }
+      if (sm.fronts) u.fronts = sm.fronts.map(function(f){ return { code:f.code, mm:f.mm, side:sides[f.code] || 0, push:push }; });
+      if (sm.oven) u.oven = { h:sm.oven.h, under:sm.oven.under };
+      if (sm.oven && sm.oven.shelves) u.shelves = sm.oven.shelves.map(function(x){ return { mm:x.mm, fixed:!!x.fixed, vent:true }; });
+      else if (sm.shelves && sm.shelves.list) u.shelves = sm.shelves.list.map(function(x){ return { mm:x.mm, fixed:!!x.fixed }; });
+      if (sm.rails) u.rails = sm.rails.map(function(r){ return r.mm; });
+      var inner = c.bur ? KP3D.burDrawersOf(b, sys) : (c.cls === "tall" && !isDrawerUnit(b) && Array.isArray(b.innerCodes) && b.innerCodes.length ? KP3D.innerDrawersOf(b, sys) : []);
+      if (inner.length) u.inner = inner.map(function(dd){ return { code:dd.code, mm:dd.mm, h:dd.h }; });
+      var doors = proDoorsOf(b, c, zone);
+      if (doors.length){
+        var both = b.widthMm > 600 && !c.fridge && c.cls !== "corner";
+        u.doors = doors.map(function(d, i){
+          var sp = proSpec(b, doors, i);
+          return { h:d.box, push:push, hinge:sp.type === "lift" ? "top" : sp.type === "pocket" ? "pocket" : both ? "both" : (b.swing === "haegri" ? "right" : "left") };
+        });
+      }
+      if (bom && bom.perUnit[b.id]) u.led = true;
+      return u;
+    }
+    var fS = KP3D.blockStartsMm(wall.floor, KP3D.cornerClearanceMm(surfs, wi, "floor")), wS = KP3D.blockStartsMm(wall.wall, 0);
+    wall.floor.forEach(function(b, i){ var u = unitOf(b, "floor", fS[i]); if (u) units.push(u); });
+    wall.wall.forEach(function(b, i){ var u = unitOf(b, "wall", wS[i]); if (u) units.push(u); });
+    // worktop over every counter cabinet run (one strip per contiguous run)
+    var tT = Math.round(KP3D.topThickM(state.top) * 1000), tops = [];
+    wall.floor.forEach(function(b, i){
+      var c = CATALOG[b.type]; if (!c || !c.counter || !tT) return;
+      var y = plinthMmOf(c, "floor", wall) + proBodyMm(b, c, "floor"), last = tops[tops.length - 1];
+      if (last && Math.abs(last.x + last.w - fS[i]) < 2 && last.y === y) last.w += b.widthMm;
+      else tops.push({ x:fS[i], w:b.widthMm, y:y, t:tT, d:(b.depthMm || c.d) + 20 });
+    });
+    // áfella at a solid wall end the run reaches
+    var af = KP3D.afellaMm(surfs, wi, "floor"), afs = [];
+    if (wall.floor.length){
+      var b0 = wall.floor[0], bl = wall.floor[wall.floor.length - 1], c0 = CATALOG[b0.type], cl = CATALOG[bl.type];
+      if (af.start && Math.abs(fS[0] - af.start) < 2) afs.push({ x:0, w:af.start, y0:0, h:blockHeightMm(b0, c0) });
+      if (af.end && Math.abs(fS[fS.length - 1] + bl.widthMm - (wall.lengthMm - af.end)) < 2) afs.push({ x:wall.lengthMm - af.end, w:af.end, y0:0, h:blockHeightMm(bl, cl) });
+    }
+    var openings = (state.windows || []).filter(function(o){ return o.wallId === wall.id; }).map(function(o){ return { kind:"window", x:o.offsetMm, w:o.widthMm, y0:o.sillHeightMm, h:o.heightMm }; })
+      .concat((state.doors || []).filter(function(o){ return o.wallId === wall.id; }).map(function(o){ return { kind:o.gap ? "gap" : "door", x:o.offsetMm, w:o.widthMm, y0:0, h:o.heightMm }; }));
+    var annos = (state.annotations || []).filter(function(a){ return a.wallId === wall.id; }).map(function(a){
+      var sy = a.kind === "symbol" ? KP3D.ANNO_SYMBOLS[a.sym] || {} : {};
+      return Object.assign({}, a, a.kind === "symbol" ? { glyph:sy.glyph, symLabel:a.text ? "" : sy.label } : {});
+    });
+    return { title:wall.label, lenMm:wall.lengthMm, roomH:state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM, units:units, worktop:tops.length ? tops : null,
+      afella:afs, openings:openings, annotations:annos, minimap:wdPlanSvg({ mini:true, selectedWallId:wall.id }) };
+  }
+  function wdModels(){
+    var models = [], now = new Date(), date = ("0" + now.getDate()).slice(-2) + "." + ("0" + (now.getMonth() + 1)).slice(-2) + "." + now.getFullYear();
+    withEachCategory(function(){
+      var surfs = surfaces(), keys = skKeys(), bom = lightingBOM(), sheets = [];
+      surfs.forEach(function(w, wi){ if (!w.open && !w.island && !w.partition) sheets.push(wdWallSheet(w, wi, surfs, keys, bom)); });
+      var look = state.look && LOOKS[state.look], carc = state.carcass && CARCASS[state.carcass], top = state.top && TOPS[state.top];
+      var hcfg = state.handle && window.KPMODELS && window.KPMODELS.handles && window.KPMODELS.handles[state.handle];
+      var notes = [];
+      if (look) notes.push("FR1 – " + (look.code ? look.code + " " : "") + look.label);
+      if (carc) notes.push("SKRE – " + carc.label + " (skrokkaefni)");
+      if (top && !top.none) notes.push("Borðplata – " + top.label);
+      notes.push("Skúffukerfi – " + (drawerSys() === "merivo" ? "Blum Merivo (M-)" : "Blum Legra (L-)"));
+      if (state.handle) notes.push("Höldur – " + ((HANDLES[state.handle] || {}).label || (hcfg && hcfg.label) || state.handle) + (state.handleColor ? ", " + state.handleColor : ""));
+      models.push({ project:PRO ? PRO.name : "Eldhússkipulag", roomName:(state.intake && state.intake.room) || "Eldhús", date:date, drawerSystem:drawerSys(),
+        notes:notes, plan:wdPlanSvg({}), sheets:sheets });
+    });
+    return models;
+  }
+  function openWorkDrawings(){
+    var pages = [];
+    try{ wdModels().forEach(function(m){ pages = pages.concat(KPWD.render(m)); }); }
+    catch(e){ toast("Teikningin tókst ekki: " + e.message); console.error(e); return; }
+    var ov = document.getElementById("wdOverlay");
+    if (!ov){ ov = document.createElement("div"); ov.id = "wdOverlay"; document.body.appendChild(ov); }
+    ov.innerHTML = '<div class="wd-bar"><span>📐 Vinnuteikningar · ' + pages.length + ' ' + plural(pages.length, "blað", "blöð") + ' (A3)</span>' +
+      '<button type="button" id="wdPrint">🖨️ Prenta / vista sem PDF</button><button type="button" class="ghost" id="wdClose">Loka</button></div>' +
+      '<div class="wd-pages">' + pages.join("") + '</div>';
+    ov.querySelector("#wdClose").addEventListener("click", function(){ ov.remove(); });
+    ov.querySelector("#wdPrint").addEventListener("click", function(){
+      var w = window.open("", "_blank");
+      if (!w){ toast("Leyfðu sprettiglugga til að prenta."); return; }
+      w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>' + escapeHtmlPro((PRO && PRO.name) || "Vinnuteikningar") + ' — vinnuteikningar</title>' +
+        '<style>@page{size:A3 landscape;margin:0}html,body{margin:0}svg{display:block;width:420mm;height:297mm;page-break-after:always;break-after:page}</style></head><body>' +
+        pages.join("") + '<script>window.onload=function(){setTimeout(function(){window.print()},300)}<\/script></body></html>');
+      w.document.close();
+    });
+  }
+  window.__wdModels = wdModels; // devtools / tests
 
   // ---------- PRO home (2026-10-23): ?pro=home — start a new project, or search for one to continue ----------
   var PH_TAEKIFAERI = "tbl4LMXlQjp66RFKI";
