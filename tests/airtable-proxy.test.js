@@ -45,6 +45,14 @@ test("Starfsmenn: only the exact PIN query shape, never TRUE(), never returns th
   assert.equal(ok.body.records[0].fields["PIN 🔢"], undefined);
 });
 
+test("Æðaplan: only the exact FIND/ARRAYJOIN-by-project shape, never TRUE()", async () => {
+  assert.equal((await get({ path: "tblzkw70E2xoX9RmK", filterByFormula: "TRUE()" })).statusCode, 403);
+  const single = await get({ path: "tblzkw70E2xoX9RmK", filterByFormula: 'FIND("T-1", ARRAYJOIN({Tækifæri 📣})) > 0' });
+  assert.equal(single.statusCode, 200);
+  const batch = await get({ path: "tblzkw70E2xoX9RmK", filterByFormula: 'OR(FIND("T-1", ARRAYJOIN({Tækifæri 📣})) > 0,FIND("T-2", ARRAYJOIN({Tækifæri 📣})) > 0)' });
+  assert.equal(batch.statusCode, 200);
+});
+
 test("write-only tables refuse GET", async () => {
   for (const t of ["tbltD1UNpqj05WtMx", "tbl7K8v94Pf6Ausk3"]) {
     assert.equal((await get({ path: t, filterByFormula: "TRUE()" })).statusCode, 403, t);
