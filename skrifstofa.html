@@ -109,17 +109,21 @@
      S/M/L, only "fullscreen" (XL, the default) or "-1 column" (WIDE) so something can still sit in
      the freed column beside it. See the verkPanelBox special-case in makeArrangeable(). */
   .arrangeRow > [data-size="WIDE"] { grid-column:span 5; }
-  .arrangeRow > .dragging { opacity:.4; }
-  .arrangeRow.dragover > * { outline:2px dashed var(--accent); outline-offset:2px; }
+  /* Pointer-Events drag (2026-10-23, replaces native HTML5 DnD — see makeArrangeable()): the
+     original tile stays in grid flow as an empty dashed "slot" (content hidden, not greyed —
+     opacity on real content read as broken/disabled) while a lifted, shadowed clone of the tile
+     itself tracks the cursor, same visual language as kitchen-planner.html's .dw-row.dragging. */
+  .arrange-placeholder { background:var(--bg); border:2px dashed var(--line); box-shadow:none !important; }
+  .arrange-placeholder > * { visibility:hidden; }
+  .arrange-ghost { position:fixed; z-index:999; pointer-events:none; margin:0; cursor:grabbing;
+    box-shadow:0 10px 30px rgba(0,0,0,.22); border:2px solid var(--accent) !important; transform:scale(1.02); }
   /* Always faintly visible (2026-10-23, was opacity:0/hover-only) — a drag handle nobody can see
      is a drag handle nobody finds; full opacity on hover so it's still unobtrusive at rest. */
   .arrangeHandle { position:absolute; top:6px; right:6px; display:flex; gap:3px; opacity:.4; transition:opacity .1s; }
   .arrangeRow > div:hover .arrangeHandle { opacity:1; }
   .arrangeHandle button { all:unset; box-sizing:border-box; width:20px; height:20px; display:flex; align-items:center; justify-content:center; border-radius:5px; background:var(--bg); border:1px solid var(--line); font-size:.62rem; font-weight:700; color:var(--muted); cursor:pointer; }
   .arrangeHandle button.sizeOn { background:var(--accent); color:#fff; border-color:var(--accent); }
-  /* Safari needs this explicitly — draggable="true" alone is unreliable there without it, unlike
-     Chrome/Firefox (2026-10-23, reported: hovering + dragging the ⠿ handle did nothing at all). */
-  .arrangeHandle .dragHandle { cursor:grab; font-size:.8rem; -webkit-user-drag:element; user-select:none; -webkit-user-select:none; }
+  .arrangeHandle .dragHandle { cursor:grab; font-size:.8rem; user-select:none; }
   .cashKpi { position:relative; }
   .cashKpi .lbl { display:flex; align-items:center; gap:6px; }
   .cashKpi.expandable { cursor:pointer; }
@@ -418,7 +422,7 @@
       var handle = document.createElement("div");
       handle.className = "arrangeHandle";
       handle.innerHTML =
-        '<button class="dragHandle" type="button" title="Draga til að raða" draggable="true">⠿</button>' +
+        '<button class="dragHandle" type="button" title="Draga til að raða">⠿</button>' +
         sizeChoices.map(function (c) {
           return '<button type="button" class="sizeBtn' + (el.dataset.size === c[0] ? " sizeOn" : "") + '" data-s="' + c[0] + '" title="' + c[2] + '">' + c[1] + "</button>";
         }).join("");
@@ -433,21 +437,60 @@
       });
       var dragHandle = handle.querySelector(".dragHandle");
       dragHandle.addEventListener("click", function (e) { e.stopPropagation(); });
-      dragHandle.addEventListener("dragstart", function (e) {
-        draggingArrangeItem = el;
-        el.classList.add("dragging");
-        e.dataTransfer.effectAllowed = "move";
-        e.dataTransfer.setData("text/plain", el.id);
-      });
-      dragHandle.addEventListener("dragend", function () { el.classList.remove("dragging"); rowEl.classList.remove("dragover"); draggingArrangeItem = null; });
-      el.addEventListener("dragover", function (e) {
-        if (!draggingArrangeItem || draggingArrangeItem === el || draggingArrangeItem.parentElement !== rowEl) return;
+      // Pointer Events, not the native HTML5 Drag-and-Drop API (2026-10-23) — same reasoning
+      // kitchen-planner.html's own drag systems already use throughout ("native DnD has no
+      // reliable touch equivalent"), and matching that app's actual *feel*: a lifted, shadowed
+      // clone that tracks the cursor (modeled on its drawer-stack reorder, .dw-row.dragging) —
+      // never the washed-out opacity native DnD's default ghost gives the source element.
+      dragHandle.addEventListener("pointerdown", function (e) {
         e.preventDefault();
-        var rect = el.getBoundingClientRect();
-        var before = (e.clientX - rect.left) < rect.width / 2;
-        rowEl.insertBefore(draggingArrangeItem, before ? el : el.nextSibling);
+        var startRect = el.getBoundingClientRect();
+        var offsetX = e.clientX - startRect.left, offsetY = e.clientY - startRect.top;
+        var ghost = el.cloneNode(true);
+        ghost.className = el.className + " arrange-ghost";
+        ghost.style.width = startRect.width + "px";
+        ghost.style.height = startRect.height + "px";
+        ghost.style.left = startRect.left + "px";
+        ghost.style.top = startRect.top + "px";
+        document.body.appendChild(ghost);
+        el.classList.add("arrange-placeholder");
+        draggingArrangeItem = el;
+        try { dragHandle.setPointerCapture(e.pointerId); } catch (err) {}
+
+        function gridItemAt(x, y) {
+          ghost.style.display = "none";
+          var under = document.elementFromPoint(x, y);
+          ghost.style.display = "";
+          var node = under;
+          while (node && node !== rowEl) {
+            if (node.parentElement === rowEl) return node;
+            node = node.parentElement;
+          }
+          return null;
+        }
+        function move(ev) {
+          ghost.style.left = (ev.clientX - offsetX) + "px";
+          ghost.style.top = (ev.clientY - offsetY) + "px";
+          var target = gridItemAt(ev.clientX, ev.clientY);
+          if (!target || target === el) return;
+          var trect = target.getBoundingClientRect();
+          var before = (ev.clientX - trect.left) < trect.width / 2;
+          rowEl.insertBefore(el, before ? target : target.nextSibling);
+        }
+        function up(ev) {
+          dragHandle.releasePointerCapture(ev.pointerId);
+          dragHandle.removeEventListener("pointermove", move);
+          dragHandle.removeEventListener("pointerup", up);
+          dragHandle.removeEventListener("pointercancel", up);
+          ghost.remove();
+          el.classList.remove("arrange-placeholder");
+          draggingArrangeItem = null;
+          saveLayout();
+        }
+        dragHandle.addEventListener("pointermove", move);
+        dragHandle.addEventListener("pointerup", up);
+        dragHandle.addEventListener("pointercancel", up);
       });
-      el.addEventListener("drop", function (e) { e.preventDefault(); saveLayout(); });
     });
 
     // Apply saved order, if any (skip unknown/missing ids rather than erroring on a stale save).
