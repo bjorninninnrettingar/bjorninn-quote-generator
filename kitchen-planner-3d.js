@@ -6,6 +6,8 @@
 // set by the importmap module script each host page includes in its <head>.
 (function(){
   "use strict";
+  // EN version (kitchen-planner-i18n.js): display strings go through __(); standalone (tests) it just fills {placeholders}
+  var __ = window.__ || function(s, v){ return v ? String(s).replace(/\{(\w+)\}/g, function(m, n){ return Object.prototype.hasOwnProperty.call(v, n) ? v[n] : m; }) : s; };
 
   // HomeByMe-style catalog (2026-09-17): the core 3 types only, each a
   // FIXED-size item (min===max on every dimension) rather than a
@@ -1034,7 +1036,8 @@
       w.count++;
       ids.forEach(function(id){ if (w.ids.indexOf(id) < 0) w.ids.push(id); });
     }
-    function acc(label){ return label.replace(/^Veggur/, "vegg"); } // "á vegg 1"
+    function acc(label){ return __(label).replace(/^Veggur/, "vegg").replace(/^Wall/, "wall"); } // "á vegg 1"
+    function lc(label){ return __(label).toLowerCase(); }
     state.walls.forEach(function(wall, wi){
       var spans = [], fStarts = blockStartsMm(wall.floor, cornerClearanceMm(state.walls, wi, "floor")), wStarts = blockStartsMm(wall.wall, 0);
       wall.floor.forEach(function(b, i){
@@ -1050,7 +1053,7 @@
         if (a.lo !== 0) return;
         spans.forEach(function(b2){
           if (b2.lo === 0 || Math.min(a.to, b2.to) - Math.max(a.from, b2.from) <= 20 || Math.min(a.hi, b2.hi) - Math.max(a.lo, b2.lo) <= 20) return;
-          add(b2.c.label + " rekst á " + a.c.label.toLowerCase() + " á " + acc(wall.label) + ".", [a.b.id, b2.b.id]);
+          add(__("{a} rekst á {b} á {w}.", { a:__(b2.c.label), b:lc(a.c.label), w:acc(wall.label) }), [a.b.id, b2.b.id]);
         });
       });
       var ops = (state.windows || []).filter(function(o){ return o.wallId === wall.id; }).map(function(o){ return { kind:"gluggi", o:o, lo:o.sillHeightMm, hi:o.sillHeightMm + o.heightMm }; })
@@ -1062,26 +1065,29 @@
           var hOverlap = Math.min(sp.to, op.o.offsetMm + op.o.widthMm) - Math.max(sp.from, op.o.offsetMm);
           var vOverlap = Math.min(sp.hi, op.hi) - Math.max(sp.lo, op.lo);
           if (hOverlap > 20 && vOverlap > 20){
-            add(sp.c.label + " skarast við " + (op.kind === "gluggi" ? "glugga" : op.kind === "op" ? "op í vegg" : op.kind === "hindrun" ? OBSTACLES[op.o.kind].label.toLowerCase() : "hurð") + " á " + acc(wall.label) + ".", [sp.b.id, op.o.id]);
+            add(__("{a} skarast við {b} á {w}.", { a:__(sp.c.label), b:(op.kind === "gluggi" ? __("glugga") : op.kind === "op" ? __("op í vegg") : op.kind === "hindrun" ? lc(OBSTACLES[op.o.kind].label) : __("hurð")), w:acc(wall.label) }), [sp.b.id, op.o.id]);
           }
         });
-        if (sp.rawH > roomH) add(sp.c.label + " á " + acc(wall.label) + " er hærri en loftið (" + roomH + " mm).", [sp.b.id]);
+        if (sp.rawH > roomH) add(__("{a} á {w} er hærri en loftið ({h} mm).", { a:__(sp.c.label), w:acc(wall.label), h:roomH }), [sp.b.id]);
       });
     });
-    out.forEach(function(w){ if (w.count > 1) w.msg = w.msg.replace(/\.$/, "") + " (" + w.count + " skápar)."; });
+    out.forEach(function(w){ if (w.count > 1) w.msg = w.msg.replace(/\.$/, "") + " " + __("({n} skápar).", { n:w.count }); });
     (state.obstacles || []).forEach(function(o){
       if (o.kind !== "vatn") return;
       var wall = state.walls.find(function(w){ return w.id === o.wallId; }); if (!wall) return;
       var wi = state.walls.indexOf(wall), starts = blockStartsMm(wall.floor, cornerClearanceMm(state.walls, wi, "floor"));
       var behind = wall.floor.some(function(b, i){ var c = CATALOG[b.type]; return (c.sink || b.type === "dishwasher" || /uppthvottavel|thvottavel/.test(b.type)) && starts[i] < o.offsetMm + o.widthMm && starts[i] + b.widthMm > o.offsetMm; });
-      if (!behind) out.push({ msg:"Vatnsinntak / niðurfall á " + acc(wall.label) + " er ekki á bak við vaskaskáp eða uppþvottavél.", ids:[o.id], count:1 });
+      if (!behind) out.push({ msg:__("Vatnsinntak / niðurfall á {w} er ekki á bak við vaskaskáp eða uppþvottavél.", { w:acc(wall.label) }), ids:[o.id], count:1 });
     });
     islandWarnings(state, function(msg, ids){ out.push({ msg:msg, ids:ids, count:1 }); });
     openingIssues(state).warn.forEach(function(w){ out.push({ msg:w.msg, ids:w.ids, count:1 }); });
     roomDoorConflicts(state).forEach(function(cf){
+      var many = cf.labels.length > 1, what = cf.labels.map(lc).join(", ");
       out.push({ msg:cf.slide
-        ? "Rennihurðin á " + acc(cf.wallLabel) + " rennur þar sem " + cf.labels.join(", ").toLowerCase() + " " + (cf.labels.length > 1 ? "eru" : "er") + " — láttu hana renna í hina áttina eða færðu " + (cf.labels.length > 1 ? "skápana" : "skápinn") + "."
-        : "Hurðin á " + acc(cf.wallLabel) + " rekst á " + cf.labels.join(", ").toLowerCase() + " þegar hún opnast — snúðu henni (lamir/opnun) eða færðu " + (cf.labels.length > 1 ? "skápana" : "skápinn") + ".", ids:[cf.doorId].concat(cf.ids), count:1 });
+        ? (many ? __("Rennihurðin á {w} rennur þar sem {what} eru — láttu hana renna í hina áttina eða færðu skápana.", { w:acc(cf.wallLabel), what:what })
+                : __("Rennihurðin á {w} rennur þar sem {what} er — láttu hana renna í hina áttina eða færðu skápinn.", { w:acc(cf.wallLabel), what:what }))
+        : (many ? __("Hurðin á {w} rekst á {what} þegar hún opnast — snúðu henni (lamir/opnun) eða færðu skápana.", { w:acc(cf.wallLabel), what:what })
+                : __("Hurðin á {w} rekst á {what} þegar hún opnast — snúðu henni (lamir/opnun) eða færðu skápinn.", { w:acc(cf.wallLabel), what:what })), ids:[cf.doorId].concat(cf.ids), count:1 });
     });
     return out;
   }
@@ -1207,7 +1213,8 @@
     function lim(id, hinge, deg){ var l = out.limit[id] = out.limit[id] || {}; l[hinge] = Math.min(l[hinge] == null ? DOOR_OPEN_DEG : l[hinge], deg); }
     function depthOf(b){ return b.depthMm || CATALOG[b.type].d; }
     function hOf(b){ return b.heightMm || CATALOG[b.type].h; }
-    function nm(b, w){ return CATALOG[b.type].label + " á " + String(w.label || "").replace(/^Veggur/, "vegg"); }
+    function wl(label){ return __(String(label || "")).replace(/^Veggur/, "vegg").replace(/^Wall/, "wall"); }
+    function nm(b, w){ return __("{a} á {w}", { a:__(CATALOG[b.type].label), w:wl(w.label) }); }
     for (var wi = 0; wi < n; wi++){
       var wall = walls[wi];
       if (wall.open) continue;
@@ -1232,19 +1239,19 @@
           doorLeaves(b, c).forEach(function(leaf){
             var g = null, P = Infinity, zLo = 0, why = "", blockerId = null, cornerRun = false;
             if (leaf.hinge === "left"){
-              if (i === 0 && zone === "floor" && clear > 0 && prev){ if (cornerWin){ g = from - clear; P = cornerWin.hi; zLo = cornerWin.lo; why = "skápana á " + String(prev.label || "").replace(/^Veggur/, "vegg"); cornerRun = true; } } // the other run's fronts (their handles: below)
-              else if (i === 0 && af.start > 0){ g = from; why = "vegginn"; }
-              else if (i > 0 && depthOf(list[i - 1]) > depthOf(b) + 20){ var pb = list[i - 1]; g = from - (starts[i - 1] + pb.widthMm); P = depthOf(pb) - depthOf(b); why = "skápinn við hliðina (" + CATALOG[pb.type].label.toLowerCase() + ")"; blockerId = pb.id; }
+              if (i === 0 && zone === "floor" && clear > 0 && prev){ if (cornerWin){ g = from - clear; P = cornerWin.hi; zLo = cornerWin.lo; why = __("skápana á {w}", { w:wl(prev.label) }); cornerRun = true; } } // the other run's fronts (their handles: below)
+              else if (i === 0 && af.start > 0){ g = from; why = __("vegginn"); }
+              else if (i > 0 && depthOf(list[i - 1]) > depthOf(b) + 20){ var pb = list[i - 1]; g = from - (starts[i - 1] + pb.widthMm); P = depthOf(pb) - depthOf(b); why = __("skápinn við hliðina ({a})", { a:__(CATALOG[pb.type].label).toLowerCase() }); blockerId = pb.id; }
             } else {
-              if (i === list.length - 1 && af.end > 0){ g = (wall.lengthMm || 0) - to; why = "vegginn"; }
-              else if (i < list.length - 1 && depthOf(list[i + 1]) > depthOf(b) + 20){ var nb = list[i + 1]; g = starts[i + 1] - to; P = depthOf(nb) - depthOf(b); why = "skápinn við hliðina (" + CATALOG[nb.type].label.toLowerCase() + ")"; blockerId = nb.id; }
+              if (i === list.length - 1 && af.end > 0){ g = (wall.lengthMm || 0) - to; why = __("vegginn"); }
+              else if (i < list.length - 1 && depthOf(list[i + 1]) > depthOf(b) + 20){ var nb = list[i + 1]; g = starts[i + 1] - to; P = depthOf(nb) - depthOf(b); why = __("skápinn við hliðina ({a})", { a:__(CATALOG[nb.type].label).toLowerCase() }); blockerId = nb.id; }
             }
             // a wall unit beside a tall floor unit on the same wall: the tall one stands out by the depth difference
             // (the nearer blocker wins over a wall further away)
             if (zone === "wall") (wall.floor || []).forEach(function(f, fi){
               var fc = CATALOG[f.type]; if (!fc || hOf(f) < elevOf(b) + 50) return;
               var fFrom = floorStarts[fi], fTo = fFrom + f.widthMm, gap = leaf.hinge === "left" ? from - fTo : fFrom - to;
-              if (gap >= -1 && gap < 100 && depthOf(f) > depthOf(b) + 20 && (g == null || gap < g)){ g = Math.max(0, gap); P = depthOf(f) - depthOf(b); zLo = 0; why = "skápinn við hliðina (" + fc.label.toLowerCase() + ")"; blockerId = f.id; cornerRun = false; }
+              if (gap >= -1 && gap < 100 && depthOf(f) > depthOf(b) + 20 && (g == null || gap < g)){ g = Math.max(0, gap); P = depthOf(f) - depthOf(b); zLo = 0; why = __("skápinn við hliðina ({a})", { a:__(fc.label).toLowerCase() }); blockerId = f.id; cornerRun = false; }
             });
             if (g == null || g > 400) return;
             var deg = doorMaxDeg(leaf.w, g, P, state.handle, tall, zLo);
@@ -1253,9 +1260,10 @@
             if (deg >= DOOR_OPEN_DEG) return;
             lim(b.id, leaf.hinge, deg);
             var handleLimits = doorMaxDeg(leaf.w, g, P, null, tall) > deg;
-            if (deg < 90) out.warn.push({ msg:nm(b, wall) + ": hurðin opnast aðeins " + Math.round(deg) + "° — " + (handleLimits ? "höldurnar rekast á " : "hún rekst á ") + why +
-              (handleLimits ? " (breiðari áfella, lamir hinum megin eða grip)" : " (breiðari áfella eða lamir hinum megin)") + ".", ids:[b.id].concat(blockerId ? [blockerId] : []) });
-            if (deg < 95 && (c.bur || c.leMans)) out.warn.push({ msg:nm(b, wall) + ": innskúffurnar komast ekki út þegar hurðin opnast aðeins " + Math.round(deg) + "°.", ids:[b.id] });
+            if (deg < 90) out.warn.push({ msg:handleLimits
+              ? __("{u}: hurðin opnast aðeins {d}° — höldurnar rekast á {why} (breiðari áfella, lamir hinum megin eða grip).", { u:nm(b, wall), d:Math.round(deg), why:why })
+              : __("{u}: hurðin opnast aðeins {d}° — hún rekst á {why} (breiðari áfella eða lamir hinum megin).", { u:nm(b, wall), d:Math.round(deg), why:why }), ids:[b.id].concat(blockerId ? [blockerId] : []) });
+            if (deg < 95 && (c.bur || c.leMans)) out.warn.push({ msg:__("{u}: innskúffurnar komast ekki út þegar hurðin opnast aðeins {d}°.", { u:nm(b, wall), d:Math.round(deg) }), ids:[b.id] });
           });
         });
       });
@@ -1271,13 +1279,13 @@
           if (covered <= 20) return;
           // a corner unit is fine when its door is on the half away from the corner (the end of that wall = its right)
           if (pc.cls === "corner" && pb.swing === "vinstri" && f1 - pb.widthMm / 2 <= Lp - dC + 20) return;
-          out.warn.push({ msg:nm(pb, prev) + " opnast ekki: " + nm(first, wall) + " stendur fyrir framan hann í horninu (notaðu hornskáp/Töfrahorn, blindlok eða færðu skápana).", ids:[pb.id, first.id] });
+          out.warn.push({ msg:__("{a} opnast ekki: {b} stendur fyrir framan hann í horninu (notaðu hornskáp/Töfrahorn, blindlok eða færðu skápana).", { a:nm(pb, prev), b:nm(first, wall) }), ids:[pb.id, first.id] });
         });
         // the first cabinet's drawers slide past the other run's handles in the corner — only where there are
         // cabinets with fronts along the drawers' run (≈ 450 mm out from its front)
         var firstC = CATALOG[first.type], drawers = first.interior && first.interior.mode === "skuffur" || firstC.drawersOnly;
         var alongside = (prev.floor || []).some(function(pb, j){ var f0 = pStarts[j], f1 = f0 + pb.widthMm; return hasOpenings(pb, CATALOG[pb.type]) && Math.min(f1, Lp - dC) - Math.max(f0, Lp - dC - 450) > 20; });
-        if (drawers && alongside && proj > firstFrom - clear) out.warn.push({ msg:nm(first, wall) + ": skúffurnar rekast á höldurnar á " + String(prev.label || "").replace(/^Veggur/, "vegg") + " í horninu (bil " + Math.round(firstFrom - clear) + " mm, höldur " + proj + " mm).", ids:[first.id] });
+        if (drawers && alongside && proj > firstFrom - clear) out.warn.push({ msg:__("{u}: skúffurnar rekast á höldurnar á {w} í horninu (bil {g} mm, höldur {p} mm).", { u:nm(first, wall), w:wl(prev.label), g:Math.round(firstFrom - clear), p:proj }), ids:[first.id] });
       }
     }
     return out;
@@ -1325,7 +1333,7 @@
         mine.forEach(function(m){
           cands.forEach(function(o){
             if (o.id && overlap(m, o)){
-              push(isl.label + ": " + m.label.toLowerCase() + " skarast við " + o.label.toLowerCase() + " (" + name + ").", [m.id, o.id]);
+              push(__("{i}: {a} skarast við {b} ({n}).", { i:__(isl.label), a:__(m.label).toLowerCase(), b:__(o.label).toLowerCase(), n:__(name) }), [m.id, o.id]);
               return;
             }
             var d = dist(m, o), cur = byTarget[key];
@@ -1335,7 +1343,7 @@
       });
       Object.keys(byTarget).forEach(function(k){
         var t = byTarget[k];
-        if (t.d < WALKWAY_MM) push("Aðeins " + Math.round(t.d) + " mm gangur á milli " + isl.label + " og " + t.name + " — mælt er með " + WALKWAY_MM + " mm eða meira.", t.ids);
+        if (t.d < WALKWAY_MM) push(__("Aðeins {d} mm gangur á milli {i} og {n} — mælt er með {w} mm eða meira.", { d:Math.round(t.d), i:__(isl.label), n:__(t.name), w:WALKWAY_MM }), t.ids);
       });
     });
   }
@@ -2274,7 +2282,7 @@
   // Small padlock floating over a locked cabinet.
   var LOCK_TEX = null, READY_TEX = null;
   function addLockBadge(THREE, group, pos, ready){
-    if (ready && !READY_TEX){ // green ✅ — the cabinet is ready for production (pro mode)
+    if (ready && !READY_TEX){ // green — the cabinet is ready for production (pro mode)
       var rc = document.createElement("canvas"); rc.width = rc.height = 96;
       var rx = rc.getContext("2d");
       rx.fillStyle = "#1f9d55"; rx.beginPath(); rx.arc(48, 48, 46, 0, Math.PI * 2); rx.fill();
@@ -3565,7 +3573,7 @@
       }, 0);
     });
   }
-  // ✨ Studio mynd (2026-10-23): path-trace the live scene from the live camera (three-gpu-pathtracer, loaded on demand)
+  // Studio mynd (2026-10-23): path-trace the live scene from the live camera (three-gpu-pathtracer, loaded on demand)
   // → a JPEG data URL. The editor's own loop is paused meanwhile; labels, handles, see-through (faded) walls and
   // cabinets, lines and sprites are hidden; a soft daylight sky lights it (and shows through the windows).
   function studioSky(THREE){
@@ -3698,7 +3706,7 @@
   }
   async function studioRender(o){
     o = o || {};
-    if (!THREE_STATE || !window.__loadPathTracer) throw new Error("3D er ekki tilbúið");
+    if (!THREE_STATE || !window.__loadPathTracer) throw new Error(__("3D er ekki tilbúið"));
     var st = THREE_STATE, THREE = window.__THREE__, r = st.renderer, scene = st.scene;
     // three-gpu-pathtracer 0.0.23 reads scene.environmentRotation / backgroundRotation (three r162+); we're on r160 —
     // give Scene those two as plain zero Eulers (what r162 defaults them to), nothing else changes
@@ -3707,7 +3715,7 @@
         get:function(){ return this["__" + k] || (this["__" + k] = new THREE.Euler()); }, set:function(v){ this["__" + k] = v; } });
     });
     var lib = await window.__loadPathTracer();
-    if (THREE_STATE !== st) throw new Error("sýnin breyttist");
+    if (THREE_STATE !== st) throw new Error(__("sýnin breyttist"));
     var w = o.width || 1920, h = o.height || 1200, target = o.samples || 240;
     var built = studioScene(THREE, scene, o), rs = built.scene;
     var env = await studioEnv(THREE);
@@ -3732,7 +3740,7 @@
         pr.domElement.addEventListener("webglcontextlost", function(e){ e.preventDefault(); lost = true; }, { once:true });
         (function step(){
           if (o.cancelled && o.cancelled()){ resolve(null); return; }
-          if (lost || (gl.isContextLost && gl.isContextLost())){ reject(new Error("skjákortið réð ekki við myndina — reyndu minni mynd eða aðra tölvu")); return; }
+          if (lost || (gl.isContextLost && gl.isContextLost())){ reject(new Error(__("skjákortið réð ekki við myndina — reyndu minni mynd eða aðra tölvu"))); return; }
           try{ pt.renderSample(); }catch(e){ reject(e); return; }
           var p = Math.min(1, pt.samples / target), now = performance.now(), preview = null;
           if (now - last > 1500){ last = now; preview = pr.domElement.toDataURL("image/jpeg", 0.7); }
@@ -3748,7 +3756,7 @@
       st.studio = false;
     }
   }
-  // 🚶 walk mode — module level so it outlives scene rebuilds
+  // walk mode — module level so it outlives scene rebuilds
   var WALK = { on:false, x:0, z:0, yaw:0, pitch:0 };
   function setWalkMode(on){ if (!THREE_STATE || !THREE_STATE.setWalk){ WALK.on = false; return false; } return THREE_STATE.setWalk(!!on); }
   function isWalking(){ return WALK.on; }
@@ -4084,7 +4092,7 @@
     } else {
       floorMat = new THREE.MeshStandardMaterial({ color:0xd8d3c6, roughness:1 });
     }
-    // ✨ Studio roles, set the moment the materials exist — the floor and the walls are cloned from these before the rest
+    // Studio roles, set the moment the materials exist — the floor and the walls are cloned from these before the rest
     // of the scene is built, and a clone only carries what userData held at clone time
     wallMat.userData.studio = "wall"; floorMat.userData.studio = "floor"; carcassMat.userData.studio = "carcass";
 
@@ -4152,7 +4160,7 @@
       cx.fillStyle = "rgba(255,255,255,.94)"; cx.strokeStyle = "#d6d2c8"; cx.lineWidth = 4;
       cx.beginPath(); cx.roundRect ? cx.roundRect(4, 4, 120, 88, 44) : cx.rect(4, 4, 120, 88); cx.fill(); cx.stroke();
       cx.fillStyle = "#191919"; cx.font = "700 46px 'Kumbh Sans', Arial, sans-serif"; cx.textAlign = "center"; cx.textBaseline = "middle";
-      cx.fillText("V" + (i + 1), 64, 51);
+      cx.fillText(__("V{n}", { n:i + 1 }), 64, 51);
       var tex = new THREE.CanvasTexture(cv); tex.anisotropy = 4;
       var sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:tex, depthTest:false, transparent:true, sizeAttenuation:false }));
       sp.scale.set(0.038, 0.0285, 1);
@@ -4254,7 +4262,7 @@
       var def = OBSTACLES[o.kind], g = geomForWall(o.wallId); if (!def || !g) return;
       var v = obstacleVSpan(state, o), sel = opts.selectedId === o.id, hM = Math.max(0.01, (v.hi - v.lo) / 1000);
       var rr = obstacleRect(o), wM = (rr.a1 - rr.a0) / 1000, dM = (rr.n1 - rr.n0) / 1000, outM = rr.n0 / 1000; // wM along the wall, dM out of it (after a turn)
-      // dragged along / up and down the wall in the editor like a window (2026-10-11); 🔒 o.locked = stays put (2026-10-23)
+      // dragged along / up and down the wall in the editor like a window (2026-10-11); o.locked = stays put (2026-10-23)
       var meta = { kind:"obstacle", zone:"obstacle", blockId:o.id, wallId:o.wallId, locked:!opts.onCabinetDragEnd || !!o.locked, widthMm:rr.a1 - rr.a0, depthMm:rr.n1 - rr.n0, heightMm:v.hi - v.lo, elevMm:v.lo,
         free:!!def.free && !!opts.onObstacleFloorEnd && !o.locked };
       // one invisible box = what you grab (world position, like a window plane); the visible parts are its children
@@ -4368,7 +4376,7 @@
     var plinthDark = new THREE.MeshStandardMaterial({ color:0x26262a, roughness:0.85 });
     var plinthFrontMat = frontMat.clone();
     var plinthMat = look ? [plinthDark, plinthDark, plinthDark, plinthDark, plinthFrontMat, plinthDark] : plinthDark;
-    // ✨ Studio: every base material says what it IS, so the photo builds its own physically-set material per role
+    // Studio: every base material says what it IS, so the photo builds its own physically-set material per role
     // (a wall can never come out in the front's wood). Clones (selection tint, per-wall fades) carry userData along.
     [[wallMat, "wall"], [floorMat, "floor"], [carcassMat, "carcass"], [openMat, "carcass"], [steelMat, "steel"], [washerMat, "appliance"],
      [stoneMat, state.activeCategory === "fataskapar" ? "front" : "top"], [frontMat, "front"], [frontMat2, "front"], [frontOpenMat, "front"],
@@ -4469,7 +4477,7 @@
             sinkFixedTop:!!c.sink && b.sinkTop === "fastur" && !!(b.interior && b.interior.mode === "skuffur"),
             ovenInner:c.oven && !c.lowOven ? (String(b.ovenCombo == null ? OVEN_DEFAULT[state.drawerSystem === "merivo" ? "merivo" : "legra"] : b.ovenCombo).split("+")[1] || null) : null,
             washerDrawerM:c.thvo && b.thvo !== "hurdir" ? 0.40 : 0, alwaysDims:state.activeCategory === "fataskapar", hung:!!state.hungUnits }, selected, pickables);
-        // 💡 LED in a tall closet (user, 2026-10-23, C1): a vertical strip in a groove at the front edge of one side
+        // LED in a tall closet (user, 2026-10-23, C1): a vertical strip in a groove at the front edge of one side
         // (6×6 mm), or a strip under the top shelf (4×8 mm). Behind the doors — it shows in X-ray and with doors open.
         if (b.closetLed && c.cls === "tall" && !opts.people){
           var lf = ledFrame(THREE, scene, g, offset / 1000, b.widthMm / 1000), inW = b.widthMm / 1000 - 2 * CARCASS_T, bodyBot = plinthMmW / 1000 + CARCASS_T, bodyTop = hM - CARCASS_T;
@@ -4730,7 +4738,7 @@
                     walls:surfaces, geoms:allGeoms, previewMesh:null, dragging:false, opts:opts, pickables:pickables, roomHM:WALL_H, wallHi:null, frontMat:frontMat };
     if (opts.selectedWallId) setSelectedWall3D(opts.selectedWallId);
 
-    // 🚶 Ganga um (user, 2026-10-23): first-person walk-through at eye height. Drag = look around, W/A/S/D or
+    // Ganga um (user, 2026-10-23): first-person walk-through at eye height. Drag = look around, W/A/S/D or
     // arrows (or the wheel) = walk. You can't walk through walls, milliveggir or cabinets (footprints + 25 cm),
     // and it survives rebuilds (every edit rebuilds the scene) — WALK lives at module level.
     var walkPrev = null, walkKeys = {}, walkLook = null, walkLast = 0, walkBlocks = null, walkV = new THREE.Vector3();
@@ -4768,7 +4776,7 @@
       best.yaw = Math.atan2(-(c.x - best.x), -(c.z - best.z));
       return best;
     }
-    // "📍 Veggur 1": stand ~2 m in front of each surface's floor cabinets, looking straight at them
+    // "Veggur 1": stand ~2 m in front of each surface's floor cabinets, looking straight at them
     var walkJumpCache = null;
     function walkJumps(){
       if (walkJumpCache) return walkJumpCache;
@@ -4834,11 +4842,11 @@
       var pill = "all:unset;cursor:pointer;background:rgba(255,255,255,.16);color:#fff;border-radius:999px;padding:4px 10px;", arrow = "all:unset;cursor:pointer;background:#fff;color:#111;border-radius:8px;width:30px;height:28px;text-align:center;line-height:28px;font-size:14px;touch-action:none;";
       // hold-to-move arrows (touch screens and anyone without a keyboard, H6) + jump points: stand in front of each run
       h.innerHTML = '<span style="display:flex;gap:4px;">' +
-        '<button type="button" data-wk="arrowleft" title="Snúa til vinstri" style="' + arrow + '">⟲</button><button type="button" data-wk="w" title="Ganga áfram" style="' + arrow + '">▲</button>' +
-        '<button type="button" data-wk="s" title="Ganga aftur á bak" style="' + arrow + '">▼</button><button type="button" data-wk="arrowright" title="Snúa til hægri" style="' + arrow + '">⟳</button></span>' +
-        '<span class="kp-walk-tip">Dragðu til að líta í kring · W A S D / örvar</span>' +
-        walkJumps().map(function(j, i){ return '<button type="button" data-wj="' + i + '" style="' + pill + '">📍 ' + j.label + '</button>'; }).join("") +
-        '<button type="button" data-wq="1" style="all:unset;cursor:pointer;background:#fff;color:#111;border-radius:999px;padding:4px 10px;font-weight:600">Hætta (Esc)</button>';
+        '<button type="button" data-wk="arrowleft" title="' + __("Snúa til vinstri") + '" style="' + arrow + '">⟲</button><button type="button" data-wk="w" title="' + __("Ganga áfram") + '" style="' + arrow + '">▲</button>' +
+        '<button type="button" data-wk="s" title="' + __("Ganga aftur á bak") + '" style="' + arrow + '">▼</button><button type="button" data-wk="arrowright" title="' + __("Snúa til hægri") + '" style="' + arrow + '">⟳</button></span>' +
+        '<span class="kp-walk-tip">' + __("Dragðu til að líta í kring · W A S D / örvar") + '</span>' +
+        walkJumps().map(function(j, i){ return '<button type="button" data-wj="' + i + '" style="' + pill + '">' + __(j.label) + '</button>'; }).join("") +
+        '<button type="button" data-wq="1" style="all:unset;cursor:pointer;background:#fff;color:#111;border-radius:999px;padding:4px 10px;font-weight:600">' + __("Hætta (Esc)") + '</button>';
       h.querySelector("[data-wq]").addEventListener("click", function(){ setWalk(false); if (opts.onWalkChange) opts.onWalkChange(false); });
       h.querySelectorAll("[data-wk]").forEach(function(b){
         var k = b.dataset.wk, on = function(e){ e.preventDefault(); walkKeys[k] = true; }, off = function(){ walkKeys[k] = false; };
@@ -5111,7 +5119,7 @@
     THREE_STATE.renderFrame = renderFrame;
     function loop(ts){
       THREE_STATE.rafId = requestAnimationFrame(loop);
-      if (THREE_STATE.studio) return; // ✨ Studio mynd owns the renderer while it path-traces
+      if (THREE_STATE.studio) return; // Studio mynd owns the renderer while it path-traces
       qualityTick(ts || performance.now(), renderer, resize);
       if (WALK.on) walkStep(ts || performance.now()); else controls.update();
       settleLanded();
@@ -6098,7 +6106,7 @@
         var lx = midX - g.normal.x * 14, ly = midY - g.normal.z * 14, wsel = opts.selectedWallId === wallId;
         // just the wall's name here — its length is now on the dimension chain (wallDimChain) instead,
         // so this doesn't duplicate/overlap that number
-        svg += '<text x="' + lx + '" y="' + ly + '" font-size="' + (wsel ? 12.5 : 11) + '" font-weight="' + (wsel ? 700 : 400) + '" fill="' + (wsel ? "#3d61c1" : "#6f6d66") + '" text-anchor="middle" style="pointer-events:none;">' + (state.walls[gi] ? state.walls[gi].label : Math.round(g.lenM * 1000) + ' mm') + '</text>';
+        svg += '<text x="' + lx + '" y="' + ly + '" font-size="' + (wsel ? 12.5 : 11) + '" font-weight="' + (wsel ? 700 : 400) + '" fill="' + (wsel ? "#3d61c1" : "#6f6d66") + '" text-anchor="middle" style="pointer-events:none;">' + (state.walls[gi] ? escSvg(__(state.walls[gi].label)) : Math.round(g.lenM * 1000) + ' mm') + '</text>';
       }
     });
 
@@ -6185,7 +6193,7 @@
       if (widthM * PX_PER_M > 30 && !thin && !opts.mini){
         var cx = (X(corners[0].x) + X(corners[2].x)) / 2;
         var cy = (Y(corners[0].z) + Y(corners[2].z)) / 2;
-        var label = (bl.sk ? bl.sk + " · " : "") + bl.widthMm + (bl.interior && bl.interior.mode === "skuffur" ? " · " + bl.interior.count + "sk" : "");
+        var label = (bl.sk ? bl.sk + " · " : "") + bl.widthMm + (bl.interior && bl.interior.mode === "skuffur" ? " · " + __("{n}sk", { n:bl.interior.count }) : "");
         svg += '<text x="' + cx + '" y="' + cy + '" font-size="9.5" fill="' + (c.oven ? "#fff" : "#191919") + '" text-anchor="middle" dominant-baseline="middle" style="pointer-events:none;">' + label + '</text>';
       }
     }
