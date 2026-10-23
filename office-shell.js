@@ -108,18 +108,34 @@
   // ---- injected chrome styling (sidebar header/footer/nav drag state + settings modal) —
   // self-contained so no consuming page needs its own copy, unlike the pre-existing page-local
   // .sidebar/.nav CSS (width/background) those still own ----
+  // Kumbh Sans (2026-10-23) — not loaded by any of the office pages themselves (they use the system
+  // font stack throughout), only needed here for the sidebar wordmark, so it's injected alongside
+  // the chrome rather than hand-added to every consuming page's own <head>.
+  var FONT_LINK_ID = "office-shell-font";
+  function injectFont() {
+    if (document.getElementById(FONT_LINK_ID)) return;
+    var link = document.createElement("link");
+    link.id = FONT_LINK_ID;
+    link.rel = "stylesheet";
+    link.href = "https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@400;700&display=swap";
+    document.head.appendChild(link);
+  }
+
   var STYLE_ID = "office-shell-style";
   function injectStyle() {
+    injectFont();
     if (document.getElementById(STYLE_ID)) return;
     var el = document.createElement("style");
     el.id = STYLE_ID;
     el.textContent =
       '.osBrand{padding:16px 16px 14px;border-bottom:1px solid #2a3442;margin-bottom:8px;transition:padding .15s;}' +
-      '.osLogo{display:block;width:100%;height:auto;background:#fff;border-radius:10px;padding:10px 14px;box-sizing:border-box;text-align:center;}' +
-      // Text wordmark (2026-10-23, replaces the /logo-bjorninn.png image) — same white rounded box
-      // the image used to sit in, now just holding two stacked lines of text instead.
-      '.osLogoL1{display:block;font-weight:800;font-size:1.05rem;letter-spacing:.01em;font-family:Georgia,"Times New Roman",serif;color:#1a1d21;}' +
-      '.osLogoL2{display:block;font-weight:600;font-size:.6rem;letter-spacing:.22em;color:#6b7280;margin-top:3px;}' +
+      // Text wordmark (2026-10-23, replaces the /logo-bjorninn.png image) — no box behind it now
+      // (2026-10-23, was a white rounded box like the old image sat in; asked for plain white text
+      // straight on the sidebar instead), Kumbh Sans to match the rest of the site's own font
+      // instead of a one-off serif, BJÖRNINN bold / STUDIO regular weight.
+      '.osLogo{display:block;width:100%;height:auto;padding:10px 14px 4px;box-sizing:border-box;text-align:center;}' +
+      '.osLogoL1{display:block;font-family:"Kumbh Sans",sans-serif;font-weight:700;font-size:1.05rem;letter-spacing:.01em;color:#fff;}' +
+      '.osLogoL2{display:block;font-family:"Kumbh Sans",sans-serif;font-weight:400;font-size:.6rem;letter-spacing:.22em;color:#fff;margin-top:3px;}' +
       '.osUser{color:#8aa4c7;font-size:.78rem;margin-top:10px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}' +
       'html[data-os-density="compact"] .sidebar nav a{padding:5px 18px !important;font-size:.82rem !important;}' +
       '.sidebar nav a{display:flex;align-items:center;gap:10px;user-select:none;}' +
