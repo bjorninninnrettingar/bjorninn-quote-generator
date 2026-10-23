@@ -1001,6 +1001,8 @@
   #studioOv .st-card{ width:min(980px, 94vw); background:var(--panel, #fff); color:var(--ink); border-radius:16px; padding:18px 20px; box-shadow:0 24px 60px rgba(0,0,0,.35); }
   #studioOv h3{ margin:0 0 6px; }
   #studioOv .st-msg{ margin:0 0 10px; color:var(--ink-soft); font-size:14px; }
+  #studioOv .st-opts{ display:flex; gap:22px; flex-wrap:wrap; margin:6px 0 12px; }
+  #studioOv .st-opts label{ display:block; font-size:12px; font-weight:600; color:var(--ink-soft); margin-bottom:4px; }
   #studioOv .st-bar{ height:6px; border-radius:99px; background:var(--line); overflow:hidden; }
   #studioOv .st-bar i{ display:block; height:100%; width:0; background:var(--blue); transition:width .3s; }
   #studioOv .st-img{ margin-top:12px; aspect-ratio:16 / 10; background:var(--card, #f3f2ee); border-radius:10px; overflow:hidden; }
@@ -9654,32 +9656,42 @@
   var lastPdfUrl = null;
 
   // ✨ Studio mynd (2026-10-23): a path-traced, photographic still of exactly the 3D view on screen (KP3D.studioRender).
-  document.getElementById("studioBtn").addEventListener("click", async function(){
+  document.getElementById("studioBtn").addEventListener("click", function(){
     if (viewMode !== "3d"){ toast("Farðu í 3D og stilltu sýnina sem þú vilt fá mynd af."); return; }
-    var ov = document.createElement("div"); ov.id = "studioOv";
-    ov.innerHTML = '<div class="st-card"><h3>✨ Studio mynd <small style="font-weight:500;color:var(--ink-soft);">· tilraun</small></h3><p class="st-msg">Hleð ljósgeislareikni…</p><div class="st-bar"><i></i></div>' +
-      '<div class="st-img"></div><div class="st-act"><button type="button" class="btn btn-secondary btn-small" data-st="close">Hætta við</button></div></div>';
+    var ov = document.createElement("div"), pick = { view:"live", q:"fin" };
+    ov.id = "studioOv";
+    ov.innerHTML = '<div class="st-card"><h3>✨ Studio mynd <small style="font-weight:500;color:var(--ink-soft);">· tilraun</small></h3>' +
+      '<div class="st-opts"><div><label>Sjónarhorn</label><div class="hw-toggle"><button type="button" class="hw-btn active" data-st-view="live">Þessi sýn</button><button type="button" class="hw-btn" data-st-view="eye">Í augnhæð</button></div></div>' +
+      '<div><label>Gæði</label><div class="hw-toggle"><button type="button" class="hw-btn" data-st-q="fljot">Fljót · ~20 sek</button><button type="button" class="hw-btn active" data-st-q="fin">Fín · ~1 mín</button></div></div></div>' +
+      '<p class="st-msg">Myndin er reiknuð með raunverulegri lýsingu út frá teikningunni — veggir, efni og ljós eins og í raun.</p><div class="st-bar"><i></i></div>' +
+      '<div class="st-img"></div><div class="st-act"><button type="button" class="btn btn-secondary btn-small" data-st="close">Loka</button><button type="button" class="btn btn-primary btn-small" data-st="go">Búa til mynd</button></div></div>';
     document.body.appendChild(ov);
-    var msg = ov.querySelector(".st-msg"), bar = ov.querySelector(".st-bar i"), img = ov.querySelector(".st-img"), cancelled = false;
+    var msg = ov.querySelector(".st-msg"), bar = ov.querySelector(".st-bar i"), img = ov.querySelector(".st-img"), cancelled = false, running = false;
+    ov.querySelectorAll("[data-st-view]").forEach(function(b){ b.addEventListener("click", function(){ if (running) return; pick.view = b.dataset.stView; ov.querySelectorAll("[data-st-view]").forEach(function(x){ x.classList.toggle("active", x === b); }); }); });
+    ov.querySelectorAll("[data-st-q]").forEach(function(b){ b.addEventListener("click", function(){ if (running) return; pick.q = b.dataset.stQ; ov.querySelectorAll("[data-st-q]").forEach(function(x){ x.classList.toggle("active", x === b); }); }); });
     ov.querySelector('[data-st="close"]').addEventListener("click", function(){ cancelled = true; ov.remove(); });
-    var keepSel = selectedBlockId; if (keepSel){ selectedBlockId = null; KP3D.setSelected3D(null); } // no blue selection tint in the photo
-    try{
-      var url = await KP3D.studioRender({ width:1600, height:1000, samples:200, cancelled:function(){ return cancelled; },
-        onProgress:function(p, preview){ msg.textContent = "Reikna ljósgeisla… " + Math.round(p * 100) + "%"; bar.style.width = Math.round(p * 100) + "%";
-          if (preview) img.innerHTML = '<img alt="" src="' + preview + '">'; } });
-      if (cancelled || !url) return;
-      msg.textContent = "Tilbúið — svona lítur þetta út í raun.";
-      bar.style.width = "100%";
-      img.innerHTML = '<img alt="Studio mynd" src="' + url + '">';
-      ov.querySelector(".st-act").innerHTML = '<button type="button" class="btn btn-secondary btn-small" data-st="close2">Loka</button><button type="button" class="btn btn-primary btn-small" data-st="dl">⬇ Sækja mynd</button>';
-      ov.querySelector('[data-st="close2"]').addEventListener("click", function(){ ov.remove(); });
-      ov.querySelector('[data-st="dl"]').addEventListener("click", function(){ var a = document.createElement("a"); a.href = url; a.download = "bjorninn-studio.jpg"; document.body.appendChild(a); a.click(); a.remove(); });
-    }catch(e){
-      console.error(e);
-      msg.textContent = "Tókst ekki að búa til myndina í þessum vafra (" + (e && e.message || e) + ").";
-    }finally{
-      if (keepSel){ selectedBlockId = keepSel; KP3D.setSelected3D(keepSel); }
-    }
+    ov.querySelector('[data-st="go"]').addEventListener("click", async function(){
+      if (running) return; running = true; cancelled = false;
+      var go = ov.querySelector('[data-st="go"]'); go.disabled = true; go.textContent = "Reikna…";
+      var keepSel = selectedBlockId; if (keepSel){ selectedBlockId = null; KP3D.setSelected3D(null); } // no blue selection tint in the photo
+      var Q = pick.q === "fljot" ? { width:1280, height:800, samples:80 } : { width:1920, height:1200, samples:260 };
+      try{
+        var url = await KP3D.studioRender({ width:Q.width, height:Q.height, samples:Q.samples, view:pick.view, cancelled:function(){ return cancelled; },
+          onProgress:function(p, preview){ msg.textContent = p === 0 ? "Undirbý senuna…" : "Reikna ljósgeisla… " + Math.round(p * 100) + "%"; bar.style.width = Math.round(p * 100) + "%";
+            if (preview) img.innerHTML = '<img alt="" src="' + preview + '">'; } });
+        if (cancelled || !url) return;
+        msg.textContent = "Tilbúið.";
+        img.innerHTML = '<img alt="Studio mynd" src="' + url + '">';
+        go.textContent = "⬇ Sækja mynd"; go.disabled = false;
+        go.onclick = function(e){ e.stopImmediatePropagation(); var a = document.createElement("a"); a.href = url; a.download = "bjorninn-studio.jpg"; document.body.appendChild(a); a.click(); a.remove(); };
+      }catch(e){
+        console.error(e);
+        msg.textContent = "Tókst ekki að búa til myndina (" + (e && e.message || e) + ").";
+        go.textContent = "Reyna aftur"; go.disabled = false; running = false;
+      }finally{
+        if (keepSel){ selectedBlockId = keepSel; KP3D.setSelected3D(keepSel); }
+      }
+    });
   });
   // Save the current view as a PNG (3D: canvas readback; 2D: SVG → canvas).
   function downloadDataUrl(url){

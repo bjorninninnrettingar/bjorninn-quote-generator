@@ -1547,6 +1547,7 @@
     group.add(mesh);
     scene.add(group);
     if (pickables && meta) pickables.push(mesh);
+    if (isWin) mat.userData.studio = "glass";
     if (isWin && !selected){ // brighter than white: the post-processing tone maps the whole frame, so daylight needs headroom
       mat.color.setRGB(1.8, 1.86, 1.95); mat.userData.day = mat.color.clone(); (scene.userData.windowGlass = scene.userData.windowGlass || []).push(mat);
     }
@@ -3551,6 +3552,120 @@
     tex.mapping = THREE.EquirectangularReflectionMapping; tex.needsUpdate = true;
     return tex;
   }
+  // The photo's own scene: only what's really visible, each mesh with a material rebuilt from its ROLE (userData.studio)
+  // — matte paint walls, the floor's planks with a satin lacquer, fronts with their decor + a light lacquer coat, a
+  // honed/polished worktop, brushed steel, real glass. Overlays (selection rings, pick boxes, shadow shell, glows,
+  // labels, faded/see-through walls) are left out entirely, so nothing invisible can block or recolour the picture.
+  function studioMaterial(THREE, m){
+    if (!m || m.visible === false || m.colorWrite === false) return null;
+    var role = m.userData && m.userData.studio;
+    if (m.transparent && m.opacity < 0.5 && role !== "glass") return null; // faded walls / x-rayed fronts
+    if (role === "glass") return new THREE.MeshPhysicalMaterial({ color:0xffffff, metalness:0, roughness:0.02, transmission:1, ior:1.5, thickness:0.004, side:THREE.DoubleSide });
+    if (m.isMeshBasicMaterial) return null; // markers, rings, badges, glows
+    var base = { color:m.color ? m.color.clone() : new THREE.Color(0xffffff), map:m.map || null, side:m.side };
+    if (m.emissive && m.emissiveIntensity > 0 && m.emissive.getHex() && role !== "front" && role !== "carcass"){ base.emissive = m.emissive.clone(); base.emissiveIntensity = m.emissiveIntensity; }
+    switch (role){
+      case "wall": return new THREE.MeshStandardMaterial({ color:base.color, roughness:0.92, metalness:0, side:THREE.FrontSide });
+      case "floor": return new THREE.MeshPhysicalMaterial({ color:base.color, map:base.map, roughness:0.55, clearcoat:0.25, clearcoatRoughness:0.35 }); // no roughnessMap: a second texture on one material came out scrambled in the path tracer
+      case "front": return new THREE.MeshPhysicalMaterial({ color:base.color, map:base.map, roughness:Math.min(0.75, m.roughness || 0.6), metalness:0, clearcoat:0.18, clearcoatRoughness:0.45 });
+      case "carcass": case "plinth": return new THREE.MeshStandardMaterial({ color:base.color, roughness:0.8, metalness:0 });
+      case "top": return new THREE.MeshPhysicalMaterial({ color:base.color, map:base.map, roughness:0.32, metalness:0, clearcoat:0.5, clearcoatRoughness:0.2 });
+      case "steel": return new THREE.MeshPhysicalMaterial({ color:base.color, metalness:1, roughness:0.28 });
+      case "appliance": return new THREE.MeshPhysicalMaterial({ color:base.color, roughness:0.3, clearcoat:0.6 });
+    }
+    var out = new THREE.MeshPhysicalMaterial({ color:base.color, map:base.map, roughness:m.roughness != null ? m.roughness : 0.6, metalness:m.metalness || 0,
+      roughnessMap:m.roughnessMap || null, normalMap:m.normalMap || null, side:base.side });
+    if (base.emissive){ out.emissive = base.emissive; out.emissiveIntensity = base.emissiveIntensity; }
+    if (m.transparent && m.opacity < 1){ out.transparent = true; out.opacity = m.opacity; }
+    return out;
+  }
+  // One mesh PER MATERIAL, world transforms baked in: the path tracer gets plain, uniform input (position + normal + uv,
+  // non-indexed, no groups, no material arrays). Handing it the editor's hundreds of meshes as they are (groups, arrays,
+  // missing uvs, shared geometry) scrambled which material landed on which surface — walls in wood, fronts black.
+  function studioScene(THREE, src, o){
+    src.updateMatrixWorld(true);
+    var rs = new THREE.Scene(), made = [], box = new THREE.Box3(), cabBox = new THREE.Box3(), roomBox = new THREE.Box3(), cache = new Map(), buckets = new Map();
+    function conv(m){
+      if (!cache.has(m)){
+        var c = studioMaterial(THREE, m);
+        if (c){ var rl = (m.userData && m.userData.studio) || "other"; c.userData.role = rl;
+          if (o && (o.noMaps || (o.mapRole && String(o.mapRole).split(",").indexOf(rl) < 0))){ c.map = null; c.roughnessMap = null; c.normalMap = null; }
+          // a texture's repeat / offset / rotation is baked into the UVs instead (push() below) and the photo gets a plain,
+          // untransformed copy of the image — transformed textures came out blank or swapped in the path tracer
+          if (c.map){
+            var src0 = c.map; src0.updateMatrix(); c.userData.uvm = src0.matrix.clone();
+            var t2 = new THREE.Texture(src0.image); t2.wrapS = t2.wrapT = THREE.RepeatWrapping; t2.colorSpace = src0.colorSpace; t2.flipY = src0.flipY; t2.needsUpdate = true;
+            c.map = t2; made.push(t2);
+          }
+          c.roughnessMap = null; c.normalMap = null; if (c.side !== THREE.DoubleSide && !c.transmission) c.side = THREE.DoubleSide; made.push(c); }
+        cache.set(m, c);
+      }
+      return cache.get(m);
+    }
+    var v = new THREE.Vector3(), nm = new THREE.Matrix3();
+    function push(mat, g, from, count, mw){
+      var b = buckets.get(mat); if (!b){ b = { p:[], n:[], u:[] }; buckets.set(mat, b); }
+      var P = g.attributes.position, N = g.attributes.normal, U = g.attributes.uv;
+      nm.getNormalMatrix(mw);
+      for (var i = from; i < from + count; i++){
+        v.fromBufferAttribute(P, i).applyMatrix4(mw); b.p.push(v.x, v.y, v.z); box.expandByPoint(v);
+        if (mat.userData.role === "front" || mat.userData.role === "carcass" || mat.userData.role === "top") cabBox.expandByPoint(v);
+        else if (mat.userData.role === "floor") roomBox.expandByPoint(v);
+        v.fromBufferAttribute(N, i).applyMatrix3(nm).normalize(); b.n.push(v.x, v.y, v.z);
+        if (U){
+          var uu = U.getX(i), vv = U.getY(i), M = mat.userData.uvm && mat.userData.uvm.elements;
+          if (M){ var u2 = M[0] * uu + M[3] * vv + M[6], v2 = M[1] * uu + M[4] * vv + M[7]; uu = u2; vv = v2; }
+          b.u.push(uu, vv);
+        } else b.u.push(0, 0);
+      }
+    }
+    src.traverseVisible(function(obj){
+      if (!obj.isMesh || obj.isInstancedMesh || obj.isSkinnedMesh || (obj.userData && obj.userData.kind === "obstacle-resize")) return;
+      var g0 = obj.geometry; if (!g0 || !g0.attributes || !g0.attributes.position) return;
+      var arr = Array.isArray(obj.material), mats = arr ? obj.material.map(conv) : [conv(obj.material)];
+      if (!mats.some(Boolean)) return;
+      var g = g0.index ? g0.toNonIndexed() : g0;
+      if (!g.attributes.normal){ if (g === g0) g = g0.clone(); g.computeVertexNormals(); }
+      var total = g.attributes.position.count;
+      if (arr && g.groups && g.groups.length){
+        g.groups.forEach(function(gr){ var m = mats[gr.materialIndex]; if (m) push(m, g, gr.start, Math.min(gr.count, total - gr.start), obj.matrixWorld); });
+      } else if (mats[0]) push(mats[0], g, 0, total, obj.matrixWorld);
+      if (g !== g0) g.dispose();
+    });
+    var geos = [];
+    buckets.forEach(function(b, mat){
+      if (!b.p.length) return;
+      var bg = new THREE.BufferGeometry();
+      bg.setAttribute("position", new THREE.Float32BufferAttribute(b.p, 3));
+      bg.setAttribute("normal", new THREE.Float32BufferAttribute(b.n, 3));
+      bg.setAttribute("uv", new THREE.Float32BufferAttribute(b.u, 2));
+      rs.add(new THREE.Mesh(bg, mat)); geos.push(bg);
+    });
+    return { scene:rs, box:box, cabBox:cabBox, roomBox:roomBox, dispose:function(){ made.forEach(function(m){ m.dispose(); }); geos.forEach(function(x){ x.dispose(); }); } };
+  }
+  // light: the neutral procedural daylight sky. Tried photographed HDRIs (Poly Haven loft / small studio): both tinted the
+  // whites and darkened the room — the even sky gave the truest colours (white worktop stays white, oak stays oak).
+  function studioEnv(THREE){ return Promise.resolve({ tex:studioSky(THREE), intensity:1, own:true }); }
+  // "view": the editor's own camera as you set it (default), or "eye" = a photographer standing in the room: 1.6 m eye
+  // height, ~26 mm lens, level (so verticals stay vertical), looking at the middle of what's drawn
+  function studioCamera(THREE, liveCam, view, aspect, built){
+    var cam = liveCam.clone(); cam.aspect = aspect;
+    var cab = built.cabBox, room = built.roomBox;
+    if (view === "eye" && !cab.isEmpty() && !room.isEmpty()){
+      // stand inside the room, on the far side from the cabinets, 1.6 m up, looking level at their middle
+      var c = cab.getCenter(new THREE.Vector3()), rc = room.getCenter(new THREE.Vector3());
+      var away = new THREE.Vector3(rc.x - c.x, 0, rc.z - c.z);
+      if (away.lengthSq() < 0.04) away.set(liveCam.position.x - c.x, 0, liveCam.position.z - c.z); // cabinets all round: use the side you were looking from
+      away.normalize();
+      var m = 0.35, x0 = room.min.x + m, x1 = room.max.x - m, z0 = room.min.z + m, z1 = room.max.z - m, t = 0, step = 0.05;
+      while (t < 12){ var px = c.x + away.x * (t + step), pz = c.z + away.z * (t + step); if (px < x0 || px > x1 || pz < z0 || pz > z1) break; t += step; } // walk back until the far wall
+      cam.position.set(c.x + away.x * t, 1.6, c.z + away.z * t);
+      cam.fov = 2 * Math.atan(24 / (2 * 24)) * 180 / Math.PI; // 24 mm on full frame (vertical) — a kitchen needs the width
+      cam.up.set(0, 1, 0); cam.lookAt(c.x, 1.2, c.z); // level-ish, so verticals stay vertical
+    }
+    cam.updateProjectionMatrix(); cam.updateMatrixWorld();
+    return cam;
+  }
   async function studioRender(o){
     o = o || {};
     if (!THREE_STATE || !window.__loadPathTracer) throw new Error("3D er ekki tilbúið");
@@ -3564,16 +3679,11 @@
     var lib = await window.__loadPathTracer();
     if (THREE_STATE !== st) throw new Error("sýnin breyttist");
     var w = o.width || 1920, h = o.height || 1200, target = o.samples || 240;
-    var hidden = [];
-    scene.traverse(function(obj){
-      if (!obj.visible) return;
-      var mats = obj.material ? (Array.isArray(obj.material) ? obj.material : [obj.material]) : [];
-      var faded = mats.some(function(m){ return m.transparent && m.opacity < 0.5; });
-      if (obj.isSprite || obj.isLine || obj.isPoints || faded || (obj.userData && obj.userData.kind === "obstacle-resize")){ obj.visible = false; hidden.push(obj); }
-    });
-    var oldBg = scene.background, oldEnv = scene.environment, sky = studioSky(THREE);
-    scene.background = sky; scene.environment = sky;
-    var cam = st.camera.clone(); cam.aspect = w / h; cam.updateProjectionMatrix();
+    var built = studioScene(THREE, scene, o), rs = built.scene;
+    var env = await studioEnv(THREE);
+    rs.environment = env.tex; rs.environmentIntensity = env.intensity;
+    rs.background = o.view === "eye" ? env.tex : new THREE.Color(0xf3f2ef); // dollhouse view: a clean studio backdrop, the HDRI still lights it
+    var cam = studioCamera(THREE, st.camera, o.view, w / h, built);
     // its OWN renderer + canvas: if the GPU gives up on a path-tracing pass, that context dies — never the editor's
     var pr = new THREE.WebGLRenderer({ antialias:false, preserveDrawingBuffer:true, powerPreference:"high-performance" });
     pr.setPixelRatio(1); pr.setSize(w, h, false);
@@ -3586,7 +3696,7 @@
       pt.renderScale = 1; pt.dynamicLowRes = false; pt.filterGlossyFactor = 0.5; pt.bounces = 6;
       if (o.onProgress) o.onProgress(0, null);
       await new Promise(function(res){ setTimeout(res, 60); }); // let "0 %" paint before the (synchronous) BVH build
-      pt.setScene(scene, cam); // the async variant needs a BVH web worker set up; a kitchen builds in a second or two
+      pt.setScene(rs, cam); // the async variant needs a BVH web worker set up; a kitchen builds in a second or two
       return await new Promise(function(resolve, reject){
         var last = 0, lost = false, gl = pr.getContext();
         pr.domElement.addEventListener("webglcontextlost", function(e){ e.preventDefault(); lost = true; }, { once:true });
@@ -3604,8 +3714,7 @@
     } finally {
       try{ if (pt) pt.dispose(); }catch(e){}
       try{ pr.dispose(); }catch(e){}
-      hidden.forEach(function(obj){ obj.visible = true; });
-      scene.background = oldBg; scene.environment = oldEnv; sky.dispose();
+      built.dispose(); if (env.own) env.tex.dispose();
       st.studio = false;
     }
   }
@@ -3939,6 +4048,9 @@
     } else {
       floorMat = new THREE.MeshStandardMaterial({ color:0xd8d3c6, roughness:1 });
     }
+    // ✨ Studio roles, set the moment the materials exist — the floor and the walls are cloned from these before the rest
+    // of the scene is built, and a clone only carries what userData held at clone time
+    wallMat.userData.studio = "wall"; floorMat.userData.studio = "floor"; carcassMat.userData.studio = "carcass";
 
     var scene = new THREE.Scene();
     // opts.onlySurfaceId (drawing export / unit wizard preview): only that one wall's / island row's
@@ -4220,6 +4332,11 @@
     var plinthDark = new THREE.MeshStandardMaterial({ color:0x26262a, roughness:0.85 });
     var plinthFrontMat = frontMat.clone();
     var plinthMat = look ? [plinthDark, plinthDark, plinthDark, plinthDark, plinthFrontMat, plinthDark] : plinthDark;
+    // ✨ Studio: every base material says what it IS, so the photo builds its own physically-set material per role
+    // (a wall can never come out in the front's wood). Clones (selection tint, per-wall fades) carry userData along.
+    [[wallMat, "wall"], [floorMat, "floor"], [carcassMat, "carcass"], [openMat, "carcass"], [steelMat, "steel"], [washerMat, "appliance"],
+     [stoneMat, state.activeCategory === "fataskapar" ? "front" : "top"], [frontMat, "front"], [frontMat2, "front"], [frontOpenMat, "front"],
+     [plinthDark, "plinth"], [plinthFrontMat, "front"]].forEach(function(p){ if (p[0] && p[0].userData) p[0].userData.studio = p[1]; });
 
     // the áfellur of one wall (see afellaMm): a 19 mm panel in the front material from the floor (or the
     // cabinet's bottom, for wall units) to its top, the worktop running on over it
@@ -6019,6 +6136,9 @@
     // devtools / browser tests: a world point (m) → client px, and the scene's resize handles (2026-10-23)
     debugProject: function(x, y, z){ if (!THREE_STATE) return null; var V = THREE_STATE.camera.position.constructor, v = new V(x, y, z).project(THREE_STATE.camera), r = THREE_STATE.renderer.domElement.getBoundingClientRect();
       return { x:r.left + (v.x + 1) / 2 * r.width, y:r.top + (1 - v.y) / 2 * r.height }; },
+    debugStudio: function(){ if (!THREE_STATE) return null; var b = studioScene(window.__THREE__, THREE_STATE.scene, {}), out = [];
+      b.scene.children.forEach(function(m){ var mt = m.material, t = mt.map; out.push({ tris:m.geometry.attributes.position.count / 3, color:mt.color && mt.color.getHexString(), map:t ? { cs:t.colorSpace, w:t.image && (t.image.width || t.image.videoWidth), src:t.image && (t.image.src || t.image.nodeName), rot:t.rotation, rep:[t.repeat.x, t.repeat.y] } : null }); });
+      b.dispose(); return out; },
     debugHandles: function(){ var out = []; if (THREE_STATE) THREE_STATE.scene.traverse(function(o){ if (o.userData && o.userData.kind === "obstacle-resize") out.push({ end:o.userData.end, x:o.position.x, y:o.position.y, z:o.position.z }); }); return out; },
     debugInfo: function(){ return sharedRenderer ? { memory:sharedRenderer.info.memory, programs:(sharedRenderer.info.programs || []).length } : null; },
     ANNO_SYMBOLS: ANNO_SYMBOLS, ANNO_COLOR: ANNO_COLOR,
