@@ -78,3 +78,25 @@ test("roomDoorConflicts: inward swing hits the corner cabinet; outward, sliding 
   const sw = K.doorSweep(room({ hinge: "right" }), room({ hinge: "right" }).doors[0]); // right hinge = the door's far end, swinging back along −axis
   assert.deepEqual([+sw.h.x.toFixed(3), +sw.h.z.toFixed(3), sw.u.z, sw.v.x], [4, 0.9, -1, -1]);
 });
+
+// Skáveggir (2026-10-23): any corner angle. A room without angleDeg/dirDeg must come out exactly as before.
+test("wallGeometry3D: 90° rooms unchanged, a 45° turn + dirDeg turn the next wall by exactly that", () => {
+  const rect = K.wallGeometry3D([{ lengthMm: 4000, turnAfter: "left" }, { lengthMm: 3000, turnAfter: "left" }]);
+  assert.deepEqual(rect[1].axis, { x: -0, z: 1 });
+  assert.deepEqual(rect[1].origin, { x: 4, z: 0 });
+  const g = K.wallGeometry3D([{ lengthMm: 2000, turnAfter: "left", angleDeg: 45, dirDeg: 90 }, { lengthMm: 1000, turnAfter: "left" }]);
+  assert.ok(Math.abs(g[0].axis.x) < 1e-9 && Math.abs(g[0].axis.z - 1) < 1e-9, "dirDeg 90 = wall 1 runs along +z");
+  assert.ok(Math.abs(g[1].axis.x + Math.SQRT1_2) < 1e-9 && Math.abs(g[1].axis.z - Math.SQRT1_2) < 1e-9, "then 45° to the left");
+  assert.ok(Math.abs(g[0].extEndM - 0.08 * Math.tan(Math.PI / 8)) < 1e-9, "the outer corner fill follows the angle");
+});
+test("cornerClearanceMm: 90° = the previous cabinet's depth; 45° (a skáhorn) and 135° from the box geometry", () => {
+  const walls = (deg) => {
+    const w = [{ lengthMm: 4000, turnAfter: "left", floor: [{ type: "grunnskapur", widthMm: 600, depthMm: 600 }], wall: [] },
+               { lengthMm: 3000, turnAfter: "left", floor: [{ type: "grunnskapur", widthMm: 600, depthMm: 600 }], wall: [] }];
+    if (deg !== 90) w[0].angleDeg = deg;
+    return w;
+  };
+  assert.equal(K.cornerClearanceMm(walls(90), 1, "floor"), 600);
+  assert.equal(K.cornerClearanceMm(walls(45), 1, "floor"), 430);  // 600·sin45 = 424 → next 10 mm
+  assert.equal(K.cornerClearanceMm(walls(135), 1, "floor"), 1450); // (600 + 600·cos45) / sin45 = 1448.5
+});

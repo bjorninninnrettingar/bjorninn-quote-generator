@@ -189,3 +189,14 @@ HomeByMe-style self-serve planner that ends in a lead: steps intake → material
 - Árekstrar: ekki út fyrir veggi (útlína ef lokað rými), 25 cm frá hverjum vegg/eyju/millivegg og frá gólfskápum (Box3 af pickables með blockId sem standa á gólfi); rennur meðfram því sem er fyrir.
 - Á meðan gengið er tekur window capture-listener pointerdown svo ekkert er valið/dregið. Fer úr gönguham við 2D/Veggur og ef X-Ray er á. ✨ Studio "Þessi sýn" tekur mynd af gönguaugninu.
 - `KP3D.debugWalk(key, secs)` = prófunartól (rAF tikkar ekki í földum glugga).
+
+### Skáveggir + betri horn (2026-10-23)
+- Gögn: `wall.angleDeg` = hversu langt næsti veggur snýr (ytra horn, 90 ef vantar), `turnAfter` segir enn í hvaða átt; `walls[0].dirDeg` = stefna fyrsta veggjar. Rými án þeirra = "rectilinear" og fara gömlu leiðirnar (slideLens/lensValid) óbreytt.
+- `KP3D.turnAxis` (90° = nákvæma rotate90-formúlan), `wallGeometry3D` notar hana. `cornerClearanceMm` reiknar fyrir hvaða horn sem er út frá rúmfræði kassanna (90° = dýpt fyrri skáps eins og áður; 45° skáhorn ≈ 430; 135° ≈ 1450). Áfella aðeins við raunveruleg horn (>20°).
+- 3D: veggboxið nær `thickness·tan(turn/2)` fram yfir innhorn → ytra hornið lokast (líka 90°, gamla 8 cm gatið).
+- Teikning rýmis (stærð): veggjabönd eru fjórhyrningar með mitre-ytri línu (engir hornkassar lengur), skáveggir fá samsíða mál, horn ≠ 90° sýna gráður.
+  - Draga horn (10 mm net, smellur að nágrannahorni = auðvelt aftur í 90°, Shift = frjálst) → `wallsFromVertices`, `tryVertices` (lágm./hám. lengd, horn 15°–345°, ekki skerast, skápar komast enn fyrir) — ógilt = síðasta gilda helst.
+  - Smella á horn: slá inn innra horn (veggurinn á eftir snýst þar til hann mætir næsta vegg, annars heldur hann lengd), 90/135/45, **Skáskera** (nýr stuttur veggur c mm frá horninu á báða vegu), Fjarlægja horn (ef veggurinn er tómur).
+  - Tvísmella á vegg = nýtt horn (ef ekkert er fyrir aftan punktinn). Veggir endurnúmeraðir ("Veggur N").
+  - Í skáherbergi: draga vegg = `slidePts` (nágrannar halda stefnu), slá inn lengd = nágranni rennur samsíða.
+- Ekki enn: frjáls teikning frá grunni (smella punkt fyrir punkt) — horn-dráttur + nýtt horn nær í hvaða form sem er út frá rétthyrningi; skáhornsskápur (sérsmíðaður hornskápur í skáhorni) er ekki til í CATALOG.

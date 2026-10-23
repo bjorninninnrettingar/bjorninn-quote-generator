@@ -817,20 +817,33 @@
     return dir === "left" ? { x:-v.z, z:v.x } : { x:v.z, z:-v.x };
   }
   function normalFromAxis(axis){ return { x:-axis.z, z:axis.x }; }
+  // Skáveggir (user, 2026-10-23): a turn may be any angle. w.angleDeg = how far the next wall turns off this one
+  // (exterior turn, 90 when absent — every older room stays exactly as it was), w.turnAfter still says which way;
+  // walls[0].dirDeg = the first wall's own direction (0 = +x when absent). 90° keeps the exact rotate90 formula.
+  function turnAngle(w){ return w && w.angleDeg != null ? w.angleDeg : 90; }
+  function turnAxis(axis, dir, deg){
+    if (dir !== "left" && dir !== "right") return axis;
+    if (deg == null || deg === 90) return rotate90(axis, dir);
+    var t = deg * Math.PI / 180 * (dir === "left" ? 1 : -1), c = Math.cos(t), sn = Math.sin(t);
+    return { x:axis.x * c - axis.z * sn, z:axis.x * sn + axis.z * c };
+  }
 
   function wallGeometry3D(walls){
     function m(mm){ return mm / 1000; }
     var geoms = [];
     var origin = { x:0, z:0 };
-    var axis = { x:1, z:0 };
-    walls.forEach(function(w){
+    var d0 = walls[0] && walls[0].dirDeg ? walls[0].dirDeg * Math.PI / 180 : 0;
+    var axis = d0 ? { x:Math.cos(d0), z:Math.sin(d0) } : { x:1, z:0 };
+    walls.forEach(function(w, i){
       var normal = normalFromAxis(axis);
       var lenM = m(w.lengthMm);
-      geoms.push({ origin:{ x:origin.x, z:origin.z }, axis:axis, normal:normal, lenM:lenM });
+      // outer-corner fill for the 3D wall box: at an inward (left) corner the two boxes' outer faces leave a wedge
+      // open behind the corner (the 8 cm square at 90°) — this wall's box runs on by thickness × tan(turn/2)
+      var nx = walls[i + 1] || walls[0], turn = turnAngle(w);
+      var ext = w.turnAfter === "left" && !w.open && nx && !nx.open && turn < 170 ? Math.min(0.4, WALL_THICKNESS_M * Math.tan(turn * Math.PI / 360)) : 0;
+      geoms.push({ origin:{ x:origin.x, z:origin.z }, axis:axis, normal:normal, lenM:lenM, extEndM:ext });
       var end = { x: origin.x + axis.x * lenM, z: origin.z + axis.z * lenM };
-      if (w.turnAfter === "left" || w.turnAfter === "right"){
-        axis = rotate90(axis, w.turnAfter);
-      }
+      axis = turnAxis(axis, w.turnAfter, w.angleDeg);
       origin = end;
     });
     return geoms;
@@ -956,7 +969,16 @@
     var cur = walls[wallIndex];
     // (No exemption for Töfrahorn any more: it is drawn as a plain 1200 × 600 box,
     // so the neighbouring wall's run has to start after its depth like any cabinet.)
-    return prevLast.depthMm || CATALOG[prevLast.type].d;
+    var dPrev = prevLast.depthMm || CATALOG[prevLast.type].d;
+    var th = turnAngle(prev);
+    if (th === 90) return dPrev;
+    // any angle (skáveggir): where this wall's first box (depth dCur) stops overlapping the previous wall's last
+    // one, which is assumed to run right into the corner. In the previous wall's frame a point s along this
+    // wall, u into the room, sits at p = s·cosθ − u·sinθ along it (past its end when > 0) and q = s·sinθ + u·cosθ off it.
+    var first = cur && cur.floor && cur.floor[0], dCur = first ? (first.depthMm || (CATALOG[first.type] || {}).d || 600) : 600;
+    var t = th * Math.PI / 180, sn = Math.sin(t), cs = Math.cos(t);
+    var need = th < 90 ? Math.min(dPrev * sn, dCur * sn / cs) : (dPrev - dCur * cs) / sn;
+    return Math.max(0, Math.ceil(need / 10) * 10);
   }
 
   // Áfella (19 mm filler) between a cabinet run and a wall face it would otherwise touch (user, 2026-10-02):
@@ -972,8 +994,8 @@
     if (!w || w.island || w.partition || w.open || wallIndex >= n) return { start:0, end:0 };
     var prev = wallIndex > 0 ? walls[wallIndex - 1] : walls.closed ? walls[n - 1] : null;
     var next = wallIndex < n - 1 ? walls[wallIndex + 1] : walls.closed ? walls[0] : null;
-    var startSolid = !!prev && prev !== w && prev.turnAfter === "left" && !prev.open;
-    var endSolid = !!next && next !== w && w.turnAfter === "left" && !next.open;
+    var startSolid = !!prev && prev !== w && prev.turnAfter === "left" && !prev.open && turnAngle(prev) > 20; // a (nearly) straight joint isn't a corner
+    var endSolid = !!next && next !== w && w.turnAfter === "left" && !next.open && turnAngle(w) > 20;
     if (startSolid && zoneKey === "floor" && cornerClearanceMm(walls, wallIndex, "floor") > 0) startSolid = false;
     return { start:startSolid ? AFELLA_MM : 0, end:endSolid ? AFELLA_MM : 0 };
   }
@@ -1441,6 +1463,7 @@
       pos = b;
     });
     if (geom.lenM > pos + 0.001) pieces.push([pos, geom.lenM, 0, wallHeightM]);
+    if (geom.extEndM) pieces.forEach(function(pc){ if (Math.abs(pc[1] - geom.lenM) < 0.001) pc[1] += geom.extEndM; }); // close the outer corner (see wallGeometry3D)
     var mesh = null;
     // The room face sits 1.5 mm BEHIND the wall line: cabinet backs and the
     // skirting stand exactly on the line, and a shared plane made them z-fight
@@ -6237,7 +6260,7 @@
     floorPointFromClient: floorPointFromClient,
     surfacesOf: surfacesOf,
     islandFrame: islandFrame,
-    wallGeoms: wallGeoms,
+    wallGeoms: wallGeoms, turnAxis: turnAxis,
     setWalkMode: setWalkMode, isWalking: isWalking,
     debugWalk: function(key, secs){ // test aid (the pane can be hidden, so rAF never ticks): hold a key for `secs`, return where you end up
       if (!THREE_STATE || !THREE_STATE.walkStep) return null;
