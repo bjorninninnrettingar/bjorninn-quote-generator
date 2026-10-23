@@ -115,8 +115,16 @@
      itself tracks the cursor, same visual language as kitchen-planner.html's .dw-row.dragging. */
   .arrange-placeholder { background:var(--bg); border:2px dashed var(--line); box-shadow:none !important; }
   .arrange-placeholder > * { visibility:hidden; }
-  .arrange-ghost { position:fixed; z-index:999; pointer-events:none; margin:0; cursor:grabbing;
-    box-shadow:0 10px 30px rgba(0,0,0,.22); border:2px solid var(--accent) !important; transform:scale(1.02); }
+  /* !important throughout (2026-10-23, real bug, not defensive): the ghost is a clone of the
+     dragged tile, so it keeps that tile's own classes (.panel, .cashKpi, .verkPanel, ...) — several
+     of those set position/margin/overflow at the SAME specificity as .arrange-ghost, and being
+     later in this stylesheet they won the cascade, leaving the "floating" clone position:relative
+     (so it rendered in normal flow instead of following the cursor) and its shadow clipped by
+     .panel's own overflow:hidden. Confirmed via computed style before this fix. */
+  .arrange-ghost { position:fixed !important; top:0; left:0; margin:0 !important; z-index:999;
+    overflow:visible !important; pointer-events:none; cursor:grabbing;
+    box-shadow:0 10px 30px rgba(0,0,0,.22) !important; border:2px solid var(--accent) !important;
+    transform:scale(1.02); }
   /* Always faintly visible (2026-10-23, was opacity:0/hover-only) — a drag handle nobody can see
      is a drag handle nobody finds; full opacity on hover so it's still unobtrusive at rest. */
   .arrangeHandle { position:absolute; top:6px; right:6px; display:flex; gap:3px; opacity:.4; transition:opacity .1s; }
