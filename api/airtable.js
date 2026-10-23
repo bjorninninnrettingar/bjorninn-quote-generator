@@ -169,13 +169,6 @@ const ALLOWED_FIELDS = {
     "Kvörtunar-ID",
     "Skráð þann:",
   ],
-  "tblPPMTlFhW0snk24": [ // Virkni 🔔 — activity feed, /skrifstofa dashboard. Same internal/VERK_KEY
-    // pattern as Pöntunarlisti/ÚRVINNSLA above, but this entry was missing entirely (base ALLOWED_FIELDS
-    // stayed [], line ~276, with no VERK_ONLY_FIELDS fallback) — so GET requests came back with real
-    // records but every `fields` object empty, matching CREATABLE_FIELDS below exactly so writes and
-    // reads agree.
-    "Texti", "Tækifæri", "Flokkur", "Tími",
-  ],
   "tbltD1UNpqj05WtMx": [ // Vefspjall 💬 — site chatbot conversation log. Write-only in
     // practice (Rakel reviews in Airtable directly), but listed here too so a
     // successful create's own response echoes back what was written instead
@@ -298,6 +291,12 @@ const ALLOWED_FIELDS = {
 // merged in only when the request carries ?k= matching VERK_KEY (the key the
 // shop printer bakes into the QR on each Zebra label).
 const VERK_ONLY_FIELDS = {
+  "tblPPMTlFhW0snk24": [ // Virkni 🔔 — activity feed, /skrifstofa dashboard. Same internal/VERK_KEY
+    // pattern as Pöntunarlisti/ÚRVINNSLA (ALLOWED_FIELDS stays [] above) — this entry was simply
+    // missing, so automations had been writing real records since 2026-10-19 but every GET came back
+    // with `fields: {}`. Matches CREATABLE_FIELDS below exactly so writes and reads agree.
+    "Texti", "Tækifæri", "Flokkur", "Tími",
+  ],
   "tbl4LMXlQjp66RFKI": [
     // customer contact details for Rakel's kitchen-planner review page (kitchen-planner-review.html)
     "Fullt nafn 👤",
