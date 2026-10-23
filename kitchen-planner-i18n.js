@@ -1070,6 +1070,7 @@
 
   // ---- part F: kitchen-planner-3d.js, -catalog.js, -handles.js, -models.js ----
   add({
+    "{n}sk": "{n}dr",
     "Grunnskápur": "Base cabinet",
     "Hárskápur": "Tall cabinet",
     "Opinn hárskápur": "Open tall cabinet",

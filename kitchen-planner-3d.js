@@ -6193,7 +6193,7 @@
       if (widthM * PX_PER_M > 30 && !thin && !opts.mini){
         var cx = (X(corners[0].x) + X(corners[2].x)) / 2;
         var cy = (Y(corners[0].z) + Y(corners[2].z)) / 2;
-        var label = (bl.sk ? bl.sk + " · " : "") + bl.widthMm + (bl.interior && bl.interior.mode === "skuffur" ? " · " + bl.interior.count + "sk" : "");
+        var label = (bl.sk ? bl.sk + " · " : "") + bl.widthMm + (bl.interior && bl.interior.mode === "skuffur" ? " · " + __("{n}sk", { n:bl.interior.count }) : "");
         svg += '<text x="' + cx + '" y="' + cy + '" font-size="9.5" fill="' + (c.oven ? "#fff" : "#191919") + '" text-anchor="middle" dominant-baseline="middle" style="pointer-events:none;">' + label + '</text>';
       }
     }
