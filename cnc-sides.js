@@ -342,6 +342,7 @@
       var len = r1(d.to - d.from), mine = sd && sd[i];
       var avoid = shelfRows.concat(runners).filter(function (x) { return x > d.from && x < d.to; }).map(function (x) { return r1(x - d.from); });
       if (mine && mine.type === "lift") { d.type = "lift"; d.hinges = []; check.push("Lyftihurð (" + d.H + "): engar lamir á hlið — lamirnar fara í toppborðið"); return; }
+      if (mine && mine.type === "pocket") { d.type = "pocket"; d.hinges = []; check.push("Rennihurð (" + d.H + ", " + (mine.pocketSys === "concepta" ? "Hawa Concepta III" : "Blum Revego") + "): engar lamir — vélbúnaður fer ekki eftir þessari CNC-útreikningu, bora/fræsa eftir leiðbeiningum framleiðanda"); return; }
       var at;
       if (mine && mine.hinges && mine.hinges.length) {
         at = specToPositions(mine.hinges, len);
