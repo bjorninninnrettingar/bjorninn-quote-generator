@@ -1012,6 +1012,24 @@
   #studioOv .st-img{ margin-top:12px; aspect-ratio:16 / 10; background:var(--card, #f3f2ee); border-radius:10px; overflow:hidden; }
   #studioOv .st-img img{ width:100%; height:100%; object-fit:cover; display:block; }
   #studioOv .st-act{ display:flex; justify-content:flex-end; gap:8px; margin-top:12px; }
+  /* ── Allt heimilið (2026-10-23): rooms placed side by side on one floor plan ── */
+  .home-grid{ display:grid; grid-template-columns:1fr 320px; gap:18px; margin-top:12px; }
+  .home-canvas{ position:relative; height:calc(100vh - 230px); min-height:420px; background:#f7f6f2; border:1px solid var(--line); border-radius:14px; overflow:hidden; touch-action:none; }
+  .home-canvas svg{ display:block; width:100%; height:100%; }
+  .home-canvas .hr-room{ cursor:grab; }
+  .home-side{ display:flex; flex-direction:column; gap:10px; }
+  .home-side h4{ margin:4px 0 0; font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-soft); }
+  .hr-item{ border:1px solid var(--line); border-radius:10px; padding:9px 11px; display:grid; grid-template-columns:1fr auto; gap:2px 8px; align-items:center; background:#fff; cursor:pointer; }
+  .hr-item.sel{ border-color:var(--ink); }
+  .hr-item b{ font-size:14px; }
+  .hr-item small{ color:var(--ink-soft); font-size:12px; grid-column:1; }
+  .hr-item .hr-acts{ grid-row:1 / span 2; grid-column:2; display:flex; gap:4px; }
+  .hr-item .hr-acts button{ border:1px solid var(--line); background:#fff; border-radius:7px; padding:4px 8px; font:inherit; font-size:12px; cursor:pointer; color:var(--ink); }
+  .hr-item .hr-acts button:hover{ border-color:var(--ink); }
+  .home-add{ display:flex; flex-wrap:wrap; gap:6px; }
+  .home-add button{ border:1px solid var(--line); background:#fff; border-radius:999px; padding:6px 11px; font:inherit; font-size:13px; cursor:pointer; color:var(--ink); }
+  .home-add button:hover{ border-color:var(--ink); }
+  .home-hint{ font-size:12px; color:var(--ink-soft); margin:0; }
   /* ── Mæling (2026-10-23, A7): the measurer's sheet beside the room drawing ── */
   #measurePanel{ position:fixed; right:14px; top:84px; bottom:14px; width:360px; z-index:70; background:var(--panel, #fff); color:var(--ink); border:1px solid var(--line); border-radius:14px; box-shadow:0 18px 50px rgba(0,0,0,.22); display:flex; flex-direction:column; }
   #measurePanel .mp-head{ padding:12px 14px 8px; border-bottom:1px solid var(--line); }
@@ -1201,6 +1219,7 @@
     </div>
     <div class="top-actions">
       <div id="proBar" hidden></div>
+      <button class="help-btn" id="homeBtn" type="button" hidden data-i18n>Allt heimilið</button>
       <div class="help-wrap">
         <button class="help-btn" id="helpBtn" type="button" aria-haspopup="true" aria-expanded="false" data-i18n>Hjálp</button>
         <div class="help-menu" id="helpMenu" hidden>
@@ -1283,6 +1302,20 @@
         <button class="btn btn-primary" id="welStart" type="button" data-i18n>Byrja að hanna →</button>
       </div>
       </div>
+    </div>
+  </section>
+
+  <!-- ============ STEP: HEIMILI (Allt heimilið, 2026-10-23) ============ -->
+  <section id="screen-heimili" hidden>
+    <div class="title-row"><div><div class="screen-title" data-i18n>Allt heimilið</div>
+    <p class="screen-sub" data-i18n>Teiknaðu hvert rými og dragðu það á sinn stað. Rýmin smella saman við veggi hinna.</p></div>
+    <div class="actions step-nav">
+      <button class="btn btn-secondary" id="homeBackBtn" type="button" data-i18n>← Til baka</button>
+      <button class="btn btn-primary" id="homeNextBtn" type="button" data-i18n>Senda inn →</button>
+    </div></div>
+    <div class="home-grid">
+      <div class="home-canvas" id="homeCanvas"></div>
+      <aside class="home-side" id="homeSide"></aside>
     </div>
   </section>
 
@@ -2831,6 +2864,8 @@
   }
   // the room is finished: on to the materials
   function lockRoom(){
+    var cdL = categoryDef(state.activeCategory);
+    if (cdL && cdL.plain){ state.categoryData[state.activeCategory] = serializeRoom(); toast(__("Rýmið er komið á heimilismyndina.")); state.activeCategory = null; goto("heimili"); return; }
     save();
     toast(__("Rýmið er tilbúið — nú velur þú útlitið."));
     matPhase = firstMissingPhase() >= 4 ? 0 : null;
@@ -8636,6 +8671,7 @@
   // queue is exhausted, on to the combined Spurningar/Senda inn that covers every category together.
   function finishCategory(){
     state.categoryData[state.activeCategory] = serializeRoom();
+    if (state.home){ state.activeCategory = null; goto("heimili"); return; } // Allt heimilið: back to the plan
     var idx = state.categoryQueue.indexOf(state.activeCategory), next = state.categoryQueue[idx + 1];
     if (next) startCategory(next);
     else { state.activeCategory = null; goto("intake"); }
@@ -8651,6 +8687,7 @@
     if (state.step === "done") return { ok:false, why:__("Skipulagið hefur verið sent inn.") };
     if (step === "shape") return { ok:true };
     if ((step === "intake" || step === "contact") && !state.closed && (state.doorList || []).length) return { ok:true }; // doors-only project
+    if ((step === "intake" || step === "contact") && state.home && homeHasUnits()) return { ok:true }; // Allt heimilið
     if (!state.closed || !state.walls.length) return { ok:false, why:__("Smíðaðu rýmið fyrst (Rými).") };
     if (step === "materials") return { ok:true };
     if (firstMissingPhase() < 4) return { ok:false, why:__("Veldu skrokk, skúffukerfi, framhlið og opnun fyrst (Efni).") };
@@ -8670,7 +8707,7 @@
   function updateStepper(){
     var idx = FLOW.indexOf(state.step);
     // PRO (Rakel) never walks the customer's steps — it's noise there (user, 2026-10-23); the customer keeps them to get back to Rými/Efni
-    document.getElementById("progressSteps").hidden = !!PRO || state.step === "welcome" || state.step === "byrja" || state.step === "pro-home";
+    document.getElementById("progressSteps").hidden = !!PRO || state.step === "welcome" || state.step === "byrja" || state.step === "pro-home" || state.step === "heimili";
     var pct = state.step === "done" ? 100 : idx < 0 ? 0 : Math.round((idx + stepFrac()) / FLOW.length * 100);
     document.getElementById("stepFill").style.width = pct + "%";
     document.querySelectorAll("#progressSteps .st").forEach(function(el){
@@ -8704,7 +8741,7 @@
   // intake questions right before contact — the customer used to answer them cold, before seeing
   // anything; now they're a quick check-in just ahead of sending the plan in.
   var FLOW = ["shape", "materials", "editor", "intake", "contact"]; // the stepper (the welcome + byrja screens sit before it)
-  var STEP_ORDER = ["pro-home", "welcome", "byrja"].concat(FLOW, ["done"]);
+  var STEP_ORDER = ["pro-home", "welcome", "byrja", "heimili"].concat(FLOW, ["done"]);
 
   function render(){
     STEP_ORDER.forEach(function(s){
@@ -8716,6 +8753,8 @@
     if (state.step === "pro-home") renderPhResults();
     if (state.step === "welcome") renderWelcome();
     if (state.step === "byrja") renderByrja();
+    if (state.step === "heimili") renderHome();
+    var hb = document.getElementById("homeBtn"); if (hb) hb.hidden = !(state.home && state.step !== "heimili" && state.step !== "welcome" && state.step !== "done");
     if (state.step === "shape") renderShapeStep();
     if (state.step === "materials") renderMaterials();
     if (state.step === "contact"){ renderPreviews(); var ca = document.getElementById("cAths"); if (ca && !ca.value && state.intake.note) ca.value = state.intake.note; }
@@ -9201,7 +9240,7 @@
   // first room's, same as Airtable has always done.
   function projectMaterialFields(){
     var out = null;
-    withEachCategory(function(){ if (!out) out = materialFieldsNow(); });
+    withEachCategory(function(cat){ var cd = categoryDef(cat); if (!out && !(cd && cd.plain)) out = materialFieldsNow(); }); // (a plain room has no materials)
     return out || materialFieldsNow();
   }
 
@@ -9711,19 +9750,201 @@
     if (!doorProducts) loadDoorProducts().then(function(){ if (document.getElementById("doorListOv")) draw(); });
   }
 
+  // ======================================================================
+  // Allt heimilið (user, 2026-10-23): every room of the project on one floor plan. Each room is drawn exactly as
+  // before (its own shape, skáveggir, openings) and then placed: state.home.rooms[key] = {x, z, rot} in mm/degrees
+  // (rot in steps of 90), the room's own wall 1 start at (x, z). Rooms snap to each other with an interior wall
+  // between them (HOME_WALL_MM). Plain rooms ("rymi:N" — stofa, gangur …) have walls, windows and doors only.
+  // ======================================================================
+  var HOME_WALL_MM = 120, HOME_SNAP_MM = 350;
+  var HOME_PLAIN = ["Stofa", "Gangur", "Forstofa", "Svefnh.", "Hjónah.", "Barnah.", "Skrifst.", "Alrými", "Búr"];
+  var homeSel = null, homeDrag = null;
+  function roomBlobOf(key){ return key === state.activeCategory ? state : (state.categoryData || {})[key] || null; }
+  function roomNameOf(key){ var b = roomBlobOf(key), cd = categoryDef(key); return (b && b.intake && b.intake.room) || (cd && cd.defaultRoom) || (cd && cd.label) || key; }
+  function homeRoomPts(key){ // the room's outline in its own mm frame (wall 1 starts at 0,0), or null if not drawn yet
+    var b = roomBlobOf(key); if (!b || !b.closed || !b.walls || !b.walls.length) return null;
+    return KP3D.wallGeometry3D(b.walls).map(function(g){ return { x:g.origin.x * 1000, z:g.origin.z * 1000 }; });
+  }
+  function homeXf(p, pos){ var t = (pos.rot || 0) * Math.PI / 180, c = Math.round(Math.cos(t) * 1e6) / 1e6, sn = Math.round(Math.sin(t) * 1e6) / 1e6; return { x:p.x * c - p.z * sn + pos.x, z:p.x * sn + p.z * c + pos.z }; }
+  function homeBox(pts){ var b = { x0:Infinity, x1:-Infinity, z0:Infinity, z1:-Infinity }; pts.forEach(function(p){ b.x0 = Math.min(b.x0, p.x); b.x1 = Math.max(b.x1, p.x); b.z0 = Math.min(b.z0, p.z); b.z1 = Math.max(b.z1, p.z); }); return b; }
+  function homeRooms(){ return (state.categoryQueue || []).filter(function(k){ var cd = categoryDef(k); return cd && !cd.soon; }); }
+  function homePlaced(key){ var pts = homeRoomPts(key), pos = state.home.rooms[key]; return pts && pos ? pts.map(function(p){ return homeXf(p, pos); }) : null; }
+  function homeEnsurePositions(){ // a room without a place yet goes to the right of everything already placed
+    state.home.rooms = state.home.rooms || {};
+    var placed = false;
+    homeRooms().forEach(function(k){
+      if (state.home.rooms[k] || !homeRoomPts(k)) return;
+      var all = []; homeRooms().forEach(function(o){ if (o !== k && state.home.rooms[o]){ var pp = homePlaced(o); if (pp) all = all.concat(pp); } });
+      var own = homeBox(homeRoomPts(k)), bx = all.length ? homeBox(all) : null;
+      state.home.rooms[k] = { x:(bx ? bx.x1 + HOME_WALL_MM : 0) - own.x0, z:(bx ? bx.z0 : 0) - own.z0, rot:0 };
+      placed = true;
+    });
+    if (placed) save();
+  }
+  function homeHasUnits(){
+    var any = false;
+    withEachCategory(function(){ if (cabinetTotal() > 0) any = true; });
+    return any || !!(state.doorList || []).length;
+  }
+  function openHome(){
+    state.home = state.home || { rooms:{} };
+    state.categoryQueue = state.categoryQueue || []; state.categoryData = state.categoryData || {};
+    if (state.activeCategory && state.walls && state.walls.length) state.categoryData[state.activeCategory] = serializeRoom();
+    state.activeCategory = null;
+    goto("heimili");
+  }
+  // snap a dragged room: its outline's box against every other room's — side by side with one interior wall
+  // between them, or flush with their edges (so rooms line up), within HOME_SNAP_MM
+  function homeSnap(key, pos){
+    var me = homeBox(homeRoomPts(key).map(function(p){ return homeXf(p, pos); })), bestX = null, bestZ = null;
+    homeRooms().forEach(function(o){
+      if (o === key) return; var pp = homePlaced(o); if (!pp) return; var ob = homeBox(pp);
+      var overlapZ = me.z0 < ob.z1 + HOME_SNAP_MM && me.z1 > ob.z0 - HOME_SNAP_MM, overlapX = me.x0 < ob.x1 + HOME_SNAP_MM && me.x1 > ob.x0 - HOME_SNAP_MM;
+      if (overlapZ) [ob.x1 + HOME_WALL_MM - me.x0, ob.x0 - HOME_WALL_MM - me.x1, ob.x0 - me.x0, ob.x1 - me.x1].forEach(function(d){ if (Math.abs(d) < HOME_SNAP_MM && (bestX === null || Math.abs(d) < Math.abs(bestX))) bestX = d; });
+      if (overlapX) [ob.z1 + HOME_WALL_MM - me.z0, ob.z0 - HOME_WALL_MM - me.z1, ob.z0 - me.z0, ob.z1 - me.z1].forEach(function(d){ if (Math.abs(d) < HOME_SNAP_MM && (bestZ === null || Math.abs(d) < Math.abs(bestZ))) bestZ = d; });
+    });
+    return { x:Math.round((pos.x + (bestX || 0)) / 10) * 10, z:Math.round((pos.z + (bestZ || 0)) / 10) * 10, rot:pos.rot || 0 };
+  }
+  function homeRotate(key){
+    var pos = state.home.rooms[key], pts = homeRoomPts(key); if (!pos || !pts) return;
+    var b0 = homeBox(pts.map(function(p){ return homeXf(p, pos); })), np = { x:pos.x, z:pos.z, rot:((pos.rot || 0) + 90) % 360 };
+    var b1 = homeBox(pts.map(function(p){ return homeXf(p, np); }));
+    np.x += (b0.x0 + b0.x1) / 2 - (b1.x0 + b1.x1) / 2; np.z += (b0.z0 + b0.z1) / 2 - (b1.z0 + b1.z1) / 2; // turn about its own middle
+    state.home.rooms[key] = np; save(); renderHome();
+  }
+  function homeView(W, H){
+    var all = []; homeRooms().forEach(function(k){ var pp = homePlaced(k); if (pp) all = all.concat(pp); });
+    if (!all.length) return null;
+    var b = homeBox(all), pad = 70, sc = Math.min((W - 2 * pad) / Math.max(1, b.x1 - b.x0), (H - 2 * pad) / Math.max(1, b.z1 - b.z0), 0.11);
+    if (homeDrag && homeDrag.view) return homeDrag.view; // the picture holds still while a room is dragged
+    return { sc:sc, ox:(W - (b.x1 - b.x0) * sc) / 2 - b.x0 * sc, oy:(H - (b.z1 - b.z0) * sc) / 2 - b.z0 * sc };
+  }
+  function renderHome(){
+    if (!state.home) state.home = { rooms:{} };
+    homeEnsurePositions();
+    var host = document.getElementById("homeCanvas"), W = host.clientWidth || 900, H = host.clientHeight || 560, v = homeView(W, H);
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg" style="font-family:\'Kumbh Sans\',Arial,sans-serif;">';
+    if (!v) svg += '<text x="' + W / 2 + '" y="' + H / 2 + '" text-anchor="middle" font-size="15" fill="#6f6d66">' + __("Bættu við fyrsta rýminu hér til hliðar.") + '</text>';
+    else homeRooms().forEach(function(k){
+      var pts = homePlaced(k); if (!pts) return;
+      var blob = roomBlobOf(k), sel = homeSel === k, X = function(p){ return p.x * v.sc + v.ox; }, Y = function(p){ return p.z * v.sc + v.oy; };
+      var poly = pts.map(function(p){ return X(p).toFixed(1) + "," + Y(p).toFixed(1); }).join(" ");
+      svg += '<g class="hr-room" data-hroom="' + k + '">';
+      svg += '<polygon points="' + poly + '" fill="' + KP3D.floorPlanColor(blob.floor) + '" stroke="' + (sel ? "#0058a3" : "#2b2b2e") + '" stroke-width="' + Math.max(3, HOME_WALL_MM * v.sc) + '" stroke-linejoin="miter"/>';
+      // its units, from above (the same footprints the room's own plan draws)
+      try{
+        var surf = KP3D.surfacesOf(blob), geoms = KP3D.surfaceGeoms(blob), pos = state.home.rooms[k];
+        surf.forEach(function(w, wi){
+          var g = geoms[wi]; if (!g) return;
+          [["floor", w.floor || [], KP3D.cornerClearanceMm(surf, wi, "floor")], ["wall", w.wall || [], 0]].forEach(function(z){
+            var st = KP3D.blockStartsMm(z[1], z[2]);
+            z[1].forEach(function(b, i){ var c = CATALOG[b.type]; if (!c) return;
+              var q = KP3D.rectCornersWorld(g, st[i], b.widthMm, b.depthMm || c.d).map(function(p){ return homeXf({ x:p.x * 1000, z:p.z * 1000 }, pos); });
+              svg += '<polygon points="' + q.map(function(p){ return X(p).toFixed(1) + "," + Y(p).toFixed(1); }).join(" ") + '" fill="' + (z[0] === "wall" ? "none" : "#e9e3d6") + '" stroke="#8a8478" stroke-width="1"' + (z[0] === "wall" ? ' stroke-dasharray="4,3"' : '') + ' style="pointer-events:none;"/>';
+            });
+          });
+        });
+        // doors in its walls: a gap in the wall line
+        var wg = KP3D.wallGeometry3D(blob.walls);
+        (blob.doors || []).forEach(function(d){
+          var wi = blob.walls.findIndex(function(w){ return w.id === d.wallId; }), g = wg[wi]; if (!g) return;
+          var a = homeXf({ x:(g.origin.x + g.axis.x * d.offsetMm / 1000) * 1000, z:(g.origin.z + g.axis.z * d.offsetMm / 1000) * 1000 }, pos);
+          var e = homeXf({ x:(g.origin.x + g.axis.x * (d.offsetMm + d.widthMm) / 1000) * 1000, z:(g.origin.z + g.axis.z * (d.offsetMm + d.widthMm) / 1000) * 1000 }, pos);
+          svg += '<line x1="' + X(a) + '" y1="' + Y(a) + '" x2="' + X(e) + '" y2="' + Y(e) + '" stroke="#fbfaf7" stroke-width="' + (Math.max(3, HOME_WALL_MM * v.sc) + 1) + '" style="pointer-events:none;"/>';
+        });
+      }catch(e){}
+      var c0 = pts.reduce(function(acc, p){ return { x:acc.x + p.x / pts.length, z:acc.z + p.z / pts.length }; }, { x:0, z:0 }), n = 0;
+      surfacesOfBlob(blob).forEach(function(w){ n += (w.floor || []).length + (w.wall || []).length; });
+      svg += '<text x="' + X(c0) + '" y="' + (Y(c0) - 2) + '" text-anchor="middle" font-size="14" font-weight="700" fill="#1c1c1c" style="pointer-events:none;">' + escapeHtmlPro(__(roomNameOf(k))) + '</text>' +
+        '<text x="' + X(c0) + '" y="' + (Y(c0) + 15) + '" text-anchor="middle" font-size="12" fill="#5c574d" style="pointer-events:none;">' + (polygonAreaM2(homeRoomPts(k)).toFixed(1).replace(".", KPI18N.lang === "en" ? "." : ",")) + ' m²' + (n ? ' · ' + n + ' ' + plural(n, "eining", "einingar") : '') + '</text>';
+      svg += '</g>';
+    });
+    host.innerHTML = svg + '</svg>';
+    host.querySelectorAll("[data-hroom]").forEach(function(g){
+      g.addEventListener("pointerdown", function(evt){ homeStartDrag(g.dataset.hroom, evt); });
+      g.addEventListener("dblclick", function(){ openRoom(g.dataset.hroom); });
+    });
+    renderHomeSide();
+  }
+  function surfacesOfBlob(blob){ try{ return KP3D.surfacesOf(blob); }catch(e){ return []; } }
+  function homeStartDrag(key, evt){
+    evt.preventDefault();
+    var host = document.getElementById("homeCanvas");
+    homeSel = key;
+    homeDrag = { key:key, x0:evt.clientX, y0:evt.clientY, pos0:JSON.parse(JSON.stringify(state.home.rooms[key])), moved:false, view:homeView(host.clientWidth, host.clientHeight) };
+    window.addEventListener("pointermove", homeMove);
+    window.addEventListener("pointerup", homeUp, { once:true });
+    renderHome();
+  }
+  function homeMove(evt){
+    var d = homeDrag; if (!d) return;
+    if (!d.moved && Math.hypot(evt.clientX - d.x0, evt.clientY - d.y0) < 4) return;
+    d.moved = true;
+    var raw = { x:d.pos0.x + (evt.clientX - d.x0) / d.view.sc, z:d.pos0.z + (evt.clientY - d.y0) / d.view.sc, rot:d.pos0.rot };
+    state.home.rooms[d.key] = evt.shiftKey ? { x:Math.round(raw.x / 10) * 10, z:Math.round(raw.z / 10) * 10, rot:raw.rot } : homeSnap(d.key, raw);
+    renderHome();
+  }
+  function homeUp(){
+    window.removeEventListener("pointermove", homeMove);
+    var d = homeDrag; homeDrag = null;
+    if (d && d.moved) save();
+    renderHome();
+  }
+  function renderHomeSide(){
+    var side = document.getElementById("homeSide"), rooms = homeRooms();
+    var html = '<h4>' + __("Rýmin") + '</h4>';
+    if (!rooms.length) html += '<p class="home-hint">' + __("Engin rými enn.") + '</p>';
+    rooms.forEach(function(k){
+      var cd = categoryDef(k), drawn = !!homeRoomPts(k), blob = roomBlobOf(k), n = 0;
+      surfacesOfBlob(blob || {}).forEach(function(w){ n += (w.floor || []).length + (w.wall || []).length; });
+      html += '<div class="hr-item' + (homeSel === k ? ' sel' : '') + '" data-hsel="' + k + '"><b>' + escapeHtmlPro(__(roomNameOf(k))) + '</b>' +
+        '<small>' + escapeHtmlPro(__(cd.plain ? "Án innréttingar" : cd.label)) + ' · ' + (!drawn ? __("ekki teiknað enn") : n ? n + ' ' + plural(n, "eining", "einingar") : __("engar einingar")) + '</small>' +
+        '<span class="hr-acts"><button type="button" data-hopen="' + k + '">' + (drawn ? __("Opna") : __("Teikna")) + '</button>' + (drawn ? '<button type="button" data-hrot="' + k + '" title="' + __("Snúa um 90°") + '">↻</button>' : '') +
+        (cd.plain ? '<button type="button" data-hdel="' + k + '" title="' + __("Fjarlægja rýmið") + '">✕</button>' : '') + '</span></div>';
+    });
+    var have = function(key){ return rooms.indexOf(key) >= 0; };
+    html += '<h4>' + __("Bæta við rými") + '</h4><div class="home-add">' +
+      [["eldhus", "Eldhús"], ["fataskapar", "Fataskápur"], ["bad", "Baðherbergi"], ["thvottahus", "Þvottahús"]].filter(function(r){ return !have(r[0]); }).map(function(r){ return '<button type="button" data-hadd="' + r[0] + '">' + __(r[1]) + '</button>'; }).join("") +
+      HOME_PLAIN.map(function(r){ return '<button type="button" data-hplain="' + r + '">' + __(r) + '</button>'; }).join("") + '</div>' +
+      '<p class="home-hint">' + __("Dragðu rými á sinn stað — það smellur við veggi hinna. Tvísmelltu til að opna það. Shift = án þess að smella.") + '</p>';
+    side.innerHTML = html;
+    side.onclick = function(e){
+      var b = e.target.closest("button, [data-hsel]"); if (!b) return;
+      if (b.dataset.hopen){ openRoom(b.dataset.hopen); return; }
+      if (b.dataset.hrot){ homeRotate(b.dataset.hrot); return; }
+      if (b.dataset.hdel){
+        var k = b.dataset.hdel; state.categoryQueue = state.categoryQueue.filter(function(x){ return x !== k; }); delete state.categoryData[k]; delete state.home.rooms[k];
+        if (homeSel === k) homeSel = null; save(); renderHome(); return;
+      }
+      if (b.dataset.hadd){ openRoom(b.dataset.hadd); return; }
+      if (b.dataset.hplain){
+        var nmax = 0; (state.categoryQueue || []).forEach(function(x){ var m = /^rymi:(\d+)$/.exec(x); if (m) nmax = Math.max(nmax, +m[1]); });
+        openRoom("rymi:" + (nmax + 1), b.dataset.hplain); return;
+      }
+      if (b.dataset.hsel){ homeSel = b.dataset.hsel; renderHome(); }
+    };
+  }
+  document.getElementById("homeBackBtn").addEventListener("click", function(){ goto("welcome"); });
+  document.getElementById("homeNextBtn").addEventListener("click", function(){
+    var g = canGoTo("intake"); if (!g.ok){ toast(__("Bættu að minnsta kosti einni einingu við í eitthvert rými fyrst.")); return; }
+    goto("intake");
+  });
+  document.getElementById("homeBtn").addEventListener("click", openHome);
+  window.addEventListener("resize", function(){ if (state.step === "heimili") renderHome(); });
+
   var STUDIO_ROOMS = [
     { key:"eldhus", label:"Eldhús", desc:"Innrétting, borðplata og tæki" },
     { key:"fataskapar", label:"Fataskápur", desc:"Skápar, innvols og rennihurðir" },
     { key:"bad", label:"Baðherbergi", desc:"Veggfestir vaskaskápar og efri skápar" },
     { key:"thvottahus", label:"Þvottahús", desc:"Þvottavél, þurrkari og vaskur" },
     { key:"hurdir", label:"Innihurðir", desc:"Hurðir um allt heimilið" },
-    { key:"ibud", label:"Allt heimilið", desc:"Öll rýmin í einu verkefni", soon:true }
+    { key:"ibud", label:"Allt heimilið", desc:"Öll rýmin á einni grunnmynd" }
   ];
   function renderStudioCards(){
     var host = document.getElementById("studioCards"); if (!host) return;
     var q = state.categoryQueue || [];
     host.innerHTML = STUDIO_ROOMS.map(function(r){
-      var has = r.key === "hurdir" ? !!(state.doorList && state.doorList.length) : q.indexOf(r.key) >= 0 && (r.key === state.activeCategory ? state.walls && state.walls.length : !!(state.categoryData || {})[r.key]);
+      var has = r.key === "ibud" ? !!state.home : r.key === "hurdir" ? !!(state.doorList && state.doorList.length) : q.indexOf(r.key) >= 0 && (r.key === state.activeCategory ? state.walls && state.walls.length : !!(state.categoryData || {})[r.key]);
       return '<button type="button" class="studio-card' + (has ? ' has' : '') + '" data-studio="' + r.key + '"' + (r.soon ? ' disabled' : '') + '><span class="ic">' + icon(r.key, 26) + '</span><b>' + __(r.label) + '</b><small>' + __(r.desc) + '</small>' +
         '<span class="go">' + (r.soon ? __('Væntanlegt') : has ? __('Halda áfram →') : __('Byrja →')) + '</span></button>';
     }).join("");
@@ -9734,18 +9955,26 @@
     var card = e.target.closest && e.target.closest("[data-studio]"); if (!card || card.disabled) return;
     var key = card.dataset.studio;
     if (key === "hurdir"){ openDoorList(); return; } // a list for the whole home, not a room you draw
+    if (key === "ibud"){ openHome(); return; }        // Allt heimilið: every room on one plan
     if (!categoryDef(key) || categoryDef(key).soon) return;
+    openRoom(key);
+  });
+  // open one room of the project (a new one starts on its shape page; one already drawn goes to its editor —
+  // a plain room, which has no editor, back to its drawing)
+  function openRoom(key, roomName){
     state.categoryQueue = state.categoryQueue || [];
     state.categoryData = state.categoryData || {};
+    var cd = categoryDef(key), plain = !!(cd && cd.plain);
     if (state.activeCategory && state.activeCategory !== key && state.walls && state.walls.length) state.categoryData[state.activeCategory] = serializeRoom();
     var known = state.categoryQueue.indexOf(key) >= 0;
     if (!known) state.categoryQueue.push(key);
     if (known && state.activeCategory === key && state.walls && state.walls.length){ // the room you were already in: just go back to it
-      var to = canGoTo("editor").ok ? "editor" : "shape"; goto(to); return;
+      var to = !plain && canGoTo("editor").ok ? "editor" : "shape"; if (to === "shape") shapePhase = state.closed ? "size" : "pick"; goto(to); return;
     }
     startCategory(key);
-    if (known && state.walls && state.walls.length && canGoTo("editor").ok) goto("editor");
-  });
+    if (!known && roomName){ state.intake.room = roomName; save(); }
+    if (known && state.walls && state.walls.length){ if (!plain && canGoTo("editor").ok) goto("editor"); else { shapePhase = state.closed ? "size" : "pick"; render(); } }
+  }
   document.getElementById("welStart").addEventListener("click", function(){
     var hasQueue = !!(state.categoryQueue && state.categoryQueue.length);
     var to = state.resumeStep && state.resumeStep !== "welcome" ? state.resumeStep : (hasQueue ? "shape" : "byrja");
@@ -9771,12 +10000,17 @@
     { key:"fataskapar", label:"Fataskápar", tree:FATASKAPAR_TREE, roomPicker:true, defaultRoom:"Fatask.", water:false, worktop:false, matPhases:MAT_PHASES_FATASKAPAR },
     { key:"bad", label:"Baðherbergi", tree:BAD_TREE, roomPicker:true, defaultRoom:"Baðh.", water:true, worktop:true, hung:true },
     { key:"thvottahus", label:"Þvottahús", tree:THVOTT_TREE, defaultRoom:"Þvottah.", water:true, worktop:true },
-    { key:"hurdir", label:"Hurðir", soon:true }
+    { key:"hurdir", label:"Hurðir", soon:true },
+    // Allt heimilið (2026-10-23): a room with no units of its own (stofa, gangur, forstofa …) — walls, windows and
+    // doors only, so the home plan is the real home and doors between rooms have a wall to sit in. Many per project
+    // ("rymi:1", "rymi:2" …), never offered on the Byrja page.
+    { key:"rymi", label:"Rými", plain:true, roomPicker:true, defaultRoom:"Stofa", water:false, worktop:false, hidden:true }
   ];
-  function categoryDef(key){ return CATEGORIES.find(function(c){ return c.key === key; }) || null; }
+  function categoryDef(key){ var base = String(key || "").split(":")[0]; return CATEGORIES.find(function(c){ return c.key === base; }) || null; } // "rymi:3" = the 3rd plain room
   var byrjaSel = []; // unconfirmed picks for this visit only — state.categoryQueue is set once "Áfram" is pressed
   function renderByrja(){
     document.getElementById("byrjaCards").innerHTML = CATEGORIES.map(function(c){
+      if (c.hidden) return "";
       if (c.soon) return '<button type="button" class="shape-card soon" disabled><div class="nm">' + __(c.label) + '</div><small>' + __("Væntanlegt") + '</small></button>';
       var active = byrjaSel.indexOf(c.key) >= 0;
       return '<button type="button" class="shape-card' + (active ? " active" : "") + '" data-cat="' + c.key + '"><div class="nm">' + __(c.label) + '</div></button>';

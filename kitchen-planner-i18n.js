@@ -1366,6 +1366,39 @@
     "V{n}": "W{n}"
   });
 
+  // Allt heimilið (2026-10-23)
+  add({
+    "Teiknaðu hvert rými og dragðu það á sinn stað. Rýmin smella saman við veggi hinna.": "Draw each room and drag it into place. Rooms snap to the walls of the others.",
+    "Senda inn →": "Submit →",
+    "Rýmið er komið á heimilismyndina.": "The room is on the home plan.",
+    "Bættu við fyrsta rýminu hér til hliðar.": "Add the first room on the right.",
+    "Rýmin": "Rooms",
+    "Engin rými enn.": "No rooms yet.",
+    "ekki teiknað enn": "not drawn yet",
+    "engar einingar": "no units",
+    "Teikna": "Draw",
+    "Opna": "Open",
+    "Snúa um 90°": "Turn 90°",
+    "Fjarlægja rýmið": "Remove the room",
+    "Bæta við rými": "Add a room",
+    "Án innréttingar": "No units",
+    "Dragðu rými á sinn stað — það smellur við veggi hinna. Tvísmelltu til að opna það. Shift = án þess að smella.": "Drag a room into place — it snaps to the others' walls. Double-click to open it. Shift = no snapping.",
+    "Bættu að minnsta kosti einni einingu við í eitthvert rými fyrst.": "Add at least one unit to a room first.",
+    "eining": "unit",
+    "einingar": "units",
+    "Öll rýmin á einni grunnmynd": "Every room on one floor plan",
+    "Rými": "Room",
+    "Stofa": "Living room",
+    "Gangur": "Hallway",
+    "Forstofa": "Entrance",
+    "Svefnh.": "Bedroom",
+    "Hjónah.": "Master bedroom",
+    "Barnah.": "Kids' room",
+    "Skrifst.": "Study",
+    "Alrými": "Open-plan living",
+    "Búr": "Pantry"
+  });
+
   // part F: stored/computed numbered labels from kitchen-planner-3d.js (CATALOG width variants, island rows, partition sides)
   addPat(/^(Grunnskápur|Hárskápur|Efriskápur|Vaskaskápur|Opnar hillur) (\d+)$/, function(m, t, n){ return (has(t) ? EN[t] : t) + " " + n; });
   addPat(/^Eyja (\d+) · röð ([AB])$/, "Island $1 · row $2");
