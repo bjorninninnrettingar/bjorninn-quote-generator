@@ -10276,7 +10276,7 @@
   // nothing else changes automatically (confirmed with the user: just the flag, not the sales stage).
   function proMarkReviewed(){
     var rb = document.getElementById("proReviewed"); if (rb) rb.disabled = true;
-    fetch("/api/airtable?path=" + encodeURIComponent("tbl4LMXlQjp66RFKI/" + PRO.id), {
+    fetch("/api/airtable?path=" + encodeURIComponent("tbl4LMXlQjp66RFKI/" + PRO.id) + "&k=" + encodeURIComponent(PRO.k), {
       method:"PATCH", headers:{ "Content-Type":"application/json" },
       body: JSON.stringify({ fields:{ "Sjálfsafgreiðsla — óyfirfarið ⚠️": false } })
     }).then(function(){ PRO.needsReview = false; proBar(); })
@@ -10294,7 +10294,7 @@
     var rs = document.getElementById("proRunSkipulag"); if (rs) rs.disabled = true;
     proBar("Keyri skipulag…");
     try{
-      var path = encodeURIComponent("tbl4LMXlQjp66RFKI/" + PRO.id);
+      var path = encodeURIComponent("tbl4LMXlQjp66RFKI/" + PRO.id) + "&k=" + encodeURIComponent(PRO.k);
       await fetch("/api/airtable?path=" + path, { method:"PATCH", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ fields:{ "🔄 Keyra Skipulag": false } }) });
       await fetch("/api/airtable?path=" + path, { method:"PATCH", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ fields:{ "🔄 Keyra Skipulag": true } }) });
       toast("Skipulag keyrt — opnaðu verkefnið aftur til að sjá það læst");
@@ -10336,7 +10336,7 @@
     }catch(e){ document.getElementById("tpMsg").textContent = "Tókst ekki að sækja verðgögn."; }
   }
   function proTilbodPatch(fields){
-    var path = encodeURIComponent("tbl4LMXlQjp66RFKI/" + PRO.id);
+    var path = encodeURIComponent("tbl4LMXlQjp66RFKI/" + PRO.id) + "&k=" + encodeURIComponent(PRO.k);
     return fetch("/api/airtable?path=" + path, { method:"PATCH", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ fields:fields }) })
       .then(function(){ return proTilbodLoad(); });
   }
