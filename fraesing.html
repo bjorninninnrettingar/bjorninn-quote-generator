@@ -276,6 +276,7 @@ const U_SERSMIDI_TEGUND  = "Sérsmíði tegund";
 const U_FRONT_HLID_TEGUND = "Frontur / Hlið tegund";
 const U_SKUFFUTEGUND     = "Skúffutegund";
 const U_LED_MAGN         = "LED magn";
+const U_SMIDA            = "Smíðagögn (JSON) 🔧"; // the designer's own build data — LED groove in a closet side (2026-10-23)
 const U_OPNUN            = "Opnun [Hurð]"; // door swing direction, choices "Hægri 👉"/"Vinstri 👈"
 const U_LAMIR            = "Lamir [Hurð]"; // hinge hardware (Vörulisti link)
 const U_SKRA             = "Skrá [Hurð]"; // lock hardware (Vörulisti link)
@@ -422,7 +423,7 @@ async function fetchEyðublaðForProject(projectName) {
     "fields[]": [
       U_NAME, U_PROJECT_LINK, U_PROJECT_LINK_OLD, U_HVAD_VILTU_SMIDA, U_CNC_NOTE,
       U_SKAPATEGUND, U_SERSMIDI_TEGUND, U_FRONT_HLID_TEGUND, U_SKUFFUTEGUND, U_LED_MAGN, U_OPNUN,
-      U_LAMIR, U_SKRA, U_FELLITHR,
+      U_LAMIR, U_SKRA, U_FELLITHR, U_SMIDA,
       ...U_DRAWER_FIELDS,
     ],
     // Lamir/Skrá/Felliþr. [Hurð] are VERK_ONLY_FIELDS (api/airtable.js) — internal door-hardware
@@ -455,6 +456,15 @@ function filterTegund(u) {
     return "Hurðir";
   }
   return hvad;
+}
+
+// 💡 LED in a groove up a closet side (designer, Smíðagögn led.groove) — shown on the card so it isn't forgotten
+function ledGrooveNote(u) {
+  let sm = null;
+  try { sm = JSON.parse(u.fields[U_SMIDA] || "null"); } catch (e) { sm = null; }
+  const led = sm && sm.led;
+  if (!led || !led.groove) return "";
+  return `💡 FRÆSA LED-RAUF (${led.strip || "6x6"} mm) í ${led.side === "vinstri" ? "VINSTRI" : "HÆGRI"} hlið, séð framan frá`;
 }
 
 // ── INNIHALD — plain-language summary of what's in the box, for the
@@ -811,7 +821,7 @@ async function loadProject(projectId) {
         name: u.fields[U_NAME] || u.id,
         tegund: filterTegund(u),
         innihald: buildInnihald(u),
-        note: String(u.fields[U_CNC_NOTE] || "").trim(),
+        note: [ledGrooveNote(u), String(u.fields[U_CNC_NOTE] || "").trim()].filter(Boolean).join(" · "),
         isLagnaskapur: singleSelectName(u.fields[U_SKAPATEGUND]) === "Lagnaskápur",
         opnun,
         hardware,

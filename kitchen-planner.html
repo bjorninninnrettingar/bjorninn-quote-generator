@@ -5821,7 +5821,7 @@
     html += sec("lysing", "Lýsing",
       '<div class="light-btns">' + lbtn("underWall", "LED undir efri skápum") + lbtn("shelves", "LED í opnum hillum") + '</div>' +
       '<button type="button" class="btn btn-secondary btn-small" data-act="mood">' + (moodOn ? '☀️ Dagsbirta' : '🌙 Sjá í kvöldstemningu') + '</button>' +
-      (bom ? '<p class="sec-note">' + lightingText(bom).join(" · ") + '</p>' : '<p class="sec-note">Smelltu á efri skáp til að kveikja eða slökkva á ljósi undir honum einum.</p>'));
+      (bom ? '<p class="sec-note">' + lightingText(bom).join(" · ") + '</p><p class="sec-note" style="font-size:11px;">' + LED_POWER_NOTE + '</p>' : '<p class="sec-note">Smelltu á efri skáp til að kveikja eða slökkva á ljósi undir honum einum.</p>'));
     var DEC = KP3D.DECOR;
     html += sec("skraut", "Húsgögn",
       KP3D.DECOR_GROUPS.map(function(gp){
@@ -7706,6 +7706,15 @@
               '<button type="button" class="hw-btn' + (!isPocket ? ' active' : '') + '" data-pocket="0">Á lömum</button>' +
               '<button type="button" class="hw-btn' + (isPocket ? ' active' : '') + '" data-pocket="1">Rennur inn í hlið</button></div></div>';
           }
+          if (c.cls === "tall" && !c.fridge && !c.oven && !c.appliance && (c.railRange || c.shelfRange)){
+            var cl = b.closetLed || "";
+            pocketHtml += '<div class="edit-field"><label title="LED-borði inni í skápnum. Rafmagn er tengt á staðnum af þér eða fagaðila.">💡 LED</label><div class="hw-toggle">' +
+              '<button type="button" class="hw-btn' + (!cl ? ' active' : '') + '" data-closetled="">Ekkert</button>' +
+              '<button type="button" class="hw-btn' + (cl === "hlid" ? ' active' : '') + '" data-closetled="hlid">Lóðrétt í hlið</button>' +
+              '<button type="button" class="hw-btn' + (cl === "hilla" ? ' active' : '') + '" data-closetled="hilla">Undir efstu hillu</button></div>' +
+              (cl === "hlid" ? '<div class="hw-toggle" style="margin-top:6px;"><button type="button" class="hw-btn' + (b.ledSide === "vinstri" ? ' active' : '') + '" data-ledside="vinstri">◧ Vinstri hlið</button><button type="button" class="hw-btn' + (b.ledSide !== "vinstri" ? ' active' : '') + '" data-ledside="haegri">Hægri hlið ◨</button></div>' : '') +
+              (cl ? '<p class="sec-note" style="margin:4px 0 0;">' + LED_POWER_NOTE + '</p>' : '') + '</div>';
+          }
           if (leaves.length === 1 && !(pocketHtml && pDoors.every(function(d, i){ return proSpec(b, pDoors, i).type === "pocket"; }))) return '<div class="edit-field"><label title="Séð framan frá">Lamir</label><div class="hw-toggle">' +
             '<button type="button" class="hw-btn' + (b.swing !== "haegri" ? ' active' : '') + '" data-swing="vinstri">◧ Vinstri</button>' +
             '<button type="button" class="hw-btn' + (b.swing === "haegri" ? ' active' : '') + '" data-swing="haegri">Hægri ◨</button></div></div>' + pocketHtml;
@@ -7834,6 +7843,12 @@
       if (e.target.value) b.swing = e.target.value; else delete b.swing;
       save();
       refreshAfterEdit();
+    });
+    host.querySelectorAll("[data-closetled]").forEach(function(btn){
+      btn.addEventListener("click", function(){ if (btn.dataset.closetled) b.closetLed = btn.dataset.closetled; else { delete b.closetLed; delete b.ledSide; } save(); refreshAfterEdit(); });
+    });
+    host.querySelectorAll("[data-ledside]").forEach(function(btn){
+      btn.addEventListener("click", function(){ b.ledSide = btn.dataset.ledside; save(); refreshAfterEdit(); });
     });
     host.querySelectorAll("[data-pocket]").forEach(function(btn){
       btn.addEventListener("click", function(){
@@ -8281,7 +8296,8 @@
 
   // ---- Lýsing (2026-10-05): what's lit, and the products it takes (Útfærslur "Ljós og lýsing") ----
   function lighting(){ return state.lighting || (state.lighting = { underWall:false, shelves:false, plinth:false }); }
-  function lightingOn(){ var L = lighting(); return L.underWall || L.shelves || surfaces().some(function(w){ return w.wall.some(function(b){ return b.led; }); }); }
+  function lightingOn(){ var L = lighting(); return L.underWall || L.shelves || surfaces().some(function(w){ return w.wall.some(function(b){ return b.led; }) || w.floor.some(function(b){ return !!b.closetLed; }); }); }
+  var LED_POWER_NOTE = "Rafmagn: viðskiptavinur eða fagaðili þarf að tengja LED-lýsinguna við rafmagn á staðnum."; // C3
   var LED_W_PER_M = 9.6; // rough power of the 4×8 mm strip, for the transformer size
   // The products, as real Útfærslur (Flokkur "Ljós og lýsing"). They go in V3 of the cabinet they light, one
   // of each (V3 has no quantity, and is priced once in Söluverð): ONE reel per cabinet that covers all its strips
@@ -8291,6 +8307,7 @@
     LED41: { label:"LED-borði 4×8 mm, 1 m", utfaerslaId:"recfMqPJ94czDOqS8" },
     LED42: { label:"LED-borði 4×8 mm, 2 m", utfaerslaId:"recUJdx6TiAB8qRsU" },
     LED43: { label:"LED-borði 4×8 mm, 3 m", utfaerslaId:"recmigGLYHgQgxnak" },
+    LED66: { label:"LED-borði 6×6 mm í rauf, 3 m", utfaerslaId:"recGr4IhUacQC5ZR5" }, // fataskápar: lóðrétt í hlið (C2)
     STRM15: { label:"Straumbreytir D-power 15 W", utfaerslaId:"recNaVFYyd9MzHIR3" },
     STRM30: { label:"Straumbreytir D-power 30 W", utfaerslaId:"recS9jA4zVFjUyvsr" },
     STRM60: { label:"Straumbreytir D-power 60 W", utfaerslaId:"rec9msFWprQWuYp4K" },
@@ -8307,6 +8324,13 @@
       out[code].n += n; if (where && out[code].where.indexOf(where) < 0) out[code].where.push(where);
     }
     surfaces().forEach(function(w){
+      // 💡 fataskápar (C1/C2): one strip per tall closet — 6×6 mm in a groove up one side, or 4×8 mm under the top shelf
+      w.floor.forEach(function(b){
+        var c = CATALOG[b.type]; if (!b.closetLed || c.cls !== "tall") return;
+        var mm = b.closetLed === "hlid" ? Math.max(0, blockHeightMm(b, c) - PLINTH_MM - 60) : b.widthMm - 40;
+        unit(b, mm); watts += mm / 1000 * LED_W_PER_M;
+        perUnit[b.id].force = b.closetLed === "hlid" ? "LED66" : "LED43";
+      });
       w.wall.forEach(function(b){
         var c = CATALOG[b.type]; if (c.panel || c.shelfStack) return;
         if (b.led != null ? b.led : L.underWall){ // a LED strip (4×8 mm) under each one, cut from the 1/2/3 m reels
@@ -8318,7 +8342,7 @@
         }
       });
     });
-    Object.keys(perUnit).forEach(function(id){ var u = perUnit[id]; u.code = stripCode(u.mm); add(u.code, 1, keys[id]); });
+    Object.keys(perUnit).forEach(function(id){ var u = perUnit[id]; u.code = u.force || stripCode(u.mm); add(u.code, 1, keys[id]); });
     if (!order.length) return null;
     var need = watts * 1.25, drivers = [15, 30, 60, 100], d = drivers.find(function(x){ return x >= need; });
     var drv = d ? { code:"STRM" + d, n:1 } : { code:"STRM100", n:Math.ceil(need / 100) };
@@ -8942,6 +8966,9 @@
           v3.push(LIGHT_PRODUCTS[lit.code].utfaerslaId);
           notes.push("Lýsing: " + LIGHT_PRODUCTS[lit.code].label + " fyrir " + (lit.mm / 1000).toFixed(1).replace(".", ",") + " m af borða" +
             (lit.mm > 3000 ? " — meira en ein 3 m rúlla, bættu við" : "") + " (áætlun, söluaðili staðfestir).");
+          if (b.closetLed === "hlid") notes.push("LED 6×6 mm í rauf í " + (b.ledSide === "vinstri" ? "vinstri" : "hægri") + " hlið (séð framan frá), frá botni að efstu hillu — FRÆSA RAUF.");
+          if (b.closetLed === "hilla") notes.push("LED 4×8 mm undir efstu hillu, við framkant.");
+          if (!driverPlaced) notes.push(LED_POWER_NOTE);
           if (!driverPlaced){
             v3.push(LIGHT_PRODUCTS[bom.driver.code].utfaerslaId);
             notes.push(LIGHT_PRODUCTS[bom.driver.code].label + (bom.driver.n > 1 ? " ×" + bom.driver.n + " (bættu við)" : "") + " fyrir alla LED-borðana í eldhúsinu.");
@@ -11283,6 +11310,7 @@
       // raðborun (continuous shelf-pin drilling) → /cnc: one LAUS_HILLA run over the span instead of per-shelf ones
       if (b.radborun) o.shelves.radborun = KP3D.radborunSpanMm(b, h, state.drawerSystem);
     }
+    if (b.closetLed && c.cls === "tall") o.led = b.closetLed === "hlid" ? { type:"hlid", strip:"6x6", side:b.ledSide === "vinstri" ? "vinstri" : "haegri", groove:true } : { type:"hilla", strip:"4x8" }; // → /fraesing + /cnc
     if (c.railRange){ // Fataslá → /cnc, same zone as o.shelves (never changes what's ordered, see o.shelves)
       var rl = KP3D.railLayoutOf(b, h, state.drawerSystem);
       if (rl.length) o.rails = rl;
@@ -11731,7 +11759,7 @@
           return { h:d.box, push:push, hinge:sp.type === "lift" ? "top" : sp.type === "pocket" ? "pocket" : both ? "both" : (b.swing === "haegri" ? "right" : "left") };
         });
       }
-      if (bom && bom.perUnit[b.id]) u.led = true;
+      if (bom && bom.perUnit[b.id]) u.led = b.closetLed === "hlid" ? "hlid-" + (b.ledSide === "vinstri" ? "vinstri" : "haegri") : b.closetLed === "hilla" ? "hilla" : true;
       return u;
     }
     var fS = KP3D.blockStartsMm(wall.floor, KP3D.cornerClearanceMm(surfs, wi, "floor")), wS = KP3D.blockStartsMm(wall.wall, 0);
@@ -11777,6 +11805,7 @@
       if (top && !top.none) notes.push("Borðplata – " + top.label);
       notes.push("Skúffukerfi – " + (drawerSys() === "merivo" ? "Blum Merivo (M-)" : "Blum Legra (L-)"));
       if (state.handle) notes.push("Höldur – " + ((HANDLES[state.handle] || {}).label || (hcfg && hcfg.label) || state.handle) + (state.handleColor ? ", " + state.handleColor : ""));
+      if (lightingOn()) notes.push(LED_POWER_NOTE);
       models.push({ project:PRO ? PRO.name : "Eldhússkipulag", roomName:(state.intake && state.intake.room) || "Eldhús", date:date, drawerSystem:drawerSys(),
         notes:notes, planGeo:wdPlanGeo(), sheets:sheets });
     });

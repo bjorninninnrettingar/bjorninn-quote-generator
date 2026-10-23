@@ -132,7 +132,11 @@
       if (d.push) s += tx(x0 + w - 1, dy + 2.4, "PUSH", 1.6, C.text, ' text-anchor="end"');
       dy += dh;
     });
-    if (u.led) s += ln(x0 + 0.6, yBot - 0.5, x0 + w - 0.6, yBot - 0.5, C.led, 0.6);
+    if (u.led === "hlid-vinstri" || u.led === "hlid-haegri"){ // fataskápur: 6×6 strip in a groove up one side (C4 — must not be forgotten)
+      var lxs = u.led === "hlid-vinstri" ? x0 + 1 : x0 + w - 1;
+      s += ln(lxs, yTop + 2, lxs, yBot - 2, C.led, 0.6) + tx(lxs + (u.led === "hlid-vinstri" ? 1 : -1), yTop + 5, "LED RAUF", 1.7, C.led, ' font-weight="700"' + (u.led === "hlid-vinstri" ? "" : ' text-anchor="end"'));
+    } else if (u.led === "hilla") s += ln(x0 + 0.6, yTop + h * 0.16, x0 + w - 0.6, yTop + h * 0.16, C.led, 0.6) + tx(x0 + w / 2, yTop + h * 0.16 - 0.8, "LED", 1.7, C.led, ' text-anchor="middle" font-weight="700"');
+    else if (u.led) s += ln(x0 + 0.6, yBot - 0.5, x0 + w - 0.6, yBot - 0.5, C.led, 0.6);
     // SK number outside the unit, where it never collides with a drawer/shelf label: floor units on a row just under
     // the floor line, wall units just under their own bottom edge
     if (u.sk) s += u.zone === "wall" ? tx(x0 + w / 2, yBot + 3, u.sk.toUpperCase(), 2.4, C.sk, ' text-anchor="middle" font-weight="700"')

@@ -4462,6 +4462,19 @@
             sinkFixedTop:!!c.sink && b.sinkTop === "fastur" && !!(b.interior && b.interior.mode === "skuffur"),
             ovenInner:c.oven && !c.lowOven ? (String(b.ovenCombo == null ? OVEN_DEFAULT[state.drawerSystem === "merivo" ? "merivo" : "legra"] : b.ovenCombo).split("+")[1] || null) : null,
             washerDrawerM:c.thvo && b.thvo !== "hurdir" ? 0.40 : 0, alwaysDims:state.activeCategory === "fataskapar" }, selected, pickables);
+        // 💡 LED in a tall closet (user, 2026-10-23, C1): a vertical strip in a groove at the front edge of one side
+        // (6×6 mm), or a strip under the top shelf (4×8 mm). Behind the doors — it shows in X-ray and with doors open.
+        if (b.closetLed && c.cls === "tall" && !opts.people){
+          var lf = ledFrame(THREE, scene, g, offset / 1000, b.widthMm / 1000), inW = b.widthMm / 1000 - 2 * CARCASS_T, bodyBot = plinthMmW / 1000 + CARCASS_T, bodyTop = hM - CARCASS_T;
+          if (b.closetLed === "hlid"){
+            var sx = (b.ledSide === "vinstri" ? -1 : 1) * (inW / 2 - 0.004), strip = ledStrip(THREE, scene, lf, sx, 0.006, (bodyBot + bodyTop) / 2, dM - 0.03);
+            strip.scale.set(1, (bodyTop - bodyBot - 0.04) / 0.005, 0.6); // the 0.005 m box stood up the whole side
+          } else {
+            var shelfY = bodyTop - Math.min(0.35, (bodyTop - bodyBot) * 0.16);
+            ledStrip(THREE, scene, lf, 0, inW - 0.02, shelfY - 0.004, dM - 0.04);
+            ledGlow(THREE, scene, lf, 0, inW, dM - 0.03, 0.02, bodyBot + 0.001, 0.35);
+          }
+        }
       });
       wall.wall.forEach(function(b, bi){
         var offset = wStarts[bi];
