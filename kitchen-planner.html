@@ -2184,7 +2184,8 @@
         : state.floorPattern === "fiskibein"
         ? '<defs><pattern id="plank" width="' + (hb * 2) + '" height="' + (hb * 2) + '" patternUnits="userSpaceOnUse"' + floorRotAttr + '><path d="M0 ' + hb + ' L' + hb + ' 0 L' + (2 * hb) + ' ' + hb + ' M0 ' + (2 * hb) + ' L' + hb + ' ' + hb + ' L' + (2 * hb) + ' ' + (2 * hb) + '" stroke="rgba(0,0,0,.12)" stroke-width="1" fill="none"/></pattern></defs>'
         : '<defs><pattern id="plank" width="60" height="18" patternUnits="userSpaceOnUse"' + floorRotAttr + '><path d="M0 17.5 H60 M30 0 V17.5" stroke="rgba(0,0,0,.10)" stroke-width="1" fill="none"/></pattern></defs>') +
-      '<polygon points="' + polyPts + '" fill="' + KP3D.floorPlanColor(state.floor) + '"/><polygon points="' + polyPts + '" fill="url(#plank)"/>';
+      (shapePhase === "size" ? bgSvg(view) : "") +
+      '<polygon points="' + polyPts + '" fill="' + KP3D.floorPlanColor(state.floor) + '"' + (bgPlan && shapePhase === "size" ? ' fill-opacity=".35"' : '') + '/><polygon points="' + polyPts + '" fill="url(#plank)"' + (bgPlan && shapePhase === "size" ? ' opacity=".35"' : '') + '/>';
     var items = "", handles = "";
     var dimBoxes = []; // placed wall-length labels (chain + position along it), to keep them apart
     // Dimension chain (2026-10-15): every wall's length measurement lands on ONE shared line per facing
@@ -2359,7 +2360,11 @@
         if (ww.lengthMm - along > 0) handles += wpill(along + (ww.lengthMm - along) / 2, ww.lengthMm - along, "end");
       }
     }
-    if (shapePhase === "size"){ // corners (skáveggir): drag one anywhere, click it to type its angle; a non-90° corner shows its angle
+    if (bgCal && shapePhase === "size"){ // calibration: crosshairs on the points clicked so far + a hint
+      bgCal.pts.forEach(function(px, k){ var m = bgMm(px.x, px.z), cx = X(m), cy = Y(m); handles += '<g style="pointer-events:none;"><circle cx="' + cx + '" cy="' + cy + '" r="7" fill="none" stroke="#e8590c" stroke-width="2"/><text x="' + (cx + 10) + '" y="' + (cy - 8) + '" font-size="12" font-weight="700" fill="#e8590c">' + (k ? "Endi" : "Byrjun") + '</text></g>'; });
+      handles += '<rect x="0" y="0" width="' + W + '" height="' + H + '" fill="transparent" data-bgcal="1" style="cursor:crosshair;"/>';
+    }
+    if (shapePhase === "size" && !bgCal){ // corners (skáveggir): drag one anywhere, click it to type its angle; a non-90° corner shows its angle
       for (var vk = 0; vk < n; vk++){
         var va = unitV(pts[(vk - 1 + n) % n], pts[vk]), vb = unitV(pts[vk], pts[(vk + 1) % n]);
         var ang = cornerInterior(va, vb), vx = X(pts[vk]), vy = Y(pts[vk]);
@@ -2395,6 +2400,7 @@
     host.querySelectorAll("[data-dim]").forEach(function(g){
       g.addEventListener("click", function(){ openDimPop(parseInt(g.dataset.dim, 10)); });
     });
+    host.querySelectorAll("[data-bgcal]").forEach(function(r0){ r0.addEventListener("click", function(evt){ evt.stopPropagation(); bgCalClick(evt); }); });
     host.querySelectorAll("[data-corner]").forEach(function(g){
       g.addEventListener("pointerdown", function(evt){ startCornerDrag(+g.dataset.corner, evt); });
     });
@@ -2929,6 +2935,84 @@
     box.querySelectorAll("[data-wr]").forEach(function(row){
       row.addEventListener("click", function(){ selectedEdge = parseInt(row.dataset.wr, 10); renderShapeCanvas(); });
     });
+    // 📄 Grunnmynd undir (user, 2026-10-23, G3)
+    var pi = document.createElement("div");
+    pi.className = "plan-import"; pi.style.cssText = "margin-top:12px;display:flex;flex-direction:column;gap:6px;font-size:12px;";
+    pi.innerHTML = bgPlan
+      ? '<div style="display:flex;gap:6px;flex-wrap:wrap;"><button type="button" class="btn btn-secondary btn-small" data-pi="cal">📐 Kvarða aftur</button><button type="button" class="btn btn-secondary btn-small" data-pi="off">✕ Taka grunnmynd</button></div>' +
+        '<label style="display:flex;gap:6px;align-items:center;color:var(--ink-soft);">Gegnsæi <input type="range" min="15" max="90" value="' + Math.round(bgPlan.opacity * 100) + '" data-pi="op"></label>' +
+        (bgPlan.mmPerPx ? '<span style="color:var(--ink-soft);">Kvarðað. Dragðu horn rýmisins að línunum á myndinni.</span>' : '<span style="color:#b45309;">Ekki kvarðað enn — smelltu á 📐 Kvarða.</span>')
+      : '<button type="button" class="btn btn-secondary btn-small" data-pi="pick" title="Mynd eða PDF af grunnmynd (t.d. frá arkitekt eða fasteignasölu) undir teikninguna">📄 Grunnmynd undir</button><input type="file" accept="image/*,application/pdf" data-pi="file" hidden>';
+    box.appendChild(pi);
+    pi.addEventListener("click", function(e){
+      var b = e.target.closest("[data-pi]"); if (!b) return;
+      if (b.dataset.pi === "pick") pi.querySelector('[data-pi="file"]').click();
+      if (b.dataset.pi === "off"){ bgPlan = null; bgCal = null; renderShapeStep(); }
+      if (b.dataset.pi === "cal"){ bgCal = { pts:[] }; toast("Smelltu á hornið þar sem veggur 1 byrjar á myndinni, svo á hornið þar sem hann endar."); renderShapeCanvas(); }
+    });
+    pi.addEventListener("input", function(e){ if (e.target.dataset.pi === "op" && bgPlan){ bgPlan.opacity = e.target.value / 100; renderShapeCanvas(); } });
+    pi.addEventListener("change", function(e){ if (e.target.dataset.pi === "file" && e.target.files[0]) loadPlanFile(e.target.files[0]); });
+  }
+  // ---------- 📄 Grunnmynd undir (G3): an image/PDF of a floor plan under the room drawing ----------
+  // bgPlan = {url, w, h (px), mmPerPx, rot (rad), ax, az (px of the anchor = wall 1's start), opacity} — in memory
+  // for this visit (a plan image can be MBs; it isn't part of the drawing that's saved/sent). Calibrate by clicking
+  // wall 1's start and end corners on the image and typing that wall's real length: scale, rotation and position
+  // follow, so the image's wall 1 lands exactly on the drawing's wall 1. Then drag the room's corners onto the plan.
+  var bgPlan = null, bgCal = null;
+  function loadPlanFile(file){
+    function use(url, w, h){
+      // before calibration the image is laid over the room, a bit bigger than it, centred — so both of wall 1's corners are findable
+      var P = roomPts(), xs = P.map(function(p){ return p.x; }), zs = P.map(function(p){ return p.z; });
+      var rw = Math.max.apply(null, xs) - Math.min.apply(null, xs), rh = Math.max.apply(null, zs) - Math.min.apply(null, zs);
+      var cx = (Math.max.apply(null, xs) + Math.min.apply(null, xs)) / 2, cz = (Math.max.apply(null, zs) + Math.min.apply(null, zs)) / 2, k0 = Math.max(rw / w, rh / h) * 1.15;
+      bgPlan = { url:url, w:w, h:h, mmPerPx:null, k0:k0, rot:0, ax:w / 2 - cx / k0, az:h / 2 - cz / k0, opacity:0.45 }; bgCal = { pts:[] }; renderShapeStep(); toast("Smelltu á hornið þar sem veggur 1 byrjar á myndinni, svo á hornið þar sem hann endar."); }
+    if (/pdf$/i.test(file.type) || /\.pdf$/i.test(file.name)){
+      loadPdfJs().then(function(pdfjs){ return file.arrayBuffer().then(function(buf){ return pdfjs.getDocument({ data:buf }).promise; }); })
+        .then(function(doc){ return doc.getPage(1); })
+        .then(function(page){ var vp = page.getViewport({ scale:2.5 }), cv = document.createElement("canvas"); cv.width = vp.width; cv.height = vp.height;
+          return page.render({ canvasContext:cv.getContext("2d"), viewport:vp }).promise.then(function(){ use(cv.toDataURL("image/jpeg", 0.85), cv.width, cv.height); }); })
+        .catch(function(err){ toast("Gat ekki lesið PDF: " + (err && err.message || err)); });
+      return;
+    }
+    var fr = new FileReader();
+    fr.onload = function(){ var im = new Image(); im.onload = function(){ use(fr.result, im.naturalWidth, im.naturalHeight); }; im.src = fr.result; };
+    fr.readAsDataURL(file);
+  }
+  var pdfJsP = null;
+  function loadPdfJs(){
+    if (pdfJsP) return pdfJsP;
+    pdfJsP = new Promise(function(res, rej){
+      var sc = document.createElement("script"); sc.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+      sc.onload = function(){ window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; res(window.pdfjsLib); };
+      sc.onerror = function(){ pdfJsP = null; rej(new Error("pdf.js hlóðst ekki")); };
+      document.head.appendChild(sc);
+    });
+    return pdfJsP;
+  }
+  // image px → room mm (and back) with the current calibration; uncalibrated = the image laid over the room, 1 px = 10 mm
+  function bgMm(px, pz){ var B = bgPlan, k = B.mmPerPx || B.k0 || 10, c = Math.cos(B.rot), sn = Math.sin(B.rot), dx = (px - B.ax) * k, dz = (pz - B.az) * k; return { x:dx * c - dz * sn, z:dx * sn + dz * c }; }
+  function bgPx(x, z){ var B = bgPlan, k = B.mmPerPx || B.k0 || 10, c = Math.cos(-B.rot), sn = Math.sin(-B.rot); return { x:(x * c - z * sn) / k + B.ax, z:(x * sn + z * c) / k + B.az }; }
+  function bgSvg(view){ // the <image> under the room, as an SVG transform from px to screen
+    if (!bgPlan) return "";
+    var B = bgPlan, k = B.mmPerPx || B.k0 || 10, deg = B.rot * 180 / Math.PI;
+    var t = "translate(" + view.ox + "," + view.oy + ") scale(" + view.scale + ") rotate(" + deg + ") scale(" + k + ") translate(" + (-B.ax) + "," + (-B.az) + ")";
+    // the room's own origin is wall 1's start; the drawing may be shifted by the chain's minimum, which view.ox/oy already include
+    return '<image href="' + B.url + '" x="0" y="0" width="' + B.w + '" height="' + B.h + '" transform="' + t + '" opacity="' + B.opacity + '" preserveAspectRatio="none" style="pointer-events:none;"/>';
+  }
+  function bgCalClick(evt){ // calibration clicks on the drawing
+    var host = document.getElementById("shapeCanvas"), r = host.getBoundingClientRect(), v = shapeView(host.clientWidth, host.clientHeight);
+    var mm = { x:(evt.clientX - r.left - v.ox) / v.scale, z:(evt.clientY - r.top - v.oy) / v.scale }, px = bgPx(mm.x, mm.z);
+    bgCal.pts.push(px);
+    if (bgCal.pts.length < 2){ renderShapeCanvas(); return; }
+    var A = bgCal.pts[0], Bp = bgCal.pts[1], dpx = Math.hypot(Bp.x - A.x, Bp.z - A.z);
+    var real = parseInt(window.prompt ? (prompt("Raunlengd veggjar 1 (mm):", state.walls[0].lengthMm) || "") : "", 10) || state.walls[0].lengthMm;
+    if (dpx < 5){ toast("Punktarnir eru of nálægt hvor öðrum — reyndu aftur."); bgCal = { pts:[] }; return; }
+    var a0 = edgeAxis(0), imgAng = Math.atan2(Bp.z - A.z, Bp.x - A.x), wallAng = Math.atan2(a0.z, a0.x);
+    bgPlan.mmPerPx = real / dpx; bgPlan.rot = wallAng - imgAng; bgPlan.ax = A.x; bgPlan.az = A.z;
+    bgCal = null;
+    if (real !== state.walls[0].lengthMm) setEdgeLength(0, real, "end", true);
+    renderShapeStep();
+    toast("Kvarðað. Dragðu nú horn rýmisins að línunum á grunnmyndinni.");
   }
   function syncWallInputs(){ // keep the panel in step with a wall being dragged on the drawing
     document.querySelectorAll("[data-wlen]").forEach(function(inp){ if (document.activeElement !== inp && state.walls[+inp.dataset.wlen]) inp.value = state.walls[+inp.dataset.wlen].lengthMm; });
