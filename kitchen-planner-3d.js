@@ -3718,6 +3718,10 @@
       st.studio = false;
     }
   }
+  // 🚶 walk mode — module level so it outlives scene rebuilds
+  var WALK = { on:false, x:0, z:0, yaw:0, pitch:0 };
+  function setWalkMode(on){ if (!THREE_STATE || !THREE_STATE.setWalk){ WALK.on = false; return false; } return THREE_STATE.setWalk(!!on); }
+  function isWalking(){ return WALK.on; }
   function setCameraLookAt(pos, target){
     if (!THREE_STATE) return false;
     THREE_STATE.camera.position.set(pos.x, pos.y, pos.z);
@@ -3734,10 +3738,12 @@
 
   function teardown3D(discardCamera){
     if (!THREE_STATE) return;
+    var wo = THREE_STATE.walkOrbit && THREE_STATE.walkOrbit(); // walking: remember the orbit view from before the walk, not the eye-level one
     savedCameraState = discardCamera ? null : {
-      position: THREE_STATE.controls.object.position.clone(),
-      target: THREE_STATE.controls.target.clone()
+      position: wo ? wo.pos.clone() : THREE_STATE.controls.object.position.clone(),
+      target: wo ? wo.target.clone() : THREE_STATE.controls.target.clone()
     };
+    if (THREE_STATE.walkCleanup) THREE_STATE.walkCleanup();
     cancelAnimationFrame(THREE_STATE.rafId);
     window.removeEventListener("resize", THREE_STATE.onResize);
     if (THREE_STATE.composer){ THREE_STATE.composer.dispose(); THREE_STATE.composer = null; } // the evening bloom's render targets
@@ -4681,6 +4687,122 @@
                     walls:surfaces, geoms:allGeoms, previewMesh:null, dragging:false, opts:opts, pickables:pickables, roomHM:WALL_H, wallHi:null, frontMat:frontMat };
     if (opts.selectedWallId) setSelectedWall3D(opts.selectedWallId);
 
+    // 🚶 Ganga um (user, 2026-10-23): first-person walk-through at eye height. Drag = look around, W/A/S/D or
+    // arrows (or the wheel) = walk. You can't walk through walls, milliveggir or cabinets (footprints + 25 cm),
+    // and it survives rebuilds (every edit rebuilds the scene) — WALK lives at module level.
+    var walkPrev = null, walkKeys = {}, walkLook = null, walkLast = 0, walkBlocks = null, walkV = new THREE.Vector3();
+    function walkBlocked(x, z){
+      var rb = interiorBounds(geoms, 4.2);
+      if (x < rb.minX + 0.25 || x > rb.maxX - 0.25 || z < rb.minZ + 0.25 || z > rb.maxZ - 0.25) return true;
+      if (geoms.closed){ // inside the outline
+        var inside = false;
+        geoms.forEach(function(g){ var ax = g.origin.x, az = g.origin.z, bx = ax + g.axis.x * g.lenM, bz = az + g.axis.z * g.lenM;
+          if ((az > z) !== (bz > z) && x < ax + (z - az) * (bx - ax) / (bz - az)) inside = !inside; });
+        if (!inside) return true;
+      }
+      for (var i = 0; i < allGeoms.length; i++){ // walls + island rows + milliveggir: keep 25 cm off every segment
+        var g = allGeoms[i], dx = x - g.origin.x, dz = z - g.origin.z, t = Math.max(0, Math.min(g.lenM, dx * g.axis.x + dz * g.axis.z));
+        if (Math.hypot(dx - g.axis.x * t, dz - g.axis.z * t) < 0.25) return true;
+      }
+      if (!walkBlocks){
+        walkBlocks = [];
+        pickables.forEach(function(m){ if (!m.userData.blockId) return; var b = new THREE.Box3().setFromObject(m); if (b.min.y < 0.5) walkBlocks.push(b); }); // only things standing on the floor
+      }
+      return walkBlocks.some(function(b){ return x > b.min.x - 0.25 && x < b.max.x + 0.25 && z > b.min.z - 0.25 && z < b.max.z + 0.25; });
+    }
+    function walkSpot(){ // start on the far side of the room from the cabinets, looking at all of them
+      var rb = interiorBounds(geoms, 4.2), rc = { x:(rb.minX + rb.maxX) / 2, z:(rb.minZ + rb.maxZ) / 2 };
+      walkBlocked(rc.x, rc.z); // fills walkBlocks
+      var cab = new THREE.Box3(); walkBlocks.forEach(function(bx){ cab.union(bx); });
+      var c = cab.isEmpty() ? rc : { x:(cab.min.x + cab.max.x) / 2, z:(cab.min.z + cab.max.z) / 2 };
+      var dx = rc.x - c.x, dz = rc.z - c.z, L = Math.hypot(dx, dz);
+      if (L < 0.2){ dx = camera.position.x - c.x; dz = camera.position.z - c.z; L = Math.hypot(dx, dz) || 1; }
+      dx /= L; dz /= L;
+      var best = null;
+      for (var t = 0.6; t < 12; t += 0.1){ var x = c.x + dx * t, z = c.z + dz * t; if (!walkBlocked(x, z)) best = { x:x, z:z }; else if (best) break; }
+      if (!best) for (var r = 0; r < 6 && !best; r += 0.2) for (var an = 0; an < 6.28; an += 0.4){ var x2 = rc.x + Math.cos(an) * r, z2 = rc.z + Math.sin(an) * r; if (!walkBlocked(x2, z2)){ best = { x:x2, z:z2 }; break; } }
+      best = best || rc;
+      best.yaw = Math.atan2(-(c.x - best.x), -(c.z - best.z));
+      return best;
+    }
+    function walkApply(){
+      camera.position.set(WALK.x, 1.6, WALK.z);
+      camera.rotation.set(WALK.pitch, WALK.yaw, 0, "YXZ");
+    }
+    function walkStep(ts){
+      var dt = Math.min(0.05, (ts - (walkLast || ts)) / 1000); walkLast = ts;
+      var f = (walkKeys.w || walkKeys.arrowup ? 1 : 0) - (walkKeys.s || walkKeys.arrowdown ? 1 : 0), sd = (walkKeys.d ? 1 : 0) - (walkKeys.a ? 1 : 0);
+      var turn = (walkKeys.arrowleft ? 1 : 0) - (walkKeys.arrowright ? 1 : 0);
+      if (turn) WALK.yaw += turn * 1.6 * dt;
+      if (f || sd){
+        var sp = (walkKeys.shift ? 2.4 : 1.3) * dt, fx = -Math.sin(WALK.yaw), fz = -Math.cos(WALK.yaw);
+        var nx = WALK.x + (fx * f + -fz * sd) * sp, nz = WALK.z + (fz * f + fx * sd) * sp;
+        if (!walkBlocked(nx, nz)){ WALK.x = nx; WALK.z = nz; }
+        else if (!walkBlocked(nx, WALK.z)) WALK.x = nx; // slide along whatever is in the way
+        else if (!walkBlocked(WALK.x, nz)) WALK.z = nz;
+      }
+      walkApply();
+    }
+    function walkNudge(m){ // wheel: a step forward/back
+      var nx = WALK.x - Math.sin(WALK.yaw) * m, nz = WALK.z - Math.cos(WALK.yaw) * m;
+      if (!walkBlocked(nx, nz)){ WALK.x = nx; WALK.z = nz; }
+    }
+    function walkDown(e){
+      if (!WALK.on || !wrap.contains(e.target) || e.target.closest("button,input,select,a,.kp-walk-hud")) return;
+      e.stopPropagation(); e.preventDefault(); // nothing gets picked or dragged while walking
+      walkLook = { x:e.clientX, y:e.clientY, yaw:WALK.yaw, pitch:WALK.pitch };
+    }
+    function walkMove(e){
+      if (!walkLook) return;
+      WALK.yaw = walkLook.yaw + (e.clientX - walkLook.x) * 0.0045; // drag the world: right = turn left (like Street View)
+      WALK.pitch = Math.max(-0.9, Math.min(0.7, walkLook.pitch + (e.clientY - walkLook.y) * 0.0035));
+    }
+    function walkUp(){ walkLook = null; }
+    function walkKey(e){
+      if (!WALK.on || /input|textarea|select/i.test((e.target && e.target.tagName) || "")) return;
+      var k = e.key.toLowerCase();
+      if (e.type === "keydown" && k === "escape"){ setWalk(false); if (opts.onWalkChange) opts.onWalkChange(false); return; }
+      if (!/^(w|a|s|d|shift|arrow(up|down|left|right))$/.test(k)) return;
+      walkKeys[k] = e.type === "keydown"; e.preventDefault();
+    }
+    function walkWheel(e){ if (!WALK.on || !wrap.contains(e.target)) return; e.preventDefault(); e.stopPropagation(); walkNudge(-Math.sign(e.deltaY) * 0.35); }
+    function walkHud(on){
+      var h = wrap.querySelector(".kp-walk-hud");
+      if (!on){ if (h) h.remove(); return; }
+      if (h) return;
+      h = document.createElement("div"); h.className = "kp-walk-hud";
+      h.style.cssText = "position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:6;display:flex;gap:8px;align-items:center;background:rgba(20,20,20,.72);color:#fff;font:500 12px/1.2 system-ui;padding:7px 10px;border-radius:999px;user-select:none";
+      h.innerHTML = '<span>Dragðu til að líta í kring · W A S D / örvar til að ganga · Shift = hraðar</span><button type="button" style="all:unset;cursor:pointer;background:#fff;color:#111;border-radius:999px;padding:4px 10px;font-weight:600">Hætta (Esc)</button>';
+      h.querySelector("button").addEventListener("click", function(){ setWalk(false); if (opts.onWalkChange) opts.onWalkChange(false); });
+      // touch: hold the lower half of the screen to walk forward
+      wrap.appendChild(h);
+    }
+    function setWalk(on){
+      if (!camera.isPerspectiveCamera || focusBounds) on = false;
+      if (on && !walkPrev){
+        walkPrev = { pos:camera.position.clone(), target:controls.target.clone(), fov:camera.fov };
+        if (!WALK.on || walkBlocked(WALK.x, WALK.z)){ var sp0 = walkSpot(); WALK.x = sp0.x; WALK.z = sp0.z; WALK.yaw = sp0.yaw; WALK.pitch = -0.08; }
+        WALK.on = true; controls.enabled = false; camera.fov = 62; camera.updateProjectionMatrix(); walkApply();
+      } else if (!on && WALK.on){
+        WALK.on = false; walkKeys = {}; walkLook = null; controls.enabled = true;
+        if (walkPrev){ camera.position.copy(walkPrev.pos); controls.target.copy(walkPrev.target); camera.fov = walkPrev.fov; camera.updateProjectionMatrix(); controls.update(); }
+        walkPrev = null;
+      }
+      walkHud(WALK.on);
+      return WALK.on;
+    }
+    window.addEventListener("pointerdown", walkDown, true); window.addEventListener("pointermove", walkMove); window.addEventListener("pointerup", walkUp);
+    window.addEventListener("keydown", walkKey); window.addEventListener("keyup", walkKey); wrap.addEventListener("wheel", walkWheel, { capture:true, passive:false });
+    THREE_STATE.setWalk = setWalk;
+    THREE_STATE.walkCleanup = function(){
+      window.removeEventListener("pointerdown", walkDown, true); window.removeEventListener("pointermove", walkMove); window.removeEventListener("pointerup", walkUp);
+      window.removeEventListener("keydown", walkKey); window.removeEventListener("keyup", walkKey); wrap.removeEventListener("wheel", walkWheel, { capture:true });
+      walkHud(false);
+    };
+    THREE_STATE.walkStep = walkStep;
+    THREE_STATE.walkOrbit = function(){ return walkPrev; };
+    if (WALK.on){ WALK.on = false; setWalk(true); } // a rebuild while walking: keep walking from the same spot
+
     function resize(){
       var w = wrap.clientWidth, h = wrap.clientHeight;
       if (!w || !h) return;
@@ -4921,7 +5043,7 @@
       THREE_STATE.rafId = requestAnimationFrame(loop);
       if (THREE_STATE.studio) return; // ✨ Studio mynd owns the renderer while it path-traces
       qualityTick(ts || performance.now(), renderer, resize);
-      controls.update();
+      if (WALK.on) walkStep(ts || performance.now()); else controls.update();
       settleLanded();
       if (THREE_STATE.dragStep) THREE_STATE.dragStep();
       fadeWalls();
@@ -6116,6 +6238,14 @@
     surfacesOf: surfacesOf,
     islandFrame: islandFrame,
     wallGeoms: wallGeoms,
+    setWalkMode: setWalkMode, isWalking: isWalking,
+    debugWalk: function(key, secs){ // test aid (the pane can be hidden, so rAF never ticks): hold a key for `secs`, return where you end up
+      if (!THREE_STATE || !THREE_STATE.walkStep) return null;
+      window.dispatchEvent(new KeyboardEvent("keydown", { key:key })); var t = 1000;
+      for (var i = 0; i < secs * 30; i++){ t += 33; THREE_STATE.walkStep(t); }
+      window.dispatchEvent(new KeyboardEvent("keyup", { key:key }));
+      return { x:+WALK.x.toFixed(2), z:+WALK.z.toFixed(2), yaw:+WALK.yaw.toFixed(2) };
+    },
     buildCabinetPreview: buildCabinetPreview, previewPeek: previewPeek, previewSpinOn: previewSpinOn, setPreviewSpin: setPreviewSpin,
     setCabinetPreview: setCabinetPreview,
     teardownCabinetPreview: teardownCabinetPreview,

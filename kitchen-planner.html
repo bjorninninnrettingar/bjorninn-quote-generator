@@ -1400,6 +1400,7 @@
           <div class="view-toggle" id="camToggle">
             <button type="button" id="resetCamBtn" title="Endurstilla sýn">🎯</button>
             <button type="button" id="snapBtn" title="Vista mynd af skipulaginu">📷</button>
+            <button type="button" id="walkBtn" title="Ganga um: sjáðu eldhúsið í augnhæð eins og þú standir í því">🚶 Ganga</button>
             <button type="button" id="studioBtn" hidden title="Studio mynd (tilraun): raunveruleg ljósmynd af þessari sýn, tekur 30–90 sek">✨ Studio</button>
           </div>
           <button type="button" class="warn-chip" id="warnChip" hidden></button>
@@ -6985,7 +6986,9 @@
       KP3D.buildScene(wrap, state, { darkBg:!!PRO, selectedId:selectedBlockId, selectedWallId:selectedWallId, onWallSelect:onWallSelect, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, onIslandDragEnd:onIslandDragEnd, onIslandDragMove:clampIslandDragMove, onDecorDragEnd:onDecorDragEnd, onDecorDragMove:onDecorDragMove, onObstacleFloorEnd:onObstacleFloorEnd, onObstacleResizeMove:onObstacleResizeMove, onObstacleResizeEnd:onObstacleResizeEnd, onShelfPosMove:onShelfPosMove, onShelfPosEnd:onShelfPosEnd, onShelfPosInfo:onShelfPosInfo, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList(), readyIds:PRO ? proReadyIds() : null,
         xray:inspect.on, // inspect mode: every cabinet built in parts (drawers/doors tap open, nothing drags)
         focusWallId:viewMode === "wall" ? wallViewId : null, freshCamera:viewMode === "wall",
-        annotations:viewMode === "wall" ? annoForWall : null, annoSelectedId:function(){ return anno.selId; } });
+        annotations:viewMode === "wall" ? annoForWall : null, annoSelectedId:function(){ return anno.selId; },
+        onWalkChange:syncWalkBtn });
+      syncWalkBtn();
       landedBlockId = null;
       applyInspect();
     }, 8000);
@@ -7603,6 +7606,7 @@
   }
 
   function setViewMode(mode){
+    if (mode !== "3d" && window.KP3D && KP3D.isWalking && KP3D.isWalking()) KP3D.setWalkMode(false); // walking is a 3D thing
     viewMode = mode;
     document.querySelectorAll("#viewToggle button").forEach(function(btn){
       btn.classList.toggle("active", btn.dataset.view === mode);
@@ -9656,6 +9660,15 @@
   var lastPdfUrl = null;
 
   // ✨ Studio mynd (2026-10-23): a path-traced, photographic still of exactly the 3D view on screen (KP3D.studioRender).
+  // 🚶 Ganga um: first-person walk at eye height (KP3D.setWalkMode) — 3D view only
+  function syncWalkBtn(){ var b = document.getElementById("walkBtn"); if (b) b.classList.toggle("active", !!(window.KP3D && KP3D.isWalking && KP3D.isWalking() && viewMode === "3d")); }
+  document.getElementById("walkBtn").addEventListener("click", function(){
+    if (viewMode !== "3d"){ toast("Ganga um virkar í 3D-sýninni."); return; }
+    if (inspect.on){ toast("Slökktu á X-Ray fyrst."); return; }
+    var on = KP3D.setWalkMode(!KP3D.isWalking());
+    syncWalkBtn();
+    if (on) toast("Dragðu til að líta í kring, W A S D eða örvar til að ganga. Esc til að hætta.");
+  });
   document.getElementById("studioBtn").addEventListener("click", function(){
     if (viewMode !== "3d"){ toast("Farðu í 3D og stilltu sýnina sem þú vilt fá mynd af."); return; }
     var ov = document.createElement("div"), pick = { view:"live", q:"fin" };

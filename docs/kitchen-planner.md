@@ -182,3 +182,10 @@ HomeByMe-style self-serve planner that ends in a lead: steps intake → material
 - Efni eru merkt eftir hlutverki þegar þau verða til (`userData.studio` = wall/floor/carcass/front/top/plinth/steel/appliance/glass) og `studioMaterial` smíðar raunsæ efni út frá því: veggir alltaf mattir í lit án áferðar, gólf/frontar með smá clearcoat, borðplata með meira gljáa.
 - Lýsing = hlutlaus forritaður himinn (HDRI prófuð, of hlý/dökk og lituðu borðplötuna).
 - "Í augnhæð" = myndavél inni í rýminu, 1,6 m hæð, 24 mm linsa, gengur frá innréttingunni að veggnum á móti (`studioCamera` notar `cabBox` + `roomBox` úr hreinu senunni).
+
+### 🚶 Ganga um (2026-10-23)
+- Hnappur "🚶 Ganga" í 3D (allir, ekki bara PRO). `KP3D.setWalkMode(on)` / `isWalking()`; ástandið (`WALK`) lifir á module-level svo endurbygging senunnar (hver breyting) heldur manni á sama stað.
+- Byrjar hinum megin í rýminu frá skápunum og horfir á þá (1,6 m, 62° fov). Draga = líta í kring, W A S D / örvar = ganga, Shift = hraðar, hjól = skref, Esc / "Hætta" = aftur í orbit-sýnina sem var.
+- Árekstrar: ekki út fyrir veggi (útlína ef lokað rými), 25 cm frá hverjum vegg/eyju/millivegg og frá gólfskápum (Box3 af pickables með blockId sem standa á gólfi); rennur meðfram því sem er fyrir.
+- Á meðan gengið er tekur window capture-listener pointerdown svo ekkert er valið/dregið. Fer úr gönguham við 2D/Veggur og ef X-Ray er á. ✨ Studio "Þessi sýn" tekur mynd af gönguaugninu.
+- `KP3D.debugWalk(key, secs)` = prófunartól (rAF tikkar ekki í földum glugga).
