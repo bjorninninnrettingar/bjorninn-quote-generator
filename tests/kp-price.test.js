@@ -1,0 +1,47 @@
+// api/kp-price.js — the PRO live quote: Airtable's Line Item price formula, reproduced.
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import handler, { unitPrice, validate, num } from "../api/kp-price.js";
+import { mockRes } from "./helpers.js";
+
+const A = "recAAAAAAAAAAAAAA", B = "recBBBBBBBBBBBBBB", C = "recCCCCCCCCCCCCCC";
+// Útfærslur fields by id: price, V3 price, % af plötu skrokkar, fm fronta, % borðplata, % hurð, metrar KL
+const variants = {
+  [A]: { fld36kgODkNOZNOeU: 8866.666666666666, fldpDs9vsXO1neZU6: [0.1], fldVq3i01NtRfM5sz: 0.2, fldBncYRtRGpEN5G3: [0.05], fldnSzFZvb5QHv4dr: [4] },
+  [B]: { fld36kgODkNOZNOeU: 12000, fldVq3i01NtRfM5sz: 0.3 },
+  [C]: { fld730X4XCEc23o1r: 5000 },
+};
+const mat = { carcass: 20000, front: 30000, top: 40000, door: 0, kl: 120 };
+
+test("unit price = (V1+V2+V3 + material × markup) / 1.24 × discounts × smáverk", () => {
+  // material = 20000×0.1 + 30000×(0.2+0.3) + 40000×0.05 + 120×4 = 2000+15000+2000+480 = 19480
+  const gross = 8866.666666666666 + 12000 + 5000 + 19480 * 2.05;
+  const got = unitPrice({ v1: [A], v2: [B], v3: [C], qty: 2, disc: 0.05, markup: 2.05 }, variants, mat, { hidden: 0.1, small: 1.1 });
+  assert.ok(Math.abs(got - gross / 1.24 * 0.95 * 0.9 * 1.1) < 1e-6);
+  assert.equal(unitPrice({ v1: [A], qty: 0 }, variants, mat, { hidden: 0, small: 1 }), 0); // Magn 0 → 0, like Airtable's IF({Magn}, …, 0)
+});
+
+test("matches a real T-32 line (Úthlið á grunnskáp: V1 8866.67, efniskostnaður×álagning 3231.31, no smáverk)", () => {
+  // Airtable: Einingarverð (lifandi) = 9756.433271555466 = (8866.666… + 3231.31…) / 1.24
+  const v = { [A]: { fld36kgODkNOZNOeU: 8866.666666666666, fldpDs9vsXO1neZU6: 1 } };
+  const got = unitPrice({ v1: [A], qty: 1, markup: 2.05 }, v, { carcass: 3231.3105900621117 / 2.05, front: 0, top: 0, door: 0, kl: 0 }, { hidden: 0, small: 1 });
+  assert.ok(Math.abs(got - 9756.433271555466) < 0.01);
+});
+
+test("num() sums lookup arrays and reads text formulas", () => {
+  assert.equal(num([1, 2, [3]]), 6);
+  assert.equal(num("400"), 400);
+  assert.equal(num(undefined), 0);
+});
+
+test("validates input and needs the office key", async () => {
+  assert.equal(validate({ recordId: A, lines: [{ key: "Sk1", v1: [A] }] }), null);
+  assert.equal(validate({ recordId: "x", lines: [] }), "Ógilt recordId");
+  assert.equal(validate({ recordId: A, lines: [{ key: "Sk1; DROP" }] }), "Ógilt 🔑");
+  assert.equal(validate({ recordId: A, lines: [{ key: "Sk1", v1: ["') OR TRUE()"] }] }), "Ógild tenging");
+  assert.equal(validate({ recordId: A, lines: [], materials: { front: "nope" } }), "Ógilt efni");
+  process.env.AIRTABLE_TOKEN = "t"; process.env.VERK_KEY = "secret";
+  const res = mockRes();
+  await handler({ method: "POST", body: { k: "wrong", recordId: A, lines: [] } }, res);
+  assert.equal(res.statusCode, 403);
+});

@@ -19,7 +19,7 @@
 //                                             (body.resolve = {Sk5:"drawing"|"airtable"} on the next Vista).
 // Behind VERK_KEY: the public proxy can't write Line Items at all.
 
-import { makeAirtable, listAll, validateLineItems, LINE_FIELDS, PRODUCT_FIELDS, idsKey, sentOf } from "./kp-submit.js";
+import { makeAirtable, listAll, validateLineItems, LINE_FIELDS, PRODUCT_FIELDS, PROJECT_FIELDS, idsKey, sentOf } from "./kp-submit.js";
 
 const PROJECTS = "tbl4LMXlQjp66RFKI";
 const VARIANTS = "tbl8HjvBwNJ41cTV0";              // Útfærslur 🎨 (what V1/V2/V3 link to)
@@ -31,9 +31,15 @@ const LINK_TO_PROJECT = "Tækifæri 📣 (projects)";
 const SMIDA = "Smíðagögn (JSON) 🔧";
 const REC_RE = /^rec[A-Za-z0-9]{14}$/;
 const KEY_RE = /^Sk\d{1,3}$/;
+// Materials + handles on the Tækifæri (2026-10-23): Airtable prices every line from these, but pro Vista never
+// wrote them — a front changed in the drawing kept the quote on the old front. Same idea as V1/V2/V3 below, one
+// rule: the drawing's value is written unless it is unchanged since the drawing last sent it AND Airtable has
+// been changed by hand since (then Airtable's pick stays). `projSent` in the planner JSON remembers what was sent.
+export const PROJECT_SYNC = PROJECT_FIELDS.filter((f) => f !== "Skilaboð til skipulags");
+const projVal = (v) => (Array.isArray(v) ? idsKey(v) : v == null ? "" : String(v));
 
 export function fieldDeps() {
-  return { [PROJECTS]: new Set([PLANNER_JSON, PROJECT_NAME]), [LINE_ITEMS]: new Set([...LINE_FIELDS, SMIDA, "🔑", LINK_TO_PROJECT]) };
+  return { [PROJECTS]: new Set([PLANNER_JSON, PROJECT_NAME, ...PROJECT_SYNC]), [LINE_ITEMS]: new Set([...LINE_FIELDS, SMIDA, "🔑", LINK_TO_PROJECT]) };
 }
 
 export function validate(body) {
@@ -49,6 +55,14 @@ export function validate(body) {
     const bad = validateLineItems(b.lineItems);
     if (bad) return bad;
     if (b.lineItems.some((li) => !KEY_RE.test(String(li["🔑"])))) return "Ógilt 🔑 á línu";
+  }
+  if (b.project != null) {
+    if (typeof b.project !== "object") return "Ógilt efnisval";
+    for (const [f, v] of Object.entries(b.project)) {
+      if (!PROJECT_SYNC.includes(f)) return "Ógilt efnisval: " + f;
+      if (f === "Magn Halda 1" ? !(Number.isInteger(v) && v >= 0 && v <= 9999) : f === "Litur á höldum 🎨" ? !(typeof v === "string" && v.length <= 40) :
+        !(Array.isArray(v) && v.length <= 8 && v.every((x) => REC_RE.test(x)))) return "Ógilt efnisval: " + f;
+    }
   }
   if (b.resolve != null) {
     if (typeof b.resolve !== "object") return "Ógilt resolve";
@@ -111,10 +125,22 @@ export async function save(at, body) {
   for (let i = 0; i < updates.length; i += 10) await at("PATCH", LINE_ITEMS, { records: updates.slice(i, i + 10) });
   for (let i = 0; i < creates.length; i += 10) await at("POST", LINE_ITEMS, { typecast: true, records: creates.slice(i, i + 10) });
 
+  // Materials/handles — see PROJECT_SYNC. Only fields the drawing actually has a value for are touched.
+  const oldProj = old.projSent && typeof old.projSent === "object" ? old.projSent : {};
+  const projFields = {}, projSent = Object.assign({}, oldProj), projectUpdated = [];
+  for (const [f, v] of Object.entries(body.project || {})) {
+    const D = projVal(v), A = projVal((opp.fields || {})[f]), B = oldProj[f];
+    projSent[f] = D;
+    if (A === D) continue;
+    if (B !== undefined && D === B && A !== B) { projSent[f] = B; continue; } // hand-changed in Airtable, drawing untouched
+    projFields[f] = v;
+    projectUpdated.push(f);
+  }
+
   // The state goes last, so liSent only ever records what really reached the Line Items.
   const json = JSON.stringify(Object.assign({}, body.state, old.submissionId ? { submissionId: old.submissionId } : {},
-    { liSent, proSavedAt: new Date().toISOString() }));
-  await at("PATCH", PROJECTS, { records: [{ id: opp.id, fields: { [PLANNER_JSON]: json } }] });
+    { liSent, projSent, proSavedAt: new Date().toISOString() }));
+  await at("PATCH", PROJECTS, { typecast: true, records: [{ id: opp.id, fields: Object.assign({ [PLANNER_JSON]: json }, projFields) }] });
 
   // Product names for the conflict question (the ids alone mean nothing to Rakel).
   const ids = [...new Set(conflicts.flatMap((c) => [...c.drawing, ...c.airtable]))];
@@ -127,7 +153,7 @@ export async function save(at, body) {
   const named = (a) => a.map((id) => names[id] || id);
   const removed = [...byKey.keys()].filter((k) => KEY_RE.test(k) && !(k in body.smida)).sort((a, z) => a.slice(2) - z.slice(2));
   return { recordId: opp.id, project: (opp.fields || {})[PROJECT_NAME] || "", created: creates.length, updated: updates.length, unchanged, missing, removed,
-    conflicts: conflicts.map((c) => Object.assign(c, { drawingNames: named(c.drawing), airtableNames: named(c.airtable) })), liSent };
+    conflicts: conflicts.map((c) => Object.assign(c, { drawingNames: named(c.drawing), airtableNames: named(c.airtable) })), liSent, projectUpdated };
 }
 
 export default async function handler(req, res) {
