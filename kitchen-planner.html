@@ -3481,14 +3481,14 @@
     var svg = '<svg class="elev-svg" viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg" style="font-family:\'Kumbh Sans\',Arial,sans-serif;">' +
       '<rect x="' + (x0 - 30) + '" y="' + floorY + '" width="' + (L * sc + 60) + '" height="10" fill="' + KP3D.floorPlanColor(state.floor) + '"/>' +
       '<rect x="' + x0 + '" y="' + top + '" width="' + L * sc + '" height="' + roomH * sc + '" fill="' + wallHex + '" stroke="#b9b4a8" stroke-width="1.5"/>' +
-      '<text x="' + (x0 + L * sc / 2) + '" y="' + (top - 14) + '" font-size="15" font-weight="700" text-anchor="middle" fill="#191919">Veggur ' + (wi + 1) + ' · ' + L + ' mm</text>';
+      '<text x="' + (x0 + L * sc / 2) + '" y="' + (top - 14) + '" font-size="15" font-weight="700" text-anchor="middle" fill="#191919">' + __("Veggur {n}", { n:wi + 1 }) + ' · ' + L + ' mm</text>';
     // the neighbouring walls at the corners
     var prev = state.walls[(wi - 1 + n) % n], next = state.walls[(wi + 1) % n];
     // the neighbouring walls, level and readable, in the wall's top corners (2026-10-11 — were tiny and turned on end)
-    if (state.closed || wi > 0) svg += '<text x="' + (x0 + 10) + '" y="' + (top + 22) + '" font-size="14" font-weight="600" fill="#8a8f9a">← Veggur ' + (state.walls.indexOf(prev) + 1) + (prev.open ? ' (opinn)' : '') + '</text>';
-    if (state.closed || wi < n - 1) svg += '<text x="' + (x0 + L * sc - 10) + '" y="' + (top + 22) + '" font-size="14" font-weight="600" text-anchor="end" fill="#8a8f9a">Veggur ' + (state.walls.indexOf(next) + 1) + (next.open ? ' (opinn)' : '') + ' →</text>';
+    if (state.closed || wi > 0) svg += '<text x="' + (x0 + 10) + '" y="' + (top + 22) + '" font-size="14" font-weight="600" fill="#8a8f9a">← ' + __("Veggur {n}", { n:state.walls.indexOf(prev) + 1 }) + (prev.open ? ' ' + __("(opinn)") : '') + '</text>';
+    if (state.closed || wi < n - 1) svg += '<text x="' + (x0 + L * sc - 10) + '" y="' + (top + 22) + '" font-size="14" font-weight="600" text-anchor="end" fill="#8a8f9a">' + __("Veggur {n}", { n:state.walls.indexOf(next) + 1 }) + (next.open ? ' ' + __("(opinn)") : '') + ' →</text>';
     var items = elItems(wall.id), pills = "";
-    if (!items.length) svg += '<text x="' + (x0 + L * sc / 2) + '" y="' + (top + roomH * sc / 2) + '" font-size="15" text-anchor="middle" fill="#b3b0a8">Engir gluggar eða hurðir á þessum vegg</text>';
+    if (!items.length) svg += '<text x="' + (x0 + L * sc / 2) + '" y="' + (top + roomH * sc / 2) + '" font-size="15" text-anchor="middle" fill="#b3b0a8">' + __("Engir gluggar eða hurðir á þessum vegg") + '</text>';
     items.forEach(function(it){
       var o = it.o, x = X(o.offsetMm), w = o.widthMm * sc, y = Y(it.hi), h = (it.hi - it.lo) * sc, sel = selectedOpeningId === it.id;
       var stroke = sel ? "#0058a3" : null, g = '<g data-elid="' + it.id + '">';
@@ -3505,10 +3505,10 @@
         g += '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + Math.max(2, h) + '" fill="' + fill + '" stroke="' + (stroke || "#6f6a5f") + '" stroke-width="' + (sel ? 3 : 1.4) + '"/>';
         if (def.look === "radiator") for (var k = 1; k * 50 * sc < w; k++) g += '<line x1="' + (x + k * 50 * sc) + '" y1="' + (y + 3) + '" x2="' + (x + k * 50 * sc) + '" y2="' + (y + h - 3) + '" stroke="#c9c9c4" stroke-width="1"/>';
         if (def.look === "wall") g += '<path d="M' + x + ' ' + y + ' l' + w + ' ' + h + '" stroke="#a9a397" stroke-width="1"/>';
-        g += '<title>' + def.label + '</title>';
-        var lw = def.label.length * 6.2;
-        if (w > lw + 8 && h > 16) g += '<text x="' + (x + w / 2) + '" y="' + (y + h / 2 + 4) + '" font-size="11" text-anchor="middle" fill="#3b3830" style="pointer-events:none;">' + def.label + '</text>';
-        else if (h > lw + 8 && w > 14) g += '<text x="' + (x + w / 2 + 4) + '" y="' + (y + h / 2) + '" font-size="11" text-anchor="middle" fill="#3b3830" transform="rotate(-90 ' + (x + w / 2 + 4) + ' ' + (y + h / 2) + ')" style="pointer-events:none;">' + def.label + '</text>';
+        g += '<title>' + __(def.label) + '</title>';
+        var lw = __(def.label).length * 6.2;
+        if (w > lw + 8 && h > 16) g += '<text x="' + (x + w / 2) + '" y="' + (y + h / 2 + 4) + '" font-size="11" text-anchor="middle" fill="#3b3830" style="pointer-events:none;">' + __(def.label) + '</text>';
+        else if (h > lw + 8 && w > 14) g += '<text x="' + (x + w / 2 + 4) + '" y="' + (y + h / 2) + '" font-size="11" text-anchor="middle" fill="#3b3830" transform="rotate(-90 ' + (x + w / 2 + 4) + ' ' + (y + h / 2) + ')" style="pointer-events:none;">' + __(def.label) + '</text>';
       }
       svg += g + '</g>';
       if (!sel) return;
@@ -3580,7 +3580,7 @@
         var rq = KP3D.obstacleRect(o), a0 = rq.a0, a1 = rq.a1, n0 = rq.n0, n1 = rq.n1;
         var q = [[a0, n0], [a1, n0], [a1, n1], [a0, n1]].map(function(p){ return ((a.x + ax * p[0] + nx * p[1]) * isc + ix) + "," + ((a.z + az * p[0] + nz * p[1]) * isc + iy); }).join(" ");
         var fill = def.look === "radiator" ? "#ffffff" : def.look === "panel" ? "#d2d4d7" : def.look === "sill" ? "#e6e2da" : def.look === "pipe" ? "#c8ccd2" : "#b9b4a8";
-        obs += '<polygon points="' + q + '" fill="' + fill + '" fill-opacity="' + (def.ceiling ? 0.4 : 1) + '" stroke="#6f6a5f" stroke-width="1"' + (def.ceiling ? ' stroke-dasharray="3,2"' : '') + ' style="pointer-events:none;"><title>' + def.label + '</title></polygon>';
+        obs += '<polygon points="' + q + '" fill="' + fill + '" fill-opacity="' + (def.ceiling ? 0.4 : 1) + '" stroke="#6f6a5f" stroke-width="1"' + (def.ceiling ? ' stroke-dasharray="3,2"' : '') + ' style="pointer-events:none;"><title>' + __(def.label) + '</title></polygon>';
       });
       if (!w2.open){ // the wall's number, like on the size page
         // outside the wall, so it never covers what stands against it
@@ -3675,7 +3675,7 @@
     var host = document.getElementById("shapeCanvas"), pop = document.getElementById("dimPop"), wall = state.walls.find(function(w){ return w.id === o.wallId; });
     var it = elItems(o.wallId).find(function(x){ return x.id === id; });
     var val = key === "endGap" ? wall.lengthMm - o.offsetMm - o.widthMm : key === "elev" ? it.lo : key === "heightMm" ? it.hi - it.lo : o[key];
-    var name = { offsetMm:"Bil frá vinstra horni", endGap:"Bil að hægra horni", widthMm:ob && ob.kind === "milliveggur" ? "Þykkt" : "Breidd", heightMm:"Hæð", elev:"Frá gólfi" }[key];
+    var name = __({ offsetMm:"Bil frá vinstra horni", endGap:"Bil að hægra horni", widthMm:ob && ob.kind === "milliveggur" ? "Þykkt" : "Breidd", heightMm:"Hæð", elev:"Frá gólfi" }[key]);
     pop.innerHTML = '<div class="dp-row"><span style="font-size:13px;white-space:nowrap;">' + name + '</span><input type="number" id="opInput" value="' + val + '" step="10"><span class="u" style="font-size:12px;">mm</span><button type="button" class="go" id="opGo">OK</button></div>';
     pop.hidden = false;
     var pw = pop.offsetWidth, ph = pop.offsetHeight;
@@ -3686,7 +3686,7 @@
       var v = Math.round(parseFloat(inp.value)); if (isNaN(v)) return;
       var roomH = state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM, maxGap = wall.lengthMm - o.widthMm;
       if (key === "offsetMm" || key === "endGap"){
-        if (v < 0 || v > maxGap){ toast("Bilið þarf að vera á milli 0 og " + maxGap + " mm."); return; }
+        if (v < 0 || v > maxGap){ toast(__("Bilið þarf að vera á milli 0 og {max} mm.", { max:maxGap })); return; }
         var nv = key === "offsetMm" ? v : maxGap - v;
         if (f && !openingClear(wall.id, nv, o.widthMm, o.id)){ toast(OVERLAP_MSG); return; }
         o.offsetMm = nv;
@@ -3951,7 +3951,7 @@
     var b = newBlock(type);
     var pl = appendPlacement(wall, c.zone, b.widthMm, probeSpan(c.zone, b));
     if (!pl.fits){
-      toast("Ekki nóg pláss á " + wall.label.toLowerCase() + " fyrir " + c.label.toLowerCase() + ".");
+      toast(__("Ekki nóg pláss á {wall} fyrir {item}.", { wall:__(wall.label).toLowerCase(), item:__(c.label).toLowerCase() }));
       return;
     }
     insertBlockAt(wall, c.zone, b, pl.offsetMm);
@@ -3962,7 +3962,7 @@
   }
 
   // A locked cabinet (🔒) can't be moved, resized, swapped, retyped or deleted until it is unlocked.
-  function lockedToast(){ toast("Skápurinn er læstur 🔒 — opnaðu lásinn til að breyta honum."); }
+  function lockedToast(){ toast(__("Skápurinn er læstur 🔒 — opnaðu lásinn til að breyta honum.")); }
   function toggleLock(blockId){
     var f = findBlock(blockId);
     if (!f) return;
@@ -3974,7 +3974,7 @@
         var list = f.wall[f.zone], i = list.indexOf(f.block), prev = list[i - 1], next = list[i + 1];
         var host = prev && !(f.block.gapMm || 0) && !CATALOG[prev.type].panel ? { id:prev.id, dir:1 }
                  : next && !(next.gapMm || 0) && !CATALOG[next.type].panel ? { id:next.id, dir:-1 } : null;
-        if (host){ f.block.lockTo = host; toast("Úthliðin er læst við skápinn — hún fylgir honum."); }
+        if (host){ f.block.lockTo = host; toast(__("Úthliðin er læst við skápinn — hún fylgir honum.")); }
       }
     }
     save();
@@ -3997,7 +3997,7 @@
       var target = findBlock(p.lockTo.id);
       if (target && target.zone === zone && addEndPanel(target.wall, target.zone, target.block, dir, panel)){ moved = true; return; }
       var back = JSON.parse(snap); state.walls = back.walls; state.islands = back.islands; stop = true;
-      toast("Læsta úthliðin komst ekki með skápnum — ekkert pláss. Hún er á sama stað.");
+      toast(__("Læsta úthliðin komst ekki með skápnum — ekkert pláss. Hún er á sama stað."));
     }); }); });
     return moved;
   }
@@ -4054,7 +4054,7 @@
       var ok = panels.every(function(p){ var h = findBlock(hostId); return h && addEndPanel(h.wall, h.zone, h.block, p.lockTo.dir, p); });
       if (!ok){
         var back = JSON.parse(snap); state.walls = back.walls; state.islands = back.islands;
-        toast("Úthliðin kemst ekki með skápnum þangað — ekkert pláss.");
+        toast(__("Úthliðin kemst ekki með skápnum þangað — ekkert pláss."));
       }
     } finally { boundBusy = false; }
     save(); refreshAfterEdit();
@@ -4137,16 +4137,16 @@
     var b = f.block, c = CATALOG[b.type], r = dimRange(c, key), v = Math.round(parseFloat(String(raw).replace(",", ".")));
     if (b.locked){ lockedToast(); return false; }
     if (isNaN(v) || v < r[0] || v > r[1]){
-      toast(DIM_NAMES[key] + " þarf að vera á milli " + r[0] + " og " + r[1] + " mm.");
+      toast(__("{what} þarf að vera á milli {a} og {b} mm.", { what:__(DIM_NAMES[key]), a:r[0], b:r[1] }));
       return false;
     }
     if (key === "widthMm"){
       if (v !== b.widthMm && !growBlock(f.wall, f.zone, b, v)){
         var room = growRoom(f.wall, f.zone, b), fitW = Math.min(c.maxW, Math.floor((room.hi - room.lo) / 10) * 10);
-        if (fitW >= c.minW && fitW > b.widthMm) offerFit(c.label + " " + v + " mm passar ekki á " + wallDat(f.wall) + ".", fitW, function(){
+        if (fitW >= c.minW && fitW > b.widthMm) offerFit(__("{item} {v} mm passar ekki á {wall}.", { item:__(c.label), v:v, wall:KPI18N.lang === "en" ? __(f.wall.label).toLowerCase() : wallDat(f.wall) }), fitW, function(){
           if (growBlock(f.wall, f.zone, b, fitW)){ save(); refreshAfterEdit(); }
         });
-        else toast("Ekki nóg pláss á " + f.wall.label.toLowerCase() + " fyrir þessa breidd.");
+        else toast(__("Ekki nóg pláss á {wall} fyrir þessa breidd.", { wall:__(f.wall.label).toLowerCase() }));
         return false;
       }
     } else {
@@ -4155,7 +4155,7 @@
       if (f.zone === "wall" && key === "heightMm") clampElev(b);
       if (key === "heightMm" && crossOverlap(f.wall, f.zone, b)){
         if (prevVal === undefined) delete b[key]; else b[key] = prevVal;
-        toast("Þá myndi skápurinn rekast á " + (f.zone === "floor" ? "efri skáp eða hillu" : "hávan skáp") + " á sama vegg.");
+        toast(__("Þá myndi skápurinn rekast á {what} á sama vegg.", { what:f.zone === "floor" ? __("efri skáp eða hillu") : __("hávan skáp") }));
         return false;
       }
     }
@@ -4189,7 +4189,7 @@
   function applyCarcassHeightMm(blockId, zone, wall, c, raw){ // -> true when applied (no save / re-render, same as applyBlockDim)
     var v = Math.round(parseFloat(String(raw).replace(",", ".")) || 0), r = carcassHeightRange(c, zone, wall);
     if (isNaN(v) || v < r[0] || v > r[1]){
-      toast("Hæð þarf að vera á milli " + r[0] + " og " + r[1] + " mm.");
+      toast(__("Hæð þarf að vera á milli {a} og {b} mm.", { a:r[0], b:r[1] }));
       return false;
     }
     return applyBlockDim(blockId, "heightMm", v + plinthMmOf(c, zone, wall));
@@ -4206,7 +4206,7 @@
   function setWallPlinthMm(wall, raw){
     var v = Math.round(parseFloat(String(raw).replace(",", ".")) || 0);
     if (isNaN(v) || v < PLINTH_RANGE[0] || v > PLINTH_RANGE[1]){
-      toast("Sökkulhæð þarf að vera á milli " + PLINTH_RANGE[0] + " og " + PLINTH_RANGE[1] + " mm.");
+      toast(__("Sökkulhæð þarf að vera á milli {a} og {b} mm.", { a:PLINTH_RANGE[0], b:PLINTH_RANGE[1] }));
       return false;
     }
     plinthSourceOf(wall).plinthMm = v;
@@ -4217,7 +4217,7 @@
   function setAllPlinthMm(raw){
     var v = Math.round(parseFloat(String(raw).replace(",", ".")) || 0);
     if (isNaN(v) || v < PLINTH_RANGE[0] || v > PLINTH_RANGE[1]){
-      toast("Sökkulhæð þarf að vera á milli " + PLINTH_RANGE[0] + " og " + PLINTH_RANGE[1] + " mm.");
+      toast(__("Sökkulhæð þarf að vera á milli {a} og {b} mm.", { a:PLINTH_RANGE[0], b:PLINTH_RANGE[1] }));
       return false;
     }
     state.walls.forEach(function(w){ w.plinthMm = v; });
@@ -4380,14 +4380,14 @@
   function checkEndPanelsThen(go){
     var miss = missingEndPanels(), sig = JSON.stringify(state.walls.map(function(w){ return [w.floor, w.wall]; })) + JSON.stringify(state.islands);
     if (!miss.length || panelsAskedFor === sig){ go(); return; }
-    askChoice('<b>Það vantar úthliðar á ' + miss.length + ' ' + plural(miss.length, "stað", "stöðum") + '.</b> Sýnilegar hliðar á skápum fá 19 mm úthlið í framhliðaefninu. Viltu að við bætum þeim við?',
-      "Já, bæta við", "Nei, halda áfram",
+    askChoice(__("<b>Það vantar úthliðar á {n} {places}.</b> Sýnilegar hliðar á skápum fá 19 mm úthlið í framhliðaefninu. Viltu að við bætum þeim við?", { n:miss.length, places:plural(miss.length, "stað", "stöðum") }),
+      __("Já, bæta við"), __("Nei, halda áfram"),
       function(){
         var added = 0, failed = 0;
         missingEndPanels().forEach(function(m){ if (addEndPanel(m.wall, m.zone, m.b, m.dir)) added++; else failed++; });
         save(); refreshAfterEdit();
         panelsAskedFor = JSON.stringify(state.walls.map(function(w){ return [w.floor, w.wall]; })) + JSON.stringify(state.islands);
-        toast("Bætti við " + added + " " + plural(added, "úthlið", "úthliðum") + (failed ? " — " + failed + " komust ekki fyrir, færðu skápana aðeins til" : "") + ". Skoðaðu og ýttu aftur á Áfram.");
+        toast(__("Bætti við {n} {panels}", { n:added, panels:plural(added, "úthlið", "úthliðum") }) + (failed ? __(" — {n} komust ekki fyrir, færðu skápana aðeins til", { n:failed }) : "") + __(". Skoðaðu og ýttu aftur á Áfram."));
       },
       function(){ panelsAskedFor = sig; go(); });
   }
@@ -4442,13 +4442,13 @@
     list[idx] = nb;
     if (w !== nb.widthMm && !growBlock(wall, zone, nb, w)){
       list[idx] = old;
-      toast("Ekki nóg pláss á " + wall.label.toLowerCase() + " fyrir " + c.label.toLowerCase() + ".");
+      toast(__("Ekki nóg pláss á {wall} fyrir {item}.", { wall:__(wall.label).toLowerCase(), item:__(c.label).toLowerCase() }));
       return;
     }
     if (c.panel) matchPanelToNeighbour(wall, zone, nb);
     if (crossOverlap(wall, zone, nb)){
       list[idx] = old;
-      toast("Ekki hægt — " + c.label.toLowerCase() + " myndi rekast á " + (zone === "floor" ? "efri skáp eða hillu" : "hávan skáp") + " á sama vegg.");
+      toast(__("Ekki hægt — {item} myndi rekast á {what} á sama vegg.", { item:__(c.label).toLowerCase(), what:zone === "floor" ? __("efri skáp eða hillu") : __("hávan skáp") }));
       return;
     }
     save();
@@ -4528,20 +4528,20 @@
   function ensureCombo(codes, inner, cb){
     if (codes.indexOf(KP3D.FIXED_FRONT_CODE) >= 0){ cb(true); return; } // no product to look up or create
     if (drawerComboRec(codes, inner)){ cb(true); return; }
-    if (inner){ toast("Þessi samsetning með innskúffu er ekki til."); cb(false); return; }
+    if (inner){ toast(__("Þessi samsetning með innskúffu er ekki til.")); cb(false); return; }
     var sys = drawerSys();
-    toast("Býr til nýja samsetningu…");
+    toast(__("Býr til nýja samsetningu…"));
     fetch("/api/drawer-combo", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ sys:sys, codes:codes }) })
       .then(function(r){ return r.json().then(function(d){ return { ok:r.ok, d:d }; }); })
       .then(function(res){
-        if (!res.ok){ toast("Ekki tókst að búa til samsetningu" + (res.d && res.d.error ? ": " + res.d.error : "") + "."); cb(false); return; }
+        if (!res.ok){ toast(__("Ekki tókst að búa til samsetningu") + (res.d && res.d.error ? ": " + res.d.error : "") + "."); cb(false); return; }
         var key = KP3D.drawerComboKey(codes, inner);
         window.KP_LINEMAP = window.KP_LINEMAP || { v2Drawers:{} };
         window.KP_LINEMAP.v2Drawers[sys] = window.KP_LINEMAP.v2Drawers[sys] || {};
         window.KP_LINEMAP.v2Drawers[sys][key] = { id:res.d.id, name:res.d.name, sku:res.d.sku };
         cb(true);
       })
-      .catch(function(){ toast("Ekki tókst að búa til samsetningu — reyndu aftur."); cb(false); });
+      .catch(function(){ toast(__("Ekki tókst að búa til samsetningu — reyndu aftur.")); cb(false); });
   }
   // ---- appliance / pantry variants (2026-09-30): picked from the real Útfærslur list, never free ----
   function ovenKeyOf(b){ return b.ovenCombo == null ? KP3D.OVEN_DEFAULT[drawerSys()] : b.ovenCombo; }
@@ -4555,15 +4555,15 @@
   // the popular sets in one click (the BUR Útfærslur — only those get a V2; anything else goes in the note)
   function burSetupHTML(b){
     var LM = window.KP_LINEMAP, sys = drawerSys(), combos = Object.keys((LM && LM.bur && LM.bur[sys]) || {}), cur = burKeyOf(b);
-    var codes = KP3D.burCodesOf(b, sys), shelves = b.burShelves != null ? b.burShelves : 2, names = CODE_LABEL;
-    return '<div class="edit-field"><label>Vinsælar lausnir — einn smellur</label><div class="bur-presets">' + combos.map(function(k){
-        return '<button type="button" class="hw-btn' + (k === cur && shelves === 2 ? ' active' : '') + '" data-bur-preset="' + k + '">' + comboLabel(k) + ' + 2 hillur</button>';
+    var codes = KP3D.burCodesOf(b, sys), shelves = b.burShelves != null ? b.burShelves : 2, names = {}; Object.keys(CODE_LABEL).forEach(function(k){ names[k] = __(CODE_LABEL[k]); });
+    return '<div class="edit-field"><label>' + __("Vinsælar lausnir — einn smellur") + '</label><div class="bur-presets">' + combos.map(function(k){
+        return '<button type="button" class="hw-btn' + (k === cur && shelves === 2 ? ' active' : '') + '" data-bur-preset="' + k + '">' + comboLabel(k) + ' + ' + __("2 hillur") + '</button>';
       }).join("") + '</div></div>' +
-      '<div class="edit-field"><label>Innskúffur (neðan frá)</label>' +
-      (codes.length ? '<div class="bur-list">' + codes.map(function(cd, i){ return '<span class="bur-chip">' + dwIcon(cd) + ' ' + names[cd] + '<button type="button" data-bur-del="' + i + '" title="Fjarlægja">✕</button></span>'; }).join("") + '</div>' : '<p class="ov-mat" style="margin:0 0 6px;">Engar innskúffur enn.</p>') +
+      '<div class="edit-field"><label>' + __("Innskúffur (neðan frá)") + '</label>' +
+      (codes.length ? '<div class="bur-list">' + codes.map(function(cd, i){ return '<span class="bur-chip">' + dwIcon(cd) + ' ' + names[cd] + '<button type="button" data-bur-del="' + i + '" title="' + __("Fjarlægja") + '">✕</button></span>'; }).join("") + '</div>' : '<p class="ov-mat" style="margin:0 0 6px;">' + __("Engar innskúffur enn.") + '</p>') +
       '<div class="hw-toggle" style="flex-wrap:wrap;">' + KP3D.DRAWER_CODES[sys].codes.map(function(cd){ return '<button type="button" class="hw-btn" data-bur-add="' + cd + '">＋ ' + names[cd] + '</button>'; }).join("") + '</div></div>' +
-      '<div class="edit-field"><label>Hillur fyrir ofan</label><div class="hw-count"><button class="iconbtn" data-bur-sh="-1"' + (shelves <= 0 ? ' disabled' : '') + '>−</button><b>' + shelves + '</b><button class="iconbtn" data-bur-sh="1"' + (shelves >= 8 ? ' disabled' : '') + '>+</button><span>' + plural(shelves, "hilla", "hillur") + '</span></div>' +
-      (cur && !combos.includes(cur) || (!cur && !shelves) ? '<p class="sec-note">' + (cur ? 'Sérsamsetning — söluaðili staðfestir verð.' : 'Tómur skápur — bættu við innskúffum og hillum eða veldu lausn hér að ofan.') + '</p>' : '') + '</div>';
+      '<div class="edit-field"><label>' + __("Hillur fyrir ofan") + '</label><div class="hw-count"><button class="iconbtn" data-bur-sh="-1"' + (shelves <= 0 ? ' disabled' : '') + '>−</button><b>' + shelves + '</b><button class="iconbtn" data-bur-sh="1"' + (shelves >= 8 ? ' disabled' : '') + '>+</button><span>' + plural(shelves, "hilla", "hillur") + '</span></div>' +
+      (cur && !combos.includes(cur) || (!cur && !shelves) ? '<p class="sec-note">' + (cur ? __("Sérsamsetning — söluaðili staðfestir verð.") : __("Tómur skápur — bættu við innskúffum og hillum eða veldu lausn hér að ofan.")) + '</p>' : '') + '</div>';
   }
   function wireBurSetup(host, b, after){
     function changed(){ delete b.burPos; delete b.shelfPos; after(); } // custom positions (Smíða) no longer match
@@ -4572,7 +4572,7 @@
       if (b.locked){ lockedToast(); return; }
       var codes = KP3D.burCodesOf(b, drawerSys()).concat([el.dataset.burAdd]);
       var probe = Object.assign({}, b, { burCodes:codes }), c = CATALOG[b.type], fb = findBlock(b.id);
-      if (codes.length > 7 || KP3D.burTopMm(probe, drawerSys()) > blockHeightMm(b, c) - plinthMmOf(c, "floor", fb && fb.wall) - 150){ toast("Það komast ekki fleiri innskúffur fyrir í skápnum."); return; }
+      if (codes.length > 7 || KP3D.burTopMm(probe, drawerSys()) > blockHeightMm(b, c) - plinthMmOf(c, "floor", fb && fb.wall) - 150){ toast(__("Það komast ekki fleiri innskúffur fyrir í skápnum.")); return; }
       b.burCodes = codes; delete b.burCombo; changed();
     }); });
     host.querySelectorAll("[data-bur-del]").forEach(function(el){ el.addEventListener("click", function(){
@@ -4591,40 +4591,40 @@
     // in words, tallest first: "4 skúffur: 2 djúpar, 1 miðlungs, 1 lág" (the codes stay in the tooltip / Smíða)
     var groups = [];
     codes.forEach(function(cd){ var nm = CODE_LABEL[cd], g = groups.find(function(x){ return x.nm === nm; }); if (g) g.n++; else groups.push({ nm:nm, cd:cd, n:1 }); });
-    return codes.length + " " + plural(codes.length, "skúffa", "skúffur") + ": " + groups.map(function(g){ return g.n + " " + (g.n > 1 ? CODE_PLURAL[g.cd] : g.nm.toLowerCase()); }).join(", ") +
-      (parts[1] ? " + " + (parts[1] === "IK" ? "miðlungs" : "lág") + " innskúffa" : "");
+    return codes.length + " " + plural(codes.length, "skúffa", "skúffur") + ": " + groups.map(function(g){ return g.n + " " + (g.n > 1 ? __(CODE_PLURAL[g.cd]) : __(g.nm).toLowerCase()); }).join(", ") +
+      (parts[1] ? " + " + (parts[1] === "IK" ? __("miðlungs innskúffa") : __("lág innskúffa")) : "");
   }
   function variantHTML(b, c, ro){
     var LM = window.KP_LINEMAP; if (!LM) return "";
     var opts = [], cur = null, label = "";
     if (c.oven){
       // "Í háum skáp" (ofnaskapur, OFN1–5/7) or "Í grunnskáp" (ofnaskapurLagur, OFN6) — user, 2026-10-02
-      var pills = '<div class="edit-field"><label>Ofninn er</label><div class="hw-toggle">' +
-        '<button type="button" class="hw-btn' + (!c.lowOven ? ' active' : '') + '" data-oven-type="ofnaskapur">Í háum skáp</button>' +
-        '<button type="button" class="hw-btn' + (c.lowOven ? ' active' : '') + '" data-oven-type="ofnaskapurLagur">Í grunnskáp</button></div></div>';
-      if (c.lowOven) return pills + '<p class="sec-note">Ofninn undir borðplötu, M-skúffa undir honum.</p>';
-      label = "Undir ofninum"; cur = ovenKeyOf(b);
+      var pills = '<div class="edit-field"><label>' + __("Ofninn er") + '</label><div class="hw-toggle">' +
+        '<button type="button" class="hw-btn' + (!c.lowOven ? ' active' : '') + '" data-oven-type="ofnaskapur">' + __("Í háum skáp") + '</button>' +
+        '<button type="button" class="hw-btn' + (c.lowOven ? ' active' : '') + '" data-oven-type="ofnaskapurLagur">' + __("Í grunnskáp") + '</button></div></div>';
+      if (c.lowOven) return pills + '<p class="sec-note">' + __("Ofninn undir borðplötu, M-skúffa undir honum.") + '</p>';
+      label = __("Undir ofninum"); cur = ovenKeyOf(b);
       opts = Object.keys(LM.ofn[drawerSys()] || {}).map(function(k){ return [k, comboLabel(k)]; });
-      opts.push(["", "Skápur með hurð (engar skúffur)"]);
-      var ovCodes = KP3D.ovenCodesOf(b, drawerSys()), ovStack = cur === "" ? "" : '<div class="edit-field"><label>Frontahæðir undir ofni</label>' +
+      opts.push(["", __("Skápur með hurð (engar skúffur)")]);
+      var ovCodes = KP3D.ovenCodesOf(b, drawerSys()), ovStack = cur === "" ? "" : '<div class="edit-field"><label>' + __("Frontahæðir undir ofni") + '</label>' +
         drawerRowsHTML(ovCodes, ovenStackModel(b).fronts(), { custom:!!b.ovenFrontsMm, sides:ro && ro.sides }) + '</div>';
       return pills + '<div class="edit-field"><label>' + label + '</label><select data-role="variant">' + opts.map(function(o){
         return '<option value="' + o[0] + '"' + (o[0] === cur ? ' selected' : '') + '>' + o[1] + '</option>';
-      }).join("") + '</select><p class="sec-note">Aðeins samsetningar sem Björninn smíðar (' + DRAWER_SYSTEMS[drawerSys()].label + ').</p></div>' + ovStack;
+      }).join("") + '</select><p class="sec-note">' + __("Aðeins samsetningar sem Björninn smíðar ({sys}).", { sys:__(DRAWER_SYSTEMS[drawerSys()].label) }) + '</p></div>' + ovStack;
     } else if (c.open && c.zone === "wall"){
       // "Opinn skápur með hillum": carcass material, or everything (box + shelves) in the front material
-      return '<div class="edit-field"><label>Efni</label><div class="hw-toggle">' +
-        '<button type="button" class="hw-btn' + (!b.frontAll ? ' active' : '') + '" data-front-all="0">Skrokkefni</button>' +
-        '<button type="button" class="hw-btn' + (b.frontAll ? ' active' : '') + '" data-front-all="1">Allt úr framhliðaefni</button></div></div>';
+      return '<div class="edit-field"><label>' + __("Efni") + '</label><div class="hw-toggle">' +
+        '<button type="button" class="hw-btn' + (!b.frontAll ? ' active' : '') + '" data-front-all="0">' + __("Skrokkefni") + '</button>' +
+        '<button type="button" class="hw-btn' + (b.frontAll ? ' active' : '') + '" data-front-all="1">' + __("Allt úr framhliðaefni") + '</button></div></div>';
     } else if (c.bur){
       return burSetupHTML(b);
     } else if (c.thvo){
-      label = "Útfærsla"; cur = b.thvo === "hurdir" ? "hurdir" : "skuffa";
-      opts = [["skuffa", "Skúffa undir vélinni + skápur ofan við"], ["hurdir", "Hurðir alla leið, 4 loftunarhillur"]];
+      label = __("Útfærsla"); cur = b.thvo === "hurdir" ? "hurdir" : "skuffa";
+      opts = [["skuffa", __("Skúffa undir vélinni + skápur ofan við")], ["hurdir", __("Hurðir alla leið, 4 loftunarhillur")]];
     } else return "";
     return '<div class="edit-field"><label>' + label + '</label><select data-role="variant">' + opts.map(function(o){
       return '<option value="' + o[0] + '"' + (o[0] === cur ? ' selected' : '') + '>' + o[1] + '</option>';
-    }).join("") + '</select>' + (c.oven || c.bur ? '<p class="sec-note">Aðeins samsetningar sem Björninn smíðar (' + DRAWER_SYSTEMS[drawerSys()].label + ').</p>' : '') + '</div>';
+    }).join("") + '</select>' + (c.oven || c.bur ? '<p class="sec-note">' + __("Aðeins samsetningar sem Björninn smíðar ({sys}).", { sys:__(DRAWER_SYSTEMS[drawerSys()].label) }) + '</p>' : '') + '</div>';
   }
   // The drawer stack as rows, top drawer first as the cabinet stands: ⠿ drags a drawer to another place in
   // the stack (opts.reorder), the line between two drawers drags their shared seam, each height can be typed
@@ -4647,15 +4647,15 @@
           return '<option value="' + cd + '"' + (cd === d.code ? ' selected' : '') + '>' + cd + '</option>';
         }).join("") + '</select>';
       }
-      return (k ? '<div class="dw-seam" data-dw-seam="' + d.i + '" title="Dragðu til að breyta hæð skúffanna"></div>' : '') +
+      return (k ? '<div class="dw-seam" data-dw-seam="' + d.i + '" title="' + __("Dragðu til að breyta hæð skúffanna") + '"></div>' : '') +
         '<div class="dw-row" data-dw-row="' + d.i + '" style="flex-grow:' + Math.max(1, Math.round((d.mm || 150) / 40)) + '">' +
         (multi && opts.reorder ? '<span class="dw-grip" data-dw-grip="' + d.i + '" title="Dragðu til að færa skúffuna">⠿</span>' : '') +
         '<span class="dw-nm">' + (typeSel || '<b>' + d.code + '</b>') + '</span>' +
-        (d.mm ? (multi ? '<input class="dw-mm" type="number" step="1" data-dw-mm="' + d.i + '" value="' + Math.round(d.mm) + '" title="Hæð framhliðar (mm)"><small>mm</small>' : '<small>' + Math.round(d.mm) + ' mm</small>') : '') +
+        (d.mm ? (multi ? '<input class="dw-mm" type="number" step="1" data-dw-mm="' + d.i + '" value="' + Math.round(d.mm) + '" title="' + __("Hæð framhliðar (mm)") + '"><small>mm</small>' : '<small>' + Math.round(d.mm) + ' mm</small>') : '') +
         (opts.sides && d.code !== KP3D.FIXED_FRONT_CODE ? '<small class="dw-side" title="Hæð Blum-hliðar — berðu saman við frontinn">hlið ' + Math.round(KP3D.DRAWER_CODES[sys].side[d.code] || 0) + '</small>' : '') +
         (multi && opts.del ? '<button type="button" class="dw-x" data-dw-del="' + d.i + '" title="Taka skúffu">✕</button>' : '') + '</div>';
     }).join("") + '</div>' +
-    (opts.custom && multi ? '<button type="button" class="dw-reset" data-dw-reset>↺ Sjálfgefnar hæðir</button>' : '');
+    (opts.custom && multi ? '<button type="button" class="dw-reset" data-dw-reset>' + __("↺ Sjálfgefnar hæðir") + '</button>' : '');
   }
   // the drawers under a tall oven, for wireDrawerStack: their own zone and their own custom heights
   function ovenStackModel(b){
@@ -4692,9 +4692,9 @@
     if (b.interior.inner === ik){ apply(cur, null); return; }
     if (stackAllowed(b, c, cur, ik)){ apply(cur, ik); return; }
     var alt = innerAlternative(b, c, ik);
-    if (!alt){ toast("Innskúffa er ekki til fyrir þennan skáp."); return; }
-    askChoice('Innskúffa fæst ekki með <b>' + cur.join(" · ") + '</b> — hún er bara til með 1–2 skúffum. Viltu skipta yfir í <b>' + alt.join(" · ") + ' + ' + (ik === "IK" ? "miðlungs" : "lága") + ' innskúffu</b>?',
-      "Já, skipta", "Nei takk", function(){ apply(alt, ik); });
+    if (!alt){ toast(__("Innskúffa er ekki til fyrir þennan skáp.")); return; }
+    askChoice(__("Innskúffa fæst ekki með <b>{cur}</b> — hún er bara til með 1–2 skúffum. Viltu skipta yfir í <b>{alt} + {inner}</b>?", { cur:cur.join(" · "), alt:alt.join(" · "), inner:ik === "IK" ? __("miðlungs innskúffu") : __("lága innskúffu") }),
+      __("Já, skipta"), __("Nei takk"), function(){ apply(alt, ik); });
   }
   // The customer-facing drawer stack (wizard + regular side panel, NOT PRO's Smíða — ro.sides marks that one):
   // just a count stepper + one depth dropdown per drawer. No drag-reorder, no typed mm, no Blum code letters —
@@ -4710,7 +4710,7 @@
         return inner ? stackAllowed(b, c, next, inner) : stackFits(b, c, next);
       });
       return '<div class="dw-row-simple">' + dwIcon(d.code) + '<select data-dw-depth="' + d.i + '">' + opts.map(function(cd){
-        return '<option value="' + cd + '"' + (cd === d.code ? ' selected' : '') + '>' + CODE_LABEL[cd] + '</option>';
+        return '<option value="' + cd + '"' + (cd === d.code ? ' selected' : '') + '>' + __(CODE_LABEL[cd]) + '</option>';
       }).join("") + '</select></div>';
     }).join("");
     return '<div class="dw-stack-simple">' + rows + '</div>' +
@@ -4749,9 +4749,9 @@
   function hardwareHTML(b, c, ro){
     if (!c.hasInterior) return "";
     var isDrawer = b.interior.mode === "skuffur";
-    var html = c.drawersOnly ? '<p class="sec-note">Ruslafötur fara í neðstu skúffuna.</p>' : '<div class="hw-toggle" data-role="hw-toggle">' +
-        '<button type="button" class="hw-btn' + (!isDrawer ? ' active' : '') + '" data-hw="hillur">' + (c.shelfRange ? "Hillur" : "Hurðir") + '</button>' +
-        '<button type="button" class="hw-btn' + (isDrawer ? ' active' : '') + '" data-hw="skuffur">Skúffur</button>' +
+    var html = c.drawersOnly ? '<p class="sec-note">' + __("Ruslafötur fara í neðstu skúffuna.") + '</p>' : '<div class="hw-toggle" data-role="hw-toggle">' +
+        '<button type="button" class="hw-btn' + (!isDrawer ? ' active' : '') + '" data-hw="hillur">' + (c.shelfRange ? __("Hillur") : __("Hurðir")) + '</button>' +
+        '<button type="button" class="hw-btn' + (isDrawer ? ' active' : '') + '" data-hw="skuffur">' + __("Skúffur") + '</button>' +
       '</div>';
     if (!isDrawer) return html;
     var sys = drawerSys(), D = KP3D.DRAWER_CODES[sys], codes = KP3D.drawerCodes(b.interior, sys), inner = b.interior.inner || null;
@@ -4771,14 +4771,14 @@
     } else {
       html += drawerSimpleHTML(b, c, codes, inner);
     }
-    html += '<div class="dw-add"><span>Innskúffa:</span>' + D.inner.map(function(ik){
+    html += '<div class="dw-add"><span>' + __("Innskúffa:") + '</span>' + D.inner.map(function(ik){
       var on = inner === ik, ok = on || stackAllowed(b, c, codes, ik), alt = !ok && innerAlternative(b, c, ik);
       // never greyed out without a reason: when this stack has no such product, the click offers one that does
       return '<button type="button" class="hw-btn' + (on ? ' active' : '') + (ok ? '' : ' maybe') + '" data-dw-inner="' + ik + '"' + (ok || alt ? '' : ' disabled') +
-        ' title="' + (ok ? '' : alt ? 'Fæst með ' + alt.join(" · ") + ' — smelltu til að skipta' : 'Ekki til fyrir þennan skáp') + '">' + (ik === "IK" ? "Miðlungs" : "Lág") + '</button>';
-    }).join("") + '</div>' + (!inner && !D.inner.some(function(ik){ return stackAllowed(b, c, codes, ik); }) ? '<p class="sec-note">Innskúffa fæst með 1–2 skúffum (' + innerStacks().join(", ") + ').</p>' : '');
+        ' title="' + (ok ? '' : alt ? __("Fæst með {alt} — smelltu til að skipta", { alt:alt.join(" · ") }) : __("Ekki til fyrir þennan skáp")) + '">' + (ik === "IK" ? __("Miðlungs") : __("Lág")) + '</button>';
+    }).join("") + '</div>' + (!inner && !D.inner.some(function(ik){ return stackAllowed(b, c, codes, ik); }) ? '<p class="sec-note">' + __("Innskúffa fæst með 1–2 skúffum ({list}).", { list:innerStacks().join(", ") }) + '</p>' : '');
     if (c.sink) html += sinkTopHTML(b, c, codes, fronts);
-    else if (!stackAllowed(b, c, codes, inner)) html += '<p class="sec-note">⚠️ Þessi samsetning er ekki til sem stöðluð vara — söluaðili staðfestir hana.</p>';
+    else if (!stackAllowed(b, c, codes, inner)) html += '<p class="sec-note">' + __("⚠️ Þessi samsetning er ekki til sem stöðluð vara — söluaðili staðfestir hana.") + '</p>';
     return html;
   }
 
@@ -4793,13 +4793,13 @@
   function sinkTopHTML(b, c, codes, fronts){
     var fixed = b.sinkTop === "fastur", min = sinkTopMinMm(b, codes), topMm = fronts[fronts.length - 1] || 0;
     var real = fixed ? codes.slice(0, -1) : codes;
-    return '<div class="edit-field"><label>Efst, við vaskinn</label><div class="hw-toggle">' +
-      '<button type="button" class="hw-btn' + (!fixed ? ' active' : '') + '" data-sink-top="skuffa">Skúffa undir vaski</button>' +
-      '<button type="button" class="hw-btn' + (fixed ? ' active' : '') + '" data-sink-top="fastur">Fastur frontur</button></div>' +
-      (codes.length < 2 && fixed ? '<p class="sec-note">⚠️ Með föstum fronti þarf minnst tvær skúffur.</p>' : '') +
-      (topMm && topMm < min ? '<p class="sec-note">⚠️ Efsti frontur er ' + Math.round(topMm) + ' mm — ' + (fixed ? 'vaskurinn (~200 mm) þarf' : 'skúffan undir vaskinum þarf') + ' minnst ' + min + ' mm.</p>' : '') +
-      (real.length && !drawerComboRec(real, null) ? '<p class="sec-note">⚠️ Þessi samsetning er ekki til sem stöðluð vara — söluaðili staðfestir hana.</p>' : '') +
-      '<p class="sec-note">Ruslafötur fara í neðstu skúffuna.</p></div>';
+    return '<div class="edit-field"><label>' + __("Efst, við vaskinn") + '</label><div class="hw-toggle">' +
+      '<button type="button" class="hw-btn' + (!fixed ? ' active' : '') + '" data-sink-top="skuffa">' + __("Skúffa undir vaski") + '</button>' +
+      '<button type="button" class="hw-btn' + (fixed ? ' active' : '') + '" data-sink-top="fastur">' + __("Fastur frontur") + '</button></div>' +
+      (codes.length < 2 && fixed ? '<p class="sec-note">' + __("⚠️ Með föstum fronti þarf minnst tvær skúffur.") + '</p>' : '') +
+      (topMm && topMm < min ? '<p class="sec-note">' + __("⚠️ Efsti frontur er {top} mm — {what} minnst {min} mm.", { top:Math.round(topMm), what:fixed ? __("vaskurinn (~200 mm) þarf") : __("skúffan undir vaskinum þarf"), min:min }) + '</p>' : '') +
+      (real.length && !drawerComboRec(real, null) ? '<p class="sec-note">' + __("⚠️ Þessi samsetning er ekki til sem stöðluð vara — söluaðili staðfestir hana.") + '</p>' : '') +
+      '<p class="sec-note">' + __("Ruslafötur fara í neðstu skúffuna.") + '</p></div>';
   }
   function sinkDefaultStack(b, c){ // two drawers, the same height; the top one a low drawer under the sink
     b.interior.codes = drawerSys() === "merivo" ? ["E", "M"] : ["C", "M"]; b.interior.inner = null;
@@ -4863,9 +4863,9 @@
           var zoneMm = Math.round(cur.reduce(function(a, h){ return a + h; }, 0));
           var fb = findBlock(b.id), fullBody = blockHeightMm(b, c) - plinthMmOf(c, "floor", fb && fb.wall);
           var warn = [];
-          if (v < mins[i] - 0.5) warn.push(CODE_LABEL[cc[i]].toLowerCase() + " skúffa er undir " + KP3D.slotMin(cc[i]) + " mm lágmarkinu");
-          if (zoneMm > fullBody - KP3D.DRAWER_TOPDOOR_MIN_MM) warn.push("hurðin fyrir ofan er orðin of lítil");
-          if (warn.length) toast("⚠️ " + warn.join(" og ") + " — lagaðu áður en skápurinn er merktur klár.");
+          if (v < mins[i] - 0.5) warn.push(__("{kind} skúffa er undir {min} mm lágmarkinu", { kind:__(CODE_LABEL[cc[i]]).toLowerCase(), min:KP3D.slotMin(cc[i]) }));
+          if (zoneMm > fullBody - KP3D.DRAWER_TOPDOOR_MIN_MM) warn.push(__("hurðin fyrir ofan er orðin of lítil"));
+          if (warn.length) toast("⚠️ " + warn.join(__(" og ")) + __(" — lagaðu áður en skápurinn er merktur klár."));
           b.drawerZoneMm = zoneMm;
           commit(cc, cur.map(function(h){ return Math.round(h); }));
           return;
@@ -4877,7 +4877,7 @@
         var cur = fronts().slice(); cur[i] = Math.max(5, v);
         var invalid = [];
         cur.forEach(function(h, idx){ if (h < KP3D.slotMin(cc[idx]) - 0.5) invalid.push(idx); });
-        if (invalid.length) toast("⚠️ " + invalid.map(function(idx){ return CODE_LABEL[cc[idx]].toLowerCase() + " (" + Math.round(cur[idx]) + " mm, lágmark " + KP3D.slotMin(cc[idx]) + " mm)"; }).join(", ") + " undir lágmarki — lagaðu áður en skápurinn er merktur klár.");
+        if (invalid.length) toast("⚠️ " + invalid.map(function(idx){ return __("{kind} ({v} mm, lágmark {min} mm)", { kind:__(CODE_LABEL[cc[idx]]).toLowerCase(), v:Math.round(cur[idx]), min:KP3D.slotMin(cc[idx]) }); }).join(", ") + __(" undir lágmarki — lagaðu áður en skápurinn er merktur klár."));
         commit(cc, cur);
       });
       inp.addEventListener("keydown", function(e){ if (e.key === "Enter") inp.blur(); });
@@ -4971,7 +4971,7 @@
 
   function startCatalogDrag(kind, type, cardEl, evt){
     evt.preventDefault();
-    var label = kind === "opening" ? OPENING_TYPES[type].label : kind === "island" ? ISLAND_TYPES[type].label : CATALOG[type].label;
+    var label = __(kind === "opening" ? OPENING_TYPES[type].label : kind === "island" ? ISLAND_TYPES[type].label : CATALOG[type].label);
     var ghost = document.createElement("div");
     ghost.className = "drag-ghost";
     ghost.textContent = label;
@@ -5075,7 +5075,7 @@
     });
     return best;
   }
-  var OVERLAP_MSG = "Gluggar, hurðir, op og skápar mega ekki skarast — það er ekki pláss fyrir þetta þarna.";
+  var OVERLAP_MSG = __("Gluggar, hurðir, op og skápar mega ekki skarast — það er ekki pláss fyrir þetta þarna.");
 
   // The stage shows either the 3D scene or the 2D plan — a drop point comes
   // from a raycast in 3D and from the SVG hit-test in 2D, but both yield the
@@ -5237,7 +5237,7 @@
         return;
       }
     }
-    toast("Ekki nóg pláss fyrir " + c.label.toLowerCase() + " á neinum vegg.");
+    toast(__("Ekki nóg pláss fyrir {item} á neinum vegg.", { item:__(c.label).toLowerCase() }));
   }
 
   // ---------- "＋ Ný eining" wizard (2026-09-30) ----------
