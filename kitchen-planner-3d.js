@@ -887,11 +887,15 @@
     partitionObstacles(state).forEach(function(o){
       var wi = state.walls.findIndex(function(w){ return w.id === o.wallId; }), g = walls[wi];
       if (!g || state.walls[wi].open) return;
-      var a = o.offsetMm / 1000, b = a + o.widthMm / 1000, n0 = (o.outMm || 0) / 1000, lenM = o.depthMm / 1000;
-      var pA = { x:g.origin.x + g.axis.x * a + g.normal.x * n0, z:g.origin.z + g.axis.z * a + g.normal.z * n0 };
-      var pB = { x:g.origin.x + g.axis.x * b + g.normal.x * n0, z:g.origin.z + g.axis.z * b + g.normal.z * n0 };
-      out.push({ origin:pA, axis:g.normal, normal:{ x:-g.axis.x, z:-g.axis.z }, lenM:lenM });
-      out.push({ origin:pB, axis:g.normal, normal:{ x:g.axis.x, z:g.axis.z }, lenM:lenM });
+      var r = obstacleRect(o), a = r.a0 / 1000, b = r.a1 / 1000, n0 = r.n0 / 1000, n1 = r.n1 / 1000, lenM = o.depthMm / 1000;
+      function P(al, ou){ return { x:g.origin.x + g.axis.x * al + g.normal.x * ou, z:g.origin.z + g.axis.z * al + g.normal.z * ou }; }
+      if (!r.rot){ // runs out from the wall: faces A / B are its two sides
+        out.push({ origin:P(a, n0), axis:g.normal, normal:{ x:-g.axis.x, z:-g.axis.z }, lenM:lenM });
+        out.push({ origin:P(b, n0), axis:g.normal, normal:{ x:g.axis.x, z:g.axis.z }, lenM:lenM });
+      } else { // turned: parallel to its wall — A faces the room, B faces back toward the wall
+        out.push({ origin:P(a, n1), axis:g.axis, normal:{ x:g.normal.x, z:g.normal.z }, lenM:lenM });
+        out.push({ origin:P(b, n0), axis:{ x:-g.axis.x, z:-g.axis.z }, normal:{ x:-g.normal.x, z:-g.normal.z }, lenM:lenM });
+      }
     });
     return out;
   }
@@ -1022,8 +1026,8 @@
       });
       var ops = (state.windows || []).filter(function(o){ return o.wallId === wall.id; }).map(function(o){ return { kind:"gluggi", o:o, lo:o.sillHeightMm, hi:o.sillHeightMm + o.heightMm }; })
         .concat((state.doors || []).filter(function(o){ return o.wallId === wall.id; }).map(function(o){ return { kind:o.gap ? "op" : "hurð", o:o, lo:0, hi:o.heightMm }; }))
-        .concat((state.obstacles || []).filter(function(o){ return o.wallId === wall.id && OBSTACLES[o.kind] && OBSTACLES[o.kind].blocks && (o.outMm || 0) < 600; })
-          .map(function(o){ var v = obstacleVSpan(state, o); return { kind:"hindrun", o:o, lo:v.lo, hi:v.hi }; }));
+        .concat((state.obstacles || []).filter(function(o){ return o.wallId === wall.id && OBSTACLES[o.kind] && OBSTACLES[o.kind].blocks && obstacleRect(o).n0 < 600; })
+          .map(function(o){ var v = obstacleVSpan(state, o), r = obstacleRect(o); return { kind:"hindrun", o:{ id:o.id, kind:o.kind, offsetMm:r.a0, widthMm:r.a1 - r.a0 }, lo:v.lo, hi:v.hi }; }));
       spans.forEach(function(sp){
         ops.forEach(function(op){
           var hOverlap = Math.min(sp.to, op.o.offsetMm + op.o.widthMm) - Math.max(sp.from, op.o.offsetMm);
@@ -2780,6 +2784,9 @@
     function pickMeshAt(evt){
       raycaster.setFromCamera(ndc(evt), camera);
       var hits = raycaster.intersectObjects(pickables, false);
+      // a milliveggur's resize handles are drawn on top of everything, so if one is under the pointer it wins — even when
+      // it sits inside the partition (the end standing against its wall) or behind another box along the ray (2026-10-23)
+      for (var hi = 0; hi < hits.length; hi++) if (hits[hi].object.userData && hits[hi].object.userData.kind === "obstacle-resize") return hits[hi].object;
       var first = null;
       for (var i = 0; i < hits.length; i++) if (!seeThrough(hits[i].object)){ first = hits[i].object; break; }
       if (!first) return null;
@@ -3046,12 +3053,25 @@
         return;
       }
       if (drag.resize){
-        var wiR = walls.findIndex(function(w){ return w.id === drag.meta.wallId; }), gR = geoms[wiR];
+        var wiR = walls.findIndex(function(w){ return w.id === drag.meta.wallId; }), gR = geoms[wiR], mR = drag.meta;
         if (gR){
           var ptR = floorHit(evt, drag.mesh.position.y); // the handle's own height, not the floor — truer to where the cursor visually is
           if (ptR){
-            var ddR = (ptR.x - gR.origin.x) * gR.normal.x + (ptR.z - gR.origin.z) * gR.normal.z; // metres, perpendicular from the anchor wall
-            if (opts.onObstacleResizeMove) opts.onObstacleResizeMove(drag.meta.obstacleId, Math.round(ddR * 1000) - drag.meta.outMm);
+            var dir = mR.rot ? gR.axis : gR.normal; // the partition's length axis
+            var posMm = Math.round((((ptR.x - gR.origin.x) * dir.x + (ptR.z - gR.origin.z) * dir.z) * 1000 - (mR.gapMm || 0)) / 10) * 10; // 10 mm steps, from the real end (not the handle)
+            var minLen = opts.onObstacleResizeMove ? opts.onObstacleResizeMove(mR.obstacleId) : 200; // the editor's floor (cabinets standing on it)
+            var s0 = mR.s0, s1 = mR.s1;
+            if (mR.end === "far") s1 = Math.min(s0 + 6000, Math.max(s0 + minLen, posMm));
+            else s0 = Math.max(mR.rot ? 0 : 0, Math.min(s1 - minLen, posMm));
+            drag.res = { s0:s0, s1:s1 };
+            // live: stretch the box (its parts are children) along the length axis and move the handle
+            var px = mR.proxy, len0 = (mR.s1 - mR.s0) / 1000, len = (s1 - s0) / 1000, mid = (s0 + s1) / 2000, mid0 = (mR.s0 + mR.s1) / 2000;
+            if (mR.rot) px.scale.x = len / len0; else px.scale.z = len / len0;
+            if (!drag.pos0) drag.pos0 = px.position.clone();
+            px.position.set(drag.pos0.x + dir.x * (mid - mid0), drag.pos0.y, drag.pos0.z + dir.z * (mid - mid0));
+            var hp = (mR.end === "far" ? s1 : s0) / 1000, h0 = (mR.end === "far" ? mR.s1 : mR.s0) / 1000;
+            if (!drag.hpos0) drag.hpos0 = drag.mesh.position.clone();
+            drag.mesh.position.set(drag.hpos0.x + dir.x * (hp - h0), drag.hpos0.y, drag.hpos0.z + dir.z * (hp - h0));
           }
         }
         return;
@@ -3156,7 +3176,7 @@
       if (drag.resize){
         var dR = drag;
         drag = null; controls.enabled = true; renderer.domElement.style.cursor = "";
-        if (dR.moved){ suppressClick = true; if (opts.onObstacleResizeEnd) opts.onObstacleResizeEnd(dR.meta.obstacleId); }
+        if (dR.moved){ suppressClick = true; if (opts.onObstacleResizeEnd) opts.onObstacleResizeEnd(dR.meta.obstacleId, dR.res ? { s0:dR.res.s0, s1:dR.res.s1, rot:dR.meta.rot } : null); }
         return;
       }
       if (drag.island){
@@ -3961,13 +3981,14 @@
     (state.obstacles || []).forEach(function(o){
       var def = OBSTACLES[o.kind], g = geomForWall(o.wallId); if (!def || !g) return;
       var v = obstacleVSpan(state, o), sel = opts.selectedId === o.id, hM = Math.max(0.01, (v.hi - v.lo) / 1000);
-      var wM = o.widthMm / 1000, dM = o.depthMm / 1000, outM = (o.outMm || 0) / 1000;
-      // dragged along / up and down the wall in the editor like a window (2026-10-11)
-      var meta = { kind:"obstacle", zone:"obstacle", blockId:o.id, wallId:o.wallId, locked:!opts.onCabinetDragEnd, widthMm:o.widthMm, depthMm:o.depthMm, heightMm:v.hi - v.lo, elevMm:v.lo, free:!!def.free && !!opts.onObstacleFloorEnd };
+      var rr = obstacleRect(o), wM = (rr.a1 - rr.a0) / 1000, dM = (rr.n1 - rr.n0) / 1000, outM = rr.n0 / 1000; // wM along the wall, dM out of it (after a turn)
+      // dragged along / up and down the wall in the editor like a window (2026-10-11); 🔒 o.locked = stays put (2026-10-23)
+      var meta = { kind:"obstacle", zone:"obstacle", blockId:o.id, wallId:o.wallId, locked:!opts.onCabinetDragEnd || !!o.locked, widthMm:rr.a1 - rr.a0, depthMm:rr.n1 - rr.n0, heightMm:v.hi - v.lo, elevMm:v.lo,
+        free:!!def.free && !!opts.onObstacleFloorEnd && !o.locked };
       // one invisible box = what you grab (world position, like a window plane); the visible parts are its children
       var grp = new THREE.Group(), proxy = new THREE.Mesh(new THREE.BoxGeometry(wM, hM, dM), new THREE.MeshBasicMaterial({ visible:false }));
       proxy.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(g.axis.x, 0, g.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(g.normal.x, 0, g.normal.z)));
-      var along = o.offsetMm / 1000 + wM / 2;
+      var along = rr.a0 / 1000 + wM / 2;
       proxy.position.set(g.origin.x + g.axis.x * along + g.normal.x * (outM + dM / 2), v.lo / 1000 + hM / 2, g.origin.z + g.axis.z * along + g.normal.z * (outM + dM / 2));
       proxy.userData = meta; grp.add(proxy); pickables.push(proxy);
       function part(geo, color, rough, metal, x, y, z){ // y from the bottom, z from the depth centre
@@ -3988,6 +4009,8 @@
         part(new THREE.CylinderGeometry(0.025, 0.025, dM, 16).rotateX(Math.PI / 2), 0x9a9da3, 0.35, 0.6, wM / 4, hM / 2, 0);
       } else if (def.look === "sill"){
         part(new THREE.BoxGeometry(wM, hM, dM), 0xe6e2da, 0.35, 0, 0, hM / 2, 0);
+      } else if (def.shapes && o.shape === "round"){ // a round column (2026-10-23)
+        part(new THREE.CylinderGeometry(Math.min(wM, dM) / 2, Math.min(wM, dM) / 2, hM, 40), new THREE.Color(wallColor).lerp(new THREE.Color(0x8a857a), 0.18).getHex(), 1, 0, 0, hM / 2, 0);
       } else {
         part(new THREE.BoxGeometry(wM, hM, dM), new THREE.Color(wallColor).lerp(new THREE.Color(0x8a857a), 0.18).getHex(), 1, 0, 0, hM / 2, 0); // a shade darker than the wall, so it reads on a white wall
       }
@@ -3996,12 +4019,21 @@
       // a milliveggur's far-end handle (2026-10-20): drag it to stretch/shrink the partition instead of
       // only typing "Lengd út í rýmið" — a small ball at the tip, mid-height, always there (not just while
       // selected, same as the island puck) so it reads as grabbable at a glance
-      if (o.kind === "milliveggur" && def.free && opts.onObstacleResizeMove){
-        var tipAlong = o.offsetMm / 1000 + wM / 2, tipOut = outM + dM;
-        var rH = new THREE.Mesh(new THREE.SphereGeometry(0.035, 16, 16), new THREE.MeshBasicMaterial({ color:sel ? 0x0d8fbf : 0xf5c518 }));
-        rH.position.set(g.origin.x + g.axis.x * tipAlong + g.normal.x * tipOut, v.lo / 1000 + hM / 2, g.origin.z + g.axis.z * tipAlong + g.normal.z * tipOut);
-        rH.userData = { kind:"obstacle-resize", obstacleId:o.id, wallId:o.wallId, outMm:o.outMm || 0 };
-        scene.add(rH); pickables.push(rH);
+      // Both ends (2026-10-23): either end drags, the other stays put — along its length axis (out from the wall, or along
+      // it once turned). The wall stretches live in 3D (proxy scaled, no scene rebuild — a rebuild mid-drag lost the
+      // drag, which was why it "didn't work"); onObstacleResizeEnd stores it once on release.
+      if (o.kind === "milliveggur" && def.free && opts.onObstacleResizeEnd && !o.locked){
+        ["near", "far"].forEach(function(end){
+          // 6 cm past the end, drawn on top: the end face itself (or the wall it stands against) must never win the pick
+          var push = (end === "far" ? 1 : -1) * 0.06;
+          var la = rr.rot ? (end === "far" ? rr.a1 : rr.a0) / 1000 + push : along, lo = rr.rot ? outM + dM / 2 : Math.max(0.05, (end === "far" ? rr.n1 : rr.n0) / 1000 + push);
+          var rH = new THREE.Mesh(new THREE.SphereGeometry(0.045, 16, 16), new THREE.MeshBasicMaterial({ color:sel ? 0x0d8fbf : 0xf5c518, depthTest:false }));
+          rH.renderOrder = 12;
+          rH.position.set(g.origin.x + g.axis.x * la + g.normal.x * lo, v.lo / 1000 + hM / 2, g.origin.z + g.axis.z * la + g.normal.z * lo);
+          var gapMm = Math.round(((rr.rot ? la : lo) * 1000) - (end === "far" ? (rr.rot ? rr.a1 : rr.n1) : (rr.rot ? rr.a0 : rr.n0))); // handle ↔ actual end
+          rH.userData = { kind:"obstacle-resize", obstacleId:o.id, wallId:o.wallId, end:end, rot:rr.rot, s0:rr.rot ? rr.a0 : rr.n0, s1:rr.rot ? rr.a1 : rr.n1, proxy:proxy, gapMm:gapMm };
+          scene.add(rH); pickables.push(rH);
+        });
       }
     });
 
@@ -5023,9 +5055,9 @@
   // stand where it is at that height (openingSpans in the editor), vatn is only a marker.
   var OBSTACLES = {
     lagnastokkur:{ label:"Lagnastokkur",          w:200, d:200, h:null, elev:0,    blocks:true,  look:"wall" },
-    stolpi:      { label:"Burðarstólpi",          w:300, d:300, h:null, elev:0,    blocks:true,  look:"wall", free:true },
-    milliveggur: { label:"Milliveggur",           w:100, d:600, h:null, elev:0,    blocks:true,  look:"wall", free:true },
-    biti:        { label:"Biti í lofti",          w:0,   d:300, h:250,  elev:null, blocks:true,  look:"wall", ceiling:true },
+    stolpi:      { label:"Burðarstólpi",          w:300, d:300, h:null, elev:0,    blocks:true,  look:"wall", free:true, shapes:true },
+    milliveggur: { label:"Milliveggur",           w:120, d:600, h:null, elev:0,    blocks:true,  look:"wall", free:true, rotatable:true }, // 120 mm thick by default (user, 2026-10-23)
+    biti:        { label:"Biti í lofti",          w:2000, d:300, h:250, elev:null, blocks:true,  look:"wall", ceiling:true, free:true, rotatable:true }, // free + turnable (was: always along one wall, 2026-10-23)
     ofn:         { label:"Ofn (miðstöð)",         w:1000, d:100, h:600, elev:150,  blocks:true,  look:"radiator" },
     tafla:       { label:"Rafmagnstafla",         w:400, d:120, h:600,  elev:1400, blocks:true,  look:"panel" },
     vatn:        { label:"Vatnsinntak / niðurfall", w:150, d:60, h:150, elev:450,  blocks:false, look:"pipe" },
@@ -5040,10 +5072,17 @@
     return { lo:lo, hi:Math.min(roomH, lo + o.heightMm) };
   }
   // its footprint on the floor plan (m, world corners) — null when the wall isn't there
+  // An obstacle's footprint in its anchor wall's frame (mm): along the wall [a0, a1], out into the room [n0, n1].
+  // rot 90 (milliveggur / biti, 2026-10-23) = turned a quarter: widthMm then runs OUT from the wall and depthMm ALONG
+  // it (a partition parallel to its wall, a beam across the room) — everything that needs the footprint reads it here.
+  function obstacleRect(o){
+    var def = OBSTACLES[o.kind] || {}, rot = o.rot === 90 && !!def.rotatable, off = o.offsetMm || 0, out = o.outMm || 0;
+    return { a0:off, a1:off + (rot ? o.depthMm : o.widthMm), n0:out, n1:out + (rot ? o.widthMm : o.depthMm), rot:rot };
+  }
   function obstacleQuad(state, o){
     var walls = wallGeoms(state), wi = state.walls.findIndex(function(w){ return w.id === o.wallId; }), g = walls[wi];
     if (!g || state.walls[wi].open) return null;
-    var a = o.offsetMm / 1000, b = a + o.widthMm / 1000, n0 = (o.outMm || 0) / 1000, n1 = n0 + o.depthMm / 1000;
+    var r = obstacleRect(o), a = r.a0 / 1000, b = r.a1 / 1000, n0 = r.n0 / 1000, n1 = r.n1 / 1000;
     return [[a, n0], [b, n0], [b, n1], [a, n1]].map(function(p){ return { x:g.origin.x + g.axis.x * p[0] + g.normal.x * p[1], z:g.origin.z + g.axis.z * p[0] + g.normal.z * p[1] }; });
   }
   var DECOR = {
@@ -5791,7 +5830,7 @@
     cornerClearanceMm: cornerClearanceMm, afellaMm: afellaMm, AFELLA_MM: AFELLA_MM,
     blockStartsMm: blockStartsMm,
     planTransform: planTransform,
-    rectCornersWorld: rectCornersWorld, drawerZoneMm: drawerZoneMm, TALL_DRAWER_MAX_MM: TALL_DRAWER_MAX_MM, DRAWER_TOPDOOR_MIN_MM: DRAWER_TOPDOOR_MIN_MM, doorLeaves: doorLeaves, islandFits: islandFits, nearestIslandFit: nearestIslandFit, topThickM: topThickM, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, DECOR: DECOR, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
+    rectCornersWorld: rectCornersWorld, drawerZoneMm: drawerZoneMm, TALL_DRAWER_MAX_MM: TALL_DRAWER_MAX_MM, DRAWER_TOPDOOR_MIN_MM: DRAWER_TOPDOOR_MIN_MM, doorLeaves: doorLeaves, islandFits: islandFits, nearestIslandFit: nearestIslandFit, topThickM: topThickM, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, obstacleRect: obstacleRect, DECOR: DECOR, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
     WALL_COLORS: WALL_COLORS,
     WINDOW_DEFAULT: WINDOW_DEFAULT,
     _handleProfile: handleProfile,
@@ -5824,6 +5863,10 @@
     SHELF_T_MM: SHELF_T_MM,
     SHELF_STACK_MAX: SHELF_STACK_MAX,
     SHELF_GAP_DEFAULT: SHELF_GAP_DEFAULT,
+    // devtools / browser tests: a world point (m) → client px, and the scene's resize handles (2026-10-23)
+    debugProject: function(x, y, z){ if (!THREE_STATE) return null; var V = THREE_STATE.camera.position.constructor, v = new V(x, y, z).project(THREE_STATE.camera), r = THREE_STATE.renderer.domElement.getBoundingClientRect();
+      return { x:r.left + (v.x + 1) / 2 * r.width, y:r.top + (1 - v.y) / 2 * r.height }; },
+    debugHandles: function(){ var out = []; if (THREE_STATE) THREE_STATE.scene.traverse(function(o){ if (o.userData && o.userData.kind === "obstacle-resize") out.push({ end:o.userData.end, x:o.position.x, y:o.position.y, z:o.position.z }); }); return out; },
     debugInfo: function(){ return sharedRenderer ? { memory:sharedRenderer.info.memory, programs:(sharedRenderer.info.programs || []).length } : null; },
     ANNO_SYMBOLS: ANNO_SYMBOLS, ANNO_COLOR: ANNO_COLOR,
     wallToScreen: function(x, y){ return THREE_STATE && THREE_STATE.wallToScreen ? THREE_STATE.wallToScreen(x, y) : null; },
