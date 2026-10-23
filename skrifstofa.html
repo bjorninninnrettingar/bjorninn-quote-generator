@@ -115,6 +115,9 @@
      itself tracks the cursor, same visual language as kitchen-planner.html's .dw-row.dragging. */
   .arrange-placeholder { background:var(--bg); border:2px dashed var(--line); box-shadow:none !important; }
   .arrange-placeholder > * { visibility:hidden; }
+  /* Empty, always-present grid slots (2026-10-23) — same dashed look as the in-drag placeholder
+     above, just permanent rather than appearing only mid-drag; real drop targets, not decoration. */
+  .arrange-filler { background:var(--bg); border:2px dashed var(--line); min-height:100px; border-radius:10px; }
   /* !important throughout (2026-10-23, real bug, not defensive): the ghost is a clone of the
      dragged tile, so it keeps that tile's own classes (.panel, .cashKpi, .verkPanel, ...) — several
      of those set position/margin/overflow at the SAME specificity as .arrange-ghost, and being
@@ -526,6 +529,22 @@
         window.addEventListener("pointercancel", up);
       });
     });
+
+    // Real, visible empty grid slots (2026-10-23) — once the real widgets run out the grid used to
+    // just stop, leaving dead page below with nothing to drop onto. These are inert (no handle, not
+    // draggable/resizable themselves) but are real children of rowEl, so the exact same
+    // gridItemAt()/insertBefore() drop logic above already treats them as valid targets with zero
+    // special-casing — dropping a real widget near one just displaces it elsewhere in the dense
+    // flow, it's never deleted. Stable ids so saveLayout()/restore correctly keep them interleaved
+    // with real widgets across reloads, same as any other item.
+    var FILLER_COUNT = 12; // 2 full rows at the default 6-per-row "S" size
+    for (var fi = 0; fi < FILLER_COUNT; fi++) {
+      var filler = document.createElement("div");
+      filler.id = "arrangeFiller" + fi;
+      filler.className = "arrange-filler";
+      filler.dataset.size = "S";
+      rowEl.appendChild(filler);
+    }
 
     // Apply saved order, if any (skip unknown/missing ids rather than erroring on a stale save).
     if (saved.order) {
