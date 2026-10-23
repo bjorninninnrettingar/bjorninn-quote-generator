@@ -80,8 +80,11 @@
   .kpiRow > [data-size="XL"] { grid-column:span 6; }
   .arrange-placeholder { background:var(--bg); border:2px dashed var(--line); box-shadow:none !important; }
   .arrange-placeholder > * { visibility:hidden; }
-  .arrange-filler { min-height:100px; border-radius:10px; }
-  .kpiRow.dragging-active .arrange-filler { background:var(--bg); border:2px dashed var(--line); }
+  /* display:none at rest (2026-10-23) — otherwise an unused filler still forces its grid row to the
+     100px grid-auto-rows minimum even with nothing in it, reserving dead blank space below the real
+     tiles. See skrifstofa.html's own .arrange-filler comment for the fuller why. */
+  .arrange-filler { display:none; min-height:100px; border-radius:10px; }
+  .kpiRow.dragging-active .arrange-filler { display:block; background:var(--bg); border:2px dashed var(--line); }
   .arrange-ghost { position:fixed !important; top:0; left:0; margin:0 !important; z-index:999;
     overflow:visible !important; pointer-events:none; cursor:grabbing;
     box-shadow:0 10px 30px rgba(0,0,0,.22) !important; border:2px solid var(--accent) !important;
@@ -112,6 +115,17 @@
   .nsCard .nm { font-weight:600; font-size:.85rem; }
   .nsCard .step { font-size:.78rem; color:var(--muted); margin-top:4px; }
   .nsCard .when { font-size:.72rem; color:var(--dim); margin-top:3px; }
+
+  /* Til yfirferðar — sjálfsafgreiðsla (2026-10-23) — a table, not a card row: what matters here is
+     scanning several submissions at once to decide which need action first (days waiting, offer
+     size), which a row of cards makes you click into one at a time to compare. */
+  .reviewTable { border-collapse:collapse; width:100%; font-size:.84rem; background:var(--surface); border-radius:12px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,.05); }
+  .reviewTable th { text-align:left; padding:8px 12px; background:var(--bg); color:var(--muted); font-weight:700; font-size:.68rem; text-transform:uppercase; letter-spacing:.02em; }
+  .reviewTable th.num, .reviewTable td.num { text-align:right; }
+  .reviewTable td { padding:9px 12px; border-top:1px solid var(--line); }
+  .reviewTable td.nm { font-weight:600; }
+  .reviewTable tbody tr { cursor:pointer; }
+  .reviewTable tbody tr:hover { background:var(--bg); }
 
   /* Pipeline kanban restyled into one white panel with a header (2026-10-23) — previously a bare
      .board flex row straight on the page background, each .col/.card floating as its own separate
@@ -274,7 +288,10 @@
 
   <div class="nextSteps" id="toReview" style="display:none;">
     <h2>📝 Til yfirferðar — sjálfsafgreiðsla</h2>
-    <div class="nsRow" id="toReviewRow"></div>
+    <table class="reviewTable">
+      <thead><tr><th>Verkefni</th><th>Staða</th><th class="num">Dagar síðan sent</th><th class="num">Tilboð</th></tr></thead>
+      <tbody id="toReviewRow"></tbody>
+    </table>
   </div>
 
   <div class="nextSteps" id="nextSteps" style="display:none;">
@@ -836,18 +853,23 @@
     if (!pending.length) { wrap.style.display = "none"; return; }
     wrap.style.display = "block";
     row.innerHTML = "";
+    var now = Date.now();
     pending.forEach(function (r) {
       var f = r.fields;
-      var el = document.createElement("div");
-      el.className = "nsCard soon";
-      el.innerHTML =
-        '<div class="nm">' + esc(f["Heiti tækifæris / verkefnis"] || "(ónefnt)") + '</div>' +
-        '<div class="step">Sjálfsafgreiðsla — óyfirfarið</div>' +
-        '<div class="when">' + esc((r.createdTime || "").slice(0, 10)) + '</div>';
-      el.addEventListener("click", function () {
+      // Self-serve submissions get their drawings PDF attached at the same moment the record is
+      // created (kp-submit.js does both together), so the record's own createdTime IS when the
+      // drawings were sent in — no separate "sent" timestamp exists or is needed.
+      var days = r.createdTime ? Math.floor((now - new Date(r.createdTime).getTime()) / 86400000) : null;
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        '<td class="nm">' + esc(f["Heiti tækifæris / verkefnis"] || "(ónefnt)") + '</td>' +
+        '<td>' + esc(f["Staða í söluferli"] || "—") + '</td>' +
+        '<td class="num">' + (days == null ? "—" : days + " d.") + '</td>' +
+        '<td class="num">' + kr(f["💰 Tilboðsupphæð"]) + '</td>';
+      tr.addEventListener("click", function () {
         window.open("/skipuleggja?pro=" + r.id + (k ? "&k=" + encodeURIComponent(k) : ""), "_blank");
       });
-      row.appendChild(el);
+      row.appendChild(tr);
     });
   }
 
