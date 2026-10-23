@@ -67,24 +67,34 @@
   .npChosen { text-align:center; font-weight:700; font-size:.95rem; margin-bottom:4px; }
   .npMsg { text-align:center; font-size:.8rem; color:var(--muted); margin-top:10px; min-height:1.1em; }
 
-  /* Arrangeable KPI row (2026-10-19) — same mechanism as skrifstofa.html's Yfirlit dashboard:
-     drag to reorder, S/M/L size cycle (spans of a shared 6-column grid), saved to localStorage
-     per browser only. See skrifstofa.html for the fuller comment on why personal-not-shared. */
-  .kpiRow { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:12px; margin-bottom:18px; }
-  .kpiRow > div { min-width:0; }
+  /* Arrangeable KPI row (2026-10-19, rewritten 2026-10-23 to match skrifstofa.html's Yfirlit
+     exactly — ported wholesale rather than kept as its own older native-HTML5-DnD version): Pointer
+     Events drag with a lifted ghost clone + dashed placeholder, dense-packed 6-col grid, S/M/L/XL
+     size spans, always-present empty filler slots as real drop targets, saved to localStorage per
+     browser only. See skrifstofa.html's makeArrangeable() for the full history/reasoning. */
+  .kpiRow { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); grid-auto-rows:minmax(100px,auto); grid-auto-flow:row dense; align-items:start; gap:12px; margin-bottom:18px; }
+  .kpiRow > div { position:relative; min-width:0; }
   .kpiRow > [data-size="S"] { grid-column:span 1; }
   .kpiRow > [data-size="M"] { grid-column:span 2; }
   .kpiRow > [data-size="L"] { grid-column:span 3; }
-  .kpiRow > .dragging { opacity:.4; }
+  .kpiRow > [data-size="XL"] { grid-column:span 6; }
+  .arrange-placeholder { background:var(--bg); border:2px dashed var(--line); box-shadow:none !important; }
+  .arrange-placeholder > * { visibility:hidden; }
+  .arrange-filler { min-height:100px; border-radius:10px; }
+  .kpiRow.dragging-active .arrange-filler { background:var(--bg); border:2px dashed var(--line); }
+  .arrange-ghost { position:fixed !important; top:0; left:0; margin:0 !important; z-index:999;
+    overflow:visible !important; pointer-events:none; cursor:grabbing;
+    box-shadow:0 10px 30px rgba(0,0,0,.22) !important; border:2px solid var(--accent) !important;
+    transform:scale(1.02); }
   .kpi { background:var(--surface); border-radius:14px; padding:13px 16px; box-shadow:0 1px 3px rgba(0,0,0,.05); position:relative; }
   .kpi .lbl { font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
   .kpi .val { font-size:1.4rem; font-weight:700; margin-top:4px; }
   .kpi .sub { font-size:.74rem; color:var(--dim); margin-top:2px; }
-  .kpiArrangeHandle { position:absolute; top:6px; right:6px; display:flex; gap:3px; opacity:0; transition:opacity .1s; }
-  .kpi:hover .kpiArrangeHandle { opacity:1; }
-  .kpiArrangeHandle button { all:unset; box-sizing:border-box; width:18px; height:18px; display:flex; align-items:center; justify-content:center; border-radius:5px; background:var(--bg); border:1px solid var(--line); font-size:.58rem; font-weight:700; color:var(--muted); cursor:pointer; }
-  .kpiArrangeHandle button.sizeOn { background:var(--accent); color:#fff; border-color:var(--accent); }
-  .kpiArrangeHandle .dragHandle { cursor:grab; font-size:.75rem; }
+  .arrangeHandle { position:absolute; top:6px; right:6px; display:flex; gap:3px; opacity:.4; transition:opacity .1s; }
+  .kpiRow > div:hover .arrangeHandle { opacity:1; }
+  .arrangeHandle button { all:unset; box-sizing:border-box; width:18px; height:18px; display:flex; align-items:center; justify-content:center; border-radius:5px; background:var(--bg); border:1px solid var(--line); font-size:.58rem; font-weight:700; color:var(--muted); cursor:pointer; }
+  .arrangeHandle button.sizeOn { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .arrangeHandle .dragHandle { cursor:grab; font-size:.75rem; user-select:none; }
 
   .nextSteps { margin-bottom:20px; }
   .nextSteps h2 { font-size:.8rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.02em; margin-bottom:8px; }
@@ -425,7 +435,7 @@
   if (!shellInfo) return;
   var k = shellInfo.k;
   var myName = (shellInfo.record && shellInfo.record.name) || "";
-  makeArrangeableKpiRow(document.getElementById("kpiRow"), "kpi");
+  makeArrangeable(document.getElementById("kpiRow"), "kpi");
 
   var STAGES = [
     { name: "Hönnun & Ráðgjöf 🖊️✨", short: "Hönnun", color: "#e05d9e" },
@@ -463,23 +473,26 @@
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }); }
   function kr(n) { return n == null ? "—" : Math.round(n).toLocaleString("is-IS") + " kr."; }
 
-  // Arrangeable KPI row (2026-10-19) — same mechanism as skrifstofa.html's Yfirlit dashboard;
-  // see there for the fuller "why personal localStorage, not shared" comment.
-  function makeArrangeableKpiRow(rowEl, storageKey) {
+  // Arrangeable KPI row (2026-10-19, rewritten 2026-10-23 — ported wholesale from
+  // skrifstofa.html's makeArrangeable(), which replaced native HTML5 DnD with Pointer Events for a
+  // smoother cross-app feel; see there for the fuller history). Drag to reorder, S/M/L/XL size
+  // cycle, saved to localStorage per browser only — nothing shared between people's own layouts.
+  function makeArrangeable(rowEl, storageKey) {
     if (!rowEl) return;
     var lsKey = "bjorninn:crm:layout:" + storageKey;
     var saved = {};
     try { saved = JSON.parse(localStorage.getItem(lsKey) || "{}"); } catch (e) {}
-    var dragging = null;
+
     var items = Array.prototype.slice.call(rowEl.children);
     items.forEach(function (el) {
       if (saved.sizes && saved.sizes[el.id]) el.dataset.size = saved.sizes[el.id];
+      var sizeChoices = [["S", "S", "Lítið"], ["M", "M", "Miðlungs"], ["L", "L", "Stórt"], ["XL", "XL", "Fullt"]];
       var handle = document.createElement("div");
-      handle.className = "kpiArrangeHandle";
+      handle.className = "arrangeHandle";
       handle.innerHTML =
-        '<button class="dragHandle" type="button" title="Draga til að raða" draggable="true">⠿</button>' +
-        ["S", "M", "L"].map(function (s) {
-          return '<button type="button" class="sizeBtn' + (el.dataset.size === s ? " sizeOn" : "") + '" data-s="' + s + '">' + s + "</button>";
+        '<button class="dragHandle" type="button" title="Draga til að raða">⠿</button>' +
+        sizeChoices.map(function (c) {
+          return '<button type="button" class="sizeBtn' + (el.dataset.size === c[0] ? " sizeOn" : "") + '" data-s="' + c[0] + '" title="' + c[2] + '">' + c[1] + "</button>";
         }).join("");
       el.appendChild(handle);
       handle.querySelectorAll(".sizeBtn").forEach(function (btn) {
@@ -492,22 +505,75 @@
       });
       var dragHandle = handle.querySelector(".dragHandle");
       dragHandle.addEventListener("click", function (e) { e.stopPropagation(); });
-      dragHandle.addEventListener("dragstart", function (e) {
-        dragging = el;
-        el.classList.add("dragging");
-        e.dataTransfer.effectAllowed = "move";
-        e.dataTransfer.setData("text/plain", el.id);
-      });
-      dragHandle.addEventListener("dragend", function () { el.classList.remove("dragging"); dragging = null; });
-      el.addEventListener("dragover", function (e) {
-        if (!dragging || dragging === el || dragging.parentElement !== rowEl) return;
+      dragHandle.addEventListener("pointerdown", function (e) {
         e.preventDefault();
-        var rect = el.getBoundingClientRect();
-        var before = (e.clientX - rect.left) < rect.width / 2;
-        rowEl.insertBefore(dragging, before ? el : el.nextSibling);
+        document.querySelectorAll(".arrange-ghost").forEach(function (g) { g.remove(); });
+        document.querySelectorAll(".arrange-placeholder").forEach(function (p) { p.classList.remove("arrange-placeholder"); });
+        rowEl.classList.remove("dragging-active");
+
+        var startRect = el.getBoundingClientRect();
+        var offsetX = e.clientX - startRect.left, offsetY = e.clientY - startRect.top;
+        var ghost = el.cloneNode(true);
+        ghost.className = el.className + " arrange-ghost";
+        ghost.style.width = startRect.width + "px";
+        ghost.style.height = startRect.height + "px";
+        ghost.style.left = startRect.left + "px";
+        ghost.style.top = startRect.top + "px";
+        document.body.appendChild(ghost);
+        el.classList.add("arrange-placeholder");
+        rowEl.classList.add("dragging-active");
+
+        function gridItemAt(x, y) {
+          var under = document.elementFromPoint(x, y);
+          var node = under;
+          while (node && node !== rowEl) {
+            if (node.parentElement === rowEl) return node;
+            node = node.parentElement;
+          }
+          return null;
+        }
+        var lastReorderAt = 0;
+        function move(ev) {
+          var cornerX = ev.clientX - offsetX, cornerY = ev.clientY - offsetY;
+          ghost.style.left = cornerX + "px";
+          ghost.style.top = cornerY + "px";
+          var now = performance.now();
+          if (now - lastReorderAt < 16) return;
+          lastReorderAt = now;
+          // Hit-test from the dragged tile's own top-left corner, not the raw cursor position — see
+          // skrifstofa.html's makeArrangeable() for why.
+          var target = gridItemAt(cornerX + 4, cornerY + 4);
+          if (!target || target === el) return;
+          var trect = target.getBoundingClientRect();
+          var before = (cornerX - trect.left) < trect.width / 2;
+          var alreadyThere = before ? target.previousElementSibling === el : target.nextElementSibling === el;
+          if (alreadyThere) return;
+          rowEl.insertBefore(el, before ? target : target.nextSibling);
+        }
+        function up() {
+          window.removeEventListener("pointermove", move);
+          window.removeEventListener("pointerup", up);
+          window.removeEventListener("pointercancel", up);
+          ghost.remove();
+          el.classList.remove("arrange-placeholder");
+          rowEl.classList.remove("dragging-active");
+          saveLayout();
+        }
+        window.addEventListener("pointermove", move);
+        window.addEventListener("pointerup", up);
+        window.addEventListener("pointercancel", up);
       });
-      el.addEventListener("drop", function (e) { e.preventDefault(); saveLayout(); });
     });
+
+    var FILLER_COUNT = 12;
+    for (var fi = 0; fi < FILLER_COUNT; fi++) {
+      var filler = document.createElement("div");
+      filler.id = "arrangeFiller" + fi;
+      filler.className = "arrange-filler";
+      filler.dataset.size = "S";
+      rowEl.appendChild(filler);
+    }
+
     if (saved.order) {
       saved.order.forEach(function (id) {
         var el = document.getElementById(id);
