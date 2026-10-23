@@ -311,7 +311,7 @@
       </div>
       <div class="kpi cashKpi" id="cashVatTile" data-size="M"><div class="lbl">🧾 Næsta VSK-skil</div><div class="val" id="cashVat">—</div><div class="sub" id="cashVatSub"></div></div>
       <div class="kpi cashKpi" id="cashPaydayTile" data-size="M"><div class="lbl">💸 Næstu laun</div><div class="val" id="cashPayday">—</div><div class="sub" id="cashPaydaySub"></div></div>
-      <div class="kpi" id="kpiSalesTile" data-size="S"><div class="lbl">Virk tilboð</div><div class="val" id="kpiSales">—</div><div class="sub" id="kpiSalesSub"></div></div>
+      <div class="kpi" id="kpiSalesTile" data-size="S"><div class="lbl" id="kpiSalesLbl">Virk tilboð</div><div class="val" id="kpiSales">—</div><div class="sub" id="kpiSalesSub"></div></div>
       <div class="kpi" id="kpiCostTile" data-size="S"><div class="lbl">Innkaup — ólokin verk</div><div class="val" id="kpiCost">—</div><div class="sub">Pantaðir listar, ekki komið í hús</div></div>
       <div class="kpi" id="kpiProdTile" data-size="S"><div class="lbl">Verk í framleiðslu</div><div class="val" id="kpiProd">—</div><div class="sub">Tilbúið → Má afhenda</div></div>
       <div class="panel verkPanel" id="verkPanelBox" data-size="XL">
@@ -653,10 +653,12 @@
   // ---- Shell ----
   var currentUserName = "";
   var currentUserId = "", currentUserToken = "";
+  var currentUserIsOwner = false;
   function showShell(record, token) {
     currentUserName = record.name || "";
     currentUserId = record.id || "";
     currentUserToken = token || "";
+    currentUserIsOwner = (record.roles || []).indexOf("eigandi") !== -1;
     document.getElementById("pinScreen").style.display = "none";
     document.getElementById("shell").classList.add("open");
     document.getElementById("todayDate").textContent = fmtIcelandicDate(new Date());
@@ -851,11 +853,23 @@
 
   // ---- KPI: sölurás ----
   var ACTIVE_SALES = ["Hönnun & Ráðgjöf 🖊️✨", "✍️ Teikna og yfirfara tilboð", "📤 Tilboð sent", "🔥 Líklegt tækifæri"];
+  // Same 6 names as crm.html's SOLUMENN/"Mínar sölur" — kept in sync by hand, not shared, since
+  // the two files don't share any JS module today.
+  var SOLUMENN = ["Ísak Einar Ágústsson", "Rakel Hulda Bjarkadóttir", "Jóel Kristjánsson", "Anton Pétur Sveinsson", "Kári Freyr Finnsson", "Adolf Wendel"];
   function loadKpis() {
     var salesFml = "OR(" + ACTIVE_SALES.map(function (s) { return '{Staða í söluferli}="' + s + '"'; }).join(",") + ")";
-    api(PROJECTS, "filterByFormula=" + encodeURIComponent(salesFml) + "&fields%5B%5D=Sta%C3%B0a%20%C3%AD%20s%C3%B6luferli&fields%5B%5D=" + encodeURIComponent("💰 Tilboðsupphæð") + "&pageSize=100")
+    // Per-viewer (2026-10-23, "S/M/L tiles... different stats depending on who's viewing"): a
+    // salesperson sees their OWN open deals here, not the whole company's — the one tile in this
+    // whole dashboard where that distinction is both possible (Tækifæri has a real Sölumaður field)
+    // and actually useful to the person looking at it. Owners keep the company-wide number even
+    // when they're also personally a salesperson (e.g. Ísak) — Yfirlit is their oversight view
+    // first, same as every other tile here; only non-owner salespeople get the personal slice.
+    var mine = !currentUserIsOwner && SOLUMENN.indexOf(currentUserName) !== -1;
+    document.getElementById("kpiSalesLbl").textContent = mine ? "Þín virk tilboð" : "Virk tilboð";
+    api(PROJECTS, "filterByFormula=" + encodeURIComponent(salesFml) + "&fields%5B%5D=Sta%C3%B0a%20%C3%AD%20s%C3%B6luferli&fields%5B%5D=" + encodeURIComponent("💰 Tilboðsupphæð") + "&fields%5B%5D=" + encodeURIComponent("Sölumaður 🧑‍💼") + "&pageSize=100")
       .then(function (d) {
         var recs = d.records || [];
+        if (mine) recs = recs.filter(function (r) { return r.fields["Sölumaður 🧑‍💼"] === currentUserName; });
         document.getElementById("kpiSales").textContent = recs.length;
         var heildarvirdi = recs.reduce(function (s, r) { return s + (r.fields["💰 Tilboðsupphæð"] || 0); }, 0);
         var hot = recs.filter(function (r) { return r.fields["Staða í söluferli"] === "🔥 Líklegt tækifæri"; }).length;
