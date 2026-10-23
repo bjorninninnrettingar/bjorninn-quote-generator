@@ -361,6 +361,28 @@
     return page(s);
   }
 
+  // ── Forsíða (2026-10-23, I1): one PDF for the whole project — the rooms, their sheets and the door list ──
+  // project = {name, date, rooms:[{name, sheets, units, notes:[]}], doors:n, totalSheets}
+  function coverSheet(project){
+    var x = M + 14, y = M + 26, s = tx(x, y, "VINNUTEIKNINGAR", 9, C.ink, ' font-weight="800" letter-spacing="0.6"');
+    s += tx(x, y + 12, project.name || "Verkefni", 6, C.ink, ' font-weight="700"');
+    s += tx(x, y + 21, (project.date || "") + " · " + project.totalSheets + " blöð (A3)", 3.2, C.thin);
+    var ty = y + 40, colW = 120;
+    s += tx(x, ty, "EFNISYFIRLIT", 3, C.text, ' font-weight="700"'); ty += 7;
+    var pg = 2;
+    (project.rooms || []).forEach(function(r){
+      s += tx(x, ty, r.name, 3.4, C.ink, ' font-weight="700"') + tx(x + colW, ty, "bls. " + pg + (r.sheets > 1 ? "–" + (pg + r.sheets - 1) : ""), 3, C.thin, ' text-anchor="end"');
+      s += ln(x, ty + 1.6, x + colW, ty + 1.6, "#d4d4d8", 0.15);
+      ty += 5;
+      s += tx(x + 2, ty, r.units + " einingar" + (r.notes && r.notes.length ? " · " + r.notes.slice(0, 3).join(" · ") : ""), 2.4, C.thin);
+      ty += 8; pg += r.sheets;
+    });
+    if (project.doors){ s += tx(x, ty, "Hurðalisti", 3.4, C.ink, ' font-weight="700"') + tx(x + colW, ty, "bls. " + pg, 3, C.thin, ' text-anchor="end"') + ln(x, ty + 1.6, x + colW, ty + 1.6, "#d4d4d8", 0.15); ty += 5; s += tx(x + 2, ty, project.doors + (project.doors === 1 ? " hurð" : " hurðir"), 2.4, C.thin); }
+    s += tx(PAGE_W - M - 14, PAGE_H - M - 10, "BJÖRNINN INNRÉTTINGAR", 4, C.ink, ' text-anchor="end" font-weight="800"');
+    s += tx(PAGE_W - M - 14, PAGE_H - M - 4, "Drög — mál staðfest á staðnum", 2.6, C.thin, ' text-anchor="end"');
+    return page(s);
+  }
+
   // ── Hurðalisti (2026-10-23, I2): every door in the project's door list as one table, a small elevation per row
   // (hinge side by DIN: seen from the side the door opens towards; dashed point away from the hinges) ──
   // doors = [{hu, room, kind, product, w, h, wall, hinge:"left"|"right", slide, leaf, qty, note}]
@@ -403,7 +425,7 @@
     return out;
   }
 
-  var API = { render:render, wallSheet:wallSheet, doorSheet:doorSheet, overviewSheet:overviewSheet, planSvg:planSvg, drawerLabel:drawerLabel, pickScale:pickScale, COLORS:C, PAGE_W:PAGE_W, PAGE_H:PAGE_H };
+  var API = { render:render, wallSheet:wallSheet, doorSheet:doorSheet, coverSheet:coverSheet, overviewSheet:overviewSheet, planSvg:planSvg, drawerLabel:drawerLabel, pickScale:pickScale, COLORS:C, PAGE_W:PAGE_W, PAGE_H:PAGE_H };
   if (typeof module !== "undefined" && module.exports) module.exports = API;
   root.KPWD = API;
 })(typeof window !== "undefined" ? window : globalThis);

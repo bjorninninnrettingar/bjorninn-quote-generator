@@ -11894,11 +11894,13 @@
   function openWorkDrawings(){
     var pages = [];
     try{
-      var models = wdModels();
-      models.forEach(function(m){ pages = pages.concat(KPWD.render(m)); });
+      var models = wdModels(), rooms = [];
+      models.forEach(function(m){ var pg = KPWD.render(m); rooms.push({ name:m.roomName, sheets:pg.length, units:(m.sheets || []).reduce(function(n, sh){ return n + ((sh.units || []).length); }, 0), notes:(m.notes || []).slice(0, 2) }); pages = pages.concat(pg); });
       // 🚪 the project's door list as its own sheet (I2), after the rooms
       var dl = wdDoorRows();
-      if (dl.length) pages.push(KPWD.doorSheet({ project:PRO ? PRO.name : "Verkefni", date:(models[0] || {}).date, notes:[] }, dl, pages.length + 1, pages.length + 1));
+      if (dl.length) pages.push(KPWD.doorSheet({ project:PRO ? PRO.name : "Verkefni", date:(models[0] || {}).date, notes:[] }, dl, pages.length + 2, pages.length + 2));
+      // one PDF for the whole project (I1): a cover with the contents when there's more than one room or a door list
+      if (rooms.length > 1 || dl.length) pages.unshift(KPWD.coverSheet({ name:PRO ? PRO.name : "Verkefni", date:(models[0] || {}).date, rooms:rooms, doors:dl.length, totalSheets:pages.length + 1 }));
     }
     catch(e){ toast("Teikningin tókst ekki: " + e.message); console.error(e); return; }
     var ov = document.getElementById("wdOverlay");

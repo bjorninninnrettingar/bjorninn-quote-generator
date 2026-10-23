@@ -44,3 +44,8 @@ test("doorSheet: one row per door, DIN hinge text, sliding doors say which way",
   assert.match(svg, /HURÐALISTI — T-32/);
   assert.match(svg, />HU3</); assert.match(svg, />Vinstri</); assert.match(svg, /Rennur til vinstri/); assert.match(svg, /Spónn Eik, ljós/);
 });
+
+test("coverSheet: lists every room with its page range, then the door list", () => {
+  const svg = globalThis.KPWD.coverSheet({ name: "T-40 | Jón", date: "23.10.2026", rooms: [{ name: "Eldhús", sheets: 4, units: 18 }, { name: "Fatask.", sheets: 2, units: 5 }], doors: 3, totalSheets: 8 });
+  assert.match(svg, /VINNUTEIKNINGAR/); assert.match(svg, />Eldhús</); assert.match(svg, /bls\. 2–5/); assert.match(svg, /bls\. 6–7/); assert.match(svg, /Hurðalisti/); assert.match(svg, /bls\. 8/);
+});
