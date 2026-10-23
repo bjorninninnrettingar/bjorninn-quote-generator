@@ -1507,6 +1507,14 @@
   // realism" approach used for cabinets/handles throughout). `baseYM` is
   // where the opening starts (sill height for a window, 0 for a door).
   var WINDOW_MARKER_COLOR = 0xa9c6d6, DOOR_MARKER_COLOR = 0x8a6a4a;
+  // Veggur merkingar — one accent colour that reads on both the light and the PRO dark elevation, a short symbol set
+  var ANNO_COLOR = "#e8590c";
+  var ANNO_SYMBOLS = {
+    innstunga:{ glyph:"⏚", label:"Innstunga" }, rofi:{ glyph:"⊘", label:"Rofi" }, ljos:{ glyph:"✦", label:"Ljós" },
+    vatn:{ glyph:"≋", label:"Vatn / frárennsli" }, net:{ glyph:"⌁", label:"Net / loftnet" }, tafla:{ glyph:"▦", label:"Rafmagnstafla" },
+    athuga:{ glyph:"!", label:"Athuga" }
+  };
+  function escSvg(t){ return String(t).replace(/[&<>"]/g, function(ch){ return { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[ch]; }); }
   function addOpeningMarker(THREE, scene, geom, offsetM, widthM, heightM, baseYM, color, opacity, meta, selected, pickables){
     var isWin = meta && meta.kind === "window";
     var isGap = !!(meta && meta.gap); // a plain opening in the wall: no door leaf, the wall itself has the hole
@@ -4296,12 +4304,15 @@
     // "Veggur" view: an SVG overlay drawn on top of the canvas with IKEA-style chained dimensions
     // (per-cabinet width + one wall total + a height chain), projected live from the real 3D points —
     // elevationShot in kitchen-planner.html draws the same information once, offline, for the PDF export.
-    var dimSvg = null;
+    var dimSvg = null, annoSvg = null;
     if (focusBounds){
       if (getComputedStyle(wrap).position === "static") wrap.style.position = "relative";
       dimSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       dimSvg.setAttribute("style", "position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;");
       wrap.appendChild(dimSvg);
+      annoSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      annoSvg.setAttribute("style", "position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;");
+      wrap.appendChild(annoSvg);
     }
 
     // Subtle image-based lighting so steel, handles and the satin finish pick up
@@ -4346,7 +4357,20 @@
     controls.update();
 
     var cleanupInteraction = setupCabinetInteraction(THREE, wrap, renderer, camera, controls, pickables, allGeoms, surfaces, opts, WALL_H);
-    THREE_STATE = { renderer:renderer, camera:camera, controls:controls, scene:scene, rafId:0, onResize:resize, cleanupInteraction:cleanupInteraction,
+    // Veggur view: screen ⇄ wall millimetres (ortho camera looking straight at the wall — see placeAnnotations)
+    var annoV = new THREE.Vector3();
+    function wallToScreen(xMm, yMm){
+      if (!focusBounds) return null;
+      var cr = renderer.domElement.getBoundingClientRect(), g = focusBounds.g;
+      annoV.set(g.origin.x + g.axis.x * xMm / 1000, yMm / 1000, g.origin.z + g.axis.z * xMm / 1000).project(camera);
+      return { x:cr.left + (annoV.x * 0.5 + 0.5) * cr.width, y:cr.top + (-annoV.y * 0.5 + 0.5) * cr.height };
+    }
+    function screenToWall(clientX, clientY){ // the camera looks straight at the wall, so screen ⇄ wall is a plain scale + offset per axis
+      var s0 = wallToScreen(0, 0), s1 = wallToScreen(1000, 1000);
+      if (!s0 || !s1 || s1.x === s0.x || s1.y === s0.y) return null;
+      return { x:Math.round((clientX - s0.x) / (s1.x - s0.x) * 1000), y:Math.round((clientY - s0.y) / (s1.y - s0.y) * 1000) };
+    }
+    THREE_STATE = { renderer:renderer, camera:camera, controls:controls, scene:scene, rafId:0, onResize:resize, cleanupInteraction:cleanupInteraction, wallToScreen:wallToScreen, screenToWall:screenToWall,
                     walls:surfaces, geoms:allGeoms, previewMesh:null, dragging:false, opts:opts, pickables:pickables, roomHM:WALL_H, wallHi:null, frontMat:frontMat };
     if (opts.selectedWallId) setSelectedWall3D(opts.selectedWallId);
 
@@ -4444,6 +4468,39 @@
         svg += dimTick(ph0.x, ph0.y, ph1.x, ph1.y, String(Math.round((ys[k] - ys[k - 1]) * 1000)), true, color);
       }
       dimSvg.innerHTML = svg;
+      placeAnnotations(P, cr);
+    }
+    // Veggur merkingar (2026-10-23): arrows / text boxes / symbols the designer puts on this wall's elevation.
+    // Stored in wall millimetres (x = along the wall from its start, y = height above the floor) so they stay put
+    // through zoom/resize and the drawing export can draw them too. The planner owns editing (opts.annotations()
+    // returns this wall's list incl. a half-drawn one, opts.annoSelectedId() the selected id); this only draws.
+    function placeAnnotations(P, cr){
+      if (!annoSvg || !opts.annotations) return;
+      var list = opts.annotations() || [], selId = opts.annoSelectedId ? opts.annoSelectedId() : null;
+      var sig = JSON.stringify(list) + "|" + selId + "|" + cr.width + "x" + cr.height + "|" + camera.zoom + camera.left + camera.top;
+      if (sig === annoSvg.__sig) return; // nothing moved: keep the DOM (a text box's own measuring is the slow part)
+      annoSvg.__sig = sig;
+      annoSvg.setAttribute("viewBox", "0 0 " + cr.width + " " + cr.height);
+      var out = '<defs><marker id="kpAnnoHead" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="' + ANNO_COLOR + '"/></marker></defs>';
+      function Q(pt){ return P(pt.x / 1000, pt.y / 1000); }
+      list.forEach(function(an){
+        var sel = an.id === selId, p = Q(an.a);
+        if (an.kind === "arrow" && an.b){
+          var q = Q(an.b);
+          out += '<line x1="' + p.x + '" y1="' + p.y + '" x2="' + q.x + '" y2="' + q.y + '" stroke="' + ANNO_COLOR + '" stroke-width="' + (sel ? 3.4 : 2.4) + '" stroke-linecap="round" marker-end="url(#kpAnnoHead)"/>';
+          if (sel) [p, q].forEach(function(h){ out += '<circle cx="' + h.x + '" cy="' + h.y + '" r="5.5" fill="#fff" stroke="' + ANNO_COLOR + '" stroke-width="2"/>'; });
+        } else if (an.kind === "text"){
+          var lines = String(an.text || "").split("\n"), w = Math.max.apply(null, lines.map(function(l){ return l.length; })) * 7.1 + 18, h = lines.length * 16 + 10;
+          out += '<g><rect x="' + p.x + '" y="' + (p.y - h / 2) + '" width="' + w + '" height="' + h + '" rx="6" fill="#fffdf6" fill-opacity=".96" stroke="' + ANNO_COLOR + '" stroke-width="' + (sel ? 2.4 : 1.4) + '"/>' +
+            lines.map(function(l, i){ return '<text x="' + (p.x + 9) + '" y="' + (p.y - h / 2 + 18 + i * 16) + '" font-size="12.5" font-weight="600" fill="#2b2b2e">' + escSvg(l) + '</text>'; }).join("") + '</g>';
+        } else if (an.kind === "symbol"){
+          var sy = ANNO_SYMBOLS[an.sym] || ANNO_SYMBOLS.athuga;
+          out += '<circle cx="' + p.x + '" cy="' + p.y + '" r="' + (sel ? 14 : 12.5) + '" fill="' + ANNO_COLOR + '" stroke="#fff" stroke-width="2"/>' +
+            '<text x="' + p.x + '" y="' + (p.y + 4.5) + '" font-size="13" text-anchor="middle" fill="#fff" font-weight="700">' + sy.glyph + '</text>' +
+            (an.text ? '<text x="' + (p.x + 18) + '" y="' + (p.y + 4) + '" font-size="12" font-weight="600" fill="' + ANNO_COLOR + '" paint-order="stroke" stroke="#fff" stroke-width="3">' + escSvg(an.text) + '</text>' : "");
+        }
+      });
+      annoSvg.innerHTML = out;
     }
 
     var wallVec = new THREE.Vector3();
@@ -5762,6 +5819,9 @@
     SHELF_STACK_MAX: SHELF_STACK_MAX,
     SHELF_GAP_DEFAULT: SHELF_GAP_DEFAULT,
     debugInfo: function(){ return sharedRenderer ? { memory:sharedRenderer.info.memory, programs:(sharedRenderer.info.programs || []).length } : null; },
+    ANNO_SYMBOLS: ANNO_SYMBOLS, ANNO_COLOR: ANNO_COLOR,
+    wallToScreen: function(x, y){ return THREE_STATE && THREE_STATE.wallToScreen ? THREE_STATE.wallToScreen(x, y) : null; },
+    screenToWall: function(x, y){ return THREE_STATE && THREE_STATE.screenToWall ? THREE_STATE.screenToWall(x, y) : null; },
     fitWarnings: fitWarnings, openingIssues: openingIssues, roomDoorConflicts: roomDoorConflicts, doorSweep: doorSweep, doorSwingOf: doorSwingOf, doorHingeOf: doorHingeOf, doorMaxDeg: doorMaxDeg, handleProjMm: handleProjMm,
     WALL_UNIT_BASE_MM: WALL_UNIT_BASE_MM,
     snapshot3D: snapshot3D,

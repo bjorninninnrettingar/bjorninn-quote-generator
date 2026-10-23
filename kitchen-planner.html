@@ -642,6 +642,21 @@
     background:var(--panel,#fff);
   }
   .ed-stage.wall-mode #wallMiniMap svg{ width:100%; height:100%; }
+  /* Veggur merkingar (2026-10-23) */
+  .anno-bar{ position:absolute; left:18px; bottom:18px; z-index:6; display:flex; flex-direction:column; align-items:flex-start; gap:6px; }
+  .anno-bar[hidden], .anno-bar [hidden]{ display:none !important; }
+  .anno-bar button{ font:inherit; font-size:13px; font-weight:600; cursor:pointer; background:var(--card,#fff); color:var(--ink); border:1.5px solid var(--line); border-radius:999px; padding:7px 13px; box-shadow:0 4px 12px rgba(0,0,0,.12); }
+  .anno-bar button.on{ background:#e8590c; border-color:#e8590c; color:#fff; }
+  .anno-bar button:disabled{ opacity:.45; cursor:default; }
+  .anno-tools, .anno-syms{ display:flex; gap:5px; flex-wrap:wrap; max-width:520px; }
+  .anno-syms{ align-items:center; }
+  .anno-syms button{ width:32px; height:32px; padding:0; font-size:15px; border-radius:50%; }
+  .anno-syms button b{ color:#e8590c; }
+  .anno-symname{ font-size:12px; font-weight:600; color:var(--ink-soft); margin-left:4px; }
+  .anno-syms button.on b{ color:#fff; }
+  .anno-capture{ position:absolute; z-index:4; cursor:crosshair; touch-action:none; }
+  .anno-capture.sel{ cursor:default; }
+  .anno-input{ position:fixed; z-index:30; font:600 12.5px/16px inherit; font-family:inherit; color:#2b2b2e; background:#fffdf6; border:2px solid #e8590c; border-radius:6px; padding:4px 8px; resize:none; min-width:140px; outline:none; box-shadow:0 6px 18px rgba(0,0,0,.18); }
   .view-toggle button{
     font:inherit; font-size:13.5px; font-weight:600; cursor:pointer;
     background:#fff; border:1.5px solid var(--line); border-radius:8px; padding:8px 14px; color:var(--ink);
@@ -1369,6 +1384,19 @@
           <button type="button" id="wallNextBtn" title="Næsti veggur">▶</button>
         </div>
         <div class="wall-minimap" id="wallMiniMap" hidden></div>
+        <div class="anno-capture" id="annoCapture" hidden></div>
+        <textarea class="anno-input" id="annoInput" rows="1" hidden placeholder="Skrifaðu… (Enter = klárt)"></textarea>
+        <div class="anno-bar" id="annoBar" hidden>
+          <button type="button" id="annoToggle" title="Setja örvar, texta og tákn á vegginn">✏️ Merkingar</button>
+          <span class="anno-tools" id="annoTools" hidden>
+            <button type="button" data-anno-tool="select" title="Velja, færa (dragðu), breyta texta (tvísmelltu)">↖ Velja</button>
+            <button type="button" data-anno-tool="arrow" title="Dragðu frá upphafi að oddi">➝ Ör</button>
+            <button type="button" data-anno-tool="text" title="Smelltu þar sem textinn á að koma">T Texti</button>
+            <button type="button" data-anno-tool="symbol" title="Veldu tákn og smelltu á vegginn">◎ Tákn</button>
+            <button type="button" id="annoDelete" title="Eyða völdu (Delete)" disabled>🗑</button>
+          </span>
+          <span class="anno-syms" id="annoSyms" hidden></span>
+        </div>
         <div class="stage-empty" id="stageEmpty" hidden>Ýttu á <b>＋ Ný eining</b> til að bæta við fyrsta skápnum<br><span>hann birtist á veggnum og þú getur dregið hann til</span></div>
         <div class="float-bar" id="floatBar" hidden>
           <span class="fb-dim" id="fbDim"></span>
@@ -6399,6 +6427,7 @@
     document.getElementById("wallMiniMap").hidden = !inWall;
     var stage = document.querySelector(".ed-stage");
     stage.classList.toggle("wall-mode", inWall);
+    syncAnnoUI();
     if (inWall){ // the arrows flank the framed elevation itself, not the whole stage — align to #threeWrap's own box
       var sr = stage.getBoundingClientRect(), wr = document.getElementById("threeWrap").getBoundingClientRect();
       var midY = (wr.top - sr.top) + wr.height / 2;
@@ -6412,6 +6441,159 @@
     }
   }
   window.addEventListener("resize", function(){ if (viewMode === "wall") syncWallCycleUI(); });
+
+  // ---------- Veggur merkingar (2026-10-23): arrows, text boxes and symbols on a wall's elevation ----------
+  // state.annotations = [{id, wallId, kind:"arrow"|"text"|"symbol", a:{x,y}, b:{x,y} (arrow tip), text, sym}] in wall
+  // mm (x along the wall from its start, y above the floor) — KP3D draws them (placeAnnotations), this edits them.
+  // While "✏️ Merkingar" is on, a transparent layer over the elevation takes the mouse, so cabinets can't be
+  // nudged by accident; off again = the wall view works exactly as before, with the marks still shown.
+  var anno = { on:false, tool:"select", sym:"innstunga", selId:null, draft:null, drag:null, editId:null, seq:0 };
+  function annoList(){ if (!state.annotations) state.annotations = []; return state.annotations; }
+  function annoForWall(){ var l = annoList().filter(function(a){ return a.wallId === wallViewId; }); return anno.draft ? l.concat([anno.draft]) : l; }
+  function annoNewId(){ var n = 0; annoList().forEach(function(a){ var m = /^an(\d+)$/.exec(a.id); if (m) n = Math.max(n, +m[1]); }); return "an" + (n + 1); }
+  function annoFind(id){ return annoList().find(function(a){ return a.id === id; }) || null; }
+  function annoScreenBox(an){ // the same sizes KP3D draws with, in client px — for hit testing
+    var p = KP3D.wallToScreen(an.a.x, an.a.y); if (!p) return null;
+    if (an.kind === "arrow"){ var q = KP3D.wallToScreen(an.b.x, an.b.y); return { p:p, q:q }; }
+    if (an.kind === "text"){
+      var lines = String(an.text || "").split("\n"), w = Math.max.apply(null, lines.map(function(l){ return l.length; })) * 7.1 + 18, h = lines.length * 16 + 10;
+      return { p:p, x0:p.x, x1:p.x + w, y0:p.y - h / 2, y1:p.y + h / 2 };
+    }
+    return { p:p, x0:p.x - 15, x1:p.x + 15 + (an.text ? an.text.length * 7 + 6 : 0), y0:p.y - 15, y1:p.y + 15 };
+  }
+  function annoHit(cx, cy){ // topmost first; returns {an, end:"a"|"b"|null}
+    var l = annoForWall();
+    for (var i = l.length - 1; i >= 0; i--){
+      var an = l[i], bx = annoScreenBox(an); if (!bx) continue;
+      if (an.kind === "arrow"){
+        if (an.id === anno.selId){
+          if (Math.hypot(cx - bx.p.x, cy - bx.p.y) < 10) return { an:an, end:"a" };
+          if (Math.hypot(cx - bx.q.x, cy - bx.q.y) < 10) return { an:an, end:"b" };
+        }
+        var dx = bx.q.x - bx.p.x, dy = bx.q.y - bx.p.y, L2 = dx * dx + dy * dy || 1, t = Math.max(0, Math.min(1, ((cx - bx.p.x) * dx + (cy - bx.p.y) * dy) / L2));
+        if (Math.hypot(cx - (bx.p.x + t * dx), cy - (bx.p.y + t * dy)) < 8) return { an:an, end:null };
+      } else if (cx >= bx.x0 && cx <= bx.x1 && cy >= bx.y0 && cy <= bx.y1) return { an:an, end:null };
+    }
+    return null;
+  }
+  function annoSelect(id){ anno.selId = id; document.getElementById("annoDelete").disabled = !id; }
+  function annoCommit(){ save(); } // placeAnnotations redraws on its own (it watches the list)
+  function annoRemove(id){
+    state.annotations = annoList().filter(function(a){ return a.id !== id; });
+    if (anno.selId === id) annoSelect(null);
+    annoCommit();
+  }
+  function setAnnoOn(on){
+    anno.on = on; anno.draft = null; anno.drag = null;
+    if (on){ deselectBlock(); if (anno.tool !== "select" && anno.tool !== "arrow" && anno.tool !== "text" && anno.tool !== "symbol") anno.tool = "select"; }
+    else { annoSelect(null); annoCloseInput(true); }
+    syncAnnoUI();
+  }
+  function setAnnoTool(t){ anno.tool = t; anno.draft = null; if (t !== "select") annoSelect(null); syncAnnoUI(); }
+  function syncAnnoUI(){
+    var inWall = viewMode === "wall", bar = document.getElementById("annoBar"), cap = document.getElementById("annoCapture");
+    if (!bar) return;
+    bar.hidden = !inWall;
+    if (!inWall && anno.on){ anno.on = false; annoSelect(null); annoCloseInput(true); }
+    document.getElementById("annoToggle").classList.toggle("on", anno.on);
+    document.getElementById("annoToggle").textContent = anno.on ? "✏️ Merkingar — búið" : "✏️ Merkingar";
+    document.getElementById("annoTools").hidden = !anno.on;
+    document.querySelectorAll("[data-anno-tool]").forEach(function(b){ b.classList.toggle("on", b.dataset.annoTool === anno.tool); });
+    var syms = document.getElementById("annoSyms");
+    syms.hidden = !(anno.on && anno.tool === "symbol");
+    if (!syms.childElementCount){
+      syms.innerHTML = Object.keys(KP3D.ANNO_SYMBOLS).map(function(k){ var sy = KP3D.ANNO_SYMBOLS[k]; return '<button type="button" data-anno-sym="' + k + '" title="' + sy.label + '"><b>' + sy.glyph + '</b></button>'; }).join("") + '<span class="anno-symname" id="annoSymName"></span>';
+    }
+    syms.querySelectorAll("[data-anno-sym]").forEach(function(b){ b.classList.toggle("on", b.dataset.annoSym === anno.sym); });
+    document.getElementById("annoSymName").textContent = (KP3D.ANNO_SYMBOLS[anno.sym] || {}).label || "";
+    cap.hidden = !(inWall && anno.on);
+    cap.classList.toggle("sel", anno.tool === "select");
+    if (!cap.hidden){ // exactly over the framed elevation
+      var stage = document.querySelector(".ed-stage"), sr = stage.getBoundingClientRect(), wr = document.getElementById("threeWrap").getBoundingClientRect();
+      cap.style.left = (wr.left - sr.left) + "px"; cap.style.top = (wr.top - sr.top) + "px"; cap.style.width = wr.width + "px"; cap.style.height = wr.height + "px";
+    }
+  }
+  // the text box editor: a textarea floated over the mark being written
+  function annoOpenInput(an){
+    var inp = document.getElementById("annoInput"), p = KP3D.wallToScreen(an.a.x, an.a.y); if (!p) return;
+    anno.editId = an.id;
+    inp.value = an.text || "";
+    inp.hidden = false;
+    inp.style.left = (an.kind === "symbol" ? p.x + 16 : p.x) + "px"; inp.style.top = (p.y - 14) + "px";
+    inp.rows = Math.max(1, inp.value.split("\n").length);
+    setTimeout(function(){ inp.focus(); inp.select(); }, 0);
+  }
+  function annoCloseInput(commit){
+    var inp = document.getElementById("annoInput"); if (!inp || inp.hidden) return;
+    var an = anno.editId ? annoFind(anno.editId) : null;
+    inp.hidden = true; anno.editId = null;
+    if (!an) return;
+    if (commit) an.text = inp.value.trim();
+    if (an.kind === "text" && !an.text) annoRemove(an.id); else annoCommit();
+  }
+  (function wireAnno(){
+    var cap = document.getElementById("annoCapture"), inp = document.getElementById("annoInput");
+    if (!cap) return;
+    document.getElementById("annoToggle").addEventListener("click", function(){ setAnnoOn(!anno.on); });
+    document.querySelectorAll("[data-anno-tool]").forEach(function(b){ b.addEventListener("click", function(){ setAnnoTool(b.dataset.annoTool); }); });
+    document.getElementById("annoSyms").addEventListener("click", function(e){ var b = e.target.closest("[data-anno-sym]"); if (b){ anno.sym = b.dataset.annoSym; syncAnnoUI(); } });
+    document.getElementById("annoDelete").addEventListener("click", function(){ if (anno.selId) annoRemove(anno.selId); });
+    cap.addEventListener("pointerdown", function(e){
+      if (e.button !== 0) return;
+      annoCloseInput(true);
+      var w = KP3D.screenToWall(e.clientX, e.clientY); if (!w) return;
+      if (anno.tool === "arrow"){
+        anno.draft = { id:annoNewId(), wallId:wallViewId, kind:"arrow", a:w, b:{ x:w.x, y:w.y } };
+        anno.drag = { kind:"draw", x0:e.clientX, y0:e.clientY };
+      } else if (anno.tool === "text"){
+        var t = { id:annoNewId(), wallId:wallViewId, kind:"text", a:w, text:"" };
+        annoList().push(t); annoSelect(t.id); annoOpenInput(t);
+      } else if (anno.tool === "symbol"){
+        var sy = { id:annoNewId(), wallId:wallViewId, kind:"symbol", sym:anno.sym, a:w, text:"" };
+        annoList().push(sy); annoSelect(sy.id); annoCommit();
+      } else {
+        var hit = annoHit(e.clientX, e.clientY);
+        annoSelect(hit ? hit.an.id : null);
+        if (hit) anno.drag = { kind:hit.end ? "end" : "move", end:hit.end, an:hit.an, w0:w, a0:{ x:hit.an.a.x, y:hit.an.a.y }, b0:hit.an.b ? { x:hit.an.b.x, y:hit.an.b.y } : null, moved:false };
+      }
+      cap.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+    cap.addEventListener("pointermove", function(e){
+      var d = anno.drag; if (!d) return;
+      var w = KP3D.screenToWall(e.clientX, e.clientY); if (!w) return;
+      if (d.kind === "draw"){ anno.draft.b = w; return; }
+      var dx = w.x - d.w0.x, dy = w.y - d.w0.y; d.moved = d.moved || Math.abs(dx) + Math.abs(dy) > 3;
+      if (d.kind === "end") d.an[d.end] = { x:w.x, y:w.y };
+      else { d.an.a = { x:d.a0.x + dx, y:d.a0.y + dy }; if (d.b0) d.an.b = { x:d.b0.x + dx, y:d.b0.y + dy }; }
+    });
+    function end(e){
+      var d = anno.drag; anno.drag = null; if (!d) return;
+      if (d.kind === "draw"){
+        var an = anno.draft; anno.draft = null;
+        if (Math.hypot(e.clientX - d.x0, e.clientY - d.y0) < 18){ toast("Dragðu frá upphafi að oddi til að teikna ör."); return; }
+        annoList().push(an); annoSelect(an.id); annoCommit();
+      } else if (d.moved) annoCommit();
+    }
+    cap.addEventListener("pointerup", end);
+    cap.addEventListener("pointercancel", end);
+    cap.addEventListener("dblclick", function(e){
+      var hit = annoHit(e.clientX, e.clientY);
+      if (hit && hit.an.kind !== "arrow"){ annoSelect(hit.an.id); annoOpenInput(hit.an); }
+    });
+    inp.addEventListener("keydown", function(e){
+      if (e.key === "Enter" && !e.shiftKey){ e.preventDefault(); annoCloseInput(true); }
+      else if (e.key === "Escape"){ e.preventDefault(); annoCloseInput(false); }
+      e.stopPropagation(); // typing must not trigger editor shortcuts
+      setTimeout(function(){ inp.rows = Math.max(1, inp.value.split("\n").length); }, 0);
+    });
+    inp.addEventListener("blur", function(){ annoCloseInput(true); });
+    document.addEventListener("keydown", function(e){
+      if (!anno.on || e.target.closest && e.target.closest("input,textarea,select")) return;
+      if ((e.key === "Delete" || e.key === "Backspace") && anno.selId){ e.preventDefault(); e.stopImmediatePropagation(); annoRemove(anno.selId); }
+      else if (e.key === "Escape"){ if (anno.selId) annoSelect(null); else if (anno.tool !== "select") setAnnoTool("select"); else setAnnoOn(false); }
+    }, true);
+  })();
 
   function surfaces(){ return KP3D.surfacesOf(state); } // real walls + island rows
   function surfaceById(id){ return surfaces().find(function(w){ return w.id === id; }) || null; }
@@ -6732,7 +6914,8 @@
       wrap.innerHTML = "";
       KP3D.buildScene(wrap, state, { darkBg:!!PRO, selectedId:selectedBlockId, selectedWallId:selectedWallId, onWallSelect:onWallSelect, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, onIslandDragEnd:onIslandDragEnd, onIslandDragMove:clampIslandDragMove, onDecorDragEnd:onDecorDragEnd, onDecorDragMove:onDecorDragMove, onObstacleFloorEnd:onObstacleFloorEnd, onObstacleResizeMove:onObstacleResizeMove, onObstacleResizeEnd:onObstacleResizeEnd, onShelfPosMove:onShelfPosMove, onShelfPosEnd:onShelfPosEnd, onShelfPosInfo:onShelfPosInfo, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList(), readyIds:PRO ? proReadyIds() : null,
         xray:inspect.on, // inspect mode: every cabinet built in parts (drawers/doors tap open, nothing drags)
-        focusWallId:viewMode === "wall" ? wallViewId : null, freshCamera:viewMode === "wall" });
+        focusWallId:viewMode === "wall" ? wallViewId : null, freshCamera:viewMode === "wall",
+        annotations:viewMode === "wall" ? annoForWall : null, annoSelectedId:function(){ return anno.selId; } });
       landedBlockId = null;
       applyInspect();
     }, 8000);
@@ -7766,7 +7949,7 @@
   // object as the user moves between categories (Eldhús, Fataskápar, ...); categoryQueue/categoryData/
   // activeCategory themselves are never part of this list.
   var ROOM_FIELDS = ["intake", "carcass", "drawerSystem", "look", "handle", "handleColor", "top", "floor", "floorTile", "floorPattern", "floorRot", "roomHeightMm",
-    "wallColor", "windows", "doors", "closed", "shapeKey", "waterWall", "waterAlongMm", "seeded", "base900", "islands", "walls", "obstacles", "decor", "openingsDone"];
+    "wallColor", "windows", "doors", "closed", "shapeKey", "waterWall", "waterAlongMm", "seeded", "base900", "islands", "walls", "obstacles", "decor", "openingsDone", "annotations"];
   function serializeRoom(){
     var blob = {};
     ROOM_FIELDS.forEach(function(k){ blob[k] = state[k]; });
