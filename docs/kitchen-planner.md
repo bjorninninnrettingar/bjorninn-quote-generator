@@ -215,3 +215,4 @@ HomeByMe-style self-serve planner that ends in a lead: steps intake → material
 - B5 (ekkert LED í sökkli/BASKI) — þegar svo, engin breyting.
 - **Sömu efni í öllu verkefninu (A2):** nýtt rými (`startCategory` án eldri gagna) tekur `SHARED_MATERIALS` (skrokkur, skúffukerfi, framhlið 1/2, innskúffufrontar, höldur + litur) úr rými sem þegar er í verkefninu; borðplata, gólf og rýmið sjálft eru per rými. Breytt í Efni-skrefi rýmisins.
 - **Tilboð skipt eftir rýmum (A3):** lifandi tilboðið í PRO flokkar línur eftir `Rými 🏡` með millisummu þegar rýmin eru fleiri en eitt. Prentaða tilboðið ("Tilboð til sendingar", api/tilbod-print → Airtable) er ekki enn flokkað.
+- **Efni hurðarblaðs (F5):** Innihurðir velja spónlagt (LOOKS category sponlagt) eða harðplast frá Egger (LOOKS eg_*) — fer í athugasemd línunnar og Smíðagögn `door.leaf` {look, label, efnislistiId, type}; ekki fyrir gler/karma.

@@ -9303,6 +9303,15 @@
     d.hu = nextHuKey();
     return d;
   }
+  // Efni hurðarblaðs (user, 2026-10-23, F5): spónlagt (the Spónlagt fronts) or harðplast from Egger (the eg_ decors) —
+  // the same LOOKS the cabinet fronts use, so the label, colour and Efnislisti record come along. Not for glass/frames.
+  function doorLeafMaterials(){
+    var sp = [], eg = [];
+    Object.keys(LOOKS).forEach(function(k){ var L = LOOKS[k]; if (L.hidden) return; if (L.category === "sponlagt") sp.push(k); else if (/^eg_/.test(k)) eg.push(k); });
+    eg.sort(function(a, b){ return String(LOOKS[a].label).localeCompare(String(LOOKS[b].label), "is"); });
+    return { sp:sp, eg:eg };
+  }
+  function doorHasLeaf(d){ return d.kind === "hurd" || d.kind === "renni" || d.kind === "eld"; }
   function doorListLines(){
     return (state.doorList || []).map(function(d){
       var p = doorProductFor(d);
@@ -9311,10 +9320,13 @@
       d.product = pid;
       var how = d.kind === "renni" || d.kind === "glerrenni" ? "rennihurð, rennur til " + (d.hinge === "left" ? "hægri" : "vinstri") + " þegar hún opnast"
         : d.kind === "karmur" ? "karmur eingöngu" : "lamir " + (d.hinge === "left" ? "vinstra" : "hægra") + " megin séð frá hliðinni sem hurðin opnast að";
+      var mat = doorHasLeaf(d) && d.leaf && LOOKS[d.leaf] ? LOOKS[d.leaf] : null;
       var msg = "Innihurð" + (d.room ? " (" + d.room + ")" : "") + ": op " + d.widthMm + " × " + d.heightMm + " mm, veggþykkt " + d.wallMm + " mm, " + how + "." +
+        (mat ? " Hurðarblað: " + (/^eg_/.test(d.leaf) ? "harðplast Egger " : "spónlagt ") + mat.label + "." : doorHasLeaf(d) ? " Efni hurðarblaðs ekki valið." : "") +
         (d.qty > 1 ? " " + d.qty + " eins hurðir." : "") + (d.note ? " " + d.note : "") + " Staðfestu mál karms á staðnum.";
       return { "Rými 🏡":d.room || "Alrými", "Magn":Math.max(1, d.qty | 0), "🔑":d.hu, "Vöru reitur 1":[pid], "Skilaboð til skipulags":msg,
-        "Smíðagögn (JSON) 🔧":JSON.stringify({ v:1, door:{ widthMm:d.widthMm, heightMm:d.heightMm, wallMm:d.wallMm, swing:d.kind === "renni" || d.kind === "glerrenni" ? "slide" : "toward", hinge:d.hinge, kind:d.kind } }) };
+        "Smíðagögn (JSON) 🔧":JSON.stringify({ v:1, door:{ widthMm:d.widthMm, heightMm:d.heightMm, wallMm:d.wallMm, swing:d.kind === "renni" || d.kind === "glerrenni" ? "slide" : "toward", hinge:d.hinge, kind:d.kind,
+          leaf:mat ? { look:d.leaf, label:mat.label, efnislistiId:mat.efnislistiId || null, type:/^eg_/.test(d.leaf) ? "hardplast" : "sponlagt" } : undefined } }) };
     }).filter(Boolean);
   }
   function doorPic(d){ // front view, seen from the room it opens into: frame, leaf, handle on the side away from the hinges
@@ -9323,7 +9335,7 @@
     var hx = d.hinge === "left" ? x0 + W - 8 : x0 + 8, out = '<svg width="76" height="112" viewBox="0 0 76 112" aria-hidden="true">';
     out += '<rect x="' + (x0 - 4) + '" y="' + (y0 - 4) + '" width="' + (W + 8) + '" height="' + (H + 4) + '" fill="none" stroke="var(--ink)" stroke-width="2"/>';
     if (d.kind !== "karmur"){
-      out += '<rect x="' + x0 + '" y="' + y0 + '" width="' + W + '" height="' + H + '" fill="' + (glass ? "#cfe3ee" : "#f3efe6") + '" stroke="var(--ink)" stroke-width="1.2"/>';
+      out += '<rect x="' + x0 + '" y="' + y0 + '" width="' + W + '" height="' + H + '" fill="' + (glass ? "#cfe3ee" : (d.leaf && LOOKS[d.leaf] && LOOKS[d.leaf].color3d) || "#f3efe6") + '" stroke="var(--ink)" stroke-width="1.2"/>';
       if (glass) out += '<rect x="' + (x0 + 8) + '" y="' + (y0 + 8) + '" width="' + (W - 16) + '" height="' + (H - 16) + '" fill="#e8f3f9" stroke="#8fb5c9" stroke-width=".8"/>';
       if (slide) out += '<text x="' + (x0 + W / 2) + '" y="' + (y0 + H / 2 + 5) + '" font-size="16" text-anchor="middle" fill="var(--ink)">' + (d.hinge === "left" ? "⟶" : "⟵") + '</text>';
       else {
@@ -9358,6 +9370,12 @@
           var cur = (d.opt && d.opt[k]) || (p && p[k]);
           f += '<div class="dl-f"><label>' + DOOR_OPTS[k].label + '</label><div class="dl-seg">' + opts[k].map(function(v){ return '<button type="button" data-dlopt="' + k + '" data-v="' + v + '" data-i="' + i + '"' + (cur === v ? ' class="on"' : "") + '>' + DOOR_OPTS[k].vals[v] + '</button>'; }).join("") + '</div></div>';
         });
+        if (doorHasLeaf(d)){
+          var dm = doorLeafMaterials(), opt = function(k){ return '<option value="' + k + '"' + (d.leaf === k ? " selected" : "") + '>' + escapeHtmlPro(LOOKS[k].label) + '</option>'; };
+          f += '<div class="dl-f"><label>Efni hurðarblaðs</label><select data-dl="leaf" data-i="' + i + '"><option value="">— Velja síðar —</option>' +
+            (dm.sp.length ? '<optgroup label="Spónlagt">' + dm.sp.map(opt).join("") + '</optgroup>' : '') +
+            (dm.eg.length ? '<optgroup label="Harðplast (Egger)">' + dm.eg.map(opt).join("") + '</optgroup>' : '') + '</select></div>';
+        }
         f += '<div class="dl-f"><label>Op í vegg (B × H, mm)</label><input type="number" data-dl="widthMm" data-i="' + i + '" value="' + d.widthMm + '" min="400" max="3000" step="10"> × <input type="number" data-dl="heightMm" data-i="' + i + '" value="' + d.heightMm + '" min="1500" max="3200" step="10"></div>' +
           '<div class="dl-f"><label>Veggþykkt</label><input type="number" data-dl="wallMm" data-i="' + i + '" value="' + d.wallMm + '" min="50" max="400" step="5"></div>';
         if (d.kind !== "karmur"){
@@ -9382,7 +9400,7 @@
       var t = e.target, i = +t.dataset.i, d = state.doorList[i]; if (!d || !t.dataset.dl) return;
       var k = t.dataset.dl;
       if (k === "note"){ d.note = t.value.slice(0, 200); changed(false); return; }
-      if (k === "room" || k === "kind") return; // handled on change
+      if (k === "room" || k === "kind" || k === "leaf") return; // handled on change
       var v = parseInt(t.value, 10); if (isNaN(v)) return;
       d[k] = v; changed(false);
     };
@@ -9390,6 +9408,7 @@
       var t = e.target, i = +t.dataset.i, d = state.doorList[i]; if (!d || !t.dataset.dl) return;
       var k = t.dataset.dl;
       if (k === "room") d.room = t.value;
+      else if (k === "leaf"){ if (t.value) d.leaf = t.value; else delete d.leaf; }
       else if (k === "kind"){ d.kind = t.value; d.opt = {}; var p = doorProductFor(d); if (p) Object.keys(DOOR_OPTS).forEach(function(o){ if (p[o] !== undefined) d.opt[o] = p[o]; }); }
       else if (k === "widthMm"){ d.widthMm = Math.max(400, Math.min(3000, parseInt(t.value, 10) || 900)); }
       else if (k === "heightMm"){ d.heightMm = Math.max(1500, Math.min(3200, parseInt(t.value, 10) || 2100)); }
@@ -9404,7 +9423,7 @@
       if (b.dataset.dlset){ state.doorList[i][b.dataset.dlset] = b.dataset.v; changed(true); return; }
       if (b.dataset.dlcopy != null){ var c = JSON.parse(JSON.stringify(state.doorList[+b.dataset.dlcopy])); c.id = newListDoor().id; c.hu = nextHuKey(); state.doorList.splice(+b.dataset.dlcopy + 1, 0, c); changed(true); return; }
       if (b.dataset.dldel != null){ state.doorList.splice(+b.dataset.dldel, 1); changed(true); return; }
-      if (b.id === "dlAdd"){ var last = state.doorList[state.doorList.length - 1], nd = newListDoor(); if (last){ nd.kind = last.kind; nd.opt = JSON.parse(JSON.stringify(last.opt || {})); nd.heightMm = last.heightMm; nd.wallMm = last.wallMm; } state.doorList.push(nd); changed(true); setTimeout(function(){ var l = ov.querySelector(".dl-list"); if (l) l.scrollTop = l.scrollHeight; }, 0); return; }
+      if (b.id === "dlAdd"){ var last = state.doorList[state.doorList.length - 1], nd = newListDoor(); if (last){ nd.kind = last.kind; nd.opt = JSON.parse(JSON.stringify(last.opt || {})); nd.heightMm = last.heightMm; nd.wallMm = last.wallMm; if (last.leaf) nd.leaf = last.leaf; } state.doorList.push(nd); changed(true); setTimeout(function(){ var l = ov.querySelector(".dl-list"); if (l) l.scrollTop = l.scrollHeight; }, 0); return; }
       if (b.id === "dlClose"){ close(); return; }
       if (b.id === "dlSend"){
         if (state.doorList.some(function(d){ return !d.room; })){ toast("Veldu rými fyrir hverja hurð."); return; }
