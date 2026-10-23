@@ -113,7 +113,20 @@
   .nsCard .step { font-size:.78rem; color:var(--muted); margin-top:4px; }
   .nsCard .when { font-size:.72rem; color:var(--dim); margin-top:3px; }
 
-  .board { display:flex; gap:14px; overflow-x:auto; padding-bottom:10px; margin-top:16px; }
+  /* Pipeline kanban restyled into one white panel with a header (2026-10-23) — previously a bare
+     .board flex row straight on the page background, each .col/.card floating as its own separate
+     white card with nothing visually tying them together into the one pipeline they actually are.
+     Same language as skrifstofa.html's Verk í vinnslu: .panel (white card, border, rounded) + a
+     colored h2 header holding the title and a total count. CRM's own --accent blue, not Verk í
+     vinnslu's gold — this is the sales pipeline, not production. */
+  .panel { background:var(--surface); border:1px solid var(--line); border-radius:10px; overflow:hidden; margin-bottom:20px; }
+  .panel h2 { font-size:.82rem; font-weight:700; padding:12px 16px; border-bottom:1px solid var(--line); color:var(--text); display:flex; justify-content:space-between; align-items:center; }
+  .panel h2 .cnt { color:var(--muted); font-weight:500; }
+  .panel h2.pipeHead { background:var(--accent); color:#fff; border-bottom:none; }
+  .panel h2.pipeHead .cnt { color:#d7e9fb; }
+  .pipelinePanel .loading { padding:40px 0; }
+  .pipelinePanel .board { margin:0; padding:12px; }
+  .board { display:flex; gap:14px; overflow-x:auto; padding-bottom:10px; }
   .col { flex:0 0 260px; transition:opacity .1s; }
   .col[data-colsize="S"] { flex-basis:200px; }
   .col[data-colsize="L"] { flex-basis:340px; }
@@ -269,8 +282,11 @@
     <div class="nsRow" id="nsRow"></div>
   </div>
 
-  <div id="loading" class="loading">Sæki verkefni…</div>
-  <div class="board" id="board" style="display:none;"></div>
+  <div class="panel pipelinePanel" id="pipelinePanelBox">
+    <h2 class="pipeHead">📈 Söluferli <span class="cnt" id="boardCnt"></span></h2>
+    <div id="loading" class="loading">Sæki verkefni…</div>
+    <div class="board" id="board" style="display:none;"></div>
+  </div>
 
   <div class="detail" id="detail">
     <div class="dTitle" id="dName"></div>
@@ -654,8 +670,10 @@
     board.innerHTML = "";
     var cols = showClosed ? STAGES.concat(CLOSED_STAGES.map(function (s) { return { name: s, short: s, color: "#9aa3ad" }; })) : STAGES;
     cols = orderCols(cols);
+    var shownTotal = 0;
     cols.forEach(function (stage) {
       var items = records.filter(function (r) { return (r.fields["Staða í söluferli"] || "") === stage.name && matchesSearch(r) && matchesOwner(r); });
+      shownTotal += items.length;
       items.sort(function (a, b) { return (b.fields["Verk ósnert dagar 📅"] || 0) - (a.fields["Verk ósnert dagar 📅"] || 0); });
       var col = document.createElement("div");
       col.className = "col";
@@ -728,6 +746,7 @@
       });
       board.appendChild(col);
     });
+    document.getElementById("boardCnt").textContent = shownTotal;
   }
 
   var draggingRecord = null;
