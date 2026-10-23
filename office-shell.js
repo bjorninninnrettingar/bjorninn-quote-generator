@@ -134,8 +134,8 @@
       // straight on the sidebar instead), Kumbh Sans to match the rest of the site's own font
       // instead of a one-off serif, BJÖRNINN bold / STUDIO regular weight.
       '.osLogo{display:block;width:100%;height:auto;padding:10px 14px 4px;box-sizing:border-box;text-align:center;}' +
-      '.osLogoL1{display:block;font-family:"Kumbh Sans",sans-serif;font-weight:700;font-size:1.05rem;letter-spacing:.01em;color:#fff;}' +
-      '.osLogoL2{display:block;font-family:"Kumbh Sans",sans-serif;font-weight:400;font-size:.6rem;letter-spacing:.22em;color:#fff;margin-top:3px;}' +
+      '.osLogoL1{display:block;font-family:"Kumbh Sans",sans-serif;font-weight:700;font-size:1.85rem;line-height:1.1;letter-spacing:.005em;color:#fff;}' +
+      '.osLogoL2{display:block;font-family:"Kumbh Sans",sans-serif;font-weight:400;font-size:.95rem;letter-spacing:.2em;color:#fff;margin-top:4px;}' +
       '.osUser{color:#8aa4c7;font-size:.78rem;margin-top:10px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}' +
       'html[data-os-density="compact"] .sidebar nav a{padding:5px 18px !important;font-size:.82rem !important;}' +
       '.sidebar nav a{display:flex;align-items:center;gap:10px;user-select:none;}' +
