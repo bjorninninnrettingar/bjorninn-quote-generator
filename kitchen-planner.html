@@ -538,6 +538,17 @@
   #moodBtn.active{ background:#1e2433; color:#ffe2a8; }
   #measureBtn.active, #inspectBtn.active{ background:#0a84ff; color:#fff; }
   .sw-search{ width:100%; box-sizing:border-box; margin:0 0 10px; padding:9px 12px; border:1px solid var(--line, #ddd); border-radius:10px; font:inherit; font-size:14px; background:#fff; }
+  /* ---- PRO home (2026-10-23) ---- */
+  .ph-wrap{ max-width:560px; }
+  .ph-results{ display:flex; flex-direction:column; gap:6px; max-width:560px; }
+  .ph-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:11px 14px; border:1px solid var(--line); border-radius:10px; background:var(--panel); text-decoration:none; color:var(--ink); font-size:14px; }
+  .ph-row:hover{ border-color:var(--blue); }
+  .ph-name{ font-weight:600; }
+  .ph-stage{ font-size:12px; color:var(--ink-soft); flex:none; white-space:nowrap; }
+  .ph-empty{ color:var(--ink-soft); font-size:14px; padding:20px 0; }
+  .ph-newform{ max-width:360px; margin-top:18px; padding:18px; border:1px solid var(--line); border-radius:12px; background:var(--panel); }
+  .ph-newform h3{ margin:0 0 14px; font-size:15px; font-weight:700; color:var(--ink); }
+  .ph-msg{ font-size:13px; color:var(--ink-soft); min-height:16px; margin:0 0 4px; }
   .h-grid .sw-name small, .sw-tile .sw-name small{ display:block; font-weight:400; color:var(--ink-soft); margin-top:2px; font-size:11px; }
   /* ---- define your space ---- */
   .shape-group-title{ font-size:15px; font-weight:600; margin:22px 0 10px; }
@@ -1076,6 +1087,31 @@
   </nav>
 
   <!-- ============ STEP: WELCOME ============ -->
+  <!-- ============ PRO HOME (2026-10-23): ?pro=home — start a new project or continue one ============ -->
+  <section id="screen-pro-home" hidden>
+    <div class="title-row"><div><div class="screen-title">PRO — Velja verkefni</div>
+    <p class="screen-sub">Byrjaðu nýtt verkefni eða haltu áfram með eitt sem þegar er til.</p></div>
+    <div class="actions step-nav"><button class="btn btn-primary" id="phNewBtn" type="button">＋ Nýtt verkefni</button></div></div>
+
+    <div class="ph-wrap">
+      <input type="search" class="sw-search" id="phSearch" placeholder="Leita að verkefni — nafn eða heimilisfang" autocomplete="off">
+      <div id="phResults" class="ph-results"></div>
+    </div>
+
+    <div id="phNewForm" class="ph-newform" hidden>
+      <h3>Nýtt verkefni</h3>
+      <div class="edit-field"><label>Fornafn</label><input type="text" id="phFornafn"></div>
+      <div class="edit-field"><label>Eftirnafn</label><input type="text" id="phEftirnafn"></div>
+      <div class="edit-field"><label>Sími</label><input type="text" id="phSimi"></div>
+      <div class="edit-field"><label>Netfang</label><input type="text" id="phNetfang"></div>
+      <p class="ph-msg" id="phMsg"></p>
+      <div class="edit-actions">
+        <button class="btn btn-secondary" id="phNewCancel" type="button">Hætta við</button>
+        <button class="btn btn-primary" id="phNewCreate" type="button">Búa til og opna →</button>
+      </div>
+    </div>
+  </section>
+
   <section id="screen-welcome" hidden>
     <div class="wel">
       <!-- 2026-10-12: a kitchen drawn in the planner itself, next to the steps -->
@@ -1383,6 +1419,11 @@
   // Pro mode (2026-10-08): Rakel opens an existing project from the Tækifæri (?pro=<recordId>&k=<office key>).
   // It edits its own local copy (never the customer draft) and "Vista í Airtable" writes back to that project.
   var PRO = (function(){ try{ var q = new URLSearchParams(location.search), id = q.get("pro"); return id && /^rec[A-Za-z0-9]{14}$/.test(id) ? { id:id, k:q.get("k") || "" } : null; }catch(e){ return null; } })();
+  // PRO home (2026-10-23): ?pro=home&k=<office key> — a landing screen so staff don't have to go via CRM/
+  // Ferli to find a project's "Opna í hönnuðinum" link. Not a real record id, so PRO itself stays null and
+  // the normal proBoot() path never runs; see the init branch near the bottom of this file.
+  var PRO_HOME = (function(){ try{ return new URLSearchParams(location.search).get("pro") === "home"; }catch(e){ return false; } })();
+  function proHomeK(){ try{ return new URLSearchParams(location.search).get("k") || ""; }catch(e){ return ""; } }
   var STORAGE_KEY = PRO ? "bjorninn:kitchenPlanner:pro:" + PRO.id : "bjorninn:kitchenPlanner:draft:v1";
 
   var KP3D = window.KP3D;
@@ -7653,7 +7694,7 @@
   }
   function updateStepper(){
     var idx = FLOW.indexOf(state.step);
-    document.getElementById("progressSteps").hidden = state.step === "welcome" || state.step === "byrja";
+    document.getElementById("progressSteps").hidden = state.step === "welcome" || state.step === "byrja" || state.step === "pro-home";
     var pct = state.step === "done" ? 100 : idx < 0 ? 0 : Math.round((idx + stepFrac()) / FLOW.length * 100);
     document.getElementById("stepFill").style.width = pct + "%";
     document.querySelectorAll("#progressSteps .st").forEach(function(el){
@@ -7685,7 +7726,7 @@
   // intake questions right before contact — the customer used to answer them cold, before seeing
   // anything; now they're a quick check-in just ahead of sending the plan in.
   var FLOW = ["shape", "materials", "editor", "intake", "contact"]; // the stepper (the welcome + byrja screens sit before it)
-  var STEP_ORDER = ["welcome", "byrja"].concat(FLOW, ["done"]);
+  var STEP_ORDER = ["pro-home", "welcome", "byrja"].concat(FLOW, ["done"]);
 
   function render(){
     STEP_ORDER.forEach(function(s){
@@ -7694,6 +7735,7 @@
     updateStepper();
 
     if (state.step === "intake") renderIntake();
+    if (state.step === "pro-home") renderPhResults();
     if (state.step === "welcome") renderWelcome();
     if (state.step === "byrja") renderByrja();
     if (state.step === "shape") renderShapeStep();
@@ -10404,6 +10446,83 @@
     proBar();
   }
 
+  // ---------- PRO home (2026-10-23): ?pro=home — start a new project, or search for one to continue ----------
+  var PH_TAEKIFAERI = "tbl4LMXlQjp66RFKI";
+  var phRecords = null, phLoading = false, phLoadError = false, phCreating = false;
+  function initProHome(){
+    document.getElementById("phNewBtn").addEventListener("click", function(){
+      document.getElementById("phNewForm").hidden = false;
+      document.getElementById("phSearch").closest(".ph-wrap").hidden = true;
+      document.getElementById("phFornafn").focus();
+    });
+    document.getElementById("phNewCancel").addEventListener("click", phCloseNewForm);
+    document.getElementById("phNewCreate").addEventListener("click", phCreateProject);
+    document.getElementById("phSearch").addEventListener("input", function(){ renderPhResults(); });
+    phLoadRecords();
+  }
+  function phCloseNewForm(){
+    document.getElementById("phNewForm").hidden = true;
+    document.getElementById("phSearch").closest(".ph-wrap").hidden = false;
+    document.getElementById("phMsg").textContent = "";
+    ["phFornafn", "phEftirnafn", "phSimi", "phNetfang"].forEach(function(id){ document.getElementById(id).value = ""; });
+  }
+  function phLoadRecords(){
+    phLoading = true; phLoadError = false; renderPhResults();
+    var k = proHomeK();
+    var fields = ["Heiti tækifæris / verkefnis", "Staða í söluferli", "Staða í skipulagi"];
+    var url = "/api/airtable?path=" + encodeURIComponent(PH_TAEKIFAERI) + (k ? "&k=" + encodeURIComponent(k) : "") +
+      "&pageSize=100" + fields.map(function(f){ return "&fields%5B%5D=" + encodeURIComponent(f); }).join("");
+    fetch(url).then(function(r){ return r.json(); }).then(function(d){
+      phRecords = (d && d.records) || [];
+      phLoading = false;
+      renderPhResults();
+    }).catch(function(){ phLoading = false; phLoadError = true; phRecords = []; renderPhResults(); });
+  }
+  function renderPhResults(){
+    var host = document.getElementById("phResults");
+    if (!host) return;
+    var term = (document.getElementById("phSearch").value || "").trim().toLowerCase();
+    if (phLoading){ host.innerHTML = '<p class="ph-empty">Sæki verkefni…</p>'; return; }
+    if (phLoadError){ host.innerHTML = '<p class="ph-empty">Tókst ekki að sækja verkefnalistann.</p>'; return; }
+    var list = (phRecords || []).filter(function(r){
+      var name = (r.fields || {})["Heiti tækifæris / verkefnis"] || "";
+      return !term || name.toLowerCase().indexOf(term) !== -1;
+    }).slice(0, 60);
+    if (!list.length){ host.innerHTML = '<p class="ph-empty">' + (term ? "Ekkert verkefni fannst." : "Engin verkefni til.") + '</p>'; return; }
+    var k = proHomeK();
+    host.innerHTML = list.map(function(r){
+      var f = r.fields || {};
+      var name = f["Heiti tækifæris / verkefnis"] || "(ónefnt)";
+      var stage = f["Staða í skipulagi"] || f["Staða í söluferli"] || "";
+      return '<a class="ph-row" href="/skipuleggja?pro=' + r.id + (k ? "&k=" + encodeURIComponent(k) : "") + '">' +
+        '<span class="ph-name">' + escapeHtmlPro(name) + '</span>' + (stage ? '<span class="ph-stage">' + escapeHtmlPro(stage) + '</span>' : '') + '</a>';
+    }).join("");
+  }
+  function phCreateProject(){
+    var fornafn = document.getElementById("phFornafn").value.trim();
+    var msg = document.getElementById("phMsg");
+    if (!fornafn){ msg.textContent = "Fornafn vantar."; return; }
+    if (phCreating) return;
+    phCreating = true;
+    msg.textContent = "Býr til verkefni…";
+    var k = proHomeK();
+    fetch("/api/staff-new-project?k=" + encodeURIComponent(k), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contact: {
+        fornafn: fornafn,
+        eftirnafn: document.getElementById("phEftirnafn").value.trim(),
+        simi: document.getElementById("phSimi").value.trim(),
+        netfang: document.getElementById("phNetfang").value.trim(),
+      } })
+    }).then(function(r){ return r.json().then(function(d){ return { ok:r.ok, d:d }; }); })
+      .then(function(res){
+        phCreating = false;
+        if (!res.ok){ msg.textContent = "Tókst ekki: " + (res.d.error || "villa"); return; }
+        location.href = "/skipuleggja?pro=" + res.d.recordId + (k ? "&k=" + encodeURIComponent(k) : "");
+      })
+      .catch(function(){ phCreating = false; msg.textContent = "Tókst ekki: tengingarvilla."; });
+  }
+
   // ---------- init ----------
   // Checked once at load, not on resize — a desktop window getting
   // resized narrow mid-session shouldn't yank a real in-progress draft out
@@ -10411,6 +10530,12 @@
   // untested drag UI in the first place, not policing window width live.
   if (!checkMobileGate()){
     if (PRO) proBoot();
+    else if (PRO_HOME){
+      document.body.classList.add("pro"); // same dark staff theme as proBoot()
+      state.step = "pro-home";
+      render();
+      initProHome();
+    }
     else {
       load();
       if (state.closed && state.walls.length) shapePhase = "size"; // a saved room opens on the sizing drawing

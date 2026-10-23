@@ -36,6 +36,9 @@
     { id: "ferli",   icon: "📐", label: "Skipulagsferli",  roles: ["allt"], href: "/ferli" },
     { id: "verkst",  icon: "🛠️", label: "Verkstæði",       roles: ["allt"], href: "/framleidsla" },
     { id: "crm",     icon: "📇", label: "CRM",             roles: ["allt"], href: "/crm" },
+    // PRO home (2026-10-23) — a landing screen in kitchen-planner.html (?pro=home) so staff can start or
+    // find a project without first going through CRM/Ferli's own per-project "Opna í hönnuðinum" link.
+    { id: "pro",     icon: "🎨", label: "PRO hönnuður",    roles: ["allt"], href: "/skipuleggja?pro=home" },
     { id: "laun",    icon: "💰", label: "Laun",            roles: ["eigandi"], href: "/laun" },
     { id: "bakendi", icon: "🧰", label: "Bakendi",         roles: ["admin"], href: "/bakendi" },
   ];
@@ -281,7 +284,9 @@
       navEl.innerHTML = "";
       orderedNav(roles).forEach(function (a) {
         var el = document.createElement("a");
-        el.href = a.href + (k ? "?k=" + encodeURIComponent(k) : "");
+        // a.href is normally a bare path ("/crm"), but PRO's href already carries its own "?pro=home" —
+        // join with "&" when a query string is already present instead of a second, malformed "?".
+        el.href = a.href + (k ? (a.href.indexOf("?") === -1 ? "?" : "&") + "k=" + encodeURIComponent(k) : "");
         el.draggable = true;
         el.dataset.navId = a.id;
         el.title = a.label;
