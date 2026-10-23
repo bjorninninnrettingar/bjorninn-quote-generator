@@ -1000,27 +1000,41 @@
         });
         document.getElementById("verkCnt").textContent = shownTotal;
         syncVerkPanelRowSpan();
+        watchVerkPanelHeight();
       });
   }
   // Gives the kanban an explicit grid-row span matching its real measured height (2026-10-23 — see
   // the .arrangeRow grid-auto-rows comment for why this is needed at all): without it, any pill
   // dense-packed beside the kanban only ever gets one row-track's worth of space, no matter how
   // much taller the kanban is. align-items:start means the kanban's own rendered height never
-  // depends on its row span (it doesn't stretch to fill it), so re-measuring after every reload is
-  // safe — no feedback loop. Re-synced on resize too (debounced), since column wrapping changes height.
+  // depends on its row span (it doesn't stretch to fill it), so re-measuring is safe — no feedback
+  // loop (setting the span never itself changes the height that drives it).
+  //
+  // ResizeObserver, not a one-shot measurement after loadVerkBoard() (2026-10-23, reported live —
+  // a real gap between the kanban and the panels below it, not reproducible from a fresh reload):
+  // a single measurement taken right after the kanban's HTML is injected is only ever as good as
+  // that one instant. Anything that reflows the kanban's real height AFTER that point — a web font
+  // swapping in with different metrics, a slow-loading image, the "Mjórra"/"Fullt" width toggle
+  // changing how card text wraps — leaves the span stale with no way to notice or correct itself,
+  // which reads as dead blank space below a kanban that's actually shorter than its reserved rows.
+  // The observer re-fires on every real size change for as long as the page lives, so the span can
+  // never drift out of sync with reality regardless of what caused the drift.
   var VERK_ROW_UNIT = 100, VERK_ROW_GAP = 14;
   function syncVerkPanelRowSpan() {
     var panel = document.getElementById("verkPanelBox");
     if (!panel) return;
     var h = panel.getBoundingClientRect().height;
     var rows = Math.max(1, Math.round((h + VERK_ROW_GAP) / (VERK_ROW_UNIT + VERK_ROW_GAP)));
-    panel.style.gridRow = "span " + rows;
+    var span = "span " + rows;
+    if (panel.style.gridRow !== span) panel.style.gridRow = span;
   }
-  var verkRowSpanResizeTimer = null;
-  window.addEventListener("resize", function () {
-    clearTimeout(verkRowSpanResizeTimer);
-    verkRowSpanResizeTimer = setTimeout(syncVerkPanelRowSpan, 150);
-  });
+  var verkPanelResizeObserver = null;
+  function watchVerkPanelHeight() {
+    var panel = document.getElementById("verkPanelBox");
+    if (!panel || verkPanelResizeObserver || typeof ResizeObserver === "undefined") return;
+    verkPanelResizeObserver = new ResizeObserver(function () { syncVerkPanelRowSpan(); });
+    verkPanelResizeObserver.observe(panel);
+  }
 
   // ---- Project overview modal (Verk í vinnslu → click, 2026-10-17; widened + contact/material
   // photos/drawings/eyðublað 2026-10-18) ----
