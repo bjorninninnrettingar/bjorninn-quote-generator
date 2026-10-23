@@ -930,6 +930,12 @@
   .room-pick-select{ width:100%; font:inherit; font-size:14px; font-weight:600; padding:8px 10px; border:1px solid var(--line); border-radius:999px; background:#fff; color:var(--ink); }
   .room-pick-select:focus{ outline:none; border-color:var(--blue); }
   .wall-badge{ display:inline-block; font-size:11.5px; font-weight:700; color:#fff; background:var(--blue); border-radius:999px; padding:2px 9px; margin-left:6px; vertical-align:middle; }
+  /* room door: which way it opens (2026-10-23) */
+  .op-seg { display:flex; gap:4px; flex-wrap:wrap; }
+  .op-seg button { flex:1; font:inherit; font-size:12.5px; font-weight:600; padding:6px 8px; border:1px solid var(--line); border-radius:8px; background:var(--card, #fff); color:var(--ink); cursor:pointer; }
+  .op-seg button.on { background:var(--blue); border-color:var(--blue); color:#fff; }
+  .op-seg + .op-seg { margin-top:6px; }
+  .op-door-pic { display:block; margin:8px auto 2px; }
   /* ---------- pro mode (Rakel, ?pro=<Tækifæri>&k=…) ---------- */
   body.pro #toContactBtn { display:none; }
   #proBar { display:flex; gap:10px; align-items:center; font:600 13px/1.3 inherit; color:var(--ink); }
@@ -6910,6 +6916,7 @@
           '<button class="iconbtn" data-role="close" title="Loka">✕</button></div>' +
         '<div class="edit-field"><label>Mál (mm)</label><div class="dim-grid">' + field("widthMm", "Breidd") + field("heightMm", "Hæð") + (isWin ? field("sillHeightMm", "Frá gólfi") : "") + '</div>' +
           (isWin ? '<p class="ov-mat" style="margin:8px 0 0;">Dragðu gluggann upp og niður á veggnum í 3D til að breyta hæðinni.</p>' : '') + '</div>' +
+        (f.kind === "door" && !o.gap ? doorSwingFields(o) : "") +
         '<div class="edit-field lock-row"><button type="button" class="iconbtn lockbtn' + (opLocked(o) ? ' on' : '') + '" data-role="oplock">' + (opLocked(o) ? '🔒 Læst — smelltu til að geta fært' : '🔓 Hægt að færa — smelltu til að læsa') + '</button>' +
           '<p class="ov-mat" style="margin:6px 0 0;">' + (opLocked(o) ? 'Læst á meðan þú raðar skápum, svo ' + (isWin ? 'glugginn' : 'hurðin') + ' færist ekki óvart. Málin hér að ofan má samt slá inn.' : 'Dragðu til í 3D eða 2D. Læstu aftur þegar staðsetningin er rétt.') + '</p></div>' +
         '<div class="edit-actions"><button class="iconbtn del" data-role="delete" title="Fjarlægja"' + (opLocked(o) ? ' disabled' : '') + '>✕ Fjarlægja</button></div>' +
@@ -6925,6 +6932,83 @@
         refreshAfterEdit();
       });
     });
+    host.querySelectorAll("[data-door-set]").forEach(function(btn){
+      btn.addEventListener("click", function(){ o[btn.dataset.doorSet] = btn.dataset.v; save(); refreshAfterEdit(); });
+    });
+    var dp = host.querySelector("[data-door-product]");
+    if (dp){
+      dp.addEventListener("change", function(){
+        o.product = dp.value || null;
+        if (o.product && !o.hu) o.hu = nextHuKey();
+        var pr = (doorProducts || []).find(function(x){ return x.id === o.product; });
+        if (pr && /rennihur/i.test(pr.name)) o.swing = "slide"; // a sliding-door product can only slide
+        save(); refreshAfterEdit();
+      });
+      if (!doorProducts) loadDoorProducts().then(function(){ if (selectedBlockId === o.id) renderEditPanel(); });
+    }
+  }
+  // Opnun: in / out / sliding + which side the hinges are on, seen from inside this room — the 2D/3D arc and the
+  // "rekst á" warning (KP3D.roomDoorConflicts) follow it. PRO also picks the door PRODUCT (an Útfærsla in Flokkur
+  // "Hurðir", the same lines Björninn already quotes doors with) → its own Line Item, HU1, HU2… (collectDoorLines).
+  var doorProducts = null; // [{id, name}]
+  // HU numbers run across every room of the project (same numbering the shop's door folders use), and stay with the door
+  function nextHuKey(){
+    var n = 0;
+    function scan(list){ (list || []).forEach(function(d){ var m = /^HU(\d+)$/.exec(d.hu || ""); if (m) n = Math.max(n, +m[1]); }); }
+    scan(state.doors);
+    Object.keys(state.categoryData || {}).forEach(function(k){ if (k !== state.activeCategory) scan((state.categoryData[k] || {}).doors); });
+    return "HU" + (n + 1);
+  }
+  function doorLineOf(d){ // a door with a product → its Line Item (+ Smíðagögn so pro Vista creates it like a cabinet line)
+    if (!d.product || !d.hu || d.gap) return null;
+    var wall = state.walls.find(function(w){ return w.id === d.wallId; }), sw = KP3D.doorSwingOf(d), hg = KP3D.doorHingeOf(d);
+    var how = sw === "slide" ? "rennihurð, rennur til " + (hg === "left" ? "hægri" : "vinstri") + " þegar hún opnast"
+      : "opnast " + (sw === "out" ? "út úr" : "inn í") + " rýmið, lamir " + (hg === "left" ? "vinstra" : "hægra") + " megin";
+    return { "Rými 🏡":state.intake.room || "Eldhús", "Magn":1, "🔑":d.hu, "Vöru reitur 1":[d.product],
+      "Skilaboð til skipulags":"Hurð á " + (wall ? wall.label : "vegg") + ": op " + d.widthMm + " × " + d.heightMm + " mm, " + how + " (séð innan úr rýminu, horft á vegginn). Staðfestu mál karms á staðnum.",
+      "Smíðagögn (JSON) 🔧":JSON.stringify({ v:1, door:{ widthMm:d.widthMm, heightMm:d.heightMm, swing:sw, hinge:hg } }) };
+  }
+  function loadDoorProducts(){
+    var f = 'FIND("Hurðir",{Flokkur}&"")';
+    return fetch("/api/airtable?path=" + encodeURIComponent("tbl8HjvBwNJ41cTV0") + "&filterByFormula=" + encodeURIComponent(f) +
+        "&fields%5B%5D=" + encodeURIComponent("Lýsing á útfærslu") + "&fields%5B%5D=Flokkur" + (PRO ? "&k=" + encodeURIComponent(PRO.k) : ""))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        doorProducts = (d.records || []).map(function(r){ return { id:r.id, name:String((r.fields || {})["Lýsing á útfærslu"] || "").trim() }; })
+          .filter(function(x){ return x.name && !/landssp|teikning/i.test(x.name); })
+          .sort(function(a, b){ return a.name.localeCompare(b.name, "is"); });
+      })
+      .catch(function(){ doorProducts = []; });
+  }
+  function doorSwingFields(o){
+    var sw = KP3D.doorSwingOf(o), hg = KP3D.doorHingeOf(o);
+    function b(key, v, label){ return '<button type="button" data-door-set="' + key + '" data-v="' + v + '"' + ((key === "swing" ? sw : hg) === v ? ' class="on"' : "") + '>' + label + '</button>'; }
+    // a tiny plan: the wall across the middle, this room below it, the leaf drawn open — as you'd see it from above
+    var hx = hg === "left" ? 40 : 80, lx = hg === "left" ? 80 : 40, y0 = sw === "out" ? 46 : 54, tipY = sw === "out" ? 6 : 94;
+    var sweep = (hg === "left") === (sw !== "out") ? 0 : 1, ink = "var(--ink)", soft = "var(--ink-soft)";
+    var pic = sw === "slide"
+      ? '<line x1="' + (hg === "left" ? 80 : 0) + '" y1="58" x2="' + (hg === "left" ? 120 : 40) + '" y2="58" stroke="' + ink + '" stroke-width="4"/>' +
+        '<line x1="40" y1="58" x2="80" y2="58" stroke="' + soft + '" stroke-width="1.5" stroke-dasharray="4,3"/>' +
+        '<text x="60" y="76" font-size="16" text-anchor="middle" fill="' + ink + '">' + (hg === "left" ? "⟶" : "⟵") + '</text>'
+      : '<path d="M ' + hx + ' ' + y0 + ' L ' + hx + ' ' + tipY + ' A 40 40 0 0 ' + sweep + ' ' + lx + ' ' + y0 + ' Z" fill="' + soft + '" fill-opacity=".15"/>' +
+        '<line x1="' + hx + '" y1="' + y0 + '" x2="' + hx + '" y2="' + tipY + '" stroke="' + ink + '" stroke-width="4" stroke-linecap="round"/>' +
+        '<path d="M ' + hx + ' ' + tipY + ' A 40 40 0 0 ' + sweep + ' ' + lx + ' ' + y0 + '" fill="none" stroke="' + soft + '" stroke-width="1.5" stroke-dasharray="4,3"/>' +
+        '<circle cx="' + hx + '" cy="' + y0 + '" r="3.5" fill="' + ink + '"/>';
+    var svg = '<svg class="op-door-pic" width="132" height="110" viewBox="0 0 120 100" aria-hidden="true">' +
+      '<rect x="0" y="46" width="40" height="8" fill="' + soft + '"/><rect x="80" y="46" width="40" height="8" fill="' + soft + '"/>' + pic +
+      '<text x="' + (sw === "out" ? 100 : 104) + '" y="' + (sw === "out" ? 82 : 92) + '" font-size="10" text-anchor="middle" fill="' + soft + '">rýmið</text></svg>';
+    var prod = "";
+    if (PRO){
+      var opts = (doorProducts || []).map(function(x){ return '<option value="' + x.id + '"' + (o.product === x.id ? " selected" : "") + '>' + escapeHtmlPro(x.name) + '</option>'; }).join("");
+      if (o.product && !(doorProducts || []).some(function(x){ return x.id === o.product; })) opts = '<option value="' + o.product + '" selected>' + (doorProducts ? "(vara ekki lengur í Hurðir)" : "…") + '</option>' + opts;
+      prod = '<div class="edit-field"><label>Vara (á tilboðið)</label><select data-door-product class="room-pick-select" style="border-radius:8px;font-weight:500;font-size:13px;">' +
+        '<option value="">— Engin (hurðin er ekki frá okkur) —</option>' + opts + '</select>' +
+        '<p class="ov-mat" style="margin:6px 0 0;">Verður lína ' + (o.hu || "HU") + ' á tilboðinu, með málum og opnun í athugasemd.</p></div>';
+    }
+    return '<div class="edit-field"><label>Opnast</label>' +
+      '<div class="op-seg">' + b("swing", "in", "Inn í rýmið") + b("swing", "out", "Út úr því") + b("swing", "slide", "Rennihurð") + '</div>' +
+      '<div class="op-seg">' + b("hinge", "left", sw === "slide" ? "Rennur til hægri" : "Lamir vinstra megin") + b("hinge", "right", sw === "slide" ? "Rennur til vinstri" : "Lamir hægra megin") + '</div>' +
+      svg + '<p class="ov-mat" style="margin:2px 0 0;text-align:center;">Séð innan úr rýminu, horft á vegginn.</p></div>' + prod;
   }
 
   function setPanelShown(on){ // slide the side panel in / out over the designer (no resize, no jump)
@@ -8222,6 +8306,7 @@
     });
     if (bom && !driverPlaced && rows.length) rows[0]["Skilaboð til skipulags"] = ((rows[0]["Skilaboð til skipulags"] || "") + " " +
       LIGHT_PRODUCTS[bom.driver.code].label + " vantar í V3 — enginn upplýstur skápur með V1.").trim();
+    (state.doors || []).forEach(function(d){ var li = doorLineOf(d); if (li) rows.push(li); });
     return rows;
   }
 
@@ -10300,7 +10385,10 @@
   // proSmida() + collectLineItems(), but across every queued category, numbered so they never collide.
   function proSmidaAll(){
     var out = {};
-    withEachCategory(function(){ var o = proSmida(); Object.keys(o).forEach(function(k){ out[k] = o[k]; }); });
+    withEachCategory(function(){
+      var o = proSmida(); Object.keys(o).forEach(function(k){ out[k] = o[k]; });
+      (state.doors || []).forEach(function(d){ var li = doorLineOf(d); if (li) out[d.hu] = JSON.parse(li["Smíðagögn (JSON) 🔧"]); });
+    });
     return out;
   }
   function proDirty(){ try{ return localStorage.getItem(STORAGE_KEY + ":dirty") === "1"; }catch(e){ return false; } }
@@ -10511,6 +10599,7 @@
     if (tr && !e.target.closest("input")){ // a line → that cabinet selected in the drawing
       var sk = tr.getAttribute("data-sk"), hit = null;
       surfaces().forEach(function(w){ w.floor.concat(w.wall).forEach(function(b){ if (b.sk === sk) hit = b; }); });
+      (state.doors || []).forEach(function(d){ if (d.hu === sk) hit = d; });
       if (hit){ onCabinetSelect({ blockId:hit.id }); proTilbodRender(); }
       else document.getElementById("tpMsg").textContent = sk + " er í öðru rými — skiptu um rými til að sjá skápinn.";
     }

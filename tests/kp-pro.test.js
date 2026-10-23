@@ -118,3 +118,9 @@ test("materials/handles: the drawing's pick reaches the Tækifæri unless only A
   assert.deepEqual(r.proj["Fronta efni viðskiptavinar 🖼️"], [F1]);
   assert.equal(validate({ recordId: OPP, state: { walls: [] }, smida: {}, project: { "Skilaboð til skipulags": "x" } }), "Ógilt efnisval: Skilaboð til skipulags");
 });
+
+test("room doors are their own lines (HU1…), validated like cabinets", () => {
+  assert.equal(validate({ recordId: OPP, state: { walls: [] }, smida: { HU1: { v: 1, door: { widthMm: 800 } } },
+    lineItems: [{ "🔑": "HU1", "Vöru reitur 1": ["rec5kbxFHLWvM02rt"], "Smíðagögn (JSON) 🔧": '{"v":1,"door":{}}' }] }), null);
+  assert.equal(validate({ recordId: OPP, state: { walls: [] }, smida: { XX1: null } }), "Ógilt 🔑: XX1");
+});

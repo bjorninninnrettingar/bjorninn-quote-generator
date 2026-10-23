@@ -1045,6 +1045,80 @@
     });
     islandWarnings(state, function(msg, ids){ out.push({ msg:msg, ids:ids, count:1 }); });
     openingIssues(state).warn.forEach(function(w){ out.push({ msg:w.msg, ids:w.ids, count:1 }); });
+    roomDoorConflicts(state).forEach(function(cf){
+      out.push({ msg:cf.slide
+        ? "Rennihurðin á " + acc(cf.wallLabel) + " rennur þar sem " + cf.labels.join(", ").toLowerCase() + " " + (cf.labels.length > 1 ? "eru" : "er") + " — láttu hana renna í hina áttina eða færðu " + (cf.labels.length > 1 ? "skápana" : "skápinn") + "."
+        : "Hurðin á " + acc(cf.wallLabel) + " rekst á " + cf.labels.join(", ").toLowerCase() + " þegar hún opnast — snúðu henni (lamir/opnun) eða færðu " + (cf.labels.length > 1 ? "skápana" : "skápinn") + ".", ids:[cf.doorId].concat(cf.ids), count:1 });
+    });
+    return out;
+  }
+
+  // ── Room doors (2026-10-23): which way a door opens, and what it hits ─────────────────────────────────
+  // door.swing = "in" (into this room, default) | "out" (away from it) | "slide" (no swing); door.hinge = "left" |
+  // "right" as seen from INSIDE the room facing the wall. A wall's axis points to your right when you stand in the
+  // room facing it (axis × normal geometry), so a left hinge sits at the door's start (offsetMm), a right one at its end.
+  function doorSwingOf(d){ return d.swing === "out" || d.swing === "slide" ? d.swing : "in"; }
+  function doorHingeOf(d){ return d.hinge === "right" ? "right" : "left"; }
+  // the leaf's quarter circle in room coordinates (m): hinge point h, u = along the wall toward the latch, v = the
+  // side it swings to, r = leaf width. null for a slider / an opening without a leaf / a door on a missing wall.
+  function doorSweep(state, d){
+    if (d.gap || doorSwingOf(d) === "slide") return null;
+    var wi = state.walls.findIndex(function(w){ return w.id === d.wallId; });
+    var g = wallGeoms(state)[wi];
+    if (!g || state.walls[wi].open) return null;
+    var right = doorHingeOf(d) === "right", along = (d.offsetMm + (right ? d.widthMm : 0)) / 1000;
+    var sgn = doorSwingOf(d) === "out" ? -1 : 1;
+    return { h:{ x:g.origin.x + g.axis.x * along, z:g.origin.z + g.axis.z * along }, u:{ x:g.axis.x * (right ? -1 : 1), z:g.axis.z * (right ? -1 : 1) },
+      v:{ x:g.normal.x * sgn, z:g.normal.z * sgn }, r:d.widthMm / 1000, inward:sgn > 0, g:g, wi:wi };
+  }
+  function inConvex(p, poly){ // convex quad, either winding
+    var sign = 0;
+    for (var i = 0; i < poly.length; i++){
+      var a = poly[i], b = poly[(i + 1) % poly.length], cr = (b.x - a.x) * (p.z - a.z) - (b.z - a.z) * (p.x - a.x);
+      if (Math.abs(cr) < 1e-9) continue;
+      if (!sign) sign = cr > 0 ? 1 : -1; else if ((cr > 0 ? 1 : -1) !== sign) return false;
+    }
+    return true;
+  }
+  // floor-standing cabinets (any surface) whose footprint the inward swing of a door passes through. Sampled
+  // (polar grid over the quarter circle + the cabinet's corners): exact enough at mm scale, and it never misses
+  // a cabinet tucked into the corner beside the hinge, which a bounding-box test would.
+  function roomDoorConflicts(state){
+    var out = [], surf = surfacesOf(state), gs = surfaceGeoms(state), feet = [];
+    surf.forEach(function(sf, si){
+      var starts = blockStartsMm(sf.floor, cornerClearanceMm(surf, si, "floor"));
+      sf.floor.forEach(function(b, i){
+        var c = CATALOG[b.type];
+        if (!c) return;
+        feet.push({ id:b.id, label:c.label, q:rectCornersWorld(gs[si], starts[i], b.widthMm, b.depthMm || c.d) });
+      });
+    });
+    (state.doors || []).forEach(function(d){
+      if (!d.gap && doorSwingOf(d) === "slide"){ // the leaf parks on the wall beside the opening (surface track): nothing may stand there below the door's top
+        var wl = state.walls.find(function(w){ return w.id === d.wallId; }); if (!wl || wl.open) return;
+        var wix = state.walls.indexOf(wl), right = doorHingeOf(d) !== "right";
+        var p0 = right ? d.offsetMm + d.widthMm : d.offsetMm - d.widthMm, p1 = p0 + d.widthMm;
+        var fS = blockStartsMm(wl.floor, cornerClearanceMm(state.walls, wix, "floor")), wS = blockStartsMm(wl.wall, 0), sh = [];
+        wl.floor.forEach(function(b, i){ if (Math.min(p1, fS[i] + b.widthMm) - Math.max(p0, fS[i]) > 20) sh.push(b); });
+        wl.wall.forEach(function(b, i){ if (elevOf(b) < d.heightMm && Math.min(p1, wS[i] + b.widthMm) - Math.max(p0, wS[i]) > 20) sh.push(b); });
+        if (sh.length) out.push({ doorId:d.id, wallLabel:wl.label, slide:true, ids:sh.map(function(b){ return b.id; }), labels:sh.map(function(b){ return CATALOG[b.type].label; }) });
+        return;
+      }
+      var sw = doorSweep(state, d);
+      if (!sw || !sw.inward) return;
+      var r = sw.r - 0.02, pts = [];
+      for (var ri = 1; ri <= 6; ri++) for (var ai = 0; ai <= 8; ai++){
+        var rr = r * ri / 6, t = (Math.PI / 2) * ai / 8, cu = Math.cos(t), sv = Math.sin(t);
+        if (sv * rr < 0.03) continue; // hugging the wall line itself: that's the frame, not the swing
+        pts.push({ x:sw.h.x + (sw.u.x * cu + sw.v.x * sv) * rr, z:sw.h.z + (sw.u.z * cu + sw.v.z * sv) * rr });
+      }
+      function inSweep(p){
+        var dx = p.x - sw.h.x, dz = p.z - sw.h.z, a = dx * sw.u.x + dz * sw.u.z, b = dx * sw.v.x + dz * sw.v.z;
+        return a > 0.01 && b > 0.03 && a * a + b * b < r * r;
+      }
+      var hit = feet.filter(function(f){ return f.q.some(inSweep) || pts.some(function(p){ return inConvex(p, f.q); }); });
+      if (hit.length) out.push({ doorId:d.id, wallLabel:state.walls[sw.wi].label, ids:hit.map(function(f){ return f.id; }), labels:hit.map(function(f){ return f.label; }) });
+    });
     return out;
   }
 
@@ -1493,7 +1567,8 @@
       bar(widthM + 0.12, 0.035, 0.13, 0, baseYM - 0.0175, 0.065);                  // sill
     } else {
       var handleMat = new THREE.MeshStandardMaterial({ color:0x55575a, metalness:0.7, roughness:0.35 });
-      bar(0.14, 0.02, 0.04, widthM / 2 - 0.1, 1.0, 0.04, handleMat);               // lever handle
+      var hx = (meta.hingeRight ? -1 : 1) * (widthM / 2 - 0.1);                    // on the latch side, away from the hinges
+      bar(0.14, 0.02, 0.04, hx, 1.0, 0.04, handleMat);                             // lever handle
     }
     return group;
   }
@@ -3848,12 +3923,29 @@
         win.sillHeightMm / 1000, WINDOW_MARKER_COLOR, 0.55,
         { wallId:win.wallId, zone:"opening", kind:"window", locked:!win.unlocked && !!opts.onSelect, blockId:win.id, widthMm:win.widthMm, depthMm:10, heightMm:win.heightMm, elevMm:win.sillHeightMm }, opts.selectedId === win.id, pickables));
     });
+    var doorHitIds = {}; roomDoorConflicts(state).forEach(function(cf){ doorHitIds[cf.doorId] = cf.ids; });
     (state.doors || []).forEach(function(door){
       var g = geomForWall(door.wallId);
       if (!g) return;
       fadeWithWall(door.wallId, addOpeningMarker(THREE, scene, g, door.offsetMm / 1000, door.widthMm / 1000, door.heightMm / 1000,
         0, DOOR_MARKER_COLOR, 0.85,
-        { wallId:door.wallId, zone:"opening", kind:"door", locked:!door.unlocked && !!opts.onSelect, gap:!!door.gap, blockId:door.id, widthMm:door.widthMm, depthMm:10, heightMm:door.heightMm, elevMm:0 }, opts.selectedId === door.id, pickables));
+        { wallId:door.wallId, zone:"opening", kind:"door", locked:!door.unlocked && !!opts.onSelect, gap:!!door.gap, blockId:door.id, widthMm:door.widthMm, depthMm:10, heightMm:door.heightMm, elevMm:0,
+          hingeRight:doorHingeOf(door) === "right", swingOut:doorSwingOf(door) === "out" }, opts.selectedId === door.id, pickables));
+      // the floor the leaf sweeps (editor only): a faint quarter circle, red when a cabinet stands in it
+      var sw = opts.onSelect && !opts.clean && !iso ? doorSweep(state, door) : null;
+      if (sw){
+        var bad = doorHitIds[door.id], N = 28, pos = [sw.h.x, 0.004, sw.h.z], idx = [], line = [];
+        for (var k = 0; k <= N; k++){
+          var t = (Math.PI / 2) * k / N, px = sw.h.x + (sw.u.x * Math.cos(t) + sw.v.x * Math.sin(t)) * sw.r, pz = sw.h.z + (sw.u.z * Math.cos(t) + sw.v.z * Math.sin(t)) * sw.r;
+          pos.push(px, 0.004, pz); line.push(new THREE.Vector3(px, 0.006, pz));
+          if (k) idx.push(0, k, k + 1);
+        }
+        var fg = new THREE.BufferGeometry(); fg.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); fg.setIndex(idx);
+        var fan = new THREE.Mesh(fg, new THREE.MeshBasicMaterial({ color:bad ? 0xd64545 : 0x8a6a4a, transparent:true, opacity:bad ? 0.3 : (sw.inward ? 0.12 : 0.06), depthWrite:false, side:THREE.DoubleSide }));
+        fan.renderOrder = 2; scene.add(fan);
+        var arc = new THREE.Line(new THREE.BufferGeometry().setFromPoints(line), new THREE.LineDashedMaterial({ color:bad ? 0xc0392b : 0x8a6a4a, dashSize:0.05, gapSize:0.035 }));
+        arc.computeLineDistances(); scene.add(arc);
+      }
     });
 
     // Hindranir: boxes in the wall colour (pipe box, column, partition, beam), a white radiator, a grey fuse box,
@@ -5463,11 +5555,21 @@
           var px = g.origin.x + g.axis.x * (offsetM + al), pz = g.origin.z + g.axis.z * (offsetM + al);
           svg += '<line x1="' + (X(px) - g.normal.x * 6) + '" y1="' + (Y(pz) - g.normal.z * 6) + '" x2="' + (X(px) + g.normal.x * 6) + '" y2="' + (Y(pz) + g.normal.z * 6) + '" stroke="#8a6a4a" stroke-width="2" style="pointer-events:none;"/>';
         });
+      } else if (isDoor && doorSwingOf(o) === "slide"){ // a sliding leaf: drawn parked (open) beside the opening, the opening itself dashed
+        var sdir = doorHingeOf(o) === "right" ? -1 : 1, so = 0.035;
+        var s0 = { x:(sdir > 0 ? bx : ax) + g.normal.x * so, z:(sdir > 0 ? bz : az) + g.normal.z * so }; // open = parked beside the opening
+        var s1 = { x:s0.x + g.axis.x * sdir * widthM, z:s0.z + g.axis.z * sdir * widthM };
+        svg += '<line x1="' + X(s0.x) + '" y1="' + Y(s0.z) + '" x2="' + X(s1.x) + '" y2="' + Y(s1.z) + '" stroke="#8a6a4a" stroke-width="3" style="pointer-events:none;"/>' +
+          '<line x1="' + X(ax + g.normal.x * so) + '" y1="' + Y(az + g.normal.z * so) + '" x2="' + X(bx + g.normal.x * so) + '" y2="' + Y(bz + g.normal.z * so) + '" stroke="#8a6a4a" stroke-width="1.2" stroke-dasharray="4,3" style="pointer-events:none;"/>';
       } else if (isDoor){
-        var cxp = ax + g.normal.x * widthM, czp = az + g.normal.z * widthM; // leaf tip, swung into the room
-        var cross = g.normal.x * g.axis.z - g.normal.z * g.axis.x;
-        svg += '<line x1="' + X(ax) + '" y1="' + Y(az) + '" x2="' + X(cxp) + '" y2="' + Y(czp) + '" stroke="#8a6a4a" stroke-width="2" style="pointer-events:none;"/>' +
-          '<path d="M ' + X(cxp) + ' ' + Y(czp) + ' A ' + widthM * PX_PER_M + ' ' + widthM * PX_PER_M + ' 0 0 ' + (cross > 0 ? 1 : 0) + ' ' + X(bx) + ' ' + Y(bz) + '" fill="none" stroke="#8a6a4a" stroke-width="1.2" stroke-dasharray="4,3" style="pointer-events:none;"/>';
+        var sw = doorSweep(state, o);
+        if (sw){ // leaf drawn open at 90°, its path a quarter circle; a light fill = the floor it needs, red if a cabinet is in it
+          var tip = { x:sw.h.x + sw.v.x * sw.r, z:sw.h.z + sw.v.z * sw.r }, latch = { x:sw.h.x + sw.u.x * sw.r, z:sw.h.z + sw.u.z * sw.r };
+          var crossS = sw.v.x * sw.u.z - sw.v.z * sw.u.x, rp = sw.r * PX_PER_M, bad = doorHits[o.id];
+          svg += '<path d="M ' + X(sw.h.x) + ' ' + Y(sw.h.z) + ' L ' + X(tip.x) + ' ' + Y(tip.z) + ' A ' + rp + ' ' + rp + ' 0 0 ' + (crossS > 0 ? 1 : 0) + ' ' + X(latch.x) + ' ' + Y(latch.z) + ' Z" fill="' + (bad ? "#d64545" : "#8a6a4a") + '" fill-opacity="' + (bad ? 0.22 : (sw.inward ? 0.08 : 0.04)) + '" stroke="none" style="pointer-events:none;"/>' +
+            '<line x1="' + X(sw.h.x) + '" y1="' + Y(sw.h.z) + '" x2="' + X(tip.x) + '" y2="' + Y(tip.z) + '" stroke="' + (bad ? "#c0392b" : "#8a6a4a") + '" stroke-width="2" style="pointer-events:none;"/>' +
+            '<path d="M ' + X(tip.x) + ' ' + Y(tip.z) + ' A ' + rp + ' ' + rp + ' 0 0 ' + (crossS > 0 ? 1 : 0) + ' ' + X(latch.x) + ' ' + Y(latch.z) + '" fill="none" stroke="' + (bad ? "#c0392b" : "#8a6a4a") + '" stroke-width="1.2" stroke-dasharray="4,3" style="pointer-events:none;"/>';
+        }
       } else {
         [-3, 3].forEach(function(d){
           svg += '<line x1="' + (X(ax) + g.normal.x * d) + '" y1="' + (Y(az) + g.normal.z * d) + '" x2="' + (X(bx) + g.normal.x * d) + '" y2="' + (Y(bz) + g.normal.z * d) + '" stroke="#5b8fae" stroke-width="1.6" style="pointer-events:none;"/>';
@@ -5478,6 +5580,7 @@
         '" stroke="' + (sel ? "#3d61c1" : color) + '" stroke-opacity="' + (sel ? 1 : 0.35) + '" stroke-width="' + (sel ? 11 : 9) + '" stroke-linecap="butt" style="cursor:pointer;"/>';
     }
     (state.windows || []).forEach(function(w){ openingSegment(w, 'data-window-id', "#5b8fae", false); });
+    var doorHits = {}; roomDoorConflicts(state).forEach(function(cf){ doorHits[cf.doorId] = cf.ids; });
     (state.doors || []).forEach(function(d){ openingSegment(d, 'data-door-id', "#8a6a4a", true); });
     (state.obstacles || []).forEach(function(o){
       var q = obstacleQuad(state, o), def = OBSTACLES[o.kind]; if (!q || !def) return;
@@ -5659,7 +5762,7 @@
     SHELF_STACK_MAX: SHELF_STACK_MAX,
     SHELF_GAP_DEFAULT: SHELF_GAP_DEFAULT,
     debugInfo: function(){ return sharedRenderer ? { memory:sharedRenderer.info.memory, programs:(sharedRenderer.info.programs || []).length } : null; },
-    fitWarnings: fitWarnings, openingIssues: openingIssues, doorMaxDeg: doorMaxDeg, handleProjMm: handleProjMm,
+    fitWarnings: fitWarnings, openingIssues: openingIssues, roomDoorConflicts: roomDoorConflicts, doorSweep: doorSweep, doorSwingOf: doorSwingOf, doorHingeOf: doorHingeOf, doorMaxDeg: doorMaxDeg, handleProjMm: handleProjMm,
     WALL_UNIT_BASE_MM: WALL_UNIT_BASE_MM,
     snapshot3D: snapshot3D,
     setXrayFronts: setXrayFronts,

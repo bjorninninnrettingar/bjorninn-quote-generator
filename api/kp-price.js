@@ -23,7 +23,7 @@ import { makeAirtable, listAll, idsKey } from "./kp-submit.js";
 const PROJECTS = "tbl4LMXlQjp66RFKI", LINE_ITEMS = "tblFcsUoGxsuUwNEH", VARIANTS = "tbl8HjvBwNJ41cTV0";
 const MATERIALS = "tbl8CrVWKF8CuI7HD", PRODUCTS = "tblzuuRSRkeXaLWxC";
 const REC_RE = /^rec[A-Za-z0-9]{14}$/;
-const KEY_RE = /^Sk\d{1,3}$/;
+const KEY_RE = /^(Sk|HU)\d{1,3}$/; // cabinets Sk1…, room doors HU1… (2026-10-23)
 const VAT = 1.24;
 const DEFAULT_MARKUP = 2.05; // "❗Álagning á efniskostnað❗" default on a new Line Item (every planner line has it)
 
