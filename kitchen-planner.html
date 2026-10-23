@@ -39,6 +39,7 @@
   window.__loadPathTracer = function(){ return import("three-gpu-pathtracer"); }; // 📸 Studio mynd — only fetched when asked for
   window.dispatchEvent(new Event("three-ready"));
 </script>
+<script src="kitchen-planner-i18n.js"></script>
 <script src="kitchen-planner-materials.js"></script>
 <script src="kitchen-planner-catalog.js"></script>
 <script src="kitchen-planner-egger.js"></script>
@@ -90,6 +91,15 @@
   .help-wrap{ position:relative; }
   .help-btn{ background:#fff; border:1px solid var(--line); border-radius:999px; padding:6px 14px; font:inherit; font-size:13px; font-weight:600; color:var(--ink); cursor:pointer; }
   .help-btn:hover{ border-color:var(--blue); color:var(--blue); }
+  /* IS / EN (2026-10-23, kitchen-planner-i18n.js) — the active one follows <html lang> */
+  .lang-switch{ display:inline-flex; border:1px solid var(--line); border-radius:999px; overflow:hidden; background:#fff; }
+  .lang-switch[hidden]{ display:none; }
+  .lang-switch button{ background:none; border:none; padding:6px 10px; font:inherit; font-size:12px; font-weight:600; color:var(--ink-soft); cursor:pointer; }
+  .lang-switch button:hover{ color:var(--blue); }
+  html:not([lang="en"]) .lang-switch [data-setlang="is"], html[lang="en"] .lang-switch [data-setlang="en"]{ background:var(--ink); color:#fff; cursor:default; }
+  html:not([lang="en"]) .wel-lang[data-setlang="is"], html[lang="en"] .wel-lang[data-setlang="en"]{ display:none; }
+  .wel-lang{ margin-right:auto; text-decoration:none; }
+  .wel-lang:hover{ color:var(--blue); text-decoration:underline; }
   .help-menu:not([hidden]){ position:absolute; right:0; top:calc(100% + 6px); z-index:200; min-width:210px; background:#fff; border:1px solid var(--line); border-radius:12px; box-shadow:0 12px 32px rgba(0,0,0,.16); padding:6px; display:flex; flex-direction:column; }
   .help-menu button{ background:none; border:0; text-align:left; font:inherit; font-size:14px; padding:9px 12px; border-radius:8px; cursor:pointer; color:var(--ink); }
   .help-menu button:hover{ background:var(--panel); }
@@ -1197,6 +1207,7 @@
     </div>
     <div class="top-actions">
       <div id="proBar" hidden></div>
+      <div class="lang-switch" role="group" aria-label="Tungumál" data-i18n="attrs"><button type="button" data-setlang="is" title="Íslenska">IS</button><button type="button" data-setlang="en" title="English">EN</button></div>
       <div class="help-wrap">
         <button class="help-btn" id="helpBtn" type="button" aria-haspopup="true" aria-expanded="false">Hjálp</button>
         <div class="help-menu" id="helpMenu" hidden>
@@ -1273,6 +1284,8 @@
       <h2 class="wel-ask">Hvað viltu hanna?</h2>
       <div class="studio-cards" id="studioCards"></div>
       <div class="wel-actions">
+        <button class="reset-link wel-lang" type="button" data-setlang="en" lang="en">🇬🇧 In English</button>
+        <button class="reset-link wel-lang" type="button" data-setlang="is" lang="is">🇮🇸 Á íslensku</button>
         <button class="reset-link" id="welReset" type="button" hidden>Byrja upp á nýtt</button>
         <button class="btn btn-primary" id="welStart" type="button">Byrja að hanna →</button>
       </div>
@@ -1579,6 +1592,8 @@
 <script>
 (function(){
   "use strict";
+  KPI18N.apply(document); // EN version (2026-10-23): static markup marked data-i18n, see kitchen-planner-i18n.js
+  if (KPI18N.isPro) document.querySelectorAll(".lang-switch, .wel-lang").forEach(function(el){ el.hidden = true; }); // PRO stays Icelandic
 
   // Pro mode (2026-10-08): Rakel opens an existing project from the Tækifæri (?pro=<recordId>&k=<office key>).
   // It edits its own local copy (never the customer draft) and "Vista í Airtable" writes back to that project.
@@ -1691,8 +1706,8 @@
     b.heightMm = KP3D.stackHeightMm(count, gapMm);
   }
 
-  // Icelandic plural: 1, 21, 31… take the singular (11 doesn't)
-  function plural(n, one, many){ return (n % 10 === 1 && n % 100 !== 11) ? one : many; }
+  // Icelandic plural: 1, 21, 31… take the singular (11 doesn't); in EN both words go through __() (kitchen-planner-i18n.js)
+  var plural = KPI18N.plural;
 
   // space a list of blocks takes up along a wall: widths plus the free gaps between them
   function usedMm(list){ return list.reduce(function(s,b){ return s + b.widthMm + (b.gapMm || 0); }, 0); }
@@ -9201,8 +9216,9 @@
     submitBtn.disabled = true;
     submitBtn.textContent = "Sendi...";
     try{
-      var note = intakeNote();
-      var project = materialFieldsNow();
+      // EN version: everything Airtable gets is built in Icelandic whatever language the visitor picked
+      var note = KPI18N.asIS(intakeNote);
+      var project = KPI18N.asIS(materialFieldsNow);
       if (note) project["Skilaboð til skipulags"] = note;
 
       // One request does the whole submission (api/kp-submit.js): contact → Tækifæri → Line Items. The
@@ -9220,7 +9236,7 @@
           simi: document.getElementById("cSimi").value.trim()
         },
         project: project,
-        lineItems: collectAllLineItems(),
+        lineItems: KPI18N.asIS(collectAllLineItems),
         state: state
       }, function(n){ submitBtn.textContent = "Sendi... (tilraun " + (n + 1) + ")"; });
       opp.id = opp.recordId;
@@ -9230,7 +9246,7 @@
       submitBtn.textContent = "Útbý teikningar...";
       if (state.closed) try{ // (a doors-only submission has no room to draw)
         var customer = (document.getElementById("cFornafn").value.trim() + " " + document.getElementById("cEftirnafn").value.trim()).trim();
-        var pdf = await buildDrawingsPdf(customer);
+        var pdf = await KPI18N.asISAsync(function(){ return buildDrawingsPdf(customer); }); // drawings stay Icelandic (sales/workshop)
         if (lastPdfUrl) URL.revokeObjectURL(lastPdfUrl);
         lastPdfUrl = URL.createObjectURL(pdf);
         var up = await fetch("/api/kp-drawings?recordId=" + encodeURIComponent(opp.id), { method:"POST", headers:{ "Content-Type":"application/octet-stream" }, body:pdf });
