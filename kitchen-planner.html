@@ -3979,6 +3979,13 @@
     return '<i class="dw-ico" style="height:' + Math.round(5 + side / 241 * 17) + 'px"></i>';
   }
   function drawerSys(){ return state.drawerSystem === "merivo" ? "merivo" : "legra"; }
+  // FR1/FR2 + inner drawer fronts (2026-10-23) — the choices of Airtable's "Tegund innskúffu fronts" (Line Item / Eyðublað)
+  // and Tækifæri "Innskúffufrontar [Handvalið]"; Keyra skipulag falls back line → project → "Skrokkaefni", same here.
+  var INNER_FRONTS = ["Skrokkaefni", "Frontaefni", "Frontaefni 2", "Ál", "Ál og gler"];
+  function hasInnerDrawers(b, c){ return !!(c && (c.bur || (c.cls === "tall" && !isDrawerUnit(b) && Array.isArray(b.innerCodes) && b.innerCodes.length))); }
+  function innerFrontOf(b){ return b.innerFront || state.innerFront || "Skrokkaefni"; }
+  function frontMatCode(b){ return b.front2 && state.look2 ? "FRE2" : state.look2 ? "FRE1" : "FRE"; } // the drawing's (FRE1)/(FRE2) suffix
+  function innerMatCode(b){ var t = innerFrontOf(b); return t === "Skrokkaefni" ? "SKRE" : t === "Frontaefni 2" ? "FRE2" : t === "Frontaefni" ? (state.look2 ? "FRE1" : "FRE") : t === "Ál" ? "ÁL" : "ÁL/GLER"; }
   // The wall/island's own plinth (PLINTH_MM default unless Sökkulhæð overrode it) — a tall unit's drawers stop
   // at 1200 mm (or b.drawerZoneMm, PRO) — unless the stack has real custom heights (b.interior.frontsMm), in
   // which case THEIR sum is the zone, full stop. b.drawerZoneMm is written alongside frontsMm (wireDrawerStack's
@@ -5465,6 +5472,8 @@
     var matBody =
       matSel("carcass", "Skrokkur", [{ items:Object.keys(CARCASS).map(function(k){ return [k, CARCASS[k].label]; }) }], state.carcass) +
       matSel("look", "Framhlið", LOOK_CATEGORIES.map(function(cg){ return { label:cg.label, items:visLooks(cg.key).map(function(k){ return [k, LOOKS[k].label + (LOOKS[k].code ? " · " + LOOKS[k].code : "")]; }) }; }), state.look) +
+      (PRO ? matSel("look2", "Framhlið 2 (FR2)", [{ label:null, items:[["", "— engin —"]] }].concat(LOOK_CATEGORIES.map(function(cg){ return { label:cg.label, items:visLooks(cg.key).map(function(k){ return [k, LOOKS[k].label + (LOOKS[k].code ? " · " + LOOKS[k].code : "")]; }) }; })), state.look2 || "") +
+        matSel("innerFront", "Innskúffufrontar (sjálfgefið)", [{ items:INNER_FRONTS.map(function(x){ return [x, x]; }) }], state.innerFront || "Skrokkaefni") : "") +
       matSel("top", "Borðplata", TOP_GROUPS.map(function(g){ return { label:g.label, items:topsOf(g.key).map(function(k){ return [k, TOPS[k].label + (TOPS[k].code ? " · " + TOPS[k].code : "")]; }) }; }), state.top || "steinn") +
       matSel("handle", "Höldur / opnun", KP3D.HANDLE_GROUPS.map(function(g){ return { label:g.label, items:handlesOf(g.key).map(function(k){ return [k, HANDLES[k].label]; }) }; }), state.handle) +
       (handleColorable(state.handle) ? matSel("handleColor", "Litur á höldum", [{ items:[["", "Eins og á mynd"]].concat(Object.keys(KP3D.HANDLE_FINISHES).map(function(k){ return [k, KP3D.HANDLE_FINISHES[k].label]; })) }], state.handleColor || "") : "") +
@@ -5498,6 +5507,7 @@
         }
         if (key === "look") selectLookQuiet(v);
         else state[key] = v;
+        if (key === "look2" && !v) surfaces().forEach(function(w){ w.floor.concat(w.wall).forEach(function(b){ delete b.front2; }); }); // no FR2 any more → every cabinet back on FR1
         if (key === "handle" && !handleColorable(v)) state.handleColor = null;
         save(); refreshAfterEdit(); renderCatalogPanel();
       });
@@ -7316,7 +7326,14 @@
             '<button type="button" class="hw-btn' + (b.swing === "haegri" ? ' active' : '') + '" data-swing="haegri">Hægri ◨</button></div></div>';
           return '';
         })();
-    var annadHtml = (zone === "wall" && !c.panel && !c.shelfStack ? '<div class="edit-field"><button type="button" class="iconbtn' + ((b.led != null ? b.led : lighting().underWall) ? ' on' : '') + '" data-role="led">💡 LED undir skápnum: ' + ((b.led != null ? b.led : lighting().underWall) ? 'á' : 'af') + '</button></div>' : '') +
+    var frontsHtml = PRO && !c.panel && !c.appliance && !c.notOrdered && !(c.open && !b.frontAll) ? (
+        (state.look2 ? '<div class="edit-field"><label title="Úr hvoru framhliðarefninu framhliðar þessa skáps eru">Framhlið</label><div class="hw-toggle">' +
+          '<button type="button" class="hw-btn' + (!b.front2 ? ' active' : '') + '" data-front2="0">FR1 · ' + escapeHtmlPro((LOOKS[state.look] || {}).label || "—") + '</button>' +
+          '<button type="button" class="hw-btn' + (b.front2 ? ' active' : '') + '" data-front2="1">FR2 · ' + escapeHtmlPro((LOOKS[state.look2] || {}).label || "—") + '</button></div></div>' : '') +
+        (hasInnerDrawers(b, c) ? '<div class="edit-field"><label title="Efni framhliða innskúffanna (á bak við hurðina)">Innskúffufrontar</label><select data-role="inner-front">' +
+          '<option value=""' + (!b.innerFront ? " selected" : "") + '>Sjálfgefið (' + escapeHtmlPro(state.innerFront || "Skrokkaefni") + ')</option>' +
+          INNER_FRONTS.map(function(x){ return '<option' + (b.innerFront === x ? " selected" : "") + '>' + x + '</option>'; }).join("") + '</select></div>' : '')) : "";
+    var annadHtml = frontsHtml + (zone === "wall" && !c.panel && !c.shelfStack ? '<div class="edit-field"><button type="button" class="iconbtn' + ((b.led != null ? b.led : lighting().underWall) ? ' on' : '') + '" data-role="led">💡 LED undir skápnum: ' + ((b.led != null ? b.led : lighting().underWall) ? 'á' : 'af') + '</button></div>' : '') +
         '<div class="edit-field lock-row"><button type="button" class="iconbtn lockbtn' + (b.locked ? ' on' : '') + '" data-role="lock" data-keep="1" title="' + (b.locked ? 'Smelltu á skúffur og hurðir í 3D til að opna þær' : 'Læstu honum þegar hann er réttur') + '">' + (b.locked ? '🔒 Læstur' : '🔓 Læsa') + '</button></div>' +
         '<div class="edit-field"><label>Tegund</label><select data-role="type">' + typeOptions + '</select></div>' +
         (!c.panel && !c.shelfStack && !c.notOrdered ? '<div class="edit-field"><label>Úthlið</label><div class="hw-toggle">' +
@@ -7348,6 +7365,11 @@
     host.querySelectorAll('[data-protab]').forEach(function(btn){
       btn.addEventListener("click", function(){ proTab = btn.dataset.protab; renderEditPanel(); });
     });
+    host.querySelectorAll('[data-front2]').forEach(function(btn){
+      btn.addEventListener("click", function(){ if (btn.dataset.front2 === "1") b.front2 = true; else delete b.front2; save(); refreshAfterEdit(); });
+    });
+    var ifs = host.querySelector('[data-role="inner-front"]');
+    if (ifs) ifs.addEventListener("change", function(){ if (ifs.value) b.innerFront = ifs.value; else delete b.innerFront; save(); refreshAfterEdit(); });
     var lockBtn = host.querySelector('[data-role="lock"]');
     if (lockBtn) lockBtn.addEventListener("click", function(){ toggleLock(b.id); });
     var ledBtn = host.querySelector('[data-role="led"]');
@@ -7957,7 +7979,7 @@
   // parked with everything else (2026-10-15 fix). These are the fields swapped in/out of the live `state`
   // object as the user moves between categories (Eldhús, Fataskápar, ...); categoryQueue/categoryData/
   // activeCategory themselves are never part of this list.
-  var ROOM_FIELDS = ["intake", "carcass", "drawerSystem", "look", "handle", "handleColor", "top", "floor", "floorTile", "floorPattern", "floorRot", "roomHeightMm",
+  var ROOM_FIELDS = ["intake", "carcass", "drawerSystem", "look", "look2", "innerFront", "handle", "handleColor", "top", "floor", "floorTile", "floorPattern", "floorRot", "roomHeightMm",
     "wallColor", "windows", "doors", "closed", "shapeKey", "waterWall", "waterAlongMm", "seeded", "base900", "islands", "walls", "obstacles", "decor", "openingsDone", "annotations"];
   function serializeRoom(){
     var blob = {};
@@ -8492,6 +8514,8 @@
         }
         if (v3.length) fields["Vöru reitur 3"] = v3;
         fields["Smíðagögn (JSON) 🔧"] = JSON.stringify(smidaFor(b, c, zone_ofBlock(wall, b))); // sizes + contents → Eyðublað
+        fields["Frontaefni #2"] = !!(b.front2 && state.look2); // → Eyðublað "Frontaefni #2" (Keyra skipulag) + priced on FR2's plate
+        if (hasInnerDrawers(b, c) && b.innerFront) fields["Tegund innskúffu fronts"] = b.innerFront;
         if (notes.length) fields["Skilaboð til skipulags"] = notes.join(" ");
         rows.push(fields);
       });
@@ -8521,6 +8545,9 @@
     if (topRec && topRec.efnislistiId) project["Borðplata viðskiptavinar 🍽️"] = [topRec.efnislistiId];
     if (hw){ project["Höldur Viðskiptavinar ✊"] = hw.ids; project["Magn Halda 1"] = hw.count; }
     if (hw && colorKey) project["Litur á höldum 🎨"] = colorKey;
+    var look2 = state.look2 ? LOOKS[state.look2] : null;
+    if (look2 && look2.efnislistiId) project["Fronta efni 2.0 Viðskiptavinar 🖼️"] = [look2.efnislistiId];
+    if (state.innerFront) project["Innskúffufrontar [Handvalið]"] = state.innerFront;
     return project;
   }
   // The Tækifæri has ONE set of materials — a project with several rooms (eldhús + fataskápur) is priced on the
@@ -10546,6 +10573,8 @@
       var grip = b.smida.grip.filter(function(g){ return g && gripOk[g.target]; });
       if (grip.length) o.grip = grip;
     }
+    if (b.front2 && state.look2 && !c.panel) o.front = "FR2";
+    if (hasInnerDrawers(b, c) && b.innerFront) o.innerFront = b.innerFront;
     if (b.smidaReady && b.smidaReady === smidaHash(o)) o.ready = true; // "Klár til framleiðslu" — only while nothing changed since
     return o;
   }
@@ -10700,10 +10729,10 @@
   // what the price endpoint needs: every drawn line (all rooms) + the materials/handles the quote is priced on
   function proTilbodPayload(){
     var lines = collectAllLineItems().map(function(li){
-      return { key:li["🔑"], v1:li["Vöru reitur 1"] || [], v2:li["Vöru reitur 2"] || [], v3:li["Vöru reitur 3"] || [], qty:li["Magn"] != null ? li["Magn"] : 1 };
+      return { key:li["🔑"], v1:li["Vöru reitur 1"] || [], v2:li["Vöru reitur 2"] || [], v3:li["Vöru reitur 3"] || [], qty:li["Magn"] != null ? li["Magn"] : 1, front2:!!li["Frontaefni #2"] };
     });
     var pf = projectMaterialFields(), first = function(v){ return v && v[0] || null; };
-    return { k:PRO.k, recordId:PRO.id, lines:lines, materials:{ carcass:first(pf["Skrokka efni 🔲 viðskiptavinar"]), front:first(pf["Fronta efni viðskiptavinar 🖼️"]),
+    return { k:PRO.k, recordId:PRO.id, lines:lines, materials:{ carcass:first(pf["Skrokka efni 🔲 viðskiptavinar"]), front:first(pf["Fronta efni viðskiptavinar 🖼️"]), front2:first(pf["Fronta efni 2.0 Viðskiptavinar 🖼️"]),
       top:first(pf["Borðplata viðskiptavinar 🍽️"]), handles:pf["Höldur Viðskiptavinar ✊"] || [], handleCount:pf["Magn Halda 1"] || 0 } };
   }
   // called from refreshAfterEdit (debounced) and after a save; `now` skips the wait
@@ -10741,7 +10770,7 @@
       ? "sama og í Airtable ✓"
       : "Airtable: <b>" + tpKr(d.airtableTotal) + "</b> (" + (diff > 0 ? "+" : "−") + tpKr(Math.abs(diff)) + " þegar þú vistar)");
     var warn = [];
-    var MAT_NAMES = { carcass:"skrokkur", front:"framhlið", top:"borðplata" };
+    var MAT_NAMES = { carcass:"skrokkur", front:"framhlið", front2:"framhlið 2", top:"borðplata" };
     if (d.materialsChanged && d.materialsChanged.length) warn.push("● " + d.materialsChanged.map(function(k){ return MAT_NAMES[k]; }).join(", ").replace(/^./, function(ch){ return ch.toUpperCase(); }) +
       " í teikningunni er annað en á Tækifærinu — allar línur reiknaðar á teikningunni, Tækifærið uppfærist þegar þú vistar.");
     if (d.handles.changed) warn.push("● Höldur: " + d.handles.count + " stk í teikningunni (Tækifærið uppfærist þegar þú vistar).");
@@ -10940,13 +10969,14 @@
         y0:zone === "wall" ? KP3D.elevOf(b) : plinth, plinth:zone === "floor" ? plinth : 0 };
       if (c.panel){ u.panel = true; u.h = blockHeightMm(b, c) - (zone === "floor" ? 0 : 0); u.y0 = zone === "wall" ? KP3D.elevOf(b) : 0; u.plinth = 0; return u; }
       if (c.appliance || c.notOrdered){ u.appliance = c.label; return u; }
-      if (sm.fronts) u.fronts = sm.fronts.map(function(f){ return { code:f.code, mm:f.mm, side:sides[f.code] || 0, push:push }; });
+      var fMat = state.look2 ? frontMatCode(b) : null; // (FRE1)/(FRE2) only once the project has two front materials
+      if (sm.fronts) u.fronts = sm.fronts.map(function(f){ return { code:f.code, mm:f.mm, side:sides[f.code] || 0, push:push, mat:fMat }; });
       if (sm.oven) u.oven = { h:sm.oven.h, under:sm.oven.under };
       if (sm.oven && sm.oven.shelves) u.shelves = sm.oven.shelves.map(function(x){ return { mm:x.mm, fixed:!!x.fixed, vent:true }; });
       else if (sm.shelves && sm.shelves.list) u.shelves = sm.shelves.list.map(function(x){ return { mm:x.mm, fixed:!!x.fixed }; });
       if (sm.rails) u.rails = sm.rails.map(function(r){ return r.mm; });
       var inner = c.bur ? KP3D.burDrawersOf(b, sys) : (c.cls === "tall" && !isDrawerUnit(b) && Array.isArray(b.innerCodes) && b.innerCodes.length ? KP3D.innerDrawersOf(b, sys) : []);
-      if (inner.length) u.inner = inner.map(function(dd){ return { code:dd.code, mm:dd.mm, h:dd.h }; });
+      if (inner.length) u.inner = inner.map(function(dd){ return { code:dd.code, mm:dd.mm, h:dd.h, mat:innerMatCode(b) }; });
       var doors = proDoorsOf(b, c, zone);
       if (doors.length){
         var both = b.widthMm > 600 && !c.fridge && c.cls !== "corner";
@@ -10994,6 +11024,9 @@
       var hcfg = state.handle && window.KPMODELS && window.KPMODELS.handles && window.KPMODELS.handles[state.handle];
       var notes = [];
       if (look) notes.push("FR1 – " + (look.code ? look.code + " " : "") + look.label);
+      var look2 = state.look2 && LOOKS[state.look2];
+      if (look2) notes.push("FR2 – " + (look2.code ? look2.code + " " : "") + look2.label);
+      if (state.innerFront && state.innerFront !== "Skrokkaefni") notes.push("Innskúffufrontar – " + state.innerFront + " (nema annað sé merkt)");
       if (carc) notes.push("SKRE – " + carc.label + " (skrokkaefni)");
       if (top && !top.none) notes.push("Borðplata – " + top.label);
       notes.push("Skúffukerfi – " + (drawerSys() === "merivo" ? "Blum Merivo (M-)" : "Blum Legra (L-)"));

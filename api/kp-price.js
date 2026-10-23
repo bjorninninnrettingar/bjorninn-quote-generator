@@ -29,7 +29,7 @@ const DEFAULT_MARKUP = 2.05; // "❗Álagning á efniskostnað❗" default on a 
 
 // Tækifæri
 const P = {
-  name: "fldDC7LI0D4cUeCds", carcass: "fldw1MDJEpQhPhDQf", front: "fldU92py68muVPDA4", top: "fld3r8ZXf6Bxfamv6", door: "fldsbpUfOGNep0VFo",
+  name: "fldDC7LI0D4cUeCds", carcass: "fldw1MDJEpQhPhDQf", front: "fldU92py68muVPDA4", front2: "fldOb7qomhuRyNLAg", top: "fld3r8ZXf6Bxfamv6", door: "fldsbpUfOGNep0VFo",
   kl: "flds96p2Mv09ZiSBg", hidden: "fldxxGsEY1GkEw4BB", small: "fldK6wXoyRovdAFqq",
   h1: "fldtFyOJnSYidfqjI", h1n: "fldroX7FdGTb9c296", h2price: "fldL4wEZyEzZxGwPT", h2n: "fldomhPpb5hmcHvl7",
   handlesLive: "fld5N9nsHCOQroGzT", handlesNow: "fldYsA3vFjGHXYN3B", total: "fldeXc2zWOrmaGtkC",
@@ -52,7 +52,7 @@ const first = (v) => (Array.isArray(v) ? v[0] : v);
 
 // Line Items are read by name (the formula filter needs names anyway) — checked daily by api/field-check.js.
 const LINE_NAMES = ["🔑", "Tækifæri 📣 (projects)", "Vöru reitur 1", "Vöru reitur 2", "Vöru reitur 3", "Magn", "Afsl. %", "❗Álagning á efniskostnað❗",
-  "Einingarverð", "Einingarverð (lifandi)", "Læstur verðlykill 🔒", "Verðlykill"];
+  "Einingarverð", "Einingarverð (lifandi)", "Læstur verðlykill 🔒", "Verðlykill", "Frontaefni #2"];
 export function fieldDeps() { return { [LINE_ITEMS]: new Set(LINE_NAMES) }; }
 
 export function validate(body) {
@@ -65,20 +65,20 @@ export function validate(body) {
     if (li.qty != null && !(Number.isFinite(li.qty) && li.qty >= 0 && li.qty <= 999)) return "Ógilt magn";
   }
   const m = b.materials || {};
-  for (const f of ["carcass", "front", "top"]) if (m[f] != null && !REC_RE.test(m[f])) return "Ógilt efni";
+  for (const f of ["carcass", "front", "front2", "top"]) if (m[f] != null && !REC_RE.test(m[f])) return "Ógilt efni";
   if (m.handles != null && !(Array.isArray(m.handles) && m.handles.length <= 8 && m.handles.every((x) => REC_RE.test(x)))) return "Ógildar höldur";
   if (m.handleCount != null && !(Number.isFinite(m.handleCount) && m.handleCount >= 0 && m.handleCount <= 9999)) return "Ógilt magn halda";
   return null;
 }
 
 // One line's unit price án vsk (Airtable's "Einingarverð (lifandi)") from resolved inputs — pure, unit-tested.
-export function unitPrice({ v1 = [], v2 = [], v3 = [], qty = 1, disc = 0, markup = DEFAULT_MARKUP }, variants, mat, proj) {
+export function unitPrice({ v1 = [], v2 = [], v3 = [], qty = 1, disc = 0, markup = DEFAULT_MARKUP, front2 = false }, variants, mat, proj) {
   if (!qty) return 0;
   const g = (id) => variants[id] || {};
   const sum = (list, f) => list.reduce((a, id) => a + num(g(id)[f]), 0);
   const material =
     mat.carcass * sum(v1, V.carcassPct) +
-    mat.front * (sum(v1, V.frontM2) + sum(v2, V.frontM2)) +
+    (front2 && mat.front2 ? mat.front2 : mat.front) * (sum(v1, V.frontM2) + sum(v2, V.frontM2)) + // "Frontaefni #2" → FR2's plate (2026-10-23)
     mat.top * sum(v1, V.topPct) +
     mat.door * sum(v1, V.doorPct) +
     mat.kl * sum(v1, V.klM);
@@ -109,8 +109,8 @@ export async function price(at, body) {
   const byKey = new Map(rows.map((r) => [String(r.fields["🔑"] || "").trim(), r]));
 
   // materials: the drawing's pick, else what the Tækifæri has
-  const pick = { carcass: m.carcass || first(pf[P.carcass]), front: m.front || first(pf[P.front]), top: m.top || first(pf[P.top]), door: first(pf[P.door]) };
-  const materialsChanged = ["carcass", "front", "top"].filter((k) => m[k] && m[k] !== first(pf[P[k]]));
+  const pick = { carcass: m.carcass || first(pf[P.carcass]), front: m.front || first(pf[P.front]), front2: m.front2 || first(pf[P.front2]), top: m.top || first(pf[P.top]), door: first(pf[P.door]) };
+  const materialsChanged = ["carcass", "front", "front2", "top"].filter((k) => m[k] && m[k] !== first(pf[P[k]]));
   const sameMaterials = !materialsChanged.length;
   const handleIds = m.handles != null ? m.handles : ids(pf[P.h1]);
   const handleCount = m.handleCount != null ? m.handleCount : num(pf[P.h1n]);
@@ -119,11 +119,11 @@ export async function price(at, body) {
   for (const li of body.lines) allV.push(...(li.v1 || []), ...(li.v2 || []), ...(li.v3 || []));
   for (const r of rows) for (const f of ["Vöru reitur 1", "Vöru reitur 2", "Vöru reitur 3"]) allV.push(...ids(r.fields[f]));
   const variants = allV.length ? await byIds(at, VARIANTS, allV, Object.values(V)) : {};
-  const matRecs = await byIds(at, MATERIALS, [pick.carcass, pick.front, pick.top, pick.door].filter(Boolean), [M_PLATE, M_COST]);
+  const matRecs = await byIds(at, MATERIALS, [pick.carcass, pick.front, pick.front2, pick.top, pick.door].filter(Boolean), [M_PLATE, M_COST]);
   const handleRecs = handleIds.length ? await byIds(at, PRODUCTS, handleIds, [PR_PRICE]) : {};
 
   const mat = {
-    carcass: num((matRecs[pick.carcass] || {})[M_PLATE]), front: num((matRecs[pick.front] || {})[M_PLATE]),
+    carcass: num((matRecs[pick.carcass] || {})[M_PLATE]), front: num((matRecs[pick.front] || {})[M_PLATE]), front2: num((matRecs[pick.front2] || {})[M_PLATE]),
     top: num((matRecs[pick.top] || {})[M_COST]), door: num((matRecs[pick.door] || {})[M_COST]),
     kl: num(pf[P.kl]), // "m. kostnaður á kantlímingu" — a text formula (120/400/800/1200 by Kantlíming skrokka)
   };
@@ -136,8 +136,8 @@ export async function price(at, body) {
     const qty = li.qty != null ? li.qty : 1;
     const disc = row ? num(rf["Afsl. %"]) : 0;
     const markup = row && rf["❗Álagning á efniskostnað❗"] != null ? num(rf["❗Álagning á efniskostnað❗"]) : DEFAULT_MARKUP;
-    const calc = unitPrice({ v1: li.v1 || [], v2: li.v2 || [], v3: li.v3 || [], qty, disc, markup }, variants, mat, proj);
-    const sameLine = !!row && num(rf["Magn"]) === qty &&
+    const calc = unitPrice({ v1: li.v1 || [], v2: li.v2 || [], v3: li.v3 || [], qty, disc, markup, front2: !!li.front2 }, variants, mat, proj);
+    const sameLine = !!row && num(rf["Magn"]) === qty && !!rf["Frontaefni #2"] === !!li.front2 &&
       idsKey(li.v1 || []) === idsKey(ids(rf["Vöru reitur 1"])) && idsKey(li.v2 || []) === idsKey(ids(rf["Vöru reitur 2"])) && idsKey(li.v3 || []) === idsKey(ids(rf["Vöru reitur 3"]));
     const unchanged = sameLine && sameMaterials;
     const locked = !!(row && rf["Læstur verðlykill 🔒"] && rf["Læstur verðlykill 🔒"] === rf["Verðlykill"]);

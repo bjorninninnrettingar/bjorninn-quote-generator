@@ -124,3 +124,21 @@ test("room doors are their own lines (HU1…), validated like cabinets", () => {
     lineItems: [{ "🔑": "HU1", "Vöru reitur 1": ["rec5kbxFHLWvM02rt"], "Smíðagögn (JSON) 🔧": '{"v":1,"door":{}}' }] }), null);
   assert.equal(validate({ recordId: OPP, state: { walls: [] }, smida: { XX1: null } }), "Ógilt 🔑: XX1");
 });
+
+test("FR2 / inner fronts on existing lines: drawing writes its picks, never clears a hand-set FR2 it never sent", async () => {
+  const run = async (rowFields, liExtra, li) => {
+    const f = fakeFetch((call) => {
+      if (call.method === "GET" && call.url.includes(`tbl4LMXlQjp66RFKI/${OPP}`))
+        return { status: 200, body: { id: OPP, fields: { "Heiti tækifæris / verkefnis": "T-227 | Prófun", "Sjálfsafgreiðsla skipulag (JSON) 📐": JSON.stringify({ submissionId: "sid-1", liExtra }) } } };
+      if (call.method === "GET" && call.url.includes("tblFcsUoGxsuUwNEH"))
+        return { status: 200, body: { records: [{ id: "recL1", fields: Object.assign({ "🔑": "Sk1", "Tækifæri 📣 (projects)": [OPP] }, rowFields) }] } };
+      return { status: 200, body: { records: [] } };
+    });
+    await save(makeAirtable("t", { fetchImpl: f, delays: [] }), { recordId: OPP, state: { walls: [] }, smida: { Sk1: null }, lineItems: [Object.assign({ "🔑": "Sk1" }, li)] });
+    const p = f.calls.find((c) => c.method === "PATCH" && c.url.includes("tblFcsUoGxsuUwNEH"));
+    return p ? p.body.records[0].fields : {};
+  };
+  assert.deepEqual(await run({}, undefined, { "Frontaefni #2": true, "Tegund innskúffu fronts": "Frontaefni 2" }), { "Frontaefni #2": true, "Tegund innskúffu fronts": "Frontaefni 2" });
+  assert.deepEqual(await run({ "Frontaefni #2": true }, undefined, { "Frontaefni #2": false }), {});            // hand-set, drawing never sent → kept
+  assert.deepEqual(await run({ "Frontaefni #2": true }, { Sk1: { "Frontaefni #2": "1" } }, { "Frontaefni #2": false }), { "Frontaefni #2": false }); // drawing turned it off
+});

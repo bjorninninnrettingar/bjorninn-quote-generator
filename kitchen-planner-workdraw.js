@@ -91,8 +91,8 @@
       else {
         var bh = Math.min(fh - 2, (f.side || f.mm * 0.6) * k);
         s += rc(x0 + 2.2, fy + fh - 1 - bh, w - 4.4, bh, sysC, 0.3, "none", DASH);
-        var ls = Math.min(2.8, fh * 0.45);
-        s += tx(x0 + w / 2, fy + fh / 2 + 1, drawerLabel(sys, f), ls, sysC, ' text-anchor="middle" font-weight="700"');
+        var lab = drawerLabel(sys, f), ls = Math.min(2.8, fh * 0.45, (w - 3) / (lab.length * 0.58)); // a long "M-K (FRE1)" shrinks to fit a narrow unit
+        s += tx(x0 + w / 2, fy + fh / 2 + 1, lab, ls, sysC, ' text-anchor="middle" font-weight="700"');
         // the front's own slot height (= Sérhæð), a size smaller than the code so it's there for whoever looks for it
         // (top-right corner, above the dashed box — never on top of the code or the box line)
         var ms = Math.max(1.2, Math.min(ls - 0.75, fh - bh - 1.4));
@@ -104,7 +104,8 @@
     // inner drawers behind doors (dashed, system colour)
     (u.inner || []).forEach(function(d){
       var iy = yBot - (d.mm + d.h) * k;
-      s += rc(x0 + 3, iy, w - 6, d.h * k, sysC, 0.3, "none", DASH) + tx(x0 + w / 2, iy + d.h * k / 2 + 0.9, drawerLabel(sys, { code:d.code, inner:true, mat:d.mat }), Math.min(2.5, d.h * k * 0.5), sysC, ' text-anchor="middle" font-weight="700"');
+      var il = drawerLabel(sys, { code:d.code, inner:true, mat:d.mat });
+      s += rc(x0 + 3, iy, w - 6, d.h * k, sysC, 0.3, "none", DASH) + tx(x0 + w / 2, iy + d.h * k / 2 + 0.9, il, Math.min(2.5, d.h * k * 0.5, (w - 7) / (il.length * 0.58)), sysC, ' text-anchor="middle" font-weight="700"');
     });
     // shelves: FH solid, H3 dashed, LH (over an oven) solid with its label
     (u.shelves || []).forEach(function(sh){

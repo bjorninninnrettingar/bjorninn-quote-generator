@@ -28,6 +28,14 @@ test("matches a real T-32 line (Úthlið á grunnskáp: V1 8866.67, efniskostna�
   assert.ok(Math.abs(got - 9756.433271555466) < 0.01);
 });
 
+test("a Frontaefni #2 line prices its fronts on FR2's plate", () => {
+  const m2 = Object.assign({}, mat, { front2: 50000 });
+  const fr1 = unitPrice({ v1: [A], qty: 1, markup: 2.05 }, variants, m2, { hidden: 0, small: 1 });
+  const fr2 = unitPrice({ v1: [A], qty: 1, markup: 2.05, front2: true }, variants, m2, { hidden: 0, small: 1 });
+  assert.ok(Math.abs((fr2 - fr1) - (50000 - 30000) * 0.2 * 2.05 / 1.24) < 1e-6); // V1's 0.2 m² of front at the other plate
+  assert.equal(unitPrice({ v1: [A], qty: 1, front2: true }, variants, mat, { hidden: 0, small: 1 }), unitPrice({ v1: [A], qty: 1 }, variants, mat, { hidden: 0, small: 1 })); // no FR2 on the project → FR1, like Airtable's AND()
+});
+
 test("num() sums lookup arrays and reads text formulas", () => {
   assert.equal(num([1, 2, [3]]), 6);
   assert.equal(num("400"), 400);
