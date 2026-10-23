@@ -3997,13 +3997,41 @@
         m.position.set(x || 0, y - hM / 2, z || 0); m.castShadow = true; m.receiveShadow = true;
         proxy.add(m); return m;
       }
-      if (def.look === "radiator"){
-        var fins = Math.max(3, Math.round(wM / 0.05));
-        for (var fi = 0; fi < fins; fi++) part(new THREE.BoxGeometry(wM / fins * 0.8, hM, dM * 0.7), 0xf4f4f2, 0.4, 0, -wM / 2 + (fi + 0.5) * wM / fins, hM / 2, -dM * 0.1);
-        part(new THREE.BoxGeometry(wM, 0.04, dM * 0.4), 0xf4f4f2, 0.4, 0, hM - 0.06, -dM * 0.2);
-      } else if (def.look === "panel"){
-        part(new THREE.BoxGeometry(wM, hM, dM), 0xd9dadc, 0.5, 0.1, 0, hM / 2, 0);
-        part(new THREE.BoxGeometry(wM * 0.9, hM * 0.9, 0.004), 0xc4c6c9, 0.45, 0.1, 0, hM / 2, dM / 2 + 0.002);
+      if (def.look === "radiator"){ // a modern double panel radiator (type 22), no pipes (user, 2026-10-23: "remove the bottom pipe")
+        var radW = 0xf6f6f4, radD = 0xdcdcd8;
+        [-1, 1].forEach(function(side){ // front + back panel, each with its vertical convector ribs
+          var pz = side * (dM / 2 - 0.009);
+          part(new THREE.BoxGeometry(wM - 0.02, hM - 0.03, 0.014), radW, 0.28, 0.05, 0, (hM - 0.03) / 2 + 0.005, pz);
+          if (side > 0){
+            var ribs = Math.max(4, Math.round((wM - 0.04) / 0.033));
+            for (var ri = 0; ri < ribs; ri++) part(new THREE.BoxGeometry(0.003, hM - 0.08, 0.002), radD, 0.4, 0, -wM / 2 + 0.03 + ri * (wM - 0.06) / (ribs - 1), hM / 2, pz + 0.0075);
+          }
+        });
+        part(new THREE.BoxGeometry(wM - 0.02, 0.006, dM - 0.004), 0x8e9094, 0.6, 0.1, 0, hM - 0.022, 0); // the shaded gap under the top grille
+        for (var gi = 0; gi < Math.round(wM / 0.012); gi++) part(new THREE.BoxGeometry(0.004, 0.004, dM - 0.01), radW, 0.3, 0, -wM / 2 + 0.012 + gi * 0.012, hM - 0.017, 0); // grille bars
+        [-1, 1].forEach(function(side){ part(new THREE.BoxGeometry(0.008, hM - 0.01, dM), radW, 0.3, 0, side * (wM / 2 - 0.004), (hM - 0.01) / 2, 0); }); // side covers
+        // thermostatic valve head at the top corner, on the room side
+        part(new THREE.CylinderGeometry(0.009, 0.009, 0.05, 16), 0xd8d9db, 0.25, 0.8, wM / 2 - 0.03, hM - 0.06, dM / 2 + 0.025).rotation.x = Math.PI / 2;
+        part(new THREE.CylinderGeometry(0.022, 0.024, 0.055, 24), 0xfafafa, 0.35, 0, wM / 2 - 0.03, hM - 0.06, dM / 2 + 0.06).rotation.x = Math.PI / 2;
+      } else if (def.look === "panel"){ // a modern consumer unit: white enclosure, recessed door, smoked window over a row of breakers, lock
+        var encl = 0xf1f1ef;
+        part(new THREE.BoxGeometry(wM, hM, dM * 0.85), encl, 0.35, 0.02, 0, hM / 2, -dM * 0.075);
+        part(new THREE.BoxGeometry(wM - 0.03, hM - 0.03, 0.012), 0xfbfbfa, 0.3, 0, 0, hM / 2, dM / 2 - 0.006); // the door
+        part(new THREE.BoxGeometry(wM - 0.02, 0.004, 0.004), 0xd6d6d3, 0.4, 0, 0, hM - 0.016, dM / 2); // door shadow lines
+        part(new THREE.BoxGeometry(wM - 0.02, 0.004, 0.004), 0xd6d6d3, 0.4, 0, 0, 0.016, dM / 2);
+        var rows = hM > 0.45 ? 2 : 1;
+        for (var row = 0; row < rows; row++){
+          var wy = hM * (rows === 2 ? (row ? 0.36 : 0.7) : 0.6), wh = Math.min(0.11, hM * 0.2);
+          var win = part(new THREE.BoxGeometry(wM - 0.07, wh, 0.003), 0x2c3136, 0.15, 0.1, 0, wy, dM / 2 + 0.001);
+          win.material.transparent = true; win.material.opacity = 0.88;
+          var n = Math.max(3, Math.floor((wM - 0.09) / 0.018)); // breakers on the DIN rail behind the window
+          for (var bi = 0; bi < n; bi++){
+            var bx = -(wM - 0.09) / 2 + 0.009 + bi * (wM - 0.09) / n;
+            part(new THREE.BoxGeometry(0.0155, wh * 0.78, 0.003), 0xe9e9e6, 0.5, 0, bx, wy, dM / 2 + 0.0025);
+            part(new THREE.BoxGeometry(0.006, wh * 0.18, 0.004), bi % 4 === 0 ? 0x2f6fd0 : 0x1e1f21, 0.5, 0, bx, wy + wh * 0.06, dM / 2 + 0.004);
+          }
+        }
+        part(new THREE.BoxGeometry(0.012, 0.045, 0.01), 0xcfd2d5, 0.3, 0.7, wM / 2 - 0.035, hM * 0.5, dM / 2 + 0.005); // lock / handle
       } else if (def.look === "pipe"){
         part(new THREE.CylinderGeometry(0.02, 0.02, dM, 16).rotateX(Math.PI / 2), 0xc8ccd2, 0.25, 0.9, -wM / 4, hM / 2, 0);
         part(new THREE.CylinderGeometry(0.025, 0.025, dM, 16).rotateX(Math.PI / 2), 0x9a9da3, 0.35, 0.6, wM / 4, hM / 2, 0);
