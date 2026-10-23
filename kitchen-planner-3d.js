@@ -3770,6 +3770,7 @@
     // Wall length labels floating just above each wall (HomeByMe shows room
     // dimensions on the plan); a canvas-texture sprite, drawn on top.
     function isOpenGeom(i){ return !!(state.walls[i] && state.walls[i].open); }
+    var wallLabels = []; // {sp, g} — faded out in fadeWalls() while the camera is behind that wall (user, 2026-10-23)
     if (!opts.people && !opts.clean && !iso) geoms.forEach(function(g, i){ // (the ceiling-height view has its own single label; opts.clean skips it too — drawing exports don't want it baked into the picture)
       // a small "V1" bubble, the same size on screen however far the wall is (2026-10-12: "Veggur 1 · 4000 mm" was
       // too big; the lengths are on the 2D plan and in the wall's panel)
@@ -3785,6 +3786,7 @@
       sp.position.set(g.origin.x + g.axis.x * g.lenM / 2, WALL_H + 0.16, g.origin.z + g.axis.z * g.lenM / 2);
       sp.renderOrder = 10;
       scene.add(sp);
+      wallLabels.push({ sp:sp, g:g });
     });
 
     // White skirting boards along every wall (visible wherever no cabinet stands)
@@ -4354,6 +4356,14 @@
 
     var wallVec = new THREE.Vector3();
     function fadeWalls(){
+      // "V1" bubbles: drawn on top of everything (depthTest off), so a wall you're looking through would still
+      // show its label floating over the room — hide it while the camera is on that wall's outer side
+      wallLabels.forEach(function(l){
+        var cp = (THREE_STATE.fadeCam || camera).position, lx = l.g.origin.x + l.g.axis.x * l.g.lenM / 2, lz = l.g.origin.z + l.g.axis.z * l.g.lenM / 2;
+        var behind = (cp.x - lx) * l.g.normal.x + (cp.z - lz) * l.g.normal.z < 0;
+        var m = l.sp.material; m.opacity += ((behind ? 0 : 1) - m.opacity) * 0.2;
+        l.sp.visible = m.opacity > 0.02;
+      });
       wallFades.forEach(function(w){
         var cx = w.geom.origin.x + w.geom.axis.x * w.geom.lenM / 2, cz = w.geom.origin.z + w.geom.axis.z * w.geom.lenM / 2;
         // camera on the outer side of this wall (opposite its room-facing normal)?
