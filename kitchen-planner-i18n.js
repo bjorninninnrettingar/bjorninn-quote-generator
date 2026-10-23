@@ -1409,7 +1409,9 @@
     "á myndinni": "on the plan",
     "{n} í hurðalistanum án staðsetningar": "{n} in the door list without a place",
     "Setja á vegg": "Place on a wall",
-    "Smelltu á vegg á myndinni þar sem hurðin á að vera.": "Click the wall on the plan where the door goes."
+    "Smelltu á vegg á myndinni þar sem hurðin á að vera.": "Click the wall on the plan where the door goes.",
+    "Ganga um heimilið": "Walk through the home",
+    "3D tókst ekki að hlaða.": "3D couldn't load."
   });
 
   // part F: stored/computed numbered labels from kitchen-planner-3d.js (CATALOG width variants, island rows, partition sides)

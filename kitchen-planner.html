@@ -9811,7 +9811,7 @@
     var b0 = homeBox(pts.map(function(p){ return homeXf(p, pos); })), np = { x:pos.x, z:pos.z, rot:((pos.rot || 0) + 90) % 360 };
     var b1 = homeBox(pts.map(function(p){ return homeXf(p, np); }));
     np.x += (b0.x0 + b0.x1) / 2 - (b1.x0 + b1.x1) / 2; np.z += (b0.z0 + b0.z1) / 2 - (b1.z0 + b1.z1) / 2; // turn about its own middle
-    state.home.rooms[key] = np; save(); renderHome();
+    state.home.rooms[key] = homeSnap(key, np); save(); renderHome(); // turned rooms snap back onto their neighbours' walls
   }
   function homeView(W, H){
     var all = []; homeRooms().forEach(function(k){ var pp = homePlaced(k); if (pp) all = all.concat(pp); });
@@ -9951,6 +9951,50 @@
       if (b3.dataset.hddel){ blob.doors = blob.doors.filter(function(x){ return x !== d; }); homeDoorSel = null; save(); renderHome(); }
     };
   }
+  // Ganga um heimilið (step 4): every placed room in one 3D scene, walking from room to room through the doors.
+  // A door in a shared wall also opens the neighbour's wall: each door gets a matching gap in any other room's
+  // wall that runs along it within 35 cm (the interior wall between them).
+  function homeWalk(){
+    var placed = homeRooms().filter(function(k){ return homeRoomPts(k) && state.home.rooms[k]; });
+    if (!placed.length) return;
+    var copies = {};
+    placed.forEach(function(k){ copies[k] = JSON.parse(JSON.stringify(roomBlobOf(k))); });
+    function wallSegs(k){
+      var b = copies[k], pos = state.home.rooms[k];
+      return KP3D.wallGeometry3D(b.walls).map(function(g, i){ return { k:k, wi:i, id:b.walls[i].id, open:b.walls[i].open, a:homeXf({ x:g.origin.x * 1000, z:g.origin.z * 1000 }, pos), ax:homeXf({ x:g.axis.x, z:g.axis.z }, { x:0, z:0, rot:pos.rot }), len:g.lenM * 1000 }; });
+    }
+    var segs = {}; placed.forEach(function(k){ segs[k] = wallSegs(k); });
+    // walking through the home: every door stands open (an opening you walk through, not a closed leaf)
+    placed.forEach(function(k){
+      (roomBlobOf(k).doors || []).forEach(function(d){
+        var my = segs[k].find(function(sg){ return sg.id === d.wallId; }); if (!my) return;
+        var c = { x:my.a.x + my.ax.x * (d.offsetMm + d.widthMm / 2), z:my.a.z + my.ax.z * (d.offsetMm + d.widthMm / 2) };
+        placed.forEach(function(o){
+          if (o === k) return;
+          segs[o].forEach(function(sg){
+            if (sg.open || Math.abs(sg.ax.x * my.ax.z - sg.ax.z * my.ax.x) > 0.02) return; // parallel walls only
+            var t = (c.x - sg.a.x) * sg.ax.x + (c.z - sg.a.z) * sg.ax.z, off = Math.hypot(c.x - (sg.a.x + sg.ax.x * t), c.z - (sg.a.z + sg.ax.z * t));
+            if (off > 350 || t < d.widthMm / 2 || t > sg.len - d.widthMm / 2) return;
+            copies[o].doors = (copies[o].doors || []).concat([{ id:"hg" + d.id, wallId:sg.id, offsetMm:Math.round(t - d.widthMm / 2), widthMm:d.widthMm, heightMm:d.heightMm, gap:true }]);
+          });
+        });
+      });
+    });
+    placed.forEach(function(k){ (copies[k].doors || []).forEach(function(d){ d.gap = true; }); });
+    var ov = document.createElement("div");
+    ov.id = "homeWalkOv"; ov.style.cssText = "position:fixed;inset:0;z-index:95;background:#1a1b1e;";
+    ov.innerHTML = '<div id="homeWalkHost" style="position:absolute;inset:0;"></div>';
+    document.body.appendChild(ov);
+    var host = document.getElementById("homeWalkHost");
+    function close(){ try{ KP3D.setWalkMode(false); }catch(e){} KP3D.teardown3D(true); ov.remove(); }
+    KP3D.waitForThree(function(ok){
+      if (!ok){ ov.remove(); toast(__("3D tókst ekki að hlaða.")); return; }
+      try{
+        KP3D.buildHomeScene(host, placed.map(function(k){ var pos = state.home.rooms[k]; return { state:copies[k], x:pos.x, z:pos.z, rot:pos.rot || 0 }; }), { freshCamera:true, onWalkChange:function(on){ if (!on) close(); } });
+        setTimeout(function(){ KP3D.setWalkMode(true); }, 300);
+      }catch(e){ console.error(e); close(); toast(__("3D tókst ekki að hlaða.")); }
+    }, 8000);
+  }
   function surfacesOfBlob(blob){ try{ return KP3D.surfacesOf(blob); }catch(e){ return []; } }
   function homeStartDrag(key, evt){
     evt.preventDefault();
@@ -9992,6 +10036,7 @@
     html += '<h4>' + __("Hurðir") + '</h4><div class="home-add"><button type="button" data-hdoornew="1"' + (homeDoorMode && !homeDoorMode.listId ? ' style="border-color:var(--ink);background:var(--ink);color:#fff;"' : '') + '>' + __("+ Setja hurð") + '</button></div>' +
       '<p class="home-hint">' + (homeDoorMode ? __("Smelltu á vegg á myndinni þar sem hurðin á að vera. Esc hættir við.") : placedDoors + ' ' + plural(placedDoors, "hurð", "hurðir") + ' ' + __("á myndinni") + (loose.length ? ' · ' + __("{n} í hurðalistanum án staðsetningar", { n:loose.length }) : '')) + '</p>' +
       loose.map(function(d){ return '<div class="hr-item"><b>' + escapeHtmlPro(d.hu || "") + ' · ' + escapeHtmlPro(__(d.room || "Rými")) + '</b><small>' + d.widthMm + ' × ' + d.heightMm + ' mm</small><span class="hr-acts"><button type="button" data-hdoorplace="' + d.id + '">' + __("Setja á vegg") + '</button></span></div>'; }).join("");
+    if (rooms.filter(function(k){ return homeRoomPts(k); }).length) html += '<button type="button" class="btn btn-primary btn-small" data-hwalk="1" style="align-self:flex-start;">' + __("Ganga um heimilið") + '</button>';
     var have = function(key){ return rooms.indexOf(key) >= 0; };
     html += '<h4>' + __("Bæta við rými") + '</h4><div class="home-add">' +
       [["eldhus", "Eldhús"], ["fataskapar", "Fataskápur"], ["bad", "Baðherbergi"], ["thvottahus", "Þvottahús"]].filter(function(r){ return !have(r[0]); }).map(function(r){ return '<button type="button" data-hadd="' + r[0] + '">' + __(r[1]) + '</button>'; }).join("") +
@@ -10006,6 +10051,7 @@
         var k = b.dataset.hdel; state.categoryQueue = state.categoryQueue.filter(function(x){ return x !== k; }); delete state.categoryData[k]; delete state.home.rooms[k];
         if (homeSel === k) homeSel = null; save(); renderHome(); return;
       }
+      if (b.dataset.hwalk){ homeWalk(); return; }
       if (b.dataset.hadd){ openRoom(b.dataset.hadd); return; }
       if (b.dataset.hdoornew){ homeDoorMode = homeDoorMode ? null : { listId:null }; if (!doorProducts) loadDoorProducts().then(function(){ if (state.step === "heimili") renderHome(); }); renderHome(); return; }
       if (b.dataset.hdoorplace){ homeDoorMode = { listId:b.dataset.hdoorplace }; if (!doorProducts) loadDoorProducts(); renderHome(); toast(__("Smelltu á vegg á myndinni þar sem hurðin á að vera.")); return; }
