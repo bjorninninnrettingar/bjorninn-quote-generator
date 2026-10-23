@@ -1132,13 +1132,21 @@
       <div class="mat-side">
         <div class="wiz-steps" id="wizSteps"></div>
 
-        <div class="wiz-panel" data-mp="0">
+        <div class="wiz-panel" data-mpkey="carcass">
           <div class="sw-grid big" id="carcassCards"></div>
         </div>
-        <div class="wiz-panel" data-mp="1">
+        <div class="wiz-panel" data-mpkey="drawers">
           <div class="drawer-cards" id="drawerSystemCards"></div>
         </div>
-        <div class="wiz-panel" data-mp="2">
+        <!-- Fataskápar only (PAX-style funnel, 2026-10-23): depth then height, each a couple of big
+             illustrated cards, before the (shared) fronts/handle pickers below. -->
+        <div class="wiz-panel" data-mpkey="depth">
+          <div class="sw-grid big" id="closetDepthCards"></div>
+        </div>
+        <div class="wiz-panel" data-mpkey="height">
+          <div class="sw-grid big" id="closetHeightCards"></div>
+        </div>
+        <div class="wiz-panel" data-mpkey="fronts">
           <div class="tabs-row" id="frontTabs"></div>
           <p class="tab-blurb" id="frontBlurb"></p>
           <input type="search" class="sw-search" id="lookSearch" placeholder="Leita — t.d. eik, hnota, grár eða H1180" autocomplete="off">
@@ -1146,13 +1154,13 @@
           <p class="look-picked" id="lookPicked"></p>
           <div class="sw-grid" id="lookCards"></div>
         </div>
-        <div class="wiz-panel" data-mp="3">
+        <div class="wiz-panel" data-mpkey="handle">
           <div class="tabs-row" id="handleTabs"></div>
           <p class="tab-blurb" id="handleBlurb"></p>
           <div class="h-grid" id="handleCards"></div>
           <div id="handleColors"></div>
         </div>
-        <div class="wiz-panel" data-mp="4">
+        <div class="wiz-panel" data-mpkey="top">
           <div class="tabs-row" id="topTabs"></div>
           <p class="tab-blurb" id="topBlurb"></p>
           <div class="tone-row" id="topTones"></div>
@@ -1455,6 +1463,14 @@
   function newBlock(type){
     var c = CATALOG[type];
     var b = { id:"b" + (blockSeq++), type:type, widthMm:c.defaultW };
+    // Fataskápar funnel (2026-10-23): a new unit starts at the depth/height picked up front in materials —
+    // one stake in the ground instead of asking per-cabinet, still a normal, overridable depthMm/heightMm
+    // (the properties panel's typed dims and clampWidth/Height/Depth don't know or care where the starting
+    // value came from). Any OTHER category, or a Fataskápar draft from before this existed, is unaffected.
+    if (state.activeCategory === "fataskapar"){
+      if (state.closetDepthMm) b.depthMm = clampDepth(type, state.closetDepthMm);
+      if (state.closetHeightMm) b.heightMm = clampHeight(type, state.closetHeightMm);
+    }
     if (c.hasInterior) b.interior = c.drawersOnly ? { mode:"skuffur", count:1 } : { mode:"hillur", count:3 }; // ruslaskápur: one tall drawer to start
     if (c.shelfStack) initShelfStack(b, 3, KP3D.SHELF_GAP_DEFAULT);
     if (c.bur){ b.burCombo = ""; b.burShelves = 0; } // a new búrskápur starts empty (2026-10-11)
@@ -6062,30 +6078,124 @@
     });
   }
 
+  // ---------- Fataskápar funnel: Dýpt + Hæð (2026-10-23) ----------
+  // Two deliberate, illustrated choice screens up front (PAX research: "the single thing the user cares
+  // most about" was dimensions, not a materials catalogue) — every NEW unit placed afterwards defaults to
+  // these (insertBlockAt), a single stake in the ground the customer can still override per-cabinet later.
+  var CLOSET_DEPTHS = [
+    { mm:350, label:"Grunnt — 35 cm", desc:"Hentar fyrir fatahengi á slá." },
+    { mm:580, label:"Djúpt — 58 cm", desc:"Hentar líka fyrir kassa og brotin föt." }
+  ];
+  function closetDepthSvg(mm){ // top-down: a room-depth rectangle, proportional to the real mm (300-700 range)
+    var w = Math.round(18 + (mm - 300) / (700 - 300) * 34);
+    return '<svg viewBox="0 0 64 64" width="56" height="56" aria-hidden="true"><rect x="' + ((64 - w) / 2) + '" y="10" width="' + w + '" height="44" rx="2" fill="#e4ded0" stroke="#a9a196" stroke-width="1.2"/>' +
+      '<line x1="8" y1="58" x2="56" y2="58" stroke="#c9c4b8" stroke-width="1"/></svg>';
+  }
+  function selectClosetDepth(mm){ state.closetDepthMm = mm; save(); renderMaterials(); }
+  function renderClosetDepthCards(){
+    var container = document.getElementById("closetDepthCards");
+    container.className = "sw-grid big";
+    container.innerHTML = CLOSET_DEPTHS.map(function(d){
+      return '<button type="button" class="drawer-card' + (state.closetDepthMm === d.mm ? ' active' : '') + '" data-closetdepth="' + d.mm + '">' +
+        '<div class="dc-ico">' + closetDepthSvg(d.mm) + '</div><div><div class="dc-name">' + d.label + '</div><div class="dc-desc">' + d.desc + '</div></div></button>';
+    }).join("");
+    container.querySelectorAll("[data-closetdepth]").forEach(function(card){
+      card.addEventListener("click", function(){ selectClosetDepth(+card.dataset.closetdepth); });
+    });
+  }
+  // Height options scale with the room's own ceiling (already picked in the shape step): a couple of fixed
+  // common heights plus "Í loft" (floor to just under the ceiling, capped at the real cabinet maximum).
+  function closetHeightOptions(){
+    var ceilMax = Math.min(2700, (state.roomHeightMm || 2500) - 100); // harskapur/harskapurOpinn maxH, minus a top gap
+    var out = [1800, 2100, 2400].filter(function(h){ return h <= ceilMax - 50; }).map(function(h){ return { mm:h, label:h + " mm" }; });
+    out.push({ mm:ceilMax, label:"Í loft (" + ceilMax + " mm)" });
+    return out;
+  }
+  function closetHeightSvg(mm){ // a vertical bar, proportional to the real mm against a 1800-2700 range
+    var h = Math.round(16 + (mm - 1800) / (2700 - 1800) * 34);
+    return '<svg viewBox="0 0 64 64" width="56" height="56" aria-hidden="true"><rect x="22" y="' + (56 - h) + '" width="20" height="' + h + '" rx="2" fill="#e4ded0" stroke="#a9a196" stroke-width="1.2"/>' +
+      '<line x1="8" y1="56" x2="56" y2="56" stroke="#c9c4b8" stroke-width="1"/></svg>';
+  }
+  function selectClosetHeight(mm){ state.closetHeightMm = mm; save(); renderMaterials(); }
+  function renderClosetHeightCards(){
+    var container = document.getElementById("closetHeightCards");
+    container.className = "sw-grid big";
+    container.innerHTML = closetHeightOptions().map(function(h){
+      return '<button type="button" class="drawer-card' + (state.closetHeightMm === h.mm ? ' active' : '') + '" data-closetheight="' + h.mm + '">' +
+        '<div class="dc-ico">' + closetHeightSvg(h.mm) + '</div><div><div class="dc-name">' + h.label + '</div></div></button>';
+    }).join("");
+    container.querySelectorAll("[data-closetheight]").forEach(function(card){
+      card.addEventListener("click", function(){ selectClosetHeight(+card.dataset.closetheight); });
+    });
+  }
+
   // ======================================================================
   // Materials as a wizard: one choice per page, with ONE big 3D base cabinet
   // (600 × 900 × 600) that gains a level per page — carcass colour → drawer
   // system → fronts (the cabinet closes) → handles → worktop.
+  //
+  // Each phase carries its own `key` (matches a static .wiz-panel's data-mpkey — or, for a phase that
+  // shows more than one existing panel at once, `panelKeys`), `render` (what to call when it's active)
+  // and `done` (whether the customer has answered it). This is what makes the whole wizard — stepper,
+  // panel visibility, 3D-preview reveal, next/back gating — category-pluggable: Fataskápar swaps in its
+  // own, shorter phase list (MAT_PHASES_FATASKAPAR, below) instead of hand-special-casing one flag at a
+  // time the way the old worktop-only skip did. The kitchen's own 5 phases are unchanged in content,
+  // order and done-conditions — this is a reshape of the plumbing, not a behaviour change for Eldhús.
   // ======================================================================
   var MAT_PHASES = [
-    { label:"Skrokkur",  title:"Veldu skrokkalit",        sub:"Liturinn innan í skápunum og á hillum." },
-    { label:"Skúffur",   title:"Veldu skúffukerfi",       sub:"Skúffurnar birtast inni í skápnum." },
-    { label:"Framhlið",  title:"Veldu framhlið",          sub:"Skápurinn lokast með framhliðinni sem þú velur." },
-    { label:"Höldur",    title:"Veldu höldu",             sub:"Sama handfang fer á alla skápa." },
-    { label:"Borðplata", title:"Veldu borðplötu",         sub:"Borðplatan kemur ofan á skápinn." }
+    { key:"carcass", label:"Skrokkur",  title:"Veldu skrokkalit",  sub:"Liturinn innan í skápunum og á hillum.",
+      render:renderCarcassCards,      done:function(){ return !!state.carcass; } },
+    { key:"drawers", label:"Skúffur",   title:"Veldu skúffukerfi", sub:"Skúffurnar birtast inni í skápnum.",
+      render:renderDrawerSystemCards, done:function(){ return !!state.drawerSystem; } },
+    { key:"fronts",  label:"Framhlið",  title:"Veldu framhlið",    sub:"Skápurinn lokast með framhliðinni sem þú velur.",
+      render:renderLookCards,         done:function(){ return !!state.look; } },
+    { key:"handle",  label:"Höldur",    title:"Veldu höldu",       sub:"Sama handfang fer á alla skápa.",
+      render:renderHandleCards,       done:function(){ return !!state.handle; } },
+    { key:"top",     label:"Borðplata", title:"Veldu borðplötu",   sub:"Borðplatan kemur ofan á skápinn.",
+      render:renderTopCards,          done:function(){ return true; } }
+  ];
+  // Fataskápar's own funnel (PAX research, approved 2026-10-23): colour → depth → height up front (the
+  // decisions that actually define the wardrobe), drawer-BRAND dropped as its own page (defaulted instead
+  // — a closet's drawers are a secondary concern, not the kitchen's central one), fronts+handle folded into
+  // one late "Hurðir & höldur" step (PAX item 6: a swatch-row finishing touch, not two more full pages).
+  // Net page count: same as the old 4-page Eldhús-wizard-minus-worktop closets got before (5→4 by merging
+  // the last two), just restructured around what actually matters for a wardrobe.
+  var MAT_PHASES_FATASKAPAR = [
+    Object.assign({}, MAT_PHASES[0], { title:"Veldu lit", sub:"Liturinn á skápunum þínum." }),
+    { key:"depth",  label:"Dýpt", title:"Veldu dýpt", sub:"Dýptin gildir fyrir nýja skápa sem þú bætir við — hægt að breyta stökum skáp síðar.",
+      render:renderClosetDepthCards,  done:function(){ return !!state.closetDepthMm; } },
+    { key:"height", label:"Hæð", title:"Veldu hæð", sub:"Sama — gildir fyrir nýja skápa, stakir skápar breytanlegir síðar.",
+      render:renderClosetHeightCards, done:function(){ return !!state.closetHeightMm; } },
+    { key:"doors", label:"Hurðir & höldur", title:"Veldu hurðir og höldu", sub:"Framhlið og handfang fyrir alla skápa.",
+      panelKeys:["fronts", "handle"], render:function(){ renderLookCards(); renderHandleCards(); },
+      done:function(){ return !!state.look && !!state.handle; } }
   ];
   var matPhase = null;
   var cabPreviewLoading = false;
-  function matPhaseDone(i){ return [state.carcass, state.drawerSystem, state.look, state.handle, true][i]; }
-  function firstMissingPhase(){ for (var i = 0; i < 4; i++) if (!matPhaseDone(i)) return i; return 4; }
-  // Borðplata (worktop, the last MAT_PHASES entry) only applies when the category's own `worktop` flag
-  // says so (Eldhús: yes; Fataskápar: no wardrobe has anything to put a worktop on). Every other phase
-  // (carcass/drawers/fronts/handles) applies to any category.
-  function matPhaseCount(){ var cd = categoryDef(state.activeCategory); return (cd && cd.worktop === false) ? MAT_PHASES.length - 1 : MAT_PHASES.length; }
+  function activeMatPhases(){ var cd = categoryDef(state.activeCategory); return (cd && cd.matPhases) || MAT_PHASES; }
+  function matPhaseDone(i){ var ph = activeMatPhases()[i]; return ph ? ph.done() : true; }
+  // The last phase (worktop, or Fataskápar's combined doors+handle) is always reachable — its own `done()`
+  // decides whether IT is satisfied, not whether it's the fallback; everything before it is checked in order.
+  function firstMissingPhase(){ var ph = activeMatPhases(); for (var i = 0; i < ph.length; i++) if (!ph[i].done()) return i; return ph.length - 1; }
+  function matPhaseCount(){ return activeMatPhases().length; }
 
+  // "Reveal this level of the preview cabinet once we've reached the phase that explains it, or later" —
+  // a category whose own phase list has no such phase (e.g. Fataskápar has no separate "drawers" page,
+  // "top" doesn't apply at all) just shows that level from the start, nothing progressive to wait for.
+  function matPhaseReveal(key){
+    var ph = activeMatPhases(), idx = ph.findIndex(function(p){ return p.key === key || (p.panelKeys && p.panelKeys.indexOf(key) >= 0); });
+    return idx < 0 || matPhase >= idx;
+  }
   function cabCfg(){
-    return { carcass:state.carcass, drawer:state.drawerSystem, look:state.look, handle:state.handle, handleColor:state.handleColor, top:state.top || "steinn",
-      showDrawers:matPhase >= 1, showFronts:matPhase >= 2, showHandle:matPhase >= 3, showTop:matPhase >= 4 };
+    // Borðplata simply doesn't exist for a worktop:false category (Fataskápar) — unlike drawers/fronts/handle,
+    // "top" has a non-null default ("steinn") the instant it's asked for at all, so the generic "no such phase
+    // → show from the start" rule above would put a phantom stone worktop on every wardrobe cabinet (found
+    // while building the Fataskápar funnel, 2026-10-23: the old matPhase>=4 check could never be true for a
+    // 4-phase closet wizard either, so this was always effectively off for them — just never written down as
+    // its own rule until now).
+    var cd = categoryDef(state.activeCategory), hasTop = !cd || cd.worktop !== false;
+    return { carcass:state.carcass, drawer:state.drawerSystem, look:state.look, handle:state.handle, handleColor:state.handleColor, top:hasTop ? (state.top || "steinn") : null,
+      showDrawers:matPhaseReveal("drawers"), showFronts:matPhaseReveal("fronts"), showHandle:matPhaseReveal("handle"), showTop:hasTop && matPhaseReveal("top") };
   }
   function updateCabinetPreview(){
     var host = document.getElementById("cabPreview");
@@ -6140,8 +6250,8 @@
     // open the tab that holds the current pick (a tab click only re-renders its own picker, so it isn't undone)
     if (state.look && LOOKS[state.look] && !LOOKS[state.look].hidden) matTab.front = LOOKS[state.look].category;
     if (state.top && TOPS[state.top]) matTab.top = TOPS[state.top].group;
-    var ph = MAT_PHASES[matPhase];
-    document.getElementById("wizSteps").innerHTML = MAT_PHASES.slice(0, matPhaseCount()).map(function(p, i){
+    var phases = activeMatPhases(), ph = phases[matPhase];
+    document.getElementById("wizSteps").innerHTML = phases.map(function(p, i){
       // a page you can reach (an earlier one, or every page before it is done) is a button (2026-10-11)
       var can = i !== matPhase && (i < matPhase || i <= firstMissingPhase());
       return '<div class="ws' + (i === matPhase ? " active" : (i < matPhase && matPhaseDone(i) ? " done" : "")) + (can ? " go" : "") + '"' + (can ? ' data-mpgo="' + i + '" role="button" tabindex="0"' : '') + '><i></i><span>' + (i + 1) + '. ' + p.label + '</span></div>';
@@ -6154,17 +6264,16 @@
     document.getElementById("matTitle").textContent = ph.title;
     // the 3D hint sits on the subtitle line (like the height page), so the frame gets the height; it only says what
     // you can do on this page (opening drawers: the drawer page)
-    document.getElementById("matSub").innerHTML = ph.sub + '<span class="sub-hint"> · Dragðu til að snúa · ' + (matPhase === 1 ? "Smelltu á skúffu til að opna hana" : "Skrollaðu til að þysja") + '</span>';
-    document.querySelectorAll(".wiz-panel").forEach(function(el){ el.hidden = parseInt(el.dataset.mp, 10) !== matPhase; });
-    if (matPhase === 0) renderCarcassCards();
-    if (matPhase === 1) renderDrawerSystemCards();
-    if (matPhase === 2) renderLookCards();
-    if (matPhase === 3) renderHandleCards();
-    if (matPhase === 4) renderTopCards();
+    document.getElementById("matSub").innerHTML = ph.sub + '<span class="sub-hint"> · Dragðu til að snúa · ' + (ph.key === "drawers" ? "Smelltu á skúffu til að opna hana" : "Skrollaðu til að þysja") + '</span>';
+    var visibleKeys = ph.panelKeys || [ph.key];
+    document.querySelectorAll(".wiz-panel").forEach(function(el){ el.hidden = visibleKeys.indexOf(el.dataset.mpkey) < 0; });
+    ph.render();
     renderMatActions();
     updateCabinetPreview();
-    if (matPhase === 1 && lastMatPhase !== 1 && !(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches))
-      setTimeout(function(){ if (state.step === "materials" && matPhase === 1) KP3D.previewPeek(2); }, 900);
+    if (ph.key === "drawers" && lastMatPhase !== matPhase && !(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches)){
+      var peekPhase = matPhase;
+      setTimeout(function(){ if (state.step === "materials" && matPhase === peekPhase) KP3D.previewPeek(2); }, 900);
+    }
     lastMatPhase = matPhase;
   }
   var lastMatPhase = null;
@@ -8302,7 +8411,7 @@
   // project (closets in different bedrooms); water/worktop = whether that shape/materials step applies.
   var CATEGORIES = [
     { key:"eldhus", label:"Eldhús", water:true, worktop:true },
-    { key:"fataskapar", label:"Fataskápar", tree:FATASKAPAR_TREE, roomPicker:true, defaultRoom:"Fatask.", water:false, worktop:false },
+    { key:"fataskapar", label:"Fataskápar", tree:FATASKAPAR_TREE, roomPicker:true, defaultRoom:"Fatask.", water:false, worktop:false, matPhases:MAT_PHASES_FATASKAPAR },
     { key:"bad", label:"Bað", soon:true },
     { key:"hurdir", label:"Hurðir", soon:true }
   ];
