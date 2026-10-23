@@ -200,3 +200,10 @@ HomeByMe-style self-serve planner that ends in a lead: steps intake → material
   - Tvísmella á vegg = nýtt horn (ef ekkert er fyrir aftan punktinn). Veggir endurnúmeraðir ("Veggur N").
   - Í skáherbergi: draga vegg = `slidePts` (nágrannar halda stefnu), slá inn lengd = nágranni rennur samsíða.
 - Ekki enn: frjáls teikning frá grunni (smella punkt fyrir punkt) — horn-dráttur + nýtt horn nær í hvaða form sem er út frá rétthyrningi; skáhornsskápur (sérsmíðaður hornskápur í skáhorni) er ekki til í CATALOG.
+
+### 🚪 Innihurðir — hurðalisti fyrir allt heimilið (2026-10-23)
+- Studio-spjaldið "Innihurðir" (ekki lengur Væntanlegt) og PRO-hnappur "🚪 Hurðir" opna `openDoorList()`: einn listi á verkefninu (`state.doorList`, utan ROOM_FIELDS — tilheyrir engu einu rými).
+- Hver hurð: Rými, Gerð (Hefðbundin / Glerhurð / Rennihurð / Glerrennihurð / Eldvarnarhurð / Karmur eingöngu), valkostir sem lesnir eru úr vörulýsingunum (`doorAttrs`: lamir, felliþröskuldur, skrá, braut, brunaflokkur, karmur — aðeins sýndir ef gerðin hefur fleiri en eitt gildi), op B × H, veggþykkt, lamir vinstra/hægra (séð frá hliðinni sem hurðin opnast að) / rennur til, fjöldi eins, athugasemd. `doorProductFor` velur raunverulega Útfærslu (Flokkur Hurðir) — nákvæm samsvörun, annars sú sem passar best.
+- Hver hurð = HU-lína (`doorListLines`, númer með `nextHuKey` sem skannar líka hurðir í veggjum), í `collectAllLineItems` (innsending, PRO Vista, lifandi tilboð) og `proSmidaAll`. Hurðir sem eru teiknaðar í vegg með vöru sjást í listanum sem skrifvarðar.
+- Hurðir eingöngu: `canGoTo` hleypir í intake/contact þegar ekkert rými er til en listinn ekki tómur ("Senda inn hurðirnar →"); teikninga-PDF sleppt þegar ekkert rými er.
+- Verð = verð vörunnar (Airtable formúlan), óháð málum — sjá spurningalista.
