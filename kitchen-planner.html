@@ -5151,8 +5151,11 @@
     { key:"taeki", label:"Tækjaskápar", desc:"Ofn, ísskápur, uppþvottavél", icon:"ofnaskapur", opts:[
       { label:"Í háum skáp", type:"ofnaskapur", group:"Ofnaskápar" },
       { label:"Í lágum skáp", type:"ofnaskapurLagur", group:"Ofnaskápar" },
+      { label:"Ofn + örbylgjuofn (60 + 45)", type:"ofnaskapur", preset:{ ovenH:1050 }, group:"Ofnaskápar" },
       { label:"Frístandandi ísskápur", type:"isskapurFri", group:"Ísskápar" },
       { label:"Innbyggður ísskápur", type:"isskapur", group:"Ísskápar" },
+      { label:"Innbyggður frystir", type:"frystir", group:"Ísskápar" },
+      { label:"Vínkælir undir borðplötu", type:"vinkaelir", group:"Ísskápar" },
       { label:"Innbyggð uppþvottavél", type:"uppthvottavel", group:"Uppþvottavélar" },
       { label:"Frístandandi undir borðplötu", type:"uppthvottavelFri", group:"Uppþvottavélar" },
       { label:"Vasahurðir", soon:true, group:"Hurðir fyrir tæki" },
@@ -5307,6 +5310,7 @@
   }
   function uwStartBlock(opt){
     var b = newBlock(opt.type), c = CATALOG[opt.type];
+    if (opt.preset) Object.assign(b, JSON.parse(JSON.stringify(opt.preset))); // e.g. ofn + örbylgja = ovenH 1050
     if (c.hasInterior && opt.drawers){
       b.interior.mode = "skuffur";
       for (var n = 3; n >= 1; n--){
@@ -9008,6 +9012,7 @@
           notes.push("Viðskiptavinur óskar eftir að lamir séu " + (b.swing === "vinstri" ? "vinstra" : "hægra") + " megin (séð framan frá).");
         }
         var v3 = v1 ? v3RecordsFor(b, c) : [];
+        if (c.oven && !c.lowOven && +b.ovenH === 1050) notes.push("Ofn (60 cm) + örbylgjuofn (45 cm) í sama turni — staðfestu tækin.");
         if (state.hungUnits && zone_ofBlock(wall, b) === "floor") notes.push("Veggfestur (baðherbergi): " + plinthMmOf(c, "floor", wall) + " mm frá gólfi að neðri brún, enginn sökkull.");
         var lit = bom && bom.perUnit[b.id];
         if (lit && v1){ // its LED reel (+ the transformer on the first lit cabinet) → V3, one of each, priced there

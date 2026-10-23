@@ -60,6 +60,13 @@
     // Free-standing appliances (2026-10-05): a gap with the appliance drawn in, not ordered from Björninn
     isskapurFri: { label:"Frístandandi ísskápur", zone:"floor", cls:"tall", defaultW:600, minW:600, maxW:900, widths:[600, 700, 900], h:1850, d:650, minH:1700, maxH:2000, minD:600, maxD:750, hasInterior:false, appliance:"fridge", notOrdered:true },
     uppthvottavelFri:{ label:"Uppþvottavél (frístandandi)", zone:"floor", cls:"floor", defaultW:600, minW:450, maxW:600, widths:[450, 600], h:900, d:600, minH:800, maxH:950, minD:550, maxD:700, hasInterior:false, counter:true, appliance:"dishwasher", notOrdered:true },
+    // Tækjaskápar round (user, 2026-10-23, B1): a built-in freezer is the same cabinet + product as the built-in
+    // fridge (fridge:true → LM.isskapur), only its note differs; a wine cooler is the customer's own appliance under the
+    // worktop (like the freestanding dishwasher — nothing ordered for it). Ofn + örbylgja = ofnaskapur with ovenH 1050.
+    frystir:     { label:"Frystir (innbyggður)", zone:"floor", cls:"fridge", defaultW:600, minW:500, maxW:1000, h:2500, d:600, minH:1700, maxH:2700, minD:500, maxD:750, hasInterior:false,
+                   skapategundOverride:"Hárskápur", fridge:true,
+                   note:"Viðskiptavinur óskar eftir innbyggðum FRYSTI (ekki ísskáp) í þessum skáp — staðfestu stærð tækis (nisju) og hurðargerð." },
+    vinkaelir:   { label:"Vínkælir (undir borðplötu)", zone:"floor", cls:"floor", defaultW:600, minW:300, maxW:600, widths:[300, 450, 600], h:900, d:600, minH:820, maxH:950, minD:550, maxD:700, hasInterior:false, counter:true, appliance:"dishwasher", notOrdered:true },
     // (no longer offered — "nú erum við að gera eldhús", 2026-10-05; kept so older drafts still load)
     thvottavelFri:{ label:"Þvottavél (frístandandi)", zone:"floor", cls:"floor", defaultW:600, minW:600, maxW:600, h:900, d:600, minH:800, maxH:950, minD:550, maxD:700, hasInterior:false, counter:true, appliance:"washer", notOrdered:true },
     burskapur:   { label:"Búrskápur", zone:"floor", cls:"tall", defaultW:600, minW:300, maxW:1200, h:2500, d:600, minH:1800, maxH:2700, minD:400, maxD:700, hasInterior:false, bur:true },
