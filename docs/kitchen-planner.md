@@ -207,3 +207,9 @@ HomeByMe-style self-serve planner that ends in a lead: steps intake → material
 - Hver hurð = HU-lína (`doorListLines`, númer með `nextHuKey` sem skannar líka hurðir í veggjum), í `collectAllLineItems` (innsending, PRO Vista, lifandi tilboð) og `proSmidaAll`. Hurðir sem eru teiknaðar í vegg með vöru sjást í listanum sem skrifvarðar.
 - Hurðir eingöngu: `canGoTo` hleypir í intake/contact þegar ekkert rými er til en listinn ekki tómur ("Senda inn hurðirnar →"); teikninga-PDF sleppt þegar ekkert rými er.
 - Verð = verð vörunnar (Airtable formúlan), óháð málum — sjá spurningalista.
+
+### Lota úr spurningalistanum (2026-10-23, svör í https://claude.ai/artifact/1mWqqqN7tazMGBngSWwdPi)
+- **Rennihurð í hlið fyrir viðskiptavini (C7):** háir skápar með hurð fá "Hurð: Á lömum / Rennur inn í hlið" í skápapanelnum — skrifar sömu Smíða-hurðaskilgreiningu og PRO (type "pocket", Revego sjálfgefið), svo V3-vara, athugasemd, Smíðagögn og /cnc fylgja óbreytt.
+- **✨ Studio fyrir alla (H1):** hnappurinn sést alltaf; viðskiptavinir byrja á "Fljót". **Vista á Tækifæri (H5):** nýr reitur `Studio myndir 📸` (fldTzXvmfE1kaiuPN) + `api/kp-studio.js` — PRO með lykli (heldur 12 nýjustu), viðskiptavinur án lykils bara á ferska innsendingu (<30 mín, planner-JSON, mest 3). Síðustu 3 myndir viðskiptavinar fara sjálfkrafa upp eftir innsendingu.
+- **Gangan (H6):** halda-inni örvar (⟲ ▲ ▼ ⟳) fyrir snertiskjá/án lyklaborðs + 📍 stökkpunktar ~2 m fyrir framan gólfskápa hvers veggjar/eyju.
+- B5 (ekkert LED í sökkli/BASKI) — þegar svo, engin breyting.

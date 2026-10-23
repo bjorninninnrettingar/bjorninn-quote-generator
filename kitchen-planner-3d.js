@@ -4748,6 +4748,21 @@
       best.yaw = Math.atan2(-(c.x - best.x), -(c.z - best.z));
       return best;
     }
+    // "📍 Veggur 1": stand ~2 m in front of each surface's floor cabinets, looking straight at them
+    var walkJumpCache = null;
+    function walkJumps(){
+      if (walkJumpCache) return walkJumpCache;
+      var bySurf = {};
+      pickables.forEach(function(m){ var u = m.userData; if (!u || !u.blockId || u.zone !== "floor" || !u.wallId) return; (bySurf[u.wallId] = bySurf[u.wallId] || new THREE.Box3()).union(new THREE.Box3().setFromObject(m)); });
+      walkJumpCache = [];
+      surfaces.forEach(function(sf, i){
+        var bx = bySurf[sf.id], g = allGeoms[i]; if (!bx || !g) return;
+        var c = bx.getCenter(new THREE.Vector3()), n = g.normal, spot = null;
+        [2.1, 1.7, 1.3, 2.6, 1.0].some(function(d){ var x = c.x + n.x * d, z = c.z + n.z * d; if (!walkBlocked(x, z)){ spot = { x:x, z:z }; return true; } return false; });
+        if (spot) walkJumpCache.push({ label:sf.label || ("Veggur " + (i + 1)), x:spot.x, z:spot.z, yaw:Math.atan2(n.x, n.z) });
+      });
+      return walkJumpCache;
+    }
     function walkApply(){
       camera.position.set(WALK.x, 1.6, WALK.z);
       camera.rotation.set(WALK.pitch, WALK.yaw, 0, "YXZ");
@@ -4795,9 +4810,21 @@
       if (h) return;
       h = document.createElement("div"); h.className = "kp-walk-hud";
       h.style.cssText = "position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:6;display:flex;gap:8px;align-items:center;background:rgba(20,20,20,.72);color:#fff;font:500 12px/1.2 system-ui;padding:7px 10px;border-radius:999px;user-select:none";
-      h.innerHTML = '<span>Dragðu til að líta í kring · W A S D / örvar til að ganga · Shift = hraðar</span><button type="button" style="all:unset;cursor:pointer;background:#fff;color:#111;border-radius:999px;padding:4px 10px;font-weight:600">Hætta (Esc)</button>';
-      h.querySelector("button").addEventListener("click", function(){ setWalk(false); if (opts.onWalkChange) opts.onWalkChange(false); });
-      // touch: hold the lower half of the screen to walk forward
+      h.style.flexWrap = "wrap"; h.style.justifyContent = "center"; h.style.maxWidth = "min(92%, 720px)"; h.style.borderRadius = "18px";
+      var pill = "all:unset;cursor:pointer;background:rgba(255,255,255,.16);color:#fff;border-radius:999px;padding:4px 10px;", arrow = "all:unset;cursor:pointer;background:#fff;color:#111;border-radius:8px;width:30px;height:28px;text-align:center;line-height:28px;font-size:14px;touch-action:none;";
+      // hold-to-move arrows (touch screens and anyone without a keyboard, H6) + jump points: stand in front of each run
+      h.innerHTML = '<span style="display:flex;gap:4px;">' +
+        '<button type="button" data-wk="arrowleft" title="Snúa til vinstri" style="' + arrow + '">⟲</button><button type="button" data-wk="w" title="Ganga áfram" style="' + arrow + '">▲</button>' +
+        '<button type="button" data-wk="s" title="Ganga aftur á bak" style="' + arrow + '">▼</button><button type="button" data-wk="arrowright" title="Snúa til hægri" style="' + arrow + '">⟳</button></span>' +
+        '<span class="kp-walk-tip">Dragðu til að líta í kring · W A S D / örvar</span>' +
+        walkJumps().map(function(j, i){ return '<button type="button" data-wj="' + i + '" style="' + pill + '">📍 ' + j.label + '</button>'; }).join("") +
+        '<button type="button" data-wq="1" style="all:unset;cursor:pointer;background:#fff;color:#111;border-radius:999px;padding:4px 10px;font-weight:600">Hætta (Esc)</button>';
+      h.querySelector("[data-wq]").addEventListener("click", function(){ setWalk(false); if (opts.onWalkChange) opts.onWalkChange(false); });
+      h.querySelectorAll("[data-wk]").forEach(function(b){
+        var k = b.dataset.wk, on = function(e){ e.preventDefault(); walkKeys[k] = true; }, off = function(){ walkKeys[k] = false; };
+        b.addEventListener("pointerdown", on); ["pointerup", "pointerleave", "pointercancel"].forEach(function(ev){ b.addEventListener(ev, off); });
+      });
+      h.querySelectorAll("[data-wj]").forEach(function(b){ b.addEventListener("click", function(){ var j = walkJumps()[+b.dataset.wj]; if (!j) return; WALK.x = j.x; WALK.z = j.z; WALK.yaw = j.yaw; WALK.pitch = -0.12; walkApply(); }); });
       wrap.appendChild(h);
     }
     function setWalk(on){

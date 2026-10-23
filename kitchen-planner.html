@@ -1423,7 +1423,7 @@
             <button type="button" id="resetCamBtn" title="Endurstilla sýn">🎯</button>
             <button type="button" id="snapBtn" title="Vista mynd af skipulaginu">📷</button>
             <button type="button" id="walkBtn" title="Ganga um: sjáðu eldhúsið í augnhæð eins og þú standir í því">🚶 Ganga</button>
-            <button type="button" id="studioBtn" hidden title="Studio mynd (tilraun): raunveruleg ljósmynd af þessari sýn, tekur 30–90 sek">✨ Studio</button>
+            <button type="button" id="studioBtn" title="Studio mynd: raunveruleg ljósmynd af þessari sýn, tekur 20–90 sek">✨ Studio</button>
           </div>
           <button type="button" class="warn-chip" id="warnChip" hidden></button>
           <div class="view-toggle" id="moodToggle" title="Kvöldstemning: dimmir herbergið svo lýsingin sjáist"><button type="button" id="moodBtn" title="Kvöldstemning: dimmir herbergið svo lýsingin sjáist">🌙 Kvöld</button></div>
@@ -7696,11 +7696,20 @@
         // every cabinet with ONE hinged door chooses its hinge side here (user, 2026-10-11 — it used to be only shelf
         // and fridge units, behind a select); two doors are hinged on the outer sides
         (function(){
-          var leaves = KP3D.doorLeaves(b, c);
-          if (leaves.length === 1) return '<div class="edit-field"><label title="Séð framan frá">Lamir</label><div class="hw-toggle">' +
+          var leaves = KP3D.doorLeaves(b, c), pocketHtml = "";
+          // Rennihurð í hlið (user, 2026-10-23: "opna það fyrir viðskiptavinum allstaðar") — tall units with doors only;
+          // the same Smíða door spec PRO sets (type "pocket"), so V3 product, note, Smíðagögn and /cnc all follow
+          var pDoors = c.cls === "tall" && !c.fridge && !c.oven ? proDoorsOf(b, c, zone) : [];
+          if (pDoors.length){
+            var isPocket = pDoors.every(function(d, i){ return proSpec(b, pDoors, i).type === "pocket"; });
+            pocketHtml = '<div class="edit-field"><label title="Hurðin rennur inn í hlið skápsins þegar hún er opin (Blum Revego). Dýrari lausn, söluaðili staðfestir verð.">Hurð</label><div class="hw-toggle">' +
+              '<button type="button" class="hw-btn' + (!isPocket ? ' active' : '') + '" data-pocket="0">Á lömum</button>' +
+              '<button type="button" class="hw-btn' + (isPocket ? ' active' : '') + '" data-pocket="1">Rennur inn í hlið</button></div></div>';
+          }
+          if (leaves.length === 1 && !(pocketHtml && pDoors.every(function(d, i){ return proSpec(b, pDoors, i).type === "pocket"; }))) return '<div class="edit-field"><label title="Séð framan frá">Lamir</label><div class="hw-toggle">' +
             '<button type="button" class="hw-btn' + (b.swing !== "haegri" ? ' active' : '') + '" data-swing="vinstri">◧ Vinstri</button>' +
-            '<button type="button" class="hw-btn' + (b.swing === "haegri" ? ' active' : '') + '" data-swing="haegri">Hægri ◨</button></div></div>';
-          return '';
+            '<button type="button" class="hw-btn' + (b.swing === "haegri" ? ' active' : '') + '" data-swing="haegri">Hægri ◨</button></div></div>' + pocketHtml;
+          return pocketHtml;
         })();
     var frontsHtml = PRO && !c.panel && !c.appliance && !c.notOrdered && !(c.open && !b.frontAll) ? (
         (state.look2 ? '<div class="edit-field"><label title="Úr hvoru framhliðarefninu framhliðar þessa skáps eru">Framhlið</label><div class="hw-toggle">' +
@@ -7825,6 +7834,18 @@
       if (e.target.value) b.swing = e.target.value; else delete b.swing;
       save();
       refreshAfterEdit();
+    });
+    host.querySelectorAll("[data-pocket]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var fb = findBlock(b.id), ds = proDoorsOf(b, c, fb ? fb.zone : "floor"), on = btn.dataset.pocket === "1";
+        ds.forEach(function(d, i){
+          var sp = proSpec(b, ds, i);
+          if (on){ sp.type = "pocket"; sp.pocketSys = sp.pocketSys || "revego"; }
+          else { sp.type = "hinged"; delete sp.pocketSys; if (!(sp.hinges && sp.hinges.length)) sp.hinges = proDefaultHinges(b, ds, i); }
+          proSetSpec(b, ds, i, sp);
+        });
+        refreshAfterEdit();
+      });
     });
     host.querySelectorAll("[data-swing]").forEach(function(btn){
       btn.addEventListener("click", function(){ b.swing = btn.dataset.swing; save(); refreshAfterEdit(); });
@@ -9008,6 +9029,15 @@
         sendIssueReport("Sjálfvirk villa", "Teikningar (PDF) mistókust: " + de.message, (de.stack || "") + "\nTækifæri: " + opp.id);
       }
 
+      // ✨ Studio photos the customer made → Tækifæri "Studio myndir 📸" (open endpoint: fresh planner submissions only)
+      for (var si = 0; si < studioShots.length; si++){
+        try{
+          var sb = await (await fetch(studioShots[si])).blob();
+          var sr = await fetch("/api/kp-studio?recordId=" + encodeURIComponent(opp.id), { method:"POST", headers:{ "Content-Type":"application/octet-stream" }, body:sb });
+          if (!sr.ok && sr.status !== 409) throw new Error("kp-studio " + sr.status);
+        }catch(se){ sendIssueReport("Sjálfvirk villa", "Studio mynd fór ekki á Tækifæri: " + se.message, "Tækifæri: " + opp.id); break; }
+      }
+      studioShots = [];
       KP3D.teardown3D(true);
       try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
       wallSeq = 2;
@@ -10167,11 +10197,11 @@
   });
   document.getElementById("studioBtn").addEventListener("click", function(){
     if (viewMode !== "3d"){ toast("Farðu í 3D og stilltu sýnina sem þú vilt fá mynd af."); return; }
-    var ov = document.createElement("div"), pick = { view:"live", q:"fin" };
+    var ov = document.createElement("div"), pick = { view:"live", q:PRO ? "fin" : "fljot" }; // customers (2026-10-23, H1): the quick one first, any laptop manages it
     ov.id = "studioOv";
-    ov.innerHTML = '<div class="st-card"><h3>✨ Studio mynd <small style="font-weight:500;color:var(--ink-soft);">· tilraun</small></h3>' +
+    ov.innerHTML = '<div class="st-card"><h3>✨ Studio mynd</h3>' +
       '<div class="st-opts"><div><label>Sjónarhorn</label><div class="hw-toggle"><button type="button" class="hw-btn active" data-st-view="live">Þessi sýn</button><button type="button" class="hw-btn" data-st-view="eye">Í augnhæð</button></div></div>' +
-      '<div><label>Gæði</label><div class="hw-toggle"><button type="button" class="hw-btn" data-st-q="fljot">Fljót · ~20 sek</button><button type="button" class="hw-btn active" data-st-q="fin">Fín · ~1 mín</button></div></div></div>' +
+      '<div><label>Gæði</label><div class="hw-toggle"><button type="button" class="hw-btn' + (pick.q === "fljot" ? " active" : "") + '" data-st-q="fljot">Fljót · ~20 sek</button><button type="button" class="hw-btn' + (pick.q === "fin" ? " active" : "") + '" data-st-q="fin">Fín · ~1 mín</button></div></div></div>' +
       '<p class="st-msg">Myndin er reiknuð með raunverulegri lýsingu út frá teikningunni — veggir, efni og ljós eins og í raun.</p><div class="st-bar"><i></i></div>' +
       '<div class="st-img"></div><div class="st-act"><button type="button" class="btn btn-secondary btn-small" data-st="close">Loka</button><button type="button" class="btn btn-primary btn-small" data-st="go">Búa til mynd</button></div></div>';
     document.body.appendChild(ov);
@@ -10189,8 +10219,22 @@
           onProgress:function(p, preview){ msg.textContent = p === 0 ? "Undirbý senuna…" : "Reikna ljósgeisla… " + Math.round(p * 100) + "%"; bar.style.width = Math.round(p * 100) + "%";
             if (preview) img.innerHTML = '<img alt="" src="' + preview + '">'; } });
         if (cancelled || !url) return;
-        msg.textContent = "Tilbúið.";
+        msg.textContent = PRO ? "Tilbúið." : "Tilbúið. Myndin fylgir teikningunni þegar þú sendir hana inn.";
         img.innerHTML = '<img alt="Studio mynd" src="' + url + '">';
+        studioShots.push(url); if (studioShots.length > 3) studioShots.shift(); // the customer's newest 3 go onto the Tækifæri after submit (H5)
+        if (PRO && !ov.querySelector('[data-st="save"]')){
+          var sv = document.createElement("button"); sv.type = "button"; sv.className = "btn btn-secondary btn-small"; sv.dataset.st = "save"; sv.textContent = "💾 Vista á Tækifæri";
+          go.parentNode.insertBefore(sv, go);
+          sv.addEventListener("click", async function(){
+            sv.disabled = true; sv.textContent = "Vista…";
+            try{
+              var blob = await (await fetch(url)).blob();
+              var r = await fetch("/api/kp-studio?recordId=" + encodeURIComponent(PRO.id) + "&k=" + encodeURIComponent(PRO.k), { method:"POST", headers:{ "Content-Type":"application/octet-stream" }, body:blob });
+              if (!r.ok) throw new Error((await r.json().catch(function(){ return {}; })).error || r.status);
+              sv.textContent = "✓ Vistað á Tækifæri";
+            }catch(e2){ sv.disabled = false; sv.textContent = "💾 Vista á Tækifæri"; toast("Tókst ekki að vista myndina: " + (e2.message || e2)); }
+          });
+        }
         go.textContent = "⬇ Sækja mynd"; go.disabled = false;
         go.onclick = function(e){ e.stopImmediatePropagation(); var a = document.createElement("a"); a.href = url; a.download = "bjorninn-studio.jpg"; document.body.appendChild(a); a.click(); a.remove(); };
       }catch(e){
@@ -10202,6 +10246,7 @@
       }
     });
   });
+  var studioShots = []; // data URLs of this visit's ✨ Studio photos (newest last, max 3)
   // Save the current view as a PNG (3D: canvas readback; 2D: SVG → canvas).
   function downloadDataUrl(url){
     var a = document.createElement("a");
@@ -11547,7 +11592,6 @@
   }
   async function proBoot(){
     document.body.classList.add("pro");
-    var sb0 = document.getElementById("studioBtn"); if (sb0) sb0.hidden = false; // ✨ Studio: PRO-only while it's a tilraun (GPU-heavy)
     // small stepper sits inline in the header, between the title and the PRO bar (user, 2026-10-15) — it's
     // a sibling of .top in the markup (shared with the customer-facing flow), so move it in here rather
     // than duplicating the whole header for pro.
