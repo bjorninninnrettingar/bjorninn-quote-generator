@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="robots" content="noindex" />
+<title>PRO hönnuður — Björninn</title>
+<link rel="icon" href="/icons/icon-192.png" />
+<script>
+(function () {
+  try { if (localStorage.getItem("bjorninn:skrifstofa:theme") === "dark") document.documentElement.setAttribute("data-theme", "dark"); } catch (e) {}
+})();
+</script>
+<style>
+  /* pro.html (2026-10-23) — PRO hönnuður used to be a plain <a href="/skipuleggja?pro=home..."> in
+     office-shell.js's nav, a full navigation away from the office app entirely (no sidebar once
+     there). The user wanted it to stay "inside skrifstofu" instead — same shell/sidebar as every
+     other office page, with kitchen-planner.html's own PRO mode just filling the content area in an
+     <iframe> (same shape as verkefni.html being iframed into the Wix site, just the other
+     direction). kitchen-planner.html hides its own redundant kicker/branding when it detects
+     ?embedded=1 — see its own .embedHide comment. */
+  :root {
+    --bg:#f3f4f6; --surface:#ffffff; --line:#e1e4e8; --sidebar:#1b2430;
+    --text:#1a1d21; --muted:#5d6670; --dim:#9aa3ad;
+    --accent:#0f6cbd; --warn:#9a6700; --bad:#c4291c; --good:#1a7d36;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  :root[data-theme="dark"] {
+    --bg:#11151c; --surface:#1a1f28; --line:#2a3140;
+    --text:#e7eaf0; --muted:#9aa3ad; --dim:#6b7380;
+    --accent:#3b9eff; --warn:#e3b341; --bad:#f2766b; --good:#4caf6e;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html, body { height:100%; background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; line-height:1.4; }
+
+  #shell { display:flex; height:100vh; }
+  .sidebar { width:224px; flex:none; background:var(--sidebar); color:#cfd5dd; display:flex; flex-direction:column; padding:18px 0; height:100vh; position:sticky; top:0; overflow-y:auto; }
+  .sidebar nav { display:flex; flex-direction:column; gap:1px; flex:1; }
+  .sidebar nav a { display:flex; align-items:center; gap:10px; padding:9px 18px; text-decoration:none; color:#cfd5dd; font-size:.88rem; }
+  .sidebar nav a:hover { background:#242e3b; }
+  .sidebar nav a.active { background:var(--accent); color:#fff; }
+
+  .proFrame { flex:1; min-width:0; height:100vh; border:none; display:block; background:var(--surface); }
+</style>
+</head>
+<body>
+<div id="shell">
+  <div class="sidebar">
+    <div id="officeSidebarTop"></div>
+    <nav id="officeNav"></nav>
+    <div id="officeSidebarBottom"></div>
+  </div>
+  <iframe class="proFrame" id="proFrame" title="PRO hönnuður"></iframe>
+</div>
+
+<script src="/office-shell.js"></script>
+<script>
+(function () {
+  "use strict";
+  var shellInfo = window.OfficeShell.boot("pro");
+  if (!shellInfo) return;
+  var k = shellInfo.k;
+
+  // Deep-link passthrough: /pro on its own means the PRO home list, but a link built elsewhere as
+  // /pro?pro=<recordId> (same query shape /skipuleggja itself takes) opens straight into that
+  // project instead — kept so any future "open in PRO" link can point here without extra branching.
+  var params = new URLSearchParams(location.search);
+  var pro = params.get("pro") || "home";
+  var src = "/skipuleggja?pro=" + encodeURIComponent(pro) + "&embedded=1" + (k ? "&k=" + encodeURIComponent(k) : "");
+  document.getElementById("proFrame").src = src;
+})();
+</script>
+</body>
+</html>

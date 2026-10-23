@@ -38,7 +38,10 @@
     { id: "crm",     icon: "📇", label: "CRM",             roles: ["allt"], href: "/crm" },
     // PRO home (2026-10-23) — a landing screen in kitchen-planner.html (?pro=home) so staff can start or
     // find a project without first going through CRM/Ferli's own per-project "Opna í hönnuðinum" link.
-    { id: "pro",     icon: "🎨", label: "PRO hönnuður",    roles: ["allt"], href: "/skipuleggja?pro=home" },
+    // Routed through pro.html (not straight to /skipuleggja), which iframes that same screen inside
+    // the office shell — asked for explicitly: PRO hönnuður shouldn't navigate away from skrifstofa,
+    // the sidebar should stay up the whole time.
+    { id: "pro",     icon: "🎨", label: "PRO hönnuður",    roles: ["allt"], href: "/pro" },
     { id: "laun",    icon: "💰", label: "Laun",            roles: ["eigandi"], href: "/laun" },
     { id: "bakendi", icon: "🧰", label: "Bakendi",         roles: ["admin"], href: "/bakendi" },
   ];
