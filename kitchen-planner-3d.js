@@ -3534,6 +3534,81 @@
       }, 0);
     });
   }
+  // ✨ Studio mynd (2026-10-23): path-trace the live scene from the live camera (three-gpu-pathtracer, loaded on demand)
+  // → a JPEG data URL. The editor's own loop is paused meanwhile; labels, handles, see-through (faded) walls and
+  // cabinets, lines and sprites are hidden; a soft daylight sky lights it (and shows through the windows).
+  function studioSky(THREE){
+    var W = 256, H = 128, data = new Float32Array(W * H * 4);
+    for (var y = 0; y < H; y++){
+      var v = 1 - y / (H - 1), el = (v - 0.5) * Math.PI; // +π/2 zenith … −π/2 nadir
+      var t = Math.max(0, Math.sin(el)), g = Math.max(0, -Math.sin(el));
+      for (var x = 0; x < W; x++){
+        var i = (y * W + x) * 4, sunU = Math.abs((x / W) - 0.15), sun = Math.exp(-((sunU * sunU) * 400 + Math.pow(el - 0.6, 2) * 40)) * 18;
+        data[i] = 1.05 - 0.25 * t - 0.6 * g + sun; data[i + 1] = 1.08 - 0.15 * t - 0.62 * g + sun * 0.95; data[i + 2] = 1.15 + 0.05 * t - 0.65 * g + sun * 0.85; data[i + 3] = 1;
+      }
+    }
+    var tex = new THREE.DataTexture(data, W, H, THREE.RGBAFormat, THREE.FloatType);
+    tex.mapping = THREE.EquirectangularReflectionMapping; tex.needsUpdate = true;
+    return tex;
+  }
+  async function studioRender(o){
+    o = o || {};
+    if (!THREE_STATE || !window.__loadPathTracer) throw new Error("3D er ekki tilbúið");
+    var st = THREE_STATE, THREE = window.__THREE__, r = st.renderer, scene = st.scene;
+    // three-gpu-pathtracer 0.0.23 reads scene.environmentRotation / backgroundRotation (three r162+); we're on r160 —
+    // give Scene those two as plain zero Eulers (what r162 defaults them to), nothing else changes
+    ["environmentRotation", "backgroundRotation"].forEach(function(k){
+      if (!(k in THREE.Scene.prototype)) Object.defineProperty(THREE.Scene.prototype, k, { configurable:true,
+        get:function(){ return this["__" + k] || (this["__" + k] = new THREE.Euler()); }, set:function(v){ this["__" + k] = v; } });
+    });
+    var lib = await window.__loadPathTracer();
+    if (THREE_STATE !== st) throw new Error("sýnin breyttist");
+    var w = o.width || 1920, h = o.height || 1200, target = o.samples || 240;
+    var hidden = [];
+    scene.traverse(function(obj){
+      if (!obj.visible) return;
+      var mats = obj.material ? (Array.isArray(obj.material) ? obj.material : [obj.material]) : [];
+      var faded = mats.some(function(m){ return m.transparent && m.opacity < 0.5; });
+      if (obj.isSprite || obj.isLine || obj.isPoints || faded || (obj.userData && obj.userData.kind === "obstacle-resize")){ obj.visible = false; hidden.push(obj); }
+    });
+    var oldBg = scene.background, oldEnv = scene.environment, sky = studioSky(THREE);
+    scene.background = sky; scene.environment = sky;
+    var cam = st.camera.clone(); cam.aspect = w / h; cam.updateProjectionMatrix();
+    // its OWN renderer + canvas: if the GPU gives up on a path-tracing pass, that context dies — never the editor's
+    var pr = new THREE.WebGLRenderer({ antialias:false, preserveDrawingBuffer:true, powerPreference:"high-performance" });
+    pr.setPixelRatio(1); pr.setSize(w, h, false);
+    pr.toneMapping = r.toneMapping; pr.toneMappingExposure = r.toneMappingExposure; pr.outputColorSpace = r.outputColorSpace;
+    st.studio = true; // the editor's loop sits out meanwhile (the GPU is busy enough)
+    var pt = null;
+    try{
+      pt = new lib.WebGLPathTracer(pr);
+      pt.tiles.set(3, 3); pt.minSamples = 0; // small tiles: each GPU call stays short (a long one trips the driver's watchdog → context lost)
+      pt.renderScale = 1; pt.dynamicLowRes = false; pt.filterGlossyFactor = 0.5; pt.bounces = 6;
+      if (o.onProgress) o.onProgress(0, null);
+      await new Promise(function(res){ setTimeout(res, 60); }); // let "0 %" paint before the (synchronous) BVH build
+      pt.setScene(scene, cam); // the async variant needs a BVH web worker set up; a kitchen builds in a second or two
+      return await new Promise(function(resolve, reject){
+        var last = 0, lost = false, gl = pr.getContext();
+        pr.domElement.addEventListener("webglcontextlost", function(e){ e.preventDefault(); lost = true; }, { once:true });
+        (function step(){
+          if (o.cancelled && o.cancelled()){ resolve(null); return; }
+          if (lost || (gl.isContextLost && gl.isContextLost())){ reject(new Error("skjákortið réð ekki við myndina — reyndu minni mynd eða aðra tölvu")); return; }
+          try{ pt.renderSample(); }catch(e){ reject(e); return; }
+          var p = Math.min(1, pt.samples / target), now = performance.now(), preview = null;
+          if (now - last > 1500){ last = now; preview = pr.domElement.toDataURL("image/jpeg", 0.7); }
+          if (o.onProgress) o.onProgress(p, preview);
+          if (pt.samples >= target){ resolve(pr.domElement.toDataURL("image/jpeg", 0.93)); return; }
+          setTimeout(step, 0); // not rAF: keeps going in a background tab (rAF stops there)
+        })();
+      });
+    } finally {
+      try{ if (pt) pt.dispose(); }catch(e){}
+      try{ pr.dispose(); }catch(e){}
+      hidden.forEach(function(obj){ obj.visible = true; });
+      scene.background = oldBg; scene.environment = oldEnv; sky.dispose();
+      st.studio = false;
+    }
+  }
   function setCameraLookAt(pos, target){
     if (!THREE_STATE) return false;
     THREE_STATE.camera.position.set(pos.x, pos.y, pos.z);
@@ -4727,6 +4802,7 @@
     THREE_STATE.renderFrame = renderFrame;
     function loop(ts){
       THREE_STATE.rafId = requestAnimationFrame(loop);
+      if (THREE_STATE.studio) return; // ✨ Studio mynd owns the renderer while it path-traces
       qualityTick(ts || performance.now(), renderer, resize);
       controls.update();
       settleLanded();
@@ -5952,7 +6028,7 @@
     WALL_UNIT_BASE_MM: WALL_UNIT_BASE_MM,
     snapshot3D: snapshot3D,
     setXrayFronts: setXrayFronts,
-    setCameraLookAt: setCameraLookAt,
+    setCameraLookAt: setCameraLookAt, studioRender: studioRender,
     renderShot: renderShot,
     setAllParts: setAllParts,
     DRAWER_CODES: DRAWER_CODES, FIXED_FRONT_CODE: FIXED_FRONT_CODE,

@@ -12,7 +12,10 @@
 {
   "imports": {
     "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+    "three/examples/jsm/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+    "three-mesh-bvh": "https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.7.6/src/index.js",
+    "three-gpu-pathtracer": "https://cdn.jsdelivr.net/npm/three-gpu-pathtracer@0.0.23/src/index.js"
   }
 }
 </script>
@@ -33,6 +36,7 @@
   window.__OrbitControls__ = OrbitControls;
   window.__RoomEnvironment__ = RoomEnvironment;
   window.__RoundedBox__ = RoundedBoxGeometry;
+  window.__loadPathTracer = function(){ return import("three-gpu-pathtracer"); }; // 📸 Studio mynd — only fetched when asked for
   window.dispatchEvent(new Event("three-ready"));
 </script>
 <script src="kitchen-planner-materials.js"></script>
@@ -992,6 +996,16 @@
   #proBar button#proTilbodToggle { background:transparent; border-color:var(--blue); color:var(--ink); }
   #proBar button#proTilbodToggle.on { background:var(--blue); color:#fff; }
 
+  /* ✨ Studio mynd */
+  #studioOv{ position:fixed; inset:0; z-index:90; background:rgba(12,15,20,.72); display:flex; align-items:center; justify-content:center; }
+  #studioOv .st-card{ width:min(980px, 94vw); background:var(--panel, #fff); color:var(--ink); border-radius:16px; padding:18px 20px; box-shadow:0 24px 60px rgba(0,0,0,.35); }
+  #studioOv h3{ margin:0 0 6px; }
+  #studioOv .st-msg{ margin:0 0 10px; color:var(--ink-soft); font-size:14px; }
+  #studioOv .st-bar{ height:6px; border-radius:99px; background:var(--line); overflow:hidden; }
+  #studioOv .st-bar i{ display:block; height:100%; width:0; background:var(--blue); transition:width .3s; }
+  #studioOv .st-img{ margin-top:12px; aspect-ratio:16 / 10; background:var(--card, #f3f2ee); border-radius:10px; overflow:hidden; }
+  #studioOv .st-img img{ width:100%; height:100%; object-fit:cover; display:block; }
+  #studioOv .st-act{ display:flex; justify-content:flex-end; gap:8px; margin-top:12px; }
   /* ── 2D vinnuteikningar (PRO, 2026-10-23) ── */
   #wdOverlay { position:fixed; inset:0; z-index:80; background:rgba(12,15,20,.86); display:flex; flex-direction:column; }
   #wdOverlay .wd-bar { display:flex; align-items:center; gap:10px; padding:10px 16px; color:#fff; font:600 14px/1.2 inherit; }
@@ -1384,6 +1398,7 @@
           <div class="view-toggle" id="camToggle">
             <button type="button" id="resetCamBtn" title="Endurstilla sýn">🎯</button>
             <button type="button" id="snapBtn" title="Vista mynd af skipulaginu">📷</button>
+            <button type="button" id="studioBtn" hidden title="Studio mynd (tilraun): raunveruleg ljósmynd af þessari sýn, tekur 30–90 sek">✨ Studio</button>
           </div>
           <button type="button" class="warn-chip" id="warnChip" hidden></button>
           <div class="view-toggle" id="moodToggle" title="Kvöldstemning: dimmir herbergið svo lýsingin sjáist"><button type="button" id="moodBtn" title="Kvöldstemning: dimmir herbergið svo lýsingin sjáist">🌙 Kvöld</button></div>
@@ -9638,6 +9653,34 @@
   }
   var lastPdfUrl = null;
 
+  // ✨ Studio mynd (2026-10-23): a path-traced, photographic still of exactly the 3D view on screen (KP3D.studioRender).
+  document.getElementById("studioBtn").addEventListener("click", async function(){
+    if (viewMode !== "3d"){ toast("Farðu í 3D og stilltu sýnina sem þú vilt fá mynd af."); return; }
+    var ov = document.createElement("div"); ov.id = "studioOv";
+    ov.innerHTML = '<div class="st-card"><h3>✨ Studio mynd <small style="font-weight:500;color:var(--ink-soft);">· tilraun</small></h3><p class="st-msg">Hleð ljósgeislareikni…</p><div class="st-bar"><i></i></div>' +
+      '<div class="st-img"></div><div class="st-act"><button type="button" class="btn btn-secondary btn-small" data-st="close">Hætta við</button></div></div>';
+    document.body.appendChild(ov);
+    var msg = ov.querySelector(".st-msg"), bar = ov.querySelector(".st-bar i"), img = ov.querySelector(".st-img"), cancelled = false;
+    ov.querySelector('[data-st="close"]').addEventListener("click", function(){ cancelled = true; ov.remove(); });
+    var keepSel = selectedBlockId; if (keepSel){ selectedBlockId = null; KP3D.setSelected3D(null); } // no blue selection tint in the photo
+    try{
+      var url = await KP3D.studioRender({ width:1600, height:1000, samples:200, cancelled:function(){ return cancelled; },
+        onProgress:function(p, preview){ msg.textContent = "Reikna ljósgeisla… " + Math.round(p * 100) + "%"; bar.style.width = Math.round(p * 100) + "%";
+          if (preview) img.innerHTML = '<img alt="" src="' + preview + '">'; } });
+      if (cancelled || !url) return;
+      msg.textContent = "Tilbúið — svona lítur þetta út í raun.";
+      bar.style.width = "100%";
+      img.innerHTML = '<img alt="Studio mynd" src="' + url + '">';
+      ov.querySelector(".st-act").innerHTML = '<button type="button" class="btn btn-secondary btn-small" data-st="close2">Loka</button><button type="button" class="btn btn-primary btn-small" data-st="dl">⬇ Sækja mynd</button>';
+      ov.querySelector('[data-st="close2"]').addEventListener("click", function(){ ov.remove(); });
+      ov.querySelector('[data-st="dl"]').addEventListener("click", function(){ var a = document.createElement("a"); a.href = url; a.download = "bjorninn-studio.jpg"; document.body.appendChild(a); a.click(); a.remove(); });
+    }catch(e){
+      console.error(e);
+      msg.textContent = "Tókst ekki að búa til myndina í þessum vafra (" + (e && e.message || e) + ").";
+    }finally{
+      if (keepSel){ selectedBlockId = keepSel; KP3D.setSelected3D(keepSel); }
+    }
+  });
   // Save the current view as a PNG (3D: canvas readback; 2D: SVG → canvas).
   function downloadDataUrl(url){
     var a = document.createElement("a");
@@ -10980,6 +11023,7 @@
   }
   async function proBoot(){
     document.body.classList.add("pro");
+    var sb0 = document.getElementById("studioBtn"); if (sb0) sb0.hidden = false; // ✨ Studio: PRO-only while it's a tilraun (GPU-heavy)
     // small stepper sits inline in the header, between the title and the PRO bar (user, 2026-10-15) — it's
     // a sibling of .top in the markup (shared with the customer-facing flow), so move it in here rather
     // than duplicating the whole header for pro.
