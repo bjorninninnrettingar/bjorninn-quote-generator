@@ -1436,6 +1436,7 @@
       var a = Math.max(pos, gp.offM), b = Math.min(geom.lenM, gp.offM + gp.widM);
       if (b - a < 0.01) return;
       if (a > pos + 0.001) pieces.push([pos, a, 0, wallHeightM]);
+      if (gp.loM > 0.01) pieces.push([a, b, 0, gp.loM]);                        // wall under a window (2026-10-23: windows are real holes now)
       if (gp.hM < wallHeightM - 0.01) pieces.push([a, b, gp.hM, wallHeightM]); // header over the opening
       pos = b;
     });
@@ -1570,13 +1571,41 @@
       bar(0.012, heightM, WALL_THICKNESS_M, widthM / 2 - 0.006, baseYM + heightM / 2, rv);
       return group;
     }
+    if (isWin){ // a real window in a real hole (2026-10-23): reveal boards, a deep outer frame, opening sashes with handles, glass set back, a sill
+      var depthIn = -(WALL_THICKNESS_M * 0.55);                                     // the frame's plane, inside the wall
+      mesh.position.set(cx + geom.normal.x * (depthIn - 0.012), baseYM + heightM / 2, cz + geom.normal.z * (depthIn - 0.012)); // glass, set back
+      var revealMat = new THREE.MeshStandardMaterial({ color:0xf3f2ee, roughness:0.85 });
+      // reveal: lines the hole through the wall, its room edge 4 mm back from the wall face (a 1.5 mm lip proud of the
+      // wall read as a dashed stripe — shadow/AO noise on a sliver)
+      var rd = WALL_THICKNESS_M - 0.004, rc = -(0.0055 + rd / 2);
+      // 1 mm in from the hole's edge: flush with the wall's own end faces they z-fought (striped shadow line)
+      [bar(widthM - 0.002, 0.012, rd, 0, baseYM + heightM - 0.007, rc, revealMat),
+       bar(0.012, heightM - 0.002, rd, -(widthM / 2 - 0.007), baseYM + heightM / 2, rc, revealMat),
+       bar(0.012, heightM - 0.002, rd, widthM / 2 - 0.007, baseYM + heightM / 2, rc, revealMat)].forEach(function(m){ m.castShadow = false; }); // a reveal's shadow on its own wall edge = acne stripes
+      var ofw = 0.055, ofd = 0.07;                                                    // outer frame (karmur): 55 × 70 mm
+      bar(widthM - 0.024, ofw, ofd, 0, baseYM + heightM - 0.012 - ofw / 2, depthIn);
+      bar(widthM - 0.024, ofw, ofd, 0, baseYM + 0.012 + ofw / 2, depthIn);
+      bar(ofw, heightM - 0.024, ofd, -(widthM / 2 - 0.012 - ofw / 2), baseYM + heightM / 2, depthIn);
+      bar(ofw, heightM - 0.024, ofd, widthM / 2 - 0.012 - ofw / 2, baseYM + heightM / 2, depthIn);
+      var leaves = widthM > 0.9 ? 2 : 1, innerW = widthM - 0.024 - 2 * ofw, innerH = heightM - 0.024 - 2 * ofw, lw = innerW / leaves, sw = 0.045, sd = 0.05;
+      var handleMatW = new THREE.MeshStandardMaterial({ color:0xe8e9ea, metalness:0.6, roughness:0.3 });
+      for (var li = 0; li < leaves; li++){                                            // sashes (opnanleg fög), each with a handle on its latch side
+        var lc = -innerW / 2 + lw * (li + 0.5), ly = baseYM + heightM / 2, lz = depthIn + 0.008;
+        bar(lw - 0.004, sw, sd, lc, ly + innerH / 2 - sw / 2, lz);
+        bar(lw - 0.004, sw, sd, lc, ly - innerH / 2 + sw / 2, lz);
+        bar(sw, innerH, sd, lc - lw / 2 + sw / 2 + 0.002, ly, lz);
+        bar(sw, innerH, sd, lc + lw / 2 - sw / 2 - 0.002, ly, lz);
+        var latch = leaves === 2 ? (li === 0 ? 1 : -1) : 1;
+        bar(0.016, 0.12, 0.022, lc + latch * (lw / 2 - sw / 2 - 0.002), ly, lz + sd / 2 + 0.011, handleMatW); // handle
+      }
+      bar(widthM + 0.06, 0.025, WALL_THICKNESS_M + 0.045, 0, baseYM - 0.0125, -WALL_THICKNESS_M / 2 + 0.0225); // sill board: through the hole + 4.5 cm into the room
+    } else {
     bar(widthM, fw, 0.05, 0, baseYM + heightM - fw / 2, fo);                       // head
     bar(fw, heightM, 0.05, -(widthM / 2 - fw / 2), baseYM + heightM / 2, fo);      // left jamb
     bar(fw, heightM, 0.05, widthM / 2 - fw / 2, baseYM + heightM / 2, fo);         // right jamb
+    }
     if (!isDoor){
-      bar(widthM, fw, 0.05, 0, baseYM + fw / 2, fo);                               // window base rail
-      bar(0.035, heightM - 2 * fw, 0.04, 0, baseYM + heightM / 2, fo);             // centre mullion
-      bar(widthM + 0.12, 0.035, 0.13, 0, baseYM - 0.0175, 0.065);                  // sill
+      // (window frame above)
     } else {
       var handleMat = new THREE.MeshStandardMaterial({ color:0x55575a, metalness:0.7, roughness:0.35 });
       var hx = (meta.hingeRight ? -1 : 1) * (widthM / 2 - 0.1);                    // on the latch side, away from the hinges
@@ -2106,7 +2135,7 @@
       top.quaternion.copy(quat);
       top.castShadow = true; top.receiveShadow = true;
       group.add(top);
-      if (meta.sink) addSink(THREE, group, local, quat, widthM, depthM, baseYM + heightM + 0.001 + TT);
+      if (meta.sink) addSink(THREE, group, local, quat, widthM, depthM, baseYM + heightM + 0.001 + TT, meta.tapCeilM);
     }
 
     if (art || isOpen){ // the carcass as real boards, in the cabinet's own frame (x along the wall, z out of it)
@@ -2636,7 +2665,7 @@
     });
     return out;
   }
-  function addSink(THREE, group, local, quat, widthM, depthM, topY){
+  function addSink(THREE, group, local, quat, widthM, depthM, topY, ceilM){
     var hs = sinkSize(widthM, depthM), depth = 0.18, zc = depthM * 0.5 + 0.01;
     var steel = new THREE.MeshStandardMaterial({ color:0xc4c8cc, metalness:0.9, roughness:0.32 });
     // a solid bowl: seen from inside from above, and from outside (an open sink cabinet) — it used to be a
@@ -2655,9 +2684,15 @@
     var drain = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.003, 28), new THREE.MeshStandardMaterial({ color:0x9a9fa5, metalness:0.9, roughness:0.25 }));
     put(drain, topY - depth + 0.006, zc, hs.w * 0.25);
     // tap: round base, gooseneck, lever
-    var back = zc - hs.d / 2 - 0.045;
-    put(new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.026, 0.03, 24), steel), topY + 0.015, back);
-    var neck = new THREE.Group(); neck.position.copy(local(0, topY + 0.03, back)); neck.quaternion.copy(quat); group.add(neck);
+    var back = zc - hs.d / 2 - 0.045, room = ceilM != null ? ceilM - (topY + 0.03) - 0.02 : Infinity;
+    // Under a low window / sill (2026-10-23): the ~0.32 m gooseneck is lowered to fit (2 cm clear); with almost no room
+    // left (< 15 cm) it moves beside the bowl, out from under the sill, at full height, spout turned over the bowl —
+    // what a kitchen fitter does with a sink under a low window.
+    var side = room < 0.15, tapAlong = side ? hs.w / 2 + 0.05 : 0, tapOut = side ? zc - hs.d * 0.15 : back;
+    put(new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.026, 0.03, 24), steel), topY + 0.015, tapOut, tapAlong);
+    var neck = new THREE.Group(); neck.position.copy(local(tapAlong, topY + 0.03, tapOut)); neck.quaternion.copy(quat); group.add(neck);
+    if (side) neck.rotateY(-Math.PI / 2); // spout over the bowl
+    else if (room < 0.32) neck.scale.y = Math.max(0.35, room / 0.32);
     var curve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0.2, 0), new THREE.Vector3(0, 0.3, 0.06), new THREE.Vector3(0, 0.27, 0.17), new THREE.Vector3(0, 0.2, 0.2)]);
     var tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 40, 0.012, 14, false), steel); tube.castShadow = true; neck.add(tube);
     var lever = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.08, 10), steel); lever.rotation.z = Math.PI / 2 - 0.3; lever.position.set(0.045, 0.1, 0); lever.castShadow = true; neck.add(lever);
@@ -3873,6 +3908,18 @@
     // Wall length labels floating just above each wall (HomeByMe shows room
     // dimensions on the plan); a canvas-texture sprite, drawn on top.
     function isOpenGeom(i){ return !!(state.walls[i] && state.walls[i].open); }
+    // the lowest thing hanging over a sink's tap on its wall (a window's bottom edge, a gluggakista), metres above the
+    // floor — the tap's gooseneck is lowered to fit under it instead of poking through the glass (user, 2026-10-23)
+    function tapCeilingM(wall, xMm){
+      var lo = Infinity, pad = 60;
+      (state.windows || []).forEach(function(w){ if (w.wallId === wall.id && xMm + pad > w.offsetMm && xMm - pad < w.offsetMm + w.widthMm) lo = Math.min(lo, w.sillHeightMm - 25); }); // the sill board is 25 mm under the opening
+      (state.obstacles || []).forEach(function(o){
+        if (o.wallId !== wall.id || o.kind === "vatn" || !OBSTACLES[o.kind] || !OBSTACLES[o.kind].blocks) return;
+        var r = obstacleRect(o); if (r.n0 > 150 || !(xMm + pad > r.a0 && xMm - pad < r.a1)) return; // only what's right at the wall, over the tap
+        lo = Math.min(lo, obstacleVSpan(state, o).lo);
+      });
+      return isFinite(lo) ? lo / 1000 : null;
+    }
     var wallLabels = []; // {sp, g} — faded out in fadeWalls() while the camera is behind that wall (user, 2026-10-23)
     if (!opts.people && !opts.clean && !iso) geoms.forEach(function(g, i){ // (the ceiling-height view has its own single label; opts.clean skips it too — drawing exports don't want it baked into the picture)
       // a small "V1" bubble, the same size on screen however far the wall is (2026-10-12: "Veggur 1 · 4000 mm" was
@@ -3918,7 +3965,9 @@
       var mat = wallMat.clone();
       mat.transparent = true;
       var gaps = (state.doors || []).filter(function(d){ return d.gap && d.wallId === wid; })
-        .map(function(d){ return { offM:d.offsetMm / 1000, widM:d.widthMm / 1000, hM:Math.min(d.heightMm, roomHeightMm) / 1000 }; });
+        .map(function(d){ return { offM:d.offsetMm / 1000, widM:d.widthMm / 1000, hM:Math.min(d.heightMm, roomHeightMm) / 1000, loM:0 }; })
+        .concat((state.windows || []).filter(function(w){ return w.wallId === wid; }).map(function(w){ // a window is a real hole: its frame sits in the reveal
+          return { offM:w.offsetMm / 1000, widM:w.widthMm / 1000, loM:w.sillHeightMm / 1000, hM:Math.min(w.sillHeightMm + w.heightMm, roomHeightMm) / 1000 }; }));
       wallFades.push({ mesh:addWallPlane(THREE, scene, g, WALL_H, mat, gaps), geom:g, mat:mat, wallId:wid, openings:[] });
     });
 
@@ -4185,7 +4234,7 @@
             openMat:c.open ? frontOpenMat : openMat, open:!!c.open, hiddenMat:hiddenMat, drawerSystem:state.drawerSystem, carcassKey:state.carcass,
             warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), ready:!!(opts.readyIds && opts.readyIds.indexOf(b.id) >= 0), doorLimit:DOOR_LIMITS[b.id] || null, shelfBlock:b, wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), heightMm:hM * 1000, elevMm:0, handle:c.appliance ? null : state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0, // tall units: one door unless split in Smíða (2026-10-09)
             splitFr:c.oven || c.fixedFronts ? null : splitFractions(b, hM * 1000 - (c.panel || c.appliance ? 0 : plinthMmW)), // a fridge too, once its split is changed in Smíða
-            plinth:!c.panel && !c.appliance, plinthMm:plinthMmW, appliance:c.appliance || null, leMans:!!c.tofrahornIds, counter:!!c.counter, sink:!!c.sink, oven:!!c.oven, panel:!!c.panel, plinthMat:plinthMat, stoneMat:stoneMat,
+            plinth:!c.panel && !c.appliance, plinthMm:plinthMmW, appliance:c.appliance || null, leMans:!!c.tofrahornIds, counter:!!c.counter, sink:!!c.sink, tapCeilM:c.sink ? tapCeilingM(wall, offset + b.widthMm / 2) : null, oven:!!c.oven, panel:!!c.panel, plinthMat:plinthMat, stoneMat:stoneMat,
             ovenCodes:c.lowOven ? ["M"] : c.oven ? ovenCodesOf(b, state.drawerSystem) : null, fixedFronts:!!c.fixedFronts || !!c.appliance,
             burCodes:c.bur ? burCodesOf(b, state.drawerSystem) : null, dishwasher:!!c.dishwasher,
             lowOven:!!c.lowOven, ovenFrontsMm:c.oven ? b.ovenFrontsMm || null : null, ovenBlock:c.oven ? b : null, ovenCat:c.oven ? c : null,
