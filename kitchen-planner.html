@@ -85,6 +85,10 @@
 
   .top{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:6px; }
   .kicker{ font-size:11.5px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--gold); }
+  /* Embedded in the office shell's own <iframe> (2026-10-23, pro.html) — same ?embedded=1 +
+     .embedHide pattern grain.html already uses: the office sidebar carries the BJÖRNINN STUDIO
+     branding now, so the page's own kicker here would just be a redundant second copy of it. */
+  body.embedded .embedHide{ display:none !important; }
   h1{ font-weight:600; font-size:clamp(24px,4vw,32px); letter-spacing:-.01em; margin:6px 0 6px; }
   .lede{ font-size:15px; color:var(--ink-soft); max-width:none; margin:0 0 26px; }
   .top-actions{ display:flex; align-items:center; gap:14px; }
@@ -1214,7 +1218,7 @@
 
   <div class="top">
     <div>
-      <div class="kicker" id="kicker">BJÖRNINN STUDIO</div>
+      <div class="kicker embedHide" id="kicker">BJÖRNINN STUDIO</div>
       <h1 id="pageTitle" data-i18n>Hannaðu eldhúsið þitt</h1>
     </div>
     <div class="top-actions">
@@ -1629,6 +1633,13 @@
   // the normal proBoot() path never runs; see the init branch near the bottom of this file.
   var PRO_HOME = (function(){ try{ return new URLSearchParams(location.search).get("pro") === "home"; }catch(e){ return false; } })();
   function proHomeK(){ try{ return new URLSearchParams(location.search).get("k") || ""; }catch(e){ return ""; } }
+  // Embedded in the office shell's own <iframe> (2026-10-23, pro.html) — not a full-page open
+  // anymore, so the page's own "BJÖRNINN STUDIO" kicker is redundant next to the office sidebar
+  // that already carries that branding; same ?embedded=1 + .embedHide pattern grain.html already
+  // uses for the same reason. Carried through every PRO-home → specific-project link below so the
+  // kicker stays hidden across the whole flow, not just the landing list.
+  var EMBEDDED = (function(){ try{ return new URLSearchParams(location.search).get("embedded") === "1"; }catch(e){ return false; } })();
+  function embeddedQS(){ return EMBEDDED ? "&embedded=1" : ""; }
   var STORAGE_KEY = PRO ? "bjorninn:kitchenPlanner:pro:" + PRO.id : "bjorninn:kitchenPlanner:draft:v1";
 
   var KP3D = window.KP3D;
@@ -12302,6 +12313,7 @@
   }
   async function proBoot(){
     document.body.classList.add("pro");
+    if (EMBEDDED) document.body.classList.add("embedded");
     // small stepper sits inline in the header, between the title and the PRO bar (user, 2026-10-15) — it's
     // a sibling of .top in the markup (shared with the customer-facing flow), so move it in here rather
     // than duplicating the whole header for pro.
@@ -12596,7 +12608,7 @@
       var f = r.fields || {};
       var name = f["Heiti tækifæris / verkefnis"] || "(ónefnt)";
       var stage = f["Staða í skipulagi"] || f["Staða í söluferli"] || "";
-      return '<a class="ph-row" href="/skipuleggja?pro=' + r.id + (k ? "&k=" + encodeURIComponent(k) : "") + '">' +
+      return '<a class="ph-row" href="/skipuleggja?pro=' + r.id + (k ? "&k=" + encodeURIComponent(k) : "") + embeddedQS() + '">' +
         '<span class="ph-name">' + escapeHtmlPro(name) + '</span>' + (stage ? '<span class="ph-stage">' + escapeHtmlPro(stage) + '</span>' : '') + '</a>';
     }).join("");
   }
@@ -12620,7 +12632,7 @@
       .then(function(res){
         phCreating = false;
         if (!res.ok){ msg.textContent = "Tókst ekki: " + (res.d.error || "villa"); return; }
-        location.href = "/skipuleggja?pro=" + res.d.recordId + (k ? "&k=" + encodeURIComponent(k) : "");
+        location.href = "/skipuleggja?pro=" + res.d.recordId + (k ? "&k=" + encodeURIComponent(k) : "") + embeddedQS();
       })
       .catch(function(){ phCreating = false; msg.textContent = "Tókst ekki: tengingarvilla."; });
   }
@@ -12634,6 +12646,7 @@
     if (PRO) proBoot();
     else if (PRO_HOME){
       document.body.classList.add("pro"); // same dark staff theme as proBoot()
+      if (EMBEDDED) document.body.classList.add("embedded");
       state.step = "pro-home";
       render();
       initProHome();
