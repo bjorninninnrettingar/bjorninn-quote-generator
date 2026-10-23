@@ -115,7 +115,11 @@
     el.id = STYLE_ID;
     el.textContent =
       '.osBrand{padding:16px 16px 14px;border-bottom:1px solid #2a3442;margin-bottom:8px;transition:padding .15s;}' +
-      '.osLogo{display:block;width:100%;height:auto;background:#fff;border-radius:10px;padding:10px 14px;box-sizing:border-box;}' +
+      '.osLogo{display:block;width:100%;height:auto;background:#fff;border-radius:10px;padding:10px 14px;box-sizing:border-box;text-align:center;}' +
+      // Text wordmark (2026-10-23, replaces the /logo-bjorninn.png image) — same white rounded box
+      // the image used to sit in, now just holding two stacked lines of text instead.
+      '.osLogoL1{display:block;font-weight:800;font-size:1.05rem;letter-spacing:.01em;font-family:Georgia,"Times New Roman",serif;color:#1a1d21;}' +
+      '.osLogoL2{display:block;font-weight:600;font-size:.6rem;letter-spacing:.22em;color:#6b7280;margin-top:3px;}' +
       '.osUser{color:#8aa4c7;font-size:.78rem;margin-top:10px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}' +
       'html[data-os-density="compact"] .sidebar nav a{padding:5px 18px !important;font-size:.82rem !important;}' +
       '.sidebar nav a{display:flex;align-items:center;gap:10px;user-select:none;}' +
@@ -274,7 +278,7 @@
       topEl.className = "osBrand";
       topEl.title = record.name || "";
       topEl.innerHTML =
-        '<img class="osLogo" src="/logo-bjorninn.png" alt="Björninn Innréttingar" />' +
+        '<div class="osLogo"><span class="osLogoL1">BJÖRNINN</span><span class="osLogoL2">STUDIO</span></div>' +
         '<div class="osUser">' + esc(record.name || "") + '</div>' +
         '<div class="osInitials">' + esc(initialsOf(record.name)) + '</div>';
     }
