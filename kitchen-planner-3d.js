@@ -2282,7 +2282,7 @@
   // Small padlock floating over a locked cabinet.
   var LOCK_TEX = null, READY_TEX = null;
   function addLockBadge(THREE, group, pos, ready){
-    if (ready && !READY_TEX){ // green ✅ — the cabinet is ready for production (pro mode)
+    if (ready && !READY_TEX){ // green — the cabinet is ready for production (pro mode)
       var rc = document.createElement("canvas"); rc.width = rc.height = 96;
       var rx = rc.getContext("2d");
       rx.fillStyle = "#1f9d55"; rx.beginPath(); rx.arc(48, 48, 46, 0, Math.PI * 2); rx.fill();
@@ -3573,7 +3573,7 @@
       }, 0);
     });
   }
-  // ✨ Studio mynd (2026-10-23): path-trace the live scene from the live camera (three-gpu-pathtracer, loaded on demand)
+  // Studio mynd (2026-10-23): path-trace the live scene from the live camera (three-gpu-pathtracer, loaded on demand)
   // → a JPEG data URL. The editor's own loop is paused meanwhile; labels, handles, see-through (faded) walls and
   // cabinets, lines and sprites are hidden; a soft daylight sky lights it (and shows through the windows).
   function studioSky(THREE){
@@ -3756,7 +3756,7 @@
       st.studio = false;
     }
   }
-  // 🚶 walk mode — module level so it outlives scene rebuilds
+  // walk mode — module level so it outlives scene rebuilds
   var WALK = { on:false, x:0, z:0, yaw:0, pitch:0 };
   function setWalkMode(on){ if (!THREE_STATE || !THREE_STATE.setWalk){ WALK.on = false; return false; } return THREE_STATE.setWalk(!!on); }
   function isWalking(){ return WALK.on; }
@@ -4092,7 +4092,7 @@
     } else {
       floorMat = new THREE.MeshStandardMaterial({ color:0xd8d3c6, roughness:1 });
     }
-    // ✨ Studio roles, set the moment the materials exist — the floor and the walls are cloned from these before the rest
+    // Studio roles, set the moment the materials exist — the floor and the walls are cloned from these before the rest
     // of the scene is built, and a clone only carries what userData held at clone time
     wallMat.userData.studio = "wall"; floorMat.userData.studio = "floor"; carcassMat.userData.studio = "carcass";
 
@@ -4262,7 +4262,7 @@
       var def = OBSTACLES[o.kind], g = geomForWall(o.wallId); if (!def || !g) return;
       var v = obstacleVSpan(state, o), sel = opts.selectedId === o.id, hM = Math.max(0.01, (v.hi - v.lo) / 1000);
       var rr = obstacleRect(o), wM = (rr.a1 - rr.a0) / 1000, dM = (rr.n1 - rr.n0) / 1000, outM = rr.n0 / 1000; // wM along the wall, dM out of it (after a turn)
-      // dragged along / up and down the wall in the editor like a window (2026-10-11); 🔒 o.locked = stays put (2026-10-23)
+      // dragged along / up and down the wall in the editor like a window (2026-10-11); o.locked = stays put (2026-10-23)
       var meta = { kind:"obstacle", zone:"obstacle", blockId:o.id, wallId:o.wallId, locked:!opts.onCabinetDragEnd || !!o.locked, widthMm:rr.a1 - rr.a0, depthMm:rr.n1 - rr.n0, heightMm:v.hi - v.lo, elevMm:v.lo,
         free:!!def.free && !!opts.onObstacleFloorEnd && !o.locked };
       // one invisible box = what you grab (world position, like a window plane); the visible parts are its children
@@ -4376,7 +4376,7 @@
     var plinthDark = new THREE.MeshStandardMaterial({ color:0x26262a, roughness:0.85 });
     var plinthFrontMat = frontMat.clone();
     var plinthMat = look ? [plinthDark, plinthDark, plinthDark, plinthDark, plinthFrontMat, plinthDark] : plinthDark;
-    // ✨ Studio: every base material says what it IS, so the photo builds its own physically-set material per role
+    // Studio: every base material says what it IS, so the photo builds its own physically-set material per role
     // (a wall can never come out in the front's wood). Clones (selection tint, per-wall fades) carry userData along.
     [[wallMat, "wall"], [floorMat, "floor"], [carcassMat, "carcass"], [openMat, "carcass"], [steelMat, "steel"], [washerMat, "appliance"],
      [stoneMat, state.activeCategory === "fataskapar" ? "front" : "top"], [frontMat, "front"], [frontMat2, "front"], [frontOpenMat, "front"],
@@ -4477,7 +4477,7 @@
             sinkFixedTop:!!c.sink && b.sinkTop === "fastur" && !!(b.interior && b.interior.mode === "skuffur"),
             ovenInner:c.oven && !c.lowOven ? (String(b.ovenCombo == null ? OVEN_DEFAULT[state.drawerSystem === "merivo" ? "merivo" : "legra"] : b.ovenCombo).split("+")[1] || null) : null,
             washerDrawerM:c.thvo && b.thvo !== "hurdir" ? 0.40 : 0, alwaysDims:state.activeCategory === "fataskapar", hung:!!state.hungUnits }, selected, pickables);
-        // 💡 LED in a tall closet (user, 2026-10-23, C1): a vertical strip in a groove at the front edge of one side
+        // LED in a tall closet (user, 2026-10-23, C1): a vertical strip in a groove at the front edge of one side
         // (6×6 mm), or a strip under the top shelf (4×8 mm). Behind the doors — it shows in X-ray and with doors open.
         if (b.closetLed && c.cls === "tall" && !opts.people){
           var lf = ledFrame(THREE, scene, g, offset / 1000, b.widthMm / 1000), inW = b.widthMm / 1000 - 2 * CARCASS_T, bodyBot = plinthMmW / 1000 + CARCASS_T, bodyTop = hM - CARCASS_T;
@@ -4738,7 +4738,7 @@
                     walls:surfaces, geoms:allGeoms, previewMesh:null, dragging:false, opts:opts, pickables:pickables, roomHM:WALL_H, wallHi:null, frontMat:frontMat };
     if (opts.selectedWallId) setSelectedWall3D(opts.selectedWallId);
 
-    // 🚶 Ganga um (user, 2026-10-23): first-person walk-through at eye height. Drag = look around, W/A/S/D or
+    // Ganga um (user, 2026-10-23): first-person walk-through at eye height. Drag = look around, W/A/S/D or
     // arrows (or the wheel) = walk. You can't walk through walls, milliveggir or cabinets (footprints + 25 cm),
     // and it survives rebuilds (every edit rebuilds the scene) — WALK lives at module level.
     var walkPrev = null, walkKeys = {}, walkLook = null, walkLast = 0, walkBlocks = null, walkV = new THREE.Vector3();
@@ -4776,7 +4776,7 @@
       best.yaw = Math.atan2(-(c.x - best.x), -(c.z - best.z));
       return best;
     }
-    // "📍 Veggur 1": stand ~2 m in front of each surface's floor cabinets, looking straight at them
+    // "Veggur 1": stand ~2 m in front of each surface's floor cabinets, looking straight at them
     var walkJumpCache = null;
     function walkJumps(){
       if (walkJumpCache) return walkJumpCache;
@@ -4845,7 +4845,7 @@
         '<button type="button" data-wk="arrowleft" title="' + __("Snúa til vinstri") + '" style="' + arrow + '">⟲</button><button type="button" data-wk="w" title="' + __("Ganga áfram") + '" style="' + arrow + '">▲</button>' +
         '<button type="button" data-wk="s" title="' + __("Ganga aftur á bak") + '" style="' + arrow + '">▼</button><button type="button" data-wk="arrowright" title="' + __("Snúa til hægri") + '" style="' + arrow + '">⟳</button></span>' +
         '<span class="kp-walk-tip">' + __("Dragðu til að líta í kring · W A S D / örvar") + '</span>' +
-        walkJumps().map(function(j, i){ return '<button type="button" data-wj="' + i + '" style="' + pill + '">📍 ' + __(j.label) + '</button>'; }).join("") +
+        walkJumps().map(function(j, i){ return '<button type="button" data-wj="' + i + '" style="' + pill + '">' + __(j.label) + '</button>'; }).join("") +
         '<button type="button" data-wq="1" style="all:unset;cursor:pointer;background:#fff;color:#111;border-radius:999px;padding:4px 10px;font-weight:600">' + __("Hætta (Esc)") + '</button>';
       h.querySelector("[data-wq]").addEventListener("click", function(){ setWalk(false); if (opts.onWalkChange) opts.onWalkChange(false); });
       h.querySelectorAll("[data-wk]").forEach(function(b){
@@ -5119,7 +5119,7 @@
     THREE_STATE.renderFrame = renderFrame;
     function loop(ts){
       THREE_STATE.rafId = requestAnimationFrame(loop);
-      if (THREE_STATE.studio) return; // ✨ Studio mynd owns the renderer while it path-traces
+      if (THREE_STATE.studio) return; // Studio mynd owns the renderer while it path-traces
       qualityTick(ts || performance.now(), renderer, resize);
       if (WALK.on) walkStep(ts || performance.now()); else controls.update();
       settleLanded();

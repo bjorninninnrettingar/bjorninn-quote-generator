@@ -36,7 +36,7 @@
   window.__OrbitControls__ = OrbitControls;
   window.__RoomEnvironment__ = RoomEnvironment;
   window.__RoundedBox__ = RoundedBoxGeometry;
-  window.__loadPathTracer = function(){ return import("three-gpu-pathtracer"); }; // 📸 Studio mynd — only fetched when asked for
+  window.__loadPathTracer = function(){ return import("three-gpu-pathtracer"); }; // Studio mynd — only fetched when asked for
   window.dispatchEvent(new Event("three-ready"));
 </script>
 <script src="kitchen-planner-i18n.js"></script>
@@ -92,14 +92,7 @@
   .help-btn{ background:#fff; border:1px solid var(--line); border-radius:999px; padding:6px 14px; font:inherit; font-size:13px; font-weight:600; color:var(--ink); cursor:pointer; }
   .help-btn:hover{ border-color:var(--blue); color:var(--blue); }
   /* IS / EN (2026-10-23, kitchen-planner-i18n.js) — the active one follows <html lang> */
-  .lang-switch{ display:inline-flex; border:1px solid var(--line); border-radius:999px; overflow:hidden; background:#fff; }
-  .lang-switch[hidden]{ display:none; }
-  .lang-switch button{ background:none; border:none; padding:6px 10px; font:inherit; font-size:12px; font-weight:600; color:var(--ink-soft); cursor:pointer; }
-  .lang-switch button:hover{ color:var(--blue); }
-  html:not([lang="en"]) .lang-switch [data-setlang="is"], html[lang="en"] .lang-switch [data-setlang="en"]{ background:var(--ink); color:#fff; cursor:default; }
-  html:not([lang="en"]) .wel-lang[data-setlang="is"], html[lang="en"] .wel-lang[data-setlang="en"]{ display:none; }
-  .wel-lang{ margin-right:auto; text-decoration:none; }
-  .wel-lang:hover{ color:var(--blue); text-decoration:underline; }
+  html:not([lang="en"]) .help-lang[data-setlang="is"], html[lang="en"] .help-lang[data-setlang="en"]{ display:none; } /* the language lives under Hjálp (user, 2026-10-23): only the other one is offered */
   .help-menu:not([hidden]){ position:absolute; right:0; top:calc(100% + 6px); z-index:200; min-width:210px; background:#fff; border:1px solid var(--line); border-radius:12px; box-shadow:0 12px 32px rgba(0,0,0,.16); padding:6px; display:flex; flex-direction:column; }
   .help-menu button{ background:none; border:0; text-align:left; font:inherit; font-size:14px; padding:9px 12px; border-radius:8px; cursor:pointer; color:var(--ink); }
   .help-menu button:hover{ background:var(--panel); }
@@ -144,7 +137,8 @@
   .studio-cards{ display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:10px; }
   .studio-card{ display:flex; flex-direction:column; align-items:flex-start; gap:4px; text-align:left; padding:14px 14px 12px; border:1.5px solid var(--line); border-radius:14px; background:#fff; cursor:pointer; font:inherit; color:var(--ink); transition:border-color .15s, transform .15s, box-shadow .15s; }
   .studio-card:hover:not(:disabled){ border-color:var(--blue); transform:translateY(-2px); box-shadow:0 8px 22px rgba(25,25,25,.08); }
-  .studio-card .ic{ font-size:22px; line-height:1; }
+  .studio-card .ic{ line-height:1; color:var(--ink); display:inline-flex; }
+  svg.ico{ display:inline-block; vertical-align:-3px; flex:none; }
   .studio-card b{ font-size:15px; }
   .studio-card small{ font-size:12px; color:var(--ink-soft); line-height:1.35; }
   .studio-card .go{ margin-top:4px; font-size:12px; font-weight:700; color:var(--blue); }
@@ -1006,7 +1000,7 @@
   #proBar button#proTilbodToggle { background:transparent; border-color:var(--blue); color:var(--ink); }
   #proBar button#proTilbodToggle.on { background:var(--blue); color:#fff; }
 
-  /* ✨ Studio mynd */
+  /* Studio mynd */
   #studioOv{ position:fixed; inset:0; z-index:90; background:rgba(12,15,20,.72); display:flex; align-items:center; justify-content:center; }
   #studioOv .st-card{ width:min(980px, 94vw); background:var(--panel, #fff); color:var(--ink); border-radius:16px; padding:18px 20px; box-shadow:0 24px 60px rgba(0,0,0,.35); }
   #studioOv h3{ margin:0 0 6px; }
@@ -1018,7 +1012,7 @@
   #studioOv .st-img{ margin-top:12px; aspect-ratio:16 / 10; background:var(--card, #f3f2ee); border-radius:10px; overflow:hidden; }
   #studioOv .st-img img{ width:100%; height:100%; object-fit:cover; display:block; }
   #studioOv .st-act{ display:flex; justify-content:flex-end; gap:8px; margin-top:12px; }
-  /* ── 📏 Mæling (2026-10-23, A7): the measurer's sheet beside the room drawing ── */
+  /* ── Mæling (2026-10-23, A7): the measurer's sheet beside the room drawing ── */
   #measurePanel{ position:fixed; right:14px; top:84px; bottom:14px; width:360px; z-index:70; background:var(--panel, #fff); color:var(--ink); border:1px solid var(--line); border-radius:14px; box-shadow:0 18px 50px rgba(0,0,0,.22); display:flex; flex-direction:column; }
   #measurePanel .mp-head{ padding:12px 14px 8px; border-bottom:1px solid var(--line); }
   #measurePanel .mp-head h3{ margin:0; font-size:16px; }
@@ -1033,7 +1027,7 @@
   #measurePanel textarea{ width:100%; box-sizing:border-box; min-height:60px; font:inherit; font-size:13px; padding:6px 8px; border:1px solid var(--line); border-radius:8px; }
   #measurePanel .mp-foot{ padding:10px 14px 12px; border-top:1px solid var(--line); display:flex; gap:8px; align-items:center; }
   #measurePanel .mp-done{ font-size:12px; color:#2f7a4b; }
-  /* ── 🚪 Innihurðir: hurðalisti fyrir allt heimilið (2026-10-23) ── */
+  /* ── Innihurðir: hurðalisti fyrir allt heimilið (2026-10-23) ── */
   #doorListOv{ position:fixed; inset:0; z-index:85; background:rgba(12,15,20,.72); display:flex; align-items:center; justify-content:center; }
   #doorListOv .dl-card{ width:min(1080px, 96vw); max-height:92vh; display:flex; flex-direction:column; background:var(--panel, #fff); color:var(--ink); border-radius:16px; box-shadow:0 24px 60px rgba(0,0,0,.35); }
   #doorListOv .dl-head{ display:flex; align-items:center; gap:12px; padding:16px 20px 10px; border-bottom:1px solid var(--line); }
@@ -1191,7 +1185,7 @@
      explicitly — a clear "use a computer" message, not a broken tool. -->
 <div class="mobile-gate" id="mobileGate" hidden>
   <div class="mobile-gate-box">
-    <div class="mobile-gate-icon">💻</div>
+    <div class="mobile-gate-icon"><svg class="ico" viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="5" width="15" height="10.5" rx="1"/><path d="M2.5 19h19"/></svg></div>
     <h1 data-i18n>Best á tölvu</h1>
     <p data-i18n>Þetta skipulagstól er hannað fyrir stærri skjái — opnaðu þessa síðu á fartölvu eða borðtölvu til að teikna og raða upp eldhúsinu þínu.</p>
     <p class="mobile-gate-sub" data-i18n>Ekkert týnist — komdu bara aftur á tölvu.</p>
@@ -1207,13 +1201,14 @@
     </div>
     <div class="top-actions">
       <div id="proBar" hidden></div>
-      <div class="lang-switch" role="group" aria-label="Tungumál" data-i18n="attrs"><button type="button" data-setlang="is" title="Íslenska">IS</button><button type="button" data-setlang="en" title="English">EN</button></div>
       <div class="help-wrap">
         <button class="help-btn" id="helpBtn" type="button" aria-haspopup="true" aria-expanded="false" data-i18n>Hjálp</button>
         <div class="help-menu" id="helpMenu" hidden>
-          <button type="button" id="tourBtn" hidden data-i18n>👋 Sýna leiðsögnina</button>
-          <button type="button" id="reportBtn" data-i18n>⚠️ Tilkynna vandamál</button>
+          <button type="button" id="tourBtn" hidden data-i18n>Sýna leiðsögnina</button>
+          <button type="button" id="reportBtn" data-i18n>Tilkynna vandamál</button>
           <button type="button" id="resetBtn" data-i18n>Byrja upp á nýtt</button>
+          <button type="button" class="help-lang" data-setlang="en" lang="en">In English</button>
+          <button type="button" class="help-lang" data-setlang="is" lang="is">Á íslensku</button>
         </div>
       </div>
     </div>
@@ -1221,7 +1216,7 @@
   <p class="lede" id="pageLede" hidden></p>
 
   <aside id="tilbodPanel" aria-label="Tilboð" aria-hidden="true">
-    <div class="tp-head"><h3>💰 Tilboð</h3><button type="button" class="tp-x" id="tpClose" title="Loka (Esc)">×</button></div>
+    <div class="tp-head"><h3>Tilboð</h3><button type="button" class="tp-x" id="tpClose" title="Loka (Esc)">×</button></div>
     <div class="tp-sum">
       <div class="tp-total" id="tpTotal">—</div>
       <div class="tp-sub" id="tpSub">m/vsk · reiknað úr teikningunni</div>
@@ -1235,7 +1230,7 @@
         <label for="tpInstallDiscount">Afsláttur í uppsetningu %</label><input id="tpInstallDiscount" type="number" min="0" max="100" step="1" />
         <label for="tpMarkupInstall">Smáverka álagning [uppsetning]</label><select id="tpMarkupInstall"><option value="">—</option></select>
       </div></details>
-      <div class="tp-actions"><span class="tp-msg" id="tpMsg"></span><button type="button" id="tpPrint">🖨️ Prenta tilboð</button></div>
+      <div class="tp-actions"><span class="tp-msg" id="tpMsg"></span><button type="button" id="tpPrint">Prenta tilboð</button></div>
     </div>
   </aside>
 
@@ -1279,13 +1274,11 @@
       <!-- 2026-10-12: a kitchen drawn in the planner itself, next to the steps -->
       <figure class="wel-hero"><div class="wel-scene" id="welScene" aria-hidden="true"></div><img src="images/welcome-kitchen.jpg" data-i18n="attrs" alt="Eldhús hannað í hönnunartólinu: dökkblá innrétting, hvítur marmari og messinghöldur" width="1600" height="942"><figcaption data-i18n>Hannað hér í hönnunartólinu<span class="wel-drag"> · dragðu til að snúa</span></figcaption></figure>
       <div class="wel-main">
-      <div class="wel-meta"><span data-i18n>⏱ 10–15 mínútur</span><span data-i18n>💾 Vistast sjálfkrafa</span><span data-i18n>🤝 Engin binding</span></div>
+      <div class="wel-meta"><span data-i18n>10–15 mínútur</span><span data-i18n>Vistast sjálfkrafa</span><span data-i18n>Engin binding</span></div>
       <p class="wel-lede" data-i18n>Teiknaðu rýmið, veldu efni og raðaðu innréttingunni í 3D. Þú færð teikningar, vörulista og verð — frítt og án skuldbindingar.</p>
       <h2 class="wel-ask" data-i18n>Hvað viltu hanna?</h2>
       <div class="studio-cards" id="studioCards"></div>
       <div class="wel-actions">
-        <button class="reset-link wel-lang" type="button" data-setlang="en" lang="en">🇬🇧 In English</button>
-        <button class="reset-link wel-lang" type="button" data-setlang="is" lang="is">🇮🇸 Á íslensku</button>
         <button class="reset-link" id="welReset" type="button" hidden data-i18n>Byrja upp á nýtt</button>
         <button class="btn btn-primary" id="welStart" type="button" data-i18n>Byrja að hanna →</button>
       </div>
@@ -1448,19 +1441,19 @@
             <button type="button" data-view="wall" title="Hanna einn vegg í einu, málsettan" data-i18n>Veggur</button>
           </div>
           <div class="view-toggle" id="camToggle">
-            <button type="button" id="resetCamBtn" title="Endurstilla sýn" data-i18n="attrs">🎯</button>
-            <button type="button" id="snapBtn" title="Vista mynd af skipulaginu" data-i18n="attrs">📷</button>
-            <button type="button" id="walkBtn" title="Ganga um: sjáðu eldhúsið í augnhæð eins og þú standir í því" data-i18n>🚶 Ganga</button>
-            <button type="button" id="studioBtn" title="Studio mynd: raunveruleg ljósmynd af þessari sýn, tekur 20–90 sek" data-i18n="attrs">✨ Studio</button>
+            <button type="button" id="resetCamBtn" title="Endurstilla sýn" data-i18n="attrs"><svg class="ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.5"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/></svg></button>
+            <button type="button" id="snapBtn" title="Vista mynd af skipulaginu" data-i18n="attrs"><svg class="ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8.5h3l1.8-2.5h6.4L17 8.5h3V19H4z"/><circle cx="12" cy="13.5" r="3.4"/></svg></button>
+            <button type="button" id="walkBtn" title="Ganga um: sjáðu eldhúsið í augnhæð eins og þú standir í því" data-i18n>Ganga</button>
+            <button type="button" id="studioBtn" title="Studio mynd: raunveruleg ljósmynd af þessari sýn, tekur 20–90 sek" data-i18n="attrs">Studio</button>
           </div>
           <button type="button" class="warn-chip" id="warnChip" hidden></button>
-          <div class="view-toggle" id="moodToggle" title="Kvöldstemning: dimmir herbergið svo lýsingin sjáist" data-i18n="attrs"><button type="button" id="moodBtn" title="Kvöldstemning: dimmir herbergið svo lýsingin sjáist" data-i18n>🌙 Kvöld</button></div>
-          <div class="view-toggle" id="measureToggle" title="Málband: smelltu á tvo punkta til að mæla á milli þeirra" data-i18n="attrs"><button type="button" id="measureBtn" title="Málband: smelltu á tvo punkta til að mæla á milli þeirra" data-i18n>📏 Málband</button></div>
+          <div class="view-toggle" id="moodToggle" title="Kvöldstemning: dimmir herbergið svo lýsingin sjáist" data-i18n="attrs"><button type="button" id="moodBtn" title="Kvöldstemning: dimmir herbergið svo lýsingin sjáist" data-i18n>Kvöld</button></div>
+          <div class="view-toggle" id="measureToggle" title="Málband: smelltu á tvo punkta til að mæla á milli þeirra" data-i18n="attrs"><button type="button" id="measureBtn" title="Málband: smelltu á tvo punkta til að mæla á milli þeirra" data-i18n>Málband</button></div>
           <div class="view-toggle" id="inspectToggle" title="X-Ray: framhliðar af, smelltu á skúffu eða hurð til að opna hana" data-i18n="attrs">
-            <button type="button" id="inspectBtn" title="X-Ray: framhliðar af, smelltu á skúffu eða hurð til að opna hana" data-i18n="attrs">🔍 X-Ray</button>
+            <button type="button" id="inspectBtn" title="X-Ray: framhliðar af, smelltu á skúffu eða hurð til að opna hana" data-i18n="attrs">X-Ray</button>
           </div>
           <div class="view-toggle" id="plinthToggle" title="Sökkulhæð á veggjum og eyjum" hidden data-i18n="attrs">
-            <button type="button" id="plinthBtn" title="Sökkulhæð á veggjum og eyjum" data-i18n>🪜 Sökkull</button>
+            <button type="button" id="plinthBtn" title="Sökkulhæð á veggjum og eyjum" data-i18n>Sökkull</button>
           </div>
           <div class="view-toggle" id="histToggle">
             <button type="button" id="undoBtn" title="Afturkalla (⌘Z)" disabled data-i18n="attrs">↶</button>
@@ -1485,13 +1478,13 @@
         <div class="anno-capture" id="annoCapture" hidden></div>
         <textarea class="anno-input" id="annoInput" rows="1" hidden data-i18n="attrs" placeholder="Skrifaðu… (Enter = klárt)"></textarea>
         <div class="anno-bar" id="annoBar" hidden>
-          <button type="button" id="annoToggle" title="Setja örvar, texta og tákn á vegginn" data-i18n>✏️ Merkingar</button>
+          <button type="button" id="annoToggle" title="Setja örvar, texta og tákn á vegginn" data-i18n>Merkingar</button>
           <span class="anno-tools" id="annoTools" hidden>
             <button type="button" data-anno-tool="select" title="Velja, færa (dragðu), breyta texta (tvísmelltu)" data-i18n>↖ Velja</button>
             <button type="button" data-anno-tool="arrow" title="Dragðu frá upphafi að oddi" data-i18n>➝ Ör</button>
             <button type="button" data-anno-tool="text" title="Smelltu þar sem textinn á að koma" data-i18n>T Texti</button>
             <button type="button" data-anno-tool="symbol" title="Veldu tákn og smelltu á vegginn" data-i18n>◎ Tákn</button>
-            <button type="button" id="annoDelete" title="Eyða völdu (Delete)" disabled data-i18n="attrs">🗑</button>
+            <button type="button" id="annoDelete" title="Eyða völdu (Delete)" disabled data-i18n="attrs"><svg class="ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l.9 12.2h8.2L17 7M10.5 10.5v6M13.5 10.5v6"/></svg></button>
           </span>
           <span class="anno-syms" id="annoSyms" hidden></span>
         </div>
@@ -1501,17 +1494,17 @@
           <button type="button" data-fb="rotL" title="Snúa 45° til vinstri" data-i18n="attrs">↺</button>
           <button type="button" data-fb="left" title="Færa til vinstri" data-i18n="attrs">◀</button>
           <button type="button" data-fb="right" title="Færa til hægri" data-i18n="attrs">▶</button>
-          <button type="button" data-fb="lock" id="fbLock" title="Læsa skáp" data-i18n="attrs">🔓</button>
+          <button type="button" data-fb="lock" id="fbLock" title="Læsa skáp" data-i18n="attrs"><svg class="ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="11" width="12" height="9" rx="1.5"/><path d="M8.5 11V8a3.5 3.5 0 0 1 6.9-.9"/></svg></button>
           <button type="button" data-fb="dup" title="Afrita" data-i18n="attrs">⧉</button>
           <button type="button" data-fb="rotR" title="Snúa 45° til hægri" data-i18n="attrs">↻</button>
-          <button type="button" data-fb="del" class="del" title="Fjarlægja" data-i18n="attrs">🗑</button>
+          <button type="button" data-fb="del" class="del" title="Fjarlægja" data-i18n="attrs"><svg class="ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l.9 12.2h8.2L17 7M10.5 10.5v6M13.5 10.5v6"/></svg></button>
         </div>
       </div>
 
       <aside class="ed-props" id="cabinetEditPanel"></aside>
     </div>
     <div class="tip-bar" id="tipBar" hidden>
-      <span data-i18n>💡 <b>＋ Ný eining</b> bætir við skáp · smelltu á skáp til að breyta honum · dragðu hann til að færa · <b>⌘Z</b> afturkallar · <b>Delete</b> fjarlægir</span>
+      <span data-i18n><b>＋ Ný eining</b> bætir við skáp · smelltu á skáp til að breyta honum · dragðu hann til að færa · <b>⌘Z</b> afturkallar · <b>Delete</b> fjarlægir</span>
       <button type="button" id="tipClose" title="Loka" data-i18n="attrs">✕</button>
     </div>
 
@@ -1580,7 +1573,7 @@
 
   <section id="screen-done" hidden>
     <div class="success-box">
-      <div class="big">✅</div>
+      <div class="big"><svg class="ico" viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12.4l2.8 2.8L16.2 9.6"/></svg></div>
       <h3 data-i18n>Takk fyrir!</h3>
       <p data-i18n>Söluaðili hefur fengið skipulagið þitt og hefur samband fljótlega til að fullkomna hönnunina með þér.</p>
       <div class="contact-preview" id="donePreview" hidden style="margin:18px auto 0;"></div>
@@ -1593,7 +1586,7 @@
 (function(){
   "use strict";
   KPI18N.apply(document); // EN version (2026-10-23): static markup marked data-i18n, see kitchen-planner-i18n.js
-  if (KPI18N.isPro) document.querySelectorAll(".lang-switch, .wel-lang").forEach(function(el){ el.hidden = true; }); // PRO stays Icelandic
+  if (KPI18N.isPro) document.querySelectorAll(".help-lang").forEach(function(el){ el.hidden = true; }); // PRO stays Icelandic
 
   // Pro mode (2026-10-08): Rakel opens an existing project from the Tækifæri (?pro=<recordId>&k=<office key>).
   // It edits its own local copy (never the customer draft) and "Vista í Airtable" writes back to that project.
@@ -1608,6 +1601,9 @@
   var KP3D = window.KP3D;
   var CATALOG = KP3D.CATALOG;
   var LOOKS = KP3D.LOOKS;
+  // Line icons instead of emoji (user, 2026-10-23: "taka alla þessa emoja út, erum að reyna hafa þetta high end")
+  var ICON_PATHS = {"target": "<circle cx=\"12\" cy=\"12\" r=\"7.5\"/><circle cx=\"12\" cy=\"12\" r=\"2.5\"/><path d=\"M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3\"/>", "camera": "<path d=\"M4 8.5h3l1.8-2.5h6.4L17 8.5h3V19H4z\"/><circle cx=\"12\" cy=\"13.5\" r=\"3.4\"/>", "trash": "<path d=\"M5 7h14M10 7V5h4v2M7 7l.9 12.2h8.2L17 7M10.5 10.5v6M13.5 10.5v6\"/>", "lock": "<rect x=\"6\" y=\"11\" width=\"12\" height=\"9\" rx=\"1.5\"/><path d=\"M8.5 11V8a3.5 3.5 0 0 1 7 0v3\"/>", "unlock": "<rect x=\"6\" y=\"11\" width=\"12\" height=\"9\" rx=\"1.5\"/><path d=\"M8.5 11V8a3.5 3.5 0 0 1 6.9-.9\"/>", "laptop": "<rect x=\"4.5\" y=\"5\" width=\"15\" height=\"10.5\" rx=\"1\"/><path d=\"M2.5 19h19\"/>", "check": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M8 12.4l2.8 2.8L16.2 9.6\"/>", "window": "<rect x=\"5\" y=\"4\" width=\"14\" height=\"16\" rx=\".5\"/><path d=\"M12 4v16M5 12h14\"/>", "door": "<path d=\"M6.5 20.5V3.5h11v17M4 20.5h16\"/><circle cx=\"14.6\" cy=\"12\" r=\".7\"/>", "opening": "<path d=\"M6.5 20.5V3.5h11v17\" stroke-dasharray=\"2 2\"/><path d=\"M4 20.5h16\"/>", "eldhus": "<rect x=\"3.5\" y=\"10\" width=\"17\" height=\"10\" rx=\".5\"/><path d=\"M3.5 13.5h17M12 13.5V20M7 7h4M13 7h4\"/>", "fataskapar": "<rect x=\"5\" y=\"3\" width=\"14\" height=\"18\" rx=\".5\"/><path d=\"M12 3v18M10.2 11v2M13.8 11v2\"/>", "bad": "<path d=\"M4 11.5h16v1.5a6 6 0 0 1-6 6h-4a6 6 0 0 1-6-6z\"/><path d=\"M12 11.5V6h3\"/>", "thvottahus": "<rect x=\"5\" y=\"3\" width=\"14\" height=\"18\" rx=\"1.5\"/><circle cx=\"12\" cy=\"13.2\" r=\"4\"/><path d=\"M8 6.5h2\"/>", "hurdir": "<path d=\"M6.5 20.5V3.5h11v17M4 20.5h16\"/><circle cx=\"14.6\" cy=\"12\" r=\".7\"/>", "ibud": "<path d=\"M4 11l8-6.5 8 6.5v9.5H4z\"/><path d=\"M10 20.5V15h4v5.5\"/>"};
+  function icon(k, size){ size = size || 18; return '<svg class="ico" viewBox="0 0 24 24" width="' + size + '" height="' + size + '" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICON_PATHS[k] || "") + '</svg>'; }
   var LOOK_CATEGORIES = KP3D.LOOK_CATEGORIES;
   var CARCASS = KP3D.CARCASS;
   var DRAWER_SYSTEMS = KP3D.DRAWER_SYSTEMS;
@@ -2950,14 +2946,14 @@
     box.querySelectorAll("[data-wr]").forEach(function(row){
       row.addEventListener("click", function(){ selectedEdge = parseInt(row.dataset.wr, 10); renderShapeCanvas(); });
     });
-    // 📄 Grunnmynd undir (user, 2026-10-23, G3)
+    // Grunnmynd undir (user, 2026-10-23, G3)
     var pi = document.createElement("div");
     pi.className = "plan-import"; pi.style.cssText = "margin-top:12px;display:flex;flex-direction:column;gap:6px;font-size:12px;";
     pi.innerHTML = bgPlan
-      ? '<div style="display:flex;gap:6px;flex-wrap:wrap;"><button type="button" class="btn btn-secondary btn-small" data-pi="cal">' + __("📐 Kvarða aftur") + '</button><button type="button" class="btn btn-secondary btn-small" data-pi="off">' + __("✕ Taka grunnmynd") + '</button></div>' +
+      ? '<div style="display:flex;gap:6px;flex-wrap:wrap;"><button type="button" class="btn btn-secondary btn-small" data-pi="cal">' + __("Kvarða aftur") + '</button><button type="button" class="btn btn-secondary btn-small" data-pi="off">' + __("✕ Taka grunnmynd") + '</button></div>' +
         '<label style="display:flex;gap:6px;align-items:center;color:var(--ink-soft);">' + __("Gegnsæi") + ' <input type="range" min="15" max="90" value="' + Math.round(bgPlan.opacity * 100) + '" data-pi="op"></label>' +
-        (bgPlan.mmPerPx ? '<span style="color:var(--ink-soft);">' + __("Kvarðað. Dragðu horn rýmisins að línunum á myndinni.") + '</span>' : '<span style="color:#b45309;">' + __("Ekki kvarðað enn — smelltu á 📐 Kvarða.") + '</span>')
-      : '<button type="button" class="btn btn-secondary btn-small" data-pi="pick" title="' + __("Mynd eða PDF af grunnmynd (t.d. frá arkitekt eða fasteignasölu) undir teikninguna") + '">' + __("📄 Grunnmynd undir") + '</button><input type="file" accept="image/*,application/pdf" data-pi="file" hidden>';
+        (bgPlan.mmPerPx ? '<span style="color:var(--ink-soft);">' + __("Kvarðað. Dragðu horn rýmisins að línunum á myndinni.") + '</span>' : '<span style="color:#b45309;">' + __("Ekki kvarðað enn — smelltu á Kvarða.") + '</span>')
+      : '<button type="button" class="btn btn-secondary btn-small" data-pi="pick" title="' + __("Mynd eða PDF af grunnmynd (t.d. frá arkitekt eða fasteignasölu) undir teikninguna") + '">' + __("Grunnmynd undir") + '</button><input type="file" accept="image/*,application/pdf" data-pi="file" hidden>';
     box.appendChild(pi);
     pi.addEventListener("click", function(e){
       var b = e.target.closest("[data-pi]"); if (!b) return;
@@ -2968,7 +2964,7 @@
     pi.addEventListener("input", function(e){ if (e.target.dataset.pi === "op" && bgPlan){ bgPlan.opacity = e.target.value / 100; renderShapeCanvas(); } });
     pi.addEventListener("change", function(e){ if (e.target.dataset.pi === "file" && e.target.files[0]) loadPlanFile(e.target.files[0]); });
   }
-  // ---------- 📄 Grunnmynd undir (G3): an image/PDF of a floor plan under the room drawing ----------
+  // ---------- Grunnmynd undir (G3): an image/PDF of a floor plan under the room drawing ----------
   // bgPlan = {url, w, h (px), mmPerPx, rot (rad), ax, az (px of the anchor = wall 1's start), opacity} — in memory
   // for this visit (a plan image can be MBs; it isn't part of the drawing that's saved/sent). Calibrate by clicking
   // wall 1's start and end corners on the image and typing that wall's real length: scale, rotation and position
@@ -3297,8 +3293,8 @@
     // and "Næsti veggur →" whether or not anything was added
     add.innerHTML = cur ? '<div class="opw-top">' + wallPlanInset(cur) + '<div class="opw-head2"><b>' + __("Veggur {n} af {m}", { n:num, m:walls.length }) + '</b><small>' + cur.lengthMm + ' mm</small>' +
         (last ? '' : '<button type="button" class="btn btn-dark btn-small" id="opwNext">' + __("Næsti veggur →") + '</button>') + '<p class="opw-q">' + __("Bæta við") + '</p></div></div>' +
-      '<div class="opw-btns3"><button type="button" class="opw-btn" data-add="gluggi"><span>🪟</span>' + __("Gluggi") + '</button><button type="button" class="opw-btn" data-add="hurd"><span>🚪</span>' + __("Hurð") + '</button>' +
-        '<button type="button" class="opw-btn" data-add="gat" title="' + __("Op án hurðar.") + '"><span>⬚</span>' + __("Op") + '<small>' + __("án hurðar") + '</small></button></div>' +
+      '<div class="opw-btns3"><button type="button" class="opw-btn" data-add="gluggi"><span>' + icon("window", 20) + '</span>' + __("Gluggi") + '</button><button type="button" class="opw-btn" data-add="hurd"><span>' + icon("door", 20) + '</span>' + __("Hurð") + '</button>' +
+        '<button type="button" class="opw-btn" data-add="gat" title="' + __("Op án hurðar.") + '"><span>' + icon("opening", 20) + '</span>' + __("Op") + '<small>' + __("án hurðar") + '</small></button></div>' +
       '<details class="opw-obst"' + (obsOnWall || openWallMore ? ' open' : '') + '><summary>' + __("+ Fleiri valkostir") + '</summary><div class="opw-obst-btns">' + Object.keys(KP3D.OBSTACLES).map(function(k){
         return '<button type="button" class="hw-btn" data-addobst="' + k + '">＋ ' + __(KP3D.OBSTACLES[k].label.replace(" (miðstöð)", "")) + '</button>';
       }).join("") + '</div></details>' +
@@ -3961,8 +3957,8 @@
     refreshAfterEdit();
   }
 
-  // A locked cabinet (🔒) can't be moved, resized, swapped, retyped or deleted until it is unlocked.
-  function lockedToast(){ toast(__("Skápurinn er læstur 🔒 — opnaðu lásinn til að breyta honum.")); }
+  // A locked cabinet () can't be moved, resized, swapped, retyped or deleted until it is unlocked.
+  function lockedToast(){ toast(__("Skápurinn er læstur — opnaðu lásinn til að breyta honum.")); }
   function toggleLock(blockId){
     var f = findBlock(blockId);
     if (!f) return;
@@ -4778,7 +4774,7 @@
         ' title="' + (ok ? '' : alt ? __("Fæst með {alt} — smelltu til að skipta", { alt:alt.join(" · ") }) : __("Ekki til fyrir þennan skáp")) + '">' + (ik === "IK" ? __("Miðlungs") : __("Lág")) + '</button>';
     }).join("") + '</div>' + (!inner && !D.inner.some(function(ik){ return stackAllowed(b, c, codes, ik); }) ? '<p class="sec-note">' + __("Innskúffa fæst með 1–2 skúffum ({list}).", { list:innerStacks().join(", ") }) + '</p>' : '');
     if (c.sink) html += sinkTopHTML(b, c, codes, fronts);
-    else if (!stackAllowed(b, c, codes, inner)) html += '<p class="sec-note">' + __("⚠️ Þessi samsetning er ekki til sem stöðluð vara — söluaðili staðfestir hana.") + '</p>';
+    else if (!stackAllowed(b, c, codes, inner)) html += '<p class="sec-note">' + __("Þessi samsetning er ekki til sem stöðluð vara — söluaðili staðfestir hana.") + '</p>';
     return html;
   }
 
@@ -4796,9 +4792,9 @@
     return '<div class="edit-field"><label>' + __("Efst, við vaskinn") + '</label><div class="hw-toggle">' +
       '<button type="button" class="hw-btn' + (!fixed ? ' active' : '') + '" data-sink-top="skuffa">' + __("Skúffa undir vaski") + '</button>' +
       '<button type="button" class="hw-btn' + (fixed ? ' active' : '') + '" data-sink-top="fastur">' + __("Fastur frontur") + '</button></div>' +
-      (codes.length < 2 && fixed ? '<p class="sec-note">' + __("⚠️ Með föstum fronti þarf minnst tvær skúffur.") + '</p>' : '') +
-      (topMm && topMm < min ? '<p class="sec-note">' + __("⚠️ Efsti frontur er {top} mm — {what} minnst {min} mm.", { top:Math.round(topMm), what:fixed ? __("vaskurinn (~200 mm) þarf") : __("skúffan undir vaskinum þarf"), min:min }) + '</p>' : '') +
-      (real.length && !drawerComboRec(real, null) ? '<p class="sec-note">' + __("⚠️ Þessi samsetning er ekki til sem stöðluð vara — söluaðili staðfestir hana.") + '</p>' : '') +
+      (codes.length < 2 && fixed ? '<p class="sec-note">' + __("Með föstum fronti þarf minnst tvær skúffur.") + '</p>' : '') +
+      (topMm && topMm < min ? '<p class="sec-note">' + __("Efsti frontur er {top} mm — {what} minnst {min} mm.", { top:Math.round(topMm), what:fixed ? __("vaskurinn (~200 mm) þarf") : __("skúffan undir vaskinum þarf"), min:min }) + '</p>' : '') +
+      (real.length && !drawerComboRec(real, null) ? '<p class="sec-note">' + __("Þessi samsetning er ekki til sem stöðluð vara — söluaðili staðfestir hana.") + '</p>' : '') +
       '<p class="sec-note">' + __("Ruslafötur fara í neðstu skúffuna.") + '</p></div>';
   }
   function sinkDefaultStack(b, c){ // two drawers, the same height; the top one a low drawer under the sink
@@ -4865,7 +4861,7 @@
           var warn = [];
           if (v < mins[i] - 0.5) warn.push(__("{kind} skúffa er undir {min} mm lágmarkinu", { kind:__(CODE_LABEL[cc[i]]).toLowerCase(), min:KP3D.slotMin(cc[i]) }));
           if (zoneMm > fullBody - KP3D.DRAWER_TOPDOOR_MIN_MM) warn.push(__("hurðin fyrir ofan er orðin of lítil"));
-          if (warn.length) toast("⚠️ " + warn.join(__(" og ")) + __(" — lagaðu áður en skápurinn er merktur klár."));
+          if (warn.length) toast("" + warn.join(__(" og ")) + __(" — lagaðu áður en skápurinn er merktur klár."));
           b.drawerZoneMm = zoneMm;
           commit(cc, cur.map(function(h){ return Math.round(h); }));
           return;
@@ -4877,7 +4873,7 @@
         var cur = fronts().slice(); cur[i] = Math.max(5, v);
         var invalid = [];
         cur.forEach(function(h, idx){ if (h < KP3D.slotMin(cc[idx]) - 0.5) invalid.push(idx); });
-        if (invalid.length) toast("⚠️ " + invalid.map(function(idx){ return __("{kind} ({v} mm, lágmark {min} mm)", { kind:__(CODE_LABEL[cc[idx]]).toLowerCase(), v:Math.round(cur[idx]), min:KP3D.slotMin(cc[idx]) }); }).join(", ") + __(" undir lágmarki — lagaðu áður en skápurinn er merktur klár."));
+        if (invalid.length) toast("" + invalid.map(function(idx){ return __("{kind} ({v} mm, lágmark {min} mm)", { kind:__(CODE_LABEL[cc[idx]]).toLowerCase(), v:Math.round(cur[idx]), min:KP3D.slotMin(cc[idx]) }); }).join(", ") + __(" undir lágmarki — lagaðu áður en skápurinn er merktur klár."));
         commit(cc, cur);
       });
       inp.addEventListener("keydown", function(e){ if (e.key === "Enter") inp.blur(); });
@@ -5985,7 +5981,7 @@
     var bom = lightingBOM();
     html += sec("lysing", __("Lýsing"),
       '<div class="light-btns">' + lbtn("underWall", __("LED undir efri skápum")) + lbtn("shelves", __("LED í opnum hillum")) + '</div>' +
-      '<button type="button" class="btn btn-secondary btn-small" data-act="mood">' + (moodOn ? __("☀️ Dagsbirta") : __("🌙 Sjá í kvöldstemningu")) + '</button>' +
+      '<button type="button" class="btn btn-secondary btn-small" data-act="mood">' + (moodOn ? __("Dagsbirta") : __("Sjá í kvöldstemningu")) + '</button>' +
       (bom ? '<p class="sec-note">' + lightingText(bom).join(" · ") + '</p><p class="sec-note" style="font-size:11px;">' + __(LED_POWER_NOTE) + '</p>' : '<p class="sec-note">' + __("Smelltu á efri skáp til að kveikja eða slökkva á ljósi undir honum einum.") + '</p>'));
     var DEC = KP3D.DECOR;
     html += sec("skraut", __("Húsgögn"),
@@ -5994,8 +5990,8 @@
           return '<button type="button" class="hw-btn" data-decor-add="' + k + '">＋ ' + __(DEC[k].label) + '</button>';
         }).join("") + '</div>';
       }).join("") + ((state.decor || []).length ? '<div class="light-btns">' +
-        '<button type="button" class="hw-btn' + (state.decorHidden ? ' active' : '') + '" data-decor-all="hide">' + (state.decorHidden ? __("👁 Sýna húsgögnin") : __("🙈 Fela húsgögnin")) + '</button>' +
-        '<button type="button" class="hw-btn' + (state.decorLocked ? ' active' : '') + '" data-decor-all="lock">' + (state.decorLocked ? __("🔒 Öll læst — smelltu til að opna") : __("🔓 Læsa öllum húsgögnum")) + '</button></div>' : '') +
+        '<button type="button" class="hw-btn' + (state.decorHidden ? ' active' : '') + '" data-decor-all="hide">' + (state.decorHidden ? __("Sýna húsgögnin") : __("Fela húsgögnin")) + '</button>' +
+        '<button type="button" class="hw-btn' + (state.decorLocked ? ' active' : '') + '" data-decor-all="lock">' + (state.decorLocked ? __("Öll læst — smelltu til að opna") : __("Læsa öllum húsgögnum")) + '</button></div>' : '') +
       '<p class="sec-note">' + __("Bara til að sjá rýmið fyrir sér — ekki hluti af pöntuninni. Dragðu hlutina til í 3D.") + '</p>');
     // --- materials, changed right here mid-design (2026-10-10) ---
     function matSel(key, label, groups, value){ // groups: [{label|null, items:[[val, text]]}]
@@ -6085,7 +6081,7 @@
       if (isNaN(v)) return; // nothing sensible to commit — leave it as the person is still typing
       // Accept + warn instead of reverting (user, 2026-10-19) — same standard as the shape step's own room-height
       // field just below (which already never reverts, only marks invalid) and everywhere else tonight.
-      if (v < MIN_ROOM_HEIGHT_MM || v > 3200) toast(__("⚠️ Lofthæð er utan {min}–3200 mm — lagaðu áður en gengið er frá.", { min:MIN_ROOM_HEIGHT_MM }));
+      if (v < MIN_ROOM_HEIGHT_MM || v > 3200) toast(__("Lofthæð er utan {min}–3200 mm — lagaðu áður en gengið er frá.", { min:MIN_ROOM_HEIGHT_MM }));
       state.roomHeightMm = Math.max(100, v);
       state.walls.concat(state.islands).forEach(function(w){ (w.wall || []).concat(w.floor || []).forEach(clampElev); });
       save();
@@ -6304,7 +6300,7 @@
   // where they're placed, so arranging cabinets around them must never shift one by accident
   // (user, 2026-10-02). The room step itself ignores this.
   function opLocked(o){ return !o.unlocked; }
-  function opLockedToast(){ toast(__("Gluggar og hurðir eru læst 🔒 á meðan þú raðar — smelltu á 🔓 til að færa.")); }
+  function opLockedToast(){ toast(__("Gluggar og hurðir eru læst á meðan þú raðar — smelltu á til að færa.")); }
   function toggleOpeningLock(o){ if (o.unlocked) delete o.unlocked; else o.unlocked = true; save(); refreshAfterEdit(); }
 
   // Re-seat an existing window/door (dragged in 3D or 2D): same wall-end
@@ -6906,7 +6902,7 @@
       if (matPhase === 0){ var cdBack = categoryDef(state.activeCategory); shapePhase = (cdBack && cdBack.water === false) ? "openings" : "water"; goto("shape"); } else { matPhase--; renderMaterials(); }
     });
     document.getElementById("mtNext").addEventListener("click", function(){
-      if (last){ toast(__("🎨 Efnin eru valin — nú raðar þú innréttingunni!")); goto("editor"); } else { matPhase++; renderMaterials(); }
+      if (last){ toast(__("Efnin eru valin — nú raðar þú innréttingunni!")); goto("editor"); } else { matPhase++; renderMaterials(); }
     });
   }
 
@@ -7003,7 +6999,7 @@
   // ---------- Veggur merkingar (2026-10-23): arrows, text boxes and symbols on a wall's elevation ----------
   // state.annotations = [{id, wallId, kind:"arrow"|"text"|"symbol", a:{x,y}, b:{x,y} (arrow tip), text, sym}] in wall
   // mm (x along the wall from its start, y above the floor) — KP3D draws them (placeAnnotations), this edits them.
-  // While "✏️ Merkingar" is on, a transparent layer over the elevation takes the mouse, so cabinets can't be
+  // While "Merkingar" is on, a transparent layer over the elevation takes the mouse, so cabinets can't be
   // nudged by accident; off again = the wall view works exactly as before, with the marks still shown.
   var anno = { on:false, tool:"select", sym:"innstunga", selId:null, draft:null, drag:null, editId:null, seq:0 };
   function annoList(){ if (!state.annotations) state.annotations = []; return state.annotations; }
@@ -7054,7 +7050,7 @@
     bar.hidden = !inWall;
     if (!inWall && anno.on){ anno.on = false; annoSelect(null); annoCloseInput(true); }
     document.getElementById("annoToggle").classList.toggle("on", anno.on);
-    document.getElementById("annoToggle").textContent = anno.on ? __("✏️ Merkingar — búið") : __("✏️ Merkingar");
+    document.getElementById("annoToggle").textContent = anno.on ? __("Merkingar — búið") : __("Merkingar");
     document.getElementById("annoTools").hidden = !anno.on;
     document.querySelectorAll("[data-anno-tool]").forEach(function(b){ b.classList.toggle("on", b.dataset.annoTool === anno.tool); });
     var syms = document.getElementById("annoSyms");
@@ -7313,7 +7309,7 @@
     updateStepper();
     var chip = document.getElementById("warnChip");
     chip.hidden = !warnings.length;
-    chip.textContent = "⚠ " + warnings.length + " " + plural(warnings.length, "ábending", "ábendingar");
+    chip.textContent = "" + warnings.length + " " + plural(warnings.length, "ábending", "ábendingar");
     var total = surfaces().reduce(function(sum, w){ return sum + w.floor.length + w.wall.length; }, 0);
     document.getElementById("toContactBtn").disabled = total === 0;
     var stageEmpty = document.getElementById("stageEmpty");
@@ -7482,7 +7478,7 @@
   }
 
   // ---------- X-Ray mode (2026-09-30, simplified 2026-10-17) ----------
-  // "🔍 X-Ray" rebuilds the room with every cabinet in parts (like a locked one: tap a drawer or door to
+  // "X-Ray" rebuilds the room with every cabinet in parts (like a locked one: tap a drawer or door to
   // open/close it, tap the body to select; nothing can be dragged while it's on) and strips the fronts in the
   // same click — used to be two separate buttons (turn inspect mode on, then separately take the fronts off),
   // plus a third "open everything at once" button; fronts-off is now just what X-Ray means, and batch-open is
@@ -7522,7 +7518,7 @@
     chip.title = chip.classList.contains("editable") ? __("Smelltu til að slá inn mál") : "";
     var dsel = !fb && !op && selectedBlockId ? findDecor(selectedBlockId) : null;
     var lk = document.getElementById("fbLock"), isLocked = fb ? !!fb.block.locked : op ? opLocked(op.o) : decorIsLocked(dsel);
-    lk.textContent = isLocked ? "🔒" : "🔓";
+    lk.innerHTML = icon(isLocked ? "lock" : "unlock", 16);
     lk.title = op ? (isLocked ? __("Læst — smelltu til að geta fært") : __("Læsa")) : isLocked ? __("Skápurinn er læstur — smelltu til að opna") : __("Læsa skáp");
     lk.classList.toggle("on", isLocked);
     document.querySelectorAll('#floatBar [data-fb="left"], #floatBar [data-fb="right"], #floatBar [data-fb="del"], #floatBar [data-fb^="rot"]').forEach(function(btn){ btn.disabled = isLocked; });
@@ -7660,7 +7656,7 @@
         '<div class="edit-field"><label>' + __("Mál (mm)") + '</label><div class="dim-grid">' + field("widthMm", __("Breidd")) + field("heightMm", __("Hæð")) + (isWin ? field("sillHeightMm", __("Frá gólfi")) : "") + '</div>' +
           (isWin ? '<p class="ov-mat" style="margin:8px 0 0;">' + __("Dragðu gluggann upp og niður á veggnum í 3D til að breyta hæðinni.") + '</p>' : '') + '</div>' +
         (f.kind === "door" && !o.gap ? doorSwingFields(o) : "") +
-        '<div class="edit-field lock-row"><button type="button" class="iconbtn lockbtn' + (opLocked(o) ? ' on' : '') + '" data-role="oplock">' + (opLocked(o) ? __("🔒 Læst — smelltu til að geta fært") : __("🔓 Hægt að færa — smelltu til að læsa")) + '</button>' +
+        '<div class="edit-field lock-row"><button type="button" class="iconbtn lockbtn' + (opLocked(o) ? ' on' : '') + '" data-role="oplock">' + (opLocked(o) ? __("Læst — smelltu til að geta fært") : __("Hægt að færa — smelltu til að læsa")) + '</button>' +
           '<p class="ov-mat" style="margin:6px 0 0;">' + (opLocked(o) ? (isWin ? __("Læst á meðan þú raðar skápum, svo glugginn færist ekki óvart. Málin hér að ofan má samt slá inn.") : __("Læst á meðan þú raðar skápum, svo hurðin færist ekki óvart. Málin hér að ofan má samt slá inn.")) : __("Dragðu til í 3D eða 2D. Læstu aftur þegar staðsetningin er rétt.")) + '</p></div>' +
         '<div class="edit-actions"><button class="iconbtn del" data-role="delete" title="' + __("Fjarlægja") + '"' + (opLocked(o) ? ' disabled' : '') + '>' + __("✕ Fjarlægja") + '</button></div>' +
       '</div>';
@@ -7874,7 +7870,7 @@
           }
           if (c.cls === "tall" && !c.fridge && !c.oven && !c.appliance && (c.railRange || c.shelfRange)){
             var cl = b.closetLed || "";
-            pocketHtml += '<div class="edit-field"><label title="' + __("LED-borði inni í skápnum. Rafmagn er tengt á staðnum af þér eða fagaðila.") + '">💡 LED</label><div class="hw-toggle">' +
+            pocketHtml += '<div class="edit-field"><label title="' + __("LED-borði inni í skápnum. Rafmagn er tengt á staðnum af þér eða fagaðila.") + '">LED</label><div class="hw-toggle">' +
               '<button type="button" class="hw-btn' + (!cl ? ' active' : '') + '" data-closetled="">' + __("Ekkert") + '</button>' +
               '<button type="button" class="hw-btn' + (cl === "hlid" ? ' active' : '') + '" data-closetled="hlid">' + __("Lóðrétt í hlið") + '</button>' +
               '<button type="button" class="hw-btn' + (cl === "hilla" ? ' active' : '') + '" data-closetled="hilla">' + __("Undir efstu hillu") + '</button></div>' +
@@ -7895,8 +7891,8 @@
           INNER_FRONTS.map(function(x){ return '<option' + (b.innerFront === x ? " selected" : "") + '>' + x + '</option>'; }).join("") + '</select></div>' : '')) : "";
     if (PRO && zone === "wall" && !c.panel && !c.shelfStack && !c.open) frontsHtml += '<div class="edit-field"><label title="Blum AVENTOS lyfta í stað lama — fer í V3 og hurðin verður lyftihurð í Smíða">Lyfta</label><select data-role="aventos">' +
       '<option value="">Engin (lamir)</option>' + Object.keys(AVENTOS_PRODUCTS).map(function(k){ return '<option value="' + k + '"' + (b.aventos === k ? " selected" : "") + '>' + AVENTOS_PRODUCTS[k].label + '</option>'; }).join("") + '</select></div>';
-    var annadHtml = frontsHtml + (zone === "wall" && !c.panel && !c.shelfStack ? '<div class="edit-field"><button type="button" class="iconbtn' + ((b.led != null ? b.led : lighting().underWall) ? ' on' : '') + '" data-role="led">' + ((b.led != null ? b.led : lighting().underWall) ? __("💡 LED undir skápnum: á") : __("💡 LED undir skápnum: af")) + '</button></div>' : '') +
-        '<div class="edit-field lock-row"><button type="button" class="iconbtn lockbtn' + (b.locked ? ' on' : '') + '" data-role="lock" data-keep="1" title="' + (b.locked ? __("Smelltu á skúffur og hurðir í 3D til að opna þær") : __("Læstu honum þegar hann er réttur")) + '">' + (b.locked ? __("🔒 Læstur") : __("🔓 Læsa")) + '</button></div>' +
+    var annadHtml = frontsHtml + (zone === "wall" && !c.panel && !c.shelfStack ? '<div class="edit-field"><button type="button" class="iconbtn' + ((b.led != null ? b.led : lighting().underWall) ? ' on' : '') + '" data-role="led">' + ((b.led != null ? b.led : lighting().underWall) ? __("LED undir skápnum: á") : __("LED undir skápnum: af")) + '</button></div>' : '') +
+        '<div class="edit-field lock-row"><button type="button" class="iconbtn lockbtn' + (b.locked ? ' on' : '') + '" data-role="lock" data-keep="1" title="' + (b.locked ? __("Smelltu á skúffur og hurðir í 3D til að opna þær") : __("Læstu honum þegar hann er réttur")) + '">' + (b.locked ? __("Læstur") : __("Læsa")) + '</button></div>' +
         '<div class="edit-field"><label>' + __("Tegund") + '</label><select data-role="type">' + typeOptions + '</select></div>' +
         (!c.panel && !c.shelfStack && !c.notOrdered ? '<div class="edit-field"><label>' + __("Úthlið") + '</label><div class="hw-toggle">' +
           '<button type="button" class="hw-btn" data-add-panel="-1" title="' + __("19 mm úthlið — fylgir skápnum") + '">＋ ' + __("Vinstri") + '</button><button type="button" class="hw-btn" data-add-panel="1" title="' + __("19 mm úthlið — fylgir skápnum") + '">＋ ' + __("Hægri") + '</button></div></div>' : '') +
@@ -8340,7 +8336,7 @@
       (def.shapes ? '<div class="edit-field"><label>' + __("Lögun") + '</label><div class="hw-toggle"><button type="button" class="hw-btn' + (o.shape !== "round" ? ' active' : '') + '" data-ob-shape="square">▢ ' + __("Kassi") + '</button><button type="button" class="hw-btn' + (o.shape === "round" ? ' active' : '') + '" data-ob-shape="round">◯ ' + __("Hringur") + '</button></div></div>' : '') +
       (def.free || def.rotatable ? '<div class="edit-field lock-row">' +
         (def.rotatable ? '<button type="button" class="iconbtn" data-role="ob-rot" title="' + __("Snúa um 90° um miðjuna") + '"' + (o.locked ? ' disabled' : '') + '>' + __("↻ Snúa 90°") + '</button> ' : '') +
-        '<button type="button" class="iconbtn lockbtn' + (o.locked ? ' on' : '') + '" data-role="ob-lock">' + (o.locked ? __("🔒 Læst — smelltu til að geta fært") : __("🔓 Hægt að færa — smelltu til að læsa")) + '</button></div>' : '') +
+        '<button type="button" class="iconbtn lockbtn' + (o.locked ? ' on' : '') + '" data-role="ob-lock">' + (o.locked ? __("Læst — smelltu til að geta fært") : __("Hægt að færa — smelltu til að læsa")) + '</button></div>' : '') +
       '<div class="edit-actions"><button class="iconbtn" data-role="left"' + (o.locked ? ' disabled' : '') + '>◀ 100</button><button class="iconbtn" data-role="right"' + (o.locked ? ' disabled' : '') + '>100 ▶</button><button class="iconbtn del" data-role="delete"' + (o.locked ? ' disabled' : '') + '>' + __("✕ Fjarlægja") + '</button></div></div>';
     host.querySelector('[data-role="close"]').addEventListener("click", function(){ onCabinetSelect(null); });
     host.querySelector('[data-role="left"]').addEventListener("click", function(){ nudgeObstacle(o, -100); });
@@ -8378,7 +8374,7 @@
   var decorSeq = 1;
   function findDecor(id){ return (state.decor || []).find(function(d){ return d.id === id; }) || null; }
   function decorIsLocked(d){ return !!(d && (d.locked || state.decorLocked)); }
-  function decorLockedToast(){ toast(state.decorLocked ? __("Húsgögnin eru læst — opnaðu þau í „Húsgögn og skraut“.") : __("Hluturinn er læstur — smelltu á 🔒 til að geta fært hann.")); }
+  function decorLockedToast(){ toast(state.decorLocked ? __("Húsgögnin eru læst — opnaðu þau í „Húsgögn og skraut“.") : __("Hluturinn er læstur — smelltu á til að geta fært hann.")); }
   function addDecor(kind){
     var def = KP3D.DECOR[kind];
     if (!def) return;
@@ -8456,8 +8452,8 @@
       '<div class="dec-rot"><button type="button" class="hw-btn" data-rot="-45"' + (lk ? ' disabled' : '') + '>↺ 45°</button><button type="button" class="hw-btn" data-rot="-90"' + (lk ? ' disabled' : '') + '>↺ 90°</button>' +
       '<button type="button" class="hw-btn" data-rot="90"' + (lk ? ' disabled' : '') + '>↻ 90°</button><button type="button" class="hw-btn" data-rot="45"' + (lk ? ' disabled' : '') + '>↻ 45°</button></div>' +
       '<label class="dec-angle"><input type="range" min="0" max="345" step="15" value="' + ((d.rot || 0) % 360) + '"' + (lk ? ' disabled' : '') + '><span>' + ((d.rot || 0) % 360) + '°</span></label>' +
-      '<button type="button" class="btn btn-secondary lockbtn' + (lk ? ' on' : '') + '" data-role="lock" style="margin-top:12px;">' + (state.decorLocked ? __("🔒 Öll húsgögn eru læst") : lk ? __("🔒 Læst — smelltu til að opna") : __("🔓 Læsa hlutnum")) + '</button>' +
-      '<button type="button" class="btn btn-secondary dec-del" data-role="delete"' + (lk ? ' disabled' : '') + '>' + __("🗑 Fjarlægja") + '</button>' +
+      '<button type="button" class="btn btn-secondary lockbtn' + (lk ? ' on' : '') + '" data-role="lock" style="margin-top:12px;">' + (state.decorLocked ? __("Öll húsgögn eru læst") : lk ? __("Læst — smelltu til að opna") : __("Læsa hlutnum")) + '</button>' +
+      '<button type="button" class="btn btn-secondary dec-del" data-role="delete"' + (lk ? ' disabled' : '') + '>' + __("Fjarlægja") + '</button>' +
       '<p class="ov-mat" style="margin-top:10px;">' + __("Dragðu hlutinn til í 3D — hann stoppar við veggi og skápa.") + (def.group === "top" ? ' ' + __("Hann sest ofan á borðplötuna eða borðið sem hann lendir á.") : '') + '</p></div>';
     host.querySelector('[data-role="close"]').addEventListener("click", function(){ onCabinetSelect(null); });
     host.querySelectorAll("[data-rot]").forEach(function(b){ b.addEventListener("click", function(){ rotateDecor(d, +b.dataset.rot); }); });
@@ -8499,7 +8495,7 @@
       out[code].n += n; if (where && out[code].where.indexOf(where) < 0) out[code].where.push(where);
     }
     surfaces().forEach(function(w){
-      // 💡 fataskápar (C1/C2): one strip per tall closet — 6×6 mm in a groove up one side, or 4×8 mm under the top shelf
+      // fataskápar (C1/C2): one strip per tall closet — 6×6 mm in a groove up one side, or 4×8 mm under the top shelf
       w.floor.forEach(function(b){
         var c = CATALOG[b.type]; if (!b.closetLed || c.cls !== "tall") return;
         var mm = b.closetLed === "hlid" ? Math.max(0, blockHeightMm(b, c) - PLINTH_MM - 60) : b.widthMm - 40;
@@ -8654,7 +8650,7 @@
     if (PRO && (step === "intake" || step === "contact")) return { ok:false, why:"Í pro er vistað með „Vista í Airtable“." };
     if (state.step === "done") return { ok:false, why:__("Skipulagið hefur verið sent inn.") };
     if (step === "shape") return { ok:true };
-    if ((step === "intake" || step === "contact") && !state.closed && (state.doorList || []).length) return { ok:true }; // 🚪 doors-only project
+    if ((step === "intake" || step === "contact") && !state.closed && (state.doorList || []).length) return { ok:true }; // doors-only project
     if (!state.closed || !state.walls.length) return { ok:false, why:__("Smíðaðu rýmið fyrst (Rými).") };
     if (step === "materials") return { ok:true };
     if (firstMissingPhase() < 4) return { ok:false, why:__("Veldu skrokk, skúffukerfi, framhlið og opnun fyrst (Efni).") };
@@ -8784,11 +8780,11 @@
     // — if this front species has no such variant in Efnislisti, flag it so staff confirm by hand rather
     // than silently order the plain front for a customer who asked for the milled grip.
     if (state.handle === "sponagrip" && lk && lk.efnislistiId && !lk.gripalistarId){
-      lines.push("⚠️ Spónagrip óskað en 'm gripalistum' útgáfa af " + lk.label + " er ekki til í Efnislista — staðfestu efni handvirkt");
+      lines.push("Spónagrip óskað en 'm gripalistum' útgáfa af " + lk.label + " er ekki til í Efnislista — staðfestu efni handvirkt");
     }
     // "Litur á höldum" in Airtable has no white metal finish (2026-09-29) — flagged rather than guessed.
     if (state.handleColor === "hvitt"){
-      lines.push("⚠️ Viðskiptavinur valdi 'Hvítt matt' á höldur — enginn samsvarandi litur er til í Airtable, vinsamlegast staðfestu.");
+      lines.push("Viðskiptavinur valdi 'Hvítt matt' á höldur — enginn samsvarandi litur er til í Airtable, vinsamlegast staðfestu.");
     }
     var fl = KP3D.FLOORS[state.floor || "parket_eik"];
     if (fl) lines.push("Valið gólfefni: " + fl.label + " (" + (fl.group === "flisar" ? "flísar " + KP3D.TILE_SIZES[state.floorTile || "60x60"].label : "parket" + (state.floorPattern === "fiskibein" ? ", fiskibeinamynstur" : "")) + (state.floorRot ? ", snúið 90°" : "") + ")");
@@ -8893,7 +8889,7 @@
     var desc = prompt(__("Lýstu því sem gerðist — því nákvæmar því betra (t.d. \"skápurinn hvarf þegar ég ýtti á ...\"):"));
     if (desc === null) return; // cancelled
     sendIssueReport("Notandi tilkynnti", desc.trim() || "(engin lýsing gefin)");
-    toast(__("Takk — sent til okkar. 🙏"));
+    toast(__("Takk — sent til okkar. "));
   }
 
   function validateContact(){
@@ -8917,7 +8913,7 @@
   // ---------- Line Items (2026-09-29) ----------
   // Replaces the old raw-Eyðublað submission entirely (user: "má eiginlega eyða þeirri leið" —
   // every submission goes to Line Items now, even the cabinet types the mapping can't resolve;
-  // an unresolved Vöru reitur 1 is not a bug, ⚠️ Skipulagsvilla is SUPPOSED to block "Keyra
+  // an unresolved Vöru reitur 1 is not a bug, Skipulagsvilla is SUPPOSED to block "Keyra
   // skipulag" on it until staff link the right Útfærsla by hand).
   //
   // V1 = the plain cabinet body (Skápategund + Breidd, via kitchen-planner-linemap.js
@@ -8965,7 +8961,7 @@
     }
     if (c.bur) return (LM.bur[drawerSys()] || {})[burKeyOf(b)] || null;
     if (c.thvo) return b.thvo === "hurdir" ? LM.thvottavel.doors : LM.thvottavel[drawerSys()];
-    // (rusl: an accessory, so it goes in V3 — see v3RecordsFor; in V2 it is a ⛔ Skipulagsvilla)
+    // (rusl: an accessory, so it goes in V3 — see v3RecordsFor; in V2 it is a Skipulagsvilla)
     if (c.hasInterior && b.interior){
       if (isDrawerUnit(b)){
         var dc = KP3D.drawerCodes(b.interior, drawerSys());
@@ -9256,7 +9252,7 @@
         sendIssueReport("Sjálfvirk villa", "Teikningar (PDF) mistókust: " + de.message, (de.stack || "") + "\nTækifæri: " + opp.id);
       }
 
-      // ✨ Studio photos the customer made → Tækifæri "Studio myndir 📸" (open endpoint: fresh planner submissions only)
+      // Studio photos the customer made → Tækifæri "Studio myndir 📸" (open endpoint: fresh planner submissions only)
       for (var si = 0; si < studioShots.length; si++){
         try{
           var sb = await (await fetch(studioShots[si])).blob();
@@ -9307,7 +9303,7 @@
     { el:function(){ return document.querySelector("#unitWiz .uw-box"); }, title:__("Hér stillir þú eininguna"), html:__("Breidd, hvað er í einingunni, skúffuhæðir, fjölda og fleira. Fiktaðu — myndin sýnir breytingarnar jafnóðum."), click:true, next:__("Næsta →"), place:"bottomLeft" },
     { el:function(){ return document.querySelector("#uwSide [data-uw-add], #uwSide [data-isl-add]"); }, title:__("Bættu henni síðan við"), html:__("Smelltu á „Setja inn“."), click:true, scroll:true,
       done:function(){ return !uw && cabinetTotal() > tour.count0; } },
-    { el:function(){ return document.getElementById("editorGrid"); }, title:__("Smelltu á eininguna"), html:__("Þá getur þú breytt henni, dregið hana til og <b>læst</b> henni 🔒 þegar hún er rétt."), click:true, next:__("Næsta →"), inside:true },
+    { el:function(){ return document.getElementById("editorGrid"); }, title:__("Smelltu á eininguna"), html:__("Þá getur þú breytt henni, dregið hana til og <b>læst</b> henni þegar hún er rétt."), click:true, next:__("Næsta →"), inside:true },
     { center:true, title:__("Hreyfing og flýtilyklar"), html:(function(){ var cmd = /Mac|iP(hone|ad)/.test(navigator.platform || navigator.userAgent) ? "⌘" : "Ctrl+";
       return '<ul class="tour-list tour-keys">' + __('<li><b>Snúa:</b> dragðu með músinni</li><li><b>Hliðra:</b> hægri-smelltu og dragðu</li><li><b>Þysja:</b> skrollaðu</li>') +
         __('<li><kbd>←</kbd> <kbd>→</kbd> færa valinn skáp um 100 mm (<kbd>Shift</kbd> = 10 mm)</li><li><kbd>Delete</kbd> eyðir · <kbd>{cmd}Z</kbd> afturkallar · <kbd>Esc</kbd> afvelur</li>', { cmd:cmd }) + '</ul>'; })(), next:__("Næsta →") },
@@ -9461,9 +9457,9 @@
     renderStudioCards();
   }
   // ======================================================================
-  // 📏 Mæling (user, 2026-10-23, A7): the measurer types what he measures on site straight into the drawing —
+  // Mæling (user, 2026-10-23, A7): the measurer types what he measures on site straight into the drawing —
   // every wall, the ceiling height, each window/door (distance from the wall's start, width, height, sill) — and
-  // ticks each one off, so Rakel doesn't redraw anything afterwards. PRO only (the "📏 Mæling" button, or a
+  // ticks each one off, so Rakel doesn't redraw anything afterwards. PRO only (the "Mæling" button, or a
   // link with &maeling=1). "Mæling lokið" stamps state.measurement and saves to Airtable.
   // ======================================================================
   function openMeasurePanel(){
@@ -9480,14 +9476,14 @@
         rows += '<div class="mp-row"><input type="checkbox" data-mchk="' + w.id + '"' + (M.checked[w.id] ? " checked" : "") + '><span>' + (i + 1) + '. ' + escapeHtmlPro(w.label) + (w.open ? ' <small>(opinn)</small>' : '') + '</span><input type="number" data-mw="' + i + '" value="' + w.lengthMm + '" step="5"></div>';
         state.windows.concat(state.doors).filter(function(o){ return o.wallId === w.id; }).forEach(function(o){
           var win = state.windows.indexOf(o) >= 0;
-          rows += '<div class="mp-row"><input type="checkbox" data-mchk="' + o.id + '"' + (M.checked[o.id] ? " checked" : "") + '><span style="font-size:12px;">' + (win ? "🪟 Gluggi" : o.gap ? "▯ Op" : "🚪 Hurð") + '</span><span></span></div>' +
+          rows += '<div class="mp-row"><input type="checkbox" data-mchk="' + o.id + '"' + (M.checked[o.id] ? " checked" : "") + '><span style="font-size:12px;">' + (win ? "Gluggi" : o.gap ? "▯ Op" : "Hurð") + '</span><span></span></div>' +
             '<div class="mp-op"><label>Frá horni<input type="number" data-mo="' + o.id + ':offsetMm" value="' + o.offsetMm + '" step="5"></label><label>Breidd<input type="number" data-mo="' + o.id + ':widthMm" value="' + o.widthMm + '" step="5"></label>' +
             '<label>Hæð<input type="number" data-mo="' + o.id + ':heightMm" value="' + o.heightMm + '" step="5"></label>' + (win ? '<label>Frá gólfi<input type="number" data-mo="' + o.id + ':sillHeightMm" value="' + o.sillHeightMm + '" step="5"></label>' : '<span></span>') + '</div>';
         });
-        if (state.waterWall === w.id) rows += '<div class="mp-row"><input type="checkbox" data-mchk="water"' + (M.checked.water ? " checked" : "") + '><span style="font-size:12px;">💧 Vatn, miðja frá horni</span><input type="number" data-mwater value="' + Math.round(waterAlong(w)) + '" step="5"></div>';
+        if (state.waterWall === w.id) rows += '<div class="mp-row"><input type="checkbox" data-mchk="water"' + (M.checked.water ? " checked" : "") + '><span style="font-size:12px;">Vatn, miðja frá horni</span><input type="number" data-mwater value="' + Math.round(waterAlong(w)) + '" step="5"></div>';
       });
       var total = 2 + state.walls.length + state.windows.length + state.doors.length + (state.waterWall ? 1 : 0) - 1, done = Object.keys(M.checked).filter(function(k){ return M.checked[k]; }).length;
-      el.innerHTML = '<div class="mp-head"><h3>📏 Mæling — ' + escapeHtmlPro((state.intake && state.intake.room) || "Rými") + '</h3><p>Sláðu inn það sem þú mælir og hakaðu við. Teikningin breytist um leið. ' + done + ' af ' + total + ' staðfest.</p></div>' +
+      el.innerHTML = '<div class="mp-head"><h3>Mæling — ' + escapeHtmlPro((state.intake && state.intake.room) || "Rými") + '</h3><p>Sláðu inn það sem þú mælir og hakaðu við. Teikningin breytist um leið. ' + done + ' af ' + total + ' staðfest.</p></div>' +
         '<div class="mp-body">' + rows + '<div class="mp-sub">Athugasemdir</div><textarea data-mnote placeholder="t.d. lagnir í vegg 2, ójafnt gólf, rafmagnstafla…">' + escapeHtmlPro(M.note || "") + '</textarea></div>' +
         '<div class="mp-foot">' + (M.at ? '<span class="mp-done">✓ Mælt ' + new Date(M.at).toLocaleDateString("is-IS") + '</span>' : '') + '<span style="flex:1"></span><button type="button" class="btn btn-secondary btn-small" data-mclose>Loka</button><button type="button" class="btn btn-primary btn-small" data-mdone>Mæling lokið</button></div>';
     }
@@ -9525,7 +9521,7 @@
   }
 
   // ======================================================================
-  // 🚪 Innihurðir (Studio, 2026-10-23): one door list for the whole home — not drawn in a room. Each door picks
+  // Innihurðir (Studio, 2026-10-23): one door list for the whole home — not drawn in a room. Each door picks
   // a real door Útfærsla (Flokkur "Hurðir": HU1–HU9 innfelldar, RHU rennihurðir, glerhurðir, EI-30/60, karmar)
   // through a few plain choices (gerð → lamir / þröskuldur / skrá or braut), with its opening size, wall thickness,
   // opening and how many identical ones; each becomes its own HU line, numbered with the room doors (nextHuKey).
@@ -9667,7 +9663,7 @@
       }).join("");
       var n = state.doorList.reduce(function(s2, d){ return s2 + Math.max(1, d.qty | 0); }, 0);
       var doorsOnly = !PRO && !state.closed;
-      ov.innerHTML = '<div class="dl-card"><div class="dl-head"><div><h3>' + __("🚪 Innihurðir") + '</h3><p>' + __("Allar hurðir heimilisins á einum lista — hver hurð fer á tilboðið með málum og opnun. Málin eru staðfest á staðnum.") + '</p></div></div>' +
+      ov.innerHTML = '<div class="dl-card"><div class="dl-head"><div><h3>' + __("Innihurðir") + '</h3><p>' + __("Allar hurðir heimilisins á einum lista — hver hurð fer á tilboðið með málum og opnun. Málin eru staðfest á staðnum.") + '</p></div></div>' +
         '<div class="dl-list">' + ro + (rows || '<div class="dl-empty">' + __("Engin hurð enn.") + '</div>') + '</div>' +
         '<div class="dl-foot"><button type="button" class="btn btn-secondary btn-small" id="dlAdd">' + __("+ Bæta við hurð") + '</button><span style="color:var(--ink-soft);font-size:13px;">' + n + " " + plural(n, "hurð", "hurðir") + '</span><span style="flex:1"></span>' +
         (doorsOnly && n ? '<button type="button" class="btn btn-secondary btn-small" id="dlSend" title="' + __("Senda bara hurðirnar inn til tilboðs") + '">' + __("Senda inn hurðirnar →") + '</button>' : '') +
@@ -9716,19 +9712,19 @@
   }
 
   var STUDIO_ROOMS = [
-    { key:"eldhus", icon:"🍳", label:"Eldhús", desc:"Innrétting, borðplata og tæki" },
-    { key:"fataskapar", icon:"🚪", label:"Fataskápur", desc:"Skápar, innvols og rennihurðir" },
-    { key:"bad", icon:"🛁", label:"Baðherbergi", desc:"Veggfestir vaskaskápar og efri skápar" },
-    { key:"thvottahus", icon:"🧺", label:"Þvottahús", desc:"Þvottavél, þurrkari og vaskur" },
-    { key:"hurdir", icon:"🚪", label:"Innihurðir", desc:"Hurðir um allt heimilið" },
-    { key:"ibud", icon:"🏠", label:"Heil íbúð", desc:"Öll rýmin í einu verkefni", soon:true }
+    { key:"eldhus", label:"Eldhús", desc:"Innrétting, borðplata og tæki" },
+    { key:"fataskapar", label:"Fataskápur", desc:"Skápar, innvols og rennihurðir" },
+    { key:"bad", label:"Baðherbergi", desc:"Veggfestir vaskaskápar og efri skápar" },
+    { key:"thvottahus", label:"Þvottahús", desc:"Þvottavél, þurrkari og vaskur" },
+    { key:"hurdir", label:"Innihurðir", desc:"Hurðir um allt heimilið" },
+    { key:"ibud", label:"Allt heimilið", desc:"Öll rýmin í einu verkefni", soon:true }
   ];
   function renderStudioCards(){
     var host = document.getElementById("studioCards"); if (!host) return;
     var q = state.categoryQueue || [];
     host.innerHTML = STUDIO_ROOMS.map(function(r){
       var has = r.key === "hurdir" ? !!(state.doorList && state.doorList.length) : q.indexOf(r.key) >= 0 && (r.key === state.activeCategory ? state.walls && state.walls.length : !!(state.categoryData || {})[r.key]);
-      return '<button type="button" class="studio-card' + (has ? ' has' : '') + '" data-studio="' + r.key + '"' + (r.soon ? ' disabled' : '') + '><span class="ic">' + r.icon + '</span><b>' + __(r.label) + '</b><small>' + __(r.desc) + '</small>' +
+      return '<button type="button" class="studio-card' + (has ? ' has' : '') + '" data-studio="' + r.key + '"' + (r.soon ? ' disabled' : '') + '><span class="ic">' + icon(r.key, 26) + '</span><b>' + __(r.label) + '</b><small>' + __(r.desc) + '</small>' +
         '<span class="go">' + (r.soon ? __('Væntanlegt') : has ? __('Halda áfram →') : __('Byrja →')) + '</span></button>';
     }).join("");
   }
@@ -10112,7 +10108,7 @@
   document.getElementById("warnChip").addEventListener("click", function(){ // the warnings as a list (the right-hand overview is gone)
     var pop = document.getElementById("warnPop");
     if (!pop.hidden || !warnings.length){ pop.hidden = true; return; }
-    pop.innerHTML = '<div class="ov-wall-h">' + __("⚠ Athugið") + '</div>' + warnings.map(function(w, i){ return '<button type="button" class="warn-item" data-warnp="' + i + '">' + w.msg + '</button>'; }).join("");
+    pop.innerHTML = '<div class="ov-wall-h">' + __("Athugið") + '</div>' + warnings.map(function(w, i){ return '<button type="button" class="warn-item" data-warnp="' + i + '">' + w.msg + '</button>'; }).join("");
     pop.querySelectorAll("[data-warnp]").forEach(function(b){ b.addEventListener("click", function(){ pop.hidden = true; var w = warnings[+b.dataset.warnp]; if (w && w.ids[0]) onCabinetSelect({ blockId:w.ids[0] }); }); });
     pop.hidden = false;
   });
@@ -10211,7 +10207,7 @@
   function collectAllLineItems(){
     var rows = [];
     withEachCategory(function(){ rows = rows.concat(collectLineItems()); });
-    return rows.concat(doorListLines()); // 🚪 Innihurðir: once for the whole project
+    return rows.concat(doorListLines()); // Innihurðir: once for the whole project
   }
   function exportHost(){
     var el = document.getElementById("exportHost");
@@ -10517,8 +10513,8 @@
   }
   var lastPdfUrl = null;
 
-  // ✨ Studio mynd (2026-10-23): a path-traced, photographic still of exactly the 3D view on screen (KP3D.studioRender).
-  // 🚶 Ganga um: first-person walk at eye height (KP3D.setWalkMode) — 3D view only
+  // Studio mynd (2026-10-23): a path-traced, photographic still of exactly the 3D view on screen (KP3D.studioRender).
+  // Ganga um: first-person walk at eye height (KP3D.setWalkMode) — 3D view only
   function syncWalkBtn(){ var b = document.getElementById("walkBtn"); if (b) b.classList.toggle("active", !!(window.KP3D && KP3D.isWalking && KP3D.isWalking() && viewMode === "3d")); }
   document.getElementById("walkBtn").addEventListener("click", function(){
     if (viewMode !== "3d"){ toast(__("Ganga um virkar í 3D-sýninni.")); return; }
@@ -10531,7 +10527,7 @@
     if (viewMode !== "3d"){ toast(__("Farðu í 3D og stilltu sýnina sem þú vilt fá mynd af.")); return; }
     var ov = document.createElement("div"), pick = { view:"live", q:PRO ? "fin" : "fljot" }; // customers (2026-10-23, H1): the quick one first, any laptop manages it
     ov.id = "studioOv";
-    ov.innerHTML = '<div class="st-card"><h3>' + __("✨ Studio mynd") + '</h3>' +
+    ov.innerHTML = '<div class="st-card"><h3>' + __("Studio mynd") + '</h3>' +
       '<div class="st-opts"><div><label>' + __("Sjónarhorn") + '</label><div class="hw-toggle"><button type="button" class="hw-btn active" data-st-view="live">' + __("Þessi sýn") + '</button><button type="button" class="hw-btn" data-st-view="eye">' + __("Í augnhæð") + '</button></div></div>' +
       '<div><label>' + __("Gæði") + '</label><div class="hw-toggle"><button type="button" class="hw-btn' + (pick.q === "fljot" ? " active" : "") + '" data-st-q="fljot">' + __("Fljót · ~20 sek") + '</button><button type="button" class="hw-btn' + (pick.q === "fin" ? " active" : "") + '" data-st-q="fin">' + __("Fín · ~1 mín") + '</button></div></div></div>' +
       '<p class="st-msg">' + __("Myndin er reiknuð með raunverulegri lýsingu út frá teikningunni — veggir, efni og ljós eins og í raun.") + '</p><div class="st-bar"><i></i></div>' +
@@ -10555,7 +10551,7 @@
         img.innerHTML = '<img alt="' + __("Studio mynd") + '" src="' + url + '">';
         studioShots.push(url); if (studioShots.length > 3) studioShots.shift(); // the customer's newest 3 go onto the Tækifæri after submit (H5)
         if (PRO && !ov.querySelector('[data-st="save"]')){
-          var sv = document.createElement("button"); sv.type = "button"; sv.className = "btn btn-secondary btn-small"; sv.dataset.st = "save"; sv.textContent = "💾 Vista á Tækifæri";
+          var sv = document.createElement("button"); sv.type = "button"; sv.className = "btn btn-secondary btn-small"; sv.dataset.st = "save"; sv.textContent = "Vista á Tækifæri";
           go.parentNode.insertBefore(sv, go);
           sv.addEventListener("click", async function(){
             sv.disabled = true; sv.textContent = "Vista…";
@@ -10564,10 +10560,10 @@
               var r = await fetch("/api/kp-studio?recordId=" + encodeURIComponent(PRO.id) + "&k=" + encodeURIComponent(PRO.k), { method:"POST", headers:{ "Content-Type":"application/octet-stream" }, body:blob });
               if (!r.ok) throw new Error((await r.json().catch(function(){ return {}; })).error || r.status);
               sv.textContent = "✓ Vistað á Tækifæri";
-            }catch(e2){ sv.disabled = false; sv.textContent = "💾 Vista á Tækifæri"; toast("Tókst ekki að vista myndina: " + (e2.message || e2)); }
+            }catch(e2){ sv.disabled = false; sv.textContent = "Vista á Tækifæri"; toast("Tókst ekki að vista myndina: " + (e2.message || e2)); }
           });
         }
-        go.textContent = __("⬇ Sækja mynd"); go.disabled = false;
+        go.textContent = __("Sækja mynd"); go.disabled = false;
         go.onclick = function(e){ e.stopImmediatePropagation(); var a = document.createElement("a"); a.href = url; a.download = "bjorninn-studio.jpg"; document.body.appendChild(a); a.click(); a.remove(); };
       }catch(e){
         console.error(e);
@@ -10578,7 +10574,7 @@
       }
     });
   });
-  var studioShots = []; // data URLs of this visit's ✨ Studio photos (newest last, max 3)
+  var studioShots = []; // data URLs of this visit's Studio photos (newest last, max 3)
   // Save the current view as a PNG (3D: canvas readback; 2D: SVG → canvas).
   function downloadDataUrl(url){
     var a = document.createElement("a");
@@ -10667,7 +10663,7 @@
   }
 
   // ---------- pro mode: box editor + Smíðagögn ----------
-  // Rakel clicks a cabinet → "🔧 Smíða" opens a box editor (like Ný eining, but on the existing box): door type,
+  // Rakel clicks a cabinet → "Smíða" opens a box editor (like Ný eining, but on the existing box): door type,
   // hinge markers she drags up and down, and the drawer seams. Hinge positions are measured from each door's own
   // ends and stored on the block (b.smida); "Vista í Airtable" sends them per Sk number as Smíðagögn, which
   // Keyra skipulag copies to the Eyðublað and /cnc drills (cnc-sides.js — the same hinge function as here).
@@ -10861,7 +10857,7 @@
     if (!skKeys()[fb.block.id]) return; // only ordered cabinets (they have an Sk number and a Line Item)
     var ready = proReady(fb.block), btn = document.createElement("button");
     btn.type = "button"; btn.className = "pro-open " + (ready ? "ready" : "todo");
-    btn.textContent = (ready ? "✅ Smíða — klár til framleiðslu" : "🔧 Smíða — " + (doors.length && (drawers || c.oven) ? "hurðir og skúffur" : doors.length ? "lamir og hurðir" : drawers ? "skúffur" : "yfirfara"));
+    btn.textContent = (ready ? "Smíða — klár til framleiðslu" : "Smíða — " + (doors.length && (drawers || c.oven) ? "hurðir og skúffur" : doors.length ? "lamir og hurðir" : drawers ? "skúffur" : "yfirfara"));
     btn.addEventListener("click", function(){ openBoxEditor(fb.block.id); });
     host.insertBefore(btn, host.firstChild);
   }
@@ -11136,7 +11132,7 @@
           right += '<div class="pe-row">Hilla ' + (k + 1) + ': <input type="number" step="1" style="width:66px" value="' + sh.mm + '" data-pe="oshmm" data-k="' + k + '"> mm ' +
             '<button type="button" class="pe-btn' + (sh.fixed ? " on" : "") + '" data-pe="oshtype" data-k="' + k + '" data-v="1">Föst</button>' +
             '<button type="button" class="pe-btn' + (!sh.fixed ? " on" : "") + '" data-pe="oshtype" data-k="' + k + '" data-v="0">Laus</button>' +
-            '<button type="button" class="pe-lock' + (sh.locked ? " on" : "") + '" data-pe="oshlock" data-k="' + k + '" title="Læst hilla heldur sinni hæð þegar ólæstum er dreift jafnt">' + (sh.locked ? "🔒" : "🔓") + '</button>' +
+            '<button type="button" class="pe-lock' + (sh.locked ? " on" : "") + '" data-pe="oshlock" data-k="' + k + '" title="Læst hilla heldur sinni hæð þegar ólæstum er dreift jafnt">' + (sh.locked ? "" : "") + '</button>' +
             (sh.fixed || b.radborun ? '' : ' Stillingar <input type="number" min="1" max="9" step="1" style="width:38px" value="' + sh.pos + '" data-pe="oshpos" data-k="' + k + '">') +
             '<button type="button" class="pe-btn" data-pe="oshdel" data-k="' + k + '" title="Taka hillu">✕</button></div>';
         });
@@ -11202,12 +11198,12 @@
       right += '</div>';
     }
     var isReady = proReady(b), issues = proIssues(b, c, fb.zone);
-    if (issues.length) right += '<div class="pe-issues">' + issues.map(function(x){ return '<div>⛔ ' + escapeHtmlPro(x) + '</div>'; }).join("") + '</div>';
+    if (issues.length) right += '<div class="pe-issues">' + issues.map(function(x){ return '<div>' + escapeHtmlPro(x) + '</div>'; }).join("") + '</div>';
     right += isReady
-      ? '<div class="pe-note">✅ Merktur klár til framleiðslu ' + (b.smidaReadyAt ? new Date(b.smidaReadyAt).toLocaleString("is-IS") : "") + '. Breyting á skápnum tekur merkinguna af.</div>' +
+      ? '<div class="pe-note">Merktur klár til framleiðslu ' + (b.smidaReadyAt ? new Date(b.smidaReadyAt).toLocaleString("is-IS") : "") + '. Breyting á skápnum tekur merkinguna af.</div>' +
         '<button type="button" class="pe-ready undo" data-pe="ready" data-v="0">Taka merkinguna af</button>'
-      : (b.smidaReady ? '<div class="pe-note">⚠️ Skápnum var breytt eftir að hann var merktur klár — yfirfara og merkja aftur.</div>' : '') +
-        '<button type="button" class="pe-ready" data-pe="ready" data-v="1"' + (issues.length ? ' disabled title="Lagaðu ⛔ fyrst"' : '') + '>✅ Klár til framleiðslu</button>';
+      : (b.smidaReady ? '<div class="pe-note">Skápnum var breytt eftir að hann var merktur klár — yfirfara og merkja aftur.</div>' : '') +
+        '<button type="button" class="pe-ready" data-pe="ready" data-v="1"' + (issues.length ? ' disabled title="Lagaðu fyrst"' : '') + '>Klár til framleiðslu</button>';
     el.innerHTML = '<div class="pe-card"><div class="pe-img">' + svg + malHtml + '</div><div class="pe-content">' + right + '</div></div>';
     var peInt = el.querySelector("#peInterior");
     if (peInt) wireInteriorControls(peInt, fb.wall, fb.zone, b, c); // every change ends in refreshAfterEdit → redraws this editor
@@ -11248,7 +11244,7 @@
     }
     act('[data-pe="splitmm"]', function(n){ var list = splitNow(), v = Math.round(+n.value), out = list && resizeSplit(list, +n.dataset.k, v);
       if (out){
-        if (out.some(function(h){ return h < SPLIT_MIN - 0.5; })) toast("⚠️ Hver frontur þarf að vera minnst " + SPLIT_MIN + " mm — lagaðu áður en skápurinn er merktur klár.");
+        if (out.some(function(h){ return h < SPLIT_MIN - 0.5; })) toast("Hver frontur þarf að vera minnst " + SPLIT_MIN + " mm — lagaðu áður en skápurinn er merktur klár.");
         proSetSplit(b, body, out);
       }
     });
@@ -11267,7 +11263,7 @@
     function ovenDone(){ save(); refreshAfterEdit(); renderBoxEditor(); }
     function setUnder(v){
       var lo = KP3D.ovenUnderMinMm(b, drawerSys()), hi = KP3D.ovenUnderMaxMm(b, body);
-      if (!(v >= lo && v <= hi)) toast("⚠️ Hæð undir ofni er utan " + lo + "–" + hi + " mm fyrir þessar skúffur og þessa ofnhæð — lagaðu áður en skápurinn er merktur klár.");
+      if (!(v >= lo && v <= hi)) toast("Hæð undir ofni er utan " + lo + "–" + hi + " mm fyrir þessar skúffur og þessa ofnhæð — lagaðu áður en skápurinn er merktur klár.");
       b.ovenUnderMm = Math.max(5, v); delete b.ovenFrontsMm; ovenDone();
     }
     function shelvesNow(){ return shelfList(); }
@@ -11275,7 +11271,7 @@
       list.sort(function(a, z){ return a.mm - z.mm; });
       var tooClose = false;
       for (var q = 1; q < list.length; q++) if (list[q].mm - list[q - 1].mm < 40) tooClose = true;
-      if (tooClose) toast("⚠️ Hillur eru nær hvor annarri en 40 mm — lagaðu áður en skápurinn er merktur klár.");
+      if (tooClose) toast("Hillur eru nær hvor annarri en 40 mm — lagaðu áður en skápurinn er merktur klár.");
       if (c.oven) b.ovenShelves = list;
       else { b.shelfPos = list; if (!c.bur && c.shelfRange) b.shelves = list.length; } // the count still picks V2 (N hillur)
       ovenDone();
@@ -11287,7 +11283,7 @@
     act('[data-pe="ounder"]', function(n){ setUnder(Math.round(+n.value)); });
     act('[data-pe="ounderReset"]', function(){ delete b.ovenUnderMm; delete b.ovenFrontsMm; ovenDone(); });
     act('[data-pe="oshmm"]', function(n){ var list = shelvesNow(), v = Math.round(+n.value);
-      if (!shelfOk(v)){ var r = KP3D.shelfSpaceMm(b, body, drawerSys()); toast("⚠️ Hilla er utan " + (r.lo + 17) + "–" + (r.hi - 11) + " mm bilsins — lagaðu áður en skápurinn er merktur klár."); }
+      if (!shelfOk(v)){ var r = KP3D.shelfSpaceMm(b, body, drawerSys()); toast("Hilla er utan " + (r.lo + 17) + "–" + (r.hi - 11) + " mm bilsins — lagaðu áður en skápurinn er merktur klár."); }
       list[+n.dataset.k].mm = v; setShelves(list); });
     act('[data-pe="oshtype"]', function(n){ var list = shelvesNow(), sh = list[+n.dataset.k]; sh.fixed = n.dataset.v === "1"; if (!sh.fixed && !(sh.pos > 0)) sh.pos = 3; setShelves(list); });
     act('[data-pe="oshpos"]', function(n){ var list = shelvesNow(); list[+n.dataset.k].pos = Math.max(1, Math.min(9, Math.round(+n.value) || 1)); setShelves(list); });
@@ -11334,7 +11330,7 @@
       var span = KP3D.shelfSpaceMm(b, body, drawerSys());
       var topMm = Math.max(0, patch.topMm != null ? patch.topMm : (b.radborun && b.radborun.topMm) || KP3D.RADBORUN_MARGIN_DEFAULT_MM);
       var bottomMm = Math.max(0, patch.bottomMm != null ? patch.bottomMm : (b.radborun && b.radborun.bottomMm) || KP3D.RADBORUN_MARGIN_DEFAULT_MM);
-      if ((span.hi - topMm) - (span.lo + bottomMm) < KP3D.RADBORUN_PITCH_MM) toast("⚠️ Spönnin er of lítil fyrir þessi mörk — lagaðu áður en skápurinn er merktur klár.");
+      if ((span.hi - topMm) - (span.lo + bottomMm) < KP3D.RADBORUN_PITCH_MM) toast("Spönnin er of lítil fyrir þessi mörk — lagaðu áður en skápurinn er merktur klár.");
       b.radborun = { topMm:topMm, bottomMm:bottomMm };
       ovenDone();
     }
@@ -11346,13 +11342,13 @@
       list.sort(function(a, z){ return a.mm - z.mm; });
       var tooClose = false;
       for (var q = 1; q < list.length; q++) if (list[q].mm - list[q - 1].mm < 40) tooClose = true;
-      if (tooClose) toast("⚠️ Fataslár eru nær hvor annarri en 40 mm — lagaðu áður en skápurinn er merktur klár.");
+      if (tooClose) toast("Fataslár eru nær hvor annarri en 40 mm — lagaðu áður en skápurinn er merktur klár.");
       b.railPos = list; if (c.railRange) b.rails = list.length;
       ovenDone();
     }
     function railOk(mm){ var r = KP3D.shelfSpaceMm(b, body, drawerSys()); return mm > r.lo + KP3D.OVEN_BOARD_MM && mm < r.hi - 10; }
     act('[data-pe="railmm"]', function(n){ var list = railsNow(), v = Math.round(+n.value);
-      if (!railOk(v)){ var r = KP3D.shelfSpaceMm(b, body, drawerSys()); toast("⚠️ Sláin er utan " + (r.lo + 17) + "–" + (r.hi - 11) + " mm bilsins — lagaðu áður en skápurinn er merktur klár."); }
+      if (!railOk(v)){ var r = KP3D.shelfSpaceMm(b, body, drawerSys()); toast("Sláin er utan " + (r.lo + 17) + "–" + (r.hi - 11) + " mm bilsins — lagaðu áður en skápurinn er merktur klár."); }
       list[+n.dataset.k].mm = v; setRailList(list); });
     act('[data-pe="raildel"]', function(n){ var list = railsNow(); list.splice(+n.dataset.k, 1); setRailList(list); });
     act('[data-pe="railadd"]', function(){ var list = railsNow(), r = KP3D.shelfSpaceMm(b, body, drawerSys());
@@ -11371,7 +11367,7 @@
         if (pos[j] < floor) pos[j] = floor;
       }
       var last = list.length - 1;
-      if (pos[last] + list[last].h > body - 60) toast("⚠️ Innskúffurnar eru komnar of ofarlega — lagaðu áður en skápurinn er merktur klár.");
+      if (pos[last] + list[last].h > body - 60) toast("Innskúffurnar eru komnar of ofarlega — lagaðu áður en skápurinn er merktur klár.");
       b.burPos = pos; ovenDone();
     }
     act('[data-pe="burmm"]', function(n){ setBur(+n.dataset.k, +n.value); });
@@ -11380,7 +11376,7 @@
     // list itself (codes + positions) lives directly on the block — no registered combo underneath it.
     function setInner(list){
       var last = list.length - 1;
-      if (last >= 0 && list[last].mm + list[last].h > body - 60) toast("⚠️ Innskúffurnar eru komnar of ofarlega — lagaðu áður en skápurinn er merktur klár.");
+      if (last >= 0 && list[last].mm + list[last].h > body - 60) toast("Innskúffurnar eru komnar of ofarlega — lagaðu áður en skápurinn er merktur klár.");
       b.innerCodes = list.map(function(d){ return d.code; }); b.innerPos = list.map(function(d){ return d.mm; }); ovenDone();
     }
     function moveInner(k, v){
@@ -11419,10 +11415,10 @@
     act('[data-pe="gripbrun"]', function(n){ proSetGrip(b, n.dataset.t, gripPatch(n.dataset.t, { brun:n.dataset.v })); });
     act('[data-pe="gripatt"]', function(n){ proSetGrip(b, n.dataset.t, gripPatch(n.dataset.t, { att:n.dataset.v })); });
     act('[data-pe="gripstart"]', function(n){ var t = n.dataset.t, tg = gripTargets.find(function(x){ return x.target === t; }), v = Math.round(+n.value);
-      if (!(v >= 0 && v <= tg.heightMm - 20)) toast("⚠️ Upphaf grips er utan marka — lagaðu áður en skápurinn er merktur klár.");
+      if (!(v >= 0 && v <= tg.heightMm - 20)) toast("Upphaf grips er utan marka — lagaðu áður en skápurinn er merktur klár.");
       proSetGrip(b, t, gripPatch(t, { start:Math.max(0, v) })); });
     act('[data-pe="griplen"]', function(n){ var t = n.dataset.t, tg = gripTargets.find(function(x){ return x.target === t; }), v = Math.round(+n.value);
-      if (!(v >= 20 && v <= tg.heightMm)) toast("⚠️ Lengd grips er utan marka — lagaðu áður en skápurinn er merktur klár.");
+      if (!(v >= 20 && v <= tg.heightMm)) toast("Lengd grips er utan marka — lagaðu áður en skápurinn er merktur klár.");
       proSetGrip(b, t, gripPatch(t, { length:Math.max(1, v) })); });
     act('[data-pe="gripreset"]', function(n){ var t = n.dataset.t, tg = gripTargets.find(function(x){ return x.target === t; });
       proSetGrip(b, t, gripPatch(t, { start:proGripDefaultStart(b, c, fb.zone, tg), length:GRIP_LEN_DEFAULT_MM })); });
@@ -11439,7 +11435,7 @@
     act('[data-pe="type"]', function(n){ var i = +n.dataset.door, sp = proSpec(b, doors, i); sp.type = n.dataset.v; if (sp.type === "hinged" && !(sp.hinges && sp.hinges.length)) sp.hinges = proDefaultHinges(b, doors, i); if (sp.type === "pocket" && !sp.pocketSys) sp.pocketSys = "revego"; proSetSpec(b, doors, i, sp); renderBoxEditor(); });
     act('[data-pe="pocketsys"]', function(n){ var i = +n.dataset.door, sp = proSpec(b, doors, i); sp.pocketSys = n.dataset.v; proSetSpec(b, doors, i, sp); renderBoxEditor(); });
     act('[data-pe="mm"]', function(n){ var i = +n.dataset.door, sp = proSpec(b, doors, i), v = Math.round(+n.value);
-      if (!(v >= 30 && v <= doors[i].box - 30)) toast("⚠️ Löm er nær enda hurðar en 30 mm — lagaðu áður en skápurinn er merktur klár.");
+      if (!(v >= 30 && v <= doors[i].box - 30)) toast("Löm er nær enda hurðar en 30 mm — lagaðu áður en skápurinn er merktur klár.");
       sp.hinges[+n.dataset.h].mm = Math.max(1, v); proSetSpec(b, doors, i, sp); renderBoxEditor(); });
     act('[data-pe="from"]', function(n){ var i = +n.dataset.door, sp = proSpec(b, doors, i), hg = sp.hinges[+n.dataset.h];
       hg.mm = Math.round(doors[i].box - hg.mm); hg.from = hg.from === "top" ? "bottom" : "top"; proSetSpec(b, doors, i, sp); renderBoxEditor(); });
@@ -11485,7 +11481,7 @@
           g.setAttribute("transform", "translate(0," + (Y0 + body * S - v * S - y0) + ")"); }
         function up(){ g.removeEventListener("pointermove", mv); g.removeEventListener("pointerup", up);
           if (v === start) return;
-          if (!shelfOk(v)) toast("⚠️ Hilla er utan leyfilegs bils — lagaðu áður en skápurinn er merktur klár.");
+          if (!shelfOk(v)) toast("Hilla er utan leyfilegs bils — lagaðu áður en skápurinn er merktur klár.");
           var list = shelvesNow(); list[k].mm = v; setShelves(list); }
         g.addEventListener("pointermove", mv); g.addEventListener("pointerup", up);
       });
@@ -11498,7 +11494,7 @@
           g.setAttribute("transform", "translate(0," + (Y0 + body * S - v * S - y0) + ")"); }
         function up(){ g.removeEventListener("pointermove", mv); g.removeEventListener("pointerup", up);
           if (v === start) return;
-          if (!railOk(v)) toast("⚠️ Sláin er utan leyfilegs bils — lagaðu áður en skápurinn er merktur klár.");
+          if (!railOk(v)) toast("Sláin er utan leyfilegs bils — lagaðu áður en skápurinn er merktur klár.");
           var list = railsNow(); list[k].mm = v; setRailList(list); }
         g.addEventListener("pointermove", mv); g.addEventListener("pointerup", up);
       });
@@ -11528,7 +11524,7 @@
         function up(){ line.removeEventListener("pointermove", mv); line.removeEventListener("pointerup", up);
           if (v == null) return;
           var cur = fronts.slice(); cur[i] = v;
-          if (v < KP3D.slotMin(codes[i]) - 0.5) toast("⚠️ " + CODE_LABEL[codes[i]].toLowerCase() + " (" + v + " mm, lágmark " + KP3D.slotMin(codes[i]) + " mm) undir lágmarki — lagaðu áður en skápurinn er merktur klár.");
+          if (v < KP3D.slotMin(codes[i]) - 0.5) toast("" + CODE_LABEL[codes[i]].toLowerCase() + " (" + v + " mm, lágmark " + KP3D.slotMin(codes[i]) + " mm) undir lágmarki — lagaðu áður en skápurinn er merktur klár.");
           if (ov) b.ovenFrontsMm = cur; else b.interior.frontsMm = cur; save(); refreshAfterEdit(); renderBoxEditor(); }
         line.addEventListener("pointermove", mv); line.addEventListener("pointerup", up);
       });
@@ -11615,14 +11611,14 @@
     if (b.smidaReady && b.smidaReady === smidaHash(o)) o.ready = true; // "Klár til framleiðslu" — only while nothing changed since
     return o;
   }
-  // "✅ Klár til framleiðslu" (pro, 2026-10-10): Rakel marks a cabinet once she's checked it in Smíða. The mark is
+  // "Klár til framleiðslu" (pro, 2026-10-10): Rakel marks a cabinet once she's checked it in Smíða. The mark is
   // the hash of its Smíðagögn at that moment (b.smidaReady), so ANY later change to what gets built (size, drawers,
   // shelves, oven, hinges…) drops it by itself. /cnc warns about cabinets that aren't marked.
   function smidaHash(o){ var str = JSON.stringify(o), h = 5381; for (var i = 0; i < str.length; i++) h = ((h * 33) ^ str.charCodeAt(i)) >>> 0; return h.toString(36); }
   function proReady(b){ var fb = findBlock(b.id); return !!(fb && b.smidaReady && smidaFor(b, CATALOG[b.type], fb.zone).ready); }
   function proSetReady(b, on){
     var fb = findBlock(b.id); if (!fb) return;
-    if (on && proIssues(b, CATALOG[b.type], fb.zone).length){ toast("Lagaðu ⛔ í Smíða fyrst."); return; }
+    if (on && proIssues(b, CATALOG[b.type], fb.zone).length){ toast("Lagaðu í Smíða fyrst."); return; }
     if (on){ delete b.smidaReady; b.smidaReady = smidaHash(smidaFor(b, CATALOG[b.type], fb.zone)); b.smidaReadyAt = new Date().toISOString(); }
     else { delete b.smidaReady; delete b.smidaReadyAt; }
     save(); refreshAfterEdit();
@@ -11656,30 +11652,30 @@
     var el = document.getElementById("proBar");
     if (!el) return;
     el.hidden = false;
-    var reviewBtn = PRO.needsReview ? '<button type="button" id="proReviewed" class="pb-review">✅ Yfirfarið</button>' : "";
+    var reviewBtn = PRO.needsReview ? '<button type="button" id="proReviewed" class="pb-review">Yfirfarið</button>' : "";
     if (PRO.locked && !PRO.unlocked){
-      el.innerHTML = '<span>🔧 PRO</span><span class="pb-name">' + escapeHtmlPro(PRO.name || "") + '</span>' +
-        '<span class="pb-locked">🔒 Í skipulagi (' + escapeHtmlPro(PRO.lockStatus) + ') — skoðunarhamur</span>' +
+      el.innerHTML = '<span>PRO</span><span class="pb-name">' + escapeHtmlPro(PRO.name || "") + '</span>' +
+        '<span class="pb-locked">Í skipulagi (' + escapeHtmlPro(PRO.lockStatus) + ') — skoðunarhamur</span>' +
         reviewBtn +
-        '<button type="button" id="proTilbodToggle"' + (tp.open ? ' class="on"' : "") + '>💰 Tilboð</button>' +
-        '<button type="button" id="proWorkDraw" title="2D vinnuteikningar fyrir verkstæðið">📐 Teikningar</button>' +
-        '<button type="button" id="proUnlock" class="pb-unlock">🔓 Opna til breytinga</button>';
+        '<button type="button" id="proTilbodToggle"' + (tp.open ? ' class="on"' : "") + '>Tilboð</button>' +
+        '<button type="button" id="proWorkDraw" title="2D vinnuteikningar fyrir verkstæðið">Teikningar</button>' +
+        '<button type="button" id="proUnlock" class="pb-unlock">Opna til breytinga</button>';
       var ub = el.querySelector("#proUnlock"); if (ub) ub.addEventListener("click", proUnlock);
       var ttb0 = el.querySelector("#proTilbodToggle"); if (ttb0) ttb0.addEventListener("click", proTilbodToggle);
       var wd0 = el.querySelector("#proWorkDraw"); if (wd0) wd0.addEventListener("click", openWorkDrawings);
       var rb0 = el.querySelector("#proReviewed"); if (rb0) rb0.addEventListener("click", proMarkReviewed);
       return;
     }
-    el.innerHTML = '<span>🔧 PRO</span><span class="pb-name">' + escapeHtmlPro(PRO.name || "") + '</span>' +
-      (PRO.locked ? '<span class="pb-locked">🔓 opnað til breytinga</span>' : "") +
+    el.innerHTML = '<span>PRO</span><span class="pb-name">' + escapeHtmlPro(PRO.name || "") + '</span>' +
+      (PRO.locked ? '<span class="pb-locked">opnað til breytinga</span>' : "") +
       (msg ? '<span>' + escapeHtmlPro(msg) + '</span>' : (proDirty() ? '<span class="pb-dirty">● óvistað</span>' : '<span>✓ vistað</span>')) +
       reviewBtn +
-      '<button type="button" id="proSave"' + (PRO.ready ? "" : " disabled") + '>💾 Vista í Airtable</button>' +
-      '<button type="button" id="proRunSkipulag"' + (PRO.ready ? "" : " disabled") + '>📐 Keyra skipulag</button>' +
-      '<button type="button" id="proTilbodToggle"' + (tp.open ? ' class="on"' : "") + '>💰 Tilboð</button>' +
-      '<button type="button" id="proWorkDraw" title="2D vinnuteikningar fyrir verkstæðið">📐 Teikningar</button>' +
-      '<button type="button" id="proDoorList" title="Innihurðir fyrir allt heimilið (HU-línur)">🚪 Hurðir</button>' +
-      '<button type="button" id="proMeasure" title="Mælingarblað: sláðu inn málin á staðnum beint í teikninguna">📏 Mæling</button>';
+      '<button type="button" id="proSave"' + (PRO.ready ? "" : " disabled") + '>Vista í Airtable</button>' +
+      '<button type="button" id="proRunSkipulag"' + (PRO.ready ? "" : " disabled") + '>Keyra skipulag</button>' +
+      '<button type="button" id="proTilbodToggle"' + (tp.open ? ' class="on"' : "") + '>Tilboð</button>' +
+      '<button type="button" id="proWorkDraw" title="2D vinnuteikningar fyrir verkstæðið">Teikningar</button>' +
+      '<button type="button" id="proDoorList" title="Innihurðir fyrir allt heimilið (HU-línur)">Hurðir</button>' +
+      '<button type="button" id="proMeasure" title="Mælingarblað: sláðu inn málin á staðnum beint í teikninguna">Mæling</button>';
     var dlb = el.querySelector("#proDoorList"); if (dlb) dlb.addEventListener("click", openDoorList);
     var mpb = el.querySelector("#proMeasure"); if (mpb) mpb.addEventListener("click", openMeasurePanel);
     var bt = el.querySelector("#proSave"); if (bt) bt.addEventListener("click", function(){ proSave(); });
@@ -11688,7 +11684,7 @@
     var wd = el.querySelector("#proWorkDraw"); if (wd) wd.addEventListener("click", openWorkDrawings);
     var rb = el.querySelector("#proReviewed"); if (rb) rb.addEventListener("click", proMarkReviewed);
   }
-  // "✅ Yfirfarið" (2026-10-18) — the button referenced in old comments but never actually built. Staff
+  // "Yfirfarið" (2026-10-18) — the button referenced in old comments but never actually built. Staff
   // looks the self-serve drawing over here, clicks this, and it's off CRM's "Til yfirferðar" strip —
   // nothing else changes automatically (confirmed with the user: just the flag, not the sales stage).
   function proMarkReviewed(){
@@ -11717,7 +11713,7 @@
       toast("Skipulag keyrt — opnaðu verkefnið aftur til að sjá það læst");
       proBar();
     }catch(e){
-      proBar("⛔ Tókst ekki að keyra skipulag: " + e.message);
+      proBar("Tókst ekki að keyra skipulag: " + e.message);
       if (rs) rs.disabled = false;
     }
   }
@@ -11797,7 +11793,7 @@
       tp.data = d; tp.last = sig;
       proTilbodRender(prev);
     }catch(e){
-      if (my === tp.seq) document.getElementById("tpMsg").textContent = "⛔ Verð: " + e.message;
+      if (my === tp.seq) document.getElementById("tpMsg").textContent = "Verð: " + e.message;
     }finally{
       if (my === tp.seq) document.getElementById("tpBody").classList.remove("tp-loading");
     }
@@ -11817,17 +11813,17 @@
       " í teikningunni er annað en á Tækifærinu — allar línur reiknaðar á teikningunni, Tækifærið uppfærist þegar þú vistar.");
     if (d.handles.changed) warn.push("● Höldur: " + d.handles.count + " stk í teikningunni (Tækifærið uppfærist þegar þú vistar).");
     var unmapped = d.lines.filter(function(l){ return !l.mapped; }).length;
-    if (unmapped) warn.push("⚠ " + unmapped + " " + plural(unmapped, "lína er", "línur eru") + " án vöru (0 kr.) — veldu Útfærslu í Airtable.");
-    if (d.drift) warn.push("⚠ Útreikningurinn víkur frá Airtable á " + d.drift + " " + plural(d.drift, "línu", "línum") + " — verðformúlan hefur breyst, láttu vita.");
+    if (unmapped) warn.push("" + unmapped + " " + plural(unmapped, "lína er", "línur eru") + " án vöru (0 kr.) — veldu Útfærslu í Airtable.");
+    if (d.drift) warn.push("Útreikningurinn víkur frá Airtable á " + d.drift + " " + plural(d.drift, "línu", "línum") + " — verðformúlan hefur breyst, láttu vita.");
     var stale = d.other.filter(function(l){ return l.stale; }).length;
-    if (stale) warn.push("⚠ " + stale + " " + plural(stale, "lína", "línur") + " í Airtable " + plural(stale, "er", "eru") + " ekki lengur í teikningunni en " + plural(stale, "telst", "teljast") + " enn með.");
+    if (stale) warn.push("" + stale + " " + plural(stale, "lína", "línur") + " í Airtable " + plural(stale, "er", "eru") + " ekki lengur í teikningunni en " + plural(stale, "telst", "teljast") + " enn með.");
     var w = document.getElementById("tpWarn"); w.hidden = !warn.length; w.innerHTML = warn.map(escapeHtmlPro).join("<br>");
     var esc = escapeHtmlPro, rows = "";
     function line(l, other){
       var canDisc = !other && l.lineId && !l.locked;
       return '<tr class="tp-line' + (other ? " tp-other" : "") + (!other && selectedBlockKey() === l.key ? " sel" : "") + '" data-sk="' + esc(l.key || "") + '">' +
         '<td><div class="tp-nm' + (l.mapped === false ? " none" : "") + '">' + esc(l.name) + (l.changed ? '<span class="tp-dot" title="Breytt í teikningunni — ekki vistað enn"></span>' : "") +
-          (l.lineId ? "" : '<span class="tp-dot" title="Ný lína — verður til þegar þú vistar"></span>') + (l.locked ? " 🔒" : "") + '</div>' +
+          (l.lineId ? "" : '<span class="tp-dot" title="Ný lína — verður til þegar þú vistar"></span>') + (l.locked ? " " : "") + '</div>' +
           (l.extra ? '<div class="tp-ex">' + esc(l.extra) + '</div>' : "") + '<div class="tp-sk">' + esc(l.key || "") + (l.stale ? ' · <span style="color:#ffd60a">ekki lengur í teikningunni — eyddu línunni í Airtable</span>' : "") + '</div></td>' +
         '<td class="r">' + l.qty + '</td>' +
         '<td class="r"><input type="number" min="0" max="100" step="1" data-line="' + esc(l.lineId || "") + '" value="' + (l.disc ? Math.round(l.disc * 100) : "") + '"' +
@@ -11863,7 +11859,7 @@
       fetch("/api/airtable?path=" + encodeURIComponent("tblFcsUoGxsuUwNEH/" + e.target.dataset.line) + "&k=" + encodeURIComponent(PRO.k),
         { method:"PATCH", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ fields:{ "Afsl. %":v } }) })
         .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); tp.last = null; proTilbodRefresh(true); })
-        .catch(function(err){ document.getElementById("tpMsg").textContent = "⛔ Afsláttur vistaðist ekki: " + err.message; });
+        .catch(function(err){ document.getElementById("tpMsg").textContent = "Afsláttur vistaðist ekki: " + err.message; });
     }
   });
   document.addEventListener("click", function(e){
@@ -11928,9 +11924,9 @@
       toast("Vistað í Airtable: " + (d.created ? d.created + " " + plural(d.created, "ný lína", "nýjar línur") + ", " : "") +
         d.updated + " " + plural(d.updated, "lína uppfærð", "línur uppfærðar") + ", " + d.unchanged + " óbreyttar" +
         (d.projectUpdated && d.projectUpdated.length ? "; á Tækifærinu: " + d.projectUpdated.map(function(f){ return f.replace(/ (🔲|🖼️|🍽️|✊|🎨)| viðskiptavinar/g, ""); }).join(", ") : "") +
-        (d.removed && d.removed.length ? ". ⚠️ " + d.removed.join(", ") + " " + plural(d.removed.length, "er", "eru") + " ekki lengur í teikningunni — eyddu línunni (og Eyðublaðinu) í Airtable ef skápurinn á að fara." : "."));
+        (d.removed && d.removed.length ? ". " + d.removed.join(", ") + " " + plural(d.removed.length, "er", "eru") + " ekki lengur í teikningunni — eyddu línunni (og Eyðublaðinu) í Airtable ef skápurinn á að fara." : "."));
       tp.last = null; proTilbodRefresh(true); // Airtable's own total just changed
-    }catch(e){ proBar("⛔ " + e.message); }
+    }catch(e){ proBar("" + e.message); }
   }
   async function proBoot(){
     document.body.classList.add("pro");
@@ -11945,7 +11941,7 @@
       var r = await fetch("/api/airtable?path=" + encodeURIComponent("tbl4LMXlQjp66RFKI/" + PRO.id) + "&k=" + encodeURIComponent(PRO.k));
       if (!r.ok) throw new Error("HTTP " + r.status);
       rec = await r.json();
-    }catch(e){ proBar("⛔ Gat ekki sótt verkefnið: " + e.message); return; }
+    }catch(e){ proBar("Gat ekki sótt verkefnið: " + e.message); return; }
     var raw = (rec.fields || {})[PRO_FIELD];
     PRO.name = (rec.fields || {})["Heiti tækifæris / verkefnis"] || PRO.id;
     // "Keyra skipulag" (handvirkt í Airtable) er "græna ljósið" — það ýtir Staða í skipulagi úr
@@ -11956,7 +11952,7 @@
     PRO.lockStatus = (rec.fields || {})["Staða í skipulagi"] || "For-skipulag";
     PRO.locked = PRO.lockStatus !== "For-skipulag";
     PRO.unlocked = false;
-    // CRM's "Til yfirferðar" strip (2026-10-18) — true until someone clicks ✅ Yfirfarið below.
+    // CRM's "Til yfirferðar" strip (2026-10-18) — true until someone clicks Yfirfarið below.
     PRO.needsReview = !!(rec.fields || {})["Sjálfsafgreiðsla — óyfirfarið ⚠️"];
     var keepLocal = false;
     if (!raw){ // Rakel draws every project (2026-10-09): no drawing yet = start one, from the Byrja category picker
@@ -11968,9 +11964,9 @@
       confirm("Það eru óvistaðar breytingar á þessu verkefni í þessum vafra.\n\nOK = halda áfram með þær\nHætta við = sækja útgáfuna úr Airtable"); }catch(e){}
     if (!keepLocal){
       try{ var st = JSON.parse(raw); st.step = "editor"; localStorage.setItem(STORAGE_KEY, JSON.stringify(st)); localStorage.removeItem(STORAGE_KEY + ":dirty"); }
-      catch(e){ proBar("⛔ Skipulagið í Airtable er skemmt"); return; }
+      catch(e){ proBar("Skipulagið í Airtable er skemmt"); return; }
     }
-    if (!load()){ proBar("⛔ Gat ekki opnað skipulagið"); return; }
+    if (!load()){ proBar("Gat ekki opnað skipulagið"); return; }
     state.step = "editor";
     freezeSk(); // the numbers the Line Items already have
     PRO.ready = true;
@@ -12100,7 +12096,7 @@
     try{
       var models = wdModels(), rooms = [];
       models.forEach(function(m){ var pg = KPWD.render(m); rooms.push({ name:m.roomName, sheets:pg.length, units:(m.sheets || []).reduce(function(n, sh){ return n + ((sh.units || []).length); }, 0), notes:(m.notes || []).slice(0, 2) }); pages = pages.concat(pg); });
-      // 🚪 the project's door list as its own sheet (I2), after the rooms
+      // the project's door list as its own sheet (I2), after the rooms
       var dl = wdDoorRows();
       if (dl.length) pages.push(KPWD.doorSheet({ project:PRO ? PRO.name : "Verkefni", date:(models[0] || {}).date, notes:[] }, dl, pages.length + 2, pages.length + 2));
       // one PDF for the whole project (I1): a cover with the contents when there's more than one room or a door list
@@ -12109,9 +12105,9 @@
     catch(e){ toast("Teikningin tókst ekki: " + e.message); console.error(e); return; }
     var ov = document.getElementById("wdOverlay");
     if (!ov){ ov = document.createElement("div"); ov.id = "wdOverlay"; document.body.appendChild(ov); }
-    ov.innerHTML = '<div class="wd-bar"><span>📐 Vinnuteikningar · ' + pages.length + ' ' + plural(pages.length, "blað", "blöð") + ' (A3)</span>' +
-      (PRO ? '<button type="button" id="wdSave" title="Vistast í „Vinnuteikningar (drög) 📐" á Tækifærinu — nýjasta útgáfan kemur í stað þeirrar eldri">💾 Vista á Tækifæri</button>' : '') +
-      '<button type="button" id="wdPrint">🖨️ Prenta / vista sem PDF</button><button type="button" class="ghost" id="wdClose">Loka</button></div>' +
+    ov.innerHTML = '<div class="wd-bar"><span>Vinnuteikningar · ' + pages.length + ' ' + plural(pages.length, "blað", "blöð") + ' (A3)</span>' +
+      (PRO ? '<button type="button" id="wdSave" title="Vistast í „Vinnuteikningar (drög) 📐" á Tækifærinu — nýjasta útgáfan kemur í stað þeirrar eldri">Vista á Tækifæri</button>' : '') +
+      '<button type="button" id="wdPrint">Prenta / vista sem PDF</button><button type="button" class="ghost" id="wdClose">Loka</button></div>' +
       '<div class="wd-pages">' + pages.join("") + '</div>';
     ov.querySelector("#wdClose").addEventListener("click", function(){ ov.remove(); });
     var sb = ov.querySelector("#wdSave");
@@ -12126,7 +12122,7 @@
         if (!r.ok) throw new Error(d.error || ("HTTP " + r.status));
         toast("✓ Vinnuteikningar vistaðar á Tækifærið (Vinnuteikningar (drög) 📐).");
         sb.textContent = "✓ Vistað";
-      }catch(e){ toast("⛔ Vistaðist ekki: " + e.message); sb.textContent = label; sb.disabled = false; }
+      }catch(e){ toast("Vistaðist ekki: " + e.message); sb.textContent = label; sb.disabled = false; }
     });
     ov.querySelector("#wdPrint").addEventListener("click", function(){
       var w = window.open("", "_blank");
