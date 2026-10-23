@@ -530,8 +530,14 @@
           // itself as the reference point you had to drag the mouse all the way into a new column/
           // row before anything reacted, well after the tile's own leading edge had already arrived.
           // +4,+4 keeps the sampled point just inside the tile rather than exactly on its corner, so
-          // it doesn't land in the grid gap between cells.
-          var target = gridItemAt(cornerX + 4, cornerY + 4);
+          // it doesn't land in the grid gap between cells. Clamped into the row's own bounds — the
+          // corner can briefly land outside the grid (e.g. dragging a wide tile only a short
+          // distance straight down, where the grab offset is more than half the tile's width),
+          // which would otherwise hit the page behind the grid and silently stop updating.
+          var rowRect = rowEl.getBoundingClientRect();
+          var sampleX = Math.min(Math.max(cornerX + 4, rowRect.left + 1), rowRect.right - 1);
+          var sampleY = Math.min(Math.max(cornerY + 4, rowRect.top + 1), rowRect.bottom - 1);
+          var target = gridItemAt(sampleX, sampleY);
           if (!target || target === el) return;
           var trect = target.getBoundingClientRect();
           var before = (cornerX - trect.left) < trect.width / 2;
