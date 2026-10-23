@@ -2757,6 +2757,12 @@
     var start = Math.max(cornerClearance(w, "floor"), Math.min(w.lengthMm - b.widthMm, Math.round((waterAlong(w) - b.widthMm / 2) / 10) * 10)); // centred on the water marker
     insertBlockAt(w, "floor", b, start);
     landedBlockId = b.id;
+    // Þvottahús (user, 2026-10-23, E1): the washer + dryer stack starts next to the sink, on whichever side has room
+    if (state.activeCategory === "thvottahus"){
+      var t = newBlock("thvottavel"), sinkEnd = start + b.widthMm, after = sinkEnd + 19, before = start - t.widthMm - 19;
+      if (after + t.widthMm <= w.lengthMm - 19) insertBlockAt(w, "floor", t, after);
+      else if (before >= cornerClearance(w, "floor")) insertBlockAt(w, "floor", t, before);
+    }
     save();
   }
 
@@ -5185,6 +5191,25 @@
       { label:"Skúffur", type:"grunnskapur", drawers:true },
       { label:"Hurð með hillum", type:"grunnskapur" } ] },
     { key:"efri", label:"Efri skápur", desc:"Á vegg, t.d. yfir vaskinum", icon:"efriskapur", opts:[
+      { label:"Lokaður skápur með hillum", type:"efriskapur" },
+      { label:"Opinn skápur með hillum", type:"opnarhillur" },
+      { label:"Lausar hillur (38 mm)", type:"laushilla" } ] }
+  ];
+  // Þvottahús (E1): the kitchen flow with water + worktop; washer/dryer tower first in the list
+  var THVOTT_TREE = [
+    { key:"vel", label:"Þvottavél & þurrkari", desc:"Í stæðu, í háum skáp", icon:"thvottavel", opts:[
+      { label:"Þvottavélaskápur (stæða)", type:"thvottavel" },
+      { label:"Frístandandi undir borðplötu", type:"thvottavelFri" } ] },
+    { key:"vaskur", label:"Vaskaskápur", desc:"Undir borðplötu", icon:"vaskaskapur", opts:[
+      { label:"Skúffur", type:"vaskaskapur", drawers:true },
+      { label:"Hurð", type:"vaskaskapur" } ] },
+    { key:"grunn", label:"Grunnskápar", desc:"Undir borðplötu", icon:"grunnskapur", opts:[
+      { label:"Skúffur", type:"grunnskapur", drawers:true },
+      { label:"Hurð með hillum", type:"grunnskapur" },
+      { label:"Ruslaskápur", type:"ruslaskapur" } ] },
+    { key:"har", label:"Háir skápar", desc:"Upp undir loft", icon:"harskapur", opts:[
+      { label:"Hurðir með hillum", type:"harskapur" } ] },
+    { key:"efri", label:"Efri skápar", desc:"Á vegg", icon:"efriskapur", opts:[
       { label:"Lokaður skápur með hillum", type:"efriskapur" },
       { label:"Opinn skápur með hillum", type:"opnarhillur" },
       { label:"Lausar hillur (38 mm)", type:"laushilla" } ] }
@@ -9491,6 +9516,7 @@
     { key:"eldhus", icon:"🍳", label:"Eldhús", desc:"Innrétting, borðplata og tæki" },
     { key:"fataskapar", icon:"🚪", label:"Fataskápur", desc:"Skápar, innvols og rennihurðir" },
     { key:"bad", icon:"🛁", label:"Baðherbergi", desc:"Veggfestir vaskaskápar og efri skápar" },
+    { key:"thvottahus", icon:"🧺", label:"Þvottahús", desc:"Þvottavél, þurrkari og vaskur" },
     { key:"hurdir", icon:"🚪", label:"Innihurðir", desc:"Hurðir um allt heimilið" },
     { key:"ibud", icon:"🏠", label:"Heil íbúð", desc:"Öll rýmin í einu verkefni", soon:true }
   ];
@@ -9545,6 +9571,7 @@
     { key:"eldhus", label:"Eldhús", water:true, worktop:true },
     { key:"fataskapar", label:"Fataskápar", tree:FATASKAPAR_TREE, roomPicker:true, defaultRoom:"Fatask.", water:false, worktop:false, matPhases:MAT_PHASES_FATASKAPAR },
     { key:"bad", label:"Baðherbergi", tree:BAD_TREE, roomPicker:true, defaultRoom:"Baðh.", water:true, worktop:true, hung:true },
+    { key:"thvottahus", label:"Þvottahús", tree:THVOTT_TREE, defaultRoom:"Þvottah.", water:true, worktop:true },
     { key:"hurdir", label:"Hurðir", soon:true }
   ];
   function categoryDef(key){ return CATEGORIES.find(function(c){ return c.key === key; }) || null; }
