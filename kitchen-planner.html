@@ -644,6 +644,17 @@
   }
   .ed-stage.wall-mode #wallMiniMap svg{ width:100%; height:100%; }
   /* Veggur merkingar (2026-10-23) */
+  /* "+ Ný eining" step 3 groups (2026-10-23) */
+  .uw-secs{ border-top:1px solid var(--line); margin:4px 0 10px; }
+  .uw-sec{ border-bottom:1px solid var(--line); }
+  .uw-sec-head{ width:100%; display:flex; align-items:center; gap:8px; padding:11px 2px; background:none; border:0; cursor:pointer; font:inherit; color:var(--ink); text-align:left; }
+  .uw-sec-head b{ font-size:14px; }
+  .uw-sec-head span{ flex:1; color:var(--blue); font-weight:600; font-size:13px; }
+  .uw-sec-head i{ font-style:normal; color:var(--ink-soft); }
+  .uw-sec.open .uw-sec-head span{ color:var(--ink-soft); }
+  .uw-sec-body{ padding:0 0 12px; animation:uwSecIn .18s ease-out; }
+  @keyframes uwSecIn{ from{ opacity:0; transform:translateY(-4px); } to{ opacity:1; transform:none; } }
+  .uw-chips .hw-btn.suggest{ border:1.5px dashed var(--blue); color:var(--blue); background:var(--blue-soft, #eef3ff); }
   .anno-bar{ position:absolute; left:18px; bottom:18px; z-index:6; display:flex; flex-direction:column; align-items:flex-start; gap:6px; }
   .anno-bar[hidden], .anno-bar [hidden]{ display:none !important; }
   .anno-bar button{ font:inherit; font-size:13px; font-weight:600; cursor:pointer; background:var(--card,#fff); color:var(--ink); border:1.5px solid var(--line); border-radius:999px; padding:7px 13px; box-shadow:0 4px 12px rgba(0,0,0,.12); }
@@ -4926,6 +4937,17 @@
   // multiple of those, so the range always lands on a whole chip at both ends).
   function uwHeightOptions(c){ var out = []; for (var h = 100; h <= 3000; h += 100) if (h >= c.minH && h <= c.maxH) out.push(h); return out; }
   function uwDepthOptions(c){ var out = []; for (var d = 50; d <= 3000; d += 50) if (d >= c.minD && d <= c.maxD) out.push(d); return out; }
+  // a collapsible group of the "+ Ný eining" step 3; uw.sec = the open one (the first not yet picked, by default)
+  function uwSec(key, label, summary, body){
+    var open = uw.sec === key;
+    return '<div class="uw-sec' + (open ? ' open' : '') + '"><button type="button" class="uw-sec-head" data-uw-sec="' + key + '"><b>' + label + '</b><span>' + summary + '</span><i>' + (open ? '▾' : '▸') + '</i></button>' +
+      (open ? '<div class="uw-sec-body">' + body + '</div>' : '') + '</div>';
+  }
+  function uwAdvance(key){ // a dimension was picked → fold it, open the next group still to do
+    uw.picked = uw.picked || {}; uw.picked[key] = true;
+    var c = CATALOG[uw.b.type], order = [!c.panel && "w", c.minH !== c.maxH && "h", c.minD !== c.maxD && "d", "inn"].filter(Boolean);
+    uw.sec = order.slice(order.indexOf(key) + 1).find(function(k){ return !uw.picked[k]; }) || "inn";
+  }
   function renderUnitWizard(){
     var side = document.getElementById("uwSide"), html = "";
     if (uw.step === 1){
@@ -4944,44 +4966,43 @@
       }).join("") + '</div><div class="uw-actions"><button type="button" class="btn btn-secondary btn-small" data-uw-back>← Til baka</button></div>';
     } else {
       var b = uw.b, c = CATALOG[b.type], opt = activeUnitTree()[uw.cat].opts[uw.opt];
+      if (uw.secFor !== b){ uw.secFor = b; uw.picked = {}; uw.sec = !c.panel ? "w" : c.minH !== c.maxH ? "h" : c.minD !== c.maxD ? "d" : "inn"; } // a new cabinet starts over
       var widths = uwWidthOptions(c), walls = uwSurfaces(c.zone);
       html = '<p class="uw-kicker">' + activeUnitTree()[uw.cat].label + '</p><h3>' + (opt.group ? opt.group + ': ' : '') + opt.label + '</h3>';
       if (uw.island) html += islandBoxesHTML();
-      if (!c.panel){
-        html += '<div class="edit-field"><label>Breidd</label><div class="uw-chips">' + widths.map(function(w){
-          return '<button type="button" class="hw-btn' + (b.widthMm === w ? ' active' : '') + '" data-uw-w="' + w + '">' + (w / 10) + '</button>';
-        }).join("") + '</div><div class="uw-custom"><input type="number" data-uw-wcustom min="' + c.minW + '" max="' + c.maxW + '" step="1" value="' + b.widthMm + '"><small>mm · sérmál ' + c.minW + '–' + c.maxW + '</small></div></div>';
+      // One thing at a time (user, 2026-10-23): Breidd → Hæð → Dýpt → Innvols as collapsible groups. Each dimension
+      // starts un-picked with the usual size highlighted; picking one folds it into its header ("Breidd · 60 cm ✓")
+      // and opens the next. A folded header reopens on click. "Setja inn" works any time — the defaults are fine.
+      if (!uw.picked) uw.picked = {};
+      function dimSec(key, label, opts, cur, def, attr, cAttr, lo, hi){
+        var picked = !!uw.picked[key], body = '<div class="uw-chips">' + opts.map(function(v){
+          return '<button type="button" class="hw-btn' + (picked && cur === v ? ' active' : (!picked && v === def ? ' suggest' : '')) + '" ' + attr + '="' + v + '"' + (!picked && v === def ? ' title="Algengast"' : '') + '>' + (v / 10) + '</button>';
+        }).join("") + '</div><div class="uw-custom"><input type="number" ' + cAttr + ' min="' + lo + '" max="' + hi + '" step="1" value="' + (picked ? cur : "") + '" placeholder="' + def + '"><small>mm · sérmál ' + lo + '–' + hi + '</small></div>';
+        return uwSec(key, label, picked ? (cur / 10) + " cm ✓" : "", body);
       }
-      if (c.minH !== c.maxH){
-        var heights = uwHeightOptions(c), curH = b.heightMm || c.h;
-        html += '<div class="edit-field"><label>Hæð</label><div class="uw-chips">' + heights.map(function(h){
-          return '<button type="button" class="hw-btn' + (curH === h ? ' active' : '') + '" data-uw-h="' + h + '">' + (h / 10) + '</button>';
-        }).join("") + '</div><div class="uw-custom"><input type="number" data-uw-hcustom min="' + c.minH + '" max="' + c.maxH + '" step="1" value="' + curH + '"><small>mm · sérmál ' + c.minH + '–' + c.maxH + '</small></div></div>';
-      }
-      if (c.minD !== c.maxD){
-        var depths = uwDepthOptions(c), curD = b.depthMm || c.d;
-        html += '<div class="edit-field"><label>Dýpt</label><div class="uw-chips">' + depths.map(function(d){
-          return '<button type="button" class="hw-btn' + (curD === d ? ' active' : '') + '" data-uw-d="' + d + '">' + (d / 10) + '</button>';
-        }).join("") + '</div><div class="uw-custom"><input type="number" data-uw-dcustom min="' + c.minD + '" max="' + c.maxD + '" step="1" value="' + curD + '"><small>mm · sérmál ' + c.minD + '–' + c.maxD + '</small></div></div>';
-      }
-      if (c.hasInterior) html += '<div class="edit-field">' + hardwareHTML(b, c, PRO ? { sides:true } : null) + '</div>';
+      var secHtml = [];
+      if (!c.panel) secHtml.push(dimSec("w", "Breidd", widths, b.widthMm, c.defaultW, "data-uw-w", "data-uw-wcustom", c.minW, c.maxW));
+      if (c.minH !== c.maxH) secHtml.push(dimSec("h", "Hæð", uwHeightOptions(c), b.heightMm || c.h, c.h, "data-uw-h", "data-uw-hcustom", c.minH, c.maxH));
+      if (c.minD !== c.maxD) secHtml.push(dimSec("d", "Dýpt", uwDepthOptions(c), b.depthMm || c.d, c.d, "data-uw-d", "data-uw-dcustom", c.minD, c.maxD));
+      var innHtml = "";
+      if (c.hasInterior) innHtml += '<div class="edit-field">' + hardwareHTML(b, c, PRO ? { sides:true } : null) + '</div>';
       // Preset samsetningar (2026-10-22): sama "hillur ALLTAF neðst-óháð, skúffur alltaf neðst" líkan og
       // steppararnir hér fyrir neðan — bara fljótleg byrjun, ekki endapunktur. Steppararnir sjálfir eru
       // áfram virkir eftir að preset er valið, svo ekkert tapast við að fínstilla á eftir.
       if (c.presets){
-        html += '<div class="edit-field"><label>Samsetning</label><div class="uw-chips">' + c.presets.map(function(p){
+        innHtml += '<div class="edit-field"><label>Samsetning</label><div class="uw-chips">' + c.presets.map(function(p){
           return '<button type="button" class="hw-btn" data-uw-preset="' + p.key + '">' + p.label + '</button>';
         }).join("") + '</div></div>';
       }
       var shelfN = c.shelfRange && !(c.hasInterior && b.interior.mode === "skuffur" && c.cls !== "tall") ? KP3D.shelvesOf(b) : null; // b.shelves, same as the side panel + 3D
       if (shelfN != null){
         var rng = [c.shelfRange[0], c.shelfRange[1]];
-        html += '<div class="edit-field"><label>Hillur</label><div class="hw-count"><button class="iconbtn" data-uw-sh="-1"' + (shelfN <= rng[0] ? " disabled" : "") + '>−</button><b>' + shelfN + '</b><button class="iconbtn" data-uw-sh="1"' + (shelfN >= rng[1] ? " disabled" : "") + '>+</button><span>' + plural(shelfN, "hilla", "hillur") + '</span></div></div>';
+        innHtml += '<div class="edit-field"><label>Hillur</label><div class="hw-count"><button class="iconbtn" data-uw-sh="-1"' + (shelfN <= rng[0] ? " disabled" : "") + '>−</button><b>' + shelfN + '</b><button class="iconbtn" data-uw-sh="1"' + (shelfN >= rng[1] ? " disabled" : "") + '>+</button><span>' + plural(shelfN, "hilla", "hillur") + '</span></div></div>';
       }
       var railN = c.railRange ? KP3D.railsOf(b) : null; // Fataslá
       if (railN != null){
         var rrng = [c.railRange[0], c.railRange[1]];
-        html += '<div class="edit-field"><label>Fataslár</label><div class="hw-count"><button class="iconbtn" data-uw-rail="-1"' + (railN <= rrng[0] ? " disabled" : "") + '>−</button><b>' + railN + '</b><button class="iconbtn" data-uw-rail="1"' + (railN >= rrng[1] ? " disabled" : "") + '>+</button><span>' + plural(railN, "fataslá", "fataslár") + '</span></div></div>';
+        innHtml += '<div class="edit-field"><label>Fataslár</label><div class="hw-count"><button class="iconbtn" data-uw-rail="-1"' + (railN <= rrng[0] ? " disabled" : "") + '>−</button><b>' + railN + '</b><button class="iconbtn" data-uw-rail="1"' + (railN >= rrng[1] ? " disabled" : "") + '>+</button><span>' + plural(railN, "fataslá", "fataslár") + '</span></div></div>';
       }
       // Skúffur í opnum skáp (2026-10-22): sitja ALLTAF neðst, hillur/fataslár fylla restina fyrir ofan —
       // ekki sama "hillur eða skúffur" víxl og c.hasInterior týpur hafa (sjá CATALOG-athugasemdina við
@@ -4989,9 +5010,11 @@
       var drawerN = (c.open && c.drawerCountRange) ? ((b.interior && b.interior.mode === "skuffur") ? b.interior.count : 0) : null;
       if (drawerN != null){
         var drng = c.drawerCountRange;
-        html += '<div class="edit-field"><label>Skúffur</label><div class="hw-count"><button class="iconbtn" data-uw-drawer="-1"' + (drawerN <= drng[0] ? " disabled" : "") + '>−</button><b>' + drawerN + '</b><button class="iconbtn" data-uw-drawer="1"' + (drawerN >= drng[1] ? " disabled" : "") + '>+</button><span>' + plural(drawerN, "skúffa", "skúffur") + '</span></div></div>';
+        innHtml += '<div class="edit-field"><label>Skúffur</label><div class="hw-count"><button class="iconbtn" data-uw-drawer="-1"' + (drawerN <= drng[0] ? " disabled" : "") + '>−</button><b>' + drawerN + '</b><button class="iconbtn" data-uw-drawer="1"' + (drawerN >= drng[1] ? " disabled" : "") + '>+</button><span>' + plural(drawerN, "skúffa", "skúffur") + '</span></div></div>';
       }
-      html += variantHTML(b, c);
+      innHtml += variantHTML(b, c);
+      if (innHtml) secHtml.push(uwSec("inn", c.hasInterior || c.shelfRange || c.railRange ? "Innvols" : "Útfærsla", "", innHtml));
+      html += '<div class="uw-secs">' + secHtml.join("") + '</div>';
       if (uw.island){
         side.innerHTML = html + '<div class="uw-actions"><button type="button" class="btn btn-secondary btn-small" data-uw-back>← Til baka</button>' +
           '<button type="button" class="btn btn-primary" data-isl-add>Setja inn eyju</button></div>';
@@ -5045,15 +5068,16 @@
     if (uw.step === 3 && uw.island) wireIslandConfig(side);
     if (uw.step !== 3) return;
     var b = uw.b, c = CATALOG[b.type];
-    side.querySelectorAll("[data-uw-w]").forEach(function(el){ el.addEventListener("click", function(){ b.widthMm = +el.dataset.uwW; renderUnitWizard(); }); });
+    side.querySelectorAll("[data-uw-sec]").forEach(function(el){ el.addEventListener("click", function(){ uw.sec = uw.sec === el.dataset.uwSec ? null : el.dataset.uwSec; renderUnitWizard(); }); });
+    side.querySelectorAll("[data-uw-w]").forEach(function(el){ el.addEventListener("click", function(){ b.widthMm = +el.dataset.uwW; uwAdvance("w"); renderUnitWizard(); }); });
     var wc = side.querySelector("[data-uw-wcustom]");
-    if (wc) wc.addEventListener("change", function(){ b.widthMm = clampWidth(b.type, parseFloat(wc.value)); renderUnitWizard(); });
-    side.querySelectorAll("[data-uw-h]").forEach(function(el){ el.addEventListener("click", function(){ b.heightMm = +el.dataset.uwH; renderUnitWizard(); }); });
+    if (wc) wc.addEventListener("change", function(){ if (!wc.value) return; b.widthMm = clampWidth(b.type, parseFloat(wc.value)); uwAdvance("w"); renderUnitWizard(); });
+    side.querySelectorAll("[data-uw-h]").forEach(function(el){ el.addEventListener("click", function(){ b.heightMm = +el.dataset.uwH; uwAdvance("h"); renderUnitWizard(); }); });
     var hc = side.querySelector("[data-uw-hcustom]");
-    if (hc) hc.addEventListener("change", function(){ b.heightMm = clampHeight(b.type, parseFloat(hc.value)); renderUnitWizard(); });
-    side.querySelectorAll("[data-uw-d]").forEach(function(el){ el.addEventListener("click", function(){ b.depthMm = +el.dataset.uwD; renderUnitWizard(); }); });
+    if (hc) hc.addEventListener("change", function(){ if (!hc.value) return; b.heightMm = clampHeight(b.type, parseFloat(hc.value)); uwAdvance("h"); renderUnitWizard(); });
+    side.querySelectorAll("[data-uw-d]").forEach(function(el){ el.addEventListener("click", function(){ b.depthMm = +el.dataset.uwD; uwAdvance("d"); renderUnitWizard(); }); });
     var dc = side.querySelector("[data-uw-dcustom]");
-    if (dc) dc.addEventListener("change", function(){ b.depthMm = clampDepth(b.type, parseFloat(dc.value)); renderUnitWizard(); });
+    if (dc) dc.addEventListener("change", function(){ if (!dc.value) return; b.depthMm = clampDepth(b.type, parseFloat(dc.value)); uwAdvance("d"); renderUnitWizard(); });
     side.querySelectorAll("[data-sink-top]").forEach(function(el){ el.addEventListener("click", function(){
       if (el.dataset.sinkTop === "fastur") b.sinkTop = "fastur"; else delete b.sinkTop; renderUnitWizard();
     }); });
