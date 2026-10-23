@@ -7778,6 +7778,8 @@
         (hasInnerDrawers(b, c) ? '<div class="edit-field"><label title="Efni framhliða innskúffanna (á bak við hurðina)">Innskúffufrontar</label><select data-role="inner-front">' +
           '<option value=""' + (!b.innerFront ? " selected" : "") + '>Sjálfgefið (' + escapeHtmlPro(state.innerFront || "Skrokkaefni") + ')</option>' +
           INNER_FRONTS.map(function(x){ return '<option' + (b.innerFront === x ? " selected" : "") + '>' + x + '</option>'; }).join("") + '</select></div>' : '')) : "";
+    if (PRO && zone === "wall" && !c.panel && !c.shelfStack && !c.open) frontsHtml += '<div class="edit-field"><label title="Blum AVENTOS lyfta í stað lama — fer í V3 og hurðin verður lyftihurð í Smíða">Lyfta</label><select data-role="aventos">' +
+      '<option value="">Engin (lamir)</option>' + Object.keys(AVENTOS_PRODUCTS).map(function(k){ return '<option value="' + k + '"' + (b.aventos === k ? " selected" : "") + '>' + AVENTOS_PRODUCTS[k].label + '</option>'; }).join("") + '</select></div>';
     var annadHtml = frontsHtml + (zone === "wall" && !c.panel && !c.shelfStack ? '<div class="edit-field"><button type="button" class="iconbtn' + ((b.led != null ? b.led : lighting().underWall) ? ' on' : '') + '" data-role="led">💡 LED undir skápnum: ' + ((b.led != null ? b.led : lighting().underWall) ? 'á' : 'af') + '</button></div>' : '') +
         '<div class="edit-field lock-row"><button type="button" class="iconbtn lockbtn' + (b.locked ? ' on' : '') + '" data-role="lock" data-keep="1" title="' + (b.locked ? 'Smelltu á skúffur og hurðir í 3D til að opna þær' : 'Læstu honum þegar hann er réttur') + '">' + (b.locked ? '🔒 Læstur' : '🔓 Læsa') + '</button></div>' +
         '<div class="edit-field"><label>Tegund</label><select data-role="type">' + typeOptions + '</select></div>' +
@@ -7894,6 +7896,13 @@
       if (e.target.value) b.swing = e.target.value; else delete b.swing;
       save();
       refreshAfterEdit();
+    });
+    var avSel = host.querySelector('[data-role="aventos"]');
+    if (avSel) avSel.addEventListener("change", function(){
+      var fb2 = findBlock(b.id), ds = proDoorsOf(b, c, fb2 ? fb2.zone : "wall");
+      if (avSel.value) b.aventos = avSel.value; else delete b.aventos;
+      ds.forEach(function(d, i){ var sp = proSpec(b, ds, i); sp.type = avSel.value ? "lift" : "hinged"; if (sp.type === "hinged" && !(sp.hinges && sp.hinges.length)) sp.hinges = proDefaultHinges(b, ds, i); proSetSpec(b, ds, i, sp); });
+      save(); refreshAfterEdit();
     });
     host.querySelectorAll("[data-closetled]").forEach(function(btn){
       btn.addEventListener("click", function(){ if (btn.dataset.closetled) b.closetLed = btn.dataset.closetled; else { delete b.closetLed; delete b.ledSide; } save(); refreshAfterEdit(); });
@@ -8872,6 +8881,13 @@
     revego:   { uno:"recfSLkM50Ciz60Z0", duo:"recSGWz9T3CaWSIdI" },   // BLUM - Revego UNO / DUO
     concepta: { uno:"recvfAjKyZeokEk6U", duo:"recJYxvj0ERXyeUmw" }    // Hawa Concepta III einfalt / tvöfalt kerfi
   };
+  // AVENTOS lyftur (user, 2026-10-23, B4) — PRO option on wall cabinets, → V3 (route "Flókið kerfi"), the door becomes
+  // a Lyftihurð in Smíða so /cnc and the drawings follow
+  var AVENTOS_PRODUCTS = {
+    hktop: { label:"AVENTOS HK-Top", id:"recguDtSfkhwH32U6" },
+    hltop: { label:"AVENTOS HL-Top", id:"recHqMOZkfg9tcWtn" },
+    hlrafk: { label:"AVENTOS HL rafknúin", id:"recCMF1q3qNtZsb8l" }
+  };
   function pocketLeafOf(b, c){ return b.widthMm > 600 && !c.fridge && c.cls !== "corner" ? "duo" : "uno"; }
   // V3 = accessories with an Aukahlutategund route: the bin insert (+ the LED, added in collectLineItems)
   function v3RecordsFor(b, c){
@@ -8879,6 +8895,7 @@
     if ((c.rusl || (c.sink && isDrawerUnit(b))) && LM){ var r = LM.rusl[String(widthFamily(b.widthMm))]; if (r) out.push(r.id); } // sink with drawers: bins in the bottom drawer
     // Le Mans by door half × carcass colour (route "Töfrahorn"; no light grey one exists)
     if (c.tofrahornIds){ var tid = c.tofrahornIds[b.swing === "vinstri" ? "vinstri" : "haegri"][state.carcass]; if (tid) out.push(tid); }
+    if (b.aventos && AVENTOS_PRODUCTS[b.aventos]) out.push(AVENTOS_PRODUCTS[b.aventos].id);
     if (b.smida && Array.isArray(b.smida.doors)){
       var pocketSys = null;
       b.smida.doors.forEach(function(d){ if (d && d.type === "pocket" && !pocketSys) pocketSys = d.pocketSys || "revego"; });
@@ -9012,6 +9029,7 @@
           notes.push("Viðskiptavinur óskar eftir að lamir séu " + (b.swing === "vinstri" ? "vinstra" : "hægra") + " megin (séð framan frá).");
         }
         var v3 = v1 ? v3RecordsFor(b, c) : [];
+        if (b.aventos && AVENTOS_PRODUCTS[b.aventos]) notes.push("Lyfta: " + AVENTOS_PRODUCTS[b.aventos].label + " í stað lama — staðfestu stærð og þyngd framhliðar gagnvart lyftunni.");
         if (c.oven && !c.lowOven && +b.ovenH === 1050) notes.push("Ofn (60 cm) + örbylgjuofn (45 cm) í sama turni — staðfestu tækin.");
         if (state.hungUnits && zone_ofBlock(wall, b) === "floor") notes.push("Veggfestur (baðherbergi): " + plinthMmOf(c, "floor", wall) + " mm frá gólfi að neðri brún, enginn sökkull.");
         var lit = bom && bom.perUnit[b.id];
