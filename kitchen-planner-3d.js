@@ -3756,6 +3756,74 @@
       st.studio = false;
     }
   }
+  // ---------- Allt heimilið in 3D (2026-10-23): every room built by buildScene, placed together ----------
+  // rooms = [{ state, x, z, rot }] (mm / degrees, the home plan's places); rooms[0] is the one the scene is built
+  // around (its lights, camera, walk start). Each other room is built into a hidden host, its content (no lights)
+  // moved into a group turned/placed relative to rooms[0], and its own loop/listeners stopped. Walking: allowed inside
+  // any room (25 cm off its walls) and through door openings; cabinets block.
+  function buildHomeScene(container, rooms, opts){
+    var THREE = window.__THREE__, extras = [], doorRects = [];
+    var p0 = rooms[0], t0 = (p0.rot || 0) * Math.PI / 180;
+    function toMain(x, z){ // plan mm of the home → rooms[0]'s own metres
+      var dx = (x - p0.x) / 1000, dz = (z - p0.z) / 1000, c = Math.cos(-t0), sn = Math.sin(-t0);
+      return { x:dx * c - dz * sn, z:dx * sn + dz * c };
+    }
+    function roomToMain(r, p){ var t = (r.rot || 0) * Math.PI / 180, c = Math.cos(t), sn = Math.sin(t), X = p.x * 1000, Z = p.z * 1000; return toMain(X * c - Z * sn + r.x, X * sn + Z * c + r.z); }
+    rooms.slice(1).forEach(function(r){
+      var hid = document.createElement("div");
+      hid.style.cssText = "position:fixed;left:-30000px;top:0;width:" + Math.max(400, container.clientWidth) + "px;height:" + Math.max(300, container.clientHeight) + "px;";
+      document.body.appendChild(hid);
+      buildScene(hid, r.state, { freshCamera:true, darkBg:opts && opts.darkBg });
+      var TS = THREE_STATE;
+      cancelAnimationFrame(TS.rafId); window.removeEventListener("resize", TS.onResize);
+      if (TS.walkCleanup) TS.walkCleanup();
+      if (TS.cleanupInteraction) TS.cleanupInteraction();
+      TS.controls.dispose();
+      if (TS.composer) TS.composer.dispose(); if (TS.aoComposer) TS.aoComposer.dispose();
+      var grp = new THREE.Group(), floorPicks = (TS.pickables || []).filter(function(m){ return m.userData && m.userData.blockId && m.userData.zone === "floor"; });
+      TS.scene.children.slice().forEach(function(o){ if (o.isLight || (o.userData && o.userData.homeSkip)) return; grp.add(o); });
+      disposeScene(TS.scene);
+      if (TS.renderer.domElement.parentNode) TS.renderer.domElement.parentNode.removeChild(TS.renderer.domElement);
+      THREE_STATE = null; hid.remove();
+      var o = roomToMain(r, { x:0, z:0 }), dt = ((r.rot || 0) - (p0.rot || 0)) * Math.PI / 180;
+      grp.position.set(o.x, 0, o.z); grp.rotation.y = -dt;
+      extras.push({ grp:grp, room:r, picks:floorPicks });
+    });
+    buildScene(container, p0.state, opts || {});
+    var MS = THREE_STATE;
+    extras.forEach(function(e){ e.grp.traverse(function(o){ if (o.isSprite) o.visible = false; }); MS.scene.add(e.grp); }); // (their V-labels too)
+    MS.scene.updateMatrixWorld(true);
+    var polys = rooms.map(function(r){
+      var g = wallGeometry3D(r.state.walls);
+      return { pts:g.map(function(w){ return roomToMain(r, w.origin); }),
+        segs:g.map(function(w, i){ return r.state.walls[i].open ? null : [roomToMain(r, w.origin), roomToMain(r, { x:w.origin.x + w.axis.x * w.lenM, z:w.origin.z + w.axis.z * w.lenM })]; }).filter(Boolean) };
+    });
+    rooms.forEach(function(r){
+      var g = wallGeometry3D(r.state.walls);
+      (r.state.doors || []).forEach(function(d){
+        var wi = r.state.walls.findIndex(function(w){ return w.id === d.wallId; }), w = g[wi]; if (!w) return;
+        var a0 = d.offsetMm / 1000 + 0.05, a1 = (d.offsetMm + d.widthMm) / 1000 - 0.05;
+        function at(al, out){ return roomToMain(r, { x:w.origin.x + w.axis.x * al + w.normal.x * out, z:w.origin.z + w.axis.z * al + w.normal.z * out }); }
+        doorRects.push([at(a0, 0.35), at(a1, 0.35), at(a1, -0.55), at(a0, -0.55)]);
+      });
+    });
+    var boxes = [];
+    (MS.pickables || []).forEach(function(m){ if (m.userData && m.userData.blockId && m.userData.zone === "floor") boxes.push(new THREE.Box3().setFromObject(m)); });
+    extras.forEach(function(e){ e.picks.forEach(function(m){ boxes.push(new THREE.Box3().setFromObject(m)); }); });
+    function inPoly(x, z, P){ var inside = false; for (var i = 0, j = P.length - 1; i < P.length; j = i++){ if ((P[i].z > z) !== (P[j].z > z) && x < (P[j].x - P[i].x) * (z - P[i].z) / (P[j].z - P[i].z) + P[i].x) inside = !inside; } return inside; }
+    function segDist(x, z, sg){ var ax = sg[0].x, az = sg[0].z, dx = sg[1].x - ax, dz = sg[1].z - az, L2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / L2)); return Math.hypot(x - ax - dx * t, z - az - dz * t); }
+    MS.homeWalk = { rooms:polys, blocked:function(x, z){
+      var inDoor = doorRects.some(function(q){ return inPoly(x, z, q); });
+      if (!inDoor){
+        var room = polys.find(function(p){ return inPoly(x, z, p.pts); });
+        if (!room) return true;
+        if (room.segs.some(function(sg){ return segDist(x, z, sg) < 0.25; })) return true;
+      }
+      return boxes.some(function(b){ return x > b.min.x - 0.25 && x < b.max.x + 0.25 && z > b.min.z - 0.25 && z < b.max.z + 0.25; });
+    } };
+    return MS;
+  }
+
   // walk mode — module level so it outlives scene rebuilds
   var WALK = { on:false, x:0, z:0, yaw:0, pitch:0 };
   function setWalkMode(on){ if (!THREE_STATE || !THREE_STATE.setWalk){ WALK.on = false; return false; } return THREE_STATE.setWalk(!!on); }
@@ -4743,6 +4811,7 @@
     // and it survives rebuilds (every edit rebuilds the scene) — WALK lives at module level.
     var walkPrev = null, walkKeys = {}, walkLook = null, walkLast = 0, walkBlocks = null, walkV = new THREE.Vector3();
     function walkBlocked(x, z){
+      var HW = THREE_STATE && THREE_STATE.homeWalk; if (HW) return HW.blocked(x, z); // Allt heimilið: the whole home's rooms + doors
       var rb = interiorBounds(geoms, 4.2);
       if (x < rb.minX + 0.25 || x > rb.maxX - 0.25 || z < rb.minZ + 0.25 || z > rb.maxZ - 0.25) return true;
       if (geoms.closed){ // inside the outline
@@ -4763,7 +4832,8 @@
     }
     function walkSpot(){ // start on the far side of the room from the cabinets, looking at all of them
       var rb = interiorBounds(geoms, 4.2), rc = { x:(rb.minX + rb.maxX) / 2, z:(rb.minZ + rb.maxZ) / 2 };
-      walkBlocked(rc.x, rc.z); // fills walkBlocks
+      walkBlocked(rc.x, rc.z); // fills walkBlocks (not in Allt heimilið, whose own check answers first)
+      if (!walkBlocks){ walkBlocks = []; pickables.forEach(function(m){ if (!m.userData.blockId) return; var bb = new THREE.Box3().setFromObject(m); if (bb.min.y < 0.5) walkBlocks.push(bb); }); }
       var cab = new THREE.Box3(); walkBlocks.forEach(function(bx){ cab.union(bx); });
       var c = cab.isEmpty() ? rc : { x:(cab.min.x + cab.max.x) / 2, z:(cab.min.z + cab.max.z) / 2 };
       var dx = rc.x - c.x, dz = rc.z - c.z, L = Math.hypot(dx, dz);
@@ -5015,6 +5085,7 @@
       // "V1" bubbles: drawn on top of everything (depthTest off), so a wall you're looking through would still
       // show its label floating over the room — hide it while the camera is on that wall's outer side
       wallLabels.forEach(function(l){
+        if (THREE_STATE && THREE_STATE.homeWalk){ l.sp.visible = false; return; } // Allt heimilið: no V-labels floating through the other rooms
         var cp = (THREE_STATE.fadeCam || camera).position, lx = l.g.origin.x + l.g.axis.x * l.g.lenM / 2, lz = l.g.origin.z + l.g.axis.z * l.g.lenM / 2;
         var behind = (cp.x - lx) * l.g.normal.x + (cp.z - lz) * l.g.normal.z < 0;
         var m = l.sp.material; m.opacity += ((behind ? 0 : 1) - m.opacity) * 0.2;
@@ -6316,7 +6387,7 @@
     surfacesOf: surfacesOf,
     islandFrame: islandFrame,
     wallGeoms: wallGeoms, turnAxis: turnAxis,
-    setWalkMode: setWalkMode, isWalking: isWalking,
+    setWalkMode: setWalkMode, isWalking: isWalking, buildHomeScene: buildHomeScene,
     debugWalk: function(key, secs){ // test aid (the pane can be hidden, so rAF never ticks): hold a key for `secs`, return where you end up
       if (!THREE_STATE || !THREE_STATE.walkStep) return null;
       window.dispatchEvent(new KeyboardEvent("keydown", { key:key })); var t = 1000;

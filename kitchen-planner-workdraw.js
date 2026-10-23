@@ -324,7 +324,7 @@
         var o = T / sc, q0 = { x:p0.x - w.n.x * o, z:p0.z - w.n.z * o }, q1 = { x:p1.x - w.n.x * o, z:p1.z - w.n.z * o };
         s += poly([p0, p1, q1, q0], sel ? C.grip : C.ink, opts.mini ? 0.15 : 0.3, sel ? C.grip : (opts.mini ? C.ink : "url(#wdWall)"));
       });
-      if (!opts.mini){ // wall name + its length, outside the room
+      if (!opts.mini && !opts.noWallLabels){ // wall name + its length, outside the room
         var mid = { x:(w.a.x + w.b.x) / 2 - w.n.x * (T / sc + 0.32), z:(w.a.z + w.b.z) / 2 - w.n.z * (T / sc + 0.32) }, mp = P(mid);
         s += tx(mp.x, mp.y - 0.4, w.label + " · " + Math.round(w.lenMm), 2.4, C.ink, ' text-anchor="middle" font-weight="600"');
       }
@@ -340,6 +340,7 @@
       } else if (o.kind === "slide"){ var so = { x:o.n.x * 0.04 * sc, y:o.n.z * 0.04 * sc }; s += ln(a.x + so.x, a.y + so.y, b.x + so.x, b.y + so.y, C.ink, 0.45); }
     });
     (geo.obstacles || []).forEach(function(o){ s += poly(o.poly, C.thin, 0.2, "url(#wdHatch)"); });
+    (geo.labels || []).forEach(function(l){ var lp = P(l); s += tx(lp.x, lp.y - 0.6, l.text, 3.2, C.ink, ' text-anchor="middle" font-weight="800"') + (l.sub ? tx(lp.x, lp.y + 3.4, l.sub, 2.3, C.thin, ' text-anchor="middle"') : ""); }); // room names (Allt heimilið)
     (geo.units || []).forEach(function(u){
       if (u.panel){ s += poly(u.poly, C.ink, 0.2, C.ink); return; }
       s += poly(u.poly, u.zone === "wall" ? C.thin : C.ink, u.zone === "wall" ? 0.2 : (opts.mini ? 0.18 : 0.3), u.zone === "wall" ? "none" : "#fff", u.zone === "wall" ? DASH : "");
@@ -361,6 +362,16 @@
     return page(s);
   }
 
+  // ── Allt heimilið (2026-10-23): every room on one sheet, placed as on the home plan — geo is a merged planGeo with
+  // room labels; wall names are left off (each room's own sheets carry them) ──
+  function homeSheet(model, geo, idx, total){
+    var x = M + 6, y = M + 12, w = PAGE_W - 2 * M - COL_W - 14, h = PAGE_H - 2 * M - 22;
+    var s = tx(x, M + 7, "GRUNNMYND — ALLT HEIMILIÐ", 3.4, C.ink, ' font-weight="800"');
+    s += planSvg(geo, { x:x, y:y, w:w, h:h }, { noWallLabels:true });
+    s += column(model, { title:"Allt heimilið", minimap:null, notes:["Innveggir milli rýma eru teiknaðir sem bil — mál staðfest á staðnum."] }, idx, total, null);
+    return page(s);
+  }
+
   // ── Forsíða (2026-10-23, I1): one PDF for the whole project — the rooms, their sheets and the door list ──
   // project = {name, date, rooms:[{name, sheets, units, notes:[]}], doors:n, totalSheets}
   function coverSheet(project){
@@ -370,6 +381,7 @@
     var ty = y + 40, colW = 120;
     s += tx(x, ty, "EFNISYFIRLIT", 3, C.text, ' font-weight="700"'); ty += 7;
     var pg = 2;
+    if (project.home){ s += tx(x, ty, "Allt heimilið — grunnmynd", 3.4, C.ink, ' font-weight="700"') + tx(x + colW, ty, "bls. 2", 3, C.thin, ' text-anchor="end"') + ln(x, ty + 1.6, x + colW, ty + 1.6, "#d4d4d8", 0.15); ty += 13; pg = 3; }
     (project.rooms || []).forEach(function(r){
       s += tx(x, ty, r.name, 3.4, C.ink, ' font-weight="700"') + tx(x + colW, ty, "bls. " + pg + (r.sheets > 1 ? "–" + (pg + r.sheets - 1) : ""), 3, C.thin, ' text-anchor="end"');
       s += ln(x, ty + 1.6, x + colW, ty + 1.6, "#d4d4d8", 0.15);
@@ -425,7 +437,7 @@
     return out;
   }
 
-  var API = { render:render, wallSheet:wallSheet, doorSheet:doorSheet, coverSheet:coverSheet, overviewSheet:overviewSheet, planSvg:planSvg, drawerLabel:drawerLabel, pickScale:pickScale, COLORS:C, PAGE_W:PAGE_W, PAGE_H:PAGE_H };
+  var API = { render:render, wallSheet:wallSheet, doorSheet:doorSheet, coverSheet:coverSheet, homeSheet:homeSheet, overviewSheet:overviewSheet, planSvg:planSvg, drawerLabel:drawerLabel, pickScale:pickScale, COLORS:C, PAGE_W:PAGE_W, PAGE_H:PAGE_H };
   if (typeof module !== "undefined" && module.exports) module.exports = API;
   root.KPWD = API;
 })(typeof window !== "undefined" ? window : globalThis);
