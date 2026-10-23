@@ -7852,12 +7852,29 @@
     return null;
   }
 
+  // Rennihurð í hlið (pocket door, 2026-10-23) — a PRO/Smíða-only production choice (same tier as Lyftihurð,
+  // never customer-facing: the real cost — 300k-1.3M kr — is Rakel's call, not a casual self-serve click).
+  // Real Útfærslur ids, verified live against the base. "duo" reuses the EXISTING wide-door two-leaf rule
+  // (the same one o.hinge="baedi" already uses below) rather than a separate width heuristic — one source of
+  // truth for "does this opening get one leaf or two". The two-bay bundle SKUs (UNO+UNO/UNO+DUO/DUO+DUO, for
+  // a double wardrobe sharing one order line) are deliberately left out — they don't map to a single planner
+  // cabinet, same kind of combo-SKU gap as elsewhere in this file; Rakel combines lines by hand if ever needed.
+  var POCKET_PRODUCTS = {
+    revego:   { uno:"recfSLkM50Ciz60Z0", duo:"recSGWz9T3CaWSIdI" },   // BLUM - Revego UNO / DUO
+    concepta: { uno:"recvfAjKyZeokEk6U", duo:"recJYxvj0ERXyeUmw" }    // Hawa Concepta III einfalt / tvöfalt kerfi
+  };
+  function pocketLeafOf(b, c){ return b.widthMm > 600 && !c.fridge && c.cls !== "corner" ? "duo" : "uno"; }
   // V3 = accessories with an Aukahlutategund route: the bin insert (+ the LED, added in collectLineItems)
   function v3RecordsFor(b, c){
     var LM = window.KP_LINEMAP, out = [];
     if ((c.rusl || (c.sink && isDrawerUnit(b))) && LM){ var r = LM.rusl[String(widthFamily(b.widthMm))]; if (r) out.push(r.id); } // sink with drawers: bins in the bottom drawer
     // Le Mans by door half × carcass colour (route "Töfrahorn"; no light grey one exists)
     if (c.tofrahornIds){ var tid = c.tofrahornIds[b.swing === "vinstri" ? "vinstri" : "haegri"][state.carcass]; if (tid) out.push(tid); }
+    if (b.smida && Array.isArray(b.smida.doors)){
+      var pocketSys = null;
+      b.smida.doors.forEach(function(d){ if (d && d.type === "pocket" && !pocketSys) pocketSys = d.pocketSys || "revego"; });
+      if (pocketSys){ var pid = (POCKET_PRODUCTS[pocketSys] || {})[pocketLeafOf(b, c)]; if (pid) out.push(pid); }
+    }
     return out;
   }
 
@@ -7952,6 +7969,11 @@
         if (c.sink && isDrawerUnit(b)){
           notes.push("Vaskaskápur með skúffum (vaskur ~" + SINK_DEPTH_MM + " mm djúpur): efst " + (sinkFixedTop(b, c) ? "fastur frontur yfir vaskinum" : "lág skúffa undir vaskinum") +
             "; ruslafötur í neðstu skúffu" + (window.KP_LINEMAP && window.KP_LINEMAP.rusl[String(widthFamily(b.widthMm))] ? "" : " — engin ruslafötu-vara í þessari breidd, veldu handvirkt") + ".");
+        }
+        if (b.smida && Array.isArray(b.smida.doors) && b.smida.doors.some(function(d){ return d && d.type === "pocket"; })){
+          var pSysNote = (b.smida.doors.filter(function(d){ return d && d.type === "pocket"; })[0] || {}).pocketSys || "revego";
+          notes.push("Rennihurð í hlið í stað lama (" + (pSysNote === "revego" ? "Blum Revego, INNVAL" : "Hawa Concepta III, Járn og gler") + ", " +
+            (pocketLeafOf(b, c) === "duo" ? "tvöfalt kerfi" : "einfalt kerfi") + ") — staðfestu að breiddin passi við kerfið og athuga verð hjá birgi, verðið í grunninum er nokkra mánaða gamalt.");
         }
         if (isDrawerUnit(b)){ // the stack as drawn, top → bottom, with front heights — also when it matched a combo
           var dCodes = KP3D.drawerCodes(b.interior, drawerSys()), dFr = KP3D.stackFrontsMm(b.interior, dCodes, drawerBodyMm(b, c)) || [];
@@ -9196,7 +9218,7 @@
     var top = body; // doors stack from the top
     doors.forEach(function(d, i){
       var sp = proSpec(b, doors, i), bottom = top - d.box;
-      if (sp.type !== "lift"){
+      if (sp.type === "hinged"){ // lift/pocket doors have no side hinges to validate at all
         var pos = CNCSIDES.specToPositions(sp.hinges, d.box), need = proHingeMin(d.box);
         if (pos.length < need) out.push(d.label + ": " + d.box + " mm hurð þarf minnst " + need + " lamir (" + pos.length + " núna).");
         pos.forEach(function(p){
@@ -9394,9 +9416,9 @@
     var yTop = Y0;
     doors.forEach(function(d, i){
       var sp = proSpec(b, doors, i), h = d.box * S;
-      svg += '<rect x="' + (X0 + 3) + '" y="' + (yTop + 1) + '" width="' + (W - 6) + '" height="' + (h - 2) + '" fill="' + (sp.type === "lift" ? "#fff6dc" : "#eef6ee") + '" stroke="#9aa5b1" rx="2"/>' +
+      svg += '<rect x="' + (X0 + 3) + '" y="' + (yTop + 1) + '" width="' + (W - 6) + '" height="' + (h - 2) + '" fill="' + (sp.type === "lift" ? "#fff6dc" : sp.type === "pocket" ? "#eaf2ff" : "#eef6ee") + '" stroke="#9aa5b1" rx="2"/>' +
         '<text x="' + (X0 + W / 2) + '" y="' + (yTop + h / 2) + '" text-anchor="middle" font-size="12" fill="#3b4652">' + d.label + " · " + d.box + '</text>';
-      if (sp.type !== "lift"){
+      if (sp.type === "hinged"){
         var sides = bothHinges ? [true, false] : [hingeLeft];
         sides.forEach(function(left){
           var hx = left ? X0 + 8 : X0 + W - 8;
@@ -9504,9 +9526,18 @@
     doors.forEach(function(d, i){
       var sp = proSpec(b, doors, i);
       right += '<div class="pe-door"><h4>' + d.label + ' — ' + d.box + ' mm</h4><div class="pe-row">' +
-        '<button type="button" class="pe-btn' + (sp.type !== "lift" ? " on" : "") + '" data-pe="type" data-door="' + i + '" data-v="hinged">Á lömum</button>' +
-        '<button type="button" class="pe-btn' + (sp.type === "lift" ? " on" : "") + '" data-pe="type" data-door="' + i + '" data-v="lift">Lyftihurð</button></div>';
+        '<button type="button" class="pe-btn' + (sp.type === "hinged" ? " on" : "") + '" data-pe="type" data-door="' + i + '" data-v="hinged">Á lömum</button>' +
+        '<button type="button" class="pe-btn' + (sp.type === "lift" ? " on" : "") + '" data-pe="type" data-door="' + i + '" data-v="lift">Lyftihurð</button>' +
+        '<button type="button" class="pe-btn' + (sp.type === "pocket" ? " on" : "") + '" data-pe="type" data-door="' + i + '" data-v="pocket">Rennihurð</button></div>';
       if (sp.type === "lift") right += '<div class="pe-note">Lyftihurð: engar lamir í hliðum — lamirnar fara í toppborðið.</div>';
+      else if (sp.type === "pocket"){
+        var pSys = sp.pocketSys || "revego", pLeaf = pocketLeafOf(b, c);
+        right += '<div class="pe-row">Vélbúnaður:' +
+          '<button type="button" class="pe-btn' + (pSys === "revego" ? " on" : "") + '" data-pe="pocketsys" data-door="' + i + '" data-v="revego">Blum Revego</button>' +
+          '<button type="button" class="pe-btn' + (pSys === "concepta" ? " on" : "") + '" data-pe="pocketsys" data-door="' + i + '" data-v="concepta">Hawa Concepta III</button></div>' +
+          '<div class="pe-note">Rennihurð í hlið: engar lamir — ' + (pLeaf === "duo" ? "tvöfalt kerfi (tvö blöð)" : "einfalt kerfi (eitt blað)") +
+          ', fer sjálfkrafa eftir breidd/klofningi sem fyrir Lamir. Verð frá birgi (' + (pSys === "revego" ? "INNVAL" : "Járn og gler") + ') er ~9-10 mánaða gamalt — athuga hjá birgi áður en tilboð fer út.</div>';
+      }
       else {
         sp.hinges.forEach(function(hg, j){
           right += '<div class="pe-row">Löm ' + (j + 1) + ': <input type="number" min="30" step="1" value="' + hg.mm + '" data-pe="mm" data-door="' + i + '" data-h="' + j + '"> mm frá ' +
@@ -9852,7 +9883,8 @@
       });
     });
     act('[data-pe="oshreset"]', function(){ if (c.oven) delete b.ovenShelves; else delete b.shelfPos; ovenDone(); });
-    act('[data-pe="type"]', function(n){ var i = +n.dataset.door, sp = proSpec(b, doors, i); sp.type = n.dataset.v; if (sp.type === "hinged" && !(sp.hinges && sp.hinges.length)) sp.hinges = proDefaultHinges(b, doors, i); proSetSpec(b, doors, i, sp); renderBoxEditor(); });
+    act('[data-pe="type"]', function(n){ var i = +n.dataset.door, sp = proSpec(b, doors, i); sp.type = n.dataset.v; if (sp.type === "hinged" && !(sp.hinges && sp.hinges.length)) sp.hinges = proDefaultHinges(b, doors, i); if (sp.type === "pocket" && !sp.pocketSys) sp.pocketSys = "revego"; proSetSpec(b, doors, i, sp); renderBoxEditor(); });
+    act('[data-pe="pocketsys"]', function(n){ var i = +n.dataset.door, sp = proSpec(b, doors, i); sp.pocketSys = n.dataset.v; proSetSpec(b, doors, i, sp); renderBoxEditor(); });
     act('[data-pe="mm"]', function(n){ var i = +n.dataset.door, sp = proSpec(b, doors, i), v = Math.round(+n.value);
       if (!(v >= 30 && v <= doors[i].box - 30)) toast("⚠️ Löm er nær enda hurðar en 30 mm — lagaðu áður en skápurinn er merktur klár.");
       sp.hinges[+n.dataset.h].mm = Math.max(1, v); proSetSpec(b, doors, i, sp); renderBoxEditor(); });
@@ -10013,7 +10045,8 @@
     // which carcass side takes the hinges, seen from the front (/cnc drills only that side): two doors = both
     if (doors.length) o.hinge = b.widthMm > 600 && !c.fridge && c.cls !== "corner" ? "baedi" : b.swing === "haegri" ? "haegri" : "vinstri";
     if (doors.length && b.smida) o.doors = doors.map(function(dr, i){ var sp = proSpec(b, doors, i);
-      return { h:dr.box - 3, type:sp.type, side:b.swing || null, hinges:sp.type === "lift" ? [] : sp.hinges }; });
+      return { h:dr.box - 3, type:sp.type, side:b.swing || null, hinges:sp.type === "hinged" ? sp.hinges : [],
+        pocketSys:sp.type === "pocket" ? (sp.pocketSys || "revego") : undefined }; });
     // Grip svæði (Fræst grip) → Keyra skipulag (Eyðublað "Grip svæði (JSON)" + "alla" shrinks Sérhæð/Hæð frontur N
     // directly) → teikning + /cnc. Re-validated against the cabinet's CURRENT fronts, same as proSplit above —
     // a resized/reconfigured cabinet drops a grip zone whose front no longer exists instead of sending stale data.
