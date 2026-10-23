@@ -7694,7 +7694,8 @@
       : "opnast " + (sw === "out" ? "út úr" : "inn í") + " rýmið, lamir " + (hg === "left" ? "vinstra" : "hægra") + " megin";
     return { "Rými 🏡":state.intake.room || "Eldhús", "Magn":1, "🔑":d.hu, "Vöru reitur 1":[d.product],
       "Skilaboð til skipulags":"Hurð á " + (wall ? wall.label : "vegg") + ": op " + d.widthMm + " × " + d.heightMm + " mm, " + how + " (séð innan úr rýminu, horft á vegginn). Staðfestu mál karms á staðnum.",
-      "Smíðagögn (JSON) 🔧":JSON.stringify({ v:1, w:d.widthMm, h:d.heightMm, d:100, door:{ widthMm:d.widthMm, heightMm:d.heightMm, swing:sw, hinge:hg } }) }; // w/h/d = what Keyra skipulag writes as Eyðublað Breidd/Hæð/Dýpt
+      "Smíðagögn (JSON) 🔧":JSON.stringify({ v:1, w:d.widthMm, h:d.heightMm, d:100, door:{ widthMm:d.widthMm, heightMm:d.heightMm, swing:sw, hinge:hg,
+        din:sw === "slide" ? undefined : sw === "out" ? (hg === "left" ? "right" : "left") : hg } }) }; // din = hinge side seen from the side it opens towards (→ Opnun [Hurð], F3); hinge is "seen from inside the room" // w/h/d = what Keyra skipulag writes as Eyðublað Breidd/Hæð/Dýpt
   }
   function loadDoorProducts(){
     var f = 'FIND("Hurðir",{Flokkur}&"")';
@@ -9586,7 +9587,7 @@
         (mat ? " Hurðarblað: " + (/^eg_/.test(d.leaf) ? "harðplast Egger " : "spónlagt ") + mat.label + "." : doorHasLeaf(d) ? " Efni hurðarblaðs ekki valið." : "") +
         (d.qty > 1 ? " " + d.qty + " eins hurðir." : "") + (d.note ? " " + d.note : "") + " Staðfestu mál karms á staðnum.";
       return { "Rými 🏡":d.room || "Alrými", "Magn":Math.max(1, d.qty | 0), "🔑":d.hu, "Vöru reitur 1":[pid], "Skilaboð til skipulags":msg,
-        "Smíðagögn (JSON) 🔧":JSON.stringify({ v:1, w:d.widthMm, h:d.heightMm, d:d.wallMm, door:{ widthMm:d.widthMm, heightMm:d.heightMm, wallMm:d.wallMm, swing:d.kind === "renni" || d.kind === "glerrenni" ? "slide" : "toward", hinge:d.hinge, kind:d.kind,
+        "Smíðagögn (JSON) 🔧":JSON.stringify({ v:1, w:d.widthMm, h:d.heightMm, d:d.wallMm, door:{ widthMm:d.widthMm, heightMm:d.heightMm, wallMm:d.wallMm, swing:d.kind === "renni" || d.kind === "glerrenni" ? "slide" : "toward", hinge:d.hinge, din:d.kind === "renni" || d.kind === "glerrenni" || d.kind === "karmur" ? undefined : d.hinge, kind:d.kind,
           leaf:mat ? { look:d.leaf, label:mat.label, efnislistiId:mat.efnislistiId || null, type:/^eg_/.test(d.leaf) ? "hardplast" : "sponlagt" } : undefined } }) };
     }).filter(Boolean);
   }
