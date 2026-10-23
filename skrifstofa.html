@@ -79,7 +79,6 @@
   .quickLinks a { all:unset; box-sizing:border-box; cursor:pointer; display:flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:8px; background:var(--surface); border:1px solid var(--line); font-size:.95rem; }
   .quickLinks a:hover { background:var(--line); }
 
-  .kpiRow { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:20px; }
   .kpi { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
   .kpi .lbl { font-size:.76rem; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; font-weight:600; }
   .kpi .val { font-size:1.5rem; font-weight:700; margin-top:5px; }
@@ -91,35 +90,28 @@
      projection: total + how much of it is due within 7 days). VAT/payday countdowns are wired to
      the real schedule — see VAT_DUE_DATES/PAYDAY_SCHEDULE below; nothing in Airtable encodes
      those dates, so they're supplied by hand (VAT: the user's own RSK due-date table). */
-  /* Arrangeable rows (2026-10-19) — cashRow's 3 KPI pills and bottomRow's 3 panels can each be
-     dragged to reorder and sized S/M/L (spans of a shared 6-column grid: S=1, M=2, L=3 — three
-     Mediums is the old fixed-thirds default, exactly filling one row). Order + size are saved to
-     localStorage per person per row, never shared — the user explicitly wants everyone free to
-     arrange their own view, not one layout for the office. */
-  .arrangeRow { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:14px; margin-bottom:14px; }
-  .arrangeRow > div { min-width:0; }
+  /* Unified dashboard grid (2026-10-23, replaces the old split cashRow/kpiRow/verkGrid/bottomRow —
+     everything the user can see on Yfirlit, including Verk í vinnslu, is now one 6-column grid
+     where any item can be dragged anywhere and sized S/M/L/XL (spans: S=1, M=2, L=3, XL=6 — full
+     width, the kanban's old permanent size, now just its *default*). CSS Grid's own auto-flow
+     packs items left-to-right/row-to-row, so dragging an item to a new DOM position is enough to
+     relocate it — no manual x/y bookkeeping needed. `dense` packing lets a small item fill a gap
+     next to a taller neighbour instead of always starting a new row, which is what actually makes
+     "place anything next to Verk í vinnslu" possible. Order + size are saved to localStorage per
+     person, never shared — everyone arranges their own view, not one fixed office layout.) */
+  .arrangeRow { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); grid-auto-flow:row dense; gap:14px; margin-bottom:14px; }
+  .arrangeRow > div { position:relative; min-width:0; }
   .arrangeRow > [data-size="S"] { grid-column:span 1; }
   .arrangeRow > [data-size="M"] { grid-column:span 2; }
   .arrangeRow > [data-size="L"] { grid-column:span 3; }
+  .arrangeRow > [data-size="XL"] { grid-column:span 6; }
   .arrangeRow > .dragging { opacity:.4; }
   .arrangeRow.dragover > * { outline:2px dashed var(--accent); outline-offset:2px; }
   .arrangeHandle { position:absolute; top:6px; right:6px; display:flex; gap:3px; opacity:0; transition:opacity .1s; }
-  .arrangeRow > div:hover .arrangeHandle, .bottomRow .panel:hover .arrangeHandle { opacity:1; }
+  .arrangeRow > div:hover .arrangeHandle { opacity:1; }
   .arrangeHandle button { all:unset; box-sizing:border-box; width:20px; height:20px; display:flex; align-items:center; justify-content:center; border-radius:5px; background:var(--bg); border:1px solid var(--line); font-size:.62rem; font-weight:700; color:var(--muted); cursor:pointer; }
   .arrangeHandle button.sizeOn { background:var(--accent); color:#fff; border-color:var(--accent); }
   .arrangeHandle .dragHandle { cursor:grab; font-size:.8rem; }
-  /* Section-level reordering (2026-10-19) — the whole-page blocks (cash row, sales KPIs, Verk í
-     vinnslu, the bottom row) can also be dragged relative to each other, same mechanism/storage
-     pattern as the within-row dragging above, just vertical instead of horizontal. Starfsmenn
-     stays fixed at the bottom — not part of this list, the user said leave it alone. */
-  .dashSection { position:relative; }
-  /* left, not right — the right edge of a section is exactly where each row's own last-item
-     drag/size handle lives (top:6px;right:6px), and the two were overlapping there, each
-     stealing clicks meant for the other. */
-  .dashSection .sectionHandle { position:absolute; top:-10px; left:10px; z-index:2; width:26px; height:26px; display:flex; align-items:center; justify-content:center; border-radius:50%; background:var(--surface); border:1px solid var(--line); color:var(--muted); font-size:.85rem; cursor:grab; opacity:0; transition:opacity .1s; box-shadow:0 1px 3px rgba(0,0,0,.08); }
-  .dashSection:hover .sectionHandle { opacity:1; }
-  .dashSection.dragging { opacity:.4; }
-  .dashSection.dragover { outline:2px dashed var(--accent); outline-offset:3px; border-radius:10px; }
   .cashKpi { position:relative; }
   .cashKpi .lbl { display:flex; align-items:center; gap:6px; }
   .cashKpi.expandable { cursor:pointer; }
@@ -154,9 +146,6 @@
   .verkCard.dragging { opacity:.4; }
   .verkCard .when { font-size:.72rem; color:var(--dim); margin-top:2px; }
 
-  .bottomRow { align-items:start; }
-  .bottomRow .panel { position:relative; }
-
   /* Starfsmenn (2026-10-18, Eigandi-only — see api/starfsmenn-overview.js) */
   .stRow { display:flex; align-items:center; gap:10px; padding:9px 16px; border-bottom:1px solid var(--line); font-size:.85rem; cursor:pointer; }
   .stRow:last-child { border-bottom:none; }
@@ -182,14 +171,6 @@
   .panel h2.calHead { background:#0f6cbd; color:#fff; border-bottom:none; }
   .panel h2.stHead { background:#1a7d36; color:#fff; border-bottom:none; }
   .panel h2.stHead .cnt { color:#d7f0dd; }
-  .verkPanel { margin-bottom:20px; }
-  /* Verk í vinnslu narrow toggle (2026-10-19) — "shrink it by one S, no more than that": a single
-     grid-unit step, 6/6 (full) down to 5/6, not the full S/M/L range the pills use. */
-  .verkGrid { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); }
-  .verkGrid .verkPanel { grid-column:span 6; min-width:0; }
-  .verkGrid .verkPanel[data-width="narrow"] { grid-column:span 5; }
-  .verkWidthBtn { position:absolute; top:-10px; left:44px; z-index:2; width:26px; height:26px; display:flex; align-items:center; justify-content:center; border-radius:50%; background:var(--surface); border:1px solid var(--line); color:var(--muted); font-size:.68rem; font-weight:700; cursor:pointer; opacity:0; transition:opacity .1s; box-shadow:0 1px 3px rgba(0,0,0,.08); }
-  .dashSection:hover .verkWidthBtn { opacity:1; }
   .verkPanel .verkBoard { margin:0; padding:12px; }
   /* Quick Fix form (2026-10-18) — expanded from a single "what's wrong" input to the full set
      of fields QUICK FIX❗ actually has (Ábyrgðarmaður/Tengt verkefni/Skiladagur), matching the
@@ -282,9 +263,7 @@
       </div>
     </div>
 
-    <div id="dashSections">
-    <div class="dashSection" id="sectionCash">
-    <div class="cashRow arrangeRow" id="cashRow">
+    <div class="dashGrid arrangeRow" id="dashGrid">
       <div class="kpi cashKpi expandable" id="cashUpcomingTile" data-size="M" title="Smelltu til að sjá eftir verkefnum">
         <div class="lbl">📦 Væntanlegar efnispantanir <span class="expandIcon" id="cashUpcomingChevron">▾</span></div>
         <div class="val" id="cashUpcoming">—</div><div class="sub" id="cashUpcomingSub"></div>
@@ -292,29 +271,13 @@
       </div>
       <div class="kpi cashKpi" id="cashVatTile" data-size="M"><div class="lbl">🧾 Næsta VSK-skil</div><div class="val" id="cashVat">—</div><div class="sub" id="cashVatSub"></div></div>
       <div class="kpi cashKpi" id="cashPaydayTile" data-size="M"><div class="lbl">💸 Næstu laun</div><div class="val" id="cashPayday">—</div><div class="sub" id="cashPaydaySub"></div></div>
-    </div>
-    </div>
-
-    <div class="dashSection" id="sectionKpi">
-    <div class="kpiRow" id="kpiRow">
-      <div class="kpi"><div class="lbl">Virk tilboð</div><div class="val" id="kpiSales">—</div><div class="sub" id="kpiSalesSub"></div></div>
-      <div class="kpi"><div class="lbl">Innkaup — ólokin verk</div><div class="val" id="kpiCost">—</div><div class="sub">Pantaðir listar, ekki komið í hús</div></div>
-      <div class="kpi"><div class="lbl">Verk í framleiðslu</div><div class="val" id="kpiProd">—</div><div class="sub">Tilbúið → Má afhenda</div></div>
-    </div>
-    </div>
-
-    <div class="dashSection" id="sectionVerk">
-    <div class="verkGrid">
-    <div class="panel verkPanel" id="verkPanelBox">
-      <h2 class="prodHead">🏭 Verk í vinnslu <span class="cnt" id="verkCnt"></span></h2>
-      <div class="verkBoard" id="verkBoard"></div>
-    </div>
-    </div>
-    <button type="button" class="verkWidthBtn" id="verkWidthBtn" title="Mjórra/breiðara">⇆</button>
-    </div>
-
-    <div class="dashSection" id="sectionBottom">
-    <div class="bottomRow arrangeRow" id="bottomRow">
+      <div class="kpi" id="kpiSalesTile" data-size="S"><div class="lbl">Virk tilboð</div><div class="val" id="kpiSales">—</div><div class="sub" id="kpiSalesSub"></div></div>
+      <div class="kpi" id="kpiCostTile" data-size="S"><div class="lbl">Innkaup — ólokin verk</div><div class="val" id="kpiCost">—</div><div class="sub">Pantaðir listar, ekki komið í hús</div></div>
+      <div class="kpi" id="kpiProdTile" data-size="S"><div class="lbl">Verk í framleiðslu</div><div class="val" id="kpiProd">—</div><div class="sub">Tilbúið → Má afhenda</div></div>
+      <div class="panel verkPanel" id="verkPanelBox" data-size="XL">
+        <h2 class="prodHead">🏭 Verk í vinnslu <span class="cnt" id="verkCnt"></span></h2>
+        <div class="verkBoard" id="verkBoard"></div>
+      </div>
       <div class="panel" id="panelDagatal" data-size="M">
         <h2 class="calHead">Dagatal</h2>
         <div class="placeholder" id="calBox">Google Calendar — ekki tengt enn</div>
@@ -344,8 +307,6 @@
       <div class="body" id="stList"><div class="empty">Sæki…</div></div>
       <div class="stFoot" id="stFoot" style="display:none;"></div>
       </div>
-    </div>
-    </div>
     </div>
   </div>
 </div>
@@ -430,9 +391,9 @@
   var IS_MONTHS_LONG = ["janúar", "febrúar", "mars", "apríl", "maí", "júní", "júlí", "ágúst", "september", "október", "nóvember", "desember"];
   function fmtIcelandicDate(d) { return IS_WEEKDAYS[d.getDay()] + " " + d.getDate() + ". " + IS_MONTHS_LONG[d.getMonth()]; }
 
-  // Arrangeable rows (2026-10-19) — drag to reorder, S/M/L size cycle, both saved to localStorage
-  // per `storageKey` (per-browser only, never shared — see the .arrangeRow CSS comment above).
-  var SIZE_CYCLE = { S: "M", M: "L", L: "S" };
+  // Arrangeable grid (2026-10-19, unified 2026-10-23) — drag to reorder, S/M/L/XL size, both saved
+  // to localStorage per `storageKey` (per-browser only, never shared — see the .arrangeRow CSS
+  // comment above).
   function makeArrangeable(rowEl, storageKey) {
     if (!rowEl) return;
     var lsKey = "bjorninn:skrifstofa:layout:" + storageKey;
@@ -446,7 +407,7 @@
       handle.className = "arrangeHandle";
       handle.innerHTML =
         '<button class="dragHandle" type="button" title="Draga til að raða" draggable="true">⠿</button>' +
-        ["S", "M", "L"].map(function (s) {
+        ["S", "M", "L", "XL"].map(function (s) {
           return '<button type="button" class="sizeBtn' + (el.dataset.size === s ? " sizeOn" : "") + '" data-s="' + s + '">' + s + "</button>";
         }).join("");
       el.appendChild(handle);
@@ -493,67 +454,6 @@
     }
   }
   var draggingArrangeItem = null;
-
-  // Section-level reordering — same drop/dragover approach as makeArrangeable, vertical axis
-  // (clientY against each section's vertical midpoint) instead of horizontal, no size buttons.
-  function makeSectionsArrangeable(containerEl, storageKey) {
-    if (!containerEl) return;
-    var lsKey = "bjorninn:skrifstofa:layout:" + storageKey;
-    var saved = {};
-    try { saved = JSON.parse(localStorage.getItem(lsKey) || "{}"); } catch (e) {}
-
-    var items = Array.prototype.slice.call(containerEl.children);
-    items.forEach(function (el) {
-      var handle = document.createElement("div");
-      handle.className = "sectionHandle";
-      handle.title = "Draga til að raða";
-      handle.draggable = true;
-      handle.textContent = "⠿";
-      el.appendChild(handle);
-      handle.addEventListener("dragstart", function (e) {
-        draggingSection = el;
-        el.classList.add("dragging");
-        e.dataTransfer.effectAllowed = "move";
-        e.dataTransfer.setData("text/plain", el.id);
-      });
-      handle.addEventListener("dragend", function () { el.classList.remove("dragging"); el.classList.remove("dragover"); draggingSection = null; saveSectionLayout(); });
-      el.addEventListener("dragover", function (e) {
-        if (!draggingSection || draggingSection === el || draggingSection.parentElement !== containerEl) return;
-        e.preventDefault();
-        var rect = el.getBoundingClientRect();
-        var before = (e.clientY - rect.top) < rect.height / 2;
-        containerEl.insertBefore(draggingSection, before ? el : el.nextSibling);
-      });
-      el.addEventListener("drop", function (e) { e.preventDefault(); saveSectionLayout(); });
-    });
-
-    if (saved.order) {
-      saved.order.forEach(function (id) {
-        var el = document.getElementById(id);
-        if (el && el.parentElement === containerEl) containerEl.appendChild(el);
-      });
-    }
-
-    function saveSectionLayout() {
-      var order = Array.prototype.slice.call(containerEl.children).map(function (el) { return el.id; });
-      try { localStorage.setItem(lsKey, JSON.stringify({ order: order })); } catch (e) {}
-    }
-  }
-  var draggingSection = null;
-
-  function initVerkWidthToggle() {
-    var panel = document.getElementById("verkPanelBox");
-    var btn = document.getElementById("verkWidthBtn");
-    var lsKey = "bjorninn:skrifstofa:layout:verkWidth";
-    var saved = null;
-    try { saved = localStorage.getItem(lsKey); } catch (e) {}
-    if (saved === "narrow") panel.dataset.width = "narrow";
-    btn.addEventListener("click", function () {
-      var narrow = panel.dataset.width === "narrow";
-      panel.dataset.width = narrow ? "" : "narrow";
-      try { localStorage.setItem(lsKey, narrow ? "" : "narrow"); } catch (e) {}
-    });
-  }
 
   function api(path, extra) {
     var k = getK();
@@ -621,10 +521,7 @@
     document.getElementById("todayDate").textContent = fmtIcelandicDate(new Date());
 
     window.OfficeShell.renderChrome(record, "home");
-    makeArrangeable(document.getElementById("cashRow"), "cash");
-    makeArrangeable(document.getElementById("bottomRow"), "bottom");
-    makeSectionsArrangeable(document.getElementById("dashSections"), "sections");
-    initVerkWidthToggle();
+    makeArrangeable(document.getElementById("dashGrid"), "dash");
 
     loadKpis();
     loadCash();
