@@ -262,3 +262,23 @@ HomeByMe-style self-serve planner that ends in a lead: steps intake → material
 - **Útskýring fyrst:** fyrsta heimsókn á heimilisskjáinn (engin rými, engin teikning) sýnir \`renderHomeIntro\`: 3 skref + "Ég á teikningu af húsinu" / "Ég á enga teikningu" (→ 2ja / 3ja herb. íbúð / einbýli / byrja autt). Hliðarsúlan felst á meðan.
 - **\`kitchen-planner-plan.js\` (\`KPPLAN.detect(gray, w, h, x, y, {pxPerMm})\`)**: dökkir pixlar → lokun um ~20 mm (skönnunarflekkir, skáveggir), aðeins þykk dökk svæði (≥ ~60 mm) teljast veggir (texti/húsgögn/hurðabogar ekki), veggir stækkaðir um \`bridgeMm\` (520 mm) svo hurðarop lokast, flóðfylling frá smellinum (hafnað ef hún nær út að jaðri = ekki lokað rými), útlína kjarnans rakin → \`rectify\` (aðeins veggjalínur; stuttar skálínur frá hurðaropum detta út, samsíða línur sameinaðar) → færð út um R = gólf veggja á milli, hvöss horn. Próf: \`tests/kp-plan.test.js\` (rétthyrnd rými með hurðaropum, L-laga, skáveggur, óslétt kvörðun).
 - **Í planner:** \`homePlan\` (í minni) undir heimilismyndinni; kvörðun = smella á tvo enda veggjar + lengd í mm (\`homeCalAsk\`), svo "Smella í rými" → nafn úr lista (\`homeAskName\`; Eldhús/Baðh./Þvottah./Fatask. verða þeirra flokkar, annað \`rymi:N\`) → \`homeAddRoom\` (\`polyToRoom\`: marghyrningur → veggjakeðja með \`angleDeg\`/\`dirDeg\`, staður = fyrsta horn). Finnist rýmið ekki → "Rekja horn" (smella á hornin, loka á fyrsta). Allir smellir í gegnum \`homeUser\` (SVG getScreenCTM) svo þeir eru réttir í hvaða stækkun sem er. Prófað: prufuteikning → 3 rými með nákvæmum málum (3799 × 5599 o.s.frv.).
+
+## 2026-10-23 — Allt heimilið skref fyrir skref (outline-first)
+
+User: the first version was overwhelming. Rebuilt as one task per screen, the way an architect draws:
+**draw path** Byrja → Útlínur (rect / L, inside size in m) → Veggir (drag a line; it runs to the nearest walls) →
+Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hurðir og gluggar → Heimilið.
+**plan path** Byrja → Mælikvarði → Rýmin (click inside each room on the drawing) → Hurðir og gluggar → Heimilið.
+
+- Geometry is pure in [kitchen-planner-home.js](../kitchen-planner-home.js) (`KPHOME.outlinePoly / spans / regions`,
+  tests in tests/kp-home.test.js). A wall is `{o:"v"|"h", c, p}`: a line through point p that always extends to the
+  outline or an *earlier* wall, so every wall closes rooms and later walls never cross earlier ones. Rooms = a grid of
+  cells merged unless a wall separates them; the floor is the ring moved in 60 mm from interior walls.
+- `state.home.wiz = {path, step, outline, walls, names:[[x,z,name]], built, builtSig}`. Names are points, so they
+  follow their room when walls move. Rooms are only created (`wizBuild`) when leaving the name step; a rebuild keeps
+  a room's key/blob by name and carries units/openings over when the wall count is unchanged.
+- Templates (2ja / 3ja / einbýli) are now outline + walls + names and open on the walls step. Changing the outline
+  size stretches walls and names with it.
+- Homes from before (rooms but no wiz) get `legacy:true` and open on the last step with the old tools (drag, rotate,
+  add room). Wizard homes don't drag rooms — the walls are the truth.
+- Windows can be placed on the home plan now (`blob.windows`, WINDOW_DEFAULT size), drawn as a gap with a glass line.
