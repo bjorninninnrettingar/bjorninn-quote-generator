@@ -482,32 +482,27 @@
         // the screen refreshes) caused a layout-thrashing loop real enough to freeze the tab,
         // especially with the pointer sitting near a midpoint where before/after keeps flipping on
         // sub-pixel jitter (2026-10-23, reported live). Ghost position tracking stays on every
-        // event (cheap — two style writes), but the reorder check is throttled to once per frame,
-        // and skipped outright when it wouldn't actually change anything.
-        var pendingEv = null, reorderQueued = false, dragActive = true;
-        function scheduleReorder(ev) {
-          pendingEv = ev;
-          if (reorderQueued) return;
-          reorderQueued = true;
-          requestAnimationFrame(function () {
-            reorderQueued = false;
-            if (!dragActive || !pendingEv) return;
-            var target = gridItemAt(pendingEv.clientX, pendingEv.clientY);
-            if (!target || target === el) return;
-            var trect = target.getBoundingClientRect();
-            var before = (pendingEv.clientX - trect.left) < trect.width / 2;
-            var alreadyThere = before ? target.previousElementSibling === el : target.nextElementSibling === el;
-            if (alreadyThere) return;
-            rowEl.insertBefore(el, before ? target : target.nextSibling);
-          });
-        }
+        // event (cheap — two style writes); the reorder check is throttled to ~60/s by wall-clock
+        // time (performance.now(), NOT requestAnimationFrame — confirmed live that rAF can simply
+        // never fire at all while the window lacks OS focus, which would silently stall reordering
+        // entirely rather than just rate-limit it), and skipped outright when it wouldn't actually
+        // change anything.
+        var lastReorderAt = 0;
         function move(ev) {
           ghost.style.left = (ev.clientX - offsetX) + "px";
           ghost.style.top = (ev.clientY - offsetY) + "px";
-          scheduleReorder(ev);
+          var now = performance.now();
+          if (now - lastReorderAt < 16) return;
+          lastReorderAt = now;
+          var target = gridItemAt(ev.clientX, ev.clientY);
+          if (!target || target === el) return;
+          var trect = target.getBoundingClientRect();
+          var before = (ev.clientX - trect.left) < trect.width / 2;
+          var alreadyThere = before ? target.previousElementSibling === el : target.nextElementSibling === el;
+          if (alreadyThere) return;
+          rowEl.insertBefore(el, before ? target : target.nextSibling);
         }
         function up(ev) {
-          dragActive = false;
           dragHandle.releasePointerCapture(ev.pointerId);
           dragHandle.removeEventListener("pointermove", move);
           dragHandle.removeEventListener("pointerup", up);
