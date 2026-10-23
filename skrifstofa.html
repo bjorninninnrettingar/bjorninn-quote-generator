@@ -466,9 +466,10 @@
         try { dragHandle.setPointerCapture(e.pointerId); } catch (err) {}
 
         function gridItemAt(x, y) {
-          ghost.style.display = "none";
+          // No need to hide the ghost first — pointer-events:none already makes elementFromPoint
+          // skip it, so this used to be a wasted forced-reflow (toggling display) on every single
+          // pointermove for nothing.
           var under = document.elementFromPoint(x, y);
-          ghost.style.display = "";
           var node = under;
           while (node && node !== rowEl) {
             if (node.parentElement === rowEl) return node;
@@ -476,16 +477,37 @@
           }
           return null;
         }
+        // The reorder itself (elementFromPoint + a DOM move the dense grid has to fully re-flow
+        // around) is real work — doing it on every raw pointermove (which can fire far faster than
+        // the screen refreshes) caused a layout-thrashing loop real enough to freeze the tab,
+        // especially with the pointer sitting near a midpoint where before/after keeps flipping on
+        // sub-pixel jitter (2026-10-23, reported live). Ghost position tracking stays on every
+        // event (cheap — two style writes), but the reorder check is throttled to once per frame,
+        // and skipped outright when it wouldn't actually change anything.
+        var pendingEv = null, reorderQueued = false, dragActive = true;
+        function scheduleReorder(ev) {
+          pendingEv = ev;
+          if (reorderQueued) return;
+          reorderQueued = true;
+          requestAnimationFrame(function () {
+            reorderQueued = false;
+            if (!dragActive || !pendingEv) return;
+            var target = gridItemAt(pendingEv.clientX, pendingEv.clientY);
+            if (!target || target === el) return;
+            var trect = target.getBoundingClientRect();
+            var before = (pendingEv.clientX - trect.left) < trect.width / 2;
+            var alreadyThere = before ? target.previousElementSibling === el : target.nextElementSibling === el;
+            if (alreadyThere) return;
+            rowEl.insertBefore(el, before ? target : target.nextSibling);
+          });
+        }
         function move(ev) {
           ghost.style.left = (ev.clientX - offsetX) + "px";
           ghost.style.top = (ev.clientY - offsetY) + "px";
-          var target = gridItemAt(ev.clientX, ev.clientY);
-          if (!target || target === el) return;
-          var trect = target.getBoundingClientRect();
-          var before = (ev.clientX - trect.left) < trect.width / 2;
-          rowEl.insertBefore(el, before ? target : target.nextSibling);
+          scheduleReorder(ev);
         }
         function up(ev) {
+          dragActive = false;
           dragHandle.releasePointerCapture(ev.pointerId);
           dragHandle.removeEventListener("pointermove", move);
           dragHandle.removeEventListener("pointerup", up);
