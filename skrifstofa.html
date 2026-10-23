@@ -519,15 +519,22 @@
         // change anything.
         var lastReorderAt = 0;
         function move(ev) {
-          ghost.style.left = (ev.clientX - offsetX) + "px";
-          ghost.style.top = (ev.clientY - offsetY) + "px";
+          var cornerX = ev.clientX - offsetX, cornerY = ev.clientY - offsetY;
+          ghost.style.left = cornerX + "px";
+          ghost.style.top = cornerY + "px";
           var now = performance.now();
           if (now - lastReorderAt < 16) return;
           lastReorderAt = now;
-          var target = gridItemAt(ev.clientX, ev.clientY);
+          // Hit-test from the dragged tile's own top-left corner (2026-10-23), not the raw cursor
+          // position — the drag handle sits near the tile's top-right corner, so with the cursor
+          // itself as the reference point you had to drag the mouse all the way into a new column/
+          // row before anything reacted, well after the tile's own leading edge had already arrived.
+          // +4,+4 keeps the sampled point just inside the tile rather than exactly on its corner, so
+          // it doesn't land in the grid gap between cells.
+          var target = gridItemAt(cornerX + 4, cornerY + 4);
           if (!target || target === el) return;
           var trect = target.getBoundingClientRect();
-          var before = (ev.clientX - trect.left) < trect.width / 2;
+          var before = (cornerX - trect.left) < trect.width / 2;
           var alreadyThere = before ? target.previousElementSibling === el : target.nextElementSibling === el;
           if (alreadyThere) return;
           rowEl.insertBefore(el, before ? target : target.nextSibling);
