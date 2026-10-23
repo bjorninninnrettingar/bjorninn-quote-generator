@@ -125,14 +125,16 @@
      itself tracks the cursor, same visual language as kitchen-planner.html's .dw-row.dragging. */
   .arrange-placeholder { background:var(--bg); border:2px dashed var(--line); box-shadow:none !important; }
   .arrange-placeholder > * { visibility:hidden; }
-  /* Empty, always-present grid slots (2026-10-23) — same dashed look as the in-drag placeholder
-     above, just permanent rather than appearing only mid-drag; real drop targets, not decoration. */
-  /* Blank by default (2026-10-23, was always dashed-outlined) — permanent empty boxes are
-     themselves noise; the dashed outline only earns its keep as a drop-zone hint while a drag is
-     actually in progress (.arrangeRow.dragging-active, toggled in makeArrangeable()). At rest a
-     filler is genuinely empty space, not a decoration — still a real, droppable grid cell either way. */
-  .arrange-filler { min-height:100px; border-radius:10px; }
-  .arrangeRow.dragging-active .arrange-filler { background:var(--bg); border:2px dashed var(--line); }
+  /* Empty grid slots, real drop targets (2026-10-23) — not decoration. First shipped always taking
+     up their min-height even blank (just borderless) so the grid stayed droppable everywhere; that
+     turned out to reserve a block of dead vertical space below whatever real content there was
+     (reported live — "svona mikið blank space... á að falla saman ef það er ekkert á milli"), since
+     grid-auto-rows forces every row a filler occupies to be ≥100px tall even with nothing to show in
+     it. display:none at rest removes them from grid flow entirely, so unused rows collapse away;
+     dragging-active (toggled in makeArrangeable(), already set before any pointermove fires) brings
+     them back as real dashed drop-zones for exactly the duration they're needed. */
+  .arrange-filler { display:none; min-height:100px; border-radius:10px; }
+  .arrangeRow.dragging-active .arrange-filler { display:block; background:var(--bg); border:2px dashed var(--line); }
   /* !important throughout (2026-10-23, real bug, not defensive): the ghost is a clone of the
      dragged tile, so it keeps that tile's own classes (.panel, .cashKpi, .verkPanel, ...) — several
      of those set position/margin/overflow at the SAME specificity as .arrange-ghost, and being
