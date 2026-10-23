@@ -99,10 +99,6 @@
   .arrangeHandle button.sizeOn { background:var(--accent); color:#fff; border-color:var(--accent); }
   .arrangeHandle .dragHandle { cursor:grab; font-size:.75rem; user-select:none; }
 
-  .nextSteps { margin-bottom:20px; }
-  .nextSteps h2 { font-size:.8rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.02em; margin-bottom:8px; }
-  .nsRow { display:flex; gap:10px; overflow-x:auto; padding-bottom:4px; }
-
   .pipelineReport { margin-bottom:20px; }
   .pipelineReport h2 { font-size:.8rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.02em; margin-bottom:8px; }
   .prRow { display:flex; gap:10px; overflow-x:auto; }
@@ -110,19 +106,16 @@
   .prCell .lbl { font-size:.72rem; color:var(--muted); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .prCell .cnt { font-size:1.2rem; font-weight:700; margin-top:2px; }
   .prCell .val { font-size:.72rem; color:var(--dim); margin-top:2px; }
-  .nsCard { flex:0 0 220px; background:var(--surface); border-radius:12px; padding:11px 13px; box-shadow:0 1px 3px rgba(0,0,0,.05); cursor:pointer; border-left:3px solid var(--bad); }
-  .nsCard.soon { border-left-color:var(--warn); }
-  .nsCard .nm { font-weight:600; font-size:.85rem; }
-  .nsCard .step { font-size:.78rem; color:var(--muted); margin-top:4px; }
-  .nsCard .when { font-size:.72rem; color:var(--dim); margin-top:3px; }
 
-  /* Til yfirferðar — sjálfsafgreiðsla (2026-10-23) — a table, not a card row: what matters here is
-     scanning several submissions at once to decide which need action first (days waiting, offer
-     size), which a row of cards makes you click into one at a time to compare. */
-  .reviewTable { border-collapse:collapse; width:100%; font-size:.84rem; background:var(--surface); border-radius:12px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,.05); }
-  .reviewTable th { text-align:left; padding:8px 12px; background:var(--bg); color:var(--muted); font-weight:700; font-size:.68rem; text-transform:uppercase; letter-spacing:.02em; }
+  /* Til yfirferðar / Næstu skref (2026-10-23) — tables, not card rows: what matters here is scanning
+     several at once to decide what needs action first (days waiting, offer size), which a row of
+     cards makes you click into one at a time to compare. Both now live inside a .panel (own white
+     card + colored header already), so the table itself stays flush/unstyled rather than doubling
+     up a second white rounded box inside the first. */
+  .reviewTable { border-collapse:collapse; width:100%; font-size:.84rem; }
+  .reviewTable th { text-align:left; padding:8px 16px; background:var(--bg); color:var(--muted); font-weight:700; font-size:.68rem; text-transform:uppercase; letter-spacing:.02em; }
   .reviewTable th.num, .reviewTable td.num { text-align:right; }
-  .reviewTable td { padding:9px 12px; border-top:1px solid var(--line); }
+  .reviewTable td { padding:9px 16px; border-top:1px solid var(--line); }
   .reviewTable td.nm { font-weight:600; }
   .reviewTable tbody tr { cursor:pointer; }
   .reviewTable tbody tr:hover { background:var(--bg); }
@@ -138,6 +131,17 @@
   .panel h2 .cnt { color:var(--muted); font-weight:500; }
   .panel h2.pipeHead { background:var(--accent); color:#fff; border-bottom:none; }
   .panel h2.pipeHead .cnt { color:#d7e9fb; }
+  /* Leita að tækifæri + Sýna líka unnin/töpuð moved here from the page's top toolbar (2026-10-23) —
+     they filter this exact board, so they belong on it, not floating in a global header. */
+  .pipeHeadControls { display:flex; align-items:center; gap:8px; }
+  .pipeHead .searchBox { background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.4); color:#fff; width:170px; }
+  .pipeHead .searchBox::placeholder { color:rgba(255,255,255,.8); }
+  .pipeHead .toggleClosed { background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.4); color:#fff; white-space:nowrap; }
+  .pipeHead .toggleClosed.active { background:#fff; color:var(--accent); border-color:#fff; }
+  .panel h2.toReviewHead { background:var(--bad); color:#fff; border-bottom:none; }
+  .panel h2.toReviewHead .cnt { color:#ffd9d2; }
+  .panel h2.nextStepsHead { background:#e05d9e; color:#fff; border-bottom:none; }
+  .panel h2.nextStepsHead .cnt { color:#ffe0f0; }
   .pipelinePanel .loading { padding:40px 0; }
   .pipelinePanel .board { margin:0; padding:12px; }
   .board { display:flex; gap:14px; overflow-x:auto; padding-bottom:10px; }
@@ -170,8 +174,12 @@
   .pill.follow { background:#eef1f4; color:var(--muted); }
   .pill.answer { background:#fff4e0; color:#9a6700; }
 
-  .detail { display:none; background:var(--surface); border-radius:16px; padding:16px; margin-top:16px; }
-  .detail.open { display:block; }
+  /* Detail popup (2026-10-23, was an inline panel at the bottom of the page you had to scroll down
+     to reach — now a real popup, same lpModalBg/lpModal overlay pattern already used for the
+     Tengiliðir/Útfærsla/Efni modals below, so clicking a project opens it right where you are). */
+  .detailModalBg { display:none; position:fixed; inset:0; background:rgba(10,14,20,.45); z-index:200; align-items:flex-start; justify-content:center; padding:40px 20px; overflow:auto; }
+  .detailModalBg.open { display:flex; }
+  .detail { background:var(--surface); border-radius:16px; padding:16px; max-width:560px; width:100%; max-height:calc(100vh - 80px); overflow:auto; }
   .detail .dTitle { font-weight:600; font-size:1rem; margin-bottom:10px; }
   .detail .row { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:7px 0; border-bottom:1px solid var(--line); font-size:.88rem; }
   .detail .row:last-of-type { border-bottom:none; }
@@ -264,8 +272,6 @@
         <a href="https://calendar.google.com/calendar/u/0/r" target="_blank" rel="noopener" title="Google Calendar">📅</a>
         <a href="https://chat.google.com/app/chat/AAQA4w6yK6o" target="_blank" rel="noopener" title="Google Chat">💬</a>
       </div>
-      <input class="searchBox" id="search" type="text" placeholder="Leita að tækifæri…" />
-      <button class="toggleClosed" id="toggleClosed">Sýna líka unnin/töpuð</button>
       <button class="toggleClosed" id="toggleMine" type="button">Mínar sölur</button>
       <button class="toggleClosed" id="contactsBtn" type="button">👤 Tengiliðir</button>
       <button class="toggleClosed" id="newUtfBtn" type="button">🎨 Ný útfærsla</button>
@@ -286,25 +292,35 @@
     <div class="prRow" id="prRow"></div>
   </div>
 
-  <div class="nextSteps" id="toReview" style="display:none;">
-    <h2>📝 Til yfirferðar — sjálfsafgreiðsla</h2>
+  <div class="panel" id="toReview" style="display:none;">
+    <h2 class="toReviewHead">📝 Til yfirferðar — sjálfsafgreiðsla <span class="cnt" id="toReviewCnt"></span></h2>
     <table class="reviewTable">
       <thead><tr><th>Verkefni</th><th>Staða</th><th class="num">Dagar síðan sent</th><th class="num">Tilboð</th></tr></thead>
       <tbody id="toReviewRow"></tbody>
     </table>
   </div>
 
-  <div class="nextSteps" id="nextSteps" style="display:none;">
-    <h2>Næstu skref</h2>
-    <div class="nsRow" id="nsRow"></div>
+  <div class="panel" id="nextSteps" style="display:none;">
+    <h2 class="nextStepsHead">📅 Næstu skref <span class="cnt" id="nsCnt"></span></h2>
+    <table class="reviewTable">
+      <thead><tr><th>Verkefni</th><th>Næsta skref</th><th class="num">Dags.</th></tr></thead>
+      <tbody id="nsRow"></tbody>
+    </table>
   </div>
 
   <div class="panel pipelinePanel" id="pipelinePanelBox">
-    <h2 class="pipeHead">📈 Söluferli <span class="cnt" id="boardCnt"></span></h2>
+    <h2 class="pipeHead">
+      <span>📈 Söluferli <span class="cnt" id="boardCnt"></span></span>
+      <span class="pipeHeadControls">
+        <input class="searchBox" id="search" type="text" placeholder="Leita að tækifæri…" />
+        <button class="toggleClosed" id="toggleClosed">Sýna líka unnin/töpuð</button>
+      </span>
+    </h2>
     <div id="loading" class="loading">Sæki verkefni…</div>
     <div class="board" id="board" style="display:none;"></div>
   </div>
 
+  <div class="detailModalBg" id="detailModalBg">
   <div class="detail" id="detail">
     <div class="dTitle" id="dName"></div>
     <div class="row"><label>Staða í söluferli</label><select id="dStage"></select></div>
@@ -338,6 +354,7 @@
       <button class="close" id="dClose">Loka</button>
     </div>
     <div class="printMsg" id="dPrintMsg"></div>
+  </div>
   </div>
 </div>
 
@@ -827,19 +844,19 @@
     var wrap = document.getElementById("nextSteps"), row = document.getElementById("nsRow");
     if (!withStep.length) { wrap.style.display = "none"; return; }
     wrap.style.display = "block";
+    document.getElementById("nsCnt").textContent = withStep.length;
     row.innerHTML = "";
     var today = new Date().toISOString().slice(0, 10);
     withStep.slice(0, 12).forEach(function (r) {
       var f = r.fields;
       var d = f["Næsta skref dags."];
-      var el = document.createElement("div");
-      el.className = "nsCard" + (d >= today ? " soon" : "");
-      el.innerHTML =
-        '<div class="nm">' + esc(f["Heiti tækifæris / verkefnis"] || "(ónefnt)") + '</div>' +
-        '<div class="step">' + esc(f["Næsta skref"] || "—") + '</div>' +
-        '<div class="when">' + (d < today ? "⚠️ " : "") + esc(d) + '</div>';
-      el.addEventListener("click", function () { openDetail(r); });
-      row.appendChild(el);
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        '<td class="nm">' + esc(f["Heiti tækifæris / verkefnis"] || "(ónefnt)") + '</td>' +
+        '<td>' + esc(f["Næsta skref"] || "—") + '</td>' +
+        '<td class="num">' + (d < today ? "⚠️ " : "") + esc(d) + '</td>';
+      tr.addEventListener("click", function () { openDetail(r); });
+      row.appendChild(tr);
     });
   }
 
@@ -852,6 +869,7 @@
     var wrap = document.getElementById("toReview"), row = document.getElementById("toReviewRow");
     if (!pending.length) { wrap.style.display = "none"; return; }
     wrap.style.display = "block";
+    document.getElementById("toReviewCnt").textContent = pending.length;
     row.innerHTML = "";
     var now = Date.now();
     pending.forEach(function (r) {
@@ -942,7 +960,6 @@
 
   function openDetail(r) {
     var f = r.fields;
-    var d = document.getElementById("detail");
     document.getElementById("dName").textContent = f["Heiti tækifæris / verkefnis"] || "(ónefnt)";
 
     var stageSel = document.getElementById("dStage");
@@ -988,8 +1005,7 @@
       apiPatch(r.id, { "Næsta skref dags.": e.target.value || null }).then(function () { f["Næsta skref dags."] = e.target.value; });
     };
 
-    d.classList.add("open");
-    d.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    document.getElementById("detailModalBg").classList.add("open");
   }
   // ---- Vörulínur editor (2026-10-17) — "patch and review" only, pre-staðfest.
   // Grounded against the live "Nýtt verkefni" Airtable interface + a real record
@@ -1572,7 +1588,8 @@
     });
   });
 
-  document.getElementById("dClose").addEventListener("click", function () { document.getElementById("detail").classList.remove("open"); });
+  document.getElementById("dClose").addEventListener("click", function () { document.getElementById("detailModalBg").classList.remove("open"); });
+  document.getElementById("detailModalBg").addEventListener("click", function (e) { if (e.target === e.currentTarget) e.currentTarget.classList.remove("open"); });
   document.getElementById("toggleClosed").addEventListener("click", function () {
     showClosed = !showClosed;
     document.getElementById("toggleClosed").textContent = showClosed ? "Fela unnin/töpuð" : "Sýna líka unnin/töpuð";
