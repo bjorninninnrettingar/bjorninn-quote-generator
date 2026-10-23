@@ -453,7 +453,9 @@
     return fetch(u).then(function (r) { return r.json(); });
   }
   function apiPatch(id, fields) {
-    return fetch("/api/airtable?path=" + encodeURIComponent(TAEKIFAERI + "/" + id), {
+    var u = "/api/airtable?path=" + encodeURIComponent(TAEKIFAERI + "/" + id);
+    if (k) u += "&k=" + encodeURIComponent(k);
+    return fetch(u, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fields: fields })
     }).then(function (r) { return r.json(); });

@@ -663,6 +663,13 @@ const CREATE_REQUIRES_KEY = new Set(["tblFcsUoGxsuUwNEH", "tblQ8zeUanriESWvL", "
 // the secret), but these four now carry PII (Tengiliðir/Fyrirtæki: kennitala, address, phone) or
 // pricing-adjacent structure (Útfærslur/Efnislisti) that didn't exist behind this proxy before — new
 // write surface gets the stricter gate from the start rather than relying on record-id obscurity.
+// tbl4LMXlQjp66RFKI (Tækifæri — projects) deliberately NOT added here yet, 2026-10-23 — see
+// project_security_audit_findings.md finding #2 and the same day's follow-up note: a table-wide gate
+// would also 403 dagatal.html's legitimate, currently-keyless PATCH of 3 date fields (floor calendar
+// drag-to-reschedule, linked from app.html with no VERK_KEY anywhere in that page). The real exploit is
+// 3 specific fields (discount/review-flag/pipeline-stage), not the whole table — needs either field-
+// level PATCH gating (new mechanism) or giving the floor app a key (worsens finding #1's key-sprawl
+// problem). Flagged back to the user rather than shipped either way unilaterally.
 const PATCH_REQUIRES_KEY = new Set(["tblQ8zeUanriESWvL", "tbl2akoCETBx9S1SK", "tbl8HjvBwNJ41cTV0", "tbl8CrVWKF8CuI7HD", "tbljdg6uxEfHE7uCU"]);
 
 // Fields forced to a fixed value on create, regardless of what (or whether)

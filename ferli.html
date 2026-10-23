@@ -298,7 +298,9 @@
     return fetch(u).then(function (r) { return r.json(); });
   }
   function apiPatch(path, fields) {
-    return fetch("/api/airtable?path=" + encodeURIComponent(path), {
+    var u = "/api/airtable?path=" + encodeURIComponent(path);
+    if (k) u += "&k=" + encodeURIComponent(k);
+    return fetch(u, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fields: fields })
     }).then(function (r) { return r.json(); });
