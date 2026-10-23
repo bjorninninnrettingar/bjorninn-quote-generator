@@ -452,6 +452,17 @@
       // never the washed-out opacity native DnD's default ghost gives the source element.
       dragHandle.addEventListener("pointerdown", function (e) {
         e.preventDefault();
+        // Defensive cleanup (2026-10-23): if a previous drag's up() somehow never fired — reported
+        // live as ghosts piling up when tiles "cross each other" while dragging — starting a new
+        // drag first clears any stray ghost/placeholder left behind, so it can never accumulate
+        // regardless of the exact cause. Also switched from setPointerCapture + handle-scoped
+        // listeners to window-scoped listeners (removed explicitly in up(), not relying on
+        // {once:true} alone) — the kitchen planner's own dominant pattern (its catalog/opening/
+        // water/element drags all use this; only its drawer-seam reorder uses capture), simpler and
+        // with nothing that depends on the captured element's state as it gets reparented mid-drag.
+        document.querySelectorAll(".arrange-ghost").forEach(function (g) { g.remove(); });
+        document.querySelectorAll(".arrange-placeholder").forEach(function (p) { p.classList.remove("arrange-placeholder"); });
+
         var startRect = el.getBoundingClientRect();
         var offsetX = e.clientX - startRect.left, offsetY = e.clientY - startRect.top;
         var ghost = el.cloneNode(true);
@@ -463,7 +474,6 @@
         document.body.appendChild(ghost);
         el.classList.add("arrange-placeholder");
         draggingArrangeItem = el;
-        try { dragHandle.setPointerCapture(e.pointerId); } catch (err) {}
 
         function gridItemAt(x, y) {
           // No need to hide the ghost first — pointer-events:none already makes elementFromPoint
@@ -502,19 +512,18 @@
           if (alreadyThere) return;
           rowEl.insertBefore(el, before ? target : target.nextSibling);
         }
-        function up(ev) {
-          dragHandle.releasePointerCapture(ev.pointerId);
-          dragHandle.removeEventListener("pointermove", move);
-          dragHandle.removeEventListener("pointerup", up);
-          dragHandle.removeEventListener("pointercancel", up);
+        function up() {
+          window.removeEventListener("pointermove", move);
+          window.removeEventListener("pointerup", up);
+          window.removeEventListener("pointercancel", up);
           ghost.remove();
           el.classList.remove("arrange-placeholder");
           draggingArrangeItem = null;
           saveLayout();
         }
-        dragHandle.addEventListener("pointermove", move);
-        dragHandle.addEventListener("pointerup", up);
-        dragHandle.addEventListener("pointercancel", up);
+        window.addEventListener("pointermove", move);
+        window.addEventListener("pointerup", up);
+        window.addEventListener("pointercancel", up);
       });
     });
 
