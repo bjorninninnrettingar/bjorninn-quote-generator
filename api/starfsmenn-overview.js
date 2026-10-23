@@ -51,8 +51,15 @@ export default async function handler(req, res) {
     return res.status(403).json({ error: "NOT_OWNER" });
   }
 
+  // Real human, currently-active staff only (2026-10-23) — "Er starfandi? ✅" alone isn't reliable:
+  // confirmed live that a fired employee (Tegund = "Rekinn 🙅‍♂️") and the "Starfsmaður fyrir
+  // útreikninga 🤖" placeholder record (used only as a link target for Vörulisti pricing, never a
+  // real person) both still have that checkbox left checked. Tegund starfsmanns is the field that's
+  // actually kept current when someone leaves, so gate on it directly instead — any of the 4 real
+  // employment types, which also naturally excludes the robot placeholder.
+  const ACTIVE_TYPES = ["Eigandi 👨🏻‍💼", "Fast ráðinn 👷", "Verktaki 👨‍🎨", "Lausráðinn "];
   const listUrl = new URL(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${STARFSMENN_TABLE}`);
-  listUrl.searchParams.set("filterByFormula", "{Er starfandi? ✅}=1");
+  listUrl.searchParams.set("filterByFormula", "OR(" + ACTIVE_TYPES.map((t) => `{Tegund starfsmanns 🧑‍💻}="${t.replace(/"/g, '\\"')}"`).join(",") + ")");
   listUrl.searchParams.set("pageSize", "100");
   [
     "Nafn starfsmanns 👷", "Mynd af starfsmanni", "Starfsheiti 💼", "Netfang 📧", "Símanúmer ☎️",
