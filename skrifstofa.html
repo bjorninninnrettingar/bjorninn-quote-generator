@@ -117,7 +117,12 @@
   .arrange-placeholder > * { visibility:hidden; }
   /* Empty, always-present grid slots (2026-10-23) — same dashed look as the in-drag placeholder
      above, just permanent rather than appearing only mid-drag; real drop targets, not decoration. */
-  .arrange-filler { background:var(--bg); border:2px dashed var(--line); min-height:100px; border-radius:10px; }
+  /* Blank by default (2026-10-23, was always dashed-outlined) — permanent empty boxes are
+     themselves noise; the dashed outline only earns its keep as a drop-zone hint while a drag is
+     actually in progress (.arrangeRow.dragging-active, toggled in makeArrangeable()). At rest a
+     filler is genuinely empty space, not a decoration — still a real, droppable grid cell either way. */
+  .arrange-filler { min-height:100px; border-radius:10px; }
+  .arrangeRow.dragging-active .arrange-filler { background:var(--bg); border:2px dashed var(--line); }
   /* !important throughout (2026-10-23, real bug, not defensive): the ghost is a clone of the
      dragged tile, so it keeps that tile's own classes (.panel, .cashKpi, .verkPanel, ...) — several
      of those set position/margin/overflow at the SAME specificity as .arrange-ghost, and being
@@ -465,6 +470,7 @@
         // with nothing that depends on the captured element's state as it gets reparented mid-drag.
         document.querySelectorAll(".arrange-ghost").forEach(function (g) { g.remove(); });
         document.querySelectorAll(".arrange-placeholder").forEach(function (p) { p.classList.remove("arrange-placeholder"); });
+        rowEl.classList.remove("dragging-active");
 
         var startRect = el.getBoundingClientRect();
         var offsetX = e.clientX - startRect.left, offsetY = e.clientY - startRect.top;
@@ -476,6 +482,7 @@
         ghost.style.top = startRect.top + "px";
         document.body.appendChild(ghost);
         el.classList.add("arrange-placeholder");
+        rowEl.classList.add("dragging-active");
         draggingArrangeItem = el;
 
         function gridItemAt(x, y) {
@@ -521,6 +528,7 @@
           window.removeEventListener("pointercancel", up);
           ghost.remove();
           el.classList.remove("arrange-placeholder");
+          rowEl.classList.remove("dragging-active");
           draggingArrangeItem = null;
           saveLayout();
         }
