@@ -124,6 +124,18 @@
   .wel-hero figcaption{ z-index:2; }
   .wel-hero figcaption{ position:absolute; left:14px; bottom:12px; font-size:12px; font-weight:600; color:#fff; background:rgba(25,25,25,.55); padding:4px 10px; border-radius:999px; backdrop-filter:blur(4px); }
   @media (max-width:980px){ .wrap.welm .wel{ grid-template-columns:1fr; gap:24px; } .wel-hero{ grid-row:auto; grid-column:1; } .wel-main{ grid-row:auto; } }
+  /* BJÖRNINN STUDIO front page (2026-10-23): one card per room, a click starts it (or picks it back up) */
+  .wel-lede{ margin:10px 0 0; font-size:15px; line-height:1.55; color:var(--ink-soft); max-width:520px; }
+  .wel-ask{ margin:22px 0 10px; font-size:17px; }
+  .studio-cards{ display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:10px; }
+  .studio-card{ display:flex; flex-direction:column; align-items:flex-start; gap:4px; text-align:left; padding:14px 14px 12px; border:1.5px solid var(--line); border-radius:14px; background:#fff; cursor:pointer; font:inherit; color:var(--ink); transition:border-color .15s, transform .15s, box-shadow .15s; }
+  .studio-card:hover:not(:disabled){ border-color:var(--blue); transform:translateY(-2px); box-shadow:0 8px 22px rgba(25,25,25,.08); }
+  .studio-card .ic{ font-size:22px; line-height:1; }
+  .studio-card b{ font-size:15px; }
+  .studio-card small{ font-size:12px; color:var(--ink-soft); line-height:1.35; }
+  .studio-card .go{ margin-top:4px; font-size:12px; font-weight:700; color:var(--blue); }
+  .studio-card:disabled{ cursor:default; opacity:.55; }
+  .studio-card.has{ border-color:var(--gold); }
   .wel-actions{ display:flex; align-items:center; justify-content:flex-end; gap:18px; flex-wrap:wrap; margin-top:8px; }
   .reset-link{ background:none; border:none; color:var(--ink-soft); font-size:13px; text-decoration:underline; cursor:pointer; padding:4px 0; white-space:nowrap; }
   .reset-link:hover{ color:var(--danger); }
@@ -1204,11 +1216,9 @@
       <figure class="wel-hero"><div class="wel-scene" id="welScene" aria-hidden="true"></div><img src="images/welcome-kitchen.jpg" alt="Eldhús hannað í hönnunartólinu: dökkblá innrétting, hvítur marmari og messinghöldur" width="1600" height="942"><figcaption>Hannað hér í hönnunartólinu<span class="wel-drag"> · dragðu til að snúa</span></figcaption></figure>
       <div class="wel-main">
       <div class="wel-meta"><span>⏱ 10–15 mínútur</span><span>💾 Vistast sjálfkrafa</span><span>🤝 Engin binding</span></div>
-      <ol class="wel-steps">
-        <li><span class="n">1</span><div><h3>Teiknaðu rýmið</h3><p>Veldu lögun og settu inn mál, glugga og hurðir.</p></div></li>
-        <li><span class="n">2</span><div><h3>Veldu útlit</h3><p>Veldu liti, efni og höldur.</p></div></li>
-        <li><span class="n">3</span><div><h3>Raðaðu skápunum</h3><p>Veldu skápa og raðaðu þeim í eldhúsið.</p></div></li>
-      </ol>
+      <p class="wel-lede">Teiknaðu rýmið, veldu efni og raðaðu innréttingunni í 3D. Þú færð teikningar, vörulista og verð — frítt og án skuldbindingar.</p>
+      <h2 class="wel-ask">Hvað viltu hanna?</h2>
+      <div class="studio-cards" id="studioCards"></div>
       <div class="wel-actions">
         <button class="reset-link" id="welReset" type="button" hidden>Byrja upp á nýtt</button>
         <button class="btn btn-primary" id="welStart" type="button">Byrja að hanna →</button>
@@ -8100,7 +8110,9 @@
       el.querySelector("i").textContent = i < idx ? "✓" : String(i + 1);
     });
     var k = document.getElementById("kicker");
-    k.textContent = "BJÖRNINN STUDIO"; // the stepper already says where you are (2026-10-11); renamed 2026-10-23
+    k.textContent = "BJÖRNINN STUDIO";
+    var TITLES = { eldhus:"Hannaðu eldhúsið þitt", fataskapar:"Hannaðu fataskápinn þinn" };
+    document.getElementById("pageTitle").textContent = state.step === "welcome" || state.step === "byrja" ? "Hannaðu heimilið þitt" : (TITLES[state.activeCategory] || "Hannaðu heimilið þitt"); // the stepper already says where you are (2026-10-11); renamed 2026-10-23
   }
   function jumpTo(step){
     if (step === state.step) return;
@@ -8842,9 +8854,44 @@
   function renderWelcome(){
     if (!welSceneOn) setTimeout(function(){ if (state.step === "welcome" && !welSceneOn) startWelcomeScene(); }, 350);
     var has = hasDesign();
-    document.getElementById("welStart").textContent = has ? "Halda áfram →" : "Byrja að hanna →";
+    document.getElementById("welStart").textContent = "Halda áfram →";
+    document.getElementById("welStart").hidden = !has; // a room card starts a design; this only resumes one
     document.getElementById("welReset").hidden = !has;
+    renderStudioCards();
   }
+  var STUDIO_ROOMS = [
+    { key:"eldhus", icon:"🍳", label:"Eldhús", desc:"Innrétting, borðplata og tæki" },
+    { key:"fataskapar", icon:"🚪", label:"Fataskápur", desc:"Skápar, innvols og rennihurðir" },
+    { key:"bad", icon:"🛁", label:"Baðherbergi", desc:"Vaskaskápar og háir skápar", soon:true },
+    { key:"hurdir", icon:"🚪", label:"Innihurðir", desc:"Hurðir um allt heimilið", soon:true },
+    { key:"ibud", icon:"🏠", label:"Heil íbúð", desc:"Öll rýmin í einu verkefni", soon:true }
+  ];
+  function renderStudioCards(){
+    var host = document.getElementById("studioCards"); if (!host) return;
+    var q = state.categoryQueue || [];
+    host.innerHTML = STUDIO_ROOMS.map(function(r){
+      var has = q.indexOf(r.key) >= 0 && (r.key === state.activeCategory ? state.walls && state.walls.length : !!(state.categoryData || {})[r.key]);
+      return '<button type="button" class="studio-card' + (has ? ' has' : '') + '" data-studio="' + r.key + '"' + (r.soon ? ' disabled' : '') + '><span class="ic">' + r.icon + '</span><b>' + r.label + '</b><small>' + r.desc + '</small>' +
+        '<span class="go">' + (r.soon ? 'Væntanlegt' : has ? 'Halda áfram →' : 'Byrja →') + '</span></button>';
+    }).join("");
+  }
+  // A room card: picks that room back up if it's already in this project, else adds it to the project (a kitchen AND a
+  // closet in one Studio project — the room in progress is parked, nothing is lost) and starts it.
+  document.addEventListener("click", function(e){
+    var card = e.target.closest && e.target.closest("[data-studio]"); if (!card || card.disabled) return;
+    var key = card.dataset.studio;
+    if (!categoryDef(key) || categoryDef(key).soon) return;
+    state.categoryQueue = state.categoryQueue || [];
+    state.categoryData = state.categoryData || {};
+    if (state.activeCategory && state.activeCategory !== key && state.walls && state.walls.length) state.categoryData[state.activeCategory] = serializeRoom();
+    var known = state.categoryQueue.indexOf(key) >= 0;
+    if (!known) state.categoryQueue.push(key);
+    if (known && state.activeCategory === key && state.walls && state.walls.length){ // the room you were already in: just go back to it
+      var to = canGoTo("editor").ok ? "editor" : "shape"; goto(to); return;
+    }
+    startCategory(key);
+    if (known && state.walls && state.walls.length && canGoTo("editor").ok) goto("editor");
+  });
   document.getElementById("welStart").addEventListener("click", function(){
     var hasQueue = !!(state.categoryQueue && state.categoryQueue.length);
     var to = state.resumeStep && state.resumeStep !== "welcome" ? state.resumeStep : (hasQueue ? "shape" : "byrja");
