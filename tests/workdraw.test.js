@@ -49,3 +49,10 @@ test("coverSheet: lists every room with its page range, then the door list", () 
   const svg = globalThis.KPWD.coverSheet({ name: "T-40 | Jón", date: "23.10.2026", rooms: [{ name: "Eldhús", sheets: 4, units: 18 }, { name: "Fatask.", sheets: 2, units: 5 }], doors: 3, totalSheets: 8 });
   assert.match(svg, /VINNUTEIKNINGAR/); assert.match(svg, />Eldhús</); assert.match(svg, /bls\. 2–5/); assert.match(svg, /bls\. 6–7/); assert.match(svg, /Hurðalisti/); assert.match(svg, /bls\. 8/);
 });
+
+test("homeSheet: every room on one sheet with its name, no per-wall labels", () => {
+  const geo = { walls: [{ id: "eldhus|W1", label: "Veggur 1", lenMm: 3000, n: { x: 0, z: 1 }, a: { x: 0, z: 0 }, b: { x: 3, z: 0 } }, { id: "rymi:1|W1", label: "Veggur 1", lenMm: 4000, n: { x: 0, z: 1 }, a: { x: 0, z: 3 }, b: { x: 4, z: 3 } }],
+    openings: [], units: [], obstacles: [], labels: [{ x: 1.5, z: 1, text: "Eldhús", sub: "9,0 m²" }, { x: 2, z: 4, text: "Stofa" }] };
+  const svg = globalThis.KPWD.homeSheet({ project: "T-40" }, geo, 2, 6);
+  assert.match(svg, /ALLT HEIMILIÐ/); assert.match(svg, />Eldhús</); assert.match(svg, />Stofa</); assert.doesNotMatch(svg, /Veggur 1 · 3000/);
+});

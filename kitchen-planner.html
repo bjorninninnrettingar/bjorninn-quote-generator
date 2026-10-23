@@ -12389,7 +12389,8 @@
   }
   function wdModels(){
     var models = [], now = new Date(), date = ("0" + now.getDate()).slice(-2) + "." + ("0" + (now.getMonth() + 1)).slice(-2) + "." + now.getFullYear();
-    withEachCategory(function(){
+    withEachCategory(function(cat){
+      var cdW = categoryDef(cat); if (cdW && cdW.plain) return; // a plain room is on the home sheet only
       var surfs = surfaces(), keys = skKeys(), bom = lightingBOM(), sheets = [];
       surfs.forEach(function(w, wi){ if (!w.open && !w.island && !w.partition) sheets.push(wdWallSheet(w, wi, surfs, keys, bom)); });
       var look = state.look && LOOKS[state.look], carc = state.carcass && CARCASS[state.carcass], top = state.top && TOPS[state.top];
@@ -12410,6 +12411,25 @@
     });
     return models;
   }
+  // the home plan as one planGeo (m): every placed room's own wdPlanGeo turned/moved by its state.home.rooms place
+  function wdHomeGeo(){
+    if (!state.home || !state.home.rooms) return null;
+    var out = { walls:[], openings:[], units:[], obstacles:[], labels:[] };
+    withEachCategory(function(cat){
+      var pos = state.home.rooms[cat]; if (!pos || !state.closed) return;
+      var g = wdPlanGeo(), t = (pos.rot || 0) * Math.PI / 180, c = Math.round(Math.cos(t) * 1e6) / 1e6, sn = Math.round(Math.sin(t) * 1e6) / 1e6;
+      function P(p){ return { x:p.x * c - p.z * sn + pos.x / 1000, z:p.x * sn + p.z * c + pos.z / 1000 }; }
+      function V(v){ return { x:v.x * c - v.z * sn, z:v.x * sn + v.z * c }; }
+      g.walls.forEach(function(w){ out.walls.push(Object.assign({}, w, { id:cat + "|" + w.id, a:P(w.a), b:P(w.b), n:V(w.n) })); });
+      g.openings.forEach(function(o){ out.openings.push(Object.assign({}, o, { wallId:cat + "|" + o.wallId, a:o.a && P(o.a), b:o.b && P(o.b), n:o.n && V(o.n),
+        sweep:o.sweep ? Object.assign({}, o.sweep, { h:P(o.sweep.h), u:V(o.sweep.u), v:V(o.sweep.v) }) : null })); });
+      g.units.forEach(function(u){ out.units.push(Object.assign({}, u, { poly:u.poly.map(P) })); });
+      g.obstacles.forEach(function(o){ out.obstacles.push({ poly:o.poly.map(P) }); });
+      var pts = g.walls.map(function(w){ return P(w.a); }), cx = pts.reduce(function(a, p){ return a + p.x; }, 0) / pts.length, cz = pts.reduce(function(a, p){ return a + p.z; }, 0) / pts.length;
+      out.labels.push({ x:cx, z:cz, text:(state.intake && state.intake.room) || "Rými", sub:polygonAreaM2(g.walls.map(function(w){ return { x:w.a.x * 1000, z:w.a.z * 1000 }; })).toFixed(1).replace(".", ",") + " m²" });
+    });
+    return out.walls.length ? out : null;
+  }
   function wdDoorRows(){
     return (state.doorList || []).map(function(d){
       var p = doorProductFor(d), mat = d.leaf && LOOKS[d.leaf];
@@ -12425,8 +12445,11 @@
       // the project's door list as its own sheet (I2), after the rooms
       var dl = wdDoorRows();
       if (dl.length) pages.push(KPWD.doorSheet({ project:PRO ? PRO.name : "Verkefni", date:(models[0] || {}).date, notes:[] }, dl, pages.length + 2, pages.length + 2));
+      // Allt heimilið: the whole home on one sheet, right after the cover
+      var hg = state.home ? KPI18N.asIS(function(){ return wdHomeGeo(); }) : null;
+      if (hg) pages.unshift(KPWD.homeSheet({ project:PRO ? PRO.name : "Verkefni", date:(models[0] || {}).date, notes:[] }, hg, 2, pages.length + 2));
       // one PDF for the whole project (I1): a cover with the contents when there's more than one room or a door list
-      if (rooms.length > 1 || dl.length) pages.unshift(KPWD.coverSheet({ name:PRO ? PRO.name : "Verkefni", date:(models[0] || {}).date, rooms:rooms, doors:dl.length, totalSheets:pages.length + 1 }));
+      if (rooms.length > 1 || dl.length || hg) pages.unshift(KPWD.coverSheet({ name:PRO ? PRO.name : "Verkefni", date:(models[0] || {}).date, rooms:rooms, doors:dl.length, home:!!hg, totalSheets:pages.length + 1 }));
     }
     catch(e){ toast("Teikningin tókst ekki: " + e.message); console.error(e); return; }
     var ov = document.getElementById("wdOverlay");
