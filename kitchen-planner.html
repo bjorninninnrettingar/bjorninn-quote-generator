@@ -10903,16 +10903,33 @@
   // ---------- 2D vinnuteikningar (2026-10-23) ----------
   // wdModel() turns the drawing into plain numbers per wall (the same Smíðagögn smidaFor() sends to Keyra
   // skipulag and /cnc, so the sheet never disagrees with what gets built); kitchen-planner-workdraw.js draws them.
-  function wdSvgParts(svgStr){ // an <svg …>…</svg> string → {viewBox, inner} for nesting into a sheet
-    var m = /<svg[^>]*viewBox="([^"]+)"[^>]*>([\s\S]*)<\/svg>\s*$/.exec(svgStr || "");
-    return m ? { viewBox:m[1], inner:m[2] } : null;
-  }
-  function wdPlanSvg(opts){
-    var host = document.createElement("div");
-    host.style.cssText = "position:fixed;left:-9999px;top:0;width:900px;height:640px;";
-    document.body.appendChild(host);
-    try{ KP3D.buildPlan2D(host, state, Object.assign({ onSelect:null }, opts || {})); return wdSvgParts(host.innerHTML); }
-    finally{ host.remove(); }
+  // the room as plain geometry (metres) for KPWD.planSvg — walls, openings (with each door's real swing), every
+  // cabinet's footprint (walls, islands, milliveggir), hindranir
+  function wdPlanGeo(){
+    var geoms = KP3D.wallGeoms(state), surfs = surfaces(), sg = KP3D.surfaceGeoms(state), keys = skKeys();
+    var walls = state.walls.map(function(w, i){ var g = geoms[i];
+      return { id:w.id, label:w.label, lenMm:w.lengthMm, open:!!w.open, n:g.normal, a:{ x:g.origin.x, z:g.origin.z }, b:{ x:g.origin.x + g.axis.x * g.lenM, z:g.origin.z + g.axis.z * g.lenM } }; });
+    var openings = [];
+    function addOp(o, kind){
+      var wi = state.walls.findIndex(function(w){ return w.id === o.wallId; }), g = geoms[wi]; if (!g || state.walls[wi].open) return;
+      var a0 = o.offsetMm / 1000, a1 = (o.offsetMm + o.widthMm) / 1000;
+      openings.push({ wallId:o.wallId, kind:kind, n:g.normal, t0:a0 / g.lenM, t1:a1 / g.lenM,
+        a:{ x:g.origin.x + g.axis.x * a0, z:g.origin.z + g.axis.z * a0 }, b:{ x:g.origin.x + g.axis.x * a1, z:g.origin.z + g.axis.z * a1 },
+        sweep:kind === "door" ? KP3D.doorSweep(state, o) : null });
+    }
+    (state.windows || []).forEach(function(o){ addOp(o, "window"); });
+    (state.doors || []).forEach(function(o){ addOp(o, o.gap ? "gap" : KP3D.doorSwingOf(o) === "slide" ? "slide" : "door"); });
+    var units = [];
+    surfs.forEach(function(sf, si){
+      var g = sg[si]; if (!g || sf.open) return;
+      [["floor", sf.floor, KP3D.cornerClearanceMm(surfs, si, "floor")], ["wall", sf.wall, 0]].forEach(function(z){
+        var st = KP3D.blockStartsMm(z[1], z[2]);
+        z[1].forEach(function(b, i){ var c = CATALOG[b.type]; if (!c) return;
+          units.push({ zone:z[0], sk:keys[b.id] || "", panel:!!c.panel, poly:KP3D.rectCornersWorld(g, st[i], b.widthMm, b.depthMm || c.d) }); });
+      });
+    });
+    var obstacles = (state.obstacles || []).map(function(o){ var q = KP3D.obstacleQuad(state, o); return q ? { poly:q } : null; }).filter(Boolean);
+    return { walls:walls, openings:openings, units:units, obstacles:obstacles };
   }
   function wdWallSheet(wall, wi, surfs, keys, bom){
     var sys = drawerSys(), sides = KP3D.DRAWER_CODES[sys].side, units = [], push = state.handle === "push";
@@ -10966,7 +10983,7 @@
       return Object.assign({}, a, a.kind === "symbol" ? { glyph:sy.glyph, symLabel:a.text ? "" : sy.label } : {});
     });
     return { title:wall.label, lenMm:wall.lengthMm, roomH:state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM, units:units, worktop:tops.length ? tops : null,
-      afella:afs, openings:openings, annotations:annos, minimap:wdPlanSvg({ mini:true, selectedWallId:wall.id }) };
+      afella:afs, openings:openings, annotations:annos, wallId:wall.id };
   }
   function wdModels(){
     var models = [], now = new Date(), date = ("0" + now.getDate()).slice(-2) + "." + ("0" + (now.getMonth() + 1)).slice(-2) + "." + now.getFullYear();
@@ -10982,7 +10999,7 @@
       notes.push("Skúffukerfi – " + (drawerSys() === "merivo" ? "Blum Merivo (M-)" : "Blum Legra (L-)"));
       if (state.handle) notes.push("Höldur – " + ((HANDLES[state.handle] || {}).label || (hcfg && hcfg.label) || state.handle) + (state.handleColor ? ", " + state.handleColor : ""));
       models.push({ project:PRO ? PRO.name : "Eldhússkipulag", roomName:(state.intake && state.intake.room) || "Eldhús", date:date, drawerSystem:drawerSys(),
-        notes:notes, plan:wdPlanSvg({}), sheets:sheets });
+        notes:notes, planGeo:wdPlanGeo(), sheets:sheets });
     });
     return models;
   }
@@ -10993,9 +11010,24 @@
     var ov = document.getElementById("wdOverlay");
     if (!ov){ ov = document.createElement("div"); ov.id = "wdOverlay"; document.body.appendChild(ov); }
     ov.innerHTML = '<div class="wd-bar"><span>📐 Vinnuteikningar · ' + pages.length + ' ' + plural(pages.length, "blað", "blöð") + ' (A3)</span>' +
+      (PRO ? '<button type="button" id="wdSave" title="Vistast í „Vinnuteikningar (drög) 📐" á Tækifærinu — nýjasta útgáfan kemur í stað þeirrar eldri">💾 Vista á Tækifæri</button>' : '') +
       '<button type="button" id="wdPrint">🖨️ Prenta / vista sem PDF</button><button type="button" class="ghost" id="wdClose">Loka</button></div>' +
       '<div class="wd-pages">' + pages.join("") + '</div>';
     ov.querySelector("#wdClose").addEventListener("click", function(){ ov.remove(); });
+    var sb = ov.querySelector("#wdSave");
+    if (sb) sb.addEventListener("click", async function(){
+      sb.disabled = true; var label = sb.textContent; sb.textContent = "Bý til PDF…";
+      try{
+        var pdf = await wdPdf(pages, 180);
+        if (pdf.length > 4.2 * 1024 * 1024) pdf = await wdPdf(pages, 150);
+        sb.textContent = "Vista…";
+        var r = await fetch("/api/kp-workdraw?recordId=" + encodeURIComponent(PRO.id) + "&k=" + encodeURIComponent(PRO.k), { method:"POST", headers:{ "Content-Type":"application/octet-stream" }, body:pdf });
+        var d = await r.json().catch(function(){ return {}; });
+        if (!r.ok) throw new Error(d.error || ("HTTP " + r.status));
+        toast("✓ Vinnuteikningar vistaðar á Tækifærið (Vinnuteikningar (drög) 📐).");
+        sb.textContent = "✓ Vistað";
+      }catch(e){ toast("⛔ Vistaðist ekki: " + e.message); sb.textContent = label; sb.disabled = false; }
+    });
     ov.querySelector("#wdPrint").addEventListener("click", function(){
       var w = window.open("", "_blank");
       if (!w){ toast("Leyfðu sprettiglugga til að prenta."); return; }
@@ -11004,6 +11036,24 @@
         pages.join("") + '<script>window.onload=function(){setTimeout(function(){window.print()},300)}<\/script></body></html>');
       w.document.close();
     });
+  }
+  // A3 sheets → PDF (pdf-lib, already used for the customer drawings): each SVG rasterised at `dpi` — crisp on paper,
+  // no new dependency; the preview / print path stays real vector.
+  async function wdPdf(pages, dpi){
+    var PDFLib = await loadPdfLib(), doc = await PDFLib.PDFDocument.create();
+    doc.setTitle(((PRO && PRO.name) || "Verkefni") + " — vinnuteikningar");
+    var W = Math.round(420 / 25.4 * dpi), H = Math.round(297 / 25.4 * dpi);
+    for (var i = 0; i < pages.length; i++){
+      var svg = pages[i].replace('width="420mm" height="297mm"', 'width="' + W + '" height="' + H + '"');
+      var img = await new Promise(function(res, rej){ var im = new Image(); im.onload = function(){ res(im); }; im.onerror = function(){ rej(new Error("blað " + (i + 1) + " teiknaðist ekki")); };
+        im.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg); });
+      var cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+      var cx = cv.getContext("2d"); cx.fillStyle = "#fff"; cx.fillRect(0, 0, W, H); cx.drawImage(img, 0, 0, W, H);
+      var png = await new Promise(function(res){ cv.toBlob(function(b){ b.arrayBuffer().then(res); }, "image/png"); });
+      var emb = await doc.embedPng(png), pg = doc.addPage([1190.55, 841.89]); // A3 landscape, points
+      pg.drawImage(emb, { x:0, y:0, width:1190.55, height:841.89 });
+    }
+    return await doc.save();
   }
   window.__wdModels = wdModels; // devtools / tests
 

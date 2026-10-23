@@ -91,7 +91,12 @@
       else {
         var bh = Math.min(fh - 2, (f.side || f.mm * 0.6) * k);
         s += rc(x0 + 2.2, fy + fh - 1 - bh, w - 4.4, bh, sysC, 0.3, "none", DASH);
-        s += tx(x0 + w / 2, fy + fh / 2 + 1, drawerLabel(sys, f), Math.min(2.8, fh * 0.45), sysC, ' text-anchor="middle" font-weight="700"');
+        var ls = Math.min(2.8, fh * 0.45);
+        s += tx(x0 + w / 2, fy + fh / 2 + 1, drawerLabel(sys, f), ls, sysC, ' text-anchor="middle" font-weight="700"');
+        // the front's own slot height (= Sérhæð), a size smaller than the code so it's there for whoever looks for it
+        // (top-right corner, above the dashed box — never on top of the code or the box line)
+        var ms = Math.max(1.2, Math.min(ls - 0.75, fh - bh - 1.4));
+        if (w > 9) s += tx(x0 + w - 1, fy + 0.4 + ms, Math.round(f.mm), ms, C.thin, ' text-anchor="end"');
       }
       if (f.push) s += tx(x0 + w - 1, fy + 2.4, "PUSH", 1.6, C.text, ' text-anchor="end"');
       acc += f.mm;
@@ -153,7 +158,10 @@
   // ── right column: minimap, notes, legend, title block ──
   function column(model, sheet, idx, total, scale){
     var x = PAGE_W - M - COL_W, s = "", y = M;
-    if (sheet.minimap){
+    if (sheet.wallId && model.planGeo){
+      s += rc(x, y, COL_W, 62, C.thin, 0.25, "#fff") + planSvg(model.planGeo, { x:x + 3, y:y + 3, w:COL_W - 6, h:56 }, { mini:true, selectedWallId:sheet.wallId });
+      y += 66;
+    } else if (sheet.minimap){
       s += rc(x, y, COL_W, 62, C.thin, 0.25, "#fff") + '<svg x="' + (x + 1) + '" y="' + (y + 1) + '" width="' + (COL_W - 2) + '" height="60" viewBox="' + sheet.minimap.viewBox + '" preserveAspectRatio="xMidYMid meet">' + sheet.minimap.inner + '</svg>';
       y += 66;
     }
@@ -282,11 +290,68 @@
     return page(s);
   }
 
+  // ── clean line-drawing plan (sheet 1 + every sheet's minimap) ──
+  // geo (metres, room coordinates, page y = room z — the same orientation as the editor's 2D plan):
+  //   walls [{a:{x,z}, b:{x,z}, n:{x,z} (into the room), open, id, label, lenMm}], openings [{a, b, n, kind, sweep:{h,u,v,r}|null}],
+  //   units [{poly:[{x,z}…], zone, sk, panel}], obstacles [{poly}]
+  function planSvg(geo, box, opts){
+    opts = opts || {};
+    if (!geo || !geo.walls || !geo.walls.length) return "";
+    var xs = [], zs = [];
+    geo.walls.forEach(function(w){ xs.push(w.a.x, w.b.x); zs.push(w.a.z, w.b.z); });
+    (geo.units || []).forEach(function(u){ u.poly.forEach(function(p){ xs.push(p.x); zs.push(p.z); }); });
+    var pad = opts.mini ? 0.25 : 0.9, x0 = Math.min.apply(null, xs) - pad, x1 = Math.max.apply(null, xs) + pad, z0 = Math.min.apply(null, zs) - pad, z1 = Math.max.apply(null, zs) + pad;
+    var sc = Math.min(box.w / (x1 - x0), box.h / (z1 - z0)), ox = box.x + (box.w - (x1 - x0) * sc) / 2, oy = box.y + (box.h - (z1 - z0) * sc) / 2;
+    var P = function(p){ return { x:ox + (p.x - x0) * sc, y:oy + (p.z - z0) * sc }; };
+    var T = (opts.mini ? 0.12 : 0.1) * sc, s = ""; // wall thickness on paper
+    function poly(pts, stroke, sw, fill, extra){ return '<polygon points="' + pts.map(function(p){ var q = P(p); return n(q.x) + "," + n(q.y); }).join(" ") + '" stroke="' + stroke + '" stroke-width="' + sw + '" fill="' + (fill || "none") + '"' + (extra || "") + '/>'; }
+    // walls: a filled band on the outside of each wall line, with the openings cut out of it
+    geo.walls.forEach(function(w){
+      var sel = opts.selectedWallId && w.id === opts.selectedWallId;
+      if (w.open){ var a0 = P(w.a), b0 = P(w.b); s += ln(a0.x, a0.y, b0.x, b0.y, C.open, 0.25, DASH); return; }
+      var ops = (geo.openings || []).filter(function(o){ return o.wallId === w.id; }).map(function(o){ return [o.t0, o.t1]; }).sort(function(p, q){ return p[0] - q[0]; });
+      var segs = [], t = 0; ops.forEach(function(o){ if (o[0] > t) segs.push([t, o[0]]); t = Math.max(t, o[1]); }); if (t < 1) segs.push([t, 1]);
+      var dx = w.b.x - w.a.x, dz = w.b.z - w.a.z;
+      var L = Math.hypot(dx, dz) || 1, ext = T / sc / L; // a wall's band runs one thickness past each end so outside corners close
+      segs.forEach(function(g){
+        var t0 = g[0] === 0 ? -ext : g[0], t1 = g[1] === 1 ? 1 + ext : g[1];
+        var p0 = { x:w.a.x + dx * t0, z:w.a.z + dz * t0 }, p1 = { x:w.a.x + dx * t1, z:w.a.z + dz * t1 };
+        var o = T / sc, q0 = { x:p0.x - w.n.x * o, z:p0.z - w.n.z * o }, q1 = { x:p1.x - w.n.x * o, z:p1.z - w.n.z * o };
+        s += poly([p0, p1, q1, q0], sel ? C.grip : C.ink, opts.mini ? 0.15 : 0.3, sel ? C.grip : (opts.mini ? C.ink : "url(#wdWall)"));
+      });
+      if (!opts.mini){ // wall name + its length, outside the room
+        var mid = { x:(w.a.x + w.b.x) / 2 - w.n.x * (T / sc + 0.32), z:(w.a.z + w.b.z) / 2 - w.n.z * (T / sc + 0.32) }, mp = P(mid);
+        s += tx(mp.x, mp.y - 0.4, w.label + " · " + Math.round(w.lenMm), 2.4, C.ink, ' text-anchor="middle" font-weight="600"');
+      }
+    });
+    (geo.openings || []).forEach(function(o){
+      var a = P(o.a), b = P(o.b);
+      if (o.kind === "window"){ var oo = { x:-o.n.x * T / 2, y:-o.n.z * T / 2 };
+        s += ln(a.x, a.y, b.x, b.y, C.thin, 0.2) + ln(a.x + oo.x * 2, a.y + oo.y * 2, b.x + oo.x * 2, b.y + oo.y * 2, C.thin, 0.2) + ln(a.x + oo.x, a.y + oo.y, b.x + oo.x, b.y + oo.y, C.thin, 0.35);
+      } else if (o.sweep){
+        var sw = o.sweep, h = P(sw.h), tip = P({ x:sw.h.x + sw.v.x * sw.r, z:sw.h.z + sw.v.z * sw.r }), lat = P({ x:sw.h.x + sw.u.x * sw.r, z:sw.h.z + sw.u.z * sw.r }), r = sw.r * sc;
+        var cr = sw.v.x * sw.u.z - sw.v.z * sw.u.x;
+        s += ln(h.x, h.y, tip.x, tip.y, C.ink, 0.3) + '<path d="M ' + n(tip.x) + ' ' + n(tip.y) + ' A ' + n(r) + ' ' + n(r) + ' 0 0 ' + (cr > 0 ? 1 : 0) + ' ' + n(lat.x) + ' ' + n(lat.y) + '" fill="none" stroke="' + C.thin + '" stroke-width="0.2"' + DASH_S + '/>';
+      } else if (o.kind === "slide"){ var so = { x:o.n.x * 0.04 * sc, y:o.n.z * 0.04 * sc }; s += ln(a.x + so.x, a.y + so.y, b.x + so.x, b.y + so.y, C.ink, 0.45); }
+    });
+    (geo.obstacles || []).forEach(function(o){ s += poly(o.poly, C.thin, 0.2, "url(#wdHatch)"); });
+    (geo.units || []).forEach(function(u){
+      if (u.panel){ s += poly(u.poly, C.ink, 0.2, C.ink); return; }
+      s += poly(u.poly, u.zone === "wall" ? C.thin : C.ink, u.zone === "wall" ? 0.2 : (opts.mini ? 0.18 : 0.3), u.zone === "wall" ? "none" : "#fff", u.zone === "wall" ? DASH : "");
+      if (!opts.mini && u.sk && u.zone !== "wall"){
+        var c = u.poly.reduce(function(acc, p){ return { x:acc.x + p.x / u.poly.length, z:acc.z + p.z / u.poly.length }; }, { x:0, z:0 }), cp = P(c);
+        s += tx(cp.x, cp.y + 0.9, u.sk.toUpperCase(), 2.3, C.sk, ' text-anchor="middle" font-weight="700"');
+      }
+    });
+    return s;
+  }
+
   // ── sheet 1: the whole room ──
   function overviewSheet(model, idx, total){
     var x = M + 6, y = M + 12, w = PAGE_W - 2 * M - COL_W - 14, h = PAGE_H - 2 * M - 22;
     var s = tx(x, M + 7, "GRUNNMYND — " + (model.roomName || "RÝMIÐ").toUpperCase(), 3.4, C.ink, ' font-weight="800"');
-    if (model.plan) s += '<svg x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" viewBox="' + model.plan.viewBox + '" preserveAspectRatio="xMidYMid meet">' + model.plan.inner + '</svg>';
+    if (model.planGeo) s += planSvg(model.planGeo, { x:x, y:y, w:w, h:h }, {});
+    else if (model.plan) s += '<svg x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" viewBox="' + model.plan.viewBox + '" preserveAspectRatio="xMidYMid meet">' + model.plan.inner + '</svg>';
     s += column(model, { title:"Grunnmynd", minimap:null, notes:[] }, idx, total, null);
     return page(s);
   }
@@ -298,7 +363,7 @@
     return out;
   }
 
-  var API = { render:render, wallSheet:wallSheet, overviewSheet:overviewSheet, drawerLabel:drawerLabel, pickScale:pickScale, COLORS:C, PAGE_W:PAGE_W, PAGE_H:PAGE_H };
+  var API = { render:render, wallSheet:wallSheet, overviewSheet:overviewSheet, planSvg:planSvg, drawerLabel:drawerLabel, pickScale:pickScale, COLORS:C, PAGE_W:PAGE_W, PAGE_H:PAGE_H };
   if (typeof module !== "undefined" && module.exports) module.exports = API;
   root.KPWD = API;
 })(typeof window !== "undefined" ? window : globalThis);
