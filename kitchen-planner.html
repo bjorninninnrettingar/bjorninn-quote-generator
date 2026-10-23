@@ -8410,6 +8410,7 @@
   // Swaps the given category's room data onto the live state fields (a parked blob if one exists, else a
   // fresh room) and opens it at the shape step. Every existing renderer keeps working unmodified since it's
   // still just reading state.walls/state.carcass/etc. — only WHICH room's data lives there changes.
+  var SHARED_MATERIALS = ["carcass", "drawerSystem", "look", "look2", "innerFront", "handle", "handleColor"];
   function startCategory(type){
     state.activeCategory = type;
     var existing = state.categoryData[type];
@@ -8417,6 +8418,18 @@
     ROOM_FIELDS.forEach(function(k){ state[k] = blob[k]; });
     var cdNew = categoryDef(type);
     if (!existing && cdNew && cdNew.defaultRoom) state.intake.room = cdNew.defaultRoom;
+    // Sömu efni í öllu verkefninu (user, 2026-10-23, A2): a new room starts with the materials of a room already in
+    // the project — carcass, drawers, fronts, handles. Worktop, floor and the room itself stay its own. Every one
+    // of them can still be changed on this room's Efni step ("Breyta fyrir þetta rými").
+    if (!existing){
+      var src = null;
+      (state.categoryQueue || []).some(function(k){ var d = state.categoryData[k]; if (k !== type && d && (d.carcass || d.look)){ src = { key:k, d:d }; return true; } return false; });
+      if (src){
+        SHARED_MATERIALS.forEach(function(k){ if (src.d[k] != null) state[k] = JSON.parse(JSON.stringify(src.d[k])); });
+        var srcDef = categoryDef(src.key);
+        setTimeout(function(){ toast("Sömu efni og í " + ((srcDef && srcDef.label) || src.key) + " — þú getur breytt þeim fyrir þetta rými í Efni."); }, 400);
+      }
+    }
     shapePhase = "pick";
     matPhase = null;
     selectedBlockId = null; selectedWallId = null; openWallId = null;
@@ -11499,12 +11512,19 @@
           (canDisc ? "" : ' disabled title="' + (l.locked ? "Verð læst (staðfest tilboð)" : !l.lineId ? "Vistaðu fyrst — línan er ekki komin í Airtable" : "") + '"') + ' placeholder="0"></td>' +
         '<td class="r">' + tpKr(l.total) + '</td></tr>';
     }
-    rows += d.lines.map(function(l){ return line(l, false); }).join("");
+    // one tilboð, split by room with a subtotal each (user, 2026-10-23, A3) — only once there's more than one room
+    var roomOf = tpRoomOf(), groups = [], gi = {};
+    d.lines.forEach(function(l){ var r = roomOf[l.key] || "Annað"; if (!(r in gi)){ gi[r] = groups.length; groups.push({ room:r, lines:[], sum:0 }); } var g = groups[gi[r]]; g.lines.push(l); g.sum += l.total || 0; });
+    if (groups.length > 1) groups.forEach(function(g){
+      rows += '<tr class="tp-group"><td colspan="3">' + esc(g.room) + '</td><td class="r">' + tpKr(g.sum) + '</td></tr>' + g.lines.map(function(l){ return line(l, false); }).join("");
+    });
+    else rows += d.lines.map(function(l){ return line(l, false); }).join("");
     if (d.other.length) rows += '<tr class="tp-group"><td colspan="4">Aðrar línur úr Airtable</td></tr>' + d.other.map(function(l){ return line(l, true); }).join("");
     rows += '<tr class="tp-other"><td><div class="tp-nm">Höldur</div><div class="tp-ex">' + d.handles.count + ' stk' + (d.handles.changed ? '<span class="tp-dot" title="Breytt í teikningunni — ekki vistað enn"></span>' : "") + '</div></td><td></td><td></td><td class="r">' + tpKr(d.handles.total) + '</td></tr>';
     document.getElementById("tpBody").innerHTML = '<table><thead><tr><th>Vara</th><th class="r">Magn</th><th class="r">Afsl.%</th><th class="r">Samtals</th></tr></thead><tbody>' + rows + '</tbody></table>';
     document.getElementById("tpMsg").textContent = "";
   }
+  function tpRoomOf(){ var m = {}; try{ collectAllLineItems().forEach(function(li){ m[li["🔑"]] = li["Rými 🏡"] || "Annað"; }); }catch(e){} return m; }
   function selectedBlockKey(){
     if (!selectedBlockId) return null;
     var k = null;
