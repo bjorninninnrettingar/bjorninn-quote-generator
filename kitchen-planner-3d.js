@@ -2134,7 +2134,7 @@
         geom.origin.z + geom.axis.z * (offsetM + widthM / 2 + alongM) + geom.normal.z * outM);
     }
 
-    if (plinthM && meta && meta.plinthMat){
+    if (plinthM && meta && meta.plinthMat && !meta.hung){ // (a wall-hung bath unit: the "plinth" is just air under it)
       // full width (user, 2026-10-16): plinths of neighbouring units may run together with no visual break between
       // them, like a real continuous kickboard — only its height is a hair short, so its top never shares a plane
       // with the body's underside (z-fighting showed through an open cabinet).
@@ -4461,7 +4461,7 @@
             lowOven:!!c.lowOven, ovenFrontsMm:c.oven ? b.ovenFrontsMm || null : null, ovenBlock:c.oven ? b : null, ovenCat:c.oven ? c : null,
             sinkFixedTop:!!c.sink && b.sinkTop === "fastur" && !!(b.interior && b.interior.mode === "skuffur"),
             ovenInner:c.oven && !c.lowOven ? (String(b.ovenCombo == null ? OVEN_DEFAULT[state.drawerSystem === "merivo" ? "merivo" : "legra"] : b.ovenCombo).split("+")[1] || null) : null,
-            washerDrawerM:c.thvo && b.thvo !== "hurdir" ? 0.40 : 0, alwaysDims:state.activeCategory === "fataskapar" }, selected, pickables);
+            washerDrawerM:c.thvo && b.thvo !== "hurdir" ? 0.40 : 0, alwaysDims:state.activeCategory === "fataskapar", hung:!!state.hungUnits }, selected, pickables);
         // 💡 LED in a tall closet (user, 2026-10-23, C1): a vertical strip in a groove at the front edge of one side
         // (6×6 mm), or a strip under the top shelf (4×8 mm). Behind the doors — it shows in X-ray and with doors open.
         if (b.closetLed && c.cls === "tall" && !opts.people){

@@ -1661,6 +1661,10 @@
       if (state.closetDepthMm) b.depthMm = clampDepth(type, state.closetDepthMm);
       if (state.closetHeightMm) b.heightMm = clampHeight(type, state.closetHeightMm);
     }
+    if (state.activeCategory === "bad" && c.zone === "floor"){ // wall-hung: 500 deep, a 600 box hung 200 mm up (the "plinth" is air)
+      b.depthMm = clampDepth(type, BATH_DEPTH_MM);
+      b.heightMm = clampHeight(type, BATH_BOX_MM + BATH_HUNG_MM);
+    }
     if (c.hasInterior) b.interior = c.drawersOnly ? { mode:"skuffur", count:1 } : { mode:"hillur", count:3 }; // ruslaskápur: one tall drawer to start
     if (c.shelfStack) initShelfStack(b, 3, KP3D.SHELF_GAP_DEFAULT);
     if (c.bur){ b.burCombo = ""; b.burShelves = 0; } // a new búrskápur starts empty (2026-10-11)
@@ -2079,6 +2083,8 @@
     var hasStuff = state.closed && (state.walls.some(function(w){ return w.floor.length || w.wall.length; }) || state.windows.length || state.doors.length || state.islands.length);
     if (hasStuff && !confirm("Þetta breytir lögun rýmisins og fjarlægir skápa, glugga og hurðir sem þú ert búin(n) að setja inn. Halda áfram?")) return;
     state.walls = templateWalls(key);
+    var cdT = categoryDef(state.activeCategory);
+    if (cdT && cdT.hung){ state.hungUnits = true; state.walls.forEach(function(w){ w.plinthMm = BATH_HUNG_MM; }); } // bath: units hang 200 mm up (Sökkulhæð = the gap)
     state.closed = true;
     state.shapeKey = key;
     state.windows = []; state.doors = []; state.islands = []; state.obstacles = [];
@@ -5168,6 +5174,22 @@
     { key:"hillur", label:"Hillur", desc:"Lausar hillur", icon:"laushilla", opts:[
       { label:"Hillur", type:"laushilla" } ] }
   ];
+  // Baðherbergi (user, 2026-10-23, D1–D4): wall-hung units, 200 mm off the floor (movable), 500 mm deep; a
+  // vaskaskápur, plain base units (drawers or a door), wall cabinets (mirror/storage) and open shelves. No tall
+  // unit. Every material allowed. The sink stays simple — Björninn doesn't sell stone tops.
+  var BAD_TREE = [
+    { key:"vaskur", label:"Vaskaskápur", desc:"Veggfestur, með vaski", icon:"vaskaskapur", opts:[
+      { label:"Skúffur", type:"vaskaskapur", drawers:true },
+      { label:"Hurð", type:"vaskaskapur" } ] },
+    { key:"grunn", label:"Neðri skápur", desc:"Veggfestur, við hlið vasksins", icon:"grunnskapur", opts:[
+      { label:"Skúffur", type:"grunnskapur", drawers:true },
+      { label:"Hurð með hillum", type:"grunnskapur" } ] },
+    { key:"efri", label:"Efri skápur", desc:"Á vegg, t.d. yfir vaskinum", icon:"efriskapur", opts:[
+      { label:"Lokaður skápur með hillum", type:"efriskapur" },
+      { label:"Opinn skápur með hillum", type:"opnarhillur" },
+      { label:"Lausar hillur (38 mm)", type:"laushilla" } ] }
+  ];
+  var BATH_HUNG_MM = 200, BATH_DEPTH_MM = 500, BATH_BOX_MM = 600;
   function activeUnitTree(){ var cd = categoryDef(state.activeCategory); return (cd && cd.tree) || UNIT_TREE; }
   var uw = null; // { step, cat, opt, b, wallId }
   function uwSurfaces(zone){ return zone === "wall" ? state.walls.filter(function(w){ return !w.open; }) : surfaces().filter(function(w){ return !w.open; }); }
@@ -8425,7 +8447,7 @@
   // object as the user moves between categories (Eldhús, Fataskápar, ...); categoryQueue/categoryData/
   // activeCategory themselves are never part of this list.
   var ROOM_FIELDS = ["intake", "carcass", "drawerSystem", "look", "look2", "innerFront", "handle", "handleColor", "top", "floor", "floorTile", "floorPattern", "floorRot", "roomHeightMm",
-    "wallColor", "windows", "doors", "closed", "shapeKey", "waterWall", "waterAlongMm", "seeded", "base900", "islands", "walls", "obstacles", "decor", "openingsDone", "annotations"];
+    "wallColor", "windows", "doors", "closed", "shapeKey", "waterWall", "waterAlongMm", "seeded", "base900", "islands", "walls", "obstacles", "decor", "openingsDone", "annotations", "hungUnits"];
   function serializeRoom(){
     var blob = {};
     ROOM_FIELDS.forEach(function(k){ blob[k] = state[k]; });
@@ -8961,6 +8983,7 @@
           notes.push("Viðskiptavinur óskar eftir að lamir séu " + (b.swing === "vinstri" ? "vinstra" : "hægra") + " megin (séð framan frá).");
         }
         var v3 = v1 ? v3RecordsFor(b, c) : [];
+        if (state.hungUnits && zone_ofBlock(wall, b) === "floor") notes.push("Veggfestur (baðherbergi): " + plinthMmOf(c, "floor", wall) + " mm frá gólfi að neðri brún, enginn sökkull.");
         var lit = bom && bom.perUnit[b.id];
         if (lit && v1){ // its LED reel (+ the transformer on the first lit cabinet) → V3, one of each, priced there
           v3.push(LIGHT_PRODUCTS[lit.code].utfaerslaId);
@@ -9467,7 +9490,7 @@
   var STUDIO_ROOMS = [
     { key:"eldhus", icon:"🍳", label:"Eldhús", desc:"Innrétting, borðplata og tæki" },
     { key:"fataskapar", icon:"🚪", label:"Fataskápur", desc:"Skápar, innvols og rennihurðir" },
-    { key:"bad", icon:"🛁", label:"Baðherbergi", desc:"Vaskaskápar og háir skápar", soon:true },
+    { key:"bad", icon:"🛁", label:"Baðherbergi", desc:"Veggfestir vaskaskápar og efri skápar" },
     { key:"hurdir", icon:"🚪", label:"Innihurðir", desc:"Hurðir um allt heimilið" },
     { key:"ibud", icon:"🏠", label:"Heil íbúð", desc:"Öll rýmin í einu verkefni", soon:true }
   ];
@@ -9521,7 +9544,7 @@
   var CATEGORIES = [
     { key:"eldhus", label:"Eldhús", water:true, worktop:true },
     { key:"fataskapar", label:"Fataskápar", tree:FATASKAPAR_TREE, roomPicker:true, defaultRoom:"Fatask.", water:false, worktop:false, matPhases:MAT_PHASES_FATASKAPAR },
-    { key:"bad", label:"Bað", soon:true },
+    { key:"bad", label:"Baðherbergi", tree:BAD_TREE, roomPicker:true, defaultRoom:"Baðh.", water:true, worktop:true, hung:true },
     { key:"hurdir", label:"Hurðir", soon:true }
   ];
   function categoryDef(key){ return CATEGORIES.find(function(c){ return c.key === key; }) || null; }
