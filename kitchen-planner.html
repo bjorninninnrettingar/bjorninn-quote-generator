@@ -8652,14 +8652,14 @@
   function cabinetTotal(){ return surfaces().reduce(function(sum, w){ return sum + w.floor.length + w.wall.length; }, 0); }
   function canGoTo(step){
     if (PRO && (step === "intake" || step === "contact")) return { ok:false, why:"Í pro er vistað með „Vista í Airtable“." };
-    if (state.step === "done") return { ok:false, why:"Skipulagið hefur verið sent inn." };
+    if (state.step === "done") return { ok:false, why:__("Skipulagið hefur verið sent inn.") };
     if (step === "shape") return { ok:true };
     if ((step === "intake" || step === "contact") && !state.closed && (state.doorList || []).length) return { ok:true }; // 🚪 doors-only project
-    if (!state.closed || !state.walls.length) return { ok:false, why:"Smíðaðu rýmið fyrst (Rými)." };
+    if (!state.closed || !state.walls.length) return { ok:false, why:__("Smíðaðu rýmið fyrst (Rými).") };
     if (step === "materials") return { ok:true };
-    if (firstMissingPhase() < 4) return { ok:false, why:"Veldu skrokk, skúffukerfi, framhlið og opnun fyrst (Efni)." };
+    if (firstMissingPhase() < 4) return { ok:false, why:__("Veldu skrokk, skúffukerfi, framhlið og opnun fyrst (Efni).") };
     if (step === "editor") return { ok:true };
-    if (cabinetTotal() === 0) return { ok:false, why:"Bættu að minnsta kosti einum skáp við fyrst." }; // also gates intake/contact, both now sitting after the layout
+    if (cabinetTotal() === 0) return { ok:false, why:__("Bættu að minnsta kosti einum skáp við fyrst.") }; // also gates intake/contact, both now sitting after the layout
     return { ok:true };
   }
   // how far through the CURRENT step the customer is (0..1) — drives the fill of the progress bar
@@ -8689,7 +8689,7 @@
     var k = document.getElementById("kicker");
     k.textContent = "BJÖRNINN STUDIO";
     var TITLES = { eldhus:"Hannaðu eldhúsið þitt", fataskapar:"Hannaðu fataskápinn þinn" };
-    document.getElementById("pageTitle").textContent = state.step === "welcome" || state.step === "byrja" ? "Hannaðu heimilið þitt" : (TITLES[state.activeCategory] || "Hannaðu heimilið þitt"); // the stepper already says where you are (2026-10-11); renamed 2026-10-23
+    document.getElementById("pageTitle").textContent = state.step === "welcome" || state.step === "byrja" ? __("Hannaðu heimilið þitt") : __(TITLES[state.activeCategory] || "Hannaðu heimilið þitt"); // the stepper already says where you are (2026-10-11); renamed 2026-10-23
   }
   function jumpTo(step){
     if (step === state.step) return;
@@ -8890,10 +8890,10 @@
     sendIssueReport("Sjálfvirk villa", msg, reason && reason.stack ? reason.stack : "");
   });
   function openReportPop(){
-    var desc = prompt("Lýstu því sem gerðist — því nákvæmar því betra (t.d. \"skápurinn hvarf þegar ég ýtti á ...\"):");
+    var desc = prompt(__("Lýstu því sem gerðist — því nákvæmar því betra (t.d. \"skápurinn hvarf þegar ég ýtti á ...\"):"));
     if (desc === null) return; // cancelled
     sendIssueReport("Notandi tilkynnti", desc.trim() || "(engin lýsing gefin)");
-    toast("Takk — sent til okkar. 🙏");
+    toast(__("Takk — sent til okkar. 🙏"));
   }
 
   function validateContact(){
@@ -9214,7 +9214,7 @@
     var errEl = document.getElementById("submitError");
     errEl.style.display = "none";
     submitBtn.disabled = true;
-    submitBtn.textContent = "Sendi...";
+    submitBtn.textContent = __("Sendi...");
     try{
       // EN version: everything Airtable gets is built in Icelandic whatever language the visitor picked
       var note = KPI18N.asIS(intakeNote);
@@ -9238,12 +9238,12 @@
         project: project,
         lineItems: KPI18N.asIS(collectAllLineItems),
         state: state
-      }, function(n){ submitBtn.textContent = "Sendi... (tilraun " + (n + 1) + ")"; });
+      }, function(n){ submitBtn.textContent = __("Sendi... (tilraun {n})", { n:n + 1 }); });
       opp.id = opp.recordId;
 
       // Drawings PDF (X-ray elevations, corner views, top view, plan) onto the Tækifæri. The lead is
       // already saved at this point, so a failure here is only reported, never shown as a failed submit.
-      submitBtn.textContent = "Útbý teikningar...";
+      submitBtn.textContent = __("Útbý teikningar...");
       if (state.closed) try{ // (a doors-only submission has no room to draw)
         var customer = (document.getElementById("cFornafn").value.trim() + " " + document.getElementById("cEftirnafn").value.trim()).trim();
         var pdf = await KPI18N.asISAsync(function(){ return buildDrawingsPdf(customer); }); // drawings stay Icelandic (sales/workshop)
@@ -9278,10 +9278,10 @@
       // A failed submission is a lead that would otherwise vanish — file it with the whole draft (contact
       // details included) so sales can reach the customer even if they give up (2026-10-06).
       sendIssueReport("Sjálfvirk villa", "Innsending mistókst: " + e.message, "Tengiliður: " + ["cFornafn", "cEftirnafn", "cNetfang", "cSimi"].map(function(id){ return document.getElementById(id).value.trim(); }).join(" · ") + "\n" + (e.stack || ""));
-      errEl.textContent = "Eitthvað fór úrskeiðis við að senda inn. Prófaðu aftur — " + e.message;
+      errEl.textContent = __("Eitthvað fór úrskeiðis við að senda inn. Prófaðu aftur — ") + e.message;
       errEl.style.display = "block";
       submitBtn.disabled = false;
-      submitBtn.textContent = "Senda inn";
+      submitBtn.textContent = __("Senda inn");
     }
   }
 
@@ -9294,24 +9294,24 @@
   function tourDone(){ try{ return localStorage.getItem(TOUR_KEY) === "1"; }catch(e){ return false; } }
   function maybeStartTour(){ if (!tour && !tourDone() && state.step === "editor" && !uw) startTour(); }
   var TOUR_STEPS = [
-    { center:true, title:"Hér hannar þú eldhúsið þitt", html:"Stutt yfirferð um það helsta — tekur hálfa mínútu.", next:"Sýna mér →", skip:true },
-    { el:function(){ return document.getElementById("catalogPanel"); }, title:"Hér getur þú breytt", html:
-      '<ul class="tour-list"><li><b>Rými</b> — útlitinu á rýminu</li><li><b>Gluggar og hindranir</b> — bætt við gluggum og hurðum</li>' +
-      '<li><b>Lýsing</b> — kveikt og slökkt á lýsingu</li><li><b>Húsgögn</b> — aukahlutir, best að gera það í lokin</li><li><b>Efni</b> — breytt efnisvalinu</li></ul>', next:"Næsta →" },
-    { el:function(){ return document.getElementById("edNewUnit"); }, title:"Hér skráir þú nýja einingu", html:"Smelltu á „＋ Ný eining“.", click:true,
+    { center:true, title:__("Hér hannar þú eldhúsið þitt"), html:__("Stutt yfirferð um það helsta — tekur hálfa mínútu."), next:__("Sýna mér →"), skip:true },
+    { el:function(){ return document.getElementById("catalogPanel"); }, title:__("Hér getur þú breytt"), html:
+      '<ul class="tour-list">' + __('<li><b>Rými</b> — útlitinu á rýminu</li><li><b>Gluggar og hindranir</b> — bætt við gluggum og hurðum</li>') +
+      __('<li><b>Lýsing</b> — kveikt og slökkt á lýsingu</li><li><b>Húsgögn</b> — aukahlutir, best að gera það í lokin</li><li><b>Efni</b> — breytt efnisvalinu</li>') + '</ul>', next:__("Næsta →") },
+    { el:function(){ return document.getElementById("edNewUnit"); }, title:__("Hér skráir þú nýja einingu"), html:__("Smelltu á „＋ Ný eining“."), click:true,
       done:function(){ return !!uw; } },
-    { el:function(){ return document.querySelector('#uwSide [data-uw-cat="0"]'); }, title:"Smelltu á grunnskáp", html:"Grunnskápar standa á gólfinu undir borðplötunni.", click:true,
+    { el:function(){ return document.querySelector('#uwSide [data-uw-cat="0"]'); }, title:__("Smelltu á grunnskáp"), html:__("Grunnskápar standa á gólfinu undir borðplötunni."), click:true,
       done:function(){ return uw && uw.step >= 2; } },
-    { el:function(){ return document.querySelector('#uwSide .uw-grid'); }, title:"Veldu útfærslu", html:"T.d. skúffur eða hurð með hillum.", click:true,
+    { el:function(){ return document.querySelector('#uwSide .uw-grid'); }, title:__("Veldu útfærslu"), html:__("T.d. skúffur eða hurð með hillum."), click:true,
       done:function(){ return uw && uw.step >= 3; } },
-    { el:function(){ return document.querySelector("#unitWiz .uw-box"); }, title:"Hér stillir þú eininguna", html:"Breidd, hvað er í einingunni, skúffuhæðir, fjölda og fleira. Fiktaðu — myndin sýnir breytingarnar jafnóðum.", click:true, next:"Næsta →", place:"bottomLeft" },
-    { el:function(){ return document.querySelector("#uwSide [data-uw-add], #uwSide [data-isl-add]"); }, title:"Bættu henni síðan við", html:"Smelltu á „Setja inn“.", click:true, scroll:true,
+    { el:function(){ return document.querySelector("#unitWiz .uw-box"); }, title:__("Hér stillir þú eininguna"), html:__("Breidd, hvað er í einingunni, skúffuhæðir, fjölda og fleira. Fiktaðu — myndin sýnir breytingarnar jafnóðum."), click:true, next:__("Næsta →"), place:"bottomLeft" },
+    { el:function(){ return document.querySelector("#uwSide [data-uw-add], #uwSide [data-isl-add]"); }, title:__("Bættu henni síðan við"), html:__("Smelltu á „Setja inn“."), click:true, scroll:true,
       done:function(){ return !uw && cabinetTotal() > tour.count0; } },
-    { el:function(){ return document.getElementById("editorGrid"); }, title:"Smelltu á eininguna", html:"Þá getur þú breytt henni, dregið hana til og <b>læst</b> henni 🔒 þegar hún er rétt.", click:true, next:"Næsta →", inside:true },
-    { center:true, title:"Hreyfing og flýtilyklar", html:(function(){ var cmd = /Mac|iP(hone|ad)/.test(navigator.platform || navigator.userAgent) ? "⌘" : "Ctrl+";
-      return '<ul class="tour-list tour-keys"><li><b>Snúa:</b> dragðu með músinni</li><li><b>Hliðra:</b> hægri-smelltu og dragðu</li><li><b>Þysja:</b> skrollaðu</li>' +
-        '<li><kbd>←</kbd> <kbd>→</kbd> færa valinn skáp um 100 mm (<kbd>Shift</kbd> = 10 mm)</li><li><kbd>Delete</kbd> eyðir · <kbd>' + cmd + 'Z</kbd> afturkallar · <kbd>Esc</kbd> afvelur</li></ul>'; })(), next:"Næsta →" },
-    { center:true, title:"Gangi þér vel!", html:"Leiðsögnina finnur þú aftur undir „Hjálp“.", next:"Byrja" }
+    { el:function(){ return document.getElementById("editorGrid"); }, title:__("Smelltu á eininguna"), html:__("Þá getur þú breytt henni, dregið hana til og <b>læst</b> henni 🔒 þegar hún er rétt."), click:true, next:__("Næsta →"), inside:true },
+    { center:true, title:__("Hreyfing og flýtilyklar"), html:(function(){ var cmd = /Mac|iP(hone|ad)/.test(navigator.platform || navigator.userAgent) ? "⌘" : "Ctrl+";
+      return '<ul class="tour-list tour-keys">' + __('<li><b>Snúa:</b> dragðu með músinni</li><li><b>Hliðra:</b> hægri-smelltu og dragðu</li><li><b>Þysja:</b> skrollaðu</li>') +
+        __('<li><kbd>←</kbd> <kbd>→</kbd> færa valinn skáp um 100 mm (<kbd>Shift</kbd> = 10 mm)</li><li><kbd>Delete</kbd> eyðir · <kbd>{cmd}Z</kbd> afturkallar · <kbd>Esc</kbd> afvelur</li>', { cmd:cmd }) + '</ul>'; })(), next:__("Næsta →") },
+    { center:true, title:__("Gangi þér vel!"), html:__("Leiðsögnina finnur þú aftur undir „Hjálp“."), next:__("Byrja") }
   ];
   function startTour(){
     endTour();
@@ -9333,9 +9333,9 @@
     if (i >= TOUR_STEPS.length){ endTour(); return; }
     tour.i = i;
     var st = TOUR_STEPS[i], bub = tour.root.querySelector(".tour-bub");
-    bub.innerHTML = '<p class="tour-n">' + (st.center && i === 0 ? "Velkomin(n)" : (i === TOUR_STEPS.length - 1 ? "" : "Skref " + i + " af " + (TOUR_STEPS.length - 2))) + '</p>' +
+    bub.innerHTML = '<p class="tour-n">' + (st.center && i === 0 ? __("Velkomin(n)") : (i === TOUR_STEPS.length - 1 ? "" : __("Skref {i} af {n}", { i:i, n:TOUR_STEPS.length - 2 }))) + '</p>' +
       '<h4>' + st.title + '</h4><div class="tour-txt">' + st.html + '</div><div class="tour-act">' +
-      (i < TOUR_STEPS.length - 1 ? '<button type="button" class="reset-link" data-tour="skip">Sleppa</button>' : '<span></span>') +
+      (i < TOUR_STEPS.length - 1 ? '<button type="button" class="reset-link" data-tour="skip">' + __("Sleppa") + '</button>' : '<span></span>') +
       (st.next ? '<button type="button" class="btn btn-primary btn-small" data-tour="next">' + st.next + '</button>' : '') + '</div>';
     bub.querySelector('[data-tour="skip"]') && bub.querySelector('[data-tour="skip"]').addEventListener("click", function(){ endTour(); });
     bub.querySelector('[data-tour="next"]') && bub.querySelector('[data-tour="next"]').addEventListener("click", function(){ showTourStep(tour.i + 1); });
@@ -9455,7 +9455,7 @@
   function renderWelcome(){
     if (!welSceneOn) setTimeout(function(){ if (state.step === "welcome" && !welSceneOn) startWelcomeScene(); }, 350);
     var has = hasDesign();
-    document.getElementById("welStart").textContent = "Halda áfram →";
+    document.getElementById("welStart").textContent = __("Halda áfram →");
     document.getElementById("welStart").hidden = !has; // a room card starts a design; this only resumes one
     document.getElementById("welReset").hidden = !has;
     renderStudioCards();
@@ -9638,40 +9638,40 @@
       var cat = doorCatalog(), rooms = ["Eldhús"].concat(RYMI_CHOICES);
       var ro = roomDoorsWithProducts().map(function(r){
         var p = cat.find(function(x){ return x.id === r.product; });
-        return '<div class="dl-row ro">' + doorPic({ kind:p ? p.kind : "hurd", widthMm:r.widthMm, heightMm:r.heightMm, hinge:r.hinge }) + '<div class="dl-fields"><b>' + r.hu + '</b><span>' + escapeHtmlPro(r.room) + ' · teiknuð í rýminu</span><span class="dl-prod">' + escapeHtmlPro(p ? p.name : "") + ' — breyttu henni í veggnum sjálfum.</span></div></div>';
+        return '<div class="dl-row ro">' + doorPic({ kind:p ? p.kind : "hurd", widthMm:r.widthMm, heightMm:r.heightMm, hinge:r.hinge }) + '<div class="dl-fields"><b>' + r.hu + '</b><span>' + escapeHtmlPro(__(r.room)) + ' · ' + __("teiknuð í rýminu") + '</span><span class="dl-prod">' + escapeHtmlPro(p ? p.name : "") + ' — ' + __("breyttu henni í veggnum sjálfum.") + '</span></div></div>';
       }).join("");
       var rows = state.doorList.map(function(d, i){
         var p = doorProductFor(d), opts = doorOptsFor(d.kind), slide = d.kind === "renni" || d.kind === "glerrenni";
-        var f = '<div class="dl-f"><label>' + d.hu + ' · Rými</label><select data-dl="room" data-i="' + i + '"><option value="">— Veldu —</option>' + rooms.map(function(r){ return '<option' + (d.room === r ? " selected" : "") + '>' + r + '</option>'; }).join("") + '</select></div>' +
-          '<div class="dl-f"><label>Gerð</label><select data-dl="kind" data-i="' + i + '">' + DOOR_KINDS.filter(function(k){ return !cat.length || cat.some(function(p){ return p.kind === k.key; }); }).map(function(k){ return '<option value="' + k.key + '"' + (d.kind === k.key ? " selected" : "") + '>' + k.label + '</option>'; }).join("") + '</select></div>';
+        var f = '<div class="dl-f"><label>' + d.hu + ' · ' + __("Rými") + '</label><select data-dl="room" data-i="' + i + '"><option value="">' + __("— Veldu —") + '</option>' + rooms.map(function(r){ return '<option value="' + r + '"' + (d.room === r ? " selected" : "") + '>' + __(r) + '</option>'; }).join("") + '</select></div>' +
+          '<div class="dl-f"><label>' + __("Gerð") + '</label><select data-dl="kind" data-i="' + i + '">' + DOOR_KINDS.filter(function(k){ return !cat.length || cat.some(function(p){ return p.kind === k.key; }); }).map(function(k){ return '<option value="' + k.key + '"' + (d.kind === k.key ? " selected" : "") + '>' + __(k.label) + '</option>'; }).join("") + '</select></div>';
         Object.keys(opts).forEach(function(k){
           var cur = (d.opt && d.opt[k]) || (p && p[k]);
-          f += '<div class="dl-f"><label>' + DOOR_OPTS[k].label + '</label><div class="dl-seg">' + opts[k].map(function(v){ return '<button type="button" data-dlopt="' + k + '" data-v="' + v + '" data-i="' + i + '"' + (cur === v ? ' class="on"' : "") + '>' + DOOR_OPTS[k].vals[v] + '</button>'; }).join("") + '</div></div>';
+          f += '<div class="dl-f"><label>' + __(DOOR_OPTS[k].label) + '</label><div class="dl-seg">' + opts[k].map(function(v){ return '<button type="button" data-dlopt="' + k + '" data-v="' + v + '" data-i="' + i + '"' + (cur === v ? ' class="on"' : "") + '>' + __(DOOR_OPTS[k].vals[v]) + '</button>'; }).join("") + '</div></div>';
         });
         if (doorHasLeaf(d)){
-          var dm = doorLeafMaterials(), opt = function(k){ return '<option value="' + k + '"' + (d.leaf === k ? " selected" : "") + '>' + escapeHtmlPro(LOOKS[k].label) + '</option>'; };
-          f += '<div class="dl-f"><label>Efni hurðarblaðs</label><select data-dl="leaf" data-i="' + i + '"><option value="">— Velja síðar —</option>' +
-            (dm.sp.length ? '<optgroup label="Spónlagt">' + dm.sp.map(opt).join("") + '</optgroup>' : '') +
-            (dm.eg.length ? '<optgroup label="Harðplast (Egger)">' + dm.eg.map(opt).join("") + '</optgroup>' : '') + '</select></div>';
+          var dm = doorLeafMaterials(), opt = function(k){ return '<option value="' + k + '"' + (d.leaf === k ? " selected" : "") + '>' + escapeHtmlPro(__(LOOKS[k].label)) + '</option>'; };
+          f += '<div class="dl-f"><label>' + __("Efni hurðarblaðs") + '</label><select data-dl="leaf" data-i="' + i + '"><option value="">' + __("— Velja síðar —") + '</option>' +
+            (dm.sp.length ? '<optgroup label="' + __("Spónlagt") + '">' + dm.sp.map(opt).join("") + '</optgroup>' : '') +
+            (dm.eg.length ? '<optgroup label="' + __("Harðplast (Egger)") + '">' + dm.eg.map(opt).join("") + '</optgroup>' : '') + '</select></div>';
         }
-        f += '<div class="dl-f"><label>Op í vegg (B × H, mm)</label><input type="number" data-dl="widthMm" data-i="' + i + '" value="' + d.widthMm + '" min="400" max="3000" step="10"> × <input type="number" data-dl="heightMm" data-i="' + i + '" value="' + d.heightMm + '" min="1500" max="3200" step="10"></div>' +
-          '<div class="dl-f"><label>Veggþykkt</label><input type="number" data-dl="wallMm" data-i="' + i + '" value="' + d.wallMm + '" min="50" max="400" step="5"></div>';
+        f += '<div class="dl-f"><label>' + __("Op í vegg (B × H, mm)") + '</label><input type="number" data-dl="widthMm" data-i="' + i + '" value="' + d.widthMm + '" min="400" max="3000" step="10"> × <input type="number" data-dl="heightMm" data-i="' + i + '" value="' + d.heightMm + '" min="1500" max="3200" step="10"></div>' +
+          '<div class="dl-f"><label>' + __("Veggþykkt") + '</label><input type="number" data-dl="wallMm" data-i="' + i + '" value="' + d.wallMm + '" min="50" max="400" step="5"></div>';
         if (d.kind !== "karmur"){
-          f += '<div class="dl-f"><label>' + (slide ? "Rennur til" : "Lamir") + '</label><div class="dl-seg"><button type="button" data-dlset="hinge" data-v="left" data-i="' + i + '"' + (d.hinge === "left" ? ' class="on"' : "") + '>' + (slide ? "Hægri" : "Vinstra megin") + '</button><button type="button" data-dlset="hinge" data-v="right" data-i="' + i + '"' + (d.hinge === "right" ? ' class="on"' : "") + '>' + (slide ? "Vinstri" : "Hægra megin") + '</button></div></div>';
+          f += '<div class="dl-f"><label>' + (slide ? __("Rennur til") : __("Lamir")) + '</label><div class="dl-seg"><button type="button" data-dlset="hinge" data-v="left" data-i="' + i + '"' + (d.hinge === "left" ? ' class="on"' : "") + '>' + (slide ? __("Hægri") : __("Vinstra megin")) + '</button><button type="button" data-dlset="hinge" data-v="right" data-i="' + i + '"' + (d.hinge === "right" ? ' class="on"' : "") + '>' + (slide ? __("Vinstri") : __("Hægra megin")) + '</button></div></div>';
         }
-        f += '<div class="dl-f"><label>Fjöldi eins</label><input type="number" data-dl="qty" data-i="' + i + '" value="' + d.qty + '" min="1" max="50" step="1"></div>' +
-          '<div class="dl-f" style="flex:1;min-width:160px;"><label>Athugasemd</label><input type="text" data-dl="note" data-i="' + i + '" value="' + escapeHtmlPro(d.note || "") + '" placeholder="t.d. hurð inn á bað" style="width:100%;box-sizing:border-box;"></div>' +
-          '<div class="dl-x"><button type="button" data-dlcopy="' + i + '" title="Ný hurð eins og þessi">⧉ Afrita</button><button type="button" data-dldel="' + i + '" title="Eyða hurð">✕ Eyða</button></div>' +
-          '<div class="dl-prod">' + (p ? "Vara: " + escapeHtmlPro(p.name) : doorProducts ? "Engin vara fannst fyrir þetta val" : "Sæki vörur…") + ' · lamir séð frá hliðinni sem hurðin opnast að</div>';
+        f += '<div class="dl-f"><label>' + __("Fjöldi eins") + '</label><input type="number" data-dl="qty" data-i="' + i + '" value="' + d.qty + '" min="1" max="50" step="1"></div>' +
+          '<div class="dl-f" style="flex:1;min-width:160px;"><label>' + __("Athugasemd") + '</label><input type="text" data-dl="note" data-i="' + i + '" value="' + escapeHtmlPro(d.note || "") + '" placeholder="' + __("t.d. hurð inn á bað") + '" style="width:100%;box-sizing:border-box;"></div>' +
+          '<div class="dl-x"><button type="button" data-dlcopy="' + i + '" title="' + __("Ný hurð eins og þessi") + '">' + __("⧉ Afrita") + '</button><button type="button" data-dldel="' + i + '" title="' + __("Eyða hurð") + '">' + __("✕ Eyða") + '</button></div>' +
+          '<div class="dl-prod">' + (p ? __("Vara:") + " " + escapeHtmlPro(p.name) : doorProducts ? __("Engin vara fannst fyrir þetta val") : __("Sæki vörur…")) + ' · ' + __("lamir séð frá hliðinni sem hurðin opnast að") + '</div>';
         return '<div class="dl-row">' + doorPic(d) + '<div class="dl-fields">' + f + '</div></div>';
       }).join("");
       var n = state.doorList.reduce(function(s2, d){ return s2 + Math.max(1, d.qty | 0); }, 0);
       var doorsOnly = !PRO && !state.closed;
-      ov.innerHTML = '<div class="dl-card"><div class="dl-head"><div><h3>🚪 Innihurðir</h3><p>Allar hurðir heimilisins á einum lista — hver hurð fer á tilboðið með málum og opnun. Málin eru staðfest á staðnum.</p></div></div>' +
-        '<div class="dl-list">' + ro + (rows || '<div class="dl-empty">Engin hurð enn.</div>') + '</div>' +
-        '<div class="dl-foot"><button type="button" class="btn btn-secondary btn-small" id="dlAdd">+ Bæta við hurð</button><span style="color:var(--ink-soft);font-size:13px;">' + n + (n === 1 ? " hurð" : " hurðir") + '</span><span style="flex:1"></span>' +
-        (doorsOnly && n ? '<button type="button" class="btn btn-secondary btn-small" id="dlSend" title="Senda bara hurðirnar inn til tilboðs">Senda inn hurðirnar →</button>' : '') +
-        '<button type="button" class="btn btn-primary btn-small" id="dlClose">Klárt</button></div></div>';
+      ov.innerHTML = '<div class="dl-card"><div class="dl-head"><div><h3>' + __("🚪 Innihurðir") + '</h3><p>' + __("Allar hurðir heimilisins á einum lista — hver hurð fer á tilboðið með málum og opnun. Málin eru staðfest á staðnum.") + '</p></div></div>' +
+        '<div class="dl-list">' + ro + (rows || '<div class="dl-empty">' + __("Engin hurð enn.") + '</div>') + '</div>' +
+        '<div class="dl-foot"><button type="button" class="btn btn-secondary btn-small" id="dlAdd">' + __("+ Bæta við hurð") + '</button><span style="color:var(--ink-soft);font-size:13px;">' + n + " " + plural(n, "hurð", "hurðir") + '</span><span style="flex:1"></span>' +
+        (doorsOnly && n ? '<button type="button" class="btn btn-secondary btn-small" id="dlSend" title="' + __("Senda bara hurðirnar inn til tilboðs") + '">' + __("Senda inn hurðirnar →") + '</button>' : '') +
+        '<button type="button" class="btn btn-primary btn-small" id="dlClose">' + __("Klárt") + '</button></div></div>';
     }
     function changed(redraw){ save(); if (PRO && typeof proTilbodRefresh === "function") try{ proTilbodRefresh(); }catch(e){} if (redraw) draw(); }
     ov.oninput = function(e){
@@ -9704,7 +9704,7 @@
       if (b.id === "dlAdd"){ var last = state.doorList[state.doorList.length - 1], nd = newListDoor(); if (last){ nd.kind = last.kind; nd.opt = JSON.parse(JSON.stringify(last.opt || {})); nd.heightMm = last.heightMm; nd.wallMm = last.wallMm; if (last.leaf) nd.leaf = last.leaf; } state.doorList.push(nd); changed(true); setTimeout(function(){ var l = ov.querySelector(".dl-list"); if (l) l.scrollTop = l.scrollHeight; }, 0); return; }
       if (b.id === "dlClose"){ close(); return; }
       if (b.id === "dlSend"){
-        if (state.doorList.some(function(d){ return !d.room; })){ toast("Veldu rými fyrir hverja hurð."); return; }
+        if (state.doorList.some(function(d){ return !d.room; })){ toast(__("Veldu rými fyrir hverja hurð.")); return; }
         close(); goto("intake"); return;
       }
     };
@@ -9728,8 +9728,8 @@
     var q = state.categoryQueue || [];
     host.innerHTML = STUDIO_ROOMS.map(function(r){
       var has = r.key === "hurdir" ? !!(state.doorList && state.doorList.length) : q.indexOf(r.key) >= 0 && (r.key === state.activeCategory ? state.walls && state.walls.length : !!(state.categoryData || {})[r.key]);
-      return '<button type="button" class="studio-card' + (has ? ' has' : '') + '" data-studio="' + r.key + '"' + (r.soon ? ' disabled' : '') + '><span class="ic">' + r.icon + '</span><b>' + r.label + '</b><small>' + r.desc + '</small>' +
-        '<span class="go">' + (r.soon ? 'Væntanlegt' : has ? 'Halda áfram →' : 'Byrja →') + '</span></button>';
+      return '<button type="button" class="studio-card' + (has ? ' has' : '') + '" data-studio="' + r.key + '"' + (r.soon ? ' disabled' : '') + '><span class="ic">' + r.icon + '</span><b>' + __(r.label) + '</b><small>' + __(r.desc) + '</small>' +
+        '<span class="go">' + (r.soon ? __('Væntanlegt') : has ? __('Halda áfram →') : __('Byrja →')) + '</span></button>';
     }).join("");
   }
   // A room card: picks that room back up if it's already in this project, else adds it to the project (a kitchen AND a
@@ -9781,9 +9781,9 @@
   var byrjaSel = []; // unconfirmed picks for this visit only — state.categoryQueue is set once "Áfram" is pressed
   function renderByrja(){
     document.getElementById("byrjaCards").innerHTML = CATEGORIES.map(function(c){
-      if (c.soon) return '<button type="button" class="shape-card soon" disabled><div class="nm">' + c.label + '</div><small>Væntanlegt</small></button>';
+      if (c.soon) return '<button type="button" class="shape-card soon" disabled><div class="nm">' + __(c.label) + '</div><small>' + __("Væntanlegt") + '</small></button>';
       var active = byrjaSel.indexOf(c.key) >= 0;
-      return '<button type="button" class="shape-card' + (active ? " active" : "") + '" data-cat="' + c.key + '"><div class="nm">' + c.label + '</div></button>';
+      return '<button type="button" class="shape-card' + (active ? " active" : "") + '" data-cat="' + c.key + '"><div class="nm">' + __(c.label) + '</div></button>';
     }).join("");
     document.getElementById("byrjaNextBtn").disabled = byrjaSel.length === 0;
   }
@@ -9849,7 +9849,7 @@
     var parts = unitCountText();
     if (state.windows.length) parts.push(state.windows.length + " " + plural(state.windows.length, "gluggi", "gluggar"));
     if (realDoors().length) parts.push(realDoors().length + " " + plural(realDoors().length, "hurð", "hurðir"));
-    if (gapDoors().length) parts.push(gapDoors().length + " op í vegg");
+    if (gapDoors().length) parts.push(gapDoors().length + " " + plural(gapDoors().length, "op í vegg", "op í vegg"));
     return parts.join(" · ");
   }
   // "Það sem þú pantar" (user, 2026-10-23, I4): a plain product breakdown across every room + the door list — no
@@ -9858,39 +9858,39 @@
     var rows = [], lights = {}, handles = 0;
     withEachCategory(function(cat){
       var cd = categoryDef(cat), label = (state.intake && state.intake.room) || (cd && cd.label) || "Rými";
-      if (cabinetTotal() > 0) rows.push([label, unitCountText().join(", ")]);
+      if (cabinetTotal() > 0) rows.push([__(label), unitCountText().join(", ")]);
       var bom = lightingBOM(); (bom || []).forEach(function(x){ lights[x.label] = (lights[x.label] || 0) + x.n; });
       var mf = materialFieldsNow(); handles += +(mf["Magn Halda 1"] || 0);
     });
-    if (handles) rows.push(["Höldur", handles + " stk"]);
+    if (handles) rows.push([__("Höldur"), handles + " " + __("stk")]);
     var lk = Object.keys(lights);
-    if (lk.length) rows.push(["Lýsing", lk.map(function(k){ return k + " ×" + lights[k]; }).join(", ") + " · rafmagn tengt á staðnum"]);
+    if (lk.length) rows.push([__("Lýsing"), lk.map(function(k){ return __(k) + " ×" + lights[k]; }).join(", ") + " · " + __("rafmagn tengt á staðnum")]);
     var dl = state.doorList || [];
-    if (dl.length) rows.push(["Innihurðir", dl.reduce(function(n, d){ return n + Math.max(1, d.qty | 0); }, 0) + " stk (" + dl.map(function(d){ var p = doorProductFor(d), k = DOOR_KINDS.find(function(x){ return x.key === d.kind; }); return p ? p.name.split("|")[0].trim() : (k ? k.label : "hurð"); }).filter(function(v, i, a){ return a.indexOf(v) === i; }).join(", ") + ")"]);
-    if (studioShots.length) rows.push(["Studio myndir", studioShots.length + " fylgja með"]);
+    if (dl.length) rows.push([__("Innihurðir"), dl.reduce(function(n, d){ return n + Math.max(1, d.qty | 0); }, 0) + " " + __("stk") + " (" + dl.map(function(d){ var p = doorProductFor(d), k = DOOR_KINDS.find(function(x){ return x.key === d.kind; }); return p ? p.name.split("|")[0].trim() : (k ? __(k.label) : __("hurð")); }).filter(function(v, i, a){ return a.indexOf(v) === i; }).join(", ") + ")"]);
+    if (studioShots.length) rows.push([__("Studio myndir"), __("{n} fylgja með", { n:studioShots.length })]);
     return rows;
   }
   var lastSummary = "";
   function renderPreviews(){
-    var html = lastThumb ? '<img src="' + lastThumb + '" alt="Skipulagið þitt">' : "";
+    var html = lastThumb ? '<img src="' + lastThumb + '" alt="' + __("Skipulagið þitt") + '">' : "";
     if (state.step === "contact" || state.step === "done"){
       var text = state.step === "contact" ? planSummaryText() : lastSummary;
       lastSummary = state.step === "contact" ? text : lastSummary;
       var box = document.getElementById(state.step === "contact" ? "contactPreview" : "donePreview");
       if (state.step === "contact"){ // the picture (or, after a reload, the drawing from above) + what was picked (2026-10-12)
         var lk = state.look && LOOKS[state.look], tp = TOPS[state.top || "steinn"], hd = state.handle && HANDLES[state.handle], ca = CARCASS[state.carcass], ds = DRAWER_SYSTEMS[state.drawerSystem];
-        var mats = [["Framhlið", lk && lk.label], ["Borðplata", tp && tp.label], ["Höldur", hd && hd.label], ["Skrokkur", ca && ca.label], ["Skúffukerfi", ds && ds.label]]
-          .filter(function(r){ return r[1]; }).map(function(r){ return '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>'; }).join("");
+        var mats = [[__("Framhlið"), lk && lk.label], [__("Borðplata"), tp && tp.label], [__("Höldur"), hd && hd.label], [__("Skrokkur"), ca && ca.label], [__("Skúffukerfi"), ds && ds.label]]
+          .filter(function(r){ return r[1]; }).map(function(r){ return '<dt>' + r[0] + '</dt><dd>' + __(r[1]) + '</dd>'; }).join("");
         var ob = []; try{ ob = orderBreakdownRows(); }catch(e){}
-        box.innerHTML = (lastThumb ? html : '<div class="cp-plan" id="cpPlan"></div>') + '<div class="cp-text"><strong>Skipulagið þitt</strong> · ' + text + '</div><dl class="cp-mats">' + mats + '</dl>' +
-          (ob.length ? '<div class="cp-text" style="margin-top:8px;"><strong>Það sem þú pantar</strong></div><dl class="cp-mats">' + ob.map(function(r){ return '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>'; }).join("") + '</dl>' : '');
+        box.innerHTML = (lastThumb ? html : '<div class="cp-plan" id="cpPlan"></div>') + '<div class="cp-text"><strong>' + __("Skipulagið þitt") + '</strong> · ' + text + '</div><dl class="cp-mats">' + mats + '</dl>' +
+          (ob.length ? '<div class="cp-text" style="margin-top:8px;"><strong>' + __("Það sem þú pantar") + '</strong></div><dl class="cp-mats">' + ob.map(function(r){ return '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>'; }).join("") + '</dl>' : '');
         box.hidden = false;
         if (!lastThumb){ try{ KP3D.buildPlan2D(document.getElementById("cpPlan"), state, {}); }catch(e){} }
         return;
       }
-      box.innerHTML = html + '<div class="cp-text"><strong>Skipulagið þitt</strong><br>' + text +
-        (lastThumb ? '<br><a href="' + lastThumb + '" download="eldhus-skipulag.jpg">Sækja mynd</a>' : "") +
-        (state.step === "done" && lastPdfUrl ? '<br><a href="' + lastPdfUrl + '" download="eldhus-teikningar.pdf"><strong>Sækja teikningar (PDF)</strong></a>' : "") + '</div>';
+      box.innerHTML = html + '<div class="cp-text"><strong>' + __("Skipulagið þitt") + '</strong><br>' + text +
+        (lastThumb ? '<br><a href="' + lastThumb + '" download="eldhus-skipulag.jpg">' + __("Sækja mynd") + '</a>' : "") +
+        (state.step === "done" && lastPdfUrl ? '<br><a href="' + lastPdfUrl + '" download="eldhus-teikningar.pdf"><strong>' + __("Sækja teikningar (PDF)") + '</strong></a>' : "") + '</div>';
       box.hidden = false;
     }
   }
@@ -9909,7 +9909,7 @@
   var moodOn = false; // evening view (view only, never saved)
   function setMoodView(on){ moodOn = !!on; KP3D.setMood(moodOn); var mb = document.getElementById("moodBtn"); if (mb) mb.classList.toggle("active", moodOn); }
   document.getElementById("moodBtn").addEventListener("click", function(){
-    if (!moodOn && !lightingOn()) toast("Kveiktu á lýsingu undir „Lýsing“ til vinstri til að sjá hana í kvöldstemningu.");
+    if (!moodOn && !lightingOn()) toast(__("Kveiktu á lýsingu undir „Lýsing“ til vinstri til að sjá hana í kvöldstemningu."));
     setMoodView(!moodOn);
   });
 
@@ -10112,7 +10112,7 @@
   document.getElementById("warnChip").addEventListener("click", function(){ // the warnings as a list (the right-hand overview is gone)
     var pop = document.getElementById("warnPop");
     if (!pop.hidden || !warnings.length){ pop.hidden = true; return; }
-    pop.innerHTML = '<div class="ov-wall-h">⚠ Athugið</div>' + warnings.map(function(w, i){ return '<button type="button" class="warn-item" data-warnp="' + i + '">' + w.msg + '</button>'; }).join("");
+    pop.innerHTML = '<div class="ov-wall-h">' + __("⚠ Athugið") + '</div>' + warnings.map(function(w, i){ return '<button type="button" class="warn-item" data-warnp="' + i + '">' + w.msg + '</button>'; }).join("");
     pop.querySelectorAll("[data-warnp]").forEach(function(b){ b.addEventListener("click", function(){ pop.hidden = true; var w = warnings[+b.dataset.warnp]; if (w && w.ids[0]) onCabinetSelect({ blockId:w.ids[0] }); }); });
     pop.hidden = false;
   });
@@ -10521,21 +10521,21 @@
   // 🚶 Ganga um: first-person walk at eye height (KP3D.setWalkMode) — 3D view only
   function syncWalkBtn(){ var b = document.getElementById("walkBtn"); if (b) b.classList.toggle("active", !!(window.KP3D && KP3D.isWalking && KP3D.isWalking() && viewMode === "3d")); }
   document.getElementById("walkBtn").addEventListener("click", function(){
-    if (viewMode !== "3d"){ toast("Ganga um virkar í 3D-sýninni."); return; }
-    if (inspect.on){ toast("Slökktu á X-Ray fyrst."); return; }
+    if (viewMode !== "3d"){ toast(__("Ganga um virkar í 3D-sýninni.")); return; }
+    if (inspect.on){ toast(__("Slökktu á X-Ray fyrst.")); return; }
     var on = KP3D.setWalkMode(!KP3D.isWalking());
     syncWalkBtn();
-    if (on) toast("Dragðu til að líta í kring, W A S D eða örvar til að ganga. Esc til að hætta.");
+    if (on) toast(__("Dragðu til að líta í kring, W A S D eða örvar til að ganga. Esc til að hætta."));
   });
   document.getElementById("studioBtn").addEventListener("click", function(){
-    if (viewMode !== "3d"){ toast("Farðu í 3D og stilltu sýnina sem þú vilt fá mynd af."); return; }
+    if (viewMode !== "3d"){ toast(__("Farðu í 3D og stilltu sýnina sem þú vilt fá mynd af.")); return; }
     var ov = document.createElement("div"), pick = { view:"live", q:PRO ? "fin" : "fljot" }; // customers (2026-10-23, H1): the quick one first, any laptop manages it
     ov.id = "studioOv";
-    ov.innerHTML = '<div class="st-card"><h3>✨ Studio mynd</h3>' +
-      '<div class="st-opts"><div><label>Sjónarhorn</label><div class="hw-toggle"><button type="button" class="hw-btn active" data-st-view="live">Þessi sýn</button><button type="button" class="hw-btn" data-st-view="eye">Í augnhæð</button></div></div>' +
-      '<div><label>Gæði</label><div class="hw-toggle"><button type="button" class="hw-btn' + (pick.q === "fljot" ? " active" : "") + '" data-st-q="fljot">Fljót · ~20 sek</button><button type="button" class="hw-btn' + (pick.q === "fin" ? " active" : "") + '" data-st-q="fin">Fín · ~1 mín</button></div></div></div>' +
-      '<p class="st-msg">Myndin er reiknuð með raunverulegri lýsingu út frá teikningunni — veggir, efni og ljós eins og í raun.</p><div class="st-bar"><i></i></div>' +
-      '<div class="st-img"></div><div class="st-act"><button type="button" class="btn btn-secondary btn-small" data-st="close">Loka</button><button type="button" class="btn btn-primary btn-small" data-st="go">Búa til mynd</button></div></div>';
+    ov.innerHTML = '<div class="st-card"><h3>' + __("✨ Studio mynd") + '</h3>' +
+      '<div class="st-opts"><div><label>' + __("Sjónarhorn") + '</label><div class="hw-toggle"><button type="button" class="hw-btn active" data-st-view="live">' + __("Þessi sýn") + '</button><button type="button" class="hw-btn" data-st-view="eye">' + __("Í augnhæð") + '</button></div></div>' +
+      '<div><label>' + __("Gæði") + '</label><div class="hw-toggle"><button type="button" class="hw-btn' + (pick.q === "fljot" ? " active" : "") + '" data-st-q="fljot">' + __("Fljót · ~20 sek") + '</button><button type="button" class="hw-btn' + (pick.q === "fin" ? " active" : "") + '" data-st-q="fin">' + __("Fín · ~1 mín") + '</button></div></div></div>' +
+      '<p class="st-msg">' + __("Myndin er reiknuð með raunverulegri lýsingu út frá teikningunni — veggir, efni og ljós eins og í raun.") + '</p><div class="st-bar"><i></i></div>' +
+      '<div class="st-img"></div><div class="st-act"><button type="button" class="btn btn-secondary btn-small" data-st="close">' + __("Loka") + '</button><button type="button" class="btn btn-primary btn-small" data-st="go">' + __("Búa til mynd") + '</button></div></div>';
     document.body.appendChild(ov);
     var msg = ov.querySelector(".st-msg"), bar = ov.querySelector(".st-bar i"), img = ov.querySelector(".st-img"), cancelled = false, running = false;
     ov.querySelectorAll("[data-st-view]").forEach(function(b){ b.addEventListener("click", function(){ if (running) return; pick.view = b.dataset.stView; ov.querySelectorAll("[data-st-view]").forEach(function(x){ x.classList.toggle("active", x === b); }); }); });
@@ -10543,16 +10543,16 @@
     ov.querySelector('[data-st="close"]').addEventListener("click", function(){ cancelled = true; ov.remove(); });
     ov.querySelector('[data-st="go"]').addEventListener("click", async function(){
       if (running) return; running = true; cancelled = false;
-      var go = ov.querySelector('[data-st="go"]'); go.disabled = true; go.textContent = "Reikna…";
+      var go = ov.querySelector('[data-st="go"]'); go.disabled = true; go.textContent = __("Reikna…");
       var keepSel = selectedBlockId; if (keepSel){ selectedBlockId = null; KP3D.setSelected3D(null); } // no blue selection tint in the photo
       var Q = pick.q === "fljot" ? { width:1280, height:800, samples:80 } : { width:1920, height:1200, samples:260 };
       try{
         var url = await KP3D.studioRender({ width:Q.width, height:Q.height, samples:Q.samples, view:pick.view, cancelled:function(){ return cancelled; },
-          onProgress:function(p, preview){ msg.textContent = p === 0 ? "Undirbý senuna…" : "Reikna ljósgeisla… " + Math.round(p * 100) + "%"; bar.style.width = Math.round(p * 100) + "%";
+          onProgress:function(p, preview){ msg.textContent = p === 0 ? __("Undirbý senuna…") : __("Reikna ljósgeisla…") + " " + Math.round(p * 100) + "%"; bar.style.width = Math.round(p * 100) + "%";
             if (preview) img.innerHTML = '<img alt="" src="' + preview + '">'; } });
         if (cancelled || !url) return;
-        msg.textContent = PRO ? "Tilbúið." : "Tilbúið. Myndin fylgir teikningunni þegar þú sendir hana inn.";
-        img.innerHTML = '<img alt="Studio mynd" src="' + url + '">';
+        msg.textContent = PRO ? "Tilbúið." : __("Tilbúið. Myndin fylgir teikningunni þegar þú sendir hana inn.");
+        img.innerHTML = '<img alt="' + __("Studio mynd") + '" src="' + url + '">';
         studioShots.push(url); if (studioShots.length > 3) studioShots.shift(); // the customer's newest 3 go onto the Tækifæri after submit (H5)
         if (PRO && !ov.querySelector('[data-st="save"]')){
           var sv = document.createElement("button"); sv.type = "button"; sv.className = "btn btn-secondary btn-small"; sv.dataset.st = "save"; sv.textContent = "💾 Vista á Tækifæri";
@@ -10567,12 +10567,12 @@
             }catch(e2){ sv.disabled = false; sv.textContent = "💾 Vista á Tækifæri"; toast("Tókst ekki að vista myndina: " + (e2.message || e2)); }
           });
         }
-        go.textContent = "⬇ Sækja mynd"; go.disabled = false;
+        go.textContent = __("⬇ Sækja mynd"); go.disabled = false;
         go.onclick = function(e){ e.stopImmediatePropagation(); var a = document.createElement("a"); a.href = url; a.download = "bjorninn-studio.jpg"; document.body.appendChild(a); a.click(); a.remove(); };
       }catch(e){
         console.error(e);
-        msg.textContent = "Tókst ekki að búa til myndina (" + (e && e.message || e) + ").";
-        go.textContent = "Reyna aftur"; go.disabled = false; running = false;
+        msg.textContent = __("Tókst ekki að búa til myndina ({e}).", { e:(e && e.message || e) });
+        go.textContent = __("Reyna aftur"); go.disabled = false; running = false;
       }finally{
         if (keepSel){ selectedBlockId = keepSel; KP3D.setSelected3D(keepSel); }
       }
@@ -10588,11 +10588,11 @@
   document.getElementById("snapBtn").addEventListener("click", function(){
     if (viewMode === "3d"){
       var url = KP3D.snapshot3D();
-      if (url) downloadDataUrl(url); else toast("3D myndin er ekki tilbúin ennþá.");
+      if (url) downloadDataUrl(url); else toast(__("3D myndin er ekki tilbúin ennþá."));
       return;
     }
     var svg = document.querySelector("#planWrap svg");
-    if (!svg){ toast("Engin teikning til að vista."); return; }
+    if (!svg){ toast(__("Engin teikning til að vista.")); return; }
     var vb = svg.viewBox.baseVal, scale = 2;
     var img = new Image();
     img.onload = function(){
