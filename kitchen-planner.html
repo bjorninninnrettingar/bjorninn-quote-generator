@@ -9672,6 +9672,24 @@
     if (gapDoors().length) parts.push(gapDoors().length + " op í vegg");
     return parts.join(" · ");
   }
+  // "Það sem þú pantar" (user, 2026-10-23, I4): a plain product breakdown across every room + the door list — no
+  // prices (söluaðili sends the tilboð), just what's in the order, so nothing on the quote comes as a surprise
+  function orderBreakdownRows(){
+    var rows = [], lights = {}, handles = 0;
+    withEachCategory(function(cat){
+      var cd = categoryDef(cat), label = (state.intake && state.intake.room) || (cd && cd.label) || "Rými";
+      if (cabinetTotal() > 0) rows.push([label, unitCountText().join(", ")]);
+      var bom = lightingBOM(); (bom || []).forEach(function(x){ lights[x.label] = (lights[x.label] || 0) + x.n; });
+      var mf = materialFieldsNow(); handles += +(mf["Magn Halda 1"] || 0);
+    });
+    if (handles) rows.push(["Höldur", handles + " stk"]);
+    var lk = Object.keys(lights);
+    if (lk.length) rows.push(["Lýsing", lk.map(function(k){ return k + " ×" + lights[k]; }).join(", ") + " · rafmagn tengt á staðnum"]);
+    var dl = state.doorList || [];
+    if (dl.length) rows.push(["Innihurðir", dl.reduce(function(n, d){ return n + Math.max(1, d.qty | 0); }, 0) + " stk (" + dl.map(function(d){ var p = doorProductFor(d), k = DOOR_KINDS.find(function(x){ return x.key === d.kind; }); return p ? p.name.split("|")[0].trim() : (k ? k.label : "hurð"); }).filter(function(v, i, a){ return a.indexOf(v) === i; }).join(", ") + ")"]);
+    if (studioShots.length) rows.push(["Studio myndir", studioShots.length + " fylgja með"]);
+    return rows;
+  }
   var lastSummary = "";
   function renderPreviews(){
     var html = lastThumb ? '<img src="' + lastThumb + '" alt="Skipulagið þitt">' : "";
@@ -9683,7 +9701,9 @@
         var lk = state.look && LOOKS[state.look], tp = TOPS[state.top || "steinn"], hd = state.handle && HANDLES[state.handle], ca = CARCASS[state.carcass], ds = DRAWER_SYSTEMS[state.drawerSystem];
         var mats = [["Framhlið", lk && lk.label], ["Borðplata", tp && tp.label], ["Höldur", hd && hd.label], ["Skrokkur", ca && ca.label], ["Skúffukerfi", ds && ds.label]]
           .filter(function(r){ return r[1]; }).map(function(r){ return '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>'; }).join("");
-        box.innerHTML = (lastThumb ? html : '<div class="cp-plan" id="cpPlan"></div>') + '<div class="cp-text"><strong>Skipulagið þitt</strong> · ' + text + '</div><dl class="cp-mats">' + mats + '</dl>';
+        var ob = []; try{ ob = orderBreakdownRows(); }catch(e){}
+        box.innerHTML = (lastThumb ? html : '<div class="cp-plan" id="cpPlan"></div>') + '<div class="cp-text"><strong>Skipulagið þitt</strong> · ' + text + '</div><dl class="cp-mats">' + mats + '</dl>' +
+          (ob.length ? '<div class="cp-text" style="margin-top:8px;"><strong>Það sem þú pantar</strong></div><dl class="cp-mats">' + ob.map(function(r){ return '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>'; }).join("") + '</dl>' : '');
         box.hidden = false;
         if (!lastThumb){ try{ KP3D.buildPlan2D(document.getElementById("cpPlan"), state, {}); }catch(e){} }
         return;
