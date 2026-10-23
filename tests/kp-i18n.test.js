@@ -26,6 +26,7 @@ const { I } = loadI18n();
 const unq = (lit) => vm.runInNewContext(lit); // a JS string literal → its value
 const LIT = String.raw`("(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*')`;
 const sources = ["kitchen-planner.html", ...fs.readdirSync(root).filter((f) => /^kitchen-planner-.*\.js$/.test(f) && f !== "kitchen-planner-i18n.js")];
+const lineOf = (src, i) => src.slice(0, i).split("\n").length;
 const known = (k) => Object.prototype.hasOwnProperty.call(I.EN, k) || I.PATTERNS.some(([re]) => re.test(k));
 
 test("every __(\"…\") and plural(n, \"…\", \"…\") key has an EN entry", () => {
@@ -34,12 +35,13 @@ test("every __(\"…\") and plural(n, \"…\", \"…\") key has an EN entry", ()
     const src = read(f);
     for (const m of src.matchAll(new RegExp(String.raw`(?<![\w$.])__\(\s*` + LIT, "g"))) {
       const k = unq(m[1]);
-      if (!known(k)) missing.push(`${f}: ${k}`);
+      if (!known(k)) missing.push(`${f}:${lineOf(src, m.index)}: ${k}`);
     }
     for (const m of src.matchAll(new RegExp(String.raw`(?<![\w$.])plural\([^,()]*(?:\([^()]*\))?[^,()]*,\s*` + LIT + String.raw`\s*,\s*` + LIT, "g"))) {
-      for (const k of [unq(m[1]), unq(m[2])]) if (!known(k)) missing.push(`${f}: plural ${k}`);
+      for (const k of [unq(m[1]), unq(m[2])]) if (!known(k)) missing.push(`${f}:${lineOf(src, m.index)}: plural ${k}`);
     }
   }
+  if (process.env.I18N_LIST) console.log(missing.join("\n"));
   assert.deepEqual([...new Set(missing)], []);
 });
 
@@ -58,13 +60,14 @@ test("static markup marked data-i18n has EN entries (text + title/placeholder/ar
       let t;
       while ((t = re.exec(html))) { depth += t[1] ? -1 : 1; if (!depth) break; }
       const k = I.norm(html.slice(start, t ? t.index : html.length));
-      if (!known(k)) missing.push(`<${tag}> ${k}`);
+      if (!known(k)) missing.push(`kitchen-planner.html:${lineOf(html, m.index)}: <${tag}> ${k}`);
     }
     for (const a of attrs.matchAll(/\s(title|placeholder|aria-label|alt)="([^"]*)"/g)) {
       const k = I.norm(a[2]);
-      if (k && !known(k)) missing.push(`<${tag} ${a[1]}> ${k}`);
+      if (k && !known(k)) missing.push(`kitchen-planner.html:${lineOf(html, m.index)}: <${tag} ${a[1]}> ${k}`);
     }
   }
+  if (process.env.I18N_LIST) console.log(missing.join("\n"));
   assert.ok(n > 20, `found ${n} data-i18n elements`);
   assert.deepEqual(missing, []);
 });
