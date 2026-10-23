@@ -11782,9 +11782,22 @@
     });
     return models;
   }
+  function wdDoorRows(){
+    return (state.doorList || []).map(function(d){
+      var p = doorProductFor(d), mat = d.leaf && LOOKS[d.leaf];
+      return { hu:d.hu, room:d.room, kind:d.kind, product:(p && p.name) || "", w:d.widthMm, h:d.heightMm, wall:d.wallMm, hinge:d.hinge, slide:d.kind === "renni" || d.kind === "glerrenni",
+        glass:d.kind === "gler" || d.kind === "glerrenni", leaf:mat ? (/^eg_/.test(d.leaf) ? "Harðplast " : "Spónn ") + mat.label : "", qty:Math.max(1, d.qty | 0), note:d.note || "" };
+    });
+  }
   function openWorkDrawings(){
     var pages = [];
-    try{ wdModels().forEach(function(m){ pages = pages.concat(KPWD.render(m)); }); }
+    try{
+      var models = wdModels();
+      models.forEach(function(m){ pages = pages.concat(KPWD.render(m)); });
+      // 🚪 the project's door list as its own sheet (I2), after the rooms
+      var dl = wdDoorRows();
+      if (dl.length) pages.push(KPWD.doorSheet({ project:PRO ? PRO.name : "Verkefni", date:(models[0] || {}).date, notes:[] }, dl, pages.length + 1, pages.length + 1));
+    }
     catch(e){ toast("Teikningin tókst ekki: " + e.message); console.error(e); return; }
     var ov = document.getElementById("wdOverlay");
     if (!ov){ ov = document.createElement("div"); ov.id = "wdOverlay"; document.body.appendChild(ov); }

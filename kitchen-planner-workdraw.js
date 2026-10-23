@@ -357,6 +357,41 @@
     return page(s);
   }
 
+  // ── Hurðalisti (2026-10-23, I2): every door in the project's door list as one table, a small elevation per row
+  // (hinge side by DIN: seen from the side the door opens towards; dashed point away from the hinges) ──
+  // doors = [{hu, room, kind, product, w, h, wall, hinge:"left"|"right", slide, leaf, qty, note}]
+  function doorSheet(model, doors, idx, total){
+    var x = M + 6, y = M + 8, s = tx(x, M + 7, "HURÐALISTI — " + (model.project || "").toUpperCase(), 3.4, C.ink, ' font-weight="800"');
+    var cols = [["", 16], ["HU", 13], ["Rými", 26], ["Vara", 80], ["Op B × H", 24], ["Veggþ.", 13], ["Lamir (DIN)", 27], ["Efni hurðarblaðs", 46], ["Stk", 9], ["Athugasemd", 0]];
+    var tw = PAGE_W - 2 * M - COL_W - 16, used = cols.reduce(function(a, c){ return a + c[1]; }, 0); cols[cols.length - 1][1] = Math.max(20, tw - used);
+    y += 6;
+    var cx = x; cols.forEach(function(c){ s += tx(cx + 1, y, c[0], 2.2, C.ink, ' font-weight="700"'); cx += c[1]; });
+    s += ln(x, y + 1.6, x + tw, y + 1.6, C.ink, 0.3);
+    var rowH = 15, ry = y + 2;
+    doors.slice(0, 15).forEach(function(d, i){
+      var top = ry + i * rowH; cx = x;
+      // the glyph: frame + leaf + dashed swing point, or an arrow for a sliding door
+      var gw = 7, gh = 11, gx = cx + 4, gy = top + 2;
+      s += rc(gx - 0.8, gy - 0.8, gw + 1.6, gh + 0.8, C.ink, 0.3);
+      if (d.kind !== "karmur"){
+        s += rc(gx, gy, gw, gh, C.thin, 0.2, d.glass ? "#e3f0f7" : "#fff");
+        if (d.slide) s += tx(gx + gw / 2, gy + gh / 2 + 1, d.hinge === "left" ? "→" : "←", 3, C.ink, ' text-anchor="middle"');
+        else { var hx = d.hinge === "left" ? gx : gx + gw, px = d.hinge === "left" ? gx + gw : gx; s += '<path d="M' + n(hx) + ' ' + n(gy) + ' L' + n(px) + ' ' + n(gy + gh / 2) + ' L' + n(hx) + ' ' + n(gy + gh) + '" fill="none" stroke="' + C.open + '" stroke-width="0.25"' + DASH_S + '/>'; }
+      }
+      cx += cols[0][1];
+      var cells = [d.hu, d.room || "—", d.product || "—", d.w + " × " + d.h, d.wall, d.kind === "karmur" ? "—" : d.slide ? "Rennur til " + (d.hinge === "left" ? "hægri" : "vinstri") : (d.hinge === "left" ? "Vinstri" : "Hægri"), d.leaf || "—", d.qty, d.note || ""];
+      cells.forEach(function(v, j){
+        var cw = cols[j + 1][1], lines = wrap(String(v), Math.max(6, Math.floor(cw / 1.25)));
+        lines.slice(0, 3).forEach(function(l, k){ s += tx(cx + 1, top + 5 + k * 3, l, 2.1, j === 0 ? C.ink : C.thin, j === 0 ? ' font-weight="700"' : ""); });
+        cx += cw;
+      });
+      s += ln(x, top + rowH, x + tw, top + rowH, "#c9c9cf", 0.15);
+    });
+    if (doors.length > 15) s += tx(x, ry + 15 * rowH + 5, "+ " + (doors.length - 15) + " hurðir í viðbót — sjá Line Items.", 2.3, C.anno);
+    s += column(model, { title:"Hurðalisti", minimap:null, notes:["Lamir eftir DIN: séð frá hliðinni sem hurðin opnast að.", "Mál eru op í vegg — staðfest á staðnum.", "Karmur er innifalinn í HU-vörunum."] }, idx, total, null);
+    return page(s);
+  }
+
   function render(model){
     var walls = (model.sheets || []).filter(function(sh){ return (sh.units && sh.units.length) || (sh.annotations && sh.annotations.length); });
     var total = walls.length + 1, out = [overviewSheet(model, 1, total)];
@@ -364,7 +399,7 @@
     return out;
   }
 
-  var API = { render:render, wallSheet:wallSheet, overviewSheet:overviewSheet, planSvg:planSvg, drawerLabel:drawerLabel, pickScale:pickScale, COLORS:C, PAGE_W:PAGE_W, PAGE_H:PAGE_H };
+  var API = { render:render, wallSheet:wallSheet, doorSheet:doorSheet, overviewSheet:overviewSheet, planSvg:planSvg, drawerLabel:drawerLabel, pickScale:pickScale, COLORS:C, PAGE_W:PAGE_W, PAGE_H:PAGE_H };
   if (typeof module !== "undefined" && module.exports) module.exports = API;
   root.KPWD = API;
 })(typeof window !== "undefined" ? window : globalThis);

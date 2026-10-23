@@ -35,3 +35,12 @@ test("pickScale: the smallest standard scale that fits", () => {
   assert.equal(W.pickScale(3000, 2600, 200, 200), 15);
   assert.equal(W.pickScale(6000, 2600, 200, 200), 30);
 });
+
+test("doorSheet: one row per door, DIN hinge text, sliding doors say which way", () => {
+  const svg = globalThis.KPWD.doorSheet({ project: "T-32" }, [
+    { hu: "HU3", room: "Baðh.", kind: "hurd", product: "Innfelld hurð | JNF skrá", w: 900, h: 2100, wall: 100, hinge: "left", qty: 2, leaf: "Spónn Eik, ljós" },
+    { hu: "HU4", room: "Gangur", kind: "renni", product: "Rennihurð | Hawa", w: 1000, h: 2100, wall: 120, hinge: "right", slide: true, qty: 1 },
+  ], 3, 3);
+  assert.match(svg, /HURÐALISTI — T-32/);
+  assert.match(svg, />HU3</); assert.match(svg, />Vinstri</); assert.match(svg, /Rennur til vinstri/); assert.match(svg, /Spónn Eik, ljós/);
+});
