@@ -448,6 +448,8 @@
     "Þessi samsetning er ekki til sem stöðluð vara — söluaðili staðfestir hana.": "This combination isn't a standard product — a sales advisor will confirm it.",
     "Efst, við vaskinn": "At the top, by the sink",
     "Skúffa undir vaski": "Drawer under the sink",
+    "Fastur frontur (opnast ekki)": "Fixed front (does not open)",
+    "Vaskurinn er alltaf efst": "The sink is always at the top",
     "Fastur frontur": "Fixed front",
     "Með föstum fronti þarf minnst tvær skúffur.": "A fixed front needs at least two drawers.",
     "Efsti frontur er {top} mm — {what} minnst {min} mm.": "The top front is {top} mm — {what} at least {min} mm.",

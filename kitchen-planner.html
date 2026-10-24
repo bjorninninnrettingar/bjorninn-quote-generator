@@ -5078,6 +5078,13 @@
   function drawerSimpleHTML(b, c, codes, inner){
     var n = codes.length, all = KP3D.DRAWER_CODES[drawerSys()].codes, rows = "", innerAt = KP3D.innerHostIndex(codes, drawerSys(), inner); // the inner drawer shows under the drawer it hides behind
     for (var i = n - 1; i >= 0; i--){ // codes are stored bottom → top
+      if (c.sink && i === n - 1 && n > 1){ // a sink's top front IS the "Efst, við vaskinn" choice — one control, not two
+        rows += '<div class="dw-row-simple">' + dwIcon(b.sinkTop === "fastur" ? KP3D.FIXED_FRONT_CODE : codes[i]) + '<select data-dws-sinktop="1">' +
+          '<option value="skuffa"' + (b.sinkTop !== "fastur" ? ' selected' : '') + '>' + __("Skúffa undir vaski") + '</option>' +
+          '<option value="fastur"' + (b.sinkTop === "fastur" ? ' selected' : '') + '>' + __("Fastur frontur (opnast ekki)") + '</option>' +
+          '</select><button type="button" class="dw-bin" disabled title="' + __("Vaskurinn er alltaf efst") + '">' + icon("trash", 15) + '</button></div>';
+        continue;
+      }
       var opts = all.filter(function(cd){ if (cd === codes[i]) return true; var next = codes.slice(); next[i] = cd; return stackFits(b, c, next); });
       rows += '<div class="dw-row-simple">' + dwIcon(codes[i]) + '<select data-dw-depth="' + i + '">' + opts.map(function(cd){
         return '<option value="' + cd + '"' + (cd === codes[i] ? ' selected' : '') + '>' + codeLabelCm(cd) + '</option>';
@@ -5114,6 +5121,12 @@
     host.querySelectorAll("[data-dws-del]").forEach(function(btn){
       btn.addEventListener("click", function(){ var codes = KP3D.drawerCodes(b.interior, drawerSys()); if (codes.length <= 1) return; codes.splice(+btn.dataset.dwsDel, 1); apply(codes); });
     });
+    host.querySelectorAll("[data-dws-sinktop]").forEach(function(sel){
+      sel.addEventListener("change", function(){
+        if (sel.value === "fastur") b.sinkTop = "fastur"; else delete b.sinkTop;
+        commit(KP3D.drawerCodes(b.interior, drawerSys()), null);
+      });
+    });
     host.querySelectorAll("[data-dws-inner-del]").forEach(function(btn){
       btn.addEventListener("click", function(){ commit(KP3D.drawerCodes(b.interior, drawerSys()), null); });
     });
@@ -5130,8 +5143,8 @@
       '</div>';
     if (!isDrawer) return html;
     var sys = drawerSys(), D = KP3D.DRAWER_CODES[sys], codes = KP3D.drawerCodes(b.interior, sys), inner = b.interior.inner || null;
+    var fronts = KP3D.stackFrontsMm(b.interior, codes, drawerBodyMm(b, c)) || []; // sinkTopHTML needs these on both paths
     if (ro && ro.sides){ // PRO's Smíða only — full detail stays
-      var fronts = KP3D.stackFrontsMm(b.interior, codes, drawerBodyMm(b, c)) || [];
       html += drawerRowsHTML(codes, fronts, { reorder:true, del:true, custom:!!b.interior.frontsMm, sides:true, changeType:true, b:b, c:c, inner:inner });
       // PRO can add any letter that physically fits, including N (user, 2026-10-19 — supersedes the 2026-10-14
       // "not N" decision): ensureCombo creates the real product on pick if it doesn't exist yet.
@@ -5146,6 +5159,7 @@
     } else {
       html += drawerSimpleHTML(b, c, codes, inner);
     }
+    if (!c.sink){ // no inner drawer under a sink (the basin and pipes take that space)
     var innerTip = !inner && !D.inner.some(function(ik){ return stackAllowed(b, c, codes, ik); })
       ? __("Innskúffa er falin skúffa á bak við framhliðina — hún þarf að minnsta kosti eina miðlungs skúffu eða dýpri.")
       : __("Innskúffa er falin skúffa á bak við framhliðina.");
@@ -5155,7 +5169,8 @@
       return '<button type="button" class="hw-btn' + (on ? ' active' : '') + (ok ? '' : ' maybe') + '" data-dw-inner="' + ik + '"' + (ok || alt ? '' : ' disabled') +
         ' title="' + (ok ? '' : alt ? __("Fæst með {alt} — smelltu til að skipta", { alt:alt.join(" · ") }) : __("Ekki til fyrir þennan skáp")) + '">' + (ik === "IK" ? __("Miðlungs") : __("Lág")) + '</button>';
     }).join("") + '</div>'; // what an inner drawer is: in the tooltip (short texts, details in tooltips)
-    if (c.sink) html += sinkTopHTML(b, c, codes, fronts);
+    }
+    if (c.sink) html += sinkTopHTML(b, c, codes, fronts, !(ro && ro.sides));
     else if (!stackAllowed(b, c, codes, inner)) html += '<p class="sec-note">' + __("Þessi samsetning er ekki til sem stöðluð vara — söluaðili staðfestir hana.") + '</p>';
     return html;
   }
@@ -5168,12 +5183,12 @@
     var top = codes[codes.length - 1], side = KP3D.DRAWER_CODES[drawerSys()].side[top] || 0;
     return b.sinkTop === "fastur" ? SINK_DEPTH_MM : SINK_DEPTH_MM + Math.round(side) + 20;
   }
-  function sinkTopHTML(b, c, codes, fronts){
+  function sinkTopHTML(b, c, codes, fronts, simple){
     var fixed = b.sinkTop === "fastur", min = sinkTopMinMm(b, codes), topMm = fronts[fronts.length - 1] || 0;
     var real = fixed ? codes.slice(0, -1) : codes;
-    return '<div class="edit-field"><label>' + __("Efst, við vaskinn") + '</label><div class="hw-toggle">' +
+    return '<div class="edit-field">' + (simple ? '' : '<label>' + __("Efst, við vaskinn") + '</label><div class="hw-toggle">' + // the customer list picks this on its top row
       '<button type="button" class="hw-btn' + (!fixed ? ' active' : '') + '" data-sink-top="skuffa">' + __("Skúffa undir vaski") + '</button>' +
-      '<button type="button" class="hw-btn' + (fixed ? ' active' : '') + '" data-sink-top="fastur">' + __("Fastur frontur") + '</button></div>' +
+      '<button type="button" class="hw-btn' + (fixed ? ' active' : '') + '" data-sink-top="fastur">' + __("Fastur frontur") + '</button></div>') +
       (codes.length < 2 && fixed ? '<p class="sec-note">' + __("Með föstum fronti þarf minnst tvær skúffur.") + '</p>' : '') +
       (topMm && topMm < min ? '<p class="sec-note">' + __("Efsti frontur er {top} mm — {what} minnst {min} mm.", { top:Math.round(topMm), what:fixed ? __("vaskurinn (~200 mm) þarf") : __("skúffan undir vaskinum þarf"), min:min }) + '</p>' : '') +
       (real.length && !drawerComboRec(real, null) ? '<p class="sec-note">' + __("Þessi samsetning er ekki til sem stöðluð vara — söluaðili staðfestir hana.") + '</p>' : '') +
@@ -5907,7 +5922,7 @@
       }
       innHtml += variantHTML(b, c);
       var innSum = c.hasInterior && b.interior && b.interior.mode === "skuffur" ? b.interior.count + " " + plural(b.interior.count, "skúffa", "skúffur")
-        : shelfN != null ? shelfN + " " + plural(shelfN, "hilla", "hillur") : "";
+        : shelfN != null ? shelfN + " " + plural(shelfN, "hilla", "hillur") : c.hasInterior && !c.shelfRange && b.interior ? __("Hurðir") : "";
       if (innHtml) secHtml.push(uwSec("inn", c.hasInterior || c.shelfRange || c.railRange ? __("Innvols") : __("Útfærsla"), innSum, innHtml));
       html += '<div class="uw-secs">' + secHtml.join("") + '</div>';
       if (uw.island){
