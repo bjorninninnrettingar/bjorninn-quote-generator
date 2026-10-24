@@ -732,9 +732,19 @@
   var HANDLE_GROUPS = KPH.groups || [];
   var HANDLE_FINISHES = KPH.finishes || {};
   // the chosen handle colour, or null when the handle keeps its own (set at the start of each scene build)
-  function handleFinishFor(handleKey, colorKey){
+  function handleFinishFor(handleKey, colorKey){ // null = the handle as photographed (its own default colour)
     var h = HANDLES[handleKey];
-    return h && !h.fixedColor && h.group !== "an" && colorKey && HANDLE_FINISHES[colorKey] ? HANDLE_FINISHES[colorKey] : null;
+    if (!h || h.fixedColor || h.group === "an" || !colorKey || !HANDLE_FINISHES[colorKey]) return null;
+    if (h.finishes && (h.finishes.indexOf(colorKey) < 0 || colorKey === h.finish)) return null; // not made in it / its own colour
+    return HANDLE_FINISHES[colorKey];
+  }
+  // the length rule for a pull screwed onto a front (user, 2026-10-24): the largest real length that is at most
+  // 2/3 of the front and keeps fitMarginMm clear each side — the 3D and the order (Line Items) use this same number
+  function handleAvailMm(hcfg, frontMm){
+    if (!hcfg) return frontMm;
+    if (hcfg.kind === "bar") return Math.min(frontMm - 2 * (hcfg.fitMarginMm || 60), frontMm * 2 / 3);
+    if (hcfg.kind === "topmount") return frontMm - 60;
+    return frontMm;
   }
   var handleFinish = null;
   var TOPS = {};
@@ -2030,7 +2040,7 @@
         }
       }
       if (hcfg && hcfg.kind === "topmount"){ // sits ON the top edge of the front (flat side up, under the worktop), projecting out of it
-        var leafW = twoLeaf ? hw / 2 : hw, tlen = pickHandleLenM(hcfg, leafW - 0.06), tpf = handleProfile(THREE, handleKey, tlen);
+        var leafW = twoLeaf ? hw / 2 : hw, tlen = pickHandleLenM(hcfg, handleAvailMm(hcfg, leafW * 1000) / 1000), tpf = handleProfile(THREE, handleKey, tlen);
         if (tpf){
           if (vertical){ // tall units: an edge pull on the free side, at chest height
             var vyc = Math.max(bottom + 0.12, Math.min(top - 0.12, 1.05));
@@ -2043,7 +2053,7 @@
         }
       }
       if (hcfg && hcfg.kind === "bar" && hcfg.file){ // a real pull screwed onto the face: centred, upright on tall units
-        var leafB = twoLeaf ? hw / 2 : hw, fitB = pickHandleLenM(hcfg, leafB - 2 * (hcfg.fitMarginMm || 60) / 1000);
+        var leafB = twoLeaf ? hw / 2 : hw, fitB = pickHandleLenM(hcfg, handleAvailMm(hcfg, leafB * 1000) / 1000);
         var bp = handleProfile(THREE, handleKey, Math.max(0.05, fitB));
         if (bp){
           if (vertical){ var vyb = Math.max(bottom + 0.12, Math.min(top - 0.12, 1.05)); sides.forEach(function(sg){ var rot2 = new THREE.Group(), g2 = new THREE.Group(); rot2.add(bp.clone(true)); rot2.rotation.z = Math.PI / 2; g2.add(rot2); place(g2, vyb, 0, edgeAlong(sg, 0.05)); }); }
@@ -6388,7 +6398,7 @@
     cornerClearanceMm: cornerClearanceMm, afellaMm: afellaMm, AFELLA_MM: AFELLA_MM,
     blockStartsMm: blockStartsMm,
     planTransform: planTransform,
-    rectCornersWorld: rectCornersWorld, drawerZoneMm: drawerZoneMm, TALL_DRAWER_MAX_MM: TALL_DRAWER_MAX_MM, DRAWER_TOPDOOR_MIN_MM: DRAWER_TOPDOOR_MIN_MM, doorLeaves: doorLeaves, islandFits: islandFits, nearestIslandFit: nearestIslandFit, topThickM: topThickM, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, obstacleRect: obstacleRect, obstacleCorners: obstacleCorners, obstacleAng: obstacleAng, DECOR: DECOR, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
+    rectCornersWorld: rectCornersWorld, drawerZoneMm: drawerZoneMm, TALL_DRAWER_MAX_MM: TALL_DRAWER_MAX_MM, DRAWER_TOPDOOR_MIN_MM: DRAWER_TOPDOOR_MIN_MM, doorLeaves: doorLeaves, islandFits: islandFits, nearestIslandFit: nearestIslandFit, topThickM: topThickM, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, obstacleRect: obstacleRect, obstacleCorners: obstacleCorners, handleAvailMm: handleAvailMm, obstacleAng: obstacleAng, DECOR: DECOR, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
     WALL_COLORS: WALL_COLORS,
     WINDOW_DEFAULT: WINDOW_DEFAULT,
     _handleProfile: handleProfile,

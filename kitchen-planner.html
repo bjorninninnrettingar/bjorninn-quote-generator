@@ -6353,7 +6353,7 @@
         matSel("innerFront", "Innskúffufrontar (sjálfgefið)", [{ items:INNER_FRONTS.map(function(x){ return [x, x]; }) }], state.innerFront || "Skrokkaefni") : "") +
       matSel("top", __("Borðplata"), TOP_GROUPS.map(function(g){ return { label:g.label, items:topsOf(g.key).map(function(k){ return [k, TOPS[k].label + (TOPS[k].code ? " · " + TOPS[k].code : "")]; }) }; }), state.top || "steinn") +
       matSel("handle", __("Höldur / opnun"), KP3D.HANDLE_GROUPS.map(function(g){ return { label:g.label, items:handlesOf(g.key).map(function(k){ return [k, HANDLES[k].label]; }) }; }), state.handle) +
-      (handleColorable(state.handle) ? matSel("handleColor", __("Litur á höldum"), [{ items:[["", "Eins og á mynd"]].concat(Object.keys(KP3D.HANDLE_FINISHES).map(function(k){ return [k, KP3D.HANDLE_FINISHES[k].label]; })) }], state.handleColor || "") : "") +
+      (handleColorable(state.handle) ? matSel("handleColor", __("Litur á höldum"), [{ items:(HANDLES[state.handle].finishes || Object.keys(KP3D.HANDLE_FINISHES)).map(function(k){ return [k === HANDLES[state.handle].finish ? "" : k, KP3D.HANDLE_FINISHES[k].label]; }) }], state.handleColor || "") : "") +
       matSel("drawerSystem", __("Skúffukerfi"), [{ items:Object.keys(DRAWER_SYSTEMS).map(function(k){ return [k, DRAWER_SYSTEMS[k].label]; }) }], state.drawerSystem) +
       '<button type="button" class="btn btn-secondary btn-small" data-act="materials" style="margin-top:6px;">' + __("Sjá myndir af efnunum") + '</button>';
     html += sec("efni", __("Efni"), matBody);
@@ -6385,7 +6385,7 @@
         if (key === "look") selectLookQuiet(v);
         else state[key] = v;
         if (key === "look2" && !v) surfaces().forEach(function(w){ w.floor.concat(w.wall).forEach(function(b){ delete b.front2; }); }); // no FR2 any more → every cabinet back on FR1
-        if (key === "handle" && !handleColorable(v)) state.handleColor = null;
+        if (key === "handle" && (!handleColorable(v) || (HANDLES[v].finishes && HANDLES[v].finishes.indexOf(state.handleColor) < 0))) state.handleColor = null;
         save(); refreshAfterEdit(); renderCatalogPanel();
       });
     });
@@ -6854,7 +6854,8 @@
     var l = LOOKS[key], h = state.handle ? HANDLES[state.handle] : null;
     if (h && h.requiresFrontCategory && (!l || l.category !== h.requiresFrontCategory)){ state.handle = null; toast(__("{name} fylgir bara {cat}-frontum — veldu höldur aftur.", { name:__(h.label), cat:h.requiresFrontCategory })); }
   }
-  function selectHandle(key){ state.handle = key; save(); renderMaterials(); }
+  var handleTabHold = false; // a pick stays on the open tab — jumping to the handle's own group reflowed the grid under the pointer (2026-10-24)
+  function selectHandle(key){ state.handle = key; save(); handleTabHold = true; renderMaterials(); handleTabHold = false; }
   function selectDrawerSystem(key){ state.drawerSystem = key; save(); renderMaterials(); }
 
   function renderCarcassCards(){
@@ -6994,7 +6995,7 @@
   function renderHandleCards(keepTab){
     // "Allt" first: every handle in one list (2026-10-12)
     var groups = [{ key:"allt", label:"Allt", blurb:"Allar höldur og opnanir." }].concat(KP3D.HANDLE_GROUPS);
-    if (!keepTab && state.handle && HANDLES[state.handle] && HANDLES[state.handle].group && !HANDLES[state.handle].hidden) matTab.handle = HANDLES[state.handle].group;
+    if (!keepTab && !handleTabHold && state.handle && HANDLES[state.handle] && HANDLES[state.handle].group && !HANDLES[state.handle].hidden) matTab.handle = HANDLES[state.handle].group;
     var grp = groups.find(function(g){ return g.key === matTab.handle; }) || groups[0];
     var tabs = document.getElementById("handleTabs");
     tabs.innerHTML = tabsHTML(groups, function(k){ return handlesOf(k).length; }, grp.key, "data-htab");
@@ -7013,19 +7014,27 @@
     renderHandleColors();
   }
   // colour of the chosen handle (Björninn orders most pulls in several finishes); null = the handle's own colour
-  function handleColorable(key){ var h = HANDLES[key]; return !!(h && !h.hidden && !h.fixedColor && h.group !== "an"); }
+  function handleColorable(key){ var h = HANDLES[key]; return !!(h && !h.hidden && !h.fixedColor && h.group !== "an" && (!h.finishes || h.finishes.length > 1)); }
+  // the colour the customer has (their pick if this handle is made in it, else the handle's own) — key into HANDLE_FINISHES
+  function handleColorNow(){
+    var h = HANDLES[state.handle]; if (!h || h.fixedColor || h.group === "an") return null;
+    if (!h.finishes) return state.handleColor || null;
+    return state.handleColor && h.finishes.indexOf(state.handleColor) >= 0 ? state.handleColor : h.finish;
+  }
+  function handleColorLabel(){ var k = handleColorNow(); return k && KP3D.HANDLE_FINISHES[k] ? KP3D.HANDLE_FINISHES[k].label : ""; }
   function renderHandleColors(){
     var box = document.getElementById("handleColors"), F = KP3D.HANDLE_FINISHES;
     if (!box) return;
     if (!handleColorable(state.handle)){ box.innerHTML = ""; return; }
     var h = HANDLES[state.handle];
+    // only the colours this handle is really made in, its own (photo) colour first (2026-10-24)
+    var keys = (h.finishes || Object.keys(F)).filter(function(k){ return F[k]; }), cur = handleColorNow();
     box.innerHTML = '<div class="mat-section-title" style="margin-top:14px;">' + __("Litur á höldum") + '</div><div class="hc-row">' +
-      '<button type="button" class="hc-sw' + (!state.handleColor ? " active" : "") + '" data-hcolor="" title="' + __("Eins og á myndinni") + '"><i style="background:' + (h.color || "#888") + ';"></i><span>' + __("Eins og á mynd") + '</span></button>' +
-      Object.keys(F).map(function(k){
-        return '<button type="button" class="hc-sw' + (state.handleColor === k ? " active" : "") + '" data-hcolor="' + k + '" title="' + __(F[k].label) + '"><i style="background:' + F[k].hex + ';"></i><span>' + __(F[k].label) + '</span></button>';
+      keys.map(function(k){
+        return '<button type="button" class="hc-sw' + (cur === k ? " active" : "") + '" data-hcolor="' + k + '" title="' + __(F[k].label) + '"><i style="background:' + (k === h.finish ? (h.color || F[k].hex) : F[k].hex) + ';"></i><span>' + __(F[k].label) + '</span></button>';
       }).join("") + '</div>';
     box.querySelectorAll("[data-hcolor]").forEach(function(b){
-      b.addEventListener("click", function(){ state.handleColor = b.dataset.hcolor || null; save(); renderHandleColors(); updateCabinetPreview(); });
+      b.addEventListener("click", function(){ state.handleColor = b.dataset.hcolor === h.finish ? null : b.dataset.hcolor; save(); renderHandleColors(); updateCabinetPreview(); });
     });
   }
 
@@ -9122,7 +9131,7 @@
     var lk = state.look ? LOOKS[state.look] : null, tp = TOPS[state.top || "steinn"], hd = state.handle ? HANDLES[state.handle] : null;
     if (lk) lines.push("Valin framhlið: " + lk.label + (lk.code ? " — Egger " + lk.code : "") + " (" + ((LOOK_CATEGORIES.find(function(x){ return x.key === lk.category; }) || {}).label || lk.category) + ")");
     if (tp) lines.push("Valin borðplata: " + tp.label + (tp.code ? " — Egger " + tp.code : "") + (tp.group === "steinn" ? " (pöntuð sérstaklega)" : " (" + ((TOP_GROUPS.find(function(x){ return x.key === tp.group; }) || {}).label || "") + ")"));
-    if (hd) lines.push("Valið handfang: " + hd.label + (KP3D.handleFinishFor(state.handle, state.handleColor) ? " — " + KP3D.handleFinishFor(state.handle, state.handleColor).label.toLowerCase() : ""));
+    if (hd) lines.push("Valið handfang: " + hd.label + (handleColorLabel() ? " — " + handleColorLabel().toLowerCase() : ""));
     // Spónagrip is really the front's own "m gripalistum" SKU, not a separate machining step (2026-09-29)
     // — if this front species has no such variant in Efnislisti, flag it so staff confirm by hand rather
     // than silently order the plain front for a customer who asked for the milled grip.
@@ -9130,8 +9139,8 @@
       lines.push("Spónagrip óskað en 'm gripalistum' útgáfa af " + lk.label + " er ekki til í Efnislista — staðfestu efni handvirkt");
     }
     // "Litur á höldum" in Airtable has no white metal finish (2026-09-29) — flagged rather than guessed.
-    if (state.handleColor === "hvitt"){
-      lines.push("Viðskiptavinur valdi 'Hvítt matt' á höldur — enginn samsvarandi litur er til í Airtable, vinsamlegast staðfestu.");
+    if (handleColorNow() === "hvitt" || handleColorNow() === "gratt"){
+      lines.push("Viðskiptavinur valdi '" + handleColorLabel() + "' á höldur — enginn samsvarandi litur er til í Airtable, vinsamlegast staðfestu.");
     }
     var fl = KP3D.FLOORS[state.floor || "parket_eik"];
     if (fl) lines.push("Valið gólfefni: " + fl.label + " (" + (fl.group === "flisar" ? "flísar " + KP3D.TILE_SIZES[state.floorTile || "60x60"].label : "parket" + (state.floorPattern === "fiskibein" ? ", fiskibeinamynstur" : "")) + (state.floorRot ? ", snúið 90°" : "") + ")");
@@ -9416,7 +9425,7 @@
       wall.floor.concat(wall.wall).forEach(function(b){
         var c = CATALOG[b.type];
         frontWidthsOf(b, c).forEach(function(fw){
-          var pick = stock ? pickStockSku(hcfg.lenOptions, fw.mm) : pickFittingSku(hcfg.lenOptions, fw.mm);
+          var pick = stock ? pickStockSku(hcfg.lenOptions, fw.mm) : pickFittingSku(hcfg.lenOptions, KP3D.handleAvailMm(hcfg, fw.mm)); // same rule as the 3D
           if (pick) ids[pick.vorulistiId] = true;
           count += fw.count;
         });
@@ -9429,7 +9438,7 @@
   // stál/silfur are the same thing here (confirmed 2026-09-29); brons has no real match, mapped
   // to the closest warm metal (Kopar) with a note flag; hvítt has no metal-finish match at all,
   // left blank with a note flag rather than guessing.
-  var HANDLE_COLOR_AIRTABLE = { svart:"Svartar ⚫", stal:"Silfur 🥈", messing:"Gyllt / Látún 🥇", kopar:"Kopar 🥉", brons:"Kopar 🥉" };
+  var HANDLE_COLOR_AIRTABLE = { svart:"Svartar ⚫", stal:"Silfur 🥈", messing:"Gyllt / Látún 🥇", dokkt_latun:"Gyllt / Látún 🥇", cava:"Gyllt / Látún 🥇", kopar:"Kopar 🥉", brons:"Kopar 🥉" };
 
   function collectLineItems(){
     var rows = [], keys = skKeys(), bom = lightingBOM(), driverPlaced = false;
@@ -9531,7 +9540,7 @@
     // for the fallback note when a species has no gripalistar variant).
     var frontEfnislistiId = lookRec ? (state.handle === "sponagrip" && lookRec.gripalistarId ? lookRec.gripalistarId : lookRec.efnislistiId) : null;
     var hw = handleHardwareSummary();
-    var colorKey = state.handleColor ? HANDLE_COLOR_AIRTABLE[state.handleColor] : null;
+    var colorKey = handleColorNow() ? HANDLE_COLOR_AIRTABLE[handleColorNow()] : null; // the default colour is ordered too
     var project = {};
     if (carcassRec) project["Skrokka efni 🔲 viðskiptavinar"] = [carcassRec.efnislistiId];
     if (frontEfnislistiId) project["Fronta efni viðskiptavinar 🖼️"] = [frontEfnislistiId];
@@ -11652,7 +11661,7 @@
     if (cc) lines.push(["Skrokkur", cc.label]);
     if (ds) lines.push(["Skúffukerfi", ds.label]);
     if (tp) lines.push(["Borðplata", tp.label]);
-    if (hd){ var fin = KP3D.handleFinishFor(state.handle, state.handleColor); lines.push(["Handfang", hd.label + (fin ? " — " + fin.label.toLowerCase() : "")]); }
+    if (hd) lines.push(["Handfang", hd.label + (handleColorLabel() ? " — " + handleColorLabel().toLowerCase() : "")]);
     lines.push(["Lofthæð", (state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM) + " mm"]);
     return lines;
   }
@@ -13270,7 +13279,7 @@
       if (carc) notes.push("SKRE – " + carc.label + " (skrokkaefni)");
       if (top && !top.none) notes.push("Borðplata – " + top.label);
       notes.push("Skúffukerfi – " + (drawerSys() === "merivo" ? "Blum Merivo (M-)" : "Blum Legra (L-)"));
-      if (state.handle) notes.push("Höldur – " + ((HANDLES[state.handle] || {}).label || (hcfg && hcfg.label) || state.handle) + (state.handleColor ? ", " + state.handleColor : ""));
+      if (state.handle) notes.push("Höldur – " + ((HANDLES[state.handle] || {}).label || (hcfg && hcfg.label) || state.handle) + (handleColorLabel() ? ", " + handleColorLabel().toLowerCase() : ""));
       if (lightingOn()) notes.push(LED_POWER_NOTE);
       if (state.measurement && state.measurement.at) notes.push("Mælt á staðnum " + new Date(state.measurement.at).toLocaleDateString("is-IS") + (state.measurement.note ? ": " + state.measurement.note : "") + ".");
       models.push({ project:PRO ? PRO.name : "Eldhússkipulag", roomName:(state.intake && state.intake.room) || "Eldhús", date:date, drawerSystem:drawerSys(),
