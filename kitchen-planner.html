@@ -575,6 +575,9 @@
   .mat-side .flt-row .tone-row{ margin:0; flex-wrap:nowrap; flex:none; }
   .mat-side .flt-row .sw-search{ margin:0 0 0 auto; flex:0 1 210px; min-width:96px; width:210px; padding:6px 10px; font-size:13px; } /* fixed width, always at the right: it never moves when a tab has fewer (or no) tone chips */
   .mat-side .look-picked{ margin:0 0 6px; }
+  .look-picked .stone-note{ display:block; margin-top:4px; color:var(--ink); background:var(--panel, #f3f2ee); border-radius:8px; padding:6px 10px; font-size:12.5px; }
+  #topTabs .top-none{ margin-left:auto; border-style:dashed; }
+  #topTabs .top-none.picked{ background:var(--ink); color:#fff; border-color:var(--ink); border-style:solid; }
   .sw-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(108px,1fr)); gap:10px; margin-bottom:6px; }
   .sw-tile{ position:relative; background:#fff; border:1.5px solid var(--line); border-radius:12px; overflow:hidden; cursor:pointer; text-align:left; padding:0; font:inherit; display:flex; flex-direction:column; justify-content:flex-start; align-items:stretch; }
   .sw-tile:hover{ border-color:var(--blue); }
@@ -6958,15 +6961,21 @@
   }
   var topToneSel = "";
   function renderTopCards(){
-    var grp = TOP_GROUPS.find(function(g){ return g.key === matTab.top; }) || TOP_GROUPS[0];
+    // "Engin" is not a tab with one tile but a choice of its own at the end of the row: a click picks it and the
+    // page stays where it is (user, 2026-10-24)
+    var tabGroups = TOP_GROUPS.filter(function(g){ return g.key !== "engin"; });
+    var grp = tabGroups.find(function(g){ return g.key === matTab.top; }) || tabGroups[0];
     var tabs = document.getElementById("topTabs");
-    tabs.innerHTML = tabsHTML(TOP_GROUPS, function(k){ return topsOf(k).length; }, grp.key, "data-ttab");
+    tabs.innerHTML = tabsHTML(tabGroups, function(k){ return topsOf(k).length; }, grp.key, "data-ttab") +
+      '<button type="button" class="tab-btn top-none' + (state.top === "engin" ? ' picked' : '') + '" data-tnone="1" title="' + __("Engin borðplata frá okkur — t.d. ef þú færð hana annars staðar.") + '">' + __("Engin borðplata") + '</button>';
     tabs.querySelectorAll("[data-ttab]").forEach(function(b){ b.addEventListener("click", function(){ matTab.top = b.dataset.ttab; topToneSel = ""; renderTopCards(); document.getElementById("topCards").scrollTop = 0; }); });
+    tabs.querySelector("[data-tnone]").addEventListener("click", function(){ selectTop("engin"); });
     // the thickness per kind (KP3D.topThickM) at the end of the blurb, 2026-10-11
     var firstKey = Object.keys(TOPS).find(function(k){ return TOPS[k].group === grp.key; });
     document.getElementById("topBlurb").textContent = __(grp.blurb) + (grp.key === "engin" ? "" : " " + __("Þykkt: {n} mm.", { n:Math.round(KP3D.topThickM(firstKey) * 1000) })); blurbTip("topBlurb", "topTabs");
-    var active = state.top || "steinn", pickedTop = TOPS[active];
-    document.getElementById("topPicked").innerHTML = pickedTop ? __("Valið:") + ' <b>' + __(pickedTop.label) + '</b>' + (state.top ? '' : ' · ' + __("sjálfgefið, veldu aðra ef þú vilt")) : '';
+    var active = state.top || null, pickedTop = active && TOPS[active];
+    document.getElementById("topPicked").innerHTML = (pickedTop ? __("Valið:") + ' <b>' + __(pickedTop.label) + '</b>' : __("Ekkert valið enn")) +
+      (grp.key === "steinn" ? '<span class="stone-note">' + __("Björninn selur ekki steinplötur — þetta er aðeins til að sjá fyrir sér hvernig steinn kæmi út.") + '</span>' : '');
     var keys = toneFilter("topTones", "topCards", topsOf(grp.key), TOPS, topToneSel, function(t){ topToneSel = t; renderTopCards(); });
     var container = document.getElementById("topCards");
     container.innerHTML = keys.map(function(key){
@@ -7180,7 +7189,7 @@
     { key:"handle",  label:"Höldur",    title:"Veldu höldu",       sub:"Sama handfang fer á alla skápa.",
       render:renderHandleCards,       done:function(){ return !!state.handle; } },
     { key:"top",     label:"Borðplata", title:"Veldu borðplötu",   sub:"Borðplatan kemur ofan á skápinn.",
-      render:renderTopCards,          done:function(){ return true; } }
+      render:renderTopCards,          done:function(){ return !!state.top; } } // nothing chosen for them (user, 2026-10-24)
   ];
   // Fataskápar's own funnel (PAX research, approved 2026-10-23): colour → depth → height up front (the
   // decisions that actually define the wardrobe), drawer-BRAND dropped as its own page (defaulted instead
@@ -7222,7 +7231,7 @@
     // 4-phase closet wizard either, so this was always effectively off for them — just never written down as
     // its own rule until now).
     var cd = categoryDef(state.activeCategory), hasTop = !cd || cd.worktop !== false;
-    return { carcass:state.carcass, drawer:state.drawerSystem, look:state.look, handle:state.handle, handleColor:state.handleColor, top:hasTop ? (state.top || "steinn") : null,
+    return { carcass:state.carcass, drawer:state.drawerSystem, look:state.look, handle:state.handle, handleColor:state.handleColor, top:hasTop ? (state.top || null) : null, // no worktop on the preview until one is picked
       showDrawers:matPhaseReveal("drawers"), showFronts:matPhaseReveal("fronts"), showHandle:matPhaseReveal("handle"), showTop:hasTop && matPhaseReveal("top") };
   }
   function updateCabinetPreview(){
@@ -7277,7 +7286,7 @@
     if (matPhase === null) matPhase = firstMissingPhase();
     // open the tab that holds the current pick (a tab click only re-renders its own picker, so it isn't undone)
     if (state.look && LOOKS[state.look] && !LOOKS[state.look].hidden) matTab.front = LOOKS[state.look].category;
-    if (state.top && TOPS[state.top]) matTab.top = TOPS[state.top].group;
+    if (state.top && TOPS[state.top] && state.top !== "engin") matTab.top = TOPS[state.top].group; // "Engin borðplata" leaves the open tab as it is
     var phases = activeMatPhases(), ph = phases[matPhase];
     document.getElementById("wizSteps").innerHTML = phases.map(function(p, i){
       // a page you can reach (an earlier one, or every page before it is done) is a button (2026-10-11)

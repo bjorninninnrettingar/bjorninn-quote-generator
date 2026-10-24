@@ -1540,6 +1540,7 @@
     "Grátt matt": "Matt grey",
     "Lítill flipi · 200 mm": "Small tab · 200 mm",
     "Eik og svart": "Oak and black",
+    "Björninn selur ekki steinplötur — þetta er aðeins til að sjá fyrir sér hvernig steinn kæmi út.": "Björninn doesn't sell stone worktops — this is only to see how stone would look.",
     "Svona hannar þú allt heimilið": "How to design your whole home",
     "Um 15 mínútur. Þú þarft ekki að vera nákvæm(ur) — við mælum allt á staðnum áður en nokkuð er smíðað.": "About 15 minutes. You don't need to be exact — we measure everything on site before anything is built.",
     "Skref 1": "Step 1",

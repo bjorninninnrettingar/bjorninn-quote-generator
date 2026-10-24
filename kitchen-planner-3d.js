@@ -209,10 +209,10 @@
     var c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(function(v){ return Math.round(v + (255 - v) * k); });
     return "#" + c.map(function(v){ return ("0" + v.toString(16)).slice(-2); }).join("");
   }
-  var TOP_GROUPS = [
-    { key:"limtre",   label:"Límtré",    blurb:"Hlý, náttúruleg og lifandi borðplata — ask, hnota, eik, beyki og fura." },
-    { key:"compact",  label:"Compact",   blurb:"Þéttar og sterkbyggðar harðkjarna plötur — þola raka og daglega notkun vel." },
+  var TOP_GROUPS = [ // most chosen first (user, 2026-10-24)
     { key:"hardplast",label:"Harðplast", blurb:"Hagkvæm og endingargóð — einlitt, viðar-, stein- og marmaraútlit." },
+    { key:"compact",  label:"Compact",   blurb:"Þéttar og sterkbyggðar harðkjarna plötur — þola raka og daglega notkun vel." },
+    { key:"limtre",   label:"Límtré",    blurb:"Hlý, náttúruleg og lifandi borðplata — ask, hnota, eik, beyki og fura." },
     { key:"steinn",   label:"Steinn",    blurb:"Steinplötur eru pantaðar sérstaklega hjá samstarfsaðilum." },
     { key:"engin",    label:"Engin",     blurb:"Engin borðplata frá okkur — t.d. ef þú færð hana annars staðar." }
   ];
