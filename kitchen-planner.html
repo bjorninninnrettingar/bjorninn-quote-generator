@@ -463,6 +463,8 @@
   .wall-row input[type=number]{ width:96px; font:inherit; font-size:14px; padding:6px 8px; border:1px solid var(--line); border-radius:8px; }
   .wall-row .u{ font-size:12px; color:var(--ink-soft); }
   .shape-cards[hidden], .shape-note[hidden]{ display:none; }
+  .wl-add{ width:100%; border:1px dashed var(--line); background:#fff; border-radius:10px; padding:8px; font:inherit; font-size:13px; color:var(--ink-soft); cursor:pointer; margin-top:2px; }
+  .wl-add:hover{ border-color:var(--ink); color:var(--ink); }
   .lc-pick{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; font-size:13px; }
   .lc-tiles{ display:flex; gap:6px; }
   .lc-tile{ border:1.5px solid var(--line); background:#fff; border-radius:8px; padding:3px; cursor:pointer; line-height:0; }
@@ -2317,6 +2319,7 @@
     if (Math.abs(host.offsetHeight - h) > 2) host.style.height = h + "px";
   }
   function renderShapeCanvas(){
+    if (shapePhase === "size") syncWallList();
     var host = document.getElementById("shapeCanvas");
     if (!host || !state.closed) return;
     fitShapeCanvas(host); // every phase: the drawing / 3D fits the screen
@@ -2789,7 +2792,10 @@
     var host = document.getElementById("shapeCanvas"), r = host.getBoundingClientRect(), v = shapeView(host.clientWidth, host.clientHeight);
     var P = roomPts(), n = P.length, w = state.walls[i], a = unitV(P[i], P[(i + 1) % n]);
     var mx = (evt.clientX - r.left - v.ox) / v.scale, mz = (evt.clientY - r.top - v.oy) / v.scale;
-    var t = Math.round(((mx - P[i].x) * a.x + (mz - P[i].z) * a.z) / 10) * 10;
+    splitWallAtMm(i, Math.round(((mx - P[i].x) * a.x + (mz - P[i].z) * a.z) / 10) * 10);
+  }
+  function splitWallAtMm(i, t){ // a new corner t mm along wall i (a straight 180° one — drag it to bend the wall)
+    var P = roomPts(), n = P.length, w = state.walls[i], a = unitV(P[i], P[(i + 1) % n]);
     if (t < MIN_EDGE_MM || t > w.lengthMm - MIN_EDGE_MM){ toast(__("Of nálægt horni — veggur má ekki vera styttri en {n} mm.", { n:MIN_EDGE_MM })); return; }
     if (thingsPast(i, t)){ toast(__("Það er eitthvað á veggnum fyrir aftan þennan punkt — færðu það fyrst eða veldu stað nær byrjun veggjarins.")); return; }
     var maxN = state.walls.reduce(function(m, x){ var q = parseInt(String(x.id).replace(/^W/, ""), 10); return isNaN(q) ? m : Math.max(m, q); }, 0);
@@ -3088,8 +3094,21 @@
   }
 
   // ---------- right-hand panel of the room step ----------
+  // the list follows the drawing (user, 2026-10-24: 3 walls in the list, 7 on the drawing): rebuilt when walls come or
+  // go, otherwise only the numbers change — never the field being typed in
+  function wallListSig(){ return state.walls.map(function(w){ return w.open ? 1 : 0; }).join("") + "|" + (lCorner() || ""); }
+  function syncWallList(){
+    var box = document.getElementById("wallList"); if (!box) return;
+    var rows = box.querySelectorAll("[data-wr]");
+    if (rows.length !== state.walls.length || box.dataset.sig !== wallListSig()){ renderWallList(); return; }
+    rows.forEach(function(row, i){
+      row.classList.toggle("sel", selectedEdge === i);
+      var inp = row.querySelector("[data-wlen]"); if (inp && document.activeElement !== inp) inp.value = state.walls[i].lengthMm;
+    });
+  }
   function renderWallList(){
     var box = document.getElementById("wallList"), lc = lCorner();
+    box.dataset.sig = wallListSig();
     var corners = !lc ? "" : '<div class="lc-pick"><span>' + __("Hornið sem er inndregið") + '</span><div class="lc-tiles">' + [["nw", "M3 3H17V15H3Z"], ["ne", "M27 3H41V15H27Z"], ["sw", "M3 19H17V31H3Z"], ["se", "M27 19H41V31H27Z"]].map(function(c){
       return '<button type="button" class="lc-tile' + (lc === c[0] ? ' on' : '') + '" data-lc="' + c[0] + '" aria-pressed="' + (lc === c[0]) + '"><svg width="44" height="34" viewBox="0 0 44 34"><rect x="3" y="3" width="38" height="28" fill="#e9e3d6" stroke="#2b2b2e" stroke-width="2"/><path d="' + c[1] + '" fill="#fff" stroke="#2b2b2e" stroke-width="1.5" stroke-dasharray="3,2"/></svg></button>'; }).join("") + '</div></div>';
     box.innerHTML = corners + state.walls.map(function(w, i){
@@ -3097,6 +3116,14 @@
         '<input type="number" data-wlen="' + i + '" value="' + w.lengthMm + '" min="' + MIN_EDGE_MM + '" max="' + MAX_EDGE_MM + '" step="10"><span class="u">mm</span>' +
         '<button type="button" class="wo-btn" data-wopen="' + i + '" aria-pressed="' + !!w.open + '" title="' + __(w.open ? "Setja vegginn aftur" : "Enginn veggur hér — eldhúsið er opið inn í annað rými") + '">' + __("Opið") + '</button></div>';
     }).join("");
+    var add = document.createElement("button"); // for whoever doesn't find the double-click: splits the selected (else the longest) wall in two
+    add.type = "button"; add.className = "wl-add"; add.textContent = __("+ Bæta við vegg"); add.title = __("Skiptir veggnum í tvennt. Dragðu svo nýja hornið til.");
+    add.addEventListener("click", function(){
+      var i = selectedEdge != null && state.walls[selectedEdge] ? selectedEdge : state.walls.reduce(function(b, w, k){ return w.lengthMm > state.walls[b].lengthMm ? k : b; }, 0);
+      splitWallAtMm(i, Math.round(state.walls[i].lengthMm / 20) * 10);
+      selectedEdge = i + 1; renderShapeCanvas();
+    });
+    box.appendChild(add);
     box.querySelectorAll("[data-lc]").forEach(function(b){ b.addEventListener("click", function(){ setLCorner(b.dataset.lc); }); });
     box.querySelectorAll("[data-wopen]").forEach(function(b){
       b.addEventListener("click", function(e){ e.stopPropagation(); var i = parseInt(b.dataset.wopen, 10); if (setWallOpen(i, !state.walls[i].open)){ selectedEdge = i; renderWallList(); renderShapeCanvas(); } });
