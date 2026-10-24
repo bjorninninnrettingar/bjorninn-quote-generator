@@ -9374,7 +9374,7 @@
   // ---------- handle hardware (Tækifæri-level, not per-line — 2026-09-29) ----------
   // "þarf ekki að gera neitt svona [per-line], bara fylla inn í tækifæris efnis fields, magn
   // og lit" — real, orderable hardware only (Comet/Angle/Crossing/Graf/Sense/Jey/Jey2/Hexxa,
-  // all have lenOptions now). Vann has no real product yet and "an" (falið/þrýstiopnun/none)
+  // all have lenOptions now; Vann since 2026-10-24). "an" (falið/þrýstiopnun/none)
   // has nothing to order — those leave the Tækifæri handle fields untouched; intakeNote()
   // already names whichever was picked. Spónagrip has no lenOptions of its own (it's the
   // front-material swap, not hardware) so it's skipped here too, correctly.
@@ -9419,13 +9419,14 @@
   function handleHardwareSummary(){
     var hcfg = state.handle && window.KPMODELS && window.KPMODELS.handles && window.KPMODELS.handles[state.handle];
     if (!hcfg || !hcfg.lenOptions || !hcfg.lenOptions.length) return null;
+    var lenOptions = (hcfg.lenOptionsByFinish && hcfg.lenOptionsByFinish[handleColorNow()]) || hcfg.lenOptions; // a colour that is its own product (Crossing svart/svart)
     var stock = hcfg.kind === "jey" || hcfg.kind === "hexxa"; // cut-to-size vs. a fixed discrete pull
     var ids = {}, count = 0;
     surfaces().forEach(function(wall){
       wall.floor.concat(wall.wall).forEach(function(b){
         var c = CATALOG[b.type];
         frontWidthsOf(b, c).forEach(function(fw){
-          var pick = stock ? pickStockSku(hcfg.lenOptions, fw.mm) : pickFittingSku(hcfg.lenOptions, KP3D.handleAvailMm(hcfg, fw.mm)); // same rule as the 3D
+          var pick = stock ? pickStockSku(lenOptions, fw.mm) : pickFittingSku(lenOptions, KP3D.handleAvailMm(hcfg, fw.mm)); // same rule as the 3D
           if (pick) ids[pick.vorulistiId] = true;
           count += fw.count;
         });

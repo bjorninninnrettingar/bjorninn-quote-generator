@@ -23,7 +23,7 @@ window.KPHANDLES = {
     comet:    { label:"Comet",     group:"ofan-a",  img:"handles/comet.jpg",    desc:"200 mm · brons", style:"tab", len:0.2, color:"#b08d57", finish:"brons", finishes:["brons", "messing", "svart"] },
     vann:     { label:"Vann",      group:"ofan-a",  img:"handles/vann.jpg",     desc:"Lítill flipi · 200 mm", style:"tab", len:0.2, color:"#b87a55", finish:"dokkt_latun", finishes:["dokkt_latun", "stal", "svart"] },
     angle:    { label:"Angle",     group:"afestar", img:"handles/angle.jpg",    desc:"Vinkilprófíll · svartur", style:"bar", len:0.4, color:"#17171a", finish:"svart", finishes:["svart", "brons", "dokkt_latun", "stal", "hvitt"] },
-    crossing: { label:"Crossing",  group:"afestar", img:"handles/crossing.jpg", desc:"320 mm · svart og eik", style:"bar", len:0.32, color:"#d4b98c", fixedColor:true },
+    crossing: { label:"Crossing",  group:"afestar", img:"handles/crossing.jpg", desc:"320 mm · svart og eik", style:"bar", len:0.32, color:"#d4b98c", finish:"eik_svart", finishes:["eik_svart", "svart"] },
     graf:     { label:"Graf Big",  group:"afestar", img:"handles/graf.jpg",     desc:"Rifflað stangarhandfang · svart", style:"bar", len:0.32, color:"#1e1d1d", finish:"svart", finishes:["svart", "dokkt_latun"] },
     sense:    { label:"Sense Big", group:"afestar", img:"handles/sense.jpg",    desc:"Bogadregið bandhandfang · svart", style:"bar", len:0.26, color:"#1a1a1c", finish:"svart", finishes:["svart", "stal"] },
     jey:      { label:"Jey",       group:"grip",    img:"handles/jey.jpg",      desc:"Prófíll yfir alla framhliðina", style:"edge", len:0.94, color:"#b8935a", finish:"cava", finishes:["cava", "svart", "stal", "hvitt"] },
@@ -47,6 +47,7 @@ window.KPHANDLES = {
     cava:    { label:"Cava (burstað)", hex:"#bfa37a", metal:0.8,  rough:0.36 },
     kopar:   { label:"Kopar",          hex:"#b87a55", metal:0.8,  rough:0.34 }, // no handle is offered in it any more — old drafts
     brons:   { label:"Brons",          hex:"#7d5f42", metal:0.7,  rough:0.4 },
+    eik_svart: { label:"Eik og svart", hex:"#d4b98c", metal:0.1,  rough:0.6 }, // Crossing as photographed
     gratt:   { label:"Grátt matt",     hex:"#8e9093", metal:0.1,  rough:0.6 },
     hvitt:   { label:"Hvítt matt",     hex:"#efeeea", metal:0.05, rough:0.6 }
   },

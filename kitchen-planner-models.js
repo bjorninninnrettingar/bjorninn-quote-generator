@@ -67,15 +67,19 @@ window.KPMODELS = {
     comet:              { file:"models/handles/comet.glb", kind:"topmount", map:["y", "z", "x"],
                             lenOptions:[{ mm:50, vorulistiId:"rec2TuLmbcn0pFOpw" }, { mm:200, vorulistiId:"recBTiHO5kO5lOWvu" }] },
     // Vann: 200 mm flip on the top edge (the file holds 100/200/350/1200 mm pieces, two meshes each: `skip`/`take` pick the 200 mm one; embedMm = the 90° corner sits inside the front, behind its face; dropMm = lowered so the flat part rests on the front)
-    // NOT YET a real Vörulisti/Útfærslur product (2026-09-28) — Björninn sells it, but the record needs a real
-    // purchase price + supplier before it can be created; ask before wiring it into Line Items.
-    vann:               { file:"models/handles/vann.glb", kind:"topmount", map:["y", "z", "x"], skip:2, take:2, color:"#b87a55", lenMm:200, embedMm:20, dropMm:17, flip:true },
+    // Vörulisti/Útfærslur records since 2026-10-24 (Innval prices from HÖLDUR.pdf): 100 / 200 / 350 mm
+    vann:               { file:"models/handles/vann.glb", kind:"topmount", map:["y", "z", "x"], skip:2, take:2, color:"#b87a55", lenMm:200, embedMm:20, dropMm:17, flip:true,
+                            lenOptions:[{ mm:100, vorulistiId:"rec7AV46gShEKs0zz" }, { mm:200, vorulistiId:"recsMp6eM1ADiaZZh" }, { mm:350, vorulistiId:"rec7zBw7LwOZdp0rD" }] },
     // Fest framan á (screwed onto the face). fitMarginMm = keeps this much clear on each side of a narrow front
     angle:              { file:"models/handles/angle.glb", kind:"bar", map:["-z", "y", "x"], color:"#17171a", fitMarginMm:100,
-                            lenOptions:[{ mm:100, vorulistiId:"recVR0zhe2B29nykK" }, { mm:200, vorulistiId:"recShNvBhme2tEaSV" }, { mm:300, vorulistiId:"recNvdiWxt85OT23i" }] },
+                            lenOptions:[{ mm:100, vorulistiId:"recVR0zhe2B29nykK" }, { mm:200, vorulistiId:"recShNvBhme2tEaSV" }, { mm:300, vorulistiId:"recNvdiWxt85OT23i" },
+                                         // 400–900 added 2026-10-24 from Innval's list (svört, Verð 2 m/VSK)
+                                         { mm:400, vorulistiId:"recUrGwAGNRD7IqZW" }, { mm:500, vorulistiId:"recfDOr8aTgjp2mCd" }, { mm:600, vorulistiId:"recDnbnT1JaQ3bACY" }, { mm:900, vorulistiId:"recM1FIEfVF5193aC" }] },
     // "Crossing hnúði" (a knob, not a bar) also exists in the same product line but isn't this shape — left out.
     crossing:           { file:"models/handles/crossing.glb", kind:"bar", map:["-z", "-x", "y"], fitMarginMm:100, growBar:1.05,
-                            lenOptions:[{ mm:170, vorulistiId:"rec6jtUYpkgKbDkdJ" }, { mm:330, vorulistiId:"recuTvYTlOrGGjgjQ" }] },
+                            lenOptions:[{ mm:170, vorulistiId:"rec6jtUYpkgKbDkdJ" }, { mm:330, vorulistiId:"recuTvYTlOrGGjgjQ" }],
+                            // svart/svart is its own product (2026-10-24) — the order picks these when that colour is chosen
+                            lenOptionsByFinish:{ svart:[{ mm:170, vorulistiId:"recPYig3JpqTAVr33" }, { mm:330, vorulistiId:"rec1D2uTdRE67nHve" }] } },
     // "Graf mini" is a different, smaller product — not mapped here, only the "Graf Big" this model represents.
     graf:               { file:"models/handles/graf-big.glb", kind:"bar", map:["y", "-x", "z"], posts:true, color:"#1e1d1d", fitMarginMm:100,
                             lenOptions:[{ mm:220, vorulistiId:"recN7ZlBexPkzG1wp" }, { mm:350, vorulistiId:"recOZvCTG3z4OPuC3" }] },
