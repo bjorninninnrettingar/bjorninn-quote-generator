@@ -465,6 +465,7 @@
   .wall-row .wn{ flex:none; width:24px; height:24px; border-radius:50%; background:var(--line); font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; }
   .wall-row .wl{ flex:1; font-size:14px; }
   .wall-row input[type=number]{ width:96px; font:inherit; font-size:14px; padding:6px 8px; border:1px solid var(--line); border-radius:8px; }
+  .ed-toolbar #viewToggle, .ed-toolbar #camToggle{ margin-left:10px; } /* a little room between the menus, the views and the camera tools */
   .wall-row .u{ font-size:12px; color:var(--ink-soft); }
   .shape-cards[hidden], .shape-note[hidden]{ display:none; }
   .in-room{ margin-top:14px; display:flex; flex-direction:column; gap:6px; }
@@ -1579,11 +1580,12 @@
           <div class="view-toggle" id="camToggle">
             <button type="button" id="resetCamBtn" title="Endurstilla sýn" data-i18n="attrs"><svg class="ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.5"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/></svg></button>
             <button type="button" id="snapBtn" title="Vista mynd af skipulaginu" data-i18n="attrs"><svg class="ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8.5h3l1.8-2.5h6.4L17 8.5h3V19H4z"/><circle cx="12" cy="13.5" r="3.4"/></svg></button>
-            <button type="button" id="walkBtn" title="Ganga um: sjáðu eldhúsið í augnhæð eins og þú standir í því" data-i18n>Ganga</button>
-            <button type="button" id="studioBtn" title="Studio mynd: raunveruleg ljósmynd af þessari sýn, tekur 20–90 sek" data-i18n="attrs">Studio</button>
+            <button type="button" id="walkBtn" title="Ganga um: sjáðu eldhúsið í augnhæð eins og þú standir í því" data-i18n="attrs"><svg class="ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13.5" cy="4.5" r="1.8"/><path d="M10.5 21l2.2-6.2 2.8 2.7V21M12.7 14.8l-.9-5.1 3.1 2 3 .8M11.8 9.7l-3.6 1.9-1.1 3.6"/></svg></button>
+            <!-- Studio mynd: off the toolbar (user, 2026-10-24) — to be offered at the end of the flow instead -->
+            <button type="button" id="studioBtn" hidden title="Studio mynd: raunveruleg ljósmynd af þessari sýn, tekur 20–90 sek" data-i18n="attrs">Studio</button>
           </div>
           <button type="button" class="warn-chip" id="warnChip" hidden></button>
-          <div class="view-toggle" id="moodToggle" title="Kvöldstemning: dimmir herbergið svo lýsingin sjáist" data-i18n="attrs"><button type="button" id="moodBtn" title="Kvöldstemning: dimmir herbergið svo lýsingin sjáist" data-i18n>Kvöld</button></div>
+          <div class="view-toggle" id="moodToggle" hidden title="Kvöldstemning: dimmir herbergið svo lýsingin sjáist" data-i18n="attrs"><button type="button" id="moodBtn" title="Kvöldstemning: dimmir herbergið svo lýsingin sjáist" data-i18n>Kvöld</button></div>
           <div class="view-toggle" id="measureToggle" title="Málband: smelltu á tvo punkta til að mæla á milli þeirra" data-i18n="attrs"><button type="button" id="measureBtn" title="Málband: smelltu á tvo punkta til að mæla á milli þeirra" data-i18n>Málband</button></div>
           <div class="view-toggle" id="inspectToggle" title="X-Ray: framhliðar af, smelltu á skúffu eða hurð til að opna hana" data-i18n="attrs">
             <button type="button" id="inspectBtn" title="X-Ray: framhliðar af, smelltu á skúffu eða hurð til að opna hana" data-i18n="attrs">X-Ray</button>
@@ -1597,7 +1599,7 @@
           </div>
           <button type="button" class="btn btn-primary ed-newunit" id="edNewUnit" data-i18n>＋ Ný eining</button>
           <div class="ed-right">
-            <button type="button" class="btn btn-secondary ed-tbtn" id="backToShapeBtn" data-i18n>← Breyta lögun</button>
+            <button type="button" class="btn btn-secondary ed-tbtn" id="backToShapeBtn" data-i18n>← Til baka</button>
             <button type="button" class="btn btn-primary ed-tbtn" id="toContactBtn" disabled data-i18n>Áfram →</button>
           </div>
           <div class="warn-pop" id="warnPop" hidden></div>
@@ -6324,12 +6326,12 @@
     // --- materials ---
     var L = lighting(), lbtn = function(key, label){ return '<button type="button" class="hw-btn' + (L[key] ? ' active' : '') + '" data-light="' + key + '">' + (L[key] ? '✓ ' : '') + label + '</button>'; };
     var bom = lightingBOM();
-    html += sec("lysing", __("Lýsing"),
+    var secLysing = sec("lysing", __("Lýsing"),
       '<div class="light-btns">' + lbtn("underWall", __("LED undir efri skápum")) + lbtn("shelves", __("LED í opnum hillum")) + '</div>' +
       '<button type="button" class="btn btn-secondary btn-small" data-act="mood">' + (moodOn ? __("Dagsbirta") : __("Sjá í kvöldstemningu")) + '</button>' +
       (bom ? '<p class="sec-note">' + lightingText(bom).join(" · ") + '</p><p class="sec-note" style="font-size:11px;">' + __(LED_POWER_NOTE) + '</p>' : '<p class="sec-note">' + __("Smelltu á efri skáp til að kveikja eða slökkva á ljósi undir honum einum.") + '</p>'));
     var DEC = KP3D.DECOR;
-    html += sec("skraut", __("Húsgögn"),
+    var secSkraut = sec("skraut", __("Húsgögn"),
       KP3D.DECOR_GROUPS.map(function(gp){
         return '<div class="cat-title">' + __(gp.label) + '</div><div class="light-btns">' + Object.keys(DEC).filter(function(k){ return DEC[k].group === gp.key; }).map(function(k){
           return '<button type="button" class="hw-btn" data-decor-add="' + k + '">＋ ' + __(DEC[k].label) + '</button>';
@@ -6359,7 +6361,7 @@
       (handleColorable(state.handle) ? matSel("handleColor", __("Litur á höldum"), [{ items:(HANDLES[state.handle].finishes || Object.keys(KP3D.HANDLE_FINISHES)).map(function(k){ return [k === HANDLES[state.handle].finish ? "" : k, KP3D.HANDLE_FINISHES[k].label]; }) }], state.handleColor || "") : "") +
       matSel("drawerSystem", __("Skúffukerfi"), [{ items:Object.keys(DRAWER_SYSTEMS).map(function(k){ return [k, DRAWER_SYSTEMS[k].label]; }) }], state.drawerSystem) +
       '<button type="button" class="btn btn-secondary btn-small" data-act="materials" style="margin-top:6px;">' + __("Sjá myndir af efnunum") + '</button>';
-    html += sec("efni", __("Efni"), matBody);
+    html += sec("efni", __("Efni"), matBody) + secLysing + secSkraut; // Rými → Gluggar og hindranir → Efni → Lýsing → Húsgögn (user, 2026-10-24)
     host.innerHTML = html;
     host.scrollTop = keepScroll;
 
@@ -9659,7 +9661,11 @@
     { center:true, title:__("Hér hannar þú eldhúsið þitt"), html:__("Stutt yfirferð um það helsta — tekur hálfa mínútu."), next:__("Sýna mér →"), skip:true },
     { el:function(){ return document.getElementById("catalogPanel"); }, title:__("Hér getur þú breytt"), html:
       '<ul class="tour-list">' + __('<li><b>Rými</b> — útlitinu á rýminu</li><li><b>Gluggar og hindranir</b> — bætt við gluggum og hurðum</li>') +
-      __('<li><b>Lýsing</b> — kveikt og slökkt á lýsingu</li><li><b>Húsgögn</b> — aukahlutir, best að gera það í lokin</li><li><b>Efni</b> — breytt efnisvalinu</li>') + '</ul>', next:__("Næsta →") },
+      __('<li><b>Efni</b> — breytt efnisvalinu</li><li><b>Lýsing</b> — kveikt og slökkt á lýsingu, og séð hana í kvöldstemningu</li><li><b>Húsgögn</b> — aukahlutir, best að gera það í lokin</li>') + '</ul>', next:__("Næsta →") },
+    // every button of the toolbar, so the icons need no labels (user, 2026-10-24: "setja alla takkana í hjálp → leiðsögn")
+    { el:function(){ return document.getElementById("viewToggle"); }, title:__("Sýnin"), html:
+      '<ul class="tour-list">' + __('<li><b>3D / 2D / Veggur</b> — þrívídd, teikning ofan frá, eða einn vegg í einu með málum</li><li><b>Skotmarkið</b> — setur sjónarhornið aftur á byrjunarstað</li><li><b>Myndavélin</b> — vistar mynd af hönnuninni</li>') +
+      __('<li><b>Gangandi maðurinn</b> — gakktu um eldhúsið í augnhæð</li><li><b>Málband</b> — smelltu á tvo punkta til að mæla</li><li><b>X-Ray</b> — tekur framhliðarnar af svo þú sérð inn í skápana</li><li><b>Örvarnar</b> — afturkalla og endurgera</li>') + '</ul>', next:__("Næsta →") },
     { el:function(){ return document.getElementById("edNewUnit"); }, title:__("Hér skráir þú nýja einingu"), html:__("Smelltu á „＋ Ný eining“."), click:true,
       done:function(){ return !!uw; } },
     { el:function(){ return document.querySelector('#uwSide [data-uw-cat="0"]'); }, title:__("Smelltu á grunnskáp"), html:__("Grunnskápar standa á gólfinu undir borðplötunni."), click:true,
