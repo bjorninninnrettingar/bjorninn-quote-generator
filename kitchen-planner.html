@@ -385,6 +385,7 @@
   .opw-head2 .opw-q{ margin:auto 0 0; }
   .opw-head2 .opw-navs{ margin-top:10px; }
   .opw-head2 #opwNext, .opw-head2 #opwPrev{ margin:0; align-self:stretch; }
+  .opw-head2 .opw-slot{ visibility:hidden; }
   .btn-dark{ background:#191919; color:#fff; border-color:#191919; }
   .btn-dark:hover{ background:#000; }
   .wall-inset{ flex:1; min-width:0; width:100%; height:auto; display:block; margin:0; background:#fff; border:1px solid var(--line); border-radius:12px; padding:8px; box-sizing:border-box; }
@@ -3615,8 +3616,10 @@
     // 2026-10-11: "Veggur 2 af 4" + its length, three equal buttons, the obstacles behind "+ Fleiri valkostir",
     // and "Næsti veggur →" whether or not anything was added
     add.innerHTML = cur ? '<div class="opw-top">' + wallPlanInset(cur) + '<div class="opw-head2"><b>' + __("Veggur {n} af {m}", { n:num, m:walls.length }) + '</b><small>' + cur.lengthMm + ' mm</small>' +
-        '<div class="opw-navs">' + (wi > 0 ? '<button type="button" class="btn btn-secondary btn-small" id="opwPrev">' + __("← Fyrri veggur") + '</button>' : '') +
-        (last ? '' : '<button type="button" class="btn btn-dark btn-small" id="opwNext">' + __("Næsti veggur →") + '</button>') + '</div><p class="opw-q">' + __("Bæta við") + '</p></div></div>' +
+        // the buttons never move (user, 2026-10-24): "Næsti veggur" always on top, "Fyrri veggur" under it — a missing
+        // one keeps its slot (invisible), so a second click on the same spot does the same thing again
+        '<div class="opw-navs">' + (last ? '<span class="btn btn-small opw-slot" aria-hidden="true">' + __("Næsti veggur →") + '</span>' : '<button type="button" class="btn btn-dark btn-small" id="opwNext">' + __("Næsti veggur →") + '</button>') +
+        (wi > 0 ? '<button type="button" class="btn btn-secondary btn-small" id="opwPrev">' + __("← Fyrri veggur") + '</button>' : '<span class="btn btn-small opw-slot" aria-hidden="true">' + __("← Fyrri veggur") + '</span>') + '</div><p class="opw-q">' + __("Bæta við") + '</p></div></div>' +
       '<div class="opw-btns3"><button type="button" class="opw-btn" data-add="gluggi"><span>' + icon("window", 20) + '</span>' + __("Gluggi") + '</button><button type="button" class="opw-btn" data-add="hurd"><span>' + icon("door", 20) + '</span>' + __("Hurð") + '</button>' +
         '<button type="button" class="opw-btn" data-add="gat" title="' + __("Op án hurðar.") + '"><span>' + icon("opening", 20) + '</span>' + __("Op") + '</button></div>' +
       '<details class="opw-obst"' + (obsOnWall || openWallMore ? ' open' : '') + '><summary>' + __("+ Fleiri valkostir") + '</summary><div class="opw-obst-btns">' + Object.keys(KP3D.OBSTACLES).filter(function(k){ return k !== "stolpi" && k !== "milliveggur"; }).map(function(k){ // those two are on the size page now
