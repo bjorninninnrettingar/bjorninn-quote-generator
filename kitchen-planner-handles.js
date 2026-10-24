@@ -46,5 +46,6 @@ window.KPHANDLES = {
     hvitt:   { label:"Hvítt matt",     hex:"#efeeea", metal:0.05, rough:0.6 }
   },
   // every handle from the earlier catalogue is hidden (still usable by old drafts) except these two, which live in a group
-  placeExisting: { fraest:"an", push:"an" }
+  // (fraest left the picker 2026-10-24 — done properly now as Spónagrip, spónlagt fronts only; old drafts still render it)
+  placeExisting: { push:"an" }
 };
