@@ -1520,6 +1520,7 @@
     "Hornið sem er inndregið": "The set-in corner",
     "+ Bæta við vegg": "+ Add a wall",
     "Skiptir veggnum í tvennt. Dragðu svo nýja hornið til.": "Splits the wall in two. Then drag the new corner.",
+    "← Fyrri veggur": "← Previous wall",
     "Svona hannar þú allt heimilið": "How to design your whole home",
     "Um 15 mínútur. Þú þarft ekki að vera nákvæm(ur) — við mælum allt á staðnum áður en nokkuð er smíðað.": "About 15 minutes. You don't need to be exact — we measure everything on site before anything is built.",
     "Skref 1": "Step 1",

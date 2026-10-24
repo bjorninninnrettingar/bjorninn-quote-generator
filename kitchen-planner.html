@@ -463,6 +463,9 @@
   .wall-row input[type=number]{ width:96px; font:inherit; font-size:14px; padding:6px 8px; border:1px solid var(--line); border-radius:8px; }
   .wall-row .u{ font-size:12px; color:var(--ink-soft); }
   .shape-cards[hidden], .shape-note[hidden]{ display:none; }
+  .el-nav{ cursor:pointer; }
+  .el-nav:hover{ fill:#191919; text-decoration:underline; }
+  .opw-navs{ display:flex; gap:6px; flex-wrap:wrap; }
   .wl-add{ width:100%; border:1px dashed var(--line); background:#fff; border-radius:10px; padding:8px; font:inherit; font-size:13px; color:var(--ink-soft); cursor:pointer; margin-top:2px; }
   .wl-add:hover{ border-color:var(--ink); color:var(--ink); }
   .lc-pick{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; font-size:13px; }
@@ -3489,9 +3492,10 @@
     // 2026-10-11: "Veggur 2 af 4" + its length, three equal buttons, the obstacles behind "+ Fleiri valkostir",
     // and "Næsti veggur →" whether or not anything was added
     add.innerHTML = cur ? '<div class="opw-top">' + wallPlanInset(cur) + '<div class="opw-head2"><b>' + __("Veggur {n} af {m}", { n:num, m:walls.length }) + '</b><small>' + cur.lengthMm + ' mm</small>' +
-        (last ? '' : '<button type="button" class="btn btn-dark btn-small" id="opwNext">' + __("Næsti veggur →") + '</button>') + '<p class="opw-q">' + __("Bæta við") + '</p></div></div>' +
+        '<div class="opw-navs">' + (wi > 0 ? '<button type="button" class="btn btn-secondary btn-small" id="opwPrev">' + __("← Fyrri veggur") + '</button>' : '') +
+        (last ? '' : '<button type="button" class="btn btn-dark btn-small" id="opwNext">' + __("Næsti veggur →") + '</button>') + '</div><p class="opw-q">' + __("Bæta við") + '</p></div></div>' +
       '<div class="opw-btns3"><button type="button" class="opw-btn" data-add="gluggi"><span>' + icon("window", 20) + '</span>' + __("Gluggi") + '</button><button type="button" class="opw-btn" data-add="hurd"><span>' + icon("door", 20) + '</span>' + __("Hurð") + '</button>' +
-        '<button type="button" class="opw-btn" data-add="gat" title="' + __("Op án hurðar.") + '"><span>' + icon("opening", 20) + '</span>' + __("Op") + '<small>' + __("án hurðar") + '</small></button></div>' +
+        '<button type="button" class="opw-btn" data-add="gat" title="' + __("Op án hurðar.") + '"><span>' + icon("opening", 20) + '</span>' + __("Op") + '</button></div>' +
       '<details class="opw-obst"' + (obsOnWall || openWallMore ? ' open' : '') + '><summary>' + __("+ Fleiri valkostir") + '</summary><div class="opw-obst-btns">' + Object.keys(KP3D.OBSTACLES).map(function(k){
         return '<button type="button" class="hw-btn" data-addobst="' + k + '">＋ ' + __(KP3D.OBSTACLES[k].label.replace(" (miðstöð)", "")) + '</button>';
       }).join("") + '</div></details>' +
@@ -3679,8 +3683,12 @@
     // the neighbouring walls at the corners
     var prev = state.walls[(wi - 1 + n) % n], next = state.walls[(wi + 1) % n];
     // the neighbouring walls, level and readable, in the wall's top corners (2026-10-11 — were tiny and turned on end)
-    if (state.closed || wi > 0) svg += '<text x="' + (x0 + 10) + '" y="' + (top + 22) + '" font-size="14" font-weight="600" fill="#8a8f9a">← ' + __("Veggur {n}", { n:state.walls.indexOf(prev) + 1 }) + (prev.open ? ' ' + __("(opinn)") : '') + '</text>';
-    if (state.closed || wi < n - 1) svg += '<text x="' + (x0 + L * sc - 10) + '" y="' + (top + 22) + '" font-size="14" font-weight="600" text-anchor="end" fill="#8a8f9a">' + __("Veggur {n}", { n:state.walls.indexOf(next) + 1 }) + (next.open ? ' ' + __("(opinn)") : '') + ' →</text>';
+    // …and a click goes there (user, 2026-10-24: "← Veggur 4 virkar ekki") — past an open wall to the next real one
+    function solidFrom(step){ for (var k = 1; k < n; k++){ var w3 = state.walls[(wi + step * k + n * k) % n]; if (!w3.open) return w3; } return null; }
+    var prevS = solidFrom(-1), nextS = solidFrom(1);
+    function navTxt(x, anchor, nb, tgt, txt){ return '<text' + (tgt ? ' data-eljump="' + tgt.id + '" class="el-nav"' : '') + ' x="' + x + '" y="' + (top + 22) + '" font-size="14" font-weight="600"' + (anchor ? ' text-anchor="end"' : '') + ' fill="#8a8f9a">' + txt + '</text>'; }
+    if (state.closed || wi > 0) svg += navTxt(x0 + 10, false, prev, prevS && prevS !== wall ? prevS : null, '← ' + __("Veggur {n}", { n:state.walls.indexOf(prev) + 1 }) + (prev.open ? ' ' + __("(opinn)") : ''));
+    if (state.closed || wi < n - 1) svg += navTxt(x0 + L * sc - 10, true, next, nextS && nextS !== wall ? nextS : null, __("Veggur {n}", { n:state.walls.indexOf(next) + 1 }) + (next.open ? ' ' + __("(opinn)") : '') + ' →');
     var items = elItems(wall.id), pills = "";
     if (!items.length) svg += '<text x="' + (x0 + L * sc / 2) + '" y="' + (top + roomH * sc / 2) + '" font-size="15" text-anchor="middle" fill="#b3b0a8">' + __("Engir gluggar eða hurðir á þessum vegg") + '</text>';
     items.forEach(function(it){
