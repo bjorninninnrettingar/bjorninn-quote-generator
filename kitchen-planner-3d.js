@@ -4393,12 +4393,13 @@
       } else if (def.look === "sill"){
         part(new THREE.BoxGeometry(wM, hM, dM), 0xe6e2da, 0.35, 0, 0, hM / 2, 0);
       } else if (def.shapes && o.shape === "round"){ // a round column (2026-10-23)
-        part(new THREE.CylinderGeometry(Math.min(wM, dM) / 2, Math.min(wM, dM) / 2, hM, 40), new THREE.Color(wallColor).lerp(new THREE.Color(0x8a857a), 0.18).getHex(), 1, 0, 0, hM / 2, 0);
+        part(new THREE.CylinderGeometry(Math.min(wM, dM) / 2, Math.min(wM, dM) / 2, hM, 40), new THREE.Color(wallColor).getHex(), 1, 0, 0, hM / 2, 0);
       } else {
-        part(new THREE.BoxGeometry(wM, hM, dM), new THREE.Color(wallColor).lerp(new THREE.Color(0x8a857a), 0.18).getHex(), 1, 0, 0, hM / 2, 0); // a shade darker than the wall, so it reads on a white wall
+        // a shade darker than the wall, so it reads on a white wall — columns and milliveggir are the wall itself (user, 2026-10-24)
+        part(new THREE.BoxGeometry(wM, hM, dM), (def.free && !def.ceiling ? new THREE.Color(wallColor) : new THREE.Color(wallColor).lerp(new THREE.Color(0x8a857a), 0.18)).getHex(), 1, 0, 0, hM / 2, 0);
       }
       scene.add(grp);
-      if (!outM && def.look === "wall") fadeWithWall(o.wallId, grp); // a pipe box / beam on a faded wall fades with it
+      if (!outM && def.look === "wall" && !(def.free && !def.ceiling)) fadeWithWall(o.wallId, grp); // a pipe box / beam on a faded wall fades with it — a column / milliveggur stands in the room and never does
       // a milliveggur's far-end handle (2026-10-20): drag it to stretch/shrink the partition instead of
       // only typing "Lengd út í rýmið" — a small ball at the tip, mid-height, always there (not just while
       // selected, same as the island puck) so it reads as grabbable at a glance
