@@ -171,7 +171,7 @@
   // The picker now mirrors bjorninninnrettingar.is → Efnisúrval: three front groups.
   var LOOK_CATEGORIES = [
     { key:"vidarliki",     label:"Viðarlíki",     blurb:"Hlýlegt og stílhreint, slitsterkt og hagkvæmt — frá ljósri eik yfir í dökkar viðartegundir." },
-    { key:"framhlidaefni", label:"Framhliðaefni", blurb:"Fáguð, lituð og silkimjúk yfirborð sem minna á hágæða lakk." },
+    { key:"framhlidaefni", label:"Einlitt", blurb:"Fáguð, lituð og silkimjúk yfirborð sem minna á hágæða lakk." },
     { key:"sponlagt",      label:"Spónlagt",      blurb:"Ekta viður — hver innrétting verður einstök, með lifandi mynstri." }
   ];
   // Floors (chosen on the "Skilgreindu rýmið" page): three parquets, three tiles.

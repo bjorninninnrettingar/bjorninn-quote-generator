@@ -573,10 +573,10 @@
   .mat-side .tab-btn{ padding:6px 12px; font-size:13px; }
   .mat-side .flt-row{ display:flex; align-items:center; gap:8px; margin:0 0 6px; min-height:34px; }
   .mat-side .flt-row .tone-row{ margin:0; flex-wrap:nowrap; flex:none; }
-  .mat-side .flt-row .sw-search{ margin:0 0 0 auto; flex:none; width:210px; padding:6px 10px; font-size:13px; } /* fixed width, always at the right: it never moves when a tab has fewer (or no) tone chips */
+  .mat-side .flt-row .sw-search{ margin:0 0 0 auto; flex:0 1 210px; min-width:96px; width:210px; padding:6px 10px; font-size:13px; } /* fixed width, always at the right: it never moves when a tab has fewer (or no) tone chips */
   .mat-side .look-picked{ margin:0 0 6px; }
   .sw-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(108px,1fr)); gap:10px; margin-bottom:6px; }
-  .sw-tile{ position:relative; background:#fff; border:1.5px solid var(--line); border-radius:12px; overflow:hidden; cursor:pointer; text-align:left; padding:0; font:inherit; }
+  .sw-tile{ position:relative; background:#fff; border:1.5px solid var(--line); border-radius:12px; overflow:hidden; cursor:pointer; text-align:left; padding:0; font:inherit; display:flex; flex-direction:column; justify-content:flex-start; align-items:stretch; }
   .sw-tile:hover{ border-color:var(--blue); }
   .sw-tile.active{ border-color:var(--blue); box-shadow:0 0 0 3px var(--blue-soft); }
   .sw-tile img, .sw-tile .sw-fill{ width:100%; aspect-ratio:4/3; object-fit:cover; display:block; background:var(--panel); }
@@ -6932,7 +6932,7 @@
     // tone chips (2026-10-11) on a long list: Ljóst / Miðlungs / Dökkt by the decor's average colour
     keys = toneFilter("lookTones", "lookCards", keys, LOOKS, lookToneSel, function(t){ lookToneSel = t; renderLookCards(); });
     var picked = state.look && LOOKS[state.look];
-    document.getElementById("lookPicked").innerHTML = picked ? __("Valið:") + ' <b>' + __(picked.label) + '</b>' + (picked.code ? ' · ' + picked.code : '') : __("Ekkert valið enn");
+    document.getElementById("lookPicked").innerHTML = picked ? __("Valið:") + ' <b>' + __(picked.label) + '</b>' : __("Ekkert valið enn");
     if (!keys.length && lookQuery){ container.innerHTML = '<p class="tab-blurb" style="grid-column:1/-1;">' + __("Ekkert fannst — prófaðu annað orð.") + '</p>'; return; }
     container.innerHTML = keys.map(function(key){
       var l = LOOKS[key];
@@ -6940,8 +6940,8 @@
         // Björninn's spónlagt photos are a sheet on a grey background: zoomed in so the wood fills the tile (2026-10-12).
         // A handful of Egger decors whose Raport CAD image reads "zoomed out"/patchy get their own picker-only
         // zoom the same way (l.zoom, a scale factor — EGGER_PICKER_ZOOM in kitchen-planner-3d.js, 2026-10-14).
-        (l.img ? ((l.category === "sponlagt" || l.zoom) ? '<div class="sw-crop"><img src="' + l.img + '" alt="' + l.label + '"' + (l.zoom ? ' style="transform:scale(' + l.zoom + ')"' : '') + ' loading="lazy"></div>' : '<img src="' + l.img + '" alt="' + l.label + '" loading="lazy">') : '<div class="sw-fill" style="background:' + l.color3d + ';"></div>') +
-        '<div class="sw-name">' + __(l.label) + (l.code ? '<small>' + l.code + '</small>' : '') + '</div></button>';
+        (l.img ? ((l.category === "sponlagt" || l.zoom) ? '<div class="sw-crop" style="background:' + (l.color3d || "") + ';"><img src="' + l.img + '" alt="' + l.label + '"' + (l.zoom ? ' style="transform:scale(' + l.zoom + ')"' : '') + ' loading="lazy"></div>' : '<img src="' + l.img + '" alt="' + l.label + '" loading="lazy" style="background:' + (l.color3d || "") + ';">') : '<div class="sw-fill" style="background:' + l.color3d + ';"></div>') +
+        '<div class="sw-name">' + __(l.label) + '</div></button>'; // (no Egger code: noise to a customer — the search still finds it)
     }).join("");
     container.querySelectorAll("[data-look]").forEach(function(card){
       card.addEventListener("click", function(){ selectLook(card.dataset.look); });
@@ -6965,14 +6965,14 @@
     var firstKey = Object.keys(TOPS).find(function(k){ return TOPS[k].group === grp.key; });
     document.getElementById("topBlurb").textContent = __(grp.blurb) + (grp.key === "engin" ? "" : " " + __("Þykkt: {n} mm.", { n:Math.round(KP3D.topThickM(firstKey) * 1000) })); blurbTip("topBlurb", "topTabs");
     var active = state.top || "steinn", pickedTop = TOPS[active];
-    document.getElementById("topPicked").innerHTML = pickedTop ? __("Valið:") + ' <b>' + __(pickedTop.label) + '</b>' + (pickedTop.code ? ' · ' + pickedTop.code : '') + (state.top ? '' : ' · ' + __("sjálfgefið, veldu aðra ef þú vilt")) : '';
+    document.getElementById("topPicked").innerHTML = pickedTop ? __("Valið:") + ' <b>' + __(pickedTop.label) + '</b>' + (state.top ? '' : ' · ' + __("sjálfgefið, veldu aðra ef þú vilt")) : '';
     var keys = toneFilter("topTones", "topCards", topsOf(grp.key), TOPS, topToneSel, function(t){ topToneSel = t; renderTopCards(); });
     var container = document.getElementById("topCards");
     container.innerHTML = keys.map(function(key){
       var t = TOPS[key];
       return '<button type="button" class="sw-tile' + (active === key ? ' active' : '') + '" data-top="' + key + '" title="' + __(t.label) + '">' +
-        (t.none ? '<div class="sw-fill" style="display:flex;align-items:center;justify-content:center;font-size:30px;color:var(--ink-soft);">⊘</div>' : t.img ? '<img src="' + t.img + '" alt="' + __(t.label) + '" loading="lazy">' : t.marble && window.KPMat && KPMat.marbleTexture ? '<img src="' + marbleSwatch(t.marble) + '" alt="' + __(t.label) + '">' : '<div class="sw-fill" style="background:linear-gradient(135deg,#f0ece4,#d9d3c6);"></div>') +
-        '<div class="sw-name">' + __(t.label) + (t.code ? '<small>' + t.code + '</small>' : '') + '</div></button>';
+        (t.none ? '<div class="sw-fill" style="display:flex;align-items:center;justify-content:center;font-size:30px;color:var(--ink-soft);">⊘</div>' : t.img ? '<img src="' + t.img + '" alt="' + __(t.label) + '" loading="lazy"' + (t.color3d ? ' style="background:' + t.color3d + ';"' : '') + '>' : t.marble && window.KPMat && KPMat.marbleTexture ? '<img src="' + marbleSwatch(t.marble) + '" alt="' + __(t.label) + '">' : '<div class="sw-fill" style="background:linear-gradient(135deg,#f0ece4,#d9d3c6);"></div>') +
+        '<div class="sw-name">' + __(t.label) + '</div></button>';
     }).join("");
     container.querySelectorAll("[data-top]").forEach(function(card){
       card.addEventListener("click", function(){ selectTop(card.dataset.top); });

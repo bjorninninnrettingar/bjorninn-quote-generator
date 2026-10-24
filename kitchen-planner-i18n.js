@@ -1532,6 +1532,7 @@
     "Smelltu til að setja vatnið hér": "Click to put the water here",
     "Smelltu á vegginn þar sem vatnið kemur inn.": "Click the wall where the water comes in.",
     "Við notum þetta til að staðsetja vaskinn og uppþvottavélina.": "We use it to place the sink and the dishwasher.",
+    "Einlitt": "Solid colour",
     "Svona hannar þú allt heimilið": "How to design your whole home",
     "Um 15 mínútur. Þú þarft ekki að vera nákvæm(ur) — við mælum allt á staðnum áður en nokkuð er smíðað.": "About 15 minutes. You don't need to be exact — we measure everything on site before anything is built.",
     "Skref 1": "Step 1",
