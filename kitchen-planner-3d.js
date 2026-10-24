@@ -2365,6 +2365,14 @@
       p.group.rotation.y = (p.hinge === "left" ? -1 : 1) * 1.75 * smooth01(p.cur * 2.2);
       p.trays.forEach(function(t, i){
         var k = smooth01((p.cur - 0.3 - i * 0.14) / 0.56), arc = Math.sin(Math.PI * k);
+        if (t.real){ // turn about the column (first 55 %), then slide out in front while easing back toward square
+          var k1 = Math.min(1, k / 0.55), k2 = Math.max(0, (k - 0.55) / 0.45), a = t.a1 * k1;
+          var cx0 = -t.px, cz0 = t.z0 - t.pz, ca = Math.cos(a), sa = Math.sin(a); // tray centre relative to the pivot, turned by a
+          var bx = t.px + cx0 * ca + cz0 * sa, bz = t.pz - cx0 * sa + cz0 * ca;
+          t.group.position.set(bx + (t.xEnd - bx) * k2, t.y, bz + (t.zEnd - bz) * k2);
+          t.group.rotation.y = a + (t.aEnd - a) * k2;
+          return;
+        }
         t.group.position.set(t.xIn + (t.xOut - t.xIn) * k, t.y, t.z0 + t.outZ * k);
         t.group.rotation.y = t.turn * arc;
       });
@@ -2709,18 +2717,75 @@
     [plate, rail].forEach(function(m){ m.rotation.x = -Math.PI / 2; m.castShadow = true; m.receiveShadow = true; g.add(m); });
     return g;
   }
+  // The real Kesseböhmer LeMans II (SketchUp → .dae, the right-hand version, user 2026-10-24): one kidney tray per
+  // level (group_1 lower, group_19 upper, each with its rail) and the pivot column (group_14/23/9/12). Baked to
+  // metres, each tray re-centred (x/z on its own centre, bottom at 0); the left-hand one is the same mirrored.
+  var LEMANS_FILE = "models/lemans/lemans-ii-r.dae", LEMANS_REAL = { state:"", trays:null, column:null, w:0, d:0 };
+  function leMansReal(){
+    if (LEMANS_REAL.state) return LEMANS_REAL.state === "ready" ? LEMANS_REAL : null;
+    LEMANS_REAL.state = "loading";
+    loadRaw(LEMANS_FILE, function(root){
+      var THREE = window.__THREE__;
+      root.updateMatrixWorld(true);
+      var metal = new THREE.MeshStandardMaterial({ color:0xc9ccd0, roughness:0.28, metalness:0.85 }),
+          plate = new THREE.MeshStandardMaterial({ color:0xf2f2f0, roughness:0.55, metalness:0.05 });
+      function bake(name){ // a group's meshes with their world transform baked in, as one Group
+        var src = root.getObjectByName(name), out = new THREE.Group();
+        if (!src) return out;
+        src.traverse(function(o){
+          if (!o.isMesh) return;
+          var gm = o.geometry.clone(); gm.applyMatrix4(o.matrixWorld);
+          var light = (Array.isArray(o.material) ? o.material[0] : o.material);
+          var col = light && light.color ? light.color : null, isPlate = col && col.r > 0.85 && col.g > 0.85 && col.b > 0.85;
+          var m = new THREE.Mesh(gm, isPlate ? plate : metal); m.castShadow = true; m.receiveShadow = true; out.add(m);
+        });
+        return out;
+      }
+      var lower = bake("group_1"), upper = bake("group_19"), col = new THREE.Group();
+      ["group_14", "group_23", "group_9", "group_12"].forEach(function(n){ col.add(bake(n)); });
+      col.traverse(function(m){ if (m.isMesh) m.material = metal; }); // the column is steel, whatever colour the file gave it
+      var bb = new THREE.Box3().setFromObject(lower, true), ctr = bb.getCenter(new THREE.Vector3());
+      [lower, upper].forEach(function(g){ var b2 = new THREE.Box3().setFromObject(g, true); g.children.forEach(function(m){ m.geometry.translate(-ctr.x, -b2.min.y, -ctr.z); }); });
+      var cb = new THREE.Box3().setFromObject(col, true);
+      var cc = cb.getCenter(new THREE.Vector3()); LEMANS_REAL.colX = cc.x - ctr.x; LEMANS_REAL.colZ = cc.z - ctr.z; // the pivot, from the tray's centre
+      col.traverse(function(m){ if (m.isMesh) m.geometry.translate(-ctr.x, -cb.min.y, -ctr.z); }); // column in tray coordinates, bottom at 0
+      LEMANS_REAL.trays = [lower, upper]; LEMANS_REAL.column = col; LEMANS_REAL.colH = cb.max.y - cb.min.y;
+      LEMANS_REAL.w = bb.max.x - bb.min.x; LEMANS_REAL.d = bb.max.z - bb.min.z;
+      LEMANS_REAL.state = "ready";
+      window.dispatchEvent(new Event("kp3d-model-loaded"));
+    }, function(){ LEMANS_REAL.state = "error"; });
+    return null;
+  }
   function addLeMansTrays(THREE, frame, doorPart, cxDoor, hw, CD, bodyBase, bodyH, left, meta, pickables){
     if (!doorPart) return;
-    var w = Math.max(0.3, hw - 0.07), d = Math.max(0.3, Math.min(0.5, CD - 0.08)), trays = [];
+    var real = leMansReal(), inward = left ? 1 : -1, trays = [];
     var pmeta = Object.assign({}, meta, { isPart:true, partKey:doorPart.key });
-    [0.08, 0.5].forEach(function(f){
-      var g = leMansTray(THREE, w, d), y = bodyBase + bodyH * f;
-      frame.add(g);
-      g.traverse(function(o){ if (o.isMesh){ o.userData = pmeta; pickables.push(o); } });
-      // closed: tucked partly into the blind corner; open: out through the door, square in front of it
-      var inward = left ? 1 : -1;
-      trays.push({ group:g, xIn:cxDoor + inward * hw * 0.35, xOut:cxDoor - inward * 0.03, y:y, z0:CD - 0.03 - d / 2, outZ:d + 0.1, turn:-inward * 0.55 });
-    });
+    if (real){ // the whole cabinet's width when closed (half in the blind corner), out through the door when open
+      var innerW = Math.max(0.5, 2 * hw - 0.05), d = Math.max(0.3, Math.min(0.52, CD - 0.06));
+      var sx = innerW / real.w, sz = d / real.d, mx = left ? -1 : 1; // the file is the right-hand LeMans
+      var zIn = CD - 0.02 - d / 2;
+      var colG = real.column.clone(true); colG.scale.set(sx * mx, Math.max(0.5, bodyH - 0.06) / real.colH, sz); colG.position.set(0, bodyBase + 0.03, zIn);
+      frame.add(colG);
+      [0.08, 0.5].forEach(function(f, k){
+        var g = new THREE.Group(), t = real.trays[k].clone(true);
+        t.scale.set(sx * mx, 1, sz); g.add(t); frame.add(g);
+        g.traverse(function(o){ if (o.isMesh){ o.userData = pmeta; pickables.push(o); } });
+        // out straight in front of the cabinet, a touch toward the blind side so the open door (hinged on the outer side) stays clear
+        // the real motion: the tray first turns about the column out through the opening, then slides out in front
+        trays.push({ group:g, real:true, y:bodyBase + bodyH * f, z0:zIn, px:real.colX * sx * mx, pz:zIn + real.colZ * sz,
+          // open: out of the opening, pointing away from the cabinet at a slight angle (how a LeMans II stands open)
+          a1:inward * Math.PI / 2, xEnd:real.colX * sx * mx - inward * d * 0.55, zEnd:zIn + d / 2 + innerW * 0.42, aEnd:inward * 1.3 });
+      });
+    } else {
+      var w = Math.max(0.3, hw - 0.07), d2 = Math.max(0.3, Math.min(0.5, CD - 0.08));
+      [0.08, 0.5].forEach(function(f){
+        var g = leMansTray(THREE, w, d2), y = bodyBase + bodyH * f;
+        frame.add(g);
+        g.traverse(function(o){ if (o.isMesh){ o.userData = pmeta; pickables.push(o); } });
+        // closed: tucked partly into the blind corner; open: out through the door, square in front of it
+        trays.push({ group:g, xIn:cxDoor + inward * hw * 0.35, xOut:cxDoor - inward * 0.03, y:y, z0:CD - 0.03 - d2 / 2, outZ:d2 + 0.1, turn:-inward * 0.55 });
+      });
+    }
     doorPart.kind = "lemans"; doorPart.trays = trays;
     applyPart(doorPart);
   }
