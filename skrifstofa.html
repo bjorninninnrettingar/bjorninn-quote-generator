@@ -147,11 +147,18 @@
     transform:scale(1.02); }
   /* Always faintly visible (2026-10-23, was opacity:0/hover-only) — a drag handle nobody can see
      is a drag handle nobody finds; full opacity on hover so it's still unobtrusive at rest. */
-  .arrangeHandle { position:absolute; top:6px; right:6px; display:flex; gap:3px; opacity:.4; transition:opacity .1s; }
+  .arrangeHandle { position:absolute; top:6px; right:6px; display:flex; align-items:center; gap:3px; opacity:.4; transition:opacity .1s; }
   .arrangeRow > div:hover .arrangeHandle { opacity:1; }
-  .arrangeHandle button { all:unset; box-sizing:border-box; width:20px; height:20px; display:flex; align-items:center; justify-content:center; border-radius:5px; background:var(--bg); border:1px solid var(--line); font-size:.62rem; font-weight:700; color:var(--muted); cursor:pointer; }
+  .arrangeHandle button { all:unset; box-sizing:border-box; width:20px; height:20px; flex:none; display:flex; align-items:center; justify-content:center; border-radius:5px; background:var(--bg); border:1px solid var(--line); font-size:.62rem; font-weight:700; color:var(--muted); cursor:pointer; }
   .arrangeHandle button.sizeOn { background:var(--accent); color:#fff; border-color:var(--accent); }
   .arrangeHandle .dragHandle { cursor:grab; font-size:.8rem; user-select:none; }
+  /* Size buttons collapsed by default (2026-10-24, "soldið mikið í gangi núna") — only the ⠿ drag
+     dot shows at rest; hovering it slides S/M/L/XL out from underneath. The drag handle is always
+     the LAST child here, flush against .arrangeHandle's own fixed right edge, so its on-screen
+     position never moves as sizeBtns grows/shrinks beside it — if the dot itself shifted on hover,
+     the cursor would end up off it and the reveal would flicker open/closed in a loop. */
+  .sizeBtns { display:flex; gap:3px; max-width:0; overflow:hidden; transition:max-width .18s ease; }
+  .arrangeHandle:hover .sizeBtns { max-width:160px; }
   .cashKpi { position:relative; }
   .cashKpi .lbl { display:flex; align-items:center; gap:6px; }
   .cashKpi.expandable { cursor:pointer; }
@@ -450,10 +457,10 @@
       var handle = document.createElement("div");
       handle.className = "arrangeHandle";
       handle.innerHTML =
-        '<button class="dragHandle" type="button" title="Draga til að raða">⠿</button>' +
-        sizeChoices.map(function (c) {
+        '<span class="sizeBtns">' + sizeChoices.map(function (c) {
           return '<button type="button" class="sizeBtn' + (el.dataset.size === c[0] ? " sizeOn" : "") + '" data-s="' + c[0] + '" title="' + c[2] + '">' + c[1] + "</button>";
-        }).join("");
+        }).join("") + '</span>' +
+        '<button class="dragHandle" type="button" title="Draga til að raða">⠿</button>';
       el.appendChild(handle);
       handle.querySelectorAll(".sizeBtn").forEach(function (btn) {
         btn.addEventListener("click", function (e) {
