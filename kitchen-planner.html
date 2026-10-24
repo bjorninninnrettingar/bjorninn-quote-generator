@@ -538,6 +538,8 @@
   .drawer-card:hover{ border-color:var(--blue); }
   .drawer-card.active{ border-color:var(--blue); box-shadow:0 0 0 3px var(--blue-soft); }
   .drawer-card .dc-ico{ flex:none; width:64px; height:64px; border-radius:12px; background:var(--panel); display:flex; align-items:center; justify-content:center; font-size:28px; }
+  .drawer-card .dc-pic{ position:relative; width:96px; height:72px; overflow:hidden; }
+  .drawer-card .dc-pic img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
   .drawer-card .dc-name{ font-size:16px; font-weight:600; }
   .drawer-card{ position:relative; }
   .drawer-card.active::after{ content:"✓"; position:absolute; top:8px; right:8px; width:20px; height:20px; border-radius:50%; background:var(--blue); color:#fff; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; }
@@ -7087,7 +7089,8 @@
     container.innerHTML = Object.keys(DRAWER_SYSTEMS).sort(function(a, b){ return (DRAWER_SYSTEMS[b].popular ? 1 : 0) - (DRAWER_SYSTEMS[a].popular ? 1 : 0); }).map(function(key){
       var d = DRAWER_SYSTEMS[key];
       return '<button type="button" class="drawer-card' + (state.drawerSystem === key ? ' active' : '') + '" data-drawersys="' + key + '">' +
-        '<div class="dc-ico">' + drawerSideSvg(key) + '</div><div><div class="dc-name">' + __(d.label) + (d.popular ? ' <span class="dc-badge">' + __("Vinsælast") + '</span>' : '') + '</div><div class="dc-desc">' + __(d.desc) + '</div></div></button>';
+        // Blum's own picture when it's in images/ (blum-<key>.jpg, from the Blum marketing pack), the drawn profile until then
+        '<div class="dc-ico dc-pic">' + drawerSideSvg(key) + '<img src="images/blum-' + key + '.jpg" alt="" onerror="this.remove()"></div><div><div class="dc-name">' + __(d.label) + (d.popular ? ' <span class="dc-badge">' + __("Vinsælast") + '</span>' : '') + '</div><div class="dc-desc">' + __(d.desc) + '</div></div></button>';
     }).join("");
     container.querySelectorAll("[data-drawersys]").forEach(function(card){
       card.addEventListener("click", function(){ selectDrawerSystem(card.dataset.drawersys); });
@@ -7286,10 +7289,7 @@
     ph.render();
     renderMatActions();
     updateCabinetPreview();
-    if (ph.key === "drawers" && lastMatPhase !== matPhase && !(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches)){
-      var peekPhase = matPhase;
-      setTimeout(function(){ if (state.step === "materials" && matPhase === peekPhase) KP3D.previewPeek(2); }, 900);
-    }
+    // (the drawer page used to slide one drawer half out and back — user, 2026-10-24: the drawers stay closed until clicked)
     lastMatPhase = matPhase;
   }
   var lastMatPhase = null;

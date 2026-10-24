@@ -659,8 +659,8 @@
 
   var DRAWER_SYSTEMS = {
     // texts from Björninn (2026-10-11), shortened: Merivo the sensible everyday choice, Legra the luxury line
-    legra:  { label:"Legra",  desc:"Lúxuslínan frá Blum. Grannar, beinar hliðar og einstaklega fágað útlit, þegar smáatriðin skipta öllu. Ljúflokun, þrýstiopnun í boði.", airtableName:"LEGRA" },
-    merivo: { label:"Merivo", desc:"Okkar algengasta lausn. Sterkt og nákvæmt kerfi með hreinu útliti, án óþarfa kostnaðar. Ljúflokun, þrýstiopnun í boði.", airtableName:"MERIVO", popular:true }
+    legra:  { label:"Legra",  desc:"Lúxuslínan frá Blum. Grannar, beinar hliðar og einstaklega fágað útlit, þegar smáatriðin skipta öllu.", airtableName:"LEGRA" },
+    merivo: { label:"Merivo", desc:"Okkar algengasta lausn. Sterkt og nákvæmt kerfi með hreinu útliti, án óþarfa kostnaðar.", airtableName:"MERIVO", popular:true }
   };
 
   // Room wall color (Phase 7e) — purely a visualization preference, not a
