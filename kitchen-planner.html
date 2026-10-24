@@ -983,6 +983,10 @@
   .uw-close{ position:absolute; top:12px; right:12px; z-index:2; border:0; background:none; font-size:18px; cursor:pointer; color:var(--ink-soft); width:34px; height:34px; border-radius:8px; }
   .uw-close:hover{ background:var(--line); }
   .uw-grid{ display:grid; gap:8px; }
+  .uw-grid.uw-opts{ grid-template-columns:1fr 1fr; } /* two per row: every group's options fit without scrolling under "← Til baka" (2026-10-24) */
+  .uw-grid.uw-opts .uw-card{ padding:8px 10px; gap:10px; }
+  .uw-grid.uw-opts .uw-card svg{ width:34px; height:34px; flex-basis:34px; }
+  .uw-grid.uw-opts .uw-card b{ font-size:13.5px; }
   .uw-card{ display:flex; align-items:center; gap:12px; text-align:left; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#fff; cursor:pointer; font:inherit; color:inherit; }
   .uw-card:hover{ border-color:var(--blue); background:var(--blue-soft); }
   .uw-card svg{ width:40px; height:40px; flex:0 0 40px; }
@@ -5599,7 +5603,7 @@
       { label:"Ruslaskápur", type:"ruslaskapur" },
       { label:"Töfrahorn", type:"tofrahorn", group:"Hornskápur" },
       { label:"Hillur", type:"hornskapur", group:"Hornskápur" },
-      { label:"Lítill kassi", type:"litillkassi", drawers:true, gap:true } ] },
+      { label:"Lítill kassi", type:"litillkassi", drawers:true, group:"Annað" } ] }, // "Annað": room for more extras later (user, 2026-10-24)
     { key:"har", label:"Háir skápar", desc:"Upp undir loft", icon:"harskapur", opts:[
       { label:"Hurðir með hillum", type:"harskapur" },
       { label:"Búrskápur", type:"burskapur" } ] },
@@ -5607,7 +5611,7 @@
       { label:"Lokaður skápur með hillum", type:"efriskapur" },
       { label:"Opinn skápur með hillum", type:"opnarhillur" },
       { label:"Lausar hillur (38 mm)", type:"laushilla" } ] },
-    { key:"taeki", label:"Tækjaskápar", desc:"Ofn, ísskápur, uppþvottavél", icon:"ofnaskapur", opts:[
+    { key:"taeki", label:"Eldhústæki", desc:"Ofn, ísskápur, uppþvottavél", icon:"ofnaskapur", opts:[ // was "Tækjaskápar" — that name goes to the lift / pocket-door group (2026-10-24)
       { label:"Í háum skáp", type:"ofnaskapur", group:"Ofnaskápar" },
       { label:"Í lágum skáp", type:"ofnaskapurLagur", group:"Ofnaskápar" },
       { label:"Ofn + örbylgjuofn (60 + 45)", type:"ofnaskapur", preset:{ ovenH:1050 }, group:"Ofnaskápar" },
@@ -5616,13 +5620,11 @@
       { label:"Innbyggður frystir", type:"frystir", group:"Ísskápar" },
       { label:"Vínkælir undir borðplötu", type:"vinkaelir", group:"Ísskápar" },
       { label:"Innbyggð uppþvottavél", type:"uppthvottavel", group:"Uppþvottavélar" },
-      { label:"Frístandandi undir borðplötu", type:"uppthvottavelFri", group:"Uppþvottavélar" },
-      { label:"Vasahurðir", soon:true, group:"Hurðir fyrir tæki" },
-      { label:"Fellihurðir", soon:true, group:"Hurðir fyrir tæki" } ] },
+      { label:"Frístandandi undir borðplötu", type:"uppthvottavelFri", group:"Uppþvottavélar" } ] },
     { key:"eyja", label:"Eyja", desc:"Stendur laus á gólfinu", icon:"island1", iconKind:"island", opts:[
       { label:"Ein röð", island:"island1" },
       { label:"Tvær raðir (bak í bak)", island:"island2" } ] },
-    { key:"uthlid", label:"Úthliðar", desc:"19 mm, framhliðaefni", icon:"uthlidhar", opts:[
+    { key:"uthlid", label:"Úthliðar", desc:"Klæðning á enda innréttingar", icon:"uthlidhar", opts:[
       { label:"Úthlið — neðri", type:"uthlid" },
       { label:"Úthlið — há", type:"uthlidhar" },
       { label:"Úthlið — efri", type:"uthlidefri" },
@@ -5817,7 +5819,7 @@
     } else if (uw.step === 2){
       var cat = activeUnitTree()[uw.cat];
       var lastGroup = null;
-      html = '<p class="uw-kicker">' + __(cat.label) + '</p><h3>' + __("Veldu útfærslu") + '</h3><div class="uw-grid">' + cat.opts.map(function(o, i){
+      html = '<p class="uw-kicker">' + __(cat.label) + '</p><h3>' + __("Veldu útfærslu") + '</h3><div class="uw-grid uw-opts">' + cat.opts.map(function(o, i){
         var head = o.group && o.group !== lastGroup ? '<p class="uw-group">' + __(o.group) + '</p>' : (!o.group && lastGroup ? '<p class="uw-group"></p>' : '');
         lastGroup = o.group || null;
         if (o.soon) return head + '<button type="button" class="uw-card soon" disabled>' + catIcon("cabinet", "harskapur") + '<span><b>' + __(o.label) + '</b><small>' + __("Væntanlegt") + '</small></span></button>';
@@ -5838,7 +5840,7 @@
         var picked = !!uw.picked[key], body = '<div class="uw-chips">' + opts.map(function(v){
           return '<button type="button" class="hw-btn' + (picked && cur === v ? ' active' : (!picked && v === def ? ' suggest' : '')) + '" ' + attr + '="' + v + '"' + (!picked && v === def ? ' title="' + __("Algengast") + '"' : '') + '>' + (v / 10) + '</button>';
         }).join("") + '</div><div class="uw-custom"><input type="number" ' + cAttr + ' min="' + lo + '" max="' + hi + '" step="1" value="' + (picked ? cur : "") + '" placeholder="' + def + '"><small>' + __("mm · sérmál {lo}–{hi}", { lo:lo, hi:hi }) + '</small></div>';
-        return uwSec(key, label, picked ? (cur / 10) + " cm ✓" : "", body);
+        return uwSec(key, label, picked ? (cur / 10) + " cm ✓" : (cur / 10) + " cm", body); // the value shows while folded, picked or not (2026-10-24)
       }
       var secHtml = [];
       if (!c.panel) secHtml.push(dimSec("w", __("Breidd"), widths, b.widthMm, c.defaultW, "data-uw-w", "data-uw-wcustom", c.minW, c.maxW));
@@ -5873,7 +5875,9 @@
         innHtml += '<div class="edit-field"><label>' + __("Skúffur") + '</label><div class="hw-count"><button class="iconbtn" data-uw-drawer="-1"' + (drawerN <= drng[0] ? " disabled" : "") + '>−</button><b>' + drawerN + '</b><button class="iconbtn" data-uw-drawer="1"' + (drawerN >= drng[1] ? " disabled" : "") + '>+</button><span>' + plural(drawerN, "skúffa", "skúffur") + '</span></div></div>';
       }
       innHtml += variantHTML(b, c);
-      if (innHtml) secHtml.push(uwSec("inn", c.hasInterior || c.shelfRange || c.railRange ? __("Innvols") : __("Útfærsla"), "", innHtml));
+      var innSum = c.hasInterior && b.interior && b.interior.mode === "skuffur" ? b.interior.count + " " + plural(b.interior.count, "skúffa", "skúffur")
+        : shelfN != null ? shelfN + " " + plural(shelfN, "hilla", "hillur") : "";
+      if (innHtml) secHtml.push(uwSec("inn", c.hasInterior || c.shelfRange || c.railRange ? __("Innvols") : __("Útfærsla"), innSum, innHtml));
       html += '<div class="uw-secs">' + secHtml.join("") + '</div>';
       if (uw.island){
         side.innerHTML = html + '<div class="uw-actions"><button type="button" class="btn btn-secondary btn-small" data-uw-back>' + __("← Til baka") + '</button>' +
@@ -5902,6 +5906,7 @@
       renderUnitWizard();
     }); });
     side.querySelectorAll("[data-uw-opt]").forEach(function(el){ el.addEventListener("mouseenter", function(){ uw.hover = +el.dataset.uwOpt; schedulePreview(); }); });
+    side.querySelectorAll("[data-uw-cat]").forEach(function(el){ el.addEventListener("mouseenter", function(){ uw.hoverCat = +el.dataset.uwCat; schedulePreview(); }); }); // step 1: a typical unit of the group (user, 2026-10-24)
     side.querySelectorAll("[data-uw-opt]").forEach(function(el){ el.addEventListener("click", function(){
       var io = activeUnitTree()[uw.cat].opts[+el.dataset.uwOpt];
       if (io.islandBack){ // the back of a single-row island, clad in one 19 mm panel
@@ -6090,7 +6095,8 @@
   function renderUnitPreview(){
     var host = document.getElementById("uwPreview");
     if (!uw || !host) return;
-    var hovOpt = uw.step === 2 ? activeUnitTree()[uw.cat].opts[uw.hover || 0] : null;
+    var hovOpt = uw.step === 2 ? activeUnitTree()[uw.cat].opts[uw.hover || 0]
+      : uw.step === 1 && uw.hoverCat != null && activeUnitTree()[uw.hoverCat] ? activeUnitTree()[uw.hoverCat].opts.find(function(o){ return !o.soon && (o.type || o.island); }) : null;
     if (uw.island){ renderIslandPreview(host, uw.island.type, uw.island, uw.b && uw.b.id); return; }
     if (!uw.b && hovOpt && hovOpt.island){ renderIslandPreview(host, hovOpt.island); return; }
     var type = uw.b ? uw.b.type : (hovOpt ? hovOpt.type : null);
