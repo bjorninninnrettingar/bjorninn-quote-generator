@@ -575,11 +575,16 @@
   // have a count — they get the default stack for that count.
   // which drawer an inner drawer (innskúffa) hides behind: the highest one tall enough (IK needs a C/F/E side,
   // IM a K or taller) — the same rule the planner's drawer list shows; codes bottom → top, -1 = none
-  function innerHostIndex(codes, sysKey, inner){
-    if (!inner || !Array.isArray(codes)) return -1;
-    var side = DRAWER_CODES[sysKey === "merivo" ? "merivo" : "legra"].side, need = inner === "IK" ? 170 : 125;
-    for (var i = codes.length - 1; i >= 0; i--) if ((side[codes[i]] || 0) >= need) return i;
-    return -1;
+  // at (optional, the customer moved it): that drawer when it's tall enough, else the default
+  function innerHostIndex(codes, sysKey, inner, at){
+    var ok = innerHostsOf(codes, sysKey, inner);
+    return at != null && ok.indexOf(at) >= 0 ? at : ok.length ? ok[ok.length - 1] : -1;
+  }
+  function innerHostsOf(codes, sysKey, inner){ // every drawer an inner drawer could hide behind, bottom → top
+    if (!inner || !Array.isArray(codes)) return [];
+    var side = DRAWER_CODES[sysKey === "merivo" ? "merivo" : "legra"].side, need = inner === "IK" ? 170 : 125, out = [];
+    codes.forEach(function(cd, i){ if ((side[cd] || 0) >= need) out.push(i); });
+    return out;
   }
   function drawerCodes(interior, sysKey){
     if (!interior || interior.mode !== "skuffur") return [];
@@ -2482,29 +2487,35 @@
         side = Math.max(40, Math.min(side, fh * 1000 - 40));
         // an inner drawer (innskúffa) hides behind the tallest front: that drawer's own box drops low (a pot drawer)
         // and the inner drawer sits above it, fixed in the carcass — open the front and it's there, pull it on its own
-        var innerAt = interior && interior.inner ? (dcodes ? innerHostIndex(dcodes, sysKey, interior.inner) : drawers - 1) : -1;
-        var innerSide = fi === innerAt ? ((sysD && sysD.side[interior.inner === "IK" ? "K" : "M"]) || 90) : 0;
-        if (innerSide) side = Math.max(40, Math.min(side, fh * 1000 - innerSide - 60));
+        var innerAt = interior && interior.inner ? (dcodes ? innerHostIndex(dcodes, sysKey, interior.inner, interior.innerAt) : drawers - 1) : -1;
+        var innerCode = interior && interior.inner === "IK" ? "K" : "M", innerSide = fi === innerAt ? ((sysD && sysD.side[innerCode]) || 90) : 0;
+        var boxCode = code;
+        if (innerSide){ // the drawer under it is a low one (Blum's own low sides, never the tall code's)
+          side = Math.max(40, Math.min(side, fh * 1000 - innerSide - 60));
+          boxCode = null;
+          (sysD ? sysD.codes : []).forEach(function(cd){ var sd = sysD.side[cd] || 0; if (sd && sd <= side && (!boxCode || sd > sysD.side[boxCode])) boxCode = cd; });
+          if (boxCode) side = sysD.side[boxCode];
+        }
         var real = code && !innerSide ? getModel("drawers", sysKey + "_" + code) : null, bx;
         if (real){
           var rb = new THREE.Box3().setFromObject(real), rs = rb.getSize(new THREE.Vector3());
           bx = new THREE.Group(); real.position.set(0, 0, -rb.max.z); bx.add(real);
           bx.position.set(0, drawerBoxY(y0, y1, rs.y), CD - 0.005);
         } else {
-          bx = buildDrawerBox(THREE, sysKey, meta.carcassKey, side, Math.max(0.2, widthM - 2 * T - 0.026), Math.max(0.2, CD - BACK_T - 0.01), code, widthM - 2 * CARCASS_T);
+          bx = buildDrawerBox(THREE, sysKey, meta.carcassKey, side, Math.max(0.2, widthM - 2 * T - 0.026), Math.max(0.2, CD - BACK_T - 0.01), boxCode, widthM - 2 * CARCASS_T);
           bx.position.set(0, drawerBoxY(y0, y1, side / 1000), CD - 0.005);
         }
         g.add(bx); bx.traverse(function(o){ if (o.isMesh) meshes.push(o); });
         if (bx.userData && bx.userData.runners){ var rgR = bx.userData.runners; rgR.position.copy(bx.position); frame.add(rgR); } // runners stay in the cabinet
         if (innerSide){
           var ikey = meta.blockId + ":i" + idx, ig = new THREE.Group(), imeshes = [], ibw = Math.max(0.2, widthM - 2 * T - 0.026), ibd = Math.max(0.2, CD - 0.045 - BACK_T - 0.01);
-          var iy = Math.min(y1 - 0.012 - innerSide / 1000 - 0.02, bx.position.y + side / 1000 + 0.02);
-          var ib = buildDrawerBox(THREE, sysKey, meta.carcassKey, innerSide, ibw, ibd, null, widthM - 2 * CARCASS_T);
-          ib.position.set(0, iy, CD - 0.045);
+          var iy = Math.min(y1 - 0.012 - innerSide / 1000 - 0.02, bx.position.y + side / 1000 + 0.025);
+          var ib = buildDrawerBox(THREE, sysKey, meta.carcassKey, innerSide, ibw, Math.max(0.2, CD - 0.06 - BACK_T - 0.01), innerCode, widthM - 2 * CARCASS_T);
+          ib.position.set(0, iy, CD - 0.06); // set back behind the big front
           ig.add(ib); ib.traverse(function(o){ if (o.isMesh) imeshes.push(o); });
           if (ib.userData && ib.userData.runners){ var rgI = ib.userData.runners; rgI.position.copy(ib.position); frame.add(rgI); }
-          var ifh = innerSide / 1000 + 0.02, ifr = new THREE.Mesh(new THREE.BoxGeometry(ibw + 0.016, ifh, 0.016), meta.openMat || frontMat); // its own front, carcass colour
-          ifr.position.set(0, iy + ifh / 2, CD - 0.037); ifr.castShadow = true; ig.add(ifr); imeshes.push(ifr);
+          var ifh = innerSide / 1000 + 0.03, ifr = new THREE.Mesh(new THREE.BoxGeometry(widthM - 2 * T - 0.006, ifh, 0.016), frontMat); // its own front, in the front material
+          ifr.position.set(0, iy + ifh / 2 - 0.005, CD - 0.052); ifr.castShadow = true; ifr.receiveShadow = true; ig.add(ifr); imeshes.push(ifr);
           var ipm = Object.assign({}, meta, { isPart:true, partKey:ikey });
           imeshes.forEach(function(m){ m.userData = ipm; pickables.push(m); });
           var prevI = PART_STATE[ikey];
@@ -2899,6 +2910,11 @@
       var first = null;
       for (var i = 0; i < hits.length; i++) if (!seeThrough(hits[i].object)){ first = hits[i].object; break; }
       if (!first) return null;
+      // a drawer/door you can see through the cabinet's own invisible pick box (an inner drawer once its front is
+      // open sits inside that box) is what you're pointing at, not the box (2026-10-24)
+      if (first.material && first.material.visible === false){
+        for (var k = 0; k < hits.length; k++){ var hp = hits[k].object; if (hp.userData && hp.userData.isPart && !seeThrough(hp)) return hp; }
+      }
       // an open cabinet's own invisible pick box (its only click target, since isOpen never adds its
       // carcass boards to pickables) sits in front of its loose shelves/fataslá along this same ray —
       // prefer the one you're actually pointing at, from the SAME cabinet, over the whole box (2026-10-21)
@@ -6484,7 +6500,7 @@
     FRONT_MIN: FRONT_MIN, slotMin: slotMin,
     drawerCodes: drawerCodes,
     drawerFrontsMm: drawerFrontsMm, stackFrontsMm: stackFrontsMm,
-    drawerComboKey: drawerComboKey, comboVorunumer: comboVorunumer, innerHostIndex: innerHostIndex,
+    drawerComboKey: drawerComboKey, comboVorunumer: comboVorunumer, innerHostIndex: innerHostIndex, innerHostsOf: innerHostsOf,
     ovenCodesOf: ovenCodesOf, ovenZoneMm: ovenZoneMm, setMood: setMood, OVEN_HEIGHTS: OVEN_HEIGHTS, OVEN_BOARD_MM: OVEN_BOARD_MM,
     shelfLayoutOf: shelfLayoutOf, burDrawersOf: burDrawersOf, shelfSpaceMm: shelfSpaceMm, hasShelfLayout: hasShelfLayout, burTopMm: burTopMm, drawerBoxTopMm: drawerBoxTopMm,
     innerDrawersOf: innerDrawersOf, innerTopMm: innerTopMm,
