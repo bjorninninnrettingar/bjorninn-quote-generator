@@ -1552,6 +1552,8 @@
     "Annað": "Other",
     "+ Bæta við skúffu": "+ Add a drawer",
     "Fjarlægja þessa skúffu": "Remove this drawer",
+    "Fjarlægja innskúffuna": "Remove the inner drawer",
+    "Innskúffa": "Inner drawer",
     "Innskúffa er falin skúffa á bak við framhliðina — hún þarf að minnsta kosti eina miðlungs skúffu eða dýpri.": "An inner drawer is a hidden drawer behind the front — it needs at least one medium or deeper drawer.",
     "Innskúffa er falin skúffa á bak við framhliðina.": "An inner drawer is a hidden drawer behind the front.",
     "Annað mál": "Other size",

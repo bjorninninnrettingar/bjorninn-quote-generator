@@ -796,6 +796,9 @@
   .uw-side .dw-stack-simple{ gap:4px; margin-top:6px; }
   .uw-side .dw-row-simple{ padding:3px 8px; }
   .uw-side .dw-add-one{ padding:6px; margin-top:4px; }
+  .dw-row-inner{ margin-left:22px; border-style:dashed; background:var(--bg-soft, #f7f7f5); }
+  .dw-row-inner .dw-inner-lbl{ flex:1; font-size:14px; font-weight:600; color:var(--ink); }
+  .uw-side .dw-row-inner{ padding-top:1px; padding-bottom:1px; }
   .dw-row-simple .dw-bin{ border:0; background:none; color:var(--ink-soft); cursor:pointer; padding:4px; line-height:0; border-radius:6px; }
   .dw-row-simple .dw-bin:hover:not(:disabled){ color:#b42318; background:#fdf0ee; }
   .dw-row-simple .dw-bin:disabled{ opacity:.25; cursor:default; }
@@ -1764,7 +1767,7 @@
   var CATALOG = KP3D.CATALOG;
   var LOOKS = KP3D.LOOKS;
   // Line icons instead of emoji (user, 2026-10-23: "taka alla þessa emoja út, erum að reyna hafa þetta high end")
-  var ICON_PATHS = {"target": "<circle cx=\"12\" cy=\"12\" r=\"7.5\"/><circle cx=\"12\" cy=\"12\" r=\"2.5\"/><path d=\"M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3\"/>", "camera": "<path d=\"M4 8.5h3l1.8-2.5h6.4L17 8.5h3V19H4z\"/><circle cx=\"12\" cy=\"13.5\" r=\"3.4\"/>", "trash": "<path d=\"M5 7h14M10 7V5h4v2M7 7l.9 12.2h8.2L17 7M10.5 10.5v6M13.5 10.5v6\"/>", "lock": "<rect x=\"6\" y=\"11\" width=\"12\" height=\"9\" rx=\"1.5\"/><path d=\"M8.5 11V8a3.5 3.5 0 0 1 7 0v3\"/>", "unlock": "<rect x=\"6\" y=\"11\" width=\"12\" height=\"9\" rx=\"1.5\"/><path d=\"M8.5 11V8a3.5 3.5 0 0 1 6.9-.9\"/>", "laptop": "<rect x=\"4.5\" y=\"5\" width=\"15\" height=\"10.5\" rx=\"1\"/><path d=\"M2.5 19h19\"/>", "check": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M8 12.4l2.8 2.8L16.2 9.6\"/>", "window": "<rect x=\"5\" y=\"4\" width=\"14\" height=\"16\" rx=\".5\"/><path d=\"M12 4v16M5 12h14\"/>", "door": "<path d=\"M6.5 20.5V3.5h11v17M4 20.5h16\"/><circle cx=\"14.6\" cy=\"12\" r=\".7\"/>", "opening": "<path d=\"M6.5 20.5V3.5h11v17\" stroke-dasharray=\"2 2\"/><path d=\"M4 20.5h16\"/>", "eldhus": "<rect x=\"3.5\" y=\"10\" width=\"17\" height=\"10\" rx=\".5\"/><path d=\"M3.5 13.5h17M12 13.5V20M7 7h4M13 7h4\"/>", "fataskapar": "<rect x=\"5\" y=\"3\" width=\"14\" height=\"18\" rx=\".5\"/><path d=\"M12 3v18M10.2 11v2M13.8 11v2\"/>", "bad": "<path d=\"M4 11.5h16v1.5a6 6 0 0 1-6 6h-4a6 6 0 0 1-6-6z\"/><path d=\"M12 11.5V6h3\"/>", "thvottahus": "<rect x=\"5\" y=\"3\" width=\"14\" height=\"18\" rx=\"1.5\"/><circle cx=\"12\" cy=\"13.2\" r=\"4\"/><path d=\"M8 6.5h2\"/>", "hurdir": "<path d=\"M6.5 20.5V3.5h11v17M4 20.5h16\"/><circle cx=\"14.6\" cy=\"12\" r=\".7\"/>", "close": "<path d=\"M6.5 6.5l11 11M17.5 6.5l-11 11\"/>", "rotate": "<path d=\"M18.5 12a6.5 6.5 0 1 1-1.9-4.6\"/><path d=\"M17 3.8v3.9h-3.9\"/>", "ibud": "<path d=\"M4 11l8-6.5 8 6.5v9.5H4z\"/><path d=\"M10 20.5V15h4v5.5\"/>"};
+  var ICON_PATHS = { info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/>',"target": "<circle cx=\"12\" cy=\"12\" r=\"7.5\"/><circle cx=\"12\" cy=\"12\" r=\"2.5\"/><path d=\"M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3\"/>", "camera": "<path d=\"M4 8.5h3l1.8-2.5h6.4L17 8.5h3V19H4z\"/><circle cx=\"12\" cy=\"13.5\" r=\"3.4\"/>", "trash": "<path d=\"M5 7h14M10 7V5h4v2M7 7l.9 12.2h8.2L17 7M10.5 10.5v6M13.5 10.5v6\"/>", "lock": "<rect x=\"6\" y=\"11\" width=\"12\" height=\"9\" rx=\"1.5\"/><path d=\"M8.5 11V8a3.5 3.5 0 0 1 7 0v3\"/>", "unlock": "<rect x=\"6\" y=\"11\" width=\"12\" height=\"9\" rx=\"1.5\"/><path d=\"M8.5 11V8a3.5 3.5 0 0 1 6.9-.9\"/>", "laptop": "<rect x=\"4.5\" y=\"5\" width=\"15\" height=\"10.5\" rx=\"1\"/><path d=\"M2.5 19h19\"/>", "check": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M8 12.4l2.8 2.8L16.2 9.6\"/>", "window": "<rect x=\"5\" y=\"4\" width=\"14\" height=\"16\" rx=\".5\"/><path d=\"M12 4v16M5 12h14\"/>", "door": "<path d=\"M6.5 20.5V3.5h11v17M4 20.5h16\"/><circle cx=\"14.6\" cy=\"12\" r=\".7\"/>", "opening": "<path d=\"M6.5 20.5V3.5h11v17\" stroke-dasharray=\"2 2\"/><path d=\"M4 20.5h16\"/>", "eldhus": "<rect x=\"3.5\" y=\"10\" width=\"17\" height=\"10\" rx=\".5\"/><path d=\"M3.5 13.5h17M12 13.5V20M7 7h4M13 7h4\"/>", "fataskapar": "<rect x=\"5\" y=\"3\" width=\"14\" height=\"18\" rx=\".5\"/><path d=\"M12 3v18M10.2 11v2M13.8 11v2\"/>", "bad": "<path d=\"M4 11.5h16v1.5a6 6 0 0 1-6 6h-4a6 6 0 0 1-6-6z\"/><path d=\"M12 11.5V6h3\"/>", "thvottahus": "<rect x=\"5\" y=\"3\" width=\"14\" height=\"18\" rx=\"1.5\"/><circle cx=\"12\" cy=\"13.2\" r=\"4\"/><path d=\"M8 6.5h2\"/>", "hurdir": "<path d=\"M6.5 20.5V3.5h11v17M4 20.5h16\"/><circle cx=\"14.6\" cy=\"12\" r=\".7\"/>", "close": "<path d=\"M6.5 6.5l11 11M17.5 6.5l-11 11\"/>", "rotate": "<path d=\"M18.5 12a6.5 6.5 0 1 1-1.9-4.6\"/><path d=\"M17 3.8v3.9h-3.9\"/>", "ibud": "<path d=\"M4 11l8-6.5 8 6.5v9.5H4z\"/><path d=\"M10 20.5V15h4v5.5\"/>"};
   function icon(k, size){ size = size || 18; return '<svg class="ico" viewBox="0 0 24 24" width="' + size + '" height="' + size + '" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICON_PATHS[k] || "") + '</svg>'; }
   var LOOK_CATEGORIES = KP3D.LOOK_CATEGORIES;
   var CARCASS = KP3D.CARCASS;
@@ -5073,12 +5076,14 @@
   // its place whatever size it gets (no re-sorting), a bin removes that one, "+ Bæta við skúffu" adds one at the
   // bottom. Each size says its inside height in cm. (PRO's Smíða keeps its full editor — drawerRowsHTML.)
   function drawerSimpleHTML(b, c, codes, inner){
-    var n = codes.length, all = KP3D.DRAWER_CODES[drawerSys()].codes, rows = "";
+    var n = codes.length, all = KP3D.DRAWER_CODES[drawerSys()].codes, rows = "", innerAt = KP3D.innerHostIndex(codes, drawerSys(), inner); // the inner drawer shows under the drawer it hides behind
     for (var i = n - 1; i >= 0; i--){ // codes are stored bottom → top
       var opts = all.filter(function(cd){ if (cd === codes[i]) return true; var next = codes.slice(); next[i] = cd; return stackFits(b, c, next); });
       rows += '<div class="dw-row-simple">' + dwIcon(codes[i]) + '<select data-dw-depth="' + i + '">' + opts.map(function(cd){
         return '<option value="' + cd + '"' + (cd === codes[i] ? ' selected' : '') + '>' + codeLabelCm(cd) + '</option>';
       }).join("") + '</select><button type="button" class="dw-bin" data-dws-del="' + i + '"' + (n <= 1 ? ' disabled' : '') + ' title="' + __("Fjarlægja þessa skúffu") + '">' + icon("trash", 15) + '</button></div>';
+      if (i === innerAt) rows += '<div class="dw-row-simple dw-row-inner"><span class="dw-inner-lbl">' + __("Innskúffa") + ' · ' + codeLabelCm(inner === "IK" ? "K" : "M") + '</span>' +
+        '<button type="button" class="dw-bin" data-dws-inner-del="1" title="' + __("Fjarlægja innskúffuna") + '">' + icon("trash", 15) + '</button></div>';
     }
     var addCode = drawerAddCode(b, c, codes);
     return '<div class="dw-stack-simple">' + rows + '</div>' +
@@ -5109,6 +5114,9 @@
     host.querySelectorAll("[data-dws-del]").forEach(function(btn){
       btn.addEventListener("click", function(){ var codes = KP3D.drawerCodes(b.interior, drawerSys()); if (codes.length <= 1) return; codes.splice(+btn.dataset.dwsDel, 1); apply(codes); });
     });
+    host.querySelectorAll("[data-dws-inner-del]").forEach(function(btn){
+      btn.addEventListener("click", function(){ commit(KP3D.drawerCodes(b.interior, drawerSys()), null); });
+    });
     host.querySelectorAll("[data-dws-add]").forEach(function(btn){
       btn.addEventListener("click", function(){ var codes = KP3D.drawerCodes(b.interior, drawerSys()), add = drawerAddCode(b, c, codes); if (!add) return; apply([add].concat(codes)); });
     });
@@ -5138,14 +5146,15 @@
     } else {
       html += drawerSimpleHTML(b, c, codes, inner);
     }
-    html += '<div class="dw-add"><span>' + __("Innskúffa:") + '</span>' + D.inner.map(function(ik){
+    var innerTip = !inner && !D.inner.some(function(ik){ return stackAllowed(b, c, codes, ik); })
+      ? __("Innskúffa er falin skúffa á bak við framhliðina — hún þarf að minnsta kosti eina miðlungs skúffu eða dýpri.")
+      : __("Innskúffa er falin skúffa á bak við framhliðina.");
+    html += '<div class="dw-add"><span title="' + innerTip + '">' + __("Innskúffa:") + ' <span class="hw-help" style="color:var(--ink-soft);vertical-align:-2px;">' + icon("info", 13) + '</span></span>' + D.inner.map(function(ik){
       var on = inner === ik, ok = on || stackAllowed(b, c, codes, ik), alt = !ok && innerAlternative(b, c, ik);
       // never greyed out without a reason: when this stack has no such product, the click offers one that does
       return '<button type="button" class="hw-btn' + (on ? ' active' : '') + (ok ? '' : ' maybe') + '" data-dw-inner="' + ik + '"' + (ok || alt ? '' : ' disabled') +
         ' title="' + (ok ? '' : alt ? __("Fæst með {alt} — smelltu til að skipta", { alt:alt.join(" · ") }) : __("Ekki til fyrir þennan skáp")) + '">' + (ik === "IK" ? __("Miðlungs") : __("Lág")) + '</button>';
-    }).join("") + '</div><p class="sec-note">' + (!inner && !D.inner.some(function(ik){ return stackAllowed(b, c, codes, ik); })
-      ? __("Innskúffa er falin skúffa á bak við framhliðina — hún þarf að minnsta kosti eina miðlungs skúffu eða dýpri.")
-      : __("Innskúffa er falin skúffa á bak við framhliðina.")) + '</p>';
+    }).join("") + '</div>'; // what an inner drawer is: in the tooltip (short texts, details in tooltips)
     if (c.sink) html += sinkTopHTML(b, c, codes, fronts);
     else if (!stackAllowed(b, c, codes, inner)) html += '<p class="sec-note">' + __("Þessi samsetning er ekki til sem stöðluð vara — söluaðili staðfestir hana.") + '</p>';
     return html;
@@ -6125,7 +6134,7 @@
     if (!type){ // step 1: nothing to show yet
       KP3D.teardown3D(true); host.innerHTML = '<div class="uw-empty">' + __("Veldu tegund — skápurinn birtist hér.") + '</div>'; uwPrevKey = ""; syncUwTools(); return;
     }
-    var b = uw.b || newPreviewBlock(type), c = CATALOG[b.type];
+    var b = uw.b || newPreviewBlock(hovOpt), c = CATALOG[b.type];
     var key = JSON.stringify(b), keepCam = uwKeepCam;
     if (key === uwPrevKey && KP3D._three()) return;
     uwPrevKey = key;
@@ -6257,8 +6266,7 @@
     }, 120);
   }
   function reduceMotionPref(){ return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); }
-  function newPreviewBlock(type){ // step 2 shows the category's first variant while you choose
-    var o = activeUnitTree()[uw.cat].opts[uw.hover || 0];
+  function newPreviewBlock(o){ // the hovered variant (step 2) or the hovered group's first one (step 1) while you choose
     var saved = blockSeq, b = uwStartBlock(o); blockSeq = saved; b.id = "uwprev";
     return b;
   }
