@@ -462,6 +462,12 @@
   .wall-row .wl{ flex:1; font-size:14px; }
   .wall-row input[type=number]{ width:96px; font:inherit; font-size:14px; padding:6px 8px; border:1px solid var(--line); border-radius:8px; }
   .wall-row .u{ font-size:12px; color:var(--ink-soft); }
+  .shape-cards[hidden], .shape-note[hidden]{ display:none; }
+  .wall-row .wo-btn{ border:1px solid var(--line); background:#fff; border-radius:999px; padding:4px 10px; font:inherit; font-size:12px; color:var(--ink-soft); cursor:pointer; }
+  .wall-row .wo-btn:hover{ border-color:var(--ink); color:var(--ink); }
+  .wall-row .wo-btn[aria-pressed="true"]{ background:var(--ink); border-color:var(--ink); color:#fff; }
+  .wall-row.open .wl{ color:var(--ink-soft); }
+  .wall-row.open input[type=number]{ border-style:dashed; }
   .op-row.sel{ border-color:var(--blue); background:var(--blue-soft); }
   .mat-wiz{ display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,1fr); gap:32px; align-items:start; }
   @media (max-width:900px){ .mat-wiz{ grid-template-columns:1fr; } }
@@ -580,7 +586,7 @@
   /* ---- define your space ---- */
   .shape-group-title{ font-size:15px; font-weight:600; margin:22px 0 10px; }
   .shape-group-title span{ font-weight:400; font-size:12.5px; color:var(--ink-soft); }
-  .shape-cards{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; max-width:980px; }
+  .shape-cards{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:18px; max-width:1180px; }
   .shape-card svg{ height:128px !important; }
   @media (max-width:640px){ .shape-cards{ grid-template-columns:repeat(2,1fr); } }
   .shape-card{ background:#fff; border:1.5px solid var(--line); border-radius:12px; padding:14px 12px 10px; cursor:pointer; text-align:center; font:inherit; position:relative; }
@@ -1460,11 +1466,10 @@
         <div class="mat-section-title" data-i18n>Hvaða rými er þetta?</div>
         <select id="fataskaparRoom" class="room-pick-select" style="max-width:260px;"></select>
       </div>
-      <div class="shape-group-title" data-i18n>Lokað eldhús</div>
       <div class="shape-cards" id="shapeCardsClosed"></div>
-      <div class="shape-group-title" data-i18n>Opið eldhús</div>
-      <div class="shape-cards" id="shapeCardsOpen"></div>
-      <p class="shape-note"><svg width="34" height="8" aria-hidden="true"><line x1="1" y1="4" x2="33" y2="4" stroke="currentColor" stroke-width="2" stroke-dasharray="5,4"/></svg><span data-i18n>Strikalína sýnir opna hlið.</span></p>
+      <!-- open shapes (user, 2026-10-24): gone from the pick — every room starts closed, a wall is opened on the size page -->
+      <div class="shape-cards" id="shapeCardsOpen" hidden></div>
+      <p class="shape-note" hidden><svg width="34" height="8" aria-hidden="true"><line x1="1" y1="4" x2="33" y2="4" stroke="currentColor" stroke-width="2" stroke-dasharray="5,4"/></svg><span data-i18n>Strikalína sýnir opna hlið.</span></p>
     </div>
 
     <!-- phases 2-4: top-down drawing on the left, everything else in the panel on the right -->
@@ -2840,21 +2845,28 @@
     inp.addEventListener("keydown", function(e){ if (e.key === "Enter") apply(whichB); if (e.key === "Escape"){ pop.hidden = true; } });
     document.getElementById("dimClose").addEventListener("click", function(){ pop.hidden = true; });
     document.getElementById("dimOpen").addEventListener("change", function(e){
-      if (e.target.checked){
-        var others = state.walls.filter(function(x, k){ return k !== i && !x.open; }).length;
-        if (!others){ toast(__("Að minnsta kosti einn veggur þarf að vera lokaður.")); e.target.checked = false; return; }
-        var has = w.floor.length || w.wall.length || state.windows.concat(state.doors).some(function(o){ return o.wallId === w.id; });
-        if (has && !confirm(__("Þetta fjarlægir skápa, glugga og hurðir af veggnum. Halda áfram?"))){ e.target.checked = false; return; }
-        w.floor = []; w.wall = [];
-        state.windows = state.windows.filter(function(o){ return o.wallId !== w.id; });
-        state.doors = state.doors.filter(function(o){ return o.wallId !== w.id; });
-        state.obstacles = (state.obstacles || []).filter(function(o){ return o.wallId !== w.id; });
-        if (state.waterWall === w.id){ state.waterWall = null; state.waterAlongMm = null; }
-      }
-      w.open = e.target.checked;
-      save();
-      renderShapeCanvas();
+      if (!setWallOpen(i, e.target.checked)) e.target.checked = !e.target.checked;
+      renderWallList(); renderShapeCanvas();
     });
+  }
+  // a wall becomes open (no wall — the kitchen opens into the next room) or closed again; opening it takes its
+  // units, windows, doors and obstacles with it. false = not done (the last closed wall, or the user said no)
+  function setWallOpen(i, on){
+    var w = state.walls[i]; if (!w || !!w.open === !!on) return false;
+    if (on){
+      var others = state.walls.filter(function(x, k){ return k !== i && !x.open; }).length;
+      if (!others){ toast(__("Að minnsta kosti einn veggur þarf að vera lokaður.")); return false; }
+      var has = w.floor.length || w.wall.length || state.windows.concat(state.doors).some(function(o){ return o.wallId === w.id; });
+      if (has && !confirm(__("Þetta fjarlægir skápa, glugga og hurðir af veggnum. Halda áfram?"))) return false;
+      w.floor = []; w.wall = [];
+      state.windows = state.windows.filter(function(o){ return o.wallId !== w.id; });
+      state.doors = state.doors.filter(function(o){ return o.wallId !== w.id; });
+      state.obstacles = (state.obstacles || []).filter(function(o){ return o.wallId !== w.id; });
+      if (state.waterWall === w.id){ state.waterWall = null; state.waterAlongMm = null; }
+    }
+    w.open = !!on;
+    save();
+    return true;
   }
   document.getElementById("shapeCanvas").addEventListener("pointerdown", function(evt){
     if (shapePhase === "water" && (evt.target === evt.currentTarget || evt.target.tagName === "svg" || evt.target.tagName === "polygon")){ startWaterDrag(evt, true); return; }
@@ -2946,7 +2958,7 @@
       pick: catDef && catDef.roomPicker
         ? [__("Hvernig er rýmið í laginu?"), __("Veldu þá lögun sem passar best. Þú stillir málin næst.")]
         : [__("Hvernig er eldhúsið í laginu?"), __("Veldu þá lögun sem passar best. Þú stillir málin næst.")],
-      size:  [__("Stilltu stærð rýmisins"), __("Sláðu inn mál eða dragðu veggina. Dragðu horn til að skekkja vegg, tvísmelltu á vegg fyrir nýtt horn.")],
+      size:  [__("Stilltu stærð rýmisins"), __("Sláðu inn mál eða dragðu veggina. Er eldhúsið opið inn í annað rými? Smelltu á „Opið“ við vegginn sem vantar.")],
       height: [__("Lofthæð og útlit"), __("Stilltu lofthæðina og útlit rýmisins.")],
       openings: [__("Gluggar og hurðir"), __("Veldu hvað er á hverjum vegg.")],
       water: [__("Hvar kemur vatnið inn?"), __("Merktu staðsetningu vatnslagna, ef þú veist hana.")]
@@ -3025,9 +3037,13 @@
   function renderWallList(){
     var box = document.getElementById("wallList");
     box.innerHTML = state.walls.map(function(w, i){
-      return '<div class="wall-row' + (selectedEdge === i ? " sel" : "") + '" data-wr="' + i + '"><span class="wn">' + (i + 1) + '</span><span class="wl">' + __(w.label) + (w.open ? __(" · opinn") : "") + '</span>' +
-        '<input type="number" data-wlen="' + i + '" value="' + w.lengthMm + '" min="' + MIN_EDGE_MM + '" max="' + MAX_EDGE_MM + '" step="10"><span class="u">mm</span></div>';
+      return '<div class="wall-row' + (selectedEdge === i ? " sel" : "") + (w.open ? " open" : "") + '" data-wr="' + i + '"><span class="wn">' + (i + 1) + '</span><span class="wl">' + __(w.label) + '</span>' +
+        '<input type="number" data-wlen="' + i + '" value="' + w.lengthMm + '" min="' + MIN_EDGE_MM + '" max="' + MAX_EDGE_MM + '" step="10"><span class="u">mm</span>' +
+        '<button type="button" class="wo-btn" data-wopen="' + i + '" aria-pressed="' + !!w.open + '" title="' + __(w.open ? "Setja vegginn aftur" : "Enginn veggur hér — eldhúsið er opið inn í annað rými") + '">' + __("Opið") + '</button></div>';
     }).join("");
+    box.querySelectorAll("[data-wopen]").forEach(function(b){
+      b.addEventListener("click", function(e){ e.stopPropagation(); var i = parseInt(b.dataset.wopen, 10); if (setWallOpen(i, !state.walls[i].open)){ selectedEdge = i; renderWallList(); renderShapeCanvas(); } });
+    });
     box.querySelectorAll("[data-wlen]").forEach(function(inp){
       var i = parseInt(inp.dataset.wlen, 10);
       inp.addEventListener("focus", function(){ selectedEdge = i; renderShapeCanvas(); });
