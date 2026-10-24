@@ -475,8 +475,9 @@
   .in-room .ir-acts{ display:flex; gap:4px; }
   .in-room .ir-row.sel{ border-color:var(--blue); background:var(--blue-soft); }
   .in-room .ir-shape{ display:flex; gap:2px; }
-  .in-room .ir-shape button{ border:1px solid var(--line); background:#fff; border-radius:6px; padding:3px; line-height:0; color:var(--ink-soft); cursor:pointer; }
-  .in-room .ir-shape button[aria-pressed="true"]{ border-color:var(--ink); color:var(--ink); box-shadow:inset 0 0 0 1px var(--ink); }
+  .in-room .ir-shape button{ border:0; background:none; border-radius:6px; padding:3px; line-height:0; color:#b3b0a8; cursor:pointer; }
+  .in-room .ir-shape button:hover{ color:var(--ink-soft); }
+  .in-room .ir-shape button[aria-pressed="true"]{ color:var(--blue); }
   .in-room .ir-hint{ font-size:12px; color:var(--ink-soft); margin:0; }
   .el-nav{ cursor:pointer; }
   .el-nav:hover{ fill:#191919; text-decoration:underline; }
@@ -868,7 +869,8 @@
      the question / contact forms) ---- */
   @media (min-width:981px) and (min-height:560px){
     html, body{ height:100%; overflow:hidden; }
-    .wrap:not(.wide){ height:100vh; display:flex; flex-direction:column; padding-bottom:18px; box-sizing:border-box; }
+    .wrap:not(.wide){ height:100vh; display:flex; flex-direction:column; padding-bottom:44px; box-sizing:border-box; } /* white space under every step's frame, the same everywhere (user, 2026-10-24) */
+    #shapeToolbar:empty{ display:none; } /* its empty row pushed the room pages' frame 12 px below the materials' one */
     .wrap:not(.wide) > section:not([hidden]){ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
     #screen-welcome:not([hidden]), #screen-intake:not([hidden]), #screen-contact:not([hidden]), #screen-done:not([hidden]){ overflow-y:auto; overflow-x:hidden; }
     /* 2026-10-15: centre the welcome page in the space under the header, nudged up a touch so it reads as
@@ -2334,7 +2336,7 @@
   // the drawing is as tall as the screen allows below it, so the whole room shows without scrolling (2026-10-11)
   function fitShapeCanvas(host){
     var top = host.getBoundingClientRect().top + window.scrollY;
-    var h = Math.max(300, Math.min(900, window.innerHeight - top - 20));
+    var h = Math.max(300, Math.min(900, window.innerHeight - top - 44)); // the same white space under it as every other step's frame
     if (Math.abs(host.offsetHeight - h) > 2) host.style.height = h + "px";
   }
   function renderShapeCanvas(){
