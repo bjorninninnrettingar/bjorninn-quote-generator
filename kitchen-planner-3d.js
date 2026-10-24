@@ -2649,7 +2649,7 @@
       if (f.drawer) makeLeaf(idx++, 0, widthM, y0, y1, "left", f, fi);
       else if (meta.corner){
         var left = meta.doorSide === "left", hw = widthM / 2;
-        makeLeaf(idx++, left ? -hw / 2 : hw / 2, hw, y0, y1, left ? "left" : "right", f, fi);
+        makeLeaf(idx++, left ? -hw / 2 : hw / 2, hw, y0, y1, left ? "right" : "left", f, fi); // hinges always on the middle side, the door opens over the blind panel (user, 2026-10-24)
         if (meta.leMans) addLeMansTrays(THREE, frame, parts[parts.length - 1], left ? -hw / 2 : hw / 2, hw, CD, bodyBase, bodyH, left, meta, pickables);
         var blind = new THREE.Mesh(new THREE.BoxGeometry(hw - 0.004, y1 - y0, FRONT_T), frontMat); // fixed blind panel on the other half
         scaleFrontUV(blind.geometry, hw - 0.004, y1 - y0, frontMat.userData && frontMat.userData.tile, false, { u:offsetM + widthM / 2 + (left ? 0 : -hw), v:y0 });
@@ -2774,7 +2774,7 @@
         // the real motion: the tray first turns about the column out through the opening, then slides out in front
         trays.push({ group:g, real:true, y:bodyBase + bodyH * f, z0:zIn, px:real.colX * sx * mx, pz:zIn + real.colZ * sz,
           // open: out of the opening, pointing away from the cabinet at a slight angle (how a LeMans II stands open)
-          a1:inward * Math.PI / 2, xEnd:real.colX * sx * mx - inward * d * 0.55, zEnd:zIn + d / 2 + innerW * 0.42, aEnd:inward * 1.3 });
+          a1:inward * Math.PI / 2, xEnd:real.colX * sx * mx - inward * (d * 0.55 + 0.05), zEnd:zIn + d / 2 + innerW * 0.42, aEnd:inward * 1.3 });
       });
     } else {
       var w = Math.max(0.3, hw - 0.07), d2 = Math.max(0.3, Math.min(0.5, CD - 0.08));
@@ -4662,7 +4662,7 @@
         var applMat = c.appliance === "fridge" || c.appliance === "dishwasher" ? steelMat : c.appliance === "washer" ? washerMat : null;
         // an integrated fridge wears the kitchen's fronts (user, 2026-10-05 — it was steel)
         addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, applMat || carcassMat, applMat || frontMatOf(b), inter,
-          { islandId:islandId, locked:!!b.locked || !!opts.xray, suppressBadge:!!opts.xray, slabFronts:jeyOn, corner:c.cls === "corner", doorSide:b.swing === "vinstri" ? "left" : "right", hingeRight:b.swing === "haegri", shelves:(c.hasInterior || c.shelfRange) && !(b.interior && b.interior.mode === "skuffur") ? (shelvesOf(b) || 0) : 0,
+          { islandId:islandId, locked:!!b.locked || !!opts.xray, suppressBadge:!!opts.xray, slabFronts:jeyOn, corner:c.cls === "corner", doorSide:b.swing === "vinstri" ? "left" : "right", hingeRight:c.cls === "corner" ? b.swing === "vinstri" : b.swing === "haegri", shelves:(c.hasInterior || c.shelfRange) && !(b.interior && b.interior.mode === "skuffur") ? (shelvesOf(b) || 0) : 0,
             openMat:c.open ? frontOpenMat : openMat, open:!!c.open, hiddenMat:hiddenMat, drawerSystem:state.drawerSystem, carcassKey:state.carcass,
             warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), ready:!!(opts.readyIds && opts.readyIds.indexOf(b.id) >= 0), doorLimit:DOOR_LIMITS[b.id] || null, shelfBlock:b, wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), heightMm:hM * 1000, elevMm:0, handle:c.appliance ? null : state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0, // tall units: one door unless split in Smíða (2026-10-09)
             splitFr:c.oven || c.fixedFronts ? null : splitFractions(b, hM * 1000 - (c.panel || c.appliance ? 0 : plinthMmW)), // a fridge too, once its split is changed in Smíða
