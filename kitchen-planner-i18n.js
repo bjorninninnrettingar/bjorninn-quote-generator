@@ -1517,6 +1517,7 @@
     "Enginn veggur hér — eldhúsið er opið inn í annað rými": "No wall here — the kitchen opens into another room",
     "Opið": "Open",
     "Sláðu inn mál eða dragðu veggina. Er eldhúsið opið inn í annað rými? Smelltu á „Opið“ við vegginn sem vantar.": "Type the sizes or drag the walls. Does the kitchen open into another room? Click “Open” on the missing wall.",
+    "Hornið sem er inndregið": "The set-in corner",
     "Svona hannar þú allt heimilið": "How to design your whole home",
     "Um 15 mínútur. Þú þarft ekki að vera nákvæm(ur) — við mælum allt á staðnum áður en nokkuð er smíðað.": "About 15 minutes. You don't need to be exact — we measure everything on site before anything is built.",
     "Skref 1": "Step 1",

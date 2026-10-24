@@ -463,6 +463,11 @@
   .wall-row input[type=number]{ width:96px; font:inherit; font-size:14px; padding:6px 8px; border:1px solid var(--line); border-radius:8px; }
   .wall-row .u{ font-size:12px; color:var(--ink-soft); }
   .shape-cards[hidden], .shape-note[hidden]{ display:none; }
+  .lc-pick{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; font-size:13px; }
+  .lc-tiles{ display:flex; gap:6px; }
+  .lc-tile{ border:1.5px solid var(--line); background:#fff; border-radius:8px; padding:3px; cursor:pointer; line-height:0; }
+  .lc-tile:hover{ border-color:var(--ink); }
+  .lc-tile.on{ border-color:var(--ink); box-shadow:inset 0 0 0 1px var(--ink); }
   .wall-row .wo-btn{ border:1px solid var(--line); background:#fff; border-radius:999px; padding:4px 10px; font:inherit; font-size:12px; color:var(--ink-soft); cursor:pointer; }
   .wall-row .wo-btn:hover{ border-color:var(--ink); color:var(--ink); }
   .wall-row .wo-btn[aria-pressed="true"]{ background:var(--ink); border-color:var(--ink); color:#fff; }
@@ -586,7 +591,7 @@
   /* ---- define your space ---- */
   .shape-group-title{ font-size:15px; font-weight:600; margin:22px 0 10px; }
   .shape-group-title span{ font-weight:400; font-size:12.5px; color:var(--ink-soft); }
-  .shape-cards{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:18px; max-width:1180px; }
+  .shape-cards{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; max-width:980px; }
   .shape-card svg{ height:128px !important; }
   @media (max-width:640px){ .shape-cards{ grid-template-columns:repeat(2,1fr); } }
   .shape-card{ background:#fff; border:1.5px solid var(--line); border-radius:12px; padding:14px 12px 10px; cursor:pointer; text-align:center; font:inherit; position:relative; }
@@ -2026,7 +2031,7 @@
     lroom:   { group:"closed", label:"L-laga", edges:[[3640,"L"],[1680,"R"],[1960,"L"],[3640,"L"],[5600,"L"],[5320,"L"]], open:[] },
     // the same L mirrored (opposite chirality) — edges derived by mirroring the lroom polygon and reversing its
     // walk direction so wall normals (always "axis rotated left", regardless of winding) still point inward (user, 2026-10-13)
-    lroomMirror: { group:"closed", label:"L-laga (speglað)", edges:[[5600,"L"],[3640,"L"],[1960,"R"],[1680,"L"],[3640,"L"],[5320,"L"]], open:[] },
+    lroomMirror: { group:"closed", hidden:true, label:"L-laga (speglað)", edges:[[5600,"L"],[3640,"L"],[1960,"R"],[1680,"L"],[3640,"L"],[5320,"L"]], open:[] },
     alcove:  { group:"closed", label:"Með innskoti", edges:[[1680,"R"],[840,"L"],[2240,"L"],[840,"R"],[1680,"L"],[4200,"L"],[5600,"L"],[4200,"L"]], open:[] },
     open1:   { group:"open", label:"Beint", edges:[[5600,"L"],[3920,"L"],[5600,"L"],[3920,"L"]], open:[2] },
     open2:   { group:"open", label:"Horn", edges:[[5600,"L"],[4200,"L"],[5600,"L"],[4200,"L"]], open:[1,2] },
@@ -2204,6 +2209,46 @@
     });
   }
   var pendingShape = null; // the shape card picked on the first page, applied by "Áfram →"
+  // L-laga (user, 2026-10-24): one L card on the first page, the corner that's set in is picked on the size page.
+  // lCorner() → "nw" | "ne" | "sw" | "se" for a plain L room (6 square walls), else null
+  function lCorner(){
+    var W0 = state.walls || [];
+    if (!state.closed || W0.length !== 6 || W0[0].dirDeg || W0.some(function(w){ return w.angleDeg != null; })) return null;
+    var P = roomPts(), xs = P.map(function(p){ return p.x; }), zs = P.map(function(p){ return p.z; });
+    var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), z0 = Math.min.apply(null, zs), z1 = Math.max.apply(null, zs);
+    var has = function(x, z){ return P.some(function(p){ return Math.abs(p.x - x) < 1 && Math.abs(p.z - z) < 1; }); };
+    var miss = [["nw", x0, z0], ["ne", x1, z0], ["sw", x0, z1], ["se", x1, z1]].filter(function(c){ return !has(c[1], c[2]); });
+    return miss.length === 1 ? miss[0][0] : null;
+  }
+  // mirror the L so the set-in corner is `target`: same wall lengths, open walls stay open, wall 1 runs along x again
+  function setLCorner(target){
+    var cur = lCorner(); if (!cur || cur === target) return;
+    var hasStuff = state.walls.some(function(w){ return w.floor.length || w.wall.length; }) || state.windows.length || state.doors.length || state.islands.length;
+    if (hasStuff && !confirm(__("Þetta breytir lögun rýmisins og fjarlægir skápa, glugga og hurðir sem þú ert búin(n) að setja inn. Halda áfram?"))) return;
+    var P = roomPts(), xs = P.map(function(p){ return p.x; }), zs = P.map(function(p){ return p.z; });
+    var sx = Math.min.apply(null, xs) + Math.max.apply(null, xs), sz = Math.min.apply(null, zs) + Math.max.apply(null, zs);
+    var fx = cur[1] !== target[1], fz = cur[0] !== target[0], n = P.length;
+    var Q = P.map(function(p){ return { x:fx ? sx - p.x : p.x, z:fz ? sz - p.z : p.z }; });
+    var E = Q.map(function(q, i){ return { a:q, b:Q[(i + 1) % n], src:state.walls[i] }; });
+    function cr(e1, e2){ return (e1.b.x - e1.a.x) * (e2.b.z - e2.a.z) - (e1.b.z - e1.a.z) * (e2.b.x - e2.a.x); }
+    var R = chainVertices([4000, 3000, 4000, 3000], ["left", "left", "left", "left"], [], 0).pts; // which way "left" turns
+    var sL = Math.sign((R[1].x - R[0].x) * (R[2].z - R[1].z) - (R[1].z - R[0].z) * (R[2].x - R[1].x));
+    if (E.filter(function(e, i){ return Math.sign(cr(e, E[(i + 1) % n])) === sL; }).length < n / 2) E = E.reverse().map(function(e){ return { a:e.b, b:e.a, src:e.src }; });
+    var s0 = 0, best = Infinity;
+    E.forEach(function(e, i){ if (e.b.x - e.a.x > 1 && Math.abs(e.b.z - e.a.z) < 1 && e.a.z * 1e6 + e.a.x < best){ best = e.a.z * 1e6 + e.a.x; s0 = i; } });
+    E = E.slice(s0).concat(E.slice(0, s0));
+    wallSeq = 1;
+    state.walls = E.map(function(e, i){
+      var w = { id:"W" + (wallSeq++), label:"Veggur " + (i + 1), lengthMm:Math.round(Math.hypot(e.b.x - e.a.x, e.b.z - e.a.z)), turnAfter:Math.sign(cr(e, E[(i + 1) % n])) === sL ? "left" : "right", open:!!e.src.open, floor:[], wall:[] };
+      if (e.src.plinthMm != null) w.plinthMm = e.src.plinthMm;
+      return w;
+    });
+    state.windows = []; state.doors = []; state.islands = []; state.obstacles = [];
+    state.waterWall = null; state.waterAlongMm = null; state.seeded = false; state.openingsDone = false;
+    selectedEdge = null;
+    save();
+    renderShapeStep();
+  }
   function applyShapeTemplate(key){
     var hasStuff = state.closed && (state.walls.some(function(w){ return w.floor.length || w.wall.length; }) || state.windows.length || state.doors.length || state.islands.length);
     if (hasStuff && !confirm(__("Þetta breytir lögun rýmisins og fjarlægir skápa, glugga og hurðir sem þú ert búin(n) að setja inn. Halda áfram?"))) return;
@@ -2987,12 +3032,13 @@
         sel.value = state.intake.room;
       }
       ["closed", "open"].forEach(function(g){
-        document.getElementById(g === "closed" ? "shapeCardsClosed" : "shapeCardsOpen").innerHTML = Object.keys(SHAPE_TEMPLATES).filter(function(k){ return SHAPE_TEMPLATES[k].group === g; }).map(function(k){
+        document.getElementById(g === "closed" ? "shapeCardsClosed" : "shapeCardsOpen").innerHTML = Object.keys(SHAPE_TEMPLATES).filter(function(k){ return SHAPE_TEMPLATES[k].group === g && !SHAPE_TEMPLATES[k].hidden; }).map(function(k){
           return '<button type="button" class="shape-card" data-shape="' + k + '">' + templateIcon(k) + '<div class="nm">' + __(SHAPE_TEMPLATES[k].label) + '</div></button>';
         }).join("");
       });
       // pick, then "Áfram →" (2026-10-11 — a click used to jump straight on to the sizes)
       var curShape = pendingShape || (state.closed ? state.shapeKey : null);
+      if (curShape === "lroomMirror") curShape = "lroom"; // one L card — which corner is set in is picked on the size page
       document.querySelectorAll("[data-shape]").forEach(function(b){
         b.classList.toggle("active", b.dataset.shape === curShape);
         b.setAttribute("aria-pressed", String(b.dataset.shape === curShape));
@@ -3035,12 +3081,15 @@
 
   // ---------- right-hand panel of the room step ----------
   function renderWallList(){
-    var box = document.getElementById("wallList");
-    box.innerHTML = state.walls.map(function(w, i){
+    var box = document.getElementById("wallList"), lc = lCorner();
+    var corners = !lc ? "" : '<div class="lc-pick"><span>' + __("Hornið sem er inndregið") + '</span><div class="lc-tiles">' + [["nw", "M3 3H17V15H3Z"], ["ne", "M27 3H41V15H27Z"], ["sw", "M3 19H17V31H3Z"], ["se", "M27 19H41V31H27Z"]].map(function(c){
+      return '<button type="button" class="lc-tile' + (lc === c[0] ? ' on' : '') + '" data-lc="' + c[0] + '" aria-pressed="' + (lc === c[0]) + '"><svg width="44" height="34" viewBox="0 0 44 34"><rect x="3" y="3" width="38" height="28" fill="#e9e3d6" stroke="#2b2b2e" stroke-width="2"/><path d="' + c[1] + '" fill="#fff" stroke="#2b2b2e" stroke-width="1.5" stroke-dasharray="3,2"/></svg></button>'; }).join("") + '</div></div>';
+    box.innerHTML = corners + state.walls.map(function(w, i){
       return '<div class="wall-row' + (selectedEdge === i ? " sel" : "") + (w.open ? " open" : "") + '" data-wr="' + i + '"><span class="wn">' + (i + 1) + '</span><span class="wl">' + __(w.label) + '</span>' +
         '<input type="number" data-wlen="' + i + '" value="' + w.lengthMm + '" min="' + MIN_EDGE_MM + '" max="' + MAX_EDGE_MM + '" step="10"><span class="u">mm</span>' +
         '<button type="button" class="wo-btn" data-wopen="' + i + '" aria-pressed="' + !!w.open + '" title="' + __(w.open ? "Setja vegginn aftur" : "Enginn veggur hér — eldhúsið er opið inn í annað rými") + '">' + __("Opið") + '</button></div>';
     }).join("");
+    box.querySelectorAll("[data-lc]").forEach(function(b){ b.addEventListener("click", function(){ setLCorner(b.dataset.lc); }); });
     box.querySelectorAll("[data-wopen]").forEach(function(b){
       b.addEventListener("click", function(e){ e.stopPropagation(); var i = parseInt(b.dataset.wopen, 10); if (setWallOpen(i, !state.walls[i].open)){ selectedEdge = i; renderWallList(); renderShapeCanvas(); } });
     });
