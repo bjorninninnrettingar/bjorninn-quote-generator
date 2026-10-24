@@ -566,6 +566,13 @@
   .tab-btn.active{ background:var(--ink); color:#fff; border-color:var(--ink); }
   .tab-btn .n{ font-weight:400; opacity:.7; margin-left:4px; }
   .tab-blurb{ font-size:13px; color:var(--ink-soft); margin:0 0 12px; max-width:70ch; }
+  #frontBlurb, #topBlurb, #handleBlurb{ display:none; }
+  .mat-side .tabs-row{ gap:6px; margin:0 0 8px; }
+  .mat-side .tab-btn{ padding:6px 12px; font-size:13px; }
+  .mat-side .flt-row{ display:flex; align-items:center; gap:8px; margin:0 0 6px; }
+  .mat-side .flt-row .tone-row{ margin:0; flex-wrap:nowrap; flex:none; }
+  .mat-side .flt-row .sw-search{ margin:0; flex:1; min-width:120px; padding:6px 10px; font-size:13px; }
+  .mat-side .look-picked{ margin:0 0 6px; }
   .sw-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(108px,1fr)); gap:10px; margin-bottom:6px; }
   .sw-tile{ position:relative; background:#fff; border:1.5px solid var(--line); border-radius:12px; overflow:hidden; cursor:pointer; text-align:left; padding:0; font:inherit; }
   .sw-tile:hover{ border-color:var(--blue); }
@@ -1443,7 +1450,7 @@
     <div class="mat-wiz">
       <div class="mat-stage">
         <div class="cab-preview-wrap"><div class="cab-preview" id="cabPreview"></div>
-          <div class="uw-tools"><button type="button" id="matSpin" class="spin-toggle" role="switch" aria-checked="true" data-i18n><i></i>Snúa sjálfkrafa</button></div></div>
+          <div class="uw-tools"><button type="button" id="matSpin">Snúa: á</button></div></div>
       </div>
       <div class="mat-side">
         <div class="wiz-steps" id="wizSteps"></div>
@@ -1465,8 +1472,8 @@
         <div class="wiz-panel" data-mpkey="fronts">
           <div class="tabs-row" id="frontTabs"></div>
           <p class="tab-blurb" id="frontBlurb"></p>
-          <input type="search" class="sw-search" id="lookSearch" data-i18n="attrs" placeholder="Leita — t.d. eik, hnota, grár eða H1180" autocomplete="off">
-          <div class="tone-row" id="lookTones"></div>
+          <div class="flt-row"><div class="tone-row" id="lookTones"></div>
+          <input type="search" class="sw-search" id="lookSearch" data-i18n="attrs" placeholder="Leita — t.d. eik, hnota, grár eða H1180" autocomplete="off"></div>
           <p class="look-picked" id="lookPicked"></p>
           <div class="sw-grid" id="lookCards"></div>
         </div>
@@ -6897,12 +6904,14 @@
     box.querySelectorAll("[data-tone]").forEach(function(b){ b.addEventListener("click", function(){ onPick(b.dataset.tone); document.getElementById(gridId).scrollTop = 0; }); });
     return sel ? keys.filter(function(k){ return lookTone(src[k]) === sel; }) : keys;
   }
+  // the material pages show more pictures (user, 2026-10-24): a tab's description is its tooltip, not a line of its own
+  function blurbTip(blurbId, tabsId){ var p = document.getElementById(blurbId), a = document.querySelector("#" + tabsId + " .tab-btn.active"); if (p && a) a.title = p.textContent; }
   function renderLookCards(){
     var cat = LOOK_CATEGORIES.find(function(c){ return c.key === matTab.front; }) || LOOK_CATEGORIES[0];
     var tabs = document.getElementById("frontTabs");
     tabs.innerHTML = tabsHTML(LOOK_CATEGORIES, function(k){ return frontsOf(k).length; }, cat.key, "data-ftab");
     tabs.querySelectorAll("[data-ftab]").forEach(function(b){ b.addEventListener("click", function(){ matTab.front = b.dataset.ftab; lookToneSel = ""; renderLookCards(); document.getElementById("lookCards").scrollTop = 0; }); });
-    document.getElementById("frontBlurb").textContent = __(cat.blurb);
+    document.getElementById("frontBlurb").textContent = __(cat.blurb); blurbTip("frontBlurb", "frontTabs");
     var search = document.getElementById("lookSearch");
     if (!search.dataset.wired){
       search.dataset.wired = "1";
@@ -6952,7 +6961,7 @@
     tabs.querySelectorAll("[data-ttab]").forEach(function(b){ b.addEventListener("click", function(){ matTab.top = b.dataset.ttab; topToneSel = ""; renderTopCards(); document.getElementById("topCards").scrollTop = 0; }); });
     // the thickness per kind (KP3D.topThickM) at the end of the blurb, 2026-10-11
     var firstKey = Object.keys(TOPS).find(function(k){ return TOPS[k].group === grp.key; });
-    document.getElementById("topBlurb").textContent = __(grp.blurb) + (grp.key === "engin" ? "" : " " + __("Þykkt: {n} mm.", { n:Math.round(KP3D.topThickM(firstKey) * 1000) }));
+    document.getElementById("topBlurb").textContent = __(grp.blurb) + (grp.key === "engin" ? "" : " " + __("Þykkt: {n} mm.", { n:Math.round(KP3D.topThickM(firstKey) * 1000) })); blurbTip("topBlurb", "topTabs");
     var active = state.top || "steinn", pickedTop = TOPS[active];
     document.getElementById("topPicked").innerHTML = pickedTop ? __("Valið:") + ' <b>' + __(pickedTop.label) + '</b>' + (pickedTop.code ? ' · ' + pickedTop.code : '') + (state.top ? '' : ' · ' + __("sjálfgefið, veldu aðra ef þú vilt")) : '';
     var keys = toneFilter("topTones", "topCards", topsOf(grp.key), TOPS, topToneSel, function(t){ topToneSel = t; renderTopCards(); });
@@ -6988,7 +6997,7 @@
     var tabs = document.getElementById("handleTabs");
     tabs.innerHTML = tabsHTML(groups, function(k){ return handlesOf(k).length; }, grp.key, "data-htab");
     tabs.querySelectorAll("[data-htab]").forEach(function(b){ b.addEventListener("click", function(){ matTab.handle = b.dataset.htab; renderHandleCards(true); }); });
-    document.getElementById("handleBlurb").textContent = __(grp.blurb);
+    document.getElementById("handleBlurb").textContent = __(grp.blurb); blurbTip("handleBlurb", "handleTabs");
     var container = document.getElementById("handleCards"), keys = handlesOf(grp.key);
     container.innerHTML = keys.length ? keys.map(function(key){
       var h = HANDLES[key];
@@ -7222,7 +7231,7 @@
 
   (function(){ // materials preview: "Snúa: á/af" (same remembered setting as the unit wizard)
     var b = document.getElementById("matSpin");
-    function sync(){ var on = KP3D.previewSpinOn(); b.classList.toggle("active", on); b.setAttribute("aria-checked", String(on)); b.title = on ? __("Slökkva á sjálfvirkum snúningi") : __("Kveikja á sjálfvirkum snúningi"); }
+    function sync(){ var on = KP3D.previewSpinOn(); b.textContent = on ? __("Snúa: á") : __("Snúa: af"); b.classList.toggle("active", !on); b.title = on ? __("Slökkva á sjálfvirkum snúningi") : __("Kveikja á sjálfvirkum snúningi"); } // the unit wizard's own button (user, 2026-10-24)
     b.addEventListener("click", function(){ KP3D.setPreviewSpin(!KP3D.previewSpinOn()); uwView.spin = KP3D.previewSpinOn(); sync(); });
     sync();
   })();
