@@ -796,6 +796,9 @@
   .uw-side .dw-stack-simple{ gap:4px; margin-top:6px; }
   .uw-side .dw-row-simple{ padding:3px 8px; }
   .uw-side .dw-add-one{ padding:6px; margin-top:4px; }
+  .uw-side .dw-add{ margin-top:5px; }
+  .uw-side .dw-add .hw-btn{ padding-top:4px; padding-bottom:4px; }
+  .dw-add > span:first-child{ min-width:78px; }
   .dw-row-inner{ margin-left:22px; border-style:dashed; background:var(--bg-soft, #f7f7f5); }
   .dw-row-inner{ cursor:grab; touch-action:none; user-select:none; position:relative; z-index:1; }
   .dw-row-inner.dragging{ cursor:grabbing; box-shadow:0 6px 18px rgba(0,0,0,.12); background:#fff; }
@@ -5166,6 +5169,9 @@
         row.addEventListener("pointermove", move); row.addEventListener("pointerup", up); row.addEventListener("pointercancel", up);
       });
     });
+    host.querySelectorAll("[data-dw-bins]").forEach(function(btn){
+      btn.addEventListener("click", function(){ if (btn.dataset.dwBins === "1") b.bins = true; else delete b.bins; commit(KP3D.drawerCodes(b.interior, drawerSys()), b.interior.inner); });
+    });
     host.querySelectorAll("[data-dws-inner-del]").forEach(function(btn){
       btn.addEventListener("click", function(){ commit(KP3D.drawerCodes(b.interior, drawerSys()), null); });
     });
@@ -5197,6 +5203,12 @@
         }).join("") + '</select></div>';
     } else {
       html += drawerSimpleHTML(b, c, codes, inner);
+    }
+    if (!c.sink && !c.rusl){ // bins: always shown on a drawer unit, greyed with the reason when the bottom drawer can't take them
+      var binsOk = binsPossible(b, c), binsAct = binsOn(b, c);
+      html += '<div class="dw-add"><span>' + __("Ruslafötur:") + '</span>' +
+        '<button type="button" class="hw-btn' + (!binsAct ? ' active' : '') + '" data-dw-bins="0">' + __("Engar") + '</button>' +
+        '<button type="button" class="hw-btn' + (binsAct ? ' active' : '') + '" data-dw-bins="1"' + (binsOk ? '' : ' disabled title="' + __("Þarf djúpa skúffu neðst (18 cm eða dýpri) og 60 eða 80 cm breidd") + '"') + '>' + __("Í neðstu skúffu") + '</button></div>';
     }
     if (!c.sink){ // no inner drawer under a sink (the basin and pipes take that space)
     var innerTip = !inner && !D.inner.some(function(ik){ return stackAllowed(b, c, codes, ik); })
@@ -5683,7 +5695,6 @@
       { label:"Skúffur", type:"grunnskapur", drawers:true },
       { label:"Hurð með hillum", type:"grunnskapur" },
       { label:"Vaskaskápur", type:"vaskaskapur" },
-      { label:"Ruslaskápur", type:"ruslaskapur" },
       { label:"Töfrahorn", type:"tofrahorn", group:"Hornskápur" },
       { label:"Hillur", type:"hornskapur", group:"Hornskápur" },
       { label:"Lítill kassi", type:"litillkassi", drawers:true, group:"Annað" } ] }, // "Annað": room for more extras later (user, 2026-10-24)
@@ -5752,8 +5763,7 @@
       { label:"Hurð", type:"vaskaskapur" } ] },
     { key:"grunn", label:"Grunnskápar", desc:"Undir borðplötu", icon:"grunnskapur", opts:[
       { label:"Skúffur", type:"grunnskapur", drawers:true },
-      { label:"Hurð með hillum", type:"grunnskapur" },
-      { label:"Ruslaskápur", type:"ruslaskapur" } ] },
+      { label:"Hurð með hillum", type:"grunnskapur" } ] },
     { key:"har", label:"Háir skápar", desc:"Upp undir loft", icon:"harskapur", opts:[
       { label:"Hurðir með hillum", type:"harskapur" } ] },
     { key:"efri", label:"Efri skápar", desc:"Á vegg", icon:"efriskapur", opts:[
@@ -5800,7 +5810,7 @@
   // ---- island boxes in "＋ Ný eining" (2026-10-05): every grunnskápur option except the corner units ----
   var ISLAND_BOX_OPTS = [
     { label:"Skúffur", type:"grunnskapur", drawers:true }, { label:"Hurð með hillum", type:"grunnskapur" },
-    { label:"Vaskaskápur", type:"vaskaskapur" }, { label:"Ruslaskápur", type:"ruslaskapur" },
+    { label:"Vaskaskápur", type:"vaskaskapur" },
     { label:"Uppþvottavél", type:"uppthvottavel" }, { label:"Lítill kassi", type:"litillkassi", drawers:true } ];
   function islandBoxOpt(b){
     return ISLAND_BOX_OPTS.findIndex(function(o){ return o.type === b.type && (!CATALOG[o.type].hasInterior || !!o.drawers === (b.interior && b.interior.mode === "skuffur")); });
@@ -9391,6 +9401,14 @@
     ofnaskapur:"harskapur", ofnaskapurLagur:"grunnskapur", hornskapur:"grunnskapur", tofrahorn:"grunnskapur", burskapur:"harskapur", thvottavel:"harskapur", efriskapur:"efriskapur", opnarhillur:"efriskapur",
     litillkassi:"litillkassi", harveggskapur:"harveggskapur" };
   function isDrawerUnit(b){ return !!(b.interior && b.interior.mode === "skuffur"); }
+  // Ruslafötur in the bottom drawer of an ordinary drawer unit (user, 2026-10-24 — replaces a separate ruslaskápur):
+  // needs a deep bottom drawer (18 cm sides or more) and a width a RUSL set exists for (60 / 80 cm)
+  function binsPossible(b, c){
+    if (!c || c.sink || c.rusl || !isDrawerUnit(b)) return false;
+    var codes = KP3D.drawerCodes(b.interior, drawerSys()), side = KP3D.DRAWER_CODES[drawerSys()].side[codes[0]] || 0;
+    return side >= 170 && !!(window.KP_LINEMAP && window.KP_LINEMAP.rusl && window.KP_LINEMAP.rusl[String(widthFamily(b.widthMm))]);
+  }
+  function binsOn(b, c){ return !!b.bins && binsPossible(b, c); }
   // No clamp on purpose: a width outside the product range (e.g. a 1400 mm sink cabinet) must find
   // NO match (→ note + Skipulagsvilla), not silently the widest product.
   function widthFamily(mm){ return Math.round(mm / 100) * 100; }
@@ -9462,7 +9480,7 @@
   // V3 = accessories with an Aukahlutategund route: the bin insert (+ the LED, added in collectLineItems)
   function v3RecordsFor(b, c){
     var LM = window.KP_LINEMAP, out = [];
-    if ((c.rusl || (c.sink && isDrawerUnit(b))) && LM){ var r = LM.rusl[String(widthFamily(b.widthMm))]; if (r) out.push(r.id); } // sink with drawers: bins in the bottom drawer
+    if ((c.rusl || (c.sink && isDrawerUnit(b)) || binsOn(b, c)) && LM){ var r = LM.rusl[String(widthFamily(b.widthMm))]; if (r) out.push(r.id); } // sink with drawers: bins in the bottom drawer
     // Le Mans by door half × carcass colour (route "Töfrahorn"; no light grey one exists)
     if (c.tofrahornIds){ var tid = c.tofrahornIds[b.swing === "vinstri" ? "vinstri" : "haegri"][state.carcass]; if (tid) out.push(tid); }
     if (b.aventos && AVENTOS_PRODUCTS[b.aventos]) out.push(AVENTOS_PRODUCTS[b.aventos].id);
@@ -9563,6 +9581,7 @@
           notes.push("Breidd á töfrahorns-front: " + b.widthMm + " mm. Hurðin er á " + (b.swing === "vinstri" ? "vinstri" : "hægri") + " helmingi.");
           if (!c.tofrahornIds.haegri[state.carcass]) notes.push("Le Mans töfrahorn er ekki til í þessum skrokklit — bættu því við í V3 handvirkt.");
         }
+        if (binsOn(b, c)) notes.push("Ruslafötur í neðstu skúffu (" + ((window.KP_LINEMAP.rusl[String(widthFamily(b.widthMm))] || {}).sku || "RUSL") + ").");
         if (c.sink && isDrawerUnit(b)){
           notes.push("Vaskaskápur með skúffum (vaskur ~" + SINK_DEPTH_MM + " mm djúpur): efst " + (sinkFixedTop(b, c) ? "fastur frontur yfir vaskinum" : "lág skúffa undir vaskinum") +
             "; ruslafötur í neðstu skúffu" + (window.KP_LINEMAP && window.KP_LINEMAP.rusl[String(widthFamily(b.widthMm))] ? "" : " — engin ruslafötu-vara í þessari breidd, veldu handvirkt") + ".");

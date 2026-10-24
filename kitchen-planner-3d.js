@@ -2505,7 +2505,7 @@
           bx = buildDrawerBox(THREE, sysKey, meta.carcassKey, side, Math.max(0.2, widthM - 2 * T - 0.026), Math.max(0.2, CD - BACK_T - 0.01), boxCode, widthM - 2 * CARCASS_T);
           bx.position.set(0, drawerBoxY(y0, y1, side / 1000), CD - 0.005);
         }
-        if (meta.bins && fi === 0) addBins(THREE, bx, fh, meta.widthMm || widthM * 1000);
+        if (meta.bins && fi === 0 && !fixedTop) addBins(THREE, bx, innerSide ? fh - innerSide / 1000 - 0.06 : fh, meta.widthMm || widthM * 1000);
         g.add(bx); bx.traverse(function(o){ if (o.isMesh) meshes.push(o); });
         if (bx.userData && bx.userData.runners){ var rgR = bx.userData.runners; rgR.position.copy(bx.position); frame.add(rgR); } // runners stay in the cabinet
         if (innerSide){
@@ -4601,7 +4601,7 @@
             burCodes:c.bur ? burCodesOf(b, state.drawerSystem) : null, dishwasher:!!c.dishwasher,
             lowOven:!!c.lowOven, ovenFrontsMm:c.oven ? b.ovenFrontsMm || null : null, ovenBlock:c.oven ? b : null, ovenCat:c.oven ? c : null,
             sinkFixedTop:!!c.sink && b.sinkTop === "fastur" && !!(b.interior && b.interior.mode === "skuffur"),
-            bins:!!(c.rusl || (c.sink && b.interior && b.interior.mode === "skuffur")), // RUSL60/80 in the bottom drawer
+            bins:!!(c.rusl || (c.sink && b.interior && b.interior.mode === "skuffur") || binsWanted(b, c, state.drawerSystem)), // RUSL60/80 in the bottom drawer
             ovenInner:c.oven && !c.lowOven ? (String(b.ovenCombo == null ? OVEN_DEFAULT[state.drawerSystem === "merivo" ? "merivo" : "legra"] : b.ovenCombo).split("+")[1] || null) : null,
             washerDrawerM:c.thvo && b.thvo !== "hurdir" ? 0.40 : 0, alwaysDims:state.activeCategory === "fataskapar", hung:!!state.hungUnits }, selected, pickables);
         // LED in a tall closet (user, 2026-10-23, C1): a vertical strip in a groove at the front edge of one side
@@ -5308,6 +5308,12 @@
   function drawerNominalM(boxD){ return Math.max(270, Math.min(650, Math.floor(((boxD || 0.562) * 1000 + 0.5) / 50) * 50)) / 1000; }
   // innerW (m, optional) = the carcass's inside width: the drawer is then made as wide as it takes for the runners
   // to sit right against the cabinet sides, as they're mounted (user, 2026-10-11 — they floated in from the sides)
+  // an ordinary drawer unit's bins (b.bins): same rule as the planner's binsPossible — deep bottom drawer, 60/80 cm
+  function binsWanted(b, c, sysKey){
+    if (!b.bins || c.sink || c.rusl || !b.interior || b.interior.mode !== "skuffur") return false;
+    var codes = drawerCodes(b.interior, sysKey), wf = Math.round((b.widthMm || 0) / 100) * 100;
+    return (DRAWER_CODES[sysKey === "merivo" ? "merivo" : "legra"].side[codes[0]] || 0) >= 170 && (wf === 600 || wf === 800);
+  }
   // the bins of a ruslaskápur / sink drawer (RUSL60: 2 × 17 l at the back + 2 × 8 l in front, RUSL80: 3 + 3) standing
   // on the bottom of the drawer box (front at z = 0, bottom at y = 0), as tall as the front lets them be
   function addBins(THREE, bx, frontH, widthMm){

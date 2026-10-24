@@ -295,3 +295,8 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   smellur á 45° (Shift = frjálst). `setObstacleAngle` geymir 0/90 sem gamla rot svo eldri kóði virki. 3D lengdarhandföng
   milliveggs falin þegar hann er á ská.
 - Fólk í þrívídd: images/person-man.png / person-woman.png (klippt úr mynd notanda).
+
+### 2026-10-24 — Ný eining: innskúffa, vaskaskápur, ruslafötur
+- Innskúffa sits behind the highest drawer tall enough (IK ≥170 mm side, IM ≥125); `b.interior.innerAt` = the drawer the customer moved/dragged it to. Shown as its own row in the drawer list; in 3D its own part (front material, fixed in the carcass above a low pot drawer). Pricing/combo unchanged.
+- Vaskaskápur: the list's top row is the sink choice (Skúffa undir vaski / Fastur frontur); no innskúffa under a sink.
+- Ruslaskápur is gone from every picker (catalog type kept so old drafts still work). Instead any drawer unit has "Ruslafötur: Engar / Í neðstu skúffu" (`b.bins`), allowed when the bottom drawer side ≥170 mm and width rounds to 600/800 (`binsPossible`); adds RUSL60/80 to V3 + a note. Bins drawn in 3D (`addBins`), also in a sink's bottom drawer.
