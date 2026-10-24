@@ -5932,7 +5932,8 @@
       function dimSec(key, label, opts, cur, def, attr, cAttr, lo, hi){
         var picked = !!uw.picked[key], body = '<div class="uw-chips">' + opts.map(function(v){
           return '<button type="button" class="hw-btn' + (picked && cur === v ? ' active' : (!picked && v === def ? ' suggest' : '')) + '" ' + attr + '="' + v + '"' + (!picked && v === def ? ' title="' + __("Algengast") + '"' : '') + '>' + (v / 10) + '</button>';
-        }).join("") + '</div><div class="uw-custom"><label>' + __("Annað mál") + '</label><input type="number" ' + cAttr + ' min="' + lo / 10 + '" max="' + hi / 10 + '" step="0.1" value="' + (picked ? cur / 10 : "") + '" placeholder="' + def / 10 + '"><small>' + __("cm · {lo}–{hi}", { lo:lo / 10, hi:hi / 10 }) + '</small></div>'; // in cm like the buttons (user, 2026-10-24)
+        }).join("") + '</div>' + (key === "w" && c.fixedWidths ? '' : '<div class="uw-custom"><label>' + __("Annað mál") + '</label><input type="number" ' + cAttr + ' min="' + lo / 10 + '" max="' + hi / 10 + '" step="0.1" value="' + (picked ? cur / 10 : "") + '" placeholder="' + def / 10 + '"><small>' + __("cm · {lo}–{hi}", { lo:lo / 10, hi:hi / 10 }) + '</small></div>') + // in cm like the buttons (user, 2026-10-24)
+          (key === "w" && c.tofrahornIds ? '<p class="sec-note">' + __("Hurðin er helmingur breiddarinnar: 45, 50 eða 60 cm.") + '</p>' : '');
         return uwSec(key, label, picked ? (cur / 10) + " cm ✓" : (cur / 10) + " cm", body); // the value shows while folded, picked or not (2026-10-24)
       }
       var secHtml = [];
@@ -5956,6 +5957,12 @@
         var rng = [c.shelfRange[0], c.shelfRange[1]];
         innHtml += '<div class="edit-field"><label>' + __("Hillur") + '</label><div class="hw-count"><button class="iconbtn" data-uw-sh="-1"' + (shelfN <= rng[0] ? " disabled" : "") + '>−</button><b>' + shelfN + '</b><button class="iconbtn" data-uw-sh="1"' + (shelfN >= rng[1] ? " disabled" : "") + '>+</button><span>' + plural(shelfN, "hilla", "hillur") + '</span></div></div>';
       }
+      if (c.cls === "corner"){ // which half the door is on; set by itself once placed in a corner (autoCornerSwing) until picked here
+        innHtml += '<div class="edit-field"><label title="' + __("Ein hurð; hinn helmingurinn er föst blindplata") + '">' + __("Hurðin er") + '</label><div class="hw-toggle">' +
+          '<button type="button" class="hw-btn' + (b.swing === "vinstri" ? ' active' : '') + '" data-uw-swing="vinstri">' + __("Vinstri") + '</button>' +
+          '<button type="button" class="hw-btn' + (b.swing !== "vinstri" ? ' active' : '') + '" data-uw-swing="haegri">' + __("Hægri") + '</button></div>' +
+          (b.swingSet ? '' : '<p class="sec-note">' + __("Velst sjálfkrafa þegar skápurinn fer í horn: blindi helmingurinn inn í hornið.") + '</p>') + '</div>';
+      }
       var railN = c.railRange ? KP3D.railsOf(b) : null; // Fataslá
       if (railN != null){
         var rrng = [c.railRange[0], c.railRange[1]];
@@ -5972,6 +5979,7 @@
       innHtml += variantHTML(b, c);
       var innSum = c.hasInterior && b.interior && b.interior.mode === "skuffur" ? b.interior.count + " " + plural(b.interior.count, "skúffa", "skúffur")
         : shelfN != null ? shelfN + " " + plural(shelfN, "hilla", "hillur") : c.hasInterior && !c.shelfRange && b.interior ? __("Hurðir") : "";
+      if (c.cls === "corner") innSum = (innSum ? innSum + " · " : "") + (b.swing === "vinstri" ? __("hurð vinstra megin") : __("hurð hægra megin"));
       if (innHtml) secHtml.push(uwSec("inn", c.hasInterior || c.shelfRange || c.railRange ? __("Innvols") : __("Útfærsla"), innSum, innHtml));
       html += '<div class="uw-secs">' + secHtml.join("") + '</div>';
       if (uw.island){
@@ -6088,6 +6096,7 @@
       ensureCombo(cc, keep ? b.interior.inner : null, function(ok){ if (ok) setStack(cc, keep ? b.interior.inner : null); else sel.value = prev; });
     }); });
     wireDrawerSimple(side, b, c, setStack);
+    side.querySelectorAll("[data-uw-swing]").forEach(function(el){ el.addEventListener("click", function(){ b.swing = el.dataset.uwSwing; b.swingSet = true; renderUnitWizard(); }); });
     side.querySelectorAll("[data-uw-sh]").forEach(function(el){ el.addEventListener("click", function(){
       var d = +el.dataset.uwSh;
       b.shelves = Math.max(c.shelfRange[0], Math.min(c.shelfRange[1], KP3D.shelvesOf(b) + d));
@@ -7743,8 +7752,25 @@
     }
   }
 
+  // A corner unit (töfrahorn / blint horn) the customer hasn't set by hand turns its blind half into the corner it
+  // stands in: first on its wall → the corner at the wall's start, last → the corner at its end (user, 2026-10-24)
+  function autoCornerSwing(){
+    var changed = false;
+    (state.walls || []).forEach(function(w){
+      var list = w.floor || [];
+      list.forEach(function(b, i){
+        var c = CATALOG[b.type];
+        if (!c || c.cls !== "corner" || b.swingSet) return;
+        var want = i === 0 && (b.gapMm || 0) < 100 ? CORNER_AT_START_DOOR : i === list.length - 1 ? CORNER_AT_END_DOOR : null;
+        if (want && b.swing !== want){ b.swing = want; changed = true; }
+      });
+    });
+    return changed;
+  }
+  var CORNER_AT_START_DOOR = "haegri", CORNER_AT_END_DOOR = "vinstri";
   function refreshAfterEdit(){
     if (state.step !== "editor") return;
+    if (autoCornerSwing()) save();
     if (clampIslands()) save();
     if (glueLockedPanels()) save();
     warnings = computeWarnings();
@@ -8499,7 +8525,7 @@
       });
     });
     host.querySelectorAll("[data-swing]").forEach(function(btn){
-      btn.addEventListener("click", function(){ b.swing = btn.dataset.swing; save(); refreshAfterEdit(); });
+      btn.addEventListener("click", function(){ b.swing = btn.dataset.swing; if (CATALOG[b.type].cls === "corner") b.swingSet = true; save(); refreshAfterEdit(); });
     });
     var shDec = host.querySelector('[data-role="sh-dec"]'), shInc = host.querySelector('[data-role="sh-inc"]');
     if (shDec) shDec.addEventListener("click", function(){ setShelves(-1); });
@@ -9400,6 +9426,13 @@
   var V1_FAMILY = { grunnskapur:"grunnskapur", vaskaskapur:"grunnskapur", ruslaskapur:"grunnskapur", harskapur:"harskapur", harskapurOpinn:"harskapur", isskapur:"harskapur",
     ofnaskapur:"harskapur", ofnaskapurLagur:"grunnskapur", hornskapur:"grunnskapur", tofrahorn:"grunnskapur", burskapur:"harskapur", thvottavel:"harskapur", efriskapur:"efriskapur", opnarhillur:"efriskapur",
     litillkassi:"litillkassi", harveggskapur:"harveggskapur" };
+  // the LeMans for this töfrahorn's door (half the cabinet): 45 / 50 / 60 cm, nearest one
+  function tofraIdsFor(b, c){
+    var door = b.widthMm / 2, by = c.tofrahornByDoor || {};
+    if (door < 475 && by[450]) return by[450];
+    if (door >= 550 && by[600]) return by[600];
+    return c.tofrahornIds;
+  }
   function isDrawerUnit(b){ return !!(b.interior && b.interior.mode === "skuffur"); }
   // Ruslafötur in the bottom drawer of an ordinary drawer unit (user, 2026-10-24 — replaces a separate ruslaskápur):
   // needs a deep bottom drawer (18 cm sides or more) and a width a RUSL set exists for (60 / 80 cm)
@@ -9482,7 +9515,7 @@
     var LM = window.KP_LINEMAP, out = [];
     if ((c.rusl || (c.sink && isDrawerUnit(b)) || binsOn(b, c)) && LM){ var r = LM.rusl[String(widthFamily(b.widthMm))]; if (r) out.push(r.id); } // sink with drawers: bins in the bottom drawer
     // Le Mans by door half × carcass colour (route "Töfrahorn"; no light grey one exists)
-    if (c.tofrahornIds){ var tid = c.tofrahornIds[b.swing === "vinstri" ? "vinstri" : "haegri"][state.carcass]; if (tid) out.push(tid); }
+    if (c.tofrahornIds){ var tid = tofraIdsFor(b, c)[b.swing === "vinstri" ? "vinstri" : "haegri"][state.carcass]; if (tid) out.push(tid); }
     if (b.aventos && AVENTOS_PRODUCTS[b.aventos]) out.push(AVENTOS_PRODUCTS[b.aventos].id);
     if (b.smida && Array.isArray(b.smida.doors)){
       var pocketSys = null;
@@ -9578,7 +9611,7 @@
         if (c.oven) notes.push("Ofnhæð: " + KP3D.ovenHOf(b, c) + " mm" + (KP3D.ovenHOf(b, c) > 1000 ? " (60+45)" : "") + ".");
         if (c.lowOven) notes.push("Lágur ofnaskápur: M-skúffa undir ofninum (OFN6 er skráð með K-skúffu).");
         if (c.tofrahornIds){
-          notes.push("Breidd á töfrahorns-front: " + b.widthMm + " mm. Hurðin er á " + (b.swing === "vinstri" ? "vinstri" : "hægri") + " helmingi.");
+          notes.push("Töfrahorn " + b.widthMm + " mm: hurð " + Math.round(b.widthMm / 2) + " mm (LeMans " + (b.widthMm / 2 < 475 ? 45 : b.widthMm / 2 >= 550 ? 60 : 50) + " cm), á " + (b.swing === "vinstri" ? "vinstri" : "hægri") + " helmingi; hinn helmingurinn er blindplata.");
           if (!c.tofrahornIds.haegri[state.carcass]) notes.push("Le Mans töfrahorn er ekki til í þessum skrokklit — bættu því við í V3 handvirkt.");
         }
         if (binsOn(b, c)) notes.push("Ruslafötur í neðstu skúffu (" + ((window.KP_LINEMAP.rusl[String(widthFamily(b.widthMm))] || {}).sku || "RUSL") + ").");

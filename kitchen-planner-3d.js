@@ -82,10 +82,15 @@
     litillkassi: { label:"Lítill kassi", zone:"floor", cls:"floor", defaultW:600, minW:200, maxW:1200, h:500, d:600, minH:300, maxH:700, minD:300, maxD:700, hasInterior:true, drawerCountRange:[1,4], shelfRange:[0,2,1] },
     // Hár veggskápur: a shallower tall unit (500 deep, 2000 high)
     harveggskapur:{ label:"Hár veggskápur", zone:"floor", cls:"tall", defaultW:600, minW:300, maxW:1200, h:2000, d:500, minH:1500, maxH:2700, minD:300, maxD:600, hasInterior:true, drawerCountRange:[1,4], shelfRange:[0,6,4] },
-    tofrahorn:   { label:"Töfrahorn (kapphorn)", zone:"floor", cls:"corner", defaultW:1200, minW:900, maxW:1500, h:900, d:600, minH:600, maxH:1100, minD:500, maxD:900, hasInterior:false, counter:true,
+    // LeMans II exists for 45 / 50 / 60 cm doors; the door is half the cabinet (user, 2026-10-24: "B"), so only
+    // 90 / 100 / 120 cm, and only heights LeMans fits (600–900 mm inside the carcass → 75–100 cm to the worktop)
+    tofrahorn:   { label:"Töfrahorn (kapphorn)", zone:"floor", cls:"corner", defaultW:1200, minW:900, maxW:1200, widths:[900, 1000, 1200], fixedWidths:true, h:900, d:600, minH:750, maxH:1000, minD:500, maxD:900, hasInterior:false, counter:true,
                    skapategundOverride:"Grunnskápur",
                    // Útfærslur "Le mans Töfrahorn" by door half (b.swing) × carcass colour — no light grey exists
-                   tofrahornIds:{ haegri:{ dokkgra:"rec7qJxtUZFofq7CW", hvit:"recrLoaCJMoB0LGo4" }, vinstri:{ dokkgra:"recAxPR5s5jKnktRm", hvit:"recdfMCuUnPyRV8rV" } } },
+                   tofrahornIds:{ haegri:{ dokkgra:"rec7qJxtUZFofq7CW", hvit:"recrLoaCJMoB0LGo4" }, vinstri:{ dokkgra:"recAxPR5s5jKnktRm", hvit:"recdfMCuUnPyRV8rV" } }, // 50 cm door
+                   tofrahornByDoor:{ // the 45 / 60 cm LeMans (Innval prices, created 2026-10-24); 50 = tofrahornIds above
+                     450:{ haegri:{ dokkgra:"recKyaNOBzoA2V8Xz", hvit:"recLDsouN1wMiAU8m" }, vinstri:{ dokkgra:"recGYrvakmzngjtNQ", hvit:"rec5STUaCp24x4Too" } },
+                     600:{ haegri:{ dokkgra:"rec83RJT2eLVlCxhZ", hvit:"recW2zy1TpVs7kSsh" }, vinstri:{ dokkgra:"recSzZVRkMZny4keq", hvit:"recx6v4o7oLRxJO6S" } } } },
     vaskaskapur: { label:"Vaskaskápur", zone:"floor", cls:"floor", defaultW:800, minW:500, maxW:1500, h:900, d:600, minH:600, maxH:1100, minD:400, maxD:750, hasInterior:true, drawerCountRange:[1,3], counter:true, sink:true,
                    skapategundOverride:"Grunnskápur", note:"Vaskaskápur — útskurður fyrir vask og lagnir; vinsamlegast staðfestu vaskstærð og gerð." },
     opnarhillur: { label:"Opnar hillur", zone:"wall", cls:"wall", defaultW:600, minW:200, maxW:1200, h:700, d:300, minH:200, maxH:1200, minD:200, maxD:450, hasInterior:false, open:true, shelfRange:[1,5,3],
