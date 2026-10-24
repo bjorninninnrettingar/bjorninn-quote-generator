@@ -2505,6 +2505,7 @@
           bx = buildDrawerBox(THREE, sysKey, meta.carcassKey, side, Math.max(0.2, widthM - 2 * T - 0.026), Math.max(0.2, CD - BACK_T - 0.01), boxCode, widthM - 2 * CARCASS_T);
           bx.position.set(0, drawerBoxY(y0, y1, side / 1000), CD - 0.005);
         }
+        if (meta.bins && fi === 0) addBins(THREE, bx, fh, meta.widthMm || widthM * 1000);
         g.add(bx); bx.traverse(function(o){ if (o.isMesh) meshes.push(o); });
         if (bx.userData && bx.userData.runners){ var rgR = bx.userData.runners; rgR.position.copy(bx.position); frame.add(rgR); } // runners stay in the cabinet
         if (innerSide){
@@ -4600,6 +4601,7 @@
             burCodes:c.bur ? burCodesOf(b, state.drawerSystem) : null, dishwasher:!!c.dishwasher,
             lowOven:!!c.lowOven, ovenFrontsMm:c.oven ? b.ovenFrontsMm || null : null, ovenBlock:c.oven ? b : null, ovenCat:c.oven ? c : null,
             sinkFixedTop:!!c.sink && b.sinkTop === "fastur" && !!(b.interior && b.interior.mode === "skuffur"),
+            bins:!!(c.rusl || (c.sink && b.interior && b.interior.mode === "skuffur")), // RUSL60/80 in the bottom drawer
             ovenInner:c.oven && !c.lowOven ? (String(b.ovenCombo == null ? OVEN_DEFAULT[state.drawerSystem === "merivo" ? "merivo" : "legra"] : b.ovenCombo).split("+")[1] || null) : null,
             washerDrawerM:c.thvo && b.thvo !== "hurdir" ? 0.40 : 0, alwaysDims:state.activeCategory === "fataskapar", hung:!!state.hungUnits }, selected, pickables);
         // LED in a tall closet (user, 2026-10-23, C1): a vertical strip in a groove at the front edge of one side
@@ -5306,6 +5308,23 @@
   function drawerNominalM(boxD){ return Math.max(270, Math.min(650, Math.floor(((boxD || 0.562) * 1000 + 0.5) / 50) * 50)) / 1000; }
   // innerW (m, optional) = the carcass's inside width: the drawer is then made as wide as it takes for the runners
   // to sit right against the cabinet sides, as they're mounted (user, 2026-10-11 — they floated in from the sides)
+  // the bins of a ruslaskápur / sink drawer (RUSL60: 2 × 17 l at the back + 2 × 8 l in front, RUSL80: 3 + 3) standing
+  // on the bottom of the drawer box (front at z = 0, bottom at y = 0), as tall as the front lets them be
+  function addBins(THREE, bx, frontH, widthMm){
+    var p0 = bx.position.clone(); bx.position.set(0, 0, 0); bx.updateMatrixWorld(true);
+    var bb = new THREE.Box3().setFromObject(bx); bx.position.copy(p0);
+    var w = bb.max.x - bb.min.x - 0.05, d = bb.max.z - bb.min.z - 0.05, n = widthMm >= 750 ? 3 : 2;
+    var tall = Math.max(0.12, Math.min(0.34, frontH - 0.07)), low = tall * 0.72, bw = w / n - 0.012;
+    var body = new THREE.MeshStandardMaterial({ color:0x4b4e52, roughness:0.65, metalness:0.02 }), lid = new THREE.MeshStandardMaterial({ color:0x8e9196, roughness:0.45, metalness:0.05 });
+    var x0 = (bb.min.x + bb.max.x) / 2, zBack = bb.min.z + 0.025 + d * 0.27, zFront = bb.min.z + 0.025 + d * 0.77;
+    [[zBack, d * 0.54, tall], [zFront, d * 0.42, low]].forEach(function(row){
+      for (var k = 0; k < n; k++){
+        var x = x0 - w / 2 + (k + 0.5) * (w / n);
+        var m = new THREE.Mesh(new THREE.BoxGeometry(bw, row[2], row[1] - 0.012), body); m.position.set(x, 0.02 + row[2] / 2, row[0]); m.castShadow = true; bx.add(m);
+        var l = new THREE.Mesh(new THREE.BoxGeometry(bw + 0.006, 0.012, row[1] - 0.006), lid); l.position.set(x, 0.02 + row[2] + 0.006, row[0]); bx.add(l);
+      }
+    });
+  }
   function buildDrawerBox(THREE, sysKey, carcassKey, sideMm, boxW, boxD, code, innerW){
     var g = new THREE.Group();
     var dark = carcassKey === "dokkgra", nomD = drawerNominalM(boxD);
