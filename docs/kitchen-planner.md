@@ -282,3 +282,16 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
 - Homes from before (rooms but no wiz) get `legacy:true` and open on the last step with the old tools (drag, rotate,
   add room). Wizard homes don't drag rooms — the walls are the truth.
 - Windows can be placed on the home plan now (`blob.windows`, WINDOW_DEFAULT size), drawn as a gap with a glass line.
+
+## 2026-10-24 — eldhúsflæðið, síða fyrir síðu (aftur)
+
+- Lögun: 3 spjöld (Rétthyrnt, L-laga, Með innskoti); opin eldhús = „Opið“ á vegg á málasíðunni (`setWallOpen`).
+  L-laga: hornið sem er inndregið valið á málasíðunni (`lCorner` / `setLCorner` spegla rýmið, veggjalengdir haldast).
+- Málasíða: veggjalistinn fylgir teikningunni (`syncWallList`), „+ Bæta við vegg“ (`splitWallAtMm`), tvísmellur greindur
+  í `startSlide` (fyrsta smellið teiknar upp á nýtt svo dblclick nær aldrei sama elementi), dregið á veggnúmeri,
+  „Grunnmynd undir“ falin (`window.__kpPlanImport`).
+- „Í rýminu“ á málasíðunni: burðarstólpar (kassi/hringur, `o.shape`) og milliveggir, dregnir hvert sem er.
+  Frjálst horn `o.ang` (gráður, ofan á gamla `o.rot` 0/90) — `KP3D.obstacleCorners` / `obstacleAng`; snúningshandfang
+  smellur á 45° (Shift = frjálst). `setObstacleAngle` geymir 0/90 sem gamla rot svo eldri kóði virki. 3D lengdarhandföng
+  milliveggs falin þegar hann er á ská.
+- Fólk í þrívídd: images/person-man.png / person-woman.png (klippt úr mynd notanda).

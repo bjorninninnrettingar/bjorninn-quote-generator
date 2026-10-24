@@ -910,13 +910,15 @@
       var wi = state.walls.findIndex(function(w){ return w.id === o.wallId; }), g = walls[wi];
       if (!g || state.walls[wi].open) return;
       var r = obstacleRect(o), a = r.a0 / 1000, b = r.a1 / 1000, n0 = r.n0 / 1000, n1 = r.n1 / 1000, lenM = o.depthMm / 1000;
-      function P(al, ou){ return { x:g.origin.x + g.axis.x * al + g.normal.x * ou, z:g.origin.z + g.axis.z * al + g.normal.z * ou }; }
+      var ang = obstacleAng(o), mid = [(a + b) / 2, (n0 + n1) / 2];
+      function P(al, ou){ if (ang){ var q = turnLocal([al, ou], mid, ang); al = q[0]; ou = q[1]; } return { x:g.origin.x + g.axis.x * al + g.normal.x * ou, z:g.origin.z + g.axis.z * al + g.normal.z * ou }; }
+      function V(dal, dou){ if (ang){ var q = turnLocal([dal, dou], [0, 0], ang); dal = q[0]; dou = q[1]; } return { x:g.axis.x * dal + g.normal.x * dou, z:g.axis.z * dal + g.normal.z * dou }; }
       if (!r.rot){ // runs out from the wall: faces A / B are its two sides
-        out.push({ origin:P(a, n0), axis:g.normal, normal:{ x:-g.axis.x, z:-g.axis.z }, lenM:lenM });
-        out.push({ origin:P(b, n0), axis:g.normal, normal:{ x:g.axis.x, z:g.axis.z }, lenM:lenM });
+        out.push({ origin:P(a, n0), axis:V(0, 1), normal:V(-1, 0), lenM:lenM });
+        out.push({ origin:P(b, n0), axis:V(0, 1), normal:V(1, 0), lenM:lenM });
       } else { // turned: parallel to its wall — A faces the room, B faces back toward the wall
-        out.push({ origin:P(a, n1), axis:g.axis, normal:{ x:g.normal.x, z:g.normal.z }, lenM:lenM });
-        out.push({ origin:P(b, n0), axis:{ x:-g.axis.x, z:-g.axis.z }, normal:{ x:-g.normal.x, z:-g.normal.z }, lenM:lenM });
+        out.push({ origin:P(a, n1), axis:V(1, 0), normal:V(0, 1), lenM:lenM });
+        out.push({ origin:P(b, n0), axis:V(-1, 0), normal:V(0, -1), lenM:lenM });
       }
     });
     return out;
@@ -4342,6 +4344,7 @@
       proxy.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(g.axis.x, 0, g.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(g.normal.x, 0, g.normal.z)));
       var along = rr.a0 / 1000 + wM / 2;
       proxy.position.set(g.origin.x + g.axis.x * along + g.normal.x * (outM + dM / 2), v.lo / 1000 + hM / 2, g.origin.z + g.axis.z * along + g.normal.z * (outM + dM / 2));
+      if (obstacleAng(o)) proxy.rotateY(-obstacleAng(o) * Math.PI / 180); // any angle (2026-10-24), about its own centre
       proxy.userData = meta; grp.add(proxy); pickables.push(proxy);
       function part(geo, color, rough, metal, x, y, z){ // y from the bottom, z from the depth centre
         var m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color:color, roughness:rough, metalness:metal || 0 }));
@@ -4402,7 +4405,7 @@
       // Both ends (2026-10-23): either end drags, the other stays put — along its length axis (out from the wall, or along
       // it once turned). The wall stretches live in 3D (proxy scaled, no scene rebuild — a rebuild mid-drag lost the
       // drag, which was why it "didn't work"); onObstacleResizeEnd stores it once on release.
-      if (o.kind === "milliveggur" && def.free && opts.onObstacleResizeEnd && !o.locked){
+      if (o.kind === "milliveggur" && def.free && opts.onObstacleResizeEnd && !o.locked && !obstacleAng(o)){ // (at an angle: its Lengd field)
         ["near", "far"].forEach(function(end){
           // 6 cm past the end, drawn on top: the end face itself (or the wall it stands against) must never win the pick
           var push = (end === "far" ? 1 : -1) * 0.06;
@@ -5624,11 +5627,20 @@
     var def = OBSTACLES[o.kind] || {}, rot = o.rot === 90 && !!def.rotatable, off = o.offsetMm || 0, out = o.outMm || 0;
     return { a0:off, a1:off + (rot ? o.depthMm : o.widthMm), n0:out, n1:out + (rot ? o.widthMm : o.depthMm), rot:rot };
   }
+  // a free column / milliveggur can also stand at any angle (user, 2026-10-24): o.ang degrees, turned about its own
+  // centre in its wall's (along, out) frame, on top of the old quarter turn (o.rot). obstacleRect stays the unturned box.
+  function obstacleAng(o){ var def = OBSTACLES[o.kind] || {}; return def.free && o.ang ? o.ang : 0; }
+  function turnLocal(p, c, deg){ var t = deg * Math.PI / 180, cs = Math.cos(t), sn = Math.sin(t); return [c[0] + (p[0] - c[0]) * cs - (p[1] - c[1]) * sn, c[1] + (p[0] - c[0]) * sn + (p[1] - c[1]) * cs]; }
+  function obstacleCorners(o){ // [[along, out] ×4] mm in its wall's frame
+    var r = obstacleRect(o), c = [[r.a0, r.n0], [r.a1, r.n0], [r.a1, r.n1], [r.a0, r.n1]], ang = obstacleAng(o);
+    if (!ang) return c;
+    var mid = [(r.a0 + r.a1) / 2, (r.n0 + r.n1) / 2];
+    return c.map(function(p){ return turnLocal(p, mid, ang); });
+  }
   function obstacleQuad(state, o){
     var walls = wallGeoms(state), wi = state.walls.findIndex(function(w){ return w.id === o.wallId; }), g = walls[wi];
     if (!g || state.walls[wi].open) return null;
-    var r = obstacleRect(o), a = r.a0 / 1000, b = r.a1 / 1000, n0 = r.n0 / 1000, n1 = r.n1 / 1000;
-    return [[a, n0], [b, n0], [b, n1], [a, n1]].map(function(p){ return { x:g.origin.x + g.axis.x * p[0] + g.normal.x * p[1], z:g.origin.z + g.axis.z * p[0] + g.normal.z * p[1] }; });
+    return obstacleCorners(o).map(function(p){ var a = p[0] / 1000, n = p[1] / 1000; return { x:g.origin.x + g.axis.x * a + g.normal.x * n, z:g.origin.z + g.axis.z * a + g.normal.z * n }; });
   }
   var DECOR = {
     bordFer:    { label:"Borðstofuborð",            group:"floor", w:1600, d:900, seats:[4, 6, 8], seatsDefault:6 },
@@ -6375,7 +6387,7 @@
     cornerClearanceMm: cornerClearanceMm, afellaMm: afellaMm, AFELLA_MM: AFELLA_MM,
     blockStartsMm: blockStartsMm,
     planTransform: planTransform,
-    rectCornersWorld: rectCornersWorld, drawerZoneMm: drawerZoneMm, TALL_DRAWER_MAX_MM: TALL_DRAWER_MAX_MM, DRAWER_TOPDOOR_MIN_MM: DRAWER_TOPDOOR_MIN_MM, doorLeaves: doorLeaves, islandFits: islandFits, nearestIslandFit: nearestIslandFit, topThickM: topThickM, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, obstacleRect: obstacleRect, DECOR: DECOR, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
+    rectCornersWorld: rectCornersWorld, drawerZoneMm: drawerZoneMm, TALL_DRAWER_MAX_MM: TALL_DRAWER_MAX_MM, DRAWER_TOPDOOR_MIN_MM: DRAWER_TOPDOOR_MIN_MM, doorLeaves: doorLeaves, islandFits: islandFits, nearestIslandFit: nearestIslandFit, topThickM: topThickM, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, obstacleRect: obstacleRect, obstacleCorners: obstacleCorners, obstacleAng: obstacleAng, DECOR: DECOR, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
     WALL_COLORS: WALL_COLORS,
     WINDOW_DEFAULT: WINDOW_DEFAULT,
     _handleProfile: handleProfile,

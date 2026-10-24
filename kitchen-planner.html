@@ -473,6 +473,10 @@
   .in-room .ir-row label{ display:flex; align-items:center; gap:4px; color:var(--ink-soft); font-size:12px; }
   .in-room .ir-row input{ width:62px; font:inherit; font-size:13px; padding:4px 6px; border:1px solid var(--line); border-radius:7px; }
   .in-room .ir-acts{ display:flex; gap:4px; }
+  .in-room .ir-row.sel{ border-color:var(--blue); background:var(--blue-soft); }
+  .in-room .ir-shape{ display:flex; gap:2px; }
+  .in-room .ir-shape button{ border:1px solid var(--line); background:#fff; border-radius:6px; padding:3px; line-height:0; color:var(--ink-soft); cursor:pointer; }
+  .in-room .ir-shape button[aria-pressed="true"]{ border-color:var(--ink); color:var(--ink); box-shadow:inset 0 0 0 1px var(--ink); }
   .in-room .ir-hint{ font-size:12px; color:var(--ink-soft); margin:0; }
   .el-nav{ cursor:pointer; }
   .el-nav:hover{ fill:#191919; text-decoration:underline; }
@@ -2448,11 +2452,21 @@
       if (!w.open) (state.obstacles || []).forEach(function(o){ // hindranir from above (2026-10-11): footprint into the room, beam dashed
         if (o.wallId !== w.id) return;
         var def = KP3D.OBSTACLES[o.kind]; if (!def) return;
-        var r0 = KP3D.obstacleRect(o), a0 = r0.a0 * sc, a1 = r0.a1 * sc, n0 = r0.n0 * sc, n1 = r0.n1 * sc;
-        var q = [[a0, n0], [a1, n0], [a1, n1], [a0, n1]].map(function(p){ return (x1 + ax * p[0] + nx * p[1]) + "," + (y1 + az * p[0] + nz * p[1]); }).join(" ");
+        var SP = function(p){ return { x:x1 + ax * p[0] * sc + nx * p[1] * sc, y:y1 + az * p[0] * sc + nz * p[1] * sc }; };
+        var cq = KP3D.obstacleCorners(o).map(SP), q = cq.map(function(p){ return p.x + "," + p.y; }).join(" ");
         var fill = def.look === "radiator" ? "#ffffff" : def.look === "panel" ? "#d2d4d7" : def.look === "sill" ? "#e6e2da" : def.look === "pipe" ? "#c8ccd2" : "#b9b4a8";
-        var obSel = obDrag && obDrag.id === o.id;
-        items += '<polygon data-obdrag="' + o.id + '" points="' + q + '" fill="' + fill + '" fill-opacity="' + (def.ceiling ? 0.35 : 0.95) + '" stroke="' + (obSel ? "#0058a3" : "#6f6a5f") + '" stroke-width="' + (obSel ? 2.5 : 1.2) + '"' + (def.ceiling ? ' stroke-dasharray="6,4"' : '') + ' style="cursor:grab;"><title>' + __("{x} — dragðu til að færa", { x:__(def.label) }) + '</title></polygon>';
+        var obSel = (obDrag && obDrag.id === o.id) || (shapePhase === "size" && sizeObSel === o.id), round = def.shapes && o.shape === "round";
+        var cx0 = (cq[0].x + cq[2].x) / 2, cy0 = (cq[0].y + cq[2].y) / 2, look = ' fill="' + fill + '" fill-opacity="' + (def.ceiling ? 0.35 : 0.95) + '" stroke="' + (obSel ? "#0058a3" : "#6f6a5f") + '" stroke-width="' + (obSel ? 2.5 : 1.2) + '"' + (def.ceiling ? ' stroke-dasharray="6,4"' : '') + ' style="cursor:grab;"><title>' + __("{x} — dragðu til að færa", { x:__(def.label) }) + '</title>';
+        items += round ? '<circle data-obdrag="' + o.id + '" cx="' + cx0 + '" cy="' + cy0 + '" r="' + Math.min(o.widthMm, o.depthMm) / 2 * sc + '"' + look + '</circle>' : '<polygon data-obdrag="' + o.id + '" points="' + q + '"' + look + '</polygon>';
+        // the selected one turns by a handle past its end (size page): free, snapping to every 45° (user, 2026-10-24)
+        if (shapePhase === "size" && sizeObSel === o.id && def.free && !round){
+          var T = obTotalAng(o) * Math.PI / 180, ldx = -Math.sin(T), ldn = Math.cos(T); // its length axis, (along, out)
+          var dx = ax * ldx + nx * ldn, dy = az * ldx + nz * ldn, reach = Math.max(o.widthMm, o.depthMm) / 2 * sc + 22;
+          var hx = cx0 + dx * reach, hy = cy0 + dy * reach;
+          items += '<line x1="' + cx0 + '" y1="' + cy0 + '" x2="' + hx + '" y2="' + hy + '" stroke="#0058a3" stroke-width="1.2" stroke-dasharray="3,3" style="pointer-events:none;"/>' +
+            '<g data-obrot="' + o.id + '" style="cursor:grab;"><circle cx="' + hx + '" cy="' + hy + '" r="11" fill="#fff" stroke="#0058a3" stroke-width="2"/><g transform="translate(' + (hx - 7) + ',' + (hy - 7) + ') scale(.58)" fill="none" stroke="#0058a3" stroke-width="2.4" stroke-linecap="round">' + ICON_PATHS.rotate + '</g><title>' + __("Dragðu til að snúa. Smellur á 45° og 90°.") + '</title></g>';
+          if (obRot && obRot.id === o.id) items += '<text x="' + (hx + 16) + '" y="' + (hy - 12) + '" font-size="12" font-weight="700" fill="#0058a3" style="pointer-events:none;">' + obTotalAng(o) + '°</text>';
+        }
       });
       if (opPhase && !w.open){
         var bx0 = (x1 + x2) / 2 + nx * 26, by0 = (y1 + y2) / 2 + nz * 26, onw = openWallId === w.id;
@@ -2582,6 +2596,9 @@
     });
     host.querySelectorAll("[data-obdrag]").forEach(function(el){
       el.addEventListener("pointerdown", function(evt){ startObDrag(el.dataset.obdrag, evt); });
+    });
+    host.querySelectorAll("[data-obrot]").forEach(function(el){
+      el.addEventListener("pointerdown", function(evt){ startObRotate(el.dataset.obrot, evt); });
     });
     host.querySelectorAll("[data-opdim]").forEach(function(g){
       g.addEventListener("click", function(){ var pr = g.dataset.opdim.split(":"), r = g.querySelector("rect"); openOpPop(pr[0], pr[1], +r.getAttribute("x") + (+r.getAttribute("width")) / 2, +r.getAttribute("y") + 10); });
@@ -2943,7 +2960,7 @@
   }
   document.getElementById("shapeCanvas").addEventListener("pointerdown", function(evt){
     if (shapePhase === "water" && (evt.target === evt.currentTarget || evt.target.tagName === "svg" || evt.target.tagName === "polygon")){ startWaterDrag(evt, true); return; }
-    if (evt.target === evt.currentTarget || evt.target.tagName === "svg" || evt.target.tagName === "polygon"){ selectedEdge = null; selectedOpeningId = null; document.getElementById("dimPop").hidden = true; renderShapeCanvas(); }
+    if (evt.target === evt.currentTarget || evt.target.tagName === "svg" || (evt.target.tagName === "polygon" && !evt.target.dataset.obdrag)){ selectedEdge = null; selectedOpeningId = null; if (sizeObSel){ sizeObSel = null; renderWallList(); } document.getElementById("dimPop").hidden = true; renderShapeCanvas(); }
   });
   window.addEventListener("resize", function(){ if (state.step === "shape" && shapePhase !== "pick" && !heightScene) renderShapeCanvas(); });
   // the drawing follows its own box too (it was drawn while the layout was still narrow → a tiny room, 2026-10-11)
@@ -3144,10 +3161,12 @@
     var mine = (state.obstacles || []).filter(function(o){ return o.kind === "stolpi" || o.kind === "milliveggur"; });
     inRoom.innerHTML = '<div class="mat-section-title">' + __("Í rýminu") + '</div><div class="ir-add"><button type="button" data-iradd="stolpi">' + __("+ Burðarstólpi") + '</button><button type="button" data-iradd="milliveggur">' + __("+ Milliveggur") + '</button></div>' +
       mine.map(function(o){
-        var mv = o.kind === "milliveggur", num = function(k, v, lbl){ return '<label>' + __(lbl) + ' <input type="number" step="10" data-irv="' + o.id + ':' + k + '" value="' + v + '"></label>'; };
-        return '<div class="ir-row"><b>' + __(KP3D.OBSTACLES[o.kind].label) + '</b>' + (mv ? num("depthMm", o.depthMm, "Lengd") + num("widthMm", o.widthMm, "Þykkt") : num("widthMm", o.widthMm, "Breidd") + num("depthMm", o.depthMm, "Dýpt")) +
-          '<span class="ir-acts">' + (mv ? '<button type="button" data-irrot="' + o.id + '" title="' + __("Snúa um 90°") + '">' + icon("rotate", 13) + '</button>' : '') + '<button type="button" data-irdel="' + o.id + '" title="' + __("Fjarlægja") + '">' + icon("close", 13) + '</button></span></div>';
-      }).join("") + (mine.length ? '<p class="ir-hint">' + __("Dragðu á teikningunni til að færa.") + '</p>' : '');
+        var mv = o.kind === "milliveggur", round = o.shape === "round", num = function(k, v, lbl, unit){ return '<label>' + __(lbl) + ' <input type="number" step="' + (unit === "°" ? 1 : 10) + '" data-irv="' + o.id + ':' + k + '" value="' + v + '">' + (unit || '') + '</label>'; };
+        var shape = mv ? '' : '<span class="ir-shape"><button type="button" data-irshape="' + o.id + ':box" aria-pressed="' + !round + '" title="' + __("Kassi") + '"><svg width="14" height="14"><rect x="2" y="2" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button><button type="button" data-irshape="' + o.id + ':round" aria-pressed="' + round + '" title="' + __("Hringur") + '"><svg width="14" height="14"><circle cx="7" cy="7" r="5.3" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button></span>';
+        var dims = mv ? num("depthMm", o.depthMm, "Lengd") + num("widthMm", o.widthMm, "Þykkt") : round ? num("diaMm", o.widthMm, "Þvermál") : num("widthMm", o.widthMm, "Breidd") + num("depthMm", o.depthMm, "Dýpt");
+        return '<div class="ir-row' + (sizeObSel === o.id ? ' sel' : '') + '" data-irsel="' + o.id + '"><b>' + __(KP3D.OBSTACLES[o.kind].label) + '</b>' + shape + dims + (round ? '' : num("ang", obTotalAng(o), "Horn", "°")) +
+          '<span class="ir-acts">' + (round ? '' : '<button type="button" data-irrot="' + o.id + '" title="' + __("Snúa um 90°") + '">' + icon("rotate", 13) + '</button>') + '<button type="button" data-irdel="' + o.id + '" title="' + __("Fjarlægja") + '">' + icon("close", 13) + '</button></span></div>';
+      }).join("") + (mine.length ? '<p class="ir-hint">' + __("Dragðu á teikningunni til að færa. Veldu og dragðu handfangið til að snúa.") + '</p>' : '');
     box.appendChild(inRoom);
     inRoom.addEventListener("click", function(e){
       var b = e.target.closest("button"); if (!b) return;
@@ -3159,12 +3178,16 @@
         save();
       }
       if (b.dataset.irdel){ state.obstacles = state.obstacles.filter(function(o){ return o.id !== b.dataset.irdel; }); save(); }
-      if (b.dataset.irrot){ var o2 = findObstacle(b.dataset.irrot); if (o2) rotateObstacle(o2); }
+      if (b.dataset.irrot){ var o2 = findObstacle(b.dataset.irrot); if (o2){ setObstacleAngle(o2, Math.round((obTotalAng(o2) + 90) / 45) * 45); sizeObSel = o2.id; save(); } }
+      if (b.dataset.irshape){ var pr2 = b.dataset.irshape.split(":"), o3 = findObstacle(pr2[0]); if (o3){ if (pr2[1] === "round"){ var dm = Math.max(o3.widthMm, o3.depthMm); o3.shape = "round"; o3.widthMm = dm; o3.depthMm = dm; } else delete o3.shape; save(); } }
       renderWallList(); renderShapeCanvas();
     });
+    inRoom.addEventListener("pointerdown", function(e){ var r = e.target.closest("[data-irsel]"); if (r && sizeObSel !== r.dataset.irsel){ sizeObSel = r.dataset.irsel; renderShapeCanvas(); inRoom.querySelectorAll("[data-irsel]").forEach(function(x){ x.classList.toggle("sel", x === r); }); } });
     inRoom.addEventListener("change", function(e){
       var k = e.target.dataset.irv; if (!k) return;
       var pr = k.split(":"), o = findObstacle(pr[0]), v = parseInt(e.target.value, 10); if (!o) return;
+      if (pr[1] === "ang"){ if (isNaN(v)){ e.target.value = obTotalAng(o); return; } setObstacleAngle(o, v); save(); renderWallList(); renderShapeCanvas(); return; }
+      if (pr[1] === "diaMm"){ if (!(v >= 100 && v <= 2000)){ toast(__("Má vera {a}–{b} mm.", { a:100, b:2000 })); e.target.value = o.widthMm; return; } var r9 = KP3D.obstacleRect(o), c9 = [(r9.a0 + r9.a1) / 2, (r9.n0 + r9.n1) / 2]; o.widthMm = v; o.depthMm = v; o.offsetMm = Math.round(c9[0] - v / 2); o.outMm = Math.round(c9[1] - v / 2); save(); renderShapeCanvas(); return; }
       var lim = pr[1] === "depthMm" && o.kind === "milliveggur" ? [Math.max(200, minMilliveggDepthMm(o)), 6000] : o.kind === "milliveggur" ? [60, 300] : [100, 2000];
       if (!(v >= lim[0] && v <= lim[1])){ toast(__("Má vera {a}–{b} mm.", { a:lim[0], b:lim[1] })); e.target.value = o[pr[1]]; return; }
       o[pr[1]] = v; save(); renderShapeCanvas();
@@ -3425,8 +3448,41 @@
   // obstacles on the top-down drawing (2026-10-11): slide along a wall or onto another one; a free-standing
   // column also moves out from the wall (outMm)
   var obDrag = null;
+  // ---- turning a column / milliveggur on the size page (2026-10-24) ----
+  var sizeObSel = null, obRot = null;
+  function obTotalAng(o){ var def = KP3D.OBSTACLES[o.kind] || {}; return ((((o.rot === 90 && def.rotatable) ? 90 : 0) + (o.ang || 0)) % 360 + 360) % 360; }
+  // set its whole angle (0 = as first placed, its length straight out from its wall), turning about its own centre;
+  // a plain 0 / 90 is kept as the old quarter turn so everything that knows only that keeps working
+  function setObstacleAngle(o, T){
+    var def = KP3D.OBSTACLES[o.kind] || {}, r = KP3D.obstacleRect(o), cA = (r.a0 + r.a1) / 2, cN = (r.n0 + r.n1) / 2;
+    T = ((Math.round(T) % 360) + 360) % 360;
+    if (T === 90 && def.rotatable){ o.rot = 90; delete o.ang; o.offsetMm = Math.round(cA - o.depthMm / 2); o.outMm = Math.round(cN - o.widthMm / 2); return; }
+    o.rot = 0; if (T) o.ang = T; else delete o.ang;
+    o.offsetMm = Math.round(cA - o.widthMm / 2); o.outMm = Math.round(cN - o.depthMm / 2);
+  }
+  function startObRotate(id, evt){
+    evt.preventDefault(); evt.stopPropagation();
+    var o = findObstacle(id), host = document.getElementById("shapeCanvas"); if (!o) return;
+    var wi = state.walls.findIndex(function(w){ return w.id === o.wallId; }), v = shapeView(host.clientWidth, host.clientHeight);
+    obRot = { id:id, wi:wi, v:v };
+    frozenView = { scale:v.scale, ox:v.ox, oy:v.oy, ref:0, refX:v.pts[0].x, refZ:v.pts[0].z };
+    function move(e){
+      var p = canvasPointMm(e, obRot.v), n = obRot.v.pts.length, p1 = obRot.v.pts[wi], p2 = obRot.v.pts[(wi + 1) % n];
+      var L = Math.hypot(p2.x - p1.x, p2.z - p1.z) || 1, ax = (p2.x - p1.x) / L, az = (p2.z - p1.z) / L, nx = -az, nz = ax;
+      var r = KP3D.obstacleRect(o), cA = (r.a0 + r.a1) / 2, cN = (r.n0 + r.n1) / 2;
+      var cx = p1.x + ax * cA + nx * cN, cz = p1.z + az * cA + nz * cN, dx = p.x - cx, dz = p.z - cz;
+      var dal = dx * ax + dz * az, dou = dx * nx + dz * nz; if (Math.hypot(dal, dou) < 1) return;
+      var T = Math.atan2(-dal, dou) * 180 / Math.PI, snap = Math.round(T / 45) * 45;
+      setObstacleAngle(o, e.shiftKey || Math.abs(T - snap) > 6 ? T : snap);
+      renderShapeCanvas();
+    }
+    function up(){ window.removeEventListener("pointermove", move); obRot = null; frozenView = null; save(); renderWallList(); renderShapeCanvas(); }
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up, { once:true });
+  }
   function startObDrag(id, evt){
     evt.preventDefault(); evt.stopPropagation();
+    if (shapePhase === "size" && sizeObSel !== id){ sizeObSel = id; renderWallList(); }
     var o = findObstacle(id), host = document.getElementById("shapeCanvas"); if (!o) return;
     var v = shapeView(host.clientWidth, host.clientHeight), pt = canvasPointMm(evt, v);
     var hit = KP3D.OBSTACLES[o.kind].free ? wallCoordAt(v, state.walls.findIndex(function(w){ return w.id === o.wallId; }), pt) : nearestWallAt(v, pt);
@@ -3821,8 +3877,7 @@
         var L = Math.hypot(b.x - a.x, b.z - a.z) || 1, ax = (b.x - a.x) / L, az = (b.z - a.z) / L, nx = -az, nz = ax;
         var mx0 = (a.x + b.x) / 2 + nx * 50, mz0 = (a.z + b.z) / 2 + nz * 50;
         if (!pointInPoly(mx0, mz0, v)){ nx = -nx; nz = -nz; }
-        var rq = KP3D.obstacleRect(o), a0 = rq.a0, a1 = rq.a1, n0 = rq.n0, n1 = rq.n1;
-        var q = [[a0, n0], [a1, n0], [a1, n1], [a0, n1]].map(function(p){ return ((a.x + ax * p[0] + nx * p[1]) * isc + ix) + "," + ((a.z + az * p[0] + nz * p[1]) * isc + iy); }).join(" ");
+        var q = KP3D.obstacleCorners(o).map(function(p){ return ((a.x + ax * p[0] + nx * p[1]) * isc + ix) + "," + ((a.z + az * p[0] + nz * p[1]) * isc + iy); }).join(" ");
         var fill = def.look === "radiator" ? "#ffffff" : def.look === "panel" ? "#d2d4d7" : def.look === "sill" ? "#e6e2da" : def.look === "pipe" ? "#c8ccd2" : "#b9b4a8";
         obs += '<polygon points="' + q + '" fill="' + fill + '" fill-opacity="' + (def.ceiling ? 0.4 : 1) + '" stroke="#6f6a5f" stroke-width="1"' + (def.ceiling ? ' stroke-dasharray="3,2"' : '') + ' style="pointer-events:none;"><title>' + __(def.label) + '</title></polygon>';
       });
