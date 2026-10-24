@@ -2541,8 +2541,9 @@
       g.addEventListener("pointerdown", function(evt){ startSlide(parseInt(g.dataset.slide, 10), evt); });
     });
     function hlSlide(i, on){ var g = host.querySelector('[data-slide="' + i + '"]'); if (g) g.classList.toggle("hov", on); }
-    host.querySelectorAll("[data-wallno]").forEach(function(g){
-      g.addEventListener("click", function(){ selectedEdge = +g.dataset.wallno; renderShapeCanvas(); var inp = document.querySelector('[data-wlen="' + g.dataset.wallno + '"]'); if (inp) inp.focus(); });
+    host.querySelectorAll("[data-wallno]").forEach(function(g){ // the wall's number: drag it like the wall, a click selects it (user, 2026-10-24)
+      g.addEventListener("pointerdown", function(evt){ if (shapePhase === "size") startSlide(+g.dataset.wallno, evt, true); });
+      g.addEventListener("click", function(){ if (shapePhase === "size") return; selectedEdge = +g.dataset.wallno; renderShapeCanvas(); var inp = document.querySelector('[data-wlen="' + g.dataset.wallno + '"]'); if (inp) inp.focus(); });
     });
     host.querySelectorAll("[data-edge]").forEach(function(el){
       el.addEventListener("pointerenter", function(){ hlSlide(el.dataset.edge, true); });
@@ -2558,9 +2559,6 @@
     host.querySelectorAll("[data-bgcal]").forEach(function(r0){ r0.addEventListener("click", function(evt){ evt.stopPropagation(); bgCalClick(evt); }); });
     host.querySelectorAll("[data-corner]").forEach(function(g){
       g.addEventListener("pointerdown", function(evt){ startCornerDrag(+g.dataset.corner, evt); });
-    });
-    if (shapePhase === "size") host.querySelectorAll("[data-edge]").forEach(function(el){
-      el.addEventListener("dblclick", function(evt){ splitWallAt(+el.dataset.edge, evt); });
     });
     host.querySelectorAll("[data-opid]").forEach(function(el){
       el.addEventListener("pointerdown", function(evt){ startOpDrag(el.dataset.opid, evt); });
@@ -2811,11 +2809,18 @@
   }
 
   var slideState = null;
-  function startSlide(i, evt){
+  var lastEdgeDown = null; // a double-click on a wall adds a corner — detected here: the first press re-draws the
+  // picture, so the browser's own dblclick never reaches the same element (user, 2026-10-24: "næ ekki að tvísmella")
+  function startSlide(i, evt, fromBadge){
     evt.preventDefault();
+    var now = Date.now(), last = lastEdgeDown;
+    lastEdgeDown = fromBadge ? null : { i:i, t:now, x:evt.clientX, y:evt.clientY };
+    if (!fromBadge && shapePhase === "size" && last && last.i === i && now - last.t < 450 && Math.hypot(evt.clientX - last.x, evt.clientY - last.y) < 10){
+      lastEdgeDown = null; document.getElementById("dimPop").hidden = true; splitWallAt(i, evt); return;
+    }
     var host = document.getElementById("shapeCanvas"), v = shapeView(host.clientWidth, host.clientHeight);
     var a = edgeAxis(i);
-    slideState = { i:i, x0:evt.clientX, y0:evt.clientY, n:{ x:-a.z, z:a.x }, base:state.walls.map(function(w){ return w.lengthMm; }), basePts:rectRoom() ? null : roomPts(), lastD:0, moved:false, view:v };
+    slideState = { i:i, badge:!!fromBadge, x0:evt.clientX, y0:evt.clientY, n:{ x:-a.z, z:a.x }, base:state.walls.map(function(w){ return w.lengthMm; }), basePts:rectRoom() ? null : roomPts(), lastD:0, moved:false, view:v };
     selectedEdge = i;
     var refI = (i + 2) % v.pts.length;
     slideState.refI = refI; slideState.refStart = { x:v.pts[refI].x, z:v.pts[refI].z };
@@ -2859,7 +2864,10 @@
       save();
     }
     renderShapeCanvas();
-    if (st && !st.moved) openDimPop(st.i);
+    if (st && !st.moved){
+      if (st.badge){ var inp = document.querySelector('[data-wlen="' + st.i + '"]'); if (inp) inp.focus(); }
+      else openDimPop(st.i);
+    }
   }
 
   function openDimPop(i){
@@ -3107,7 +3115,8 @@
     box.querySelectorAll("[data-wr]").forEach(function(row){
       row.addEventListener("click", function(){ selectedEdge = parseInt(row.dataset.wr, 10); renderShapeCanvas(); });
     });
-    // Grunnmynd undir (user, 2026-10-23, G3)
+    // Grunnmynd undir (user, 2026-10-23, G3) — taken out of the page 2026-10-24 (no drawings); the code stays
+    if (!window.__kpPlanImport) return;
     var pi = document.createElement("div");
     pi.className = "plan-import"; pi.style.cssText = "margin-top:12px;display:flex;flex-direction:column;gap:6px;font-size:12px;";
     pi.innerHTML = bgPlan
