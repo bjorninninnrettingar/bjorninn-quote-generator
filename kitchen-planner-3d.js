@@ -4043,13 +4043,13 @@
     return "M" + right.concat(left).map(function(p){ return p[0] + " " + p[1]; }).join(" L") + " Z";
   }
   var PEOPLE = {
-    man: { h:1.8, label:"180 cm",
+    man: { h:1.8, label:"180 cm", img:"images/person-man.png", aspect:162 / 512,
       d: "M50 1 C57 1 60.5 5 60.5 12 C60.5 19 57 25 50 25 C43 25 39.5 19 39.5 12 C39.5 5 43 1 50 1 Z " + mirrorPath([
         [50,24],[55,24],[56,30],[63,33],[70,35],[74,39],[76,46],[77,60],[78,76],[78,92],[76,101],[72,103],[69.5,100],
         [68.5,110],[67.5,140],[66.5,170],[65.5,188],[70,191],[71,196],[56,196],[55.5,188],[54.5,160],[53,130],[51,114],[50,114]
       ]),
       cut: "M68.4 52 L71.6 58 L72.2 88 L69.4 96 Z M31.6 52 L28.4 58 L27.8 88 L30.6 96 Z" },
-    woman: { h:1.68, label:"168 cm",
+    woman: { h:1.68, label:"168 cm", img:"images/person-woman.png", aspect:150 / 512,
       d: "M50 2 C56.5 2 59.5 6 59.5 12.5 C59.5 19 56 24 50 24 C44 24 40.5 19 40.5 12.5 C40.5 6 43.5 2 50 2 Z " +
          "M42 8 C43 0 58 -1 60 8 C62 17 60 26 65 37 C61 38 57.5 34 57 28 C56 22 58 15 55 10 Z " +
          "M46 23 L46 29 L40 31.5 L35 34.5 L33 40 L31.5 60 L30.5 80 L29.5 97 L31.5 102 L34 101 L34.5 97 L35.5 80 L37.5 62 L38.5 70 L39.5 79 " +
@@ -4057,7 +4057,8 @@
          "L60.5 80 L62.5 79 L64.5 81 L77 64 L78.5 58 L74 45 L69 36.5 L63 33 L54 29.5 L54 23 Z",
       cut: "M61 70 L71.5 59.5 L66 44 L61.5 42 Z" }
   };
-  var PEOPLE_TEX = {};
+  var PEOPLE_TEX = {}, PEOPLE_IMG = {};
+  function personImage(key){ if (!PEOPLE_IMG[key]){ PEOPLE_IMG[key] = new Image(); PEOPLE_IMG[key].src = PEOPLE[key].img; } return PEOPLE_IMG[key]; }
   function personCanvas(key){
     if (PEOPLE_TEX[key]) return PEOPLE_TEX[key];
     var P = PEOPLE[key], c = document.createElement("canvas"), sc = 2.56;
@@ -4078,10 +4079,13 @@
     var g = geoms.filter(function(x, i){ return !(walls[i] && walls[i].open); }).sort(function(a, b){ return b.lenM - a.lenM; })[0] || geoms[0], mid = { x:g.origin.x + g.axis.x * g.lenM / 2, z:g.origin.z + g.axis.z * g.lenM / 2 }, out = [];
     var inM = 0.7;
     [["man", -0.38], ["woman", 0.42]].forEach(function(pr){
-      var P = PEOPLE[pr[0]], tex = new THREE.CanvasTexture(personCanvas(pr[0]));
+      // the illustrated people (user, 2026-10-24), head to sole = their height; the drawn silhouette is the fallback
+      var P = PEOPLE[pr[0]], tex = new THREE.Texture(), pic = personImage(pr[0]);
       if (THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
+      function usePic(){ tex.image = pic; tex.needsUpdate = true; }
+      if (pic.complete && pic.naturalWidth) usePic(); else { pic.addEventListener("load", usePic); pic.addEventListener("error", function(){ tex.image = personCanvas(pr[0]); tex.needsUpdate = true; m.geometry = new THREE.PlaneGeometry(P.h / 2, P.h); }); }
       var mat = new THREE.MeshBasicMaterial({ map:tex, transparent:true, alphaTest:0.4, side:THREE.DoubleSide });
-      var m = new THREE.Mesh(new THREE.PlaneGeometry(P.h / 2, P.h), mat);
+      var m = new THREE.Mesh(new THREE.PlaneGeometry(P.h * P.aspect, P.h), mat);
       m.position.set(mid.x + g.normal.x * inM + g.axis.x * pr[1], P.h / 2, mid.z + g.normal.z * inM + g.axis.z * pr[1]);
       m.userData.billboard = true;
       scene.add(m); out.push(m);
