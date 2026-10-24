@@ -24,6 +24,10 @@ const F_SLOT = ["fldbnVgbWTgSXLjMm", "fldJ726tLaP7r8PW8", "fldOAEkfwZo0GZPa4", "
 const MAX_DRAWERS = 6;
 
 const CODE_ORDER = "NMKECF";
+// an inner drawer (innskúffa) behind a tall front (user, 2026-10-24: any combo, like PRO): priced as the same
+// single-drawer product in the next free slot, exactly how the existing rows do it (e.g. L-FIK = F-skúffa +
+// K-skúffa in V2, no count field for the inner one); its letters are appended bare to the Vörunúmer
+const INNER = { legra:{ IK:"K", IM:"M" }, merivo:{ IM:"M" } };
 const LETTERS = { merivo:["N", "M", "K", "E"], legra:["M", "K", "C", "F"] };
 const FLOKKUR = { merivo:"MERIVO - Skúffu samsetning", legra:"LEGRA - Skúffu samsetning" };
 // one real single-drawer Vörulisti 🚪 product per letter, read off the matching "M-N"/"L-K"/… Útfærslur rows
@@ -49,13 +53,18 @@ export function validate(body) {
   if (b.sys !== "merivo" && b.sys !== "legra") return "Ógilt kerfi";
   if (!Array.isArray(b.codes) || !b.codes.length || b.codes.length > MAX_DRAWERS) return "1–" + MAX_DRAWERS + " skúffur";
   if (b.codes.some((c) => LETTERS[b.sys].indexOf(c) < 0)) return "Ógildur skúffustafur fyrir " + b.sys;
+  if (b.inner != null){
+    if (!INNER[b.sys][b.inner]) return "Ógild innskúffa fyrir " + b.sys;
+    if (b.codes.length + 1 > MAX_DRAWERS) return "Innskúffa kemst ekki með " + MAX_DRAWERS + " skúffum";
+  }
   return null;
 }
 
 // The real work, factored out from the handler so tests can inject a fake `at` (same shape as kp-pro.js's save()).
-export async function findOrCreate(at, sys, codes) {
+export async function findOrCreate(at, sys, codes, inner) {
   const sorted = codes.slice().sort((a, z) => CODE_ORDER.indexOf(z) - CODE_ORDER.indexOf(a)); // tallest-first
-  const sku = vorunumer(sys, sorted);
+  const innerLetter = inner ? INNER[sys][inner] : null;
+  const sku = vorunumer(sys, sorted) + (inner || "");
   const found = await at("GET", `${VARIANTS}?filterByFormula=${encodeURIComponent(`{${F_VORUNUMER}}="${sku.replace(/"/g, '\\"')}"`)}&fields%5B%5D=${F_NAME}&fields%5B%5D=${F_PRICE}&maxRecords=1&returnFieldsByFieldId=true`);
   if (found.records && found.records.length) {
     const r = found.records[0];
@@ -66,7 +75,8 @@ export async function findOrCreate(at, sys, codes) {
   const fields = { [F_VORUNUMER]:sku, [F_FLOKKUR]:FLOKKUR[sys] };
   Object.keys(counts).forEach((l) => { fields[F_COUNT[l]] = counts[l]; });
   sorted.forEach((l, i) => { fields[F_SLOT[i]] = [VORULISTI[sys][l]]; });
-  const label = (sys === "merivo" ? "Merivo" : "Legra") + " - " + Object.keys(counts).map((l) => counts[l] + " " + l + "-skúff" + (counts[l] > 1 ? "ur" : "a")).join(" | ");
+  if (innerLetter) fields[F_SLOT[sorted.length]] = [VORULISTI[sys][innerLetter]];
+  const label = (sys === "merivo" ? "Merivo" : "Legra") + " - " + Object.keys(counts).map((l) => counts[l] + " " + l + "-skúff" + (counts[l] > 1 ? "ur" : "a")).join(" | ") + (innerLetter ? " | 1 inn " + innerLetter + "-skúffa" : "");
   fields[F_NAME] = label;
   const created = await at("POST", `${VARIANTS}?returnFieldsByFieldId=true`, { records:[{ fields }], typecast:false });
   const newId = created.records[0].id;
@@ -83,7 +93,7 @@ export default async function handler(req, res) {
   const bad = validate(req.body);
   if (bad) return res.status(400).json({ error: bad });
   try {
-    return res.status(200).json(await findOrCreate(makeAirtable(token), req.body.sys, req.body.codes));
+    return res.status(200).json(await findOrCreate(makeAirtable(token), req.body.sys, req.body.codes, req.body.inner || null));
   } catch (e) {
     return res.status(e.status && e.status < 500 && e.status !== 429 ? 400 : 502).json({ error:e.message });
   }

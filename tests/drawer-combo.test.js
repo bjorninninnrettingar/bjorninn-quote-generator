@@ -46,3 +46,23 @@ test("new combo: not found → created with the right slots, then re-read for th
   assert.deepEqual(post.body.records[0].fields.fldJ726tLaP7r8PW8, ["recxsBNvkRztkEmbX"]);
   assert.deepEqual(post.body.records[0].fields.fldOAEkfwZo0GZPa4, ["recbYSmMAQcBWhtjb"]);
 });
+
+test("inner drawer: validated per system, priced as the same drawer product in the next slot, SKU suffix", async () => {
+  assert.equal(validate({ sys:"legra", codes:["K", "C"], inner:"IK" }), null);
+  assert.equal(validate({ sys:"merivo", codes:["E"], inner:"IK" }), "Ógild innskúffa fyrir merivo"); // Merivo has only IM
+  assert.equal(validate({ sys:"merivo", codes:["N", "N", "N", "N", "N", "N"], inner:"IM" }), "Innskúffa kemst ekki með 6 skúffum");
+  let posted = null;
+  const f = fakeFetch((call) => {
+    if (call.method === "POST"){ posted = call.body; return { status:200, body:{ records:[{ id:"recNEWINNER11111A", fields:{} }] } }; }
+    if (call.method === "GET" && call.url.includes("recNEWINNER11111A")) return { status:200, body:{ fields:{ fldbG3jw1tEPEchGr:"x", fld36kgODkNOZNOeU:1 } } };
+    return { status:200, body:{ records:[] } };
+  });
+  const out = await findOrCreate(makeAirtable("t", { fetchImpl:f, delays:[] }), "legra", ["K", "C"], "IK");
+  assert.equal(out.sku, "L-CKIK");
+  const fields = (typeof posted === "string" ? JSON.parse(posted) : posted).records[0].fields;
+  assert.deepEqual(fields.fldbnVgbWTgSXLjMm, ["recqD8fqrxSQOnzuF"]); // C
+  assert.deepEqual(fields.fldJ726tLaP7r8PW8, ["rec8RiV2T8Rtj7j1P"]); // K
+  assert.deepEqual(fields.fldOAEkfwZo0GZPa4, ["rec8RiV2T8Rtj7j1P"]); // the inner K, next slot
+  assert.equal(fields.fldkbvdxHo3keO1Ml, 1); // K count = the one real K only
+  assert.match(fields.fldbG3jw1tEPEchGr, /1 inn K-skúffa$/);
+});

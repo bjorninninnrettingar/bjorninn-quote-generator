@@ -793,6 +793,15 @@
   .dw-stack-simple{ display:flex; flex-direction:column; gap:6px; margin-top:8px; }
   .dw-row-simple{ display:flex; align-items:center; gap:10px; padding:6px 10px; border:1px solid var(--line); border-radius:6px; background:#fff; }
   .dw-row-simple select{ flex:1; border:0; background:none; font:inherit; font-weight:600; color:var(--ink); }
+  .uw-side .dw-stack-simple{ gap:4px; margin-top:6px; }
+  .uw-side .dw-row-simple{ padding:3px 8px; }
+  .uw-side .dw-add-one{ padding:6px; margin-top:4px; }
+  .dw-row-simple .dw-bin{ border:0; background:none; color:var(--ink-soft); cursor:pointer; padding:4px; line-height:0; border-radius:6px; }
+  .dw-row-simple .dw-bin:hover:not(:disabled){ color:#b42318; background:#fdf0ee; }
+  .dw-row-simple .dw-bin:disabled{ opacity:.25; cursor:default; }
+  .dw-add-one{ margin-top:6px; width:100%; border:1px dashed var(--line); background:#fff; border-radius:6px; padding:8px; font:inherit; font-size:13px; color:var(--ink-soft); cursor:pointer; }
+  .dw-add-one:hover:not(:disabled){ border-color:var(--ink); color:var(--ink); }
+  .dw-add-one:disabled{ opacity:.4; cursor:default; }
 
   /* ---- cabinet edit panel (click-to-select in 3D/2D) ---- */
   .edit-panel{
@@ -997,6 +1006,8 @@
   .uw-custom{ display:flex; align-items:center; gap:8px; margin-top:6px; }
   .uw-custom input{ width:90px; }
   .uw-custom small{ color:var(--ink-soft); }
+  .uw-custom label{ font-size:13px; color:var(--ink-soft); margin-right:4px; }
+  .uw-sec-head .uw-sub{ font-weight:400; font-size:12px; color:var(--ink-soft); margin-left:4px; }
   /* Pinned to the bottom of the scrolling panel (not the end of its content) so "Setja inn" is always
      reachable without hunting for it on a cabinet with a long configure list (user, 2026-10-13). */
   .uw-actions{
@@ -4808,7 +4819,10 @@
   // Legra M/K/C/F) plus an optional inner drawer. Only stacks that fit the cabinet body AND exist as a
   // real "Skúffu samsetning" Útfærsla can be built, so every drawer cabinet maps to a real V2.
   // Drawers named by what they're for, not by Blum's letter (2026-10-11): the letter stays small for the shop
-  var CODE_LABEL = { N:"Mjög lág", M:"Lág", K:"Miðlungs", E:"Djúp", C:"Djúp", F:"Mjög djúp", P:"Föst framhlið" };
+  var CODE_LABEL = { N:"Mjög lág", M:"Lág", K:"Miðlungs", E:"Djúp", C:"Djúp", F:"Mjög djúp", P:"Föst framhlið (opnast ekki)" };
+  // the drawer's own inside height (Blum's side height: Legrabox M 90.5 / K 128.5 / C 177 / F 241, Merivobox N 63 /
+  // M 91 / K 129 / E 192 mm — KP3D.DRAWER_CODES.side) in whole cm, so "Lág" means something (user, 2026-10-24)
+  function codeLabelCm(code){ var sd = (KP3D.DRAWER_CODES[drawerSys()].side || {})[code]; return __(CODE_LABEL[code]) + (sd ? " · " + Math.round(sd / 10) + " cm" : ""); }
   var CODE_PLURAL = { N:"mjög lágar", M:"lágar", K:"miðlungs", E:"djúpar", C:"djúpar", F:"mjög djúpar" };
   function dwIcon(code){ // a little box as tall as the drawer side, so the difference shows at a glance
     var side = KP3D.DRAWER_CODES[drawerSys()].side[code] || (KP3D.DRAWER_CODES.legra.side[code]) || 120;
@@ -4862,7 +4876,15 @@
   function stackFits(b, c, codes){
     return codes.length >= 1 && codes.length <= MAX_DRAWERS && !!KP3D.drawerFrontsMm(codes, drawerBodyMm(b, c));
   }
+  // an inner drawer can go with ANY stack that physically fits (user, 2026-10-24, like PRO) — it needs a drawer
+  // tall enough to hide it (IK behind a C/F/E, IM behind a K or taller) and a free price slot (max 6 in all);
+  // the combo is created on demand like any other (api/drawer-combo.js)
+  function innerFits(codes, ik){
+    var side = KP3D.DRAWER_CODES[drawerSys()].side || {}, need = ik === "IK" ? 170 : 125;
+    return codes.length < MAX_DRAWERS && codes.some(function(x){ return (side[x] || 0) >= need; });
+  }
   function stackAllowed(b, c, codes, inner){
+    if (inner) return stackFits(b, c, codes) && innerFits(codes, inner);
     // "P" (Föst framhlið, user 2026-10-19) carries no Vörulisti product of its own — a stack that has one
     // just needs to physically fit, never a combo lookup (there's no Útfærslur row for a combo with a letter
     // that doesn't exist in any system).
@@ -4877,10 +4899,9 @@
   function ensureCombo(codes, inner, cb){
     if (codes.indexOf(KP3D.FIXED_FRONT_CODE) >= 0){ cb(true); return; } // no product to look up or create
     if (drawerComboRec(codes, inner)){ cb(true); return; }
-    if (inner){ toast(__("Þessi samsetning með innskúffu er ekki til.")); cb(false); return; }
     var sys = drawerSys();
     toast(__("Býr til nýja samsetningu…"));
-    fetch("/api/drawer-combo", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ sys:sys, codes:codes }) })
+    fetch("/api/drawer-combo", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify(inner ? { sys:sys, codes:codes, inner:inner } : { sys:sys, codes:codes }) })
       .then(function(r){ return r.json().then(function(d){ return { ok:r.ok, d:d }; }); })
       .then(function(res){
         if (!res.ok){ toast(__("Ekki tókst að búa til samsetningu") + (res.d && res.d.error ? ": " + res.d.error : "") + "."); cb(false); return; }
@@ -5039,7 +5060,7 @@
   function innerDrawerClick(b, c, ik, apply){
     var cur = KP3D.drawerCodes(b.interior, drawerSys());
     if (b.interior.inner === ik){ apply(cur, null); return; }
-    if (stackAllowed(b, c, cur, ik)){ apply(cur, ik); return; }
+    if (stackAllowed(b, c, cur, ik)){ ensureCombo(cur, ik, function(ok){ if (ok) apply(cur, ik); }); return; }
     var alt = innerAlternative(b, c, ik);
     if (!alt){ toast(__("Innskúffa er ekki til fyrir þennan skáp.")); return; }
     askChoice(__("Innskúffa fæst ekki með <b>{cur}</b> — hún er bara til með 1–2 skúffum. Viltu skipta yfir í <b>{alt} + {inner}</b>?", { cur:cur.join(" · "), alt:alt.join(" · "), inner:ik === "IK" ? __("miðlungs innskúffu") : __("lága innskúffu") }),
@@ -5048,57 +5069,54 @@
   // The customer-facing drawer stack (wizard + regular side panel, NOT PRO's Smíða — ro.sides marks that one):
   // just a count stepper + one depth dropdown per drawer. No drag-reorder, no typed mm, no Blum code letters —
   // Rakel still has all of that in Smíða, a customer doesn't need it (user, 2026-10-13).
+  // The customer drawer stack (user, 2026-10-24): the list reads top to bottom like the cabinet, each drawer keeps
+  // its place whatever size it gets (no re-sorting), a bin removes that one, "+ Bæta við skúffu" adds one at the
+  // bottom. Each size says its inside height in cm. (PRO's Smíða keeps its full editor — drawerRowsHTML.)
   function drawerSimpleHTML(b, c, codes, inner){
-    var n = codes.length;
-    var rows = codes.map(function(code, i){ return { code:code, i:i }; }).reverse().map(function(d){
-      var opts = KP3D.DRAWER_CODES[drawerSys()].codes.filter(function(cd){
-        if (cd === d.code) return true;
-        var next = codes.slice(); next[d.i] = cd; next = sortStack(next);
-        // with an inner drawer, stay existence-only (ensureCombo declines to create those); otherwise any
-        // combo that physically fits is offered — picking one that isn't a real product yet creates it
-        return inner ? stackAllowed(b, c, next, inner) : stackFits(b, c, next);
-      });
-      return '<div class="dw-row-simple">' + dwIcon(d.code) + '<select data-dw-depth="' + d.i + '">' + opts.map(function(cd){
-        return '<option value="' + cd + '"' + (cd === d.code ? ' selected' : '') + '>' + __(CODE_LABEL[cd]) + '</option>';
-      }).join("") + '</select></div>';
-    }).join("");
-    return '<div class="dw-stack-simple">' + rows + '</div>' +
-      '<div class="hw-count"><button class="iconbtn" data-dw-count="-1"' + (n <= 1 ? ' disabled' : '') + '>−</button><b>' + n + '</b>' +
-      '<button class="iconbtn" data-dw-count="1"' + (n >= MAX_DRAWERS ? ' disabled' : '') + '>+</button><span>' + plural(n, "skúffa", "skúffur") + '</span></div>';
-  }
-  // count stepper: regrows/shrinks to Björninn's usual stack for the new count (same fallback the "Hillur/Skúffur"
-  // toggle already uses), rather than asking the customer to hand-pick which code to add/remove
-  function drawerCountDelta(b, c, delta){
-    var n = Math.max(1, Math.min(MAX_DRAWERS, KP3D.drawerCodes(b.interior, drawerSys()).length + delta));
-    var fits = b.interior.inner ? stackAllowed : stackFits; // inner combos still need to already exist
-    for (var k = n; k >= 1; k--){
-      var cand = KP3D.drawerCodes({ mode:"skuffur", count:k }, drawerSys());
-      if (fits(b, c, cand, b.interior.inner) || k === 1) return cand;
+    var n = codes.length, all = KP3D.DRAWER_CODES[drawerSys()].codes, rows = "";
+    for (var i = n - 1; i >= 0; i--){ // codes are stored bottom → top
+      var opts = all.filter(function(cd){ if (cd === codes[i]) return true; var next = codes.slice(); next[i] = cd; return stackFits(b, c, next); });
+      rows += '<div class="dw-row-simple">' + dwIcon(codes[i]) + '<select data-dw-depth="' + i + '">' + opts.map(function(cd){
+        return '<option value="' + cd + '"' + (cd === codes[i] ? ' selected' : '') + '>' + codeLabelCm(cd) + '</option>';
+      }).join("") + '</select><button type="button" class="dw-bin" data-dws-del="' + i + '"' + (n <= 1 ? ' disabled' : '') + ' title="' + __("Fjarlægja þessa skúffu") + '">' + icon("trash", 15) + '</button></div>';
     }
+    var addCode = drawerAddCode(b, c, codes);
+    return '<div class="dw-stack-simple">' + rows + '</div>' +
+      '<button type="button" class="dw-add-one" data-dws-add="1"' + (addCode ? '' : ' disabled') + '>' + __("+ Bæta við skúffu") + '</button>';
+  }
+  // the drawer "+ Bæta við skúffu" adds at the bottom: the same size as the bottom one if that fits, else the
+  // smallest that does (null = no room / already 6)
+  function drawerAddCode(b, c, codes){
+    if (codes.length >= MAX_DRAWERS) return null;
+    var all = KP3D.DRAWER_CODES[drawerSys()].codes.filter(function(x){ return x !== KP3D.FIXED_FRONT_CODE; });
+    var tries = [codes[0]].concat(all).filter(Boolean);
+    for (var k = 0; k < tries.length; k++) if (stackFits(b, c, [tries[k]].concat(codes))) return tries[k];
+    return null;
   }
   function wireDrawerSimple(host, b, c, commit){
+    function apply(next, prevSel){
+      var inner = b.interior.inner && stackAllowed(b, c, next, b.interior.inner) ? b.interior.inner : null;
+      if (b.interior.inner && !inner) toast(__("Innskúffan passar ekki með þessari breytingu — hún var tekin út."));
+      ensureCombo(next, inner, function(ok){ if (ok) commit(next, inner); else if (prevSel) prevSel(); });
+    }
     host.querySelectorAll("[data-dw-depth]").forEach(function(sel){
       sel.addEventListener("change", function(){
-        var codes = KP3D.drawerCodes(b.interior, drawerSys());
-        var prev = codes[+sel.dataset.dwDepth];
-        codes[+sel.dataset.dwDepth] = sel.value;
-        var next = sortStack(codes);
-        ensureCombo(next, b.interior.inner, function(ok){
-          if (ok) commit(next, b.interior.inner); else sel.value = prev;
-        });
+        var codes = KP3D.drawerCodes(b.interior, drawerSys()), i = +sel.dataset.dwDepth, prev = codes[i];
+        codes[i] = sel.value; // stays in its place (no sorting)
+        apply(codes, function(){ sel.value = prev; });
       });
     });
-    host.querySelectorAll("[data-dw-count]").forEach(function(btn){
-      btn.addEventListener("click", function(){
-        var next = drawerCountDelta(b, c, +btn.dataset.dwCount);
-        ensureCombo(next, null, function(ok){ if (ok) commit(next, null); });
-      });
+    host.querySelectorAll("[data-dws-del]").forEach(function(btn){
+      btn.addEventListener("click", function(){ var codes = KP3D.drawerCodes(b.interior, drawerSys()); if (codes.length <= 1) return; codes.splice(+btn.dataset.dwsDel, 1); apply(codes); });
+    });
+    host.querySelectorAll("[data-dws-add]").forEach(function(btn){
+      btn.addEventListener("click", function(){ var codes = KP3D.drawerCodes(b.interior, drawerSys()), add = drawerAddCode(b, c, codes); if (!add) return; apply([add].concat(codes)); });
     });
   }
   function hardwareHTML(b, c, ro){
     if (!c.hasInterior) return "";
     var isDrawer = b.interior.mode === "skuffur";
-    var html = c.drawersOnly ? '<p class="sec-note">' + __("Ruslafötur fara í neðstu skúffuna.") + '</p>' : '<div class="hw-toggle" data-role="hw-toggle">' +
+    var html = ro && ro.noToggle ? '' : c.drawersOnly ? '<p class="sec-note">' + __("Ruslafötur fara í neðstu skúffuna.") + '</p>' : '<div class="hw-toggle" data-role="hw-toggle">' +
         '<button type="button" class="hw-btn' + (!isDrawer ? ' active' : '') + '" data-hw="hillur">' + (c.shelfRange ? __("Hillur") : __("Hurðir")) + '</button>' +
         '<button type="button" class="hw-btn' + (isDrawer ? ' active' : '') + '" data-hw="skuffur">' + __("Skúffur") + '</button>' +
       '</div>';
@@ -5125,7 +5143,9 @@
       // never greyed out without a reason: when this stack has no such product, the click offers one that does
       return '<button type="button" class="hw-btn' + (on ? ' active' : '') + (ok ? '' : ' maybe') + '" data-dw-inner="' + ik + '"' + (ok || alt ? '' : ' disabled') +
         ' title="' + (ok ? '' : alt ? __("Fæst með {alt} — smelltu til að skipta", { alt:alt.join(" · ") }) : __("Ekki til fyrir þennan skáp")) + '">' + (ik === "IK" ? __("Miðlungs") : __("Lág")) + '</button>';
-    }).join("") + '</div>' + (!inner && !D.inner.some(function(ik){ return stackAllowed(b, c, codes, ik); }) ? '<p class="sec-note">' + __("Innskúffa fæst með 1–2 skúffum ({list}).", { list:innerStacks().join(", ") }) + '</p>' : '');
+    }).join("") + '</div><p class="sec-note">' + (!inner && !D.inner.some(function(ik){ return stackAllowed(b, c, codes, ik); })
+      ? __("Innskúffa er falin skúffa á bak við framhliðina — hún þarf að minnsta kosti eina miðlungs skúffu eða dýpri.")
+      : __("Innskúffa er falin skúffa á bak við framhliðina.")) + '</p>';
     if (c.sink) html += sinkTopHTML(b, c, codes, fronts);
     else if (!stackAllowed(b, c, codes, inner)) html += '<p class="sec-note">' + __("Þessi samsetning er ekki til sem stöðluð vara — söluaðili staðfestir hana.") + '</p>';
     return html;
@@ -5839,15 +5859,17 @@
       function dimSec(key, label, opts, cur, def, attr, cAttr, lo, hi){
         var picked = !!uw.picked[key], body = '<div class="uw-chips">' + opts.map(function(v){
           return '<button type="button" class="hw-btn' + (picked && cur === v ? ' active' : (!picked && v === def ? ' suggest' : '')) + '" ' + attr + '="' + v + '"' + (!picked && v === def ? ' title="' + __("Algengast") + '"' : '') + '>' + (v / 10) + '</button>';
-        }).join("") + '</div><div class="uw-custom"><input type="number" ' + cAttr + ' min="' + lo + '" max="' + hi + '" step="1" value="' + (picked ? cur : "") + '" placeholder="' + def + '"><small>' + __("mm · sérmál {lo}–{hi}", { lo:lo, hi:hi }) + '</small></div>';
+        }).join("") + '</div><div class="uw-custom"><label>' + __("Annað mál") + '</label><input type="number" ' + cAttr + ' min="' + lo / 10 + '" max="' + hi / 10 + '" step="0.1" value="' + (picked ? cur / 10 : "") + '" placeholder="' + def / 10 + '"><small>' + __("cm · {lo}–{hi}", { lo:lo / 10, hi:hi / 10 }) + '</small></div>'; // in cm like the buttons (user, 2026-10-24)
         return uwSec(key, label, picked ? (cur / 10) + " cm ✓" : (cur / 10) + " cm", body); // the value shows while folded, picked or not (2026-10-24)
       }
       var secHtml = [];
       if (!c.panel) secHtml.push(dimSec("w", __("Breidd"), widths, b.widthMm, c.defaultW, "data-uw-w", "data-uw-wcustom", c.minW, c.maxW));
-      if (c.minH !== c.maxH) secHtml.push(dimSec("h", __("Hæð"), uwHeightOptions(c), b.heightMm || c.h, c.h, "data-uw-h", "data-uw-hcustom", c.minH, c.maxH));
+      if (c.minH !== c.maxH) secHtml.push(dimSec("h", c.zone === "floor" && c.cls !== "tall" ? __("Hæð") + ' <small class="uw-sub">' + __("upp að borðplötu") + '</small>' : __("Hæð"), uwHeightOptions(c), b.heightMm || c.h, c.h, "data-uw-h", "data-uw-hcustom", c.minH, c.maxH));
       if (c.minD !== c.maxD) secHtml.push(dimSec("d", __("Dýpt"), uwDepthOptions(c), b.depthMm || c.d, c.d, "data-uw-d", "data-uw-dcustom", c.minD, c.maxD));
       var innHtml = "";
-      if (c.hasInterior) innHtml += '<div class="edit-field">' + hardwareHTML(b, c, PRO ? { sides:true } : null) + '</div>';
+      // "Skúffur" or "Hurð með hillum" was the step before — no Hillur/Skúffur switch again here (user, 2026-10-24)
+      var decided = activeUnitTree()[uw.cat].opts.some(function(o, k){ return k !== uw.opt && o.type === b.type; });
+      if (c.hasInterior) innHtml += '<div class="edit-field">' + hardwareHTML(b, c, PRO ? { sides:true, noToggle:decided } : { noToggle:decided }) + '</div>';
       // Preset samsetningar (2026-10-22): sama "hillur ALLTAF neðst-óháð, skúffur alltaf neðst" líkan og
       // steppararnir hér fyrir neðan — bara fljótleg byrjun, ekki endapunktur. Steppararnir sjálfir eru
       // áfram virkir eftir að preset er valið, svo ekkert tapast við að fínstilla á eftir.
@@ -5936,13 +5958,13 @@
     side.querySelectorAll("[data-uw-sec]").forEach(function(el){ el.addEventListener("click", function(){ uw.sec = uw.sec === el.dataset.uwSec ? null : el.dataset.uwSec; renderUnitWizard(); }); });
     side.querySelectorAll("[data-uw-w]").forEach(function(el){ el.addEventListener("click", function(){ b.widthMm = +el.dataset.uwW; uwAdvance("w"); renderUnitWizard(); }); });
     var wc = side.querySelector("[data-uw-wcustom]");
-    if (wc) wc.addEventListener("change", function(){ if (!wc.value) return; b.widthMm = clampWidth(b.type, parseFloat(wc.value)); uwAdvance("w"); renderUnitWizard(); });
+    if (wc) wc.addEventListener("change", function(){ if (!wc.value) return; b.widthMm = clampWidth(b.type, Math.round(parseFloat(String(wc.value).replace(",", ".")) * 10)); uwAdvance("w"); renderUnitWizard(); });
     side.querySelectorAll("[data-uw-h]").forEach(function(el){ el.addEventListener("click", function(){ b.heightMm = +el.dataset.uwH; uwAdvance("h"); renderUnitWizard(); }); });
     var hc = side.querySelector("[data-uw-hcustom]");
-    if (hc) hc.addEventListener("change", function(){ if (!hc.value) return; b.heightMm = clampHeight(b.type, parseFloat(hc.value)); uwAdvance("h"); renderUnitWizard(); });
+    if (hc) hc.addEventListener("change", function(){ if (!hc.value) return; b.heightMm = clampHeight(b.type, Math.round(parseFloat(String(hc.value).replace(",", ".")) * 10)); uwAdvance("h"); renderUnitWizard(); });
     side.querySelectorAll("[data-uw-d]").forEach(function(el){ el.addEventListener("click", function(){ b.depthMm = +el.dataset.uwD; uwAdvance("d"); renderUnitWizard(); }); });
     var dc = side.querySelector("[data-uw-dcustom]");
-    if (dc) dc.addEventListener("change", function(){ if (!dc.value) return; b.depthMm = clampDepth(b.type, parseFloat(dc.value)); uwAdvance("d"); renderUnitWizard(); });
+    if (dc) dc.addEventListener("change", function(){ if (!dc.value) return; b.depthMm = clampDepth(b.type, Math.round(parseFloat(String(dc.value).replace(",", ".")) * 10)); uwAdvance("d"); renderUnitWizard(); });
     side.querySelectorAll("[data-sink-top]").forEach(function(el){ el.addEventListener("click", function(){
       if (el.dataset.sinkTop === "fastur") b.sinkTop = "fastur"; else delete b.sinkTop; renderUnitWizard();
     }); });
