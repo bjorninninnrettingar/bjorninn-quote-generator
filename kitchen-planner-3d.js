@@ -2741,13 +2741,13 @@
           var gm = o.geometry.clone(); gm.applyMatrix4(o.matrixWorld);
           var light = (Array.isArray(o.material) ? o.material[0] : o.material);
           var col = light && light.color ? light.color : null, isPlate = col && col.r > 0.85 && col.g > 0.85 && col.b > 0.85;
-          var m = new THREE.Mesh(gm, isPlate ? plate : metal); m.castShadow = true; m.receiveShadow = true; out.add(m);
+          var m = new THREE.Mesh(gm, isPlate ? plate : metal); m.userData.lemansRole = isPlate ? "plate" : "rail"; m.castShadow = true; m.receiveShadow = true; out.add(m);
         });
         return out;
       }
       var lower = bake("group_1"), upper = bake("group_19"), col = new THREE.Group();
       ["group_14"].forEach(function(n){ col.add(bake(n)); }); // the round post only (group_23 is the flat mounting bracket — left out, user 2026-10-25)
-      col.traverse(function(m){ if (m.isMesh) m.material = metal; }); // the column is steel, whatever colour the file gave it
+      col.traverse(function(m){ if (m.isMesh){ m.material = metal; m.userData.lemansRole = "post"; } });
       var bb = new THREE.Box3().setFromObject(lower, true), ctr = bb.getCenter(new THREE.Vector3());
       [lower, upper].forEach(function(g){ var b2 = new THREE.Box3().setFromObject(g, true); g.children.forEach(function(m){ m.geometry.translate(-ctr.x, -b2.min.y, -ctr.z); }); });
       var cb = new THREE.Box3().setFromObject(col, true);
@@ -2760,6 +2760,17 @@
     }, function(){ LEMANS_REAL.state = "error"; });
     return null;
   }
+  // Colours from Kesseböhmer's own product photos (the two we sell, by carcass colour): "ice white" is all matt —
+  // light grey tray floor, white rails and post; the dark one is an anthracite floor with chrome rails and a grey post
+  var LEMANS_LOOKS = {};
+  function leMansLook(THREE, dark){
+    var k = dark ? "dark" : "white";
+    if (!LEMANS_LOOKS[k]) LEMANS_LOOKS[k] = dark
+      ? { plate:new THREE.MeshStandardMaterial({ color:0x3e4043, roughness:0.75, metalness:0.05 }), rail:new THREE.MeshStandardMaterial({ color:0xc9ccd0, roughness:0.25, metalness:0.9 }), post:new THREE.MeshStandardMaterial({ color:0x8e9196, roughness:0.4, metalness:0.7 }) }
+      : { plate:new THREE.MeshStandardMaterial({ color:0xd3d5d7, roughness:0.85, metalness:0 }), rail:new THREE.MeshStandardMaterial({ color:0xf2f2f0, roughness:0.6, metalness:0 }), post:new THREE.MeshStandardMaterial({ color:0xefefed, roughness:0.6, metalness:0 }) };
+    return LEMANS_LOOKS[k];
+  }
+  function leMansPaint(obj, look){ obj.traverse(function(m){ if (m.isMesh && m.userData.lemansRole) m.material = look[m.userData.lemansRole]; }); }
   function addLeMansTrays(THREE, frame, doorPart, cxDoor, hw, CD, bodyBase, bodyH, left, meta, pickables){
     if (!doorPart) return;
     var real = leMansReal(), inward = left ? 1 : -1, trays = [];
@@ -2778,10 +2789,11 @@
         innerW = fit; sx = innerW / real.w; xIn = pivotX - real.colX * sx * mx;
       }
       var pz = zIn + real.colZ * sz, colBack = Math.max(0, pz + 0.02 - (CD - 0.045)); pz -= colBack;
-      var colG = real.column.clone(true); colG.scale.set(sx * mx, Math.max(0.5, bodyH - 0.06) / real.colH, sz); colG.position.set(xIn, bodyBase + 0.03, zIn - colBack);
+      var look = leMansLook(THREE, meta.carcassKey === "dokkgra");
+      var colG = real.column.clone(true); leMansPaint(colG, look); colG.scale.set(sx * mx, Math.max(0.5, bodyH - 0.06) / real.colH, sz); colG.position.set(xIn, bodyBase + 0.03, zIn - colBack);
       frame.add(colG); // the round post the trays turn about
       [0.08, 0.5].forEach(function(f, k){
-        var g = new THREE.Group(), t = real.trays[k].clone(true);
+        var g = new THREE.Group(), t = real.trays[k].clone(true); leMansPaint(t, look);
         t.scale.set(sx * mx, 1, sz); g.add(t); frame.add(g);
         g.traverse(function(o){ if (o.isMesh){ o.userData = pmeta; pickables.push(o); } });
         // the real motion: the tray first turns about the column out through the opening, then slides out —
