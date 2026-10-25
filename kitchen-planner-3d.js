@@ -2025,7 +2025,9 @@
       if (hcfg && hcfg.kind === "hexxa"){ // milled into the front, no fixed width: equal distance to both sides
         var hm2 = (hcfg.marginMm || 50) / 1000, dark = new THREE.MeshStandardMaterial({ color:0x18181a, roughness:0.6 });
         if (vertical && wardrobeScene){ var hxL = Math.min(0.4, doorH - 2 * hm2), hxY = Math.max(bottom + hm2 + hxL / 2, Math.min(top - hm2 - hxL / 2, 1.05)); // wardrobe: a slot at hand height (user, 2026-10-25)
-          sides.forEach(function(sg){ place(new THREE.Mesh(new THREE.BoxGeometry(0.012, Math.max(0.05, hxL), 0.0015), dark), hxY, 0.0008, edgeAlong(sg, 0.02)); }); }
+          sides.forEach(function(sg){ // at the very edge (user, 2026-10-25): the 30 mm dark slot from the edge in + the thin lip line, as the top-edge notch
+            place(new THREE.Mesh(new THREE.BoxGeometry(0.03, Math.max(0.05, hxL), 0.0015), dark), hxY, 0.0008, edgeAlong(sg, 0.015));
+            place(new THREE.Mesh(new THREE.BoxGeometry(0.003, Math.max(0.05, hxL), 0.004), handleMat), hxY, 0.002, edgeAlong(sg, 0.0315)); }); }
         else if (vertical){ sides.forEach(function(sg){ place(new THREE.Mesh(new THREE.BoxGeometry(0.012, Math.max(0.05, doorH - 2 * hm2), 0.0015), dark), (top + bottom) / 2, 0.0008, edgeAlong(sg, 0.02)); }); }
         else {
           var hl = Math.max(0.05, hw - 2 * hm2);
@@ -2054,7 +2056,7 @@
           if (vertical){ sides.forEach(function(sg){ // the finger lip (bottom of the profile) ends up on the free edge, the body extends inwards
             var rot = new THREE.Group(), lift = new THREE.Group(), h2 = new THREE.Group();
             lift.position.y = jp.userData.size.h; lift.add(jp.clone(true)); rot.add(lift);
-            rot.rotation.z = sg > 0 ? Math.PI / 2 : -Math.PI / 2; h2.add(rot);
+            rot.rotation.z = sg > 0 ? -Math.PI / 2 : Math.PI / 2; h2.add(rot); // turned so the finger lip faces the opening (was the wrong way round, user 2026-10-25)
             place(h2, (top + bottom) / 2, jout, twoLeaf ? 0 : sg * hw / 2 + hOff);
           }); }
           else if (atBottom){ // wall units: the profile runs along the bottom edge, upside down (finger lip facing down)
@@ -2070,7 +2072,7 @@
         if (tpf){
           if (vertical){ // tall units: an edge pull on the free side, at chest height
             var vyc = Math.max(bottom + 0.12, Math.min(top - 0.12, 1.05));
-            sides.forEach(function(sg){ var rotT = new THREE.Group(), hT = new THREE.Group(); rotT.add(tpf.clone(true)); rotT.rotation.z = sg > 0 ? -Math.PI / 2 : Math.PI / 2; hT.add(rotT); place(hT, vyc, 0, twoLeaf ? 0 : sg * hw / 2 + hOff); });
+            sides.forEach(function(sg){ var rotT = new THREE.Group(), hT = new THREE.Group(); rotT.add(tpf.clone(true)); rotT.rotation.z = (sg > 0 ? -Math.PI / 2 : Math.PI / 2) * (hcfg.flip ? -1 : 1); hT.add(rotT); /* a flipped model (Vann) turns the other way, as on the top edge */ place(hT, vyc, 0, twoLeaf ? 0 : sg * hw / 2 + hOff); });
           } else {
             var centres = twoLeaf ? [-hw / 4, hw / 4] : [hOff];
             centres.forEach(function(cxT){ var rotB = new THREE.Group(), hB = new THREE.Group(); rotB.add(tpf.clone(true)); if (atBottom !== !!hcfg.flip) rotB.rotation.z = Math.PI; hB.add(rotB); place(hB, atBottom ? bottom + (hcfg.dropMm || 0) / 1000 : top - (hcfg.dropMm || 0) / 1000, -(hcfg.embedMm || 0) / 1000, cxT); }); // wall units: on the bottom edge, upside down
