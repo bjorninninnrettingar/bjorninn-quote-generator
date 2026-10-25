@@ -2742,7 +2742,7 @@
         return out;
       }
       var lower = bake("group_1"), upper = bake("group_19"), col = new THREE.Group();
-      ["group_14", "group_23", "group_9", "group_12"].forEach(function(n){ col.add(bake(n)); });
+      ["group_14"].forEach(function(n){ col.add(bake(n)); }); // the round post only (group_23 is the flat mounting bracket — left out, user 2026-10-25)
       col.traverse(function(m){ if (m.isMesh) m.material = metal; }); // the column is steel, whatever colour the file gave it
       var bb = new THREE.Box3().setFromObject(lower, true), ctr = bb.getCenter(new THREE.Vector3());
       [lower, upper].forEach(function(g){ var b2 = new THREE.Box3().setFromObject(g, true); g.children.forEach(function(m){ m.geometry.translate(-ctr.x, -b2.min.y, -ctr.z); }); });
@@ -2774,7 +2774,8 @@
         innerW = fit; sx = innerW / real.w; xIn = pivotX - real.colX * sx * mx;
       }
       var pz = zIn + real.colZ * sz, colBack = Math.max(0, pz + 0.02 - (CD - 0.045)); pz -= colBack;
-      // (the column itself isn't drawn — just the trays, user 2026-10-25: the idea, not every part)
+      var colG = real.column.clone(true); colG.scale.set(sx * mx, Math.max(0.5, bodyH - 0.06) / real.colH, sz); colG.position.set(xIn, bodyBase + 0.03, zIn - colBack);
+      frame.add(colG); // the round post the trays turn about
       [0.08, 0.5].forEach(function(f, k){
         var g = new THREE.Group(), t = real.trays[k].clone(true);
         t.scale.set(sx * mx, 1, sz); g.add(t); frame.add(g);
