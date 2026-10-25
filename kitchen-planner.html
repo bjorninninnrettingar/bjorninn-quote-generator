@@ -1801,7 +1801,7 @@
   // only has one real enabled choice for now (kitchen) — shown anyway so the
   // "more rooms coming" intent is visible, per the user's own note.
   var INTAKE_QUESTIONS = [
-    { key:"delivery", q:"Hvenær væri best að fá eldhúsið afhent?",
+    { key:"delivery", q:"Hvenær væri best að fá innréttinguna afhenta?",
       options:["Sem fyrst", "Innan 3ja mánaða", "Eftir 3–6 mánuði", "Er ekki að flýta mér"] },
     { key:"budget", q:"Hvert er áætlað fjárhagsrými fyrir verkefnið?",
       options:["Undir 2 m.kr.", "2–4 m.kr.", "4–7 m.kr.", "Yfir 7 m.kr.", "Óviss — vil ráðgjöf"] }
@@ -3105,10 +3105,10 @@
     if (shapePhase !== "height") endHeightScene();
     var catDef = categoryDef(state.activeCategory);
     var titles = {
-      pick: catDef && catDef.roomPicker
+      pick: state.activeCategory !== "eldhus" // every room but the kitchen says "rýmið" (Þvottahús showed "eldhúsið")
         ? [__("Hvernig er rýmið í laginu?"), __("Veldu þá lögun sem passar best. Þú stillir málin næst.")]
         : [__("Hvernig er eldhúsið í laginu?"), __("Veldu þá lögun sem passar best. Þú stillir málin næst.")],
-      size:  [__("Stilltu stærð rýmisins"), __("Sláðu inn mál eða dragðu veggina. Er eldhúsið opið inn í annað rými? Smelltu á „Opið“ við vegginn sem vantar.")],
+      size:  [__("Stilltu stærð rýmisins"), __("Sláðu inn mál eða dragðu veggina. Er rýmið opið inn í annað rými? Smelltu á „Opið“ við vegginn sem vantar.")],
       height: [__("Lofthæð og útlit"), __("Stilltu lofthæðina og útlit rýmisins.")],
       openings: [__("Gluggar og hurðir"), __("Veldu hvað er á hverjum vegg.")],
       water: [__("Hvar kemur vatnið inn?"), __("Merktu staðsetningu vatnslagna, ef þú veist hana.")]
@@ -6975,7 +6975,12 @@
   }
   var handleTabHold = false; // a pick stays on the open tab — jumping to the handle's own group reflowed the grid under the pointer (2026-10-24)
   function selectHandle(key){ state.handle = key; save(); handleTabHold = true; renderMaterials(); handleTabHold = false; }
-  function selectDrawerSystem(key){ state.drawerSystem = key; save(); renderMaterials(); }
+  function selectDrawerSystem(key){
+    state.drawerSystem = key;
+    // Merivo has no medium (IK) inner drawer — a stack that had one keeps a low one instead (else its combo can't exist)
+    if (key === "merivo") surfaces().forEach(function(w){ ["floor", "wall"].forEach(function(z){ (w[z] || []).forEach(function(b){ if (b.interior && b.interior.inner === "IK") b.interior.inner = "IM"; }); }); });
+    save(); renderMaterials();
+  }
 
   function renderCarcassCards(){
     var container = document.getElementById("carcassCards");
@@ -9656,6 +9661,7 @@
           notes.push("Viðskiptavinur óskar eftir að lamir séu " + (b.swing === "vinstri" ? "vinstra" : "hægra") + " megin (séð framan frá).");
         }
         var v3 = v1 ? v3RecordsFor(b, c) : [];
+        if (!v1 && v3RecordsFor(b, c).length) notes.push("Aukahlutir (t.d. ruslafötur, töfrahorn, lyfta) fóru ekki með þar sem skápurinn fann ekki V1 — bættu þeim við í V3 handvirkt."); // never drop them silently
         if (b.aventos && AVENTOS_PRODUCTS[b.aventos]) notes.push("Lyfta: " + AVENTOS_PRODUCTS[b.aventos].label + " í stað lama — staðfestu stærð og þyngd framhliðar gagnvart lyftunni.");
         if (c.oven && !c.lowOven && +b.ovenH === 1050) notes.push("Ofn (60 cm) + örbylgjuofn (45 cm) í sama turni — staðfestu tækin.");
         if (state.hungUnits && zone_ofBlock(wall, b) === "floor") notes.push("Veggfestur (baðherbergi): " + plinthMmOf(c, "floor", wall) + " mm frá gólfi að neðri brún, enginn sökkull.");
