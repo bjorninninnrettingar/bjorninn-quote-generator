@@ -2297,7 +2297,7 @@
     hingeArm: { file:"models/hinges/blum-clip-top.glb",         node:null, skip:["3DGeom-4"], full:true }, // arm + plate (on the carcass)
     hingeCup: { file:"models/hinges/blum-clip-top.glb",         node:"3DGeom-4", full:true }               // the cup (in the door)
   };
-  var APPL_RAW = {}, APPL_READY = {}, APPL_HIDE = null, HINGE_MAT = null, CUP_DARK = null;
+  var APPL_RAW = {}, APPL_READY = {}, APPL_HIDE = null, HINGE_MAT = null, CUP_DARK = null, SHOW_HINGES = false;
   function applStdMat(THREE, m){
     if (!m) return m;
     var metal = /metal|steel|chrome|stainless|inox|_ss|alu/i.test(m.name || "");
@@ -2660,7 +2660,7 @@
       // with the door. The arm only shows while the door is open.
       // Silver; 2, 3 on doors over 1 m, 4 over 1.8 m.
       var leafHinges = [], hingeOpenRad = null;
-      if (!f.drawer && hinge !== "bottom"){
+      if (SHOW_HINGES && !f.drawer && hinge !== "bottom"){ // off (user, 2026-10-25: "of mikið vesen" — never looked good enough)
         var hgM = applModel("hingeArm"), cpM = hgM && applModel("hingeCup");
         if (hgM && cpM){
           if (!HINGE_MAT) HINGE_MAT = new THREE.MeshStandardMaterial({ color:0xadb1b6, metalness:0.85, roughness:0.32 }); // a touch darker (user, 2026-10-25)
