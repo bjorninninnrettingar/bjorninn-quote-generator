@@ -2677,9 +2677,10 @@
               // cup's centre 22.5 mm out along the door from its hinge edge (that lands the plate right at the side's front edge)
               var wrap = new THREE.Group();
               m.obj.traverse(function(o){ if (o.isMesh) o.material = HINGE_MAT; });
+              m.obj.rotation.z = Math.PI; m.obj.position.y = m.h; // turned the other way round: its back toward the door, not into the cabinet (user, 2026-10-25)
               wrap.add(m.obj);
               if (!leftH) wrap.scale.x = -1;
-              wrap.position.set(sideX + (leftH ? 0.007 : -0.007), hy - 0.028, pzD + 0.0225 - 0.0375);
+              wrap.position.set(sideX + (leftH ? 0.006 : -0.006), hy - 0.028, pzD + 0.0225 - 0.0375);
               wrap.updateMatrix(); wrap.updateMatrixWorld(true);
               return wrap;
             }
