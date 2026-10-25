@@ -66,3 +66,22 @@ test("inner drawer: validated per system, priced as the same drawer product in t
   assert.equal(fields.fldkbvdxHo3keO1Ml, 1); // K count = the one real K only
   assert.match(fields.fldbG3jw1tEPEchGr, /1 inn K-skúffa$/);
 });
+
+test("a new combo is flagged for review, looked up by Vörunúmer AND Flokkur, and a double create settles on the oldest row", async () => {
+  let created = false;
+  const f = fakeFetch((call) => {
+    const url = decodeURIComponent(call.url);
+    if (call.method === "GET" && url.includes("L-KM") && url.includes("LEGRA - Skúffu samsetning"))
+      return { status:200, body:{ records: created ? [
+        { id:"recSECOND0000000B", createdTime:"2026-10-25T10:00:01.000Z", fields:{} },
+        { id:"recFIRST00000000A", createdTime:"2026-10-25T10:00:00.000Z", fields:{} }, // the other tab got there first
+      ] : [] } };
+    if (call.method === "POST"){ created = true; return { status:200, body:{ records:[{ id:"recSECOND0000000B", fields:{} }] } }; }
+    if (call.method === "GET" && url.includes("recFIRST00000000A")) return { status:200, body:{ fields:{ fld36kgODkNOZNOeU:1000 } } };
+    return { status:200, body:{ records:[] } };
+  });
+  const out = await findOrCreate(makeAirtable("t", { fetchImpl:f, delays:[] }), "legra", ["K", "M"]);
+  assert.equal(out.id, "recFIRST00000000A");
+  const post = f.calls.find((c) => c.method === "POST");
+  assert.equal(post.body.records[0].fields["Óyfirfarið — Rakel ⚠️"], true);
+});

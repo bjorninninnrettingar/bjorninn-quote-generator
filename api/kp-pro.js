@@ -19,7 +19,7 @@
 //                                             (body.resolve = {Sk5:"drawing"|"airtable"} on the next Vista).
 // Behind VERK_KEY: the public proxy can't write Line Items at all.
 
-import { makeAirtable, listAll, validateLineItems, LINE_FIELDS, PRODUCT_FIELDS, PROJECT_FIELDS, INNER_FRONTS, idsKey, sentOf } from "./kp-submit.js";
+import { makeAirtable, listAll, linesOfProject, validateLineItems, LINE_FIELDS, PRODUCT_FIELDS, PROJECT_FIELDS, INNER_FRONTS, idsKey, sentOf } from "./kp-submit.js";
 
 const PROJECTS = "tbl4LMXlQjp66RFKI";
 const VARIANTS = "tbl8HjvBwNJ41cTV0";              // Útfærslur 🎨 (what V1/V2/V3 link to)
@@ -80,9 +80,8 @@ export async function save(at, body) {
   const lastSent = old.liSent && typeof old.liSent === "object" ? old.liSent : {};
   const resolve = body.resolve || {};
 
-  const prefix = String((opp.fields || {})[PROJECT_NAME] || "").split("|")[0].trim(); // "T-227"
-  const rows = prefix ? (await listAll(at, LINE_ITEMS, `FIND("${prefix.replace(/"/g, '\\"')} |",ARRAYJOIN({${LINK_TO_PROJECT}}))`, ["🔑", SMIDA, LINK_TO_PROJECT, ...PRODUCT_FIELDS, ...LINE_EXTRA]))
-    .filter((r) => (r.fields[LINK_TO_PROJECT] || []).includes(opp.id)) : [];
+  // this Tækifæri's own lines, by its link field — not the "T-227 |" name prefix, which a new one may not have yet
+  const rows = await linesOfProject(at, opp.id, ["🔑", SMIDA, LINK_TO_PROJECT, ...PRODUCT_FIELDS, ...LINE_EXTRA]);
   const byKey = new Map(rows.map((r) => [String(r.fields["🔑"] || "").trim(), r]));
   const patch = new Map(); // row id → fields to write
   const put = (row, f, v) => { if (!patch.has(row.id)) patch.set(row.id, {}); patch.get(row.id)[f] = v; };

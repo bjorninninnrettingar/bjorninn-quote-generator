@@ -37,12 +37,12 @@ test("fresh submission: contact, Tækifæri with forced fields + sid, Line Items
 
 test("retry after a half submission: reuses the Tækifæri, only creates missing Line Items", async () => {
   const f = fakeFetch((c) => {
+    if (c.method === "GET" && c.url.includes("tbl4LMXlQjp66RFKI/recOPP00000000000")) return { status: 200, body: { id: "recOPP00000000000", fields: { fldlcBLh5sXC6VlRn: ["r1", "r2"] } } }; // its own lines
     if (isList(c, "tbl4LMXlQjp66RFKI")) return { status: 200, body: { records: [{ id: "recOPP00000000000", fields: { "Heiti tækifæris / verkefnis": "T-301 | Anna Jóns - " } }] } };
     if (isList(c, "tblFcsUoGxsuUwNEH")) return { status: 200, body: { records: [
       { id: "r1", fields: { "🔑": "Sk1", "Tækifæri 📣 (projects)": ["recOPP00000000000"] } },
       { id: "r2", fields: { "🔑": "Sk2", "Tækifæri 📣 (projects)": ["recOPP00000000000"] } },
-      { id: "r3", fields: { "🔑": "Sk3", "Tækifæri 📣 (projects)": ["recSOMEOTHER00000"] } }, // other project → ignored
-    ] } };
+    ].filter((r) => decodeURIComponent(c.url).includes(r.id)) } }; // only the ids asked for (RECORD_ID())
     if (c.method === "POST") return { status: 200, body: { records: [] } };
   });
   const out = await submit(makeAirtable("t", { fetchImpl: f, ...NO_WAIT }), body(5));
@@ -62,6 +62,18 @@ test("an earlier attempt's contact (same e-mail, last 2 h) is reused", async () 
   assert.ok(!f.calls.some((c) => c.method === "POST" && c.url.endsWith("tblQ8zeUanriESWvL")));
   const opp = f.calls.find((c) => c.method === "POST" && c.url.endsWith("tbl4LMXlQjp66RFKI")).body.fields;
   assert.deepEqual(opp["Tengiliður verkefnis 👤"], ["recOLDCONTACT0000"]);
+});
+
+test("a POST is not repeated after a 5xx or a dropped connection (it may have gone through) — only after a 429", async () => {
+  const net = fakeFetch(() => ({ throw: "ECONNRESET" }));
+  await assert.rejects(makeAirtable("t", { fetchImpl: net, ...NO_WAIT })("POST", "x", { records: [] }));
+  assert.equal(net.calls.length, 1);
+  const five = fakeFetch(() => ({ status: 503, body: {} }));
+  await assert.rejects(makeAirtable("t", { fetchImpl: five, ...NO_WAIT })("POST", "x", { records: [] }), /503/);
+  assert.equal(five.calls.length, 1);
+  let n = 0;
+  const limit = fakeFetch(() => (++n === 1 ? { status: 429, body: {} } : { status: 200, body: { ok: 1 } }));
+  assert.deepEqual(await makeAirtable("t", { fetchImpl: limit, ...NO_WAIT })("POST", "x", {}), { ok: 1 });
 });
 
 test("429 / 5xx / network errors are retried, a 422 is not", async () => {

@@ -65,9 +65,12 @@ export async function findOrCreate(at, sys, codes, inner) {
   const sorted = codes.slice().sort((a, z) => CODE_ORDER.indexOf(z) - CODE_ORDER.indexOf(a)); // tallest-first
   const innerLetter = inner ? INNER[sys][inner] : null;
   const sku = vorunumer(sys, sorted) + (inner || "");
-  const found = await at("GET", `${VARIANTS}?filterByFormula=${encodeURIComponent(`{${F_VORUNUMER}}="${sku.replace(/"/g, '\\"')}"`)}&fields%5B%5D=${F_NAME}&fields%5B%5D=${F_PRICE}&maxRecords=1&returnFieldsByFieldId=true`);
+  // by Vörunúmer AND Flokkur (2026-10-25): a hand-made row that happens to reuse the SKU in another category is not it
+  const lookup = () => at("GET", `${VARIANTS}?filterByFormula=${encodeURIComponent(`AND({${F_VORUNUMER}}="${sku.replace(/"/g, '\\"')}",{${F_FLOKKUR}}="${FLOKKUR[sys]}")`)}&fields%5B%5D=${F_NAME}&fields%5B%5D=${F_PRICE}&returnFieldsByFieldId=true`);
+  const oldest = (recs) => recs.slice().sort((a, z) => String(a.createdTime || "").localeCompare(String(z.createdTime || "")) || a.id.localeCompare(z.id))[0];
+  const found = await lookup();
   if (found.records && found.records.length) {
-    const r = found.records[0];
+    const r = oldest(found.records);
     return { created:false, id:r.id, sku, name:r.fields[F_NAME] || sku, price:r.fields[F_PRICE] || 0 };
   }
   const counts = {};
@@ -78,8 +81,13 @@ export async function findOrCreate(at, sys, codes, inner) {
   if (innerLetter) fields[F_SLOT[sorted.length]] = [VORULISTI[sys][innerLetter]];
   const label = (sys === "merivo" ? "Merivo" : "Legra") + " - " + Object.keys(counts).map((l) => counts[l] + " " + l + "-skúff" + (counts[l] > 1 ? "ur" : "a")).join(" | ") + (innerLetter ? " | 1 inn " + innerLetter + "-skúffa" : "");
   fields[F_NAME] = label;
+  fields["Óyfirfarið — Rakel ⚠️"] = true; // like every other public create (api/airtable.js forces it): Rakel sees it's new
   const created = await at("POST", `${VARIANTS}?returnFieldsByFieldId=true`, { records:[{ fields }], typecast:false });
-  const newId = created.records[0].id;
+  let newId = created.records[0].id;
+  // two requests creating the same combo at once (double click, two tabs) both create — everyone then uses the
+  // oldest row, so a project never points at two versions of one product
+  const again = await lookup().catch(() => null);
+  if (again && again.records && again.records.length > 1) newId = oldest(again.records).id;
   // the create response's own rollup-dependent formula fields (price) can come back stale/unsettled —
   // confirmed live, 2026-10-19: a fresh read right after shows the right number, the create response didn't.
   const settled = await at("GET", `${VARIANTS}/${newId}?returnFieldsByFieldId=true`);

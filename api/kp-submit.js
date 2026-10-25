@@ -66,6 +66,10 @@ const q = (s) => String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 
 // One Airtable call with retries. 429 = Airtable's 5 req/s per base limit (it asks for a pause);
 // 5xx and network errors are usually momentary. 4xx other than 429 are real errors — no retry.
+// A POST is only retried on 429 (Airtable did nothing then): after a 5xx or a dropped connection it may already have
+// created the record, and blindly POSTing again made a second contact / Tækifæri / batch of lines (2026-10-25). The
+// error goes back as a 502 instead and the client re-sends the whole submission, which resumes by sid, contact
+// e-mail and the 🔑s already on the Tækifæri — so nothing is made twice. GET/PATCH are safe to repeat.
 export function makeAirtable(token, { fetchImpl = fetch, delays = [500, 1500, 3000, 6000, 10000] } = {}) {
   return async function at(method, path, body) {
     let lastErr;
@@ -78,11 +82,12 @@ export function makeAirtable(token, { fetchImpl = fetch, delays = [500, 1500, 30
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
           body: body ? JSON.stringify(body) : undefined,
         });
-      } catch (e) { lastErr = e; continue; }
+      } catch (e) { lastErr = e; if (method === "POST") break; continue; }
       const data = await r.json().catch(() => ({}));
       if (r.ok) return data;
       lastErr = Object.assign(new Error(`Airtable ${r.status}: ${JSON.stringify(data).slice(0, 300)}`), { status: r.status });
       if (r.status !== 429 && r.status < 500) throw lastErr;
+      if (r.status !== 429 && method === "POST") break;
     }
     throw lastErr;
   };
@@ -192,15 +197,7 @@ export async function submit(at, body) {
 
   // 4. Line Items — skip the 🔑s this Tækifæri already has, create the rest 10 at a time.
   let have = new Set();
-  if (resumed) {
-    const name = String((opp.fields || {})[PROJECT_NAME] || "");
-    const prefix = name.split("|")[0].trim();           // "T-227"
-    if (prefix) {
-      const rows = await listAll(at, LINE_ITEMS,
-        `FIND("${q(prefix)} |",ARRAYJOIN({${LINK_TO_PROJECT}}))`, ["🔑", LINK_TO_PROJECT]);
-      have = new Set(rows.filter((r) => (r.fields[LINK_TO_PROJECT] || []).includes(opp.id)).map((r) => r.fields["🔑"]));
-    }
-  }
+  if (resumed) have = new Set((await linesOfProject(at, opp.id, ["🔑"])).map((r) => r.fields["🔑"]));
   const todo = body.lineItems.filter((li) => !have.has(li["🔑"]));
   for (let i = 0; i < todo.length; i += 10) {
     await createLines(at, todo.slice(i, i + 10).map((li) => ({
@@ -215,6 +212,19 @@ export async function submit(at, body) {
 // that still fails goes in WITHOUT its product links plus a note saying which ids to add by hand. One stale id must
 // never lose the customer's whole submission (2026-10-25). (A batch is all-or-nothing, so nothing is doubled.)
 const PRODUCT_LINKS = ["Vöru reitur 1", "Vöru reitur 2", "Vöru reitur 3"];
+// A Tækifæri's own Line Items, found by its link field (2026-10-25) — not by the "T-227 |" prefix of its name, which
+// a brand-new Tækifæri may not have yet (then a resume re-created every line and pro Vista doubled every cabinet).
+export const OPP_LINES_FIELD = "fldlcBLh5sXC6VlRn"; // Tækifæri 📣 → its Line Items (inverse of LINK_TO_PROJECT)
+export async function linesOfProject(at, oppId, fields) {
+  const p = await at("GET", `${PROJECTS}/${oppId}?returnFieldsByFieldId=true`);
+  const ids = ((p && p.fields) || {})[OPP_LINES_FIELD] || [];
+  const out = [];
+  for (let i = 0; i < ids.length; i += 40) {
+    const formula = "OR(" + ids.slice(i, i + 40).map((id) => `RECORD_ID()='${String(id).replace(/[^A-Za-z0-9]/g, "")}'`).join(",") + ")";
+    out.push(...await listAll(at, LINE_ITEMS, formula, fields));
+  }
+  return out;
+}
 export async function createLines(at, records) {
   try { return await at("POST", LINE_ITEMS, { typecast: true, records }); }
   catch (e) { if (e.status !== 422) throw e; }

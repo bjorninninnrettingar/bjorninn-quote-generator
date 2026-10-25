@@ -3,9 +3,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import handler, { save, validate } from "../api/kp-pro.js";
 import { makeAirtable } from "../api/kp-submit.js";
-import { mockRes, fakeFetch } from "./helpers.js";
+import { mockRes, fakeFetch as rawFetch, byLink } from "./helpers.js";
 
 const OPP = "recAAAAAAAAAAAAAA";
+const fakeFetch = (r) => rawFetch(byLink(r, { opp: OPP })); // lines are found through the Tækifæri's link field
 const SM = (h) => ({ v: 1, doors: [{ h, type: "hinged", hinges: [{ from: "bottom", mm: 80 }, { from: "top", mm: 80 }] }] });
 const routes = (call) => {
   if (call.method === "GET" && call.url.includes(`tbl4LMXlQjp66RFKI/${OPP}`))
