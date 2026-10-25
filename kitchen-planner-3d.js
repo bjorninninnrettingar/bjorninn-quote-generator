@@ -2365,15 +2365,16 @@
       p.group.rotation.y = (p.hinge === "left" ? -1 : 1) * 1.75 * smooth01(p.cur * 2.2);
       p.trays.forEach(function(t, i){
         var k = smooth01((p.cur - 0.3 - i * 0.14) / 0.56), arc = Math.sin(Math.PI * k);
-        if (t.real){ // turn about the column (first 55 %), then slide out in front while easing back toward square
-          // turn about the post (first 65 %), then tray AND post slide straight out together, so the tray's back half
-          // never sweeps through the post (user, 2026-10-25: turn, but further out)
-          var k1 = Math.min(1, k / 0.65), slide = t.slide * Math.max(0, (k - 0.65) / 0.35), k2 = 0, a = t.a1 * k1;
-          if (i === 0 && p.post) p.post.position.z = p.postZ0 + slide;
-          var cx0 = (t.x0 || 0) - t.px, cz0 = t.z0 - t.pz, ca = Math.cos(a), sa = Math.sin(a); // tray centre relative to the pivot, turned by a
+        if (t.real){
+          // like a real LeMans II, the post stays put: (1) the tray turns 90° about the post out through the opening,
+          // (2) steps sideways off the post (the post sat in its notch), (3) runs straight out in front of the opening
+          // — it never passes through the post, the door or the side (user, 2026-10-25)
+          var k1 = Math.min(1, k / 0.5), k2s = Math.max(0, Math.min(1, (k - 0.5) / 0.2)), k3 = Math.max(0, (k - 0.7) / 0.3), a = t.a1 * k1;
+          var cx0 = (t.x0 || 0) - t.px, cz0 = t.z0 - t.pz, ca = Math.cos(a), sa = Math.sin(a);
           var bx = t.px + cx0 * ca + cz0 * sa, bz = t.pz - cx0 * sa + cz0 * ca;
-          t.group.position.set(bx + (t.xEnd - bx) * k2, t.y, bz + (t.zEnd - bz) * k2 + slide);
-          t.group.rotation.y = a + (t.aEnd - a) * k2;
+          bx += -Math.sin(t.a1) * t.step * k2s; bz += -Math.cos(t.a1) * t.step * k2s; // away from the post
+          t.group.position.set(bx, t.y, bz + t.out * k3);
+          t.group.rotation.y = a;
           return;
         }
         t.group.position.set(t.xIn + (t.xOut - t.xIn) * k, t.y, t.z0 + t.outZ * k);
@@ -2765,9 +2766,9 @@
     var pmeta = Object.assign({}, meta, { isPart:true, partKey:doorPart.key });
     if (real){ // nearly the cabinet's width when closed (half in the blind corner), out through the opening when open
       // a touch smaller than the carcass and set back, so nothing (tray rail, column) ever shows through the fronts
-      var innerW = Math.max(0.5, (2 * hw - 0.05) * 0.92), d = Math.max(0.3, Math.min(0.48, CD - 0.1));
+      var innerW = Math.max(0.5, (2 * hw - 0.05) * 0.92), d = Math.max(0.3, Math.min(0.44, CD - 0.12)); // narrow enough to turn and step clear of the side
       var sx = innerW / real.w, sz = d / real.d, mx = left ? -1 : 1; // the file is the right-hand LeMans
-      var zIn = CD - 0.05 - d / 2;
+      var zIn = CD - 0.07 - d / 2; // the post a little in from the front
       // the column stands just inside the opening, past the door's middle-side hinge — the tray turns about it
       // without ever sweeping through the door (which opens over the blind half)
       var pivotX = -inward * 0.07, xIn = pivotX - real.colX * sx * mx;
@@ -2786,7 +2787,7 @@
         // the real motion: the tray first turns about the column out through the opening, then slides out —
         // open it stands out of the opening, pointing away from the cabinet at a slight angle (how a LeMans II stands open)
         trays.push({ group:g, real:true, y:bodyBase + bodyH * f, x0:xIn, z0:zIn, px:pivotX, pz:pz,
-          a1:inward * Math.PI * 0.44, slide:0.22, xEnd:pivotX - inward * (d * 0.55 + 0.04), zEnd:zIn + d / 2 + innerW * 0.42, aEnd:inward * 1.3 });
+          a1:inward * Math.PI / 2, step:0.07, out:d * 0.75, xEnd:pivotX - inward * (d * 0.55 + 0.04), zEnd:zIn + d / 2 + innerW * 0.42, aEnd:inward * 1.3 });
       });
     } else {
       var w = Math.max(0.3, hw - 0.07), d2 = Math.max(0.3, Math.min(0.5, CD - 0.08));
@@ -2799,7 +2800,6 @@
       });
     }
     doorPart.kind = "lemans"; doorPart.trays = trays;
-    if (real){ doorPart.post = colG; doorPart.postZ0 = colG.position.z; }
     applyPart(doorPart);
   }
 
