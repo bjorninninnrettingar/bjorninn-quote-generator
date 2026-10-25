@@ -9537,6 +9537,7 @@
       if (isDrawerUnit(b)){
         var dc = KP3D.drawerCodes(b.interior, drawerSys());
         if (sinkFixedTop(b, c)) dc = sortStack(dc.slice(0, -1)); // the fixed front over the sink is not a drawer
+        dc = dc.filter(function(x){ return x !== KP3D.FIXED_FRONT_CODE; }); // nor is a "Föst framhlið" — the real drawers still get their price
         return dc.length ? drawerComboRec(dc, b.interior.inner || null) : null;
       }
       // Shelves = KP3D.shelvesOf(b) (b.shelves) — what the side panel's "Lausar hillur" −/+ edits and
@@ -9781,6 +9782,29 @@
     return out || materialFieldsNow();
   }
 
+  // Before anything is sent (2026-10-25): every drawer stack in every room has its combo product. One made on the spot
+  // (ensureCombo) only lived in memory — reload the draft, or switch Legra/Merivo, and its line went in without a V2
+  // (under-priced). Same codes v2RecordFor looks up.
+  function ensureAllCombos(){
+    var need = {}, list = [];
+    withEachCategory(function(){
+      surfaces().forEach(function(w){ w.floor.concat(w.wall).forEach(function(b){
+        var c = CATALOG[b.type];
+        if (!c || c.oven || c.bur || c.thvo || !c.hasInterior || !isDrawerUnit(b)) return;
+        var dc = KP3D.drawerCodes(b.interior, drawerSys());
+        if (sinkFixedTop(b, c)) dc = sortStack(dc.slice(0, -1));
+        dc = dc.filter(function(x){ return x !== KP3D.FIXED_FRONT_CODE; });
+        var inner = b.interior.inner || null;
+        if (!dc.length || drawerComboRec(dc, inner)) return;
+        var sys = drawerSys(), k = sys + ":" + KP3D.drawerComboKey(dc, inner); // drawerSystem is per room
+        if (!need[k]){ need[k] = true; list.push([dc, inner, sys]); }
+      }); });
+    });
+    return list.reduce(function(p, x){ return p.then(function(){ return new Promise(function(res){
+      var was = state.drawerSystem; state.drawerSystem = x[2]; // ensureCombo reads the system once, up front
+      try { ensureCombo(x[0], x[1], function(){ res(); }); } finally { state.drawerSystem = was; }
+    }); }); }, Promise.resolve());
+  }
   async function submitPlan(){
     var submitBtn = document.getElementById("submitBtn");
     var errEl = document.getElementById("submitError");
@@ -9790,7 +9814,8 @@
     try{
       // EN version: everything Airtable gets is built in Icelandic whatever language the visitor picked
       var note = KPI18N.asIS(intakeNote);
-      var project = KPI18N.asIS(materialFieldsNow);
+      await ensureAllCombos(); // every drawer stack priced (see ensureAllCombos)
+      var project = KPI18N.asIS(projectMaterialFields); // the project's materials, same as PRO (was: whichever room happened to be open)
       if (note) project["Skilaboð til skipulags"] = note;
 
       // One request does the whole submission (api/kp-submit.js): contact → Tækifæri → Line Items. The
@@ -11597,11 +11622,27 @@
   // startAt (2026-10-14): a combined multi-category submit numbers each category's cabinets in its own
   // local pass (see withEachCategory) and needs each later category's fresh "Sk" numbers to continue on
   // from the one before it rather than also starting at Sk1 — see withEachCategory for why that's safe.
+  // Multi-room projects (2026-10-25, fixes "Tvítekinn 🔑"): numbers are unique across the WHOLE project — a new
+  // cabinet gets the next number after the highest one in any room, and if two rooms already share a number (older
+  // drafts), the room later in the queue gives its one up. SK_CAT = the room whose data is on state right now.
+  var SK_CAT = null, SK_SAVED_ACTIVE = null;
+  function skOfOtherRooms(){
+    var cur = SK_CAT || state.activeCategory, queue = state.categoryQueue || [], before = {}, max = 0, seenCur = false;
+    queue.forEach(function(cat){
+      if (cat === cur){ seenCur = true; return; }
+      var blob = cat === state.activeCategory ? SK_SAVED_ACTIVE : state.categoryData && state.categoryData[cat];
+      if (!blob) return;
+      (JSON.stringify(blob).match(/"sk":"Sk(\d+)"/g) || []).forEach(function(m){
+        var n = +m.replace(/\D/g, ""); max = Math.max(max, n); if (!seenCur) before["Sk" + n] = true;
+      });
+    });
+    return { before:before, max:max };
+  }
   function skKeys(startAt){
-    var map = {}, used = {}, all = [], n = startAt || 0;
+    var others = skOfOtherRooms(), map = {}, used = {}, all = [], n = Math.max(startAt || 0, others.max);
     surfaces().forEach(function(w){ w.floor.concat(w.wall).forEach(function(b){ if (!CATALOG[b.type].notOrdered) all.push(b); }); }); // free-standing appliances aren't units
     all.forEach(function(b){
-      if (!/^Sk\d+$/.test(b.sk || "") || used[b.sk]) return;
+      if (!/^Sk\d+$/.test(b.sk || "") || used[b.sk] || others.before[b.sk]) return; // taken here, or by a room before this one
       used[b.sk] = true; map[b.id] = b.sk; n = Math.max(n, +b.sk.slice(2));
     });
     all.forEach(function(b){ if (!map[b.id]) map[b.id] = "Sk" + (++n); });
@@ -11617,17 +11658,22 @@
   // never produces two cabinets both called "Sk1". Restores the live room exactly as it was afterward.
   function withEachCategory(fn){
     var queue = (state.categoryQueue && state.categoryQueue.length) ? state.categoryQueue : [state.activeCategory || "eldhus"];
-    var offset = 0, savedActive = {};
+    var savedActive = {};
     ROOM_FIELDS.forEach(function(k){ savedActive[k] = state[k]; });
-    queue.forEach(function(cat){
-      var blob = cat === state.activeCategory ? savedActive : state.categoryData[cat];
-      if (!blob) return; // queued but never actually drawn yet
-      ROOM_FIELDS.forEach(function(k){ state[k] = blob[k]; });
-      freezeSk(offset);
-      fn(cat);
-      offset += cabinetTotal();
-    });
-    ROOM_FIELDS.forEach(function(k){ state[k] = savedActive[k]; });
+    SK_SAVED_ACTIVE = savedActive;
+    try {
+      queue.forEach(function(cat){
+        var blob = cat === state.activeCategory ? savedActive : state.categoryData[cat];
+        if (!blob) return; // queued but never actually drawn yet
+        ROOM_FIELDS.forEach(function(k){ state[k] = blob[k]; });
+        SK_CAT = cat;
+        freezeSk(); // unique across the project (skKeys looks at every other room)
+        fn(cat);
+      });
+    } finally {
+      SK_CAT = null; SK_SAVED_ACTIVE = null;
+      ROOM_FIELDS.forEach(function(k){ state[k] = savedActive[k]; });
+    }
   }
   function collectAllLineItems(){
     var rows = [];

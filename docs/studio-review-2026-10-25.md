@@ -43,9 +43,9 @@ Skannað í vafra (1440×900): allir 26 kostir, hver hluti opnaður, mælt hvort
 ### Hátt — þarf ákvörðun / meiri vinnu (ekki snert sjálfur)
 | # | Hvar | Vandinn | Tillaga |
 |---|---|---|---|
-| B1 | kitchen-planner.html ~11555 (🔑 númer í mörgum rýmum) | Skápur bættur við rými 1 eftir á fær 🔑 sem rými 2 notar þegar → **öll innsendingin fellur** („Tvítekinn 🔑“), sérstaklega í PRO | Einn teljari yfir öll rými |
-| B2 | ensureCombo (skúffusamsetningar búnar til eftir þörfum) | Ný samsetning er bara í minni: endurhlaða drögin → línan fer **án skúffu-V2 (vanverðlagt)** | Í Senda inn: búa til/fletta upp öllum samsetningum sem vantar V2 |
-| B3 | kp-submit — harðkóðuð Airtable-id | Ef ein Útfærsla/Vöruliðsröð er eytt → 422 → **hver innsending með þeim skáp fellur** | Við 422: fjarlægja id í Skilaboð og senda aftur; `test:live` reglulega |
+| B1 ✅ | kitchen-planner.html ~11555 (🔑 númer í mörgum rýmum) | Skápur bættur við rými 1 eftir á fær 🔑 sem rými 2 notar þegar → **öll innsendingin fellur** („Tvítekinn 🔑“), sérstaklega í PRO | Einn teljari yfir öll rými |
+| B2 ✅ | ensureCombo (skúffusamsetningar búnar til eftir þörfum) | Ný samsetning er bara í minni: endurhlaða drögin → línan fer **án skúffu-V2 (vanverðlagt)** | Í Senda inn: búa til/fletta upp öllum samsetningum sem vantar V2 |
+| B3 ✅ | kp-submit — harðkóðuð Airtable-id | Ef ein Útfærsla/Vöruliðsröð er eytt → 422 → **hver innsending með þeim skáp fellur** | Við 422: fjarlægja id í Skilaboð og senda aftur; `test:live` reglulega |
 | B4 | kp-submit — endurtekur POST | Netvilla eftir að Airtable vistaði → tvöfaldur tengiliður/Tækifæri/línur | Endurtaka bara GET/429; eftir POST-villu: fletta upp áður en sent er aftur |
 | B5 | kp-submit / kp-pro — „T-227 \|“ forskeyti | Ef nafnið hefur ekki forskeyti enn → endurtekin innsending býr til **allar línur aftur** | Leita eftir tengdu RECORD_ID() |
 | B6 | api/drawer-combo.js | Hver sem er getur búið til Útfærslur-raðir, án „Óyfirfarið — Rakel ⚠️“ og án rate-limit | Rate-limit + flagg (en athuga fyrst hvort flaggið stoppi verð) |

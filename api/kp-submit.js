@@ -203,11 +203,29 @@ export async function submit(at, body) {
   }
   const todo = body.lineItems.filter((li) => !have.has(li["🔑"]));
   for (let i = 0; i < todo.length; i += 10) {
-    await at("POST", LINE_ITEMS, { typecast: true, records: todo.slice(i, i + 10).map((li) => ({
+    await createLines(at, todo.slice(i, i + 10).map((li) => ({
       fields: Object.assign(pick(li, LINE_FIELDS), { [LINK_TO_PROJECT]: [opp.id] }),
-    })) });
+    })));
   }
   return { recordId: opp.id, created: todo.length, skipped: body.lineItems.length - todo.length, resumed };
+}
+
+// A batch of Line Items. If Airtable refuses it with a 422 — almost always a linked product (Vöru reitur) that was
+// deleted or replaced in Airtable since the planner was built — the batch is retried one line at a time, and a line
+// that still fails goes in WITHOUT its product links plus a note saying which ids to add by hand. One stale id must
+// never lose the customer's whole submission (2026-10-25). (A batch is all-or-nothing, so nothing is doubled.)
+const PRODUCT_LINKS = ["Vöru reitur 1", "Vöru reitur 2", "Vöru reitur 3"];
+export async function createLines(at, records) {
+  try { return await at("POST", LINE_ITEMS, { typecast: true, records }); }
+  catch (e) { if (e.status !== 422) throw e; }
+  for (const r of records) {
+    try { await at("POST", LINE_ITEMS, { typecast: true, records: [r] }); continue; }
+    catch (e) { if (e.status !== 422) throw e; }
+    const f = Object.assign({}, r.fields), dropped = [];
+    for (const k of PRODUCT_LINKS) if (f[k] && [].concat(f[k]).length) { dropped.push(k + ": " + [].concat(f[k]).join(", ")); delete f[k]; }
+    f["Skilaboð til skipulags"] = ((f["Skilaboð til skipulags"] || "") + "\n⚠ Vara fannst ekki í Airtable (eytt eða breytt?) — tekin af línunni, bættu við handvirkt: " + dropped.join("; ")).trim();
+    await at("POST", LINE_ITEMS, { typecast: true, records: [{ fields: f }] });
+  }
 }
 
 export default async function handler(req, res) {

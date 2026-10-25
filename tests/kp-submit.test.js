@@ -111,3 +111,24 @@ test("validate rejects bad Vöru reitur links", () => {
   assert.ok(validate(withV(["nope"])));
   assert.ok(validate(withV("recLEDLEDLEDLED01")));
 });
+
+test("a Line Item whose product was deleted in Airtable (422) still goes in — without that link, with a note", async () => {
+  const BAD = "recDELETED0000000";
+  const f = fakeFetch((c) => {
+    if (c.method === "POST" && c.url.endsWith("tblQ8zeUanriESWvL")) return { status: 200, body: { id: "recCONTACT0000000" } };
+    if (c.method === "POST" && c.url.endsWith("tbl4LMXlQjp66RFKI")) return { status: 200, body: { id: "recOPP00000000000", fields: {} } };
+    if (c.method === "POST" && c.body.records.some((r) => [].concat(r.fields["Vöru reitur 1"] || []).includes(BAD))) return { status: 422, body: { error: { type: "ROW_DOES_NOT_EXIST" } } };
+    if (c.method === "POST") return { status: 200, body: { records: c.body.records.map((_, i) => ({ id: "rec" + i })) } };
+  });
+  const b = body(3);
+  b.lineItems[1]["Vöru reitur 1"] = [BAD];
+  b.lineItems[0]["Vöru reitur 1"] = ["recGOOD000000000A"];
+  const out = await submit(makeAirtable("t", { fetchImpl: f, ...NO_WAIT }), b);
+  assert.equal(out.created, 3);
+  const made = f.calls.filter((c) => c.method === "POST" && c.url.endsWith("tblFcsUoGxsuUwNEH")).map((c) => c.body.records)
+    .filter((recs) => recs.length === 1).map((recs) => recs[0].fields);
+  const sk2 = made.find((x) => x["🔑"] === "Sk2" && !x["Vöru reitur 1"]);
+  assert.ok(sk2, "Sk2 went in without its dead link");
+  assert.match(sk2["Skilaboð til skipulags"], /recDELETED0000000/);
+  assert.deepEqual(made.find((x) => x["🔑"] === "Sk1")["Vöru reitur 1"], ["recGOOD000000000A"]); // the others keep theirs
+});
