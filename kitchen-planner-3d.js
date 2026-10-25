@@ -2367,7 +2367,7 @@
         var k = smooth01((p.cur - 0.3 - i * 0.14) / 0.56), arc = Math.sin(Math.PI * k);
         if (t.real){ // turn about the column (first 55 %), then slide out in front while easing back toward square
           var k1 = Math.min(1, k / 0.55), k2 = Math.max(0, (k - 0.55) / 0.45), a = t.a1 * k1;
-          var cx0 = -t.px, cz0 = t.z0 - t.pz, ca = Math.cos(a), sa = Math.sin(a); // tray centre relative to the pivot, turned by a
+          var cx0 = (t.x0 || 0) - t.px, cz0 = t.z0 - t.pz, ca = Math.cos(a), sa = Math.sin(a); // tray centre relative to the pivot, turned by a
           var bx = t.px + cx0 * ca + cz0 * sa, bz = t.pz - cx0 * sa + cz0 * ca;
           t.group.position.set(bx + (t.xEnd - bx) * k2, t.y, bz + (t.zEnd - bz) * k2);
           t.group.rotation.y = a + (t.aEnd - a) * k2;
@@ -2760,21 +2760,30 @@
     if (!doorPart) return;
     var real = leMansReal(), inward = left ? 1 : -1, trays = [];
     var pmeta = Object.assign({}, meta, { isPart:true, partKey:doorPart.key });
-    if (real){ // the whole cabinet's width when closed (half in the blind corner), out through the door when open
-      var innerW = Math.max(0.5, 2 * hw - 0.05), d = Math.max(0.3, Math.min(0.52, CD - 0.06));
+    if (real){ // nearly the cabinet's width when closed (half in the blind corner), out through the opening when open
+      // a touch smaller than the carcass and set back, so nothing (tray rail, column) ever shows through the fronts
+      var innerW = Math.max(0.5, (2 * hw - 0.05) * 0.92), d = Math.max(0.3, Math.min(0.48, CD - 0.1));
       var sx = innerW / real.w, sz = d / real.d, mx = left ? -1 : 1; // the file is the right-hand LeMans
-      var zIn = CD - 0.02 - d / 2;
-      var colG = real.column.clone(true); colG.scale.set(sx * mx, Math.max(0.5, bodyH - 0.06) / real.colH, sz); colG.position.set(0, bodyBase + 0.03, zIn);
+      var zIn = CD - 0.05 - d / 2;
+      // the column stands just inside the opening, past the door's middle-side hinge — the tray turns about it
+      // without ever sweeping through the door (which opens over the blind half)
+      var pivotX = -inward * 0.07, xIn = pivotX - real.colX * sx * mx;
+      for (var it = 0; it < 3; it++){ // shifted toward the opening, so narrow it until both ends clear the sides by 25 mm
+        var fit = 2 * (hw - 0.025 - Math.abs(xIn));
+        if (innerW <= fit) break;
+        innerW = fit; sx = innerW / real.w; xIn = pivotX - real.colX * sx * mx;
+      }
+      var pz = zIn + real.colZ * sz, colBack = Math.max(0, pz + 0.02 - (CD - 0.045)); pz -= colBack;
+      var colG = real.column.clone(true); colG.scale.set(sx * mx, Math.max(0.5, bodyH - 0.06) / real.colH, sz); colG.position.set(xIn, bodyBase + 0.03, zIn - colBack);
       frame.add(colG);
       [0.08, 0.5].forEach(function(f, k){
         var g = new THREE.Group(), t = real.trays[k].clone(true);
         t.scale.set(sx * mx, 1, sz); g.add(t); frame.add(g);
         g.traverse(function(o){ if (o.isMesh){ o.userData = pmeta; pickables.push(o); } });
-        // out straight in front of the cabinet, a touch toward the blind side so the open door (hinged on the outer side) stays clear
-        // the real motion: the tray first turns about the column out through the opening, then slides out in front
-        trays.push({ group:g, real:true, y:bodyBase + bodyH * f, z0:zIn, px:real.colX * sx * mx, pz:zIn + real.colZ * sz,
-          // open: out of the opening, pointing away from the cabinet at a slight angle (how a LeMans II stands open)
-          a1:inward * Math.PI / 2, xEnd:real.colX * sx * mx - inward * (d * 0.55 + 0.05), zEnd:zIn + d / 2 + innerW * 0.42, aEnd:inward * 1.3 });
+        // the real motion: the tray first turns about the column out through the opening, then slides out —
+        // open it stands out of the opening, pointing away from the cabinet at a slight angle (how a LeMans II stands open)
+        trays.push({ group:g, real:true, y:bodyBase + bodyH * f, x0:xIn, z0:zIn, px:pivotX, pz:pz,
+          a1:inward * Math.PI / 2, xEnd:pivotX - inward * (d * 0.55 + 0.04), zEnd:zIn + d / 2 + innerW * 0.42, aEnd:inward * 1.3 });
       });
     } else {
       var w = Math.max(0.3, hw - 0.07), d2 = Math.max(0.3, Math.min(0.5, CD - 0.08));
