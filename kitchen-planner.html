@@ -1019,6 +1019,11 @@
   .uw-card small{ color:var(--ink-soft); font-size:12.5px; }
   .uw-chips{ display:flex; flex-wrap:wrap; gap:4px; }
   .uw-chips .hw-btn{ min-width:38px; }
+  /* the open group reads a little bigger than the folded ones (user, 2026-10-25) */
+  .uw-sec.open .uw-sec-head b{ font-size:15.5px; }
+  .uw-sec.open .uw-chips{ gap:6px; }
+  .uw-sec.open .uw-chips .hw-btn{ min-width:46px; padding:8px 12px; font-size:14px; }
+  .uw-sec.open .uw-custom input{ font-size:14px; padding:6px 8px; }
   .uw-custom{ display:flex; align-items:center; gap:8px; margin-top:6px; }
   .uw-custom input{ width:90px; }
   .uw-custom small{ color:var(--ink-soft); }
@@ -6230,7 +6235,7 @@
     if (key === uwPrevKey && KP3D._three()) return;
     uwPrevKey = key;
     var lenMm = Math.max(1200, b.widthMm + 800);
-    var pv = { carcass:state.carcass, drawerSystem:state.drawerSystem, look:state.look, handle:state.handle, handleColor:state.handleColor, top:state.top, floor:state.floor, wallColor:state.wallColor,
+    var pv = { carcass:state.carcass, drawerSystem:state.drawerSystem, look:state.look, handle:state.handle, handleColor:state.handleColor, top:c.panel ? "engin" : state.top, /* an úthlið alone: no worktop */ floor:state.floor, wallColor:state.wallColor,
       roomHeightMm:state.roomHeightMm, closed:false, islands:[], windows:[], doors:[],
       walls:[{ id:"UWP", label:"", lengthMm:lenMm, floor:c.zone === "floor" ? [Object.assign({}, b, { gapMm:400, locked:false })] : [], wall:c.zone === "wall" ? [Object.assign({}, b, { gapMm:400, locked:false })] : [] }] };
     KP3D.waitForThree(function(ok){
@@ -6240,6 +6245,10 @@
       host.innerHTML = "";
       KP3D.buildScene(host, pv, { xray:true, clean:true, noGhost:true, onlySurfaceId:"UWP", freshCamera:true, darkBg:!!PRO });
       var st = KP3D._three(); if (!st) return;
+      if (!uw.b){ // hovering a type: start closed and play the opening, rather than showing it already open (user, 2026-10-25)
+        KP3D.snapParts(false);
+        var hoverKey = key; setTimeout(function(){ if (uw && !uw.b && uwPrevKey === hoverKey) KP3D.setAllParts(true); }, 650);
+      }
       var g = KP3D.surfaceGeoms(pv)[0], hM = blockHeightMm(b, c) / 1000, elevM = c.zone === "wall" ? (KP3D.elevOf(b) || 0) / 1000 : 0;
       var along = 0.4 + b.widthMm / 2000, cx = g.origin.x + g.axis.x * along, cz = g.origin.z + g.axis.z * along, cy = elevM + hM / 2;
       // Fit height AND width in the lens, each against its own actual half-FOV — the preview pane is usually

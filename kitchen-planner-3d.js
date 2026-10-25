@@ -2407,6 +2407,11 @@
   }
 
   // Open (1) or close (0) every drawer and door in the scene at once ("Opna allt" in inspect mode)
+  // jump every part straight to closed/open (no animation) — the wizard's hover preview starts closed, then opens
+  function snapParts(open){
+    if (!THREE_STATE) return;
+    (THREE_STATE.scene.userData.parts || []).forEach(function(p){ p.cur = p.target = open ? 1 : 0; PART_STATE[p.key] = p; applyPart(p); });
+  }
   function setAllParts(open){
     if (!THREE_STATE) return 0;
     var list = THREE_STATE.scene.userData.parts || [];
@@ -6615,7 +6620,7 @@
     setXrayFronts: setXrayFronts,
     setCameraLookAt: setCameraLookAt, studioRender: studioRender,
     renderShot: renderShot,
-    setAllParts: setAllParts,
+    setAllParts: setAllParts, snapParts: snapParts,
     DRAWER_CODES: DRAWER_CODES, FIXED_FRONT_CODE: FIXED_FRONT_CODE,
     FRONT_MIN: FRONT_MIN, slotMin: slotMin,
     drawerCodes: drawerCodes,
