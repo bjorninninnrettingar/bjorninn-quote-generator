@@ -68,7 +68,7 @@
     frystir:     { label:"Frystir (innbyggður)", zone:"floor", cls:"fridge", defaultW:600, minW:600, maxW:900, widths:[600, 700, 900], fixedWidths:true, h:2500, d:600, minH:1700, maxH:2700, minD:500, maxD:750, hasInterior:false,
                    skapategundOverride:"Hárskápur", fridge:true,
                    note:"Viðskiptavinur óskar eftir innbyggðum FRYSTI (ekki ísskáp) í þessum skáp — staðfestu stærð tækis (nisju) og hurðargerð." },
-    vinkaelir:   { label:"Vínkælir (undir borðplötu)", zone:"floor", cls:"floor", defaultW:600, minW:300, maxW:600, widths:[300, 450, 600], h:900, d:600, minH:820, maxH:950, minD:550, maxD:700, hasInterior:false, counter:true, appliance:"dishwasher", notOrdered:true },
+    vinkaelir:   { label:"Vínkælir (undir borðplötu)", zone:"floor", cls:"floor", defaultW:600, minW:300, maxW:600, widths:[300, 450, 600], h:900, d:600, minH:820, maxH:950, minD:550, maxD:700, hasInterior:false, counter:true, appliance:"wine", notOrdered:true },
     // (no longer offered — "nú erum við að gera eldhús", 2026-10-05; kept so older drafts still load)
     thvottavelFri:{ label:"Þvottavél (frístandandi)", zone:"floor", cls:"floor", defaultW:600, minW:600, maxW:600, h:900, d:600, minH:800, maxH:950, minD:550, maxD:700, hasInterior:false, counter:true, appliance:"washer", notOrdered:true },
     burskapur:   { label:"Búrskápur", zone:"floor", cls:"tall", defaultW:600, minW:300, maxW:1200, h:2500, d:600, minH:1800, maxH:2700, minD:400, maxD:700, hasInterior:false, bur:true },
@@ -2300,12 +2300,46 @@
       put(new THREE.Mesh(new THREE.BoxGeometry(widthM - 0.01, 0.075, 0.008), dark), 0, heightM - 0.045, 0.004);
       put(new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.6, 0.016, 0.025), new THREE.MeshStandardMaterial({ color:0x9ca1a7, metalness:0.85, roughness:0.25 })), 0, heightM - 0.12, 0.016);
       [0.18, 0.26].forEach(function(x){ put(new THREE.Mesh(new THREE.CircleGeometry(0.008, 16), new THREE.MeshBasicMaterial({ color:0x7fd18b })), widthM / 2 - x, heightM - 0.045, 0.009); });
-    } else if (kind === "washer"){
-      var r = Math.min(widthM, heightM) * 0.27, cy = heightM * 0.45;
-      put(new THREE.Mesh(new THREE.TorusGeometry(r, 0.025, 12, 48), new THREE.MeshStandardMaterial({ color:0xb8bcc2, metalness:0.7, roughness:0.3 })), 0, cy, 0.015);
-      put(new THREE.Mesh(new THREE.CircleGeometry(r - 0.012, 40), new THREE.MeshStandardMaterial({ color:0x3a4550, roughness:0.08, metalness:0.2, transparent:true, opacity:0.85 })), 0, cy, 0.012);
-      put(new THREE.Mesh(new THREE.BoxGeometry(widthM - 0.04, 0.09, 0.01), new THREE.MeshStandardMaterial({ color:0xe4e6e8, roughness:0.5 })), 0, heightM - 0.07, 0.005);
-      put(new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.015, 24), dark).rotateX(Math.PI / 2), widthM * 0.3, heightM - 0.07, 0.012);
+    } else if (kind === "wine"){ // wine cooler (user, 2026-10-25): steel frame, tinted glass door, lit inside, rows of bottles on beech shelves
+      var fw = 0.035, gw = widthM - 2 * fw, gh = heightM - 0.12 - fw, gy = 0.03 + gh / 2 + 0.02;
+      var steelF = new THREE.MeshStandardMaterial({ color:0xb9bdc2, metalness:0.85, roughness:0.28 });
+      put(new THREE.Mesh(new THREE.BoxGeometry(widthM - 0.004, heightM - 0.004, 0.012), steelF), 0, heightM / 2, 0.006);            // the frame
+      put(new THREE.Mesh(new THREE.PlaneGeometry(gw, gh), new THREE.MeshBasicMaterial({ color:0x4a4038 })), 0, gy, 0.0125);         // warm lit interior behind the glass
+      var glow = new THREE.Mesh(new THREE.PlaneGeometry(gw, 0.012), new THREE.MeshBasicMaterial({ color:0xcfe4ff }));                // LED along the top inside
+      put(glow, 0, gy + gh / 2 - 0.012, 0.013);
+      var wood = new THREE.MeshStandardMaterial({ color:0xc9a273, roughness:0.6 }), bottle = new THREE.MeshStandardMaterial({ color:0x2f5a3c, roughness:0.15, metalness:0.2, emissive:0x0d1a12 });
+      var foil = new THREE.MeshStandardMaterial({ color:0xb3343e, roughness:0.35, metalness:0.4, emissive:0x2a0808 });
+      var rows = Math.max(3, Math.floor(gh / 0.105)), rowH = gh / rows, per = Math.max(2, Math.floor(gw / 0.08));
+      for (var rw = 0; rw < rows; rw++){
+        var sy = gy - gh / 2 + rw * rowH + 0.012;
+        put(new THREE.Mesh(new THREE.BoxGeometry(gw - 0.01, 0.012, 0.01), wood), 0, sy, 0.014);                                      // shelf lip
+        for (var bk = 0; bk < per; bk++){ // bottle necks pointing out: a dark round with a coloured capsule
+          var bxp = -gw / 2 + (bk + 0.5) * gw / per, by = sy + 0.04;
+          put(new THREE.Mesh(new THREE.CircleGeometry(0.032, 20), bottle), bxp, by, 0.0135);
+          put(new THREE.Mesh(new THREE.CircleGeometry(0.012, 16), foil), bxp, by, 0.0137);
+        }
+      }
+      put(new THREE.Mesh(new THREE.PlaneGeometry(gw, gh), new THREE.MeshStandardMaterial({ color:0x8090a0, roughness:0.05, metalness:0.3, transparent:true, opacity:0.22 })), 0, gy, 0.016); // the glass
+      put(new THREE.Mesh(new THREE.BoxGeometry(widthM - 0.01, 0.07, 0.008), dark), 0, heightM - 0.05, 0.012);                          // control strip
+      put(new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.016), new THREE.MeshBasicMaterial({ color:0x8fd3ff })), widthM / 2 - 0.08, heightM - 0.05, 0.0165); // temperature display
+      put(new THREE.Mesh(new THREE.BoxGeometry(0.014, gh * 0.5, 0.025), steelF), widthM / 2 - fw - 0.02, gy, 0.03);                     // bar handle
+    } else if (kind === "washer"){ // front-loader (user, 2026-10-25): porthole with a chrome ring, smoked glass and the drum behind it,
+      // a panel along the top with the detergent drawer (left), a display and the programme dial
+      var r = Math.min(widthM, heightM) * 0.26, cy = heightM * 0.47, chrome = new THREE.MeshStandardMaterial({ color:0xc8ccd1, metalness:0.85, roughness:0.22 });
+      put(new THREE.Mesh(new THREE.CircleGeometry(r + 0.03, 48), new THREE.MeshStandardMaterial({ color:0xe9ebed, roughness:0.4 })), 0, cy, 0.004);   // the door disc
+      put(new THREE.Mesh(new THREE.TorusGeometry(r + 0.012, 0.016, 14, 56), chrome), 0, cy, 0.016);
+      put(new THREE.Mesh(new THREE.CircleGeometry(r - 0.004, 48), new THREE.MeshStandardMaterial({ color:0x9aa3ab, metalness:0.8, roughness:0.35 })), 0, cy, 0.006); // the drum
+      for (var dh = 0; dh < 24; dh++){ var ang = dh / 24 * Math.PI * 2, rr = r * (dh % 2 ? 0.45 : 0.7); put(new THREE.Mesh(new THREE.CircleGeometry(0.005, 8), dark), Math.cos(ang) * rr, cy + Math.sin(ang) * rr, 0.007); }
+      put(new THREE.Mesh(new THREE.CircleGeometry(r - 0.004, 48), new THREE.MeshStandardMaterial({ color:0x2b3640, roughness:0.05, metalness:0.3, transparent:true, opacity:0.45 })), 0, cy, 0.02); // smoked glass
+      var panelY = heightM - 0.065, panel = new THREE.MeshStandardMaterial({ color:0xe2e4e7, roughness:0.45 });
+      put(new THREE.Mesh(new THREE.BoxGeometry(widthM - 0.02, 0.11, 0.01), panel), 0, panelY, 0.005);
+      put(new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.3, 0.075, 0.012), new THREE.MeshStandardMaterial({ color:0xf4f5f6, roughness:0.4 })), -widthM / 2 + widthM * 0.17 + 0.01, panelY, 0.009); // detergent drawer
+      put(new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.08, 0.008, 0.004), dark), -widthM / 2 + widthM * 0.17 + 0.01, panelY - 0.022, 0.016);
+      put(new THREE.Mesh(new THREE.PlaneGeometry(0.09, 0.03), new THREE.MeshBasicMaterial({ color:0x1d2a33 })), widthM * 0.02, panelY, 0.0105);
+      put(new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.012), new THREE.MeshBasicMaterial({ color:0x7fd0ff })), widthM * 0.02, panelY, 0.011);
+      put(new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.02, 32), chrome).rotateX(Math.PI / 2), widthM * 0.3, panelY, 0.016);
+      put(new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.022, 24), new THREE.MeshStandardMaterial({ color:0xf4f5f6, roughness:0.4 })).rotateX(Math.PI / 2), widthM * 0.3, panelY, 0.02);
+      put(new THREE.Mesh(new THREE.BoxGeometry(widthM - 0.06, 0.004, 0.003), new THREE.MeshStandardMaterial({ color:0xc9ccd0 })), 0, panelY - 0.06, 0.004); // seam under the panel
     }
   }
 
@@ -2585,6 +2619,17 @@
           var tine = new THREE.Mesh(new THREE.BoxGeometry(0.003, rh * 0.6, 0.003), wire); tine.position.set(rx, y + rh * 0.3, rd * 0.55 + 0.04); racks.add(tine);
         }
       });
+      // a few dishes in the baskets so it reads as a dishwasher (user, 2026-10-25): plates standing in the lower one, cups upside down above
+      var china = new THREE.MeshStandardMaterial({ color:0xf6f6f3, roughness:0.25 }), glassM = new THREE.MeshStandardMaterial({ color:0xdde8ee, roughness:0.05, transparent:true, opacity:0.5 });
+      var rwP = tw - 0.04, rdP = td - 0.05;
+      for (var pz = 0.06; pz < rdP - 0.03; pz += 0.035){
+        var plate = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.008, 32), china); plate.rotation.z = Math.PI / 2;
+        plate.position.set(-rwP * 0.18, tb + 0.06 + 0.115, pz + 0.04); racks.add(plate);
+      }
+      [-0.28, -0.1, 0.08, 0.26].forEach(function(f, k){
+        var cup = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.03, 0.09, 20, 1, true), k % 2 ? glassM : china); cup.material.side = THREE.DoubleSide;
+        cup.position.set(rwP * f, tb + th * 0.55 + 0.05, rdP * (k < 2 ? 0.35 : 0.7) + 0.04); racks.add(cup);
+      });
       frame.add(racks);
       makeLeaf(idx++, 0, widthM, bodyBase + 0.0015, bodyBase + bodyH - 0.0015, "bottom", { y0:0, y1:1 }, 0);
       var dwPart = parts[parts.length - 1]; dwPart.racks = racks; dwPart.racksOut = td * 0.8; applyPart(dwPart);
@@ -2616,9 +2661,22 @@
       (ovH > 1 ? [[ovY, 0.595], [ovY + 0.595, 0.455]] : [[ovY, ovH]]).forEach(function(seg){ // 60+45 = two ovens
         var sy = seg[0], sh = seg[1];
         addBox(widthM - 2 * CARCASS_T - 0.004, sh - 0.004, CD - 0.02, 0, sy + sh / 2, (CD - 0.02) / 2 + 0.01, dark);
-        addBox(widthM - 0.006, sh - 0.13, FRONT_T, 0, sy + (sh - 0.13) / 2 + 0.004, CD + FRONT_T / 2, new THREE.MeshStandardMaterial({ color:0x141518, roughness:0.12, metalness:0.5 }));
-        addBox(widthM - 0.006, 0.115, FRONT_T, 0, sy + sh - 0.06, CD + FRONT_T / 2, new THREE.MeshStandardMaterial({ color:0x2b2c30, roughness:0.4, metalness:0.4 }));
-        addBox(widthM * 0.7, 0.018, 0.028, 0, sy + sh - 0.145, CD + FRONT_T + 0.014, new THREE.MeshStandardMaterial({ color:0xb9bec4, metalness:0.85, roughness:0.28 }));
+        // the door: black glass with a window onto the warm-lit cavity, a steel trim, then the control strip (user, 2026-10-25)
+        var doorH = sh - 0.13, doorY = sy + doorH / 2 + 0.004, zf = CD + FRONT_T;
+        addBox(widthM - 0.006, doorH, FRONT_T, 0, doorY, CD + FRONT_T / 2, new THREE.MeshStandardMaterial({ color:0x111214, roughness:0.08, metalness:0.55 }));
+        var winW = widthM - 0.14, winH = Math.max(0.12, doorH - 0.16);
+        addBox(winW, winH, 0.002, 0, doorY + 0.01, zf + 0.001, new THREE.MeshBasicMaterial({ color:0x3a2a1c }));                     // the cavity seen through the glass
+        addBox(winW * 0.86, 0.004, 0.002, 0, doorY + 0.01 + winH * 0.1, zf + 0.0015, new THREE.MeshBasicMaterial({ color:0x6b5038 })); // the rack
+        addBox(winW, winH, 0.002, 0, doorY + 0.01, zf + 0.0025, new THREE.MeshStandardMaterial({ color:0x202226, roughness:0.05, metalness:0.4, transparent:true, opacity:0.55 }));
+        var trim = new THREE.MeshStandardMaterial({ color:0xb9bec4, metalness:0.85, roughness:0.28 });
+        addBox(widthM - 0.006, 0.004, 0.003, 0, sy + doorH + 0.006, zf + 0.0015, trim);
+        addBox(widthM - 0.006, 0.115, FRONT_T, 0, sy + sh - 0.06, CD + FRONT_T / 2, new THREE.MeshStandardMaterial({ color:0x1a1b1e, roughness:0.3, metalness:0.5 }));
+        addBox(0.1, 0.03, 0.002, 0, sy + sh - 0.06, zf + 0.001, new THREE.MeshBasicMaterial({ color:0x0c0d0f }));                         // display
+        addBox(0.05, 0.011, 0.002, 0, sy + sh - 0.06, zf + 0.0015, new THREE.MeshBasicMaterial({ color:0xffb347 }));
+        [-1, 1].forEach(function(sd){ // two knobs
+          var kn = new THREE.Mesh(new THREE.CylinderGeometry(0.019, 0.019, 0.02, 28), trim); kn.rotation.x = Math.PI / 2; kn.position.set(sd * (widthM / 2 - 0.09), sy + sh - 0.06, zf + 0.01); kn.castShadow = true; frame.add(kn);
+        });
+        addBox(widthM * 0.7, 0.018, 0.028, 0, sy + sh - 0.145, CD + FRONT_T + 0.014, trim);
       });
       if (meta.lowOven) return; // low oven (OFN6): the oven sits right under the worktop, nothing above
       // cabinet above: a fixed shelf right on top of the oven, then 2 vent shelves (loftunarhillur) — each
@@ -2653,6 +2711,7 @@
       return;
     }
 
+    var partsBeforeFronts = parts.length;
     fronts.forEach(function(f, fi){
       var y0 = bodyBase + bodyH * f.y0 + 0.0015, y1 = bodyBase + bodyH * f.y1 - 0.0015;
       if (f.drawer) makeLeaf(idx++, 0, widthM, y0, y1, "left", f, fi);
@@ -2669,6 +2728,52 @@
         makeLeaf(idx++, widthM / 4, widthM / 2, y0, y1, "right", f, fi);
       } else makeLeaf(idx++, 0, widthM, y0, y1, meta.hingeRight ? "right" : "left", f, fi);
     });
+
+    // Integrated fridge / freezer (user, 2026-10-25 — it was an empty box): the appliance sits behind the lower door —
+    // white liner, glass shelves, crisper and freezer drawers, a light, and the door's own bins move with the door
+    if (meta.fridgeKind && meta.split){
+      var fz = meta.fridgeKind === "freezer", aTop = bodyBase + bodyH * meta.split - 0.01, aBot = bodyBase + 0.012;
+      var lw = widthM - 2 * CARCASS_T - 0.012, ld = CD - 0.03, lz0 = 0.012, liner = new THREE.MeshStandardMaterial({ color:0xf3f4f5, roughness:0.55, metalness:0 });
+      var glass = new THREE.MeshStandardMaterial({ color:0xdfeaf0, roughness:0.05, metalness:0.1, transparent:true, opacity:0.35 });
+      var clear = new THREE.MeshStandardMaterial({ color:0xe8eef2, roughness:0.15, transparent:true, opacity:0.55 });
+      var ah = aTop - aBot, wallT = 0.012, inW = lw - 2 * wallT, inD = ld - 0.075; // the front 6 cm is left for the door bins
+      addBox(lw, ah, wallT, 0, aBot + ah / 2, lz0 + wallT / 2, liner);                                   // back
+      addBox(wallT, ah, ld, -lw / 2 + wallT / 2, aBot + ah / 2, lz0 + ld / 2, liner);                   // sides
+      addBox(wallT, ah, ld, lw / 2 - wallT / 2, aBot + ah / 2, lz0 + ld / 2, liner);
+      addBox(lw, wallT, ld, 0, aTop - wallT / 2, lz0 + ld / 2, liner);                                  // top
+      addBox(lw, wallT, ld, 0, aBot + wallT / 2, lz0 + ld / 2, liner);                                  // floor
+      var lampY = aTop - 0.03, lamp = new THREE.Mesh(new THREE.BoxGeometry(inW * 0.5, 0.006, 0.02), new THREE.MeshBasicMaterial({ color:0xfffbea }));
+      lamp.position.set(0, lampY, lz0 + inD * 0.7); frame.add(lamp);
+      function drawer(y, h){ // a clear tub with a white lip
+        addBox(inW - 0.01, h, inD - 0.02, 0, y + h / 2, lz0 + wallT + (inD - 0.02) / 2 + 0.005, clear);
+        addBox(inW - 0.01, 0.03, 0.012, 0, y + h - 0.015, lz0 + wallT + inD - 0.01, liner);
+      }
+      var freezerTop = fz ? aTop - 0.02 : aBot + ah * 0.32;
+      if (!fz){ // fridge above: 3 glass shelves over two crisper drawers
+        addBox(lw, 0.02, ld, 0, freezerTop, lz0 + ld / 2, liner); // the divider between freezer and fridge
+        var cr = freezerTop + 0.02, crH = 0.17;
+        drawer(cr, crH);
+        addBox(inW, 0.006, inD, 0, cr + crH + 0.01, lz0 + wallT + inD / 2, glass);
+        var span = aTop - 0.06 - (cr + crH + 0.01);
+        [1, 2, 3].forEach(function(k){ addBox(inW, 0.006, inD, 0, cr + crH + 0.01 + span * k / 4, lz0 + wallT + inD / 2, glass); });
+      }
+      var fzTop = fz ? freezerTop : freezerTop - 0.01, n = fz ? 6 : 3, fh = (fzTop - aBot - 0.02) / n; // freezer drawers
+      for (var dk = 0; dk < n; dk++) drawer(aBot + 0.015 + dk * fh, fh - 0.025);
+      // door bins: on the lower door, so they swing with it
+      var dp = parts[partsBeforeFronts];
+      if (dp && dp.group){
+        var gpos = dp.group.position, binMat = new THREE.MeshStandardMaterial({ color:0xf7f8f9, roughness:0.4, transparent:true, opacity:0.92 });
+        var binTop = fz ? [] : [0.82, 0.64, 0.46].map(function(f){ return freezerTop + (aTop - freezerTop) * f; });
+        binTop.forEach(function(y){
+          var bin = new THREE.Group();
+          [[inW - 0.04, 0.008, 0.06, 0, -0.07, 0], [inW - 0.04, 0.07, 0.006, 0, -0.035, 0.027], [0.006, 0.07, 0.06, -(inW - 0.04) / 2, -0.035, 0], [0.006, 0.07, 0.06, (inW - 0.04) / 2, -0.035, 0]].forEach(function(q){
+            var m = new THREE.Mesh(new THREE.BoxGeometry(q[0], q[1], q[2]), binMat); m.position.set(q[3], q[4], q[5]); bin.add(m);
+          });
+          bin.position.set(0 - gpos.x, y - gpos.y, CD - 0.045 - gpos.z);
+          dp.group.add(bin);
+        });
+      }
+    }
 
     // Búrskápur: inner drawers (a real BUR Útfærsla) stacked from the bottom behind the doors, 2 shelves above;
     // each inner drawer pulls out on its own once the doors are open
@@ -4574,6 +4679,7 @@
     // built-in fridge reads as an appliance: brushed-steel front instead of the kitchen's fronts
     var steelMat = new THREE.MeshStandardMaterial({ color:0xc9ccd1, metalness:0.75, roughness:0.32 });
     var washerMat = new THREE.MeshStandardMaterial({ color:0xf3f4f5, roughness:0.35, metalness:0.05 });
+    var wineMat = new THREE.MeshStandardMaterial({ color:0x1b1c1f, roughness:0.35, metalness:0.4 });
     // shared by every floor unit: recessed plinth + honed-stone worktop
     // open-shelf units: inside faces must render (double-sided) and the front is left out
     var openMat = carcassMat.clone(); openMat.side = THREE.DoubleSide;
@@ -4689,7 +4795,7 @@
           inter = Object.assign({}, inter, { codes:dcodes, count:dcodes.length, topDoorFr:topDoor,
             fractions:dfr ? frontsToFractions(dfr, dbody).map(function(f){ return f * zf; }) : null });
         }
-        var applMat = c.appliance === "fridge" || c.appliance === "dishwasher" ? steelMat : c.appliance === "washer" ? washerMat : null;
+        var applMat = c.appliance === "fridge" || c.appliance === "dishwasher" ? steelMat : c.appliance === "washer" ? washerMat : c.appliance === "wine" ? wineMat : null;
         // an integrated fridge wears the kitchen's fronts (user, 2026-10-05 — it was steel)
         addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, applMat || carcassMat, applMat || frontMatOf(b), inter,
           { islandId:islandId, locked:!!b.locked || !!opts.xray, suppressBadge:!!opts.xray, slabFronts:jeyOn, corner:c.cls === "corner", doorSide:b.swing === "vinstri" ? "left" : "right", hingeRight:c.cls === "corner" ? b.swing === "vinstri" : b.swing === "haegri", shelves:(c.hasInterior || c.shelfRange) && !(b.interior && b.interior.mode === "skuffur") ? (shelvesOf(b) || 0) : 0,
@@ -4701,6 +4807,7 @@
             burCodes:c.bur ? burCodesOf(b, state.drawerSystem) : null, dishwasher:!!c.dishwasher,
             lowOven:!!c.lowOven, ovenFrontsMm:c.oven ? b.ovenFrontsMm || null : null, ovenBlock:c.oven ? b : null, ovenCat:c.oven ? c : null,
             sinkFixedTop:!!c.sink && b.sinkTop === "fastur" && !!(b.interior && b.interior.mode === "skuffur"),
+            fridgeKind:c.fridge ? (b.type === "frystir" ? "freezer" : "fridge") : null,
             bins:!!(c.rusl || (c.sink && b.interior && b.interior.mode === "skuffur") || binsWanted(b, c, state.drawerSystem)), // RUSL60/80 in the bottom drawer
             ovenInner:c.oven && !c.lowOven ? (String(b.ovenCombo == null ? OVEN_DEFAULT[state.drawerSystem === "merivo" ? "merivo" : "legra"] : b.ovenCombo).split("+")[1] || null) : null,
             washerDrawerM:c.thvo && b.thvo !== "hurdir" ? 0.40 : 0, alwaysDims:state.activeCategory === "fataskapar", hung:!!state.hungUnits }, selected, pickables);
