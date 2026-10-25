@@ -451,6 +451,8 @@
   .mat-section:last-child{ margin-bottom:0; }
   .mat-section-title{ font-size:15px; font-weight:600; margin:0 0 3px; }
   .cl-dim{ margin:0 0 14px; max-width:260px; }
+  .cl-gapcard{ cursor:pointer; } .cl-gaprow{ display:flex; align-items:center; gap:4px; margin-top:4px; }
+  .cl-gaprow input{ width:58px; padding:4px 6px; border:1px solid var(--line); border-radius:6px; font:inherit; font-size:14px; background:#fff; }
   .cl-span{ margin:-6px 0 16px; display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
   .cl-span-l{ font-size:13px; color:var(--muted, #6b665c); width:100%; }
   .cl-seg{ display:inline-flex; border:1px solid var(--line, #ddd8cc); border-radius:8px; overflow:hidden; }
@@ -548,7 +550,7 @@
   .wiz-steps .ws.active span{ color:var(--ink); font-weight:600; }
   .wiz-panel{ margin-top:6px; }
   .sw-grid.big{ grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); }
-  #closetDepthCards.sw-grid.big, #closetDoorCards.sw-grid.big{ grid-template-columns:1fr 1fr; } /* a line of text each, not four */
+  #closetDepthCards.sw-grid.big, #closetDoorCards.sw-grid.big, #closetHeightCards.sw-grid.big{ grid-template-columns:1fr 1fr; } /* a line of text each, not four */
   .sw-grid.big .sw-fill{ aspect-ratio:1/1; }
   .drawer-cards{ display:grid; gap:12px; }
   .drawer-card{ display:flex; gap:14px; align-items:center; text-align:left; background:#fff; border:1.5px solid var(--line); border-radius:14px; padding:16px; cursor:pointer; font:inherit; }
@@ -7248,7 +7250,7 @@
     container.innerHTML = Object.keys(CARCASS).map(function(key){
       var c = CARCASS[key];
       return '<button type="button" class="sw-tile' + (state.carcass === key ? ' active' : '') + '" data-carcass="' + key + '" title="' + __(c.label) + '">' +
-        (key === (isCloset() ? "hvit" : "dokkgra") ? '<span class="sw-badge">' + __("Vinsælast") + '</span>' : '') +
+        (key === "dokkgra" ? '<span class="sw-badge">' + __("Vinsælast") + '</span>' : '') +
         '<div class="sw-fill" style="background:' + c.color3d + ';"></div><div class="sw-name">' + __(c.label) + '</div></button>';
     }).join("");
     container.querySelectorAll("[data-carcass]").forEach(function(card){
@@ -7523,42 +7525,57 @@
   }
   // Height options scale with the room's own ceiling (already picked in the shape step): a couple of fixed
   // common heights plus "Í loft" (floor to just under the ceiling, capped at the real cabinet maximum).
-  function closetCeilMax(){ return Math.min(2700, (state.roomHeightMm || 2500) - 100); } // harskapur/harskapurOpinn maxH, minus a top gap
-  function closetHeightOptions(){
-    var ceilMax = closetCeilMax();
-    var out = [{ mm:ceilMax, loft:true, label:__("Upp í loft"), desc:Math.round(ceilMax / 10) + " cm" }];
-    [2100, 1800].filter(function(h){ return h <= ceilMax - 50; }).forEach(function(h){ out.push({ mm:h, label:Math.round(h / 10) + " cm" }); });
-    return out;
+  // Hæð (user, 2026-10-25): "Upp í loft" leaves 3 cm; otherwise the customer gives the gap to the ceiling (cm), not a
+  // height — both follow the ceiling if the lofthæð changes. Capped by the tall unit's own 180–270 cm.
+  var CLOSET_LOFT_GAP_MM = 30, CLOSET_GAP_DEFAULT_MM = 300;
+  function closetHeightFor(gapMm){ return Math.max(1800, Math.min(2700, (state.roomHeightMm || 2600) - gapMm)); }
+  function closetCeilMax(){ return closetHeightFor(CLOSET_LOFT_GAP_MM); }
+  function closetGapMm(){ // an old draft with only a height: its gap read back off the ceiling
+    if (state.closetCeilGapMm != null) return state.closetCeilGapMm;
+    return state.closetHeightMm ? Math.max(0, (state.roomHeightMm || 2600) - state.closetHeightMm) : CLOSET_GAP_DEFAULT_MM;
   }
-  // "Upp í loft" follows the ceiling: change the lofthæð afterwards and the wardrobe still reaches it
-  function syncClosetLoft(){ if (isCloset() && state.closetHeightLoft) state.closetHeightMm = closetCeilMax(); }
+  // both modes follow the ceiling: change the lofthæð afterwards and the gap stays what was picked
+  function syncClosetLoft(){
+    if (!isCloset()) return;
+    if (state.closetHeightLoft) state.closetHeightMm = closetCeilMax();
+    else if (state.closetCeilGapMm != null) state.closetHeightMm = closetHeightFor(state.closetCeilGapMm);
+  }
   // what a new wardrobe starts with, already chosen (user, 2026-10-25: "drunk grandma proof" — Áfram just works)
   function closetDefaults(){
     if (!isCloset()) return;
     if (!state.closetDepthMm) state.closetDepthMm = 580;
     if (!state.closetHeightMm){ state.closetHeightLoft = true; }
     syncClosetLoft();
-    if (!state.carcass) state.carcass = "hvit";
+    if (!state.carcass) state.carcass = "dokkgra"; // the popular one (user, 2026-10-25)
     if (!state.closetDoors) state.closetDoors = "lamir";
   }
-  function closetHeightSvg(mm){ // a vertical bar, proportional to the real mm against a 1800-2700 range
-    var h = Math.round(16 + (mm - 1800) / (2700 - 1800) * 34);
-    return '<svg viewBox="0 0 64 64" width="56" height="56" aria-hidden="true"><rect x="22" y="' + (56 - h) + '" width="20" height="' + h + '" rx="2" fill="#e4ded0" stroke="#a9a196" stroke-width="1.2"/>' +
-      '<line x1="8" y1="56" x2="56" y2="56" stroke="#c9c4b8" stroke-width="1"/></svg>';
+  function closetHeightSvg(gapMm){ // the ceiling as a line, the wardrobe up to it (or the gap)
+    var top = 10, floor = 56, gapPx = gapMm <= CLOSET_LOFT_GAP_MM ? 1.5 : 12;
+    return '<svg viewBox="0 0 64 64" width="56" height="56" aria-hidden="true"><line x1="6" y1="' + top + '" x2="58" y2="' + top + '" stroke="#6d675e" stroke-width="1.6"/>' +
+      '<rect x="22" y="' + (top + gapPx) + '" width="20" height="' + (floor - top - gapPx) + '" rx="1.5" fill="#e4ded0" stroke="#a9a196" stroke-width="1.2"/>' +
+      (gapPx > 2 ? '<path d="M50 ' + (top + 1.5) + 'v' + (gapPx - 3) + 'M47.5 ' + (top + 3.5) + 'l2.5 -2 2.5 2M47.5 ' + (top + gapPx - 3.5) + 'l2.5 2 2.5 -2" stroke="#6d675e" stroke-width="1" fill="none"/>' : '') +
+      '<line x1="6" y1="' + floor + '" x2="58" y2="' + floor + '" stroke="#c9c4b8" stroke-width="1"/></svg>';
   }
-  function selectClosetHeight(mm, loft){ state.closetHeightMm = mm; state.closetHeightLoft = !!loft; save(); renderMaterials(); }
   function renderClosetHeightCards(){
     var container = document.getElementById("closetHeightCards");
     container.className = "sw-grid big";
     syncClosetLoft();
-    var opts = closetHeightOptions(), picked = opts.find(function(h){ return h.loft ? !!state.closetHeightLoft : !state.closetHeightLoft && state.closetHeightMm === h.mm; });
-    container.innerHTML = opts.map(function(h){
-      return '<button type="button" class="drawer-card' + (picked === h ? ' active' : '') + '" data-closetheight="' + h.mm + '"' + (h.loft ? ' data-loft="1"' : '') + '>' +
-        '<div class="dc-ico">' + closetHeightSvg(h.mm) + '</div><div><div class="dc-name">' + h.label + '</div>' + (h.desc ? '<div class="dc-desc">' + h.desc + '</div>' : '') + '</div></button>';
-    }).join("") + (picked ? '' : '<p class="tab-blurb">' + __("Hæð núna: {n} cm", { n:Math.round((state.closetHeightMm || 0) / 10) }) + '</p>');
-    container.querySelectorAll("[data-closetheight]").forEach(function(card){
-      card.addEventListener("click", function(){ selectClosetHeight(+card.dataset.closetheight, !!card.dataset.loft); });
+    var loft = !!state.closetHeightLoft, gap = closetGapMm(), hNow = Math.round((state.closetHeightMm || closetCeilMax()) / 10);
+    container.innerHTML =
+      '<button type="button" class="drawer-card' + (loft ? ' active' : '') + '" data-cheight="loft"><div class="dc-ico">' + closetHeightSvg(CLOSET_LOFT_GAP_MM) + '</div><div><div class="dc-name">' + __("Upp í loft") + '</div><div class="dc-desc">' + __("{n} cm bil", { n:CLOSET_LOFT_GAP_MM / 10 }) + ' · ' + Math.round(closetCeilMax() / 10) + ' cm</div></div></button>' +
+      '<div class="drawer-card cl-gapcard' + (loft ? '' : ' active') + '" data-cheight="gap" role="button" tabindex="0"><div class="dc-ico">' + closetHeightSvg(gap) + '</div><div><div class="dc-name">' + __("Bil upp í loft") + '</div>' +
+        '<div class="dc-desc cl-gaprow"><input type="number" id="clGap" min="0" max="' + Math.round(((state.roomHeightMm || 2600) - 1800) / 10) + '" step="1" value="' + Math.round(gap / 10) + '"> cm</div>' + (loft ? '' : '<div class="dc-desc">' + __("skápur {n} cm", { n:hNow }) + '</div>') + '</div></div>';
+    function pickGap(){ if (!state.closetHeightLoft) return; state.closetHeightLoft = false; state.closetCeilGapMm = closetGapMm(); syncClosetLoft(); save(); renderMaterials(); }
+    container.querySelector('[data-cheight="loft"]').addEventListener("click", function(){ if (state.closetHeightLoft) return; state.closetHeightLoft = true; syncClosetLoft(); save(); renderMaterials(); });
+    var gc = container.querySelector('[data-cheight="gap"]'), gi = document.getElementById("clGap");
+    gc.addEventListener("click", function(e){ if (e.target === gi) return; pickGap(); if (!state.closetHeightLoft){ var g2 = document.getElementById("clGap"); if (g2){ g2.focus(); g2.select(); } } });
+    gc.addEventListener("keydown", function(e){ if (e.target !== gi && (e.key === "Enter" || e.key === " ")){ e.preventDefault(); pickGap(); } });
+    gi.addEventListener("focus", function(){ if (state.closetHeightLoft){ state.closetHeightLoft = false; state.closetCeilGapMm = closetGapMm(); syncClosetLoft(); save(); container.querySelector('[data-cheight="loft"]').classList.remove("active"); gc.classList.add("active"); updateCabinetPreview(); } });
+    gi.addEventListener("input", function(){
+      var v = parseInt(gi.value, 10); if (isNaN(v) || v < 0 || v > +gi.max) return;
+      state.closetHeightLoft = false; state.closetCeilGapMm = v * 10; syncClosetLoft(); save(); updateCabinetPreview();
     });
+    gi.addEventListener("change", function(){ renderMaterials(); });
   }
 
   // ======================================================================
@@ -9434,7 +9451,7 @@
   // activeCategory themselves are never part of this list.
   var ROOM_FIELDS = ["intake", "carcass", "drawerSystem", "look", "look2", "innerFront", "handle", "handleColor", "top", "floor", "floorTile", "floorPattern", "floorRot", "roomHeightMm",
     "wallColor", "windows", "doors", "closed", "shapeKey", "waterWall", "waterAlongMm", "seeded", "base900", "islands", "walls", "obstacles", "decor", "openingsDone", "annotations", "hungUnits",
-    "closetDepthMm", "closetHeightMm", "closetHeightLoft", "closetDoors", "closetAutoHandle", "closetSpans"]; // per wardrobe (2026-10-25 — were project-wide by accident)
+    "closetDepthMm", "closetHeightMm", "closetHeightLoft", "closetCeilGapMm", "closetDoors", "closetAutoHandle", "closetSpans"]; // per wardrobe (2026-10-25 — were project-wide by accident)
   function serializeRoom(){
     var blob = {};
     ROOM_FIELDS.forEach(function(k){ blob[k] = state[k]; });
