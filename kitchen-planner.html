@@ -3192,10 +3192,12 @@
       rp.hidden = !(catDef && catDef.roomPicker);
       if (catDef && catDef.roomPicker){
         var sel = document.getElementById("fataskaparRoom");
-        if (!sel.options.length){
-          sel.innerHTML = RYMI_CHOICES.map(function(r){ return '<option value="' + r + '">' + __(RYMI_LABELS[r] || r) + '</option>'; }).join("");
-          sel.addEventListener("change", function(){ state.intake.room = sel.value; save(); });
+        var selMode = closetMode ? "closet" : "all"; // one select for every room kind — rebuilt when the kind changes
+        if (sel.dataset.mode !== selMode){
+          sel.dataset.mode = selMode;
+          sel.innerHTML = RYMI_CHOICES.filter(function(r){ return !closetMode || CLOSET_NO_ROOM.indexOf(r) < 0 || r === state.intake.room; }).map(function(r){ return '<option value="' + r + '">' + __(RYMI_LABELS[r] || r) + '</option>'; }).join("");
         }
+        if (!sel.dataset.wired){ sel.dataset.wired = "1"; sel.addEventListener("change", function(){ state.intake.room = sel.value; save(); }); }
         sel.value = state.intake.room;
       }
       document.querySelector("#shapeRoomPick .mat-section-title").textContent = closetMode ? __("Í hvaða herbergi?") : __("Hvaða rými er þetta?");
@@ -11399,6 +11401,7 @@
   // shown in full (user, 2026-10-25: "Hjónah." means nothing to a customer); the value stays Airtable's choice
   var RYMI_LABELS = { "Fatask.":"Fataherbergi", "Hjónah.":"Hjónaherbergi", "Barnah.":"Barnaherbergi", "Barnah. 2":"Barnaherbergi 2", "Svefnh.":"Svefnherbergi",
     "Andyri":"Anddyri", "Baðh.":"Baðherbergi", "Baðh. 2":"Baðherbergi 2", "Þvottah.":"Þvottahús", "Skrifst.":"Skrifstofa" };
+  var CLOSET_NO_ROOM = ["Búr", "Þvottah.", "Baðh.", "Baðh. 2", "Forstofa"]; // not where a wardrobe goes (user, 2026-10-25; Anddyri covers Forstofa)
   var CLOSET_SHAPE_DESC = { closetWall:"Skápurinn á einum vegg", closetCorner:"Á tveimur veggjum sem mætast", closetNiche:"Inn í skot milli tveggja veggja" };
   var RYMI_CHOICES = ["Fatask.", "Hjónah.", "Barnah.", "Barnah. 2", "Svefnh.", "Gangur", "Forstofa", "Andyri",
     "Baðh.", "Baðh. 2", "Þvottah.", "Alrými", "Stofa", "Búr", "Skrifst."];
