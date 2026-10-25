@@ -2689,7 +2689,7 @@
             var lm = doorOpenInv.clone().multiply(cupW.matrix), cupD = new THREE.Group();
             lm.decompose(cupD.position, cupD.quaternion, cupD.scale);
             var cupMesh = cupW.children[0]; cupW.remove(cupMesh); cupD.add(cupMesh);
-            cupD.position.z += pzD; // the door's children get −pz further down
+            cupD.position.z += pzD + 0.011; // sunk 11 mm into the door (user, 2026-10-25); + pzD: the door's children get −pz further down
             g.add(cupD); cupD.traverse(function(o){ if (o.isMesh) meshes.push(o); });
             arm.visible = false; frame.add(arm); leafHinges.push(arm);
           }
