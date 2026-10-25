@@ -2389,7 +2389,7 @@
   function stepParts(scene){
     (scene.userData.parts || []).forEach(function(p){
       if (p.cur === p.target) return;
-      p.cur += (p.target - p.cur) * 0.14;
+      p.cur += (p.target - p.cur) * (p.kind === "lemans" ? 0.045 : 0.14); // a LeMans opens slowly enough to follow the trays
       if (Math.abs(p.target - p.cur) < 0.002) p.cur = p.target;
       applyPart(p);
     });
@@ -2774,8 +2774,7 @@
         innerW = fit; sx = innerW / real.w; xIn = pivotX - real.colX * sx * mx;
       }
       var pz = zIn + real.colZ * sz, colBack = Math.max(0, pz + 0.02 - (CD - 0.045)); pz -= colBack;
-      var colG = real.column.clone(true); colG.scale.set(sx * mx, Math.max(0.5, bodyH - 0.06) / real.colH, sz); colG.position.set(xIn, bodyBase + 0.03, zIn - colBack);
-      frame.add(colG);
+      // (the column itself isn't drawn — just the trays, user 2026-10-25: the idea, not every part)
       [0.08, 0.5].forEach(function(f, k){
         var g = new THREE.Group(), t = real.trays[k].clone(true);
         t.scale.set(sx * mx, 1, sz); g.add(t); frame.add(g);
