@@ -2292,7 +2292,8 @@
     fridge90: { file:"models/appliances/fridge90/model.dae",   node:null, rot:Math.PI },
     wine:     { file:"models/appliances/wine/model.dae",       node:null, rot:-Math.PI / 2 },
     dwLower:  { file:"models/appliances/dishwasher/model.dae", node:"group_3" },
-    dwUpper:  { file:"models/appliances/dishwasher/model.dae", node:"group_36" }
+    dwUpper:  { file:"models/appliances/dishwasher/model.dae", node:"group_36" },
+    hinge:    { file:"models/hinges/blum-clip-top.glb",         node:null } // Blum CLIP top (79B3491), closed
   };
   var APPL_RAW = {}, APPL_READY = {}, APPL_HIDE = null;
   function applStdMat(THREE, m){
@@ -2643,6 +2644,18 @@
           var partI = { key:ikey, group:ig, kind:"drawer", slide:Math.min(0.3, CD * 0.5), cur:prevI ? prevI.cur : 0, target:prevI ? prevI.target : 0 };
           PART_STATE[ikey] = partI; parts.push(partI); applyPart(partI);
           frame.add(ig);
+        }
+      }
+      if (!f.drawer && hinge !== "bottom" && !meta.corner){ // Blum hinges behind the door on its hinge edge (user, 2026-10-25): 2, 3 on a tall door, 4 on a very tall one
+        var hgM = applModel("hinge");
+        if (hgM){
+          var nH = fh > 1.8 ? 4 : fh > 1.0 ? 3 : 2, hx = (hinge === "left" ? cxL - w / 2 + 0.0165 + 0.002 : cxL + w / 2 - 0.0165 - 0.002);
+          for (var hk = 0; hk < nH; hk++){
+            var hgo = hk ? applModel("hinge").obj : hgM.obj, hy = y0 + 0.1 + (fh - 0.2) * (nH > 1 ? hk / (nH - 1) : 0);
+            if (hinge === "right") hgo.scale.x = -1;
+            hgo.position.set(hx - pivotX, hy - hgM.h / 2, CD - hgM.d / 2);
+            g.add(hgo); hgo.traverse(function(o){ if (o.isMesh) meshes.push(o); });
+          }
         }
       }
       if (!f.drawer){ // a door turns about the front corner of its hinge edge (concealed hinges carry it forward): pivot at z = CD + front
