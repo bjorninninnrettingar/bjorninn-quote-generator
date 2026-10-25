@@ -2654,37 +2654,43 @@
           frame.add(ig);
         }
       }
-      // Blum CLIP top hinges (user, 2026-10-25): the file is the hinge OPEN, so it's fixed to the carcass — plate on the
-      // inside of the side by the front edge, cup out where the open door's back is — and only shown while the door is
-      // open (closed, it would stick out through the side). Silver; 2, 3 on doors over 1 m, 4 over 1.8 m.
-      var leafHinges = [];
+      // Blum CLIP top hinges (user, 2026-10-25): the model, split in two — arm + plate fixed on the inside of the side,
+      // the cup (its own mesh from the same file) on the door. The file is the hinge open at 90°, so a hinged door opens
+      // to 90° and, at that angle, the cup sits exactly where the model has it — flush in the back of the door — and closes
+      // with the door. The arm only shows while the door is open.
+      // Silver; 2, 3 on doors over 1 m, 4 over 1.8 m.
+      var leafHinges = [], hingeOpenRad = null;
       if (!f.drawer && hinge !== "bottom"){
-        var hgM = applModel("hingeArm");
-        if (hgM){
+        var hgM = applModel("hingeArm"), cpM = hgM && applModel("hingeCup");
+        if (hgM && cpM){
           if (!HINGE_MAT) HINGE_MAT = new THREE.MeshStandardMaterial({ color:0xadb1b6, metalness:0.85, roughness:0.32 }); // a touch darker (user, 2026-10-25)
-          var nH = fh > 1.8 ? 4 : fh > 1.0 ? 3 : 2, leftH = hinge === "left";
+          var nH = fh > 1.8 ? 4 : fh > 1.0 ? 3 : 2, leftH = hinge === "left", sgnD = leftH ? -1 : 1;
           var sideX = leftH ? cxL - w / 2 + CARCASS_T : cxL + w / 2 - CARCASS_T; // inside face of the side the door hangs on
+          var pzD = CD + FRONT_T; hingeOpenRad = Math.PI / 2;
+          var doorOpen = new THREE.Matrix4().compose(new THREE.Vector3(pivotX, 0, pzD), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), sgnD * hingeOpenRad), new THREE.Vector3(1, 1, 1));
+          var doorOpenInv = doorOpen.clone().invert();
           for (var hk = 0; hk < nH; hk++){
-            var hm = hk ? applModel("hingeArm") : hgM, wrap = new THREE.Group();
-            hm.obj.traverse(function(o){ if (o.isMesh) o.material = HINGE_MAT; });
-            hm.obj.rotation.z = Math.PI; hm.obj.position.y = hm.h; // turned over: its back faces the door, not into the cabinet (user, 2026-10-25)
-            wrap.add(hm.obj);
-            if (!leftH) wrap.scale.x = -1; // the file is a left-hand one: mirrored for a right-hand door
+            var armM = hk ? applModel("hingeArm") : hgM, cupM = hk ? applModel("hingeCup") : cpM;
             var hy = y0 + 0.1 + (fh - 0.2) * (nH > 1 ? hk / (nH - 1) : 0);
-            wrap.position.set(sideX + (leftH ? 0.006 : -0.006), hy - 0.028, CD - 0.003); // plate's back on the side, knuckle out at the front edge
-            wrap.visible = false; frame.add(wrap); leafHinges.push(wrap);
-            // the cup in the door (user, 2026-10-25): drawn, so it's always a flat Ø35 disc flush with the back of the door —
-            // the model's own cup is hollow and never read right — with its two screw wings, 22.5 mm (centre) from the hinge edge
-            var cupX = leftH ? cxL - w / 2 + 0.0225 : cxL + w / 2 - 0.0225, cz = CD - 0.0008, cup = new THREE.Group();
-            var disc = new THREE.Mesh(new THREE.CylinderGeometry(0.0175, 0.0175, 0.0016, 40), HINGE_MAT); disc.rotation.x = Math.PI / 2; cup.add(disc);
-            var well = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.0018, 32), CUP_DARK || (CUP_DARK = new THREE.MeshStandardMaterial({ color:0x6d7176, metalness:0.7, roughness:0.45 })));
-            well.rotation.x = Math.PI / 2; well.position.z = -0.0002; cup.add(well);
-            [-1, 1].forEach(function(sgn){
-              var wing = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.012, 0.0016), HINGE_MAT); wing.position.set(0, sgn * 0.022, 0); cup.add(wing);
-              var screw = new THREE.Mesh(new THREE.CylinderGeometry(0.0028, 0.0028, 0.0022, 16), CUP_DARK); screw.rotation.x = Math.PI / 2; screw.position.set(0, sgn * 0.0235, -0.0002); cup.add(screw);
-            });
-            cup.position.set(cupX - pivotX, hy, cz);
-            g.add(cup); cup.traverse(function(o){ if (o.isMesh) meshes.push(o); });
+            function posed(m){ // the same pose for both halves, from the model's own measurements (mirrored for a right-hand door):
+              // the plate's back on the inside of the side, the cup's flange in the plane of the open door's back, and the
+              // cup's centre 22.5 mm out along the door from its hinge edge (that lands the plate right at the side's front edge)
+              var wrap = new THREE.Group();
+              m.obj.traverse(function(o){ if (o.isMesh) o.material = HINGE_MAT; });
+              wrap.add(m.obj);
+              if (!leftH) wrap.scale.x = -1;
+              wrap.position.set(sideX + (leftH ? 0.007 : -0.007), hy - 0.028, pzD + 0.0225 - 0.0375);
+              wrap.updateMatrix(); wrap.updateMatrixWorld(true);
+              return wrap;
+            }
+            var arm = posed(armM), cupW = posed(cupM);
+            // the cup into door space (as the door stands open at 90°), then flush with the door's back
+            var lm = doorOpenInv.clone().multiply(cupW.matrix), cupD = new THREE.Group();
+            lm.decompose(cupD.position, cupD.quaternion, cupD.scale);
+            var cupMesh = cupW.children[0]; cupW.remove(cupMesh); cupD.add(cupMesh);
+            cupD.position.z += pzD; // the door's children get −pz further down
+            g.add(cupD); cupD.traverse(function(o){ if (o.isMesh) meshes.push(o); });
+            arm.visible = false; frame.add(arm); leafHinges.push(arm);
           }
         }
       }
@@ -2697,6 +2703,7 @@
       meshes.forEach(function(m){ m.userData = pmeta; pickables.push(m); });
       var prev = PART_STATE[key];
       var maxDeg = meta.doorLimit && meta.doorLimit[hinge] != null ? meta.doorLimit[hinge] : DOOR_OPEN_DEG; // stops at a wall / corner
+      if (hingeOpenRad != null) maxDeg = Math.min(maxDeg, hingeOpenRad * 180 / Math.PI); // a door with the hinge model opens to the model's own 90°
       var part = { key:key, group:g, kind:f.drawer ? "drawer" : hinge === "bottom" ? "flap" : "door", hinge:hinge, maxRad:maxDeg * Math.PI / 180, slide:fixedTop ? 0 : Math.min(0.34, CD * 0.6), cur:prev ? prev.cur : 0, target:prev ? prev.target : 0, hinges:leafHinges };
       PART_STATE[key] = part; parts.push(part); applyPart(part);
       frame.add(g);
