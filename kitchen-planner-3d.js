@@ -1955,7 +1955,11 @@
       [oy, oy + oh].forEach(function(y){ place(new THREE.Mesh(new THREE.PlaneGeometry(widthM + 0.002, 0.005), seamMat), y, 0.004); });
       // 60+45 = a 595 oven with a 455 compact oven on top
       (oh > 1 ? [[oy, 0.595], [oy + 0.595, 0.455]] : [[oy, oh]]).forEach(function(seg){
-        var sy = seg[0], sh = seg[1];
+        var sy = seg[0], sh = seg[1], ovM = applModel("oven");
+        if (ovM){ // the real oven (its face), scaled into the niche
+          var osz = 0.05 / ovM.d; ovM.obj.scale.set((widthM - 0.006) / ovM.w, (sh - 0.004) / ovM.h, osz);
+          place(ovM.obj, sy + 0.002, 0.003 - ovM.d * osz / 2); return;
+        }
         place(new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.9, sh - 0.13, 0.012), glassMat), sy + (sh - 0.13) / 2 + 0.005, 0.006);
         place(new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.94, sh - 0.006, 0.006), new THREE.MeshStandardMaterial({ color:0x9fa4aa, roughness:0.3, metalness:0.9 })), sy + sh / 2, 0.003); // steel frame behind the glass
         place(new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.9, 0.06, 0.012), new THREE.MeshStandardMaterial({ color:0x2b2c30, roughness:0.4, metalness:0.4 })), sy + sh - 0.05, 0.006);
@@ -2164,6 +2168,7 @@
     edges.position.copy(mesh.position);
     if (art) edges.position.x += geom.normal.x * FRONT_T / 2, edges.position.z += geom.normal.z * FRONT_T / 2; // the outline wraps the fronts too
     edges.quaternion.copy(mesh.quaternion);
+    if (meta && meta.applModel && !selected && !meta.warn) edges.visible = false; // a real appliance model needs no box outline
     group.add(edges);
     if (meta) meta.edgesObj = edges;
     if (meta && meta.zone !== "opening" && !meta.islandId){ // back-face fade (see fadeCabinets in buildScene) — never an island's boxes: they stand in the room and are seen from every side (user, 2026-10-11)
@@ -2272,11 +2277,70 @@
     if (meta && meta.alwaysDims && meta.zone !== "opening") addDimLabel(THREE, group, local(0, baseYM + heightM + 0.22, depthM / 2), Math.round(widthM * 1000) + " x " + Math.round(heightM * 1000) + " x " + Math.round(depthM * 1000));
     if (art) addArticulated(THREE, scene, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta, useFrontMat, pickables);
     else if (meta && meta.zone !== "opening" && !isPanel && !meta.appliance) addFrontDetails(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta.handle, !!meta.tall, meta.zone === "wall", meta.split || 0, meta, useFrontMat);
-    if (meta && meta.appliance) addApplianceDetails(THREE, group, geom, offsetM, widthM, heightM, depthM, meta.appliance);
+    if (meta && meta.appliance && !meta.applModel) addApplianceDetails(THREE, group, geom, offsetM, widthM, heightM, depthM, meta.appliance);
     return group;
   }
   // A free-standing fridge (steel; side by side doors when ≥ 850 mm) or washer (white, porthole door) drawn on
   // its box — these are spaces for the customer's own appliance, not Björninn products.
+  // ---------- real appliance models (user's SketchUp downloads, 2026-10-25) ----------
+  // Each entry: a file (+ the node to take, + a turn so its front faces +z). Baked to one Group: centred on x/z,
+  // bottom at y = 0, front at +z. Loaded the first time it's asked for; until then the drawn version shows.
+  var APPL_SRC = {
+    oven:     { file:"models/appliances/oven/model.dae",       node:"group_0" },
+    fridge60: { file:"models/appliances/fridges/model.dae",    node:"group_1" },
+    fridge70: { file:"models/appliances/fridges/model.dae",    node:"group_0" },
+    fridge90: { file:"models/appliances/fridge90/model.dae",   node:null, rot:Math.PI },
+    wine:     { file:"models/appliances/wine/model.dae",       node:null, rot:-Math.PI / 2 },
+    dwLower:  { file:"models/appliances/dishwasher/model.dae", node:"group_3" },
+    dwUpper:  { file:"models/appliances/dishwasher/model.dae", node:"group_36" }
+  };
+  var APPL_RAW = {}, APPL_READY = {}, APPL_HIDE = null;
+  function applStdMat(THREE, m){
+    if (!m) return m;
+    var metal = /metal|steel|chrome|stainless|inox|_ss|alu/i.test(m.name || "");
+    var s = new THREE.MeshStandardMaterial({ color:m.color ? m.color.clone() : 0xcccccc, map:m.map || null, side:m.side,
+      transparent:!!m.transparent || (m.opacity != null && m.opacity < 1), opacity:m.opacity == null ? 1 : m.opacity, roughness:metal ? 0.3 : 0.45, metalness:metal ? 0.8 : 0.08 });
+    if (s.map && THREE.SRGBColorSpace) s.map.colorSpace = THREE.SRGBColorSpace;
+    return s;
+  }
+  function applModel(key){
+    var ready = APPL_READY[key];
+    if (ready) return { obj:ready.obj.clone(true), w:ready.w, h:ready.h, d:ready.d };
+    var src = APPL_SRC[key]; if (!src) return null;
+    var raw = APPL_RAW[src.file];
+    if (!raw){
+      raw = APPL_RAW[src.file] = { state:"loading", root:null };
+      loadRaw(src.file, function(root){ raw.root = root; raw.state = "ready"; window.dispatchEvent(new Event("kp3d-model-loaded")); }, function(){ raw.state = "error"; });
+      return null;
+    }
+    if (raw.state !== "ready") return null;
+    var THREE = window.__THREE__; raw.root.updateMatrixWorld(true);
+    var from = src.node ? raw.root.getObjectByName(src.node) : raw.root; if (!from) return null;
+    var g = new THREE.Group(), turn = new THREE.Matrix4().makeRotationY(src.rot || 0);
+    from.traverse(function(o){
+      if (!o.isMesh) return;
+      var gm = o.geometry.clone(); gm.applyMatrix4(o.matrixWorld); gm.applyMatrix4(turn);
+      var m = new THREE.Mesh(gm, Array.isArray(o.material) ? o.material.map(function(x){ return applStdMat(THREE, x); }) : applStdMat(THREE, o.material));
+      m.castShadow = true; m.receiveShadow = true; g.add(m);
+    });
+    var bb = new THREE.Box3().setFromObject(g, true), c = bb.getCenter(new THREE.Vector3()), sz = bb.getSize(new THREE.Vector3());
+    g.children.forEach(function(m){ m.geometry.translate(-c.x, -bb.min.y, -c.z); });
+    APPL_READY[key] = { obj:g, w:sz.x, h:sz.y, d:sz.z };
+    return applModel(key);
+  }
+  // a freestanding appliance model in a wall's slot: front on the room side, scaled to the unit's own W × H × D
+  function placeApplModel(THREE, scene, geom, offsetM, widthM, heightM, depthM, mdl){
+    var quat = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(geom.axis.x, 0, geom.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(geom.normal.x, 0, geom.normal.z)));
+    var a = offsetM + widthM / 2, o = mdl.obj;
+    o.scale.set(widthM / mdl.w, heightM / mdl.h, depthM / mdl.d);
+    o.position.set(geom.origin.x + geom.axis.x * a + geom.normal.x * depthM / 2, 0, geom.origin.z + geom.axis.z * a + geom.normal.z * depthM / 2);
+    o.quaternion.copy(quat); scene.add(o);
+  }
+  function applKeyOf(c, b){
+    if (c.appliance === "wine") return "wine";
+    if (c.appliance === "fridge") return b.widthMm >= 850 ? "fridge90" : b.widthMm >= 650 ? "fridge70" : "fridge60";
+    return null;
+  }
   function addApplianceDetails(THREE, group, geom, offsetM, widthM, heightM, depthM, kind){
     var quat = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(geom.axis.x, 0, geom.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(geom.normal.x, 0, geom.normal.z)));
     function put(mesh, along, y, out){
@@ -2608,7 +2672,14 @@
       addBox(tw, 0.004, td, 0, tb + th, 0.02 + td / 2, st);                              // top
       addBox(tw, 0.004, td, 0, tb + 0.005, 0.02 + td / 2, st);                           // floor
       var racks = new THREE.Group(), wire = new THREE.MeshStandardMaterial({ color:0x9aa0a6, metalness:0.6, roughness:0.4 });
-      [[tb + 0.06, 0.2], [tb + th * 0.55, 0.15]].forEach(function(r){ // lower + upper basket: rim, floor rods, tines
+      var dwLo = applModel("dwLower"), dwUp = dwLo && applModel("dwUpper");
+      if (dwLo && dwUp){ // the real baskets (user's model), fitted inside the tub
+        [[dwLo, tb + 0.04], [dwUp, tb + th * 0.5]].forEach(function(r){
+          var k = (tw - 0.03) / r[0].w; r[0].obj.scale.set(k, k, (td - 0.05) / r[0].d);
+          r[0].obj.position.set(0, r[1], 0.02 + td / 2); racks.add(r[0].obj);
+        });
+      }
+      (dwLo && dwUp ? [] : [[tb + 0.06, 0.2], [tb + th * 0.55, 0.15]]).forEach(function(r){ // drawn baskets until the model is in: rim, floor rods, tines
         var rw = tw - 0.04, rd = td - 0.05, y = r[0], rh = r[1];
         [[rw, 0.006, 0.006, 0, y, 0], [rw, 0.006, 0.006, 0, y, rd], [0.006, 0.006, rd, -rw / 2, y, rd / 2], [0.006, 0.006, rd, rw / 2, y, rd / 2],
          [rw, 0.004, 0.004, 0, y + rh, 0], [rw, 0.004, 0.004, 0, y + rh, rd], [0.004, 0.004, rd, -rw / 2, y + rh, rd / 2], [0.004, 0.004, rd, rw / 2, y + rh, rd / 2]].forEach(function(b){
@@ -2659,7 +2730,11 @@
       // the oven itself: dark body in the niche, glass door, control strip, bar handle
       var dark = new THREE.MeshStandardMaterial({ color:0x1c1d20, roughness:0.4, metalness:0.4 });
       (ovH > 1 ? [[ovY, 0.595], [ovY + 0.595, 0.455]] : [[ovY, ovH]]).forEach(function(seg){ // 60+45 = two ovens
-        var sy = seg[0], sh = seg[1];
+        var sy = seg[0], sh = seg[1], ovA = applModel("oven");
+        if (ovA){ // the real oven, its face flush with the fronts
+          var od = CD + FRONT_T - 0.01; ovA.obj.scale.set((widthM - 0.006) / ovA.w, (sh - 0.004) / ovA.h, od / ovA.d);
+          ovA.obj.position.set(0, sy + 0.002, CD + FRONT_T - od / 2); frame.add(ovA.obj); return;
+        }
         addBox(widthM - 2 * CARCASS_T - 0.004, sh - 0.004, CD - 0.02, 0, sy + sh / 2, (CD - 0.02) / 2 + 0.01, dark);
         // the door: black glass with a window onto the warm-lit cavity, a steel trim, then the control strip (user, 2026-10-25)
         var doorH = sh - 0.13, doorY = sy + doorH / 2 + 0.004, zf = CD + FRONT_T;
@@ -4796,6 +4871,8 @@
             fractions:dfr ? frontsToFractions(dfr, dbody).map(function(f){ return f * zf; }) : null });
         }
         var applMat = c.appliance === "fridge" || c.appliance === "dishwasher" ? steelMat : c.appliance === "washer" ? washerMat : c.appliance === "wine" ? wineMat : null;
+        var applMdl = applKeyOf(c, b) ? applModel(applKeyOf(c, b)) : null; // the real model: the box stays (for picking/dragging) but isn't drawn
+        if (applMdl){ if (!APPL_HIDE) APPL_HIDE = new THREE.MeshBasicMaterial({ visible:false }); applMat = APPL_HIDE; }
         // an integrated fridge wears the kitchen's fronts (user, 2026-10-05 — it was steel)
         addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, applMat || carcassMat, applMat || frontMatOf(b), inter,
           { islandId:islandId, locked:!!b.locked || !!opts.xray, suppressBadge:!!opts.xray, slabFronts:jeyOn, corner:c.cls === "corner", doorSide:b.swing === "vinstri" ? "left" : "right", hingeRight:c.cls === "corner" ? b.swing === "vinstri" : b.swing === "haegri", shelves:(c.hasInterior || c.shelfRange) && !(b.interior && b.interior.mode === "skuffur") ? (shelvesOf(b) || 0) : 0,
@@ -4810,7 +4887,8 @@
             fridgeKind:c.fridge ? (b.type === "frystir" ? "freezer" : "fridge") : null,
             bins:!!(c.rusl || (c.sink && b.interior && b.interior.mode === "skuffur") || binsWanted(b, c, state.drawerSystem)), // RUSL60/80 in the bottom drawer
             ovenInner:c.oven && !c.lowOven ? (String(b.ovenCombo == null ? OVEN_DEFAULT[state.drawerSystem === "merivo" ? "merivo" : "legra"] : b.ovenCombo).split("+")[1] || null) : null,
-            washerDrawerM:c.thvo && b.thvo !== "hurdir" ? 0.40 : 0, alwaysDims:state.activeCategory === "fataskapar", hung:!!state.hungUnits }, selected, pickables);
+            washerDrawerM:c.thvo && b.thvo !== "hurdir" ? 0.40 : 0, alwaysDims:state.activeCategory === "fataskapar", hung:!!state.hungUnits, applModel:!!applMdl }, selected, pickables);
+        if (applMdl) placeApplModel(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, applMdl);
         // LED in a tall closet (user, 2026-10-23, C1): a vertical strip in a groove at the front edge of one side
         // (6×6 mm), or a strip under the top shelf (4×8 mm). Behind the doors — it shows in X-ray and with doors open.
         if (b.closetLed && c.cls === "tall" && !opts.people){
