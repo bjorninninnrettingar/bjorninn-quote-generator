@@ -964,7 +964,7 @@
     "Með hurðum eða opinn skápur — og efnið.": "With doors or open — and the material.",
     "Sama handfang á allar hurðir.": "The same handle on every door.",
     "Með hurðum": "With doors",
-    "Hurðir á lömum": "Hinged doors",
+    "Hurðir sem opnast út": "Doors that open outwards",
     "Án hurða": "No doors",
     "Opinn skápur — hillurnar í þessu efni": "Open wardrobe — the shelves in this material",
     "Baðherbergi": "Bathroom",
