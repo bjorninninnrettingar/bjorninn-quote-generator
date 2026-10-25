@@ -460,6 +460,7 @@
   .cl-span .row{ display:flex; align-items:center; gap:6px; } .cl-span .h-num{ width:90px; padding:6px 10px; border:1px solid var(--line); border-radius:8px; font-size:15px !important; background:#fff; }
   .cl-span .h-num:focus{ outline:none; border-color:var(--blue); }
   .cl-note{ font-size:12.5px; color:#8a5a00; margin:-8px 0 14px; } .cl-span .cl-note{ margin:0; color:var(--muted, #6b665c); }
+  .cl-info{ display:flex; gap:7px; align-items:flex-start; font-size:13px; line-height:1.4; color:#5c574d; background:#f3efe6; border-radius:8px; padding:9px 11px; margin:0 0 14px; max-width:320px; } .cl-info svg{ flex:none; margin-top:2px; }
   .cl-link{ border:0; background:none; padding:2px 0; font:inherit; font-size:13.5px; color:#0058a3; cursor:pointer; text-decoration:underline; text-underline-offset:3px; } .cl-dim label{ display:block; font-size:13px; color:var(--muted, #6b665c); margin-bottom:4px; }
   .mat-cat-label{ font-size:12px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--gold); margin:14px 0 8px; }
   .mat-cat-label:first-child{ margin-top:0; }
@@ -875,7 +876,7 @@
   }
   .contact-fields input:focus{ outline:none; border-color:var(--blue); }
   .field-error{ font-size:12.5px; color:var(--danger); margin-top:2px; display:none; }
-  .field.invalid input{ border-color:var(--danger); }
+  .field.invalid input, .cl-span.invalid input{ border-color:var(--danger); }
   .field.invalid .field-error{ display:block; }
   .submit-note{ font-size:13px; color:var(--ink-soft); margin-top:4px; }
   .success-box{
@@ -2162,7 +2163,8 @@
   function setClosetDim(key, mm){
     var k = closetShape(), W = state.walls; if (!k) return;
     var d = {}; closetDims().forEach(function(x){ d[x.key] = x.mm; }); d[key] = mm;
-    var lens = k === "closetWall" ? [d.w, 1200, d.w, 1200] : k === "closetCorner" ? [d.a, d.b, d.a, d.b] : [600, d.d, d.w, d.d, 600, 1200, d.w + 1200, 1200];
+    var L = W.map(function(w){ return w.lengthMm; }); // whatever a drag made the rest of the room stays
+    var lens = k === "closetWall" ? [d.w, L[1], d.w, L[3]] : k === "closetCorner" ? [d.a, d.b, d.a, d.b] : [L[0], d.d, d.w, d.d, L[4], L[5], L[0] + d.w + L[4], L[7]];
     applyLens(lens); // windows/doors stay on their wall
     closetSpanClamp();
     save();
@@ -2175,8 +2177,20 @@
     var w = state.walls[i], sp = (state.closetSpans || {})[i];
     if (!w) return null;
     if (!sp) return { start:0, mm:w.lengthMm, whole:true };
-    var mm = Math.min(sp.mm, w.lengthMm), al = closetCornerEnd(i) || sp.align || "left";
-    return { start:al === "left" ? 0 : al === "right" ? w.lengthMm - mm : Math.round((w.lengthMm - mm) / 2), mm:mm, align:al, whole:false };
+    var mm = Math.min(sp.mm, w.lengthMm), ce = closetCornerEnd(i), L = w.lengthMm, start;
+    if (ce) start = ce === "right" ? L - mm : 0; // a corner's part always touches the corner
+    else if (sp.pin === "mid") start = Math.round((L - mm) / 2); // "Miðja"/"Hægri" stay so when the wall changes
+    else if (sp.pin === "right") start = L - mm;
+    else if (sp.start != null) start = sp.start;
+    else start = sp.align === "right" ? L - mm : sp.align === "mid" ? Math.round((L - mm) / 2) : 0;
+    start = Math.max(0, Math.min(L - mm, start));
+    var al = start <= 0 ? "left" : start >= L - mm ? "right" : Math.abs(start - (L - mm) / 2) < 6 ? "mid" : null;
+    return { start:start, mm:mm, align:al, whole:false };
+  }
+  function setClosetSpan(i, start, mm, pin){ // from the drag or the cm box; the whole wall again = no part
+    var L = state.walls[i].lengthMm; mm = Math.max(300, Math.min(L, Math.round(mm / 10) * 10)); start = Math.max(0, Math.min(L - mm, Math.round(start / 10) * 10));
+    if (!state.closetSpans) state.closetSpans = {};
+    if (mm >= L) delete state.closetSpans[i]; else state.closetSpans[i] = pin && pin !== "left" ? { start:start, mm:mm, pin:pin } : { start:start, mm:mm };
   }
   function closetSpanClamp(){
     var sps = state.closetSpans || {};
@@ -2478,6 +2492,7 @@
     var W = host.clientWidth || 800, H = host.clientHeight || 480;
     var view = shapeView(W, H), sc = view.scale, pts = view.pts, n = pts.length;
     // Fataskápar: only the wall(s) the wardrobe goes on are measured, in cm, with the wardrobe drawn on them
+    clGeom = {};
     var clKey = shapePhase === "size" ? closetShape() : null, clWalls = clKey ? SHAPE_TEMPLATES[clKey].closetWalls : null, clShow = clKey ? clWalls.concat(clKey === "closetNiche" ? [1] : []) : null;
     function X(p){ return p.x * sc + view.ox; }
     function Y(p){ return p.z * sc + view.oy; }
@@ -2616,11 +2631,27 @@
         if (clKey === "closetCorner" && i === 1) s0 = Math.max(s0, cdM); // the corner square belongs to wall 1's unit — one L, no overlap
         var A = function(t, out){ return [x1 + ax * t * sc + nx * out, y1 + az * t * sc + nz * out]; };
         var bq = [A(s0, 0), A(s1, 0), A(s1, cdp), A(s0, cdp)];
-        items += '<polygon points="' + bq.map(function(p){ return p.join(","); }).join(" ") + '" fill="#d9ccb2" stroke="#9c8f77" stroke-width="1" style="pointer-events:none;"/>';
+        var clCur = Math.abs(ax) > Math.abs(az) ? "ew-resize" : "ns-resize";
+        clGeom[i] = { x1:x1, y1:y1, ax:ax, az:az, sc:sc };
+        items += '<polygon data-cspanh="' + i + ':m" points="' + bq.map(function(p){ return p.join(","); }).join(" ") + '" fill="#d9ccb2" stroke="#9c8f77" stroke-width="1" style="cursor:' + (spn.whole ? 'default' : 'grab') + ';"><title>' + __("Dragðu endana til að breyta breiddinni") + '</title></polygon>';
+        // grips on the ends: drag to make the wardrobe narrower/wider (a corner's corner end stays put)
+        var ends = clKey === "closetCorner" ? (i === 0 ? ["a"] : ["b"]) : ["a", "b"];
+        ends.forEach(function(e){
+          var at = e === "a" ? spn.start : spn.start + spn.mm, c0 = A(at, cdp * 0.2), c1 = A(at, cdp * 0.8);
+          handles += '<g data-cspanh="' + i + ':' + e + '" style="cursor:' + clCur + ';"><line x1="' + c0[0] + '" y1="' + c0[1] + '" x2="' + c1[0] + '" y2="' + c1[1] + '" stroke="transparent" stroke-width="18"/>' +
+            '<line x1="' + c0[0] + '" y1="' + c0[1] + '" x2="' + c1[0] + '" y2="' + c1[1] + '" stroke="#fff" stroke-width="7" stroke-linecap="round"/><line x1="' + c0[0] + '" y1="' + c0[1] + '" x2="' + c1[0] + '" y2="' + c1[1] + '" stroke="#7d705a" stroke-width="2" stroke-linecap="round"/></g>';
+        });
         if (i === clWalls[0]) { var mid = A((s0 + s1) / 2, cdp / 2); items += '<text x="' + mid[0] + '" y="' + (mid[1] + 4) + '" font-size="12" text-anchor="middle" fill="#5c574d" style="pointer-events:none;">' + __("Fataskápur") + (spn.whole ? '' : ' · ' + Math.round(spn.mm / 10) + ' cm') + '</text>'; }
         else if (!spn.whole){ var mid2 = A((s0 + s1) / 2, cdp / 2); items += '<text x="' + mid2[0] + '" y="' + (mid2[1] + 4) + '" font-size="12" text-anchor="middle" fill="#5c574d" style="pointer-events:none;">' + Math.round(spn.mm / 10) + ' cm</text>'; }
       }
-      if (clShow && clShow.indexOf(i) < 0) continue;
+      var clHideDim = clShow && clShow.indexOf(i) < 0;
+      if (clHideDim){ // no size on this one, but it still drags (user, 2026-10-25: "draga veggi til að stækka rými")
+        var hx0 = (x1 + x2) / 2, hy0 = (y1 + y2) / 2, cur0 = Math.abs(nx) > Math.abs(nz) ? "ew-resize" : "ns-resize";
+        var tri0 = function(sgn){ var bx = hx0 + nx * sgn * 22, by = hy0 + nz * sgn * 22, tipx = bx + nx * sgn * 11, tipy = by + nz * sgn * 11, px = -nz * 8, py = nx * 8;
+          return '<polygon points="' + (bx + px) + ',' + (by + py) + ' ' + (bx - px) + ',' + (by - py) + ' ' + tipx + ',' + tipy + '" fill="#fff" stroke="#666" stroke-width="2.2" stroke-linejoin="round"/>'; };
+        handles += '<g data-slide="' + i + '" class="slide' + (sel ? ' on' : '') + '" style="cursor:' + cur0 + ';"><circle cx="' + hx0 + '" cy="' + hy0 + '" r="30" fill="transparent"/>' + tri0(1) + tri0(-1) + '</g>';
+        continue;
+      }
       // dimension: a witness line from each end of this wall out to its side's shared chain line
       // (dimLine[N/S/W/E], from the pre-pass above) — see the big comment up there.
       var dg = dimGroup[i], chainVert = dg === "N" || dg === "S"; // the chain line itself runs horizontally
@@ -2660,7 +2691,7 @@
         var bx = hx + nx * sgn * 22, by = hy + nz * sgn * 22, tipx = bx + nx * sgn * 11, tipy = by + nz * sgn * 11, px = -nz * 8, py = nx * 8;
         return '<polygon points="' + (bx + px) + ',' + (by + py) + ' ' + (bx - px) + ',' + (by - py) + ' ' + tipx + ',' + tipy + '" fill="#fff" stroke="#666" stroke-width="2.2" stroke-linejoin="round"/>';
       };
-      if (!clShow) handles += '<g data-slide="' + i + '" class="slide' + (sel ? ' on' : '') + '" style="cursor:' + cur + ';"><circle cx="' + hx + '" cy="' + hy + '" r="30" fill="transparent"/>' + tri(1) + tri(-1) + '</g>';
+      handles += '<g data-slide="' + i + '" class="slide' + (sel ? ' on' : '') + '" style="cursor:' + cur + ';"><circle cx="' + hx + '" cy="' + hy + '" r="30" fill="transparent"/>' + tri(1) + tri(-1) + '</g>';
       // the wall's number on its band, the same number as in the "Veggjamál" list (2026-10-11) — always at
       // the wall's true middle (2026-10-15): it used to sit off to one side to dodge the slide arrows, but
       // those are invisible until hover/select, so there was never really anything to dodge.
@@ -2719,6 +2750,9 @@
     host.querySelectorAll("[data-slide]").forEach(function(g){
       g.addEventListener("pointerdown", function(evt){ startSlide(parseInt(g.dataset.slide, 10), evt); });
     });
+    host.querySelectorAll("[data-cspanh]").forEach(function(g){
+      g.addEventListener("pointerdown", function(evt){ var pr = g.dataset.cspanh.split(":"); startClosetSpanDrag(+pr[0], pr[1], evt); });
+    });
     function hlSlide(i, on){ var g = host.querySelector('[data-slide="' + i + '"]'); if (g) g.classList.toggle("hov", on); }
     host.querySelectorAll("[data-wallno]").forEach(function(g){ // the wall's number: drag it like the wall, a click selects it (user, 2026-10-24)
       g.addEventListener("pointerdown", function(evt){ if (shapePhase === "size") startSlide(+g.dataset.wallno, evt, true); });
@@ -2729,7 +2763,6 @@
       el.addEventListener("pointerleave", function(){ hlSlide(el.dataset.edge, false); });
       el.addEventListener("pointerdown", function(evt){
         if (water){ startWaterDrag(evt, true); return; }
-        if (clShow){ evt.preventDefault(); closetFocusDim(+el.dataset.edge); return; } // a wardrobe's walls are typed, not dragged
         if (!opPhase) startSlide(parseInt(el.dataset.edge, 10), evt);
       });
     });
@@ -3001,7 +3034,7 @@
     evt.preventDefault();
     var now = Date.now(), last = lastEdgeDown;
     lastEdgeDown = fromBadge ? null : { i:i, t:now, x:evt.clientX, y:evt.clientY };
-    if (!fromBadge && shapePhase === "size" && last && last.i === i && now - last.t < 450 && Math.hypot(evt.clientX - last.x, evt.clientY - last.y) < 10){
+    if (!fromBadge && shapePhase === "size" && !closetShape() && last && last.i === i && now - last.t < 450 && Math.hypot(evt.clientX - last.x, evt.clientY - last.y) < 10){
       lastEdgeDown = null; document.getElementById("dimPop").hidden = true; splitWallAt(i, evt); return;
     }
     var host = document.getElementById("shapeCanvas"), v = shapeView(host.clientWidth, host.clientHeight);
@@ -3301,7 +3334,30 @@
   function syncClosetSize(box){
     if (!box.querySelector("[data-cdim]")){ renderClosetSize(box); return; }
     closetDims().forEach(function(d){ var inp = box.querySelector('[data-cdim="' + d.key + '"]'); if (inp && document.activeElement !== inp) inp.value = Math.round(d.mm / 10); });
+    box.querySelectorAll("[data-cspan]").forEach(function(inp){ var sp = closetSpan(+inp.dataset.cspan); inp.max = Math.round(state.walls[+inp.dataset.cspan].lengthMm / 10); if (sp && document.activeElement !== inp) inp.value = Math.round(sp.mm / 10); });
     var sh = document.getElementById("clShallow"); if (sh && closetShape() === "closetNiche") sh.hidden = state.walls[1].lengthMm >= (state.closetDepthMm || 580);
+  }
+  // dragging the wardrobe's ends (or the whole part along its wall) on the drawing
+  var clGeom = {};
+  function startClosetSpanDrag(i, end, evt){
+    var g = clGeom[i], sp0 = closetSpan(i); if (!g || !sp0) return;
+    if (end === "m" && sp0.whole) return; // the whole wall: nothing to slide
+    evt.preventDefault(); evt.stopPropagation();
+    var host = document.getElementById("shapeCanvas");
+    function along(e){ var r = host.getBoundingClientRect(); return ((e.clientX - r.left - g.x1) * g.ax + (e.clientY - r.top - g.y1) * g.az) / g.sc; }
+    var t0 = along(evt), L = state.walls[i].lengthMm, ce = closetCornerEnd(i);
+    function move(e){
+      var t = along(e), d = t - t0, st = sp0.start, mm = sp0.mm;
+      if (end === "m"){ st = sp0.start + d; }
+      else if (end === "a"){ st = Math.min(sp0.start + d, sp0.start + sp0.mm - 300); mm = sp0.start + sp0.mm - st; }
+      else { mm = sp0.mm + d; }
+      if (ce === "right"){ mm = Math.max(300, L - st); st = L - mm; } // corner: the far end moves, the corner end stays
+      setClosetSpan(i, st, mm);
+      renderShapeCanvas();
+      var box = document.getElementById("wallList"); if (box) renderClosetSize(box);
+    }
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", function(){ window.removeEventListener("pointermove", move); save(); }, { once:true });
   }
   function closetDimText(i, w){ var cm = Math.round(w.lengthMm / 10) + " cm"; return closetShape() === "closetCorner" ? __("Veggur {n}", { n:i + 1 }) + ": " + cm : cm; }
   function closetFocusDim(i){ // a click on a wall or its size on the drawing: the matching field on the right
@@ -3325,7 +3381,7 @@
       return h + '</div>';
     };
     var shallow = k === "closetNiche" && state.walls[1].lengthMm < (state.closetDepthMm || 580);
-    box.innerHTML = closetDims().map(function(d){
+    box.innerHTML = '<p class="cl-info">' + icon("info", 14) + '<span>' + __("Brúni flöturinn er plássið sem fataskáparnir fylla — ekki einn breiður skápur. Honum er skipt í skápa í næsta skrefi.") + '</span></p>' + closetDims().map(function(d){
       return field('data-cdim="' + d.key + '"', d.label, Math.round(d.mm / 10), d.min / 10, d.max / 10) + (cw.indexOf(d.wall) >= 0 ? spanRow(d.wall) : '') +
         (d.key === "d" ? '<p class="cl-note" id="clShallow"' + (shallow ? '' : ' hidden') + '>' + __("Skápurinn er {n} cm djúpur — hann stendur aðeins út úr innskotinu.", { n:Math.round((state.closetDepthMm || 580) / 10) }) + '</p>' : '');
     }).join("") +
@@ -3334,10 +3390,10 @@
     function wire(inp, apply){
       inp.addEventListener("input", function(){
         var v = parseInt(inp.value, 10), ok = !isNaN(v) && v >= +inp.min && v <= +inp.max;
-        inp.closest(".field").classList.toggle("invalid", !ok);
+        var fb = inp.closest(".field, .cl-span"); if (fb) fb.classList.toggle("invalid", !ok);
         if (ok){ apply(v * 10); renderShapeCanvas(); }
       });
-      inp.addEventListener("blur", function(){ inp.closest(".field").classList.remove("invalid"); syncClosetSize(box); var c = box.querySelector("[data-cceil]"); if (c && document.activeElement !== c) c.value = Math.round(state.roomHeightMm / 10); });
+      inp.addEventListener("blur", function(){ var fb = inp.closest(".field, .cl-span"); if (fb) fb.classList.remove("invalid"); syncClosetSize(box); var c = box.querySelector("[data-cceil]"); if (c && document.activeElement !== c) c.value = Math.round(state.roomHeightMm / 10); });
     }
     box.querySelectorAll("[data-cdim]").forEach(function(inp){ wire(inp, function(mm){ setClosetDim(inp.dataset.cdim, mm); }); });
     var spans = function(){ if (!state.closetSpans) state.closetSpans = {}; return state.closetSpans; };
@@ -3345,11 +3401,21 @@
     box.querySelectorAll("[data-cwhole]").forEach(function(b){ b.addEventListener("click", function(){ delete spans()[b.dataset.cwhole]; redo(); }); });
     box.querySelectorAll("[data-cpart]").forEach(function(b){ b.addEventListener("click", function(){
       var i = +b.dataset.cpart; if (spans()[i]) return;
-      spans()[i] = { mm:Math.max(300, Math.round(state.walls[i].lengthMm * 0.6 / 100) * 100), align:"left" }; redo();
+      setClosetSpan(i, 0, Math.max(300, Math.round(state.walls[i].lengthMm * 0.6 / 100) * 100)); redo();
       var inp = box.querySelector('[data-cspan="' + i + '"]'); if (inp){ inp.focus(); inp.select(); }
     }); });
-    box.querySelectorAll("[data-calign]").forEach(function(b){ b.addEventListener("click", function(){ var pr = b.dataset.calign.split(":"); spans()[+pr[0]].align = pr[1]; redo(); }); });
-    box.querySelectorAll("[data-cspan]").forEach(function(inp){ wire(inp, function(mm){ var i = +inp.dataset.cspan; if (spans()[i]) spans()[i].mm = mm; save(); }); });
+    box.querySelectorAll("[data-calign]").forEach(function(b){ b.addEventListener("click", function(){
+      var pr = b.dataset.calign.split(":"), i = +pr[0], sp = closetSpan(i), L = state.walls[i].lengthMm;
+      setClosetSpan(i, pr[1] === "left" ? 0 : pr[1] === "right" ? L - sp.mm : (L - sp.mm) / 2, sp.mm, pr[1]); redo();
+    }); });
+    box.querySelectorAll("[data-cspan]").forEach(function(inp){ wire(inp, function(mm){
+      var i = +inp.dataset.cspan, sp = closetSpan(i), L = state.walls[i].lengthMm, mid = sp.align === "mid";
+      if (mm >= L) return; // typing towards the whole wall: wait for the blur
+      var pin0 = (state.closetSpans[i] || {}).pin;
+      setClosetSpan(i, mid ? (L - mm) / 2 : sp.align === "right" ? L - mm : sp.start, mm, pin0); save();
+    });
+      inp.addEventListener("change", function(){ var i = +inp.dataset.cspan, v = parseInt(inp.value, 10) * 10; if (v >= state.walls[i].lengthMm){ setClosetSpan(i, 0, v); redo(); } }); // the whole wall typed in = "Allur veggurinn"
+    });
     box.querySelectorAll("[data-cceil]").forEach(function(inp){ wire(inp, function(mm){ state.roomHeightMm = mm; syncClosetLoft(); save(); }); });
     document.getElementById("clOpenings").addEventListener("click", function(){ shapePhase = "openings"; openWallId = null; renderShapeStep(); });
   }

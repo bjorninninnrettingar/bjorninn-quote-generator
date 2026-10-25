@@ -914,6 +914,8 @@
     "Fataskápur": "Wardrobe",
     "Skápar, innvols og rennihurðir": "Wardrobes, interiors and sliding doors",
     "Skápar og innvols": "Wardrobes and interiors",
+    "Dragðu endana til að breyta breiddinni": "Drag the ends to change the width",
+    "Brúni flöturinn er plássið sem fataskáparnir fylla — ekki einn breiður skápur. Honum er skipt í skápa í næsta skrefi.": "The brown area is the space the wardrobes fill — not one wide unit. It is split into units in the next step.",
     "Skápurinn": "The wardrobe",
     "Allur veggurinn": "The whole wall",
     "Hluti": "Part",
