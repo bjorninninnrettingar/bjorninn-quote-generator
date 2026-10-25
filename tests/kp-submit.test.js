@@ -144,3 +144,19 @@ test("a Line Item whose product was deleted in Airtable (422) still goes in — 
   assert.match(sk2["Skilaboð til skipulags"], /recDELETED0000000/);
   assert.deepEqual(made.find((x) => x["🔑"] === "Sk1")["Vöru reitur 1"], ["recGOOD000000000A"]); // the others keep theirs
 });
+
+test("a drawing too big for Airtable's long text still submits: a minimal JSON (sid + liSent) and a note", async () => {
+  const f = fakeFetch((c) => {
+    if (c.method === "POST" && c.url.endsWith("tblQ8zeUanriESWvL")) return { status: 200, body: { id: "recCONTACT0000000" } };
+    if (c.method === "POST" && c.url.endsWith("tbl4LMXlQjp66RFKI")) return { status: 200, body: { id: "recOPP00000000000", fields: {} } };
+    if (c.method === "POST") return { status: 200, body: { records: [] } };
+  });
+  const b = body(2); b.state = { step: "contact", walls: [], big: "x".repeat(120000) };
+  await submit(makeAirtable("t", { fetchImpl: f, ...NO_WAIT }), b);
+  const opp = f.calls.find((c) => c.method === "POST" && c.url.endsWith("tbl4LMXlQjp66RFKI")).body.fields;
+  const j = JSON.parse(opp["Sjálfsafgreiðsla skipulag (JSON) 📐"]);
+  assert.equal(j.submissionId, b.sid);
+  assert.ok(j.tooLarge > 99000);
+  assert.ok(opp["Sjálfsafgreiðsla skipulag (JSON) 📐"].length < 1000);
+  assert.match(opp["Skilaboð til skipulags"], /of stór/);
+});

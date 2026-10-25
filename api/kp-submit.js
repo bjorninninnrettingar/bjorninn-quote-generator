@@ -131,9 +131,13 @@ export function validate(body) {
   if (typeof b.state !== "object" || !b.state) return "Skipulag vantar";
   const bad = validateLineItems(b.lineItems);
   if (bad) return bad;
-  for (const v of [b.project?.["Skrokka efni 🔲 viðskiptavinar"], b.project?.["Fronta efni viðskiptavinar 🖼️"], b.project?.["Borðplata viðskiptavinar 🍽️"], b.project?.["Höldur Viðskiptavinar ✊"]]) {
+  for (const v of [b.project?.["Skrokka efni 🔲 viðskiptavinar"], b.project?.["Fronta efni viðskiptavinar 🖼️"], b.project?.["Borðplata viðskiptavinar 🍽️"], b.project?.["Höldur Viðskiptavinar ✊"], b.project?.["Fronta efni 2.0 Viðskiptavinar 🖼️"]]) {
     if (v != null && !(Array.isArray(v) && v.every((x) => REC_RE.test(x)))) return "Ógild tenging";
   }
+  // typecast:true would turn any text into a new select choice / a stray number — keep these to what the planner sends
+  const p = b.project || {};
+  if (p["Magn Halda 1"] != null && !(Number.isInteger(p["Magn Halda 1"]) && p["Magn Halda 1"] >= 0 && p["Magn Halda 1"] <= 500)) return "Ógilt Magn Halda";
+
   return null;
 }
 
@@ -144,6 +148,9 @@ export function validateLineItems(lineItems) {
   for (const li of lineItems) {
     if (!li || !String(li["🔑"] || "")) return "Lína án 🔑";
     if (keys.has(li["🔑"])) return "Tvítekinn 🔑";
+    if (!LINE_KEY_RE.test(String(li["🔑"]))) return "Ógilt 🔑 á línu";
+    if (li["Magn"] != null && !(Number.isInteger(li["Magn"]) && li["Magn"] >= 1 && li["Magn"] <= 999)) return "Ógilt Magn";
+
     keys.add(li["🔑"]);
     for (const f of ["Vöru reitur 1", "Vöru reitur 2", "Vöru reitur 3"]) {
       const v = li[f];
@@ -187,9 +194,16 @@ export async function submit(at, body) {
     // 3. Tækifæri — the sid is written into the JSON here (server-side, so it is always there).
     const liSent = {};
     for (const li of body.lineItems) liSent[li["🔑"]] = sentOf(li);
-    const json = JSON.stringify(Object.assign({}, body.state, { submissionId: sid, liSent }));
+    let json = JSON.stringify(Object.assign({}, body.state, { submissionId: sid, liSent }));
+    const fields = pick(body.project, PROJECT_FIELDS);
+    if (fields["Litur á höldum 🎨"] != null) fields["Litur á höldum 🎨"] = shortLabel(fields["Litur á höldum 🎨"]);
+    if (json.length > PLANNER_JSON_MAX) { // Airtable's long text holds 100 000 characters: a huge multi-room drawing
+      // must not lose the whole submission — keep what resuming and pro Vista need, and say so (2026-10-25)
+      json = JSON.stringify({ submissionId: sid, liSent, tooLarge: json.length });
+      fields["Skilaboð til skipulags"] = ((fields["Skilaboð til skipulags"] || "") + "\n⚠ Teikningin úr skipuleggjaranum var of stór til að vista hér (" + JSON.parse(json).tooLarge + " stafir) — línurnar og PDF-teikningarnar fóru samt inn.").trim();
+    }
     opp = await at("POST", PROJECTS, { typecast: true, fields: Object.assign(
-      pick(body.project, PROJECT_FIELDS),
+      fields,
       { "Tengiliður verkefnis 👤": [contact.id], [PLANNER_JSON]: json },
       PROJECT_FORCED,
     ) });
@@ -201,7 +215,7 @@ export async function submit(at, body) {
   const todo = body.lineItems.filter((li) => !have.has(li["🔑"]));
   for (let i = 0; i < todo.length; i += 10) {
     await createLines(at, todo.slice(i, i + 10).map((li) => ({
-      fields: Object.assign(pick(li, LINE_FIELDS), { [LINK_TO_PROJECT]: [opp.id] }),
+      fields: Object.assign(pick(li, LINE_FIELDS), li["Rými 🏡"] != null ? { "Rými 🏡": shortLabel(li["Rými 🏡"]) } : {}, { [LINK_TO_PROJECT]: [opp.id] }),
     })));
   }
   return { recordId: opp.id, created: todo.length, skipped: body.lineItems.length - todo.length, resumed };
@@ -212,6 +226,11 @@ export async function submit(at, body) {
 // that still fails goes in WITHOUT its product links plus a note saying which ids to add by hand. One stale id must
 // never lose the customer's whole submission (2026-10-25). (A batch is all-or-nothing, so nothing is doubled.)
 const PRODUCT_LINKS = ["Vöru reitur 1", "Vöru reitur 2", "Vöru reitur 3"];
+export const PLANNER_JSON_MAX = 99000;
+const LINE_KEY_RE = /^(Sk|HU)\d{1,3}$/;                       // same as api/kp-pro.js's KEY_RE
+// a room / colour name goes in as a select (typecast): never rejected (a customer's own room name must not lose the
+// submission), just kept short and free of control characters
+export const shortLabel = (v) => String(v).replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 60);
 // A Tækifæri's own Line Items, found by its link field (2026-10-25) — not by the "T-227 |" prefix of its name, which
 // a brand-new Tækifæri may not have yet (then a resume re-created every line and pro Vista doubled every cabinet).
 export const OPP_LINES_FIELD = "fldlcBLh5sXC6VlRn"; // Tækifæri 📣 → its Line Items (inverse of LINK_TO_PROJECT)

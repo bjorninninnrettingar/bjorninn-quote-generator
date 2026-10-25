@@ -9777,9 +9777,16 @@
   // The Tækifæri has ONE set of materials — a project with several rooms (eldhús + fataskápur) is priced on the
   // first room's, same as Airtable has always done.
   function projectMaterialFields(){
-    var out = null;
-    withEachCategory(function(cat){ var cd = categoryDef(cat); if (!out && !(cd && cd.plain)) out = materialFieldsNow(); }); // (a plain room has no materials)
-    return out || materialFieldsNow();
+    var out = null, handles = 0, anyHandles = false;
+    withEachCategory(function(cat){
+      var cd = categoryDef(cat); if (cd && cd.plain) return; // (a plain room has no materials)
+      var m = materialFieldsNow();
+      if (!out) out = m;
+      if (typeof m["Magn Halda 1"] === "number"){ handles += m["Magn Halda 1"]; anyHandles = true; } // every room's handles (was: the first room's only)
+    });
+    out = out || materialFieldsNow();
+    if (anyHandles) out["Magn Halda 1"] = handles;
+    return out;
   }
 
   // Before anything is sent (2026-10-25): every drawer stack in every room has its combo product. One made on the spot
@@ -9805,6 +9812,21 @@
       try { ensureCombo(x[0], x[1], function(){ res(); }); } finally { state.drawerSystem = was; }
     }); }); }, Promise.resolve());
   }
+  // A PDF / photo upload, tried up to 3 times on a dropped connection or a 5xx (2026-10-25 — once was all it got, and a
+  // hiccup meant the office never saw the drawings). 409 = already there (a resumed submission), so repeating is safe.
+  async function postBlobRetry(url, blob){
+    var last;
+    for (var i = 0; i < 3; i++){
+      if (i) await sleep(1500 * i);
+      try{
+        var r = await fetch(url, { method:"POST", headers:{ "Content-Type":"application/octet-stream" }, body:blob });
+        if (r.ok || r.status === 409 || r.status < 500) return r;
+        last = r;
+      }catch(e){ last = e; }
+    }
+    if (last && last.status) return last;
+    throw last;
+  }
   async function submitPlan(){
     var submitBtn = document.getElementById("submitBtn");
     var errEl = document.getElementById("submitError");
@@ -9821,9 +9843,14 @@
       // One request does the whole submission (api/kp-submit.js): contact → Tækifæri → Line Items. The
       // submission id stays in the draft, so retrying — here, or the customer pressing "Senda inn" again
       // after a failure — resumes the same Tækifæri instead of creating a second one.
-      if (!state.submissionId){ state.submissionId = newSubmissionId(); save(); }
       // the numbers on the Line Items stay with their cabinets when Rakel edits in pro mode — frozen,
       // per category, inside collectAllLineItems() itself (so every category's numbers line up correctly)
+      var lineItems = KPI18N.asIS(collectAllLineItems);
+      // A retry resumes the same Tækifæri — but only for the SAME plan: if the customer changed the drawing after a
+      // failed attempt, it's a new submission (2026-10-25: a resume used to keep the old lines and the old JSON)
+      var sig = (function(str){ var h = 5381; for (var i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0; return String(h); })(JSON.stringify({ p:project, l:lineItems }));
+      if (state.submissionId && state.submissionSig && state.submissionSig !== sig) state.submissionId = null;
+      if (!state.submissionId){ state.submissionId = newSubmissionId(); state.submissionSig = sig; save(); }
       var opp = await postWithRetry("/api/kp-submit", {
         sid: state.submissionId,
         contact: {
@@ -9833,7 +9860,7 @@
           simi: document.getElementById("cSimi").value.trim()
         },
         project: project,
-        lineItems: KPI18N.asIS(collectAllLineItems),
+        lineItems: lineItems,
         state: state
       }, function(n){ submitBtn.textContent = __("Sendi... (tilraun {n})", { n:n + 1 }); });
       opp.id = opp.recordId;
@@ -9846,7 +9873,7 @@
         var pdf = await KPI18N.asISAsync(function(){ return buildDrawingsPdf(customer); }); // drawings stay Icelandic (sales/workshop)
         if (lastPdfUrl) URL.revokeObjectURL(lastPdfUrl);
         lastPdfUrl = URL.createObjectURL(pdf);
-        var up = await fetch("/api/kp-drawings?recordId=" + encodeURIComponent(opp.id), { method:"POST", headers:{ "Content-Type":"application/octet-stream" }, body:pdf });
+        var up = await postBlobRetry("/api/kp-drawings?recordId=" + encodeURIComponent(opp.id), pdf);
         // 409 = this Tækifæri already has its drawings (a resumed submission) — fine.
         if (!up.ok && up.status !== 409) throw new Error("kp-drawings " + up.status + ": " + (await up.text()).slice(0, 300));
       }catch(de){
@@ -9857,7 +9884,7 @@
       for (var si = 0; si < studioShots.length; si++){
         try{
           var sb = await (await fetch(studioShots[si])).blob();
-          var sr = await fetch("/api/kp-studio?recordId=" + encodeURIComponent(opp.id), { method:"POST", headers:{ "Content-Type":"application/octet-stream" }, body:sb });
+          var sr = await postBlobRetry("/api/kp-studio?recordId=" + encodeURIComponent(opp.id), sb);
           if (!sr.ok && sr.status !== 409) throw new Error("kp-studio " + sr.status);
         }catch(se){ sendIssueReport("Sjálfvirk villa", "Studio mynd fór ekki á Tækifæri: " + se.message, "Tækifæri: " + opp.id); break; }
       }
