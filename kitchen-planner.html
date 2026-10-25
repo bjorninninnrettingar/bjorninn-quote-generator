@@ -975,7 +975,7 @@
   /* "Ný eining" wizard */
   .isl-row{ display:flex; align-items:stretch; gap:4px; margin:6px 0; }
   .isl-row > span{ flex:0 0 74px; font-size:11.5px; color:var(--ink-soft); align-self:center; }
-  .isl-box{ flex:1 1 0; min-width:34px; border:1px solid var(--line); background:#fff; border-radius:7px; padding:6px 2px; font:inherit; font-size:12.5px; font-weight:700; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:1px; }
+  .isl-box{ flex:1 1 0; min-width:34px; border:1px solid var(--line); background:#fff; border-radius:7px; padding:5px 2px; font:inherit; font-size:12.5px; font-weight:700; cursor:pointer; display:flex; flex-direction:row; justify-content:center; align-items:baseline; gap:5px; } /* one line: "A1 60" (2026-10-25, the panel fits) */
   .isl-box small{ font-weight:400; color:var(--ink-soft); font-size:10.5px; }
   .isl-box{ position:relative; }
   .isl-delbtn{ margin-top:8px; }
@@ -1871,7 +1871,7 @@
     }
     if (c.hasInterior) b.interior = c.drawersOnly ? { mode:"skuffur", count:1 } : { mode:"hillur", count:3 }; // ruslaskápur: one tall drawer to start
     if (c.shelfStack) initShelfStack(b, 3, KP3D.SHELF_GAP_DEFAULT);
-    if (c.bur){ b.burCombo = ""; b.burShelves = 0; } // a new búrskápur starts empty (2026-10-11)
+    if (c.bur){ b.burCombo = BUR_DEFAULT[drawerSys()]; b.burShelves = 2; } // starts on the popular set, 4 drawers + 2 shelves (user, 2026-10-25; was empty)
     return b;
   }
   // Loose shelves: count boards with a gap between; heightMm always = the whole stack.
@@ -4942,15 +4942,15 @@
   function burSetupHTML(b){
     var LM = window.KP_LINEMAP, sys = drawerSys(), combos = Object.keys((LM && LM.bur && LM.bur[sys]) || {}), cur = burKeyOf(b);
     var codes = KP3D.burCodesOf(b, sys), shelves = b.burShelves != null ? b.burShelves : 2, names = {}; Object.keys(CODE_LABEL).forEach(function(k){ names[k] = __(CODE_LABEL[k]); });
-    return '<div class="edit-field"><label>' + __("Vinsælar lausnir — einn smellur") + '</label><div class="bur-presets">' + combos.map(function(k){
+    return '<div class="edit-field"><label>' + __("Vinsælar lausnir · með 2 hillum") + '</label><div class="bur-presets">' + combos.map(function(k){
         var lbl = comboLabel(k), cut = lbl.indexOf(": "); // two per row: "4 skúffur" big, the rest small under it
-        return '<button type="button" class="hw-btn' + (k === cur && shelves === 2 ? ' active' : '') + '" data-bur-preset="' + k + '"><b>' + (cut > 0 ? lbl.slice(0, cut) : lbl) + '</b><small>' + (cut > 0 ? lbl.slice(cut + 2) + ' · ' : '') + __("2 hillur") + '</small></button>';
+        return '<button type="button" class="hw-btn' + (k === cur && shelves === 2 ? ' active' : '') + '" data-bur-preset="' + k + '"><b>' + (cut > 0 ? lbl.slice(0, cut) : lbl) + '</b><small>' + (cut > 0 ? lbl.slice(cut + 2) : '') + '</small></button>';
       }).join("") + '</div></div>' +
       '<div class="edit-field"><label>' + __("Innskúffur (neðan frá)") + '</label>' +
       (codes.length ? '<div class="bur-list">' + codes.map(function(cd, i){ return '<span class="bur-chip">' + dwIcon(cd) + ' ' + names[cd] + '<button type="button" data-bur-del="' + i + '" title="' + __("Fjarlægja") + '">✕</button></span>'; }).join("") + '</div>' : '') +
       '<div class="hw-toggle" style="flex-wrap:wrap;">' + KP3D.DRAWER_CODES[sys].codes.filter(function(cd){ return cd !== KP3D.FIXED_FRONT_CODE; /* a fixed front is no inner drawer */ }).map(function(cd){ return '<button type="button" class="hw-btn" data-bur-add="' + cd + '">＋ ' + names[cd] + '</button>'; }).join("") + '</div></div>' +
       '<div class="edit-field"><label>' + __("Hillur fyrir ofan") + '</label><div class="hw-count"><button class="iconbtn" data-bur-sh="-1"' + (shelves <= 0 ? ' disabled' : '') + '>−</button><b>' + shelves + '</b><button class="iconbtn" data-bur-sh="1"' + (shelves >= 8 ? ' disabled' : '') + '>+</button><span>' + plural(shelves, "hilla", "hillur") + '</span></div>' +
-      (cur && !combos.includes(cur) || (!cur && !shelves) ? '<p class="sec-note">' + (cur ? __("Sérsamsetning — söluaðili staðfestir verð.") : __("Tómur skápur — bættu við innskúffum og hillum eða veldu lausn hér að ofan.")) + '</p>' : '') + '</div>';
+      (cur && !combos.includes(cur) ? '<p class="sec-note">' + __("Sérsamsetning — söluaðili staðfestir verð.") + '</p>' : '') + '</div>';
   }
   function wireBurSetup(host, b, after){
     function changed(){ delete b.burPos; delete b.shelfPos; after(); } // custom positions (Smíða) no longer match
@@ -4993,11 +4993,11 @@
       label = __("Undir ofninum"); cur = ovenKeyOf(b);
       opts = Object.keys(LM.ofn[drawerSys()] || {}).map(function(k){ return [k, comboLabel(k)]; });
       opts.push(["", __("Skápur með hurð (engar skúffur)")]);
-      var ovCodes = KP3D.ovenCodesOf(b, drawerSys()), ovStack = cur === "" ? "" : '<div class="edit-field"><label>' + __("Frontahæðir undir ofni") + '</label>' +
+      var ovCodes = KP3D.ovenCodesOf(b, drawerSys()), ovStack = cur === "" || !(ro && ro.sides) ? "" : // front heights: PRO only '<div class="edit-field"><label>' + __("Frontahæðir undir ofni") + '</label>' +
         drawerRowsHTML(ovCodes, ovenStackModel(b).fronts(), { custom:!!b.ovenFrontsMm, sides:ro && ro.sides }) + '</div>';
-      return pills + '<div class="edit-field"><label>' + label + '</label><select data-role="variant">' + opts.map(function(o){
+      return pills + '<div class="edit-field"><label title="' + __("Aðeins samsetningar sem Björninn smíðar ({sys}).", { sys:__(DRAWER_SYSTEMS[drawerSys()].label) }) + '">' + label + '</label><select data-role="variant">' + opts.map(function(o){
         return '<option value="' + o[0] + '"' + (o[0] === cur ? ' selected' : '') + '>' + o[1] + '</option>';
-      }).join("") + '</select><p class="sec-note">' + __("Aðeins samsetningar sem Björninn smíðar ({sys}).", { sys:__(DRAWER_SYSTEMS[drawerSys()].label) }) + '</p></div>' + ovStack;
+      }).join("") + '</select></div>' + ovStack;
     } else if (c.open && c.zone === "wall"){
       // "Opinn skápur með hillum": carcass material, or everything (box + shelves) in the front material
       return '<div class="edit-field"><label>' + __("Efni") + '</label><div class="hw-toggle">' +
@@ -5207,13 +5207,14 @@
     } else {
       html += drawerSimpleHTML(b, c, codes, inner);
     }
-    if (!c.sink && !c.rusl){ // bins: always shown on a drawer unit, greyed with the reason when the bottom drawer can't take them
+    var lowBox = (b.heightMm || c.h) < 600; // a lítill kassi under 60 cm can take neither (user, 2026-10-25)
+    if (!c.sink && !c.rusl && !lowBox){ // bins: always shown on a drawer unit, greyed with the reason when the bottom drawer can't take them
       var binsOk = binsPossible(b, c), binsAct = binsOn(b, c);
       html += '<div class="dw-add"><span>' + __("Ruslafötur:") + '</span>' +
         '<button type="button" class="hw-btn' + (!binsAct ? ' active' : '') + '" data-dw-bins="0">' + __("Engar") + '</button>' +
         '<button type="button" class="hw-btn' + (binsAct ? ' active' : '') + '" data-dw-bins="1"' + (binsOk ? '' : ' disabled title="' + __("Þarf djúpa skúffu neðst (18 cm eða dýpri) og 60 eða 80 cm breidd") + '"') + '>' + __("Í neðstu skúffu") + '</button></div>';
     }
-    if (!c.sink){ // no inner drawer under a sink (the basin and pipes take that space)
+    if (!c.sink && !lowBox){ // no inner drawer under a sink (the basin and pipes take that space)
     var innerTip = !inner && !D.inner.some(function(ik){ return stackAllowed(b, c, codes, ik); })
       ? __("Innskúffa er falin skúffa á bak við framhliðina — hún þarf að minnsta kosti eina miðlungs skúffu eða dýpri.")
       : __("Innskúffa er falin skúffa á bak við framhliðina.");
@@ -5820,7 +5821,7 @@
   }
   function islandBoxesHTML(){
     var I = uw.island, rows = I.b ? [["a", "Röð A"], ["b", "Röð B (bakhlið)"]] : [["a", "Kassar"]];
-    var html = '<div class="edit-field"><label>' + __("Smelltu á kassa og veldu útfærslu") + '</label>' + rows.map(function(r){
+    var html = '<div class="edit-field" title="' + __("Smelltu á kassa og veldu útfærslu") + '">' + rows.map(function(r){
       return '<div class="isl-row"><span>' + __(r[1]) + '</span>' + I[r[0]].map(function(bx, i){
         return '<button type="button" class="isl-box' + (bx === uw.b ? ' on' : '') + '" data-isl-sel="' + r[0] + ':' + i + '" style="flex-grow:' + bx.widthMm + '">' +
           r[0].toUpperCase() + (i + 1) + '<small>' + (bx.widthMm / 10) + '</small>' +
@@ -5830,7 +5831,7 @@
     var cur = islandBoxOpt(uw.b);
     html += '<div class="edit-field"><label>' + (uw.island.b && uw.island.b.indexOf(uw.b) >= 0 ? "B" : "A") + ((uw.island.a.indexOf(uw.b) >= 0 ? uw.island.a : uw.island.b).indexOf(uw.b) + 1) + ' — ' + __("útfærsla") + '</label><div class="uw-chips">' +
       ISLAND_BOX_OPTS.map(function(o, i){ return '<button type="button" class="hw-btn' + (i === cur ? ' active' : '') + '" data-isl-type="' + i + '">' + __(o.label) + '</button>'; }).join("") +
-      '</div>' + (uw.island.a.length + (uw.island.b ? uw.island.b.length : 0) > 1 ? '<button type="button" class="btn btn-secondary btn-small isl-delbtn" data-isl-del>' + __("✕ Eyða þessum kassa") + '</button>' : '') + '</div>';
+      '</div></div>'; // delete: the ✕ on each box
     return html;
   }
   function wireIslandConfig(side){
@@ -5893,8 +5894,12 @@
   // Staðlaðar hæðir/dýptir í "＋ Ný eining" (user, 2026-10-20): width already had chips, height/depth were
   // typed-only — 10 cm steps for height, 5 cm for depth (every CATALOG minH/minD/maxH/maxD is already a
   // multiple of those, so the range always lands on a whole chip at both ends).
-  function uwHeightOptions(c){ var out = []; for (var h = 100; h <= 3000; h += 100) if (h >= c.minH && h <= c.maxH) out.push(h); return out; }
-  function uwDepthOptions(c){ var out = []; for (var d = 50; d <= 3000; d += 50) if (d >= c.minD && d <= c.maxD) out.push(d); return out; }
+  function uwHeightOptions(c){
+    if (c.cls !== "floor" && c.cls !== "wall" && c.maxH >= 2700) return [2100, 2300, 2500, 2700].filter(function(h){ return h >= c.minH && h <= c.maxH; }); // tall units: the usual four (user, 2026-10-25)
+    var out = []; for (var h = 100; h <= 3000; h += 100) if (h >= c.minH && h <= c.maxH) out.push(h); return out;
+  }
+  function uwDepthOptions(c){ if (c.panel) return [300, 600].filter(function(d){ return d >= c.minD && d <= c.maxD; }); // úthlið: base or wall-unit depth, anything else typed
+    var out = []; for (var d = 50; d <= 3000; d += 50) if (d >= c.minD && d <= c.maxD) out.push(d); return out; }
   // a collapsible group of the "+ Ný eining" step 3; uw.sec = the open one (the first not yet picked, by default)
   function uwSec(key, label, summary, body){
     var open = uw.sec === key;
@@ -5941,11 +5946,17 @@
       }
       var secHtml = [];
       if (!c.panel) secHtml.push(dimSec("w", __("Breidd"), widths, b.widthMm, c.defaultW, "data-uw-w", "data-uw-wcustom", c.minW, c.maxW));
-      if (c.minH !== c.maxH) secHtml.push(dimSec("h", c.zone === "floor" && c.cls !== "tall" && c.maxH <= 1200 ? __("Hæð") + ' <small class="uw-sub">' + __("upp að borðplötu") + '</small>' : __("Hæð"), uwHeightOptions(c), b.heightMm || c.h, c.h, "data-uw-h", "data-uw-hcustom", c.minH, c.maxH));
+      if (c.shelfStack){ // Lausar hillur (user, 2026-10-25): how many, the gap between them, and how high the lowest one hangs
+        var stN = b.count || 3, stG = b.vgapMm || KP3D.SHELF_GAP_DEFAULT, stE = KP3D.elevOf(b);
+        secHtml.push(uwSec("h", __("Hillur"), stN + " " + plural(stN, "hilla", "hillur") + " · " + __("{g} cm á milli", { g:stG / 10 }) + " · " + __("{e} cm frá gólfi", { e:stE / 10 }),
+          '<div class="edit-field"><label>' + __("Fjöldi") + '</label><div class="hw-count"><button class="iconbtn" data-uw-stn="-1"' + (stN <= 1 ? ' disabled' : '') + '>−</button><b>' + stN + '</b><button class="iconbtn" data-uw-stn="1"' + (stN >= KP3D.SHELF_STACK_MAX ? ' disabled' : '') + '>+</button><span>' + plural(stN, "hilla", "hillur") + ' · ' + __("38 mm þykkar") + '</span></div></div>' +
+          (stN > 1 ? '<div class="edit-field"><label>' + __("Bil á milli") + '</label><div class="uw-chips">' + [250, 300, 350, 400].map(function(g){ return '<button type="button" class="hw-btn' + (g === stG ? ' active' : '') + '" data-uw-stg="' + g + '">' + g / 10 + '</button>'; }).join("") + '<small style="align-self:center;margin-left:4px;">cm</small></div></div>' : '') +
+          '<div class="edit-field"><label>' + __("Neðsta hillan frá gólfi") + '</label><div class="uw-chips">' + [1200, 1400, 1500, 1600].map(function(e){ return '<button type="button" class="hw-btn' + (e === stE ? ' active' : '') + '" data-uw-ste="' + e + '">' + e / 10 + '</button>'; }).join("") + '<small style="align-self:center;margin-left:4px;">cm</small></div></div>'));
+      } else if (c.minH !== c.maxH) secHtml.push(dimSec("h", c.zone === "floor" && c.cls !== "tall" && c.maxH <= 1200 ? __("Hæð") + ' <small class="uw-sub">' + __("upp að borðplötu") + '</small>' : __("Hæð"), uwHeightOptions(c), b.heightMm || c.h, c.h, "data-uw-h", "data-uw-hcustom", c.minH, c.maxH));
       if (c.minD !== c.maxD) secHtml.push(dimSec("d", __("Dýpt"), uwDepthOptions(c), b.depthMm || c.d, c.d, "data-uw-d", "data-uw-dcustom", c.minD, c.maxD));
       var innHtml = "";
       // "Skúffur" or "Hurð með hillum" was the step before — no Hillur/Skúffur switch again here (user, 2026-10-24)
-      var decided = activeUnitTree()[uw.cat].opts.some(function(o, k){ return k !== uw.opt && o.type === b.type; });
+      var decided = !!uw.island || activeUnitTree()[uw.cat].opts.some(function(o, k){ return k !== uw.opt && o.type === b.type; }); // an island box's type chips already chose
       if (c.hasInterior) innHtml += '<div class="edit-field">' + hardwareHTML(b, c, PRO ? { sides:true, noToggle:decided } : { noToggle:decided }) + '</div>';
       // Preset samsetningar (2026-10-22): sama "hillur ALLTAF neðst-óháð, skúffur alltaf neðst" líkan og
       // steppararnir hér fyrir neðan — bara fljótleg byrjun, ekki endapunktur. Steppararnir sjálfir eru
@@ -6099,6 +6110,9 @@
       ensureCombo(cc, keep ? b.interior.inner : null, function(ok){ if (ok) setStack(cc, keep ? b.interior.inner : null); else sel.value = prev; });
     }); });
     wireDrawerSimple(side, b, c, setStack);
+    side.querySelectorAll("[data-uw-stn]").forEach(function(el){ el.addEventListener("click", function(){ initShelfStack(b, Math.max(1, Math.min(KP3D.SHELF_STACK_MAX, (b.count || 3) + +el.dataset.uwStn)), b.vgapMm || KP3D.SHELF_GAP_DEFAULT); renderUnitWizard(); }); });
+    side.querySelectorAll("[data-uw-stg]").forEach(function(el){ el.addEventListener("click", function(){ initShelfStack(b, b.count || 3, +el.dataset.uwStg); renderUnitWizard(); }); });
+    side.querySelectorAll("[data-uw-ste]").forEach(function(el){ el.addEventListener("click", function(){ b.elevMm = +el.dataset.uwSte; renderUnitWizard(); }); });
     side.querySelectorAll("[data-uw-swing]").forEach(function(el){ el.addEventListener("click", function(){ b.swing = el.dataset.uwSwing; b.swingSet = true; renderUnitWizard(); }); });
     side.querySelectorAll("[data-uw-sh]").forEach(function(el){ el.addEventListener("click", function(){
       var d = +el.dataset.uwSh;

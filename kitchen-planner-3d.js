@@ -44,7 +44,7 @@
     // Grunn/Hár/Efri/Lagna/Ofna/Loftunarskápur only) — physically a Hárskápur
     // housing a bought appliance, so it submits as Hárskápur plus a plain note
     // (same pattern as the drawer note) and Rakel confirms the niche size.
-    isskapur:    { label:"Ísskápur (innbyggður)", zone:"floor", cls:"fridge", defaultW:600, minW:500, maxW:1000, h:2500, d:600, minH:1700, maxH:2700, minD:500, maxD:750, hasInterior:false,
+    isskapur:    { label:"Ísskápur (innbyggður)", zone:"floor", cls:"fridge", defaultW:600, minW:600, maxW:900, widths:[600, 700, 900], fixedWidths:true, h:2500, d:600, minH:1700, maxH:2700, minD:500, maxD:750, hasInterior:false,
                    skapategundOverride:"Hárskápur", fridge:true,
                    note:"Viðskiptavinur óskar eftir innbyggðum ísskáp í þessum skáp — vinsamlegast staðfestu stærð tækis (nisju) og hurðargerð." },
     // Special units: oven tower and Le Mans corner map to real Airtable fields
@@ -65,7 +65,7 @@
     // Tækjaskápar round (user, 2026-10-23, B1): a built-in freezer is the same cabinet + product as the built-in
     // fridge (fridge:true → LM.isskapur), only its note differs; a wine cooler is the customer's own appliance under the
     // worktop (like the freestanding dishwasher — nothing ordered for it). Ofn + örbylgja = ofnaskapur with ovenH 1050.
-    frystir:     { label:"Frystir (innbyggður)", zone:"floor", cls:"fridge", defaultW:600, minW:500, maxW:1000, h:2500, d:600, minH:1700, maxH:2700, minD:500, maxD:750, hasInterior:false,
+    frystir:     { label:"Frystir (innbyggður)", zone:"floor", cls:"fridge", defaultW:600, minW:600, maxW:900, widths:[600, 700, 900], fixedWidths:true, h:2500, d:600, minH:1700, maxH:2700, minD:500, maxD:750, hasInterior:false,
                    skapategundOverride:"Hárskápur", fridge:true,
                    note:"Viðskiptavinur óskar eftir innbyggðum FRYSTI (ekki ísskáp) í þessum skáp — staðfestu stærð tækis (nisju) og hurðargerð." },
     vinkaelir:   { label:"Vínkælir (undir borðplötu)", zone:"floor", cls:"floor", defaultW:600, minW:300, maxW:600, widths:[300, 450, 600], h:900, d:600, minH:820, maxH:950, minD:550, maxD:700, hasInterior:false, counter:true, appliance:"dishwasher", notOrdered:true },
