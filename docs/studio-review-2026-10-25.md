@@ -26,7 +26,7 @@ Skannað í vafra (1440×900): allir 26 kostir, hver hluti opnaður, mælt hvort
 | A6 | Efri · Lausar hillur (38 mm) | „Hæð 71.4 cm“ sjálfgefið og 20 hæðarhnappar 10–200 → þetta er í raun **hæð frá gólfi**; endurnefna „Hæð frá gólfi“, sjálfgefið 150 cm, hnappar 120/140/150/160 + Annað mál | **Já** |
 | A7 | Eyja · Ein röð / Tvær raðir | 76 / 141 px yfirflæði (kassalistinn + mál hvers kassa) → kassalisti í þéttari röðum, mál í samanbrotnum hópi eins og aðrir | **Já** |
 | A8 | Úthliðar · neðri/há/efri | 14 dýptarhnappar (10–75) → sjálfgefið = dýpt skápsins sem hún fer á, hnappar 30/60 + Annað mál | **Já** |
-| A9 | Úthliðar · „Bak á eyju“ | Opnar tóma síðu („Veldu útfærslu“, engin mál) | Laga/fela? **Fela þar til eyja er valin** |
+| A9 | Úthliðar · „Bak á eyju“ | Virkar rétt (skilaboð ef engin eyja er til, annars velur eyju) — bara „mm“ í listanum → cm | — |
 | A10 | Hornskápar (allir) | **Fyllistykki** þegar blindi helmingurinn < ~62 cm (opin spurning frá síðast) | (a) sjálfvirkt 5–7 cm + athugasemd — **ráðlagt** / (b) ekkert |
 
 ---
@@ -98,6 +98,6 @@ Skannað í vafra (1440×900): allir 26 kostir, hver hluti opnaður, mælt hvort
 ---
 
 ## Röð sem ég legg til
-1. **A** (fljótt — flest „Já“): A1–A9 í einu lagi, svo A10 eftir svari.
+1. **A** (fljótt — flest „Já“): A1–A8 í einu lagi, svo A10 eftir svari.
 2. **B1–B3** (innsendingar sem geta fallið / vanverðlagt) — áður en mikið af alvöru viðskiptavinum kemur.
 3. **C**: Fataskápar fyrst (næstalgengast), svo Bað, Þvottahús, Innihurðir, síðast Allt heimilið (byggir á hinum).
