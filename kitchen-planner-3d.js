@@ -2366,7 +2366,7 @@
       p.trays.forEach(function(t, i){
         var k = smooth01((p.cur - 0.3 - i * 0.14) / 0.56), arc = Math.sin(Math.PI * k);
         if (t.real){ // turn about the column (first 55 %), then slide out in front while easing back toward square
-          var k1 = Math.min(1, k / 0.55), k2 = Math.max(0, (k - 0.55) / 0.45), a = t.a1 * k1;
+          var k1 = k, k2 = 0, a = t.a1 * k1; // only turns about the post — sliding after the turn swept the tray's back half through it (user, 2026-10-25)
           var cx0 = (t.x0 || 0) - t.px, cz0 = t.z0 - t.pz, ca = Math.cos(a), sa = Math.sin(a); // tray centre relative to the pivot, turned by a
           var bx = t.px + cx0 * ca + cz0 * sa, bz = t.pz - cx0 * sa + cz0 * ca;
           t.group.position.set(bx + (t.xEnd - bx) * k2, t.y, bz + (t.zEnd - bz) * k2);
@@ -2783,7 +2783,7 @@
         // the real motion: the tray first turns about the column out through the opening, then slides out —
         // open it stands out of the opening, pointing away from the cabinet at a slight angle (how a LeMans II stands open)
         trays.push({ group:g, real:true, y:bodyBase + bodyH * f, x0:xIn, z0:zIn, px:pivotX, pz:pz,
-          a1:inward * Math.PI / 2, xEnd:pivotX - inward * (d * 0.55 + 0.04), zEnd:zIn + d / 2 + innerW * 0.42, aEnd:inward * 1.3 });
+          a1:inward * Math.PI * 0.44, xEnd:pivotX - inward * (d * 0.55 + 0.04), zEnd:zIn + d / 2 + innerW * 0.42, aEnd:inward * 1.3 });
       });
     } else {
       var w = Math.max(0.3, hw - 0.07), d2 = Math.max(0.3, Math.min(0.5, CD - 0.08));
