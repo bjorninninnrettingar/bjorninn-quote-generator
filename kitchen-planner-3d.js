@@ -2488,6 +2488,7 @@
     }
     if (p.kind === "drawer") p.group.position.z = p.slide * e;
     else p.group.rotation.y = (p.hinge === "left" ? -1 : 1) * (p.maxRad || 1.75) * e;
+    if (p.hinges) p.hinges.forEach(function(h){ h.visible = e > 0.75; }); // the hinge model is the open hinge
   }
   function stepParts(scene){
     (scene.userData.parts || []).forEach(function(p){
@@ -2646,22 +2647,24 @@
           frame.add(ig);
         }
       }
-      if (!f.drawer && hinge !== "bottom"){ // Blum CLIP top hinges behind the door on its hinge edge (user, 2026-10-25): 2, 3 on a tall door, 4 on a very tall one —
-        // silver, the cup sunk into the back of the door 22.5 mm in from its edge, the arm reaching in to the plate on the side
+      // Blum CLIP top hinges (user, 2026-10-25): the file is the hinge OPEN, so it's fixed to the carcass — plate on the
+      // inside of the side by the front edge, cup out where the open door's back is — and only shown while the door is
+      // open (closed, it would stick out through the side). Silver; 2, 3 on doors over 1 m, 4 over 1.8 m.
+      var leafHinges = [];
+      if (!f.drawer && hinge !== "bottom"){
         var hgM = applModel("hinge");
         if (hgM){
           if (!HINGE_MAT) HINGE_MAT = new THREE.MeshStandardMaterial({ color:0xc6cacf, metalness:0.85, roughness:0.3 });
-          // the file is the open hinge: cup at +z, plate at −z. Turned 90° its cup lies in the door plane; its centre then sits
-          // (37.5, 28, 3) mm from the model's own origin (measured from the cup mesh)
-          var nH = fh > 1.8 ? 4 : fh > 1.0 ? 3 : 2, leftH = hinge === "left", cupX = leftH ? cxL - w / 2 + 0.0225 : cxL + w / 2 - 0.0225;
+          var nH = fh > 1.8 ? 4 : fh > 1.0 ? 3 : 2, leftH = hinge === "left";
+          var sideX = leftH ? cxL - w / 2 + CARCASS_T : cxL + w / 2 - CARCASS_T; // inside face of the side the door hangs on
           for (var hk = 0; hk < nH; hk++){
-            var hm = hk ? applModel("hinge") : hgM, inner = hm.obj, wrap = new THREE.Group();
-            inner.traverse(function(o){ if (o.isMesh) o.material = HINGE_MAT; });
-            inner.rotation.y = Math.PI / 2; wrap.add(inner);
-            if (!leftH) wrap.scale.x = -1;
+            var hm = hk ? applModel("hinge") : hgM, wrap = new THREE.Group();
+            hm.obj.traverse(function(o){ if (o.isMesh) o.material = HINGE_MAT; });
+            wrap.add(hm.obj);
+            if (!leftH) wrap.scale.x = -1; // the file is a left-hand one: mirrored for a right-hand door
             var hy = y0 + 0.1 + (fh - 0.2) * (nH > 1 ? hk / (nH - 1) : 0);
-            wrap.position.set(cupX - (leftH ? 0.0375 : -0.0375) - pivotX, hy - 0.028, CD - 0.003);
-            g.add(wrap); wrap.traverse(function(o){ if (o.isMesh) meshes.push(o); });
+            wrap.position.set(sideX + (leftH ? 0.007 : -0.007), hy - 0.028, CD - 0.023); // plate's back on the side, knuckle just inside the front edge
+            wrap.visible = false; frame.add(wrap); leafHinges.push(wrap);
           }
         }
       }
@@ -2674,7 +2677,7 @@
       meshes.forEach(function(m){ m.userData = pmeta; pickables.push(m); });
       var prev = PART_STATE[key];
       var maxDeg = meta.doorLimit && meta.doorLimit[hinge] != null ? meta.doorLimit[hinge] : DOOR_OPEN_DEG; // stops at a wall / corner
-      var part = { key:key, group:g, kind:f.drawer ? "drawer" : hinge === "bottom" ? "flap" : "door", hinge:hinge, maxRad:maxDeg * Math.PI / 180, slide:fixedTop ? 0 : Math.min(0.34, CD * 0.6), cur:prev ? prev.cur : 0, target:prev ? prev.target : 0 };
+      var part = { key:key, group:g, kind:f.drawer ? "drawer" : hinge === "bottom" ? "flap" : "door", hinge:hinge, maxRad:maxDeg * Math.PI / 180, slide:fixedTop ? 0 : Math.min(0.34, CD * 0.6), cur:prev ? prev.cur : 0, target:prev ? prev.target : 0, hinges:leafHinges };
       PART_STATE[key] = part; parts.push(part); applyPart(part);
       frame.add(g);
     }
