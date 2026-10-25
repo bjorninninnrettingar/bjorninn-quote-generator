@@ -1557,6 +1557,7 @@
     "Fjarlægja innskúffuna": "Remove the inner drawer",
     "Færa upp": "Move up",
     "Færa niður": "Move down",
+    "Hurðin er helmingur breiddarinnar, hinn helmingurinn er blindur inn í hornið.": "The door is half the width; the other half is blind, into the corner.",
     "Velst sjálfkrafa þegar skápurinn fer í horn: blindi helmingurinn inn í hornið.": "Set by itself when the cabinet goes in a corner: the blind half into the corner.",
     "hurð vinstra megin": "door on the left",
     "hurð hægra megin": "door on the right",
