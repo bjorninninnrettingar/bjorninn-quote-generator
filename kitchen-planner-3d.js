@@ -2295,7 +2295,7 @@
     dwUpper:  { file:"models/appliances/dishwasher/model.dae", node:"group_36" },
     hinge:    { file:"models/hinges/blum-clip-top.glb",         node:null } // Blum CLIP top (79B3491), closed
   };
-  var APPL_RAW = {}, APPL_READY = {}, APPL_HIDE = null;
+  var APPL_RAW = {}, APPL_READY = {}, APPL_HIDE = null, HINGE_MAT = null;
   function applStdMat(THREE, m){
     if (!m) return m;
     var metal = /metal|steel|chrome|stainless|inox|_ss|alu/i.test(m.name || "");
@@ -2646,15 +2646,22 @@
           frame.add(ig);
         }
       }
-      if (!f.drawer && hinge !== "bottom" && !meta.corner){ // Blum hinges behind the door on its hinge edge (user, 2026-10-25): 2, 3 on a tall door, 4 on a very tall one
+      if (!f.drawer && hinge !== "bottom"){ // Blum CLIP top hinges behind the door on its hinge edge (user, 2026-10-25): 2, 3 on a tall door, 4 on a very tall one —
+        // silver, the cup sunk into the back of the door 22.5 mm in from its edge, the arm reaching in to the plate on the side
         var hgM = applModel("hinge");
         if (hgM){
-          var nH = fh > 1.8 ? 4 : fh > 1.0 ? 3 : 2, hx = (hinge === "left" ? cxL - w / 2 + 0.0165 + 0.002 : cxL + w / 2 - 0.0165 - 0.002);
+          if (!HINGE_MAT) HINGE_MAT = new THREE.MeshStandardMaterial({ color:0xc6cacf, metalness:0.85, roughness:0.3 });
+          // the file is the open hinge: cup at +z, plate at −z. Turned 90° its cup lies in the door plane; its centre then sits
+          // (37.5, 28, 3) mm from the model's own origin (measured from the cup mesh)
+          var nH = fh > 1.8 ? 4 : fh > 1.0 ? 3 : 2, leftH = hinge === "left", cupX = leftH ? cxL - w / 2 + 0.0225 : cxL + w / 2 - 0.0225;
           for (var hk = 0; hk < nH; hk++){
-            var hgo = hk ? applModel("hinge").obj : hgM.obj, hy = y0 + 0.1 + (fh - 0.2) * (nH > 1 ? hk / (nH - 1) : 0);
-            if (hinge === "right") hgo.scale.x = -1;
-            hgo.position.set(hx - pivotX, hy - hgM.h / 2, CD - hgM.d / 2);
-            g.add(hgo); hgo.traverse(function(o){ if (o.isMesh) meshes.push(o); });
+            var hm = hk ? applModel("hinge") : hgM, inner = hm.obj, wrap = new THREE.Group();
+            inner.traverse(function(o){ if (o.isMesh) o.material = HINGE_MAT; });
+            inner.rotation.y = Math.PI / 2; wrap.add(inner);
+            if (!leftH) wrap.scale.x = -1;
+            var hy = y0 + 0.1 + (fh - 0.2) * (nH > 1 ? hk / (nH - 1) : 0);
+            wrap.position.set(cupX - (leftH ? 0.0375 : -0.0375) - pivotX, hy - 0.028, CD - 0.003);
+            g.add(wrap); wrap.traverse(function(o){ if (o.isMesh) meshes.push(o); });
           }
         }
       }
