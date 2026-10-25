@@ -2013,16 +2013,20 @@
       var twoLeaf = wideDoor && !f.drawer && !(meta && meta.vertical);
       var sides = twoLeaf ? [-1, 1] : [freeRight ? 1 : -1];
       function edgeAlong(sg, inset){ return twoLeaf ? sg * inset * 0.6 : sg * (hw / 2 - inset) + hOff; }
-      if (vertical && !(hcfg && hcfg.kind === "hexxa") && !(hcfg && hcfg.file)){ // plain vertical versions of the drawn handles
-        var vy = (top + bottom) / 2;
-        if (hstyle === "bar"){ var vl = Math.min(hdef.len || 0.24, doorH * 0.6); sides.forEach(function(sg){ place(new THREE.Mesh(new THREE.BoxGeometry(0.012, vl, 0.02), handleMat), vy, 0.012, edgeAlong(sg, 0.05)); }); return; }
-        if (hstyle === "edge"){ sides.forEach(function(sg){ place(new THREE.Mesh(new THREE.BoxGeometry(0.02, doorH * 0.94, 0.016), handleMat), vy, 0.008, edgeAlong(sg, 0.012)); }); return; }
-        if (hstyle === "tab"){ sides.forEach(function(sg){ place(new THREE.Mesh(new THREE.BoxGeometry(0.03, hdef.len || 0.14, 0.02), handleMat), vy, 0.01, edgeAlong(sg, 0.02)); }); return; }
-        if (hstyle === "groove"){ sides.forEach(function(sg){ place(new THREE.Mesh(new THREE.BoxGeometry(0.006, doorH * 0.9, 0.002), seamMat), vy, 0.002, edgeAlong(sg, 0.012)); }); return; }
+      function drawVertical(){ // plain vertical versions of the drawn handles, pulls at hand height
+        var vy = Math.max(bottom + 0.12, Math.min(top - 0.12, 1.05));
+        if (hstyle === "bar"){ var vl = Math.min(hdef.len || 0.24, doorH * 0.6); sides.forEach(function(sg){ place(new THREE.Mesh(new THREE.BoxGeometry(0.012, vl, 0.02), handleMat), vy, 0.012, edgeAlong(sg, 0.05)); }); return true; }
+        if (hstyle === "edge"){ sides.forEach(function(sg){ place(new THREE.Mesh(new THREE.BoxGeometry(0.02, doorH * 0.94, 0.016), handleMat), (top + bottom) / 2, 0.008, edgeAlong(sg, 0.012)); }); return true; }
+        if (hstyle === "tab"){ sides.forEach(function(sg){ place(new THREE.Mesh(new THREE.BoxGeometry(0.03, hdef.len || 0.14, 0.02), handleMat), vy, 0.01, edgeAlong(sg, 0.02)); }); return true; }
+        if (hstyle === "groove"){ sides.forEach(function(sg){ place(new THREE.Mesh(new THREE.BoxGeometry(0.006, doorH * 0.9, 0.002), seamMat), (top + bottom) / 2, 0.002, edgeAlong(sg, 0.012)); }); return true; }
+        return false;
       }
+      if (vertical && !(hcfg && hcfg.kind === "hexxa") && !(hcfg && hcfg.file) && drawVertical()) return;
       if (hcfg && hcfg.kind === "hexxa"){ // milled into the front, no fixed width: equal distance to both sides
         var hm2 = (hcfg.marginMm || 50) / 1000, dark = new THREE.MeshStandardMaterial({ color:0x18181a, roughness:0.6 });
-        if (vertical){ sides.forEach(function(sg){ place(new THREE.Mesh(new THREE.BoxGeometry(0.012, Math.max(0.05, doorH - 2 * hm2), 0.0015), dark), (top + bottom) / 2, 0.0008, edgeAlong(sg, 0.02)); }); }
+        if (vertical && wardrobeScene){ var hxL = Math.min(0.4, doorH - 2 * hm2), hxY = Math.max(bottom + hm2 + hxL / 2, Math.min(top - hm2 - hxL / 2, 1.05)); // wardrobe: a slot at hand height (user, 2026-10-25)
+          sides.forEach(function(sg){ place(new THREE.Mesh(new THREE.BoxGeometry(0.012, Math.max(0.05, hxL), 0.0015), dark), hxY, 0.0008, edgeAlong(sg, 0.02)); }); }
+        else if (vertical){ sides.forEach(function(sg){ place(new THREE.Mesh(new THREE.BoxGeometry(0.012, Math.max(0.05, doorH - 2 * hm2), 0.0015), dark), (top + bottom) / 2, 0.0008, edgeAlong(sg, 0.02)); }); }
         else {
           var hl = Math.max(0.05, hw - 2 * hm2);
           // wall units: the slot is milled into the BOTTOM edge (mirror of the base-unit one)
@@ -2083,6 +2087,7 @@
           return;
         }
       }
+      if (vertical && drawVertical()) return; // the real model isn't loaded yet: the drawn one, upright (not across the top)
       if (hstyle === "bar"){
         var blen = hdef.len || 0.24, cap = blen <= 0.24 ? 0.5 : 0.85;
         if (wideDoor && !f.drawer && blen <= 0.24){ hbar(0.16, hy, -widthM * 0.16); hbar(0.16, hy, widthM * 0.16); }
@@ -4521,8 +4526,11 @@
   // object. opts (optional): {selectedId, onSelect(meta|null)} — onSelect is
   // called with {wallId,zone,blockId} when a cabinet is clicked, or null on
   // a click that hit nothing (deselect).
+  // Fataskápar (user, 2026-10-25): door handles at hand height — set per scene from the room's category
+  var wardrobeScene = false;
   function buildScene(wrap, state, opts){
     opts = opts || {};
+    wardrobeScene = /^fataskapar/.test(String(state.activeCategory || "")) || !!state.wardrobe;
     handleFinish = handleFinishFor(state.handle, state.handleColor);
     var THREE = window.__THREE__;
     var OrbitControls = window.__OrbitControls__;

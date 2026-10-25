@@ -7676,7 +7676,7 @@
   }
   // Fataskápar (2026-10-25): the preview is the real wardrobe — two 50 cm units at the picked depth/height, open (no
   // doors) until the doors page, so the colour and the clothes rail show first; built by the same buildScene as the editor
-  var closetPrevKey = "";
+  var closetPrevKey = ""; var clModelTimer = 0;
   function renderClosetPreview(host){
     KP3D.teardownCabinetPreview();
     // before the doors page: the door units with see-through fronts (an open unit's shelves are in the FRONT material,
@@ -7686,8 +7686,8 @@
     var blk = function(id, gap){ var b = { id:id, type:type, widthMm:500, depthMm:state.closetDepthMm || 580, heightMm:state.closetHeightMm || 2400, rails:deep ? 1 : 0, gapMm:gap, locked:false };
       b.shelves = deep ? 1 : 5; if (CATALOG[type].hasInterior) b.interior = { mode:"hillur", count:b.shelves }; return b; };
     var look = matPhaseReveal("fronts") ? state.look : null;
-    var pv = { carcass:state.carcass, drawerSystem:state.drawerSystem, look:look, handle:matPhaseReveal("handle") ? state.handle : null, handleColor:state.handleColor, top:"engin", floor:null, wallColor:null,
-      roomHeightMm:state.roomHeightMm, closed:false, islands:[], windows:[], doors:[], walls:[{ id:"CLP", label:"", lengthMm:1800, floor:[blk("clp1", 400), blk("clp2", 0)], wall:[] }] };
+    var pv = { wardrobe:true, carcass:state.carcass, drawerSystem:state.drawerSystem, look:look, handle:matPhaseReveal("handle") ? state.handle : null, handleColor:state.handleColor, top:"engin", floor:null, wallColor:null,
+      roomHeightMm:state.roomHeightMm, closed:false, islands:[], windows:[], doors:[], walls:[{ id:"CLP", label:"", lengthMm:1800, floor:[Object.assign(blk("clp1", 400), { swing:"vinstri" }), Object.assign(blk("clp2", 0), { swing:"haegri" })], wall:[] }] }; // a pair: the handles meet in the middle
     var key = JSON.stringify(pv);
     if (key === closetPrevKey && KP3D._three() && host.querySelector("canvas")) return;
     closetPrevKey = key;
@@ -7753,6 +7753,7 @@
     // burst of loads is over, keeping the angle.
     if (uw){ clearTimeout(uwModelTimer); uwModelTimer = setTimeout(function(){ if (!uw) return; uwPrevKey = ""; uwKeepCam = true; renderUnitPreview(); uwKeepCam = false; }, 250); return; }
     if (welSceneOn){ clearTimeout(welModelTimer); welModelTimer = setTimeout(function(){ if (welSceneOn) startWelcomeScene(true); }, 300); return; } // handle/drawer models arrived: redraw, same angle
+    if (state.step === "materials" && isCloset()){ clearTimeout(clModelTimer); clModelTimer = setTimeout(function(){ if (state.step === "materials" && isCloset()){ closetPrevKey = ""; updateCabinetPreview(); } }, 250); return; } // a handle model arrived: redraw the wardrobe
     if (state.step === "materials" && KP3D.hasCabinetPreview()) KP3D.setCabinetPreview(cabCfg());
     else if (state.step === "editor") renderView();
   });
