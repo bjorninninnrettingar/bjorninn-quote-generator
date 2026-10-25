@@ -1557,6 +1557,7 @@
     "Fjarlægja innskúffuna": "Remove the inner drawer",
     "Færa upp": "Move up",
     "Færa niður": "Move down",
+    "Fyllistykki {n} cm bætist við svo hurðin komist fram hjá skápunum í horninu.": "A {n} cm filler is added so the door clears the cabinets in the corner.",
     "Vinsælar lausnir · með 2 hillum": "Popular sets · with 2 shelves",
     "{g} cm á milli": "{g} cm apart",
     "{e} cm frá gólfi": "{e} cm from the floor",

@@ -5941,7 +5941,8 @@
         var picked = !!uw.picked[key], body = '<div class="uw-chips">' + opts.map(function(v){
           return '<button type="button" class="hw-btn' + (picked && cur === v ? ' active' : (!picked && v === def ? ' suggest' : '')) + '" ' + attr + '="' + v + '"' + (!picked && v === def ? ' title="' + __("Algengast") + '"' : '') + '>' + (v / 10) + '</button>';
         }).join("") + '</div>' + ((key === "w" && c.fixedWidths) || lo === hi ? '' : '<div class="uw-custom"><label>' + __("Annað mál") + '</label><input type="number" ' + cAttr + ' min="' + lo / 10 + '" max="' + hi / 10 + '" step="0.1" value="' + (picked ? cur / 10 : "") + '" placeholder="' + def / 10 + '"><small>' + __("cm · {lo}–{hi}", { lo:lo / 10, hi:hi / 10 }) + '</small></div>') + // in cm like the buttons (user, 2026-10-24)
-          (key === "w" && c.cls === "corner" ? '<p class="sec-note">' + (c.tofrahornIds ? __("Hurðin er helmingur breiddarinnar: 45, 50 eða 60 cm.") : __("Hurðin er helmingur breiddarinnar, hinn helmingurinn er blindur inn í hornið.")) + '</p>' : '');
+          (key === "w" && c.cls === "corner" ? '<p class="sec-note">' + (c.tofrahornIds ? __("Hurðin er helmingur breiddarinnar: 45, 50 eða 60 cm.") : __("Hurðin er helmingur breiddarinnar, hinn helmingurinn er blindur inn í hornið.")) +
+            (cornerFillerMm(b, c) ? ' ' + __("Fyllistykki {n} cm bætist við svo hurðin komist fram hjá skápunum í horninu.", { n:cornerFillerMm(b, c) / 10 }) : '') + '</p>' : '');
         return uwSec(key, label, picked ? (cur / 10) + " cm ✓" : (cur / 10) + " cm", body); // the value shows while folded, picked or not (2026-10-24)
       }
       var secHtml = [];
@@ -9455,6 +9456,14 @@
     if (door >= 550 && by[600]) return by[600];
     return c.tofrahornIds;
   }
+  // Fyllistykki on a corner unit (user, 2026-10-25, "a"): its blind half must reach past the run that meets it in the
+  // corner — ~600 deep + 19 front + room for the handle ≈ 650 mm — or the door hits that run. The rest is a filler.
+  var CORNER_BLIND_NEED_MM = 650;
+  function cornerFillerMm(b, c){
+    if (!c || c.cls !== "corner") return 0;
+    var short = CORNER_BLIND_NEED_MM - b.widthMm / 2;
+    return short > 0 ? Math.ceil(short / 10) * 10 : 0;
+  }
   function isDrawerUnit(b){ return !!(b.interior && b.interior.mode === "skuffur"); }
   // Ruslafötur in the bottom drawer of an ordinary drawer unit (user, 2026-10-24 — replaces a separate ruslaskápur):
   // needs a deep bottom drawer (18 cm sides or more) and a width a RUSL set exists for (60 / 80 cm)
@@ -9670,7 +9679,8 @@
           notes.push("Neðri brún er " + b.elevMm + " mm frá gólfi.");
         }
         if (c.panel) notes.push("Úthlið: " + blockHeightMm(b, c) + " mm há, " + (b.depthMm || c.d) + " mm djúp" + (c.zone === "wall" ? ", neðri brún " + KP3D.elevOf(b) + " mm frá gólfi" : "") + ".");
-        if (c.cls === "corner") notes.push("Hornskápur: hurðin á " + (b.swing === "vinstri" ? "vinstri" : "hægri") + " helmingi, lamir miðju megin (hurðin opnast yfir blindplötuna).");
+        if (c.cls === "corner") notes.push("Hornskápur: hurðin á " + (b.swing === "vinstri" ? "vinstri" : "hægri") + " helmingi, lamir miðju megin (hurðin opnast yfir blindplötuna)." +
+          (cornerFillerMm(b, c) ? " Fyllistykki " + cornerFillerMm(b, c) + " mm á aðliggjandi skáp í horninu svo hurðin komist fram hjá." : ""));
         else if (b.swing && !(b.interior && b.interior.mode === "skuffur" && c.cls !== "tall")){
           notes.push("Viðskiptavinur óskar eftir að lamir séu " + (b.swing === "vinstri" ? "vinstra" : "hægra") + " megin (séð framan frá).");
         }
