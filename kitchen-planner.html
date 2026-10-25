@@ -808,6 +808,9 @@
   .dw-row-simple.drop-on{ border-color:var(--blue); background:var(--blue-soft); }
   .dw-row-inner .dw-inner-lbl{ flex:1; font-size:14px; font-weight:600; color:var(--ink); }
   .uw-side .dw-row-inner{ padding-top:1px; padding-bottom:1px; }
+  .dw-row-simple .dw-fh{ width:54px; flex:0 0 auto; padding:3px 5px; border:1px solid var(--line); border-radius:6px; font:inherit; font-size:13px; text-align:right; -moz-appearance:textfield; appearance:textfield; }
+  .dw-row-simple .dw-fh::-webkit-outer-spin-button, .dw-row-simple .dw-fh::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+  .dw-row-simple .dw-fh-u{ color:var(--ink-soft); font-size:12px; margin-left:-6px; }
   .dw-row-simple .dw-bin{ border:0; background:none; color:var(--ink-soft); cursor:pointer; padding:4px; line-height:0; border-radius:6px; }
   .dw-row-simple .dw-bin:hover:not(:disabled){ color:#b42318; background:#fdf0ee; }
   .dw-row-simple .dw-mv{ color:var(--ink); }
@@ -5095,6 +5098,8 @@
   // its place whatever size it gets (no re-sorting), a bin removes that one, "+ Bæta við skúffu" adds one at the
   // bottom. Each size says its inside height in cm. (PRO's Smíða keeps its full editor — drawerRowsHTML.)
   function drawerSimpleHTML(b, c, codes, inner){
+    // tall units: each drawer's front height can be typed (cm) — the door above takes up the difference (user, 2026-10-25)
+    var tallFronts = c.cls === "tall" ? (KP3D.stackFrontsMm(b.interior, codes, drawerBodyMm(b, c)) || []) : null;
     var n = codes.length, all = KP3D.DRAWER_CODES[drawerSys()].codes, rows = "", innerAt = KP3D.innerHostIndex(codes, drawerSys(), inner, b.interior.innerAt), hosts = KP3D.innerHostsOf(codes, drawerSys(), inner); // the inner drawer shows under the drawer it hides behind
     for (var i = n - 1; i >= 0; i--){ // codes are stored bottom → top
       if (c.sink && i === n - 1 && n > 1){ // a sink's top front IS the "Efst, við vaskinn" choice — one control, not two
@@ -5107,7 +5112,8 @@
       var opts = all.filter(function(cd){ if (cd === codes[i]) return true; var next = codes.slice(); next[i] = cd; return stackFits(b, c, next); });
       rows += '<div class="dw-row-simple' + (inner && hosts.indexOf(i) >= 0 ? ' dw-host' : '') + '" data-dws-row="' + i + '">' + dwIcon(codes[i]) + '<select data-dw-depth="' + i + '">' + opts.map(function(cd){
         return '<option value="' + cd + '"' + (cd === codes[i] ? ' selected' : '') + '>' + codeLabelCm(cd) + '</option>';
-      }).join("") + '</select><button type="button" class="dw-bin" data-dws-del="' + i + '"' + (n <= 1 ? ' disabled' : '') + ' title="' + __("Fjarlægja þessa skúffu") + '">' + icon("trash", 15) + '</button></div>';
+      }).join("") + '</select>' + (tallFronts && tallFronts[i] ? '<input class="dw-fh" type="number" step="0.5" min="5" data-dws-fh="' + i + '" value="' + Math.round(tallFronts[i]) / 10 + '" title="' + __("Hæð framhliðar") + '"><small class="dw-fh-u">cm</small>' : '') +
+        '<button type="button" class="dw-bin" data-dws-del="' + i + '"' + (n <= 1 ? ' disabled' : '') + ' title="' + __("Fjarlægja þessa skúffu") + '">' + icon("trash", 15) + '</button></div>';
       if (i === innerAt){ // move it up/down to the next drawer tall enough to hide it (buttons stay put, just disabled)
         var hk = hosts.indexOf(i), up = hk >= 0 && hk < hosts.length - 1 ? hosts[hk + 1] : null, down = hk > 0 ? hosts[hk - 1] : null;
         rows += '<div class="dw-row-simple dw-row-inner" data-dws-inner-row="1" title="' + __("Dragðu innskúffuna að annarri skúffu") + '"><span class="dw-grip">' + icon("grip", 15) + '</span><span class="dw-inner-lbl">' + __("Innskúffa") + ' · ' + codeLabelCm(inner === "IK" ? "K" : "M") + '</span>' +
@@ -5146,6 +5152,19 @@
       btn.addEventListener("click", function(){ var codes = KP3D.drawerCodes(b.interior, drawerSys()), k = +btn.dataset.dwsDel; if (codes.length <= 1) return; codes.splice(k, 1);
         if (b.interior.innerAt != null){ if (b.interior.innerAt === k) delete b.interior.innerAt; else if (b.interior.innerAt > k) b.interior.innerAt--; }
         apply(codes); });
+    });
+    host.querySelectorAll("[data-dws-fh]").forEach(function(inp){
+      inp.addEventListener("change", function(){
+        var i = +inp.dataset.dwsFh, cc = KP3D.drawerCodes(b.interior, drawerSys()), v = Math.round(parseFloat(String(inp.value).replace(",", ".")) * 10);
+        var cur = (KP3D.stackFrontsMm(b.interior, cc, drawerBodyMm(b, c)) || []).slice();
+        if (isNaN(v) || !cur.length){ inp.value = Math.round(cur[i] || 0) / 10; return; }
+        cur[i] = Math.max(KP3D.slotMin(cc[i]), v); // never below what that drawer needs
+        var zoneMm = Math.round(cur.reduce(function(a, h){ return a + h; }, 0));
+        var fb = findBlock(b.id), fullBody = blockHeightMm(b, c) - plinthMmOf(c, "floor", fb && fb.wall);
+        if (zoneMm > fullBody - KP3D.DRAWER_TOPDOOR_MIN_MM){ toast(__("hurðin fyrir ofan er orðin of lítil")); inp.value = Math.round(KP3D.stackFrontsMm(b.interior, cc, drawerBodyMm(b, c))[i]) / 10; return; }
+        b.interior.frontsMm = cur.map(function(h){ return Math.round(h); }); b.drawerZoneMm = zoneMm;
+        commit(cc, b.interior.inner);
+      });
     });
     host.querySelectorAll("[data-dws-sinktop]").forEach(function(sel){
       sel.addEventListener("change", function(){
