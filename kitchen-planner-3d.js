@@ -2293,9 +2293,11 @@
     wine:     { file:"models/appliances/wine/model.dae",       node:null, rot:-Math.PI / 2 },
     dwLower:  { file:"models/appliances/dishwasher/model.dae", node:"group_3" },
     dwUpper:  { file:"models/appliances/dishwasher/model.dae", node:"group_36" },
-    hinge:    { file:"models/hinges/blum-clip-top.glb",         node:null } // Blum CLIP top (79B3491), closed
+    hinge:    { file:"models/hinges/blum-clip-top.glb",         node:null }, // Blum CLIP top (79B3491), open
+    hingeArm: { file:"models/hinges/blum-clip-top.glb",         node:null, skip:["3DGeom-4"], full:true }, // arm + plate (on the carcass)
+    hingeCup: { file:"models/hinges/blum-clip-top.glb",         node:"3DGeom-4", full:true }               // the cup (in the door)
   };
-  var APPL_RAW = {}, APPL_READY = {}, APPL_HIDE = null, HINGE_MAT = null;
+  var APPL_RAW = {}, APPL_READY = {}, APPL_HIDE = null, HINGE_MAT = null, CUP_DARK = null;
   function applStdMat(THREE, m){
     if (!m) return m;
     var metal = /metal|steel|chrome|stainless|inox|_ss|alu/i.test(m.name || "");
@@ -2319,12 +2321,17 @@
     var from = src.node ? raw.root.getObjectByName(src.node) : raw.root; if (!from) return null;
     var g = new THREE.Group(), turn = new THREE.Matrix4().makeRotationY(src.rot || 0);
     from.traverse(function(o){
-      if (!o.isMesh) return;
+      if (!o.isMesh || (src.skip && src.skip.indexOf(o.name) >= 0)) return;
       var gm = o.geometry.clone(); gm.applyMatrix4(o.matrixWorld); gm.applyMatrix4(turn);
       var m = new THREE.Mesh(gm, Array.isArray(o.material) ? o.material.map(function(x){ return applStdMat(THREE, x); }) : applStdMat(THREE, o.material));
       m.castShadow = true; m.receiveShadow = true; g.add(m);
     });
-    var bb = new THREE.Box3().setFromObject(g, true), c = bb.getCenter(new THREE.Vector3()), sz = bb.getSize(new THREE.Vector3());
+    var bb = new THREE.Box3().setFromObject(g, true);
+    if (src.full){ // parts of one model keep the whole model's frame (so they still fit together)
+      bb = new THREE.Box3();
+      raw.root.traverse(function(o){ if (o.isMesh){ var gm2 = o.geometry.clone(); gm2.applyMatrix4(o.matrixWorld); gm2.applyMatrix4(turn); gm2.computeBoundingBox(); bb.union(gm2.boundingBox); } });
+    }
+    var c = bb.getCenter(new THREE.Vector3()), sz = bb.getSize(new THREE.Vector3());
     g.children.forEach(function(m){ m.geometry.translate(-c.x, -bb.min.y, -c.z); });
     APPL_READY[key] = { obj:g, w:sz.x, h:sz.y, d:sz.z };
     return applModel(key);
@@ -2652,13 +2659,13 @@
       // open (closed, it would stick out through the side). Silver; 2, 3 on doors over 1 m, 4 over 1.8 m.
       var leafHinges = [];
       if (!f.drawer && hinge !== "bottom"){
-        var hgM = applModel("hinge");
+        var hgM = applModel("hingeArm");
         if (hgM){
           if (!HINGE_MAT) HINGE_MAT = new THREE.MeshStandardMaterial({ color:0xadb1b6, metalness:0.85, roughness:0.32 }); // a touch darker (user, 2026-10-25)
           var nH = fh > 1.8 ? 4 : fh > 1.0 ? 3 : 2, leftH = hinge === "left";
           var sideX = leftH ? cxL - w / 2 + CARCASS_T : cxL + w / 2 - CARCASS_T; // inside face of the side the door hangs on
           for (var hk = 0; hk < nH; hk++){
-            var hm = hk ? applModel("hinge") : hgM, wrap = new THREE.Group();
+            var hm = hk ? applModel("hingeArm") : hgM, wrap = new THREE.Group();
             hm.obj.traverse(function(o){ if (o.isMesh) o.material = HINGE_MAT; });
             hm.obj.rotation.z = Math.PI; hm.obj.position.y = hm.h; // turned over: its back faces the door, not into the cabinet (user, 2026-10-25)
             wrap.add(hm.obj);
@@ -2666,6 +2673,18 @@
             var hy = y0 + 0.1 + (fh - 0.2) * (nH > 1 ? hk / (nH - 1) : 0);
             wrap.position.set(sideX + (leftH ? 0.006 : -0.006), hy - 0.028, CD - 0.003); // plate's back on the side, knuckle out at the front edge
             wrap.visible = false; frame.add(wrap); leafHinges.push(wrap);
+            // the cup in the door (user, 2026-10-25): drawn, so it's always a flat Ø35 disc flush with the back of the door —
+            // the model's own cup is hollow and never read right — with its two screw wings, 22.5 mm (centre) from the hinge edge
+            var cupX = leftH ? cxL - w / 2 + 0.0225 : cxL + w / 2 - 0.0225, cz = CD - 0.0008, cup = new THREE.Group();
+            var disc = new THREE.Mesh(new THREE.CylinderGeometry(0.0175, 0.0175, 0.0016, 40), HINGE_MAT); disc.rotation.x = Math.PI / 2; cup.add(disc);
+            var well = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.0018, 32), CUP_DARK || (CUP_DARK = new THREE.MeshStandardMaterial({ color:0x6d7176, metalness:0.7, roughness:0.45 })));
+            well.rotation.x = Math.PI / 2; well.position.z = -0.0002; cup.add(well);
+            [-1, 1].forEach(function(sgn){
+              var wing = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.012, 0.0016), HINGE_MAT); wing.position.set(0, sgn * 0.022, 0); cup.add(wing);
+              var screw = new THREE.Mesh(new THREE.CylinderGeometry(0.0028, 0.0028, 0.0022, 16), CUP_DARK); screw.rotation.x = Math.PI / 2; screw.position.set(0, sgn * 0.0235, -0.0002); cup.add(screw);
+            });
+            cup.position.set(cupX - pivotX, hy, cz);
+            g.add(cup); cup.traverse(function(o){ if (o.isMesh) meshes.push(o); });
           }
         }
       }
