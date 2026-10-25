@@ -2654,16 +2654,17 @@
       if (!f.drawer && hinge !== "bottom"){
         var hgM = applModel("hinge");
         if (hgM){
-          if (!HINGE_MAT) HINGE_MAT = new THREE.MeshStandardMaterial({ color:0xc6cacf, metalness:0.85, roughness:0.3 });
+          if (!HINGE_MAT) HINGE_MAT = new THREE.MeshStandardMaterial({ color:0xadb1b6, metalness:0.85, roughness:0.32 }); // a touch darker (user, 2026-10-25)
           var nH = fh > 1.8 ? 4 : fh > 1.0 ? 3 : 2, leftH = hinge === "left";
           var sideX = leftH ? cxL - w / 2 + CARCASS_T : cxL + w / 2 - CARCASS_T; // inside face of the side the door hangs on
           for (var hk = 0; hk < nH; hk++){
             var hm = hk ? applModel("hinge") : hgM, wrap = new THREE.Group();
             hm.obj.traverse(function(o){ if (o.isMesh) o.material = HINGE_MAT; });
+            hm.obj.rotation.z = Math.PI; hm.obj.position.y = hm.h; // turned over: its back faces the door, not into the cabinet (user, 2026-10-25)
             wrap.add(hm.obj);
             if (!leftH) wrap.scale.x = -1; // the file is a left-hand one: mirrored for a right-hand door
             var hy = y0 + 0.1 + (fh - 0.2) * (nH > 1 ? hk / (nH - 1) : 0);
-            wrap.position.set(sideX + (leftH ? 0.007 : -0.007), hy - 0.028, CD - 0.023); // plate's back on the side, knuckle just inside the front edge
+            wrap.position.set(sideX + (leftH ? 0.006 : -0.006), hy - 0.028, CD - 0.003); // plate's back on the side, knuckle out at the front edge
             wrap.visible = false; frame.add(wrap); leafHinges.push(wrap);
           }
         }
