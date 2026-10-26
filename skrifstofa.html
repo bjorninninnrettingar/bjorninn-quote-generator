@@ -365,6 +365,7 @@
     <div class="pvSub" id="pvSub"></div>
     <div class="pvSection"><h3 class="pvToggle">Almennt<span class="pvChev">▾</span></h3><div class="pvBody" id="pvProd"></div></div>
     <div class="pvSection"><h3 class="pvToggle">Peningar<span class="pvChev">▾</span></h3><div class="pvBody" id="pvMoney"></div></div>
+    <div class="pvSection"><h3 class="pvToggle">Greiðslur &amp; tilboð<span class="pvChev">▾</span></h3><div class="pvBody" id="pvGreidslur"></div></div>
     <div class="pvSection"><h3 class="pvToggle">Tengiliður<span class="pvChev">▾</span></h3><div class="pvBody" id="pvContact"></div></div>
     <div class="pvSection"><h3 class="pvToggle">Efni<span class="pvChev">▾</span></h3><div class="pvBody"><div id="pvMaterial"></div><div class="pvThumbs" id="pvThumbs"></div></div></div>
     <div class="pvSection"><h3 class="pvToggle">Teikningar<span class="pvChev">▾</span></h3><div class="pvBody"><div class="pvDocs" id="pvDrawings"></div></div></div>
@@ -397,6 +398,7 @@
 </div>
 
 <script src="/office-shell.js"></script>
+<script src="/office-money.js"></script>
 <script>
 (function () {
   "use strict";
@@ -1103,6 +1105,8 @@
     document.getElementById("pvDrawings").innerHTML = '<div class="empty">Sæki…</div>';
     document.getElementById("pvForms").innerHTML = '<div class="empty">Sæki…</div>';
     document.getElementById("pvOpenFerli").href = "/ferli?recordId=" + id + (getK() ? "&k=" + encodeURIComponent(getK()) : "");
+    // Greiðslur & tilboð (2026-10-26) — shared with /crm, see office-money.js + api/greidslur.js.
+    OfficeMoney.mount(document.getElementById("pvGreidslur"), id, getK());
 
     api(PROJECTS + "/" + id).then(function (rec) {
       var f = rec.fields || {};

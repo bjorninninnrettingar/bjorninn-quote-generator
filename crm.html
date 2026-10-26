@@ -352,6 +352,11 @@
       </div>
     </div>
 
+    <!-- Greiðslur & tilboð (2026-10-26) — shared with /skrifstofa, see office-money.js. Loaded on first
+         expand only, so opening a deal stays as cheap as before. -->
+    <button class="liToggle" id="omToggleBtn" type="button">💳 Greiðslur &amp; tilboð ▾</button>
+    <div id="omBody" class="liBody"></div>
+
     <div class="actions">
       <a id="dOpenPro" href="#" target="_blank">Opna í hönnuðinum →</a>
       <button class="printBtn" id="dPrintBtn" type="button">🖨️ Prenta tilboð</button>
@@ -478,6 +483,7 @@
 </div>
 
 <script src="/office-shell.js"></script>
+<script src="/office-money.js"></script>
 <script>
 (function () {
   "use strict";
@@ -991,6 +997,14 @@
     document.getElementById("dOpenPro").href = "/skipuleggja?pro=" + r.id + (k ? "&k=" + encodeURIComponent(k) : "");
     document.getElementById("dPrintMsg").textContent = "";
     setupLineItems(r);
+    var omBody = document.getElementById("omBody"), omBtn = document.getElementById("omToggleBtn");
+    omBody.classList.remove("open"); omBody.innerHTML = "";
+    omBtn.textContent = "💳 Greiðslur & tilboð ▾";
+    omBtn.onclick = function () {
+      var open = omBody.classList.toggle("open");
+      omBtn.textContent = "💳 Greiðslur & tilboð " + (open ? "▴" : "▾");
+      if (open) OfficeMoney.mount(omBody, r.id, k);
+    };
 
     stageSel.onchange = function () {
       var next = stageSel.value;
