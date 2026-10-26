@@ -59,3 +59,31 @@ still sees "Hvar er vélin?".
   margins — no inner scroll at 1440×900 or 1280×800.
 - E7: Ofanmynd — dimension text turned along its line on the outer side, wall names 58 px out (beyond the chain) and
   turned along the wall (`planTextAng`, side walls read bottom-up).
+
+## Baðherbergi as its own room (2026-10-26, user "allt já" on the coordinator's 17-item scan)
+Fataskápar is the model. Laundry's flow is untouched; shared code (wizard framing, step-1 preview) improves every room.
+- **Rými (5 pages → 3):** `SHAPE_TEMPLATES` `bathWall` / `bathCorner` (group `"bath"`, `closetWalls` = the unit walls, the
+  rest open). `bathShape()` / `unitWallShape()`; `closetDims` / `setClosetDim` serve both. Pick page: "Hvar á innréttingin
+  að vera?" (Einn veggur pre-picked) → `applyShapeTemplate` puts the water mid-wall 1 and opens **"Veggurinn og vatnið"**
+  (`shapePhase "water"`: `renderBathSize` cm fields — wall(s) + Lofthæð — above the droplet; the drawing shows the unit
+  walls' sizes, no wall arrows/number circles, no "Fjarlægja vatn") → Gluggar og hurðir (only the solid walls = the unit
+  wall(s)) → `lockRoom`. A saved bath opening on "size"/"height" lands on "water". PRO keeps the old shapes.
+- **Efni** (`MAT_PHASES_BAD`): Litur → Framhlið → Höldur → **Toppur og vaskur** (mirror cards + Egger tops, "Enginn toppur")
+  → Skúffur. `defaults` now pre-pick `look:"eg_H1180"` (Natural Halifax Oak), `handle:"jey"`, `top:"eg_W1000"` (harðplast
+  with the handlaug on it). Egger names left in English (no Icelandic names to hand). Preview = `renderBathPreview`: an
+  80 cm vaskaskápur hung at the wall's gap via buildScene (`hungUnits`, wall `plinthMm`), the mirror cabinet when picked,
+  `previewFloor()` adds a floor + wall so the gap reads; see-through fronts on Litur.
+- **3D** (kitchen-planner-3d.js): `meta.basin` (sink + hungUnits) → `addBasin` — white oval vessel basin + a ~25 cm
+  straight mixer; the top gets no cut-out; with "Enginn toppur" it sits on the cabinet. `addMirrorCabinet` over each sink
+  when `state.bathMirror` (70 cm high, 15 deep, mirror doors) unless a wall unit already hangs there — still only a note on
+  the order. Wall bubbles: bath uses the wardrobe rule (none on one wall, "Veggur 1/2" in a corner). Camera: a bath starts
+  facing its unit wall(s) at 1.3 m (`bathAim`). Props: `sturta` 90×90, `badkar` 170×70 (`DECOR_BATH`, never ordered, no
+  toilet); `bathPropSpot` puts them back-to-wall in the biggest free stretch next to the units (else the usual spot).
+- **Ný eining:** BAD_TREE Vaskaskápur / Grunnskápur have one option each → straight to the sections: Breidd (vaskaskápur
+  60/80/100/120, grunnskápur 30/40/60/80) → Hæð (box + Hæð frá gólfi, a gap pick advances) → **Skúffur eða hurðir**
+  (`bathFrontsHtml` picture cards, `data-hw`) → Innvols (hidden when empty, e.g. a sink with doors). No Dýpt for customers.
+  Preview hangs the unit (`pv.hungUnits` + wall `plinthMm`) over a floor; framing counts the tap (`extraTop`) and gives
+  low units more room (all rooms). Step 1 shows the first type straight away (`uw.hoverCat = 0`, all rooms).
+- **Skipulag panel (customer):** `#floatBar.cl-sel` (Afrita / Eyða) for bath units; `bathPanelHead` "◀ Vaskaskápur 1 af 3 ▶"
+  (`bathUnitOrder`), no Læsa, no ◀ ▶ / Fjarlægja row, no "Veggur 1 · neðri skápur".
+- Not done: the Senda inn summary still says "Borðplata" for the bath top; the tour's "Smelltu á grunnskáp" bubble.
