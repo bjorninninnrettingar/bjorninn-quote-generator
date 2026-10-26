@@ -2266,7 +2266,7 @@
         // draggable up/down in 3D (2026-10-21): writes the same b.shelfPos Smíða's own box editor reads —
         // only for a real block (the synthetic even-spread fallback above has nothing to write back to)
         if (meta.shelfBlock && pickables){
-          board.userData = { kind:"shelf-item", itemKind:"shelf", blockId:meta.shelfBlock.id, idx:sh, locked:meta.locked, bodyBaseY:bodyBase, widthM:widthM };
+          board.userData = { kind:"shelf-item", itemKind:"shelf", blockId:meta.shelfBlock.id, idx:sh, locked:meta.locked, bodyBaseY:bodyBase, widthM:widthM, ax:geom.axis.x, az:geom.axis.z };
           pickables.push(board);
           var boardEdges = new THREE.LineSegments(new THREE.EdgesGeometry(board.geometry), new THREE.LineBasicMaterial({ color:SELECT_COLOR, transparent:true, opacity:0 }));
           boardEdges.position.copy(board.position); boardEdges.quaternion.copy(board.quaternion);
@@ -2287,7 +2287,7 @@
           rod.castShadow = true;
           group.add(rod);
           if (pickables){
-            rod.userData = { kind:"rail-item", itemKind:"rail", blockId:meta.shelfBlock.id, idx:ri, locked:meta.locked, bodyBaseY:bodyBase, widthM:widthM };
+            rod.userData = { kind:"rail-item", itemKind:"rail", blockId:meta.shelfBlock.id, idx:ri, locked:meta.locked, bodyBaseY:bodyBase, widthM:widthM, ax:geom.axis.x, az:geom.axis.z };
             pickables.push(rod);
             var rodEdges = new THREE.LineSegments(new THREE.EdgesGeometry(rod.geometry), new THREE.LineBasicMaterial({ color:SELECT_COLOR, transparent:true, opacity:0 }));
             rodEdges.position.copy(rod.position); rodEdges.quaternion.copy(rod.quaternion);
@@ -2304,8 +2304,9 @@
       for (var oi = 0; oi < interior.count; oi++){
         var of0 = ofr ? (oi === 0 ? 0 : ofr[oi - 1]) : oi / interior.count * ozt, of1 = ofr ? (oi === interior.count - 1 ? ozt : ofr[oi]) : (oi + 1) / interior.count * ozt;
         var oy0 = bodyBase + bodyH * of0 + 0.0015, oy1 = bodyBase + bodyH * of1 - 0.0015;
-        var oslab = frontSlab(THREE, widthM - 0.004, oy1 - oy0, useFrontMat, null, { u:offsetM, v:oy0 });
-        oslab.position.copy(local(0, (oy0 + oy1) / 2, depthM - FRONT_T / 2)); oslab.quaternion.copy(quat);
+        // inset between the sides, flush with their front edges — like the kitchen's innskúffa (user, 2026-10-26)
+        var oslab = frontSlab(THREE, widthM - 2 * CARCASS_T - 0.004, oy1 - oy0, useFrontMat, null, { u:offsetM + CARCASS_T, v:oy0 });
+        oslab.position.copy(local(0, (oy0 + oy1) / 2, depthM - FRONT_T / 2 - 0.001)); oslab.quaternion.copy(quat);
         oslab.castShadow = true; oslab.receiveShadow = true; oslab.userData = meta;
         group.add(oslab);
       }
@@ -2598,7 +2599,7 @@
     // list is the block's own layout (the even-spread fallback has nothing to write back to)
     var dragShelves = !!(pickables && meta.shelfBlock && hasShelfLayout(meta.shelfBlock) && !meta.oven && !(meta.burCodes && meta.burCodes.length));
     function makeDraggable(mesh, kind, idx){
-      mesh.userData = { kind:kind + "-item", itemKind:kind, blockId:meta.shelfBlock.id, idx:idx, locked:false, bodyBaseY:bodyBase, widthM:widthM };
+      mesh.userData = { kind:kind + "-item", itemKind:kind, blockId:meta.shelfBlock.id, idx:idx, locked:false, bodyBaseY:bodyBase, widthM:widthM, ax:geom.axis.x, az:geom.axis.z };
       pickables.push(mesh);
       var ed = new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry), new THREE.LineBasicMaterial({ color:SELECT_COLOR, transparent:true, opacity:0 }));
       ed.position.copy(mesh.position); ed.quaternion.copy(mesh.quaternion); frame.add(ed);
@@ -3488,14 +3489,19 @@
     // linewidth almost everywhere, same reason málband's own tape line isn't a THREE.Line either).
     var GAP_LINE_T = 0.004, GAP_COLOR = 0x2b2b2e; // quiet dark line + a small white tag, like the Ný eining dimension lines (user, 2026-10-26: was big and blue)
     var gapBelow = { line:null, label:null }, gapAbove = { line:null, label:null };
-    function gapLabelPaint(cv, text){
-      var cx = cv.getContext("2d");
+    // the same look as the "+ Ný eining" dimension lines (user, 2026-10-26): a pill with the value, end ticks, blue while
+    // the item is being dragged, dark while only pointed at
+    var GAP_BLUE = "#0058a3", GAP_DARK = "#2b2b2e";
+    function gapLabelPaint(cv, text, active){
+      var cx = cv.getContext("2d"), col = active ? GAP_BLUE : GAP_DARK;
       cx.clearRect(0, 0, cv.width, cv.height);
-      cx.fillStyle = "rgba(255,255,255,.97)"; cx.strokeStyle = "#2b2b2e"; cx.lineWidth = 4; cx.beginPath();
-      if (cx.roundRect) cx.roundRect(6, 6, cv.width - 12, cv.height - 12, 40); else cx.rect(6, 6, cv.width - 12, cv.height - 12); cx.fill(); cx.stroke();
-      cx.fillStyle = "#2b2b2e"; cx.font = "700 46px 'Kumbh Sans', Arial, sans-serif"; cx.textAlign = "center"; cx.textBaseline = "middle";
+      cx.fillStyle = active ? col : "#fff"; cx.strokeStyle = col; cx.lineWidth = 4; cx.beginPath();
+      var h = cv.height - 12;
+      if (cx.roundRect) cx.roundRect(6, 6, cv.width - 12, h, h / 2); else cx.rect(6, 6, cv.width - 12, h); cx.fill(); cx.stroke();
+      cx.fillStyle = active ? "#fff" : col; cx.font = "700 44px 'Kumbh Sans', Arial, sans-serif"; cx.textAlign = "center"; cx.textBaseline = "middle";
       cx.fillText(text, cv.width / 2, cv.height / 2 + 2);
     }
+    function gapText(mm){ return unitCm() ? Math.round(mm / 10) + " cm" : Math.round(mm) + " mm"; } // whole cm (user, 2026-10-26)
     function ensureGapPart(part){
       if (part.label) return;
       var cv = document.createElement("canvas"); cv.width = 260; cv.height = 92;
@@ -3506,30 +3512,36 @@
       part.line = new THREE.Mesh(new THREE.CylinderGeometry(GAP_LINE_T / 2, GAP_LINE_T / 2, 1, 8),
         new THREE.MeshBasicMaterial({ color:GAP_COLOR, depthTest:false, transparent:true, opacity:0.92 }));
       part.line.renderOrder = 998;
-      if (THREE_STATE && THREE_STATE.scene){ THREE_STATE.scene.add(part.label); THREE_STATE.scene.add(part.line); }
+      part.ticks = [0, 1].map(function(){ var t = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.003, 0.003), part.line.material); t.renderOrder = 998; return t; });
+      if (THREE_STATE && THREE_STATE.scene){ THREE_STATE.scene.add(part.label); THREE_STATE.scene.add(part.line); part.ticks.forEach(function(t){ THREE_STATE.scene.add(t); }); }
     }
-    function setGapPart(part, text, x, z, ay, by){ // ay/by: world Y of the two ends (either order)
+    function setGapPart(part, text, x, z, ay, by, active, dir){ // ay/by: world Y of the two ends (either order)
       ensureGapPart(part);
-      if (part.label.userData.lastText !== text){
-        gapLabelPaint(part.label.userData.canvas, text);
+      var key = text + (active ? "|a" : "");
+      if (part.label.userData.lastText !== key){
+        gapLabelPaint(part.label.userData.canvas, text, active);
         part.label.material.map.needsUpdate = true;
-        part.label.userData.lastText = text;
+        part.label.userData.lastText = key;
       }
-      var lenM = Math.max(1e-4, Math.abs(by - ay)), midY = (ay + by) / 2;
-      part.line.position.set(x, midY, z); part.line.scale.set(1, lenM, 1);
+      part.line.material.color.set(active ? GAP_BLUE : GAP_DARK);
+      var lenM = Math.max(1e-4, Math.abs(by - ay)), midY = (ay + by) / 2, th = active ? 1.6 : 1;
+      part.line.position.set(x, midY, z); part.line.scale.set(th, lenM, th);
       part.label.position.set(x, midY, z);
+      var rotY = dir ? -Math.atan2(dir.z, dir.x) : 0;
+      part.ticks.forEach(function(t, i){ t.position.set(x, i ? by : ay, z); t.rotation.set(0, rotY, 0); t.scale.set(1, th, th); t.visible = true; });
       part.line.visible = true; part.label.visible = true;
     }
-    function showGapInfo(mesh, mm, trueLo, trueHi){ // mm/trueLo/trueHi: the item's own mm + its real neighbours'/zone's
+    function showGapInfo(mesh, mm, trueLo, trueHi, active){ // mm/trueLo/trueHi: the item's own mm + its real neighbours'/zone's
       var wp = new THREE.Vector3(); mesh.getWorldPosition(wp);
-      var wq = new THREE.Quaternion(); mesh.getWorldQuaternion(wq);
-      var dir = new THREE.Vector3(1, 0, 0).applyQuaternion(wq);
-      var off = wp.clone().addScaledVector(dir, (mesh.userData.widthM || 0.6) / 2 + 0.09); // just past the item's own end
-      var baseY = mesh.userData.bodyBaseY, itemY = baseY + mm / 1000;
-      setGapPart(gapBelow, dimLen(mm - trueLo), off.x, off.z, baseY + trueLo / 1000, itemY);
-      setGapPart(gapAbove, dimLen(trueHi - mm), off.x, off.z, itemY, baseY + trueHi / 1000);
+      var u = mesh.userData, dir;
+      if (u.ax != null) dir = new THREE.Vector3(u.ax, 0, u.az); // the cabinet's own run (a rail's mesh is turned on its side)
+      else { var wq = new THREE.Quaternion(); mesh.getWorldQuaternion(wq); dir = new THREE.Vector3(1, 0, 0).applyQuaternion(wq); }
+      var off = wp.clone().addScaledVector(dir, (u.widthM || 0.6) / 2 + 0.07); // just past the item's own end
+      var baseY = u.bodyBaseY, itemY = baseY + mm / 1000;
+      setGapPart(gapBelow, gapText(mm - trueLo), off.x, off.z, baseY + trueLo / 1000, itemY, active, dir);
+      setGapPart(gapAbove, gapText(trueHi - mm), off.x, off.z, itemY, baseY + trueHi / 1000, active, dir);
     }
-    function hideGapInfo(){ [gapBelow, gapAbove].forEach(function(p){ if (p.label) p.label.visible = false; if (p.line) p.line.visible = false; }); }
+    function hideGapInfo(){ [gapBelow, gapAbove].forEach(function(p){ if (p.label) p.label.visible = false; if (p.line) p.line.visible = false; (p.ticks || []).forEach(function(t){ t.visible = false; }); }); }
     function setHover(mesh){
       if (mesh === hovered) return;
       if (hovered){
@@ -3583,7 +3595,7 @@
           if (res2){
             var wq2 = new THREE.Quaternion(); drag.mesh.getWorldQuaternion(wq2);
             var off2 = wpD.clone().addScaledVector(new THREE.Vector3(1, 0, 0).applyQuaternion(wq2), (dm.widthM || 0.5) / 2 + 0.09);
-            setGapPart(gapBelow, res2.label, off2.x, off2.z, dm.drawerBotY, dm.drawerBotY + res2.mm / 1000);
+            setGapPart(gapBelow, res2.label, off2.x, off2.z, dm.drawerBotY, dm.drawerBotY + res2.mm / 1000, true, new THREE.Vector3(1, 0, 0).applyQuaternion(wq2));
           }
         }
         return;
@@ -3605,7 +3617,7 @@
             var newY = drag.meta.bodyBaseY + res.mm / 1000 + boardOffM;
             drag.mesh.position.y = newY;
             if (drag.mesh.userData.edgesObj) drag.mesh.userData.edgesObj.position.y = newY;
-            showGapInfo(drag.mesh, res.mm, res.trueLo, res.trueHi);
+            showGapInfo(drag.mesh, res.mm, res.trueLo, res.trueHi, true);
           }
         }
         return;
