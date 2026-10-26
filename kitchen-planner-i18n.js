@@ -914,6 +914,7 @@
     "Fataskápur": "Wardrobe",
     "Skápar, innvols og rennihurðir": "Wardrobes, interiors and sliding doors",
     "Skápar og innvols": "Wardrobes and interiors",
+    "Það tókst ekki — reyndu aftur.": "That didn't work — please try again.",
     "Hengi": "Hanging",
     "Hilla og slá": "Shelf and rail",
     "Tvöföld slá": "Double rail",

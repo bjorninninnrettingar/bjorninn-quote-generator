@@ -2547,6 +2547,7 @@
     state.closed = true;
     state.shapeKey = key;
     state.closetSpans = {}; // a wardrobe's part-of-the-wall belongs to the old walls
+    state.closetSeeded = false; // new walls: Skipulag fills them again
     state.windows = []; state.doors = []; state.islands = []; state.obstacles = [];
     state.waterWall = null; state.waterAlongMm = null; state.seeded = false; state.openingsDone = false;
     selectedEdge = null;
@@ -3539,6 +3540,7 @@
       var w = state.walls[i], sp = closetSpan(i); if (!w || !sp) return;
       var lo = Math.max(sp.start, runStartMm(w, "floor")), hi = Math.min(sp.start + sp.mm, runEndMm(w, "floor"));
       var corner = null;
+      if (k === "closetNiche"){ lo = Math.max(lo, CLOSET_CORNER_FILLER_MM); hi = Math.min(hi, w.lengthMm - CLOSET_CORNER_FILLER_MM); } // a 6 cm filler at each side wall so the outer doors open past 90° (QA: they hit the niche walls)
       if (k === "closetCorner" && i === 1) lo = Math.max(lo, (state.closetDepthMm || 580) + CLOSET_CORNER_FILLER_MM); // wall 2 starts behind the corner unit + a filler so its first door clears wall 1's handles
       if (k === "closetCorner" && i === 0){ // the corner square: an open shelf unit, the bays end before it
         var d = Math.min((state.closetDepthMm || 580) + CLOSET_CORNER_FILLER_MM, hi - lo); // as deep as wall 2's units + the filler, so wall 1's last door clears them too
@@ -4908,10 +4910,15 @@
   // kindOf: the block being edited — cabinets swap among cabinets, panels among
   // panels, loose shelves stay loose shelves.
   function typesForZone(zone, like){
-    var lc = like ? CATALOG[like.type] : null;
+    var lc = like ? CATALOG[like.type] : null, cd = categoryDef(state.activeCategory), own = null;
+    if (cd && cd.tree && !PRO){ // a room with its own unit list only offers those (QA 2026-10-26: a wardrobe offered ovens and fridges)
+      own = {}; cd.tree.forEach(function(g){ (g.opts || []).forEach(function(o){ if (o.type) own[o.type] = true; }); });
+      if (isCloset()){ own.harskapur = true; own.harskapurOpinn = true; }
+    }
     return Object.keys(CATALOG).filter(function(t){
       var c = CATALOG[t];
       if (c.zone !== zone || c.legacy) return false;
+      if (own && !own[t]) return false;
       if (lc && lc.panel) return !!c.panel;
       if (lc && lc.shelfStack) return !!c.shelfStack;
       return !c.panel && !c.shelfStack;
@@ -6264,11 +6271,18 @@
   var HUNG_GAPS = [150, 200, 250, 300]; // "Hæð frá gólfi" chips, mm
   function activeUnitTree(){ var cd = categoryDef(state.activeCategory); return (cd && cd.tree) || UNIT_TREE; }
   var uw = null; // { step, cat, opt, b, wallId }
-  function uwSurfaces(zone){ return zone === "wall" ? state.walls.filter(function(w){ return !w.open; }) : surfaces().filter(function(w){ return !w.open; }); }
+  function uwSurfaces(zone){
+    var list = zone === "wall" ? state.walls.filter(function(w){ return !w.open; }) : surfaces().filter(function(w){ return !w.open; });
+    var k = closetShape(); // a wardrobe's units only go on its own wall(s) — in a niche a new one landed on the shoulder outside it (QA F1)
+    if (k){ var cw = SHAPE_TEMPLATES[k].closetWalls.map(function(i){ return state.walls[i]; }); list = list.filter(function(w){ return cw.indexOf(w) >= 0; }); }
+    return list;
+  }
   function uwFits(w, b){ var c = CATALOG[b.type]; return canFit(w, c.zone, b.widthMm, probeSpan(c.zone, b)); }
   // The editor's own camera, put back when the wizard closes (the preview replaces the one 3D scene).
   var uwEditorCam = null;
+  function closeFitAsk(){ var fa = document.getElementById("fitAsk"); if (fa) fa.remove(); }
   function openUnitWizard(){
+    closeFitAsk(); // an unanswered "passar ekki" question is about a unit that's no longer being added (QA J1)
     uw = { step:1 };
     var st = KP3D._three();
     uwEditorCam = st ? { p:st.camera.position.clone(), t:st.controls.target.clone() } : null;
@@ -6277,6 +6291,7 @@
     renderUnitWizard();
   }
   function leaveUnitWizard(){
+    closeFitAsk();
     KP3D.setAllParts(false); // don't carry the preview's open drawers into the room
     uw = null;
     clearTimeout(uwPrevTimer); uwPrevKey = "";
@@ -6398,6 +6413,7 @@
     uw.sec = order.slice(order.indexOf(key) + 1).find(function(k){ return !uw.picked[k]; }) || "inn";
   }
   function renderUnitWizard(){
+    closeFitAsk(); // any change in the wizard makes a pending "passar ekki" question stale
     var side = document.getElementById("uwSide"), html = "";
     if (uw.step === 1){
       html = '<p class="uw-kicker">' + __("Ný eining") + '</p><h3>' + __("Hvað viltu bæta við?") + '</h3><div class="uw-grid">' + activeUnitTree().map(function(cat, i){
@@ -6674,8 +6690,8 @@
       if (!pl.fits){
         var widest = Math.max.apply(null, [0].concat(freeIntervals(wall, c.zone, null, probeSpan(c.zone, b)).map(function(iv){ return iv[1] - iv[0]; })));
         var fitW = wall.island ? 0 : Math.min(c.maxW, Math.floor(widest / 10) * 10);
-        if (fitW >= c.minW) offerFit(__("{name} {w} mm passar ekki á {wall}.", { name:__(c.label), w:b.widthMm, wall:KPI18N.lang === "en" ? __(wall.label).toLowerCase() : wallDat(wall) }), fitW, function(){ b.widthMm = fitW; add.click(); });
-        else toast(__("Ekki nóg pláss á {wall} fyrir {name}.", { wall:__(wall.label).toLowerCase(), name:__(c.label).toLowerCase() }));
+        if (fitW >= c.minW) offerFit(__("{name} {w} mm passar ekki á {wall}.", { name:__(c.label), w:b.widthMm, wall:KPI18N.lang === "en" ? __(wall.label).toLowerCase() : wallDat(wall) }), fitW, function(){ if (!uw || uw.b !== b) return; b.widthMm = fitW; add.click(); }); // the wizard may have moved on (QA J1)
+        else toast(__("Ekki nóg pláss á {wall} fyrir {name}.", { wall:KPI18N.lang === "en" ? __(wall.label).toLowerCase() : wallDat(wall), name:__(c.label).toLowerCase() }));
         return;
       }
       insertBlockAt(wall, c.zone, b, pl.offsetMm);
@@ -9784,7 +9800,7 @@
     document.body.appendChild(el);
     function close(){ el.remove(); document.removeEventListener("keydown", onKey); }
     function onKey(e){ if (e.key === "Escape") close(); else if (e.key === "Enter"){ close(); onYes(); } }
-    el.querySelector('[data-fit="yes"]').addEventListener("click", function(){ close(); onYes(); });
+    el.querySelector('[data-fit="yes"]').addEventListener("click", function(){ close(); try { onYes(); } catch (e){ toast(__("Það tókst ekki — reyndu aftur.")); } });
     el.querySelector('[data-fit="no"]').addEventListener("click", close);
     document.addEventListener("keydown", onKey);
     el.querySelector('[data-fit="yes"]').focus();
