@@ -536,3 +536,9 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   see-through in the previews. Ný eining: Vélarstæða / Vélar undir borðplötu (pair) / Vaskaskápur / Grunnskápur / Hár /
   Efri. Props Þvottakarfa + Straubretti. Bath's float bar, auto úthliðar, unit-wall camera. No water marked → the sink
   (and machines) still placed, in every customer room. Full notes: [studio-bad-thvottahus.md](studio-bad-thvottahus.md).
+- **Round 7 (2026-10-26, partly done — usage limit):** `hinge_hidden` = JNF COPLAN 175 built from the maker's drawing:
+  two bodies (28 × 177, R14 end caps engraved "JNF COPLAN 175" via a small canvas texture, 79 mm housing between them)
+  and a 3-section arm (2 outer links + centre link, pins, black washers) solved from the door angle each frame
+  (`fixed.userData.update` → `door.userData.armUps`, called from `setOpen`). Finishes in `COPLAN_FINISH`: króm → matt
+  silver, svart → matt black, bronze kept for later. Payload 0 KB (procedural). Not done: the engraving reads mirrored on
+  one body; the samlokulöm photo-real pass; a 1280×720 check of this round.

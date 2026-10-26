@@ -231,16 +231,67 @@
   // a plate lying on a face whose outward normal is ±x: its own +Z turned onto that normal, its own X along the door's z
   function onXFace(o, nx){ o.rotation.y = nx > 0 ? Math.PI / 2 : -Math.PI / 2; return o; }
   function screwHead(T, m, r){ var h = new T.Mesh(new T.CylinderGeometry(r, r * 0.92, 0.0008, 20), m); h.rotation.z = Math.PI / 2; return h; } // axis along x
+  var COPLAN_FINISH = { silver:[0xb4b7bb, 0.48, 0x55585c], black:[0x232427, 0.58, 0x101112], bronze:[0x8a6a50, 0.45, 0x3a2c22] }; // [colour, roughness, housing]
+  var COPLAN_TEX = {};
+  function coplanMat(T, fin, engraved){ // powder-coated matt zamak with a slight satin sheen; the caps carry "JNF COPLAN 175"
+    var o = { color:fin[0], roughness:fin[1], metalness:0.55, envMapIntensity:1 };
+    if (engraved && typeof document !== "undefined"){
+      var k = fin[0], t = COPLAN_TEX[k];
+      if (!t){ var cv = document.createElement("canvas"); cv.width = 128; cv.height = 256; var x = cv.getContext("2d"), col = new T.Color(fin[0]);
+        x.fillStyle = "#" + col.getHexString(); x.fillRect(0, 0, 128, 256);
+        x.save(); x.translate(70, 128); x.rotate(-Math.PI / 2); x.fillStyle = "#" + col.clone().multiplyScalar(fin[0] === 0x232427 ? 1.9 : 0.62).getHexString(); x.font = "600 22px sans-serif"; x.textAlign = "center"; x.fillText("JNF  COPLAN 175", 0, 8); x.restore();
+        t = COPLAN_TEX[k] = new T.CanvasTexture(cv); if (T.SRGBColorSpace) t.colorSpace = T.SRGBColorSpace; }
+      o.map = t; o.color = 0xffffff;
+    }
+    return T.MeshPhysicalMaterial ? new T.MeshPhysicalMaterial(Object.assign(o, { sheen:0.3, sheenRoughness:0.6, clearcoat:0.08 })) : mat(T, o);
+  }
+  function capGeo(T, w, l, end){ // a D-shaped cap w × l, round at the outer end (end = +1 top, -1 bottom), 1.6 mm, UVs over its box
+    var s = new T.Shape(), r = w / 2;
+    if (end > 0){ s.moveTo(0, 0); s.lineTo(w, 0); s.lineTo(w, l - r); s.absarc(r, l - r, r, 0, Math.PI, false); s.lineTo(0, 0); }
+    else { s.moveTo(0, 0); s.lineTo(0, -(l - r)); s.absarc(r, -(l - r), r, Math.PI, Math.PI * 2, false); s.lineTo(w, 0); s.lineTo(0, 0); }
+    var g = new T.ExtrudeGeometry(s, { depth:0.0016, bevelEnabled:true, bevelThickness:0.0004, bevelSize:0.0004, bevelSegments:2, curveSegments:16 });
+    var uv = g.attributes.uv, y0 = end > 0 ? 0 : -l; for (var i = 0; i < uv.count; i++){ uv.setXY(i, uv.getX(i) / w, (uv.getY(i) - y0) / l); }
+    return g;
+  }
   function hingeYs(g){ var ys = [0.2, g.leafH - 0.22]; if (g.leafH > 2.15) ys.splice(1, 0, g.leafH * 0.55); return ys; } // hinge centres above the leaf's bottom
   var HW = {
-    // faldar lamir: no model yet — the flush plate that shows in the seam (a real concealed hinge sits inside the edge)
-    hinge_hidden:function(c){ // innfelldar lamir (no model yet): the two flush plates you see on the leaf's edge and the karmur
-      var T = c.T, g = c.g, sg = g.s, m = steel(T, c.d), grp = new T.Group(), fixed = new T.Group(), dk = dark(T);
-      hingeYs(g).forEach(function(y){
-        grp.add(rbox(T, 0.0016, 0.135, 0.026, 0.0008, m, sg * 0.0006, FLOOR_GAP + y, -g.leafT / 2));
-        grp.add(box(T, 0.0008, 0.06, 0.012, dk, sg * 0.0014, FLOOR_GAP + y, -g.leafT / 2)); // the pivot pocket
-        fixed.add(rbox(T, 0.0016, 0.135, 0.026, 0.0008, m, sg * (GAP - 0.0006), FLOOR_GAP + y, -g.leafT / 2));
+    // innfelldar lamir = JNF COPLAN 175 (round 7, from the maker's drawing, mm): two mortise bodies 28 wide × 177 long with
+    // round ends (R14) — flush end caps engraved "JNF COPLAN 175", a 79 mm housing between them — and a 3-section folding
+    // arm (two outer links on the door body, a centre link on the frame body, pins + black washers). The arm is solved
+    // from the door angle every frame (two-link fold), so it opens and closes with the door. Colour: króm → matt silver,
+    // svart → matt black (bronze kept in COPLAN_FINISH for later).
+    hinge_hidden:function(c){
+      var T = c.T, g = c.g, sg = g.s, grp = new T.Group(), fixed = new T.Group(), fin = COPLAN_FINISH[c.d && c.d.hwColor === "svart" ? "black" : "silver"];
+      var m = coplanMat(T, fin), cap = coplanMat(T, fin, true), inner = mat(T, { color:fin[2], roughness:0.7, metalness:0.4 }), pin = mat(T, { color:0x9a9da1, metalness:0.9, roughness:0.3 }), wash = dark(T);
+      var W = 0.028, CAPL = 0.049, HOUS = 0.079, zc = -g.leafT / 2, DEPTH = 0.024, LINK = 0.033, arms = [];
+      function body(par, faceX, out){ // out = the side the face looks to (±x); caps + the housing seen through the face
+        [1, -1].forEach(function(e){ var cp = new T.Mesh(capGeo(T, W, CAPL, e), cap); cp.rotation.y = Math.PI / 2; cp.position.set(faceX + (out > 0 ? -0.0016 : 0) + out * 0.0004, 0, zc + W / 2); cp.position.y = e * HOUS / 2; cp.castShadow = true; par.add(cp); });
+        par.add(box(T, 0.0004, HOUS, W - 0.003, inner, faceX + out * 0.0003, 0, zc)); // the housing, read as a recess
+        [1, -1].forEach(function(k){ par.add(box(T, 0.0012, HOUS, 0.0014, m, faceX + out * 0.0006, 0, zc + k * (W / 2 - 0.0007))); }); // its rims
+      }
+      hingeYs(g).forEach(function(yc){
+        var y = FLOOR_GAP + yc, dg = new T.Group(), fg = new T.Group(); dg.position.y = fg.position.y = y;
+        body(dg, 0, sg); body(fg, sg * GAP, -sg); grp.add(dg); fixed.add(fg);
+        // the arm (in the frame's group, posed from the door angle)
+        var arm = new T.Group(); arm.position.y = y; fixed.add(arm);
+        var outerL = [0.0235, -0.0235].map(function(oy){ var l = rbox(T, LINK, 0.014, 0.02, 0.004, m, 0, oy, 0); arm.add(l); return l; });
+        var centreL = rbox(T, LINK, 0.033, 0.02, 0.005, m, 0, 0, 0); arm.add(centreL);
+        var pins = [0, 1, 2].map(function(){ var p = new T.Mesh(new T.CylinderGeometry(0.0032, 0.0032, 0.064, 16), pin); arm.add(p); return p; });
+        var washers = []; [0.0165, -0.0165].forEach(function(oy){ for (var i = 0; i < 3; i++){ var w2 = new T.Mesh(new T.CylinderGeometry(0.0045, 0.0045, 0.0012, 16), wash); w2.userData.oy = oy; w2.userData.pin = i; arm.add(w2); washers.push(w2); } });
+        arms.push(function(ang){ // ang = the leaf's rotation (radians)
+          var dx = -sg * DEPTH, dz = zc, ca = Math.cos(ang), sa = Math.sin(ang);
+          var A = { x:dx * ca + dz * sa, z:-dx * sa + dz * ca }, B = { x:sg * (GAP + DEPTH), z:zc };
+          var mx = (A.x + B.x) / 2, mz = (A.z + B.z) / 2, vx = B.x - A.x, vz = B.z - A.z, d = Math.hypot(vx, vz) || 1, h = Math.sqrt(Math.max(0, LINK * LINK - d * d / 4));
+          var nx = -vz / d, nz = vx / d; if (nz < 0){ nx = -nx; nz = -nz; } // fold toward the room the door opens to
+          var J = { x:mx + nx * h, z:mz + nz * h };
+          function place(o, P1, P2){ o.position.x = (P1.x + P2.x) / 2; o.position.z = (P1.z + P2.z) / 2; o.rotation.y = -Math.atan2(P2.z - P1.z, P2.x - P1.x); }
+          outerL.forEach(function(l){ place(l, A, J); }); place(centreL, J, B);
+          [A, J, B].forEach(function(P, i){ pins[i].position.set(P.x, 0, P.z); });
+          washers.forEach(function(w2){ var P = [A, J, B][w2.userData.pin]; w2.position.set(P.x, w2.userData.oy, P.z); });
+        });
+        arms[arms.length - 1](0);
       });
+      fixed.userData.update = function(ang){ arms.forEach(function(f){ f(ang); }); };
       grp.userData.fixed = fixed; return grp; },
     // sýnilegar lamir: JNF IN.05.020.100 heavy duty, the knuckle on the hinge line at the face (half of it proud)
     hinge_visible:function(c){
@@ -473,7 +524,7 @@
         }
         leafGroup.position.set(g.pivotX, 0, Th / 2);
         hardwareOf(d).leaf.forEach(function(k){ var o = hw(k, c); if (!o) return; leafGroup.add(o);
-          if (o.userData.fixed){ o.userData.fixed.position.set(g.pivotX, 0, Th / 2); grp.add(o.userData.fixed); } }); // frame leaves / strikes stay on the frame
+          if (o.userData.fixed){ o.userData.fixed.position.set(g.pivotX, 0, Th / 2); grp.add(o.userData.fixed); if (o.userData.fixed.userData.update) (grp.userData.armUps = grp.userData.armUps || []).push(o.userData.fixed.userData.update); } }); // frame leaves / strikes stay on the frame
       }
       grp.add(leafGroup);
     }
@@ -632,7 +683,7 @@
     var door = P.door, lg = door && door.userData.leaf; if (!lg) return;
     var g = door.userData.g;
     if (g.slide) lg.position.x = (lg.userData.slideDir || 1) * k * g.W;
-    else lg.rotation.y = g.s * k * Math.PI / 2;
+    else { lg.rotation.y = g.s * k * Math.PI / 2; (door.userData.armUps || []).forEach(function(f){ f(lg.rotation.y); }); } // the COPLAN arm folds with the door
   }
   // Felliþröskuldur: the door swings shut and the seal drops onto the floor, over and over (3.2 s)
   function sealLoop(){
