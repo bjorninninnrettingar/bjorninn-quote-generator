@@ -343,6 +343,38 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
 - 2026-10-26 Skúffukerfi page in every room (`drawersPhase()`): Fataskápar (last Efni page, after Höldur), Bað and Þvottahús
   (after Litur). Before, those rooms never asked and `drawerSys()` silently fell back to Legra (the dearer line). The page
   preselects Merivo when nothing is chosen; the wardrobe preview shows three drawers per unit on that page (click opens one).
+- **Skipulag (3D editor) polish, items 9–23 except the menu/view ones (user, 2026-10-26, "allt já"):**
+  - Wall bubbles (`wallLabels`, kitchen-planner-3d.js): a wardrobe with one wall holding units (straight / niche) has none;
+    a corner says "Veggur 1 / 2" (crisp, `toneMapped:false`) past each wall's FREE end (`closetOuterEnd`, the end not
+    touching the other wardrobe wall). Kitchen unchanged (the overlay's dimension pills are always drawn over the bubbles).
+  - Total size: per wardrobe wall the run's total width 24 cm above the units (only with 2+ blocks), and one total height
+    line at the free end — `PENDING_DIMS`, same overlay style, on/off with Málsetning.
+  - Float bar for a wardrobe block (customer, `#floatBar.cl-sel`): under the unit at floor level, only "Afrita" / "Eyða"
+    with words; no size text, no lock, no ◀ ▶ (`placeFloatBar` reads the class). Kitchen and decor/obstacles unchanged.
+  - Selection in a wardrobe: no lilac emissive on the doors (`wardrobeScene` gates both selection clones); a 2.5 px blue
+    outline of the unit's front face drawn in the overlay (`selHullSvg`).
+  - Side panel: while it's open the 3D picture slides left (`panelShift` → `camera.setViewOffset`, the camera itself
+    doesn't move) by half the panel, more if the selected unit would still sit under it; worked out once per
+    panel/selection change so orbiting isn't fought (`opts.coveredRight` = `panelCoveredPx`, customers only, every room).
+  - Wardrobe panel head: "◀ Skápur 2 af 3 ▶" (`closetPanelHead`, order = `closetUnitOrder` = wall 1 → wall 2), the old
+    bottom ◀ ▶ / Fjarlægja row is gone for wardrobe units (float bar has Eyða). Fleiri stillingar = Hæð, Dýpt, LED,
+    Úthlið only. Kitchen head says "Veggur 1 · neðri/efri skápur" instead of "röð".
+  - "Ég raða sjálf/ur": the brown area(s) (`closetEmptySpans`, from `closetSpan`) stand on the wall as a see-through
+    volume with a dashed outline and "+ Smelltu hér til að bæta við skáp" (overlay label, `OV.labels`); a click
+    (`spanAt` in onClickEmpty → `onClosetSpanClick`) opens Ný eining for that wall, the unit is at most the area's width
+    and lands at the area's left end (`uwPreferWallId` / `uwPreferSpan`). The old #stageEmpty text never shows in a wardrobe.
+  - Toolbar: Málband, X-Ray, Málsetning live in one "Skoða" dropdown (`#viewMenu`, same `.ed-menus .cat-sec` style,
+    switches per row, a blue dot on the button while Málband or X-Ray is on — the bar never changes width); 3D / 2D /
+    Ofanmynd is one segmented control. The buttons kept their ids, so all old handlers still work. PRO gets the same menu.
+  - Gluggar og hindranir (customer): a click on Gluggi / Hurð / Op or an obstacle starts `startPlaceMode` — a ghost label
+    + the usual drop preview follow the pointer over the walls; a click on a wall places it there (a blocked spot toasts
+    and keeps placing), Esc or a click outside the view cancels. Dragging from the menu still works; PRO keeps the
+    old click-adds-to-the-selected-wall. The "Fer á valinn vegg (annars vegg 1)" hint is gone for customers.
+  - Wardrobe drag: a unit dropped onto its neighbour on the same wall trades places with it (`closetSwapTarget` /
+    `swapClosetUnits`; the preview shows the neighbour's slot). Gaps stay with the slots; a bound úthlið's
+    `lockTo.id` (it's `{id, dir}`) is rebound so it stays at the run's end. Kitchen drag unchanged.
+  - Undo / redo: ink-coloured 2 px icons, disabled at .45; tooltips "Afturkalla (Cmd+Z)" / "Endurgera (Cmd+Shift+Z)"
+    (Ctrl on Windows); the shortcuts already worked and still skip inputs.
 - Still open: several closets per project (handled by the Allt heimilið session's `type:N` keys).
 - Baðherbergi + Þvottahús flows (2026-10-26): [studio-bad-thvottahus.md](studio-bad-thvottahus.md)
 - Innihurðir as steps + Allt heimilið as a list (2026-10-26): see [studio-hurdir-heimili.md](studio-hurdir-heimili.md)
