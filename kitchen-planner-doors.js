@@ -234,8 +234,14 @@
   function hingeYs(g){ var ys = [0.2, g.leafH - 0.22]; if (g.leafH > 2.15) ys.splice(1, 0, g.leafH * 0.55); return ys; } // hinge centres above the leaf's bottom
   var HW = {
     // faldar lamir: no model yet — the flush plate that shows in the seam (a real concealed hinge sits inside the edge)
-    hinge_hidden:function(c){ var T = c.T, grp = new T.Group(), m = mat(T, { color:0x45484c, metalness:0.6, roughness:0.4 });
-      hingeYs(c.g).forEach(function(y){ grp.add(box(T, 0.009, 0.13, 0.003, m, 0.0035 * c.g.s, FLOOR_GAP + y, 0.0012)); }); return grp; },
+    hinge_hidden:function(c){ // innfelldar lamir (no model yet): the two flush plates you see on the leaf's edge and the karmur
+      var T = c.T, g = c.g, sg = g.s, m = steel(T, c.d), grp = new T.Group(), fixed = new T.Group(), dk = dark(T);
+      hingeYs(g).forEach(function(y){
+        grp.add(rbox(T, 0.0016, 0.135, 0.026, 0.0008, m, sg * 0.0006, FLOOR_GAP + y, -g.leafT / 2));
+        grp.add(box(T, 0.0008, 0.06, 0.012, dk, sg * 0.0014, FLOOR_GAP + y, -g.leafT / 2)); // the pivot pocket
+        fixed.add(rbox(T, 0.0016, 0.135, 0.026, 0.0008, m, sg * (GAP - 0.0006), FLOOR_GAP + y, -g.leafT / 2));
+      });
+      grp.userData.fixed = fixed; return grp; },
     // sýnilegar lamir: JNF IN.05.020.100 heavy duty, the knuckle on the hinge line at the face (half of it proud)
     hinge_visible:function(c){
       var T = c.T, g = c.g, s = g.s, m = steel(T, c.d), dk = mat(T, { color:0x8d9095, metalness:0.9, roughness:0.45 }), grp = new T.Group(), fixed = new T.Group();
@@ -248,10 +254,10 @@
         }
         // the door leaf in the leaf's hinge edge (mortised, face flush with the edge), R10 on its outer corners, 4 screws
         // (plate X → into the thickness, its 3 mm along +x: the door leaf goes into the leaf's edge, the frame leaf into the jamb)
-        var dl = plate(T, plateShape(T, door - R, H, 0.01, null, "right"), t, m); dl.rotation.y = Math.PI / 2; dl.position.set(s > 0 ? -t : 0, y, ax - R - (door - R) / 2); grp.add(dl);
-        [[0.037, 0.020], [0.0125, 0.011], [-0.0125, 0.020], [-0.037, 0.011]].forEach(function(p){ var sh = screwHead(T, m, 0.003); sh.position.set(s * 0.0004, y + p[0], ax - door + p[1]); grp.add(sh); });
+        var dl = plate(T, plateShape(T, door - R, H, 0.01, null, "right"), t, m); dl.rotation.y = Math.PI / 2; dl.position.set((s > 0 ? -t : 0) + s * 0.0004, y, ax - R - (door - R) / 2); grp.add(dl); // 0.4 mm proud of the edge (no z-fighting with it)
+        [[0.037, 0.020], [0.0125, 0.011], [-0.0125, 0.020], [-0.037, 0.011]].forEach(function(p){ var sh = screwHead(T, m, 0.003); sh.position.set(s * 0.0009, y + p[0], ax - door + p[1]); grp.add(sh); });
         // the frame leaf on the jamb (it stays put when the door swings)
-        var fl = plate(T, plateShape(T, frame - R, H, 0.01, null, "right"), t, m); fl.rotation.y = Math.PI / 2; fl.position.set(s > 0 ? GAP : -GAP - t, y, ax - R - (frame - R) / 2); fixed.add(fl);
+        var fl = plate(T, plateShape(T, frame - R, H, 0.01, null, "right"), t, m); fl.rotation.y = Math.PI / 2; fl.position.set((s > 0 ? GAP : -GAP - t) - s * 0.0004, y, ax - R - (frame - R) / 2); fixed.add(fl);
       });
       grp.userData.fixed = fixed; return grp; },
     // þétting sem fellur niður (procedural stand-in while drop-seal.glb loads): an aluminium strip in the bottom edge
@@ -402,17 +408,24 @@
     var leafMat = woodPart(T, woody ? look : null, g.leafW, g.leafH);
     var jambMat = woody ? woodPart(T, look, Th, H) : paint, headMat = woody ? woodPart(T, look, W, Th, true) : paint;
     var caseMatV = woody ? woodPart(T, look, CASE_W, H) : paint, caseMatH = woody ? woodPart(T, look, W + 2 * CASE_W, CASE_W, true) : paint; // gerefti follow the leaf (user, round 4)
-    // the wall, cut where the opening is
-    [[sideW, Hw, -W / 2 - sideW / 2, Hw / 2], [sideW, Hw, W / 2 + sideW / 2, Hw / 2], [W, Hw - H, 0, H + (Hw - H) / 2]].forEach(function(p){
-      if (p[1] <= 0) return; var m = box(T, p[0], p[1], Th, wallMat, p[2], p[3], 0); walls.push(m); grp.add(m); });
     var gerefti = (d.kind === "hurd" || d.kind === "karmur" || d.kind === "eld") && d.frame === "gerefti";
+    // the wall, cut where the opening is. Its right part is two pieces: in Mál the outer one hides and the wall ends at
+    // cutX — a section through the wall, so its bare end shows how thick it is (round 6: the dimension sat on the karmur)
+    var cutX = W / 2 + (gerefti ? CASE_W - JAMB : 0) + 0.32, cutAway = [];
+    g.cutX = cutX;
+    [[sideW, Hw, -W / 2 - sideW / 2, Hw / 2], [cutX - W / 2, Hw, (W / 2 + cutX) / 2, Hw / 2], [W, Hw - H, 0, H + (Hw - H) / 2]].forEach(function(p){
+      if (p[1] <= 0) return; var m = box(T, p[0], p[1], Th, wallMat, p[2], p[3], 0); walls.push(m); grp.add(m); });
+    var outer = box(T, W / 2 + sideW - cutX, Hw, Th, wallMat, (cutX + W / 2 + sideW) / 2, Hw / 2, 0); walls.push(outer); cutAway.push(outer); grp.add(outer);
     // the room (round 5): side walls and a ceiling so it reads as part of a house, not a wall in a void
-    [-1, 1].forEach(function(sx){ var m = box(T, 0.1, Hw, 4.2, wallMat, sx * (W / 2 + sideW + 0.05), Hw / 2, Th / 2 + 2.1); m.receiveShadow = true; grp.add(m); });
+    [-1, 1].forEach(function(sx){ var m = box(T, 0.1, Hw, 4.2, wallMat, sx * (W / 2 + sideW + 0.05), Hw / 2, Th / 2 + 2.1); m.receiveShadow = true; grp.add(m); if (sx > 0) cutAway.push(m); });
     var ceil = new T.Mesh(new T.PlaneGeometry(W + 2 * sideW + 0.2, 4.4), mat(T, { color:0xf7f6f2, roughness:0.95 })); ceil.rotation.x = Math.PI / 2; ceil.position.set(0, Hw, Th / 2 + 2.2); grp.add(ceil);
     // skirting on both faces, stopping clean against the karmur / gerefti (round 5: it ran through them) and along the side walls
     var skEdge = W / 2 + (gerefti ? CASE_W - JAMB : 0), skLen = sideW - (skEdge - W / 2);
-    [-1, 1].forEach(function(sx){ [1, -1].forEach(function(sz){ grp.add(rbox(T, skLen, 0.07, 0.012, 0.002, paint, sx * (skEdge + skLen / 2), 0.035, sz * (Th / 2 + 0.006))); });
-      grp.add(rbox(T, 0.012, 0.07, 4.2, 0.002, paint, sx * (W / 2 + sideW - 0.006), 0.035, Th / 2 + 2.1)); });
+    [-1, 1].forEach(function(sx){ [1, -1].forEach(function(sz){
+        if (sx < 0) grp.add(rbox(T, skLen, 0.07, 0.012, 0.002, paint, -(skEdge + skLen / 2), 0.035, sz * (Th / 2 + 0.006)));
+        else { var a = cutX - skEdge, b = W / 2 + sideW - cutX; grp.add(rbox(T, a, 0.07, 0.012, 0.002, paint, skEdge + a / 2, 0.035, sz * (Th / 2 + 0.006)));
+          var o = rbox(T, b, 0.07, 0.012, 0.002, paint, cutX + b / 2, 0.035, sz * (Th / 2 + 0.006)); cutAway.push(o); grp.add(o); } });
+      var sw2 = rbox(T, 0.012, 0.07, 4.2, 0.002, paint, sx * (W / 2 + sideW - 0.006), 0.035, Th / 2 + 2.1); if (sx > 0) cutAway.push(sw2); grp.add(sw2); });
     g.wallH = Hw;
     if (!g.slide){ // karmur: lining in the opening, rounded edges; a door stop behind the leaf
       [-1, 1].forEach(function(sx){ var j = rbox(T, JAMB, H, Th, 0.002, sx === g.s ? jambMat.clone() : jambMat, sx * (W / 2 - JAMB / 2), H / 2, 0); if (sx === g.s) xray.push(j); grp.add(j); });
@@ -447,10 +460,17 @@
         }
         leafGroup.userData.slideDir = d.hinge === "left" ? 1 : -1; // "lamir vinstra" ≙ rennur til hægri (as before)
       } else {
+        var slot = d.kind !== "gler" && hardwareOf(d).leaf.indexOf("threshold_drop") >= 0, SW = 0.0195, SH = 0.049; // the drop seal's groove (round 6)
         var leaf = d.kind === "gler" ? box(T, g.leafW, g.leafH, g.leafT, glassMat, -g.s * g.leafW / 2, FLOOR_GAP + g.leafH / 2, -g.leafT / 2)
+          : slot ? rbox(T, g.leafW, g.leafH - SH, g.leafT, 0.003, leafMat, -g.s * g.leafW / 2, FLOOR_GAP + SH + (g.leafH - SH) / 2, -g.leafT / 2)
           : rbox(T, g.leafW, g.leafH, g.leafT, 0.003, leafMat, -g.s * g.leafW / 2, FLOOR_GAP + g.leafH / 2, -g.leafT / 2);
         leaf.userData.isLeaf = true;
         leafGroup.add(leaf);
+        if (slot){ // a leaf with a drop seal: a real slot along its bottom edge (open at the bottom and both ends) — the seal sits in it
+          var cheek = (g.leafT - SW) / 2;
+          [-1, 1].forEach(function(k){ leafGroup.add(rbox(T, g.leafW, SH + 0.004, cheek, 0.0015, leafMat, -g.s * g.leafW / 2, FLOOR_GAP + (SH + 0.004) / 2, -g.leafT / 2 + k * (SW / 2 + cheek / 2))); });
+          leafGroup.add(box(T, g.leafW - 0.004, 0.0015, SW, dark(T), -g.s * g.leafW / 2, FLOOR_GAP + SH - 0.0008, -g.leafT / 2)); // the groove's floor
+        }
         leafGroup.position.set(g.pivotX, 0, Th / 2);
         hardwareOf(d).leaf.forEach(function(k){ var o = hw(k, c); if (!o) return; leafGroup.add(o);
           if (o.userData.fixed){ o.userData.fixed.position.set(g.pivotX, 0, Th / 2); grp.add(o.userData.fixed); } }); // frame leaves / strikes stay on the frame
@@ -464,7 +484,7 @@
       var arc = new T.Line(new T.BufferGeometry().setFromPoints(pts), new T.LineDashedMaterial({ color:0x0058a3, dashSize:0.04, gapSize:0.03 }));
       arc.computeLineDistances(); arc.visible = false; grp.add(arc); grp.userData.arc = arc;
     }
-    grp.userData.leaf = leafGroup; grp.userData.g = g; grp.userData.walls = walls; grp.userData.wallMat = wallMat; grp.userData.xray = xray;
+    grp.userData.leaf = leafGroup; grp.userData.g = g; grp.userData.walls = walls; grp.userData.wallMat = wallMat; grp.userData.xray = xray; grp.userData.cutAway = cutAway;
     return grp;
   }
 
@@ -520,17 +540,18 @@
       return { t:[0, g.H / 2, zF], p:[0, g.H * 0.62, zF + fit(g.H + 0.5, g.W * 2.2 + 0.4) * 1.05] };
     }
     switch (sec){
-      case "opnun": return { t:[0, g.H * 0.45, zF + 0.3], p:[-g.s * 0.5, g.H * 1.2, zF + whole * 1.25] };
+      case "opnun": return { t:[0, g.H * 0.45, zF + 0.3], p:[0, g.H * 1.2, zF + whole * 1.25] }; // centred and the same for left / right: hovering only changes the door (round 6)
       // the hinge side from outside the swing, close on the upper hinges, the leaf ajar so the hinge line shows
-      case "lamir": { var hy = FLOOR_GAP + g.leafH - 0.22; return { t:[g.pivotX - g.s * 0.02, hy - 0.05, zF + 0.02], p:[g.pivotX + g.s * 0.3, hy + 0.06, zF + 0.62] }; } // close on the upper hinge, a little from its side
+      case "lamir": { // round 6: the door open 90°, standing in the doorway looking at the hinge side — the hinge edge, the knuckle, the jamb
+        var hy = FLOOR_GAP + g.leafH - 0.22; return { t:[g.pivotX, hy - 0.04, zF + 0.012], p:[g.pivotX - g.s * 0.34, hy + 0.05, zF - 0.08] }; }
       // low on the bottom edge: the gap under the leaf (and the seal dropping into it)
-      case "throskuldur": { // the open leaf's bottom corner from its face side, the cut-away showing the seal in the leaf
+      case "throskuldur": { // the open leaf's free end, at the floor, from a little to the side: the bottom edge in section, the seal in its slot
         var fx = g.pivotX - g.s * g.leafT / 2, fz = zF + g.leafW;
-        return { t:[fx, 0.04, fz - 0.07], p:[fx + g.s * 0.42, 0.17, fz + 0.2] }; }
+        return { t:[fx, 0.035, fz], p:[fx - g.s * 0.2, 0.12, fz + 0.34] }; }
       case "skra": { // the door half open: the lock's faceplate on its edge, the handle beside it
         var oa = SKRA_OPEN * Math.PI / 2, ex = g.pivotX - g.s * g.leafW * Math.cos(oa), ez = zF + g.leafW * Math.sin(oa) - g.leafT / 2;
         return { t:[ex, HANDLE_Y - 0.05, ez], p:[ex - g.s * 0.42, HANDLE_Y + 0.12, ez + 0.62] }; }
-      case "mal": if (focus === "wallMm") return { t:[-g.s * (g.W / 2 - 0.06), g.H * 0.55, 0], p:[g.s * 0.35, g.H * 0.62, zF + 1.5] }; // into the free-side reveal, the door ajar
+      case "mal": if (focus === "wallMm") return { t:[g.cutX - 0.5, g.H * 0.5, 0], p:[g.cutX + 1.55, g.H * 0.72, zF + 2.25] }; // the cut wall end, the karmur and the door together (round 6)
       /* falls through */
       default: { var dist = fit(g.H + 0.75, g.W + 0.8) * 1.04; return { t:[0, g.H / 2 + 0.08, zF], p:[dist * 0.3, g.H * 0.56, zF + dist] }; } // the whole door centred, room for the dimension pills
     }
@@ -581,9 +602,8 @@
       var key = JSON.stringify([d.kind, d.frame, d.widthMm, d.heightMm, d.wallMm, d.hinge, d.opt, d.hwColor, lookKey(look)]);
       if (key !== P.key) rebuild();
       var sec = P.view.sec, slide = isSlide(d);
-      P.openTo = !slide && d.kind !== "karmur" && (sec === "opnun" || sec === "lamir" || sec === "skra") ? (sec === "lamir" ? 0.25 : sec === "skra" ? SKRA_OPEN : 0.55) : slide && sec === "opnun" ? 0.45 : 0;
+      P.openTo = !slide && d.kind !== "karmur" && (sec === "opnun" || sec === "lamir" || sec === "skra") ? (sec === "lamir" ? 1 : sec === "skra" ? SKRA_OPEN : 0.55) : slide && sec === "opnun" ? 0.45 : 0;
       if (P.door && P.door.userData.arc) P.door.userData.arc.visible = sec === "opnun";
-      if (sec === "mal" && P.view.focus === "wallMm" && !slide && d.kind !== "karmur") P.openTo = 0.3; // the reveal shows while veggþykkt is typed
       var aimK = JSON.stringify([sec, P.view.focus, P.size, d.widthMm, d.heightMm, d.wallMm, d.kind, d.hinge]);
       if (aimK !== P.aimK){ P.aimK = aimK; aim(!!P.aimed); P.aimed = true; }
     },
@@ -613,22 +633,6 @@
     var g = door.userData.g;
     if (g.slide) lg.position.x = (lg.userData.slideDir || 1) * k * g.W;
     else lg.rotation.y = g.s * k * Math.PI / 2;
-  }
-  // Felliþröskuldur cut-away (round 5): the leaf is cut open at its free bottom corner (two clipping planes, intersected)
-  // so the seal shows inside it instead of poking through
-  function sealCut(on){
-    var lg = P.door.userData.leaf, leaf = null; if (!lg) return;
-    lg.traverse(function(o){ if (o.userData && o.userData.isLeaf) leaf = o; });
-    if (!leaf) return;
-    var m = leaf.material, T = P.T;
-    if (!on){ if (m.clippingPlanes && m.clippingPlanes.length){ m.clippingPlanes = []; m.needsUpdate = true; } return; }
-    var g = P.door.userData.g; lg.updateMatrixWorld(true);
-    var end = new T.Vector3(-g.s * g.leafW, 0, -g.leafT / 2).applyMatrix4(lg.matrixWorld), dir = new T.Vector3(-g.s, 0, 0).applyQuaternion(lg.getWorldQuaternion(new T.Quaternion())).normalize();
-    if (!m.userData.cut){ m.userData.cut = [new T.Plane(), new T.Plane()]; }
-    var pl = m.userData.cut;
-    pl[0].set(new T.Vector3(0, 1, 0), -0.075); // the bottom 75 mm …
-    pl[1].normal.copy(dir).negate(); pl[1].constant = dir.dot(end) - 0.12; // … of the last 12 cm at the free end
-    if (m.clippingPlanes !== pl){ m.clippingPlanes = pl; m.clipIntersection = true; m.needsUpdate = true; }
   }
   // Felliþröskuldur: the door swings shut and the seal drops onto the floor, over and over (3.2 s)
   function sealLoop(){
@@ -673,10 +677,9 @@
     if (P.view.sec === "throskuldur") sealLoop();
     else if (Math.abs(P.open - P.openTo) > 0.002){ P.open += (P.openTo - P.open) * 0.12; setOpen(P.open); }
     if (P.ctl && !P.camTo) P.ctl.update();
-    var xr = P.view.sec === "lamir"; // Lamir (round 5): the hinge-side karmur, stop and gerefti go see-through so the hinges themselves show
-    if (P.door.userData.xrOn !== xr){ P.door.userData.xrOn = xr; (P.door.userData.xray || []).forEach(function(m){ var mt = m.material; mt.transparent = xr; mt.opacity = xr ? 0.14 : 1; mt.depthWrite = !xr; mt.needsUpdate = true; }); }
-    sealCut(P.view.sec === "throskuldur");
-    if (P.comp && !(P.view.sec === "lamir")) P.comp.render(); else r.render(P.scene, P.cam); // (no AO through a see-through wall)
+    var cut = P.view.sec === "mal"; // Mál: the wall shown in section beside the door (round 6)
+    if (P.door.userData.cutOn !== cut){ P.door.userData.cutOn = cut; (P.door.userData.cutAway || []).forEach(function(m){ m.visible = !cut; }); }
+    if (P.comp) P.comp.render(); else r.render(P.scene, P.cam);
     drawDims();
   }
   // dimension lines like the cabinet wizard: the one being typed blue, the ones already entered dark, only on the
@@ -692,7 +695,7 @@
     var lines = [
       { key:"widthMm", a:Pt(-g.W / 2, g.H + off, zF), b:Pt(g.W / 2, g.H + off, zF), mm:d.widthMm },
       { key:"heightMm", a:Pt(-g.W / 2 - off, 0, zF), b:Pt(-g.W / 2 - off, g.H, zF), mm:d.heightMm },
-      { key:"wallMm", a:Pt(-g.s * (g.W / 2 - JAMB), g.H * 0.55, -g.T / 2), b:Pt(-g.s * (g.W / 2 - JAMB), g.H * 0.55, g.T / 2), mm:d.wallMm }
+      { key:"wallMm", a:Pt(g.cutX + 0.003, g.H * 0.62, -g.T / 2), b:Pt(g.cutX + 0.003, g.H * 0.62, g.T / 2), mm:d.wallMm, label:P.view.wallLabel || "" } // across the cut wall's bare end
     ];
     var editing = sec === "mal";
     svg.innerHTML = lines.map(function(l){
@@ -701,9 +704,10 @@
       var col = active ? "#0058a3" : "#2b2b2e", sw = active ? 2.4 : 1.4;
       var dx = l.b.x - l.a.x, dy = l.b.y - l.a.y, L = Math.hypot(dx, dy) || 1, nx = -dy / L * 6, ny = dx / L * 6, mx = (l.a.x + l.b.x) / 2, my = (l.a.y + l.b.y) / 2;
       if (l.a.off || l.b.off) return "";
-      var txt = ((P.view.entered || {})[l.key] === false ? "?" : P.fmt(l.mm)) + " " + P.unit, tw = txt.length * 7.4 + 14;
-      if (L < 34){ // too short for a pill on the line (the wall thickness): arrows from outside, the pill beside it
-        var ux = dx / L, uy = dy / L, ext = 16, px = mx + 30, py = my - 22;
+      if (l.key === "wallMm" && !(P.door.userData.cutOn)) return ""; // only while the wall is shown cut
+      var txt = (l.label ? l.label + " " : "") + ((P.view.entered || {})[l.key] === false ? "?" : P.fmt(l.mm)) + " " + P.unit, tw = txt.length * 7.4 + 14;
+      if (L < 34 || l.key === "wallMm"){ // the wall thickness: ticks on the wall's faces, arrows from outside, the pill beside it with a leader
+        var ux = dx / L, uy = dy / L, ext = 16, px = mx + tw / 2 + 26, py = my - 30;
         return '<line x1="' + (l.a.x - ux * ext) + '" y1="' + (l.a.y - uy * ext) + '" x2="' + (l.b.x + ux * ext) + '" y2="' + (l.b.y + uy * ext) + '" stroke="' + col + '" stroke-width="' + sw + '"/>' +
           [[l.a, -1], [l.b, 1]].map(function(q){ var p = q[0], o = q[1], tx = p.x + ux * o * 7, ty = p.y + uy * o * 7;
             return '<line x1="' + (p.x - nx * 1.4) + '" y1="' + (p.y - ny * 1.4) + '" x2="' + (p.x + nx * 1.4) + '" y2="' + (p.y + ny * 1.4) + '" stroke="' + col + '" stroke-width="' + sw + '"/>' +

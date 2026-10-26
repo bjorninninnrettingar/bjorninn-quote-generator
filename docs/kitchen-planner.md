@@ -521,6 +521,14 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   it; wall thickness drawn at the free-side reveal (the door opens a little while veggþykkt is typed); Opnun person icon
   redrawn; texts: "Hurð 1" for customers (PRO keeps HU-1), Mál help + decimals line, Innfelldar lamir / Samlokulamir,
   Enginn felliþröskuldur / Felliþröskuldur, Stöðluð skrá / Segulskrá.
+- **Round 6 (2026-10-26, doors finished):** Mál shows the wall in section — its right part beyond `g.cutX` hides
+  (`userData.cutAway`) so the bare wall end shows, and the "Veggþykkt X cm" dimension is drawn across that end (ticks on
+  both faces, arrows, labelled pill); typing veggþykkt turns the camera to the cut end + karmur + door. Opnun: centred
+  camera, the same for left/right (hover changes only the door). Lamir: door open 90°, the camera inside the opening
+  facing the hinge side (no see-through frame any more); hinge plates sit 0.4 mm proud (no z-fighting); innfelldar lamir
+  placeholder = flush plates on the leaf edge and the karmur. Felliþröskuldur: the round-5 clipping cut-away is gone —
+  a leaf with a drop seal is built with a real slot along its bottom edge (19.5 × 49 mm, open at the ends) and the seal
+  sits in it; the round-4 camera at the leaf's end is back.
 
 ## 2026-10-26 — Þvottahús as its own room
 - Rými: Einn veggur / Horn → Hvar er vélin? (3D of the choice) → Veggurinn og vatnið (+ niðurfall) → windows on the unit
