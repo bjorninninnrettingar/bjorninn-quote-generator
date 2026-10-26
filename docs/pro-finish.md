@@ -389,3 +389,60 @@ paths with `fetch` stubbed in the page, and server-side in `tests/kp-pro.test.js
    no connection / 401–403 lykill / 409 / 400 / 429 / 5xx) + "● Óvistað …" while dirty + **Reyna aftur**; the bar says
    "Vistun tókst ekki · ● óvistað". A failed save from anywhere (e.g. Mæling lokið) opens the panel the same way.
    Vista í Airtable in the panel now closes it only once the save worked.
+
+## Borðplata as a real object in PRO (2026-10-26)
+
+Before: the worktop was only a name (`state.top` → "Valin borðplata: …" in the note), not clickable, no sizes, not on
+the quote / Skápalisti / Vinnuteikningar. Now [kitchen-planner-worktop.js](../kitchen-planner-worktop.js) (`window.KPWT`,
+pure, runs under node) + small hooks in the planner. Tested on T-32 (straight runs, harðplast + stone) and T-199 (L, U)
+with the read-only server at 1440×900; tests in `tests/kp-worktop.test.js`.
+
+- **Two kinds** (user): in-house = harðplast / compact / límtré — cut here, every number is production data; stone =
+  ordered, the stone maker measures on site: only the choice, rough size (for the quote) and where sink/hob/tap go.
+- **Pieces** = `KPWT.compute(state, KP3D)`: one per contiguous counter run (same height), over the áfella at a wall end;
+  ends are `wall` (wall / áfella / tall unit), `free` (overhang + finished edge offered) or `joint`. Depth = deepest
+  cabinet + 20 front overhang (what the 3D always drew); thickness from the top (`KP3D.topThickM`). Islands: one piece
+  per row (a two-row island is two pieces back to back — joining them is a hand note for now).
+- **Joints**: a 90° inward corner where the previous wall's run reaches the corner and the next starts at the corner
+  clearance. **No default** — Skáskorið 45° / Beint — A í gegn / Beint — B í gegn. Unchosen on an in-house top = ⛔ in the
+  editor and in Yfirferð (Laga → the editor on that joint, blinking). Stone: optional. Non-90° corners: a note only.
+  Lengths are on the back edge; a mitred piece also says "framan N".
+- **Cutouts** (auto, movable in mm from the piece's left end / back edge, "Yfir skápnum" resets): sink over every
+  vaskaskápur (size like the 3D, `ofan á` for harðplast/límtré, `undirlímdur` for compact/stone), tap Ø35 behind it
+  ("í borðplötu" can be unticked), hob over the low oven unit (Ofnaskápur í grunnskáp) or any counter cabinet picked in
+  "Helluborð", 30/60/70/80/90 cm with standard cut sizes. In-house: a cutout closer than 40 mm to an edge = ⛔.
+- **Kantar**: framkantur, free ends, island back; **bakkantur upp við vegg** yes/no + height (counted in m²).
+- **Stored**: `state.worktop` (now in `ROOM_FIELDS`, so per room) holds ONLY overrides — `pieces[id]` (lenMm, depthMm,
+  front, ovL/ovR, edges, upstand, note), `joints[id]`, `cut[id]` (dx/dy/w/d/mount/off), `hob {id, w}`, `stonePrice`.
+  Ids: piece = `p:<first block id>`, joint = `j:<A>|<B>`, cutout = `v:`/`k:`/`h:` + block id. Old projects have none →
+  everything auto. Removing a run's first cabinet drops that piece's overrides (its joint becomes unchosen again — safe).
+- **Editor**: tap the worktop in 3D (PRO only, `buildScene({pickWorktop})` makes the top slab a locked pickable, so it
+  never drags the cabinet; hover outlines just the slab) or Efni → "Smíða borðplötu". Same white card as Smíða: plan on
+  the left (click a piece / joint), ⛔ list on top with Laga, Samskeyti, piece tabs, Helluborð; Esc / Klárt close.
+- **Line Items** (PRO only, customer flow unchanged), n = the room's place in the queue:
+  `BP<n>` = "Borðplata - Efni viðskiptavinar | m² verð" (rec2hrdZTzZSKO4Gx), Magn = m² rounded up (Magn is an integer
+  field; same as the hand-made lines); `BV<n>` = "Fræsing f. vask og blöndunartæki" (recjwxEFkBL17Q9gW) × sinks;
+  `BH<n>` = "Fræsing f. helluborði" (recPElwpyIEo8inKq) × hobs. Smíðagögn of BP = `{v:1, w, h, d, bordplata:{kind, top,
+  m2, pieces:[{id, wall, len, depth, front?, ends, miter?, edges, upstand?, note?, cutouts}], joints}}`; BV/BH carry their
+  cutouts. Stone: one BP line with **no V1** + a note with the rough size, positions and the stone maker's price.
+  kp-pro / kp-price / kp-submit accept `BP|BV|BH` keys; kp-pro keeps a BP/BV/BH line's **Magn** in step with the drawing
+  (same "hand-changed in Airtable wins" rule as Frontaefni #2, kept in `liExtra[key].Magn`); a cabinet's Magn is untouched.
+  The note (Skilaboð) is written only when the line is created, like every other line — the numbers live in Smíðagögn.
+- **Vörulisti / Útfærslur (read 2026-10-26)**: worktops are priced per m² through the Útfærsla above (Magn = m², the
+  Tækifæri's "Borðplata viðskiptavinar 🍽️" × "% í Borðplötu" 1/3 × álagning + 40,676 kr/m²) — ~20 projects already use it by
+  hand (Magn 2–32), plus the two cutout Útfærslur at ~19,000 kr stk. There is also "Borðplata, Harðplastlögð, Vaskur,
+  Helluborð" (388,000 kr fixed, one old project) — not used. **No stone product exists**: the Tilboð's stone line has a
+  manual price field ("verð frá steinsmið", m/vsk, `state.worktop.stonePrice`) added to the total; it reaches Airtable only
+  as text in BP's note — someone sets the Útfærsla/price on that line by hand (Yfirferð's "Hver eining tengd vöru" asks).
+- **Tilboð**: the BP row says "<top> · 2,49 m² → 3 m² (námundað upp)"; clicking a BP/BV/BH row opens the editor.
+  T-32 with Egger F128: BP1 3 m² 330,178 kr, BV1 19,095, BH1 19,000.
+- **Yfirferð** gets **Borðplata** (after Efni): red when a room with counter cabinets has no top picked (Laga → Efni at
+  Borðplata; "Engin borðplata" counts as decided), an in-house joint unchosen / cutout off the board (Laga → the editor at
+  it), or a stone top without its price (Laga → Tilboð, focus on the price). So Klár til framleiðslu waits for it.
+- **Vinnuteikningar**: a "Borðplata" sheet per room after the Skápalisti (`KPWD.worktopSheet`): the plan with dims,
+  finished edges (blue), upstand (purple dashes), joints and cutouts + a table (L × D × Þ, ends, kantar, bakkantur,
+  cutouts from the left end / wall). Stone: an orange "Steinn — mál tekin af steinsmið" band, rough sizes and "hvað fer
+  hvar" only. Skápalisti gets one row per piece (`BP1A`, `BP1B` …).
+- Not done: the 3D sink stays where it always was (centre of the unit) — moving a cutout changes the data and the plan,
+  not the 3D; a straight piece longer than a 4100 mm board only gets a note ("samskeyti á beinum kafla"), no split tool;
+  a two-row island's rows are not merged into one slab; the áfella strips' own top in 3D isn't clickable.

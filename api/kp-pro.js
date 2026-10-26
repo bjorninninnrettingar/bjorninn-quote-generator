@@ -36,7 +36,7 @@ const PROJECT_NAME = "Heiti tækifæris / verkefnis";
 const LINK_TO_PROJECT = "Tækifæri 📣 (projects)";
 const SMIDA = "Smíðagögn (JSON) 🔧";
 const REC_RE = /^rec[A-Za-z0-9]{14}$/;
-const KEY_RE = /^(Sk|HU)\d{1,3}$/; // cabinets Sk1…, room doors HU1… (2026-10-23)
+const KEY_RE = /^(Sk|HU|BP|BV|BH)\d{1,3}$/; // cabinets Sk1…, room doors HU1… (2026-10-23), worktop BP1 + cutouts BV1/BH1 (2026-10-26)
 // Materials + handles on the Tækifæri (2026-10-23): Airtable prices every line from these, but pro Vista never
 // wrote them — a front changed in the drawing kept the quote on the old front. Same idea as V1/V2/V3 below, one
 // rule: the drawing's value is written unless it is unchanged since the drawing last sent it AND Airtable has
@@ -44,6 +44,10 @@ const KEY_RE = /^(Sk|HU)\d{1,3}$/; // cabinets Sk1…, room doors HU1… (2026-1
 export const PROJECT_SYNC = PROJECT_FIELDS.filter((f) => f !== "Skilaboð til skipulags");
 const projVal = (v) => (Array.isArray(v) ? idsKey(v) : v == null ? "" : String(v));
 const LINE_EXTRA = ["Frontaefni #2", "Tegund innskúffu fronts"];
+// The worktop's lines (2026-10-26): BP = m² of worktop, BV/BH = sink/hob cutouts. Their Magn follows the drawing (a
+// longer worktop = more m²), with the same rule as LINE_EXTRA: a Magn changed by hand in Airtable since the drawing
+// last sent it stays. Cabinet lines' Magn is never touched (always 1 from the drawing).
+const QTY_KEY_RE = /^(BP|BV|BH)\d{1,3}$/;
 const extraVal = (f, v) => (f === "Frontaefni #2" ? (v ? "1" : "") : v && typeof v === "object" ? String(v.name || "") : v == null ? "" : String(v));
 
 export function fieldDeps() {
@@ -92,7 +96,7 @@ export async function save(at, body) {
   }
 
   // this Tækifæri's own lines, by its link field — not the "T-227 |" name prefix, which a new one may not have yet
-  const rows = await linesOfProject(at, opp.id, ["🔑", SMIDA, LINK_TO_PROJECT, ...PRODUCT_FIELDS, ...LINE_EXTRA]);
+  const rows = await linesOfProject(at, opp.id, ["🔑", SMIDA, LINK_TO_PROJECT, "Magn", ...PRODUCT_FIELDS, ...LINE_EXTRA]);
   const byKey = new Map(rows.map((r) => [String(r.fields["🔑"] || "").trim(), r]));
   const patch = new Map(); // row id → fields to write
   const put = (row, f, v) => { if (!patch.has(row.id)) patch.set(row.id, {}); patch.get(row.id)[f] = v; };
@@ -131,6 +135,14 @@ export async function save(at, body) {
       if (B === undefined && !D) continue; // never sent before and the drawing has no pick: Airtable's stays
       if (f === "Tegund innskúffu fronts" && !D) continue; // the drawing never clears a hand-picked inner front
       put(row, f, f === "Frontaefni #2" ? D === "1" : D || null);
+    }
+    if (QTY_KEY_RE.test(key) && Number.isInteger(li["Magn"])) {
+      const D = String(li["Magn"]), A = row && row.fields["Magn"] != null ? String(row.fields["Magn"]) : "", B = prev.Magn;
+      sent.Magn = D;
+      if (row && A !== D) {
+        if (B !== undefined && D === B && A !== B) sent.Magn = B; // hand-changed in Airtable, the drawing hasn't moved
+        else put(row, "Magn", li["Magn"]);
+      }
     }
     liExtra[key] = sent;
   }

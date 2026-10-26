@@ -2259,6 +2259,12 @@
       top.quaternion.copy(quat);
       top.castShadow = true; top.receiveShadow = true;
       group.add(top);
+      // PRO (2026-10-26): the worktop is its own object — a tap on it opens "Smíða — Borðplata" (locked: never drags the cabinet)
+      if (meta.pickTop && pickables){
+        var topEdges = new THREE.LineSegments(new THREE.EdgesGeometry(topGeo), new THREE.LineBasicMaterial({ color:SELECT_COLOR })); // shown on hover only
+        topEdges.position.copy(top.position); topEdges.quaternion.copy(top.quaternion); topEdges.visible = false; group.add(topEdges);
+        top.userData = { kind:"worktop", worktop:true, locked:true, blockId:meta.blockId, wallId:meta.wallId, zone:"worktop", edgesObj:topEdges }; pickables.push(top);
+      }
       if (meta.sink && !meta.basin) addSink(THREE, group, local, quat, widthM, depthM, baseYM + heightM + 0.001 + TT, meta.tapCeilM);
     }
     // Baðherbergi (user, 2026-10-26): a handlaug sitting on the top (or straight on the cabinet with no top) + a short
@@ -3701,7 +3707,8 @@
       if (hovered){
         var e0 = edgesOf(hovered);
         if (e0 && e0.material){
-          if (isShelfOrRail(hovered)) e0.material.opacity = 0; // always blue — only its visibility toggles
+          if (hovered.userData.kind === "worktop") e0.visible = false;
+          else if (isShelfOrRail(hovered)) e0.material.opacity = 0; // always blue — only its visibility toggles
           else if (!hovered.userData.selected) e0.material.color.set(hovered.userData.warn ? WARN_COLOR : 0x2a2a2a);
         }
       }
@@ -3709,7 +3716,8 @@
       if (hovered){
         var e1 = edgesOf(hovered);
         if (e1 && e1.material){
-          if (isShelfOrRail(hovered)) e1.material.opacity = 1;
+          if (hovered.userData.kind === "worktop") e1.visible = true;
+          else if (isShelfOrRail(hovered)) e1.material.opacity = 1;
           else if (e1.material.color) e1.material.color.set(SELECT_COLOR);
         }
       }
@@ -5271,7 +5279,7 @@
             plinth:(!c.panel || hungPanel) && !c.appliance, plinthMm:plinthMmW, appliance:c.appliance || null, leMans:!!c.tofrahornIds, counter:!!c.counter, sink:!!c.sink, tapCeilM:c.sink ? tapCeilingM(wall, offset + b.widthMm / 2) : null, oven:!!c.oven, panel:!!c.panel, plinthMat:plinthMat, stoneMat:stoneMat,
             ovenCodes:c.lowOven ? ["M"] : c.oven ? ovenCodesOf(b, state.drawerSystem) : null, fixedFronts:!!c.fixedFronts || !!c.appliance,
             burCodes:c.bur ? burCodesOf(b, state.drawerSystem) : null, dishwasher:!!c.dishwasher,
-            lowOven:!!c.lowOven, ovenFrontsMm:c.oven ? b.ovenFrontsMm || null : null, ovenBlock:c.oven ? b : null, ovenCat:c.oven ? c : null,
+            lowOven:!!c.lowOven, pickTop:!!opts.pickWorktop && !!c.counter, ovenFrontsMm:c.oven ? b.ovenFrontsMm || null : null, ovenBlock:c.oven ? b : null, ovenCat:c.oven ? c : null,
             sinkFixedTop:!!c.sink && b.sinkTop === "fastur" && !!(b.interior && b.interior.mode === "skuffur"),
             fridgeKind:c.fridge ? (b.type === "frystir" ? "freezer" : "fridge") : null,
             bins:!!(c.rusl || (c.sink && b.interior && b.interior.mode === "skuffur") || binsWanted(b, c, state.drawerSystem)), // RUSL60/80 in the bottom drawer

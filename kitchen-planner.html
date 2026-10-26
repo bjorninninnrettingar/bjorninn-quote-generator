@@ -51,6 +51,7 @@
 <script src="kitchen-planner-showcase.js"></script>
 <script src="cnc-sides.js"></script>
 <script src="kitchen-planner-workdraw.js"></script>
+<script src="kitchen-planner-worktop.js"></script>
 <script src="kitchen-planner-plan.js"></script>
 <script src="kitchen-planner-home.js"></script>
 <style>
@@ -1688,6 +1689,7 @@
   #tilbodPanel .tp-dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:#ffd60a; margin-left:5px; vertical-align:middle; }
   #tilbodPanel td input { width:46px; font:inherit; text-align:right; background:var(--card); color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:3px 5px; }
   #tilbodPanel td input:disabled { opacity:.45; }
+  #tilbodPanel td input.tp-stone { width:104px; } /* the stone worktop's price, typed from the stone maker (2026-10-26) */
   #tilbodPanel tr.tp-group td { background:none; color:var(--ink-soft); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; padding-top:14px; cursor:default; }
   #tilbodPanel tr.tp-other td { color:var(--ink-soft); cursor:default; }
   #tilbodPanel .tp-foot { border-top:1px solid var(--line); padding:10px 16px 14px; display:grid; grid-template-columns:1fr auto; gap:6px 12px; align-items:center; }
@@ -8056,6 +8058,7 @@
       (PRO ? matSel("look2", "Framhlið 2 (FR2)", [{ label:null, items:[["", "— engin —"]] }].concat(LOOK_CATEGORIES.map(function(cg){ return { label:cg.label, items:visLooks(cg.key).map(function(k){ return [k, LOOKS[k].label + (LOOKS[k].code ? " · " + LOOKS[k].code : "")]; }) }; })), state.look2 || "") +
         matSel("innerFront", "Innskúffufrontar (sjálfgefið)", [{ items:INNER_FRONTS.map(function(x){ return [x, x]; }) }], state.innerFront || "Skrokkaefni") : "") +
       (hasTop ? matSel("top", __("Borðplata"), topGroupsNow().map(function(g){ return { label:g.label, items:topsOf(g.key).map(function(k){ return [k, TOPS[k].label + (TOPS[k].code ? " · " + TOPS[k].code : "")]; }) }; }), state.top || (PRO ? "" : "steinn")) : "") + // PRO: "— veldu —" while none is picked (Yfirferð says it's missing; showing Steinplata made picking it a no-op)
+      (PRO && hasTop && wtOn() ? '<button type="button" class="btn btn-secondary btn-small" data-wt-open="1" style="margin:2px 0 8px;" title="Stykki, samskeyti, úrtök og kantar — eða smelltu á borðplötuna í 3D">Smíða borðplötu</button>' : "") +
       matSel("handle", __("Höldur / opnun"), KP3D.HANDLE_GROUPS.map(function(g){ return { label:g.label, items:handlesOf(g.key).map(function(k){ return [k, HANDLES[k].label]; }) }; }), state.handle) +
       (handleColorable(state.handle) ? '<div class="mat-sel"><span>' + __("Litur á höldum") + '</span>' + handleColorRowHTML() + '</div>' : "") + // one colour: no row at all
       (PRO ? matSel("drawerSystem", __("Skúffukerfi"), [{ items:Object.keys(DRAWER_SYSTEMS).map(function(k){ return [k, DRAWER_SYSTEMS[k].label]; }) }], state.drawerSystem) : "") + // the drawer brand is the office's call (PRO only)
@@ -9494,6 +9497,7 @@
   function warnIdList(){ return warnings.reduce(function(acc, w){ return acc.concat(w.ids); }, []); }
 
   function onCabinetSelect(meta){
+    if (meta && meta.kind === "worktop"){ proWtOpen({ blockId:meta.blockId }); return; } // PRO: the worktop is its own object (2026-10-26)
     var hadWall = !!selectedWallId;
     var wasDecor = selectedBlockId && findDecor(selectedBlockId);
     selectedBlockId = meta ? meta.blockId : null;
@@ -9859,7 +9863,7 @@
         return;
       }
       wrap.innerHTML = "";
-      KP3D.buildScene(wrap, state, { darkBg:!!PRO, selectedId:selectedBlockId, selectedWallId:selectedWallId, onWallSelect:onWallSelect, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, onIslandDragEnd:onIslandDragEnd, onIslandDragMove:clampIslandDragMove, onDecorDragEnd:onDecorDragEnd, onDecorDragMove:onDecorDragMove, onObstacleFloorEnd:onObstacleFloorEnd, onObstacleResizeMove:onObstacleResizeMove, onObstacleResizeEnd:onObstacleResizeEnd, onShelfPosMove:onShelfPosMove, onShelfPosEnd:onShelfPosEnd, onShelfPosInfo:onShelfPosInfo, onDrawerResize:onDrawerResize, onDrawerResizeEnd:onShelfPosEnd, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList(), readyIds:PRO ? proReadyIds() : null,
+      KP3D.buildScene(wrap, state, { darkBg:!!PRO, pickWorktop:!!PRO && !isBath(), selectedId:selectedBlockId, selectedWallId:selectedWallId, onWallSelect:onWallSelect, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, onIslandDragEnd:onIslandDragEnd, onIslandDragMove:clampIslandDragMove, onDecorDragEnd:onDecorDragEnd, onDecorDragMove:onDecorDragMove, onObstacleFloorEnd:onObstacleFloorEnd, onObstacleResizeMove:onObstacleResizeMove, onObstacleResizeEnd:onObstacleResizeEnd, onShelfPosMove:onShelfPosMove, onShelfPosEnd:onShelfPosEnd, onShelfPosInfo:onShelfPosInfo, onDrawerResize:onDrawerResize, onDrawerResizeEnd:onShelfPosEnd, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList(), readyIds:PRO ? proReadyIds() : null,
         xray:inspect.on, // inspect mode: every cabinet built in parts (drawers/doors tap open, nothing drags)
         focusWallId:viewMode === "wall" ? wallViewId : null, freshCamera:viewMode === "wall",
         annotations:viewMode === "wall" ? annoForWall : null, annoSelectedId:function(){ return anno.selId; },
@@ -11267,7 +11271,7 @@
   // activeCategory themselves are never part of this list.
   var ROOM_FIELDS = ["intake", "carcass", "drawerSystem", "look", "look2", "innerFront", "handle", "handleColor", "top", "floor", "floorTile", "floorPattern", "floorRot", "roomHeightMm",
     "wallColor", "windows", "doors", "closed", "shapeKey", "waterWall", "waterAlongMm", "seeded", "base900", "islands", "walls", "obstacles", "decor", "openingsDone", "annotations", "hungUnits",
-    "closetDepthMm", "closetHeightMm", "closetHeightLoft", "closetCeilGapMm", "closetSeeded", "closetFillDeclined", "closetDoors", "closetAutoHandle", "closetSpans", "laundryMachine", "bathMirror", "matAuto"]; // per wardrobe (2026-10-25 — were project-wide by accident)
+    "worktop", "closetDepthMm", "closetHeightMm", "closetHeightLoft", "closetCeilGapMm", "closetSeeded", "closetFillDeclined", "closetDoors", "closetAutoHandle", "closetSpans", "laundryMachine", "bathMirror", "matAuto"]; // per wardrobe (2026-10-25 — were project-wide by accident)
   function serializeRoom(){
     var blob = {};
     ROOM_FIELDS.forEach(function(k){ blob[k] = state[k]; });
@@ -11833,6 +11837,26 @@
   // left blank with a note flag rather than guessing.
   var HANDLE_COLOR_AIRTABLE = { svart:"Svartar ⚫", stal:"Silfur 🥈", messing:"Gyllt / Látún 🥇", dokkt_latun:"Gyllt / Látún 🥇", cava:"Gyllt / Látún 🥇", kopar:"Kopar 🥉", brons:"Kopar 🥉" };
 
+  // ---------- Borðplata in PRO (2026-10-26): pieces, joints, cutouts, edges — kitchen-planner-worktop.js (KPWT) ----------
+  // Per room; state.worktop holds only Rakel's changes. Line Items BP<n>/BV<n>/BH<n> (n = the room's place in the queue).
+  function wtOn(){ // SK_CAT inside withEachCategory (isBath()/activeCategory are the room on screen, not the one iterated)
+    var cat = SK_CAT || state.activeCategory || "eldhus", cd = categoryDef(cat);
+    return !!(window.KPWT && String(cat).split(":")[0] !== "bad" && !(cd && (cd.worktop === false || cd.plain)));
+  }
+  function wtResult(){ return wtOn() ? KPWT.compute(state, KP3D) : null; }
+  function wtRoomN(){ var q = state.categoryQueue || [], i = q.indexOf(SK_CAT || state.activeCategory); return i >= 0 ? i + 1 : 1; }
+  function wtLines(){
+    var r = wtResult(); if (!r) return [];
+    return KPWT.lines(r, wtRoomN(), state.intake.room || "Eldhús", skKeys(), (state.worktop || {}).stonePrice || 0);
+  }
+  function proWtOpen(focus){
+    if (!PRO || !window.KPWT) return;
+    if (!wtOn()){ toast("Engin borðplata í þessu rými."); return; }
+    if (proEdId != null && document.getElementById("proEd")) closeBoxEditor();
+    KPWT.openEditor({ K:KP3D, state:function(){ return state; }, skOf:function(){ return skKeys(); }, readOnly:proReadOnly, toast:toast,
+      save:function(){ save(); }, refresh:function(){ refreshAfterEdit(); proCheckSoon(); },
+      openEfni:function(){ proOpenEfniAt("top"); } }, focus);
+  }
   function collectLineItems(){
     var rows = [], keys = skKeys(), bom = lightingBOM(), driverPlaced = false;
     surfaces().forEach(function(wall){
@@ -11925,6 +11949,7 @@
     if (bom && !driverPlaced && rows.length) rows[0]["Skilaboð til skipulags"] = ((rows[0]["Skilaboð til skipulags"] || "") + " " +
       LIGHT_PRODUCTS[bom.driver.code].label + " vantar í V3 — enginn upplýstur skápur með V1.").trim();
     (state.doors || []).forEach(function(d){ var li = doorLineOf(d); if (li) rows.push(li); });
+    if (PRO) wtLines().forEach(function(li){ rows.push(li); }); // the worktop: BP (m²) + BV/BH cutouts — PRO only, the customer keeps the simple choice
     return rows;
   }
 
@@ -15608,6 +15633,7 @@
       el.addEventListener("mouseleave", proCncTipHide); el.addEventListener("blur", proCncTipHide);
     });
   }
+  document.addEventListener("click", function(e){ if (e.target.closest && e.target.closest("[data-wt-open]")) proWtOpen(); }); // Efni → "Smíða borðplötu"
   function closeBoxEditor(){ proCncTipHide(); proEdId = null; var el = document.getElementById("proEd"); if (el) el.remove(); refreshAfterEdit(); }
   // ---------- Smíða, one cabinet after another (2026-10-26) ----------
   // Rakel reviews a whole room in one sitting: the strip on top (Sk1 … SkN, a dot each: green = yfirfarinn, amber = ekki
@@ -16558,6 +16584,7 @@
     withEachCategory(function(){
       var o = proSmida(); Object.keys(o).forEach(function(k){ out[k] = o[k]; });
       (state.doors || []).forEach(function(d){ var li = doorLineOf(d); if (li) out[d.hu] = JSON.parse(li["Smíðagögn (JSON) 🔧"]); });
+      wtLines().forEach(function(li){ out[li["🔑"]] = JSON.parse(li["Smíðagögn (JSON) 🔧"]); }); // the worktop's pieces/joints/cutouts (2026-10-26)
     });
     doorListLines().forEach(function(li){ out[li["🔑"]] = JSON.parse(li["Smíðagögn (JSON) 🔧"]); });
     return out;
@@ -16639,7 +16666,7 @@
   // Útfærsla is picked on the Line Item in Airtable) and the fit warnings (some are deliberate).
   var pc = { open:false, timer:null, badge:"" };
   function proCheckFacts(){
-    var f = { rooms:[], unlinked:[], issues:[], unready:[], cabinets:0, warnings:[] };
+    var f = { rooms:[], unlinked:[], issues:[], unready:[], cabinets:0, warnings:[], worktops:[] };
     withEachCategory(function(cat){
       var cd = categoryDef(cat), room = (cd && cd.label) || cat, keys = skKeys();
       var units = surfaces().reduce(function(n, w){ return n + w.floor.length + w.wall.length; }, 0);
@@ -16657,6 +16684,7 @@
       var idOf = {}; Object.keys(keys).forEach(function(id){ idOf[keys[id]] = id; });
       collectLineItems().forEach(function(li){ if (!(li["Vöru reitur 1"] || []).length) f.unlinked.push({ cat:cat, room:room, key:li["🔑"], id:idOf[li["🔑"]] || null }); });
       KP3D.fitWarnings(state).forEach(function(w){ f.warnings.push(w.msg); });
+      var wr = wtResult(); if (wr && wr.pieces.length) f.worktops.push({ cat:cat, room:room, r:wr, price:(state.worktop || {}).stonePrice || 0 });
     });
     doorListLines().forEach(function(li){ if (!(li["Vöru reitur 1"] || []).length) f.unlinked.push({ cat:null, room:"Innihurðir", key:li["🔑"] }); });
     function skN(x){ var m = /(\d+)$/.exec(x.key || ""); return m ? +m[1] : 1e9; } // Sk1, Sk2 … not drawing order (A5)
@@ -16694,6 +16722,7 @@
         detail:miss.length ? miss.map(function(r){ var m = r.missing.join(", ").toLowerCase() + " vantar"; return multi ? r.room + ": " + m : m.charAt(0).toUpperCase() + m.slice(1); }).join(" · ") + "." :
           und.length ? "Óákveðið (sjálfgefið sett inn): " + und.map(function(r){ var m = r.undecided.map(function(k){ return MAT_AUTO_LABELS[k]; }).join(", ").toLowerCase(); return multi ? r.room + ": " + m : m; }).join(" · ") + ". Veldu í Efni eða staðfestu hér." :
           "Skrokkur, skúffukerfi, framhlið, höldur og borðplata." },
+      wtCheckItem(f, multi),
       { key:"vara", ok:f.cabinets > 0 && !unl.length, title:"Hver eining tengd vöru", target:unl[0],
         picks:f.unlinked.filter(function(u){ return u.id; }),
         acks:f.unlinked.filter(function(u){ return !u.id; }).map(function(u){ return { id:"v1:" + u.key, label:u.key + (multi ? " (" + u.room + ")" : "") + " — Útfærsla valin í Airtable", on:!!ack["v1:" + u.key] }; }),
@@ -16705,6 +16734,26 @@
       { key:"abend", ok:wOk, title:"Ábendingar yfirfarnar", acks:f.warnings.length ? [{ id:"warn", label:"Ég hef farið yfir " + (f.warnings.length === 1 ? "ábendinguna" : "ábendingarnar"), on:wOk, sig:wSig }] : null,
         detail:f.warnings.length ? f.warnings.length + " " + plural(f.warnings.length, "ábending", "ábendingar") + ", t.d. „" + f.warnings[0] + "“" : "Engar ábendingar." }
     ]);
+  }
+  // Borðplata (2026-10-26): a kitchen needs a worktop picked (or "Engin borðplata" on purpose), every corner joint of an
+  // in-house top chosen (no default — differs per job), cutouts inside the board, and a stone top its price for the quote
+  function wtCheckItem(f, multi){
+    var todo = [], target = null;
+    function pre(w){ return multi ? w.room + ": " : ""; }
+    f.worktops.forEach(function(w){
+      var r = w.r;
+      if (r.kind === "unset"){ todo.push(pre(w) + "engin borðplata valin (veldu hana eða „Engin borðplata“)"); target = target || { cat:w.cat, room:w.room, efni:true }; return; }
+      if (r.kind === "none") return;
+      r.issues.forEach(function(x){ todo.push(pre(w) + x.text.replace(/\.$/, "")); target = target || { cat:w.cat, room:w.room, focus:x.kind === "joint" ? { joint:x.ref } : { cut:x.ref } }; });
+      if (r.kind === "stone" && !(w.price > 0)){ todo.push(pre(w) + "verð á steini vantar í Tilboð (steinsmiður)"); target = target || { cat:w.cat, room:w.room, tilbod:true }; }
+    });
+    var shown = f.worktops.filter(function(w){ return w.r.kind !== "unset"; }).map(function(w){
+      var r = w.r; if (r.kind === "none") return pre(w) + "engin borðplata (valið)";
+      return pre(w) + r.top.label + " · " + r.pieces.length + " " + (r.pieces.length === 1 ? "stykki" : "stykki") + ", " + (Math.round(r.m2 * 10) / 10).toString().replace(".", ",") + " m²" +
+        (r.joints.length ? ", " + r.joints.length + " " + (r.joints.length === 1 ? "samskeyti" : "samskeyti") : "") + (r.kind === "stone" ? " (steinn)" : "");
+    });
+    return { key:"bordplata", ok:!todo.length, title:"Borðplata", target:target, wt:true,
+      detail:(todo.length ? todo.slice(0, 3).join(" · ") + (todo.length > 3 ? " (+" + (todo.length - 3) + ")" : "") + "." : f.worktops.length ? shown.join(" · ") + "." : "Engin borðplata í teikningunni.").replace(/^./, function(ch){ return ch.toUpperCase(); }) };
   }
   // every V1 Útfærsla the planner knows (KP_LINEMAP.v1, generated from Airtable), by name — the A3 picker
   var proV1List = null;
@@ -16783,6 +16832,14 @@
     if (x.key === "yfirfarid"){ proCheckOpen(false); var rv = document.getElementById("proReviewed"); if (rv){ rv.classList.add("pb-flash"); setTimeout(function(){ rv.classList.remove("pb-flash"); }, 1600); } return; }
     if (x.key === "abend"){ var wc = document.getElementById("warnChip"); if (wc && !wc.hidden) wc.click(); return; }
     proCheckOpen(false);
+    if (x.wt){ // Borðplata → its room, then Efni (no top picked) / Tilboð (stone price) / the worktop editor at the joint or cutout
+      if (t && t.cat && state.activeCategory && t.cat !== state.activeCategory) openRoom(t.cat);
+      if (!t) return;
+      if (t.efni){ proOpenEfniAt("top"); return; }
+      if (t.tilbod){ proTilbodToggle(true); setTimeout(function(){ var i = document.getElementById("tpStone"); if (i){ i.focus(); i.scrollIntoView({ block:"center" }); } }, 600); return; }
+      if (state.step !== "editor") goto("editor");
+      proWtOpen(t.focus); return;
+    }
     if (x.room){ if (t) openRoom(t.cat); return; }
     if (t && t.cat && state.activeCategory && t.cat !== state.activeCategory) openRoom(t.cat);
     // Laga → lands exactly on the fix (2026-10-26): the editor's Efni menu open at the missing field (e.g. Borðplata);
@@ -16818,7 +16875,7 @@
     proRunSkipulag(); // one dialog: vista (if needed) og keyra — a failed save keeps Yfirferð open with the red box
   }
   document.addEventListener("keydown", function(e){ if (e.key === "Escape" && pc.open && !e.target.closest("input,select,textarea")) proCheckOpen(false); });
-  document.addEventListener("pointerdown", function(e){ if (pc.open && e.target.closest && !e.target.closest("#proCheck, #proSave, #measurePanel, #proEd, #warnPop, #proDlg")) proCheckOpen(false); });
+  document.addEventListener("pointerdown", function(e){ if (pc.open && e.target.closest && !e.target.closest("#proCheck, #proSave, #measurePanel, #proEd, #proWt, #warnPop, #proDlg")) proCheckOpen(false); });
   // "Yfirfarið" (2026-10-18) — the button referenced in old comments but never actually built. Staff
   // looks the self-serve drawing over here, clicks this, and it's off CRM's "Til yfirferðar" strip —
   // nothing else changes automatically (confirmed with the user: just the flag, not the sales stage).
@@ -17014,9 +17071,26 @@
       if (my === tp.seq) document.getElementById("tpBody").classList.remove("tp-loading");
     }
   }
+  // the worktop lines per room (2026-10-26): a stone top has no product in Vörulisti — its price is typed here (from the
+  // stone maker) and kept on the drawing (state.worktop.stonePrice); the in-house top is priced by kp-price like any line
+  function wtTilbodInfo(){
+    var m = {};
+    try{ withEachCategory(function(cat){ if (!wtOn()) return; var r = wtResult(); if (!r || !r.pieces.length || r.kind === "none" || r.kind === "unset") return;
+      var n = wtRoomN(); m["BP" + n] = { cat:cat, stone:r.kind === "stone", price:(state.worktop || {}).stonePrice || 0, m2:r.m2, label:r.top.label };
+      m["BV" + n] = m["BH" + n] = { cat:cat, cut:true }; }); }catch(e){ console.error(e); }
+    return m;
+  }
+  function wtSetStonePrice(cat, v){
+    var room = !cat || cat === state.activeCategory || !state.categoryData || !state.categoryData[cat] ? state : state.categoryData[cat];
+    room.worktop = Object.assign({}, room.worktop || {}); if (v > 0) room.worktop.stonePrice = Math.round(v); else delete room.worktop.stonePrice;
+    save(); proCheckSoon();
+  }
   function proTilbodRender(prevTotal){
     var d = tp.data; if (!d) return;
-    var tot = document.getElementById("tpTotal");
+    var tot = document.getElementById("tpTotal"), wti = wtTilbodInfo(), stoneSum = 0;
+    d.lines.forEach(function(l){ var w = wti[l.key]; if (w && w.stone) stoneSum += w.price; });
+    d = Object.assign({}, d, { total:d.total + stoneSum, lines:d.lines.map(function(l){ var w = wti[l.key]; return w && w.stone ? Object.assign({}, l, { total:w.price, mapped:true, stone:w }) :
+      w && w.m2 != null ? Object.assign({}, l, { extra:(w.label + " · " + (Math.round(w.m2 * 100) / 100).toString().replace(".", ",") + " m² → " + l.qty + " m² (námundað upp)" + (l.extra ? " · " + l.extra : "")) }) : l; }) });
     tot.textContent = tpKr(d.total);
     if (prevTotal != null && prevTotal !== d.total){ tot.classList.add("bump"); setTimeout(function(){ tot.classList.remove("bump"); }, 600); }
     // like with like (D3, 2026-10-26): the same lines + handles as Airtable has them now — the Tækifæri's whole
@@ -17053,14 +17127,15 @@
     function line(l, other){
       var canDisc = !other && l.lineId && !l.locked, ch = chg(l.total, l.was);
       return '<tr class="tp-line' + (other ? " tp-other" : "") + (ch ? " tp-chg" : "") + (!other && selectedBlockKey() === l.key ? " sel" : "") + '" data-sk="' + esc(l.key || "") + '">' +
-        '<td><div class="tp-nm' + (l.mapped === false ? " none" : "") + '">' + esc(l.name) + (l.changed ? '<span class="tp-dot" title="Breytt í teikningunni — ekki vistað enn"></span>' : "") +
+        '<td><div class="tp-nm' + (l.mapped === false ? " none" : "") + '">' + esc(l.stone ? "Steinborðplata — verð frá steinsmið" : l.name) + (l.changed ? '<span class="tp-dot" title="Breytt í teikningunni — ekki vistað enn"></span>' : "") +
           (l.lineId ? "" : '<span class="tp-dot" title="Ný lína — verður til þegar þú vistar"></span>') + (l.locked ? " " : "") + '</div>' +
-          (l.extra ? '<div class="tp-ex">' + esc(l.extra) + '</div>' : "") + '<div class="tp-sk">' + esc(l.key || "") + (l.stale ? ' · <span style="color:#ffd60a">ekki lengur í teikningunni — eyddu línunni í Airtable</span>' : "") + '</div></td>' +
+          (l.stone ? '<div class="tp-ex">' + esc(l.stone.label + " · ~" + (Math.round(l.stone.m2 * 10) / 10).toString().replace(".", ",") + " m² · steinsmiður mælir") + '</div>' : l.extra ? '<div class="tp-ex">' + esc(l.extra) + '</div>' : "") + '<div class="tp-sk">' + esc(l.key || "") + (l.stale ? ' · <span style="color:#ffd60a">ekki lengur í teikningunni — eyddu línunni í Airtable</span>' : "") + '</div></td>' +
         '<td class="r">' + l.qty + '</td>' +
         '<td class="r"><input type="number" min="0" max="100" step="1" data-line="' + esc(l.lineId || "") + '" value="' + (l.disc ? Math.round(l.disc * 100) : "") + '"' +
           (canDisc ? "" : ' disabled title="' + (l.locked ? "Verð læst (staðfest tilboð)" : !l.lineId ? "Vistaðu fyrst — línan er ekki komin í Airtable" : "") + '"') + ' placeholder="0"></td>' +
-        '<td class="r">' + tpKr(l.total) + (ch ? wasTxt(l.was) : "") + '</td></tr>';
+        '<td class="r">' + (l.stone ? '<input type="number" min="0" step="1000" class="tp-stone"' + (tpStoneFirst ? (tpStoneFirst = false, ' id="tpStone"') : '') + ' data-stone="' + esc(l.stone.cat || "") + '" value="' + (l.stone.price || "") + '" placeholder="kr. m/vsk" title="Verð frá steinsmið, m/vsk — engin steinvara er til í Vörulista">' : tpKr(l.total)) + (ch ? wasTxt(l.was) : "") + '</td></tr>';
     }
+    var tpStoneFirst = true;
     // one tilboð, split by room with a subtotal each (user, 2026-10-23, A3) — only once there's more than one room
     var roomOf = tpRoomOf(), groups = [], gi = {};
     d.lines.forEach(function(l){ var r = roomOf[l.key] || "Annað"; if (!(r in gi)){ gi[r] = groups.length; groups.push({ room:r, lines:[], sum:0 }); } var g = groups[gi[r]]; g.lines.push(l); g.sum += l.total || 0; });
@@ -17086,6 +17161,7 @@
   });
   document.addEventListener("change", function(e){
     if (e.target.id === "tpDiscount" || e.target.id === "tpMarkup"){ tp.override = tpReadOverride(); proTilbodRefresh(true); }
+    if (e.target.dataset && e.target.dataset.stone != null){ wtSetStonePrice(e.target.dataset.stone, Number(e.target.value) || 0); proTilbodRender(); return; }
     if (e.target.id === "tpDiscount") proTilbodPatch({ "Ósýnilegur afsláttur %": e.target.value === "" ? null : Number(e.target.value) / 100 });
     if (e.target.id === "tpInstallDiscount") proTilbodPatch({ "Afsláttur í uppsetningu": e.target.value === "" ? null : Number(e.target.value) / 100 });
     if (e.target.id === "tpMarkup") proTilbodPatch({ "Smáverka álagning": e.target.value || null });
@@ -17108,6 +17184,11 @@
     var tr = e.target.closest && e.target.closest("#tilbodPanel tr.tp-line:not(.tp-other)");
     if (tr && !e.target.closest("input")){ // a line → that cabinet selected in the drawing
       var sk = tr.getAttribute("data-sk"), hit = null;
+      if (/^B[PVH]\d+$/.test(sk)){ // the worktop → its editor (2026-10-26)
+        var wi = wtTilbodInfo()[sk];
+        if (wi && wi.cat && state.activeCategory && wi.cat !== state.activeCategory){ document.getElementById("tpMsg").textContent = sk + " er í öðru rými — skiptu um rými til að sjá borðplötuna."; return; }
+        proWtOpen(); return;
+      }
       surfaces().forEach(function(w){ w.floor.concat(w.wall).forEach(function(b){ if (b.sk === sk) hit = b; }); });
       (state.doors || []).forEach(function(d){ if (d.hu === sk) hit = d; });
       if (hit){ onCabinetSelect({ blockId:hit.id }); proTilbodRender(); }
@@ -17524,10 +17605,25 @@
           grip:c.panel || c.appliance ? "" : sm.grip && sm.grip.length ? "Fræst grip (" + sm.grip.length + ")" : handle, note:note.join(" · ") });
       }); }); });
       rows.sort(function(a, z){ return a.n - z.n; });
+      if (PRO){ var wr = wtResult(); if (wr && (wr.kind === "inhouse" || wr.kind === "stone")) rows = rows.concat(KPWT.cabinetRows(wr, wtRoomN())); } // the worktop pieces last (2026-10-26)
       if (rows.length) rooms.push({ room:(state.intake && state.intake.room) || "Eldhús", rows:rows });
     });
     var out = [];
     rooms.forEach(function(r){ if (rooms.length > 1) out.push({ group:r.room }); out = out.concat(r.rows); });
+    return out;
+  }
+  // one "Borðplata" sheet per room with a worktop (2026-10-26) — the KPWT result as the sheet's plain model
+  function wdWorktopModels(){
+    var out = [];
+    withEachCategory(function(cat){
+      if (!wtOn()) return; var r = wtResult(); if (!r || !r.pieces.length || (r.kind !== "inhouse" && r.kind !== "stone")) return;
+      var skOf = skKeys(), endT = { wall:"við vegg", free:"laus", joint:"samskeyti" };
+      out.push({ room:(state.intake && state.intake.room) || "Eldhús", kind:r.kind, top:r.top, plan:KPWT.planSvg(r, { K:KP3D, state:state, skOf:skOf }),
+        pieces:r.pieces.map(function(p){ return { label:p.label, wall:p.wall + (p.island ? " (eyja)" : ""), len:p.len, depth:p.depth, front:p.frontLen !== p.len ? p.frontLen : null,
+          ends:"V: " + endT[p.ends.L.type] + " · H: " + endT[p.ends.R.type], edges:KPWT.edgeText(p).replace(/^Kantlímt: /, ""), upstand:p.upstand.on ? p.upstand.h + " mm" : "",
+          cutouts:p.cutouts.map(function(o){ return KPWT.cutText(o, skOf); }).concat(p.note ? ["Ath: " + p.note] : []) }; }),
+        joints:r.joints.map(KPWT.jointText), notes:r.notes.slice() });
+    });
     return out;
   }
   function openWorkDrawings(){
@@ -17537,11 +17633,15 @@
       models.forEach(function(m){ var pg = KPWD.render(m); rooms.push({ name:m.roomName, sheets:pg.length, units:(m.sheets || []).reduce(function(n, sh){ return n + ((sh.units || []).length); }, 0), notes:(m.notes || []).slice(0, 2) }); pages = pages.concat(pg); });
       // Skápalisti after the rooms' sheets (T-32: sheet 5), then the door list
       var hg = state.home ? KPI18N.asIS(function(){ return wdHomeGeo(); }) : null;
-      var dl = wdDoorRows(), hasHome = !!hg, cab = wdCabinetRows();
+      var dl = wdDoorRows(), hasHome = !!hg, cab = wdCabinetRows(), wtm = PRO ? wdWorktopModels() : [];
+      var cover = rooms.length > 1 || dl.length || hasHome;
       if (cab.length){
-        var cover = rooms.length > 1 || dl.length || hasHome, nCab = KPWD.cabinetSheetCount(cab), first = pages.length + 1 + (cover ? 1 : 0) + (hasHome ? 1 : 0);
-        pages = pages.concat(KPWD.cabinetSheets({ project:PRO ? PRO.name : "Verkefni", date:(models[0] || {}).date, notes:(models.length === 1 ? models[0].notes : []) }, cab, first, first + nCab - 1 + (dl.length ? 1 : 0)));
+        var nCab = KPWD.cabinetSheetCount(cab), first = pages.length + 1 + (cover ? 1 : 0) + (hasHome ? 1 : 0);
+        pages = pages.concat(KPWD.cabinetSheets({ project:PRO ? PRO.name : "Verkefni", date:(models[0] || {}).date, notes:(models.length === 1 ? models[0].notes : []) }, cab, first, first + nCab - 1 + wtm.length + (dl.length ? 1 : 0)));
       }
+      // Borðplata after the Skápalisti (2026-10-26)
+      var wFirst = pages.length + 1 + (cover ? 1 : 0) + (hasHome ? 1 : 0);
+      wtm.forEach(function(w, i){ pages.push(KPWD.worktopSheet({ project:PRO ? PRO.name : "Verkefni", date:(models[0] || {}).date }, w, wFirst + i, wFirst + wtm.length - 1 + (dl.length ? 1 : 0))); });
       // the project's door list as its own sheet (I2), after the rooms
       if (dl.length) pages.push(KPWD.doorSheet({ project:PRO ? PRO.name : "Verkefni", date:(models[0] || {}).date, notes:[] }, dl, pages.length + 2, pages.length + 2));
       // Allt heimilið: the whole home on one sheet, right after the cover
@@ -17600,6 +17700,7 @@
   }
   window.__wdModels = wdModels; // devtools / tests
   window.__wdCabinetRows = wdCabinetRows;
+  window.__wt = { result:function(){ return wtResult(); }, open:function(f){ proWtOpen(f); }, lines:function(){ return collectAllLineItems().filter(function(li){ return /^B[PVH]/.test(li["🔑"]); }); }, smida:function(){ return proSmidaAll(); }, check:function(){ return proCheckItems(); }, state:function(){ return state; }, refresh:function(){ save(); refreshAfterEdit(); } }; // devtools / tests
 
   // ---------- PRO home (2026-10-23): ?pro=home — start a new project, or search for one to continue ----------
   var PH_TAEKIFAERI = "tbl4LMXlQjp66RFKI";

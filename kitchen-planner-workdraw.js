@@ -484,6 +484,47 @@
   }
   function cabinetSheetCount(rows){ return cabinetSheets({}, rows, 1, 1).length; }
 
+  // ── Borðplata (2026-10-26): one sheet per room with a worktop. wt = { room, kind:"inhouse"|"stone", top:{label, code,
+  // groupLabel, thick}, plan:{inner, viewBox} (KPWT.planSvg), pieces:[{label, wall, len, depth, front, ends, edges, upstand,
+  // note, cutouts:[text]}], joints:[text], notes:[text] }. In-house = every number is production data (cut here);
+  // stone = the layout + what goes where, the stone maker measures on site. ──
+  function worktopSheet(model, wt, idx, total){
+    var stone = wt.kind === "stone", x = M + 6, top = M + 8, tw = PAGE_W - 2 * M - COL_W - 16;
+    var s = tx(x, M + 7, "BORÐPLATA — " + (model.project || "").toUpperCase() + (wt.room ? " · " + String(wt.room).toUpperCase() : ""), 3.4, C.ink, ' font-weight="800"');
+    s += tx(x, top + 4, (wt.top.label || "") + (wt.top.code ? " · Egger " + wt.top.code : "") + " · " + wt.top.thick + " mm · " + (stone ? "Steinn" : (wt.top.groupLabel || "") + " — sagað hjá okkur"), 2.8, C.ink, ' font-weight="600"');
+    if (stone) s += rc(x, top + 7, tw, 11, C.anno, 0.5, "#fff4ec") + tx(x + 4, top + 14.2, "Steinn — mál tekin af steinsmið. Engin sögunarteikning: myndin sýnir legu, vask, helluborð og krana.", 3.1, C.anno, ' font-weight="700"');
+    var py = top + (stone ? 21 : 8), ph = stone ? 120 : 138;
+    s += rc(x, py, tw, ph, C.thin, 0.25, "#fff");
+    if (wt.plan && wt.plan.inner) s += '<svg x="' + n(x + 2) + '" y="' + n(py + 2) + '" width="' + n(tw - 4) + '" height="' + n(ph - 4) + '" viewBox="' + wt.plan.viewBox + '" preserveAspectRatio="xMidYMid meet">' + wt.plan.inner + '</svg>';
+    var ty = py + ph + 7;
+    var cols = stone ? [["Stykki", 14], ["Veggur", 30], ["Gróf stærð L × D", 36], ["Hvað fer hvar", 0]] : [["Stykki", 14], ["Veggur", 26], ["L × D × Þ (mm)", 34], ["Endar", 34], ["Kantlímt", 46], ["Bakkantur", 18], ["Úrtök (miðja frá vinstri enda / vegg)", 0]];
+    var used = cols.reduce(function(a, c){ return a + c[1]; }, 0); cols[cols.length - 1][1] = Math.max(30, tw - used);
+    var cx = x; cols.forEach(function(c){ s += tx(cx + 1, ty, c[0], 2.3, C.ink, ' font-weight="700"'); cx += c[1]; });
+    s += ln(x, ty + 1.6, x + tw, ty + 1.6, C.ink, 0.3);
+    var ry = ty + 2, maxY = PAGE_H - M - 10;
+    (wt.pieces || []).forEach(function(p){
+      if (ry > maxY) return;
+      var cells = stone ? [p.label, p.wall, p.len + " × " + p.depth, (p.cutouts || []).join("; ") || "—"]
+        : [p.label, p.wall, p.len + " × " + p.depth + " × " + wt.top.thick + (p.front ? " (framan " + p.front + ")" : ""), p.ends, p.edges, p.upstand || "—", (p.cutouts || []).join("; ") || "—"];
+      var hRow = 0; cx = x;
+      cells.forEach(function(v, j){
+        var cw = cols[j][1], lines = wrap(String(v), Math.max(5, Math.floor(cw / 1.25))).slice(0, 4);
+        lines.forEach(function(l, k){ s += tx(cx + 1, ry + 4 + k * 3.2, l, j === 0 ? 3 : 2.4, j === 0 ? C.sk : C.ink, j === 0 ? ' font-weight="800"' : ""); });
+        hRow = Math.max(hRow, lines.length); cx += cw;
+      });
+      ry += Math.max(1, hRow) * 3.2 + 3;
+      s += ln(x, ry - 0.6, x + tw, ry - 0.6, "#c9c9cf", 0.15);
+    });
+    var notes = [];
+    if ((wt.joints || []).length) notes.push("Samskeyti: " + wt.joints.join("; ") + ".");
+    notes = notes.concat(wt.notes || []);
+    if (stone) notes.push("Steinsmiðurinn mælir á staðnum og sker; málin hér eru gróf (fyrir tilboð).");
+    else notes.push("Mál í mm. L = lengd á bakbrún (við vegg); skáskorið horn er styttra framan.", "Úrtök: miðja úrtaks frá vinstri enda stykkisins og frá bakbrún. Staðfestu helluborð og vask við tækin sjálf.");
+    notes.push("Blátt = kantlímt · fjólublátt strik = bakkantur upp við vegg.");
+    s += column(model, { title:"Borðplata" + (wt.room ? " — " + wt.room : ""), minimap:null, notes:notes }, idx, total, null);
+    return page(s);
+  }
+
   function render(model){
     var walls = (model.sheets || []).filter(function(sh){ return (sh.units && sh.units.length) || (sh.annotations && sh.annotations.length); });
     var total = walls.length + 1, out = [overviewSheet(model, 1, total)];
@@ -491,7 +532,7 @@
     return out;
   }
 
-  var API = { render:render, wallSheet:wallSheet, doorSheet:doorSheet, cabinetSheet:cabinetSheet, cabinetSheets:cabinetSheets, cabinetSheetCount:cabinetSheetCount, coverSheet:coverSheet, homeSheet:homeSheet, overviewSheet:overviewSheet, planSvg:planSvg, drawerLabel:drawerLabel, pickScale:pickScale, COLORS:C, PAGE_W:PAGE_W, PAGE_H:PAGE_H };
+  var API = { render:render, worktopSheet:worktopSheet, wallSheet:wallSheet, doorSheet:doorSheet, cabinetSheet:cabinetSheet, cabinetSheets:cabinetSheets, cabinetSheetCount:cabinetSheetCount, coverSheet:coverSheet, homeSheet:homeSheet, overviewSheet:overviewSheet, planSvg:planSvg, drawerLabel:drawerLabel, pickScale:pickScale, COLORS:C, PAGE_W:PAGE_W, PAGE_H:PAGE_H };
   if (typeof module !== "undefined" && module.exports) module.exports = API;
   root.KPWD = API;
 })(typeof window !== "undefined" ? window : globalThis);

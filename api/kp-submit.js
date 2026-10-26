@@ -234,7 +234,7 @@ export async function submit(at, body) {
 // never lose the customer's whole submission (2026-10-25). (A batch is all-or-nothing, so nothing is doubled.)
 const PRODUCT_LINKS = ["Vöru reitur 1", "Vöru reitur 2", "Vöru reitur 3"];
 export const PLANNER_JSON_MAX = 99000;
-const LINE_KEY_RE = /^(Sk|HU)\d{1,3}$/;                       // same as api/kp-pro.js's KEY_RE
+const LINE_KEY_RE = /^(Sk|HU|BP|BV|BH)\d{1,3}$/;             // same as api/kp-pro.js's KEY_RE
 // a room / colour name goes in as a select (typecast): never rejected (a customer's own room name must not lose the
 // submission), just kept short and free of control characters
 export const shortLabel = (v) => String(v).replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 60);

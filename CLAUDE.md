@@ -47,7 +47,7 @@ Rewrites live in [vercel.json](vercel.json) (`source` = short path, `destination
 - Files: [kitchen-planner.html](kitchen-planner.html) (UI, state, Line Items), [kitchen-planner-3d.js](kitchen-planner-3d.js)
   (`window.KP3D`: CATALOG, buildScene, buildPlan2D, all 3D), `-models.js` (Blum/handle models), `-handles.js`
   (KPHANDLES), `-catalog.js` / `-egger.js` (fronts, worktops), `-linemap.js` (generated Útfærslur ids — don't
-  hand-edit), `-showcase.js` (welcome-page kitchen), review page `kitchen-planner-review.html`.
+  hand-edit), `-worktop.js` (KPWT: PRO borðplata — pieces/joints/cutouts, BP/BV/BH lines, docs/pro-finish.md), `-showcase.js` (welcome-page kitchen), review page `kitchen-planner-review.html`.
 - Flow: welcome → shape (pick → size → height → openings → water) → materials (5 pages) → editor → intake → contact.
   Draft in `localStorage` `bjorninn:kitchenPlanner:draft:v1`; every edit ends in `refreshAfterEdit()`.
 - Submit = [api/kp-submit.js](api/kp-submit.js) (idempotent: contact → Tækifæri → Line Items) + drawings PDF
