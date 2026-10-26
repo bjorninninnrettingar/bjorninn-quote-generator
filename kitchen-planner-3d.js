@@ -2176,7 +2176,7 @@
     if (panelBox) panelUV(boxGeo, widthM, bodyH, bodyD, frontMat.userData && frontMat.userData.tile);
     else scaleFrontUV(boxGeo, widthM, bodyH, frontMat.userData && frontMat.userData.tile, false, { u:offsetM, v:bodyBase });
     var useFrontMat = frontMat;
-    if (selected){
+    if (selected && !wardrobeScene){ // a wardrobe keeps its real door colour — the blue outline (drawOverlay) shows the pick (user, 2026-10-26: "lilac looks like another door colour")
       useFrontMat = frontMat.clone();
       useFrontMat.emissive = new THREE.Color(SELECT_COLOR);
       useFrontMat.emissiveIntensity = 0.35;
@@ -2535,10 +2535,29 @@
     OV.svg.setAttribute("viewBox", "0 0 " + cr.width + " " + cr.height);
     var v = new (window.__THREE__.Vector3)();
     function P(p){ v.set(p.x, p.y, p.z).project(camera); return { x:(v.x + 1) / 2 * cr.width, y:(1 - v.y) / 2 * cr.height, behind:v.z > 1 }; }
-    var out = "";
+    var out = selHullSvg(P);
     if (SHOW_DIMS) OV.dims.forEach(function(d){ var a = P(d.a), b = P(d.b); if (!a.behind && !b.behind) out += ovLineSvg(a, b, d.text, false); });
     Object.keys(OV.gaps).forEach(function(k){ var g = OV.gaps[k]; if (!g) return; out += ovLineSvg(P(g.a), P(g.b), g.text, g.active); });
     if (out !== OV.last){ OV.svg.innerHTML = out; OV.last = out; }
+  }
+  // the selected wardrobe unit: a blue outline round its silhouette (2.5 px, screen space — a WebGL line is always
+  // 1 px and too faint) instead of tinting its doors lilac (user, 2026-10-26)
+  var selCorner = null;
+  function selHullSvg(P){
+    if (!wardrobeScene || !THREE_STATE || !THREE_STATE.pickables || THREE_STATE.dragging) return "";
+    var m = THREE_STATE.pickables.find(function(x){ return x.userData && x.userData.selected && x.userData.edgesObj && !x.userData.isPart; });
+    var e = m && m.userData.edgesObj; if (!e || !e.geometry) return "";
+    if (!e.geometry.boundingBox) e.geometry.computeBoundingBox();
+    var bb = e.geometry.boundingBox;
+    if (!selCorner) selCorner = new (window.__THREE__.Vector3)();
+    e.updateMatrixWorld();
+    // the FRONT face only (local +z = the room side): the whole box's silhouette took in its sides, hidden behind the neighbours
+    var hull = [[0, 0], [1, 0], [1, 1], [0, 1]].map(function(q){
+      selCorner.set(q[0] ? bb.max.x : bb.min.x, q[1] ? bb.max.y : bb.min.y, bb.max.z).applyMatrix4(e.matrixWorld);
+      return P(selCorner);
+    });
+    if (hull.some(function(p){ return p.behind; })) return "";
+    return '<polygon points="' + hull.map(function(p){ return p.x.toFixed(1) + "," + p.y.toFixed(1); }).join(" ") + '" fill="none" stroke="' + OV_BLUE + '" stroke-width="2.5" stroke-linejoin="round"/>';
   }
   // a wardrobe unit's width, just above it, in that style (was a big "80 x 257 x 58" label)
   function addUnitDims(geom, offsetM, widthM, topY, depthM, text){
@@ -3974,15 +3993,15 @@
       if (cab && cab.items && cab.t > 0){ cab.items.forEach(function(it){ it.o.material = it.orig; }); cab.t = 0; } // back to solid before the material slots are touched
       if (Array.isArray(m.material)){ // cabinet
         if (u.open || u.art){ /* open shelves have NO front: swapping slot 4 for the real front material gave them a door */ }
-        else if (want){
+        else if (want && !wardrobeScene){
           var c = u.baseFront.clone();
           c.emissive = new THREE.Color(SELECT_COLOR); c.emissiveIntensity = 0.35;
           c.__xrayBase = u.baseFront; // same tag as addCabinetBox's build-time selection clone — setXrayFronts
           // only strips THREE_STATE.frontMat plus anything tagged back to it; this runtime clone (selecting
           // without a full rebuild) was missing it, so the one cabinet you had selected stayed opaque under X-ray
           m.material[4] = c;
-        } else {
-          if (m.material[4] !== u.baseFront) m.material[4].dispose();
+        } else if (m.material[4] !== u.baseFront){
+          m.material[4].dispose();
           m.material[4] = u.baseFront;
         }
         var e = m.parent && m.parent.children[1];
@@ -5595,14 +5614,46 @@
       var mesh = opts.selectedId && !THREE_STATE.dragging ? pickables.find(function(m){ return m.userData.blockId === opts.selectedId; }) : null;
       if (!mesh || mesh.userData.kind === "island"){ el.hidden = true; return; }
       floatBox.setFromObject(mesh);
-      floatV.set((floatBox.min.x + floatBox.max.x) / 2, floatBox.max.y, (floatBox.min.z + floatBox.max.z) / 2).project(camera);
+      var below = el.classList.contains("cl-sel"); // a wardrobe unit: under it, at the floor (its width tag is on top)
+      floatV.set((floatBox.min.x + floatBox.max.x) / 2, below ? floatBox.min.y : floatBox.max.y, (floatBox.min.z + floatBox.max.z) / 2).project(camera);
       if (floatV.z > 1){ el.hidden = true; return; }
       var cr = renderer.domElement.getBoundingClientRect(), pr = el.offsetParent ? el.offsetParent.getBoundingClientRect() : cr;
       var x = cr.left - pr.left + (floatV.x * 0.5 + 0.5) * cr.width;
       var y = cr.top - pr.top + (-floatV.y * 0.5 + 0.5) * cr.height;
       el.style.left = Math.max(60, Math.min(pr.width - 60, x)) + "px";
-      el.style.top = Math.max(46, y - 10) + "px";
+      el.style.top = (below ? Math.min(pr.height - 48, y + 10) : Math.max(46, y - 10)) + "px";
       el.hidden = false;
+    }
+
+    // The side panel slides in OVER the right of the view (opts.coveredRight() = its width in px, 0 when closed):
+    // shift the picture left (camera view offset — the camera itself stays put, so orbit/zoom are untouched) by half
+    // the panel, more if the selected unit would still sit under it; glides back when the panel closes (user, 2026-10-26).
+    // Worked out once per panel/selection change, not every frame, so orbiting afterwards isn't fought.
+    var shift = { cur:0, target:0, key:"" }, shiftV = new THREE.Vector3();
+    function panelShift(){
+      var cov = opts.coveredRight && !WALK.on ? opts.coveredRight() : 0;
+      var cr = renderer.domElement.getBoundingClientRect(), W = cr.width, H = cr.height; if (!W || !H) return;
+      var key = cov + "|" + (opts.selectedId || "");
+      if (key !== shift.key){
+        shift.key = key;
+        var T = cov / 2;
+        var mesh = cov && opts.selectedId ? pickables.find(function(m){ return m.userData.blockId === opts.selectedId; }) : null;
+        if (mesh){
+          floatBox.setFromObject(mesh);
+          var lo = Infinity, hi = -Infinity;
+          for (var i = 0; i < 8; i++){
+            shiftV.set(i & 1 ? floatBox.max.x : floatBox.min.x, i & 2 ? floatBox.max.y : floatBox.min.y, i & 4 ? floatBox.max.z : floatBox.min.z).project(camera);
+            var x = (shiftV.x * 0.5 + 0.5) * W + shift.cur; // screen x as if there were no shift
+            lo = Math.min(lo, x); hi = Math.max(hi, x);
+          }
+          T = Math.min(Math.max(T, hi - (W - cov - 24)), lo - 24); // fully left of the panel; a unit wider than the room left keeps its left end in view
+        }
+        shift.target = Math.max(0, T);
+      }
+      shift.cur += (shift.target - shift.cur) * 0.2;
+      if (Math.abs(shift.target - shift.cur) < 0.5) shift.cur = shift.target;
+      if (shift.cur > 0.5) camera.setViewOffset(W, H, shift.cur, 0, W, H);
+      else if (camera.view && camera.view.enabled) camera.clearViewOffset();
     }
 
     // "Veggur" view's dimension chain — projected fresh every frame (cheap: at most ~a dozen ticks)
@@ -5818,6 +5869,7 @@
       stepParts(scene);
       stepMood(scene);
       if (people) people.people.forEach(function(m){ m.rotation.y = Math.atan2(camera.position.x - m.position.x, camera.position.z - m.position.z); });
+      panelShift();
       renderFrame(false);
       placeFloatBar();
       placeDims();
