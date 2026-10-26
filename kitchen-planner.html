@@ -1177,6 +1177,7 @@
   #proCheck .pc-d { grid-column:2 / 4; color:var(--ink-soft); font-size:12.5px; line-height:1.4; }
   #proCheck .pc-acks { grid-column:2 / 4; display:flex; flex-direction:column; gap:3px; margin-top:4px; }
   #proCheck .pc-acks label { display:flex; gap:7px; align-items:center; font-size:12.5px; cursor:pointer; }
+  #proCheck .pc-acks select { flex:1; min-width:0; background:var(--card); color:var(--ink); border:1px solid var(--line); border-radius:7px; padding:4px 6px; font:inherit; }
   #proCheck .pc-foot { display:flex; gap:8px; margin-top:12px; }
   #proCheck .pc-foot button { flex:1; padding:10px; border-radius:10px; font:700 13.5px/1.2 inherit; cursor:pointer; border:1px solid var(--blue); }
   #proCheck .pc-save { background:transparent; color:var(--ink); }
@@ -10505,6 +10506,7 @@
   // NO match (→ note + Skipulagsvilla), not silently the widest product.
   function widthFamily(mm){ return Math.round(mm / 100) * 100; }
   function v1RecordFor(b, c){
+    if (b.v1Pick && b.v1Pick.id) return b.v1Pick; // picked by hand in PRO's Yfirferð (A3, 2026-10-26) when nothing standard fits
     // Úthlið = its own Útfærsla by height (UHGR/UHLK/UHHA/UHVS/UHEF, user 2026-10-06)
     if (c.panelIds){ var h = blockHeightMm(b, c); var pid = c.panelIds.find(function(x){ return !x.maxH || h <= x.maxH; }); return pid ? { id:pid.utfaerslaId } : null; }
     // Lausar hillur = "Stök vara" + H1/H2/H3 in V2 (the shape Keyra skipulag turns into an Eyðublað)
@@ -11115,10 +11117,11 @@
         });
         if (state.waterWall === w.id) rows += '<div class="mp-row"><input type="checkbox" data-mchk="water"' + (M.checked.water ? " checked" : "") + '><span style="font-size:12px;">Vatn, miðja frá horni</span><input type="number" data-mwater value="' + Math.round(waterAlong(w)) + '" step="5"></div>';
       });
-      var total = 2 + state.walls.length + state.windows.length + state.doors.length + (state.waterWall ? 1 : 0) - 1, done = Object.keys(M.checked).filter(function(k){ return M.checked[k]; }).length;
+      var ids = ["height"].concat(state.walls.map(function(w){ return w.id; }), state.windows.concat(state.doors).filter(function(o){ return state.walls.some(function(w){ return w.id === o.wallId; }); }).map(function(o){ return o.id; }), state.waterWall ? ["water"] : []);
+      var total = ids.length, done = ids.filter(function(k){ return M.checked[k]; }).length; // only what's in the room now (a deleted wall's tick never counts)
       el.innerHTML = '<div class="mp-head"><h3>Mæling — ' + escapeHtmlPro((state.intake && state.intake.room) || "Rými") + '</h3><p>Sláðu inn það sem þú mælir og hakaðu við. Teikningin breytist um leið. ' + done + ' af ' + total + ' staðfest.</p></div>' +
         '<div class="mp-body">' + rows + '<div class="mp-sub">Athugasemdir</div><textarea data-mnote placeholder="t.d. lagnir í vegg 2, ójafnt gólf, rafmagnstafla…">' + escapeHtmlPro(M.note || "") + '</textarea></div>' +
-        '<div class="mp-foot">' + (M.at ? '<span class="mp-done">✓ Mælt ' + new Date(M.at).toLocaleDateString("is-IS") + '</span>' : '') + '<span style="flex:1"></span><button type="button" class="btn btn-secondary btn-small" data-mclose>Loka</button><button type="button" class="btn btn-primary btn-small" data-mdone>Mæling lokið</button></div>';
+        '<div class="mp-foot">' + (M.at ? '<span class="mp-done">✓ Mælt ' + new Date(M.at).toLocaleDateString("is-IS") + '</span>' : '') + '<span style="flex:1"></span><button type="button" class="btn btn-secondary btn-small" data-mclose>Loka</button><button type="button" class="btn btn-primary btn-small" data-mdone' + (done < total ? ' disabled title="Hakaðu fyrst við hvert mál (' + done + ' af ' + total + ')"' : '') + '>' + (PRO ? 'Mæling lokið — vista í Airtable' : 'Mæling lokið') + '</button></div>';
     }
     el.onchange = function(e){
       var t = e.target;
@@ -11145,7 +11148,8 @@
     el.onclick = function(e){
       var b = e.target.closest("button"); if (!b) return;
       if (b.dataset.mclose != null){ el.remove(); return; }
-      if (b.dataset.mdone != null){
+      if (b.dataset.mdone != null){ // only once every measurement is ticked (A6, 2026-10-26); in PRO it says it saves
+        if (b.disabled) return;
         M.at = new Date().toISOString(); save(); draw();
         if (PRO && PRO.ready && typeof proSave === "function") proSave().then(function(){ // only claim "vistuð" when it was (2026-10-26)
           toast(proDirty() ? "Mæling skráð í teikninguna — vistunin tókst ekki (sjá efst), reyndu Vista aftur." : "✓ Mæling skráð og vistuð í Airtable."); });
@@ -13032,7 +13036,8 @@
     SK_SAVED_ACTIVE = savedActive;
     try {
       queue.forEach(function(cat){
-        var blob = cat === state.activeCategory ? savedActive : state.categoryData[cat];
+        // no room bookkeeping yet (a fresh PRO project before Byrja): the live fields are the only room
+        var blob = cat === state.activeCategory || (!state.activeCategory && !state.categoryData) ? savedActive : (state.categoryData || {})[cat];
         if (!blob) return; // queued but never actually drawn yet
         ROOM_FIELDS.forEach(function(k){ state[k] = blob[k]; });
         SK_CAT = cat;
@@ -13938,7 +13943,8 @@
       '<h3>' + (key ? key + " · " : "") + c.label + '</h3><div class="pe-sub">' + b.widthMm + ' × ' + carcassMm + ' mm · ' +
       // C1 (2026-10-26): drawer heights, oven, shelves, rails, inner drawers are changes too — not only doors/hinges —
       // and "vistuð" read like Airtable: it's on the drawing until Vista
-      (proCustomized(b) ? "Breytt hér — fer í Airtable þegar þú vistar" : "Sjálfgefin smíðagögn (ekkert breytt)") + '</div>';
+      (proCustomized(b) ? "Breytt hér — fer í Airtable þegar þú vistar" : "Sjálfgefin smíðagögn (ekkert breytt)") +
+      (b.v1Pick ? '<br>Vara: ' + escapeHtmlPro(b.v1Pick.name) + ' (valin í Yfirferð)' : '') + '</div>';
     // ⛔ first, where it can't be missed (2026-10-26: it sat under the last section, below the fold on a tall unit)
     var issues = proIssues(b, c, fb.zone);
     if (issues.length) right += '<div class="pe-issues"><b>⛔ Lagaðu áður en skápurinn er merktur yfirfarinn:</b>' + issues.map(function(x){ return '<div>' + escapeHtmlPro(x) + '</div>'; }).join("") +
@@ -14614,7 +14620,8 @@
         if (iss.length) f.issues.push(Object.assign({ text:iss[0] }, ref));
         if (!proReady(b)) f.unready.push(ref);
       }); }); });
-      collectLineItems().forEach(function(li){ if (!(li["Vöru reitur 1"] || []).length) f.unlinked.push({ cat:cat, room:room, key:li["🔑"] }); });
+      var idOf = {}; Object.keys(keys).forEach(function(id){ idOf[keys[id]] = id; });
+      collectLineItems().forEach(function(li){ if (!(li["Vöru reitur 1"] || []).length) f.unlinked.push({ cat:cat, room:room, key:li["🔑"], id:idOf[li["🔑"]] || null }); });
       KP3D.fitWarnings(state).forEach(function(w){ f.warnings.push(w.msg); });
     });
     doorListLines().forEach(function(li){ if (!(li["Vöru reitur 1"] || []).length) f.unlinked.push({ cat:null, room:"Innihurðir", key:li["🔑"] }); });
@@ -14643,8 +14650,10 @@
         detail:M && M.at ? "Mæling lokið " + new Date(M.at).toLocaleDateString("is-IS") + "." : "Opnaðu Mælingu, sláðu inn málin og ýttu á „Mæling lokið“." },
       { key:"efni", ok:!miss.length, title:"Efni og höldur valin", target:miss[0],
         detail:miss.length ? miss.map(function(r){ var m = r.missing.join(", ").toLowerCase() + " vantar"; return multi ? r.room + ": " + m : m.charAt(0).toUpperCase() + m.slice(1); }).join(" · ") + "." : "Skrokkur, skúffukerfi, framhlið, höldur og borðplata." },
-      { key:"vara", ok:f.cabinets > 0 && !unl.length, title:"Hver eining tengd vöru", target:unl[0], acks:f.unlinked.map(function(u){ return { id:"v1:" + u.key, label:u.key + (multi ? " (" + u.room + ")" : "") + " — Útfærsla valin í Airtable", on:!!ack["v1:" + u.key] }; }),
-        detail:unl.length ? keyList(unl) + ": engin stöðluð vara passar. Vistaðu, veldu Útfærslu á línunni í Airtable og hakaðu svo við hér." : f.cabinets ? f.cabinets + " " + plural(f.cabinets, "eining", "einingar") + " með vöru." : "Engar einingar enn." },
+      { key:"vara", ok:f.cabinets > 0 && !unl.length, title:"Hver eining tengd vöru", target:unl[0],
+        picks:f.unlinked.filter(function(u){ return u.id; }),
+        acks:f.unlinked.filter(function(u){ return !u.id; }).map(function(u){ return { id:"v1:" + u.key, label:u.key + (multi ? " (" + u.room + ")" : "") + " — Útfærsla valin í Airtable", on:!!ack["v1:" + u.key] }; }),
+        detail:unl.length ? keyList(unl) + ": engin stöðluð vara passar sjálfkrafa — veldu vöruna hér fyrir neðan (fer í V1 á línunni þegar þú vistar)." : f.cabinets ? f.cabinets + " " + plural(f.cabinets, "eining", "einingar") + " með vöru." : "Engar einingar enn." },
       { key:"villur", ok:f.cabinets > 0 && !f.issues.length, title:"Engar ⛔ villur í Smíða", target:f.issues[0], smida:true,
         detail:f.issues.length ? f.issues[0].key + ": " + f.issues[0].text + (f.issues.length > 1 ? " (og " + (f.issues.length - 1) + " " + plural(f.issues.length - 1, "skápur", "skápar") + " í viðbót)" : "") : f.cabinets ? "Lamir, skúffur og hillur ganga upp." : "Engar einingar enn." },
       { key:"smida", ok:f.cabinets > 0 && !f.unready.length, title:"Hver skápur yfirfarinn í Smíða", target:f.unready[0], smida:true,
@@ -14652,6 +14661,23 @@
       { key:"abend", ok:wOk, title:"Ábendingar yfirfarnar", acks:f.warnings.length ? [{ id:"warn", label:"Ég hef farið yfir " + (f.warnings.length === 1 ? "ábendinguna" : "ábendingarnar"), on:wOk, sig:wSig }] : null,
         detail:f.warnings.length ? f.warnings.length + " " + plural(f.warnings.length, "ábending", "ábendingar") + ", t.d. „" + f.warnings[0] + "“" : "Engar ábendingar." }
     ];
+  }
+  // every V1 Útfærsla the planner knows (KP_LINEMAP.v1, generated from Airtable), by name — the A3 picker
+  var proV1List = null;
+  function proV1Choices(){
+    if (proV1List) return proV1List;
+    var seen = {}, out = [];
+    (function walk(o){ if (!o || typeof o !== "object") return;
+      if (typeof o.id === "string" && /^rec/.test(o.id) && o.name){ if (!seen[o.id]){ seen[o.id] = 1; out.push({ id:o.id, name:o.name, sku:o.sku }); } return; }
+      Object.keys(o).forEach(function(k){ walk(o[k]); }); })((window.KP_LINEMAP || {}).v1);
+    return (proV1List = out.sort(function(a, z){ return a.name.localeCompare(z.name, "is"); }));
+  }
+  function proSetV1Pick(cat, id, opt){
+    var hit = false;
+    withEachCategory(function(c){ if (cat && c !== cat) return;
+      surfaces().forEach(function(w){ w.floor.concat(w.wall).forEach(function(b){ if (b.id === id){ b.v1Pick = { id:opt.id, name:opt.name }; hit = true; } }); }); });
+    if (hit){ save(); refreshAfterEdit(); toast(opt.name + " valin — fer á línuna þegar þú vistar."); }
+    proCheckRender();
   }
   function proCheckSoon(){ clearTimeout(pc.timer); pc.timer = setTimeout(proCheckRender, 500); }
   function proCheckRender(){
@@ -14671,6 +14697,9 @@
         return '<div class="pc-item ' + (x.ok ? "ok" : "todo") + '" data-pci="' + i + '"><span class="pc-ico">' + (x.ok ? "✓" : "●") + '</span>' +
           '<span class="pc-t">' + esc(x.title) + '</span>' + (x.ok ? "" : '<span class="pc-go">Laga →</span>') +
           '<span class="pc-d">' + esc(x.detail) + '</span>' +
+          (x.picks && x.picks.length ? '<span class="pc-acks">' + x.picks.map(function(u){
+            return '<label>' + esc(u.key) + ((state.categoryQueue || []).length > 1 ? " (" + esc(u.room) + ")" : "") + ' <select data-v1pick="' + esc(u.id) + '" data-cat="' + esc(u.cat || "") + '"><option value="">Veldu vöru…</option>' +
+              proV1Choices().map(function(o){ return '<option value="' + esc(o.id) + '">' + esc(o.name) + '</option>'; }).join("") + '</select></label>'; }).join("") + '</span>' : '') +
           (x.acks && x.acks.length ? '<span class="pc-acks">' + x.acks.map(function(a){ return '<label><input type="checkbox" data-ack="' + esc(a.id) + '"' + (a.sig != null ? ' data-sig="' + esc(a.sig) + '"' : '') + (a.on ? " checked" : "") + '> ' + esc(a.label) + '</label>'; }).join("") + '</span>' : '') +
           '</div>';
       }).join("") +
@@ -14688,7 +14717,9 @@
       var row = e.target.closest(".pc-item.todo"); if (row) proCheckFix(items[+row.dataset.pci]);
     };
     el.onchange = function(e){
-      var t = e.target; if (!t.dataset.ack) return;
+      var t = e.target;
+      if (t.dataset.v1pick != null){ var opt = proV1Choices().find(function(o){ return o.id === t.value; }); if (opt) proSetV1Pick(t.dataset.cat, t.dataset.v1pick, opt); return; }
+      if (!t.dataset.ack) return;
       state.proAck = state.proAck || {};
       if (t.checked) state.proAck[t.dataset.ack] = t.dataset.sig != null ? t.dataset.sig : true; else delete state.proAck[t.dataset.ack];
       save(); proCheckRender();
