@@ -542,6 +542,7 @@
     "Sjá í kvöldstemningu": "See it in evening light",
     "Rafmagn: viðskiptavinur eða fagaðili þarf að tengja LED-lýsinguna við rafmagn á staðnum.": "Electricity: the customer or an electrician needs to connect the LED lighting to power on site.",
     "Smelltu á efri skáp til að kveikja eða slökkva á ljósi undir honum einum.": "Click a wall cabinet to switch the light under just that one on or off.",
+    "Smelltu á skáp til að kveikja eða slökkva á ljósi í honum.": "Click a unit to switch the light inside it on or off.",
     "Húsgögn": "Furniture",
     "Sýna húsgögnin": "Show the furniture",
     "Fela húsgögnin": "Hide the furniture",

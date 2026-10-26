@@ -362,3 +362,11 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   no units (a "Beinn veggur" wardrobe's 3 room edges). Kitchen walls are unchanged.
 - **2D pager with one wall:** label is the wall's name ("Veggur 1", not "1 af 1") and ◀ ▶ are hidden.
 - **Áfram on Skipulag** is always enabled; with nothing placed it toasts "Settu inn að minnsta kosti einn skáp."
+- **Editor toolbar dropdowns per room (2026-10-26):** Efni → Borðplata only when `categoryDef(cat).worktop !== false`;
+  Skúffukerfi only in PRO; Framhlið is the Efni step's own tiles + tabs (`lookTileHTML()`, shared with `renderLookCards`);
+  Litur á höldum = the Höldur page's swatches (`handleColorRowHTML()` / `pickHandleColor()`), no row for a one-colour
+  handle; `matSel` never shows "(eldra val)". Lýsing in a wardrobe: "Smelltu á skáp …" (bath/laundry have upper units,
+  so they keep the kitchen text). Esc (window capture, before the unit-deselect handler) and any outside press
+  (`closeEdMenus()`) close the menus. Bug fixed: a pick inside a menu closed it — `refreshAfterEdit` + `renderCatalogPanel`
+  render twice, and the replaced copy's queued `toggle` closed the live one; the handler now ignores detached `<details>`.
+  The menu body and the front grid keep their scroll across re-renders.
