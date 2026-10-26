@@ -4,78 +4,141 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="robots" content="noindex" />
-<title>Smíða úr Eyðublöðum — Björninn</title>
+<title>Smíða — Björninn</title>
 <style>
-  /* smida.html (/smida, 2026-10-26) — "Smíða úr Eyðublöðum": Smíða for a project planned the OLD way in Airtable
-     (Eyðublöð + Sögunarlisti, no PRO drawing). One cabinet per Eyðublað, built from the same Sögunarlisti rows /cnc
-     plans from (cnc-data.js + cnc-sides.js), so what you see here is what /cnc drills. Edits: hinge side, hinges,
-     door type, shelves, oven, inner drawers behind a door, clothes rail. Vista writes ONLY each Eyðublað's
-     "Smíðagögn (JSON) 🔧" (api/smida-eydublad.js), Afturkalla puts the previous value back. See docs/pro-finish.md. */
+  /* smida.html (/smida) — "Smíða úr Eyðublöðum": Smíða for a project planned the OLD way in Airtable (Eyðublöð +
+     Sögunarlisti, no PRO drawing). One cabinet per Eyðublað, built from the same Sögunarlisti rows /cnc plans from
+     (cnc-data.js + cnc-sides.js → smida-eydublod.js), so the drawing is what /cnc drills. Saves ONLY each Eyðublað's
+     "Smíðagögn (JSON) 🔧" (api/smida-eydublad.js); a cabinet is saved the moment it's marked "Yfirfarinn".
+     2026-10-26 redesign (owner: "the most important page in the company"): one calm screen per cabinet — the drawing
+     is the hero and is edited directly (drag shelves/hinges, click a door for its hinge side, click a number to type),
+     the right side asks only what is still open, everything settled is one quiet line. See docs/pro-finish.md. */
   :root {
-    --bg:#f3f4f6; --surface:#ffffff; --surface2:#eef1f4; --line:#e1e4e8; --text:#1a1d21; --muted:#5d6670; --dim:#9aa3ad;
-    --blue:#0f6cbd; --green:#1a7d36; --amber:#9a6700; --red:#c4291c;
+    --bg:#f5f5f7; --surface:#ffffff; --line:#e5e5ea; --line2:#d2d2d7; --text:#1d1d1f; --muted:#6e6e73; --dim:#a1a1a6;
+    --blue:#0071e3; --blue-soft:#e8f1fc; --green:#248a3d; --green-soft:#e9f6ec; --amber:#b25000; --amber-soft:#fff4e5; --red:#d70015;
+    --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     --warn-bg:#fdf2d9; --warn-line:#f0d78c; --good-bg:#e5f6ea; --good-line:#b7e3c2; --bad-bg:#fbe4e1; --bad-line:#f0b8b0;
-    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     --bw-title1:#5c4a2e; --bw-title2:#9c8a6b; --bw-chrome:#d6d3c6; --bw-chrome-dark:#9b9686;
     --bw-list-bg:#e2dfd2; --bw-row-line:#cac6b6; --bw-canvas:#eeede6; --bw-ink:#333;
     --bw-teal:#2f7f6a; --bw-pill:#c3d3e1; --bw-pill-ink:#4f7294; --bw-font:Tahoma,"Segoe UI",Verdana,sans-serif;
   }
   * { box-sizing:border-box; margin:0; padding:0; }
-  html,body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; line-height:1.4; }
-  button, input, select { font:inherit; color:var(--text); }
-  button { cursor:pointer; font-weight:700; border:1px solid var(--line); background:var(--surface2); border-radius:9px; padding:7px 12px; white-space:nowrap; }
-  button:disabled { opacity:.45; cursor:default; }
-  button.primary { background:var(--blue); border-color:var(--blue); color:#fff; }
-  button.go { background:var(--green); border-color:var(--green); color:#fff; }
-  input[type=number] { width:84px; border:1px solid var(--line); border-radius:8px; padding:5px 8px; background:#fff; text-align:right; }
-  .top { display:flex; align-items:center; gap:12px; padding:10px 18px; background:var(--surface); border-bottom:1px solid var(--line); }
-  .top .ttl { flex:1; min-width:0; }
-  .kicker { font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); }
-  .pname { font-weight:800; font-size:1.05rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .status { font-size:.84rem; color:var(--muted); width:260px; text-align:right; }
-  .status.bad { color:var(--red); } .status.ok { color:var(--green); }
-  #saveBtn { width:150px; } #undoBtn { width:120px; }
-  .top a { color:var(--blue); font-weight:700; font-size:.88rem; text-decoration:none; white-space:nowrap; }
-  .nav { display:flex; align-items:center; gap:8px; padding:8px 18px; background:var(--surface); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:5; }
-  .nav[hidden] { display:none; }
-  .strip { flex:1; display:flex; gap:4px; overflow-x:auto; padding:2px 0; scrollbar-width:thin; }
-  .chip { flex:none; border:1px solid var(--line); background:var(--surface2); border-radius:8px; padding:4px 9px; font-size:.8rem; font-weight:700; display:flex; align-items:center; gap:6px; }
-  .chip i { width:8px; height:8px; border-radius:50%; background:#d5a021; display:inline-block; }
-  .chip.done i { background:var(--green); } .chip.bad i { background:var(--red); } .chip.fre i { background:var(--dim); }
-  .chip.on { border-color:var(--blue); background:#e3eefa; color:var(--blue); }
-  .chip.dirty::after { content:"•"; color:var(--blue); margin-left:-2px; }
-  .count { font-size:.82rem; color:var(--muted); width:110px; text-align:center; }
-  #nextBtn { width:220px; }
-  .main { display:grid; grid-template-columns:minmax(380px, 1fr) 470px; gap:16px; padding:14px 18px 40px; max-width:1500px; margin:0 auto; }
-  .panel { background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:12px 14px; }
-  .tabs { display:flex; gap:6px; margin-bottom:10px; }
-  .tabs button.on { background:var(--text); color:#fff; border-color:var(--text); }
-  .draw { display:flex; justify-content:center; }
-  .draw svg { max-width:100%; height:auto; touch-action:none; user-select:none; }
-  .hint { font-size:.78rem; color:var(--muted); margin-top:6px; }
-  h3 { font-size:.95rem; font-weight:800; display:flex; align-items:baseline; gap:8px; margin-bottom:6px; }
-  h3 small { font-weight:500; color:var(--muted); font-size:.8rem; }
-  .sec { border-top:1px solid var(--line); padding-top:10px; margin-top:10px; }
-  .sec:first-child { border-top:none; margin-top:0; padding-top:0; }
-  .meta { font-size:.85rem; color:var(--muted); }
-  .meta b { color:var(--text); }
-  .row { display:flex; align-items:center; gap:8px; margin:4px 0; font-size:.87rem; flex-wrap:wrap; }
-  .row .lbl { width:96px; color:var(--muted); }
-  .seg { display:inline-flex; border:1px solid var(--line); border-radius:9px; overflow:hidden; }
-  .seg button { border:none; border-radius:0; background:var(--surface2); padding:6px 11px; font-weight:600; }
-  .seg button + button { border-left:1px solid var(--line); }
-  .seg button.on { background:var(--blue); color:#fff; }
-  .small { font-size:.8rem; padding:4px 9px; font-weight:600; }
-  .note { font-size:.8rem; color:var(--muted); margin-top:4px; }
-  .issues { list-style:none; font-size:.84rem; }
-  .issues li { padding:5px 9px; border-radius:8px; margin:4px 0; }
-  .issues li.stop { background:var(--bad-bg); color:var(--red); border:1px solid var(--bad-line); }
-  .issues li.check { background:var(--warn-bg); color:var(--amber); border:1px solid var(--warn-line); }
-  .issues li.ok { background:var(--good-bg); color:var(--green); border:1px solid var(--good-line); }
-  .msg { max-width:640px; margin:60px auto; background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:22px; }
-  .msg h2 { font-size:1.15rem; margin-bottom:8px; } .msg p { color:var(--muted); margin-bottom:12px; }
-  .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--text); color:#fff; padding:9px 16px; border-radius:10px; font-size:.88rem; opacity:0; transition:opacity .2s; pointer-events:none; z-index:20; }
-  .toast.show { opacity:1; }
+  html,body { height:100%; }
+  body { background:var(--bg); color:var(--text); font-family:var(--font); font-size:14px; line-height:1.45; -webkit-font-smoothing:antialiased; overflow:hidden; }
+  button, input { font:inherit; color:inherit; }
+  button { cursor:pointer; background:none; border:none; }
+  button:disabled { cursor:default; }
+  input[type=number] { width:76px; border:1px solid var(--line2); border-radius:8px; padding:5px 8px; background:#fff; text-align:right; font-variant-numeric:tabular-nums; }
+  input[type=number]:focus { outline:none; border-color:var(--blue); box-shadow:0 0 0 3px #0071e333; }
+  .shell { height:100vh; display:grid; grid-template-rows:56px 1fr; }
+
+  /* top bar */
+  .top { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; padding:0 20px; background:rgba(255,255,255,.86); backdrop-filter:saturate(180%) blur(20px); border-bottom:1px solid var(--line); }
+  .brand { display:flex; align-items:baseline; gap:10px; min-width:0; }
+  .brand b { font-weight:600; font-size:15px; }
+  .brand span { color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .prog { display:flex; align-items:center; gap:10px; color:var(--muted); font-size:13px; font-variant-numeric:tabular-nums; }
+  .bar { width:140px; height:4px; border-radius:2px; background:var(--line); overflow:hidden; }
+  .bar i { display:block; height:100%; background:var(--green); border-radius:2px; transition:width .3s; }
+  .acts { display:flex; justify-content:flex-end; align-items:center; gap:14px; }
+  .save { display:flex; align-items:center; gap:7px; font-size:13px; color:var(--muted); width:190px; justify-content:flex-end; white-space:nowrap; }
+  .save i { width:7px; height:7px; border-radius:50%; background:var(--green); flex:none; }
+  .save.dirty i { background:var(--blue); } .save.busy i { background:var(--dim); } .save.bad { color:var(--red); } .save.bad i { background:var(--red); }
+  .tbtn { font-size:13px; color:var(--blue); padding:6px 4px; }
+  .tbtn:disabled { color:var(--dim); }
+  #saveBtn { min-width:64px; text-align:center; } #undoBtn { width:78px; text-align:center; }
+  .top a { color:var(--blue); text-decoration:none; font-size:13px; }
+
+  .main { display:grid; grid-template-columns:236px 1fr 404px; min-height:0; }
+
+  /* cabinet list */
+  .list { border-right:1px solid var(--line); overflow-y:auto; padding:12px 10px 24px; }
+  .list h4 { font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--dim); padding:4px 10px 8px; }
+  .item { width:100%; display:grid; grid-template-columns:20px 1fr auto; align-items:center; gap:8px; padding:7px 10px; border-radius:9px; text-align:left; }
+  .item:hover { background:#ebebef; }
+  .item.on { background:var(--surface); box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .item .nm { font-weight:600; font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .item .ty { display:block; font-weight:400; font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .item .un { width:6px; height:6px; border-radius:50%; background:var(--blue); visibility:hidden; }
+  .item .un.on { visibility:visible; }
+  .st { width:18px; height:18px; display:block; }
+
+  /* stage */
+  .stage { position:relative; min-width:0; min-height:0; display:flex; flex-direction:column; padding:18px 22px 14px; }
+  .views { position:absolute; top:16px; right:22px; display:flex; gap:2px; background:#e8e8ed; border-radius:8px; padding:2px; z-index:2; }
+  .views button { font-size:12px; padding:4px 10px; border-radius:6px; color:var(--muted); }
+  .views button.on { background:#fff; color:var(--text); box-shadow:0 1px 2px rgba(0,0,0,.1); }
+  #canvas { flex:1; min-height:0; display:flex; align-items:center; justify-content:center; position:relative; }
+  #canvas svg { display:block; touch-action:none; user-select:none; overflow:visible; }
+  .door { cursor:pointer; }
+  .door:hover .door-r { fill:#0071e30d; }
+  .lbl { cursor:text; }
+  .lbl rect { fill:#fff; stroke:var(--line2); }
+  .lbl:hover rect { stroke:var(--blue); }
+  .drag { cursor:ns-resize; }
+  .inl { position:absolute; width:72px; z-index:5; }
+  .cncv { width:100%; height:100%; overflow:auto; padding-top:34px; }
+  .cncfiles { display:flex; gap:6px; margin-bottom:10px; }
+  .cncfiles button { font-size:12px; padding:5px 10px; border-radius:7px; background:#e8e8ed; }
+  .cncfiles button.on { background:var(--text); color:#fff; }
+
+  /* panel */
+  .panel { border-left:1px solid var(--line); background:var(--surface); display:flex; flex-direction:column; min-height:0; }
+  .pscroll { flex:1; overflow-y:auto; padding:26px 26px 12px; }
+  .ph h1 { font-size:28px; font-weight:600; letter-spacing:-.02em; line-height:1.1; }
+  .ph p { color:var(--muted); margin-top:4px; font-size:13.5px; }
+  .open { margin-top:22px; }
+  .q { margin-bottom:20px; }
+  .q h2 { font-size:17px; font-weight:600; letter-spacing:-.01em; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+  .q h2 .dot { width:8px; height:8px; border-radius:50%; background:var(--amber); flex:none; }
+  .cards { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; }
+  .cards.two { grid-template-columns:repeat(2, 1fr); }
+  .card { border:1.5px solid var(--line); border-radius:12px; padding:12px 8px 10px; display:flex; flex-direction:column; align-items:center; gap:8px; font-size:13px; font-weight:500; background:#fff; transition:border-color .12s, background .12s; }
+  .card:hover { border-color:var(--line2); }
+  .card.on { border-color:var(--blue); background:var(--blue-soft); color:var(--blue); }
+  .card svg { width:46px; height:62px; }
+  .calm { margin-top:22px; display:flex; align-items:center; gap:12px; padding:14px 16px; border-radius:12px; background:var(--green-soft); color:var(--green); font-weight:500; }
+  .calm.hand { background:#f2f2f4; color:var(--muted); }
+  .calm svg { flex:none; }
+  .act { margin-top:10px; font-size:13px; color:var(--blue); }
+  .rows { margin-top:24px; border-top:1px solid var(--line); }
+  .r { border-bottom:1px solid var(--line); }
+  .rh { width:100%; display:grid; grid-template-columns:108px 1fr 14px; align-items:center; gap:10px; padding:13px 2px; text-align:left; }
+  .rh .k { color:var(--muted); font-size:13.5px; }
+  .rh .v { font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-variant-numeric:tabular-nums; }
+  .rh .chev { color:var(--dim); transition:transform .15s; }
+  .r.x .rh .chev { transform:rotate(90deg); }
+  .r.ro .rh { cursor:default; }
+  .rb { padding:2px 2px 16px; display:none; }
+  .r.x .rb { display:block; }
+  .line { display:flex; align-items:center; gap:10px; margin:6px 0; font-size:13.5px; }
+  .line .t { width:70px; color:var(--muted); }
+  .line .u { color:var(--muted); }
+  .seg { display:inline-flex; background:#e8e8ed; border-radius:8px; padding:2px; }
+  .seg button { font-size:12.5px; padding:4px 10px; border-radius:6px; color:var(--text); }
+  .seg button.on { background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.12); font-weight:600; }
+  .more { font-size:12.5px; color:var(--blue); margin-top:8px; }
+  .adv { margin-top:8px; padding-top:8px; border-top:1px dashed var(--line); }
+  .mini { font-size:12.5px; color:var(--blue); margin-right:12px; }
+  .mini:disabled { color:var(--dim); }
+  .check { margin-top:20px; }
+  .check h3 { font-size:12px; font-weight:600; color:var(--dim); letter-spacing:.05em; text-transform:uppercase; margin-bottom:6px; }
+  .check li { list-style:none; font-size:13px; color:var(--amber); padding:4px 0 4px 16px; position:relative; }
+  .check li::before { content:""; position:absolute; left:2px; top:11px; width:6px; height:6px; border-radius:50%; background:var(--amber); }
+  .tip { position:relative; display:inline-flex; color:var(--dim); cursor:help; vertical-align:middle; }
+  .tip:hover::after { content:attr(data-tip); position:absolute; bottom:calc(100% + 6px); right:-8px; width:240px; background:#1d1d1f; color:#fff; font-size:12px; line-height:1.4; padding:8px 10px; border-radius:8px; z-index:30; font-weight:400; white-space:normal; }
+  .pf { padding:14px 26px 18px; border-top:1px solid var(--line); }
+  #nextBtn { width:100%; height:46px; border-radius:12px; background:var(--blue); color:#fff; font-size:15px; font-weight:600; display:flex; align-items:center; justify-content:center; gap:10px; }
+  #nextBtn:disabled { background:#e8e8ed; color:var(--dim); }
+  #nextBtn.calmb { background:#e8e8ed; color:var(--text); }
+  #nextBtn kbd { font:inherit; font-size:11px; opacity:.65; border:1px solid currentColor; border-radius:4px; padding:0 4px; }
+  .sub { height:22px; display:flex; justify-content:center; align-items:flex-end; }
+  .sub button { font-size:12.5px; color:var(--muted); }
+  .msg { max-width:520px; margin:80px auto; text-align:center; }
+  .msg h2 { font-size:22px; font-weight:600; margin-bottom:8px; } .msg p { color:var(--muted); margin-bottom:16px; }
+  .msg button { color:var(--blue); }
+  .toast { position:fixed; bottom:22px; left:50%; transform:translateX(-50%) translateY(8px); background:#1d1d1f; color:#fff; padding:9px 16px; border-radius:10px; font-size:13px; opacity:0; transition:opacity .2s, transform .2s; pointer-events:none; z-index:40; }
+  .toast.show { opacity:1; transform:translateX(-50%); }
   /* BiesseWorks card (cnc-bpp.js) — same look as /cnc and /bpp */
   .bpp-card { background:none; border:none; padding:0; }
   .bw-window { background:var(--bw-chrome); border:1px solid var(--bw-chrome-dark); border-radius:5px; overflow:hidden; box-shadow:0 6px 18px rgba(0,0,0,.35); }
@@ -109,27 +172,23 @@
   .bpp-rawlist { margin-top:8px; font-size:.78rem; color:var(--dim); font-family:ui-monospace,Menlo,Consolas,monospace; max-height:240px; overflow:auto; background:var(--bg); border-radius:8px; padding:8px 10px; }
   .bpp-rawlist div { padding:2px 0; }
   .bpp-rawlist .off { opacity:.45; }
-  .cncwrap .bw-list { max-height:360px; }
-  .cncfiles { display:flex; gap:6px; margin-bottom:8px; flex-wrap:wrap; }
-  .cncfiles button.on { background:var(--text); color:#fff; }
+  .bw-list { max-height:none; }
 </style>
 </head>
 <body>
-<div class="top">
-  <div class="ttl"><div class="kicker">Smíða úr Eyðublöðum</div><div class="pname" id="pname">Sæki verkefni…</div></div>
-  <a id="cncLink" href="#" target="_blank" rel="noopener">Opna CNC →</a>
-  <span class="status" id="status"></span>
-  <button id="undoBtn" type="button" disabled title="Setur fyrri Smíðagögn aftur á Eyðublöðin sem síðasta vistun breytti">Afturkalla</button>
-  <button id="saveBtn" type="button" class="primary" disabled>Vista</button>
+<div class="shell">
+  <div class="top">
+    <div class="brand"><b>Smíða</b><span id="pname">Sæki verkefni…</span></div>
+    <div class="prog" id="prog"></div>
+    <div class="acts">
+      <span class="save" id="save"></span>
+      <button type="button" class="tbtn" id="saveBtn" disabled>Vista</button>
+      <button type="button" class="tbtn" id="undoBtn" disabled>Afturkalla</button>
+      <a id="cncLink" href="#" target="_blank" rel="noopener">CNC ↗</a>
+    </div>
+  </div>
+  <div class="main" id="main"><div></div><div class="msg"><p>Sæki Eyðublöð og Sögunarlista…</p></div><div></div></div>
 </div>
-<div class="nav" id="nav" hidden>
-  <button type="button" id="prevBtn" title="Fyrri (←)">‹</button>
-  <div class="strip" id="strip"></div>
-  <button type="button" id="nextArrow" title="Næsti (→)">›</button>
-  <span class="count" id="count"></span>
-  <button type="button" id="nextBtn" class="go">Yfirfarinn</button>
-</div>
-<div id="app"><div class="msg" style="text-align:center;color:var(--muted)">Sæki Eyðublöð og Sögunarlista…</div></div>
 <div class="toast" id="toast"></div>
 
 <script src="/cnc-sides.js"></script>
@@ -145,68 +204,88 @@
   var $ = function (id) { return document.getElementById(id); };
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   function r1(x) { return Math.round(x * 10) / 10; }
-  var project = null, cabs = [], edits = {}, cur = 0, view = "front", cncFile = 0, lastUndo = null, saving = false;
+  function mm(x) { return String(Math.round(x)); }
+  var project = null, cabs = [], edits = {}, cur = 0, view = "front", cncFile = 0, saving = false, saveErr = null;
+  var undoStack = []; // [{ items:[{id, smida, prev}], label }] — Afturkalla takes the last save back
+  var openRow = {}; // which quiet rows are expanded (per cabinet, by key)
+  var advOpen = {}; // "Nánar" per row key
   var DRAFT = function () { return "bjorninn:smida:" + (project ? project.id : ""); };
   // the stand-in master PRO's Smíða uses too (no USB stick here): same drilling, macros sit before STAT_BLOCK
   var MASTER = ["[VARIABLES]", "PAN=LPX|0||4|", "PAN=LPY|0||4|", "PAN=LPZ|0||4|", "", "[PROGRAM]",
     '@ STAT_BLOCK, "", "", 100000001, "", 0 : 0, LPY+100, 1', "", "[VBSCRIPT]"].join("\r\n");
+  var SIDE_NAME = { vinstri: "Vinstri", haegri: "Hægri", baedi: "Báðum megin" };
+  var I_CHECK = '<svg viewBox="0 0 20 20" width="20" height="20"><circle cx="10" cy="10" r="9" fill="currentColor"/><path d="M6 10.4l2.6 2.6L14 7.6" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  var I_INFO = '<svg viewBox="0 0 16 16" width="14" height="14"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M8 7.2v4M8 4.9h.01" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
+  var I_CHEV = '<svg viewBox="0 0 10 10" width="10" height="10"><path d="M3.5 1.5L7 5l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  function tip(t) { return '<span class="tip" data-tip="' + esc(t) + '">' + I_INFO + "</span>"; }
+  function stIcon(s) {
+    if (s === "done") return '<svg class="st" viewBox="0 0 18 18"><circle cx="9" cy="9" r="8" fill="#248a3d"/><path d="M5.3 9.3l2.4 2.4 5-5" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    if (s === "bad") return '<svg class="st" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7.2" fill="none" stroke="#b25000" stroke-width="1.6"/><circle cx="9" cy="9" r="3" fill="#b25000"/></svg>';
+    if (s === "fre") return '<svg class="st" viewBox="0 0 18 18"><path d="M5 9h8" stroke="#a1a1a6" stroke-width="1.6" stroke-linecap="round"/></svg>';
+    return '<svg class="st" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7.2" fill="none" stroke="#c7c7cc" stroke-width="1.6"/></svg>';
+  }
 
   function toast(t) { var el = $("toast"); el.textContent = t; el.classList.add("show"); clearTimeout(toast.t); toast.t = setTimeout(function () { el.classList.remove("show"); }, 2600); }
-  function fail(title, help, tech) {
-    $("app").innerHTML = '<div class="msg"><h2>' + esc(title) + '</h2><p>' + esc(help) + '</p><button type="button" onclick="location.reload()">Reyna aftur</button>' + (tech ? '<p style="margin-top:10px;font-size:.75rem">' + esc(tech) + '</p>' : "") + '</div>';
-    $("pname").textContent = "Opnaðist ekki";
+  function fail(title, help, tech, extra) {
+    $("main").innerHTML = '<div></div><div class="msg"><h2>' + esc(title) + "</h2><p>" + esc(help) + "</p>" + (extra || '<button type="button" onclick="location.reload()">Reyna aftur</button>') +
+      (tech ? '<p style="margin-top:14px;font-size:12px;color:var(--dim)">' + esc(tech) + "</p>" : "") + "</div><div></div>";
+    if (!project) $("pname").textContent = "Opnaðist ekki";
   }
 
   // ── load ──────────────────────────────────────────────────────────────────────────────────
   async function boot() {
-    if (!KEY) { fail("Lykil vantar", "Opnaðu síðuna úr PRO eða /cnc (hlekkurinn er með skrifstofulyklinum).", ""); return; }
+    if (!KEY) { fail("Lykil vantar", "Opnaðu síðuna úr PRO eða CNC — hlekkurinn þar er með skrifstofulyklinum.", ""); return; }
+    var data;
     try {
       var p;
       if (REC) p = (await CD.fetchAll(PROXY, KEY, CD.PROJECTS, { filterByFormula: 'RECORD_ID()="' + REC + '"', "fields[]": [CD.PNAME] }))[0];
       else if (WANT_T) p = (await CD.fetchAll(PROXY, KEY, CD.PROJECTS, { filterByFormula: 'FIND("' + WANT_T.replace(/"/g, "") + ' |",{' + CD.PNAME + '})', "fields[]": [CD.PNAME] }))[0];
-      if (!p) { fail("Verkefnið fannst ekki", "Hlekkurinn vísar á verkefni sem er ekki til. Opnaðu það aftur úr PRO eða /cnc.", ""); return; }
+      if (!p) { fail("Verkefnið fannst ekki", "Opnaðu það aftur úr PRO eða CNC.", ""); return; }
       var name = String(p.fields[CD.PNAME] || p.id), pre = (name.match(/^(T-\d+)/) || [])[1];
-      if (!pre) { fail("Verkefnið er ekki með T-númer", "Smíða úr Eyðublöðum finnur einingarnar eftir T-númeri verkefnisins.", name); return; }
+      if (!pre) { fail("Verkefnið er ekki með T-númer", "Einingarnar finnast eftir T-númeri verkefnisins.", name); return; }
       project = { id: p.id, name: name, prefix: pre };
       $("pname").textContent = name;
+      document.title = pre + " · Smíða";
       $("cncLink").href = "/cnc?recordId=" + encodeURIComponent(p.id) + "&k=" + encodeURIComponent(KEY);
-      var data = await CD.load({ proxy: PROXY, key: KEY, id: p.id, prefix: pre });
+      data = await CD.load({ proxy: PROXY, key: KEY, id: p.id, prefix: pre });
     } catch (e) {
-      if (e.status === 401 || e.status === 403) fail("Lykillinn virkar ekki", "Opnaðu síðuna aftur úr PRO eða /cnc.", e.message);
-      else if (e.status) fail("Villa á þjóninum", "Airtable svaraði ekki rétt. Bíddu augnablik og reyndu aftur.", e.message);
+      if (e.status === 401 || e.status === 403) fail("Lykillinn virkar ekki", "Opnaðu síðuna aftur úr PRO eða CNC.", e.message);
+      else if (e.status) fail("Airtable svaraði ekki", "Bíddu augnablik og reyndu aftur.", e.message);
       else fail("Ekkert samband", "Athugaðu nettenginguna og reyndu aftur.", e.message);
       return;
     }
     if (!CD.legacy(data)) {
-      fail("Þetta verkefni er teiknað í PRO", "Eyðublöðin voru búin til úr teikningunni — breyttu Smíða í PRO, annars skrifar næsta Keyra skipulag yfir það sem er vistað hér.", "");
-      $("app").querySelector(".msg").insertAdjacentHTML("beforeend", '<p><a href="/skipuleggja?pro=' + encodeURIComponent(project.id) + '&k=' + encodeURIComponent(KEY) + '">Opna í PRO →</a></p>');
+      fail("Þetta verkefni er teiknað í PRO", "Eyðublöðin voru búin til úr teikningunni. Breyttu Smíða í PRO — annars skrifar næsta Keyra skipulag yfir það sem er vistað hér.", "",
+        '<a style="color:var(--blue)" href="/skipuleggja?pro=' + encodeURIComponent(project.id) + "&k=" + encodeURIComponent(KEY) + '">Opna í PRO</a>');
       return;
     }
     var I = CD.sideInput(data);
     cabs = data.units.filter(function (u) { return I.byUnit[u.id] && !I.isDoor[u.id]; }).map(function (u) {
       return M.cabinet(u, I.byUnit[u.id], { gripMm: CD.gripFor(I, data.projGrip, u.id, null).mm, gripZones: I.unitGripZones[u.id], fataslar: I.unitFataslar[u.id] });
     }).filter(Boolean).sort(function (a, b) { return a.name.localeCompare(b.name, "is", { numeric: true }); });
-    if (!cabs.length) { fail("Engir skápar", "Engin Eyðublöð með skápahliðum í Sögunarlista fundust fyrir " + pre + ".", ""); return; }
+    if (!cabs.length) { fail("Engir skápar", "Engin Eyðublöð með skápahliðum í Sögunarlista fundust fyrir " + project.prefix + ".", ""); return; }
     var draft = {}; try { draft = JSON.parse(localStorage.getItem(DRAFT()) || "{}") || {}; } catch (e) { draft = {}; }
-    var restored = 0;
     cabs.forEach(function (c) {
       var d = draft[c.unit];
-      if (d && d.raw === (c.raw || null) && d.e) { edits[c.unit] = d.e; restored++; } // a draft from before a newer save elsewhere is dropped
-      else edits[c.unit] = M.initEdit(c);
+      // a draft from before a newer value in Airtable is dropped (someone saved since)
+      edits[c.unit] = d && d.raw === (c.raw || null) && d.e ? d.e : M.initEdit(c);
     });
-    if (restored && dirtyCabs().length) toast("Óvistaðar breytingar úr þessum vafra sóttar (" + dirtyCabs().length + ")");
+    var restored = dirtyCabs().length;
     var at = cabs.findIndex(function (c) { return c.unit === WANT_UNIT; });
+    if (at < 0) at = cabs.findIndex(function (c) { return stateOf(c) !== "done" && stateOf(c) !== "fre"; });
     cur = at >= 0 ? at : 0;
-    $("nav").hidden = false;
+    $("main").innerHTML = '<nav class="list" id="list"></nav><section class="stage" id="stage"></section><aside class="panel" id="panel"></aside>';
     render();
+    if (restored) toast(restored + (restored === 1 ? " óvistuð breyting sótt" : " óvistaðar breytingar sóttar") + " úr þessum vafra");
+    window.addEventListener("resize", function () { if (view === "front") drawStage(); });
   }
 
-  // ── state helpers ─────────────────────────────────────────────────────────────────────────
+  // ── state ─────────────────────────────────────────────────────────────────────────────────
   function cab() { return cabs[cur]; }
   function ed(c) { return edits[(c || cab()).unit]; }
   function smida(c) { return M.smidaOf(c, ed(c)); }
   function plan(c) { return M.planOf(c, smida(c)); }
-  // only what Rakel looked at goes to Airtable: a cabinet she marked or changed (an untouched default stays /cnc's default)
+  // only what was looked at goes to Airtable: a cabinet marked or changed (an untouched default stays /cnc's default)
   function dirty(c) { var e = ed(c); return M.editable(c) && !!(e.reviewed || e.touched) && !M.same(smida(c), c.existing); }
   function dirtyCabs() { return cabs.filter(dirty); }
   function stateOf(c) {
@@ -218,97 +297,127 @@
     var o = {}; cabs.forEach(function (c) { if (dirty(c)) o[c.unit] = { raw: c.raw || null, e: ed(c) }; });
     try { if (Object.keys(o).length) localStorage.setItem(DRAFT(), JSON.stringify(o)); else localStorage.removeItem(DRAFT()); } catch (e) {}
   }
-  // any change to what gets built drops the "yfirfarinn" mark (same as PRO)
+  // any change to what gets built takes the "yfirfarinn" mark off (as in PRO)
   function change(fn) { fn(ed()); ed().reviewed = false; ed().touched = true; saveDraft(); render(); }
+  function nextOpen(from) {
+    for (var k = 1; k <= cabs.length; k++) { var i = (from + k) % cabs.length; var s = stateOf(cabs[i]); if (s === "todo" || s === "bad") return i; }
+    return -1;
+  }
+  function go(i) { if (i < 0 || i >= cabs.length) return; cur = i; cncFile = 0; render(); var on = document.querySelector(".item.on"); if (on) on.scrollIntoView({ block: "nearest" }); }
 
   // ── render ────────────────────────────────────────────────────────────────────────────────
-  function render() {
-    var c = cab(), e = ed(c), p = plan(c);
-    // strip
-    $("strip").innerHTML = cabs.map(function (x, i) {
-      return '<button type="button" class="chip ' + stateOf(x) + (i === cur ? " on" : "") + (dirty(x) ? " dirty" : "") + '" data-go="' + i + '" title="' + esc(x.name + (x.tegund ? " · " + x.tegund : "")) + '"><i></i>' + esc(x.sk) + "</button>";
-    }).join("");
-    var on = $("strip").querySelector(".chip.on"); if (on) on.scrollIntoView({ block: "nearest", inline: "nearest" });
-    var editableCabs = cabs.filter(M.editable), done = editableCabs.filter(function (x) { return ed(x).reviewed; }).length;
-    $("count").textContent = done + " / " + editableCabs.length + " yfirfarnir";
-    var nb = $("nextBtn"), next = nextUnreviewed(), blocked = M.blockers(c, e, p);
-    if (!M.editable(c)) { nb.textContent = next >= 0 ? "Næsti → " + cabs[next].sk : "Allir yfirfarnir"; nb.disabled = next < 0; nb.dataset.act = "next"; }
-    else if (!e.reviewed) { nb.textContent = next >= 0 && next !== cur ? "Yfirfarinn → " + cabs[next].sk : "Skápur yfirfarinn"; nb.disabled = !!blocked.length; nb.dataset.act = "mark"; nb.title = blocked.length ? "Lagaðu fyrst: " + blocked[0] : ""; }
-    else { nb.textContent = next >= 0 ? "Næsti → " + cabs[next].sk : "Allir yfirfarnir — vista"; nb.disabled = false; nb.dataset.act = next >= 0 ? "next" : "save"; nb.title = ""; }
-    // top
-    var nd = dirtyCabs().length;
-    $("saveBtn").textContent = nd ? "Vista (" + nd + ")" : "Vista";
-    $("saveBtn").disabled = !nd || saving;
-    $("undoBtn").disabled = !lastUndo || saving;
-    if (!saving && !$("status").dataset.keep) { $("status").className = "status"; $("status").textContent = nd ? nd + " skápar óvistaðir" : "Allt vistað"; }
-    // main
-    var app = $("app");
-    app.innerHTML = '<div class="main"><div class="panel"><div class="tabs"><button type="button" data-view="front" class="' + (view === "front" ? "on" : "") + '">Framhlið</button>' +
-      '<button type="button" data-view="side" class="' + (view === "side" ? "on" : "") + '">Hlið · CNC</button></div><div id="drawBox"></div></div>' +
-      '<div class="panel" id="side"></div></div>';
-    if (view === "front") drawFront(c, e, p, $("drawBox")); else drawSide(c, p, $("drawBox"));
-    sidePanel(c, e, p, $("side"));
+  function render() { renderTop(); renderList(); drawStage(); renderPanel(); }
+  function renderTop() {
+    var ed0 = cabs.filter(M.editable), done = ed0.filter(function (c) { return ed(c).reviewed; }).length;
+    $("prog").innerHTML = '<span class="bar"><i style="width:' + (ed0.length ? Math.round(done / ed0.length * 100) : 0) + '%"></i></span><span>' + done + " af " + ed0.length + " yfirfarnir</span>";
+    var nd = dirtyCabs().length, s = $("save");
+    if (saving) { s.className = "save busy"; s.innerHTML = "<i></i>Vistar…"; }
+    else if (saveErr) { s.className = "save bad"; s.innerHTML = "<i></i>Vistaðist ekki"; s.title = saveErr; }
+    else if (nd) { s.className = "save dirty"; s.innerHTML = "<i></i>" + nd + (nd === 1 ? " breyting óvistuð" : " breytingar óvistaðar"); s.title = "Vistast þegar skápur er merktur yfirfarinn — eða smelltu Vista"; }
+    else { s.className = "save"; s.innerHTML = "<i></i>Allt vistað"; s.title = ""; }
+    $("saveBtn").disabled = saving || !nd;
+    $("saveBtn").textContent = saveErr && nd ? "Reyna aftur" : "Vista";
+    $("undoBtn").disabled = saving || !undoStack.length;
+    $("undoBtn").title = undoStack.length ? "Taka síðustu vistun til baka (" + undoStack[undoStack.length - 1].label + ")" : "";
   }
-  function nextUnreviewed() {
-    for (var k = 1; k <= cabs.length; k++) { var i = (cur + k) % cabs.length; if (M.editable(cabs[i]) && !ed(cabs[i]).reviewed) return i; }
-    return M.editable(cab()) && !ed().reviewed ? cur : -1;
+  function renderList() {
+    $("list").innerHTML = "<h4>Skápar</h4>" + cabs.map(function (c, i) {
+      var s = stateOf(c);
+      return '<button type="button" class="item' + (i === cur ? " on" : "") + '" data-go="' + i + '" title="' + esc(c.name) + '">' + stIcon(s) +
+        '<span class="nm">' + esc(c.sk) + '<span class="ty">' + esc(s === "fre" ? "Í höndunum" : s === "bad" ? "Þarf að ákveða" : c.tegund) + "</span></span>" +
+        '<span class="un' + (dirty(c) ? " on" : "") + '" title="Óvistað"></span></button>';
+    }).join("");
   }
 
-  // Front view: the carcass as /cnc sees it (mm from the bottom of the side). Shelves, inner drawers, oven boards,
-  // rails and hinges are dragged; drawers and doors are what Sögunarlisti cut.
+  // ── stage: the cabinet seen from the front ─────────────────────────────────────────────────
   var NS = "http://www.w3.org/2000/svg";
+  function drawStage() {
+    var st = $("stage"), c = cab();
+    st.innerHTML = (M.editable(c) ? '<div class="views"><button type="button" data-view="front" class="' + (view === "front" ? "on" : "") + '">Framhlið</button><button type="button" data-view="side" class="' + (view === "side" ? "on" : "") + '">CNC-hlið</button></div>' : "") +
+      '<div id="canvas"></div>';
+    if (view === "side" && M.editable(c)) drawSide(c, plan(c), $("canvas")); else drawFront(c, ed(c), plan(c), $("canvas"));
+  }
   function drawFront(c, e, p, box) {
-    if (!M.editable(c)) { box.innerHTML = '<div class="msg" style="margin:20px auto"><h2>' + esc(c.name) + '</h2><p>' + esc((c.base.stop || []).join(" · ") || "Engin hlið sem /cnc borar.") + '</p><p>Gert í höndunum — þessi skápur er ekki vistaður hér.</p></div>'; return; }
-    var g = M.geom(c), H = g.H, W = c.B || c.base.LPY || 600, sc = Math.min(560 / H, 420 / W, 1.2), pad = 46;
-    var vw = W * sc + pad * 2, vh = H * sc + 30;
-    var X = function (mm) { return pad + mm * sc; }, Y = function (mm) { return 15 + (H - mm) * sc; };
+    if (!M.editable(c)) { box.innerHTML = '<div class="msg"><h2>' + esc(c.sk) + "</h2><p>" + esc(c.fre ? "FRE-skápur — gerður í höndunum." : "Engin hlið sem CNC borar.") + "</p></div>"; return; }
+    var g = M.geom(c), H = g.H, W = c.B || c.base.LPY || 600;
+    var bw = box.clientWidth || 700, bh = box.clientHeight || 700;
+    var sc = Math.min((bh - 50) / H, (bw - 190) / W, 1.6), padL = 70, padT = 18;
+    var vw = W * sc + padL + 110, vh = H * sc + padT + 32;
+    var X = function (m) { return padL + m * sc; }, Y = function (m) { return padT + (H - m) * sc; };
     var s = '<svg xmlns="' + NS + '" viewBox="0 0 ' + vw + " " + vh + '" width="' + vw + '" height="' + vh + '" id="elev">';
-    s += '<rect x="' + X(0) + '" y="' + Y(H) + '" width="' + W * sc + '" height="' + H * sc + '" fill="#fafbfc" stroke="#1a1d21" stroke-width="1.5"/>';
+    // carcass
+    s += '<rect x="' + X(0) + '" y="' + Y(H) + '" width="' + W * sc + '" height="' + H * sc + '" rx="2" fill="#fff" stroke="#1d1d1f" stroke-width="1.4"/>';
+    // drawers (read-only — Sögunarlisti)
     (p.drawers || []).forEach(function (d) {
-      s += '<rect x="' + (X(0) + 3) + '" y="' + Y(d.to - 3) + '" width="' + (W * sc - 6) + '" height="' + Math.max(2, (d.to - 3 - d.from) * sc) + '" fill="#e8ecf1" stroke="#9aa3ad"/>' +
-        '<text x="' + (X(W / 2)) + '" y="' + (Y((d.from + d.to) / 2) + 4) + '" text-anchor="middle" font-size="12" fill="#5d6670">' + d.code + " · " + d.front + "</text>";
-    });
-    var hs = e.hinge || c.base.hingeSide;
-    (p.doors || []).forEach(function (d, i) {
-      s += '<rect x="' + (X(0) + 2) + '" y="' + Y(d.to) + '" width="' + (W * sc - 4) + '" height="' + (d.to - d.from) * sc + '" fill="none" stroke="#0f6cbd" stroke-width="1.2" stroke-dasharray="6 4"/>';
-      s += '<text x="' + X(W / 2) + '" y="' + (Y(d.to) + 16) + '" text-anchor="middle" font-size="11" fill="#0f6cbd">' + (d.type === "lift" ? "Lyftihurð " : "Hurð ") + r1(d.H) + "</text>";
-      var sides = hs === "baedi" || !hs ? [0, W] : hs === "vinstri" ? [0] : [W];
-      (d.hinges || []).forEach(function (h, k) {
-        sides.forEach(function (sx) {
-          s += '<circle class="drag" data-k="hinge" data-i="' + i + '" data-j="' + k + '" cx="' + (X(sx) + (sx ? -9 : 9)) + '" cy="' + Y(d.from + h) + '" r="6" fill="' + (hs ? "#0f6cbd" : "#9aa3ad") + '" style="cursor:ns-resize"><title>Löm ' + r1(d.from + h) + ' mm frá botni hliðar — dragðu</title></circle>';
-        });
-      });
+      var y0 = Y(d.to - 3), h = Math.max(2, (d.to - 3 - d.from) * sc);
+      s += '<rect x="' + (X(0) + 4) + '" y="' + y0 + '" width="' + (W * sc - 8) + '" height="' + h + '" rx="2" fill="#f2f2f4" stroke="#d2d2d7"/>' +
+        '<text x="' + X(W / 2) + '" y="' + (y0 + h / 2 + 4) + '" text-anchor="middle" font-size="12" fill="#a1a1a6">' + d.code + "</text>";
     });
     if (e.oven) {
-      s += '<rect x="' + (X(0) + 10) + '" y="' + Y(e.oven.under + 16 + e.oven.h) + '" width="' + (W * sc - 20) + '" height="' + e.oven.h * sc + '" fill="#2b2f36" opacity=".14"/>' +
-        '<text x="' + X(W / 2) + '" y="' + Y(e.oven.under + 16 + e.oven.h / 2) + '" text-anchor="middle" font-size="12" fill="#1a1d21">Ofn ' + e.oven.h + "</text>";
+      var oy = Y(e.oven.under + 16 + e.oven.h);
+      s += '<rect x="' + (X(0) + 8) + '" y="' + oy + '" width="' + (W * sc - 16) + '" height="' + e.oven.h * sc + '" rx="3" fill="#1d1d1f" opacity=".08"/>' +
+        '<text x="' + X(W / 2) + '" y="' + (oy + e.oven.h * sc / 2 + 5) + '" text-anchor="middle" font-size="13" fill="#6e6e73">Ofn ' + e.oven.h + "</text>";
     }
     (e.inner || []).forEach(function (x, i) {
-      var h = (c.inner[i] || {}).h || 100;
-      s += '<rect class="drag" data-k="inner" data-i="' + i + '" x="' + (X(0) + 14) + '" y="' + Y(x.mm + h) + '" width="' + (W * sc - 28) + '" height="' + h * sc + '" fill="#f5e6c8" stroke="#9a6700" style="cursor:ns-resize"><title>Innskúffa ' + x.code + ' — dragðu</title></rect>' +
-        '<text x="' + X(W / 2) + '" y="' + (Y(x.mm + h / 2) + 4) + '" text-anchor="middle" font-size="11" fill="#9a6700" pointer-events="none">Innskúffa ' + x.code + " · " + x.mm + "</text>";
+      var h = (c.inner[i] || {}).h || 100, y = Y(x.mm + h);
+      s += '<g class="drag" data-k="inner" data-i="' + i + '"><rect x="' + (X(0) + 12) + '" y="' + y + '" width="' + (W * sc - 24) + '" height="' + h * sc + '" rx="3" fill="#fff4e5" stroke="#e8b06a"/>' +
+        '<text x="' + X(W / 2) + '" y="' + (y + h * sc / 2 + 4) + '" text-anchor="middle" font-size="11.5" fill="#b25000">Innskúffa ' + x.code + "</text></g>";
     });
-    (e.shelves || (e.oven && e.oven.shelves) || []).forEach(function (x, i) {
+    var shelves = e.shelves || (e.oven && e.oven.shelves) || [];
+    shelves.forEach(function (x, i) {
       var y = Y(x.mm);
-      s += '<line x1="' + X(0) + '" x2="' + X(W) + '" y1="' + y + '" y2="' + y + '" stroke="' + (x.fixed ? "#1a1d21" : "#5d6670") + '" stroke-width="' + (x.fixed ? 3 : 2) + '"' + (x.fixed ? "" : ' stroke-dasharray="7 5"') + "/>" +
-        '<rect class="drag" data-k="shelf" data-i="' + i + '" x="' + X(0) + '" y="' + (y - 7) + '" width="' + W * sc + '" height="14" fill="transparent" style="cursor:ns-resize"><title>' + (x.fixed ? "Föst" : "Laus") + " hilla " + x.mm + ' mm — dragðu</title></rect>' +
-        '<text x="' + (X(W) + 5) + '" y="' + (y + 4) + '" font-size="11" fill="#1a1d21" pointer-events="none">' + Math.round(x.mm) + "</text>";
+      s += '<g class="drag" data-k="shelf" data-i="' + i + '"><rect x="' + X(0) + '" y="' + (y - 8) + '" width="' + W * sc + '" height="16" fill="transparent"/>' +
+        '<line x1="' + (X(0) + 1) + '" x2="' + (X(W) - 1) + '" y1="' + y + '" y2="' + y + '" stroke="' + (x.fixed ? "#1d1d1f" : "#6e6e73") + '" stroke-width="' + (x.fixed ? 3 : 1.8) + '"' + (x.fixed ? "" : ' stroke-dasharray="8 5"') + "/></g>";
     });
     (e.rails || []).forEach(function (x, i) {
       var y = Y(x.mm);
-      s += '<line x1="' + (X(0) + 6) + '" x2="' + (X(W) - 6) + '" y1="' + y + '" y2="' + y + '" stroke="#8250df" stroke-width="3" stroke-linecap="round"/>' +
-        '<rect class="drag" data-k="rail" data-i="' + i + '" x="' + X(0) + '" y="' + (y - 7) + '" width="' + W * sc + '" height="14" fill="transparent" style="cursor:ns-resize"><title>Fataslá ' + x.mm + ' mm — dragðu</title></rect>' +
-        '<text x="' + (X(0) - 5) + '" y="' + (y + 4) + '" text-anchor="end" font-size="11" fill="#8250df" pointer-events="none">' + Math.round(x.mm) + "</text>";
+      s += '<g class="drag" data-k="rail" data-i="' + i + '"><rect x="' + X(0) + '" y="' + (y - 8) + '" width="' + W * sc + '" height="16" fill="transparent"/>' +
+        '<line x1="' + (X(0) + 10) + '" x2="' + (X(W) - 10) + '" y1="' + y + '" y2="' + y + '" stroke="#8e8e93" stroke-width="4" stroke-linecap="round"/></g>';
     });
-    s += '<text x="' + (X(0) - 6) + '" y="' + (Y(0) + 4) + '" text-anchor="end" font-size="10" fill="#9aa3ad">0</text><text x="' + (X(0) - 6) + '" y="' + (Y(H) + 8) + '" text-anchor="end" font-size="10" fill="#9aa3ad">' + H + "</text>";
+    // doors: outline + the architect's opening mark (the point of the chevron = the hinge side); click = hinge side
+    var hs = e.hinge || null, leaves = c.base.hingeSide === "baedi";
+    (p.doors || []).forEach(function (d, i) {
+      var x0 = X(0) + 2, x1 = X(W) - 2, y0 = Y(d.to), y1 = Y(d.from), my = (y0 + y1) / 2, mx = (x0 + x1) / 2;
+      var lift = e.doors && e.doors[i] && e.doors[i].type === "lift";
+      var mark = "";
+      if (lift) mark = "M" + x0 + " " + y1 + " L" + mx + " " + y0 + " L" + x1 + " " + y1;
+      else if (hs === "baedi") mark = "M" + mx + " " + y0 + " L" + x0 + " " + my + " L" + mx + " " + y1 + " M" + mx + " " + y0 + " L" + x1 + " " + my + " L" + mx + " " + y1;
+      else if (hs === "vinstri") mark = "M" + x1 + " " + y0 + " L" + x0 + " " + my + " L" + x1 + " " + y1;
+      else if (hs === "haegri") mark = "M" + x0 + " " + y0 + " L" + x1 + " " + my + " L" + x0 + " " + y1;
+      s += '<g class="door" data-door="' + i + '"><rect class="door-r" x="' + x0 + '" y="' + y0 + '" width="' + (x1 - x0) + '" height="' + (y1 - y0) + '" rx="2" fill="transparent" stroke="#0071e3" stroke-width="1.3"/>' +
+        (hs === "baedi" && leaves ? '<line x1="' + mx + '" x2="' + mx + '" y1="' + y0 + '" y2="' + y1 + '" stroke="#0071e3" stroke-width="1"/>' : "") +
+        (mark ? '<path d="' + mark + '" fill="none" stroke="#0071e3" stroke-width="1" stroke-dasharray="6 5" opacity=".7"/>' : "") +
+        "<title>" + (leaves ? "Vænghurð — lamir báðum megin" : "Smelltu til að skipta um lamahlið") + "</title></g>";
+      if (lift) return;
+      var sides = hs === "baedi" ? [0, W] : hs === "vinstri" ? [0] : hs === "haegri" ? [W] : [0, W];
+      (d.hinges || []).forEach(function (h, k) {
+        sides.forEach(function (sx) {
+          s += '<circle class="drag" data-k="hinge" data-i="' + i + '" data-j="' + k + '" cx="' + (X(sx) + (sx ? -10 : 10)) + '" cy="' + Y(d.from + h) + '" r="6.5" fill="' + (hs ? "#0071e3" : "#c7c7cc") + '" stroke="#fff" stroke-width="2"><title>Löm — dragðu</title></circle>';
+        });
+      });
+    });
+    // numbers you can click to type (right side: shelves/inner/rails, mm from the bottom of the side)
+    function pill(xr, y, text, k, i, color) {
+      var w = 8 + text.length * 7.2;
+      return '<g class="lbl" data-k="' + k + '" data-i="' + i + '"><rect x="' + xr + '" y="' + (y - 10) + '" width="' + w + '" height="20" rx="6"/>' +
+        '<text x="' + (xr + w / 2) + '" y="' + (y + 4) + '" text-anchor="middle" font-size="12" fill="' + (color || "#1d1d1f") + '">' + text + "</text></g>";
+    }
+    var tags = [];
+    shelves.forEach(function (x, i) { tags.push({ y: Y(x.mm), t: mm(x.mm), k: "shelf", i: i }); });
+    (e.inner || []).forEach(function (x, i) { tags.push({ y: Y(x.mm), t: mm(x.mm), k: "inner", i: i, c: "#b25000" }); });
+    (e.rails || []).forEach(function (x, i) { tags.push({ y: Y(x.mm), t: mm(x.mm), k: "rail", i: i, c: "#6e6e73" }); });
+    tags.sort(function (a, b) { return a.y - b.y; });
+    var lastY = -99; tags.forEach(function (t) { var y = Math.max(t.y, lastY + 22); lastY = y; s += pill(X(W) + 12, y, t.t, t.k, t.i, t.c); });
+    // overall size, quiet
+    s += '<text x="' + (X(0) - 12) + '" y="' + (Y(H / 2) + 4) + '" text-anchor="end" font-size="12" fill="#a1a1a6">' + H + "</text>" +
+      '<text x="' + X(W / 2) + '" y="' + (Y(0) + 22) + '" text-anchor="middle" font-size="12" fill="#a1a1a6">' + W + "</text>";
     s += "</svg>";
-    box.innerHTML = '<div class="draw">' + s + '</div><div class="hint">Séð að framan. mm frá botni hliðar (eins og /cnc). Dragðu hillur, innskúffur, slár og lamir — eða skrifaðu tölu til hægri. Heil lína = föst hilla, strikuð = laus.</div>';
-    wireDrag(box.querySelector("svg"), c, H, sc);
+    box.innerHTML = s;
+    wire(box.querySelector("svg"), c, H, sc, padT);
   }
-  // drag: the state follows the pointer, the dragged marks move by transform; one full render on release
-  function wireDrag(svg, c, H, sc) {
+  function wire(svg, c, H, sc, padT) {
     var drag = null;
-    function mmAt(ev) { var r = svg.getBoundingClientRect(), k = r.height / svg.viewBox.baseVal.height; return Math.round(H - ((ev.clientY - r.top) / k - 15) / sc); }
+    function mmAt(ev) { var r = svg.getBoundingClientRect(), k = r.height / svg.viewBox.baseVal.height; return Math.round(H - ((ev.clientY - r.top) / k - padT) / sc); }
     svg.addEventListener("pointerdown", function (ev) {
       var t = ev.target.closest(".drag"); if (!t) return;
       ev.preventDefault(); svg.setPointerCapture(ev.pointerId);
@@ -317,154 +426,225 @@
       drag.orig = drag.k === "shelf" ? (e.shelves || e.oven.shelves)[drag.i].mm : drag.k === "inner" ? e.inner[drag.i].mm : drag.k === "rail" ? e.rails[drag.i].mm : null;
       if (drag.k === "hinge") { var d = plan(c).doors[drag.i]; drag.door = d; drag.orig = d.hinges[drag.j]; }
       var sel = '.drag[data-k="' + drag.k + '"][data-i="' + drag.i + '"]' + (drag.k === "hinge" ? '[data-j="' + drag.j + '"]' : "");
-      drag.els = Array.prototype.slice.call(svg.querySelectorAll(sel));
-      // the line/label drawn just before/after a shelf, rail or inner drawer hit-area move with it
-      drag.els.slice().forEach(function (n) { [n.previousElementSibling, n.nextElementSibling].forEach(function (s2) { if (s2 && !s2.classList.contains("drag") && drag.k !== "hinge") drag.els.push(s2); }); });
+      drag.els = Array.prototype.slice.call(svg.querySelectorAll(sel)).concat(drag.k === "hinge" ? [] : Array.prototype.slice.call(svg.querySelectorAll('.lbl[data-k="' + drag.k + '"][data-i="' + drag.i + '"]')));
     });
     svg.addEventListener("pointermove", function (ev) {
       if (!drag) return;
-      var mm = drag.orig + (mmAt(ev) - drag.start), e = ed();
-      if (drag.k === "shelf") (e.shelves || e.oven.shelves)[drag.i].mm = mm;
-      else if (drag.k === "inner") e.inner[drag.i].mm = mm;
-      else if (drag.k === "rail") e.rails[drag.i].mm = mm;
-      else if (drag.k === "hinge") { mm = Math.max(30, Math.min(r1(drag.door.to - drag.door.from) - 30, mm)); drag.mm = mm; }
-      drag.moved = true;
-      drag.els.forEach(function (n) { n.setAttribute("transform", "translate(0," + (-(mm - drag.orig) * sc) + ")"); });
+      var v = drag.orig + (mmAt(ev) - drag.start), e = ed();
+      if (drag.k === "hinge") v = Math.max(30, Math.min(r1(drag.door.to - drag.door.from) - 30, v));
+      if (drag.k === "shelf") (e.shelves || e.oven.shelves)[drag.i].mm = v;
+      else if (drag.k === "inner") e.inner[drag.i].mm = v;
+      else if (drag.k === "rail") e.rails[drag.i].mm = v;
+      drag.v = v; drag.moved = drag.moved || v !== drag.orig;
+      drag.els.forEach(function (n) { n.setAttribute("transform", "translate(0," + (-(v - drag.orig) * sc) + ")"); });
+      var lt = drag.els.filter(function (n) { return n.classList.contains("lbl"); })[0]; if (lt) lt.querySelector("text").textContent = mm(v);
     });
     function end() {
-      if (drag && drag.moved) { if (drag.k === "hinge") setHinge(c, drag.i, drag.j, drag.mm, drag.door); ed().reviewed = false; ed().touched = true; saveDraft(); drag = null; render(); return; }
-      drag = null;
+      if (!drag) return;
+      var d = drag; drag = null;
+      if (!d.moved) return;
+      svg.dataset.dragged = "1"; // swallow the click that follows a drag
+      if (d.k === "hinge") setHinge(cab(), d.i, d.j, d.v, d.door);
+      ed().reviewed = false; ed().touched = true; saveDraft(); render();
     }
     svg.addEventListener("pointerup", end); svg.addEventListener("pointercancel", end);
+    svg.addEventListener("click", function (ev) {
+      if (svg.dataset.dragged) { delete svg.dataset.dragged; return; }
+      var l = ev.target.closest(".lbl"); if (l) { inlineEdit(l); return; }
+      var dg = ev.target.closest(".door"); if (!dg || ev.target.closest(".drag")) return;
+      if (c.base.hingeSide === "baedi") { toast("Vænghurð — lamir báðum megin"); return; }
+      var i = +dg.dataset.door, e = ed();
+      if (e.doors && e.doors[i] && e.doors[i].type === "lift") return;
+      change(function (x) { x.hinge = x.hinge === "vinstri" ? "haegri" : "vinstri"; });
+    });
   }
-  // hinge j of door i to `mm` (from the door box's bottom); first edit copies /cnc's current positions
-  function setHinge(c, i, j, mm, door) {
+  // a number on the drawing → an input right on top of it
+  function inlineEdit(l) {
+    var k = l.dataset.k, i = +l.dataset.i, e = ed(), list = k === "shelf" ? (e.shelves || e.oven.shelves) : k === "inner" ? e.inner : e.rails;
+    var r = l.getBoundingClientRect(), host = $("stage").getBoundingClientRect();
+    var inp = document.createElement("input"); inp.type = "number"; inp.className = "inl"; inp.value = mm(list[i].mm);
+    inp.style.left = (r.left - host.left - 4) + "px"; inp.style.top = (r.top - host.top - 4) + "px";
+    $("stage").appendChild(inp); inp.focus(); inp.select();
+    var done = false;
+    function commit(ok) { if (done) return; done = true; var v = Math.round(+inp.value); inp.remove(); if (ok && isFinite(v) && v !== Math.round(list[i].mm)) change(function () { list[i].mm = v; }); }
+    inp.addEventListener("keydown", function (ev) { if (ev.key === "Enter") { ev.preventDefault(); commit(true); } else if (ev.key === "Escape") commit(false); ev.stopPropagation(); });
+    inp.addEventListener("blur", function () { commit(true); });
+  }
+  // hinge j of door i to `v` mm (from the door box's bottom); the first edit copies what /cnc would drill now
+  function setHinge(c, i, j, v, door) {
     var e = ed(), len = r1(door.to - door.from);
-    if (!e.doors) e.doors = (c.base.doors || []).map(function (d, k) { return { type: "hinged", hinges: M.hingeSpec(c, e, k) }; });
+    ensureDoors(c, e);
     var pos = SD.specToPositions(e.doors[i].hinges, len);
-    pos[j] = Math.max(30, Math.min(len - 30, mm));
-    e.doors[i].hinges = pos.sort(function (a, b) { return a - b; }).map(function (x) { x = Math.round(x); return x <= len / 2 ? { from: "bottom", mm: x } : { from: "top", mm: Math.round(len - x) }; });
+    pos[j] = Math.max(30, Math.min(len - 30, v));
+    e.doors[i].hinges = toSpec(pos, len);
   }
+  function toSpec(pos, len) { return pos.sort(function (a, b) { return a - b; }).map(function (x) { x = Math.round(x); return x <= len / 2 ? { from: "bottom", mm: x } : { from: "top", mm: Math.round(len - x) }; }); }
+  function ensureDoors(c, e) { if (!e.doors) e.doors = (c.base.doors || []).map(function (d, k) { return { type: "hinged", hinges: M.hingeSpec(c, e, k) }; }); }
 
-  // Hlið · CNC: the side files exactly as /cnc would write them (stand-in master), drawn by cnc-bpp.js
+  // CNC-hlið: the side files exactly as /cnc writes them (stand-in master), drawn by cnc-bpp.js
   function drawSide(c, p, box) {
-    box.innerHTML = "";
-    if (p.status === "stop" || p.status === "skip") { box.innerHTML = '<ul class="issues">' + (p.stop || []).map(function (s) { return '<li class="stop">' + esc(s) + "</li>"; }).join("") + "</ul>"; return; }
+    var wrap = document.createElement("div"); wrap.className = "cncv"; box.appendChild(wrap);
+    if (p.status === "stop" || p.status === "skip") { wrap.innerHTML = '<div class="msg"><p>' + esc((p.stop || []).join(" · ") || "Engin hlið.") + "</p></div>"; return; }
     var files = SD.sideFiles(p); if (cncFile >= files.length) cncFile = 0;
     var bar = document.createElement("div"); bar.className = "cncfiles";
-    bar.innerHTML = files.map(function (f, i) { return '<button type="button" class="small' + (i === cncFile ? " on" : "") + '" data-cncfile="' + i + '">' + esc(f.name) + " ×" + f.count + "</button>"; }).join("");
-    box.appendChild(bar);
-    var f = files[cncFile], r = SD.renderSide(MASTER, f.plan), wrap = document.createElement("div"); wrap.className = "cncwrap";
-    wrap.appendChild(BPP.buildCard({ name: c.sk + " · " + f.name + ".bpp" }, r.text, null, null));
-    var rm = wrap.querySelector(".bw-titlebar .remove"); if (rm) rm.remove();
-    box.appendChild(wrap);
-    var h = document.createElement("div"); h.className = "hint";
-    h.textContent = "Sama borun og /cnc skrifar á USB (raunveruleg skrá er með master-skrá vélarinnar, sömu makró).";
-    box.appendChild(h);
+    bar.innerHTML = files.map(function (f, i) { return '<button type="button" class="' + (i === cncFile ? "on" : "") + '" data-cncfile="' + i + '">' + esc(f.name) + " ×" + f.count + "</button>"; }).join("");
+    wrap.appendChild(bar);
+    var f = files[cncFile], r = SD.renderSide(MASTER, f.plan);
+    var card = BPP.buildCard({ name: c.sk + " · " + f.name + ".bpp" }, r.text, null, null);
+    var rm = card.querySelector(".bw-titlebar .remove"); if (rm) rm.remove();
+    wrap.appendChild(card);
   }
 
-  function seg(name, opts, val) {
-    return '<span class="seg">' + opts.map(function (o) { return '<button type="button" data-' + name + '="' + o[0] + '" class="' + (val === o[0] ? "on" : "") + '">' + esc(o[1]) + "</button>"; }).join("") + "</span>";
+  // ── panel: what's still open, then everything else as quiet lines ────────────────────────────
+  function doorIcon(side) {
+    var mark = side === "vinstri" ? "M40 6 L6 31 L40 56" : side === "haegri" ? "M6 6 L40 31 L6 56" : side === "baedi" ? "M23 6 L6 31 L23 56 M23 6 L40 31 L23 56" : side === "lift" ? "M6 56 L23 6 L40 56" : "";
+    var dots = side === "vinstri" ? [9] : side === "haegri" ? [37] : side === "baedi" ? [9, 37] : side === "hinged" ? [9] : [];
+    return '<svg viewBox="0 0 46 62"><rect x="3" y="3" width="40" height="56" rx="3" fill="#fff" stroke="currentColor" stroke-width="1.6"/>' +
+      (side === "baedi" ? '<line x1="23" x2="23" y1="3" y2="59" stroke="currentColor" stroke-width="1"/>' : "") +
+      (mark ? '<path d="' + mark + '" fill="none" stroke="currentColor" stroke-width="1.1" stroke-dasharray="4 3"/>' : "") +
+      dots.map(function (x) { return '<circle cx="' + x + '" cy="14" r="2.6" fill="currentColor"/><circle cx="' + x + '" cy="48" r="2.6" fill="currentColor"/>'; }).join("") +
+      (side === "lift" ? '<circle cx="14" cy="6" r="2.6" fill="currentColor"/><circle cx="32" cy="6" r="2.6" fill="currentColor"/>' : "") + "</svg>";
   }
-  function sidePanel(c, e, p, el) {
-    var h = '<div class="sec"><h3>' + esc(c.name) + ' <small>' + esc(c.tegund) + "</small></h3>" +
-      '<div class="meta"><b>' + (c.B || "?") + " × " + (c.H || "?") + " × " + (c.D || "?") + "</b> (B × H × D) · " + c.count + " stk á Eyðublaði" +
-      (p.LPX ? " · hlið <b>" + p.LPX + " × " + p.LPY + " × " + p.LPZ + "</b>" : "") + (c.base.cabinets ? " · " + c.base.cabinets + " " + (c.base.cabinets > 1 ? "skápar" : "skápur") + " (" + c.base.cabinets * 2 + " hliðar)" : "") + "</div>";
-    if ((p.drawers || []).length) h += '<div class="row"><span class="lbl">Skúffur</span>' + p.drawers.map(function (d) { return d.code + " " + d.front; }).join(" · ") + ' <span class="note">(neðan frá)</span></div>';
-    h += '<div class="note">Stærðir, skúffur og frontar koma úr Sögunarlista — breyttu þeim á Eyðublaðinu og keyrðu Yfirfara, ekki hér.</div></div>';
-    if (!M.editable(c)) { el.innerHTML = h + issuesHtml(c, e, p); return; }
-    var doors = c.base.doors || [];
-    if (doors.length) {
-      var leaves = c.base.hingeSide === "baedi";
-      h += '<div class="sec"><h3>Lamahlið <small>séð að framan</small></h3>' + seg("hinge", [["vinstri", "Vinstri"], ["haegri", "Hægri"], ["baedi", "Báðum megin"]], e.hinge) +
-        '<div class="note">' + (leaves ? "Vænghurð (tvær hurðir hlið við hlið) = lamir báðum megin." : "Bara sú hlið er boruð fyrir lamir. Óvalið = boruð báðum megin.") + "</div></div>";
-      h += '<div class="sec"><h3>Hurðir <small>' + doors.length + "</small></h3>";
-      doors.forEach(function (d, i) {
-        var x = e.doors && e.doors[i], type = x ? x.type : "hinged", pd = (p.doors || [])[i] || d, len = r1(pd.to - pd.from);
-        h += '<div class="row"><span class="lbl">Hurð ' + (i + 1) + " · " + r1(d.H) + "</span>" + seg("dtype-" + i, [["hinged", "Á lömum"], ["lift", "Lyftihurð"]], type) + "</div>";
-        if (type === "hinged") {
-          var pos = pd.hinges || [];
-          h += '<div class="row"><span class="lbl">Lamir</span>' + pos.map(function (q, j) {
-            var fromTop = q > len / 2;
-            return '<label>' + (fromTop ? "↑" : "↓") + ' <input type="number" data-hinge="' + i + ":" + j + '" value="' + Math.round(fromTop ? len - q : q) + '" step="1"></label>';
-          }).join(" ") + "</div>" +
-          '<div class="row"><span class="lbl"></span><button type="button" class="small" data-hadd="' + i + '">+ Löm</button><button type="button" class="small" data-hdel="' + i + '"' + (pos.length <= 2 ? " disabled" : "") + '>− Löm</button>' +
-          '<button type="button" class="small" data-hreset="' + i + '"' + (x ? "" : " disabled") + ">Sjálfgefið</button>" +
-          '<span class="note">' + (x ? "Þínar staðsetningar" : "Sjálfgefið /cnc (80 frá endum, færist frá hillum)") + "</span></div>";
-        }
-      });
-      h += '<div class="note">↓ = mm frá neðri brún hurðar, ↑ = frá efri brún.</div></div>';
+  function hingeCards(e) {
+    return '<div class="cards">' + ["vinstri", "haegri", "baedi"].map(function (s) {
+      return '<button type="button" class="card' + (e.hinge === s ? " on" : "") + '" data-hinge="' + s + '">' + doorIcon(s) + SIDE_NAME[s] + "</button>";
+    }).join("") + "</div>";
+  }
+  function typeCards(e, i) {
+    var t = e.doors && e.doors[i] ? e.doors[i].type : "hinged";
+    return '<div class="cards two">' + [["hinged", "Lamir"], ["lift", "Lyftihurð"]].map(function (o) {
+      return '<button type="button" class="card' + (t === o[0] ? " on" : "") + '" data-dtype="' + i + ":" + o[0] + '">' + doorIcon(o[0] === "lift" ? "lift" : "hinged") + o[1] + "</button>";
+    }).join("") + "</div>";
+  }
+  function row(key, label, value, body, ro) {
+    var x = !ro && openRow[cab().unit + key];
+    return '<div class="r' + (x ? " x" : "") + (ro ? " ro" : "") + '"><button type="button" class="rh"' + (ro ? "" : ' data-row="' + key + '"') + '><span class="k">' + label + '</span><span class="v">' + value + "</span>" +
+      '<span class="chev">' + (ro ? "" : I_CHEV) + '</span></button><div class="rb">' + (body || "") + "</div></div>";
+  }
+  function more(key, inner) {
+    var o = advOpen[cab().unit + key];
+    return '<button type="button" class="more" data-adv="' + key + '">' + (o ? "Minna" : "Nánar") + "</button>" + (o ? '<div class="adv">' + inner + "</div>" : "");
+  }
+  function plural(n, one, many) { return n + " " + (n === 1 ? one : many); }
+  function renderPanel() {
+    var c = cab(), e = ed(c), p = plan(c), el = $("panel");
+    var dims = (c.B || "?") + " × " + (c.H || "?") + " × " + (c.D || "?");
+    var h = '<div class="pscroll"><div class="ph"><h1>' + esc(c.sk) + "</h1><p>" + esc(c.tegund) + " · " + dims + (c.base.cabinets > 1 ? " · " + c.base.cabinets + " eins" : "") + "</p></div>";
+    if (!M.editable(c)) {
+      h += '<div class="calm hand">' + I_INFO + "<span>" + (c.fre ? "FRE-skápur — gerður í höndunum á vélinni. Ekkert vistað héðan." : "Engin hlið sem CNC borar.") + "</span></div></div>";
+      el.innerHTML = h + footer(c, e, []); return;
     }
+    var blockers = M.blockers(c, e, p), doors = c.base.doors || [];
+    var askHinge = blockers.some(function (b) { return /lamahlið/.test(b); });
+    // ── open decisions
+    var open = "";
+    if (askHinge) open += '<div class="q"><h2><span class="dot"></span>Hvoru megin eru lamirnar?</h2>' + hingeCards(e) + "</div>";
+    if (blockers.some(function (b) { return /^Innskúffa/.test(b); }))
+      open += '<div class="q"><h2><span class="dot"></span>Innskúffurnar komast ekki fyrir</h2><button type="button" class="act" data-act="innerreset">Raða þeim sjálfkrafa</button></div>';
+    blockers.filter(function (b) { return !/lamahlið|^Innskúffa/.test(b); }).forEach(function (b) { open += '<div class="q"><h2><span class="dot"></span>' + esc(b) + "</h2></div>"; });
+    if (open) h += '<div class="open">' + open + "</div>";
+    else h += '<div class="calm">' + I_CHECK + "<span>" + (e.reviewed ? "Yfirfarinn — tilbúinn fyrir CNC" : "Ekkert opið — líttu yfir og merktu yfirfarinn") + "</span></div>";
+    // ── quiet lines
+    h += '<div class="rows">';
+    if (doors.length && !askHinge) {
+      h += c.base.hingeSide === "baedi" && !e.hinge ? row("hinge", "Lamahlið", "Báðum megin (vænghurð)", "", true)
+        : row("hinge", "Lamahlið", esc(SIDE_NAME[e.hinge] || "—"), hingeCards(e));
+    }
+    doors.forEach(function (d, i) {
+      var x = e.doors && e.doors[i], lift = x && x.type === "lift", pd = (p.doors || [])[i] || d, len = r1(pd.to - pd.from), pos = pd.hinges || [];
+      var val = lift ? "Lyftihurð" : plural(pos.length, "löm", "lamir") + (x ? " · færðar" : "");
+      var adv = lift ? "" : more("h" + i,
+        '<div class="line"><span class="u">mm frá enda hurðar ' + tip("↓ = frá neðri brún hurðar, ↑ = frá efri brún. Sjálfgefið: 80 mm frá endum, hinar jafnt á milli, færðar frá hillum. Þú getur líka dregið lamirnar á teikningunni.") + "</span></div>" +
+        pos.map(function (q, j) { var top = q > len / 2; return '<div class="line"><span class="t">' + (top ? "↑ ofan" : "↓ neðan") + '</span><input type="number" data-hinge="' + i + ":" + j + '" value="' + mm(top ? len - q : q) + '"><span class="u">mm</span></div>'; }).join("") +
+        '<div class="line"><button type="button" class="mini" data-hadd="' + i + '">Bæta við löm</button><button type="button" class="mini" data-hdel="' + i + '"' + (pos.length <= 2 ? " disabled" : "") + '>Fjarlægja löm</button>' +
+        '<button type="button" class="mini" data-hreset="' + i + '"' + (x ? "" : " disabled") + ">Sjálfgefið</button></div>");
+      h += row("d" + i, doors.length > 1 ? "Hurð " + (i + 1) : "Hurð", mm(d.H) + " · " + val, typeCards(e, i) + adv);
+    });
     var sl = e.oven ? e.oven.shelves : e.shelves;
     if (e.oven) {
-      h += '<div class="sec"><h3>Ofn</h3><div class="row"><span class="lbl">Hæð ofns</span>' + seg("ovh", M.OVEN_HEIGHTS.map(function (x) { return [String(x), String(x)]; }), String(e.oven.h)) +
-        ' <input type="number" data-oven="h" value="' + e.oven.h + '"></div>' +
-        '<div class="row"><span class="lbl">Ofn stendur á</span><input type="number" data-oven="under" value="' + e.oven.under + '"> mm <button type="button" class="small" data-ovenlayout="1">Raða botnum eftir ofni</button></div>' +
-        '<div class="note">Í Sögunarlista teljast botninn undir ofninum og toppurinn yfir honum með föstu hillunum (' + c.nFixed + " fastar, " + c.nLoose + " lausar) — settu hverja á sinn stað.</div></div>";
+      h += row("oven", "Ofn", e.oven.h + " · stendur á " + mm(e.oven.under),
+        '<div class="line"><span class="t">Hæð</span><span class="seg">' + M.OVEN_HEIGHTS.map(function (x) { return '<button type="button" data-ovh="' + x + '" class="' + (e.oven.h === x ? "on" : "") + '">' + x + "</button>"; }).join("") + "</span></div>" +
+        '<div class="line"><span class="t">Stendur á</span><input type="number" data-oven="under" value="' + mm(e.oven.under) + '"><span class="u">mm</span></div>' +
+        '<button type="button" class="more" data-act="ovenlayout">Raða botnum eftir ofninum</button>');
     }
     if (sl && sl.length) {
-      h += '<div class="sec"><h3>' + (e.oven ? "Botnar og hillur" : "Hillur") + " <small>" + sl.filter(function (x) { return x.fixed; }).length + " fastar · " + sl.filter(function (x) { return !x.fixed; }).length + " lausar</small></h3>";
-      sl.map(function (x, i) { return { x: x, i: i }; }).sort(function (a, b) { return b.x.mm - a.x.mm; }).forEach(function (o) {
-        h += '<div class="row"><span class="lbl">' + (o.x.fixed ? "Föst" : "Laus") + '</span><input type="number" data-shelf="' + o.i + '" value="' + Math.round(o.x.mm) + '"> mm' +
-          (o.x.fixed ? "" : ' <span class="note">göt fyrir</span>' + seg("pos-" + o.i, [["1", "1"], ["3", "3"], ["5", "5"]], String(o.x.pos || 3)) + ' <span class="note">stillingar</span>') + "</div>";
-      });
-      if (!e.oven) h += '<div class="row"><button type="button" class="small" data-spread="1">Raða jafnt</button></div>';
-      h += '<div class="note">mm = efri flötur hillunnar frá botni hliðar. Fjöldi og föst/laus koma úr Sögunarlista.</div></div>';
+      var nF = sl.filter(function (x) { return x.fixed; }).length, nL = sl.length - nF;
+      var sum = [nF ? plural(nF, "föst", "fastar") : "", nL ? plural(nL, "laus", "lausar") : ""].filter(Boolean).join(", ") + " · " +
+        sl.slice().sort(function (a, b) { return a.mm - b.mm; }).map(function (x) { return mm(x.mm); }).join(", ");
+      var lines = sl.map(function (x, i) { return { x: x, i: i }; }).sort(function (a, b) { return b.x.mm - a.x.mm; }).map(function (o) {
+        return '<div class="line"><span class="t">' + (o.x.fixed ? "Föst" : "Laus") + '</span><input type="number" data-shelf="' + o.i + '" value="' + mm(o.x.mm) + '"><span class="u">mm</span></div>';
+      }).join("");
+      var loose = sl.map(function (x, i) { return { x: x, i: i }; }).filter(function (o) { return !o.x.fixed; });
+      var adv2 = loose.length ? '<div class="line"><span class="u">Göt fyrir hverja lausa hillu ' + tip("Hve margar stillingar (50 mm á milli) hver laus hilla fær. 3 er venjan.") + "</span></div>" +
+        loose.sort(function (a, b) { return b.x.mm - a.x.mm; }).map(function (o) { return '<div class="line"><span class="t">' + mm(o.x.mm) + '</span><span class="seg">' + [1, 3, 5].map(function (n) { return '<button type="button" data-pos="' + o.i + ":" + n + '" class="' + ((o.x.pos || 3) === n ? "on" : "") + '">' + n + "</button>"; }).join("") + "</span></div>"; }).join("") : "";
+      if (!e.oven) adv2 += '<div class="line"><button type="button" class="mini" data-act="spread">Raða jafnt</button></div>';
+      h += row("shelves", e.oven ? "Botnar, hillur" : "Hillur", esc(sum), '<div class="line"><span class="u">mm frá botni hliðar ' + tip("Efri flötur hillunnar. Fjöldi og föst/laus koma úr Sögunarlista. Dragðu línuna á teikningunni eða smelltu á töluna.") + "</span></div>" + lines + more("s", adv2));
     }
     if (e.inner) {
-      h += '<div class="sec"><h3>Innskúffur <small>bak við hurð</small></h3>' + e.inner.map(function (x, i) {
-        return '<div class="row"><span class="lbl">' + x.code + " · " + ((c.inner[i] || {}).h || "") + '</span><input type="number" data-inner="' + i + '" value="' + x.mm + '"> mm <span class="note">neðri brún innskúffufronts</span></div>';
-      }).join("") + '<div class="row"><button type="button" class="small" data-innerreset="1">Raða sjálfgefið</button></div></div>';
+      h += row("inner", "Innskúffur", e.inner.length + " · " + e.inner.map(function (x) { return mm(x.mm); }).join(", "),
+        e.inner.map(function (x, i) { return '<div class="line"><span class="t">' + x.code + " · " + ((c.inner[i] || {}).h || "") + '</span><input type="number" data-inner="' + i + '" value="' + mm(x.mm) + '"><span class="u">mm ' + (i ? "" : tip("Neðri brún innskúffufrontsins, frá botni hliðar.")) + "</span></div>"; }).join("") +
+        '<button type="button" class="more" data-act="innerreset">Raða sjálfkrafa</button>');
     }
     if (e.rails) {
-      h += '<div class="sec"><h3>Fataslá</h3>' + e.rails.map(function (x, i) { return '<div class="row"><span class="lbl">Slá ' + (i + 1) + '</span><input type="number" data-rail="' + i + '" value="' + Math.round(x.mm) + '"> mm frá botni</div>'; }).join("") +
-        '<div class="note">/cnc borar slána ekki enn (FATASLA ekki staðfest í master) — staðsetningin fer í CNC-skrána til að bora í höndunum.</div></div>';
+      h += row("rails", "Fataslá", e.rails.map(function (x) { return mm(x.mm); }).join(", "),
+        e.rails.map(function (x, i) { return '<div class="line"><span class="t">Slá ' + (i + 1) + '</span><input type="number" data-rail="' + i + '" value="' + mm(x.mm) + '"><span class="u">mm ' + (i ? "" : tip("CNC borar slána ekki enn — staðsetningin fer í CNC-skrána og er boruð í höndunum.")) + "</span></div>"; }).join(""));
     }
-    if (e.reviewed) h += '<div class="sec"><div class="row"><span class="note">Merktur yfirfarinn. Breyting tekur merkinguna af.</span><button type="button" class="small" data-unmark="1">Taka merkinguna af</button></div></div>';
-    el.innerHTML = h + issuesHtml(c, e, p);
+    if ((p.drawers || []).length) h += row("dw", "Skúffur", p.drawers.map(function (d) { return d.code + " " + mm(d.front); }).join(" · ") + " " + tip("Úr Sögunarlista. Breyttu skúffum á Eyðublaðinu og keyrðu Yfirfara."), "", true);
+    h += "</div>";
+    // ── what /cnc still says (real things only — the defaults go away once marked, the open questions are above)
+    var notes = (p.check || []).filter(function (t) { return t.indexOf("Skápur yfirfarinn") < 0 && (p.defaults || []).indexOf(t) < 0 && !/amahlið óþekkt/.test(t); }); // the hinge side is asked above
+    if (notes.length) h += '<div class="check"><h3>Athugaðu</h3><ul>' + notes.map(function (t) { return "<li>" + esc(t.split(/ — /)[0]) + (t.indexOf(" — ") > 0 ? " " + tip(t) : "") + "</li>"; }).join("") + "</ul></div>";
+    h += "</div>";
+    el.innerHTML = h + footer(c, e, blockers);
   }
-  function issuesHtml(c, e, p) {
-    var b = M.blockers(c, e, p), checks = (p.check || []).filter(function (t) { return t.indexOf("Skápur yfirfarinn") < 0; });
-    var stops = (p.stop || []).filter(function (t) { return b.indexOf(t) < 0; });
-    var items = b.map(function (t) { return '<li class="stop">' + esc(t) + "</li>"; }).concat(stops.map(function (t) { return '<li class="stop">' + esc(t) + "</li>"; }), checks.map(function (t) { return '<li class="check">' + esc(t) + "</li>"; }));
-    if (!items.length) items.push('<li class="ok">/cnc hefur ekkert við þennan skáp að athuga' + (e.reviewed ? "" : " þegar hann er merktur yfirfarinn") + ".</li>");
-    var dflt = !e.reviewed && (p.defaults || []).length ? '<div class="note">Sjálfgefin atriði hverfa af /cnc þegar skápurinn er merktur yfirfarinn.</div>' : "";
-    return '<div class="sec"><h3>Það sem /cnc segir <small>lifandi</small></h3><ul class="issues">' + items.join("") + "</ul>" + dflt + "</div>";
+  function footer(c, e, blockers) {
+    var nx = nextOpen(cur), btn;
+    if (!M.editable(c)) btn = '<button type="button" id="nextBtn" class="calmb" data-act="next"' + (nx < 0 ? " disabled" : "") + ">" + (nx >= 0 ? "Næsti · " + esc(cabs[nx].sk) : "Allir yfirfarnir") + "</button>";
+    else if (blockers.length) btn = '<button type="button" id="nextBtn" disabled>Ákveddu fyrst það sem er opið</button>';
+    else if (!e.reviewed) btn = '<button type="button" id="nextBtn" data-act="mark">Yfirfarinn' + (nx >= 0 && nx !== cur ? " → " + esc(cabs[nx].sk) : "") + " <kbd>⏎</kbd></button>";
+    else btn = '<button type="button" id="nextBtn" class="calmb" data-act="next"' + (nx < 0 ? " disabled" : "") + ">" + (nx >= 0 ? "Næsti · " + esc(cabs[nx].sk) + " <kbd>⏎</kbd>" : "Allir skápar yfirfarnir") + "</button>";
+    var sub = M.editable(c) && e.reviewed ? '<button type="button" data-act="unmark">Taka merkinguna af</button>' : "";
+    return '<div class="pf">' + btn + '<div class="sub">' + sub + "</div></div>";
   }
 
   // ── events ────────────────────────────────────────────────────────────────────────────────
   document.addEventListener("click", function (ev) {
-    var t = ev.target.closest("button"); if (!t) return;
+    var t = ev.target.closest("button"); if (!t || !cabs.length) return;
     var c = cab(), d = t.dataset;
-    if (d.go != null) { cur = +d.go; cncFile = 0; render(); return; }
-    if (d.view) { view = d.view; render(); return; }
-    if (d.cncfile != null) { cncFile = +d.cncfile; render(); return; }
+    if (d.go != null) { go(+d.go); return; }
+    if (d.view) { view = d.view; drawStage(); return; }
+    if (d.cncfile != null) { cncFile = +d.cncfile; drawStage(); return; }
+    if (d.row) { openRow[c.unit + d.row] = !openRow[c.unit + d.row]; renderPanel(); return; }
+    if (d.adv) { advOpen[c.unit + d.adv] = !advOpen[c.unit + d.adv]; renderPanel(); return; }
     if (d.hinge) { change(function (e) { e.hinge = d.hinge; }); return; }
-    var k = Object.keys(d).find(function (x) { return /^dtype|^pos|^ovh$|^hadd$|^hdel$|^hreset$|^ovenlayout$|^spread$|^innerreset$|^unmark$/.test(x); });
-    if (!k) return;
-    if (k === "unmark") { ed().reviewed = false; saveDraft(); render(); return; }
-    change(function (e) {
-      if (k.indexOf("dtype") === 0) { var di = +k.replace(/\D/g, ""); ensureDoors(c, e); e.doors[di].type = d[k]; if (d[k] === "hinged" && !e.doors[di].hinges.length) e.doors[di].hinges = SD.defaultHingeSpec(r1(c.base.doors[di].to - c.base.doors[di].from), []); }
-      else if (k.indexOf("pos") === 0) { var si = +k.replace(/\D/g, ""); (e.shelves || e.oven.shelves)[si].pos = +d[k]; }
-      else if (k === "ovh") { e.oven.h = +d.ovh; }
-      else if (k === "hadd" || k === "hdel") {
-        var ii = +d[k], door = plan(c).doors[ii], len = r1(door.to - door.from); ensureDoors(c, e);
+    if (d.dtype) { var dt = d.dtype.split(":"), di = +dt[0]; change(function (e) { ensureDoors(c, e); e.doors[di].type = dt[1];
+      if (dt[1] === "hinged" && !e.doors[di].hinges.length) e.doors[di].hinges = SD.defaultHingeSpec(r1(c.base.doors[di].to - c.base.doors[di].from), []); }); return; }
+    if (d.pos) { var pp = d.pos.split(":").map(Number); change(function (e) { (e.shelves || e.oven.shelves)[pp[0]].pos = pp[1]; }); return; }
+    if (d.ovh) { change(function (e) { e.oven.h = +d.ovh; }); return; }
+    if (d.hadd != null || d.hdel != null) {
+      var ii = +(d.hadd != null ? d.hadd : d.hdel), door = plan(c).doors[ii], len = r1(door.to - door.from);
+      change(function (e) {
+        ensureDoors(c, e);
         var pos = SD.specToPositions(e.doors[ii].hinges, len);
-        if (k === "hadd") { var gaps = pos.map(function (q, j) { return j ? [q - pos[j - 1], (q + pos[j - 1]) / 2] : null; }).filter(Boolean).sort(function (a, b) { return b[0] - a[0]; }); pos.push(gaps.length ? gaps[0][1] : len / 2); }
-        else { pos.splice(Math.floor(pos.length / 2), 1); }
-        e.doors[ii].hinges = pos.sort(function (a, b) { return a - b; }).map(function (x) { x = Math.round(x); return x <= len / 2 ? { from: "bottom", mm: x } : { from: "top", mm: Math.round(len - x) }; });
-      }
-      else if (k === "hreset") { var ri = +d.hreset; if (e.doors) { e.doors[ri] = { type: "hinged", hinges: [] }; if (e.doors.every(function (x) { return x.type === "hinged" && !x.hinges.length; })) e.doors = null; else e.doors[ri].hinges = M.hingeSpec(c, Object.assign({}, e, { doors: null }), ri); } }
-      else if (k === "ovenlayout") { e.oven.shelves = M.ovenLayout(c, e.oven.h, e.oven.under); }
-      else if (k === "spread") { e.shelves = M.defaultShelves(c); }
-      else if (k === "innerreset") { e.inner = M.defaultInner(c); }
-    });
+        if (d.hadd != null) { var gaps = pos.map(function (q, j) { return j ? [q - pos[j - 1], (q + pos[j - 1]) / 2] : null; }).filter(Boolean).sort(function (a, b) { return b[0] - a[0]; }); pos.push(gaps.length ? gaps[0][1] : len / 2); }
+        else pos.splice(Math.floor(pos.length / 2), 1);
+        e.doors[ii].hinges = toSpec(pos, len);
+      }); return;
+    }
+    if (d.hreset != null) { var ri = +d.hreset; change(function (e) { if (!e.doors) return; e.doors[ri] = { type: "hinged", hinges: [] };
+      if (e.doors.every(function (x) { return x.type === "hinged" && !x.hinges.length; })) e.doors = null; else e.doors[ri].hinges = M.hingeSpec(c, Object.assign({}, e, { doors: null }), ri); }); return; }
+    var act = d.act;
+    if (act === "ovenlayout") change(function (e) { e.oven.shelves = M.ovenLayout(c, e.oven.h, e.oven.under); });
+    else if (act === "spread") change(function (e) { e.shelves = M.defaultShelves(c); });
+    else if (act === "innerreset") change(function (e) { e.inner = M.defaultInner(c); });
+    else if (act === "unmark") { ed().reviewed = false; ed().touched = true; saveDraft(); render(); }
+    else if (act === "mark") mark();
+    else if (act === "next") { var nx = nextOpen(cur); if (nx >= 0) go(nx); }
   });
-  function ensureDoors(c, e) { if (!e.doors) e.doors = (c.base.doors || []).map(function (d, k) { return { type: "hinged", hinges: M.hingeSpec(c, e, k) }; }); }
   document.addEventListener("change", function (ev) {
-    var t = ev.target; if (!t.matches || !t.matches("input[type=number]")) return;
+    var t = ev.target; if (!t.matches || !t.matches(".panel input[type=number]")) return;
     var v = Math.round(+t.value), c = cab(), d = t.dataset;
-    if (!isFinite(v)) { render(); return; }
+    if (!isFinite(v)) { renderPanel(); return; }
     change(function (e) {
       if (d.shelf != null) (e.shelves || e.oven.shelves)[+d.shelf].mm = v;
       else if (d.inner != null) e.inner[+d.inner].mm = v;
@@ -476,56 +656,63 @@
       }
     });
   });
-  $("prevBtn").onclick = function () { cur = (cur - 1 + cabs.length) % cabs.length; render(); };
-  $("nextArrow").onclick = function () { cur = (cur + 1) % cabs.length; render(); };
-  $("nextBtn").onclick = function () {
-    var act = this.dataset.act, c = cab();
-    if (act === "mark") { if (M.blockers(c, ed(), plan(c)).length) return; ed().reviewed = true; saveDraft(); var n = nextUnreviewed(); if (n >= 0) cur = n; render(); return; }
-    if (act === "save") { save(); return; }
-    var nx = nextUnreviewed(); if (nx >= 0) { cur = nx; render(); }
-  };
   document.addEventListener("keydown", function (ev) {
-    if (/INPUT|SELECT|TEXTAREA/.test((ev.target || {}).tagName || "")) return;
-    if (ev.key === "ArrowLeft") $("prevBtn").click();
-    else if (ev.key === "ArrowRight") $("nextArrow").click();
+    if (!cabs.length || /INPUT|TEXTAREA|SELECT/.test((ev.target || {}).tagName || "")) return;
+    if (ev.key === "ArrowDown" || ev.key === "ArrowRight") { ev.preventDefault(); go(Math.min(cabs.length - 1, cur + 1)); }
+    else if (ev.key === "ArrowUp" || ev.key === "ArrowLeft") { ev.preventDefault(); go(Math.max(0, cur - 1)); }
+    else if (ev.key === "Enter") { var b = $("nextBtn"); if (b && !b.disabled) { ev.preventDefault(); b.click(); } }
   });
-  window.addEventListener("beforeunload", function (ev) { if (cabs.length && dirtyCabs().length) { ev.preventDefault(); ev.returnValue = ""; } });
+  window.addEventListener("beforeunload", function (ev) { if (cabs.length && (dirtyCabs().length || saving)) { ev.preventDefault(); ev.returnValue = ""; } });
 
-  // ── Vista / Afturkalla ────────────────────────────────────────────────────────────────────
+  // ── saving: a cabinet marked "Yfirfarinn" is written right away (with any other marked change); Vista sends the rest
+  function mark() {
+    var c = cab(); if (M.blockers(c, ed(c), plan(c)).length) return;
+    ed(c).reviewed = true; ed(c).touched = true; saveDraft();
+    var nx = nextOpen(cur); if (nx >= 0) cur = nx;
+    render(); var on = document.querySelector(".item.on"); if (on) on.scrollIntoView({ block: "nearest" });
+    save(false);
+  }
   async function post(items) {
     var r = await fetch("/api/smida-eydublad", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ k: KEY, recordId: project.id, items: items }) });
     var j = await r.json().catch(function () { return {}; });
     if (!r.ok) { var er = new Error(j.error || "HTTP " + r.status); er.status = r.status; er.conflict = j.conflict; throw er; }
     return j;
   }
-  function setStatus(t, cls) { var s = $("status"); s.textContent = t; s.className = "status" + (cls ? " " + cls : ""); s.dataset.keep = "1"; clearTimeout(setStatus.t); setStatus.t = setTimeout(function () { delete s.dataset.keep; render(); }, 6000); }
-  async function save() {
-    var list = dirtyCabs(); if (!list.length || saving) return;
-    var notRev = list.filter(function (c) { return !ed(c).reviewed; });
-    if (notRev.length && !confirm(notRev.length + " af " + list.length + " breyttum skápum eru ekki merktir yfirfarnir (" + notRev.map(function (c) { return c.sk; }).slice(0, 8).join(", ") + (notRev.length > 8 ? " …" : "") + ").\n\nÞeir vistast samt, en /cnc segir „ekki yfirfarinn“ við þá. Vista?")) return;
-    saving = true; render(); setStatus("Vista " + list.length + " Eyðublöð…");
+  var again = false;
+  async function save(all) {
+    if (saving) { again = true; return; }
+    var list = dirtyCabs().filter(function (c) { return all || ed(c).reviewed; });
+    if (!list.length) { render(); return; }
+    if (all) {
+      var notRev = list.filter(function (c) { return !ed(c).reviewed; });
+      if (notRev.length && !confirm(notRev.map(function (c) { return c.sk; }).slice(0, 8).join(", ") + (notRev.length > 8 ? " …" : "") + (notRev.length === 1 ? " er ekki merktur" : " eru ekki merktir") + " yfirfarinn.\n\nVista samt? CNC segir „ekki yfirfarinn“ við " + (notRev.length === 1 ? "hann" : "þá") + ".")) return;
+    }
+    saving = true; saveErr = null; renderTop();
     var items = list.map(function (c) { return { id: c.unit, smida: JSON.stringify(smida(c)), prev: c.raw || null }; });
     try {
       var j = await post(items);
       items.forEach(function (it) { var c = cabs.find(function (x) { return x.unit === it.id; }); c.raw = it.smida; c.existing = M.parse(it.smida); });
-      lastUndo = items.map(function (it) { return { id: it.id, smida: j.previous[it.id] == null ? null : j.previous[it.id], prev: it.smida }; });
+      if (j.written) undoStack.push({ label: list.map(function (c) { return c.sk; }).join(", "), items: items.map(function (it) { return { id: it.id, smida: j.previous[it.id] == null ? null : j.previous[it.id], prev: it.smida }; }) });
       saving = false; saveDraft(); render();
-      setStatus("Vistað: " + j.written + " Eyðublöð. Opnaðu CNC.", "ok");
     } catch (e) {
-      saving = false; render();
-      setStatus(e.status === 409 ? "Ekki vistað — breytt annars staðar (" + (e.conflict || []).length + "). Endurhlaða síðuna." : "Vistun tókst ekki: " + e.message, "bad");
+      saving = false; again = false;
+      saveErr = e.status === 409 ? "Breytt annars staðar síðan síðan var opnuð — endurhlaðið síðuna" : e.message;
+      render(); toast(e.status === 409 ? "Ekki vistað — einhver breytti þessum Eyðublöðum. Endurhlaðið síðuna." : "Vistaðist ekki — breytingarnar eru geymdar hér. Reyndu aftur.");
+      return;
     }
+    if (again) { again = false; save(false); }
   }
-  $("saveBtn").onclick = save;
+  $("saveBtn").onclick = function () { save(true); };
   $("undoBtn").onclick = async function () {
-    if (!lastUndo || saving) return;
-    if (!confirm("Afturkalla síðustu vistun? Fyrri Smíðagögn fara aftur á " + lastUndo.length + " Eyðublöð.")) return;
-    saving = true; render(); setStatus("Afturkalla…");
+    var last = undoStack[undoStack.length - 1]; if (!last || saving) return;
+    if (!confirm("Taka síðustu vistun til baka (" + last.label + ")?\n\nFyrri gögn fara aftur á Eyðublöðin. Breytingarnar þínar eru áfram hér, óvistaðar.")) return;
+    saving = true; renderTop();
     try {
-      await post(lastUndo);
-      lastUndo.forEach(function (it) { var c = cabs.find(function (x) { return x.unit === it.id; }); c.raw = it.smida; c.existing = M.parse(it.smida); }); // the edits stay on the page (unsaved again) — Vista puts them back
-      lastUndo = null; saving = false; saveDraft(); render(); setStatus("Afturkallað í Airtable — breytingarnar eru enn hér, óvistaðar.", "ok");
-    } catch (e) { saving = false; render(); setStatus("Afturkalla tókst ekki: " + e.message, "bad"); }
+      await post(last.items);
+      undoStack.pop();
+      last.items.forEach(function (it) { var c = cabs.find(function (x) { return x.unit === it.id; }); c.raw = it.smida; c.existing = M.parse(it.smida); ed(c).reviewed = false; });
+      saving = false; saveErr = null; saveDraft(); render(); toast("Tekið til baka — " + last.label);
+    } catch (e) { saving = false; render(); toast("Tókst ekki að taka til baka: " + e.message); }
   };
 
   boot();

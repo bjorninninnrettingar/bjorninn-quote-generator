@@ -17140,11 +17140,13 @@
     if (!el) return;
     proRoSync();
     el.hidden = false;
+    // legacy project (Eyðublöð not made from Line Items, e.g. T-15): Smíða happens in /smida, always reachable here
+    var smidaEyBtn = PRO.legacy ? '<button type="button" id="proSmidaEy" class="pb-review" title="Lamir, hillur, ofn og innskúffur fyrir CNC — beint á Eyðublöðin sem eru til">Smíða úr Eyðublöðum</button>' : "";
     var reviewBtn = PRO.needsReview ? '<button type="button" id="proReviewed" class="pb-review" title="Teikning frá viðskiptavini: merktu hana yfirfarna (fer af „Til yfirferðar“ í CRM)">Merkja teikningu yfirfarna</button>' : "";
     if (PRO.locked && !PRO.unlocked){
       el.innerHTML = '<span>PRO</span>' + proNameHtml() +
         '<span class="pb-locked">Í skipulagi (' + escapeHtmlPro(PRO.lockStatus) + ') — skoðunarhamur</span>' +
-        reviewBtn +
+        reviewBtn + smidaEyBtn +
         '<button type="button" id="proTilbodToggle"' + (tp.open ? ' class="on"' : "") + '>Tilboð</button>' +
         '<button type="button" id="proWorkDraw" title="2D vinnuteikningar fyrir verkstæðið">Teikningar</button>' +
         '<button type="button" id="proCnc" title="CNC-útflutningur (/cnc) fyrir þetta verkefni">CNC</button>' +
@@ -17154,12 +17156,13 @@
       var wd0 = el.querySelector("#proWorkDraw"); if (wd0) wd0.addEventListener("click", openWorkDrawings);
       var cn0 = el.querySelector("#proCnc"); if (cn0) cn0.addEventListener("click", function(){ window.open(proCncUrl(), "_blank", "noopener"); });
       var rb0 = el.querySelector("#proReviewed"); if (rb0) rb0.addEventListener("click", proMarkReviewed);
+      var se0 = el.querySelector("#proSmidaEy"); if (se0) se0.addEventListener("click", proOpenSmidaEy);
       return;
     }
     el.innerHTML = '<span>PRO</span>' + proNameHtml() +
       (PRO.locked ? '<span class="pb-locked">opnað til breytinga</span>' : "") +
       (msg ? '<span>' + escapeHtmlPro(msg) + '</span>' : (proDirty() ? '<span class="pb-dirty">● óvistað</span>' : '<span>✓ vistað</span>')) +
-      reviewBtn +
+      reviewBtn + smidaEyBtn +
       // Vista opens Yfirferð first (2026-10-26): the checklist, "Vista í Airtable" and the gated "Klár til framleiðslu"
       // (which replaced the loose "Keyra skipulag" button here). The badge = how many checks are green.
       '<button type="button" id="proSave" class="pb-save"' + (PRO.ready ? "" : " disabled") + ' title="Yfirferð og vistun">Vista<span class="pb-prog" id="proProg">' + escapeHtmlPro(pc.badge || "") + '</span></button>' +
@@ -17174,6 +17177,7 @@
     var ttb = el.querySelector("#proTilbodToggle"); if (ttb) ttb.addEventListener("click", proTilbodToggle);
     var wd = el.querySelector("#proWorkDraw"); if (wd) wd.addEventListener("click", openWorkDrawings);
     var rb = el.querySelector("#proReviewed"); if (rb) rb.addEventListener("click", proMarkReviewed);
+    var se = el.querySelector("#proSmidaEy"); if (se) se.addEventListener("click", proOpenSmidaEy);
   }
   // ---------- Yfirferð — the gate before Vista / Klár til framleiðslu (2026-10-26) ----------
   // Everything production needs, as one list, each line a link to where it gets fixed (mission: "idiot proof" — nothing
@@ -17902,6 +17906,7 @@
     PRO.ready = true;
     render();
     proBar();
+    proLegacyCheck(); // an (empty) drawing on a project planned in Airtable: the bar still offers Smíða úr Eyðublöðum
     if (/[?&]maeling=1\b/.test(location.search)) setTimeout(openMeasurePanel, 300); // the measurer's link (A7)
     var smidaSk = (location.search.match(/[?&]smida=(Sk\d{1,3})\b/) || [])[1];
     if (smidaSk) setTimeout(function(){ proOpenSk(smidaSk); }, 300); // /cnc "Laga í PRO →" (2026-10-26)
@@ -17909,22 +17914,34 @@
   // A project planned the old way in Airtable (Eyðublöð, no drawing — e.g. T-15, 2026-10-26): drawing it again here
   // and running Keyra skipulag would make a second set of Eyðublöð, so the first thing offered is /smida ("Smíða úr
   // Eyðublöðum": hinges, shelves, oven per Eyðublað → its Smíðagögn → /cnc). Read-only check, one record.
-  async function proLegacyOffer(){
-    var pre = (String(PRO.name || "").match(/^(T-\d+)/) || [])[1]; if (!pre) return;
-    var n = 0;
+  function proSmidaEyUrl(){ return "/smida?recordId=" + encodeURIComponent(PRO.id) + "&k=" + encodeURIComponent(PRO.k); }
+  function proOpenSmidaEy(){ window.open(proSmidaEyUrl(), "_blank", "noopener"); }
+  // legacy = the project has Eyðublöð and no Line Item made any of them (two read-only GETs, one record each)
+  async function proLegacyCheck(){
+    var pre = (String(PRO.name || "").match(/^(T-\d+)/) || [])[1]; if (!pre) return false;
+    function q(table, formula, field){
+      return fetch("/api/airtable?path=" + encodeURIComponent(table) + "&k=" + encodeURIComponent(PRO.k) + "&maxRecords=1&filterByFormula=" +
+        encodeURIComponent(formula) + "&" + encodeURIComponent("fields[]") + "=" + encodeURIComponent(field))
+        .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); }).then(function(j){ return (j.records || []).length; });
+    }
     try{
-      var r = await fetch("/api/airtable?path=" + encodeURIComponent("tbl0WcyHhz63pSzZX") + "&k=" + encodeURIComponent(PRO.k) + "&maxRecords=1" +
-        "&filterByFormula=" + encodeURIComponent('FIND("' + pre + ' |",{Athugasemd + Tækifæri (fyrir yfirfara)})') + "&" + encodeURIComponent("fields[]") + "=" + encodeURIComponent("Athugasemd"));
-      if (r.ok) n = ((await r.json()).records || []).length;
-    }catch(e){ return; }
-    if (!n) return;
-    var href = "/smida?recordId=" + encodeURIComponent(PRO.id) + "&k=" + encodeURIComponent(PRO.k);
+      var units = await q("tbl0WcyHhz63pSzZX", 'FIND("' + pre + ' |",{Athugasemd + Tækifæri (fyrir yfirfara)})', "Athugasemd");
+      if (!units) return false;
+      var linked = await q("tblFcsUoGxsuUwNEH", 'AND(FIND("' + pre + ' |",ARRAYJOIN({Tækifæri 📣 (projects)})),{Eyðublað búið til ✏️})', "🔑");
+      PRO.legacy = !linked;
+    }catch(e){ return false; }
+    if (PRO.legacy) proBar();
+    return PRO.legacy;
+  }
+  async function proLegacyOffer(){
+    if (!(await proLegacyCheck())) return;
+    var pre = (String(PRO.name || "").match(/^(T-\d+)/) || [])[1];
     var ch = await proDialog({ title:"Þetta verkefni var skipulagt í Airtable",
       html:'<p>' + escapeHtmlPro(pre) + ' er með Eyðublöð og Sögunarlista en enga teikningu.</p>' +
         '<p><b>Smíða úr Eyðublöðum</b> opnar hvern skáp eins og hann er í Sögunarlista: lamahlið, lamir, hillur, ofn og innskúffur fyrir CNC. Vista skrifar bara Smíðagögn á Eyðublöðin.</p>' +
         '<p>Ekki teikna verkefnið upp á nýtt og keyra skipulag — það býr til önnur Eyðublöð ofan á þau sem eru til.</p>',
       ok:"Smíða úr Eyðublöðum", alt:"Teikna samt" });
-    if (ch === true) location.href = href;
+    if (ch === true) location.href = proSmidaEyUrl();
   }
   // Smíða straight on one Sk (a /cnc link): that room first when it's parked, then the cabinet's box editor
   function proOpenSk(sk){

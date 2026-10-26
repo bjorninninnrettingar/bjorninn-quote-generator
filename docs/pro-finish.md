@@ -525,3 +525,22 @@ are linked to its Eyðublöð → it would duplicate the whole job (checked read
 - **Not covered (by hand)**: FRE cabinets (SK 14, Sk 41); doors that are their own Eyðublað "Stakur frontur" (Sk 29 →
   hangs on Sk 29.1/29.2, RH Sk 30-33 → Sk 30/31-32/33) — those sides have no door rows in Sögunarlisti, so /cnc drills no
   hinges for them; Fataslá (FATASLA not confirmed in the master).
+
+### /smida redesign (2026-10-26, same night) — "one calm screen per cabinet"
+Owner: the most important page in the company; the first version read like a form full of footnotes. Same data model
+(`smida-eydublod.js`), same JSON, same endpoint, same draft key — anything saved before loads unchanged.
+- Layout (1440×900, no page scroll): left list of cabinets (Sk + tegund, status: green ✓ yfirfarinn / amber ring
+  "Þarf að ákveða" / grey ring / dash "Í höndunum" for FRE, blue dot = unsaved); centre the front elevation as the hero;
+  right panel = what's still open, then quiet one-line rows. Top: "12 af 29 yfirfarnir" bar, save state, Vista, Afturkalla, CNC ↗.
+- Direct manipulation: drag shelves / boards / inner drawers / rails / hinges; click a door = switch hinge side (the dashed
+  chevron's point = hinge side, as on a drawing; vænghurð = both, not switchable); click a number on the drawing = type it.
+- Panel: open decisions as plain questions with pictures ("Hvoru megin eru lamirnar?" Vinstri / Hægri / Báðum megin;
+  "Innskúffurnar komast ekki fyrir" → Raða sjálfkrafa). Nothing open = calm green line. Settled things = rows
+  (Lamahlið, Hurð "897 · 2 lamir", Ofn, Botnar/Hillur, Innskúffur, Fataslá, Skúffur read-only) that expand; hinge mm,
+  holes 1/3/5, Raða jafnt behind "Nánar". Explanations are ⓘ tooltips. "Athugaðu" lists only /cnc's real notes
+  (defaults and the hinge-side line are left out — the first goes away on review, the second is the question above).
+- Flow: big button "Yfirfarinn → Sk X" (Enter); arrows move between cabinets. **Marking saves right away** (all marked,
+  changed cabinets in one call); changes not yet marked wait in the local draft with "N breytingar óvistaðar" + Vista.
+  A failed save says "Vistaðist ekki" + "Reyna aftur", nothing is lost (draft). Afturkalla = a stack, one save at a time.
+- PRO bar: **"Smíða úr Eyðublöðum"** whenever the project is legacy (`proLegacyCheck`: has Eyðublöð, no Line Item linked
+  to one — two one-record GETs), also with a drawing (T-15 got an empty one, so the no-drawing offer never showed).
