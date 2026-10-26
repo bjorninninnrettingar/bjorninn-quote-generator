@@ -18,6 +18,12 @@
 //   both changed / nothing sent yet         → nothing written, reported as a `conflict` for Rakel to settle
 //                                             (body.resolve = {Sk5:"drawing"|"airtable"} on the next Vista).
 // Behind VERK_KEY: the public proxy can't write Line Items at all.
+//
+// Two computers (2026-10-26): every save stamps proSavedAt in the planner JSON. The page sends `basedOn` = the
+// proSavedAt its copy was loaded from (null = a drawing nobody had saved from PRO yet). If Airtable's proSavedAt is
+// newer, someone else saved in between: nothing is written, 409 { conflict, savedAt } — the page asks "Sækja nýrri
+// útgáfu" / "Skrifa samt yfir" (the latter = `force: true`). A page that sends no basedOn at all (an old cached copy)
+// is not checked. The reply carries the new proSavedAt for the next Vista.
 
 import { makeAirtable, listAll, linesOfProject, validateLineItems, LINE_FIELDS, PRODUCT_FIELDS, PROJECT_FIELDS, INNER_FRONTS, idsKey, sentOf } from "./kp-submit.js";
 
@@ -67,6 +73,8 @@ export function validate(body) {
         !(Array.isArray(v) && v.length <= 8 && v.every((x) => REC_RE.test(x)))) return "Ógilt efnisval: " + f;
     }
   }
+  if (b.basedOn !== undefined && b.basedOn !== null && !(typeof b.basedOn === "string" && b.basedOn.length <= 40 && !isNaN(Date.parse(b.basedOn)))) return "Ógilt basedOn";
+  if (b.force != null && typeof b.force !== "boolean") return "Ógilt force";
   if (b.resolve != null) {
     if (typeof b.resolve !== "object") return "Ógilt resolve";
     for (const [k, v] of Object.entries(b.resolve)) if (!KEY_RE.test(k) || (v !== "drawing" && v !== "airtable")) return "Ógilt resolve: " + k;
@@ -79,6 +87,9 @@ export async function save(at, body) {
   const old = (() => { try { return JSON.parse((opp.fields || {})[PLANNER_JSON] || "{}"); } catch (e) { return {}; } })();
   const lastSent = old.liSent && typeof old.liSent === "object" ? old.liSent : {};
   const resolve = body.resolve || {};
+  if (body.basedOn !== undefined && !body.force && old.proSavedAt && (!body.basedOn || Date.parse(old.proSavedAt) > Date.parse(body.basedOn))) {
+    const e = new Error("Einhver annar vistaði verkefnið á undan"); e.status = 409; e.savedAt = old.proSavedAt; throw e;
+  }
 
   // this Tækifæri's own lines, by its link field — not the "T-227 |" name prefix, which a new one may not have yet
   const rows = await linesOfProject(at, opp.id, ["🔑", SMIDA, LINK_TO_PROJECT, ...PRODUCT_FIELDS, ...LINE_EXTRA]);
@@ -158,8 +169,9 @@ export async function save(at, body) {
   }
 
   // The state goes last, so liSent only ever records what really reached the Line Items.
+  const proSavedAt = new Date().toISOString();
   const json = JSON.stringify(Object.assign({}, body.state, old.submissionId ? { submissionId: old.submissionId } : {},
-    { liSent, liExtra, projSent, proSavedAt: new Date().toISOString() }));
+    { liSent, liExtra, projSent, proSavedAt }));
   await at("PATCH", PROJECTS, { typecast: true, records: [{ id: opp.id, fields: Object.assign({ [PLANNER_JSON]: json }, projFields) }] });
 
   // Product names for the conflict question (the ids alone mean nothing to Rakel).
@@ -173,7 +185,7 @@ export async function save(at, body) {
   const named = (a) => a.map((id) => names[id] || id);
   const removed = [...byKey.keys()].filter((k) => KEY_RE.test(k) && !(k in body.smida)).sort((a, z) => a.slice(2) - z.slice(2));
   return { recordId: opp.id, project: (opp.fields || {})[PROJECT_NAME] || "", created: creates.length, updated: updates.length, unchanged, missing, removed,
-    conflicts: conflicts.map((c) => Object.assign(c, { drawingNames: named(c.drawing), airtableNames: named(c.airtable) })), liSent, projectUpdated };
+    conflicts: conflicts.map((c) => Object.assign(c, { drawingNames: named(c.drawing), airtableNames: named(c.airtable) })), liSent, projectUpdated, proSavedAt };
 }
 
 export default async function handler(req, res) {
@@ -188,6 +200,7 @@ export default async function handler(req, res) {
   try {
     return res.status(200).json(Object.assign({ ok: true }, await save(makeAirtable(token), body)));
   } catch (e) {
+    if (e.status === 409 && e.savedAt) return res.status(409).json({ error: e.message, conflict: true, savedAt: e.savedAt });
     return res.status(e.status && e.status < 500 && e.status !== 429 ? 400 : 502).json({ error: e.message });
   }
 }

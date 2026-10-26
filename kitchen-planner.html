@@ -1264,6 +1264,10 @@
   #proDlg p { margin:0 0 10px; font-size:14px; line-height:1.5; color:var(--ink-soft); }
   #proDlg ol { margin:0 0 12px; padding-left:22px; font-size:14px; line-height:1.55; }
   #proDlg ol small { color:var(--ink-soft); }
+  #proCheck .pc-err { margin:8px 0 4px; padding:10px 12px; border-radius:10px; background:#3a1518; border:1px solid #a3271a; color:#ffd9d4; font-size:13px; line-height:1.4; display:flex; flex-wrap:wrap; gap:4px 6px; align-items:baseline; }
+  #proCheck .pc-err b { color:#fff; }
+  #proCheck .pc-err-d { flex-basis:100%; font-size:12px; color:#ffb8ae; }
+  #proCheck .pc-retry { margin-top:6px; font:700 13px/1.2 inherit; font-family:inherit; border-radius:8px; padding:7px 14px; cursor:pointer; border:1px solid #ff8a7a; background:#a3271a; color:#fff; }
   #proDlg .pd-foot { display:flex; justify-content:flex-end; gap:10px; margin-top:16px; }
   #proDlg .pd-foot button { font:700 14px/1.2 inherit; font-family:inherit; border-radius:10px; padding:10px 18px; cursor:pointer; border:1px solid var(--line); background:transparent; color:var(--ink); }
   #proDlg .pd-foot button.pd-ok { background:#ffd60a; border-color:#ffd60a; color:#1b1f24; }
@@ -2538,7 +2542,7 @@
   // ---------- persistence ----------
   function save(){
     normalizeIslands();
-    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); if (PRO) localStorage.setItem(STORAGE_KEY + ":dirty", "1"); }catch(e){}
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); if (PRO){ localStorage.setItem(STORAGE_KEY + ":dirty", "1"); localStorage.setItem(STORAGE_KEY + ":at", new Date().toISOString()); } }catch(e){}
     pushHistory();
     if (PRO) proBar();
   }
@@ -12543,7 +12547,7 @@
         if (b.disabled) return;
         M.at = new Date().toISOString(); save(); draw();
         if (PRO && PRO.ready && typeof proSave === "function") proSave().then(function(){ // only claim "vistuð" when it was (2026-10-26)
-          toast(proDirty() ? "Mæling skráð í teikninguna — vistunin tókst ekki (sjá efst), reyndu Vista aftur." : "✓ Mæling skráð og vistuð í Airtable."); });
+          toast(proDirty() ? "Mæling skráð í teikninguna — vistunin tókst ekki (sjá Yfirferð), reyndu aftur þar." : "✓ Mæling skráð og vistuð í Airtable."); });
       }
     };
     draw();
@@ -16708,7 +16712,8 @@
           (x.acks && x.acks.length ? '<span class="pc-acks">' + x.acks.map(function(a){ return '<label><input type="checkbox" data-ack="' + esc(a.id) + '"' + (a.sig != null ? ' data-sig="' + esc(a.sig) + '"' : '') + (a.on ? " checked" : "") + '> ' + esc(a.label) + '</label>'; }).join("") + '</span>' : '') +
           '</div>';
       }).join("") +
-      '<div class="pc-foot"><button type="button" class="pc-save" data-pc="save">Vista í Airtable</button>' +
+      (pc.saveErr ? '<div class="pc-err" role="alert"><b>Vistun tókst ekki.</b> ' + esc(pc.saveErr) + (proDirty() ? ' <span class="pc-err-d">● Óvistað — breytingarnar eru geymdar í þessum vafra.</span>' : '') + '<button type="button" class="pc-retry" data-pc="save">Reyna aftur</button></div>' : '') +
+      '<div class="pc-foot"><button type="button" class="pc-save" data-pc="save"' + (pc.saving ? ' disabled' : '') + '>' + (pc.saving ? "Vista…" : "Vista í Airtable") + '</button>' +
       '<button type="button" class="pc-ready" data-pc="ready"' + (all ? "" : ' disabled title="Opnast þegar allar línur eru grænar"') + '>Klár til framleiðslu</button></div>' +
       '<div class="pc-note">Vista geymir drögin hvenær sem er. „Klár til framleiðslu“ vistar og keyrir skipulag (Eyðublöð → Sögunarlisti, Pöntunarlisti, CNC) — eftir það læsist teikningin.' + (proDirty() ? ' <b>● Óvistaðar breytingar.</b>' : '') + '</div>' +
       // the run's status + the next step (2026-10-26) — always here, same place, so nothing moves when the run ends
@@ -16720,7 +16725,7 @@
       var b = e.target.closest("[data-pc]");
       if (b){ var a = b.dataset.pc;
         if (a === "close") proCheckOpen(false);
-        else if (a === "save"){ proCheckOpen(false); proSave(); }
+        else if (a === "save"){ proSave().then(function(ok){ if (ok) proCheckOpen(false); }); } // stays open until it worked (2026-10-26)
         else if (a === "ready") proCheckReady();
         else if (a === "recheck") proWatchSkipulag(pr.t0 || Math.floor(Date.now() / 1000) - 3600, null);
         return; }
@@ -16775,13 +16780,10 @@
   async function proCheckReady(){
     var items = proCheckItems();
     if (!items.every(function(x){ return x.ok; })){ proCheckRender(); return; }
-    proCheckOpen(false);
-    await proSave();
-    if (proDirty()) return; // the save didn't go through (the bar says why)
-    proRunSkipulag();
+    proRunSkipulag(); // one dialog: vista (if needed) og keyra — a failed save keeps Yfirferð open with the red box
   }
   document.addEventListener("keydown", function(e){ if (e.key === "Escape" && pc.open && !e.target.closest("input,select,textarea")) proCheckOpen(false); });
-  document.addEventListener("pointerdown", function(e){ if (pc.open && e.target.closest && !e.target.closest("#proCheck, #proSave, #measurePanel, #proEd, #warnPop")) proCheckOpen(false); });
+  document.addEventListener("pointerdown", function(e){ if (pc.open && e.target.closest && !e.target.closest("#proCheck, #proSave, #measurePanel, #proEd, #warnPop, #proDlg")) proCheckOpen(false); });
   // "Yfirfarið" (2026-10-18) — the button referenced in old comments but never actually built. Staff
   // looks the self-serve drawing over here, clicks this, and it's off CRM's "Til yfirferðar" strip —
   // nothing else changes automatically (confirmed with the user: just the flag, not the sales stage).
@@ -16798,10 +16800,16 @@
   // (Line Items → Eyðublöð). Eftir þetta læsist teikningin hér (sjá proBoot()'s PRO.locked-skýringu að ofan)
   // — vista fyrst, svo keyra skipulag, í þessari röð, annars vinnur hún með gömlu Line Items.
   async function proRunSkipulag(){
-    if (proDirty() || !state.liSent){
-      if (!confirm("Það eru óvistaðar breytingar — vista fyrst í Airtable áður en skipulag er keyrt?\n\nOK = vista fyrst\nHætta við = keyra samt á núverandi vistaða gögn")) {} else { await proSave(); if (proDirty()) return; }
-    }
-    if (!confirm("Keyra skipulag núna? Þetta býr til/samstillir Eyðublöð úr teikningunni og læsir henni hér á eftir — Sögunarlisti/Pöntunarlisti/CNC taka þá við.")) return;
+    // ONE dialog (2026-10-26): before, "Hætta við" on the save question meant run anyway on the old data. Now unsaved
+    // changes are always saved first, and nothing runs unless that save reached Airtable.
+    var stale = proDirty() || !state.liSent;
+    var go = await proDialog({ title:stale ? "Vista og keyra skipulag?" : "Keyra skipulag?",
+      html:(stale ? '<p>Teikningin er vistuð í Airtable fyrst — skipulagið keyrir aldrei á eldri gögnum.</p>' : '') +
+        '<p>Þetta býr til/samstillir Eyðublöð úr teikningunni og læsir henni hér á eftir — Sögunarlisti, Pöntunarlisti og CNC taka þá við.</p>',
+      ok:stale ? "Vista og keyra skipulag" : "Keyra skipulag", cancel:"Hætta við" });
+    if (go !== true) return;
+    if (stale && !(await proSave())) return; // the save failed: Yfirferð shows why, nothing runs
+    if (proDirty()) return;
     var rs = document.getElementById("proRunSkipulag"); if (rs) rs.disabled = true;
     proBar("Keyri skipulag…");
     try{
@@ -17104,13 +17112,15 @@
       var old = document.getElementById("proDlg"); if (old) old.remove();
       var el = document.createElement("div"); el.id = "proDlg"; el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true");
       el.innerHTML = '<div class="pd-card"><h3>' + escapeHtmlPro(o.title) + '</h3>' + o.html +
-        '<div class="pd-foot"><button type="button" data-pd="0">' + escapeHtmlPro(o.cancel || "Hætta við") + '</button><button type="button" class="pd-ok" data-pd="1">' + escapeHtmlPro(o.ok || "Í lagi") + '</button></div></div>';
+        '<div class="pd-foot">' + (o.noCancel ? '' : '<button type="button" data-pd="0">' + escapeHtmlPro(o.cancel || "Hætta við") + '</button>') +
+        (o.alt ? '<button type="button" class="pd-alt" data-pd="alt">' + escapeHtmlPro(o.alt) + '</button>' : '') + // a second real choice (resolves "alt"); Esc stays the safe one
+        '<button type="button" class="pd-ok" data-pd="1">' + escapeHtmlPro(o.ok || "Í lagi") + '</button></div></div>';
       document.body.appendChild(el);
       function done(v){ window.removeEventListener("keydown", key, true); el.remove(); resolve(v); }
       function key(e){ if (e.key === "Escape"){ e.preventDefault(); e.stopImmediatePropagation(); done(false); } else if (e.key === "Enter"){ e.preventDefault(); e.stopImmediatePropagation(); done(!(document.activeElement && document.activeElement.dataset && document.activeElement.dataset.pd === "0")); } }
       window.addEventListener("keydown", key, true);
       el.addEventListener("pointerdown", function(e){ if (e.target === el) done(false); });
-      el.querySelectorAll("[data-pd]").forEach(function(b){ b.addEventListener("click", function(){ done(b.dataset.pd === "1"); }); });
+      el.querySelectorAll("[data-pd]").forEach(function(b){ b.addEventListener("click", function(){ done(b.dataset.pd === "alt" ? "alt" : b.dataset.pd === "1"); }); });
       el.querySelector(".pd-ok").focus();
     });
   }
@@ -17129,25 +17139,59 @@
     });
     return resolve;
   }
-  async function proSave(resolve){
+  // a failed save, in Icelandic, for the red box in Yfirferð (2026-10-26: was a raw English server line in the header)
+  function proSaveErrText(status, msg){
+    if (!status) return "Ekkert samband við þjóninn — athugaðu nettenginguna og reyndu aftur.";
+    if (status === 401 || status === 403) return "Lykillinn virkar ekki — opnaðu verkefnið aftur með hnappnum á Tækifærinu í Airtable.";
+    if (status === 409) return "Einhver annar vistaði verkefnið á undan þér — ekkert var vistað.";
+    if (status === 400) return "Airtable tók ekki við gögnunum" + (msg ? ": " + msg : ".");
+    if (status === 429) return "Airtable er upptekið í augnablikinu — bíddu smá og reyndu aftur.";
+    if (status >= 500) return "Villa hjá Airtable eða þjóninum (" + status + ") — bíddu augnablik og reyndu aftur.";
+    return "Vistun tókst ekki (" + status + ")" + (msg ? ": " + msg : ".");
+  }
+  function proClock(iso){ var d = new Date(iso); if (isNaN(d)) return "?"; var t = ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2), td = new Date();
+    return d.toDateString() === td.toDateString() ? "kl. " + t : d.getDate() + "." + (d.getMonth() + 1) + ". kl. " + t; } // "kl. 13:42" today, "10.10. kl. 14:14" another day
+  // Vista → true when it reached Airtable. Never silent: a failure opens Yfirferð with a red box + "Reyna aftur";
+  // another computer's newer save (409) asks "Sækja nýrri útgáfu" / "Skrifa samt yfir" first.
+  async function proSave(resolve, force){
     var bt = document.getElementById("proSave"); if (bt) bt.disabled = true;
-    proBar("Vista…");
+    proBar("Vista…"); pc.saving = true; if (pc.open) proCheckRender();
+    var status = 0, d = {};
     try{
       var r = await fetch("/api/kp-pro", { method:"POST", headers:{ "Content-Type":"application/json" },
-        body:JSON.stringify({ k:PRO.k, recordId:PRO.id, smida:proSmidaAll(), lineItems:collectAllLineItems(), project:projectMaterialFields(), state:state, resolve:resolve || undefined }) });
-      var d = await r.json().catch(function(){ return {}; });
-      if (!r.ok) throw new Error(d.error || ("HTTP " + r.status));
-      if (d.liSent) state.liSent = d.liSent;
-      save(); // keeps the frozen Sk numbers
-      if (d.conflicts && d.conflicts.length && !resolve) return proSave(proAskConflicts(d.conflicts));
-      try{ localStorage.removeItem(STORAGE_KEY + ":dirty"); }catch(e){}
-      proBar();
-      toast("Vistað í Airtable: " + (d.created ? d.created + " " + plural(d.created, "ný lína", "nýjar línur") + ", " : "") +
-        d.updated + " " + plural(d.updated, "lína uppfærð", "línur uppfærðar") + ", " + d.unchanged + " óbreyttar" +
-        (d.projectUpdated && d.projectUpdated.length ? "; á Tækifærinu: " + d.projectUpdated.map(function(f){ return f.replace(/ (🔲|🖼️|🍽️|✊|🎨)| viðskiptavinar/g, ""); }).join(", ") : "") +
-        (d.removed && d.removed.length ? ". " + d.removed.join(", ") + " " + plural(d.removed.length, "er", "eru") + " ekki lengur í teikningunni — eyddu línunni (og Eyðublaðinu) í Airtable ef skápurinn á að fara." : "."));
-      tp.last = null; proTilbodRefresh(true); // Airtable's own total just changed
-    }catch(e){ proBar("Vistun tókst ekki: " + e.message + (proDirty() ? " · ● óvistað" : "")); } // A10: the unsaved marker stays visible
+        body:JSON.stringify({ k:PRO.k, recordId:PRO.id, smida:proSmidaAll(), lineItems:collectAllLineItems(), project:projectMaterialFields(), state:state, resolve:resolve || undefined,
+          basedOn:state.proSavedAt || null, force:force ? true : undefined }) });
+      status = r.status; d = await r.json().catch(function(){ return {}; });
+      if (!r.ok){ var er = new Error(d.error || ("HTTP " + r.status)); er.status = r.status; throw er; }
+    }catch(e){
+      pc.saving = false;
+      if (e.status === 409 && d.conflict){
+        var ch = await proDialog({ title:"Einhver vistaði þetta verkefni " + proClock(d.savedAt) + " í annarri tölvu",
+          html:'<p>Útgáfan hér byggir á vistun ' + (state.proSavedAt ? escapeHtmlPro(proClock(state.proSavedAt)) : "frá því áður en verkefnið var vistað í PRO") + '. Ef þú vistar núna fer það sem var vistað í hinni tölvunni.</p>' +
+            '<p><b>Sækja nýrri útgáfu</b> = breytingarnar hér hverfa og nýja útgáfan opnast. <b>Skrifa samt yfir</b> = þessi teikning gildir.</p>',
+          cancel:"Hætta við", alt:"Sækja nýrri útgáfu", ok:"Skrifa samt yfir" });
+        if (ch === "alt"){ try{ localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(STORAGE_KEY + ":dirty"); localStorage.removeItem(STORAGE_KEY + ":at"); }catch(e2){} location.reload(); return false; }
+        if (ch === true) return proSave(resolve, true);
+      }
+      pc.saveErr = proSaveErrText(e.status || 0, d.error || "");
+      pc.open = true; proCheckRender();
+      proBar("Vistun tókst ekki" + (proDirty() ? " · ● óvistað" : "")); // A10: the unsaved marker stays visible
+      return false;
+    }
+    pc.saving = false; pc.saveErr = null;
+    if (d.liSent) state.liSent = d.liSent;
+    if (d.proSavedAt) state.proSavedAt = d.proSavedAt; // the next Vista is based on this one
+    save(); // keeps the frozen Sk numbers
+    if (d.conflicts && d.conflicts.length && !resolve) return proSave(proAskConflicts(d.conflicts));
+    try{ localStorage.removeItem(STORAGE_KEY + ":dirty"); }catch(e){}
+    proBar();
+    if (pc.open) proCheckRender();
+    toast("Vistað í Airtable: " + (d.created ? d.created + " " + plural(d.created, "ný lína", "nýjar línur") + ", " : "") +
+      d.updated + " " + plural(d.updated, "lína uppfærð", "línur uppfærðar") + ", " + d.unchanged + " óbreyttar" +
+      (d.projectUpdated && d.projectUpdated.length ? "; á Tækifærinu: " + d.projectUpdated.map(function(f){ return f.replace(/ (🔲|🖼️|🍽️|✊|🎨)| viðskiptavinar/g, ""); }).join(", ") : "") +
+      (d.removed && d.removed.length ? ". " + d.removed.join(", ") + " " + plural(d.removed.length, "er", "eru") + " ekki lengur í teikningunni — eyddu línunni (og Eyðublaðinu) í Airtable ef skápurinn á að fara." : "."));
+    tp.last = null; proTilbodRefresh(true); // Airtable's own total just changed
+    return true;
   }
   // the project couldn't be opened: a clear message in the stage instead of a blank page with "HTTP 403" in the bar
   function proFail(title, help, tech){
@@ -17199,8 +17243,21 @@
       if (!local || !load()){ state = freshState("byrja"); save(); }
       freezeSk(); PRO.ready = true; render(); proBar(); return;
     }
-    try{ keepLocal = proDirty() && !!localStorage.getItem(STORAGE_KEY) &&
-      confirm("Það eru óvistaðar breytingar á þessu verkefni í þessum vafra.\n\nOK = halda áfram með þær\nHætta við = sækja útgáfuna úr Airtable"); }catch(e){}
+    try{
+      var hasLocal = proDirty() && !!localStorage.getItem(STORAGE_KEY);
+      if (hasLocal){
+        var atSaved = null, locBase = null, locAt = null;
+        try{ atSaved = JSON.parse(raw).proSavedAt || null; }catch(e){}
+        try{ locBase = JSON.parse(localStorage.getItem(STORAGE_KEY)).proSavedAt || null; locAt = localStorage.getItem(STORAGE_KEY + ":at"); }catch(e){}
+        var atNewer = !!(atSaved && (!locBase || Date.parse(atSaved) > Date.parse(locBase))); // someone saved after this copy was taken
+        var ch = await proDialog({ title:"Óvistaðar breytingar í þessum vafra",
+          html:'<p>Í þessum vafra: breytt ' + (locAt ? escapeHtmlPro(proClock(locAt)) : "(tími óþekktur)") + ', byggt á vistun ' + (locBase ? escapeHtmlPro(proClock(locBase)) : "áður en verkefnið var vistað í PRO") + '.</p>' +
+            '<p>Í Airtable: ' + (atSaved ? "vistað " + escapeHtmlPro(proClock(atSaved)) : "ekki vistað úr PRO") + '.</p>' +
+            '<p><b>' + (atNewer ? "Airtable er nýrri — einhver vistaði eftir að þessar breytingar hófust. Ef þú heldur áfram og vistar spyr Vista hvort skrifa eigi yfir." : "Breytingarnar hér eru nýrri en það sem er í Airtable.") + '</b></p>',
+          noCancel:true, alt:"Sækja útgáfuna úr Airtable", ok:"Halda áfram með breytingarnar hér" });
+        keepLocal = ch !== "alt"; // Esc keeps them — nothing is thrown away by accident
+      }
+    }catch(e){}
     if (!keepLocal){
       try{ var st = JSON.parse(raw); st.step = "editor"; localStorage.setItem(STORAGE_KEY, JSON.stringify(st)); localStorage.removeItem(STORAGE_KEY + ":dirty"); }
       catch(e){ proFail("Gat ekki opnað teikninguna — hún er skemmd í Airtable", "Teikningin (Sjálfsafgreiðsla skipulag) á Tækifærinu er ekki lesanleg. Hafðu samband við þann sem sér um kerfið.", e.message); return; }

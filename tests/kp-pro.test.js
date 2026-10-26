@@ -143,3 +143,48 @@ test("FR2 / inner fronts on existing lines: drawing writes its picks, never clea
   assert.deepEqual(await run({ "Frontaefni #2": true }, undefined, { "Frontaefni #2": false }), {});            // hand-set, drawing never sent → kept
   assert.deepEqual(await run({ "Frontaefni #2": true }, { Sk1: { "Frontaefni #2": "1" } }, { "Frontaefni #2": false }), { "Frontaefni #2": false }); // drawing turned it off
 });
+
+// two computers (2026-10-26): Airtable's proSavedAt newer than what this copy was based on → 409, nothing written
+const savedRoutes = (savedAt) => (call) => {
+  if (call.method === "GET" && call.url.includes(`tbl4LMXlQjp66RFKI/${OPP}`))
+    return { status: 200, body: { id: OPP, fields: { "Sjálfsafgreiðsla skipulag (JSON) 📐": JSON.stringify(savedAt ? { proSavedAt: savedAt } : {}) } } };
+  return { status: 200, body: { records: [] } };
+};
+test("a newer save from another computer stops Vista with 409 (savedAt), force overwrites, no basedOn = not checked", async () => {
+  const T1 = "2026-10-26T10:00:00.000Z", T2 = "2026-10-26T11:30:00.000Z";
+  process.env.AIRTABLE_TOKEN = "t"; process.env.VERK_KEY = "secret";
+  const body = (extra) => Object.assign({ k: "secret", recordId: OPP, state: { walls: [] }, smida: {} }, extra);
+  // based on T1, Airtable has T2 → conflict, no PATCH at all
+  let f = fakeFetch(savedRoutes(T2));
+  await assert.rejects(save(makeAirtable("t", { fetchImpl: f, delays: [] }), body({ basedOn: T1 })), (e) => e.status === 409 && e.savedAt === T2);
+  assert.ok(!f.calls.some((c) => c.method !== "GET"));
+  // based on nothing (null) but Airtable has a PRO save → conflict too
+  f = fakeFetch(savedRoutes(T2));
+  await assert.rejects(save(makeAirtable("t", { fetchImpl: f, delays: [] }), body({ basedOn: null })), (e) => e.status === 409);
+  // same version → saves, returns the new stamp
+  f = fakeFetch(savedRoutes(T2));
+  const ok = await save(makeAirtable("t", { fetchImpl: f, delays: [] }), body({ basedOn: T2 }));
+  assert.ok(Date.parse(ok.proSavedAt) > Date.parse(T2));
+  const json = JSON.parse(f.calls.find((c) => c.method === "PATCH").body.records[0].fields["Sjálfsafgreiðsla skipulag (JSON) 📐"]);
+  assert.equal(json.proSavedAt, ok.proSavedAt);
+  // force → writes over the newer one
+  f = fakeFetch(savedRoutes(T2));
+  await save(makeAirtable("t", { fetchImpl: f, delays: [] }), body({ basedOn: T1, force: true }));
+  assert.ok(f.calls.some((c) => c.method === "PATCH"));
+  // an old page with no basedOn → not checked
+  f = fakeFetch(savedRoutes(T2));
+  await save(makeAirtable("t", { fetchImpl: f, delays: [] }), body({}));
+  assert.ok(f.calls.some((c) => c.method === "PATCH"));
+  // a never-PRO-saved drawing (customer submission) with basedOn null → saves
+  f = fakeFetch(savedRoutes(null));
+  await save(makeAirtable("t", { fetchImpl: f, delays: [] }), body({ basedOn: null }));
+  assert.ok(f.calls.some((c) => c.method === "PATCH"));
+  // the handler answers 409 with the time
+  const res = mockRes();
+  const orig = globalThis.fetch; globalThis.fetch = fakeFetch(savedRoutes(T2));
+  try { await handler({ method: "POST", body: body({ basedOn: T1 }) }, res); } finally { globalThis.fetch = orig; }
+  assert.equal(res.statusCode, 409);
+  assert.deepEqual([res.body.conflict, res.body.savedAt], [true, T2]);
+  assert.equal(validate(body({ basedOn: "nope" })), "Ógilt basedOn");
+  assert.equal(validate(body({ force: "yes" })), "Ógilt force");
+});
