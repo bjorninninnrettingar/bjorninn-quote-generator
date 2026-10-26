@@ -576,3 +576,9 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   like the size chips. Steps 1–2 now also preview on keyboard focus.
 - Keyboard: `:focus-visible` counts as hover (Tab through the tiles, Enter commits). Touch: `pointerType === "touch"`
   is ignored, a tap just commits.
+- **Round 10 (2026-10-26):** the three pieces of a slotted leaf share one planar mapping in the leaf's frame (`leafUV`:
+  big faces x/y, edges z/y, ends x/z, in tiles) — for KPMat veneer and for the decor textures spónlagt now uses
+  (`LOOKS[..].tex` + `tile`, passed by doorLook) — so the grain runs through the joins with no band. COPLAN arm rebuilt
+  from the photo: bevelled extruded links (`linkGeo`), a wide centre link with a flat front and slightly concave long
+  sides, outer links with their own pivot knuckles, pins with slotted screw heads, dark washers, and ◁▷ arrows on the
+  adjuster plates.

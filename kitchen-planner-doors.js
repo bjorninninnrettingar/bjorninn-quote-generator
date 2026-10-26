@@ -241,6 +241,14 @@
     var o = { color:fin[0], roughness:fin[1], metalness:0.55, envMapIntensity:1 };
     return T.MeshPhysicalMaterial ? new T.MeshPhysicalMaterial(Object.assign(o, { sheen:0.3, sheenRoughness:0.6, clearcoat:0.08 })) : mat(T, o);
   }
+  function linkGeo(T, len, depth, height, r, concave){ // a link seen from above (len × depth), bevelled, extruded up `height`
+    var sh = new T.Shape(), x0 = -len / 2, x1 = len / 2, y0 = -depth / 2, y1 = depth / 2, cv = concave ? 0.0009 : 0;
+    sh.moveTo(x0 + r, y0); sh.quadraticCurveTo(0, y0 + cv, x1 - r, y0); sh.absarc(x1 - r, y0 + r, r, -Math.PI / 2, 0, false); sh.lineTo(x1, y1 - r);
+    sh.absarc(x1 - r, y1 - r, r, 0, Math.PI / 2, false); sh.quadraticCurveTo(0, y1 - cv, x0 + r, y1); sh.absarc(x0 + r, y1 - r, r, Math.PI / 2, Math.PI, false);
+    sh.lineTo(x0, y0 + r); sh.absarc(x0 + r, y0 + r, r, Math.PI, Math.PI * 1.5, false);
+    var b = 0.0009, g = new T.ExtrudeGeometry(sh, { depth:height - 2 * b, bevelEnabled:true, bevelThickness:b, bevelSize:b * 0.8, bevelSegments:3, curveSegments:12 });
+    g.rotateX(-Math.PI / 2); g.center(); return g;
+  }
   function capGeo(T, w, l, end){ // a D-shaped cap w × l, round at the outer end (end = +1 top, -1 bottom), 1.6 mm, UVs over its box
     var s = new T.Shape(), r = w / 2;
     if (end > 0){ s.moveTo(0, 0); s.lineTo(w, 0); s.lineTo(w, l - r); s.absarc(r, l - r, r, 0, Math.PI, false); s.lineTo(0, 0); }
@@ -265,7 +273,8 @@
         par.add(box(T, 0.0004, HOUS, W - 0.003, inner, faceX + out * 0.0003, 0, zc)); // the housing, read as a recess
         [1, -1].forEach(function(k){ par.add(box(T, 0.0012, HOUS, 0.0014, m, faceX + out * 0.0006, 0, zc + k * (W / 2 - 0.0007))); }); // its rims
         [1, -1].forEach(function(e){ par.add(rbox(T, 0.0016, 0.007, W - 0.004, 0.0006, m, faceX + out * 0.0005, e * (HOUS / 2 - 0.0042), zc)); // the adjuster plates above and below the arm
-          par.add(box(T, 0.0004, 0.0016, 0.006, inner, faceX + out * 0.0014, e * (HOUS / 2 - 0.0042), zc + 0.007)); });
+          [-1, 1].forEach(function(dd){ var tri = new T.Shape(); tri.moveTo(0, -0.0018); tri.lineTo(0, 0.0018); tri.lineTo(dd * 0.0026, 0); tri.lineTo(0, -0.0018);
+            var tm = new T.Mesh(new T.ShapeGeometry(tri), inner); tm.rotation.y = out > 0 ? Math.PI / 2 : -Math.PI / 2; tm.position.set(faceX + out * 0.0014, e * (HOUS / 2 - 0.0042), zc + (out > 0 ? -1 : 1) * (0.0055 + dd * 0.0016)); par.add(tm); }); }); // ◁▷ adjuster arrows
       }
       hingeYs(g).forEach(function(yc){
         var y = FLOOR_GAP + yc, dg = new T.Group(), fg = new T.Group(); dg.position.y = fg.position.y = y;
@@ -273,9 +282,15 @@
         // the arm (in the frame's group, posed from the door angle)
         var arm = new T.Group(); arm.position.y = y; fixed.add(arm);
         // round 9, from the photo: chunky links — the wide centre link rounded at the front, narrower outer links above and below
-        var outerL = [0.0245, -0.0245].map(function(oy){ var l = rbox(T, LINK + 0.009, 0.0135, 0.019, 0.0062, m, 0, oy, 0); arm.add(l); return l; });
-        var centreL = rbox(T, LINK + 0.012, 0.034, 0.025, 0.0095, m, 0, 0, 0); arm.add(centreL);
-        var pins = [0, 1, 2].map(function(){ var p = new T.Mesh(new T.CylinderGeometry(0.0034, 0.0034, 0.0645, 20), m); arm.add(p); return p; });
+        // round 10, after the photo: links are bevelled extrusions (flat front, chamfered + rounded edges); the centre link
+        // is wide with slightly concave long sides; the outer links carry their own pivot knuckles; pins with screw heads
+        var outerL = [0.0245, -0.0245].map(function(oy){ var l = new T.Group(), b = new T.Mesh(linkGeo(T, LINK + 0.006, 0.017, 0.0128, 0.0045, false), m); b.castShadow = true; l.add(b);
+          [-1, 1].forEach(function(e){ var kn = new T.Mesh(new T.CylinderGeometry(0.0068, 0.0068, 0.0128, 28), m); kn.position.x = e * LINK / 2; l.add(kn); }); l.position.y = oy; arm.add(l); return l; });
+        var centreL = new T.Group(), cb2 = new T.Mesh(linkGeo(T, LINK + 0.012, 0.026, 0.0335, 0.0062, true), m); cb2.castShadow = true; centreL.add(cb2);
+        [-1, 1].forEach(function(e){ var kn = new T.Mesh(new T.CylinderGeometry(0.0072, 0.0072, 0.0335, 28), m); kn.position.x = e * LINK / 2; centreL.add(kn); }); arm.add(centreL);
+        var pins = [0, 1, 2].map(function(){ var p = new T.Group(), sh = new T.Mesh(new T.CylinderGeometry(0.0026, 0.0026, 0.0645, 16), pin); p.add(sh);
+          [1, -1].forEach(function(e){ var hd = new T.Mesh(new T.CylinderGeometry(0.0034, 0.0036, 0.0014, 20), m); hd.position.y = e * 0.0329; p.add(hd);
+            var slotM = new T.Mesh(new T.BoxGeometry(0.0046, 0.0004, 0.0007), wash); slotM.position.y = e * 0.0337; p.add(slotM); }); arm.add(p); return p; });
         var washers = []; [0.0165, -0.0165].forEach(function(oy){ for (var i = 0; i < 3; i++){ var w2 = new T.Mesh(new T.CylinderGeometry(0.0062, 0.0062, 0.0011, 24), wash); w2.userData.oy = oy; w2.userData.pin = i; arm.add(w2); washers.push(w2); } });
         arms.push(function(ang){ // ang = the leaf's rotation (radians)
           var dx = -sg * DEPTH, dz = zc, ca = Math.cos(ang), sa = Math.sin(ang);
@@ -452,6 +467,16 @@
     return (WOOD_TEX[k] = { map:map, bump:bump, tw:w.tileW, th:w.tileH });
   }
   // the leaf's material for a part of size u × v metres on its big face (grain along v; `across` turns it 90°)
+  // planar UVs in the leaf's frame (metres → tiles): big faces x / y, edges z / y, top + bottom x / z — the same for every
+  // piece of a leaf that is built in parts, so the veneer runs across them without a seam
+  function leafUV(mesh, ox, oy, oz, tw, th){
+    var gm = mesh.geometry, pos = gm.attributes.position, nor = gm.attributes.normal, uv = gm.attributes.uv, p = mesh.position;
+    for (var i = 0; i < pos.count; i++){
+      var x = pos.getX(i) + p.x - ox, y = pos.getY(i) + p.y - oy, z = pos.getZ(i) + p.z - oz, nx = Math.abs(nor.getX(i)), ny = Math.abs(nor.getY(i)), nz = Math.abs(nor.getZ(i));
+      if (nz >= nx && nz >= ny) uv.setXY(i, x / tw, y / th); else if (nx >= ny) uv.setXY(i, z / tw, y / th); else uv.setXY(i, x / tw, z / th);
+    }
+    uv.needsUpdate = true;
+  }
   function woodPart(T, look, u, v, across, vFrom){ // vFrom = where this piece starts up the leaf (m): the grain continues across pieces
     var base = { roughness:0.5, metalness:0, envMapIntensity:0.5 };
     if (look && look.wood){
@@ -538,8 +563,14 @@
           : rbox(T, g.leafW, g.leafH, g.leafT, 0.003, leafMat, lx, FLOOR_GAP + g.leafH / 2, -g.leafT / 2);
         leaf.userData.isLeaf = true;
         leafGroup.add(leaf);
-        if (slot){ var ch = (g.leafT - SW) / 2, chMat = woodPart(T, woody ? look : null, g.leafW, SH);
-          [-1, 1].forEach(function(k){ leafGroup.add(box(T, g.leafW, SH, ch, chMat, lx, FLOOR_GAP + SH / 2, -g.leafT / 2 + k * (SW / 2 + ch / 2))); }); }
+        if (slot){ var ch = (g.leafT - SW) / 2, wmS = woody && look && look.wood ? woodMaps(T, look) : null;
+          var pieces = [leaf]; [-1, 1].forEach(function(k){ var cb = box(T, g.leafW, SH, ch, leaf.material, lx, FLOOR_GAP + SH / 2, -g.leafT / 2 + k * (SW / 2 + ch / 2)); leafGroup.add(cb); pieces.push(cb); });
+          // round 10: one planar mapping in the leaf's own frame for all three pieces — the grain runs straight through the joins
+          var tw = 0, th = 0, wmat = null;
+          if (wmS){ tw = wmS.tw; th = wmS.th; wmat = woodPart(T, look, tw, th); } // repeat 1 × 1: the UVs below are already in tiles
+          else if (woody && look && look.tex){ var tl = look.tile || { w:1.3, h:2.8 }, tx = look.tex.clone(); tx.repeat.set(1, 1); tx.needsUpdate = true; tw = tl.w; th = tl.h;
+            wmat = mat(T, { map:tx, roughness:0.5, metalness:0, envMapIntensity:0.5 }); } // a decor texture (Egger raport)
+          if (wmat) pieces.forEach(function(pc){ pc.material = wmat; leafUV(pc, Math.min(0, -g.s * g.leafW), FLOOR_GAP, -g.leafT, tw, th); }); }
         leafGroup.position.set(g.pivotX, 0, Th / 2);
         hardwareOf(d).leaf.forEach(function(k){ var o = hw(k, c); if (!o) return; leafGroup.add(o);
           if (o.userData.fixed){ o.userData.fixed.position.set(g.pivotX, 0, Th / 2); grp.add(o.userData.fixed); if (o.userData.fixed.userData.update) (grp.userData.armUps = grp.userData.armUps || []).push(o.userData.fixed.userData.update); } }); // frame leaves / strikes stay on the frame
