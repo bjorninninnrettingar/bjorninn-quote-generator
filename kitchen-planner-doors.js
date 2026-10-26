@@ -35,8 +35,8 @@
   // the choices each kind really has (the same values the product names carry — doorAttrs in kitchen-planner.html),
   // the usual one first. Static so the steps are the same whether the product list has loaded or not.
   var KIND_OPTS = {
-    hurd:{ lamir:["innfelldar", "samloku"], throskuldur:["nei", "ja"], skra:["jnf", "segul"] },
-    gler:{ lamir:["innfelldar", "samloku"], throskuldur:["nei", "ja"] },
+    hurd:{ lamir:["innfelldar", "samloku"], throskuldur:["ja", "nei"], skra:["jnf", "segul"] },
+    gler:{ lamir:["innfelldar", "samloku"], throskuldur:["ja", "nei"] },
     renni:{ braut:["loft", "vegg", "magic"] },
     glerrenni:{ braut:["loft", "vegg"] },
     eld:{ flokkur:["ei30", "ei60"] },
@@ -237,17 +237,8 @@
     return h;
   }
   var COPLAN_FINISH = { silver:[0xb4b7bb, 0.48, 0x55585c], black:[0x232427, 0.58, 0x101112], bronze:[0x8a6a50, 0.45, 0x3a2c22] }; // [colour, roughness, housing]
-  var COPLAN_TEX = {};
-  function coplanMat(T, fin, engraved){ // powder-coated matt zamak with a slight satin sheen; the caps carry "JNF COPLAN 175"
+  function coplanMat(T, fin){ // powder-coated matt zamak with a slight satin sheen; plain caps (round 9: no maker's marks)
     var o = { color:fin[0], roughness:fin[1], metalness:0.55, envMapIntensity:1 };
-    if (engraved && typeof document !== "undefined"){
-      var k = fin[0], t = COPLAN_TEX[k];
-      if (!t){ var cv = document.createElement("canvas"); cv.width = 128; cv.height = 256; var x = cv.getContext("2d"), col = new T.Color(fin[0]);
-        x.fillStyle = "#" + col.getHexString(); x.fillRect(0, 0, 128, 256);
-        x.save(); x.translate(70, 128); x.rotate(-Math.PI / 2); x.fillStyle = "#" + col.clone().multiplyScalar(fin[0] === 0x232427 ? 1.9 : 0.62).getHexString(); x.font = "600 22px sans-serif"; x.textAlign = "center"; x.fillText("JNF  COPLAN 175", 0, 8); x.restore();
-        t = COPLAN_TEX[k] = new T.CanvasTexture(cv); if (T.SRGBColorSpace) t.colorSpace = T.SRGBColorSpace; }
-      o.map = t; o.color = 0xffffff;
-    }
     return T.MeshPhysicalMaterial ? new T.MeshPhysicalMaterial(Object.assign(o, { sheen:0.3, sheenRoughness:0.6, clearcoat:0.08 })) : mat(T, o);
   }
   function capGeo(T, w, l, end){ // a D-shaped cap w × l, round at the outer end (end = +1 top, -1 bottom), 1.6 mm, UVs over its box
@@ -261,28 +252,31 @@
   function hingeYs(g){ var ys = [0.2, g.leafH - 0.22]; if (g.leafH > 2.15) ys.splice(1, 0, g.leafH * 0.55); return ys; } // hinge centres above the leaf's bottom
   var HW = {
     // innfelldar lamir = JNF COPLAN 175 (round 7, from the maker's drawing, mm): two mortise bodies 28 wide × 177 long with
-    // round ends (R14) — flush end caps engraved "JNF COPLAN 175", a 79 mm housing between them — and a 3-section folding
+    // round ends (R14) — plain flush end caps, a 79 mm housing between them — and a 3-section folding
     // arm (two outer links on the door body, a centre link on the frame body, pins + black washers). The arm is solved
     // from the door angle every frame (two-link fold), so it opens and closes with the door. Colour: króm → matt silver,
     // svart → matt black (bronze kept in COPLAN_FINISH for later).
     hinge_hidden:function(c){
       var T = c.T, g = c.g, sg = g.s, grp = new T.Group(), fixed = new T.Group(), fin = COPLAN_FINISH[c.d && c.d.hwColor === "svart" ? "black" : "silver"];
-      var m = coplanMat(T, fin), cap = coplanMat(T, fin, true), inner = mat(T, { color:fin[2], roughness:0.7, metalness:0.4 }), pin = mat(T, { color:0x9a9da1, metalness:0.9, roughness:0.3 }), wash = dark(T);
-      var W = 0.028, CAPL = 0.049, HOUS = 0.079, zc = -g.leafT / 2, DEPTH = 0.024, LINK = 0.033, arms = [];
+      var m = coplanMat(T, fin), cap = coplanMat(T, fin), inner = mat(T, { color:fin[2], roughness:0.7, metalness:0.4 }), pin = mat(T, { color:0x9a9da1, metalness:0.9, roughness:0.3 }), wash = dark(T);
+      var W = 0.028, CAPL = 0.049, HOUS = 0.079, zc = -g.leafT / 2, DEPTH = 0.012, LINK = 0.024, arms = []; // pivots near the faces, so the arm stands out of both bodies when open
       function body(par, faceX, out){ // out = the side the face looks to (±x); caps + the housing seen through the face
         [1, -1].forEach(function(e){ var cp = new T.Mesh(capGeo(T, W, CAPL, e), cap); cp.rotation.y = out > 0 ? Math.PI / 2 : -Math.PI / 2; cp.position.set(faceX - out * 0.0012, 0, out > 0 ? zc + W / 2 : zc - W / 2); cp.position.y = e * HOUS / 2; cp.castShadow = true; par.add(cp); });
         par.add(box(T, 0.0004, HOUS, W - 0.003, inner, faceX + out * 0.0003, 0, zc)); // the housing, read as a recess
         [1, -1].forEach(function(k){ par.add(box(T, 0.0012, HOUS, 0.0014, m, faceX + out * 0.0006, 0, zc + k * (W / 2 - 0.0007))); }); // its rims
+        [1, -1].forEach(function(e){ par.add(rbox(T, 0.0016, 0.007, W - 0.004, 0.0006, m, faceX + out * 0.0005, e * (HOUS / 2 - 0.0042), zc)); // the adjuster plates above and below the arm
+          par.add(box(T, 0.0004, 0.0016, 0.006, inner, faceX + out * 0.0014, e * (HOUS / 2 - 0.0042), zc + 0.007)); });
       }
       hingeYs(g).forEach(function(yc){
         var y = FLOOR_GAP + yc, dg = new T.Group(), fg = new T.Group(); dg.position.y = fg.position.y = y;
         body(dg, 0, sg); body(fg, sg * GAP, -sg); grp.add(dg); fixed.add(fg);
         // the arm (in the frame's group, posed from the door angle)
         var arm = new T.Group(); arm.position.y = y; fixed.add(arm);
-        var outerL = [0.0235, -0.0235].map(function(oy){ var l = rbox(T, LINK, 0.014, 0.02, 0.004, m, 0, oy, 0); arm.add(l); return l; });
-        var centreL = rbox(T, LINK, 0.033, 0.02, 0.005, m, 0, 0, 0); arm.add(centreL);
-        var pins = [0, 1, 2].map(function(){ var p = new T.Mesh(new T.CylinderGeometry(0.0032, 0.0032, 0.064, 16), pin); arm.add(p); return p; });
-        var washers = []; [0.0165, -0.0165].forEach(function(oy){ for (var i = 0; i < 3; i++){ var w2 = new T.Mesh(new T.CylinderGeometry(0.0045, 0.0045, 0.0012, 16), wash); w2.userData.oy = oy; w2.userData.pin = i; arm.add(w2); washers.push(w2); } });
+        // round 9, from the photo: chunky links — the wide centre link rounded at the front, narrower outer links above and below
+        var outerL = [0.0245, -0.0245].map(function(oy){ var l = rbox(T, LINK + 0.009, 0.0135, 0.019, 0.0062, m, 0, oy, 0); arm.add(l); return l; });
+        var centreL = rbox(T, LINK + 0.012, 0.034, 0.025, 0.0095, m, 0, 0, 0); arm.add(centreL);
+        var pins = [0, 1, 2].map(function(){ var p = new T.Mesh(new T.CylinderGeometry(0.0034, 0.0034, 0.0645, 20), m); arm.add(p); return p; });
+        var washers = []; [0.0165, -0.0165].forEach(function(oy){ for (var i = 0; i < 3; i++){ var w2 = new T.Mesh(new T.CylinderGeometry(0.0062, 0.0062, 0.0011, 24), wash); w2.userData.oy = oy; w2.userData.pin = i; arm.add(w2); washers.push(w2); } });
         arms.push(function(ang){ // ang = the leaf's rotation (radians)
           var dx = -sg * DEPTH, dz = zc, ca = Math.cos(ang), sa = Math.sin(ang);
           var A = { x:dx * ca + dz * sa, z:-dx * sa + dz * ca }, B = { x:sg * (GAP + DEPTH), z:zc };
@@ -328,13 +322,13 @@
       function prof(pts, m, bev){ var sh = new T.Shape(); pts.forEach(function(p, i){ if (i) sh.lineTo(p[0] * mm, p[1] * mm); else sh.moveTo(p[0] * mm, p[1] * mm); });
         var geo = new T.ExtrudeGeometry(sh, { depth:L - (bev ? 0.0006 : 0), bevelEnabled:!!bev, bevelThickness:0.0003, bevelSize:0.0003, bevelSegments:2, curveSegments:8 });
         var o = new T.Mesh(geo, m); o.rotation.y = Math.PI / 2; o.position.set(x0 + (bev ? 0.0003 : 0), 0, zc); o.castShadow = true; o.receiveShadow = true; return o; } // shape X → -z, its length → +x
-      var house = prof([[-7, 0], [-5.6, 0], [-5.6, 28.6], [5.6, 28.6], [5.6, 0], [7, 0], [7, 30], [-7, 30]], alu, true);
-      house.position.y = FLOOR_GAP - 0.0003; grp.add(house);
+      var house = prof([[-6.8, 0], [-5.4, 0], [-5.4, 28.4], [5.4, 28.4], [5.4, 0], [6.8, 0], [6.8, 29.8], [-6.8, 29.8]], alu, true); // in the slot, its faces flush with the leaf's
+      house.position.y = FLOOR_GAP; grp.add(house);
       var carrier = new T.Group(); carrier.name = "seal";
       carrier.add(prof([[-1.6, 9], [-1.6, 22], [-5, 22], [-5, 25], [5, 25], [5, 22], [1.6, 22], [1.6, 9], [4.8, 9], [4.8, 6.5], [-4.8, 6.5], [-4.8, 9]], alu, false)); // the T carrier
       var lip = new T.Shape(); lip.moveTo(-5.4 * mm, 6.5 * mm); lip.lineTo(5.4 * mm, 6.5 * mm); lip.lineTo(5.4 * mm, 3 * mm); lip.quadraticCurveTo(5.4 * mm, 0.6 * mm, 2.5 * mm, 0.6 * mm); lip.lineTo(-2.5 * mm, 0.6 * mm); lip.quadraticCurveTo(-5.4 * mm, 0.6 * mm, -5.4 * mm, 3 * mm); lip.lineTo(-5.4 * mm, 6.5 * mm);
       var lipM = new T.Mesh(new T.ExtrudeGeometry(lip, { depth:L, bevelEnabled:false, curveSegments:10 }), rubber); lipM.rotation.y = Math.PI / 2; lipM.position.set(x0, 0, zc); lipM.castShadow = true; carrier.add(lipM);
-      carrier.position.y = FLOOR_GAP - 0.0003; carrier.userData.y0 = FLOOR_GAP - 0.0003; carrier.userData.drop = FLOOR_GAP; grp.add(carrier);
+      carrier.position.y = FLOOR_GAP; carrier.userData.y0 = FLOOR_GAP; carrier.userData.drop = FLOOR_GAP; grp.add(carrier);
       var hex = new T.Mesh(new T.CylinderGeometry(0.0065, 0.0065, 0.007, 6), brass); hex.rotation.z = Math.PI / 2; hex.position.set(-sg * 0.001, FLOOR_GAP + 0.016, zc); hex.castShadow = true; grp.add(hex); // the trigger at the hinge end
       return grp; },
     lock_standard:function(c){ return mortiseLock(c, LOCKS.jnf835); },
@@ -458,13 +452,13 @@
     return (WOOD_TEX[k] = { map:map, bump:bump, tw:w.tileW, th:w.tileH });
   }
   // the leaf's material for a part of size u × v metres on its big face (grain along v; `across` turns it 90°)
-  function woodPart(T, look, u, v, across){
+  function woodPart(T, look, u, v, across, vFrom){ // vFrom = where this piece starts up the leaf (m): the grain continues across pieces
     var base = { roughness:0.5, metalness:0, envMapIntensity:0.5 };
     if (look && look.wood){
       var wm = woodMaps(T, look);
       if (wm){
         var map = wm.map.clone(), bump = wm.bump.clone(); map.needsUpdate = bump.needsUpdate = true;
-        [map, bump].forEach(function(t){ if (across){ t.rotation = Math.PI / 2; t.center.set(0.5, 0.5); t.repeat.set(v / wm.tw, u / wm.th); } else t.repeat.set(u / wm.tw, v / wm.th); });
+        [map, bump].forEach(function(t){ if (across){ t.rotation = Math.PI / 2; t.center.set(0.5, 0.5); t.repeat.set(v / wm.tw, u / wm.th); } else { t.repeat.set(u / wm.tw, v / wm.th); if (vFrom) t.offset.y = vFrom / wm.th; } });
         return mat(T, Object.assign(base, { map:map, bumpMap:bump, bumpScale:0.6 }));
       }
     }
@@ -536,10 +530,16 @@
       } else {
         // round 8: one solid leaf again (the round-6 slot pieces left a band at the bottom); the drop seal's housing sits
         // flush in the bottom edge and shows at both ends, so it reads as a clean recess
-        var leaf = d.kind === "gler" ? box(T, g.leafW, g.leafH, g.leafT, glassMat, -g.s * g.leafW / 2, FLOOR_GAP + g.leafH / 2, -g.leafT / 2)
-          : rbox(T, g.leafW, g.leafH, g.leafT, 0.003, leafMat, -g.s * g.leafW / 2, FLOOR_GAP + g.leafH / 2, -g.leafT / 2);
+        // round 9: a leaf with a drop seal has a real slot (14.2 × 30.2 mm) the length of its bottom edge — the body above
+        // it and two cheeks beside it, plain boxes that meet without overlap, the grain continuing from cheek to body
+        var slot = d.kind !== "gler" && hardwareOf(d).leaf.indexOf("threshold_drop") >= 0, SW = 0.0142, SH = 0.0302, lx = -g.s * g.leafW / 2;
+        var leaf = d.kind === "gler" ? box(T, g.leafW, g.leafH, g.leafT, glassMat, lx, FLOOR_GAP + g.leafH / 2, -g.leafT / 2)
+          : slot ? box(T, g.leafW, g.leafH - SH, g.leafT, woodPart(T, woody ? look : null, g.leafW, g.leafH - SH, false, SH), lx, FLOOR_GAP + SH + (g.leafH - SH) / 2, -g.leafT / 2)
+          : rbox(T, g.leafW, g.leafH, g.leafT, 0.003, leafMat, lx, FLOOR_GAP + g.leafH / 2, -g.leafT / 2);
         leaf.userData.isLeaf = true;
         leafGroup.add(leaf);
+        if (slot){ var ch = (g.leafT - SW) / 2, chMat = woodPart(T, woody ? look : null, g.leafW, SH);
+          [-1, 1].forEach(function(k){ leafGroup.add(box(T, g.leafW, SH, ch, chMat, lx, FLOOR_GAP + SH / 2, -g.leafT / 2 + k * (SW / 2 + ch / 2))); }); }
         leafGroup.position.set(g.pivotX, 0, Th / 2);
         hardwareOf(d).leaf.forEach(function(k){ var o = hw(k, c); if (!o) return; leafGroup.add(o);
           if (o.userData.fixed){ o.userData.fixed.position.set(g.pivotX, 0, Th / 2); grp.add(o.userData.fixed); if (o.userData.fixed.userData.update) (grp.userData.armUps = grp.userData.armUps || []).push(o.userData.fixed.userData.update); } }); // frame leaves / strikes stay on the frame

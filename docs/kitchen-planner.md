@@ -548,3 +548,10 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   the moving T carrier with the dark rubber lip (the object named "seal": only it drops, by FLOOR_GAP), a brass hex
   trigger at the hinge-side end; the leaf is one solid piece again (the round-6 slot pieces caused the band at the
   bottom). models/door-hardware/drop-seal.glb removed (it couldn't be split into fixed + moving); tools/dae2glb.py stays.
+- **Round 9 (2026-10-26):** a leaf with a drop seal is built in three plain boxes — the body above and two cheeks — around
+  a real 14.2 × 30.2 mm slot along its bottom edge (open at the bottom and both ends, grain continuous via `woodPart`'s
+  `vFrom`); the housing sits in the slot flush with the leaf's bottom, the carrier drops below. Felliþröskuldur is now the
+  first and default option (`KIND_OPTS` order, `DOOR_DEFAULT`); doors saved with "nei" keep it. COPLAN: no markings on
+  the caps; chunky arm from the photo (wide centre link rounded at the front, outer links above / below, pins, dark
+  washers) with the pivots near the faces so it stands out of both bodies at 90°, and arrow-adjuster plates above and
+  below in each housing.

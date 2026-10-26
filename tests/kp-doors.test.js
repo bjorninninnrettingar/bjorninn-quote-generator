@@ -87,8 +87,10 @@ test("hardware: one function per item, the door's choices pick them", () => {
 });
 
 test("round 8: the drop seal is two parts — a fixed housing and a carrier named seal that drops; no GLB any more", () => {
-  assert.deepEqual(D.hardwareOf(door({ opt: { lamir: "samloku", skra: "jnf" } })).leaf, ["hinge_visible", "lock_standard", "handle_lever"]);
-  assert.deepEqual(D.hardwareOf(door({ kind: "gler", opt: { lamir: "samloku" } })).leaf, ["hinge_visible", "handle_lever"]); // no mortise lock in glass
+  assert.deepEqual(D.hardwareOf(door({ opt: { lamir: "samloku", skra: "jnf" } })).leaf, ["hinge_visible", "threshold_drop", "lock_standard", "handle_lever"]); // round 9: felliþröskuldur is the default
+  assert.deepEqual(D.hardwareOf(door({ opt: { lamir: "samloku", throskuldur: "nei", skra: "jnf" } })).leaf, ["hinge_visible", "lock_standard", "handle_lever"]); // an old door that said "nei" keeps it
+  assert.deepEqual(D.hardwareOf(door({ kind: "gler", opt: { lamir: "samloku", throskuldur: "nei" } })).leaf, ["hinge_visible", "handle_lever"]); // no mortise lock in glass
+  assert.equal(D.KIND_OPTS.hurd.throskuldur[0], "ja");
   assert.ok(D.hardwareOf(door({ opt: { throskuldur: "ja" } })).leaf.includes("threshold_drop"));
 });
 
