@@ -451,6 +451,10 @@
   .mat-section:last-child{ margin-bottom:0; }
   .mat-section-title{ font-size:15px; font-weight:600; margin:0 0 3px; }
   .cl-dim{ margin:0 0 14px; max-width:260px; }
+  .cl-recipes{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .cl-recipe{ display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 6px 7px; border:1px solid var(--line); border-radius:10px; background:#fff; cursor:pointer; font:inherit; text-align:center; }
+  .cl-recipe b{ font-size:13px; } .cl-recipe small{ font-size:11.5px; color:var(--ink-soft); line-height:1.25; }
+  .cl-recipe.on{ border-color:var(--blue); box-shadow:0 0 0 1px var(--blue) inset; } .cl-recipe:disabled{ opacity:.4; cursor:not-allowed; }
   .cl-gapcard{ cursor:pointer; } .cl-gaprow{ display:flex; align-items:center; gap:4px; margin-top:4px; }
   .cl-gaprow input{ width:58px; padding:4px 6px; border:1px solid var(--line); border-radius:6px; font:inherit; font-size:14px; background:#fff; }
   .cl-span{ margin:-6px 0 16px; display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
@@ -3339,6 +3343,71 @@
     box.querySelectorAll("[data-cspan]").forEach(function(inp){ var sp = closetSpan(+inp.dataset.cspan); inp.max = Math.round(state.walls[+inp.dataset.cspan].lengthMm / 10); if (sp && document.activeElement !== inp) inp.value = Math.round(sp.mm / 10); });
     var sh = document.getElementById("clShallow"); if (sh && closetShape() === "closetNiche") sh.hidden = state.walls[1].lengthMm >= (state.closetDepthMm || 580);
   }
+  // ---------- Fataskápar step 4 (user, 2026-10-26): the wall fills itself with bays, each bay's innvols from pictures ----------
+  // A bay = one real tall unit (harskapur, or harskapurOpinn without doors), priced like any other. Few wide bays, each
+  // ≤ 100 cm with two doors; to start: Skúffur + hengi first, Hengi in the middle, Hillur last ("Blandað"). A corner
+  // gets an open shelf unit in the corner square. 35 cm deep: shelves only (hangers don't fit).
+  var CLOSET_RECIPES = [
+    { key:"hengi",   label:"Hengi",           desc:"Hilla og slá",           shelves:1, rails:1, drawers:0 },
+    { key:"tvofold", label:"Tvöföld slá",     desc:"Tvær slár, styttri föt", shelves:1, rails:2, drawers:0 },
+    { key:"hillur",  label:"Hillur",          desc:"Fimm hillur",            shelves:5, rails:0, drawers:0 },
+    { key:"skuffur", label:"Skúffur + hengi", desc:"Þrjár skúffur, slá ofan á", shelves:1, rails:1, drawers:3 }
+  ];
+  var CLOSET_BAY_MAX_MM = 1000, CLOSET_CORNER_FILLER_MM = 60; // 6 cm, as the kitchen's corner filler
+  function closetTall(b){ return b && (b.type === "harskapur" || b.type === "harskapurOpinn"); }
+  function closetDeep(b){ return (b.depthMm || CATALOG[b.type].d) >= 500; }
+  function applyClosetRecipe(b, key){
+    var r = CLOSET_RECIPES.find(function(x){ return x.key === key; }) || CLOSET_RECIPES[0], c = CATALOG[b.type];
+    if (!closetDeep(b) && r.rails) r = CLOSET_RECIPES.find(function(x){ return x.key === "hillur"; }); // 35 cm: no hangers
+    b.closetRecipe = r.key;
+    delete b.shelfPos; delete b.railPos;
+    if (c.shelfRange) b.shelves = Math.max(c.shelfRange[0], Math.min(c.shelfRange[1], r.shelves));
+    if (c.railRange) b.rails = Math.max(c.railRange[0], Math.min(c.railRange[1], r.rails));
+    if (r.drawers) b.interior = { mode:"skuffur", count:r.drawers, codes:KP3D.drawerCodes({ mode:"skuffur", count:r.drawers }, drawerSys()) };
+    else if (c.hasInterior) b.interior = { mode:"hillur", count:b.shelves || 0 };
+    else delete b.interior;
+  }
+  function setClosetBayDoors(b, doors){
+    var t = doors ? "harskapur" : "harskapurOpinn"; if (b.type === t) return;
+    b.type = t; applyClosetRecipe(b, b.closetRecipe || "hengi");
+  }
+  function closetBayWidths(len){
+    if (len < 300) return [];
+    var n = Math.max(1, Math.ceil(len / CLOSET_BAY_MAX_MM)), w = Math.floor(len / n / 10) * 10, out = [];
+    for (var i = 0; i < n; i++) out.push(i === n - 1 ? len - w * (n - 1) : w);
+    return out;
+  }
+  // Skipulag's first visit: fill the brown area (closetSpan per wardrobe wall) with bays
+  function seedCloset(){
+    if (!isCloset() || state.closetSeeded) return;
+    state.closetSeeded = true;
+    var k = closetShape(); if (!k) return;
+    if (state.walls.some(function(x){ return x.floor.length || x.wall.length; })) return; // already designed by hand
+    var cws = SHAPE_TEMPLATES[k].closetWalls, doors = state.closetDoors !== "engar", bays = [];
+    cws.forEach(function(i){
+      var w = state.walls[i], sp = closetSpan(i); if (!w || !sp) return;
+      var lo = Math.max(sp.start, runStartMm(w, "floor")), hi = Math.min(sp.start + sp.mm, runEndMm(w, "floor"));
+      var corner = null;
+      if (k === "closetCorner" && i === 1) lo = Math.max(lo, (state.closetDepthMm || 580) + CLOSET_CORNER_FILLER_MM); // wall 2 starts behind the corner unit + a filler so its first door clears wall 1's handles
+      if (k === "closetCorner" && i === 0){ // the corner square: an open shelf unit, the bays end before it
+        var d = Math.min((state.closetDepthMm || 580) + CLOSET_CORNER_FILLER_MM, hi - lo); // as deep as wall 2's units + the filler, so wall 1's last door clears them too
+        if (d >= 300){ corner = { start:hi - d, w:d }; hi -= d; }
+      }
+      var pos = lo;
+      closetBayWidths(hi - lo).forEach(function(bw){ bays.push({ wall:w, start:pos, w:bw }); pos += bw; });
+      if (corner) bays.push({ wall:w, start:corner.start, w:corner.w, corner:true });
+    });
+    var real = bays.filter(function(x){ return !x.corner; });
+    bays.forEach(function(x){
+      var b = newBlock(x.corner || !doors ? "harskapurOpinn" : "harskapur");
+      b.widthMm = x.w;
+      var idx = real.indexOf(x), key = x.corner ? "hillur" : real.length === 1 ? "hengi" : idx === 0 ? "skuffur" : idx === real.length - 1 ? "hillur" : "hengi";
+      applyClosetRecipe(b, key);
+      insertBlockAt(x.wall, "floor", b, x.start);
+    });
+    save();
+  }
+
   // dragging the wardrobe's ends (or the whole part along its wall) on the drawing
   var clGeom = {};
   function startClosetSpanDrag(i, end, evt){
@@ -8611,6 +8680,28 @@
     var tb = document.querySelector(".ed-toolbar"); if (tb) g.style.setProperty("--tb-h", tb.offsetHeight + "px");
     g.classList.toggle("no-sel", !on);
   }
+  // Fataskápar: what's in this bay, as pictures — and doors or open (user, 2026-10-26)
+  function closetRecipeSvg(key){
+    var o = '<svg viewBox="0 0 48 64" width="40" height="54" aria-hidden="true"><rect x="3" y="3" width="42" height="58" rx="1.5" fill="#f3efe6" stroke="#9c8f77" stroke-width="1.4"/>';
+    var shelf = function(y){ return '<line x1="3" y1="' + y + '" x2="45" y2="' + y + '" stroke="#9c8f77" stroke-width="1.6"/>'; };
+    var rail = function(y, h){ var s = '<line x1="7" y1="' + y + '" x2="41" y2="' + y + '" stroke="#6d675e" stroke-width="1.8" stroke-linecap="round"/>'; for (var x = 11; x <= 37; x += 6.5) s += '<path d="M' + x + ' ' + y + 'l-3 4v' + h + 'h6v-' + h + 'z" fill="#c9bea8"/>'; return s; };
+    if (key === "hengi") o += shelf(12) + rail(17, 30);
+    else if (key === "tvofold") o += shelf(12) + rail(16, 12) + rail(38, 14);
+    else if (key === "hillur") o += [13, 23, 33, 43, 53].map(shelf).join("");
+    else if (key === "skuffur") o += shelf(12) + rail(17, 14) + '<rect x="6" y="38" width="36" height="6.5" rx="1" fill="#d9ccb2" stroke="#9c8f77"/><rect x="6" y="46" width="36" height="6.5" rx="1" fill="#d9ccb2" stroke="#9c8f77"/><rect x="6" y="54" width="36" height="5" rx="1" fill="#d9ccb2" stroke="#9c8f77"/>';
+    return o + '</svg>';
+  }
+  function closetBayHtml(b){
+    if (!isCloset() || !closetTall(b)) return "";
+    var deep = closetDeep(b), cur = b.closetRecipe;
+    return '<div class="edit-field"><label>' + __("Hvað á að vera í skápnum?") + '</label><div class="cl-recipes">' + CLOSET_RECIPES.map(function(r){
+      var off = !deep && r.rails;
+      return '<button type="button" class="cl-recipe' + (cur === r.key ? ' on' : '') + '" data-clrecipe="' + r.key + '"' + (off ? ' disabled title="' + __("Herðatré passa ekki í 35 cm djúpan skáp") + '"' : '') + '>' + closetRecipeSvg(r.key) + '<b>' + __(r.label) + '</b><small>' + __(r.desc) + '</small></button>';
+    }).join("") + '</div></div>' +
+    '<div class="edit-field"><label>' + __("Hurðir") + '</label><div class="hw-toggle">' +
+      '<button type="button" class="hw-btn' + (b.type === "harskapur" ? ' active' : '') + '" data-cldoors="1">' + __("Með hurðum") + '</button>' +
+      '<button type="button" class="hw-btn' + (b.type === "harskapurOpinn" ? ' active' : '') + '" data-cldoors="0">' + __("Opið") + '</button></div></div>';
+  }
   function renderEditPanelInto(host){
     if (host && host.id === "cabinetEditPanel") setPanelShown(!!(selectedBlockId || selectedWallId));
     var found = selectedBlockId ? findBlock(selectedBlockId) : null;
@@ -8759,8 +8850,8 @@
       if (proTab !== "mal" && proTab !== "innvols" && proTab !== "annad") proTab = "mal";
       bodyHtml = '<div class="hw-toggle" data-role="pro-tabs">' + Object.keys(proTabLabels).map(function(t){
         return '<button type="button" class="hw-btn' + (proTab === t ? ' active' : '') + '" data-protab="' + t + '">' + proTabLabels[t] + '</button>';
-      }).join("") + '</div>' + { mal:malHtml, innvols:innvolsHtml, annad:annadHtml }[proTab];
-    } else bodyHtml = malHtml + innvolsHtml + annadHtml;
+      }).join("") + '</div>' + { mal:malHtml, innvols:closetBayHtml(b) + innvolsHtml, annad:annadHtml }[proTab];
+    } else bodyHtml = closetBayHtml(b) + malHtml + innvolsHtml + annadHtml;
     host.innerHTML =
       '<div class="edit-panel">' +
         '<div class="edit-panel-head"><div><h4>' + __(c.label) + '</h4><div class="sub"><a href="#" data-role="toWall" style="color:var(--blue);text-decoration:none;font-weight:600;">' + __(wall.label) + '</a>' + (wall.island ? "" : ' · ' + (zone === "wall" ? __("efri röð") : __("neðri röð"))) + '</div></div>' +
@@ -8890,6 +8981,12 @@
     });
     host.querySelectorAll("[data-swing]").forEach(function(btn){
       btn.addEventListener("click", function(){ b.swing = btn.dataset.swing; if (CATALOG[b.type].cls === "corner") b.swingSet = true; save(); refreshAfterEdit(); });
+    });
+    host.querySelectorAll("[data-clrecipe]").forEach(function(btn){
+      btn.addEventListener("click", function(){ if (b.locked){ lockedToast(); return; } applyClosetRecipe(b, btn.dataset.clrecipe); save(); refreshAfterEdit(); });
+    });
+    host.querySelectorAll("[data-cldoors]").forEach(function(btn){
+      btn.addEventListener("click", function(){ if (b.locked){ lockedToast(); return; } setClosetBayDoors(b, btn.dataset.cldoors === "1"); save(); refreshAfterEdit(); });
     });
     var shDec = host.querySelector('[data-role="sh-dec"]'), shInc = host.querySelector('[data-role="sh-inc"]');
     if (shDec) shDec.addEventListener("click", function(){ setShelves(-1); });
@@ -9428,7 +9525,7 @@
     if (step !== "welcome") stopWelcomeScene();
     if (state.step === "editor" && step !== "editor"){ KP3D.teardown3D(); selectedBlockId = null; selectedWallId = null; }
     if (step !== "shape") endHeightScene();
-    if (step === "editor" && state.step !== "editor"){ undoStack = []; histIdx = -1; seedSink(); }
+    if (step === "editor" && state.step !== "editor"){ undoStack = []; histIdx = -1; seedSink(); seedCloset(); }
     if (step === "shape" && state.closed && shapePhase === "pick" && state.walls.length) shapePhase = "size";
     // park the room being worked on so its data survives a trip back to "Hvað erum við að skoða?"
     // (byrjaSel is synced here too — re-entering byrja from mid-flow should show the real queue, not
@@ -9452,7 +9549,7 @@
   // activeCategory themselves are never part of this list.
   var ROOM_FIELDS = ["intake", "carcass", "drawerSystem", "look", "look2", "innerFront", "handle", "handleColor", "top", "floor", "floorTile", "floorPattern", "floorRot", "roomHeightMm",
     "wallColor", "windows", "doors", "closed", "shapeKey", "waterWall", "waterAlongMm", "seeded", "base900", "islands", "walls", "obstacles", "decor", "openingsDone", "annotations", "hungUnits",
-    "closetDepthMm", "closetHeightMm", "closetHeightLoft", "closetCeilGapMm", "closetDoors", "closetAutoHandle", "closetSpans"]; // per wardrobe (2026-10-25 — were project-wide by accident)
+    "closetDepthMm", "closetHeightMm", "closetHeightLoft", "closetCeilGapMm", "closetSeeded", "closetDoors", "closetAutoHandle", "closetSpans"]; // per wardrobe (2026-10-25 — were project-wide by accident)
   function serializeRoom(){
     var blob = {};
     ROOM_FIELDS.forEach(function(k){ blob[k] = state[k]; });
