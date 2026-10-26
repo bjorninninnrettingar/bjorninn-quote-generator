@@ -1677,6 +1677,38 @@
     "Fatask.": "Wardrobe"
   });
 
+  // Bað + Þvottahús flows (studio review 2026-10-25, section C)
+  add({
+    "Toppur": "Top",
+    "Toppur og spegill": "Top and mirror",
+    "Egger-plata ofan á skápana — eða engin ef handlaugin situr ofan á.": "An Egger board on top of the units — or none if the basin sits on top.",
+    "Vélin": "Machine",
+    "Hvar er vélin?": "Where does the machine go?",
+    "Þvottavél og þurrkari — við setjum þau inn fyrir þig.": "Washer and dryer — we place them for you.",
+    "Í stæðu": "Stacked",
+    "Þurrkarinn ofan á vélinni, í háum skáp": "The dryer on top of the washer, in a tall unit",
+    "Vél og þurrkari hlið við hlið": "Washer and dryer side by side",
+    "Engin vél": "No machine",
+    "Bara skápar og vaskur": "Just units and a sink",
+    "Enginn spegilskápur": "No mirror cabinet",
+    "Spegill eða ekkert á veggnum": "A mirror or nothing on the wall",
+    "Spegilskápur yfir vaskinn": "Mirror cabinet over the sink",
+    "Við tökum hann með í tilboðið": "We include it in the quote",
+    "Engin — handlaug ofan á": "None — basin on top",
+    "Hvar eru vatn og niðurfall?": "Where are the water and the drain?",
+    "Við notum þetta til að staðsetja vaskaskápinn.": "We use this to place the sink unit.",
+    "Við notum þetta til að staðsetja vaskinn og þvottavélina.": "We use this to place the sink and the washing machine.",
+    "Hannaðu baðherbergið þitt": "Design your bathroom",
+    "Hannaðu þvottahúsið þitt": "Design your laundry room",
+    "Hár skápur": "Tall unit",
+    "Valkvætt — fyrir handklæði og fleira": "Optional — for towels and more",
+    "Hæð skáps": "Unit height",
+    "{h} cm · {g} cm frá gólfi": "{h} cm · {g} cm from the floor",
+    "Sama hæð á öllum skápum á veggnum.": "The same height for every unit on the wall.",
+    "Staðsetningin þarf að vera á milli 0 og {n} cm.": "The position must be between 0 and {n} cm.",
+    "Hér hannar þú rýmið þitt": "This is where you design your room"
+  });
+
   // part F: stored/computed numbered labels from kitchen-planner-3d.js (CATALOG width variants, island rows, partition sides)
   addPat(/^(Grunnskápur|Hárskápur|Efriskápur|Vaskaskápur|Opnar hillur) (\d+)$/, function(m, t, n){ return (has(t) ? EN[t] : t) + " " + n; });
   addPat(/^Eyja (\d+) · röð ([AB])$/, "Island $1 · row $2");

@@ -958,6 +958,7 @@
     #screen-materials .wiz-panel:not([hidden]){ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
     #screen-materials .wiz-panel > *{ flex:none; }
     #screen-materials .wiz-panel[data-mpkey="depth"]:not([hidden]), #screen-materials .wiz-panel[data-mpkey="height"]:not([hidden]), #screen-materials .wiz-panel[data-mpkey="closetdoors"]:not([hidden]){ flex:none; } /* Fataskápar: small rows stacked over the swatches */
+    #screen-materials .wiz-panel[data-mpkey="mirror"]:not([hidden]){ flex:none; } /* Bað: the mirror-cabinet row over the tops */
     #screen-materials .wiz-panel > .sw-grid, #screen-materials .wiz-panel > .h-grid, #screen-materials .wiz-panel > .drawer-cards{ flex:0 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:3px 6px 12px 3px; margin:0 -6px 0 -3px; align-content:start; grid-auto-rows:max-content; }
   }
   /* ---- editor round 2026-10-11: full-screen designer. Header in one thin row (title, stepper, links), the left
@@ -1538,6 +1539,12 @@
           <div class="mat-section-title closet-only" data-i18n>Litur</div>
           <div class="sw-grid big" id="carcassCards"></div>
         </div>
+        <div class="wiz-panel" data-mpkey="machine">
+          <div class="drawer-cards" id="machineCards"></div>
+        </div>
+        <div class="wiz-panel" data-mpkey="mirror">
+          <div class="sw-grid big" id="mirrorCards"></div>
+        </div>
         <div class="wiz-panel" data-mpkey="closetdoors">
           <div class="sw-grid big" id="closetDoorCards"></div>
         </div>
@@ -1902,7 +1909,8 @@
     }
     if (state.activeCategory === "bad" && c.zone === "floor"){ // wall-hung: 500 deep, a 600 box hung 200 mm up (the "plinth" is air)
       b.depthMm = clampDepth(type, BATH_DEPTH_MM);
-      b.heightMm = clampHeight(type, BATH_BOX_MM + BATH_HUNG_MM);
+      b.heightMm = clampHeight(type, (c.cls === "tall" ? BATH_TALL_BOX_MM : BATH_BOX_MM) + BATH_HUNG_MM);
+      if (c.cls === "tall") b.depthMm = clampDepth(type, BATH_TALL_DEPTH_MM);
     }
     if (c.hasInterior) b.interior = c.drawersOnly ? { mode:"skuffur", count:1 } : { mode:"hillur", count:3 }; // ruslaskápur: one tall drawer to start
     if (c.shelfStack) initShelfStack(b, 3, KP3D.SHELF_GAP_DEFAULT);
@@ -3173,13 +3181,31 @@
     var start = Math.max(cornerClearance(w, "floor"), Math.min(w.lengthMm - b.widthMm, Math.round((waterAlong(w) - b.widthMm / 2) / 10) * 10)); // centred on the water marker
     insertBlockAt(w, "floor", b, start);
     landedBlockId = b.id;
-    // Þvottahús (user, 2026-10-23, E1): the washer + dryer stack starts next to the sink, on whichever side has room
-    if (state.activeCategory === "thvottahus"){
-      var t = newBlock("thvottavel"), sinkEnd = start + b.widthMm, after = sinkEnd + 19, before = start - t.widthMm - 19;
-      if (after + t.widthMm <= w.lengthMm - 19) insertBlockAt(w, "floor", t, after);
-      else if (before >= cornerClearance(w, "floor")) insertBlockAt(w, "floor", t, before);
-    }
+    if (state.activeCategory === "thvottahus") placeLaundryMachine(w, b);
     save();
+  }
+  // Þvottahús (user, 2026-10-23, E1; review 2026-10-25 C): the machine as picked on "Hvar er vélin?" — the stack, or washer +
+  // dryer side by side under the worktop, or none — next to the sink, on whichever side has room. Marked auto so a later
+  // change of mind on that page swaps them (reseedLaundryMachine); one the customer placed by hand is never touched.
+  function placeLaundryMachine(w, sink){
+    var m = state.laundryMachine || "staeda"; if (m === "engin") return;
+    var ts = (m === "undir" ? ["thvottavelFri", "thvottavelFri"] : ["thvottavel"]).map(function(t){ var x = newBlock(t); x.autoMachine = true; return x; });
+    var tw = ts.reduce(function(a, x){ return a + x.widthMm; }, 0), starts = KP3D.blockStartsMm(w.floor, cornerClearance(w, "floor"));
+    var start = starts[w.floor.indexOf(sink)], after = start + sink.widthMm + 19, before = start - tw - 19, at = null;
+    function free(a){ return w.floor.every(function(x, i){ return x === sink || starts[i] + x.widthMm <= a || starts[i] >= a + tw; }); }
+    if (after + tw <= w.lengthMm - 19 && free(after)) at = after;
+    else if (before >= cornerClearance(w, "floor") && free(before)) at = before;
+    if (at == null) return;
+    ts.forEach(function(x){ insertBlockAt(w, "floor", x, at); at += x.widthMm; });
+  }
+  function reseedLaundryMachine(){
+    if (!state.seeded) return; // not placed yet: the editor does it the first time it opens
+    var sinkWall = null, sink = null;
+    state.walls.forEach(function(w){
+      w.floor.filter(function(x){ return x.autoMachine && !x.locked; }).forEach(function(x){ detachBlock(w, "floor", x.id); });
+      if (!sink) w.floor.some(function(x){ if (CATALOG[x.type].sink){ sink = x; sinkWall = w; return true; } return false; });
+    });
+    if (sink) placeLaundryMachine(sinkWall, sink);
   }
 
   function renderShapeActions(){
@@ -3221,7 +3247,8 @@
     closetDefaults();
     save();
     toast(__("Rýmið er tilbúið — nú velur þú útlitið."));
-    matPhase = matCoreDone() || freshCloset ? 0 : null;
+    roomDefaults();
+    matPhase = matCoreDone() || freshCloset || (cdL && cdL.defaults) ? 0 : null; // a room with its picks made opens on page 1
     goto("materials");
   }
 
@@ -3244,7 +3271,7 @@
         : [__("Stilltu stærð rýmisins"), __("Sláðu inn mál eða dragðu veggina. Er rýmið opið inn í annað rými? Smelltu á „Opið“ við vegginn sem vantar.")],
       height: [__("Lofthæð og útlit"), __("Stilltu lofthæðina og útlit rýmisins.")],
       openings: [__("Gluggar og hurðir"), __("Veldu hvað er á hverjum vegg.")],
-      water: [__("Hvar kemur vatnið inn?"), __("Merktu staðsetningu vatnslagna, ef þú veist hana.")]
+      water: [__((catDef && catDef.waterTitle) || "Hvar kemur vatnið inn?"), __("Merktu staðsetningu vatnslagna, ef þú veist hana.")]
     };
     document.getElementById("shapeTitle").textContent = titles[shapePhase][0];
     document.getElementById("shapeSub").textContent = titles[shapePhase][1];
@@ -3279,6 +3306,7 @@
         }).join("");
       });
       if (closetMode && !state.closed && !pendingShape) pendingShape = "closetWall"; // the usual one, already picked
+      if (!closetMode && catDef && catDef.defaultShape && !state.closed && !pendingShape) pendingShape = catDef.defaultShape; // Bað/Þvottahús: a plain rectangle
       // pick, then "Áfram →" (2026-10-11 — a click used to jump straight on to the sizes)
       var curShape = pendingShape || (state.closed ? state.shapeKey : null);
       if (curShape === "lroomMirror") curShape = "lroom"; // one L card — which corner is set in is picked on the size page
@@ -3661,11 +3689,11 @@
     save(); renderWaterList(); renderShapeCanvas();
   }
   function renderWaterList(){
-    var box = document.getElementById("waterList"), cur = state.walls.find(function(w){ return w.id === state.waterWall; });
+    var box = document.getElementById("waterList"), cur = state.walls.find(function(w){ return w.id === state.waterWall; }), cdWat = categoryDef(state.activeCategory);
     if (!cur){
       // 2026-10-24: no "＋ Merkja vatn" step — a click on the wall puts it there (a faint droplet shows where)
       box.innerHTML = '<p class="water-lead">' + __("Smelltu á vegginn þar sem vatnið kemur inn.") + '</p>' +
-        '<p class="water-hint">' + __("Við notum þetta til að staðsetja vaskinn og uppþvottavélina.") + '</p>' +
+        '<p class="water-hint">' + __((cdWat && cdWat.waterHint) || "Við notum þetta til að staðsetja vaskinn og uppþvottavélina.") + '</p>' +
         '<p class="water-hint">' + __("Ef þú veist það ekki, haltu bara áfram.") + '</p>';
       return;
     }
@@ -3674,7 +3702,7 @@
       '<p class="opw-q">' + __("Veggur") + '</p><div class="water-walls">' + state.walls.map(function(w, i){
         return w.open ? '' : '<button type="button" class="tab-btn' + (w.id === cur.id ? ' active' : '') + '" data-wwall="' + w.id + '">' + (i + 1) + '</button>';
       }).join("") + '</div>' +
-      '<div class="edit-field"><div class="wall-row" style="cursor:default;"><span class="wl">' + __("Frá vinstra horni") + '</span><input type="number" id="waterPos" value="' + waterAlong(cur) + '" min="0" max="' + cur.lengthMm + '" step="10"><span class="u">mm</span></div></div>' +
+      '<div class="edit-field"><div class="wall-row" style="cursor:default;"><span class="wl">' + __("Frá vinstra horni") + '</span><input type="number" id="waterPos" value="' + Math.round(waterAlong(cur) / 10) + '" min="0" max="' + Math.floor(cur.lengthMm / 10) + '" step="1"><span class="u">cm</span></div></div>' +
       '<button type="button" class="reset-link" id="waterRemoveBtn" style="margin-top:12px;">' + __("Fjarlægja vatn") + '</button>';
     box.querySelectorAll("[data-wwall]").forEach(function(b){
       b.addEventListener("click", function(){ setWaterWall(b.dataset.wwall); });
@@ -3685,8 +3713,8 @@
     });
     var pos = document.getElementById("waterPos");
     pos.addEventListener("change", function(){
-      var v = Math.round(parseFloat(pos.value));
-      if (isNaN(v) || v < 0 || v > cur.lengthMm){ toast(__("Staðsetningin þarf að vera á milli 0 og {n} mm.", { n:cur.lengthMm })); pos.value = waterAlong(cur); return; }
+      var v = Math.round(parseFloat(String(pos.value).replace(",", ".")) * 10); // typed in cm
+      if (isNaN(v) || v < 0 || v > cur.lengthMm){ toast(__("Staðsetningin þarf að vera á milli 0 og {n} cm.", { n:Math.floor(cur.lengthMm / 10) })); pos.value = Math.round(waterAlong(cur) / 10); return; }
       state.waterAlongMm = v; state.seeded = false; save(); renderShapeCanvas();
     });
   }
@@ -3726,7 +3754,7 @@
     state.seeded = false;
     renderShapeCanvas();
     var pos = document.getElementById("waterPos");
-    if (pos && document.activeElement !== pos) pos.value = state.waterAlongMm;
+    if (pos && document.activeElement !== pos) pos.value = Math.round(state.waterAlongMm / 10);
   }
   function onWaterMove(evt){
     if (!waterDrag) return;
@@ -4873,6 +4901,21 @@
   // One wall or island's own sökkulhæð (PRO, 2026-10-18, user) — changes only how much of each floor cabinet's
   // already-stored full height displays/edits as "carcass" here; b.heightMm itself never moves, so this never
   // resizes or relocates anything already built.
+  // Baðherbergi (review 2026-10-25, C): a wall-hung unit's "plinth" is the air under it — the customer sees "Hæð frá
+  // gólfi" in cm, never "Sökkull". It's the wall's own plinthMm (every hung unit on a wall lines up), so moving it keeps
+  // each box its own height (heightMm = box + gap).
+  function isHungUnit(c){ return !!state.hungUnits && c.zone === "floor" && !c.panel && !c.appliance; }
+  function setHungGap(wall, mm){
+    var src = plinthSourceOf(wall), old = plinthMmOf({}, "floor", wall);
+    mm = Math.max(PLINTH_RANGE[0], Math.min(PLINTH_RANGE[1], Math.round(mm)));
+    if (isNaN(mm) || mm === old) return;
+    (wall.floor || []).forEach(function(x){ var cx = CATALOG[x.type]; if (plinthMmOf(cx, "floor", wall)) x.heightMm = clampHeight(x.type, blockHeightMm(x, cx) - old + mm); });
+    src.plinthMm = mm;
+  }
+  function hungGapChips(cur, attr){
+    return '<div class="uw-chips">' + HUNG_GAPS.map(function(g){ return '<button type="button" class="hw-btn' + (g === cur ? ' active' : '') + '" ' + attr + '="' + g + '">' + g / 10 + '</button>'; }).join("") +
+      '<small style="align-self:center;margin-left:4px;">cm</small></div><p class="sec-note">' + __("Sama hæð á öllum skápum á veggnum.") + '</p>';
+  }
   function setWallPlinthMm(wall, raw){
     var v = Math.round(parseFloat(String(raw).replace(",", ".")) || 0);
     if (isNaN(v) || v < PLINTH_RANGE[0] || v > PLINTH_RANGE[1]){
@@ -6065,9 +6108,13 @@
     { key:"efri", label:"Efri skápur", desc:"Á vegg, t.d. yfir vaskinum", icon:"efriskapur", opts:[
       { label:"Lokaður skápur með hillum", type:"efriskapur" },
       { label:"Opinn skápur með hillum", type:"opnarhillur" },
-      { label:"Lausar hillur (38 mm)", type:"laushilla" } ] }
+      { label:"Lausar hillur (38 mm)", type:"laushilla" } ] },
+    // optional tall cabinet (review 2026-10-25, C): hung like the rest, 160 cm box, 35 cm deep
+    { key:"har", label:"Hár skápur", desc:"Valkvætt — fyrir handklæði og fleira", icon:"harskapur", opts:[
+      { label:"Hurð með hillum", type:"harskapur" } ] }
   ];
   // Þvottahús (E1): the kitchen flow with water + worktop; washer/dryer tower first in the list
+  // review 2026-10-25 (C): corner units and end panels from the kitchen tree too (no island back — no islands here)
   var THVOTT_TREE = [
     { key:"vel", label:"Þvottavél & þurrkari", desc:"Í stæðu, í háum skáp", icon:"thvottavel", opts:[
       { label:"Þvottavélaskápur (stæða)", type:"thvottavel" },
@@ -6077,15 +6124,22 @@
       { label:"Hurð", type:"vaskaskapur" } ] },
     { key:"grunn", label:"Grunnskápar", desc:"Undir borðplötu", icon:"grunnskapur", opts:[
       { label:"Skúffur", type:"grunnskapur", drawers:true },
-      { label:"Hurð með hillum", type:"grunnskapur" } ] },
+      { label:"Hurð með hillum", type:"grunnskapur" },
+      { label:"Töfrahorn", type:"tofrahorn", group:"Hornskápur" },
+      { label:"Hillur", type:"hornskapur", group:"Hornskápur" } ] },
     { key:"har", label:"Háir skápar", desc:"Upp undir loft", icon:"harskapur", opts:[
       { label:"Hurðir með hillum", type:"harskapur" } ] },
     { key:"efri", label:"Efri skápar", desc:"Á vegg", icon:"efriskapur", opts:[
       { label:"Lokaður skápur með hillum", type:"efriskapur" },
       { label:"Opinn skápur með hillum", type:"opnarhillur" },
-      { label:"Lausar hillur (38 mm)", type:"laushilla" } ] }
+      { label:"Lausar hillur (38 mm)", type:"laushilla" } ] },
+    { key:"uthlid", label:"Úthliðar", desc:"Klæðning á enda innréttingar", icon:"uthlidhar", opts:[
+      { label:"Úthlið — neðri", type:"uthlid" },
+      { label:"Úthlið — há", type:"uthlidhar" },
+      { label:"Úthlið — efri", type:"uthlidefri" } ] }
   ];
-  var BATH_HUNG_MM = 200, BATH_DEPTH_MM = 500, BATH_BOX_MM = 600;
+  var BATH_HUNG_MM = 200, BATH_DEPTH_MM = 500, BATH_BOX_MM = 600, BATH_TALL_BOX_MM = 1600, BATH_TALL_DEPTH_MM = 350;
+  var HUNG_GAPS = [150, 200, 250, 300]; // "Hæð frá gólfi" chips, mm
   function activeUnitTree(){ var cd = categoryDef(state.activeCategory); return (cd && cd.tree) || UNIT_TREE; }
   var uw = null; // { step, cat, opt, b, wallId }
   function uwSurfaces(zone){ return zone === "wall" ? state.walls.filter(function(w){ return !w.open; }) : surfaces().filter(function(w){ return !w.open; }); }
@@ -6263,6 +6317,14 @@
           '<div class="edit-field"><label>' + __("Fjöldi") + '</label><div class="hw-count"><button class="iconbtn" data-uw-stn="-1"' + (stN <= 1 ? ' disabled' : '') + '>−</button><b>' + stN + '</b><button class="iconbtn" data-uw-stn="1"' + (stN >= KP3D.SHELF_STACK_MAX ? ' disabled' : '') + '>+</button><span>' + plural(stN, "hilla", "hillur") + ' · ' + __("38 mm þykkar") + '</span></div></div>' +
           (stN > 1 ? '<div class="edit-field"><label>' + __("Bil á milli") + '</label><div class="uw-chips">' + [250, 300, 350, 400].map(function(g){ return '<button type="button" class="hw-btn' + (g === stG ? ' active' : '') + '" data-uw-stg="' + g + '">' + g / 10 + '</button>'; }).join("") + '<small style="align-self:center;margin-left:4px;">cm</small></div></div>' : '') +
           '<div class="edit-field"><label>' + __("Neðsta hillan frá gólfi") + '</label><div class="uw-chips">' + [1200, 1400, 1500, 1600].map(function(e){ return '<button type="button" class="hw-btn' + (e === stE ? ' active' : '') + '" data-uw-ste="' + e + '">' + e / 10 + '</button>'; }).join("") + '<small style="align-self:center;margin-left:4px;">cm</small></div></div>'));
+      } else if (isHungUnit(c)){ // Baðherbergi: the box's own height + how high it hangs (setHungGap)
+        var hgW = state.walls.find(function(w){ return w.id === uw.wallId; }), hg = plinthMmOf(c, "floor", hgW), hBox = (b.heightMm || c.h) - hg;
+        var boxOpts = (c.cls === "tall" ? [1600, 1800, 2000] : [400, 500, 600, 700]).map(function(h){ return Math.max(h, c.minH - hg); }) // a tall unit's own minimum is its whole height
+          .filter(function(h, i, a){ return a.indexOf(h) === i && h + hg <= c.maxH; });
+        secHtml.push(uwSec("h", __("Hæð"), __("{h} cm · {g} cm frá gólfi", { h:hBox / 10, g:hg / 10 }),
+          '<div class="edit-field"><label>' + __("Hæð skáps") + '</label><div class="uw-chips">' + boxOpts.map(function(h){ return '<button type="button" class="hw-btn' + (h === hBox ? ' active' : '') + '" data-uw-hbox="' + h + '">' + h / 10 + '</button>'; }).join("") +
+            '<small style="align-self:center;margin-left:4px;">cm</small></div></div>' +
+          '<div class="edit-field"><label>' + __("Hæð frá gólfi") + '</label>' + hungGapChips(hg, "data-uw-gap") + '</div>'));
       } else if (c.minH !== c.maxH) secHtml.push(dimSec("h", c.zone === "floor" && c.cls !== "tall" && c.maxH <= 1200 ? __("Hæð") + ' <small class="uw-sub">' + __("upp að borðplötu") + '</small>' : __("Hæð"), uwHeightOptions(c), b.heightMm || c.h, c.h, "data-uw-h", "data-uw-hcustom", c.minH, c.maxH));
       if (c.minD !== c.maxD) secHtml.push(dimSec("d", __("Dýpt"), uwDepthOptions(c), b.depthMm || c.d, c.d, "data-uw-d", "data-uw-dcustom", c.minD, c.maxD));
       var innHtml = "";
@@ -6366,6 +6428,12 @@
     var wc = side.querySelector("[data-uw-wcustom]");
     if (wc) wc.addEventListener("change", function(){ if (!wc.value) return; b.widthMm = clampWidth(b.type, Math.round(parseFloat(String(wc.value).replace(",", ".")) * 10)); uwAdvance("w"); renderUnitWizard(); });
     side.querySelectorAll("[data-uw-h]").forEach(function(el){ el.addEventListener("click", function(){ b.heightMm = +el.dataset.uwH; uwAdvance("h"); renderUnitWizard(); }); });
+    side.querySelectorAll("[data-uw-hbox]").forEach(function(el){ el.addEventListener("click", function(){
+      var w0 = state.walls.find(function(w){ return w.id === uw.wallId; }); b.heightMm = clampHeight(b.type, +el.dataset.uwHbox + plinthMmOf(c, "floor", w0)); renderUnitWizard(); }); });
+    side.querySelectorAll("[data-uw-gap]").forEach(function(el){ el.addEventListener("click", function(){
+      var w0 = state.walls.find(function(w){ return w.id === uw.wallId; }); if (!w0) return;
+      var box = (b.heightMm || c.h) - plinthMmOf(c, "floor", w0);
+      setHungGap(w0, +el.dataset.uwGap); b.heightMm = clampHeight(b.type, box + plinthMmOf(c, "floor", w0)); save(); renderUnitWizard(); }); });
     var hc = side.querySelector("[data-uw-hcustom]");
     if (hc) hc.addEventListener("change", function(){ if (!hc.value) return; b.heightMm = clampHeight(b.type, Math.round(parseFloat(String(hc.value).replace(",", ".")) * 10)); uwAdvance("h"); renderUnitWizard(); });
     side.querySelectorAll("[data-uw-d]").forEach(function(el){ el.addEventListener("click", function(){ b.depthMm = +el.dataset.uwD; uwAdvance("d"); renderUnitWizard(); }); });
@@ -6801,7 +6869,7 @@
       matSel("look", __("Framhlið"), LOOK_CATEGORIES.map(function(cg){ return { label:cg.label, items:visLooks(cg.key).map(function(k){ return [k, LOOKS[k].label + (LOOKS[k].code ? " · " + LOOKS[k].code : "")]; }) }; }), state.look) +
       (PRO ? matSel("look2", "Framhlið 2 (FR2)", [{ label:null, items:[["", "— engin —"]] }].concat(LOOK_CATEGORIES.map(function(cg){ return { label:cg.label, items:visLooks(cg.key).map(function(k){ return [k, LOOKS[k].label + (LOOKS[k].code ? " · " + LOOKS[k].code : "")]; }) }; })), state.look2 || "") +
         matSel("innerFront", "Innskúffufrontar (sjálfgefið)", [{ items:INNER_FRONTS.map(function(x){ return [x, x]; }) }], state.innerFront || "Skrokkaefni") : "") +
-      matSel("top", __("Borðplata"), TOP_GROUPS.map(function(g){ return { label:g.label, items:topsOf(g.key).map(function(k){ return [k, TOPS[k].label + (TOPS[k].code ? " · " + TOPS[k].code : "")]; }) }; }), state.top || "steinn") +
+      matSel("top", __("Borðplata"), topGroupsNow().map(function(g){ return { label:g.label, items:topsOf(g.key).map(function(k){ return [k, TOPS[k].label + (TOPS[k].code ? " · " + TOPS[k].code : "")]; }) }; }), state.top || "steinn") +
       matSel("handle", __("Höldur / opnun"), KP3D.HANDLE_GROUPS.map(function(g){ return { label:g.label, items:handlesOf(g.key).map(function(k){ return [k, HANDLES[k].label]; }) }; }), state.handle) +
       (handleColorable(state.handle) ? matSel("handleColor", __("Litur á höldum"), [{ items:(HANDLES[state.handle].finishes || Object.keys(KP3D.HANDLE_FINISHES)).map(function(k){ return [k === HANDLES[state.handle].finish ? "" : k, KP3D.HANDLE_FINISHES[k].label]; }) }], state.handleColor || "") : "") +
       matSel("drawerSystem", __("Skúffukerfi"), [{ items:Object.keys(DRAWER_SYSTEMS).map(function(k){ return [k, DRAWER_SYSTEMS[k].label]; }) }], state.drawerSystem) +
@@ -7415,18 +7483,18 @@
   function renderTopCards(){
     // "Engin" is not a tab with one tile but a choice of its own at the end of the row: a click picks it and the
     // page stays where it is (user, 2026-10-24)
-    var tabGroups = TOP_GROUPS.filter(function(g){ return g.key !== "engin"; });
+    var tabGroups = topGroupsNow().filter(function(g){ return g.key !== "engin"; }), cdTop = categoryDef(state.activeCategory); // Bað/Þvottahús: Egger only
     var grp = tabGroups.find(function(g){ return g.key === matTab.top; }) || tabGroups[0];
     var tabs = document.getElementById("topTabs");
     tabs.innerHTML = tabsHTML(tabGroups, function(k){ return topsOf(k).length; }, grp.key, "data-ttab") +
-      '<button type="button" class="tab-btn top-none' + (state.top === "engin" ? ' picked' : '') + '" data-tnone="1" title="' + __("Engin borðplata frá okkur — t.d. ef þú færð hana annars staðar.") + '">' + __("Engin borðplata") + '</button>';
+      '<button type="button" class="tab-btn top-none' + (state.top === "engin" ? ' picked' : '') + '" data-tnone="1" title="' + __("Engin borðplata frá okkur — t.d. ef þú færð hana annars staðar.") + '">' + __((cdTop && cdTop.noTopLabel) || "Engin borðplata") + '</button>';
     tabs.querySelectorAll("[data-ttab]").forEach(function(b){ b.addEventListener("click", function(){ matTab.top = b.dataset.ttab; topToneSel = ""; renderTopCards(); document.getElementById("topCards").scrollTop = 0; }); });
     tabs.querySelector("[data-tnone]").addEventListener("click", function(){ selectTop("engin"); });
     // the thickness per kind (KP3D.topThickM) at the end of the blurb, 2026-10-11
     var firstKey = Object.keys(TOPS).find(function(k){ return TOPS[k].group === grp.key; });
     document.getElementById("topBlurb").textContent = __(grp.blurb) + (grp.key === "engin" ? "" : " " + __("Þykkt: {n} mm.", { n:Math.round(KP3D.topThickM(firstKey) * 1000) })); blurbTip("topBlurb", "topTabs");
     var active = state.top || null, pickedTop = active && TOPS[active];
-    document.getElementById("topPicked").innerHTML = (pickedTop ? __("Valið:") + ' <b>' + __(pickedTop.label) + '</b>' : __("Ekkert valið enn")) +
+    document.getElementById("topPicked").innerHTML = (pickedTop ? __("Valið:") + ' <b>' + __((state.top === "engin" && cdTop && cdTop.noTopLabel) || pickedTop.label) + '</b>' : __("Ekkert valið enn")) +
       (grp.key === "steinn" ? '<span class="stone-note">' + __("Björninn selur ekki steinplötur — þetta er aðeins til að sjá fyrir sér hvernig steinn kæmi út.") + '</span>' : '');
     var keys = toneFilter("topTones", "topCards", topsOf(grp.key), TOPS, topToneSel, function(t){ topToneSel = t; renderTopCards(); });
     var container = document.getElementById("topCards");
@@ -7714,6 +7782,64 @@
       (doors ? '<path d="M32 8v48" stroke="#a9a196" stroke-width="1.2"/><path d="M29 30v5M35 30v5" stroke="#6d675e" stroke-width="1.6" stroke-linecap="round"/>'
              : '<path d="M14 22h36M14 36h36" stroke="#a9a196" stroke-width="1.2"/><path d="M20 14h24" stroke="#6d675e" stroke-width="1.6" stroke-linecap="round"/>') + '</svg>';
   }
+  // Baðherbergi + Þvottahús (studio review 2026-10-25, section C). The drawer brand isn't a page of its own (defaulted,
+  // like a wardrobe's). Bað: colour → front → handles → top, where the top is an Egger board or none (a basin sitting on
+  // the cabinet) — Björninn sells no stone — and a mirror cabinet can be asked for (a note on the order, not a unit yet).
+  // Þvottahús: where the machine goes first (it decides what's placed for you), then the kitchen's pages minus drawers.
+  function phaseLike(key, over){ return Object.assign({}, MAT_PHASES.find(function(p){ return p.key === key; }), over || {}); }
+  var MAT_PHASES_BAD = [
+    phaseLike("carcass", { label:"Litur" }),
+    phaseLike("fronts"),
+    phaseLike("handle"),
+    phaseLike("top", { label:"Toppur", title:"Toppur og spegill", sub:"Egger-plata ofan á skápana — eða engin ef handlaugin situr ofan á.",
+      panelKeys:["mirror", "top"], render:function(){ renderMirrorCards(); renderTopCards(); } })
+  ];
+  var MAT_PHASES_THVOTTAHUS = [
+    { key:"machine", label:"Vélin", title:"Hvar er vélin?", sub:"Þvottavél og þurrkari — við setjum þau inn fyrir þig.",
+      render:renderMachineCards, done:function(){ return !!state.laundryMachine; } },
+    phaseLike("carcass", { label:"Litur" }),
+    phaseLike("fronts"),
+    phaseLike("handle"),
+    phaseLike("top")
+  ];
+  // the usual answers of a room kind, already chosen (categoryDef.defaults) — and a top that isn't sold for this room
+  // (stone in a bathroom, from an old draft or the kitchen) dropped back to the default
+  function roomDefaults(){
+    var cd = categoryDef(state.activeCategory); if (!cd || !cd.defaults) return;
+    if (state.top && cd.topGroups && state.top !== "engin" && (!TOPS[state.top] || cd.topGroups.indexOf(TOPS[state.top].group) < 0)) state.top = null;
+    Object.keys(cd.defaults).forEach(function(k){ var v = cd.defaults[k]; if (!state[k] && (k !== "top" || TOPS[v])) state[k] = v; });
+  }
+  function topGroupsNow(){ var cd = categoryDef(state.activeCategory); return TOP_GROUPS.filter(function(g){ return !cd || !cd.topGroups || g.key === "engin" || cd.topGroups.indexOf(g.key) >= 0; }); }
+  var LAUNDRY_MACHINES = [
+    { v:"staeda", label:"Í stæðu", desc:"Þurrkarinn ofan á vélinni, í háum skáp" },
+    { v:"undir", label:"Undir borðplötu", desc:"Vél og þurrkari hlið við hlið" },
+    { v:"engin", label:"Engin vél", desc:"Bara skápar og vaskur" }
+  ];
+  function machineSvg(v){
+    var drum = function(x, y, r){ return '<circle cx="' + x + '" cy="' + y + '" r="' + r + '" fill="#fff" stroke="#6d675e" stroke-width="1.3"/>'; };
+    var box = function(x, y, w, h){ return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="1.5" fill="#e4ded0" stroke="#a9a196" stroke-width="1.2"/>'; };
+    var inner = v === "staeda" ? box(20, 6, 24, 52) + drum(32, 20, 6) + drum(32, 42, 6)
+      : v === "undir" ? '<path d="M4 30h56" stroke="#6d675e" stroke-width="2"/>' + box(8, 32, 22, 24) + box(34, 32, 22, 24) + drum(19, 44, 6.5) + drum(45, 44, 6.5)
+      : '<path d="M4 30h56" stroke="#6d675e" stroke-width="2"/>' + box(8, 32, 48, 24) + '<path d="M24 30v-6h10" stroke="#a9a196" stroke-width="1.4" fill="none"/>';
+    return '<svg viewBox="0 0 64 64" width="56" height="56" aria-hidden="true">' + inner + '<line x1="4" y1="58" x2="60" y2="58" stroke="#c9c4b8" stroke-width="1"/></svg>';
+  }
+  function renderMachineCards(){
+    var box = document.getElementById("machineCards");
+    box.innerHTML = LAUNDRY_MACHINES.map(function(o){
+      return '<button type="button" class="drawer-card' + (state.laundryMachine === o.v ? ' active' : '') + '" data-machine="' + o.v + '"><div class="dc-ico">' + machineSvg(o.v) + '</div><div><div class="dc-name">' + __(o.label) + '</div><div class="dc-desc">' + __(o.desc) + '</div></div></button>';
+    }).join("");
+    box.querySelectorAll("[data-machine]").forEach(function(b){
+      b.addEventListener("click", function(){ if (b.dataset.machine === state.laundryMachine) return; state.laundryMachine = b.dataset.machine; reseedLaundryMachine(); save(); renderMaterials(); });
+    });
+  }
+  // Spegilskápur (review C: "later, as a note"): asked for here, it rides on the sink's line for the office to price
+  function renderMirrorCards(){
+    var box = document.getElementById("mirrorCards");
+    box.innerHTML = [[false, "Enginn spegilskápur", "Spegill eða ekkert á veggnum"], [true, "Spegilskápur yfir vaskinn", "Við tökum hann með í tilboðið"]].map(function(o){
+      return '<button type="button" class="drawer-card' + (!!state.bathMirror === o[0] ? ' active' : '') + '" data-mirror="' + (o[0] ? 1 : 0) + '"><div><div class="dc-name">' + __(o[1]) + '</div><div class="dc-desc">' + __(o[2]) + '</div></div></button>';
+    }).join("");
+    box.querySelectorAll("[data-mirror]").forEach(function(b){ b.addEventListener("click", function(){ state.bathMirror = b.dataset.mirror === "1"; save(); renderMirrorCards(); }); });
+  }
   var matPhase = null;
   var cabPreviewLoading = false;
   function activeMatPhases(){ var cd = categoryDef(state.activeCategory); return ((cd && cd.matPhases) || MAT_PHASES).filter(function(p){ return !p.when || p.when(); }); }
@@ -7828,6 +7954,7 @@
   });
 
   function renderMaterials(){
+    roomDefaults();
     if (matPhase === null) matPhase = firstMissingPhase();
     // open the tab that holds the current pick (a tab click only re-renders its own picker, so it isn't undone)
     if (state.look && LOOKS[state.look] && !LOOKS[state.look].hidden) matTab.front = LOOKS[state.look].category;
@@ -8778,6 +8905,7 @@
     var elevField = zone === "wall"
       ? '<div class="edit-field"><label>' + __("Frá gólfi (mm)") + '</label><div class="dim-grid"><div class="dim-f"><input type="number" data-role="elev" value="' + elevNow + '" min="0" max="' + Math.max(0, roomH - hNow) + '" step="1" title="' + __("Neðri brún skápsins · 0–{max} mm, eða dragðu hann upp og niður", { max:Math.max(0, roomH - hNow) }) + '"></div></div></div>'
       : '';
+    if (zone === "floor" && isHungUnit(c) && !wall.island) elevField += '<div class="edit-field"><label>' + __("Hæð frá gólfi") + '</label>' + hungGapChips(plinthMmOf(c, "floor", wall), "data-hung-gap") + '</div>';
     var stackField = c.shelfStack
       ? '<div class="edit-field"><label>' + __("Fjöldi hilla (allt að {n})", { n:KP3D.SHELF_STACK_MAX }) + '</label><div class="hw-count">' +
           '<button class="iconbtn" data-role="st-dec" ' + (b.count <= 1 ? "disabled" : "") + '>−</button><b>' + b.count + '</b>' +
@@ -8905,6 +9033,7 @@
         else setBlockDim(b.id, inp.dataset.dim, inp.value);
       });
     });
+    host.querySelectorAll("[data-hung-gap]").forEach(function(el){ el.addEventListener("click", function(){ setHungGap(wall, +el.dataset.hungGap); save(); refreshAfterEdit(); }); });
     var elevInp = host.querySelector('[data-role="elev"]');
     if (elevInp) elevInp.addEventListener("change", function(){
       var v = Math.round(parseFloat(elevInp.value)), max = Math.max(0, roomH - hNow);
@@ -9558,7 +9687,7 @@
   // activeCategory themselves are never part of this list.
   var ROOM_FIELDS = ["intake", "carcass", "drawerSystem", "look", "look2", "innerFront", "handle", "handleColor", "top", "floor", "floorTile", "floorPattern", "floorRot", "roomHeightMm",
     "wallColor", "windows", "doors", "closed", "shapeKey", "waterWall", "waterAlongMm", "seeded", "base900", "islands", "walls", "obstacles", "decor", "openingsDone", "annotations", "hungUnits",
-    "closetDepthMm", "closetHeightMm", "closetHeightLoft", "closetCeilGapMm", "closetSeeded", "closetDoors", "closetAutoHandle", "closetSpans"]; // per wardrobe (2026-10-25 — were project-wide by accident)
+    "closetDepthMm", "closetHeightMm", "closetHeightLoft", "closetCeilGapMm", "closetSeeded", "closetDoors", "closetAutoHandle", "closetSpans", "laundryMachine", "bathMirror"]; // per wardrobe (2026-10-25 — were project-wide by accident)
   function serializeRoom(){
     var blob = {};
     ROOM_FIELDS.forEach(function(k){ blob[k] = state[k]; });
@@ -9648,7 +9777,7 @@
     });
     var k = document.getElementById("kicker");
     k.textContent = "BJÖRNINN STUDIO";
-    var TITLES = { eldhus:"Hannaðu eldhúsið þitt", fataskapar:"Hannaðu fataskápinn þinn" };
+    var TITLES = { eldhus:"Hannaðu eldhúsið þitt", fataskapar:"Hannaðu fataskápinn þinn", bad:"Hannaðu baðherbergið þitt", thvottahus:"Hannaðu þvottahúsið þitt" };
     document.getElementById("pageTitle").textContent = state.step === "welcome" || state.step === "byrja" ? __("Hannaðu heimilið þitt") : __(TITLES[state.activeCategory] || "Hannaðu heimilið þitt"); // the stepper already says where you are (2026-10-11); renamed 2026-10-23
   }
   function jumpTo(step){
@@ -10140,6 +10269,7 @@
         if (b.aventos && AVENTOS_PRODUCTS[b.aventos]) notes.push("Lyfta: " + AVENTOS_PRODUCTS[b.aventos].label + " í stað lama — staðfestu stærð og þyngd framhliðar gagnvart lyftunni.");
         if (c.oven && !c.lowOven && +b.ovenH === 1050) notes.push("Ofn (60 cm) + örbylgjuofn (45 cm) í sama turni — staðfestu tækin.");
         if (state.hungUnits && zone_ofBlock(wall, b) === "floor") notes.push("Veggfestur (baðherbergi): " + plinthMmOf(c, "floor", wall) + " mm frá gólfi að neðri brún, enginn sökkull.");
+        if (state.bathMirror && c.sink) notes.push("Spegilskápur óskast yfir vaskinn — ekki í pöntun, söluaðili verðleggur hann og staðfestir mál.");
         var lit = bom && bom.perUnit[b.id];
         if (lit && v1){ // its LED reel (+ the transformer on the first lit cabinet) → V3, one of each, priced there
           v3.push(LIGHT_PRODUCTS[lit.code].utfaerslaId);
@@ -10363,6 +10493,7 @@
   ];
   function startTour(){
     endTour();
+    TOUR_STEPS[0].title = state.activeCategory && state.activeCategory !== "eldhus" ? __("Hér hannar þú rýmið þitt") : __("Hér hannar þú eldhúsið þitt"); // a bathroom isn't a kitchen
     tour = { i:0, count0:cabinetTotal(), root:document.createElement("div") };
     tour.root.className = "tour";
     tour.root.innerHTML = '<div class="tour-block"></div><div class="tour-hole"></div><div class="tour-bub" role="dialog" aria-live="polite"></div>';
@@ -11666,8 +11797,14 @@
   var CATEGORIES = [
     { key:"eldhus", label:"Eldhús", water:true, worktop:true },
     { key:"fataskapar", label:"Fataskápar", tree:FATASKAPAR_TREE, roomPicker:true, defaultRoom:"Fatask.", water:false, worktop:false, matPhases:MAT_PHASES_FATASKAPAR },
-    { key:"bad", label:"Baðherbergi", tree:BAD_TREE, roomPicker:true, defaultRoom:"Baðh.", water:true, worktop:true, hung:true },
-    { key:"thvottahus", label:"Þvottahús", tree:THVOTT_TREE, defaultRoom:"Þvottah.", water:true, worktop:true },
+    // Bað + Þvottahús (studio review 2026-10-25, section C): their own page lists, Egger tops only (no stone), the usual
+    // answers already picked (defaults) so "Áfram" just works; the water page and shape pick say what fits the room
+    { key:"bad", label:"Baðherbergi", tree:BAD_TREE, roomPicker:true, defaultRoom:"Baðh.", water:true, worktop:true, hung:true, matPhases:MAT_PHASES_BAD,
+      defaultShape:"rect", topGroups:["hardplast"], noTopLabel:"Engin — handlaug ofan á", waterHint:"Við notum þetta til að staðsetja vaskaskápinn.",
+      defaults:{ carcass:"dokkgra", drawerSystem:"legra", top:"engin" } },
+    { key:"thvottahus", label:"Þvottahús", tree:THVOTT_TREE, defaultRoom:"Þvottah.", water:true, worktop:true, matPhases:MAT_PHASES_THVOTTAHUS,
+      defaultShape:"rect", topGroups:["hardplast"], waterTitle:"Hvar eru vatn og niðurfall?", waterHint:"Við notum þetta til að staðsetja vaskinn og þvottavélina.",
+      defaults:{ carcass:"dokkgra", drawerSystem:"legra", top:"eg_W1000", laundryMachine:"staeda" } },
     { key:"hurdir", label:"Hurðir", soon:true },
     // Allt heimilið (2026-10-23): a room with no units of its own (stofa, gangur, forstofa …) — walls, windows and
     // doors only, so the home plan is the real home and doors between rooms have a wall to sit in. Many per project
