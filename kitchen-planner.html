@@ -8609,7 +8609,7 @@
         return;
       }
       wrap.innerHTML = "";
-      KP3D.buildScene(wrap, state, { darkBg:!!PRO, selectedId:selectedBlockId, selectedWallId:selectedWallId, onWallSelect:onWallSelect, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, onIslandDragEnd:onIslandDragEnd, onIslandDragMove:clampIslandDragMove, onDecorDragEnd:onDecorDragEnd, onDecorDragMove:onDecorDragMove, onObstacleFloorEnd:onObstacleFloorEnd, onObstacleResizeMove:onObstacleResizeMove, onObstacleResizeEnd:onObstacleResizeEnd, onShelfPosMove:onShelfPosMove, onShelfPosEnd:onShelfPosEnd, onShelfPosInfo:onShelfPosInfo, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList(), readyIds:PRO ? proReadyIds() : null,
+      KP3D.buildScene(wrap, state, { darkBg:!!PRO, selectedId:selectedBlockId, selectedWallId:selectedWallId, onWallSelect:onWallSelect, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, onIslandDragEnd:onIslandDragEnd, onIslandDragMove:clampIslandDragMove, onDecorDragEnd:onDecorDragEnd, onDecorDragMove:onDecorDragMove, onObstacleFloorEnd:onObstacleFloorEnd, onObstacleResizeMove:onObstacleResizeMove, onObstacleResizeEnd:onObstacleResizeEnd, onShelfPosMove:onShelfPosMove, onShelfPosEnd:onShelfPosEnd, onShelfPosInfo:onShelfPosInfo, onDrawerResize:onDrawerResize, onDrawerResizeEnd:onShelfPosEnd, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList(), readyIds:PRO ? proReadyIds() : null,
         xray:inspect.on, // inspect mode: every cabinet built in parts (drawers/doors tap open, nothing drags)
         focusWallId:viewMode === "wall" ? wallViewId : null, freshCamera:viewMode === "wall",
         annotations:viewMode === "wall" ? annoForWall : null, annoSelectedId:function(){ return anno.selId; },
@@ -9453,6 +9453,29 @@
     return { mm:clamped, trueLo:info.trueLo, trueHi:info.trueHi };
   }
   function onShelfPosEnd(blockId){ save(); refreshAfterEdit(); }
+  // A wardrobe drawer dragged in 3D (user, 2026-10-26): its top edge follows the pointer in 5 cm steps, the drawers
+  // above and the door/shelves over the stack move with it, and a taller slot gets the deeper drawer that fits it
+  // (Legra K → C → F, Merivo K → E) — "til að stækka dýptina". topMm = pointer height above the carcass bottom.
+  var DRAWER_SNAP_MM = 50;
+  function onDrawerResize(blockId, idx, topMm){
+    var fb = findBlock(blockId); if (!fb) return null;
+    var b = fb.block, c = CATALOG[b.type], sys = drawerSys();
+    if (!b.interior || b.interior.mode !== "skuffur") return null;
+    var codes = KP3D.drawerCodes(b.interior, sys), body = proBodyMm(b, c, fb.zone);
+    var slots = KP3D.stackFrontsMm(b.interior, codes, KP3D.drawerZoneMm(c, body, b.drawerZoneMm)) || codes.map(function(){ return 170; });
+    if (!slots[idx]) return null;
+    var below = 0; for (var i = 0; i < idx; i++) below += slots[i];
+    var others = slots.reduce(function(a, x, i){ return i === idx ? a : a + x; }, 0);
+    var tall = sys === "merivo" ? ["K", "E"] : ["K", "C", "F"];
+    var minSlot = KP3D.slotMin(tall[0]), maxSlot = body - KP3D.DRAWER_TOPDOOR_MIN_MM - others;
+    var raw = topMm - below, slot = Math.max(minSlot, Math.min(maxSlot, Math.round(raw / DRAWER_SNAP_MM) * DRAWER_SNAP_MM));
+    if (slot < minSlot) return null;
+    var code = tall.filter(function(cd){ return KP3D.slotMin(cd) <= slot; }).pop() || tall[0];
+    slots[idx] = slot; codes[idx] = code;
+    b.interior.codes = codes; b.interior.frontsMm = slots; b.interior.count = codes.length;
+    b.drawerZoneMm = slots.reduce(function(a, x){ return a + x; }, 0);
+    return { mm:slot, label:Math.round(slot / 10) + " cm" };
+  }
   // Read-only: the gap-to-neighbour label on hover (2026-10-22) needs the current position + the same
   // bounds, without nudging anything — never called mid-drag (onShelfPosMove's own return covers that).
   function onShelfPosInfo(blockId, itemKind, idx){

@@ -2614,6 +2614,8 @@
       var g = new THREE.Group(), pivotX = f.drawer || hinge === "bottom" ? cxL : (hinge === "left" ? cxL - w / 2 : cxL + w / 2), fh = y1 - y0;
       g.position.set(pivotX, 0, 0);
       var pmeta = Object.assign({}, meta, { isPart:true, partKey:key }), meshes = [];
+      // a wardrobe's drawer: dragged up/down its top edge follows the pointer (5 cm steps, user 2026-10-26) — see onDrawerResize
+      if (f.drawer && wardrobeScene && meta.tall && meta.shelfBlock){ pmeta.drawerIdx = fi; pmeta.drawerBotY = y0; pmeta.bodyBaseY = bodyBase; pmeta.widthM = w; }
       var hcfgA = meta.handle && window.KPMODELS && window.KPMODELS.handles && window.KPMODELS.handles[meta.handle];
       var hstyleA = (HANDLES[meta.handle] || {}).style;
       var vertA = !!(meta.tall && !f.drawer && !meta.corner && hstyleA !== "knob");
@@ -3380,6 +3382,11 @@
         if (mesh.userData.isPart && mesh.userData.locked) lockTap = { meta:mesh.userData, x:evt.clientX, y:evt.clientY };
         return;
       }
+      if (mesh.userData.isPart && mesh.userData.locked && mesh.userData.drawerIdx != null && opts.onDrawerResize){
+        lockTap = { meta:mesh.userData, x:evt.clientX, y:evt.clientY, drawerMesh:mesh }; // a tap opens it; a vertical drag resizes it (onMove)
+        controls.enabled = false; evt.stopPropagation(); // the press belongs to the drawer, not to orbiting
+        return;
+      }
       if (mesh.userData.isPart && !mesh.userData.locked && mesh.userData.bodyMesh) mesh = mesh.userData.bodyMesh; // fronts of an unlocked cabinet are just its body
       if (mesh.userData.locked){
         // locked cabinet / window / door: it cannot be dragged, so the press is left to OrbitControls; a tap opens/closes a drawer/door or selects
@@ -3507,6 +3514,10 @@
         (hovered.userData.kind === "shelf-item" || hovered.userData.kind === "rail-item") ? "ns-resize" : "grab") : "";
     }
     function onMove(evt){
+      if (!drag && lockTap && lockTap.drawerMesh && Math.hypot(evt.clientX - lockTap.x, evt.clientY - lockTap.y) >= CABINET_DRAG_PX){
+        drag = { drawerDrag:true, meta:lockTap.meta, mesh:lockTap.drawerMesh, startX:lockTap.x, startY:lockTap.y, moved:true };
+        lockTap = null;
+      }
       if (!drag){
         // málband (user, 2026-10-20): while measuring, the cursor is the tool's own crosshair (set by
         // setMeasureMode) — hovering a cabinet used to flip it to "grab" anyway, since this hover/cursor
@@ -3519,6 +3530,22 @@
       if (!drag.moved){
         if (Math.hypot(evt.clientX - drag.startX, evt.clientY - drag.startY) < CABINET_DRAG_PX) return;
         drag.moved = true;
+      }
+      if (drag.drawerDrag){
+        raycaster.setFromCamera(ndc(evt), camera);
+        var wpD = new THREE.Vector3(); drag.mesh.getWorldPosition(wpD);
+        var toCamD = camera.position.clone().sub(wpD); toCamD.y = 0;
+        if (toCamD.lengthSq() < 1e-6) toCamD.set(0, 0, 1); else toCamD.normalize();
+        var dPt = new THREE.Vector3();
+        if (raycaster.ray.intersectPlane(new THREE.Plane().setFromNormalAndCoplanarPoint(toCamD, wpD), dPt)){
+          var dm = drag.meta, res2 = opts.onDrawerResize(dm.blockId, dm.drawerIdx, Math.round((dPt.y - dm.bodyBaseY) * 1000));
+          if (res2){
+            var wq2 = new THREE.Quaternion(); drag.mesh.getWorldQuaternion(wq2);
+            var off2 = wpD.clone().addScaledVector(new THREE.Vector3(1, 0, 0).applyQuaternion(wq2), (dm.widthM || 0.5) / 2 + 0.09);
+            setGapPart(gapBelow, res2.label, off2.x, off2.z, dm.drawerBotY, dm.drawerBotY + res2.mm / 1000);
+          }
+        }
+        return;
       }
       if (drag.shelfDrag){ // a plane through the item facing the camera, horizontally — any camera angle still gives a clean vertical drag
         raycaster.setFromCamera(ndc(evt), camera);
@@ -3646,8 +3673,14 @@
       });
     }
     function onUp(evt){
+      if (drag && drag.drawerDrag){
+        var dD = drag; drag = null; controls.enabled = true; hideGapInfo(); hovered = null; suppressClick = true;
+        if (opts.onDrawerResizeEnd) opts.onDrawerResizeEnd(dD.meta.blockId);
+        return;
+      }
       if (lockTap){
         var lt = lockTap; lockTap = null;
+        if (lt.drawerMesh) controls.enabled = true;
         if (Math.hypot(evt.clientX - lt.x, evt.clientY - lt.y) < CABINET_DRAG_PX){
           suppressClick = true; // the click that follows must not also pick the wall behind it (a locked window used to select its wall, 2026-10-10)
           if (lt.meta.isPart) togglePart(lt.meta.partKey);
