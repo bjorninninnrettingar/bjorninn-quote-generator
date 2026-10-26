@@ -390,6 +390,41 @@ paths with `fetch` stubbed in the page, and server-side in `tests/kp-pro.test.js
    "Vistun tókst ekki · ● óvistað". A failed save from anywhere (e.g. Mæling lokið) opens the panel the same way.
    Vista í Airtable in the panel now closes it only once the save worked.
 
+## Multi-room PRO projects (PRO F3, 2026-10-26)
+
+Tested on a fresh T-199 with Eldhús (1 Grunnskápur) + Fataskápar (Fylla vegginn, 5 units) and T-32 (one room,
+unchanged), read-only server, 1440×900.
+
+1. **Smíða strip = the whole project**: `proSkList()` reads every room through `withEachCategory`, grouped in queue
+   order with the room's name between groups ("Eldhús Sk1 | Fataskápar Sk2 … Sk6"), counter over the project. Items
+   carry `uid = "<room>|<block id>"` (block ids repeat between rooms); `proEdGo(uid)` opens the other room behind the
+   popup (`openRoom`) and keeps Smíða open. Walked: Sk2…Sk6 in Fataskápar → "Yfirfarinn → Sk1" crossed into Eldhús, the
+   room tab followed. Fylla vegginn still opens Smíða on the first Sk of THIS room.
+2. **Efni row per room in its own words** — root cause: `catBase()` (isCloset/isBath/…) and `activeMatPhases()` read
+   `state.activeCategory` even while `withEachCategory` visited another room, so the kitchen was checked against the
+   wardrobe's pages ("Eldhús: stærð og litur vantar"). Both now use `SK_CAT` (the room being visited) first; so do
+   `activeUnitTree`, `cabCfg`, `typesForZone`, `topGroupsNow` and the Mæling notes (`wdMeasureFor/Notes`). This also
+   makes Vista / Teikningar / Skápalisti build a non-active room's lines with its own rules (e.g. a bath's U-skúffa
+   notes, a wardrobe's types) — before, they followed whichever room was open. Undecided materials are listed in the
+   Efni menu's order: "Eldhús: skrokkur, …, borðplata · Fataskápar: skrokkur, …".
+3. **Room tabs**: right end of the PRO strip (`.ps-rooms`, shown with 2+ rooms, queue order so they never move), the
+   open room marked, one click opens any room (closes Smíða first). "Næsta rými: X →" kept.
+4. **Inherited materials**: a new room that took another room's materials remembers it (`state.matFrom`, a ROOM_FIELD).
+   In PRO there's no toast; the room's Efni menu starts with "Erfir efni frá Eldhúsi · Breyta fyrir þetta rými" (the
+   link jumps to the first material). Customer keeps the toast.
+
+## Smoke-test fixes (2026-10-26)
+1. **"+ Næsti hægra megin" never repeats a one-of-a-kind unit** (`proNextRight`): vaskaskápur, ofn(askápur), tæki
+   (uppþvottavél, ísskápur/frystir, vínkælir, þvottavél), ruslaskápur, horn, the wardrobe's horneining → the run's
+   normal unit: Grunnskápur with drawers under the worktop (same width when it fits its range), Hárskápur in a tall run,
+   Efri skápur on the wall. Ordinary types repeat as before. T-199: vaskaskápur 800 → Grunnskápur 800 → Grunnskápur.
+2. **One PRO side panel at a time** (`proSoloPanel`): Yfirferð, Tilboð, Mæling and Hurðir close each other; Yfirferð,
+   Mæling and Hurðir also deselect the cabinet (they float over its panel). Tilboð + the cabinet panel may stay together
+   (the drawer narrows the editor and highlights the selected cabinet's lines). The header cut ("RO T-199 · Nýt…") was
+   the Tilboð drawer's width taken off the header twice (`body.pro.tp-open .top` padding inside `#mainWrap`) — the bar
+   now fits at 1440 and 1280, no horizontal scroll. Also: the big-change alert said "(Infinity %)" when Airtable had
+   0 kr — no % then.
+
 ## Borðplata as a real object in PRO (2026-10-26)
 
 Before: the worktop was only a name (`state.top` → "Valin borðplata: …" in the note), not clickable, no sizes, not on
