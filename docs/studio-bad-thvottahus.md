@@ -55,7 +55,7 @@ still sees "Hvar er vélin?".
 - E1: kitchen `defaultShape:"rect"`. E8: "Rýmið er tilbúið" toast once per room per visit (`roomReadyToasted`).
 - E10: CATALOG labels "Hár skápur" / "Efri skápur" (menu names); `airtableLabel` keeps "Hárskápur"/"Efriskápur" as
   the width variants' Skápategund. Bað menu "Neðri skápur" → "Grunnskápur".
-- E9: Lofthæð page: Vegglitur above Gólf, floor tiles 52 px high, the "Valfrjálst" line moved to a tooltip — no inner
-  scroll at 1440×900; ~10 px at 1280×800 before the last tweak (margins 22→14 px).
+- E9: Lofthæð page: Vegglitur above Gólf, floor tiles 46 px high, the "Valfrjálst" line moved to a tooltip, tighter
+  margins — no inner scroll at 1440×900 or 1280×800.
 - E7: Ofanmynd — dimension text turned along its line on the outer side, wall names 58 px out (beyond the chain) and
   turned along the wall (`planTextAng`, side walls read bottom-up).
