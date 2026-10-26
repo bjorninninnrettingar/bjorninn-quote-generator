@@ -329,3 +329,4 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
 - Innihurðir as steps + Allt heimilið as a list (2026-10-26): see [studio-hurdir-heimili.md](studio-hurdir-heimili.md)
 
 - **PRO "finish it" round (2026-10-26)** — Smíða fixes, Yfirferð gate before Vista, header fit, Veggur Op í vegg: see [pro-finish.md](pro-finish.md).
+- **Customers see cm, PRO keeps mm (2026-10-26):** see [studio-cm.md](studio-cm.md).

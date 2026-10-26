@@ -1968,6 +1968,11 @@
   function uLen(mm){ return KP3D.dimLen(mm); }   // "60 cm" or "600 mm"
   function uUnit(){ return uCm() ? "cm" : "mm"; }
   function uDims(){ return Array.prototype.map.call(arguments, uNum).join(" × ") + " " + uUnit(); } // "80 × 257 × 58 cm" / "800 × 2570 × 580 mm"
+  function uText(s){ // product names like "LED-borði 4×8 mm, 1 m" → "LED-borði 0,4×0,8 cm, 1 m" for a customer
+    if (!uCm()) return s;
+    var f = function(v){ return uNum(parseFloat(String(v).replace(",", "."))); };
+    return String(s).replace(/(\d+(?:[.,]\d+)?)(?:×(\d+(?:[.,]\d+)?))? mm\b/g, function(m, a, b){ return f(a) + (b ? "×" + f(b) : "") + " cm"; });
+  }
   function uDimsBare(){ var t = Array.prototype.map.call(arguments, uNum).join(" × "); return uCm() ? t + " cm" : t; } // PRO keeps its unit-less "800 × 2570 × 580"
   // Length inputs: markup is written in mm and marked data-len. For a customer each one is shown in cm (min/max/step
   // too) while its .value still reads and writes mm, so every handler keeps working in mm. Typing 60,5 → 605.
@@ -9178,7 +9183,7 @@
       return '<div class="dim-f"><label>' + label + '</label><input type="number" data-dim="' + key + '" data-len value="' + val + '" min="' + r[0] + '" max="' + r[1] + '" step="1" title="' + uNum(r[0]) + '–' + uLen(r[1]) + '"></div>';
     }
     var dims = '<div class="dim-grid">' +
-      (c.panel ? '<div class="dim-f fixed"><label>' + __("Þykkt") + '</label><b>19 mm</b></div>' : dimF("widthMm", c.shelfStack ? __("Lengd") : __("Breidd"), b.widthMm, dimRange(c, "widthMm"))) +
+      (c.panel ? '<div class="dim-f fixed"><label>' + __("Þykkt") + '</label><b>' + uLen(19) + '</b></div>' : dimF("widthMm", c.shelfStack ? __("Lengd") : __("Breidd"), b.widthMm, dimRange(c, "widthMm"))) +
       (c.shelfStack ? '<div class="dim-f fixed"><label>' + __("Heildarhæð") + '</label><b>' + hNow + '</b></div>' : dimF("heightMm", __("Hæð"), carcassHeightMm(b, c, zone, wall), carcassHeightRange(c, zone, wall))) +
       dimF("depthMm", __("Dýpt"), dNow, dimRange(c, "depthMm")) +
     '</div>';
@@ -10822,7 +10827,7 @@
     { el:function(){ return document.getElementById("editorGrid"); }, title:__("Smelltu á eininguna"), html:__("Þá getur þú breytt henni, dregið hana til og <b>læst</b> henni þegar hún er rétt."), click:true, next:__("Næsta →"), inside:true },
     { center:true, title:__("Hreyfing og flýtilyklar"), html:(function(){ var cmd = /Mac|iP(hone|ad)/.test(navigator.platform || navigator.userAgent) ? "⌘" : "Ctrl+";
       return '<ul class="tour-list tour-keys">' + __('<li><b>Snúa:</b> dragðu með músinni</li><li><b>Hliðra:</b> hægri-smelltu og dragðu</li><li><b>Þysja:</b> skrollaðu</li>') +
-        __('<li><kbd>←</kbd> <kbd>→</kbd> færa valinn skáp um 100 mm (<kbd>Shift</kbd> = 10 mm)</li><li><kbd>Delete</kbd> eyðir · <kbd>{cmd}Z</kbd> afturkallar · <kbd>Esc</kbd> afvelur</li>', { cmd:cmd }) + '</ul>'; })(), next:__("Næsta →") },
+        __('<li><kbd>←</kbd> <kbd>→</kbd> færa valinn skáp um {a} (<kbd>Shift</kbd> = {b})</li><li><kbd>Delete</kbd> eyðir · <kbd>{cmd}Z</kbd> afturkallar · <kbd>Esc</kbd> afvelur</li>', { cmd:cmd, a:uLen(100), b:uLen(10) }) + '</ul>'; })(), next:__("Næsta →") },
     { center:true, title:__("Gangi þér vel!"), html:__("Leiðsögnina finnur þú aftur undir „Hjálp“."), next:__("Byrja") }
   ];
   function startTour(){
@@ -12543,7 +12548,7 @@
     });
     if (handles) rows.push([__("Höldur"), handles + " " + __("stk")]);
     var lk = Object.keys(lights);
-    if (lk.length) rows.push([__("Lýsing"), lk.map(function(k){ return __(k) + " ×" + lights[k]; }).join(", ") + " · " + __("rafmagn tengt á staðnum")]);
+    if (lk.length) rows.push([__("Lýsing"), lk.map(function(k){ return uText(__(k)) + " ×" + lights[k]; }).join(", ") + " · " + __("rafmagn tengt á staðnum")]);
     var dl = state.doorList || [];
     if (dl.length) rows.push([__("Innihurðir"), dl.reduce(function(n, d){ return n + Math.max(1, d.qty | 0); }, 0) + " " + __("stk") + " (" + dl.map(function(d){ return doorKindLabel(d.kind); }).filter(function(v, i, a){ return a.indexOf(v) === i; }).join(", ") + ")"]);
     if (studioShots.length) rows.push([__("Studio myndir"), __("{n} fylgja með", { n:studioShots.length })]);

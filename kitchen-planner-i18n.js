@@ -1861,7 +1861,8 @@
     "Lausar hillur": "Loose shelves",
     "20 cm · brons": "20 cm · bronze",
     "Lítill flipi · 20 cm": "Small tab · 20 cm",
-    "32 cm · svart og eik": "32 cm · black and oak"
+    "32 cm · svart og eik": "32 cm · black and oak",
+    "<li><kbd>←</kbd> <kbd>→</kbd> færa valinn skáp um {a} (<kbd>Shift</kbd> = {b})</li><li><kbd>Delete</kbd> eyðir · <kbd>{cmd}Z</kbd> afturkallar · <kbd>Esc</kbd> afvelur</li>": "<li><kbd>←</kbd> <kbd>→</kbd> move the selected cabinet by {a} (<kbd>Shift</kbd> = {b})</li><li><kbd>Delete</kbd> deletes · <kbd>{cmd}Z</kbd> undoes · <kbd>Esc</kbd> deselects</li>"
   });
 
   // part F: stored/computed numbered labels from kitchen-planner-3d.js (CATALOG width variants, island rows, partition sides)
