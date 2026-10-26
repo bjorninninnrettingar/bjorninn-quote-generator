@@ -29,7 +29,12 @@ window.KPMODELS = {
   // model's origin goes on: each hinge's centre on the hinge line (front face); the threshold's centre at the leaf's
   // bottom; the lock/handle spindle on the front face (model both sides, lever pointing to the hinges = left-hinged door,
   // mirrored for right); a track's centre at the top of the opening on the wall face. Drawn for a door hinged on the left.
-  doorHardware: {},
+  // Round 3 (2026-10-26): the JNF hinge (IN.05.020.100) and the JNF locks IN.20.835 / IN.20.976 + strikes are drawn
+  // in kitchen-planner-doors.js from the makers' drawings (exact sizes, light); the drop seal is the maker's SketchUp
+  // model converted to GLB (inch/Z-up → m/Y-up, length along x, 914 mm long → `lengthM` stretches it to the leaf).
+  doorHardware: {
+    threshold_drop: { file:"models/door-hardware/drop-seal.glb", lengthM:0.9144 }
+  },
   drawerSides: {
     legra_M: { boardMm:12, white:{ L:"models/drawers/legra-M-white-L.dae", R:"models/drawers/legra-M-white-R.dae" }, dark:{ L:"models/drawers/legra-M-dark-L.dae", R:"models/drawers/legra-M-dark-R.dae" } },
     legra_K: { boardMm:12, white:{ L:"models/drawers/legra-K-white-L.dae", R:"models/drawers/legra-K-white-R.dae" }, dark:{ L:"models/drawers/legra-K-dark-L.dae", R:"models/drawers/legra-K-dark-R.dae" } },

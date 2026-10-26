@@ -486,3 +486,18 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   on list actions/page change; wall thickness drawn as a small dimension (arrows from outside + leader to the pill);
   Afrita leaves the room empty (dropdown highlighted + focused); "Eins og HU-n" chips at the top of an undesigned
   door's popup copy everything but Mál (Mál opens first, the rest shows as done).
+- **Round 3 — real door hardware (2026-10-26):** `KPDOORS.HW` keeps one function per item, now real:
+  `hinge_visible` = JNF IN.05.020.100.R.ECO heavy duty, procedural from the maker drawing (100 × 75 split 29.5/44.5 at
+  the axis, 3 mm leaves, Ø14 knuckle in 5 segments with bearing joints, R10 outer corners, 4 screws per leaf; door leaf
+  swings, frame leaf stays — `obj.userData.fixed`); `lock_standard` = JNF IN.20.835 and `lock_magnetic` = JNF
+  IN.20.976.60.B, faceplate / openings / latch or magnet / screws / PZ escutcheon / strike plate measured off their DXFs
+  (`LOCKS` in kitchen-planner-doors.js, mm from the spindle); `threshold_drop` = the maker's SketchUp drop seal converted
+  with `tools/dae2glb.py` to models/door-hardware/drop-seal.glb (93 KB, stretched to the leaf via `lengthM`).
+  Finishes: satin stainless default, `d.hwFinish` = copper / black / graphite / gold (no customer choice yet). Skrá step
+  now shows the door half open on the lock's edge. Glass doors get no mortise lock. Hidden hinges: still a placeholder.
+  The IFC/SAT hinge (IN.05.062) wasn't used — 25 MB and a different model number than the product (IN.05.020.100).
+- **No count page (user, 2026-10-26):** "Hvað ætlar þú að gera margar hurðir?" is gone. Innihurðir opens on "Hurðirnar
+  þínar" with one empty row HU-1 (`ensureFirstDoor`; deleting the last row leaves a fresh HU-1); "+ Bæta við hurð" adds
+  more; Til baka from the list → front page (or Allt heimilið). `doorPage` is only "list" | "review" (never saved — old
+  drafts just open the list). The empty starter row doesn't count as work: welcome card, Allt heimilið row and
+  `homeHasUnits` use `designedDoors()`.

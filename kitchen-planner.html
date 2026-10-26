@@ -1458,18 +1458,6 @@
   .hd-card.hd-add:hover{ border-color:var(--ink); }
   /* Innihurðir — the user's design (2026-10-26): count → HU rows → a popup per door → review */
   .stepper .st[hidden]{ display:none; }
-  .hd-count{ display:flex; flex-direction:column; align-items:center; gap:10px; padding:34px 0 10px; }
-  .hd-count-ctl{ display:flex; align-items:center; gap:16px; }
-  .hd-count-ctl button{ width:54px; height:54px; border-radius:50%; border:1.5px solid var(--line); background:#fff; font:inherit; font-size:26px; cursor:pointer; color:var(--ink); }
-  .hd-count-ctl button:hover:not(:disabled){ border-color:var(--ink); }
-  .hd-count-ctl button:disabled{ opacity:.35; cursor:default; }
-  .hd-count-ctl input{ width:110px; height:70px; text-align:center; font:inherit; font-size:40px; font-weight:700; border:1.5px solid var(--line); border-radius:14px; color:var(--ink); -moz-appearance:textfield; }
-  .hd-count-ctl input::-webkit-inner-spin-button, .hd-count-ctl input::-webkit-outer-spin-button{ -webkit-appearance:none; margin:0; }
-  .hd-count-word{ margin:0; color:var(--ink-soft); font-size:15px; }
-  .hd-count-doors{ display:flex; flex-wrap:wrap; justify-content:center; gap:10px; max-width:720px; margin-top:18px; color:var(--ink); }
-  .hd-count-doors span{ display:flex; flex-direction:column; align-items:center; gap:2px; width:52px; }
-  .hd-count-doors small{ font-size:11px; color:var(--ink-soft); }
-  .hd-count-doors .more{ font-size:14px; color:var(--ink-soft); justify-content:center; height:46px; }
   .hd-rows{ display:flex; flex-direction:column; gap:8px; max-height:calc(100vh - 290px); overflow:auto; padding:2px; }
   .hd-row{ display:grid; grid-template-columns:64px 250px 1fr auto; gap:14px; align-items:center; background:#fff; border:1px solid var(--line); border-radius:12px; padding:9px 14px; min-height:62px; box-sizing:border-box; }
   .hd-row.done{ border-color:#cfd8c9; }
@@ -12755,7 +12743,7 @@
   // new fields: frame ("innf" | "gerefti"), hunar ("ja" | "nei"), roomOther (the text under "Annað").
   // The 3D door and its hardware live in kitchen-planner-doors.js (one function per hardware item, GLB-ready).
   // ======================================================================
-  var doorPage = null, doorCount = 1; // doorPage: "count" | "list" | "review"
+  var doorPage = null; // "list" | "review" (the "how many doors?" page is gone, user 2026-10-26: the list starts with HU-1)
   var dw = null; // the open door wizard: { d:draft, i, sec, picked:{}, vals:{}, focus, more, matTab, matQuery, dirty }
   var DW_SEC_LABEL = { gerd:"Gerð", mal:"Mál", opnun:"Opnun", efni:"Útlit", lamir:"Lamir", throskuldur:"Felliþröskuldur", skra:"Skrá", braut:"Brautin", flokkur:"Brunavörn", karmur:"Karmurinn" };
   function doorKindLabel(kind, frame){ return __(KPDOORS.kindDef({ kind:kind, frame:frame }).label); }
@@ -12769,7 +12757,7 @@
     var L = KPDOORS.hasLeafMat(d) && d.leaf && LOOKS[d.leaf]; if (!L) return null;
     return L.tex ? { color:L.color3d || null, img:L.tex } : L.category === "sponlagt" && L.img ? { color:L.color3d || null, img:L.img, crop:L.zoom || 3.5 } : { color:L.color3d || null, img:null };
   }
-  KPDOORS.onTexture = function(){ if (state.step === "hurdir" && !dw && doorPage !== "count") renderDoorStep(); }; // thumbnails again with the wood in
+  KPDOORS.onTexture = function(){ if (state.step === "hurdir" && !dw) renderDoorStep(); }; // thumbnails again with the wood in
   function dropToast(){ var t = document.getElementById("toastEl"); if (t) t.style.opacity = "0"; } // an old "Hannaðu HU-2 fyrst" must not outlive the change
   function doorMatText(d){ return !KPDOORS.hasLeafMat(d) ? "" : d.leaf && LOOKS[d.leaf] ? __(LOOKS[d.leaf].label) : __("Efni ákveðið síðar"); }
   function doorOptText(d, k){ var t = KPDOORS.OPT_TEXT[k], v = KPDOORS.optValue(d, k); return t && t.vals[v] ? __(t.vals[v][0]) : ""; }
@@ -12799,7 +12787,7 @@
     state.doorList = state.doorList || [];
     if (state.home){ state.home.doors = true; if (state.activeCategory && state.walls && state.walls.length) state.categoryData[state.activeCategory] = serializeRoom(); }
     closeDoorWiz(true);
-    doorPage = page || (state.doorList.length ? "list" : "count");
+    ensureFirstDoor(); doorPage = page === "review" ? "review" : "list";
     goto("hurdir");
     if (!doorProducts) loadDoorProducts().then(function(){ if (state.step === "hurdir") renderDoorStep(); });
     if (!window.__THREE__) KP3D.waitForThree(function(ok){ if (ok && state.step === "hurdir") renderDoorStep(); });
@@ -12810,13 +12798,7 @@
     leaveDoors();
   }
   function doorNext(){
-    if (doorPage === "count"){
-      var ciN = document.getElementById("hdCountIn"), n = Math.max(1, Math.min(30, (ciN && parseInt(ciN.value, 10)) || doorCount | 0)); // what the box says is what you get
-      for (var i = 0; i < n; i++){ var nd = newListDoor(); nd.designed = false; nd.room = ""; state.doorList.push(nd); }
-      save(); doorPage = "list"; renderDoorStep(); return;
-    }
     if (doorPage === "list"){
-      if (!state.doorList.length){ doorPage = "count"; renderDoorStep(); return; }
       var bad = doorsReady();
       if (bad){ toast(bad.designed === false ? __("Hannaðu {hu} fyrst — smelltu á Hanna.", { hu:doorHuLabel(bad) }) : __("Veldu rými fyrir {hu}.", { hu:doorHuLabel(bad) })); return; }
       doorPage = "review"; renderDoorStep(); return;
@@ -12833,32 +12815,21 @@
       '<option value="' + KPDOORS.OTHER + '"' + (d.room === KPDOORS.OTHER ? ' selected' : '') + '>' + __("Annað") + '</option></select>' +
       (d.room === KPDOORS.OTHER ? '<input type="text" class="hd-room-other" data-droomother="' + i + '" maxlength="40" value="' + escapeHtmlPro(d.roomOther || "") + '" placeholder="' + __("Hvaða rými?") + '">' : '');
   }
-  function countDoorsHtml(n){ return Array.from({ length:Math.min(n, 12) }, function(_, k){ return '<span>' + icon("door", 30) + '<small>HU-' + (k + 1) + '</small></span>'; }).join("") + (n > 12 ? '<span class="more">+' + (n - 12) + '</span>' : ''); }
-  function countRefresh(typing){ // the count page without rebuilding it (the input keeps focus; the − + never move)
-    var n = Math.max(1, Math.min(30, doorCount | 0)), ci = document.getElementById("hdCountIn"); if (!ci) return;
-    if (!typing) ci.value = n;
-    document.querySelector('#hdBody [data-dcount="-1"]').disabled = n <= 1; document.querySelector('#hdBody [data-dcount="1"]').disabled = n >= 30;
-    document.querySelector("#hdBody .hd-count-word").textContent = plural(n, "hurð", "hurðir");
-    document.querySelector("#hdBody .hd-count-doors").innerHTML = countDoorsHtml(n);
+  function designedDoors(){ return (state.doorList || []).filter(function(x){ return x.designed !== false; }); } // the empty HU-1 a fresh list starts with doesn't count as work
+  function ensureFirstDoor(){ // the list always has at least one row (HU-1) to start from
+    state.doorList = state.doorList || [];
+    if (!state.doorList.length){ var nd = newListDoor(); nd.designed = false; nd.room = ""; state.doorList.push(nd); save(); }
   }
   function renderDoorStep(){
     var body = document.getElementById("hdBody"), nb = document.getElementById("hdNextBtn"), html = "";
     document.getElementById("hdSteps").hidden = true;
-    if (!doorPage) doorPage = (state.doorList || []).length ? "list" : "count";
-    if (doorPage !== "count" && !(state.doorList || []).length) doorPage = "count";
-    var T = { count:["Hvað ætlar þú að gera margar hurðir?", "Þú getur bætt við eða fjarlægt hurðir seinna."],
-      list:["Hurðirnar þínar", "Veldu rými fyrir hverja hurð og smelltu á Hanna."],
+    ensureFirstDoor();
+    if (doorPage !== "review") doorPage = "list";
+    var T = { list:["Hurðirnar þínar", "Veldu rými fyrir hverja hurð og smelltu á Hanna."],
       review:["Yfirlit yfir hurðirnar", "Farðu yfir hverja hurð. Málin eru staðfest á staðnum áður en nokkuð er smíðað."] }[doorPage];
     document.getElementById("hdTitle").textContent = __(T[0]); document.getElementById("hdSub").textContent = __(T[1]);
     nb.textContent = doorPage === "review" ? (state.home ? __("Áfram →") : __("Áfram í spurningar →")) : __("Áfram →");
-    if (doorPage === "count"){
-      var n = Math.max(1, Math.min(30, doorCount | 0));
-      html = '<div class="hd-count"><div class="hd-count-ctl"><button type="button" data-dcount="-1" aria-label="' + __("Færri") + '"' + (n <= 1 ? ' disabled' : '') + '>−</button>' +
-        '<input type="number" id="hdCountIn" min="1" max="30" step="1" value="' + n + '" aria-label="' + __("Fjöldi hurða") + '">' +
-        '<button type="button" data-dcount="1" aria-label="' + __("Fleiri") + '"' + (n >= 30 ? ' disabled' : '') + '>+</button></div>' +
-        '<p class="hd-count-word">' + plural(n, "hurð", "hurðir") + '</p>' +
-        '<div class="hd-count-doors" aria-hidden="true">' + countDoorsHtml(n) + '</div></div>';
-    } else if (doorPage === "list"){
+    if (doorPage === "list"){
       html = '<div class="hd-rows">' + state.doorList.map(function(d, i){
         var done = d.designed !== false;
         return '<div class="hd-row' + (done ? ' done' : '') + '"><span class="hd-hu">' + doorHuLabel(d) + '</span>' +
@@ -12882,7 +12853,7 @@
       var nn = state.doorList.reduce(function(s2, x){ return s2 + Math.max(1, x.qty | 0); }, 0);
       html += '<p class="hd-prod">' + nn + ' ' + plural(nn, "hurð", "hurðir") + '</p>';
     }
-    if (PRO && doorPage !== "count") html += '<p class="hd-prod">' + state.doorList.map(function(d){ var p = doorProductFor(d); return doorHuLabel(d) + ': ' + (p ? escapeHtmlPro(p.name) : doorProducts ? __("Engin vara fannst fyrir þetta val") : __("Sæki vörur…")); }).join(' · ') + '</p>';
+    if (PRO) html += '<p class="hd-prod">' + state.doorList.map(function(d){ var p = doorProductFor(d); return doorHuLabel(d) + ': ' + (p ? escapeHtmlPro(p.name) : doorProducts ? __("Engin vara fannst fyrir þetta val") : __("Sæki vörur…")); }).join(' · ') + '</p>';
     if (renderDoorStep.lastPage !== doorPage) dropToast();
     renderDoorStep.lastPage = doorPage;
     var keep = body.querySelector(".hd-rows"), top = keep ? keep.scrollTop : 0;
@@ -12893,7 +12864,6 @@
     var b = e.target.closest("button"); if (!b) return;
     var ds = b.dataset;
     if (ds.dcopy != null || ds.ddel != null || ds.dadd || ds.dhanna != null) dropToast();
-    if (ds.dcount){ var ci = document.getElementById("hdCountIn"); if (ci) doorCount = parseInt(ci.value, 10) || doorCount; doorCount = Math.max(1, Math.min(30, (doorCount | 0) + +ds.dcount)); countRefresh(); return; }
     if (ds.dhanna != null){ openDoorWiz(+ds.dhanna); return; }
     if (ds.dadd){ var nd = newListDoor(); nd.designed = false; nd.room = ""; state.doorList.push(nd); save(); renderDoorStep(); var r = document.querySelector("#hdBody .hd-rows"); if (r) r.scrollTop = r.scrollHeight; return; }
     if (ds.dcopy != null){ var i = +ds.dcopy, c = JSON.parse(JSON.stringify(state.doorList[i])); c.id = newListDoor().id; c.hu = nextHuKey(); c.room = ""; delete c.roomOther; // the same door in another room: pick it (user, round 2)
@@ -12908,16 +12878,11 @@
   });
   document.getElementById("hdBody").addEventListener("change", function(e){
     var t = e.target, ds = t.dataset;
-    if (t.id === "hdCountIn"){ doorCount = Math.max(1, Math.min(30, parseInt(t.value, 10) || 1)); countRefresh(); return; }
     if (ds.droom != null){ var d = state.doorList[+ds.droom]; d.room = t.value; save(); renderDoorStep(); if (t.value === KPDOORS.OTHER){ var o = document.querySelector('#hdBody [data-droomother="' + ds.droom + '"]'); if (o) o.focus(); } return; }
   });
   document.getElementById("hdBody").addEventListener("input", function(e){
     var t = e.target;
-    if (t.id === "hdCountIn"){ var v = parseInt(t.value, 10); if (v >= 1 && v <= 30){ doorCount = v; countRefresh(true); } return; }
     if (t.dataset.droomother != null){ state.doorList[+t.dataset.droomother].roomOther = t.value.slice(0, 40); save(); }
-  });
-  document.getElementById("hdBody").addEventListener("keydown", function(e){
-    if (e.target.id === "hdCountIn" && e.key === "Enter"){ doorCount = Math.max(1, Math.min(30, parseInt(e.target.value, 10) || 1)); doorNext(); }
   });
   document.getElementById("hdBackBtn").addEventListener("click", doorBack);
   document.getElementById("hdNextBtn").addEventListener("click", doorNext);
@@ -13164,7 +13129,7 @@
   function homeHasUnits(){
     var any = false;
     withEachCategory(function(){ if (cabinetTotal() > 0) any = true; });
-    return any || !!(state.doorList || []).length;
+    return any || designedDoors().length > 0;
   }
   function openHome(){
     state.home = state.home || { rooms:{} };
@@ -14026,7 +13991,7 @@
       var st = cd.plain ? (done ? __("Teiknað") : __("Ekki byrjað")) : n ? n + ' ' + plural(n, "eining", "einingar") : b && b.closed ? __("Rýmið teiknað, engar einingar enn") : __("Ekki byrjað");
       return { key:k, icon:cd.plain ? "ibud" : cd.key, type:__((HL_TYPES.find(function(x){ return x.t === cd.key; }) || cd).label), st:st, done:done, started:!!(b && b.closed) };
     });
-    if (hlHasDoors()){ var nd = (state.doorList || []).reduce(function(s2, d){ return s2 + Math.max(1, d.qty | 0); }, 0);
+    if (hlHasDoors()){ var nd = designedDoors().reduce(function(s2, d){ return s2 + Math.max(1, d.qty | 0); }, 0);
       rows.push({ key:"hurdir", icon:"hurdir", type:__("Innihurðir"), st:nd ? nd + ' ' + plural(nd, "hurð", "hurðir") : __("Engin hurð enn"), done:nd > 0, started:nd > 0 }); }
     if (!rows.length && !hlAdd) hlStartForm(); // first visit: the form is already open, the usual room picked
     var html = '<div class="home-list">' + (rows.length ? '<div class="hl-rows">' + rows.map(function(r){
@@ -14088,7 +14053,7 @@
     var host = document.getElementById("studioCards"); if (!host) return;
     var q = state.categoryQueue || [];
     host.innerHTML = STUDIO_ROOMS.map(function(r){
-      var has = r.key === "ibud" ? !!state.home : r.key === "hurdir" ? !!(state.doorList && state.doorList.length) : q.indexOf(r.key) >= 0 && (r.key === state.activeCategory ? !!state.closed : !!((state.categoryData || {})[r.key] || {}).closed);
+      var has = r.key === "ibud" ? !!state.home : r.key === "hurdir" ? designedDoors().length > 0 : q.indexOf(r.key) >= 0 && (r.key === state.activeCategory ? !!state.closed : !!((state.categoryData || {})[r.key] || {}).closed);
       return '<button type="button" class="studio-card' + (has ? ' has' : '') + '" data-studio="' + r.key + '"' + (r.soon ? ' disabled' : '') + '><span class="ic">' + icon(r.key, 26) + '</span><b>' + __(r.label) + '</b><small>' + __(r.desc) + '</small>' +
         '<span class="go">' + (r.soon ? __('Væntanlegt') : has ? __('Halda áfram →') : __('Byrja →')) + '</span></button>';
     }).join("");
