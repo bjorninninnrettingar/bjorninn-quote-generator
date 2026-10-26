@@ -77,10 +77,18 @@
   .lbl:hover rect { stroke:var(--blue); }
   .drag { cursor:ns-resize; }
   .inl { position:absolute; width:72px; z-index:5; }
-  .cncv { width:100%; height:100%; overflow:auto; padding-top:34px; }
-  .cncfiles { display:flex; gap:6px; margin-bottom:10px; }
-  .cncfiles button { font-size:12px; padding:5px 10px; border-radius:7px; background:#e8e8ed; }
-  .cncfiles button.on { background:var(--text); color:#fff; }
+  .cncv { width:100%; height:100%; overflow:auto; padding-top:40px; }
+  .cncrow { display:flex; gap:16px; justify-content:center; align-items:flex-start; flex-wrap:wrap; }
+  .cncrow .bpp-card { flex:0 1 auto; max-width:100%; }
+  .cncrow .bpp-card:not(.bpp-calm) { flex:1 1 100%; }
+  .cnccap { display:flex; gap:16px; justify-content:center; margin-top:12px; font-size:12px; color:var(--muted); }
+  .cnccap span { display:inline-flex; align-items:center; gap:6px; }
+  .cnccap i { display:inline-block; }
+  .cnccap .ci { width:9px; height:9px; border-radius:50%; border:1.6px solid var(--text); }
+  .cnccap .cs { width:4px; height:4px; border-radius:50%; background:var(--text); box-shadow:6px 0 0 var(--text); margin-right:6px; }
+  .cnccap .cf { width:14px; height:2px; background:var(--text); }
+  .cnccap .cr { width:14px; height:1.4px; background:#8e8e93; }
+  .cnccap .cb { color:var(--blue); }
 
   /* panel */
   .panel { border-left:1px solid var(--line); background:var(--surface); display:flex; flex-direction:column; min-height:0; }
@@ -481,18 +489,27 @@
   function toSpec(pos, len) { return pos.sort(function (a, b) { return a - b; }).map(function (x) { x = Math.round(x); return x <= len / 2 ? { from: "bottom", mm: x } : { from: "top", mm: Math.round(len - x) }; }); }
   function ensureDoors(c, e) { if (!e.doors) e.doors = (c.base.doors || []).map(function (d, k) { return { type: "hinged", hinges: M.hingeSpec(c, e, k) }; }); }
 
-  // CNC-hlið: the side files exactly as /cnc writes them (stand-in master), drawn by cnc-bpp.js
+  // CNC-hlið: the side files exactly as /cnc writes them (stand-in master) in cnc-bpp.js's calm view — hinge holes,
+  // shelf-pin rows, fixed shelves, runners; blue = set here by hand. "Tæknilegt" on each opens the full BiesseWorks card.
+  function handSet(c, e) {
+    var same = function (a, b) { return JSON.stringify((a || []).map(function (x) { return Math.round(x.mm); }).sort()) === JSON.stringify((b || []).map(function (x) { return Math.round(x.mm); }).sort()); };
+    return { hinge: !!e.doors, inner: !!e.inner && !same(e.inner, M.defaultInner(c)),
+      shelf: e.oven ? !same(e.oven.shelves, M.ovenLayout(c, e.oven.h, e.oven.under)) : !!e.shelves && !same(e.shelves, M.defaultShelves(c)) };
+  }
   function drawSide(c, p, box) {
     var wrap = document.createElement("div"); wrap.className = "cncv"; box.appendChild(wrap);
     if (p.status === "stop" || p.status === "skip") { wrap.innerHTML = '<div class="msg"><p>' + esc((p.stop || []).join(" · ") || "Engin hlið.") + "</p></div>"; return; }
-    var files = SD.sideFiles(p); if (cncFile >= files.length) cncFile = 0;
-    var bar = document.createElement("div"); bar.className = "cncfiles";
-    bar.innerHTML = files.map(function (f, i) { return '<button type="button" class="' + (i === cncFile ? "on" : "") + '" data-cncfile="' + i + '">' + esc(f.name) + " ×" + f.count + "</button>"; }).join("");
-    wrap.appendChild(bar);
-    var f = files[cncFile], r = SD.renderSide(MASTER, f.plan);
-    var card = BPP.buildCard({ name: c.sk + " · " + f.name + ".bpp" }, r.text, null, null);
-    var rm = card.querySelector(".bw-titlebar .remove"); if (rm) rm.remove();
-    wrap.appendChild(card);
+    var files = SD.sideFiles(p), acc = handSet(c, ed(c)), maxH = Math.max(260, (box.clientHeight || 700) - 200);
+    var row = document.createElement("div"); row.className = "cncrow"; wrap.appendChild(row);
+    files.forEach(function (f) {
+      var r = SD.renderSide(MASTER, f.plan);
+      var card = BPP.buildCard({ name: f.name + (f.count > 1 ? " ×" + f.count : "") }, r.text, null, null, { accent: acc, maxH: maxH, maxW: files.length > 1 ? 260 : 360, view: "calm" });
+      var rm = card.querySelector(".bw-titlebar .remove"); if (rm) rm.remove();
+      row.appendChild(card);
+    });
+    var cap = document.createElement("div"); cap.className = "cnccap";
+    cap.innerHTML = '<span><i class="ci"></i>Löm</span><span><i class="cs"></i>Hillugöt</span><span><i class="cf"></i>Föst hilla</span><span><i class="cr"></i>Skúffubraut</span><span class="cb">Blátt = stillt hér</span>';
+    wrap.appendChild(cap);
   }
 
   // ── panel: what's still open, then everything else as quiet lines ────────────────────────────
