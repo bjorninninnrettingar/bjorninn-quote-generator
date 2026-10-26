@@ -394,3 +394,22 @@ test("Fataslá: magn in Pöntunarlisti disagreeing with Smíða's own rail count
   });
   assert.ok(p.check.some((c) => /magn í Pöntunarlista \(2\) og staðsetningar í Smíða \(1\)/.test(c)));
 });
+
+// T-32 Sk6 (2026-10-26): a 1200 mm Efri skápur is ONE opening in Smíða/Smíðagögn (doors:[1], hinge "baedi") while
+// Sögunarlisti has two 597 mm "Frontur vænghurð" leaves — /cnc must pair them: the designer's hinges on that one
+// opening, drilled on BOTH sides (one "lamir báðum megin" file ×2), and the door-front file run ×2 (one per leaf).
+test("wide wall cabinet: one Smíðagögn door = two leaves, designer hinges on both sides, front ×2", () => {
+  const rows = [row("Skápur hlið", 1000, 283, 16, 2), row("Frontur vænghurð", 997, 597, 19, 2), row("Laus hilla", 258, 1168, 16, 2)];
+  const smida = JSON.stringify({ v: 1, w: 1200, h: 1000, d: 300, hinge: "baedi", ready: true,
+    shelves: { loose: 2, list: [{ mm: 333, fixed: false, pos: 3 }, { mm: 666, fixed: false, pos: 3 }] },
+    doors: [{ h: 997, type: "hinged", side: null, hinges: [{ from: "bottom", mm: 100 }, { from: "top", mm: 120 }] }] });
+  const p = S.unitPlan("Sk6 | LEF100 | H2", rows, { unitHeight: 1000, smida });
+  assert.equal(p.doors.length, 1);
+  assert.ok(p.info.includes("Lamir úr hönnuði (Smíðagögn)"));
+  assert.deepEqual(ops(p).filter((x) => x.startsWith("LOM")), ['LOM: 100, 37, "2"', 'LOM: 120, 37, "3"']);
+  assert.equal(p.hingeSide, "baedi");
+  assert.deepEqual(S.sideFiles(p).map((f) => [f.name, f.count]), [["Hliðar - lamir báðum megin", 2]]);
+  assert.deepEqual(p.fronts.map((f) => [f.name, f.count, f.LPY, f.ops.map((o) => o.params)]),
+    [["Frontur vænghurð 997", 2, 597, ['99, 0, "2"', '119, 0, "3"']]]);
+  assert.ok(!p.check.some((c) => /passa ekki|hurðir í hönnuði/.test(c)));
+});

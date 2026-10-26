@@ -108,3 +108,42 @@ Ruglar:
   and never sent from localhost or an automated browser (`navigator.webdriver`).
 
 Not done (optional smáatriði): A9, A11, A12, B2–B4, B6, C3, C5, D1, D2, D4, E2.
+
+## PRO → CNC round (2026-10-26)
+
+Tested locally on T-32 at 1440×900 with the read-only server (every non-GET `/api` call blocked).
+
+- **Smíða "Hlið · CNC" tab** (item 3). Tabs "Framhlið | Hlið · CNC" above the drawing (`peView`). The side view runs
+  the cabinet's current Smíðagögn (`smidaFor`) through the SAME code /cnc exports with: `proCncRows` turns it into the
+  Sögunarlisti rows ÚRVINNSLA would cut (side, "Skúffufrontur X - Merivo/Legra", "Frontur" / "Frontur vænghurð" ×2 /
+  "Skiptur frontur N", Laus/Föst hilla counts, inner drawer fronts) → `CNCSIDES.unitPlan` → `sideFiles` →
+  `renderSide` (stand-in master `PRO_CNC_MASTER`, so macros sit before STAT_BLOCK — same drilling, not the master's
+  order) → `CNCBPP.buildCard` (cnc-bpp.js, lazy-loaded on first use so the customer planner never fetches it). Shows
+  one card per side file (e.g. "Vinstri hlið - lamir ×1" + "Hægri hlið ×1"), /cnc's own ⛔/⚠ notes, and the front
+  files under "Frontar". No geometry is duplicated; sizes are the drawing's (the real file uses Sögunarlisti, and /cnc
+  flags > 20 mm differences). The side box takes exactly the drawing's size (scrolls inside), so nothing on the
+  right moves between tabs.
+- **Wide door cabinets = two leaves** (item 4, T-32 Sk6 Efri skápur 1200). Checked against the real T-32 data
+  first: Sögunarlisti has "Frontur vænghurð 997 × 597" ×2; /cnc pairs them as one opening ("Vænghurð"), drills the
+  hinges in both sides ("Hliðar - lamir báðum megin" ×2) and writes the door-front file ×2 — **export was right, only
+  the drawing was wrong**. Smíða now draws two leaves (each its own hinges, title says which side); both leaves share
+  the opening's hinge heights (one side file run ×2), so dragging a marker on either moves both, and the door section
+  says so. Regression test in `tests/cnc-sides.test.js` (one Smíðagögn door + two leaves → designer hinges, both sides,
+  front ×2).
+- **After "Klár til framleiðslu"** (item 7). `proRunSkipulag` now checks the PATCH responses, then `proWatchSkipulag`
+  polls Line Items (read-only, backoff 4 → 15 s, gives up after 5 min with what's still waiting + "Athuga aftur").
+  Keyra skipulag 📝 stamps `Síðast samstillt timestamp` (unix s) on every line it wrote, last of all, so done = a line
+  stamped since the run started, none left "⚠️ Breytt eftir stofnun", same count two polls in a row (or nothing to do
+  after 75 s). Then it counts Sögunarlisti and names units with no Sögunarlisti rows ("keyrðu Yfirfara á þeim") —
+  Keyra skipulag itself only makes Eyðublöð; Sögunarlisti comes from Yfirfara 3.0 per unit. The Yfirferð panel always
+  has the status line + **"Opna CNC-útflutning →"** (`/cnc?recordId=…&k=…`, new tab) in the same place; the locked bar
+  got a **CNC** button. Proxy: Line Items' `🔑`, `Eyðublað búið til ✏️`, `⚠️ Breytt eftir stofnun`,
+  `Síðast samstillt timestamp` readable behind VERK_KEY. The real run was not exercised (writes are blocked locally):
+  the watcher was driven with stubbed Line Item responses in the page (first poll stale, then stamped) against the real
+  Sögunarlisti read → "Skipulag keyrt ✓ · 13 Eyðublöð uppfærð · Sögunarlisti 90 hlutir", and with an empty Sögunarlisti
+  → "13 einingar án Sögunarlista (Sk1, …)".
+
+Found, not changed: Keyra skipulag sets "Tveir frontar" on an **Efriskápur from 500 mm** (`width >= 500`, other units
+`> 600`), but Smíða / the 3D / `smidaFor`'s `hinge` use **> 600** everywhere. A 500–600 mm wall cabinet would get two
+leaves in Sögunarlisti while Smíðagögn says hinges on one side only → /cnc would drill hinges in one side for two
+leaves. T-32 has none in that range; needs a decision on which rule is right.

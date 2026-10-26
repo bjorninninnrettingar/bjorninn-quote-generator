@@ -1275,6 +1275,13 @@
   #proCheck .pc-ready { background:#1f9d55; border-color:#1f9d55 !important; color:#fff; }
   #proCheck .pc-ready:disabled { opacity:.4; cursor:not-allowed; }
   #proCheck .pc-note { margin-top:9px; font-size:12px; color:var(--ink-soft); line-height:1.4; }
+  #proCheck .pc-run { margin-top:10px; padding:8px 10px; border-radius:9px; font-size:12.5px; line-height:1.4; background:rgba(127,127,127,.12); color:var(--ink-soft); }
+  #proCheck .pc-run.running { color:var(--ink); }
+  #proCheck .pc-run.done { background:rgba(31,157,85,.16); color:var(--ink); }
+  #proCheck .pc-run.timeout, #proCheck .pc-run.error { background:rgba(224,102,44,.16); color:var(--ink); }
+  #proCheck .pc-recheck { margin-left:4px; padding:2px 8px; border-radius:7px; border:1px solid currentColor; background:transparent; color:inherit; font:600 12px/1.3 inherit; cursor:pointer; }
+  #proCheck .pc-cnc { display:block; margin-top:8px; padding:9px 10px; border-radius:10px; border:1px solid var(--line); text-align:center; font:700 13.5px/1.2 inherit; color:var(--ink); text-decoration:none; }
+  #proCheck .pc-cnc:hover { border-color:var(--blue); }
 
   /* Studio mynd */
   #studioOv{ position:fixed; inset:0; z-index:90; background:rgba(12,15,20,.72); display:flex; align-items:center; justify-content:center; }
@@ -1532,6 +1539,38 @@
   /* the drawing stays put while the controls scroll past it (user, 2026-10-16) — sticky inside .pe-card's own scroll */
   #proEd .pe-img { position:sticky; top:0; align-self:start; }
   #proEd .pe-content { min-width:0; }
+  /* Smíða drawing tabs + "Hlið · CNC" (2026-10-26): the cnc-bpp.js card, same palette as cnc.html's preview */
+  #proEd .pe-tabs { display:flex; gap:4px; margin-bottom:8px; }
+  #proEd .pe-tab { flex:1; border:1px solid #cfd4da; background:#fff; color:#1b1f24; border-radius:8px; padding:6px 10px; cursor:pointer; font:600 13px/1.2 inherit; font-family:inherit; }
+  #proEd .pe-tab.on { background:#1b1f24; color:#fff; border-color:#1b1f24; }
+  #proEd .pe-side { min-width:0; overflow:auto; box-sizing:border-box; padding-right:4px; display:flex; flex-direction:column; gap:10px;
+    --bw-title1:#5c4a2e; --bw-title2:#9c8a6b; --bw-chrome:#d6d3c6; --bw-chrome-dark:#9b9686; --bw-list-bg:#e2dfd2; --bw-row-line:#cac6b6;
+    --bw-canvas:#eeede6; --bw-ink:#333; --bw-teal:#2f7f6a; --bw-pill:#c3d3e1; --bw-pill-ink:#4f7294; --bw-font:Tahoma,"Segoe UI",Verdana,sans-serif; }
+  #proEd .pe-cnc { display:flex; flex-direction:column; gap:10px; }
+  #proEd .pe-side > *, #proEd .pe-cnc > * { flex:none; }
+  #proEd .pe-side svg { background:none; border-radius:0; max-width:100%; height:auto; }
+  #proEd .pe-side .bw-window { background:var(--bw-chrome); border:1px solid var(--bw-chrome-dark); border-radius:5px; overflow:hidden; }
+  #proEd .pe-side .bw-titlebar { background:linear-gradient(180deg, var(--bw-title1), var(--bw-title2)); color:#f3ecdd; padding:5px 8px; display:flex; align-items:center; gap:8px; font-family:var(--bw-font); }
+  #proEd .pe-side .bw-titlebar .ttl { font-size:12px; font-weight:700; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #proEd .pe-side .bw-titlebar .remove, #proEd .pe-side .bw-list { display:none; }
+  #proEd .pe-side .bpp-chip { font-size:10px; font-weight:800; padding:2px 8px; border-radius:3px; background:#ffffffcc; color:#4a3c22; }
+  #proEd .pe-side .bw-canvas-wrap { background:var(--bw-canvas); padding:10px; display:flex; justify-content:center; }
+  #proEd .pe-side .bpp-legend { display:flex; gap:12px; flex-wrap:wrap; padding:6px 10px 8px; font-size:11px; color:#5c5848; background:var(--bw-chrome); font-family:var(--bw-font); }
+  #proEd .pe-side .bpp-legend span { display:inline-flex; align-items:center; gap:5px; }
+  #proEd .pe-side .bpp-legend i { width:10px; height:10px; border-radius:3px; display:inline-block; }
+  #proEd .pe-side .bpp-note { margin-top:6px; font-size:12px; border-radius:8px; padding:6px 10px; background:#eef6ee; color:#2d6a3e; }
+  #proEd .pe-side .bpp-note.warn { background:#fff6dc; color:#8a5a00; }
+  #proEd .pe-side .bpp-note.err { background:#fde8e5; color:#a3271a; }
+  #proEd .pe-side .bpp-raw { margin-top:4px; font-size:12px; color:#5b6470; }
+  #proEd .pe-side .bpp-raw summary, #proEd .pe-cnc-fronts summary { cursor:pointer; font-weight:700; font-size:12.5px; color:#5b6470; }
+  #proEd .pe-side .bpp-rawlist { font:11px/1.5 ui-monospace,Menlo,monospace; max-height:180px; overflow:auto; background:#f4f5f7; border-radius:6px; padding:6px 8px; margin-top:4px; }
+  #proEd .pe-side .bpp-rawlist .off { opacity:.45; }
+  #proEd .pe-cnc-fronts { display:flex; flex-direction:column; gap:10px; }
+  #proEd .pe-cnc-fronts[open] > .bpp-card { margin-top:8px; }
+  #proEd .pe-cnc-note { font-size:12.5px; line-height:1.4; border-radius:8px; padding:7px 10px; background:#f4f5f7; color:#3b4652; }
+  #proEd .pe-cnc-note.warn { background:#fff6dc; color:#7a5200; }
+  #proEd .pe-cnc-note.warn div { margin-top:3px; }
+  #proEd .pe-cnc-note.err { background:#fde8e5; color:#a3271a; font-weight:600; }
   #proEd h3 { margin:0 0 4px; font-size:18px; }
   #proEd .pe-sub { color:#5b6470; font-size:13px; margin-bottom:12px; }
   #proEd svg { background:#f4f5f7; border-radius:12px; touch-action:none; user-select:none; }
@@ -1589,6 +1628,12 @@
   body.pro #proEd .pe-mal{ border-color:var(--line); }
   body.pro #proEd .pe-btn, body.pro #proEd .pe-row input{ background:var(--card); color:var(--ink); border-color:var(--line); }
   body.pro #proEd .pe-btn.on{ background:var(--blue); color:#fff; border-color:var(--blue); }
+  body.pro #proEd .pe-tab{ background:var(--card); color:var(--ink); border-color:var(--line); }
+  body.pro #proEd .pe-tab.on{ background:var(--blue); color:#fff; border-color:var(--blue); }
+  body.pro #proEd .pe-side .bpp-raw, body.pro #proEd .pe-side .bpp-raw summary, body.pro #proEd .pe-cnc-fronts summary{ color:var(--ink-soft); }
+  body.pro #proEd .pe-cnc-note{ background:var(--card); color:var(--ink); }
+  body.pro #proEd .pe-cnc-note.warn{ background:#3a2f17; color:#ffd88a; }
+  body.pro #proEd .pe-cnc-note.err{ background:#3a1f1b; color:#ffb4a6; }
 </style>
 </head>
 <body>
@@ -14527,7 +14572,71 @@
     return "";
   }
   var peCollapsed = {}; // Smíða section collapse state, by position — reset per cabinet (positions are stable within one cabinet's own set of sections)
-  function openBoxEditor(id){ proEdId = id; peCollapsed = {}; renderBoxEditor(); }
+  var peView = "front"; // Smíða drawing tab: "front" (the editable elevation) or "side" (what /cnc drills in the sides)
+  function openBoxEditor(id){ proEdId = id; peCollapsed = {}; peView = "front"; renderBoxEditor(); }
+  // ---- Smíða "Hlið · CNC" (2026-10-26): the side drilling /cnc would write, BEFORE Keyra skipulag ----
+  // No geometry here: the cabinet's own Smíðagögn (smidaFor) is turned into the Sögunarlisti rows ÚRVINNSLA would
+  // cut (side, drawer fronts, doors/leaves, shelves, inner drawer fronts — names as /cnc's kind() reads them), and
+  // those go through the SAME cnc-sides.js unitPlan → sideFiles → renderSide that /cnc exports with, then the SAME
+  // cnc-bpp.js card /cnc and /bpp draw a written file with. Only the master is a stand-in (no USB stick here), so
+  // every generated macro lands before STAT_BLOCK — the drilling is identical, just not in the master's order.
+  // Sizes are the drawing's (real cut sizes come from ÚRVINNSLA; a few mm can differ — /cnc flags > 20 mm).
+  var PRO_CNC_MASTER = ["[VARIABLES]", "PAN=LPX|0||4|", "PAN=LPY|0||4|", "PAN=LPZ|0||4|", "", "[PROGRAM]",
+    '@ STAT_BLOCK, "", "", 100000001, "", 0 : 0, LPY+100, 1', "", "[VBSCRIPT]"].join("\r\n");
+  function proCncRows(b, c, zone, o){
+    var sys = drawerSys() === "legra" ? "Legra" : "Merivo", rows = [];
+    var teg = c.oven ? "Ofnaskápur" : c.label;
+    function row(partur, H, B, T, M){ rows.push({ Partur:partur, H:Math.round(H * 10) / 10, B:Math.round(B * 10) / 10, "Þ":T, M:M, "Tegund einingu":[teg] }); }
+    row((c.cls === "tall" ? "Hár" : "Skápur") + " hlið", o.h, Math.max(50, o.d - 17), 16, 2);
+    (o.fronts || []).forEach(function(f){ // bottom → top, mm = slot, the front is 3 mm less
+      if (f.code === "fast") row("Frontur", f.mm - 3, o.w - 3, 19, 1);
+      else row("Skúffufrontur " + f.code + " - " + sys, f.mm - 3, o.w - 3, 19, 1);
+    });
+    var doors = proDoorsOf(b, c, zone), wide = b.widthMm > 600 && !c.fridge && c.cls !== "corner";
+    doors.forEach(function(d, i){
+      var name = o.split ? "Skiptur frontur " + (i + 1) : wide ? "Frontur vænghurð" : c.oven ? "Frontur f. ofan ofn" : "Frontur";
+      row(name, d.box - 3, wide ? b.widthMm / 2 - 3 : b.widthMm - 3, 19, wide ? 2 : 1);
+    });
+    var sl = o.oven && o.oven.shelves ? o.oven.shelves : o.shelves && o.shelves.list ? o.shelves.list : null;
+    if (sl){
+      var nF = sl.filter(function(x){ return x.fixed; }).length;
+      if (sl.length - nF) row("Laus hilla", 258, b.widthMm - 32, 16, sl.length - nF);
+      if (nF) row("Föst hilla", 258, b.widthMm - 32, 16, nF);
+    }
+    var inner = c.bur ? KP3D.burDrawersOf(b, drawerSys()) : hasInnerDrawers(b, c) ? KP3D.innerDrawersOf(b, drawerSys()) : [];
+    inner.forEach(function(dd){ row("Innskúffufrontur " + dd.code + " - " + sys + " Skrokkaefni", dd.h, b.widthMm - 38, 16, 1); });
+    return rows;
+  }
+  function proCncPreviewEl(b, c, zone, key){
+    var box = document.createElement("div"); box.className = "pe-cnc";
+    function note(cls, t){ var n = document.createElement("div"); n.className = "pe-cnc-note " + cls; n.textContent = t; box.appendChild(n); return n; }
+    if (!window.CNCBPP){ // loaded on first use — the customer planner never needs it
+      note("info", "Sæki CNC-skoðara…");
+      if (!document.getElementById("cncBppJs")){ var s = document.createElement("script"); s.id = "cncBppJs"; s.src = "cnc-bpp.js";
+        s.onload = function(){ if (peView === "side") renderBoxEditor(); };
+        s.onerror = function(){ box.textContent = "Gat ekki sótt cnc-bpp.js."; }; document.head.appendChild(s); }
+      return box;
+    }
+    if (c.panel || c.shelfStack || c.appliance){ note("info", "Engin hliðarborun — " + c.label.toLowerCase() + " hefur enga skrokkhlið."); return box; }
+    var o = smidaFor(b, c, zone), plan;
+    try{ plan = CNCSIDES.unitPlan((key || "Sk") + " | " + c.label, proCncRows(b, c, zone, o), { unitHeight:o.h, smida:o, grip:o.grip }); }
+    catch(e){ note("err", "Gat ekki reiknað hliðina: " + e.message); return box; }
+    note("info", "Sama og /cnc borar í hliðarnar, reiknað úr teikningunni eins og hún er núna (raunveruleg skrá notar Sögunarlista eftir Keyra skipulag). Hliðin er teiknuð eins og vélin sýnir hana: hæðin lárétt, botninn til vinstri.");
+    (plan.stop || []).forEach(function(t){ note("err", "⛔ " + t); });
+    var checks = (plan.check || []).filter(function(t){ return t.indexOf("Klár til framleiðslu") < 0; });
+    if (checks.length){ var cn = note("warn", ""); cn.innerHTML = "<b>/cnc segir:</b>" + checks.map(function(t){ return "<div>" + escapeHtmlPro(t) + "</div>"; }).join(""); }
+    if (plan.status === "stop" || plan.status === "skip"){ if (plan.status === "skip") note("info", "Engin skrokkhlið í þessari einingu."); return box; }
+    function card(name, p){ var r = CNCSIDES.renderSide(PRO_CNC_MASTER, p); return CNCBPP.buildCard({ name:name }, r.text, null, null); }
+    CNCSIDES.sideFiles(plan).forEach(function(f){ box.appendChild(card(f.name + "  ×" + f.count, f.plan)); });
+    if (plan.fronts && plan.fronts.length){
+      var det = document.createElement("details"); det.className = "pe-cnc-fronts";
+      var sm = document.createElement("summary"); sm.textContent = "Frontar (" + plan.fronts.length + " " + proPl(plan.fronts.length, "skrá", "skrár") + ")"; det.appendChild(sm);
+      plan.fronts.forEach(function(f){ det.appendChild(card(f.name + "  ×" + f.count, f)); });
+      (plan.frontCheck || []).forEach(function(t){ var n = document.createElement("div"); n.className = "pe-cnc-note warn"; n.textContent = t; det.appendChild(n); });
+      box.appendChild(det);
+    }
+    return box;
+  }
   function closeBoxEditor(){ proEdId = null; var el = document.getElementById("proEd"); if (el) el.remove(); refreshAfterEdit(); }
   function renderBoxEditor(){
     var fb = proEdId ? findBlock(proEdId) : null;
@@ -14631,8 +14740,12 @@
       // the door's own label: never on top of a shelf / inner drawer label (it sat right on the middle shelf of a
       // 5-shelf tall unit) and never wider than the cabinet (a 600 mm oven tower's "Hurð fyrir ofan ofn" ran over
       // the hinge markers) — 2026-10-26
+      // A wide cabinet (bothHinges) is two leaves side by side, each hung on its own carcass side — the way
+      // Sögunarlisti cuts it ("Frontur vænghurð" ×2) and /cnc drills it (T-32 Sk6, 2026-10-26). Drawn as two leaves;
+      // both share the opening's hinge heights (one side file run ×2), so a marker dragged on either moves both.
+      var leaves2 = bothHinges && sp.type === "hinged", lw = leaves2 ? (W - 6) / 2 : W - 6;
       var dLbl = d.label + " · " + d.box, dFs = 12;
-      if (dLbl.length * 6.6 > W - 14){ dFs = 10; if (dLbl.length * 5.5 > W - 14) dLbl = d.label.split(" ")[0] + " · " + d.box; }
+      if (dLbl.length * 6.6 > lw - 8){ dFs = 10; if (dLbl.length * 5.5 > lw - 8) dLbl = d.label.split(" ")[0] + " · " + d.box; }
       var taken = (shelfOn ? shelfList().map(function(sh){ return sh.mm; }) : []).concat(c.bur || innerOn ? (c.bur ? KP3D.burDrawersOf(b, drawerSys()) : KP3D.innerDrawersOf(b, drawerSys())).map(function(dd){ return dd.mm + dd.h / 2; }) : []);
       var dTopMm = body - (yTop - Y0) / S, dBotMm = dTopMm - d.box, dY = yTop + h / 2;
       if (taken.some(function(mm){ return Math.abs((Y0 + body * S - mm * S) - dY) < 16; })){
@@ -14641,7 +14754,11 @@
           if (room > 34 && (best == null || Math.abs(mid - (dTopMm + dBotMm) / 2) < Math.abs(best - (dTopMm + dBotMm) / 2))) best = mid; }
         if (best != null) dY = Y0 + body * S - best * S + 4;
       }
-      svg += '<rect x="' + (X0 + 3) + '" y="' + (yTop + 1) + '" width="' + (W - 6) + '" height="' + (h - 2) + '" fill="' + (sp.type === "lift" ? "#fff6dc" : sp.type === "pocket" ? "#eaf2ff" : "#eef6ee") + '" stroke="#9aa5b1" rx="2"/>' +
+      var dFill = sp.type === "lift" ? "#fff6dc" : sp.type === "pocket" ? "#eaf2ff" : "#eef6ee";
+      if (leaves2) [0, 1].forEach(function(k){ var lx = X0 + 3 + k * lw;
+        svg += '<rect x="' + (lx + (k ? 1.5 : 0)) + '" y="' + (yTop + 1) + '" width="' + (lw - 1.5) + '" height="' + (h - 2) + '" fill="' + dFill + '" stroke="#9aa5b1" rx="2"/>' +
+          '<text x="' + (lx + lw / 2) + '" y="' + dY + '" text-anchor="middle" font-size="' + dFs + '" fill="#3b4652"><title>' + (k ? "Hægri" : "Vinstri") + ' hurð · ' + d.box + ' mm (lamir ' + (k ? "hægra" : "vinstra") + ' megin)</title>' + dLbl + '</text>'; });
+      else svg += '<rect x="' + (X0 + 3) + '" y="' + (yTop + 1) + '" width="' + (W - 6) + '" height="' + (h - 2) + '" fill="' + dFill + '" stroke="#9aa5b1" rx="2"/>' +
         '<text x="' + (X0 + W / 2) + '" y="' + dY + '" text-anchor="middle" font-size="' + dFs + '" fill="#3b4652"><title>' + d.label + " · " + d.box + ' mm</title>' + dLbl + '</text>';
       if (sp.type === "hinged"){
         var sides = bothHinges ? [true, false] : [hingeLeft];
@@ -14779,7 +14896,8 @@
         });
         right += '<div class="pe-row"><button type="button" class="pe-btn" data-pe="add" data-door="' + i + '">＋ Löm</button>' +
           '<button type="button" class="pe-btn" data-pe="reset" data-door="' + i + '">Sjálfgefið</button></div>' +
-          '<div class="pe-note">Mælt frá enda hurðarinnar: ↓ = frá botni, ↑ = frá toppi (80 mm sjálfgefið, hinar jafnt á milli — sama regla og /cnc). Dragðu bláu punktana á teikningunni.</div>';
+          '<div class="pe-note">Mælt frá enda hurðarinnar: ↓ = frá botni, ↑ = frá toppi (80 mm sjálfgefið, hinar jafnt á milli — sama regla og /cnc). Dragðu bláu punktana á teikningunni.' +
+          (bothHinges ? ' Tvær hurðir hlið við hlið, hvor á sinni hlið: báðar fá þessar lamahæðir (sama hliðarskrá ×2 á /cnc).' : '') + '</div>';
       }
       right += '</div>';
     });
@@ -14889,7 +15007,13 @@
       : (b.smidaReady ? '<div class="pe-note">Skápnum var breytt eftir að hann var merktur yfirfarinn — yfirfara og merkja aftur.</div>' : '') +
         (issues.length ? '<div class="pe-note">Hnappurinn opnast þegar ⛔ atriðin efst eru löguð.</div>' : '') +
         '<button type="button" class="pe-ready" data-pe="ready" data-v="1"' + (issues.length ? ' disabled title="Lagaðu ⛔ atriðin efst fyrst"' : '') + '>Skápur yfirfarinn ✓</button>';
-    el.innerHTML = '<div class="pe-card"><div class="pe-img">' + svg + malHtml + '</div><div class="pe-content">' + right + '</div></div>';
+    var side = peView === "side";
+    var tabs = '<div class="pe-tabs"><button type="button" class="pe-tab' + (side ? "" : " on") + '" data-pe="view" data-v="front">Framhlið</button>' +
+      '<button type="button" class="pe-tab' + (side ? " on" : "") + '" data-pe="view" data-v="side" title="Götin sem /cnc borar í hliðarnar (hillur, brautir, lamir)">Hlið · CNC</button></div>';
+    el.innerHTML = '<div class="pe-card"><div class="pe-img">' + tabs + '<div class="pe-front"' + (side ? " hidden" : "") + '>' + svg + '</div>' +
+      // the side view takes exactly the drawing's box (scrolls inside), so nothing moves when the tab changes
+      (side ? '<div class="pe-side" style="width:' + (W + 210) + 'px;height:' + (body * S + 80) + 'px"></div>' : '') + malHtml + '</div><div class="pe-content">' + right + '</div></div>';
+    if (side) el.querySelector(".pe-side").appendChild(proCncPreviewEl(b, c, fb.zone, key));
     var peInt = el.querySelector("#peInterior");
     if (peInt) wireInteriorControls(peInt, fb.wall, fb.zone, b, c); // every change ends in refreshAfterEdit → redraws this editor
     // Collapsible sections (user, 2026-10-15; auto-collapsed by default, 2026-10-17): the whole panel is rebuilt
@@ -14915,6 +15039,7 @@
 
     function act(sel, fn){ el.querySelectorAll(sel).forEach(function(n){ n.addEventListener(n.tagName === "INPUT" ? "change" : "click", function(){ fn(n); }); }); }
     act('[data-pe="close"]', closeBoxEditor);
+    act('[data-pe="view"]', function(n){ if (peView === n.dataset.v) return; peView = n.dataset.v; renderBoxEditor(); });
     act('[data-pe="autohinge"]', function(){ if (!proAutoHinges(b, c, fb.zone)) toast("Fann engan lausan stað — færðu hilluna eða lömina handvirkt."); renderBoxEditor(); });
     act('[data-pe="ready"]', function(n){ proSetReady(b, n.dataset.v === "1"); renderBoxEditor(); });
     var SPLIT_MIN = 150;
@@ -15347,10 +15472,12 @@
         reviewBtn +
         '<button type="button" id="proTilbodToggle"' + (tp.open ? ' class="on"' : "") + '>Tilboð</button>' +
         '<button type="button" id="proWorkDraw" title="2D vinnuteikningar fyrir verkstæðið">Teikningar</button>' +
+        '<button type="button" id="proCnc" title="CNC-útflutningur (/cnc) fyrir þetta verkefni">CNC</button>' +
         '<button type="button" id="proUnlock" class="pb-unlock">Opna til breytinga</button>';
       var ub = el.querySelector("#proUnlock"); if (ub) ub.addEventListener("click", proUnlock);
       var ttb0 = el.querySelector("#proTilbodToggle"); if (ttb0) ttb0.addEventListener("click", proTilbodToggle);
       var wd0 = el.querySelector("#proWorkDraw"); if (wd0) wd0.addEventListener("click", openWorkDrawings);
+      var cn0 = el.querySelector("#proCnc"); if (cn0) cn0.addEventListener("click", function(){ window.open(proCncUrl(), "_blank", "noopener"); });
       var rb0 = el.querySelector("#proReviewed"); if (rb0) rb0.addEventListener("click", proMarkReviewed);
       return;
     }
@@ -15481,7 +15608,11 @@
       }).join("") +
       '<div class="pc-foot"><button type="button" class="pc-save" data-pc="save">Vista í Airtable</button>' +
       '<button type="button" class="pc-ready" data-pc="ready"' + (all ? "" : ' disabled title="Opnast þegar allar línur eru grænar"') + '>Klár til framleiðslu</button></div>' +
-      '<div class="pc-note">Vista geymir drögin hvenær sem er. „Klár til framleiðslu“ vistar og keyrir skipulag (Eyðublöð → Sögunarlisti, Pöntunarlisti, CNC) — eftir það læsist teikningin.' + (proDirty() ? ' <b>● Óvistaðar breytingar.</b>' : '') + '</div>';
+      '<div class="pc-note">Vista geymir drögin hvenær sem er. „Klár til framleiðslu“ vistar og keyrir skipulag (Eyðublöð → Sögunarlisti, Pöntunarlisti, CNC) — eftir það læsist teikningin.' + (proDirty() ? ' <b>● Óvistaðar breytingar.</b>' : '') + '</div>' +
+      // the run's status + the next step (2026-10-26) — always here, same place, so nothing moves when the run ends
+      '<div class="pc-run ' + (pr.phase || "idle") + '"><span class="pc-run-t">' + esc(pr.phase ? pr.text : "Skipulag ekki keyrt héðan í þessari lotu.") + '</span>' +
+        (pr.phase === "timeout" || pr.phase === "error" ? ' <button type="button" class="pc-recheck" data-pc="recheck">Athuga aftur</button>' : '') + '</div>' +
+      '<a class="pc-cnc" href="' + esc(proCncUrl()) + '" target="_blank" rel="noopener">Opna CNC-útflutning →</a>';
     el.onclick = function(e){
       if (e.target.closest("input, label")) return;
       var b = e.target.closest("[data-pc]");
@@ -15489,6 +15620,7 @@
         if (a === "close") proCheckOpen(false);
         else if (a === "save"){ proCheckOpen(false); proSave(); }
         else if (a === "ready") proCheckReady();
+        else if (a === "recheck") proWatchSkipulag(pr.t0 || Math.floor(Date.now() / 1000) - 3600, null);
         return; }
       var row = e.target.closest(".pc-item.todo"); if (row) proCheckFix(items[+row.dataset.pci]);
     };
@@ -15555,15 +15687,79 @@
     proBar("Keyri skipulag…");
     try{
       var path = encodeURIComponent("tbl4LMXlQjp66RFKI/" + PRO.id) + "&k=" + encodeURIComponent(PRO.k);
-      await fetch("/api/airtable?path=" + path, { method:"PATCH", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ fields:{ "🔄 Keyra Skipulag": false } }) });
-      await fetch("/api/airtable?path=" + path, { method:"PATCH", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ fields:{ "🔄 Keyra Skipulag": true } }) });
-      toast("Skipulag keyrt — opnaðu verkefnið aftur til að sjá það læst");
+      var t0 = Math.floor(Date.now() / 1000), base = await proRunSnapshot().catch(function(){ return null; });
+      for (var on = 0; on < 2; on++){ // false → true retriggers the automation
+        var rr = await fetch("/api/airtable?path=" + path, { method:"PATCH", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ fields:{ "🔄 Keyra Skipulag": !!on } }) });
+        if (!rr.ok) throw new Error("HTTP " + rr.status);
+      }
+      toast("Skipulag ræst — Yfirferð sýnir þegar Airtable er búið");
       proBar();
+      proWatchSkipulag(t0, base);
     }catch(e){
       proBar("Tókst ekki að keyra skipulag: " + e.message);
       if (rs) rs.disabled = false;
     }
   }
+  // ---- After "Klár til framleiðslu": did the Airtable run finish? (2026-10-26) ----
+  // Keyra skipulag 📝 is one script: per Line Item it creates/syncs the Eyðublað, then — last of all — stamps
+  // "Síðast samstillt timestamp" (unix s) on every line it wrote. So: done = some line stamped since we started, none
+  // still "⚠️ Breytt eftir stofnun", and the same count on two polls in a row (>50 lines are written in chunks). Only
+  // read-only GETs; backoff 4 s → 15 s, gives up after 5 min with what's still waiting. Sögunarlisti is NOT made by
+  // this script (Yfirfara 3.0 per unit does it), so the line also says which units still have none.
+  var pr = { phase:null, text:"", seq:0 };
+  function proPl(n, one, many){ return n % 10 === 1 && n % 100 !== 11 ? one : many; } // PRO is Icelandic only — not through the translated plural()
+  function proPrefix(){ var m = String(PRO.name || "").match(/^(T-\d+)/); return m ? m[1] : null; }
+  async function proGetAll(table, formula, fields){
+    var qs = ["path=" + encodeURIComponent(table), "k=" + encodeURIComponent(PRO.k), "filterByFormula=" + encodeURIComponent(formula)]
+      .concat(fields.map(function(f){ return "fields%5B%5D=" + encodeURIComponent(f); })), out = [], off = null;
+    do {
+      var r = await fetch("/api/airtable?" + qs.concat(off ? ["offset=" + encodeURIComponent(off)] : []).join("&"), { cache:"no-store" });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      var d = await r.json(); out = out.concat(d.records || []); off = d.offset;
+    } while (off);
+    return out;
+  }
+  async function proRunSnapshot(){
+    var pre = proPrefix(); if (!pre) throw new Error("ekkert T-númer");
+    var lines = await proGetAll("tblFcsUoGxsuUwNEH", 'FIND("' + pre + ' |",ARRAYJOIN({Tækifæri 📣 (projects)}))',
+      ["🔑", "Eyðublað búið til ✏️", "⚠️ Breytt eftir stofnun", "Síðast samstillt timestamp"]);
+    return lines.map(function(r){ var f = r.fields || {}, ey = f["Eyðublað búið til ✏️"] || [];
+      return { key:f["🔑"] || "", ey:ey.length ? (ey[0].id || ey[0]) : null, stale:!!f["⚠️ Breytt eftir stofnun"], ts:+f["Síðast samstillt timestamp"] || 0 }; });
+  }
+  function proRunSet(phase, text){ pr.phase = phase; pr.text = text; pc.open = true; proCheckRender(); }
+  async function proWatchSkipulag(t0, base, startedAt){
+    var seq = ++pr.seq, start = startedAt || Date.now(), prev = -1, tick = 0; pr.t0 = t0;
+    proRunSet("running", "Keyri skipulag í Airtable…");
+    while (seq === pr.seq){
+      await new Promise(function(res){ setTimeout(res, Math.min(15000, 4000 + tick * 2000)); }); tick++;
+      if (seq !== pr.seq) return;
+      var s; try{ s = await proRunSnapshot(); }catch(e){ if (Date.now() - start > 300000){ proRunSet("error", "Gat ekki lesið stöðuna: " + e.message); return; } continue; }
+      var synced = s.filter(function(l){ return l.ts >= t0 - 60; }), stale = s.filter(function(l){ return l.ey && l.stale; });
+      var withEy = s.filter(function(l){ return l.ey; }).length;
+      if (synced.length && !stale.length && synced.length === prev) return proRunDone(s, synced.length);
+      prev = synced.length;
+      var quiet = base && !synced.length && !stale.length && !base.some(function(l){ return l.ey && l.stale; }) &&
+        withEy === base.filter(function(l){ return l.ey; }).length;
+      if (quiet && Date.now() - start > 75000) return proRunDone(s, 0);
+      if (Date.now() - start > 300000){
+        proRunSet("timeout", "Ekki staðfest eftir 5 mín — " + (stale.length ? stale.length + " " + proPl(stale.length, "lína bíður", "línur bíða") + " (" + stale.slice(0, 6).map(function(l){ return l.key; }).join(", ") + ")" : "engin lína uppfærð") +
+          ". Sjá keyrslusögu „Keyra skipulag 📝“ í Airtable.");
+        return;
+      }
+      proRunSet("running", "Keyri skipulag í Airtable… " + synced.length + " af " + s.length + " línum " + (synced.length === 1 ? "uppfærð" : "uppfærðar"));
+    }
+  }
+  async function proRunDone(lines, synced){
+    var pre = proPrefix(), ey = {}, rows = [];
+    lines.forEach(function(l){ if (l.ey) ey[l.ey] = l.key || l.ey; });
+    try{ rows = await proGetAll("tblhdgyvTcBfP8kov", 'FIND("' + pre + ' |",ARRAYJOIN({Tækifæri 📣 (projects)}))', ["Partur", "Eyðublað ✏️"]); }
+    catch(e){ proRunSet("done", "Skipulag keyrt ✓ · Sögunarlisti: gat ekki lesið (" + e.message + ")"); return; }
+    var has = {}; rows.forEach(function(r){ var u = ((r.fields || {})["Eyðublað ✏️"] || [])[0]; if (u) has[u.id || u] = 1; });
+    var none = Object.keys(ey).filter(function(id){ return !has[id]; }).map(function(id){ return ey[id]; }).sort(function(a, z){ return String(a).localeCompare(String(z), "is", { numeric:true }); });
+    proRunSet("done", "Skipulag keyrt ✓ · " + (synced ? synced + " " + proPl(synced, "Eyðublað", "Eyðublöð") + " " + (synced === 1 ? "uppfært" : "uppfærð") : "ekkert breyttist") +
+      " · Sögunarlisti " + rows.length + " hlutir" + (none.length ? " · " + none.length + " " + proPl(none.length, "eining", "einingar") + " án Sögunarlista (" + none.slice(0, 6).join(", ") + ") — keyrðu Yfirfara á " + (none.length === 1 ? "henni" : "þeim") : ""));
+  }
+  function proCncUrl(){ return "/cnc?recordId=" + encodeURIComponent(PRO.id) + "&k=" + encodeURIComponent(PRO.k); }
   // Tilboð panel — the 4 pricing fields Rakel/the owner edit by hand in
   // Airtable today ("þetta eru allt bara fields í line item eða tækifæri
   // sem þú getur séð og sett á tilboðsblað interfacið", user, 2026-10-17),
