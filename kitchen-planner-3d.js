@@ -2176,7 +2176,7 @@
     if (panelBox) panelUV(boxGeo, widthM, bodyH, bodyD, frontMat.userData && frontMat.userData.tile);
     else scaleFrontUV(boxGeo, widthM, bodyH, frontMat.userData && frontMat.userData.tile, false, { u:offsetM, v:bodyBase });
     var useFrontMat = frontMat;
-    if (selected && !wardrobeScene){ // a wardrobe keeps its real door colour — the blue outline (drawOverlay) shows the pick (user, 2026-10-26: "lilac looks like another door colour")
+    if (selected && !outlineSel){ // a wardrobe keeps its real door colour — the blue outline (drawOverlay) shows the pick (user, 2026-10-26: "lilac looks like another door colour")
       useFrontMat = frontMat.clone();
       useFrontMat.emissive = new THREE.Color(SELECT_COLOR);
       useFrontMat.emissiveIntensity = 0.35;
@@ -2538,7 +2538,7 @@
     OV.svg.setAttribute("viewBox", "0 0 " + cr.width + " " + cr.height);
     var v = new (window.__THREE__.Vector3)();
     function P(p){ v.set(p.x, p.y, p.z).project(camera); return { x:(v.x + 1) / 2 * cr.width, y:(1 - v.y) / 2 * cr.height, behind:v.z > 1 }; }
-    var out = selHullSvg(P);
+    var out = selHullSvg(P) + skTagsSvg(P);
     if (SHOW_DIMS) OV.dims.forEach(function(d){ var a = P(d.a), b = P(d.b); if (!a.behind && !b.behind) out += ovLineSvg(a, b, d.text, false); });
     Object.keys(OV.gaps).forEach(function(k){ var g = OV.gaps[k]; if (!g) return; out += ovLineSvg(P(g.a), P(g.b), g.text, g.active); });
     (OV.labels || []).forEach(function(l){ // a call to action on the scene (the empty wardrobe area): a white pill, blue text
@@ -2549,11 +2549,33 @@
     });
     if (out !== OV.last){ OV.svg.innerHTML = out; OV.last = out; }
   }
+  // "Sk-númer" (PRO, 2026-10-26): every ordered cabinet's Sk number on its front, same pill as the dimensions.
+  // KP3D.setSkTags({ blockId:"Sk1", … }) or null; read off the live pickables, so it follows drags and rebuilds.
+  var SK_TAGS = null, skCorner = null;
+  function setSkTags(map){ SK_TAGS = map && Object.keys(map).length ? map : null; if (OV) OV.last = ""; }
+  function skTagsSvg(P){
+    if (!SK_TAGS || !THREE_STATE || !THREE_STATE.pickables) return "";
+    var out = "", seen = {};
+    if (!skCorner) skCorner = new (window.__THREE__.Vector3)();
+    THREE_STATE.pickables.forEach(function(m){
+      var u = m.userData, text = u && SK_TAGS[u.blockId], e = u && u.edgesObj;
+      if (!text || u.isPart || !e || !e.geometry || seen[u.blockId]) return;
+      seen[u.blockId] = 1;
+      if (!e.geometry.boundingBox) e.geometry.computeBoundingBox();
+      var bb = e.geometry.boundingBox; e.updateMatrixWorld();
+      skCorner.set((bb.min.x + bb.max.x) / 2, (bb.min.y + bb.max.y) / 2, bb.max.z).applyMatrix4(e.matrixWorld);
+      var p = P(skCorner); if (p.behind) return;
+      var tw = String(text).length * 7.6 + 16;
+      out += '<rect x="' + (p.x - tw / 2) + '" y="' + (p.y - 11) + '" width="' + tw + '" height="22" rx="11" fill="#fff" stroke="' + OV_DARK + '" stroke-width="1"/>' +
+        '<text x="' + p.x + '" y="' + (p.y + 4.5) + '" text-anchor="middle" font-size="12.5" font-weight="700" font-family="Kumbh Sans, Arial, sans-serif" fill="' + OV_DARK + '">' + text + '</text>';
+    });
+    return out;
+  }
   // the selected wardrobe unit: a blue outline round its silhouette (2.5 px, screen space — a WebGL line is always
   // 1 px and too faint) instead of tinting its doors lilac (user, 2026-10-26)
   var selCorner = null;
   function selHullSvg(P){
-    if (!wardrobeScene || !THREE_STATE || !THREE_STATE.pickables || THREE_STATE.dragging) return "";
+    if (!outlineSel || !THREE_STATE || !THREE_STATE.pickables || THREE_STATE.dragging) return "";
     var m = THREE_STATE.pickables.find(function(x){ return x.userData && x.userData.selected && x.userData.edgesObj && !x.userData.isPart; });
     var e = m && m.userData.edgesObj; if (!e || !e.geometry) return "";
     if (!e.geometry.boundingBox) e.geometry.computeBoundingBox();
@@ -4051,7 +4073,7 @@
       if (cab && cab.items && cab.t > 0){ cab.items.forEach(function(it){ it.o.material = it.orig; }); cab.t = 0; } // back to solid before the material slots are touched
       if (Array.isArray(m.material)){ // cabinet
         if (u.open || u.art){ /* open shelves have NO front: swapping slot 4 for the real front material gave them a door */ }
-        else if (want && !wardrobeScene){
+        else if (want && !outlineSel){
           var c = u.baseFront.clone();
           c.emissive = new THREE.Color(SELECT_COLOR); c.emissiveIntensity = 0.35;
           c.__xrayBase = u.baseFront; // same tag as addCabinetBox's build-time selection clone — setXrayFronts
@@ -4798,9 +4820,13 @@
   // a click that hit nothing (deselect).
   // Fataskápar (user, 2026-10-25): door handles at hand height — set per scene from the room's category
   var wardrobeScene = false;
+  // the selected unit gets the blue outline (selHullSvg) instead of lilac fronts — every customer room (round 2, 2026-10-26:
+  // lilac read as another front colour in the bath too); PRO (darkBg) keeps the tint
+  var outlineSel = false;
   function buildScene(wrap, state, opts){
     opts = opts || {};
     wardrobeScene = /^fataskapar/.test(String(state.activeCategory || "")) || !!state.wardrobe;
+    outlineSel = wardrobeScene || !opts.darkBg;
     handleFinish = handleFinishFor(state.handle, state.handleColor);
     var THREE = window.__THREE__;
     var OrbitControls = window.__OrbitControls__;
@@ -5218,6 +5244,8 @@
         var offset = fStarts[bi];
         var c = CATALOG[b.type];
         var hM = Math.min(b.heightMm || c.h, roomHeightMm) / 1000, dM = (b.depthMm || c.d) / 1000;
+        var hungPanel = !!(c.panel && state.hungUnits && !wall.island); // a bath úthlið hangs with its unit: its height is the box, lifted by the gap
+        if (hungPanel) hM = Math.min(hM + plinthMmW / 1000, roomHeightMm / 1000);
         var selected = opts.selectedId === b.id;
         var inter = b.interior;
         if (c.rusl && !(inter && inter.mode === "skuffur")) inter = { mode:"skuffur", codes:[state.drawerSystem === "merivo" ? "E" : "C"], count:1 }; // old drafts: one tall pull-out
@@ -5237,7 +5265,7 @@
             openMat:c.open ? frontOpenMat : openMat, open:!!c.open, hiddenMat:hiddenMat, drawerSystem:state.drawerSystem, carcassKey:state.carcass,
             warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), ready:!!(opts.readyIds && opts.readyIds.indexOf(b.id) >= 0), doorLimit:DOOR_LIMITS[b.id] || null, shelfBlock:b, wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), heightMm:hM * 1000, elevMm:0, handle:c.appliance ? null : state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0, // tall units: one door unless split in Smíða (2026-10-09)
             splitFr:c.oven || c.fixedFronts ? null : splitFractions(b, hM * 1000 - (c.panel || c.appliance ? 0 : plinthMmW)), // a fridge too, once its split is changed in Smíða
-            plinth:!c.panel && !c.appliance, plinthMm:plinthMmW, appliance:c.appliance || null, leMans:!!c.tofrahornIds, counter:!!c.counter, sink:!!c.sink, tapCeilM:c.sink ? tapCeilingM(wall, offset + b.widthMm / 2) : null, oven:!!c.oven, panel:!!c.panel, plinthMat:plinthMat, stoneMat:stoneMat,
+            plinth:(!c.panel || hungPanel) && !c.appliance, plinthMm:plinthMmW, appliance:c.appliance || null, leMans:!!c.tofrahornIds, counter:!!c.counter, sink:!!c.sink, tapCeilM:c.sink ? tapCeilingM(wall, offset + b.widthMm / 2) : null, oven:!!c.oven, panel:!!c.panel, plinthMat:plinthMat, stoneMat:stoneMat,
             ovenCodes:c.lowOven ? ["M"] : c.oven ? ovenCodesOf(b, state.drawerSystem) : null, fixedFronts:!!c.fixedFronts || !!c.appliance,
             burCodes:c.bur ? burCodesOf(b, state.drawerSystem) : null, dishwasher:!!c.dishwasher,
             lowOven:!!c.lowOven, ovenFrontsMm:c.oven ? b.ovenFrontsMm || null : null, ovenBlock:c.oven ? b : null, ovenCat:c.oven ? c : null,
@@ -5460,13 +5488,27 @@
     if (!focusBounds) camera.position.set(bbox.cx + dist * 0.6, dist * 0.55, bbox.cz + dist * 0.9);
     // Baðherbergi (user, 2026-10-26): start facing the wall the units are on (a corner: both), at a person's height —
     // not the whole empty room from a top corner with a small vanity in the middle
-    var bathAim = null;
+    var bathAim = null, frontAz = null, frontSpan = 0;
+    var unitWallRoom = /^(bad|fataskapar)(:|$)/.test(String(state.activeCategory || ""));
+    if (!focusBounds && !opts.people && unitWallRoom && !opts.darkBg){ // orbit stays in front of the unit wall(s) (round 2: it went behind the wall)
+      var fIdx = (state.walls || []).map(function(w, i){ return i; }).filter(function(i){ var w = state.walls[i]; return geoms[i] && !w.open && ((w.floor || []).length || (w.wall || []).length); });
+      if (!fIdx.length) fIdx = (state.walls || []).map(function(w, i){ return i; }).filter(function(i){ return geoms[i] && !state.walls[i].open; });
+      if (fIdx.length && fIdx.length <= 2){
+        var fnx = 0, fnz = 0; fIdx.forEach(function(i){ fnx += geoms[i].normal.x; fnz += geoms[i].normal.z; });
+        if (Math.hypot(fnx, fnz) > 0.1){ frontAz = Math.atan2(fnx, fnz); frontSpan = fIdx.length > 1 ? 0.75 : 1.3; }
+      }
+    }
     if (!focusBounds && !opts.people && /^bad(:|$)/.test(String(state.activeCategory || "")) && state.hungUnits){
       var bIdx = (state.walls || []).map(function(w, i){ return i; }).filter(function(i){ var w = state.walls[i]; return geoms[i] && !w.open && ((w.floor || []).length || (w.wall || []).length); });
       if (!bIdx.length) bIdx = (state.walls || []).map(function(w, i){ return i; }).filter(function(i){ return geoms[i] && !state.walls[i].open; }).slice(0, 1);
       if (bIdx.length && bIdx.length <= 2){
         var bcx = 0, bcz = 0, bnx = 0, bnz = 0, bLen = 0;
-        bIdx.forEach(function(i){ var g = geoms[i]; bcx += g.origin.x + g.axis.x * g.lenM / 2; bcz += g.origin.z + g.axis.z * g.lenM / 2; bnx += g.normal.x; bnz += g.normal.z; bLen = Math.max(bLen, g.lenM); });
+        bIdx.forEach(function(i){ // frame the units on the wall (round 2: a 80 cm vanity was small in a 250 cm wall's view), else the wall
+          var g = geoms[i], w = state.walls[i], a0 = 0, a1 = g.lenM;
+          var fs = blockStartsMm(w.floor || [], 0), ws = blockStartsMm(w.wall || [], 0), ext = [];
+          (w.floor || []).forEach(function(b, k){ ext.push(fs[k], fs[k] + b.widthMm); }); (w.wall || []).forEach(function(b, k){ ext.push(ws[k], ws[k] + b.widthMm); });
+          if (ext.length){ a0 = Math.min.apply(null, ext) / 1000; a1 = Math.max.apply(null, ext) / 1000; var pad = Math.max(0, (1.4 - (a1 - a0)) / 2); a0 = Math.max(0, a0 - pad); a1 = Math.min(g.lenM, a1 + pad); }
+          var am = (a0 + a1) / 2; bcx += g.origin.x + g.axis.x * am; bcz += g.origin.z + g.axis.z * am; bnx += g.normal.x; bnz += g.normal.z; bLen = Math.max(bLen, a1 - a0); });
         bcx /= bIdx.length; bcz /= bIdx.length; var bnl = Math.hypot(bnx, bnz) || 1; bnx /= bnl; bnz /= bnl;
         var bd = Math.max(2.3, bLen * 0.95 + 0.9) * (bIdx.length > 1 ? 1.2 : 1);
         camera.position.set(bcx + bnx * bd + bnz * bd * 0.22, 1.3, bcz + bnz * bd - bnx * bd * 0.22); // low enough to see the floor under the hung units
@@ -5550,6 +5592,7 @@
     controls.dampingFactor = 0.08;
     if (people) controls.target.set(people.focus.x - people.g.normal.x * 0.6, WALL_H * 0.46, people.focus.z - people.g.normal.z * 0.6);
     if (bathAim) controls.target.set(bathAim.x, bathAim.y, bathAim.z);
+    if (frontAz != null){ controls.minAzimuthAngle = frontAz - frontSpan; controls.maxAzimuthAngle = frontAz + frontSpan; controls.rotateSpeed = 0.45; }
     if (focusBounds){ // "Veggur" view: a fixed architectural elevation, not an orbit — only zoom
       controls.enableRotate = false;
       controls.enablePan = false;
@@ -7306,7 +7349,7 @@
     cornerClearanceMm: cornerClearanceMm, afellaMm: afellaMm, AFELLA_MM: AFELLA_MM,
     blockStartsMm: blockStartsMm,
     planTransform: planTransform,
-    rectCornersWorld: rectCornersWorld, drawerZoneMm: drawerZoneMm, TALL_DRAWER_MAX_MM: TALL_DRAWER_MAX_MM, DRAWER_TOPDOOR_MIN_MM: DRAWER_TOPDOOR_MIN_MM, drawerStackSpaceMm: drawerStackSpaceMm, doorLeaves: doorLeaves, islandFits: islandFits, nearestIslandFit: nearestIslandFit, topThickM: topThickM, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, obstacleRect: obstacleRect, obstacleCorners: obstacleCorners, handleAvailMm: handleAvailMm, tallHandleAvailMm: tallHandleAvailMm, obstacleAng: obstacleAng, setShowDims: setShowDims, showDimsOn: function(){ return SHOW_DIMS; }, DECOR: DECOR, decorKindsFor: decorKindsFor, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
+    rectCornersWorld: rectCornersWorld, drawerZoneMm: drawerZoneMm, TALL_DRAWER_MAX_MM: TALL_DRAWER_MAX_MM, DRAWER_TOPDOOR_MIN_MM: DRAWER_TOPDOOR_MIN_MM, drawerStackSpaceMm: drawerStackSpaceMm, doorLeaves: doorLeaves, islandFits: islandFits, nearestIslandFit: nearestIslandFit, topThickM: topThickM, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, obstacleRect: obstacleRect, obstacleCorners: obstacleCorners, handleAvailMm: handleAvailMm, tallHandleAvailMm: tallHandleAvailMm, obstacleAng: obstacleAng, setShowDims: setShowDims, setSkTags: setSkTags, showDimsOn: function(){ return SHOW_DIMS; }, DECOR: DECOR, decorKindsFor: decorKindsFor, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
     WALL_COLORS: WALL_COLORS,
     WINDOW_DEFAULT: WINDOW_DEFAULT,
     _handleProfile: handleProfile,

@@ -1975,7 +1975,9 @@
     "Hillur á bak við": "Shelves behind",
     "Veggfestur, með handlaug": "Wall-hung, with a basin",
     "Sturta": "Shower",
-    "Baðkar": "Bathtub"
+    "Baðkar": "Bathtub",
+    "Handlaug ofan á": "Basin on top",
+    "Spegilskápur": "Mirror cabinet"
   });
 
   // Innihurðir — count → HU rows → a popup per door → review (2026-10-26)
