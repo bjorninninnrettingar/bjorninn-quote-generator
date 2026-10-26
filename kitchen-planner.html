@@ -3803,6 +3803,15 @@
     });
     return bays;
   }
+  // "Ég raða sjálf/ur" said and nothing placed yet: the wardrobe's brown area(s) for 3D to draw as a "+ add a unit here" target
+  function closetEmptySpans(){
+    if (!isCloset() || PRO || !closetEmpty() || !state.closetFillDeclined) return null;
+    var k = closetShape();
+    return SHAPE_TEMPLATES[k].closetWalls.map(function(i){
+      var w = state.walls[i], sp = closetSpan(i);
+      return w && sp ? { wallId:w.id, wallIndex:i, startMm:sp.start, mm:sp.mm, heightMm:state.closetHeightMm || closetHeightFor(30), depthMm:state.closetDepthMm || 580 } : null;
+    }).filter(Boolean);
+  }
   function closetEmpty(){ var k = closetShape(); return !!k && SHAPE_TEMPLATES[k].closetWalls.every(function(i){ var w = state.walls[i]; return !w || (!w.floor.length && !w.wall.length); }); }
   function fillCloset(){
     if (!isCloset() || !closetEmpty()) return;
@@ -6621,8 +6630,9 @@
       if (k < 1 && KP3D._three() === st) uwAimAnim = requestAnimationFrame(step);
     })(t0);
   }
+  var uwPreferWallId = null, uwPreferSpan = null; // the empty wardrobe area that was clicked: the new unit goes there (its left end)
   function leaveUnitWizard(){
-    cancelAnimationFrame(uwAimAnim);
+    cancelAnimationFrame(uwAimAnim); uwPreferWallId = null; uwPreferSpan = null;
     uwDimCtx = null; var dsv = document.getElementById("uwDims"); if (dsv) dsv.innerHTML = "";
     closeFitAsk();
     KP3D.setAllParts(false); // don't carry the preview's open drawers into the room
@@ -6716,10 +6726,11 @@
       if (state.closetDoors === "engar") b.type = "harskapurOpinn";
       applyClosetRecipe(b, "hengi");
       var free = 0; uwSurfaces(c.zone).forEach(function(w){ freeIntervals(w, c.zone, null, probeSpan(c.zone, b)).forEach(function(iv){ free = Math.max(free, iv[1] - iv[0]); }); });
+      if (uwPreferSpan) free = Math.min(free, uwPreferSpan.mm); // the clicked brown area
       if (free >= c.minW){ b.widthMm = Math.min(CLOSET_BAY_MAX_MM, Math.floor(free / 10) * 10); uw.closetW = b.widthMm; } // the free space, up to one bay
     }
     // default wall: the selected one if it has room, else the first that does
-    var list = uwSurfaces(c.zone), pick = list.find(function(w){ return w.id === selectedWallId && uwFits(w, b); }) || list.find(function(w){ return uwFits(w, b); });
+    var list = uwSurfaces(c.zone), pick = list.find(function(w){ return w.id === (uwPreferWallId || selectedWallId) && uwFits(w, b); }) || list.find(function(w){ return uwFits(w, b); });
     uw.wallId = pick ? pick.id : (list[0] && list[0].id);
     return b;
   }
@@ -7051,6 +7062,7 @@
       var wall = surfaces().find(function(w){ return w.id === uw.wallId; });
       if (!wall) return;
       var pl = appendPlacement(wall, c.zone, b.widthMm, probeSpan(c.zone, b));
+      if (uwPreferSpan && uwPreferSpan.wallId === wall.id && !wall[c.zone].length && b.widthMm <= uwPreferSpan.mm) pl = { fits:true, offsetMm:uwPreferSpan.startMm };
       if (!pl.fits){
         var widest = Math.max.apply(null, [0].concat(freeIntervals(wall, c.zone, null, probeSpan(c.zone, b)).map(function(iv){ return iv[1] - iv[0]; })));
         var fitW = wall.island ? 0 : Math.min(c.maxW, Math.floor(widest / 10) * 10);
@@ -8939,7 +8951,7 @@
 
   var stageEmptyTimer = null, stageEmptyShown = false;
   document.getElementById("cfoYes").addEventListener("click", function(){ fillCloset(); });
-  document.getElementById("cfoNo").addEventListener("click", function(){ state.closetFillDeclined = true; save(); updateEditorChrome(); });
+  document.getElementById("cfoNo").addEventListener("click", function(){ state.closetFillDeclined = true; save(); updateEditorChrome(); renderView(); }); // renderView: the empty area appears in 3D
   function updateEditorChrome(){
     syncDimsUI();
     updateTip();
@@ -8968,7 +8980,7 @@
       }
     }
     offer.hidden = !wantOffer;
-    if (wantOffer){ stageEmpty.hidden = true; return; }
+    if (wantOffer || (isCloset() && !PRO && closetEmpty())){ stageEmpty.hidden = true; return; } // a wardrobe: the area in 3D says "+ Smelltu hér …" instead
     if (total !== 0){
       stageEmpty.hidden = true;
       clearTimeout(stageEmptyTimer); stageEmptyTimer = null; stageEmptyShown = false;
@@ -9128,7 +9140,9 @@
         xray:inspect.on, // inspect mode: every cabinet built in parts (drawers/doors tap open, nothing drags)
         focusWallId:viewMode === "wall" ? wallViewId : null, freshCamera:viewMode === "wall",
         annotations:viewMode === "wall" ? annoForWall : null, annoSelectedId:function(){ return anno.selId; },
-        onWalkChange:syncWalkBtn, coveredRight:panelCoveredPx });
+        onWalkChange:syncWalkBtn, coveredRight:panelCoveredPx,
+        closetEmptySpans:closetEmptySpans(), onClosetSpanClick:function(wallId){
+          uwPreferWallId = wallId; uwPreferSpan = (closetEmptySpans() || []).find(function(x){ return x.wallId === wallId; }) || null; openUnitWizard(); } });
       syncWalkBtn();
       landedBlockId = null;
       applyInspect();

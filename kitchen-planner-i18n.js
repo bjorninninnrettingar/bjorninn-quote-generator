@@ -1927,7 +1927,8 @@
     "Skoða": "View",
     "Smelltu á tvo punkta til að mæla á milli þeirra": "Click two points to measure between them",
     "Framhliðar af — smelltu á skúffu eða hurð til að opna hana": "Fronts off — click a drawer or door to open it",
-    "Sýna málin á skápunum": "Show the units' dimensions"
+    "Sýna málin á skápunum": "Show the units' dimensions",
+    "+ Smelltu hér til að bæta við skáp": "+ Click here to add a unit"
   });
 
   // part F: stored/computed numbered labels from kitchen-planner-3d.js (CATALOG width variants, island rows, partition sides)
