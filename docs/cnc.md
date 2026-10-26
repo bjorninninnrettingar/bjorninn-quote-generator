@@ -96,3 +96,15 @@ is one Smíðagögn door + two "Frontur vænghurð" leaves in Sögunarlisti; tes
   click = scroll + blink; green "Allt klárt — skrifa á USB" when none. Status-filter chips removed (search/type stay).
 - **Failed load**: a card "Gat ekki sótt … — Lykillinn virkar ekki / Fannst ekki / Villa á þjóninum / Ekkert samband"
   + "Reyna aftur", raw "Airtable 403" as small print (was inside the project dropdown).
+
+### Doors from the PRO drawing (2026-10-26)
+
+`doorPlan(fields, catalog, smida)` — `smida` = the door Line Item's Smíðagögn (cnc.html passes `lineSmida[u.id]`). Its
+`door` (widthMm/heightMm/wallMm) and PRO's `door.cnc` {karmZ, karmB, topp, hinge, lock, threshold} fill ONLY Eyðublað
+fields that are empty (Hæð, Breidd, Dýpt, Þykkt karms, Karmabil frá vegg, Toppstykki hurðakarms, Lamir/Skrá/Felliþr.),
+hardware only when the id is in HINGES/LOCKS/THRESHOLDS (never guessed); each fill is one ⚠ line "Úr PRO-teikningunni
+(autt á Eyðublaði): …", so such a door is never ✅ silently. Opnun is not copied (the drawing's side is quoted in the
+"Opnun vantar" ⚠ — the shop's DIN convention isn't confirmed to match). A fully filled Eyðublað plans exactly as before
+(test in tests/cnc-doors.test.js; T-54's six door cards compared before/after: identical). The card's "Op H × B" now
+shows the plan's numbers (same as the Eyðublað's when filled). Where PRO sets these: Hurðir → Hanna → Smíða
+(docs/pro-finish.md).

@@ -446,7 +446,7 @@
       try { (await fetchAll(PRODUCTS, { filterByFormula: "OR(" + Object.keys(ids).map(function (x) { return 'RECORD_ID()="' + x + '"'; }).join(",") + ")", "fields[]": ["Heiti vöru 📣", "CNC macró — blað", "CNC macró — karmur"] }))
         .forEach(function (p) { productNames[p.id] = p.fields["Heiti vöru 📣"]; catalog[p.id] = { name: p.fields["Heiti vöru 📣"], leaf: p.fields["CNC macró — blað"], jamb: p.fields["CNC macró — karmur"] }; }); } catch (e) { /* names only */ }
     }
-    doors = doorUnits.map(function (u) { return { rec: u, plan: D.doorPlan(u.fields, catalog) }; })
+    doors = doorUnits.map(function (u) { return { rec: u, plan: D.doorPlan(u.fields, catalog, lineSmida[u.id] || null) }; })
       .sort(function (a, b) { return a.plan.id.localeCompare(b.plan.id, "is", { numeric: true }); });
     doors.forEach(function (d) { Object.keys(productNames).forEach(function (pid) {
       d.plan.stop = d.plan.stop.map(function (s) { return s.replace(pid, productNames[pid]); });
@@ -592,7 +592,7 @@
       h += '<div class="card ' + pl.status + '" id="' + cardId + '" data-type="Hurð" data-search="' + esc(pl.id.toLowerCase()) + ' hurð">' +
         '<input type="checkbox" data-door="' + i + '" ' + (pl.status === "stop" ? "disabled" : (checked ? "checked" : "") + (choice.manual ? "" : " disabled")) + ' style="width:20px;height:20px;margin-top:3px" />' +
         "<div><h3>" + esc(pl.id) + ' <span class="chip ' + pl.status + '">' + { ok: "✅ Tilbúið", check: "⚠️ Athuga", stop: "⛔ Vantar gögn" }[pl.status] + "</span></h3>" +
-        '<div class="meta">Op ' + esc(d.rec.fields["Hæð"]) + " × " + esc(d.rec.fields["Breidd"]) +
+        '<div class="meta">Op ' + esc(pl.H != null ? pl.H : "?") + " × " + esc(pl.B != null ? pl.B : "?") +
           (pl.values ? " · blað <b>" + v.HURD_H + " × " + v.HURD_B + " × " + v.HURD_Z + "</b> · karmur " + v.KARMAR_Z + " × " + v.KARMAR_B + " · " + esc(pl.topp) : "") +
           " · " + esc(pl.opnun || "?") + " · " + esc(pl.hinge || "—") + " · " + esc(pl.lock || "—") + "</div>" +
         (notes ? '<ul class="notes">' + notes + "</ul>" : "") + "</div>" +

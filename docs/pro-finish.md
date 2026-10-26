@@ -342,6 +342,33 @@ Tested on T-199 (fresh bath, "+ Vatn" on Veggur 1) and a customer-drawn bath (Ho
    (rect); a fresh PRO bath starts as Einn veggur; open walls get no "Opið" toggle. A customer bath (Horn, 3 units,
    water) copied into PRO loaded and opened the Rýmið page with identical walls/units/water/shapeKey.
 
+## Innihurðir in PRO = the customer's HU system (2026-10-26)
+
+- **Hurðir** (PRO bar) opens the customer's "Hurðirnar þínar" list + **Hanna** popup — same code (`openDoors`,
+  `renderDoorStep`, `openDoorWiz`), as an overlay over the editor (`#screen-hurdir.pro-hd`, `proDoorsShow`): `state.step`
+  stays where it was, so the editor's 3D/undo are untouched; "← Til baka" on the list / "Klárt" on Yfirlit / Esc close it.
+  Opening it changes nothing (no auto HU-1 row in PRO — an empty project stays clean). The old one-row-per-door overlay
+  (`openDoorList`) is removed.
+- **mm**: inputs, dimension lines, summaries, review (`dU`/`dFmt`/`dParse`/`dLim`); ranges `KPDOORS.LIMITS_PRO` = the
+  old overlay's (B 400–3000, H 1500–3200, vegg 50–400), so no stored door becomes invalid. Customers keep cm + LIMITS.
+- **Exact hardware** on the steps (`KPDOORS.PRO_HW`): Lamir "JNF Coplan · faldar lamir (innfelldar)" /
+  "JNF IN.05.020.100 · sýnilegar (samlokulamir)", Skrá "JNF IN.20.835" / "JNF segulskrá IN.20.976.60.B",
+  Felliþröskuldur Já/Enginn. Same stored values as before (`opt.lamir` innfelldar|samloku, `skra` jnf|segul, …).
+- **Smíða** (PRO-only last section): Fjöldi eins, Athugasemd, and for /cnc: Þykkt karms (37), Karmabil frá vegg (6),
+  Toppstykki (Ofan á hliðum / Á milli hliða), and the hardware /cnc mills (selects from cnc-doors.js HINGES/LOCKS/
+  THRESHOLDS, loaded only in PRO): "Sjálfvirkt" = faldar → JNF Coplan, felliþröskuldur Já → Felliþröskuldur
+  (`KPDOORS.CNC_AUTO`); the lock is never automatic; "Ekkert (fræst í höndunum)" = none. Stored as `d.cnc`, sent as
+  Smíðagögn `door.cnc` (`KPDOORS.cncOf`) + "Karmur: …" in the note. Every PRO-saved door gets `cnc` (defaults).
+- **Old field → new home**: Rými → list dropdown (old values like "Eldhús"/custom kept as their own option); Gerð → Gerð
+  (+ Fleiri gerðir); Lamir / Felliþröskuldur / Skrá → their steps; Efni hurðarblaðs → Útlit; Op í vegg B×H + Veggþykkt →
+  Mál (mm); Lamir vinstra/hægra → Opnun; Fjöldi eins + Athugasemd → Smíða.
+- **Migration**: `KPDOORS.migrate` (on opening a door) only fills `designed:true`, `frame:"innf"`, `opt:{}` — the HU
+  line is byte-identical before/after (test "migration: an old PRO door row…" in tests/kp-doors.test.js). Checked in
+  the UI by injecting old-format rows into T-32's loaded planner JSON (browser-side, nothing written): both rows opened
+  unchanged, nothing marked óvistað until a door is saved. T-32 and T-199 have no doors in Airtable today.
+- Verified 1440×900 on T-32 (unlocked locally) and T-199: add, Hanna, Eins og HU-1, Afrita, Eyða, Breyta, Yfirlit,
+  Klárt → back in the editor; customer Innihurðir unchanged (cm, plain words, no Smíða, no `cnc`).
+
 ## Vista / Klár til framleiðslu — no silent data loss (PRO F2, 2026-10-26)
 
 Tested on T-32 with the read-only server (every write fails → the failure path is real); the success / conflict
