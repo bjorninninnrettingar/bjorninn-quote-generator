@@ -582,3 +582,4 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   from the photo: bevelled extruded links (`linkGeo`), a wide centre link with a flat front and slightly concave long
   sides, outer links with their own pivot knuckles, pins with slotted screw heads, dark washers, and ◁▷ arrows on the
   adjuster plates.
+- **Round 11:** COPLAN pin ends have no screw heads (pins stop flush inside the outer links).
