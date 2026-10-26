@@ -620,6 +620,15 @@
   .h-grid .sw-tile img{ object-fit:contain; background:#fafafa; }
   .sw-crop{ aspect-ratio:4/3; overflow:hidden; }
   .sw-crop img{ transform:scale(3.5); }
+  /* Loading cues (studio-load, 2026-10-26): a picture tile still downloading shimmers softly instead of sitting blank
+     (`.ld` is set the moment its image is in — a capture-phase load listener); a 3D view whose canvas isn't up yet
+     shows a small turning ring. Tiles with their own colour behind the picture (fronts, worktops) keep that colour. */
+  .sw-tile img:not(.ld){ background-image:linear-gradient(100deg, rgba(255,255,255,0) 30%, rgba(255,255,255,.75) 50%, rgba(255,255,255,0) 70%); background-color:#efece6; background-size:250% 100%; animation:kpShimmer 1.3s linear infinite; }
+  @keyframes kpShimmer{ from{ background-position:120% 0; } to{ background-position:-120% 0; } }
+  #cabPreview:empty, #uwPreview:empty, #threeWrap:empty{ background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Ccircle cx='14' cy='14' r='11' fill='none' stroke='%23d9d4ca' stroke-width='2.5'/%3E%3Cpath d='M14 3a11 11 0 0 1 11 11' fill='none' stroke='%236f6d66' stroke-width='2.5' stroke-linecap='round'%3E%3CanimateTransform attributeName='transform' type='rotate' from='0 14 14' to='360 14 14' dur='0.9s' repeatCount='indefinite'/%3E%3C/path%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:center; }
+  .three-note::before{ content:""; width:16px; height:16px; margin-right:8px; flex:none; border-radius:50%; border:2px solid #d9d4ca; border-top-color:var(--ink-soft); animation:kpSpin .9s linear infinite; }
+  @keyframes kpSpin{ to{ transform:rotate(360deg); } }
+  @media (prefers-reduced-motion:reduce){ .sw-tile img:not(.ld), .three-note::before{ animation:none; } }
   .fit-ask{ position:fixed; left:50%; bottom:28px; transform:translateX(-50%); z-index:300; background:#fff; color:var(--ink, #191919); border:1px solid var(--line); border-radius:14px; box-shadow:0 12px 36px rgba(0,0,0,.18); padding:14px 16px; max-width:440px; width:calc(100% - 32px); font-size:14px; }
   .fit-ask p{ margin:0 0 10px; line-height:1.4; }
   .fit-ask-btns{ display:flex; gap:8px; justify-content:flex-end; }
@@ -1940,6 +1949,15 @@
 (function(){
   "use strict";
   KPI18N.apply(document); // EN version (2026-10-23): static markup marked data-i18n, see kitchen-planner-i18n.js
+  // a picture tile stops shimmering once its image is in (or failed) — see .sw-tile img:not(.ld) (studio-load, 2026-10-26)
+  ["load", "error"].forEach(function(t){ document.addEventListener(t, function(e){ var el = e.target; if (el && el.tagName === "IMG") el.classList.add("ld"); }, true); });
+  // resting on a handle / front / worktop tile starts its model or photo downloading, so the pick shows it at once
+  var preloadT = 0;
+  document.addEventListener("pointerover", function(e){
+    var el = e.target.closest && e.target.closest("[data-handle],[data-look],[data-top]");
+    clearTimeout(preloadT); if (!el || !window.KP3D || !KP3D.preload) return;
+    preloadT = setTimeout(function(){ var d = el.dataset; if (d.handle) KP3D.preload("handle", d.handle); else if (d.look) KP3D.preload("look", d.look); else KP3D.preload("top", d.top); }, 120);
+  });
   if (KPI18N.isPro) document.querySelectorAll(".help-lang").forEach(function(el){ el.hidden = true; }); // PRO stays Icelandic
 
   // Pro mode (2026-10-08): Rakel opens an existing project from the Tækifæri (?pro=<recordId>&k=<office key>).

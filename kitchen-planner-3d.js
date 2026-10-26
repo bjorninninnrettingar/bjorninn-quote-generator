@@ -1748,9 +1748,17 @@
   }
   // models still downloading (drawing export waits for 0 before it takes a picture)
   function modelsPending(){
-    var n = 0;
+    var n = IMG_PENDING; // photo textures too: a drawing taken mid-load had plain-colour fronts
     [MODEL_CACHE, RAW_CACHE].forEach(function(c){ Object.keys(c).forEach(function(k){ if (c[k].state === "loading") n++; }); });
     return n;
+  }
+  // Warm what a pick will need while the pointer is still on its tile (studio-load, 2026-10-26): a handle's model, a
+  // front's or worktop's photo. The click then shows the real thing instead of the drawn stand-in / plain colour.
+  function preload(kind, key){
+    var THREE = window.__THREE__; if (!THREE || !key) return;
+    if (kind === "handle"){ var h = window.KPMODELS && window.KPMODELS.handles && window.KPMODELS.handles[key]; if (h && h.file) rawModel(h.file); }
+    else if (kind === "look"){ var l = LOOKS[key]; if (l && l.tex) imgTex(THREE, l.tex, l.color3d); }
+    else if (kind === "top"){ var t = TOPS[key]; if (t && t.tex) imgTex(THREE, t.tex, t.color3d); }
   }
   // A model in its own coordinates (Blum parts are positioned relative to one another, so
   // they must NOT be re-centred), with its Phong materials turned into standard ones.
@@ -2318,8 +2326,10 @@
     fridge70: { file:"models/appliances/fridges/model.dae",    node:"group_0" },
     fridge90: { file:"models/appliances/fridge90/model.dae",   node:null, rot:Math.PI },
     wine:     { file:"models/appliances/wine/model.dae",       node:null, rot:-Math.PI / 2 },
-    dwLower:  { file:"models/appliances/dishwasher/model.dae", node:"group_3" },
-    dwUpper:  { file:"models/appliances/dishwasher/model.dae", node:"group_36" },
+    // idle: only seen inside an opened dishwasher, and the biggest file by far — fetched a moment after the first view
+    // is up instead of competing with it (drawn baskets until then, as before) (studio-load, 2026-10-26)
+    dwLower:  { file:"models/appliances/dishwasher/model.dae", node:"group_3", idle:true },
+    dwUpper:  { file:"models/appliances/dishwasher/model.dae", node:"group_36", idle:true },
     hinge:    { file:"models/hinges/blum-clip-top.glb",         node:null }, // Blum CLIP top (79B3491), open
     hingeArm: { file:"models/hinges/blum-clip-top.glb",         node:null, skip:["3DGeom-4"], full:true }, // arm + plate (on the carcass)
     hingeCup: { file:"models/hinges/blum-clip-top.glb",         node:"3DGeom-4", full:true }               // the cup (in the door)
@@ -2340,7 +2350,8 @@
     var raw = APPL_RAW[src.file];
     if (!raw){
       raw = APPL_RAW[src.file] = { state:"loading", root:null };
-      loadRaw(src.file, function(root){ raw.root = root; raw.state = "ready"; window.dispatchEvent(new Event("kp3d-model-loaded")); }, function(){ raw.state = "error"; });
+      var go = function(){ loadRaw(src.file, function(root){ raw.root = root; raw.state = "ready"; window.dispatchEvent(new Event("kp3d-model-loaded")); }, function(){ raw.state = "error"; }); };
+      if (src.idle) setTimeout(function(){ if (window.requestIdleCallback) requestIdleCallback(go, { timeout:3000 }); else go(); }, 2500); else go();
       return null;
     }
     if (raw.state !== "ready") return null;
@@ -4344,11 +4355,21 @@
   }
 
   // Photo textures from the site (same-origin JPGs): loaded once, kept for the page session.
-  var IMG_TEX = typeof Map !== "undefined" ? new Map() : null;
-  function imgTex(THREE, url){
+  var IMG_TEX = typeof Map !== "undefined" ? new Map() : null, IMG_PENDING = 0;
+  // Until the photo is in (a first visit: ~0.3–2 s), the texture is a tiny swatch of the material's own colour —
+  // a texture with no image yet rendered the front/worktop BLACK (studio-load, 2026-10-26). The photo then arrives as
+  // a new Source (a fresh GPU texture at its real size), so every material/clone sharing `t` picks it up.
+  function imgTex(THREE, url, color){
     var t = IMG_TEX && IMG_TEX.get(url);
     if (t) return t;
-    t = new THREE.TextureLoader().load(url);
+    var ph = document.createElement("canvas"); ph.width = ph.height = 2;
+    var pc = ph.getContext("2d"); pc.fillStyle = color || "#d9d4ca"; pc.fillRect(0, 0, 2, 2);
+    t = new THREE.Texture(ph); t.needsUpdate = true;
+    IMG_PENDING++;
+    new THREE.ImageLoader().load(url, function(img){
+      IMG_PENDING--; t.source = new THREE.Source(img); t.needsUpdate = true;
+      window.dispatchEvent(new Event("kp3d-tex-loaded"));
+    }, undefined, function(){ IMG_PENDING--; });
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     if (THREE.SRGBColorSpace) t.colorSpace = THREE.SRGBColorSpace;
     t.userData.keep = true;
@@ -4361,7 +4382,7 @@
     var topDef = topKey && TOPS[topKey] ? TOPS[topKey] : null;
     if (topDef && topDef.none){ var nm = new THREE.MeshBasicMaterial({ visible:false }); nm.userData.thick = 0.001; return nm; }
     if (topDef && topDef.tex){
-      var m = new THREE.MeshStandardMaterial({ map:imgTex(THREE, topDef.tex), roughness:0.42, metalness:0.02 });
+      var m = new THREE.MeshStandardMaterial({ map:imgTex(THREE, topDef.tex, topDef.color3d), roughness:0.42, metalness:0.02 });
       m.userData.tile = topDef.tile || { w:0.9, h:0.9 };
       // Límtré (glulam) worktops: the source photo's grain runs "up" the image — turned 90° here so it
       // runs side to side across the counter (widthwise) instead of front-to-back (2026-09-28, user request).
@@ -4402,7 +4423,7 @@
 
   function makeFrontMaterial(THREE, lookKey, look){
     if (look.tex){ // a real board texture from the gallery
-      var im = new THREE.MeshStandardMaterial({ map:imgTex(THREE, look.tex), roughness:0.58 });
+      var im = new THREE.MeshStandardMaterial({ map:imgTex(THREE, look.tex, look.color3d), roughness:0.58 });
       im.userData.tile = look.tile || { w:0.6, h:0.6 };
       return im;
     }
@@ -6996,7 +7017,7 @@
     innerDrawersOf: innerDrawersOf, innerTopMm: innerTopMm,
     ovenHOf: ovenHOf, ovenUnderOf: ovenUnderOf, ovenUnderMinMm: ovenUnderMinMm, ovenUnderMaxMm: ovenUnderMaxMm, ovenUpperMm: ovenUpperMm, ovenShelvesOf: ovenShelvesOf,
     OVEN_DEFAULT: OVEN_DEFAULT,
-    modelsPending: modelsPending,
+    modelsPending: modelsPending, preload: preload,
     shelvesOf: shelvesOf, burCodesOf: burCodesOf,
     railsOf: railsOf, railLayoutOf: railLayoutOf,
     radborunSpanMm: radborunSpanMm, RADBORUN_PITCH_MM: RADBORUN_PITCH_MM, RADBORUN_MARGIN_DEFAULT_MM: RADBORUN_MARGIN_DEFAULT_MM,
