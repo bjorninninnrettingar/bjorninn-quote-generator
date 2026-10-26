@@ -1980,6 +1980,59 @@
     "Spegilskápur": "Mirror cabinet"
   });
 
+  // Innihurðir — count → HU rows → a popup per door → review (2026-10-26)
+  add({
+    "Auk þess {n} hurðir teiknaðar í rýmunum — þeim er breytt í veggnum sjálfum.": "Plus {n} doors drawn in the rooms — change those in the wall itself.",
+    "Bæta við hurð": "Add a door",
+    "Ekki hönnuð enn": "Not designed yet",
+    "Eyða {hu}?": "Delete {hu}?",
+    "Fjöldi hurða": "Number of doors",
+    "Fleiri gerðir": "More types",
+    "Hannaðu allar hurðirnar fyrst (Hurðir).": "Design all the doors first (Doors).",
+    "Hannaðu hurðina": "Design the door",
+    "Hannaðu innihurðirnar þínar": "Design your interior doors",
+    "Hannaðu {hu} fyrst — smelltu á Hanna.": "Design {hu} first — click Design.",
+    "Hvaða rými?": "Which room?",
+    "Hætta við án þess að vista breytingarnar?": "Cancel without saving the changes?",
+    "Húnar frá okkur": "Handles from us",
+    "Húnar: þú velur sjálf/ur": "Handles: you choose your own",
+    "Mældu opið í veggnum. Sláðu inn nákvæm mál í cm.": "Measure the opening in the wall. Enter exact sizes in cm.",
+    "Sláðu inn breidd, hæð og veggþykkt fyrst (Mál).": "Enter the width, height and wall thickness first (Size).",
+    "Sláðu inn málin": "Enter the sizes",
+    "Sláðu inn tölu": "Enter a number",
+    "Stattu þeim megin sem hurðin opnast að. Hvorum megin eru lamirnar?": "Stand on the side the door opens towards. Which side are the hinges on?",
+    "Veldu rými fyrir {hu}.": "Choose a room for {hu}.",
+    "Viltu húna frá okkur?": "Would you like handles from us?",
+    "húnar frá okkur": "handles from us",
+    "veggur": "wall",
+    "Á milli {lo} og {hi} cm": "Between {lo} and {hi} cm",
+    "Áfram": "Next",
+    "Áfram í spurningar →": "On to the questions →",
+    "Í hvaða átt rennur hurðin þegar hún opnast?": "Which way does the door slide when it opens?",
+    "þú velur húna": "you choose the handles",
+    "— Veldu rými —": "— Choose a room —",
+    "Innfelld hurð": "Flush door",
+    "Slétt við vegginn, enginn listi í kringum": "Flush with the wall, no trim around it",
+    "Hurð með gereftum": "Door with architraves",
+    "Listar í kringum opið hylja samskeytin": "Trim around the opening covers the joints",
+    "Smella og lás": "Latch and lock",
+    "Já, takk": "Yes, please",
+    "Söluaðili ráðleggur þér um húna": "A sales advisor helps you choose handles",
+    "Nei, ég vel sjálf/ur": "No, I'll choose my own",
+    "Þú útvegar húnana sjálf/ur": "You get the handles yourself",
+    "Útlit": "Look",
+    "Breidd opsins": "Width of the opening",
+    "Frá gólfi upp í opið": "From the floor to the top of the opening",
+    "Þykkt veggjarins með klæðningu": "Wall thickness including finish",
+    "Hurðirnar þínar": "Your doors",
+    "Veldu rými fyrir hverja hurð og smelltu á Hanna.": "Choose a room for each door and click Design.",
+    "Yfirlit yfir hurðirnar": "Overview of the doors",
+    "Farðu yfir hverja hurð. Málin eru staðfest á staðnum áður en nokkuð er smíðað.": "Check each door. The sizes are confirmed on site before anything is made.",
+    "Hvað ætlar þú að gera margar hurðir?": "How many doors are you planning?",
+    "Þú getur bætt við eða fjarlægt hurðir seinna.": "You can add or remove doors later.",
+    "Hanna": "Design"
+  });
+
   // part F: stored/computed numbered labels from kitchen-planner-3d.js (CATALOG width variants, island rows, partition sides)
   addPat(/^(Grunnskápur|Hárskápur|Efriskápur|Hár skápur|Efri skápur|Vaskaskápur|Opnar hillur) (\d+)$/, function(m, t, n){ return (has(t) ? EN[t] : t) + " " + n; });
   addPat(/^Eyja (\d+) · röð ([AB])$/, "Island $1 · row $2");
