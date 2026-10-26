@@ -1934,7 +1934,25 @@
     "20 cm · brons": "20 cm · bronze",
     "Lítill flipi · 20 cm": "Small tab · 20 cm",
     "32 cm · svart og eik": "32 cm · black and oak",
-    "<li><kbd>←</kbd> <kbd>→</kbd> færa valinn skáp um {a} (<kbd>Shift</kbd> = {b})</li><li><kbd>Delete</kbd> eyðir · <kbd>{cmd}Z</kbd> afturkallar · <kbd>Esc</kbd> afvelur</li>": "<li><kbd>←</kbd> <kbd>→</kbd> move the selected cabinet by {a} (<kbd>Shift</kbd> = {b})</li><li><kbd>Delete</kbd> deletes · <kbd>{cmd}Z</kbd> undoes · <kbd>Esc</kbd> deselects</li>"
+    "<li><kbd>←</kbd> <kbd>→</kbd> færa valinn skáp um {a} (<kbd>Shift</kbd> = {b})</li><li><kbd>Delete</kbd> eyðir · <kbd>{cmd}Z</kbd> afturkallar · <kbd>Esc</kbd> afvelur</li>": "<li><kbd>←</kbd> <kbd>→</kbd> move the selected cabinet by {a} (<kbd>Shift</kbd> = {b})</li><li><kbd>Delete</kbd> deletes · <kbd>{cmd}Z</kbd> undoes · <kbd>Esc</kbd> deselects</li>",
+    // Skipulag editor polish (2026-10-26)
+    "Fyrri skápur": "Previous unit",
+    "Næsti skápur": "Next unit",
+    "Skápur {n} af {m}": "Unit {n} of {m}",
+    "efri skápur": "wall unit",
+    "neðri skápur": "base unit",
+    "Eyða": "Delete",
+    "Afturkalla (Cmd+Z)": "Undo (Cmd+Z)",
+    "Endurgera (Cmd+Shift+Z)": "Redo (Cmd+Shift+Z)",
+    "Afturkalla (Ctrl+Z)": "Undo (Ctrl+Z)",
+    "Endurgera (Ctrl+Shift+Z)": "Redo (Ctrl+Shift+Z)",
+    "Skoða": "View",
+    "Smelltu á tvo punkta til að mæla á milli þeirra": "Click two points to measure between them",
+    "Framhliðar af — smelltu á skúffu eða hurð til að opna hana": "Fronts off — click a drawer or door to open it",
+    "Sýna málin á skápunum": "Show the units' dimensions",
+    "+ Smelltu hér til að bæta við skáp": "+ Click here to add a unit",
+    "smelltu á vegginn": "click on the wall",
+    "Skápar komast ekki fyrir þar sem hindrunin er.": "Units can't go where the obstacle is."
   });
 
   // part F: stored/computed numbered labels from kitchen-planner-3d.js (CATALOG width variants, island rows, partition sides)

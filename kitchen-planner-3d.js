@@ -2176,7 +2176,7 @@
     if (panelBox) panelUV(boxGeo, widthM, bodyH, bodyD, frontMat.userData && frontMat.userData.tile);
     else scaleFrontUV(boxGeo, widthM, bodyH, frontMat.userData && frontMat.userData.tile, false, { u:offsetM, v:bodyBase });
     var useFrontMat = frontMat;
-    if (selected){
+    if (selected && !wardrobeScene){ // a wardrobe keeps its real door colour — the blue outline (drawOverlay) shows the pick (user, 2026-10-26: "lilac looks like another door colour")
       useFrontMat = frontMat.clone();
       useFrontMat.emissive = new THREE.Color(SELECT_COLOR);
       useFrontMat.emissiveIntensity = 0.35;
@@ -2517,7 +2517,7 @@
   // Every on-scene dimension (a wardrobe unit's width, the shelf/rail gap tags, a drawer's height) is an SVG overlay drawn
   // in screen space each frame: a thin line with end ticks and a small pill — dark, or blue while it's being changed.
   // KP3D.setShowDims(false) hides the always-on unit dimensions (the "Málsetning" toggle); live drag tags always show.
-  var OV = null, PENDING_DIMS = [], SHOW_DIMS = (function(){ try{ return localStorage.getItem("bjorninn:kitchenPlanner:showDims") !== "0"; }catch(e){ return true; } })();
+  var OV = null, PENDING_DIMS = [], PENDING_LABELS = [], SHOW_DIMS = (function(){ try{ return localStorage.getItem("bjorninn:kitchenPlanner:showDims") !== "0"; }catch(e){ return true; } })();
   var OV_BLUE = "#0058a3", OV_DARK = "#2b2b2e";
   function setShowDims(on){ SHOW_DIMS = !!on; try{ localStorage.setItem("bjorninn:kitchenPlanner:showDims", on ? "1" : "0"); }catch(e){} }
   function ovLineSvg(a, b, text, active){
@@ -2535,10 +2535,35 @@
     OV.svg.setAttribute("viewBox", "0 0 " + cr.width + " " + cr.height);
     var v = new (window.__THREE__.Vector3)();
     function P(p){ v.set(p.x, p.y, p.z).project(camera); return { x:(v.x + 1) / 2 * cr.width, y:(1 - v.y) / 2 * cr.height, behind:v.z > 1 }; }
-    var out = "";
+    var out = selHullSvg(P);
     if (SHOW_DIMS) OV.dims.forEach(function(d){ var a = P(d.a), b = P(d.b); if (!a.behind && !b.behind) out += ovLineSvg(a, b, d.text, false); });
     Object.keys(OV.gaps).forEach(function(k){ var g = OV.gaps[k]; if (!g) return; out += ovLineSvg(P(g.a), P(g.b), g.text, g.active); });
+    (OV.labels || []).forEach(function(l){ // a call to action on the scene (the empty wardrobe area): a white pill, blue text
+      var p = P(l.p); if (p.behind) return;
+      var tw = String(l.text).length * 7.6 + 30;
+      out += '<rect x="' + (p.x - tw / 2) + '" y="' + (p.y - 17) + '" width="' + tw + '" height="34" rx="17" fill="#fff" stroke="' + OV_BLUE + '" stroke-width="1.5"/>' +
+        '<text x="' + p.x + '" y="' + (p.y + 5) + '" text-anchor="middle" font-size="14" font-weight="700" font-family="Kumbh Sans, Arial, sans-serif" fill="' + OV_BLUE + '">' + l.text + '</text>';
+    });
     if (out !== OV.last){ OV.svg.innerHTML = out; OV.last = out; }
+  }
+  // the selected wardrobe unit: a blue outline round its silhouette (2.5 px, screen space — a WebGL line is always
+  // 1 px and too faint) instead of tinting its doors lilac (user, 2026-10-26)
+  var selCorner = null;
+  function selHullSvg(P){
+    if (!wardrobeScene || !THREE_STATE || !THREE_STATE.pickables || THREE_STATE.dragging) return "";
+    var m = THREE_STATE.pickables.find(function(x){ return x.userData && x.userData.selected && x.userData.edgesObj && !x.userData.isPart; });
+    var e = m && m.userData.edgesObj; if (!e || !e.geometry) return "";
+    if (!e.geometry.boundingBox) e.geometry.computeBoundingBox();
+    var bb = e.geometry.boundingBox;
+    if (!selCorner) selCorner = new (window.__THREE__.Vector3)();
+    e.updateMatrixWorld();
+    // the FRONT face only (local +z = the room side): the whole box's silhouette took in its sides, hidden behind the neighbours
+    var hull = [[0, 0], [1, 0], [1, 1], [0, 1]].map(function(q){
+      selCorner.set(q[0] ? bb.max.x : bb.min.x, q[1] ? bb.max.y : bb.min.y, bb.max.z).applyMatrix4(e.matrixWorld);
+      return P(selCorner);
+    });
+    if (hull.some(function(p){ return p.behind; })) return "";
+    return '<polygon points="' + hull.map(function(p){ return p.x.toFixed(1) + "," + p.y.toFixed(1); }).join(" ") + '" fill="none" stroke="' + OV_BLUE + '" stroke-width="2.5" stroke-linejoin="round"/>';
   }
   // a wardrobe unit's width, just above it, in that style (was a big "80 x 257 x 58" label)
   function addUnitDims(geom, offsetM, widthM, topY, depthM, text){
@@ -3354,6 +3379,12 @@
       }
       return false;
     }
+    function spanAt(evt){ // the empty wardrobe area (buildScene's opts.__spanMeshes)
+      if (!opts.__spanMeshes || !opts.__spanMeshes.length) return null;
+      raycaster.setFromCamera(ndc(evt), camera);
+      var h = raycaster.intersectObjects(opts.__spanMeshes, false);
+      return h.length ? h[0].object : null;
+    }
     function pickMeshAt(evt){
       raycaster.setFromCamera(ndc(evt), camera);
       var hits = raycaster.intersectObjects(pickables, false);
@@ -3634,7 +3665,7 @@
         // setMeasureMode) — hovering a cabinet used to flip it to "grab" anyway, since this hover/cursor
         // logic ran unconditionally and MEASURING only ever gated onDown, not onMove
         if (MEASURING) return;
-        if (evt.target === renderer.domElement) setHover(pickMeshAt(evt));
+        if (evt.target === renderer.domElement){ var hm = pickMeshAt(evt); setHover(hm); if (!hm && opts.__spanMeshes && opts.__spanMeshes.length) renderer.domElement.style.cursor = spanAt(evt) ? "pointer" : ""; }
         else setHover(null);
         return;
       }
@@ -3848,6 +3879,8 @@
     function onClickEmpty(evt){
       if (suppressClick){ suppressClick = false; return; }
       if (pickMeshAt(evt)) return; // a tap on a cabinet was already handled in onUp
+      var spanHit = spanAt(evt);
+      if (spanHit && opts.onClosetSpanClick){ opts.onClosetSpanClick(spanHit.userData.closetSpanWallId); return; }
       // A bare wall surface looks exactly like empty space in 3D (no highlight, no cursor cue) — unlike the
       // 2D plan's own wall line (a deliberate, clearly-clickable stroke), so a click here no longer opens the
       // wall panel (user, 2026-10-13): "blank space" should just deselect, not select the wall underneath it.
@@ -3974,15 +4007,15 @@
       if (cab && cab.items && cab.t > 0){ cab.items.forEach(function(it){ it.o.material = it.orig; }); cab.t = 0; } // back to solid before the material slots are touched
       if (Array.isArray(m.material)){ // cabinet
         if (u.open || u.art){ /* open shelves have NO front: swapping slot 4 for the real front material gave them a door */ }
-        else if (want){
+        else if (want && !wardrobeScene){
           var c = u.baseFront.clone();
           c.emissive = new THREE.Color(SELECT_COLOR); c.emissiveIntensity = 0.35;
           c.__xrayBase = u.baseFront; // same tag as addCabinetBox's build-time selection clone — setXrayFronts
           // only strips THREE_STATE.frontMat plus anything tagged back to it; this runtime clone (selecting
           // without a full rebuild) was missing it, so the one cabinet you had selected stayed opaque under X-ray
           m.material[4] = c;
-        } else {
-          if (m.material[4] !== u.baseFront) m.material[4].dispose();
+        } else if (m.material[4] !== u.baseFront){
+          m.material[4].dispose();
           m.material[4] = u.baseFront;
         }
         var e = m.parent && m.parent.children[1];
@@ -4807,22 +4840,37 @@
       });
       return isFinite(lo) ? lo / 1000 : null;
     }
+    // A wardrobe (user, 2026-10-26): its walls are the ones holding units. One such wall (straight / niche) needs no
+    // label at all; a corner says "Veggur 1 / 2", out past the wall's free end so it never floats over the units or
+    // their dimension lines. closetOuterEnd(i) = 0 (the wall's start) or 1 (its end): the end NOT in the corner.
+    var closetSc = /^fataskapar(:|$)/.test(String(state.activeCategory || ""));
+    var closetWallIdx = closetSc ? geoms.map(function(g, i){ return i; }).filter(function(i){ var w = state.walls && state.walls[i]; return w && (w.floor || []).length; }) : [];
+    function closetOuterEnd(i){
+      var g = geoms[i], ends = [g.origin, { x:g.origin.x + g.axis.x * g.lenM, z:g.origin.z + g.axis.z * g.lenM }];
+      var inCorner = ends.map(function(p){ return closetWallIdx.some(function(j){
+        if (j === i) return false; var h = geoms[j], q = [h.origin, { x:h.origin.x + h.axis.x * h.lenM, z:h.origin.z + h.axis.z * h.lenM }];
+        return q.some(function(e){ return Math.hypot(e.x - p.x, e.z - p.z) < 0.05; }); }); });
+      return inCorner[1] && !inCorner[0] ? 0 : 1;
+    }
     var wallLabels = []; // {sp, g} — faded out in fadeWalls() while the camera is behind that wall (user, 2026-10-23)
     if (!opts.people && !opts.clean && !iso) geoms.forEach(function(g, i){ // (the ceiling-height view has its own single label; opts.clean skips it too — drawing exports don't want it baked into the picture)
       // a small "V1" bubble, the same size on screen however far the wall is (2026-10-12: "Veggur 1 · 4000 mm" was
       // too big; the lengths are on the 2D plan and in the wall's panel)
       var sw = state.walls && state.walls[i];
       if (sw && sw.open && !(sw.floor || []).length && !(sw.wall || []).length) return; // an empty open edge isn't a wall to the customer (2026-10-26)
-      var cv = document.createElement("canvas"); cv.width = 128; cv.height = 96;
+      if (closetSc && (closetWallIdx.length < 2 || closetWallIdx.indexOf(i) < 0)) return;
+      var txt = closetSc ? __("Veggur {n}", { n:i + 1 }) : __("V{n}", { n:i + 1 }), wide = closetSc ? 2 : 1;
+      var cv = document.createElement("canvas"); cv.width = 128 * wide; cv.height = 96;
       var cx = cv.getContext("2d");
       cx.fillStyle = "rgba(255,255,255,.94)"; cx.strokeStyle = "#d6d2c8"; cx.lineWidth = 4;
-      cx.beginPath(); cx.roundRect ? cx.roundRect(4, 4, 120, 88, 44) : cx.rect(4, 4, 120, 88); cx.fill(); cx.stroke();
-      cx.fillStyle = "#191919"; cx.font = "700 46px 'Kumbh Sans', Arial, sans-serif"; cx.textAlign = "center"; cx.textBaseline = "middle";
-      cx.fillText(__("V{n}", { n:i + 1 }), 64, 51);
+      cx.beginPath(); cx.roundRect ? cx.roundRect(4, 4, 128 * wide - 8, 88, 44) : cx.rect(4, 4, 128 * wide - 8, 88); cx.fill(); cx.stroke();
+      cx.fillStyle = "#191919"; cx.font = "700 " + (closetSc ? 40 : 46) + "px 'Kumbh Sans', Arial, sans-serif"; cx.textAlign = "center"; cx.textBaseline = "middle";
+      cx.fillText(txt, 64 * wide, 51);
       var tex = new THREE.CanvasTexture(cv); tex.anisotropy = 4;
-      var sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:tex, depthTest:false, transparent:true, sizeAttenuation:false }));
-      sp.scale.set(0.038, 0.0285, 1);
-      sp.position.set(g.origin.x + g.axis.x * g.lenM / 2, WALL_H + 0.16, g.origin.z + g.axis.z * g.lenM / 2);
+      var sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:tex, depthTest:false, transparent:true, sizeAttenuation:false, toneMapped:!closetSc })); // a wardrobe's "Veggur N": crisp, not washed out by the tone mapping
+      sp.scale.set(0.038 * wide, 0.0285, 1);
+      if (closetSc){ var oe = closetOuterEnd(i), al = oe ? g.lenM + 0.45 : -0.45; sp.position.set(g.origin.x + g.axis.x * al, WALL_H * 0.75, g.origin.z + g.axis.z * al); }
+      else sp.position.set(g.origin.x + g.axis.x * g.lenM / 2, WALL_H + 0.16, g.origin.z + g.axis.z * g.lenM / 2);
       sp.renderOrder = 10;
       scene.add(sp);
       wallLabels.push({ sp:sp, g:g });
@@ -5233,6 +5281,50 @@
 
     if (!opts.people && !iso) addDecorItems(THREE, scene, state, opts, pickables);
 
+    // An empty wardrobe after "Ég raða sjálf/ur" (user, 2026-10-26): the brown area from the Mál step stands on its wall as
+    // a see-through volume with a dashed outline and "+ Smelltu hér til að bæta við skáp" on it; a click on it opens Ný
+    // eining for that wall (opts.onClosetSpanClick). Not a pickable — nothing drags it; onClickEmpty tests it.
+    var spanMeshes = [];
+    if (opts.closetEmptySpans && !iso && !opts.people) opts.closetEmptySpans.forEach(function(sp){
+      var g = geoms[sp.wallIndex]; if (!g) return;
+      var w = sp.mm / 1000, h = Math.min(sp.heightMm, roomHeightMm) / 1000, d = sp.depthMm / 1000, al = sp.startMm / 1000 + w / 2;
+      var q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(g.axis.x, 0, g.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(g.normal.x, 0, g.normal.z)));
+      var cx = g.origin.x + g.axis.x * al + g.normal.x * (d / 2 + 0.003), cz = g.origin.z + g.axis.z * al + g.normal.z * (d / 2 + 0.003);
+      var box = new THREE.Mesh(new THREE.BoxGeometry(w - 0.006, h, d), new THREE.MeshBasicMaterial({ color:0xc9a874, transparent:true, opacity:0.22, depthWrite:false }));
+      box.position.set(cx, h / 2, cz); box.quaternion.copy(q); box.userData = { closetSpanWallId:sp.wallId };
+      var edges = new THREE.LineSegments(new THREE.EdgesGeometry(box.geometry), new THREE.LineDashedMaterial({ color:0x8a6a3c, dashSize:0.06, gapSize:0.04 }));
+      edges.computeLineDistances(); edges.position.copy(box.position); edges.quaternion.copy(q);
+      scene.add(box); scene.add(edges); spanMeshes.push(box);
+      PENDING_LABELS.push({ p:{ x:g.origin.x + g.axis.x * al + g.normal.x * d, y:h * 0.55, z:g.origin.z + g.axis.z * al + g.normal.z * d }, text:__("+ Smelltu hér til að bæta við skáp") });
+    });
+    opts.__spanMeshes = spanMeshes;
+
+    // the whole wardrobe's size (user, 2026-10-26): its total width above the units' own widths, one per wardrobe wall,
+    // and its total height at its free end — same overlay style, on/off with "Málsetning"
+    if (closetSc && !iso && !opts.people) (function(){
+      var tallM = 0, hEnd = null;
+      closetWallIdx.forEach(function(i){
+        var wall = state.walls[i], g = geoms[i], st = blockStartsMm(wall.floor, cornerClearanceMm(state.walls, i, "floor")), lo = Infinity, hi = -Infinity, top = 0, dep = 0;
+        wall.floor.forEach(function(b, bi){
+          var c = CATALOG[b.type]; if (!c) return;
+          lo = Math.min(lo, st[bi]); hi = Math.max(hi, st[bi] + b.widthMm);
+          top = Math.max(top, Math.min(b.heightMm || c.h, roomHeightMm) / 1000); dep = Math.max(dep, (b.depthMm || c.d) / 1000);
+        });
+        if (!isFinite(lo)) return;
+        tallM = Math.max(tallM, top);
+        if (wall.floor.length > 1){
+          var o = g.origin, ax = g.axis, n = g.normal, y = top + 0.24;
+          PENDING_DIMS.push({ a:{ x:o.x + ax.x * (lo / 1000) + n.x * dep, y:y, z:o.z + ax.z * (lo / 1000) + n.z * dep },
+            b:{ x:o.x + ax.x * (hi / 1000) + n.x * dep, y:y, z:o.z + ax.z * (hi / 1000) + n.z * dep }, text:Math.round((hi - lo) / 10) + " cm" });
+        }
+        if (!hEnd){ var oe = closetOuterEnd(i); hEnd = { g:g, at:oe ? hi / 1000 + 0.12 : lo / 1000 - 0.12, dep:dep }; }
+      });
+      if (hEnd && tallM){
+        var g = hEnd.g, px = g.origin.x + g.axis.x * hEnd.at + g.normal.x * hEnd.dep, pz = g.origin.z + g.axis.z * hEnd.at + g.normal.z * hEnd.dep;
+        PENDING_DIMS.push({ a:{ x:px, y:0, z:pz }, b:{ x:px, y:tallM, z:pz }, text:Math.round(tallM * 100) + " cm" });
+      }
+    })();
+
     // Soft daylight: sky/ground hemisphere fill + a warm key light with soft
     // shadows fitted to the room + a faint cool fill from the other side.
     var hemi = new THREE.HemisphereLight(0xffffff, 0xbdb4a4, 0.5);
@@ -5351,7 +5443,7 @@
     var ovSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     ovSvg.setAttribute("style", "position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible;");
     wrap.appendChild(ovSvg);
-    OV = { svg:ovSvg, dims:PENDING_DIMS, gaps:{}, last:"" }; PENDING_DIMS = [];
+    OV = { svg:ovSvg, dims:PENDING_DIMS, labels:PENDING_LABELS, gaps:{}, last:"" }; PENDING_DIMS = []; PENDING_LABELS = [];
     var dimSvg = null, annoSvg = null;
     if (focusBounds){
       if (getComputedStyle(wrap).position === "static") wrap.style.position = "relative";
@@ -5595,14 +5687,46 @@
       var mesh = opts.selectedId && !THREE_STATE.dragging ? pickables.find(function(m){ return m.userData.blockId === opts.selectedId; }) : null;
       if (!mesh || mesh.userData.kind === "island"){ el.hidden = true; return; }
       floatBox.setFromObject(mesh);
-      floatV.set((floatBox.min.x + floatBox.max.x) / 2, floatBox.max.y, (floatBox.min.z + floatBox.max.z) / 2).project(camera);
+      var below = el.classList.contains("cl-sel"); // a wardrobe unit: under it, at the floor (its width tag is on top)
+      floatV.set((floatBox.min.x + floatBox.max.x) / 2, below ? floatBox.min.y : floatBox.max.y, (floatBox.min.z + floatBox.max.z) / 2).project(camera);
       if (floatV.z > 1){ el.hidden = true; return; }
       var cr = renderer.domElement.getBoundingClientRect(), pr = el.offsetParent ? el.offsetParent.getBoundingClientRect() : cr;
       var x = cr.left - pr.left + (floatV.x * 0.5 + 0.5) * cr.width;
       var y = cr.top - pr.top + (-floatV.y * 0.5 + 0.5) * cr.height;
       el.style.left = Math.max(60, Math.min(pr.width - 60, x)) + "px";
-      el.style.top = Math.max(46, y - 10) + "px";
+      el.style.top = (below ? Math.min(pr.height - 48, y + 10) : Math.max(46, y - 10)) + "px";
       el.hidden = false;
+    }
+
+    // The side panel slides in OVER the right of the view (opts.coveredRight() = its width in px, 0 when closed):
+    // shift the picture left (camera view offset — the camera itself stays put, so orbit/zoom are untouched) by half
+    // the panel, more if the selected unit would still sit under it; glides back when the panel closes (user, 2026-10-26).
+    // Worked out once per panel/selection change, not every frame, so orbiting afterwards isn't fought.
+    var shift = { cur:0, target:0, key:"" }, shiftV = new THREE.Vector3();
+    function panelShift(){
+      var cov = opts.coveredRight && !WALK.on ? opts.coveredRight() : 0;
+      var cr = renderer.domElement.getBoundingClientRect(), W = cr.width, H = cr.height; if (!W || !H) return;
+      var key = cov + "|" + (opts.selectedId || "");
+      if (key !== shift.key){
+        shift.key = key;
+        var T = cov / 2;
+        var mesh = cov && opts.selectedId ? pickables.find(function(m){ return m.userData.blockId === opts.selectedId; }) : null;
+        if (mesh){
+          floatBox.setFromObject(mesh);
+          var lo = Infinity, hi = -Infinity;
+          for (var i = 0; i < 8; i++){
+            shiftV.set(i & 1 ? floatBox.max.x : floatBox.min.x, i & 2 ? floatBox.max.y : floatBox.min.y, i & 4 ? floatBox.max.z : floatBox.min.z).project(camera);
+            var x = (shiftV.x * 0.5 + 0.5) * W + shift.cur; // screen x as if there were no shift
+            lo = Math.min(lo, x); hi = Math.max(hi, x);
+          }
+          T = Math.min(Math.max(T, hi - (W - cov - 24)), lo - 24); // fully left of the panel; a unit wider than the room left keeps its left end in view
+        }
+        shift.target = Math.max(0, T);
+      }
+      shift.cur += (shift.target - shift.cur) * 0.2;
+      if (Math.abs(shift.target - shift.cur) < 0.5) shift.cur = shift.target;
+      if (shift.cur > 0.5) camera.setViewOffset(W, H, shift.cur, 0, W, H);
+      else if (camera.view && camera.view.enabled) camera.clearViewOffset();
     }
 
     // "Veggur" view's dimension chain — projected fresh every frame (cheap: at most ~a dozen ticks)
@@ -5818,6 +5942,7 @@
       stepParts(scene);
       stepMood(scene);
       if (people) people.people.forEach(function(m){ m.rotation.y = Math.atan2(camera.position.x - m.position.x, camera.position.z - m.position.z); });
+      panelShift();
       renderFrame(false);
       placeFloatBar();
       placeDims();
