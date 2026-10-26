@@ -41,7 +41,7 @@ test("every choice is in the Line Item: note + Smíðagögn", () => {
   const li = D.lineFor(d, { pid: "recDOOR0000000001", mat: { label: "Anthracite Mountain Larch", efnislistiId: "recMAT0000000001" } });
   const msg = li["Skilaboð til skipulags"];
   for (const s of ["hurð með gereftum", "op 825 mm × 2100 mm", "veggþykkt 120 mm", "lamir hægra megin", "Karmur með gereftum", "Lamir: sýnilegar lamir",
-    "Felliþröskuldur: þétting sem fellur niður", "Skrá: hljóðlát skrá", "Húnar: viðskiptavinur vill húna frá okkur", "harðplast Egger Anthracite Mountain Larch"]) assert.ok(msg.includes(s), s + " — " + msg);
+    "Felliþröskuldur: þétting sem fellur niður", "Skrá: hljóðlát skrá", "Húnn: söluaðili ráðleggur", "harðplast Egger Anthracite Mountain Larch"]) assert.ok(msg.includes(s), s + " — " + msg);
   const sg = JSON.parse(li["Smíðagögn (JSON) 🔧"]);
   assert.equal(sg.v, 1); assert.equal(sg.w, 825); assert.equal(sg.d, 120);
   assert.deepEqual(sg.door.opt, { lamir: "samloku", throskuldur: "ja", skra: "segul" });
@@ -76,7 +76,7 @@ test("kp-submit receives every door with all its choices", async () => {
     assert.deepEqual(JSON.parse(x["Smíðagögn (JSON) 🔧"]).door.opt, JSON.parse(lines[i]["Smíðagögn (JSON) 🔧"]).door.opt);
   });
   assert.match(sent[1]["Skilaboð til skipulags"], /Brautin: falin braut/);
-  assert.match(sent[2]["Skilaboð til skipulags"], /Húnar: viðskiptavinur velur sjálf\/ur/);
+  assert.match(sent[2]["Skilaboð til skipulags"], /Húnn: viðskiptavinur velur sjálf\/ur/);
 });
 
 test("hardware: one function per item, the door's choices pick them", () => {

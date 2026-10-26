@@ -101,7 +101,7 @@
       var t = OPT_TEXT[k], v = optValue(d, k);
       if (t && t.vals[v]) out.push(t.label + ": " + t.vals[v][0].toLowerCase());
     });
-    if (hasHandle(d) && d.hunar) out.push(d.hunar === "ja" ? "Húnar: viðskiptavinur vill húna frá okkur — söluaðili ráðleggur" : "Húnar: viðskiptavinur velur sjálf/ur");
+    if (hasHandle(d)) out.push(d.hunar === "ja" ? "Húnn: söluaðili ráðleggur (viðskiptavinur vill húna frá okkur)" : d.hunar === "nei" ? "Húnn: viðskiptavinur velur sjálf/ur" : "Húnn: ekki valið");
     return out.join(". ");
   }
   // ctx = { pid: product record id, mat: { label, efnislistiId } | null }
@@ -126,7 +126,7 @@
   }
 
   // ---------------------------------------------------------------- 3D
-  var M = 0.001, JAMB = 0.022, CASE_W = 0.07, CASE_T = 0.012, GAP = 0.003, FLOOR_GAP = 0.008, HANDLE_Y = 1.05;
+  var SEAL_DROP = 0.014, M = 0.001, JAMB = 0.022, CASE_W = 0.07, CASE_T = 0.012, GAP = 0.003, FLOOR_GAP = 0.01, HANDLE_Y = 1.05;
   function geo(d){ // every size the door is built from, metres
     var W = d.widthMm * M, H = d.heightMm * M, T = d.wallMm * M, s = d.hinge === "right" ? 1 : -1;
     var g = { W:W, H:H, T:T, s:s, slide:isSlide(d) };
@@ -144,13 +144,18 @@
   function hingeYs(g){ var ys = [0.22, g.leafH - 0.25]; if (g.leafH > 2.15) ys.splice(1, 0, g.leafH * 0.55); return ys; }
   var HW = {
     // faldar lamir: in the edge of the leaf and the jamb — only a dark slot shows when the door is open
-    hinge_hidden:function(c){ var T = c.T, grp = new T.Group(), m = mat(T, { color:0x5d6166, metalness:0.6, roughness:0.4 });
-      hingeYs(c.g).forEach(function(y){ grp.add(box(T, 0.004, 0.12, 0.028, m, 0, FLOOR_GAP + y, -c.g.leafT / 2)); }); return grp; },
+    hinge_hidden:function(c){ var T = c.T, grp = new T.Group(), m = mat(T, { color:0x45484c, metalness:0.6, roughness:0.4 });
+      // placeholder: the flush plate that shows in the seam (a real concealed hinge sits inside the edge)
+      hingeYs(c.g).forEach(function(y){ grp.add(box(T, 0.009, 0.13, 0.003, m, 0.0035 * c.g.s, FLOOR_GAP + y, 0.0012)); }); return grp; },
     // sýnilegar lamir: barrels on the hinge line, proud of the face
     hinge_visible:function(c){ var T = c.T, grp = new T.Group(), m = steel(T);
-      hingeYs(c.g).forEach(function(y){ var b = new T.Mesh(new T.CylinderGeometry(0.008, 0.008, 0.1, 20), m); b.position.set(0, FLOOR_GAP + y, 0.004); b.castShadow = true; grp.add(b); }); return grp; },
+      hingeYs(c.g).forEach(function(y){
+        var b = new T.Mesh(new T.CylinderGeometry(0.0095, 0.0095, 0.12, 24), m); b.position.set(0, FLOOR_GAP + y, 0.006); b.castShadow = true; grp.add(b);
+        [0.035, -0.035].forEach(function(dy){ var cap = new T.Mesh(new T.SphereGeometry(0.0095, 16, 8), m); cap.position.set(0, FLOOR_GAP + y + dy * 1.72, 0.006); grp.add(cap); });
+      }); return grp; },
     // þétting sem fellur niður: a grey seal along the bottom of the leaf, down on the floor when closed
-    threshold_drop:function(c){ var T = c.T; return box(T, c.g.leafW - 0.04, 0.012, 0.014, mat(T, { color:0x3c3f43, roughness:0.8 }), -c.g.s * c.g.leafW / 2, FLOOR_GAP - 0.002, -c.g.leafT / 2); },
+    threshold_drop:function(c){ var T = c.T, s = box(T, c.g.leafW - 0.04, 0.012, 0.012, mat(T, { color:0xa3a8ad, metalness:0.5, roughness:0.4 }), -c.g.s * c.g.leafW / 2, FLOOR_GAP + 0.006 - SEAL_DROP, -0.0075); // aluminium, just behind the face so it shows in the gap
+      s.name = "seal"; s.userData.y0 = FLOOR_GAP + 0.006; return s; }, // y0 = pulled up into the leaf; down by SEAL_DROP = on the floor
     // skrá: the latch plate on the free edge + a key rosette on both faces (the magnetic one has a dark magnet in the strike)
     lock_standard:function(c){ return lockPart(c, false); },
     lock_magnetic:function(c){ return lockPart(c, true); },
@@ -228,6 +233,7 @@
     var paint = mat(T, { color:0xf4f2ee, roughness:0.7 });
     var leafMat = look && look.color ? mat(T, { color:new T.Color(look.color), roughness:0.55 }) : mat(T, { color:0xf3f1ec, roughness:0.6 });
     if (look && look.tex){ leafMat.map = look.tex; leafMat.color = new T.Color(0xffffff); }
+    leafMat.envMapIntensity = 0.55;
     var frameMat = (d.kind === "hurd" || d.kind === "eld" || d.kind === "renni") && look && look.color ? mat(T, { color:new T.Color(look.color), roughness:0.55 }) : paint; // the karmur in the leaf's colour (a texture would stretch on the thin parts)
     // the wall, cut where the opening is
     grp.add(box(T, sideW, Hw, Th, wallMat, -W / 2 - sideW / 2, Hw / 2, 0));
@@ -245,6 +251,7 @@
         grp.add(box(T, W + 2 * CASE_W - 2 * JAMB, CASE_W, CASE_T, frameMat, 0, H - JAMB + CASE_W / 2, z));
       });
     }
+    if (!g.slide && d.kind !== "karmur") grp.add(box(T, W - 2 * JAMB, 0.002, Th, mat(T, { color:0x4a4038, roughness:0.9 }), 0, 0.001, 0)); // the floor through the opening, darker so the gap under the leaf shows
     var c = { T:T, d:d, g:g, leafMat:leafMat, frameMat:frameMat }, leafGroup = null;
     if (d.kind !== "karmur"){
       var glassMat = mat(T, { color:0xcfe3ee, transparent:true, opacity:0.38, roughness:0.05, metalness:0.1 });
@@ -314,12 +321,14 @@
     }
     switch (sec){
       case "opnun": return { t:[0, g.H * 0.45, zF + 0.3], p:[-g.s * 0.5, g.H * 1.2, zF + whole * 1.25] };
-      case "lamir": return { t:[g.pivotX * 0.8, g.H * 0.5, zF], p:[g.pivotX * 0.1 + g.s * 0.25, g.H * 0.6, zF + whole * 0.92] };
-      case "throskuldur": return { t:[0, 0.06, zF + 0.05], p:[g.W * 0.32, 0.42, zF + Math.max(1.1, g.W * 1.15)] };
+      // the hinge side from outside the swing, close on the upper hinges, the leaf ajar so the hinge line shows
+      case "lamir": { var hy = FLOOR_GAP + g.leafH - 0.4; return { t:[g.pivotX - g.s * 0.12, hy, zF + 0.03], p:[g.pivotX + g.s * 0.72, hy + 0.12, zF + 0.62] }; } // centred on the upper hinges
+      // low on the bottom edge: the gap under the leaf (and the seal dropping into it)
+      case "throskuldur": { var fe = -g.s * (g.W / 2 - JAMB); return { t:[fe + g.s * 0.16, 0.035, zF], p:[fe - g.s * 0.12, 0.2, zF + 0.62] }; } // low at the bottom corner on the free side: the jamb, the leaf's bottom edge and the gap (or the seal) under it
       case "skra": return { t:[g.freeX, HANDLE_Y - 0.03, zF + 0.1], p:[g.freeX + g.s * 0.35, HANDLE_Y + 0.2, zF + 0.95] };
       case "mal": if (focus === "wallMm") return { t:[g.W / 2 + 0.3, g.H / 2, 0], p:[g.W / 2 + 0.85 + whole * 0.55, g.H * 0.7, whole * 0.6] };
       /* falls through */
-      default: return { t:[0.08, g.H / 2 + 0.05, zF], p:[whole * 0.36, g.H * 0.62, zF + whole * 0.97] };
+      default: { var dist = fit(g.H + 0.75, g.W + 0.8) * 1.04; return { t:[0, g.H / 2 + 0.08, zF], p:[dist * 0.3, g.H * 0.56, zF + dist] }; } // the whole door centred, room for the dimension pills
     }
   }
   function lookKey(look){ return look ? (look.color || "") + "|" + (look.img || "") : ""; }
@@ -327,7 +336,12 @@
   function texFor(T, look){ // a leaf texture from the swatch image, once
     if (!look || !look.img) return null;
     var t = TEX[look.img];
-    if (!t){ t = TEX[look.img] = new T.TextureLoader().load(look.img, function(){ if (P) P.key = ""; }); t.wrapS = t.wrapT = T.RepeatWrapping; t.repeat.set(0.65, 0.75); /* Egger's raport is ~1.3 × 2.8 m: a leaf is about half of it */ if (T.SRGBColorSpace) t.colorSpace = T.SRGBColorSpace; }
+    if (!t){
+      t = TEX[look.img] = new T.TextureLoader().load(look.img, function(){ if (P) P.key = ""; if (root.KPDOORS.onTexture) try{ root.KPDOORS.onTexture(); }catch(e){} });
+      if (look.crop){ var k = 1 / look.crop; t.repeat.set(k, k * 1.6); t.offset.set((1 - k) / 2, (1 - k * 1.6) / 2); } // a spónlagt photo: only its middle is veneer (same crop as the swatch), stretched along the leaf
+      else { t.wrapS = t.wrapT = T.RepeatWrapping; t.repeat.set(0.65, 0.75); } // Egger's raport is ~1.3 × 2.8 m: a leaf is about half of it
+      if (T.SRGBColorSpace) t.colorSpace = T.SRGBColorSpace;
+    }
     return t.image && t.image.complete !== false && t.image.width ? t : null;
   }
   var preview = {
@@ -352,7 +366,7 @@
       var key = JSON.stringify([d.kind, d.frame, d.widthMm, d.heightMm, d.wallMm, d.hinge, d.opt, lookKey(look)]);
       if (key !== P.key) rebuild();
       var sec = P.view.sec, slide = isSlide(d);
-      P.openTo = !slide && d.kind !== "karmur" && (sec === "opnun" || sec === "lamir") ? (sec === "lamir" ? 0.22 : 0.55) : slide && sec === "opnun" ? 0.45 : 0;
+      P.openTo = !slide && d.kind !== "karmur" && (sec === "opnun" || sec === "lamir") ? (sec === "lamir" ? 0.3 : 0.55) : slide && sec === "opnun" ? 0.45 : 0;
       if (P.door && P.door.userData.arc) P.door.userData.arc.visible = sec === "opnun";
       var aimK = JSON.stringify([sec, P.view.focus, P.size, d.widthMm, d.heightMm, d.wallMm, d.kind, d.hinge]);
       if (aimK !== P.aimK){ P.aimK = aimK; aim(!!P.aimed); P.aimed = true; }
@@ -382,6 +396,16 @@
     if (g.slide) lg.position.x = (lg.userData.slideDir || 1) * k * g.W;
     else lg.rotation.y = g.s * k * Math.PI / 2;
   }
+  // Felliþröskuldur: the door swings shut and the seal drops onto the floor, over and over (3.2 s)
+  function sealLoop(){
+    var lg = P.door.userData.leaf, seal = lg && lg.getObjectByName("seal"), t = (performance.now() % 3200) / 3200, open, drop;
+    function ease(x){ x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); }
+    if (t < 0.3){ open = 0.16 * (1 - ease(t / 0.3)); drop = 0; } else if (t < 0.42){ open = 0; drop = ease((t - 0.3) / 0.12); }
+    else if (t < 0.82){ open = 0; drop = 1; } else { drop = 1 - ease((t - 0.82) / 0.08); open = 0.16 * ease((t - 0.88) / 0.12); }
+    if (!seal){ open = 0; } // venjulegt bil: stays shut, the gap shows
+    P.open = open; setOpen(open);
+    if (seal) seal.position.y = seal.userData.y0 - SEAL_DROP * drop;
+  }
   function aim(animate){
     var g = P.door.userData.g, a = aimFor(g, P.view.sec, P.cam.aspect, P.view.focus), T = P.T;
     P.camFrom = P.cam.position.clone(); P.tFrom = P.ctl ? P.ctl.target.clone() : new T.Vector3();
@@ -401,7 +425,8 @@
       if (P.ctl) P.ctl.target.copy(t); P.cam.lookAt(t);
       if (k >= 1) P.camTo = null;
     }
-    if (Math.abs(P.open - P.openTo) > 0.002){ P.open += (P.openTo - P.open) * 0.12; setOpen(P.open); }
+    if (P.view.sec === "throskuldur") sealLoop();
+    else if (Math.abs(P.open - P.openTo) > 0.002){ P.open += (P.openTo - P.open) * 0.12; setOpen(P.open); }
     if (P.ctl && !P.camTo) P.ctl.update();
     r.render(P.scene, P.cam);
     drawDims();
@@ -429,7 +454,16 @@
       var dx = l.b.x - l.a.x, dy = l.b.y - l.a.y, L = Math.hypot(dx, dy) || 1, nx = -dy / L * 6, ny = dx / L * 6, mx = (l.a.x + l.b.x) / 2, my = (l.a.y + l.b.y) / 2;
       if (l.a.off || l.b.off) return "";
       var txt = ((P.view.entered || {})[l.key] === false ? "?" : P.fmt(l.mm)) + " cm", tw = txt.length * 7.4 + 14;
-      if (l.key === "wallMm"){ mx += 26; } // the wall's end is short on screen: the pill sits beside it
+      if (L < 34){ // too short for a pill on the line (the wall thickness): arrows from outside, the pill beside it
+        var ux = dx / L, uy = dy / L, ext = 16, px = mx + 30, py = my - 22;
+        return '<line x1="' + (l.a.x - ux * ext) + '" y1="' + (l.a.y - uy * ext) + '" x2="' + (l.b.x + ux * ext) + '" y2="' + (l.b.y + uy * ext) + '" stroke="' + col + '" stroke-width="' + sw + '"/>' +
+          [[l.a, -1], [l.b, 1]].map(function(q){ var p = q[0], o = q[1], tx = p.x + ux * o * 7, ty = p.y + uy * o * 7;
+            return '<line x1="' + (p.x - nx * 1.4) + '" y1="' + (p.y - ny * 1.4) + '" x2="' + (p.x + nx * 1.4) + '" y2="' + (p.y + ny * 1.4) + '" stroke="' + col + '" stroke-width="' + sw + '"/>' +
+              '<path d="M' + p.x + ' ' + p.y + 'L' + (tx + nx * 0.6) + ' ' + (ty + ny * 0.6) + 'L' + (tx - nx * 0.6) + ' ' + (ty - ny * 0.6) + 'Z" fill="' + col + '"/>'; }).join("") +
+          '<line x1="' + mx + '" y1="' + my + '" x2="' + (px - tw / 2) + '" y2="' + py + '" stroke="' + col + '" stroke-width="1"/>' +
+          '<rect x="' + (px - tw / 2) + '" y="' + (py - 11) + '" width="' + tw + '" height="22" rx="11" fill="' + (active ? col : "#fff") + '" stroke="' + col + '" stroke-width="1"/>' +
+          '<text x="' + px + '" y="' + (py + 4.5) + '" text-anchor="middle" font-size="12.5" font-weight="700" font-family="inherit" fill="' + (active ? "#fff" : col) + '">' + txt + '</text>';
+      }
       return '<line x1="' + l.a.x + '" y1="' + l.a.y + '" x2="' + l.b.x + '" y2="' + l.b.y + '" stroke="' + col + '" stroke-width="' + sw + '"/>' +
         [l.a, l.b].map(function(p){ return '<line x1="' + (p.x - nx) + '" y1="' + (p.y - ny) + '" x2="' + (p.x + nx) + '" y2="' + (p.y + ny) + '" stroke="' + col + '" stroke-width="' + sw + '"/>'; }).join("") +
         '<rect x="' + (mx - tw / 2) + '" y="' + (my - 11) + '" width="' + tw + '" height="22" rx="11" fill="' + (active ? col : "#fff") + '" stroke="' + col + '" stroke-width="1"/>' +
@@ -442,15 +476,17 @@
     var T = root.__THREE__; if (!T) return null;
     var key = JSON.stringify([d.kind, d.frame, d.widthMm, d.heightMm, d.wallMm, d.hinge, d.opt, lookKey(look), wPx, hPx]);
     if (THUMBS[key]) return THUMBS[key];
-    var r = renderer(T), scene = makeScene(T), door = buildDoor(T, d, look ? { color:look.color } : null); scene.add(door);
-    var g = door.userData.g, cam = new T.PerspectiveCamera(40, wPx / hPx, 0.02, 40), a = aimFor(g, null, wPx / hPx);
-    cam.position.set(a.p[0] * 0.92, a.p[1], a.p[2] * 0.92); cam.lookAt(a.t[0], a.t[1], a.t[2]);
+    var tex = texFor(T, look), pending = !!(look && look.img && !tex);
+    var r = renderer(T), scene = makeScene(T), door = buildDoor(T, d, look ? Object.assign({}, look, { tex:tex }) : null); scene.add(door);
+    var g = door.userData.g, asp = wPx / hPx, cam = new T.PerspectiveCamera(30, asp, 0.02, 40);
+    var vH = 15 * Math.PI / 180, hH = Math.atan(Math.tan(vH) * asp), cw = (g.slide ? g.W * 2 : g.W) + 0.32, dist = Math.max((g.H + 0.22) / 2 / Math.tan(vH), cw / 2 / Math.tan(hH)) * 1.02;
+    cam.position.set(dist * 0.16, g.H * 0.55, g.T / 2 + dist); cam.lookAt(0, g.H / 2 + 0.02, g.T / 2); // the door filling the picture, a touch from the side
     var prev = new T.Vector2(); r.getSize(prev);
     r.setSize(wPx * 2, hPx * 2, false); r.render(scene, cam);
     var url = r.domElement.toDataURL("image/jpeg", 0.82);
     disposeTree(scene);
     if (P){ r.setSize(prev.x, prev.y, false); P.size = ""; } // the open preview sizes itself again on its next frame
-    THUMBS[key] = url;
+    if (!pending) THUMBS[key] = url; // a texture still loading: render again when it's in (onTexture)
     return url;
   }
 

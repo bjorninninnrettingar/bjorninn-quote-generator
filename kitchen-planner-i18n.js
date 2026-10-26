@@ -2030,7 +2030,17 @@
     "Farðu yfir hverja hurð. Málin eru staðfest á staðnum áður en nokkuð er smíðað.": "Check each door. The sizes are confirmed on site before anything is made.",
     "Hvað ætlar þú að gera margar hurðir?": "How many doors are you planning?",
     "Þú getur bætt við eða fjarlægt hurðir seinna.": "You can add or remove doors later.",
-    "Hanna": "Design"
+    "Hanna": "Design",
+    "Eins og": "Same as",
+    "Húnar": "Handles",
+    "Húnn: ekki valið": "Handle: not chosen",
+    "Húnn: söluaðili ráðleggur": "Handle: the sales advisor recommends",
+    "Húnn: vel sjálf/ur": "Handle: I choose my own",
+    "allt nema málin": "everything but the sizes",
+    "húnn: söluaðili ráðleggur": "handle: advisor recommends",
+    "húnn: vel sjálf/ur": "handle: my own",
+    "söluaðili ráðleggur": "advisor recommends",
+    "vel sjálf/ur": "my own"
   });
 
   // part F: stored/computed numbered labels from kitchen-planner-3d.js (CATALOG width variants, island rows, partition sides)
