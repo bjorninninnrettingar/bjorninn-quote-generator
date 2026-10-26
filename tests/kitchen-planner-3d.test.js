@@ -100,3 +100,16 @@ test("cornerClearanceMm: 90° = the previous cabinet's depth; 45° (a skáhorn) 
   assert.equal(K.cornerClearanceMm(walls(45), 1, "floor"), 430);  // 600·sin45 = 424 → next 10 mm
   assert.equal(K.cornerClearanceMm(walls(135), 1, "floor"), 1450); // (600 + 600·cos45) / sin45 = 1448.5
 });
+
+// Upright pulls on tall doors (2026-10-25): sized by the door's height, capped at 50 cm — the order picks its SKU
+// with the same KP3D.tallHandleAvailMm, so what the customer sees is what gets ordered.
+test("tallHandleAvailMm: a tall door's pull is the longest real length up to 500 mm", async () => {
+  await import("../kitchen-planner-models.js");
+  const H = globalThis.KPMODELS.handles;
+  const longest = (cfg, avail) => Math.max(...cfg.lenOptions.map((o) => o.mm).filter((mm) => mm <= avail));
+  assert.equal(K.tallHandleAvailMm(H.angle, 2300), 500);
+  assert.equal(longest(H.angle, K.tallHandleAvailMm(H.angle, 2300)), 500);
+  assert.equal(longest(H.sense, K.tallHandleAvailMm(H.sense, 2300)), 490);
+  assert.equal(longest(H.vann, K.tallHandleAvailMm(H.vann, 2300)), 350);
+  assert.ok(K.tallHandleAvailMm(H.angle, 600) < 500, "a short door still gets a shorter pull");
+});

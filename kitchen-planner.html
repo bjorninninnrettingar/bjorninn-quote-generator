@@ -9925,8 +9925,8 @@
       // one door unless split in Smíða (2026-10-09); the integrated fridge always has its two
       var h = blockHeightMm(b, c), leaves = w > 600 && !c.fridge ? 2 : 1; // a tall unit over 600 mm has two leaves per front, each with its own pull
       var sp = !c.fridge && b.smida && b.smida.split && b.smida.split.length > 1 ? b.smida.split : null;
-      if (sp) return sp.map(function(mm){ return { mm:mm, count:leaves }; });
-      return c.fridge ? [{ mm:h * 0.74, count:1 }, { mm:h * 0.26, count:1 }] : [{ mm:h, count:leaves }];
+      if (sp) return sp.map(function(mm){ return { mm:mm, count:leaves, tall:true }; });
+      return c.fridge ? [{ mm:h * 0.74, count:1, tall:true }, { mm:h * 0.26, count:1, tall:true }] : [{ mm:h, count:leaves, tall:true }];
     }
     var wide = w > 600 && c.cls !== "corner"; // two doors above 600 mm, same rule as the 3D
     return wide ? [{ mm:w / 2, count:2 }] : [{ mm:w, count:1 }];
@@ -9955,7 +9955,8 @@
       wall.floor.concat(wall.wall).forEach(function(b){
         var c = CATALOG[b.type];
         frontWidthsOf(b, c).forEach(function(fw){
-          var pick = stock ? pickStockSku(lenOptions, fw.mm) : pickFittingSku(lenOptions, KP3D.handleAvailMm(hcfg, fw.mm)); // same rule as the 3D
+          var need = hcfg.kind === "hexxa" && fw.tall && isCloset() ? Math.min(400, fw.mm) : fw.mm; // a wardrobe's Hexxa is a 40 cm slot at hand height
+          var pick = stock ? pickStockSku(lenOptions, need) : pickFittingSku(lenOptions, fw.tall ? KP3D.tallHandleAvailMm(hcfg, fw.mm) : KP3D.handleAvailMm(hcfg, fw.mm)); // same rule as the 3D
           if (pick) ids[pick.vorulistiId] = true;
           count += fw.count;
         });
