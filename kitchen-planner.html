@@ -724,6 +724,7 @@
   .ph-name{ font-weight:600; }
   .ph-stage{ font-size:12px; color:var(--ink-soft); flex:none; white-space:nowrap; }
   .ph-empty{ color:var(--ink-soft); font-size:14px; padding:20px 0; }
+  .ph-group{ font-size:12px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--ink-soft); margin:14px 0 2px; }
   .ph-newform{ max-width:360px; margin-top:18px; padding:18px; border:1px solid var(--line); border-radius:12px; background:var(--panel); }
   .ph-newform h3{ margin:0 0 14px; font-size:15px; font-weight:700; color:var(--ink); }
   .ph-msg{ font-size:13px; color:var(--ink-soft); min-height:16px; margin:0 0 4px; }
@@ -18226,7 +18227,7 @@
   function phLoadRecords(){
     phLoading = true; phLoadError = false; renderPhResults();
     var k = proHomeK();
-    var fields = ["Heiti tækifæris / verkefnis", "Staða í söluferli", "Staða í skipulagi"];
+    var fields = ["Heiti tækifæris / verkefnis", "Staða í söluferli", "Staða í skipulagi", "Staða í framleiðslu"];
     var url = "/api/airtable?path=" + encodeURIComponent(PH_TAEKIFAERI) + (k ? "&k=" + encodeURIComponent(k) : "") +
       "&pageSize=100" + fields.map(function(f){ return "&fields%5B%5D=" + encodeURIComponent(f); }).join("");
     // every page, not just the first 100 (user, 2026-10-26: T-15 couldn't be found — older projects never loaded)
@@ -18255,13 +18256,30 @@
     }).sort(function(a, z){ return (want != null ? (tnum(z) === want) - (tnum(a) === want) : 0) || tnum(z) - tnum(a); }).slice(0, 60);
     if (!list.length){ host.innerHTML = '<p class="ph-empty">' + (term ? "Ekkert verkefni fannst." : "Engin verkefni til.") + '</p>'; return; }
     var k = proHomeK();
-    host.innerHTML = list.map(function(r){
+    var row = function(r){
       var f = r.fields || {};
       var name = f["Heiti tækifæris / verkefnis"] || "(ónefnt)";
-      var stage = f["Staða í skipulagi"] || f["Staða í söluferli"] || "";
+      var stage = (phActive(r) && f["Staða í framleiðslu"]) || f["Staða í skipulagi"] || f["Staða í söluferli"] || "";
       return '<a class="ph-row" href="/skipuleggja?pro=' + r.id + (k ? "&k=" + encodeURIComponent(k) : "") + embeddedQS() + '">' +
         '<span class="ph-name">' + escapeHtmlPro(name) + '</span>' + (stage ? '<span class="ph-stage">' + escapeHtmlPro(stage) + '</span>' : '') + '</a>';
-    }).join("");
+    };
+    if (!term){ // no search: the jobs that matter right now on top (user, 2026-10-26) — won and not delivered, then in sales
+      var byT = function(a, z){ return tnum(z) - tnum(a); }, active = (phRecords || []).filter(phActive);
+      var prod = active.filter(function(r){ return !!(r.fields || {})["Staða í framleiðslu"]; }).sort(byT);
+      var plan = active.filter(function(r){ var f = r.fields || {}; return !f["Staða í framleiðslu"] && f["Staða í skipulagi"] && !/for-skipulag/i.test(f["Staða í skipulagi"]); }).sort(byT);
+      var waiting = active.filter(function(r){ return prod.indexOf(r) < 0 && plan.indexOf(r) < 0; }).sort(byT);
+      var selling = (phRecords || []).filter(function(r){ return !phActive(r) && /hönnun|ráðgjöf|tilboð sent/i.test((r.fields || {})["Staða í söluferli"] || ""); }).sort(byT).slice(0, 12);
+      var group = function(title, rs){ return rs.length ? '<h4 class="ph-group">' + title + ' · ' + rs.length + '</h4>' + rs.map(row).join("") : ''; };
+      host.innerHTML = group("Í framleiðslu", prod) + group("Í skipulagi", plan) + group("Unnið — ekki byrjað", waiting) + group("Í sölu", selling) +
+        '<p class="ph-empty">Leitaðu til að finna önnur verkefni (nafn, heimilisfang eða T-númer).</p>';
+      return;
+    }
+    host.innerHTML = list.map(row).join("");
+  }
+  // won and not yet delivered = "í vinnslu"
+  function phActive(r){
+    var f = r.fields || {};
+    return /unnið/i.test(f["Staða í söluferli"] || "") && !/lokið|afhent/i.test(f["Staða í framleiðslu"] || "");
   }
   function phCreateProject(){
     var fornafn = document.getElementById("phFornafn").value.trim();
