@@ -412,3 +412,15 @@ unchanged), read-only server, 1440×900.
 4. **Inherited materials**: a new room that took another room's materials remembers it (`state.matFrom`, a ROOM_FIELD).
    In PRO there's no toast; the room's Efni menu starts with "Erfir efni frá Eldhúsi · Breyta fyrir þetta rými" (the
    link jumps to the first material). Customer keeps the toast.
+
+## Smoke-test fixes (2026-10-26)
+1. **"+ Næsti hægra megin" never repeats a one-of-a-kind unit** (`proNextRight`): vaskaskápur, ofn(askápur), tæki
+   (uppþvottavél, ísskápur/frystir, vínkælir, þvottavél), ruslaskápur, horn, the wardrobe's horneining → the run's
+   normal unit: Grunnskápur with drawers under the worktop (same width when it fits its range), Hárskápur in a tall run,
+   Efri skápur on the wall. Ordinary types repeat as before. T-199: vaskaskápur 800 → Grunnskápur 800 → Grunnskápur.
+2. **One PRO side panel at a time** (`proSoloPanel`): Yfirferð, Tilboð, Mæling and Hurðir close each other; Yfirferð,
+   Mæling and Hurðir also deselect the cabinet (they float over its panel). Tilboð + the cabinet panel may stay together
+   (the drawer narrows the editor and highlights the selected cabinet's lines). The header cut ("RO T-199 · Nýt…") was
+   the Tilboð drawer's width taken off the header twice (`body.pro.tp-open .top` padding inside `#mainWrap`) — the bar
+   now fits at 1440 and 1280, no horizontal scroll. Also: the big-change alert said "(Infinity %)" when Airtable had
+   0 kr — no % then.

@@ -1285,6 +1285,7 @@
   body.pro #proBar button { padding:6px 12px; }
   /* Tilboð open: the panel slides over the right of the page, header included — keep the bar clear of it (the brand gives way first) */
   body.pro.tp-open .top { padding-right:calc(var(--tp-w) - 24px); }
+  body.pro.tp-open #mainWrap .top { padding-right:0; } /* inside #mainWrap the drawer's width is already taken off — twice cut the bar off on the left (2026-10-26) */
   body.pro.tp-open .top > div:first-child { display:none; }
   #proBar .pb-prog { display:inline-block; margin-left:7px; padding:1px 7px; border-radius:999px; background:#ffd60a; color:#1b1f24; font-size:11.5px; font-weight:800; }
   #proBar .pb-prog:empty { display:none; }
@@ -12491,6 +12492,7 @@
     state.measurement = state.measurement || { checked:{}, note:"" };
     var M = state.measurement, el = document.getElementById("measurePanel");
     M.rafmagn = M.rafmagn || []; M.lagnir = M.lagnir || []; M.skekkja = M.skekkja || {};
+    proSoloPanel("measure");
     if (!el){ el = document.createElement("div"); el.id = "measurePanel"; document.body.appendChild(el); }
     document.body.classList.add("mp-open");
     var mpNext = null;
@@ -12532,6 +12534,7 @@
       if (mpNext != null){ var nx = el.querySelectorAll(".mp-body input[type=number]")[mpNext]; mpNext = null; if (nx){ nx.focus(); nx.select(); } }
     }
     function close(){ el.remove(); document.body.classList.remove("mp-open"); document.removeEventListener("keydown", onEsc, true); }
+    el.__close = close; // proSoloPanel
     function onEsc(e){ if (e.key === "Escape" && document.getElementById("measurePanel")){ e.stopPropagation(); close(); } }
     document.addEventListener("keydown", onEsc, true);
     el.onkeydown = function(e){
@@ -12739,9 +12742,21 @@
   function dParse(t){ var v = parseFloat(String(t).replace(",", ".")); return PRO ? Math.round(v) : Math.round(v * 10); }
   // PRO: the list is an overlay over the editor (the editor, its 3D and undo stay as they were) — #screen-hurdir itself
   var proDoorsOpen = false;
+  // One PRO side panel at a time (2026-10-26: cabinet panel + Yfirferð + Tilboð were all open, stacked): opening one
+  // closes the others it would cover. Tilboð and the cabinet panel sit side by side (the drawer narrows the editor and
+  // shows the selected cabinet's lines), so those two may stay together.
+  function proSoloPanel(which){
+    if (!PRO) return;
+    if (which !== "check" && pc.open){ pc.open = false; proCheckRender(); }
+    if (which !== "tilbod" && tp.open) proTilbodToggle(false);
+    if (which !== "measure"){ var mp = document.getElementById("measurePanel"); if (mp && mp.__close) mp.__close(); }
+    if (which !== "doors" && proDoorsOpen) proDoorsShow(false);
+    if ((which === "check" || which === "measure" || which === "doors") && selectedBlockId) deselectBlock(); // these float over the cabinet panel
+  }
   function doorsShown(){ return state.step === "hurdir" || proDoorsOpen; }
   function proDoorsShow(on){
     var sc = document.getElementById("screen-hurdir");
+    if (on && !proDoorsOpen) proSoloPanel("doors");
     proDoorsOpen = !!on; sc.classList.toggle("pro-hd", proDoorsOpen); sc.hidden = !proDoorsOpen;
     document.removeEventListener("keydown", proDoorsEsc);
     if (proDoorsOpen){ document.addEventListener("keydown", proDoorsEsc); renderDoorStep(); }
@@ -15668,10 +15683,15 @@
   // right of it on the same wall; "Setja inn" then opens Smíða on the new one (see uwPlaceAfter)
   function proNextRight(id){
     var fb = findBlock(id); if (!fb || fb.wall.island) return;
-    var b = fb.block, tree = activeUnitTree(), best = null;
+    var b = fb.block, tree = activeUnitTree(), best = null, c0 = CATALOG[b.type];
+    // a one-of-a-kind unit (sink, oven, appliance, corner …) is never repeated (2026-10-26: three vaskaskápar in a row):
+    // the run's normal unit instead — a Grunnskápur with drawers under the worktop, a Hárskápur in a tall run, an Efri skápur on the wall
+    var single = !!(c0.sink || c0.oven || c0.lowOven || c0.fridge || c0.dishwasher || c0.rusl || c0.notOrdered || c0.cls === "corner" || c0.cls === "oven" || c0.cls === "fridge" ||
+      /^(vinkaelir|thvottavel|thvottavelFri|isskapurFri|uppthvottavelFri|frystir|ofnaskapurLagur)$/.test(b.type) || (b.type === "harskapurOpinn" && isCloset() && closetShape() === "closetCorner" && b.closetRecipe === "hillur" && b.widthMm < 700));
+    var want = !single ? b.type : fb.zone === "wall" ? "efriskapur" : (c0.cls === "tall" || c0.cls === "oven" || c0.cls === "fridge") ? "harskapur" : "grunnskapur";
     tree.forEach(function(g, ci){ (g.opts || []).forEach(function(o, oi){
-      if (o.type !== b.type || o.soon || o.island || o.islandBack) return;
-      var score = (!!o.drawers === !!(b.interior && b.interior.mode === "skuffur") ? 2 : 0) + (o.preset ? 0 : 1);
+      if (o.type !== want || o.soon || o.island || o.islandBack) return;
+      var score = (!!o.drawers === (single ? want === "grunnskapur" : !!(b.interior && b.interior.mode === "skuffur")) ? 2 : 0) + (o.preset ? 0 : 1);
       if (!best || score > best.score) best = { ci:ci, oi:oi, o:o, score:score };
     }); });
     closeBoxEditor();
@@ -15680,7 +15700,8 @@
     uwPlaceAfter = { wallId:fb.wall.id, zone:fb.zone, afterId:id };
     if (best){
       uw.cat = best.ci; uw.opt = best.oi; uw.b = uwStartBlock(best.o); uw.step = 3;
-      if (uw.b.interior && b.interior && b.interior.mode === "hillur" && uw.b.interior.mode === "skuffur" && frontsWiz(uw.b)) uw.b.interior.mode = "hillur"; // the kitchen's one Grunnskápur (2026-10-26): a door cabinet's neighbour starts with a door too
+      if (!single && uw.b.interior && b.interior && b.interior.mode === "hillur" && uw.b.interior.mode === "skuffur" && frontsWiz(uw.b)) uw.b.interior.mode = "hillur";
+      var cw = CATALOG[uw.b.type]; if (single && !isCloset() && b.widthMm >= cw.minW && b.widthMm <= Math.min(cw.maxW, 1200) && !cw.fixedWidths) uw.b.widthMm = b.widthMm; // same width (Setja inn offers a narrower one if it doesn't fit) // the kitchen's one Grunnskápur (2026-10-26): a door cabinet's neighbour starts with a door too
       if (uwSurfaces(CATALOG[uw.b.type].zone).some(function(w){ return w.id === fb.wall.id; })) uw.wallId = fb.wall.id;
       renderUnitWizard();
     }
@@ -16816,7 +16837,7 @@
       save(); proCheckRender();
     };
   }
-  function proCheckOpen(on){ pc.open = !!on; proCheckRender(); }
+  function proCheckOpen(on){ if (on) proSoloPanel("check"); pc.open = !!on; proCheckRender(); }
   // go to where a line gets fixed: its room, then the cabinet (and its Smíða), the materials page, the Mæling panel
   function proCheckFix(x){
     var t = x.target;
@@ -16929,7 +16950,7 @@
     return lines.map(function(r){ var f = r.fields || {}, ey = f["Eyðublað búið til ✏️"] || [];
       return { key:f["🔑"] || "", ey:ey.length ? (ey[0].id || ey[0]) : null, stale:!!f["⚠️ Breytt eftir stofnun"], ts:+f["Síðast samstillt timestamp"] || 0 }; });
   }
-  function proRunSet(phase, text){ pr.phase = phase; pr.text = text; pc.open = true; proCheckRender(); }
+  function proRunSet(phase, text){ pr.phase = phase; pr.text = text; proCheckOpen(true); }
   async function proWatchSkipulag(t0, base, startedAt){
     var seq = ++pr.seq, start = startedAt || Date.now(), prev = -1, tick = 0; pr.t0 = t0;
     proRunSet("running", "Keyri skipulag í Airtable…");
@@ -16981,6 +17002,7 @@
     if (!panel) return;
     if (panel.parentNode !== document.body) document.body.appendChild(panel); // a transformed ancestor would pin position:fixed to itself
     tp.open = typeof force === "boolean" ? force : !tp.open;
+    if (tp.open) proSoloPanel("tilbod");
     panel.classList.toggle("open", tp.open);
     panel.setAttribute("aria-hidden", tp.open ? "false" : "true");
     document.body.classList.toggle("tp-open", tp.open);
@@ -17067,7 +17089,7 @@
     // (2026-10-26, T-32: 1.390.685 vs 5.545.305 sat in a small yellow line); under 10 % the calm line below is enough
     var big = base > 0 && Math.abs(diff) >= 2 && Math.abs(diff) / base > 0.1;
     var ad = Math.abs(diff), amt = ad >= 1e6 ? (ad / 1e6).toLocaleString("is-IS", { minimumFractionDigits:2, maximumFractionDigits:2 }) + " m.kr." : tpKr(ad);
-    document.getElementById("tpAlertText").textContent = "Tilboðið " + (diff < 0 ? "lækkar" : "hækkar") + " um " + amt + " (" + Math.round(ad / base * 100) + " %) þegar þú vistar";
+    document.getElementById("tpAlertText").textContent = "Tilboðið " + (diff < 0 ? "lækkar" : "hækkar") + " um " + amt + (base > 0 ? " (" + Math.round(ad / base * 100) + " %)" : "") + " þegar þú vistar"; // nothing priced in Airtable yet: no "Infinity %"
     document.getElementById("tpAlert").hidden = !big;
     function chg(total, was){ return big && Math.abs((total || 0) - (was || 0)) >= 2; }
     function wasTxt(was){ return '<span class="tp-was">' + (was ? "var " + tpKr(was) : "ný lína") + '</span>'; }
@@ -17250,7 +17272,7 @@
         if (ch === true) return proSave(resolve, true);
       }
       pc.saveErr = proSaveErrText(e.status || 0, d.error || "");
-      pc.open = true; proCheckRender();
+      proCheckOpen(true);
       proBar("Vistun tókst ekki" + (proDirty() ? " · ● óvistað" : "")); // A10: the unsaved marker stays visible
       return false;
     }
