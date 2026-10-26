@@ -87,7 +87,12 @@
   .cnccap .ci { width:9px; height:9px; border-radius:50%; border:1.6px solid var(--text); }
   .cnccap .cs { width:4px; height:4px; border-radius:50%; background:var(--text); box-shadow:6px 0 0 var(--text); margin-right:6px; }
   .cnccap .cf { width:14px; height:2px; background:var(--text); }
-  .cnccap .cr { width:14px; height:1.4px; background:#8e8e93; }
+  .cnccap .cd { width:14px; height:9px; border:1.1px solid #6e6e73; border-radius:2px; box-shadow:inset 0 -1.6px 0 #6e6e73; }
+  .cnccap svg { display:block; }
+  .bpp-calm-svg .cz[data-type] { cursor:pointer; }
+  .pick { cursor:pointer; }
+  .r.hl, .q.hl { animation:hl 1.6s ease-out; border-radius:10px; }
+  @keyframes hl { 0%, 35% { background:#e8f1fc; box-shadow:0 0 0 6px #e8f1fc; } 100% { background:transparent; box-shadow:0 0 0 6px transparent; } }
   .cnccap .cb { color:var(--blue); }
 
   /* panel */
@@ -358,13 +363,13 @@
     // drawers (read-only — Sögunarlisti)
     (p.drawers || []).forEach(function (d) {
       var y0 = Y(d.to - 3), h = Math.max(2, (d.to - 3 - d.from) * sc);
-      s += '<rect x="' + (X(0) + 4) + '" y="' + y0 + '" width="' + (W * sc - 8) + '" height="' + h + '" rx="2" fill="#f2f2f4" stroke="#d2d2d7"/>' +
-        '<text x="' + X(W / 2) + '" y="' + (y0 + h / 2 + 4) + '" text-anchor="middle" font-size="12" fill="#a1a1a6">' + d.code + "</text>";
+      s += '<g class="pick" data-pick="dw"><rect x="' + (X(0) + 4) + '" y="' + y0 + '" width="' + (W * sc - 8) + '" height="' + h + '" rx="2" fill="#f2f2f4" stroke="#d2d2d7"/>' +
+        '<text x="' + X(W / 2) + '" y="' + (y0 + h / 2 + 4) + '" text-anchor="middle" font-size="12" fill="#a1a1a6">' + d.code + "</text></g>";
     });
     if (e.oven) {
       var oy = Y(e.oven.under + 16 + e.oven.h);
-      s += '<rect x="' + (X(0) + 8) + '" y="' + oy + '" width="' + (W * sc - 16) + '" height="' + e.oven.h * sc + '" rx="3" fill="#1d1d1f" opacity=".08"/>' +
-        '<text x="' + X(W / 2) + '" y="' + (oy + e.oven.h * sc / 2 + 5) + '" text-anchor="middle" font-size="13" fill="#6e6e73">Ofn ' + e.oven.h + "</text>";
+      s += '<g class="pick" data-pick="oven"><rect x="' + (X(0) + 8) + '" y="' + oy + '" width="' + (W * sc - 16) + '" height="' + e.oven.h * sc + '" rx="3" fill="#1d1d1f" opacity=".08"/>' +
+        '<text x="' + X(W / 2) + '" y="' + (oy + e.oven.h * sc / 2 + 5) + '" text-anchor="middle" font-size="13" fill="#6e6e73">Ofn ' + e.oven.h + "</text></g>";
     }
     (e.inner || []).forEach(function (x, i) {
       var h = (c.inner[i] || {}).h || 100, y = Y(x.mm + h);
@@ -382,16 +387,17 @@
       s += '<g class="drag" data-k="rail" data-i="' + i + '"><rect x="' + X(0) + '" y="' + (y - 8) + '" width="' + W * sc + '" height="16" fill="transparent"/>' +
         '<line x1="' + (X(0) + 10) + '" x2="' + (X(W) - 10) + '" y1="' + y + '" y2="' + y + '" stroke="#8e8e93" stroke-width="4" stroke-linecap="round"/></g>';
     });
-    // doors: outline + the architect's opening mark (the point of the chevron = the hinge side); click = hinge side
+    // doors: outline + the opening mark as on a drawing — the chevron's point is the handle side (away from the hinges);
+    // click = its section in the panel, double-click = switch the hinge side
     var hs = e.hinge || null, leaves = c.base.hingeSide === "baedi";
     (p.doors || []).forEach(function (d, i) {
       var x0 = X(0) + 2, x1 = X(W) - 2, y0 = Y(d.to), y1 = Y(d.from), my = (y0 + y1) / 2, mx = (x0 + x1) / 2;
       var lift = e.doors && e.doors[i] && e.doors[i].type === "lift";
       var mark = "";
-      if (lift) mark = "M" + x0 + " " + y1 + " L" + mx + " " + y0 + " L" + x1 + " " + y1;
-      else if (hs === "baedi") mark = "M" + mx + " " + y0 + " L" + x0 + " " + my + " L" + mx + " " + y1 + " M" + mx + " " + y0 + " L" + x1 + " " + my + " L" + mx + " " + y1;
-      else if (hs === "vinstri") mark = "M" + x1 + " " + y0 + " L" + x0 + " " + my + " L" + x1 + " " + y1;
-      else if (hs === "haegri") mark = "M" + x0 + " " + y0 + " L" + x1 + " " + my + " L" + x0 + " " + y1;
+      if (lift) mark = "M" + x0 + " " + y0 + " L" + mx + " " + y1 + " L" + x1 + " " + y0; // hinged at the top, opens at the bottom
+      else if (hs === "baedi") mark = "M" + x0 + " " + y0 + " L" + mx + " " + my + " L" + x0 + " " + y1 + " M" + x1 + " " + y0 + " L" + mx + " " + my + " L" + x1 + " " + y1;
+      else if (hs === "vinstri") mark = "M" + x0 + " " + y0 + " L" + x1 + " " + my + " L" + x0 + " " + y1;
+      else if (hs === "haegri") mark = "M" + x1 + " " + y0 + " L" + x0 + " " + my + " L" + x1 + " " + y1;
       s += '<g class="door" data-door="' + i + '"><rect class="door-r" x="' + x0 + '" y="' + y0 + '" width="' + (x1 - x0) + '" height="' + (y1 - y0) + '" rx="2" fill="transparent" stroke="#0071e3" stroke-width="1.3"/>' +
         (hs === "baedi" && leaves ? '<line x1="' + mx + '" x2="' + mx + '" y1="' + y0 + '" y2="' + y1 + '" stroke="#0071e3" stroke-width="1"/>' : "") +
         (mark ? '<path d="' + mark + '" fill="none" stroke="#0071e3" stroke-width="1" stroke-dasharray="6 5" opacity=".7"/>' : "") +
@@ -459,6 +465,17 @@
     svg.addEventListener("click", function (ev) {
       if (svg.dataset.dragged) { delete svg.dataset.dragged; return; }
       var l = ev.target.closest(".lbl"); if (l) { inlineEdit(l); return; }
+      var dr = ev.target.closest(".drag");
+      if (dr) { var k = dr.dataset.k, i = +dr.dataset.i;
+        if (k === "hinge") focusSection("d" + i, "h" + i, '[data-hinge="' + i + ":" + dr.dataset.j + '"]');
+        else if (k === "shelf") focusSection("shelves", null, '[data-shelf="' + i + '"]');
+        else if (k === "inner") focusSection("inner", null, '[data-inner="' + i + '"]');
+        else if (k === "rail") focusSection("rails", null, '[data-rail="' + i + '"]');
+        return; }
+      var pk = ev.target.closest(".pick"); if (pk) { focusSection(pk.dataset.pick); return; }
+      var dg = ev.target.closest(".door"); if (dg) focusSection("hinge", null, null, "d" + dg.dataset.door);
+    });
+    svg.addEventListener("dblclick", function (ev) { // quick: switch the hinge side right on the door
       var dg = ev.target.closest(".door"); if (!dg || ev.target.closest(".drag")) return;
       if (c.base.hingeSide === "baedi") { toast("Vænghurð — lamir báðum megin"); return; }
       var i = +dg.dataset.door, e = ed();
@@ -508,13 +525,26 @@
       row.appendChild(card);
     });
     var cap = document.createElement("div"); cap.className = "cnccap";
-    cap.innerHTML = '<span><i class="ci"></i>Löm</span><span><i class="cs"></i>Hillugöt</span><span><i class="cf"></i>Föst hilla</span><span><i class="cr"></i>Skúffubraut</span><span class="cb">Blátt = stillt hér</span>';
+    cap.innerHTML = '<span><svg width="14" height="14" viewBox="0 0 14 14"><path d="M5 1H9V5H13V9H9V13H5V9H1V5H5Z" fill="#fff" stroke="#1d1d1f" stroke-width="1.2" stroke-linejoin="round"/></svg>Lamaplata</span>' +
+      '<span><i class="cs"></i>Hillugöt</span><span><i class="cf"></i>Föst hilla</span><span><i class="cd"></i>Skúffa á braut</span><span class="cb">Blátt = stillt hér</span>';
     wrap.appendChild(cap);
+    // a click on the side → that item's section (hinge → its door, shelf/inner → the nearest one)
+    row.addEventListener("click", function (ev) {
+      var z = ev.target.closest(".bpp-calm-svg .cz[data-type]"); if (!z) return;
+      var t = z.dataset.type, y = +z.dataset.y, e = ed(c);
+      function nearest(list, off) { var best = 0; (list || []).forEach(function (x, i) { if (Math.abs(x.mm - off - y) < Math.abs(list[best].mm - off - y)) best = i; }); return best; }
+      if (t === "hinge") { var di = Math.max(0, (p.doors || []).findIndex(function (d) { return y >= d.from - 1 && y <= d.to + 1; })); focusSection("d" + di, "h" + di); }
+      else if (t === "shelf") { var sl = e.shelves || (e.oven && e.oven.shelves); if (sl) focusSection("shelves", null, '[data-shelf="' + nearest(sl, 16) + '"]'); }
+      else if (t === "inner") { if (e.inner) focusSection("inner", null, '[data-inner="' + nearest(e.inner, -54) + '"]'); else focusSection("dw"); }
+      else if (t === "drawer") focusSection("dw");
+      else if (t === "rail") focusSection(e.rails ? "rails" : "shelves");
+    });
   }
 
   // ── panel: what's still open, then everything else as quiet lines ────────────────────────────
   function doorIcon(side) {
-    var mark = side === "vinstri" ? "M40 6 L6 31 L40 56" : side === "haegri" ? "M6 6 L40 31 L6 56" : side === "baedi" ? "M23 6 L6 31 L23 56 M23 6 L40 31 L23 56" : side === "lift" ? "M6 56 L23 6 L40 56" : "";
+    // the point = the handle side (away from the hinges), as on a drawing
+    var mark = side === "vinstri" ? "M6 6 L40 31 L6 56" : side === "haegri" ? "M40 6 L6 31 L40 56" : side === "baedi" ? "M6 6 L23 31 L6 56 M40 6 L23 31 L40 56" : side === "lift" ? "M6 6 L23 56 L40 6" : "";
     var dots = side === "vinstri" ? [9] : side === "haegri" ? [37] : side === "baedi" ? [9, 37] : side === "hinged" ? [9] : [];
     return '<svg viewBox="0 0 46 62"><rect x="3" y="3" width="40" height="56" rx="3" fill="#fff" stroke="currentColor" stroke-width="1.6"/>' +
       (side === "baedi" ? '<line x1="23" x2="23" y1="3" y2="59" stroke="currentColor" stroke-width="1"/>' : "") +
@@ -535,12 +565,27 @@
   }
   function row(key, label, value, body, ro) {
     var x = !ro && openRow[cab().unit + key];
-    return '<div class="r' + (x ? " x" : "") + (ro ? " ro" : "") + '"><button type="button" class="rh"' + (ro ? "" : ' data-row="' + key + '"') + '><span class="k">' + label + '</span><span class="v">' + value + "</span>" +
+    return '<div class="r' + (x ? " x" : "") + (ro ? " ro" : "") + '" data-key="' + key + '"><button type="button" class="rh"' + (ro ? "" : ' data-row="' + key + '"') + '><span class="k">' + label + '</span><span class="v">' + value + "</span>" +
       '<span class="chev">' + (ro ? "" : I_CHEV) + '</span></button><div class="rb">' + (body || "") + "</div></div>";
   }
   function more(key, inner) {
     var o = advOpen[cab().unit + key];
     return '<button type="button" class="more" data-adv="' + key + '">' + (o ? "Minna" : "Nánar") + "</button>" + (o ? '<div class="adv">' + inner + "</div>" : "");
+  }
+  // open a section in the panel, scroll to it, blink it, focus one of its inputs (clicks on the drawing land here)
+  function focusSection(key, adv, sel, also) {
+    var c = cab(), el = $("panel");
+    var q = key === "hinge" && el.querySelector(".q [data-hinge]") ? el.querySelector(".q [data-hinge]").closest(".q") : null; // still an open question
+    if (!q) {
+      if (!el.querySelector('.r[data-key="' + key + '"]')) { if (also) key = also; else return; }
+      Object.keys(openRow).forEach(function (k) { if (k.indexOf(c.unit) === 0) delete openRow[k]; }); // one section open: the one clicked
+      openRow[c.unit + key] = true; if (also) openRow[c.unit + also] = true; if (adv) advOpen[c.unit + adv] = true;
+      renderPanel();
+    }
+    var box = q || $("panel").querySelector('.r[data-key="' + key + '"]'); if (!box) return;
+    box.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    box.classList.remove("hl"); void box.offsetWidth; box.classList.add("hl");
+    var inp = sel && $("panel").querySelector(sel); if (inp) { inp.focus({ preventScroll: true }); if (inp.select) inp.select(); }
   }
   function plural(n, one, many) { return n + " " + (n === 1 ? one : many); }
   function renderPanel() {

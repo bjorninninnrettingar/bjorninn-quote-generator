@@ -299,6 +299,14 @@
   // fixed-shelf lines, drawer/inner runner lines — thin lines, standing up like the cabinet (bottom at the bottom,
   // front edge to the left), labels on hover (<title>). opts.accent = { hinge, shelf, inner }: drawn in blue when
   // that part was set by hand (in /smida), else ink. The BiesseWorks-style view stays one click away ("Tæknilegt").
+  // Blum side heights (mm) — the same table the planner draws boxes with (kitchen-planner-3d.js DRAWER_CODES, Blum catalogue)
+  var BOX_SIDE = { merivo: { N: 63, M: 91, K: 129, E: 192 }, legra: { M: 90.5, K: 128.5, C: 177, F: 241 } };
+  // the hinge's mounting plate (cross plate) as drawn on the side: centre (x, y), px
+  function platePath(x, y) {
+    var a = 9, b = 3.2; // arm half-length, arm half-width
+    return "M" + (x - b) + " " + (y - a) + "H" + (x + b) + "V" + (y - b) + "H" + (x + a) + "V" + (y + b) + "H" + (x + b) + "V" + (y + a) +
+      "H" + (x - b) + "V" + (y + b) + "H" + (x - a) + "V" + (y - b) + "H" + (x - b) + "Z";
+  }
   function renderCalm(LPX, LPY, features, opts) {
     opts = opts || {};
     var acc = opts.accent || {}, BLUE = "#0071e3", INK = "#1d1d1f", SOFT = "#8e8e93";
@@ -311,24 +319,33 @@
     var front = Math.min(37, LPY / 3), back = LPY - Math.min(37, LPY / 3);
     features.forEach(function (f) {
       if (f.type === "drawer" || f.type === "inner") {
-        var el = g(f.label), from = Math.max(0, f.from), to = Math.min(LPX, f.to);
-        if (f.type === "drawer") el.appendChild(svgEl("rect", { x: X(0) + 3, y: Y(to), width: w - 6, height: Math.max(1, (to - from) * s), fill: "#f5f5f7" }));
-        var ry = f.type === "inner" ? from : from + (f.sys === "legra" ? 62.5 : 80); // runner over its slot, as cnc-sides.js plans it
-        el.appendChild(svgEl("line", { x1: X(front), x2: X(back), y1: Y(ry), y2: Y(ry), stroke: f.type === "inner" && acc.inner ? BLUE : SOFT, "stroke-width": 1.4, "stroke-linecap": "round" }));
+        // the box as the Rover macro places it: on its runner line, as tall as the Blum side of its code
+        var code = (String(f.label).match(/skúffa\s+([NMKCFE])\b/i) || [])[1] || "", sys = f.sys || "merivo";
+        var el = g(f.label), from = Math.max(0, f.from), to = Math.min(LPX, f.to), inner = f.type === "inner";
+        var ry = inner ? from : from + (sys === "legra" ? 62.5 : 80); // runner over its slot, as cnc-sides.js plans it
+        var sideH = (BOX_SIDE[sys] || BOX_SIDE.merivo)[code.toUpperCase()] || 90;
+        if (!inner) el.appendChild(svgEl("rect", { x: X(0) + 3, y: Y(to), width: w - 6, height: Math.max(1, (to - from) * s), fill: "#f7f7f9" }));
+        var col = inner && acc.inner ? BLUE : "#6e6e73";
+        el.appendChild(svgEl("rect", { x: X(Math.min(12, LPY / 20)), y: Y(ry + sideH), width: X(LPY - Math.min(22, LPY / 12)) - X(Math.min(12, LPY / 20)), height: sideH * s, rx: 2, fill: inner ? "#fff" : "#fff", stroke: col, "stroke-width": 1.1 }));
+        el.appendChild(svgEl("line", { x1: X(front), x2: X(back), y1: Y(ry), y2: Y(ry), stroke: col, "stroke-width": 1.6, "stroke-linecap": "round" }));
+        if (code && sideH * s > 9) { var tl = svgEl("text", { x: X(LPY / 2), y: Y(ry + sideH / 2), "text-anchor": "middle", "dominant-baseline": "middle", "font-size": Math.min(12, sideH * s * .55), fill: col }); tl.textContent = code.toUpperCase(); el.appendChild(tl); }
+        el.setAttribute("data-type", f.type); el.setAttribute("data-y", Math.round(ry));
       } else if (f.type === "fixed") {
         var ef = g(f.label); ef.appendChild(svgEl("rect", { x: X(0) + 3, y: Y(f.to), width: w - 6, height: Math.max(1, (f.to - f.from) * s), fill: "#f5f5f7" }));
       } else if (f.type === "shelfFixed") {
         var es = g(f.label + " — " + Math.round(f.y) + " mm");
         es.appendChild(svgEl("line", { x1: X(0), x2: X(LPY), y1: Y(f.y), y2: Y(f.y), stroke: acc.shelf ? BLUE : INK, "stroke-width": 2 }));
+        es.setAttribute("data-type", "shelf"); es.setAttribute("data-y", Math.round(f.y));
       } else if (f.type === "shelfLoose") {
         var el2 = g(f.label + " — göt " + f.ys.map(function (y) { return Math.round(y); }).join(", ") + " mm");
         f.ys.forEach(function (y) { [front, back].forEach(function (d) { el2.appendChild(svgEl("circle", { cx: X(d), cy: Y(y), r: 2.4, fill: acc.shelf ? BLUE : INK })); }); });
+        el2.setAttribute("data-type", "shelf"); el2.setAttribute("data-y", Math.round(f.ys[Math.floor(f.ys.length / 2)]));
       } else if (f.type === "hinge") {
         var eh = g((f.label || "Löm") + (f.y != null ? "" : ""));
-        eh.appendChild(svgEl("circle", { cx: X(front), cy: Y(f.y), r: 4.6, fill: "#fff", stroke: acc.hinge ? BLUE : INK, "stroke-width": 1.6 }));
-        eh.appendChild(svgEl("circle", { cx: X(front), cy: Y(f.y), r: 1.6, fill: acc.hinge ? BLUE : INK }));
+        eh.appendChild(svgEl("path", { d: platePath(X(front), Y(f.y)), fill: "#fff", stroke: acc.hinge ? BLUE : INK, "stroke-width": 1.4, "stroke-linejoin": "round" }));
+        eh.setAttribute("data-type", "hinge"); eh.setAttribute("data-y", Math.round(f.y));
       } else if (f.type === "rail") {
-        var er = g(f.label); er.appendChild(svgEl("line", { x1: X(0), x2: X(LPY), y1: Y(f.y), y2: Y(f.y), stroke: "#d2d2d7", "stroke-width": 1, "stroke-dasharray": "4 4" }));
+        var er = g(f.label); er.setAttribute("data-type", "rail"); er.setAttribute("data-y", Math.round(f.y)); er.appendChild(svgEl("line", { x1: X(0), x2: X(LPY), y1: Y(f.y), y2: Y(f.y), stroke: "#d2d2d7", "stroke-width": 1, "stroke-dasharray": "4 4" }));
       }
     });
     var t1 = svgEl("text", { x: X(0) - 8, y: Y(LPX / 2), "text-anchor": "end", "dominant-baseline": "middle", "font-size": 11, fill: "#a1a1a6" }); t1.textContent = LPX; svg.appendChild(t1);
@@ -338,7 +355,7 @@
   var CALM_CSS = ".bpp-calmv{background:#fff;border:1px solid #e5e5ea;border-radius:12px;padding:12px 14px 10px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1d1d1f}" +
     ".bpp-calm-h{display:flex;align-items:center;gap:10px;margin-bottom:6px;font-size:13px}.bpp-calm-h b{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
     ".bpp-calm-h button{font:inherit;font-size:12px;color:#0071e3;background:none;border:none;cursor:pointer;padding:2px 0}" +
-    ".bpp-calm-body{display:flex;justify-content:center}.bpp-calm-svg .cz{cursor:default}.bpp-calm-svg .cz:hover line,.bpp-calm-svg .cz:hover circle{stroke:#0071e3}.bpp-calm-svg .cz:hover circle[r='2.4'],.bpp-calm-svg .cz:hover circle[r='1.6']{fill:#0071e3}.bpp-calm-svg .cz:hover rect{fill:#e8f1fc}" +
+    ".bpp-calm-body{display:flex;justify-content:center}.bpp-calm-svg .cz{cursor:default}.bpp-calm-svg .cz:hover line,.bpp-calm-svg .cz:hover path,.bpp-calm-svg .cz:hover rect[rx='2']{stroke:#0071e3}.bpp-calm-svg .cz:hover circle{fill:#0071e3}.bpp-calm-svg .cz:hover text{fill:#0071e3}" +
     ".bpp-card.bpp-calm>.bw-window,.bpp-card.bpp-calm>.bpp-raw,.bpp-card.bpp-calm .bpp-note.info{display:none}.bpp-card:not(.bpp-calm)>.bpp-calmv .bpp-calm-body{display:none}" +
     ".bpp-card:not(.bpp-calm)>.bpp-calmv{border:none;background:none;padding:0 0 6px}";
   function ensureCalmCss() {

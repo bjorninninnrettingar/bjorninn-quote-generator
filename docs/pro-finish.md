@@ -544,3 +544,9 @@ Owner: the most important page in the company; the first version read like a for
   A failed save says "Vistaðist ekki" + "Reyna aftur", nothing is lost (draft). Afturkalla = a stack, one save at a time.
 - PRO bar: **"Smíða úr Eyðublöðum"** whenever the project is legacy (`proLegacyCheck`: has Eyðublöð, no Line Item linked
   to one — two one-record GETs), also with a drawing (T-15 got an empty one, so the no-drawing offer never showed).
+- **Round 3 (owner on T-15 Sk 2):** door mark flipped — the chevron's point is the handle side (away from the hinges),
+  two leaves point to the middle, a lift door points down. A click on anything in the drawing (shelf, hinge, inner drawer,
+  rail, drawer, oven, door) opens that section alone in the panel, scrolls to it, blinks it and focuses its number;
+  the same from the CNC side view (hinge → its door, shelf/inner → the nearest one). Double-click a door = switch hinge side.
+  CNC side view: the hinge as its cross mounting plate; each drawer/inner drawer as its box standing on its runner line,
+  as tall as its Blum side (Merivo N 63 / M 91 / K 129 / E 192, Legra M 90.5 / K 128.5 / C 177 / F 241 — the planner's table) with its code inside.
