@@ -126,7 +126,9 @@
   "use strict";
   var STIMPLANIR = "tblnFIO8RB6HcelXF";
   var LAUNATIMABIL = "tblSQ0FfGQeBttaH2";
-  var ORLOFSBEIDNIR = "tbljdg6uxEfHE7uCU";
+  // Vacation requests live in Fjarvistir 🤒 (Tegund=Orlof, Staða set) since the 2026-09-22 merge —
+  // /klukka writes them there; the old Orlofsbeiðnir table is retired.
+  var FJARVISTIR = "tbl3e5o0Klv9RcNQ4";
 
   var shellInfo = window.OfficeShell.boot("laun");
   if (!shellInfo) return;
@@ -263,10 +265,10 @@
   var reqFilterVal = "Í bið";
   function loadRequests() {
     $("reqList").innerHTML = '<div class="loading">Sæki…</div>';
-    var fml = reqFilterVal ? 'AND({Staða}="' + reqFilterVal + '")' : "";
-    fetchAllPages(ORLOFSBEIDNIR, (fml ? "filterByFormula=" + encodeURIComponent(fml) + "&" : "") + "pageSize=100")
+    var fml = 'AND({Tegund}="Orlof",{Staða}' + (reqFilterVal ? '="' + reqFilterVal + '"' : '!=""') + ")";
+    fetchAllPages(FJARVISTIR, "filterByFormula=" + encodeURIComponent(fml) + "&pageSize=100")
       .then(function (records) {
-        records.sort(function (a, b) { return new Date(b.fields["Frá"]) - new Date(a.fields["Frá"]); });
+        records.sort(function (a, b) { return new Date(b.fields["Dagsetning"]) - new Date(a.fields["Dagsetning"]); });
         renderRequests(records);
       })
       .catch(function (e) { $("reqList").innerHTML = '<div class="emptyMsg">Villa: ' + esc(e.message) + "</div>"; });
@@ -284,8 +286,11 @@
       var pending = st === "Í bið";
       return '<div class="reqRow" data-id="' + esc(r.id) + '">' +
         '<span class="reqName">' + esc(name) + "</span>" +
-        '<span class="reqDates">' + esc(f["Frá"]) + " → " + esc(f["Til"]) + " · " + (f["Dagar (virkir)"] != null ? f["Dagar (virkir)"] + " dagar" : "") + "</span>" +
-        '<span class="reqNote">' + esc(f["Athugasemd"] || "") + "</span>" +
+        // Once approved, the daily LAUNA script spreads the request into one row per workday and
+        // clears "Til" — those rows just show their own day.
+        '<span class="reqDates">' + esc(f["Dagsetning"]) + (f["Til"] ? " → " + esc(f["Til"]) : "") +
+          (f["Dagar (virkir)"] != null ? " · " + f["Dagar (virkir)"] + " dagar" : "") + "</span>" +
+        '<span class="reqNote">' + (f["Dögum dreift"] ? "Dreift á daga" : "") + "</span>" +
         '<span class="reqStatus ' + statusClass(st) + '">' + esc(st) + "</span>" +
         (pending
           ? '<span class="reqActions"><button class="approve" data-act="Samþykkt">Samþykkja</button><button class="reject" data-act="Hafnað">Hafna</button></span>'
@@ -301,7 +306,10 @@
     var id = row.dataset.id;
     var newStatus = btn.dataset.act;
     row.querySelectorAll("button").forEach(function (b) { b.disabled = true; });
-    patch(ORLOFSBEIDNIR + "/" + id, { "Staða": newStatus }).then(function () { loadRequests(); });
+    patch(FJARVISTIR + "/" + id, { "Staða": newStatus }).then(function (d) {
+      if (d && d.error) alert("Tókst ekki: " + (d.error.message || d.error));
+      loadRequests();
+    });
   });
 
   $("reqFilter").addEventListener("click", function (e) {

@@ -575,6 +575,13 @@ const STRICT_FILTERS = {
 // way to read either of these (2026-10-01 hardening), not merely "has a STRICT_FILTERS entry"
 // (Tengiliðir/Fyrirtæki below need by-id reads for real — see the GET handler's comment).
 const BLOCK_RECORD_ID = new Set(["tblhglpjQkczdG1AY", "tbl3e5o0Klv9RcNQ4"]);
+// Extra query shapes accepted ONLY with a valid VERK_KEY (on top of STRICT_FILTERS above).
+// /laun (eigandi) lists every employee's vacation *requests* in Fjarvistir (2026-10-26 — it used to
+// read the retired Orlofsbeiðnir table, so requests made from /klukka never showed up there).
+// Only Orlof rows by Staða — never sick days.
+const KEYED_STRICT_FILTERS = {
+  "tbl3e5o0Klv9RcNQ4": /^AND\(\{Tegund\}="Orlof",\{Staða\}(?:="(?:Í bið|Samþykkt|Hafnað)"|!="")\)$/,
+};
 // Logged by the site (chatbot, planner error reports) and reviewed in Airtable only — never read back.
 const WRITE_ONLY = new Set(["tbltD1UNpqj05WtMx", "tbl7K8v94Pf6Ausk3"]);
 
@@ -677,7 +684,7 @@ const CREATE_REQUIRES_KEY = new Set(["tblFcsUoGxsuUwNEH", "tblQ8zeUanriESWvL", "
 // 3 specific fields (discount/review-flag/pipeline-stage), not the whole table — needs either field-
 // level PATCH gating (new mechanism) or giving the floor app a key (worsens finding #1's key-sprawl
 // problem). Flagged back to the user rather than shipped either way unilaterally.
-const PATCH_REQUIRES_KEY = new Set(["tblQ8zeUanriESWvL", "tbl2akoCETBx9S1SK", "tbl8HjvBwNJ41cTV0", "tbl8CrVWKF8CuI7HD", "tbljdg6uxEfHE7uCU"]);
+const PATCH_REQUIRES_KEY = new Set(["tblQ8zeUanriESWvL", "tbl2akoCETBx9S1SK", "tbl8HjvBwNJ41cTV0", "tbl8CrVWKF8CuI7HD", "tbljdg6uxEfHE7uCU", "tbl3e5o0Klv9RcNQ4"]);
 
 // Fields forced to a fixed value on create, regardless of what (or whether)
 // the client sends — applied after CREATABLE_FIELDS filtering, so these
@@ -767,6 +774,10 @@ const WRITABLE_FIELDS = {
   // "Fjarvistir búnar til" is an automation-owned flag (creates the real Fjarvistir
   // row once approved), never set by this proxy.
   "tbljdg6uxEfHE7uCU": ["Staða"],
+  // /laun (2026-10-26) — approve/reject a vacation request in Fjarvistir (key-gated, see
+  // PATCH_REQUIRES_KEY; value limited to Samþykkt/Hafnað in the PATCH handler). The daily
+  // LAUNA script then spreads an approved request into one row per workday.
+  "tbl3e5o0Klv9RcNQ4": ["Staða"],
   // Closes an open shift (stimpilklukka's ÚT button). "Inn" is intentionally
   // not writable here — a shift's start time is only ever set at creation.
   "tblnFIO8RB6HcelXF": ["Út"],
@@ -937,7 +948,10 @@ export default async function handler(req, res) {
     if (recordId && BLOCK_RECORD_ID.has(tableId)) {
       return res.status(403).json({ error: "Query not allowed for this table" });
     }
-    if (!recordId && STRICT_FILTERS[tableId] && !STRICT_FILTERS[tableId].test(String(params.filterByFormula || ""))) {
+    const keyValid = params.k != null && !!process.env.VERK_KEY && params.k === process.env.VERK_KEY;
+    const fml = String(params.filterByFormula || "");
+    if (!recordId && STRICT_FILTERS[tableId] && !STRICT_FILTERS[tableId].test(fml) &&
+        !(keyValid && KEYED_STRICT_FILTERS[tableId] && KEYED_STRICT_FILTERS[tableId].test(fml))) {
       return res.status(403).json({ error: "Query not allowed for this table" });
     }
 
@@ -1053,6 +1067,10 @@ export default async function handler(req, res) {
     }
     if (Object.keys(fields).length === 0) {
       return res.status(400).json({ error: "No writable fields in request" });
+    }
+
+    if (tableId === "tbl3e5o0Klv9RcNQ4" && !["Samþykkt", "Hafnað"].includes(fields["Staða"])) {
+      return res.status(400).json({ error: "Staða must be Samþykkt or Hafnað" });
     }
 
     const url = `https://api.airtable.com/v0/${AIRTABLE_BASE}/${tableId}/${recordId}`;

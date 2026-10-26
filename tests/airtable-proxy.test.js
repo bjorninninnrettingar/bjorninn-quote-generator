@@ -177,3 +177,27 @@ test("Tækifæri: 'Áætlaðir dagar í vinnudögum Björninn (internal)' is wri
   assert.equal(res.statusCode, 200);
   assert.equal(f.calls.at(-1).body.fields["Áætlaðir dagar í vinnudögum Björninn (internal)"], 14);
 });
+
+// 2026-10-26 — /laun reads vacation requests from Fjarvistir (they used to be read from the retired
+// Orlofsbeiðnir table, so requests made on /klukka never showed up for the owner to approve).
+test("Fjarvistir: /laun's Orlof-by-Staða list only with the key, never sick days, never TRUE()", async () => {
+  const pending = 'AND({Tegund}="Orlof",{Staða}="Í bið")';
+  const all = 'AND({Tegund}="Orlof",{Staða}!="")';
+  assert.equal((await get({ path: "tbl3e5o0Klv9RcNQ4", filterByFormula: pending })).statusCode, 403);
+  assert.equal((await get({ path: "tbl3e5o0Klv9RcNQ4", filterByFormula: pending, k: "wrong" })).statusCode, 403);
+  assert.equal((await get({ path: "tbl3e5o0Klv9RcNQ4", filterByFormula: pending, k: "verk-secret" })).statusCode, 200);
+  assert.equal((await get({ path: "tbl3e5o0Klv9RcNQ4", filterByFormula: all, k: "verk-secret" })).statusCode, 200);
+  for (const fml of ['AND({Tegund}="Veikindi",{Staða}!="")', "TRUE()", 'AND({Tegund}="Orlof",{Staða}!="",TRUE())']) {
+    assert.equal((await get({ path: "tbl3e5o0Klv9RcNQ4", filterByFormula: fml, k: "verk-secret" })).statusCode, 403, fml);
+  }
+});
+
+test("Fjarvistir: approving a vacation request needs the key and only Samþykkt/Hafnað", async () => {
+  const id = "tbl3e5o0Klv9RcNQ4/recAAAAAAAAAAAAAA";
+  assert.equal((await patch(id, { "Staða": "Samþykkt" })).statusCode, 403);
+  assert.equal((await patch(id, { "Staða": "Í bið" }, "verk-secret")).statusCode, 400);
+  assert.equal((await patch(id, { "Tegund": "Veikindi" }, "verk-secret")).statusCode, 400);
+  const ok = await patch(id, { "Staða": "Samþykkt", "Til": "2026-12-31" }, "verk-secret");
+  assert.equal(ok.statusCode, 200);
+  assert.deepEqual(f.calls.at(-1).body.fields, { "Staða": "Samþykkt" });
+});
