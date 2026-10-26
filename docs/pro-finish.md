@@ -140,3 +140,12 @@ Tested on T-32 with the read-only local server (every non-GET `/api` blocked), 1
    again, in order: keyra skipulag → yfirfara breyttar einingar → keyra pöntunarlista, and re-export CNC.
 
 Not exercised: a hinge "Laga" live (T-32 has no hinge collisions now; same `proAutoHinges` as C2).
+
+**Follow-up — "+ Næsti hægra megin" (same day).** Adding a cabinet in PRO asked twice (Ný eining's sizes/innvols,
+then Smíða again). The Smíða strip now has **"+ Næsti hægra megin"** next to the green button (`proNextRight`): closes
+Smíða, opens Ný eining straight on the sizes step with the current cabinet's type (the tree option with the same
+type, drawers-or-not matched), on the same wall, and sets `uwPlaceAfter` — "Setja inn" puts the new unit flush right of
+the cabinet (`uwAfterPlacement`), then Smíða opens on the new Sk as before, so a whole run is drawn in one loop. No
+room right there → the usual placement + toast "Ekki pláss beint hægra megin — settur á næsta lausa stað"; the
+narrower-width offer still applies. Disabled on island boxes. Tested T-32: Sk6 → Sk14 flush (gap 0), Sk13/Sk3 → toast.
+Kept to the Smíða side + the placement hook (PRO C is reshaping the wizard itself).

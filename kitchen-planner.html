@@ -1579,6 +1579,8 @@
   #proEd .pe-count { flex:none; font-size:12px; color:#5b6470; white-space:nowrap; }
   #proEd .pe-go { flex:none; width:170px; padding:8px 10px; border:0; border-radius:9px; font:700 13.5px/1.2 inherit; font-family:inherit; cursor:pointer; color:#fff; background:#1f9d55; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   #proEd .pe-go.next { background:#0a84ff; }
+  #proEd .pe-addright { flex:none; white-space:nowrap; }
+  #proEd .pe-addright:disabled { opacity:.45; cursor:not-allowed; }
   #proEd .pe-go:disabled { opacity:.45; cursor:not-allowed; }
   #proEd .pe-issue { display:flex; align-items:flex-start; gap:10px; justify-content:space-between; }
   #proEd .pe-issue + .pe-issue { margin-top:6px; }
@@ -6876,8 +6878,18 @@
     })(t0);
   }
   var uwPreferWallId = null, uwPreferSpan = null; // the empty wardrobe area that was clicked: the new unit goes there (its left end)
+  // PRO "+ Næsti hægra megin" in Smíða (2026-10-26): { wallId, zone, afterId } — "Setja inn" puts the new unit flush
+  // right of that cabinet (when it fits there), then Smíða opens on it, so a whole run is drawn without leaving the loop
+  var uwPlaceAfter = null;
+  function uwAfterPlacement(wall, zone, b){
+    var pa = uwPlaceAfter; if (!pa || pa.wallId !== wall.id || pa.zone !== zone) return null;
+    var list = wall[zone], i = list.findIndex(function(x){ return x.id === pa.afterId; }); if (i < 0) return null;
+    var end = KP3D.blockStartsMm(list, cornerClearance(wall, zone))[i] + list[i].widthMm;
+    var iv = freeIntervals(wall, zone, null, probeSpan(zone, b)).find(function(v){ return v[0] <= end + 1 && v[1] - end >= b.widthMm; });
+    return iv ? { fits:true, offsetMm:end } : null;
+  }
   function leaveUnitWizard(){
-    cancelAnimationFrame(uwAimAnim); uwPreferWallId = null; uwPreferSpan = null;
+    cancelAnimationFrame(uwAimAnim); uwPreferWallId = null; uwPreferSpan = null; uwPlaceAfter = null;
     uwDimCtx = null; var dsv = document.getElementById("uwDims"); if (dsv) dsv.innerHTML = "";
     closeFitAsk();
     KP3D.setAllParts(false); // don't carry the preview's open drawers into the room
@@ -7326,6 +7338,9 @@
       if (!wall) return;
       var pl = appendPlacement(wall, c.zone, b.widthMm, probeSpan(c.zone, b));
       if (uwPreferSpan && uwPreferSpan.wallId === wall.id && !wall[c.zone].length && b.widthMm <= uwPreferSpan.mm) pl = { fits:true, offsetMm:uwPreferSpan.startMm };
+      var plAfter = uwAfterPlacement(wall, c.zone, b);
+      if (plAfter) pl = plAfter;
+      else if (uwPlaceAfter && pl.fits) toast("Ekki pláss beint hægra megin — settur á næsta lausa stað á veggnum.");
       if (!pl.fits){
         var widest = Math.max.apply(null, [0].concat(freeIntervals(wall, c.zone, null, probeSpan(c.zone, b)).map(function(iv){ return iv[1] - iv[0]; })));
         var fitW = wall.island ? 0 : Math.min(c.maxW, Math.floor(widest / 10) * 10);
@@ -14631,6 +14646,26 @@
     for (var k = 1; k < list.length; k++){ var x = list[(i + k) % list.length]; if (x.st !== "ok") return x; }
     return null;
   }
+  // "+ Næsti hægra megin": Ný eining with this cabinet's type already picked (straight to its sizes), placed flush
+  // right of it on the same wall; "Setja inn" then opens Smíða on the new one (see uwPlaceAfter)
+  function proNextRight(id){
+    var fb = findBlock(id); if (!fb || fb.wall.island) return;
+    var b = fb.block, tree = activeUnitTree(), best = null;
+    tree.forEach(function(g, ci){ (g.opts || []).forEach(function(o, oi){
+      if (o.type !== b.type || o.soon || o.island || o.islandBack) return;
+      var score = (!!o.drawers === !!(b.interior && b.interior.mode === "skuffur") ? 2 : 0) + (o.preset ? 0 : 1);
+      if (!best || score > best.score) best = { ci:ci, oi:oi, o:o, score:score };
+    }); });
+    closeBoxEditor();
+    uwPreferWallId = fb.wall.id;
+    openUnitWizard();
+    uwPlaceAfter = { wallId:fb.wall.id, zone:fb.zone, afterId:id };
+    if (best){
+      uw.cat = best.ci; uw.opt = best.oi; uw.b = uwStartBlock(best.o); uw.step = 3;
+      if (uwSurfaces(CATALOG[uw.b.type].zone).some(function(w){ return w.id === fb.wall.id; })) uw.wallId = fb.wall.id;
+      renderUnitWizard();
+    }
+  }
   function proEdGo(id){
     if (!id || id === proEdId || !findBlock(id)) return;
     proEdId = id; peCollapsed = {}; peFix = null;
@@ -15021,6 +15056,7 @@
       '<div class="pe-sks">' + skList.map(function(x){ return '<button type="button" class="pe-sk ' + x.st + (x.id === b.id ? ' cur' : '') + '" data-pe="goto" data-id="' + x.id + '" title="' + x.key + ' · ' + escapeHtmlPro(x.label) + ' — ' + stTxt[x.st] + '"><i></i>' + x.key + '</button>'; }).join("") + '</div>' +
       '<button type="button" class="pe-btn pe-arrow" data-pe="next" title="Næsti skápur (→)">' + icon("chevR", 16) + '</button>' +
       '<span class="pe-count" title="Yfirfarnir skápar í rýminu">' + nOk + '/' + skList.length + '</span>' + goBtn +
+      '<button type="button" class="pe-btn pe-addright" data-pe="addright"' + (fb.wall.island ? ' disabled title="Í eyju: notaðu ＋ Ný eining"' : ' title="Opnar Ný eining með sömu gerð — nýi skápurinn fer beint hægra megin við þennan"') + '>+ Næsti hægra megin</button>' +
       '<button type="button" class="pe-btn" data-pe="close" title="Loka (Esc)">Loka ✕</button></div>';
     var scrollKeep = el.querySelector(".pe-card") && el.querySelector(".pe-card").dataset.id === b.id ? el.querySelector(".pe-card").scrollTop : 0;
     el.innerHTML = '<div class="pe-card" data-id="' + b.id + '">' + nav + '<div class="pe-img">' + svg + malHtml + '</div><div class="pe-content">' + right + '</div></div>';
@@ -15065,6 +15101,7 @@
     act('[data-pe="fixundo"]', function(){ peFix = null; stepHistory(-1); renderBoxEditor(); });
     act('[data-pe="ready"]', function(n){ proSetReady(b, n.dataset.v === "1"); renderBoxEditor(); });
     act('[data-pe="goto"]', function(n){ proEdGo(n.dataset.id); });
+    act('[data-pe="addright"]', function(){ proNextRight(b.id); });
     act('[data-pe="prev"]', function(){ var i = skList.findIndex(function(x){ return x.id === b.id; }); if (i > 0) proEdGo(skList[i - 1].id); });
     act('[data-pe="next"]', function(){ var i = skList.findIndex(function(x){ return x.id === b.id; }); if (i >= 0 && i < skList.length - 1) proEdGo(skList[i + 1].id); });
     act('[data-pe="go"]', function(){
