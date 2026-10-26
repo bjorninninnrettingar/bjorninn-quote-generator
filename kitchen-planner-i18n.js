@@ -1677,6 +1677,85 @@
     "Fatask.": "Wardrobe"
   });
 
+  // Bað + Þvottahús flows (studio review 2026-10-25, section C)
+  add({
+    "Toppur": "Top",
+    "Toppur og spegill": "Top and mirror",
+    "Egger-plata ofan á skápana — eða engin ef handlaugin situr ofan á.": "An Egger board on top of the units — or none if the basin sits on top.",
+    "Vélin": "Machine",
+    "Hvar er vélin?": "Where does the machine go?",
+    "Þvottavél og þurrkari — við setjum þau inn fyrir þig.": "Washer and dryer — we place them for you.",
+    "Í stæðu": "Stacked",
+    "Þurrkarinn ofan á vélinni, í háum skáp": "The dryer on top of the washer, in a tall unit",
+    "Vél og þurrkari hlið við hlið": "Washer and dryer side by side",
+    "Engin vél": "No machine",
+    "Bara skápar og vaskur": "Just units and a sink",
+    "Enginn spegilskápur": "No mirror cabinet",
+    "Spegill eða ekkert á veggnum": "A mirror or nothing on the wall",
+    "Spegilskápur yfir vaskinn": "Mirror cabinet over the sink",
+    "Við tökum hann með í tilboðið": "We include it in the quote",
+    "Engin — handlaug ofan á": "None — basin on top",
+    "Hvar eru vatn og niðurfall?": "Where are the water and the drain?",
+    "Við notum þetta til að staðsetja vaskaskápinn.": "We use this to place the sink unit.",
+    "Við notum þetta til að staðsetja vaskinn og þvottavélina.": "We use this to place the sink and the washing machine.",
+    "Hannaðu baðherbergið þitt": "Design your bathroom",
+    "Hannaðu þvottahúsið þitt": "Design your laundry room",
+    "Hár skápur": "Tall unit",
+    "Valkvætt — fyrir handklæði og fleira": "Optional — for towels and more",
+    "Hæð skáps": "Unit height",
+    "{h} cm · {g} cm frá gólfi": "{h} cm · {g} cm from the floor",
+    "Sama hæð á öllum skápum á veggnum.": "The same height for every unit on the wall.",
+    "Staðsetningin þarf að vera á milli 0 og {n} cm.": "The position must be between 0 and {n} cm.",
+    "Hér hannar þú rýmið þitt": "This is where you design your room"
+  });
+
+  // Innihurðir as steps + Allt heimilið as a list (2026-10-26, docs/studio-hurdir-heimili.md)
+  add({
+    "Venjuleg hurð á lömum": "A regular hinged door",
+    "Hurð úr gleri": "A glass door",
+    "Rennur meðfram veggnum": "Slides along the wall",
+    "Rennihurð úr gleri": "A glass sliding door",
+    "Brunavarin, EI-30 eða EI-60": "Fire rated, EI-30 or EI-60",
+    "Aðeins karmurinn, engin hurð": "The frame only, no door",
+    "Opnun": "Opening",
+    "Hvernig hurð?": "What kind of door?",
+    "Veldu gerðina. Þú getur bætt við fleiri hurðum á eftir.": "Pick the kind. You can add more doors afterwards.",
+    "Hvað er hurðin stór?": "How big is the door?",
+    "Algengast er 80 × 210 cm. Við mælum opið á staðnum áður en nokkuð er smíðað.": "80 × 210 cm is the most common. We measure the opening on site before anything is made.",
+    "Hvernig opnast hún?": "How does it open?",
+    "Séð frá hliðinni sem hurðin opnast að.": "Seen from the side the door opens towards.",
+    "Hvar er hún og úr hverju?": "Where is it and what is it made of?",
+    "Efnið má líka ákveða síðar.": "You can also decide the material later.",
+    "Aðeins karmur": "Frame only",
+    "Bættu að minnsta kosti einni hurð við fyrst.": "Add at least one door first.",
+    "Vista hurðina": "Save the door",
+    "Setja á listann": "Add to the list",
+    "Hvar er hurðin?": "Where is the door?",
+    "Færri": "Fewer",
+    "Fleiri": "More",
+    "Ákveða síðar": "Decide later",
+    "Leita, t.d. eik eða hvítt": "Search, e.g. oak or white",
+    "Allar hurðir heimilisins á einum lista. Málin eru staðfest á staðnum.": "Every door in the home on one list. The sizes are confirmed on site.",
+    "Efni ákveðið síðar": "Material decided later",
+    "Rými ekki valið": "Room not chosen",
+    "Rýmið er komið á listann.": "The room is on the list.",
+    "Aðeins rými": "Room only",
+    "Bættu að minnsta kosti einni einingu eða hurð við fyrst.": "Add at least one unit or door first.",
+    "Bættu við rýmunum sem þú vilt hanna. Eitt tilboð fyrir allt.": "Add the rooms you want to design. One quote for everything.",
+    "Teiknað": "Drawn",
+    "Ekki byrjað": "Not started",
+    "Rýmið teiknað, engar einingar enn": "Room drawn, no units yet",
+    "Engin hurð enn": "No door yet",
+    "Nafn rýmis": "Room name",
+    "Hvað er rýmið?": "What is the room?",
+    "Innihurðir eru þegar á listanum": "Interior doors are already on the list",
+    "Nafn": "Name",
+    "t.d. Baðherbergi uppi": "e.g. Upstairs bathroom",
+    "Teikna grunnmynd": "Draw a floor plan",
+    "Fjarlægja {room}? Hurðirnar á listanum hverfa.": "Remove {room}? The doors on the list will be deleted.",
+    "Fjarlægja {room}? Það sem þú hannaðir þar hverfur.": "Remove {room}? What you designed there will be deleted."
+  });
+
   // part F: stored/computed numbered labels from kitchen-planner-3d.js (CATALOG width variants, island rows, partition sides)
   addPat(/^(Grunnskápur|Hárskápur|Efriskápur|Vaskaskápur|Opnar hillur) (\d+)$/, function(m, t, n){ return (has(t) ? EN[t] : t) + " " + n; });
   addPat(/^Eyja (\d+) · röð ([AB])$/, "Island $1 · row $2");
