@@ -1138,6 +1138,11 @@
   .dim-f.fixed b{ display:block; padding:7px 0; font-size:14px; }
   .mat-sel{ display:block; margin:0 0 9px; font-size:12px; color:var(--ink-soft); }
   .mat-sel span{ display:block; margin-bottom:3px; font-weight:600; }
+  .ed-ftabs{ gap:4px; margin:0 0 6px; }
+  .ed-ftabs .tab-btn{ padding:4px 10px; font-size:12px; }
+  .ed-fronts{ grid-template-columns:repeat(3,1fr); gap:6px; max-height:300px; overflow-y:auto; padding:3px; margin:0 -3px 4px; }
+  .ed-fronts .sw-tile .sw-name{ font-size:11px; padding:4px 6px 5px; }
+  .ed-fronts .sw-tile.active::after{ top:4px; right:4px; width:16px; height:16px; font-size:10px; }
   .mat-sel select{ width:100%; font:inherit; font-size:13.5px; padding:7px 8px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); }
   .room-pick-select{ width:100%; font:inherit; font-size:14px; font-weight:600; padding:8px 10px; border:1px solid var(--line); border-radius:999px; background:#fff; color:var(--ink); }
   .room-pick-select:focus{ outline:none; border-color:var(--blue); }
@@ -7262,11 +7267,23 @@
   // ---------- left sidebar: collapsible sections ----------
   var SEC_KEY = "bjorninn:kitchenPlanner:sections";
   var openSecs = {}; // the toolbar dropdowns start closed
+  var edFrontTab = null; // the Efni dropdown's Framhlið tab (defaults to the chosen front's own)
+  function closeEdMenus(){
+    var any = false;
+    document.querySelectorAll(".ed-menus .cat-sec[open]").forEach(function(o){ o.open = false; openSecs[o.dataset.sec] = false; any = true; });
+    if (any && document.activeElement && document.activeElement.closest && document.activeElement.closest(".ed-menus")) document.activeElement.blur();
+    return any;
+  }
   document.addEventListener("pointerdown", function(e){ // a press outside an open dropdown / the warning list closes it
-    if (!e.target.closest || e.target.closest(".ed-menus .cat-sec, #warnPop, #warnChip, #plinthPop, #plinthBtn, .fit-ask, #toast")) return;
-    document.querySelectorAll(".ed-menus .cat-sec[open]").forEach(function(o){ o.open = false; openSecs[o.dataset.sec] = false; });
+    var t = e.target && e.target.nodeType === 1 ? e.target : e.target && e.target.parentElement; // (the 3D canvas, an SVG text node …)
+    if (t && t.closest && t.closest(".ed-menus .cat-sec, #warnPop, #warnChip, #plinthPop, #plinthBtn, .fit-ask, #toast")) return;
+    closeEdMenus();
     var wp = document.getElementById("warnPop"); if (wp) wp.hidden = true;
     var pp = document.getElementById("plinthPop"); if (pp) pp.hidden = true;
+  }, true);
+  window.addEventListener("keydown", function(e){ // Esc closes an open dropdown first (and only that — the selected unit stays selected)
+    if (e.key !== "Escape") return;
+    if (closeEdMenus()){ e.preventDefault(); e.stopImmediatePropagation(); }
   }, true);
 
   function renderCatalogPanel(){
@@ -7315,7 +7332,7 @@
           (clLed === "mixed" ? '<p class="sec-note">' + __("Skáparnir eru með mismunandi LED — veldu til að hafa það eins alls staðar.") + '</p>' : '')
         : '<div class="light-btns">' + lbtn("underWall", __("LED undir efri skápum")) + lbtn("shelves", __("LED í opnum hillum")) + '</div>') +
       '<button type="button" class="btn btn-secondary btn-small" data-act="mood">' + (moodOn ? __("Dagsbirta") : __("Sjá í kvöldstemningu")) + '</button>' +
-      (bom ? '<p class="sec-note">' + lightingText(bom).join(" · ") + '</p><p class="sec-note" style="font-size:11px;">' + __(LED_POWER_NOTE) + '</p>' : '<p class="sec-note">' + __("Smelltu á efri skáp til að kveikja eða slökkva á ljósi undir honum einum.") + '</p>'));
+      (bom ? '<p class="sec-note">' + lightingText(bom).join(" · ") + '</p><p class="sec-note" style="font-size:11px;">' + __(LED_POWER_NOTE) + '</p>' : '<p class="sec-note">' + (clLed != null ? __("Smelltu á skáp til að kveikja eða slökkva á ljósi í honum.") : __("Smelltu á efri skáp til að kveikja eða slökkva á ljósi undir honum einum.")) + '</p>'));
     var DEC = KP3D.DECOR;
     var secSkraut = sec("skraut", __("Húsgögn"),
       KP3D.DECOR_GROUPS.map(function(gp){
@@ -7332,33 +7349,49 @@
     function matSel(key, label, groups, value){ // groups: [{label|null, items:[[val, text]]}]
       var known = groups.some(function(g){ return g.items.some(function(it){ return it[0] === value; }); });
       return '<label class="mat-sel"><span>' + label + '</span><select data-matsel="' + key + '">' +
-        (!known ? '<option value="' + (value || "") + '" selected>' + (value ? __("(eldra val)") : __("— veldu —")) + '</option>' : '') +
+        (!known ? '<option value="' + (value || "") + '" selected>' + __("— veldu —") + '</option>' : '') +
         groups.map(function(g){
           var opts = g.items.map(function(it){ return '<option value="' + it[0] + '"' + (it[0] === value ? " selected" : "") + '>' + escapeHtmlPro(__(it[1])) + '</option>'; }).join("");
           return g.label ? '<optgroup label="' + escapeHtmlPro(__(g.label)) + '">' + opts + '</optgroup>' : opts;
         }).join("") + '</select></label>';
     }
     var visLooks = function(cat){ return Object.keys(LOOKS).filter(function(k){ return !LOOKS[k].hidden && LOOKS[k].category === cat; }); };
+    // Framhlið: the Efni step's own tiles and tabs, not a 40-line list of Egger names (2026-10-26)
+    var fCats = LOOK_CATEGORIES.filter(function(cg){ return visLooks(cg.key).length; });
+    if (!fCats.some(function(cg){ return cg.key === edFrontTab; })) edFrontTab = (state.look && LOOKS[state.look] && fCats.some(function(cg){ return cg.key === LOOKS[state.look].category; })) ? LOOKS[state.look].category : (fCats[0] || {}).key;
+    var frontPick = '<div class="mat-sel"><span>' + __("Framhlið") + '</span><div class="tabs-row ed-ftabs">' + tabsHTML(fCats, function(k){ return visLooks(k).length; }, edFrontTab, "data-edftab") + '</div>' +
+      '<div class="sw-grid ed-fronts">' + visLooks(edFrontTab).map(function(k){ return lookTileHTML(k, "data-edlook"); }).join("") + '</div></div>';
+    var hasTop = (categoryDef(state.activeCategory) || {}).worktop !== false; // no Borðplata in a wardrobe
     var matBody =
       matSel("carcass", __("Skrokkur"), [{ items:Object.keys(CARCASS).map(function(k){ return [k, CARCASS[k].label]; }) }], state.carcass) +
-      matSel("look", __("Framhlið"), LOOK_CATEGORIES.map(function(cg){ return { label:cg.label, items:visLooks(cg.key).map(function(k){ return [k, LOOKS[k].label + (LOOKS[k].code ? " · " + LOOKS[k].code : "")]; }) }; }), state.look) +
+      frontPick +
       (PRO ? matSel("look2", "Framhlið 2 (FR2)", [{ label:null, items:[["", "— engin —"]] }].concat(LOOK_CATEGORIES.map(function(cg){ return { label:cg.label, items:visLooks(cg.key).map(function(k){ return [k, LOOKS[k].label + (LOOKS[k].code ? " · " + LOOKS[k].code : "")]; }) }; })), state.look2 || "") +
         matSel("innerFront", "Innskúffufrontar (sjálfgefið)", [{ items:INNER_FRONTS.map(function(x){ return [x, x]; }) }], state.innerFront || "Skrokkaefni") : "") +
-      matSel("top", __("Borðplata"), topGroupsNow().map(function(g){ return { label:g.label, items:topsOf(g.key).map(function(k){ return [k, TOPS[k].label + (TOPS[k].code ? " · " + TOPS[k].code : "")]; }) }; }), state.top || "steinn") +
+      (hasTop ? matSel("top", __("Borðplata"), topGroupsNow().map(function(g){ return { label:g.label, items:topsOf(g.key).map(function(k){ return [k, TOPS[k].label + (TOPS[k].code ? " · " + TOPS[k].code : "")]; }) }; }), state.top || "steinn") : "") +
       matSel("handle", __("Höldur / opnun"), KP3D.HANDLE_GROUPS.map(function(g){ return { label:g.label, items:handlesOf(g.key).map(function(k){ return [k, HANDLES[k].label]; }) }; }), state.handle) +
-      (handleColorable(state.handle) ? matSel("handleColor", __("Litur á höldum"), [{ items:(HANDLES[state.handle].finishes || Object.keys(KP3D.HANDLE_FINISHES)).map(function(k){ return [k === HANDLES[state.handle].finish ? "" : k, KP3D.HANDLE_FINISHES[k].label]; }) }], state.handleColor || "") : "") +
-      matSel("drawerSystem", __("Skúffukerfi"), [{ items:Object.keys(DRAWER_SYSTEMS).map(function(k){ return [k, DRAWER_SYSTEMS[k].label]; }) }], state.drawerSystem) +
+      (handleColorable(state.handle) ? '<div class="mat-sel"><span>' + __("Litur á höldum") + '</span>' + handleColorRowHTML() + '</div>' : "") + // one colour: no row at all
+      (PRO ? matSel("drawerSystem", __("Skúffukerfi"), [{ items:Object.keys(DRAWER_SYSTEMS).map(function(k){ return [k, DRAWER_SYSTEMS[k].label]; }) }], state.drawerSystem) : "") + // the drawer brand is the office's call (PRO only)
       '<button type="button" class="btn btn-secondary btn-small" data-act="materials" style="margin-top:6px;">' + __("Sjá myndir af efnunum") + '</button>';
     html += sec("efni", __("Efni"), matBody) + secLysing + secSkraut; // Rými → Gluggar og hindranir → Efni → Lýsing → Húsgögn (user, 2026-10-24)
+    var bodyScroll = {}; host.querySelectorAll(".cat-sec[open] > .sec-body").forEach(function(b){ bodyScroll[b.parentNode.dataset.sec] = b.scrollTop; });
+    var frontsScroll = (host.querySelector(".ed-fronts") || {}).scrollTop || 0;
     host.innerHTML = html;
     host.scrollTop = keepScroll;
+    host.querySelectorAll(".cat-sec[open] > .sec-body").forEach(function(b){ b.scrollTop = bodyScroll[b.parentNode.dataset.sec] || 0; }); // a pick in a long dropdown stays in view
+    if (host.querySelector(".ed-fronts")) host.querySelector(".ed-fronts").scrollTop = frontsScroll;
 
     host.querySelectorAll(".cat-sec").forEach(function(d){
       d.addEventListener("toggle", function(){ // dropdowns now: one open at a time (stays open across re-renders, not across visits)
+        if (!d.isConnected) return; // a re-render's queued toggle of the replaced copy used to close the live one (a pick closed the menu)
         if (d.open) host.querySelectorAll(".cat-sec[open]").forEach(function(o){ if (o !== d){ o.open = false; openSecs[o.dataset.sec] = false; } });
         openSecs[d.dataset.sec] = d.open;
       });
     });
+    host.querySelectorAll("[data-edftab]").forEach(function(b){ b.addEventListener("click", function(){ edFrontTab = b.dataset.edftab; renderCatalogPanel(); var g = host.querySelector(".ed-fronts"); if (g) g.scrollTop = 0; }); });
+    host.querySelectorAll("[data-edlook]").forEach(function(b){
+      b.addEventListener("click", function(){ if (b.dataset.edlook === state.look) return; selectLookQuiet(b.dataset.edlook); save(); refreshAfterEdit(); renderCatalogPanel(); });
+    });
+    host.querySelectorAll("[data-hcolor]").forEach(function(b){ b.addEventListener("click", function(){ pickHandleColor(b.dataset.hcolor); refreshAfterEdit(); renderCatalogPanel(); }); });
     host.querySelectorAll("[data-decor-add]").forEach(function(b){ b.addEventListener("click", function(){ addDecor(b.dataset.decorAdd); }); });
     host.querySelectorAll("[data-obst-add]").forEach(function(b){ b.addEventListener("click", function(){ addObstacle(b.dataset.obstAdd); }); });
     host.querySelectorAll("[data-decor-all]").forEach(function(b){
@@ -7941,18 +7974,20 @@
     var picked = state.look && LOOKS[state.look];
     document.getElementById("lookPicked").innerHTML = picked ? __("Valið:") + ' <b>' + __(picked.label) + '</b>' : __("Ekkert valið enn");
     if (!keys.length && lookQuery){ container.innerHTML = '<p class="tab-blurb" style="grid-column:1/-1;">' + __("Ekkert fannst — prófaðu annað orð.") + '</p>'; return; }
-    container.innerHTML = keys.map(function(key){
-      var l = LOOKS[key];
-      return '<button type="button" class="sw-tile' + (state.look === key ? ' active' : '') + '" data-look="' + key + '" title="' + __(l.label) + '">' +
+    container.innerHTML = keys.map(function(key){ return lookTileHTML(key, "data-look"); }).join("");
+    container.querySelectorAll("[data-look]").forEach(function(card){
+      card.addEventListener("click", function(){ selectLook(card.dataset.look); });
+    });
+  }
+  // one front tile — the Efni step's grid and the editor's Efni dropdown (2026-10-26) draw the same thing
+  function lookTileHTML(key, attr){
+    var l = LOOKS[key];
+    return '<button type="button" class="sw-tile' + (state.look === key ? ' active' : '') + '" ' + attr + '="' + key + '" title="' + __(l.label) + '">' +
         // Björninn's spónlagt photos are a sheet on a grey background: zoomed in so the wood fills the tile (2026-10-12).
         // A handful of Egger decors whose Raport CAD image reads "zoomed out"/patchy get their own picker-only
         // zoom the same way (l.zoom, a scale factor — EGGER_PICKER_ZOOM in kitchen-planner-3d.js, 2026-10-14).
         (l.img ? ((l.category === "sponlagt" || l.zoom) ? '<div class="sw-crop" style="background:' + (l.color3d || "") + ';"><img src="' + l.img + '" alt="' + l.label + '"' + (l.zoom ? ' style="transform:scale(' + l.zoom + ')"' : '') + ' loading="lazy"></div>' : '<img src="' + l.img + '" alt="' + l.label + '" loading="lazy" style="background:' + (l.color3d || "") + ';">') : '<div class="sw-fill" style="background:' + l.color3d + ';"></div>') +
         '<div class="sw-name">' + __(l.label) + '</div></button>'; // (no Egger code: noise to a customer — the search still finds it)
-    }).join("");
-    container.querySelectorAll("[data-look]").forEach(function(card){
-      card.addEventListener("click", function(){ selectLook(card.dataset.look); });
-    });
   }
 
   var marbleSwatches = {};
@@ -8038,17 +8073,21 @@
     var box = document.getElementById("handleColors"), F = KP3D.HANDLE_FINISHES;
     if (!box) return;
     if (!handleColorable(state.handle)){ box.innerHTML = ""; return; }
-    var h = HANDLES[state.handle];
-    // only the colours this handle is really made in, its own (photo) colour first (2026-10-24)
-    var keys = (h.finishes || Object.keys(F)).filter(function(k){ return F[k]; }), cur = handleColorNow();
-    box.innerHTML = '<div class="mat-section-title" style="margin-top:14px;">' + __("Litur á höldum") + '</div><div class="hc-row">' +
-      keys.map(function(k){
-        return '<button type="button" class="hc-sw' + (cur === k ? " active" : "") + '" data-hcolor="' + k + '" title="' + __(F[k].label) + '"><i style="background:' + (k === h.finish ? (h.color || F[k].hex) : F[k].hex) + ';"></i><span>' + __(F[k].label) + '</span></button>';
-      }).join("") + '</div>';
+    box.innerHTML = '<div class="mat-section-title" style="margin-top:14px;">' + __("Litur á höldum") + '</div>' + handleColorRowHTML();
     box.querySelectorAll("[data-hcolor]").forEach(function(b){
-      b.addEventListener("click", function(){ state.handleColor = b.dataset.hcolor === h.finish ? null : b.dataset.hcolor; save(); renderHandleColors(); updateCabinetPreview(); });
+      b.addEventListener("click", function(){ pickHandleColor(b.dataset.hcolor); renderHandleColors(); updateCabinetPreview(); });
     });
   }
+  // the colour swatches of the chosen handle — the Höldur page and the editor's Efni dropdown share them
+  function handleColorRowHTML(){
+    var h = HANDLES[state.handle], F = KP3D.HANDLE_FINISHES;
+    // only the colours this handle is really made in, its own (photo) colour first (2026-10-24)
+    var keys = (h.finishes || Object.keys(F)).filter(function(k){ return F[k]; }), cur = handleColorNow();
+    return '<div class="hc-row">' + keys.map(function(k){
+      return '<button type="button" class="hc-sw' + (cur === k ? " active" : "") + '" data-hcolor="' + k + '" title="' + __(F[k].label) + '"><i style="background:' + (k === h.finish ? (h.color || F[k].hex) : F[k].hex) + ';"></i><span>' + __(F[k].label) + '</span></button>';
+    }).join("") + '</div>';
+  }
+  function pickHandleColor(k){ state.handleColor = k === HANDLES[state.handle].finish ? null : k; save(); }
 
   // Small CSS mock-up of the chosen combination: upper cabinets, worktop,
   // base doors + a drawer, with the handle drawn in its own style/colour.
