@@ -761,7 +761,7 @@
   // An upright pull on a tall door (user, 2026-10-25): sized by the door's HEIGHT, the longest real length up to
   // 50 cm — the same rule picks the SKU for the order (handleHardwareSummary), so the picture and the order agree
   var TALL_PULL_MAX_MM = 500;
-  function tallHandleAvailMm(hcfg, doorHmm){ return Math.min(TALL_PULL_MAX_MM, handleAvailMm(hcfg, doorHmm)); }
+  function tallHandleAvailMm(hcfg, doorHmm){ return Math.min(TALL_PULL_MAX_MM, handleAvailMm(hcfg, doorHmm), doorHmm - 2 * HANDLE_SAFE_M * 1000); }
   function handleAvailMm(hcfg, frontMm){
     if (!hcfg) return frontMm;
     if (hcfg.kind === "bar") return Math.min(frontMm - 2 * (hcfg.fitMarginMm || 60), frontMm * 2 / 3);
@@ -2018,7 +2018,8 @@
       var sides = twoLeaf ? [-1, 1] : [freeRight ? 1 : -1];
       function edgeAlong(sg, inset){ return twoLeaf ? sg * inset * 0.6 : sg * (hw / 2 - inset) + hOff; }
       function drawVertical(){ // plain vertical versions of the drawn handles, pulls at hand height
-        var vy = Math.max(bottom + 0.12, Math.min(top - 0.12, 1.05));
+        var vlen = hstyle === "bar" ? Math.min(hdef.len || 0.24, doorH * 0.6) : hstyle === "tab" ? (hdef.len || 0.14) : 0;
+        var vy = uprightY(bottom, top, vlen);
         if (hstyle === "bar"){ var vl = Math.min(hdef.len || 0.24, doorH * 0.6); sides.forEach(function(sg){ place(new THREE.Mesh(new THREE.BoxGeometry(0.012, vl, 0.02), handleMat), vy, 0.012, edgeAlong(sg, 0.05)); }); return true; }
         if (hstyle === "edge"){ sides.forEach(function(sg){ place(new THREE.Mesh(new THREE.BoxGeometry(0.02, doorH * 0.94, 0.016), handleMat), (top + bottom) / 2, 0.008, edgeAlong(sg, 0.012)); }); return true; }
         if (hstyle === "tab"){ sides.forEach(function(sg){ place(new THREE.Mesh(new THREE.BoxGeometry(0.03, hdef.len || 0.14, 0.02), handleMat), vy, 0.01, edgeAlong(sg, 0.02)); }); return true; }
@@ -2080,7 +2081,7 @@
         var leafW = twoLeaf ? hw / 2 : hw, tlen = pickHandleLenM(hcfg, (vertical ? tallHandleAvailMm(hcfg, doorH * 1000) : handleAvailMm(hcfg, leafW * 1000)) / 1000), tpf = handleProfile(THREE, handleKey, tlen);
         if (tpf){
           if (vertical){ // tall units: an edge pull on the free side, at chest height
-            var vyc = Math.max(bottom + 0.12, Math.min(top - 0.12, 1.05));
+            var vyc = uprightY(bottom, top, tlen);
             sides.forEach(function(sg){ var rotT = new THREE.Group(), hT = new THREE.Group(); rotT.add(tpf.clone(true)); rotT.rotation.z = (sg > 0 ? -Math.PI / 2 : Math.PI / 2) * (hcfg.flip ? -1 : 1); hT.add(rotT); /* a flipped model (Vann) turns the other way, as on the top edge */ place(hT, vyc, -(hcfg.embedMm || 0) / 1000 + EMBED_CLEAR_M, (twoLeaf ? 0 : sg * (hw / 2 - SIDE_REVEAL_M) + hOff) - sg * (hcfg.dropMm || 0) / 1000); }); // dropped in from the edge + sunk into the front, as on the top edge
           } else {
             var centres = twoLeaf ? [-hw / 4, hw / 4] : [hOff];
@@ -2093,7 +2094,7 @@
         var leafB = twoLeaf ? hw / 2 : hw, fitB = pickHandleLenM(hcfg, (vertical ? tallHandleAvailMm(hcfg, doorH * 1000) : handleAvailMm(hcfg, leafB * 1000)) / 1000);
         var bp = handleProfile(THREE, handleKey, Math.max(0.05, fitB));
         if (bp){
-          if (vertical){ var vyb = Math.max(bottom + 0.12, Math.min(top - 0.12, 1.05)); sides.forEach(function(sg){ var rot2 = new THREE.Group(), g2 = new THREE.Group(); rot2.add(bp.clone(true)); rot2.rotation.z = Math.PI / 2; g2.add(rot2); place(g2, vyb, 0, edgeAlong(sg, 0.05)); }); }
+          if (vertical){ var vyb = uprightY(bottom, top, Math.max(0.05, fitB)); sides.forEach(function(sg){ var rot2 = new THREE.Group(), g2 = new THREE.Group(); rot2.add(bp.clone(true)); rot2.rotation.z = Math.PI / 2; g2.add(rot2); place(g2, vyb, 0, edgeAlong(sg, 0.05)); }); }
           else (twoLeaf ? [-hw / 4, hw / 4] : [hOff]).forEach(function(cxB){ var rotB = new THREE.Group(), gB = new THREE.Group(); rotB.add(bp.clone(true)); gB.add(rotB); place(gB, atBottom ? bottom + 0.06 : hy, 0, cxB); });
           return;
         }
@@ -2559,11 +2560,22 @@
       meta.shelfBlock && hasShelfLayout(meta.shelfBlock) ? shelfLayoutOf(meta.shelfBlock, bodyH * 1000, meta.drawerSystem) :
       drawers ? [] :
       (function(n){ var o = []; for (var k = 1; k <= n; k++) o.push({ mm:bodyH * 1000 * k / (n + 1) + 9 }); return o; })(meta.shelves || 0);
-    shelfList.forEach(function(shf){
+    // open the door and drag a shelf / fataslá up or down, as in an open cabinet (user, 2026-10-26) — only when the
+    // list is the block's own layout (the even-spread fallback has nothing to write back to)
+    var dragShelves = !!(pickables && meta.shelfBlock && hasShelfLayout(meta.shelfBlock) && !meta.oven && !(meta.burCodes && meta.burCodes.length));
+    function makeDraggable(mesh, kind, idx){
+      mesh.userData = { kind:kind + "-item", itemKind:kind, blockId:meta.shelfBlock.id, idx:idx, locked:false, bodyBaseY:bodyBase, widthM:widthM };
+      pickables.push(mesh);
+      var ed = new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry), new THREE.LineBasicMaterial({ color:SELECT_COLOR, transparent:true, opacity:0 }));
+      ed.position.copy(mesh.position); ed.quaternion.copy(mesh.quaternion); frame.add(ed);
+      mesh.userData.edgesObj = ed;
+    }
+    shelfList.forEach(function(shf, si){
       var board = new THREE.Mesh(new THREE.BoxGeometry(widthM - 2 * CARCASS_T - 0.001, 0.018, CD - 0.03), meta.openMat); // shelves reach the sides
       board.position.set(0, bodyBase + shf.mm / 1000 - 0.009, (CD - 0.03) / 2 + 0.005);
       board.castShadow = true; board.receiveShadow = true;
       frame.add(board);
+      if (dragShelves && !shf.fixed) makeDraggable(board, "shelf", si);
     });
     // Fataslá (clothes rail, 2026-10-15): same zone/gating as shelfList, a plain steel rod across the width.
     var railList = meta.oven || (meta.burCodes && meta.burCodes.length) ? [] :
@@ -2571,12 +2583,13 @@
         railLayoutOf(meta.shelfBlock, bodyH * 1000, meta.drawerSystem) : [];
     if (railList.length){
       var railMat = new THREE.MeshStandardMaterial({ color:0xb0b4ba, metalness:0.8, roughness:0.3 });
-      railList.forEach(function(rl){
+      railList.forEach(function(rl, ri){
         var rod = new THREE.Mesh(new THREE.CylinderGeometry(RAIL_D_MM / 2000, RAIL_D_MM / 2000, widthM - 2 * CARCASS_T - 0.02, 16), railMat);
         rod.rotation.z = Math.PI / 2;
         rod.position.set(0, bodyBase + rl.mm / 1000, (CD - 0.03) / 2 + 0.005);
         rod.castShadow = true;
         frame.add(rod);
+        if (pickables && meta.shelfBlock) makeDraggable(rod, "rail", ri);
       });
     }
     // the fronts of this cabinet
@@ -3270,7 +3283,7 @@
       // an open cabinet's own invisible pick box (its only click target, since isOpen never adds its
       // carcass boards to pickables) sits in front of its loose shelves/fataslá along this same ray —
       // prefer the one you're actually pointing at, from the SAME cabinet, over the whole box (2026-10-21)
-      if (first.userData.kind !== "shelf-item" && first.userData.kind !== "rail-item" && first.userData.blockId){
+      if (first.userData.kind !== "shelf-item" && first.userData.kind !== "rail-item" && first.userData.blockId && !first.userData.isPart){ // a closed door/drawer front is clicked to open it, never reached through
         for (var j = 0; j < hits.length; j++){
           var o = hits[j].object;
           if (seeThrough(o)) continue;
@@ -5765,7 +5778,15 @@
   // a door's side edge sits 2 mm in from its slot (slab = width - 4 mm); an upright handle is moved in by that so it meets
   // the front exactly as it does on the top edge (user, 2026-10-26: Jey "1–2 mm nær frontinum"). A sunk-in handle (Vann)
   // stops 0.5 mm short of the front's back face, so the two never share a plane (that flickered).
-  var SIDE_REVEAL_M = 0.002, EMBED_CLEAR_M = 0.0005;   // fronts are 20 mm thick; the carcass is (depth - 20 mm)
+  var SIDE_REVEAL_M = 0.002, EMBED_CLEAR_M = 0.0005;
+  // Handle safety area (user, 2026-10-26: a 50 cm pull on a door above drawers reached down over the drawers — the
+  // centre was kept 12 cm from the ends whatever the length): an upright pull stays HANDLE_SAFE_M inside its own
+  // front at both ends, centred at hand height where it can, and is never longer than the front leaves room for.
+  var HANDLE_SAFE_M = 0.05, HAND_HEIGHT_M = 1.05;
+  function uprightY(bottom, top, lenM){
+    var lo = bottom + lenM / 2 + HANDLE_SAFE_M, hi = top - lenM / 2 - HANDLE_SAFE_M;
+    return lo > hi ? (bottom + top) / 2 : Math.max(lo, Math.min(hi, HAND_HEIGHT_M));
+  }   // fronts are 20 mm thick; the carcass is (depth - 20 mm)
 
   function setCabinetPreview(cfg){
     if (!PREVIEW) return;
