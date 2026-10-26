@@ -116,3 +116,13 @@ made, each card's fix link is **"Laga í Smíða →"** (`/smida?…&unit=`). Ne
 board/shelf of an old Ofnaskápur is in `oven.shelves` (Sögunarlisti counts the niche boards as fixed shelves); no
 automatic Loftunarbotn/-toppur then. Card labels on such projects use `SD.shortName` ("Sk 5-8", was "Sk").
 Seen, not changed: a multi-cabinet Eyðublað (T-15 Sk 5-8, 4 cabinets) lists its door front "keyra ×1", not ×4.
+
+### Calm side view (cnc-bpp.js, 2026-10-26)
+`buildCard(file, text, outEl, toolbarEl, opts)` now opens side and door-front files in a **calm view** by default
+(`renderCalm`): the panel standing up like the cabinet (bottom down, front edge left), only hinge-plate holes (ring at
+37 mm), shelf-pin rows (two dots per hole row), fixed-shelf lines, drawer/inner runner lines (Merivo slot + 80, Legra
++ 62.5, inner at its X); thin lines, labels as hover tooltips, no grid/legend/coordinates. "Tæknilegt" on the card
+switches to the BiesseWorks window (macro list, legend, raw ops); "Einfalt" back. `opts.view:"tech"` starts there;
+`opts.accent = {hinge, shelf, inner}` draws those in blue (/smida: set by hand). The CSS is injected by cnc-bpp.js
+itself, so /cnc, /bpp and /smida get it; PRO's Smíða still lifts the technical `.bw-canvas-wrap svg` into its zoom view.
+Other file kinds (drawer fronts, doors/jambs) keep the technical card only.
