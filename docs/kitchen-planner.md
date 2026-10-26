@@ -373,3 +373,29 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   (`closeEdMenus()`) close the menus. Bug fixed: a pick inside a menu closed it — `refreshAfterEdit` + `renderCatalogPanel`
   render twice, and the replaced copy's queued `toggle` closed the live one; the handler now ignores detached `<details>`.
   The menu body and the front grid keep their scroll across re-renders.
+
+## 2026-10-26 — Spurningar, Senda inn, Takk fyrir! (drunk-grandma pass)
+- **Spurningar**: three more big-button questions in `INTAKE_QUESTIONS` — `install` (Já / Nei, ég set upp sjálf/ur),
+  `measure` (Já / Ég mæli sjálf/ur), `source` (Instagram / Facebook / Google / Meðmæli / Annað). install + measure +
+  source go into Skilaboð til skipulags (`intakeNote`); `source` is also sent as `contact.source` and
+  `api/kp-submit.js` `sourceChoice()` maps it onto an EXISTING choice of the contact's single select
+  "Hvaðan kom viðskiptavinurinn 📥" (Instagram, Facebook, Meðmæli → "Tilvísun frá fyrri viðskiptavin"; Google / Annað /
+  nothing → "Vefsíða" as before). Never a new choice. Nothing answered → `#intakeSkip` line, Áfram still works.
+- **Budget brackets** (`budgetOptions()`): any kitchen with cabinets in the project → the kitchen brackets, otherwise
+  (wardrobes, bath, laundry, doors only) `CLOSET_BUDGETS`. Kitchen wins because it is always the biggest job.
+- **Title**: one kind of room in the queue (two wardrobes too) keeps its "Hannaðu …" title on Spurningar / Senda inn /
+  Takk (`state.doneKind` survives the reset after submit). Mixed projects say "Hannaðu heimilið þitt" there.
+- **Stale toast**: `goto()` hides a toast from the previous step (`toastAt`; a toast shown in the same click as the
+  goto is kept — it is about the step being opened).
+- **Inherited materials**: "Sömu efni og í …" no longer copies what the new room's category has its own default for
+  (`categoryDef.defaults`; Fataskápar now has `defaults:{ carcass:"dokkgra", drawerSystem:"merivo" }`) — a wardrobe
+  after a Legra kitchen gets Merivo + dökkgrátt, fronts and handles still come along.
+- **Í skápunum** names the rail colour(s): "2 fataslár (gyllt, svört)"; trays were already counted.
+- **Senda inn**: Fornafn / Netfang / Símanúmer marked `*` (required), Eftirnafn "Valfrjálst" and no longer validated;
+  terms line links to bjorninninnrettingar.is/skilmálar (new tab); the button is "Senda til söluaðila" with
+  "Ókeypis og án skuldbindingar…" under it (`.submit-col`). No page scroll at 1440×900 / 1280×720: smaller picture,
+  "Það sem þú pantar" is a `<details>` (shut under a picture, open when the list is all there is — several rooms) and
+  the summary column scrolls inside itself. A `max-height:820px` block tightens Spurningar for 720-high laptops.
+- **Takk fyrir!**: "Hvað gerist næst?" (3 numbered lines) + "Hanna annað rými" (`#doneAgainBtn` → fresh `byrja`).
+  The old "Sækja teikningar (PDF)" link in the done preview was left as it was.
+- Verified with fetch stubbed in the page (no live submit): payload has `contact.source`, Skilaboð has the new lines.

@@ -1,7 +1,7 @@
 // api/kp-submit.js — the kitchen planner's one-request, retry-safe submission.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { submit, validate, makeAirtable, PROJECT_FORCED } from "../api/kp-submit.js";
+import { submit, validate, makeAirtable, PROJECT_FORCED, sourceChoice } from "../api/kp-submit.js";
 import { fakeFetch } from "./helpers.js";
 
 const NO_WAIT = { delays: [0, 0, 0, 0, 0] };
@@ -33,6 +33,20 @@ test("fresh submission: contact, Tækifæri with forced fields + sid, Line Items
   const li = batches[0].body.records[0].fields;
   assert.deepEqual(li["Tækifæri 📣 (projects)"], ["recOPP00000000000"]);
   assert.equal(li.Bull, undefined);                                                       // unknown fields dropped
+});
+
+test("'Hvernig fréttir þú af okkur?' lands on an existing Hvaðan kom choice, never a new one", async () => {
+  assert.equal(sourceChoice("Instagram"), "Instagram");
+  assert.equal(sourceChoice("Facebook"), "Facebook");
+  assert.equal(sourceChoice("Meðmæli"), "Tilvísun frá fyrri viðskiptavin");
+  for (const v of ["Google", "Annað", "", undefined, "constructor", "Eitthvað nýtt"]) assert.equal(sourceChoice(v), "Vefsíða", String(v));
+  for (const [src, want] of [["Instagram", "Instagram"], [undefined, "Vefsíða"]]) {
+    const f = fakeFetch((c) => (c.method === "POST" ? { status: 200, body: { id: "recX0000000000000", records: [] } } : undefined));
+    const b = body(1); if (src) b.contact.source = src;
+    await submit(makeAirtable("t", { fetchImpl: f, ...NO_WAIT }), b);
+    const contact = f.calls.find((c) => c.method === "POST" && c.url.endsWith("tblQ8zeUanriESWvL")).body.fields;
+    assert.equal(contact["Hvaðan kom viðskiptavinurinn 📥"], want);
+  }
 });
 
 test("retry after a half submission: reuses the Tækifæri, only creates missing Line Items", async () => {

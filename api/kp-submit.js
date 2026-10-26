@@ -122,6 +122,13 @@ export function fieldDeps() {
   };
 }
 
+// "Hvernig fréttir þú af okkur?" (Studio, 2026-10-26) → an EXISTING choice of the contact's single select "Hvaðan kom
+// viðskiptavinurinn 📥" (Facebook / Instagram / TikTok / Tilvísun frá fyrri viðskiptavin / Arkitekt bendi á okkur /
+// Vefsíða — checked in the live base). Google / Annað / no answer have no choice of their own: "Vefsíða" as before
+// (the answer itself is in Skilaboð til skipulags). Never typecast a new choice from what the browser sends.
+export const SOURCE_CHOICES = { Instagram: "Instagram", Facebook: "Facebook", "Meðmæli": "Tilvísun frá fyrri viðskiptavin" };
+export const sourceChoice = (v) => (Object.prototype.hasOwnProperty.call(SOURCE_CHOICES, String(v || "")) ? SOURCE_CHOICES[v] : "Vefsíða");
+
 export function validate(body) {
   const b = body || {};
   if (!SID_RE.test(String(b.sid || ""))) return "Ógilt sid";
@@ -188,7 +195,7 @@ export async function submit(at, body) {
         "Netfang 📧": email,
         "Símanúmer ☎️": String(body.contact.simi || "").trim(),
         "Tegund tengiliðs 👥": "Einstaklingur / heimili",
-        "Hvaðan kom viðskiptavinurinn 📥": "Vefsíða",
+        "Hvaðan kom viðskiptavinurinn 📥": sourceChoice(body.contact.source),
       } });
     }
     // 3. Tækifæri — the sid is written into the JSON here (server-side, so it is always there).

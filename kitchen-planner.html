@@ -447,14 +447,16 @@
   .kicker b{ color:var(--blue); font-weight:700; }
 
   /* ---- intake step ---- */
-  .quiz-q{ margin-bottom:26px; }
-  #intakeBody{ margin-top:22px; }
-  .quiz-q .qtitle{ font-size:15px; font-weight:600; margin:0 0 12px; }
+  .quiz-q{ margin-bottom:18px; }
+  #intakeBody{ margin-top:10px; }
+  .quiz-q .qtitle{ font-size:15px; font-weight:600; margin:0 0 9px; }
+  .intake-skip{ margin:2px 0 0; font-size:13px; color:var(--ink-soft); }
+  .intake-skip[hidden]{ display:none; }
   .quiz-options{ display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; } /* one row on a computer (2026-10-12) */
   @media (max-width:560px){ .quiz-options{ grid-template-columns:1fr; } }
   .quiz-opt{
     background:#fff; border:1.5px solid var(--line); border-radius:12px;
-    padding:13px 15px; text-align:left; cursor:pointer; color:var(--ink); font-size:14px;
+    padding:11px 15px; text-align:left; cursor:pointer; color:var(--ink); font-size:14px;
   }
   .quiz-opt:hover{ border-color:var(--blue); }
   .quiz-opt.active{ border-color:var(--blue); background:var(--blue-soft); font-weight:600; }
@@ -908,7 +910,8 @@
   .contact-preview img{ width:190px; border-radius:9px; border:1px solid var(--line); flex:none; }
   .contact-grid .contact-preview:not([hidden]){ flex-direction:column; align-items:stretch; max-width:none; margin:0; padding:14px; }
   .contact-grid .contact-preview img, .contact-grid .cp-plan{ width:100%; border-radius:10px; border:1px solid var(--line); background:#fff; }
-  .cp-plan svg{ display:block; width:100%; height:auto; max-height:300px; }
+  .cp-plan svg{ display:block; width:100%; height:auto; max-height:min(300px, 30vh); }
+  .contact-grid .contact-preview img{ width:auto; max-width:100%; max-height:28vh; align-self:center; } /* smaller picture: Senda inn fits the screen (2026-10-26) */
   .cp-mats{ display:grid; grid-template-columns:auto 1fr; gap:4px 14px; margin:12px 0 0; font-size:13.5px; }
   .cp-mats dt{ color:var(--ink-soft); }
   .cp-mats dd{ margin:0; font-weight:600; color:var(--ink); }
@@ -921,6 +924,18 @@
   .contact-fields .cf-wide{ grid-column:1 / -1; }
   .contact-fields .field{ display:flex; flex-direction:column; gap:5px; }
   .contact-fields label{ font-size:13px; font-weight:700; }
+  .cf-req{ color:var(--danger); font-weight:600; }
+  .submit-col{ display:flex; flex-direction:column; align-items:flex-end; flex:none; }
+  .submit-under{ margin:6px 0 0; font-size:12px; color:var(--ink-soft); text-align:right; white-space:nowrap; }
+  .submit-note a{ color:var(--blue); }
+  .cp-order{ margin-top:8px; }
+  .cp-order > summary{ cursor:pointer; font-size:13.5px; color:var(--ink); font-weight:600; list-style:none; display:flex; align-items:center; gap:6px; }
+  .cp-order > summary::-webkit-details-marker{ display:none; }
+  .cp-order > summary::before{ content:""; width:6px; height:6px; border:solid currentColor; border-width:0 1.5px 1.5px 0; transform:rotate(-45deg); transition:transform .15s; margin:0 2px; }
+  .cp-order[open] > summary::before{ transform:rotate(45deg); }
+  .cp-order .cp-mats{ margin-top:8px; }
+  .done-next-t{ font-weight:600; color:var(--ink) !important; margin:6px 0 6px !important; }
+  .done-next{ text-align:left; display:table; margin:0 auto 16px; padding-left:20px; color:var(--ink-soft); font-size:14.5px; line-height:1.7; }
   .cf-opt{ font-weight:400; color:var(--ink-soft); font-size:12px; margin-left:4px; }
   .contact-fields textarea{ padding:10px 12px; border:1px solid var(--line); border-radius:8px; font:inherit; font-size:15px; color:var(--ink); background:#fff; resize:vertical; }
   .contact-fields textarea:focus{ outline:none; border-color:var(--blue); }
@@ -976,6 +991,12 @@
     .wrap.wide .tip-bar:not([hidden]){ margin:0; border-radius:0; border-width:1px 0 0; }
   }
   @media (max-width:1180px){ .wrap.wide .editor{ grid-template-columns:minmax(0,1fr) 290px; } }
+  @media (min-width:981px) and (min-height:560px) and (max-height:820px){ /* a 1280×720 laptop: Spurningar + Senda inn still fit (2026-10-26) */
+    .quiz-q{ margin-bottom:10px; } .quiz-q .qtitle{ margin-bottom:6px; font-size:14.5px; } .quiz-opt{ padding:8px 14px; }
+    #intakeBody{ margin-top:4px; }
+    .contact-grid .contact-preview img{ max-height:20vh; } .cp-plan svg{ max-height:20vh; }
+    .contact-grid .contact-preview:not([hidden]){ padding:10px 14px; } .cp-mats{ margin-top:8px; gap:2px 14px; }
+  }
   /* ---- no page scroll (user, 2026-10-11): on a computer the page is exactly the screen; every step fills what is
      left under the header, and only its own long parts scroll inside their frame (side panels, the material list,
      the question / contact forms) ---- */
@@ -985,6 +1006,9 @@
     #shapeToolbar:empty{ display:none; } /* its empty row pushed the room pages' frame 12 px below the materials' one */
     .wrap:not(.wide) > section:not([hidden]){ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
     #screen-welcome:not([hidden]), #screen-intake:not([hidden]), #screen-contact:not([hidden]), #screen-done:not([hidden]){ overflow-y:auto; overflow-x:hidden; }
+    /* Senda inn: the summary column never grows the page — an opened "Það sem þú pantar" scrolls inside it (2026-10-26) */
+    #screen-contact .contact-grid{ flex:1 1 auto; min-height:0; grid-template-rows:minmax(0, 1fr); }
+    #screen-contact .contact-preview:not([hidden]){ max-height:100%; overflow-y:auto; box-sizing:border-box; }
     /* 2026-10-15: centre the welcome page in the space under the header, nudged up a touch so it reads as
        "slightly above centre" rather than dead-centre */
     .wrap.welm{ padding-top:24px; }
@@ -1686,6 +1710,7 @@
     </div></div>
 
     <div id="intakeBody"></div>
+    <p class="intake-skip" id="intakeSkip" data-i18n>Þú getur sleppt þessu, en það hjálpar söluaðila.</p>
 
   </section>
 
@@ -1914,10 +1939,11 @@
   <section id="screen-contact" hidden>
     <div class="title-row"><div><div class="screen-title" data-i18n>Þínar upplýsingar</div>
     <p class="screen-sub" data-i18n>Söluaðili fer yfir skipulagið þitt og hefur samband til að fullkomna hönnunina.</p></div>
-    <div class="actions step-nav">
+    <div class="submit-col"><div class="actions step-nav">
       <button class="btn btn-secondary" id="backToEditorBtn" type="button" data-i18n>← Til baka</button>
-      <button class="btn btn-primary" id="submitBtn" type="button" data-i18n>Senda inn</button>
-    </div></div>
+      <button class="btn btn-primary" id="submitBtn" type="button" data-i18n>Senda til söluaðila</button>
+    </div>
+    <p class="submit-under" data-i18n>Ókeypis og án skuldbindingar. Við höfum samband innan 3 virkra daga.</p></div></div>
 
     <!-- 2026-10-12: two columns — what you are sending (picture + materials) | the form -->
     <div class="contact-grid">
@@ -1925,23 +1951,22 @@
     <div class="contact-form">
     <div class="contact-fields" id="contactFields">
       <div class="field" id="field-fornafn">
-        <label for="cFornafn" data-i18n>Fornafn</label>
-        <input type="text" id="cFornafn" autocomplete="given-name">
+        <label for="cFornafn"><span data-i18n>Fornafn</span> <span class="cf-req" aria-hidden="true">*</span></label>
+        <input type="text" id="cFornafn" autocomplete="given-name" required aria-required="true">
         <span class="field-error" data-i18n>Vantar fornafn</span>
       </div>
       <div class="field" id="field-eftirnafn">
-        <label for="cEftirnafn" data-i18n>Eftirnafn</label>
+        <label for="cEftirnafn" data-i18n>Eftirnafn <span class="cf-opt">Valfrjálst</span></label>
         <input type="text" id="cEftirnafn" autocomplete="family-name">
-        <span class="field-error" data-i18n>Vantar eftirnafn</span>
       </div>
       <div class="field" id="field-netfang">
-        <label for="cNetfang" data-i18n>Netfang</label>
-        <input type="email" id="cNetfang" autocomplete="email">
+        <label for="cNetfang"><span data-i18n>Netfang</span> <span class="cf-req" aria-hidden="true">*</span></label>
+        <input type="email" id="cNetfang" autocomplete="email" required aria-required="true">
         <span class="field-error" data-i18n>Netfang lítur ekki rétt út</span>
       </div>
       <div class="field" id="field-simi">
-        <label for="cSimi" data-i18n>Símanúmer</label>
-        <input type="tel" id="cSimi" autocomplete="tel">
+        <label for="cSimi"><span data-i18n>Símanúmer</span> <span class="cf-req" aria-hidden="true">*</span></label>
+        <input type="tel" id="cSimi" autocomplete="tel" required aria-required="true">
         <span class="field-error" data-i18n>Vantar símanúmer</span>
       </div>
       <div class="field cf-wide">
@@ -1949,7 +1974,8 @@
         <textarea id="cAths" rows="3" data-i18n="attrs" placeholder="T.d. hvenær best er að hafa samband, eða sérstakar óskir"></textarea>
       </div>
     </div>
-    <p class="submit-note" data-i18n>Við notum upplýsingarnar eingöngu til að hafa samband við þig vegna skipulagsins. Engin binding.</p>
+    <p class="submit-note" data-i18n><span class="cf-req">*</span> þarf að fylla út — teikningarnar koma í tölvupósti. Við notum upplýsingarnar eingöngu til að hafa samband við þig vegna skipulagsins.</p>
+    <p class="submit-note" data-i18n>Með því að senda samþykkir þú <a href="https://www.bjorninninnrettingar.is/skilm%C3%A1lar" target="_blank" rel="noopener">skilmála Bjarnarins</a>.</p>
     <p class="submit-note" id="submitError" style="display:none; color:var(--danger);"></p>
     </div>
     </div>
@@ -1975,7 +2001,13 @@
     <div class="success-box">
       <div class="big"><svg class="ico" viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12.4l2.8 2.8L16.2 9.6"/></svg></div>
       <h3 data-i18n>Takk fyrir!</h3>
-      <p data-i18n>Söluaðili hefur fengið skipulagið þitt og hefur samband fljótlega til að fullkomna hönnunina með þér.</p>
+      <p class="done-next-t" data-i18n>Hvað gerist næst?</p>
+      <ol class="done-next">
+        <li data-i18n>Söluaðili fer yfir skipulagið þitt.</li>
+        <li data-i18n>Teikningarnar eru uppfærðar ef þarf.</li>
+        <li data-i18n>Söluaðili hefur samband innan 3 virkra daga.</li>
+      </ol>
+      <button class="btn btn-secondary" id="doneAgainBtn" type="button" data-i18n>Hanna annað rými</button>
       <div class="contact-preview" id="donePreview" hidden style="margin:18px auto 0;"></div>
     </div>
   </section>
@@ -2086,9 +2118,20 @@
     { key:"delivery", q:"Hvenær væri best að fá innréttinguna afhenta?",
       options:["Sem fyrst", "Innan 3ja mánaða", "Eftir 3–6 mánuði", "Er ekki að flýta mér"] },
     { key:"budget", q:"Hvert er áætlað fjárhagsrými fyrir verkefnið?",
-      options:["Undir 2 m.kr.", "2–4 m.kr.", "4–7 m.kr.", "Yfir 7 m.kr.", "Óviss — vil ráðgjöf"] }
+      options:["Undir 2 m.kr.", "2–4 m.kr.", "4–7 m.kr.", "Yfir 7 m.kr.", "Óviss — vil ráðgjöf"] },
+    // three more (user, 2026-10-26): install + measure go into Skilaboð, source onto the contact (api/kp-submit.js)
+    { key:"install", q:"Viltu að við setjum upp?", options:["Já", "Nei, ég set upp sjálf/ur"] },
+    { key:"measure", q:"Viltu að við komum og mælum?", options:["Já", "Ég mæli sjálf/ur"] },
+    { key:"source", q:"Hvernig fréttir þú af okkur?", options:["Instagram", "Facebook", "Google", "Meðmæli", "Annað"] }
     // "Hvaða rými?" is gone until wardrobes / bathrooms exist (2026-10-12)
   ];
+  // the budget brackets follow the project's biggest room (2026-10-26): any kitchen with cabinets → the kitchen's
+  // brackets; otherwise (wardrobes, bath, laundry, doors only) the smaller ones — a bath at "2–7 m.kr." was nonsense
+  function budgetOptions(){
+    var kitchen = false;
+    try{ withEachCategory(function(cat){ if (String(cat).split(":")[0] === "eldhus" && cabinetTotal() > 0) kitchen = true; }); }catch(e){ kitchen = !closetOnlyProject(); }
+    return kitchen ? INTAKE_QUESTIONS[1].options : CLOSET_BUDGETS;
+  }
 
   var DEFAULT_ROOM_HEIGHT_MM = 2600; // matches the historical fixed 3D wall height
   var MIN_ROOM_HEIGHT_MM = 2450; // (2500 until 2026-10-10)
@@ -2349,7 +2392,7 @@
   function renderIntake(){
     var body = document.getElementById("intakeBody");
     body.innerHTML = INTAKE_QUESTIONS.map(function(q, qIndex){
-      var opts = (q.key === "budget" && closetOnlyProject() ? CLOSET_BUDGETS : q.options).map(function(opt){
+      var opts = (q.key === "budget" ? budgetOptions() : q.options).map(function(opt){
         var isObj = typeof opt === "object";
         var label = isObj ? opt.t : opt;
         var enabled = isObj ? opt.enabled !== false : true;
@@ -2360,6 +2403,9 @@
       var qt = q.key === "delivery" && doorsOnlyProject() ? "Hvenær væri best að fá hurðirnar afhentar?" : q.key === "delivery" && closetOnlyProject() ? "Hvenær væri best að fá fataskápinn afhentan?" : q.q; // QA I3 / wardrobe (2026-10-26)
       return '<div class="quiz-q"><p class="qtitle">' + (qIndex + 1) + '. ' + __(qt) + '</p><div class="quiz-options">' + opts + '</div></div>';
     }).join("");
+    // nothing answered yet: Áfram still works, one quiet line says so (user, 2026-10-26)
+    var skip = document.getElementById("intakeSkip");
+    if (skip) skip.hidden = INTAKE_QUESTIONS.some(function(q){ return state.intake[q.key]; });
 
     body.querySelectorAll(".quiz-opt:not(:disabled)").forEach(function(btn){
       btn.addEventListener("click", function(){ answerIntake(btn.dataset.key, btn.dataset.val); });
@@ -9911,7 +9957,7 @@
 
   // ---------- summary step ----------
   // ---------- toast ----------
-  var toastTimer;
+  var toastTimer, toastAt = 0;
   // ---- Hindranir (2026-10-11): state.obstacles, see KP3D.OBSTACLES ----
   var obstacleSeq = 1;
   function findObstacle(id){ return (state.obstacles || []).find(function(o){ return o.id === id; }) || null; }
@@ -10381,6 +10427,7 @@
     }
     el.textContent = msg;
     el.style.opacity = "1";
+    toastAt = Date.now();
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function(){ el.style.opacity = "0"; }, 2400);
   }
@@ -10402,6 +10449,9 @@
       if (state.activeCategory) state.categoryData[state.activeCategory] = serializeRoom();
       byrjaSel = (state.categoryQueue || []).slice();
     }
+    // a tip belongs to its own step (2026-10-26: Efni's toast was still up on Senda inn) — except one shown on the way in
+    // (toast(…); goto(…) in the same click), which is about the step being opened
+    if (step !== state.step && Date.now() - toastAt > 60){ var te = document.getElementById("toastEl"); if (te){ clearTimeout(toastTimer); te.style.opacity = "0"; } }
     state.step = step;
     save();
     render();
@@ -10441,7 +10491,10 @@
       var src = null;
       (state.categoryQueue || []).some(function(k){ var d = state.categoryData[k]; if (k !== type && d && (d.carcass || d.look)){ src = { key:k, d:d }; return true; } return false; });
       if (src){
-        SHARED_MATERIALS.forEach(function(k){ if (src.d[k] != null) state[k] = JSON.parse(JSON.stringify(src.d[k])); });
+        // …except what this kind of room has its own default for (a wardrobe / bath / laundry: dökkgrátt + Merivo) — it
+        // never chose the kitchen's Legra (2026-10-26). Nothing is chosen for a brand-new room yet, so nothing real is lost.
+        var ownDef = (cdNew && cdNew.defaults) || {};
+        SHARED_MATERIALS.forEach(function(k){ if (src.d[k] != null && ownDef[k] == null) state[k] = JSON.parse(JSON.stringify(src.d[k])); });
         var srcDef = categoryDef(src.key);
         setTimeout(function(){ toast(__("Sömu efni og í {room} — þú getur breytt þeim fyrir þetta rými í Efni.", { room:__((srcDef && srcDef.label) || src.key) })); }, 400);
       }
@@ -10483,7 +10536,7 @@
   }
   // how far through the CURRENT step the customer is (0..1) — drives the fill of the progress bar
   function stepFrac(){
-    if (state.step === "intake") return ((state.intake.delivery ? 1 : 0) + (state.intake.budget ? 1 : 0)) / 2 * 0.9;
+    if (state.step === "intake") return INTAKE_QUESTIONS.filter(function(q){ return state.intake[q.key]; }).length / INTAKE_QUESTIONS.length * 0.9;
     if (state.step === "shape") return { pick:0, size:0.2, height:0.4, openings:0.6, water:0.85 }[shapePhase] || 0;
     if (state.step === "materials") return matPhase == null ? 0 : Math.min(0.95, matPhase / matPhaseCount());
     if (state.step === "editor") return cabinetTotal() > 0 ? 0.6 : 0.1;
@@ -10509,7 +10562,10 @@
     var k = document.getElementById("kicker");
     k.textContent = "BJÖRNINN STUDIO";
     var TITLES = { eldhus:"Hannaðu eldhúsið þitt", fataskapar:"Hannaðu fataskápinn þinn", bad:"Hannaðu baðherbergið þitt", thvottahus:"Hannaðu þvottahúsið þitt" };
-    document.getElementById("pageTitle").textContent = state.step === "welcome" || state.step === "byrja" ? __("Hannaðu heimilið þitt") : __((state.step !== "hurdir" && state.step !== "heimili" && (TITLES[catBase()] || TITLES[oneKindTitle()])) || "Hannaðu heimilið þitt"); // the stepper already says where you are (2026-10-11); renamed 2026-10-23
+    // one kind of room in the whole project (two wardrobes too): its title stays on Spurningar / Senda inn / Takk (2026-10-26)
+    var kinds = (state.categoryQueue || []).map(function(k){ return String(k).split(":")[0]; }).filter(function(v, i, a){ return a.indexOf(v) === i; });
+    var kindNow = catBase() || (state.step === "done" ? state.doneKind : !state.home && kinds.length === 1 ? kinds[0] : null);
+    document.getElementById("pageTitle").textContent = state.step === "welcome" || state.step === "byrja" ? __("Hannaðu heimilið þitt") : __((state.step !== "hurdir" && state.step !== "heimili" && TITLES[kindNow]) || "Hannaðu heimilið þitt"); // the stepper already says where you are (2026-10-11); renamed 2026-10-23
   }
   function jumpTo(step){
     if (step === state.step) return;
@@ -10601,6 +10657,9 @@
     var lines = [planHeadline()];
     if (state.intake.delivery) lines.push("Æskileg afhending: " + state.intake.delivery);
     if (state.intake.budget) lines.push("Áætlað fjárhagsrými: " + state.intake.budget);
+    if (state.intake.install) lines.push("Uppsetning: " + (state.intake.install === "Já" ? "já, viðskiptavinur vill að við setjum upp" : "nei, setur upp sjálf/ur"));
+    if (state.intake.measure) lines.push("Mæling: " + (state.intake.measure === "Já" ? "já, viðskiptavinur vill að við komum og mælum" : "mælir sjálf/ur"));
+    if (state.intake.source) lines.push("Frétti af okkur: " + state.intake.source);
     if (state.intake.note) lines.push("Athugasemd viðskiptavinar: " + state.intake.note);
     var lk = state.look ? LOOKS[state.look] : null, tp = TOPS[state.top || "steinn"], hd = state.handle ? HANDLES[state.handle] : null;
     if (lk) lines.push("Valin framhlið: " + lk.label + (lk.code ? " — Egger " + lk.code : "") + " (" + ((LOOK_CATEGORIES.find(function(x){ return x.key === lk.category; }) || {}).label || lk.category) + ")");
@@ -10733,7 +10792,6 @@
     var ok = true;
     var checks = [
       { id:"fornafn", el:document.getElementById("cFornafn"), test:function(v){ return v.trim().length > 0; } },
-      { id:"eftirnafn", el:document.getElementById("cEftirnafn"), test:function(v){ return v.trim().length > 0; } },
       { id:"netfang", el:document.getElementById("cNetfang"), test:function(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()); } },
       { id:"simi", el:document.getElementById("cSimi"), test:function(v){ return v.trim().length >= 6; } }
     ];
@@ -11157,7 +11215,8 @@
           fornafn: document.getElementById("cFornafn").value.trim(),
           eftirnafn: document.getElementById("cEftirnafn").value.trim(),
           netfang: document.getElementById("cNetfang").value.trim(),
-          simi: document.getElementById("cSimi").value.trim()
+          simi: document.getElementById("cSimi").value.trim(),
+          source: state.intake.source || "" // "Hvernig fréttir þú af okkur?" → the contact's Hvaðan kom (api/kp-submit.js)
         },
         project: project,
         lineItems: lineItems,
@@ -11193,7 +11252,10 @@
       try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
       wallSeq = 2;
       openingSeq = 1;
+      var kindsDone = (state.categoryQueue || []).map(function(k){ return String(k).split(":")[0]; }).filter(function(v, i, a){ return a.indexOf(v) === i; });
+      var homeDone = !!state.home;
       state = freshState("done");
+      if (!homeDone && kindsDone.length === 1) state.doneKind = kindsDone[0]; // the title stays "Hannaðu fataskápinn þinn" on Takk
       shapePhase = "pick";
       matPhase = null;
       render();
@@ -11205,7 +11267,7 @@
       errEl.textContent = __("Eitthvað fór úrskeiðis við að senda inn. Prófaðu aftur — ") + e.message;
       errEl.style.display = "block";
       submitBtn.disabled = false;
-      submitBtn.textContent = __("Senda inn");
+      submitBtn.textContent = __("Senda til söluaðila");
     }
   }
 
@@ -12852,7 +12914,8 @@
   // project (closets in different bedrooms); water/worktop = whether that shape/materials step applies.
   var CATEGORIES = [
     { key:"eldhus", label:"Eldhús", water:true, worktop:true, defaultShape:"rect" },
-    { key:"fataskapar", label:"Fataskápar", tree:FATASKAPAR_TREE, roomPicker:true, defaultRoom:"Fatask.", water:false, worktop:false, matPhases:MAT_PHASES_FATASKAPAR },
+    { key:"fataskapar", label:"Fataskápar", tree:FATASKAPAR_TREE, roomPicker:true, defaultRoom:"Fatask.", water:false, worktop:false, matPhases:MAT_PHASES_FATASKAPAR,
+      defaults:{ carcass:"dokkgra", drawerSystem:"merivo" } }, // same as closetDefaults / the Skúffukerfi page — written here so an inherited room keeps them
     // Bað + Þvottahús (studio review 2026-10-25, section C): their own page lists, Egger tops only (no stone), the usual
     // answers already picked (defaults) so "Áfram" just works; the water page and shape pick say what fits the room
     { key:"bad", label:"Baðherbergi", tree:BAD_TREE, roomPicker:true, defaultRoom:"Baðh.", water:true, worktop:true, hung:true, matPhases:MAT_PHASES_BAD,
@@ -12955,15 +13018,16 @@
       (w.floor || []).forEach(function(b){ var c = CATALOG[b.type]; if (c.panel) panels++; wSum += c.panel ? 19 : b.widthMm; if (!c.panel){ hMax = Math.max(hMax, blockHeightMm(b, c)); dMax = Math.max(dMax, b.depthMm || c.d); } });
     });
     out.push([__("Mál"), Math.round(wSum / 10) + " × " + Math.round(hMax / 10) + " × " + Math.round(dMax / 10) + " cm"]);
-    var tot = { drawers:0, rails:0, shelves:0, trays:0 };
+    var tot = { drawers:0, rails:0, shelves:0, trays:0 }, railCols = [];
     units.forEach(function(b, i){
       var cnt = closetCounts(b), r = CLOSET_RECIPES.find(function(x){ return x.key === b.closetRecipe; }), kind = closetDoorKind(b);
       tot.drawers += cnt.drawers; tot.rails += cnt.rails; tot.shelves += cnt.shelves; tot.trays += cnt.trays;
+      if (cnt.rails){ var rcol = __(closetRailColor(b)[1]).toLowerCase(); if (railCols.indexOf(rcol) < 0) railCols.push(rcol); }
       out.push([__("Skápur {n}", { n:i + 1 }), Math.round(b.widthMm / 10) + " cm · " + (r ? __(r.label) : __("Eigin samsetning")) + " · " + (kind === "open" ? __("Opið") : kind === "pocket" ? __("Rennihurð í hlið") : __("Með hurðum"))]);
     });
     var inside = [];
     if (tot.drawers) inside.push(tot.drawers + " " + plural(tot.drawers, "skúffa", "skúffur"));
-    if (tot.rails) inside.push(tot.rails + " " + plural(tot.rails, "fataslá", "fataslár"));
+    if (tot.rails) inside.push(tot.rails + " " + plural(tot.rails, "fataslá", "fataslár") + " (" + railCols.join(", ") + ")");
     if (tot.shelves) inside.push(tot.shelves + " " + plural(tot.shelves, "hilla", "hillur"));
     if (tot.trays) inside.push(tot.trays + " " + plural(tot.trays, "útdraganlegur bakki", "útdraganlegir bakkar"));
     if (panels) inside.push(panels + " " + plural(panels, "úthlið", "úthliðar"));
@@ -13011,14 +13075,16 @@
           var l2 = state.look && LOOKS[state.look], t2 = TOPS[state.top || "steinn"], h2 = state.handle && HANDLES[state.handle], c2 = CARCASS[state.carcass], d2 = DRAWER_SYSTEMS[state.drawerSystem];
           oneMats = [[__("Framhlið"), l2 && l2.label], [__("Borðplata"), cdM && cdM.worktop && t2 && !t2.none && t2.label], [__("Höldur"), h2 && h2.label], [__("Skrokkur"), c2 && c2.label], [__("Skúffukerfi"), d2 && d2.label]]
             .filter(function(r){ return r[1]; }).map(function(r){ return '<dt>' + r[0] + '</dt><dd>' + __(r[1]) + '</dd>'; }).join(""); } }); }catch(e){ nRooms = 1; }
+        // "Það sem þú pantar" folds (user, 2026-10-26 — Senda inn must not scroll): shut under a picture, open when the
+        // list is all there is (several rooms); open, it scrolls inside its own box
+        var orderHtml = function(open){ return '<details class="cp-order"' + (open ? ' open' : '') + '><summary>' + __("Það sem þú pantar") + '</summary><dl class="cp-mats">' + ob.map(function(r){ return '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>'; }).join("") + '</dl></details>'; };
         if ((nRooms !== 1 || state.home) && ob.length){ // several rooms, doors only, or Allt heimilið: what's ordered, room by room
-          box.innerHTML = (nCab ? '<div class="cp-text"><strong>' + __("Skipulagið þitt") + '</strong> · ' + nCab + ' ' + plural(nCab, "skápur", "skápar") + '</div>' : '') +
-            '<div class="cp-text"' + (nCab ? ' style="margin-top:8px;"' : '') + '><strong>' + __("Það sem þú pantar") + '</strong></div><dl class="cp-mats">' + ob.map(function(r){ return '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>'; }).join("") + '</dl>';
+          box.innerHTML = (nCab ? '<div class="cp-text"><strong>' + __("Skipulagið þitt") + '</strong> · ' + nCab + ' ' + plural(nCab, "skápur", "skápar") + '</div>' : '') + orderHtml(true);
           box.hidden = false; return;
         }
         if (oneMats != null) mats = oneMats;
         box.innerHTML = (lastThumb ? html : '<div class="cp-plan" id="cpPlan"></div>') + '<div class="cp-text"><strong>' + __("Skipulagið þitt") + '</strong> · ' + text + '</div><dl class="cp-mats">' + mats + '</dl>' +
-          (ob.length ? '<div class="cp-text" style="margin-top:8px;"><strong>' + __("Það sem þú pantar") + '</strong></div><dl class="cp-mats">' + ob.map(function(r){ return '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>'; }).join("") + '</dl>' : '');
+          (ob.length ? orderHtml(false) : '');
         box.hidden = false;
         if (!lastThumb){ try{ KP3D.buildPlan2D(document.getElementById("cpPlan"), state, {}); }catch(e){} }
         return;
@@ -13041,6 +13107,8 @@
     checkEndPanelsThen(function(){ captureThumb(); finishCategory(); }); // 3D scene must still be alive for the thumbnail
   });
   document.getElementById("backToEditorBtn").addEventListener("click", function(){ goto("editor"); });
+  // Takk fyrir! → a new project from the room picker (the one just sent is already gone from the draft)
+  document.getElementById("doneAgainBtn").addEventListener("click", function(){ state = freshState("byrja"); shapePhase = "pick"; matPhase = null; save(); render(); });
   document.getElementById("cAths").addEventListener("input", function(e){ state.intake.note = e.target.value.trim().slice(0, 1000); save(); });
   document.getElementById("submitBtn").addEventListener("click", function(){
     if (!validateContact()) return;
