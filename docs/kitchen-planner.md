@@ -496,3 +496,8 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   Finishes: satin stainless default, `d.hwFinish` = copper / black / graphite / gold (no customer choice yet). Skrá step
   now shows the door half open on the lock's edge. Glass doors get no mortise lock. Hidden hinges: still a placeholder.
   The IFC/SAT hinge (IN.05.062) wasn't used — 25 MB and a different model number than the product (IN.05.020.100).
+- **No count page (user, 2026-10-26):** "Hvað ætlar þú að gera margar hurðir?" is gone. Innihurðir opens on "Hurðirnar
+  þínar" with one empty row HU-1 (`ensureFirstDoor`; deleting the last row leaves a fresh HU-1); "+ Bæta við hurð" adds
+  more; Til baka from the list → front page (or Allt heimilið). `doorPage` is only "list" | "review" (never saved — old
+  drafts just open the list). The empty starter row doesn't count as work: welcome card, Allt heimilið row and
+  `homeHasUnits` use `designedDoors()`.
