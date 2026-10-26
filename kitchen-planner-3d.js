@@ -5506,11 +5506,11 @@
       if (!bIdx.length) bIdx = (state.walls || []).map(function(w, i){ return i; }).filter(function(i){ return geoms[i] && !state.walls[i].open; }).slice(0, 1);
       if (bIdx.length && bIdx.length <= 2){
         var bcx = 0, bcz = 0, bnx = 0, bnz = 0, bLen = 0;
-        bIdx.forEach(function(i){ // frame the units on the wall (round 2: a 80 cm vanity was small in a 250 cm wall's view), else the wall
+        bIdx.forEach(function(i){ // frame the units on the wall (round 2: a 80 cm vanity was small in a 250 cm wall's view), else the wall; PRO (darkBg) always the whole wall (2026-10-26: the vanity filled the screen, bottom cut off)
           var g = geoms[i], w = state.walls[i], a0 = 0, a1 = g.lenM;
           var fs = blockStartsMm(w.floor || [], 0), ws = blockStartsMm(w.wall || [], 0), ext = [];
           (w.floor || []).forEach(function(b, k){ ext.push(fs[k], fs[k] + b.widthMm); }); (w.wall || []).forEach(function(b, k){ ext.push(ws[k], ws[k] + b.widthMm); });
-          if (ext.length){ a0 = Math.min.apply(null, ext) / 1000; a1 = Math.max.apply(null, ext) / 1000; var pad = Math.max(0, (1.4 - (a1 - a0)) / 2); a0 = Math.max(0, a0 - pad); a1 = Math.min(g.lenM, a1 + pad); }
+          if (ext.length && !opts.darkBg){ a0 = Math.min.apply(null, ext) / 1000; a1 = Math.max.apply(null, ext) / 1000; var pad = Math.max(0, (1.4 - (a1 - a0)) / 2); a0 = Math.max(0, a0 - pad); a1 = Math.min(g.lenM, a1 + pad); }
           var am = (a0 + a1) / 2; bcx += g.origin.x + g.axis.x * am; bcz += g.origin.z + g.axis.z * am; bnx += g.normal.x; bnz += g.normal.z; bLen = Math.max(bLen, a1 - a0); });
         bcx /= bIdx.length; bcz /= bIdx.length; var bnl = Math.hypot(bnx, bnz) || 1; bnx /= bnl; bnz /= bnl;
         var bd = Math.max(2.3, bLen * 0.95 + 0.9) * (bIdx.length > 1 ? 1.2 : 1);

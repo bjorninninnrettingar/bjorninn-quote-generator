@@ -6409,6 +6409,24 @@
   // Vaskaskápur með skúffum (2026-10-09): the sink takes ~200 mm at the top. The top front is either a low
   // drawer under the sink (its box sits at the bottom of a tall front) or a fixed front; bins go in the bottom drawer.
   var SINK_DEPTH_MM = 200;
+  // Baðherbergi vaskaskápur in Smíða (PRO F, 2026-10-26): the top drawer is a U-skúffa round the trap (vatnslás), the
+  // top gets a waste hole and maybe a tap hole. Both are made BY HAND (no /cnc macro), so they travel in Smíðagögn
+  // (o.vatnslas, o.toppur) for the Skápalisti + the workshop drawing, and wall hangers (upphengi) are a hand-drilled note.
+  function bathSinkUnit(b, c){ return !!(c && c.sink && isBath()); }
+  function bathTopOf(b, c){ // { drainX, drainY, tap:"toppur"|"veggur"|"ekkert", tapX, tapY } — mm from the left side / from the wall
+    var w = b.widthMm, d = b.depthMm || c.d, t = b.bathTop || {};
+    var tap = t.tap || "toppur";
+    return { drainX:t.drainX != null ? t.drainX : Math.round(w / 2), drainY:t.drainY != null ? t.drainY : Math.round(d / 2), tap:tap,
+      tapX:t.tapX != null ? t.tapX : Math.round(w / 2), tapY:t.tapY != null ? t.tapY : 60 };
+  }
+  function bathSmidaNotes(sm){ // short lines for the Skápalisti / workshop sheet, from the Smíðagögn alone
+    var out = [];
+    if (sm.vatnslas) out.push("U-skúffa (vatnslás): " + sm.vatnslas.drawer + "-skúffan efst — í höndunum");
+    if (sm.toppur){ var t = sm.toppur;
+      out.push("Frárennslisgat " + t.gat.x + "/" + t.gat.y + " mm (frá vinstri/vegg)" + (t.krani === "toppur" && t.kranagat ? ", kranagat " + t.kranagat.x + "/" + t.kranagat.y + " mm" : t.krani === "veggur" ? ", krani á vegg" : ", enginn krani")); }
+    return out;
+  }
+  var UPPHENGI_NOTE = "Upphengi — borað í höndunum";
   function sinkFixedTop(b, c){ return !!(c.sink && isDrawerUnit(b) && b.sinkTop === "fastur"); }
   function sinkTopMinMm(b, codes){ // shortest top front that still clears the basin
     var top = codes[codes.length - 1], side = KP3D.DRAWER_CODES[drawerSys()].side[top] || 0;
@@ -12240,10 +12258,13 @@
   // ======================================================================
   function proDefaultShape(){
     if (isCloset()) return "closetWall";
+    if (isBath()) return "bathWall"; // the customer's bath shapes (Einn veggur / Horn), so a submitted bath opens as it was drawn
     var cd = categoryDef(state.activeCategory);
     return (cd && cd.defaultShape && SHAPE_TEMPLATES[cd.defaultShape]) ? cd.defaultShape : "rect";
   }
-  function proRoomShapes(){ var grp = isCloset() ? "closet" : "closed"; return Object.keys(SHAPE_TEMPLATES).filter(function(k){ return SHAPE_TEMPLATES[k].group === grp && !SHAPE_TEMPLATES[k].hidden; }); }
+  function proRoomShapes(){
+    if (isBath()) return ["bathWall", "bathCorner", "rect"]; // + "Allt herbergið" for the whole room (PRO, 2026-10-26)
+    var grp = isCloset() ? "closet" : "closed"; return Object.keys(SHAPE_TEMPLATES).filter(function(k){ return SHAPE_TEMPLATES[k].group === grp && !SHAPE_TEMPLATES[k].hidden; }); }
   var proRoomNext = null; // the field index Enter moves to, once the change it committed has redrawn the table
   function proRoomInputs(){ return Array.prototype.slice.call(document.querySelectorAll("#shapeProBox input[type=number]")); }
   function renderProRoomBox(){
@@ -12251,12 +12272,13 @@
     var esc = escapeHtmlPro, cd = categoryDef(state.activeCategory), hasWater = !(cd && cd.water === false) && !isCloset();
     var cur = state.shapeKey === "lroomMirror" ? "lroom" : state.shapeKey, clK = isCloset() && closetShape(), clW = clK ? SHAPE_TEMPLATES[clK].closetWalls : [];
     var html = '<div class="prm-shapes">' + proRoomShapes().map(function(k){
-      return '<button type="button" class="prm-shape' + (k === cur ? ' on' : '') + '" data-prshape="' + k + '" title="' + esc(SHAPE_TEMPLATES[k].label) + '">' + templateIcon(k) + '<span>' + esc(SHAPE_TEMPLATES[k].label) + '</span></button>';
+      var lb = isBath() && k === "rect" ? "Allt herbergið" : SHAPE_TEMPLATES[k].label;
+      return '<button type="button" class="prm-shape' + (k === cur ? ' on' : '') + '" data-prshape="' + k + '" title="' + esc(lb) + '">' + templateIcon(k) + '<span>' + esc(lb) + '</span></button>';
     }).join("") + '</div>';
     html += '<div class="prm-row"><b>Lofthæð</b><input type="number" data-prh value="' + (state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM) + '" step="5"><span></span><span></span><span></span><span></span></div>';
     state.walls.forEach(function(w, i){
       html += '<div class="prm-wall"><b>Veggur ' + (i + 1) + '</b><input type="number" data-prw="' + i + '" value="' + w.lengthMm + '" step="5" title="Lengd veggjar, mm">' +
-        (isCloset() ? '<span></span>' : '<button type="button" class="prm-tog' + (w.open ? ' on' : '') + '" data-propen="' + i + '" title="Enginn veggur hér — rýmið er opið inn í annað">Opið</button>') + '</div>';
+        (isCloset() || bathShape() ? '<span></span>' : '<button type="button" class="prm-tog' + (w.open ? ' on' : '') + '" data-propen="' + i + '" title="Enginn veggur hér — rýmið er opið inn í annað">Opið</button>') + '</div>';
       if (w.open) return;
       if (clW.indexOf(i) >= 0) html += proClosetSpanRow(i);
       var ops = state.windows.concat(state.doors).filter(function(o){ return o.wallId === w.id; }).sort(function(a, b){ return a.offsetMm - b.offsetMm; });
@@ -15384,6 +15406,7 @@
     if (count("split")) return on("split") || "";
     if (count("oshmm")){ var fx = sec.querySelectorAll('.pe-btn.on[data-pe="oshtype"][data-v="1"]').length; return count("oshmm") + (fx ? " (" + fx + " föst)" : ""); }
     if (count("ovh")) return on("ovh") + " cm" + (sec.querySelector('[data-pe="ounder"]') ? ", " + sec.querySelector('[data-pe="ounder"]').value + " mm undir" : "");
+    if (count("bdrx")){ var bx = sec.querySelector('[data-pe="bdrx"]'), by = sec.querySelector('[data-pe="bdry"]'); return "gat " + bx.value + "/" + by.value + " · krani " + on("btap").toLowerCase(); }
     if (count("railadd")){ var nr = count("railmm"); return nr ? nr + " " + (nr === 1 ? "slá" : "slár") : "engin"; }
     if (count("griptype")){ var g = sec.querySelectorAll('.pe-btn.on[data-pe="griptype"]:not([data-v="none"])').length; return g ? g + " með grip" : "ekkert grip"; }
     if (count("inneradd") || count("burmm")){ var ni = count("innermm") + count("burmm"); return ni ? ni + " innskúffur" : "engar"; }
@@ -15453,6 +15476,8 @@
     if (peCncFile >= files.length) peCncFile = 0;
     var cur = files[peCncFile], cc = cur ? card(cur.name, cur.plan) : null;
     if (plan.status === "skip") warn("info", "Engin skrokkhlið í þessari einingu.");
+    if (isBath() && state.hungUnits) warn("info", "Upphengi: borað í höndunum, ekki í skránni");
+    if (bathSinkUnit(b, c)) warn("info", "Göt í toppi og U-skúffa: gert í höndunum, ekki í skránni");
     if (cc) cc.querySelectorAll(".bpp-note").forEach(function(n){ warn(/\b(warn|err)\b/.test(n.className) ? "warn" : "info", n.textContent); });
     var bar = document.createElement("div"); bar.className = "pe-cnc-bar";
     bar.innerHTML = (files.length > 1 ? files.map(function(f, i){ return '<button type="button" class="pe-cnc-file' + (i === peCncFile ? ' on' : '') + '" data-cncfile="' + i + '" title="' + escapeHtmlPro(f.name) + ' ×' + f.count + '">' + escapeHtmlPro(f.name.replace(/^Hliðar? - /, "").replace(/^(\w)/, function(m){ return m.toUpperCase(); })) + ' ×' + f.count + '</button>'; }).join("")
@@ -15646,6 +15671,12 @@
         acc += h;
         if (i < fronts.length - 1) svg += '<line class="pe-seam" data-seam="' + i + '" x1="' + X0 + '" x2="' + (X0 + W) + '" y1="' + (yb - (h - 1.5) * S) + '" y2="' + (yb - (h - 1.5) * S) + '" stroke="#0a84ff" stroke-width="6" stroke-opacity=".35" style="cursor:ns-resize"/>';
       });
+    }
+    if (fronts.length && dr && bathSinkUnit(b, c)){ // U-skúffa (vatnslás): the top drawer's box is cut round the trap — drawn dashed in its middle
+      var accU = 0; fronts.forEach(function(h, i){ if (i < fronts.length - 1) accU += h; });
+      var topH = fronts[fronts.length - 1] - 3, ybU = Y0 + body * S - accU * S, ytU = ybU - topH * S, uw2 = Math.max(26, W * 0.36), ux0 = X0 + W / 2 - uw2 / 2, uDepth = Math.min(topH * S / 2 - 16, Math.max(12, topH * S * 0.34)); // above the front's own label
+      svg += '<path d="M' + ux0 + ' ' + (ytU + 3) + ' V' + (ytU + uDepth) + ' Q' + (X0 + W / 2) + ' ' + (ytU + uDepth + 10) + ' ' + (ux0 + uw2) + ' ' + (ytU + uDepth) + ' V' + (ytU + 3) + '" fill="rgba(13,111,148,.12)" stroke="#0d6f94" stroke-width="1.6" stroke-dasharray="5 3"><title>U-skúffa: skúffukassinn er skorinn í kringum vatnslásinn (smíðað í höndunum)</title></path>' +
+        '<text x="' + (X0 + W / 2) + '" y="' + (ytU + Math.min(uDepth, 22) / 2 + 7) + '" text-anchor="middle" font-size="10" fill="#0d6f94" font-weight="700" pointer-events="none">U · vatnslás</text>';
     }
     // the fronts' split (top → bottom): Rakel's, or the integrated fridge's usual two doors
     function splitNow(){ return proSplit(b, body) || (c.fridge ? doors.map(function(d){ return d.box; }) : null); }
@@ -15939,6 +15970,20 @@
     if (dr || (c.oven && !c.lowOven)) right += '<div class="pe-door"><h4>' + (dr ? "Skúffur" : "Undir ofninum") + '</h4><div id="peInterior">' +
       (dr ? hardwareHTML(b, c, { sides:true }) : variantHTML(b, c, { sides:true })) + '</div>' +
       '<div class="pe-note">Sláðu inn frontahæð, dragðu bláu skilin á teikningunni eða ⠿ til að færa skúffu. Aðeins skúffan sem þú dregur breytist — samtalan þarf að fylla skápinn (⛔ efst segir til). Strikaða línan er Blum-hliðin (hlið = hæð hennar; staðsetningin er nálgun), rauðu punktarnir eru göt fyrir framhliðina.</div></div>';
+    if (bathSinkUnit(b, c)){ // Toppur (bath vaskaskápur): waste hole + tap, mm from the left side / from the wall; a small plan beside it
+      var bt = bathTopOf(b, c), dpt = b.depthMm || c.d, pw = 150, ps = pw / b.widthMm, ph = dpt * ps;
+      var plan = '<svg width="' + (pw + 2) + '" height="' + (ph + 16) + '" style="flex:none"><rect x="1" y="9" width="' + pw + '" height="' + ph + '" fill="#f4f5f7" stroke="#8a929c"/>' +
+        '<line x1="1" x2="' + (pw + 1) + '" y1="9" y2="9" stroke="#3b4652" stroke-width="3"/><text x="' + (pw / 2 + 1) + '" y="7" text-anchor="middle" font-size="8" fill="#6b7480">veggur</text>' +
+        '<circle cx="' + (1 + bt.drainX * ps) + '" cy="' + (9 + bt.drainY * ps) + '" r="5" fill="none" stroke="#0d6f94" stroke-width="2"><title>Frárennslisgat</title></circle>' +
+        (bt.tap === "toppur" ? '<circle cx="' + (1 + bt.tapX * ps) + '" cy="' + (9 + bt.tapY * ps) + '" r="3.2" fill="#c07a1f"><title>Kranagat</title></circle>' : '') + '</svg>';
+      right += '<div class="pe-door"><h4>Toppur</h4>' +
+        '<div class="pe-row" style="align-items:flex-start;gap:12px">' + plan + '<div style="display:flex;flex-direction:column;gap:6px">' +
+        '<div class="pe-row">Frárennslisgat: <input type="number" step="5" style="width:62px" value="' + bt.drainX + '" data-pe="bdrx"> frá vinstri · <input type="number" step="5" style="width:62px" value="' + bt.drainY + '" data-pe="bdry"> frá vegg <button type="button" class="pe-btn" data-pe="bdrc" title="Á miðjan toppinn">Miðja</button></div>' +
+        '<div class="pe-row">Krani: ' + [["toppur", "Í toppi"], ["veggur", "Á vegg"], ["ekkert", "Ekkert"]].map(function(o){ return '<button type="button" class="pe-btn' + (bt.tap === o[0] ? ' on' : '') + '" data-pe="btap" data-v="' + o[0] + '">' + o[1] + '</button>'; }).join("") + '</div>' +
+        (bt.tap === "toppur" ? '<div class="pe-row">Kranagat: <input type="number" step="5" style="width:62px" value="' + bt.tapX + '" data-pe="btapx"> frá vinstri · <input type="number" step="5" style="width:62px" value="' + bt.tapY + '" data-pe="btapy"> frá vegg</div>' : '') +
+        '</div></div>' +
+        '<div class="pe-note">Mál í mm frá vinstri hlið og frá vegg (miðja gats). ' + (dr ? 'Efsta skúffan er U-skúffa fyrir vatnslásinn (blátt á teikningunni). ' : '') + 'Götin og U-skurðurinn eru gerð í höndunum — þau fara á Skápalistann og vinnuteikninguna, ekki í CNC.</div></div>';
+    }
     // Grip svæði (Fræst grip): every eligible front's controls in one collapsible group (user, 2026-10-16 —
     // was one separate collapsible card per front, which buried a multi-front cabinet's Smíða panel in cards).
     var gripTargets = proGripTargets(b, c, fb.zone, body, doors, codes, fronts);
@@ -16165,6 +16210,14 @@
       ovenDone();
     }
     function railOk(mm){ var r = KP3D.shelfSpaceMm(b, body, drawerSys()); return mm > r.lo + KP3D.OVEN_BOARD_MM && mm < r.hi - 10; }
+    function bathTopSet(k, v){ var t = Object.assign({}, b.bathTop || {}); if (v == null) delete t[k]; else t[k] = v; b.bathTop = t; ovenDone(); }
+    function bathMm(n, max){ var v = Math.round(+n.value); if (!(v >= 0 && v <= max)){ toast("Gatið þarf að vera á toppnum (0–" + max + " mm)."); renderBoxEditor(); return null; } return v; }
+    act('[data-pe="bdrx"]', function(n){ var v = bathMm(n, b.widthMm); if (v != null) bathTopSet("drainX", v); });
+    act('[data-pe="bdry"]', function(n){ var v = bathMm(n, b.depthMm || c.d); if (v != null) bathTopSet("drainY", v); });
+    act('[data-pe="bdrc"]', function(){ var t = Object.assign({}, b.bathTop || {}); delete t.drainX; delete t.drainY; b.bathTop = t; ovenDone(); });
+    act('[data-pe="btap"]', function(n){ bathTopSet("tap", n.dataset.v); });
+    act('[data-pe="btapx"]', function(n){ var v = bathMm(n, b.widthMm); if (v != null) bathTopSet("tapX", v); });
+    act('[data-pe="btapy"]', function(n){ var v = bathMm(n, b.depthMm || c.d); if (v != null) bathTopSet("tapY", v); });
     act('[data-pe="railmm"]', function(n){ var list = railsNow(), v = Math.round(+n.value);
       if (!railOk(v)){ var r = KP3D.shelfSpaceMm(b, body, drawerSys()); toast("Sláin er utan " + (r.lo + 17) + "–" + (r.hi - 11) + " mm bilsins — lagaðu áður en skápurinn er merktur yfirfarinn."); }
       list[+n.dataset.k].mm = v; setRailList(list); });
@@ -16380,6 +16433,12 @@
       });
     }
     if (c.sink && isDrawerUnit(b)) o.sink = { depth:SINK_DEPTH_MM, top:sinkFixedTop(b, c) ? "fastur" : "skuffa", bins:"bottom" };
+    if (bathSinkUnit(b, c)){ // made by hand: U-cut top drawer + the holes in the top (see bathSinkUnit)
+      if (o.fronts && o.fronts.length && o.fronts[o.fronts.length - 1].code !== "fast") o.vatnslas = { drawer:o.fronts[o.fronts.length - 1].code, cut:"U" };
+      var bt = bathTopOf(b, c);
+      o.toppur = { gat:{ x:bt.drainX, y:bt.drainY }, krani:bt.tap };
+      if (bt.tap === "toppur") o.toppur.kranagat = { x:bt.tapX, y:bt.tapY };
+    }
     if (c.oven){ // h = 595 / 455 / 1050 (60+45); under = Σ slots under it; shelves = above it, top face from the body's bottom
       o.oven = { h:KP3D.ovenHOf(b, c), under:c.lowOven ? o.fronts[0].mm : KP3D.ovenUnderOf(b, state.drawerSystem, h, c) };
       if (!c.lowOven){
@@ -17253,9 +17312,16 @@
       var sy = a.kind === "symbol" ? KP3D.ANNO_SYMBOLS[a.sym] || {} : {};
       return Object.assign({}, a, a.kind === "symbol" ? { glyph:sy.glyph, symLabel:a.text ? "" : sy.label } : {});
     });
+    var bathN = []; // Baðherbergi: what's made by hand on each unit (U-skúffa, holes in the top, upphengi) as the sheet's notes
+    if (isBath()) wall.floor.concat(wall.wall).forEach(function(b){
+      var c = CATALOG[b.type], k = keys[b.id]; if (!c || c.panel || c.appliance || c.notOrdered || !k) return;
+      var fz = wall.floor.indexOf(b) >= 0 ? "floor" : "wall", lines = bathSmidaNotes(smidaFor(b, c, fz));
+      if (state.hungUnits) lines.push(UPPHENGI_NOTE);
+      lines.forEach(function(t){ bathN.push(k.toUpperCase() + ": " + t); });
+    });
     var meas = wdMeasureFor(wall); // Mæling: rafmagn / lagnir as markers, skekkja as a note (PRO C, 2026-10-26)
     return { title:wall.label, lenMm:wall.lengthMm, roomH:state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM, units:units, worktop:tops.length ? tops : null,
-      afella:afs, openings:openings, annotations:annos.concat(meas.annos), notes:meas.notes.length ? meas.notes : undefined, wallId:wall.id };
+      afella:afs, openings:openings, annotations:annos.concat(meas.annos), notes:meas.notes.length || bathN.length ? meas.notes.concat(bathN) : undefined, wallId:wall.id };
   }
   function wdModels(){
     var models = [], now = new Date(), date = ("0" + now.getDate()).slice(-2) + "." + ("0" + (now.getMonth() + 1)).slice(-2) + "." + now.getFullYear();
@@ -17355,6 +17421,8 @@
         if (!v1) note.push("Engin vara (V1)");
         if (sm.oven) note.push("Ofn " + sm.oven.h + " mm");
         if (sm.sink) note.push("Vaskur");
+        bathSmidaNotes(sm).forEach(function(t){ note.push(t); });
+        if (isBath() && state.hungUnits && !c.panel && !c.appliance) note.push(UPPHENGI_NOTE);
         if (sm.split) note.push("Frontar skiptir " + sm.split.join("/"));
         if (sm.led) note.push("LED " + (sm.led.type === "hlid" ? sm.led.side + " hlið (rauf)" : "undir efstu hillu"));
         if (w.island) note.push("Í eyju");
