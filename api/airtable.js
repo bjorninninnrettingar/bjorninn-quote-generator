@@ -527,6 +527,9 @@ const VERK_ONLY_FIELDS = {
     "Vara 🚪", "útfærsla 🎨", "Aukahlutir 🧩", "Magn", "Afsl. %",
     "Einingarverð", "Endanlegt söluverð 💲", "⚠️ Skipulagsvilla",
     "Læstur verðlykill 🔒", "Breyting eftir staðfestingu", "Viðbót (kr)",
+    // PRO Yfirferð (2026-10-26): did Keyra skipulag finish? It stamps "Síðast samstillt timestamp" (unix s) on every
+    // line it created/synced an Eyðublað for, last of all — read-only here, polled by kitchen-planner.html.
+    "🔑", "Eyðublað búið til ✏️", "⚠️ Breytt eftir stofnun", "Síðast samstillt timestamp",
   ],
 };
 

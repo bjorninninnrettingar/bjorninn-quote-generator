@@ -308,6 +308,12 @@
     var wantId = new URLSearchParams(location.search).get("recordId");
     if (wantId) {
       var idHit = recs.find(function (r) { return r.id === wantId; });
+      // like ?t= below: a project outside this list (not won yet, e.g. opened from PRO's Yfirferð right after
+      // Keyra skipulag on a test project) still opens, marked — read-only lookup by id (2026-10-26)
+      if (!idHit && /^rec[A-Za-z0-9]{14}$/.test(wantId)) {
+        try { idHit = (await fetchAll(PROJECTS, { filterByFormula: 'RECORD_ID()="' + wantId + '"', "fields[]": [PNAME] }))[0]; } catch (e) {}
+        if (idHit) $("projSel").insertAdjacentHTML("beforeend", '<option value="' + esc(idHit.id) + '">' + esc(String(idHit.fields[PNAME] || idHit.id).trim()) + " (ekki í lista)</option>");
+      }
       if (idHit) $("projSel").value = idHit.id;
     }
     var want = new URLSearchParams(location.search).get("t");
