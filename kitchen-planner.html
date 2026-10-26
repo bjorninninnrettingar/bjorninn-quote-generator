@@ -3547,6 +3547,7 @@
     insertBlockAt(w, "floor", b, start);
     landedBlockId = b.id;
     if (catBase() === "thvottahus") placeLaundryMachine(w, b);
+    syncBathPanels();
     save();
   }
   // Þvottahús (user, 2026-10-23, E1; review 2026-10-25 C): the machine as picked on "Hvar er vélin?" — the stack, or washer +
@@ -5525,7 +5526,8 @@
     if (!tpl){
       var type = zone === "wall" ? "uthlidefri" : (c.cls === "tall" || c.fridge || c.cls === "oven") ? "uthlidhar" : "uthlid";
       var pc = CATALOG[type]; tpl = newBlock(type);
-      var h = Math.max(pc.minH, Math.min(dimRange(pc, "heightMm")[1], blockHeightMm(b, c))), d = Math.max(pc.minD, Math.min(pc.maxD, b.depthMm || c.d));
+      var hSrc = zone === "floor" && state.hungUnits && !wall.island ? carcassHeightMm(b, c, zone, wall) : blockHeightMm(b, c); // a hung unit's panel hangs with it: the box only
+      var h = Math.max(pc.minH, Math.min(dimRange(pc, "heightMm")[1], hSrc)), d = Math.max(pc.minD, Math.min(pc.maxD, b.depthMm || c.d));
       if (h !== pc.h) tpl.heightMm = h;
       if (d !== pc.d) tpl.depthMm = d;
       if (zone === "wall"){ var e = KP3D.elevOf(b); if (e !== KP3D.defaultElevOf(type)) tpl.elevMm = e; }
@@ -5592,8 +5594,39 @@
     if (bad) return false;
     return true;
   }
+  // Baðherbergi (user, 2026-10-26): no "Það vantar úthliðar" question — every visible side of a bath unit gets its 19 mm
+  // úthlið in the front material by itself, kept in step whenever units are placed, added, moved or removed (like the
+  // wardrobe's Fylla vegginn). Ours are marked `autoPanel`: all taken off (the units beyond keep their place — the
+  // panel's width goes into the next one's gap) and the ones still needed put back. Hand-added panels stay untouched.
+  function bathAutoPanels(){ return isBath() && !PRO && !!state.hungUnits; }
+  function syncBathPanels(){
+    if (!bathAutoPanels()) return false;
+    var sig = function(){ return JSON.stringify(state.walls.map(function(w){ return [w.floor, w.wall]; })); }, before = sig(), seq0 = blockSeq;
+    state.walls.forEach(function(w){ ["floor", "wall"].forEach(function(z){
+      var list = w[z];
+      for (var i = list.length - 1; i >= 0; i--){
+        var p = list[i]; if (!p.autoPanel) continue;
+        // flush on both sides (only panels between two units that touched through them): the units close up again —
+        // a unit added next to the vanity lands after its panel, and two panels between them would stay forever
+        var nx = list[i + 1], flush = i > 0 && !p.gapMm && nx && !nx.gapMm;
+        if (nx && !flush) nx.gapMm = (nx.gapMm || 0) + (p.gapMm || 0) + p.widthMm;
+        list.splice(i, 1);
+      }
+    }); });
+    var k = 0;
+    missingEndPanels().forEach(function(m){
+      if (!addEndPanel(m.wall, m.zone, m.b, m.dir)) return;
+      var p = m.wall[m.zone].find(function(x){ return CATALOG[x.type].panel && !x.autoPanel && x.lockTo && x.lockTo.id === m.b.id && x.lockTo.dir === m.dir; });
+      if (p){ p.autoPanel = true; p.id = "ap_" + m.b.id + (m.dir < 0 ? "L" : "R"); } // a stable id: the same panel each time
+      k++;
+    });
+    blockSeq = Math.max(seq0, blockSeq);
+    var changed = sig() !== before;
+    return changed;
+  }
   var panelsAskedFor = null; // the plan we already asked about (don't nag twice for the same thing)
   function checkEndPanelsThen(go){
+    if (bathAutoPanels()){ go(); return; } // the bath adds its own (syncBathPanels)
     var miss = missingEndPanels(), sig = JSON.stringify(state.walls.map(function(w){ return [w.floor, w.wall]; })) + JSON.stringify(state.islands);
     if (!miss.length || panelsAskedFor === sig){ go(); return; }
     askChoice(__("<b>Það vantar úthliðar á {n} {places}.</b> Sýnilegar hliðar á skápum fá {t} úthlið í framhliðaefninu. Viltu að við bætum þeim við?", { t:uLen(19), n:miss.length, places:plural(miss.length, "stað", "stöðum") }),
@@ -9169,6 +9202,7 @@
     if (autoCornerSwing()) save();
     if (clampIslands()) save();
     if (glueLockedPanels()) save();
+    if (syncBathPanels()) save();
     warnings = computeWarnings();
     renderCatalogPanel();
     renderView();
@@ -15834,7 +15868,7 @@
       var plinth = plinthMmOf(c, zone, wall), body = proBodyMm(b, c, zone), sm = smidaFor(b, c, zone);
       var u = { sk:keys[b.id] || "", zone:zone, x:x, w:b.widthMm, d:b.depthMm || c.d, h:body,
         y0:zone === "wall" ? KP3D.elevOf(b) : plinth, plinth:zone === "floor" ? plinth : 0 };
-      if (c.panel){ u.panel = true; u.h = blockHeightMm(b, c) - (zone === "floor" ? 0 : 0); u.y0 = zone === "wall" ? KP3D.elevOf(b) : 0; u.plinth = 0; return u; }
+      if (c.panel){ u.panel = true; u.h = blockHeightMm(b, c) - (zone === "floor" ? 0 : 0); u.y0 = zone === "wall" ? KP3D.elevOf(b) : (state.hungUnits && !wall.island && typeof wall.plinthMm === "number" ? wall.plinthMm : 0); u.plinth = 0; return u; }
       if (c.appliance || c.notOrdered){ u.appliance = c.label; return u; }
       var fMat = state.look2 ? frontMatCode(b) : null; // (FRE1)/(FRE2) only once the project has two front materials
       if (sm.fronts) u.fronts = sm.fronts.map(function(f){ return { code:f.code, mm:f.mm, side:sides[f.code] || 0, push:push, mat:fMat }; });

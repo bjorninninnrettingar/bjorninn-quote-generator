@@ -97,3 +97,9 @@ Fataskápar is the model. Laundry's flow is untouched; shared code (wizard frami
   clicking "3D" while in 3D reframes to the default view (all rooms). The bath camera frames the units (+ margin), not the whole wall.
 - Wizard width line sits above the tap (`extraTop`). Senda inn: "Toppur: … · Handlaug ofan á" + "Spegilskápur: Já/Nei".
 - Gluggar og hurðir drawing: no "← Veggur 4 (opinn)" nav to open edges in a bath/wardrobe. Höldur page always opens on "Allt".
+- Úthliðar in the bath (user decision, item 4): no "Það vantar úthliðar" question (`checkEndPanelsThen` goes straight on when
+  `bathAutoPanels()`). `syncBathPanels()` (refreshAfterEdit + seedSink) takes every `autoPanel` off and puts back what
+  `missingEndPanels()` still wants (ids `ap_<unit>L/R`); units beyond keep their place unless the panel was flush on both
+  sides (then the two units close up — a new unit lands next to the vanity, not two panels away). A bath panel is the box
+  height (`carcassHeightMm`) and hangs at the wall's gap in 3D (`hungPanel`) and in the PDF sheets. Hand-added panels are
+  never touched. Kitchen keeps its prompt; PRO bath too.
