@@ -1709,6 +1709,53 @@
     "Hér hannar þú rýmið þitt": "This is where you design your room"
   });
 
+  // Innihurðir as steps + Allt heimilið as a list (2026-10-26, docs/studio-hurdir-heimili.md)
+  add({
+    "Venjuleg hurð á lömum": "A regular hinged door",
+    "Hurð úr gleri": "A glass door",
+    "Rennur meðfram veggnum": "Slides along the wall",
+    "Rennihurð úr gleri": "A glass sliding door",
+    "Brunavarin, EI-30 eða EI-60": "Fire rated, EI-30 or EI-60",
+    "Aðeins karmurinn, engin hurð": "The frame only, no door",
+    "Opnun": "Opening",
+    "Hvernig hurð?": "What kind of door?",
+    "Veldu gerðina. Þú getur bætt við fleiri hurðum á eftir.": "Pick the kind. You can add more doors afterwards.",
+    "Hvað er hurðin stór?": "How big is the door?",
+    "Algengast er 80 × 210 cm. Við mælum opið á staðnum áður en nokkuð er smíðað.": "80 × 210 cm is the most common. We measure the opening on site before anything is made.",
+    "Hvernig opnast hún?": "How does it open?",
+    "Séð frá hliðinni sem hurðin opnast að.": "Seen from the side the door opens towards.",
+    "Hvar er hún og úr hverju?": "Where is it and what is it made of?",
+    "Efnið má líka ákveða síðar.": "You can also decide the material later.",
+    "Aðeins karmur": "Frame only",
+    "Bættu að minnsta kosti einni hurð við fyrst.": "Add at least one door first.",
+    "Vista hurðina": "Save the door",
+    "Setja á listann": "Add to the list",
+    "Hvar er hurðin?": "Where is the door?",
+    "Færri": "Fewer",
+    "Fleiri": "More",
+    "Ákveða síðar": "Decide later",
+    "Leita, t.d. eik eða hvítt": "Search, e.g. oak or white",
+    "Allar hurðir heimilisins á einum lista. Málin eru staðfest á staðnum.": "Every door in the home on one list. The sizes are confirmed on site.",
+    "Efni ákveðið síðar": "Material decided later",
+    "Rými ekki valið": "Room not chosen",
+    "Rýmið er komið á listann.": "The room is on the list.",
+    "Aðeins rými": "Room only",
+    "Bættu að minnsta kosti einni einingu eða hurð við fyrst.": "Add at least one unit or door first.",
+    "Bættu við rýmunum sem þú vilt hanna. Eitt tilboð fyrir allt.": "Add the rooms you want to design. One quote for everything.",
+    "Teiknað": "Drawn",
+    "Ekki byrjað": "Not started",
+    "Rýmið teiknað, engar einingar enn": "Room drawn, no units yet",
+    "Engin hurð enn": "No door yet",
+    "Nafn rýmis": "Room name",
+    "Hvað er rýmið?": "What is the room?",
+    "Innihurðir eru þegar á listanum": "Interior doors are already on the list",
+    "Nafn": "Name",
+    "t.d. Baðherbergi uppi": "e.g. Upstairs bathroom",
+    "Teikna grunnmynd": "Draw a floor plan",
+    "Fjarlægja {room}? Hurðirnar á listanum hverfa.": "Remove {room}? The doors on the list will be deleted.",
+    "Fjarlægja {room}? Það sem þú hannaðir þar hverfur.": "Remove {room}? What you designed there will be deleted."
+  });
+
   // part F: stored/computed numbered labels from kitchen-planner-3d.js (CATALOG width variants, island rows, partition sides)
   addPat(/^(Grunnskápur|Hárskápur|Efriskápur|Vaskaskápur|Opnar hillur) (\d+)$/, function(m, t, n){ return (has(t) ? EN[t] : t) + " " + n; });
   addPat(/^Eyja (\d+) · röð ([AB])$/, "Island $1 · row $2");

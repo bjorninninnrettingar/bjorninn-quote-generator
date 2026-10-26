@@ -2288,7 +2288,7 @@
     // Always-on W×H×D (Fataskápar, 2026-10-22): closets have far fewer pieces than a kitchen, so baking
     // the size onto every unit (PAX's own "dimensions always on" — the single thing most asked for in that
     // research round) doesn't clutter the way it would across a dozen kitchen cabinets; gated on
-    // meta.alwaysDims (buildScene: state.activeCategory === "fataskapar"), not a per-type flag, so it
+    // meta.alwaysDims (buildScene: activeCategory "fataskapar" or "fataskapar:N"), not a per-type flag, so it
     // covers every Fataskápar piece (floor and wall) uniformly.
     if (meta && meta.alwaysDims && meta.zone !== "opening") addDimLabel(THREE, group, local(0, baseYM + heightM + 0.22, depthM / 2), Math.round(widthM * 1000) + " x " + Math.round(heightM * 1000) + " x " + Math.round(depthM * 1000));
     if (art) addArticulated(THREE, scene, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta, useFrontMat, pickables);
@@ -4870,7 +4870,7 @@
     // Fataskápar has no stone worktop — a grunnskapur's "counter" cap reads as a front-material-finished top
     // instead (owner, 2026-10-14). stoneMat is read by closure everywhere a counter slab is drawn (the cabinet's
     // own cap, the áfella continuation, the island-back continuation), so this one reassignment covers all of them.
-    if (state.activeCategory === "fataskapar") stoneMat = frontMat;
+    if (/^fataskapar(:|$)/.test(String(state.activeCategory || ""))) stoneMat = frontMat;
     var LIGHT = state.lighting || {}; // { underWall, shelves, plinth } — see the "Lýsing" section of the editor
     // the plinth (sökkull): its FRONT face is clad in the front material once one is chosen (box face 4 = +z = out
     // of the wall); the sides and back stay the dark plinth colour. Its own clone, not `frontMat` itself (user,
@@ -4882,7 +4882,7 @@
     // Studio: every base material says what it IS, so the photo builds its own physically-set material per role
     // (a wall can never come out in the front's wood). Clones (selection tint, per-wall fades) carry userData along.
     [[wallMat, "wall"], [floorMat, "floor"], [carcassMat, "carcass"], [openMat, "carcass"], [steelMat, "steel"], [washerMat, "appliance"],
-     [stoneMat, state.activeCategory === "fataskapar" ? "front" : "top"], [frontMat, "front"], [frontMat2, "front"], [frontOpenMat, "front"],
+     [stoneMat, /^fataskapar(:|$)/.test(String(state.activeCategory || "")) ? "front" : "top"], [frontMat, "front"], [frontMat2, "front"], [frontOpenMat, "front"],
      [plinthDark, "plinth"], [plinthFrontMat, "front"]].forEach(function(p){ if (p[0] && p[0].userData) p[0].userData.studio = p[1]; });
 
     // the áfellur of one wall (see afellaMm): a 19 mm panel in the front material from the floor (or the
@@ -4983,7 +4983,7 @@
             fridgeKind:c.fridge ? (b.type === "frystir" ? "freezer" : "fridge") : null,
             bins:!!(c.rusl || (c.sink && b.interior && b.interior.mode === "skuffur") || binsWanted(b, c, state.drawerSystem)), // RUSL60/80 in the bottom drawer
             ovenInner:c.oven && !c.lowOven ? (String(b.ovenCombo == null ? OVEN_DEFAULT[state.drawerSystem === "merivo" ? "merivo" : "legra"] : b.ovenCombo).split("+")[1] || null) : null,
-            washerDrawerM:c.thvo && b.thvo !== "hurdir" ? 0.40 : 0, alwaysDims:state.activeCategory === "fataskapar", hung:!!state.hungUnits, applModel:!!applMdl }, selected, pickables);
+            washerDrawerM:c.thvo && b.thvo !== "hurdir" ? 0.40 : 0, alwaysDims:/^fataskapar(:|$)/.test(String(state.activeCategory || "")), hung:!!state.hungUnits, applModel:!!applMdl }, selected, pickables);
         if (applMdl) placeApplModel(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, applMdl);
         // LED in a tall closet (user, 2026-10-23, C1): a vertical strip in a groove at the front edge of one side
         // (6×6 mm), or a strip under the top shelf (4×8 mm). Behind the doors — it shows in X-ray and with doors open.
@@ -5006,7 +5006,7 @@
         var selected = opts.selectedId === b.id;
         var elevM = elevOf(b) / 1000;
         var metaBase = { locked:!!b.locked || !!opts.xray, suppressBadge:!!opts.xray, slabFronts:jeyOn, drawerSystem:state.drawerSystem, carcassKey:state.carcass, warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), ready:!!(opts.readyIds && opts.readyIds.indexOf(b.id) >= 0), doorLimit:DOOR_LIMITS[b.id] || null, shelfBlock:b, wallId:wall.id, zone:"wall", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d),
-          heightMm:hM * 1000, elevMm:elevM * 1000, handle:state.handle, splitFr:c.open ? null : splitFractions(b, hM * 1000), alwaysDims:state.activeCategory === "fataskapar" };
+          heightMm:hM * 1000, elevMm:elevM * 1000, handle:state.handle, splitFr:c.open ? null : splitFractions(b, hM * 1000), alwaysDims:/^fataskapar(:|$)/.test(String(state.activeCategory || "")) };
         if (c.shelfStack){ // 1–5 boards of 38 mm above each other: one pickable box per board, all sharing the block id
           var n = Math.max(1, Math.min(SHELF_STACK_MAX, b.count || 3)), gap = b.vgapMm != null ? b.vgapMm : SHELF_GAP_DEFAULT;
           for (var k = 0; k < n; k++){
