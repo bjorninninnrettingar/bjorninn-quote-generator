@@ -25,7 +25,7 @@
     // 2026-10-09), so the worktop sits at ~932. Was 800 (700 box) until then.
     grunnskapur: { label:"Grunnskápur", zone:"floor", cls:"floor", defaultW:600, minW:200, maxW:1200, h:900,  d:600, minH:600,  maxH:1100, minD:300, maxD:700, hasInterior:true, drawerCountRange:[1,4], shelfRange:[0,4,1], counter:true },
     // tall units: 2400 box + 100 plinth (user, 2026-10-09 — they were 2300 + plinth)
-    harskapur:   { label:"Hárskápur",   zone:"floor", cls:"tall",  defaultW:600, minW:300, maxW:1200,  h:2500, d:600, minH:1800, maxH:2700, minD:300, maxD:700, hasInterior:true, drawerCountRange:[1,5], shelfRange:[0,8,5], railRange:[0,2,0] },
+    harskapur:   { label:"Hár skápur",  airtableLabel:"Hárskápur", zone:"floor", cls:"tall",  defaultW:600, minW:300, maxW:1200,  h:2500, d:600, minH:1800, maxH:2700, minD:300, maxD:700, hasInterior:true, drawerCountRange:[1,5], shelfRange:[0,8,5], railRange:[0,2,0] },
     // same body as harskapur, no front at all — open shelving, always built in the front material (2026-10-14)
     // drawerCountRange starts at 0 (off) — unlike the hasInterior types, drawers here sit ALONGSIDE
     // shelves/fataslá (always at the bottom, see addFrontDetailsInner), not instead of them (2026-10-22).
@@ -39,7 +39,7 @@
         { key:"drawers", label:"Skúffuskápur", shelves:1, rails:0, drawers:4 },
         { key:"mixed", label:"Blandað", shelves:2, rails:1, drawers:2 }
       ] },
-    efriskapur:  { label:"Efriskápur",  zone:"wall",  cls:"wall",  defaultW:600, minW:200, maxW:1200, h:1000, d:300, minH:300,  maxH:1200, minD:200, maxD:450, hasInterior:false, shelfRange:[0,5,2] },
+    efriskapur:  { label:"Efri skápur", airtableLabel:"Efriskápur", zone:"wall",  cls:"wall",  defaultW:600, minW:200, maxW:1200, h:1000, d:300, minH:300,  maxH:1200, minD:200, maxD:450, hasInterior:false, shelfRange:[0,5,2] },
     // Built-in fridge: NOT its own Skápategund in the schema (Skápategund has
     // Grunn/Hár/Efri/Lagna/Ofna/Loftunarskápur only) — physically a Hárskápur
     // housing a bought appliance, so it submits as Hárskápur plus a plain note
@@ -161,7 +161,7 @@
       var b = CATALOG[base];
       if (w === b.defaultW) return; // the core type already is this width
       CATALOG[base + "_" + w] = Object.assign({}, b, {
-        label: b.label + " " + w, defaultW:w, skapategundOverride:b.label, variantOf:base, legacy:true
+        label: b.label + " " + w, defaultW:w, skapategundOverride:b.airtableLabel || b.label, variantOf:base, legacy:true // airtableLabel: Airtable's Skápategund (the label is the menu's name, QA 2026-10-26 E10)
       });
     });
   });
@@ -6668,6 +6668,8 @@
     });
   }
 
+  // text along a plan line, never upside down; a side wall's text reads bottom-up
+  function planTextAng(dx, dy){ var a = Math.atan2(dy, dx) * 180 / Math.PI; if (a >= 89.5) a -= 180; if (a < -90.5) a += 180; return Math.round(a * 10) / 10; }
   function buildPlan2D(container, state, opts){
     opts = opts || {};
     var geoms = wallGeoms(state);
@@ -6712,10 +6714,12 @@
         : '<line data-wall-line-id="' + wallId + '" x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + (opts.selectedWallId === wallId ? "#3d61c1" : "#2b2b2e") + '" stroke-width="' + (opts.selectedWallId === wallId ? 18 : 9) + '" stroke-linecap="square"' + (opts.onWallSelect ? ' style="cursor:pointer;"' : '') + '/>';
       if (!opts.mini){
         var midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
-        var lx = midX - g.normal.x * 14, ly = midY - g.normal.z * 14, wsel = opts.selectedWallId === wallId;
+        // outside the dimension chain (offsets -22/-38) and turned along the wall, so a side wall's name never sits on its
+        // numbers (QA 2026-10-26, E7)
+        var lx = midX - g.normal.x * 58, ly = midY - g.normal.z * 58, wsel = opts.selectedWallId === wallId, wAng = planTextAng(x2 - x1, y2 - y1);
         // just the wall's name here — its length is now on the dimension chain (wallDimChain) instead,
         // so this doesn't duplicate/overlap that number
-        svg += '<text x="' + lx + '" y="' + ly + '" font-size="' + (wsel ? 12.5 : 11) + '" font-weight="' + (wsel ? 700 : 400) + '" fill="' + (wsel ? "#3d61c1" : "#6f6d66") + '" text-anchor="middle" style="pointer-events:none;">' + (state.walls[gi] ? escSvg(__(state.walls[gi].label)) : Math.round(g.lenM * 1000) + ' mm') + '</text>';
+        svg += '<text x="' + lx + '" y="' + ly + '" font-size="' + (wsel ? 12.5 : 11) + '" font-weight="' + (wsel ? 700 : 400) + '" fill="' + (wsel ? "#3d61c1" : "#6f6d66") + '" text-anchor="middle" dominant-baseline="middle" transform="rotate(' + wAng + ' ' + lx + ' ' + ly + ')" style="pointer-events:none;">' + (state.walls[gi] ? escSvg(__(state.walls[gi].label)) : Math.round(g.lenM * 1000) + ' mm') + '</text>';
       }
     });
 
@@ -6816,7 +6820,8 @@
       [[x0, y0], [x1, y1]].forEach(function(p){
         s += '<line x1="' + (p[0] - nx * t) + '" y1="' + (p[1] - nz * t) + '" x2="' + (p[0] + nx * t) + '" y2="' + (p[1] + nz * t) + '" stroke="#8a857a" stroke-width="1" style="pointer-events:none;"/>';
       });
-      s += '<text x="' + ((x0 + x1) / 2) + '" y="' + ((y0 + y1) / 2 - 3) + '" font-size="9.5" fill="#6f6d66" text-anchor="middle" style="pointer-events:none;">' + text + '</text>';
+      var tx = (x0 + x1) / 2 - nx * 7, ty = (y0 + y1) / 2 - nz * 7, ta = planTextAng(x1 - x0, y1 - y0); // along the line, on its outer side
+      s += '<text x="' + tx + '" y="' + ty + '" font-size="9.5" fill="#6f6d66" text-anchor="middle" dominant-baseline="middle" transform="rotate(' + ta + ' ' + tx + ' ' + ty + ')" style="pointer-events:none;">' + text + '</text>';
       return s;
     }
     function wallDimChain(g, floor, starts){

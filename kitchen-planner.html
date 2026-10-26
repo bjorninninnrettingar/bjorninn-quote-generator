@@ -339,6 +339,7 @@
   .title-row .screen-sub{ margin-bottom:0; }
   .step-nav{ display:flex; align-items:center; gap:8px; flex:none; margin:0 !important; flex-wrap:nowrap; }
   .step-nav:empty{ display:none; }
+  .step-nav .nav-need{ font-size:12.5px; color:var(--ink-soft); white-space:nowrap; margin-right:4px; }
 
   .empty-note{ font-size:13px; color:var(--ink-soft); font-style:italic; padding:6px 2px; }
 
@@ -696,6 +697,9 @@
   .dp-row{ display:flex; align-items:stretch; gap:0; }
   .dp-row button{ border:1px solid var(--line); background:#f1f1f1; font:inherit; font-size:12px; letter-spacing:.03em; text-transform:uppercase; padding:8px 12px; cursor:pointer; }
   .dp-row button.go{ background:#0058a3; color:#fff; border-color:#0058a3; }
+  #shapeExtras #floorCards .sw-tile img, #shapeExtras #floorCards .sw-fill{ height:52px; aspect-ratio:auto; object-fit:cover; }
+  #shapeExtras .mat-section{ margin-bottom:14px; } #shapeExtras .mat-section:last-child{ margin-bottom:0; }
+  .dp-row .dp-u{ align-self:center; padding:0 8px 0 4px; font-size:12px; color:var(--ink-soft); }
   .dp-row input{ width:96px; border:1px solid var(--line); border-left:none; border-right:none; text-align:center; font:inherit; font-size:14px; padding:6px; }
   .dp-more{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:8px; font-size:12.5px; color:var(--ink-soft); }
   .dp-more label{ display:flex; align-items:center; gap:6px; cursor:pointer; }
@@ -1734,15 +1738,16 @@
             </div>
           </div>
           <div id="shapeExtras" class="look-sec open">
-            <div class="look-head"><b data-i18n>Útlit rýmisins</b><small data-i18n>Valfrjálst — aðeins fyrir þrívíddarmyndina.</small></div>
+            <!-- Vegglitur first and lower floor tiles: it sat below the fold at 1440 and 1280 (QA 2026-10-26, E9) -->
+            <div class="look-head"><b data-i18n="attrs" title="Valfrjálst — aðeins fyrir þrívíddarmyndina."><span data-i18n>Útlit rýmisins</span></b></div>
+            <div class="mat-section">
+              <div class="mat-section-title" data-i18n>Vegglitur <span class="sel-name" id="wallColorName"></span></div>
+              <div class="wallcolor-row" id="wallColorRow"></div>
+            </div>
             <div class="mat-section">
               <div class="mat-section-title" data-i18n>Gólf</div>
               <div class="tabs-row" id="floorTabs"></div>
               <div class="sw-grid" id="floorCards"></div>
-            </div>
-            <div class="mat-section">
-              <div class="mat-section-title" data-i18n>Vegglitur <span class="sel-name" id="wallColorName"></span></div>
-              <div class="wallcolor-row" id="wallColorRow"></div>
             </div>
           </div>
           <div id="shapeOpenings" hidden>
@@ -2508,6 +2513,16 @@
       return { id:"W" + (wallSeq++), label:"Veggur " + (i + 1), lengthMm:e[0], turnAfter:e[1] === "L" ? "left" : "right", open:t.open.indexOf(i) >= 0, floor:[], wall:[] };
     });
   }
+  // a smaller room kind (QA 2026-10-26, B1/Þ1): a rectangle gets exactly [width, depth]; any other shape is scaled down
+  // as a whole (it stays closed), never under the shortest wall allowed
+  function fitRoomSize(sz){
+    var W = state.walls;
+    if (W.length === 4 && W.every(function(w){ return w.turnAfter === "left"; })){ W.forEach(function(w, i){ w.lengthMm = i % 2 ? sz[1] : sz[0]; }); return; }
+    var f = sz[0] / Math.max.apply(null, W.map(function(w){ return w.lengthMm; })), minL = Math.min.apply(null, W.map(function(w){ return w.lengthMm; }));
+    f = Math.max(f, MIN_EDGE_MM / minL);
+    if (f < 1) W.forEach(function(w){ w.lengthMm = Math.round(w.lengthMm * f / 10) * 10; });
+  }
+  function cmTxt(mm){ return String(Math.round(mm) / 10).replace(".", ","); } // 2505 → "250,5"
   var pendingShape = null; // the shape card picked on the first page, applied by "Áfram →"
   // L-laga (user, 2026-10-24): one L card on the first page, the corner that's set in is picked on the size page.
   // lCorner() → "nw" | "ne" | "sw" | "se" for a plain L room (6 square walls), else null
@@ -2554,6 +2569,7 @@
     if (hasStuff && !confirm(__("Þetta breytir lögun rýmisins og fjarlægir skápa, glugga og hurðir sem þú ert búin(n) að setja inn. Halda áfram?"))) return;
     state.walls = templateWalls(key);
     var cdT = categoryDef(state.activeCategory);
+    if (cdT && cdT.roomSize) fitRoomSize(cdT.roomSize); // Bað/Þvottahús start their own size, not the kitchen's 5,6 × 4,2 m
     if (cdT && cdT.hung){ state.hungUnits = true; state.walls.forEach(function(w){ w.plinthMm = BATH_HUNG_MM; }); } // bath: units hang 200 mm up (Sökkulhæð = the gap)
     state.closed = true;
     state.shapeKey = key;
@@ -2805,7 +2821,7 @@
           '<line x1="' + ex1 + '" y1="' + ey1 + '" x2="' + ex2 + '" y2="' + ey2 + '" stroke="#444" stroke-width="1"/>' +
           '<line x1="' + (ex1 - nx * 6) + '" y1="' + (ey1 - nz * 6) + '" x2="' + (ex1 + nx * 6) + '" y2="' + (ey1 + nz * 6) + '" stroke="#444"/>' +
           '<line x1="' + (ex2 - nx * 6) + '" y1="' + (ey2 - nz * 6) + '" x2="' + (ex2 + nx * 6) + '" y2="' + (ey2 + nz * 6) + '" stroke="#444"/>';
-        var dlx = (ex1 + ex2) / 2, dly = (ey1 + ey2) / 2, dtxt = clShow ? closetDimText(i, w) : w.lengthMm + " mm", dtw = dtxt.length * 7.2 + 14, dang = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
+        var dlx = (ex1 + ex2) / 2, dly = (ey1 + ey2) / 2, dtxt = clShow ? closetDimText(i, w) : cmTxt(w.lengthMm) + " cm", dtw = dtxt.length * 7.2 + 14, dang = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
         if (dang > 90) dang -= 180; if (dang < -90) dang += 180;
         items += '<g class="dim" data-dim="' + i + '" transform="rotate(' + dang.toFixed(2) + ' ' + dlx + ' ' + dly + ')"><rect x="' + (dlx - dtw / 2) + '" y="' + (dly - 11) + '" width="' + dtw + '" height="22" rx="4" fill="#fbfaf7" stroke="' + (dsel ? "#0d8fbf" : "none") + '"/>' +
           '<text x="' + dlx + '" y="' + (dly + 4.5) + '" font-size="13" text-anchor="middle" fill="#191919" style="pointer-events:none;">' + dtxt + '</text></g>';
@@ -2818,7 +2834,7 @@
         '<line x1="' + qx1 + '" y1="' + qy1 + '" x2="' + qx2 + '" y2="' + qy2 + '" stroke="#444" stroke-width="1"/>' +
         '<line x1="' + (qx1 - nx * 6) + '" y1="' + (qy1 - nz * 6) + '" x2="' + (qx1 + nx * 6) + '" y2="' + (qy1 + nz * 6) + '" stroke="#444"/>' +
         '<line x1="' + (qx2 - nx * 6) + '" y1="' + (qy2 - nz * 6) + '" x2="' + (qx2 + nx * 6) + '" y2="' + (qy2 + nz * 6) + '" stroke="#444"/>';
-      var lx = (qx1 + qx2) / 2, ly = (qy1 + qy2) / 2, txt = clShow ? closetDimText(i, w) : w.lengthMm + " mm", tw = txt.length * 7.2 + 14;
+      var lx = (qx1 + qx2) / 2, ly = (qy1 + qy2) / 2, txt = clShow ? closetDimText(i, w) : cmTxt(w.lengthMm) + " cm", tw = txt.length * 7.2 + 14;
       // two walls sharing one chain only ever clash along the chain itself now (never across it) — nudge
       // the later one clear if its label would overlap one already placed on the same chain
       var along = chainVert ? lx : ly;
@@ -3242,7 +3258,7 @@
     var lblA = horizontal ? __("◀ Vinstri") : __("▲ Upp"), lblB = horizontal ? __("Hægri ▶") : __("Niður ▼");
     var whichA = startFirst ? "start" : "end", whichB = startFirst ? "end" : "start";
     pop.innerHTML =
-      '<div class="dp-row"><button type="button" data-ap="' + whichA + '">' + lblA + '</button><input type="number" id="dimInput" value="' + w.lengthMm + '" min="' + MIN_EDGE_MM + '" max="' + MAX_EDGE_MM + '" step="10"><button type="button" class="go" data-ap="' + whichB + '">' + lblB + '</button></div>' +
+      '<div class="dp-row"><button type="button" data-ap="' + whichA + '">' + lblA + '</button><input type="number" id="dimInput" value="' + w.lengthMm / 10 + '" min="' + MIN_EDGE_MM / 10 + '" max="' + MAX_EDGE_MM / 10 + '" step="1"><span class="dp-u">cm</span><button type="button" class="go" data-ap="' + whichB + '">' + lblB + '</button></div>' +
       '<div class="dp-more"><label title="' + __("Opinn veggur er án veggjar.") + '"><input type="checkbox" id="dimOpen"' + (w.open ? " checked" : "") + '> ' + __("Opinn veggur") + ' <small style="color:var(--ink-soft);">' + __("— án veggjar") + '</small></label><button type="button" id="dimClose" title="' + __("Loka") + '">✕</button></div>';
     var mx = ((p1.x + p2.x) / 2) * v.scale + v.ox, my = ((p1.z + p2.z) / 2) * v.scale + v.oy;
     pop.hidden = false;
@@ -3252,8 +3268,8 @@
     var inp = document.getElementById("dimInput");
     inp.focus(); inp.select();
     function apply(which){
-      var val = parseInt(inp.value, 10);
-      if (isNaN(val) || val < MIN_EDGE_MM || val > MAX_EDGE_MM){ toast(__("Veggur má vera {a}–{b} mm.", { a:MIN_EDGE_MM, b:MAX_EDGE_MM })); return; }
+      var val = Math.round(parseFloat(String(inp.value).replace(",", ".")) * 10); // typed in cm
+      if (isNaN(val) || val < MIN_EDGE_MM || val > MAX_EDGE_MM){ toast(__("Veggur má vera {a}–{b} cm.", { a:MIN_EDGE_MM / 10, b:MAX_EDGE_MM / 10 })); return; }
       if (setEdgeLength(i, val, which)){ pop.hidden = true; renderShapeCanvas(); }
     }
     pop.querySelectorAll("[data-ap]").forEach(function(b){ b.addEventListener("click", function(){ apply(b.dataset.ap); }); });
@@ -3369,13 +3385,15 @@
     }
   }
   // the room is finished: on to the materials
+  var roomReadyToasted = {};
   function lockRoom(){
     var cdL = categoryDef(state.activeCategory);
     if (cdL && cdL.plain){ state.categoryData[state.activeCategory] = serializeRoom(); toast(state.home && state.home.view === "plan" ? __("Rýmið er komið á heimilismyndina.") : __("Rýmið er komið á listann.")); state.activeCategory = null; goto("heimili"); return; }
     var freshCloset = isCloset() && !state.look; // its first visit: open on page 1, where the picks are already made
     closetDefaults();
     save();
-    toast(__("Rýmið er tilbúið — nú velur þú útlitið."));
+    if (!roomReadyToasted[state.activeCategory] && !matCoreDone()) toast(__("Rýmið er tilbúið — nú velur þú útlitið.")); // once (QA 2026-10-26, E8)
+    roomReadyToasted[state.activeCategory] = true;
     roomDefaults();
     matPhase = matCoreDone() || freshCloset || (cdL && cdL.defaults) ? 0 : null; // a room with its picks made opens on page 1
     goto("materials");
@@ -3490,7 +3508,7 @@
     if (rows.length !== state.walls.length || box.dataset.sig !== wallListSig()){ renderWallList(); return; }
     rows.forEach(function(row, i){
       row.classList.toggle("sel", selectedEdge === i);
-      var inp = row.querySelector("[data-wlen]"); if (inp && document.activeElement !== inp) inp.value = state.walls[i].lengthMm;
+      var inp = row.querySelector("[data-wlen]"); if (inp && document.activeElement !== inp) inp.value = state.walls[i].lengthMm / 10;
     });
   }
   // Fataskápar: the wall(s) the wardrobe goes on + the ceiling, in cm — nothing else (user, 2026-10-25)
@@ -3662,7 +3680,7 @@
       return '<button type="button" class="lc-tile' + (lc === c[0] ? ' on' : '') + '" data-lc="' + c[0] + '" aria-pressed="' + (lc === c[0]) + '"><svg width="44" height="34" viewBox="0 0 44 34"><rect x="3" y="3" width="38" height="28" fill="#e9e3d6" stroke="#2b2b2e" stroke-width="2"/><path d="' + c[1] + '" fill="#fff" stroke="#2b2b2e" stroke-width="1.5" stroke-dasharray="3,2"/></svg></button>'; }).join("") + '</div></div>';
     box.innerHTML = corners + state.walls.map(function(w, i){
       return '<div class="wall-row' + (selectedEdge === i ? " sel" : "") + (w.open ? " open" : "") + '" data-wr="' + i + '"><span class="wn">' + (i + 1) + '</span><span class="wl">' + __(w.label) + '</span>' +
-        '<input type="number" data-wlen="' + i + '" value="' + w.lengthMm + '" min="' + MIN_EDGE_MM + '" max="' + MAX_EDGE_MM + '" step="10"><span class="u">mm</span>' +
+        '<input type="number" data-wlen="' + i + '" value="' + w.lengthMm / 10 + '" min="' + MIN_EDGE_MM / 10 + '" max="' + MAX_EDGE_MM / 10 + '" step="1"><span class="u">cm</span>' + // cm like every other customer page (QA 2026-10-26)
         '<button type="button" class="wo-btn" data-wopen="' + i + '" aria-pressed="' + !!w.open + '" title="' + __(w.open ? "Setja vegginn aftur" : "Enginn veggur hér — eldhúsið er opið inn í annað rými") + '">' + __("Opið") + '</button></div>';
     }).join("");
     var add = document.createElement("button"); // for whoever doesn't find the double-click: splits the selected (else the longest) wall in two
@@ -3718,8 +3736,8 @@
       var i = parseInt(inp.dataset.wlen, 10);
       inp.addEventListener("focus", function(){ selectedEdge = i; renderShapeCanvas(); });
       inp.addEventListener("change", function(){
-        var val = parseInt(inp.value, 10);
-        if (isNaN(val) || val < MIN_EDGE_MM || val > MAX_EDGE_MM){ toast(__("Veggur má vera {a}–{b} mm.", { a:MIN_EDGE_MM, b:MAX_EDGE_MM })); inp.value = state.walls[i].lengthMm; return; }
+        var val = Math.round(parseFloat(String(inp.value).replace(",", ".")) * 10);
+        if (isNaN(val) || val < MIN_EDGE_MM || val > MAX_EDGE_MM){ toast(__("Veggur má vera {a}–{b} cm.", { a:MIN_EDGE_MM / 10, b:MAX_EDGE_MM / 10 })); inp.value = state.walls[i].lengthMm / 10; return; }
         // the wall's right end moves; when that can't work (an L-room's long wall), its left end does (2026-10-11)
         if (!setEdgeLength(i, val, "end", true) && !setEdgeLength(i, val, "start")) inp.value = state.walls[i].lengthMm;
         renderShapeCanvas();
@@ -3809,7 +3827,7 @@
     toast(__("Kvarðað. Dragðu nú horn rýmisins að línunum á grunnmyndinni."));
   }
   function syncWallInputs(){ // keep the panel in step with a wall being dragged on the drawing
-    document.querySelectorAll("[data-wlen]").forEach(function(inp){ if (document.activeElement !== inp && state.walls[+inp.dataset.wlen]) inp.value = state.walls[+inp.dataset.wlen].lengthMm; });
+    document.querySelectorAll("[data-wlen]").forEach(function(inp){ if (document.activeElement !== inp && state.walls[+inp.dataset.wlen]) inp.value = state.walls[+inp.dataset.wlen].lengthMm / 10; });
     document.querySelectorAll("[data-wr]").forEach(function(r){ r.classList.toggle("sel", selectedEdge === +r.dataset.wr); });
   }
   var SINK_W_MM = 800; // default sink cabinet width
@@ -6242,7 +6260,7 @@
     { key:"vaskur", label:"Vaskaskápur", desc:"Veggfestur, með vaski", icon:"vaskaskapur", opts:[
       { label:"Skúffur", type:"vaskaskapur", drawers:true },
       { label:"Hurð", type:"vaskaskapur" } ] },
-    { key:"grunn", label:"Neðri skápur", desc:"Veggfestur, við hlið vasksins", icon:"grunnskapur", opts:[
+    { key:"grunn", label:"Grunnskápur", desc:"Veggfestur, við hlið vasksins", icon:"grunnskapur", opts:[ // the unit's own name everywhere (QA E10)
       { label:"Skúffur", type:"grunnskapur", drawers:true },
       { label:"Hurð með hillum", type:"grunnskapur" } ] },
     { key:"efri", label:"Efri skápur", desc:"Á vegg, t.d. yfir vaskinum", icon:"efriskapur", opts:[
@@ -8075,9 +8093,13 @@
     b.addEventListener("click", function(){ KP3D.setPreviewSpin(!KP3D.previewSpinOn()); uwView.spin = KP3D.previewSpinOn(); sync(); });
     sync();
   })();
+  var MAT_NEED = { carcass:"Veldu lit til að halda áfram.", drawers:"Veldu skúffukerfi til að halda áfram.", fronts:"Veldu framhlið til að halda áfram.",
+    doors:"Veldu efni á hurðirnar til að halda áfram.", handle:"Veldu höldu til að halda áfram.", top:"Veldu borðplötu til að halda áfram.", machine:"Veldu hvar vélin er til að halda áfram." };
   function renderMatActions(){
-    var box = document.getElementById("matActions"), last = matPhase === matPhaseCount() - 1;
-    box.innerHTML = '<button class="btn btn-secondary" id="mtBack" type="button">' + __("← Til baka") + '</button>' +
+    var box = document.getElementById("matActions"), last = matPhase === matPhaseCount() - 1, ph = activeMatPhases()[matPhase];
+    // a grey Áfram says why (QA 2026-10-26, E2/B2/Þ2/F5) — left of the buttons, so they never move; fronts/handles stay unpicked on purpose
+    var need = !matPhaseDone(matPhase) && ph ? (MAT_NEED[ph.key] || "Veldu eitt til að halda áfram.") : "";
+    box.innerHTML = (need ? '<span class="nav-need">' + __(need) + '</span>' : '') + '<button class="btn btn-secondary" id="mtBack" type="button">' + __("← Til baka") + '</button>' +
       '<button class="btn btn-primary" id="mtNext" type="button"' + (matPhaseDone(matPhase) ? "" : " disabled") + '>' + (last ? __("Áfram í skipulag →") : __("Áfram →")) + '</button>';
     updateStepper();
     document.getElementById("mtBack").addEventListener("click", function(){
@@ -9832,6 +9854,9 @@
 
   // ---------- screen switching ----------
   function goto(step){
+    // back from Spurningar/Senda inn into a room step: the live room fields are still the last room finished (finishCategory
+    // only cleared the name) — give it back, or Efni showed the kitchen's pages for a laundry (QA 2026-10-26, Þ4)
+    if (!state.activeCategory && !state.home && FLOW.indexOf(step) >= 0 && FLOW.indexOf(step) < 3 && (state.categoryQueue || []).length) state.activeCategory = state.categoryQueue[state.categoryQueue.length - 1];
     if (step !== "welcome") stopWelcomeScene();
     if (state.step === "editor" && step !== "editor"){ KP3D.teardown3D(); selectedBlockId = null; selectedWallId = null; }
     if (step !== "shape") endHeightScene();
@@ -12273,16 +12298,16 @@
   // not a new "=== fataskapar" check somewhere. roomPicker = several rooms of this kind can exist in one
   // project (closets in different bedrooms); water/worktop = whether that shape/materials step applies.
   var CATEGORIES = [
-    { key:"eldhus", label:"Eldhús", water:true, worktop:true },
+    { key:"eldhus", label:"Eldhús", water:true, worktop:true, defaultShape:"rect" },
     { key:"fataskapar", label:"Fataskápar", tree:FATASKAPAR_TREE, roomPicker:true, defaultRoom:"Fatask.", water:false, worktop:false, matPhases:MAT_PHASES_FATASKAPAR },
     // Bað + Þvottahús (studio review 2026-10-25, section C): their own page lists, Egger tops only (no stone), the usual
     // answers already picked (defaults) so "Áfram" just works; the water page and shape pick say what fits the room
     { key:"bad", label:"Baðherbergi", tree:BAD_TREE, roomPicker:true, defaultRoom:"Baðh.", water:true, worktop:true, hung:true, matPhases:MAT_PHASES_BAD,
-      defaultShape:"rect", topGroups:["hardplast"], noTopLabel:"Engin — handlaug ofan á", waterHint:"Við notum þetta til að staðsetja vaskaskápinn.",
-      defaults:{ carcass:"dokkgra", drawerSystem:"legra", top:"engin" } },
+      defaultShape:"rect", roomSize:[2500, 2000], topGroups:["hardplast"], noTopLabel:"Engin — handlaug ofan á", waterHint:"Við notum þetta til að staðsetja vaskaskápinn.",
+      defaults:{ carcass:"dokkgra", drawerSystem:"merivo", top:"engin" } },
     { key:"thvottahus", label:"Þvottahús", tree:THVOTT_TREE, defaultRoom:"Þvottah.", water:true, worktop:true, matPhases:MAT_PHASES_THVOTTAHUS,
-      defaultShape:"rect", topGroups:["hardplast"], waterTitle:"Hvar eru vatn og niðurfall?", waterHint:"Við notum þetta til að staðsetja vaskinn og þvottavélina.",
-      defaults:{ carcass:"dokkgra", drawerSystem:"legra", top:"eg_W1000", laundryMachine:"staeda" } },
+      defaultShape:"rect", roomSize:[2500, 1800], topGroups:["hardplast"], waterTitle:"Hvar eru vatn og niðurfall?", waterHint:"Við notum þetta til að staðsetja vaskinn og þvottavélina.",
+      defaults:{ carcass:"dokkgra", drawerSystem:"merivo", top:"eg_W1000", laundryMachine:"staeda" } },
     { key:"hurdir", label:"Hurðir", soon:true, hidden:true }, // Innihurðir have their own step (openDoors), never "Væntanlegt"
     // Allt heimilið (2026-10-23): a room with no units of its own (stofa, gangur, forstofa …) — walls, windows and
     // doors only, so the home plan is the real home and doors between rooms have a wall to sit in. Many per project

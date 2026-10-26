@@ -1707,7 +1707,16 @@
     "{h} cm · {g} cm frá gólfi": "{h} cm · {g} cm from the floor",
     "Sama hæð á öllum skápum á veggnum.": "The same height for every unit on the wall.",
     "Staðsetningin þarf að vera á milli 0 og {n} cm.": "The position must be between 0 and {n} cm.",
-    "Hér hannar þú rýmið þitt": "This is where you design your room"
+    "Hér hannar þú rýmið þitt": "This is where you design your room",
+    "Veggur má vera {a}–{b} cm.": "A wall can be {a}–{b} cm.",
+    "Veldu eitt til að halda áfram.": "Pick one to continue.",
+    "Veldu lit til að halda áfram.": "Pick a colour to continue.",
+    "Veldu skúffukerfi til að halda áfram.": "Pick a drawer system to continue.",
+    "Veldu framhlið til að halda áfram.": "Pick a front to continue.",
+    "Veldu efni á hurðirnar til að halda áfram.": "Pick a door material to continue.",
+    "Veldu höldu til að halda áfram.": "Pick a handle to continue.",
+    "Veldu borðplötu til að halda áfram.": "Pick a worktop to continue.",
+    "Veldu hvar vélin er til að halda áfram.": "Pick where the machine goes to continue."
   });
 
   // Innihurðir as steps + Allt heimilið as a list (2026-10-26, docs/studio-hurdir-heimili.md)
@@ -1792,7 +1801,7 @@
   });
 
   // part F: stored/computed numbered labels from kitchen-planner-3d.js (CATALOG width variants, island rows, partition sides)
-  addPat(/^(Grunnskápur|Hárskápur|Efriskápur|Vaskaskápur|Opnar hillur) (\d+)$/, function(m, t, n){ return (has(t) ? EN[t] : t) + " " + n; });
+  addPat(/^(Grunnskápur|Hárskápur|Efriskápur|Hár skápur|Efri skápur|Vaskaskápur|Opnar hillur) (\d+)$/, function(m, t, n){ return (has(t) ? EN[t] : t) + " " + n; });
   addPat(/^Eyja (\d+) · röð ([AB])$/, "Island $1 · row $2");
   addPat(/^Milliveggur · hlið ([AB])$/, "Partition wall · side $1");
 
