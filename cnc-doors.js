@@ -93,14 +93,28 @@
     return { name: c.name || id, leaf: c.leaf, jamb: c.jamb || null };
   }
 
+  // The PRO drawing's door (2026-10-26): the Line Item's Smíðagögn `door` — op B × H (widthMm/heightMm), wall
+  // (wallMm = karmur depth) and PRO's workshop block `cnc` {karmZ, karmB, topp, hinge, lock, threshold}. It only fills
+  // an Eyðublað field that is EMPTY (the Eyðublað always wins), and every value taken from it is listed as ⚠, so a
+  // door made from the drawing alone is never "✅ Tilbúið" without someone seeing where the numbers came from.
+  function drawingDoor(smida) {
+    var s = smida;
+    if (typeof s === "string") { try { s = JSON.parse(s); } catch (e) { s = null; } }
+    var d = s && typeof s === "object" ? s.door || null : null;
+    return d && typeof d === "object" ? d : null;
+  }
+
   // One door Eyðublað (fields by name) → every number the programs need + what could not be filled.
   // status: "ok" | "check" (files made, something to confirm) | "stop" (no files — data missing).
-  function doorPlan(f, catalog) {
+  // smida (optional) = the drawing's Smíðagögn for this door (object or JSON text), see drawingDoor.
+  function doorPlan(f, catalog, smida) {
     f = f || {};
-    var stop = [], check = [];
-    var H = num(f["Hæð"]), B = num(f["Breidd"]), D = num(f["Dýpt"]);
-    var KZ = num(f["Þykkt karms [Hurð]"]), KB = num(f["Karmabil frá vegg [Hurð]"]);
+    var stop = [], check = [], dd = drawingDoor(smida), cnc = (dd && dd.cnc) || {}, fromPro = [];
+    function fill(v, alt, label) { if (v != null || alt == null || !isFinite(+alt)) return v; fromPro.push(label + " " + alt); return +alt; }
+    var H = fill(num(f["Hæð"]), dd && dd.heightMm, "hæð"), B = fill(num(f["Breidd"]), dd && dd.widthMm, "breidd"), D = fill(num(f["Dýpt"]), dd && dd.wallMm, "dýpt");
+    var KZ = fill(num(f["Þykkt karms [Hurð]"]), cnc.karmZ, "þykkt karms"), KB = fill(num(f["Karmabil frá vegg [Hurð]"]), cnc.karmB, "karmabil");
     var topp = sel(f["Toppstykki hurðakarms"]);
+    if (!topp && MASTERS[cnc.topp]) { topp = cnc.topp; fromPro.push("toppstykki " + topp.toLowerCase()); }
     if (H == null) stop.push("Hæð vantar");
     if (B == null) stop.push("Breidd vantar");
     if (D == null) stop.push("Dýpt (breidd karms) vantar");
@@ -109,6 +123,8 @@
     if (!MASTERS[topp]) stop.push("Toppstykki hurðakarms vantar (Ofan á / Á milli)");
 
     var hingeId = firstId(f["Lamir [Hurð]"]), lockId = firstId(f["Skrá [Hurð]"]), thrId = firstId(f["Felliþr. [Hurð]"]);
+    function hw(id, alt, map, label) { if (id || !alt || !map[alt]) return id; fromPro.push(label + " " + map[alt].name); return alt; }
+    hingeId = hw(hingeId, cnc.hinge, HINGES, "lamir"); lockId = hw(lockId, cnc.lock, LOCKS, "skrá"); thrId = hw(thrId, cnc.threshold, THRESHOLDS, "felliþröskuldur");
     var hinge = hingeId ? (HINGES[hingeId] || fromCatalog(catalog, hingeId)) : null;
     var lock = lockId ? (LOCKS[lockId] || fromCatalog(catalog, lockId)) : null;
     var thr = thrId ? (THRESHOLDS[thrId] || fromCatalog(catalog, thrId)) : null;
@@ -119,7 +135,8 @@
     else if (lock.confirm) check.push(lock.confirm);
     if (thrId && !thr) check.push("Felliþröskuldur: óþekkt vara (" + thrId + ") — ekki fræstur");
     var opnun = sel(f["Opnun [Hurð]"]).replace(/[^A-Za-zÁ-ÿ ]/g, "").trim();
-    if (!opnun) check.push("Opnun (vinstri/hægri) vantar");
+    if (!opnun) check.push("Opnun (vinstri/hægri) vantar" + (dd && (dd.hinge === "left" || dd.hinge === "right") ? " — teikningin: lamir " + (dd.hinge === "left" ? "vinstra" : "hægra") + " megin séð frá hliðinni sem hurðin opnast að" : ""));
+    if (fromPro.length) check.push("Úr PRO-teikningunni (autt á Eyðublaði): " + fromPro.join(", ") + " — staðfestu eða skráðu á Eyðublaðið");
     var qty = num(f["Fjöldi eininga"]) || 1;
     if (qty > 1) check.push("Fjöldi eininga = " + qty + " — keyra hvert forrit " + qty + " sinnum");
 
@@ -140,7 +157,7 @@
     if (lock) { on.leaf.push(lock.leaf); if (lock.jamb) on.jambStrike.push(lock.jamb); }
     if (thr) on.leaf.push(thr.leaf);
     return {
-      id: doorId(f["Athugasemd"]), topp: topp, opnun: opnun, qty: qty,
+      id: doorId(f["Athugasemd"]), topp: topp, opnun: opnun, qty: qty, H: H, B: B,
       hinge: hinge ? hinge.name : null, lock: lock ? lock.name : null, threshold: thr ? thr.name : null,
       values: v, on: on, stop: stop, check: check,
       status: stop.length ? "stop" : check.length ? "check" : "ok",
@@ -285,7 +302,7 @@
   }
 
   var api = { VARS: VARS, readValues: readValues, diffValues: diffValues, RULES: RULES, HINGES: HINGES, LOCKS: LOCKS, THRESHOLDS: THRESHOLDS, MANAGED: MANAGED, MASTERS: MASTERS,
-    doorId: doorId, doorPlan: doorPlan, filesFor: filesFor, renderBpp: renderBpp, evalArith: evalArith, toCp1252: toCp1252, logText: logText };
+    doorId: doorId, doorPlan: doorPlan, drawingDoor: drawingDoor, filesFor: filesFor, renderBpp: renderBpp, evalArith: evalArith, toCp1252: toCp1252, logText: logText };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   root.CNCDOORS = api;
 })(typeof window !== "undefined" ? window : globalThis);

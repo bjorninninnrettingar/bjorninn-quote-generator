@@ -187,3 +187,20 @@ test("door files: short names inside Hurðir/<HU>/ still carry the door id (not 
   assert.deepEqual(C.filesFor(plan, "T-49", true).map((f) => f.name), ["HU01 Hurðablað.bpp", "HU01 Karmur lamir.bpp", "HU01 Karmur slúttjárn.bpp", "HU01 Karmur toppstykki.bpp"]);
   assert.equal(C.filesFor(plan, "T-49")[1].name, "T-49 HU01 Karmur lamir.bpp");
 });
+
+test("PRO drawing (Smíðagögn door) only fills EMPTY Eyðublað fields — a filled Eyðublað plans exactly as before", () => {
+  const sg = { v: 1, door: { widthMm: 700, heightMm: 2000, wallMm: 90, hinge: "left", cnc: { karmZ: 50, karmB: 9, topp: "Ofan á hliðum", hinge: "recoQeJKpvKLowWK3", lock: "recp1YcZFduuzhpkb" } } };
+  assert.deepEqual(C.doorPlan(DOOR, {}, sg), C.doorPlan(DOOR, {})); // Eyðublað wins everywhere
+  assert.deepEqual(C.doorPlan(DOOR, {}, JSON.stringify(sg)), C.doorPlan(DOOR));
+  assert.deepEqual(C.doorPlan(DOOR, {}, "not json"), C.doorPlan(DOOR));
+  // T-54 HU6 shape: sizes + hardware on the Eyðublað, the karmur fields empty → the drawing's karmur, ⚠
+  const hu6 = { ...DOOR, "Þykkt karms [Hurð]": null, "Karmabil frá vegg [Hurð]": null, "Toppstykki hurðakarms": null };
+  assert.equal(C.doorPlan(hu6).status, "stop");
+  const p = C.doorPlan(hu6, {}, sg);
+  assert.equal(p.status, "check"); assert.equal(p.values.KARMAR_Z, 50); assert.equal(p.topp, "Ofan á hliðum");
+  assert.ok(p.check.some((s) => /þykkt karms 50, karmabil 9, toppstykki ofan á hliðum/.test(s)));
+  // a drawing hardware id /cnc has no macro for is ignored (never guessed)
+  assert.equal(C.doorPlan({ ...DOOR, "Lamir [Hurð]": [] }, {}, { v: 1, door: { cnc: { hinge: "recXXXXXXXXXXXXXX" } } }).status, "stop");
+  // no Opnun on the Eyðublað: the drawing's side is quoted, not copied (the shop's DIN convention isn't the drawing's)
+  assert.match(C.doorPlan({ ...DOOR, "Opnun [Hurð]": null }, {}, sg).check.join(" "), /Opnun \(vinstri\/hægri\) vantar — teikningin: lamir vinstra megin/);
+});
