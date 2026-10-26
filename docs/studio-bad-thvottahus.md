@@ -138,3 +138,13 @@ own one-page Rýmið (laundry PRO shapes = Einn veggur / Horn + the closed shape
   (sink on the 560 cm wall) and the bath flow unchanged. PRO not opened (needs the API) — its paths are all `!PRO`-gated.
 - Not done: the laundry's materials preview is still the kitchen's base cabinet; the tower's bottom drawer front is
   see-through in the previews too (nothing behind it).
+
+### Þvottahús round 2 (2026-10-26, coordinator's live walk)
+- Skipulag camera (`laundryAim`): frames the whole unit wall floor to ceiling with a margin — distance from the room
+  height + wall length against the view's real aspect (the tower's top was clipped). Checked by projecting the ceiling /
+  floor corners: inside the canvas at 1440×900 and 1280×720.
+- Tips: `hideToast()` hides for real (visibility + text cleared, not just opacity 0) and `goto()` to Spurningar / Senda
+  inn / Takk always drops a tip from another step ("Efnin eru valin …" was seen on Senda inn). Shared by every room and
+  Allt heimilið (they all go through `goto`).
+- Laundry sinks get a ~20 cm utility tap (`meta.utilityTap` → `addSink(…, utility)`) instead of the kitchen's 32 cm
+  gooseneck; the Ný eining preview passes the room so its sink matches.

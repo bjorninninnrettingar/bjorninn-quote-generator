@@ -2265,7 +2265,7 @@
         topEdges.position.copy(top.position); topEdges.quaternion.copy(top.quaternion); topEdges.visible = false; group.add(topEdges);
         top.userData = { kind:"worktop", worktop:true, locked:true, blockId:meta.blockId, wallId:meta.wallId, zone:"worktop", edgesObj:topEdges }; pickables.push(top);
       }
-      if (meta.sink && !meta.basin) addSink(THREE, group, local, quat, widthM, depthM, baseYM + heightM + 0.001 + TT, meta.tapCeilM);
+      if (meta.sink && !meta.basin) addSink(THREE, group, local, quat, widthM, depthM, baseYM + heightM + 0.001 + TT, meta.tapCeilM, meta.utilityTap);
     }
     // Baðherbergi (user, 2026-10-26): a handlaug sitting on the top (or straight on the cabinet with no top) + a short
     // bathroom mixer — never the kitchen's inset steel sink and gooseneck
@@ -3278,7 +3278,8 @@
     });
     return out;
   }
-  function addSink(THREE, group, local, quat, widthM, depthM, topY, ceilM){
+  // utility (Þvottahús, user 2026-10-26): a short ~20 cm utility spout instead of the kitchen's tall gooseneck
+  function addSink(THREE, group, local, quat, widthM, depthM, topY, ceilM, utility){
     var hs = sinkSize(widthM, depthM), depth = 0.18, zc = depthM * 0.5 + 0.01;
     var steel = new THREE.MeshStandardMaterial({ color:0xc4c8cc, metalness:0.9, roughness:0.32 });
     // a solid bowl: seen from inside from above, and from outside (an open sink cabinet) — it used to be a
@@ -3305,8 +3306,10 @@
     put(new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.026, 0.03, 24), steel), topY + 0.015, tapOut, tapAlong);
     var neck = new THREE.Group(); neck.position.copy(local(tapAlong, topY + 0.03, tapOut)); neck.quaternion.copy(quat); group.add(neck);
     if (side) neck.rotateY(-Math.PI / 2); // spout over the bowl
-    else if (room < 0.32) neck.scale.y = Math.max(0.35, room / 0.32);
-    var curve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0.2, 0), new THREE.Vector3(0, 0.3, 0.06), new THREE.Vector3(0, 0.27, 0.17), new THREE.Vector3(0, 0.2, 0.2)]);
+    else if (room < (utility ? 0.2 : 0.32)) neck.scale.y = Math.max(0.35, room / (utility ? 0.2 : 0.32));
+    var curve = new THREE.CatmullRomCurve3(utility
+      ? [new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0.13, 0), new THREE.Vector3(0, 0.185, 0.04), new THREE.Vector3(0, 0.18, 0.14), new THREE.Vector3(0, 0.15, 0.17)]
+      : [new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0.2, 0), new THREE.Vector3(0, 0.3, 0.06), new THREE.Vector3(0, 0.27, 0.17), new THREE.Vector3(0, 0.2, 0.2)]);
     var tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 40, 0.012, 14, false), steel); tube.castShadow = true; neck.add(tube);
     var lever = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.08, 10), steel); lever.rotation.z = Math.PI / 2 - 0.3; lever.position.set(0.045, 0.1, 0); lever.castShadow = true; neck.add(lever);
   }
@@ -5336,7 +5339,7 @@
             openMat:c.open ? frontOpenMat : openMat, open:!!c.open, hiddenMat:hiddenMat, drawerSystem:state.drawerSystem, carcassKey:state.carcass,
             warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), ready:!!(opts.readyIds && opts.readyIds.indexOf(b.id) >= 0), doorLimit:DOOR_LIMITS[b.id] || null, shelfBlock:b, wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), heightMm:hM * 1000, elevMm:0, handle:c.appliance ? null : state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0, // tall units: one door unless split in Smíða (2026-10-09)
             splitFr:c.oven || c.fixedFronts ? null : splitFractions(b, hM * 1000 - (c.panel || c.appliance ? 0 : plinthMmW)), // a fridge too, once its split is changed in Smíða
-            plinth:(!c.panel || hungPanel) && !c.appliance, plinthMm:plinthMmW, appliance:c.appliance || null, leMans:!!c.tofrahornIds, counter:!!c.counter, sink:!!c.sink, tapCeilM:c.sink ? tapCeilingM(wall, offset + b.widthMm / 2) : null, oven:!!c.oven, panel:!!c.panel, plinthMat:plinthMat, stoneMat:stoneMat,
+            plinth:(!c.panel || hungPanel) && !c.appliance, plinthMm:plinthMmW, appliance:c.appliance || null, leMans:!!c.tofrahornIds, counter:!!c.counter, sink:!!c.sink, utilityTap:!!c.sink && /^thvottahus(:|$)/.test(String(state.activeCategory || "")), tapCeilM:c.sink ? tapCeilingM(wall, offset + b.widthMm / 2) : null, oven:!!c.oven, panel:!!c.panel, plinthMat:plinthMat, stoneMat:stoneMat,
             ovenCodes:c.lowOven ? ["M"] : c.oven ? ovenCodesOf(b, state.drawerSystem) : null, fixedFronts:!!c.fixedFronts || !!c.appliance,
             burCodes:c.bur ? burCodesOf(b, state.drawerSystem) : null, dishwasher:!!c.dishwasher,
             lowOven:!!c.lowOven, pickTop:!!opts.pickWorktop && !!c.counter, ovenFrontsMm:c.oven ? b.ovenFrontsMm || null : null, ovenBlock:c.oven ? b : null, ovenCat:c.oven ? c : null,
@@ -5580,12 +5583,16 @@
           var g = geoms[i], w = state.walls[i], a0 = 0, a1 = g.lenM;
           var fs = blockStartsMm(w.floor || [], 0), ws = blockStartsMm(w.wall || [], 0), ext = [];
           (w.floor || []).forEach(function(b, k){ ext.push(fs[k], fs[k] + b.widthMm); }); (w.wall || []).forEach(function(b, k){ ext.push(ws[k], ws[k] + b.widthMm); });
-          if (ext.length && !opts.darkBg){ a0 = Math.min.apply(null, ext) / 1000; a1 = Math.max.apply(null, ext) / 1000; var pad = Math.max(0, (1.4 - (a1 - a0)) / 2); a0 = Math.max(0, a0 - pad); a1 = Math.min(g.lenM, a1 + pad); }
+          if (ext.length && !opts.darkBg && !laundryAim){ a0 = Math.min.apply(null, ext) / 1000; a1 = Math.max.apply(null, ext) / 1000; var pad = Math.max(0, (1.4 - (a1 - a0)) / 2); a0 = Math.max(0, a0 - pad); a1 = Math.min(g.lenM, a1 + pad); }
           var am = (a0 + a1) / 2; bcx += g.origin.x + g.axis.x * am; bcz += g.origin.z + g.axis.z * am; bnx += g.normal.x; bnz += g.normal.z; bLen = Math.max(bLen, a1 - a0); });
         bcx /= bIdx.length; bcz /= bIdx.length; var bnl = Math.hypot(bnx, bnz) || 1; bnx /= bnl; bnz /= bnl;
-        var bd = Math.max(laundryAim ? 4.1 : 2.3, bLen * 0.95 + 0.9) * (bIdx.length > 1 ? 1.2 : 1); // a laundry's machine tower is 2,5 m tall
-        camera.position.set(bcx + bnx * bd + bnz * bd * 0.22, laundryAim ? 1.6 : 1.3, bcz + bnz * bd - bnx * bd * 0.22); // low enough to see the floor under the hung units
-        bathAim = { x:bcx + bnx * 0.3, y:laundryAim ? 1.15 : 0.95, z:bcz + bnz * 0.3 };
+        var bd = Math.max(2.3, bLen * 0.95 + 0.9) * (bIdx.length > 1 ? 1.2 : 1);
+        if (laundryAim){ // the whole unit wall, floor to ceiling, with a margin (round 2: the tower's top was clipped under the toolbar)
+          var lAsp = (wrap && wrap.clientWidth && wrap.clientHeight) ? wrap.clientWidth / wrap.clientHeight : 1.6, lV = Math.tan(22.5 * Math.PI / 180);
+          bd = Math.max((WALL_H + 0.7) / 2 / lV, (bLen + 0.8) / 2 / (lV * lAsp)) * (bIdx.length > 1 ? 1.1 : 1) + 0.3;
+        }
+        camera.position.set(bcx + bnx * bd + bnz * bd * 0.22, laundryAim ? WALL_H * 0.55 : 1.3, bcz + bnz * bd - bnx * bd * 0.22); // low enough to see the floor under the hung units
+        bathAim = { x:bcx + bnx * 0.3, y:laundryAim ? WALL_H * 0.47 : 0.95, z:bcz + bnz * 0.3 };
       }
     }
     var people = opts.people && geoms.length ? addPeople(THREE, scene, geoms, WALL_H, roomHeightMm, state.walls, wallColor) : null;
