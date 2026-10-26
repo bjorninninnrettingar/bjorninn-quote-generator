@@ -7879,6 +7879,15 @@
     deselectBlock();
     renderView();
   }
+  function placeWallCycle(){
+    if (viewMode !== "wall") return;
+    var stage = document.querySelector(".ed-stage"), sr = stage.getBoundingClientRect(), wr = document.getElementById("threeWrap").getBoundingClientRect();
+    var ids = ["wallPrevBtn", "wallNextBtn", "wallCycleLabel"];
+    if (!wr.height || wr.top < sr.top){ ids.forEach(function(id){ document.getElementById(id).style.top = ""; }); return; } // not laid out yet: the CSS default (50%)
+    var midY = (wr.top - sr.top) + wr.height / 2;
+    ["wallPrevBtn", "wallNextBtn"].forEach(function(id){ document.getElementById(id).style.top = midY + "px"; });
+    document.getElementById("wallCycleLabel").style.top = Math.max(0, wr.top - sr.top - 44) + "px";
+  }
   function syncWallCycleUI(){
     var list = solidWalls(), i = list.findIndex(function(w){ return w.id === wallViewId; });
     var inWall = viewMode === "wall";
@@ -7889,10 +7898,10 @@
     stage.classList.toggle("wall-mode", inWall);
     syncAnnoUI();
     if (inWall){ // the arrows flank the framed elevation itself, not the whole stage — align to #threeWrap's own box
-      var sr = stage.getBoundingClientRect(), wr = document.getElementById("threeWrap").getBoundingClientRect();
-      var midY = (wr.top - sr.top) + wr.height / 2;
-      ["wallPrevBtn", "wallNextBtn"].forEach(function(id){ document.getElementById(id).style.top = midY + "px"; });
-      document.getElementById("wallCycleLabel").style.top = Math.max(0, wr.top - sr.top - 44) + "px";
+      placeWallCycle();
+      // PRO (2026-10-26): measured before the stage had its final layout the arrows landed above the stage (top −79)
+      // and the label on the toolbar — a click then scrolled the whole editor sideways. Measure again once laid out.
+      requestAnimationFrame(placeWallCycle); setTimeout(placeWallCycle, 120);
       // a small top-down minimap (reuses the 2D plan renderer) with the wall being viewed highlighted blue,
       // like IKEA's mini-map — click another wall on it to jump straight there
       KP3D.buildPlan2D(document.getElementById("wallMiniMap"), state, {

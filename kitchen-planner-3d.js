@@ -4728,6 +4728,17 @@
         0, DOOR_MARKER_COLOR, 0.85,
         { wallId:door.wallId, zone:"opening", kind:"door", locked:!door.unlocked && !!opts.onSelect, gap:!!door.gap, blockId:door.id, widthMm:door.widthMm, depthMm:10, heightMm:door.heightMm, elevMm:0,
           hingeRight:doorHingeOf(door) === "right", swingOut:doorSwingOf(door) === "out" }, opts.selectedId === door.id, pickables));
+      // Veggur view: nothing is built behind the wall, so an "Op í vegg" looked straight into the empty background —
+      // a flat black slab in PRO's dark scene (2026-10-26). A soft neutral backdrop just behind the hole reads as
+      // "the next room" instead, and the reveals still show the wall's depth.
+      if (door.gap && isFocusWall(door.wallId)){
+        var gapBack = new THREE.Mesh(new THREE.PlaneGeometry(door.widthMm / 1000, door.heightMm / 1000),
+          new THREE.MeshBasicMaterial({ color:0xc9c4ba, side:THREE.DoubleSide }));
+        gapBack.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(g.axis.x, 0, g.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(g.normal.x, 0, g.normal.z)));
+        var gapAlong = (door.offsetMm + door.widthMm / 2) / 1000;
+        gapBack.position.set(g.origin.x + g.axis.x * gapAlong - g.normal.x * (WALL_THICKNESS_M + 0.02), door.heightMm / 2000, g.origin.z + g.axis.z * gapAlong - g.normal.z * (WALL_THICKNESS_M + 0.02));
+        scene.add(gapBack);
+      }
       // the floor the leaf sweeps (editor only): a faint quarter circle, red when a cabinet stands in it
       var sw = opts.onSelect && !opts.clean && !iso ? doorSweep(state, door) : null;
       if (sw){
