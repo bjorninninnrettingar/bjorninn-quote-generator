@@ -8319,7 +8319,8 @@
       done:function(){ return !!state.look; } },
     { key:"handle", label:"Höldur", title:"Veldu höldu", sub:"Sama handfang á allar hurðir.",
       when:function(){ return state.closetDoors !== "engar"; },
-      render:renderHandleCards, done:function(){ return !!state.handle; } }
+      render:renderHandleCards, done:function(){ return !!state.handle; } },
+    drawersPhase()
   ];
   // Hurðir: lamir / engar (an open wardrobe has no doors to pick handles for)
   function renderClosetDoorCards(){
@@ -8348,8 +8349,12 @@
   // the cabinet) — Björninn sells no stone — and a mirror cabinet can be asked for (a note on the order, not a unit yet).
   // Þvottahús: where the machine goes first (it decides what's placed for you), then the kitchen's pages minus drawers.
   function phaseLike(key, over){ return Object.assign({}, MAT_PHASES.find(function(p){ return p.key === key; }), over || {}); }
+  // the drawer brand as its own page in every room (user, 2026-10-26: wardrobes, baths and laundries silently got
+  // Legra, the dearer line) — Merivo, "okkar algengasta lausn", already chosen so Áfram just works
+  function drawersPhase(){ return phaseLike("drawers", { render:function(){ if (!state.drawerSystem){ state.drawerSystem = "merivo"; save(); } renderDrawerSystemCards(); } }); }
   var MAT_PHASES_BAD = [
     phaseLike("carcass", { label:"Litur" }),
+    drawersPhase(),
     phaseLike("fronts"),
     phaseLike("handle"),
     phaseLike("top", { label:"Toppur", title:"Toppur og spegill", sub:"Egger-plata ofan á skápana — eða engin ef handlaugin situr ofan á.",
@@ -8359,6 +8364,7 @@
     { key:"machine", label:"Vélin", title:"Hvar er vélin?", sub:"Þvottavél og þurrkari — við setjum þau inn fyrir þig.",
       render:renderMachineCards, done:function(){ return !!state.laundryMachine; } },
     phaseLike("carcass", { label:"Litur" }),
+    drawersPhase(),
     phaseLike("fronts"),
     phaseLike("handle"),
     phaseLike("top")
@@ -8437,10 +8443,12 @@
     KP3D.teardownCabinetPreview();
     // before the doors page: the door units with see-through fronts (an open unit's shelves are in the FRONT material,
     // so it couldn't show the colour being picked); "Án hurða": the real open unit
-    var frontsOn = matPhaseReveal("fronts"), deep = (state.closetDepthMm || 580) >= 500;
+    var frontsOn = matPhaseReveal("fronts"), deep = (state.closetDepthMm || 580) >= 500, onDrw = (activeMatPhases()[matPhase] || {}).key === "drawers";
     var type = frontsOn && state.closetDoors === "engar" ? "harskapurOpinn" : "harskapur";
     var blk = function(id, gap){ var b = { id:id, type:type, widthMm:500, depthMm:state.closetDepthMm || 580, heightMm:state.closetHeightMm || 2400, rails:deep ? 1 : 0, gapMm:gap, locked:false };
-      b.shelves = deep ? 1 : 5; if (CATALOG[type].hasInterior) b.interior = { mode:"hillur", count:b.shelves }; return b; };
+      b.shelves = deep ? 1 : 5; if (CATALOG[type].hasInterior) b.interior = { mode:"hillur", count:b.shelves };
+      if (onDrw){ b.interior = { mode:"skuffur", count:3, codes:["K", "K", "K"], frontsMm:[170, 170, 170] }; b.drawerZoneMm = 510; } // the drawer page: drawers to click open
+      return b; };
     var look = matPhaseReveal("fronts") ? state.look : null;
     var pv = { wardrobe:true, carcass:state.carcass, drawerSystem:state.drawerSystem, look:look, handle:matPhaseReveal("handle") ? state.handle : null, handleColor:state.handleColor, top:"engin", floor:null, wallColor:null,
       roomHeightMm:state.roomHeightMm, closed:false, islands:[], windows:[], doors:[], walls:[{ id:"CLP", label:"", lengthMm:1800, floor:[Object.assign(blk("clp1", 400), { swing:"vinstri" }), Object.assign(blk("clp2", 0), { swing:"haegri" })], wall:[] }] }; // a pair: the handles meet in the middle

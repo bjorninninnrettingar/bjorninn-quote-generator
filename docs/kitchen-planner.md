@@ -340,6 +340,9 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   and follows the stack; a taller stack pushes trays/shelves above it up (8 cm apart). 3D fix: a wardrobe drawer press used to
   move the whole unit when it wasn't locked — now a drag resizes it and a tap selects the unit; open units' inset drawer fronts are
   resizable too. Order notes: "Fataslá (svört, SLASV): n stk.", "Útdraganlegur bakki úr frontaefni (MOVENTO): n stk.".
+- 2026-10-26 Skúffukerfi page in every room (`drawersPhase()`): Fataskápar (last Efni page, after Höldur), Bað and Þvottahús
+  (after Litur). Before, those rooms never asked and `drawerSys()` silently fell back to Legra (the dearer line). The page
+  preselects Merivo when nothing is chosen; the wardrobe preview shows three drawers per unit on that page (click opens one).
 - Still open: several closets per project (handled by the Allt heimilið session's `type:N` keys).
 - Baðherbergi + Þvottahús flows (2026-10-26): [studio-bad-thvottahus.md](studio-bad-thvottahus.md)
 - Innihurðir as steps + Allt heimilið as a list (2026-10-26): see [studio-hurdir-heimili.md](studio-hurdir-heimili.md)
