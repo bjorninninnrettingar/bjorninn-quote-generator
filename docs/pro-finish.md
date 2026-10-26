@@ -481,3 +481,47 @@ with the read-only server at 1440×900; tests in `tests/kp-worktop.test.js`.
 - Not done: the 3D sink stays where it always was (centre of the unit) — moving a cutout changes the data and the plan,
   not the 3D; a straight piece longer than a 4100 mm board only gets a note ("samskeyti á beinum kafla"), no split tool;
   a two-row island's rows are not merged into one slab; the áfella strips' own top in 3D isn't clickable.
+
+## Smíða úr Eyðublöðum — `/smida` (2026-10-26, for T-15)
+
+A project planned the OLD way in Airtable (Eyðublöð + Sögunarlisti, no PRO drawing, no Eyðublað made from a Line Item —
+`CNCDATA.legacy`) gets Smíða without being redrawn. Redrawing + Keyra skipulag is NOT an option on such a project:
+Keyra skipulag creates an Eyðublað for every unlinked, warning-free Line Item, and T-15 has 54 Line Items none of which
+are linked to its Eyðublöð → it would duplicate the whole job (checked read-only 2026-10-26, script of `wflPGRyv0VYi4AZpd`).
+
+- **Entry**: PRO on a project with no drawing but with Eyðublöð asks "Þetta verkefni var skipulagt í Airtable" →
+  **Smíða úr Eyðublöðum** (`proLegacyOffer`, one read-only GET) / "Teikna samt". /cnc's per-card link on such a project
+  is **"Laga í Smíða →"** = `/smida?recordId=…&k=…&unit=<Eyðublað>` (else "Laga í PRO →" as before).
+- **Why not PRO's box editor**: it edits planner blocks and serializes them (`smidaFor`); a legacy Eyðublað has no block,
+  and /cnc ignores Smíðagögn whose door count differs from Sögunarlisti. So /smida builds each cabinet from the SAME
+  Sögunarlisti rows /cnc plans from (`cnc-data.js` — the loader /cnc now uses too — → `cnc-sides.js unitPlan`), and only
+  edits what Smíðagögn carries. Door count/heights therefore always match /cnc. Drawers, fronts, sizes are read-only
+  (they come from Sögunarlisti — change the Eyðublað + Yfirfara). Pure model: `smida-eydublod.js` (`SMIDAEY`), tests in
+  `tests/smida-eydublod.test.js` (T-15 Sk 2 / Sk 5-8 / Sk 23 / Sk 30.2 shapes through `unitPlan`).
+- **Editing** (same ideas as Smíða): Sk strip with dots (green yfirfarinn / amber / red = blocked / grey = FRE), one
+  fixed-place button "Yfirfarinn → Sk X", ← →; Lamahlið Vinstri/Hægri/Báðum megin (required when the cabinet has a
+  hinged door; two leaves = báðum); per door Á lömum / Lyftihurð, hinge mm (↓ from bottom / ↑ from top), + / − löm,
+  Sjálfgefið; shelves (fixed/loose counts from Sögunarlisti, mm = top face from the side's bottom, loose holes 1/3/5);
+  oven (h 455/595/1050, "Ofn stendur á", "Raða botnum eftir ofni"); inner drawers behind a door (mm = bottom of the
+  inner front — default squeezed to fit, which un-⛔s T-15 Sk 30.2 and Sk 33.2); Fataslá mm. Drag shelves, inner
+  drawers, rails and hinges in the drawing. "Hlið · CNC" = the side files through `renderSide` + `CNCBPP.buildCard`.
+  "Það sem /cnc segir" is `unitPlan`'s live stop/check. Any change drops the mark (like PRO).
+- **Legacy ovens** (`oven.boards:"list"`, new in cnc-sides.js): on an old Ofnaskápur Sögunarlisti's "Föst loftunarhilla"
+  count includes the board the oven stands on and the one over it (T-15 Sk 2: FH 3 with a 1050 oven), so every board is
+  in `oven.shelves` at its own mm, counted against Sögunarlisti; no automatic Loftunarbotn/-toppur. PRO's ovens unchanged.
+- **Save** = `api/smida-eydublad.js` (VERK_KEY): PATCHes ONLY `Smíðagögn (JSON) 🔧` (fldc72nKFtSVOChCZ) on Eyðublöð that
+  link to the project (either Tækifæri link), batches of 10, `prev` = value the page loaded → 409 if changed since, nothing
+  written. Returns the previous values → **Afturkalla** writes them back (the page keeps the edits, unsaved again). Only
+  cabinets marked or changed are sent; unmarked-but-changed ones are confirmed first (/cnc says "ekki yfirfarinn" there).
+  Draft per project in localStorage (`bjorninn:smida:<rec>`), dropped for a unit whose Airtable value changed since.
+- **Automations (read-only check 2026-10-26)**: the only Eyðublað trigger is per-unit Yfirfara 3.0 (its own checkbox
+  fld2oZxB3MIm2kT0K); only Keyra skipulag writes Smíðagögn, and only on an Eyðublað linked to a Line Item (create, or
+  sync when stale / force) — T-15's aren't linked, so nothing overwrites what /smida saves. Yfirfara 3.0 / 4.0 scripts
+  never read or write Smíðagögn. Samstilla Eyðublað (wflMRFhFANXon1UnQ) no longer exists.
+- **Verified** on T-15 with the read-only server: 31 cabinets load (29 editable, SK 14 + Sk 41 FRE read-only); with
+  a stubbed save of 5 cabinets (Sk 2 oven, Sk 5-8, Sk 23, Sk 30, Sk 30.2) injected into /cnc, "Ekki enn — 20 atriði" →
+  15, those five ✅ with one-sided hinge files, Sk 30.2 exports (was ⛔). Simulating all 29 marked: /cnc items 40 → 4
+  (the 2 FRE + 2 Fataslá "bora í höndunum").
+- **Not covered (by hand)**: FRE cabinets (SK 14, Sk 41); doors that are their own Eyðublað "Stakur frontur" (Sk 29 →
+  hangs on Sk 29.1/29.2, RH Sk 30-33 → Sk 30/31-32/33) — those sides have no door rows in Sögunarlisti, so /cnc drills no
+  hinges for them; Fataslá (FATASLA not confirmed in the master).

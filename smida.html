@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex" />
+<title>Smíða úr Eyðublöðum — Björninn</title>
+<style>
+  /* smida.html (/smida, 2026-10-26) — "Smíða úr Eyðublöðum": Smíða for a project planned the OLD way in Airtable
+     (Eyðublöð + Sögunarlisti, no PRO drawing). One cabinet per Eyðublað, built from the same Sögunarlisti rows /cnc
+     plans from (cnc-data.js + cnc-sides.js), so what you see here is what /cnc drills. Edits: hinge side, hinges,
+     door type, shelves, oven, inner drawers behind a door, clothes rail. Vista writes ONLY each Eyðublað's
+     "Smíðagögn (JSON) 🔧" (api/smida-eydublad.js), Afturkalla puts the previous value back. See docs/pro-finish.md. */
+  :root {
+    --bg:#f3f4f6; --surface:#ffffff; --surface2:#eef1f4; --line:#e1e4e8; --text:#1a1d21; --muted:#5d6670; --dim:#9aa3ad;
+    --blue:#0f6cbd; --green:#1a7d36; --amber:#9a6700; --red:#c4291c;
+    --warn-bg:#fdf2d9; --warn-line:#f0d78c; --good-bg:#e5f6ea; --good-line:#b7e3c2; --bad-bg:#fbe4e1; --bad-line:#f0b8b0;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --bw-title1:#5c4a2e; --bw-title2:#9c8a6b; --bw-chrome:#d6d3c6; --bw-chrome-dark:#9b9686;
+    --bw-list-bg:#e2dfd2; --bw-row-line:#cac6b6; --bw-canvas:#eeede6; --bw-ink:#333;
+    --bw-teal:#2f7f6a; --bw-pill:#c3d3e1; --bw-pill-ink:#4f7294; --bw-font:Tahoma,"Segoe UI",Verdana,sans-serif;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; line-height:1.4; }
+  button, input, select { font:inherit; color:var(--text); }
+  button { cursor:pointer; font-weight:700; border:1px solid var(--line); background:var(--surface2); border-radius:9px; padding:7px 12px; white-space:nowrap; }
+  button:disabled { opacity:.45; cursor:default; }
+  button.primary { background:var(--blue); border-color:var(--blue); color:#fff; }
+  button.go { background:var(--green); border-color:var(--green); color:#fff; }
+  input[type=number] { width:84px; border:1px solid var(--line); border-radius:8px; padding:5px 8px; background:#fff; text-align:right; }
+  .top { display:flex; align-items:center; gap:12px; padding:10px 18px; background:var(--surface); border-bottom:1px solid var(--line); }
+  .top .ttl { flex:1; min-width:0; }
+  .kicker { font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); }
+  .pname { font-weight:800; font-size:1.05rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .status { font-size:.84rem; color:var(--muted); width:260px; text-align:right; }
+  .status.bad { color:var(--red); } .status.ok { color:var(--green); }
+  #saveBtn { width:150px; } #undoBtn { width:120px; }
+  .top a { color:var(--blue); font-weight:700; font-size:.88rem; text-decoration:none; white-space:nowrap; }
+  .nav { display:flex; align-items:center; gap:8px; padding:8px 18px; background:var(--surface); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:5; }
+  .nav[hidden] { display:none; }
+  .strip { flex:1; display:flex; gap:4px; overflow-x:auto; padding:2px 0; scrollbar-width:thin; }
+  .chip { flex:none; border:1px solid var(--line); background:var(--surface2); border-radius:8px; padding:4px 9px; font-size:.8rem; font-weight:700; display:flex; align-items:center; gap:6px; }
+  .chip i { width:8px; height:8px; border-radius:50%; background:#d5a021; display:inline-block; }
+  .chip.done i { background:var(--green); } .chip.bad i { background:var(--red); } .chip.fre i { background:var(--dim); }
+  .chip.on { border-color:var(--blue); background:#e3eefa; color:var(--blue); }
+  .chip.dirty::after { content:"•"; color:var(--blue); margin-left:-2px; }
+  .count { font-size:.82rem; color:var(--muted); width:110px; text-align:center; }
+  #nextBtn { width:220px; }
+  .main { display:grid; grid-template-columns:minmax(380px, 1fr) 470px; gap:16px; padding:14px 18px 40px; max-width:1500px; margin:0 auto; }
+  .panel { background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:12px 14px; }
+  .tabs { display:flex; gap:6px; margin-bottom:10px; }
+  .tabs button.on { background:var(--text); color:#fff; border-color:var(--text); }
+  .draw { display:flex; justify-content:center; }
+  .draw svg { max-width:100%; height:auto; touch-action:none; user-select:none; }
+  .hint { font-size:.78rem; color:var(--muted); margin-top:6px; }
+  h3 { font-size:.95rem; font-weight:800; display:flex; align-items:baseline; gap:8px; margin-bottom:6px; }
+  h3 small { font-weight:500; color:var(--muted); font-size:.8rem; }
+  .sec { border-top:1px solid var(--line); padding-top:10px; margin-top:10px; }
+  .sec:first-child { border-top:none; margin-top:0; padding-top:0; }
+  .meta { font-size:.85rem; color:var(--muted); }
+  .meta b { color:var(--text); }
+  .row { display:flex; align-items:center; gap:8px; margin:4px 0; font-size:.87rem; flex-wrap:wrap; }
+  .row .lbl { width:96px; color:var(--muted); }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:9px; overflow:hidden; }
+  .seg button { border:none; border-radius:0; background:var(--surface2); padding:6px 11px; font-weight:600; }
+  .seg button + button { border-left:1px solid var(--line); }
+  .seg button.on { background:var(--blue); color:#fff; }
+  .small { font-size:.8rem; padding:4px 9px; font-weight:600; }
+  .note { font-size:.8rem; color:var(--muted); margin-top:4px; }
+  .issues { list-style:none; font-size:.84rem; }
+  .issues li { padding:5px 9px; border-radius:8px; margin:4px 0; }
+  .issues li.stop { background:var(--bad-bg); color:var(--red); border:1px solid var(--bad-line); }
+  .issues li.check { background:var(--warn-bg); color:var(--amber); border:1px solid var(--warn-line); }
+  .issues li.ok { background:var(--good-bg); color:var(--green); border:1px solid var(--good-line); }
+  .msg { max-width:640px; margin:60px auto; background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:22px; }
+  .msg h2 { font-size:1.15rem; margin-bottom:8px; } .msg p { color:var(--muted); margin-bottom:12px; }
+  .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--text); color:#fff; padding:9px 16px; border-radius:10px; font-size:.88rem; opacity:0; transition:opacity .2s; pointer-events:none; z-index:20; }
+  .toast.show { opacity:1; }
+  /* BiesseWorks card (cnc-bpp.js) — same look as /cnc and /bpp */
+  .bpp-card { background:none; border:none; padding:0; }
+  .bw-window { background:var(--bw-chrome); border:1px solid var(--bw-chrome-dark); border-radius:5px; overflow:hidden; box-shadow:0 6px 18px rgba(0,0,0,.35); }
+  .bw-titlebar { background:linear-gradient(180deg, var(--bw-title1), var(--bw-title2)); color:#f3ecdd; padding:6px 7px 6px 10px; display:flex; align-items:center; gap:8px; font-family:var(--bw-font); }
+  .bw-titlebar .ttl { font-size:.8rem; font-weight:700; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-shadow:0 1px 1px rgba(0,0,0,.4); }
+  .bw-titlebar .remove { background:#00000030; border:1px solid #ffffff40; color:#fff; width:20px; height:18px; border-radius:3px; cursor:pointer; font-size:.72rem; line-height:1; flex:none; }
+  .bw-titlebar .remove:hover { background:#c0392b; }
+  .bpp-chip { font-size:.68rem; font-weight:800; padding:2px 8px; border-radius:3px; letter-spacing:.03em; white-space:nowrap; display:inline-block; flex:none; }
+  .bpp-chip.kind { background:#ffffffcc; color:#4a3c22; }
+  .bpp-chip.unknown { background:#c0392b; color:#fff; }
+  .bw-body { display:flex; align-items:stretch; }
+  .bw-list { width:184px; flex:none; background:var(--bw-list-bg); border-right:1px solid var(--bw-chrome-dark); max-height:480px; overflow:auto; font-family:var(--bw-font); }
+  .bw-row { display:flex; align-items:center; gap:5px; padding:2.5px 6px; border-bottom:1px solid var(--bw-row-line); white-space:nowrap; }
+  .bw-row.child { padding-left:22px; }
+  .bw-chk { width:10px; height:10px; border:1px solid #767262; background:#fff; flex:none; display:inline-flex; align-items:center; justify-content:center; border-radius:1px; }
+  .bw-chk.on::after { content:""; width:6px; height:6px; background:#2f2f2f; display:block; }
+  .bw-icon { width:12px; height:12px; border-radius:2px; flex:none; border:1px solid rgba(0,0,0,.3); }
+  .bw-row .nm { color:#1a1a1a; font-size:.72rem; overflow:hidden; text-overflow:ellipsis; }
+  .bw-canvas-wrap { flex:1; background:var(--bw-canvas); padding:16px; display:flex; justify-content:center; align-items:center; min-width:0; overflow:auto; }
+  svg.plan { display:block; }
+  .bpp-legend { display:flex; gap:14px; flex-wrap:wrap; padding:8px 14px 12px; font-size:.74rem; color:#5c5848; background:var(--bw-chrome); font-family:var(--bw-font); }
+  .bpp-legend span { display:inline-flex; align-items:center; gap:5px; }
+  .bpp-legend i { width:11px; height:11px; border-radius:3px; display:inline-block; flex:none; }
+  .bpp-note { margin-top:10px; font-size:.84rem; border-radius:10px; padding:9px 13px; }
+  .bpp-note.warn { background:var(--warn-bg); color:var(--amber); border:1px solid var(--warn-line); }
+  .bpp-note.err { background:var(--bad-bg); color:var(--red); border:1px solid var(--bad-line); }
+  .bpp-note.info { background:var(--good-bg); color:var(--green); border:1px solid var(--good-line); }
+  .bpp-raw { margin-top:12px; }
+  .bpp-raw summary { cursor:pointer; font-size:.82rem; color:var(--muted); font-weight:700; }
+  .bpp-raw summary:hover { color:var(--text); }
+  .bpp-rawlist { margin-top:8px; font-size:.78rem; color:var(--dim); font-family:ui-monospace,Menlo,Consolas,monospace; max-height:240px; overflow:auto; background:var(--bg); border-radius:8px; padding:8px 10px; }
+  .bpp-rawlist div { padding:2px 0; }
+  .bpp-rawlist .off { opacity:.45; }
+  .cncwrap .bw-list { max-height:360px; }
+  .cncfiles { display:flex; gap:6px; margin-bottom:8px; flex-wrap:wrap; }
+  .cncfiles button.on { background:var(--text); color:#fff; }
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="ttl"><div class="kicker">Smíða úr Eyðublöðum</div><div class="pname" id="pname">Sæki verkefni…</div></div>
+  <a id="cncLink" href="#" target="_blank" rel="noopener">Opna CNC →</a>
+  <span class="status" id="status"></span>
+  <button id="undoBtn" type="button" disabled title="Setur fyrri Smíðagögn aftur á Eyðublöðin sem síðasta vistun breytti">Afturkalla</button>
+  <button id="saveBtn" type="button" class="primary" disabled>Vista</button>
+</div>
+<div class="nav" id="nav" hidden>
+  <button type="button" id="prevBtn" title="Fyrri (←)">‹</button>
+  <div class="strip" id="strip"></div>
+  <button type="button" id="nextArrow" title="Næsti (→)">›</button>
+  <span class="count" id="count"></span>
+  <button type="button" id="nextBtn" class="go">Yfirfarinn</button>
+</div>
+<div id="app"><div class="msg" style="text-align:center;color:var(--muted)">Sæki Eyðublöð og Sögunarlista…</div></div>
+<div class="toast" id="toast"></div>
+
+<script src="/cnc-sides.js"></script>
+<script src="/cnc-data.js"></script>
+<script src="/cnc-bpp.js"></script>
+<script src="/smida-eydublod.js"></script>
+<script>
+(function () {
+  "use strict";
+  var SD = window.CNCSIDES, CD = window.CNCDATA, M = window.SMIDAEY, BPP = window.CNCBPP;
+  var PROXY = "/api/airtable", qs = new URLSearchParams(location.search);
+  var KEY = qs.get("k") || "", REC = qs.get("recordId") || qs.get("pro") || "", WANT_T = qs.get("t") || "", WANT_UNIT = qs.get("unit") || "";
+  var $ = function (id) { return document.getElementById(id); };
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function r1(x) { return Math.round(x * 10) / 10; }
+  var project = null, cabs = [], edits = {}, cur = 0, view = "front", cncFile = 0, lastUndo = null, saving = false;
+  var DRAFT = function () { return "bjorninn:smida:" + (project ? project.id : ""); };
+  // the stand-in master PRO's Smíða uses too (no USB stick here): same drilling, macros sit before STAT_BLOCK
+  var MASTER = ["[VARIABLES]", "PAN=LPX|0||4|", "PAN=LPY|0||4|", "PAN=LPZ|0||4|", "", "[PROGRAM]",
+    '@ STAT_BLOCK, "", "", 100000001, "", 0 : 0, LPY+100, 1', "", "[VBSCRIPT]"].join("\r\n");
+
+  function toast(t) { var el = $("toast"); el.textContent = t; el.classList.add("show"); clearTimeout(toast.t); toast.t = setTimeout(function () { el.classList.remove("show"); }, 2600); }
+  function fail(title, help, tech) {
+    $("app").innerHTML = '<div class="msg"><h2>' + esc(title) + '</h2><p>' + esc(help) + '</p><button type="button" onclick="location.reload()">Reyna aftur</button>' + (tech ? '<p style="margin-top:10px;font-size:.75rem">' + esc(tech) + '</p>' : "") + '</div>';
+    $("pname").textContent = "Opnaðist ekki";
+  }
+
+  // ── load ──────────────────────────────────────────────────────────────────────────────────
+  async function boot() {
+    if (!KEY) { fail("Lykil vantar", "Opnaðu síðuna úr PRO eða /cnc (hlekkurinn er með skrifstofulyklinum).", ""); return; }
+    try {
+      var p;
+      if (REC) p = (await CD.fetchAll(PROXY, KEY, CD.PROJECTS, { filterByFormula: 'RECORD_ID()="' + REC + '"', "fields[]": [CD.PNAME] }))[0];
+      else if (WANT_T) p = (await CD.fetchAll(PROXY, KEY, CD.PROJECTS, { filterByFormula: 'FIND("' + WANT_T.replace(/"/g, "") + ' |",{' + CD.PNAME + '})', "fields[]": [CD.PNAME] }))[0];
+      if (!p) { fail("Verkefnið fannst ekki", "Hlekkurinn vísar á verkefni sem er ekki til. Opnaðu það aftur úr PRO eða /cnc.", ""); return; }
+      var name = String(p.fields[CD.PNAME] || p.id), pre = (name.match(/^(T-\d+)/) || [])[1];
+      if (!pre) { fail("Verkefnið er ekki með T-númer", "Smíða úr Eyðublöðum finnur einingarnar eftir T-númeri verkefnisins.", name); return; }
+      project = { id: p.id, name: name, prefix: pre };
+      $("pname").textContent = name;
+      $("cncLink").href = "/cnc?recordId=" + encodeURIComponent(p.id) + "&k=" + encodeURIComponent(KEY);
+      var data = await CD.load({ proxy: PROXY, key: KEY, id: p.id, prefix: pre });
+    } catch (e) {
+      if (e.status === 401 || e.status === 403) fail("Lykillinn virkar ekki", "Opnaðu síðuna aftur úr PRO eða /cnc.", e.message);
+      else if (e.status) fail("Villa á þjóninum", "Airtable svaraði ekki rétt. Bíddu augnablik og reyndu aftur.", e.message);
+      else fail("Ekkert samband", "Athugaðu nettenginguna og reyndu aftur.", e.message);
+      return;
+    }
+    if (!CD.legacy(data)) {
+      fail("Þetta verkefni er teiknað í PRO", "Eyðublöðin voru búin til úr teikningunni — breyttu Smíða í PRO, annars skrifar næsta Keyra skipulag yfir það sem er vistað hér.", "");
+      $("app").querySelector(".msg").insertAdjacentHTML("beforeend", '<p><a href="/skipuleggja?pro=' + encodeURIComponent(project.id) + '&k=' + encodeURIComponent(KEY) + '">Opna í PRO →</a></p>');
+      return;
+    }
+    var I = CD.sideInput(data);
+    cabs = data.units.filter(function (u) { return I.byUnit[u.id] && !I.isDoor[u.id]; }).map(function (u) {
+      return M.cabinet(u, I.byUnit[u.id], { gripMm: CD.gripFor(I, data.projGrip, u.id, null).mm, gripZones: I.unitGripZones[u.id], fataslar: I.unitFataslar[u.id] });
+    }).filter(Boolean).sort(function (a, b) { return a.name.localeCompare(b.name, "is", { numeric: true }); });
+    if (!cabs.length) { fail("Engir skápar", "Engin Eyðublöð með skápahliðum í Sögunarlista fundust fyrir " + pre + ".", ""); return; }
+    var draft = {}; try { draft = JSON.parse(localStorage.getItem(DRAFT()) || "{}") || {}; } catch (e) { draft = {}; }
+    var restored = 0;
+    cabs.forEach(function (c) {
+      var d = draft[c.unit];
+      if (d && d.raw === (c.raw || null) && d.e) { edits[c.unit] = d.e; restored++; } // a draft from before a newer save elsewhere is dropped
+      else edits[c.unit] = M.initEdit(c);
+    });
+    if (restored && dirtyCabs().length) toast("Óvistaðar breytingar úr þessum vafra sóttar (" + dirtyCabs().length + ")");
+    var at = cabs.findIndex(function (c) { return c.unit === WANT_UNIT; });
+    cur = at >= 0 ? at : 0;
+    $("nav").hidden = false;
+    render();
+  }
+
+  // ── state helpers ─────────────────────────────────────────────────────────────────────────
+  function cab() { return cabs[cur]; }
+  function ed(c) { return edits[(c || cab()).unit]; }
+  function smida(c) { return M.smidaOf(c, ed(c)); }
+  function plan(c) { return M.planOf(c, smida(c)); }
+  // only what Rakel looked at goes to Airtable: a cabinet she marked or changed (an untouched default stays /cnc's default)
+  function dirty(c) { var e = ed(c); return M.editable(c) && !!(e.reviewed || e.touched) && !M.same(smida(c), c.existing); }
+  function dirtyCabs() { return cabs.filter(dirty); }
+  function stateOf(c) {
+    if (!M.editable(c)) return "fre";
+    if (M.blockers(c, ed(c), plan(c)).length) return "bad";
+    return ed(c).reviewed ? "done" : "todo";
+  }
+  function saveDraft() {
+    var o = {}; cabs.forEach(function (c) { if (dirty(c)) o[c.unit] = { raw: c.raw || null, e: ed(c) }; });
+    try { if (Object.keys(o).length) localStorage.setItem(DRAFT(), JSON.stringify(o)); else localStorage.removeItem(DRAFT()); } catch (e) {}
+  }
+  // any change to what gets built drops the "yfirfarinn" mark (same as PRO)
+  function change(fn) { fn(ed()); ed().reviewed = false; ed().touched = true; saveDraft(); render(); }
+
+  // ── render ────────────────────────────────────────────────────────────────────────────────
+  function render() {
+    var c = cab(), e = ed(c), p = plan(c);
+    // strip
+    $("strip").innerHTML = cabs.map(function (x, i) {
+      return '<button type="button" class="chip ' + stateOf(x) + (i === cur ? " on" : "") + (dirty(x) ? " dirty" : "") + '" data-go="' + i + '" title="' + esc(x.name + (x.tegund ? " · " + x.tegund : "")) + '"><i></i>' + esc(x.sk) + "</button>";
+    }).join("");
+    var on = $("strip").querySelector(".chip.on"); if (on) on.scrollIntoView({ block: "nearest", inline: "nearest" });
+    var editableCabs = cabs.filter(M.editable), done = editableCabs.filter(function (x) { return ed(x).reviewed; }).length;
+    $("count").textContent = done + " / " + editableCabs.length + " yfirfarnir";
+    var nb = $("nextBtn"), next = nextUnreviewed(), blocked = M.blockers(c, e, p);
+    if (!M.editable(c)) { nb.textContent = next >= 0 ? "Næsti → " + cabs[next].sk : "Allir yfirfarnir"; nb.disabled = next < 0; nb.dataset.act = "next"; }
+    else if (!e.reviewed) { nb.textContent = next >= 0 && next !== cur ? "Yfirfarinn → " + cabs[next].sk : "Skápur yfirfarinn"; nb.disabled = !!blocked.length; nb.dataset.act = "mark"; nb.title = blocked.length ? "Lagaðu fyrst: " + blocked[0] : ""; }
+    else { nb.textContent = next >= 0 ? "Næsti → " + cabs[next].sk : "Allir yfirfarnir — vista"; nb.disabled = false; nb.dataset.act = next >= 0 ? "next" : "save"; nb.title = ""; }
+    // top
+    var nd = dirtyCabs().length;
+    $("saveBtn").textContent = nd ? "Vista (" + nd + ")" : "Vista";
+    $("saveBtn").disabled = !nd || saving;
+    $("undoBtn").disabled = !lastUndo || saving;
+    if (!saving && !$("status").dataset.keep) { $("status").className = "status"; $("status").textContent = nd ? nd + " skápar óvistaðir" : "Allt vistað"; }
+    // main
+    var app = $("app");
+    app.innerHTML = '<div class="main"><div class="panel"><div class="tabs"><button type="button" data-view="front" class="' + (view === "front" ? "on" : "") + '">Framhlið</button>' +
+      '<button type="button" data-view="side" class="' + (view === "side" ? "on" : "") + '">Hlið · CNC</button></div><div id="drawBox"></div></div>' +
+      '<div class="panel" id="side"></div></div>';
+    if (view === "front") drawFront(c, e, p, $("drawBox")); else drawSide(c, p, $("drawBox"));
+    sidePanel(c, e, p, $("side"));
+  }
+  function nextUnreviewed() {
+    for (var k = 1; k <= cabs.length; k++) { var i = (cur + k) % cabs.length; if (M.editable(cabs[i]) && !ed(cabs[i]).reviewed) return i; }
+    return M.editable(cab()) && !ed().reviewed ? cur : -1;
+  }
+
+  // Front view: the carcass as /cnc sees it (mm from the bottom of the side). Shelves, inner drawers, oven boards,
+  // rails and hinges are dragged; drawers and doors are what Sögunarlisti cut.
+  var NS = "http://www.w3.org/2000/svg";
+  function drawFront(c, e, p, box) {
+    if (!M.editable(c)) { box.innerHTML = '<div class="msg" style="margin:20px auto"><h2>' + esc(c.name) + '</h2><p>' + esc((c.base.stop || []).join(" · ") || "Engin hlið sem /cnc borar.") + '</p><p>Gert í höndunum — þessi skápur er ekki vistaður hér.</p></div>'; return; }
+    var g = M.geom(c), H = g.H, W = c.B || c.base.LPY || 600, sc = Math.min(560 / H, 420 / W, 1.2), pad = 46;
+    var vw = W * sc + pad * 2, vh = H * sc + 30;
+    var X = function (mm) { return pad + mm * sc; }, Y = function (mm) { return 15 + (H - mm) * sc; };
+    var s = '<svg xmlns="' + NS + '" viewBox="0 0 ' + vw + " " + vh + '" width="' + vw + '" height="' + vh + '" id="elev">';
+    s += '<rect x="' + X(0) + '" y="' + Y(H) + '" width="' + W * sc + '" height="' + H * sc + '" fill="#fafbfc" stroke="#1a1d21" stroke-width="1.5"/>';
+    (p.drawers || []).forEach(function (d) {
+      s += '<rect x="' + (X(0) + 3) + '" y="' + Y(d.to - 3) + '" width="' + (W * sc - 6) + '" height="' + Math.max(2, (d.to - 3 - d.from) * sc) + '" fill="#e8ecf1" stroke="#9aa3ad"/>' +
+        '<text x="' + (X(W / 2)) + '" y="' + (Y((d.from + d.to) / 2) + 4) + '" text-anchor="middle" font-size="12" fill="#5d6670">' + d.code + " · " + d.front + "</text>";
+    });
+    var hs = e.hinge || c.base.hingeSide;
+    (p.doors || []).forEach(function (d, i) {
+      s += '<rect x="' + (X(0) + 2) + '" y="' + Y(d.to) + '" width="' + (W * sc - 4) + '" height="' + (d.to - d.from) * sc + '" fill="none" stroke="#0f6cbd" stroke-width="1.2" stroke-dasharray="6 4"/>';
+      s += '<text x="' + X(W / 2) + '" y="' + (Y(d.to) + 16) + '" text-anchor="middle" font-size="11" fill="#0f6cbd">' + (d.type === "lift" ? "Lyftihurð " : "Hurð ") + r1(d.H) + "</text>";
+      var sides = hs === "baedi" || !hs ? [0, W] : hs === "vinstri" ? [0] : [W];
+      (d.hinges || []).forEach(function (h, k) {
+        sides.forEach(function (sx) {
+          s += '<circle class="drag" data-k="hinge" data-i="' + i + '" data-j="' + k + '" cx="' + (X(sx) + (sx ? -9 : 9)) + '" cy="' + Y(d.from + h) + '" r="6" fill="' + (hs ? "#0f6cbd" : "#9aa3ad") + '" style="cursor:ns-resize"><title>Löm ' + r1(d.from + h) + ' mm frá botni hliðar — dragðu</title></circle>';
+        });
+      });
+    });
+    if (e.oven) {
+      s += '<rect x="' + (X(0) + 10) + '" y="' + Y(e.oven.under + 16 + e.oven.h) + '" width="' + (W * sc - 20) + '" height="' + e.oven.h * sc + '" fill="#2b2f36" opacity=".14"/>' +
+        '<text x="' + X(W / 2) + '" y="' + Y(e.oven.under + 16 + e.oven.h / 2) + '" text-anchor="middle" font-size="12" fill="#1a1d21">Ofn ' + e.oven.h + "</text>";
+    }
+    (e.inner || []).forEach(function (x, i) {
+      var h = (c.inner[i] || {}).h || 100;
+      s += '<rect class="drag" data-k="inner" data-i="' + i + '" x="' + (X(0) + 14) + '" y="' + Y(x.mm + h) + '" width="' + (W * sc - 28) + '" height="' + h * sc + '" fill="#f5e6c8" stroke="#9a6700" style="cursor:ns-resize"><title>Innskúffa ' + x.code + ' — dragðu</title></rect>' +
+        '<text x="' + X(W / 2) + '" y="' + (Y(x.mm + h / 2) + 4) + '" text-anchor="middle" font-size="11" fill="#9a6700" pointer-events="none">Innskúffa ' + x.code + " · " + x.mm + "</text>";
+    });
+    (e.shelves || (e.oven && e.oven.shelves) || []).forEach(function (x, i) {
+      var y = Y(x.mm);
+      s += '<line x1="' + X(0) + '" x2="' + X(W) + '" y1="' + y + '" y2="' + y + '" stroke="' + (x.fixed ? "#1a1d21" : "#5d6670") + '" stroke-width="' + (x.fixed ? 3 : 2) + '"' + (x.fixed ? "" : ' stroke-dasharray="7 5"') + "/>" +
+        '<rect class="drag" data-k="shelf" data-i="' + i + '" x="' + X(0) + '" y="' + (y - 7) + '" width="' + W * sc + '" height="14" fill="transparent" style="cursor:ns-resize"><title>' + (x.fixed ? "Föst" : "Laus") + " hilla " + x.mm + ' mm — dragðu</title></rect>' +
+        '<text x="' + (X(W) + 5) + '" y="' + (y + 4) + '" font-size="11" fill="#1a1d21" pointer-events="none">' + Math.round(x.mm) + "</text>";
+    });
+    (e.rails || []).forEach(function (x, i) {
+      var y = Y(x.mm);
+      s += '<line x1="' + (X(0) + 6) + '" x2="' + (X(W) - 6) + '" y1="' + y + '" y2="' + y + '" stroke="#8250df" stroke-width="3" stroke-linecap="round"/>' +
+        '<rect class="drag" data-k="rail" data-i="' + i + '" x="' + X(0) + '" y="' + (y - 7) + '" width="' + W * sc + '" height="14" fill="transparent" style="cursor:ns-resize"><title>Fataslá ' + x.mm + ' mm — dragðu</title></rect>' +
+        '<text x="' + (X(0) - 5) + '" y="' + (y + 4) + '" text-anchor="end" font-size="11" fill="#8250df" pointer-events="none">' + Math.round(x.mm) + "</text>";
+    });
+    s += '<text x="' + (X(0) - 6) + '" y="' + (Y(0) + 4) + '" text-anchor="end" font-size="10" fill="#9aa3ad">0</text><text x="' + (X(0) - 6) + '" y="' + (Y(H) + 8) + '" text-anchor="end" font-size="10" fill="#9aa3ad">' + H + "</text>";
+    s += "</svg>";
+    box.innerHTML = '<div class="draw">' + s + '</div><div class="hint">Séð að framan. mm frá botni hliðar (eins og /cnc). Dragðu hillur, innskúffur, slár og lamir — eða skrifaðu tölu til hægri. Heil lína = föst hilla, strikuð = laus.</div>';
+    wireDrag(box.querySelector("svg"), c, H, sc);
+  }
+  // drag: the state follows the pointer, the dragged marks move by transform; one full render on release
+  function wireDrag(svg, c, H, sc) {
+    var drag = null;
+    function mmAt(ev) { var r = svg.getBoundingClientRect(), k = r.height / svg.viewBox.baseVal.height; return Math.round(H - ((ev.clientY - r.top) / k - 15) / sc); }
+    svg.addEventListener("pointerdown", function (ev) {
+      var t = ev.target.closest(".drag"); if (!t) return;
+      ev.preventDefault(); svg.setPointerCapture(ev.pointerId);
+      drag = { k: t.dataset.k, i: +t.dataset.i, j: +t.dataset.j, start: mmAt(ev) };
+      var e = ed();
+      drag.orig = drag.k === "shelf" ? (e.shelves || e.oven.shelves)[drag.i].mm : drag.k === "inner" ? e.inner[drag.i].mm : drag.k === "rail" ? e.rails[drag.i].mm : null;
+      if (drag.k === "hinge") { var d = plan(c).doors[drag.i]; drag.door = d; drag.orig = d.hinges[drag.j]; }
+      var sel = '.drag[data-k="' + drag.k + '"][data-i="' + drag.i + '"]' + (drag.k === "hinge" ? '[data-j="' + drag.j + '"]' : "");
+      drag.els = Array.prototype.slice.call(svg.querySelectorAll(sel));
+      // the line/label drawn just before/after a shelf, rail or inner drawer hit-area move with it
+      drag.els.slice().forEach(function (n) { [n.previousElementSibling, n.nextElementSibling].forEach(function (s2) { if (s2 && !s2.classList.contains("drag") && drag.k !== "hinge") drag.els.push(s2); }); });
+    });
+    svg.addEventListener("pointermove", function (ev) {
+      if (!drag) return;
+      var mm = drag.orig + (mmAt(ev) - drag.start), e = ed();
+      if (drag.k === "shelf") (e.shelves || e.oven.shelves)[drag.i].mm = mm;
+      else if (drag.k === "inner") e.inner[drag.i].mm = mm;
+      else if (drag.k === "rail") e.rails[drag.i].mm = mm;
+      else if (drag.k === "hinge") { mm = Math.max(30, Math.min(r1(drag.door.to - drag.door.from) - 30, mm)); drag.mm = mm; }
+      drag.moved = true;
+      drag.els.forEach(function (n) { n.setAttribute("transform", "translate(0," + (-(mm - drag.orig) * sc) + ")"); });
+    });
+    function end() {
+      if (drag && drag.moved) { if (drag.k === "hinge") setHinge(c, drag.i, drag.j, drag.mm, drag.door); ed().reviewed = false; ed().touched = true; saveDraft(); drag = null; render(); return; }
+      drag = null;
+    }
+    svg.addEventListener("pointerup", end); svg.addEventListener("pointercancel", end);
+  }
+  // hinge j of door i to `mm` (from the door box's bottom); first edit copies /cnc's current positions
+  function setHinge(c, i, j, mm, door) {
+    var e = ed(), len = r1(door.to - door.from);
+    if (!e.doors) e.doors = (c.base.doors || []).map(function (d, k) { return { type: "hinged", hinges: M.hingeSpec(c, e, k) }; });
+    var pos = SD.specToPositions(e.doors[i].hinges, len);
+    pos[j] = Math.max(30, Math.min(len - 30, mm));
+    e.doors[i].hinges = pos.sort(function (a, b) { return a - b; }).map(function (x) { x = Math.round(x); return x <= len / 2 ? { from: "bottom", mm: x } : { from: "top", mm: Math.round(len - x) }; });
+  }
+
+  // Hlið · CNC: the side files exactly as /cnc would write them (stand-in master), drawn by cnc-bpp.js
+  function drawSide(c, p, box) {
+    box.innerHTML = "";
+    if (p.status === "stop" || p.status === "skip") { box.innerHTML = '<ul class="issues">' + (p.stop || []).map(function (s) { return '<li class="stop">' + esc(s) + "</li>"; }).join("") + "</ul>"; return; }
+    var files = SD.sideFiles(p); if (cncFile >= files.length) cncFile = 0;
+    var bar = document.createElement("div"); bar.className = "cncfiles";
+    bar.innerHTML = files.map(function (f, i) { return '<button type="button" class="small' + (i === cncFile ? " on" : "") + '" data-cncfile="' + i + '">' + esc(f.name) + " ×" + f.count + "</button>"; }).join("");
+    box.appendChild(bar);
+    var f = files[cncFile], r = SD.renderSide(MASTER, f.plan), wrap = document.createElement("div"); wrap.className = "cncwrap";
+    wrap.appendChild(BPP.buildCard({ name: c.sk + " · " + f.name + ".bpp" }, r.text, null, null));
+    var rm = wrap.querySelector(".bw-titlebar .remove"); if (rm) rm.remove();
+    box.appendChild(wrap);
+    var h = document.createElement("div"); h.className = "hint";
+    h.textContent = "Sama borun og /cnc skrifar á USB (raunveruleg skrá er með master-skrá vélarinnar, sömu makró).";
+    box.appendChild(h);
+  }
+
+  function seg(name, opts, val) {
+    return '<span class="seg">' + opts.map(function (o) { return '<button type="button" data-' + name + '="' + o[0] + '" class="' + (val === o[0] ? "on" : "") + '">' + esc(o[1]) + "</button>"; }).join("") + "</span>";
+  }
+  function sidePanel(c, e, p, el) {
+    var h = '<div class="sec"><h3>' + esc(c.name) + ' <small>' + esc(c.tegund) + "</small></h3>" +
+      '<div class="meta"><b>' + (c.B || "?") + " × " + (c.H || "?") + " × " + (c.D || "?") + "</b> (B × H × D) · " + c.count + " stk á Eyðublaði" +
+      (p.LPX ? " · hlið <b>" + p.LPX + " × " + p.LPY + " × " + p.LPZ + "</b>" : "") + (c.base.cabinets ? " · " + c.base.cabinets + " " + (c.base.cabinets > 1 ? "skápar" : "skápur") + " (" + c.base.cabinets * 2 + " hliðar)" : "") + "</div>";
+    if ((p.drawers || []).length) h += '<div class="row"><span class="lbl">Skúffur</span>' + p.drawers.map(function (d) { return d.code + " " + d.front; }).join(" · ") + ' <span class="note">(neðan frá)</span></div>';
+    h += '<div class="note">Stærðir, skúffur og frontar koma úr Sögunarlista — breyttu þeim á Eyðublaðinu og keyrðu Yfirfara, ekki hér.</div></div>';
+    if (!M.editable(c)) { el.innerHTML = h + issuesHtml(c, e, p); return; }
+    var doors = c.base.doors || [];
+    if (doors.length) {
+      var leaves = c.base.hingeSide === "baedi";
+      h += '<div class="sec"><h3>Lamahlið <small>séð að framan</small></h3>' + seg("hinge", [["vinstri", "Vinstri"], ["haegri", "Hægri"], ["baedi", "Báðum megin"]], e.hinge) +
+        '<div class="note">' + (leaves ? "Vænghurð (tvær hurðir hlið við hlið) = lamir báðum megin." : "Bara sú hlið er boruð fyrir lamir. Óvalið = boruð báðum megin.") + "</div></div>";
+      h += '<div class="sec"><h3>Hurðir <small>' + doors.length + "</small></h3>";
+      doors.forEach(function (d, i) {
+        var x = e.doors && e.doors[i], type = x ? x.type : "hinged", pd = (p.doors || [])[i] || d, len = r1(pd.to - pd.from);
+        h += '<div class="row"><span class="lbl">Hurð ' + (i + 1) + " · " + r1(d.H) + "</span>" + seg("dtype-" + i, [["hinged", "Á lömum"], ["lift", "Lyftihurð"]], type) + "</div>";
+        if (type === "hinged") {
+          var pos = pd.hinges || [];
+          h += '<div class="row"><span class="lbl">Lamir</span>' + pos.map(function (q, j) {
+            var fromTop = q > len / 2;
+            return '<label>' + (fromTop ? "↑" : "↓") + ' <input type="number" data-hinge="' + i + ":" + j + '" value="' + Math.round(fromTop ? len - q : q) + '" step="1"></label>';
+          }).join(" ") + "</div>" +
+          '<div class="row"><span class="lbl"></span><button type="button" class="small" data-hadd="' + i + '">+ Löm</button><button type="button" class="small" data-hdel="' + i + '"' + (pos.length <= 2 ? " disabled" : "") + '>− Löm</button>' +
+          '<button type="button" class="small" data-hreset="' + i + '"' + (x ? "" : " disabled") + ">Sjálfgefið</button>" +
+          '<span class="note">' + (x ? "Þínar staðsetningar" : "Sjálfgefið /cnc (80 frá endum, færist frá hillum)") + "</span></div>";
+        }
+      });
+      h += '<div class="note">↓ = mm frá neðri brún hurðar, ↑ = frá efri brún.</div></div>';
+    }
+    var sl = e.oven ? e.oven.shelves : e.shelves;
+    if (e.oven) {
+      h += '<div class="sec"><h3>Ofn</h3><div class="row"><span class="lbl">Hæð ofns</span>' + seg("ovh", M.OVEN_HEIGHTS.map(function (x) { return [String(x), String(x)]; }), String(e.oven.h)) +
+        ' <input type="number" data-oven="h" value="' + e.oven.h + '"></div>' +
+        '<div class="row"><span class="lbl">Ofn stendur á</span><input type="number" data-oven="under" value="' + e.oven.under + '"> mm <button type="button" class="small" data-ovenlayout="1">Raða botnum eftir ofni</button></div>' +
+        '<div class="note">Í Sögunarlista teljast botninn undir ofninum og toppurinn yfir honum með föstu hillunum (' + c.nFixed + " fastar, " + c.nLoose + " lausar) — settu hverja á sinn stað.</div></div>";
+    }
+    if (sl && sl.length) {
+      h += '<div class="sec"><h3>' + (e.oven ? "Botnar og hillur" : "Hillur") + " <small>" + sl.filter(function (x) { return x.fixed; }).length + " fastar · " + sl.filter(function (x) { return !x.fixed; }).length + " lausar</small></h3>";
+      sl.map(function (x, i) { return { x: x, i: i }; }).sort(function (a, b) { return b.x.mm - a.x.mm; }).forEach(function (o) {
+        h += '<div class="row"><span class="lbl">' + (o.x.fixed ? "Föst" : "Laus") + '</span><input type="number" data-shelf="' + o.i + '" value="' + Math.round(o.x.mm) + '"> mm' +
+          (o.x.fixed ? "" : ' <span class="note">göt fyrir</span>' + seg("pos-" + o.i, [["1", "1"], ["3", "3"], ["5", "5"]], String(o.x.pos || 3)) + ' <span class="note">stillingar</span>') + "</div>";
+      });
+      if (!e.oven) h += '<div class="row"><button type="button" class="small" data-spread="1">Raða jafnt</button></div>';
+      h += '<div class="note">mm = efri flötur hillunnar frá botni hliðar. Fjöldi og föst/laus koma úr Sögunarlista.</div></div>';
+    }
+    if (e.inner) {
+      h += '<div class="sec"><h3>Innskúffur <small>bak við hurð</small></h3>' + e.inner.map(function (x, i) {
+        return '<div class="row"><span class="lbl">' + x.code + " · " + ((c.inner[i] || {}).h || "") + '</span><input type="number" data-inner="' + i + '" value="' + x.mm + '"> mm <span class="note">neðri brún innskúffufronts</span></div>';
+      }).join("") + '<div class="row"><button type="button" class="small" data-innerreset="1">Raða sjálfgefið</button></div></div>';
+    }
+    if (e.rails) {
+      h += '<div class="sec"><h3>Fataslá</h3>' + e.rails.map(function (x, i) { return '<div class="row"><span class="lbl">Slá ' + (i + 1) + '</span><input type="number" data-rail="' + i + '" value="' + Math.round(x.mm) + '"> mm frá botni</div>'; }).join("") +
+        '<div class="note">/cnc borar slána ekki enn (FATASLA ekki staðfest í master) — staðsetningin fer í CNC-skrána til að bora í höndunum.</div></div>';
+    }
+    if (e.reviewed) h += '<div class="sec"><div class="row"><span class="note">Merktur yfirfarinn. Breyting tekur merkinguna af.</span><button type="button" class="small" data-unmark="1">Taka merkinguna af</button></div></div>';
+    el.innerHTML = h + issuesHtml(c, e, p);
+  }
+  function issuesHtml(c, e, p) {
+    var b = M.blockers(c, e, p), checks = (p.check || []).filter(function (t) { return t.indexOf("Skápur yfirfarinn") < 0; });
+    var stops = (p.stop || []).filter(function (t) { return b.indexOf(t) < 0; });
+    var items = b.map(function (t) { return '<li class="stop">' + esc(t) + "</li>"; }).concat(stops.map(function (t) { return '<li class="stop">' + esc(t) + "</li>"; }), checks.map(function (t) { return '<li class="check">' + esc(t) + "</li>"; }));
+    if (!items.length) items.push('<li class="ok">/cnc hefur ekkert við þennan skáp að athuga' + (e.reviewed ? "" : " þegar hann er merktur yfirfarinn") + ".</li>");
+    var dflt = !e.reviewed && (p.defaults || []).length ? '<div class="note">Sjálfgefin atriði hverfa af /cnc þegar skápurinn er merktur yfirfarinn.</div>' : "";
+    return '<div class="sec"><h3>Það sem /cnc segir <small>lifandi</small></h3><ul class="issues">' + items.join("") + "</ul>" + dflt + "</div>";
+  }
+
+  // ── events ────────────────────────────────────────────────────────────────────────────────
+  document.addEventListener("click", function (ev) {
+    var t = ev.target.closest("button"); if (!t) return;
+    var c = cab(), d = t.dataset;
+    if (d.go != null) { cur = +d.go; cncFile = 0; render(); return; }
+    if (d.view) { view = d.view; render(); return; }
+    if (d.cncfile != null) { cncFile = +d.cncfile; render(); return; }
+    if (d.hinge) { change(function (e) { e.hinge = d.hinge; }); return; }
+    var k = Object.keys(d).find(function (x) { return /^dtype|^pos|^ovh$|^hadd$|^hdel$|^hreset$|^ovenlayout$|^spread$|^innerreset$|^unmark$/.test(x); });
+    if (!k) return;
+    if (k === "unmark") { ed().reviewed = false; saveDraft(); render(); return; }
+    change(function (e) {
+      if (k.indexOf("dtype") === 0) { var di = +k.replace(/\D/g, ""); ensureDoors(c, e); e.doors[di].type = d[k]; if (d[k] === "hinged" && !e.doors[di].hinges.length) e.doors[di].hinges = SD.defaultHingeSpec(r1(c.base.doors[di].to - c.base.doors[di].from), []); }
+      else if (k.indexOf("pos") === 0) { var si = +k.replace(/\D/g, ""); (e.shelves || e.oven.shelves)[si].pos = +d[k]; }
+      else if (k === "ovh") { e.oven.h = +d.ovh; }
+      else if (k === "hadd" || k === "hdel") {
+        var ii = +d[k], door = plan(c).doors[ii], len = r1(door.to - door.from); ensureDoors(c, e);
+        var pos = SD.specToPositions(e.doors[ii].hinges, len);
+        if (k === "hadd") { var gaps = pos.map(function (q, j) { return j ? [q - pos[j - 1], (q + pos[j - 1]) / 2] : null; }).filter(Boolean).sort(function (a, b) { return b[0] - a[0]; }); pos.push(gaps.length ? gaps[0][1] : len / 2); }
+        else { pos.splice(Math.floor(pos.length / 2), 1); }
+        e.doors[ii].hinges = pos.sort(function (a, b) { return a - b; }).map(function (x) { x = Math.round(x); return x <= len / 2 ? { from: "bottom", mm: x } : { from: "top", mm: Math.round(len - x) }; });
+      }
+      else if (k === "hreset") { var ri = +d.hreset; if (e.doors) { e.doors[ri] = { type: "hinged", hinges: [] }; if (e.doors.every(function (x) { return x.type === "hinged" && !x.hinges.length; })) e.doors = null; else e.doors[ri].hinges = M.hingeSpec(c, Object.assign({}, e, { doors: null }), ri); } }
+      else if (k === "ovenlayout") { e.oven.shelves = M.ovenLayout(c, e.oven.h, e.oven.under); }
+      else if (k === "spread") { e.shelves = M.defaultShelves(c); }
+      else if (k === "innerreset") { e.inner = M.defaultInner(c); }
+    });
+  });
+  function ensureDoors(c, e) { if (!e.doors) e.doors = (c.base.doors || []).map(function (d, k) { return { type: "hinged", hinges: M.hingeSpec(c, e, k) }; }); }
+  document.addEventListener("change", function (ev) {
+    var t = ev.target; if (!t.matches || !t.matches("input[type=number]")) return;
+    var v = Math.round(+t.value), c = cab(), d = t.dataset;
+    if (!isFinite(v)) { render(); return; }
+    change(function (e) {
+      if (d.shelf != null) (e.shelves || e.oven.shelves)[+d.shelf].mm = v;
+      else if (d.inner != null) e.inner[+d.inner].mm = v;
+      else if (d.rail != null) e.rails[+d.rail].mm = v;
+      else if (d.oven) e.oven[d.oven] = v;
+      else if (d.hinge) {
+        var ij = d.hinge.split(":").map(Number), door = plan(c).doors[ij[0]], len = r1(door.to - door.from), q = door.hinges[ij[1]];
+        setHinge(c, ij[0], ij[1], q > len / 2 ? len - v : v, door);
+      }
+    });
+  });
+  $("prevBtn").onclick = function () { cur = (cur - 1 + cabs.length) % cabs.length; render(); };
+  $("nextArrow").onclick = function () { cur = (cur + 1) % cabs.length; render(); };
+  $("nextBtn").onclick = function () {
+    var act = this.dataset.act, c = cab();
+    if (act === "mark") { if (M.blockers(c, ed(), plan(c)).length) return; ed().reviewed = true; saveDraft(); var n = nextUnreviewed(); if (n >= 0) cur = n; render(); return; }
+    if (act === "save") { save(); return; }
+    var nx = nextUnreviewed(); if (nx >= 0) { cur = nx; render(); }
+  };
+  document.addEventListener("keydown", function (ev) {
+    if (/INPUT|SELECT|TEXTAREA/.test((ev.target || {}).tagName || "")) return;
+    if (ev.key === "ArrowLeft") $("prevBtn").click();
+    else if (ev.key === "ArrowRight") $("nextArrow").click();
+  });
+  window.addEventListener("beforeunload", function (ev) { if (cabs.length && dirtyCabs().length) { ev.preventDefault(); ev.returnValue = ""; } });
+
+  // ── Vista / Afturkalla ────────────────────────────────────────────────────────────────────
+  async function post(items) {
+    var r = await fetch("/api/smida-eydublad", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ k: KEY, recordId: project.id, items: items }) });
+    var j = await r.json().catch(function () { return {}; });
+    if (!r.ok) { var er = new Error(j.error || "HTTP " + r.status); er.status = r.status; er.conflict = j.conflict; throw er; }
+    return j;
+  }
+  function setStatus(t, cls) { var s = $("status"); s.textContent = t; s.className = "status" + (cls ? " " + cls : ""); s.dataset.keep = "1"; clearTimeout(setStatus.t); setStatus.t = setTimeout(function () { delete s.dataset.keep; render(); }, 6000); }
+  async function save() {
+    var list = dirtyCabs(); if (!list.length || saving) return;
+    var notRev = list.filter(function (c) { return !ed(c).reviewed; });
+    if (notRev.length && !confirm(notRev.length + " af " + list.length + " breyttum skápum eru ekki merktir yfirfarnir (" + notRev.map(function (c) { return c.sk; }).slice(0, 8).join(", ") + (notRev.length > 8 ? " …" : "") + ").\n\nÞeir vistast samt, en /cnc segir „ekki yfirfarinn“ við þá. Vista?")) return;
+    saving = true; render(); setStatus("Vista " + list.length + " Eyðublöð…");
+    var items = list.map(function (c) { return { id: c.unit, smida: JSON.stringify(smida(c)), prev: c.raw || null }; });
+    try {
+      var j = await post(items);
+      items.forEach(function (it) { var c = cabs.find(function (x) { return x.unit === it.id; }); c.raw = it.smida; c.existing = M.parse(it.smida); });
+      lastUndo = items.map(function (it) { return { id: it.id, smida: j.previous[it.id] == null ? null : j.previous[it.id], prev: it.smida }; });
+      saving = false; saveDraft(); render();
+      setStatus("Vistað: " + j.written + " Eyðublöð. Opnaðu CNC.", "ok");
+    } catch (e) {
+      saving = false; render();
+      setStatus(e.status === 409 ? "Ekki vistað — breytt annars staðar (" + (e.conflict || []).length + "). Endurhlaða síðuna." : "Vistun tókst ekki: " + e.message, "bad");
+    }
+  }
+  $("saveBtn").onclick = save;
+  $("undoBtn").onclick = async function () {
+    if (!lastUndo || saving) return;
+    if (!confirm("Afturkalla síðustu vistun? Fyrri Smíðagögn fara aftur á " + lastUndo.length + " Eyðublöð.")) return;
+    saving = true; render(); setStatus("Afturkalla…");
+    try {
+      await post(lastUndo);
+      lastUndo.forEach(function (it) { var c = cabs.find(function (x) { return x.unit === it.id; }); c.raw = it.smida; c.existing = M.parse(it.smida); }); // the edits stay on the page (unsaved again) — Vista puts them back
+      lastUndo = null; saving = false; saveDraft(); render(); setStatus("Afturkallað í Airtable — breytingarnar eru enn hér, óvistaðar.", "ok");
+    } catch (e) { saving = false; render(); setStatus("Afturkalla tókst ekki: " + e.message, "bad"); }
+  };
+
+  boot();
+})();
+</script>
+</body>
+</html>

@@ -17862,7 +17862,7 @@
     if (!raw){ // Rakel draws every project (2026-10-09): no drawing yet = start one, from the Byrja category picker
       var local = null; try{ local = proDirty() ? localStorage.getItem(STORAGE_KEY) : null; }catch(e){}
       if (!local || !load()){ state = freshState("byrja"); save(); }
-      freezeSk(); PRO.ready = true; render(); proBar(); return;
+      freezeSk(); PRO.ready = true; render(); proBar(); proLegacyOffer(); return;
     }
     try{
       var hasLocal = proDirty() && !!localStorage.getItem(STORAGE_KEY);
@@ -17892,6 +17892,26 @@
     if (/[?&]maeling=1\b/.test(location.search)) setTimeout(openMeasurePanel, 300); // the measurer's link (A7)
     var smidaSk = (location.search.match(/[?&]smida=(Sk\d{1,3})\b/) || [])[1];
     if (smidaSk) setTimeout(function(){ proOpenSk(smidaSk); }, 300); // /cnc "Laga í PRO →" (2026-10-26)
+  }
+  // A project planned the old way in Airtable (Eyðublöð, no drawing — e.g. T-15, 2026-10-26): drawing it again here
+  // and running Keyra skipulag would make a second set of Eyðublöð, so the first thing offered is /smida ("Smíða úr
+  // Eyðublöðum": hinges, shelves, oven per Eyðublað → its Smíðagögn → /cnc). Read-only check, one record.
+  async function proLegacyOffer(){
+    var pre = (String(PRO.name || "").match(/^(T-\d+)/) || [])[1]; if (!pre) return;
+    var n = 0;
+    try{
+      var r = await fetch("/api/airtable?path=" + encodeURIComponent("tbl0WcyHhz63pSzZX") + "&k=" + encodeURIComponent(PRO.k) + "&maxRecords=1" +
+        "&filterByFormula=" + encodeURIComponent('FIND("' + pre + ' |",{Athugasemd + Tækifæri (fyrir yfirfara)})') + "&" + encodeURIComponent("fields[]") + "=" + encodeURIComponent("Athugasemd"));
+      if (r.ok) n = ((await r.json()).records || []).length;
+    }catch(e){ return; }
+    if (!n) return;
+    var href = "/smida?recordId=" + encodeURIComponent(PRO.id) + "&k=" + encodeURIComponent(PRO.k);
+    var ch = await proDialog({ title:"Þetta verkefni var skipulagt í Airtable",
+      html:'<p>' + escapeHtmlPro(pre) + ' er með Eyðublöð og Sögunarlista en enga teikningu.</p>' +
+        '<p><b>Smíða úr Eyðublöðum</b> opnar hvern skáp eins og hann er í Sögunarlista: lamahlið, lamir, hillur, ofn og innskúffur fyrir CNC. Vista skrifar bara Smíðagögn á Eyðublöðin.</p>' +
+        '<p>Ekki teikna verkefnið upp á nýtt og keyra skipulag — það býr til önnur Eyðublöð ofan á þau sem eru til.</p>',
+      ok:"Smíða úr Eyðublöðum", alt:"Teikna samt" });
+    if (ch === true) location.href = href;
   }
   // Smíða straight on one Sk (a /cnc link): that room first when it's parked, then the cabinet's box editor
   function proOpenSk(sk){
