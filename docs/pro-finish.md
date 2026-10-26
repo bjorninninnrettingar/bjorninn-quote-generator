@@ -149,3 +149,39 @@ the cabinet (`uwAfterPlacement`), then Smíða opens on the new Sk as before, so
 room right there → the usual placement + toast "Ekki pláss beint hægra megin — settur á næsta lausa stað"; the
 narrower-width offer still applies. Disabled on island boxes. Tested T-32: Sk6 → Sk14 flush (gap 0), Sk13/Sk3 → toast.
 Kept to the Smíða side + the placement hook (PRO C is reshaping the wizard itself).
+
+## Tilboð + Vinnuteikningar + skoðunarhamur round (2026-10-26)
+
+Tested on T-32 with the read-only local server, 1440×900 (no Vista, no PATCH reached Airtable; the discount/markup
+were only exercised through the `input` preview).
+
+1. **Big quote change can't be missed.** When the drawing's total differs from what Airtable has now
+   (`airtableLinesTotal`) by more than 10 %, a red box sits at the top of the Tilboð panel: "Tilboðið lækkar/hækkar
+   um X m.kr. (N %) þegar þú vistar" + **Skoða línur** (scrolls to the first changed line, blinks them). Every line whose
+   amount changes gets a red edge and "var X kr." / "ný lína" under its total; the Höldur row shows "var 765" / the old
+   amount. kp-price now returns `was` per line (Airtable's Einingarverð × Magn × vsk, 0 for a new line). Under 10 % only
+   the calm grey line + yellow notes, as before. T-32: −4,15 m.kr. (75 %), mostly Höldur 765 → 20, and every line is
+   marked because the drawing's materials differ from the Tækifæri (so Vista really re-prices every line).
+2. **Ósýnilegur afsláttur / Smáverka álagning** have an ⓘ (hover/focus tooltip: what it does, that it isn't a line on
+   the quote, only the office sees it, when it's written). The total moves **while typing**: the panel sends
+   `project:{hidden, small}` to kp-price as a preview (unchanged lines = Airtable's Einingarverð × new/old factor, a
+   price-locked line stays as is, handles untouched); the PATCH to the Tækifæri still happens on change/blur, and now
+   says so if it fails ("Vistaðist ekki á Tækifærið …"). T-32: 10 % → 1,390,685 → 1,262,106. Test in tests/kp-price.test.js.
+3. **Skápalisti** = a sheet after the rooms' sheets (T-32: blað 5 of 5), same A3 frame / right column / title block,
+   in the preview, Prenta / PDF and Vista á Tækifæri (same `pages` array). `KPWD.cabinetSheets` (18 rows a sheet, room
+   group headers when several rooms, "(1/2)" when long) from `wdCabinetRows()` in the planner, which reads each
+   **Line Item exactly as Vista sends it** (`collectLineItems` → its Smíðagögn JSON, V1, Frontaefni #2); door/hinge
+   counts come from `proDoorsOf`/`proSpec` (what smidaFor/cnc use), ×2 leaves when `hinge:"baedi"`. Columns: Sk,
+   tegund · V1, B × H × D (skrokkur), framhlið (FR1/FR2 + innskúffufrontar), skúffur ofan frá with Sérhæð, hurðir/lamir,
+   hillur (lausar/fastar, LH over an oven, slár), grip/höldur (Fræst grip or the project's handle), athugasemd (ofn, vaskur,
+   skiptir frontar, LED, eyja, no V1, "Ekki yfirfarinn í Smíða"). Listed on the cover when there is one. Size: goes
+   through api/kp-workdraw.js (4.3 MB cap), not kp-drawings; T-32 at 180 dpi = 273+312+244+243+438 KB PNG ≈ 1.5 MB,
+   the 150 dpi fallback is unchanged. Rows use their own Icelandic plural (`wdPl`) so the sheet never translates.
+4. **Grunnmynd**: Sk labels 2.3 → 4.6 mm (shrunk only where the footprint is too small, rotated on a deep narrow one),
+   drawn after every footprint with a white halo (a dashed wall unit above ran through SK1/SK5). ATHUGASEMDIR on every
+   sheet's right column is black, 2.5 mm (was green 2.1), stops above the legend with "… fleiri athugasemdir".
+8. **Skoðunarhamur**: `proRoSync()` (called from proBar) puts `body.pro-ro` while locked: "+ Ný eining" grey, undo/redo,
+   Sökkull, ← Til baka, the cabinet float bar (færa/læsa/afrita/fjarlægja), the editable size chip and "+ Næsti hægra
+   megin" dimmed, all with the title "Opnaðu til breytinga fyrst"; a capture click listener swallows their clicks with a
+   toast. "Opna til breytinga" restores titles and clicks. Still possible while locked (not changed): dragging a cabinet
+   in 3D, keyboard ⌘Z / Delete, the side panel's own edit fields — local only, Vista isn't offered.

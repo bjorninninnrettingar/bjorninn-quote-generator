@@ -56,3 +56,30 @@ test("homeSheet: every room on one sheet with its name, no per-wall labels", () 
   const svg = globalThis.KPWD.homeSheet({ project: "T-40" }, geo, 2, 6);
   assert.match(svg, /ALLT HEIMILIÐ/); assert.match(svg, />Eldhús</); assert.match(svg, />Stofa</); assert.doesNotMatch(svg, /Veggur 1 · 3000/);
 });
+
+// 2026-10-26: Skápalisti — one row per Sk on the same A3 frame/title block, split over sheets when long
+test("cabinetSheet: a row per Sk, title block, more sheets for a long list", () => {
+  const W2 = globalThis.KPWD;
+  const row = (i) => ({ sk: "Sk" + i, type: "Grunnskápur", product: "Grunnskápur 60sm", size: "600 × 800 × 600", front: "FR1", drawers: "M-M 174 / M-K 411 / M-E 215", doors: "", shelves: "", grip: "Comet", note: "" });
+  const one = W2.cabinetSheets({ project: "T-32 | Prófun", date: "26.10.2026", notes: ["FR1 – Hvítt"] }, [row(1), row(2), { group: "Eldhús" }, row(3)], 5, 5);
+  assert.equal(one.length, 1);
+  assert.match(one[0], /SKÁPALISTI — T-32/);
+  assert.match(one[0], />Sk2</);
+  assert.match(one[0], />M-M 174 \/ M-K 411 \/ M-E 215</);
+  assert.match(one[0], /Blað 5\/5/);
+  assert.doesNotMatch(one[0], /font-size="[^"]*"[^>]*font-size=/); // one font-size per <text> (a duplicate breaks the PDF raster)
+  const many = W2.cabinetSheets({ project: "T-1" }, Array.from({ length: 40 }, (_, i) => row(i + 1)), 2, 4);
+  assert.equal(many.length, 3);
+  assert.match(many[2], /\(3\/3\)/);
+  assert.equal(W2.cabinetSheetCount(Array.from({ length: 40 }, (_, i) => row(i + 1))), 3);
+});
+
+test("Grunnmynd: Sk labels about twice the old size, notes in black", () => {
+  const W2 = globalThis.KPWD;
+  const geo = { walls: [{ id: "w1", label: "Veggur 1", lenMm: 3000, a: { x: 0, z: 0 }, b: { x: 3, z: 0 }, n: { x: 0, z: 1 } }, { id: "w2", label: "Veggur 2", lenMm: 3000, a: { x: 3, z: 0 }, b: { x: 3, z: 3 }, n: { x: -1, z: 0 } }],
+    units: [{ zone: "floor", sk: "Sk1", poly: [{ x: 0, z: 0 }, { x: 0.6, z: 0 }, { x: 0.6, z: 0.6 }, { x: 0, z: 0.6 }] }] };
+  const s = W2.overviewSheet({ project: "T-1", notes: ["FR1 – Hvítt"], planGeo: geo }, 1, 2);
+  const m = s.match(/<text[^>]*font-size="([\d.]+)"[^>]*>SK1</);
+  assert.ok(m && +m[1] >= 4, "SK label " + (m && m[1]));
+  assert.match(s, /<text[^>]*fill="#1d1d1f"[^>]*>FR1 – Hvítt</);
+});
