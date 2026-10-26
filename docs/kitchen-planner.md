@@ -476,3 +476,13 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   "Annað" rooms go in as Rými "Alrými" with the typed name in the note (never a new Rými choice).
 - Not changed: PRO's "🚪 Hurðir" button still opens the old overlay (`openDoorList`, edits the same objects), doors
   drawn in a room's walls (`homeDoorPop`), workdraw door sheet.
+- **Round 2 (2026-10-26, coordinator walk):** count page updates in place (a re-render on the box's change ate the next
+  "+" click — 1 → + + gave 2) and Áfram reads the box; Lamir = picture cards + camera on the upper hinges from the hinge
+  side, leaf ajar (visible = barrels, hidden = a flush slot in the seam); Felliþröskuldur = low at the free-side bottom
+  corner with a dark strip under the opening so the gap reads, "Þétting" loops shut → aluminium seal drops; thumbnails
+  are tight 3D renders of the door as designed with its material (spónlagt = the middle of the swatch photo, Egger =
+  its tile; re-rendered when the texture loads, `KPDOORS.onTexture`); popup's whole view centred with margin; Yfirlit +
+  note say "Húnn: söluaðili ráðleggur / vel sjálf/ur" (Senda inn's "Það sem þú pantar" gets a Húnar row); toasts cleared
+  on list actions/page change; wall thickness drawn as a small dimension (arrows from outside + leader to the pill);
+  Afrita leaves the room empty (dropdown highlighted + focused); "Eins og HU-n" chips at the top of an undesigned
+  door's popup copy everything but Mál (Mál opens first, the rest shows as done).
