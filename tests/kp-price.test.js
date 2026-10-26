@@ -1,7 +1,7 @@
 // api/kp-price.js — the PRO live quote: Airtable's Line Item price formula, reproduced.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import handler, { unitPrice, validate, num } from "../api/kp-price.js";
+import handler, { unitPrice, validate, num, price } from "../api/kp-price.js";
 import { mockRes } from "./helpers.js";
 
 const A = "recAAAAAAAAAAAAAA", B = "recBBBBBBBBBBBBBB", C = "recCCCCCCCCCCCCCC";
@@ -52,4 +52,19 @@ test("validates input and needs the office key", async () => {
   const res = mockRes();
   await handler({ method: "POST", body: { k: "wrong", recordId: A, lines: [] } }, res);
   assert.equal(res.statusCode, 403);
+});
+
+// D3 (2026-10-26): the live quote is compared with the same lines + handles as Airtable has them now, not with the
+// Tækifæri's whole Tilboðsupphæð (which also holds parts that aren't lines) — T-32 showed "−4,154,620 þegar þú vistar".
+test("airtableLinesTotal = Airtable's own lines × Einingarverð + handles, apart from the Tækifæri's Tilboðsupphæð", async () => {
+  const opp = { id: "recOPP0000000000a", fields: { fldDC7LI0D4cUeCds: "T-99 | Prófun", fldeXc2zWOrmaGtkC: 5000000, fldYsA3vFjGHXYN3B: 12400 } };
+  const rows = [
+    { id: "recLINE000000000a", fields: { "🔑": "Sk1", "Magn": 2, "Einingarverð": 100000, "Tækifæri 📣 (projects)": [opp.id] } },
+    { id: "recLINE000000000b", fields: { "🔑": "Annað", "Magn": 1, "Einingarverð": 50000, "Tækifæri 📣 (projects)": [opp.id] } },
+    { id: "recLINE000000000c", fields: { "🔑": "Sk9", "Magn": 0, "Einingarverð": 99999, "Tækifæri 📣 (projects)": [opp.id] } },
+  ];
+  const at = async (method, path) => path.startsWith("tbl4LMXlQjp66RFKI/") ? opp : path.startsWith("tblFcsUoGxsuUwNEH") ? { records: rows } : { records: [] };
+  const d = await price(at, { recordId: opp.id, lines: [] });
+  assert.equal(d.airtableTotal, 5000000);
+  assert.equal(d.airtableLinesTotal, Math.round((2 * 100000 + 50000) * 1.24 + 12400));
 });
