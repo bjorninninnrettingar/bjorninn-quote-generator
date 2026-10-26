@@ -10820,7 +10820,8 @@
       if (b.dataset.mclose != null){ el.remove(); return; }
       if (b.dataset.mdone != null){
         M.at = new Date().toISOString(); save(); draw();
-        if (PRO && PRO.ready && typeof proSave === "function"){ proSave(); toast("✓ Mæling skráð og vistuð í Airtable."); }
+        if (PRO && PRO.ready && typeof proSave === "function") proSave().then(function(){ // only claim "vistuð" when it was (2026-10-26)
+          toast(proDirty() ? "Mæling skráð í teikninguna — vistunin tókst ekki (sjá efst), reyndu Vista aftur." : "✓ Mæling skráð og vistuð í Airtable."); });
       }
     };
     draw();

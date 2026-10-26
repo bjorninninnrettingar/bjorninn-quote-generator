@@ -324,3 +324,5 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
 - Still open: several closets per project (handled by the Allt heimilið session's `type:N` keys).
 - Baðherbergi + Þvottahús flows (2026-10-26): [studio-bad-thvottahus.md](studio-bad-thvottahus.md)
 - Innihurðir as steps + Allt heimilið as a list (2026-10-26): see [studio-hurdir-heimili.md](studio-hurdir-heimili.md)
+
+- **PRO "finish it" round (2026-10-26)** — Smíða fixes, Yfirferð gate before Vista, header fit, Veggur Op í vegg: see [pro-finish.md](pro-finish.md).
