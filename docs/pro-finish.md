@@ -73,3 +73,38 @@ sideways) — `placeWallCycle()` measures again once laid out.
   button opened, called `/api/kp-pro`, and stopped when it failed.
 - `state.proAck` / `state.measurement` travel inside the planner JSON like the rest of the state; kp-pro stores the
   state as sent, so nothing server-side changed.
+
+## QA round (2026-10-26, report `/private/tmp/claude-501/pro-qa-2026-10-26.md`)
+
+Blockers:
+- **A1** A PRO project with no drawing (`freshState("byrja")`) had no `categoryData` → Byrja "Áfram" threw. Fixed in the
+  Byrja handler; `withEachCategory` also tolerates a state with no room bookkeeping yet.
+- **A2** Several rooms queued in PRO: the editor's Áfram button (hidden in PRO) becomes **"Næsta rými: X →"** (wraps
+  round the queue, `proNextRoom`); the gate's new first line **"Öll rými teiknuð (N)"** lists every queued room, also
+  ones never opened ("ekki teiknað enn") or with no units — "Laga" opens that room.
+- **B1** Ný eining → "Úthlið — neðri" came out "há, 19 × 2500": `matchPanelToNeighbour` re-typed it from the tall
+  neighbour. The wizard now passes `keepType` (type kept; height only taken from a same-kind neighbour).
+
+Ruglar:
+- **A3** A unit no standard product fits: pick its V1 right in the gate (all V1 Útfærslur in `KP_LINEMAP`, by name) →
+  `b.v1Pick`, which `v1RecordFor` returns first; Smíða shows "Vara: … (valin í Yfirferð)". Units without a block (door
+  lines) keep the "Útfærsla valin í Airtable" tick.
+- **A4** Per-cabinet button = **"Skápur yfirfarinn ✓"** (and its notes/toasts); only the project gate says "Klár til framleiðslu".
+- **A5** Gate lists in Sk order. **A7** 0 units never counts as done (vara/villur/smíða lines).
+- **A6** "Mæling lokið" only when every row is ticked (counted from what's in the room now), labelled "— vista í Airtable" in PRO.
+- **A8** A customer drawing (`Sjálfsafgreiðsla — óyfirfarið`) adds a gate line; the bar button is "Merkja teikningu yfirfarna".
+- **A10** A failed Vista shows "Vistun tókst ekki: … · ● óvistað".
+- **B5** "not yet reviewed" Smíða button is amber, red stays for ⛔. **C4** no Vinstri/Hægri hinge toggle when no door is on hinges.
+- **C1** Smíða subtitle counts drawer/oven/shelf/rail/inner-drawer edits ("Breytt hér — fer í Airtable þegar þú vistar").
+- **C2** ⛔ hinge collisions get **"Færa lamirnar sjálfkrafa"** (`proAutoHinges`): each colliding hinge moves to the
+  nearest clear spot, missing ones are added, written to Smíðagögn so /cnc drills what the drawing shows (the shared
+  /cnc default was not changed).
+- **D3** Not a wrong number after all: T-32's Airtable lines also sum to 5,545,305 — Vista *would* drop it, mostly
+  Halda 765 → 20. kp-price now returns `airtableLinesTotal` (lines × Einingarverð + handles) and the handles'
+  Airtable count/amount; the Tilboð compares like with like, shows the Tækifæri's Tilboðsupphæð apart when different,
+  and says "Höldur: 765 stk í Airtable → 20 stk í teikningunni (−4,258,656 kr.)". Test in `tests/kp-price.test.js`.
+- **E1** Editor toolbar tightened below 1400 px — fits at 1280 (also with "13 ábendingar").
+- Error reporter ("Skipulag villur"): already capped 3 / deduped per page load; now also deduped per browser session
+  and never sent from localhost or an automated browser (`navigator.webdriver`).
+
+Not done (optional smáatriði): A9, A11, A12, B2–B4, B6, C3, C5, D1, D2, D4, E2.

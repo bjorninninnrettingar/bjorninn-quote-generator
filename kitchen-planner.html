@@ -1440,7 +1440,7 @@
   #tilbodPanel .tp-msg { font-size:12px; color:var(--ink-soft); }
   #tilbodPanel .tp-loading { opacity:.55; transition:opacity .2s; }
   .pro-open { width:100%; margin:0 0 12px; padding:10px 12px; border-radius:10px; border:0; background:#1d2633; color:#fff; font:700 14px/1.2 inherit; cursor:pointer; }
-  .pro-open.todo { background:#b3261e; } .pro-open.ready { background:#1f9d55; }
+  .pro-open.todo { background:#8a6a12; } /* not reviewed yet = amber; red stays for ⛔ (B5, 2026-10-26) */ .pro-open.ready { background:#1f9d55; }
   #proEd .pe-ready { width:100%; margin-top:14px; padding:11px; border:0; border-radius:10px; font:700 14px/1.2 inherit; cursor:pointer; color:#fff; background:#1f9d55; }
   #proEd .pe-ready:disabled { opacity:.45; cursor:not-allowed; }
   #proEd .pe-issues { margin:0 0 12px; padding:9px 11px; border-radius:10px; background:#3a1f1b; color:#ffb4a6; font-size:13px; line-height:1.4; }
@@ -14035,7 +14035,8 @@
         '<div class="pe-row">Dýpt: <input type="number" step="1" min="' + dD[0] + '" max="' + dD[1] + '" value="' + (b.depthMm || c.d) + '" data-pe="dimd"> mm</div>' +
         '</div>';
     }
-    if (doors.length) right += bothHinges
+    var anyHinged = doors.some(function(d, i){ return proSpec(b, doors, i).type === "hinged"; }); // lift / sliding doors have no side hinges (C4)
+    if (doors.length && anyHinged) right += bothHinges
       ? '<div class="pe-row">Lamir: <button type="button" class="pe-btn on" disabled>Vinstri</button><button type="button" class="pe-btn on" disabled>Hægri</button> <span class="pe-note" style="display:inline">(breiðari en 600 mm — lamir báðum megin)</span></div>'
       : '<div class="pe-row">Lamir:<button type="button" class="pe-btn' + (hingeLeft ? " on" : "") + '" data-pe="side" data-v="vinstri">Vinstri</button>' +
         '<button type="button" class="pe-btn' + (!hingeLeft ? " on" : "") + '" data-pe="side" data-v="haegri">Hægri</button></div>';
@@ -15076,7 +15077,7 @@
         (d.projectUpdated && d.projectUpdated.length ? "; á Tækifærinu: " + d.projectUpdated.map(function(f){ return f.replace(/ (🔲|🖼️|🍽️|✊|🎨)| viðskiptavinar/g, ""); }).join(", ") : "") +
         (d.removed && d.removed.length ? ". " + d.removed.join(", ") + " " + plural(d.removed.length, "er", "eru") + " ekki lengur í teikningunni — eyddu línunni (og Eyðublaðinu) í Airtable ef skápurinn á að fara." : "."));
       tp.last = null; proTilbodRefresh(true); // Airtable's own total just changed
-    }catch(e){ proBar("" + e.message); }
+    }catch(e){ proBar("Vistun tókst ekki: " + e.message + (proDirty() ? " · ● óvistað" : "")); } // A10: the unsaved marker stays visible
   }
   async function proBoot(){
     document.body.classList.add("pro");
