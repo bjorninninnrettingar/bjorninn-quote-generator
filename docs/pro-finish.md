@@ -188,3 +188,41 @@ Found, not changed: Keyra skipulag sets "Tveir frontar" on an **Efriskápur from
 `> 600`), but Smíða / the 3D / `smidaFor`'s `hinge` use **> 600** everywhere. A 500–600 mm wall cabinet would get two
 leaves in Sögunarlisti while Smíðagögn says hinges on one side only → /cnc would drill hinges in one side for two
 leaves. T-32 has none in that range; needs a decision on which rule is right.
+
+## New project round (2026-10-26) — starting a project in PRO is fast
+
+Tested on T-199 (`rec0Hylqy26rrPmKz`, no drawing, no contact) and T-32 with the read-only local server, 1440×900 and
+1280×720; customer Eldhús walked end to end (5 room pages + 5 Efni pages unchanged).
+
+1. **Header**: `proNameHtml()` — "T-199 · Nýtt verkefni" while the name has no contact ("T-199 | -"); the T-number is
+   its own span that never shrinks, only the contact/address part ellipsizes (full name in the tooltip).
+2. **Progress**: PRO hides the customer stepper; `#proSteps` (in `updateStepper`) shows "1. Rými › 2. Rýmið — Eldhús
+   (1 af 2) › 3. Teikning" on the room pick and the Rýmið page only.
+3. **Rýmið = one page** (`renderProRoomBox`, `#shapeProBox`): PRO's shape step is always the sizing drawing
+   (`shapePhase = "size"`, walls still drag); a fresh room starts as the room kind's usual shape (`proDefaultShape`).
+   Beside it: shape tiles, Lofthæð, then per wall its length + Opið, each window/door/op (frá horni, breidd, hæð, frá
+   gólfi, ×), "+ Gluggi / + Hurð / + Op / + Vatn" and the water point (frá horni) — all mm, Enter commits and moves to
+   the next field, the drawing redraws, dragged walls update the table (`syncProRoomVals`), the water point is drawn as
+   a marker. Writes the same fields the five pages did (walls, roomHeightMm, windows, doors, waterWall/waterAlongMm,
+   openingsDone). Obstacles (ofnar, lagnir) stay in the editor's "Gluggar og hindranir". The editor's "← Til baka"
+   goes back here in PRO (it went to the Efni pages). The Mæling sheet is unchanged (it's the on-site tick list).
+5. **Efni skipped in PRO**: "Áfram í teikningu →" (`proRoomDone`) → `proMatDefaults()` puts in the usual materials
+   (room kind's `categoryDef.defaults` first, else dökkgrátt / Merivo / Egger W1000 white / Jey / W1000 top; no top in a
+   wardrobe) and remembers each in `state.matAuto` (a ROOM_FIELD, copied with the materials to the project's next room).
+   A material is "óákveðið" while it still equals what was put in (`matUndecided()`): the Efni menu shows an amber
+   ÓÁKVEÐIÐ tag on that field; Yfirferð's "Efni og höldur valin" row is not green and lists them, "Laga →" opens the
+   Efni menu at the first one, or tick "Sjálfgefnu efnin eru rétt" (ack tied to the set, like Ábendingar). Picking any
+   other value clears it.
+7. **mm in the Ný eining wizard in PRO**: chips, "Annað mál" input (min/max/step), folded headers, corner notes,
+   Lausar hillur / hung-unit chips and the preview's dimension lines use `uwN` / `uLen` / `uUnit` (customer still cm).
+8. **Kitchen Ný eining = one type list** (`KITCHEN_TREE`, customer and PRO): 25 types under group headings
+   (Grunnskápar, Háir, Efri, Eldhústæki, Eyja, Úthliðar), three a row, descriptions in tooltips — fits one screen at
+   1440×900 (7 px scroll at 1280×720). A click goes straight to Mál → **Skúffur eða hurðir** (picture cards, `frontsWiz`,
+   the kitchen's one Grunnskápur / Vaskaskápur / Lítill kassi) → Innvols; Eyja / Bak á eyju go straight to their own
+   config. **PRO kitchen is short** (`uwShort`): Breidd (+ Skúffur eða hurðir) then Setja inn → Smíða; úthliðar and
+   Lausar hillur keep their sizes. Þvottahús keeps `UNIT_TREE`-style two levels; Fataskápar/Bað unchanged. PRO A's
+   "+ Næsti hægra megin" finds the type in the new tree and starts a door cabinet's neighbour with a door.
+   EN strings for the new labels in kitchen-planner-i18n.js.
+
+Not done / left as is: the T-199 contact itself (Nýtt verkefni until a Tengiliður is linked in Airtable); Þvottahús'
+tree; PRO bath/wardrobe wizards still show all sections.
