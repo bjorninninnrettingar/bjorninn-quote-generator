@@ -2066,7 +2066,7 @@
             var rot = new THREE.Group(), lift = new THREE.Group(), h2 = new THREE.Group();
             lift.add(jp.clone(true)); rot.add(lift); // the same frame as on the top edge, turned: inside its own door, in the cut-out
             rot.rotation.z = sg > 0 ? -Math.PI / 2 : Math.PI / 2; h2.add(rot); // turned so the finger lip faces the opening (was the wrong way round, user 2026-10-25)
-            place(h2, (top + bottom) / 2, jout, twoLeaf ? 0 : sg * hw / 2 + hOff);
+            place(h2, (top + bottom) / 2, jout, twoLeaf ? 0 : sg * (hw / 2 - SIDE_REVEAL_M) + hOff); // the door's side has its 2 mm reveal (the top edge doesn't) — in by that, so it meets the front as on the top edge
           }); }
           else if (atBottom){ // wall units: the profile runs along the bottom edge, upside down (finger lip facing down)
             var jr = new THREE.Group(), jh = new THREE.Group(); jr.add(jp); jr.rotation.z = Math.PI; jh.add(jr);
@@ -2081,10 +2081,10 @@
         if (tpf){
           if (vertical){ // tall units: an edge pull on the free side, at chest height
             var vyc = Math.max(bottom + 0.12, Math.min(top - 0.12, 1.05));
-            sides.forEach(function(sg){ var rotT = new THREE.Group(), hT = new THREE.Group(); rotT.add(tpf.clone(true)); rotT.rotation.z = (sg > 0 ? -Math.PI / 2 : Math.PI / 2) * (hcfg.flip ? -1 : 1); hT.add(rotT); /* a flipped model (Vann) turns the other way, as on the top edge */ place(hT, vyc, -(hcfg.embedMm || 0) / 1000, (twoLeaf ? 0 : sg * hw / 2 + hOff) - sg * (hcfg.dropMm || 0) / 1000); }); // dropped in from the edge + sunk into the front, as on the top edge
+            sides.forEach(function(sg){ var rotT = new THREE.Group(), hT = new THREE.Group(); rotT.add(tpf.clone(true)); rotT.rotation.z = (sg > 0 ? -Math.PI / 2 : Math.PI / 2) * (hcfg.flip ? -1 : 1); hT.add(rotT); /* a flipped model (Vann) turns the other way, as on the top edge */ place(hT, vyc, -(hcfg.embedMm || 0) / 1000 + EMBED_CLEAR_M, (twoLeaf ? 0 : sg * (hw / 2 - SIDE_REVEAL_M) + hOff) - sg * (hcfg.dropMm || 0) / 1000); }); // dropped in from the edge + sunk into the front, as on the top edge
           } else {
             var centres = twoLeaf ? [-hw / 4, hw / 4] : [hOff];
-            centres.forEach(function(cxT){ var rotB = new THREE.Group(), hB = new THREE.Group(); rotB.add(tpf.clone(true)); if (atBottom !== !!hcfg.flip) rotB.rotation.z = Math.PI; hB.add(rotB); place(hB, atBottom ? bottom + (hcfg.dropMm || 0) / 1000 : top - (hcfg.dropMm || 0) / 1000, -(hcfg.embedMm || 0) / 1000, cxT); }); // wall units: on the bottom edge, upside down
+            centres.forEach(function(cxT){ var rotB = new THREE.Group(), hB = new THREE.Group(); rotB.add(tpf.clone(true)); if (atBottom !== !!hcfg.flip) rotB.rotation.z = Math.PI; hB.add(rotB); place(hB, atBottom ? bottom + (hcfg.dropMm || 0) / 1000 : top - (hcfg.dropMm || 0) / 1000, -(hcfg.embedMm || 0) / 1000 + EMBED_CLEAR_M, cxT); }); // wall units: on the bottom edge, upside down
           }
           return;
         }
@@ -5761,7 +5761,11 @@
     return g;
   }
 
-  var FRONT_T = 0.02;   // fronts are 20 mm thick; the carcass is (depth - 20 mm)
+  var FRONT_T = 0.02;
+  // a door's side edge sits 2 mm in from its slot (slab = width - 4 mm); an upright handle is moved in by that so it meets
+  // the front exactly as it does on the top edge (user, 2026-10-26: Jey "1–2 mm nær frontinum"). A sunk-in handle (Vann)
+  // stops 0.5 mm short of the front's back face, so the two never share a plane (that flickered).
+  var SIDE_REVEAL_M = 0.002, EMBED_CLEAR_M = 0.0005;   // fronts are 20 mm thick; the carcass is (depth - 20 mm)
 
   function setCabinetPreview(cfg){
     if (!PREVIEW) return;
