@@ -108,3 +108,11 @@ hardware only when the id is in HINGES/LOCKS/THRESHOLDS (never guessed); each fi
 (test in tests/cnc-doors.test.js; T-54's six door cards compared before/after: identical). The card's "Op H × B" now
 shows the plan's numbers (same as the Eyðublað's when filled). Where PRO sets these: Hurðir → Hanna → Smíða
 (docs/pro-finish.md).
+
+### Legacy projects — /smida (2026-10-26)
+`cnc-data.js` now holds /cnc's queries + per-unit maps (`CNCDATA.load/sideInput/gripFor/legacy`), shared with `/smida`
+("Smíða úr Eyðublöðum", docs/pro-finish.md) so both plan from identical rows. On a project whose Eyðublöð no Line Item
+made, each card's fix link is **"Laga í Smíða →"** (`/smida?…&unit=`). New Smíðagögn key: `oven.boards:"list"` — every
+board/shelf of an old Ofnaskápur is in `oven.shelves` (Sögunarlisti counts the niche boards as fixed shelves); no
+automatic Loftunarbotn/-toppur then. Card labels on such projects use `SD.shortName` ("Sk 5-8", was "Sk").
+Seen, not changed: a multi-cabinet Eyðublað (T-15 Sk 5-8, 4 cabinets) lists its door front "keyra ×1", not ×4.

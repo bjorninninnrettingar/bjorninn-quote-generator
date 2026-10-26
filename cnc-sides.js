@@ -249,7 +249,14 @@
       }
       return sl;
     }
-    if (oven && so && num(so.under) > 0 && num(so.h) > 0) {
+    // Legacy Ofnaskápur (Eyðublað planned in Airtable, edited in /smida, 2026-10-26): there Sögunarlisti's "Föst
+    // loftunarhilla" count INCLUDES the board the oven stands on and the one over it, so `boards:"list"` = every
+    // board and shelf is in oven.shelves at its own mm (no automatic niche boards), counted like any cabinet's list.
+    if (oven && so && so.boards === "list" && Array.isArray(so.shelves)) {
+      var slL = emitShelves(so.shelves, 0, false);
+      info.push("Ofn úr Smíða (Eyðublað): " + (num(so.h) || "?") + " mm, " + slL.length + " hillur/botnar á sínum stað");
+      ovenDone = true;
+    } else if (oven && so && num(so.under) > 0 && num(so.h) > 0) {
       var nb = r1(num(so.under)), nt = r1(nb + num(so.h) + OVEN_BOARD);
       op("FOST_HILLA", "Loftunarbotn (ofn stendur á)", OVEN_BOARD + ", " + nb + ", 2, lpy-22, lpz+5"); shelfRows.push(nb);
       if (nt <= H - T) { op("FOST_HILLA", "Loftunartoppur", OVEN_BOARD + ", " + nt + ", 2, lpy-22, lpz+5"); shelfRows.push(nt); }
