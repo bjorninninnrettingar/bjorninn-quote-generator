@@ -85,7 +85,7 @@
     if (b){ e.preventDefault(); setLang(b.getAttribute("data-setlang")); }
   });
 
-  window.KPI18N = { get lang(){ return cur(); }, chosen:lang, isPro:isPro, EN:EN, PATTERNS:PATTERNS, missing:missing,
+  window.KPI18N = { get lang(){ return cur(); }, get forced(){ return forced > 0; }, chosen:lang, isPro:isPro, EN:EN, PATTERNS:PATTERNS, missing:missing,
     add:add, addPat:addPat, __:__, plural:plural, asIS:asIS, asISAsync:asISAsync, apply:apply, setLang:setLang, norm:norm };
   window.__ = __;
 
@@ -1814,6 +1814,54 @@
     "Enginn listi í kringum": "No trim around it",
     "Með listum í kringum": "With trim around it",
     "Gerefti hylja samskeytin": "Trim covers the joints"
+  });
+
+  // ---- cm for customers (2026-10-26, docs/studio-cm.md): the unit is filled in ({u} = cm, or mm in PRO) ----
+  add({
+    "Veggur má vera {a}–{b} {u}.": "A wall can be {a}–{b} {u}.",
+    "Skápar á {w} taka {n}.": "The cabinets on {w} take up {n}.",
+    "Skáskurðurinn má ekki vera minni en {n}.": "The cut can't be less than {n}.",
+    "Of nálægt horni — veggur má ekki vera styttri en {n}.": "Too close to a corner — a wall can't be shorter than {n}.",
+    "Lofthæð þarf að vera {n}–{m} {u}.": "Ceiling height must be {n}–{m} {u}.",
+    "Má vera {a}–{b} {u}.": "Can be {a}–{b} {u}.",
+    "Raunlengd veggjar 1 ({u}):": "Real length of wall 1 ({u}):",
+    "Þarf að vera á milli 0 og {n}.": "Must be between 0 and {n}.",
+    "Bilið þarf að vera á milli 0 og {n}.": "The gap must be between 0 and {n}.",
+    "{what} þarf að vera á milli {a} og {b}.": "{what} must be between {a} and {b}.",
+    "{item} {v} passar ekki á {wall}.": "{item} {v} doesn't fit on {wall}.",
+    "Hæð þarf að vera á milli {a} og {b}.": "Height must be between {a} and {b}.",
+    "Sökkulhæð þarf að vera á milli {a} og {b}.": "Plinth height must be between {a} and {b}.",
+    "<b>Það vantar úthliðar á {n} {places}.</b> Sýnilegar hliðar á skápum fá {t} úthlið í framhliðaefninu. Viltu að við bætum þeim við?": "<b>End panels are missing in {n} {places}.</b> Visible cabinet sides get a {t} end panel in the front material. Shall we add them?",
+    "Efsti frontur er {top} — {what} minnst {min}.": "The top front is {top} — {what} at least {min}.",
+    "vaskurinn (~{n}) þarf": "the sink (~{n}) needs",
+    "{kind} skúffa er undir {min} lágmarkinu": "{kind} drawer is below the {min} minimum",
+    "{kind} ({v}, lágmark {min})": "{kind} ({v}, minimum {min})",
+    "{n} þykkar": "{n} thick",
+    "{name} {w} passar ekki á {wall}.": "{name} {w} doesn't fit on {wall}.",
+    "Lofthæð er utan {min}–{max} {u} — lagaðu áður en gengið er frá.": "Ceiling height is outside {min}–{max} {u} — fix it before you finish.",
+    "{name} {w} passar ekki í þetta bil.": "{name} {w} doesn't fit in this gap.",
+    "Þykkt: {n}.": "Thickness: {n}.",
+    "Lengd: <b>{n}</b> — reiknast út frá skápunum. Veldu skáp í eyjunni til að breyta breidd hans, eða notaðu ＋ og ✕ til að breyta fjölda.": "Length: <b>{n}</b> — worked out from the cabinets. Select a cabinet in the island to change its width, or use ＋ and ✕ to change how many.",
+    "Örvar á lyklaborði færa líka (Shift = {n})": "The keyboard arrows move it too (Shift = {n})",
+    "Mál ({u})": "Size ({u})",
+    "Frá gólfi ({u})": "From floor ({u})",
+    "Neðri brún skápsins · 0–{max}, eða dragðu hann upp og niður": "Bottom edge of the cabinet · 0–{max}, or drag it up and down",
+    "{t} úthlið — fylgir skápnum": "{t} end panel — goes with the cabinet",
+    "Hæð frá gólfi þarf að vera á milli 0 og {max}.": "Height from floor must be between 0 and {max}.",
+    "Bil þarf að vera á milli {a} og {b}.": "The gap must be between {a} and {b}.",
+    "{len} langur · lofthæð {h}": "{len} long · ceiling height {h}",
+    "Laust pláss: neðri röð <b>{lo}</b> · efri röð <b>{hi}</b>": "Free space: lower row <b>{lo}</b> · upper row <b>{hi}</b>",
+    "Viltu setja hann {w} breiðan í staðinn?": "Would you like it {w} wide instead?",
+    "Já, {w}": "Yes, {w}",
+    "Op í vegg (B × H, {u})": "Wall opening (W × H, {u})",
+    "Sláðu inn lengd í {u} (t.d. {ex}).": "Enter a length in {u} (e.g. {ex}).",
+    "{a} á {w} er hærri en loftið ({h}).": "{a} on {w} is taller than the ceiling ({h}).",
+    "{u}: skúffurnar rekast á höldurnar á {w} í horninu (bil {g}, höldur {p}).": "{u}: the drawers hit the handles on {w} in the corner (gap {g}, handles {p}).",
+    "Aðeins {d} gangur á milli {i} og {n} — mælt er með {w} eða meira.": "Only {d} walkway between {i} and {n} — {w} or more is recommended.",
+    "Lausar hillur": "Loose shelves",
+    "20 cm · brons": "20 cm · bronze",
+    "Lítill flipi · 20 cm": "Small tab · 20 cm",
+    "32 cm · svart og eik": "32 cm · black and oak"
   });
 
   // part F: stored/computed numbered labels from kitchen-planner-3d.js (CATALOG width variants, island rows, partition sides)

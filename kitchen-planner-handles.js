@@ -20,10 +20,10 @@ window.KPHANDLES = {
   items: {
     // finishes = the colours Innval actually stocks it in (HÖLDUR.pdf, 13.3.2025 — user: "listinn er réttur"),
     // finish = the one in its photo (state.handleColor null = that one). Only these are offered (2026-10-24).
-    comet:    { label:"Comet",     group:"ofan-a",  img:"handles/comet.jpg",    desc:"200 mm · brons", style:"tab", len:0.2, color:"#b08d57", finish:"brons", finishes:["brons", "messing", "svart"] },
-    vann:     { label:"Vann",      group:"ofan-a",  img:"handles/vann.jpg",     desc:"Lítill flipi · 200 mm", style:"tab", len:0.2, color:"#b87a55", finish:"dokkt_latun", finishes:["dokkt_latun", "stal", "svart"] },
+    comet:    { label:"Comet",     group:"ofan-a",  img:"handles/comet.jpg",    desc:"20 cm · brons", style:"tab", len:0.2, color:"#b08d57", finish:"brons", finishes:["brons", "messing", "svart"] },
+    vann:     { label:"Vann",      group:"ofan-a",  img:"handles/vann.jpg",     desc:"Lítill flipi · 20 cm", style:"tab", len:0.2, color:"#b87a55", finish:"dokkt_latun", finishes:["dokkt_latun", "stal", "svart"] },
     angle:    { label:"Angle",     group:"afestar", img:"handles/angle.jpg",    desc:"Vinkilprófíll · svartur", style:"bar", len:0.4, color:"#17171a", finish:"svart", finishes:["svart", "brons", "dokkt_latun", "stal", "hvitt"] },
-    crossing: { label:"Crossing",  group:"afestar", img:"handles/crossing.jpg", desc:"320 mm · svart og eik", style:"bar", len:0.32, color:"#d4b98c", finish:"eik_svart", finishes:["eik_svart", "svart"] },
+    crossing: { label:"Crossing",  group:"afestar", img:"handles/crossing.jpg", desc:"32 cm · svart og eik", style:"bar", len:0.32, color:"#d4b98c", finish:"eik_svart", finishes:["eik_svart", "svart"] },
     graf:     { label:"Graf Big",  group:"afestar", img:"handles/graf.jpg",     desc:"Rifflað stangarhandfang · svart", style:"bar", len:0.32, color:"#1e1d1d", finish:"svart", finishes:["svart", "dokkt_latun"] },
     sense:    { label:"Sense Big", group:"afestar", img:"handles/sense.jpg",    desc:"Bogadregið bandhandfang · svart", style:"bar", len:0.26, color:"#1a1a1c", finish:"svart", finishes:["svart", "stal"] },
     jey:      { label:"Jey",       group:"grip",    img:"handles/jey.jpg",      desc:"Prófíll yfir alla framhliðina", style:"edge", len:0.94, color:"#b8935a", finish:"cava", finishes:["cava", "svart", "stal", "hvitt"] },

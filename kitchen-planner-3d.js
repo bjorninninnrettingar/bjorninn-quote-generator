@@ -9,6 +9,16 @@
   // EN version (kitchen-planner-i18n.js): display strings go through __(); standalone (tests) it just fills {placeholders}
   var __ = window.__ || function(s, v){ return v ? String(s).replace(/\{(\w+)\}/g, function(m, n){ return Object.prototype.hasOwnProperty.call(v, n) ? v[n] : m; }) : s; };
 
+  // Customers see cm, PRO sees mm (2026-10-26, docs/studio-cm.md). The planner sets KP3D.unitCm = !PRO;
+  // anything built for Airtable runs inside KPI18N.asIS and stays mm. State is always mm.
+  function unitCm(){ return !!(window.KP3D && window.KP3D.unitCm) && !(window.KPI18N && window.KPI18N.forced); }
+  function dimNum(mm){
+    if (!unitCm()) return String(Math.round(mm));
+    var v = Math.round(mm) / 10, t = v % 1 ? v.toFixed(1) : String(v);
+    return window.KPI18N && window.KPI18N.lang === "en" ? t : t.replace(".", ",");
+  }
+  function dimLen(mm){ return dimNum(mm) + (unitCm() ? " cm" : " mm"); }
+
   // HomeByMe-style catalog (2026-09-17): the core 3 types only, each a
   // FIXED-size item (min===max on every dimension) rather than a
   // customer-adjustable range — you pick a cabinet by clicking it and
@@ -112,7 +122,7 @@
     // b.count = boards, b.vgapMm = clear gap between boards; b.heightMm is kept
     // equal to the whole stack's height (see stackHeightMm) so every height
     // check/drawing/submission treats it like any other wall unit.
-    laushilla:   { label:"Lausar hillur (38 mm)", zone:"wall", cls:"wall", defaultW:800, minW:200, maxW:3000, h:38, d:250, minH:38, maxH:2000, minD:150, maxD:450, hasInterior:false, shelfStack:true, elev:1200,
+    laushilla:   { label:"Lausar hillur", zone:"wall", cls:"wall", defaultW:800, minW:200, maxW:3000, h:38, d:250, minH:38, maxH:2000, minD:150, maxD:450, hasInterior:false, shelfStack:true, elev:1200,
                    skapategundOverride:"Efriskápur", note:"Lausar hillur, 38 mm þykkar — ekki skápur." }
   };
   var SHELF_T_MM = 38, SHELF_STACK_MAX = 5, SHELF_GAP_DEFAULT = 300;
@@ -1102,7 +1112,7 @@
             add(__("{a} skarast við {b} á {w}.", { a:__(sp.c.label), b:(op.kind === "gluggi" ? __("glugga") : op.kind === "op" ? __("op í vegg") : op.kind === "hindrun" ? lc(OBSTACLES[op.o.kind].label) : __("hurð")), w:acc(wall.label) }), [sp.b.id, op.o.id]);
           }
         });
-        if (sp.rawH > roomH) add(__("{a} á {w} er hærri en loftið ({h} mm).", { a:__(sp.c.label), w:acc(wall.label), h:roomH }), [sp.b.id]);
+        if (sp.rawH > roomH) add(__("{a} á {w} er hærri en loftið ({h}).", { a:__(sp.c.label), w:acc(wall.label), h:dimLen(roomH) }), [sp.b.id]);
       });
     });
     out.forEach(function(w){ if (w.count > 1) w.msg = w.msg.replace(/\.$/, "") + " " + __("({n} skápar).", { n:w.count }); });
@@ -1319,7 +1329,7 @@
         // cabinets with fronts along the drawers' run (≈ 450 mm out from its front)
         var firstC = CATALOG[first.type], drawers = first.interior && first.interior.mode === "skuffur" || firstC.drawersOnly;
         var alongside = (prev.floor || []).some(function(pb, j){ var f0 = pStarts[j], f1 = f0 + pb.widthMm; return hasOpenings(pb, CATALOG[pb.type]) && Math.min(f1, Lp - dC) - Math.max(f0, Lp - dC - 450) > 20; });
-        if (drawers && alongside && proj > firstFrom - clear) out.warn.push({ msg:__("{u}: skúffurnar rekast á höldurnar á {w} í horninu (bil {g} mm, höldur {p} mm).", { u:nm(first, wall), w:wl(prev.label), g:Math.round(firstFrom - clear), p:proj }), ids:[first.id] });
+        if (drawers && alongside && proj > firstFrom - clear) out.warn.push({ msg:__("{u}: skúffurnar rekast á höldurnar á {w} í horninu (bil {g}, höldur {p}).", { u:nm(first, wall), w:wl(prev.label), g:dimLen(firstFrom - clear), p:dimLen(proj) }), ids:[first.id] });
       }
     }
     return out;
@@ -1377,7 +1387,7 @@
       });
       Object.keys(byTarget).forEach(function(k){
         var t = byTarget[k];
-        if (t.d < WALKWAY_MM) push(__("Aðeins {d} mm gangur á milli {i} og {n} — mælt er með {w} mm eða meira.", { d:Math.round(t.d), i:__(isl.label), n:__(t.name), w:WALKWAY_MM }), t.ids);
+        if (t.d < WALKWAY_MM) push(__("Aðeins {d} gangur á milli {i} og {n} — mælt er með {w} eða meira.", { d:dimLen(t.d), i:__(isl.label), n:__(t.name), w:dimLen(WALKWAY_MM) }), t.ids);
       });
     });
   }
@@ -2291,7 +2301,7 @@
     // research round) doesn't clutter the way it would across a dozen kitchen cabinets; gated on
     // meta.alwaysDims (buildScene: activeCategory "fataskapar" or "fataskapar:N"), not a per-type flag, so it
     // covers every Fataskápar piece (floor and wall) uniformly.
-    if (meta && meta.alwaysDims && meta.zone !== "opening") addDimLabel(THREE, group, local(0, baseYM + heightM + 0.22, depthM / 2), Math.round(widthM * 1000) + " x " + Math.round(heightM * 1000) + " x " + Math.round(depthM * 1000));
+    if (meta && meta.alwaysDims && meta.zone !== "opening") addDimLabel(THREE, group, local(0, baseYM + heightM + 0.22, depthM / 2), dimNum(widthM * 1000) + " x " + dimNum(heightM * 1000) + " x " + dimNum(depthM * 1000));
     if (art) addArticulated(THREE, scene, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta, useFrontMat, pickables);
     else if (meta && meta.zone !== "opening" && !isPanel && !meta.appliance) addFrontDetails(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta.handle, !!meta.tall, meta.zone === "wall", meta.split || 0, meta, useFrontMat);
     if (meta && meta.appliance && !meta.applModel) addApplianceDetails(THREE, group, geom, offsetM, widthM, heightM, depthM, meta.appliance);
@@ -3485,8 +3495,8 @@
       var dir = new THREE.Vector3(1, 0, 0).applyQuaternion(wq);
       var off = wp.clone().addScaledVector(dir, (mesh.userData.widthM || 0.6) / 2 + 0.09); // just past the item's own end
       var baseY = mesh.userData.bodyBaseY, itemY = baseY + mm / 1000;
-      setGapPart(gapBelow, Math.round(mm - trueLo) + " mm", off.x, off.z, baseY + trueLo / 1000, itemY);
-      setGapPart(gapAbove, Math.round(trueHi - mm) + " mm", off.x, off.z, itemY, baseY + trueHi / 1000);
+      setGapPart(gapBelow, dimLen(mm - trueLo), off.x, off.z, baseY + trueLo / 1000, itemY);
+      setGapPart(gapAbove, dimLen(trueHi - mm), off.x, off.z, itemY, baseY + trueHi / 1000);
     }
     function hideGapInfo(){ [gapBelow, gapAbove].forEach(function(p){ if (p.label) p.label.visible = false; if (p.line) p.line.visible = false; }); }
     function setHover(mesh){
@@ -4584,7 +4594,7 @@
     lx.fillStyle = "#ffffff"; lx.strokeStyle = "#8a8f9a"; lx.lineWidth = 3;
     if (lx.roundRect){ lx.beginPath(); lx.roundRect(4, 4, 248, 64, 14); lx.fill(); lx.stroke(); } else { lx.fillRect(4, 4, 248, 64); lx.strokeRect(4, 4, 248, 64); }
     lx.fillStyle = "#191919"; lx.font = "700 34px 'Kumbh Sans', Arial, sans-serif"; lx.textAlign = "center"; lx.textBaseline = "middle";
-    lx.fillText(heightMm + " mm", 128, 38);
+    lx.fillText(dimLen(heightMm), 128, 38);
     var lt = new THREE.CanvasTexture(lc);
     if (THREE.SRGBColorSpace) lt.colorSpace = THREE.SRGBColorSpace;
     var sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:lt, depthTest:false }));
@@ -5513,13 +5523,13 @@
       // the wall's own full width/height, always shown (not just the cabinet run) — a bare wall still gets
       // dimensioned, same as the room's own wall-length label does on the 2D plan
       var p0w = P(0, -0.32), p1w = P(focusBounds.lenM, -0.32);
-      svg += dimTick(p0w.x, p0w.y, p1w.x, p1w.y, Math.round(focusBounds.lenM * 1000) + " mm", false, color);
+      svg += dimTick(p0w.x, p0w.y, p1w.x, p1w.y, dimLen(focusBounds.lenM * 1000), false, color);
       // Two height lines (2026-10-19, user): an outer one for the room's total floor-to-ceiling height, always
       // a single span; and an inner one, closer to the cabinets, chained through every real boundary — same
       // boundaries as before, plus a plinth/carcass split for each floor unit that actually sits on one (not an
       // appliance or panel) — so a single floor cabinet reads plinth · carcass · gap-to-ceiling, top to bottom.
       var p0r = P(focusBounds.lo + 0.08, 0), p1r = P(focusBounds.lo + 0.08, focusBounds.roomHM);
-      svg += dimTick(p0r.x, p0r.y, p1r.x, p1r.y, Math.round(focusBounds.roomHM * 1000) + " mm", true, color);
+      svg += dimTick(p0r.x, p0r.y, p1r.x, p1r.y, dimLen(focusBounds.roomHM * 1000), true, color);
       var plinthSrc = fw.island || fw, plinthM = ((plinthSrc && typeof plinthSrc.plinthMm === "number") ? plinthSrc.plinthMm : 100) / 1000;
       var ys = [0, focusBounds.roomHM];
       floorU.forEach(function(u){ if (u.plinth) ys.push(Math.min(plinthM, u.y1)); ys.push(u.y1); });
@@ -5528,7 +5538,7 @@
       var hx = focusBounds.lo + 0.30;
       for (var k = 1; k < ys.length; k++){
         var ph0 = P(hx, ys[k - 1]), ph1 = P(hx, ys[k]);
-        svg += dimTick(ph0.x, ph0.y, ph1.x, ph1.y, String(Math.round((ys[k] - ys[k - 1]) * 1000)), true, color);
+        svg += dimTick(ph0.x, ph0.y, ph1.x, ph1.y, dimNum((ys[k] - ys[k - 1]) * 1000), true, color);
       }
       dimSvg.innerHTML = svg;
       placeAnnotations(P, cr);
@@ -6719,7 +6729,7 @@
         var lx = midX - g.normal.x * 58, ly = midY - g.normal.z * 58, wsel = opts.selectedWallId === wallId, wAng = planTextAng(x2 - x1, y2 - y1);
         // just the wall's name here — its length is now on the dimension chain (wallDimChain) instead,
         // so this doesn't duplicate/overlap that number
-        svg += '<text x="' + lx + '" y="' + ly + '" font-size="' + (wsel ? 12.5 : 11) + '" font-weight="' + (wsel ? 700 : 400) + '" fill="' + (wsel ? "#3d61c1" : "#6f6d66") + '" text-anchor="middle" dominant-baseline="middle" transform="rotate(' + wAng + ' ' + lx + ' ' + ly + ')" style="pointer-events:none;">' + (state.walls[gi] ? escSvg(__(state.walls[gi].label)) : Math.round(g.lenM * 1000) + ' mm') + '</text>';
+        svg += '<text x="' + lx + '" y="' + ly + '" font-size="' + (wsel ? 12.5 : 11) + '" font-weight="' + (wsel ? 700 : 400) + '" fill="' + (wsel ? "#3d61c1" : "#6f6d66") + '" text-anchor="middle" dominant-baseline="middle" transform="rotate(' + wAng + ' ' + lx + ' ' + ly + ')" style="pointer-events:none;">' + (state.walls[gi] ? escSvg(__(state.walls[gi].label)) : dimLen(g.lenM * 1000)) + '</text>';
       }
     });
 
@@ -6806,7 +6816,7 @@
       if (widthM * PX_PER_M > 30 && !thin && !opts.mini){
         var cx = (X(corners[0].x) + X(corners[2].x)) / 2;
         var cy = (Y(corners[0].z) + Y(corners[2].z)) / 2;
-        var label = (bl.sk ? bl.sk + " · " : "") + bl.widthMm + (bl.interior && bl.interior.mode === "skuffur" ? " · " + __("{n}sk", { n:bl.interior.count }) : "");
+        var label = (bl.sk ? bl.sk + " · " : "") + dimNum(bl.widthMm) + (bl.interior && bl.interior.mode === "skuffur" ? " · " + __("{n}sk", { n:bl.interior.count }) : "");
         svg += '<text x="' + cx + '" y="' + cy + '" font-size="9.5" fill="' + (c.oven ? "#fff" : "#191919") + '" text-anchor="middle" dominant-baseline="middle" style="pointer-events:none;">' + label + '</text>';
       }
     }
@@ -6831,13 +6841,13 @@
         var a0 = starts[bi] / 1000, a1 = (starts[bi] + bl.widthMm) / 1000;
         var p0 = { x:g.origin.x + g.axis.x * a0 + g.normal.x * off / PX_PER_M, z:g.origin.z + g.axis.z * a0 + g.normal.z * off / PX_PER_M };
         var p1 = { x:g.origin.x + g.axis.x * a1 + g.normal.x * off / PX_PER_M, z:g.origin.z + g.axis.z * a1 + g.normal.z * off / PX_PER_M };
-        s += planDimLine(p0.x, p0.z, p1.x, p1.z, bl.widthMm, g.normal.x, g.normal.z);
+        s += planDimLine(p0.x, p0.z, p1.x, p1.z, dimNum(bl.widthMm), g.normal.x, g.normal.z);
       });
       // the wall's own full length, always shown (not just the cabinet run) — a bare wall still gets dimensioned
       var off2 = off - (floor.length ? 16 : 0);
       var q0 = { x:g.origin.x + g.normal.x * off2 / PX_PER_M, z:g.origin.z + g.normal.z * off2 / PX_PER_M };
       var q1 = { x:g.origin.x + g.axis.x * g.lenM + g.normal.x * off2 / PX_PER_M, z:g.origin.z + g.axis.z * g.lenM + g.normal.z * off2 / PX_PER_M };
-      s += planDimLine(q0.x, q0.z, q1.x, q1.z, Math.round(g.lenM * 1000) + " mm", g.normal.x, g.normal.z);
+      s += planDimLine(q0.x, q0.z, q1.x, q1.z, dimLen(g.lenM * 1000), g.normal.x, g.normal.z);
       return s;
     }
 
@@ -6890,6 +6900,9 @@
   }
 
   window.KP3D = {
+    unitCm: false, // set by the planner (customers); see dimLen
+    dimNum: dimNum,
+    dimLen: dimLen,
     CATALOG: CATALOG,
     LOOKS: LOOKS,
     LOOK_ORDER: LOOK_ORDER,
