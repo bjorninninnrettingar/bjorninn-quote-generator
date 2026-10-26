@@ -318,3 +318,53 @@ Rennihurð in the wizard, three unit types).
 
 Not done: at "100%" a side (2470 × 563) is only ~90 px tall in the ~390 px column — zoom is the way to see detail; the
 column wasn't widened so the right side doesn't move between tabs.
+
+## Baðherbergi in PRO (PRO F, 2026-10-26)
+
+Tested on T-199 (fresh bath, "+ Vatn" on Veggur 1) and a customer-drawn bath (Horn) loaded in PRO, read-only server.
+
+1. **U-skúffa (vatnslás)**: every bath vaskaskápur with drawers (`bathSinkUnit`) marks its top drawer automatically —
+   Smíðagögn `vatnslas:{drawer:"M", cut:"U"}`, a dashed blue "U · vatnslás" cut drawn on the top drawer in Smíða. No
+   /cnc macro exists (docs/cnc.md has none), so it's a hand job: a line on the Skápalisti ("U-skúffa (vatnslás):
+   M-skúffan efst — í höndunum") and in that wall sheet's notes on the workshop drawing ("SK1: …").
+2. **Toppur** section in Smíða for a bath sink unit (`b.bathTop`, `bathTopOf`): frárennslisgat (centred by default,
+   mm from the left side / from the wall, "Miðja" resets), Krani Í toppi / Á vegg / Ekkert, kranagat mm when in the top
+   (default centre, 60 mm from the wall), a small plan of the top beside it. Smíðagögn `toppur:{gat:{x,y}, krani,
+   kranagat?}`; Skápalisti + workshop sheet notes via `bathSmidaNotes(sm)`. Note: adding vatnslas/toppur changes
+   the Smíðagögn hash, so a bath sink unit marked "Skápur yfirfarinn" before this needs marking again.
+3. **Upphengi**: drilled by hand — no /cnc rule. Every bath unit (hung) gets "Upphengi — borað í höndunum" on the
+   Skápalisti and the workshop sheet, and Smíða's Hlið · CNC tab has info lines "Upphengi: borað í höndunum, ekki í
+   skránni" (+ "Göt í toppi og U-skúffa: …" on a sink unit). Computed from the room, not stored in Smíðagögn.
+4. **Camera**: the bath framing in buildScene framed only the units (an 80 cm vanity padded to 1.4 m → 2.3 m away,
+   bottom cut off). PRO (`darkBg`) frames the whole unit wall; customer unchanged.
+5. **mm tags**: the 3D wardrobe/bath unit width tags went through `dimLen` in the wardrobe round (that was the "80 cm").
+6. **Shapes**: PRO's Rýmið page offers a bath the customer's shapes — Einn veggur / Horn — plus "Allt herbergið"
+   (rect); a fresh PRO bath starts as Einn veggur; open walls get no "Opið" toggle. A customer bath (Horn, 3 units,
+   water) copied into PRO loaded and opened the Rýmið page with identical walls/units/water/shapeKey.
+
+## Innihurðir in PRO = the customer's HU system (2026-10-26)
+
+- **Hurðir** (PRO bar) opens the customer's "Hurðirnar þínar" list + **Hanna** popup — same code (`openDoors`,
+  `renderDoorStep`, `openDoorWiz`), as an overlay over the editor (`#screen-hurdir.pro-hd`, `proDoorsShow`): `state.step`
+  stays where it was, so the editor's 3D/undo are untouched; "← Til baka" on the list / "Klárt" on Yfirlit / Esc close it.
+  Opening it changes nothing (no auto HU-1 row in PRO — an empty project stays clean). The old one-row-per-door overlay
+  (`openDoorList`) is removed.
+- **mm**: inputs, dimension lines, summaries, review (`dU`/`dFmt`/`dParse`/`dLim`); ranges `KPDOORS.LIMITS_PRO` = the
+  old overlay's (B 400–3000, H 1500–3200, vegg 50–400), so no stored door becomes invalid. Customers keep cm + LIMITS.
+- **Exact hardware** on the steps (`KPDOORS.PRO_HW`): Lamir "JNF Coplan · faldar lamir (innfelldar)" /
+  "JNF IN.05.020.100 · sýnilegar (samlokulamir)", Skrá "JNF IN.20.835" / "JNF segulskrá IN.20.976.60.B",
+  Felliþröskuldur Já/Enginn. Same stored values as before (`opt.lamir` innfelldar|samloku, `skra` jnf|segul, …).
+- **Smíða** (PRO-only last section): Fjöldi eins, Athugasemd, and for /cnc: Þykkt karms (37), Karmabil frá vegg (6),
+  Toppstykki (Ofan á hliðum / Á milli hliða), and the hardware /cnc mills (selects from cnc-doors.js HINGES/LOCKS/
+  THRESHOLDS, loaded only in PRO): "Sjálfvirkt" = faldar → JNF Coplan, felliþröskuldur Já → Felliþröskuldur
+  (`KPDOORS.CNC_AUTO`); the lock is never automatic; "Ekkert (fræst í höndunum)" = none. Stored as `d.cnc`, sent as
+  Smíðagögn `door.cnc` (`KPDOORS.cncOf`) + "Karmur: …" in the note. Every PRO-saved door gets `cnc` (defaults).
+- **Old field → new home**: Rými → list dropdown (old values like "Eldhús"/custom kept as their own option); Gerð → Gerð
+  (+ Fleiri gerðir); Lamir / Felliþröskuldur / Skrá → their steps; Efni hurðarblaðs → Útlit; Op í vegg B×H + Veggþykkt →
+  Mál (mm); Lamir vinstra/hægra → Opnun; Fjöldi eins + Athugasemd → Smíða.
+- **Migration**: `KPDOORS.migrate` (on opening a door) only fills `designed:true`, `frame:"innf"`, `opt:{}` — the HU
+  line is byte-identical before/after (test "migration: an old PRO door row…" in tests/kp-doors.test.js). Checked in
+  the UI by injecting old-format rows into T-32's loaded planner JSON (browser-side, nothing written): both rows opened
+  unchanged, nothing marked óvistað until a door is saved. T-32 and T-199 have no doors in Airtable today.
+- Verified 1440×900 on T-32 (unlocked locally) and T-199: add, Hanna, Eins og HU-1, Afrita, Eyða, Breyta, Yfirlit,
+  Klárt → back in the editor; customer Innihurðir unchanged (cm, plain words, no Smíða, no `cnc`).

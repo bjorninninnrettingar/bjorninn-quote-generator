@@ -54,6 +54,58 @@
   var HW_COLORS = { krom:["Króm", "Gljáandi stál"], svart:["Svart", "Matt svart"] }; // lamir, skrá, slútt and húnn in one colour (round 4)
   // exact numbers only (user: people must be precise here) — cm in the inputs, mm inside
   var LIMITS = { widthMm:[500, 2500], heightMm:[1500, 3000], wallMm:[50, 400] };
+  // PRO (mm): the ranges the old PRO door rows allowed (2026-10-23 overlay), so no stored door becomes invalid
+  var LIMITS_PRO = { widthMm:[400, 3000], heightMm:[1500, 3200], wallMm:[50, 400] };
+
+  // PRO's workshop extras (2026-10-26) — d.cnc, what /cnc's door export (cnc-doors.js doorPlan) needs and a customer
+  // never sees: karmur thickness, karmabil, toppstykki, and the exact hardware product (Vörulisti id) per CNC macro.
+  // The Eyðublað's own fields always win in /cnc; these only fill the ones left empty there.
+  var CNC_DEFAULT = { karmZ:37, karmB:6, topp:"Ofan á hliðum" }; // what the shop's doors have (T-54 HU1–5)
+  var TOPP = ["Ofan á hliðum", "Á milli hliða"];
+  var CNC_LIMITS = { karmZ:[15, 80], karmB:[0, 40] };
+  // the hardware names PRO shows on each step (the customer sees plain words: OPT_TEXT)
+  var PRO_HW = {
+    lamir:{ innfelldar:"JNF Coplan · faldar lamir (innfelldar)", samloku:"JNF IN.05.020.100 · sýnilegar (samlokulamir)" },
+    skra:{ jnf:"JNF IN.20.835", segul:"JNF segulskrá IN.20.976.60.B" },
+    throskuldur:{ ja:"Já — felliþröskuldur", nei:"Enginn felliþröskuldur" }
+  };
+  // a door row as the old PRO overlay stored it (no designed / frame / cnc) → today's shape. Only fills what is
+  // missing — never changes a value, so the HU line (lineFor) is byte-for-byte the same before and after.
+  function migrate(d){
+    if (!d || typeof d !== "object") return d;
+    if (d.designed === undefined) d.designed = true; // an old row was always a finished door
+    if (d.kind === "hurd" && d.frame !== "innf" && d.frame !== "gerefti") d.frame = "innf";
+    if (!d.opt || typeof d.opt !== "object") d.opt = {};
+    return d;
+  }
+  // the hardware /cnc has a confirmed macro pair for, picked from the door's own choice when PRO leaves "Sjálfvirkt"
+  // (Vörulisti ids = the keys of cnc-doors.js HINGES / THRESHOLDS — tests/kp-doors.test.js checks they still are).
+  // No lock is ever automatic: "JNF IN.20.835" / the magnetic one aren't matched to a Vörulisti product yet.
+  var CNC_AUTO = { hinge:{ lamir:{ innfelldar:"recoQeJKpvKLowWK3" } }, threshold:{ throskuldur:{ ja:"recRJ3d2MCFv4DDJi" } } };
+  var REC = /^rec[A-Za-z0-9]{14}$/;
+  // the CNC block a door sends (only once PRO has touched it — d.cnc), numbers clamped, unknown toppstykki dropped;
+  // hinge/lock/threshold = a Vörulisti id, "none" (= nothing milled, left out) or empty (= CNC_AUTO from the choice)
+  function cncOf(d){
+    var c = d && d.cnc; if (!c || typeof c !== "object") return null;
+    var o = {};
+    ["karmZ", "karmB"].forEach(function(k){ var v = +c[k]; if (isFinite(v) && c[k] !== "" && c[k] != null) o[k] = Math.max(CNC_LIMITS[k][0], Math.min(CNC_LIMITS[k][1], Math.round(v * 10) / 10)); });
+    if (TOPP.indexOf(c.topp) >= 0) o.topp = c.topp;
+    ["hinge", "lock", "threshold"].forEach(function(k){
+      if (c[k] === "none") return;
+      if (REC.test(String(c[k] || ""))){ o[k] = c[k]; return; }
+      var auto = CNC_AUTO[k]; if (!auto) return;
+      Object.keys(auto).forEach(function(opt){ if (optsOf(d)[opt]){ var id = auto[opt][optValue(d, opt)]; if (id) o[k] = id; } });
+    });
+    return Object.keys(o).length ? o : null;
+  }
+  function cncText(c){
+    if (!c) return "";
+    var t = [];
+    if (c.karmZ != null) t.push("þykkt karms " + c.karmZ + " mm");
+    if (c.karmB != null) t.push("karmabil frá vegg " + c.karmB + " mm");
+    if (c.topp) t.push("toppstykki " + c.topp.toLowerCase());
+    return t.length ? " Karmur: " + t.join(", ") + "." : "";
+  }
 
   // the order of the steps for a door of this kind
   function sections(d){
@@ -115,14 +167,15 @@
     var msg = "Innihurð" + (d.hu ? " " + d.hu : "") + " (" + roomLabelOf(d) + "): " + kindDef(d).label.toLowerCase() + ", op " + fmtMm(d.widthMm) + " × " + fmtMm(d.heightMm) + ", veggþykkt " + fmtMm(d.wallMm) + ", " + how + "." +
       (choicesText(d) ? " " + choicesText(d) + "." : "") +
       (mat ? " Hurðarblað: " + (matType === "hardplast" ? "harðplast Egger " : "spónlagt ") + mat.label + "." : hasLeafMat(d) ? " Efni hurðarblaðs ekki valið." : "") +
-      (d.qty > 1 ? " " + d.qty + " eins hurðir." : "") + (d.note ? " " + d.note : "") + " Staðfestu mál karms á staðnum.";
+      (d.qty > 1 ? " " + d.qty + " eins hurðir." : "") + cncText(cncOf(d)) + (d.note ? " " + d.note : "") + " Staðfestu mál karms á staðnum.";
     var opt = {}; Object.keys(optsOf(d)).forEach(function(k){ opt[k] = optValue(d, k); });
     return { "Rými 🏡":room, "Magn":Math.max(1, d.qty | 0), "🔑":d.hu, "Vöru reitur 1":[ctx.pid], "Skilaboð til skipulags":msg,
       "Smíðagögn (JSON) 🔧":JSON.stringify({ v:1, w:d.widthMm, h:d.heightMm, d:d.wallMm, door:{ widthMm:d.widthMm, heightMm:d.heightMm, wallMm:d.wallMm,
         swing:slide ? "slide" : "toward", hinge:d.hinge, din:slide || d.kind === "karmur" ? undefined : d.hinge, kind:d.kind,
         frame:d.kind === "hurd" || d.kind === "karmur" ? (d.frame || "innf") : undefined, opt:opt, hwColor:hasHandle(d) ? (d.hwColor === "svart" ? "svart" : "krom") : undefined,
         room:roomLabelOf(d) || undefined,
-        leaf:mat ? { look:d.leaf, label:mat.label, efnislistiId:mat.efnislistiId || null, type:matType } : undefined } }) };
+        leaf:mat ? { look:d.leaf, label:mat.label, efnislistiId:mat.efnislistiId || null, type:matType } : undefined,
+        cnc:cncOf(d) || undefined } }) };
   }
 
   // ---------------------------------------------------------------- 3D
@@ -492,12 +545,12 @@
   }
   var preview = {
     // host = the element the canvas goes in, svg = the dimension-line overlay, fmt(mm) → "80" for the labels
-    open:function(host, svg, fmt){
+    open:function(host, svg, fmt, unit){ // unit = the label after the number ("cm"; PRO: "mm")
       var T = root.__THREE__; if (!T || !host) return false;
       preview.close();
       var r = renderer(T); host.innerHTML = ""; host.appendChild(r.domElement);
       var cam = new T.PerspectiveCamera(40, 1, 0.02, 40);
-      P = { T:T, host:host, svg:svg, fmt:fmt || function(mm){ return Math.round(mm / 10); }, scene:makeScene(T), cam:cam, door:null, key:"", view:{}, d:null, look:null,
+      P = { T:T, host:host, svg:svg, fmt:fmt || function(mm){ return Math.round(mm / 10); }, unit:unit || "cm", scene:makeScene(T), cam:cam, door:null, key:"", view:{}, d:null, look:null,
         camFrom:null, camTo:null, tFrom:null, tTo:null, t0:0, open:0, openTo:0, raf:0, size:"" };
       P.ctl = root.__OrbitControls__ ? new root.__OrbitControls__(cam, r.domElement) : null;
       if (P.ctl){ P.ctl.enablePan = false; P.ctl.enableZoom = false; P.ctl.enableRotate = !!(P.view && P.view.free); P.ctl.enableDamping = true; }
@@ -625,7 +678,7 @@
       var col = active ? "#0058a3" : "#2b2b2e", sw = active ? 2.4 : 1.4;
       var dx = l.b.x - l.a.x, dy = l.b.y - l.a.y, L = Math.hypot(dx, dy) || 1, nx = -dy / L * 6, ny = dx / L * 6, mx = (l.a.x + l.b.x) / 2, my = (l.a.y + l.b.y) / 2;
       if (l.a.off || l.b.off) return "";
-      var txt = ((P.view.entered || {})[l.key] === false ? "?" : P.fmt(l.mm)) + " cm", tw = txt.length * 7.4 + 14;
+      var txt = ((P.view.entered || {})[l.key] === false ? "?" : P.fmt(l.mm)) + " " + P.unit, tw = txt.length * 7.4 + 14;
       if (L < 34){ // too short for a pill on the line (the wall thickness): arrows from outside, the pill beside it
         var ux = dx / L, uy = dy / L, ext = 16, px = mx + 30, py = my - 22;
         return '<line x1="' + (l.a.x - ux * ext) + '" y1="' + (l.a.y - uy * ext) + '" x2="' + (l.b.x + ux * ext) + '" y2="' + (l.b.y + uy * ext) + '" stroke="' + col + '" stroke-width="' + sw + '"/>' +
@@ -667,7 +720,8 @@
     return url;
   }
 
-  root.KPDOORS = { KINDS:KINDS, KIND_OPTS:KIND_OPTS, OPT_TEXT:OPT_TEXT, HW_COLORS:HW_COLORS, LIMITS:LIMITS, ROOMS:ROOMS, OTHER:OTHER,
+  root.KPDOORS = { KINDS:KINDS, KIND_OPTS:KIND_OPTS, OPT_TEXT:OPT_TEXT, HW_COLORS:HW_COLORS, LIMITS:LIMITS, LIMITS_PRO:LIMITS_PRO, ROOMS:ROOMS, OTHER:OTHER,
+    CNC_DEFAULT:CNC_DEFAULT, CNC_AUTO:CNC_AUTO, TOPP:TOPP, CNC_LIMITS:CNC_LIMITS, PRO_HW:PRO_HW, migrate:migrate, cncOf:cncOf,
     kindKey:kindKey, kindDef:kindDef, isSlide:isSlide, isGlass:isGlass, hasLeafMat:hasLeafMat, hasHandle:hasHandle,
     sections:sections, optValue:optValue, setKind:setKind, roomLabelOf:roomLabelOf, roomOk:roomOk, choicesText:choicesText, lineFor:lineFor,
     HW:HW, hardwareOf:hardwareOf, preview:preview, thumb:thumb, _p:function(){ return P; } };

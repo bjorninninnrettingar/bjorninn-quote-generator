@@ -474,8 +474,8 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   (the product match is still `doorProductFor` — no "hurð með gereftum" product exists in Útfærslur, so it's the
   Innfelld hurð product + "Karmur með gereftum" in the note); Smíðagögn `door` gets `frame`, `opt`, `hunar`, `room`.
   "Annað" rooms go in as Rými "Alrými" with the typed name in the note (never a new Rými choice).
-- Not changed: PRO's "🚪 Hurðir" button still opens the old overlay (`openDoorList`, edits the same objects), doors
-  drawn in a room's walls (`homeDoorPop`), workdraw door sheet.
+- PRO's "Hurðir" button opens this same list + popup in mm since 2026-10-26 (docs/pro-finish.md; the old overlay
+  `openDoorList` is gone). Not changed: doors drawn in a room's walls (`homeDoorPop`), workdraw door sheet.
 - **Round 2 (2026-10-26, coordinator walk):** count page updates in place (a re-render on the box's change ate the next
   "+" click — 1 → + + gave 2) and Áfram reads the box; Lamir = picture cards + camera on the upper hinges from the hinge
   side, leaf ajar (visible = barrels, hidden = a flush slot in the seam); Felliþröskuldur = low at the free-side bottom
