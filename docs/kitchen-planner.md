@@ -330,3 +330,4 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
 
 - **PRO "finish it" round (2026-10-26)** — Smíða fixes, Yfirferð gate before Vista, header fit, Veggur Op í vegg: see [pro-finish.md](pro-finish.md).
 - **Customers see cm, PRO keeps mm (2026-10-26):** see [studio-cm.md](studio-cm.md).
+- **First-visit loading** (2026-10-26): cache headers for models/photos, slimmed .dae files, loading cues, preload on hover — [studio-load.md](studio-load.md).
