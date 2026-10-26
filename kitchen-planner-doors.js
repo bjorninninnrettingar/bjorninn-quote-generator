@@ -126,7 +126,7 @@
   }
 
   // ---------------------------------------------------------------- 3D
-  var SEAL_DROP = 0.014, M = 0.001, JAMB = 0.022, CASE_W = 0.07, CASE_T = 0.012, GAP = 0.003, FLOOR_GAP = 0.01, HANDLE_Y = 1.05;
+  var SKRA_OPEN = 0.5, SEAL_DROP = 0.014, M = 0.001, JAMB = 0.022, CASE_W = 0.07, CASE_T = 0.012, GAP = 0.003, FLOOR_GAP = 0.01, HANDLE_Y = 1.05;
   function geo(d){ // every size the door is built from, metres
     var W = d.widthMm * M, H = d.heightMm * M, T = d.wallMm * M, s = d.hinge === "right" ? 1 : -1;
     var g = { W:W, H:H, T:T, s:s, slide:isSlide(d) };
@@ -137,30 +137,77 @@
   }
   function mat(T, o){ return new T.MeshStandardMaterial(Object.assign({ roughness:0.6, metalness:0 }, o)); }
   function box(T, w, h, dd, m, x, y, z){ var b = new T.Mesh(new T.BoxGeometry(w, h, dd), m); b.position.set(x, y, z); b.castShadow = true; b.receiveShadow = true; return b; }
-  function steel(T){ return mat(T, { color:0xb9bcc0, metalness:0.85, roughness:0.32 }); }
-
-  // --- hardware: one function per item. ctx = { T, d, g, leafMat, frameMat }. Returns an Object3D in the door frame
-  // (hinge parts are added to the swinging leaf group, whose origin is the hinge line at the front face).
-  function hingeYs(g){ var ys = [0.22, g.leafH - 0.25]; if (g.leafH > 2.15) ys.splice(1, 0, g.leafH * 0.55); return ys; }
+  // --- hardware: one function per item. ctx = { T, d, g, leafMat, frameMat }. Returns an Object3D in the leaf's frame
+  // (origin = the hinge line at the front face, the leaf runs to x = -s·leafW, its back face at z = -leafT). Parts that
+  // stay on the frame (a hinge's frame leaf, a strike plate) go in obj.userData.fixed, in the same frame — buildDoor
+  // moves them to the door frame so they don't swing.
+  // Real hardware (round 3, 2026-10-26), sizes from the makers' drawings in mm:
+  //   hinge_visible  JNF IN.05.020.100.R.ECO heavy duty, ball bearings: 100 × 75 (29.5 frame + 44.5 door from the knuckle
+  //                  axis), 3 mm leaves, Ø14 knuckle in 5 segments, R10 outer corners, 4 countersunk Ø6 screws per leaf
+  //   lock_standard  JNF IN.20.835 mortise lock (backset 60/50): faceplate 18 × 196 R9, latch 11.2 × 26.2, PZ 85 cylinder,
+  //                  strike IN.20.835 22 × 82 R11 with a 10 × 31 opening (DXF: IN.20.835.60_DXF / _strike)
+  //   lock_magnetic  JNF IN.20.976.60.B magnetic: faceplate 20 × 235 R10, magnet latch 13.2 × 31.6 above the spindle,
+  //                  bolt 9.2 × 36 below, strike 24 × 170 R12 (DXF: IN.20.976.60.B / .Strike)
+  //   threshold_drop the drop seal from models/door-hardware/drop-seal.glb (SketchUp → GLB), procedural until it loads
+  // Finish: satin stainless by default; JNF also makes copper, black, graphite and gold — d.hwFinish picks one.
+  var FINISHES = { satin:[0xc4c7cb, 0.34], copper:[0xb4785a, 0.3], black:[0x222326, 0.42], graphite:[0x55585c, 0.38], gold:[0xc8a96a, 0.3] };
+  function steel(T, d){
+    var f = FINISHES[(d && d.hwFinish) || "satin"] || FINISHES.satin, o = { color:f[0], metalness:0.95, roughness:f[1] };
+    if (T.MeshPhysicalMaterial && "anisotropy" in new T.MeshPhysicalMaterial()) return new T.MeshPhysicalMaterial(Object.assign(o, { anisotropy:0.6, anisotropyRotation:Math.PI / 2 })); // brushed along the length
+    return mat(T, o);
+  }
+  function dark(T){ return mat(T, { color:0x1e1f21, metalness:0.4, roughness:0.6 }); }
+  // a rounded plate in its own XY (centred), holes = [{ x, y, w, h, r } rectangles or { x, y, r } circles], extruded `t` along +Z.
+  // r on the plate = corner radius (w / 2 = round ends); `only` = "right" rounds only the two corners at +x
+  function plateShape(T, w, h, r, holes, only){
+    var s = new T.Shape(), x0 = -w / 2, x1 = w / 2, y0 = -h / 2, y1 = h / 2, rl = only === "right" ? 0 : r, rr = r;
+    s.moveTo(x0 + rl, y0); s.lineTo(x1 - rr, y0); if (rr) s.absarc(x1 - rr, y0 + rr, rr, -Math.PI / 2, 0, false); s.lineTo(x1, y1 - rr);
+    if (rr) s.absarc(x1 - rr, y1 - rr, rr, 0, Math.PI / 2, false); s.lineTo(x0 + rl, y1); if (rl) s.absarc(x0 + rl, y1 - rl, rl, Math.PI / 2, Math.PI, false);
+    s.lineTo(x0, y0 + rl); if (rl) s.absarc(x0 + rl, y0 + rl, rl, Math.PI, Math.PI * 1.5, false);
+    (holes || []).forEach(function(o){
+      var p = new T.Path();
+      if (o.w){ var hr = Math.min(o.r || 0, o.w / 2, o.h / 2), a = o.x - o.w / 2, b = o.x + o.w / 2, c = o.y - o.h / 2, e = o.y + o.h / 2;
+        p.moveTo(a + hr, c); p.lineTo(b - hr, c); if (hr) p.absarc(b - hr, c + hr, hr, -Math.PI / 2, 0, false); p.lineTo(b, e - hr); if (hr) p.absarc(b - hr, e - hr, hr, 0, Math.PI / 2, false);
+        p.lineTo(a + hr, e); if (hr) p.absarc(a + hr, e - hr, hr, Math.PI / 2, Math.PI, false); p.lineTo(a, c + hr); if (hr) p.absarc(a + hr, c + hr, hr, Math.PI, Math.PI * 1.5, false); }
+      else p.absarc(o.x, o.y, o.r, 0, Math.PI * 2, true);
+      s.holes.push(p);
+    });
+    return s;
+  }
+  function plate(T, shape, t, m){ var g = new T.ExtrudeGeometry(shape, { depth:t, bevelEnabled:false, curveSegments:12 }); var mm = new T.Mesh(g, m); mm.castShadow = true; mm.receiveShadow = true; return mm; }
+  // a plate lying on a face whose outward normal is ±x: its own +Z turned onto that normal, its own X along the door's z
+  function onXFace(o, nx){ o.rotation.y = nx > 0 ? Math.PI / 2 : -Math.PI / 2; return o; }
+  function screwHead(T, m, r){ var h = new T.Mesh(new T.CylinderGeometry(r, r * 0.92, 0.0008, 20), m); h.rotation.z = Math.PI / 2; return h; } // axis along x
+  function hingeYs(g){ var ys = [0.2, g.leafH - 0.22]; if (g.leafH > 2.15) ys.splice(1, 0, g.leafH * 0.55); return ys; } // hinge centres above the leaf's bottom
   var HW = {
-    // faldar lamir: in the edge of the leaf and the jamb — only a dark slot shows when the door is open
+    // faldar lamir: no model yet — the flush plate that shows in the seam (a real concealed hinge sits inside the edge)
     hinge_hidden:function(c){ var T = c.T, grp = new T.Group(), m = mat(T, { color:0x45484c, metalness:0.6, roughness:0.4 });
-      // placeholder: the flush plate that shows in the seam (a real concealed hinge sits inside the edge)
       hingeYs(c.g).forEach(function(y){ grp.add(box(T, 0.009, 0.13, 0.003, m, 0.0035 * c.g.s, FLOOR_GAP + y, 0.0012)); }); return grp; },
-    // sýnilegar lamir: barrels on the hinge line, proud of the face
-    hinge_visible:function(c){ var T = c.T, grp = new T.Group(), m = steel(T);
-      hingeYs(c.g).forEach(function(y){
-        var b = new T.Mesh(new T.CylinderGeometry(0.0095, 0.0095, 0.12, 24), m); b.position.set(0, FLOOR_GAP + y, 0.006); b.castShadow = true; grp.add(b);
-        [0.035, -0.035].forEach(function(dy){ var cap = new T.Mesh(new T.SphereGeometry(0.0095, 16, 8), m); cap.position.set(0, FLOOR_GAP + y + dy * 1.72, 0.006); grp.add(cap); });
-      }); return grp; },
-    // þétting sem fellur niður: a grey seal along the bottom of the leaf, down on the floor when closed
-    threshold_drop:function(c){ var T = c.T, s = box(T, c.g.leafW - 0.04, 0.012, 0.012, mat(T, { color:0xa3a8ad, metalness:0.5, roughness:0.4 }), -c.g.s * c.g.leafW / 2, FLOOR_GAP + 0.006 - SEAL_DROP, -0.0075); // aluminium, just behind the face so it shows in the gap
-      s.name = "seal"; s.userData.y0 = FLOOR_GAP + 0.006; return s; }, // y0 = pulled up into the leaf; down by SEAL_DROP = on the floor
-    // skrá: the latch plate on the free edge + a key rosette on both faces (the magnetic one has a dark magnet in the strike)
-    lock_standard:function(c){ return lockPart(c, false); },
-    lock_magnetic:function(c){ return lockPart(c, true); },
+    // sýnilegar lamir: JNF IN.05.020.100 heavy duty, the knuckle on the hinge line at the face (half of it proud)
+    hinge_visible:function(c){
+      var T = c.T, g = c.g, s = g.s, m = steel(T, c.d), dk = mat(T, { color:0x8d9095, metalness:0.9, roughness:0.45 }), grp = new T.Group(), fixed = new T.Group();
+      var R = 0.007, H = 0.1, seg = H / 5, door = 0.0445, frame = 0.0295, t = 0.003, ax = 0.0015; // knuckle axis 1.5 mm in front of the face
+      hingeYs(g).forEach(function(yc){
+        var y = FLOOR_GAP + yc;
+        for (var k = 0; k < 5; k++){ // 5 knuckle segments with hairline joints (the ball bearings sit in them)
+          var kn = new T.Mesh(new T.CylinderGeometry(R, R, seg - 0.0006, 28), m); kn.position.set(0, y - H / 2 + seg * (k + 0.5), ax); kn.castShadow = true; grp.add(kn);
+          if (k) { var ring = new T.Mesh(new T.CylinderGeometry(R * 0.96, R * 0.96, 0.0006, 28), dk); ring.position.set(0, y - H / 2 + seg * k, ax); grp.add(ring); }
+        }
+        // the door leaf in the leaf's hinge edge (mortised, face flush with the edge), R10 on its outer corners, 4 screws
+        // (plate X → into the thickness, its 3 mm along +x: the door leaf goes into the leaf's edge, the frame leaf into the jamb)
+        var dl = plate(T, plateShape(T, door - R, H, 0.01, null, "right"), t, m); dl.rotation.y = Math.PI / 2; dl.position.set(s > 0 ? -t : 0, y, ax - R - (door - R) / 2); grp.add(dl);
+        [[0.037, 0.020], [0.0125, 0.011], [-0.0125, 0.020], [-0.037, 0.011]].forEach(function(p){ var sh = screwHead(T, m, 0.003); sh.position.set(s * 0.0004, y + p[0], ax - door + p[1]); grp.add(sh); });
+        // the frame leaf on the jamb (it stays put when the door swings)
+        var fl = plate(T, plateShape(T, frame - R, H, 0.01, null, "right"), t, m); fl.rotation.y = Math.PI / 2; fl.position.set(s > 0 ? GAP : -GAP - t, y, ax - R - (frame - R) / 2); fixed.add(fl);
+      });
+      grp.userData.fixed = fixed; return grp; },
+    // þétting sem fellur niður (procedural stand-in while drop-seal.glb loads): an aluminium strip in the bottom edge
+    threshold_drop:function(c){ var T = c.T, s = box(T, c.g.leafW - 0.04, 0.012, 0.012, mat(T, { color:0xa3a8ad, metalness:0.5, roughness:0.4 }), -c.g.s * c.g.leafW / 2, FLOOR_GAP + 0.006 - SEAL_DROP, -0.0075);
+      s.name = "seal"; s.userData.y0 = FLOOR_GAP + 0.006; return s; },
+    lock_standard:function(c){ return mortiseLock(c, LOCKS.jnf835); },
+    lock_magnetic:function(c){ return mortiseLock(c, LOCKS.jnf976); },
     // húnn: a plain lever on both faces (placeholder — Björninn's own handles come later)
-    handle_lever:function(c){ var T = c.T, grp = new T.Group(), m = steel(T), g = c.g, x = -g.s * (g.leafW - 0.065);
+    handle_lever:function(c){ var T = c.T, grp = new T.Group(), m = steel(T, c.d), g = c.g, x = -g.s * (g.leafW - 0.06);
       [1, -1].forEach(function(side){
         var zf = side > 0 ? 0 : -g.leafT, dir = side;
         var rose = new T.Mesh(new T.CylinderGeometry(0.026, 0.026, 0.008, 28), m); rose.rotation.x = Math.PI / 2; rose.position.set(x, HANDLE_Y, zf + dir * 0.004); grp.add(rose);
@@ -175,16 +222,44 @@
       grp.add(box(T, g.W * 2 + 0.12, 0.035, 0.06, m, g.trackX || 0, g.H + 0.045, g.T / 2 + 0.035)); return grp; },
     track_hidden:function(c){ var T = c.T, g = c.g; return box(T, g.W * 2 + 0.12, 0.02, 0.03, mat(T, { color:0x9a9ca0, metalness:0.6 }), g.trackX || 0, g.H + 0.03, g.T / 2 + 0.02); }
   };
-  function lockPart(c, magnetic){
-    var T = c.T, g = c.g, grp = new T.Group(), m = steel(T), x = -g.s * (g.leafW - 0.065);
-    grp.add(box(T, 0.004, 0.24, 0.024, m, -g.s * g.leafW - g.s * 0.0005, HANDLE_Y - 0.03, -g.leafT / 2)); // forend on the edge
-    [1, -1].forEach(function(side){ var r = new T.Mesh(new T.CylinderGeometry(0.019, 0.019, 0.006, 24), m); r.rotation.x = Math.PI / 2; r.position.set(x, HANDLE_Y - 0.085, side > 0 ? 0.003 : -g.leafT - 0.003); grp.add(r);
-      var key = box(T, 0.004, 0.016, 0.002, mat(T, { color:0x222222 }), x, HANDLE_Y - 0.085, side > 0 ? 0.0065 : -g.leafT - 0.0065); grp.add(key); });
-    if (magnetic) grp.add(box(T, 0.003, 0.05, 0.016, mat(T, { color:0x1d1f22, metalness:0.3 }), -g.s * g.leafW - g.s * 0.002, HANDLE_Y, -g.leafT / 2));
-    return grp;
+  // the two JNF locks, measured off their DXFs (mm, y = up from the handle spindle; plate-relative where it says so)
+  var LOCKS = {
+    jnf835:{ plate:[18, 196, 9], plateY:-45, holes:[{ x:0, y:0, w:11.2, h:26.2, r:0.5, latch:true }], screws:[87, -59.5, -87], trims:[50, -50],
+      body:[83, 132, 13, -44.6], cyl:-85, strike:{ plate:[22, 82, 11], y:-45, holes:[{ x:0, y:0, w:10, h:31, r:1 }], screws:[30, -30] } },
+    jnf976:{ plate:[20, 235, 10], plateY:-21, holes:[{ x:0, y:68.5, w:13.2, h:31.6, r:1, magnet:true }, { x:0, y:-12, w:9.2, h:36, r:0.5 }], screws:[104.5, -104.5], trims:[],
+      body:[88, 170, 13, -18], cyl:-78, strike:{ plate:[24, 170, 12], y:8.5, holes:[{ x:0, y:39, w:14, h:38, r:1, magnet:true }, { x:0, y:-41, w:10.5, h:50, r:1 }], screws:[75, 0, -75] } }
+  };
+  function mortiseLock(c, L){
+    var T = c.T, g = c.g, s = g.s, d = c.d, m = steel(T, d), dk = dark(T), grp = new T.Group(), fixed = new T.Group(), mm = 0.001;
+    var edgeX = -s * g.leafW, zc = -g.leafT / 2, yP = HANDLE_Y + L.plateY * mm;
+    // faceplate on the free edge, 3 mm, 0.5 mm proud; its openings show a dark pocket, the latch / magnet sits in them
+    var fp = onXFace(plate(T, plateShape(T, L.plate[0] * mm, L.plate[1] * mm, L.plate[2] * mm, L.holes.map(function(o){ return { x:o.x * mm, y:o.y * mm, w:o.w * mm, h:o.h * mm, r:o.r * mm }; })), 0.003, m), -s);
+    fp.position.set(edgeX + s * 0.0025, yP, zc); grp.add(fp);
+    L.holes.forEach(function(o){
+      grp.add(box(T, 0.0003, o.h * mm, o.w * mm, dk, edgeX - s * 0.00025, yP + o.y * mm, zc)); // the dark pocket seen through the opening (in front of the wood)
+      if (o.latch) grp.add(box(T, 0.009, (o.h - 1.2) * mm, (o.w - 1.2) * mm, m, edgeX - s * 0.004, yP + o.y * mm, zc)); // the latch, out 9 mm while the door is open
+      if (o.magnet) grp.add(box(T, 0.0035, (o.h - 1.6) * mm, (o.w - 1.6) * mm, mat(T, { color:0x3a3c40, metalness:0.8, roughness:0.35 }), edgeX - s * 0.0002, yP + o.y * mm, zc)); // the magnetic latch, flush
+    });
+    L.screws.forEach(function(y){ var h = screwHead(T, m, 0.0042); h.position.set(edgeX - s * 0.0009, yP + y * mm, zc); grp.add(h); });
+    L.trims.forEach(function(y){ var h = screwHead(T, dk, 0.0028); h.position.set(edgeX - s * 0.0009, yP + y * mm, zc); grp.add(h); });
+    // the lock body inside the leaf (only seen in a cut-away)
+    grp.add(box(T, L.body[0] * mm, L.body[1] * mm, L.body[2] * mm, mat(T, { color:0x6d7075, metalness:0.7, roughness:0.5 }), edgeX + s * (0.0025 + L.body[0] * mm / 2), HANDLE_Y + L.body[3] * mm, zc));
+    // the cylinder / thumb-turn escutcheon on both faces, PZ below the spindle (a dark euro profile in it)
+    var cx = -s * (g.leafW - 0.06), cy = HANDLE_Y + L.cyl * mm;
+    [1, -1].forEach(function(side){
+      var zf = side > 0 ? 0 : -g.leafT, r = new T.Mesh(new T.CylinderGeometry(0.025, 0.025, 0.007, 32), m); r.rotation.x = Math.PI / 2; r.position.set(cx, cy, zf + side * 0.0035); grp.add(r);
+      var pf = plate(T, plateShape(T, 0.01, 0.022, 0.005), 0.0006, dk); pf.position.set(cx, cy - 0.006, zf + side * 0.0071); if (side < 0) pf.rotation.y = Math.PI; grp.add(pf);
+      var pc = new T.Mesh(new T.CylinderGeometry(0.0085, 0.0085, 0.0006, 24), dk); pc.rotation.x = Math.PI / 2; pc.position.set(cx, cy + 0.004, zf + side * 0.0074); grp.add(pc);
+    });
+    // the strike on the jamb's face across the gap (stays on the frame)
+    var S = L.strike, jx = -s * (g.leafW + GAP), sy = HANDLE_Y + S.y * mm;
+    var sp = onXFace(plate(T, plateShape(T, S.plate[0] * mm, S.plate[1] * mm, S.plate[2] * mm, S.holes.map(function(o){ return { x:o.x * mm, y:o.y * mm, w:o.w * mm, h:o.h * mm, r:o.r * mm }; })), 0.0015, m), s);
+    sp.position.set(jx, sy, zc); fixed.add(sp);
+    S.holes.forEach(function(o){ fixed.add(box(T, 0.0004, o.h * mm, o.w * mm, o.magnet ? mat(T, { color:0x2c2e31, metalness:0.85, roughness:0.3 }) : dk, jx + s * 0.0003, sy + o.y * mm, zc)); }); // the box behind / the magnet's steel plate
+    S.screws.forEach(function(y){ var h = screwHead(T, m, 0.0035); h.position.set(jx + s * 0.0019, sy + y * mm, zc); fixed.add(h); });
+    grp.userData.fixed = fixed; return grp;
   }
-  // real models (later): window.KPMODELS.doorHardware[key] = { file:"models/doors/<key>.glb", scale?:1, rot?:[x,y,z] } —
-  // the model's origin is placed where the procedural part's origin is (its own frame, metres)
+  // real models: window.KPMODELS.doorHardware[key] = { file, scale?, rot?, lengthM? } (see kitchen-planner-models.js)
   var MODEL_CACHE = {};
   function hwModel(key, T){
     var e = root.KPMODELS && root.KPMODELS.doorHardware && root.KPMODELS.doorHardware[key];
@@ -193,26 +268,30 @@
     if (!c){
       c = MODEL_CACHE[e.file] = { state:"loading" };
       import("three/addons/loaders/GLTFLoader.js").then(function(mod){
-        new mod.GLTFLoader().load(e.file, function(res){ c.obj = res.scene; c.state = "ready"; if (P) P.key = ""; /* rebuild with it */ }, undefined, function(){ c.state = "error"; });
+        new mod.GLTFLoader().load(e.file, function(res){ c.obj = res.scene; c.obj.traverse(function(o){ if (o.isMesh){ o.castShadow = true; o.receiveShadow = true; } }); c.state = "ready"; THUMBS = {}; if (P) P.key = ""; if (root.KPDOORS.onTexture) try{ root.KPDOORS.onTexture(); }catch(er){} }, undefined, function(){ c.state = "error"; });
       }).catch(function(){ c.state = "error"; });
     }
     if (c.state !== "ready") return null;
     var o = c.obj.clone(true); if (e.scale) o.scale.setScalar(e.scale); if (e.rot) o.rotation.set(e.rot[0] * Math.PI / 180, e.rot[1] * Math.PI / 180, e.rot[2] * Math.PI / 180);
-    return o;
+    o.userData.entry = e; return o;
   }
   // where a real model goes (its own origin): one per hinge on the hinge line at the front face; the threshold at the
-  // leaf's bottom centre; lock + handle at the spindle on the front face (the model has both sides); a track at the top
-  // centre of the opening on the wall face
+  // leaf's bottom centre in the middle of its thickness; lock + handle at the spindle; a track at the top of the opening
   function hwAnchors(key, g){
     if (/^hinge_/.test(key)) return hingeYs(g).map(function(y){ return [0, FLOOR_GAP + y, 0]; });
-    if (key === "threshold_drop") return [[-g.s * g.leafW / 2, FLOOR_GAP, 0]];
-    if (/^lock_|^handle_/.test(key)) return [[-g.s * (g.leafW - 0.065), HANDLE_Y, 0]];
+    if (key === "threshold_drop") return [[-g.s * g.leafW / 2, FLOOR_GAP + 0.0005, -g.leafT / 2]];
+    if (/^lock_|^handle_/.test(key)) return [[-g.s * (g.leafW - 0.06), HANDLE_Y, 0]];
     return [[0, g.H, g.T / 2]];
   }
   function hw(key, c){
     if (!hwModel(key, c.T)) return HW[key](c);
     var grp = new c.T.Group();
-    hwAnchors(key, c.g).forEach(function(a){ var m = hwModel(key, c.T); m.position.set(a[0], a[1], a[2]); if (c.g.s > 0 && /^hinge_|^lock_|^handle_/.test(key)) m.scale.x *= -1; grp.add(m); });
+    hwAnchors(key, c.g).forEach(function(a){
+      var m = hwModel(key, c.T), e = m.userData.entry;
+      if (e.lengthM) m.scale.x *= (c.g.leafW - 0.03) / e.lengthM; // a profile cut to the leaf (the drop seal)
+      m.position.set(a[0], a[1], a[2]); if (c.g.s > 0 && /^hinge_|^lock_|^handle_/.test(key)) m.scale.x *= -1; grp.add(m);
+    });
+    if (key === "threshold_drop"){ grp.name = "seal"; grp.userData.y0 = 0; grp.userData.drop = FLOOR_GAP; grp.position.y = -FLOOR_GAP; } // the gasket's foot is flush with the leaf when up, on the floor when down
     return grp;
   }
   // which hardware this door has
@@ -222,7 +301,7 @@
     if (d.kind === "karmur") return out;
     out.leaf.push(optValue(d, "lamir") === "samloku" ? "hinge_visible" : "hinge_hidden");
     if (d.kind === "eld" || optValue(d, "throskuldur") === "ja") out.leaf.push("threshold_drop");
-    out.leaf.push(optValue(d, "skra") === "segul" ? "lock_magnetic" : "lock_standard");
+    if (d.kind !== "gler") out.leaf.push(optValue(d, "skra") === "segul" ? "lock_magnetic" : "lock_standard"); // a 10 mm glass leaf takes no mortise lock
     out.leaf.push("handle_lever");
     return out;
   }
@@ -270,7 +349,8 @@
         var leaf = box(T, g.leafW, g.leafH, g.leafT, d.kind === "gler" ? glassMat : leafMat, -g.s * g.leafW / 2, FLOOR_GAP + g.leafH / 2, -g.leafT / 2);
         leafGroup.add(leaf);
         leafGroup.position.set(g.pivotX, 0, Th / 2);
-        hardwareOf(d).leaf.forEach(function(k){ var o = hw(k, c); if (o) leafGroup.add(o); });
+        hardwareOf(d).leaf.forEach(function(k){ var o = hw(k, c); if (!o) return; leafGroup.add(o);
+          if (o.userData.fixed){ o.userData.fixed.position.set(g.pivotX, 0, Th / 2); grp.add(o.userData.fixed); } }); // frame leaves / strikes stay on the frame
       }
       grp.add(leafGroup);
     }
@@ -325,7 +405,9 @@
       case "lamir": { var hy = FLOOR_GAP + g.leafH - 0.4; return { t:[g.pivotX - g.s * 0.12, hy, zF + 0.03], p:[g.pivotX + g.s * 0.72, hy + 0.12, zF + 0.62] }; } // centred on the upper hinges
       // low on the bottom edge: the gap under the leaf (and the seal dropping into it)
       case "throskuldur": { var fe = -g.s * (g.W / 2 - JAMB); return { t:[fe + g.s * 0.16, 0.035, zF], p:[fe - g.s * 0.12, 0.2, zF + 0.62] }; } // low at the bottom corner on the free side: the jamb, the leaf's bottom edge and the gap (or the seal) under it
-      case "skra": return { t:[g.freeX, HANDLE_Y - 0.03, zF + 0.1], p:[g.freeX + g.s * 0.35, HANDLE_Y + 0.2, zF + 0.95] };
+      case "skra": { // the door half open: the lock's faceplate on its edge, the handle beside it
+        var oa = SKRA_OPEN * Math.PI / 2, ex = g.pivotX - g.s * g.leafW * Math.cos(oa), ez = zF + g.leafW * Math.sin(oa) - g.leafT / 2;
+        return { t:[ex, HANDLE_Y - 0.05, ez], p:[ex - g.s * 0.42, HANDLE_Y + 0.12, ez + 0.62] }; }
       case "mal": if (focus === "wallMm") return { t:[g.W / 2 + 0.3, g.H / 2, 0], p:[g.W / 2 + 0.85 + whole * 0.55, g.H * 0.7, whole * 0.6] };
       /* falls through */
       default: { var dist = fit(g.H + 0.75, g.W + 0.8) * 1.04; return { t:[0, g.H / 2 + 0.08, zF], p:[dist * 0.3, g.H * 0.56, zF + dist] }; } // the whole door centred, room for the dimension pills
@@ -366,7 +448,7 @@
       var key = JSON.stringify([d.kind, d.frame, d.widthMm, d.heightMm, d.wallMm, d.hinge, d.opt, lookKey(look)]);
       if (key !== P.key) rebuild();
       var sec = P.view.sec, slide = isSlide(d);
-      P.openTo = !slide && d.kind !== "karmur" && (sec === "opnun" || sec === "lamir") ? (sec === "lamir" ? 0.3 : 0.55) : slide && sec === "opnun" ? 0.45 : 0;
+      P.openTo = !slide && d.kind !== "karmur" && (sec === "opnun" || sec === "lamir" || sec === "skra") ? (sec === "lamir" ? 0.3 : sec === "skra" ? SKRA_OPEN : 0.55) : slide && sec === "opnun" ? 0.45 : 0;
       if (P.door && P.door.userData.arc) P.door.userData.arc.visible = sec === "opnun";
       var aimK = JSON.stringify([sec, P.view.focus, P.size, d.widthMm, d.heightMm, d.wallMm, d.kind, d.hinge]);
       if (aimK !== P.aimK){ P.aimK = aimK; aim(!!P.aimed); P.aimed = true; }
@@ -404,7 +486,7 @@
     else if (t < 0.82){ open = 0; drop = 1; } else { drop = 1 - ease((t - 0.82) / 0.08); open = 0.16 * ease((t - 0.88) / 0.12); }
     if (!seal){ open = 0; } // venjulegt bil: stays shut, the gap shows
     P.open = open; setOpen(open);
-    if (seal) seal.position.y = seal.userData.y0 - SEAL_DROP * drop;
+    if (seal) seal.position.y = seal.userData.y0 - (seal.userData.drop || SEAL_DROP) * drop;
   }
   function aim(animate){
     var g = P.door.userData.g, a = aimFor(g, P.view.sec, P.cam.aspect, P.view.focus), T = P.T;
