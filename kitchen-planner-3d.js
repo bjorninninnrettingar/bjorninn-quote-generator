@@ -2346,7 +2346,7 @@
     // research round) doesn't clutter the way it would across a dozen kitchen cabinets; gated on
     // meta.alwaysDims (buildScene: activeCategory "fataskapar" or "fataskapar:N"), not a per-type flag, so it
     // covers every Fataskápar piece (floor and wall) uniformly.
-    if (meta && meta.alwaysDims && meta.zone !== "opening" && !isPanel && geom && geom.axis) addUnitDims(geom, offsetM, widthM, baseYM + heightM, depthM, Math.round(widthM * 100) + " cm");
+    if (meta && meta.alwaysDims && meta.zone !== "opening" && !isPanel && geom && geom.axis) addUnitDims(geom, offsetM, widthM, baseYM + heightM, depthM, dimLen(Math.round(widthM * 1000)));
     if (art) addArticulated(THREE, scene, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta, useFrontMat, pickables);
     else if (meta && meta.zone !== "opening" && !isPanel && !meta.appliance) addFrontDetails(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta.handle, !!meta.tall, meta.zone === "wall", meta.split || 0, meta, useFrontMat);
     if (meta && meta.appliance && !meta.applModel) addApplianceDetails(THREE, group, geom, offsetM, widthM, heightM, depthM, meta.appliance);
@@ -3719,7 +3719,7 @@
       } else if (hovered && hovered.userData.drawerIdx != null && opts.onDrawerResize){ // a wardrobe drawer shows it can be resized, like a shelf (user, 2026-10-26)
         var du = hovered.userData, wpH = new THREE.Vector3(); hovered.getWorldPosition(wpH);
         var offH = wpH.clone().addScaledVector(new THREE.Vector3(du.ax || 1, 0, du.az || 0), (du.widthM || 0.5) / 2 + 0.07);
-        setGapPart(gapBelow, Math.round((du.drawerTopY - du.drawerBotY) * 100) + " cm", offH.x, offH.z, du.drawerBotY, du.drawerTopY, false);
+        setGapPart(gapBelow, gapText((du.drawerTopY - du.drawerBotY) * 1000), offH.x, offH.z, du.drawerBotY, du.drawerTopY, false);
       } else hideGapInfo();
       renderer.domElement.style.cursor = hovered ? (hovered.userData.drawerIdx != null && opts.onDrawerResize ? "ns-resize" : hovered.userData.locked ? (hovered.userData.isPart ? "pointer" : "default") :
         (hovered.userData.kind === "shelf-item" || hovered.userData.kind === "rail-item") ? "ns-resize" : "grab") : "";
@@ -5396,13 +5396,13 @@
         if (wall.floor.length > 1){
           var o = g.origin, ax = g.axis, n = g.normal, y = top + 0.24;
           PENDING_DIMS.push({ a:{ x:o.x + ax.x * (lo / 1000) + n.x * dep, y:y, z:o.z + ax.z * (lo / 1000) + n.z * dep },
-            b:{ x:o.x + ax.x * (hi / 1000) + n.x * dep, y:y, z:o.z + ax.z * (hi / 1000) + n.z * dep }, text:Math.round((hi - lo) / 10) + " cm" });
+            b:{ x:o.x + ax.x * (hi / 1000) + n.x * dep, y:y, z:o.z + ax.z * (hi / 1000) + n.z * dep }, text:dimLen(hi - lo) });
         }
         if (!hEnd){ var oe = closetOuterEnd(i); hEnd = { g:g, at:oe ? hi / 1000 + 0.12 : lo / 1000 - 0.12, dep:dep }; }
       });
       if (hEnd && tallM){
         var g = hEnd.g, px = g.origin.x + g.axis.x * hEnd.at + g.normal.x * hEnd.dep, pz = g.origin.z + g.axis.z * hEnd.at + g.normal.z * hEnd.dep;
-        PENDING_DIMS.push({ a:{ x:px, y:0, z:pz }, b:{ x:px, y:tallM, z:pz }, text:Math.round(tallM * 100) + " cm" });
+        PENDING_DIMS.push({ a:{ x:px, y:0, z:pz }, b:{ x:px, y:tallM, z:pz }, text:dimLen(Math.round(tallM * 1000)) });
       }
     })();
 

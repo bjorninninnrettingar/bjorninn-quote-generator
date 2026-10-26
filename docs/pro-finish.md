@@ -284,3 +284,37 @@ tree; PRO bath/wardrobe wizards still show all sections.
   point counts go in the room's ATHUGASEMDIR (`wdMeasureNotes`). There is no separate "workshop note" field in the
   planner, so the drawings' notes column (what the workshop reads) is where it lands.
 - Verified on T-32 via `&maeling=1` (locked project, local only) and on T-199's Rýmið page.
+
+## Fataskápar in PRO (2026-10-26)
+
+Tested on T-199 (`rec0Hylqy26rrPmKz`, fresh wardrobe: straight wall and corner) and T-32 with the read-only local
+server, 1440×900 and 1280×720; customer Fataskápar walked Rými → Efni → Skipulag → Ný eining, unchanged (cm, no
+Rennihurð in the wizard, three unit types).
+
+1. **Fylla vegginn in PRO**: the same `#closetFillOffer` (PRO styling), text in mm per wall ("3 × 788 mm · tvær hurðir
+   á hverjum · svo Smíða á Sk1", a corner "Veggur 1: 2 × 861 mm · Veggur 2: 571 + 570 mm"). After `fillCloset()` PRO
+   opens Smíða on the first Sk (`proSkList()[0]`, may be the úthlið) so "Yfirfarinn → næsti" walks every unit.
+   "Ég raða sjálf/ur" now shows the brown area in 3D in PRO too (`closetEmptySpans` no longer skips PRO).
+2. **Skápurinn on the PRO Rýmið page**: under each wardrobe wall `proClosetSpanRow(i)` — Allur veggurinn / Hluti, the
+   part's width in mm, Vinstri / Miðja / Hægri (a corner: "frá horninu"); same `setClosetSpan` as the customer's cm row.
+   Dragging the brown area's ends keeps the mm box in step (`syncProRoomVals`).
+3. **Hurðir step in PRO's wardrobe Ný eining** (before Innvols): Með hurðum / Rennihurð í hlið / Opið (`uw.doorKind`);
+   Rennihurð is written after Setja inn with `applyClosetDoorKind` (the side panel's own door-kind code, now shared).
+   PRO keeps its own Innvols (hardware rows), Smíða opens next as before.
+4. **Úthlið + Horneining** in PRO's wardrobe tree (`FATASKAPAR_TREE_PRO`): Úthlið = `uthlidhar` (height from the
+   neighbour, `keepType`); Horneining (corner shapes only) = the open shelf unit fillCloset puts in the corner square
+   (depth + 60 mm wide, Hillur), always placed at the corner end of its wall ("Hornið er ekki laust" otherwise).
+5. **Progress strip**: `.pro-steps{display:flex}` beat `[hidden]`, so the strip stayed on "2. Rýmið" in the drawing.
+   It now shows "3. Teikning" in the editor (kitchen too); "2. Rýmið" there goes back to the Rýmið page (not while locked).
+6. **mm on the Rýmið page in PRO**: wall dims ("2400 mm", "Veggur 1: 2400 mm"), the brown area's label. Also the 3D
+   wardrobe width labels / total width / height and the drawer-hover tag go through `dimLen` / `gapText` (mm in PRO,
+   customer text identical).
+7. **Hlið · CNC**: the side file fills the column in a zoom box (`.pe-zoom`: wheel / ctrl-wheel = trackpad pinch / two
+   fingers / − 100% + in the corner / double-click; drag to move; `peZoom` kept per cabinet + file across re-renders);
+   several side files = chips on top (`peCncFile`). /cnc's notes are one-line rows with a line icon (stop / warn / info),
+   the whole sentence in an ⓘ tooltip (`proCncTips`, fixed-position so the scrolling box doesn't clip it); the long
+   "Sama og /cnc borar…" explanation is the ⓘ on the bar; "Ekki merktur Skápur yfirfarinn" is dropped here (the strip
+   already shows it). Legend, Hráar aðgerðir and Frontar stay under the drawing.
+
+Not done: at "100%" a side (2470 × 563) is only ~90 px tall in the ~390 px column — zoom is the way to see detail; the
+column wasn't widened so the right side doesn't move between tabs.
