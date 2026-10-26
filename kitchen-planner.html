@@ -18229,11 +18229,16 @@
     var fields = ["Heiti tækifæris / verkefnis", "Staða í söluferli", "Staða í skipulagi"];
     var url = "/api/airtable?path=" + encodeURIComponent(PH_TAEKIFAERI) + (k ? "&k=" + encodeURIComponent(k) : "") +
       "&pageSize=100" + fields.map(function(f){ return "&fields%5B%5D=" + encodeURIComponent(f); }).join("");
-    fetch(url).then(function(r){ return r.json(); }).then(function(d){
-      phRecords = (d && d.records) || [];
-      phLoading = false;
-      renderPhResults();
-    }).catch(function(){ phLoading = false; phLoadError = true; phRecords = []; renderPhResults(); });
+    // every page, not just the first 100 (user, 2026-10-26: T-15 couldn't be found — older projects never loaded)
+    var all = [];
+    function page(offset, n){
+      return fetch(url + (offset ? "&offset=" + encodeURIComponent(offset) : "")).then(function(r){ return r.json(); }).then(function(d){
+        all = all.concat((d && d.records) || []);
+        phRecords = all; phLoading = false; renderPhResults(); // show what's in while the rest loads
+        if (d && d.offset && n < 30) return page(d.offset, n + 1);
+      });
+    }
+    page(null, 0).catch(function(){ phLoading = false; if (!all.length){ phLoadError = true; phRecords = []; } renderPhResults(); });
   }
   function renderPhResults(){
     var host = document.getElementById("phResults");
@@ -18241,10 +18246,13 @@
     var term = (document.getElementById("phSearch").value || "").trim().toLowerCase();
     if (phLoading){ host.innerHTML = '<p class="ph-empty">Sæki verkefni…</p>'; return; }
     if (phLoadError){ host.innerHTML = '<p class="ph-empty">Tókst ekki að sækja verkefnalistann.</p>'; return; }
+    // newest T-number first; typing "T-15" puts T-15 itself on top (it used to drown under T-150…T-159)
+    var tnum = function(r){ var m = /^T-(\d+)/i.exec((r.fields || {})["Heiti tækifæris / verkefnis"] || ""); return m ? +m[1] : -1; };
+    var exact = /^t-?\s*(\d+)$/.exec(term.replace(/\s+/g, "")), want = exact ? +exact[1] : null;
     var list = (phRecords || []).filter(function(r){
       var name = (r.fields || {})["Heiti tækifæris / verkefnis"] || "";
-      return !term || name.toLowerCase().indexOf(term) !== -1;
-    }).slice(0, 60);
+      return !term || name.toLowerCase().indexOf(term) !== -1 || (want != null && tnum(r) === want);
+    }).sort(function(a, z){ return (want != null ? (tnum(z) === want) - (tnum(a) === want) : 0) || tnum(z) - tnum(a); }).slice(0, 60);
     if (!list.length){ host.innerHTML = '<p class="ph-empty">' + (term ? "Ekkert verkefni fannst." : "Engin verkefni til.") + '</p>'; return; }
     var k = proHomeK();
     host.innerHTML = list.map(function(r){
