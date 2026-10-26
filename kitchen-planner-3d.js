@@ -12,9 +12,11 @@
   // Customers see cm, PRO sees mm (2026-10-26, docs/studio-cm.md). The planner sets KP3D.unitCm = !PRO;
   // anything built for Airtable runs inside KPI18N.asIS and stays mm. State is always mm.
   function unitCm(){ return !!(window.KP3D && window.KP3D.unitCm) && !(window.KPI18N && window.KPI18N.forced); }
-  function dimNum(mm){
+  // Customers see whole cm (78,7 → 79; a 19 mm úthlið → 2) — user, 2026-10-26. `exact` keeps one decimal (product
+  // names like "LED-borði 0,4×0,8 cm"); typed inputs (data-len) keep their own exact value.
+  function dimNum(mm, exact){
     if (!unitCm()) return String(Math.round(mm));
-    var v = Math.round(mm) / 10, t = v % 1 ? v.toFixed(1) : String(v);
+    var v = exact ? Math.round(mm) / 10 : Math.round(mm / 10), t = v % 1 ? v.toFixed(1) : String(v);
     return window.KPI18N && window.KPI18N.lang === "en" ? t : t.replace(".", ",");
   }
   function dimLen(mm){ return dimNum(mm) + (unitCm() ? " cm" : " mm"); }
@@ -4809,6 +4811,8 @@
     if (!opts.people && !opts.clean && !iso) geoms.forEach(function(g, i){ // (the ceiling-height view has its own single label; opts.clean skips it too — drawing exports don't want it baked into the picture)
       // a small "V1" bubble, the same size on screen however far the wall is (2026-10-12: "Veggur 1 · 4000 mm" was
       // too big; the lengths are on the 2D plan and in the wall's panel)
+      var sw = state.walls && state.walls[i];
+      if (sw && sw.open && !(sw.floor || []).length && !(sw.wall || []).length) return; // an empty open edge isn't a wall to the customer (2026-10-26)
       var cv = document.createElement("canvas"); cv.width = 128; cv.height = 96;
       var cx = cv.getContext("2d");
       cx.fillStyle = "rgba(255,255,255,.94)"; cx.strokeStyle = "#d6d2c8"; cx.lineWidth = 4;
@@ -5281,11 +5285,11 @@
         var funits = []; // for the dimension overlay: one entry per cabinet on this wall
         fw.floor.forEach(function(b, bi){
           var c = CATALOG[b.type], h = Math.min(b.heightMm || c.h, roomHeightMm) / 1000;
-          funits.push({ a0:ffs[bi] / 1000, a1:(ffs[bi] + b.widthMm) / 1000, y0:0, y1:h, widthMm:b.widthMm, zone:"floor", plinth:!c.panel && !c.appliance });
+          funits.push({ a0:ffs[bi] / 1000, a1:(ffs[bi] + b.widthMm) / 1000, y0:0, y1:h, widthMm:b.widthMm, zone:"floor", plinth:!c.panel && !c.appliance, panel:!!c.panel });
         });
         fw.wall.forEach(function(b, bi){
           var c = CATALOG[b.type], h = Math.min(b.heightMm || c.h, roomHeightMm) / 1000, y0 = elevOf(b) / 1000;
-          funits.push({ a0:fws[bi] / 1000, a1:(fws[bi] + b.widthMm) / 1000, y0:y0, y1:y0 + h, widthMm:b.widthMm, zone:"wall" });
+          funits.push({ a0:fws[bi] / 1000, a1:(fws[bi] + b.widthMm) / 1000, y0:y0, y1:y0 + h, widthMm:b.widthMm, zone:"wall", panel:!!CATALOG[b.type].panel });
         });
         var los = [0, fg.lenM].concat(funits.map(function(u){ return u.a0; }), funits.map(function(u){ return u.a1; }));
         var yhis = [0.1].concat(funits.map(function(u){ return u.y1; }));
@@ -5310,6 +5314,7 @@
       camera = new THREE.PerspectiveCamera(45, 1, 0.05, 100);
     }
     var dist = Math.max(bbox.w, bbox.d) * (geoms.closed ? 0.95 : 0.74) + (geoms.closed ? 1.7 : 1.2);
+    if (wardrobeScene) dist *= 1.1; // a full-height wardrobe: a little more room so its top isn't flush with the toolbar at 1280×720 (2026-10-26)
     if (!focusBounds) camera.position.set(bbox.cx + dist * 0.6, dist * 0.55, bbox.cz + dist * 0.9);
     var people = opts.people && geoms.length ? addPeople(THREE, scene, geoms, WALL_H, roomHeightMm, state.walls, wallColor) : null;
     if (people){ // stand inside the room at eye height, facing the figures and their wall (wide lens so floor + ceiling fit)
@@ -5379,7 +5384,7 @@
     });
 
     var controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.set(bbox.cx, 1.0, bbox.cz);
+    controls.target.set(bbox.cx, wardrobeScene ? Math.max(1.0, WALL_H * 0.5) : 1.0, bbox.cz); // a wardrobe reaches the ceiling — aim at its middle
     controls.maxPolarAngle = Math.PI / 2 - 0.03;
     controls.minPolarAngle = 0.15;
     controls.minDistance = 0.8;
@@ -5628,10 +5633,12 @@
       var wallU = focusBounds.units.filter(function(u){ return u.zone === "wall"; });
       var svg = "";
       floorU.forEach(function(u){
+        if (u.panel && unitCm()) return; // a customer doesn't need the 2 cm úthlið tagged — the wall total covers it
         var p0 = P(u.a0, -0.12), p1 = P(u.a1, -0.12);
         svg += dimTick(p0.x, p0.y, p1.x, p1.y, dimNum(u.widthMm), false, color);
       });
       wallU.forEach(function(u){
+        if (u.panel && unitCm()) return;
         var p0 = P(u.a0, focusBounds.yHi - 0.22), p1 = P(u.a1, focusBounds.yHi - 0.22);
         svg += dimTick(p0.x, p0.y, p1.x, p1.y, dimNum(u.widthMm), false, color);
       });
@@ -6874,7 +6881,9 @@
       svg += isOpen
         ? '<line data-wall-line-id="' + wallId + '" x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="#6f6d66" stroke-width="2.4" stroke-dasharray="8,6"/>'
         : '<line data-wall-line-id="' + wallId + '" x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + (opts.selectedWallId === wallId ? "#3d61c1" : "#2b2b2e") + '" stroke-width="' + (opts.selectedWallId === wallId ? 18 : 9) + '" stroke-linecap="square"' + (opts.onWallSelect ? ' style="cursor:pointer;"' : '') + '/>';
-      if (!opts.mini){
+      var sw = state.walls[gi];
+      // an open edge with nothing on it isn't a wall to the customer (a "Beinn veggur" wardrobe's 3 room edges) — no label
+      if (!opts.mini && !(sw && sw.open && !(sw.floor || []).length && !(sw.wall || []).length)){
         var midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
         // outside the dimension chain (offsets -22/-38) and turned along the wall, so a side wall's name never sits on its
         // numbers (QA 2026-10-26, E7)
@@ -6968,8 +6977,9 @@
       if (widthM * PX_PER_M > 30 && !thin && !opts.mini){
         var cx = (X(corners[0].x) + X(corners[2].x)) / 2;
         var cy = (Y(corners[0].z) + Y(corners[2].z)) / 2;
-        var label = (bl.sk ? bl.sk + " · " : "") + dimNum(bl.widthMm) + (bl.interior && bl.interior.mode === "skuffur" ? " · " + __("{n}sk", { n:bl.interior.count }) : "");
-        svg += '<text x="' + cx + '" y="' + cy + '" font-size="9.5" fill="' + (c.oven ? "#fff" : "#191919") + '" text-anchor="middle" dominant-baseline="middle" style="pointer-events:none;">' + label + '</text>';
+        // just the width, readable (was "78,8 · 3sk" — user, 2026-10-26); PRO keeps its Sk-number in front
+        var label = (bl.sk ? bl.sk + " · " : "") + dimNum(bl.widthMm);
+        svg += '<text x="' + cx + '" y="' + cy + '" font-size="12" font-weight="600" fill="' + (c.oven ? "#fff" : "#191919") + '" text-anchor="middle" dominant-baseline="middle" style="pointer-events:none;">' + label + '</text>';
       }
     }
 
@@ -6983,13 +6993,14 @@
         s += '<line x1="' + (p[0] - nx * t) + '" y1="' + (p[1] - nz * t) + '" x2="' + (p[0] + nx * t) + '" y2="' + (p[1] + nz * t) + '" stroke="#8a857a" stroke-width="1" style="pointer-events:none;"/>';
       });
       var tx = (x0 + x1) / 2 - nx * 7, ty = (y0 + y1) / 2 - nz * 7, ta = planTextAng(x1 - x0, y1 - y0); // along the line, on its outer side
-      s += '<text x="' + tx + '" y="' + ty + '" font-size="9.5" fill="#6f6d66" text-anchor="middle" dominant-baseline="middle" transform="rotate(' + ta + ' ' + tx + ' ' + ty + ')" style="pointer-events:none;">' + text + '</text>';
+      s += '<text x="' + tx + '" y="' + ty + '" font-size="10.5" fill="#6f6d66" text-anchor="middle" dominant-baseline="middle" transform="rotate(' + ta + ' ' + tx + ' ' + ty + ')" style="pointer-events:none;">' + text + '</text>';
       return s;
     }
     function wallDimChain(g, floor, starts){
       var off = -22; // outward from the wall, away from the room (cabinets sit on the +normal side)
       var s = "";
       floor.forEach(function(bl, bi){
+        if (unitCm() && CATALOG[bl.type] && CATALOG[bl.type].panel) return; // no "2" tag on an úthlið for a customer — the total covers it
         var a0 = starts[bi] / 1000, a1 = (starts[bi] + bl.widthMm) / 1000;
         var p0 = { x:g.origin.x + g.axis.x * a0 + g.normal.x * off / PX_PER_M, z:g.origin.z + g.axis.z * a0 + g.normal.z * off / PX_PER_M };
         var p1 = { x:g.origin.x + g.axis.x * a1 + g.normal.x * off / PX_PER_M, z:g.origin.z + g.axis.z * a1 + g.normal.z * off / PX_PER_M };

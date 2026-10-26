@@ -774,6 +774,7 @@
     display:flex; align-items:center; justify-content:center;
     background:var(--card,#fff); border:1.5px solid var(--line); color:var(--ink); box-shadow:0 4px 14px rgba(0,0,0,.16);
   }
+  .ed-stage.wall-mode #wallPrevBtn[hidden], .ed-stage.wall-mode #wallNextBtn[hidden]{ display:none; }
   .ed-stage.wall-mode #wallPrevBtn{ left:14px; }
   .ed-stage.wall-mode #wallNextBtn{ right:14px; }
   .ed-stage.wall-mode #wallCycleLabel{
@@ -1850,7 +1851,7 @@
           <button type="button" class="btn btn-primary ed-newunit" id="edNewUnit" data-i18n>＋ Ný eining</button>
           <div class="ed-right">
             <button type="button" class="btn btn-secondary ed-tbtn" id="backToShapeBtn" data-i18n>← Til baka</button>
-            <button type="button" class="btn btn-primary ed-tbtn" id="toContactBtn" disabled data-i18n>Áfram →</button>
+            <button type="button" class="btn btn-primary ed-tbtn" id="toContactBtn" data-i18n>Áfram →</button>
           </div>
           <div class="warn-pop" id="warnPop" hidden></div>
           <div class="warn-pop" id="plinthPop" hidden></div>
@@ -2013,13 +2014,13 @@
   // stay mm — uNum/uLen only format for display (and answer mm inside KPI18N.asIS, where Airtable text is built).
   KP3D.unitCm = !KPI18N.isPro;
   function uCm(){ return KP3D.unitCm && !KPI18N.forced; }
-  function uNum(mm){ return KP3D.dimNum(mm); }   // "60" / "60,5" (cm) or "600" (mm)
+  function uNum(mm, exact){ return KP3D.dimNum(mm, exact); }   // "60" (whole cm; exact → "60,5") or "600" (mm)
   function uLen(mm){ return KP3D.dimLen(mm); }   // "60 cm" or "600 mm"
   function uUnit(){ return uCm() ? "cm" : "mm"; }
   function uDims(){ return Array.prototype.map.call(arguments, uNum).join(" × ") + " " + uUnit(); } // "80 × 257 × 58 cm" / "800 × 2570 × 580 mm"
   function uText(s){ // product names like "LED-borði 4×8 mm, 1 m" → "LED-borði 0,4×0,8 cm, 1 m" for a customer
     if (!uCm()) return s;
-    var f = function(v){ return uNum(parseFloat(String(v).replace(",", "."))); };
+    var f = function(v){ return uNum(parseFloat(String(v).replace(",", ".")), true); };
     return String(s).replace(/(\d+(?:[.,]\d+)?)(?:×(\d+(?:[.,]\d+)?))? mm\b/g, function(m, a, b){ return f(a) + (b ? "×" + f(b) : "") + " cm"; });
   }
   function uDimsBare(){ var t = Array.prototype.map.call(arguments, uNum).join(" × "); return uCm() ? t + " cm" : t; } // PRO keeps its unit-less "800 × 2570 × 580"
@@ -8506,7 +8507,9 @@
     var list = solidWalls(), i = list.findIndex(function(w){ return w.id === wallViewId; });
     var inWall = viewMode === "wall";
     document.getElementById("wallCycle").hidden = !inWall;
-    document.getElementById("wallCycleLabel").textContent = list.length ? __("Veggur {n} af {total}", { n:i + 1, total:list.length }) : "";
+    // one wall (a "Beinn veggur" wardrobe): no "1 af 1" and no arrows that go nowhere
+    document.getElementById("wallCycleLabel").textContent = list.length > 1 ? __("Veggur {n} af {total}", { n:i + 1, total:list.length }) : list.length ? __(list[0].label) : "";
+    ["wallPrevBtn", "wallNextBtn"].forEach(function(id){ document.getElementById(id).hidden = list.length <= 1; });
     document.getElementById("wallMiniMap").hidden = !inWall;
     var stage = document.querySelector(".ed-stage");
     stage.classList.toggle("wall-mode", inWall);
@@ -8861,7 +8864,7 @@
     chip.textContent = "" + warnings.length + " " + plural(warnings.length, "ábending", "ábendingar");
     var total = surfaces().reduce(function(sum, w){ return sum + w.floor.length + w.wall.length; }, 0);
     var tcb = document.getElementById("toContactBtn");
-    tcb.disabled = total === 0;
+    tcb.disabled = false; // always on — with nothing placed a click says why instead of a grey button (user, 2026-10-26)
     if (PRO){ // PRO never goes to intake/contact — with several rooms queued this is the way to the next one (A2)
       var nxt = proNextRoom();
       tcb.classList.toggle("pro-next", !!nxt);
@@ -9010,7 +9013,9 @@
   function renderView(){
     var wrap = document.getElementById("threeWrap");
     var plan = document.getElementById("planWrap");
-    KP3D.teardown3D(viewMode === "wall" || lastRenderedViewMode === "wall"); // entering/leaving "Veggur" shouldn't hand its fixed elevation camera to the other mode
+    // switching view (3D / 2D / Ofanmynd) always starts 3D on the default whole-room view — a camera remembered from
+    // another mode left it at a steep, grazing angle with the top clipped (2026-10-26). Edits within 3D keep the camera.
+    KP3D.teardown3D(viewMode === "wall" || lastRenderedViewMode !== viewMode);
     lastRenderedViewMode = viewMode;
     document.getElementById("floatBar").hidden = true;
     syncFloatBarKind();
@@ -12985,6 +12990,7 @@
   }
   document.getElementById("toContactBtn").addEventListener("click", function(){
     if (PRO){ var nxt = proNextRoom(); if (nxt){ save(); openRoom(nxt); } return; }
+    if (!cabinetTotal()){ toast(__("Settu inn að minnsta kosti einn skáp.")); return; }
     checkEndPanelsThen(function(){ captureThumb(); finishCategory(); }); // 3D scene must still be alive for the thumbnail
   });
   document.getElementById("backToEditorBtn").addEventListener("click", function(){ goto("editor"); });

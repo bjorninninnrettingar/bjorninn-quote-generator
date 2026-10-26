@@ -347,3 +347,18 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
 - **PRO "finish it" round (2026-10-26)** — Smíða fixes, Yfirferð gate before Vista, header fit, Veggur Op í vegg: see [pro-finish.md](pro-finish.md).
 - **Customers see cm, PRO keeps mm (2026-10-26):** see [studio-cm.md](studio-cm.md).
 - **First-visit loading** (2026-10-26): cache headers for models/photos, slimmed .dae files, loading cues, preload on hover — [studio-load.md](studio-load.md).
+
+## 2026-10-26 — Skipulag: camera, whole cm, Ofanmynd, one-wall pager, Áfram
+- **3D after 2D/Ofanmynd** always starts on the default whole-room view: `renderView()` discards the remembered
+  camera whenever the view mode changes (`lastRenderedViewMode !== viewMode`); edits within 3D still keep it.
+  Wardrobe scenes (`wardrobeScene`) aim at half the ceiling height and sit 10 % further back, so a full-height
+  wardrobe isn't flush with the toolbar at 1280×720.
+- **Whole cm for customers:** `KP3D.dimNum(mm)` / `uNum(mm)` round to whole cm (78,7 → 79, 19 mm → 2). Pass
+  `exact` (`uNum(mm, true)`) for one decimal — only `uText` (product names like "LED-borði 0,4×0,8 cm") does.
+  PRO still mm; `data-len` inputs keep their exact value. The 2D wall view and the Ofanmynd chain skip úthlið
+  tags for customers (the wall total covers them).
+- **Ofanmynd:** a cabinet shows just its width (was "78,8 · 3sk"), 12 px semibold; chain text 10,5 px.
+- **Open, empty edges aren't walls:** no "Veggur N" label in Ofanmynd and no "VN" tag in 3D for an `open` wall with
+  no units (a "Beinn veggur" wardrobe's 3 room edges). Kitchen walls are unchanged.
+- **2D pager with one wall:** label is the wall's name ("Veggur 1", not "1 af 1") and ◀ ▶ are hidden.
+- **Áfram on Skipulag** is always enabled; with nothing placed it toasts "Settu inn að minnsta kosti einn skáp."

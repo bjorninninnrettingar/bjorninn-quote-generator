@@ -871,6 +871,7 @@
     "Smíðaðu rýmið fyrst (Rými).": "Build the room first (Room).",
     "Veldu skrokk, skúffukerfi, framhlið og opnun fyrst (Efni).": "Choose a carcass, drawer system, front and opening first (Materials).",
     "Bættu að minnsta kosti einum skáp við fyrst.": "Add at least one cabinet first.",
+    "Settu inn að minnsta kosti einn skáp.": "Place at least one cabinet.",
     "Lýstu því sem gerðist — því nákvæmar því betra (t.d. \"skápurinn hvarf þegar ég ýtti á ...\"):": "Describe what happened — the more detail the better (e.g. \"the cabinet disappeared when I clicked ...\"):",
     "Takk — sent til okkar. ": "Thanks — sent to us. ",
     "Sendi...": "Sending...",
