@@ -288,9 +288,8 @@
           [-1, 1].forEach(function(e){ var kn = new T.Mesh(new T.CylinderGeometry(0.0068, 0.0068, 0.0128, 28), m); kn.position.x = e * LINK / 2; l.add(kn); }); l.position.y = oy; arm.add(l); return l; });
         var centreL = new T.Group(), cb2 = new T.Mesh(linkGeo(T, LINK + 0.012, 0.026, 0.0335, 0.0062, true), m); cb2.castShadow = true; centreL.add(cb2);
         [-1, 1].forEach(function(e){ var kn = new T.Mesh(new T.CylinderGeometry(0.0072, 0.0072, 0.0335, 28), m); kn.position.x = e * LINK / 2; centreL.add(kn); }); arm.add(centreL);
-        var pins = [0, 1, 2].map(function(){ var p = new T.Group(), sh = new T.Mesh(new T.CylinderGeometry(0.0026, 0.0026, 0.0645, 16), pin); p.add(sh);
-          [1, -1].forEach(function(e){ var hd = new T.Mesh(new T.CylinderGeometry(0.0034, 0.0036, 0.0014, 20), m); hd.position.y = e * 0.0329; p.add(hd);
-            var slotM = new T.Mesh(new T.BoxGeometry(0.0046, 0.0004, 0.0007), wash); slotM.position.y = e * 0.0337; p.add(slotM); }); arm.add(p); return p; });
+        var pins = [0, 1, 2].map(function(){ var p = new T.Group(), sh = new T.Mesh(new T.CylinderGeometry(0.0026, 0.0026, 0.0615, 16), pin); p.add(sh);
+          arm.add(p); return p; }); // round 11: no screw heads on the pin ends (flush with the links)
         var washers = []; [0.0165, -0.0165].forEach(function(oy){ for (var i = 0; i < 3; i++){ var w2 = new T.Mesh(new T.CylinderGeometry(0.0062, 0.0062, 0.0011, 24), wash); w2.userData.oy = oy; w2.userData.pin = i; arm.add(w2); washers.push(w2); } });
         arms.push(function(ang){ // ang = the leaf's rotation (radians)
           var dx = -sg * DEPTH, dz = zc, ca = Math.cos(ang), sa = Math.sin(ang);
