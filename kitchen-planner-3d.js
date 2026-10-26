@@ -6239,8 +6239,20 @@
     skal:       { label:"Ávaxtaskál",               group:"top",   w:280, d:280 },
     plantaLitil:{ label:"Lítil planta",             group:"top",   w:160, d:160 },
     bretti:     { label:"Skurðarbretti",            group:"top",   w:450, d:300 },
-    hengiljos:  { label:"Hengiljós",                group:"ceiling", w:320, d:320 }
+    hengiljos:  { label:"Hengiljós",                group:"ceiling", w:320, d:320 },
+    // a bedroom / walk-in closet (user, 2026-10-26): offered in Fataskápar instead of the kitchen props (rooms: the
+    // room kinds an item is offered in; none = every room but a wardrobe's own list below)
+    rum:        { label:"Rúm",                      group:"floor", w:1600, d:2000, rooms:["fataskapar"] },
+    nattbord:   { label:"Náttborð",                 group:"floor", w:450, d:400, rooms:["fataskapar"] },
+    spegill:    { label:"Standspegill",             group:"floor", w:500, d:80, rooms:["fataskapar"] },
+    stoll:      { label:"Stóll",                    group:"floor", w:450, d:480, rooms:["fataskapar"] }
   };
+  // which props a room kind offers: a wardrobe gets the bedroom ones + plant/rug/pendant; every other room the rest
+  var DECOR_CLOSET = ["rum", "nattbord", "spegill", "stoll", "planta", "motta", "hengiljos"];
+  function decorKindsFor(category){
+    var closet = /^fataskapar/.test(String(category || ""));
+    return Object.keys(DECOR).filter(function(k){ return closet ? DECOR_CLOSET.indexOf(k) >= 0 : !DECOR[k].rooms; });
+  }
   // Dining tables come in 4 / 6 / 8 seat sizes (d.seats, 2026-10-11): the table (m), where the chairs go, and the
   // footprint incl. the chairs (what may not go through a wall or a cabinet).
   var TABLE_SIZES = {
@@ -6379,7 +6391,7 @@
   // walls and other furniture, then nearest the room centre); bar stools line up behind an island; a rug goes under
   // the dining table; worktop items take the next free spot along a counter (never on top of each other or in a
   // sink); a pendant hangs over the island / table. Returns {x, z} in mm, or null (top item but no counter).
-  var DECOR_FOOT = { bordFer:[1.75, 1.85], bordHring:[1.6, 1.6], barstoll:[0.45, 0.45], planta:[0.5, 0.5], motta:[2.0, 1.4], hengiljos:[0.4, 0.4] };
+  var DECOR_FOOT = { bordFer:[1.75, 1.85], bordHring:[1.6, 1.6], barstoll:[0.45, 0.45], planta:[0.5, 0.5], motta:[2.0, 1.4], hengiljos:[0.4, 0.4], rum:[1.65, 2.1], nattbord:[0.45, 0.4], spegill:[0.55, 0.25], stoll:[0.48, 0.5] };
   function floorRects(state){ // every floor cabinet as a corner quad (m), walls and islands
     var surf = surfacesOf(state), geoms = surfaceGeoms(state), out = [];
     surf.forEach(function(w, wi){
@@ -6699,6 +6711,29 @@
       var bg = new THREE.ExtrudeGeometry(sh, { depth:0.022, bevelEnabled:true, bevelThickness:0.003, bevelSize:0.003, bevelSegments:2 }); bg.rotateX(-Math.PI / 2);
       var board = new THREE.Mesh(bg, oak(1.5, 1.5)); board.position.y = 0.003; add(board);
       [[0.1, 0.06], [0.15, -0.04]].forEach(function(p){ var l = new THREE.Mesh(new THREE.SphereGeometry(0.032, 18, 12), mat(0xf2d230, 0.5)); l.scale.set(1.25, 0.95, 0.95); l.position.set(p[0], 0.058, p[1]); add(l); });
+    } else if (key === "rum"){ // a double bed: oak frame + headboard, mattress, duvet folded back, two pillows
+      var linen = mat(0xf4f1ea, 0.85), duvet = mat(0xd9d3c7, 0.9);
+      rbox(1.6, 0.26, 2.0, 0.02, 0, 0.17, 0, oak(1.5, 1.5));
+      [[-0.75, -0.95], [0.75, -0.95], [-0.75, 0.95], [0.75, 0.95]].forEach(function(p){ rbox(0.06, 0.08, 0.06, 0.01, p[0], 0.04, p[1], dark); });
+      rbox(1.64, 0.9, 0.06, 0.02, 0, 0.45, -1.01, oak(1.5, 1));
+      rbox(1.52, 0.2, 1.92, 0.05, 0, 0.4, 0.01, linen);
+      rbox(1.56, 0.07, 1.25, 0.03, 0, 0.53, 0.33, duvet);
+      rbox(1.56, 0.06, 0.22, 0.03, 0, 0.58, -0.22, duvet);
+      [-0.38, 0.38].forEach(function(x){ rbox(0.6, 0.12, 0.38, 0.06, x, 0.56, -0.72, linen); });
+    } else if (key === "nattbord"){ // oak bedside table with a drawer and a small lamp
+      rbox(0.45, 0.48, 0.4, 0.012, 0, 0.26, 0, oak(1, 1));
+      [[-0.2, -0.17], [0.2, -0.17], [-0.2, 0.17], [0.2, 0.17]].forEach(function(p){ cyl(0.012, 0.012, 0.04, p[0], 0.02, p[1], dark, 10); });
+      rbox(0.41, 0.15, 0.01, 0.004, 0, 0.38, 0.201, oak(1, 0.5));
+      rbox(0.12, 0.012, 0.012, 0.004, 0, 0.38, 0.212, blackMetal);
+      lathe([[0, 0], [0.06, 0], [0.06, 0.012], [0.015, 0.02], [0.012, 0.2], [0, 0.2]], mat(0xe8e2d6, 0.5), 32, -0.08, 0.5, -0.04);
+      lathe([[0, 0], [0.1, 0], [0.07, 0.13], [0, 0.13]], mat(0xf2ede2, 0.7, 0, { side:THREE.DoubleSide, emissive:0x000000 }), 32, -0.08, 0.66, -0.04);
+    } else if (key === "spegill"){ // a full-length mirror leaning on its stand
+      var mf = new THREE.Group(); mf.rotation.x = -0.08; mf.position.z = 0.04; gr.add(mf);
+      rbox(0.5, 1.75, 0.03, 0.01, 0, 0.9, 0, oak(1, 2), mf);
+      var glass = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 1.64), mat(0xdfe6ea, 0.04, 1)); glass.position.set(0, 0.9, 0.016); add(glass, mf);
+      rbox(0.04, 0.04, 0.24, 0.01, -0.2, 0.02, -0.08, dark); rbox(0.04, 0.04, 0.24, 0.01, 0.2, 0.02, -0.08, dark);
+    } else if (key === "stoll"){ // the oak dining chair on its own
+      chair(0, 0, 0);
     } else if (key === "hengiljos"){ // hangs from y = 0 down: canopy, cord, a turned metal dome, bulb (lights up in the evening)
       cyl(0.05, 0.05, 0.02, 0, -0.01, 0, blackMetal, 32);
       cyl(0.003, 0.003, 0.68, 0, -0.36, 0, dark, 8);
@@ -6981,7 +7016,7 @@
     cornerClearanceMm: cornerClearanceMm, afellaMm: afellaMm, AFELLA_MM: AFELLA_MM,
     blockStartsMm: blockStartsMm,
     planTransform: planTransform,
-    rectCornersWorld: rectCornersWorld, drawerZoneMm: drawerZoneMm, TALL_DRAWER_MAX_MM: TALL_DRAWER_MAX_MM, DRAWER_TOPDOOR_MIN_MM: DRAWER_TOPDOOR_MIN_MM, drawerStackSpaceMm: drawerStackSpaceMm, doorLeaves: doorLeaves, islandFits: islandFits, nearestIslandFit: nearestIslandFit, topThickM: topThickM, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, obstacleRect: obstacleRect, obstacleCorners: obstacleCorners, handleAvailMm: handleAvailMm, tallHandleAvailMm: tallHandleAvailMm, obstacleAng: obstacleAng, DECOR: DECOR, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
+    rectCornersWorld: rectCornersWorld, drawerZoneMm: drawerZoneMm, TALL_DRAWER_MAX_MM: TALL_DRAWER_MAX_MM, DRAWER_TOPDOOR_MIN_MM: DRAWER_TOPDOOR_MIN_MM, drawerStackSpaceMm: drawerStackSpaceMm, doorLeaves: doorLeaves, islandFits: islandFits, nearestIslandFit: nearestIslandFit, topThickM: topThickM, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, obstacleRect: obstacleRect, obstacleCorners: obstacleCorners, handleAvailMm: handleAvailMm, tallHandleAvailMm: tallHandleAvailMm, obstacleAng: obstacleAng, DECOR: DECOR, decorKindsFor: decorKindsFor, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
     WALL_COLORS: WALL_COLORS,
     WINDOW_DEFAULT: WINDOW_DEFAULT,
     _handleProfile: handleProfile,
