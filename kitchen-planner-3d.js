@@ -2430,6 +2430,22 @@
     if (c.appliance === "fridge") return b.widthMm >= 850 ? "fridge90" : b.widthMm >= 650 ? "fridge70" : "fridge60";
     return null;
   }
+  // Þvottavélaskápur (user, 2026-10-26): the washer with the dryer on it, drawn inside the tower (above its drawer) —
+  // hidden behind the doors in the room, seen through them in the previews (opts.towerGlass) or with the fronts off
+  function addTowerMachines(THREE, group, geom, offsetM, widthM, baseM, topM, depthM, mat){
+    var mw = Math.min(0.6, widthM - 2 * CARCASS_T - 0.012), mh = Math.min(0.85, (topM - baseM - 0.03) / 2), md = Math.min(0.58, depthM - FRONT_T - 0.03);
+    if (mh < 0.5 || mw < 0.4) return;
+    var quat = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(geom.axis.x, 0, geom.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(geom.normal.x, 0, geom.normal.z)));
+    var a = offsetM + widthM / 2, back = BACK_T + 0.01;
+    [0, 1].forEach(function(k){
+      var sub = new THREE.Group(), body = new THREE.Mesh(new THREE.BoxGeometry(mw, mh - 0.01, md), mat);
+      body.position.set(geom.origin.x + geom.axis.x * a + geom.normal.x * (back + md / 2), mh / 2, geom.origin.z + geom.axis.z * a + geom.normal.z * (back + md / 2));
+      body.quaternion.copy(quat); body.castShadow = true; body.receiveShadow = true; sub.add(body);
+      addApplianceDetails(THREE, sub, geom, a - mw / 2, mw, mh - 0.01, back + md, "washer");
+      sub.position.y = baseM + 0.005 + k * mh;
+      group.add(sub);
+    });
+  }
   function addApplianceDetails(THREE, group, geom, offsetM, widthM, heightM, depthM, kind){
     var quat = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(geom.axis.x, 0, geom.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(geom.normal.x, 0, geom.normal.z)));
     function put(mesh, along, y, out){
@@ -4925,7 +4941,7 @@
     // label at all; a corner says "Veggur 1 / 2", out past the wall's free end so it never floats over the units or
     // their dimension lines. closetOuterEnd(i) = 0 (the wall's start) or 1 (its end): the end NOT in the corner.
     // Baðherbergi the same (user, 2026-10-26): the bubbles floated over an empty bathroom
-    var closetSc = /^(fataskapar|bad)(:|$)/.test(String(state.activeCategory || ""));
+    var closetSc = /^(fataskapar|bad|thvottahus)(:|$)/.test(String(state.activeCategory || "")) && !(opts.darkBg && /^thvottahus/.test(String(state.activeCategory || ""))); // (PRO laundry keeps its V-bubbles)
     var closetWallIdx = closetSc ? geoms.map(function(g, i){ return i; }).filter(function(i){ var w = state.walls && state.walls[i]; return w && ((w.floor || []).length || (w.wall || []).length); }) : [];
     function closetOuterEnd(i){
       var g = geoms[i], ends = [g.origin, { x:g.origin.x + g.axis.x * g.lenM, z:g.origin.z + g.axis.z * g.lenM }];
@@ -5165,6 +5181,8 @@
     var frontMat2 = look2 ? (window.KPMat ? makeFrontMaterial(THREE, state.look2, look2) : new THREE.MeshStandardMaterial({ color:look2.color3d, roughness:0.7 })) : null;
     if (frontMat2) frontMat2.__xrayBase = frontMat;
     function frontMatOf(b){ return b && b.front2 && frontMat2 ? frontMat2 : frontMat; }
+    // opts.towerGlass (Þvottahús previews, user 2026-10-26): the washer tower's doors see-through so the machines inside show
+    var towerGlassMat = opts.towerGlass ? (function(){ var m = frontMat.clone(); m.transparent = true; m.opacity = 0.16; m.depthWrite = false; return m; })() : null;
     var frontOpenMat = frontMat.clone(); frontOpenMat.side = THREE.DoubleSide; // open shelf units built all in the front material (b.frontAll)
     // Fataskápar has no stone worktop — a grunnskapur's "counter" cap reads as a front-material-finished top
     // instead (owner, 2026-10-14). stoneMat is read by closure everywhere a counter slab is drawn (the cabinet's
@@ -5271,7 +5289,7 @@
         var applMdl = applKeyOf(c, b) ? applModel(applKeyOf(c, b)) : null; // the real model: the box stays (for picking/dragging) but isn't drawn
         if (applMdl){ if (!APPL_HIDE) APPL_HIDE = new THREE.MeshBasicMaterial({ visible:false }); applMat = APPL_HIDE; }
         // an integrated fridge wears the kitchen's fronts (user, 2026-10-05 — it was steel)
-        addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, applMat || carcassMat, applMat || frontMatOf(b), inter,
+        addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, applMat || carcassMat, applMat || (c.thvo && towerGlassMat) || frontMatOf(b), inter,
           { islandId:islandId, locked:!!b.locked || !!opts.xray, suppressBadge:!!opts.xray, slabFronts:jeyOn, corner:c.cls === "corner", doorSide:b.swing === "vinstri" ? "left" : "right", hingeRight:c.cls === "corner" ? b.swing === "vinstri" : b.swing === "haegri", shelves:(c.hasInterior || c.shelfRange) && !(b.interior && b.interior.mode === "skuffur") ? (shelvesOf(b) || 0) : 0,
             openMat:c.open ? frontOpenMat : openMat, open:!!c.open, hiddenMat:hiddenMat, drawerSystem:state.drawerSystem, carcassKey:state.carcass,
             warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), ready:!!(opts.readyIds && opts.readyIds.indexOf(b.id) >= 0), doorLimit:DOOR_LIMITS[b.id] || null, shelfBlock:b, wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), heightMm:hM * 1000, elevMm:0, handle:c.appliance ? null : state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0, // tall units: one door unless split in Smíða (2026-10-09)
@@ -5291,6 +5309,7 @@
           if (!under) addMirrorCabinet(THREE, scene, g, offset / 1000, b.widthMm / 1000, Math.min(Math.max(1.15, hM + 0.42), (roomHeightMm - 760) / 1000), carcassMat);
         }
         if (applMdl) placeApplModel(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, applMdl);
+        if (c.thvo && !opts.people) addTowerMachines(THREE, scene, g, offset / 1000, b.widthMm / 1000, plinthMmW / 1000 + (b.thvo !== "hurdir" ? 0.40 : 0) + CARCASS_T, hM - CARCASS_T, dM, washerMat);
         // LED in a tall closet (user, 2026-10-23, C1): a vertical strip in a groove at the front edge of one side
         // (6×6 mm), or a strip under the top shelf (4×8 mm). Behind the doors — it shows in X-ray and with doors open.
         if (b.closetLed && c.cls === "tall" && !opts.people){
@@ -5500,7 +5519,7 @@
     // Baðherbergi (user, 2026-10-26): start facing the wall the units are on (a corner: both), at a person's height —
     // not the whole empty room from a top corner with a small vanity in the middle
     var bathAim = null, frontAz = null, frontSpan = 0;
-    var unitWallRoom = /^(bad|fataskapar)(:|$)/.test(String(state.activeCategory || ""));
+    var unitWallRoom = /^(bad|fataskapar|thvottahus)(:|$)/.test(String(state.activeCategory || ""));
     if (!focusBounds && !opts.people && unitWallRoom && !opts.darkBg){ // orbit stays in front of the unit wall(s) (round 2: it went behind the wall)
       var fIdx = (state.walls || []).map(function(w, i){ return i; }).filter(function(i){ var w = state.walls[i]; return geoms[i] && !w.open && ((w.floor || []).length || (w.wall || []).length); });
       if (!fIdx.length) fIdx = (state.walls || []).map(function(w, i){ return i; }).filter(function(i){ return geoms[i] && !state.walls[i].open; });
@@ -5509,7 +5528,8 @@
         if (Math.hypot(fnx, fnz) > 0.1){ frontAz = Math.atan2(fnx, fnz); frontSpan = fIdx.length > 1 ? 0.75 : 1.3; }
       }
     }
-    if (!focusBounds && !opts.people && /^bad(:|$)/.test(String(state.activeCategory || "")) && state.hungUnits){
+    var laundryAim = !opts.darkBg && /^thvottahus(:|$)/.test(String(state.activeCategory || "")) && /^bath/.test(state.shapeKey || ""); // a customer laundry (2026-10-26): its unit wall, like the bath
+    if (!focusBounds && !opts.people && ((/^bad(:|$)/.test(String(state.activeCategory || "")) && state.hungUnits) || laundryAim)){
       var bIdx = (state.walls || []).map(function(w, i){ return i; }).filter(function(i){ var w = state.walls[i]; return geoms[i] && !w.open && ((w.floor || []).length || (w.wall || []).length); });
       if (!bIdx.length) bIdx = (state.walls || []).map(function(w, i){ return i; }).filter(function(i){ return geoms[i] && !state.walls[i].open; }).slice(0, 1);
       if (bIdx.length && bIdx.length <= 2){
@@ -5521,9 +5541,9 @@
           if (ext.length && !opts.darkBg){ a0 = Math.min.apply(null, ext) / 1000; a1 = Math.max.apply(null, ext) / 1000; var pad = Math.max(0, (1.4 - (a1 - a0)) / 2); a0 = Math.max(0, a0 - pad); a1 = Math.min(g.lenM, a1 + pad); }
           var am = (a0 + a1) / 2; bcx += g.origin.x + g.axis.x * am; bcz += g.origin.z + g.axis.z * am; bnx += g.normal.x; bnz += g.normal.z; bLen = Math.max(bLen, a1 - a0); });
         bcx /= bIdx.length; bcz /= bIdx.length; var bnl = Math.hypot(bnx, bnz) || 1; bnx /= bnl; bnz /= bnl;
-        var bd = Math.max(2.3, bLen * 0.95 + 0.9) * (bIdx.length > 1 ? 1.2 : 1);
-        camera.position.set(bcx + bnx * bd + bnz * bd * 0.22, 1.3, bcz + bnz * bd - bnx * bd * 0.22); // low enough to see the floor under the hung units
-        bathAim = { x:bcx + bnx * 0.3, y:0.95, z:bcz + bnz * 0.3 };
+        var bd = Math.max(laundryAim ? 4.1 : 2.3, bLen * 0.95 + 0.9) * (bIdx.length > 1 ? 1.2 : 1); // a laundry's machine tower is 2,5 m tall
+        camera.position.set(bcx + bnx * bd + bnz * bd * 0.22, laundryAim ? 1.6 : 1.3, bcz + bnz * bd - bnx * bd * 0.22); // low enough to see the floor under the hung units
+        bathAim = { x:bcx + bnx * 0.3, y:laundryAim ? 1.15 : 0.95, z:bcz + bnz * 0.3 };
       }
     }
     var people = opts.people && geoms.length ? addPeople(THREE, scene, geoms, WALL_H, roomHeightMm, state.walls, wallColor) : null;
@@ -6563,14 +6583,19 @@
     stoll:      { label:"Stóll",                    group:"floor", w:450, d:480, rooms:["fataskapar"] },
     // a bathroom (user, 2026-10-26): shower + bath to place the vanity around — props only, never ordered; no toilet
     sturta:     { label:"Sturta",                   group:"floor", w:900, d:900, rooms:["bad"] },
-    badkar:     { label:"Baðkar",                   group:"floor", w:1700, d:700, rooms:["bad"] }
+    badkar:     { label:"Baðkar",                   group:"floor", w:1700, d:700, rooms:["bad"] },
+    // a laundry (user, 2026-10-26): props only, never ordered
+    thvottakarfa:{ label:"Þvottakarfa",             group:"floor", w:450, d:350, rooms:["thvottahus"] },
+    straubretti:{ label:"Straubretti",              group:"floor", w:1220, d:380, rooms:["thvottahus"] }
   };
   // which props a room kind offers: a wardrobe gets the bedroom ones + plant/rug/pendant; every other room the rest
   var DECOR_CLOSET = ["rum", "nattbord", "spegill", "stoll", "planta", "motta", "hengiljos"];
   var DECOR_BATH = ["sturta", "badkar", "planta", "motta"];
+  var DECOR_LAUNDRY = ["thvottakarfa", "straubretti", "planta", "motta"];
   function decorKindsFor(category){
     var closet = /^fataskapar/.test(String(category || "")), bath = /^bad(:|$)/.test(String(category || ""));
     if (bath) return DECOR_BATH.slice(); // shower + bath first
+    if (/^thvottahus(:|$)/.test(String(category || ""))) return DECOR_LAUNDRY.slice();
     return Object.keys(DECOR).filter(function(k){ return closet ? DECOR_CLOSET.indexOf(k) >= 0 : !DECOR[k].rooms; });
   }
   // Dining tables come in 4 / 6 / 8 seat sizes (d.seats, 2026-10-11): the table (m), where the chairs go, and the
@@ -6711,7 +6736,7 @@
   // walls and other furniture, then nearest the room centre); bar stools line up behind an island; a rug goes under
   // the dining table; worktop items take the next free spot along a counter (never on top of each other or in a
   // sink); a pendant hangs over the island / table. Returns {x, z} in mm, or null (top item but no counter).
-  var DECOR_FOOT = { bordFer:[1.75, 1.85], bordHring:[1.6, 1.6], barstoll:[0.45, 0.45], planta:[0.5, 0.5], motta:[2.0, 1.4], hengiljos:[0.4, 0.4], rum:[1.65, 2.1], nattbord:[0.45, 0.4], spegill:[0.55, 0.25], stoll:[0.48, 0.5], sturta:[0.9, 0.9], badkar:[1.7, 0.7] };
+  var DECOR_FOOT = { bordFer:[1.75, 1.85], bordHring:[1.6, 1.6], barstoll:[0.45, 0.45], planta:[0.5, 0.5], motta:[2.0, 1.4], hengiljos:[0.4, 0.4], rum:[1.65, 2.1], nattbord:[0.45, 0.4], spegill:[0.55, 0.25], stoll:[0.48, 0.5], sturta:[0.9, 0.9], badkar:[1.7, 0.7], thvottakarfa:[0.47, 0.37], straubretti:[1.25, 0.4] };
   function floorRects(state){ // every floor cabinet as a corner quad (m), walls and islands
     var surf = surfacesOf(state), geoms = surfaceGeoms(state), out = [];
     surf.forEach(function(w, wi){
@@ -7072,6 +7097,21 @@
       cyl(0.02, 0.02, 0.003, -0.55, 0.155, 0, steel, 20);
       cyl(0.014, 0.014, 0.08, -0.8, 0.6, 0, steel, 12);
       var spoutB = rbox(0.12, 0.022, 0.03, 0.008, -0.75, 0.64, 0, steel);
+    } else if (key === "thvottakarfa"){ // a woven laundry basket with a lid: tapered oval body, rim bands, a towel over the edge
+      var wick = mat(0xc9ab7d, 0.85), band = mat(0xa8875a, 0.8);
+      lathe([[0, 0], [0.16, 0], [0.19, 0.52], [0, 0.52]], wick, 40, 0, 0.01, 0).scale.set(1.15, 1, 0.9);
+      [0.08, 0.3, 0.5].forEach(function(y){ var r = new THREE.Mesh(new THREE.TorusGeometry(0.163 + y * 0.055, 0.007, 6, 40), band); r.rotation.x = Math.PI / 2; r.scale.set(1.15, 0.9, 1); r.position.y = y + 0.01; add(r); });
+      var lid = cyl(0.2, 0.2, 0.025, 0, 0.545, 0, wick, 40); lid.scale.set(1.15, 1, 0.9);
+      cyl(0.03, 0.03, 0.025, 0, 0.57, 0, band, 16);
+      rbox(0.16, 0.2, 0.01, 0.004, 0.08, 0.44, 0.17, mat(0xe6eef2, 0.9)); // a towel hanging over the front
+    } else if (key === "straubretti"){ // an ironing board on its crossed legs, an iron on the rest
+      var boardM = mat(0xdfe7ea, 0.9), legM = mat(0xb9bec4, 0.35, 0.7);
+      var bs = new THREE.Shape(); bs.moveTo(-0.58, -0.18); bs.lineTo(0.38, -0.18); bs.quadraticCurveTo(0.62, -0.12, 0.62, 0); bs.quadraticCurveTo(0.62, 0.12, 0.38, 0.18); bs.lineTo(-0.58, 0.18); bs.lineTo(-0.58, -0.18);
+      var board = new THREE.Mesh(new THREE.ExtrudeGeometry(bs, { depth:0.03, bevelEnabled:false, curveSegments:16 }), boardM); board.rotation.x = -Math.PI / 2; board.position.y = 0.86; add(board);
+      [[-0.3, 0.32], [0.32, -0.3]].forEach(function(p){ var l = rbox(0.022, 1.0, 0.022, 0.005, (p[0] + p[1]) / 2, 0.43, 0, legM); l.rotation.z = -Math.atan2(p[1] - p[0], 0.86); });
+      rbox(0.36, 0.015, 0.03, 0.005, -0.12, 0.012, 0.14, legM); rbox(0.36, 0.015, 0.03, 0.005, -0.12, 0.012, -0.14, legM);
+      rbox(0.2, 0.012, 0.16, 0.006, -0.66, 0.86, 0, legM); // the iron rest
+      var iron = rbox(0.2, 0.05, 0.1, 0.02, -0.66, 0.9, 0, mat(0x3a6ea5, 0.4, 0.2)); iron.rotation.y = 0.2;
     } else if (key === "stoll"){ // the oak dining chair on its own
       chair(0, 0, 0);
     } else if (key === "hengiljos"){ // hangs from y = 0 down: canopy, cord, a turned metal dome, bulb (lights up in the evening)

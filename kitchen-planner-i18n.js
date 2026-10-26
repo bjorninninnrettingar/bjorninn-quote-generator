@@ -2080,7 +2080,23 @@
     "Enginn felliþröskuldur": "No drop seal",
     "Lokar bilinu þegar hurðin lokast — bætir hljóðeinangrun og kemur í veg fyrir gegnumtrekk.": "Closes the gap when the door shuts — better sound insulation and no draughts.",
     "Stöðluð skrá": "Standard lock",
-    "Segulskrá": "Magnetic lock"
+    "Segulskrá": "Magnetic lock",
+    // Þvottahús as its own room (2026-10-26)
+    "Dragðu dropann — vaskaskápurinn fer þar sem hann er og vélin við hliðina.": "Drag the droplet — the sink unit goes where it is and the machine next to it.",
+    "Niðurfall í gólfinu?": "Floor drain?",
+    "Veit ekki": "Don't know",
+    "Pláss fyrir eina vél á veggnum — hin fer ekki með.": "Room for one machine on the wall — the other one is left out.",
+    "Vélarstæða": "Machine tower",
+    "Vélar undir borðplötu": "Machines under the worktop",
+    "Þvottavél og þurrkari í háum skáp": "Washer and dryer in a tall unit",
+    "Þvottavél og þurrkari hlið við hlið": "Washer and dryer side by side",
+    "Upp undir loft — fyrir ræstidótið": "Up to the ceiling — for the cleaning things",
+    "Á vegg, yfir borðplötunni": "On the wall, above the worktop",
+    "Þvottakarfa": "Laundry basket",
+    "Straubretti": "Ironing board",
+    "Pláss fyrir þína þvottavél og þurrkara, 60 cm hvor — borðplatan fer yfir þær.": "Room for your washer and dryer, 60 cm each — the worktop goes over them.",
+    "Pláss fyrir þína vél, 60 cm — borðplatan fer yfir hana.": "Room for your machine, 60 cm — the worktop goes over it.",
+    "Vélarnar sjálfar eru ekki í pöntuninni.": "The machines themselves aren't part of the order."
   });
 
   // part F: stored/computed numbered labels from kitchen-planner-3d.js (CATALOG width variants, island rows, partition sides)
