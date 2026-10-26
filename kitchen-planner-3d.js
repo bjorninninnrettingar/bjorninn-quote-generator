@@ -532,7 +532,7 @@
     // drawer-front and door-split fixes, just one layer down (the geometry reader, not the editor).
     if (Array.isArray(b.shelfPos)) return b.shelfPos
       .filter(function(x){ return x && typeof x.mm === "number"; })
-      .map(function(x){ return { mm:Math.round(Math.min(Math.max(x.mm, r.lo + OVEN_BOARD_MM + 1), r.hi - 11)), fixed:!!x.fixed, pos:x.fixed ? 1 : Math.max(1, Math.min(9, Math.round(x.pos) || 3)), locked:!!x.locked }; }) // locked: Smíða-only bookkeeping ("Dreifa ólæstum jafnt") — passed through so every setShelves read-then-rewrite doesn't silently drop it
+      .map(function(x){ return { mm:Math.round(Math.min(Math.max(x.mm, r.lo + OVEN_BOARD_MM + 1), r.hi - 11)), fixed:!!x.fixed, pos:x.fixed ? 1 : Math.max(1, Math.min(9, Math.round(x.pos) || 3)), locked:!!x.locked, tray:!!x.tray }; }) // locked: Smíða-only bookkeeping ("Dreifa ólæstum jafnt") — passed through so every setShelves read-then-rewrite doesn't silently drop it
       .sort(function(a, z){ return a.mm - z.mm; });
     var scoped = c.bur || inDrawerShelfZone(b, c);
     var n = c.bur ? (b.burShelves != null ? b.burShelves : 2) : (shelvesOf(b) || 0), out = [];
@@ -549,6 +549,16 @@
     var bottomMm = rb && rb.bottomMm > 0 ? rb.bottomMm : RADBORUN_MARGIN_DEFAULT_MM;
     var from = r.lo + bottomMm, to = r.hi - topMm;
     return { from:Math.round(from), to:Math.round(Math.max(from, to)) };
+  }
+  // Fataslá colours (user, 2026-10-26): the three Hafele rails in Vörulisti (SLASV / SLAKR / SLAGY)
+  var RAIL_COLORS = { svart:{ c:0x2b2b2e, m:0.55, r:0.35 }, krom:{ c:0xb0b4ba, m:0.8, r:0.3 }, gyllt:{ c:0xc8a24c, m:0.85, r:0.3 } };
+  function railMatOf(b){ var THREE = window.__THREE__, k = RAIL_COLORS[b && b.railColor] || RAIL_COLORS.svart; return new THREE.MeshStandardMaterial({ color:k.c, metalness:k.m, roughness:k.r }); }
+  // a pull-out tray (Útdraganlegur bakki): the shelf board plus a low rim in the front material, as children of the
+  // board so a drag moves it whole
+  function addTrayRim(board, wM, dM, mat){
+    var THREE = window.__THREE__, rims = [[wM - 0.002, 0.06, 0.018, 0, 0.021, dM / 2 - 0.009], [wM - 0.002, 0.04, 0.012, 0, 0.011, -dM / 2 + 0.006],
+      [0.012, 0.04, dM - 0.03, -wM / 2 + 0.006, 0.011, 0], [0.012, 0.04, dM - 0.03, wM / 2 - 0.006, 0.011, 0]];
+    rims.forEach(function(r){ var m = new THREE.Mesh(new THREE.BoxGeometry(r[0], r[1], r[2]), mat); m.position.set(r[3], r[4], r[5]); m.castShadow = true; board.add(m); });
   }
   var RAIL_D_MM = 25, RAIL_TOP_OFFSET_MM = 120, RAIL_GAP_MM = 450; // Fataslá: rod diameter, clearance under the top board, double-hang spacing
   // Fataslá positions bottom → top: b.railPos (Smíða, mm only — no hole drilling like a shelf) in the same zone
@@ -570,7 +580,7 @@
     var r = ovenUpperMm(b, sysKey, bodyMm);
     if (Array.isArray(b.ovenShelves)) return b.ovenShelves // clamped into the current band, never dropped — see shelfLayoutOf
       .filter(function(x){ return x && typeof x.mm === "number"; })
-      .map(function(x){ return { mm:Math.round(Math.min(Math.max(x.mm, r.lo + OVEN_BOARD_MM + 1), r.hi - 11)), fixed:!!x.fixed, pos:x.fixed ? 1 : Math.max(1, Math.min(9, Math.round(x.pos) || 3)), locked:!!x.locked }; })
+      .map(function(x){ return { mm:Math.round(Math.min(Math.max(x.mm, r.lo + OVEN_BOARD_MM + 1), r.hi - 11)), fixed:!!x.fixed, pos:x.fixed ? 1 : Math.max(1, Math.min(9, Math.round(x.pos) || 3)), locked:!!x.locked, tray:!!x.tray }; })
       .sort(function(a, z){ return a.mm - z.mm; });
     return [1, 2].map(function(k){ return { mm:Math.round(r.lo + (r.hi - r.lo) * k / 3), fixed:false, pos:3 }; });
   }
@@ -2260,6 +2270,7 @@
         : (function(n){ var o = []; for (var k = 1; k <= n; k++) o.push({ mm:bodyH * 1000 * k / (n + 1) + 9 }); return o; })(meta.shelves || 0);
       for (var sh = 0; sh < openList.length; sh++){
         var board = new THREE.Mesh(new THREE.BoxGeometry(widthM - 2 * CARCASS_T - 0.001, 0.018, depthM - 0.02), meta.openMat); // side to side (user, 2026-10-05)
+        if (openList[sh].tray) addTrayRim(board, widthM - 2 * CARCASS_T - 0.001, depthM - 0.02, frontMat || meta.openMat);
         board.position.copy(local(0, bodyBase + openList[sh].mm / 1000 - 0.009, (depthM - 0.02) / 2 + 0.005));
         board.quaternion.copy(quat); board.castShadow = true; board.receiveShadow = true;
         group.add(board);
@@ -2278,7 +2289,7 @@
       var openRails = meta.shelfBlock && CATALOG[meta.shelfBlock.type] && CATALOG[meta.shelfBlock.type].railRange
         ? railLayoutOf(meta.shelfBlock, bodyH * 1000, meta.drawerSystem) : [];
       if (openRails.length){
-        var openRailMat = new THREE.MeshStandardMaterial({ color:0xb0b4ba, metalness:0.8, roughness:0.3 });
+        var openRailMat = railMatOf(meta.shelfBlock);
         var railLocalQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2);
         openRails.forEach(function(rl, ri){
           var rod = new THREE.Mesh(new THREE.CylinderGeometry(RAIL_D_MM / 2000, RAIL_D_MM / 2000, widthM - 2 * CARCASS_T - 0.02, 16), openRailMat);
@@ -2308,6 +2319,10 @@
         var oslab = frontSlab(THREE, widthM - 2 * CARCASS_T - 0.004, oy1 - oy0, useFrontMat, null, { u:offsetM + CARCASS_T, v:oy0 });
         oslab.position.copy(local(0, (oy0 + oy1) / 2, depthM - FRONT_T / 2 - 0.001)); oslab.quaternion.copy(quat);
         oslab.castShadow = true; oslab.receiveShadow = true; oslab.userData = meta;
+        if (wardrobeScene && meta.shelfBlock && pickables && geom && geom.axis){ // resizable like a closed unit's drawer (onDrawerResize)
+          oslab.userData = Object.assign({}, meta, { isPart:true, drawerIdx:oi, drawerBotY:oy0, drawerTopY:oy1, ax:geom.axis.x, az:geom.axis.z, bodyBaseY:bodyBase, widthM:widthM - 2 * CARCASS_T });
+          pickables.push(oslab);
+        }
         group.add(oslab);
       }
     }
@@ -2640,6 +2655,7 @@
     }
     shelfList.forEach(function(shf, si){
       var board = new THREE.Mesh(new THREE.BoxGeometry(widthM - 2 * CARCASS_T - 0.001, 0.018, CD - 0.03), meta.openMat); // shelves reach the sides
+      if (shf.tray) addTrayRim(board, widthM - 2 * CARCASS_T - 0.001, CD - 0.03, frontMat || meta.openMat);
       board.position.set(0, bodyBase + shf.mm / 1000 - 0.009, (CD - 0.03) / 2 + 0.005);
       board.castShadow = true; board.receiveShadow = true;
       frame.add(board);
@@ -2650,7 +2666,7 @@
       meta.shelfBlock && meta.shelfBlock.type && CATALOG[meta.shelfBlock.type] && CATALOG[meta.shelfBlock.type].railRange ?
         railLayoutOf(meta.shelfBlock, bodyH * 1000, meta.drawerSystem) : [];
     if (railList.length){
-      var railMat = new THREE.MeshStandardMaterial({ color:0xb0b4ba, metalness:0.8, roughness:0.3 });
+      var railMat = railMatOf(meta.shelfBlock);
       railList.forEach(function(rl, ri){
         var rod = new THREE.Mesh(new THREE.CylinderGeometry(RAIL_D_MM / 2000, RAIL_D_MM / 2000, widthM - 2 * CARCASS_T - 0.02, 16), railMat);
         rod.rotation.z = Math.PI / 2;
@@ -2682,7 +2698,7 @@
       var g = new THREE.Group(), pivotX = f.drawer || hinge === "bottom" ? cxL : (hinge === "left" ? cxL - w / 2 : cxL + w / 2), fh = y1 - y0;
       g.position.set(pivotX, 0, 0);
       var pmeta = Object.assign({}, meta, { isPart:true, partKey:key }), meshes = [];
-      // a wardrobe's drawer: dragged up/down its top edge follows the pointer (5 cm steps, user 2026-10-26) — see onDrawerResize
+      // a wardrobe's drawer: dragged up/down its top edge follows the pointer (2.5 cm steps, user 2026-10-26) — see onDrawerResize
       if (f.drawer && wardrobeScene && meta.tall && meta.shelfBlock){ pmeta.drawerIdx = fi; pmeta.drawerBotY = y0; pmeta.drawerTopY = y1; pmeta.ax = geom.axis.x; pmeta.az = geom.axis.z; pmeta.bodyBaseY = bodyBase; pmeta.widthM = w; }
       var hcfgA = meta.handle && window.KPMODELS && window.KPMODELS.handles && window.KPMODELS.handles[meta.handle];
       var hstyleA = (HANDLES[meta.handle] || {}).style;
@@ -3457,8 +3473,10 @@
         if (mesh.userData.isPart && mesh.userData.locked) lockTap = { meta:mesh.userData, x:evt.clientX, y:evt.clientY };
         return;
       }
-      if (mesh.userData.isPart && mesh.userData.locked && mesh.userData.drawerIdx != null && opts.onDrawerResize){
-        lockTap = { meta:mesh.userData, x:evt.clientX, y:evt.clientY, drawerMesh:mesh }; // a tap opens it; a vertical drag resizes it (onMove)
+      // a wardrobe drawer, locked or not (user, 2026-10-26: the hover said "drag me" but the press moved the whole unit):
+      // a drag resizes it; a tap opens it (locked) or selects the unit (unlocked)
+      if (mesh.userData.isPart && mesh.userData.drawerIdx != null && opts.onDrawerResize && !(mesh.userData.shelfBlock && mesh.userData.shelfBlock.locked)){
+        lockTap = { meta:mesh.userData, x:evt.clientX, y:evt.clientY, drawerMesh:mesh, select:!mesh.userData.locked && !readOnly };
         controls.enabled = false; evt.stopPropagation(); // the press belongs to the drawer, not to orbiting
         return;
       }
@@ -3774,7 +3792,7 @@
         if (lt.drawerMesh) controls.enabled = true;
         if (Math.hypot(evt.clientX - lt.x, evt.clientY - lt.y) < CABINET_DRAG_PX){
           suppressClick = true; // the click that follows must not also pick the wall behind it (a locked window used to select its wall, 2026-10-10)
-          if (lt.meta.isPart) togglePart(lt.meta.partKey);
+          if (lt.meta.isPart && lt.meta.partKey && !lt.select) togglePart(lt.meta.partKey);
           else if (opts.onSelect) opts.onSelect(lt.meta);
         }
         return;
