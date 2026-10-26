@@ -150,6 +150,42 @@ room right there → the usual placement + toast "Ekki pláss beint hægra megin
 narrower-width offer still applies. Disabled on island boxes. Tested T-32: Sk6 → Sk14 flush (gap 0), Sk13/Sk3 → toast.
 Kept to the Smíða side + the placement hook (PRO C is reshaping the wizard itself).
 
+## Tilboð + Vinnuteikningar + skoðunarhamur round (2026-10-26)
+
+Tested on T-32 with the read-only local server, 1440×900 (no Vista, no PATCH reached Airtable; the discount/markup
+were only exercised through the `input` preview).
+
+1. **Big quote change can't be missed.** When the drawing's total differs from what Airtable has now
+   (`airtableLinesTotal`) by more than 10 %, a red box sits at the top of the Tilboð panel: "Tilboðið lækkar/hækkar
+   um X m.kr. (N %) þegar þú vistar" + **Skoða línur** (scrolls to the first changed line, blinks them). Every line whose
+   amount changes gets a red edge and "var X kr." / "ný lína" under its total; the Höldur row shows "var 765" / the old
+   amount. kp-price now returns `was` per line (Airtable's Einingarverð × Magn × vsk, 0 for a new line). Under 10 % only
+   the calm grey line + yellow notes, as before. T-32: −4,15 m.kr. (75 %), mostly Höldur 765 → 20, and every line is
+   marked because the drawing's materials differ from the Tækifæri (so Vista really re-prices every line).
+2. **Ósýnilegur afsláttur / Smáverka álagning** have an ⓘ (hover/focus tooltip: what it does, that it isn't a line on
+   the quote, only the office sees it, when it's written). The total moves **while typing**: the panel sends
+   `project:{hidden, small}` to kp-price as a preview (unchanged lines = Airtable's Einingarverð × new/old factor, a
+   price-locked line stays as is, handles untouched); the PATCH to the Tækifæri still happens on change/blur, and now
+   says so if it fails ("Vistaðist ekki á Tækifærið …"). T-32: 10 % → 1,390,685 → 1,262,106. Test in tests/kp-price.test.js.
+3. **Skápalisti** = a sheet after the rooms' sheets (T-32: blað 5 of 5), same A3 frame / right column / title block,
+   in the preview, Prenta / PDF and Vista á Tækifæri (same `pages` array). `KPWD.cabinetSheets` (18 rows a sheet, room
+   group headers when several rooms, "(1/2)" when long) from `wdCabinetRows()` in the planner, which reads each
+   **Line Item exactly as Vista sends it** (`collectLineItems` → its Smíðagögn JSON, V1, Frontaefni #2); door/hinge
+   counts come from `proDoorsOf`/`proSpec` (what smidaFor/cnc use), ×2 leaves when `hinge:"baedi"`. Columns: Sk,
+   tegund · V1, B × H × D (skrokkur), framhlið (FR1/FR2 + innskúffufrontar), skúffur ofan frá with Sérhæð, hurðir/lamir,
+   hillur (lausar/fastar, LH over an oven, slár), grip/höldur (Fræst grip or the project's handle), athugasemd (ofn, vaskur,
+   skiptir frontar, LED, eyja, no V1, "Ekki yfirfarinn í Smíða"). Listed on the cover when there is one. Size: goes
+   through api/kp-workdraw.js (4.3 MB cap), not kp-drawings; T-32 at 180 dpi = 273+312+244+243+438 KB PNG ≈ 1.5 MB,
+   the 150 dpi fallback is unchanged. Rows use their own Icelandic plural (`wdPl`) so the sheet never translates.
+4. **Grunnmynd**: Sk labels 2.3 → 4.6 mm (shrunk only where the footprint is too small, rotated on a deep narrow one),
+   drawn after every footprint with a white halo (a dashed wall unit above ran through SK1/SK5). ATHUGASEMDIR on every
+   sheet's right column is black, 2.5 mm (was green 2.1), stops above the legend with "… fleiri athugasemdir".
+8. **Skoðunarhamur**: `proRoSync()` (called from proBar) puts `body.pro-ro` while locked: "+ Ný eining" grey, undo/redo,
+   Sökkull, ← Til baka, the cabinet float bar (færa/læsa/afrita/fjarlægja), the editable size chip and "+ Næsti hægra
+   megin" dimmed, all with the title "Opnaðu til breytinga fyrst"; a capture click listener swallows their clicks with a
+   toast. "Opna til breytinga" restores titles and clicks. Still possible while locked (not changed): dragging a cabinet
+   in 3D, keyboard ⌘Z / Delete, the side panel's own edit fields — local only, Vista isn't offered.
+
 ## PRO → CNC round (2026-10-26)
 
 Tested locally on T-32 at 1440×900 with the read-only server (every non-GET `/api` call blocked).
@@ -194,3 +230,57 @@ leaves. T-32 has none in that range; needs a decision on which rule is right.
 Smíðagögn `hinge` now comes from `KP3D.smidaHingeSide` (same rule as before, from `doorLeaves`). /cnc reads the Line
 Items' Smíðagögn for the review mark, so **"Skápur yfirfarinn" only reaches /cnc after Vista í Airtable** — T-32's saved
 drawing has no marks at all. Details in docs/cnc.md.
+## New project round (2026-10-26) — starting a project in PRO is fast
+
+Tested on T-199 (`rec0Hylqy26rrPmKz`, no drawing, no contact) and T-32 with the read-only local server, 1440×900 and
+1280×720; customer Eldhús walked end to end (5 room pages + 5 Efni pages unchanged).
+
+1. **Header**: `proNameHtml()` — "T-199 · Nýtt verkefni" while the name has no contact ("T-199 | -"); the T-number is
+   its own span that never shrinks, only the contact/address part ellipsizes (full name in the tooltip).
+2. **Progress**: PRO hides the customer stepper; `#proSteps` (in `updateStepper`) shows "1. Rými › 2. Rýmið — Eldhús
+   (1 af 2) › 3. Teikning" on the room pick and the Rýmið page only.
+3. **Rýmið = one page** (`renderProRoomBox`, `#shapeProBox`): PRO's shape step is always the sizing drawing
+   (`shapePhase = "size"`, walls still drag); a fresh room starts as the room kind's usual shape (`proDefaultShape`).
+   Beside it: shape tiles, Lofthæð, then per wall its length + Opið, each window/door/op (frá horni, breidd, hæð, frá
+   gólfi, ×), "+ Gluggi / + Hurð / + Op / + Vatn" and the water point (frá horni) — all mm, Enter commits and moves to
+   the next field, the drawing redraws, dragged walls update the table (`syncProRoomVals`), the water point is drawn as
+   a marker. Writes the same fields the five pages did (walls, roomHeightMm, windows, doors, waterWall/waterAlongMm,
+   openingsDone). Obstacles (ofnar, lagnir) stay in the editor's "Gluggar og hindranir". The editor's "← Til baka"
+   goes back here in PRO (it went to the Efni pages). The Mæling sheet is unchanged (it's the on-site tick list).
+5. **Efni skipped in PRO**: "Áfram í teikningu →" (`proRoomDone`) → `proMatDefaults()` puts in the usual materials
+   (room kind's `categoryDef.defaults` first, else dökkgrátt / Merivo / Egger W1000 white / Jey / W1000 top; no top in a
+   wardrobe) and remembers each in `state.matAuto` (a ROOM_FIELD, copied with the materials to the project's next room).
+   A material is "óákveðið" while it still equals what was put in (`matUndecided()`): the Efni menu shows an amber
+   ÓÁKVEÐIÐ tag on that field; Yfirferð's "Efni og höldur valin" row is not green and lists them, "Laga →" opens the
+   Efni menu at the first one, or tick "Sjálfgefnu efnin eru rétt" (ack tied to the set, like Ábendingar). Picking any
+   other value clears it.
+7. **mm in the Ný eining wizard in PRO**: chips, "Annað mál" input (min/max/step), folded headers, corner notes,
+   Lausar hillur / hung-unit chips and the preview's dimension lines use `uwN` / `uLen` / `uUnit` (customer still cm).
+8. **Kitchen Ný eining = one type list** (`KITCHEN_TREE`, customer and PRO): 25 types under group headings
+   (Grunnskápar, Háir, Efri, Eldhústæki, Eyja, Úthliðar), three a row, descriptions in tooltips — fits one screen at
+   1440×900 (7 px scroll at 1280×720). A click goes straight to Mál → **Skúffur eða hurðir** (picture cards, `frontsWiz`,
+   the kitchen's one Grunnskápur / Vaskaskápur / Lítill kassi) → Innvols; Eyja / Bak á eyju go straight to their own
+   config. **PRO kitchen is short** (`uwShort`): Breidd (+ Skúffur eða hurðir) then Setja inn → Smíða; úthliðar and
+   Lausar hillur keep their sizes. Þvottahús keeps `UNIT_TREE`-style two levels; Fataskápar/Bað unchanged. PRO A's
+   "+ Næsti hægra megin" finds the type in the new tree and starts a door cabinet's neighbour with a door.
+   EN strings for the new labels in kitchen-planner-i18n.js.
+
+Not done / left as is: the T-199 contact itself (Nýtt verkefni until a Tengiliður is linked in Airtable); Þvottahús'
+tree; PRO bath/wardrobe wizards still show all sections.
+
+## Mæling as a panel + fitting measurements (PRO C follow-up, 2026-10-26)
+
+- **Mæling no longer jumps** to "Stilltu stærð rýmisins": `openMeasurePanel()` opens the sheet over wherever you are
+  (editor, the Rýmið page, Smíða's room) and "Loka" / Esc leaves you exactly there. Changes redraw what's behind it
+  (`mpRefresh`: the editor, or the sizing drawing + Rýmið table). On the Rýmið page the table underneath is hidden
+  while the sheet is open (`body.mp-open`), so every value is typed in one place. Enter = next field, like Rýmið.
+- **Three new sections** (optional — they don't count toward "x af y staðfest"), in `state.measurement` (planner JSON,
+  per room via `room: activeCategory`):
+  - `rafmagn: [{id, room, wallId, kind: tengill|dos|rofi, offsetMm, heightMm}]`
+  - `lagnir: [{id, room, wallId, kind: vatn|frarennsli|hiti|annad, offsetMm, heightMm}]`
+  - `skekkja: {<room>: {floor: mm/m, walls: {<wallId>: mm/m}}}`
+- **Vinnuteikningar**: each point is a marker on its wall elevation ("Dós 2775/1100", `wdMeasureFor` → sheet
+  annotations) and a line in that sheet's notes; a wall's out-of-plumb is a note on its sheet; the floor slope and the
+  point counts go in the room's ATHUGASEMDIR (`wdMeasureNotes`). There is no separate "workshop note" field in the
+  planner, so the drawings' notes column (what the workshop reads) is where it lands.
+- Verified on T-32 via `&maeling=1` (locked project, local only) and on T-199's Rýmið page.

@@ -68,3 +68,21 @@ test("airtableLinesTotal = Airtable's own lines × Einingarverð + handles, apar
   assert.equal(d.airtableTotal, 5000000);
   assert.equal(d.airtableLinesTotal, Math.round((2 * 100000 + 50000) * 1.24 + 12400));
 });
+
+// 2026-10-26: the Tilboð panel previews Ósýnilegur afsláttur / Smáverka álagning while they're typed, and marks the
+// lines whose amount changes against Airtable (`was`).
+test("project override scales unchanged lines (not price-locked ones) and every line carries its Airtable amount", async () => {
+  const opp = { id: "recOPP0000000000a", fields: { fldDC7LI0D4cUeCds: "T-99 | Prófun", fldxxGsEY1GkEw4BB: 0.1 } };
+  const rows = [
+    { id: "recLINE000000000a", fields: { "🔑": "Sk1", "Magn": 1, "Einingarverð": 90000, "Tækifæri 📣 (projects)": [opp.id] } },
+    { id: "recLINE000000000b", fields: { "🔑": "Annað", "Magn": 1, "Einingarverð": 45000, "Læstur verðlykill 🔒": "x", "Verðlykill": "x", "Tækifæri 📣 (projects)": [opp.id] } },
+  ];
+  const at = async (method, path) => path.startsWith("tbl4LMXlQjp66RFKI/") ? opp : path.startsWith("tblFcsUoGxsuUwNEH") ? { records: rows } : { records: [] };
+  const d = await price(at, { recordId: opp.id, lines: [{ key: "Sk1", qty: 1 }], project: { hidden: 0.2, small: "Smáverk 10%" } });
+  assert.equal(d.lines[0].was, Math.round(90000 * 1.24));
+  assert.equal(d.lines[0].total, Math.round(90000 * (0.8 * 1.1) / 0.9 * 1.24));
+  assert.equal(d.other[0].total, Math.round(45000 * 1.24)); // locked: untouched
+  assert.equal(d.small, "Smáverk 10%");
+  assert.equal(validate({ recordId: A, lines: [], project: { hidden: 1.5 } }), "Ógildur afsláttur");
+  assert.equal(validate({ recordId: A, lines: [], project: { small: "Smáverk 99%" } }), "Ógild smáverka álagning");
+});

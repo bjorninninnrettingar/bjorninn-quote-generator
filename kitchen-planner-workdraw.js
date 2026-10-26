@@ -172,11 +172,14 @@
     }
     var notes = (model.notes || []).concat(sheet.notes || []);
     if (notes.length){
-      s += tx(x, y + 2.5, "ATHUGASEMDIR", 2.3, C.text, ' font-weight="700"'); y += 5;
+      // black + larger (user, 2026-10-26): the green 2.1 mm notes were hard to read on a printed sheet
+      s += tx(x, y + 2.8, "ATHUGASEMDIR", 2.7, C.ink, ' font-weight="700"'); y += 5.6;
+      var yMax = PAGE_H - M - 34 - 16 - 5, cut = false; // stop above the legend
       notes.forEach(function(t){
-        wrap(t, 46).forEach(function(l){ s += tx(x, y + 2.4, l, 2.1, C.text); y += 3.1; });
-        y += 1.2;
+        wrap(t, 52).forEach(function(l){ if (y + 3.5 > yMax){ cut = true; return; } s += tx(x, y + 2.6, l, 2.5, C.ink); y += 3.5; });
+        y += 1.3;
       });
+      if (cut) s += tx(x, yMax + 2.6, "… fleiri athugasemdir í Line Items", 2.2, C.thin);
     }
     // legend
     var leg = [["ÚTHLIÐ", C.ink, "fill"], ["ÁFELLA", "url(#wdHatch)", "pat"], ["SK", C.sk, "fill"], ["LED", C.led, "fill"], ["GRIP", C.grip, "fill"],
@@ -341,15 +344,21 @@
     });
     (geo.obstacles || []).forEach(function(o){ s += poly(o.poly, C.thin, 0.2, "url(#wdHatch)"); });
     (geo.labels || []).forEach(function(l){ var lp = P(l); s += tx(lp.x, lp.y - 0.6, l.text, 3.2, C.ink, ' text-anchor="middle" font-weight="800"') + (l.sub ? tx(lp.x, lp.y + 3.4, l.sub, 2.3, C.thin, ' text-anchor="middle"') : ""); }); // room names (Allt heimilið)
+    var labels = ""; // drawn after every footprint, so a dashed wall unit above never runs through a floor unit's Sk
     (geo.units || []).forEach(function(u){
       if (u.panel){ s += poly(u.poly, C.ink, 0.2, C.ink); return; }
       s += poly(u.poly, u.zone === "wall" ? C.thin : C.ink, u.zone === "wall" ? 0.2 : (opts.mini ? 0.18 : 0.3), u.zone === "wall" ? "none" : "#fff", u.zone === "wall" ? DASH : "");
       if (!opts.mini && u.sk && u.zone !== "wall"){
         var c = u.poly.reduce(function(acc, p){ return { x:acc.x + p.x / u.poly.length, z:acc.z + p.z / u.poly.length }; }, { x:0, z:0 }), cp = P(c);
-        s += tx(cp.x, cp.y + 0.9, u.sk.toUpperCase(), 2.3, C.sk, ' text-anchor="middle" font-weight="700"');
+        // twice the old 2.3 (user, 2026-10-26: "tiny" on the Grunnmynd), shrunk only where the footprint is too small
+        var qs = u.poly.map(P), qx = qs.map(function(q){ return q.x; }), qy = qs.map(function(q){ return q.y; });
+        var fw = Math.max.apply(null, qx) - Math.min.apply(null, qx), fh = Math.max.apply(null, qy) - Math.min.apply(null, qy), lab = u.sk.toUpperCase();
+        var fs = Math.max(2.3, Math.min(4.6, (Math.max(fw, fh) - 1) / (lab.length * 0.62), Math.min(fw, fh) * 0.8));
+        var vert = fh > fw * 1.4 && fw < lab.length * 0.62 * fs; // a deep, narrow footprint (side wall run seen from above): read along it
+        labels += tx(cp.x, cp.y + fs * 0.36, lab, n(fs), C.sk, ' text-anchor="middle" font-weight="700" stroke="#fff" stroke-width="0.7" paint-order="stroke"' + (vert ? ' transform="rotate(-90 ' + n(cp.x) + ' ' + n(cp.y) + ')"' : ""));
       }
     });
-    return s;
+    return s + labels;
   }
 
   // ── sheet 1: the whole room ──
@@ -389,6 +398,8 @@
       s += tx(x + 2, ty, r.units + " einingar" + (r.notes && r.notes.length ? " · " + r.notes.slice(0, 3).join(" · ") : ""), 2.4, C.thin);
       ty += 8; pg += r.sheets;
     });
+    if (project.cabinets){ s += tx(x, ty, "Skápalisti", 3.4, C.ink, ' font-weight="700"') + tx(x + colW, ty, "bls. " + pg + (project.cabinets.sheets > 1 ? "–" + (pg + project.cabinets.sheets - 1) : ""), 3, C.thin, ' text-anchor="end"') + ln(x, ty + 1.6, x + colW, ty + 1.6, "#d4d4d8", 0.15); ty += 5;
+      s += tx(x + 2, ty, project.cabinets.rows + " einingar — mál, skúffur, hurðir og hillur", 2.4, C.thin); ty += 8; pg += project.cabinets.sheets; }
     if (project.doors){ s += tx(x, ty, "Hurðalisti", 3.4, C.ink, ' font-weight="700"') + tx(x + colW, ty, "bls. " + pg, 3, C.thin, ' text-anchor="end"') + ln(x, ty + 1.6, x + colW, ty + 1.6, "#d4d4d8", 0.15); ty += 5; s += tx(x + 2, ty, project.doors + (project.doors === 1 ? " hurð" : " hurðir"), 2.4, C.thin); }
     s += tx(PAGE_W - M - 14, PAGE_H - M - 10, "BJÖRNINN INNRÉTTINGAR", 4, C.ink, ' text-anchor="end" font-weight="800"');
     s += tx(PAGE_W - M - 14, PAGE_H - M - 4, "Drög — mál staðfest á staðnum", 2.6, C.thin, ' text-anchor="end"');
@@ -430,6 +441,49 @@
     return page(s);
   }
 
+  // ── Skápalisti (2026-10-26): one row per Sk, the numbers the Line Items / Keyra skipulag / /cnc get (the planner
+  // builds the rows from each line's own Smíðagögn — wdCabinetRows — so the list can't disagree with what is built).
+  // rows = [{sk, type, product, size, front, drawers, doors, shelves, grip, note} | {group:"Eldhús"}]; part/parts when
+  // a project needs more than one sheet ──
+  var CAB_ROWS = 18;
+  function cabinetSheet(model, rows, idx, total, part, parts){
+    var x = M + 6, y = M + 8, s = tx(x, M + 7, "SKÁPALISTI — " + (model.project || "").toUpperCase() + (parts > 1 ? " (" + part + "/" + parts + ")" : ""), 3.4, C.ink, ' font-weight="800"');
+    var cols = [["Sk", 12], ["Tegund", 46], ["B × H × D", 27], ["Framhlið", 17], ["Skúffur (ofan frá, mm)", 44], ["Hurðir / lamir", 38], ["Hillur", 26], ["Grip / höldur", 26], ["Athugasemd", 0]];
+    var tw = PAGE_W - 2 * M - COL_W - 16, used = cols.reduce(function(a, c){ return a + c[1]; }, 0); cols[cols.length - 1][1] = Math.max(20, tw - used);
+    y += 6;
+    var cx = x; cols.forEach(function(c){ s += tx(cx + 1, y, c[0], 2.4, C.ink, ' font-weight="700"'); cx += c[1]; });
+    s += ln(x, y + 1.6, x + tw, y + 1.6, C.ink, 0.3);
+    var top = y + 2, rowH = 12.5;
+    rows.forEach(function(r){
+      if (r.group){ s += tx(x + 1, top + 5, String(r.group).toUpperCase(), 2.3, C.ink, ' font-weight="700" letter-spacing=".3"') + ln(x, top + 6.6, x + tw, top + 6.6, C.thin, 0.2); top += 7.5; return; }
+      cx = x;
+      var cells = [r.sk, [r.type, r.product].filter(Boolean).join(" · "), r.size, r.front, r.drawers, r.doors, r.shelves, r.grip, r.note];
+      cells.forEach(function(v, j){
+        var cw = cols[j][1], lines = wrap(String(v == null || v === "" ? "—" : v), Math.max(5, Math.floor(cw / 1.32)));
+        if (lines.length > 3){ lines = lines.slice(0, 3); lines[2] = lines[2].replace(/.{0,2}$/, "…"); }
+        lines.forEach(function(l, k){ s += tx(cx + 1, top + 4.4 + k * 3.4, l, j === 0 ? 3 : 2.5, j === 0 ? C.sk : C.ink, j === 0 ? ' font-weight="800"' : ""); });
+        cx += cw;
+      });
+      top += rowH;
+      s += ln(x, top - 0.6, x + tw, top - 0.6, "#c9c9cf", 0.15);
+    });
+    s += column(model, { title:"Skápalisti", minimap:null, notes:["B × H × D = skrokkurinn í mm, án sökkuls og borðplötu.", "Skúffur ofan frá; talan = Sérhæð (raufin) í mm, framhliðin er 3 mm minni.",
+      "Lamir: fjöldi á hverja hurð; hlið séð framan frá.", "Sama og fer í Line Items (Smíðagögn), Keyra skipulag og /cnc."] }, idx, total, null);
+    return page(s);
+  }
+  // rows → as many sheets as they need (group headers count as rows, a group header never ends a sheet)
+  function cabinetSheets(model, rows, startIdx, total){
+    var chunks = [[]], n = 0;
+    rows.forEach(function(r, i){
+      var w = r.group ? 0.7 : 1, lastGroup = r.group && i === rows.length - 1;
+      if (lastGroup) return;
+      if (n + w > CAB_ROWS || (r.group && n + w + 1 > CAB_ROWS)){ chunks.push([]); n = 0; }
+      chunks[chunks.length - 1].push(r); n += w;
+    });
+    return chunks.map(function(c, i){ return cabinetSheet(model, c, startIdx + i, total, i + 1, chunks.length); });
+  }
+  function cabinetSheetCount(rows){ return cabinetSheets({}, rows, 1, 1).length; }
+
   function render(model){
     var walls = (model.sheets || []).filter(function(sh){ return (sh.units && sh.units.length) || (sh.annotations && sh.annotations.length); });
     var total = walls.length + 1, out = [overviewSheet(model, 1, total)];
@@ -437,7 +491,7 @@
     return out;
   }
 
-  var API = { render:render, wallSheet:wallSheet, doorSheet:doorSheet, coverSheet:coverSheet, homeSheet:homeSheet, overviewSheet:overviewSheet, planSvg:planSvg, drawerLabel:drawerLabel, pickScale:pickScale, COLORS:C, PAGE_W:PAGE_W, PAGE_H:PAGE_H };
+  var API = { render:render, wallSheet:wallSheet, doorSheet:doorSheet, cabinetSheet:cabinetSheet, cabinetSheets:cabinetSheets, cabinetSheetCount:cabinetSheetCount, coverSheet:coverSheet, homeSheet:homeSheet, overviewSheet:overviewSheet, planSvg:planSvg, drawerLabel:drawerLabel, pickScale:pickScale, COLORS:C, PAGE_W:PAGE_W, PAGE_H:PAGE_H };
   if (typeof module !== "undefined" && module.exports) module.exports = API;
   root.KPWD = API;
 })(typeof window !== "undefined" ? window : globalThis);

@@ -68,6 +68,12 @@ export function validate(body) {
   for (const f of ["carcass", "front", "front2", "top"]) if (m[f] != null && !REC_RE.test(m[f])) return "Ógilt efni";
   if (m.handles != null && !(Array.isArray(m.handles) && m.handles.length <= 8 && m.handles.every((x) => REC_RE.test(x)))) return "Ógildar höldur";
   if (m.handleCount != null && !(Number.isFinite(m.handleCount) && m.handleCount >= 0 && m.handleCount <= 9999)) return "Ógilt magn halda";
+  const pr = b.project;
+  if (pr != null) {
+    if (typeof pr !== "object") return "Ógilt verkefni";
+    if (pr.hidden != null && !(Number.isFinite(pr.hidden) && pr.hidden >= 0 && pr.hidden < 1)) return "Ógildur afsláttur";
+    if (pr.small != null && pr.small !== "" && !(pr.small in SMALL)) return "Ógild smáverka álagning";
+  }
   return null;
 }
 
@@ -127,7 +133,13 @@ export async function price(at, body) {
     top: num((matRecs[pick.top] || {})[M_COST]), door: num((matRecs[pick.door] || {})[M_COST]),
     kl: num(pf[P.kl]), // "m. kostnaður á kantlímingu" — a text formula (120/400/800/1200 by Kantlíming skrokka)
   };
-  const proj = { hidden: num(pf[P.hidden]), small: SMALL[first(pf[P.small])] || 1 };
+  // the Tilboð panel's Ósýnilegur afsláttur / Smáverka álagning while they're typed (2026-10-26) — a preview only, the
+  // panel writes them to the Tækifæri itself. Both multiply every line, so an unchanged line keeps Airtable's own
+  // Einingarverð scaled by new/old factor (a price-locked line stays as it is).
+  const projNow = { hidden: num(pf[P.hidden]), small: SMALL[first(pf[P.small])] || 1 };
+  const po = body.project || {};
+  const proj = { hidden: po.hidden != null ? po.hidden : projNow.hidden, small: "small" in po ? (SMALL[po.small] || 1) : projNow.small };
+  const projScale = ((1 - proj.hidden) * proj.small) / (((1 - projNow.hidden) * projNow.small) || 1);
   const nameOf = (list) => list.map((id) => (variants[id] || {})[V.name]).filter(Boolean).join(" + ");
 
   let drift = 0;
@@ -142,17 +154,18 @@ export async function price(at, body) {
     const unchanged = sameLine && sameMaterials;
     const locked = !!(row && rf["Læstur verðlykill 🔒"] && rf["Læstur verðlykill 🔒"] === rf["Verðlykill"]);
     if (unchanged && !locked && Math.abs(num(rf["Einingarverð (lifandi)"]) - calc) > 1) drift++;
-    const unit = unchanged ? num(rf["Einingarverð"]) : calc;
-    return { key: li.key, lineId: row ? row.id : null, name: nameOf(li.v1 || []) || "— engin vara tengd —", extra: nameOf([...(li.v2 || []), ...(li.v3 || [])]),
+    const unit = unchanged ? num(rf["Einingarverð"]) * (locked ? 1 : projScale) : calc;
+    return { key: li.key, lineId: row ? row.id : null, was: row ? Math.round(num(rf["Einingarverð"]) * num(rf["Magn"]) * VAT) : 0, name: nameOf(li.v1 || []) || "— engin vara tengd —", extra: nameOf([...(li.v2 || []), ...(li.v3 || [])]),
       qty, disc, unit: Math.round(unit), total: Math.round(unit * qty * VAT), source: unchanged ? "airtable" : "reiknað", changed: !!row && !sameLine, locked: unchanged && locked, mapped: !!(li.v1 || []).length };
   });
 
   // lines on the Tækifæri that aren't from the drawing (added by hand in Airtable) — on the quote as Airtable has them
   const drawn = new Set(body.lines.map((li) => li.key));
   const other = rows.filter((r) => !drawn.has(String(r.fields["🔑"] || "").trim()) && num(r.fields["Magn"])).map((r) => {
-    const f = r.fields, unit = num(f["Einingarverð"]), qty = num(f["Magn"]);
+    const f = r.fields, qty = num(f["Magn"]), lockedO = !!(f["Læstur verðlykill 🔒"] && f["Læstur verðlykill 🔒"] === f["Verðlykill"]);
+    const unit = num(f["Einingarverð"]) * (lockedO ? 1 : projScale);
     return { key: String(f["🔑"] || "").trim() || null, lineId: r.id, name: nameOf(ids(f["Vöru reitur 1"])) || "Lína úr Airtable", extra: nameOf([...ids(f["Vöru reitur 2"]), ...ids(f["Vöru reitur 3"])]),
-      qty, disc: num(f["Afsl. %"]), unit: Math.round(unit), total: Math.round(unit * qty * VAT), source: "airtable", stale: KEY_RE.test(String(f["🔑"] || "").trim()) };
+      qty, disc: num(f["Afsl. %"]), unit: Math.round(unit), total: Math.round(unit * qty * VAT), was: Math.round(num(f["Einingarverð"]) * qty * VAT), source: "airtable", stale: KEY_RE.test(String(f["🔑"] || "").trim()) };
   });
 
   // handles: the Tækifæri's own (possibly locked) number unless the drawing changed handle or count
@@ -167,7 +180,7 @@ export async function price(at, body) {
   // vistar" on T-32 was just that difference, Vista wouldn't cut the quote by it).
   const airtableLinesTotal = Math.round(rows.filter((r) => num(r.fields["Magn"])).reduce((a, r) => a + num(r.fields["Einingarverð"]) * num(r.fields["Magn"]) * VAT, 0) + num(pf[P.handlesNow]));
   return { lines, other, handles: { count: handleCount, total: handlesTotal, changed: handlesChanged, airtableCount: num(pf[P.h1n]), airtableTotal: Math.round(num(pf[P.handlesNow])) },
-    hiddenDiscount: proj.hidden, small: first(pf[P.small]) || null, total: linesTotal + handlesTotal,
+    hiddenDiscount: proj.hidden, small: "small" in po ? (po.small || null) : (first(pf[P.small]) || null), total: linesTotal + handlesTotal,
     airtableTotal: Math.round(num(pf[P.total])), airtableLinesTotal, materialsChanged, drift };
 }
 
