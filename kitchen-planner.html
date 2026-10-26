@@ -1357,11 +1357,11 @@
   .pro-open.todo { background:#b3261e; } .pro-open.ready { background:#1f9d55; }
   #proEd .pe-ready { width:100%; margin-top:14px; padding:11px; border:0; border-radius:10px; font:700 14px/1.2 inherit; cursor:pointer; color:#fff; background:#1f9d55; }
   #proEd .pe-ready:disabled { opacity:.45; cursor:not-allowed; }
-  #proEd .pe-issues { margin-top:12px; padding:9px 11px; border-radius:10px; background:#3a1f1b; color:#ffb4a6; font-size:13px; line-height:1.4; }
+  #proEd .pe-issues { margin:0 0 12px; padding:9px 11px; border-radius:10px; background:#3a1f1b; color:#ffb4a6; font-size:13px; line-height:1.4; }
   #proEd .pe-issues div + div { margin-top:4px; }
   #proEd .pe-ready.undo { background:transparent; color:inherit; border:1px solid var(--line, #cfd4da); font-weight:600; }
   #proEd { position:fixed; inset:0; z-index:350; background:rgba(15,18,24,.55); display:flex; align-items:center; justify-content:center; padding:20px; box-sizing:border-box; }
-  #proEd .pe-card { background:#fff; color:#1b1f24; border-radius:16px; width:min(980px,94vw); max-height:calc(96vh - 52px); overflow:auto; display:grid; grid-template-columns:auto 1fr; align-items:start; gap:22px; padding:20px 22px; box-shadow:0 20px 60px rgba(0,0,0,.35); }
+  #proEd .pe-card { background:#fff; color:#1b1f24; border-radius:16px; width:min(1060px,96vw); max-height:calc(96vh - 52px); overflow:auto; display:grid; grid-template-columns:auto 1fr; align-items:start; gap:22px; padding:20px 22px; box-shadow:0 20px 60px rgba(0,0,0,.35); }
   /* the drawing stays put while the controls scroll past it (user, 2026-10-16) — sticky inside .pe-card's own scroll */
   #proEd .pe-img { position:sticky; top:0; align-self:start; }
   #proEd .pe-content { min-width:0; }
@@ -1372,7 +1372,7 @@
   #proEd .pe-door h4 { margin:0 0 8px; font-size:14px; }
   #proEd .pe-mal { border:1px solid #e1e4e8; border-radius:12px; padding:10px 12px; margin-top:10px; }
   #proEd .pe-mal h4 { margin:0 0 8px; font-size:14px; }
-  #proEd .pe-row { display:flex; gap:8px; align-items:center; margin:4px 0; font-size:13px; }
+  #proEd .pe-row { display:flex; flex-wrap:wrap; gap:6px 8px; align-items:center; margin:4px 0; font-size:13px; }
   #proEd .pe-row input { width:76px; padding:5px 7px; border:1px solid #cfd4da; border-radius:7px; font:inherit; }
   #proEd .pe-btn { border:1px solid #cfd4da; background:#fff; color:#1b1f24; border-radius:8px; padding:5px 10px; cursor:pointer; font-family:inherit; font-weight:600; font-size:13px; line-height:1.2; }
   #proEd .pe-btn.on { background:#1d2633; color:#fff; border-color:#1d2633; }
@@ -5288,8 +5288,7 @@
       // usable drawer space was silently capped 150 mm short of its real body (found live, 2026-10-19 — a
       // 735 mm carcass only ever had 585 mm to work with, no explanation given either before tonight's warn
       // or after — this is almost certainly the original "allt bannað" complaint from earlier tonight too).
-      var reserve = c.cls === "tall" ? KP3D.DRAWER_TOPDOOR_MIN_MM : 0;
-      return Math.max(0, Math.min(full - reserve, sum));
+      return KP3D.drawerStackSpaceMm(c.cls, full, sum); // base units: the whole carcass (2026-10-26, see KP3D)
     }
     return KP3D.drawerZoneMm(c, full, b.drawerZoneMm);
   }
@@ -13297,6 +13296,21 @@
   }
 
   var proEdId = null;
+  // one line of what a collapsed Smíða section holds, read off its own controls (so it can never disagree with them)
+  function peSectionSummary(sec){
+    function on(pe){ var n = sec.querySelector('.pe-btn.on[data-pe="' + pe + '"]'); return n ? n.textContent.trim() : ""; }
+    function count(pe){ return sec.querySelectorAll('[data-pe="' + pe + '"]').length; }
+    var t = on("type");
+    if (t) return t === "Á lömum" ? count("mm") + " lamir" : t;
+    if (count("split")) return on("split") || "";
+    if (count("oshmm")){ var fx = sec.querySelectorAll('.pe-btn.on[data-pe="oshtype"][data-v="1"]').length; return count("oshmm") + (fx ? " (" + fx + " föst)" : ""); }
+    if (count("ovh")) return on("ovh") + " cm" + (sec.querySelector('[data-pe="ounder"]') ? ", " + sec.querySelector('[data-pe="ounder"]').value + " mm undir" : "");
+    if (count("railadd")){ var nr = count("railmm"); return nr ? nr + " " + (nr === 1 ? "slá" : "slár") : "engin"; }
+    if (count("griptype")){ var g = sec.querySelectorAll('.pe-btn.on[data-pe="griptype"]:not([data-v="none"])').length; return g ? g + " með grip" : "ekkert grip"; }
+    if (count("inneradd") || count("burmm")){ var ni = count("innermm") + count("burmm"); return ni ? ni + " innskúffur" : "engar"; }
+    var dws = sec.querySelectorAll("#peInterior select[data-dw-type]"); if (dws.length) return Array.prototype.map.call(dws, function(x){ return x.value; }).join(" / "); // top → bottom
+    return "";
+  }
   var peCollapsed = {}; // Smíða section collapse state, by position — reset per cabinet (positions are stable within one cabinet's own set of sections)
   function openBoxEditor(id){ proEdId = id; peCollapsed = {}; renderBoxEditor(); }
   function closeBoxEditor(){ proEdId = null; var el = document.getElementById("proEd"); if (el) el.remove(); refreshAfterEdit(); }
@@ -13399,8 +13413,21 @@
     var yTop = Y0;
     doors.forEach(function(d, i){
       var sp = proSpec(b, doors, i), h = d.box * S;
+      // the door's own label: never on top of a shelf / inner drawer label (it sat right on the middle shelf of a
+      // 5-shelf tall unit) and never wider than the cabinet (a 600 mm oven tower's "Hurð fyrir ofan ofn" ran over
+      // the hinge markers) — 2026-10-26
+      var dLbl = d.label + " · " + d.box, dFs = 12;
+      if (dLbl.length * 6.6 > W - 14){ dFs = 10; if (dLbl.length * 5.5 > W - 14) dLbl = d.label.split(" ")[0] + " · " + d.box; }
+      var taken = (shelfOn ? shelfList().map(function(sh){ return sh.mm; }) : []).concat(c.bur || innerOn ? (c.bur ? KP3D.burDrawersOf(b, drawerSys()) : KP3D.innerDrawersOf(b, drawerSys())).map(function(dd){ return dd.mm + dd.h / 2; }) : []);
+      var dTopMm = body - (yTop - Y0) / S, dBotMm = dTopMm - d.box, dY = yTop + h / 2;
+      if (taken.some(function(mm){ return Math.abs((Y0 + body * S - mm * S) - dY) < 16; })){
+        var marks = [dBotMm].concat(taken.filter(function(mm){ return mm > dBotMm && mm < dTopMm; }), [dTopMm]).sort(function(a, z){ return a - z; }), best = null;
+        for (var mk = 1; mk < marks.length; mk++){ var mid = (marks[mk - 1] + marks[mk]) / 2, room = (marks[mk] - marks[mk - 1]) * S;
+          if (room > 34 && (best == null || Math.abs(mid - (dTopMm + dBotMm) / 2) < Math.abs(best - (dTopMm + dBotMm) / 2))) best = mid; }
+        if (best != null) dY = Y0 + body * S - best * S + 4;
+      }
       svg += '<rect x="' + (X0 + 3) + '" y="' + (yTop + 1) + '" width="' + (W - 6) + '" height="' + (h - 2) + '" fill="' + (sp.type === "lift" ? "#fff6dc" : sp.type === "pocket" ? "#eaf2ff" : "#eef6ee") + '" stroke="#9aa5b1" rx="2"/>' +
-        '<text x="' + (X0 + W / 2) + '" y="' + (yTop + h / 2) + '" text-anchor="middle" font-size="12" fill="#3b4652">' + d.label + " · " + d.box + '</text>';
+        '<text x="' + (X0 + W / 2) + '" y="' + dY + '" text-anchor="middle" font-size="' + dFs + '" fill="#3b4652"><title>' + d.label + " · " + d.box + ' mm</title>' + dLbl + '</text>';
       if (sp.type === "hinged"){
         var sides = bothHinges ? [true, false] : [hingeLeft];
         sides.forEach(function(left){
@@ -13473,6 +13500,9 @@
     var right = '<button type="button" class="pe-btn pe-close" data-pe="close">Loka ✕</button>' +
       '<h3>' + (key ? key + " · " : "") + c.label + '</h3><div class="pe-sub">' + b.widthMm + ' × ' + carcassMm + ' mm · ' +
       (b.smida ? "Smíðagögn vistuð á skápnum" : "Sjálfgefið (ekkert breytt)") + '</div>';
+    // ⛔ first, where it can't be missed (2026-10-26: it sat under the last section, below the fold on a tall unit)
+    var issues = proIssues(b, c, fb.zone);
+    if (issues.length) right += '<div class="pe-issues"><b>⛔ Lagaðu áður en skápurinn er merktur klár:</b>' + issues.map(function(x){ return '<div>' + escapeHtmlPro(x) + '</div>'; }).join("") + '</div>';
     // Mál (2026-10-17, user — "Smíða er final design á þessu algjörlega svo hér þarf að vera hægt að fínpússa
     // allt"): width/height/depth used to be editable only on the regular side panel, outside Smíða — same
     // applyBlockDim the floating-toolbar size chip and the side panel's own Mál tab already use, so a change
@@ -13528,7 +13558,8 @@
             '<button type="button" class="pe-btn" data-pe="del" data-door="' + i + '" data-h="' + j + '" title="Taka löm">✕</button></div>';
         });
         right += '<div class="pe-row"><button type="button" class="pe-btn" data-pe="add" data-door="' + i + '">＋ Löm</button>' +
-          '<button type="button" class="pe-btn" data-pe="reset" data-door="' + i + '">Sjálfgefið</button></div>';
+          '<button type="button" class="pe-btn" data-pe="reset" data-door="' + i + '">Sjálfgefið</button></div>' +
+          '<div class="pe-note">Mælt frá enda hurðarinnar: ↓ = frá botni, ↑ = frá toppi (80 mm sjálfgefið, hinar jafnt á milli — sama regla og /cnc). Dragðu bláu punktana á teikningunni.</div>';
       }
       right += '</div>';
     });
@@ -13572,7 +13603,8 @@
         });
         right += '<div class="pe-row"><button type="button" class="pe-btn" data-pe="oshadd">＋ Hilla</button>' +
           '<button type="button" class="pe-btn" data-pe="oshspread" title="Dreifir öllum ólæstum hillum jafnt á milli læstra hilla og skápsendanna">⇅ Dreifa ólæstum jafnt</button>' +
-          (shelfCustom ? '<button type="button" class="pe-btn" data-pe="oshreset">Sjálfgefið</button>' : '') + '</div>';
+          (shelfCustom ? '<button type="button" class="pe-btn" data-pe="oshreset">Sjálfgefið</button>' : '') + '</div>' +
+          '<div class="pe-note">Hæð = efri brún hillunnar frá botni skáps. Á teikningunni: heil lína = föst hilla, strikuð = laus; „laus ×3“ = göt fyrir 3 stillingar (50 mm á milli). Dragðu hillurnar upp/niður.</div>';
       }
       // Raðborun (2026-10-18, user): folded into Hillur — it's the same hole pattern, not a separate concern.
       var rb = b.radborun, rSpanNow = KP3D.radborunSpanMm(b, body, drawerSys());
@@ -13600,8 +13632,7 @@
     }
     if (dr || (c.oven && !c.lowOven)) right += '<div class="pe-door"><h4>' + (dr ? "Skúffur" : "Undir ofninum") + '</h4><div id="peInterior">' +
       (dr ? hardwareHTML(b, c, { sides:true }) : variantHTML(b, c, { sides:true })) + '</div>' +
-      '<div class="pe-note">Sláðu inn frontahæð, dragðu bláu skilin á teikningunni eða ⠿ til að færa skúffu. Strikaða línan er Blum-hliðin (hlið = hæð hennar; staðsetningin er nálgun).</div></div>';
-    if (doors.length) right += '<div class="pe-note">Lamir eru mældar frá enda hurðarinnar (80 mm sjálfgefið + jafnt á milli). Sama regla og /cnc notar.</div>';
+      '<div class="pe-note">Sláðu inn frontahæð, dragðu bláu skilin á teikningunni eða ⠿ til að færa skúffu. Aðeins skúffan sem þú dregur breytist — samtalan þarf að fylla skápinn (⛔ efst segir til). Strikaða línan er Blum-hliðin (hlið = hæð hennar; staðsetningin er nálgun), rauðu punktarnir eru göt fyrir framhliðina.</div></div>';
     // Grip svæði (Fræst grip): every eligible front's controls in one collapsible group (user, 2026-10-16 —
     // was one separate collapsible card per front, which buried a multi-front cabinet's Smíða panel in cards).
     var gripTargets = proGripTargets(b, c, fb.zone, body, doors, codes, fronts);
@@ -13631,13 +13662,13 @@
       });
       right += '</div>';
     }
-    var isReady = proReady(b), issues = proIssues(b, c, fb.zone);
-    if (issues.length) right += '<div class="pe-issues">' + issues.map(function(x){ return '<div>' + escapeHtmlPro(x) + '</div>'; }).join("") + '</div>';
+    var isReady = proReady(b);
     right += isReady
       ? '<div class="pe-note">Merktur klár til framleiðslu ' + (b.smidaReadyAt ? new Date(b.smidaReadyAt).toLocaleString("is-IS") : "") + '. Breyting á skápnum tekur merkinguna af.</div>' +
         '<button type="button" class="pe-ready undo" data-pe="ready" data-v="0">Taka merkinguna af</button>'
       : (b.smidaReady ? '<div class="pe-note">Skápnum var breytt eftir að hann var merktur klár — yfirfara og merkja aftur.</div>' : '') +
-        '<button type="button" class="pe-ready" data-pe="ready" data-v="1"' + (issues.length ? ' disabled title="Lagaðu fyrst"' : '') + '>Klár til framleiðslu</button>';
+        (issues.length ? '<div class="pe-note">Hnappurinn opnast þegar ⛔ atriðin efst eru löguð.</div>' : '') +
+        '<button type="button" class="pe-ready" data-pe="ready" data-v="1"' + (issues.length ? ' disabled title="Lagaðu ⛔ atriðin efst fyrst"' : '') + '>Klár til framleiðslu</button>';
     el.innerHTML = '<div class="pe-card"><div class="pe-img">' + svg + malHtml + '</div><div class="pe-content">' + right + '</div></div>';
     var peInt = el.querySelector("#peInterior");
     if (peInt) wireInteriorControls(peInt, fb.wall, fb.zone, b, c); // every change ends in refreshAfterEdit → redraws this editor
@@ -13651,10 +13682,12 @@
       var kids = Array.prototype.slice.call(sec.children).filter(function(ch){ return ch !== h4; });
       h4.dataset.peBase = h4.textContent;
       h4.style.cursor = "pointer";
+      // collapsed, a section still says what's in it (2026-10-26) — "▸ Hillur · 5 (1 föst)" — so nothing hides
+      var sum = peSectionSummary(sec);
       function apply(){
         var collapsed = peCollapsed[idx] !== false;
         kids.forEach(function(ch){ ch.style.display = collapsed ? "none" : ""; });
-        h4.textContent = (collapsed ? "▸ " : "▾ ") + h4.dataset.peBase;
+        h4.textContent = (collapsed ? "▸ " : "▾ ") + h4.dataset.peBase + (collapsed && sum ? "  ·  " + sum : "");
       }
       h4.addEventListener("click", function(){ peCollapsed[idx] = peCollapsed[idx] !== false ? false : true; apply(); });
       apply();

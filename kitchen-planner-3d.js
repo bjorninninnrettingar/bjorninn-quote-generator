@@ -5680,6 +5680,14 @@
   // The door above a drawer stack may shrink to absorb a typed drawer-front height, but never below this (user,
   // 2026-10-14 — "lama frontarnir lækka bara í staðinn"), same convention as the oven's OVEN_DOOR_MIN.
   var DRAWER_TOPDOOR_MIN_MM = 150;
+  // The height a drawer stack with typed/dragged fronts has to fill (2026-10-26): a regular cabinet's drawers fill
+  // its whole carcass, so a stack that comes up short is a gap to flag in Smíða; only a tall unit's stack follows the
+  // drawn fronts (its door above takes the rest, never less than DRAWER_TOPDOOR_MIN_MM). Before, base units also
+  // followed the drawn sum — "drawers don't fill the cabinet" could never fire, and a dragged seam left a silent gap.
+  function drawerStackSpaceMm(cls, fullMm, frontsSumMm){
+    if (cls !== "tall") return fullMm;
+    return Math.max(0, Math.min(fullMm - DRAWER_TOPDOOR_MIN_MM, frontsSumMm));
+  }
   // override = a persisted b.drawerZoneMm (Smíða/PRO only); clamped so the door above never drops under its min.
   function drawerZoneMm(c, bodyMm, override){
     if (!(c && c.cls === "tall")) return bodyMm;
@@ -6847,7 +6855,7 @@
     cornerClearanceMm: cornerClearanceMm, afellaMm: afellaMm, AFELLA_MM: AFELLA_MM,
     blockStartsMm: blockStartsMm,
     planTransform: planTransform,
-    rectCornersWorld: rectCornersWorld, drawerZoneMm: drawerZoneMm, TALL_DRAWER_MAX_MM: TALL_DRAWER_MAX_MM, DRAWER_TOPDOOR_MIN_MM: DRAWER_TOPDOOR_MIN_MM, doorLeaves: doorLeaves, islandFits: islandFits, nearestIslandFit: nearestIslandFit, topThickM: topThickM, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, obstacleRect: obstacleRect, obstacleCorners: obstacleCorners, handleAvailMm: handleAvailMm, tallHandleAvailMm: tallHandleAvailMm, obstacleAng: obstacleAng, DECOR: DECOR, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
+    rectCornersWorld: rectCornersWorld, drawerZoneMm: drawerZoneMm, TALL_DRAWER_MAX_MM: TALL_DRAWER_MAX_MM, DRAWER_TOPDOOR_MIN_MM: DRAWER_TOPDOOR_MIN_MM, drawerStackSpaceMm: drawerStackSpaceMm, doorLeaves: doorLeaves, islandFits: islandFits, nearestIslandFit: nearestIslandFit, topThickM: topThickM, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, obstacleRect: obstacleRect, obstacleCorners: obstacleCorners, handleAvailMm: handleAvailMm, tallHandleAvailMm: tallHandleAvailMm, obstacleAng: obstacleAng, DECOR: DECOR, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
     WALL_COLORS: WALL_COLORS,
     WINDOW_DEFAULT: WINDOW_DEFAULT,
     _handleProfile: handleProfile,

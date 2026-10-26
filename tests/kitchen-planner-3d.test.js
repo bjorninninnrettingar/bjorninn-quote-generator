@@ -113,3 +113,16 @@ test("tallHandleAvailMm: a tall door's pull is the longest real length up to 500
   assert.equal(longest(H.vann, K.tallHandleAvailMm(H.vann, 2300)), 350);
   assert.ok(K.tallHandleAvailMm(H.angle, 600) < 500, "a short door still gets a shorter pull");
 });
+
+// Smíða (2026-10-26): dragging one seam of a grunnskápur's drawer stack only moves that front, so the stack can come
+// up short of the carcass. The space it must fill used to follow the drawn sum for every cabinet, so proIssues'
+// "Skúffuhæðir eru samtals … þurfa að fylla …" could never fire for a base unit — the gap went to Keyra skipulag/CNC.
+test("drawerStackSpaceMm: a base unit's stack must fill the whole carcass; a tall unit's follows its drawn fronts", () => {
+  assert.equal(K.drawerStackSpaceMm("base", 800, 731), 800, "a dragged-short base stack still has to fill 800");
+  assert.equal(K.drawerStackSpaceMm("base", 800, 900), 800);
+  assert.equal(K.drawerStackSpaceMm("tall", 2300, 846), 846, "tall: the door above takes the rest");
+  assert.equal(K.drawerStackSpaceMm("tall", 2300, 2290), 2300 - K.DRAWER_TOPDOOR_MIN_MM, "tall: the door keeps its minimum");
+  // an old draft (fronts stored with the 3 mm gaps between them) is still turned into slots that fill a base unit
+  const slots = K.stackFrontsMm({ frontsMm: [212, 407.6, 174.4] }, ["E", "K", "M"], K.drawerStackSpaceMm("base", 800, 794));
+  assert.equal(Math.round(slots.reduce((a, h) => a + h, 0)), 800);
+});
