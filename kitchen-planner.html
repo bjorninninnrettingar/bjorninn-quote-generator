@@ -245,6 +245,16 @@
   .ed-toolbar .view-toggle button{ padding:6px 10px; font-size:12.5px; }
   .ed-tbtn, .ed-newunit{ white-space:nowrap; }
   @media (max-width:1500px){ #camToggle{ display:none; } .ed-menus .cat-sec > summary{ padding:6px 9px; } }
+  /* E1 (2026-10-26): at 1280 px the row ran ~90 px past the edge and "← Til baka" was cut off — tighter below 1400 */
+  @media (max-width:1399px){
+    .ed-toolbar{ gap:4px 5px !important; }
+    .ed-menus{ gap:4px !important; }
+    .ed-menus .cat-sec > summary{ padding:5px 7px !important; font-size:12px; }
+    .ed-toolbar .view-toggle{ gap:4px; }
+    .ed-toolbar .view-toggle button{ padding:5px 8px; font-size:12px; }
+    .warn-chip:not([hidden]){ padding:6px 9px; font-size:12.5px; }
+    .ed-newunit{ padding:7px 11px; font-size:13px; }
+  }
   .ed-hint{ font-size:12.5px; color:var(--ink-soft); text-align:right; flex:1 1 0; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .view-toggle button{ white-space:nowrap; }
   .cat-title{ font-size:11.5px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--gold); margin:4px 0 8px; }
@@ -1143,6 +1153,7 @@
   #proBar button.pb-unlock { background:transparent; border-color:currentColor; color:#b3261e; }
   body.pro #proBar button.pb-unlock { color:#ffd60a; }
   #proBar button.pb-review { background:#1a7d36; border-color:#1a7d36; }
+  #proBar button.pb-flash { box-shadow:0 0 0 3px #ffd60a; }
   #proBar button#proTilbodToggle { background:transparent; border-color:var(--blue); color:var(--ink); }
   #proBar button#proTilbodToggle.on { background:var(--blue); color:#fff; }
   /* PRO header (2026-10-26): one row that fits 1280–1440 px — the bar takes the free width, only the project name gives
@@ -14573,7 +14584,7 @@
     var el = document.getElementById("proBar");
     if (!el) return;
     el.hidden = false;
-    var reviewBtn = PRO.needsReview ? '<button type="button" id="proReviewed" class="pb-review">Yfirfarið</button>' : "";
+    var reviewBtn = PRO.needsReview ? '<button type="button" id="proReviewed" class="pb-review" title="Teikning frá viðskiptavini: merktu hana yfirfarna (fer af „Til yfirferðar“ í CRM)">Merkja teikningu yfirfarna</button>' : "";
     if (PRO.locked && !PRO.unlocked){
       el.innerHTML = '<span>PRO</span><span class="pb-name">' + escapeHtmlPro(PRO.name || "") + '</span>' +
         '<span class="pb-locked">Í skipulagi (' + escapeHtmlPro(PRO.lockStatus) + ') — skoðunarhamur</span>' +
@@ -14649,7 +14660,9 @@
     var unl = f.unlinked.filter(function(u){ return !ack["v1:" + u.key]; });
     var wSig = f.warnings.slice().sort().join("|"), wOk = !f.warnings.length || ack.warn === wSig;
     var undrawn = f.rooms.filter(function(r){ return !r.plain && (!r.drawn || !r.units); });
-    return [
+    var out = PRO.needsReview ? [{ key:"yfirfarid", ok:false, title:"Teikning viðskiptavinar yfirfarin",
+      detail:"Þessi teikning kom frá viðskiptavini. Farðu yfir hana og ýttu á „Merkja teikningu yfirfarna“ efst." }] : [];
+    return out.concat([
       { key:"rymi", ok:!undrawn.length && f.cabinets > 0, title:multi ? "Öll rými teiknuð (" + f.rooms.length + ")" : "Rýmið teiknað", target:undrawn[0], room:true,
         detail:undrawn.length ? undrawn.map(function(r){ return r.room + (r.drawn ? ": engar einingar" : ": ekki teiknað enn"); }).join(" · ") + "." :
           f.cabinets ? f.rooms.filter(function(r){ return !r.plain; }).map(function(r){ return r.room + ": " + r.units + " " + plural(r.units, "eining", "einingar"); }).join(" · ") + "." : "Engar einingar enn." },
@@ -14667,7 +14680,7 @@
         detail:f.unready.length ? f.unready.length + " af " + f.cabinets + " eftir: " + keyList(f.unready) + ". Opnaðu Smíða og ýttu á „Skápur yfirfarinn“." : f.cabinets ? "Allir merktir yfirfarnir." : "Engar einingar enn." },
       { key:"abend", ok:wOk, title:"Ábendingar yfirfarnar", acks:f.warnings.length ? [{ id:"warn", label:"Ég hef farið yfir " + (f.warnings.length === 1 ? "ábendinguna" : "ábendingarnar"), on:wOk, sig:wSig }] : null,
         detail:f.warnings.length ? f.warnings.length + " " + plural(f.warnings.length, "ábending", "ábendingar") + ", t.d. „" + f.warnings[0] + "“" : "Engar ábendingar." }
-    ];
+    ]);
   }
   // every V1 Útfærsla the planner knows (KP_LINEMAP.v1, generated from Airtable), by name — the A3 picker
   var proV1List = null;
@@ -14737,6 +14750,7 @@
   function proCheckFix(x){
     var t = x.target;
     if (x.key === "maeling"){ proCheckOpen(false); openMeasurePanel(); return; }
+    if (x.key === "yfirfarid"){ proCheckOpen(false); var rv = document.getElementById("proReviewed"); if (rv){ rv.classList.add("pb-flash"); setTimeout(function(){ rv.classList.remove("pb-flash"); }, 1600); } return; }
     if (x.key === "abend"){ var wc = document.getElementById("warnChip"); if (wc && !wc.hidden) wc.click(); return; }
     proCheckOpen(false);
     if (x.room){ if (t) openRoom(t.cat); return; }
