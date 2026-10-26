@@ -1957,6 +1957,9 @@
   // kicker stays hidden across the whole flow, not just the landing list.
   var EMBEDDED = (function(){ try{ return new URLSearchParams(location.search).get("embedded") === "1"; }catch(e){ return false; } })();
   function embeddedQS(){ return EMBEDDED ? "&embedded=1" : ""; }
+  var STORAGE_KEY = PRO ? "bjorninn:kitchenPlanner:pro:" + PRO.id : "bjorninn:kitchenPlanner:draft:v1";
+
+  var KP3D = window.KP3D;
   // Customers see cm, PRO keeps mm (2026-10-26, docs/studio-cm.md). State, drafts and everything sent to Airtable
   // stay mm — uNum/uLen only format for display (and answer mm inside KPI18N.asIS, where Airtable text is built).
   KP3D.unitCm = !KPI18N.isPro;
@@ -1991,9 +1994,6 @@
   if (KP3D.unitCm && window.MutationObserver) new MutationObserver(function(recs){
     recs.forEach(function(r){ r.addedNodes.forEach(cmFields); });
   }).observe(document.documentElement, { childList:true, subtree:true });
-  var STORAGE_KEY = PRO ? "bjorninn:kitchenPlanner:pro:" + PRO.id : "bjorninn:kitchenPlanner:draft:v1";
-
-  var KP3D = window.KP3D;
   var CATALOG = KP3D.CATALOG;
   var LOOKS = KP3D.LOOKS;
   // Line icons instead of emoji (user, 2026-10-23: "taka alla þessa emoja út, erum að reyna hafa þetta high end")
@@ -2789,7 +2789,7 @@
           // drag handle (wide, transparent) + the measurements
           items += '<line data-opid="' + o.id + '" x1="' + ox1 + '" y1="' + oy1 + '" x2="' + ox2 + '" y2="' + oy2 + '" stroke="transparent" stroke-width="22" stroke-linecap="butt" style="cursor:grab;"/>';
           function pill(px, py, txt, attr){
-            var tw = String(txt).length * 7.4 + 14;
+            txt = uNum(txt); var tw = String(txt).length * 7.4 + 14;
             return '<g class="dim" ' + attr + ' style="cursor:pointer;"><rect x="' + (px - tw / 2) + '" y="' + (py - 10) + '" width="' + tw + '" height="20" rx="4" fill="#fff" stroke="' + (selO ? "#0058a3" : "#8a8f9a") + '"/><text x="' + px + '" y="' + (py + 4.5) + '" font-size="12" text-anchor="middle" fill="#191919" style="pointer-events:none;">' + txt + '</text></g>';
           }
           var mxo = (ox1 + ox2) / 2 + nx * 22, myo = (oy1 + oy2) / 2 + nz * 22;
@@ -2923,7 +2923,7 @@
         handles += '<g data-watermark="1" style="cursor:grab;"><line x1="' + base.x + '" y1="' + base.y + '" x2="' + mk.x + '" y2="' + mk.y + '" stroke="#0058a3" stroke-width="2"/>' +
           '<circle cx="' + mk.x + '" cy="' + mk.y + '" r="22" fill="#0058a3" stroke="#fff" stroke-width="3"/><path d="M' + mk.x + ' ' + (mk.y - 11) + ' q9 12 0 18 q-9 -6 0 -18z" fill="#fff"/></g>';
         function wpill(a2, txt, key){
-          var pp = wp(a2, 70), tw = String(txt).length * 7.4 + 14;
+          txt = uNum(txt); var pp = wp(a2, 70), tw = String(txt).length * 7.4 + 14;
           return '<g class="dim" data-wdim="' + key + '" style="cursor:pointer;"><rect x="' + (pp.x - tw / 2) + '" y="' + (pp.y - 10) + '" width="' + tw + '" height="20" rx="4" fill="#fff" stroke="#0058a3"/><text x="' + pp.x + '" y="' + (pp.y + 4.5) + '" font-size="12" text-anchor="middle" fill="#191919" style="pointer-events:none;">' + txt + '</text></g>';
         }
         if (along > 0) handles += wpill(along / 2, along, "start");
@@ -4424,7 +4424,7 @@
       if (canTop) pills += hdl(x + w / 2, y, Math.min(34, Math.max(14, w - 8)), 10, "t", "ns-resize");
       if (canBottom) pills += hdl(x + w / 2, y + h, Math.min(34, Math.max(14, w - 8)), 10, "b", "ns-resize");
       function pill(px, py, txt, key){
-        var tw = String(txt).length * 7.4 + 14;
+        txt = uNum(txt); var tw = String(txt).length * 7.4 + 14;
         return '<g class="dim" data-eldim="' + it.id + ':' + key + '" style="cursor:pointer;"><rect x="' + (px - tw / 2) + '" y="' + (py - 10) + '" width="' + tw + '" height="20" rx="4" fill="#fff" stroke="#0058a3"/><text x="' + px + '" y="' + (py + 4.5) + '" font-size="12" text-anchor="middle" fill="#191919" style="pointer-events:none;">' + txt + '</text></g>';
       }
       var dy = floorY + 30, gB = L - o.offsetMm - o.widthMm;

@@ -5514,11 +5514,11 @@
       var svg = "";
       floorU.forEach(function(u){
         var p0 = P(u.a0, -0.12), p1 = P(u.a1, -0.12);
-        svg += dimTick(p0.x, p0.y, p1.x, p1.y, String(u.widthMm), false, color);
+        svg += dimTick(p0.x, p0.y, p1.x, p1.y, dimNum(u.widthMm), false, color);
       });
       wallU.forEach(function(u){
         var p0 = P(u.a0, focusBounds.yHi - 0.22), p1 = P(u.a1, focusBounds.yHi - 0.22);
-        svg += dimTick(p0.x, p0.y, p1.x, p1.y, String(u.widthMm), false, color);
+        svg += dimTick(p0.x, p0.y, p1.x, p1.y, dimNum(u.widthMm), false, color);
       });
       // the wall's own full width/height, always shown (not just the cabinet run) — a bare wall still gets
       // dimensioned, same as the room's own wall-length label does on the 2D plan
