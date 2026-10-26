@@ -1575,6 +1575,13 @@
   #measurePanel textarea{ width:100%; box-sizing:border-box; min-height:60px; font:inherit; font-size:13px; padding:6px 8px; border:1px solid var(--line); border-radius:8px; }
   #measurePanel .mp-foot{ padding:10px 14px 12px; border-top:1px solid var(--line); display:flex; gap:8px; align-items:center; }
   #measurePanel .mp-done{ font-size:12px; color:#2f7a4b; }
+  #measurePanel .mp-sub small{ text-transform:none; letter-spacing:0; font-weight:400; }
+  #measurePanel .mp-pt{ display:grid; grid-template-columns:84px 86px 1fr 1fr 18px; gap:5px; align-items:end; font-size:11px; color:var(--ink-soft); }
+  #measurePanel .mp-pt select, #measurePanel .mp-pt input{ width:100%; box-sizing:border-box; font:inherit; font-size:12px; padding:4px 5px; border:1px solid var(--line); border-radius:6px; color:var(--ink); background:var(--panel, #fff); }
+  #measurePanel .mp-x{ all:unset; cursor:pointer; text-align:center; color:var(--ink-soft); line-height:24px; }
+  #measurePanel .mp-add{ all:unset; cursor:pointer; align-self:flex-start; font-size:12px; padding:3px 10px; border:1px solid var(--line); border-radius:999px; color:var(--ink-soft); }
+  #measurePanel .mp-add:hover{ color:var(--ink); }
+  body.mp-open #shapeProBox{ visibility:hidden; } /* the Rýmið table under the panel: every value typed in one place */
   /* ── Innihurðir: hurðalisti fyrir allt heimilið (2026-10-23) ── */
   #doorListOv{ position:fixed; inset:0; z-index:85; background:rgba(12,15,20,.72); display:flex; align-items:center; justify-content:center; }
   #doorListOv .dl-card{ width:min(1080px, 96vw); max-height:92vh; display:flex; flex-direction:column; background:var(--panel, #fff); color:var(--ink); border-radius:16px; box-shadow:0 24px 60px rgba(0,0,0,.35); }
@@ -12280,13 +12287,34 @@
   // ticks each one off, so Rakel doesn't redraw anything afterwards. PRO only (the "Mæling" button, or a
   // link with &maeling=1). "Mæling lokið" stamps state.measurement and saves to Airtable.
   // ======================================================================
+  // 2026-10-26 (PRO C): a panel over wherever you are — the editor, Smíða's room, the Rýmið page — never a jump to the
+  // sizing page; "Loka" leaves you exactly there. Each value is typed once (on the Rýmið page the panel covers the table).
+  // Besides the room itself it takes what matters for fitting: Rafmagn (tengill / dós / rofi on a wall), Lagnir (vatn,
+  // frárennsli … on a wall) and Skekkja (floor + each wall, mm per metre) — all in state.measurement (planner JSON),
+  // on the Vinnuteikningar as notes + markers on the wall elevations (wdMeasureFor).
+  var MP_ELEC = { tengill:"Tengill", dos:"Dós", rofi:"Rofi" }, MP_PIPE = { vatn:"Vatn", frarennsli:"Frárennsli", hiti:"Hiti", annad:"Annað" };
+  function mpRoom(){ return state.activeCategory || "_"; }
+  function mpRefresh(){ // redraw what's behind the panel, wherever that is
+    if (state.step === "shape"){ renderShapeCanvas(); if (PRO && shapePhase === "size") renderProRoomBox(); }
+    else refreshAfterEdit();
+  }
   function openMeasurePanel(){
-    if (state.step !== "shape"){ shapePhase = "size"; goto("shape"); }
-    else if (shapePhase === "pick") { shapePhase = "size"; renderShapeStep(); }
     state.measurement = state.measurement || { checked:{}, note:"" };
     var M = state.measurement, el = document.getElementById("measurePanel");
+    M.rafmagn = M.rafmagn || []; M.lagnir = M.lagnir || []; M.skekkja = M.skekkja || {};
     if (!el){ el = document.createElement("div"); el.id = "measurePanel"; document.body.appendChild(el); }
+    document.body.classList.add("mp-open");
+    var mpNext = null;
     function num(v){ var n = parseInt(v, 10); return isNaN(n) ? null : n; }
+    function wallOpts(sel){ return state.walls.filter(function(w){ return !w.open; }).map(function(w){ return '<option value="' + w.id + '"' + (w.id === sel ? " selected" : "") + '>' + escapeHtmlPro(w.label) + '</option>'; }).join(""); }
+    function kindOpts(map, sel){ return Object.keys(map).map(function(k){ return '<option value="' + k + '"' + (k === sel ? " selected" : "") + '>' + map[k] + '</option>'; }).join(""); }
+    function pointRows(list, key, map){
+      return list.filter(function(p){ return p.room === mpRoom(); }).map(function(p){
+        return '<div class="mp-pt"><select data-mpt="' + key + ':' + p.id + ':kind">' + kindOpts(map, p.kind) + '</select><select data-mpt="' + key + ':' + p.id + ':wallId">' + wallOpts(p.wallId) + '</select>' +
+          '<label>Frá horni<input type="number" data-mpt="' + key + ':' + p.id + ':offsetMm" value="' + p.offsetMm + '" step="5"></label><label>Hæð<input type="number" data-mpt="' + key + ':' + p.id + ':heightMm" value="' + p.heightMm + '" step="5"></label>' +
+          '<button type="button" class="mp-x" data-mptdel="' + key + ':' + p.id + '" title="Fjarlægja">×</button></div>';
+      }).join("");
+    }
     function draw(){
       var rows = '<div class="mp-sub">Lofthæð</div><div class="mp-row"><input type="checkbox" data-mchk="height"' + (M.checked.height ? " checked" : "") + '><span>Frá gólfi að lofti</span><input type="number" data-mh value="' + (state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM) + '" step="5"></div>';
       rows += '<div class="mp-sub">Veggir</div>';
@@ -12300,19 +12328,37 @@
         });
         if (state.waterWall === w.id) rows += '<div class="mp-row"><input type="checkbox" data-mchk="water"' + (M.checked.water ? " checked" : "") + '><span style="font-size:12px;">Vatn, miðja frá horni</span><input type="number" data-mwater value="' + Math.round(waterAlong(w)) + '" step="5"></div>';
       });
+      var sk = M.skekkja[mpRoom()] || {};
+      rows += '<div class="mp-sub">Rafmagn</div>' + pointRows(M.rafmagn, "rafmagn", MP_ELEC) + '<button type="button" class="mp-add" data-mptadd="rafmagn">+ Rafmagn</button>';
+      rows += '<div class="mp-sub">Lagnir</div>' + pointRows(M.lagnir, "lagnir", MP_PIPE) + '<button type="button" class="mp-add" data-mptadd="lagnir">+ Lögn</button>';
+      rows += '<div class="mp-sub">Skekkja <small>mm á metra (0 = rétt)</small></div><div class="mp-row"><span></span><span>Gólf — halli</span><input type="number" data-msk="floor" value="' + (sk.floor != null ? sk.floor : "") + '" step="1" placeholder="0"></div>' +
+        state.walls.filter(function(w){ return !w.open; }).map(function(w){ return '<div class="mp-row"><span></span><span>' + escapeHtmlPro(w.label) + ' — úr lóði</span><input type="number" data-msk="' + w.id + '" value="' + (sk.walls && sk.walls[w.id] != null ? sk.walls[w.id] : "") + '" step="1" placeholder="0"></div>'; }).join("");
       var ids = ["height"].concat(state.walls.map(function(w){ return w.id; }), state.windows.concat(state.doors).filter(function(o){ return state.walls.some(function(w){ return w.id === o.wallId; }); }).map(function(o){ return o.id; }), state.waterWall ? ["water"] : []);
       var total = ids.length, done = ids.filter(function(k){ return M.checked[k]; }).length; // only what's in the room now (a deleted wall's tick never counts)
-      el.innerHTML = '<div class="mp-head"><h3>Mæling — ' + escapeHtmlPro((state.intake && state.intake.room) || "Rými") + '</h3><p>Sláðu inn það sem þú mælir og hakaðu við. Teikningin breytist um leið. ' + done + ' af ' + total + ' staðfest.</p></div>' +
-        '<div class="mp-body">' + rows + '<div class="mp-sub">Athugasemdir</div><textarea data-mnote placeholder="t.d. lagnir í vegg 2, ójafnt gólf, rafmagnstafla…">' + escapeHtmlPro(M.note || "") + '</textarea></div>' +
+      var body = el.querySelector(".mp-body"), keep = body ? body.scrollTop : 0;
+      el.innerHTML = '<div class="mp-head"><h3>Mæling — ' + escapeHtmlPro((state.intake && state.intake.room) || "Rými") + '</h3><p>Sláðu inn það sem þú mælir og hakaðu við. Teikningin breytist um leið, Enter fer í næsta reit. ' + done + ' af ' + total + ' staðfest.</p></div>' +
+        '<div class="mp-body">' + rows + '<div class="mp-sub">Athugasemdir</div><textarea data-mnote placeholder="t.d. ójafnt gólf, rafmagnstafla, lagnir sem þarf að færa…">' + escapeHtmlPro(M.note || "") + '</textarea></div>' +
         '<div class="mp-foot">' + (M.at ? '<span class="mp-done">✓ Mælt ' + new Date(M.at).toLocaleDateString("is-IS") + '</span>' : '') + '<span style="flex:1"></span><button type="button" class="btn btn-secondary btn-small" data-mclose>Loka</button><button type="button" class="btn btn-primary btn-small" data-mdone' + (done < total ? ' disabled title="Hakaðu fyrst við hvert mál (' + done + ' af ' + total + ')"' : '') + '>' + (PRO ? 'Mæling lokið — vista í Airtable' : 'Mæling lokið') + '</button></div>';
+      el.querySelector(".mp-body").scrollTop = keep;
+      if (mpNext != null){ var nx = el.querySelectorAll(".mp-body input[type=number]")[mpNext]; mpNext = null; if (nx){ nx.focus(); nx.select(); } }
     }
+    function close(){ el.remove(); document.body.classList.remove("mp-open"); document.removeEventListener("keydown", onEsc, true); }
+    function onEsc(e){ if (e.key === "Escape" && document.getElementById("measurePanel")){ e.stopPropagation(); close(); } }
+    document.addEventListener("keydown", onEsc, true);
+    el.onkeydown = function(e){
+      if (e.key !== "Enter" || e.target.type !== "number") return;
+      e.preventDefault();
+      var list = Array.prototype.slice.call(el.querySelectorAll(".mp-body input[type=number]"));
+      mpNext = list.indexOf(e.target) + 1; e.target.blur();
+      if (mpNext != null){ var nx = list[mpNext]; mpNext = null; if (nx){ nx.focus(); nx.select(); } }
+    };
     el.onchange = function(e){
       var t = e.target;
       if (t.dataset.mchk){ M.checked[t.dataset.mchk] = t.checked; save(); draw(); return; }
-      if (t.dataset.mh != null){ var h = num(t.value); if (h && h >= 2000 && h <= 4000){ state.roomHeightMm = h; M.checked.height = true; save(); refreshAfterEdit(); } else toast("Lofthæð má vera 2000–4000 mm."); draw(); return; }
+      if (t.dataset.mh != null){ var h = num(t.value); if (h && h >= 2000 && h <= 4000){ state.roomHeightMm = h; syncClosetLoft(); M.checked.height = true; save(); mpRefresh(); } else toast("Lofthæð má vera 2000–4000 mm."); draw(); return; }
       if (t.dataset.mw != null){
         var i = +t.dataset.mw, v = num(t.value);
-        if (v && setEdgeLength(i, v, "end", true) || (v && setEdgeLength(i, v, "start"))){ M.checked[state.walls[i].id] = true; save(); renderShapeCanvas(); }
+        if (v && setEdgeLength(i, v, "end", true) || (v && setEdgeLength(i, v, "start"))){ M.checked[state.walls[i].id] = true; save(); mpRefresh(); }
         draw(); return;
       }
       if (t.dataset.mo){
@@ -12321,16 +12367,37 @@
           var wl = state.walls.find(function(w){ return w.id === o.wallId; }), keep = o[pr[1]];
           o[pr[1]] = val;
           if (o.offsetMm + o.widthMm > wl.lengthMm || o.heightMm + (o.sillHeightMm || 0) > (state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM)){ o[pr[1]] = keep; toast("Passar ekki á vegginn — athugaðu málin."); }
-          else { M.checked[o.id] = true; save(); renderShapeCanvas(); }
+          else { M.checked[o.id] = true; save(); mpRefresh(); }
         }
         draw(); return;
       }
-      if (t.dataset.mwater != null){ var wa = num(t.value), ww = state.walls.find(function(w){ return w.id === state.waterWall; }); if (wa != null && ww && wa >= 0 && wa <= ww.lengthMm){ state.waterAlongMm = wa; M.checked.water = true; save(); renderShapeCanvas(); } draw(); return; }
+      if (t.dataset.mwater != null){ var wa = num(t.value), ww = state.walls.find(function(w){ return w.id === state.waterWall; }); if (wa != null && ww && wa >= 0 && wa <= ww.lengthMm){ state.waterAlongMm = wa; M.checked.water = true; save(); mpRefresh(); } draw(); return; }
+      if (t.dataset.mpt){
+        var q = t.dataset.mpt.split(":"), p = M[q[0]].find(function(x){ return x.id === q[1]; }); if (!p) return;
+        if (q[2] === "kind" || q[2] === "wallId") p[q[2]] = t.value;
+        else { var pv = num(t.value), pw = state.walls.find(function(w){ return w.id === p.wallId; });
+          if (pv == null || pv < 0 || (q[2] === "offsetMm" && pw && pv > pw.lengthMm) || (q[2] === "heightMm" && pv > (state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM))) toast("Passar ekki á vegginn — athugaðu málin."); else p[q[2]] = pv; }
+        save(); draw(); return;
+      }
+      if (t.dataset.msk){
+        var sv = t.value === "" ? null : parseFloat(String(t.value).replace(",", ".")), s0 = M.skekkja[mpRoom()] = M.skekkja[mpRoom()] || { floor:null, walls:{} };
+        if (t.dataset.msk === "floor") s0.floor = sv; else { s0.walls = s0.walls || {}; if (sv == null) delete s0.walls[t.dataset.msk]; else s0.walls[t.dataset.msk] = sv; }
+        save(); draw(); return;
+      }
     };
     el.oninput = function(e){ if (e.target.dataset.mnote != null){ M.note = e.target.value.slice(0, 2000); save(); } };
     el.onclick = function(e){
       var b = e.target.closest("button"); if (!b) return;
-      if (b.dataset.mclose != null){ el.remove(); return; }
+      if (b.dataset.mclose != null){ close(); return; }
+      if (b.dataset.mptadd){
+        var w0 = state.walls.find(function(w){ return !w.open; }); if (!w0) return;
+        var elec = b.dataset.mptadd === "rafmagn";
+        M[b.dataset.mptadd].push({ id:"m" + Date.now().toString(36), room:mpRoom(), wallId:w0.id, kind:elec ? "tengill" : "vatn", offsetMm:Math.round(w0.lengthMm / 2), heightMm:elec ? 1100 : 500 });
+        save(); draw();
+        var ins = el.querySelectorAll('[data-mpt^="' + b.dataset.mptadd + ':"][data-mpt$=":offsetMm"]'); if (ins.length){ ins[ins.length - 1].focus(); ins[ins.length - 1].select(); }
+        return;
+      }
+      if (b.dataset.mptdel){ var d = b.dataset.mptdel.split(":"); M[d[0]] = M[d[0]].filter(function(x){ return x.id !== d[1]; }); save(); draw(); return; }
       if (b.dataset.mdone != null){ // only once every measurement is ticked (A6, 2026-10-26); in PRO it says it saves
         if (b.disabled) return;
         M.at = new Date().toISOString(); save(); draw();
@@ -12339,6 +12406,27 @@
       }
     };
     draw();
+  }
+  // what Mæling recorded for one wall of the current room: markers for its wall elevation + a note line (Vinnuteikningar)
+  function wdMeasureFor(wall){
+    var M = state.measurement || {}, room = state.activeCategory || "_", annos = [], notes = [];
+    [["rafmagn", MP_ELEC, { tengill:"⏚", dos:"□", rofi:"⊘" }], ["lagnir", MP_PIPE, { vatn:"≋", frarennsli:"≋", hiti:"♨", annad:"!" }]].forEach(function(sp){
+      (M[sp[0]] || []).filter(function(p){ return p.room === room && p.wallId === wall.id; }).forEach(function(p){
+        annos.push({ kind:"symbol", a:{ x:p.offsetMm, y:p.heightMm }, glyph:sp[2][p.kind] || "!", text:sp[1][p.kind] + " " + p.offsetMm + "/" + p.heightMm });
+        notes.push(sp[1][p.kind] + " – " + p.offsetMm + " frá horni, " + p.heightMm + " frá gólfi");
+      });
+    });
+    var sk = (M.skekkja || {})[room], wv = sk && sk.walls && sk.walls[wall.id];
+    if (wv) notes.push("Veggur úr lóði " + String(wv).replace(".", ",") + " mm/m");
+    return { annos:annos, notes:notes };
+  }
+  // the room-level lines for the notes column: floor slope + counts
+  function wdMeasureNotes(){
+    var M = state.measurement || {}, room = state.activeCategory || "_", out = [], sk = (M.skekkja || {})[room];
+    if (sk && sk.floor) out.push("Gólf – halli " + String(sk.floor).replace(".", ",") + " mm/m (skrúfaðir fætur / sökkull stilltur)");
+    var nE = (M.rafmagn || []).filter(function(p){ return p.room === room; }).length, nL = (M.lagnir || []).filter(function(p){ return p.room === room; }).length;
+    if (nE || nL) out.push("Mælt: " + [nE ? nE + " rafmagnspunkt" + (nE === 1 ? "ur" : "ar") : "", nL ? nL + " " + (nL === 1 ? "lögn" : "lagnir") : ""].filter(Boolean).join(", ") + " — merkt á veggjamyndum.");
+    return out;
   }
 
   // ======================================================================
@@ -16877,8 +16965,9 @@
       var sy = a.kind === "symbol" ? KP3D.ANNO_SYMBOLS[a.sym] || {} : {};
       return Object.assign({}, a, a.kind === "symbol" ? { glyph:sy.glyph, symLabel:a.text ? "" : sy.label } : {});
     });
+    var meas = wdMeasureFor(wall); // Mæling: rafmagn / lagnir as markers, skekkja as a note (PRO C, 2026-10-26)
     return { title:wall.label, lenMm:wall.lengthMm, roomH:state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM, units:units, worktop:tops.length ? tops : null,
-      afella:afs, openings:openings, annotations:annos, wallId:wall.id };
+      afella:afs, openings:openings, annotations:annos.concat(meas.annos), notes:meas.notes.length ? meas.notes : undefined, wallId:wall.id };
   }
   function wdModels(){
     var models = [], now = new Date(), date = ("0" + now.getDate()).slice(-2) + "." + ("0" + (now.getMonth() + 1)).slice(-2) + "." + now.getFullYear();
@@ -16899,6 +16988,7 @@
       if (state.handle) notes.push("Höldur – " + ((HANDLES[state.handle] || {}).label || (hcfg && hcfg.label) || state.handle) + (handleColorLabel() ? ", " + handleColorLabel().toLowerCase() : ""));
       if (lightingOn()) notes.push(LED_POWER_NOTE);
       if (state.measurement && state.measurement.at) notes.push("Mælt á staðnum " + new Date(state.measurement.at).toLocaleDateString("is-IS") + (state.measurement.note ? ": " + state.measurement.note : "") + ".");
+      notes = notes.concat(wdMeasureNotes());
       models.push({ project:PRO ? PRO.name : "Eldhússkipulag", roomName:(state.intake && state.intake.room) || "Eldhús", date:date, drawerSystem:drawerSys(),
         notes:notes, planGeo:wdPlanGeo(), sheets:sheets });
     });
