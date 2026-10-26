@@ -501,3 +501,12 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   more; Til baka from the list → front page (or Allt heimilið). `doorPage` is only "list" | "review" (never saved — old
   drafts just open the list). The empty starter row doesn't count as work: welcome card, Allt heimilið row and
   `homeHasUnits` use `designedDoors()`.
+- **Round 4 (2026-10-26):** hover on any option card previews it on the 3D door (`dwVariant`, mouseout puts the
+  choice back, click commits); wheel / trackpad pinch / two-finger pinch zoom 0.45–1.7× on each step's own view
+  (`setZoom`); visual pass: rounded edges (RoundedBoxGeometry), veneer = `KPMat.woodTexture` at real scale (0.6 × 1.2 m,
+  grain along the leaf, across on the head + head casing) with bump, a door stop behind the leaf, profiled gerefti in
+  the leaf's material, skirting, parquet floor, painted wall, GTAO soft AO (popup + thumbnails), metal hardware with
+  clearcoat; Útlit = spónlagt only, Eik, ljós by default (no "Ákveða síðar", no Egger in the picker; old Egger choices
+  still render); Lamir: wall see-through, close on the upper hinge; Felliþröskuldur: the door stands open, the camera at
+  the leaf's end at the floor — the drop seal in section, dropping and lifting; Skrá: Litur króm / svart (`d.hwColor`)
+  — hinges, lock, strike and handle follow it; "Viltu húna frá okkur?" removed (and from the note / Yfirlit / Senda inn).
