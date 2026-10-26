@@ -2545,10 +2545,15 @@
   ];
   // the budget brackets follow the project's biggest room (2026-10-26): any kitchen with cabinets → the kitchen's
   // brackets; otherwise (wardrobes, bath, laundry, doors only) the smaller ones — a bath at "2–7 m.kr." was nonsense
+  // Round 2 (2026-10-26): only rooms with something in them count (an empty Innihurðir row never decides), and a home of
+  // several furnished rooms (wardrobe + bath …) gets the in-between brackets — the sum is more than one wardrobe
+  var ROOMS_BUDGETS = ["Undir 1 m.kr.", "1–2 m.kr.", "2–4 m.kr.", "Yfir 4 m.kr.", "Óviss — vil ráðgjöf"];
   function budgetOptions(){
-    var kitchen = false;
-    try{ withEachCategory(function(cat){ if (String(cat).split(":")[0] === "eldhus" && cabinetTotal() > 0) kitchen = true; }); }catch(e){ kitchen = !closetOnlyProject(); }
-    return kitchen ? INTAKE_QUESTIONS[1].options : CLOSET_BUDGETS;
+    var kitchen = false, rooms = 0;
+    try{ withEachCategory(function(cat){ var n = cabinetTotal(); if (!n) return; rooms++; if (String(cat).split(":")[0] === "eldhus") kitchen = true; }); }catch(e){ kitchen = !closetOnlyProject(); }
+    if (kitchen) return INTAKE_QUESTIONS[1].options;
+    if (rooms + (designedDoors().length ? 1 : 0) > 1) return ROOMS_BUDGETS;
+    return CLOSET_BUDGETS; // one wardrobe / bath / laundry, or doors only
   }
 
   var DEFAULT_ROOM_HEIGHT_MM = 2600; // matches the historical fixed 3D wall height
@@ -2815,6 +2820,7 @@
 
   function renderIntake(){
     var body = document.getElementById("intakeBody");
+    if (state.intake.budget && budgetOptions().indexOf(state.intake.budget) < 0){ state.intake.budget = null; save(); } // the brackets changed with the rooms — never send one that isn't shown
     body.innerHTML = INTAKE_QUESTIONS.map(function(q, qIndex){
       var opts = (q.key === "budget" ? budgetOptions() : q.options).map(function(opt){
         var isObj = typeof opt === "object";
@@ -9173,7 +9179,7 @@
       b.addEventListener("click", function(){
         var v = b.dataset.closetdoors; if (v === state.closetDoors) return;
         state.closetDoors = v;
-        if (v === "engar" && !state.handle){ state.handle = "push"; state.closetAutoHandle = true; } // nothing to hold on to — nothing ordered
+        if (v === "engar"){ state.handle = "push"; state.closetAutoHandle = true; } // nothing to hold on to — nothing ordered (a handle is pre-picked now, round 2)
         if (v === "lamir" && state.closetAutoHandle){ state.handle = null; state.closetAutoHandle = false; }
         save(); renderMaterials();
       });
@@ -9582,7 +9588,7 @@
       }
       if (b.dataset.maskno){
         var own = state.matAsk.own || {};
-        Object.keys(own).forEach(function(k){ state[k] = own[k]; if (state.matAuto) delete state.matAuto[k]; });
+        Object.keys(own).forEach(function(k){ state[k] = own[k]; if (state.matAuto) delete state.matAuto[k]; }); // null → roomDefaults gives the room's own pick
         state.matAsk = null; state.matFrom = null; roomDefaults(); save();
         matPhase = 0; renderMaterials();
       }
@@ -11627,11 +11633,18 @@
         // …except what this kind of room has its own default for (a wardrobe / bath / laundry: dökkgrátt + Merivo) — it
         // never chose the kitchen's Legra (2026-10-26). Nothing is chosen for a brand-new room yet, so nothing real is lost.
         var ownDef = (cdNew && cdNew.defaults) || {}, own = {};
-        SHARED_MATERIALS.forEach(function(k){ if (src.d[k] != null && (ownDef[k] == null || (cdNew.inherit || []).indexOf(k) >= 0)){
-          own[k] = state[k] == null ? null : JSON.parse(JSON.stringify(state[k])); // what "Velja ný" gives back
+        // what makes sense in this room: a front / handle / carcass / drawer line that exists; an open wardrobe's
+        // "push" (nothing to hold) isn't a handle choice
+        var fits = function(k, v){ return k === "look" || k === "look2" || k === "innerFront" ? !!LOOKS[v] && !LOOKS[v].hidden : k === "handle" ? !!HANDLES[v] && !(src.d.closetAutoHandle) : k === "carcass" ? !!CARCASS[v] : true; };
+        SHARED_MATERIALS.forEach(function(k){
+          if (src.d[k] == null || !fits(k, src.d[k])) return;
+          var auto = ownDef[k] == null || (cdNew.inherit || []).indexOf(k) >= 0; // taken without asking (PRO, and the old rule)
+          if (!auto && PRO) return;
+          // customers: everything that fits is shown on the question's picture; "Velja ný" gives back the room's own (own[k])
+          own[k] = state[k] == null ? null : JSON.parse(JSON.stringify(state[k]));
           state[k] = JSON.parse(JSON.stringify(src.d[k]));
           if (src.d.matAuto && src.d.matAuto[k] === src.d[k]){ state.matAuto = state.matAuto || {}; state.matAuto[k] = src.d[k]; } // still óákveðið there → here too (PRO)
-        } });
+        });
         state.matFrom = src.key; // PRO shows it as a line at the top of this room's Efni menu instead of a toast that's gone in 3 s
         // the customer is asked on this room's first Efni page instead of a toast that's gone in 3 s (2026-10-26, item 8)
         if (!PRO && Object.keys(own).length) state.matAsk = { from:src.key, own:own };
@@ -14672,7 +14685,7 @@
   var CATEGORIES = [
     { key:"eldhus", label:"Eldhús", water:true, worktop:true, defaultShape:"rect" },
     { key:"fataskapar", label:"Fataskápar", tree:FATASKAPAR_TREE, roomPicker:true, defaultRoom:"Fatask.", water:false, worktop:false, matPhases:MAT_PHASES_FATASKAPAR,
-      defaults:{ carcass:"dokkgra", drawerSystem:"merivo" } }, // same as closetDefaults / the Skúffukerfi page — written here so an inherited room keeps them
+      defaults:{ carcass:"dokkgra", drawerSystem:"merivo", look:"eg_W1100", handle:"jey" }, inherit:["look", "handle", "handleColor"] }, // Hurðir + Höldur pre-picked like the bath/laundry (2026-10-26, round 2); same as closetDefaults / the Skúffukerfi page — written here so an inherited room keeps them
     // Bað + Þvottahús (studio review 2026-10-25, section C): their own page lists, Egger tops only (no stone), the usual
     // answers already picked (defaults) so "Áfram" just works; the water page and shape pick say what fits the room
     { key:"bad", label:"Baðherbergi", tree:BAD_TREE, roomPicker:true, defaultRoom:"Baðh.", water:true, worktop:true, hung:true, matPhases:MAT_PHASES_BAD,

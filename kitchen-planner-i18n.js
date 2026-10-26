@@ -1583,6 +1583,8 @@
     "{rooms} eru tóm og fara ekki með.": "{rooms} are empty and won't be included.",
     "Í vinnslu": "In progress",
     "Halda áfram": "Continue",
+    "Undir 1 m.kr.": "Under 1m ISK",
+    "Yfir 4 m.kr.": "Over 4m ISK",
     "Rými": "Room",
     "Stofa": "Living room",
     "Gangur": "Hallway",

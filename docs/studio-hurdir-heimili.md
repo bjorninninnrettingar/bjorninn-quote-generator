@@ -87,3 +87,18 @@ Built from docs/studio-review-2026-10-25.md section C (the "Tillaga" lines, reco
 - Verified in the Browser pane (static server, 1440×900 + 1280×720): Eldhús + Fataskápur + empty Bað/Þvottahús/Stofa/
   Innihurðir → Áfram → Spurningar → Senda inn (not submitted), remove + undo, nothing-in-it gate, door room picker,
   single-room kitchen still shows 5 steps + "Áfram →".
+
+## Allt heimilið round 2 (2026-10-26)
+- Fataskápar `defaults` now pre-pick the front (`eg_W1100` Alpine White — visible in the picker; `hvitt` is a hidden
+  look, so nothing showed as chosen) and the handle (`jey`), `inherit:["look","handle","handleColor"]` so a wardrobe
+  after a kitchen still takes the kitchen's. "Án hurða" now always sets the handle to push (one is pre-picked now).
+  Verified: fresh draft, Fataskápur first and standalone — every Efni page's Áfram is live.
+- "Sömu efni og í …?" asks whenever an earlier room has materials, whatever the types: for customers every shared
+  material that fits the new room (a visible front, a real handle — not an open wardrobe's push — carcass, drawer line)
+  is put on the picture; Já keeps them, Velja ný gives back the room's own defaults. PRO keeps the old silent rule.
+  Verified: Fataskápur → Baðherbergi asks, Já → the bath gets the wardrobe's front/handle/carcass + its own worktop.
+- Budget brackets (`budgetOptions`): only rooms with units count; a kitchen with units → kitchen brackets; two or more
+  furnished rooms (doors count as one) → `ROOMS_BUDGETS` (Undir 1 / 1–2 / 2–4 / Yfir 4 m.kr.); one wardrobe/bath/
+  laundry or doors only → the small set. An answer not in the shown set is cleared. Verified: Fataskápur 5 + Bað 3 +
+  empty Innihurðir → Undir 1 m.kr. …
+- Not touched: Þvottahús's own default `look:"hvitt"` is also a hidden look (Þvottahús session's area).
