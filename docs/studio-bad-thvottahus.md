@@ -28,7 +28,7 @@ still sees "Hvar er vélin?".
 - Tall cabinet (`BAD_TREE` "Hár skápur", optional): harskapur, 160 cm box hung at the gap, 35 cm deep.
 
 ## Þvottahús
-- Pages: **Vélin** (Í stæðu / Undir borðplötu / Engin vél, `state.laundryMachine`) → Litur → Framhlið → Höldur → Borðplata (Egger, white pre-picked).
+- (Superseded 2026-10-26 — see "Þvottahús as its own room" at the end.) Pages were: **Vélin** (Í stæðu / Undir borðplötu / Engin vél, `state.laundryMachine`) → Litur → Framhlið → Höldur → Borðplata (Egger, white pre-picked).
 - `placeLaundryMachine(wall, sink)` (from seedSink): stack = `thvottavel`; under worktop = two `thvottavelFri`
   side by side; next to the sink where there's free room. Blocks carry `autoMachine:true`; changing the page's answer
   later (`reseedLaundryMachine`) swaps only those (never a hand-placed or locked one).
@@ -103,3 +103,38 @@ Fataskápar is the model. Laundry's flow is untouched; shared code (wizard frami
   sides (then the two units close up — a new unit lands next to the vanity, not two panels away). A bath panel is the box
   height (`carcassHeightMm`) and hangs at the wall's gap in 3D (`hungPanel`) and in the PDF sheets. Hand-added panels are
   never touched. Kitchen keeps its prompt; PRO bath too.
+
+## Þvottahús as its own room (2026-10-26, user approved the coordinator's 8-item scan)
+Baðherbergi is the model. `isLaundry()` / `isWallRoom()` (= Bað or Þvottahús); `bathShape()` now answers for both, so the
+bath's Rými pages, drawing, sizes, openings-on-the-unit-wall and Efni back-button work for the laundry too. PRO keeps its
+own one-page Rýmið (laundry PRO shapes = Einn veggur / Horn + the closed shapes, `proRoomShapes`) and the old tree.
+- **Rými** (5 pages → 4): "Hvar á innréttingin að vera?" (Einn veggur / Horn, `bathWall` / `bathCorner`) → **"Hvar er
+  vélin?"** (`shapePhase "machine"`, moved from Efni: cards in `#shapeMachine`, 3D on the left = `renderMachinePreview`:
+  the stack in a tall unit with see-through doors, two machines under the worktop, or a sink + base unit; uses the height
+  page's `heightScene` flag so leaving tears it down) → "Veggurinn og vatnið" (cm fields + droplet, preset mid-wall 1, +
+  **Niðurfall í gólfinu?** Já / Nei / Veit ekki = `state.laundryDrain`, a ROOM field → "Niðurfall í gólfi: já/nei" on
+  the sink's Line Item) → Gluggar og hurðir (unit wall only) → Efni.
+- **Efni** (`MAT_PHASES_THVOTTAHUS`): Litur → Framhlið → Höldur → Borðplata → Skúffur, all pre-picked (defaults now add
+  `look:"hvitt"`, `handle:"jey"`). `categoryDef.inherit` (`["look","handle","handleColor"]`): a laundry after a kitchen still
+  takes the kitchen's fronts/handles ("Sömu efni og í …") even though it has its own default.
+- **Nothing placed without water** (all customer rooms with water, not PRO): `seedSink` falls back to `sinkFallbackWall()` —
+  the unit wall (Bað/Þvottahús), else the longest solid wall — mid-wall. Kitchen used to get an empty Skipulag.
+  `placeLaundryMachine`: flush to the sink (0 gap — the auto úthliðar go in by themselves); when the machines don't fit
+  beside a centred sink and the sink is alone on the wall, the sink slides along so they do (250 cm wall + two machines).
+  `reseedLaundryMachine` also lifts our úthliðar first and re-syncs them.
+- **3D**: `addTowerMachines` draws the washer + dryer inside every Þvottavélaskápur (above its drawer); `opts.towerGlass`
+  (Ný eining preview + "Hvar er vélin?") gives the tower's doors a see-through clone of the front material. Camera faces
+  the unit wall like the bath (`laundryAim`, further back + higher for the 2,5 m tower, customer only); wall bubbles use
+  the wardrobe rule (PRO laundry keeps V-bubbles). Props: **Þvottakarfa**, **Straubretti** (`DECOR_LAUNDRY`, never ordered).
+- **Ný eining** (`THVOTT_TREE`, one option each): Vélarstæða · Vélar undir borðplötu (`opt.pair` → washer + dryer side
+  by side, preview shows both; one only when there's room for one, with a toast) · Vaskaskápur · Grunnskápur · Hár skápur ·
+  Efri skápur (3 options). Base units get Breidd → Hæð → **Skúffur eða hurðir** → Innvols (no Dýpt, `bathFrontsWiz`); a
+  freestanding machine has no sizes, just "Pláss fyrir þína … — vélarnar sjálfar eru ekki í pöntuninni." PRO: `THVOTT_TREE_PRO`.
+- **Skipulag**: automatic úthliðar on visible sides (`bathAutoPanels`), simplified float bar (Afrita / Eyða) + "◀ Vaskaskápur
+  1 af 3 ▶" panel head (`bathUnitOrder` skips our auto úthliðar now — the bath said "1 af 6" too). Blue outline selection
+  and the Senda inn picture from the default view were already every customer room's. Senda inn: "Vélin: Í stæðu".
+- Verified 1440×900 + 1280×720 on a static server: each machine option, Einn veggur + Horn, water preset and water
+  removed from the draft (fallback), Senda inn with `fetch` stubbed (payload has the drain note); kitchen without water
+  (sink on the 560 cm wall) and the bath flow unchanged. PRO not opened (needs the API) — its paths are all `!PRO`-gated.
+- Not done: the laundry's materials preview is still the kitchen's base cabinet; the tower's bottom drawer front is
+  see-through in the previews too (nothing behind it).

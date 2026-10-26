@@ -521,3 +521,10 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   it; wall thickness drawn at the free-side reveal (the door opens a little while veggþykkt is typed); Opnun person icon
   redrawn; texts: "Hurð 1" for customers (PRO keeps HU-1), Mál help + decimals line, Innfelldar lamir / Samlokulamir,
   Enginn felliþröskuldur / Felliþröskuldur, Stöðluð skrá / Segulskrá.
+
+## 2026-10-26 — Þvottahús as its own room
+- Rými: Einn veggur / Horn → Hvar er vélin? (3D of the choice) → Veggurinn og vatnið (+ niðurfall) → windows on the unit
+  wall. Efni Litur → Framhlið → Höldur → Borðplata → Skúffur, all pre-picked. Washer + dryer drawn inside the tower,
+  see-through in the previews. Ný eining: Vélarstæða / Vélar undir borðplötu (pair) / Vaskaskápur / Grunnskápur / Hár /
+  Efri. Props Þvottakarfa + Straubretti. Bath's float bar, auto úthliðar, unit-wall camera. No water marked → the sink
+  (and machines) still placed, in every customer room. Full notes: [studio-bad-thvottahus.md](studio-bad-thvottahus.md).
