@@ -2538,7 +2538,7 @@
     OV.svg.setAttribute("viewBox", "0 0 " + cr.width + " " + cr.height);
     var v = new (window.__THREE__.Vector3)();
     function P(p){ v.set(p.x, p.y, p.z).project(camera); return { x:(v.x + 1) / 2 * cr.width, y:(1 - v.y) / 2 * cr.height, behind:v.z > 1 }; }
-    var out = selHullSvg(P);
+    var out = selHullSvg(P) + skTagsSvg(P);
     if (SHOW_DIMS) OV.dims.forEach(function(d){ var a = P(d.a), b = P(d.b); if (!a.behind && !b.behind) out += ovLineSvg(a, b, d.text, false); });
     Object.keys(OV.gaps).forEach(function(k){ var g = OV.gaps[k]; if (!g) return; out += ovLineSvg(P(g.a), P(g.b), g.text, g.active); });
     (OV.labels || []).forEach(function(l){ // a call to action on the scene (the empty wardrobe area): a white pill, blue text
@@ -2548,6 +2548,28 @@
         '<text x="' + p.x + '" y="' + (p.y + 5) + '" text-anchor="middle" font-size="14" font-weight="700" font-family="Kumbh Sans, Arial, sans-serif" fill="' + OV_BLUE + '">' + l.text + '</text>';
     });
     if (out !== OV.last){ OV.svg.innerHTML = out; OV.last = out; }
+  }
+  // "Sk-númer" (PRO, 2026-10-26): every ordered cabinet's Sk number on its front, same pill as the dimensions.
+  // KP3D.setSkTags({ blockId:"Sk1", … }) or null; read off the live pickables, so it follows drags and rebuilds.
+  var SK_TAGS = null, skCorner = null;
+  function setSkTags(map){ SK_TAGS = map && Object.keys(map).length ? map : null; if (OV) OV.last = ""; }
+  function skTagsSvg(P){
+    if (!SK_TAGS || !THREE_STATE || !THREE_STATE.pickables) return "";
+    var out = "", seen = {};
+    if (!skCorner) skCorner = new (window.__THREE__.Vector3)();
+    THREE_STATE.pickables.forEach(function(m){
+      var u = m.userData, text = u && SK_TAGS[u.blockId], e = u && u.edgesObj;
+      if (!text || u.isPart || !e || !e.geometry || seen[u.blockId]) return;
+      seen[u.blockId] = 1;
+      if (!e.geometry.boundingBox) e.geometry.computeBoundingBox();
+      var bb = e.geometry.boundingBox; e.updateMatrixWorld();
+      skCorner.set((bb.min.x + bb.max.x) / 2, (bb.min.y + bb.max.y) / 2, bb.max.z).applyMatrix4(e.matrixWorld);
+      var p = P(skCorner); if (p.behind) return;
+      var tw = String(text).length * 7.6 + 16;
+      out += '<rect x="' + (p.x - tw / 2) + '" y="' + (p.y - 11) + '" width="' + tw + '" height="22" rx="11" fill="#fff" stroke="' + OV_DARK + '" stroke-width="1"/>' +
+        '<text x="' + p.x + '" y="' + (p.y + 4.5) + '" text-anchor="middle" font-size="12.5" font-weight="700" font-family="Kumbh Sans, Arial, sans-serif" fill="' + OV_DARK + '">' + text + '</text>';
+    });
+    return out;
   }
   // the selected wardrobe unit: a blue outline round its silhouette (2.5 px, screen space — a WebGL line is always
   // 1 px and too faint) instead of tinting its doors lilac (user, 2026-10-26)
@@ -7327,7 +7349,7 @@
     cornerClearanceMm: cornerClearanceMm, afellaMm: afellaMm, AFELLA_MM: AFELLA_MM,
     blockStartsMm: blockStartsMm,
     planTransform: planTransform,
-    rectCornersWorld: rectCornersWorld, drawerZoneMm: drawerZoneMm, TALL_DRAWER_MAX_MM: TALL_DRAWER_MAX_MM, DRAWER_TOPDOOR_MIN_MM: DRAWER_TOPDOOR_MIN_MM, drawerStackSpaceMm: drawerStackSpaceMm, doorLeaves: doorLeaves, islandFits: islandFits, nearestIslandFit: nearestIslandFit, topThickM: topThickM, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, obstacleRect: obstacleRect, obstacleCorners: obstacleCorners, handleAvailMm: handleAvailMm, tallHandleAvailMm: tallHandleAvailMm, obstacleAng: obstacleAng, setShowDims: setShowDims, showDimsOn: function(){ return SHOW_DIMS; }, DECOR: DECOR, decorKindsFor: decorKindsFor, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
+    rectCornersWorld: rectCornersWorld, drawerZoneMm: drawerZoneMm, TALL_DRAWER_MAX_MM: TALL_DRAWER_MAX_MM, DRAWER_TOPDOOR_MIN_MM: DRAWER_TOPDOOR_MIN_MM, drawerStackSpaceMm: drawerStackSpaceMm, doorLeaves: doorLeaves, islandFits: islandFits, nearestIslandFit: nearestIslandFit, topThickM: topThickM, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, obstacleRect: obstacleRect, obstacleCorners: obstacleCorners, handleAvailMm: handleAvailMm, tallHandleAvailMm: tallHandleAvailMm, obstacleAng: obstacleAng, setShowDims: setShowDims, setSkTags: setSkTags, showDimsOn: function(){ return SHOW_DIMS; }, DECOR: DECOR, decorKindsFor: decorKindsFor, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
     WALL_COLORS: WALL_COLORS,
     WINDOW_DEFAULT: WINDOW_DEFAULT,
     _handleProfile: handleProfile,
