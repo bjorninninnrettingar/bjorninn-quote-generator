@@ -43,3 +43,19 @@ still sees "Hvar er vélin?".
 - The tour's "Smelltu á grunnskáp" bubble still talks about base units in Bað/Þvottahús.
 - Mirror cabinet is a note on the sink line only — a bathroom without a vaskaskápur loses it.
 - Edit panel still says "Mál (mm)" above the cm chips (kitchen-wide mm, not changed here).
+
+## QA round 2 (2026-10-26, studio-qa report)
+- B1/Þ1: `roomSize` flag → `fitRoomSize()` in applyShapeTemplate (rect exact 250×200 / 250×180 cm, other shapes scaled
+  down whole). The size page (wall list, the dim pop-up, wall labels on the drawing) is in **cm for every room** now.
+- B3/Þ3: Bað/Þvottahús default `drawerSystem:"merivo"` (the "Vinsælast" one).
+- Þ4: `goto()` gives back `activeCategory` (the last room in the queue) when going from Spurningar/Senda inn to
+  Rými/Efni/Skipulag — finishCategory had cleared the name, so Efni showed the kitchen's pages.
+- E2/B2/Þ2/F5: `MAT_NEED` — a grey Áfram gets "Veldu … til að halda áfram." left of the buttons (they don't move).
+  Fronts/handles are still never pre-picked (taste).
+- E1: kitchen `defaultShape:"rect"`. E8: "Rýmið er tilbúið" toast once per room per visit (`roomReadyToasted`).
+- E10: CATALOG labels "Hár skápur" / "Efri skápur" (menu names); `airtableLabel` keeps "Hárskápur"/"Efriskápur" as
+  the width variants' Skápategund. Bað menu "Neðri skápur" → "Grunnskápur".
+- E9: Lofthæð page: Vegglitur above Gólf, floor tiles 52 px high, the "Valfrjálst" line moved to a tooltip — no inner
+  scroll at 1440×900; ~10 px at 1280×800 before the last tweak (margins 22→14 px).
+- E7: Ofanmynd — dimension text turned along its line on the outer side, wall names 58 px out (beyond the chain) and
+  turned along the wall (`planTextAng`, side walls read bottom-up).
