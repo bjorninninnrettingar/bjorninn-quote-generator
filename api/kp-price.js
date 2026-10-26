@@ -162,9 +162,13 @@ export async function price(at, body) {
     : Math.round(num(pf[P.handlesNow]));
 
   const linesTotal = lines.reduce((a, l) => a + l.total, 0) + other.reduce((a, l) => a + l.total, 0);
-  return { lines, other, handles: { count: handleCount, total: handlesTotal, changed: handlesChanged },
+  // the same things as `total`, as Airtable has them right now (every line × Einingarverð + handles) — what Vista really
+  // changes. The Tækifæri's own Tilboðsupphæð also holds parts that aren't lines (D3, 2026-10-26: "−4,154,620 þegar þú
+  // vistar" on T-32 was just that difference, Vista wouldn't cut the quote by it).
+  const airtableLinesTotal = Math.round(rows.filter((r) => num(r.fields["Magn"])).reduce((a, r) => a + num(r.fields["Einingarverð"]) * num(r.fields["Magn"]) * VAT, 0) + num(pf[P.handlesNow]));
+  return { lines, other, handles: { count: handleCount, total: handlesTotal, changed: handlesChanged, airtableCount: num(pf[P.h1n]), airtableTotal: Math.round(num(pf[P.handlesNow])) },
     hiddenDiscount: proj.hidden, small: first(pf[P.small]) || null, total: linesTotal + handlesTotal,
-    airtableTotal: Math.round(num(pf[P.total])), materialsChanged, drift };
+    airtableTotal: Math.round(num(pf[P.total])), airtableLinesTotal, materialsChanged, drift };
 }
 
 export default async function handler(req, res) {

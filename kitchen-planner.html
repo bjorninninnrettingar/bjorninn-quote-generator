@@ -10397,6 +10397,13 @@
   // flood Airtable with the same row a hundred times.
   var ISSUE_TABLE = "tbl7K8v94Pf6Ausk3";
   var autoReportsSent = 0, MAX_AUTO_REPORTS = 3, reportedMessages = {};
+  // QA / test runs (2026-10-26): the same error is sent once per browser session, not once per reload, and never from a
+  // local dev server or an automated browser — the table is reachable through the open proxy, a test loop must not fill it
+  function autoReportAllowed(msg){
+    if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) || navigator.webdriver) return false;
+    try{ var seen = JSON.parse(sessionStorage.getItem("kp:reported") || "{}"); if (seen[msg]) return false; seen[msg] = 1; sessionStorage.setItem("kp:reported", JSON.stringify(seen)); }catch(e){}
+    return true;
+  }
   function currentStepInfo(){
     var s = state && state.step;
     if (s === "shape") return "shape:" + shapePhase;
@@ -10420,7 +10427,7 @@
   window.addEventListener("error", function(ev){
     if (autoReportsSent >= MAX_AUTO_REPORTS) return;
     var msg = ev.message || (ev.error && ev.error.message) || "Óþekkt villa";
-    if (reportedMessages[msg]) return;
+    if (reportedMessages[msg] || !autoReportAllowed(msg)) return;
     reportedMessages[msg] = true; autoReportsSent++;
     var stack = (ev.error && ev.error.stack) || (ev.filename ? ev.filename + ":" + ev.lineno + ":" + ev.colno : "");
     sendIssueReport("Sjálfvirk villa", msg, stack);
@@ -10428,7 +10435,7 @@
   window.addEventListener("unhandledrejection", function(ev){
     if (autoReportsSent >= MAX_AUTO_REPORTS) return;
     var reason = ev.reason, msg = (reason && reason.message) || String(reason) || "Óþekkt Promise-villa";
-    if (reportedMessages[msg]) return;
+    if (reportedMessages[msg] || !autoReportAllowed(msg)) return;
     reportedMessages[msg] = true; autoReportsSent++;
     sendIssueReport("Sjálfvirk villa", msg, reason && reason.stack ? reason.stack : "");
   });
@@ -14873,15 +14880,22 @@
     var tot = document.getElementById("tpTotal");
     tot.textContent = tpKr(d.total);
     if (prevTotal != null && prevTotal !== d.total){ tot.classList.add("bump"); setTimeout(function(){ tot.classList.remove("bump"); }, 600); }
-    var diff = d.total - d.airtableTotal;
-    document.getElementById("tpSub").innerHTML = "m/vsk · " + (Math.abs(diff) < 2
+    // like with like (D3, 2026-10-26): the same lines + handles as Airtable has them now — the Tækifæri's whole
+    // Tilboðsupphæð also holds parts that aren't lines, so it's shown on its own, never as a "change"
+    var base = d.airtableLinesTotal != null ? d.airtableLinesTotal : d.airtableTotal, diff = d.total - base;
+    document.getElementById("tpSub").innerHTML = "m/vsk · línur og höldur · " + (Math.abs(diff) < 2
       ? "sama og í Airtable ✓"
-      : "Airtable: <b>" + tpKr(d.airtableTotal) + "</b> (" + (diff > 0 ? "+" : "−") + tpKr(Math.abs(diff)) + " þegar þú vistar)");
+      : "í Airtable núna: <b>" + tpKr(base) + "</b> (" + (diff > 0 ? "+" : "−") + tpKr(Math.abs(diff)) + " þegar þú vistar)") +
+      (d.airtableLinesTotal != null && Math.abs(d.airtableTotal - base) >= 2 ? '<br><span title="Tilboðsupphæðin á Tækifærinu tekur líka með það sem eru ekki línur (t.d. læst staðfest tilboð, viðbætur)">Tilboðsupphæð á Tækifærinu: ' + tpKr(d.airtableTotal) + '</span>' : "");
     var warn = [];
     var MAT_NAMES = { carcass:"skrokkur", front:"framhlið", front2:"framhlið 2", top:"borðplata" };
     if (d.materialsChanged && d.materialsChanged.length) warn.push("● " + d.materialsChanged.map(function(k){ return MAT_NAMES[k]; }).join(", ").replace(/^./, function(ch){ return ch.toUpperCase(); }) +
       " í teikningunni er annað en á Tækifærinu — allar línur reiknaðar á teikningunni, Tækifærið uppfærist þegar þú vistar.");
-    if (d.handles.changed) warn.push("● Höldur: " + d.handles.count + " stk í teikningunni (Tækifærið uppfærist þegar þú vistar).");
+    if (d.handles.changed){ // with the amount: a big jump here is usually the whole difference above (T-32: 765 → 20, D3)
+      var hd = d.handles.total - (d.handles.airtableTotal || 0);
+      warn.push("● Höldur: " + (d.handles.airtableCount != null ? d.handles.airtableCount + " stk í Airtable → " : "") + d.handles.count + " stk í teikningunni" +
+        (d.handles.airtableTotal != null && Math.abs(hd) >= 2 ? " (" + (hd > 0 ? "+" : "−") + tpKr(Math.abs(hd)) + ")" : "") + " — Tækifærið uppfærist þegar þú vistar.");
+    }
     var unmapped = d.lines.filter(function(l){ return !l.mapped; }).length;
     if (unmapped) warn.push("" + unmapped + " " + plural(unmapped, "lína er", "línur eru") + " án vöru (0 kr.) — veldu Útfærslu í Airtable.");
     if (d.drift) warn.push("Útreikningurinn víkur frá Airtable á " + d.drift + " " + plural(d.drift, "línu", "línum") + " — verðformúlan hefur breyst, láttu vita.");
