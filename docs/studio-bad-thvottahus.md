@@ -87,3 +87,13 @@ Fataskápar is the model. Laundry's flow is untouched; shared code (wizard frami
 - **Skipulag panel (customer):** `#floatBar.cl-sel` (Afrita / Eyða) for bath units; `bathPanelHead` "◀ Vaskaskápur 1 af 3 ▶"
   (`bathUnitOrder`), no Læsa, no ◀ ▶ / Fjarlægja row, no "Veggur 1 · neðri skápur".
 - Not done: the Senda inn summary still says "Borðplata" for the bath top; the tour's "Smelltu á grunnskáp" bubble.
+
+### Round 2 (2026-10-26, coordinator's live walk)
+- Senda inn picture (`captureThumb`): rebuilt once with `freshCamera` + `clean`, nothing selected — never the orbited angle or a tint.
+- Selection = blue front outline (`selHullSvg`) instead of lilac fronts in every customer room (`outlineSel`; PRO keeps the tint).
+- Bath vanities start with drawers everywhere (`newBlock`): 2 under a basin (`sinkDefaultStack`, fronts split from the box,
+  room for the trap), 3 in other base units.
+- Bath + wardrobe orbit: azimuth limited to the front of the unit wall(s) (±75°, ±43° in a corner), `rotateSpeed` 0.45;
+  clicking "3D" while in 3D reframes to the default view (all rooms). The bath camera frames the units (+ margin), not the whole wall.
+- Wizard width line sits above the tap (`extraTop`). Senda inn: "Toppur: … · Handlaug ofan á" + "Spegilskápur: Já/Nei".
+- Gluggar og hurðir drawing: no "← Veggur 4 (opinn)" nav to open edges in a bath/wardrobe. Höldur page always opens on "Allt".

@@ -1975,7 +1975,9 @@
     "Hillur á bak við": "Shelves behind",
     "Veggfestur, með handlaug": "Wall-hung, with a basin",
     "Sturta": "Shower",
-    "Baðkar": "Bathtub"
+    "Baðkar": "Bathtub",
+    "Handlaug ofan á": "Basin on top",
+    "Spegilskápur": "Mirror cabinet"
   });
 
   // part F: stored/computed numbered labels from kitchen-planner-3d.js (CATALOG width variants, island rows, partition sides)

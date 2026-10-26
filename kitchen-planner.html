@@ -2242,6 +2242,12 @@
       if (c.cls === "tall") b.depthMm = clampDepth(type, BATH_TALL_DEPTH_MM);
     }
     if (c.hasInterior) b.interior = c.drawersOnly ? { mode:"skuffur", count:1 } : { mode:"hillur", count:3 }; // ruslaskápur: one tall drawer to start
+    if (catBase() === "bad" && c.hasInterior && c.zone === "floor" && c.cls === "floor"){ // a bath vanity: drawers everywhere (round 2) — two under a basin (room for the trap), three otherwise
+      b.interior.mode = "skuffur";
+      if (c.sink){ sinkDefaultStack(b, c); var bb = b.heightMm - BATH_HUNG_MM; b.interior.frontsMm = [bb - Math.round(bb / 2), Math.round(bb / 2)]; } // not placed yet: the box is the height minus the default gap
+      else for (var dn = 3; dn >= 1; dn--){ var dc = KP3D.drawerCodes({ mode:"skuffur", count:dn }, drawerSys()); if (stackAllowed(b, c, dc, null) || dn === 1){ b.interior.codes = dc; break; } }
+      b.interior.count = b.interior.codes.length;
+    }
     if (c.shelfStack) initShelfStack(b, 3, KP3D.SHELF_GAP_DEFAULT);
     if (c.bur){ b.burCombo = BUR_DEFAULT[drawerSys()]; b.burShelves = 2; } // starts on the popular set, 4 drawers + 2 shelves (user, 2026-10-25; was empty)
     return b;
@@ -4674,8 +4680,9 @@
     function solidFrom(step){ for (var k = 1; k < n; k++){ var w3 = state.walls[(wi + step * k + n * k) % n]; if (!w3.open) return w3; } return null; }
     var prevS = solidFrom(-1), nextS = solidFrom(1);
     function navTxt(x, anchor, nb, tgt, txt){ return '<text' + (tgt ? ' data-eljump="' + tgt.id + '" class="el-nav"' : '') + ' x="' + x + '" y="' + (top + 22) + '" font-size="14" font-weight="600"' + (anchor ? ' text-anchor="end"' : '') + ' fill="#8a8f9a">' + txt + '</text>'; }
-    if (state.closed || wi > 0) svg += navTxt(x0 + 10, false, prev, prevS && prevS !== wall ? prevS : null, '← ' + __("Veggur {n}", { n:state.walls.indexOf(prev) + 1 }) + (prev.open ? ' ' + __("(opinn)") : ''));
-    if (state.closed || wi < n - 1) svg += navTxt(x0 + L * sc - 10, true, next, nextS && nextS !== wall ? nextS : null, __("Veggur {n}", { n:state.walls.indexOf(next) + 1 }) + (next.open ? ' ' + __("(opinn)") : '') + ' →');
+    var hideOpen = !!unitWallShape(); // a bath / wardrobe: its open room edges aren't walls to walk to (round 2)
+    if ((state.closed || wi > 0) && !(hideOpen && prev.open)) svg += navTxt(x0 + 10, false, prev, prevS && prevS !== wall ? prevS : null, '← ' + __("Veggur {n}", { n:state.walls.indexOf(prev) + 1 }) + (prev.open ? ' ' + __("(opinn)") : ''));
+    if ((state.closed || wi < n - 1) && !(hideOpen && next.open)) svg += navTxt(x0 + L * sc - 10, true, next, nextS && nextS !== wall ? nextS : null, __("Veggur {n}", { n:state.walls.indexOf(next) + 1 }) + (next.open ? ' ' + __("(opinn)") : '') + ' →');
     var items = elItems(wall.id), pills = "";
     if (!items.length) svg += '<text x="' + (x0 + L * sc / 2) + '" y="' + (top + roomH * sc / 2) + '" font-size="15" text-anchor="middle" fill="#b3b0a8">' + __("Engir gluggar eða hurðir á þessum vegg") + '</text>';
     items.forEach(function(it){
@@ -6737,7 +6744,7 @@
     function P(al, y, out){ var v = new T.Vector3(g.origin.x + g.axis.x * al + g.normal.x * out, y, g.origin.z + g.axis.z * al + g.normal.z * out).project(st.camera); return { x:(v.x + 1) / 2 * r.width, y:(1 - v.y) / 2 * r.height }; }
     var b = x.b, c = CATALOG[b.type], picked = uw.picked || {}, gap = 0.07;
     var lines = [
-      { key:"w", a:P(x.a0, x.y1 + gap, x.d), b:P(x.a1, x.y1 + gap, x.d), mm:b.widthMm },
+      { key:"w", a:P(x.a0, x.y1 + (x.extraTop || 0) + gap, x.d), b:P(x.a1, x.y1 + (x.extraTop || 0) + gap, x.d), mm:b.widthMm }, // above the tap, never through the basin
       { key:"h", a:P(x.a0 - gap, x.y0, x.d), b:P(x.a0 - gap, x.y1, x.d), mm:blockHeightMm(b, c) },
       { key:"d", a:P(x.a1 + gap, x.y0, 0), b:P(x.a1 + gap, x.y0, x.d), mm:b.depthMm || c.d }
     ];
@@ -6872,7 +6879,7 @@
   function uwStartBlock(opt){
     var b = newBlock(opt.type), c = CATALOG[opt.type];
     if (opt.preset) Object.assign(b, JSON.parse(JSON.stringify(opt.preset))); // e.g. ofn + örbylgja = ovenH 1050
-    if (c.hasInterior && opt.drawers){
+    if (c.hasInterior && opt.drawers && !(c.sink && isBath())){ // (a bath basin unit already has its two drawers — newBlock)
       b.interior.mode = "skuffur";
       for (var n = 3; n >= 1; n--){
         var cand = KP3D.drawerCodes({ mode:"skuffur", count:n }, drawerSys());
@@ -8274,7 +8281,7 @@
   function renderHandleCards(keepTab){
     // "Allt" first: every handle in one list (2026-10-12)
     var groups = [{ key:"allt", label:"Allt", blurb:"Allar höldur og opnanir." }].concat(KP3D.HANDLE_GROUPS);
-    if (!keepTab && !handleTabHold && state.handle && HANDLES[state.handle] && HANDLES[state.handle].group && !HANDLES[state.handle].hidden) matTab.handle = HANDLES[state.handle].group;
+    // the page opens on "Allt" (round 2, 2026-10-26: a pre-picked Jey opened "Grip" with 2 of 9 handles) — only a tab click changes it
     var grp = groups.find(function(g){ return g.key === matTab.handle; }) || groups[0];
     var tabs = document.getElementById("handleTabs");
     tabs.innerHTML = tabsHTML(groups, function(k){ return handlesOf(k).length; }, grp.key, "data-htab");
@@ -8676,7 +8683,7 @@
     var gap = (state.walls[0] && typeof state.walls[0].plinthMm === "number") ? state.walls[0].plinthMm : BATH_HUNG_MM;
     var saved = blockSeq, b = newBlock("vaskaskapur"); blockSeq = saved;
     var c = CATALOG[b.type]; b.id = "btp1"; b.widthMm = 800; b.gapMm = 400; b.locked = false;
-    b.heightMm = BATH_BOX_MM + gap; b.interior.mode = "skuffur"; sinkDefaultStack(b, c); b.interior.count = b.interior.codes.length;
+    b.heightMm = BATH_BOX_MM + gap; // newBlock already gave it the two drawers under the basin
     var pv = { carcass:state.carcass, drawerSystem:state.drawerSystem, look:frontsOn ? state.look : state.look || "hvitt", handle:state.handle, handleColor:state.handleColor, top:state.top || "engin",
       floor:null, wallColor:null, roomHeightMm:state.roomHeightMm, closed:false, islands:[], windows:[], doors:[], hungUnits:true, bathMirror:!!state.bathMirror, activeCategory:"bad",
       walls:[{ id:"BTP", label:"", lengthMm:1600, plinthMm:gap, floor:[b], wall:[] }] };
@@ -13300,6 +13307,15 @@
   function captureThumb(){
     lastThumb = null;
     try{
+      // the Senda inn picture is always the default view with nothing selected (round 2, 2026-10-26: it took whatever angle
+      // the customer had orbited to, and a selected unit's tint) — rebuilt once, here, while the editor's 3D is still alive
+      var wrapT = document.getElementById("threeWrap");
+      if (viewMode === "3d" && KP3D._three() && wrapT){
+        selectedBlockId = null; selectedWallId = null; document.getElementById("floatBar").hidden = true;
+        KP3D.teardown3D(true); wrapT.innerHTML = "";
+        KP3D.buildScene(wrapT, state, { darkBg:!!PRO, freshCamera:true, clean:true, noGhost:true });
+        var stT = KP3D._three(); if (stT && stT.controls) stT.controls.update();
+      }
       var url = viewMode === "3d" ? KP3D.snapshot3D() : null;
       if (!url) return;
       var img = new Image();
@@ -13397,7 +13413,9 @@
         var nRooms = 0, nCab = 0, oneMats = null;
         try{ withEachCategory(function(cat){ if (cabinetTotal() > 0){ nRooms++; nCab += unitCounts().cab; var cdM = categoryDef(cat);
           var l2 = state.look && LOOKS[state.look], t2 = TOPS[state.top || "steinn"], h2 = state.handle && HANDLES[state.handle], c2 = CARCASS[state.carcass], d2 = DRAWER_SYSTEMS[state.drawerSystem];
-          oneMats = [[__("Framhlið"), l2 && l2.label], [__("Borðplata"), cdM && cdM.worktop && t2 && !t2.none && t2.label], [__("Höldur"), h2 && h2.label], [__("Skrokkur"), c2 && c2.label], [__("Skúffukerfi"), d2 && d2.label]]
+          var bathM = cdM && cdM.key === "bad"; // Bað: the top the handlaug sits on + the mirror cabinet (round 2)
+          oneMats = [[__("Framhlið"), l2 && l2.label], bathM ? [__("Toppur"), (t2 && !t2.none ? __(t2.label) : __("Enginn toppur")) + " · " + __("Handlaug ofan á")] : [__("Borðplata"), cdM && cdM.worktop && t2 && !t2.none && t2.label],
+            bathM ? [__("Spegilskápur"), state.bathMirror ? __("Já") : __("Nei")] : [null, null], [__("Höldur"), h2 && h2.label], [__("Skrokkur"), c2 && c2.label], [__("Skúffukerfi"), d2 && d2.label]]
             .filter(function(r){ return r[1]; }).map(function(r){ return '<dt>' + r[0] + '</dt><dd>' + __(r[1]) + '</dd>'; }).join(""); } }); }catch(e){ nRooms = 1; }
         // "Það sem þú pantar" folds (user, 2026-10-26 — Senda inn must not scroll): shut under a picture, open when the
         // list is all there is (several rooms); open, it scrolls inside its own box
@@ -14212,7 +14230,7 @@
   });
 
   document.querySelectorAll("#viewToggle button").forEach(function(btn){
-    btn.addEventListener("click", function(){ setViewMode(btn.dataset.view); });
+    btn.addEventListener("click", function(){ if (btn.dataset.view === "3d" && viewMode === "3d") lastRenderedViewMode = null; setViewMode(btn.dataset.view); }); // "3D" again = back to the default view
   });
 
   // ---------- desktop-only gate ----------

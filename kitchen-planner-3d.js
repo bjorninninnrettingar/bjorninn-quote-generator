@@ -2176,7 +2176,7 @@
     if (panelBox) panelUV(boxGeo, widthM, bodyH, bodyD, frontMat.userData && frontMat.userData.tile);
     else scaleFrontUV(boxGeo, widthM, bodyH, frontMat.userData && frontMat.userData.tile, false, { u:offsetM, v:bodyBase });
     var useFrontMat = frontMat;
-    if (selected && !wardrobeScene){ // a wardrobe keeps its real door colour — the blue outline (drawOverlay) shows the pick (user, 2026-10-26: "lilac looks like another door colour")
+    if (selected && !outlineSel){ // a wardrobe keeps its real door colour — the blue outline (drawOverlay) shows the pick (user, 2026-10-26: "lilac looks like another door colour")
       useFrontMat = frontMat.clone();
       useFrontMat.emissive = new THREE.Color(SELECT_COLOR);
       useFrontMat.emissiveIntensity = 0.35;
@@ -2553,7 +2553,7 @@
   // 1 px and too faint) instead of tinting its doors lilac (user, 2026-10-26)
   var selCorner = null;
   function selHullSvg(P){
-    if (!wardrobeScene || !THREE_STATE || !THREE_STATE.pickables || THREE_STATE.dragging) return "";
+    if (!outlineSel || !THREE_STATE || !THREE_STATE.pickables || THREE_STATE.dragging) return "";
     var m = THREE_STATE.pickables.find(function(x){ return x.userData && x.userData.selected && x.userData.edgesObj && !x.userData.isPart; });
     var e = m && m.userData.edgesObj; if (!e || !e.geometry) return "";
     if (!e.geometry.boundingBox) e.geometry.computeBoundingBox();
@@ -4051,7 +4051,7 @@
       if (cab && cab.items && cab.t > 0){ cab.items.forEach(function(it){ it.o.material = it.orig; }); cab.t = 0; } // back to solid before the material slots are touched
       if (Array.isArray(m.material)){ // cabinet
         if (u.open || u.art){ /* open shelves have NO front: swapping slot 4 for the real front material gave them a door */ }
-        else if (want && !wardrobeScene){
+        else if (want && !outlineSel){
           var c = u.baseFront.clone();
           c.emissive = new THREE.Color(SELECT_COLOR); c.emissiveIntensity = 0.35;
           c.__xrayBase = u.baseFront; // same tag as addCabinetBox's build-time selection clone — setXrayFronts
@@ -4798,9 +4798,13 @@
   // a click that hit nothing (deselect).
   // Fataskápar (user, 2026-10-25): door handles at hand height — set per scene from the room's category
   var wardrobeScene = false;
+  // the selected unit gets the blue outline (selHullSvg) instead of lilac fronts — every customer room (round 2, 2026-10-26:
+  // lilac read as another front colour in the bath too); PRO (darkBg) keeps the tint
+  var outlineSel = false;
   function buildScene(wrap, state, opts){
     opts = opts || {};
     wardrobeScene = /^fataskapar/.test(String(state.activeCategory || "")) || !!state.wardrobe;
+    outlineSel = wardrobeScene || !opts.darkBg;
     handleFinish = handleFinishFor(state.handle, state.handleColor);
     var THREE = window.__THREE__;
     var OrbitControls = window.__OrbitControls__;
@@ -5460,13 +5464,27 @@
     if (!focusBounds) camera.position.set(bbox.cx + dist * 0.6, dist * 0.55, bbox.cz + dist * 0.9);
     // Baðherbergi (user, 2026-10-26): start facing the wall the units are on (a corner: both), at a person's height —
     // not the whole empty room from a top corner with a small vanity in the middle
-    var bathAim = null;
+    var bathAim = null, frontAz = null, frontSpan = 0;
+    var unitWallRoom = /^(bad|fataskapar)(:|$)/.test(String(state.activeCategory || ""));
+    if (!focusBounds && !opts.people && unitWallRoom && !opts.darkBg){ // orbit stays in front of the unit wall(s) (round 2: it went behind the wall)
+      var fIdx = (state.walls || []).map(function(w, i){ return i; }).filter(function(i){ var w = state.walls[i]; return geoms[i] && !w.open && ((w.floor || []).length || (w.wall || []).length); });
+      if (!fIdx.length) fIdx = (state.walls || []).map(function(w, i){ return i; }).filter(function(i){ return geoms[i] && !state.walls[i].open; });
+      if (fIdx.length && fIdx.length <= 2){
+        var fnx = 0, fnz = 0; fIdx.forEach(function(i){ fnx += geoms[i].normal.x; fnz += geoms[i].normal.z; });
+        if (Math.hypot(fnx, fnz) > 0.1){ frontAz = Math.atan2(fnx, fnz); frontSpan = fIdx.length > 1 ? 0.75 : 1.3; }
+      }
+    }
     if (!focusBounds && !opts.people && /^bad(:|$)/.test(String(state.activeCategory || "")) && state.hungUnits){
       var bIdx = (state.walls || []).map(function(w, i){ return i; }).filter(function(i){ var w = state.walls[i]; return geoms[i] && !w.open && ((w.floor || []).length || (w.wall || []).length); });
       if (!bIdx.length) bIdx = (state.walls || []).map(function(w, i){ return i; }).filter(function(i){ return geoms[i] && !state.walls[i].open; }).slice(0, 1);
       if (bIdx.length && bIdx.length <= 2){
         var bcx = 0, bcz = 0, bnx = 0, bnz = 0, bLen = 0;
-        bIdx.forEach(function(i){ var g = geoms[i]; bcx += g.origin.x + g.axis.x * g.lenM / 2; bcz += g.origin.z + g.axis.z * g.lenM / 2; bnx += g.normal.x; bnz += g.normal.z; bLen = Math.max(bLen, g.lenM); });
+        bIdx.forEach(function(i){ // frame the units on the wall (round 2: a 80 cm vanity was small in a 250 cm wall's view), else the wall
+          var g = geoms[i], w = state.walls[i], a0 = 0, a1 = g.lenM;
+          var fs = blockStartsMm(w.floor || [], 0), ws = blockStartsMm(w.wall || [], 0), ext = [];
+          (w.floor || []).forEach(function(b, k){ ext.push(fs[k], fs[k] + b.widthMm); }); (w.wall || []).forEach(function(b, k){ ext.push(ws[k], ws[k] + b.widthMm); });
+          if (ext.length){ a0 = Math.min.apply(null, ext) / 1000; a1 = Math.max.apply(null, ext) / 1000; var pad = Math.max(0, (1.4 - (a1 - a0)) / 2); a0 = Math.max(0, a0 - pad); a1 = Math.min(g.lenM, a1 + pad); }
+          var am = (a0 + a1) / 2; bcx += g.origin.x + g.axis.x * am; bcz += g.origin.z + g.axis.z * am; bnx += g.normal.x; bnz += g.normal.z; bLen = Math.max(bLen, a1 - a0); });
         bcx /= bIdx.length; bcz /= bIdx.length; var bnl = Math.hypot(bnx, bnz) || 1; bnx /= bnl; bnz /= bnl;
         var bd = Math.max(2.3, bLen * 0.95 + 0.9) * (bIdx.length > 1 ? 1.2 : 1);
         camera.position.set(bcx + bnx * bd + bnz * bd * 0.22, 1.3, bcz + bnz * bd - bnx * bd * 0.22); // low enough to see the floor under the hung units
@@ -5550,6 +5568,7 @@
     controls.dampingFactor = 0.08;
     if (people) controls.target.set(people.focus.x - people.g.normal.x * 0.6, WALL_H * 0.46, people.focus.z - people.g.normal.z * 0.6);
     if (bathAim) controls.target.set(bathAim.x, bathAim.y, bathAim.z);
+    if (frontAz != null){ controls.minAzimuthAngle = frontAz - frontSpan; controls.maxAzimuthAngle = frontAz + frontSpan; controls.rotateSpeed = 0.45; }
     if (focusBounds){ // "Veggur" view: a fixed architectural elevation, not an orbit — only zoom
       controls.enableRotate = false;
       controls.enablePan = false;
