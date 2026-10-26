@@ -135,7 +135,7 @@
           var H = num(p[0], vars), code = p[1];
           if (H == null) { unknown.push(op); break; }
           drawerCursor = 0;
-          features.push({ type: "drawer", from: 0, to: H, label: "Skúffa " + code + " (" + H + " mm)" });
+          features.push({ type: "drawer", from: 0, to: H, sys: "legra", label: "Skúffa " + code + " (" + H + " mm)" });
           drawerCursor = H + 3;
           break;
         }
@@ -143,7 +143,7 @@
           var H2 = num(p[6], vars), code2 = p[7];
           if (H2 == null) { unknown.push(op); break; }
           var from = drawerCursor;
-          features.push({ type: "drawer", from: from, to: from + H2, label: "Skúffa " + code2 + " (" + H2 + " mm)" });
+          features.push({ type: "drawer", from: from, to: from + H2, sys: op.name === "MERIVOBOX_V2" ? "merivo" : "legra", label: "Skúffa " + code2 + " (" + H2 + " mm)" });
           drawerCursor = from + H2 + 3;
           break;
         }
@@ -295,6 +295,57 @@
     return svg;
   }
 
+  // ── calm view (2026-10-26, default): only what to check before milling — hinge plate holes, shelf-pin rows,
+  // fixed-shelf lines, drawer/inner runner lines — thin lines, standing up like the cabinet (bottom at the bottom,
+  // front edge to the left), labels on hover (<title>). opts.accent = { hinge, shelf, inner }: drawn in blue when
+  // that part was set by hand (in /smida), else ink. The BiesseWorks-style view stays one click away ("Tæknilegt").
+  function renderCalm(LPX, LPY, features, opts) {
+    opts = opts || {};
+    var acc = opts.accent || {}, BLUE = "#0071e3", INK = "#1d1d1f", SOFT = "#8e8e93";
+    var maxH = opts.maxH || 560, maxW = opts.maxW || 360, s = Math.min(maxH / LPX, maxW / LPY);
+    var w = LPY * s, h = LPX * s, pad = 28;
+    var X = function (d) { return pad + d * s; }, Y = function (m) { return pad / 2 + (LPX - m) * s; };
+    var svg = svgEl("svg", { class: "bpp-calm-svg", width: w + pad * 2, height: h + pad + 6, viewBox: "0 0 " + (w + pad * 2) + " " + (h + pad + 6) });
+    function g(label) { var el = svgEl("g", { class: "cz" }); var t = svgEl("title", {}); t.textContent = label; el.appendChild(t); svg.appendChild(el); return el; }
+    svg.appendChild(svgEl("rect", { x: X(0), y: Y(LPX), width: w, height: h, rx: 2, fill: "#fff", stroke: INK, "stroke-width": 1.2 }));
+    var front = Math.min(37, LPY / 3), back = LPY - Math.min(37, LPY / 3);
+    features.forEach(function (f) {
+      if (f.type === "drawer" || f.type === "inner") {
+        var el = g(f.label), from = Math.max(0, f.from), to = Math.min(LPX, f.to);
+        if (f.type === "drawer") el.appendChild(svgEl("rect", { x: X(0) + 3, y: Y(to), width: w - 6, height: Math.max(1, (to - from) * s), fill: "#f5f5f7" }));
+        var ry = f.type === "inner" ? from : from + (f.sys === "legra" ? 62.5 : 80); // runner over its slot, as cnc-sides.js plans it
+        el.appendChild(svgEl("line", { x1: X(front), x2: X(back), y1: Y(ry), y2: Y(ry), stroke: f.type === "inner" && acc.inner ? BLUE : SOFT, "stroke-width": 1.4, "stroke-linecap": "round" }));
+      } else if (f.type === "fixed") {
+        var ef = g(f.label); ef.appendChild(svgEl("rect", { x: X(0) + 3, y: Y(f.to), width: w - 6, height: Math.max(1, (f.to - f.from) * s), fill: "#f5f5f7" }));
+      } else if (f.type === "shelfFixed") {
+        var es = g(f.label + " — " + Math.round(f.y) + " mm");
+        es.appendChild(svgEl("line", { x1: X(0), x2: X(LPY), y1: Y(f.y), y2: Y(f.y), stroke: acc.shelf ? BLUE : INK, "stroke-width": 2 }));
+      } else if (f.type === "shelfLoose") {
+        var el2 = g(f.label + " — göt " + f.ys.map(function (y) { return Math.round(y); }).join(", ") + " mm");
+        f.ys.forEach(function (y) { [front, back].forEach(function (d) { el2.appendChild(svgEl("circle", { cx: X(d), cy: Y(y), r: 2.4, fill: acc.shelf ? BLUE : INK })); }); });
+      } else if (f.type === "hinge") {
+        var eh = g((f.label || "Löm") + (f.y != null ? "" : ""));
+        eh.appendChild(svgEl("circle", { cx: X(front), cy: Y(f.y), r: 4.6, fill: "#fff", stroke: acc.hinge ? BLUE : INK, "stroke-width": 1.6 }));
+        eh.appendChild(svgEl("circle", { cx: X(front), cy: Y(f.y), r: 1.6, fill: acc.hinge ? BLUE : INK }));
+      } else if (f.type === "rail") {
+        var er = g(f.label); er.appendChild(svgEl("line", { x1: X(0), x2: X(LPY), y1: Y(f.y), y2: Y(f.y), stroke: "#d2d2d7", "stroke-width": 1, "stroke-dasharray": "4 4" }));
+      }
+    });
+    var t1 = svgEl("text", { x: X(0) - 8, y: Y(LPX / 2), "text-anchor": "end", "dominant-baseline": "middle", "font-size": 11, fill: "#a1a1a6" }); t1.textContent = LPX; svg.appendChild(t1);
+    var t2 = svgEl("text", { x: X(LPY / 2), y: Y(0) + 16, "text-anchor": "middle", "font-size": 11, fill: "#a1a1a6" }); t2.textContent = LPY; svg.appendChild(t2);
+    return svg;
+  }
+  var CALM_CSS = ".bpp-calmv{background:#fff;border:1px solid #e5e5ea;border-radius:12px;padding:12px 14px 10px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1d1d1f}" +
+    ".bpp-calm-h{display:flex;align-items:center;gap:10px;margin-bottom:6px;font-size:13px}.bpp-calm-h b{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
+    ".bpp-calm-h button{font:inherit;font-size:12px;color:#0071e3;background:none;border:none;cursor:pointer;padding:2px 0}" +
+    ".bpp-calm-body{display:flex;justify-content:center}.bpp-calm-svg .cz{cursor:default}.bpp-calm-svg .cz:hover line,.bpp-calm-svg .cz:hover circle{stroke:#0071e3}.bpp-calm-svg .cz:hover circle[r='2.4'],.bpp-calm-svg .cz:hover circle[r='1.6']{fill:#0071e3}.bpp-calm-svg .cz:hover rect{fill:#e8f1fc}" +
+    ".bpp-card.bpp-calm>.bw-window,.bpp-card.bpp-calm>.bpp-raw,.bpp-card.bpp-calm .bpp-note.info{display:none}.bpp-card:not(.bpp-calm)>.bpp-calmv .bpp-calm-body{display:none}" +
+    ".bpp-card:not(.bpp-calm)>.bpp-calmv{border:none;background:none;padding:0 0 6px}";
+  function ensureCalmCss() {
+    if (typeof document === "undefined" || document.getElementById("bppCalmCss")) return;
+    var st = document.createElement("style"); st.id = "bppCalmCss"; st.textContent = CALM_CSS; document.head.appendChild(st);
+  }
+
   var LEGEND_ITEMS = [
     ["drawer", "Skúffa"], ["inner", "Innskúffa"], ["fixed", "Fast framstykki"], ["hinge", "Löm"],
     ["handle", "Handfang/skrá"], ["shelfFixed", "Föst hilla"], ["shelfLoose", "Laus hilla"], ["rail", "Slá"], ["threshold", "Þröskuldur"],
@@ -349,7 +400,9 @@
   // whether to hide the toolbar once the last card is gone; each page supplies its own (bpp-viewer.html's
   // drop zone vs cnc.html's post-export preview section) so the two can coexist on the same page as cnc.html
   // does without id collisions. ────────────────────────────────────────────────────────────────────────
-  function buildCard(file, text, outEl, toolbarEl) {
+  // opts.view: "calm" (default, 2026-10-26) or "tech" (the BiesseWorks window); opts.accent → renderCalm
+  function buildCard(file, text, outEl, toolbarEl, opts) {
+    opts = opts || {};
     var card = document.createElement("div"); card.className = "bpp-card";
     var win = document.createElement("div"); win.className = "bw-window"; card.appendChild(win);
 
@@ -387,6 +440,25 @@
     else if (kind === "front-skuffa") built = buildFrontSkuffaFeatures(parsed.ops, vars);
     else if (kind === "hurdablad" || kind === "karmur-lamir" || kind === "karmur-slut" || kind === "karmur-topp") built = buildDoorFeatures(kind, parsed.ops, parsed.glb);
     else built = { features: [], unknown: parsed.ops.filter(function (o) { return o.active; }), info: [] };
+
+    // calm view on top (only for what it can draw: sides and door fronts); the full window below, one click away
+    if (kind === "hlid" || kind === "front-hurd") {
+      ensureCalmCss();
+      var calm = document.createElement("div"); calm.className = "bpp-calmv";
+      var ch = document.createElement("div"); ch.className = "bpp-calm-h";
+      var cb = document.createElement("b"); cb.textContent = file.name; ch.appendChild(cb);
+      var tb = document.createElement("button"); tb.type = "button";
+      var setView = function (v) { card.classList.toggle("bpp-calm", v === "calm"); tb.textContent = v === "calm" ? "Tæknilegt" : "Einfalt"; card.dataset.view = v; };
+      tb.onclick = function () { setView(card.classList.contains("bpp-calm") ? "tech" : "calm"); };
+      ch.appendChild(tb);
+      if (outEl) { var cx = document.createElement("button"); cx.type = "button"; cx.textContent = "Fjarlægja"; cx.style.color = "#8e8e93"; cx.onclick = rm.onclick; ch.appendChild(cx); }
+      calm.appendChild(ch);
+      var cbody = document.createElement("div"); cbody.className = "bpp-calm-body";
+      cbody.appendChild(renderCalm(vars.LPX, vars.LPY, built.features, { accent: opts.accent, maxH: opts.maxH, maxW: opts.maxW }));
+      calm.appendChild(cbody);
+      card.insertBefore(calm, win);
+      setView(opts.view === "tech" ? "tech" : "calm");
+    }
 
     var body = document.createElement("div"); body.className = "bw-body";
     body.appendChild(buildMacroList(parsed.ops));
@@ -427,7 +499,7 @@
   var api = {
     parseBpp: parseBpp, detectKind: detectKind, KIND_LABEL: KIND_LABEL,
     buildSideFeatures: buildSideFeatures, buildFrontSkuffaFeatures: buildFrontSkuffaFeatures, buildDoorFeatures: buildDoorFeatures,
-    renderPlan: renderPlan, findDuplicateOps: findDuplicateOps, buildMacroList: buildMacroList, buildCard: buildCard, mkNote: mkNote,
+    renderPlan: renderPlan, findDuplicateOps: findDuplicateOps, buildMacroList: buildMacroList, buildCard: buildCard, mkNote: mkNote, renderCalm: renderCalm,
     LEGEND_ITEMS: LEGEND_ITEMS, LEGEND_COLOR: LEGEND_COLOR,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;

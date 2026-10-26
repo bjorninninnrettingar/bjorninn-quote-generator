@@ -733,6 +733,7 @@
   .shape-group-title{ font-size:15px; font-weight:600; margin:22px 0 10px; }
   .shape-group-title span{ font-weight:400; font-size:12.5px; color:var(--ink-soft); }
   .shape-cards{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; max-width:980px; }
+  .shape-cards.four{ grid-template-columns:repeat(4,minmax(0,1fr)); max-width:1180px; }
   .shape-card svg{ height:128px !important; }
   @media (max-width:640px){ .shape-cards{ grid-template-columns:repeat(2,1fr); } }
   .shape-card{ background:#fff; border:1.5px solid var(--line); border-radius:12px; padding:14px 12px 10px; cursor:pointer; text-align:center; font:inherit; position:relative; }
@@ -2106,7 +2107,7 @@
     <div class="mat-wiz">
       <div class="mat-stage">
         <div class="cab-preview-wrap"><div class="cab-preview" id="cabPreview"></div>
-          <div class="uw-tools"><button type="button" id="matSpin">Snúa: á</button></div></div>
+          <div class="uw-tools" hidden><button type="button" id="matSpin">Snúa: á</button></div></div>
       </div>
       <div class="mat-side">
         <div class="wiz-steps" id="wizSteps"></div>
@@ -2567,11 +2568,14 @@
   // Round 2 (2026-10-26): only rooms with something in them count (an empty Innihurðir row never decides), and a home of
   // several furnished rooms (wardrobe + bath …) gets the in-between brackets — the sum is more than one wardrobe
   var ROOMS_BUDGETS = ["Undir 1 m.kr.", "1–2 m.kr.", "2–4 m.kr.", "Yfir 4 m.kr.", "Óviss — vil ráðgjöf"];
+  // a laundry on its own is smaller still (round 3, user 2026-10-26)
+  var LAUNDRY_BUDGETS = ["Undir 300 þús.", "300–600 þús.", "600 þús.–1 m.kr.", "Yfir 1 m.kr.", "Óviss — vil ráðgjöf"];
   function budgetOptions(){
-    var kitchen = false, rooms = 0;
-    try{ withEachCategory(function(cat){ var n = cabinetTotal(); if (!n) return; rooms++; if (String(cat).split(":")[0] === "eldhus") kitchen = true; }); }catch(e){ kitchen = !closetOnlyProject(); }
+    var kitchen = false, rooms = 0, laundry = 0;
+    try{ withEachCategory(function(cat){ var n = cabinetTotal(); if (!n) return; rooms++; if (String(cat).split(":")[0] === "eldhus") kitchen = true; if (String(cat).split(":")[0] === "thvottahus") laundry++; }); }catch(e){ kitchen = !closetOnlyProject(); }
     if (kitchen) return INTAKE_QUESTIONS[1].options;
     if (rooms + (designedDoors().length ? 1 : 0) > 1) return ROOMS_BUDGETS;
+    if (laundry) return LAUNDRY_BUDGETS;
     return CLOSET_BUDGETS; // one wardrobe / bath / laundry, or doors only
   }
 
@@ -3189,6 +3193,7 @@
     state.walls = templateWalls(key);
     var cdT = categoryDef(state.activeCategory);
     if (cdT && cdT.roomSize) fitRoomSize(cdT.roomSize); // Bað/Þvottahús start their own size, not the kitchen's 5,6 × 4,2 m
+    else if (key === "rect" && isCloset() && !PRO) fitRoomSize([3600, 3000]); // Allt rýmið for a wardrobe: a bedroom, not a kitchen
     if (cdT && cdT.hung){ state.hungUnits = true; state.walls.forEach(function(w){ w.plinthMm = BATH_HUNG_MM; }); } // bath: units hang 200 mm up (Sökkulhæð = the gap)
     state.closed = true;
     state.shapeKey = key;
@@ -3198,7 +3203,8 @@
     state.waterWall = null; state.waterAlongMm = null; state.seeded = false; state.openingsDone = false;
     selectedEdge = null;
     shapePhase = "size";
-    if (SHAPE_TEMPLATES[key].group === "bath"){ state.waterWall = state.walls[0].id; shapePhase = isLaundry() && !PRO ? "machine" : "water"; } // "Veggurinn og vatnið": the droplet starts mid-wall, so Áfram just works
+    if (SHAPE_TEMPLATES[key].group === "bath"){ state.waterWall = state.walls[0].id; shapePhase = isLaundry() && !PRO ? "machine" : "water"; }
+    else if (isLaundry() && !PRO) shapePhase = "machine"; // Allt rýmið: the machine first too, then the kitchen's room pages // "Veggurinn og vatnið": the droplet starts mid-wall, so Áfram just works
     save();
     renderShapeStep();
   }
@@ -3963,6 +3969,7 @@
     state.seeded = true;
     var any = state.walls.some(function(x){ return x.floor.length || x.wall.length; }) || state.islands.length;
     if (w.open || any) return;
+    if (isLaundry() && !PRO){ seedLaundry(w); syncBathPanels(); save(); return; } // the whole laundry, as "Hvar er vélin?" showed it
     var b = newBlock("vaskaskapur");
     var mid = state.waterWall ? waterAlong(w) : Math.round(w.lengthMm / 2 / 10) * 10;
     var start = Math.max(cornerClearance(w, "floor"), Math.min(w.lengthMm - b.widthMm, Math.round((mid - b.widthMm / 2) / 10) * 10)); // centred on the water marker
@@ -4030,8 +4037,77 @@
     if (at == null) return;
     ts.forEach(function(x){ insertBlockAt(w, "floor", x, at); at += x.widthMm; });
   }
+  // ---- Þvottahús seeded like its "Hvar er vélin?" preview (round 3, user 2026-10-26) ----
+  // Left → right: the sink (60) at the water, then the machine(s); base units with drawers fill what's left of the wall;
+  // efri skápar over the worktop run (Undir borðplötu / Engin vél). Horn: sink + cabinets on the water wall, the machines
+  // on the other wall at the corner. Everything is marked autoSeed, so a change on "Hvar er vélin?" lays it out again
+  // while the customer hasn't touched it (reseedLaundryMachine).
+  function laundryBase(width){
+    var b = newBlock("grunnskapur"), c = CATALOG.grunnskapur; b.widthMm = Math.max(c.minW, Math.min(c.maxW, width)); b.autoSeed = true;
+    b.interior.mode = "skuffur";
+    for (var n = 3; n >= 1; n--){ var dc = KP3D.drawerCodes({ mode:"skuffur", count:n }, drawerSys()); if (stackAllowed(b, c, dc, null) || n === 1){ b.interior.codes = dc; break; } }
+    b.interior.inner = null; b.interior.count = b.interior.codes.length;
+    return b;
+  }
+  function laundryFill(gap, exact){ // base unit widths for a free stretch, room left for the úthliðar at its ends; exact: it ends in a corner (covered — no úthlið, flush)
+    if (exact){ var n = Math.ceil(gap / 1000), w0 = Math.floor(gap / n / 10) * 10; if (gap < 300 || w0 < 300) return []; var ex = []; for (var q = 0; q < n - 1; q++) ex.push(w0); ex.push(gap - w0 * (n - 1)); return ex; }
+    var g = Math.floor((gap - 40) / 10) * 10, out = [];
+    while (g >= 300){ var x = g <= 1000 ? g : g < 1300 ? Math.floor(g / 20) * 10 : 800; out.push(x); g -= x; }
+    return out;
+  }
+  // blocks laid flush from `start`, then the free stretches on both sides filled with base units
+  function laundryRun(w, blocks, anchorMm, fill, resv){ // resv {start, end}: mm kept free at a corner (the other wall's units stand there)
+    resv = resv || {};
+    var cc = Math.max(cornerClearance(w, "floor"), resv.start || 0), L = w.lengthMm - (resv.end || 0), tot = blocks.reduce(function(a, x){ return a + x.widthMm; }, 0);
+    while (blocks.length > 1 && tot > L - cc){ tot -= blocks[blocks.length - 1].widthMm; blocks = blocks.slice(0, -1); } // a short wall: what fits
+    var start = Math.max(cc, Math.min(L - tot, Math.round((anchorMm - (blocks[0] ? blocks[0].widthMm / 2 : 0)) / 10) * 10)), at = start;
+    blocks.forEach(function(x){ insertBlockAt(w, "floor", x, at); at += x.widthMm; });
+    if (!fill) return;
+    var exactL = cornerClearance(w, "floor") > 0 && !resv.start;
+    var left = laundryFill(start - cc, exactL), right = laundryFill(L - at);
+    var lp = exactL ? cc : start - left.reduce(function(a, x){ return a + x; }, 0); // flush with the run (the úthlið goes at the outer end); from a corner: flush with it
+    left.forEach(function(x){ insertBlockAt(w, "floor", laundryBase(x), lp); lp += x; });
+    var rp = at;
+    right.forEach(function(x){ insertBlockAt(w, "floor", laundryBase(x), rp); rp += x; });
+  }
+  function laundryWallUnits(w){ // an efri skápur over every worktop-height unit (not over the tower)
+    var starts = KP3D.blockStartsMm(w.floor, cornerClearance(w, "floor"));
+    w.floor.forEach(function(f, i){
+      var c = CATALOG[f.type]; if (c.cls !== "floor" || c.panel || f.widthMm < 300) return;
+      var e = newBlock("efriskapur"), ec = CATALOG.efriskapur; e.widthMm = Math.max(ec.minW, Math.min(ec.maxW, f.widthMm)); e.autoSeed = true;
+      if (e.widthMm !== f.widthMm) return;
+      var ok = freeIntervals(w, "wall", null, probeSpan("wall", e)).some(function(iv){ return iv[0] <= starts[i] + 0.5 && iv[1] >= starts[i] + e.widthMm - 0.5; });
+      if (ok) insertBlockAt(w, "wall", e, starts[i]);
+    });
+  }
+  function seedLaundry(waterW){
+    var m = state.laundryMachine || "staeda", k = unitWallShape();
+    var unitWalls = k && SHAPE_TEMPLATES[k].closetWalls ? SHAPE_TEMPLATES[k].closetWalls.map(function(i){ return state.walls[i]; }).filter(function(x){ return x && !x.open; }) : [waterW];
+    if (unitWalls.indexOf(waterW) < 0) waterW = unitWalls[0];
+    var other = unitWalls.find(function(x){ return x !== waterW; }) || null;
+    var sink = newBlock("vaskaskapur"); sink.widthMm = Math.max(CATALOG.vaskaskapur.minW, Math.min(CATALOG.vaskaskapur.maxW, 600)); sink.autoSeed = true;
+    var mach = (m === "undir" ? ["thvottavelFri", "thvottavelFri"] : m === "staeda" ? ["thvottavel"] : []).map(function(t){ var x = newBlock(t); x.autoMachine = true; x.autoSeed = true; return x; });
+    var mid = state.waterWall === waterW.id ? waterAlong(waterW) : Math.round(waterW.lengthMm / 2);
+    if (other){ // Horn: the machines on the other wall, at the corner; the water wall's units stop short of the corner
+      var oi = state.walls.indexOf(other), wi = state.walls.indexOf(waterW), atStart = oi === (wi + 1) % state.walls.length; // the next wall starts at the corner
+      var cornerMm = 620; // the corner square stays free: the other wall's 60 cm units stand in front of it (else the fronts there can't open)
+      laundryRun(waterW, [sink], mid, true, atStart ? { end:cornerMm } : { start:cornerMm });
+      var towerFar = m === "staeda"; // a tall tower in the corner would block the water wall's last unit — it goes at the far end
+      if (mach.length) laundryRun(other, mach, atStart !== towerFar ? 0 : other.lengthMm, true, towerFar ? (atStart ? { end:20 } : { start:20 }) : null); // (room for the tower's úthlið to push it along)
+      else laundryRun(other, [], 0, true);
+    } else laundryRun(waterW, [sink].concat(mach.length ? mach : [laundryBase(600)]), mid, true); // Engin vél: sink + a drawer unit, as on its preview
+    if (m !== "staeda") unitWalls.forEach(laundryWallUnits);
+    landedBlockId = sink.id;
+  }
+  function laundryUntouched(){ // every unit is still the one we seeded (none moved into place by hand, none locked)
+    return state.walls.every(function(w){ return w.floor.concat(w.wall).every(function(x){ return (x.autoSeed || x.autoPanel) && !x.locked; }); });
+  }
   function reseedLaundryMachine(){
     if (!state.seeded) return; // not placed yet: the editor does it the first time it opens
+    if (!PRO && laundryUntouched() && state.walls.some(function(w){ return w.floor.some(function(x){ return x.autoSeed; }); })){
+      state.walls.forEach(function(w){ w.floor = []; w.wall = []; });
+      state.seeded = false; seedSink(); return;
+    }
     var sinkWall = null, sink = null;
     state.walls.forEach(function(w){
       w.floor.filter(function(x){ return (x.autoMachine && !x.locked) || x.autoPanel; }).forEach(function(x){ detachBlock(w, "floor", x.id); }); // our úthliðar come back with syncBathPanels
@@ -4055,15 +4131,15 @@
       document.getElementById("shNext").addEventListener("click", function(){
         var k = pendingShape; pendingShape = null;
         if (k && (!state.closed || k !== state.shapeKey)){ applyShapeTemplate(k); return; } // applies it and opens the sizes
-        shapePhase = bathShape() ? (isLaundry() ? "machine" : "water") : "size"; renderShapeStep();
+        shapePhase = isLaundry() ? "machine" : bathShape() ? "water" : "size"; renderShapeStep();
       });
     } else if (shapePhase === "machine"){ // Þvottahús: "Hvar er vélin?" between the wall pick and the wall + water
       box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">' + __("← Til baka") + '</button><button class="btn btn-primary" id="shNext" type="button"' + (state.laundryMachine ? '' : ' disabled') + '>' + __("Áfram →") + '</button>';
       document.getElementById("shBack").addEventListener("click", function(){ shapePhase = "pick"; renderShapeStep(); });
-      document.getElementById("shNext").addEventListener("click", function(){ shapePhase = "water"; renderShapeStep(); });
+      document.getElementById("shNext").addEventListener("click", function(){ shapePhase = bathShape() ? "water" : "size"; renderShapeStep(); });
     } else if (shapePhase === "size"){
       box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">' + __("← Til baka") + '</button><button class="btn btn-primary" id="shNext" type="button">' + __("Áfram →") + '</button>';
-      document.getElementById("shBack").addEventListener("click", function(){ shapePhase = "pick"; renderShapeStep(); });
+      document.getElementById("shBack").addEventListener("click", function(){ shapePhase = isLaundry() && !PRO ? "machine" : "pick"; renderShapeStep(); });
       document.getElementById("shNext").addEventListener("click", function(){ if (closetShape()){ lockRoom(); return; } shapePhase = "height"; renderShapeStep(); }); // a closet: the ceiling was on this page, no floor/wall colour
     } else if (shapePhase === "height"){
       box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">' + __("← Til baka") + '</button><button class="btn btn-primary" id="shNext" type="button">' + __("Áfram →") + '</button>';
@@ -4110,7 +4186,7 @@
     }
     if (!state.closed) shapePhase = "pick";
     if (bathShape() && !PRO && (shapePhase === "size" || shapePhase === "height")) shapePhase = "water"; // a bath's sizes live on "Veggurinn og vatnið"
-    if (shapePhase === "machine" && !(isLaundry() && bathShape() && !PRO)) shapePhase = state.closed ? "water" : "pick";
+    if (shapePhase === "machine" && !(isLaundry() && !PRO)) shapePhase = state.closed ? "water" : "pick";
     if (isLaundry() && !PRO) roomDefaults(); // the machine page + its preview already show the usual answers
     if (shapePhase !== "height" && shapePhase !== "machine") endHeightScene();
     var catDef = categoryDef(state.activeCategory);
@@ -4161,8 +4237,15 @@
       document.querySelector("#shapeRoomPick .mat-section-title").textContent = closetMode ? __("Í hvaða herbergi?") : __("Hvaða rými er þetta?");
       ["closed", "open"].forEach(function(g){
         var grp = closetMode ? (g === "closed" ? "closet" : "-") : bathMode ? (g === "closed" ? "bath" : "-") : g;
-        document.getElementById(g === "closed" ? "shapeCardsClosed" : "shapeCardsOpen").innerHTML = Object.keys(SHAPE_TEMPLATES).filter(function(k){ return SHAPE_TEMPLATES[k].group === grp && !SHAPE_TEMPLATES[k].hidden; }).map(function(k){
-          return '<button type="button" class="shape-card" data-shape="' + k + '">' + templateIcon(k) + '<div class="nm">' + __(SHAPE_TEMPLATES[k].label) + '</div>' + (CLOSET_SHAPE_DESC[k] ? '<small>' + __(CLOSET_SHAPE_DESC[k]) + '</small>' : '') + '</button>';
+        // "Allt rýmið" (user, 2026-10-26): the whole room A–Ö like the kitchen — every wall, window and door, units on any wall
+        var keys = Object.keys(SHAPE_TEMPLATES).filter(function(k){ return SHAPE_TEMPLATES[k].group === grp && !SHAPE_TEMPLATES[k].hidden; });
+        var whole = g === "closed" && (closetMode || bathMode) && !PRO;
+        if (whole) keys.push("rect");
+        var host = document.getElementById(g === "closed" ? "shapeCardsClosed" : "shapeCardsOpen");
+        host.classList.toggle("four", keys.length === 4);
+        host.innerHTML = keys.map(function(k){
+          var lb = whole && k === "rect" ? "Allt rýmið" : SHAPE_TEMPLATES[k].label, ds = whole && k === "rect" ? "Teiknaðu allt herbergið frá A til Ö — allir veggir, gluggar og hurðir, innrétting þar sem þú vilt" : CLOSET_SHAPE_DESC[k];
+          return '<button type="button" class="shape-card" data-shape="' + k + '">' + templateIcon(k) + '<div class="nm">' + __(lb) + '</div>' + (ds ? '<small>' + __(ds) + '</small>' : '') + '</button>';
         }).join("");
       });
       if (closetMode && !state.closed && !pendingShape) pendingShape = "closetWall"; // the usual one, already picked
@@ -4347,8 +4430,7 @@
   }
   // "Fylla vegginn" (user, 2026-10-26: offered, never automatic): the brown area (closetSpan per wardrobe wall) as bays
   function closetFillPlan(){
-    var k = closetShape(); if (!k) return [];
-    var cws = SHAPE_TEMPLATES[k].closetWalls, bays = [];
+    var k = closetShape(), cws = closetWallIdx(), bays = []; if (!cws.length) return [];
     cws.forEach(function(i){
       var w = state.walls[i], sp = closetSpan(i); if (!w || !sp) return;
       var lo = Math.max(sp.start, runStartMm(w, "floor")), hi = Math.min(sp.start + sp.mm, runEndMm(w, "floor"));
@@ -4371,15 +4453,22 @@
     return bays;
   }
   // "Ég raða sjálf/ur" said and nothing placed yet: the wardrobe's brown area(s) for 3D to draw as a "+ add a unit here" target
+  // the wall(s) a wardrobe goes on: its shape's, or in "Allt rýmið" (round 3) the longest wall with no door in it
+  function closetWallIdx(){
+    var k = closetShape(); if (k) return SHAPE_TEMPLATES[k].closetWalls;
+    if (!isCloset() || PRO || state.shapeKey !== "rect" || !state.closed) return [];
+    var best = -1, bestScore = -1;
+    state.walls.forEach(function(w, i){ if (w.open) return; var door = (state.doors || []).some(function(d){ return d.wallId === w.id; }), sc = w.lengthMm - (door ? 100000 : 0); if (sc > bestScore){ bestScore = sc; best = i; } });
+    return best >= 0 ? [best] : [];
+  }
   function closetEmptySpans(){
     if (!isCloset() || !closetEmpty() || !state.closetFillDeclined) return null;
-    var k = closetShape();
-    return SHAPE_TEMPLATES[k].closetWalls.map(function(i){
+    return closetWallIdx().map(function(i){
       var w = state.walls[i], sp = closetSpan(i);
       return w && sp ? { wallId:w.id, wallIndex:i, startMm:sp.start, mm:sp.mm, heightMm:state.closetHeightMm || closetHeightFor(30), depthMm:state.closetDepthMm || 580 } : null;
     }).filter(Boolean);
   }
-  function closetEmpty(){ var k = closetShape(); return !!k && SHAPE_TEMPLATES[k].closetWalls.every(function(i){ var w = state.walls[i]; return !w || (!w.floor.length && !w.wall.length); }); }
+  function closetEmpty(){ var cw = closetWallIdx(); return !!cw.length && state.walls.every(function(w){ return !w.floor.length && !w.wall.length; }) && cw.every(function(i){ var w = state.walls[i]; return !w || (!w.floor.length && !w.wall.length); }); }
   function fillCloset(){
     if (!isCloset() || !closetEmpty()) return;
     var bays = closetFillPlan(), doors = state.closetDoors !== "engar";
@@ -4698,7 +4787,7 @@
       state.waterWall = null; state.waterAlongMm = null; state.seeded = false;
       save(); renderWaterList(); renderShapeCanvas();
     });
-    if (bathW && isLaundry()){ // Þvottahús: is there a floor drain — a note on the sink's line for the office (user, 2026-10-26)
+    if (isLaundry() && !PRO){ // Þvottahús: is there a floor drain — a note on the sink's line for the office (user, 2026-10-26)
       box.insertAdjacentHTML("beforeend", '<p class="opw-q" style="margin-top:14px;">' + __("Niðurfall í gólfinu?") + '</p><div class="water-walls">' +
         [["ja", "Já"], ["nei", "Nei"], ["", "Veit ekki"]].map(function(o){ return '<button type="button" class="tab-btn' + ((state.laundryDrain || "") === o[0] ? ' active' : '') + '" data-ldrain="' + o[0] + '">' + __(o[1]) + '</button>'; }).join("") + '</div>');
       box.querySelectorAll("[data-ldrain]").forEach(function(b){ b.addEventListener("click", function(){ state.laundryDrain = b.dataset.ldrain || null; save(); renderWaterList(); }); });
@@ -9416,7 +9505,7 @@
   // tall unit (see-through doors, the washer + dryer inside), two machines under the worktop, or just a sink unit — in
   // the room's own colours. Lives in the shape step's canvas; uses the height page's scene flag so leaving tears it down.
   var machinePrevKey = "";
-  function renderMachinePreview(host){
+  function renderMachinePreview(host, mat){
     var m = state.laundryMachine || "staeda", saved = blockSeq;
     var mk = function(type, id, drawers){ var b = newBlock(type); b.id = id; b.gapMm = 0; b.locked = false;
       if (drawers && CATALOG[type].hasInterior && b.interior && b.interior.mode !== "skuffur"){ b.interior.mode = "skuffur"; b.interior.codes = KP3D.drawerCodes({ mode:"skuffur", count:3 }, drawerSys()); b.interior.count = b.interior.codes.length; }
@@ -9425,18 +9514,20 @@
     var list = m === "staeda" ? [sink, mk("thvottavel", "mp2")] : m === "undir" ? [sink, mk("thvottavelFri", "mp2"), mk("thvottavelFri", "mp3")] : [sink, mk("grunnskapur", "mp2", true)];
     blockSeq = saved;
     var lenMm = 300 + list.reduce(function(a, b){ return a + b.widthMm; }, 0) + 300;
-    var pv = { carcass:state.carcass, drawerSystem:state.drawerSystem, look:state.look || "hvitt", handle:state.handle, handleColor:state.handleColor, top:state.top || "eg_W1000",
-      floor:state.floor, wallColor:state.wallColor, roomHeightMm:state.roomHeightMm, closed:false, islands:[], windows:[], doors:[], activeCategory:"thvottahus",
+    // (Efni, round 3: the same laundry in the chosen materials — see-through fronts on the colour page, like the bath)
+    var ph = mat ? activeMatPhases()[matPhase] || {} : {}, frontsOn = !mat || ph.key !== "carcass";
+    var pv = { carcass:state.carcass, drawerSystem:state.drawerSystem, look:state.look || "eg_W1100", handle:state.handle, handleColor:state.handleColor, top:state.top || "eg_W1000",
+      floor:mat ? null : state.floor, wallColor:mat ? null : state.wallColor, roomHeightMm:state.roomHeightMm, closed:false, islands:[], windows:[], doors:[], activeCategory:"thvottahus",
       walls:[{ id:"MCP", label:"", lengthMm:lenMm, floor:list, wall:[] }] };
-    var key = JSON.stringify(pv);
-    if (key === machinePrevKey && heightScene && KP3D._three() && host.querySelector("canvas")) return;
+    var key = JSON.stringify(pv) + (mat ? "m" + frontsOn : "");
+    if (key === machinePrevKey && (mat || heightScene) && KP3D._three() && host.querySelector("canvas")) return;
     machinePrevKey = key;
     KP3D.waitForThree(function(ok){
-      if (!ok || state.step !== "shape" || shapePhase !== "machine") return;
-      var st0 = KP3D._three(), prevCam = heightScene && st0 && host.querySelector("canvas") ? { p:st0.camera.position.clone(), t:st0.controls.target.clone() } : null;
+      if (!ok || (mat ? state.step !== "materials" || !isLaundry() : state.step !== "shape" || shapePhase !== "machine")) return;
+      var st0 = KP3D._three(), prevCam = (mat || heightScene) && st0 && host.querySelector("canvas") ? { p:st0.camera.position.clone(), t:st0.controls.target.clone() } : null;
       KP3D.teardown3D(true); host.innerHTML = "";
       KP3D.buildScene(host, pv, { xray:true, clean:true, noGhost:true, onlySurfaceId:"MCP", freshCamera:true, towerGlass:true });
-      heightScene = true;
+      if (!mat) heightScene = true;
       var st = KP3D._three(); if (!st) return;
       var g = KP3D.surfaceGeoms(pv)[0]; previewFloor(st, g, lenMm / 1000);
       var runM = (lenMm - 600) / 1000, hM = m === "staeda" ? 2.5 : 1.0, am = 0.3 + runM / 2;
@@ -9446,6 +9537,7 @@
       if (prevCam) KP3D.setCameraLookAt(prevCam.p, { x:cx, y:cy, z:cz });
       else KP3D.setCameraLookAt({ x:cx + g.normal.x * dist + g.axis.x * dist * 0.35, y:cy + hM * 0.15, z:cz + g.normal.z * dist + g.axis.z * dist * 0.35 }, { x:cx, y:cy, z:cz });
       st.controls.target.set(cx, cy, cz); st.controls.minPolarAngle = 0.2; st.controls.maxPolarAngle = 1.45;
+      if (!frontsOn) KP3D.setXrayFronts(true);
       swayPreview(st, Math.atan2(g.normal.x, g.normal.z));
       st.controls.update();
     }, 8000);
@@ -9467,6 +9559,7 @@
     var host = document.getElementById("cabPreview");
     if (isCloset() && KP3D.hasWebGL()){ renderClosetPreview(host); return; }
     if (isBath() && !PRO && KP3D.hasWebGL()){ renderBathPreview(host); return; }
+    if (isLaundry() && !PRO && KP3D.hasWebGL()){ renderMachinePreview(host, true); return; }
     if (!KP3D.hasWebGL()){ renderMatPreview(host); return; }
     if (KP3D.hasCabinetPreview()){ KP3D.setCabinetPreview(cabCfg()); return; }
     if (cabPreviewLoading) return;
@@ -9495,7 +9588,7 @@
     var asking = !PRO && !!state.matAsk;
     var need = asking ? "Svaraðu spurningunni til að halda áfram." : !matPhaseDone(matPhase) && ph ? (MAT_NEED[ph.key] || "Veldu eitt til að halda áfram.") : "";
     box.innerHTML = (need ? '<span class="nav-need">' + __(need) + '</span>' : '') + '<button class="btn btn-secondary" id="mtBack" type="button">' + __("← Til baka") + '</button>' +
-      '<button class="btn btn-primary" id="mtNext" type="button"' + (matPhaseDone(matPhase) && !asking ? "" : " disabled") + '>' + (last ? __("Áfram í skipulag →") : __("Áfram →")) + '</button>';
+      '<button class="btn btn-primary" id="mtNext" type="button"' + (matPhaseDone(matPhase) && !asking ? "" : " disabled") + (last ? ' title="' + __("Áfram í skipulag →") + '"' : '') + '>' + __("Áfram →") + '</button>'; // the same button on every page (round 3: the longer last label pushed Til baka aside); the stepper says where it goes
     updateStepper();
     document.getElementById("mtBack").addEventListener("click", function(){
       if (matPhase === 0){ var cdBack = categoryDef(state.activeCategory); shapePhase = closetShape() ? "size" : bathShape() || (cdBack && cdBack.water === false) ? "openings" : "water"; goto("shape"); } else { matPhase--; renderMaterials(); }
@@ -9514,7 +9607,7 @@
     // burst of loads is over, keeping the angle.
     if (uw){ clearTimeout(uwModelTimer); uwModelTimer = setTimeout(function(){ if (!uw) return; uwPrevKey = ""; uwKeepCam = true; renderUnitPreview(); uwKeepCam = false; }, 250); return; }
     if (welSceneOn){ clearTimeout(welModelTimer); welModelTimer = setTimeout(function(){ if (welSceneOn) startWelcomeScene(true); }, 300); return; } // handle/drawer models arrived: redraw, same angle
-    if (state.step === "materials" && (isCloset() || isBath())){ clearTimeout(clModelTimer); clModelTimer = setTimeout(function(){ if (state.step === "materials" && (isCloset() || isBath())){ closetPrevKey = ""; withHov(updateCabinetPreview); } }, 250); return; } // a handle model arrived: redraw the wardrobe / vanity
+    if (state.step === "materials" && (isCloset() || isWallRoom())){ clearTimeout(clModelTimer); clModelTimer = setTimeout(function(){ if (state.step === "materials" && (isCloset() || isWallRoom())){ closetPrevKey = ""; machinePrevKey = ""; withHov(updateCabinetPreview); } }, 250); return; } // a handle model arrived: redraw the wardrobe / vanity
     if (state.step === "materials" && KP3D.hasCabinetPreview()) withHov(function(){ KP3D.setCabinetPreview(cabCfg()); });
     else if (state.step === "editor") withHov(renderView); // (a swatch under the pointer stays on the 3D)
   });
@@ -14825,7 +14918,7 @@
       defaultShape:"rect", roomSize:[2500, 1800], topGroups:["hardplast"], waterTitle:"Hvar eru vatn og niðurfall?", waterHint:"Við notum þetta til að staðsetja vaskinn og þvottavélina.",
       // the usual laundry (user, 2026-10-26): white fronts, Jey grip, a white harðplast top; fronts + handles still come
       // from a room already in the project (inherit) — a laundry usually matches the kitchen
-      defaults:{ carcass:"dokkgra", drawerSystem:"merivo", top:"eg_W1000", look:"hvitt", handle:"jey", laundryMachine:"staeda" }, inherit:["look", "handle", "handleColor"] },
+      defaults:{ carcass:"dokkgra", drawerSystem:"merivo", top:"eg_W1000", look:"eg_W1100", handle:"jey", laundryMachine:"staeda" }, inherit:["look", "handle", "handleColor"] },
     { key:"hurdir", label:"Hurðir", soon:true, hidden:true }, // Innihurðir have their own step (openDoors), never "Væntanlegt"
     // Allt heimilið (2026-10-23): a room with no units of its own (stofa, gangur, forstofa …) — walls, windows and
     // doors only, so the home plan is the real home and doors between rooms have a wall to sit in. Many per project

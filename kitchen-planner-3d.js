@@ -2354,7 +2354,7 @@
     // covers every Fataskápar piece (floor and wall) uniformly.
     if (meta && meta.alwaysDims && meta.zone !== "opening" && !isPanel && geom && geom.axis) addUnitDims(geom, offsetM, widthM, baseYM + heightM, depthM, dimLen(Math.round(widthM * 1000)));
     if (art) addArticulated(THREE, scene, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta, useFrontMat, pickables);
-    else if (meta && meta.zone !== "opening" && !isPanel && !meta.appliance) addFrontDetails(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta.handle, !!meta.tall, meta.zone === "wall", meta.split || 0, meta, useFrontMat);
+    else if (meta && meta.zone !== "opening" && !isPanel && !meta.appliance) addFrontDetails(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta.handle, !!meta.tall, meta.zone === "wall" || !!meta.handleBottom, meta.split || 0, meta, useFrontMat);
     if (meta && meta.appliance && !meta.applModel) addApplianceDetails(THREE, group, geom, offsetM, widthM, heightM, depthM, meta.appliance);
     return group;
   }
@@ -2429,6 +2429,29 @@
     if (c.appliance === "wine") return "wine";
     if (c.appliance === "fridge") return b.widthMm >= 850 ? "fridge90" : b.widthMm >= 650 ? "fridge70" : "fridge60";
     return null;
+  }
+  // The washer tower as built: a drawer box (on the plinth), an open niche of carcass sides + back for the two machines,
+  // a cabinet with one door above when there's room (≥ 20 cm). Both boxes carry the unit's meta (pick / drag / select).
+  // Returns the niche's {base, top} (m) for addTowerMachines.
+  var TOWER_DRAWER_M = 0.40, TOWER_NICHE_M = 1.76;
+  function addWasherTower(THREE, scene, geom, offM, wM, hM, dM, plM, carcassMat, frontMat, meta, selected, pickables){
+    var base = plM + TOWER_DRAWER_M, niche = Math.min(TOWER_NICHE_M, hM - base - CARCASS_T), up = hM - base - niche;
+    if (up < 0.2){ niche = hM - base; up = 0; }
+    var common = { washerDrawerM:0, tall:false, fixedFronts:true, splitFr:null, alwaysDims:false };
+    addCabinetBox(THREE, scene, geom, offM, wM, base, dM, 0, carcassMat, frontMat, null, Object.assign({}, meta, common), selected, pickables);
+    if (up > 0) addCabinetBox(THREE, scene, geom, offM, wM, up, dM, base + niche, carcassMat, frontMat, null, Object.assign({}, meta, common, { plinth:false, handleBottom:true, suppressBadge:true }), selected, pickables);
+    var quat = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(geom.axis.x, 0, geom.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(geom.normal.x, 0, geom.normal.z)));
+    function board(w, h, d, along, y, out){
+      var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), carcassMat), a = offM + wM / 2 + along;
+      m.position.set(geom.origin.x + geom.axis.x * a + geom.normal.x * out, y, geom.origin.z + geom.axis.z * a + geom.normal.z * out);
+      m.quaternion.copy(quat); m.castShadow = true; m.receiveShadow = true; m.userData = meta; scene.add(m); if (pickables) pickables.push(m); return m;
+    }
+    var my = base + niche / 2;
+    board(CARCASS_T, niche, dM, -wM / 2 + CARCASS_T / 2, my, dM / 2);
+    board(CARCASS_T, niche, dM, wM / 2 - CARCASS_T / 2, my, dM / 2);
+    board(wM - 2 * CARCASS_T, niche, BACK_T, 0, my, BACK_T / 2);
+    if (!up) board(wM, CARCASS_T, dM, 0, hM - CARCASS_T / 2, dM / 2); // no cabinet above: a top board closes the niche
+    return { base:base + 0.002, top:base + niche - (up ? 0 : CARCASS_T) };
   }
   // Þvottavélaskápur (user, 2026-10-26): the washer with the dryer on it, drawn inside the tower (above its drawer) —
   // hidden behind the doors in the room, seen through them in the previews (opts.towerGlass) or with the fronts off
@@ -5361,12 +5384,12 @@
           inter = Object.assign({}, inter, { codes:dcodes, count:dcodes.length, topDoorFr:topDoor,
             fractions:dfr ? frontsToFractions(dfr, dbody).map(function(f){ return f * zf; }) : null });
         }
+        var towerNiche = null;
         var applMat = c.appliance === "fridge" || c.appliance === "dishwasher" ? steelMat : c.appliance === "washer" ? washerMat : c.appliance === "wine" ? wineMat : null;
         var applMdl = applKeyOf(c, b) ? applModel(applKeyOf(c, b)) : null; // the real model: the box stays (for picking/dragging) but isn't drawn
         if (applMdl){ if (!APPL_HIDE) APPL_HIDE = new THREE.MeshBasicMaterial({ visible:false }); applMat = APPL_HIDE; }
         // an integrated fridge wears the kitchen's fronts (user, 2026-10-05 — it was steel)
-        addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, applMat || carcassMat, applMat || (c.thvo && towerGlassMat) || frontMatOf(b), inter,
-          { islandId:islandId, locked:!!b.locked || !!opts.xray, suppressBadge:!!opts.xray, slabFronts:jeyOn, corner:c.cls === "corner", doorSide:b.swing === "vinstri" ? "left" : "right", hingeRight:c.cls === "corner" ? b.swing === "vinstri" : b.swing === "haegri", shelves:(c.hasInterior || c.shelfRange) && !(b.interior && b.interior.mode === "skuffur") ? (shelvesOf(b) || 0) : 0,
+        var cabMeta = { islandId:islandId, locked:!!b.locked || !!opts.xray, suppressBadge:!!opts.xray, slabFronts:jeyOn, corner:c.cls === "corner", doorSide:b.swing === "vinstri" ? "left" : "right", hingeRight:c.cls === "corner" ? b.swing === "vinstri" : b.swing === "haegri", shelves:(c.hasInterior || c.shelfRange) && !(b.interior && b.interior.mode === "skuffur") ? (shelvesOf(b) || 0) : 0,
             openMat:c.open ? frontOpenMat : openMat, open:!!c.open, hiddenMat:hiddenMat, drawerSystem:state.drawerSystem, carcassKey:state.carcass,
             warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), ready:!!(opts.readyIds && opts.readyIds.indexOf(b.id) >= 0), doorLimit:DOOR_LIMITS[b.id] || null, shelfBlock:b, wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), heightMm:hM * 1000, elevMm:0, handle:c.appliance ? null : state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0, // tall units: one door unless split in Smíða (2026-10-09)
             splitFr:c.oven || c.fixedFronts ? null : splitFractions(b, hM * 1000 - (c.panel || c.appliance ? 0 : plinthMmW)), // a fridge too, once its split is changed in Smíða
@@ -5378,14 +5401,19 @@
             fridgeKind:c.fridge ? (b.type === "frystir" ? "freezer" : "fridge") : null,
             bins:!!(c.rusl || (c.sink && b.interior && b.interior.mode === "skuffur") || binsWanted(b, c, state.drawerSystem)), // RUSL60/80 in the bottom drawer
             ovenInner:c.oven && !c.lowOven ? (String(b.ovenCombo == null ? OVEN_DEFAULT[state.drawerSystem === "merivo" ? "merivo" : "legra"] : b.ovenCombo).split("+")[1] || null) : null,
-            washerDrawerM:c.thvo && b.thvo !== "hurdir" ? 0.40 : 0, alwaysDims:/^fataskapar(:|$)/.test(String(state.activeCategory || "")), hung:!!state.hungUnits, basin:!!c.sink && !!state.hungUnits, applModel:!!applMdl }, selected, pickables);
+            washerDrawerM:c.thvo && b.thvo !== "hurdir" ? 0.40 : 0, alwaysDims:/^fataskapar(:|$)/.test(String(state.activeCategory || "")), hung:!!state.hungUnits, basin:!!c.sink && !!state.hungUnits, applModel:!!applMdl };
+        // Þvottavélaskápur "Skúffa undir vélinni + skápur ofan við" (round 3, user 2026-10-26): a drawer at the bottom, the
+        // washer + dryer in an open niche, a cabinet above — what's built and what the "Hvar er vélin?" preview shows
+        var nicheTower = c.thvo && b.thvo !== "hurdir" && !applMat;
+        if (nicheTower) towerNiche = addWasherTower(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, plinthMmW / 1000, carcassMat, frontMatOf(b), cabMeta, selected, pickables);
+        else addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, applMat || carcassMat, applMat || (c.thvo && towerGlassMat) || frontMatOf(b), inter, cabMeta, selected, pickables);
         if (c.sink && state.hungUnits && state.bathMirror && !opts.people && !wall.island){ // the mirror cabinet asked for on the Efni page, over the sink
           var mx0 = offset, mx1 = offset + b.widthMm, mws = blockStartsMm(wall.wall || [], 0);
           var under = (wall.wall || []).some(function(wb, wi){ return mws[wi] < mx1 && mws[wi] + wb.widthMm > mx0; });
           if (!under) addMirrorCabinet(THREE, scene, g, offset / 1000, b.widthMm / 1000, Math.min(Math.max(1.15, hM + 0.42), (roomHeightMm - 760) / 1000), carcassMat);
         }
         if (applMdl) placeApplModel(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, applMdl);
-        if (c.thvo && !opts.people) addTowerMachines(THREE, scene, g, offset / 1000, b.widthMm / 1000, plinthMmW / 1000 + (b.thvo !== "hurdir" ? 0.40 : 0) + CARCASS_T, hM - CARCASS_T, dM, washerMat);
+        if (c.thvo && !opts.people) addTowerMachines(THREE, scene, g, offset / 1000, b.widthMm / 1000, nicheTower ? towerNiche.base : plinthMmW / 1000 + CARCASS_T, nicheTower ? towerNiche.top : hM - CARCASS_T, dM, washerMat);
         // LED in a tall closet (user, 2026-10-23, C1): a vertical strip in a groove at the front edge of one side
         // (6×6 mm), or a strip under the top shelf (4×8 mm). Behind the doors — it shows in X-ray and with doors open.
         if (b.closetLed && c.cls === "tall" && !opts.people){
@@ -5595,7 +5623,7 @@
     // Baðherbergi (user, 2026-10-26): start facing the wall the units are on (a corner: both), at a person's height —
     // not the whole empty room from a top corner with a small vanity in the middle
     var bathAim = null, frontAz = null, frontSpan = 0;
-    var unitWallRoom = /^(bad|fataskapar|thvottahus)(:|$)/.test(String(state.activeCategory || ""));
+    var unitWallRoom = /^(bad|fataskapar|thvottahus)(:|$)/.test(String(state.activeCategory || "")) && /^(bath|closet)/.test(state.shapeKey || ""); // (Allt rýmið orbits freely, like the kitchen)
     if (!focusBounds && !opts.people && unitWallRoom && !opts.darkBg){ // orbit stays in front of the unit wall(s) (round 2: it went behind the wall)
       var fIdx = (state.walls || []).map(function(w, i){ return i; }).filter(function(i){ var w = state.walls[i]; return geoms[i] && !w.open && ((w.floor || []).length || (w.wall || []).length); });
       if (!fIdx.length) fIdx = (state.walls || []).map(function(w, i){ return i; }).filter(function(i){ return geoms[i] && !state.walls[i].open; });
