@@ -1830,6 +1830,7 @@
           <div class="view-toggle" id="inspectToggle" title="X-Ray: framhliðar af, smelltu á skúffu eða hurð til að opna hana" data-i18n="attrs">
             <button type="button" id="inspectBtn" title="X-Ray: framhliðar af, smelltu á skúffu eða hurð til að opna hana" data-i18n="attrs">X-Ray</button>
           </div>
+          <div class="view-toggle" id="dimsToggle" hidden><button type="button" id="dimsBtn" title="Sýna eða fela málin á skápunum" data-i18n>Málsetning</button></div>
           <div class="view-toggle" id="plinthToggle" title="Sökkulhæð á veggjum og eyjum" hidden data-i18n="attrs">
             <button type="button" id="plinthBtn" title="Sökkulhæð á veggjum og eyjum" data-i18n>Sökkull</button>
           </div>
@@ -3621,7 +3622,7 @@
     { key:"hengi",   label:"Hengi",           desc:"Hilla og slá",           shelves:1, rails:1, drawers:0 },
     { key:"tvofold", label:"Tvöföld slá",     desc:"Tvær slár, styttri föt", shelves:1, rails:2, drawers:0 },
     { key:"hillur",  label:"Hillur",          desc:"Fimm hillur",            shelves:5, rails:0, drawers:0 },
-    { key:"skuffur", label:"Skúffur + hengi", desc:"Þrjár skúffur, slá ofan á", shelves:1, rails:1, drawers:3 },
+    { key:"skuffur", label:"Skúffur + hengi", desc:"Þrjár skúffur, slá ofan á", shelves:2, rails:1, drawers:3 },
     { key:"hillurskuffur", label:"Hillur + skúffur", desc:"Þrjár skúffur, hillur ofan á", shelves:4, rails:0, drawers:3 }
   ];
   // the single items a bay can hold (Stakir hlutir)
@@ -3669,6 +3670,8 @@
   function closetAutoLayout(b){
     var c = CATALOG[b.type], sys = drawerSys(), body = proBodyMm(b, c, "floor"), r = KP3D.shelfSpaceMm(b, body, sys);
     var lo = r.lo + 30, hi = r.hi - 20, nS = b.shelves || 0, nR = c.railRange ? (b.rails || 0) : 0, shelves = [], rails = [];
+    var hasDrawers = b.interior && b.interior.mode === "skuffur" && b.interior.count > 0;
+    if (hasDrawers && nS > 0){ shelves.push(lo); nS--; lo += 60; } // a shelf right on top of the drawers (user, 2026-10-26)
     if (nR > 0){
       var top = nS > 0 ? hi - CLOSET_HAT_SHELF_MM : null;
       if (top != null) shelves.push(top);
@@ -8812,6 +8815,7 @@
   document.getElementById("cfoYes").addEventListener("click", function(){ fillCloset(); });
   document.getElementById("cfoNo").addEventListener("click", function(){ state.closetFillDeclined = true; save(); updateEditorChrome(); });
   function updateEditorChrome(){
+    syncDimsUI();
     updateTip();
     updateStepper();
     var chip = document.getElementById("warnChip");
@@ -9015,6 +9019,9 @@
     var ib = document.getElementById("inspectBtn");
     ib.classList.toggle("active", inspect.on); // the blue fill alone says it's on — no checkmark needed
   }
+  // "Málsetning" (user, 2026-10-26): the wardrobe units' dimensions on or off — next to X-Ray, remembered
+  function syncDimsUI(){ var t = document.getElementById("dimsToggle"); t.hidden = !isCloset(); document.getElementById("dimsBtn").classList.toggle("active", KP3D.showDimsOn()); }
+  document.getElementById("dimsBtn").addEventListener("click", function(){ KP3D.setShowDims(!KP3D.showDimsOn()); syncDimsUI(); });
   document.getElementById("inspectBtn").addEventListener("click", function(){
     inspect.on = !inspect.on;
     if (!inspect.on) KP3D.setAllParts(false);

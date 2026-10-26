@@ -2323,7 +2323,7 @@
     // research round) doesn't clutter the way it would across a dozen kitchen cabinets; gated on
     // meta.alwaysDims (buildScene: activeCategory "fataskapar" or "fataskapar:N"), not a per-type flag, so it
     // covers every Fataskápar piece (floor and wall) uniformly.
-    if (meta && meta.alwaysDims && meta.zone !== "opening") addDimLabel(THREE, group, local(0, baseYM + heightM + 0.22, depthM / 2), dimNum(widthM * 1000) + " x " + dimNum(heightM * 1000) + " x " + dimNum(depthM * 1000));
+    if (meta && meta.alwaysDims && meta.zone !== "opening" && !isPanel && geom && geom.axis) addUnitDims(geom, offsetM, widthM, baseYM + heightM, depthM, Math.round(widthM * 100) + " cm");
     if (art) addArticulated(THREE, scene, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta, useFrontMat, pickables);
     else if (meta && meta.zone !== "opening" && !isPanel && !meta.appliance) addFrontDetails(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta.handle, !!meta.tall, meta.zone === "wall", meta.split || 0, meta, useFrontMat);
     if (meta && meta.appliance && !meta.applModel) addApplianceDetails(THREE, group, geom, offsetM, widthM, heightM, depthM, meta.appliance);
@@ -2496,6 +2496,39 @@
   // since this is passive info sitting in the room rather than a response to the pointer. One texture per
   // cabinet, painted once at build time (buildScene rebuilds the whole scene on every real change anyway,
   // so there's no live text to repaint here the way the shelf gap labels need).
+  // ---------- one dimension style everywhere (user, 2026-10-26: "eins og í wizardinum — fágaður stíll") ----------
+  // Every on-scene dimension (a wardrobe unit's width, the shelf/rail gap tags, a drawer's height) is an SVG overlay drawn
+  // in screen space each frame: a thin line with end ticks and a small pill — dark, or blue while it's being changed.
+  // KP3D.setShowDims(false) hides the always-on unit dimensions (the "Málsetning" toggle); live drag tags always show.
+  var OV = null, PENDING_DIMS = [], SHOW_DIMS = (function(){ try{ return localStorage.getItem("bjorninn:kitchenPlanner:showDims") !== "0"; }catch(e){ return true; } })();
+  var OV_BLUE = "#0058a3", OV_DARK = "#2b2b2e";
+  function setShowDims(on){ SHOW_DIMS = !!on; try{ localStorage.setItem("bjorninn:kitchenPlanner:showDims", on ? "1" : "0"); }catch(e){} }
+  function ovLineSvg(a, b, text, active){
+    var col = active ? OV_BLUE : OV_DARK, sw = active ? 2.4 : 1.4;
+    var dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy) || 1, nx = -dy / L * 6, ny = dx / L * 6, mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    var tw = String(text).length * 7.4 + 14;
+    return '<line x1="' + a.x + '" y1="' + a.y + '" x2="' + b.x + '" y2="' + b.y + '" stroke="' + col + '" stroke-width="' + sw + '"/>' +
+      [a, b].map(function(p){ return '<line x1="' + (p.x - nx) + '" y1="' + (p.y - ny) + '" x2="' + (p.x + nx) + '" y2="' + (p.y + ny) + '" stroke="' + col + '" stroke-width="' + sw + '"/>'; }).join("") +
+      '<rect x="' + (mx - tw / 2) + '" y="' + (my - 11) + '" width="' + tw + '" height="22" rx="11" fill="' + (active ? col : "#fff") + '" stroke="' + col + '" stroke-width="1"/>' +
+      '<text x="' + mx + '" y="' + (my + 4.5) + '" text-anchor="middle" font-size="12.5" font-weight="700" font-family="Kumbh Sans, Arial, sans-serif" fill="' + (active ? "#fff" : col) + '">' + text + '</text>';
+  }
+  function drawOverlay(camera, canvas){
+    if (!OV || !OV.svg) return;
+    var cr = canvas.getBoundingClientRect(); if (!cr.width) return;
+    OV.svg.setAttribute("viewBox", "0 0 " + cr.width + " " + cr.height);
+    var v = new (window.__THREE__.Vector3)();
+    function P(p){ v.set(p.x, p.y, p.z).project(camera); return { x:(v.x + 1) / 2 * cr.width, y:(1 - v.y) / 2 * cr.height, behind:v.z > 1 }; }
+    var out = "";
+    if (SHOW_DIMS) OV.dims.forEach(function(d){ var a = P(d.a), b = P(d.b); if (!a.behind && !b.behind) out += ovLineSvg(a, b, d.text, false); });
+    Object.keys(OV.gaps).forEach(function(k){ var g = OV.gaps[k]; if (!g) return; out += ovLineSvg(P(g.a), P(g.b), g.text, g.active); });
+    if (out !== OV.last){ OV.svg.innerHTML = out; OV.last = out; }
+  }
+  // a wardrobe unit's width, just above it, in that style (was a big "80 x 257 x 58" label)
+  function addUnitDims(geom, offsetM, widthM, topY, depthM, text){
+    var o = geom.origin, ax = geom.axis, n = geom.normal, y = topY + 0.06, out = depthM;
+    PENDING_DIMS.push({ a:{ x:o.x + ax.x * (offsetM + 0.01) + n.x * out, y:y, z:o.z + ax.z * (offsetM + 0.01) + n.z * out },
+      b:{ x:o.x + ax.x * (offsetM + widthM - 0.01) + n.x * out, y:y, z:o.z + ax.z * (offsetM + widthM - 0.01) + n.z * out }, text:text });
+  }
   function addDimLabel(THREE, group, pos, text){
     var cv = document.createElement("canvas"); cv.width = 220; cv.height = 60;
     var cx = cv.getContext("2d");
@@ -2650,7 +2683,7 @@
       g.position.set(pivotX, 0, 0);
       var pmeta = Object.assign({}, meta, { isPart:true, partKey:key }), meshes = [];
       // a wardrobe's drawer: dragged up/down its top edge follows the pointer (5 cm steps, user 2026-10-26) — see onDrawerResize
-      if (f.drawer && wardrobeScene && meta.tall && meta.shelfBlock){ pmeta.drawerIdx = fi; pmeta.drawerBotY = y0; pmeta.bodyBaseY = bodyBase; pmeta.widthM = w; }
+      if (f.drawer && wardrobeScene && meta.tall && meta.shelfBlock){ pmeta.drawerIdx = fi; pmeta.drawerBotY = y0; pmeta.drawerTopY = y1; pmeta.ax = geom.axis.x; pmeta.az = geom.axis.z; pmeta.bodyBaseY = bodyBase; pmeta.widthM = w; }
       var hcfgA = meta.handle && window.KPMODELS && window.KPMODELS.handles && window.KPMODELS.handles[meta.handle];
       var hstyleA = (HANDLES[meta.handle] || {}).style;
       var vertA = !!(meta.tall && !f.drawer && !meta.corner && hstyleA !== "knob");
@@ -3516,6 +3549,7 @@
       if (THREE_STATE && THREE_STATE.scene){ THREE_STATE.scene.add(part.label); THREE_STATE.scene.add(part.line); part.ticks.forEach(function(t){ THREE_STATE.scene.add(t); }); }
     }
     function setGapPart(part, text, x, z, ay, by, active, dir){ // ay/by: world Y of the two ends (either order)
+      if (OV){ OV.gaps[part === gapBelow ? "below" : "above"] = { a:{ x:x, y:ay, z:z }, b:{ x:x, y:by, z:z }, text:text, active:!!active }; return; }
       ensureGapPart(part);
       var key = text + (active ? "|a" : "");
       if (part.label.userData.lastText !== key){
@@ -3541,7 +3575,7 @@
       setGapPart(gapBelow, gapText(mm - trueLo), off.x, off.z, baseY + trueLo / 1000, itemY, active, dir);
       setGapPart(gapAbove, gapText(trueHi - mm), off.x, off.z, itemY, baseY + trueHi / 1000, active, dir);
     }
-    function hideGapInfo(){ [gapBelow, gapAbove].forEach(function(p){ if (p.label) p.label.visible = false; if (p.line) p.line.visible = false; (p.ticks || []).forEach(function(t){ t.visible = false; }); }); }
+    function hideGapInfo(){ if (OV) OV.gaps = {}; [gapBelow, gapAbove].forEach(function(p){ if (p.label) p.label.visible = false; if (p.line) p.line.visible = false; (p.ticks || []).forEach(function(t){ t.visible = false; }); }); }
     function setHover(mesh){
       if (mesh === hovered) return;
       if (hovered){
@@ -3562,8 +3596,12 @@
       if (isShelfOrRail(hovered) && opts.onShelfPosInfo){
         var info = opts.onShelfPosInfo(hovered.userData.blockId, hovered.userData.itemKind, hovered.userData.idx);
         if (info) showGapInfo(hovered, info.mm, info.trueLo, info.trueHi); else hideGapInfo();
+      } else if (hovered && hovered.userData.drawerIdx != null && opts.onDrawerResize){ // a wardrobe drawer shows it can be resized, like a shelf (user, 2026-10-26)
+        var du = hovered.userData, wpH = new THREE.Vector3(); hovered.getWorldPosition(wpH);
+        var offH = wpH.clone().addScaledVector(new THREE.Vector3(du.ax || 1, 0, du.az || 0), (du.widthM || 0.5) / 2 + 0.07);
+        setGapPart(gapBelow, Math.round((du.drawerTopY - du.drawerBotY) * 100) + " cm", offH.x, offH.z, du.drawerBotY, du.drawerTopY, false);
       } else hideGapInfo();
-      renderer.domElement.style.cursor = hovered ? (hovered.userData.locked ? (hovered.userData.isPart ? "pointer" : "default") :
+      renderer.domElement.style.cursor = hovered ? (hovered.userData.drawerIdx != null && opts.onDrawerResize ? "ns-resize" : hovered.userData.locked ? (hovered.userData.isPart ? "pointer" : "default") :
         (hovered.userData.kind === "shelf-item" || hovered.userData.kind === "rail-item") ? "ns-resize" : "grab") : "";
     }
     function onMove(evt){
@@ -5285,6 +5323,12 @@
     // "Veggur" view: an SVG overlay drawn on top of the canvas with IKEA-style chained dimensions
     // (per-cabinet width + one wall total + a height chain), projected live from the real 3D points —
     // elevationShot in kitchen-planner.html draws the same information once, offline, for the PDF export.
+    // the shared dimension overlay (drawOverlay): always there, every scene
+    if (getComputedStyle(wrap).position === "static") wrap.style.position = "relative";
+    var ovSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    ovSvg.setAttribute("style", "position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible;");
+    wrap.appendChild(ovSvg);
+    OV = { svg:ovSvg, dims:PENDING_DIMS, gaps:{}, last:"" }; PENDING_DIMS = [];
     var dimSvg = null, annoSvg = null;
     if (focusBounds){
       if (getComputedStyle(wrap).position === "static") wrap.style.position = "relative";
@@ -5752,6 +5796,7 @@
       renderFrame(false);
       placeFloatBar();
       placeDims();
+      drawOverlay(camera, renderer.domElement);
       if (opts.afterFrame) opts.afterFrame(camera); // the caller's own overlays, drawn in the same frame (no lag/jiggle)
     }
     loop();
@@ -7016,7 +7061,7 @@
     cornerClearanceMm: cornerClearanceMm, afellaMm: afellaMm, AFELLA_MM: AFELLA_MM,
     blockStartsMm: blockStartsMm,
     planTransform: planTransform,
-    rectCornersWorld: rectCornersWorld, drawerZoneMm: drawerZoneMm, TALL_DRAWER_MAX_MM: TALL_DRAWER_MAX_MM, DRAWER_TOPDOOR_MIN_MM: DRAWER_TOPDOOR_MIN_MM, drawerStackSpaceMm: drawerStackSpaceMm, doorLeaves: doorLeaves, islandFits: islandFits, nearestIslandFit: nearestIslandFit, topThickM: topThickM, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, obstacleRect: obstacleRect, obstacleCorners: obstacleCorners, handleAvailMm: handleAvailMm, tallHandleAvailMm: tallHandleAvailMm, obstacleAng: obstacleAng, DECOR: DECOR, decorKindsFor: decorKindsFor, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
+    rectCornersWorld: rectCornersWorld, drawerZoneMm: drawerZoneMm, TALL_DRAWER_MAX_MM: TALL_DRAWER_MAX_MM, DRAWER_TOPDOOR_MIN_MM: DRAWER_TOPDOOR_MIN_MM, drawerStackSpaceMm: drawerStackSpaceMm, doorLeaves: doorLeaves, islandFits: islandFits, nearestIslandFit: nearestIslandFit, topThickM: topThickM, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, obstacleRect: obstacleRect, obstacleCorners: obstacleCorners, handleAvailMm: handleAvailMm, tallHandleAvailMm: tallHandleAvailMm, obstacleAng: obstacleAng, setShowDims: setShowDims, showDimsOn: function(){ return SHOW_DIMS; }, DECOR: DECOR, decorKindsFor: decorKindsFor, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
     WALL_COLORS: WALL_COLORS,
     WINDOW_DEFAULT: WINDOW_DEFAULT,
     _handleProfile: handleProfile,

@@ -914,6 +914,8 @@
     "Fataskápur": "Wardrobe",
     "Skápar, innvols og rennihurðir": "Wardrobes, interiors and sliding doors",
     "Skápar og innvols": "Wardrobes and interiors",
+    "Málsetning": "Dimensions",
+    "Sýna eða fela málin á skápunum": "Show or hide the units' dimensions",
     "Skápur {n}": "Unit {n}",
     "Í skápunum": "Inside",
     "Hvenær væri best að fá fataskápinn afhentan?": "When would you like the wardrobe delivered?",
