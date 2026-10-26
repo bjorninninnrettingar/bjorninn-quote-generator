@@ -6434,23 +6434,23 @@
   // ---------- dimension lines on the "+ Ný eining" preview (user, 2026-10-26) ----------
   // The dimension being chosen (its section open) is a blue line on the cabinet; a dimension already picked stays as a
   // fixed dark line with its value; the rest aren't drawn. Re-projected every frame, so they follow the spinning view.
-  var uwDimCtx = null, uwDimRaf = 0;
-  function startUwDims(){ if (!uwDimRaf) uwDimRaf = requestAnimationFrame(drawUwDims); }
-  function drawUwDims(){
-    uwDimRaf = 0;
+  var uwDimCtx = null;
+  function startUwDims(){}
+  function drawUwDims(){ // called by the preview's own render loop (opts.afterFrame), right after each frame
     var svg = document.getElementById("uwDims"), st = KP3D._three();
-    if (!uw || !uw.b || !uwDimCtx || uwDimCtx.b !== uw.b || !st || !svg){ if (svg) svg.innerHTML = ""; return; }
+    if (!uw || !uw.b || !uwDimCtx || !st || !svg){ if (svg && svg.innerHTML) svg.innerHTML = ""; return; }
     var T = window.__THREE__, host = document.getElementById("uwPreview"), r = host.getBoundingClientRect(), x = uwDimCtx, g = x.g;
     svg.setAttribute("viewBox", "0 0 " + r.width + " " + r.height);
     function P(al, y, out){ var v = new T.Vector3(g.origin.x + g.axis.x * al + g.normal.x * out, y, g.origin.z + g.axis.z * al + g.normal.z * out).project(st.camera); return { x:(v.x + 1) / 2 * r.width, y:(1 - v.y) / 2 * r.height }; }
-    var b = uw.b, c = CATALOG[b.type], picked = uw.picked || {}, gap = 0.07;
+    var b = x.b, c = CATALOG[b.type], picked = uw.picked || {}, gap = 0.07;
     var lines = [
       { key:"w", a:P(x.a0, x.y1 + gap, x.d), b:P(x.a1, x.y1 + gap, x.d), mm:b.widthMm },
       { key:"h", a:P(x.a0 - gap, x.y0, x.d), b:P(x.a0 - gap, x.y1, x.d), mm:blockHeightMm(b, c) },
       { key:"d", a:P(x.a1 + gap, x.y0, 0), b:P(x.a1 + gap, x.y0, x.d), mm:b.depthMm || c.d }
     ];
+    var hoverKey = uw.hoverDim ? uw.hoverDim.k : null;
     svg.innerHTML = lines.map(function(l){
-      var active = uw.sec === l.key, fixed = !!picked[l.key];
+      var active = uw.sec === l.key || hoverKey === l.key, fixed = !!picked[l.key];
       if (!active && !fixed) return "";
       var col = active ? "#0058a3" : "#2b2b2e", sw = active ? 2.4 : 1.4;
       var dx = l.b.x - l.a.x, dy = l.b.y - l.a.y, L = Math.hypot(dx, dy) || 1, nx = -dy / L * 6, ny = dx / L * 6, mx = (l.a.x + l.b.x) / 2, my = (l.a.y + l.b.y) / 2;
@@ -6460,9 +6460,42 @@
         '<rect x="' + (mx - tw / 2) + '" y="' + (my - 11) + '" width="' + tw + '" height="22" rx="11" fill="' + (active ? col : "#fff") + '" stroke="' + col + '" stroke-width="1"/>' +
         '<text x="' + mx + '" y="' + (my + 4.5) + '" text-anchor="middle" font-size="12.5" font-weight="700" fill="' + (active ? "#fff" : col) + '">' + txt + '</text>';
     }).join("");
-    uwDimRaf = requestAnimationFrame(drawUwDims);
+  }
+  // The view follows what's being chosen (user, 2026-10-26) instead of free orbiting: Breidd and Innvols head-on, Hæð at
+  // 45°, Dýpt from the side. The customer can't turn it (PRO still can); in Innvols the doors open and the shelves,
+  // rails and drawers drag — "Smíða lite".
+  var uwAimAnim = 0;
+  function uwLockView(st){
+    if (PRO || !uw || !uw.b) return;
+    st.controls.autoRotate = false; st.controls.enableRotate = false;
+    st.controls.minAzimuthAngle = -Infinity; st.controls.maxAzimuthAngle = Infinity;
+  }
+  function uwAimCamera(animate){
+    var st = KP3D._three(), x = uwDimCtx; if (!st || !x || !uw || !uw.b) return;
+    uwLockView(st);
+    if (PRO) return;
+    var T = window.__THREE__, g = x.g, hM = x.y1 - x.y0, wM = x.a1 - x.a0, am = (x.a0 + x.a1) / 2;
+    var cx = g.origin.x + g.axis.x * am + g.normal.x * x.d / 2, cz = g.origin.z + g.axis.z * am + g.normal.z * x.d / 2, cy = x.y0 + hM / 2;
+    var vHalf = (st.camera.fov || 45) * Math.PI / 360, hHalf = Math.atan(Math.tan(vHalf) * (st.camera.aspect || 1));
+    var dist = Math.max(Math.max(hM, 0.5) / 2 / Math.tan(vHalf), Math.max(wM, x.d) / 2 / Math.tan(hHalf)) * 1.3 + 0.35;
+    var sec = uw.sec, n = g.normal, a = g.axis, dir, lift = 0;
+    if (sec === "d"){ dir = { x:a.x * 0.94 + n.x * 0.34, z:a.z * 0.94 + n.z * 0.34 }; }
+    else if (sec === "w" || sec === "inn"){ dir = { x:n.x, z:n.z }; }
+    else { dir = { x:n.x * 0.74 + a.x * 0.67, z:n.z * 0.74 + a.z * 0.67 }; lift = hM * 0.12; }
+    var to = new T.Vector3(cx + dir.x * dist, cy + lift, cz + dir.z * dist), tgt = new T.Vector3(cx, cy, cz);
+    st.controls.target.copy(tgt);
+    if (sec === "inn") KP3D.setAllParts(true); else if (!uwView.open) KP3D.setAllParts(false);
+    cancelAnimationFrame(uwAimAnim);
+    if (!animate){ st.camera.position.copy(to); st.controls.update(); return; }
+    var from = st.camera.position.clone(), t0 = performance.now();
+    (function step(now){
+      var k = Math.min(1, (now - t0) / 380), e = k * k * (3 - 2 * k);
+      st.camera.position.copy(from).lerp(to, e); st.controls.update();
+      if (k < 1 && KP3D._three() === st) uwAimAnim = requestAnimationFrame(step);
+    })(t0);
   }
   function leaveUnitWizard(){
+    cancelAnimationFrame(uwAimAnim);
     uwDimCtx = null; var dsv = document.getElementById("uwDims"); if (dsv) dsv.innerHTML = "";
     closeFitAsk();
     KP3D.setAllParts(false); // don't carry the preview's open drawers into the room
@@ -6574,8 +6607,13 @@
   // Staðlaðar hæðir/dýptir í "＋ Ný eining" (user, 2026-10-20): width already had chips, height/depth were
   // typed-only — 10 cm steps for height, 5 cm for depth (every CATALOG minH/minD/maxH/maxD is already a
   // multiple of those, so the range always lands on a whole chip at both ends).
+  function uwHeightCap(c){ return Math.min(c.maxH, c.zone === "floor" ? (isCloset() && c.cls === "tall" ? closetCeilMax() : (state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM)) : c.maxH); }
   function uwHeightOptions(c){
-    if (c.cls !== "floor" && c.cls !== "wall" && c.maxH >= 2700) return [2100, 2300, 2500, 2700].filter(function(h){ return h >= c.minH && h <= c.maxH; }); // tall units: the usual four (user, 2026-10-25)
+    if (c.cls !== "floor" && c.cls !== "wall" && c.maxH >= 2700){ // tall units: the usual four (user, 2026-10-25), never above what the room gives (user, 2026-10-26: 270 showed, 260 came)
+      var cap = uwHeightCap(c), hs = [2100, 2300, 2500, 2700].filter(function(h){ return h >= c.minH && h <= cap; });
+      if (isCloset() && hs.indexOf(cap) < 0) hs.push(cap); // a wardrobe: up to the ceiling
+      return hs;
+    }
     var out = []; for (var h = 100; h <= 3000; h += 100) if (h >= c.minH && h <= c.maxH) out.push(h); return out;
   }
   function uwDepthOptions(c){ if (c.panel) return [300, 600].filter(function(d){ return d >= c.minD && d <= c.maxD; }); // úthlið: base or wall-unit depth, anything else typed
@@ -6642,7 +6680,7 @@
           '<div class="edit-field"><label>' + __("Hæð skáps") + '</label><div class="uw-chips">' + boxOpts.map(function(h){ return '<button type="button" class="hw-btn' + (h === hBox ? ' active' : '') + '" data-uw-hbox="' + h + '">' + h / 10 + '</button>'; }).join("") +
             '<small style="align-self:center;margin-left:4px;">cm</small></div></div>' +
           '<div class="edit-field"><label>' + __("Hæð frá gólfi") + '</label>' + hungGapChips(hg, "data-uw-gap") + '</div>'));
-      } else if (c.minH !== c.maxH) secHtml.push(dimSec("h", c.zone === "floor" && c.cls !== "tall" && c.maxH <= 1200 && !isCloset() ? __("Hæð") + ' <small class="uw-sub">' + __("upp að borðplötu") + '</small>' : __("Hæð"), uwHeightOptions(c), b.heightMm || c.h, c.h, "data-uw-h", "data-uw-hcustom", c.minH, c.maxH));
+      } else if (c.minH !== c.maxH) secHtml.push(dimSec("h", c.zone === "floor" && c.cls !== "tall" && c.maxH <= 1200 && !isCloset() ? __("Hæð") + ' <small class="uw-sub">' + __("upp að borðplötu") + '</small>' : __("Hæð"), uwHeightOptions(c), b.heightMm || c.h, c.h, "data-uw-h", "data-uw-hcustom", c.minH, uwHeightCap(c)));
       if (c.minD !== c.maxD) secHtml.push(dimSec("d", __("Dýpt"), uwDepthOptions(c), b.depthMm || c.d, c.d, "data-uw-d", "data-uw-dcustom", c.minD, c.maxD));
       var innHtml = "";
       // "Skúffur" or "Hurð með hillum" was the step before — no Hillur/Skúffur switch again here (user, 2026-10-24)
@@ -6746,10 +6784,18 @@
     if (uw.step !== 3) return;
     var b = uw.b, c = CATALOG[b.type];
     side.querySelectorAll("[data-uw-sec]").forEach(function(el){ el.addEventListener("click", function(){ uw.sec = uw.sec === el.dataset.uwSec ? null : el.dataset.uwSec; renderUnitWizard(); }); });
-    side.querySelectorAll("[data-uw-w]").forEach(function(el){ el.addEventListener("click", function(){ b.widthMm = +el.dataset.uwW; uwAdvance("w"); renderUnitWizard(); }); });
+    side.querySelectorAll("[data-uw-w]").forEach(function(el){ el.addEventListener("click", function(){ uw.hoverDim = null; b.widthMm = +el.dataset.uwW; uwAdvance("w"); renderUnitWizard(); }); });
+    // pointing at a size shows it on the cabinet before it's picked (user, 2026-10-26)
+    var hovT = 0;
+    [["data-uw-w", "uwW", "widthMm"], ["data-uw-h", "uwH", "heightMm"], ["data-uw-d", "uwD", "depthMm"]].forEach(function(spec){
+      side.querySelectorAll("[" + spec[0] + "]").forEach(function(el){
+        el.addEventListener("mouseenter", function(){ clearTimeout(hovT); hovT = setTimeout(function(){ if (!uw || !uw.b) return; uw.hoverDim = { k:spec[2], v:+el.dataset[spec[1]] }; renderUnitPreview(); }, 70); });
+        el.addEventListener("mouseleave", function(){ clearTimeout(hovT); hovT = setTimeout(function(){ if (!uw || !uw.hoverDim) return; uw.hoverDim = null; renderUnitPreview(); }, 90); });
+      });
+    });
     var wc = side.querySelector("[data-uw-wcustom]");
     if (wc) wc.addEventListener("change", function(){ if (!wc.value) return; b.widthMm = clampWidth(b.type, Math.round(parseFloat(String(wc.value).replace(",", ".")) * 10)); uwAdvance("w"); renderUnitWizard(); });
-    side.querySelectorAll("[data-uw-h]").forEach(function(el){ el.addEventListener("click", function(){ b.heightMm = +el.dataset.uwH; uwAdvance("h"); renderUnitWizard(); }); });
+    side.querySelectorAll("[data-uw-h]").forEach(function(el){ el.addEventListener("click", function(){ uw.hoverDim = null; b.heightMm = +el.dataset.uwH; uwAdvance("h"); renderUnitWizard(); }); });
     side.querySelectorAll("[data-uw-hbox]").forEach(function(el){ el.addEventListener("click", function(){
       var w0 = state.walls.find(function(w){ return w.id === uw.wallId; }); b.heightMm = clampHeight(b.type, +el.dataset.uwHbox + plinthMmOf(c, "floor", w0)); renderUnitWizard(); }); });
     side.querySelectorAll("[data-uw-gap]").forEach(function(el){ el.addEventListener("click", function(){
@@ -6758,7 +6804,7 @@
       setHungGap(w0, +el.dataset.uwGap); b.heightMm = clampHeight(b.type, box + plinthMmOf(c, "floor", w0)); save(); renderUnitWizard(); }); });
     var hc = side.querySelector("[data-uw-hcustom]");
     if (hc) hc.addEventListener("change", function(){ if (!hc.value) return; b.heightMm = clampHeight(b.type, Math.round(parseFloat(String(hc.value).replace(",", ".")) * 10)); uwAdvance("h"); renderUnitWizard(); });
-    side.querySelectorAll("[data-uw-d]").forEach(function(el){ el.addEventListener("click", function(){ b.depthMm = +el.dataset.uwD; uwAdvance("d"); renderUnitWizard(); }); });
+    side.querySelectorAll("[data-uw-d]").forEach(function(el){ el.addEventListener("click", function(){ uw.hoverDim = null; b.depthMm = +el.dataset.uwD; uwAdvance("d"); renderUnitWizard(); }); });
     var dc = side.querySelector("[data-uw-dcustom]");
     if (dc) dc.addEventListener("change", function(){ if (!dc.value) return; b.depthMm = clampDepth(b.type, Math.round(parseFloat(String(dc.value).replace(",", ".")) * 10)); uwAdvance("d"); renderUnitWizard(); });
     side.querySelectorAll("[data-sink-top]").forEach(function(el){ el.addEventListener("click", function(){
@@ -6930,11 +6976,12 @@
       KP3D.teardown3D(true); host.innerHTML = '<div class="uw-empty">' + __("Veldu tegund — skápurinn birtist hér.") + '</div>'; uwPrevKey = ""; syncUwTools(); return;
     }
     var b = uw.b || newPreviewBlock(hovOpt), c = CATALOG[b.type];
-    var key = JSON.stringify(b), keepCam = uwKeepCam;
-    if (key === uwPrevKey && KP3D._three()) return;
+    if (uw.b && uw.hoverDim){ b = JSON.parse(JSON.stringify(uw.b)); b[uw.hoverDim.k] = uw.hoverDim.v; keepCam = true; } // a chip under the pointer: show that size (user, 2026-10-26)
+    var key = JSON.stringify(b), keepCam = uwKeepCam || !!(uw.b && uw.hoverDim);
+    if (key === uwPrevKey && KP3D._three()){ uwAimCamera(true); return; } // same cabinet, another section: just turn the view
     uwPrevKey = key;
     var lenMm = Math.max(1200, b.widthMm + 800);
-    var pv = { carcass:state.carcass, drawerSystem:state.drawerSystem, look:state.look, handle:state.handle, handleColor:state.handleColor, top:c.panel ? "engin" : state.top, /* an úthlið alone: no worktop */ floor:state.floor, wallColor:state.wallColor,
+    var pv = { wardrobe:isCloset(), carcass:state.carcass, drawerSystem:state.drawerSystem, look:state.look, handle:state.handle, handleColor:state.handleColor, top:c.panel ? "engin" : state.top, /* an úthlið alone: no worktop */ floor:state.floor, wallColor:state.wallColor,
       roomHeightMm:state.roomHeightMm, closed:false, islands:[], windows:[], doors:[],
       walls:[{ id:"UWP", label:"", lengthMm:lenMm, floor:c.zone === "floor" ? [Object.assign({}, b, { gapMm:400, locked:false })] : [], wall:c.zone === "wall" ? [Object.assign({}, b, { gapMm:400, locked:false })] : [] }] };
     KP3D.waitForThree(function(ok){
@@ -6942,7 +6989,9 @@
       var prevCam = KP3D._three() ? { p:KP3D._three().camera.position.clone(), t:KP3D._three().controls.target.clone() } : null;
       KP3D.teardown3D(true);
       host.innerHTML = "";
-      KP3D.buildScene(host, pv, { xray:true, clean:true, noGhost:true, onlySurfaceId:"UWP", freshCamera:true, darkBg:!!PRO });
+      KP3D.buildScene(host, pv, { xray:true, clean:true, noGhost:true, onlySurfaceId:"UWP", freshCamera:true, darkBg:!!PRO, afterFrame:drawUwDims,
+        // Smíða lite: shelves / rails / drawers move in the preview too (user, 2026-10-26)
+        onShelfPosMove:uw.b ? onShelfPosMove : null, onShelfPosEnd:uwItemMoved, onShelfPosInfo:uw.b ? onShelfPosInfo : null, onDrawerResize:uw.b && isCloset() ? onDrawerResize : null, onDrawerResizeEnd:uwItemMoved });
       var st = KP3D._three(); if (!st) return;
       if (!uw.b){ // hovering a type: start closed and play the opening, rather than showing it already open (user, 2026-10-25)
         KP3D.snapParts(false);
@@ -6976,7 +7025,7 @@
       swayPreview(st, Math.atan2(g.normal.x, g.normal.z));
       st.controls.update();
       uwDimCtx = { g:g, a0:0.4, a1:0.4 + b.widthMm / 1000, y0:elevM, y1:elevM + hM, d:(b.depthMm || c.d) / 1000, b:b };
-      startUwDims();
+      if (!(prevCam && keepCam)){ if (prevCam && uw.b) st.camera.position.copy(prevCam.p); uwAimCamera(!!(prevCam && uw.b)); } else uwLockView(st); // glide from where the view was
       // A plain drawer stack is already its own fronts — nothing hidden to reveal, so it stays closed by default
       // (user, 2026-10-14: only auto-open a front that's actually hiding something behind it). A búrskápur's
       // door hides its inner drawers though, so that one still opens — only once it actually has an innskúffa.
@@ -7046,7 +7095,7 @@
     var resume = null;
     st.renderer.domElement.addEventListener("pointerdown", function(){
       c.autoRotate = false; clearTimeout(resume);
-      resume = setTimeout(function(){ if (KP3D._three() === st && !reduce && uwView.spin) c.autoRotate = true; }, 5000);
+      resume = setTimeout(function(){ if (KP3D._three() === st && !reduce && uwView.spin && !(uw && uw.b && !PRO)) c.autoRotate = true; }, 5000); // a unit being set up holds its view
     });
   }
   function swayPreview(st, frontAz){
@@ -7056,7 +7105,7 @@
     var resume = null;
     st.renderer.domElement.addEventListener("pointerdown", function(){
       c.autoRotate = false; clearTimeout(resume);
-      resume = setTimeout(function(){ if (KP3D._three() === st && !reduce && uwView.spin) c.autoRotate = true; }, 5000);
+      resume = setTimeout(function(){ if (KP3D._three() === st && !reduce && uwView.spin && !(uw && uw.b && !PRO)) c.autoRotate = true; }, 5000); // a unit being set up holds its view
     });
     var tick = setInterval(function(){
       if (KP3D._three() !== st){ clearInterval(tick); return; }
@@ -9760,8 +9809,11 @@
   // shelfLayoutOf still accepts and quietly vanish next read); trueLo/trueHi is the REAL neighbour's own
   // mm, or the zone's raw edge — what the gap label/line actually show, since "how much room is here" is
   // a more honest answer than "how much further could I still drag it".
+  // a block being dragged: one in the room, or the "+ Ný eining" wizard's own (not placed yet)
+  function dragBlock(id){ var fb = findBlock(id); if (fb) return fb; return uw && uw.b && uw.b.id === id ? { block:uw.b, zone:CATALOG[uw.b.type].zone, wall:null } : null; }
+  function uwItemMoved(id){ if (uw && uw.b && uw.b.id === id){ uwPrevKey = ""; renderUnitWizard(); } else onShelfPosEnd(id); }
   function shelfPosBounds(blockId, itemKind, idx){
-    var fb = findBlock(blockId); if (!fb) return null;
+    var fb = dragBlock(blockId); if (!fb) return null;
     var b = fb.block, c = CATALOG[b.type]; if (!c) return null;
     var bodyMm = proBodyMm(b, c, fb.zone), sysKey = drawerSys(), r = KP3D.shelfSpaceMm(b, bodyMm, sysKey);
     if (itemKind === "rail"){
@@ -9795,7 +9847,7 @@
   // (Legra K → C → F, Merivo K → E) — "til að stækka dýptina". topMm = pointer height above the carcass bottom.
   var DRAWER_SNAP_MM = 50;
   function onDrawerResize(blockId, idx, topMm){
-    var fb = findBlock(blockId); if (!fb) return null;
+    var fb = dragBlock(blockId); if (!fb) return null;
     var b = fb.block, c = CATALOG[b.type], sys = drawerSys();
     if (!b.interior || b.interior.mode !== "skuffur") return null;
     var codes = KP3D.drawerCodes(b.interior, sys), body = proBodyMm(b, c, fb.zone);

@@ -3399,7 +3399,14 @@
       var readOnly = !opts.onSelect && !opts.onCabinetDragEnd; // review page / wizard preview
       var mesh = pickMeshAt(evt);
       if (!mesh) return;
-      if (readOnly){ // only drawers/doors react (tap = open/close); everything else is left to OrbitControls
+      // the "+ Ný eining" preview (read-only otherwise) can still move shelves / rails / drawers when given the callbacks
+      // (user, 2026-10-26: "Smíða lite" while choosing the innvols)
+      if (readOnly && (mesh.userData.kind === "shelf-item" || mesh.userData.kind === "rail-item") && opts.onShelfPosMove){
+        drag = { meta:mesh.userData, mesh:mesh, shelfDrag:true, startX:evt.clientX, startY:evt.clientY, moved:false };
+        controls.enabled = false; evt.stopPropagation();
+        return;
+      }
+      if (readOnly && !(mesh.userData.isPart && mesh.userData.drawerIdx != null && opts.onDrawerResize)){ // only drawers/doors react (tap = open/close); everything else is left to OrbitControls
         if (mesh.userData.isPart && mesh.userData.locked) lockTap = { meta:mesh.userData, x:evt.clientX, y:evt.clientY };
         return;
       }
@@ -5720,6 +5727,7 @@
       renderFrame(false);
       placeFloatBar();
       placeDims();
+      if (opts.afterFrame) opts.afterFrame(camera); // the caller's own overlays, drawn in the same frame (no lag/jiggle)
     }
     loop();
   }
