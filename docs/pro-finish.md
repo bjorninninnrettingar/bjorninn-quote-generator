@@ -262,3 +262,20 @@ Tested on T-199 (`rec0Hylqy26rrPmKz`, no drawing, no contact) and T-32 with the 
 
 Not done / left as is: the T-199 contact itself (Nýtt verkefni until a Tengiliður is linked in Airtable); Þvottahús'
 tree; PRO bath/wardrobe wizards still show all sections.
+
+## Mæling as a panel + fitting measurements (PRO C follow-up, 2026-10-26)
+
+- **Mæling no longer jumps** to "Stilltu stærð rýmisins": `openMeasurePanel()` opens the sheet over wherever you are
+  (editor, the Rýmið page, Smíða's room) and "Loka" / Esc leaves you exactly there. Changes redraw what's behind it
+  (`mpRefresh`: the editor, or the sizing drawing + Rýmið table). On the Rýmið page the table underneath is hidden
+  while the sheet is open (`body.mp-open`), so every value is typed in one place. Enter = next field, like Rýmið.
+- **Three new sections** (optional — they don't count toward "x af y staðfest"), in `state.measurement` (planner JSON,
+  per room via `room: activeCategory`):
+  - `rafmagn: [{id, room, wallId, kind: tengill|dos|rofi, offsetMm, heightMm}]`
+  - `lagnir: [{id, room, wallId, kind: vatn|frarennsli|hiti|annad, offsetMm, heightMm}]`
+  - `skekkja: {<room>: {floor: mm/m, walls: {<wallId>: mm/m}}}`
+- **Vinnuteikningar**: each point is a marker on its wall elevation ("Dós 2775/1100", `wdMeasureFor` → sheet
+  annotations) and a line in that sheet's notes; a wall's out-of-plumb is a note on its sheet; the floor slope and the
+  point counts go in the room's ATHUGASEMDIR (`wdMeasureNotes`). There is no separate "workshop note" field in the
+  planner, so the drawings' notes column (what the workshop reads) is where it lands.
+- Verified on T-32 via `&maeling=1` (locked project, local only) and on T-199's Rýmið page.
