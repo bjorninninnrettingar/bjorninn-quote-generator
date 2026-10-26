@@ -2029,9 +2029,14 @@
       if (hcfg && hcfg.kind === "hexxa"){ // milled into the front, no fixed width: equal distance to both sides
         var hm2 = (hcfg.marginMm || 50) / 1000, dark = new THREE.MeshStandardMaterial({ color:0x18181a, roughness:0.6 });
         if (vertical && wardrobeScene){ var hxL = Math.min(0.4, doorH - 2 * hm2), hxY = Math.max(bottom + hm2 + hxL / 2, Math.min(top - hm2 - hxL / 2, 1.05)); // wardrobe: a slot at hand height (user, 2026-10-25)
-          sides.forEach(function(sg){ // at the very edge (user, 2026-10-25): the 30 mm dark slot from the edge in + the thin lip line, as the top-edge notch
-            place(new THREE.Mesh(new THREE.BoxGeometry(0.03, Math.max(0.05, hxL), 0.0015), dark), hxY, 0.0008, edgeAlong(sg, 0.015));
-            place(new THREE.Mesh(new THREE.BoxGeometry(0.003, Math.max(0.05, hxL), 0.004), handleMat), hxY, 0.002, edgeAlong(sg, 0.0315)); }); }
+          sides.forEach(function(sg){ // milled into the opening edge exactly like the top-edge notch (user, 2026-10-26: same depth) — the slab itself is cut (sideNotch in addArticulated)
+            if (meta && meta.slab){
+              place(new THREE.Mesh(new THREE.BoxGeometry(0.028, Math.max(0.05, hxL) - 0.002, 0.003), dark), hxY, -FRONT_T + 0.0025, edgeAlong(sg, 0.0155));
+              place(new THREE.Mesh(new THREE.BoxGeometry(0.001, Math.max(0.05, hxL) - 0.002, FRONT_T - 0.003), handleMat), hxY, -FRONT_T / 2 + 0.0005, edgeAlong(sg, 0.0295));
+            } else {
+              place(new THREE.Mesh(new THREE.BoxGeometry(0.03, Math.max(0.05, hxL), 0.0015), dark), hxY, 0.0008, edgeAlong(sg, 0.015));
+              place(new THREE.Mesh(new THREE.BoxGeometry(0.003, Math.max(0.05, hxL), 0.004), handleMat), hxY, 0.002, edgeAlong(sg, 0.0315));
+            } }); }
         else if (vertical){ sides.forEach(function(sg){ place(new THREE.Mesh(new THREE.BoxGeometry(0.012, Math.max(0.05, doorH - 2 * hm2), 0.0015), dark), (top + bottom) / 2, 0.0008, edgeAlong(sg, 0.02)); }); }
         else {
           var hl = Math.max(0.05, hw - 2 * hm2);
@@ -2059,7 +2064,7 @@
           // place() overwrites the rotation of what it is given, so the turn lives in a child group
           if (vertical){ sides.forEach(function(sg){ // the finger lip (bottom of the profile) ends up on the free edge, the body extends inwards
             var rot = new THREE.Group(), lift = new THREE.Group(), h2 = new THREE.Group();
-            lift.position.y = jp.userData.size.h; lift.add(jp.clone(true)); rot.add(lift);
+            lift.add(jp.clone(true)); rot.add(lift); // the same frame as on the top edge, turned: inside its own door, in the cut-out
             rot.rotation.z = sg > 0 ? -Math.PI / 2 : Math.PI / 2; h2.add(rot); // turned so the finger lip faces the opening (was the wrong way round, user 2026-10-25)
             place(h2, (top + bottom) / 2, jout, twoLeaf ? 0 : sg * hw / 2 + hOff);
           }); }
@@ -2076,7 +2081,7 @@
         if (tpf){
           if (vertical){ // tall units: an edge pull on the free side, at chest height
             var vyc = Math.max(bottom + 0.12, Math.min(top - 0.12, 1.05));
-            sides.forEach(function(sg){ var rotT = new THREE.Group(), hT = new THREE.Group(); rotT.add(tpf.clone(true)); rotT.rotation.z = (sg > 0 ? -Math.PI / 2 : Math.PI / 2) * (hcfg.flip ? -1 : 1); hT.add(rotT); /* a flipped model (Vann) turns the other way, as on the top edge */ place(hT, vyc, 0, twoLeaf ? 0 : sg * hw / 2 + hOff); });
+            sides.forEach(function(sg){ var rotT = new THREE.Group(), hT = new THREE.Group(); rotT.add(tpf.clone(true)); rotT.rotation.z = (sg > 0 ? -Math.PI / 2 : Math.PI / 2) * (hcfg.flip ? -1 : 1); hT.add(rotT); /* a flipped model (Vann) turns the other way, as on the top edge */ place(hT, vyc, -(hcfg.embedMm || 0) / 1000, (twoLeaf ? 0 : sg * hw / 2 + hOff) - sg * (hcfg.dropMm || 0) / 1000); }); // dropped in from the edge + sunk into the front, as on the top edge
           } else {
             var centres = twoLeaf ? [-hw / 4, hw / 4] : [hOff];
             centres.forEach(function(cxT){ var rotB = new THREE.Group(), hB = new THREE.Group(); rotB.add(tpf.clone(true)); if (atBottom !== !!hcfg.flip) rotB.rotation.z = Math.PI; hB.add(rotB); place(hB, atBottom ? bottom + (hcfg.dropMm || 0) / 1000 : top - (hcfg.dropMm || 0) / 1000, -(hcfg.embedMm || 0) / 1000, cxT); }); // wall units: on the bottom edge, upside down
@@ -2603,6 +2608,10 @@
       // a Jey profile REPLACES stripMm of the front: the slab is that much shorter (top strip) or narrower (side strip on tall units)
       var slabW = w - 0.004 - (vertA ? stripA : 0), slabH = fh - (vertA ? 0 : stripA);
       var notchA = hcfgA && hcfgA.kind === "hexxa" && !vertA ? { len:Math.max(0.05, slabW - 2 * (hcfgA.marginMm || 50) / 1000), h:0.03 } : null;
+      if (hcfgA && hcfgA.kind === "hexxa" && vertA && wardrobeScene){ // a wardrobe door: the 40 cm Hexxa notch is cut into the opening edge at hand height (same numbers as addFrontDetails)
+        var hmA = (hcfgA.marginMm || 50) / 1000, hxLA = Math.min(0.4, fh - 2 * hmA), hxYA = Math.max(y0 + hmA + hxLA / 2, Math.min(y1 - hmA - hxLA / 2, 1.05));
+        notchA = { side:freeSideA, len:hxLA, h:0.03, at:hxYA - y0 };
+      }
       var wallA = meta.zone === "wall"; // wall units: Jey strip / Hexxa notch along the BOTTOM edge
       var slabCx = cxL + (vertA ? (freeSideA === "right" ? -stripA / 2 : stripA / 2) : 0), slabCy = (y0 + y1) / 2 + (vertA ? 0 : (wallA ? stripA / 2 : -stripA / 2));
       var grainOff = { u:offsetM + widthM / 2 + slabCx - slabW / 2, v:slabCy - slabH / 2 }; // continuous grain (see scaleFrontUV)
@@ -4398,6 +4407,17 @@
   // A 20 mm front panel; `notch` {len, h} cuts a recess out of the top edge, centred (Hexxa is milled into the front).
   function frontSlab(THREE, w, h, frontMat, notch, off){
     var geo;
+    if (notch && notch.side && notch.len > 0.02 && notch.len < h - 0.02){ // a wardrobe's Hexxa: cut into the opening edge at `at` (m from the bottom)
+      var hwS = w / 2, a0 = notch.at - notch.len / 2, a1 = notch.at + notch.len / 2, ed = notch.side === "right" ? hwS : -hwS, inn = notch.side === "right" ? hwS - notch.h : -hwS + notch.h, shS = new THREE.Shape();
+      if (notch.side === "right"){ shS.moveTo(-hwS, 0); shS.lineTo(hwS, 0); shS.lineTo(ed, a0); shS.lineTo(inn, a0); shS.lineTo(inn, a1); shS.lineTo(ed, a1); shS.lineTo(hwS, h); shS.lineTo(-hwS, h); shS.lineTo(-hwS, 0); }
+      else { shS.moveTo(-hwS, 0); shS.lineTo(hwS, 0); shS.lineTo(hwS, h); shS.lineTo(-hwS, h); shS.lineTo(ed, a1); shS.lineTo(inn, a1); shS.lineTo(inn, a0); shS.lineTo(ed, a0); shS.lineTo(-hwS, 0); }
+      geo = new THREE.ExtrudeGeometry(shS, { depth:FRONT_T, bevelEnabled:false });
+      var psS = geo.attributes.position, uvS = geo.attributes.uv;
+      for (var iS = 0; iS < psS.count; iS++) uvS.setXY(iS, (psS.getX(iS) + hwS) / w, psS.getY(iS) / h);
+      geo.translate(0, -h / 2, -FRONT_T / 2);
+      scaleFrontUV(geo, w, h, frontMat.userData && frontMat.userData.tile, false, off);
+      return new THREE.Mesh(geo, frontMat);
+    }
     if (notch && notch.len > 0.02 && notch.len < w - 0.02){
       var hw2 = w / 2, nl = notch.len / 2, sh = new THREE.Shape();
       sh.moveTo(-hw2, 0); sh.lineTo(hw2, 0); sh.lineTo(hw2, h); sh.lineTo(nl, h); sh.lineTo(nl, h - notch.h); sh.lineTo(-nl, h - notch.h); sh.lineTo(-nl, h); sh.lineTo(-hw2, h); sh.lineTo(-hw2, 0);
