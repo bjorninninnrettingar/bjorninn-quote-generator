@@ -389,3 +389,26 @@ paths with `fetch` stubbed in the page, and server-side in `tests/kp-pro.test.js
    no connection / 401–403 lykill / 409 / 400 / 429 / 5xx) + "● Óvistað …" while dirty + **Reyna aftur**; the bar says
    "Vistun tókst ekki · ● óvistað". A failed save from anywhere (e.g. Mæling lokið) opens the panel the same way.
    Vista í Airtable in the panel now closes it only once the save worked.
+
+## Multi-room PRO projects (PRO F3, 2026-10-26)
+
+Tested on a fresh T-199 with Eldhús (1 Grunnskápur) + Fataskápar (Fylla vegginn, 5 units) and T-32 (one room,
+unchanged), read-only server, 1440×900.
+
+1. **Smíða strip = the whole project**: `proSkList()` reads every room through `withEachCategory`, grouped in queue
+   order with the room's name between groups ("Eldhús Sk1 | Fataskápar Sk2 … Sk6"), counter over the project. Items
+   carry `uid = "<room>|<block id>"` (block ids repeat between rooms); `proEdGo(uid)` opens the other room behind the
+   popup (`openRoom`) and keeps Smíða open. Walked: Sk2…Sk6 in Fataskápar → "Yfirfarinn → Sk1" crossed into Eldhús, the
+   room tab followed. Fylla vegginn still opens Smíða on the first Sk of THIS room.
+2. **Efni row per room in its own words** — root cause: `catBase()` (isCloset/isBath/…) and `activeMatPhases()` read
+   `state.activeCategory` even while `withEachCategory` visited another room, so the kitchen was checked against the
+   wardrobe's pages ("Eldhús: stærð og litur vantar"). Both now use `SK_CAT` (the room being visited) first; so do
+   `activeUnitTree`, `cabCfg`, `typesForZone`, `topGroupsNow` and the Mæling notes (`wdMeasureFor/Notes`). This also
+   makes Vista / Teikningar / Skápalisti build a non-active room's lines with its own rules (e.g. a bath's U-skúffa
+   notes, a wardrobe's types) — before, they followed whichever room was open. Undecided materials are listed in the
+   Efni menu's order: "Eldhús: skrokkur, …, borðplata · Fataskápar: skrokkur, …".
+3. **Room tabs**: right end of the PRO strip (`.ps-rooms`, shown with 2+ rooms, queue order so they never move), the
+   open room marked, one click opens any room (closes Smíða first). "Næsta rými: X →" kept.
+4. **Inherited materials**: a new room that took another room's materials remembers it (`state.matFrom`, a ROOM_FIELD).
+   In PRO there's no toast; the room's Efni menu starts with "Erfir efni frá Eldhúsi · Breyta fyrir þetta rými" (the
+   link jumps to the first material). Customer keeps the toast.
