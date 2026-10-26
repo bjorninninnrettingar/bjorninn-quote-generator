@@ -86,19 +86,10 @@ test("hardware: one function per item, the door's choices pick them", () => {
   assert.deepEqual(D.hardwareOf(door({ kind: "karmur" })), { leaf: [], fixed: [] });
 });
 
-test("round 3: real hardware — the drop-seal GLB is in the repo, small, and a valid glTF 2 binary; the JNF parts are chosen by the options", async () => {
-  const fs = await import("node:fs");
-  const vm = await import("node:vm"), ctx = { window: {} };
-  vm.runInNewContext(fs.readFileSync(new URL("../kitchen-planner-models.js", import.meta.url), "utf8"), ctx);
-  const e = ctx.window.KPMODELS.doorHardware.threshold_drop;
-  const buf = fs.readFileSync(new URL("../" + e.file, import.meta.url));
-  assert.ok(buf.length < 300 * 1024, "drop seal stays small: " + buf.length);
-  assert.equal(buf.readUInt32LE(0), 0x46546C67); assert.equal(buf.readUInt32LE(4), 2);
-  const gl = JSON.parse(buf.slice(20, 20 + buf.readUInt32LE(12)).toString());
-  const pos = gl.accessors[gl.meshes[0].primitives[0].attributes.POSITION];
-  assert.ok(Math.abs(pos.max[0] - pos.min[0] - e.lengthM) < 0.002, "length along x = lengthM");
+test("round 8: the drop seal is two parts — a fixed housing and a carrier named seal that drops; no GLB any more", () => {
   assert.deepEqual(D.hardwareOf(door({ opt: { lamir: "samloku", skra: "jnf" } })).leaf, ["hinge_visible", "lock_standard", "handle_lever"]);
   assert.deepEqual(D.hardwareOf(door({ kind: "gler", opt: { lamir: "samloku" } })).leaf, ["hinge_visible", "handle_lever"]); // no mortise lock in glass
+  assert.ok(D.hardwareOf(door({ opt: { throskuldur: "ja" } })).leaf.includes("threshold_drop"));
 });
 
 // PRO (2026-10-26): the old "Innihurðir" overlay stored door rows without designed / frame (and with every room the

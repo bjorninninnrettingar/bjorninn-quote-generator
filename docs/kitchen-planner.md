@@ -542,3 +542,9 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   (`fixed.userData.update` → `door.userData.armUps`, called from `setOpen`). Finishes in `COPLAN_FINISH`: króm → matt
   silver, svart → matt black, bronze kept for later. Payload 0 KB (procedural). Not done: the engraving reads mirrored on
   one body; the samlokulöm photo-real pass; a 1280×720 check of this round.
+- **Round 7 finished + round 8 (2026-10-26):** samlokulöm: bevelled leaves, domed knuckle ends, countersunk screws with a
+  Phillips cross; COPLAN caps face out of their own body (the engraving no longer reads mirrored). Drop seal: procedural in
+  two parts — the fixed U housing (14 × 30 mm, anodised, bevelled, flush in the bottom edge and showing at both ends) and
+  the moving T carrier with the dark rubber lip (the object named "seal": only it drops, by FLOOR_GAP), a brass hex
+  trigger at the hinge-side end; the leaf is one solid piece again (the round-6 slot pieces caused the band at the
+  bottom). models/door-hardware/drop-seal.glb removed (it couldn't be split into fixed + moving); tools/dae2glb.py stays.

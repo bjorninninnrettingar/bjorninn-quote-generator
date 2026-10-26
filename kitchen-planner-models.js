@@ -33,7 +33,8 @@ window.KPMODELS = {
   // in kitchen-planner-doors.js from the makers' drawings (exact sizes, light); the drop seal is the maker's SketchUp
   // model converted to GLB (inch/Z-up → m/Y-up, length along x, 914 mm long → `lengthM` stretches it to the leaf).
   doorHardware: {
-    threshold_drop: { file:"models/door-hardware/drop-seal.glb", lengthM:0.9144 }
+    // (round 8: the drop seal is procedural now — housing + moving carrier, see kitchen-planner-doors.js; the converted
+    // SketchUp GLB couldn't be split into the fixed and the moving part)
   },
   drawerSides: {
     legra_M: { boardMm:12, white:{ L:"models/drawers/legra-M-white-L.dae", R:"models/drawers/legra-M-white-R.dae" }, dark:{ L:"models/drawers/legra-M-dark-L.dae", R:"models/drawers/legra-M-dark-R.dae" } },

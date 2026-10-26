@@ -227,10 +227,15 @@
     });
     return s;
   }
-  function plate(T, shape, t, m){ var g = new T.ExtrudeGeometry(shape, { depth:t, bevelEnabled:false, curveSegments:12 }); var mm = new T.Mesh(g, m); mm.castShadow = true; mm.receiveShadow = true; return mm; }
+  function plate(T, shape, t, m, bevel){ var g = new T.ExtrudeGeometry(shape, { depth:bevel ? t - 2 * bevel : t, bevelEnabled:!!bevel, bevelThickness:bevel || 0, bevelSize:bevel || 0, bevelSegments:2, curveSegments:16 }); if (bevel) g.translate(0, 0, bevel); var mm = new T.Mesh(g, m); mm.castShadow = true; mm.receiveShadow = true; return mm; }
   // a plate lying on a face whose outward normal is ±x: its own +Z turned onto that normal, its own X along the door's z
   function onXFace(o, nx){ o.rotation.y = nx > 0 ? Math.PI / 2 : -Math.PI / 2; return o; }
-  function screwHead(T, m, r){ var h = new T.Mesh(new T.CylinderGeometry(r, r * 0.92, 0.0008, 20), m); h.rotation.z = Math.PI / 2; return h; } // axis along x
+  function screwHead(T, m, r, cross){ // axis along x; `cross` = a countersunk head with a Phillips cross
+    var h = new T.Mesh(new T.CylinderGeometry(r, r * (cross ? 0.75 : 0.92), 0.0008, 24), m); h.rotation.z = Math.PI / 2;
+    if (cross){ var g = new T.Group(), dk = mat(T, { color:0x3a3c40, metalness:0.6, roughness:0.5 }); g.add(h);
+      [0, Math.PI / 2].forEach(function(a){ var sl = new T.Mesh(new T.BoxGeometry(0.0006, r * 1.3, r * 0.28), dk); sl.rotation.x = a; g.add(sl); }); return g; }
+    return h;
+  }
   var COPLAN_FINISH = { silver:[0xb4b7bb, 0.48, 0x55585c], black:[0x232427, 0.58, 0x101112], bronze:[0x8a6a50, 0.45, 0x3a2c22] }; // [colour, roughness, housing]
   var COPLAN_TEX = {};
   function coplanMat(T, fin, engraved){ // powder-coated matt zamak with a slight satin sheen; the caps carry "JNF COPLAN 175"
@@ -265,7 +270,7 @@
       var m = coplanMat(T, fin), cap = coplanMat(T, fin, true), inner = mat(T, { color:fin[2], roughness:0.7, metalness:0.4 }), pin = mat(T, { color:0x9a9da1, metalness:0.9, roughness:0.3 }), wash = dark(T);
       var W = 0.028, CAPL = 0.049, HOUS = 0.079, zc = -g.leafT / 2, DEPTH = 0.024, LINK = 0.033, arms = [];
       function body(par, faceX, out){ // out = the side the face looks to (±x); caps + the housing seen through the face
-        [1, -1].forEach(function(e){ var cp = new T.Mesh(capGeo(T, W, CAPL, e), cap); cp.rotation.y = Math.PI / 2; cp.position.set(faceX + (out > 0 ? -0.0016 : 0) + out * 0.0004, 0, zc + W / 2); cp.position.y = e * HOUS / 2; cp.castShadow = true; par.add(cp); });
+        [1, -1].forEach(function(e){ var cp = new T.Mesh(capGeo(T, W, CAPL, e), cap); cp.rotation.y = out > 0 ? Math.PI / 2 : -Math.PI / 2; cp.position.set(faceX - out * 0.0012, 0, out > 0 ? zc + W / 2 : zc - W / 2); cp.position.y = e * HOUS / 2; cp.castShadow = true; par.add(cp); });
         par.add(box(T, 0.0004, HOUS, W - 0.003, inner, faceX + out * 0.0003, 0, zc)); // the housing, read as a recess
         [1, -1].forEach(function(k){ par.add(box(T, 0.0012, HOUS, 0.0014, m, faceX + out * 0.0006, 0, zc + k * (W / 2 - 0.0007))); }); // its rims
       }
@@ -300,20 +305,38 @@
       hingeYs(g).forEach(function(yc){
         var y = FLOOR_GAP + yc;
         for (var k = 0; k < 5; k++){ // 5 knuckle segments with hairline joints (the ball bearings sit in them)
-          var kn = new T.Mesh(new T.CylinderGeometry(R, R, seg - 0.0006, 28), m); kn.position.set(0, y - H / 2 + seg * (k + 0.5), ax); kn.castShadow = true; grp.add(kn);
+          var kn = new T.Mesh(new T.CylinderGeometry(R, R, seg - 0.0006, 32), m); kn.position.set(0, y - H / 2 + seg * (k + 0.5), ax); kn.castShadow = true; grp.add(kn);
+          if (k === 0 || k === 4){ var dome = new T.Mesh(new T.SphereGeometry(R, 32, 10, 0, Math.PI * 2, 0, Math.PI / 2), m); dome.scale.y = 0.28; dome.rotation.x = k === 0 ? Math.PI : 0; dome.position.set(0, y + (k === 0 ? -1 : 1) * (H / 2 - 0.0003), ax); grp.add(dome); } // domed ends
           if (k) { var ring = new T.Mesh(new T.CylinderGeometry(R * 0.96, R * 0.96, 0.0006, 28), dk); ring.position.set(0, y - H / 2 + seg * k, ax); grp.add(ring); }
         }
         // the door leaf in the leaf's hinge edge (mortised, face flush with the edge), R10 on its outer corners, 4 screws
         // (plate X → into the thickness, its 3 mm along +x: the door leaf goes into the leaf's edge, the frame leaf into the jamb)
-        var dl = plate(T, plateShape(T, door - R, H, 0.01, null, "right"), t, m); dl.rotation.y = Math.PI / 2; dl.position.set((s > 0 ? -t : 0) + s * 0.0004, y, ax - R - (door - R) / 2); grp.add(dl); // 0.4 mm proud of the edge (no z-fighting with it)
-        [[0.037, 0.020], [0.0125, 0.011], [-0.0125, 0.020], [-0.037, 0.011]].forEach(function(p){ var sh = screwHead(T, m, 0.003); sh.position.set(s * 0.0009, y + p[0], ax - door + p[1]); grp.add(sh); });
+        var dl = plate(T, plateShape(T, door - R, H, 0.01, null, "right"), t, m, 0.0005); dl.rotation.y = Math.PI / 2; dl.position.set((s > 0 ? -t : 0) + s * 0.0004, y, ax - R - (door - R) / 2); grp.add(dl); // 0.4 mm proud of the edge (no z-fighting with it)
+        [[0.037, 0.020], [0.0125, 0.011], [-0.0125, 0.020], [-0.037, 0.011]].forEach(function(p){ var sh = screwHead(T, m, 0.003, true); sh.position.set(s * 0.0009, y + p[0], ax - door + p[1]); grp.add(sh); });
         // the frame leaf on the jamb (it stays put when the door swings)
-        var fl = plate(T, plateShape(T, frame - R, H, 0.01, null, "right"), t, m); fl.rotation.y = Math.PI / 2; fl.position.set((s > 0 ? GAP : -GAP - t) - s * 0.0004, y, ax - R - (frame - R) / 2); fixed.add(fl);
+        var fl = plate(T, plateShape(T, frame - R, H, 0.01, null, "right"), t, m, 0.0005); fl.rotation.y = Math.PI / 2; fl.position.set((s > 0 ? GAP : -GAP - t) - s * 0.0004, y, ax - R - (frame - R) / 2); fixed.add(fl);
       });
       grp.userData.fixed = fixed; return grp; },
     // þétting sem fellur niður (procedural stand-in while drop-seal.glb loads): an aluminium strip in the bottom edge
-    threshold_drop:function(c){ var T = c.T, s = box(T, c.g.leafW - 0.006, 0.012, 0.012, mat(T, { color:0xa3a8ad, metalness:0.5, roughness:0.4 }), -c.g.s * c.g.leafW / 2, FLOOR_GAP + 0.006 - SEAL_DROP, -0.0075);
-      s.name = "seal"; s.userData.y0 = FLOOR_GAP + 0.006; return s; },
+    // felliþröskuldur (round 8): an automatic drop seal in two parts — the U housing (14 × 30 mm, anodised aluminium,
+    // bevelled) stays in the door's bottom edge; only the T carrier with its rubber lip drops to the floor as the door
+    // shuts. The brass hex button that triggers it sticks out at the hinge-side end. mm profiles, extruded along the leaf.
+    threshold_drop:function(c){
+      var T = c.T, g = c.g, sg = g.s, grp = new T.Group(), mm = 0.001, L = g.leafW + 0.0006, x0 = Math.min(0, -sg * g.leafW) - 0.0003, zc = -g.leafT / 2;
+      var alu = T.MeshPhysicalMaterial ? new T.MeshPhysicalMaterial({ color:0xc3c6ca, metalness:0.75, roughness:0.38, sheen:0.25, sheenRoughness:0.5, clearcoat:0.15, envMapIntensity:1 }) : mat(T, { color:0xc3c6ca, metalness:0.75, roughness:0.38 });
+      var rubber = mat(T, { color:0x2a2b2d, roughness:0.85, metalness:0 }), brass = mat(T, { color:0xc9a24d, metalness:0.9, roughness:0.32 });
+      function prof(pts, m, bev){ var sh = new T.Shape(); pts.forEach(function(p, i){ if (i) sh.lineTo(p[0] * mm, p[1] * mm); else sh.moveTo(p[0] * mm, p[1] * mm); });
+        var geo = new T.ExtrudeGeometry(sh, { depth:L - (bev ? 0.0006 : 0), bevelEnabled:!!bev, bevelThickness:0.0003, bevelSize:0.0003, bevelSegments:2, curveSegments:8 });
+        var o = new T.Mesh(geo, m); o.rotation.y = Math.PI / 2; o.position.set(x0 + (bev ? 0.0003 : 0), 0, zc); o.castShadow = true; o.receiveShadow = true; return o; } // shape X → -z, its length → +x
+      var house = prof([[-7, 0], [-5.6, 0], [-5.6, 28.6], [5.6, 28.6], [5.6, 0], [7, 0], [7, 30], [-7, 30]], alu, true);
+      house.position.y = FLOOR_GAP - 0.0003; grp.add(house);
+      var carrier = new T.Group(); carrier.name = "seal";
+      carrier.add(prof([[-1.6, 9], [-1.6, 22], [-5, 22], [-5, 25], [5, 25], [5, 22], [1.6, 22], [1.6, 9], [4.8, 9], [4.8, 6.5], [-4.8, 6.5], [-4.8, 9]], alu, false)); // the T carrier
+      var lip = new T.Shape(); lip.moveTo(-5.4 * mm, 6.5 * mm); lip.lineTo(5.4 * mm, 6.5 * mm); lip.lineTo(5.4 * mm, 3 * mm); lip.quadraticCurveTo(5.4 * mm, 0.6 * mm, 2.5 * mm, 0.6 * mm); lip.lineTo(-2.5 * mm, 0.6 * mm); lip.quadraticCurveTo(-5.4 * mm, 0.6 * mm, -5.4 * mm, 3 * mm); lip.lineTo(-5.4 * mm, 6.5 * mm);
+      var lipM = new T.Mesh(new T.ExtrudeGeometry(lip, { depth:L, bevelEnabled:false, curveSegments:10 }), rubber); lipM.rotation.y = Math.PI / 2; lipM.position.set(x0, 0, zc); lipM.castShadow = true; carrier.add(lipM);
+      carrier.position.y = FLOOR_GAP - 0.0003; carrier.userData.y0 = FLOOR_GAP - 0.0003; carrier.userData.drop = FLOOR_GAP; grp.add(carrier);
+      var hex = new T.Mesh(new T.CylinderGeometry(0.0065, 0.0065, 0.007, 6), brass); hex.rotation.z = Math.PI / 2; hex.position.set(-sg * 0.001, FLOOR_GAP + 0.016, zc); hex.castShadow = true; grp.add(hex); // the trigger at the hinge end
+      return grp; },
     lock_standard:function(c){ return mortiseLock(c, LOCKS.jnf835); },
     lock_magnetic:function(c){ return mortiseLock(c, LOCKS.jnf976); },
     // húnn: a plain lever on both faces (placeholder — Björninn's own handles come later)
@@ -511,17 +534,12 @@
         }
         leafGroup.userData.slideDir = d.hinge === "left" ? 1 : -1; // "lamir vinstra" ≙ rennur til hægri (as before)
       } else {
-        var slot = d.kind !== "gler" && hardwareOf(d).leaf.indexOf("threshold_drop") >= 0, SW = 0.0195, SH = 0.049; // the drop seal's groove (round 6)
+        // round 8: one solid leaf again (the round-6 slot pieces left a band at the bottom); the drop seal's housing sits
+        // flush in the bottom edge and shows at both ends, so it reads as a clean recess
         var leaf = d.kind === "gler" ? box(T, g.leafW, g.leafH, g.leafT, glassMat, -g.s * g.leafW / 2, FLOOR_GAP + g.leafH / 2, -g.leafT / 2)
-          : slot ? rbox(T, g.leafW, g.leafH - SH, g.leafT, 0.003, leafMat, -g.s * g.leafW / 2, FLOOR_GAP + SH + (g.leafH - SH) / 2, -g.leafT / 2)
           : rbox(T, g.leafW, g.leafH, g.leafT, 0.003, leafMat, -g.s * g.leafW / 2, FLOOR_GAP + g.leafH / 2, -g.leafT / 2);
         leaf.userData.isLeaf = true;
         leafGroup.add(leaf);
-        if (slot){ // a leaf with a drop seal: a real slot along its bottom edge (open at the bottom and both ends) — the seal sits in it
-          var cheek = (g.leafT - SW) / 2;
-          [-1, 1].forEach(function(k){ leafGroup.add(rbox(T, g.leafW, SH + 0.004, cheek, 0.0015, leafMat, -g.s * g.leafW / 2, FLOOR_GAP + (SH + 0.004) / 2, -g.leafT / 2 + k * (SW / 2 + cheek / 2))); });
-          leafGroup.add(box(T, g.leafW - 0.004, 0.0015, SW, dark(T), -g.s * g.leafW / 2, FLOOR_GAP + SH - 0.0008, -g.leafT / 2)); // the groove's floor
-        }
         leafGroup.position.set(g.pivotX, 0, Th / 2);
         hardwareOf(d).leaf.forEach(function(k){ var o = hw(k, c); if (!o) return; leafGroup.add(o);
           if (o.userData.fixed){ o.userData.fixed.position.set(g.pivotX, 0, Th / 2); grp.add(o.userData.fixed); if (o.userData.fixed.userData.update) (grp.userData.armUps = grp.userData.armUps || []).push(o.userData.fixed.userData.update); } }); // frame leaves / strikes stay on the frame
@@ -598,7 +616,7 @@
       // low on the bottom edge: the gap under the leaf (and the seal dropping into it)
       case "throskuldur": { // the open leaf's free end, at the floor, from a little to the side: the bottom edge in section, the seal in its slot
         var fx = g.pivotX - g.s * g.leafT / 2, fz = zF + g.leafW;
-        return { t:[fx, 0.035, fz], p:[fx - g.s * 0.2, 0.12, fz + 0.34] }; }
+        return { t:[fx, 0.028, fz], p:[fx - g.s * 0.11, 0.08, fz + 0.2] }; } // round 8: closer, the seal's profile fills the view
       case "skra": { // the door half open: the lock's faceplate on its edge, the handle beside it
         var oa = SKRA_OPEN * Math.PI / 2, ex = g.pivotX - g.s * g.leafW * Math.cos(oa), ez = zF + g.leafW * Math.sin(oa) - g.leafT / 2;
         return { t:[ex, HANDLE_Y - 0.05, ez], p:[ex - g.s * 0.42, HANDLE_Y + 0.12, ez + 0.62] }; }
