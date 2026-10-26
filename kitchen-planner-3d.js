@@ -2245,7 +2245,7 @@
       group.add(pl);
     }
     if (meta && meta.counter && meta.stoneMat){
-      var sinkHole = meta.sink ? sinkSize(widthM, depthM) : null;
+      var sinkHole = meta.sink && !meta.basin ? sinkSize(widthM, depthM) : null; // a bathroom basin sits ON the top: no cut-out
       var TT = meta.stoneMat.userData.thick || 0.03;
       var topGeo = sinkHole ? worktopWithHole(THREE, widthM + 0.001, TT, depthM + 0.02, sinkHole) : new THREE.BoxGeometry(widthM + 0.001, TT, depthM + 0.02);
       worktopUV(topGeo, meta.stoneMat.userData && meta.stoneMat.userData.tile, meta.stoneMat.userData && meta.stoneMat.userData.rotateTex, offsetM + widthM / 2);
@@ -2256,8 +2256,11 @@
       top.quaternion.copy(quat);
       top.castShadow = true; top.receiveShadow = true;
       group.add(top);
-      if (meta.sink) addSink(THREE, group, local, quat, widthM, depthM, baseYM + heightM + 0.001 + TT, meta.tapCeilM);
+      if (meta.sink && !meta.basin) addSink(THREE, group, local, quat, widthM, depthM, baseYM + heightM + 0.001 + TT, meta.tapCeilM);
     }
+    // Baðherbergi (user, 2026-10-26): a handlaug sitting on the top (or straight on the cabinet with no top) + a short
+    // bathroom mixer — never the kitchen's inset steel sink and gooseneck
+    if (meta && meta.sink && meta.basin) addBasin(THREE, group, local, quat, widthM, depthM, baseYM + heightM + 0.001 + (meta.counter && meta.stoneMat ? (meta.stoneMat.userData.thick || 0.03) : 0), meta.tapCeilM);
 
     if (art || isOpen){ // the carcass as real boards, in the cabinet's own frame (x along the wall, z out of it)
       var cframe = new THREE.Group();
@@ -3259,6 +3262,47 @@
     var curve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0.2, 0), new THREE.Vector3(0, 0.3, 0.06), new THREE.Vector3(0, 0.27, 0.17), new THREE.Vector3(0, 0.2, 0.2)]);
     var tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 40, 0.012, 14, false), steel); tube.castShadow = true; neck.add(tube);
     var lever = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.08, 10), steel); lever.rotation.z = Math.PI / 2 - 0.3; lever.position.set(0.045, 0.1, 0); lever.castShadow = true; neck.add(lever);
+  }
+
+  // A white ceramic vessel basin (handlaug ofan á), oval, centred a little toward the front, with its drain; behind it a
+  // straight basin mixer (column + short spout over the bowl + lever) — about 25 cm, not the kitchen's 32 cm gooseneck
+  function addBasin(THREE, group, local, quat, widthM, depthM, topY, ceilM){
+    var bw = Math.min(0.5, Math.max(0.3, widthM * 0.62)), bd = Math.min(0.37, depthM * 0.72), R = 0.2;
+    var zc = Math.max(bd / 2 + 0.09, depthM * 0.52);
+    var ceramic = new THREE.MeshStandardMaterial({ color:0xf8f7f3, roughness:0.16, metalness:0, side:THREE.DoubleSide });
+    var steel = new THREE.MeshStandardMaterial({ color:0xc9cdd2, metalness:0.92, roughness:0.22 });
+    function put(m, y, out, along){ m.position.copy(local(along || 0, y, out)); m.quaternion.copy(quat); m.castShadow = true; m.receiveShadow = true; group.add(m); return m; }
+    var prof = [[0, 0.002], [0.12, 0.002], [0.165, 0.018], [0.194, 0.07], [R, 0.118], [R, 0.125], [0.191, 0.125], [0.186, 0.074], [0.158, 0.026], [0.1, 0.017], [0, 0.016]];
+    var bowl = new THREE.Mesh(new THREE.LatheGeometry(prof.map(function(p){ return new THREE.Vector2(p[0], p[1]); }), 56), ceramic);
+    bowl.scale.set(bw / 2 / R, 1, bd / 2 / R);
+    put(bowl, topY, zc);
+    put(new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.003, 24), steel), topY + 0.018, zc);
+    var room = ceilM != null ? ceilM - topY - 0.02 : Infinity, colH = Math.max(0.1, Math.min(0.24, room - 0.02));
+    var back = Math.max(0.045, zc - bd / 2 - 0.04);
+    put(new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.028, 0.012, 24), steel), topY + 0.006, back);
+    put(new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.018, colH, 24), steel), topY + colH / 2, back);
+    var spoutL = Math.min(0.15, bd / 2 + 0.03), spout = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.022, spoutL), steel);
+    put(spout, topY + colH - 0.025, back + spoutL / 2);
+    var lever = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.07, 10), steel); lever.rotation.x = Math.PI / 2 - 0.35;
+    put(lever, topY + colH + 0.012, back - 0.02);
+  }
+  // Spegilskápur (Bað, state.bathMirror): a plain mirror cabinet over the sink, as wide as the sink unit, 15 cm deep —
+  // shown only (the order carries it as a note); never drawn where a wall unit already hangs over the sink
+  function addMirrorCabinet(THREE, scene, geom, offsetM, widthM, bottomM, carcassMat){
+    var hM = 0.7, dM = 0.15, grp = new THREE.Group();
+    var axis = new THREE.Vector3(geom.axis.x, 0, geom.axis.z), nrm = new THREE.Vector3(geom.normal.x, 0, geom.normal.z);
+    var quat = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(axis, new THREE.Vector3(0, 1, 0), nrm));
+    function at(along, y, out){ return new THREE.Vector3(geom.origin.x + geom.axis.x * (offsetM + widthM / 2 + along) + geom.normal.x * out, y, geom.origin.z + geom.axis.z * (offsetM + widthM / 2 + along) + geom.normal.z * out); }
+    var body = new THREE.Mesh(new THREE.BoxGeometry(widthM - 0.004, hM, dM - 0.004), carcassMat);
+    body.position.copy(at(0, bottomM + hM / 2, dM / 2)); body.quaternion.copy(quat); body.castShadow = true; body.receiveShadow = true; grp.add(body);
+    var glass = new THREE.MeshStandardMaterial({ color:0xe9eef1, metalness:1, roughness:0.04 });
+    var doors = widthM > 0.65 ? 2 : 1, dw = (widthM - 0.004 - (doors - 1) * 0.003) / doors;
+    for (var i = 0; i < doors; i++){
+      var dm = new THREE.Mesh(new THREE.BoxGeometry(dw, hM - 0.004, 0.006), glass);
+      dm.position.copy(at(-widthM / 2 + 0.002 + dw / 2 + i * (dw + 0.003), bottomM + hM / 2, dM + 0.003)); dm.quaternion.copy(quat); grp.add(dm);
+    }
+    grp.userData.mirrorCab = true;
+    scene.add(grp);
   }
 
   function disposeScene(scene){
@@ -4843,8 +4887,9 @@
     // A wardrobe (user, 2026-10-26): its walls are the ones holding units. One such wall (straight / niche) needs no
     // label at all; a corner says "Veggur 1 / 2", out past the wall's free end so it never floats over the units or
     // their dimension lines. closetOuterEnd(i) = 0 (the wall's start) or 1 (its end): the end NOT in the corner.
-    var closetSc = /^fataskapar(:|$)/.test(String(state.activeCategory || ""));
-    var closetWallIdx = closetSc ? geoms.map(function(g, i){ return i; }).filter(function(i){ var w = state.walls && state.walls[i]; return w && (w.floor || []).length; }) : [];
+    // Baðherbergi the same (user, 2026-10-26): the bubbles floated over an empty bathroom
+    var closetSc = /^(fataskapar|bad)(:|$)/.test(String(state.activeCategory || ""));
+    var closetWallIdx = closetSc ? geoms.map(function(g, i){ return i; }).filter(function(i){ var w = state.walls && state.walls[i]; return w && ((w.floor || []).length || (w.wall || []).length); }) : [];
     function closetOuterEnd(i){
       var g = geoms[i], ends = [g.origin, { x:g.origin.x + g.axis.x * g.lenM, z:g.origin.z + g.axis.z * g.lenM }];
       var inCorner = ends.map(function(p){ return closetWallIdx.some(function(j){
@@ -5200,7 +5245,12 @@
             fridgeKind:c.fridge ? (b.type === "frystir" ? "freezer" : "fridge") : null,
             bins:!!(c.rusl || (c.sink && b.interior && b.interior.mode === "skuffur") || binsWanted(b, c, state.drawerSystem)), // RUSL60/80 in the bottom drawer
             ovenInner:c.oven && !c.lowOven ? (String(b.ovenCombo == null ? OVEN_DEFAULT[state.drawerSystem === "merivo" ? "merivo" : "legra"] : b.ovenCombo).split("+")[1] || null) : null,
-            washerDrawerM:c.thvo && b.thvo !== "hurdir" ? 0.40 : 0, alwaysDims:/^fataskapar(:|$)/.test(String(state.activeCategory || "")), hung:!!state.hungUnits, applModel:!!applMdl }, selected, pickables);
+            washerDrawerM:c.thvo && b.thvo !== "hurdir" ? 0.40 : 0, alwaysDims:/^fataskapar(:|$)/.test(String(state.activeCategory || "")), hung:!!state.hungUnits, basin:!!c.sink && !!state.hungUnits, applModel:!!applMdl }, selected, pickables);
+        if (c.sink && state.hungUnits && state.bathMirror && !opts.people && !wall.island){ // the mirror cabinet asked for on the Efni page, over the sink
+          var mx0 = offset, mx1 = offset + b.widthMm, mws = blockStartsMm(wall.wall || [], 0);
+          var under = (wall.wall || []).some(function(wb, wi){ return mws[wi] < mx1 && mws[wi] + wb.widthMm > mx0; });
+          if (!under) addMirrorCabinet(THREE, scene, g, offset / 1000, b.widthMm / 1000, Math.min(Math.max(1.15, hM + 0.42), (roomHeightMm - 760) / 1000), carcassMat);
+        }
         if (applMdl) placeApplModel(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, applMdl);
         // LED in a tall closet (user, 2026-10-23, C1): a vertical strip in a groove at the front edge of one side
         // (6×6 mm), or a strip under the top shelf (4×8 mm). Behind the doors — it shows in X-ray and with doors open.
@@ -5408,6 +5458,21 @@
     var dist = Math.max(bbox.w, bbox.d) * (geoms.closed ? 0.95 : 0.74) + (geoms.closed ? 1.7 : 1.2);
     if (wardrobeScene) dist *= 1.1; // a full-height wardrobe: a little more room so its top isn't flush with the toolbar at 1280×720 (2026-10-26)
     if (!focusBounds) camera.position.set(bbox.cx + dist * 0.6, dist * 0.55, bbox.cz + dist * 0.9);
+    // Baðherbergi (user, 2026-10-26): start facing the wall the units are on (a corner: both), at a person's height —
+    // not the whole empty room from a top corner with a small vanity in the middle
+    var bathAim = null;
+    if (!focusBounds && !opts.people && /^bad(:|$)/.test(String(state.activeCategory || "")) && state.hungUnits){
+      var bIdx = (state.walls || []).map(function(w, i){ return i; }).filter(function(i){ var w = state.walls[i]; return geoms[i] && !w.open && ((w.floor || []).length || (w.wall || []).length); });
+      if (!bIdx.length) bIdx = (state.walls || []).map(function(w, i){ return i; }).filter(function(i){ return geoms[i] && !state.walls[i].open; }).slice(0, 1);
+      if (bIdx.length && bIdx.length <= 2){
+        var bcx = 0, bcz = 0, bnx = 0, bnz = 0, bLen = 0;
+        bIdx.forEach(function(i){ var g = geoms[i]; bcx += g.origin.x + g.axis.x * g.lenM / 2; bcz += g.origin.z + g.axis.z * g.lenM / 2; bnx += g.normal.x; bnz += g.normal.z; bLen = Math.max(bLen, g.lenM); });
+        bcx /= bIdx.length; bcz /= bIdx.length; var bnl = Math.hypot(bnx, bnz) || 1; bnx /= bnl; bnz /= bnl;
+        var bd = Math.max(2.3, bLen * 0.95 + 0.9) * (bIdx.length > 1 ? 1.2 : 1);
+        camera.position.set(bcx + bnx * bd + bnz * bd * 0.22, 1.3, bcz + bnz * bd - bnx * bd * 0.22); // low enough to see the floor under the hung units
+        bathAim = { x:bcx + bnx * 0.3, y:0.95, z:bcz + bnz * 0.3 };
+      }
+    }
     var people = opts.people && geoms.length ? addPeople(THREE, scene, geoms, WALL_H, roomHeightMm, state.walls, wallColor) : null;
     if (people){ // stand inside the room at eye height, facing the figures and their wall (wide lens so floor + ceiling fit)
       var pg = people.g, depth = Math.abs(pg.normal.x) > 0.5 ? bbox.w : bbox.d, back = Math.max(1.9, Math.min(4.2, depth - 0.7 - 0.25)); // keep the camera inside the room when it fits
@@ -5484,6 +5549,7 @@
     controls.enableDamping = true;
     controls.dampingFactor = 0.08;
     if (people) controls.target.set(people.focus.x - people.g.normal.x * 0.6, WALL_H * 0.46, people.focus.z - people.g.normal.z * 0.6);
+    if (bathAim) controls.target.set(bathAim.x, bathAim.y, bathAim.z);
     if (focusBounds){ // "Veggur" view: a fixed architectural elevation, not an orbit — only zoom
       controls.enableRotate = false;
       controls.enablePan = false;
@@ -6440,12 +6506,17 @@
     rum:        { label:"Rúm",                      group:"floor", w:1600, d:2000, rooms:["fataskapar"] },
     nattbord:   { label:"Náttborð",                 group:"floor", w:450, d:400, rooms:["fataskapar"] },
     spegill:    { label:"Standspegill",             group:"floor", w:500, d:80, rooms:["fataskapar"] },
-    stoll:      { label:"Stóll",                    group:"floor", w:450, d:480, rooms:["fataskapar"] }
+    stoll:      { label:"Stóll",                    group:"floor", w:450, d:480, rooms:["fataskapar"] },
+    // a bathroom (user, 2026-10-26): shower + bath to place the vanity around — props only, never ordered; no toilet
+    sturta:     { label:"Sturta",                   group:"floor", w:900, d:900, rooms:["bad"] },
+    badkar:     { label:"Baðkar",                   group:"floor", w:1700, d:700, rooms:["bad"] }
   };
   // which props a room kind offers: a wardrobe gets the bedroom ones + plant/rug/pendant; every other room the rest
   var DECOR_CLOSET = ["rum", "nattbord", "spegill", "stoll", "planta", "motta", "hengiljos"];
+  var DECOR_BATH = ["sturta", "badkar", "planta", "motta"];
   function decorKindsFor(category){
-    var closet = /^fataskapar/.test(String(category || ""));
+    var closet = /^fataskapar/.test(String(category || "")), bath = /^bad(:|$)/.test(String(category || ""));
+    if (bath) return DECOR_BATH.slice(); // shower + bath first
     return Object.keys(DECOR).filter(function(k){ return closet ? DECOR_CLOSET.indexOf(k) >= 0 : !DECOR[k].rooms; });
   }
   // Dining tables come in 4 / 6 / 8 seat sizes (d.seats, 2026-10-11): the table (m), where the chairs go, and the
@@ -6586,7 +6657,7 @@
   // walls and other furniture, then nearest the room centre); bar stools line up behind an island; a rug goes under
   // the dining table; worktop items take the next free spot along a counter (never on top of each other or in a
   // sink); a pendant hangs over the island / table. Returns {x, z} in mm, or null (top item but no counter).
-  var DECOR_FOOT = { bordFer:[1.75, 1.85], bordHring:[1.6, 1.6], barstoll:[0.45, 0.45], planta:[0.5, 0.5], motta:[2.0, 1.4], hengiljos:[0.4, 0.4], rum:[1.65, 2.1], nattbord:[0.45, 0.4], spegill:[0.55, 0.25], stoll:[0.48, 0.5] };
+  var DECOR_FOOT = { bordFer:[1.75, 1.85], bordHring:[1.6, 1.6], barstoll:[0.45, 0.45], planta:[0.5, 0.5], motta:[2.0, 1.4], hengiljos:[0.4, 0.4], rum:[1.65, 2.1], nattbord:[0.45, 0.4], spegill:[0.55, 0.25], stoll:[0.48, 0.5], sturta:[0.9, 0.9], badkar:[1.7, 0.7] };
   function floorRects(state){ // every floor cabinet as a corner quad (m), walls and islands
     var surf = surfacesOf(state), geoms = surfaceGeoms(state), out = [];
     surf.forEach(function(w, wi){
@@ -6927,6 +6998,26 @@
       rbox(0.5, 1.75, 0.03, 0.01, 0, 0.9, 0, oak(1, 2), mf);
       var glass = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 1.64), mat(0xdfe6ea, 0.04, 1)); glass.position.set(0, 0.9, 0.016); add(glass, mf);
       rbox(0.04, 0.04, 0.24, 0.01, -0.2, 0.02, -0.08, dark); rbox(0.04, 0.04, 0.24, 0.01, 0.2, 0.02, -0.08, dark);
+    } else if (key === "sturta"){ // a 90×90 walk-in shower: low white tray, two glass walls on the open sides, a ceiling-high rail + rain head
+      var white = mat(0xf6f5f1, 0.25), glassS = mat(0xdfeef2, 0.05, 0, { transparent:true, opacity:0.22, side:THREE.DoubleSide });
+      rbox(0.9, 0.04, 0.9, 0.01, 0, 0.02, 0, white);
+      cyl(0.035, 0.035, 0.004, 0.25, 0.042, 0.25, steel, 20);
+      var gx = new THREE.Mesh(new THREE.BoxGeometry(0.008, 1.95, 0.9), glassS); gx.position.set(0.446, 1.015, 0); add(gx);
+      var gz = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.95, 0.008), glassS); gz.position.set(0.15, 1.015, 0.446); add(gz);
+      rbox(0.012, 0.012, 0.9, 0.003, 0.446, 1.99, 0, steel); rbox(0.6, 0.012, 0.012, 0.003, 0.15, 1.99, 0.446, steel);
+      cyl(0.011, 0.011, 1.15, -0.4, 1.25, -0.4, steel, 12);
+      tube([[-0.4, 1.82, -0.4], [-0.4, 1.95, -0.35], [-0.3, 1.97, -0.28]], 0.011, steel);
+      cyl(0.11, 0.11, 0.012, -0.28, 1.96, -0.26, steel, 32);
+      rbox(0.07, 0.12, 0.05, 0.01, -0.4, 1.05, -0.4, steel);
+    } else if (key === "badkar"){ // a built-in 170×70 bath: white panelled tub, an inset oval bowl, a chrome spout at one end
+      var whiteB = mat(0xf7f6f2, 0.2), inner = mat(0xf2f1ec, 0.15, 0, { side:THREE.DoubleSide });
+      var ring = new THREE.Shape(); ring.moveTo(-0.85, -0.35); ring.lineTo(0.85, -0.35); ring.lineTo(0.85, 0.35); ring.lineTo(-0.85, 0.35); ring.lineTo(-0.85, -0.35);
+      var hole = new THREE.Path(); hole.absellipse(0.03, 0, 0.74, 0.27, 0, Math.PI * 2, true, 0); ring.holes.push(hole);
+      var rim = new THREE.Mesh(new THREE.ExtrudeGeometry(ring, { depth:0.56, bevelEnabled:false, curveSegments:40 }), whiteB); rim.rotation.x = -Math.PI / 2; add(rim);
+      var bowl = new THREE.Mesh(new THREE.SphereGeometry(1, 40, 20, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), inner); bowl.scale.set(0.74, 0.42, 0.27); bowl.position.set(0.03, 0.56, 0); add(bowl);
+      cyl(0.02, 0.02, 0.003, -0.55, 0.155, 0, steel, 20);
+      cyl(0.014, 0.014, 0.08, -0.8, 0.6, 0, steel, 12);
+      var spoutB = rbox(0.12, 0.022, 0.03, 0.008, -0.75, 0.64, 0, steel);
     } else if (key === "stoll"){ // the oak dining chair on its own
       chair(0, 0, 0);
     } else if (key === "hengiljos"){ // hangs from y = 0 down: canopy, cord, a turned metal dome, bulb (lights up in the evening)
