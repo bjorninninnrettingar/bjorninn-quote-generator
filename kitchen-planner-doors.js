@@ -51,7 +51,7 @@
     flokkur:{ label:"Brunavörn", vals:{ ei30:["30 mínútur", "Algengast innan íbúðar"], ei60:["60 mínútur", "T.d. milli íbúðar og stigagangs"] } },
     karmur:{ label:"Karmurinn", vals:{ innf:["Sléttur við vegginn", "Enginn listi í kringum"], gerefti:["Með listum í kringum", "Gerefti hylja samskeytin"] } }
   };
-  var HUNAR = { ja:["Já, takk", "Söluaðili ráðleggur þér um húna"], nei:["Nei, ég vel sjálf/ur", "Þú útvegar húnana sjálf/ur"] };
+  var HW_COLORS = { krom:["Króm", "Gljáandi stál"], svart:["Svart", "Matt svart"] }; // lamir, skrá, slútt and húnn in one colour (round 4)
   // exact numbers only (user: people must be precise here) — cm in the inputs, mm inside
   var LIMITS = { widthMm:[500, 2500], heightMm:[1500, 3000], wallMm:[50, 400] };
 
@@ -75,7 +75,7 @@
     Object.keys(optsOf(d)).forEach(function(o){ d.opt[o] = optsOf(d)[o].indexOf(old[o]) >= 0 ? old[o] : optsOf(d)[o][0]; });
     if (d.kind === "karmur" && d.opt.karmur) d.frame = d.opt.karmur;
     if (!hasLeafMat(d)) delete d.leaf;
-    if (!hasHandle(d)) delete d.hunar;
+    delete d.hunar; // the "Viltu húna frá okkur?" question is gone (round 4)
   }
 
   // the short room list (user, 2026-10-26) → the Rými 🏡 choice it is stored as
@@ -101,7 +101,7 @@
       var t = OPT_TEXT[k], v = optValue(d, k);
       if (t && t.vals[v]) out.push(t.label + ": " + t.vals[v][0].toLowerCase());
     });
-    if (hasHandle(d)) out.push(d.hunar === "ja" ? "Húnn: söluaðili ráðleggur (viðskiptavinur vill húna frá okkur)" : d.hunar === "nei" ? "Húnn: viðskiptavinur velur sjálf/ur" : "Húnn: ekki valið");
+    if (hasHandle(d)) out.push("Litur á járnum (lamir, skrá, slútt): " + HW_COLORS[d.hwColor === "svart" ? "svart" : "krom"][0].toLowerCase());
     return out.join(". ");
   }
   // ctx = { pid: product record id, mat: { label, efnislistiId } | null }
@@ -120,13 +120,13 @@
     return { "Rými 🏡":room, "Magn":Math.max(1, d.qty | 0), "🔑":d.hu, "Vöru reitur 1":[ctx.pid], "Skilaboð til skipulags":msg,
       "Smíðagögn (JSON) 🔧":JSON.stringify({ v:1, w:d.widthMm, h:d.heightMm, d:d.wallMm, door:{ widthMm:d.widthMm, heightMm:d.heightMm, wallMm:d.wallMm,
         swing:slide ? "slide" : "toward", hinge:d.hinge, din:slide || d.kind === "karmur" ? undefined : d.hinge, kind:d.kind,
-        frame:d.kind === "hurd" || d.kind === "karmur" ? (d.frame || "innf") : undefined, opt:opt, hunar:hasHandle(d) ? d.hunar || undefined : undefined,
+        frame:d.kind === "hurd" || d.kind === "karmur" ? (d.frame || "innf") : undefined, opt:opt, hwColor:hasHandle(d) ? (d.hwColor === "svart" ? "svart" : "krom") : undefined,
         room:roomLabelOf(d) || undefined,
         leaf:mat ? { look:d.leaf, label:mat.label, efnislistiId:mat.efnislistiId || null, type:matType } : undefined } }) };
   }
 
   // ---------------------------------------------------------------- 3D
-  var SKRA_OPEN = 0.5, SEAL_DROP = 0.014, M = 0.001, JAMB = 0.022, CASE_W = 0.07, CASE_T = 0.012, GAP = 0.003, FLOOR_GAP = 0.01, HANDLE_Y = 1.05;
+  var SKRA_OPEN = 0.5, THR_OPEN = 1, SEAL_DROP = 0.014, M = 0.001, JAMB = 0.022, CASE_W = 0.07, CASE_T = 0.012, GAP = 0.003, FLOOR_GAP = 0.01, HANDLE_Y = 1.05;
   function geo(d){ // every size the door is built from, metres
     var W = d.widthMm * M, H = d.heightMm * M, T = d.wallMm * M, s = d.hinge === "right" ? 1 : -1;
     var g = { W:W, H:H, T:T, s:s, slide:isSlide(d) };
@@ -149,11 +149,11 @@
   //   lock_magnetic  JNF IN.20.976.60.B magnetic: faceplate 20 × 235 R10, magnet latch 13.2 × 31.6 above the spindle,
   //                  bolt 9.2 × 36 below, strike 24 × 170 R12 (DXF: IN.20.976.60.B / .Strike)
   //   threshold_drop the drop seal from models/door-hardware/drop-seal.glb (SketchUp → GLB), procedural until it loads
-  // Finish: satin stainless by default; JNF also makes copper, black, graphite and gold — d.hwFinish picks one.
-  var FINISHES = { satin:[0xc4c7cb, 0.34], copper:[0xb4785a, 0.3], black:[0x222326, 0.42], graphite:[0x55585c, 0.38], gold:[0xc8a96a, 0.3] };
+  // Colour (round 4): the Skrá step's króm / svart — the hinges, the lock, the strike and the handle all follow it.
+  var FINISHES = { krom:[0xdfe2e6, 0.12, 1], svart:[0x1d1e20, 0.42, 0.65] };
   function steel(T, d){
-    var f = FINISHES[(d && d.hwFinish) || "satin"] || FINISHES.satin, o = { color:f[0], metalness:0.95, roughness:f[1] };
-    if (T.MeshPhysicalMaterial && "anisotropy" in new T.MeshPhysicalMaterial()) return new T.MeshPhysicalMaterial(Object.assign(o, { anisotropy:0.6, anisotropyRotation:Math.PI / 2 })); // brushed along the length
+    var f = FINISHES[(d && d.hwColor) || "krom"] || FINISHES.krom, o = { color:f[0], metalness:f[2], roughness:f[1], envMapIntensity:1.2 };
+    if (T.MeshPhysicalMaterial) return new T.MeshPhysicalMaterial(Object.assign(o, { clearcoat:d && d.hwColor === "svart" ? 0.2 : 0.6, clearcoatRoughness:0.1 }));
     return mat(T, o);
   }
   function dark(T){ return mat(T, { color:0x1e1f21, metalness:0.4, roughness:0.6 }); }
@@ -202,7 +202,7 @@
       });
       grp.userData.fixed = fixed; return grp; },
     // þétting sem fellur niður (procedural stand-in while drop-seal.glb loads): an aluminium strip in the bottom edge
-    threshold_drop:function(c){ var T = c.T, s = box(T, c.g.leafW - 0.04, 0.012, 0.012, mat(T, { color:0xa3a8ad, metalness:0.5, roughness:0.4 }), -c.g.s * c.g.leafW / 2, FLOOR_GAP + 0.006 - SEAL_DROP, -0.0075);
+    threshold_drop:function(c){ var T = c.T, s = box(T, c.g.leafW + 0.001, 0.012, 0.012, mat(T, { color:0xa3a8ad, metalness:0.5, roughness:0.4 }), -c.g.s * c.g.leafW / 2, FLOOR_GAP + 0.006 - SEAL_DROP, -0.0075);
       s.name = "seal"; s.userData.y0 = FLOOR_GAP + 0.006; return s; },
     lock_standard:function(c){ return mortiseLock(c, LOCKS.jnf835); },
     lock_magnetic:function(c){ return mortiseLock(c, LOCKS.jnf976); },
@@ -210,9 +210,11 @@
     handle_lever:function(c){ var T = c.T, grp = new T.Group(), m = steel(T, c.d), g = c.g, x = -g.s * (g.leafW - 0.06);
       [1, -1].forEach(function(side){
         var zf = side > 0 ? 0 : -g.leafT, dir = side;
-        var rose = new T.Mesh(new T.CylinderGeometry(0.026, 0.026, 0.008, 28), m); rose.rotation.x = Math.PI / 2; rose.position.set(x, HANDLE_Y, zf + dir * 0.004); grp.add(rose);
-        var neck = new T.Mesh(new T.CylinderGeometry(0.009, 0.009, 0.05, 16), m); neck.rotation.x = Math.PI / 2; neck.position.set(x, HANDLE_Y, zf + dir * 0.03); grp.add(neck);
-        var lever = box(T, 0.13, 0.017, 0.017, m, x + g.s * 0.058, HANDLE_Y, zf + dir * 0.055); grp.add(lever);
+        // a soft modern lever: a rose with a chamfered edge, a round neck and a rounded bar (placeholder for Björninn's own)
+        var rose = new T.Mesh(new T.CylinderGeometry(0.0245, 0.026, 0.008, 40), m); rose.rotation.x = dir * Math.PI / 2; rose.position.set(x, HANDLE_Y, zf + dir * 0.004); rose.castShadow = true; grp.add(rose);
+        var neck = new T.Mesh(new T.CylinderGeometry(0.0085, 0.0095, 0.052, 24), m); neck.rotation.x = dir * Math.PI / 2; neck.position.set(x, HANDLE_Y, zf + dir * 0.033); neck.castShadow = true; grp.add(neck);
+        var knee = new T.Mesh(new T.SphereGeometry(0.0095, 20, 12), m); knee.position.set(x, HANDLE_Y, zf + dir * 0.058); grp.add(knee);
+        var lever = rbox(T, 0.128, 0.018, 0.017, 0.0075, m, x + g.s * 0.062, HANDLE_Y, zf + dir * 0.058); grp.add(lever);
       });
       return grp; },
     // rennihurð: the track above the opening — on the wall with a cover, in the ceiling, or hidden
@@ -288,7 +290,7 @@
     var grp = new c.T.Group();
     hwAnchors(key, c.g).forEach(function(a){
       var m = hwModel(key, c.T), e = m.userData.entry;
-      if (e.lengthM) m.scale.x *= (c.g.leafW - 0.03) / e.lengthM; // a profile cut to the leaf (the drop seal)
+      if (e.lengthM) m.scale.x *= (c.g.leafW + 0.001) / e.lengthM; // a profile cut to the leaf's width (+1 mm, so its end shows like a section)
       m.position.set(a[0], a[1], a[2]); if (c.g.s > 0 && /^hinge_|^lock_|^handle_/.test(key)) m.scale.x *= -1; grp.add(m);
     });
     if (key === "threshold_drop"){ grp.name = "seal"; grp.userData.y0 = 0; grp.userData.drop = FLOOR_GAP; grp.position.y = -FLOOR_GAP; } // the gasket's foot is flush with the leaf when up, on the floor when down
@@ -306,47 +308,91 @@
     return out;
   }
 
+  // ---------- round 4 (2026-10-26): a calmer, photo-like door — rounded edges, real veneer (KPMat wood: 0.6 × 1.2 m tile,
+  // grain along the leaf), a door stop behind the leaf, profiled karmur + gerefti in the leaf's material, soft AO.
+  function rbox(T, w, h, dd, r, m, x, y, z){ // a box with rounded edges (RoundedBoxGeometry when three has it)
+    var RB = root.__RoundedBox__, g = RB ? new RB(w, h, dd, 2, Math.min(r, w / 2.2, h / 2.2, dd / 2.2)) : new T.BoxGeometry(w, h, dd);
+    var b = new T.Mesh(g, m); b.position.set(x, y, z); b.castShadow = true; b.receiveShadow = true; return b;
+  }
+  var WOOD_TEX = {};
+  function woodMaps(T, look){ // { map, bump } canvas textures for a spónlagt look, once per look
+    var k = look.key + "|" + look.color; if (WOOD_TEX[k]) return WOOD_TEX[k];
+    if (!root.KPMat || !root.KPMat.woodTexture) return null;
+    var w = root.KPMat.woodTexture("door-" + look.key, look.color), map = new T.CanvasTexture(w.color), bump = new T.CanvasTexture(w.bump);
+    if (T.SRGBColorSpace) map.colorSpace = T.SRGBColorSpace;
+    [map, bump].forEach(function(t){ t.wrapS = t.wrapT = T.RepeatWrapping; t.anisotropy = 8; });
+    return (WOOD_TEX[k] = { map:map, bump:bump, tw:w.tileW, th:w.tileH });
+  }
+  // the leaf's material for a part of size u × v metres on its big face (grain along v; `across` turns it 90°)
+  function woodPart(T, look, u, v, across){
+    var base = { roughness:0.5, metalness:0, envMapIntensity:0.5 };
+    if (look && look.wood){
+      var wm = woodMaps(T, look);
+      if (wm){
+        var map = wm.map.clone(), bump = wm.bump.clone(); map.needsUpdate = bump.needsUpdate = true;
+        [map, bump].forEach(function(t){ if (across){ t.rotation = Math.PI / 2; t.center.set(0.5, 0.5); t.repeat.set(v / wm.tw, u / wm.th); } else t.repeat.set(u / wm.tw, v / wm.th); });
+        return mat(T, Object.assign(base, { map:map, bumpMap:bump, bumpScale:0.6 }));
+      }
+    }
+    if (look && look.tex){ var m = mat(T, Object.assign(base, { map:look.tex })); return m; } // an older Egger choice
+    return mat(T, Object.assign(base, { color:new T.Color((look && look.color) || "#f3f1ec") }));
+  }
   function buildDoor(T, d, look){
     var g = geo(d), grp = new T.Group(), W = g.W, H = g.H, Th = g.T;
-    var wallMat = mat(T, { color:0xc9c0b0, roughness:0.95 }), sideW = 0.45, Hw = Math.max(2.5, H + 0.45);
-    var paint = mat(T, { color:0xf4f2ee, roughness:0.7 });
-    var leafMat = look && look.color ? mat(T, { color:new T.Color(look.color), roughness:0.55 }) : mat(T, { color:0xf3f1ec, roughness:0.6 });
-    if (look && look.tex){ leafMat.map = look.tex; leafMat.color = new T.Color(0xffffff); }
-    leafMat.envMapIntensity = 0.55;
-    var frameMat = (d.kind === "hurd" || d.kind === "eld" || d.kind === "renni") && look && look.color ? mat(T, { color:new T.Color(look.color), roughness:0.55 }) : paint; // the karmur in the leaf's colour (a texture would stretch on the thin parts)
+    var paintTex = root.KPMat && root.KPMat.paintTexture ? root.KPMat.paintTexture("door-wall", "#e9e4dc") : null;
+    var wallMat = mat(T, { color:0xe6e1d8, roughness:0.92 });
+    if (paintTex){ var wb = new T.CanvasTexture(paintTex.bump); wb.wrapS = wb.wrapT = T.RepeatWrapping; wb.repeat.set(3, 4); wallMat.bumpMap = wb; wallMat.bumpScale = 0.4; }
+    var sideW = 0.45, Hw = Math.max(2.5, H + 0.45), walls = [];
+    var paint = mat(T, { color:0xf6f4f0, roughness:0.6 });
+    var woody = d.kind === "hurd" || d.kind === "eld" || d.kind === "renni";
+    var leafMat = woodPart(T, woody ? look : null, g.leafW, g.leafH);
+    var jambMat = woody ? woodPart(T, look, Th, H) : paint, headMat = woody ? woodPart(T, look, W, Th, true) : paint;
+    var caseMatV = woody ? woodPart(T, look, CASE_W, H) : paint, caseMatH = woody ? woodPart(T, look, W + 2 * CASE_W, CASE_W, true) : paint; // gerefti follow the leaf (user, round 4)
     // the wall, cut where the opening is
-    grp.add(box(T, sideW, Hw, Th, wallMat, -W / 2 - sideW / 2, Hw / 2, 0));
-    grp.add(box(T, sideW, Hw, Th, wallMat, W / 2 + sideW / 2, Hw / 2, 0));
-    if (Hw > H) grp.add(box(T, W, Hw - H, Th, wallMat, 0, H + (Hw - H) / 2, 0));
+    [[sideW, Hw, -W / 2 - sideW / 2, Hw / 2], [sideW, Hw, W / 2 + sideW / 2, Hw / 2], [W, Hw - H, 0, H + (Hw - H) / 2]].forEach(function(p){
+      if (p[1] <= 0) return; var m = box(T, p[0], p[1], Th, wallMat, p[2], p[3], 0); walls.push(m); grp.add(m); });
+    // skirting on both faces, so the wall sits on the floor like a room
+    [-1, 1].forEach(function(sx){ [1, -1].forEach(function(sz){ grp.add(rbox(T, sideW, 0.07, 0.012, 0.002, paint, sx * (W / 2 + sideW / 2 + (d.frame === "gerefti" ? 0 : 0)), 0.035, sz * (Th / 2 + 0.006))); }); });
     g.wallEnd = W / 2 + sideW; g.wallH = Hw;
-    var gerefti = (d.kind === "hurd" || d.kind === "karmur") && d.frame === "gerefti" || d.kind === "eld" && d.frame === "gerefti";
-    if (!g.slide){ // karmur: lining in the opening (same face as the wall for an innfelld door)
-      grp.add(box(T, JAMB, H, Th, frameMat, -W / 2 + JAMB / 2, H / 2, 0));
-      grp.add(box(T, JAMB, H, Th, frameMat, W / 2 - JAMB / 2, H / 2, 0));
-      grp.add(box(T, W, JAMB, Th, frameMat, 0, H - JAMB / 2, 0));
-      if (gerefti) [1, -1].forEach(function(side){ var z = side * (Th / 2 + CASE_T / 2);
-        grp.add(box(T, CASE_W, H + CASE_W - JAMB, CASE_T, frameMat, -W / 2 - CASE_W / 2 + JAMB, (H + CASE_W - JAMB) / 2, z));
-        grp.add(box(T, CASE_W, H + CASE_W - JAMB, CASE_T, frameMat, W / 2 + CASE_W / 2 - JAMB, (H + CASE_W - JAMB) / 2, z));
-        grp.add(box(T, W + 2 * CASE_W - 2 * JAMB, CASE_W, CASE_T, frameMat, 0, H - JAMB + CASE_W / 2, z));
+    var gerefti = (d.kind === "hurd" || d.kind === "karmur" || d.kind === "eld") && d.frame === "gerefti";
+    if (!g.slide){ // karmur: lining in the opening, rounded edges; a door stop behind the leaf
+      grp.add(rbox(T, JAMB, H, Th, 0.002, jambMat, -W / 2 + JAMB / 2, H / 2, 0));
+      grp.add(rbox(T, JAMB, H, Th, 0.002, jambMat, W / 2 - JAMB / 2, H / 2, 0));
+      grp.add(rbox(T, W, JAMB, Th, 0.002, headMat, 0, H - JAMB / 2, 0));
+      if (d.kind !== "karmur"){
+        var stopZ = Th / 2 - g.leafT - 0.009, STOP = 0.011;
+        grp.add(rbox(T, STOP, H - JAMB, 0.016, 0.002, jambMat, -W / 2 + JAMB + STOP / 2, (H - JAMB) / 2, stopZ));
+        grp.add(rbox(T, STOP, H - JAMB, 0.016, 0.002, jambMat, W / 2 - JAMB - STOP / 2, (H - JAMB) / 2, stopZ));
+        grp.add(rbox(T, W - 2 * JAMB, STOP, 0.016, 0.002, headMat, 0, H - JAMB - STOP / 2, stopZ));
+      }
+      if (gerefti) [1, -1].forEach(function(side){ // casing: a 70 × 14 board with a rounded front edge and a small bead
+        var z = side * (Th / 2 + CASE_T / 2), zb = side * (Th / 2 + CASE_T + 0.002), hh = H + CASE_W - JAMB;
+        grp.add(rbox(T, CASE_W, hh, CASE_T, 0.004, caseMatV, -W / 2 - CASE_W / 2 + JAMB, hh / 2, z));
+        grp.add(rbox(T, CASE_W, hh, CASE_T, 0.004, caseMatV, W / 2 + CASE_W / 2 - JAMB, hh / 2, z));
+        grp.add(rbox(T, W + 2 * CASE_W - 2 * JAMB, CASE_W, CASE_T, 0.004, caseMatH, 0, H - JAMB + CASE_W / 2, z));
+        [-1, 1].forEach(function(sx){ grp.add(rbox(T, 0.008, hh - 0.012, 0.004, 0.0018, caseMatV, sx * (W / 2 - JAMB + CASE_W - 0.012), (hh - 0.012) / 2, zb)); });
+        grp.add(rbox(T, W + 2 * CASE_W - 2 * JAMB - 0.024, 0.008, 0.004, 0.0018, caseMatH, 0, H - JAMB + CASE_W - 0.012, zb));
       });
     }
     if (!g.slide && d.kind !== "karmur") grp.add(box(T, W - 2 * JAMB, 0.002, Th, mat(T, { color:0x4a4038, roughness:0.9 }), 0, 0.001, 0)); // the floor through the opening, darker so the gap under the leaf shows
-    var c = { T:T, d:d, g:g, leafMat:leafMat, frameMat:frameMat }, leafGroup = null;
+    var c = { T:T, d:d, g:g, leafMat:leafMat, frameMat:jambMat }, leafGroup = null;
     if (d.kind !== "karmur"){
-      var glassMat = mat(T, { color:0xcfe3ee, transparent:true, opacity:0.38, roughness:0.05, metalness:0.1 });
+      var glassMat = T.MeshPhysicalMaterial ? new T.MeshPhysicalMaterial({ color:0xe4f0f4, transmission:0.85, opacity:1, transparent:true, roughness:0.06, thickness:0.01, ior:1.5, envMapIntensity:0.9 }) : mat(T, { color:0xcfe3ee, transparent:true, opacity:0.38, roughness:0.05 });
+      if (!("transmission" in glassMat)){ glassMat.opacity = 0.38; }
       leafGroup = new T.Group();
       if (g.slide){
         var lx = 0, lz = Th / 2 + 0.014 + g.leafT / 2;
         if (d.kind === "glerrenni"){ var fr = mat(T, { color:0x2f3135, metalness:0.6, roughness:0.35 });
           leafGroup.add(box(T, g.leafW, g.leafH, 0.01, glassMat, lx, g.leafH / 2, lz));
-          [[g.leafW, 0.04, 0, g.leafH - 0.02], [g.leafW, 0.04, 0, 0.02], [0.04, g.leafH, -g.leafW / 2 + 0.02, g.leafH / 2], [0.04, g.leafH, g.leafW / 2 - 0.02, g.leafH / 2]].forEach(function(r){ leafGroup.add(box(T, r[0], r[1], 0.03, fr, lx + r[2], r[3], lz)); });
+          [[g.leafW, 0.04, 0, g.leafH - 0.02], [g.leafW, 0.04, 0, 0.02], [0.04, g.leafH, -g.leafW / 2 + 0.02, g.leafH / 2], [0.04, g.leafH, g.leafW / 2 - 0.02, g.leafH / 2]].forEach(function(r){ leafGroup.add(rbox(T, r[0], r[1], 0.03, 0.004, fr, lx + r[2], r[3], lz)); });
         } else {
-          leafGroup.add(box(T, g.leafW, g.leafH, g.leafT, leafMat, lx, g.leafH / 2, lz));
-          leafGroup.add(box(T, 0.022, 0.24, 0.006, steel(T), lx + (d.hinge === "left" ? -1 : 1) * (g.leafW / 2 - 0.06), HANDLE_Y, lz + g.leafT / 2 + 0.003)); // flush pull on the leading edge
+          leafGroup.add(rbox(T, g.leafW, g.leafH, g.leafT, 0.003, leafMat, lx, g.leafH / 2, lz));
+          leafGroup.add(rbox(T, 0.022, 0.24, 0.006, 0.003, steel(T, d), lx + (d.hinge === "left" ? -1 : 1) * (g.leafW / 2 - 0.06), HANDLE_Y, lz + g.leafT / 2 + 0.003)); // flush pull on the leading edge
         }
         leafGroup.userData.slideDir = d.hinge === "left" ? 1 : -1; // "lamir vinstra" ≙ rennur til hægri (as before)
       } else {
-        var leaf = box(T, g.leafW, g.leafH, g.leafT, d.kind === "gler" ? glassMat : leafMat, -g.s * g.leafW / 2, FLOOR_GAP + g.leafH / 2, -g.leafT / 2);
+        var leaf = d.kind === "gler" ? box(T, g.leafW, g.leafH, g.leafT, glassMat, -g.s * g.leafW / 2, FLOOR_GAP + g.leafH / 2, -g.leafT / 2)
+          : rbox(T, g.leafW, g.leafH, g.leafT, 0.003, leafMat, -g.s * g.leafW / 2, FLOOR_GAP + g.leafH / 2, -g.leafT / 2);
         leafGroup.add(leaf);
         leafGroup.position.set(g.pivotX, 0, Th / 2);
         hardwareOf(d).leaf.forEach(function(k){ var o = hw(k, c); if (!o) return; leafGroup.add(o);
@@ -361,7 +407,7 @@
       var arc = new T.Line(new T.BufferGeometry().setFromPoints(pts), new T.LineDashedMaterial({ color:0x0058a3, dashSize:0.04, gapSize:0.03 }));
       arc.computeLineDistances(); arc.visible = false; grp.add(arc); grp.userData.arc = arc;
     }
-    grp.userData.leaf = leafGroup; grp.userData.g = g;
+    grp.userData.leaf = leafGroup; grp.userData.g = g; grp.userData.walls = walls; grp.userData.wallMat = wallMat;
     return grp;
   }
 
@@ -372,22 +418,38 @@
     R = new T.WebGLRenderer({ antialias:true, preserveDrawingBuffer:true });
     R.setPixelRatio(Math.min(root.devicePixelRatio || 1, 2));
     R.shadowMap.enabled = true; R.shadowMap.type = T.PCFSoftShadowMap;
-    if (T.ACESFilmicToneMapping){ R.toneMapping = T.ACESFilmicToneMapping; R.toneMappingExposure = 0.92; }
+    if (T.ACESFilmicToneMapping){ R.toneMapping = T.ACESFilmicToneMapping; R.toneMappingExposure = 0.95; }
     R.domElement.style.width = "100%"; R.domElement.style.height = "100%"; R.domElement.style.display = "block";
     return R;
   }
   function makeScene(T){
-    var scene = new T.Scene(); scene.background = new T.Color(0xf2f0eb);
-    var floor = new T.Mesh(new T.PlaneGeometry(12, 12), mat(T, { color:0xb39d7e, roughness:0.85 })); floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
-    scene.add(new T.HemisphereLight(0xffffff, 0xbdb4a4, 0.75));
-    var key = new T.DirectionalLight(0xfff5e6, 1.1); key.position.set(2.2, 3.6, 3.4); key.castShadow = true; key.shadow.mapSize.set(1024, 1024);
-    var sc = key.shadow.camera; sc.left = -2.5; sc.right = 2.5; sc.top = 3.5; sc.bottom = -0.5; sc.near = 0.5; sc.far = 12; key.shadow.bias = -0.0004; key.shadow.normalBias = 0.02;
+    var scene = new T.Scene(); scene.background = new T.Color(0xf3f1ed);
+    var floorMat = mat(T, { color:0xc9a97c, roughness:0.62 });
+    if (root.KPMat && root.KPMat.plankFloorTexture){ try{ var ft = root.KPMat.plankFloorTexture("#c9a97c", 14), fm = new T.CanvasTexture(ft.color || ft); if (T.SRGBColorSpace) fm.colorSpace = T.SRGBColorSpace; fm.wrapS = fm.wrapT = T.RepeatWrapping; fm.repeat.set(6, 6); fm.anisotropy = 8; floorMat.map = fm; floorMat.color = new T.Color(0xffffff); }catch(e){} }
+    var floor = new T.Mesh(new T.PlaneGeometry(12, 12), floorMat); floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+    scene.add(new T.HemisphereLight(0xfffdf8, 0xb9ae9c, 0.45));
+    var key = new T.DirectionalLight(0xfff3e2, 1.25); key.position.set(1.8, 3.4, 3.0); key.castShadow = true; key.shadow.mapSize.set(2048, 2048); key.shadow.radius = 6;
+    var sc = key.shadow.camera; sc.left = -2.2; sc.right = 2.2; sc.top = 3.2; sc.bottom = -0.4; sc.near = 0.5; sc.far = 10; key.shadow.bias = -0.0003; key.shadow.normalBias = 0.015;
     scene.add(key);
-    var fill = new T.DirectionalLight(0xdfe8ff, 0.35); fill.position.set(-2.5, 2, 2); scene.add(fill);
-    var back = new T.DirectionalLight(0xffffff, 0.25); back.position.set(0, 2, -3); scene.add(back);
+    var fill = new T.DirectionalLight(0xe4ecff, 0.3); fill.position.set(-2.5, 1.8, 2.4); scene.add(fill);
+    var back = new T.DirectionalLight(0xffffff, 0.3); back.position.set(-0.5, 2.2, -3); scene.add(back);
     if (root.__RoomEnvironment__ && !ENV){ try{ var pm = new T.PMREMGenerator(renderer(T)); ENV = pm.fromScene(new root.__RoomEnvironment__(renderer(T)), 0.04).texture; pm.dispose(); }catch(e){ ENV = null; } }
     if (ENV) scene.environment = ENV;
     return scene;
+  }
+  // soft ambient occlusion where the leaf meets the frame and the frame meets the wall (three's GTAO, as in the room view)
+  function makeComposer(T, scene, cam, w, h){
+    var PP = root.__POST__; if (!PP || !PP.GTAOPass || !PP.EffectComposer) return null;
+    try{
+      var r = renderer(T), comp = new PP.EffectComposer(r); comp.setSize(w, h);
+      comp.addPass(new PP.RenderPass(scene, cam));
+      var ao = new PP.GTAOPass(scene, cam, w, h);
+      ao.updateGtaoMaterial({ radius:0.06, distanceExponent:1.4, thickness:0.06, scale:1.6, distanceFallOff:0.6, samples:16 });
+      ao.updatePdMaterial({ lumaPhi:10, depthPhi:2, normalPhi:3, radius:8, rings:3, samples:16 });
+      ao.blendIntensity = 0.9;
+      comp.addPass(ao); comp.addPass(new PP.OutputPass());
+      return comp;
+    }catch(e){ return null; }
   }
   // where the camera looks for each step (user: whole door for Gerð/Mál/Efni, the hinge side for Opnun/Lamir,
   // the bottom edge for Felliþröskuldur, the lock/handle for Skrá)
@@ -402,9 +464,11 @@
     switch (sec){
       case "opnun": return { t:[0, g.H * 0.45, zF + 0.3], p:[-g.s * 0.5, g.H * 1.2, zF + whole * 1.25] };
       // the hinge side from outside the swing, close on the upper hinges, the leaf ajar so the hinge line shows
-      case "lamir": { var hy = FLOOR_GAP + g.leafH - 0.4; return { t:[g.pivotX - g.s * 0.12, hy, zF + 0.03], p:[g.pivotX + g.s * 0.72, hy + 0.12, zF + 0.62] }; } // centred on the upper hinges
+      case "lamir": { var hy = FLOOR_GAP + g.leafH - 0.22; return { t:[g.pivotX - g.s * 0.02, hy - 0.05, zF + 0.02], p:[g.pivotX + g.s * 0.3, hy + 0.06, zF + 0.62] }; } // close on the upper hinge, a little from its side
       // low on the bottom edge: the gap under the leaf (and the seal dropping into it)
-      case "throskuldur": { var fe = -g.s * (g.W / 2 - JAMB); return { t:[fe + g.s * 0.16, 0.035, zF], p:[fe - g.s * 0.12, 0.2, zF + 0.62] }; } // low at the bottom corner on the free side: the jamb, the leaf's bottom edge and the gap (or the seal) under it
+      case "throskuldur": { // the open leaf's free end, at the floor, from a little to the side: the bottom edge in section
+        var fx = g.pivotX - g.s * g.leafT / 2, fz = zF + g.leafW;
+        return { t:[fx, 0.035, fz], p:[fx - g.s * 0.2, 0.12, fz + 0.34] }; }
       case "skra": { // the door half open: the lock's faceplate on its edge, the handle beside it
         var oa = SKRA_OPEN * Math.PI / 2, ex = g.pivotX - g.s * g.leafW * Math.cos(oa), ez = zF + g.leafW * Math.sin(oa) - g.leafT / 2;
         return { t:[ex, HANDLE_Y - 0.05, ez], p:[ex - g.s * 0.42, HANDLE_Y + 0.12, ez + 0.62] }; }
@@ -413,7 +477,7 @@
       default: { var dist = fit(g.H + 0.75, g.W + 0.8) * 1.04; return { t:[0, g.H / 2 + 0.08, zF], p:[dist * 0.3, g.H * 0.56, zF + dist] }; } // the whole door centred, room for the dimension pills
     }
   }
-  function lookKey(look){ return look ? (look.color || "") + "|" + (look.img || "") : ""; }
+  function lookKey(look){ return look ? (look.key || "") + "|" + (look.color || "") + "|" + (look.img || "") : ""; }
   var TEX = {};
   function texFor(T, look){ // a leaf texture from the swatch image, once
     if (!look || !look.img) return null;
@@ -437,6 +501,17 @@
         camFrom:null, camTo:null, tFrom:null, tTo:null, t0:0, open:0, openTo:0, raf:0, size:"" };
       P.ctl = root.__OrbitControls__ ? new root.__OrbitControls__(cam, r.domElement) : null;
       if (P.ctl){ P.ctl.enablePan = false; P.ctl.enableZoom = false; P.ctl.enableRotate = !!(P.view && P.view.free); P.ctl.enableDamping = true; }
+      P.zoom = 1;
+      // zoom (round 4): wheel, trackpad pinch (ctrl+wheel) and two-finger pinch scale the distance of the step's own view
+      P.onWheel = function(e){ e.preventDefault(); setZoom(P.zoom * Math.exp(e.deltaY * (e.ctrlKey ? 0.01 : 0.0015))); };
+      P.onTouch = function(e){
+        if (e.touches.length !== 2) { P.pinch = 0; return; }
+        var dx = e.touches[0].clientX - e.touches[1].clientX, dy = e.touches[0].clientY - e.touches[1].clientY, dd = Math.hypot(dx, dy);
+        if (P.pinch && e.type === "touchmove"){ e.preventDefault(); setZoom(P.zoom * P.pinch / dd); }
+        P.pinch = dd;
+      };
+      r.domElement.addEventListener("wheel", P.onWheel, { passive:false });
+      r.domElement.addEventListener("touchstart", P.onTouch, { passive:false }); r.domElement.addEventListener("touchmove", P.onTouch, { passive:false });
       cam.position.set(1, 1.4, 3.5); (function loop(){ if (!P) return; P.raf = requestAnimationFrame(loop); frame(); })();
       return true;
     },
@@ -445,10 +520,10 @@
       if (!P) return;
       P.d = d; P.look = look; P.view = view || {};
       if (P.ctl) P.ctl.enableRotate = !!P.view.free;
-      var key = JSON.stringify([d.kind, d.frame, d.widthMm, d.heightMm, d.wallMm, d.hinge, d.opt, lookKey(look)]);
+      var key = JSON.stringify([d.kind, d.frame, d.widthMm, d.heightMm, d.wallMm, d.hinge, d.opt, d.hwColor, lookKey(look)]);
       if (key !== P.key) rebuild();
       var sec = P.view.sec, slide = isSlide(d);
-      P.openTo = !slide && d.kind !== "karmur" && (sec === "opnun" || sec === "lamir" || sec === "skra") ? (sec === "lamir" ? 0.3 : sec === "skra" ? SKRA_OPEN : 0.55) : slide && sec === "opnun" ? 0.45 : 0;
+      P.openTo = !slide && d.kind !== "karmur" && (sec === "opnun" || sec === "lamir" || sec === "skra") ? (sec === "lamir" ? 0.12 : sec === "skra" ? SKRA_OPEN : 0.55) : slide && sec === "opnun" ? 0.45 : 0;
       if (P.door && P.door.userData.arc) P.door.userData.arc.visible = sec === "opnun";
       var aimK = JSON.stringify([sec, P.view.focus, P.size, d.widthMm, d.heightMm, d.wallMm, d.kind, d.hinge]);
       if (aimK !== P.aimK){ P.aimK = aimK; aim(!!P.aimed); P.aimed = true; }
@@ -457,6 +532,8 @@
       if (!P) return;
       cancelAnimationFrame(P.raf);
       if (P.ctl) P.ctl.dispose();
+      R.domElement.removeEventListener("wheel", P.onWheel); R.domElement.removeEventListener("touchstart", P.onTouch); R.domElement.removeEventListener("touchmove", P.onTouch);
+      if (P.comp && P.comp.dispose) try{ P.comp.dispose(); }catch(e){}
       if (R && R.domElement.parentNode) R.domElement.parentNode.removeChild(R.domElement);
       if (P.svg) P.svg.innerHTML = "";
       disposeTree(P.scene); P = null;
@@ -468,7 +545,7 @@
     if (P.door){ P.scene.remove(P.door); disposeTree(P.door); }
     var l = look ? Object.assign({}, look, { tex:texFor(T, look) }) : null;
     P.door = buildDoor(T, d, l); P.scene.add(P.door);
-    P.key = JSON.stringify([d.kind, d.frame, d.widthMm, d.heightMm, d.wallMm, d.hinge, d.opt, lookKey(look)]);
+    P.key = JSON.stringify([d.kind, d.frame, d.widthMm, d.heightMm, d.wallMm, d.hinge, d.opt, d.hwColor, lookKey(look)]);
     // (the texture loader clears P.key when the picture is in, and the next frame rebuilds with it)
     setOpen(P.open);
   }
@@ -482,22 +559,33 @@
   function sealLoop(){
     var lg = P.door.userData.leaf, seal = lg && lg.getObjectByName("seal"), t = (performance.now() % 3200) / 3200, open, drop;
     function ease(x){ x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); }
-    if (t < 0.3){ open = 0.16 * (1 - ease(t / 0.3)); drop = 0; } else if (t < 0.42){ open = 0; drop = ease((t - 0.3) / 0.12); }
-    else if (t < 0.82){ open = 0; drop = 1; } else { drop = 1 - ease((t - 0.82) / 0.08); open = 0.16 * ease((t - 0.88) / 0.12); }
-    if (!seal){ open = 0; } // venjulegt bil: stays shut, the gap shows
+    // round 4: the door stands open, seen from the side of its bottom edge (the seal's profile shows at the end); the
+    // seal drops to the floor and lifts again, the way it does when the door shuts
+    drop = t < 0.25 ? 0 : t < 0.4 ? ease((t - 0.25) / 0.15) : t < 0.8 ? 1 : 1 - ease((t - 0.8) / 0.15);
+    open = P.open + (THR_OPEN - P.open) * 0.12;
     P.open = open; setOpen(open);
     if (seal) seal.position.y = seal.userData.y0 - (seal.userData.drop || SEAL_DROP) * drop;
   }
   function aim(animate){
     var g = P.door.userData.g, a = aimFor(g, P.view.sec, P.cam.aspect, P.view.focus), T = P.T;
+    P.aimP = new T.Vector3(a.p[0], a.p[1], a.p[2]); P.aimT = new T.Vector3(a.t[0], a.t[1], a.t[2]);
     P.camFrom = P.cam.position.clone(); P.tFrom = P.ctl ? P.ctl.target.clone() : new T.Vector3();
-    P.camTo = new T.Vector3(a.p[0], a.p[1], a.p[2]); P.tTo = new T.Vector3(a.t[0], a.t[1], a.t[2]);
+    P.camTo = P.aimT.clone().add(P.aimP.clone().sub(P.aimT).multiplyScalar(P.zoom || 1)); P.tTo = P.aimT.clone();
     P.t0 = animate ? performance.now() : 0;
+  }
+  var ZOOM_MIN = 0.45, ZOOM_MAX = 1.7;
+  function setZoom(z){
+    if (!P || !P.aimP) return;
+    P.zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
+    P.camFrom = P.cam.position.clone(); P.tFrom = P.ctl ? P.ctl.target.clone() : P.aimT.clone();
+    P.camTo = P.aimT.clone().add(P.aimP.clone().sub(P.aimT).multiplyScalar(P.zoom)); P.tTo = P.aimT.clone();
+    P.t0 = performance.now() - 380; // a short ease, not the full step move
   }
   function frame(){
     var r = R, host = P.host, w = host.clientWidth, h = host.clientHeight; if (!w || !h) return;
     var sz = w + "x" + h;
-    if (sz !== P.size){ P.size = sz; r.setSize(w, h, false); P.cam.aspect = w / h; P.cam.updateProjectionMatrix(); P.aimK = ""; if (P.d) preview.set(P.d, P.look, P.view); }
+    if (sz !== P.size){ P.size = sz; r.setSize(w, h, false); P.cam.aspect = w / h; P.cam.updateProjectionMatrix(); P.aimK = ""; if (P.d) preview.set(P.d, P.look, P.view);
+      if (P.comp && P.comp.dispose) try{ P.comp.dispose(); }catch(e){} P.comp = makeComposer(P.T, P.scene, P.cam, w, h); }
     if (P.d && !P.key && P.door) rebuild(); // a texture / hardware model came in
     if (!P.door) return;
     if (P.camTo){ // smooth like the cabinet wizard's uwAimCamera
@@ -510,7 +598,9 @@
     if (P.view.sec === "throskuldur") sealLoop();
     else if (Math.abs(P.open - P.openTo) > 0.002){ P.open += (P.openTo - P.open) * 0.12; setOpen(P.open); }
     if (P.ctl && !P.camTo) P.ctl.update();
-    r.render(P.scene, P.cam);
+    var wm = P.door.userData.wallMat, xr = P.view.sec === "lamir"; // Lamir: the wall goes see-through so the hinges show (round 4)
+    if (wm && wm.userData.xr !== xr){ wm.userData.xr = xr; wm.transparent = xr; wm.opacity = xr ? 0.16 : 1; wm.depthWrite = !xr; wm.needsUpdate = true; }
+    if (P.comp && !(P.view.sec === "lamir")) P.comp.render(); else r.render(P.scene, P.cam); // (no AO through a see-through wall)
     drawDims();
   }
   // dimension lines like the cabinet wizard: the one being typed blue, the ones already entered dark, only on the
@@ -556,7 +646,7 @@
   var THUMBS = {};
   function thumb(d, look, wPx, hPx){
     var T = root.__THREE__; if (!T) return null;
-    var key = JSON.stringify([d.kind, d.frame, d.widthMm, d.heightMm, d.wallMm, d.hinge, d.opt, lookKey(look), wPx, hPx]);
+    var key = JSON.stringify([d.kind, d.frame, d.widthMm, d.heightMm, d.wallMm, d.hinge, d.opt, d.hwColor, lookKey(look), wPx, hPx]);
     if (THUMBS[key]) return THUMBS[key];
     var tex = texFor(T, look), pending = !!(look && look.img && !tex);
     var r = renderer(T), scene = makeScene(T), door = buildDoor(T, d, look ? Object.assign({}, look, { tex:tex }) : null); scene.add(door);
@@ -564,15 +654,20 @@
     var vH = 15 * Math.PI / 180, hH = Math.atan(Math.tan(vH) * asp), cw = (g.slide ? g.W * 2 : g.W) + 0.32, dist = Math.max((g.H + 0.22) / 2 / Math.tan(vH), cw / 2 / Math.tan(hH)) * 1.02;
     cam.position.set(dist * 0.16, g.H * 0.55, g.T / 2 + dist); cam.lookAt(0, g.H / 2 + 0.02, g.T / 2); // the door filling the picture, a touch from the side
     var prev = new T.Vector2(); r.getSize(prev);
-    r.setSize(wPx * 2, hPx * 2, false); r.render(scene, cam);
-    var url = r.domElement.toDataURL("image/jpeg", 0.82);
+    r.setSize(wPx * 2, hPx * 2, false);
+    var pr = r.getPixelRatio(); r.setPixelRatio(1); r.setSize(wPx * 2, hPx * 2, false);
+    var comp = makeComposer(T, scene, cam, wPx * 2, hPx * 2); // the same soft AO as the popup
+    if (comp) comp.render(); else r.render(scene, cam);
+    var url = r.domElement.toDataURL("image/jpeg", 0.85);
+    if (comp && comp.dispose) try{ comp.dispose(); }catch(e){}
     disposeTree(scene);
+    r.setPixelRatio(pr);
     if (P){ r.setSize(prev.x, prev.y, false); P.size = ""; } // the open preview sizes itself again on its next frame
     if (!pending) THUMBS[key] = url; // a texture still loading: render again when it's in (onTexture)
     return url;
   }
 
-  root.KPDOORS = { KINDS:KINDS, KIND_OPTS:KIND_OPTS, OPT_TEXT:OPT_TEXT, HUNAR:HUNAR, LIMITS:LIMITS, ROOMS:ROOMS, OTHER:OTHER,
+  root.KPDOORS = { KINDS:KINDS, KIND_OPTS:KIND_OPTS, OPT_TEXT:OPT_TEXT, HW_COLORS:HW_COLORS, LIMITS:LIMITS, ROOMS:ROOMS, OTHER:OTHER,
     kindKey:kindKey, kindDef:kindDef, isSlide:isSlide, isGlass:isGlass, hasLeafMat:hasLeafMat, hasHandle:hasHandle,
     sections:sections, optValue:optValue, setKind:setKind, roomLabelOf:roomLabelOf, roomOk:roomOk, choicesText:choicesText, lineFor:lineFor,
     HW:HW, hardwareOf:hardwareOf, preview:preview, thumb:thumb, _p:function(){ return P; } };

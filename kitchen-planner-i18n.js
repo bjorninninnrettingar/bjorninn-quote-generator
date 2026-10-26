@@ -2064,7 +2064,11 @@
     "húnn: söluaðili ráðleggur": "handle: advisor recommends",
     "húnn: vel sjálf/ur": "handle: my own",
     "söluaðili ráðleggur": "advisor recommends",
-    "vel sjálf/ur": "my own"
+    "vel sjálf/ur": "my own",
+    "lamir, skrá og húnn í sama lit": "hinges, lock and handle in one colour",
+    "Gljáandi stál": "Polished steel",
+    "Matt svart": "Matt black",
+    "Járn: {c}": "Hardware: {c}"
   });
 
   // part F: stored/computed numbered labels from kitchen-planner-3d.js (CATALOG width variants, island rows, partition sides)
