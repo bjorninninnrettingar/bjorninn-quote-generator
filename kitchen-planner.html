@@ -7489,6 +7489,7 @@
   }
   function renderUnitWizard(){
     closeFitAsk(); // any change in the wizard makes a pending "passar ekki" question stale
+    if (uw) uw.hoverB = null; // a click committed (or the page changed): the hovered copy is stale
     var side = document.getElementById("uwSide"), html = "";
     if (uw.step === 1){
       var lastG = null;
@@ -7616,6 +7617,42 @@
     wireUnitWizard(side);
     schedulePreview();
   }
+  function uwApplyHw(b, c, mode){ // Hurðir / Skúffur on a unit (the click, and the hover preview on a copy)
+    if (mode === "skuffur" && c.sink && !(b.interior.codes && b.interior.codes.length)) sinkDefaultStack(b, c);
+    if (mode === "skuffur" && !(b.interior.codes && b.interior.codes.length)){
+      for (var n = 3; n >= 1; n--){ var cand = KP3D.drawerCodes({ mode:"skuffur", count:n }, drawerSys()); if (stackAllowed(b, c, cand, null) || n === 1){ b.interior.codes = cand; break; } }
+      b.interior.inner = null;
+    }
+    b.interior.mode = mode;
+    if (mode === "skuffur") b.interior.count = b.interior.codes.length;
+  }
+  function uwApplyPreset(b, c, key){
+    var p = (c.presets || []).find(function(x){ return x.key === key; });
+    if (!p) return false;
+    if (c.shelfRange){ b.shelves = Math.max(c.shelfRange[0], Math.min(c.shelfRange[1], p.shelves)); delete b.shelfPos; }
+    if (c.railRange){ b.rails = Math.max(c.railRange[0], Math.min(c.railRange[1], p.rails)); delete b.railPos; }
+    if (c.drawerCountRange){
+      var n = Math.max(c.drawerCountRange[0], Math.min(c.drawerCountRange[1], p.drawers));
+      if (n <= 0) delete b.interior;
+      else b.interior = { mode:"skuffur", count:n, codes:KP3D.drawerCodes({ mode:"skuffur", count:n }, drawerSys()) };
+    }
+    return true;
+  }
+  var UW_HOV_SEL = "[data-hw],[data-uw-preset],[data-clrecipe],[data-cldoortype],[data-oven-type],[data-front-all],[data-sink-top],[data-uw-swing],[data-clrailcolor]";
+  function uwVariant(el, b, c){ // the unit as a click on `el` would leave it — a copy, for the hover preview
+    var d = el.dataset, v = JSON.parse(JSON.stringify(b));
+    if (d.hw){ if (!v.interior) return null; uwApplyHw(v, c, d.hw); }
+    else if (d.uwPreset){ if (!uwApplyPreset(v, c, d.uwPreset)) return null; }
+    else if (d.clrecipe) applyClosetRecipe(v, d.clrecipe);
+    else if (d.cldoortype) setClosetBayDoors(v, d.cldoortype !== "open");
+    else if (d.ovenType){ if (v.type === d.ovenType) return null; v.type = d.ovenType; delete v.heightMm; delete v.ovenFrontsMm; }
+    else if (d.frontAll){ if (d.frontAll === "1") v.frontAll = true; else delete v.frontAll; }
+    else if (d.sinkTop){ if (d.sinkTop === "fastur") v.sinkTop = "fastur"; else delete v.sinkTop; }
+    else if (d.uwSwing) v.swing = d.uwSwing;
+    else if (d.clrailcolor) v.railColor = d.clrailcolor;
+    else return null;
+    return v;
+  }
   function wireUnitWizard(side){
     side.querySelectorAll("[data-uw-cat]").forEach(function(el){ el.addEventListener("click", function(){
       uw.cat = +el.dataset.uwCat; uw.hover = 0;
@@ -7626,8 +7663,8 @@
       } else uw.step = 2;
       renderUnitWizard();
     }); });
-    side.querySelectorAll("[data-uw-opt]").forEach(function(el){ el.addEventListener("mouseenter", function(){ uw.hover = +el.dataset.uwOpt; schedulePreview(); }); });
-    side.querySelectorAll("[data-uw-cat]").forEach(function(el){ el.addEventListener("mouseenter", function(){ uw.hoverCat = +el.dataset.uwCat; schedulePreview(); }); }); // step 1: a typical unit of the group (user, 2026-10-24)
+    side.querySelectorAll("[data-uw-opt]").forEach(function(el){ ["mouseenter", "focus"].forEach(function(ev){ el.addEventListener(ev, function(){ if (ev === "focus" && !el.matches(":focus-visible")) return; uw.hover = +el.dataset.uwOpt; schedulePreview(); }); }); });
+    side.querySelectorAll("[data-uw-cat]").forEach(function(el){ ["mouseenter", "focus"].forEach(function(ev){ el.addEventListener(ev, function(){ if (ev === "focus" && !el.matches(":focus-visible")) return; uw.hoverCat = +el.dataset.uwCat; schedulePreview(); }); }); }); // step 1: a typical unit of the group (user, 2026-10-24); Tab works like the pointer
     side.querySelectorAll("[data-uw-opt]").forEach(function(el){ el.addEventListener("click", function(){
       var io = activeUnitTree()[uw.cat].opts[+el.dataset.uwOpt];
       if (io.islandBack){ // the back of a single-row island, clad in one 19 mm panel
@@ -7685,13 +7722,7 @@
       if (el.dataset.sinkTop === "fastur") b.sinkTop = "fastur"; else delete b.sinkTop; renderUnitWizard();
     }); });
     side.querySelectorAll("[data-hw]").forEach(function(el){ el.addEventListener("click", function(){
-      if (el.dataset.hw === "skuffur" && c.sink && !(b.interior.codes && b.interior.codes.length)) sinkDefaultStack(b, c);
-      if (el.dataset.hw === "skuffur" && !(b.interior.codes && b.interior.codes.length)){
-        for (var n = 3; n >= 1; n--){ var cand = KP3D.drawerCodes({ mode:"skuffur", count:n }, drawerSys()); if (stackAllowed(b, c, cand, null) || n === 1){ b.interior.codes = cand; break; } }
-        b.interior.inner = null;
-      }
-      b.interior.mode = el.dataset.hw;
-      if (el.dataset.hw === "skuffur") b.interior.count = b.interior.codes.length;
+      uwApplyHw(b, c, el.dataset.hw);
       if (frontsWiz(b) && uw.sec === "door") uwAdvance("door");
       renderUnitWizard();
     }); });
@@ -7758,15 +7789,7 @@
     // Preset samsetningar: setur hillur/fataslár/skúffur allar í einu — steppararnir hér fyrir ofan eru
     // áfram virkir á eftir, svo valið er bara fljótleg byrjun, ekki endapunktur (2026-10-22).
     side.querySelectorAll("[data-uw-preset]").forEach(function(el){ el.addEventListener("click", function(){
-      var p = (c.presets || []).find(function(x){ return x.key === el.dataset.uwPreset; });
-      if (!p) return;
-      if (c.shelfRange){ b.shelves = Math.max(c.shelfRange[0], Math.min(c.shelfRange[1], p.shelves)); delete b.shelfPos; }
-      if (c.railRange){ b.rails = Math.max(c.railRange[0], Math.min(c.railRange[1], p.rails)); delete b.railPos; }
-      if (c.drawerCountRange){
-        var n = Math.max(c.drawerCountRange[0], Math.min(c.drawerCountRange[1], p.drawers));
-        if (n <= 0) delete b.interior;
-        else b.interior = { mode:"skuffur", count:n, codes:KP3D.drawerCodes({ mode:"skuffur", count:n }, drawerSys()) };
-      }
+      if (!uwApplyPreset(b, c, el.dataset.uwPreset)) return;
       renderUnitWizard();
     }); });
     if (c.bur) wireBurSetup(side, b, renderUnitWizard);
@@ -7789,6 +7812,14 @@
       b.type = el.dataset.ovenType; delete b.heightMm; delete b.ovenFrontsMm;
       renderUnitWizard();
     }); });
+    // pointing at a card (doors or drawers, a ready-made inside, door type …) shows it on the cabinet before it's picked;
+    // leaving puts it back, the click commits — the Innihurðir popup's rule (user, 2026-10-26). Focus counts, touch doesn't.
+    side.querySelectorAll(UW_HOV_SEL).forEach(function(el){
+      function on(e){ if (e && e.pointerType === "touch") return; clearTimeout(hovT); hovT = setTimeout(function(){ if (!uw || uw.b !== b || !el.isConnected) return; var v = uwVariant(el, b, c); if (!v) return; uw.hoverB = v; renderUnitPreview(); }, 70); }
+      function off(e){ if (e && e.pointerType === "touch") return; clearTimeout(hovT); hovT = setTimeout(function(){ if (!uw || !uw.hoverB) return; uw.hoverB = null; uw.hoverHold = true; renderUnitPreview(); }, 90); }
+      el.addEventListener("pointerenter", on); el.addEventListener("pointerleave", off);
+      el.addEventListener("focus", function(){ if (el.matches(":focus-visible")) on(); }); el.addEventListener("blur", function(){ off(); });
+    });
     if (c.oven && !c.lowOven) wireDrawerStack(side, b, c, function(codes, frontsMm){
       if (frontsMm) b.ovenFrontsMm = frontsMm; else delete b.ovenFrontsMm;
       renderUnitWizard();
@@ -7873,7 +7904,8 @@
     }
     var b = uw.b || newPreviewBlock(hovOpt), c = CATALOG[b.type];
     if (uw.b && uw.hoverDim){ b = JSON.parse(JSON.stringify(uw.b)); b[uw.hoverDim.k] = uw.hoverDim.v; keepCam = true; } // a chip under the pointer: show that size (user, 2026-10-26)
-    var key = JSON.stringify(b), keepCam = uwKeepCam || !!(uw.b && uw.hoverDim);
+    else if (uw.b && uw.hoverB){ b = uw.hoverB; c = CATALOG[b.type]; } // a card under the pointer (doors/drawers, an inside, a door type)
+    var key = JSON.stringify(b), keepCam = uwKeepCam || !!(uw.b && (uw.hoverDim || uw.hoverB));
     if (key === uwPrevKey && KP3D._three()){ uwAimCamera(true); return; } // same cabinet, another section: just turn the view
     uwPrevKey = key;
     var wEff = b.widthMm * (uwPairOpt(hovOpt) ? 2 : 1), lenMm = Math.max(1200, wEff + 800);
@@ -7925,7 +7957,7 @@
       swayPreview(st, Math.atan2(g.normal.x, g.normal.z));
       st.controls.update();
       uwDimCtx = { g:g, a0:0.4, a1:0.4 + b.widthMm / 1000, a2:0.4 + wEff / 1000, y0:elevM, y1:elevM + hM, d:(b.depthMm || c.d) / 1000, b:b, extraTop:c.sink ? 0.34 : 0 }; // the tap stands above the unit
-      if (prevCam && uw.b && (uw.hoverDim || uw.hoverHold)){ // pointing at sizes: the view holds exactly still (user, 2026-10-26: quick hovers jumped)
+      if (prevCam && uw.b && (uw.hoverDim || uw.hoverB || uw.hoverHold)){ // pointing at sizes: the view holds exactly still (user, 2026-10-26: quick hovers jumped)
         st.camera.position.copy(prevCam.p); st.controls.target.copy(prevCam.t); st.controls.update(); uwLockView(st); uw.hoverHold = false;
       } else if (!(prevCam && keepCam)){ if (prevCam && uw.b) st.camera.position.copy(prevCam.p); uwAimCamera(!!(prevCam && uw.b)); } else uwLockView(st); // glide from where the view was
       // A plain drawer stack is already its own fronts — nothing hidden to reveal, so it stays closed by default
@@ -8081,6 +8113,7 @@
     var any = false;
     document.querySelectorAll(".ed-menus .cat-sec[open]").forEach(function(o){ o.open = false; openSecs[o.dataset.sec] = false; any = true; });
     if (any && document.activeElement && document.activeElement.closest && document.activeElement.closest(".ed-menus")) document.activeElement.blur();
+    if (any && hov.el) hovSet(null); // a swatch previewed from the closed menu: the chosen one goes back
     return any;
   }
   document.addEventListener("pointerdown", function(e){ // a press outside an open dropdown / the warning list closes it
@@ -9388,10 +9421,81 @@
     // burst of loads is over, keeping the angle.
     if (uw){ clearTimeout(uwModelTimer); uwModelTimer = setTimeout(function(){ if (!uw) return; uwPrevKey = ""; uwKeepCam = true; renderUnitPreview(); uwKeepCam = false; }, 250); return; }
     if (welSceneOn){ clearTimeout(welModelTimer); welModelTimer = setTimeout(function(){ if (welSceneOn) startWelcomeScene(true); }, 300); return; } // handle/drawer models arrived: redraw, same angle
-    if (state.step === "materials" && (isCloset() || isBath())){ clearTimeout(clModelTimer); clModelTimer = setTimeout(function(){ if (state.step === "materials" && (isCloset() || isBath())){ closetPrevKey = ""; updateCabinetPreview(); } }, 250); return; } // a handle model arrived: redraw the wardrobe / vanity
-    if (state.step === "materials" && KP3D.hasCabinetPreview()) KP3D.setCabinetPreview(cabCfg());
-    else if (state.step === "editor") renderView();
+    if (state.step === "materials" && (isCloset() || isBath())){ clearTimeout(clModelTimer); clModelTimer = setTimeout(function(){ if (state.step === "materials" && (isCloset() || isBath())){ closetPrevKey = ""; withHov(updateCabinetPreview); } }, 250); return; } // a handle model arrived: redraw the wardrobe / vanity
+    if (state.step === "materials" && KP3D.hasCabinetPreview()) withHov(function(){ KP3D.setCabinetPreview(cabCfg()); });
+    else if (state.step === "editor") withHov(renderView); // (a swatch under the pointer stays on the 3D)
   });
+
+  // ---------- hover = preview, click = commit (2026-10-26, like the Innihurðir popup) ----------
+  // Resting on a material swatch or card (the Efni pages and the editor's Efni menu) shows it on that page's 3D at once;
+  // moving off puts the chosen one back; a click commits as before. The state is patched for the one draw and put back
+  // straight after — never saved, so the draft only changes on a click. Keyboard focus counts as hover; touch has no
+  // hover, a tap just commits. One timer for enter and leave, so sweeping across a grid draws only where it rests.
+  var HOV_SEL = "[data-carcass],[data-look],[data-edlook],[data-top],[data-tnone],[data-handle],[data-hcolor],[data-drawersys],[data-closetdepth],[data-closetdoors],[data-mirror]";
+  var hov = { el:null, patch:null, shown:false, t:0, step:null };
+  function hovPatch(el){ // what a click on `el` would change, as a patch on state
+    var d = el.dataset, p = {};
+    if (d.carcass) p.carcass = d.carcass;
+    else if (d.look || d.edlook){ var lk = d.look || d.edlook, l = LOOKS[lk], h = state.handle && HANDLES[state.handle]; p.look = lk; if (h && h.requiresFrontCategory && (!l || l.category !== h.requiresFrontCategory)) p.handle = null; } // see selectLook
+    else if (d.top) p.top = d.top;
+    else if (d.tnone) p.top = "engin";
+    else if (d.handle) p.handle = d.handle;
+    else if (d.hcolor){ var hh = HANDLES[state.handle]; if (!hh) return null; p.handleColor = d.hcolor === hh.finish ? null : d.hcolor; } // see pickHandleColor
+    else if (d.drawersys) p.drawerSystem = d.drawersys;
+    else if (d.closetdepth) p.closetDepthMm = +d.closetdepth;
+    else if (d.closetdoors){ p.closetDoors = d.closetdoors; if (d.closetdoors === "engar" && !state.handle) p.handle = "push"; if (d.closetdoors === "lamir" && state.closetAutoHandle) p.handle = null; }
+    else if (d.mirror) p.bathMirror = d.mirror === "1";
+    else return null;
+    return p;
+  }
+  function withHov(fn){ // run a 3D draw with the hovered choice in place (if one is showing), then put state back
+    var p = hov.shown && hov.step === state.step ? hov.patch : null, had = {}, saved = {};
+    if (p) Object.keys(p).forEach(function(k){ had[k] = Object.prototype.hasOwnProperty.call(state, k); saved[k] = state[k]; state[k] = p[k]; });
+    try { fn(); }
+    finally { if (p) Object.keys(p).forEach(function(k){ if (had[k]) state[k] = saved[k]; else delete state[k]; }); }
+  }
+  function hovDraw(){
+    if (state.step === "materials"){ withHov(updateCabinetPreview); return; }
+    if (state.step !== "editor") return;
+    // the editor: a front is swapped on the live scene in place (a whole-room rebuild per swatch was ~250 ms); anything
+    // else — a handle colour, or a front that drops the handle — rebuilds as a click would
+    var p = hov.shown ? hov.patch : null;
+    if (viewMode !== "2d" && KP3D.previewFront){
+      if (p && Object.keys(p).length === 1 && p.look){ if (KP3D.previewFront(p.look)) return; }
+      else if (KP3D.previewFront(null) && !p) return; // back to the chosen front, in place
+    }
+    withHov(renderView);
+  }
+  function hovClear(){ clearTimeout(hov.t); hov.el = null; hov.patch = null; hov.shown = false; }
+  function hovSet(el){ // el: the swatch under the pointer / focus, or null (= back to the chosen one)
+    if (el === hov.el) return;
+    hov.el = el;
+    var p = el ? hovPatch(el) : null, step = state.step;
+    if (p && Object.keys(p).every(function(k){ return p[k] === (state[k] == null ? null : state[k]); })) p = null; // the chosen one: nothing to preview
+    clearTimeout(hov.t);
+    hov.t = setTimeout(function(){
+      if (state.step !== step || (el && !el.isConnected)){ hovClear(); return; } // re-rendered or left the page meanwhile
+      if (!p && !hov.shown) return; // nothing previewed: nothing to put back
+      hov.patch = p; hov.shown = !!p; hov.step = step;
+      hovDraw();
+    }, p ? 70 : 110);
+  }
+  ["screen-materials", "catalogPanel"].forEach(function(id){
+    var root = document.getElementById(id);
+    function sw(t){ var el = t && t.closest ? t.closest(HOV_SEL) : null; return el && root.contains(el) && !el.disabled ? el : null; }
+    root.addEventListener("pointerover", function(e){ if (e.pointerType !== "touch") hovSet(sw(e.target)); });
+    root.addEventListener("pointerout", function(e){ if (e.pointerType !== "touch" && hov.el && !(e.relatedTarget && hov.el.contains(e.relatedTarget))) hovSet(sw(e.relatedTarget)); });
+    root.addEventListener("pointerleave", function(e){ if (e.pointerType !== "touch" && hov.el) hovSet(null); }); // out of the window too
+    root.addEventListener("focusin", function(e){ var el = sw(e.target); if (el && el.matches(":focus-visible")) hovSet(el); });
+    root.addEventListener("focusout", function(e){ if (hov.el && e.target === hov.el && !sw(e.relatedTarget)) hovSet(null); });
+    root.addEventListener("click", function(e){ // the click commits (its own handler redraws) — unless it was a no-op while another swatch still shows
+      var el = sw(e.target); if (!el) return;
+      var stale = hov.shown && JSON.stringify(hov.patch) !== JSON.stringify(hovPatch(el));
+      hovClear(); if (stale) setTimeout(hovDraw, 0);
+    }, true);
+  });
+  // the swatch under the pointer was re-rendered away or its menu closed (no pointerout then): the next move anywhere else restores
+  document.addEventListener("pointerover", function(e){ if (hov.el && e.pointerType !== "touch" && !(e.target.closest && e.target.closest(HOV_SEL))) hovSet(null); });
 
   function renderMaterials(){
     roomDefaults();

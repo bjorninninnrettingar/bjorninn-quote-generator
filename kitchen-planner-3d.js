@@ -4213,6 +4213,48 @@
     });
     return true;
   }
+  // Hover preview of a front on the live scene (2026-10-26): the look swapped on every front material in place — no
+  // rebuild (a whole kitchen took ~250 ms per swatch). The UVs were laid out for the built look's tile, so the new
+  // texture repeats by old/new tile; the textures are cached and shared, so this works on its own clones. FR2 fronts
+  // are left alone. previewFront(null) puts the built look back. false = can't do it here, the caller rebuilds.
+  var frontSwap = null;
+  function previewFront(key){
+    var st = THREE_STATE, THREE = window.__THREE__;
+    if (frontSwap && (!st || frontSwap.scene !== st.scene)) frontSwap = null; // rebuilt since: nothing of ours left on screen
+    if (!st || !st.frontMat || !THREE) return false;
+    if (!key){
+      if (!frontSwap) return false;
+      frontSwap.mats.forEach(function(e){ Object.assign(e.mat, e.orig); e.mat.needsUpdate = true; });
+      dropClones(); frontSwap = null; return true;
+    }
+    var base = st.frontMat, tile0 = base.userData && base.userData.tile, look = LOOKS[key];
+    if (!look || !tile0 || !window.KPMat) return false; // a plain-colour front has no tiled UVs to reuse
+    if (!frontSwap){
+      var mats = [];
+      st.scene.traverse(function(o){
+        if (!o.isMesh) return;
+        (Array.isArray(o.material) ? o.material : [o.material]).forEach(function(m){
+          if (m && (m === base || (m.userData && m.userData.studio === "front" && !m.userData.fr2)) && !mats.some(function(e){ return e.mat === m; }))
+            mats.push({ mat:m, orig:{ map:m.map, bumpMap:m.bumpMap || null, bumpScale:m.bumpScale, roughness:m.roughness } });
+        });
+      });
+      frontSwap = { scene:st.scene, mats:mats, clones:[] };
+      if (!previewFront.wired){ previewFront.wired = true; // a photo came in after the swap: its clone still holds the placeholder
+        window.addEventListener("kp3d-tex-loaded", function(){ if (frontSwap) frontSwap.clones.forEach(function(x){ if (x.c.source !== x.src.source){ x.c.source = x.src.source; x.c.needsUpdate = true; } }); }); }
+    }
+    dropClones();
+    var nm = makeFrontMaterial(THREE, key, look), t1 = nm.userData.tile || tile0;
+    function tiled(src){
+      if (!src) return null;
+      var c = src.clone(); c.wrapS = c.wrapT = THREE.RepeatWrapping; c.repeat.set(tile0.w / t1.w, tile0.h / t1.h); c.needsUpdate = true;
+      frontSwap.clones.push({ c:c, src:src }); return c;
+    }
+    var map = tiled(nm.map), bump = tiled(nm.bumpMap);
+    frontSwap.mats.forEach(function(e){ var m = e.mat; m.map = map; m.bumpMap = bump; if (bump) m.bumpScale = nm.bumpScale; m.roughness = nm.roughness; m.needsUpdate = true; });
+    nm.dispose();
+    return true;
+    function dropClones(){ if (frontSwap){ frontSwap.clones.forEach(function(x){ x.c.dispose(); }); frontSwap.clones = []; } }
+  }
   // Drawing export: render the live scene from an arbitrary camera at a fixed pixel size and return a
   // JPEG data URL. spec = {pos, target, up?, fov? | ortho:{halfW, halfH}, width, height, quality}.
   // The fade systems (walls / cabinets seen from behind) follow this camera for `settle` frames first
@@ -5179,7 +5221,7 @@
     // frontMat so X-Ray strips it together with the FR1 fronts.
     var look2 = state.look2 ? LOOKS[state.look2] : null;
     var frontMat2 = look2 ? (window.KPMat ? makeFrontMaterial(THREE, state.look2, look2) : new THREE.MeshStandardMaterial({ color:look2.color3d, roughness:0.7 })) : null;
-    if (frontMat2) frontMat2.__xrayBase = frontMat;
+    if (frontMat2){ frontMat2.__xrayBase = frontMat; frontMat2.userData.fr2 = true; } // (fr2: previewFront leaves it alone)
     function frontMatOf(b){ return b && b.front2 && frontMat2 ? frontMat2 : frontMat; }
     // opts.towerGlass (Þvottahús previews, user 2026-10-26): the washer tower's doors see-through so the machines inside show
     var towerGlassMat = opts.towerGlass ? (function(){ var m = frontMat.clone(); m.transparent = true; m.opacity = 0.16; m.depthWrite = false; return m; })() : null;
@@ -7455,7 +7497,7 @@
     fitWarnings: fitWarnings, openingIssues: openingIssues, roomDoorConflicts: roomDoorConflicts, doorSweep: doorSweep, doorSwingOf: doorSwingOf, doorHingeOf: doorHingeOf, doorMaxDeg: doorMaxDeg, handleProjMm: handleProjMm,
     WALL_UNIT_BASE_MM: WALL_UNIT_BASE_MM,
     snapshot3D: snapshot3D,
-    setXrayFronts: setXrayFronts,
+    setXrayFronts: setXrayFronts, previewFront: previewFront,
     setCameraLookAt: setCameraLookAt, studioRender: studioRender,
     renderShot: renderShot,
     setAllParts: setAllParts, snapParts: snapParts,

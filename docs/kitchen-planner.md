@@ -548,3 +548,23 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   the moving T carrier with the dark rubber lip (the object named "seal": only it drops, by FLOOR_GAP), a brass hex
   trigger at the hinge-side end; the leaf is one solid piece again (the round-6 slot pieces caused the band at the
   bottom). models/door-hardware/drop-seal.glb removed (it couldn't be split into fixed + moving); tools/dae2glb.py stays.
+
+## 2026-10-26 — Hover = preview, click = commit in the cabinet rooms (like the Innihurðir popup)
+- Efni pages (every room: Litur/Skrokkur, Stærð (dýpt), Hurðir (með/án), Framhlið, Höldur + litur, Borðplata/Toppur +
+  "Engin", Spegilskápur, Skúffukerfi) and the editor's Efni menu (front tiles, handle colour): resting on a swatch shows it
+  on that page's 3D; off it the chosen one comes back; the click commits as before. `HOV_SEL` / `hovPatch(el)` turn a
+  swatch into the patch its click would make; `withHov(fn)` patches `state` for one draw and puts it straight back (never
+  saved — the localStorage draft only changes on a click). One timer for enter (70 ms) and leave (110 ms), so a sweep
+  across a grid draws only where the pointer rests. The model-loaded redraws go through `withHov` too (a hovered handle
+  keeps showing when its .glb arrives). Hovering the chosen swatch does nothing.
+- Editor fronts swap in place: `KP3D.previewFront(key|null)` puts the look on every front material of the live scene
+  (UVs were laid out for the built look's tile → the new texture repeats by old/new tile, on clones of the cached
+  textures; FR2 tagged `userData.fr2` and left alone) — ~1 ms instead of a ~250 ms whole-room rebuild. Handle colour,
+  a front that drops a Spónagrip handle, and 2D still rebuild (as a click would). The <select>s (Skrokkur, Borðplata,
+  Höldur) can't be hovered — native option lists send no events.
+- Ný eining step 3: Hurðir/Skúffur (`data-hw`), the ready-made insides (`data-uw-preset`, wardrobe `data-clrecipe`),
+  door type (`data-cldoortype`), oven type, swing, sink top, front-all, rail colour preview on the wizard's 3D via
+  `uw.hoverB` (a copy from `uwVariant`, using the same `uwApplyHw` / `uwApplyPreset` as the clicks); the view holds still
+  like the size chips. Steps 1–2 now also preview on keyboard focus.
+- Keyboard: `:focus-visible` counts as hover (Tab through the tiles, Enter commits). Touch: `pointerType === "touch"`
+  is ignored, a tap just commits.
