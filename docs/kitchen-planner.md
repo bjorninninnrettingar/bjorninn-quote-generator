@@ -431,3 +431,11 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
 - **Takk fyrir!**: "Hvað gerist næst?" (3 numbered lines) + "Hanna annað rými" (`#doneAgainBtn` → fresh `byrja`).
   The old "Sækja teikningar (PDF)" link in the done preview was left as it was.
 - Verified with fetch stubbed in the page (no live submit): payload has `contact.source`, Skilaboð has the new lines.
+
+## 2026-10-26 — Baðherbergi (its own room, not a kitchen in disguise)
+- Rými = "Hvar á innréttingin að vera?" (Einn veggur / Horn, `bathWall` / `bathCorner`) → "Veggurinn og vatnið" (cm + the
+  droplet, vaskaskápur auto-placed at it) → windows on the unit wall. Efni: Litur → Framhlið → Höldur → Toppur og vaskur →
+  Skúffur, all pre-picked (oak, Jey, white harðplast); preview is a real wall-hung vanity with a handlaug. 3D: handlaug +
+  short mixer, mirror cabinet when asked for, Sturta/Baðkar props, wardrobe-style wall bubbles, camera on the unit wall.
+  Ný eining: Breidd → Hæð frá gólfi → Skúffur eða hurðir; simplified customer float bar/panel.
+  Full notes: [studio-bad-thvottahus.md](studio-bad-thvottahus.md) ("Baðherbergi as its own room").
