@@ -42,3 +42,19 @@ Built from docs/studio-review-2026-10-25.md section C (the "Tillaga" lines, reco
 - Door product options (lamir/þröskuldur/skrá chips) and `doorProductFor` → needs `/api` (static server here has
   none); the logic is the same as the overlay's.
 - No real submission (never submit from tests). Line Items shape unchanged by construction; `npm test` passes.
+
+## QA round 2 (2026-10-26, report /private/tmp/claude-501/studio-qa-2026-10-26.md)
+- I1: Opnun options in plain words with a line under each (`DOOR_OPT_PLAIN`: Faldar/Sýnilegar lamir, Venjulegt bil /
+  Þétting sem fellur niður, Venjuleg/Hljóðlát skrá, Braut í loftinu/á veggnum/Falin braut, 30/60 mínútur, karmur
+  sléttur / með listum), usual value first. HU codes only in PRO — customers see "Hurð 1".
+- I2: Spónlagt / Harðplast tab always has a species picked (first of the group) + "Valið: …" line.
+- I3: Senda inn lists doors by the same kind names as the list (`doorKindLabel`); the stepper is hidden on
+  Spurningar/Senda inn for a doors-only project or Allt heimilið (`listProject()`); delivery question says "hurðirnar".
+- A1: Allt heimilið's top button is "Áfram →". A2: no "Eldhús · Eldhús" (type hidden when the name is the type);
+  a done row's button is "Breyta". A3: plain rooms are listed on Senda inn ("Rýmið teiknað, án innréttingar").
+- E5: Til baka from a room's first page goes to the front page (or the home list); "Byrja að hanna" with nothing
+  started opens the kitchen; the hidden Byrja page no longer lists "Hurðir — Væntanlegt".
+- E12: a front-page room card says "Halda áfram" only when that room is drawn (`closed`).
+- F4: Senda inn summary is project-wide: "Skipulagið þitt · N skápar" over every room, each room's row with its own
+  front + worktop (no worktop for rooms without one, e.g. wardrobes); a single-room project's materials list is that
+  room's, worktop dropped when the room has none.
