@@ -368,3 +368,24 @@ Tested on T-199 (fresh bath, "+ Vatn" on Veggur 1) and a customer-drawn bath (Ho
   unchanged, nothing marked óvistað until a door is saved. T-32 and T-199 have no doors in Airtable today.
 - Verified 1440×900 on T-32 (unlocked locally) and T-199: add, Hanna, Eins og HU-1, Afrita, Eyða, Breyta, Yfirlit,
   Klárt → back in the editor; customer Innihurðir unchanged (cm, plain words, no Smíða, no `cnc`).
+
+## Vista / Klár til framleiðslu — no silent data loss (PRO F2, 2026-10-26)
+
+Tested on T-32 with the read-only server (every write fails → the failure path is real); the success / conflict
+paths with `fetch` stubbed in the page, and server-side in `tests/kp-pro.test.js`.
+
+1. **Two computers**: the page sends `basedOn` = the `proSavedAt` its copy came from (`state.proSavedAt`, null = never
+   saved from PRO); kp-pro.js answers **409 `{conflict, savedAt}`** without writing anything when Airtable's
+   `proSavedAt` is newer (`force:true` skips the check; no `basedOn` at all = an old cached page, not checked), and
+   returns the new `proSavedAt`, which the page keeps for the next Vista. The page shows a PRO dialog "Einhver vistaði
+   þetta verkefni kl. HH:MM í annarri tölvu" — **Sækja nýrri útgáfu** (drops the local copy, reloads) / **Skrifa samt
+   yfir** (`force`) / Hætta við. On load, a dirty local copy no longer gets a native confirm: a PRO dialog shows the
+   local edit time (`STORAGE_KEY:at`, written by `save()` in PRO), the version it was based on, Airtable's save time,
+   and which is newer; Esc keeps the local changes (nothing is thrown away by accident).
+2. **Keyra skipulag**: one PRO dialog — "Vista og keyra skipulag" when anything is unsaved (else "Keyra skipulag"),
+   "Hætta við" does nothing. It saves first and runs only if that save reached Airtable — the old native confirm's
+   "Hætta við" ran on the stale data. "Klár til framleiðslu" goes through the same dialog (no second confirm).
+3. **Failed save**: Yfirferð stays open with a red box "Vistun tókst ekki." + an Icelandic reason (`proSaveErrText`:
+   no connection / 401–403 lykill / 409 / 400 / 429 / 5xx) + "● Óvistað …" while dirty + **Reyna aftur**; the bar says
+   "Vistun tókst ekki · ● óvistað". A failed save from anywhere (e.g. Mæling lokið) opens the panel the same way.
+   Vista í Airtable in the panel now closes it only once the save worked.
