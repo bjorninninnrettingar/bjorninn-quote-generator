@@ -109,6 +109,47 @@ Ruglar:
 
 Not done (optional smáatriði): A9, A11, A12, B2–B4, B6, C3, C5, D1, D2, D4, E2.
 
+## Smíða loop round (2026-10-26) — one cabinet after another
+
+Tested on T-32 with the read-only local server (every non-GET `/api` blocked), 1440×900 and 1280×720.
+
+1. **Smíða = one sitting per room.** A strip on top of the box editor (`.pe-nav`, sticky): ‹ Sk1 … SkN › with a dot
+   each (green yfirfarinn / amber ekki skoðaður / red ⛔, `proSkList`), the count, ONE primary button that never
+   moves — "Yfirfarinn → Sk8" (marks, then `proNextUnready` = next not-reviewed, wrapping), "Skápur yfirfarinn ✓"
+   when it's the last one, "Næsti → Sk8" / "Allir yfirfarnir — loka" on an already-marked cabinet — and Loka.
+   ← → switch cabinet, Esc closes (window capture listener, skipped while typing; before this ← → in Smíða
+   *nudged the selected cabinet along the wall* behind the overlay). Switching selects the cabinet (side panel +
+   3D follow, `proEdGo`). "Taka merkinguna af" stays at the bottom. Card widened to 1180 px so 13 Sk fit.
+2. Side panel header **"Sk1 · Grunnskápur"** in PRO. **Skoða → Sk-númer** (PRO only, remembered in localStorage):
+   `KP3D.setSkTags({id:"Sk1"})` draws a pill on every ordered cabinet's front in the SVG overlay, read off the live
+   pickables each frame (follows drags/rebuilds).
+5. **"Laga" on every ⛔** (`proIssues(b, c, zone, true)` → `{text, fix}`): drawer errors → `proFixDrawers` (each front
+   up to its minimum, the stack made to fill the cabinet by taking from / giving to the front with the most room —
+   Sk7: E 215 → 231, K 411 → 395); hinge errors → `proAutoHinges` (which now also counts *added* hinges as a change —
+   before, "needs 3 hinges" with a clear middle spot returned "Fann engan lausan stað"). One `save()` = one undo
+   step; "Lagað: … · Afturkalla" sits under the list while it's still the latest step (Cmd+Z works too).
+6. **Yfirferð "Laga →" lands on the fix**: Efni opens the editor's Efni menu at the missing field (`proOpenEfniAt`,
+   blue blink + focus; a wardrobe's own pages still go to the materials step); ⛔ opens that cabinet's Smíða with the
+   list blinking; "Hver skápur yfirfarinn" opens the first unreviewed (unchanged, now continues with the strip).
+   Also fixed: in PRO the Borðplata select showed "Steinplata" while none was picked (so picking Steinplata did
+   nothing) — it says "— veldu —" now. Customer flow unchanged.
+8. **Failed load** (`proFail`): no stepper/title behind it, bar = "PRO · Verkefnið opnaðist ekki", a card in the stage:
+   401/403 "lykillinn virkar ekki", 404 "það fannst ekki", other HTTP "villa á þjóninum", no response "ekkert samband",
+   plus the broken/unloadable-drawing cases; "Reyna aftur" reloads; the raw "HTTP 403" only as small print.
+9. **"Opna til breytinga"** = `proDialog` (PRO-styled, Esc/outside = cancel, Enter = main button) listing what to run
+   again, in order: keyra skipulag → yfirfara breyttar einingar → keyra pöntunarlista, and re-export CNC.
+
+Not exercised: a hinge "Laga" live (T-32 has no hinge collisions now; same `proAutoHinges` as C2).
+
+**Follow-up — "+ Næsti hægra megin" (same day).** Adding a cabinet in PRO asked twice (Ný eining's sizes/innvols,
+then Smíða again). The Smíða strip now has **"+ Næsti hægra megin"** next to the green button (`proNextRight`): closes
+Smíða, opens Ný eining straight on the sizes step with the current cabinet's type (the tree option with the same
+type, drawers-or-not matched), on the same wall, and sets `uwPlaceAfter` — "Setja inn" puts the new unit flush right of
+the cabinet (`uwAfterPlacement`), then Smíða opens on the new Sk as before, so a whole run is drawn in one loop. No
+room right there → the usual placement + toast "Ekki pláss beint hægra megin — settur á næsta lausa stað"; the
+narrower-width offer still applies. Disabled on island boxes. Tested T-32: Sk6 → Sk14 flush (gap 0), Sk13/Sk3 → toast.
+Kept to the Smíða side + the placement hook (PRO C is reshaping the wizard itself).
+
 ## PRO → CNC round (2026-10-26)
 
 Tested locally on T-32 at 1440×900 with the read-only server (every non-GET `/api` call blocked).

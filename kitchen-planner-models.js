@@ -23,6 +23,13 @@
 // Only used when the cabinet is deep enough for the real length (470/500 mm parts).
 window.KPMODELS = {
   drawers: {},
+  // Innihurðir hardware (kitchen-planner-doors.js, 2026-10-26): empty = the procedural placeholders. One key per item —
+  //   hinge_hidden, hinge_visible, threshold_drop, lock_standard, lock_magnetic, handle_lever, track_wall, track_ceiling, track_hidden
+  // e.g. hinge_visible: { file:"models/doors/hinge-visible.glb", scale:1, rot:[0,0,0] } — metres. The
+  // model's origin goes on: each hinge's centre on the hinge line (front face); the threshold's centre at the leaf's
+  // bottom; the lock/handle spindle on the front face (model both sides, lever pointing to the hinges = left-hinged door,
+  // mirrored for right); a track's centre at the top of the opening on the wall face. Drawn for a door hinged on the left.
+  doorHardware: {},
   drawerSides: {
     legra_M: { boardMm:12, white:{ L:"models/drawers/legra-M-white-L.dae", R:"models/drawers/legra-M-white-R.dae" }, dark:{ L:"models/drawers/legra-M-dark-L.dae", R:"models/drawers/legra-M-dark-R.dae" } },
     legra_K: { boardMm:12, white:{ L:"models/drawers/legra-K-white-L.dae", R:"models/drawers/legra-K-white-R.dae" }, dark:{ L:"models/drawers/legra-K-dark-L.dae", R:"models/drawers/legra-K-dark-R.dae" } },

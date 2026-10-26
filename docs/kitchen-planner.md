@@ -439,3 +439,40 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   short mixer, mirror cabinet when asked for, Sturta/Baðkar props, wardrobe-style wall bubbles, camera on the unit wall.
   Ný eining: Breidd → Hæð frá gólfi → Skúffur eða hurðir; simplified customer float bar/panel.
   Full notes: [studio-bad-thvottahus.md](studio-bad-thvottahus.md) ("Baðherbergi as its own room").
+
+## 2026-10-26 — Innihurðir rebuilt to the user's design (count → HU rows → popup per door → review)
+- Files: [kitchen-planner-doors.js](../kitchen-planner-doors.js) (`window.KPDOORS`: kinds, steps per kind, room list,
+  `lineFor` = the HU Line Item, the 3D preview + thumbnails, hardware) and the "Innihurðir — the user's design" block in
+  kitchen-planner.html (`openDoors(page)`, `renderDoorStep`, `openDoorWiz` / `renderDoorWiz`). Tests: tests/kp-doors.test.js.
+- **Pages** (`doorPage`): "count" — *Hvað ætlar þú að gera margar hurðir?* (− N +, 1–30) → creates N rows → "list" —
+  one row per door: HU-n, Rými dropdown (Hjónaherbergi … Skrifstofa + Annað → text field), summary + 3D thumbnail once
+  designed, **Hanna/Breyta** (fixed width), Afrita, Eyða, "+ Bæta við hurð" → "review" — every door with picture and
+  every choice, Breyta on each → Spurningar → Senda inn. Customers' HU numbers are renumbered without gaps after
+  copy/delete (PRO keeps its keys). Title "Hannaðu innihurðirnar þínar"; the main stepper shows Hurðir → Spurningar →
+  Senda inn for a doors-only project (`doorsStepper()`); inside Allt heimilið the review's Áfram returns to the home list.
+- **The popup** (`#doorWiz`, same box as Ný eining): live 3D door left, collapsible sections right, picking a value folds
+  it and opens the next not-yet-done one. Steps per kind (`KPDOORS.sections`): hefðbundin hurð = Gerð → Mál → Opnun →
+  Útlit → Lamir → Felliþröskuldur → Skrá (+ "Viltu húna frá okkur?" Já, takk / Nei, ég vel sjálf/ur → `d.hunar`);
+  gler: no Útlit; renni: Brautin; glerrenni: Brautin, no Útlit; eld: Brunavörn + Skrá (húnar only); karmur: Karmurinn.
+  Gerð = two big cards **Innfelld hurð / Hurð með gereftum** (`kind:"hurd"`, `frame:"innf"|"gerefti"`) + "Fleiri gerðir"
+  (gler, renni, glerrenni, eld, karmur — nothing lost). **Mál = typed cm only** (no pills), breidd 50–250, hæð 150–300,
+  veggþykkt 5–40; a new door's fields start empty, "Vista hurðina" stays disabled until all three are valid; errors show
+  after 2+ characters or on blur. Esc / ✕ / Hætta við ask before dropping changes.
+- **3D**: wall section with the opening cut out, karmur lining (wall thickness = its depth), gerefti on both faces,
+  leaf (innfelld flush with the opening side), glass / framed glass, sliding leaf on the wall face + track. Camera moves
+  (0.52 s smoothstep, like uwAimCamera): whole door for Gerð/Mál/Útlit, slightly from the hinge side with the leaf ajar
+  for Opnun (dashed swing arc on the floor) and Lamir, low at the floor for Felliþröskuldur, close on the handle for Skrá,
+  the track for Brautin, from the wall's end while typing veggþykkt. Dimension lines like Ný eining: the field being
+  typed blue, entered ones dark, "?" until typed, only on the whole-door views. Leaf colour = the look's colour3d; Egger
+  decors also get their tileable texture (spónlagt swatches are photos → colour only, as on the fronts).
+- **Hardware = placeholders**, one function each in `KPDOORS.HW` (hinge_hidden, hinge_visible, threshold_drop,
+  lock_standard, lock_magnetic, handle_lever, track_wall/ceiling/hidden). A real GLB replaces one by adding
+  `window.KPMODELS.doorHardware[key] = { file, scale?, rot? }` (kitchen-planner-models.js explains where its origin goes).
+- **Data**: same `state.doorList` (mm). New fields `frame`, `hunar`, `roomOther`, `designed:false` for rows not designed
+  yet (never sent; `canGoTo("intake")` blocks until every row is designed and has a room). `doorListLines` →
+  `KPDOORS.lineFor`: note now lists gerð, karmur, lamir, felliþröskuldur, skrá, braut/brunavörn and húnar in plain words
+  (the product match is still `doorProductFor` — no "hurð með gereftum" product exists in Útfærslur, so it's the
+  Innfelld hurð product + "Karmur með gereftum" in the note); Smíðagögn `door` gets `frame`, `opt`, `hunar`, `room`.
+  "Annað" rooms go in as Rými "Alrými" with the typed name in the note (never a new Rými choice).
+- Not changed: PRO's "🚪 Hurðir" button still opens the old overlay (`openDoorList`, edits the same objects), doors
+  drawn in a room's walls (`homeDoorPop`), workdraw door sheet.
