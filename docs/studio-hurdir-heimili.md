@@ -58,3 +58,32 @@ Built from docs/studio-review-2026-10-25.md section C (the "Tillaga" lines, reco
 - F4: Senda inn summary is project-wide: "Skipulagið þitt · N skápar" over every room, each room's row with its own
   front + worktop (no worktop for rooms without one, e.g. wardrobes); a single-room project's materials list is that
   room's, worktop dropped when the room has none.
+
+## Allt heimilið polish (2026-10-26, 8 approved items)
+- **Empty rooms never block** (`homeListNext`): Áfram drops the empty starter door(s) (`designed:false`) and goes on;
+  empty rooms are left out with one line under the cards ("Innihurðir er tómt og fer ekki með."). Only when no room
+  has anything to order (units or a designed door) does it stop, with an inline box naming each empty room +
+  Hanna / Fjarlægja (`hlGate`; a door without a room shows canGoTo's reason + Hanna). No toast.
+- **Messages stay on their step**: the gate box and the undo toast clear when you leave the list (`goto`); the
+  "Sömu efni…" toast is gone (see below); no toast on the list's Áfram any more.
+- **× with undo**: empty room → removed at once; room with work → removed + "Fjarlægt: {room} · Afturkalla" toast
+  (6 s, `undoToast`, restores queue position, room data, name, home position, thumbnail / the door list).
+- **Room steps inside Allt heimilið**: the stepper shows only Rými · Efni · Skipulag (`updateStepper` HM); the
+  editor's button and the doors review's button say "Klárt — aftur í Allt heimilið". Single-room flows unchanged.
+- **Cards** (`renderHomeList`): picture (the editor's 3D, captured on Klárt or the header's Allt heimilið pill and kept
+  per room in localStorage `bjorninn:kitchenPlanner:homeThumbs:v1` — NOT in the draft, which goes to Airtable as text;
+  stale when the unit count changed → the room's 2D plan; nothing drawn → the type icon; doors → first door's 3D),
+  name (editable), status Ekki byrjað / Í vinnslu / ✓ Klárt, count, Hanna / Halda áfram / Breyta; "+ Rými" is the
+  last card and opens the type form in place of the grid. 4 columns (3 under 900 px), row height computed to fit the
+  canvas — no scroll at 1440×900 / 1280×720 with 6 rooms (re-measured once if the screen was still switching).
+- Welcome card: "Mörg rými — eitt tilboð".
+- **Hvar er hurðin?** (doors list select) in Allt heimilið: optgroup "Rýmin þín" (the project's rooms by name) then
+  "Önnur rými" + Annað. Picking one stores its Rými 🏡 value in `d.room` (Line Item unchanged) + `d.homeRoom` for the
+  name shown (`doorRoomText`); a room name that isn't a Rými choice → Annað + the name.
+- **"Sömu efni og í {room}?"** (`renderMatAsk`, `state.matAsk = {from, own}` per room): a new room that inherited
+  materials asks on its first Efni page (the 3D already shows them). Já, sömu → Skipulag (or only the page still open,
+  e.g. its own worktop); Velja ný → the room's own starting picks back (`own`), page 1. Customer only (PRO keeps its
+  "Erfir efni frá…" line).
+- Verified in the Browser pane (static server, 1440×900 + 1280×720): Eldhús + Fataskápur + empty Bað/Þvottahús/Stofa/
+  Innihurðir → Áfram → Spurningar → Senda inn (not submitted), remove + undo, nothing-in-it gate, door room picker,
+  single-room kitchen still shows 5 steps + "Áfram →".
