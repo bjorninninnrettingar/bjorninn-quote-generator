@@ -4304,6 +4304,37 @@
       }, 0);
     });
   }
+  // Room card picture (Allt heimilið round 3, 2026-10-26): the units framed, from the room side of the walls they stand
+  // on, turned 25° and a little from above — the same angle for every room, nothing cropped. Synchronous (the caller
+  // tears the scene down right after), so it renders what is in the scene now. → JPEG data URL or null.
+  function unitsShot(spec){
+    var st = THREE_STATE, THREE = window.__THREE__; spec = spec || {};
+    if (!st || !THREE) return null;
+    var box = new THREE.Box3(), any = false, n = new THREE.Vector3(), mid = new THREE.Vector3(), ng = 0;
+    (st.pickables || []).forEach(function(m){ var u = m.userData || {}; if (!u.blockId) return; box.expandByObject(m); any = true;
+      var wi = (st.walls || []).findIndex(function(x){ return x.id === u.wallId; }), g = wi >= 0 && st.geoms ? st.geoms[wi] : null; if (g && g.normal && !(st.walls[wi] || {}).island){ n.x += g.normal.x; n.z += g.normal.z; ng++; } });
+    if (!any || box.isEmpty()) return null;
+    var nw = 0; (st.geoms || []).forEach(function(g, i){ if (g.origin && st.walls && st.walls[i] && !st.walls[i].island){ mid.x += g.origin.x; mid.z += g.origin.z; nw++; } });
+    if (nw) mid.multiplyScalar(1 / nw);
+    var c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3());
+    if (n.lengthSq() < 1e-6){ n.set(mid.x - c.x, 0, mid.z - c.z); if (n.lengthSq() < 1e-6) n.set(0, 0, 1); }
+    n.y = 0; n.normalize();
+    var a = 25 * Math.PI / 180, dir = new THREE.Vector3(n.x * Math.cos(a) - n.z * Math.sin(a), 0, n.x * Math.sin(a) + n.z * Math.cos(a));
+    var w = spec.width || 480, h = spec.height || 300, fov = 38, r = Math.max(0.6, sz.length() / 2);
+    var dist = r / Math.sin(fov / 2 * Math.PI / 180) * 0.9; // the bounding sphere is generous: a little closer still frames every unit
+    var cam = new THREE.PerspectiveCamera(fov, w / h, 0.05, 200);
+    cam.position.set(c.x + dir.x * dist, c.y + dist * 0.32, c.z + dir.z * dist);
+    cam.lookAt(c.x, c.y, c.z); cam.updateProjectionMatrix(); cam.updateMatrixWorld();
+    st.fadeCam = cam;
+    for (var k = 0; k < 40; k++) if (st.stepFades) st.stepFades(); // the walls in the way fade out first
+    var rr = st.renderer, old = rr.getSize(new THREE.Vector2()), oldPR = rr.getPixelRatio();
+    rr.setPixelRatio(1); rr.setSize(w, h, false);
+    rr.render(st.scene, cam);
+    var url = rr.domElement.toDataURL("image/jpeg", spec.quality || 0.8);
+    rr.setPixelRatio(oldPR); rr.setSize(old.x, old.y, false);
+    st.fadeCam = null;
+    return url;
+  }
   // Studio mynd (2026-10-23): path-trace the live scene from the live camera (three-gpu-pathtracer, loaded on demand)
   // → a JPEG data URL. The editor's own loop is paused meanwhile; labels, handles, see-through (faded) walls and
   // cabinets, lines and sprites are hidden; a soft daylight sky lights it (and shows through the windows).
@@ -7506,7 +7537,7 @@
     snapshot3D: snapshot3D,
     setXrayFronts: setXrayFronts, previewFront: previewFront,
     setCameraLookAt: setCameraLookAt, studioRender: studioRender,
-    renderShot: renderShot,
+    renderShot: renderShot, unitsShot: unitsShot,
     setAllParts: setAllParts, snapParts: snapParts,
     DRAWER_CODES: DRAWER_CODES, FIXED_FRONT_CODE: FIXED_FRONT_CODE,
     FRONT_MIN: FRONT_MIN, slotMin: slotMin,

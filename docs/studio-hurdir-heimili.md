@@ -102,3 +102,31 @@ Built from docs/studio-review-2026-10-25.md section C (the "Tillaga" lines, reco
   laundry or doors only → the small set. An answer not in the shown set is cleared. Verified: Fataskápur 5 + Bað 3 +
   empty Innihurðir → Undir 1 m.kr. …
 - Not touched: Þvottahús's own default `look:"hvitt"` is also a hidden look (Þvottahús session's area).
+
+## Round 3 — one start flow for everyone (2026-10-26)
+- **Start page** "Hvaða rými viltu hanna?": six big cards with a tick (Eldhús, Fataskápur, Baðherbergi, Þvottahús,
+  Innihurðir, Aðeins rými), multi-select (`welPick`, not saved), "Byrja →" (grey + "Veldu eitt eða fleiri rými." until
+  one is ticked); with a project: "Halda áfram →" (or "Bæta við og byrja →" with new ticks). The old separate
+  "Allt heimilið" card/mode is gone — **every customer project is a home project** (`state.home`).
+- `startPicked(types)` adds the rooms (named "Fataskápur 2" … via `hlFreeName`, Rými 🏡 in `state.home.rymi`) and sets
+  `state.home.walk`; `homeNext()` opens the next one (doors last), else the list. One room → straight into it; the list
+  shows when it's done. Room finish button: "Klárt — næsta rými →" / "Klárt — aftur í rýmin" (`homeWalkPeek`). A room
+  opened by hand or removed leaves the walk (`walkDrop`).
+- **Migration** (boot, customer only): a draft without `state.home` but with a drawn room / queue / designed doors
+  becomes a one-room project.
+- **List** "Rýmin þín": "+ Bæta við rými" opens the same cards in a popup (`openAddPicker`) over the list.
+- **Progress bar** on heimili / Spurningar / Senda inn: Rýmin → Spurningar → Senda inn (`.st[data-s=heimili]`, PF in
+  `updateStepper`); the list canvas is 312 px shorter than the window so nothing scrolls.
+- One-room helpers (`oneKindTitle`, `closetOnlyProject`, page title) now work in a one-room home project; Senda inn shows
+  the single-room picture when there is one room and no doors, else the list with a small framed picture per room (B3).
+- B1 `seedKitchenRun`: a new customer kitchen gets uppþvottavél + skúffuskápur / skúffuskápur + ísskápsturn around
+  the sink and efri skápar over the low units (clear of windows/doors, corner clearance, wall doors).
+- B2 `KP3D.unitsShot()`: synchronous framed render of the units (bounding box, from the room side, 25° turned, a bit
+  from above) for the card + Senda inn pictures.
+- B4 Eldhús `defaults` (dökkgrátt, Merivo, Alpine White W1100 — W1000 is hidden as a front, Jey, W1000 worktop) +
+  `inherit` = every shared material, so PRO's silent copy is unchanged.
+- B5 the "Sömu efni?" question's preview reveals fronts + handles (`matPhaseReveal`), and the worktop is offered too
+  when both rooms have one in an allowed group.
+- B6 úthliðar prompt: "Já, bæta við" adds them and goes straight on (a toast only if some didn't fit).
+- Verified (static server, 1440×900): Eldhús + Þvottahús + Innihurðir walk → list → Spurningar → Senda inn (not sent),
+  one-room Fataskápur, popup add, old-draft migration.
