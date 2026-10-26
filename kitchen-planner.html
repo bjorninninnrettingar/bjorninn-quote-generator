@@ -1433,6 +1433,7 @@
   #proEd .pe-ready:disabled { opacity:.45; cursor:not-allowed; }
   #proEd .pe-issues { margin:0 0 12px; padding:9px 11px; border-radius:10px; background:#3a1f1b; color:#ffb4a6; font-size:13px; line-height:1.4; }
   #proEd .pe-issues div + div { margin-top:4px; }
+  #proEd .pe-issues .pe-fix { margin-top:8px; }
   #proEd .pe-ready.undo { background:transparent; color:inherit; border:1px solid var(--line, #cfd4da); font-weight:600; }
   #proEd { position:fixed; inset:0; z-index:350; background:rgba(15,18,24,.55); display:flex; align-items:center; justify-content:center; padding:20px; box-sizing:border-box; }
   #proEd .pe-card { background:#fff; color:#1b1f24; border-radius:16px; width:min(1060px,96vw); max-height:calc(96vh - 52px); overflow:auto; display:grid; grid-template-columns:auto 1fr; align-items:start; gap:22px; padding:20px 22px; box-shadow:0 20px 60px rgba(0,0,0,.35); }
@@ -13633,6 +13634,32 @@
     }
     return CNCSIDES.defaultHingeSpec(doors[i].box, avoid);
   }
+  // C2 (2026-10-26): "Færa lamirnar" — every hinge that lands on a shelf's holes / a fixed shelf / an inner drawer runner
+  // moves to the nearest clear spot (≥30 mm from them, ≥30 mm from the door's ends, ≥60 mm from its other hinges), and
+  // missing hinges are added the same way. Written into Smíðagögn, so /cnc drills exactly what the drawing shows.
+  function proAutoHinges(b, c, zone){
+    var doors = proDoorsOf(b, c, zone), body = proBodyMm(b, c, zone), rows = proShelfRows(b, body), top = body, all = [], moved = 0;
+    doors.forEach(function(d, i){
+      var sp = proSpec(b, doors, i), bottom = top - d.box; top = bottom;
+      if (sp.type !== "hinged"){ all.push(sp); return; }
+      var pos = CNCSIDES.specToPositions(sp.hinges, d.box), need = proHingeMin(d.box);
+      while (pos.length < need) pos.push(d.box / 2); // placed below like any colliding one
+      function clear(p, k){ return p >= 30 && p <= d.box - 30 && !rows.some(function(r){ return Math.abs(bottom + p - r.at) < 30; }) &&
+        !pos.some(function(q, j){ return j !== k && Math.abs(q - p) < 60; }); }
+      pos.forEach(function(p, k){
+        if (clear(p, k)) return;
+        for (var step = 5; step < d.box; step += 5){
+          var dirs = p <= d.box / 2 ? [1, -1] : [-1, 1]; // towards the middle first
+          for (var t = 0; t < 2; t++){ var cand = p + dirs[t] * step; if (clear(cand, k)){ pos[k] = cand; moved++; return; } }
+        }
+      });
+      all.push({ type:"hinged", hinges:pos.sort(function(a, z){ return a - z; }).map(function(x){ x = Math.round(x); return x <= d.box / 2 ? { from:"bottom", mm:x } : { from:"top", mm:d.box - x }; }) });
+    });
+    if (!moved) return false;
+    b.smida = Object.assign({}, b.smida || {}, { doors:all });
+    save(); refreshAfterEdit();
+    return true;
+  }
   function proSetSpec(b, doors, i, spec){
     var all = doors.map(function(d, j){ return j === i ? spec : proSpec(b, doors, j); });
     b.smida = Object.assign({}, b.smida || {}, { doors:all }); // keeps the split
@@ -13702,6 +13729,10 @@
   }
 
   var proEdId = null;
+  function proCustomized(b){
+    return !!(b.smida || (b.interior && Array.isArray(b.interior.frontsMm)) || b.ovenFrontsMm || b.ovenUnderMm || b.ovenH != null ||
+      Array.isArray(b.ovenShelves) || Array.isArray(b.shelfPos) || Array.isArray(b.railPos) || Array.isArray(b.burPos) || b.radborun || (Array.isArray(b.innerCodes) && b.innerCodes.length));
+  }
   // one line of what a collapsed Smíða section holds, read off its own controls (so it can never disagree with them)
   function peSectionSummary(sec){
     function on(pe){ var n = sec.querySelector('.pe-btn.on[data-pe="' + pe + '"]'); return n ? n.textContent.trim() : ""; }
@@ -13905,10 +13936,13 @@
     var carcassMm = carcassHeightMm(b, c, fb.zone, fb.wall);
     var right = '<button type="button" class="pe-btn pe-close" data-pe="close">Loka ✕</button>' +
       '<h3>' + (key ? key + " · " : "") + c.label + '</h3><div class="pe-sub">' + b.widthMm + ' × ' + carcassMm + ' mm · ' +
-      (b.smida ? "Smíðagögn vistuð á skápnum" : "Sjálfgefið (ekkert breytt)") + '</div>';
+      // C1 (2026-10-26): drawer heights, oven, shelves, rails, inner drawers are changes too — not only doors/hinges —
+      // and "vistuð" read like Airtable: it's on the drawing until Vista
+      (proCustomized(b) ? "Breytt hér — fer í Airtable þegar þú vistar" : "Sjálfgefin smíðagögn (ekkert breytt)") + '</div>';
     // ⛔ first, where it can't be missed (2026-10-26: it sat under the last section, below the fold on a tall unit)
     var issues = proIssues(b, c, fb.zone);
-    if (issues.length) right += '<div class="pe-issues"><b>⛔ Lagaðu áður en skápurinn er merktur yfirfarinn:</b>' + issues.map(function(x){ return '<div>' + escapeHtmlPro(x) + '</div>'; }).join("") + '</div>';
+    if (issues.length) right += '<div class="pe-issues"><b>⛔ Lagaðu áður en skápurinn er merktur yfirfarinn:</b>' + issues.map(function(x){ return '<div>' + escapeHtmlPro(x) + '</div>'; }).join("") +
+      (issues.some(function(x){ return / löm | lamir /.test(x); }) ? '<button type="button" class="pe-btn pe-fix" data-pe="autohinge">Færa lamirnar sjálfkrafa</button>' : '') + '</div>';
     // Mál (2026-10-17, user — "Smíða er final design á þessu algjörlega svo hér þarf að vera hægt að fínpússa
     // allt"): width/height/depth used to be editable only on the regular side panel, outside Smíða — same
     // applyBlockDim the floating-toolbar size chip and the side panel's own Mál tab already use, so a change
@@ -14101,6 +14135,7 @@
 
     function act(sel, fn){ el.querySelectorAll(sel).forEach(function(n){ n.addEventListener(n.tagName === "INPUT" ? "change" : "click", function(){ fn(n); }); }); }
     act('[data-pe="close"]', closeBoxEditor);
+    act('[data-pe="autohinge"]', function(){ if (!proAutoHinges(b, c, fb.zone)) toast("Fann engan lausan stað — færðu hilluna eða lömina handvirkt."); renderBoxEditor(); });
     act('[data-pe="ready"]', function(n){ proSetReady(b, n.dataset.v === "1"); renderBoxEditor(); });
     var SPLIT_MIN = 150;
     act('[data-pe="split"]', function(n){ var k = +n.dataset.v;
