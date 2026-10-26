@@ -185,3 +185,80 @@ were only exercised through the `input` preview).
    megin" dimmed, all with the title "Opnaðu til breytinga fyrst"; a capture click listener swallows their clicks with a
    toast. "Opna til breytinga" restores titles and clicks. Still possible while locked (not changed): dragging a cabinet
    in 3D, keyboard ⌘Z / Delete, the side panel's own edit fields — local only, Vista isn't offered.
+
+## PRO → CNC round (2026-10-26)
+
+Tested locally on T-32 at 1440×900 with the read-only server (every non-GET `/api` call blocked).
+
+- **Smíða "Hlið · CNC" tab** (item 3). Tabs "Framhlið | Hlið · CNC" above the drawing (`peView`). The side view runs
+  the cabinet's current Smíðagögn (`smidaFor`) through the SAME code /cnc exports with: `proCncRows` turns it into the
+  Sögunarlisti rows ÚRVINNSLA would cut (side, "Skúffufrontur X - Merivo/Legra", "Frontur" / "Frontur vænghurð" ×2 /
+  "Skiptur frontur N", Laus/Föst hilla counts, inner drawer fronts) → `CNCSIDES.unitPlan` → `sideFiles` →
+  `renderSide` (stand-in master `PRO_CNC_MASTER`, so macros sit before STAT_BLOCK — same drilling, not the master's
+  order) → `CNCBPP.buildCard` (cnc-bpp.js, lazy-loaded on first use so the customer planner never fetches it). Shows
+  one card per side file (e.g. "Vinstri hlið - lamir ×1" + "Hægri hlið ×1"), /cnc's own ⛔/⚠ notes, and the front
+  files under "Frontar". No geometry is duplicated; sizes are the drawing's (the real file uses Sögunarlisti, and /cnc
+  flags > 20 mm differences). The side box takes exactly the drawing's size (scrolls inside), so nothing on the
+  right moves between tabs.
+- **Wide door cabinets = two leaves** (item 4, T-32 Sk6 Efri skápur 1200). Checked against the real T-32 data
+  first: Sögunarlisti has "Frontur vænghurð 997 × 597" ×2; /cnc pairs them as one opening ("Vænghurð"), drills the
+  hinges in both sides ("Hliðar - lamir báðum megin" ×2) and writes the door-front file ×2 — **export was right, only
+  the drawing was wrong**. Smíða now draws two leaves (each its own hinges, title says which side); both leaves share
+  the opening's hinge heights (one side file run ×2), so dragging a marker on either moves both, and the door section
+  says so. Regression test in `tests/cnc-sides.test.js` (one Smíðagögn door + two leaves → designer hinges, both sides,
+  front ×2).
+- **After "Klár til framleiðslu"** (item 7). `proRunSkipulag` now checks the PATCH responses, then `proWatchSkipulag`
+  polls Line Items (read-only, backoff 4 → 15 s, gives up after 5 min with what's still waiting + "Athuga aftur").
+  Keyra skipulag 📝 stamps `Síðast samstillt timestamp` (unix s) on every line it wrote, last of all, so done = a line
+  stamped since the run started, none left "⚠️ Breytt eftir stofnun", same count two polls in a row (or nothing to do
+  after 75 s). Then it counts Sögunarlisti and names units with no Sögunarlisti rows ("keyrðu Yfirfara á þeim") —
+  Keyra skipulag itself only makes Eyðublöð; Sögunarlisti comes from Yfirfara 3.0 per unit. The Yfirferð panel always
+  has the status line + **"Opna CNC-útflutning →"** (`/cnc?recordId=…&k=…`, new tab) in the same place; the locked bar
+  got a **CNC** button. Proxy: Line Items' `🔑`, `Eyðublað búið til ✏️`, `⚠️ Breytt eftir stofnun`,
+  `Síðast samstillt timestamp` readable behind VERK_KEY. The real run was not exercised (writes are blocked locally):
+  the watcher was driven with stubbed Line Item responses in the page (first poll stale, then stamped) against the real
+  Sögunarlisti read → "Skipulag keyrt ✓ · 13 Eyðublöð uppfærð · Sögunarlisti 90 hlutir", and with an empty Sögunarlisti
+  → "13 einingar án Sögunarlista (Sk1, …)".
+
+Found, not changed: Keyra skipulag sets "Tveir frontar" on an **Efriskápur from 500 mm** (`width >= 500`, other units
+`> 600`), but Smíða / the 3D / `smidaFor`'s `hinge` use **> 600** everywhere. A 500–600 mm wall cabinet would get two
+leaves in Sögunarlisti while Smíðagögn says hinges on one side only → /cnc would drill hinges in one side for two
+leaves. T-32 has none in that range; needs a decision on which rule is right.
+
+## New project round (2026-10-26) — starting a project in PRO is fast
+
+Tested on T-199 (`rec0Hylqy26rrPmKz`, no drawing, no contact) and T-32 with the read-only local server, 1440×900 and
+1280×720; customer Eldhús walked end to end (5 room pages + 5 Efni pages unchanged).
+
+1. **Header**: `proNameHtml()` — "T-199 · Nýtt verkefni" while the name has no contact ("T-199 | -"); the T-number is
+   its own span that never shrinks, only the contact/address part ellipsizes (full name in the tooltip).
+2. **Progress**: PRO hides the customer stepper; `#proSteps` (in `updateStepper`) shows "1. Rými › 2. Rýmið — Eldhús
+   (1 af 2) › 3. Teikning" on the room pick and the Rýmið page only.
+3. **Rýmið = one page** (`renderProRoomBox`, `#shapeProBox`): PRO's shape step is always the sizing drawing
+   (`shapePhase = "size"`, walls still drag); a fresh room starts as the room kind's usual shape (`proDefaultShape`).
+   Beside it: shape tiles, Lofthæð, then per wall its length + Opið, each window/door/op (frá horni, breidd, hæð, frá
+   gólfi, ×), "+ Gluggi / + Hurð / + Op / + Vatn" and the water point (frá horni) — all mm, Enter commits and moves to
+   the next field, the drawing redraws, dragged walls update the table (`syncProRoomVals`), the water point is drawn as
+   a marker. Writes the same fields the five pages did (walls, roomHeightMm, windows, doors, waterWall/waterAlongMm,
+   openingsDone). Obstacles (ofnar, lagnir) stay in the editor's "Gluggar og hindranir". The editor's "← Til baka"
+   goes back here in PRO (it went to the Efni pages). The Mæling sheet is unchanged (it's the on-site tick list).
+5. **Efni skipped in PRO**: "Áfram í teikningu →" (`proRoomDone`) → `proMatDefaults()` puts in the usual materials
+   (room kind's `categoryDef.defaults` first, else dökkgrátt / Merivo / Egger W1000 white / Jey / W1000 top; no top in a
+   wardrobe) and remembers each in `state.matAuto` (a ROOM_FIELD, copied with the materials to the project's next room).
+   A material is "óákveðið" while it still equals what was put in (`matUndecided()`): the Efni menu shows an amber
+   ÓÁKVEÐIÐ tag on that field; Yfirferð's "Efni og höldur valin" row is not green and lists them, "Laga →" opens the
+   Efni menu at the first one, or tick "Sjálfgefnu efnin eru rétt" (ack tied to the set, like Ábendingar). Picking any
+   other value clears it.
+7. **mm in the Ný eining wizard in PRO**: chips, "Annað mál" input (min/max/step), folded headers, corner notes,
+   Lausar hillur / hung-unit chips and the preview's dimension lines use `uwN` / `uLen` / `uUnit` (customer still cm).
+8. **Kitchen Ný eining = one type list** (`KITCHEN_TREE`, customer and PRO): 25 types under group headings
+   (Grunnskápar, Háir, Efri, Eldhústæki, Eyja, Úthliðar), three a row, descriptions in tooltips — fits one screen at
+   1440×900 (7 px scroll at 1280×720). A click goes straight to Mál → **Skúffur eða hurðir** (picture cards, `frontsWiz`,
+   the kitchen's one Grunnskápur / Vaskaskápur / Lítill kassi) → Innvols; Eyja / Bak á eyju go straight to their own
+   config. **PRO kitchen is short** (`uwShort`): Breidd (+ Skúffur eða hurðir) then Setja inn → Smíða; úthliðar and
+   Lausar hillur keep their sizes. Þvottahús keeps `UNIT_TREE`-style two levels; Fataskápar/Bað unchanged. PRO A's
+   "+ Næsti hægra megin" finds the type in the new tree and starts a door cabinet's neighbour with a door.
+   EN strings for the new labels in kitchen-planner-i18n.js.
+
+Not done / left as is: the T-199 contact itself (Nýtt verkefni until a Tengiliður is linked in Airtable); Þvottahús'
+tree; PRO bath/wardrobe wizards still show all sections.
