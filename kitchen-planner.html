@@ -1130,7 +1130,7 @@
   .op-seg + .op-seg { margin-top:6px; }
   .op-door-pic { display:block; margin:8px auto 2px; }
   /* ---------- pro mode (Rakel, ?pro=<Tækifæri>&k=…) ---------- */
-  body.pro #toContactBtn { display:none; }
+  body.pro #toContactBtn:not(.pro-next) { display:none; } /* PRO: only as "Næsta rými" when several rooms are queued (A2, 2026-10-26) */
   #proBar { display:flex; gap:10px; align-items:center; font:600 13px/1.3 inherit; color:var(--ink); }
   #proBar[hidden] { display:none; }
   #proBar .pb-name { opacity:.7; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:28vw; }
@@ -5371,7 +5371,9 @@
   // Úthlið (19 mm end panel) placed against a cabinet takes that cabinet's
   // height, depth and (wall units) height above the floor, and the matching
   // floor/tall type — so it "matches the box it is set up against".
-  function matchPanelToNeighbour(wall, zone, b){
+  // keepType (Ný eining, B1 2026-10-26): the type was picked by hand ("Úthlið — neðri" next to a tall unit came out
+  // "há, 19 × 2500") — keep it, and only take the neighbour's height when it is the same kind (low/tall).
+  function matchPanelToNeighbour(wall, zone, b, keepType){
     var c = CATALOG[b.type];
     if (!c.panel) return;
     var spans = spansOf(wall, zone), me = spans.find(function(sp){ return sp.b.id === b.id; });
@@ -5381,9 +5383,11 @@
     });
     if (!near.length) return;
     var nb = near[0].b, nc = CATALOG[nb.type];
-    if (zone === "floor") b.type = (nc.cls === "tall" || nc.fridge || nc.oven) ? "uthlidhar" : "uthlid";
+    var nbTall = nc.cls === "tall" || nc.fridge || nc.oven;
+    if (zone === "floor" && !keepType) b.type = nbTall ? "uthlidhar" : "uthlid";
     c = CATALOG[b.type];
     var h = Math.max(c.minH, Math.min(dimRange(c, "heightMm")[1], blockHeightMm(nb, nc))), d = Math.max(c.minD, Math.min(c.maxD, nb.depthMm || nc.d));
+    if (keepType && zone === "floor" && (c.cls === "tall") !== nbTall) h = c.h; // a low panel beside a tall unit stays low
     if (h === c.h) delete b.heightMm; else b.heightMm = h;
     if (d === c.d) delete b.depthMm; else b.depthMm = d;
     if (zone === "wall"){
@@ -6879,7 +6883,7 @@
         return;
       }
       insertBlockAt(wall, c.zone, b, pl.offsetMm);
-      matchPanelToNeighbour(wall, c.zone, b);
+      matchPanelToNeighbour(wall, c.zone, b, true);
       landedBlockId = b.id; selectedBlockId = b.id; selectedWallId = null;
       save();
       leaveUnitWizard();
@@ -8700,7 +8704,13 @@
     chip.hidden = !warnings.length;
     chip.textContent = "" + warnings.length + " " + plural(warnings.length, "ábending", "ábendingar");
     var total = surfaces().reduce(function(sum, w){ return sum + w.floor.length + w.wall.length; }, 0);
-    document.getElementById("toContactBtn").disabled = total === 0;
+    var tcb = document.getElementById("toContactBtn");
+    tcb.disabled = total === 0;
+    if (PRO){ // PRO never goes to intake/contact — with several rooms queued this is the way to the next one (A2)
+      var nxt = proNextRoom();
+      tcb.classList.toggle("pro-next", !!nxt);
+      if (nxt){ var nd = categoryDef(nxt); tcb.textContent = "Næsta rými: " + ((nd && nd.label) || nxt) + " →"; tcb.disabled = false; }
+    }
     var stageEmpty = document.getElementById("stageEmpty"), offer = document.getElementById("closetFillOffer");
     // Fataskápar: an empty wardrobe wall offers to fill itself (user, 2026-10-26: offered, never automatic)
     if (isCloset() && !closetEmpty() && state.closetFillDeclined) state.closetFillDeclined = false; // emptied again later: offer again
@@ -12578,6 +12588,7 @@
     var prevActive = state.activeCategory, newQueue = byrjaSel.slice();
     // dropping a category on a return trip drops its parked room data with it; keeping one picks
     // back up exactly where that room was left (startCategory reads state.categoryData[type])
+    state.categoryData = state.categoryData || {}; // a PRO project with no drawing yet starts from freshState("byrja"), never load()'s migration (A1, 2026-10-26)
     Object.keys(state.categoryData).forEach(function(k){ if (newQueue.indexOf(k) < 0) delete state.categoryData[k]; });
     state.categoryQueue = newQueue;
     startCategory(prevActive && newQueue.indexOf(prevActive) >= 0 ? prevActive : newQueue[0]);
@@ -12690,7 +12701,14 @@
       box.hidden = false;
     }
   }
+  // PRO: the queued room after this one (wraps round), null with only one room
+  function proNextRoom(){
+    var q = state.categoryQueue || [], i = q.indexOf(state.activeCategory);
+    if (q.length < 2 || i < 0) return null;
+    return q[(i + 1) % q.length];
+  }
   document.getElementById("toContactBtn").addEventListener("click", function(){
+    if (PRO){ var nxt = proNextRoom(); if (nxt){ save(); openRoom(nxt); } return; }
     checkEndPanelsThen(function(){ captureThumb(); finishCategory(); }); // 3D scene must still be alive for the thumbnail
   });
   document.getElementById("backToEditorBtn").addEventListener("click", function(){ goto("editor"); });
@@ -13678,7 +13696,7 @@
     if (!skKeys()[fb.block.id]) return; // only ordered cabinets (they have an Sk number and a Line Item)
     var ready = proReady(fb.block), btn = document.createElement("button");
     btn.type = "button"; btn.className = "pro-open " + (ready ? "ready" : "todo");
-    btn.textContent = (ready ? "Smíða — klár til framleiðslu" : "Smíða — " + (doors.length && (drawers || c.oven) ? "hurðir og skúffur" : doors.length ? "lamir og hurðir" : drawers ? "skúffur" : "yfirfara"));
+    btn.textContent = (ready ? "Smíða — skápur yfirfarinn ✓" : "Smíða — " + (doors.length && (drawers || c.oven) ? "hurðir og skúffur" : doors.length ? "lamir og hurðir" : drawers ? "skúffur" : "yfirfara"));
     btn.addEventListener("click", function(){ openBoxEditor(fb.block.id); });
     host.insertBefore(btn, host.firstChild);
   }
@@ -13890,7 +13908,7 @@
       (b.smida ? "Smíðagögn vistuð á skápnum" : "Sjálfgefið (ekkert breytt)") + '</div>';
     // ⛔ first, where it can't be missed (2026-10-26: it sat under the last section, below the fold on a tall unit)
     var issues = proIssues(b, c, fb.zone);
-    if (issues.length) right += '<div class="pe-issues"><b>⛔ Lagaðu áður en skápurinn er merktur klár:</b>' + issues.map(function(x){ return '<div>' + escapeHtmlPro(x) + '</div>'; }).join("") + '</div>';
+    if (issues.length) right += '<div class="pe-issues"><b>⛔ Lagaðu áður en skápurinn er merktur yfirfarinn:</b>' + issues.map(function(x){ return '<div>' + escapeHtmlPro(x) + '</div>'; }).join("") + '</div>';
     // Mál (2026-10-17, user — "Smíða er final design á þessu algjörlega svo hér þarf að vera hægt að fínpússa
     // allt"): width/height/depth used to be editable only on the regular side panel, outside Smíða — same
     // applyBlockDim the floating-toolbar size chip and the side panel's own Mál tab already use, so a change
@@ -14052,11 +14070,11 @@
     }
     var isReady = proReady(b);
     right += isReady
-      ? '<div class="pe-note">Merktur klár til framleiðslu ' + (b.smidaReadyAt ? new Date(b.smidaReadyAt).toLocaleString("is-IS") : "") + '. Breyting á skápnum tekur merkinguna af.</div>' +
+      ? '<div class="pe-note">Merktur yfirfarinn ' + (b.smidaReadyAt ? new Date(b.smidaReadyAt).toLocaleString("is-IS") : "") + '. Breyting á skápnum tekur merkinguna af.</div>' +
         '<button type="button" class="pe-ready undo" data-pe="ready" data-v="0">Taka merkinguna af</button>'
-      : (b.smidaReady ? '<div class="pe-note">Skápnum var breytt eftir að hann var merktur klár — yfirfara og merkja aftur.</div>' : '') +
+      : (b.smidaReady ? '<div class="pe-note">Skápnum var breytt eftir að hann var merktur yfirfarinn — yfirfara og merkja aftur.</div>' : '') +
         (issues.length ? '<div class="pe-note">Hnappurinn opnast þegar ⛔ atriðin efst eru löguð.</div>' : '') +
-        '<button type="button" class="pe-ready" data-pe="ready" data-v="1"' + (issues.length ? ' disabled title="Lagaðu ⛔ atriðin efst fyrst"' : '') + '>Klár til framleiðslu</button>';
+        '<button type="button" class="pe-ready" data-pe="ready" data-v="1"' + (issues.length ? ' disabled title="Lagaðu ⛔ atriðin efst fyrst"' : '') + '>Skápur yfirfarinn ✓</button>';
     el.innerHTML = '<div class="pe-card"><div class="pe-img">' + svg + malHtml + '</div><div class="pe-content">' + right + '</div></div>';
     var peInt = el.querySelector("#peInterior");
     if (peInt) wireInteriorControls(peInt, fb.wall, fb.zone, b, c); // every change ends in refreshAfterEdit → redraws this editor
@@ -14099,7 +14117,7 @@
     }
     act('[data-pe="splitmm"]', function(n){ var list = splitNow(), v = Math.round(+n.value), out = list && resizeSplit(list, +n.dataset.k, v);
       if (out){
-        if (out.some(function(h){ return h < SPLIT_MIN - 0.5; })) toast("Hver frontur þarf að vera minnst " + SPLIT_MIN + " mm — lagaðu áður en skápurinn er merktur klár.");
+        if (out.some(function(h){ return h < SPLIT_MIN - 0.5; })) toast("Hver frontur þarf að vera minnst " + SPLIT_MIN + " mm — lagaðu áður en skápurinn er merktur yfirfarinn.");
         proSetSplit(b, body, out);
       }
     });
@@ -14118,7 +14136,7 @@
     function ovenDone(){ save(); refreshAfterEdit(); renderBoxEditor(); }
     function setUnder(v){
       var lo = KP3D.ovenUnderMinMm(b, drawerSys()), hi = KP3D.ovenUnderMaxMm(b, body);
-      if (!(v >= lo && v <= hi)) toast("Hæð undir ofni er utan " + lo + "–" + hi + " mm fyrir þessar skúffur og þessa ofnhæð — lagaðu áður en skápurinn er merktur klár.");
+      if (!(v >= lo && v <= hi)) toast("Hæð undir ofni er utan " + lo + "–" + hi + " mm fyrir þessar skúffur og þessa ofnhæð — lagaðu áður en skápurinn er merktur yfirfarinn.");
       b.ovenUnderMm = Math.max(5, v); delete b.ovenFrontsMm; ovenDone();
     }
     function shelvesNow(){ return shelfList(); }
@@ -14126,7 +14144,7 @@
       list.sort(function(a, z){ return a.mm - z.mm; });
       var tooClose = false;
       for (var q = 1; q < list.length; q++) if (list[q].mm - list[q - 1].mm < 40) tooClose = true;
-      if (tooClose) toast("Hillur eru nær hvor annarri en 40 mm — lagaðu áður en skápurinn er merktur klár.");
+      if (tooClose) toast("Hillur eru nær hvor annarri en 40 mm — lagaðu áður en skápurinn er merktur yfirfarinn.");
       if (c.oven) b.ovenShelves = list;
       else { b.shelfPos = list; if (!c.bur && c.shelfRange) b.shelves = list.length; } // the count still picks V2 (N hillur)
       ovenDone();
@@ -14138,7 +14156,7 @@
     act('[data-pe="ounder"]', function(n){ setUnder(Math.round(+n.value)); });
     act('[data-pe="ounderReset"]', function(){ delete b.ovenUnderMm; delete b.ovenFrontsMm; ovenDone(); });
     act('[data-pe="oshmm"]', function(n){ var list = shelvesNow(), v = Math.round(+n.value);
-      if (!shelfOk(v)){ var r = KP3D.shelfSpaceMm(b, body, drawerSys()); toast("Hilla er utan " + (r.lo + 17) + "–" + (r.hi - 11) + " mm bilsins — lagaðu áður en skápurinn er merktur klár."); }
+      if (!shelfOk(v)){ var r = KP3D.shelfSpaceMm(b, body, drawerSys()); toast("Hilla er utan " + (r.lo + 17) + "–" + (r.hi - 11) + " mm bilsins — lagaðu áður en skápurinn er merktur yfirfarinn."); }
       list[+n.dataset.k].mm = v; setShelves(list); });
     act('[data-pe="oshtype"]', function(n){ var list = shelvesNow(), sh = list[+n.dataset.k]; sh.fixed = n.dataset.v === "1"; if (!sh.fixed && !(sh.pos > 0)) sh.pos = 3; setShelves(list); });
     act('[data-pe="oshpos"]', function(n){ var list = shelvesNow(); list[+n.dataset.k].pos = Math.max(1, Math.min(9, Math.round(+n.value) || 1)); setShelves(list); });
@@ -14185,7 +14203,7 @@
       var span = KP3D.shelfSpaceMm(b, body, drawerSys());
       var topMm = Math.max(0, patch.topMm != null ? patch.topMm : (b.radborun && b.radborun.topMm) || KP3D.RADBORUN_MARGIN_DEFAULT_MM);
       var bottomMm = Math.max(0, patch.bottomMm != null ? patch.bottomMm : (b.radborun && b.radborun.bottomMm) || KP3D.RADBORUN_MARGIN_DEFAULT_MM);
-      if ((span.hi - topMm) - (span.lo + bottomMm) < KP3D.RADBORUN_PITCH_MM) toast("Spönnin er of lítil fyrir þessi mörk — lagaðu áður en skápurinn er merktur klár.");
+      if ((span.hi - topMm) - (span.lo + bottomMm) < KP3D.RADBORUN_PITCH_MM) toast("Spönnin er of lítil fyrir þessi mörk — lagaðu áður en skápurinn er merktur yfirfarinn.");
       b.radborun = { topMm:topMm, bottomMm:bottomMm };
       ovenDone();
     }
@@ -14197,13 +14215,13 @@
       list.sort(function(a, z){ return a.mm - z.mm; });
       var tooClose = false;
       for (var q = 1; q < list.length; q++) if (list[q].mm - list[q - 1].mm < 40) tooClose = true;
-      if (tooClose) toast("Fataslár eru nær hvor annarri en 40 mm — lagaðu áður en skápurinn er merktur klár.");
+      if (tooClose) toast("Fataslár eru nær hvor annarri en 40 mm — lagaðu áður en skápurinn er merktur yfirfarinn.");
       b.railPos = list; if (c.railRange) b.rails = list.length;
       ovenDone();
     }
     function railOk(mm){ var r = KP3D.shelfSpaceMm(b, body, drawerSys()); return mm > r.lo + KP3D.OVEN_BOARD_MM && mm < r.hi - 10; }
     act('[data-pe="railmm"]', function(n){ var list = railsNow(), v = Math.round(+n.value);
-      if (!railOk(v)){ var r = KP3D.shelfSpaceMm(b, body, drawerSys()); toast("Sláin er utan " + (r.lo + 17) + "–" + (r.hi - 11) + " mm bilsins — lagaðu áður en skápurinn er merktur klár."); }
+      if (!railOk(v)){ var r = KP3D.shelfSpaceMm(b, body, drawerSys()); toast("Sláin er utan " + (r.lo + 17) + "–" + (r.hi - 11) + " mm bilsins — lagaðu áður en skápurinn er merktur yfirfarinn."); }
       list[+n.dataset.k].mm = v; setRailList(list); });
     act('[data-pe="raildel"]', function(n){ var list = railsNow(); list.splice(+n.dataset.k, 1); setRailList(list); });
     act('[data-pe="railadd"]', function(){ var list = railsNow(), r = KP3D.shelfSpaceMm(b, body, drawerSys());
@@ -14222,7 +14240,7 @@
         if (pos[j] < floor) pos[j] = floor;
       }
       var last = list.length - 1;
-      if (pos[last] + list[last].h > body - 60) toast("Innskúffurnar eru komnar of ofarlega — lagaðu áður en skápurinn er merktur klár.");
+      if (pos[last] + list[last].h > body - 60) toast("Innskúffurnar eru komnar of ofarlega — lagaðu áður en skápurinn er merktur yfirfarinn.");
       b.burPos = pos; ovenDone();
     }
     act('[data-pe="burmm"]', function(n){ setBur(+n.dataset.k, +n.value); });
@@ -14231,7 +14249,7 @@
     // list itself (codes + positions) lives directly on the block — no registered combo underneath it.
     function setInner(list){
       var last = list.length - 1;
-      if (last >= 0 && list[last].mm + list[last].h > body - 60) toast("Innskúffurnar eru komnar of ofarlega — lagaðu áður en skápurinn er merktur klár.");
+      if (last >= 0 && list[last].mm + list[last].h > body - 60) toast("Innskúffurnar eru komnar of ofarlega — lagaðu áður en skápurinn er merktur yfirfarinn.");
       b.innerCodes = list.map(function(d){ return d.code; }); b.innerPos = list.map(function(d){ return d.mm; }); ovenDone();
     }
     function moveInner(k, v){
@@ -14270,10 +14288,10 @@
     act('[data-pe="gripbrun"]', function(n){ proSetGrip(b, n.dataset.t, gripPatch(n.dataset.t, { brun:n.dataset.v })); });
     act('[data-pe="gripatt"]', function(n){ proSetGrip(b, n.dataset.t, gripPatch(n.dataset.t, { att:n.dataset.v })); });
     act('[data-pe="gripstart"]', function(n){ var t = n.dataset.t, tg = gripTargets.find(function(x){ return x.target === t; }), v = Math.round(+n.value);
-      if (!(v >= 0 && v <= tg.heightMm - 20)) toast("Upphaf grips er utan marka — lagaðu áður en skápurinn er merktur klár.");
+      if (!(v >= 0 && v <= tg.heightMm - 20)) toast("Upphaf grips er utan marka — lagaðu áður en skápurinn er merktur yfirfarinn.");
       proSetGrip(b, t, gripPatch(t, { start:Math.max(0, v) })); });
     act('[data-pe="griplen"]', function(n){ var t = n.dataset.t, tg = gripTargets.find(function(x){ return x.target === t; }), v = Math.round(+n.value);
-      if (!(v >= 20 && v <= tg.heightMm)) toast("Lengd grips er utan marka — lagaðu áður en skápurinn er merktur klár.");
+      if (!(v >= 20 && v <= tg.heightMm)) toast("Lengd grips er utan marka — lagaðu áður en skápurinn er merktur yfirfarinn.");
       proSetGrip(b, t, gripPatch(t, { length:Math.max(1, v) })); });
     act('[data-pe="gripreset"]', function(n){ var t = n.dataset.t, tg = gripTargets.find(function(x){ return x.target === t; });
       proSetGrip(b, t, gripPatch(t, { start:proGripDefaultStart(b, c, fb.zone, tg), length:GRIP_LEN_DEFAULT_MM })); });
@@ -14290,7 +14308,7 @@
     act('[data-pe="type"]', function(n){ var i = +n.dataset.door, sp = proSpec(b, doors, i); sp.type = n.dataset.v; if (sp.type === "hinged" && !(sp.hinges && sp.hinges.length)) sp.hinges = proDefaultHinges(b, doors, i); if (sp.type === "pocket" && !sp.pocketSys) sp.pocketSys = "revego"; proSetSpec(b, doors, i, sp); renderBoxEditor(); });
     act('[data-pe="pocketsys"]', function(n){ var i = +n.dataset.door, sp = proSpec(b, doors, i); sp.pocketSys = n.dataset.v; proSetSpec(b, doors, i, sp); renderBoxEditor(); });
     act('[data-pe="mm"]', function(n){ var i = +n.dataset.door, sp = proSpec(b, doors, i), v = Math.round(+n.value);
-      if (!(v >= 30 && v <= doors[i].box - 30)) toast("Löm er nær enda hurðar en 30 mm — lagaðu áður en skápurinn er merktur klár.");
+      if (!(v >= 30 && v <= doors[i].box - 30)) toast("Löm er nær enda hurðar en 30 mm — lagaðu áður en skápurinn er merktur yfirfarinn.");
       sp.hinges[+n.dataset.h].mm = Math.max(1, v); proSetSpec(b, doors, i, sp); renderBoxEditor(); });
     act('[data-pe="from"]', function(n){ var i = +n.dataset.door, sp = proSpec(b, doors, i), hg = sp.hinges[+n.dataset.h];
       hg.mm = Math.round(doors[i].box - hg.mm); hg.from = hg.from === "top" ? "bottom" : "top"; proSetSpec(b, doors, i, sp); renderBoxEditor(); });
@@ -14336,7 +14354,7 @@
           g.setAttribute("transform", "translate(0," + (Y0 + body * S - v * S - y0) + ")"); }
         function up(){ g.removeEventListener("pointermove", mv); g.removeEventListener("pointerup", up);
           if (v === start) return;
-          if (!shelfOk(v)) toast("Hilla er utan leyfilegs bils — lagaðu áður en skápurinn er merktur klár.");
+          if (!shelfOk(v)) toast("Hilla er utan leyfilegs bils — lagaðu áður en skápurinn er merktur yfirfarinn.");
           var list = shelvesNow(); list[k].mm = v; setShelves(list); }
         g.addEventListener("pointermove", mv); g.addEventListener("pointerup", up);
       });
@@ -14349,7 +14367,7 @@
           g.setAttribute("transform", "translate(0," + (Y0 + body * S - v * S - y0) + ")"); }
         function up(){ g.removeEventListener("pointermove", mv); g.removeEventListener("pointerup", up);
           if (v === start) return;
-          if (!railOk(v)) toast("Sláin er utan leyfilegs bils — lagaðu áður en skápurinn er merktur klár.");
+          if (!railOk(v)) toast("Sláin er utan leyfilegs bils — lagaðu áður en skápurinn er merktur yfirfarinn.");
           var list = railsNow(); list[k].mm = v; setRailList(list); }
         g.addEventListener("pointermove", mv); g.addEventListener("pointerup", up);
       });
@@ -14379,7 +14397,7 @@
         function up(){ line.removeEventListener("pointermove", mv); line.removeEventListener("pointerup", up);
           if (v == null) return;
           var cur = fronts.slice(); cur[i] = v;
-          if (v < KP3D.slotMin(codes[i]) - 0.5) toast("" + CODE_LABEL[codes[i]].toLowerCase() + " (" + v + " mm, lágmark " + KP3D.slotMin(codes[i]) + " mm) undir lágmarki — lagaðu áður en skápurinn er merktur klár.");
+          if (v < KP3D.slotMin(codes[i]) - 0.5) toast("" + CODE_LABEL[codes[i]].toLowerCase() + " (" + v + " mm, lágmark " + KP3D.slotMin(codes[i]) + " mm) undir lágmarki — lagaðu áður en skápurinn er merktur yfirfarinn.");
           if (ov) b.ovenFrontsMm = cur; else b.interior.frontsMm = cur; save(); refreshAfterEdit(); renderBoxEditor(); }
         line.addEventListener("pointermove", mv); line.addEventListener("pointerup", up);
       });
@@ -14551,7 +14569,9 @@
     var f = { rooms:[], unlinked:[], issues:[], unready:[], cabinets:0, warnings:[] };
     withEachCategory(function(cat){
       var cd = categoryDef(cat), room = (cd && cd.label) || cat, keys = skKeys();
-      f.rooms.push({ cat:cat, room:room, missing:activeMatPhases().filter(function(ph){ return !ph.done(); }).map(function(ph){ return ph.label; }) });
+      var units = surfaces().reduce(function(n, w){ return n + w.floor.length + w.wall.length; }, 0);
+      f.rooms.push({ cat:cat, room:room, plain:!!(cd && cd.plain), units:units, drawn:!!(state.closed && state.walls && state.walls.length),
+        missing:cd && cd.plain ? [] : activeMatPhases().filter(function(ph){ return !ph.done(); }).map(function(ph){ return ph.label; }) });
       surfaces().forEach(function(w){ ["floor", "wall"].forEach(function(zone){ w[zone].forEach(function(b){
         var c = CATALOG[b.type], key = keys[b.id]; if (!key || c.notOrdered) return;
         var ref = { cat:cat, room:room, id:b.id, key:key }, iss = proIssues(b, c, zone);
@@ -14563,6 +14583,14 @@
       KP3D.fitWarnings(state).forEach(function(w){ f.warnings.push(w.msg); });
     });
     doorListLines().forEach(function(li){ if (!(li["Vöru reitur 1"] || []).length) f.unlinked.push({ cat:null, room:"Innihurðir", key:li["🔑"] }); });
+    function skN(x){ var m = /(\d+)$/.exec(x.key || ""); return m ? +m[1] : 1e9; } // Sk1, Sk2 … not drawing order (A5)
+    [f.unlinked, f.issues, f.unready].forEach(function(l){ l.sort(function(a, b){ return skN(a) - skN(b); }); });
+    // a queued room never opened has no data yet — withEachCategory skips it, the gate must not (A2)
+    (state.categoryQueue || []).forEach(function(cat){
+      if (f.rooms.some(function(r){ return r.cat === cat; })) return;
+      var cd = categoryDef(cat); if (!cd || cd.soon) return;
+      f.rooms.push({ cat:cat, room:cd.label || cat, plain:!!cd.plain, units:0, drawn:false, missing:[] });
+    });
     return f;
   }
   function proCheckItems(){
@@ -14571,17 +14599,21 @@
     var miss = f.rooms.filter(function(r){ return r.missing.length; });
     var unl = f.unlinked.filter(function(u){ return !ack["v1:" + u.key]; });
     var wSig = f.warnings.slice().sort().join("|"), wOk = !f.warnings.length || ack.warn === wSig;
+    var undrawn = f.rooms.filter(function(r){ return !r.plain && (!r.drawn || !r.units); });
     return [
+      { key:"rymi", ok:!undrawn.length && f.cabinets > 0, title:multi ? "Öll rými teiknuð (" + f.rooms.length + ")" : "Rýmið teiknað", target:undrawn[0], room:true,
+        detail:undrawn.length ? undrawn.map(function(r){ return r.room + (r.drawn ? ": engar einingar" : ": ekki teiknað enn"); }).join(" · ") + "." :
+          f.cabinets ? f.rooms.filter(function(r){ return !r.plain; }).map(function(r){ return r.room + ": " + r.units + " " + plural(r.units, "eining", "einingar"); }).join(" · ") + "." : "Engar einingar enn." },
       { key:"maeling", ok:!!(M && M.at), title:"Rýmið mælt á staðnum",
         detail:M && M.at ? "Mæling lokið " + new Date(M.at).toLocaleDateString("is-IS") + "." : "Opnaðu Mælingu, sláðu inn málin og ýttu á „Mæling lokið“." },
       { key:"efni", ok:!miss.length, title:"Efni og höldur valin", target:miss[0],
         detail:miss.length ? miss.map(function(r){ var m = r.missing.join(", ").toLowerCase() + " vantar"; return multi ? r.room + ": " + m : m.charAt(0).toUpperCase() + m.slice(1); }).join(" · ") + "." : "Skrokkur, skúffukerfi, framhlið, höldur og borðplata." },
-      { key:"vara", ok:!unl.length, title:"Hver eining tengd vöru", target:unl[0], acks:f.unlinked.map(function(u){ return { id:"v1:" + u.key, label:u.key + (multi ? " (" + u.room + ")" : "") + " — Útfærsla valin í Airtable", on:!!ack["v1:" + u.key] }; }),
-        detail:unl.length ? keyList(unl) + ": engin stöðluð vara passar. Vistaðu, veldu Útfærslu á línunni í Airtable og hakaðu svo við hér." : f.cabinets + " " + plural(f.cabinets, "eining", "einingar") + " með vöru." },
-      { key:"villur", ok:!f.issues.length, title:"Engar ⛔ villur í Smíða", target:f.issues[0], smida:true,
-        detail:f.issues.length ? f.issues[0].key + ": " + f.issues[0].text + (f.issues.length > 1 ? " (og " + (f.issues.length - 1) + " " + plural(f.issues.length - 1, "skápur", "skápar") + " í viðbót)" : "") : "Lamir, skúffur og hillur ganga upp." },
-      { key:"smida", ok:!f.unready.length, title:"Hver skápur yfirfarinn í Smíða", target:f.unready[0], smida:true,
-        detail:f.unready.length ? f.unready.length + " af " + f.cabinets + " eftir: " + keyList(f.unready) + ". Opnaðu Smíða og ýttu á „Klár til framleiðslu“." : "Allir merktir „Klár til framleiðslu“." },
+      { key:"vara", ok:f.cabinets > 0 && !unl.length, title:"Hver eining tengd vöru", target:unl[0], acks:f.unlinked.map(function(u){ return { id:"v1:" + u.key, label:u.key + (multi ? " (" + u.room + ")" : "") + " — Útfærsla valin í Airtable", on:!!ack["v1:" + u.key] }; }),
+        detail:unl.length ? keyList(unl) + ": engin stöðluð vara passar. Vistaðu, veldu Útfærslu á línunni í Airtable og hakaðu svo við hér." : f.cabinets ? f.cabinets + " " + plural(f.cabinets, "eining", "einingar") + " með vöru." : "Engar einingar enn." },
+      { key:"villur", ok:f.cabinets > 0 && !f.issues.length, title:"Engar ⛔ villur í Smíða", target:f.issues[0], smida:true,
+        detail:f.issues.length ? f.issues[0].key + ": " + f.issues[0].text + (f.issues.length > 1 ? " (og " + (f.issues.length - 1) + " " + plural(f.issues.length - 1, "skápur", "skápar") + " í viðbót)" : "") : f.cabinets ? "Lamir, skúffur og hillur ganga upp." : "Engar einingar enn." },
+      { key:"smida", ok:f.cabinets > 0 && !f.unready.length, title:"Hver skápur yfirfarinn í Smíða", target:f.unready[0], smida:true,
+        detail:f.unready.length ? f.unready.length + " af " + f.cabinets + " eftir: " + keyList(f.unready) + ". Opnaðu Smíða og ýttu á „Skápur yfirfarinn“." : f.cabinets ? "Allir merktir yfirfarnir." : "Engar einingar enn." },
       { key:"abend", ok:wOk, title:"Ábendingar yfirfarnar", acks:f.warnings.length ? [{ id:"warn", label:"Ég hef farið yfir " + (f.warnings.length === 1 ? "ábendinguna" : "ábendingarnar"), on:wOk, sig:wSig }] : null,
         detail:f.warnings.length ? f.warnings.length + " " + plural(f.warnings.length, "ábending", "ábendingar") + ", t.d. „" + f.warnings[0] + "“" : "Engar ábendingar." }
     ];
@@ -14634,6 +14666,7 @@
     if (x.key === "maeling"){ proCheckOpen(false); openMeasurePanel(); return; }
     if (x.key === "abend"){ var wc = document.getElementById("warnChip"); if (wc && !wc.hidden) wc.click(); return; }
     proCheckOpen(false);
+    if (x.room){ if (t) openRoom(t.cat); return; }
     if (t && t.cat && state.activeCategory && t.cat !== state.activeCategory) openRoom(t.cat);
     if (x.key === "efni"){ matPhase = firstMissingPhase(); goto("materials"); return; }
     if (!t) return;
