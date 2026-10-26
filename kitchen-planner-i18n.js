@@ -1955,6 +1955,29 @@
     "Skápar komast ekki fyrir þar sem hindrunin er.": "Units can't go where the obstacle is."
   });
 
+  // Baðherbergi as its own room (2026-10-26)
+  add({
+    "Hvar á innréttingin að vera?": "Where does the vanity go?",
+    "Á einum vegg eða í horni. Þú slærð inn málin næst.": "On one wall or in a corner. You enter the sizes next.",
+    "Er gluggi eða hurð á veggnum? Annars heldur þú bara áfram.": "Is there a window or a door on the wall? Otherwise just carry on.",
+    "Veggurinn og vatnið": "The wall and the water",
+    "Mældu vegginn og dragðu dropann þangað sem vatnið kemur inn. Allt í cm.": "Measure the wall and drag the droplet to where the water comes in. All in cm.",
+    "Vatnið": "The water",
+    "Dragðu dropann — vaskaskápurinn fer þar sem hann er.": "Drag the droplet — the sink unit goes where it is.",
+    "Skúffur eða hurðir": "Drawers or doors",
+    "{n} af {m}": "{n} of {m}",
+    "Einn veggur": "One wall",
+    "Innréttingin á einum vegg": "The units on one wall",
+    "Toppur og vaskur": "Top and basin",
+    "Handlaugin situr ofan á toppnum. Harðplast er algengast.": "The basin sits on top of the top. Laminate is the most common.",
+    "Enginn toppur": "No top",
+    "Allt dregst út — auðvelt að ná í": "Everything pulls out — easy to reach",
+    "Hillur á bak við": "Shelves behind",
+    "Veggfestur, með handlaug": "Wall-hung, with a basin",
+    "Sturta": "Shower",
+    "Baðkar": "Bathtub"
+  });
+
   // part F: stored/computed numbered labels from kitchen-planner-3d.js (CATALOG width variants, island rows, partition sides)
   addPat(/^(Grunnskápur|Hárskápur|Efriskápur|Hár skápur|Efri skápur|Vaskaskápur|Opnar hillur) (\d+)$/, function(m, t, n){ return (has(t) ? EN[t] : t) + " " + n; });
   addPat(/^Eyja (\d+) · röð ([AB])$/, "Island $1 · row $2");
