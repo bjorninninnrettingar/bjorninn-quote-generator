@@ -42,4 +42,24 @@ three.js comes from jsDelivr with a year-long immutable cache.
 
 ## Numbers
 
-<!-- filled in after deploy -->
+Live site, same harness. "Before" = runs on production just before this round (the previous deployment is behind
+Vercel login, so it couldn't be re-run); "after" = 3 runs at 20 Mbit/s + 1 unthrottled, after deploy. Times in ms
+from the action (page load / "Halda áfram" click / "Áfram" into Höldur).
+
+| | before | after |
+|---|---|---|
+| Welcome: room cards on screen | 1430–2100 | 1430–1830 |
+| Welcome: hero picture in | 1670–2750 | 1700–2000 |
+| Welcome: 3D kitchen faded in | 2150–4720 | 2180–2560 |
+| Welcome: bytes in the first ~5 s | 3.0 MB (dishwasher 940 KB at ~2.3 s) | 2.6 MB (dishwasher 776 KB, fetched at ~4.5 s, after the 3D is up) |
+| Materials: preview (cue or 3D) after "Halda áfram", **unthrottled** | 1500 / 3D 1610 | 83–110 / 3D 98–110 |
+| Materials: the 8 drawer models (re-validation) | ~900 | 0 (served from cache) |
+| Materials: front thumbnails on screen | 1615 (unthrottled) | 420–1050 (20 Mbit/s) |
+| Höldur: all handle pictures in | **6400** (blank grey until then) | **1040–1260** (shimmer until then) |
+| Höldur: Crossing's model after the click | 260–360 | 58–330 (0 when hovered first) |
+| A picked front in 3D while its photo loads | black | its own colour |
+
+Not done (bigger jobs, flagged): the page itself is 1.17 MB of HTML (326 KB brotli) + 0.5 MB `kitchen-planner-3d.js`,
+which is most of the ~1.5 s to the first welcome screen — splitting the inline script out (cacheable, versioned)
+would be the next real win. The 11 MB dishwasher baskets could become a quantised .glb (~10× smaller) if they ever
+show up early again.
