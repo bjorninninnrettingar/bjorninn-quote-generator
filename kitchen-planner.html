@@ -303,6 +303,8 @@
     pointer-events:none; display:none;
   }
   .drag-preview-shape--blocked{ fill:rgba(179,67,47,.35); stroke:#b3432f; }
+  body.kp-placing #threeWrap canvas, body.kp-placing #planWrap svg{ cursor:copy !important; }
+  .drag-ghost[hidden]{ display:none; }
   .drag-ghost{
     position:fixed; z-index:999; pointer-events:none; left:0; top:0;
     padding:6px 12px; border-radius:8px; background:var(--blue); color:#fff;
@@ -6397,6 +6399,66 @@
     document.querySelectorAll("#planWrap [data-wall-line-id]").forEach(function(line){ line.classList.remove("drop-hover"); });
   }
 
+  // ---------- placing a window / door / obstacle by pointer (user, 2026-10-26) ----------
+  // A click on "Gluggi", "Hurð", "Op" or an obstacle in the menu: the item follows the pointer over the walls (the same
+  // preview as a drag) and a click places it on the wall under the pointer; Esc or a click outside the view cancels.
+  var placeMode = null;
+  function startPlaceMode(kind, type){
+    cancelPlaceMode(); closeEdMenus();
+    var label = kind === "opening" ? __(OPENING_TYPES[type].label) : __(KP3D.OBSTACLES[type].label);
+    var ghost = document.createElement("div"); ghost.className = "drag-ghost"; ghost.textContent = label + " · " + __("smelltu á vegginn"); ghost.hidden = true;
+    document.body.appendChild(ghost);
+    placeMode = { kind:kind, type:type, ghost:ghost };
+    document.body.classList.add("kp-placing");
+    window.addEventListener("pointermove", onPlaceMove);
+    document.addEventListener("pointerdown", onPlaceDown, true);
+  }
+  function cancelPlaceMode(){
+    if (!placeMode) return;
+    placeMode.ghost.remove(); placeMode = null;
+    document.body.classList.remove("kp-placing");
+    window.removeEventListener("pointermove", onPlaceMove);
+    document.removeEventListener("pointerdown", onPlaceDown, true);
+    hideDropPreview(); highlightDropWall(null);
+  }
+  function placeModeDrop(evt){ // {drop, wall, offsetMm, ...} for the pointer, or null off the walls
+    var pm = placeMode, drop;
+    if (pm.kind === "opening"){
+      drop = dropPointAt(evt.clientX, evt.clientY, catalogPlaneY("opening", pm.type), true, wallItemFor("opening", pm.type));
+      var wall = drop && state.walls.find(function(w){ return w.id === drop.wallId && !w.open; }); if (!wall) return null;
+      var d = openingDefault(pm.type), sill = pm.type === "gluggi" ? openingSill(d.heightMm, drop.elevMm, pm.type) : 0;
+      var off = snappedOpeningOffset(wall, d.widthMm, drop.alongMm, "", { lo:sill, hi:sill + d.heightMm });
+      return { drop:drop, wall:wall, offsetMm:off === null ? snappedOpeningOffset(wall, d.widthMm, drop.alongMm) : off, ok:off !== null, w:d.widthMm, d:60, h:d.heightMm, base:sill };
+    }
+    var def = KP3D.OBSTACLES[pm.type];
+    drop = dropPointAt(evt.clientX, evt.clientY, ((def.elev || 0) + Math.min(def.h || 1000, 1200) / 2) / 1000, true, { depthMm:def.d || 100, heightMm:def.h || 1000 });
+    var ow = drop && state.walls.find(function(w){ return w.id === drop.wallId && !w.open; }); if (!ow) return null;
+    var wMm = Math.min(def.w || ow.lengthMm, ow.lengthMm);
+    return { drop:drop, wall:ow, offsetMm:Math.max(0, Math.min(ow.lengthMm - wMm, Math.round(drop.alongMm - wMm / 2))), ok:true, w:wMm, d:def.d || 100, h:Math.min(def.h || (state.roomHeightMm || 2600), state.roomHeightMm || 2600), base:def.elev || 0 };
+  }
+  function onPlaceMove(evt){
+    if (!placeMode) return;
+    var g = placeMode.ghost; ghostPosition(g, evt.clientX, evt.clientY); g.hidden = false;
+    var r = placeModeDrop(evt);
+    highlightDropWall(r ? r.drop.wallId : null);
+    if (!r){ hideDropPreview(); return; }
+    showDropPreview(r.drop.wallId, r.offsetMm, r.w, r.d, r.ok, r.h, r.base);
+  }
+  function onPlaceDown(evt){
+    if (!placeMode) return;
+    var t = evt.target && evt.target.nodeType === 1 ? evt.target : evt.target && evt.target.parentElement;
+    if (!(t && t.closest && t.closest("#threeWrap, #planWrap"))){ cancelPlaceMode(); return; } // a click elsewhere just cancels (and still does its own thing)
+    evt.preventDefault(); evt.stopPropagation();
+    var r = placeModeDrop(evt);
+    if (!r) return; // not over a wall yet: keep placing
+    if (!r.ok){ toast(OVERLAP_MSG); return; } // a blocked spot (the red preview): say so, keep placing
+    document.addEventListener("click", function eat(e){ e.stopPropagation(); e.preventDefault(); }, { capture:true, once:true }); // the 3D's own click (deselect) must not follow
+    var pm = placeMode; cancelPlaceMode();
+    if (pm.kind === "opening") addOpening(pm.type, r.drop.wallId, r.drop.alongMm, r.drop.elevMm);
+    else addObstacle(pm.type, null, { wallId:r.drop.wallId, alongMm:r.drop.alongMm });
+  }
+  window.addEventListener("keydown", function(e){ if (e.key === "Escape" && placeMode){ e.preventDefault(); e.stopImmediatePropagation(); cancelPlaceMode(); } }, true);
+
   function onCatalogDragEnd(evt){
     window.removeEventListener("pointermove", onCatalogDragMove);
     if (!dragState) return;
@@ -6411,6 +6473,7 @@
     var kind = dragState.kind, type = dragState.type;
     dragState = null;
     if (kind === "island"){ addIsland(type, islandAt); return; } // click = room centre, drag = where you let go
+    if (!moved && kind === "opening" && !PRO){ startPlaceMode("opening", type); return; } // a click: it follows the pointer, a click on a wall places it
     if (!moved){ addFromCatalog(kind, type); return; } // a plain click adds it
     if (!drop) return;
     if (kind === "opening"){
@@ -7370,7 +7433,7 @@
         var btn = function(k){ return '<button type="button" class="hw-btn" data-obst-add="' + k + '">＋ ' + __(KP3D.OBSTACLES[k].label) + '</button>'; };
         return '<div class="cat-title">' + __("Hindranir") + '</div><div class="light-btns">' + main.map(btn).join("") + '</div>' +
           (more.length ? '<details class="opw-obst"><summary>' + __("+ Fleiri valkostir") + '</summary><div class="light-btns">' + more.map(btn).join("") + '</div></details>' : '');
-      })() + '<p class="sec-note">' + __("Fer á valinn vegg (annars vegg 1). Skápar komast ekki fyrir þar sem hindrunin er.") + '</p>');
+      })() + '<p class="sec-note">' + (PRO ? __("Fer á valinn vegg (annars vegg 1). Skápar komast ekki fyrir þar sem hindrunin er.") : __("Skápar komast ekki fyrir þar sem hindrunin er.")) + '</p>');
     // (islands are added from "＋ Ný eining" → Eyja since 2026-09-30)
     // --- materials ---
     var L = lighting(), lbtn = function(key, label){ return '<button type="button" class="hw-btn' + (L[key] ? ' active' : '') + '" data-light="' + key + '">' + (L[key] ? '✓ ' : '') + label + '</button>'; };
@@ -7444,7 +7507,7 @@
     });
     host.querySelectorAll("[data-hcolor]").forEach(function(b){ b.addEventListener("click", function(){ pickHandleColor(b.dataset.hcolor); refreshAfterEdit(); renderCatalogPanel(); }); });
     host.querySelectorAll("[data-decor-add]").forEach(function(b){ b.addEventListener("click", function(){ addDecor(b.dataset.decorAdd); }); });
-    host.querySelectorAll("[data-obst-add]").forEach(function(b){ b.addEventListener("click", function(){ addObstacle(b.dataset.obstAdd); }); });
+    host.querySelectorAll("[data-obst-add]").forEach(function(b){ b.addEventListener("click", function(){ if (PRO) addObstacle(b.dataset.obstAdd); else startPlaceMode("obstacle", b.dataset.obstAdd); }); });
     host.querySelectorAll("[data-decor-all]").forEach(function(b){
       b.addEventListener("click", function(){
         if (b.dataset.decorAll === "hide"){ state.decorHidden = !state.decorHidden; if (state.decorHidden && findDecor(selectedBlockId)) selectedBlockId = null; }
@@ -9019,6 +9082,11 @@
     var found = findBlock(meta.blockId);
     if (!wall || !found){ KP3D.hideDragPreview3D(); return; }
     var c = CATALOG[found.block.type];
+    var sw = closetSwapTarget(found, drop);
+    if (sw){ // over a neighbour in a wardrobe: show its slot — they trade places on release
+      KP3D.updateDragPreview3D(drop.wallId, sw.start, sw.b.widthMm, found.block.depthMm || c.d, true, blockHeightMm(found.block, c), 0);
+      return { alongMm:sw.start + sw.b.widthMm / 2 };
+    }
     var base = found.zone === "wall" ? (drop.elevMm != null ? snapElev(wall, found.block, drop.elevMm) : KP3D.elevOf(found.block)) : 0;
     var packed = placeInWall(wall, found.zone, found.block.widthMm, drop.alongMm, found.block.id, probeSpan(found.zone, found.block, found.zone === "wall" ? base : null));
     KP3D.updateDragPreview3D(drop.wallId, packed.offsetMm, found.block.widthMm, found.block.depthMm || c.d, packed.fits, blockHeightMm(found.block, c), base);
@@ -9031,7 +9099,27 @@
     if (!drop) return;
     if (meta.kind === "obstacle") moveObstacle(meta.blockId, drop.wallId, drop.alongMm, drop.elevMm);
     else if (meta.kind) moveOpening(meta.blockId, drop.wallId, drop.alongMm, drop.elevMm);
-    else moveBlockToPosition(meta.blockId, drop.wallId, drop.alongMm, drop.elevMm);
+    else {
+      var found = findBlock(meta.blockId), sw = closetSwapTarget(found, drop);
+      if (sw){ swapClosetUnits(found.wall, found.block, sw.b); selectedBlockId = found.block.id; save(); refreshAfterEdit(); return; }
+      moveBlockToPosition(meta.blockId, drop.wallId, drop.alongMm, drop.elevMm);
+    }
+  }
+  // Fataskápar (user, 2026-10-26, PAX-style): a unit dropped onto a neighbour on the same wall trades places with it,
+  // instead of leaving a gap or not fitting. The gaps stay with the slots and the úthliðar stay at the ends (a bound
+  // úthlið follows whichever unit is now beside it). Kitchens keep the free drag.
+  function closetSwapTarget(found, drop){
+    if (!isCloset() || !found || found.zone !== "floor" || !closetTall(found.block) || !drop || drop.wallId !== found.wall.id) return null;
+    var hit = spansOf(found.wall, "floor", found.block.id).find(function(x){ return closetTall(x.b) && drop.alongMm >= x.start && drop.alongMm <= x.end; });
+    return hit && !hit.b.locked && !found.block.locked ? hit : null;
+  }
+  function swapClosetUnits(wall, a, b){
+    var list = wall.floor, i = list.indexOf(a), j = list.indexOf(b); if (i < 0 || j < 0) return;
+    var ga = a.gapMm, gb = b.gapMm;
+    list[i] = b; list[j] = a;
+    if (ga == null) delete b.gapMm; else b.gapMm = ga;
+    if (gb == null) delete a.gapMm; else a.gapMm = gb;
+    list.forEach(function(p){ var lt = p.lockTo; if (!lt) return; if (lt.id === a.id) lt.id = b.id; else if (lt.id === b.id) lt.id = a.id; }); // lockTo = {id, dir}
   }
 
   function duplicateBlock(wall, zone, id){
@@ -9995,15 +10083,15 @@
   // ---- Hindranir (2026-10-11): state.obstacles, see KP3D.OBSTACLES ----
   var obstacleSeq = 1;
   function findObstacle(id){ return (state.obstacles || []).find(function(o){ return o.id === id; }) || null; }
-  function addObstacle(kind, onWallId){
+  function addObstacle(kind, onWallId, at){ // at = {wallId, alongMm}: placed by pointer (startPlaceMode)
     var def = KP3D.OBSTACLES[kind]; if (!def) return;
     var solid = state.walls.filter(function(w){ return !w.open; });
     var sel = selectedBlockId ? findBlock(selectedBlockId) || findOpening(selectedBlockId) || (findObstacle(selectedBlockId) ? { o:findObstacle(selectedBlockId) } : null) : null;
-    var wallId = onWallId || selectedWallId || (sel && (sel.wall ? sel.wall.id : sel.o && sel.o.wallId)) || (solid[0] && solid[0].id);
+    var wallId = onWallId || (at && at.wallId) || selectedWallId || (sel && (sel.wall ? sel.wall.id : sel.o && sel.o.wallId)) || (solid[0] && solid[0].id);
     var wall = state.walls.find(function(w){ return w.id === wallId && !w.open; }) || solid[0];
     if (!wall){ toast(__("Teiknaðu rýmið fyrst.")); return; }
     var o = { id:"h" + (obstacleSeq++) + "_" + Date.now().toString(36), kind:kind, wallId:wall.id, widthMm:Math.min(def.w || wall.lengthMm, wall.lengthMm), depthMm:def.d, heightMm:def.h, elevMm:def.elev };
-    o.offsetMm = Math.round((wall.lengthMm - o.widthMm) / 2);
+    o.offsetMm = at && at.wallId === wall.id ? Math.max(0, Math.min(wall.lengthMm - o.widthMm, Math.round((at.alongMm - o.widthMm / 2) / 10) * 10)) : Math.round((wall.lengthMm - o.widthMm) / 2);
     if (kind === "kista"){ // under a window on this wall (or the first window anywhere)
       var win = state.windows.find(function(w){ return w.wallId === wall.id; }) || state.windows[0];
       if (win){ wall = state.walls.find(function(w){ return w.id === win.wallId; }) || wall; o.wallId = wall.id; o.widthMm = Math.min(win.widthMm + 100, wall.lengthMm); o.offsetMm = Math.max(0, Math.min(wall.lengthMm - o.widthMm, win.offsetMm - 50)); o.elevMm = Math.max(0, win.sillHeightMm - 40); }
