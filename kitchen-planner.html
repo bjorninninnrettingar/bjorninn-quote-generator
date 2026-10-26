@@ -1052,7 +1052,7 @@
   .uw-card.soon, .shape-card.soon{ opacity:.45; cursor:not-allowed; }
   .uw-modal{ position:fixed; inset:0; z-index:200; background:rgba(25,25,25,.45); display:flex; align-items:center; justify-content:center; padding:24px; }
   .uw-modal[hidden]{ display:none; }
-  .uw-box{ background:#fff; border-radius:16px; width:min(1100px, 100%); height:min(680px, 100%); display:grid; grid-template-columns:1.25fr 1fr; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.25); }
+  .uw-box{ background:#fff; border-radius:16px; width:min(1180px, 100%); height:min(730px, 100%); display:grid; grid-template-columns:1.25fr 1fr; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.25); }
   .uw-preview{ position:relative; background:#fff; min-height:0; }
   .uw-preview canvas{ width:100% !important; height:100% !important; display:block; }
   #uwPreview{ position:absolute; inset:0; }
@@ -3655,6 +3655,25 @@
       delete b.drawerZoneMm;
       if (c.hasInterior) b.interior = { mode:"hillur", count:b.shelves || 0 }; else delete b.interior;
     }
+    closetAutoLayout(b);
+  }
+  // Shelves and rails placed together (user, 2026-10-26: a rail could sit inside a shelf): a rail hangs 7 cm under the
+  // top (hat) shelf, a second rail a hanging length lower; any other shelves go below the clothes, or evenly when
+  // there are no rails. Written as shelfPos/railPos, which the drag then keeps apart (shelfPosBounds).
+  var CLOSET_HAT_SHELF_MM = 320, CLOSET_RAIL_UNDER_MM = 70, CLOSET_HANG_MM = 1000;
+  function closetAutoLayout(b){
+    var c = CATALOG[b.type], sys = drawerSys(), body = proBodyMm(b, c, "floor"), r = KP3D.shelfSpaceMm(b, body, sys);
+    var lo = r.lo + 30, hi = r.hi - 20, nS = b.shelves || 0, nR = c.railRange ? (b.rails || 0) : 0, shelves = [], rails = [];
+    if (nR > 0){
+      var top = nS > 0 ? hi - CLOSET_HAT_SHELF_MM : null;
+      if (top != null) shelves.push(top);
+      var r1 = (top != null ? top : hi) - CLOSET_RAIL_UNDER_MM; rails.push(r1);
+      if (nR > 1) rails.push(Math.max(lo + 900, r1 - CLOSET_HANG_MM));
+      var below = Math.min.apply(null, rails) - CLOSET_HANG_MM, rest = nS - shelves.length, roof = below > lo + 250 ? below : Math.min.apply(null, rails) - 300;
+      for (var k = 1; k <= rest; k++) shelves.push(lo + (roof - lo) * k / (rest + 1));
+    } else for (var j = 1; j <= nS; j++) shelves.push(lo + (hi - lo) * j / (nS + 1));
+    if (c.shelfRange) b.shelfPos = shelves.sort(function(a, z){ return a - z; }).map(function(mm){ return { mm:Math.round(mm), fixed:false, pos:3 }; });
+    if (c.railRange) b.railPos = rails.sort(function(a, z){ return a - z; }).map(function(mm){ return { mm:Math.round(mm) }; });
   }
   function closetItemStep(b, spec){ // "shelves:1" / "rails:-1" / "drawers:1"
     var pr = spec.split(":"), k = closetCounts(b), it = CLOSET_ITEMS.find(function(x){ return x.key === pr[0]; });
@@ -6639,7 +6658,7 @@
   }
   function uwAdvance(key){ // a dimension was picked → fold it, open the next group still to do
     uw.picked = uw.picked || {}; uw.picked[key] = true;
-    var c = CATALOG[uw.b.type], order = [!c.panel && "w", c.minH !== c.maxH && "h", c.minD !== c.maxD && "d", "inn"].filter(Boolean);
+    var c = CATALOG[uw.b.type], order = [!c.panel && "w", c.minH !== c.maxH && "h", c.minD !== c.maxD && "d", isCloset() && closetTall(uw.b) && !PRO && "door", "inn"].filter(Boolean);
     uw.sec = order.slice(order.indexOf(key) + 1).find(function(k){ return !uw.picked[k]; }) || "inn";
   }
   function renderUnitWizard(){
@@ -6735,8 +6754,9 @@
       var innSum = c.hasInterior && b.interior && b.interior.mode === "skuffur" ? b.interior.count + " " + plural(b.interior.count, "skúffa", "skúffur")
         : shelfN != null ? shelfN + " " + plural(shelfN, "hilla", "hillur") : c.hasInterior && !c.shelfRange && b.interior ? __("Hurðir") : "";
       if (c.cls === "corner") innSum = (innSum ? innSum + " · " : "") + (b.swing === "vinstri" ? __("hurð vinstra megin") : __("hurð hægra megin"));
-      if (isCloset() && closetTall(b) && !PRO){ // the same picture cards + doors as the side panel (user, 2026-10-26)
-        innHtml = closetBayHtml(b, true);
+      if (isCloset() && closetTall(b) && !PRO){ // the same picture cards as the side panel; doors first — they change the options (user, 2026-10-26)
+        secHtml.push(uwSec("door", __("Hurðir"), b.type === "harskapurOpinn" ? __("Opið") : __("Með hurðum"), closetDoorsHtml(b, true)));
+        innHtml = closetBayHtml(b, true, true);
         var rr = CLOSET_RECIPES.find(function(x){ return x.key === b.closetRecipe; });
         innSum = (rr ? __(rr.label) : __("Eigin samsetning")) + " · " + (b.type === "harskapurOpinn" ? __("Opið") : __("Með hurðum"));
       }
@@ -6803,7 +6823,7 @@
     [["data-uw-w", "uwW", "widthMm"], ["data-uw-h", "uwH", "heightMm"], ["data-uw-d", "uwD", "depthMm"]].forEach(function(spec){
       side.querySelectorAll("[" + spec[0] + "]").forEach(function(el){
         el.addEventListener("mouseenter", function(){ clearTimeout(hovT); hovT = setTimeout(function(){ if (!uw || !uw.b) return; uw.hoverDim = { k:spec[2], v:+el.dataset[spec[1]] }; renderUnitPreview(); }, 70); });
-        el.addEventListener("mouseleave", function(){ clearTimeout(hovT); hovT = setTimeout(function(){ if (!uw || !uw.hoverDim) return; uw.hoverDim = null; renderUnitPreview(); }, 90); });
+        el.addEventListener("mouseleave", function(){ clearTimeout(hovT); hovT = setTimeout(function(){ if (!uw || !uw.hoverDim) return; uw.hoverDim = null; uw.hoverHold = true; renderUnitPreview(); }, 90); });
       });
     });
     var wc = side.querySelector("[data-uw-wcustom]");
@@ -6916,7 +6936,7 @@
     side.querySelectorAll("[data-clrecipe]").forEach(function(el){ el.addEventListener("click", function(){ applyClosetRecipe(b, el.dataset.clrecipe); renderUnitWizard(); }); });
     side.querySelectorAll("[data-clinntab]").forEach(function(el){ el.addEventListener("click", function(){ closetInnTab = el.dataset.clinntab; renderUnitWizard(); }); });
     side.querySelectorAll("[data-clitem]").forEach(function(el){ el.addEventListener("click", function(){ closetItemStep(b, el.dataset.clitem); renderUnitWizard(); }); });
-    side.querySelectorAll("[data-cldoortype]").forEach(function(el){ el.addEventListener("click", function(){ setClosetBayDoors(b, el.dataset.cldoortype !== "open"); renderUnitWizard(); }); });
+    side.querySelectorAll("[data-cldoortype]").forEach(function(el){ el.addEventListener("click", function(){ setClosetBayDoors(b, el.dataset.cldoortype !== "open"); uwAdvance("door"); renderUnitWizard(); }); });
     side.querySelectorAll("[data-front-all]").forEach(function(el){ el.addEventListener("click", function(){
       if (el.dataset.frontAll === "1") b.frontAll = true; else delete b.frontAll; renderUnitWizard();
     }); });
@@ -7038,7 +7058,9 @@
       swayPreview(st, Math.atan2(g.normal.x, g.normal.z));
       st.controls.update();
       uwDimCtx = { g:g, a0:0.4, a1:0.4 + b.widthMm / 1000, y0:elevM, y1:elevM + hM, d:(b.depthMm || c.d) / 1000, b:b };
-      if (!(prevCam && keepCam)){ if (prevCam && uw.b) st.camera.position.copy(prevCam.p); uwAimCamera(!!(prevCam && uw.b)); } else uwLockView(st); // glide from where the view was
+      if (prevCam && uw.b && (uw.hoverDim || uw.hoverHold)){ // pointing at sizes: the view holds exactly still (user, 2026-10-26: quick hovers jumped)
+        st.camera.position.copy(prevCam.p); st.controls.target.copy(prevCam.t); st.controls.update(); uwLockView(st); uw.hoverHold = false;
+      } else if (!(prevCam && keepCam)){ if (prevCam && uw.b) st.camera.position.copy(prevCam.p); uwAimCamera(!!(prevCam && uw.b)); } else uwLockView(st); // glide from where the view was
       // A plain drawer stack is already its own fronts — nothing hidden to reveal, so it stays closed by default
       // (user, 2026-10-14: only auto-open a front that's actually hiding something behind it). A búrskápur's
       // door hides its inner drawers though, so that one still opens — only once it actually has an innskúffa.
@@ -9253,7 +9275,14 @@
     var ds = proDoorsOf(b, CATALOG[b.type], fb.zone);
     return ds.length && ds.every(function(d, i){ return proSpec(b, ds, i).type === "pocket"; }) ? "pocket" : "hinged";
   }
-  function closetBayHtml(b, wizard){
+  function closetDoorsHtml(b, wizard){
+    return '<div class="edit-field"><label>' + __("Hurðir") + '</label><div class="hw-toggle">' +
+      [["hinged", "Með hurðum", ""], ["pocket", "Rennihurð í hlið", "Hurðin rennur inn í hlið skápsins þegar hún er opin (Blum Revego). Dýrari lausn, söluaðili staðfestir verð."], ["open", "Opið", ""]].filter(function(o){ return !(wizard && o[0] === "pocket"); }).map(function(o){
+        var kind = wizard ? (b.type === "harskapurOpinn" ? "open" : "hinged") : closetDoorKind(b);
+        return '<button type="button" class="hw-btn' + (kind === o[0] ? ' active' : '') + '" data-cldoortype="' + o[0] + '"' + (o[2] ? ' title="' + __(o[2]) + '"' : '') + '>' + __(o[1]) + '</button>';
+      }).join("") + '</div></div>';
+  }
+  function closetBayHtml(b, wizard, noDoors){
     if (!isCloset() || !closetTall(b)) return "";
     var deep = closetDeep(b), cur = b.closetRecipe, cnt = closetCounts(b);
     var tabs = '<div class="cl-tabs" role="tablist">' + [["lausnir", "Tilbúnar lausnir"], ["hlutir", "Stakir hlutir"]].map(function(t){
@@ -9268,12 +9297,7 @@
           var off = !deep && r.rails;
           return '<button type="button" class="cl-recipe' + (cur === r.key ? ' on' : '') + '" data-clrecipe="' + r.key + '"' + (off ? ' disabled title="' + __("Herðatré passa ekki í 35 cm djúpan skáp") + '"' : '') + '>' + closetRecipeSvg(r.key) + '<b>' + __(r.label) + '</b><small>' + __(r.desc) + '</small></button>';
         }).join("") + '</div>' + (!cur ? '<p class="cl-hint">' + __("Þín eigin samsetning — veldu lausn til að byrja upp á nýtt.") + '</p>' : '');
-    return '<div class="edit-field"><label>' + __("Hvað á að vera í skápnum?") + '</label>' + tabs + body + '</div>' +
-    '<div class="edit-field"><label>' + __("Hurðir") + '</label><div class="hw-toggle">' +
-      [["hinged", "Með hurðum", ""], ["pocket", "Rennihurð í hlið", "Hurðin rennur inn í hlið skápsins þegar hún er opin (Blum Revego). Dýrari lausn, söluaðili staðfestir verð."], ["open", "Opið", ""]].filter(function(o){ return !(wizard && o[0] === "pocket"); }).map(function(o){
-        var kind = wizard ? (b.type === "harskapurOpinn" ? "open" : "hinged") : closetDoorKind(b);
-        return '<button type="button" class="hw-btn' + (kind === o[0] ? ' active' : '') + '" data-cldoortype="' + o[0] + '"' + (o[2] ? ' title="' + __(o[2]) + '"' : '') + '>' + __(o[1]) + '</button>';
-      }).join("") + '</div></div>';
+    return (noDoors ? '' : closetDoorsHtml(b, wizard)) + '<div class="edit-field"><label>' + __("Hvað á að vera í skápnum?") + '</label>' + tabs + body + '</div>';
   }
   // the compact wardrobe panel's own rows: width in cm + "Skipta í tvennt"
   function closetWidthHtml(b){
@@ -9846,8 +9870,19 @@
       trueLo: idx > 0 ? list[idx - 1].mm : r.lo,
       trueHi: idx < list.length - 1 ? list[idx + 1].mm : r.hi };
   }
+  var ITEM_CROSS_GAP_MM = 70; // a rail and a shelf never share a spot (user, 2026-10-26)
+  function crossBounds(info, itemKind){ // narrow lo/hi by the nearest item of the OTHER kind above/below this one
+    var fb = dragBlock(info.b.id), c = info.c, body = proBodyMm(info.b, c, fb ? fb.zone : "floor"), sys = drawerSys();
+    var cur = info.list[info.idx].mm, other = itemKind === "rail" ? KP3D.shelfLayoutOf(info.b, body, sys) : KP3D.railLayoutOf(info.b, body, sys);
+    other.forEach(function(o){
+      if (o.mm <= cur) info.lo = Math.max(info.lo, o.mm + ITEM_CROSS_GAP_MM), info.trueLo = Math.max(info.trueLo, o.mm);
+      else info.hi = Math.min(info.hi, o.mm - ITEM_CROSS_GAP_MM), info.trueHi = Math.min(info.trueHi, o.mm);
+    });
+    return info;
+  }
   function onShelfPosMove(blockId, itemKind, idx, newMm){
     var info = shelfPosBounds(blockId, itemKind, idx); if (!info || info.locked) return null;
+    crossBounds(info, itemKind);
     var clamped = Math.round(Math.max(info.lo, Math.min(info.hi, newMm)));
     info.list[idx].mm = clamped;
     if (itemKind === "rail"){ info.b.railPos = info.list; if (info.c.railRange) info.b.rails = info.list.length; }
@@ -9882,6 +9917,7 @@
   // bounds, without nudging anything — never called mid-drag (onShelfPosMove's own return covers that).
   function onShelfPosInfo(blockId, itemKind, idx){
     var info = shelfPosBounds(blockId, itemKind, idx); if (!info) return null;
+    crossBounds(info, itemKind);
     return { mm:info.list[idx].mm, trueLo:info.trueLo, trueHi:info.trueHi };
   }
   // where an obstacle lands on a wall: offset snapped 10 mm and flush to the corners within 100 mm, height kept inside the room

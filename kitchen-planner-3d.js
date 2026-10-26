@@ -2297,6 +2297,19 @@
         });
       }
     }
+    // an open unit's drawers get real fronts (user, 2026-10-26: they showed as bare inner boxes — the box that carries
+    // a closed unit's fronts is hidden in an open one); handles come from addFrontDetails below as before
+    if (isOpen && interior && interior.mode === "skuffur" && interior.count > 0){
+      var ofr = interior.fractions && interior.fractions.length === interior.count - 1 ? interior.fractions : null, ozt = interior.topDoorFr || 1;
+      for (var oi = 0; oi < interior.count; oi++){
+        var of0 = ofr ? (oi === 0 ? 0 : ofr[oi - 1]) : oi / interior.count * ozt, of1 = ofr ? (oi === interior.count - 1 ? ozt : ofr[oi]) : (oi + 1) / interior.count * ozt;
+        var oy0 = bodyBase + bodyH * of0 + 0.0015, oy1 = bodyBase + bodyH * of1 - 0.0015;
+        var oslab = frontSlab(THREE, widthM - 0.004, oy1 - oy0, useFrontMat, null, { u:offsetM, v:oy0 });
+        oslab.position.copy(local(0, (oy0 + oy1) / 2, depthM - FRONT_T / 2)); oslab.quaternion.copy(quat);
+        oslab.castShadow = true; oslab.receiveShadow = true; oslab.userData = meta;
+        group.add(oslab);
+      }
+    }
     if (interior && interior.mode === "skuffur" && !art){
       if (interior.topDoorFr && !(meta && meta.open)) addDrawerSeams(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior.count + 1,
         (interior.fractions || Array.apply(null, Array(interior.count - 1)).map(function(_, k){ return (k + 1) / interior.count * interior.topDoorFr; })).concat([interior.topDoorFr]));
@@ -3473,14 +3486,14 @@
     // reused sprite, repainted only when its text actually changes (like málband's own measureSprite/
     // measureSpriteSetText), and the line is a real cylinder mesh (WebGL ignores LineBasicMaterial.
     // linewidth almost everywhere, same reason málband's own tape line isn't a THREE.Line either).
-    var GAP_LINE_T = 0.01, GAP_COLOR = 0x3d61c1; // --blue in kitchen-planner.html's own CSS
+    var GAP_LINE_T = 0.004, GAP_COLOR = 0x2b2b2e; // quiet dark line + a small white tag, like the Ný eining dimension lines (user, 2026-10-26: was big and blue)
     var gapBelow = { line:null, label:null }, gapAbove = { line:null, label:null };
     function gapLabelPaint(cv, text){
       var cx = cv.getContext("2d");
       cx.clearRect(0, 0, cv.width, cv.height);
-      cx.fillStyle = "rgba(61,97,193,.96)"; cx.beginPath();
-      if (cx.roundRect) cx.roundRect(4, 4, cv.width - 8, cv.height - 8, 22); else cx.rect(4, 4, cv.width - 8, cv.height - 8); cx.fill();
-      cx.fillStyle = "#fff"; cx.font = "800 50px 'Kumbh Sans', Arial, sans-serif"; cx.textAlign = "center"; cx.textBaseline = "middle";
+      cx.fillStyle = "rgba(255,255,255,.97)"; cx.strokeStyle = "#2b2b2e"; cx.lineWidth = 4; cx.beginPath();
+      if (cx.roundRect) cx.roundRect(6, 6, cv.width - 12, cv.height - 12, 40); else cx.rect(6, 6, cv.width - 12, cv.height - 12); cx.fill(); cx.stroke();
+      cx.fillStyle = "#2b2b2e"; cx.font = "700 46px 'Kumbh Sans', Arial, sans-serif"; cx.textAlign = "center"; cx.textBaseline = "middle";
       cx.fillText(text, cv.width / 2, cv.height / 2 + 2);
     }
     function ensureGapPart(part){
@@ -3488,7 +3501,7 @@
       var cv = document.createElement("canvas"); cv.width = 260; cv.height = 92;
       var tex = new THREE.CanvasTexture(cv);
       part.label = new THREE.Sprite(new THREE.SpriteMaterial({ map:tex, depthTest:false, transparent:true, sizeAttenuation:false }));
-      part.label.scale.set(0.17, 0.06, 1); part.label.renderOrder = 999;
+      part.label.scale.set(0.105, 0.037, 1); part.label.renderOrder = 999;
       part.label.userData.canvas = cv; part.label.userData.lastText = "";
       part.line = new THREE.Mesh(new THREE.CylinderGeometry(GAP_LINE_T / 2, GAP_LINE_T / 2, 1, 8),
         new THREE.MeshBasicMaterial({ color:GAP_COLOR, depthTest:false, transparent:true, opacity:0.92 }));
