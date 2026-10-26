@@ -510,3 +510,14 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   still render); Lamir: wall see-through, close on the upper hinge; Felliþröskuldur: the door stands open, the camera at
   the leaf's end at the floor — the drop seal in section, dropping and lifting; Skrá: Litur króm / svart (`d.hwColor`)
   — hinges, lock, strike and handle follow it; "Viltu húna frá okkur?" removed (and from the note / Yfirlit / Senda inn).
+- **Round 5 (2026-10-26):** the popup's 3D is a room (2.6 m wall wide enough to fill the view, side walls, ceiling,
+  skirting that stops at the karmur / gerefti); MSAA through the AO pass + max anisotropy + DPR ≤ 2.5 for sharpness;
+  Gerð → Mál with the cursor in Breidd, every opened step scrolls to the top, all done → "Vista hurðina" focused and
+  glowing; **numbers only in every measurement field** (global `beforeinput`/`keydown`/`input` guard on type=number,
+  inputmode decimal/numeric, data-dwnum/data-len/data-num: digits + one "," or "."; a "," in a number field waits for the
+  next digit and becomes "."); Útlit = Spónlagt / Harðplast tabs (no "Egger" anywhere a customer reads it), done steps
+  shrink and the swatches fill the panel; Lamir: the hinge-side karmur / stop / gerefti go see-through (`userData.xray`);
+  Felliþröskuldur: the leaf's free bottom corner is clipped away (two planes, `clipIntersection`) so the seal shows inside
+  it; wall thickness drawn at the free-side reveal (the door opens a little while veggþykkt is typed); Opnun person icon
+  redrawn; texts: "Hurð 1" for customers (PRO keeps HU-1), Mál help + decimals line, Innfelldar lamir / Samlokulamir,
+  Enginn felliþröskuldur / Felliþröskuldur, Stöðluð skrá / Segulskrá.

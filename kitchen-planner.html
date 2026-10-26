@@ -1532,6 +1532,14 @@
   .dw-color i.sw-svart{ background:linear-gradient(135deg, #3a3b3e 0%, #18191b 60%, #2b2c2f 100%); }
   .dw-color b{ font-size:14px; } .dw-color small{ font-size:12px; color:var(--ink-soft); }
   .dw-mats .sw-tile{ border-radius:12px; }
+  /* round 5: more swatches at once — the grid uses the panel's height (no inner scroll), smaller tiles, done steps shrink */
+  .dw-side .dw-mats{ max-height:none; overflow:visible; grid-template-columns:repeat(auto-fill, minmax(84px, 1fr)); gap:8px; }
+  .dw-side .dw-mats .sw-name{ font-size:11.5px; }
+  .dw-side.dw-compact .dw-sec:not(.open) .uw-sec-head{ padding:6px 2px; }
+  .dw-side.dw-compact h3{ margin-bottom:8px; }
+  .dw-mattabs{ margin-bottom:8px; }
+  .dw-side [data-dwsave].dw-ready{ animation:dwReady 1.6s ease-in-out 2; }
+  @keyframes dwReady{ 0%,100%{ box-shadow:0 0 0 0 rgba(0,88,163,0); } 50%{ box-shadow:0 0 0 6px rgba(0,88,163,.25); } }
   #doorWiz .uw-preview{ background:radial-gradient(120% 90% at 50% 35%, #f8f6f2 0%, #ece8e1 100%); }
   #doorWiz .uw-box{ border-radius:18px; }
   .hd-row{ min-height:84px; padding:10px 16px; border-radius:14px; transition:border-color .15s, box-shadow .15s; }
@@ -2432,6 +2440,43 @@
     chevronLeft:'<path d="M14.5 6l-6 6 6 6"/>', chevronRight:'<path d="M9.5 6l6 6-6 6"/>', copy:'<rect x="8.5" y="8.5" width="11" height="11" rx="1.5"/><path d="M15.5 8.5V5.5a1 1 0 0 0-1-1h-9a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3"/>',
     eye:'<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>' };
   function icon(k, size){ size = size || 18; return '<svg class="ico" viewBox="0 0 24 24" width="' + size + '" height="' + size + '" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICON_PATHS[k] || "") + '</svg>'; }
+
+  // Measurement fields take numbers only (user, 2026-10-26, round 5): every number / decimal field in every flow —
+  // digits and one decimal separator ("," or "."), nothing else, at input time and in pasted text. A "," in a
+  // type=number field becomes "." (the browser would drop the whole value otherwise).
+  function isMeasureInput(el){ return el && el.tagName === "INPUT" && (el.type === "number" || el.inputMode === "decimal" || el.inputMode === "numeric" || el.hasAttribute("data-dwnum") || el.hasAttribute("data-len") || el.hasAttribute("data-num")); }
+  function cleanNumber(text, hasSep, intOnly){ // keep digits and the first separator (as typed, "," or ".")
+    var out = "", sep = hasSep || intOnly;
+    String(text || "").replace(/\s+/g, "").split("").forEach(function(ch){ if (/[0-9]/.test(ch)) out += ch; else if ((ch === "," || ch === ".") && !sep){ out += ch; sep = true; } });
+    return out;
+  }
+  document.addEventListener("beforeinput", function(e){
+    var el = e.target; if (!isMeasureInput(el) || !e.inputType || !/^insert/.test(e.inputType)) return;
+    var data = e.data != null ? e.data : (e.dataTransfer ? e.dataTransfer.getData("text") : null); if (data == null) return;
+    var intOnly = el.inputMode === "numeric" || el.step === "1" && el.hasAttribute("data-int");
+    var sel = ""; try{ sel = el.value.slice(el.selectionStart, el.selectionEnd); }catch(er){}
+    var hasSep = /[.,]/.test(String(el.value).replace(sel, ""));
+    var clean = cleanNumber(data, hasSep, intOnly);
+    if (el.type === "number"){ // a number field can't hold "41," or "41." on its own: a typed "," waits for the next digit
+      if (el.dataset.pendDec && /^[0-9]$/.test(clean)){ e.preventDefault(); delete el.dataset.pendDec; el.value = el.value + "." + clean; el.dispatchEvent(new Event("input", { bubbles:true })); return; }
+      if (clean === ","){ e.preventDefault(); if (!/\./.test(el.value)) el.dataset.pendDec = "1"; return; }
+      clean = clean.replace(",", ".");
+    }
+    if (clean === data) return;
+    e.preventDefault();
+    if (clean) try{ document.execCommand("insertText", false, clean); }catch(er){}
+  }, true);
+  document.addEventListener("input", function(e){ // the safety net: whatever got in (autofill, IME, scripts) is cleaned in place
+    var el = e.target; if (!isMeasureInput(el) || el.type === "number") return;
+    var v = String(el.value), c = cleanNumber(v, false, el.inputMode === "numeric");
+    if (c === v) return;
+    var pos = 0; try{ pos = cleanNumber(v.slice(0, el.selectionStart), false, el.inputMode === "numeric").length; }catch(er){}
+    el.value = c; try{ el.setSelectionRange(pos, pos); }catch(er){}
+  }, true);
+  document.addEventListener("focusout", function(e){ if (e.target && e.target.dataset) delete e.target.dataset.pendDec; }, true);
+  document.addEventListener("keydown", function(e){ // type=number lets e / + / - through on some browsers before beforeinput
+    if (isMeasureInput(e.target) && e.key && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && !/[0-9.,]/.test(e.key)) e.preventDefault();
+  }, true);
   var LOOK_CATEGORIES = KP3D.LOOK_CATEGORIES;
   var CARCASS = KP3D.CARCASS;
   var DRAWER_SYSTEMS = KP3D.DRAWER_SYSTEMS;
@@ -12799,7 +12844,7 @@
   function doorHowText(d){
     return d.kind === "karmur" ? __("Aðeins karmur") : KPDOORS.isSlide(d) ? (d.hinge === "left" ? __("Rennur til hægri") : __("Rennur til vinstri")) : (d.hinge === "left" ? __("Lamir vinstra megin") : __("Lamir hægra megin"));
   }
-  function doorHuLabel(d){ var m = /^HU(\d+)$/.exec(d.hu || ""); return m ? "HU-" + m[1] : (d.hu || ""); }
+  function doorHuLabel(d){ var m = /^HU(\d+)$/.exec(d.hu || ""); return m ? (PRO ? "HU-" + m[1] : __("Hurð {n}", { n:m[1] })) : (d.hu || ""); } // customers: "Hurð 1" (round 5); the key stays HU1
   function doorRoomText(d){ var r = KPDOORS.roomLabelOf(d); return d.room === KPDOORS.OTHER ? r : __(r); }
   function doorLook(d){ // spónlagt: a veneer made from its colour at real scale (KPMat wood, round 4); an older Egger choice: its tile
     var L = KPDOORS.hasLeafMat(d) && d.leaf && LOOKS[d.leaf]; if (!L) return null;
@@ -13027,7 +13072,7 @@
       s += '<line x1="' + hx + '" y1="24" x2="' + ex + '" y2="' + ey + '" stroke="var(--blue)" stroke-width="4"/>' +
         '<path d="M' + (hx + dir * 60) + ' 24 A60 60 0 0 ' + (hinge === "left" ? 1 : 0) + ' ' + ex + ' ' + ey + '" fill="none" stroke="var(--blue)" stroke-dasharray="3 3"/>' +
         '<circle cx="' + hx + '" cy="24" r="3.5" fill="var(--ink)"/>'; }
-    return s + '<circle cx="60" cy="80" r="5" fill="none" stroke="var(--ink-soft)" stroke-width="1.5"/><path d="M53 90a7 7 0 0 1 14 0" fill="none" stroke="var(--ink-soft)" stroke-width="1.5"/></svg>';
+    return s + '<circle cx="60" cy="74.5" r="4.2" fill="none" stroke="var(--ink-soft)" stroke-width="1.5"/><path d="M51.5 91c0-5.6 3.8-8.6 8.5-8.6s8.5 3 8.5 8.6" fill="none" stroke="var(--ink-soft)" stroke-width="1.5" stroke-linecap="round"/></svg>';
   }
   function dwHingePic(v){ // the hinge edge close up: a clean seam, or barrels on it
     var s = '<svg viewBox="0 0 120 92" width="120" height="92" aria-hidden="true"><rect x="22" y="6" width="44" height="82" fill="#efe7da" stroke="var(--ink)" stroke-width="1.2"/><rect x="69" y="6" width="12" height="82" fill="#e3dccf" stroke="var(--ink)" stroke-width="1.2"/><rect x="81" y="6" width="30" height="82" fill="#d6d0c4"/>';
@@ -13051,7 +13096,7 @@
             '<button type="button" class="dw-more" data-dwmore="1">' + (dw.more ? '▾ ' : '▸ ') + __("Fleiri gerðir") + '</button>' +
             (dw.more ? '<div class="dw-kinds sm">' + more.map(function(k){ return '<button type="button" class="shape-card dw-kind' + (curK === k.key ? ' active' : '') + '" data-dwkind="' + k.key + '">' + doorPic({ kind:k.kind, widthMm:800, heightMm:2100, hinge:"left" }, true) + '<div class="nm">' + __(k.label) + '</div><small>' + __(k.desc) + '</small></button>'; }).join("") + '</div>' : '');
         } else if (key === "mal"){
-          body = '<p class="dw-hint">' + (PRO ? "Op í vegg (B × H) og veggþykkt, nákvæm mál í mm." : __("Mældu opið í veggnum. Sláðu inn nákvæm mál í cm.")) + '</p>' + [["widthMm", "Breidd", "Breidd opsins"], ["heightMm", "Hæð", "Frá gólfi upp í opið"], ["wallMm", "Veggþykkt", "Þykkt veggjarins með klæðningu"]].map(function(f){
+          body = '<p class="dw-hint">' + (PRO ? "Op í vegg (B × H) og veggþykkt, nákvæm mál í mm." : __("Mældu opið í veggnum. Sláðu inn nákvæm mál í cm.") + ' <b>' + __("Aukastafir eru í lagi, t.d. 82,3 cm.") + '</b>') + '</p>' + [["widthMm", "Breidd", "Breidd opsins (mælt á tveimur stöðum og sett minna málið)"], ["heightMm", "Hæð", "Frá gólfi upp í opið, bæði horn mæld — minna málið skráð"], ["wallMm", "Veggþykkt", "Veggþykkt opsins — gott að mæla á nokkrum stöðum"]].map(function(f){
             var err = dwValErr(f[0]);
             return '<label class="dw-num' + (err ? ' bad' : '') + '"><span><b>' + __(f[1]) + '</b><small>' + __(f[2]) + '</small></span><span class="dw-in"><input type="text" inputmode="decimal" autocomplete="off" data-dwnum="' + f[0] + '" value="' + escapeHtmlPro(dw.vals[f[0]]) + '" placeholder="' + (PRO ? dLim(f[0])[0] + '–' + dLim(f[0])[1] : dLim(f[0])[0] / 10 + '–' + dLim(f[0])[1] / 10) + '"><i>' + dU() + '</i></span>' +
               '<em class="dw-err" data-dwerr="' + f[0] + '">' + (err || '') + '</em></label>';
@@ -13061,10 +13106,14 @@
           body = '<p class="dw-hint">' + (slide ? __("Í hvaða átt rennur hurðin þegar hún opnast?") : __("Stattu þeim megin sem hurðin opnast að. Hvorum megin eru lamirnar?")) + '</p><div class="dw-kinds">' + ["left", "right"].map(function(h){
             return '<button type="button" class="shape-card dw-kind' + (d.hinge === h ? ' active' : '') + '" data-dwhinge="' + h + '">' + dwPlanPic(h, slide) + '<div class="nm">' + (slide ? (h === "left" ? __("Rennur til hægri") : __("Rennur til vinstri")) : (h === "left" ? __("Lamir vinstra megin") : __("Lamir hægra megin"))) + '</div></button>';
           }).join("") + '</div>';
-        } else if (key === "efni"){ // spónlagt only (round 4: no "Ákveða síðar", no Egger)
-          body = '<div class="sw-grid dw-mats">' + doorLeafMaterials().sp.map(function(k){ var l = LOOKS[k];
-            return '<button type="button" class="sw-tile' + (d.leaf === k ? ' active' : '') + '" data-dwleaf="' + k + '" title="' + escapeHtmlPro(__(l.label)) + '">' + (l.img ? '<div class="sw-crop" style="background:' + (l.color3d || "") + ';"><img src="' + l.img + '" alt="" loading="lazy"></div>' : '<div class="sw-fill" style="background:' + (l.color3d || "#ddd") + ';"></div>') + '<div class="sw-name">' + escapeHtmlPro(__(l.label)) + '</div></button>';
-          }).join("") + '</div>';
+        } else if (key === "efni"){ // Spónlagt / Harðplast (round 5: harðplast is back — never "Egger" in the customer's UI)
+          var dm = doorLeafMaterials(), tab = dw.matTab || (/^eg_/.test(d.leaf || "") ? "eg" : "sp");
+          body = '<div class="hd-chips dw-mattabs">' + dwChip("dwmattab", "sp", tab === "sp", __("Spónlagt")) + dwChip("dwmattab", "eg", tab === "eg", __("Harðplast")) + '</div>';
+          var q = dw.matQuery.trim().toLowerCase(), keys = (tab === "sp" ? dm.sp : dm.eg).filter(function(k){ return !q || (String(LOOKS[k].label) + " " + (LOOKS[k].code || "")).toLowerCase().indexOf(q) >= 0; });
+          if (tab === "eg") body += '<input type="search" class="sw-search hd-search" data-dwsearch="1" placeholder="' + __("Leita, t.d. eik eða hvítt") + '" value="' + escapeHtmlPro(dw.matQuery) + '">';
+          body += '<div class="sw-grid dw-mats">' + keys.slice(0, 160).map(function(k){ var l = LOOKS[k];
+            return '<button type="button" class="sw-tile' + (d.leaf === k ? ' active' : '') + '" data-dwleaf="' + k + '" title="' + escapeHtmlPro(__(l.label)) + '">' + (l.img ? (l.category === "sponlagt" ? '<div class="sw-crop" style="background:' + (l.color3d || "") + ';"><img src="' + l.img + '" alt="" loading="lazy"></div>' : '<img src="' + l.img + '" alt="" loading="lazy" style="background:' + (l.color3d || "") + ';">') : '<div class="sw-fill" style="background:' + (l.color3d || "#ddd") + ';"></div>') + '<div class="sw-name">' + escapeHtmlPro(__(l.label)) + '</div></button>';
+          }).join("") + (keys.length ? '' : '<p class="home-hint">' + __("Ekkert fannst — prófaðu annað orð.") + '</p>') + '</div>';
         } else if (key === "lamir"){ // pictures like Opnun (round 2)
           body = '<div class="dw-kinds">' + KPDOORS.KIND_OPTS[d.kind].lamir.map(function(v){ var t = dwOptText("lamir")[v];
             return '<button type="button" class="shape-card dw-kind' + (KPDOORS.optValue(d, "lamir") === v ? ' active' : '') + '" data-dwopt-lamir="' + v + '">' + dwHingePic(v) + '<div class="nm">' + __(t[0]) + '</div><small>' + __(t[1]) + '</small></button>'; }).join("") + '</div>';
@@ -13086,7 +13135,15 @@
     html += '</div></div><div class="uw-actions"><button type="button" class="btn btn-secondary btn-small" data-dwcancel="1">' + __("Hætta við") + '</button>' +
       '<button type="button" class="btn btn-primary" data-dwsave="1"' + (can ? '' : ' disabled title="' + __("Sláðu inn breidd, hæð og veggþykkt fyrst (Mál).") + '"') + '>' + __("Vista hurðina") + '</button></div>';
     side.innerHTML = html;
+    side.classList.toggle("dw-compact", dw.sec === "efni"); // Útlit: the done steps shrink so more swatches show
     var nk = side.querySelector(".dw-scroll"); if (nk) nk.scrollTop = top;
+    var cue = dw.sec !== dw.lastSec; dw.lastSec = dw.sec;
+    if (cue && nk){
+      var os = side.querySelector(".uw-sec.open");
+      if (os) nk.scrollTop = Math.max(0, os.offsetTop - nk.offsetTop - 4);
+      if (dw.sec === "mal") setTimeout(function(){ var f = Array.from(side.querySelectorAll("[data-dwnum]")).find(function(x){ return !x.value; }) || side.querySelector("[data-dwnum]"); if (f) f.focus(); }, 30);
+      if (!dw.sec && dwMalOk()){ var sv = side.querySelector("[data-dwsave]"); if (sv){ sv.classList.add("dw-ready"); setTimeout(function(){ sv.focus(); }, 30); } }
+    }
     dwSync();
   }
   function dwChip(attr, val, on, label){ return '<button type="button" class="hd-chip' + (on ? ' on' : '') + '" data-' + attr + '="' + val + '">' + label + '</button>'; }
@@ -13120,6 +13177,7 @@
     else if (ds.dwmalok){ if (!dwMalOk()) return; dwAdvance("mal"); }
     else if (ds.dwhinge){ d.hinge = ds.dwhinge; dwAdvance("opnun"); }
     else if (ds.dwleaf){ d.leaf = ds.dwleaf; dwAdvance("efni"); }
+    else if (ds.dwmattab){ dw.matTab = ds.dwmattab; dw.matQuery = ""; }
     else if (ds.dwcolor){ d.hwColor = ds.dwcolor; dwAdvance("skra"); }
     else if (ds.dwnext){ dwAdvance(ds.dwnext); }
     else if (ds.dwtopp){ d.cnc = d.cnc || {}; d.cnc.topp = ds.dwtopp; dw.dirty = true; }

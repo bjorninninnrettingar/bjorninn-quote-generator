@@ -40,8 +40,8 @@ test("every choice is in the Line Item: note + Smíðagögn", () => {
   const d = door({ frame: "gerefti", opt: { lamir: "samloku", throskuldur: "ja", skra: "segul" }, hinge: "right", widthMm: 825, wallMm: 120, hwColor: "svart", hunar: "ja", leaf: "eg_H3406" });
   const li = D.lineFor(d, { pid: "recDOOR0000000001", mat: { label: "Anthracite Mountain Larch", efnislistiId: "recMAT0000000001" } });
   const msg = li["Skilaboð til skipulags"];
-  for (const s of ["hurð með gereftum", "op 825 mm × 2100 mm", "veggþykkt 120 mm", "lamir hægra megin", "Karmur með gereftum", "Lamir: sýnilegar lamir",
-    "Felliþröskuldur: þétting sem fellur niður", "Skrá: hljóðlát skrá", "Litur á járnum (lamir, skrá, slútt): svart", "harðplast Egger Anthracite Mountain Larch"]) assert.ok(msg.includes(s), s + " — " + msg);
+  for (const s of ["hurð með gereftum", "op 825 mm × 2100 mm", "veggþykkt 120 mm", "lamir hægra megin", "Karmur með gereftum", "Lamir: samlokulamir",
+    "Felliþröskuldur.", "Skrá: segulskrá", "Litur á járnum (lamir, skrá, slútt): svart", "harðplast Egger Anthracite Mountain Larch"]) assert.ok(msg.includes(s), s + " — " + msg);
   const sg = JSON.parse(li["Smíðagögn (JSON) 🔧"]);
   assert.equal(sg.v, 1); assert.equal(sg.w, 825); assert.equal(sg.d, 120);
   assert.deepEqual(sg.door.opt, { lamir: "samloku", throskuldur: "ja", skra: "segul" });

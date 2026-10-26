@@ -2068,7 +2068,19 @@
     "lamir, skrá og húnn í sama lit": "hinges, lock and handle in one colour",
     "Gljáandi stál": "Polished steel",
     "Matt svart": "Matt black",
-    "Járn: {c}": "Hardware: {c}"
+    "Járn: {c}": "Hardware: {c}",
+    // round 5 wording
+    "Aukastafir eru í lagi, t.d. 82,3 cm.": "Decimals are fine, e.g. 82.3 cm.",
+    "Breidd opsins (mælt á tveimur stöðum og sett minna málið)": "Width of the opening (measure in two places and enter the smaller)",
+    "Frá gólfi upp í opið, bæði horn mæld — minna málið skráð": "Floor to the top of the opening, both corners measured — enter the smaller",
+    "Veggþykkt opsins — gott að mæla á nokkrum stöðum": "Wall thickness at the opening — best measured in a few places",
+    "Innfelldar lamir": "Concealed hinges",
+    "Samlokulamir": "Butt hinges",
+    "Hefðbundnar lamir á brúninni": "Traditional hinges on the edge",
+    "Enginn felliþröskuldur": "No drop seal",
+    "Lokar bilinu þegar hurðin lokast — bætir hljóðeinangrun og kemur í veg fyrir gegnumtrekk.": "Closes the gap when the door shuts — better sound insulation and no draughts.",
+    "Stöðluð skrá": "Standard lock",
+    "Segulskrá": "Magnetic lock"
   });
 
   // part F: stored/computed numbered labels from kitchen-planner-3d.js (CATALOG width variants, island rows, partition sides)
