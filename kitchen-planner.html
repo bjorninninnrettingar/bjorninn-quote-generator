@@ -459,6 +459,13 @@
   .cl-wrow{ display:flex; align-items:center; gap:6px; } .cl-wnum{ width:80px; padding:7px 9px; border:1px solid var(--line); border-radius:8px; font:inherit; font-size:15px; }
   .cl-wrow .hw-btn{ margin-left:auto; }
   details.cl-more{ border-top:1px solid var(--line); margin-top:6px; padding-top:8px; } details.cl-more > summary{ cursor:pointer; font-size:13.5px; font-weight:600; color:var(--ink-soft); margin-bottom:8px; }
+  .cl-tabs{ display:flex; gap:0; border-bottom:1px solid var(--line); margin:2px 0 8px; }
+  .cl-tab{ flex:1; background:none; border:0; border-bottom:2px solid transparent; padding:7px 4px; font:inherit; font-size:13.5px; font-weight:600; color:var(--ink-soft); cursor:pointer; }
+  .cl-tab.on{ color:var(--ink); border-bottom-color:var(--blue); }
+  .cl-items{ display:flex; flex-direction:column; gap:6px; }
+  .cl-item{ display:flex; align-items:center; gap:10px; border:1px solid var(--line); border-radius:10px; padding:6px 8px; background:#fff; }
+  .cl-item.off{ opacity:.45; } .cl-item-t{ flex:1; display:flex; flex-direction:column; line-height:1.25; } .cl-item-t b{ font-size:13.5px; } .cl-item-t small{ font-size:11.5px; color:var(--ink-soft); }
+  .cl-hint{ font-size:12px; color:var(--ink-soft); margin:6px 0 0; }
   .cl-recipes{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
   .cl-recipe{ display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 6px 7px; border:1px solid var(--line); border-radius:10px; background:#fff; cursor:pointer; font:inherit; text-align:center; }
   .cl-recipe b{ font-size:13px; } .cl-recipe small{ font-size:11.5px; color:var(--ink-soft); line-height:1.25; }
@@ -765,6 +772,7 @@
   /* "+ Ný eining" step 3 groups (2026-10-23) */
   .uw-secs{ border-top:1px solid var(--line); margin:4px 0 10px; }
   .uw-sec{ border-bottom:1px solid var(--line); }
+  .uw-preview{ position:relative; } .uw-dims{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; overflow:visible; }
   .uw-sec-head{ width:100%; display:flex; align-items:center; gap:8px; padding:11px 2px; background:none; border:0; cursor:pointer; font:inherit; color:var(--ink); text-align:left; }
   .uw-sec-head b{ font-size:14px; }
   .uw-sec-head span{ flex:1; color:var(--blue); font-weight:600; font-size:13px; }
@@ -1922,7 +1930,7 @@
   <!-- ============ STEP: DONE ============ -->
   <div class="uw-modal" id="unitWiz" hidden>
     <div class="uw-box">
-      <div class="uw-preview"><div id="uwPreview"></div>
+      <div class="uw-preview"><div id="uwPreview"></div><svg class="uw-dims" id="uwDims" aria-hidden="true"></svg>
         <div class="uw-tools" id="uwTools" hidden>
           <button type="button" data-uwt="fronts" data-i18n>Framhliðar: á</button>
           <button type="button" data-uwt="open" data-i18n>Opna</button>
@@ -3595,31 +3603,54 @@
     { key:"hengi",   label:"Hengi",           desc:"Hilla og slá",           shelves:1, rails:1, drawers:0 },
     { key:"tvofold", label:"Tvöföld slá",     desc:"Tvær slár, styttri föt", shelves:1, rails:2, drawers:0 },
     { key:"hillur",  label:"Hillur",          desc:"Fimm hillur",            shelves:5, rails:0, drawers:0 },
-    { key:"skuffur", label:"Skúffur + hengi", desc:"Þrjár skúffur, slá ofan á", shelves:1, rails:1, drawers:3 }
+    { key:"skuffur", label:"Skúffur + hengi", desc:"Þrjár skúffur, slá ofan á", shelves:1, rails:1, drawers:3 },
+    { key:"hillurskuffur", label:"Hillur + skúffur", desc:"Þrjár skúffur, hillur ofan á", shelves:4, rails:0, drawers:3 }
+  ];
+  // the single items a bay can hold (Stakir hlutir)
+  var CLOSET_ITEMS = [
+    { key:"shelves", label:"Hilla", desc:"Laus hilla, færð hana til", max:8 },
+    { key:"rails",   label:"Fataslá", desc:"Fyrir herðatré", max:2, deep:true },
+    { key:"drawers", label:"Skúffa", desc:"17 cm há, stækkar ef þú dregur hana", max:4 }
   ];
   var CLOSET_BAY_MAX_MM = 1000, CLOSET_CORNER_FILLER_MM = 60, CLOSET_DRAWER_OVER_MM = 40; // a drawer front = its side + ~4 cm, rounded up to whole cm // 6 cm, as the kitchen's corner filler
   function closetTall(b){ return b && (b.type === "harskapur" || b.type === "harskapurOpinn"); }
   function closetDeep(b){ return (b.depthMm || CATALOG[b.type].d) >= 500; }
   function applyClosetRecipe(b, key){
-    var r = CLOSET_RECIPES.find(function(x){ return x.key === key; }) || CLOSET_RECIPES[0], c = CATALOG[b.type];
+    var r = CLOSET_RECIPES.find(function(x){ return x.key === key; }) || CLOSET_RECIPES[0];
     if (!closetDeep(b) && r.rails) r = CLOSET_RECIPES.find(function(x){ return x.key === "hillur"; }); // 35 cm: no hangers
-    b.closetRecipe = r.key;
+    setClosetCounts(b, r.shelves, r.rails, r.drawers);
+  }
+  function closetCounts(b){ return { shelves:KP3D.shelvesOf(b) || 0, rails:CATALOG[b.type].railRange ? KP3D.railsOf(b) || 0 : 0, drawers:b.interior && b.interior.mode === "skuffur" ? b.interior.count : 0 }; }
+  // Stakir hlutir / Tilbúnar lausnir (user, 2026-10-26, like IKEA PAX): the bay's shelves, rails and drawers; the recipe
+  // that matches the counts lights up, any other mix is just the customer's own
+  function setClosetCounts(b, shelves, rails, drawers){
+    var c = CATALOG[b.type];
     delete b.shelfPos; delete b.railPos;
-    if (c.shelfRange) b.shelves = Math.max(c.shelfRange[0], Math.min(c.shelfRange[1], r.shelves));
-    if (c.railRange) b.rails = Math.max(c.railRange[0], Math.min(c.railRange[1], r.rails));
+    if (c.shelfRange) b.shelves = Math.max(c.shelfRange[0], Math.min(c.shelfRange[1], shelves));
+    if (c.railRange) b.rails = closetDeep(b) ? Math.max(c.railRange[0], Math.min(c.railRange[1], rails)) : 0;
+    var hit = CLOSET_RECIPES.find(function(x){ return x.shelves === (b.shelves || 0) && x.rails === (b.rails || 0) && x.drawers === drawers; });
+    b.closetRecipe = hit ? hit.key : null;
+    var r = { drawers:drawers };
     if (r.drawers){ // wardrobe drawers: equal K drawers, each front a comfortable round number just above its side (user, 2026-10-26) — not the tall unit's default 120 cm zone
-      var codes = []; for (var di = 0; di < r.drawers; di++) codes.push("K");
       var side = (KP3D.DRAWER_CODES[drawerSys()].side || {}).K || 129, slot = Math.ceil((side + CLOSET_DRAWER_OVER_MM) / 10) * 10;
-      b.interior = { mode:"skuffur", count:r.drawers, codes:codes, frontsMm:codes.map(function(){ return slot; }) };
-      b.drawerZoneMm = slot * r.drawers;
+      var prev = b.interior && b.interior.mode === "skuffur" && b.interior.frontsMm && b.interior.codes ? b.interior : null; // keep drawers already resized
+      var codes = [], fronts = [];
+      for (var di = 0; di < r.drawers; di++){ codes.push(prev && prev.codes[di] ? prev.codes[di] : "K"); fronts.push(prev && prev.frontsMm[di] ? prev.frontsMm[di] : slot); }
+      b.interior = { mode:"skuffur", count:r.drawers, codes:codes, frontsMm:fronts };
+      b.drawerZoneMm = fronts.reduce(function(a, x){ return a + x; }, 0);
     } else {
       delete b.drawerZoneMm;
       if (c.hasInterior) b.interior = { mode:"hillur", count:b.shelves || 0 }; else delete b.interior;
     }
   }
+  function closetItemStep(b, spec){ // "shelves:1" / "rails:-1" / "drawers:1"
+    var pr = spec.split(":"), k = closetCounts(b), it = CLOSET_ITEMS.find(function(x){ return x.key === pr[0]; });
+    k[pr[0]] = Math.max(0, Math.min(it ? it.max : 8, k[pr[0]] + (+pr[1])));
+    setClosetCounts(b, k.shelves, k.rails, k.drawers);
+  }
   function setClosetBayDoors(b, doors){
     var t = doors ? "harskapur" : "harskapurOpinn"; if (b.type === t) return;
-    b.type = t; applyClosetRecipe(b, b.closetRecipe || "hengi");
+    var k = closetCounts(b); b.type = t; setClosetCounts(b, k.shelves, k.rails, k.drawers); // the same things inside, with or without doors
   }
   function closetBayWidths(len){
     if (len < 300) return [];
@@ -6396,7 +6427,39 @@
     KP3D.teardown3D(true); // one 3D scene at a time
     renderUnitWizard();
   }
+  // ---------- dimension lines on the "+ Ný eining" preview (user, 2026-10-26) ----------
+  // The dimension being chosen (its section open) is a blue line on the cabinet; a dimension already picked stays as a
+  // fixed dark line with its value; the rest aren't drawn. Re-projected every frame, so they follow the spinning view.
+  var uwDimCtx = null, uwDimRaf = 0;
+  function startUwDims(){ if (!uwDimRaf) uwDimRaf = requestAnimationFrame(drawUwDims); }
+  function drawUwDims(){
+    uwDimRaf = 0;
+    var svg = document.getElementById("uwDims"), st = KP3D._three();
+    if (!uw || !uw.b || !uwDimCtx || uwDimCtx.b !== uw.b || !st || !svg){ if (svg) svg.innerHTML = ""; return; }
+    var T = window.__THREE__, host = document.getElementById("uwPreview"), r = host.getBoundingClientRect(), x = uwDimCtx, g = x.g;
+    svg.setAttribute("viewBox", "0 0 " + r.width + " " + r.height);
+    function P(al, y, out){ var v = new T.Vector3(g.origin.x + g.axis.x * al + g.normal.x * out, y, g.origin.z + g.axis.z * al + g.normal.z * out).project(st.camera); return { x:(v.x + 1) / 2 * r.width, y:(1 - v.y) / 2 * r.height }; }
+    var b = uw.b, c = CATALOG[b.type], picked = uw.picked || {}, gap = 0.07;
+    var lines = [
+      { key:"w", a:P(x.a0, x.y1 + gap, x.d), b:P(x.a1, x.y1 + gap, x.d), mm:b.widthMm },
+      { key:"h", a:P(x.a0 - gap, x.y0, x.d), b:P(x.a0 - gap, x.y1, x.d), mm:blockHeightMm(b, c) },
+      { key:"d", a:P(x.a1 + gap, x.y0, 0), b:P(x.a1 + gap, x.y0, x.d), mm:b.depthMm || c.d }
+    ];
+    svg.innerHTML = lines.map(function(l){
+      var active = uw.sec === l.key, fixed = !!picked[l.key];
+      if (!active && !fixed) return "";
+      var col = active ? "#0058a3" : "#2b2b2e", sw = active ? 2.4 : 1.4;
+      var dx = l.b.x - l.a.x, dy = l.b.y - l.a.y, L = Math.hypot(dx, dy) || 1, nx = -dy / L * 6, ny = dx / L * 6, mx = (l.a.x + l.b.x) / 2, my = (l.a.y + l.b.y) / 2;
+      var txt = Math.round(l.mm / 10) + " cm", tw = txt.length * 7.4 + 14;
+      return '<line x1="' + l.a.x + '" y1="' + l.a.y + '" x2="' + l.b.x + '" y2="' + l.b.y + '" stroke="' + col + '" stroke-width="' + sw + '"/>' +
+        [l.a, l.b].map(function(p){ return '<line x1="' + (p.x - nx) + '" y1="' + (p.y - ny) + '" x2="' + (p.x + nx) + '" y2="' + (p.y + ny) + '" stroke="' + col + '" stroke-width="' + sw + '"/>'; }).join("") +
+        '<rect x="' + (mx - tw / 2) + '" y="' + (my - 11) + '" width="' + tw + '" height="22" rx="11" fill="' + (active ? col : "#fff") + '" stroke="' + col + '" stroke-width="1"/>' +
+        '<text x="' + mx + '" y="' + (my + 4.5) + '" text-anchor="middle" font-size="12.5" font-weight="700" fill="' + (active ? "#fff" : col) + '">' + txt + '</text>';
+    }).join("");
+    uwDimRaf = requestAnimationFrame(drawUwDims);
+  }
   function leaveUnitWizard(){
+    uwDimCtx = null; var dsv = document.getElementById("uwDims"); if (dsv) dsv.innerHTML = "";
     closeFitAsk();
     KP3D.setAllParts(false); // don't carry the preview's open drawers into the room
     uw = null;
@@ -6620,7 +6683,7 @@
       if (isCloset() && closetTall(b) && !PRO){ // the same picture cards + doors as the side panel (user, 2026-10-26)
         innHtml = closetBayHtml(b, true);
         var rr = CLOSET_RECIPES.find(function(x){ return x.key === b.closetRecipe; });
-        innSum = (rr ? __(rr.label) : "") + " · " + (b.type === "harskapurOpinn" ? __("Opið") : __("Með hurðum"));
+        innSum = (rr ? __(rr.label) : __("Eigin samsetning")) + " · " + (b.type === "harskapurOpinn" ? __("Opið") : __("Með hurðum"));
       }
       if (innHtml) secHtml.push(uwSec("inn", c.hasInterior || c.shelfRange || c.railRange ? __("Innvols") : __("Útfærsla"), innSum, innHtml));
       html += '<div class="uw-secs">' + secHtml.join("") + '</div>';
@@ -6788,6 +6851,8 @@
       renderUnitWizard();
     });
     side.querySelectorAll("[data-clrecipe]").forEach(function(el){ el.addEventListener("click", function(){ applyClosetRecipe(b, el.dataset.clrecipe); renderUnitWizard(); }); });
+    side.querySelectorAll("[data-clinntab]").forEach(function(el){ el.addEventListener("click", function(){ closetInnTab = el.dataset.clinntab; renderUnitWizard(); }); });
+    side.querySelectorAll("[data-clitem]").forEach(function(el){ el.addEventListener("click", function(){ closetItemStep(b, el.dataset.clitem); renderUnitWizard(); }); });
     side.querySelectorAll("[data-cldoortype]").forEach(function(el){ el.addEventListener("click", function(){ setClosetBayDoors(b, el.dataset.cldoortype !== "open"); renderUnitWizard(); }); });
     side.querySelectorAll("[data-front-all]").forEach(function(el){ el.addEventListener("click", function(){
       if (el.dataset.frontAll === "1") b.frontAll = true; else delete b.frontAll; renderUnitWizard();
@@ -6906,6 +6971,8 @@
       st.controls.maxPolarAngle = 1.45; // never from below the floor
       swayPreview(st, Math.atan2(g.normal.x, g.normal.z));
       st.controls.update();
+      uwDimCtx = { g:g, a0:0.4, a1:0.4 + b.widthMm / 1000, y0:elevM, y1:elevM + hM, d:(b.depthMm || c.d) / 1000, b:b };
+      startUwDims();
       // A plain drawer stack is already its own fronts — nothing hidden to reveal, so it stays closed by default
       // (user, 2026-10-14: only auto-open a front that's actually hiding something behind it). A búrskápur's
       // door hides its inner drawers though, so that one still opens — only once it actually has an innskúffa.
@@ -9100,10 +9167,14 @@
     if (key === "hengi") o += shelf(12) + rail(17, 30);
     else if (key === "tvofold") o += shelf(12) + rail(16, 12) + rail(38, 14);
     else if (key === "hillur") o += [13, 23, 33, 43, 53].map(shelf).join("");
+    else if (key === "hillurskuffur") o += [12, 21, 30].map(shelf).join("") + '<rect x="6" y="38" width="36" height="6.5" rx="1" fill="#d9ccb2" stroke="#9c8f77"/><rect x="6" y="46" width="36" height="6.5" rx="1" fill="#d9ccb2" stroke="#9c8f77"/><rect x="6" y="54" width="36" height="5" rx="1" fill="#d9ccb2" stroke="#9c8f77"/>';
+    else if (key === "item-shelves") return '<svg viewBox="0 0 48 32" width="44" height="30" aria-hidden="true"><path d="M4 14h40l-4 6H8z" fill="#e4dccb" stroke="#9c8f77" stroke-width="1.3"/><path d="M8 20h32v3H8z" fill="#cfc4ad"/></svg>';
+    else if (key === "item-rails") return '<svg viewBox="0 0 48 32" width="44" height="30" aria-hidden="true"><line x1="5" y1="9" x2="43" y2="9" stroke="#6d675e" stroke-width="2.4" stroke-linecap="round"/><path d="M15 9l-5 6h10z M30 9l-5 6h10z" fill="none" stroke="#9c8f77" stroke-width="1.3"/><path d="M11 15v12h8V15 M26 15v12h8V15" fill="#d9ccb2" stroke="#9c8f77" stroke-width="1"/></svg>';
+    else if (key === "item-drawers") return '<svg viewBox="0 0 48 32" width="44" height="30" aria-hidden="true"><rect x="5" y="8" width="38" height="16" rx="1.5" fill="#d9ccb2" stroke="#9c8f77" stroke-width="1.3"/><line x1="18" y1="16" x2="30" y2="16" stroke="#2b2b2e" stroke-width="2" stroke-linecap="round"/></svg>';
     else if (key === "skuffur") o += shelf(12) + rail(17, 14) + '<rect x="6" y="38" width="36" height="6.5" rx="1" fill="#d9ccb2" stroke="#9c8f77"/><rect x="6" y="46" width="36" height="6.5" rx="1" fill="#d9ccb2" stroke="#9c8f77"/><rect x="6" y="54" width="36" height="5" rx="1" fill="#d9ccb2" stroke="#9c8f77"/>';
     return o + '</svg>';
   }
-  var clMoreOpen = false; // "Fleiri stillingar" stays as the customer left it across re-renders
+  var clMoreOpen = false, closetInnTab = "lausnir"; // "Fleiri stillingar" stays as the customer left it across re-renders
   function closetDoorKind(b){
     if (b.type === "harskapurOpinn") return "open";
     var fb = findBlock(b.id); if (!fb) return "hinged";
@@ -9112,11 +9183,20 @@
   }
   function closetBayHtml(b, wizard){
     if (!isCloset() || !closetTall(b)) return "";
-    var deep = closetDeep(b), cur = b.closetRecipe;
-    return '<div class="edit-field"><label>' + __("Hvað á að vera í skápnum?") + '</label><div class="cl-recipes">' + CLOSET_RECIPES.map(function(r){
-      var off = !deep && r.rails;
-      return '<button type="button" class="cl-recipe' + (cur === r.key ? ' on' : '') + '" data-clrecipe="' + r.key + '"' + (off ? ' disabled title="' + __("Herðatré passa ekki í 35 cm djúpan skáp") + '"' : '') + '>' + closetRecipeSvg(r.key) + '<b>' + __(r.label) + '</b><small>' + __(r.desc) + '</small></button>';
-    }).join("") + '</div></div>' +
+    var deep = closetDeep(b), cur = b.closetRecipe, cnt = closetCounts(b);
+    var tabs = '<div class="cl-tabs" role="tablist">' + [["lausnir", "Tilbúnar lausnir"], ["hlutir", "Stakir hlutir"]].map(function(t){
+      return '<button type="button" role="tab" class="cl-tab' + (closetInnTab === t[0] ? ' on' : '') + '" aria-selected="' + (closetInnTab === t[0]) + '" data-clinntab="' + t[0] + '">' + __(t[1]) + '</button>'; }).join("") + '</div>';
+    var body = closetInnTab === "hlutir"
+      ? '<div class="cl-items">' + CLOSET_ITEMS.map(function(it){
+          var n = cnt[it.key], off = it.deep && !deep;
+          return '<div class="cl-item' + (off ? ' off' : '') + '"' + (off ? ' title="' + __("Herðatré passa ekki í 35 cm djúpan skáp") + '"' : '') + '>' + closetRecipeSvg("item-" + it.key) + '<div class="cl-item-t"><b>' + __(it.label) + '</b><small>' + __(it.desc) + '</small></div>' +
+            '<div class="hw-count"><button type="button" class="iconbtn" data-clitem="' + it.key + ':-1"' + (n <= 0 || off ? ' disabled' : '') + '>−</button><b>' + n + '</b><button type="button" class="iconbtn" data-clitem="' + it.key + ':1"' + (n >= it.max || off ? ' disabled' : '') + '>+</button></div></div>';
+        }).join("") + '<p class="cl-hint">' + __("Opnaðu skápinn í 3D og dragðu hlutina upp eða niður.") + '</p></div>'
+      : '<div class="cl-recipes">' + CLOSET_RECIPES.map(function(r){
+          var off = !deep && r.rails;
+          return '<button type="button" class="cl-recipe' + (cur === r.key ? ' on' : '') + '" data-clrecipe="' + r.key + '"' + (off ? ' disabled title="' + __("Herðatré passa ekki í 35 cm djúpan skáp") + '"' : '') + '>' + closetRecipeSvg(r.key) + '<b>' + __(r.label) + '</b><small>' + __(r.desc) + '</small></button>';
+        }).join("") + '</div>' + (!cur ? '<p class="cl-hint">' + __("Þín eigin samsetning — veldu lausn til að byrja upp á nýtt.") + '</p>' : '');
+    return '<div class="edit-field"><label>' + __("Hvað á að vera í skápnum?") + '</label>' + tabs + body + '</div>' +
     '<div class="edit-field"><label>' + __("Hurðir") + '</label><div class="hw-toggle">' +
       [["hinged", "Með hurðum", ""], ["pocket", "Rennihurð í hlið", "Hurðin rennur inn í hlið skápsins þegar hún er opin (Blum Revego). Dýrari lausn, söluaðili staðfestir verð."], ["open", "Opið", ""]].filter(function(o){ return !(wizard && o[0] === "pocket"); }).map(function(o){
         var kind = wizard ? (b.type === "harskapurOpinn" ? "open" : "hinged") : closetDoorKind(b);
@@ -9432,6 +9512,8 @@
     host.querySelectorAll("[data-clrecipe]").forEach(function(btn){
       btn.addEventListener("click", function(){ if (b.locked){ lockedToast(); return; } applyClosetRecipe(b, btn.dataset.clrecipe); save(); refreshAfterEdit(); });
     });
+    host.querySelectorAll("[data-clinntab]").forEach(function(btn){ btn.addEventListener("click", function(){ closetInnTab = btn.dataset.clinntab; renderEditPanel(); }); });
+    host.querySelectorAll("[data-clitem]").forEach(function(btn){ btn.addEventListener("click", function(){ if (b.locked){ lockedToast(); return; } closetItemStep(b, btn.dataset.clitem); save(); refreshAfterEdit(); }); });
     host.querySelectorAll("[data-cldoortype]").forEach(function(btn){
       btn.addEventListener("click", function(){
         if (b.locked){ lockedToast(); return; }
