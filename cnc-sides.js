@@ -117,7 +117,9 @@
   //   sides as H 580 × B 2470); opts.gripMm = grip strip on the drawer fronts (slot = cut front + grip).
   function unitPlan(name, rows, opts) {
     opts = opts || {};
-    var stop = [], check = [], info = [];
+    var stop = [], check = [], info = [], defaults = [];
+    // a default the cabinet's review in PRO accepts ("Skápur yfirfarinn", Smíðagögn ready): shown until then, dropped after
+    function dflt(msg) { check.push(msg); defaults.push(msg); }
     var by = {}; rows.forEach(function (r) { var k = kind(r.Partur); (by[k] = by[k] || []).push(r); });
     var tegund = String([].concat((rows[0] || {})["Tegund einingu"] || "")[0] || "");
     var plan = { name: name, id: unitId(name), tegund: tegund, stop: stop, check: check, info: info, ops: [] };
@@ -265,7 +267,7 @@
     if (loose) {
       var a = so && num(so.under) > 0 && num(so.h) > 0 ? r1(num(so.under) + num(so.h) + OVEN_BOARD) : doors.length ? Math.max(drawerTop, top) : drawerTop, b = H;
       for (var i = 1; i <= loose; i++) { var x = r1(a + (b - a) * i / (loose + 1)); shelfRows.push(x); op("LAUS_HILLA", "Laus hilla", r1(x - 50) + ", 3, 37, 20+60, 50"); }
-      check.push("Lausar hillur (" + loose + "): sjálfgefin staðsetning — breyttu eftir teikningu ef þarf");
+      dflt("Lausar hillur (" + loose + "): sjálfgefin staðsetning — breyttu eftir teikningu ef þarf");
     }
     var fixed = expand(by.fixedShelf, function (r) { return r; }).length;
     if (fixed && !oven && !ovenDone) check.push("Föst hilla (" + fixed + ") — staðsetning ekki í gögnum, settu inn eftir teikningu");
@@ -302,7 +304,7 @@
           runners.push(x); op(macroOf(d), "Innskúffa " + d.code, d.H + ", " + x + ", " + d.code);
           edge = r1(edge - d.H - BOX_GAP);
         });
-        if (inner.length > 1 || oven) check.push("Innskúffur (" + inner.length + "): athuga staðsetningu eftir teikningu");
+        if (inner.length > 1 || oven) dflt("Innskúffur (" + inner.length + "): athuga staðsetningu eftir teikningu");
       } else {
         // behind a door: where the designer put them (Smíðagögn inner = [{code, mm = bottom of the inner front}], búrskápur
         // in Smíða, 2026-10-10), matched by code; otherwise from the bottom, front + 80 apart (⚠)
@@ -317,7 +319,7 @@
           var bottom = 60; // the designer's default too: the bottom runner (60 + 54) clears the bottom hinge at 80
           inner.forEach(function (d) { runners.push(r1(bottom + INNER_RUNNER)); op(macroOf(d), "Innskúffa " + d.code, d.H + ", " + r1(bottom + INNER_RUNNER) + ", " + d.code); bottom = r1(bottom + d.H + 80); });
           if (bottom > H - T) stop.push("Innskúffur komast ekki fyrir");
-          check.push("Innskúffur bak við hurð (" + inner.length + "): sjálfgefið neðan frá, framhlið + 80 á milli — hönnuður staðsetur");
+          dflt("Innskúffur bak við hurð (" + inner.length + "): sjálfgefið neðan frá, framhlið + 80 á milli — hönnuður staðsetur");
         }
       }
     }
@@ -326,7 +328,8 @@
     // them (Smíðagögn) when its doors match Sögunarlisti; corner "2" = from the bottom, "3" = from the top.
     var smida = parseSmida(opts.smida), sd = null;
     // drawn in the designer but not marked "✅ Klár til framleiðslu" in Smíða (or changed after it was)
-    if (smida && !smida.ready) check.push("Ekki merktur „Klár til framleiðslu“ í hönnuðinum");
+    plan.reviewed = smida ? !!smida.ready : null; // null = never drawn in PRO
+    if (smida && !smida.ready) check.push("Ekki merktur „Skápur yfirfarinn“ í PRO");
     if (smida && Array.isArray(smida.doors) && doors.length) { // no doors = sizes only, /cnc default
       var sdoors = smida.doors || [];
       // Same number of doors → the designer's hinges are used (they're measured from each door's ends, so a few
@@ -349,7 +352,7 @@
         at.forEach(function (p) { if (avoid.some(function (a) { return Math.abs(a - p) < HINGE_CLEAR; })) check.push("Löm við " + p + " (hönnuður) er nálægt hillu/skúffu — athuga"); });
       } else {
         var h = hingePositions(len, avoid); at = h.at; defaulted = true;
-        h.moved.forEach(function (m) { check.push("Löm færð frá hillu/skúffu: " + m + " (frá neðri brún hurðar)"); });
+        h.moved.forEach(function (m) { dflt("Löm færð frá hillu/skúffu: " + m + " (frá neðri brún hurðar)"); });
         h.blocked.forEach(function (m) { check.push("Löm við " + m + " rekst á hillu/skúffu — setja handvirkt"); });
       }
       at.forEach(function (p) { hingeAt.push(r1(d.from + p)); });
@@ -365,6 +368,9 @@
     // Which side carries the hinges (2026-10-10, user: only the hinge side is drilled for them): Smíðagögn `hinge`
     // ("vinstri" / "haegri" / "baedi", seen from the front), else its first door's side. Unknown → both sides, as before.
     var hs = hingeAt.length ? (smida && (smida.hinge || (smida.doors && smida.doors[0] && smida.doors[0].side))) || null : null;
+    // every opening hung as two leaves side by side (vænghurð) = a hinge in each side, whatever the drawing says
+    // (older Smíðagögn has no `hinge`; 2026-10-26, T-32 Sk6)
+    if (hingeAt.length && !hs && leaves && doors.every(function (d) { return leaves.filter(function (l) { return Math.round(l.H) === Math.round(d.H); }).length >= 2; })) hs = "baedi";
     plan.hingeSide = hs;
     // Default hinge positions (80 from each end + evenly between) are confirmed against the real masters
     // (2026-10-13), so that formula itself is no longer worth a warning. What's still real: (a) a defaulted door
@@ -375,7 +381,7 @@
     if (defaulted && noDesignerHingeSide)
       check.push("Lamir: sjálfgefin staðsetning, lamahlið óþekkt (lamagöt í báðar hliðar) — ef lyftihurð fara lamirnar í toppinn, ekki hliðina; vista skápinn í hönnuðinum til að staðfesta");
     else {
-      if (defaulted) check.push("Lamir: sjálfgefin staðsetning — ef lyftihurð fara lamirnar í toppinn, ekki hliðina");
+      if (defaulted) dflt("Lamir: sjálfgefin staðsetning — ef lyftihurð fara lamirnar í toppinn, ekki hliðina");
       if (noDesignerHingeSide) check.push("Lamahlið óþekkt — lamagöt í báðar hliðar (vista skápinn í hönnuðinum svo /cnc viti hvorum megin)");
     }
 
@@ -408,6 +414,11 @@
     plan.frontCheck = []; // front notes stay out of the side status
     plan.fronts = frontPlans(drawers, doors, fixedFronts, by, plan.frontCheck, leaves, opts.grip);
     plan.drawers = drawers; plan.doors = doors; plan.loose = loose;
+    plan.defaults = defaults; plan.defaultsAccepted = false;
+    if (plan.reviewed && defaults.length) { // reviewed in PRO = these defaults were looked at and accepted
+      for (var di = check.length - 1; di >= 0; di--) if (defaults.indexOf(check[di]) >= 0) check.splice(di, 1);
+      plan.defaultsAccepted = true;
+    }
     plan.status = stop.length ? "stop" : check.length ? "check" : "ok";
     return plan;
   }

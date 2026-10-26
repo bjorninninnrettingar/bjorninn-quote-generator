@@ -67,3 +67,32 @@ for its "Hlið · CNC" tab — the designer sees the side drilling before Keyra 
 too; keep these functions pure. `?recordId=` on /cnc now also opens a project outside the won/planning list (looked up
 by id, marked "ekki í lista"), like `?t=` already did — PRO's Yfirferð links here with it. A wide (> 600) door cabinet
 is one Smíðagögn door + two "Frontur vænghurð" leaves in Sögunarlisti; test "wide wall cabinet…" pins how they pair.
+
+### /cnc reads the PRO drawing (2026-10-26)
+- **Grip is automatic.** Order: "Fleiri stillingar → Grip handvirkt" (blank by default; when filled it overrides every
+  drawer unit and the toolbar line turns amber "Grip handvirkt: X mm — yfirskrifar …") → the unit's own Höldur 1
+  (`Grip mm (Höldur 1)`) → the **project handle PRO saved** (Tækifæri `Höldur Viðskiptavinar ✊` → Vörulisti `Grip mm`,
+  readable in the proxy now; a handle with no Grip mm = a real handle = 0; Jey/Jey2 = 27) → unknown (planned at 0 and
+  listed as an item). The old yellow "Grip er á 0 mm…" banner is gone. T-32: U halda 20sm → 0 mm.
+- **Review state = PRO's.** It was always the same flag: Smíðagögn `ready` = `b.smidaReady` hash still matching
+  ("Skápur yfirfarinn ✓" in Smíða). /cnc said "Ekki yfirfarið" on T-32 because it read the **Eyðublað copy** (written
+  by the last Keyra skipulag, 2026-10-10 era, no `ready`/`hinge`) and because the marks were never saved — the planner
+  JSON in Airtable (proSavedAt 2026-10-10) has no `smidaReady` on any block; the marks lived only in a local draft.
+  /cnc now reads each Line Item's `Smíðagögn (JSON) 🔧` (proxy: VERK-only) and prefers it over the Eyðublað's. If the
+  two differ in anything but `ready`/`hinge`, the card says "Teikningunni breytt eftir Keyra skipulag — keyrðu
+  skipulag og Yfirfara…" (T-32 Sk10, Sk11). Chip: "Yfirfarinn í PRO" / "Ekki yfirfarinn í PRO" (read-only). There
+  was no separate /cnc review step to drop (the `6. CNC yfirfarið` tick after a write is the export receipt, kept).
+- **Defaults accepted on review** (`cnc-sides.js` `dflt()` → `plan.defaults`; `plan.reviewed` true/false/null): loose
+  shelves at default spots, default hinges ("ef lyftihurð…"), hinges moved off a shelf, default inner drawers — hidden
+  once the cabinet is reviewed in PRO (shown greyed "Samþykkt í PRO: …"), real errors (E-gat, Frontar passa ekki,
+  hinge collisions, data mismatches) always show. Test in tests/cnc-sides.test.js.
+- **Hinge side**: two leaves side by side (vænghurð) = `baedi` even if Smíðagögn has no `hinge` (old data, T-32 Sk6/Sk12),
+  so "lamahlið óþekkt" no longer fires there; PRO's rule is now `KP3D.smidaHingeSide` (from `doorLeaves`: two leaves =
+  baedi, else swing) — written for every cabinet with a hinged door. Tests in both test files.
+- **"Laga í PRO →"** on every card with something to fix (fixed spot top-right, hidden otherwise so nothing shifts):
+  `/skipuleggja?pro=<rec>&k=<key>&smida=Sk7` → PRO opens that room (if parked) and Smíða on that Sk (`proOpenSk`).
+  Doors (HU) have no PRO deep link yet (PRO has no per-door editor to land on); T-32 has no doors.
+- **One status line**: "Tilbúið að skrifa á USB? Ekki enn — N atriði:" + one link per card (first issue, "+n"),
+  click = scroll + blink; green "Allt klárt — skrifa á USB" when none. Status-filter chips removed (search/type stay).
+- **Failed load**: a card "Gat ekki sótt … — Lykillinn virkar ekki / Fannst ekki / Villa á þjóninum / Ekkert samband"
+  + "Reyna aftur", raw "Airtable 403" as small print (was inside the project dropdown).

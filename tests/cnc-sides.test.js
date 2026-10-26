@@ -337,9 +337,9 @@ test("a drawer front too low for its code's extra row gets only the base row, wi
 
 test("a cabinet drawn in the designer but not marked ready gets a warning; marked = none", () => {
   const rows = [row("Grunnskápur hlið", 800, 580, 16, 2), row("Skúffufrontur E - Merivo", 797, 597, 19, 1)];
-  assert.ok(S.unitPlan("Sk5", rows, { smida: '{"v":1,"w":800}' }).check.some((c) => /Klár til framleiðslu/.test(c)));
-  assert.ok(!S.unitPlan("Sk5", rows, { smida: '{"v":1,"w":800,"ready":true}' }).check.some((c) => /Klár til framleiðslu/.test(c)));
-  assert.ok(!S.unitPlan("Sk5", rows).check.some((c) => /Klár til framleiðslu/.test(c))); // not from the designer at all
+  assert.ok(S.unitPlan("Sk5", rows, { smida: '{"v":1,"w":800}' }).check.some((c) => /Skápur yfirfarinn/.test(c)));
+  assert.ok(!S.unitPlan("Sk5", rows, { smida: '{"v":1,"w":800,"ready":true}' }).check.some((c) => /Skápur yfirfarinn/.test(c)));
+  assert.ok(!S.unitPlan("Sk5", rows).check.some((c) => /Skápur yfirfarinn/.test(c))); // not from the designer at all
 });
 
 test("shelves from Smíða in any cabinet: fixed at its top face, loose with its own holes; hinges stay off them", () => {
@@ -412,4 +412,31 @@ test("wide wall cabinet: one Smíðagögn door = two leaves, designer hinges on 
   assert.deepEqual(p.fronts.map((f) => [f.name, f.count, f.LPY, f.ops.map((o) => o.params)]),
     [["Frontur vænghurð 997", 2, 597, ['99, 0, "2"', '119, 0, "3"']]]);
   assert.ok(!p.check.some((c) => /passa ekki|hurðir í hönnuði/.test(c)));
+});
+
+test("reviewed in PRO (Smíðagögn ready): default notes are accepted and hidden, real errors stay", () => {
+  const rows = [row("Hár skápur hlið", 2400, 580, 16, 2), row("Frontur", 2397, 597, 19, 1), row("Laus hilla", 560, 564, 16, 5),
+    row("Skúffufrontur E - Merivo", 209, 597, 19, 1)];
+  const base = { v: 1, w: 600, h: 2400, d: 600, hinge: "haegri", shelves: { loose: 5 } };
+  const open = S.unitPlan("Sk2", rows, { unitHeight: 2400, smida: JSON.stringify(base) });
+  assert.equal(open.reviewed, false);
+  assert.ok(open.check.some((c) => /Lausar hillur \(5\): sjálfgefin/.test(c)));
+  assert.ok(open.check.some((c) => /Skápur yfirfarinn/.test(c)));
+  const done = S.unitPlan("Sk2", rows, { unitHeight: 2400, smida: JSON.stringify(Object.assign({ ready: true }, base)) });
+  assert.equal(done.reviewed, true);
+  assert.equal(done.defaultsAccepted, true);
+  assert.ok(!done.check.some((c) => /sjálfgefin|Skápur yfirfarinn/.test(c)));
+  assert.ok(done.defaults.some((c) => /Lausar hillur \(5\)/.test(c)));
+  assert.ok(done.frontCheck.some((c) => /E-gatið \(218\)/.test(c))); // a real error is never hidden
+  assert.equal(S.unitPlan("Sk2", rows, { unitHeight: 2400 }).reviewed, null); // never drawn in PRO
+});
+
+test("two leaves side by side = hinges in both sides even when Smíðagögn has no hinge side (old data)", () => {
+  const rows = [row("Skápur hlið", 1000, 283, 16, 2), row("Frontur vænghurð", 997, 597, 19, 2)];
+  const p = S.unitPlan("Sk6 | LEF100 | H2", rows, { unitHeight: 1000, smida: '{"v":1,"w":1200,"h":1000,"d":300}' });
+  assert.equal(p.hingeSide, "baedi");
+  assert.ok(!p.check.some((c) => /lamahlið óþekkt/i.test(c)));
+  assert.ok(p.check.some((c) => /^Lamir: sjálfgefin staðsetning — ef lyftihurð/.test(c)));
+  const one = S.unitPlan("Sk2", [row("Hár skápur hlið", 2400, 580, 16, 2), row("Frontur", 2397, 597, 19, 1)], { unitHeight: 2400, smida: '{"v":1,"w":600}' });
+  assert.ok(one.check.some((c) => /lamahlið óþekkt/i.test(c))); // one door, no side: still unknown
 });

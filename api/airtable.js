@@ -144,6 +144,7 @@ const ALLOWED_FIELDS = {
     // /cnc (cnc-doors.js, 2026-10-13): macro names for hinge/lock/threshold products not already hardcoded
     // in HINGES/LOCKS/THRESHOLDS — filled in by hand only after reading the real master off the stick.
     "CNC macró — blað", "CNC macró — karmur",
+    "Grip mm", // /cnc (2026-10-26): the project handle's grip (Tækifæri "Höldur Viðskiptavinar ✊" → here), e.g. Jey = 27
   ],
   "tbl8HjvBwNJ41cTV0": [ // Útfærslur 🎨 — search source for /crm's Vörulínur V1/V2/V3 picker (name/category only)
     "Lýsing á útfærslu",
@@ -530,6 +531,9 @@ const VERK_ONLY_FIELDS = {
     // PRO Yfirferð (2026-10-26): did Keyra skipulag finish? It stamps "Síðast samstillt timestamp" (unix s) on every
     // line it created/synced an Eyðublað for, last of all — read-only here, polled by kitchen-planner.html.
     "🔑", "Eyðublað búið til ✏️", "⚠️ Breytt eftir stofnun", "Síðast samstillt timestamp",
+    // /cnc (2026-10-26): the drawing's own Smíðagögn as PRO last saved it — review state ("Skápur yfirfarinn") and
+    // hinge side, fresher than the Eyðublað copy Keyra skipulag wrote
+    "Smíðagögn (JSON) 🔧",
   ],
 };
 

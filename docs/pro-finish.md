@@ -188,3 +188,9 @@ Found, not changed: Keyra skipulag sets "Tveir frontar" on an **Efriskápur from
 `> 600`), but Smíða / the 3D / `smidaFor`'s `hinge` use **> 600** everywhere. A 500–600 mm wall cabinet would get two
 leaves in Sögunarlisti while Smíðagögn says hinges on one side only → /cnc would drill hinges in one side for two
 leaves. T-32 has none in that range; needs a decision on which rule is right.
+
+## /cnc reads PRO (2026-10-26)
+`&smida=Sk7` on a PRO link opens Smíða on that cabinet (`proOpenSk`, opens a parked room first) — /cnc's "Laga í PRO →".
+Smíðagögn `hinge` now comes from `KP3D.smidaHingeSide` (same rule as before, from `doorLeaves`). /cnc reads the Line
+Items' Smíðagögn for the review mark, so **"Skápur yfirfarinn" only reaches /cnc after Vista í Airtable** — T-32's saved
+drawing has no marks at all. Details in docs/cnc.md.

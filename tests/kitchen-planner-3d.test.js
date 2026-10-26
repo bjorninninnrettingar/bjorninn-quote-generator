@@ -126,3 +126,15 @@ test("drawerStackSpaceMm: a base unit's stack must fill the whole carcass; a tal
   const slots = K.stackFrontsMm({ frontsMm: [212, 407.6, 174.4] }, ["E", "K", "M"], K.drawerStackSpaceMm("base", 800, 794));
   assert.equal(Math.round(slots.reduce((a, h) => a + h, 0)), 800);
 });
+
+// Smíðagögn `hinge` (2026-10-26): every door cabinet carries it so /cnc never drills "both sides, to be safe".
+test("smidaHingeSide: two leaves = both sides, one door = its swing (wall, base, tall, corner, fridge)", () => {
+  const C = K.CATALOG;
+  assert.equal(K.smidaHingeSide({ type: "efriskapur", widthMm: 1200 }, C.efriskapur), "baedi"); // T-32 Sk6
+  assert.equal(K.smidaHingeSide({ type: "grunnskapur", widthMm: 900 }, C.grunnskapur), "baedi");
+  assert.equal(K.smidaHingeSide({ type: "efriskapur", widthMm: 600, swing: "haegri" }, C.efriskapur), "haegri");
+  assert.equal(K.smidaHingeSide({ type: "grunnskapur", widthMm: 500 }, C.grunnskapur), "vinstri");
+  assert.equal(K.smidaHingeSide({ type: "hornskapur", widthMm: 1200, swing: "haegri" }, C.hornskapur), "haegri"); // one corner door
+  const fridge = Object.keys(C).find((k) => C[k].fridge);
+  assert.equal(K.smidaHingeSide({ type: fridge, widthMm: 700 }, C[fridge]), "vinstri"); // a fridge's doors hang on one side
+});

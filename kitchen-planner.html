@@ -15834,7 +15834,7 @@
     if (spl) o.split = spl; // fronts split in Smíða: slots top → bottom → Skipting fronta [Lárétt] + Hæð frontur 1–3
     var doors = proDoorsOf(b, c, zone);
     // which carcass side takes the hinges, seen from the front (/cnc drills only that side): two doors = both
-    if (doors.length) o.hinge = b.widthMm > 600 && !c.fridge && c.cls !== "corner" ? "baedi" : b.swing === "haegri" ? "haegri" : "vinstri";
+    if (doors.length) o.hinge = KP3D.smidaHingeSide(b, c); // every door cabinet, so /cnc never guesses (two leaves = both)
     if (doors.length && b.smida) o.doors = doors.map(function(dr, i){ var sp = proSpec(b, doors, i);
       return { h:dr.box - 3, type:sp.type, side:b.swing || null, hinges:sp.type === "hinged" ? sp.hinges : [],
         pocketSys:sp.type === "pocket" ? (sp.pocketSys || "revego") : undefined }; });
@@ -16511,6 +16511,21 @@
     render();
     proBar();
     if (/[?&]maeling=1\b/.test(location.search)) setTimeout(openMeasurePanel, 300); // the measurer's link (A7)
+    var smidaSk = (location.search.match(/[?&]smida=(Sk\d{1,3})\b/) || [])[1];
+    if (smidaSk) setTimeout(function(){ proOpenSk(smidaSk); }, 300); // /cnc "Laga í PRO →" (2026-10-26)
+  }
+  // Smíða straight on one Sk (a /cnc link): that room first when it's parked, then the cabinet's box editor
+  function proOpenSk(sk){
+    function find(walls){ var id = null; (walls || []).forEach(function(w){ (w.floor || []).concat(w.wall || []).forEach(function(b){ if (b.sk === sk) id = b.id; }); }); return id; }
+    var id = find(state.walls);
+    if (!id) Object.keys(state.categoryData || {}).some(function(cat){
+      if (cat === state.activeCategory || !find((state.categoryData[cat] || {}).walls)) return false;
+      openRoom(cat); id = find(state.walls); return true;
+    });
+    if (!id || !findBlock(id)){ toast(sk + " — finn ekki skápinn í teikningunni."); return; }
+    if (state.step !== "editor") goto("editor");
+    onCabinetSelect({ blockId:id });
+    openBoxEditor(id);
   }
 
   // ---------- 2D vinnuteikningar (2026-10-23) ----------
