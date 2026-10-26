@@ -2116,7 +2116,13 @@
     "Straubretti": "Ironing board",
     "Pláss fyrir þína þvottavél og þurrkara, 60 cm hvor — borðplatan fer yfir þær.": "Room for your washer and dryer, 60 cm each — the worktop goes over them.",
     "Pláss fyrir þína vél, 60 cm — borðplatan fer yfir hana.": "Room for your machine, 60 cm — the worktop goes over it.",
-    "Vélarnar sjálfar eru ekki í pöntuninni.": "The machines themselves aren't part of the order."
+    "Vélarnar sjálfar eru ekki í pöntuninni.": "The machines themselves aren't part of the order.",
+    "Undir 300 þús.": "Under 300k ISK",
+    "300–600 þús.": "300–600k ISK",
+    "600 þús.–1 m.kr.": "600k–1m ISK",
+    "Yfir 1 m.kr.": "Over 1m ISK",
+    "Allt rýmið": "The whole room",
+    "Teiknaðu allt herbergið frá A til Ö — allir veggir, gluggar og hurðir, innrétting þar sem þú vilt": "Draw the whole room from A to Z — every wall, window and door, units wherever you like"
   });
 
   // part F: stored/computed numbered labels from kitchen-planner-3d.js (CATALOG width variants, island rows, partition sides)

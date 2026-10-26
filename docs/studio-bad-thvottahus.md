@@ -148,3 +148,26 @@ own one-page Rýmið (laundry PRO shapes = Einn veggur / Horn + the closed shape
   Allt heimilið (they all go through `goto`).
 - Laundry sinks get a ~20 cm utility tap (`meta.utilityTap` → `addSink(…, utility)`) instead of the kitchen's 32 cm
   gooseneck; the Ný eining preview passes the room so its sink matches.
+
+### Þvottahús round 3 (2026-10-26, user "allt já" on 11 items + Allt rýmið)
+- **Skipulag = the picked layout** (`seedLaundry`, from seedSink for a customer laundry): left → right the 60 cm sink at the
+  water, then the machine(s) (Engin vél: a 60 cm drawer unit, as on its preview); drawer base units (`laundryBase`,
+  `laundryFill`) fill the rest of the wall; efri skápar over every worktop-height unit for Undir borðplötu / Engin vél
+  (`laundryWallUnits`). **Horn**: sink + cabinets on the water wall, which stops 62 cm short of the corner (the corner square
+  stays free — the other wall's units stand in front of it, no "opnast ekki" warning); the machines on the other wall —
+  two under the worktop at the corner, the tall tower at the far end. Everything seeded is `autoSeed`: a later change on
+  "Hvar er vélin?" lays it all out again while nothing was moved or locked (`laundryUntouched`).
+- **Washer tower as built** (`addWasherTower` in 3D, Útfærsla "Skúffa undir vélinni + skápur ofan við"): drawer box on the
+  plinth, an open 176 cm niche (carcass sides + back) with the washer + dryer, a cabinet with one door above (≥ 20 cm, else
+  a top board). Every view — Skipulag, Ný eining, "Hvar er vélin?", Efni — shows the machines; b.thvo "hurdir" keeps doors.
+- **Efni**: laundry default front is Alpine White (`eg_W1100`, Einlitt — the old `hvitt` was hidden, so no tab showed the
+  pick); the preview is the laundry itself (`renderMachinePreview(host, true)`, see-through fronts on Litur); "Snúa: á"
+  pill hidden (dragging turns); the last page's button says "Áfram →" like every page (title = "Áfram í skipulag →").
+- **Spurningar**: a laundry on its own gets `LAUNDRY_BUDGETS` (Undir 300 þús. … Yfir 1 m.kr.).
+- **Allt rýmið** (Þvottahús, Baðherbergi, Fataskápar): a third/fourth card on "Hvar á innréttingin að vera?" / "Hvar fer
+  fataskápurinn?" → `rect`, the kitchen's room pages (Stærð → Lofthæð → Gluggar → Vatn; laundry asks "Hvar er vélin?"
+  first). Defaults: laundry seeded on the water wall (or the longest), bath vanity at the water, a wardrobe room offers
+  "Fylla vegginn" on the longest wall without a door (`closetWallIdx`), 360 × 300 cm bedroom. The camera orbits freely
+  there (unit-wall orbit limit only for bath*/closet* shapes). Einn veggur / Beinn veggur stays pre-picked.
+- Verified 1440×900 (+ cards at 1280×720): all three machines × Einn veggur / Horn, Allt rýmið for all three rooms,
+  bath + wardrobe end to end, relayout on a changed machine, Spurningar brackets, Senda inn picture centred.
