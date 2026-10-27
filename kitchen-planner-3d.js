@@ -5497,7 +5497,16 @@
     if (frontMat2){ frontMat2.__xrayBase = frontMat; frontMat2.userData.fr2 = true; } // (fr2: previewFront leaves it alone)
     // a spegilskápur (owner, 2026-10-27): its fronts are a mirror — a bright, near-perfect reflector of the room's light
     var mirrorMat = new THREE.MeshStandardMaterial({ color:0xe4eaee, metalness:1, roughness:0.04 }); mirrorMat.__xrayBase = frontMat; mirrorMat.userData = { envKeep:true, fr2:true, mirror:true };
-    function frontMatOf(b){ return b && b.mirrorFront ? mirrorMat : b && b.front2 && frontMat2 ? frontMat2 : frontMat; }
+    // Spegill á hurð (wardrobes, owner 2026-10-27): state.closetMirror "ein" = the first door unit, "allar" = every one
+    var closetMirrorIds = {};
+    if (state.closetMirror === "ein" || state.closetMirror === "allar"){
+      var cmDoors = [];
+      (state.walls || []).forEach(function(w){ (w.floor || []).forEach(function(b){ if (b.type === "harskapur") cmDoors.push(b); }); });
+      if (state.closetMirror === "allar") cmDoors.forEach(function(b){ closetMirrorIds[b.id] = true; });
+      else { var cmPlain = function(b){ return !(b.interior && b.interior.mode === "skuffur") && !(b.closetItems && b.closetItems.drawers); }; // no drawer fronts to mirror
+        var cm1 = cmDoors.find(function(b){ return cmPlain(b) && doorLeaves(b, CATALOG[b.type]).length === 1; }) || cmDoors.find(cmPlain) || cmDoors[0]; if (cm1) closetMirrorIds[cm1.id] = true; } // one door: a single-door unit if there is one
+    }
+    function frontMatOf(b){ return b && (b.mirrorFront || closetMirrorIds[b.id]) ? mirrorMat : b && b.front2 && frontMat2 ? frontMat2 : frontMat; }
     // opts.towerGlass (Þvottahús previews, user 2026-10-26): the washer tower's doors see-through so the machines inside show
     var towerGlassMat = opts.towerGlass ? (function(){ var m = frontMat.clone(); m.transparent = true; m.opacity = 0.16; m.depthWrite = false; return m; })() : null;
     var frontOpenMat = frontMat.clone(); frontOpenMat.side = THREE.DoubleSide; // open shelf units built all in the front material (b.frontAll)

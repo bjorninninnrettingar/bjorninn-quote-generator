@@ -1179,6 +1179,7 @@
     #screen-materials .wiz-panel > *{ flex:none; }
     #screen-materials .wiz-panel[data-mpkey="depth"]:not([hidden]), #screen-materials .wiz-panel[data-mpkey="height"]:not([hidden]), #screen-materials .wiz-panel[data-mpkey="closetdoors"]:not([hidden]){ flex:none; } /* Fataskápar: small rows stacked over the swatches */
     #screen-materials .wiz-panel[data-mpkey="mirror"]:not([hidden]){ flex:none; } /* Bað: the mirror-cabinet row over the tops */
+    #screen-materials .wiz-panel[data-mpkey="closetmirror"]:not([hidden]){ flex:none; } /* Fataskápur: Spegill á hurð under the swatches */
     #screen-materials .wiz-panel > .sw-grid, #screen-materials .wiz-panel > .h-grid, #screen-materials .wiz-panel > .drawer-cards{ flex:0 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:3px 6px 12px 3px; margin:0 -6px 0 -3px; align-content:start; grid-auto-rows:max-content; }
   }
   /* ---- editor round 2026-10-11: full-screen designer. Header in one thin row (title, stepper, links), the left
@@ -2280,6 +2281,9 @@
           <input type="search" class="sw-search" id="lookSearch" data-i18n="attrs" placeholder="Leita — t.d. eik, hnota, grár eða H1180" autocomplete="off"></div>
           <p class="look-picked" id="lookPicked"></p>
           <div class="sw-grid" id="lookCards"></div>
+        </div>
+        <div class="wiz-panel" data-mpkey="closetmirror">
+          <div class="edit-field cl-mirror" id="closetMirrorRow"></div>
         </div>
         <div class="wiz-panel" data-mpkey="handle">
           <div class="tabs-row" id="handleTabs"></div>
@@ -9803,13 +9807,34 @@
       panelKeys:["depth", "height", "carcass"], render:function(){ closetDefaults(); renderClosetDepthCards(); renderClosetHeightCards(); renderCarcassCards(); },
       done:function(){ return !!state.closetDepthMm && !!state.closetHeightMm && !!state.carcass; } },
     { key:"doors", label:"Hurðir", title:"Hurðir", sub:"Með hurðum eða opinn skápur — og efnið.",
-      panelKeys:["closetdoors", "fronts"], render:function(){ renderClosetDoorCards(); renderLookCards(); },
+      panelKeys:["closetdoors", "fronts", "closetmirror"], render:function(){ renderClosetDoorCards(); renderLookCards(); renderClosetMirrorRow(); },
       done:function(){ return !!state.look; } },
     { key:"handle", label:"Höldur", title:"Veldu höldu", sub:"Sama handfang á allar hurðir.",
       when:function(){ return state.closetDoors !== "engar"; },
       render:renderHandleCards, done:function(){ return !!state.handle; } }
   ];
   MAT_PHASES_FATASKAPAR.splice(1, 0, drawersPhase()); // built up like the other rooms (owner, 2026-10-27): carcass → drawers → doors → handles
+  // Spegill á hurð (owner, 2026-10-27): Enginn / Ein hurð / Allar — a real mirror on the door(s) in 3D, a note on the order
+  function renderClosetMirrorRow(){
+    var box = document.getElementById("closetMirrorRow"); if (!box) return;
+    box.hidden = state.closetDoors === "engar";
+    var cur = state.closetMirror || "enginn";
+    box.innerHTML = '<label title="' + __("Spegill límdur á hurðina. Söluaðili staðfestir spegilinn og verð.") + '">' + __("Spegill á hurð") + '</label><div class="hw-toggle">' +
+      [["enginn", "Enginn"], ["ein", "Ein hurð"], ["allar", "Allar"]].map(function(o){ return '<button type="button" class="hw-btn' + (cur === o[0] ? ' active' : '') + '" data-clmirror="' + o[0] + '">' + __(o[1]) + '</button>'; }).join("") + '</div>';
+    box.querySelectorAll("[data-clmirror]").forEach(function(b){ b.addEventListener("click", function(){
+      if (b.dataset.clmirror === "enginn") delete state.closetMirror; else state.closetMirror = b.dataset.clmirror;
+      save(); renderClosetMirrorRow(); updateCabinetPreview();
+    }); });
+  }
+  // which wardrobe units carry the door mirror — the same rule as 3D's frontMatOf (kitchen-planner-3d.js)
+  function closetMirrorIdsNow(){
+    var out = {}, m = isCloset() && state.closetDoors !== "engar" ? state.closetMirror : null; if (m !== "ein" && m !== "allar") return out;
+    var ds = []; state.walls.forEach(function(w){ w.floor.forEach(function(b){ if (b.type === "harskapur") ds.push(b); }); });
+    if (m === "allar") ds.forEach(function(b){ out[b.id] = true; });
+    else { var plain = function(b){ return !(b.interior && b.interior.mode === "skuffur") && !(b.closetItems && b.closetItems.drawers); };
+      var one = ds.find(function(b){ return plain(b) && KP3D.doorLeaves(b, CATALOG[b.type]).length === 1; }) || ds.find(plain) || ds[0]; if (one) out[one.id] = true; }
+    return out;
+  }
   // Hurðir: lamir / engar (an open wardrobe has no doors to pick handles for)
   function renderClosetDoorCards(){
     var box = document.getElementById("closetDoorCards");
@@ -9954,7 +9979,7 @@
       if (onDrw){ b.interior = { mode:"skuffur", count:3, codes:["K", "K", "K"], frontsMm:[170, 170, 170] }; b.drawerZoneMm = 510; } // the drawer page: drawers to click open
       return b; };
     var look = matPhaseReveal("fronts") ? state.look : null;
-    var pv = { wardrobe:true, carcass:state.carcass, drawerSystem:state.drawerSystem, look:look, handle:matPhaseReveal("handle") ? state.handle : null, handleColor:state.handleColor, top:"engin", floor:state.floor, wallColor:state.wallColor, wallTile:state.wallTile, // the room's own look (owner, 2026-10-27)
+    var pv = { wardrobe:true, carcass:state.carcass, drawerSystem:state.drawerSystem, look:look, handle:matPhaseReveal("handle") ? state.handle : null, handleColor:state.handleColor, top:"engin", floor:state.floor, wallColor:state.wallColor, wallTile:state.wallTile, closetMirror:frontsOn ? state.closetMirror : null, // the room's own look (owner, 2026-10-27)
       roomHeightMm:state.roomHeightMm, closed:false, islands:[], windows:[], doors:[], walls:[{ id:"CLP", label:"", lengthMm:1800, floor:(function(){ var fl = [Object.assign(blk("clp1", 400), { swing:"vinstri" }), Object.assign(blk("clp2", 0), { swing:"haegri" })]; return frontsOn ? previewEndPanels(fl) : fl; })(), wall:[] }] }; // a pair: the handles meet in the middle
     var key = JSON.stringify(pv);
     if (key === closetPrevKey && KP3D._three() && host.querySelector("canvas")) return;
@@ -12353,7 +12378,7 @@
   // activeCategory themselves are never part of this list.
   var ROOM_FIELDS = ["intake", "carcass", "drawerSystem", "look", "look2", "innerFront", "handle", "handleColor", "top", "floor", "floorTile", "floorPattern", "floorRot", "roomHeightMm",
     "wallColor", "windows", "doors", "closed", "shapeKey", "waterWall", "waterAlongMm", "seeded", "suggestAsk", "base900", "islands", "walls", "obstacles", "decor", "openingsDone", "annotations", "hungUnits",
-    "worktop", "closetDepthMm", "closetHeightMm", "closetHeightLoft", "closetCeilGapMm", "closetSeeded", "closetFillDeclined", "closetDoors", "closetAutoHandle", "closetSpans", "laundryMachine", "laundryDryer", "laundryHlidVar", "laundryDrain", "wallTile", "bathMirror", "matAuto", "matFrom", "matAsk"]; // per wardrobe (2026-10-25 — were project-wide by accident)
+    "worktop", "closetDepthMm", "closetHeightMm", "closetHeightLoft", "closetCeilGapMm", "closetSeeded", "closetFillDeclined", "closetDoors", "closetMirror", "closetAutoHandle", "closetSpans", "laundryMachine", "laundryDryer", "laundryHlidVar", "laundryDrain", "wallTile", "bathMirror", "matAuto", "matFrom", "matAsk"]; // per wardrobe (2026-10-25 — were project-wide by accident)
   function serializeRoom(){
     var blob = {};
     ROOM_FIELDS.forEach(function(k){ blob[k] = state[k]; });
@@ -13053,6 +13078,7 @@
         if (c.thvoSide){ var hs = blockHeightMm(b, c); notes.push("Hlið við hlið í skáp: Lítill kassi " + b.widthMm + " mm með einni skúffu (~300 mm) undir " + (b.widthMm < 1000 ? "einni vél" : "þvottavél og þurrkara") + ", 2 úthliðar " + hs + " mm upp með vélunum, skápur ofan á (" + Math.max(0, hs - 100 - 300 - 880) + " mm) — söluaðili staðfestir."); }
         if (b.single && c.thvo) notes.push("Enginn þurrkari: aðeins þvottavél í turninum, skápur með hillum fyrir ofan."); // (owner, 2026-10-27)
         if (b.mirrorFront) notes.push("Spegilskápur: spegill límdur á framhliðina — söluaðili staðfestir spegilinn og verð."); // (owner, 2026-10-27)
+        if (closetMirrorIdsNow()[b.id]){ var cmN = KP3D.doorLeaves(b, c).length || 1; notes.push("Spegill á " + cmN + (cmN === 1 ? " hurð" : " hurðum") + " (val viðskiptavinar) — söluaðili staðfestir spegilinn og verð."); }
         if (state.bathMirror && c.sink) notes.push("Spegilskápur óskast yfir vaskinn — ekki í pöntun, söluaðili verðleggur hann og staðfestir mál.");
         if (c.sink && state.laundryDrain && isLaundry()) notes.push("Niðurfall í gólfi: " + (state.laundryDrain === "ja" ? "já" : "nei") + " (viðskiptavinur).");
         var lit = bom && bom.perUnit[b.id];
