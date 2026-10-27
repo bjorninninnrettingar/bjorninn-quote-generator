@@ -146,7 +146,8 @@
   @media (max-width:980px){ .wrap.welm .wel{ grid-template-columns:1fr; gap:24px; } .wel-hero{ grid-row:auto; grid-column:1; } .wel-main{ grid-row:auto; } }
   /* BJÖRNINN STUDIO front page (2026-10-23): one card per room, a click starts it (or picks it back up) */
   .wel-lede{ margin:10px 0 0; font-size:15px; line-height:1.55; color:var(--ink-soft); max-width:520px; }
-  .wel-ask{ margin:22px 0 10px; font-size:17px; }
+  .wel h2.wel-ask{ margin:20px 0 10px; font-size:19px; line-height:1.3; } /* under the page title, not a rival to it (morning scan 2026-10-27) */
+  .wrap.welm .wel{ margin-top:6px; } .studio-card{ min-height:130px; }
   .studio-cards{ display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:10px; }
   .studio-card{ display:flex; flex-direction:column; align-items:flex-start; gap:4px; text-align:left; padding:14px 14px 12px; border:1.5px solid var(--line); border-radius:14px; background:#fff; cursor:pointer; font:inherit; color:var(--ink); transition:border-color .15s, transform .15s, box-shadow .15s; }
   .studio-card:hover:not(:disabled){ border-color:var(--blue); transform:translateY(-2px); box-shadow:0 8px 22px rgba(25,25,25,.08); }
@@ -395,6 +396,7 @@
   .op-row .x-btn{ position:absolute; top:8px; right:8px; }
   .op-row .op-nm{ min-width:86px; }
   .op-f{ display:flex; flex-direction:column; font-size:11.5px; color:var(--ink-soft); gap:3px; }
+  .op-f .op-u{ font-size:10.5px; color:var(--ink-soft); opacity:.8; }
   .op-f input, .op-row select{ font:inherit; font-size:14px; padding:6px 8px; border:1px solid var(--line); border-radius:8px; background:#fff; }
   .op-f input{ width:86px; }
   .op-add{ margin-bottom:14px; }
@@ -2099,7 +2101,7 @@
   <!-- ============ STEP: INTAKE ============ -->
   <section id="screen-intake" hidden>
     <div class="title-row"><div><div class="screen-title" data-i18n>Rétt áður en þú sendir inn</div>
-    <p class="screen-sub" data-i18n>Hjálpar söluaðila að finna lausn sem hentar — engin binding.</p></div>
+    <p class="screen-sub" data-i18n>Hjálpar okkur að finna lausn sem hentar — engin binding.</p></div>
     <div class="actions step-nav">
       <button class="btn btn-secondary" id="intakeBackBtn" type="button" data-i18n>← Til baka</button>
       <button class="btn btn-primary" id="toMaterialsBtn" type="button" data-i18n>Áfram →</button>
@@ -2568,7 +2570,7 @@
   function oneKindTitle(){ var q = state.categoryQueue || []; return !state.activeCategory && q.length === 1 && !(state.home && hlHasDoors()) ? String(q[0]).split(":")[0] : null; }
   function closetOnlyProject(){ var q = state.categoryQueue || []; return q.length > 0 && !(state.home && hlHasDoors()) && q.every(function(k){ return /^fataskapar/.test(k); }); }
   var INTAKE_QUESTIONS = [
-    { key:"delivery", q:"Hvenær væri best að fá innréttinguna afhenta?",
+    { key:"delivery", q:"Hvenær væri best að fá verkið afhent?",
       options:["Sem fyrst", "Innan 3ja mánaða", "Eftir 3–6 mánuði", "Er ekki að flýta mér"] },
     { key:"budget", q:"Hvert er áætlað fjárhagsrými fyrir verkefnið?",
       options:["Undir 2 m.kr.", "2–4 m.kr.", "4–7 m.kr.", "Yfir 7 m.kr.", "Óviss — vil ráðgjöf"] },
@@ -4227,7 +4229,7 @@
         : [__("Stilltu stærð rýmisins"), __("Sláðu inn mál eða dragðu veggina. Er rýmið opið inn í annað rými? Smelltu á „Opið“ við vegginn sem vantar.")],
       height: [__("Lofthæð og útlit"), __("Stilltu lofthæðina og útlit rýmisins.")],
       machine: [__("Hvar er vélin?"), __("Þvottavél og þurrkari — við setjum þau inn fyrir þig.")],
-      openings: bathNow ? [__("Gluggar og hurðir"), __("Er gluggi eða hurð á veggnum? Annars heldur þú bara áfram.")] : [__("Gluggar og hurðir"), __("Veldu hvað er á hverjum vegg.")],
+      openings: bathNow ? [__("Gluggar og hurðir"), (solidWalls().length > 1 ? __("Er gluggi eða hurð á veggjunum? Annars heldur þú bara áfram.") : __("Er gluggi eða hurð á veggnum? Annars heldur þú bara áfram."))] : [__("Gluggar og hurðir"), __("Veldu hvað er á hverjum vegg.")],
       water: bathNow ? [__("Veggurinn og vatnið"), __("Mældu vegginn og dragðu dropann þangað sem vatnið kemur inn. Allt í cm.")]
         : [__((catDef && catDef.waterTitle) || "Hvar kemur vatnið inn?"), __("Merktu staðsetningu vatnslagna, ef þú veist hana.")]
     };
@@ -4259,7 +4261,7 @@
         if (!sel.dataset.wired){ sel.dataset.wired = "1"; sel.addEventListener("change", function(){ state.intake.room = sel.value; save(); }); }
         sel.value = state.intake.room;
       }
-      document.querySelector("#shapeRoomPick .mat-section-title").textContent = closetMode ? __("Í hvaða herbergi?") : __("Hvaða rými er þetta?");
+      document.querySelector("#shapeRoomPick .mat-section-title").textContent = __("Hvaða rými er þetta?"); // one wording in every room (morning scan)
       ["closed", "open"].forEach(function(g){
         var grp = closetMode ? (g === "closed" ? "closet" : "-") : bathMode ? (g === "closed" ? "bath" : "-") : g;
         // "Allt rýmið" (user, 2026-10-26): the whole room A–Ö like the kitchen — every wall, window and door, units on any wall
@@ -5134,14 +5136,14 @@
     var roomHmm = state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM;
     list.innerHTML = rows.map(function(f){
       var o = f.o, wall = state.walls.find(function(w){ return w.id === o.wallId; }), lim = openingLimits(f);
-      function fld(key, lab, r){ return '<label class="op-f"><span>' + lab + '</span><input type="number" data-op="' + o.id + '" data-key="' + key + '" data-len value="' + o[key] + '" min="' + r[0] + '" max="' + r[1] + '" step="1"></label>'; }
+      function fld(key, lab, r){ return '<label class="op-f"><span>' + lab + ' <small class="op-u">' + uUnit() + '</small></span><input type="number" data-op="' + o.id + '" data-key="' + key + '" data-len value="' + o[key] + '" min="' + r[0] + '" max="' + r[1] + '" step="1"></label>'; }
       return '<div class="op-row' + (selectedOpeningId === o.id ? " sel" : "") + '" data-oprow="' + o.id + '"><b class="op-nm">' + (f.kind === "window" ? __("Gluggi") : o.gap ? __("Op í vegg") : __("Hurð")) + '</b>' +
         fld("offsetMm", __("Frá vinstra horni"), [0, Math.max(0, (wall ? wall.lengthMm : 3000) - o.widthMm)]) + fld("widthMm", __("Breidd"), lim.widthMm) + fld("heightMm", __("Hæð"), lim.heightMm) +
         (f.kind === "window" ? fld("sillHeightMm", __("Frá gólfi"), lim.sillHeightMm) : "") +
         '<button type="button" class="x-btn" data-opdel="' + o.id + '" title="' + __("Fjarlægja") + '">✕</button></div>';
     }).join("") + obRows.map(function(o){
       var def = KP3D.OBSTACLES[o.kind], L = cur.lengthMm;
-      function fld(key, lab, lo, hi){ return '<label class="op-f"><span>' + lab + '</span><input type="number" data-obk="' + key + '" data-obid="' + o.id + '" data-len value="' + (o[key] == null ? 0 : o[key]) + '" min="' + lo + '" max="' + hi + '" step="10"></label>'; }
+      function fld(key, lab, lo, hi){ return '<label class="op-f"><span>' + lab + ' <small class="op-u">' + uUnit() + '</small></span><input type="number" data-obk="' + key + '" data-obid="' + o.id + '" data-len value="' + (o[key] == null ? 0 : o[key]) + '" min="' + lo + '" max="' + hi + '" step="10"></label>'; }
       return '<div class="op-row' + (selectedOpeningId === o.id ? " sel" : "") + '" data-oprow="' + o.id + '"><b class="op-nm">' + __(def.label) + '</b>' +
         fld("offsetMm", __("Frá vinstra horni"), 0, Math.max(0, L - o.widthMm)) + fld("widthMm", o.kind === "milliveggur" ? __("Þykkt") : __("Breidd"), 20, L) +
         fld("depthMm", o.kind === "milliveggur" ? __("Út í rýmið") : __("Dýpt"), 20, 3000) + (def.free ? fld("outMm", __("Bil frá vegg"), 0, 5000) : '') +
@@ -9321,7 +9323,7 @@
   // order and done-conditions — this is a reshape of the plumbing, not a behaviour change for Eldhús.
   // ======================================================================
   var MAT_PHASES = [
-    { key:"carcass", label:"Skrokkur",  title:"Veldu skrokkalit",  sub:"Liturinn innan í skápunum og á hillum.",
+    { key:"carcass", label:"Skrokkur",  title:"Litur innan í skápum",  sub:"Skrokkurinn — liturinn innan í skápunum og á hillum.",
       render:renderCarcassCards,      done:function(){ return !!state.carcass; } },
     { key:"drawers", label:"Skúffur",   title:"Veldu skúffukerfi", sub:"Skúffurnar birtast inni í skápnum.",
       render:renderDrawerSystemCards, done:function(){ return !!state.drawerSystem; } },
@@ -11942,7 +11944,7 @@
     });
     var k = document.getElementById("kicker");
     k.textContent = "BJÖRNINN STUDIO";
-    var TITLES = { eldhus:"Hannaðu eldhúsið þitt", fataskapar:"Hannaðu fataskápinn þinn", bad:"Hannaðu baðherbergið þitt", thvottahus:"Hannaðu þvottahúsið þitt" };
+    var TITLES = { eldhus:"Hannaðu eldhúsið þitt", fataskapar:"Hannaðu fataskápinn þinn", bad:"Hannaðu baðherbergið þitt", thvottahus:"Hannaðu þvottahúsið þitt", rymi:"Teiknaðu rýmið" };
     // one kind of room in the whole project (two wardrobes too): its title stays on Spurningar / Senda inn / Takk (2026-10-26)
     var kinds = (state.categoryQueue || []).map(function(k){ return String(k).split(":")[0]; }).filter(function(v, i, a){ return a.indexOf(v) === i; });
     var kindNow = catBase() || (state.step === "done" ? state.doneKind : kinds.length === 1 && !(state.home && hlHasDoors()) ? kinds[0] : null);
