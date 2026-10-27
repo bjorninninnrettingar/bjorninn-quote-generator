@@ -5460,7 +5460,7 @@
     var plinthDark = new THREE.MeshStandardMaterial({ color:0x26262a, roughness:0.85 });
     var plinthFrontMat = frontMat.clone();
     // the plinth's ends wrap round in the front material too (owner, 2026-10-27: a free end — a laundry tower in a preview — showed a black block)
-    var plinthMat = look ? [plinthFrontMat, plinthFrontMat, plinthDark, plinthDark, plinthFrontMat, plinthDark] : plinthDark;
+    var plinthMat = look ? [plinthFrontMat, plinthFrontMat, carcassMat, plinthDark, plinthFrontMat, plinthDark] : plinthDark; // (top: the carcass colour — seen through an X-rayed front it read as a black floor in the box)
     // Studio: every base material says what it IS, so the photo builds its own physically-set material per role
     // (a wall can never come out in the front's wood). Clones (selection tint, per-wall fades) carry userData along.
     [[wallMat, "wall"], [floorMat, "floor"], [carcassMat, "carcass"], [openMat, "carcass"], [steelMat, "steel"], [washerMat, "appliance"],
