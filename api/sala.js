@@ -14,7 +14,10 @@
 //   likur     → "Líkur á sölu"                              prufa → "Prufuverk 🧪" (KPIs skip it)
 //   approve   → clears "Óyfirfarið — Rakel ⚠️" on a Tengiliður / Fyrirtæki — owners and
 //               Sölumaður / Arkitekt only, re-checked against Starfsmenn with the per-person login token.
+//   fyrirspurn → "Staða" on a Vefspjall 💬 row (Nýtt → Skoðað / Afgreitt) — no automation watches that table.
 // GET ?k=…&stats=lost → loss reasons counted from "Töpuð tækifæri svör🥀".
+// GET ?k=…&list=fyrirspurnir → open (not Afgreitt) site-chat conversations, newest first. Vefspjall is
+//   write-only on the open proxy (every visitor's email + transcript), so it's read only here.
 //
 // Everything needs VERK_KEY (?k= / body.k); reads and writes by field id. Kept off the open
 // /api/airtable proxy on purpose.
@@ -25,6 +28,9 @@ export const LOST = "tblqBugJUwhuUnQPa";
 export const CONTACTS = "tblQ8zeUanriESWvL";
 export const COMPANIES = "tbl2akoCETBx9S1SK";
 const STARFSMENN = "tblhglpjQkczdG1AY";
+export const VEFSPJALL = "tbltD1UNpqj05WtMx";
+export const V = { first: "fldnERxcbscPlWHRb", talk: "fldIThjHh1sHECytq", open: "fldnUS4uFKBCsUDTf", email: "fldf7pztTLTwqGeTR", status: "fldxLQnSJy3X4SOI4", page: "fldYYGJVTdWtid40b", at: "fld97ErzJDU7UoUwe" };
+export const V_STATUSES = ["Nýtt", "Skoðað", "Afgreitt"];
 const REC = /^rec[A-Za-z0-9]{14}$/;
 
 export const F = {
@@ -103,6 +109,21 @@ async function at(token, url, opts = {}) {
 }
 const byId = (table, id, fields) => `${BASE}/${table}?maxRecords=1&returnFieldsByFieldId=true&filterByFormula=${encodeURIComponent(`RECORD_ID()='${id}'`)}&` + fields.map((x) => "fields%5B%5D=" + x).join("&");
 
+export function shapeInquiry(rec) {
+  const f = rec.fields || {};
+  return {
+    id: rec.id, at: f[V.at] || rec.createdTime || null, status: f[V.status] || "Nýtt",
+    email: f[V.email] || "", page: f[V.page] || "",
+    first: String(f[V.first] || "").slice(0, 500), open: String(f[V.open] || "").slice(0, 500),
+    talk: String(f[V.talk] || "").slice(0, 6000),
+  };
+}
+async function inquiries(token) {
+  const fml = encodeURIComponent(`{${V.status}}!='Afgreitt'`);
+  const r = await at(token, `${BASE}/${VEFSPJALL}?pageSize=50&returnFieldsByFieldId=true&filterByFormula=${fml}&sort%5B0%5D%5Bfield%5D=${V.at}&sort%5B0%5D%5Bdirection%5D=desc&` + Object.values(V).map((x) => "fields%5B%5D=" + x).join("&"));
+  return r.ok ? (r.d.records || []).map(shapeInquiry) : null;
+}
+
 async function lostStats(token) {
   const counts = {};
   let total = 0, offset = "";
@@ -135,6 +156,10 @@ export default async function handler(req, res) {
   if (!token) return res.status(500).json({ error: "Server not configured" });
 
   if (req.method === "GET") {
+    if (q.list === "fyrirspurnir") {
+      const l = await inquiries(token);
+      return l ? res.status(200).json({ records: l }) : res.status(502).json({ error: "Airtable" });
+    }
     if (q.stats !== "lost") return res.status(400).json({ error: "?stats=lost" });
     const s = await lostStats(token);
     return s ? res.status(200).json(s) : res.status(502).json({ error: "Airtable" });
@@ -143,6 +168,12 @@ export default async function handler(req, res) {
   const action = String(b.action || "");
   const id = String(b.recordId || "").trim();
   if (!REC.test(id)) return res.status(400).json({ error: "Ógilt recordId" });
+
+  if (action === "fyrirspurn") {
+    if (!V_STATUSES.includes(b.value)) return res.status(409).json({ error: "Óþekkt staða." });
+    const p = await at(token, `${BASE}/${VEFSPJALL}/${id}`, { method: "PATCH", body: JSON.stringify({ fields: { [V.status]: b.value } }) });
+    return p.ok ? res.status(200).json({ ok: true, action }) : res.status(p.status).json({ error: "Airtable: " + ((p.d.error && (p.d.error.type || p.d.error)) || p.status) });
+  }
 
   if (action === "approve") {
     const table = b.table === "company" ? COMPANIES : b.table === "contact" ? CONTACTS : null;

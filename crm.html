@@ -245,6 +245,15 @@
   .fuMsg { font-size:.78rem; color:var(--muted); min-height:1em; padding-top:4px; }
   .detail .row label .muted { font-size:.72rem; }
   .pill.prufa { background:#eef1f4; color:var(--muted); }
+  .inqRow { padding:10px 16px; border-top:1px solid var(--line); font-size:.84rem; }
+  .inqHead { display:flex; justify-content:space-between; gap:10px; align-items:center; cursor:pointer; }
+  .inqHead .q { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .inqHead .meta { color:var(--muted); font-size:.74rem; white-space:nowrap; }
+  .inqBody { display:none; margin-top:8px; }
+  .inqRow.open .inqBody { display:block; }
+  .inqTalk { white-space:pre-wrap; background:var(--bg); border-radius:8px; padding:8px 10px; font-size:.78rem; max-height:220px; overflow:auto; }
+  .inqBtns { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
+  .inqBtns button { font:inherit; font-size:.8rem; padding:5px 10px; border-radius:8px; border:1px solid var(--line); background:var(--surface); color:var(--text); cursor:pointer; }
   .lossMsg { color:#b3261e; font-size:.8rem; margin-top:8px; min-height:1em; }
   .lpSearch { width:100%; box-sizing:border-box; margin-top:10px; padding:8px 11px; border:1px solid var(--line); border-radius:8px; font:inherit; font-size:.85rem; background:var(--bg); color:var(--text); }
   .lpResults { margin-top:8px; max-height:300px; overflow:auto; }
@@ -329,6 +338,11 @@
       <thead><tr><th>Verkefni</th><th>Staða</th><th class="num">Dagar síðan sent</th><th class="num">Tilboð</th></tr></thead>
       <tbody id="toReviewRow"></tbody>
     </table>
+  </div>
+
+  <div class="panel" id="inquiries" style="display:none;">
+    <h2 class="toReviewHead">💬 Fyrirspurnir af vefnum <span class="cnt" id="inqCnt"></span></h2>
+    <div id="inqRows"></div>
   </div>
 
   <div class="panel" id="nextSteps" style="display:none;">
@@ -1038,6 +1052,48 @@
     }).catch(function () {});
   }
   loadLossStats();
+
+  // ---- Fyrirspurnir (2026-10-27) — site-chat conversations (Vefspjall 💬) not yet Afgreitt, via
+  // api/sala.js (that table is write-only on the open proxy). Opening one marks it Skoðað. ----
+  function loadInquiries() {
+    fetch("/api/sala?list=fyrirspurnir&k=" + encodeURIComponent(k)).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+      var list = (d && d.records) || [], wrap = document.getElementById("inquiries"), rows = document.getElementById("inqRows");
+      if (!list.length) { wrap.style.display = "none"; return; }
+      wrap.style.display = "block";
+      document.getElementById("inqCnt").textContent = list.length;
+      rows.innerHTML = "";
+      list.forEach(function (x) {
+        var el = document.createElement("div");
+        el.className = "inqRow";
+        var q = x.open || x.first || "(engin spurning skráð)";
+        el.innerHTML =
+          '<div class="inqHead"><span class="q">' + (x.status === "Nýtt" ? "● " : "") + esc(q) + '</span>' +
+          '<span class="meta">' + esc(x.email || "ekkert netfang") + " · " + esc(String(x.at || "").slice(0, 10)) + '</span></div>' +
+          '<div class="inqBody"><div class="inqTalk">' + esc(x.talk || x.first || "") + '</div>' +
+          '<div class="meta" style="color:var(--muted);font-size:.74rem;margin-top:4px;">Síða: ' + esc(x.page || "—") + '</div>' +
+          '<div class="inqBtns">' + (x.email ? '<button type="button" data-a="new">+ Búa til verkefni</button>' : "") +
+          '<button type="button" data-a="done">✓ Afgreitt</button></div></div>';
+        el.querySelector(".inqHead").onclick = function () {
+          el.classList.toggle("open");
+          if (x.status === "Nýtt") { x.status = "Skoðað"; sala("fyrirspurn", { recordId: x.id, value: "Skoðað" }).catch(function () {}); el.querySelector(".q").textContent = q; }
+        };
+        var nb = el.querySelector('[data-a="new"]');
+        if (nb) nb.onclick = function () {
+          npOpen();
+          document.getElementById("npNetfang").value = x.email;
+          var srch = document.getElementById("npSearch");
+          srch.value = x.email; srch.dispatchEvent(new Event("input"));
+        };
+        var doneBtn = el.querySelector('[data-a="done"]');
+        doneBtn.onclick = function () {
+          doneBtn.disabled = true;
+          sala("fyrirspurn", { recordId: x.id, value: "Afgreitt" }).then(function () { el.remove(); loadInquiries(); }, function (err) { alert(err.message); doneBtn.disabled = false; });
+        };
+        rows.appendChild(el);
+      });
+    }).catch(function () {});
+  }
+  loadInquiries();
 
   function loadPipelineReport() {
     fetchAllPages(TAEKIFAERI, "filterByFormula=" + encodeURIComponent("NOT({Prufuverk 🧪})") + "&fields%5B%5D=Sta%C3%B0a%20%C3%AD%20s%C3%B6luferli&fields%5B%5D=%F0%9F%92%B0%20Tilbo%C3%B0sup%C3%A6%C3%B0&pageSize=100")

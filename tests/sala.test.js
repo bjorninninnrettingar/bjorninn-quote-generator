@@ -100,3 +100,22 @@ test("approve: refused without a valid login token, and for a non-approver role"
   assert.match(p[0].url, new RegExp(CONTACTS + "/" + T + "$"));
   assert.deepEqual(p[0].body.fields, { [PENDING[CONTACTS]]: false });
 });
+
+test("Fyrirspurnir: list needs the key and never shows Afgreitt; status only takes the field's own choices", async () => {
+  const { VEFSPJALL, V } = await import("../api/sala.js");
+  const noKey = await run({ method: "GET", query: { list: "fyrirspurnir" } }, {});
+  assert.equal(noKey.res.statusCode, 403);
+  assert.equal(noKey.calls.length, 0);
+  const rows = { records: [{ id: "recV", createdTime: "2026-10-27T10:00:00Z", fields: { [V.email]: "a@b.is", [V.talk]: "x".repeat(9000) } }] };
+  const ok = await run({ method: "GET", query: { k: "lykill", list: "fyrirspurnir" } }, {}, (c) => (c.url.includes(VEFSPJALL) ? { status: 200, body: rows } : undefined));
+  assert.equal(ok.res.statusCode, 200);
+  assert.match(decodeURIComponent(ok.calls[0].url), /!='Afgreitt'/);
+  assert.equal(ok.res.body.records[0].email, "a@b.is");
+  assert.equal(ok.res.body.records[0].talk.length, 6000);
+  const bad = await run(post({ action: "fyrirspurn", value: "Eytt" }), {});
+  assert.equal(bad.res.statusCode, 409);
+  assert.equal(patches(bad.calls).length, 0);
+  const good = await run(post({ action: "fyrirspurn", value: "Afgreitt" }), {});
+  assert.deepEqual(patches(good.calls)[0].body.fields, { [V.status]: "Afgreitt" });
+  assert.match(patches(good.calls)[0].url, new RegExp(VEFSPJALL + "/"));
+});
