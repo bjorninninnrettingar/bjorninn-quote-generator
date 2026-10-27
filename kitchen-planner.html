@@ -3514,7 +3514,7 @@
     var tsz = KP3D.TILE_SIZES[state.floorTile || "60x60"], tpw = tsz.w * 1000 * sc, tph = tsz.h * 1000 * sc, bond = tsz.w !== tsz.h;
     var hb = 90 * sc, hl = 540 * sc; // herringbone plank width/length on screen
     var floorRotAttr = state.floorRot ? ' patternTransform="rotate(90 ' + view.ox + ' ' + view.oy + ')"' : "";
-    var water = shapePhase === "water", bathNow = water && !!bathShape(), opPhase = shapePhase === "openings", polyPts = pts.map(function(p){ return X(p) + "," + Y(p); }).join(" ");
+    var water = shapePhase === "water", bathNow = water && !!bathShape(), clEnds = !!clKey && !PRO, opPhase = shapePhase === "openings", polyPts = pts.map(function(p){ return X(p) + "," + Y(p); }).join(" ");
     var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg" style="font-family:\'Kumbh Sans\',Arial,sans-serif;">' +
       (isTileFloor
         ? '<defs><pattern id="plank" x="' + view.ox + '" y="' + view.oy + '" width="' + tpw + '" height="' + (bond ? 2 * tph : tph) + '" patternUnits="userSpaceOnUse"' + floorRotAttr + '><path d="M0 0.5 H' + tpw + ' M0.5 0 V' + tph + (bond ? ' M0 ' + (tph + 0.5) + ' H' + tpw + ' M' + (tpw / 2 + 0.5) + ' ' + tph + ' V' + (2 * tph) : '') + '" stroke="rgba(0,0,0,.16)" stroke-width="1.4" fill="none"/></pattern></defs>'
@@ -3522,7 +3522,7 @@
         ? '<defs><pattern id="plank" width="' + (hb * 2) + '" height="' + (hb * 2) + '" patternUnits="userSpaceOnUse"' + floorRotAttr + '><path d="M0 ' + hb + ' L' + hb + ' 0 L' + (2 * hb) + ' ' + hb + ' M0 ' + (2 * hb) + ' L' + hb + ' ' + hb + ' L' + (2 * hb) + ' ' + (2 * hb) + '" stroke="rgba(0,0,0,.12)" stroke-width="1" fill="none"/></pattern></defs>'
         : '<defs><pattern id="plank" width="60" height="18" patternUnits="userSpaceOnUse"' + floorRotAttr + '><path d="M0 17.5 H60 M30 0 V17.5" stroke="rgba(0,0,0,.10)" stroke-width="1" fill="none"/></pattern></defs>') +
       (shapePhase === "size" ? bgSvg(view) : "") +
-      (bathNow // "Veggurinn og vatnið": a quiet floor, so the eye goes to the wall and the droplet (owner, 2026-10-27)
+      (bathNow || clEnds // "Veggurinn og vatnið" + a wardrobe's Mál (owner, 2026-10-27): a quiet floor, so the eye goes to the wall and the droplet (owner, 2026-10-27)
         ? '<polygon points="' + polyPts + '" fill="#f6f4ef"/>'
         : '<polygon points="' + polyPts + '" fill="' + KP3D.floorPlanColor(state.floor) + '"' + (bgPlan && shapePhase === "size" ? ' fill-opacity=".35"' : '') + '/><polygon points="' + polyPts + '" fill="url(#plank)"' + (bgPlan && shapePhase === "size" ? ' opacity=".35"' : '') + '/>');
     var items = "", handles = "";
@@ -3702,7 +3702,7 @@
       items += '<g class="dim" data-dim="' + i + '"><rect x="' + (lx - tw / 2) + '" y="' + (ly - 11) + '" width="' + tw + '" height="22" rx="4" fill="#fbfaf7" stroke="' + (sel ? "#0d8fbf" : "none") + '"/>' +
         '<text x="' + lx + '" y="' + (ly + 4.5) + '" font-size="13" text-anchor="middle" fill="#191919" style="pointer-events:none;">' + txt + '</text></g>';
       }
-      if (bathNow) continue; // sizes are typed on the right (and the droplet drags) — no wall arrows here
+      if (bathNow || clEnds) continue; // sizes are typed on the right or dragged at the wall's end — no wall arrows here
       // slide arrows (perpendicular to the wall)
       var hx = (x1 + x2) / 2, hy = (y1 + y2) / 2, cur = Math.abs(nx) > Math.abs(nz) ? "ew-resize" : "ns-resize";
       var tri = function(sgn){
@@ -3717,8 +3717,8 @@
       if (!clShow) handles += '<g class="wall-no' + (sel ? ' on' : '') + '" data-wallno="' + i + '" style="cursor:pointer;"><circle cx="' + bx0 + '" cy="' + by0 + '" r="11" fill="' + (sel ? "#0d8fbf" : "#fff") + '" stroke="' + (sel ? "#0d8fbf" : "#8a8f9a") + '" stroke-width="1.5"/><text x="' + bx0 + '" y="' + (by0 + 4.5) + '" font-size="12" font-weight="700" text-anchor="middle" fill="' + (sel ? "#fff" : "#191919") + '" style="pointer-events:none;">' + (i + 1) + '</text></g>';
     }
     var bathGrips = ""; // drawn last, over the droplet
-    if (bathNow){ // the wall's name on its line, and a grip on each free end: drag to make the wall longer / shorter (owner, 2026-10-27)
-      var bk = bathShape(), bw = bk === "bathCorner" ? [[0, 0, 1, "a"], [1, 2, 1, "b"]] : [[0, 1, 0, "w"]]; // [wall, free vertex, fixed vertex, dim key]
+    if (bathNow || clEnds){ // the wall's name on its line, and a grip on each free end: drag to make the wall longer / shorter (owner, 2026-10-27) — a wardrobe's Mál too
+      var bk = bathNow ? bathShape() : clKey, bw = /Corner$/.test(bk) ? [[0, 0, 1, "a"], [1, 2, 1, "b"]] : /Wall$/.test(bk) ? [[0, 1, 0, "w"]] : []; // [wall, free vertex, fixed vertex, dim key]; an innskot is typed
       bw.forEach(function(g){
         var wi0 = g[0], fv = pts[g[1]], xv = pts[g[2]], p1 = pts[wi0], p2 = pts[(wi0 + 1) % n];
         var ddx = X(p2) - X(p1), ddy = Y(p2) - Y(p1), dl = Math.hypot(ddx, ddy) || 1, inx = -ddy / dl, iny = ddx / dl;
@@ -4134,12 +4134,13 @@
     b.last = mm; setClosetDim(b.key, mm);
     if (b.water0 != null){ var nw = state.walls[b.wallIdx]; state.waterAlongMm = Math.max(0, Math.min(nw.lengthMm, b.fromEnd ? b.water0 + (mm - b.base) : b.water0)); }
     renderShapeCanvas();
-    var inp = document.querySelector('[data-bdim="' + b.key + '"]'); if (inp) inp.value = Math.round(mm / 10);
+    var inp = document.querySelector('[data-bdim="' + b.key + '"], [data-cdim="' + b.key + '"]'); if (inp) inp.value = Math.round(mm / 10);
   }
   function onBathEndUp(){
     window.removeEventListener("pointermove", onBathEndMove);
     bathEnd = null; frozenView = null; document.body.classList.remove("dragging-wall");
-    save(); renderShapeCanvas(); renderWaterList();
+    save(); renderShapeCanvas();
+    if (shapePhase === "water") renderWaterList(); else { var cbox = document.getElementById("wallList"); if (cbox && closetShape()) renderClosetSize(cbox); }
   }
   function onSlideMove(evt){
     var st = slideState;
@@ -4880,8 +4881,8 @@
     var inp = document.querySelector('[data-cdim="' + d.key + '"]'); if (inp){ inp.focus(); inp.select(); }
   }
   function renderClosetSize(box){
-    var field = function(attr, label, cm, min, max){
-      return '<div class="field cl-dim"><label>' + __(label) + '</label><div class="row"><input type="number" ' + attr + ' class="h-num" min="' + min + '" max="' + max + '" step="1" value="' + cm + '"><span class="unit">cm</span></div>' +
+    var field = function(attr, label, cm, min, max, tip){
+      return '<div class="field cl-dim"><label>' + __(label) + (tip ? ' <span class="shape-tip" title="' + __(tip) + '" aria-label="' + __(tip) + '">ⓘ</span>' : '') + '</label><div class="row"><input type="number" ' + attr + ' class="h-num" min="' + min + '" max="' + max + '" step="1" value="' + cm + '"><span class="unit">cm</span></div>' +
         '<span class="field-error">' + __("{a}–{b} cm", { a:min, b:max }) + '</span></div>';
     };
     var n = (state.windows.length + state.doors.length), k = closetShape(), cw = SHAPE_TEMPLATES[k].closetWalls;
@@ -4900,7 +4901,7 @@
       return field('data-cdim="' + d.key + '"', d.label, Math.round(d.mm / 10), d.min / 10, d.max / 10) + (cw.indexOf(d.wall) >= 0 ? spanRow(d.wall) : '') +
         (d.key === "d" ? '<p class="cl-note" id="clShallow"' + (shallow ? '' : ' hidden') + '>' + __("Skápurinn er {n} cm djúpur — hann stendur aðeins út úr innskotinu.", { n:Math.round((state.closetDepthMm || 580) / 10) }) + '</p>' : '');
     }).join("") +
-      field('data-cceil="1"', "Lofthæð", Math.round(state.roomHeightMm / 10), CLOSET_MIN_CEIL_MM / 10, 320) +
+      field('data-cceil="1"', "Lofthæð", Math.round(state.roomHeightMm / 10), CLOSET_MIN_CEIL_MM / 10, 320, "Skápar fara upp undir loft ef þú vilt.") +
       '<button type="button" class="cl-link" id="clOpenings">' + (n ? __("Gluggar og hurðir ({n})", { n:n }) : __("+ Gluggi eða hurð á veggnum")) + '</button>';
     function wire(inp, apply){
       inp.addEventListener("input", function(){

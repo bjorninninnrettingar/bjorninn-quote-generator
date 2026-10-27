@@ -1026,6 +1026,7 @@
     "tvær hurðir á hverjum": "two doors each",
     "Rennihurð í hlið": "Pocket door",
     "Vatnsinntak": "Water inlet",
+    "Skápar fara upp undir loft ef þú vilt.": "The wardrobes can go right up to the ceiling if you like.",
     "Vélar": "Machines",
     "Vaskaskápurinn stendur undir borðplötunni. Vélarnar eru neðst í listanum.": "The sink cabinet stands under the worktop. The machines are at the bottom of the list.",
     "Smelltu á vaskaskáp": "Click a vanity unit",
