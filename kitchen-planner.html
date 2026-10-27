@@ -6158,6 +6158,7 @@
     var rb = wall[zone].find(function(x){ return x.id === id; });
     if (rb && rb.locked){ lockedToast(); return; }
     detachBlock(wall, zone, id);
+    boundPanelsOf(id).forEach(function(x){ detachBlock(x.w, x.z, x.p.id); }); // its úthliðar go with it — none left standing alone (owner, 2026-10-27)
     save();
     refreshAfterEdit();
   }
@@ -10631,6 +10632,18 @@
     return changed;
   }
   var CORNER_AT_START_DOOR = "haegri", CORNER_AT_END_DOOR = "vinstri";
+  // A run never hangs past the end of its wall (owner, 2026-10-27: a wall cabinet floated outside a corner bath — the
+  // wall had been made shorter on the drawing after the unit was placed): the gaps before the overflowing units shrink,
+  // from the end back, until the run ends at the wall's end. Customers only — PRO keeps the red fit warning instead.
+  function clampRunsToWalls(){
+    var changed = false;
+    state.walls.forEach(function(w){ if (w.island || w.partition) return; ["floor", "wall"].forEach(function(z){
+      var list = w[z] || []; if (!list.length) return;
+      var st = KP3D.blockStartsMm(list, cornerClearance(w, z)), over = st[list.length - 1] + list[list.length - 1].widthMm - w.lengthMm;
+      for (var i = list.length - 1; i >= 0 && over > 0.5; i--){ var g = list[i].gapMm || 0, take = Math.min(g, over); if (take > 0){ list[i].gapMm = g - take; if (!list[i].gapMm) delete list[i].gapMm; over -= take; changed = true; } }
+    }); });
+    return changed;
+  }
   function refreshAfterEdit(){
     if (state.step !== "editor") return;
     if (boundBusy) return; // inside withBoundPanels: it refreshes once when the panels are back (a drop rebuilt the 3D twice — 350 ms of jank, owner 2026-10-27)
@@ -10638,6 +10651,7 @@
     if (clampIslands()) save();
     if (glueLockedPanels()) save();
     if (syncBathPanels()) save();
+    if (!PRO && clampRunsToWalls()) save();
     warnings = computeWarnings();
     renderCatalogPanel();
     renderView();
@@ -12522,6 +12536,7 @@
     if (state.step === "editor"){
       viewMode = "3d";
       document.querySelectorAll("#viewToggle button").forEach(function(btn){ btn.classList.toggle("active", btn.dataset.view === "3d"); });
+      if (!PRO && clampRunsToWalls()) save(); // a wall made shorter on the drawing: its units come back inside it
       pushHistory();
       updateHistoryButtons();
       warnings = computeWarnings();

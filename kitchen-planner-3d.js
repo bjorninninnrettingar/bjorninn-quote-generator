@@ -3767,8 +3767,10 @@
       }
       var grip = gripOffsetMm(evt, mesh), bid = mesh.userData.blockId;
       drag = { meta:mesh.userData, mesh:mesh, group:mesh.parent, startX:evt.clientX, startY:evt.clientY, moved:false, gripMm:grip.along, gripYmm:grip.y,
-        // a stack of shelves is several pickable boards under one block id: they all move together
-        groups:pickables.filter(function(m){ return m.userData.blockId === bid && !m.userData.isPart; }).map(function(m){ return m.parent; }) };
+        // a stack of shelves is several pickable boards under one block id: they all move together — and so do the
+        // úthliðar bound to it (owner, 2026-10-27: they stayed behind while the box flew off; the drop re-attaches them)
+        groups:pickables.filter(function(m){ return (m.userData.blockId === bid || (m.userData.lockToId && m.userData.lockToId === bid)) && !m.userData.isPart; }).map(function(m){ return m.parent; })
+          .filter(function(g, i, all){ return all.indexOf(g) === i; }) };
       controls.enabled = false;
     }
     var hovered = null;
@@ -4779,9 +4781,25 @@
   function updateMirrors(THREE, renderer, scene){
     if (!THREE.CubeCamera || !renderer || !scene) return;
     var byMat = new Map();
-    scene.traverse(function(o){ if (o.isMesh && o.visible && o.material && !Array.isArray(o.material) && o.material.userData && o.material.userData.mirror){ if (!byMat.has(o.material)) byMat.set(o.material, []); byMat.get(o.material).push(o); } });
-    var n = 0;
+    scene.traverse(function(o){ // (a Spegilskápur's fronts carry the mirror in a material ARRAY — they were skipped and read near-black)
+      if (!o.isMesh || !o.visible || !o.material) return;
+      (Array.isArray(o.material) ? o.material : [o.material]).forEach(function(mt){ if (mt && mt.userData && mt.userData.mirror){ if (!byMat.has(mt)) byMat.set(mt, []); if (byMat.get(mt).indexOf(o) < 0) byMat.get(mt).push(o); } });
+    });
+    function swapMat(o, from, to){ if (Array.isArray(o.material)){ o.material = o.material.map(function(x){ return x === from ? to : x; }); } else if (o.material === from) o.material = to; }
+    // one material shared by mirror cabinets on different walls (every Spegilskápur shares mirrorMat): a reflection per
+    // cabinet, not one taken from a point between them (in the corner, behind a wall) — split by distance, cloned
+    var groups = [];
     byMat.forEach(function(meshes, m){
+      var clusters = [];
+      meshes.forEach(function(o){ var p = new THREE.Vector3(); o.getWorldPosition(p); var cl = clusters.find(function(c){ return c.p.distanceTo(p) < 0.9; }); if (cl) cl.list.push(o); else clusters.push({ p:p, list:[o] }); });
+      clusters.forEach(function(c, k){
+        var mm = m;
+        if (k){ mm = m.clone(); if (m.__xrayBase) mm.__xrayBase = m.__xrayBase; c.list.forEach(function(o){ swapMat(o, m, mm); }); }
+        groups.push([c.list, mm]);
+      });
+    });
+    var n = 0;
+    groups.forEach(function(gm){ var meshes = gm[0], m = gm[1];
       if (++n > 4) return;
       var box = new THREE.Box3(); meshes.forEach(function(o){ box.expandByObject(o); });
       var rt = MIRROR_RT.get(m);
@@ -4792,7 +4810,7 @@
       try{ cc.update(renderer, scene); }catch(e){}
       scene.background = bg; scene.backgroundIntensity = bgI;
       meshes.forEach(function(o){ o.visible = true; });
-      m.envMap = rt.texture; m.envMapIntensity = 0.95; m.color.set(0xe8eeee); // a hint of the glass's green edge m.metalness = 1; m.roughness = 0.03; m.needsUpdate = true;
+      m.envMap = rt.texture; m.envMapIntensity = 0.95; m.color.set(0xe8eeee); m.metalness = 1; m.roughness = 0.03; m.needsUpdate = true; // (the colour: a hint of the glass's green edge)
     });
   }
   var mirrorTimer = 0;
@@ -5570,7 +5588,7 @@
         var applMdl = applKeyOf(c, b) ? applModel(applKeyOf(c, b)) : null; // the real model: the box stays (for picking/dragging) but isn't drawn
         if (applMdl){ if (!APPL_HIDE) APPL_HIDE = new THREE.MeshBasicMaterial({ visible:false }); applMat = APPL_HIDE; }
         // an integrated fridge wears the kitchen's fronts (user, 2026-10-05 — it was steel)
-        var cabMeta = { islandId:islandId, locked:!!b.locked || !!opts.xray, suppressBadge:!!opts.xray, slabFronts:jeyOn, corner:c.cls === "corner", doorSide:b.swing === "vinstri" ? "left" : "right", hingeRight:c.cls === "corner" ? b.swing === "vinstri" : b.swing === "haegri", shelves:(c.hasInterior || c.shelfRange) && !(b.interior && b.interior.mode === "skuffur") ? (shelvesOf(b) || 0) : 0,
+        var cabMeta = { lockToId:b.lockTo && c.panel ? b.lockTo.id : null, islandId:islandId, locked:!!b.locked || !!opts.xray, suppressBadge:!!opts.xray, slabFronts:jeyOn, corner:c.cls === "corner", doorSide:b.swing === "vinstri" ? "left" : "right", hingeRight:c.cls === "corner" ? b.swing === "vinstri" : b.swing === "haegri", shelves:(c.hasInterior || c.shelfRange) && !(b.interior && b.interior.mode === "skuffur") ? (shelvesOf(b) || 0) : 0,
             openMat:c.open ? frontOpenMat : openMat, open:!!c.open, hiddenMat:hiddenMat, drawerSystem:state.drawerSystem, carcassKey:state.carcass,
             warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), ready:!!(opts.readyIds && opts.readyIds.indexOf(b.id) >= 0), doorLimit:DOOR_LIMITS[b.id] || null, shelfBlock:b, wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), heightMm:hM * 1000, elevMm:0, handle:c.appliance ? null : state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0, // tall units: one door unless split in Smíða (2026-10-09)
             splitFr:c.oven || c.fixedFronts ? null : splitFractions(b, hM * 1000 - (c.panel || c.appliance ? 0 : plinthMmW)), // a fridge too, once its split is changed in Smíða
@@ -5621,7 +5639,7 @@
         var hM = Math.min(b.heightMm || c.h, roomHeightMm) / 1000, dM = (b.depthMm || c.d) / 1000;
         var selected = opts.selectedId === b.id;
         var elevM = elevOf(b) / 1000;
-        var metaBase = { locked:!!b.locked || !!opts.xray, suppressBadge:!!opts.xray, slabFronts:jeyOn, drawerSystem:state.drawerSystem, carcassKey:state.carcass, warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), ready:!!(opts.readyIds && opts.readyIds.indexOf(b.id) >= 0), doorLimit:DOOR_LIMITS[b.id] || null, shelfBlock:b, wallId:wall.id, zone:"wall", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d),
+        var metaBase = { lockToId:b.lockTo && c.panel ? b.lockTo.id : null, locked:!!b.locked || !!opts.xray, suppressBadge:!!opts.xray, slabFronts:jeyOn, drawerSystem:state.drawerSystem, carcassKey:state.carcass, warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), ready:!!(opts.readyIds && opts.readyIds.indexOf(b.id) >= 0), doorLimit:DOOR_LIMITS[b.id] || null, shelfBlock:b, wallId:wall.id, zone:"wall", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d),
           heightMm:hM * 1000, elevMm:elevM * 1000, handle:state.handle, splitFr:c.open ? null : splitFractions(b, hM * 1000), alwaysDims:/^fataskapar(:|$)/.test(String(state.activeCategory || "")) };
         if (c.shelfStack){ // 1–5 boards of 38 mm above each other: one pickable box per board, all sharing the block id
           var n = Math.max(1, Math.min(SHELF_STACK_MAX, b.count || 3)), gap = b.vgapMm != null ? b.vgapMm : SHELF_GAP_DEFAULT;
