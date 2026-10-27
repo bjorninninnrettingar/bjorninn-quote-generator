@@ -1077,6 +1077,7 @@
     .shape-stage{ position:static; display:flex; flex-direction:column; min-height:0; }
     .shape-wiz .shape-canvas{ min-height:300px; }
     .shape-side{ min-height:0; overflow-y:auto; padding-right:6px; scrollbar-gutter:stable; } /* a scrollbar coming and going must not resize what's in it */
+    .shape-side.more-below{ -webkit-mask-image:linear-gradient(#000 calc(100% - 44px), transparent); mask-image:linear-gradient(#000 calc(100% - 44px), transparent); } /* "there's more below" (walls 6–8 on a small screen, morning scan) */
     #screen-materials .mat-wiz{ flex:1; min-height:0; align-items:stretch; }
     #screen-materials .mat-stage{ position:static; display:flex; flex-direction:column; min-height:0; }
     #screen-materials .cab-preview-wrap{ flex:1; min-height:0; }
@@ -4214,7 +4215,11 @@
   var roomPreviewRaf = 0;
   function scheduleRoomPreview(){ cancelAnimationFrame(roomPreviewRaf); roomPreviewRaf = requestAnimationFrame(renderRoomPreview); }
 
+  function syncShapeScrollCue(){ var el = document.getElementById("shapeSide"); if (el) el.classList.toggle("more-below", el.scrollTop + el.clientHeight < el.scrollHeight - 6); }
+  document.getElementById("shapeSide").addEventListener("scroll", syncShapeScrollCue, { passive:true });
+  window.addEventListener("resize", syncShapeScrollCue);
   function renderShapeStep(){
+    setTimeout(syncShapeScrollCue, 0);
     if (PRO){ // PRO: one "Rýmið" page (2026-10-26) — the room starts as the usual shape, the table beside the drawing does the rest
       if (!state.closed){ applyShapeTemplate(proDefaultShape()); return; } // (it renders this step again)
       shapePhase = "size";
