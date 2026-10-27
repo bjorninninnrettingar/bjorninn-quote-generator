@@ -306,6 +306,7 @@ const STUDIO_GUIDE = `
 - „Húsgögn“ á stikunni: bæta við húsgögnum og skrauti, bara til að sjá rýmið betur.
 - „Gluggar og hindranir“ á stikunni: bæta við eða breyta gluggum, hurðum og hindrunum eftir á. „Rými“ → „Breyta lögun og lengd veggja“ breytir veggjamálum.
 - Málband (undir Skoða): smelltu á tvo punkta til að mæla. X-Ray: framhliðar af, sjáðu inn í skápana.
+- Kíkja inn: hægrismelltu á skáp til að kíkja inn — hurðir og skúffur opnast án þess að skápurinn sé valinn. Hægrismelltu aftur til að loka. (Hægrismella og draga hliðrar sýninni.)
 - Ábendingar (t.d. skápur fyrir glugga eða hærri en lofthæð) birtast sem „ábending“ á stikunni — smelltu til að sjá þær.
 - Tómur fataskápsveggur: „Fylla vegginn“ fyllir hann af skápum.
 - Það þarf a.m.k. einn skáp áður en haldið er áfram („Áfram →“).

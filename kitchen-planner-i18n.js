@@ -1026,6 +1026,8 @@
     "tvær hurðir á hverjum": "two doors each",
     "Rennihurð í hlið": "Pocket door",
     "Vatnsinntak": "Water inlet",
+    "<li><b>Kíkja inn:</b> hægrismelltu á skáp til að kíkja inn — aftur til að loka</li>": "<li><b>Peek inside:</b> right-click a cabinet to look inside — again to close</li>",
+    "Viltu fá tillögu?": "Would you like a suggestion?",
     "Spegill á hurð": "Mirror on door",
     "Enginn": "None",
     "Ein hurð": "One door",

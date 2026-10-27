@@ -298,6 +298,10 @@
     background:#fff; border:1px solid var(--line); border-radius:14px; box-shadow:0 12px 34px rgba(0,0,0,.14); padding:20px 24px; max-width:360px; }
   .cl-fill-offer b{ font-size:16px; } .cl-fill-offer span{ font-size:14px; color:var(--ink); } .cl-fill-offer small{ font-size:12.5px; color:var(--ink-soft); line-height:1.35; }
   .cl-fill-offer .cfo-btns{ display:flex; gap:8px; margin-top:8px; }
+  /* a customer's offer is the same bottom card as "Viltu fá tillögu að innréttingu?" in the other rooms (owner, 2026-10-27) */
+  .cl-fill-offer.fit-ask:not([hidden]){ position:fixed; left:50%; top:auto; bottom:28px; transform:translateX(-50%); display:block; text-align:left; z-index:300; max-width:440px; width:calc(100% - 32px); padding:14px 16px; border-radius:14px; }
+  .cl-fill-offer.fit-ask b, .cl-fill-offer.fit-ask span{ font-size:inherit; } .cl-fill-offer.fit-ask small{ display:none; }
+  .cl-fill-offer.fit-ask .cfo-btns{ justify-content:flex-end; margin-top:10px; }
   .float-bar.opening button:not(.del){ display:none; }
   .fb-dim.editable{ cursor:text; border-radius:6px; }
   .fb-dim.editable:hover{ background:var(--blue-soft); color:var(--blue); }
@@ -10754,7 +10758,10 @@
           return byWall.length > 1 ? "Veggur " + (state.walls.indexOf(g.wall) + 1) + ": " + t : t; }).join(" · ");
         // which wall (morning scan 2026-10-27: "Allt rýmið" has four, the question didn't say)
         var wn = byWall.map(function(g){ return state.walls.indexOf(g.wall) + 1; }), wlen = byWall.length === 1 ? byWall[0].wall.lengthMm : 0;
-        offer.querySelector("b").textContent = PRO || state.walls.filter(function(x){ return !x.open; }).length < 2 ? __("Fylla vegginn með skápum?") :
+        offer.classList.toggle("fit-ask", !PRO); // one suggestion card in every room (owner, 2026-10-27)
+        document.getElementById("cfoYes").textContent = PRO ? __("Fylla vegginn") : __("Já, sýna tillögu");
+        document.getElementById("cfoNo").textContent = PRO ? __("Ég raða sjálf/ur") : __("Nei, ég byrja sjálf/ur");
+        offer.querySelector("b").textContent = !PRO ? __("Viltu fá tillögu?") : PRO || state.walls.filter(function(x){ return !x.open; }).length < 2 ? __("Fylla vegginn með skápum?") :
           wn.length === 1 ? __("Fylla vegg {n} ({len}) með skápum?", { n:wn[0], len:uLen(wlen) }) : __("Fylla veggi {list} með skápum?", { list:wn.slice(0, -1).join(", ") + " " + __("og") + " " + wn[wn.length - 1] });
         offer.querySelector("[data-cfo-sum]").textContent = PRO ? mmTxt + (state.closetDoors === "engar" ? " · opnir" : " · tvær hurðir á hverjum") + " · svo Smíða á Sk1" :
           plan.length + " " + plural(plan.length, "skápur", "skápar") + " · " + (same ? widths[0] + " cm" : widths.join(" + ") + " cm") + (state.closetDoors === "engar" ? " · " + __("opnir") : " · " + __("tvær hurðir á hverjum"));
@@ -10966,6 +10973,7 @@
       wrap.innerHTML = "";
       KP3D.buildScene(wrap, state, { darkBg:!!PRO, pickWorktop:!!PRO && !isBath(), selectedId:selectedBlockId, selectedWallId:selectedWallId, onWallSelect:onWallSelect, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, onIslandDragEnd:onIslandDragEnd, onIslandDragMove:clampIslandDragMove, onDecorDragEnd:onDecorDragEnd, onDecorDragMove:onDecorDragMove, onObstacleFloorEnd:onObstacleFloorEnd, onObstacleResizeMove:onObstacleResizeMove, onObstacleResizeEnd:onObstacleResizeEnd, onShelfPosMove:onShelfPosMove, onShelfPosEnd:onShelfPosEnd, onShelfPosInfo:onShelfPosInfo, onDrawerResize:onDrawerResize, onDrawerResizeEnd:onShelfPosEnd, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList(), readyIds:PRO ? proReadyIds() : null,
         xray:inspect.on || walkParts, // inspect mode / walking: every cabinet built in parts (drawers/doors tap open, nothing drags)
+        onPeek:function(){ renderView(); }, // right-click "kíkja inn" on a solid (unlocked) cabinet: rebuilt in parts, opening
         focusWallId:viewMode === "wall" ? wallViewId : null, freshCamera:viewMode === "wall",
         annotations:viewMode === "wall" ? annoForWall : null, annoSelectedId:function(){ return anno.selId; },
         onWalkChange:syncWalkBtn, coveredRight:panelCoveredPx,
@@ -13358,7 +13366,7 @@
       done:function(){ return !uw && cabinetTotal() > tour.count0; } },
     { el:function(){ return document.getElementById("editorGrid"); }, title:__("Smelltu á eininguna"), html:__("Þá getur þú breytt henni, dregið hana til og <b>læst</b> henni þegar hún er rétt."), click:true, next:__("Næsta →"), inside:true },
     { center:true, title:__("Hreyfing og flýtilyklar"), html:(function(){ var cmd = /Mac|iP(hone|ad)/.test(navigator.platform || navigator.userAgent) ? "⌘" : "Ctrl+";
-      return '<ul class="tour-list tour-keys">' + __('<li><b>Snúa:</b> dragðu með músinni</li><li><b>Hliðra:</b> hægri-smelltu og dragðu</li><li><b>Þysja:</b> skrollaðu</li>') +
+      return '<ul class="tour-list tour-keys">' + __('<li><b>Snúa:</b> dragðu með músinni</li><li><b>Hliðra:</b> hægri-smelltu og dragðu</li><li><b>Þysja:</b> skrollaðu</li>') + __('<li><b>Kíkja inn:</b> hægrismelltu á skáp til að kíkja inn — aftur til að loka</li>') +
         __('<li><kbd>←</kbd> <kbd>→</kbd> færa valinn skáp um {a} (<kbd>Shift</kbd> = {b})</li><li><kbd>Delete</kbd> eyðir · <kbd>{cmd}Z</kbd> afturkallar · <kbd>Esc</kbd> afvelur</li>', { cmd:cmd, a:uLen(100), b:uLen(10) }) + '</ul>'; })(), next:__("Næsta →") },
     { center:true, title:__("Gangi þér vel!"), html:__("Leiðsögnina finnur þú aftur undir „Hjálp“."), next:__("Byrja") }
   ];

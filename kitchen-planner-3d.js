@@ -2205,7 +2205,7 @@
   function addCabinetBox(THREE, scene, geom, offsetM, widthM, heightM, depthM, baseYM, carcassMat, frontMat, interior, meta, selected, pickables){
     // A locked cabinet is built in parts (open carcass + 20 mm fronts + drawer boxes) so its
     // drawers and doors can be opened and closed; an unlocked one stays a single solid box.
-    var art = !!(meta && (meta.locked || meta.slabFronts) && meta.openMat && !meta.fixedFronts && !meta.open && !meta.panel && meta.zone !== "opening");
+    var art = !!(meta && (meta.locked || meta.slabFronts || PEEK_OPEN[meta.blockId]) && meta.openMat && !meta.fixedFronts && !meta.open && !meta.panel && meta.zone !== "opening");
     var bodyD = art ? depthM - FRONT_T : depthM;
     var cx = geom.origin.x + geom.axis.x * (offsetM + widthM / 2) + geom.normal.x * (bodyD / 2);
     var cz = geom.origin.z + geom.axis.z * (offsetM + widthM / 2) + geom.normal.z * (bodyD / 2);
@@ -2783,6 +2783,17 @@
       applyPart(p);
     });
   }
+  // Kíkja inn (owner, 2026-10-27, every room): a right-click on a cabinet opens its doors and drawers without selecting
+  // it — an unlocked one (a solid box) is rebuilt in parts first (opts.onPeek), its parts start opening; again closes
+  var PEEK_OPEN = {};
+  function peekToggle(id, onRebuild){
+    if (!THREE_STATE || !id) return;
+    var mine = (THREE_STATE.scene.userData.parts || []).filter(function(p){ return p.key.indexOf(id + ":") === 0; });
+    if (!mine.length){ if (onRebuild){ PEEK_OPEN[id] = true; Object.keys(PART_STATE).forEach(function(k){ if (k.indexOf(id + ":") === 0) delete PART_STATE[k]; }); onRebuild(id); } return; }
+    var open = !mine.some(function(p){ return p.target > 0; });
+    if (open) PEEK_OPEN[id] = true; else delete PEEK_OPEN[id];
+    mine.forEach(function(p){ p.target = open ? 1 : 0; PART_STATE[p.key] = p; });
+  }
   function togglePart(key){
     if (!THREE_STATE) return;
     var p = (THREE_STATE.scene.userData.parts || []).find(function(x){ return x.key === key; });
@@ -2959,7 +2970,7 @@
           var ipm = Object.assign({}, meta, { isPart:true, partKey:ikey });
           imeshes.forEach(function(m){ m.userData = ipm; pickables.push(m); });
           var prevI = PART_STATE[ikey];
-          var partI = { key:ikey, group:ig, kind:"drawer", slide:Math.min(0.3, CD * 0.5), cur:prevI ? prevI.cur : 0, target:prevI ? prevI.target : 0 };
+          var partI = { key:ikey, group:ig, kind:"drawer", slide:Math.min(0.3, CD * 0.5), cur:prevI ? prevI.cur : 0, target:prevI ? prevI.target : (PEEK_OPEN[meta.blockId] ? 1 : 0) };
           PART_STATE[ikey] = partI; parts.push(partI); applyPart(partI);
           frame.add(ig);
         }
@@ -3016,7 +3027,7 @@
       var prev = PART_STATE[key];
       var maxDeg = meta.doorLimit && meta.doorLimit[hinge] != null ? meta.doorLimit[hinge] : DOOR_OPEN_DEG; // stops at a wall / corner
       if (hingeOpenRad != null) maxDeg = Math.min(maxDeg, hingeOpenRad * 180 / Math.PI); // a door with the hinge model opens to the model's own 90°
-      var part = { key:key, group:g, kind:f.drawer ? "drawer" : hinge === "bottom" ? "flap" : hinge === "top" ? "lift" : doorMove === "pocket" ? "pocket" : "door", hinge:hinge, z0:g.position.z, pocketIn:Math.max(0.1, CD - 0.06), maxRad:maxDeg * Math.PI / 180, slide:fixedTop ? 0 : Math.min(0.34, CD * 0.6), cur:prev ? prev.cur : 0, target:prev ? prev.target : 0, hinges:leafHinges };
+      var part = { key:key, group:g, kind:f.drawer ? "drawer" : hinge === "bottom" ? "flap" : hinge === "top" ? "lift" : doorMove === "pocket" ? "pocket" : "door", hinge:hinge, z0:g.position.z, pocketIn:Math.max(0.1, CD - 0.06), maxRad:maxDeg * Math.PI / 180, slide:fixedTop ? 0 : Math.min(0.34, CD * 0.6), cur:prev ? prev.cur : 0, target:prev ? prev.target : (PEEK_OPEN[meta.blockId] ? 1 : 0), hinges:leafHinges };
       PART_STATE[key] = part; parts.push(part); applyPart(part);
       frame.add(g);
     }
@@ -4110,11 +4121,29 @@
       if (opts.onSelect) opts.onSelect(null);
     }
 
+    // a right-click (not a right-drag, which pans) on a cabinet peeks inside; no browser menu over the 3D
+    var rDown = null;
+    function onRDown(evt){ rDown = evt.button === 2 ? { x:evt.clientX, y:evt.clientY } : null; }
+    function onRUp(evt){
+      if (evt.button !== 2 || !rDown) return;
+      var moved = Math.hypot(evt.clientX - rDown.x, evt.clientY - rDown.y) > 5; rDown = null;
+      if (moved || MEASURING || drag) return;
+      var mesh = pickMeshAt(evt), u = mesh && mesh.userData;
+      if (!u || !u.blockId || /^(obstacle|decor|opening)/.test(String(u.kind || u.zone || ""))) return;
+      peekToggle(u.blockId, opts.onPeek);
+    }
+    function onCtx(e){ e.preventDefault(); }
     wrap.addEventListener("pointerdown", onDown, { capture:true });
+    wrap.addEventListener("pointerdown", onRDown);
+    window.addEventListener("pointerup", onRUp);
+    renderer.domElement.addEventListener("contextmenu", onCtx);
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
     renderer.domElement.addEventListener("click", onClickEmpty);
     return function cleanup(){
+      wrap.removeEventListener("pointerdown", onRDown);
+      window.removeEventListener("pointerup", onRUp);
+      renderer.domElement.removeEventListener("contextmenu", onCtx);
       wrap.removeEventListener("pointerdown", onDown, { capture:true });
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
