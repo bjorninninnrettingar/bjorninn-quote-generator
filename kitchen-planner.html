@@ -119,6 +119,8 @@
   .tour-n{ margin:0 0 4px; font-size:11.5px; font-weight:700; color:var(--gold); text-transform:uppercase; letter-spacing:.04em; }
   .tour-txt{ font-size:14px; line-height:1.5; color:var(--ink); }
   .tour-txt .tour-note{ margin:8px 0 0; font-size:12.5px; color:var(--ink-soft); }
+  .bath-end .be-dot{ transition:r .12s, stroke-width .12s; } .bath-end:hover .be-dot{ r:15; stroke-width:2; } body.dragging-wall, body.dragging-wall *{ cursor:grabbing !important; user-select:none; }
+  .bath-size .field.quiet label{ font-size:12.5px; font-weight:500; color:var(--ink-soft); } .bath-size .field.quiet label small{ font-weight:400; } .bath-size .field.quiet .h-num{ max-width:84px; padding:6px 8px; font-size:13px; }
   .btn.btn-primary.is-wait{ opacity:.5; } /* looks not-ready, still answers a click with what is missing */
   .tour-list{ margin:4px 0 0; padding-left:18px; }
   .tour-list li{ margin:3px 0; }
@@ -3390,7 +3392,9 @@
         ? '<defs><pattern id="plank" width="' + (hb * 2) + '" height="' + (hb * 2) + '" patternUnits="userSpaceOnUse"' + floorRotAttr + '><path d="M0 ' + hb + ' L' + hb + ' 0 L' + (2 * hb) + ' ' + hb + ' M0 ' + (2 * hb) + ' L' + hb + ' ' + hb + ' L' + (2 * hb) + ' ' + (2 * hb) + '" stroke="rgba(0,0,0,.12)" stroke-width="1" fill="none"/></pattern></defs>'
         : '<defs><pattern id="plank" width="60" height="18" patternUnits="userSpaceOnUse"' + floorRotAttr + '><path d="M0 17.5 H60 M30 0 V17.5" stroke="rgba(0,0,0,.10)" stroke-width="1" fill="none"/></pattern></defs>') +
       (shapePhase === "size" ? bgSvg(view) : "") +
-      '<polygon points="' + polyPts + '" fill="' + KP3D.floorPlanColor(state.floor) + '"' + (bgPlan && shapePhase === "size" ? ' fill-opacity=".35"' : '') + '/><polygon points="' + polyPts + '" fill="url(#plank)"' + (bgPlan && shapePhase === "size" ? ' opacity=".35"' : '') + '/>';
+      (bathNow // "Veggurinn og vatnið": a quiet floor, so the eye goes to the wall and the droplet (owner, 2026-10-27)
+        ? '<polygon points="' + polyPts + '" fill="#f6f4ef"/>'
+        : '<polygon points="' + polyPts + '" fill="' + KP3D.floorPlanColor(state.floor) + '"' + (bgPlan && shapePhase === "size" ? ' fill-opacity=".35"' : '') + '/><polygon points="' + polyPts + '" fill="url(#plank)"' + (bgPlan && shapePhase === "size" ? ' opacity=".35"' : '') + '/>');
     var items = "", handles = "";
     var dimBoxes = []; // placed wall-length labels (chain + position along it), to keep them apart
     // Dimension chain (2026-10-15): every wall's length measurement lands on ONE shared line per facing
@@ -3582,6 +3586,20 @@
       var bx0 = hx - nx * 8, by0 = hy - nz * 8;
       if (!clShow) handles += '<g class="wall-no' + (sel ? ' on' : '') + '" data-wallno="' + i + '" style="cursor:pointer;"><circle cx="' + bx0 + '" cy="' + by0 + '" r="11" fill="' + (sel ? "#0d8fbf" : "#fff") + '" stroke="' + (sel ? "#0d8fbf" : "#8a8f9a") + '" stroke-width="1.5"/><text x="' + bx0 + '" y="' + (by0 + 4.5) + '" font-size="12" font-weight="700" text-anchor="middle" fill="' + (sel ? "#fff" : "#191919") + '" style="pointer-events:none;">' + (i + 1) + '</text></g>';
     }
+    var bathGrips = ""; // drawn last, over the droplet
+    if (bathNow){ // the wall's name on its line, and a grip on each free end: drag to make the wall longer / shorter (owner, 2026-10-27)
+      var bk = bathShape(), bw = bk === "bathCorner" ? [[0, 0, 1, "a"], [1, 2, 1, "b"]] : [[0, 1, 0, "w"]]; // [wall, free vertex, fixed vertex, dim key]
+      bw.forEach(function(g){
+        var wi0 = g[0], fv = pts[g[1]], xv = pts[g[2]], p1 = pts[wi0], p2 = pts[(wi0 + 1) % n];
+        var ddx = X(p2) - X(p1), ddy = Y(p2) - Y(p1), dl = Math.hypot(ddx, ddy) || 1, inx = -ddy / dl, iny = ddx / dl;
+        var lmx = (X(p1) + X(p2)) / 2 - inx * 22, lmy = (Y(p1) + Y(p2)) / 2 - iny * 22, lang = Math.atan2(ddy, ddx) * 180 / Math.PI; if (lang > 90) lang -= 180; if (lang < -90) lang += 180;
+        if (bw.length === 1) items += '<text x="' + lmx + '" y="' + lmy + '" dy="4" font-size="12" font-weight="700" letter-spacing=".04em" fill="#1c1c1c" text-anchor="middle" transform="rotate(' + lang + ' ' + lmx + ' ' + lmy + ')" style="pointer-events:none;">' + __("Veggurinn").toUpperCase() + '</text>'; // a corner's walls are named by their sizes already
+        var gl = Math.hypot(X(fv) - X(xv), Y(fv) - Y(xv)) || 1, ex = X(fv), ey = Y(fv), ux = (X(fv) - X(xv)) / gl, uy = (Y(fv) - Y(xv)) / gl;
+        var gcur = Math.abs(ux) > Math.abs(uy) ? "ew-resize" : "ns-resize", ar = function(sg){ var tx = ex + ux * sg * 9, ty = ey + uy * sg * 9, bx = ex + ux * sg * 4, by = ey + uy * sg * 4; return '<polygon points="' + (bx - uy * 4) + ',' + (by + ux * 4) + ' ' + (bx + uy * 4) + ',' + (by - ux * 4) + ' ' + tx + ',' + ty + '" fill="#1c1c1c"/>'; };
+        bathGrips += '<g class="bath-end" data-bathend="' + g[0] + ':' + g[1] + ':' + g[2] + ':' + g[3] + '" style="cursor:' + gcur + ';"><title>' + __("Dragðu til að lengja eða stytta vegginn") + '</title><circle cx="' + ex + '" cy="' + ey + '" r="22" fill="transparent"/>' +
+          '<circle class="be-dot" cx="' + ex + '" cy="' + ey + '" r="13" fill="#fff" stroke="#1c1c1c" stroke-width="1.5"/>' + ar(1) + ar(-1) + '</g>';
+      });
+    }
     if (water && !state.waterWall && waterHover && state.walls[waterHover.i] && !state.walls[waterHover.i].open){ // before any water: a faint droplet follows the pointer along the nearest wall — a click puts it there (2026-10-24)
       var hi2 = waterHover.i, h1 = pts[hi2], h2 = pts[(hi2 + 1) % n], hdx = h2.x - h1.x, hdz = h2.z - h1.z, hl = Math.hypot(hdx, hdz) || 1, hax = hdx / hl, haz = hdz / hl;
       var hp = function(a2, out){ return { x:X(h1) + hax * a2 * sc - haz * out, y:Y(h1) + haz * a2 * sc + hax * out }; }, hm = hp(waterHover.t, 40), hb = hp(waterHover.t, 6);
@@ -3600,12 +3618,20 @@
       var wi = state.walls.findIndex(function(x){ return x.id === state.waterWall; });
       if (wi >= 0 && !state.walls[wi].open){
         var ww = state.walls[wi], q1 = pts[wi], q2 = pts[(wi + 1) % n], adx = q2.x - q1.x, adz = q2.z - q1.z, alen = Math.hypot(adx, adz) || 1, aax = adx / alen, aaz = adz / alen, nnx = -aaz, nnz = aax;
-        var along = waterAlong(ww), qx = X(q1), qy = Y(q1), sinkW = 800;
+        var along = waterAlong(ww), qx = X(q1), qy = Y(q1), sinkW = isLaundry() ? 600 : 800;
         function wp(a2, out){ return { x:qx + aax * a2 * sc + nnx * out, y:qy + aaz * a2 * sc + nnz * out }; }
+        var fang = Math.atan2(aaz, aax) * 180 / Math.PI; if (fang > 90) fang -= 180; if (fang < -90) fang += 180;
+        if (bathNow){ // the real vaskaskápur, as wide and deep as the one that will land there — it moves with the droplet (owner, 2026-10-27)
+          var vd = isLaundry() ? 600 : BATH_DEPTH_MM, fits = ww.lengthMm >= sinkW, va = Math.max(0, Math.min(ww.lengthMm - sinkW, along - sinkW / 2)), vb2 = Math.min(ww.lengthMm, va + sinkW);
+          var vq = [wp(va, 0), wp(vb2, 0), wp(vb2, vd * sc), wp(va, vd * sc)], vm = wp((va + vb2) / 2, vd * sc + 13); // the label under it — the droplet sits on the unit itself
+          items += '<polygon points="' + vq.map(function(p){ return p.x + "," + p.y; }).join(" ") + '" fill="' + (fits ? "#e7dcc6" : "#f6d5cf") + '" fill-opacity=".85" stroke="' + (fits ? "#9c8f77" : "#c0392b") + '" stroke-width="1.5" stroke-dasharray="5,3" style="pointer-events:none;"/>' +
+            '<text x="' + vm.x + '" y="' + vm.y + '" dy="4" font-size="12" font-weight="600" fill="' + (fits ? "#5c574d" : "#c0392b") + '" text-anchor="middle" transform="rotate(' + fang + ' ' + vm.x + ' ' + vm.y + ')" style="pointer-events:none;">' + (fits ? __("Vaskaskápur · {n} cm", { n:sinkW / 10 }) : __("Veggurinn er of stuttur")) + '</text>';
+        } else {
         var f0 = wp(Math.max(0, along - sinkW / 2), -8), f1 = wp(Math.min(ww.lengthMm, along + sinkW / 2), -8);
         items += '<line x1="' + f0.x + '" y1="' + f0.y + '" x2="' + f1.x + '" y2="' + f1.y + '" stroke="#5b8fae" stroke-opacity=".6" stroke-width="16" stroke-linecap="butt" style="pointer-events:none;"/>';
-        var fm = wp(along, -8), fang = Math.atan2(aaz, aax) * 180 / Math.PI; if (fang > 90) fang -= 180; if (fang < -90) fang += 180;
+        var fm = wp(along, -8);
         if (Math.hypot(f1.x - f0.x, f1.y - f0.y) > 50) items += '<text x="' + fm.x + '" y="' + fm.y + '" dy="4" font-size="11" font-weight="700" fill="#fff" text-anchor="middle" transform="rotate(' + fang + ' ' + fm.x + ' ' + fm.y + ')" style="pointer-events:none;">' + __("Vaskur") + '</text>';
+        }
         var mk = wp(along, 40), base = wp(along, 6);
         handles += '<g data-watermark="1" style="cursor:grab;"><line x1="' + base.x + '" y1="' + base.y + '" x2="' + mk.x + '" y2="' + mk.y + '" stroke="#0058a3" stroke-width="2"/>' +
           '<circle cx="' + mk.x + '" cy="' + mk.y + '" r="22" fill="#0058a3" stroke="#fff" stroke-width="3"/><path d="M' + mk.x + ' ' + (mk.y - 11) + ' q9 12 0 18 q-9 -6 0 -18z" fill="#fff"/></g>';
@@ -3633,7 +3659,7 @@
         handles += '<g class="corner-h" data-corner="' + vk + '" style="cursor:move;"><title>' + __("Dragðu hornið til að skekkja veggina · smelltu til að slá inn horn") + '</title><circle cx="' + vx + '" cy="' + vy + '" r="14" fill="transparent"/><circle cx="' + vx + '" cy="' + vy + '" r="6" fill="#fff" stroke="#0d8fbf" stroke-width="2"/></g>';
       }
     }
-    svg += items + handles;
+    svg += items + handles + bathGrips;
     if (!water && !clShow){
       var cx0 = pts.reduce(function(s2, p){ return s2 + X(p); }, 0) / n, cz0 = pts.reduce(function(s2, p){ return s2 + Y(p); }, 0) / n;
       svg += '<text x="' + cx0 + '" y="' + cz0 + '" font-size="15" text-anchor="middle" fill="#3a3630" style="pointer-events:none;">' + escapeHtmlPro(shapeRoomLabel()) + '</text><text x="' + cx0 + '" y="' + (cz0 + 20) + '" font-size="13" text-anchor="middle" fill="#5c574d" style="pointer-events:none;">' + polygonAreaM2(pts).toFixed(1).replace(".", ",") + ' m²</text>';
@@ -3680,6 +3706,9 @@
     if (shapePhase === "size") syncWallInputs();
     host.querySelectorAll("[data-watermark]").forEach(function(g){
       g.addEventListener("pointerdown", function(evt){ startWaterDrag(evt, false); });
+    });
+    host.querySelectorAll("[data-bathend]").forEach(function(g){
+      g.addEventListener("pointerdown", function(evt){ startBathEndDrag(g.dataset.bathend.split(":"), evt); });
     });
     host.querySelectorAll("[data-wdim]").forEach(function(g){
       g.addEventListener("click", function(){ var r = g.querySelector("rect"); openWaterPop(g.dataset.wdim, +r.getAttribute("x") + (+r.getAttribute("width")) / 2, +r.getAttribute("y") + 10); });
@@ -3939,6 +3968,32 @@
     document.getElementById("dimPop").hidden = true;
     window.addEventListener("pointermove", onSlideMove);
     window.addEventListener("pointerup", onSlideUp, { once:true });
+  }
+  // Bað / Þvottahús: a wall end dragged on the drawing — whole cm, the number live on the drawing and in the field,
+  // the corner (or the wall's other end) held still on screen while the picture follows
+  var bathEnd = null;
+  function startBathEndDrag(pr, evt){
+    evt.preventDefault(); evt.stopPropagation();
+    var host = document.getElementById("shapeCanvas"), v = shapeView(host.clientWidth, host.clientHeight), fv = v.pts[+pr[1]], xv = v.pts[+pr[2]], L = Math.hypot(fv.x - xv.x, fv.z - xv.z) || 1;
+    var d0 = closetDims().find(function(d){ return d.key === pr[3]; }); if (!d0) return;
+    bathEnd = { key:pr[3], ux:(fv.x - xv.x) / L, uz:(fv.z - xv.z) / L, x0:evt.clientX, y0:evt.clientY, base:d0.mm, min:d0.min, max:d0.max, last:d0.mm };
+    frozenView = { scale:v.scale, ox:v.ox, oy:v.oy, ref:+pr[2], refX:xv.x, refZ:xv.z };
+    document.body.classList.add("dragging-wall");
+    window.addEventListener("pointermove", onBathEndMove);
+    window.addEventListener("pointerup", onBathEndUp, { once:true });
+  }
+  function onBathEndMove(evt){
+    var b = bathEnd; if (!b) return;
+    var sc = frozenView ? frozenView.scale : 0.1, mm = b.base + ((evt.clientX - b.x0) * b.ux + (evt.clientY - b.y0) * b.uz) / sc;
+    mm = Math.max(b.min, Math.min(b.max, Math.round(mm / 10) * 10)); // whole cm
+    if (mm === b.last) return;
+    b.last = mm; setClosetDim(b.key, mm); renderShapeCanvas();
+    var inp = document.querySelector('[data-bdim="' + b.key + '"]'); if (inp) inp.value = Math.round(mm / 10);
+  }
+  function onBathEndUp(){
+    window.removeEventListener("pointermove", onBathEndMove);
+    bathEnd = null; frozenView = null; document.body.classList.remove("dragging-wall");
+    save(); renderShapeCanvas(); renderWaterList();
   }
   function onSlideMove(evt){
     var st = slideState;
@@ -4243,13 +4298,13 @@
       document.getElementById("shNext").addEventListener("click", function(){ if (closetShape()){ lockRoom(); return; } shapePhase = "height"; renderShapeStep(); }); // a closet: the ceiling was on this page, no floor/wall colour
     } else if (shapePhase === "height"){
       box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">' + __("← Til baka") + '</button><button class="btn btn-primary" id="shNext" type="button">' + __("Áfram →") + '</button>';
-      document.getElementById("shBack").addEventListener("click", function(){ shapePhase = "size"; renderShapeStep(); });
+      document.getElementById("shBack").addEventListener("click", function(){ shapePhase = bathShape() ? "water" : "size"; renderShapeStep(); });
       document.getElementById("shNext").addEventListener("click", function(){ shapePhase = "openings"; if (!state.openingsDone) openWallId = null; renderShapeStep(); });
     } else if (shapePhase === "openings"){
       // the top buttons go to the previous / next STEP like every other page (2026-10-12); walking the walls is the
       // black "Næsti veggur →" under "Veggur N af M" in the panel
       box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">' + __("← Til baka") + '</button><button class="btn btn-primary" id="shNext" type="button">' + __("Áfram →") + '</button>';
-      document.getElementById("shBack").addEventListener("click", function(){ shapePhase = bathShape() ? "water" : closetShape() ? "size" : "height"; renderShapeStep(); });
+      document.getElementById("shBack").addEventListener("click", function(){ shapePhase = closetShape() ? "size" : "height"; renderShapeStep(); }); // a bath too: back to Útlit rýmisins
       // the first time through, Áfram walks the walls too (morning scan 2026-10-27: Áfram skipped walls 2–6) — on from the last one
       document.getElementById("shNext").addEventListener("click", function(){
         var ws = solidWalls(), wi = ws.findIndex(function(w){ return w.id === openWallId; });
@@ -4261,7 +4316,7 @@
       box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">' + __("← Til baka") + '</button><button class="btn btn-primary" id="shNext" type="button">' + __("Áfram →") + '</button>';
       // Bað: wall + water first, then the windows/doors on it (user, 2026-10-26: 5 pages → 3)
       document.getElementById("shBack").addEventListener("click", function(){ shapePhase = bathShape() ? (isLaundry() ? "machine" : "pick") : "openings"; renderShapeStep(); });
-      document.getElementById("shNext").addEventListener("click", function(){ if (bathShape()){ shapePhase = "openings"; if (!state.openingsDone) openWallId = null; renderShapeStep(); return; } lockRoom(); });
+      document.getElementById("shNext").addEventListener("click", function(){ if (bathShape()){ shapePhase = "height"; renderShapeStep(); return; } lockRoom(); }); // Bað/Þvottahús: Útlit rýmisins next (owner, 2026-10-27)
     }
   }
   // the room is finished: on to the materials
@@ -4294,7 +4349,7 @@
       shapePhase = "size";
     }
     if (!state.closed) shapePhase = "pick";
-    if (bathShape() && !PRO && (shapePhase === "size" || shapePhase === "height")) shapePhase = "water"; // a bath's sizes live on "Veggurinn og vatnið"
+    if (bathShape() && !PRO && shapePhase === "size") shapePhase = "water"; // a bath's sizes live on "Veggurinn og vatnið" (its "height" page is Útlit rýmisins: floor + wall colour)
     if (shapePhase === "machine" && !(isLaundry() && !PRO)) shapePhase = state.closed ? "water" : "pick";
     if (isLaundry() && !PRO) roomDefaults(); // the machine page + its preview already show the usual answers
     if (shapePhase !== "height" && shapePhase !== "machine") endHeightScene();
@@ -4309,10 +4364,10 @@
         : [__("Hvernig er eldhúsið í laginu?"), __("Veldu þá lögun sem passar best. Þú stillir málin næst.")],
       size:  closetShape() ? [__("Mál"), __("Mældu vegginn þar sem skápurinn á að vera. Allt í cm.")]
         : [__("Stilltu stærð rýmisins"), __("Sláðu inn mál eða dragðu veggina. Er rýmið opið inn í annað rými? Smelltu á „Opið“ við vegginn sem vantar.")],
-      height: [__("Lofthæð og útlit"), __("Stilltu lofthæðina og útlit rýmisins.")],
+      height: bathNow && !PRO ? [__("Útlit rýmisins"), __("Veldu gólf og vegglit — svo þrívíddin líkist rýminu þínu.")] : [__("Lofthæð og útlit"), __("Stilltu lofthæðina og útlit rýmisins.")],
       machine: [__("Hvar er vélin?"), __("Þvottavél og þurrkari — við setjum þau inn fyrir þig.")],
       openings: bathNow ? [__("Gluggar og hurðir"), (solidWalls().length > 1 ? __("Er gluggi eða hurð á veggjunum? Annars heldur þú bara áfram.") : __("Er gluggi eða hurð á veggnum? Annars heldur þú bara áfram."))] : [__("Gluggar og hurðir"), __("Veldu hvað er á hverjum vegg.")],
-      water: bathNow ? [__("Veggurinn og vatnið"), __("Mældu vegginn og dragðu dropann þangað sem vatnið kemur inn. Allt í cm.")]
+      water: bathNow ? [__("Veggurinn og vatnið"), __("Dragðu enda veggjarins í rétta lengd og dropann þangað sem vatnið kemur inn.")]
         : [__((catDef && catDef.waterTitle) || "Hvar kemur vatnið inn?"), __("Merktu staðsetningu vatnslagna, ef þú veist hana.")]
     };
     if (PRO) titles.size = ["Rýmið", "Lögun, veggir, lofthæð, gluggar, hurðir og vatn — allt í mm. Enter fer í næsta reit, dragðu veggina í teikningunni."];
@@ -4323,7 +4378,7 @@
     document.getElementById("shapeExtras").hidden = shapePhase !== "height";
     document.getElementById("shapeSizeBox").hidden = shapePhase !== "size" || !!PRO;
     document.getElementById("shapeProBox").hidden = !PRO || shapePhase !== "size";
-    document.getElementById("shapeHeightBox").hidden = shapePhase !== "height";
+    document.getElementById("shapeHeightBox").hidden = shapePhase !== "height" || (bathNow && !PRO); // a bath's ceiling is on "Veggurinn og vatnið"
     document.getElementById("shapeOpenings").hidden = shapePhase !== "openings";
     document.getElementById("shapeWater").hidden = shapePhase !== "water";
     document.getElementById("shapeMachine").hidden = shapePhase !== "machine";
@@ -4853,12 +4908,14 @@
   }
   // Bað's "Veggurinn og vatnið" (user, 2026-10-26): the wall(s) + ceiling in cm above the water — one page, not three
   function renderBathSize(box){
-    var field = function(attr, label, cm, min, max){
-      return '<div class="field cl-dim"><label>' + __(label) + '</label><div class="row"><input type="number" ' + attr + ' class="h-num" min="' + min + '" max="' + max + '" step="1" value="' + cm + '"><span class="unit">cm</span></div>' +
+    var field = function(attr, label, cm, min, max, tip, quiet){
+      return '<div class="field cl-dim' + (quiet ? ' quiet' : '') + '"><label>' + __(label) + (quiet ? ' <small>' + __("(fyrir háa skápa)") + '</small>' : '') +
+        (tip ? ' <span class="shape-tip" title="' + escapeHtmlPro(__(tip)) + '" aria-label="' + escapeHtmlPro(__(tip)) + '">ⓘ</span>' : '') + '</label><div class="row"><input type="number" ' + attr + ' class="h-num" min="' + min + '" max="' + max + '" step="1" value="' + cm + '"><span class="unit">cm</span></div>' +
         '<span class="field-error">' + __("{a}–{b} cm", { a:min, b:max }) + '</span></div>';
     };
-    box.innerHTML = closetDims().map(function(d){ return field('data-bdim="' + d.key + '"', d.label, Math.round(d.mm / 10), d.min / 10, d.max / 10); }).join("") +
-      field('data-bceil="1"', "Lofthæð", Math.round(state.roomHeightMm / 10), MIN_ROOM_HEIGHT_MM / 10, 320);
+    var MEASURE_TIP = "Mældu frá horni í horn við gólf. Mælingamaður staðfestir málin á staðnum.";
+    box.innerHTML = closetDims().map(function(d){ return field('data-bdim="' + d.key + '"', d.label, Math.round(d.mm / 10), d.min / 10, d.max / 10, MEASURE_TIP); }).join("") +
+      field('data-bceil="1"', "Lofthæð", Math.round(state.roomHeightMm / 10), MIN_ROOM_HEIGHT_MM / 10, 320, null, true);
     box.querySelectorAll("input").forEach(function(inp){
       inp.addEventListener("input", function(){
         var v = parseInt(inp.value, 10), ok = !isNaN(v) && v >= +inp.min && v <= +inp.max;
