@@ -2141,10 +2141,13 @@
           var jout = meta && meta.slab ? -jp.userData.size.d + 0.0004 : 0; // in line with the fronts: the lip flush with the front face, the back wall behind it
           // place() overwrites the rotation of what it is given, so the turn lives in a child group
           if (vertical){ sides.forEach(function(sg){ // the finger lip (bottom of the profile) ends up on the free edge, the body extends inwards
+            // two doors meeting in the middle (owner, 2026-10-27: they shared ONE profile at the seam): each door its own, on
+            // its side of the seam, lip towards the seam — the left door's free edge is its right one, and the other way round
+            var dirSg = twoLeaf ? -sg : sg;
             var rot = new THREE.Group(), lift = new THREE.Group(), h2 = new THREE.Group();
             lift.add(jp.clone(true)); rot.add(lift); // the same frame as on the top edge, turned: inside its own door, in the cut-out
-            rot.rotation.z = sg > 0 ? -Math.PI / 2 : Math.PI / 2; h2.add(rot); // turned so the finger lip faces the opening (was the wrong way round, user 2026-10-25)
-            place(h2, (top + bottom) / 2, jout, twoLeaf ? 0 : sg * (hw / 2 - SIDE_REVEAL_M) + hOff); // the door's side has its 2 mm reveal (the top edge doesn't) — in by that, so it meets the front as on the top edge
+            rot.rotation.z = dirSg > 0 ? -Math.PI / 2 : Math.PI / 2; h2.add(rot); // turned so the finger lip faces the opening (was the wrong way round, user 2026-10-25)
+            place(h2, (top + bottom) / 2, jout, twoLeaf ? sg * (0.0015 + SIDE_REVEAL_M) : sg * (hw / 2 - SIDE_REVEAL_M) + hOff); // the door's side has its 2 mm reveal (the top edge doesn't) — in by that, so it meets the front as on the top edge
           }); }
           else if (atBottom){ // wall units: the profile runs along the bottom edge, upside down (finger lip facing down)
             var jr = new THREE.Group(), jh = new THREE.Group(); jr.add(jp); jr.rotation.z = Math.PI; jh.add(jr);
@@ -2159,7 +2162,8 @@
         if (tpf){
           if (vertical){ // tall units: an edge pull on the free side, at chest height
             var vyc = uprightY(bottom, top, tlen);
-            sides.forEach(function(sg){ var rotT = new THREE.Group(), hT = new THREE.Group(); rotT.add(tpf.clone(true)); rotT.rotation.z = (sg > 0 ? -Math.PI / 2 : Math.PI / 2) * (hcfg.flip ? -1 : 1); hT.add(rotT); /* a flipped model (Vann) turns the other way, as on the top edge */ place(hT, vyc, -(hcfg.embedMm || 0) / 1000 + EMBED_CLEAR_M, (twoLeaf ? 0 : sg * (hw / 2 - SIDE_REVEAL_M) + hOff) - sg * (hcfg.dropMm || 0) / 1000); }); // dropped in from the edge + sunk into the front, as on the top edge
+            sides.forEach(function(sg){ var dirT = twoLeaf ? -sg : sg; // two doors: one pull each, on its own side of the seam (owner, 2026-10-27)
+              var rotT = new THREE.Group(), hT = new THREE.Group(); rotT.add(tpf.clone(true)); rotT.rotation.z = (dirT > 0 ? -Math.PI / 2 : Math.PI / 2) * (hcfg.flip ? -1 : 1); hT.add(rotT); /* a flipped model (Vann) turns the other way, as on the top edge */ place(hT, vyc, -(hcfg.embedMm || 0) / 1000 + EMBED_CLEAR_M, (twoLeaf ? sg * (0.0015 + SIDE_REVEAL_M) : sg * (hw / 2 - SIDE_REVEAL_M) + hOff) - dirT * (hcfg.dropMm || 0) / 1000); }); // dropped in from the edge + sunk into the front, as on the top edge
           } else {
             var centres = twoLeaf ? [-hw / 4, hw / 4] : [hOff];
             centres.forEach(function(cxT){ var rotB = new THREE.Group(), hB = new THREE.Group(); rotB.add(tpf.clone(true)); if (atBottom !== !!hcfg.flip) rotB.rotation.z = Math.PI; hB.add(rotB); place(hB, atBottom ? bottom + (hcfg.dropMm || 0) / 1000 : top - (hcfg.dropMm || 0) / 1000, -(hcfg.embedMm || 0) / 1000 + EMBED_CLEAR_M, cxT); }); // wall units: on the bottom edge, upside down
