@@ -12387,7 +12387,7 @@
       if (sp) return sp.map(function(mm){ return { mm:mm, count:leaves, tall:true }; });
       return c.fridge ? [{ mm:h * 0.74, count:1, tall:true }, { mm:h * 0.26, count:1, tall:true }] : [{ mm:h, count:leaves, tall:true }];
     }
-    var wide = w > 600 && c.cls !== "corner"; // two doors above 600 mm, same rule as the 3D
+    var wide = KP3D.twoDoors(w, c.zone === "wall") && c.cls !== "corner"; // two doors above 600 mm (upper cabinets from 600), same rule as the 3D
     return wide ? [{ mm:w / 2, count:2 }] : [{ mm:w, count:1 }];
   }
   // Jey/Jey2/Hexxa: cut-to-size stock — smallest pre-cut ≥ needed, else the bulk (3000 mm) bar
@@ -16383,7 +16383,7 @@
       if (f.code === "fast") row("Frontur", f.mm - 3, o.w - 3, 19, 1);
       else row("Skúffufrontur " + f.code + " - " + sys, f.mm - 3, o.w - 3, 19, 1);
     });
-    var doors = proDoorsOf(b, c, zone), wide = b.widthMm > 600 && !c.fridge && c.cls !== "corner";
+    var doors = proDoorsOf(b, c, zone), wide = KP3D.twoDoors(b.widthMm, c.zone === "wall") && !c.fridge && c.cls !== "corner";
     doors.forEach(function(d, i){
       var name = o.split ? "Skiptur frontur " + (i + 1) : wide ? "Frontur vænghurð" : c.oven ? "Frontur f. ofan ofn" : "Frontur";
       row(name, d.box - 3, wide ? b.widthMm / 2 - 3 : b.widthMm - 3, 19, wide ? 2 : 1);
@@ -16611,7 +16611,7 @@
     // Wide/wing doors get hinges on BOTH sides for real (same rule smidaFor's o.hinge uses, so the preview never
     // disagrees with what actually gets drilled) — Vinstri/Hægri is then not a real choice, so show both at once
     // instead of picking one (user, 2026-10-15).
-    var bothHinges = !!(doors.length && b.widthMm > 600 && !c.fridge && c.cls !== "corner");
+    var bothHinges = !!(doors.length && KP3D.twoDoors(b.widthMm, c.zone === "wall") && !c.fridge && c.cls !== "corner");
     var svg = '<svg id="peSvg" width="' + (W + 210) + '" height="' + (body * S + 80) + '">';
     svg += '<rect x="' + X0 + '" y="' + Y0 + '" width="' + W + '" height="' + body * S + '" fill="#fff" stroke="#8a929c"/>';
     // drawers (bottom → top) with draggable seams — a drawer unit's stack, or the drawers under a tall oven.
@@ -18473,7 +18473,7 @@
       if (inner.length) u.inner = inner.map(function(dd){ return { code:dd.code, mm:dd.mm, h:dd.h, mat:innerMatCode(b) }; });
       var doors = proDoorsOf(b, c, zone);
       if (doors.length){
-        var both = b.widthMm > 600 && !c.fridge && c.cls !== "corner";
+        var both = KP3D.twoDoors(b.widthMm, c.zone === "wall") && !c.fridge && c.cls !== "corner";
         u.doors = doors.map(function(d, i){
           var sp = proSpec(b, doors, i);
           return { h:d.box, push:push, hinge:sp.type === "lift" ? "top" : sp.type === "pocket" ? "pocket" : both ? "both" : (b.swing === "haegri" ? "right" : "left") };

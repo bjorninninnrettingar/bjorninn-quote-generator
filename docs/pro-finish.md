@@ -620,3 +620,9 @@ Not done: the PDF as a real attachment (would need Gmail API credentials server-
 PRO bar: "← Skrifstofa" (not inside /pro's frame), "Smíða & CNC ↗" (/smida) in every state, unlocked too.
 `PRO.k` falls back to the office key /skrifstofa keeps (`bjorninn:skrifstofa:k`) and a key in the link is
 remembered there — a bookmark without `&k=` works. /crm "+ Nýtt verkefni → Hanna" opens PRO in a new tab.
+
+**G15 — upper cabinet door count (owner decision 2026-10-27).** Efriskápur gets two doors from 600 mm INCLUSIVE
+(`KP3D.twoDoors(widthMm, wallUnit)`: wall units `>= 600`, everything else `> 600`), matching Keyra skipulag's
+"Tveir frontar" (the owner changes that script: Efriskápur `>= 500` → `>= 600`). Used by doorLeaves/smidaHingeSide
+(Smíðagögn `hinge:"baedi"` → /cnc drills both sides), the 3D fronts, handle counts, Smíða's hinge UI, the Sögunarlisti
+preview and the Skápalisti/workdraw doors. /cnc and /smida take the door rows from Sögunarlisti — nothing else to change.

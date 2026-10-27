@@ -132,7 +132,7 @@ test("smidaHingeSide: two leaves = both sides, one door = its swing (wall, base,
   const C = K.CATALOG;
   assert.equal(K.smidaHingeSide({ type: "efriskapur", widthMm: 1200 }, C.efriskapur), "baedi"); // T-32 Sk6
   assert.equal(K.smidaHingeSide({ type: "grunnskapur", widthMm: 900 }, C.grunnskapur), "baedi");
-  assert.equal(K.smidaHingeSide({ type: "efriskapur", widthMm: 600, swing: "haegri" }, C.efriskapur), "haegri");
+  assert.equal(K.smidaHingeSide({ type: "efriskapur", widthMm: 550, swing: "haegri" }, C.efriskapur), "haegri"); // (600 = two doors since G15)
   assert.equal(K.smidaHingeSide({ type: "grunnskapur", widthMm: 500 }, C.grunnskapur), "vinstri");
   assert.equal(K.smidaHingeSide({ type: "hornskapur", widthMm: 1200, swing: "haegri" }, C.hornskapur), "haegri"); // one corner door
   const fridge = Object.keys(C).find((k) => C[k].fridge);
@@ -156,4 +156,13 @@ test("fitWarnings pro: small gaps want an áfella; a door in the gap or a wide g
   assert.ok(!w.some((m) => /Bil/.test(m)), w.join(" | "));
   w = K.fitWarnings(room([b("Sk1", 0, "vaskaskapur"), b("Sk2", 0), b("Sk3", 0, "vaskaskapur")]), { pro: true }).map((x) => x.msg);
   assert.ok(w.some((m) => /2 vaskaskápar í rýminu \(Sk1, Sk3\)/.test(m)), w.join(" | "));
+});
+
+// G15 (owner, 2026-10-27): Efriskápur two doors from 600 mm inclusive — same as Keyra skipulag; base units only above 600.
+test("door count: upper cabinet 599 → 1, 600 → 2, 601 → 2; base cabinet 600 → 1, 601 → 2", () => {
+  const C = K.CATALOG, n = (type, w) => K.doorLeaves({ type, widthMm: w }, C[type]).length;
+  assert.deepEqual([599, 600, 601].map((w) => n("efriskapur", w)), [1, 2, 2]);
+  assert.deepEqual([599, 600, 601].map((w) => n("grunnskapur", w)), [1, 1, 2]);
+  assert.equal(K.smidaHingeSide({ type: "efriskapur", widthMm: 600 }, C.efriskapur), "baedi"); // → /cnc drills both sides
+  assert.equal(K.smidaHingeSide({ type: "efriskapur", widthMm: 599, swing: "haegri" }, C.efriskapur), "haegri");
 });

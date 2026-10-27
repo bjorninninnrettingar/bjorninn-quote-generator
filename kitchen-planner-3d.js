@@ -302,6 +302,9 @@
   var CODE_ORDER = "NMKECF"; // smallest → tallest; also the order Útfærslur combo keys use
   var DRAWER_GAP_MM = 3;
   var WIDE_DOOR_M = 0.6005; // a door unit wider than 600 mm is built with two doors
+  // G15 (owner, 2026-10-27): an upper cabinet (Efriskápur) gets two doors from 600 mm INCLUSIVE, everything else above
+  // 600 — the same rule Keyra skipulag uses for "Tveir frontar" (Efriskápur width >= 600, others > 600)
+  function twoDoors(widthMm, wallUnit){ return wallUnit ? widthMm >= 599.5 : widthMm > WIDE_DOOR_M * 1000; }
   // Board thickness of an open / articulated carcass: built from real 16 mm boards (sides, top, bottom) and a
   // thin back — it used to be the faces of one box, so the sides had no thickness at the front edge (2026-10-05)
   var CARCASS_T = 0.016, BACK_T = 0.008;
@@ -1269,7 +1272,7 @@
   function doorLeaves(b, c){
     if (!c || c.panel || c.shelfStack || c.appliance || c.open || c.fixedFronts || c.dishwasher || c.cls === "corner" || c.lowOven || c.drawersOnly) return [];
     if (!c.oven && b.interior && b.interior.mode === "skuffur" && c.cls !== "tall") return []; // a tall drawer unit still has its door on top
-    if (b.widthMm > WIDE_DOOR_M * 1000 && !c.fridge) return [{ hinge:"left", w:b.widthMm / 2 }, { hinge:"right", w:b.widthMm / 2 }];
+    if (twoDoors(b.widthMm, c.zone === "wall") && !c.fridge) return [{ hinge:"left", w:b.widthMm / 2 }, { hinge:"right", w:b.widthMm / 2 }];
     return [{ hinge:b.swing === "haegri" ? "right" : "left", w:b.widthMm }];
   }
   // Smíðagögn `hinge` → /cnc drills hinges only in that carcass side (seen from the front): two leaves = both
@@ -2048,7 +2051,7 @@
     // Door units wider than 600 mm get two doors (user, 2026-10-02 — was ≥ 750; 2026-10-14 — also the door
     // zone above a drawer stack, not just drawer-free cabinets). The seam only spans the door's own zone,
     // not the drawers below it (drawers never split into two leaves regardless of width).
-    var wideDoor = widthM > WIDE_DOOR_M && !(meta && meta.fridge) && !isCorner;
+    var wideDoor = twoDoors(widthM * 1000, !!(meta && meta.zone === "wall")) && !(meta && meta.fridge) && !isCorner;
     if (((wideDoor && (!drawers || interior.topDoorFr)) || isCorner) && !isOpenDrawers){ // no door seam to draw — an open cabinet's zone above the drawers has no door at all
       var doorY0 = drawers && interior.topDoorFr ? interior.topDoorFr : 0, doorSpanM = (1 - doorY0) * heightM;
       place(new THREE.Mesh(new THREE.PlaneGeometry(0.008, doorSpanM * 0.97), seamMat), baseYM + heightM * doorY0 + doorSpanM / 2, 0.004);
@@ -2815,7 +2818,7 @@
     // A door zone over 600 mm still splits into two leaves even when there are drawers below it (owner,
     // 2026-10-14) — drawer fronts are already routed to their own "if (f.drawer)" branch below regardless
     // of this flag, so dropping the old "!drawers" gate here only affects the door-zone front, correctly.
-    var wide = widthM > WIDE_DOOR_M && !meta.fridge && !meta.corner;
+    var wide = twoDoors(widthM * 1000, meta.zone === "wall") && !meta.fridge && !meta.corner;
     var parts = (scene.userData.parts = scene.userData.parts || []);
 
     function makeLeaf(idx, cxL, w, y0, y1, hinge, f, fi){
@@ -7588,7 +7591,7 @@
     ANNO_SYMBOLS: ANNO_SYMBOLS, ANNO_COLOR: ANNO_COLOR,
     wallToScreen: function(x, y){ return THREE_STATE && THREE_STATE.wallToScreen ? THREE_STATE.wallToScreen(x, y) : null; },
     screenToWall: function(x, y){ return THREE_STATE && THREE_STATE.screenToWall ? THREE_STATE.screenToWall(x, y) : null; },
-    fitWarnings: fitWarnings, openingIssues: openingIssues, roomDoorConflicts: roomDoorConflicts, doorSweep: doorSweep, doorSwingOf: doorSwingOf, doorHingeOf: doorHingeOf, doorMaxDeg: doorMaxDeg, handleProjMm: handleProjMm,
+    fitWarnings: fitWarnings, twoDoors: twoDoors, openingIssues: openingIssues, roomDoorConflicts: roomDoorConflicts, doorSweep: doorSweep, doorSwingOf: doorSwingOf, doorHingeOf: doorHingeOf, doorMaxDeg: doorMaxDeg, handleProjMm: handleProjMm,
     WALL_UNIT_BASE_MM: WALL_UNIT_BASE_MM,
     snapshot3D: snapshot3D,
     setXrayFronts: setXrayFronts, previewFront: previewFront,
