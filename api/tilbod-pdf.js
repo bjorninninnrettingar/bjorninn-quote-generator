@@ -20,7 +20,8 @@ export default async function handler(req, res, { fetchImpl = fetch } = {}) {
   const { r = "", s = "" } = req.query || {};
   const want = REC_RE.test(r) ? tilbodSig(r, key) : "";
   if (!want || String(s).length !== want.length || !timingSafeEqual(Buffer.from(String(s)), Buffer.from(want))) return res.status(404).send("Tilboðið fannst ekki.");
-  const a = await fetchImpl(`https://api.airtable.com/v0/app91U15z9K704Okd/${PROJECTS}/${r}?returnFieldsByFieldId=true&fields%5B%5D=${ATTACHMENT_FIELD}`,
+  // (the single-record GET takes no fields[] — it answers 422 — so the whole record, by field id)
+  const a = await fetchImpl(`https://api.airtable.com/v0/app91U15z9K704Okd/${PROJECTS}/${r}?returnFieldsByFieldId=true`,
     { headers: { Authorization: `Bearer ${token}` } });
   const rec = await a.json().catch(() => ({}));
   const f = a.ok ? pickQuote((rec.fields || {})[ATTACHMENT_FIELD]) : null;

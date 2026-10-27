@@ -9,11 +9,11 @@
 import { tilbodLink } from "./tilbod-pdf.js";
 
 const PROJECTS = "tbl4LMXlQjp66RFKI", CONTACTS = "tblQ8zeUanriESWvL";
-const CONTACT_LINK = "Tengiliður verkefnis 👤";
+const CONTACT_LINK_ID = "fldwF9nnmsFo2yp1R"; // Tengiliður verkefnis 👤
 const ATTACHMENT_FIELD = "flddIR5JAm8ZM753V"; // "Tilboð til sendingar" — what generate-quote.js fills
 const REC_RE = /^rec[A-Za-z0-9]{14}$/;
 
-export default async function handler(req, res, { fetchImpl = fetch } = {}) {
+export default async function handler(req, res, { fetchImpl = fetch, retryMs = 1500 } = {}) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
   const secret = process.env.WEBHOOK_SECRET, key = process.env.VERK_KEY, token = process.env.AIRTABLE_TOKEN;
   if (!secret || !key) return res.status(500).json({ error: "Server not configured" });
@@ -35,14 +35,21 @@ export default async function handler(req, res, { fetchImpl = fetch } = {}) {
   // and who it goes to — what "Senda tilboð" needs for its Gmail draft (G4)
   let files = [], to = null;
   const get = async (path) => { const a = await fetchImpl(`https://api.airtable.com/v0/app91U15z9K704Okd/${path}`, { headers: { Authorization: `Bearer ${token}` } }); return a.ok ? a.json() : {}; };
+  // (single-record GETs take no fields[] — Airtable answers 422 — so whole records; found on T-248, 2026-10-27).
+  // An uploaded attachment can take a moment to show up on the record: a few short retries.
   try {
-    const rec = await get(`${PROJECTS}/${recordId}?returnFieldsByFieldId=true&fields%5B%5D=${ATTACHMENT_FIELD}`);
-    files = ((rec.fields || {})[ATTACHMENT_FIELD] || []).map((f) => ({ url: f.url, filename: f.filename }));
-    const p = await get(`${PROJECTS}/${recordId}?fields%5B%5D=${encodeURIComponent(CONTACT_LINK)}`);
-    const cid = ((p.fields || {})[CONTACT_LINK] || [])[0];
+    let rec = {};
+    for (let i = 0; i < 6; i++) {
+      rec = await get(`${PROJECTS}/${recordId}?returnFieldsByFieldId=true`);
+      files = ((rec.fields || {})[ATTACHMENT_FIELD] || []).map((f) => ({ url: f.url, filename: f.filename }));
+      if (files.length) break;
+      await new Promise((ok) => setTimeout(ok, retryMs));
+    }
+    const cid = ((rec.fields || {})[CONTACT_LINK_ID] || [])[0];
     if (cid) {
-      const c = (await get(`${CONTACTS}/${cid}?fields%5B%5D=${encodeURIComponent("Netfang 📧")}&fields%5B%5D=${encodeURIComponent("Fornafn ⬅️")}`)).fields || {};
-      if (c["Netfang 📧"]) to = { email: String(c["Netfang 📧"]).trim(), first: String(c["Fornafn ⬅️"] || "").trim() };
+      const c = (await get(`${CONTACTS}/${cid.id || cid}`)).fields || {};
+      const email = String(c["Netfang 📧"] || "").trim();
+      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) to = { email, first: String(c["Fornafn ⬅️"] || "").trim() };
     }
   } catch (e) { /* the print itself worked — the app falls back to "see Airtable" */ }
   return res.status(200).json(Object.assign({}, data, { files, to, link: tilbodLink(host, recordId, key) }));

@@ -22,10 +22,10 @@ test("no key / wrong key / bad id: nothing is printed", async () => {
 test("prints through generate-quote and returns the new PDF links", async () => {
   const f = fakeFetch((c) => c.url.includes("/api/generate-quote") ? { status: 200, body: { success: true, total: 100 } }
     : c.url.includes("tblQ8zeUanriESWvL/recCONTACT0000000") ? { status: 200, body: { id: "recCONTACT0000000", fields: { "Netfang 📧": " jon@example.is ", "Fornafn ⬅️": "Jón" } } }
-    : c.url.includes("Tengili") ? { status: 200, body: { id: REC, fields: { "Tengiliður verkefnis 👤": ["recCONTACT0000000"] } } }
-    : { status: 200, body: { id: REC, fields: { flddIR5JAm8ZM753V: [{ url: "https://dl.airtable/x.pdf", filename: "T-1 | A (Tilboð).pdf" }] } } });
+    : c.url.includes("fields%5B%5D") ? { status: 422, body: {} } // Airtable's single-record GET refuses fields[]
+    : { status: 200, body: { id: REC, fields: { fldwF9nnmsFo2yp1R: ["recCONTACT0000000"], flddIR5JAm8ZM753V: [{ url: "https://dl.airtable/x.pdf", filename: "T-1 | A (Tilboð).pdf" }] } } });
   const res = mockRes();
-  await handler(req({ recordId: REC, k: "secret" }), res, { fetchImpl: f });
+  await handler(req({ recordId: REC, k: "secret" }), res, { fetchImpl: f, retryMs: 0 });
   assert.equal(res.statusCode, 200);
   assert.equal(f.calls[0].body.recordId, REC);
   assert.deepEqual(res.body.files, [{ url: "https://dl.airtable/x.pdf", filename: "T-1 | A (Tilboð).pdf" }]);
@@ -35,7 +35,7 @@ test("prints through generate-quote and returns the new PDF links", async () => 
 });
 
 test("tilbod-pdf: a signed link redirects to the current quote PDF; a wrong signature finds nothing", async () => {
-  const f = fakeFetch(() => ({ status: 200, body: { id: REC, fields: { flddIR5JAm8ZM753V: [{ url: "https://dl/u.pdf", filename: "T-1 | A (Uppsetning).pdf" }, { url: "https://dl/t.pdf", filename: "T-1 | A (Tilboð).pdf" }] } } }));
+  const f = fakeFetch((c) => c.url.includes("fields%5B%5D") ? { status: 422, body: {} } : ({ status: 200, body: { id: REC, fields: { flddIR5JAm8ZM753V: [{ url: "https://dl/u.pdf", filename: "T-1 | A (Uppsetning).pdf" }, { url: "https://dl/t.pdf", filename: "T-1 | A (Tilboð).pdf" }] } } }));
   let res = mockRes();
   await pdf({ query: { r: REC, s: tilbodSig(REC, "secret") } }, res, { fetchImpl: f });
   assert.equal(res.statusCode, 302);
