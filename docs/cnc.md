@@ -187,3 +187,10 @@ EKKI GERT in /cnc, an open decision in /smida. Proven: with the pre-fix door log
 The 27 mm between drawer fronts (T-15 Sk 2 etc., "JEY lárétt", Grip mm 27) is the Jey aluminium profile on each front —
 slot = front + profile + 3 mm gap, as /cnc has drilled since T-33; the calm view now draws the profile (grey strip) in the
 fronts column, and the right side is drawn as the mirror image of the left (front edge right).
+
+### Rennihurðir / Fellihurðir — no hinges (2026-10-27)
+Studio's closet "Flóknari kerfi": Rennihurðir (Hettich Topline XL, Útfærsla rec9jLK5w4lpJ8Uou) and Fellihurðir (Hettich
+WingLine L, recRiQRmHo15SOGd2) now write Smíðagögn `doorSys: "renni" | "felli"` (smidaFor). cnc-sides.js then drills no
+hinge plates and no front cups for that unit (doors typed slide/fold, one "Hliðar" file run ×2) and says "Engar lamir —
+rennihurðir (Hettich Topline XL), borað eftir kerfi". Vasahurðir (Blum Revego) were already "pocket" doors (no hinges).
+T-15 and T-32 export unchanged. Tests in tests/cnc-sides.test.js.

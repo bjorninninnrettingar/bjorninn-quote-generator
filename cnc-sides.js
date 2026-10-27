@@ -388,7 +388,17 @@
       } else check.push("Smíðagögn passa ekki við Sögunarlista (" + sdoors.length + " hurðir í hönnuði, " + doors.length + " í Sögunarlista) — sjálfgefnar lamir notaðar");
     }
     var hingeAt = [], defaulted = false;
+    // Flóknari kerfi (Studio, 2026-10-27): a wardrobe with Rennihurðir (Hettich Topline XL) or Fellihurðir (Hettich
+    // WingLine L) — Smíðagögn doorSys "renni" / "felli" — has NO hinges: nothing on the sides, no cups in the fronts.
+    // The system's own fittings are drilled per its instructions (söluaðili staðfestir kerfi og stærð).
+    var DOOR_SYS = { renni: { type: "slide", name: "rennihurðir (Hettich Topline XL)" }, felli: { type: "fold", name: "fellihurðir (Hettich WingLine L)" } };
+    var dsys = smida && DOOR_SYS[smida.doorSys];
+    if (dsys && doors.length) {
+      doors.forEach(function (d) { d.type = dsys.type; d.hinges = []; });
+      check.push("Engar lamir — " + dsys.name + ", borað eftir kerfi");
+    }
     doors.forEach(function (d, i) {
+      if (d.type === "slide" || d.type === "fold") return;
       var len = r1(d.to - d.from), mine = sd && sd[i];
       var avoid = shelfRows.concat(runners).filter(function (x) { return x > d.from && x < d.to; }).map(function (x) { return r1(x - d.from); });
       if (mine && mine.type === "lift") { d.type = "lift"; d.hinges = []; check.push("Lyftihurð (" + d.H + "): engar lamir á hlið — lamirnar fara í toppborðið"); return; }
@@ -465,7 +475,7 @@
     // reconstructed from cut sizes + rules, so a case the rules don't cover would otherwise slip through silently —
     // a mismatch STOPS the cabinet (no files written, listed as EKKI GERT) instead of milling doors that won't hang.
     doors.forEach(function (d, i) {
-      if (d.type === "lift" || d.type === "pocket" || !(d.hinges || []).length) return;
+      if (d.type === "lift" || d.type === "pocket" || d.type === "slide" || d.type === "fold" || !(d.hinges || []).length) return;
       var fr = plan.fronts.filter(function (f) { return f.master === "door" && Math.abs(f.LPX - r1(d.H)) < 0.6; })[0];
       if (!fr) return;
       var len = r1(d.to - d.from), cups = [];
@@ -538,6 +548,7 @@
     });
     doors.forEach(function (d) {
       if (d.type === "lift") { check.push("Lyftihurð " + d.H + ": frontur ekki boraður hér"); return; }
+      if (d.type === "slide" || d.type === "fold") { check.push((d.type === "slide" ? "Rennihurð " : "Fellihurð ") + d.H + ": engar lamaskálar, frontur boraður eftir kerfi"); return; }
       var len = r1(d.to - d.from), ops = [], H = d.H;
       var pos = (d.hinges || []).map(function (x) {
         if (d.over) { var a = d.from + x, fromB = r1(a - d.fb), fromT = r1(d.ft - a); return fromB <= H / 2 ? { end: "2", mm: fromB } : { end: "3", mm: fromT }; }

@@ -18172,6 +18172,8 @@
     if (c.dishwasher) o.appliance = "uppthvottavel"; else if (c.fridge) o.appliance = b.type === "frystir" ? "frystir" : "isskapur";
     if (c.dishwasher) doors = [];
     if (doors.length) o.hinge = KP3D.smidaHingeSide(b, c); // every door cabinet, so /cnc never guesses (two leaves = both)
+    // Flóknari kerfi: Rennihurðir (Topline) / Fellihurðir (WingLine) → /cnc drills no hinges for this unit (cnc-sides.js doorSys)
+    if (doors.length && b.doorSys && DOOR_SYSTEMS[b.doorSys] && b.type === "harskapur") o.doorSys = b.doorSys;
     if (doors.length && b.smida) o.doors = doors.map(function(dr, i){ var sp = proSpec(b, doors, i);
       return { h:dr.box - 3, type:sp.type, side:b.swing || null, hinges:sp.type === "hinged" ? sp.hinges : [],
         pocketSys:sp.type === "pocket" ? (sp.pocketSys || "revego") : undefined }; });

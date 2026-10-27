@@ -470,3 +470,20 @@ test("two leaves side by side = hinges in both sides even when Smíðagögn has 
     assert.deepEqual(p.fronts.find((f) => f.master === "door").ops.map((o) => o.params), ['79, 0, "2,3"']);
   });
 }
+
+// Flóknari kerfi (2026-10-27): Rennihurðir (Topline XL) / Fellihurðir (WingLine L) — Smíðagögn doorSys — no hinges anywhere
+for (const [sys, word] of [["renni", "rennihurðir"], ["felli", "fellihurðir"]]) {
+  test("doorSys " + sys + ": no hinge plates in the sides, no cups in the fronts", () => {
+    const hr = (Partur, H, B, Þ, M) => ({ Partur, H, B, "Þ": Þ, M, "Tegund einingu": ["Hárskápur"] });
+    const rows = [hr("Skápur hlið", 2400, 580, 16, 2), hr("Frontur vænghurð", 2397, 497, 19, 2), hr("Laus hilla", 559, 968, 16, 2)];
+    const p = S.unitPlan("Sk 9", rows, { unitHeight: 2400, gripMm: 0, smida: JSON.stringify({ v: 1, doorSys: sys, hinge: "baedi" }) });
+    assert.ok(!p.ops.some((o) => o.name === "LOM"), "no LOM");
+    assert.ok(p.fronts.every((f) => !f.ops.some((o) => o.name === "IKEALOM")), "no IKEALOM");
+    assert.deepEqual(S.sideFiles(p).map((f) => f.name), ["Hliðar"]);
+    assert.ok(p.check.some((t) => t.startsWith("Engar lamir — " + word)), p.check.join(" | "));
+    assert.notEqual(p.status, "stop");
+    // the same cabinet without a door system still gets its hinges
+    const q = S.unitPlan("Sk 9", rows, { unitHeight: 2400, gripMm: 0 });
+    assert.ok(q.ops.some((o) => o.name === "LOM"));
+  });
+}

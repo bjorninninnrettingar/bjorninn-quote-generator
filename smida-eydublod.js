@@ -173,7 +173,8 @@
     var out = [];
     if (!editable(cab)) return out; // FRE: shown, made by hand, never blocks the rest
     (plan.stop || []).forEach(function (s) { out.push(s); });
-    var hinged = (cab.base.doors || []).some(function (d, i) { return !(e.doors && e.doors[i] && e.doors[i].type !== "hinged"); });
+    var hinged = !(cab.existing && /^(renni|felli)$/.test(cab.existing.doorSys || "")) && // Topline / WingLine: no hinges at all
+      (cab.base.doors || []).some(function (d, i) { return !(e.doors && e.doors[i] && e.doors[i].type !== "hinged"); });
     if (hinged && !e.hinge) out.push("Veldu lamahlið (vinstri / hægri / báðum megin).");
     var g = geom(cab);
     (e.shelves || (e.oven && e.oven.shelves) || []).forEach(function (s) { if (!(s.mm > 0 && s.mm < g.H)) out.push("Hilla í " + s.mm + " mm er utan skápsins (0–" + g.H + ")."); });
