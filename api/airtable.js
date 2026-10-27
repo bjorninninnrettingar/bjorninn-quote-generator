@@ -334,6 +334,8 @@ const VERK_ONLY_FIELDS = {
     "Eftirfylgnisstaða❓", "Svar við eftirfylgni", "Tilboð sent þann",
     // /crm deal ownership (2026-10-18).
     "Sölumaður 🧑‍💼",
+    // /crm follow-up + test flag (2026-10-27) — written only through api/sala.js (VERK_KEY), read here.
+    "Búið að fylgja eftir", "Líkur á sölu", "Prufuverk 🧪",
     // /crm KPI row (2026-10-17) — monthly sales + transfers tiles.
     "Verk staðfest þann", "Ár staðfestingar", "Mánuður staðfestingar",
     "Staðfestingargjald", "Eftirstöðvar (kr) 💰", "Staðfest tilboðsupphæð 🔒",

@@ -106,6 +106,12 @@
   .pipelineReport { margin-bottom:20px; }
   .pipelineReport h2 { font-size:.8rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.02em; margin-bottom:8px; }
   .prRow { display:flex; gap:10px; overflow-x:auto; }
+  .lossStats { margin-top:12px; background:var(--surface); border-radius:12px; padding:11px 13px; box-shadow:0 1px 3px rgba(0,0,0,.05); max-width:520px; }
+  .lossStats h3 { margin:0 0 8px; font-size:.82rem; }
+  .lossStats .cnt { color:var(--muted); font-weight:500; }
+  .lsRow { display:grid; grid-template-columns:190px 1fr 28px; gap:8px; align-items:center; font-size:.8rem; padding:3px 0; }
+  .lsBar { height:8px; border-radius:4px; background:#d6473c; opacity:.75; }
+  .lsRow .n { text-align:right; font-weight:600; }
   .prCell { flex:0 0 150px; background:var(--surface); border-radius:12px; padding:11px 13px; box-shadow:0 1px 3px rgba(0,0,0,.05); border-top:3px solid var(--line); }
   .prCell .lbl { font-size:.72rem; color:var(--muted); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .prCell .cnt { font-size:1.2rem; font-weight:700; margin-top:2px; }
@@ -230,6 +236,15 @@
   .lossBtns { display:flex; justify-content:space-between; gap:8px; margin-top:14px; }
   .lossBtns button { font:inherit; font-size:.86rem; padding:8px 14px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--text); cursor:pointer; }
   .lossBtns button.primary { background:#b3261e; border-color:#b3261e; color:#fff; }
+  .pendingRow { display:flex; align-items:center; gap:8px; grid-column:1/-1; }
+  .approveBtn { font:inherit; font-size:.78rem; padding:4px 10px; border-radius:8px; border:1px solid #2e7d32; background:#e8f5e9; color:#1b5e20; cursor:pointer; }
+  .approvedPill { font-size:.72rem; font-weight:600; padding:2px 8px; border-radius:999px; background:#e8f5e9; color:#1b5e20; }
+  .fuBtns { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
+  .fuBtns button { font:inherit; font-size:.8rem; padding:5px 9px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--text); cursor:pointer; }
+  .fuBtns button:disabled { opacity:.5; cursor:default; }
+  .fuMsg { font-size:.78rem; color:var(--muted); min-height:1em; padding-top:4px; }
+  .detail .row label .muted { font-size:.72rem; }
+  .pill.prufa { background:#eef1f4; color:var(--muted); }
   .lossMsg { color:#b3261e; font-size:.8rem; margin-top:8px; min-height:1em; }
   .lpSearch { width:100%; box-sizing:border-box; margin-top:10px; padding:8px 11px; border:1px solid var(--line); border-radius:8px; font:inherit; font-size:.85rem; background:var(--bg); color:var(--text); }
   .lpResults { margin-top:8px; max-height:300px; overflow:auto; }
@@ -302,6 +317,10 @@
   <div class="pipelineReport" id="pipelineReport">
     <h2>Söluferli — tölfræði (allur tími)</h2>
     <div class="prRow" id="prRow"></div>
+    <div class="lossStats" id="lossStats" style="display:none;">
+      <h3>🥀 Af hverju töpum við? <span class="cnt" id="lossStatsCnt"></span></h3>
+      <div id="lossStatsRows"></div>
+    </div>
   </div>
 
   <div class="panel" id="toReview" style="display:none;">
@@ -341,7 +360,14 @@
     <div class="row"><label>Næsta skref dags.</label><input type="date" id="dStepDate" /></div>
     <div class="row"><label>Verk ósnert</label><span id="dStale"></span></div>
     <div class="row"><label>Eftirfylgni</label><span id="dFollow"></span></div>
-    <div class="row"><label>Svar v. eftirfylgni</label><span id="dAnswer"></span></div>
+    <div class="row"><label>Skrá eftirfylgni</label><span class="fuBtns">
+      <select id="dFuWho" title="Hver fylgdi eftir"><option value="RH">RH</option><option value="JK">JK</option></select>
+      <button type="button" data-fu="call">☎️ Hringdi</button><button type="button" data-fu="mail">📤 Sendi póst</button><button type="button" data-fu="talk" title="Í samskiptum (líkleg)">💬 Í samskiptum</button>
+    </span></div>
+    <div class="row"><label>Svar v. eftirfylgni</label><select id="dAnswer"></select></div>
+    <div class="row"><label>Líkur á sölu</label><select id="dLikur"></select></div>
+    <div class="row"><label>Prufuverk <span class="muted" title="Prufu-/testverk telja ekki í KPI og tölfræði">(telst ekki með)</span></label><input type="checkbox" id="dPrufa" /></div>
+    <div class="fuMsg" id="dFuMsg"></div>
 
     <div id="liWrap" style="display:none;">
       <button class="liToggle" id="liToggleBtn" type="button">📦 Vörulínur ▾</button>
@@ -369,6 +395,7 @@
       <a id="dOpenPro" href="#" target="_blank">Opna í hönnuðinum →</a>
       <a id="dOpenSmida" href="#" target="_blank" rel="noopener" style="display:none" title="Lamir, hillur og ofn skáp fyrir skáp — og Skrifa á USB">Smíða &amp; CNC →</a>
       <button class="printBtn" id="dPrintBtn" type="button">🖨️ Prenta tilboð</button>
+      <button class="printBtn" id="dSentBtn" type="button" title="Færir í Tilboð sent og setur Næsta skref = Bíða eftir svari eftir 3 daga">📤 Merkja tilboð sent</button>
       <button class="close" id="dClose">Loka</button>
     </div>
     <div class="printMsg" id="dPrintMsg"></div>
@@ -835,6 +862,8 @@
         // 2026-10-18: why the customer is actually stalling (Bíður fjármagns / betri tíma / Óákveðið /
         // Bíða e. svari) — a real, already-public field that had no UI anywhere in crm.html until now.
         (f["Svar við eftirfylgni"] ? '<span class="pill answer">' + esc(f["Svar við eftirfylgni"]) + '</span>' : '') +
+        (f["Líkur á sölu"] ? '<span class="pill follow" title="Líkur á sölu">' + esc(f["Líkur á sölu"]) + '</span>' : '') +
+        (f["Prufuverk 🧪"] ? '<span class="pill prufa" title="Telst ekki í KPI">🧪 Prufa</span>' : '') +
       '</div>';
     el.addEventListener("click", function () { openDetail(r); });
     el.addEventListener("dragstart", function (e) {
@@ -995,8 +1024,23 @@
       return d.offset ? fetchAllPages(table, extra, acc, d.offset) : acc;
     });
   }
+  // Af hverju töpum við (2026-10-27) — counts from Töpuð tækifæri svör🥀 (the customer form + /crm's own
+  // reason on Tapað), via api/sala.js since that table isn't on the open proxy.
+  function loadLossStats() {
+    fetch("/api/sala?stats=lost&k=" + encodeURIComponent(k)).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+      if (!d || !d.total) return;
+      var max = d.reasons[0].n, box = document.getElementById("lossStats");
+      document.getElementById("lossStatsCnt").textContent = d.total + " svör";
+      document.getElementById("lossStatsRows").innerHTML = d.reasons.map(function (x) {
+        return '<div class="lsRow"><span>' + esc(x.reason) + '</span><span><div class="lsBar" style="width:' + Math.max(4, Math.round(100 * x.n / max)) + '%"></div></span><span class="n">' + x.n + '</span></div>';
+      }).join("");
+      box.style.display = "block";
+    }).catch(function () {});
+  }
+  loadLossStats();
+
   function loadPipelineReport() {
-    fetchAllPages(TAEKIFAERI, "fields%5B%5D=Sta%C3%B0a%20%C3%AD%20s%C3%B6luferli&fields%5B%5D=%F0%9F%92%B0%20Tilbo%C3%B0sup%C3%A6%C3%B0&pageSize=100")
+    fetchAllPages(TAEKIFAERI, "filterByFormula=" + encodeURIComponent("NOT({Prufuverk 🧪})") + "&fields%5B%5D=Sta%C3%B0a%20%C3%AD%20s%C3%B6luferli&fields%5B%5D=%F0%9F%92%B0%20Tilbo%C3%B0sup%C3%A6%C3%B0&pageSize=100")
       .then(function (all) {
         var row = document.getElementById("prRow");
         row.innerHTML = "";
@@ -1020,7 +1064,7 @@
   // date fields rather than guessed singleSelect choice strings: IS_SAME(..., TODAY(), "month")
   // against "Verk staðfest þann" (confirmed this month) and the two installment-paid dates. ----
   function loadKpis() {
-    var openItems = records.filter(function (r) { return STAGES.some(function (s) { return s.name === r.fields["Staða í söluferli"]; }); });
+    var openItems = records.filter(function (r) { return !r.fields["Prufuverk 🧪"] && STAGES.some(function (s) { return s.name === r.fields["Staða í söluferli"]; }); });
     var total = openItems.reduce(function (sum, r) { return sum + (r.fields["💰 Tilboðsupphæð"] || 0); }, 0);
     document.getElementById("kpiTotal").textContent = kr(total);
     document.getElementById("kpiTotalSub").textContent = openItems.length + " opin tækifæri";
@@ -1032,8 +1076,9 @@
         document.getElementById("kpiTarget").textContent = target != null ? kr(target) : "—";
       });
 
-    var confirmedFml = 'IS_SAME({Verk staðfest þann}, TODAY(), "month")';
-    var paidFml = 'OR(IS_SAME({Greiðsla 2 greidd þann}, TODAY(), "month"), IS_SAME({Greiðsla 3 greidd þann}, TODAY(), "month"))';
+    // Prufuverk 🧪 (2026-10-27) — test projects never count.
+    var confirmedFml = 'AND(NOT({Prufuverk 🧪}), IS_SAME({Verk staðfest þann}, TODAY(), "month"))';
+    var paidFml = 'AND(NOT({Prufuverk 🧪}), OR(IS_SAME({Greiðsla 2 greidd þann}, TODAY(), "month"), IS_SAME({Greiðsla 3 greidd þann}, TODAY(), "month")))';
     Promise.all([
       api(TAEKIFAERI, "filterByFormula=" + encodeURIComponent(confirmedFml) + "&fields%5B%5D=Sta%C3%B0fest%20tilbo%C3%B0sup%C3%A6%C3%B0%20%F0%9F%94%92&fields%5B%5D=%F0%9F%92%B0%20Tilbo%C3%B0sup%C3%A6%C3%B0&fields%5B%5D=Sta%C3%B0festingargjald&pageSize=100"),
       api(TAEKIFAERI, "filterByFormula=" + encodeURIComponent(paidFml) + "&fields%5B%5D=Eftirst%C3%B6%C3%B0var%20(kr)%20%F0%9F%92%B0&pageSize=100"),
@@ -1045,6 +1090,73 @@
         paid.reduce(function (sum, r) { return sum + (r.fields["Eftirstöðvar (kr) 💰"] || 0); }, 0);
       document.getElementById("kpiTransfers").textContent = kr(transfers);
     });
+  }
+
+  // ---- Eftirfylgni / Svar / Líkur / Prufuverk (2026-10-27) — written through api/sala.js, each only
+  // to its own Airtable field with that field's own choices (no automation listens to any of them). ----
+  var FU_VALUES = {
+    RH: { call: "☎️ 🐰 RH tók símtal", mail: "📤 🐰 RH sendi póst " },
+    JK: { call: "☎️ 🦁 JK Tók símtal ", mail: "📤 🦁 JK sendi póst" },
+    talk: "💬 Í samskiptum (líkleg)",
+  };
+  var SVAR_CHOICES = ["Bíða e. svari ⏳", "Óákveðið❓", "Bíður betri tíma ⏰", "Bíður fjármagns 💸"];
+  var LIKUR_CHOICES = ["🔴 Lítil", "🟡 Miðlungs", "🟢 Góð", "🔥 Mjög líkleg"];
+  function selectHtml(choices, current) {
+    return '<option value="">—</option>' + choices.map(function (c) {
+      return '<option value="' + esc(c) + '"' + (c === current ? " selected" : "") + '>' + esc(c.trim()) + '</option>';
+    }).join("");
+  }
+  function setupFollowUp(r) {
+    var f = r.fields, msg = document.getElementById("dFuMsg");
+    function paintFollow() {
+      var last = f["Búið að fylgja eftir"];
+      document.getElementById("dFollow").textContent = (f["Eftirfylgnisstaða❓"] || "—") + (last ? " · " + String(last).trim() : "");
+    }
+    paintFollow();
+    msg.textContent = "";
+    var who = document.getElementById("dFuWho");
+    who.value = /^Jóel/.test(myName) ? "JK" : "RH";
+    function save(action, field, value, done) {
+      msg.textContent = "Vista…";
+      return sala(action, { recordId: r.id, value: value }).then(function () {
+        f[field] = value; msg.textContent = "✓ Vistað"; if (done) done();
+      }, function (e) { msg.textContent = "Tókst ekki: " + e.message; });
+    }
+    document.querySelectorAll(".fuBtns button").forEach(function (b) {
+      b.onclick = function () {
+        var kind = b.dataset.fu, value = kind === "talk" ? FU_VALUES.talk : FU_VALUES[who.value][kind];
+        b.disabled = true;
+        save("followup", "Búið að fylgja eftir", value, paintFollow).then(function () { b.disabled = false; });
+      };
+    });
+    var ans = document.getElementById("dAnswer"), lik = document.getElementById("dLikur"), pr = document.getElementById("dPrufa");
+    ans.innerHTML = selectHtml(SVAR_CHOICES, f["Svar við eftirfylgni"]);
+    lik.innerHTML = selectHtml(LIKUR_CHOICES, f["Líkur á sölu"]);
+    ans.onchange = function () { save("svar", "Svar við eftirfylgni", ans.value || null, render); };
+    lik.onchange = function () { save("likur", "Líkur á sölu", lik.value || null, render); };
+    pr.checked = !!f["Prufuverk 🧪"];
+    pr.onchange = function () { save("prufa", "Prufuverk 🧪", pr.checked, function () { render(); loadKpis(); loadPipelineReport(); }); };
+
+    // 📤 Merkja tilboð sent — only before the offer has gone out; the server also requires a PDF.
+    var sentBtn = document.getElementById("dSentBtn");
+    var early = ["Hönnun & Ráðgjöf 🖊️✨", "✍️ Teikna og yfirfara tilboð"].indexOf(f["Staða í söluferli"]) !== -1;
+    sentBtn.style.display = early ? "" : "none";
+    sentBtn.onclick = function () {
+      sentBtn.disabled = true;
+      var pm = document.getElementById("dPrintMsg");
+      pm.textContent = "Merki sent…";
+      sala("sent", { recordId: r.id }).then(function () {
+        f["Staða í söluferli"] = "📤 Tilboð sent";
+        f["Næsta skref"] = "⏳ Bíða eftir svari frá viðskiptavini";
+        var dd = new Date(); dd.setDate(dd.getDate() + 3); f["Næsta skref dags."] = dd.toISOString().slice(0, 10);
+        pm.textContent = "✓ Merkt sent — eftirfylgni fer í gang";
+        sentBtn.style.display = "none";
+        document.getElementById("dStage").value = f["Staða í söluferli"];
+        document.getElementById("dStep").value = f["Næsta skref"];
+        document.getElementById("dStepDate").value = f["Næsta skref dags."];
+        load();
+      }, function (e) { pm.textContent = "Tókst ekki: " + e.message; }).then(function () { sentBtn.disabled = false; });
+    };
   }
 
   function openDetail(r) {
@@ -1071,8 +1183,7 @@
 
     document.getElementById("dStepDate").value = f["Næsta skref dags."] || "";
     document.getElementById("dStale").textContent = (f["Verk ósnert dagar 📅"] || 0) + " dagar";
-    document.getElementById("dFollow").textContent = f["Eftirfylgnisstaða❓"] || "—";
-    document.getElementById("dAnswer").textContent = f["Svar við eftirfylgni"] || "—";
+    setupFollowUp(r);
     document.getElementById("dOpenPro").href = "/skipuleggja?pro=" + r.id + (k ? "&k=" + encodeURIComponent(k) : "");
     // Smíða & CNC (/smida, 2026-10-26): only for a project that has Eyðublöð (one-record check by its T-number)
     var smA = document.getElementById("dOpenSmida"), tNo = (String(f["Heiti tækifæris / verkefnis"] || "").match(/^(T-\d+)/) || [])[1];
@@ -1097,6 +1208,7 @@
       if (!result) { stageSel.value = before; return; } // confirm() declined
       result.then(function (moved) {
         if (moved === false) { stageSel.value = before; return; }
+        if (["Hönnun & Ráðgjöf 🖊️✨", "✍️ Teikna og yfirfara tilboð"].indexOf(next) === -1) document.getElementById("dSentBtn").style.display = "none";
         var def = NEXT_STEP_DEFAULTS[next];
         if (def) { stepSel.value = def.step; document.getElementById("dStepDate").value = f["Næsta skref dags."]; }
       });
@@ -1481,8 +1593,20 @@
     var grid = document.getElementById("cFormFields");
     grid.innerHTML = "";
     if (cEditingId && cDraft["Óyfirfarið — Rakel ⚠️"]) {
-      var p = document.createElement("div"); p.innerHTML = '<span class="pendingPill">Óyfirfarið af eiganda</span>';
+      // Samþykkja (2026-10-27) — api/sala.js re-checks the login (owner or Sölumaður / Arkitekt) before clearing the flag.
+      var p = document.createElement("div"); p.className = "pendingRow";
+      p.innerHTML = '<span class="pendingPill">Óyfirfarið af eiganda</span> <button type="button" class="approveBtn">✓ Samþykkja</button>';
       grid.appendChild(p);
+      var approveId = cEditingId;
+      p.querySelector(".approveBtn").onclick = function (e) {
+        var btn = e.currentTarget, sess = window.OfficeShell.getSession() || {};
+        btn.disabled = true; btn.textContent = "Samþykki…";
+        sala("approve", { recordId: approveId, table: cMode === "person" ? "contact" : "company", me: sess.record && sess.record.id, t: sess.token })
+          .then(function () {
+            cDraft["Óyfirfarið — Rakel ⚠️"] = false;
+            p.innerHTML = '<span class="approvedPill">✓ Samþykkt</span>';
+          }, function (err) { btn.disabled = false; btn.textContent = "✓ Samþykkja"; document.getElementById("cMsg").textContent = err.message; });
+      };
     }
     cFields().forEach(function (f) {
       var row = document.createElement("div");
