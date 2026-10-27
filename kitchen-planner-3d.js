@@ -7257,6 +7257,7 @@
 
   // text along a plan line, never upside down; a side wall's text reads bottom-up
   function planTextAng(dx, dy){ var a = Math.atan2(dy, dx) * 180 / Math.PI; if (a >= 89.5) a -= 180; if (a < -90.5) a += 180; return Math.round(a * 10) / 10; }
+  function planIsPro(){ return typeof document !== "undefined" && !!document.body && document.body.classList.contains("pro"); } // Sk-numbers are shop talk
   function buildPlan2D(container, state, opts){
     opts = opts || {};
     var geoms = wallGeoms(state);
@@ -7393,11 +7394,13 @@
         svg += '<polygon points="' + q.map(function(p){ return X(p.x) + "," + Y(p.z); }).join(" ") + '" fill="#b9bec4" stroke="#7d848b" stroke-width="1" style="pointer-events:none;"/>';
       }
       if (widthM * PX_PER_M > 30 && !thin && !opts.mini){
-        var cx = (X(corners[0].x) + X(corners[2].x)) / 2;
-        var cy = (Y(corners[0].z) + Y(corners[2].z)) / 2;
+        // a wall unit's label near the wall, a floor unit's toward its front, the wall one smaller and grey — they sat
+        // on top of each other ("Sk5 · 60" over "Sk9 · 60", morning scan 2026-10-27); customers see just the width
+        var tF = isWallRow ? 0.3 : 0.62, bx0 = (corners[0].x + corners[1].x) / 2, bz0 = (corners[0].z + corners[1].z) / 2, fx0 = (corners[3].x + corners[2].x) / 2, fz0 = (corners[3].z + corners[2].z) / 2;
+        var cx = X(bx0 + (fx0 - bx0) * tF), cy = Y(bz0 + (fz0 - bz0) * tF);
         // just the width, readable (was "78,8 · 3sk" — user, 2026-10-26); PRO keeps its Sk-number in front
-        var label = (bl.sk ? bl.sk + " · " : "") + dimNum(bl.widthMm);
-        svg += '<text x="' + cx + '" y="' + cy + '" font-size="12" font-weight="600" fill="' + (c.oven ? "#fff" : "#191919") + '" text-anchor="middle" dominant-baseline="middle" style="pointer-events:none;">' + label + '</text>';
+        var label = (bl.sk && planIsPro() ? bl.sk + " · " : "") + dimNum(bl.widthMm);
+        svg += '<text x="' + cx + '" y="' + cy + '" font-size="' + (isWallRow ? 10.5 : 12) + '" font-weight="' + (isWallRow ? 500 : 600) + '" fill="' + (c.oven ? "#fff" : isWallRow ? "#6f6d66" : "#191919") + '" text-anchor="middle" dominant-baseline="middle" style="pointer-events:none;">' + label + '</text>';
       }
     }
 
