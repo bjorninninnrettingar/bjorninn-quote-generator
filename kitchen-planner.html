@@ -8239,7 +8239,7 @@
         secHtml.push(uwSec("door", "Hurðir", b.type === "harskapurOpinn" ? "Opið" : uw.doorKind === "pocket" ? "Rennihurð í hlið" : "Með hurðum", closetDoorsHtml(b, true)));
       if (isCloset() && closetTall(b) && !PRO){ // the same picture cards as the side panel; doors first — they change the options (user, 2026-10-26)
         if (!opt.pocket && !opt.doorSys) secHtml.push(uwSec("door", __("Hurðir"), b.type === "harskapurOpinn" ? __("Opið") : __("Með hurðum"), closetDoorsHtml(b, true)));
-        innHtml = closetBayHtml(b, true, true);
+        innHtml = slideDoorsHtml(b) + closetBayHtml(b, true, true);
         var rr = CLOSET_RECIPES.find(function(x){ return x.key === b.closetRecipe; });
         innSum = (rr ? __(rr.label) : __("Eigin samsetning")) + " · " + (b.type === "harskapurOpinn" ? __("Opið") : opt.pocket ? __("Rennihurð í hlið") : opt.doorSys ? __(DOOR_SYSTEMS[opt.doorSys].short) : __("Með hurðum"));
       }
@@ -8453,6 +8453,7 @@
     side.querySelectorAll("[data-clitem]").forEach(function(el){ el.addEventListener("click", function(){ closetItemStep(b, el.dataset.clitem); renderUnitWizard(); }); });
     side.querySelectorAll("[data-cldrawer]").forEach(function(el){ el.addEventListener("click", function(){ closetDrawerStep(b, el.dataset.cldrawer); renderUnitWizard(); }); });
     side.querySelectorAll("[data-clrailcolor]").forEach(function(el){ el.addEventListener("click", function(){ b.railColor = el.dataset.clrailcolor; renderUnitWizard(); }); });
+    side.querySelectorAll("[data-slidedoors]").forEach(function(el){ el.addEventListener("click", function(){ b.slideDoors = +el.dataset.slidedoors; renderUnitWizard(); }); });
     side.querySelectorAll("[data-cldoortype]").forEach(function(el){ el.addEventListener("click", function(){ uw.doorKind = el.dataset.cldoortype; if (uw.doorKind !== "pocket" && b.smida) delete b.smida.doors; setClosetBayDoors(b, el.dataset.cldoortype !== "open"); uwAdvance("door"); renderUnitWizard(); }); });
     side.querySelectorAll("[data-front-all]").forEach(function(el){ el.addEventListener("click", function(){
       if (el.dataset.frontAll === "1") b.frontAll = true; else delete b.frontAll; renderUnitWizard();
@@ -11411,7 +11412,7 @@
       [["hinged", "Með hurðum", ""], ["pocket", "Rennihurð í hlið", "Hurðin rennur inn í hlið skápsins þegar hún er opin (Blum Revego). Dýrari lausn, söluaðili staðfestir verð."], ["open", "Opið", ""]].filter(function(o){ return !(wizard && !PRO && o[0] === "pocket"); }).map(function(o){ // PRO's wizard has Rennihurð í hlið too
         var kind = wizard ? (b.type === "harskapurOpinn" ? "open" : uw && uw.doorKind === "pocket" ? "pocket" : "hinged") : closetDoorKind(b);
         return '<button type="button" class="hw-btn' + (kind === o[0] ? ' active' : '') + '" data-cldoortype="' + o[0] + '"' + (o[2] ? ' title="' + __(o[2]) + '"' : '') + '>' + __(o[1]) + '</button>';
-      }).join("") + '</div>' + (!wizard && b.doorSys && DOOR_SYSTEMS[b.doorSys] ? '<small class="cl-note">' + __(DOOR_SYSTEMS[b.doorSys].short) + ' · ' + __("söluaðili staðfestir kerfi og verð") + '</small>' : '') + '</div>';
+      }).join("") + '</div>' + (!wizard && b.doorSys && DOOR_SYSTEMS[b.doorSys] ? '<small class="cl-note">' + __(DOOR_SYSTEMS[b.doorSys].short) + ' · ' + __("söluaðili staðfestir kerfi og verð") + '</small>' : '') + '</div>' + (wizard ? '' : slideDoorsHtml(b));
   }
   function closetBayHtml(b, wizard, noDoors){
     if (!isCloset() || !closetTall(b)) return "";
@@ -11739,6 +11740,7 @@
     host.querySelectorAll("[data-clitem]").forEach(function(btn){ btn.addEventListener("click", function(){ if (b.locked){ lockedToast(); return; } closetItemStep(b, btn.dataset.clitem); save(); refreshAfterEdit(); }); });
     host.querySelectorAll("[data-cldrawer]").forEach(function(btn){ btn.addEventListener("click", function(){ if (b.locked){ lockedToast(); return; } closetDrawerStep(b, btn.dataset.cldrawer); save(); refreshAfterEdit(); }); });
     host.querySelectorAll("[data-clrailcolor]").forEach(function(btn){ btn.addEventListener("click", function(){ if (b.locked){ lockedToast(); return; } b.railColor = btn.dataset.clrailcolor; save(); refreshAfterEdit(); }); });
+    host.querySelectorAll("[data-slidedoors]").forEach(function(btn){ btn.addEventListener("click", function(){ b.slideDoors = +btn.dataset.slidedoors; save(); refreshAfterEdit(); }); });
     host.querySelectorAll("[data-cldoortype]").forEach(function(btn){
       btn.addEventListener("click", function(){
         if (b.locked){ lockedToast(); return; }
@@ -12937,9 +12939,21 @@
   // a Lyftihurð in Smíða so /cnc and the drawings follow
   // Fataskápur Flóknari kerfi (owner, 2026-10-27) — Útfærslur in Vörulisti "Flókin kerfi" (HEGAS): one system per unit, → V3
   var DOOR_SYSTEMS = {
-    renni: { short:"Rennihurðir", label:"Topline XL rennihurðakerfi", id:"rec9jLK5w4lpJ8Uou", tip:"Rennihurðir sem renna til hliðar fyrir framan skápana (Hettich Topline). Söluaðili staðfestir kerfi og verð." },
+    renni: { short:"Rennihurðir", label:"Topline rennihurðakerfi", id:"rec9jLK5w4lpJ8Uou", tip:"Rennihurðir sem renna til hliðar fyrir framan skápana (Hettich Topline). Söluaðili staðfestir kerfi og verð." },
     felli: { short:"Fellihurðir", label:"WingLine L fellihurðakerfi", id:"recRiQRmHo15SOGd2", tip:"Fellihurðir sem leggjast saman þegar þær opnast (Hettich WingLine). Söluaðili staðfestir kerfi og verð." }
   };
+  // Topline by the number of sliding doors (owner, 2026-10-27): 2 → Topline 1, 3–4 → Topline XL
+  function slideDoorsOf(b){ return Math.max(2, Math.min(4, b.slideDoors || 2)); }
+  function doorSysRec(b){
+    var d = DOOR_SYSTEMS[b.doorSys]; if (!d) return null;
+    if (b.doorSys === "renni") return slideDoorsOf(b) === 2 ? { id:"recgiZMK69m1kb9D8", label:"Topline 1 rennihurðakerfi (2 hurðir)" } : { id:"rec9jLK5w4lpJ8Uou", label:"Topline XL rennihurðakerfi (" + slideDoorsOf(b) + " hurðir)" };
+    return d;
+  }
+  function slideDoorsHtml(b){
+    if (b.doorSys !== "renni") return "";
+    return '<div class="edit-field"><label>' + __("Fjöldi hurða") + '</label><div class="hw-toggle">' + [2, 3, 4].map(function(n){
+      return '<button type="button" class="hw-btn' + (slideDoorsOf(b) === n ? ' active' : '') + '" data-slidedoors="' + n + '">' + n + '</button>'; }).join("") + '</div></div>';
+  }
   var AVENTOS_PRODUCTS = {
     hktop: { label:"AVENTOS HK-Top", id:"recguDtSfkhwH32U6" },
     hltop: { label:"AVENTOS HL-Top", id:"recHqMOZkfg9tcWtn" },
@@ -12953,7 +12967,7 @@
     // Le Mans by door half × carcass colour (route "Töfrahorn"; no light grey one exists)
     if (c.tofrahornIds){ var tid = tofraIdsFor(b, c)[b.swing === "vinstri" ? "vinstri" : "haegri"][state.carcass]; if (tid) out.push(tid); }
     if (b.aventos && AVENTOS_PRODUCTS[b.aventos]) out.push(AVENTOS_PRODUCTS[b.aventos].id);
-    if (b.doorSys && DOOR_SYSTEMS[b.doorSys] && b.type === "harskapur") out.push(DOOR_SYSTEMS[b.doorSys].id);
+    if (b.doorSys && DOOR_SYSTEMS[b.doorSys] && b.type === "harskapur") out.push(doorSysRec(b).id);
     if (b.smida && Array.isArray(b.smida.doors)){
       var pocketSys = null;
       b.smida.doors.forEach(function(d){ if (d && d.type === "pocket" && !pocketSys) pocketSys = d.pocketSys || "revego"; });
@@ -13138,7 +13152,7 @@
         if (c.thvoSide){ var hs = blockHeightMm(b, c); notes.push("Hlið við hlið í skáp: Lítill kassi " + b.widthMm + " mm með einni skúffu (~300 mm) undir " + (b.widthMm < 1000 ? "einni vél" : "þvottavél og þurrkara") + ", 2 úthliðar " + hs + " mm upp með vélunum, skápur ofan á (" + Math.max(0, hs - 100 - 300 - 880) + " mm) — söluaðili staðfestir."); }
         if (b.single && c.thvo) notes.push("Enginn þurrkari: aðeins þvottavél í turninum, skápur með hillum fyrir ofan."); // (owner, 2026-10-27)
         if (b.mirrorFront) notes.push("Spegilskápur: spegill límdur á framhliðina — söluaðili staðfestir spegilinn og verð."); // (owner, 2026-10-27)
-        if (b.doorSys && DOOR_SYSTEMS[b.doorSys] && b.type === "harskapur") notes.push(DOOR_SYSTEMS[b.doorSys].label + " (val viðskiptavinar) — engar lamir; söluaðili staðfestir kerfi, stærð og verð.");
+        if (b.doorSys && DOOR_SYSTEMS[b.doorSys] && b.type === "harskapur") notes.push(doorSysRec(b).label + " (val viðskiptavinar) — engar lamir; söluaðili staðfestir kerfi, stærð og verð.");
         if (closetMirrorIdsNow()[b.id]){ var cmN = KP3D.doorLeaves(b, c).length || 1; notes.push("Spegill á " + cmN + (cmN === 1 ? " hurð" : " hurðum") + " (val viðskiptavinar) — söluaðili staðfestir spegilinn og verð."); }
         if (state.bathMirror && c.sink) notes.push("Spegilskápur óskast yfir vaskinn — ekki í pöntun, söluaðili verðleggur hann og staðfestir mál.");
         if (c.sink && state.laundryDrain && isLaundry()) notes.push("Niðurfall í gólfi: " + (state.laundryDrain === "ja" ? "já" : "nei") + " (viðskiptavinur).");

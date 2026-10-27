@@ -3188,6 +3188,10 @@
         blind.position.set(left ? hw / 2 : -hw / 2, (y0 + y1) / 2, CD + FRONT_T / 2); blind.castShadow = true;
         frame.add(blind);
       } else if (doorMove === "lift") makeLeaf(idx++, 0, widthM, y0, y1, "top", f, fi); // one lift front, however wide
+      else if (doorMove === "slide"){ // Topline: 2–4 doors side by side; the left half slides right, the right half left
+        var nS = Math.max(2, Math.min(4, mvB.slideDoors || 2)), sw = widthM / nS;
+        for (var si = 0; si < nS; si++) makeLeaf(idx++, -widthM / 2 + sw * (si + 0.5), sw, y0, y1, si < nS / 2 ? "left" : "right", f, fi);
+      }
       else if (wide){
         makeLeaf(idx++, -widthM / 4, widthM / 2, y0, y1, "left", f, fi);
         makeLeaf(idx++, widthM / 4, widthM / 2, y0, y1, "right", f, fi);
