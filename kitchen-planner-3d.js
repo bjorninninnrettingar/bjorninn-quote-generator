@@ -6209,8 +6209,8 @@
       [[x0, y0], [x1, y1]].forEach(function(p){
         s += '<line x1="' + (p[0] - (vertical ? t : 0)) + '" y1="' + (p[1] - (vertical ? 0 : t)) + '" x2="' + (p[0] + (vertical ? t : 0)) + '" y2="' + (p[1] + (vertical ? 0 : t)) + '" stroke="' + color + '" stroke-width="1.4"/>';
       });
-      var mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
-      s += '<text x="' + mx + '" y="' + (my - 5) + '" font-size="12" font-weight="600" fill="' + color + '" text-anchor="middle"' +
+      var mx = (x0 + x1) / 2, my = (y0 + y1) / 2, narrow = !vertical && Math.abs(x1 - x0) < String(text).length * 7 + 8; // an úthlið's 19: above the chain, clear of its neighbours
+      s += '<text x="' + mx + '" y="' + (my - (narrow ? 17 : 5)) + '" font-size="12" font-weight="600" fill="' + color + '" text-anchor="middle"' +
         (vertical ? ' transform="rotate(-90 ' + mx + ' ' + my + ')"' : '') + '>' + text + '</text>';
       return s;
     }
@@ -6227,15 +6227,16 @@
       var floorU = focusBounds.units.filter(function(u){ return u.zone === "floor"; });
       var wallU = focusBounds.units.filter(function(u){ return u.zone === "wall"; });
       var svg = "";
+      // an úthlið is its own segment, labelled with its thickness in mm (owner, 2026-10-27: 60 | 19 | 60 adds up to
+      // the real total) — "19 mm" for a customer, whose chain is otherwise in cm
+      function segTxt(u){ return u.panel ? String(Math.round(u.widthMm)) + (unitCm() ? " mm" : "") : dimNum(u.widthMm); }
       floorU.forEach(function(u){
-        if (u.panel && unitCm()) return; // a customer doesn't need the 2 cm úthlið tagged — the wall total covers it
         var p0 = P(u.a0, -0.12), p1 = P(u.a1, -0.12);
-        svg += dimTick(p0.x, p0.y, p1.x, p1.y, dimNum(u.widthMm), false, color);
+        svg += dimTick(p0.x, p0.y, p1.x, p1.y, segTxt(u), false, color);
       });
       wallU.forEach(function(u){
-        if (u.panel && unitCm()) return;
         var p0 = P(u.a0, focusBounds.yHi - 0.22), p1 = P(u.a1, focusBounds.yHi - 0.22);
-        svg += dimTick(p0.x, p0.y, p1.x, p1.y, dimNum(u.widthMm), false, color);
+        svg += dimTick(p0.x, p0.y, p1.x, p1.y, segTxt(u), false, color);
       });
       // the wall's own full width/height, always shown (not just the cabinet run) — a bare wall still gets
       // dimensioned, same as the room's own wall-length label does on the 2D plan
