@@ -732,6 +732,15 @@
           method: "PATCH", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ fields: { "6. CNC yfirfarið": true } })
         }).catch(function () {});
+        // 🔔 Tilkynningar (2026-10-27): tell the fræsari the files are on the stick (bell +
+        // ALMENNT chat). Fire-and-forget, after every file is written — never touches the export.
+        try {
+          fetch("/api/virkni", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ k: KEY, tegund: "cnc", til: "Verkstæði", chat: true, t: project.id, tengill: "/fraesing?recordId=" + project.id,
+              texti: "CNC-skrár komnar á USB — " + made.length + " skrár" + (warn.length ? ", " + warn.length + " ⚠" : "") + (missing.length ? ", " + missing.length + " ⛔ þarf að forrita í höndunum" : "") }),
+          }).catch(function () {});
+        } catch (e) {}
       }
       await previewExported(preview);
     } catch (e) {
