@@ -18856,7 +18856,7 @@
   // G11: tick "🔄 Keyra Yfirferð 3.0" (false → true, exactly like /ferli's Yfirfara button) on one Eyðublað at a time —
   // its automation (Sögunarlisti → Pöntunarlisti lean → Vörur á einingu) runs per unit, and runs side by side on one
   // project's Pöntunarlisti are what made duplicate lines before. Next unit when this one's Sögunarlisti count has
-  // settled (≥ 20 s, two equal reads) or after 90 s. Nothing else is written. Stops if a new Keyra skipulag starts.
+  // settled (≥ 30 s, two equal reads) or after 90 s. Nothing else is written. Stops if a new Keyra skipulag starts.
   async function proRunYfirfara(ids, ey, head, seq){
     var pre = proPrefix(), done = 0, failed = [];
     function countFor(id, rows){ return rows.filter(function(r){ var u = ((r.fields || {})["Eyðublað ✏️"] || [])[0]; return u && (u.id || u) === id; }).length; }
@@ -18875,7 +18875,7 @@
       while (seq === pr.seq && Date.now() - start < 90000){
         await new Promise(function(res){ setTimeout(res, 5000); });
         var n = -2; try{ n = countFor(id, await proGetAll("tblhdgyvTcBfP8kov", 'FIND("' + pre + ' |",ARRAYJOIN({Tækifæri 📣 (projects)}))', ["Eyðublað ✏️"])); }catch(e){}
-        if (n > 0 && n === prev && Date.now() - start >= 20000) break;
+        if (n > 0 && n === prev && Date.now() - start >= 30000) break; // a run takes 20–36 s (T-248) — 20 s let two overlap
         prev = n;
       }
       done++;

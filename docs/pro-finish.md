@@ -656,3 +656,15 @@ it, handles are ordered in its colour. Yfirferð item "Skrokkur, borðplata og h
 (lists value → rooms; worktop only for rooms that have one, colour only where there are handles), Laga → Efni,
 or the ack "Ég sé um þetta handvirkt" (its signature drops on any change). Real per-room carcass/worktop would need
 per-line material fields in Airtable + Keyra skipulag/ÚRVINNSLA reading them — not done.
+
+**T-248 end-to-end test (2026-10-27, live, owner-approved, all cleaned up).** Draw (eldhús 9 + bað 2) → Vista →
+Prenta tilboð (PDF 2 quote pages + 8 drawing pages, 6 real Jey SKUs on the PDF, total = Airtable) → Senda tilboð
+(Gmail compose opened and discarded) → Merkja sent → Unnið in /crm (PDF frozen, verðlás, For-skipulag, chat) →
+Klár til framleiðslu (12 Eyðublöð) → Yfirfara 3.0 ×12 from PRO (all success) → /pontun Endurreikna (4.0 success,
+13 Pöntunarlisti lines, 1 INNVAL list, not sent) → /smida + Skrifa á USB into an in-memory folder (26 .bpp).
+Fixed on the way: tilbod-print/tilbod-pdf asked Airtable's single-record GET for fields[] (422 → no PDF link, no
+e-mail, lasting link 404); /smida now takes the office key from localStorage; Yfirfara spacing 20 → 30 s.
+Open: handles are never ordered (no handle V3 on PRO lines → no Pöntunarlisti rows); /cnc ATHUGA "Frontar (881)
+passa ekki við hlið (800)" on a 3-drawer Merivo base (and 654/600 on a hung bath unit); Keyra skipulag's run failed
+on two pre-existing ⛔ HU lines but PRO said "Skipulag keyrt ✓"; "Klár til framleiðslu" stayed disabled until
+Yfirferð was reopened; the quote PDF's EFNISVAL shows only FR1.

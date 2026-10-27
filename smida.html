@@ -239,7 +239,8 @@
   "use strict";
   var SD = window.CNCSIDES, CD = window.CNCDATA, M = window.SMIDAEY, BPP = window.CNCBPP;
   var PROXY = "/api/airtable", qs = new URLSearchParams(location.search);
-  var KEY = qs.get("k") || "", REC = qs.get("recordId") || qs.get("pro") || "", WANT_T = qs.get("t") || "", WANT_UNIT = qs.get("unit") || "";
+  // k: from the link, else the office key /skrifstofa keeps in this browser (same as PRO; found by the T-248 test, 2026-10-27)
+  var KEY = qs.get("k") || (function () { try { return localStorage.getItem("bjorninn:skrifstofa:k") || ""; } catch (e) { return ""; } })(), REC = qs.get("recordId") || qs.get("pro") || "", WANT_T = qs.get("t") || "", WANT_UNIT = qs.get("unit") || "";
   var $ = function (id) { return document.getElementById(id); };
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   function r1(x) { return Math.round(x * 10) / 10; }
