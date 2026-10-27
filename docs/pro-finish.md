@@ -584,3 +584,10 @@ blocks, or another room's look) = "Fronta efni 2.0" (FR2). Each line's "Frontaef
 Halifax bath next to a white kitchen goes to Keyra skipulag → Eyðublað FR2 → Sögunarlisti on the right board, and
 kp-price prices it on FR2's plate). A third front → Yfirferð ⛔ "Frontaefni: 3 í verkefninu" (Laga → Efni → Framhlið).
 Carcass, worktop and handle colour are still the first room's (one field each on the Tækifæri) — not checked yet.
+
+**G3 + G13 — Prenta tilboð saves first, opens the PDF, needs the key.** `proTilbodPrint()`: unsaved drawing →
+`proSave()` first (a failed/cancelled save stops the print — it would have shown the old price); then
+`/api/tilbod-print` with `k`, which now 403s without VERK_KEY (anyone could overwrite "Tilboð til sendingar" before)
+and answers with the new PDF links (`files`, Airtable's short-lived URLs). A tab is opened on the click (pop-up rule)
+and pointed at the "(Tilboð…)" PDF; the panel lists every PDF as links. /crm's Prenta tilboð sends its `k` too.
+Not done: drawings/Studio pictures appended to the quote PDF.

@@ -18062,16 +18062,30 @@
     }
   });
   document.addEventListener("keydown", function(e){ if (e.key === "Escape" && tp.open && !e.target.closest("input,select,textarea")) proTilbodToggle(false); });
+  // G3 (2026-10-27): the quote is printed from what's in Airtable — so an unsaved drawing is saved first (same Vista,
+  // same conflict dialog), then the new PDF opens in a tab of its own. The tab is opened on the click itself (a tab
+  // opened after the awaits would be blocked as a pop-up) and pointed at the PDF when it's ready.
   async function proTilbodPrint(){
     var btn = document.getElementById("tpPrint"), msg = document.getElementById("tpMsg");
-    btn.disabled = true; msg.textContent = "Prenta…";
+    var win = window.open("", "_blank");
+    if (win) try{ win.document.write('<title>Tilboð…</title><p style="font:15px system-ui,sans-serif;padding:32px;color:#555">Bý til tilboðið — opnast hér eftir augnablik…</p>'); }catch(e){}
+    function fail(t){ msg.textContent = t; if (win) try{ win.close(); }catch(e){} btn.disabled = false; }
+    btn.disabled = true;
+    if (proDirty() && !proReadOnly()){
+      msg.textContent = "Vista teikninguna fyrst…";
+      if (!(await proSave())) return fail("Vistaðist ekki — tilboðið var ekki prentað (það hefði sýnt gamla verðið).");
+    }
+    msg.textContent = "Prenta…";
     try{
-      var r = await fetch("/api/tilbod-print", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ recordId: PRO.id }) });
-      var d = await r.json();
+      var r = await fetch("/api/tilbod-print", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ recordId:PRO.id, k:PRO.k }) });
+      var d = await r.json().catch(function(){ return {}; });
       if (!r.ok) throw new Error(d.error || ("HTTP " + r.status));
-      msg.textContent = "✓ Prentað í Airtable (Tilboð til sendingar)";
-    }catch(e){ msg.textContent = "Tókst ekki: " + e.message; }
-    btn.disabled = false;
+      var files = d.files || [], main = files.find(function(f){ return /\(Tilboð/.test(f.filename || ""); }) || files[0];
+      if (main && win) win.location.href = main.url; else if (win) try{ win.close(); }catch(e){}
+      msg.innerHTML = "✓ Prentað" + (files.length ? ": " + files.map(function(f){
+        return '<a href="' + escapeHtmlPro(f.url) + '" target="_blank" rel="noopener">' + escapeHtmlPro((f.filename || "PDF").replace(/^.*\(|\)\.pdf$/g, "")) + '</a>'; }).join(" · ") : " í Airtable (Tilboð til sendingar)");
+      btn.disabled = false;
+    }catch(e){ fail("Tókst ekki: " + e.message); }
   }
   // Meðvituð leið út úr skoðunarhamnum (sama session — sækir aftur = spyr á ný). Flaggar að
   // Sögunarlisti/Pöntunarlisti/CNC eru byggð á gömlu teikningunni og þurfa að keyra aftur eftir þessa breytingu.
