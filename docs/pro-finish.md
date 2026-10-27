@@ -649,3 +649,10 @@ info)`; key = `handleSlotsKey` = the shape of Airtable's own handle key "ids|n1|
 count; every list price × the same factor (slot amount / exact, ≤ one price step) so the rows sum to Airtable's handle
 amount and the quote total never moves. Slots changed by hand in Airtable → the two slot rows, as before.
 (Making Airtable's own total exact would need a field change: the Verðlás automation overwrites the handle lock at 🏆.)
+
+**Per-room carcass / worktop / handle colour — Yfirferð check.** The Tækifæri holds one carcass, one worktop and one
+handle colour (the first room's): Sögunarlisti saws every carcass from it, the quote prices every worktop share from
+it, handles are ordered in its colour. Yfirferð item "Skrokkur, borðplata og höldulitur": ⛔ when drawn rooms differ
+(lists value → rooms; worktop only for rooms that have one, colour only where there are handles), Laga → Efni,
+or the ack "Ég sé um þetta handvirkt" (its signature drops on any change). Real per-room carcass/worktop would need
+per-line material fields in Airtable + Keyra skipulag/ÚRVINNSLA reading them — not done.

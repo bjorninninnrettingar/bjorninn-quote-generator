@@ -17666,6 +17666,7 @@
           "Skrokkur, skúffukerfi, framhlið, höldur og borðplata." },
       wtCheckItem(f, multi),
       frontCheckItem(),
+      sameMatCheckItem(ack),
       { key:"vara", ok:f.cabinets > 0 && !unl.length, title:"Hver eining tengd vöru", target:unl[0],
         picks:f.unlinked.filter(function(u){ return u.id; }),
         acks:f.unlinked.filter(function(u){ return !u.id; }).map(function(u){ return { id:"v1:" + u.key, label:u.key + (multi ? " (" + u.room + ")" : "") + " — Útfærsla valin í Airtable", on:!!ack["v1:" + u.key] }; }),
@@ -17677,6 +17678,28 @@
       { key:"abend", ok:wOk, title:"Ábendingar yfirfarnar", acks:f.warnings.length ? [{ id:"warn", label:"Ég hef farið yfir " + (f.warnings.length === 1 ? "ábendinguna" : "ábendingarnar"), on:wOk, sig:wSig }] : null,
         detail:f.warnings.length ? f.warnings.length + " " + plural(f.warnings.length, "ábending", "ábendingar") + ", t.d. „" + f.warnings[0] + "“" : "Engar ábendingar." }
     ]);
+  }
+  // Per-room carcass / worktop / handle colour (2026-10-27): the Tækifæri holds ONE of each (the first room's) — Sögunarlisti
+  // saws every carcass from it, the quote prices every worktop share from it and handles are ordered in its colour. Rooms
+  // that differ get a ⛔ until they match or Rakel confirms she handles it by hand (the confirmation drops on any change).
+  function sameMatCheckItem(ack){
+    var seen = { carcass:{}, top:{}, color:{} }, rooms = 0;
+    withEachCategory(function(cat){
+      var cd = categoryDef(cat); if (cd && cd.plain) return;
+      var n = 0; surfaces().forEach(function(w){ n += w.floor.length + w.wall.length; }); if (!n) return;
+      rooms++;
+      var nm = proRoomLabel(cat), add = function(k, v){ if (!v) return; (seen[k][v] = seen[k][v] || []).push(nm); };
+      add("carcass", state.carcass && CARCASS[state.carcass] ? CARCASS[state.carcass].label : null);
+      if (wtOn() && state.top && TOPS[state.top] && !TOPS[state.top].none) add("top", TOPS[state.top].label);
+      add("color", handleHardwareSummary() ? handleColorLabel() : null);
+    });
+    var LBL = { carcass:"Skrokkur", top:"Borðplata", color:"Höldulitur" }, diff = Object.keys(seen).filter(function(k){ return Object.keys(seen[k]).length > 1; });
+    var txt = diff.map(function(k){ return LBL[k] + ": " + Object.keys(seen[k]).map(function(v){ return v + " (" + seen[k][v].join(", ") + ")"; }).join(" · "); });
+    var sig = txt.join("|"), okAck = !!sig && ack.samemat === sig;
+    return { key:"sameefni", ok:!diff.length || okAck, title:rooms > 1 ? "Skrokkur, borðplata og höldulitur í rýmunum" : "Skrokkur, borðplata og höldulitur",
+      acks:diff.length ? [{ id:"samemat", label:"Ég sé um þetta handvirkt (Tækifærið tekur fyrsta rýmið)", on:okAck, sig:sig }] : null,
+      detail:diff.length ? "Tækifærið á eitt af hverju og tekur fyrsta rýmið — Sögunarlisti, verð og höldupöntun fylgja því. " + txt.join(" · ") + ". Veldu það sama í öllum rýmum, eða staðfestu." :
+        rooms > 1 ? "Eins í öllum rýmum." : "Eitt rými." };
   }
   // G2 (2026-10-27): at most two front materials in a project (Fronta efni + Fronta efni 2.0 on the Tækifæri)
   function frontCheckItem(){
@@ -17795,6 +17818,7 @@
     if (t && t.cat && state.activeCategory && t.cat !== state.activeCategory) openRoom(t.cat);
     // Laga → lands exactly on the fix (2026-10-26): the editor's Efni menu open at the missing field (e.g. Borðplata);
     // a room whose pages the menu doesn't hold (a wardrobe's size/doors) still gets its own materials page
+    if (x.key === "sameefni"){ if (state.step !== "editor") goto("editor"); proOpenEfniAt("carcass"); return; }
     if (x.key === "frontar"){ if (state.step !== "editor") goto("editor"); proOpenEfniAt("fronts"); return; }
     if (x.key === "efni"){ if (!(t && t.missingKeys && proOpenEfniAt(t.missingKeys[0]))){ matPhase = firstMissingPhase(); goto("materials"); } return; }
     if (!t) return;
