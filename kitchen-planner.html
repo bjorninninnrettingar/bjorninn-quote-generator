@@ -6435,6 +6435,7 @@
       var oh = blockHeightMm(o, CATALOG[o.type]), oe = KP3D.elevOf(o);
       cands.push(oe, oe + oh, oe + oh - h);
     });
+    (wall.floor || []).forEach(function(o){ var oc = CATALOG[o.type]; if (oc && oc.cls === "tall" && !oc.panel) cands.push(blockHeightMm(o, oc) - h); }); // level with a tall unit's top
     var best = null;
     cands.forEach(function(x){ if (Math.abs(x - v) <= 40 && x >= 0 && x + h <= roomH && (best === null || Math.abs(x - v) < Math.abs(best - v))) best = x; });
     return best === null ? v : best;
@@ -10807,10 +10808,32 @@
     var base = found.zone === "wall" ? (drop.elevMm != null ? snapElev(wall, found.block, drop.elevMm) : KP3D.elevOf(found.block)) : 0;
     var packed = placeInWall(wall, found.zone, found.block.widthMm, drop.alongMm, found.block.id, probeSpan(found.zone, found.block, found.zone === "wall" ? base : null));
     KP3D.updateDragPreview3D(drop.wallId, packed.offsetMm, found.block.widthMm, found.block.depthMm || c.d, packed.fits, blockHeightMm(found.block, c), base);
+    if (KP3D.showSnapGuides) KP3D.showSnapGuides(drop.wallId, packed.fits ? snapGuidesFor(wall, found, packed.offsetMm, base) : null, found.block.depthMm || c.d);
     // the dragged cabinet itself sits where it would land (so it visibly "stops" on an alignment line)
     return packed.fits ? { alongMm:packed.offsetMm + found.block.widthMm / 2 } : null;
   }
 
+  // the edges the dragged unit now shares with another one (owner, 2026-10-27, Figma-style): a side flush with a unit in
+  // the other row, a top / bottom level with another wall unit or a tall unit's top — drawn as thin blue lines by KP3D
+  function snapGuidesFor(wall, found, startMm, baseMm){
+    var b = found.block, c = CATALOG[b.type], h = blockHeightMm(b, c), s0 = startMm, s1 = startMm + b.widthMm, y0 = baseMm, y1 = baseMm + h, out = [];
+    ["floor", "wall"].forEach(function(z){
+      var list = wall[z] || [], st = KP3D.blockStartsMm(list, cornerClearance(wall, z));
+      list.forEach(function(o, i){
+        if (o.id === b.id || CATALOG[o.type].panel) return;
+        var oc = CATALOG[o.type], oh = blockHeightMm(o, oc), oy0 = z === "wall" ? KP3D.elevOf(o) : 0, oy1 = oy0 + oh, a0 = st[i], a1 = st[i] + o.widthMm;
+        if (z !== found.zone) [s0, s1].forEach(function(x){ if (Math.abs(x - a0) < 1 || Math.abs(x - a1) < 1) out.push({ along:x, y0:Math.min(y0, oy0), y1:Math.max(y1, oy1) }); });
+        if (found.zone === "wall"){
+          if (Math.abs(y1 - oy1) < 1) out.push({ y:y1, a0:Math.min(s0, a0), a1:Math.max(s1, a1) });
+          if (z === "wall" && Math.abs(y0 - oy0) < 1) out.push({ y:y0, a0:Math.min(s0, a0), a1:Math.max(s1, a1) });
+        }
+      });
+    });
+    var merged = []; // one line per edge: the same height (or the same side) joined into one span
+    out.forEach(function(g){ var m = merged.find(function(x){ return g.along != null ? x.along === g.along : x.y === g.y; });
+      if (!m) merged.push(Object.assign({}, g)); else if (g.along != null){ m.y0 = Math.min(m.y0, g.y0); m.y1 = Math.max(m.y1, g.y1); } else { m.a0 = Math.min(m.a0, g.a0); m.a1 = Math.max(m.a1, g.a1); } });
+    return merged;
+  }
   function on3DDragEnd(meta, drop){
     KP3D.hideDragPreview3D();
     if (!drop) return;

@@ -4731,6 +4731,25 @@
   function hideDragPreview3D(){
     if (!THREE_STATE) return;
     ["previewMesh", "bandMesh", "ghostBox"].forEach(function(k){ if (THREE_STATE[k]) THREE_STATE[k].visible = false; });
+    showSnapGuides(null, null);
+  }
+  // Figma-style alignment guides (owner, 2026-10-27): while a dragged unit is snapped flush with a neighbour, a thin blue
+  // line runs along the shared edge — guides: [{along:mm, y0, y1}] (a vertical edge) / [{y:mm, a0, a1}] (a top / bottom),
+  // on the face of wall `wallId`, `outMm` out from it. null clears them.
+  function showSnapGuides(wallId, guides, outMm){
+    if (!THREE_STATE) return;
+    var THREE = window.__THREE__, grp = THREE_STATE.snapGuides;
+    if (grp){ grp.children.forEach(function(o){ o.geometry.dispose(); }); grp.clear(); }
+    if (!wallId || !guides || !guides.length) return;
+    var wi = THREE_STATE.walls.findIndex(function(w){ return w.id === wallId; }), g = THREE_STATE.geoms[wi]; if (!g) return;
+    if (!grp){ grp = THREE_STATE.snapGuides = new THREE.Group(); grp.renderOrder = 20; THREE_STATE.scene.add(grp); }
+    if (!THREE_STATE.snapGuideMat) THREE_STATE.snapGuideMat = new THREE.LineBasicMaterial({ color:0x2f7bff, depthTest:false, transparent:true, opacity:0.95 });
+    var out = (outMm || 0) / 1000 + 0.004;
+    function P(alongMm, yMm){ return new THREE.Vector3(g.origin.x + g.axis.x * alongMm / 1000 + g.normal.x * out, yMm / 1000, g.origin.z + g.axis.z * alongMm / 1000 + g.normal.z * out); }
+    guides.forEach(function(gd){
+      var pts = gd.along != null ? [P(gd.along, gd.y0 - 60), P(gd.along, gd.y1 + 60)] : [P(gd.a0 - 60, gd.y), P(gd.a1 + 60, gd.y)];
+      var ln = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), THREE_STATE.snapGuideMat); ln.renderOrder = 20; grp.add(ln);
+    });
   }
 
   function teardown3D(discardCamera){
@@ -7927,7 +7946,7 @@
     railsOf: railsOf, railLayoutOf: railLayoutOf,
     radborunSpanMm: radborunSpanMm, RADBORUN_PITCH_MM: RADBORUN_PITCH_MM, RADBORUN_MARGIN_DEFAULT_MM: RADBORUN_MARGIN_DEFAULT_MM,
     setMeasuring: setMeasuring,
-    hideDragPreview3D: hideDragPreview3D,
+    hideDragPreview3D: hideDragPreview3D, showSnapGuides: showSnapGuides,
     teardown3D: teardown3D,
     _three: function(){ return THREE_STATE; },
     _quality: QUALITY,
