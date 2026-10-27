@@ -240,6 +240,11 @@
   .feedItem .dot2.Framleiðsla { background:var(--good); }
   .feedItem .txt { font-size:.85rem; }
   .feedItem .time { font-size:.74rem; color:var(--dim); margin-top:2px; }
+  .feedChips { display:flex; gap:6px; flex-wrap:wrap; margin:0 0 8px; }
+  .feedChips button { border:1px solid var(--line); background:transparent; color:var(--muted); border-radius:999px; padding:3px 10px; font:inherit; font-size:.74rem; cursor:pointer; }
+  .feedChips button.on { background:var(--text); color:var(--surface); border-color:var(--text); }
+  a.feedLink { display:block; color:inherit; text-decoration:none; border-radius:8px; }
+  a.feedLink:hover { background:var(--bg); }
   .chip { font-size:.7rem; font-weight:600; padding:2px 8px; border-radius:999px; white-space:nowrap; }
   .chip.work { background:var(--accent-soft); color:var(--accent); }
   .chip.deliver { background:var(--good-soft); color:var(--good); }
@@ -347,6 +352,9 @@
       </div>
       <div class="panel" id="panelVirkni" data-size="M">
         <h2>Virkni fyrirtækisins <span class="cnt" id="feedCnt"></span></h2>
+        <div class="feedChips" id="feedChips">
+          <button type="button" data-f="allt" class="on">Allt</button><button type="button" data-f="mitt">Mitt</button><button type="button" data-f="Verkstæði">Verkstæði</button><button type="button" data-f="Skrifstofa">Skrifstofa</button>
+        </div>
         <div class="body" id="feed"><div class="empty">Sæki…</div></div>
       </div>
       <div class="panel" id="stPanel" data-size="M" style="display:none;">
@@ -910,21 +918,45 @@
     if (diffH < 24) return diffH + " klst síðan";
     return Math.round(diffH / 24) + " d. síðan";
   }
+  // 2026-10-27: reads /api/virkni (all lines, incl. Til/Tengill/Hver) and filters here —
+  // Allt / Mitt (I did it, or it names me) / Verkstæði / Skrifstofa. Rows with a Tengill open it.
+  var feedItems = [], feedFilter = "allt";
+  function feedMatch(it) {
+    if (feedFilter === "allt") return true;
+    if (feedFilter === "mitt") {
+      var me = (currentUserName || "").trim();
+      return !!me && (it.hver === me || it.texti.indexOf(me) !== -1 || it.texti.indexOf(me.split(" ")[0] + " ") !== -1);
+    }
+    var til = it.til || "Skrifstofa";
+    return til === feedFilter || til === "Allir";
+  }
+  function paintFeed() {
+    var el = document.getElementById("feed");
+    var k = getK();
+    var rows = feedItems.filter(feedMatch).slice(0, 40);
+    document.getElementById("feedCnt").textContent = rows.length ? rows.length : "";
+    el.innerHTML = !feedItems.length ? '<div class="empty">Engin virkni skráð enn</div>' : !rows.length ? '<div class="empty">Ekkert hér</div>' :
+      rows.map(function (it) {
+        var inner = '<div class="feedItem"><div class="dot2 ' + esc(it.flokkur || "") + '"></div>' +
+          '<div><div class="txt">' + esc(it.texti) + '</div><div class="time">' + timeAgo(it.timi) + (it.hver ? " · " + esc(it.hver) : "") + '</div></div></div>';
+        if (!it.tengill) return '<div class="row">' + inner + '</div>';
+        var href = it.tengill.replace(/(#.*)?$/, function (h) { return (it.tengill.indexOf("?") === -1 ? "?" : "&") + "k=" + encodeURIComponent(k) + (h || ""); });
+        return '<div class="row"><a class="feedLink" href="' + esc(href) + '">' + inner + '</a></div>';
+      }).join("");
+    syncRowSpan("panelVirkni");
+    watchRowSpan("panelVirkni");
+  }
+  document.getElementById("feedChips").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-f]"); if (!b) return;
+    feedFilter = b.dataset.f;
+    Array.prototype.forEach.call(this.querySelectorAll("button"), function (x) { x.classList.toggle("on", x === b); });
+    paintFeed();
+  });
   function loadFeed() {
-    api(VIRKNI, "sort%5B0%5D%5Bfield%5D=T%C3%ADmi&sort%5B0%5D%5Bdirection%5D=desc&maxRecords=40")
-      .then(function (d) {
-        var recs = d.records || [];
-        var el = document.getElementById("feed");
-        document.getElementById("feedCnt").textContent = recs.length ? recs.length : "";
-        el.innerHTML = !recs.length ? '<div class="empty">Engin virkni skráð enn — kveiktu á Virkni-automations í Airtable</div>' :
-          recs.map(function (r) {
-            var f = r.fields;
-            return '<div class="row"><div class="feedItem"><div class="dot2 ' + esc(f["Flokkur"] || "") + '"></div>' +
-              '<div><div class="txt">' + esc(f["Texti"] || "") + '</div><div class="time">' + timeAgo(f["Tími"]) + '</div></div></div></div>';
-          }).join("");
-        syncRowSpan("panelVirkni");
-        watchRowSpan("panelVirkni");
-      });
+    fetch("/api/virkni?k=" + encodeURIComponent(getK()) + "&til=Allt", { cache: "no-store" })
+      .then(function (r) { return r.ok ? r.json() : { items: [] }; })
+      .then(function (d) { feedItems = d.items || []; paintFeed(); })
+      .catch(function () { feedItems = []; paintFeed(); });
   }
 
   // ---- Verk í vinnslu — pipeline kanban (2026-10-18, trimmed per the user's 2nd round: dropped

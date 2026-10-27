@@ -99,14 +99,15 @@ export async function addLine({ texti, tegund, til, t, tengill, hver }) {
 
 async function list(req, res) {
   const q = req.query || {};
-  const role = q.til === "Verkstæði" ? "Verkstæði" : "Skrifstofa";
+  // "Allt" = the /skrifstofa Virkni panel, which filters client-side (Allt / Mitt / Verkstæði / Skrifstofa).
+  const role = q.til === "Verkstæði" ? "Verkstæði" : q.til === "Allt" ? "Allt" : "Skrifstofa";
   const t = q.t && /^rec[A-Za-z0-9]{14}$/.test(q.t) ? q.t : "";
   const qs = ["pageSize=100", "sort%5B0%5D%5Bfield%5D=" + encodeURIComponent("Tími"), "sort%5B0%5D%5Bdirection%5D=desc"]
     .concat(["Texti", "Tími", "Flokkur", "Tegund", "Til", "Tengill", "Hver", "Tækifæri"].map((f) => "fields%5B%5D=" + encodeURIComponent(f)))
     .join("&");
   const d = await at(`${VIRKNI}?${qs}`);
   const items = (d.records || []).map(toItem)
-    .filter((it) => visibleTo(role, it.til))
+    .filter((it) => role === "Allt" || visibleTo(role, it.til))
     .filter((it) => !t || it.t === t)
     .slice(0, 50);
   res.setHeader("Cache-Control", "no-store");

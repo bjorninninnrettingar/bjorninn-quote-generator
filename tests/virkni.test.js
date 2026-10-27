@@ -108,3 +108,9 @@ test("GET filters by role and project", async () => {
   const p = await call({ method: "GET", query: { k: "lykill", til: "Skrifstofa", t: T } }, ENV, async () => okJson({ records: recs }));
   assert.deepEqual(p.json.items.map((i) => i.id), ["r1"]);
 });
+
+test("GET til=Allt (the office panel) returns every line", async () => {
+  const recs = [{ id: "a", fields: { "Til": "Verkstæði" } }, { id: "b", fields: {} }, { id: "c", fields: { "Til": "Allir" } }];
+  const r = await call({ method: "GET", query: { k: "lykill", til: "Allt" } }, ENV, async () => okJson({ records: recs }));
+  assert.deepEqual(r.json.items.map((i) => i.id), ["a", "b", "c"]);
+});
