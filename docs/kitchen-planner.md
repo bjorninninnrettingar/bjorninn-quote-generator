@@ -702,3 +702,8 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   Klósett + Spegill as obstacles (the WC keeps cabinets away; neither is ordered, both noted under Hindranir): OBSTACLES
   `model` draws the Húsgögn model fitted to the box (new `klosett` decor: block, bowl, seat + lid, flush plate; the shower
   obstacle uses the `sturta` model), `look:"mirror"` a framed reflector.
+- **Shape cards, every flow (owner):** pictures 156 px tall, cropped close round the drawing (`templateIcon` viewBox from
+  the room's bounds; `roomShapeIcon` viewBox 12 6 176 108), name + one short line on every card (`KITCHEN_SHAPE_DESC`).
+  Kitchen cards draw a run on the first solid wall + the dashed wall cabinet, like the wall rooms; Aðeins rými stays a
+  bare outline. **Bug fixed:** `load()` threw a whole home project away when it was reloaded on a room's shape page
+  before that room was drawn (the old single-room "not closed → start over" rule) — now only old single-room drafts.

@@ -758,7 +758,8 @@
   .shape-group-title span{ font-weight:400; font-size:12.5px; color:var(--ink-soft); }
   .shape-cards{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; max-width:980px; }
   .shape-cards.four{ grid-template-columns:repeat(4,minmax(0,1fr)); max-width:1180px; }
-  .shape-card svg{ height:128px !important; }
+  .shape-card svg{ height:156px !important; } /* the drawing fills its card, the same in every flow (owner, 2026-10-27) */
+  .shape-card small{ display:block; font-size:12px; color:var(--ink-soft); margin-top:2px; line-height:1.3; min-height:16px; }
   @media (max-width:640px){ .shape-cards{ grid-template-columns:repeat(2,1fr); } }
   .shape-card{ background:#fff; border:1.5px solid var(--line); border-radius:12px; padding:14px 12px 10px; cursor:pointer; text-align:center; font:inherit; position:relative; }
   .shape-card:hover{ border-color:var(--blue); }
@@ -2806,7 +2807,10 @@
       if (parsed.shape !== undefined) return false;
       // Drafts from before the closed-room model can't be opened in the new
       // editors (open wall chains) — start those over instead of half-loading.
-      if (!parsed.closed && (parsed.step === "shape" || parsed.step === "editor" || parsed.step === "contact")) return false;
+      // (only an old single-room draft — a home project whose open room isn't drawn yet keeps every room: a reload
+      // there threw the whole project away, found 2026-10-27)
+      var homeDraft = !!parsed.home || (parsed.categoryQueue || []).length > 0;
+      if (!homeDraft && !parsed.closed && (parsed.step === "shape" || parsed.step === "editor" || parsed.step === "contact")) return false;
       state = parsed;
       if (!state.intake) state.intake = { delivery:null, budget:null, room:"Eldhús" };
       // older drafts could have windows/doors on top of each other: slide each one clear of the ones before it
@@ -3271,7 +3275,7 @@
   // dashed — and reading as the room: a bath has its vaskaskápur with the basin and the spegilskápur over it, a laundry its
   // machine, a wardrobe its doors. Einn veggur leaves room at one end; Horn has a run of its own on each wall.
   function roomShapeIcon(key, kind){
-    var X0 = 22, X1 = 178, Y0 = 14, Y1 = 106, D = 22, o = '<svg viewBox="0 0 200 120" aria-hidden="true">';
+    var X0 = 22, X1 = 178, Y0 = 14, Y1 = 106, D = 22, o = '<svg viewBox="12 6 176 108" aria-hidden="true">'; // tight round the drawing: it fills its card
     var f = function(n){ return n.toFixed(1); };
     function wall(x1, y1, x2, y2, open){ o += '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="#1c1c1c" stroke-width="' + (open ? 1.6 : 2.4) + '"' + (open ? ' stroke-dasharray="5,4"' : '') + ' stroke-linecap="square"/>'; }
     function unit(x, y, w, h){ o += '<rect x="' + f(x) + '" y="' + f(y) + '" width="' + f(w) + '" height="' + f(h) + '" fill="#d9ccb2" stroke="#9c8f77" stroke-width="1"/>'; }
@@ -3310,13 +3314,15 @@
     } else return null;
     return o + '</svg>';
   }
-  function templateIcon(key){
+  function templateIcon(key, units){
     var t = SHAPE_TEMPLATES[key], lens = t.edges.map(function(e){ return e[0]; }), turns = t.edges.map(function(e){ return e[1] === "L" ? "left" : "right"; });
     var v = chainVertices(lens, turns, [], 0).pts, xs = v.map(function(p){ return p.x; }), zs = v.map(function(p){ return p.z; });
     var minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs), minZ = Math.min.apply(null, zs), maxZ = Math.max.apply(null, zs);
     var W = 200, H = 120, pad = 10, sc = Math.min((W - 2 * pad) / (maxX - minX), (H - 2 * pad) / (maxZ - minZ));
     var ox = (W - (maxX - minX) * sc) / 2 - minX * sc, oy = (H - (maxZ - minZ) * sc) / 2 - minZ * sc;
-    var out = '<svg viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true">';
+    // cropped close round the room (owner, 2026-10-27): the drawing fills its card like the bath / laundry / wardrobe ones
+    var vbx = minX * sc + ox - 9, vby = minZ * sc + oy - 9, vbw = (maxX - minX) * sc + 18, vbh = (maxZ - minZ) * sc + 18;
+    var out = '<svg viewBox="' + vbx.toFixed(1) + ' ' + vby.toFixed(1) + ' ' + vbw.toFixed(1) + ' ' + vbh.toFixed(1) + '" aria-hidden="true">';
     v.forEach(function(p, i){
       var q = v[(i + 1) % v.length], open = t.open.indexOf(i) >= 0;
       out += '<line x1="' + (p.x * sc + ox).toFixed(1) + '" y1="' + (p.z * sc + oy).toFixed(1) + '" x2="' + (q.x * sc + ox).toFixed(1) + '" y2="' + (q.z * sc + oy).toFixed(1) + '" stroke="#1c1c1c" stroke-width="' + (open ? 1.6 : 2.4) + '"' + (open ? ' stroke-dasharray="5,4"' : '') + ' stroke-linecap="square"/>';
@@ -3326,6 +3332,17 @@
         out += '<polygon points="' + cpts.map(function(c){ return c[0].toFixed(1) + "," + c[1].toFixed(1); }).join(" ") + '" fill="#d9ccb2" stroke="#9c8f77" stroke-width="1"/>';
       }
     });
+    if (units){ // a kitchen card (owner, 2026-10-27): a run on its first solid wall + a dashed wall cabinet over it — the wall rooms' style
+      var wi = t.edges.findIndex(function(e, i){ return t.open.indexOf(i) < 0; });
+      if (wi >= 0){
+        var p = v[wi], q = v[(wi + 1) % v.length], L = Math.hypot(q.x - p.x, q.z - p.z) || 1, ux = (q.x - p.x) / L, uz = (q.z - p.z) / L, inx = -uz, inz = ux;
+        var quad = function(a0, a1, dep){ return [[a0, 0], [a1, 0], [a1, dep], [a0, dep]].map(function(r){ return ((p.x + ux * r[0] + inx * r[1]) * sc + ox).toFixed(1) + "," + ((p.z + uz * r[0] + inz * r[1]) * sc + oy).toFixed(1); }).join(" "); };
+        var a0 = Math.min(600, L * 0.08), a1 = L * 0.78;
+        out = out.replace('</svg>', '');
+        out += '<polygon points="' + quad(a0, a1, 600) + '" fill="#d9ccb2" stroke="#9c8f77" stroke-width="1"/>';
+        out += '<polygon points="' + quad(a0 + L * 0.06, a1 - L * 0.12, 350) + '" fill="#efe6d4" fill-opacity=".55" stroke="#7d715b" stroke-width="1" stroke-dasharray="3,2"/>';
+      }
+    }
     return out + '</svg>';
   }
 
@@ -4454,7 +4471,8 @@
         host.innerHTML = keys.map(function(k){
           var lb = whole && k === "rect" ? "Allt rýmið" : SHAPE_TEMPLATES[k].label, ds = whole && k === "rect" ? "Allir veggir, innrétting þar sem þú vilt" : CLOSET_SHAPE_DESC[k];
           var pic = !PRO && (closetMode || bathMode) ? roomShapeIcon(k, closetMode ? "closet" : isLaundry() ? "laundry" : "bath") : null;
-          return '<button type="button" class="shape-card" data-shape="' + k + '">' + (pic || templateIcon(k)) + '<div class="nm">' + __(lb) + '</div>' + (ds ? '<small>' + __(ds) + '</small>' : '') + '</button>';
+          if (!ds && !PRO) ds = KITCHEN_SHAPE_DESC[k]; // every flow's cards: name + one short line (owner, 2026-10-27)
+          return '<button type="button" class="shape-card" data-shape="' + k + '">' + (pic || templateIcon(k, !PRO && !closetMode && !bathMode && !(catDef && catDef.plain))) + '<div class="nm">' + __(lb) + '</div>' + (ds ? '<small>' + __(ds) + '</small>' : '') + '</button>';
         }).join("");
       });
       if (closetMode && !state.closed && !pendingShape) pendingShape = "closetWall"; // the usual one, already picked
@@ -15337,6 +15355,7 @@
   var RYMI_LABELS = { "Fatask.":"Fataherbergi", "Hjónah.":"Hjónaherbergi", "Barnah.":"Barnaherbergi", "Barnah. 2":"Barnaherbergi 2", "Svefnh.":"Svefnherbergi",
     "Andyri":"Anddyri", "Baðh.":"Baðherbergi", "Baðh. 2":"Baðherbergi 2", "Þvottah.":"Þvottahús", "Skrifst.":"Skrifstofa" };
   var CLOSET_NO_ROOM = ["Búr", "Þvottah.", "Baðh.", "Baðh. 2", "Forstofa"]; // not where a wardrobe goes (user, 2026-10-25; Anddyri covers Forstofa)
+  var KITCHEN_SHAPE_DESC = { rect:"Fjórir veggir", lroom:"Horn sem gengur inn", alcove:"Skot í einum veggnum", open1:"Opið á einni hlið", open2:"Opið á tveimur hliðum", open3:"L-laga og opið", open3Mirror:"L-laga og opið" };
   var CLOSET_SHAPE_DESC = { closetWall:"Skápurinn á einum vegg", closetCorner:"Á tveimur veggjum sem mætast", closetNiche:"Inn í skot milli tveggja veggja",
     bathWall:"Innréttingin á einum vegg", bathCorner:"Á tveimur veggjum sem mætast" };
   var RYMI_CHOICES = ["Fatask.", "Hjónah.", "Barnah.", "Barnah. 2", "Svefnh.", "Gangur", "Forstofa", "Andyri",
