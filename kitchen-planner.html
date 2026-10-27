@@ -3653,10 +3653,11 @@
           // a laundry: the machine(s) beside it, as picked on "Hvar er vélin?" (owner, 2026-10-27) — does it all fit the wall?
           var mTypes = isLaundry() ? laundryMachineTypes(state.laundryMachine || "staeda") : [];
           if (mTypes.length && bathShape() === "bathWall"){
-            var mW = mTypes.length * 600, sideR = (ww.lengthMm - vb2) >= va, m0 = sideR ? vb2 : va - mW, mFits = m0 >= 0 && m0 + mW <= ww.lengthMm;
+            var mW = laundryMachineWidthMm(state.laundryMachine || "staeda"), sideR = (ww.lengthMm - vb2) >= va, m0 = sideR ? vb2 : va - mW, mFits = m0 >= 0 && m0 + mW <= ww.lengthMm;
             var m0c = Math.max(0, Math.min(ww.lengthMm - mW, m0)), mq = [wp(m0c, 0), wp(m0c + mW, 0), wp(m0c + mW, 600 * sc), wp(m0c, 600 * sc)], mm2 = wp(m0c + mW / 2, 600 * sc + 30); // a line under the vanity label, so they never sit on each other
             items += '<polygon points="' + mq.map(function(p){ return p.x + "," + p.y; }).join(" ") + '" fill="' + (mFits ? "#eef1f3" : "#f6d5cf") + '" fill-opacity=".9" stroke="' + (mFits ? "#7f8b94" : "#c0392b") + '" stroke-width="1.5" stroke-dasharray="5,3" style="pointer-events:none;"/>';
-            mTypes.forEach(function(t, k){ var cc = wp(m0c + 300 + k * 600, 300 * sc); items += '<circle cx="' + cc.x + '" cy="' + cc.y + '" r="' + Math.max(5, 170 * sc) + '" fill="none" stroke="#7f8b94" stroke-width="1.2" style="pointer-events:none;"/>'; });
+            mTypes.forEach(function(t, k){ if (t === "harskapur") return; var cc = wp(m0c + (t === "thvottavelHlid" && !noDryer() ? 310 + k * 620 : 300 + k * 600), 300 * sc);
+              if (t === "thvottavelHlid" && !noDryer()){ var cc2 = wp(m0c + 930, 300 * sc); items += '<circle cx="' + cc2.x + '" cy="' + cc2.y + '" r="' + Math.max(5, 170 * sc) + '" fill="none" stroke="#7f8b94" stroke-width="1.2" style="pointer-events:none;"/>'; } items += '<circle cx="' + cc.x + '" cy="' + cc.y + '" r="' + Math.max(5, 170 * sc) + '" fill="none" stroke="#7f8b94" stroke-width="1.2" style="pointer-events:none;"/>'; });
             items += '<text x="' + mm2.x + '" y="' + mm2.y + '" dy="4" font-size="12" font-weight="600" fill="' + (mFits ? "#5c574d" : "#c0392b") + '" text-anchor="middle" transform="rotate(' + fang + ' ' + mm2.x + ' ' + mm2.y + ')" style="pointer-events:none;">' +
               (mFits ? (mTypes[0] === "thvottavel" ? __("Vélarturn · 60 cm") : __("Vélar · {n} cm", { n:mW / 10 })) : __("Vélarnar komast ekki fyrir")) + '</text>';
           }
@@ -4248,7 +4249,7 @@
   // change of mind on that page swaps them (reseedLaundryMachine); one the customer placed by hand is never touched.
   function placeLaundryMachine(w, sink){
     var m = state.laundryMachine || "staeda"; if (m === "engin") return;
-    var ts = laundryMachineTypes(m).map(function(t){ var x = newBlock(t); x.autoMachine = true; if (t === "thvottavel" && noDryer()) x.single = true; return x; });
+    var ts = laundryMachineTypes(m).map(laundryMachineBlock);
     var tw = ts.reduce(function(a, x){ return a + x.widthMm; }, 0), starts = KP3D.blockStartsMm(w.floor, cornerClearance(w, "floor"));
     var gap = bathAutoPanels() ? 0 : 19; // a customer laundry gets its úthliðar by itself (syncBathPanels) — flush, else one panel's room
     var start = starts[w.floor.indexOf(sink)], after = start + sink.widthMm + gap, before = start - tw - gap, at = null;
@@ -4311,14 +4312,26 @@
   }
   // Þurrkari Já / Nei (owner, 2026-10-27): no dryer = one machine under the worktop, or a tower with the washer only
   function noDryer(){ return state.laundryDryer === "nei"; }
-  function laundryMachineTypes(m){ return m === "undir" ? (noDryer() ? ["thvottavelFri"] : ["thvottavelFri", "thvottavelFri"]) : m === "staeda" ? ["thvottavel"] : []; }
+  function laundryMachineTypes(m){
+    if (m === "hlid") return noDryer() && state.laundryHlidVar !== "mjor" ? ["thvottavelHlid", "harskapur"] : ["thvottavelHlid"]; // no dryer: one raised machine + a shelf cabinet, or the narrow unit alone
+    return m === "undir" ? (noDryer() ? ["thvottavelFri"] : ["thvottavelFri", "thvottavelFri"]) : m === "staeda" ? ["thvottavel"] : [];
+  }
+  // one of the machine blocks above, sized for the choice (a single raised machine is the 62 cm unit; its shelf cabinet matches its height)
+  function laundryMachineBlock(t){
+    var x = newBlock(t); x.autoMachine = true;
+    if (t === "thvottavel" && noDryer()) x.single = true;
+    if (t === "thvottavelHlid" && noDryer()) x.widthMm = 620;
+    if (t === "harskapur"){ x.widthMm = 600; x.heightMm = CATALOG.thvottavelHlid.h; x.shelves = 4; if (x.interior) x.interior = { mode:"hillur", count:4 }; }
+    return x;
+  }
+  function laundryMachineWidthMm(m){ return laundryMachineTypes(m).reduce(function(a, t){ return a + (t === "thvottavelHlid" ? (noDryer() ? 620 : 1240) : 600); }, 0); }
   function seedLaundry(waterW, basic){ // basic: the sink + the machines only, no filler units / wall cabinets (the customer said Nei to a suggestion)
     var m = state.laundryMachine || "staeda", k = unitWallShape();
     var unitWalls = k && SHAPE_TEMPLATES[k].closetWalls ? SHAPE_TEMPLATES[k].closetWalls.map(function(i){ return state.walls[i]; }).filter(function(x){ return x && !x.open; }) : [waterW];
     if (unitWalls.indexOf(waterW) < 0) waterW = unitWalls[0];
     var other = unitWalls.find(function(x){ return x !== waterW; }) || null;
     var sink = newBlock("vaskaskapur"); sink.widthMm = Math.max(CATALOG.vaskaskapur.minW, Math.min(CATALOG.vaskaskapur.maxW, 600)); sink.autoSeed = true;
-    var mach = laundryMachineTypes(m).map(function(t){ var x = newBlock(t); x.autoMachine = true; x.autoSeed = true; if (t === "thvottavel" && noDryer()) x.single = true; return x; });
+    var mach = laundryMachineTypes(m).map(function(t){ var x = laundryMachineBlock(t); x.autoSeed = true; return x; });
     var mid = state.waterWall === waterW.id ? waterAlong(waterW) : Math.round(waterW.lengthMm / 2);
     if (other){ // Horn: the machines on the other wall, at the corner; the water wall's units stop short of the corner
       var oi = state.walls.indexOf(other), wi = state.walls.indexOf(waterW), atStart = oi === (wi + 1) % state.walls.length; // the next wall starts at the corner
@@ -7643,6 +7656,8 @@
       { label:"Vélarstæða", type:"thvottavel" } ] },
     { key:"undir", label:"Vélar undir borðplötu", desc:"Þvottavél og þurrkari hlið við hlið", icon:"thvottavelFri", opts:[
       { label:"Vélar undir borðplötu", type:"thvottavelFri", pair:true } ] },
+    { key:"hlid", label:"Hlið við hlið í skáp", desc:"Upphækkaðar á skúffu, skápur fyrir ofan", icon:"thvottavel", opts:[ // (owner, 2026-10-27) — 62 cm wide = one machine
+      { label:"Hlið við hlið í skáp", type:"thvottavelHlid" } ] },
     { key:"vaskur", label:"Vaskaskápur", desc:"Undir borðplötu", icon:"vaskaskapur", opts:[
       { label:"Vaskaskápur", type:"vaskaskapur", drawers:true } ] },
     { key:"grunn", label:"Grunnskápur", desc:"Undir borðplötu", icon:"grunnskapur", opts:[
@@ -9706,12 +9721,14 @@
   var LAUNDRY_MACHINES = [
     { v:"staeda", label:"Í stæðu", desc:"Þurrkarinn ofan á vélinni, í háum skáp" },
     { v:"undir", label:"Undir borðplötu", desc:"Vél og þurrkari hlið við hlið" },
+    { v:"hlid", label:"Hlið við hlið í skáp", desc:"Upphækkaðar á skúffu, skápur fyrir ofan" }, // (owner, 2026-10-27)
     { v:"engin", label:"Engin vél", desc:"Bara skápar og vaskur" }
   ];
   function machineSvg(v){
     var drum = function(x, y, r){ return '<circle cx="' + x + '" cy="' + y + '" r="' + r + '" fill="#fff" stroke="#6d675e" stroke-width="1.3"/>'; };
     var box = function(x, y, w, h){ return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="1.5" fill="#e4ded0" stroke="#a9a196" stroke-width="1.2"/>'; };
-    var inner = v === "staeda" ? box(20, 6, 24, 52) + drum(32, 20, 6) + drum(32, 42, 6)
+    var inner = v === "hlid" ? box(6, 6, 52, 52) + '<path d="M6 24h52M6 46h52M32 24v22" stroke="#a9a196" stroke-width="1.2"/>' + drum(19, 35, 6) + drum(45, 35, 6) + '<path d="M28 52h8" stroke="#6d675e" stroke-width="1.6" stroke-linecap="round"/>'
+      : v === "staeda" ? box(20, 6, 24, 52) + drum(32, 20, 6) + drum(32, 42, 6)
       : v === "undir" ? '<path d="M4 30h56" stroke="#6d675e" stroke-width="2"/>' + box(8, 32, 22, 24) + box(34, 32, 22, 24) + drum(19, 44, 6.5) + drum(45, 44, 6.5)
       : '<path d="M4 30h56" stroke="#6d675e" stroke-width="2"/>' + box(8, 32, 48, 24) + '<path d="M24 30v-6h10" stroke="#a9a196" stroke-width="1.4" fill="none"/>';
     return '<svg viewBox="0 0 64 64" width="56" height="56" aria-hidden="true">' + inner + '<line x1="4" y1="58" x2="60" y2="58" stroke="#c9c4b8" stroke-width="1"/></svg>';
@@ -9721,7 +9738,12 @@
     box.innerHTML = LAUNDRY_MACHINES.map(function(o){
       return '<button type="button" class="drawer-card' + (state.laundryMachine === o.v ? ' active' : '') + '" data-machine="' + o.v + '"><div class="dc-ico">' + machineSvg(o.v) + '</div><div><div class="dc-name">' + __(o.label) + '</div><div class="dc-desc">' + __(o.desc) + '</div></div></button>';
     }).join("") + ((state.laundryMachine || "staeda") === "engin" ? '' : '<div class="dryer-row"><span>' + __("Þurrkari") + '</span><div class="hw-toggle">' + [["ja", "Já"], ["nei", "Nei"]].map(function(o){
-      return '<button type="button" class="hw-btn' + ((state.laundryDryer || "ja") === o[0] ? ' active' : '') + '" data-dryer="' + o[0] + '">' + __(o[1]) + '</button>'; }).join("") + '</div></div>');
+      return '<button type="button" class="hw-btn' + ((state.laundryDryer || "ja") === o[0] ? ' active' : '') + '" data-dryer="' + o[0] + '">' + __(o[1]) + '</button>'; }).join("") + '</div></div>') +
+      (state.laundryMachine === "hlid" && noDryer() ? '<div class="dryer-row"><span>' + __("Við hliðina á vélinni") + '</span><div class="hw-toggle">' + [["hilla", "Hilluskápur"], ["mjor", "Ekkert — mjórri skápur"]].map(function(o){
+        return '<button type="button" class="hw-btn' + ((state.laundryHlidVar || "hilla") === o[0] ? ' active' : '') + '" data-hlidvar="' + o[0] + '">' + __(o[1]) + '</button>'; }).join("") + '</div></div>' : '');
+    box.querySelectorAll("[data-hlidvar]").forEach(function(b){
+      b.addEventListener("click", function(){ if ((state.laundryHlidVar || "hilla") === b.dataset.hlidvar) return; state.laundryHlidVar = b.dataset.hlidvar; reseedLaundryMachine(); save(); renderMachineCards(); renderShapeCanvas(); });
+    });
     box.querySelectorAll("[data-dryer]").forEach(function(b){
       b.addEventListener("click", function(){ if ((state.laundryDryer || "ja") === b.dataset.dryer) return; state.laundryDryer = b.dataset.dryer; reseedLaundryMachine(); save(); renderMachineCards(); renderShapeCanvas(); });
     });
@@ -9857,7 +9879,8 @@
     var mTop = !mat || matPhaseReveal("top"), mDrw = !mat || matPhaseReveal("drawers");
     var sink = mk(mTop ? "vaskaskapur" : "grunnskapur", "mp1", mat && mDrw && !mTop); sink.widthMm = 600; sink.gapMm = 300; // Efni: the basin comes with the top page
     if (mat && !mDrw && sink.interior) sink.interior = { mode:"hillur", count:0 };
-    var list = m === "staeda" ? [sink, Object.assign(mk("thvottavel", "mp2"), noDryer() ? { single:true } : {})] : m === "undir" ? [sink, mk("thvottavelFri", "mp2")].concat(noDryer() ? [mk("grunnskapur", "mp3", true)] : [mk("thvottavelFri", "mp3")]) : [sink, mk("grunnskapur", "mp2", true)];
+    var list = m === "hlid" ? [sink].concat(laundryMachineTypes(m).map(function(t, k){ var x = laundryMachineBlock(t); x.id = "mp" + (k + 2); x.gapMm = 0; x.locked = false; return x; })) :
+      m === "staeda" ? [sink, Object.assign(mk("thvottavel", "mp2"), noDryer() ? { single:true } : {})] : m === "undir" ? [sink, mk("thvottavelFri", "mp2")].concat(noDryer() ? [mk("grunnskapur", "mp3", true)] : [mk("thvottavelFri", "mp3")]) : [sink, mk("grunnskapur", "mp2", true)];
     blockSeq = saved;
     var lenMm = 300 + list.reduce(function(a, b){ return a + b.widthMm; }, 0) + 300;
     // (Efni, round 3: the same laundry in the chosen materials — see-through fronts on the colour page, like the bath)
@@ -12160,7 +12183,7 @@
   // activeCategory themselves are never part of this list.
   var ROOM_FIELDS = ["intake", "carcass", "drawerSystem", "look", "look2", "innerFront", "handle", "handleColor", "top", "floor", "floorTile", "floorPattern", "floorRot", "roomHeightMm",
     "wallColor", "windows", "doors", "closed", "shapeKey", "waterWall", "waterAlongMm", "seeded", "suggestAsk", "base900", "islands", "walls", "obstacles", "decor", "openingsDone", "annotations", "hungUnits",
-    "worktop", "closetDepthMm", "closetHeightMm", "closetHeightLoft", "closetCeilGapMm", "closetSeeded", "closetFillDeclined", "closetDoors", "closetAutoHandle", "closetSpans", "laundryMachine", "laundryDryer", "laundryDrain", "wallTile", "bathMirror", "matAuto", "matFrom", "matAsk"]; // per wardrobe (2026-10-25 — were project-wide by accident)
+    "worktop", "closetDepthMm", "closetHeightMm", "closetHeightLoft", "closetCeilGapMm", "closetSeeded", "closetFillDeclined", "closetDoors", "closetAutoHandle", "closetSpans", "laundryMachine", "laundryDryer", "laundryHlidVar", "laundryDrain", "wallTile", "bathMirror", "matAuto", "matFrom", "matAsk"]; // per wardrobe (2026-10-25 — were project-wide by accident)
   function serializeRoom(){
     var blob = {};
     ROOM_FIELDS.forEach(function(k){ blob[k] = state[k]; });
@@ -12604,6 +12627,9 @@
     // Lausar hillur = "Stök vara" + H1/H2/H3 in V2 (the shape Keyra skipulag turns into an Eyðublað)
     if (c.shelfStack) return { id:STOK.utfaerslaId };
     var fam = V1_FAMILY[b.type], LM = window.KP_LINEMAP;
+    // "Hlið við hlið í skáp" (owner, 2026-10-27): no Útfærsla of its own — the drawer box under the machines is a Lítill kassi
+    // (open = drawers) at the unit's width; the úthliðar / cabinet above go in the note (thvoSideNote) until Útfærslur are aligned
+    if (c.thvoSide) return LM && LM.v1.litillkassi ? LM.v1.litillkassi.open[widthFamily(b.widthMm)] || null : null;
     // dishwasher = "Stök vara" + its front (UÞVFR) in V2 — how Rakel enters it; UÞVFR alone in V1 has no
     // route, so Keyra skipulag skipped the line without a word (found 2026-10-06)
     if (c.dishwasher) return { id:STOK.utfaerslaId };
@@ -12623,6 +12649,7 @@
       return ok === "" ? LM.ofnNoDrawers : ((LM.ofn[drawerSys()] || {})[ok] || null);
     }
     if (c.bur) return (LM.bur[drawerSys()] || {})[burKeyOf(b)] || null;
+    if (c.thvoSide) return drawerComboRec(KP3D.drawerCodes({ mode:"skuffur", count:1 }, drawerSys()), null); // the one drawer under the machines
     if (c.thvo) return b.thvo === "hurdir" ? LM.thvottavel.doors : LM.thvottavel[drawerSys()];
     // (rusl: an accessory, so it goes in V3 — see v3RecordsFor; in V2 it is a Skipulagsvilla)
     if (c.hasInterior && b.interior){
@@ -12851,6 +12878,7 @@
         if (b.aventos && AVENTOS_PRODUCTS[b.aventos]) notes.push("Lyfta: " + AVENTOS_PRODUCTS[b.aventos].label + " í stað lama — staðfestu stærð og þyngd framhliðar gagnvart lyftunni.");
         if (c.oven && !c.lowOven && +b.ovenH === 1050) notes.push("Ofn (60 cm) + örbylgjuofn (45 cm) í sama turni — staðfestu tækin.");
         if (state.hungUnits && zone_ofBlock(wall, b) === "floor") notes.push("Veggfestur (baðherbergi): " + plinthMmOf(c, "floor", wall) + " mm frá gólfi að neðri brún, enginn sökkull.");
+        if (c.thvoSide){ var hs = blockHeightMm(b, c); notes.push("Hlið við hlið í skáp: Lítill kassi " + b.widthMm + " mm með einni skúffu (~300 mm) undir " + (b.widthMm < 1000 ? "einni vél" : "þvottavél og þurrkara") + ", 2 úthliðar " + hs + " mm upp með vélunum, skápur ofan á (" + Math.max(0, hs - 100 - 300 - 880) + " mm) — söluaðili staðfestir."); }
         if (b.single && c.thvo) notes.push("Enginn þurrkari: aðeins þvottavél í turninum, skápur með hillum fyrir ofan."); // (owner, 2026-10-27)
         if (b.mirrorFront) notes.push("Spegilskápur: spegill límdur á framhliðina — söluaðili staðfestir spegilinn og verð."); // (owner, 2026-10-27)
         if (state.bathMirror && c.sink) notes.push("Spegilskápur óskast yfir vaskinn — ekki í pöntun, söluaðili verðleggur hann og staðfestir mál.");

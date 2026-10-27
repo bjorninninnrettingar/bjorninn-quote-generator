@@ -721,3 +721,13 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   úthliðar; the laundry suggestion puts efri skápar over every worktop run, with a tower too. Every inset sink (kitchen,
   laundry, PRO too — shared 3D): the worktop cut-out is 4 mm bigger than the bowl all round (under the rim) and the bowl's
   open top sits right under the rim, so no worktop edge shows inside the sink at any worktop thickness.
+- **"Hlið við hlið í skáp" (owner, 2026-10-27)** — 4th card on "Hvar er vélin?" (`laundryMachine:"hlid"`) and in Ný eining
+  (THVOTT_TREE `hlid`). New catalog type `thvottavelHlid` (tall, `thvo` + `thvoSide`, widths 620 / 1240, h 2100, d 650):
+  3D = `addWasherTower(…, single, side)` — a ~30 cm drawer, one machine-high niche with the machines side by side
+  (`addTowerMachines` side mode), a cabinet above when tall enough. 620 wide = one machine.
+  Þurrkari Nei offers two variants (`state.laundryHlidVar`): `hilla` = the 620 unit + a 600 harskápur with 4 shelves at
+  the same height; `mjor` = the 620 unit alone. Helpers: `laundryMachineTypes`, `laundryMachineBlock`, `laundryMachineWidthMm`.
+  **Line Items mapping (no new Útfærsla — owner):** V1 = Lítill kassi, open (drawers), at `widthFamily(width)`
+  (`LM.v1.litillkassi.open[600|1200]`); V2 = the one-drawer combo (`drawerCodes({count:1})`: Merivo E / Legra C);
+  the frame is described in the line note: "Hlið við hlið í skáp: Lítill kassi … með einni skúffu (~300 mm) undir …,
+  2 úthliðar <h> mm upp með vélunum, skápur ofan á (…) — söluaðili staðfestir." Revisit when Útfærslur are aligned.

@@ -85,6 +85,9 @@
     thvottavelFri:{ label:"Þvottavél (frístandandi)", zone:"floor", cls:"floor", defaultW:600, minW:600, maxW:600, h:900, d:600, minH:800, maxH:950, minD:550, maxD:700, hasInterior:false, counter:true, appliance:"washer", notOrdered:true },
     burskapur:   { label:"Búrskápur", zone:"floor", cls:"tall", defaultW:600, minW:300, maxW:1200, h:2500, d:600, minH:1800, maxH:2700, minD:400, maxD:700, hasInterior:false, bur:true },
     // Þvottavélaskápur: washer/dryer tower; b.thvo = "skuffa" (a drawer at the bottom to raise the machine) | "hurdir" (doors only)
+    // "Hlið við hlið í skáp" (owner, 2026-10-27): washer + dryer side by side, raised on a drawer (~30 cm), in a frame with a
+    // cabinet above — built from existing parts (a Lítill kassi with the drawer + úthliðar, see v1RecordFor). 620 wide = one machine.
+    thvottavelHlid:{ label:"Vélar hlið við hlið", zone:"floor", cls:"tall", defaultW:1240, minW:620, maxW:1300, widths:[620, 1240], h:2100, d:650, minH:1400, maxH:2700, minD:600, maxD:750, hasInterior:false, thvo:true, thvoSide:true, fixedFronts:true },
     thvottavel:  { label:"Þvottavélaskápur", zone:"floor", cls:"tall", defaultW:600, minW:600, maxW:900, h:2500, d:600, minH:1800, maxH:2700, minD:600, maxD:750, hasInterior:false, thvo:true, fixedFronts:true },
     // Uppþvottavél: integrated dishwasher behind one full front (V1 = the front itself)
     uppthvottavel:{ label:"Uppþvottavél", zone:"floor", cls:"floor", defaultW:600, minW:450, maxW:600, h:900, d:600, minH:850, maxH:1000, minD:550, maxD:700, hasInterior:false, counter:true, dishwasher:true },
@@ -2472,9 +2475,10 @@
   // a cabinet with one door above when there's room (≥ 20 cm). Both boxes carry the unit's meta (pick / drag / select).
   // Returns the niche's {base, top} (m) for addTowerMachines.
   var TOWER_DRAWER_M = 0.40, TOWER_NICHE_M = 1.76;
-  function addWasherTower(THREE, scene, geom, offM, wM, hM, dM, plM, carcassMat, frontMat, meta, selected, pickables, single){
+  function addWasherTower(THREE, scene, geom, offM, wM, hM, dM, plM, carcassMat, frontMat, meta, selected, pickables, single, side){
     // single (no dryer, owner 2026-10-27): a niche for the washer only — the rest above is a cabinet with shelves
-    var base = plM + TOWER_DRAWER_M, niche = Math.min(single ? TOWER_NICHE_M / 2 : TOWER_NICHE_M, hM - base - CARCASS_T), up = hM - base - niche;
+    // side ("Hlið við hlið í skáp"): one machine-high niche, the machines next to each other, a ~30 cm drawer under them
+    var base = plM + (side ? 0.3 : TOWER_DRAWER_M), niche = Math.min(single || side ? TOWER_NICHE_M / 2 : TOWER_NICHE_M, hM - base - CARCASS_T), up = hM - base - niche;
     if (up < 0.2){ niche = hM - base; up = 0; }
     var common = { washerDrawerM:0, tall:false, fixedFronts:true, splitFr:null, alwaysDims:false };
     addCabinetBox(THREE, scene, geom, offM, wM, base, dM, 0, carcassMat, frontMat, null, Object.assign({}, meta, common), selected, pickables);
@@ -2494,17 +2498,19 @@
   }
   // Þvottavélaskápur (user, 2026-10-26): the washer with the dryer on it, drawn inside the tower (above its drawer) —
   // hidden behind the doors in the room, seen through them in the previews (opts.towerGlass) or with the fronts off
-  function addTowerMachines(THREE, group, geom, offsetM, widthM, baseM, topM, depthM, mat, single){
-    var mw = Math.min(0.6, widthM - 2 * CARCASS_T - 0.012), mh = Math.min(0.85, (topM - baseM - 0.03) / (single ? 1 : 2)), md = Math.min(0.58, depthM - FRONT_T - 0.03);
+  function addTowerMachines(THREE, group, geom, offsetM, widthM, baseM, topM, depthM, mat, single, side){
+    var nSide = side ? (single ? 1 : 2) : 1;
+    var mw = Math.min(0.6, (widthM - 2 * CARCASS_T - 0.012 * nSide) / nSide), mh = Math.min(0.85, (topM - baseM - 0.03) / (single || side ? 1 : 2)), md = Math.min(0.58, depthM - FRONT_T - 0.03);
     if (mh < 0.5 || mw < 0.4) return;
     var quat = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(geom.axis.x, 0, geom.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(geom.normal.x, 0, geom.normal.z)));
     var a = offsetM + widthM / 2, back = BACK_T + 0.01;
     (single ? [0] : [0, 1]).forEach(function(k){
+      var ak = side && nSide > 1 ? a + (k - 0.5) * (mw + 0.012) : a; // side by side: one each side of the middle; stacked: one above the other
       var sub = new THREE.Group(), body = new THREE.Mesh(new THREE.BoxGeometry(mw, mh - 0.01, md), mat);
-      body.position.set(geom.origin.x + geom.axis.x * a + geom.normal.x * (back + md / 2), mh / 2, geom.origin.z + geom.axis.z * a + geom.normal.z * (back + md / 2));
+      body.position.set(geom.origin.x + geom.axis.x * ak + geom.normal.x * (back + md / 2), mh / 2, geom.origin.z + geom.axis.z * ak + geom.normal.z * (back + md / 2));
       body.quaternion.copy(quat); body.castShadow = true; body.receiveShadow = true; sub.add(body);
-      addApplianceDetails(THREE, sub, geom, a - mw / 2, mw, mh - 0.01, back + md, "washer");
-      sub.position.y = baseM + 0.005 + k * mh;
+      addApplianceDetails(THREE, sub, geom, ak - mw / 2, mw, mh - 0.01, back + md, "washer");
+      sub.position.y = baseM + 0.005 + (side ? 0 : k * mh);
       group.add(sub);
     });
   }
@@ -5477,7 +5483,7 @@
         // Þvottavélaskápur "Skúffa undir vélinni + skápur ofan við" (round 3, user 2026-10-26): a drawer at the bottom, the
         // washer + dryer in an open niche, a cabinet above — what's built and what the "Hvar er vélin?" preview shows
         var nicheTower = c.thvo && b.thvo !== "hurdir" && !applMat;
-        if (nicheTower) towerNiche = addWasherTower(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, plinthMmW / 1000, carcassMat, frontMatOf(b), cabMeta, selected, pickables, !!b.single);
+        if (nicheTower) towerNiche = addWasherTower(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, plinthMmW / 1000, carcassMat, frontMatOf(b), cabMeta, selected, pickables, !!b.single || (c.thvoSide && b.widthMm < 1000), !!c.thvoSide);
         else addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, applMat || carcassMat, applMat || (c.thvo && towerGlassMat) || frontMatOf(b), inter, cabMeta, selected, pickables);
         if (c.sink && state.hungUnits && state.bathMirror && !opts.people && !wall.island){ // the mirror cabinet asked for on the Efni page, over the sink
           var mx0 = offset, mx1 = offset + b.widthMm, mws = blockStartsMm(wall.wall || [], 0);
@@ -5485,7 +5491,7 @@
           if (!under) addMirrorCabinet(THREE, scene, g, offset / 1000, b.widthMm / 1000, Math.min(Math.max(1.15, hM + 0.42), (roomHeightMm - 760) / 1000), carcassMat);
         }
         if (applMdl) placeApplModel(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, applMdl);
-        if (c.thvo && !opts.people) addTowerMachines(THREE, scene, g, offset / 1000, b.widthMm / 1000, nicheTower ? towerNiche.base : plinthMmW / 1000 + CARCASS_T, nicheTower ? towerNiche.top : hM - CARCASS_T, dM, washerMat, !!b.single);
+        if (c.thvo && !opts.people) addTowerMachines(THREE, scene, g, offset / 1000, b.widthMm / 1000, nicheTower ? towerNiche.base : plinthMmW / 1000 + CARCASS_T, nicheTower ? towerNiche.top : hM - CARCASS_T, dM, washerMat, !!b.single || (c.thvoSide && b.widthMm < 1000), !!c.thvoSide);
         // LED in a tall closet (user, 2026-10-23, C1): a vertical strip in a groove at the front edge of one side
         // (6×6 mm), or a strip under the top shelf (4×8 mm). Behind the doors — it shows in X-ray and with doors open.
         if (b.closetLed && c.cls === "tall" && !opts.people){
