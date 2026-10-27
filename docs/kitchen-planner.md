@@ -637,3 +637,8 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   "we don't take calls" and to escalate instead of inventing; it also closes „…" with a plain `"` — the parser repairs that.
 - Local test without `vercel dev` login: a tiny node server that serves files + imports `api/*.js` handlers works (restart it after
   prompt edits — Node caches the imported prompt module).
+- **Bath A–Ö page 1 (owner):** customers no longer get "Hvaða rými er þetta?" on the shape page (`shapeRoomPick` hidden
+  when `state.home`); the room's Rými 🏡 value comes from its name on Rýmin þín (`hlRymiFor` on rename too — writes
+  `state.home.rymi[key]` and the blob's `intake.room`). Shape cards of the wall rooms are drawn by `roomShapeIcon(key, kind)`
+  (bath: vaskaskápur + basin + dashed spegilskápur; laundry: sink + machine / tower; closet: wardrobe doors). Einn veggur
+  leaves a gap, Horn has a run per wall, Allt rýmið has units on every wall. PRO keeps `templateIcon`.

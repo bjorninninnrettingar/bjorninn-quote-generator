@@ -2152,6 +2152,8 @@
     "Ganga um": "Walk around",
     "Úthliðunum bætt við.": "End panels added.",
     "Vantar": "Missing",
+    "Veldu hvernig innréttingin liggur. Málin koma næst.": "Choose how the units are laid out. The sizes come next.",
+    "Allir veggir, innrétting þar sem þú vilt": "Every wall, units wherever you like",
     "Innréttingar fyrir allt heimilið, hannaðar af þér í 3D og smíðaðar af okkur.": "Cabinetry for the whole home, designed by you in 3D and made by us.",
     "Veldu rýmin": "Choose your rooms",
     "Eldhús, fataskápur, bað, þvottahús eða innihurðir — eitt eða fleiri.": "Kitchen, wardrobe, bathroom, laundry or interior doors — one or more.",

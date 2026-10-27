@@ -3261,6 +3261,49 @@
     renderShapeStep();
   }
 
+  // Shape cards of the wall rooms (owner, 2026-10-27): drawn from above in one style — beige units, the wall cabinets
+  // dashed — and reading as the room: a bath has its vaskaskápur with the basin and the spegilskápur over it, a laundry its
+  // machine, a wardrobe its doors. Einn veggur leaves room at one end; Horn has a run of its own on each wall.
+  function roomShapeIcon(key, kind){
+    var X0 = 22, X1 = 178, Y0 = 14, Y1 = 106, D = 22, o = '<svg viewBox="0 0 200 120" aria-hidden="true">';
+    var f = function(n){ return n.toFixed(1); };
+    function wall(x1, y1, x2, y2, open){ o += '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="#1c1c1c" stroke-width="' + (open ? 1.6 : 2.4) + '"' + (open ? ' stroke-dasharray="5,4"' : '') + ' stroke-linecap="square"/>'; }
+    function unit(x, y, w, h){ o += '<rect x="' + f(x) + '" y="' + f(y) + '" width="' + f(w) + '" height="' + f(h) + '" fill="#d9ccb2" stroke="#9c8f77" stroke-width="1"/>'; }
+    function upper(x, y, w, h){ o += '<rect x="' + f(x) + '" y="' + f(y) + '" width="' + f(w) + '" height="' + f(h) + '" fill="#efe6d4" fill-opacity=".55" stroke="#7d715b" stroke-width="1" stroke-dasharray="3,2"/>'; }
+    function basin(cx, cy, rx, ry){ o += '<ellipse cx="' + f(cx) + '" cy="' + f(cy) + '" rx="' + rx + '" ry="' + ry + '" fill="#fbfaf7" stroke="#9c8f77" stroke-width="1"/>'; }
+    function machine(cx, cy, r){ o += '<circle cx="' + f(cx) + '" cy="' + f(cy) + '" r="' + r + '" fill="#fbfaf7" stroke="#9c8f77" stroke-width="1"/>'; }
+    function split(x, y, w, h, n, vertical){ for (var i = 1; i < n; i++){ var t = i / n; o += vertical ? '<line x1="' + f(x) + '" y1="' + f(y + h * t) + '" x2="' + f(x + w) + '" y2="' + f(y + h * t) + '" stroke="#9c8f77" stroke-width="1"/>' : '<line x1="' + f(x + w * t) + '" y1="' + f(y) + '" x2="' + f(x + w * t) + '" y2="' + f(y + h) + '" stroke="#9c8f77" stroke-width="1"/>'; } }
+    // a run along the top wall, from x, w wide: what's in it depends on the room
+    function topRun(x, w, withUpper){
+      if (kind === "closet"){ unit(x, Y0, w, D + 4); split(x, Y0, w, D + 4, Math.max(2, Math.round(w / 27))); return; }
+      if (kind === "bath"){ var vw = Math.min(56, w * 0.55); unit(x, Y0, vw, D); basin(x + vw / 2, Y0 + D / 2 + 1, Math.min(16, vw / 3.2), 6); if (w > vw){ unit(x + vw, Y0, w - vw, D); split(x + vw, Y0, w - vw, D, 2, true); }
+        if (withUpper) upper(x + 4, Y0, vw - 8, 10); return; } // the spegilskápur over the basin
+      if (kind === "laundry"){ var sw = Math.min(46, w * 0.45); unit(x, Y0, sw, D); basin(x + sw / 2, Y0 + D / 2 + 1, 11, 5); var mw = Math.min(30, w - sw); unit(x + sw, Y0, mw, D); machine(x + sw + mw / 2, Y0 + D / 2, 7);
+        if (w - sw - mw > 4) unit(x + sw + mw, Y0, w - sw - mw, D); if (withUpper) upper(x + 2, Y0, Math.min(w - 4, sw + mw - 4), 11); return; }
+      unit(x, Y0, w, D); if (withUpper) upper(x + 2, Y0, w - 4, 11);
+    }
+    // a run down the left wall
+    function leftRun(y, h){
+      if (kind === "closet"){ unit(X0, y, D + 4, h); split(X0, y, D + 4, h, Math.max(2, Math.round(h / 24)), true); return; }
+      if (kind === "laundry"){ unit(X0, y, D, h); machine(X0 + D / 2, y + h * 0.3, 6.5); machine(X0 + D / 2, y + h * 0.72, 6.5); return; } // the machine tower
+      unit(X0, y, D, h); if (kind === "bath") split(X0, y, D, h, 2, true); // a tall cabinet
+    }
+    if (key === "closetWall" || key === "bathWall"){
+      wall(X0, Y0, X1, Y0); wall(X1, Y0, X1, Y1, true); wall(X1, Y1, X0, Y1, true); wall(X0, Y1, X0, Y0, true);
+      topRun(X0, kind === "closet" ? 110 : 104, kind !== "closet");
+    } else if (key === "closetCorner" || key === "bathCorner"){
+      wall(X0, Y0, X1, Y0); wall(X0, Y0, X0, Y1); wall(X1, Y0, X1, Y1, true); wall(X1, Y1, X0, Y1, true);
+      topRun(X0 + 34, kind === "closet" ? 100 : 96, kind !== "closet");
+      leftRun(Y0 + 38, kind === "closet" ? 52 : 44);
+    } else if (key === "rect"){
+      wall(X0, Y0, X1, Y0); wall(X1, Y0, X1, Y1); wall(X1, Y1, X0, Y1); wall(X0, Y1, X0, Y0);
+      topRun(X0, X1 - X0, kind !== "closet");
+      leftRun(Y0 + D + 12, 40);
+      if (kind === "closet"){ unit(X1 - D - 4, Y0 + D + 16, D + 4, 44); split(X1 - D - 4, Y0 + D + 16, D + 4, 44, 2, true); }
+      else { unit(X1 - D, Y0 + D + 14, D, 38); unit(X0 + 70, Y1 - D, 60, D); split(X0 + 70, Y1 - D, 60, D, 2); }
+    } else return null;
+    return o + '</svg>';
+  }
   function templateIcon(key){
     var t = SHAPE_TEMPLATES[key], lens = t.edges.map(function(e){ return e[0]; }), turns = t.edges.map(function(e){ return e[1] === "L" ? "left" : "right"; });
     var v = chainVertices(lens, turns, [], 0).pts, xs = v.map(function(p){ return p.x; }), zs = v.map(function(p){ return p.z; });
@@ -4259,8 +4302,8 @@
     var closetMode = isCloset(), bathMode = isWallRoom() && !PRO;
     var bathNow = !!bathShape();
     var titles = {
-      pick: closetMode ? [__("Hvar fer fataskápurinn?"), __("Veldu herbergið og hvernig veggurinn er. Þú slærð inn málin næst.")]
-        : bathMode ? [__("Hvar á innréttingin að vera?"), __("Á einum vegg eða í horni. Þú slærð inn málin næst.")]
+      pick: closetMode ? [__("Hvar fer fataskápurinn?"), PRO ? __("Veldu herbergið og hvernig veggurinn er. Þú slærð inn málin næst.") : __("Veldu hvernig innréttingin liggur. Málin koma næst.")]
+        : bathMode ? [__("Hvar á innréttingin að vera?"), __("Veldu hvernig innréttingin liggur. Málin koma næst.")]
         : catBase() !== "eldhus" // every room but the kitchen says "rýmið" (Þvottahús showed "eldhúsið")
         ? [__("Hvernig er rýmið í laginu?"), __("Veldu þá lögun sem passar best. Þú stillir málin næst.")]
         : [__("Hvernig er eldhúsið í laginu?"), __("Veldu þá lögun sem passar best. Þú stillir málin næst.")],
@@ -4289,7 +4332,8 @@
     // (the nav lives in the title row on every phase now — 2026-10-11)
     if (shapePhase === "pick"){
       var rp = document.getElementById("shapeRoomPick");
-      rp.hidden = !(catDef && catDef.roomPicker);
+      // customers named the room on Rýmin þín (pencil) — no second "Hvaða rými er þetta?" here; its Rými value follows the name (owner, 2026-10-27)
+      rp.hidden = !(catDef && catDef.roomPicker) || (!PRO && !!state.home);
       if (catDef && catDef.roomPicker){
         var sel = document.getElementById("fataskaparRoom");
         var selMode = closetMode ? "closet" : bathMode ? "bath" : "all"; // one select for every room kind — rebuilt when the kind changes
@@ -4312,8 +4356,9 @@
         var host = document.getElementById(g === "closed" ? "shapeCardsClosed" : "shapeCardsOpen");
         host.classList.toggle("four", keys.length === 4);
         host.innerHTML = keys.map(function(k){
-          var lb = whole && k === "rect" ? "Allt rýmið" : SHAPE_TEMPLATES[k].label, ds = whole && k === "rect" ? "Teiknaðu allt herbergið frá A til Ö — allir veggir, gluggar og hurðir, innrétting þar sem þú vilt" : CLOSET_SHAPE_DESC[k];
-          return '<button type="button" class="shape-card" data-shape="' + k + '">' + templateIcon(k) + '<div class="nm">' + __(lb) + '</div>' + (ds ? '<small>' + __(ds) + '</small>' : '') + '</button>';
+          var lb = whole && k === "rect" ? "Allt rýmið" : SHAPE_TEMPLATES[k].label, ds = whole && k === "rect" ? "Allir veggir, innrétting þar sem þú vilt" : CLOSET_SHAPE_DESC[k];
+          var pic = !PRO && (closetMode || bathMode) ? roomShapeIcon(k, closetMode ? "closet" : isLaundry() ? "laundry" : "bath") : null;
+          return '<button type="button" class="shape-card" data-shape="' + k + '">' + (pic || templateIcon(k)) + '<div class="nm">' + __(lb) + '</div>' + (ds ? '<small>' + __(ds) + '</small>' : '') + '</button>';
         }).join("");
       });
       if (closetMode && !state.closed && !pendingShape) pendingShape = "closetWall"; // the usual one, already picked
@@ -14965,7 +15010,14 @@
     host.oninput = function(e){
       var t = e.target;
       if (t.id === "hlNewName"){ hlAdd.name = t.value; hlAdd.edited = true; return; }
-      if (t.dataset.hlname){ state.home.names = state.home.names || {}; state.home.names[t.dataset.hlname] = t.value.slice(0, 40); save(); }
+      if (t.dataset.hlname){
+        var hk = t.dataset.hlname; state.home.names = state.home.names || {}; state.home.names[hk] = t.value.slice(0, 40);
+        if (hk !== "hurdir"){ // "Hjónaherbergi", "Gangur" … → that Rými 🏡 value on the room's line items
+          var rv = hlRymiFor(String(hk).split(":")[0], t.value); state.home.rymi = state.home.rymi || {};
+          if (rv){ state.home.rymi[hk] = rv; var blob = state.categoryData && state.categoryData[hk]; if (blob && blob.intake) blob.intake.room = rv; if (state.activeCategory === hk && state.intake) state.intake.room = rv; }
+        }
+        save();
+      }
     };
     host.onkeydown = function(e){ if (e.key === "Enter" && e.target.id === "hlNewName"){ e.preventDefault(); hlAddRoom(); } };
   }
