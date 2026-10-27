@@ -401,6 +401,8 @@
       var y0 = Y(d.to - 3), h = Math.max(2, (d.to - 3 - d.from) * sc);
       s += '<g class="pick" data-pick="dw"><rect x="' + (X(0) + 4) + '" y="' + y0 + '" width="' + (W * sc - 8) + '" height="' + h + '" rx="2" fill="#f2f2f4" stroke="#d2d2d7"/>' +
         '<text x="' + X(W / 2) + '" y="' + (y0 + h / 2 + 4) + '" text-anchor="middle" font-size="12" fill="#a1a1a6">' + d.code + "</text></g>";
+      var gp = d.H - d.front; // the grip profile (Jey 27) on top of the front, true scale, aluminium
+      if (gp > 0.5) s += '<rect x="' + (X(0) + 4) + '" y="' + Y(d.from + d.H) + '" width="' + (W * sc - 8) + '" height="' + gp * sc + '" fill="#c7c7cc" stroke="#aeaeb2" stroke-width=".6"><title>Gripprófíll ' + Math.round(gp) + ' mm ofan á fronti</title></rect>';
     });
     if (e.oven) {
       var oy = Y(e.oven.under + 16 + e.oven.h);
@@ -438,6 +440,7 @@
         (hs === "baedi" && leaves ? '<line x1="' + mx + '" x2="' + mx + '" y1="' + y0 + '" y2="' + y1 + '" stroke="#0071e3" stroke-width="1"/>' : "") +
         (mark ? '<path d="' + mark + '" fill="none" stroke="#0071e3" stroke-width="1" stroke-dasharray="6 5" opacity=".7"/>' : "") +
         "<title>" + (leaves ? "Vænghurð — lamir báðum megin" : "Smelltu til að skipta um lamahlið") + "</title></g>";
+      if (d.g > 0.5) s += '<rect x="' + (x0 + 2) + '" y="' + Y(d.to + d.g) + '" width="' + (x1 - x0 - 4) + '" height="' + d.g * sc + '" fill="#c7c7cc" stroke="#aeaeb2" stroke-width=".6"><title>Gripprófíll ' + Math.round(d.g) + ' mm ofan á hurðinni</title></rect>';
       if (lift) return;
       var sides = hs === "baedi" ? [0, W] : hs === "vinstri" ? [0] : hs === "haegri" ? [W] : [0, W];
       (d.hinges || []).forEach(function (h, k) {
