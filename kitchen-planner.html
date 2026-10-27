@@ -8403,16 +8403,18 @@
     var mfCat = state.matFrom && String(state.matFrom).split(":")[0];
     var matFrom = PRO && state.matFrom && (state.categoryQueue || []).indexOf(state.matFrom) >= 0
       ? '<p class="mat-from">' + icon("info", 14) + '<span>Erfir efni frá ' + escapeHtmlPro(DAT[mfCat] || proRoomLabel(state.matFrom)) + (String(state.matFrom).split(":")[1] ? " " + String(state.matFrom).split(":")[1] : "") + ' · <button type="button" class="mat-from-go" title="Það sem þú velur hér gildir bara fyrir þetta rými">Breyta fyrir þetta rými</button></span></p>' : "";
-    var matBody = matFrom +
-      matSel("carcass", __("Skrokkur"), [{ items:Object.keys(CARCASS).map(function(k){ return [k, CARCASS[k].label]; }) }], state.carcass) +
-      frontPick +
-      (PRO ? matSel("look2", "Framhlið 2 (FR2)", [{ label:null, items:[["", "— engin —"]] }].concat(LOOK_CATEGORIES.map(function(cg){ return { label:cg.label, items:visLooks(cg.key).map(function(k){ return [k, LOOKS[k].label + (LOOKS[k].code ? " · " + LOOKS[k].code : "")]; }) }; })), state.look2 || "") +
-        matSel("innerFront", "Innskúffufrontar (sjálfgefið)", [{ items:INNER_FRONTS.map(function(x){ return [x, x]; }) }], state.innerFront || "Skrokkaefni") : "") +
-      (hasTop ? matSel("top", __("Borðplata"), topGroupsNow().map(function(g){ return { label:g.label, items:topsOf(g.key).map(function(k){ return [k, TOPS[k].label + (TOPS[k].code ? " · " + TOPS[k].code : "")]; }) }; }), state.top || (PRO ? "" : "steinn")) : "") + // PRO: "— veldu —" while none is picked (Yfirferð says it's missing; showing Steinplata made picking it a no-op)
-      (PRO && hasTop && wtOn() ? '<button type="button" class="btn btn-secondary btn-small" data-wt-open="1" style="margin:2px 0 8px;" title="Stykki, samskeyti, úrtök og kantar — eða smelltu á borðplötuna í 3D">Smíða borðplötu</button>' : "") +
-      matSel("handle", __("Höldur / opnun"), KP3D.HANDLE_GROUPS.map(function(g){ return { label:g.label, items:handlesOf(g.key).map(function(k){ return [k, HANDLES[k].label]; }) }; }), state.handle) +
-      (handleColorable(state.handle) ? '<div class="mat-sel"><span>' + __("Litur á höldum") + '</span>' + handleColorRowHTML() + '</div>' : "") + // one colour: no row at all
-      (PRO ? matSel("drawerSystem", __("Skúffukerfi"), [{ items:Object.keys(DRAWER_SYSTEMS).map(function(k){ return [k, DRAWER_SYSTEMS[k].label]; }) }], state.drawerSystem) : "") + // the drawer brand is the office's call (PRO only)
+    // customers: the same order as the Efni pages, Skúffukerfi included where those pages ask for it (morning scan
+    // 2026-10-27 #6); worktops without their F-codes. PRO keeps its own order and lists.
+    var mCarcass = matSel("carcass", __("Skrokkur"), [{ items:Object.keys(CARCASS).map(function(k){ return [k, CARCASS[k].label]; }) }], state.carcass);
+    var mPro = PRO ? matSel("look2", "Framhlið 2 (FR2)", [{ label:null, items:[["", "— engin —"]] }].concat(LOOK_CATEGORIES.map(function(cg){ return { label:cg.label, items:visLooks(cg.key).map(function(k){ return [k, LOOKS[k].label + (LOOKS[k].code ? " · " + LOOKS[k].code : "")]; }) }; })), state.look2 || "") +
+        matSel("innerFront", "Innskúffufrontar (sjálfgefið)", [{ items:INNER_FRONTS.map(function(x){ return [x, x]; }) }], state.innerFront || "Skrokkaefni") : "";
+    var mTop = (hasTop ? matSel("top", __("Borðplata"), topGroupsNow().map(function(g){ return { label:g.label, items:topsOf(g.key).map(function(k){ return [k, TOPS[k].label + (PRO && TOPS[k].code ? " · " + TOPS[k].code : "")]; }) }; }), state.top || (PRO ? "" : "steinn")) : "") + // PRO: "— veldu —" while none is picked (Yfirferð says it's missing; showing Steinplata made picking it a no-op)
+      (PRO && hasTop && wtOn() ? '<button type="button" class="btn btn-secondary btn-small" data-wt-open="1" style="margin:2px 0 8px;" title="Stykki, samskeyti, úrtök og kantar — eða smelltu á borðplötuna í 3D">Smíða borðplötu</button>' : "");
+    var mHandle = matSel("handle", __("Höldur / opnun"), KP3D.HANDLE_GROUPS.map(function(g){ return { label:g.label, items:handlesOf(g.key).map(function(k){ return [k, HANDLES[k].label]; }) }; }), state.handle) +
+      (handleColorable(state.handle) ? '<div class="mat-sel"><span>' + __("Litur á höldum") + '</span>' + handleColorRowHTML() + '</div>' : ""); // one colour: no row at all
+    var showDrawers = PRO || activeMatPhases().some(function(p){ return p.key === "drawers"; }); // a wardrobe's drawer brand is defaulted, never asked
+    var mDrawers = showDrawers ? matSel("drawerSystem", __("Skúffukerfi"), [{ items:Object.keys(DRAWER_SYSTEMS).map(function(k){ return [k, DRAWER_SYSTEMS[k].label]; }) }], state.drawerSystem) : "";
+    var matBody = matFrom + (PRO ? mCarcass + frontPick + mPro + mTop + mHandle + mDrawers : mCarcass + mDrawers + frontPick + mHandle + mTop) +
       '<button type="button" class="btn btn-secondary btn-small" data-act="materials" style="margin-top:6px;">' + __("Sjá myndir af efnunum") + '</button>';
     html += sec("efni", __("Efni"), matBody) + secLysing + secSkraut; // Rými → Gluggar og hindranir → Efni → Lýsing → Húsgögn (user, 2026-10-24)
     var bodyScroll = {}; host.querySelectorAll(".cat-sec[open] > .sec-body").forEach(function(b){ bodyScroll[b.parentNode.dataset.sec] = b.scrollTop; });
