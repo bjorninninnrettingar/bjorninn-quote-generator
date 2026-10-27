@@ -715,10 +715,10 @@
   // preview. hvitt matches the historical fixed wall color.
   // Flísar á vegg (bath, owner 2026-10-27): decorative only, never ordered — 60 × 30 cm wall tiles, half-bond, grey grout
   var WALL_TILES = {
-    hvit:  { label:"Hvítar flísar",  color:"#f2f1ec" },
-    gra:   { label:"Gráar flísar",   color:"#bebdb7" },
-    beige: { label:"Beige flísar",   color:"#d9cdb7" },
-    dokk:  { label:"Dökkar flísar",  color:"#5b5c5f" }
+    hvit:  { label:"Hvítar flísar",  color:"#f2f1ec", grout:"#d4d1ca" },
+    gra:   { label:"Gráar flísar",   color:"#bebdb7", grout:"#9c9b96" },
+    beige: { label:"Beige flísar",   color:"#d9cdb7", grout:"#c2b59e" },
+    dokk:  { label:"Dökkar flísar",  color:"#5b5c5f", grout:"#454649" }
   };
   var WALL_COLORS = {
     hreinhvitt: { label:"Hreinhvítt", hex:"#fbfbf9" },
@@ -2288,9 +2288,8 @@
       group.add(pl);
     }
     if (meta && meta.counter && meta.stoneMat){
-      var sinkHole = meta.sink && !meta.basin ? sinkSize(widthM, depthM) : null; // a bathroom basin sits ON the top: no cut-out
+      var sinkHole = meta.sink && !meta.basin ? sinkCutout(widthM, depthM) : null; // a bathroom basin sits ON the top: no cut-out
       var TT = meta.stoneMat.userData.thick || 0.03;
-      if (sinkHole) sinkHole = { w:sinkHole.w + 0.008, d:sinkHole.d + 0.008, r:sinkHole.r + 0.004 }; // 4 mm round the bowl, under the rim
       var topGeo = sinkHole ? worktopWithHole(THREE, widthM + 0.001, TT, depthM + 0.02, sinkHole) : new THREE.BoxGeometry(widthM + 0.001, TT, depthM + 0.02);
       worktopUV(topGeo, meta.stoneMat.userData && meta.stoneMat.userData.tile, meta.stoneMat.userData && meta.stoneMat.userData.rotateTex, offsetM + widthM / 2);
       var top = new THREE.Mesh(topGeo, meta.stoneMat);
@@ -2495,6 +2494,27 @@
     board(wM - 2 * CARCASS_T, niche, BACK_T, 0, my, BACK_T / 2);
     if (!up) board(wM, CARCASS_T, dM, 0, hM - CARCASS_T / 2, dM / 2); // no cabinet above: a top board closes the niche
     return { base:base + 0.002, top:base + niche - (up ? 0 : CARCASS_T) };
+  }
+  // Þvottavélaskápur "Hurðir alla leið" in a preview (owner, 2026-10-27): a real open carcass in the carcass colour (its
+  // see-through solid box read as a white glass box), a ventilated shelf over the machines, and the door(s) in the front
+  // material swung open so the washer + dryer show — like opening the cabinet in the showroom
+  function addOpenDoorTower(THREE, scene, geom, offM, wM, hM, dM, plM, carcassMat, frontMat){
+    var grp = new THREE.Group(), bodyH = hM - plM, bodyD = dM - FRONT_T;
+    grp.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(geom.axis.x, 0, geom.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(geom.normal.x, 0, geom.normal.z)));
+    grp.position.set(geom.origin.x + geom.axis.x * (offM + wM / 2), 0, geom.origin.z + geom.axis.z * (offM + wM / 2));
+    addCarcassBoards(THREE, grp, wM, bodyH, plM, bodyD, carcassMat);
+    var shelfY = Math.min(hM - CARCASS_T - 0.2, plM + CARCASS_T + 1.75); // just over the stacked machines
+    if (shelfY > plM + 1.2){ var sh = new THREE.Mesh(new THREE.BoxGeometry(wM - 2 * CARCASS_T - 0.002, CARCASS_T, bodyD - BACK_T - 0.02), carcassMat); sh.position.set(0, shelfY, BACK_T + (bodyD - BACK_T - 0.02) / 2); sh.castShadow = sh.receiveShadow = true; grp.add(sh); }
+    var pl = new THREE.Mesh(new THREE.BoxGeometry(wM, plM - 0.004, dM - 0.063), carcassMat); pl.position.set(0, (plM - 0.004) / 2, 0.003 + (dM - 0.063) / 2); grp.add(pl);
+    var leaves = wM > WIDE_DOOR_M ? [-1, 1] : [-1], lw = wM / leaves.length - 0.003, lh = bodyH - 0.003;
+    leaves.forEach(function(side){ // side −1: hinged left, swings out to the left; +1: hinged right
+      var geo = new THREE.BoxGeometry(lw, lh, FRONT_T); scaleFrontUV(geo, lw, lh, frontMat.userData && frontMat.userData.tile, false, { u:offM, v:plM });
+      var door = new THREE.Mesh(geo, frontMat), pivot = new THREE.Group();
+      door.position.set(-side * lw / 2, 0, -FRONT_T / 2); door.castShadow = true; door.receiveShadow = true;
+      pivot.position.set(side * (wM / 2 - 0.0015), plM + bodyH / 2, dM); pivot.rotation.y = side * 1.75; // ~100° open
+      pivot.add(door); grp.add(pivot);
+    });
+    scene.add(grp);
   }
   // Þvottavélaskápur (user, 2026-10-26): the washer with the dryer on it, drawn inside the tower (above its drawer) —
   // hidden behind the doors in the room, seen through them in the previews (opts.towerGlass) or with the fronts off
@@ -3327,6 +3347,10 @@
   // Stainless inset sink (visual pass 2): the worktop has a real cut-out, a brushed-steel basin with rounded walls
   // sinks 18 cm into the (open-topped) sink cabinet, a flush rim, a drain, and a gooseneck tap with a lever.
   function sinkSize(widthM, depthM){ return { w:Math.min(0.62, widthM * 0.72), d:Math.min(0.42, depthM * 0.62), r:0.02 }; }
+  // The hole in the worktop (owner, 2026-10-27: the top poked into the bowl): 4 mm clear of the bowl all round, its corners
+  // as round as the bowl's (SINK_BOWL_R), so no edge of the top ever shows inside — the sink's flange covers the gap
+  var SINK_BOWL_R = 0.03, SINK_CLEAR = 0.004;
+  function sinkCutout(widthM, depthM){ var s = sinkSize(widthM, depthM); return { w:s.w + 2 * SINK_CLEAR, d:s.d + 2 * SINK_CLEAR, r:SINK_BOWL_R + SINK_CLEAR }; }
   function roundedRectShape(THREE, w, d, r, path){
     var s2 = path || new THREE.Shape(), x0 = -w / 2, y0 = -d / 2;
     s2.moveTo(x0 + r, y0); s2.lineTo(x0 + w - r, y0); s2.quadraticCurveTo(x0 + w, y0, x0 + w, y0 + r); s2.lineTo(x0 + w, y0 + d - r);
@@ -3363,17 +3387,21 @@
     // BackSide box, so its near wall vanished from the front and the inside read almost black (user, 2026-10-09)
     var steelIn = new THREE.MeshStandardMaterial({ color:0xc9cdd1, metalness:0.55, roughness:0.35, side:THREE.DoubleSide });
     function put(m, y, out, along){ m.position.copy(local(along || 0, y, out)); m.quaternion.copy(quat); m.castShadow = true; m.receiveShadow = true; group.add(m); return m; }
-    // basin: a rounded box with its top (lid + upper rounded band, hidden in the 32 mm worktop anyway) cut away
-    var basinGeo = window.__RoundedBox__ ? new window.__RoundedBox__(hs.w - 0.002, depth, hs.d - 0.002, 4, 0.03) : new THREE.BoxGeometry(hs.w, depth, hs.d);
-    var basin = new THREE.Mesh(openTopGeometry(THREE, basinGeo, depth / 2 - 0.029), steelIn);
-    put(basin, topY - depth / 2 + 0.028, zc); // its open top just under the rim: the worktop's cut edge never shows inside the bowl
-    // flush rim round the hole
-    var rimSh = roundedRectShape(THREE, hs.w + 0.03, hs.d + 0.03, hs.r + 0.015); rimSh.holes.push(roundedRectShape(THREE, hs.w, hs.d, hs.r, new THREE.Path()));
-    var rimG = new THREE.ExtrudeGeometry(rimSh, { depth:0.0015, bevelEnabled:false, curveSegments:6 }); rimG.rotateX(-Math.PI / 2);
+    // basin: a rounded box with its top (lid + upper rounded band) cut away — the cut sits right under the flange, so the
+    // bowl's straight walls run all the way up to it (they used to stop 3 cm down, inside the worktop's cut edge)
+    var bowlR = window.__RoundedBox__ ? SINK_BOWL_R : 0, cutY = depth / 2 - SINK_BOWL_R - 0.0005;
+    var basinGeo = window.__RoundedBox__ ? new window.__RoundedBox__(hs.w, depth, hs.d, 4, SINK_BOWL_R) : new THREE.BoxGeometry(hs.w, depth, hs.d);
+    var basin = new THREE.Mesh(openTopGeometry(THREE, basinGeo, cutY), steelIn);
+    var bowlY = topY - cutY - 0.0005; // centre of the box: its cut edge 0.5 mm under the worktop's surface
+    put(basin, bowlY, zc);
+    // the flange: from the bowl's own edge out over the worktop, 12 mm past the cut-out — the top's cut edge is never seen
+    var hc = sinkCutout(widthM, depthM), rimSh = roundedRectShape(THREE, hc.w + 0.024, hc.d + 0.024, hc.r + 0.012);
+    rimSh.holes.push(roundedRectShape(THREE, hs.w - 0.001, hs.d - 0.001, Math.max(0.002, bowlR * 1.25), new THREE.Path())); // (×1.25: the quadratic corner is squarer than the bowl's arc — this keeps it inside the bowl)
+    var rimG = new THREE.ExtrudeGeometry(rimSh, { depth:0.0015, bevelEnabled:false, curveSegments:10 }); rimG.rotateX(-Math.PI / 2);
     put(new THREE.Mesh(rimG, steel), topY, zc);
     // drain
     var drain = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.003, 28), new THREE.MeshStandardMaterial({ color:0x9a9fa5, metalness:0.9, roughness:0.25 }));
-    put(drain, topY - depth + 0.006, zc, hs.w * 0.25);
+    put(drain, bowlY - depth / 2 + 0.006, zc, hs.w * 0.25);
     // tap: round base, gooseneck, lever
     var back = zc - hs.d / 2 - 0.045, room = ceilM != null ? ceilM - (topY + 0.03) - 0.02 : Infinity;
     // Under a low window / sill (2026-10-23): the ~0.32 m gooseneck is lowered to fit (2 cm clear); with almost no room
@@ -3422,7 +3450,7 @@
     function at(along, y, out){ return new THREE.Vector3(geom.origin.x + geom.axis.x * (offsetM + widthM / 2 + along) + geom.normal.x * out, y, geom.origin.z + geom.axis.z * (offsetM + widthM / 2 + along) + geom.normal.z * out); }
     var body = new THREE.Mesh(new THREE.BoxGeometry(widthM - 0.004, hM, dM - 0.004), carcassMat);
     body.position.copy(at(0, bottomM + hM / 2, dM / 2)); body.quaternion.copy(quat); body.castShadow = true; body.receiveShadow = true; grp.add(body);
-    var glass = new THREE.MeshStandardMaterial({ color:0xe9eef1, metalness:1, roughness:0.04 });
+    var glass = new THREE.MeshStandardMaterial({ color:0xe9eef1, metalness:1, roughness:0.04 }); glass.userData.mirror = true;
     var doors = widthM > 0.65 ? 2 : 1, dw = (widthM - 0.004 - (doors - 1) * 0.003) / doors;
     for (var i = 0; i < doors; i++){
       var dm = new THREE.Mesh(new THREE.BoxGeometry(dw, hM - 0.004, 0.006), glass);
@@ -3442,6 +3470,7 @@
         (Array.isArray(obj.material) ? obj.material : [obj.material]).forEach(function(mat){
           if (mat.map && !mat.map.userData.keep) mat.map.dispose();
           if (mat.bumpMap && !mat.bumpMap.userData.keep) mat.bumpMap.dispose();
+          if (MIRROR_RT.has(mat)){ MIRROR_RT.get(mat).dispose(); MIRROR_RT.delete(mat); } // updateMirrors' cube map
           mat.dispose();
         });
       }
@@ -4728,6 +4757,31 @@
   // Until the photo is in (a first visit: ~0.3–2 s), the texture is a tiny swatch of the material's own colour —
   // a texture with no image yet rendered the front/worktop BLACK (studio-load, 2026-10-26). The photo then arrives as
   // a new Source (a fresh GPU texture at its real size), so every material/clone sharing `t` picks it up.
+  // Mirrors (owner, 2026-10-27: the bath mirror was a flat grey slab): every mirror material gets a cube map of THIS room,
+  // taken once from the mirror's own spot (the mirror itself hidden meanwhile) — the tiles, the units and the light show in
+  // it instead of the generic studio environment. Again when a photo texture arrives, so the reflection isn't a placeholder.
+  var MIRROR_RT = typeof WeakMap !== "undefined" ? new WeakMap() : new Map(); // material → its cube target (not userData: clone() JSON-copies that)
+  function updateMirrors(THREE, renderer, scene){
+    if (!THREE.CubeCamera || !renderer || !scene) return;
+    var byMat = new Map();
+    scene.traverse(function(o){ if (o.isMesh && o.visible && o.material && !Array.isArray(o.material) && o.material.userData && o.material.userData.mirror){ if (!byMat.has(o.material)) byMat.set(o.material, []); byMat.get(o.material).push(o); } });
+    var n = 0;
+    byMat.forEach(function(meshes, m){
+      if (++n > 4) return;
+      var box = new THREE.Box3(); meshes.forEach(function(o){ box.expandByObject(o); });
+      var rt = MIRROR_RT.get(m);
+      if (!rt){ rt = new THREE.WebGLCubeRenderTarget(256, { generateMipmaps:true, minFilter:THREE.LinearMipmapLinearFilter }); if (THREE.SRGBColorSpace) rt.texture.colorSpace = THREE.SRGBColorSpace; MIRROR_RT.set(m, rt); }
+      var cc = new THREE.CubeCamera(0.05, 40, rt); box.getCenter(cc.position);
+      meshes.forEach(function(o){ o.visible = false; });
+      var bg = scene.background, bgI = scene.backgroundIntensity; if (scene.environment){ scene.background = scene.environment; scene.backgroundIntensity = 2.2; } // where the room has no wall (a one-wall bath) the mirror shows a soft interior, not the flat backdrop
+      try{ cc.update(renderer, scene); }catch(e){}
+      scene.background = bg; scene.backgroundIntensity = bgI;
+      meshes.forEach(function(o){ o.visible = true; });
+      m.envMap = rt.texture; m.envMapIntensity = 0.95; m.color.set(0xe8eeee); // a hint of the glass's green edge m.metalness = 1; m.roughness = 0.03; m.needsUpdate = true;
+    });
+  }
+  var mirrorTimer = 0;
+  if (typeof window !== "undefined") window.addEventListener("kp3d-tex-loaded", function(){ clearTimeout(mirrorTimer); mirrorTimer = setTimeout(function(){ if (THREE_STATE) updateMirrors(window.__THREE__, THREE_STATE.renderer, THREE_STATE.scene); }, 250); });
   function disposeSourceUsers(src){ // every live texture sharing `src` (clones for offsets/rotation) lets go of its old GPU storage
     [THREE_STATE && THREE_STATE.scene, PREVIEW && PREVIEW.scene].forEach(function(sc){
       if (sc) sc.traverse(function(o){
@@ -5036,9 +5090,9 @@
     var wallMat = new THREE.MeshStandardMaterial({ color:wallColor, roughness:1, side:THREE.DoubleSide });
     var wt = state.wallTile && WALL_TILES[state.wallTile];
     if (wt && window.KPMat){ // tiled walls: real-size tiles (the UVs are set per wall piece in addWallPlane), a soft glaze
-      var wtt = window.KPMat.tileFloorTexture(wt.color, 0.06, 0.6, 0.3);
-      wallMat = new THREE.MeshStandardMaterial({ map:canvasTex(THREE, wtt.color, true), bumpMap:canvasTex(THREE, wtt.bump, false), bumpScale:0.3,
-        roughnessMap:canvasTex(THREE, roughFromBump(wtt.bump, 0.3, 0.05), false), roughness:1, side:THREE.DoubleSide, envMapIntensity:0.5 });
+      var wtt = window.KPMat.wallTileTexture ? window.KPMat.wallTileTexture(wt.color, 0.6, 0.3, wt.grout) : window.KPMat.tileFloorTexture(wt.color, 0.06, 0.6, 0.3);
+      wallMat = new THREE.MeshStandardMaterial({ map:canvasTex(THREE, wtt.color, true), bumpMap:canvasTex(THREE, wtt.bump, false), bumpScale:0.6,
+        roughnessMap:canvasTex(THREE, wtt.rough || roughFromBump(wtt.bump, 0.3, 0.05), false), roughness:1, side:THREE.DoubleSide, envMapIntensity:0.7 }); // a glossy glaze, matte grout
       wallMat.userData.envKeep = true; wallMat.userData.tileWall = 1.2; // the tile texture covers 1.2 m
     }
     var floorMat;
@@ -5187,7 +5241,7 @@
     if (iso && opts.previewRoom && geoms[0]){
       var prg = geoms[0], prExt = 3, prDepth = 4.5;
       var prWall = { origin:{ x:prg.origin.x - prg.axis.x * prExt, z:prg.origin.z - prg.axis.z * prExt }, axis:prg.axis, normal:prg.normal, lenM:prg.lenM + prExt * 2 };
-      addWallPlane(THREE, scene, prWall, WALL_H, wallMat.clone(), []);
+      addWallPlane(THREE, scene, prWall, WALL_H + 1.5, wallMat.clone(), []); // taller than the room: a preview looking up at a tall unit never sees a white band over the wall
       var prq = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(prg.axis.x, 0, prg.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(prg.normal.x, 0, prg.normal.z)));
       var prFloor = new THREE.Mesh(new THREE.PlaneGeometry(prWall.lenM, prDepth), floorMat);
       if (floorMat.map && floorMat.userData.tile) [floorMat.map, floorMat.bumpMap, floorMat.roughnessMap].forEach(function(t){ if (t) t.repeat.set(prWall.lenM / floorMat.userData.tile, prDepth / floorMat.userData.tile); });
@@ -5335,7 +5389,7 @@
       } else if (def.look === "mirror"){ // a wall mirror: a thin pale frame, the glass a near-perfect reflector
         part(new THREE.BoxGeometry(wM, hM, dM), 0xece9e2, 0.4, 0, 0, hM / 2, 0);
         var mir = part(new THREE.BoxGeometry(wM - 0.03, hM - 0.03, 0.004), 0xe4eaee, 0.04, 1, 0, hM / 2, dM / 2 + 0.002);
-        mir.material.userData = { envKeep:true };
+        mir.material.userData = { envKeep:true, mirror:true };
       } else if (def.look === "fixture"){ // shower / bath / WC: a calm neutral volume, a little see-through — "something stands here"
         var fx = part(new THREE.BoxGeometry(wM, hM, dM), 0xdfe3e6, 0.5, 0, 0, hM / 2, 0);
         fx.material.transparent = true; fx.material.opacity = 0.55; fx.castShadow = false;
@@ -5389,7 +5443,7 @@
     var frontMat2 = look2 ? (window.KPMat ? makeFrontMaterial(THREE, state.look2, look2) : new THREE.MeshStandardMaterial({ color:look2.color3d, roughness:0.7 })) : null;
     if (frontMat2){ frontMat2.__xrayBase = frontMat; frontMat2.userData.fr2 = true; } // (fr2: previewFront leaves it alone)
     // a spegilskápur (owner, 2026-10-27): its fronts are a mirror — a bright, near-perfect reflector of the room's light
-    var mirrorMat = new THREE.MeshStandardMaterial({ color:0xe4eaee, metalness:1, roughness:0.04 }); mirrorMat.__xrayBase = frontMat; mirrorMat.userData = { envKeep:true, fr2:true };
+    var mirrorMat = new THREE.MeshStandardMaterial({ color:0xe4eaee, metalness:1, roughness:0.04 }); mirrorMat.__xrayBase = frontMat; mirrorMat.userData = { envKeep:true, fr2:true, mirror:true };
     function frontMatOf(b){ return b && b.mirrorFront ? mirrorMat : b && b.front2 && frontMat2 ? frontMat2 : frontMat; }
     // opts.towerGlass (Þvottahús previews, user 2026-10-26): the washer tower's doors see-through so the machines inside show
     var towerGlassMat = opts.towerGlass ? (function(){ var m = frontMat.clone(); m.transparent = true; m.opacity = 0.16; m.depthWrite = false; return m; })() : null;
@@ -5405,7 +5459,8 @@
     // doors/drawers built from it, which doesn't apply to a plinth — there's nothing behind it to reveal.
     var plinthDark = new THREE.MeshStandardMaterial({ color:0x26262a, roughness:0.85 });
     var plinthFrontMat = frontMat.clone();
-    var plinthMat = look ? [plinthDark, plinthDark, plinthDark, plinthDark, plinthFrontMat, plinthDark] : plinthDark;
+    // the plinth's ends wrap round in the front material too (owner, 2026-10-27: a free end — a laundry tower in a preview — showed a black block)
+    var plinthMat = look ? [plinthFrontMat, plinthFrontMat, plinthDark, plinthDark, plinthFrontMat, plinthDark] : plinthDark;
     // Studio: every base material says what it IS, so the photo builds its own physically-set material per role
     // (a wall can never come out in the front's wood). Clones (selection tint, per-wall fades) carry userData along.
     [[wallMat, "wall"], [floorMat, "floor"], [carcassMat, "carcass"], [openMat, "carcass"], [steelMat, "steel"], [washerMat, "appliance"],
@@ -5517,7 +5572,13 @@
         // washer + dryer in an open niche, a cabinet above — what's built and what the "Hvar er vélin?" preview shows
         var nicheTower = c.thvo && b.thvo !== "hurdir" && !applMat;
         if (nicheTower) towerNiche = addWasherTower(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, plinthMmW / 1000, carcassMat, frontMatOf(b), cabMeta, selected, pickables, !!b.single || (c.thvoSide && b.widthMm < 1000), !!c.thvoSide);
-        else addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, applMat || carcassMat, applMat || (c.thvo && towerGlassMat) || frontMatOf(b), inter, cabMeta, selected, pickables);
+        else if (c.thvo && towerGlassMat && !applMat){ // "Hurðir alla leið" in a preview (owner, 2026-10-27: it read as a white glass box)
+          var hk = cabMeta.handle; cabMeta.handle = null; // (no handle hanging where the closed door would be)
+          addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, hiddenMat, hiddenMat, inter, cabMeta, selected, pickables); // the pick/drag box
+          cabMeta.handle = hk;
+          addOpenDoorTower(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, plinthMmW / 1000, carcassMat, frontMatOf(b));
+        }
+        else addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, applMat || carcassMat, applMat || frontMatOf(b), inter, cabMeta, selected, pickables);
         if (c.sink && state.hungUnits && state.bathMirror && !opts.people && !wall.island){ // the mirror cabinet asked for on the Efni page, over the sink
           var mx0 = offset, mx1 = offset + b.widthMm, mws = blockStartsMm(wall.wall || [], 0);
           var under = (wall.wall || []).some(function(wb, wi){ return mws[wi] < mx1 && mws[wi] + wb.widthMm > mx0; });
@@ -5834,6 +5895,7 @@
       }
       scene.environment = sharedEnv; scene.userData.env = sharedEnv;
     }
+    updateMirrors(THREE, renderer, scene);
     var maxAniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
     scene.traverse(function(o){
       if (!o.material) return;

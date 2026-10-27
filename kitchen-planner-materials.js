@@ -177,6 +177,43 @@
     return (cache[key] = { color: color, bump: bump, tileW: REP, tileH: REP });
   }
 
+  // Glazed WALL tiles (Flísar á vegg, owner 2026-10-27): crisp ceramic — not the floor's stone mottle — thin 2.5 mm grout,
+  // cushioned edges (the bump falls off over the last ~2 mm so each tile catches its own highlight), a hair of tone per
+  // tile. Half-bond rows when the tile is wider than tall. Returns color + bump + rough (glossy glaze, matte grout),
+  // covering REP × REP metres.
+  function wallTileTexture(baseHex, tileW, tileH, groutHex){
+    var key = "wtile:" + baseHex + ":" + tileW + "x" + tileH + ":" + groutHex;
+    if (cache[key]) return cache[key];
+    var REP = 1.2, S = 2048, pxm = S / REP, cols = Math.round(REP / tileW), rows = Math.round(REP / tileH), cw = S / cols, ch = S / rows;
+    var g2 = 2.5 / 1000 * pxm / 2, edge = 2.2 / 1000 * pxm, base = hexToRgb(baseHex), gr = hexToRgb(groutHex || "#cfccc4");
+    var bond = tileW > tileH, rnd = mulberry32(911), tone = [], n = tileNoise(421, 32, 32);
+    for (var i = 0; i < cols * rows * 2; i++) tone.push(0.982 + rnd() * 0.036);
+    var color = document.createElement("canvas"), bump = document.createElement("canvas"), rough = document.createElement("canvas");
+    color.width = bump.width = rough.width = S; color.height = bump.height = rough.height = S;
+    var cx = color.getContext("2d"), bx = bump.getContext("2d"), rx = rough.getContext("2d");
+    var ci = cx.createImageData(S, S), bi = bx.createImageData(S, S), ri = rx.createImageData(S, S);
+    for (var y = 0; y < S; y++){
+      var cy = Math.floor(y / ch), ly = y - cy * ch, shift = bond && (cy % 2) ? cw / 2 : 0;
+      for (var x = 0; x < S; x++){
+        var xs = (x + shift) % S, cxi = Math.floor(xs / cw), lx = xs - cxi * cw, k = (y * S + x) * 4;
+        var d = Math.min(lx, cw - lx, ly, ch - ly); // px to the nearest joint
+        if (d < g2){
+          ci.data[k] = gr[0]; ci.data[k + 1] = gr[1]; ci.data[k + 2] = gr[2];
+          bi.data[k] = bi.data[k + 1] = bi.data[k + 2] = 40; ri.data[k] = ri.data[k + 1] = ri.data[k + 2] = 235;
+        } else {
+          var t = Math.min(1, (d - g2) / edge), cush = t * t * (3 - 2 * t); // 0 at the joint → 1 on the face
+          var l = tone[(cy * cols + cxi) % tone.length] * (1 + (n(x / S * 32, y / S * 32) - 0.5) * 0.012) * (0.94 + 0.06 * cush);
+          ci.data[k] = clamp(base[0] * l); ci.data[k + 1] = clamp(base[1] * l); ci.data[k + 2] = clamp(base[2] * l);
+          bi.data[k] = bi.data[k + 1] = bi.data[k + 2] = Math.round(90 + 150 * cush);
+          ri.data[k] = ri.data[k + 1] = ri.data[k + 2] = 38; // glaze
+        }
+        ci.data[k + 3] = bi.data[k + 3] = ri.data[k + 3] = 255;
+      }
+    }
+    cx.putImageData(ci, 0, 0); bx.putImageData(bi, 0, 0); rx.putImageData(ri, 0, 0);
+    return (cache[key] = { color: color, bump: bump, rough: rough, tileW: REP, tileH: REP });
+  }
+
   // Herringbone parquet: planks W × L (L = N·W) at 45° to the walls. Unrotated,
   // the pattern is a staircase of horizontal planks H_k at (kW, kW) and vertical
   // planks V_k at (kW + L, kW + W − L), repeated by (L, −L). Rotated 45° that
@@ -267,5 +304,5 @@
   function clamp(v){ return v < 0 ? 0 : v > 255 ? 255 : v; }
   function hashKey(str){ var h = 2166136261; for (var i = 0; i < str.length; i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 
-  window.KPMat = { woodTexture: woodTexture, paintTexture: paintTexture, plankFloorTexture: plankFloorTexture, tileFloorTexture: tileFloorTexture, herringboneFloorTexture: herringboneFloorTexture, stoneTexture: stoneTexture, marbleTexture: marbleTexture };
+  window.KPMat = { woodTexture: woodTexture, paintTexture: paintTexture, plankFloorTexture: plankFloorTexture, tileFloorTexture: tileFloorTexture, wallTileTexture: wallTileTexture, herringboneFloorTexture: herringboneFloorTexture, stoneTexture: stoneTexture, marbleTexture: marbleTexture };
 })();
