@@ -4126,17 +4126,19 @@
       return;
     }
     if (shapePhase === "pick"){
-      box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">' + __("← Til baka") + '</button><button class="btn btn-primary" id="shNext" type="button"' + (state.closed || pendingShape ? "" : " disabled") + '>' + __("Áfram →") + '</button>';
+      box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">' + __("← Til baka") + '</button><button class="btn btn-primary" id="shNext" type="button">' + __("Áfram →") + '</button>';
       document.getElementById("shBack").addEventListener("click", function(){ pendingShape = null; if (state.home) openHome(); else goto("welcome"); }); // QA E5: back to the room cards they came from
+      // never a silent grey Áfram (morning scan 2026-10-27 #3) — it says what is missing instead
       document.getElementById("shNext").addEventListener("click", function(){
+        if (!pendingShape && !state.closed){ toast(__("Veldu lögun rýmisins fyrst.")); return; }
         var k = pendingShape; pendingShape = null;
         if (k && (!state.closed || k !== state.shapeKey)){ applyShapeTemplate(k); return; } // applies it and opens the sizes
         shapePhase = isLaundry() ? "machine" : bathShape() ? "water" : "size"; renderShapeStep();
       });
     } else if (shapePhase === "machine"){ // Þvottahús: "Hvar er vélin?" between the wall pick and the wall + water
-      box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">' + __("← Til baka") + '</button><button class="btn btn-primary" id="shNext" type="button"' + (state.laundryMachine ? '' : ' disabled') + '>' + __("Áfram →") + '</button>';
+      box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">' + __("← Til baka") + '</button><button class="btn btn-primary" id="shNext" type="button">' + __("Áfram →") + '</button>';
       document.getElementById("shBack").addEventListener("click", function(){ shapePhase = "pick"; renderShapeStep(); });
-      document.getElementById("shNext").addEventListener("click", function(){ shapePhase = bathShape() ? "water" : "size"; renderShapeStep(); });
+      document.getElementById("shNext").addEventListener("click", function(){ if (!state.laundryMachine){ toast(__("Veldu hvernig vélarnar standa fyrst.")); return; } shapePhase = bathShape() ? "water" : "size"; renderShapeStep(); });
     } else if (shapePhase === "size"){
       box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">' + __("← Til baka") + '</button><button class="btn btn-primary" id="shNext" type="button">' + __("Áfram →") + '</button>';
       document.getElementById("shBack").addEventListener("click", function(){ shapePhase = isLaundry() && !PRO ? "machine" : "pick"; renderShapeStep(); });
@@ -11727,6 +11729,8 @@
     // back from Spurningar/Senda inn into a room step: the live room fields are still the last room finished (finishCategory
     // only cleared the name) — give it back, or Efni showed the kitchen's pages for a laundry (QA 2026-10-26, Þ4)
     if (!state.activeCategory && !state.home && FLOW.indexOf(step) >= 0 && FLOW.indexOf(step) < 3 && (state.categoryQueue || []).length) state.activeCategory = state.categoryQueue[state.categoryQueue.length - 1];
+    // Allt heimilið: a room step with no room open is a ghost editor — the room list instead (morning scan 2026-10-27)
+    if (!PRO && state.home && !state.activeCategory && (step === "editor" || step === "materials" || step === "shape")){ openHome(); return; }
     if (step !== "welcome") stopWelcomeScene();
     if (state.step === "editor" && step !== "editor"){ KP3D.teardown3D(); selectedBlockId = null; selectedWallId = null; }
     if (step !== "shape") endHeightScene();
@@ -11925,6 +11929,8 @@
   var STEP_ORDER = ["pro-home", "welcome", "byrja", "heimili", "hurdir"].concat(FLOW, ["done"]);
 
   function render(){
+    // a restored draft (e.g. after a language switch) can stand on a room step with no room open — the room list instead
+    if (!PRO && state.home && !state.activeCategory && (state.step === "editor" || state.step === "materials" || state.step === "shape")){ openHome(); return; }
     STEP_ORDER.forEach(function(s){
       document.getElementById("screen-" + s).hidden = state.step !== s && !(s === "hurdir" && proDoorsOpen); // PRO's door overlay (2026-10-26)
     });
@@ -12661,6 +12667,8 @@
         __('<li><kbd>←</kbd> <kbd>→</kbd> færa valinn skáp um {a} (<kbd>Shift</kbd> = {b})</li><li><kbd>Delete</kbd> eyðir · <kbd>{cmd}Z</kbd> afturkallar · <kbd>Esc</kbd> afvelur</li>', { cmd:cmd, a:uLen(100), b:uLen(10) }) + '</ul>'; })(), next:__("Næsta →") },
     { center:true, title:__("Gangi þér vel!"), html:__("Leiðsögnina finnur þú aftur undir „Hjálp“."), next:__("Byrja") }
   ];
+  // the unit-wizard steps (grunnskáp … Setja inn) start here; the "Ný eining" step is the one before
+  var TOUR_UW0 = TOUR_STEPS.findIndex(function(st){ return st.title === __("Smelltu á grunnskáp"); });
   function startTour(){
     endTour();
     TOUR_STEPS[0].title = state.activeCategory && catBase() !== "eldhus" ? __("Hér hannar þú rýmið þitt") : __("Hér hannar þú eldhúsið þitt"); // a bathroom isn't a kitchen
@@ -12697,8 +12705,9 @@
     var st = TOUR_STEPS[tour.i];
     if (st.done && st.done()){ showTourStep(tour.i + 1); return; }
     // the unit wizard was closed or stepped back: pick the step that fits where they are now
-    if (tour.i >= 3 && tour.i <= 6){
-      var want = !uw ? 2 : uw.step === 1 ? 3 : uw.step === 2 ? 4 : (tour.i === 6 ? 6 : 5);
+    // (steps 4–7 since "Sýnin" came in at 2 — the old 3–6 threw step 3 back to 2 forever: morning scan 2026-10-27 #2)
+    if (tour.i >= TOUR_UW0 && tour.i <= TOUR_UW0 + 3){
+      var want = !uw ? TOUR_UW0 - 1 : uw.step === 1 ? TOUR_UW0 : uw.step === 2 ? TOUR_UW0 + 1 : (tour.i === TOUR_UW0 + 3 ? TOUR_UW0 + 3 : TOUR_UW0 + 2);
       if (want !== tour.i){ showTourStep(want); return; }
     }
     var el = st.el ? st.el() : null, hole = tour.root.querySelector(".tour-hole"), block = tour.root.querySelector(".tour-block"), bub = tour.root.querySelector(".tour-bub");
@@ -14923,7 +14932,7 @@
     // Allt heimilið (2026-10-23): a room with no units of its own (stofa, gangur, forstofa …) — walls, windows and
     // doors only, so the home plan is the real home and doors between rooms have a wall to sit in. Many per project
     // ("rymi:1", "rymi:2" …), never offered on the Byrja page.
-    { key:"rymi", label:"Rými", plain:true, roomPicker:true, defaultRoom:"Stofa", water:false, worktop:false, hidden:true }
+    { key:"rymi", label:"Rými", plain:true, roomPicker:true, defaultRoom:"Stofa", water:false, worktop:false, hidden:true, defaultShape:"rect" }
   ];
   function categoryDef(key){ var base = String(key || "").split(":")[0]; return CATEGORIES.find(function(c){ return c.key === base; }) || null; } // "rymi:3" = the 3rd plain room
   var byrjaSel = []; // unconfirmed picks for this visit only — state.categoryQueue is set once "Áfram" is pressed
@@ -15121,7 +15130,8 @@
     if (!cabinetTotal()){ toast(__("Settu inn að minnsta kosti einn skáp.")); return; }
     checkEndPanelsThen(function(){ captureThumb(); finishCategory(); }); // 3D scene must still be alive for the thumbnail
   });
-  document.getElementById("backToEditorBtn").addEventListener("click", function(){ goto("editor"); });
+  // Senda inn is always reached from Spurningar — back goes there (2026-10-27 morning scan #1: it opened a room-less editor)
+  document.getElementById("backToEditorBtn").addEventListener("click", function(){ goto("intake"); });
   // Takk fyrir! → a new project from the room picker (the one just sent is already gone from the draft)
   document.getElementById("doneAgainBtn").addEventListener("click", function(){ state = freshState("welcome"); shapePhase = "pick"; matPhase = null; save(); render(); });
   document.getElementById("cAths").addEventListener("input", function(e){ state.intake.note = e.target.value.trim().slice(0, 1000); save(); });

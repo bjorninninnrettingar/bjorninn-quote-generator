@@ -2137,6 +2137,12 @@
     "Teiknaðu allt herbergið frá A til Ö — allir veggir, gluggar og hurðir, innrétting þar sem þú vilt": "Draw the whole room from A to Z — every wall, window and door, units wherever you like"
   });
 
+  // morning scan fixes (2026-10-27)
+  add({
+    "Veldu lögun rýmisins fyrst.": "Pick the room's shape first.",
+    "Veldu hvernig vélarnar standa fyrst.": "Pick how the machines stand first."
+  });
+
   // part F: stored/computed numbered labels from kitchen-planner-3d.js (CATALOG width variants, island rows, partition sides)
   addPat(/^(Grunnskápur|Hárskápur|Efriskápur|Hár skápur|Efri skápur|Vaskaskápur|Opnar hillur) (\d+)$/, function(m, t, n){ return (has(t) ? EN[t] : t) + " " + n; });
   addPat(/^Eyja (\d+) · röð ([AB])$/, "Island $1 · row $2");
