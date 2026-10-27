@@ -825,3 +825,10 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
 - **Rule (owner): the wardrobe corner unit is 110–120 cm wide** (`closetFillPlan`: 115 cm, falling back to the old 64 cm only when the wall is too short) — a 64 cm one is blocked by wall 2's first unit.
 - Bath/laundry "Spónn og raki": the sentence is printed under "Valið", not only a hover tip.
 - Selection: customers already get only the blue outline (`outlineSel`); PRO (darkBg) still tints on purpose — not changed.
+
+## Studio visual list round — batch 3 (2026-10-27)
+- Efri skápur (also Spegilskápur) depth can go down to 10 cm (`CATALOG.efriskapur.minD` 100).
+- The side panel no longer slides the 3D picture aside: `panelShift` uses `cov = 0` (the old "shift left by half the panel" is off; the panel just covers the right).
+- Customers have no "Tegund" dropdown in the cabinet panel any more (PRO keeps it) — a new type = Ný eining or Afrita.
+- Moving a cabinet that has úthliðar bound to it (`withBoundPanels`) now drops those panels at once (toast: add them again where it lands) instead of trying to carry them and often failing with "ekkert pláss".
+- Laundry arrangement ("þvottaherbergisstæðu"): not reproduced — the suggestion with a washer tower looks right; waiting for what exactly is off.

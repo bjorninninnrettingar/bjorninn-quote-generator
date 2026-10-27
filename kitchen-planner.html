@@ -6317,13 +6317,9 @@
     var snap = JSON.stringify({ walls:state.walls, islands:state.islands });
     boundBusy = true;
     try {
-      var panels = bound.map(function(x){ return detachBlock(x.w, x.z, x.p.id); });
+      bound.forEach(function(x){ detachBlock(x.w, x.z, x.p.id); }); // the úthliðar are deleted at once — they got in the way of moving cabinets normally; add them again where the cabinet lands (owner, 2026-10-27)
       fn();
-      var ok = panels.every(function(p){ var h = findBlock(hostId); return h && addEndPanel(h.wall, h.zone, h.block, p.lockTo.dir, p); });
-      if (!ok){
-        var back = JSON.parse(snap); state.walls = back.walls; state.islands = back.islands;
-        toast(__("Úthliðin kemst ekki með skápnum þangað — ekkert pláss."));
-      }
+      toast(bound.length > 1 ? __("Úthliðarnar voru teknar af — bættu þeim við aftur þar sem skápurinn lendir.") : __("Úthliðin var tekin af — bættu henni við aftur þar sem skápurinn lendir."));
     } finally { boundBusy = false; }
     save(); refreshAfterEdit();
   }
@@ -11693,7 +11689,7 @@
       '<option value="">Engin (lamir)</option>' + Object.keys(AVENTOS_PRODUCTS).map(function(k){ return '<option value="' + k + '"' + (b.aventos === k ? " selected" : "") + '>' + AVENTOS_PRODUCTS[k].label + '</option>'; }).join("") + '</select></div>';
     var annadHtml = frontsHtml + (zone === "wall" && !c.panel && !c.shelfStack ? '<div class="edit-field"><button type="button" class="iconbtn' + ((b.led != null ? b.led : lighting().underWall) ? ' on' : '') + '" data-role="led">' + ((b.led != null ? b.led : lighting().underWall) ? __("LED undir skápnum: á") : __("LED undir skápnum: af")) + '</button></div>' : '') +
         (clCompact || bathCompact ? '' : '<div class="edit-field lock-row"><button type="button" class="iconbtn lockbtn' + (b.locked ? ' on' : '') + '" data-role="lock" data-keep="1" title="' + (b.locked ? __("Smelltu á skúffur og hurðir í 3D til að opna þær") : __("Læstu honum þegar hann er réttur")) + '">' + (b.locked ? __("Læstur") : __("Læsa")) + '</button></div>') +
-        (clCompact ? '' : '<div class="edit-field"><label>' + __("Tegund") + '</label><select data-role="type">' + typeOptions + '</select></div>') +
+        (clCompact || !PRO ? '' : '<div class="edit-field"><label>' + __("Tegund") + '</label><select data-role="type">' + typeOptions + '</select></div>') + // customers pick a type via Ný eining or Afrita, not a dropdown (owner, 2026-10-27)
         (!c.panel && !c.shelfStack && !c.notOrdered ? '<div class="edit-field"><label>' + __("Úthlið") + '</label><div class="hw-toggle">' +
           '<button type="button" class="hw-btn" data-add-panel="-1" title="' + __("{t} úthlið — fylgir skápnum", { t:uLen(19) }) + '">＋ ' + __("Vinstri") + '</button><button type="button" class="hw-btn" data-add-panel="1" title="' + __("{t} úthlið — fylgir skápnum", { t:uLen(19) }) + '">＋ ' + __("Hægri") + '</button></div></div>' : '') +
         variantHTML(b, c) +

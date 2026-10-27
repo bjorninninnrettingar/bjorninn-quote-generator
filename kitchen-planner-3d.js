@@ -51,7 +51,7 @@
         { key:"drawers", label:"Skúffuskápur", shelves:1, rails:0, drawers:4 },
         { key:"mixed", label:"Blandað", shelves:2, rails:1, drawers:2 }
       ] },
-    efriskapur:  { label:"Efri skápur", airtableLabel:"Efriskápur", zone:"wall",  cls:"wall",  defaultW:600, minW:200, maxW:1200, h:1000, d:300, minH:300,  maxH:1200, minD:200, maxD:450, hasInterior:false, shelfRange:[0,5,2] },
+    efriskapur:  { label:"Efri skápur", airtableLabel:"Efriskápur", zone:"wall",  cls:"wall",  defaultW:600, minW:200, maxW:1200, h:1000, d:300, minH:300,  maxH:1200, minD:100, maxD:450, hasInterior:false, shelfRange:[0,5,2] },
     // Built-in fridge: NOT its own Skápategund in the schema (Skápategund has
     // Grunn/Hár/Efri/Lagna/Ofna/Loftunarskápur only) — physically a Hárskápur
     // housing a bought appliance, so it submits as Hárskápur plus a plain note
@@ -6352,7 +6352,7 @@
     // Worked out once per panel/selection change, not every frame, so orbiting afterwards isn't fought.
     var shift = { cur:0, target:0, key:"" }, shiftV = new THREE.Vector3();
     function panelShift(){
-      var cov = opts.coveredRight && !WALK.on ? opts.coveredRight() : 0;
+      var cov = 0; // the picture no longer slides aside when the side panel opens — the customer has already lined the view up (owner, 2026-10-27); was: opts.coveredRight()
       var cr = renderer.domElement.getBoundingClientRect(), W = cr.width, H = cr.height; if (!W || !H) return;
       var key = cov + "|" + (opts.selectedId || "");
       if (key !== shift.key){

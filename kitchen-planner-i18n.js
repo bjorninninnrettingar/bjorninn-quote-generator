@@ -253,6 +253,8 @@
     "Beint": "Straight",
     "Horn": "Corner",
     "Átt": "Direction",
+    "Úthliðarnar voru teknar af — bættu þeim við aftur þar sem skápurinn lendir.": "The end panels were removed — add them again where the cabinet lands.",
+    "Úthliðin var tekin af — bættu henni við aftur þar sem skápurinn lendir.": "The end panel was removed — add it again where the cabinet lands.",
     "Dragðu til að lengja eða stytta": "Drag to lengthen or shorten",
     "Fatask.": "Wardrobe",
     "Hjónah.": "Main bedroom",
