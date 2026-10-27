@@ -1173,9 +1173,11 @@
           el.innerHTML = recs.map(function (r) { return row(r.fields["Athugasemd"] || "(ónefnt)", r.fields["Hvað viltu smíða?"] || ""); }).join("");
         });
 
-      api(PANTADIR, "filterByFormula=" + encodeURIComponent('{Tækifæri 📣}="' + name.replace(/"/g, '\\"') + '"') + "&maxRecords=50")
+      // FIND + record id, not {Tækifæri 📣}="name" — that never matches a name with a comma
+      // (Airtable quotes such names inside a link field). 2026-10-27.
+      api(PANTADIR, "filterByFormula=" + encodeURIComponent('FIND("' + nameEsc + '",ARRAYJOIN({Tækifæri 📣}))>0') + "&maxRecords=50")
         .then(function (d) {
-          var recs = d.records || [];
+          var recs = (d.records || []).filter(function (r) { var l = (r.fields || {})["Tækifæri 📣"]; return !Array.isArray(l) || l.indexOf(id) !== -1; });
           if (!recs.length) return;
           document.getElementById("pvMaterial").innerHTML += '<div class="pvRow" style="margin-top:8px;"><span class="k" style="text-transform:uppercase; font-size:.7rem; letter-spacing:.06em;">Pantanir</span></div>' +
             recs.map(function (r) { return row(r.fields["Stöðu kenni"] || "", r.fields["Staða"] || ""); }).join("");
