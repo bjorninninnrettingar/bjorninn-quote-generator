@@ -18,7 +18,7 @@
 // to /api/airtable?path=tbltD1UNpqj05WtMx itself once a conversation ends.
 // No second logging endpoint needed.
 
-import { buildSystemPrompt, LINKS } from "./_chatbot-faq-prompt.js";
+import { buildSystemPrompt, buildStudioPrompt, renderStudioContext, LINKS, STUDIO_LINK_KEYS } from "./_chatbot-faq-prompt.js";
 import { applyCors } from "./_cors.js";
 
 const MODEL = process.env.CHATBOT_MODEL || "claude-haiku-4-5-20251001";
@@ -33,6 +33,13 @@ const MAX_LINKS = 2;
 // URL. Resolving here, from the same table the prompt was built from, means
 // a hallucinated or malformed link can never reach a visitor.
 const LINK_MAP = new Map(LINKS.map((l) => [l.key, { label: l.label, url: l.url }]));
+// BJÖRNINN STUDIO (2026-10-27): the widget inside kitchen-planner.html sends
+// { context: { app:"studio", where, step, room, ... } } — a small snapshot of
+// where the customer is, never personal data. Only these keys survive, as short
+// plain strings; it's rendered into the system prompt as data, not instructions.
+const STUDIO_CONTEXT_KEYS = ["where", "step", "room", "rooms", "shape", "phase", "unit", "units", "materials", "view", "lang"];
+const MAX_CONTEXT_CHARS = 200;
+const STUDIO_LINK_MAP = new Map([...LINK_MAP].filter(([k]) => STUDIO_LINK_KEYS.includes(k)));
 
 const FALLBACK_ANSWER = "Því miður gat ég ekki svarað þessu núna. Endilega hafðu samband beint.";
 
@@ -45,6 +52,11 @@ export default async function handler(req, res) {
 
   const cleaned = validateMessages(req.body?.messages);
   if (cleaned.error) return res.status(400).json({ error: cleaned.error });
+  const studio = cleanStudioContext(req.body?.context);
+  // Studio: the long static guide is cached (same text every request), the per-question context isn't
+  const system = studio
+    ? [{ type: "text", text: buildStudioPrompt(), cache_control: { type: "ephemeral" } }, { type: "text", text: renderStudioContext(studio) }]
+    : buildSystemPrompt();
 
   let anthropicRes;
   try {
@@ -59,7 +71,7 @@ export default async function handler(req, res) {
         model: MODEL,
         max_tokens: MAX_TOKENS,
         temperature: 0,
-        system: buildSystemPrompt(),
+        system,
         messages: cleaned.messages,
       }),
     });
@@ -78,7 +90,20 @@ export default async function handler(req, res) {
     .join("")
     .trim();
 
-  return res.status(200).json(parseModelReply(text));
+  return res.status(200).json(parseModelReply(text, studio ? STUDIO_LINK_MAP : LINK_MAP));
+}
+
+export function cleanStudioContext(ctx) {
+  if (!ctx || typeof ctx !== "object" || ctx.app !== "studio") return null;
+  const out = {};
+  for (const k of STUDIO_CONTEXT_KEYS) {
+    const v = ctx[k];
+    if (typeof v !== "string" && typeof v !== "number") continue;
+    const s = String(v).replace(/[\u0000-\u001f\u007f]+/g, " ").trim().slice(0, MAX_CONTEXT_CHARS);
+    if (s) out[k] = s;
+  }
+  out.lang = out.lang === "en" ? "en" : "is";
+  return out;
 }
 
 function validateMessages(messages) {
@@ -117,11 +142,15 @@ function validateMessages(messages) {
 // doesn't miscount) to find exactly where the first top-level object closes,
 // ignoring anything after — robust to trailing garbage and to a stray code
 // fence before the "{".
-function parseModelReply(text) {
-  const candidate = extractFirstJsonObject(text);
-  if (candidate) {
+export function parseModelReply(text, linkMap = LINK_MAP) {
+  // Icelandic quotes: the model opens with „ and sometimes closes with a plain " — which ends the JSON
+  // string early (seen live in Studio answers quoting button names, 2026-10-27). Close them with “ instead.
+  const repaired = text.replace(/„([^"„“\n]{0,80})"/g, "„$1“");
+  for (const t of repaired === text ? [text] : [text, repaired]) {
+    const candidate = extractFirstJsonObject(t);
+    if (!candidate) continue;
     try {
-      return normalizeReply(JSON.parse(candidate));
+      return normalizeReply(JSON.parse(candidate), linkMap);
     } catch {}
   }
   return { answer: FALLBACK_ANSWER, escalate: true, links: [] };
@@ -151,12 +180,12 @@ function extractFirstJsonObject(text) {
   return null;
 }
 
-function normalizeReply(obj) {
+function normalizeReply(obj, linkMap) {
   const hasAnswer = typeof obj.answer === "string" && obj.answer.trim().length > 0;
   const links = [];
   if (Array.isArray(obj.links)) {
     for (const key of obj.links) {
-      const entry = LINK_MAP.get(key);
+      const entry = linkMap.get(key);
       if (entry && !links.some((l) => l.url === entry.url)) links.push(entry);
       if (links.length >= MAX_LINKS) break;
     }

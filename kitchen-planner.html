@@ -1994,6 +1994,7 @@
         <button class="help-btn" id="helpBtn" type="button" aria-haspopup="true" aria-expanded="false" data-i18n>Hjálp</button>
         <div class="help-menu" id="helpMenu" hidden>
           <a class="help-contact" id="helpContact" href="mailto:bjorninn@bjorninninnrettingar.is?subject=BJ%C3%96RNINN%20STUDIO"><b data-i18n>Hafa samband</b><small>bjorninn@bjorninninnrettingar.is</small></a>
+          <button type="button" id="askBtn" hidden data-i18n>Spyrja</button>
           <button type="button" id="tourBtn" hidden data-i18n>Sýna leiðsögnina</button>
           <button type="button" id="reportBtn" data-i18n>Tilkynna vandamál</button>
           <button type="button" id="resetBtn" data-i18n>Byrja upp á nýtt</button>
@@ -12019,6 +12020,7 @@
   var STEP_ORDER = ["pro-home", "welcome", "byrja", "heimili", "hurdir"].concat(FLOW, ["done"]);
 
   function render(){
+    syncChatLauncher();
     // a restored draft (e.g. after a language switch) can stand on a room step with no room open — the room list instead
     if (!PRO && state.home && !state.activeCategory && (state.step === "editor" || state.step === "materials" || state.step === "shape")){ openHome(); return; }
     STEP_ORDER.forEach(function(s){
@@ -18877,7 +18879,52 @@
       var langBack = false; try{ langBack = sessionStorage.getItem("bjorninn:kitchenPlanner:langResume") === "1"; sessionStorage.removeItem("bjorninn:kitchenPlanner:langResume"); }catch(e){}
       render();
       if (langBack && state.step === "welcome" && state.resumeStep) resumeLeftStep();
+      startChat();
     }
+  }
+
+  // ---------- Spyrja: the site chatbot inside Studio (2026-10-27, customers only — never PRO) ----------
+  // chat-widget.js in "studio" mode: Hjálp → Spyrja opens it, a small launcher sits bottom-left where nothing of
+  // Studio's lives — hidden in Skipulag and Allt heimilið, whose canvases use that corner. Each question carries
+  // chatContext(): where the customer is and what's picked, never who they are (api/chat.js keeps only these keys).
+  function chatWhere(){ // Icelandic on purpose: it's what the owner reads in Vefspjall's Síða / Samtal
+    var names = { welcome:"Forsíða", byrja:"Hvað erum við að skoða?", heimili:"Rýmin þín", hurdir:"Innihurðir", shape:"Rými", materials:"Efni", editor:"Skipulag", intake:"Spurningar", contact:"Senda inn", done:"Takk" };
+    var w = names[state.step] || state.step, room = categoryDef(state.activeCategory);
+    if (state.step === "shape") w += " · " + shapePhase;
+    if (state.step === "materials"){ var ph = activeMatPhases()[matPhase || 0]; if (ph) w += " · " + ph.key; }
+    if (room && (state.step === "shape" || state.step === "materials" || state.step === "editor")) w += " (" + room.label + ")";
+    return w;
+  }
+  function chatContext(){
+    return KPI18N.asIS(function(){
+      var c = { where:chatWhere(), step:state.step, lang:KPI18N.lang };
+      var room = categoryDef(state.activeCategory); if (room) c.room = room.label;
+      var rk = state.home ? homeRooms() : (state.categoryQueue || []);
+      c.rooms = rk.map(function(k){ var d = categoryDef(k); return d ? d.label : k; }).join(", ") || "engin rými komin enn";
+      if (state.step === "shape") c.phase = shapePhase;
+      if (state.step === "materials"){ var ph = activeMatPhases()[matPhase || 0]; if (ph) c.phase = ph.key; }
+      if (state.step === "editor"){
+        c.view = viewMode;
+        var f = selectedBlockId && findBlock(selectedBlockId);
+        if (f && CATALOG[f.block.type]) c.unit = CATALOG[f.block.type].label + " " + f.block.widthMm + " mm";
+        var n = 0; try{ surfaces().forEach(function(w){ n += (w.floor || []).length + (w.wall || []).length; }); }catch(e){}
+        c.units = String(n);
+      }
+      if (state.walls && state.walls.length && state.step !== "welcome") c.shape = (state.closed ? "lokað rými, " : "") + state.walls.length + " veggir";
+      var lab = function(T, id){ return id && T && T[id] && T[id].label || id; };
+      c.materials = [["skrokkur", lab(CARCASS, state.carcass)], ["skúffur", lab(DRAWER_SYSTEMS, state.drawerSystem)], ["framhlið", lab(KP3D.LOOKS, state.look)], ["höldur", lab(HANDLES, state.handle)], ["borðplata", lab(TOPS, state.top)]]
+        .filter(function(p){ return p[1]; }).map(function(p){ return p[0] + ": " + p[1]; }).join(", ");
+      return c;
+    });
+  }
+  function chatLauncherFits(){ return state.step !== "editor" && state.step !== "heimili" && state.step !== "hurdir"; }
+  function syncChatLauncher(){ if (window.BjorninnChat) window.BjorninnChat.showLauncher(chatLauncherFits()); }
+  function startChat(){
+    if (KPI18N.isPro || window.BJORNINN_CHAT) return;
+    window.BJORNINN_CHAT = { mode:"studio", lang:KPI18N.lang, getContext:chatContext, launcher:chatLauncherFits() };
+    var ask = document.getElementById("askBtn"); ask.hidden = false;
+    ask.addEventListener("click", function(){ if (window.BjorninnChat) window.BjorninnChat.open(); });
+    var sc = document.createElement("script"); sc.src = "chat-widget.js"; document.body.appendChild(sc);
   }
 })();
 </script>

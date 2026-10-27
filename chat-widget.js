@@ -19,20 +19,49 @@
   // absolute Vercel URL since the script executes in the PAGE's document,
   // so a relative fetch would resolve against bjorninninnrettingar.is, not
   // this script's own origin.
-  var API_BASE = /^(localhost|127\.0\.0\.1)$/.test(location.hostname)
-    ? ""
+  // BJÖRNINN STUDIO (kitchen-planner.html, 2026-10-27) loads this same file with
+  // window.BJORNINN_CHAT = { mode:"studio", lang:"is"|"en", getContext:fn } set first:
+  // same backend, plus the customer's current step/room/selection with each question
+  // (api/chat.js then answers from the Studio guide), its own calm look, email-only
+  // contact (no phone, no contact page), no FAQ tab, and window.BjorninnChat for the
+  // page's own "Spyrja" entry under Hjálp + launcher visibility.
+  var CFG = window.BJORNINN_CHAT || {};
+  var STUDIO = CFG.mode === "studio";
+  var EN = STUDIO && CFG.lang === "en";
+  var STUDIO_EMAIL = "bjorninn@bjorninninnrettingar.is";
+  var API_BASE = STUDIO || /^(localhost|127\.0\.0\.1)$/.test(location.hostname)
+    ? "" // Studio is always served from the Vercel app itself
     : "https://bjorninn.vercel.app";
   var VEFSPJALL_PATH = "tbltD1UNpqj05WtMx";
   var CONTACT_URL = "https://www.bjorninninnrettingar.is/hafðu-samband";
-  var GREETING = "Hæ! Ég get svarað spurningum um sérsmíði, verð, ferlið og fleira hjá Birninum. Hvað viltu vita?";
-  var GENERIC_ERROR = "Því miður kom upp villa. Endilega reyndu aftur, eða hafðu samband beint.";
+  var T = !STUDIO ? {
+    greeting: "Hæ! Ég get svarað spurningum um sérsmíði, verð, ferlið og fleira hjá Birninum. Hvað viltu vita?",
+    error: "Því miður kom upp villa. Endilega reyndu aftur, eða hafðu samband beint.",
+    title: "BJÖRNINN", placeholder: "Skrifaðu spurningu...", send: "Senda", close: "Loka", open: "Opna spjall", question: "Spurning",
+    direct: "Vilt þú fá svar frá okkur beint?", contact: "Hafðu samband", email: "netfangið þitt", emailLabel: "Netfang",
+    thanks: "Takk! Við sendum þér svar á ", retry: "Náði ekki að senda — reyndu aftur."
+  } : EN ? {
+    greeting: "Hi! Ask me anything about the designer — measuring, adding units, materials or sending your design in.",
+    error: "Sorry, something went wrong. Please try again, or email us at " + STUDIO_EMAIL + ".",
+    title: "Ask a question", placeholder: "Type your question…", send: "Send", close: "Close", open: "Ask a question", question: "Question",
+    direct: "Want an answer from our team?", contact: "Email " + STUDIO_EMAIL, email: "your email", emailLabel: "Email",
+    thanks: "Thanks! We'll reply to ", retry: "Couldn't send — please try again."
+  } : {
+    greeting: "Hæ! Spurðu mig um hönnunartólið — mælingar, að bæta við skáp, efni eða að senda inn.",
+    error: "Því miður kom upp villa. Reyndu aftur, eða sendu okkur póst á " + STUDIO_EMAIL + ".",
+    title: "Spyrja", placeholder: "Skrifaðu spurningu…", send: "Senda", close: "Loka", open: "Spyrja", question: "Spurning",
+    direct: "Viltu fá svar frá söluaðila?", contact: "Senda póst á " + STUDIO_EMAIL, email: "netfangið þitt", emailLabel: "Netfang",
+    thanks: "Takk! Við svörum þér á ", retry: "Náði ekki að senda — reyndu aftur."
+  };
+  var GREETING = T.greeting;
+  var GENERIC_ERROR = T.error;
 
   // Homepage-only, on purpose — a visitor browsing other pages shouldn't
   // have this follow them. This is a code-level guarantee independent of
   // whatever page-scope the Wix Custom Code panel has set, since that's a
   // manually-configured admin setting and easy to get wrong or change by
   // accident later; this check can't drift from it.
-  if (location.pathname !== "/") return;
+  if (!STUDIO && location.pathname !== "/") return;
 
   // A prior version let visitors collapse the bubble to a small
   // up-arrow handle, persisted via localStorage — dropped because that
@@ -54,6 +83,11 @@
   // Rakel reads Icelandic sentences there, not JSON.
   var transcript = [];
   var hasLoggedThisSession = false; // see logConversation() for the trade-off this implies
+  // Studio: a small, personal-data-free snapshot of where the customer is (see kitchen-planner.html chatContext())
+  function studioContext() {
+    if (!STUDIO || typeof CFG.getContext !== "function") return null;
+    try { var c = CFG.getContext() || {}; c.app = "studio"; return c; } catch (e) { return { app: "studio" }; }
+  }
   var awaitingReply = false;
 
   // ---- shadow host ----
@@ -65,6 +99,14 @@
   host.style.right = "0";
   document.body.appendChild(host);
   var root = host.attachShadow({ mode: "open" });
+  // Typing in the chat must never reach the page's own shortcuts — from outside the shadow root the
+  // focused input looks like this plain div, so Studio's Backspace/Delete would delete the selected unit.
+  ["keydown", "keyup", "keypress"].forEach(function (t) {
+    host.addEventListener(t, function (e) {
+      if (e.key === "Escape" && panel) { e.preventDefault(); closePanel(); }
+      e.stopPropagation();
+    });
+  });
 
   var style = document.createElement("style");
   style.textContent = [
@@ -162,11 +204,29 @@
     "border-radius:8px;padding:0 16px;cursor:pointer;}",
     ".inputrow button:disabled{opacity:.5;cursor:default;}",
     ".inputrow button:not(:disabled):hover{background:#2c478e;}",
-  ].join("\n");
+  ].join("\n") + (STUDIO ? [
+    // BJÖRNINN STUDIO: quiet and high-end — white header with a hairline, a small round launcher bottom-left
+    // (Studio's own controls live on the right), line icons only. The page hides the launcher where it needs the room.
+    ".wrap{left:20px;right:auto;bottom:20px;align-items:flex-start;}",
+    ".wrap.nolaunch .bubble{display:none;}",
+    ".bubble{width:44px;height:44px;background:#fff;border:1px solid #e6e3da;box-shadow:0 4px 14px rgba(0,0,0,.10);color:#191919;}",
+    ".bubble:hover{background:#faf9f6;border-color:#a29c72;}",
+    ".bubble svg{width:20px;height:20px;}",
+    ".panel{width:360px;height:min(540px, calc(100vh - 96px));border-radius:14px;box-shadow:0 16px 44px rgba(0,0,0,.18);}",
+    ".hdr{background:#fff;color:#191919;border-bottom:1px solid #e6e3da;border-radius:14px 14px 0 0;padding:12px 12px 12px 16px;}",
+    ".hdr .k{display:block;font-size:10.5px;letter-spacing:.14em;color:#6f6d66;font-weight:600;margin-bottom:2px;}",
+    ".hdr h1{font-size:15px;font-weight:600;}",
+    ".hdr button{color:#6f6d66;display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;}",
+    ".hdr button:hover{background:#faf9f6;color:#191919;}",
+    ".row.bot .bub{background:#faf9f6;color:#191919;border:1px solid #efece4;}",
+    ".escalate a.contact{background:#fff;color:#3d61c1;border:1px solid #3d61c1;word-break:break-all;}",
+    ".escalate a.contact:hover{background:#eaeefb;}",
+    ".inputrow{border-radius:0 0 14px 14px;}",
+  ].join("\n") : "");
   root.appendChild(style);
 
   var wrap = document.createElement("div");
-  wrap.className = "wrap";
+  wrap.className = "wrap" + (STUDIO && CFG.launcher === false ? " nolaunch" : "");
   root.appendChild(wrap);
 
   // On a phone, focusing the input opens the on-screen keyboard, which
@@ -194,8 +254,9 @@
 
   var bubble = document.createElement("button");
   bubble.className = "bubble";
-  bubble.setAttribute("aria-label", "Opna spjall");
-  bubble.innerHTML = '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-4.4 7.4L4 21l2.1-4.6A8.38 8.38 0 0 1 12 3a8.38 8.38 0 0 1 9 8.5Z"/></svg>';
+  bubble.setAttribute("aria-label", T.open);
+  if (STUDIO) bubble.title = T.open;
+  bubble.innerHTML = '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="' + (STUDIO ? "currentColor" : "#fff") + '" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-4.4 7.4L4 21l2.1-4.6A8.38 8.38 0 0 1 12 3a8.38 8.38 0 0 1 9 8.5Z"/></svg>';
   bubble.addEventListener("click", togglePanel);
   wrap.appendChild(bubble);
 
@@ -220,12 +281,21 @@
     var hdr = document.createElement("div");
     hdr.className = "hdr";
     var h1 = document.createElement("h1");
-    h1.textContent = "BJÖRNINN";
+    h1.textContent = T.title;
     var closeBtn = document.createElement("button");
-    closeBtn.setAttribute("aria-label", "Loka");
-    closeBtn.textContent = "✕";
+    closeBtn.setAttribute("aria-label", T.close);
+    if (STUDIO) closeBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+    else closeBtn.textContent = "✕";
     closeBtn.addEventListener("click", closePanel);
-    hdr.appendChild(h1);
+    if (STUDIO) {
+      var ttl = document.createElement("div");
+      var kick = document.createElement("span");
+      kick.className = "k";
+      kick.textContent = "BJÖRNINN STUDIO";
+      ttl.appendChild(kick);
+      ttl.appendChild(h1);
+      hdr.appendChild(ttl);
+    } else hdr.appendChild(h1);
     hdr.appendChild(closeBtn);
 
     var content = document.createElement("div");
@@ -241,10 +311,11 @@
     inputRow.className = "inputrow";
     var input = document.createElement("input");
     input.type = "text";
-    input.placeholder = "Skrifaðu spurningu...";
-    input.setAttribute("aria-label", "Spurning");
+    input.placeholder = T.placeholder;
+    input.setAttribute("aria-label", T.question);
+    input.maxLength = 2000;
     var sendBtn = document.createElement("button");
-    sendBtn.textContent = "Senda";
+    sendBtn.textContent = T.send;
     inputRow.appendChild(input);
     inputRow.appendChild(sendBtn);
     chatView.appendChild(msgsEl);
@@ -288,7 +359,7 @@
 
     panel.appendChild(hdr);
     panel.appendChild(content);
-    panel.appendChild(tabbar);
+    if (!STUDIO) panel.appendChild(tabbar); // Studio: just the chat (its Hjálp already has the rest)
     wrap.insertBefore(panel, bubble);
 
     function send() {
@@ -314,7 +385,8 @@
     // there as normal.
     if (!window.matchMedia("(max-width:480px)").matches) input.focus();
 
-    document.addEventListener("keydown", onEscape);
+    // Studio keeps Escape for itself (deselect, close menus) — there only Esc typed inside the chat closes it (host listener)
+    if (!STUDIO) document.addEventListener("keydown", onEscape);
   }
 
   function onEscape(e) {
@@ -327,7 +399,8 @@
     panel = null;
     msgsEl = null;
     document.removeEventListener("keydown", onEscape);
-    logConversation();
+    // Studio: a customer opens and closes the chat many times while designing — log once, when they leave (below)
+    if (!STUDIO) logConversation();
   }
 
   function renderExisting() {
@@ -387,7 +460,7 @@
     box.className = "escalate";
 
     var p = document.createElement("p");
-    p.textContent = "Vilt þú fá svar frá okkur beint?";
+    p.textContent = T.direct;
     box.appendChild(p);
 
     var actions = document.createElement("div");
@@ -399,7 +472,7 @@
       actions.innerHTML = "";
       var done = document.createElement("p");
       done.className = "done";
-      done.textContent = "Takk! Við sendum þér svar á " + email + ".";
+      done.textContent = T.thanks + email + ".";
       box.appendChild(done);
     }
 
@@ -411,21 +484,22 @@
 
     var contactA = document.createElement("a");
     contactA.className = "contact";
-    contactA.href = CONTACT_URL;
+    // Studio: email only — never the contact page (it lists a phone number) (owner, 2026-10-27)
+    contactA.href = STUDIO ? "mailto:" + STUDIO_EMAIL + "?subject=" + encodeURIComponent("BJÖRNINN STUDIO — " + (entry.question || "").slice(0, 80)) : CONTACT_URL;
     contactA.target = "_blank";
     contactA.rel = "noopener";
-    contactA.textContent = "Hafðu samband";
+    contactA.textContent = T.contact;
     actions.appendChild(contactA);
 
     var captureRow = document.createElement("div");
     captureRow.className = "capture";
     var emailInput = document.createElement("input");
     emailInput.type = "email";
-    emailInput.placeholder = "netfangið þitt";
-    emailInput.setAttribute("aria-label", "Netfang");
+    emailInput.placeholder = T.email;
+    emailInput.setAttribute("aria-label", T.emailLabel);
     var sendBtn = document.createElement("button");
     sendBtn.className = "send";
-    sendBtn.textContent = "Senda";
+    sendBtn.textContent = T.send;
     captureRow.appendChild(emailInput);
     captureRow.appendChild(sendBtn);
     actions.appendChild(captureRow);
@@ -452,10 +526,10 @@
           // showing an error with no way forward from inside the chat.
           sendBtn.disabled = false;
           emailInput.disabled = false;
-          sendBtn.textContent = "Senda";
+          sendBtn.textContent = T.send;
           var errMsg = document.createElement("p");
           errMsg.className = "err-msg";
-          errMsg.textContent = "Náði ekki að senda — reyndu aftur.";
+          errMsg.textContent = T.retry;
           actions.insertBefore(errMsg, captureRow);
         }
         scrollToBottom();
@@ -471,7 +545,8 @@
 
   function sendMessage(text, input, sendBtn) {
     addRow("user", text);
-    transcript.push({ role: "user", text: text });
+    var ctx = studioContext();
+    transcript.push({ role: "user", text: text, where: ctx && ctx.where });
     apiMessages.push({ role: "user", content: text });
     scrollToBottom();
 
@@ -493,7 +568,7 @@
     fetch(API_BASE + "/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: apiMessages }),
+      body: JSON.stringify(ctx ? { messages: apiMessages, context: ctx } : { messages: apiMessages }),
     })
       // fetch() only rejects on a real network failure — a 4xx/5xx HTTP
       // response (hitting the message cap, a backend/Anthropic outage,
@@ -546,7 +621,7 @@
     hasLoggedThisSession = true;
 
     var lines = transcript.map(function (t) {
-      return (t.role === "user" ? "Sp: " : "Sv: ") + t.text;
+      return (t.where ? "[" + t.where + "] " : "") + (t.role === "user" ? "Sp: " : "Sv: ") + t.text;
     });
     var lastEscalated = null;
     for (var i = transcript.length - 1; i >= 0; i--) {
@@ -556,7 +631,8 @@
     var fields = {
       "Fyrsta spurning": transcript[0].text,
       "Samtal": lines.join("\n"),
-      "Síða": location.pathname || "/",
+      // Studio rows read "Studio · <step of the first question>" so the owner sees where people get stuck
+      "Síða": STUDIO ? ("Studio · " + (transcript[0].where || "?")).slice(0, 200) : (location.pathname || "/"),
     };
     if (escalatedQuestion || lastEscalated) fields["Óleyst spurning"] = escalatedQuestion || lastEscalated;
     if (email) fields["Netfang"] = email;
@@ -574,4 +650,15 @@
   window.addEventListener("pagehide", function () {
     if (transcript.length > 0 && !hasLoggedThisSession) logConversation();
   });
+  if (STUDIO) document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "hidden" && transcript.length > 0 && !hasLoggedThisSession) logConversation();
+  });
+
+  // Studio's handle on the widget: Hjálp → Spyrja opens it; the launcher hides where the page needs the corner
+  if (STUDIO) window.BjorninnChat = {
+    open: function () { if (!panel) openPanel(); },
+    close: closePanel,
+    isOpen: function () { return !!panel; },
+    showLauncher: function (on) { wrap.classList.toggle("nolaunch", !on); }
+  };
 })();

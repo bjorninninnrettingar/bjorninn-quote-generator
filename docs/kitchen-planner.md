@@ -615,3 +615,25 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   Byrja/Halda áfram → `openHome()`. An empty project's Rýmin þín is the picker (`.hl-kinds`, a tap = `addRooms([t])`,
   no walk); "+ Bæta við rými" adds the same way; Hanna opens a room. A language switch still reopens the exact step
   (`resumeLeftStep`). The welcome room cards (`welPick`, `renderStudioCards`) are gone.
+
+## Spyrja — the site chatbot inside Studio (2026-10-27)
+
+- Customers only (never `?pro=`): `startChat()` at the end of the init sets `window.BJORNINN_CHAT = { mode:"studio", lang, getContext:chatContext }`
+  and loads the same [chat-widget.js](../chat-widget.js). Entry = Hjálp → **Spyrja** (`#askBtn`), plus a 44px white launcher
+  bottom-left — hidden in Skipulag, Allt heimilið and Innihurðir (`chatLauncherFits()`, re-synced on every `render()`), where
+  those canvases/2D "Merkingar" use the corner. Panel opens bottom-left over the stage; nothing in the toolbars is covered.
+- Studio mode in the widget: own calm look (white header, kicker, line icons, no emoji), no FAQ tab, IS/EN strings,
+  escalation = `mailto:bjorninn@bjorninninnrettingar.is` + email capture (never the contact page — it lists a phone).
+  The shadow host swallows key events, else Backspace typed in the chat deleted the selected unit (Studio reads the host as activeElement).
+- Studio guide follows the owner round of the same day: rooms are picked on Rýmin þín, the welcome page is intro only.
+- Context sent with each question (no personal data): `where` (e.g. "Rými · openings (Eldhús)"), step, room(s), shape/mat phase,
+  selected unit + width, unit count, material labels, view, lang. [api/chat.js](../api/chat.js) whitelists those keys
+  (`cleanStudioContext`, ≤200 chars each) and switches to `buildStudioPrompt()` in [_chatbot-faq-prompt.js](../api/_chatbot-faq-prompt.js):
+  `STUDIO_GUIDE` (how-to per step, transcribed from the UI — **update it when a button is renamed or a step moves**) + few-shot
+  examples (phone → email, unknown → "veit ekki" + escalate, price → tilboð) + the FAQ corpus. The static part is prompt-cached.
+- Logging: same Vefspjall 💬 row as the site; `Síða` = "Studio · <step of first question>", each `Samtal` line prefixed `[step]`.
+  Logged once per page load on pagehide / tab hidden (not on close, customers open/close it many times) or on email submit.
+- Same model as the site bot (`CHATBOT_MODEL`, default Haiku 4.5). Haiku needed the few-shot examples to stop saying
+  "we don't take calls" and to escalate instead of inventing; it also closes „…" with a plain `"` — the parser repairs that.
+- Local test without `vercel dev` login: a tiny node server that serves files + imports `api/*.js` handlers works (restart it after
+  prompt edits — Node caches the imported prompt module).

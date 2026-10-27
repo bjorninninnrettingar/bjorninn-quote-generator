@@ -113,6 +113,7 @@
     "Ekkert týnist — komdu bara aftur á tölvu.": "Nothing gets lost — just come back on a computer.",
     "Hannaðu eldhúsið þitt": "Design your kitchen",
     "Hjálp": "Help",
+    "Spyrja": "Ask a question",
     "Sýna leiðsögnina": "Show the tour",
     "Tilkynna vandamál": "Report a problem",
     "Byrja upp á nýtt": "Start over",
