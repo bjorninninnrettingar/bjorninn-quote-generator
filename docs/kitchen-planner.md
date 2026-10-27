@@ -583,3 +583,23 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   sides, outer links with their own pivot knuckles, pins with slotted screw heads, dark washers, and ◁▷ arrows on the
   adjuster plates.
 - **Round 11:** COPLAN pin ends have no screw heads (pins stop flush inside the outer links).
+
+## 2026-10-27 — Morning-scan fix round (scratch/morgun-studio.md)
+- **Blokkar:** Senda inn "← Til baka" → Spurningar (`goto("intake")`), never a room-less editor; guard in `goto` and
+  `render`: a customer home project on shape/materials/editor with no `activeCategory` opens Rýmin þín. Tour: the unit
+  wizard steps start at `TOUR_UW0` (found by title) — the old hard-coded 3–6 threw step 3 back to 2 after "Sýnin" came in.
+  Aðeins rými has `defaultShape:"rect"`; the shape page's Áfram is never disabled — it says what's missing (toast).
+- Pictures (`captureThumb`): built from a clean 3D scene even when the editor was left in 2D / Ofanmynd.
+- Camera tools under 1500 px: `.vm-cam` rows in Skoða click the hidden toolbar buttons; the tour adds a note there.
+- `seedKitchenRun` adds its own úthliðar; "Já, bæta við" stays in the room 1.2 s (`panelsPending`) before moving on.
+- Language switch: `setLang` sets sessionStorage `bjorninn:kitchenPlanner:langResume` → boot clicks `welStart` so the
+  visitor lands on the same step. `homeNameShown` translates stored default names ("Eldhús", "Baðherbergi 2").
+- Editor Efni menu (customers): Skrokkur · Skúffukerfi (only where the Efni pages ask it) · Framhlið · Höldur · Borðplata,
+  no F-codes. Doors: Vista hurðina is `.is-wait` (clickable) → opens Mál with "Vantar"; Áfram without a room marks that
+  door's select (`doorNeedId`); the room picker skips the project's own rooms under "Önnur rými".
+- Rýmin þín: ← Til baka returns to the room it was opened from (`homeBackTo`); Áfram's gate is one line + `.hl-card.need`;
+  cards keep their size (fixed note room); `hlUnits` no longer counts úthliðar (`hlUnitsAll` keeps old thumbs valid).
+- Openings: Áfram walks the walls the first time (`!state.openingsDone`). Start page cards say "Í verkefninu · n".
+- Laundry: when a tower's úthlið has no room, `syncBathPanels` takes 2 cm off one of our seeded low units on that wall.
+- Ofanmynd: wall units labelled near the wall (smaller, grey), floor units toward the front; Sk-numbers only with `body.pro`.
+- Hjálp starts with "Hafa samband" (mailto). **Owner:** a phone number for it is still wanted.
