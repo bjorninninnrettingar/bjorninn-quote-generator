@@ -130,6 +130,21 @@
     var e = String(name).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
     return fieldPrefixEncoded + "%3D" + encodeURIComponent('"' + e + '"');
   }
+  // Project-link filters (2026-10-27): {Link}="<name>" never matches a project whose name has a
+  // comma ("…, 112 Reykjavík") — Airtable quotes such names when it stringifies a link field. So
+  // match with FIND over ARRAYJOIN and then keep only records whose link really holds this
+  // project's record id (FIND alone could also hit a longer name that contains this one).
+  function linkFilter(fieldPrefixEncoded, name) {
+    var e = String(name).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    return encodeURIComponent('FIND("' + e + '", ARRAYJOIN(') + fieldPrefixEncoded + encodeURIComponent(')) > 0');
+  }
+  function onlyProject(recs, linkField, projectId) {
+    return (recs || []).filter(function (r) {
+      var l = (r.fields || {})[linkField];
+      return !Array.isArray(l) || l.indexOf(projectId) !== -1;
+    });
+  }
+
 
   var STAGES = [
     { match: "Tilbúið til framleiðslu 📋", label: "Tilbúið", color: "#e9b000" },
@@ -250,9 +265,9 @@
       });
 
     // Efni — same open-order detection /ferli's 📦 chip already uses.
-    api(PANTADIR, "filterByFormula=" + eqFilter("%7BT%C3%A6kif%C3%A6ri%20%F0%9F%93%A3%7D", name) + "&maxRecords=50")
+    api(PANTADIR, "filterByFormula=" + linkFilter("%7BT%C3%A6kif%C3%A6ri%20%F0%9F%93%A3%7D", name) + "&maxRecords=50")
       .then(function (d) {
-        var recs = d.records || [];
+        var recs = onlyProject(d.records, "Tækifæri 📣", proj.id);
         var el = document.getElementById("matBody");
         if (!recs.length) { el.innerHTML = '<div class="empty">Engar pantanir skráðar</div>'; return; }
         el.innerHTML = recs.map(function (r) {

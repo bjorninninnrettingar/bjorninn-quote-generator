@@ -76,6 +76,8 @@
   .actBtn { flex:1; min-width:120px; background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:9px 10px; font-size:.82rem; font-weight:500; font-family:inherit; color:var(--text); }
   .actBtn.good { background:var(--good); color:#fff; border-color:var(--good); }
   .actBtn:disabled { opacity:.45; }
+  .efniBar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px; font-size:.85rem; color:var(--muted); }
+  .efniBar .actBtn { flex:0 0 auto; }
   select.statusSel { font-family:inherit; font-size:.82rem; border-radius:10px; border:1px solid var(--line); background:var(--bg); color:var(--text); padding:9px 8px; }
 
   .empty { text-align:center; color:var(--muted); padding:30px 0; font-size:.9rem; }
@@ -113,6 +115,10 @@
     <div class="runMsg" id="recomputeMsg"></div>
 
     <h2 class="sectionTitle">Pantaðir listar</h2>
+    <div class="efniBar" id="efniBar" style="display:none;">
+      <span id="efniState"></span>
+      <button class="actBtn good" id="allArrivedBtn" type="button">🐻 Allt komið í hús</button>
+    </div>
     <div id="orders"></div>
 
     <div id="unlinkedWrap" style="display:none;">
@@ -168,6 +174,21 @@
     var e = String(name).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
     return fieldPrefixEncoded + "%3D" + encodeURIComponent('"' + e + '"');
   }
+  // Project-link filters (2026-10-27): {Link}="<name>" never matches a project whose name has a
+  // comma ("…, 112 Reykjavík") — Airtable quotes such names when it stringifies a link field. So
+  // match with FIND over ARRAYJOIN and then keep only records whose link really holds this
+  // project's record id (FIND alone could also hit a longer name that contains this one).
+  function linkFilter(fieldPrefixEncoded, name) {
+    var e = String(name).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    return encodeURIComponent('FIND("' + e + '", ARRAYJOIN(') + fieldPrefixEncoded + encodeURIComponent(')) > 0');
+  }
+  function onlyProject(recs, linkField, projectId) {
+    return (recs || []).filter(function (r) {
+      var l = (r.fields || {})[linkField];
+      return !Array.isArray(l) || l.indexOf(projectId) !== -1;
+    });
+  }
+
   var FIELD_TAEKIFAERI_LINK = "%7BT%C3%A6kif%C3%A6ri%20%F0%9F%93%A3%7D"; // {Tækifæri 📣}
   var FIELD_TAEKIFAERI_LINK_AUKA = "%7BT%C3%A6kif%C3%A6ri%20%F0%9F%93%A3%20(projects)%7D"; // {Tækifæri 📣 (projects)}
   function esc(s) {
@@ -209,8 +230,8 @@
   document.getElementById("loading").style.display = "block";
   api(TAEKIFAERI + "/" + recordId).then(function (project) {
     var name = (project.fields || {})["Heiti tækifæris / verkefnis"] || "";
-    var fml1 = eqFilter(FIELD_TAEKIFAERI_LINK, name);
-    var fml2 = eqFilter(FIELD_TAEKIFAERI_LINK_AUKA, name);
+    var fml1 = linkFilter(FIELD_TAEKIFAERI_LINK, name);
+    var fml2 = linkFilter(FIELD_TAEKIFAERI_LINK_AUKA, name);
     return Promise.all([
       Promise.resolve(project),
       api(PANTADIR, "filterByFormula=" + fml1 + "&maxRecords=100"),
@@ -220,7 +241,7 @@
   }).then(function (res) {
     document.getElementById("loading").style.display = "none";
     document.getElementById("dash").style.display = "block";
-    render(res[0], res[1].records || [], res[2].records || [], res[3].records || []);
+    render(res[0], onlyProject(res[1].records, "Tækifæri 📣", recordId), onlyProject(res[2].records, "Tækifæri 📣", recordId), onlyProject(res[3].records, "Tækifæri 📣 (projects)", recordId));
   }).catch(function () {
     document.getElementById("loading").textContent = "Tókst ekki að sækja gögn.";
   });
@@ -237,7 +258,8 @@
       var orderLinks = f["Pantaðir listar"];
       if (orderLinks && orderLinks.length) {
         orderLinks.forEach(function (ol) {
-          (linesByOrder[ol.id] = linesByOrder[ol.id] || []).push(l);
+          var oid = typeof ol === "string" ? ol : ol.id; // REST gives plain ids
+          (linesByOrder[oid] = linesByOrder[oid] || []).push(l);
         });
       } else {
         unlinked.push(l);
@@ -249,8 +271,20 @@
     if (!orders.length) {
       ordersEl.innerHTML = '<div class="card"><div class="empty">Engar pantanir enn — keyrðu "Endurreikna pöntunarlista" fyrst</div></div>';
     }
+    currentOrders = orders;
+    efniLanded = !!pf[EFNI_FIELD];
     orders.forEach(function (o) {
       ordersEl.appendChild(orderCard(o, linesByOrder[o.id] || []));
+    });
+    paintEfniBar();
+    document.getElementById("allArrivedBtn").addEventListener("click", function () {
+      var open = currentOrders.filter(function (o) { return (o.fields || {})["Staða"] !== ARRIVED; });
+      if (!open.length) return;
+      if (!confirm("Merkja allar " + open.length + " pantanir „Komið í hús“ og haka „5. Efni lent í húsi“?")) return;
+      var b = this; b.disabled = true;
+      Promise.all(open.map(function (o) {
+        return apiPatch(PANTADIR + "/" + o.id, { "Staða": ARRIVED }).then(function () { setOrderStatus(o.id, ARRIVED); });
+      })).then(syncEfni).catch(function () { b.disabled = false; alert("Tókst ekki að vista allt — endurhlaða og reyna aftur."); });
     });
 
     var unlinkedWrap = document.getElementById("unlinkedWrap");
@@ -289,6 +323,36 @@
     });
   }
 
+  // Efni samstillt (2026-10-27): once every Pantaður listi of the project is "Komið í hús",
+  // "5. Efni lent í húsi" on the project gets ticked — forward only, never unticked, since
+  // material is often ordered outside the system and that box gets ticked by hand.
+  var ARRIVED = "Komið í hús 🐻", EFNI_FIELD = "5. Efni lent í húsi";
+  var currentOrders = [], efniLanded = false;
+  function setOrderStatus(id, st) {
+    currentOrders.forEach(function (o) { if (o.id === id) { o.fields = o.fields || {}; o.fields["Staða"] = st; } });
+    var sel = document.querySelector('[data-status="' + id + '"]');
+    if (sel) sel.value = st;
+    var chip = sel && sel.closest(".card") && sel.closest(".card").querySelector(".cardHd .chip");
+    if (chip) chip.outerHTML = statusChip(st);
+  }
+  function paintEfniBar() {
+    var bar = document.getElementById("efniBar");
+    if (!currentOrders.length) { bar.style.display = "none"; return; }
+    var done = currentOrders.filter(function (o) { return (o.fields || {})["Staða"] === ARRIVED; }).length;
+    bar.style.display = "flex";
+    document.getElementById("efniState").textContent = done + " / " + currentOrders.length + " komið í hús" + (efniLanded ? " · ✓ Efni lent hakað" : "");
+    document.getElementById("allArrivedBtn").style.display = done === currentOrders.length ? "none" : "";
+  }
+  function syncEfni() {
+    var all = currentOrders.length && currentOrders.every(function (o) { return (o.fields || {})["Staða"] === ARRIVED; });
+    var p = Promise.resolve();
+    if (all && !efniLanded) {
+      var ff = {}; ff[EFNI_FIELD] = true;
+      p = apiPatch(TAEKIFAERI + "/" + recordId, ff).then(function () { efniLanded = true; });
+    }
+    return p.then(paintEfniBar);
+  }
+
   function statusChip(staða) {
     var cls = staða === "Sent" ? "sent" : staða === "Komið í hús 🐻" ? "done" : "prep";
     return '<span class="chip ' + cls + '">' + esc(staða || "") + '</span>';
@@ -322,6 +386,7 @@
           (pdf ? '<a class="actBtn" href="' + pdf.url + '" target="_blank" rel="noopener">📄 Skoða PDF</a>' : '') +
           '<button class="actBtn" data-reprint="' + o.id + '">↻ Endurprenta PDF</button>' +
           (canSend ? '<button class="actBtn good" data-send="' + o.id + '">📧 Senda á birgja</button>' : '') +
+          (canSend ? '<button class="actBtn" data-offline="' + o.id + '" title="Pantað í síma eða tölvupósti — enginn póstur sendur héðan">☎️ Pantað utan kerfis</button>' : '') +
           '<select class="statusSel" data-status="' + o.id + '">' +
             ["Í undirbúningi", "Sent", "Komið í hús 🐻"].map(function (s) {
               return '<option value="' + s + '"' + (s === f["Staða"] ? " selected" : "") + '>' + s + '</option>';
@@ -364,9 +429,23 @@
     }
     el.querySelector("[data-status]").addEventListener("change", function (ev) {
       ev.stopPropagation();
-      var fields = {}; fields["Staða"] = ev.target.value;
-      apiPatch(PANTADIR + "/" + o.id, fields);
+      var st = ev.target.value;
+      var fields = {}; fields["Staða"] = st;
+      apiPatch(PANTADIR + "/" + o.id, fields).then(function () { setOrderStatus(o.id, st); return syncEfni(); });
     });
+    var offBtn = el.querySelector("[data-offline]");
+    if (offBtn) {
+      offBtn.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        offBtn.disabled = true;
+        apiPatch(PANTADIR + "/" + o.id, { "Staða": "Sent" }).then(function () {
+          setOrderStatus(o.id, "Sent");
+          offBtn.remove();
+          var sb = el.querySelector("[data-send]"); if (sb) sb.remove();
+          paintEfniBar();
+        }).catch(function () { offBtn.disabled = false; });
+      });
+    }
     el.querySelector("[data-status]").addEventListener("click", function (ev) { ev.stopPropagation(); });
 
     return el;
