@@ -573,3 +573,7 @@ T-199-like (21 Jey: 6×400 8×600 4×700 3×3000): 1,262,072 → 288,895 kr (exa
   exist with "Söluverð fyrir V3 án halda" = 0, i.e. handles are priced on the Tækifæri by design).
 - Ordering is unaffected: Keyra skipulag puts each Eyðublað's handle from its own Útfærslur, never from the Tækifæri.
 - kp-pro: a one-SKU drawing never clears a Halda 2 the drawing didn't write (`HANDLE2` rule); one it wrote is cleared.
+- **Hinge cups on the front (2026-10-27):** the /smida front view and the per-front cards draw each hinge as the front
+  master's own IKEALOM drills it (read from `~/bjorninn-cnc-mirror/Macros/IKEALOM/IKEALOM.bsm`): Ø35 cup at 22.5 mm from
+  the door edge, two Ø8 holes at ±22.5 along the edge and 9.5 mm further in (32 mm from the edge), true scale, blue
+  (grey while the hinge side is open). Still dragged like before.

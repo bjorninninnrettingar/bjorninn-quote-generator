@@ -441,7 +441,7 @@
       var sides = hs === "baedi" ? [0, W] : hs === "vinstri" ? [0] : hs === "haegri" ? [W] : [0, W];
       (d.hinges || []).forEach(function (h, k) {
         sides.forEach(function (sx) {
-          s += '<circle class="drag" data-k="hinge" data-i="' + i + '" data-j="' + k + '" cx="' + (X(sx) + (sx ? -10 : 10)) + '" cy="' + Y(d.from + h) + '" r="6.5" fill="' + (hs ? "#0071e3" : "#c7c7cc") + '" stroke="#fff" stroke-width="2"><title>Löm — dragðu</title></circle>';
+          s += '<g class="drag" data-k="hinge" data-i="' + i + '" data-j="' + k + '">' + cupSvg(sx ? X(W) - 2 : X(0) + 2, sx ? -1 : 1, Y(d.from + h), sc, hs ? "#0071e3" : "#aeaeb2") + "<title>Löm — dragðu</title></g>";
         });
       });
     });
@@ -463,6 +463,14 @@
     s += "</svg>";
     box.innerHTML = s;
     if (canEdit(c)) wire(box.querySelector("svg"), c, H, sc, padT);
+  }
+  // one hinge as the front master's IKEALOM drills it (2026-10-27): Ø35 cup 22.5 mm in from the door edge, two Ø8
+  // holes 45 apart along the edge (±22.5) and 9.5 mm further in. edgeX = the door edge (px), dir = +1 inward to the right.
+  function cupSvg(edgeX, dir, cy, sc, col) {
+    var cx = edgeX + dir * 22.5 * sc, dx = cx + dir * 9.5 * sc, rC = Math.max(17.5 * sc, 3), rD = Math.max(4 * sc, 1.2);
+    return '<circle cx="' + cx + '" cy="' + cy + '" r="' + Math.max(rC, 9) + '" fill="transparent"/>' + // grab area
+      '<circle cx="' + cx + '" cy="' + cy + '" r="' + rC + '" fill="' + col + '" fill-opacity=".14" stroke="' + col + '" stroke-width="1.2"/>' +
+      '<circle cx="' + dx + '" cy="' + (cy - 22.5 * sc) + '" r="' + rD + '" fill="' + col + '"/><circle cx="' + dx + '" cy="' + (cy + 22.5 * sc) + '" r="' + rD + '" fill="' + col + '"/>';
   }
   function wire(svg, c, H, sc, padT) {
     var drag = null;
@@ -596,7 +604,7 @@
         var m = /^([\d.]+), 0, "([\d,]+)"/.exec(o.params); if (!m) return;
         var mmv = +m[1], ends = m[2].split(","), cx = hinge === "haegri" ? W - 22.5 : 22.5;
         ends.forEach(function (end) { var y = end === "2" ? mmv : H - mmv;
-          g += '<circle cx="' + X(cx) + '" cy="' + Y(y) + '" r="' + 17.5 * s + '" fill="#fff" stroke="#1d1d1f" stroke-width="1"><title>Lamaskál Ø35 — ' + mmv + " mm frá " + (end === "2" ? "neðri" : "efri") + " enda</title></circle>"; });
+          g += "<g>" + cupSvg(hinge === "haegri" ? X(W) : X(0), hinge === "haegri" ? -1 : 1, Y(y), s, "#0071e3") + "<title>Lamaskál Ø35 + 2 × Ø8 — " + mmv + " mm frá " + (end === "2" ? "neðri" : "efri") + " enda</title></g>"; });
       }
     });
     if (!door && f.ops.length) notes.unshift("festing úr master");
