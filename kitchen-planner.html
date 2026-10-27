@@ -7768,8 +7768,12 @@
       { label:"Skápur", type:"harskapur" } ] },
     { key:"grunn", label:"Kommóða", desc:"Lágur skúffuskápur", icon:"grunnskapur", opts:[
       { label:"Kommóða", type:"grunnskapur", drawers:true } ] },
-    { key:"taeki", label:"Tækjaskápar", desc:"Hurðirnar renna inn í hliðarnar", icon:"harskapur", opts:[ // owner, 2026-10-27: Revego
-      { label:"Skápur með rennihurðum", type:"harskapur", pocket:true } ] },
+    // Flóknari kerfi (owner, 2026-10-27): three door systems — Rennihurðir in front (Topline), Vasahurðir into the sides
+    // (Revego), Fellihurðir that fold (WingLine). The kitchen keeps its "Tækjaskápar".
+    { key:"taeki", label:"Flóknari kerfi", desc:"Renni-, vasa- og fellihurðir", icon:"harskapur", opts:[
+      { label:"Rennihurðir", type:"harskapur", doorSys:"renni" },
+      { label:"Vasahurðir", type:"harskapur", pocket:true },
+      { label:"Fellihurðir", type:"harskapur", doorSys:"felli" } ] },
     { key:"hillur", label:"Hillur á vegg", desc:"Lausar hillur", icon:"laushilla", opts:[
       { label:"Hillur á vegg", type:"laushilla" } ] }
   ];
@@ -7846,8 +7850,11 @@
   ];
   var BATH_HUNG_MM = 200, BATH_DEPTH_MM = 500, BATH_BOX_MM = 600, BATH_TALL_BOX_MM = 1600, BATH_TALL_DEPTH_MM = 350;
   var HUNG_GAPS = [150, 200, 250, 300]; // "Hæð frá gólfi" chips, mm
+  // Hornskápur for customers (owner, 2026-10-27): in a Horn wardrobe or a Fataherbergi
+  var CL_HORN = { key:"horn", label:"Hornskápur", desc:"Opnar hillur í horninu", icon:"harskapur", opts:[{ label:"Hornskápur", type:"harskapurOpinn", closetCorner:true }] };
   function activeUnitTree(){
     var cd = categoryDef(SK_CAT || state.activeCategory), t = (cd && cd.tree) || KITCHEN_TREE;
+    if (!PRO && t === FATASKAPAR_TREE && (closetShape() === "closetCorner" || (!closetShape() && state.shapeKey === "rect"))) return t.concat([CL_HORN]);
     if (PRO && t === THVOTT_TREE) return THVOTT_TREE_PRO;
     if (PRO && t === FATASKAPAR_TREE) return closetShape() === "closetCorner" ? FATASKAPAR_TREE_PRO : FATASKAPAR_TREE_PRO.filter(function(x){ return !x.cornerOnly; });
     return t;
@@ -7873,10 +7880,8 @@
   function closeFitAsk(){ var fa = document.getElementById("fitAsk"); if (fa) fa.remove(); }
   function openUnitWizard(){
     closeFitAsk();
-    if (isCloset() && closetShape() && !PRO){ // a full wardrobe wall: say so (QA/user 2026-10-26: every new unit said "passar ekki")
-      var freeMax = 0; uwSurfaces("floor").forEach(function(w){ freeIntervals(w, "floor", null, null).forEach(function(iv){ freeMax = Math.max(freeMax, iv[1] - iv[0]); }); });
-      if (freeMax < 300){ toast(__("Veggurinn er fullur — smelltu á skáp til að breyta honum eða skipta honum í tvennt.")); return; }
-    } // an unanswered "passar ekki" question is about a unit that's no longer being added (QA J1)
+    // a full wall no longer stops it (owner, 2026-10-27): Setja inn offers to swap a cabinet or a narrower one instead
+    // (an unanswered "passar ekki" question is about a unit that's no longer being added — QA J1)
     uw = { step:1, hoverCat:0 }; // the first (most common) type shows on the left right away (user, 2026-10-26: it sat empty)
     var st = KP3D._three();
     uwEditorCam = st ? { p:st.camera.position.clone(), t:st.controls.target.clone() } : null;
@@ -8046,7 +8051,8 @@
     var b = newBlock(opt.type), c = CATALOG[opt.type];
     if (opt.preset) Object.assign(b, JSON.parse(JSON.stringify(opt.preset))); // e.g. ofn + örbylgja = ovenH 1050
     if (opt.mirror) b.mirrorFront = true; // Spegilskápur: the efri skápur with a mirror glued on its front
-    if (opt.pocket) applyClosetDoorKind(b, "pocket"); // Tækjaskápar: Revego doors from the start (the same spec as the panel's Rennur inn í hlið)
+    if (opt.pocket) applyClosetDoorKind(b, "pocket");
+    if (opt.doorSys) b.doorSys = opt.doorSys; // Rennihurðir / Fellihurðir (DOOR_SYSTEMS) // Tækjaskápar: Revego doors from the start (the same spec as the panel's Rennur inn í hlið)
     if (c.hasInterior && opt.drawers && !(c.sink && isBath())){ // (a bath basin unit already has its two drawers — newBlock)
       b.interior.mode = "skuffur";
       for (var n = 3; n >= 1; n--){
@@ -8065,7 +8071,7 @@
     }
     if (opt.closetCorner){ // the corner square: as deep as wall 2's units + the filler, open shelves (fillCloset's corner unit)
       b.widthMm = (state.closetDepthMm || 580) + CLOSET_CORNER_FILLER_MM; applyClosetRecipe(b, "hillur"); uw.closetW = b.widthMm;
-      var w1 = state.walls[SHAPE_TEMPLATES[closetShape()].closetWalls[0]]; if (w1){ uw.wallId = w1.id; uw.cornerUnit = true; return b; }
+      var w1 = closetShape() === "closetCorner" ? state.walls[SHAPE_TEMPLATES.closetCorner.closetWalls[0]] : null; if (w1){ uw.wallId = w1.id; uw.cornerUnit = true; return b; } // a Fataherbergi: placed like any unit
     }
     // default wall: the selected one if it has room, else the first that does
     var list = uwSurfaces(c.zone), pick = list.find(function(w){ return w.id === (uwPreferWallId || selectedWallId) && uwFits(w, b); }) || list.find(function(w){ return uwFits(w, b); });
@@ -8146,7 +8152,7 @@
       if (uw.secFor !== b){ uw.secFor = b; uw.picked = {}; uw.sec = !c.panel ? "w" : c.minH !== c.maxH ? "h" : c.minD !== c.maxD ? "d" : "inn"; } // a new cabinet starts over
       var widths = uwWidthOptions(c), walls = uwSurfaces(c.zone);
       var catNow = activeUnitTree()[uw.cat];
-      html = '<p class="uw-kicker">' + __(catNow.group || catNow.label) + '</p><h3>' + (opt.group ? __(opt.group) + ': ' : '') + __(opt.label) + (opt.pocket ? ' <span class="shape-tip" title="' + __("Blum Revego: hurðirnar renna inn í hliðar skápsins. Söluaðili staðfestir verð.") + '" aria-label="' + __("Söluaðili staðfestir verð.") + '">ⓘ</span>' : '') + '</h3>';
+      html = '<p class="uw-kicker">' + __(catNow.group || catNow.label) + '</p><h3>' + (opt.group ? __(opt.group) + ': ' : '') + __(opt.label) + (opt.pocket || opt.doorSys ? ' <span class="shape-tip" title="' + __(opt.doorSys ? DOOR_SYSTEMS[opt.doorSys].tip : "Blum Revego: hurðirnar renna inn í hliðar skápsins. Söluaðili staðfestir verð.") + '" aria-label="' + __("Söluaðili staðfestir verð.") + '">ⓘ</span>' : '') + '</h3>';
       if (uw.island) html += islandBoxesHTML();
       // One thing at a time (user, 2026-10-23): Breidd → Hæð → Dýpt → Innvols as collapsible groups. Each dimension
       // starts un-picked with the usual size highlighted; picking one folds it into its header ("Breidd · 60 cm ✓")
@@ -8232,10 +8238,10 @@
       if (isCloset() && closetTall(b) && PRO && !uw.cornerUnit) // PRO keeps its own Innvols (Smíða opens next) but gets the Hurðir step before it, with Rennihurð í hlið (2026-10-26)
         secHtml.push(uwSec("door", "Hurðir", b.type === "harskapurOpinn" ? "Opið" : uw.doorKind === "pocket" ? "Rennihurð í hlið" : "Með hurðum", closetDoorsHtml(b, true)));
       if (isCloset() && closetTall(b) && !PRO){ // the same picture cards as the side panel; doors first — they change the options (user, 2026-10-26)
-        if (!opt.pocket) secHtml.push(uwSec("door", __("Hurðir"), b.type === "harskapurOpinn" ? __("Opið") : __("Með hurðum"), closetDoorsHtml(b, true)));
+        if (!opt.pocket && !opt.doorSys) secHtml.push(uwSec("door", __("Hurðir"), b.type === "harskapurOpinn" ? __("Opið") : __("Með hurðum"), closetDoorsHtml(b, true)));
         innHtml = closetBayHtml(b, true, true);
         var rr = CLOSET_RECIPES.find(function(x){ return x.key === b.closetRecipe; });
-        innSum = (rr ? __(rr.label) : __("Eigin samsetning")) + " · " + (b.type === "harskapurOpinn" ? __("Opið") : opt.pocket ? __("Rennihurð í hlið") : __("Með hurðum"));
+        innSum = (rr ? __(rr.label) : __("Eigin samsetning")) + " · " + (b.type === "harskapurOpinn" ? __("Opið") : opt.pocket ? __("Rennihurð í hlið") : opt.doorSys ? __(DOOR_SYSTEMS[opt.doorSys].short) : __("Með hurðum"));
       }
       if (!shortWiz && !machineOnly && innHtml.replace(/<div class="edit-field"><\/div>/g, "").trim()) secHtml.push(uwSec("inn", c.hasInterior || c.shelfRange || c.railRange ? __("Innvols") : __("Útfærsla"), innSum, innHtml));
       html += '<div class="uw-secs">' + secHtml.join("") + '</div>';
@@ -8492,6 +8498,21 @@
       if (!pl.fits){
         var widest = Math.max.apply(null, [0].concat(freeIntervals(wall, c.zone, null, probeSpan(c.zone, b)).map(function(iv){ return iv[1] - iv[0]; })));
         var fitW = wall.island ? 0 : Math.min(c.maxW, Math.floor(widest / 10) * 10);
+        // full wall, customer (owner, 2026-10-27): swap the selected cabinet (else the last one on the wall) for the new unit
+        var swapOld = !PRO && fitW < c.minW && !wall.island ? (function(){ var row = wall[c.zone] || [], sel = row.find(function(x){ return x.id === selectedBlockId && !CATALOG[x.type].panel; });
+          return sel || row.slice().reverse().find(function(x){ return !CATALOG[x.type].panel; }); })() : null;
+        if (swapOld){
+          askChoice("<b>" + __("Veggurinn er fullur.") + "</b> " + __("Setja „{name}“ í stað skápsins sem er þar ({w})?", { name:__((activeUnitTree()[uw.cat].opts[uw.opt] || c).label), w:uLen(swapOld.widthMm) }),
+            __("Já, skipta út"), __("Hætta við"), function(){
+              if (!uw || uw.b !== b) return;
+              var row = wall[c.zone], at = row.indexOf(swapOld); if (at < 0) return;
+              b.widthMm = Math.max(c.minW, Math.min(c.maxW, swapOld.widthMm)); if (swapOld.gapMm != null) b.gapMm = swapOld.gapMm;
+              row.splice(at, 1, b);
+              landedBlockId = b.id; selectedBlockId = b.id; selectedWallId = null;
+              save(); leaveUnitWizard(); refreshAfterEdit(); restoreEditorCam();
+            });
+          return;
+        }
         if (fitW >= c.minW) offerFit(__("{name} {w} passar ekki á {wall}.", { name:__(c.label), w:uLen(b.widthMm), wall:KPI18N.lang === "en" ? __(wall.label).toLowerCase() : wallDat(wall) }), fitW, function(){ if (!uw || uw.b !== b) return; b.widthMm = fitW; add.click(); }); // the wizard may have moved on (QA J1)
         else toast(PRO ? __("Ekki nóg pláss á {wall} fyrir {name}.", { wall:KPI18N.lang === "en" ? __(wall.label).toLowerCase() : wallDat(wall), name:__(c.label).toLowerCase() }) : __("Veggurinn er fullur — Setja inn býður mjórri skáp, eða færðu annan til.")); // (owner, 2026-10-27)
         return;
@@ -11367,11 +11388,13 @@
   }
   function closetDoorKind(b){
     if (b.type === "harskapurOpinn") return "open";
+    if (b.doorSys && DOOR_SYSTEMS[b.doorSys]) return b.doorSys;
     var fb = findBlock(b.id); if (!fb) return "hinged";
     var ds = proDoorsOf(b, CATALOG[b.type], fb.zone);
     return ds.length && ds.every(function(d, i){ return proSpec(b, ds, i).type === "pocket"; }) ? "pocket" : "hinged";
   }
   function applyClosetDoorKind(b, kind){ // hinged / pocket / open on a wardrobe unit (panel + PRO wizard)
+    delete b.doorSys; // a Rennihurðir / Fellihurðir unit becomes a plain one
     setClosetBayDoors(b, kind !== "open");
     if (kind === "open") return;
     // the same door spec the Rennur-inn-í-hlið toggle writes (proSpec), so V3/notes/Smíðagögn follow
@@ -11388,7 +11411,7 @@
       [["hinged", "Með hurðum", ""], ["pocket", "Rennihurð í hlið", "Hurðin rennur inn í hlið skápsins þegar hún er opin (Blum Revego). Dýrari lausn, söluaðili staðfestir verð."], ["open", "Opið", ""]].filter(function(o){ return !(wizard && !PRO && o[0] === "pocket"); }).map(function(o){ // PRO's wizard has Rennihurð í hlið too
         var kind = wizard ? (b.type === "harskapurOpinn" ? "open" : uw && uw.doorKind === "pocket" ? "pocket" : "hinged") : closetDoorKind(b);
         return '<button type="button" class="hw-btn' + (kind === o[0] ? ' active' : '') + '" data-cldoortype="' + o[0] + '"' + (o[2] ? ' title="' + __(o[2]) + '"' : '') + '>' + __(o[1]) + '</button>';
-      }).join("") + '</div></div>';
+      }).join("") + '</div>' + (!wizard && b.doorSys && DOOR_SYSTEMS[b.doorSys] ? '<small class="cl-note">' + __(DOOR_SYSTEMS[b.doorSys].short) + ' · ' + __("söluaðili staðfestir kerfi og verð") + '</small>' : '') + '</div>';
   }
   function closetBayHtml(b, wizard, noDoors){
     if (!isCloset() || !closetTall(b)) return "";
@@ -12912,6 +12935,11 @@
   };
   // AVENTOS lyftur (user, 2026-10-23, B4) — PRO option on wall cabinets, → V3 (route "Flókið kerfi"), the door becomes
   // a Lyftihurð in Smíða so /cnc and the drawings follow
+  // Fataskápur Flóknari kerfi (owner, 2026-10-27) — Útfærslur in Vörulisti "Flókin kerfi" (HEGAS): one system per unit, → V3
+  var DOOR_SYSTEMS = {
+    renni: { short:"Rennihurðir", label:"Topline XL rennihurðakerfi", id:"rec9jLK5w4lpJ8Uou", tip:"Rennihurðir sem renna til hliðar fyrir framan skápana (Hettich Topline). Söluaðili staðfestir kerfi og verð." },
+    felli: { short:"Fellihurðir", label:"WingLine L fellihurðakerfi", id:"recRiQRmHo15SOGd2", tip:"Fellihurðir sem leggjast saman þegar þær opnast (Hettich WingLine). Söluaðili staðfestir kerfi og verð." }
+  };
   var AVENTOS_PRODUCTS = {
     hktop: { label:"AVENTOS HK-Top", id:"recguDtSfkhwH32U6" },
     hltop: { label:"AVENTOS HL-Top", id:"recHqMOZkfg9tcWtn" },
@@ -12925,6 +12953,7 @@
     // Le Mans by door half × carcass colour (route "Töfrahorn"; no light grey one exists)
     if (c.tofrahornIds){ var tid = tofraIdsFor(b, c)[b.swing === "vinstri" ? "vinstri" : "haegri"][state.carcass]; if (tid) out.push(tid); }
     if (b.aventos && AVENTOS_PRODUCTS[b.aventos]) out.push(AVENTOS_PRODUCTS[b.aventos].id);
+    if (b.doorSys && DOOR_SYSTEMS[b.doorSys] && b.type === "harskapur") out.push(DOOR_SYSTEMS[b.doorSys].id);
     if (b.smida && Array.isArray(b.smida.doors)){
       var pocketSys = null;
       b.smida.doors.forEach(function(d){ if (d && d.type === "pocket" && !pocketSys) pocketSys = d.pocketSys || "revego"; });
@@ -13109,6 +13138,7 @@
         if (c.thvoSide){ var hs = blockHeightMm(b, c); notes.push("Hlið við hlið í skáp: Lítill kassi " + b.widthMm + " mm með einni skúffu (~300 mm) undir " + (b.widthMm < 1000 ? "einni vél" : "þvottavél og þurrkara") + ", 2 úthliðar " + hs + " mm upp með vélunum, skápur ofan á (" + Math.max(0, hs - 100 - 300 - 880) + " mm) — söluaðili staðfestir."); }
         if (b.single && c.thvo) notes.push("Enginn þurrkari: aðeins þvottavél í turninum, skápur með hillum fyrir ofan."); // (owner, 2026-10-27)
         if (b.mirrorFront) notes.push("Spegilskápur: spegill límdur á framhliðina — söluaðili staðfestir spegilinn og verð."); // (owner, 2026-10-27)
+        if (b.doorSys && DOOR_SYSTEMS[b.doorSys] && b.type === "harskapur") notes.push(DOOR_SYSTEMS[b.doorSys].label + " (val viðskiptavinar) — engar lamir; söluaðili staðfestir kerfi, stærð og verð.");
         if (closetMirrorIdsNow()[b.id]){ var cmN = KP3D.doorLeaves(b, c).length || 1; notes.push("Spegill á " + cmN + (cmN === 1 ? " hurð" : " hurðum") + " (val viðskiptavinar) — söluaðili staðfestir spegilinn og verð."); }
         if (state.bathMirror && c.sink) notes.push("Spegilskápur óskast yfir vaskinn — ekki í pöntun, söluaðili verðleggur hann og staðfestir mál.");
         if (c.sink && state.laundryDrain && isLaundry()) notes.push("Niðurfall í gólfi: " + (state.laundryDrain === "ja" ? "já" : "nei") + " (viðskiptavinur).");
@@ -15887,7 +15917,7 @@
       var cnt = closetCounts(b), r = CLOSET_RECIPES.find(function(x){ return x.key === b.closetRecipe; }), kind = closetDoorKind(b);
       tot.drawers += cnt.drawers; tot.rails += cnt.rails; tot.shelves += cnt.shelves; tot.trays += cnt.trays;
       if (cnt.rails){ var rcol = __(closetRailColor(b)[1]).toLowerCase(); if (railCols.indexOf(rcol) < 0) railCols.push(rcol); }
-      out.push([__("Skápur {n}", { n:i + 1 }), Math.round(b.widthMm / 10) + " cm · " + (r ? __(r.label) : __("Eigin samsetning")) + " · " + (kind === "open" ? __("Opið") : kind === "pocket" ? __("Rennihurð í hlið") : __("Með hurðum"))]);
+      out.push([__("Skápur {n}", { n:i + 1 }), Math.round(b.widthMm / 10) + " cm · " + (r ? __(r.label) : __("Eigin samsetning")) + " · " + (kind === "open" ? __("Opið") : kind === "pocket" ? __("Rennihurð í hlið") : DOOR_SYSTEMS[kind] ? __(DOOR_SYSTEMS[kind].short) : __("Með hurðum"))]);
     });
     var inside = [];
     if (tot.drawers) inside.push(tot.drawers + " " + plural(tot.drawers, "skúffa", "skúffur"));

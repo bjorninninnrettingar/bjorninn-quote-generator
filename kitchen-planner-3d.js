@@ -2765,7 +2765,18 @@
       if (p.racks) p.racks.position.z = p.racksOut * smooth01((p.cur - 0.5) / 0.5);
       return;
     }
-    if (p.kind === "lift"){ p.group.rotation.x = -1.4 * e; return; } // AVENTOS: the front swings up and out over the cabinet
+    if (p.kind === "lift"){ p.group.rotation.x = -1.4 * e; return; }
+    if (p.kind === "slide"){ // Topline: out a touch onto its track, then sideways past the other door (left behind, right in front)
+      var sdir = p.hinge === "left" ? 1 : -1, sOut = smooth01(p.cur / 0.25);
+      p.group.position.z = p.z0 + (p.hinge === "left" ? -0.004 : 0.026) * sOut;
+      p.group.position.x = p.x0 + sdir * p.w * 0.92 * smooth01((p.cur - 0.15) / 0.85);
+      return;
+    }
+    if (p.kind === "fold"){ // WingLine: the door folds in half towards its hinge side as it opens
+      p.group.rotation.y = (p.hinge === "left" ? -1 : 1) * 1.45 * e;
+      p.group.scale.x = 1 - 0.5 * e;
+      return;
+    } // AVENTOS: the front swings up and out over the cabinet
     if (p.kind === "pocket"){ // Revego: out to 90°, then back into the pocket beside the carcass
       p.group.rotation.y = (p.hinge === "left" ? -1 : 1) * Math.PI / 2 * smooth01(p.cur / 0.5);
       p.group.position.z = p.z0 - p.pocketIn * smooth01((p.cur - 0.5) / 0.5);
@@ -2892,6 +2903,7 @@
     // Tækjaskápar (owner, 2026-10-27): a wall unit with an AVENTOS lift opens UP (one front, tips up on its top edge);
     // doors with the Rennihurð í hlið spec (smida.doors type "pocket") turn out 90° and then slide back into the side
     var mvB = meta.shelfBlock, doorMove = !mvB || meta.corner || meta.fridge || meta.oven ? null
+      : mvB.doorSys === "renni" ? "slide" : mvB.doorSys === "felli" ? "fold" // wardrobe Flóknari kerfi (owner, 2026-10-27)
       : meta.zone === "wall" && (mvB.aventos || (mvB.smida && Array.isArray(mvB.smida.doors) && mvB.smida.doors.some(function(d){ return d && d.type === "lift"; }))) ? "lift"
       : mvB.smida && Array.isArray(mvB.smida.doors) && mvB.smida.doors.some(function(d){ return d && d.type === "pocket"; }) ? "pocket" : null;
 
@@ -3027,7 +3039,7 @@
       var prev = PART_STATE[key];
       var maxDeg = meta.doorLimit && meta.doorLimit[hinge] != null ? meta.doorLimit[hinge] : DOOR_OPEN_DEG; // stops at a wall / corner
       if (hingeOpenRad != null) maxDeg = Math.min(maxDeg, hingeOpenRad * 180 / Math.PI); // a door with the hinge model opens to the model's own 90°
-      var part = { key:key, group:g, kind:f.drawer ? "drawer" : hinge === "bottom" ? "flap" : hinge === "top" ? "lift" : doorMove === "pocket" ? "pocket" : "door", hinge:hinge, z0:g.position.z, pocketIn:Math.max(0.1, CD - 0.06), maxRad:maxDeg * Math.PI / 180, slide:fixedTop ? 0 : Math.min(0.34, CD * 0.6), cur:prev ? prev.cur : 0, target:prev ? prev.target : (PEEK_OPEN[meta.blockId] ? 1 : 0), hinges:leafHinges };
+      var part = { key:key, group:g, kind:f.drawer ? "drawer" : hinge === "bottom" ? "flap" : hinge === "top" ? "lift" : doorMove === "pocket" ? "pocket" : doorMove === "slide" ? "slide" : doorMove === "fold" ? "fold" : "door", hinge:hinge, z0:g.position.z, x0:g.position.x, w:w, pocketIn:Math.max(0.1, CD - 0.06), maxRad:maxDeg * Math.PI / 180, slide:fixedTop ? 0 : Math.min(0.34, CD * 0.6), cur:prev ? prev.cur : 0, target:prev ? prev.target : (PEEK_OPEN[meta.blockId] ? 1 : 0), hinges:leafHinges };
       PART_STATE[key] = part; parts.push(part); applyPart(part);
       frame.add(g);
     }
