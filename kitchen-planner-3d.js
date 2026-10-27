@@ -7386,16 +7386,27 @@
       tube([[-0.4, 1.82, -0.4], [-0.4, 1.95, -0.35], [-0.3, 1.97, -0.28]], 0.011, steel);
       cyl(0.11, 0.11, 0.012, -0.28, 1.96, -0.26, steel, 32);
       rbox(0.07, 0.12, 0.05, 0.01, -0.4, 1.05, -0.4, steel);
-    } else if (key === "klosett"){ // a wall-hung WC (owner, 2026-10-27): the mounting block, a rounded bowl, seat + lid, a flush plate on the wall
-      var ceramic = mat(0xf7f6f2, 0.18), seatM = mat(0xfbfaf8, 0.3);
-      rbox(0.36, 0.42, 0.16, 0.03, 0, 0.47, -0.245, ceramic); // the block against the wall
-      var bowlW = new THREE.Mesh(new THREE.SphereGeometry(1, 40, 24, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), ceramic);
-      bowlW.scale.set(0.18, 0.2, 0.27); bowlW.position.set(0, 0.42, 0.02); add(bowlW);
-      var rimW = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.03, 40), ceramic); rimW.scale.set(0.18, 1, 0.27); rimW.position.set(0, 0.42, 0.02); add(rimW);
-      var seatW = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.018, 40), seatM); seatW.scale.set(0.185, 1, 0.275); seatW.position.set(0, 0.444, 0.025); add(seatW);
-      var lidW = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.016, 40), seatM); lidW.scale.set(0.18, 1, 0.27); lidW.position.set(0, 0.461, 0.025); add(lidW);
-      rbox(0.24, 0.16, 0.012, 0.01, 0, 1.02, -0.319, mat(0xeeeeec, 0.25)); // flush plate
-      rbox(0.07, 0.1, 0.006, 0.005, -0.045, 1.02, -0.311, mat(0xdcdedf, 0.2, 0.3)); rbox(0.07, 0.1, 0.006, 0.005, 0.045, 1.02, -0.311, mat(0xdcdedf, 0.2, 0.3));
+    } else if (key === "klosett"){ // a wall-hung rimless WC (owner, 2026-10-27: "make it real-looking"): one lofted ceramic body —
+      // flat on the wall, egg-shaped seen from above, curving in underneath back to the wall — a bevelled seat ring, a
+      // soft-close lid, chrome hinges, the flush plate on the wall (the cistern is in the wall)
+      var ceramic = mat(0xf8f7f3, 0.12, 0, { envMapIntensity:0.6 }), seatM = mat(0xfbfbf9, 0.22), wz = -0.325, L = 0.54, cz = L / 2, N = 72;
+      function outl(th){ var c = Math.cos(th), sn = Math.sin(th), n = sn < 0 ? 3.4 : 2.15, r = 1 / Math.pow(Math.pow(Math.abs(c), n) + Math.pow(Math.abs(sn), n), 1 / n); return [0.178 * c * r, cz + cz * sn * r]; }
+      var rings = [[0.405, 1], [0.392, 1.004], [0.36, 0.997], [0.322, 0.972], [0.288, 0.915], [0.262, 0.83], [0.243, 0.7], [0.232, 0.52], [0.226, 0.3]];
+      var pos = [], idx = [];
+      rings.forEach(function(rg){ for (var i = 0; i < N; i++){ var o = outl(-Math.PI / 2 + i / N * Math.PI * 2); pos.push(o[0] * rg[1], rg[0], wz + o[1] * rg[1]); } }); // scaled toward the wall: the underside curves back to it
+      for (var j = 0; j < rings.length - 1; j++) for (var i = 0; i < N; i++){ var a = j * N + i, b = j * N + (i + 1) % N, c2 = a + N, d2 = b + N; idx.push(a, c2, b, b, c2, d2); }
+      var top0 = pos.length / 3; pos.push(0, 0.405, wz + cz); for (var i = 0; i < N; i++) idx.push(top0, i, (i + 1) % N); // the top (under the seat)
+      var bot0 = pos.length / 3, lr = rings[rings.length - 1]; pos.push(0, lr[0] - 0.004, wz + cz * lr[1]); for (var i = 0; i < N; i++) idx.push(bot0, (rings.length - 1) * N + (i + 1) % N, (rings.length - 1) * N + i);
+      var bg = new THREE.BufferGeometry(); bg.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); bg.setIndex(idx); bg.computeVertexNormals();
+      add(new THREE.Mesh(bg, ceramic));
+      function ring(sx, sz, dz){ var sh = new THREE.Shape(); for (var i = 0; i <= N; i++){ var o = outl(-Math.PI / 2 + i / N * Math.PI * 2); var x = o[0] * sx, z = cz + dz + (o[1] - cz) * sz; if (i) sh.lineTo(x, -z); else sh.moveTo(x, -z); } return sh; }
+      function slab(sh, t, bev, y, m){ var g = new THREE.ExtrudeGeometry(sh, { depth:t, bevelEnabled:true, bevelThickness:bev, bevelSize:bev, bevelSegments:3, curveSegments:N }); g.rotateX(-Math.PI / 2); var o = new THREE.Mesh(g, m); o.position.set(0, y, wz); return add(o); }
+      var seat = ring(0.97, 0.93, 0.03); seat.holes.push(ring(0.6, 0.62, 0.055)); // the ring: open in front of the hinges
+      slab(seat, 0.012, 0.005, 0.411, seatM);
+      slab(ring(0.955, 0.915, 0.03), 0.01, 0.006, 0.434, seatM); // the lid, down
+      [-0.075, 0.075].forEach(function(x){ var h = cyl(0.011, 0.011, 0.03, x, 0.425, wz + 0.05, steel, 16); h.rotation.z = Math.PI / 2; });
+      rbox(0.246, 0.164, 0.012, 0.006, 0, 1.02, wz + 0.006, mat(0xf1f1ef, 0.22)); // flush plate
+      rbox(0.104, 0.124, 0.006, 0.004, -0.056, 1.02, wz + 0.014, mat(0xdcdfe1, 0.18, 0.4)); rbox(0.104, 0.124, 0.006, 0.004, 0.056, 1.02, wz + 0.014, mat(0xdcdfe1, 0.18, 0.4));
     } else if (key === "badkar"){ // a built-in 170×70 bath: white panelled tub, an inset oval bowl, a chrome spout at one end
       var whiteB = mat(0xf7f6f2, 0.2), inner = mat(0xf2f1ec, 0.15, 0, { side:THREE.DoubleSide });
       var ring = new THREE.Shape(); ring.moveTo(-0.85, -0.35); ring.lineTo(0.85, -0.35); ring.lineTo(0.85, 0.35); ring.lineTo(-0.85, 0.35); ring.lineTo(-0.85, -0.35);
