@@ -1635,6 +1635,7 @@
   .hd-search{ max-width:340px; }
   .hd-mats{ max-height:330px; overflow:auto; padding:3px; }
   .hd-prod{ font-size:12px; color:var(--ink-soft); margin:6px 0 0; }
+  .hd-total{ font-size:14px; margin:0 0 8px; color:var(--ink); }
   .hd-picked{ font-size:13px; margin:8px 0; color:var(--ink-soft); }
   .hd-picked b{ color:var(--ink); }
   .hd-opts{ display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:8px; max-width:720px; }
@@ -14436,7 +14437,8 @@
     document.getElementById("hdTitle").textContent = __(T[0]); document.getElementById("hdSub").textContent = __(T[1]);
     nb.textContent = doorPage === "review" ? (PRO ? "Klárt" : state.home ? (homeWalkPeek() ? __("Klárt — næsta rými →") : __("Klárt — aftur í rýmin")) : __("Áfram í spurningar →")) : __("Áfram →");
     if (doorPage === "list"){
-      html = '<div class="hd-rows">' + state.doorList.map(function(d, i){
+      var nTop = state.doorList.reduce(function(s2, x){ return x.designed === false ? s2 : s2 + Math.max(1, x.qty | 0); }, 0); // total at the top (Innihurðir 15, 2026-10-26)
+      html = (nTop ? '<p class="hd-prod hd-total"><b>' + nTop + ' ' + plural(nTop, "hurð", "hurðir") + '</b></p>' : '') + '<div class="hd-rows">' + state.doorList.map(function(d, i){
         var done = d.designed !== false;
         return '<div class="hd-row' + (done ? ' done' : '') + '"><span class="hd-hu">' + doorHuLabel(d) + '</span>' +
           '<div class="hd-room">' + doorRoomSelect(d, i) + '</div>' +

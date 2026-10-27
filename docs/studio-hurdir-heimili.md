@@ -130,3 +130,8 @@ Built from docs/studio-review-2026-10-25.md section C (the "Tillaga" lines, reco
 - B6 úthliðar prompt: "Já, bæta við" adds them and goes straight on (a toast only if some didn't fit).
 - Verified (static server, 1440×900): Eldhús + Þvottahús + Innihurðir walk → list → Spurningar → Senda inn (not sent),
   one-room Fataskápur, popup add, old-draft migration.
+
+## Innihurðir queue check (2026-10-27)
+- Items 9–14 and 16 of the 2026-10-26 Innihurðir list were already live from rounds 4–5 + the morning scan (title, short room list + Annað, "Eins og HU-n", húnar question removed, stepper Hurðir → Spurningar → Senda inn).
+- Item 15: the door list now shows the total ("N hurðir", designed doors × qty) above the rows; hidden while only the empty starter door exists.
+- Still later: "how to measure a door opening" guide in Mál; JNF Coplan concealed-hinge model (waiting on the user).
