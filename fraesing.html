@@ -148,6 +148,13 @@
   .empty-msg { color: var(--dim); text-align: center; padding: 40px; font-size: 1.1rem; }
   .hidden { display: none; }
 
+  .project-notes { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .project-note {
+    background: rgba(255,214,10,.08); border: 1px solid rgba(255,214,10,.3); border-left: 4px solid var(--amber);
+    border-radius: 10px; padding: 8px 12px;
+  }
+  .project-note-k { font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--amber); margin-bottom: 3px; }
+  .project-note-v { font-size: 0.98rem; white-space: pre-wrap; word-break: break-word; }
   .project-docs { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
   .doc-group-label { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 6px; }
   .doc-links { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -191,6 +198,7 @@
       <div style="font-size:1.2rem;font-weight:700;" id="projectName"></div>
     </div>
     <div class="sub" id="projectStatus" style="margin-bottom:0;">Sæki gögn…</div>
+    <div class="project-notes hidden" id="projectNotes"></div>
     <div class="project-docs hidden" id="projectDocs"></div>
     <div class="pdf-viewer hidden" id="pdfViewer">
       <div class="pdf-viewer-head">
@@ -241,6 +249,14 @@ const VERK_KEY = "XpxfZw1Cc9APLSlDGhm1AM4NdU1j";
 const P_STADA_SOLU = "Staða í söluferli";
 const P_STADA_SKIPULAG = "Staða í skipulagi";
 const P_STADA_FRAM = "Staða í framleiðslu";
+
+// The project's own "watch out" notes, shown above the drawings — the
+// Fræsari one first since this is the CNC page. Hidden if all are empty.
+const PROJECT_NOTE_FIELDS = [
+  { field: "🔬📌 Það sem Fræsari þarf að hafa í huga", label: "Fræsari 🔬" },
+  { field: "🧠📌Það sem þarf að hafa í huga", label: "Hafa í huga 🧠" },
+  { field: "🪛📌 Það sem uppsetningaraðili þarf að hafa í huga❗", label: "Samsetning / uppsetning 🪛" },
+];
 
 // Reference PDFs shown at the top of the project card, hidden if empty.
 const PROJECT_DOC_FIELDS = [
@@ -747,11 +763,14 @@ async function loadProject(projectId) {
   document.getElementById("projectStatus").textContent = "Sæki gögn…";
   document.getElementById("projectDocs").classList.add("hidden");
   document.getElementById("projectDocs").innerHTML = "";
+  document.getElementById("projectNotes").classList.add("hidden");
+  document.getElementById("projectNotes").innerHTML = "";
 
   const exitBack = document.getElementById("exitBack");
   if (exitBack) exitBack.href = `/verk?t=${encodeURIComponent(projectId)}&k=${encodeURIComponent(VERK_KEY)}`;
 
-  const projectRecordPromise = airtableFetch(PROJECTS_TABLE, {}, projectId);
+  // k= unlocks the internal note fields (VERK_ONLY_FIELDS in api/airtable.js).
+  const projectRecordPromise = airtableFetch(PROJECTS_TABLE, { k: VERK_KEY }, projectId);
 
   const opt = document.querySelector(`#projectSelect option[value="${projectId}"]`);
   let projectName = opt?.dataset.name || opt?.textContent || "";
@@ -775,6 +794,7 @@ async function loadProject(projectId) {
     fetchSogunarlistiForProject(projectName),
     projectRecord ? Promise.resolve(projectRecord) : projectRecordPromise,
   ]);
+  renderProjectNotes(fetchedRecord);
   renderProjectDocs(fetchedRecord);
 
   const unitRowsInProject = unitRows.filter(r =>
@@ -835,6 +855,20 @@ async function loadProject(projectId) {
   populatePartturDropdown();
   document.getElementById("listCard").classList.remove("hidden");
   rebuildView();
+}
+
+function renderProjectNotes(record) {
+  const container = document.getElementById("projectNotes");
+  const notes = PROJECT_NOTE_FIELDS
+    .map(({ field, label }) => ({ label, text: String(record?.fields?.[field] || "").trim() }))
+    .filter(n => n.text);
+  container.innerHTML = notes.map(n => `
+    <div class="project-note">
+      <div class="project-note-k">${escapeHtml(n.label)}</div>
+      <div class="project-note-v">${escapeHtml(n.text)}</div>
+    </div>
+  `).join("");
+  container.classList.toggle("hidden", notes.length === 0);
 }
 
 function renderProjectDocs(record) {

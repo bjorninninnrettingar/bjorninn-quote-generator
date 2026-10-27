@@ -223,6 +223,14 @@
   .lpModal { background:var(--surface); border-radius:14px; max-width:420px; width:100%; padding:18px; max-height:70vh; overflow:auto; }
   .lpClose { float:right; background:none; border:none; font-size:1.2rem; color:var(--muted); cursor:pointer; }
   .lpTitle { font-weight:700; font-size:.95rem; }
+  /* Tapað — ástæða (2026-10-27) */
+  .lossReasons { display:flex; flex-direction:column; gap:6px; margin-top:12px; }
+  .lossReasons label { display:flex; gap:8px; align-items:center; padding:8px 10px; border:1px solid var(--line); border-radius:8px; font-size:.86rem; cursor:pointer; }
+  .lossReasons label:has(input:checked) { border-color:var(--accent); background:var(--bg); }
+  .lossBtns { display:flex; justify-content:space-between; gap:8px; margin-top:14px; }
+  .lossBtns button { font:inherit; font-size:.86rem; padding:8px 14px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--text); cursor:pointer; }
+  .lossBtns button.primary { background:#b3261e; border-color:#b3261e; color:#fff; }
+  .lossMsg { color:#b3261e; font-size:.8rem; margin-top:8px; min-height:1em; }
   .lpSearch { width:100%; box-sizing:border-box; margin-top:10px; padding:8px 11px; border:1px solid var(--line); border-radius:8px; font:inherit; font-size:.85rem; background:var(--bg); color:var(--text); }
   .lpResults { margin-top:8px; max-height:300px; overflow:auto; }
   .lpResult { padding:8px 9px; border-radius:8px; cursor:pointer; font-size:.85rem; }
@@ -365,6 +373,19 @@
     </div>
     <div class="printMsg" id="dPrintMsg"></div>
   </div>
+  </div>
+</div>
+
+<div class="lpModalBg" id="lossModalBg">
+  <div class="lpModal">
+    <button class="lpClose" id="lossClose" type="button">✕</button>
+    <div class="lpTitle">Tækifæri tapað 🥀</div>
+    <div class="lpSub" id="lossName" style="font-size:.82rem;color:var(--muted);margin-top:4px;"></div>
+    <div style="font-size:.82rem;margin-top:12px;">Af hverju? <span style="color:var(--muted)">(má sleppa)</span></div>
+    <div class="lossReasons" id="lossReasons"></div>
+    <input class="lpSearch" id="lossDetail" type="text" maxlength="500" placeholder="Nánar (valfrjálst)" />
+    <div class="lossMsg" id="lossMsg"></div>
+    <div class="lossBtns"><button type="button" id="lossCancel">Hætta við</button><button type="button" class="primary" id="lossOk">Merkja tapað</button></div>
   </div>
 </div>
 
@@ -826,10 +847,66 @@
     return el;
   }
 
+  // api/sala.js (2026-10-27) — VERK_KEY-gated sales actions, by field id. Resolves to the JSON body,
+  // rejects with the server's own (Icelandic) error text.
+  function sala(action, body) {
+    return fetch("/api/sala?k=" + encodeURIComponent(k), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(Object.assign({ action: action }, body || {}))
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (d) {
+        if (!res.ok) throw new Error(d.error || ("Villa " + res.status));
+        return d;
+      });
+    });
+  }
+
+  // Tapað — reason picker (same choices as the customer's Töpuð-form). Resolves {reason, detail} or null.
+  var LOSS_REASONS = ["📈 Verð", "⏰ Afhendingartími", "🔨 Valdi annað fyrirtæki", "📆 Verkefni var frestað", "🛟 Upplifði óöryggi í ferlinu", "✍️ Annað"];
+  function askLoss(r) {
+    return new Promise(function (resolve) {
+      var bg = document.getElementById("lossModalBg");
+      document.getElementById("lossName").textContent = r.fields["Heiti tækifæris / verkefnis"] || "";
+      document.getElementById("lossReasons").innerHTML = LOSS_REASONS.map(function (x) {
+        return '<label><input type="radio" name="lossReason" value="' + esc(x) + '" />' + esc(x) + '</label>';
+      }).join("");
+      document.getElementById("lossDetail").value = "";
+      document.getElementById("lossMsg").textContent = "";
+      bg.classList.add("open");
+      function done(v) { bg.classList.remove("open"); resolve(v); }
+      document.getElementById("lossCancel").onclick = document.getElementById("lossClose").onclick = function () { done(null); };
+      bg.onclick = function (e) { if (e.target === bg) done(null); };
+      document.getElementById("lossOk").onclick = function () {
+        var picked = document.querySelector('input[name="lossReason"]:checked');
+        done({ reason: picked ? picked.value : "", detail: document.getElementById("lossDetail").value.trim() });
+      };
+    });
+  }
+
+  // Unnið / Tapað go through api/sala.js, which ticks the same checkbox as the Airtable button
+  // ("Færir verk -> tækifæri unnið 🏆": Staðfest tilboð PDF, For-skipulag, SKRIF-CHAT). Resolves
+  // true when moved, false when cancelled or refused.
+  function closeDeal(r, next) {
+    var f = r.fields, won = next === "🏆 Tækifæri unnið";
+    var ask = won
+      ? Promise.resolve(confirm('Merkja "' + (f["Heiti tækifæris / verkefnis"] || "") + '" sem UNNIÐ? 🏆\n\nÞetta frystir tilboðið, læsir verðum, setur verkið í For-skipulag og sendir tilkynningu á SKRIF-CHAT. Það gengur ekki til baka.') ? {} : null)
+      : askLoss(r);
+    return ask.then(function (extra) {
+      if (!extra) return false;
+      return sala(won ? "unnid" : "tapad", Object.assign({ recordId: r.id }, extra)).then(function (d) {
+        f["Staða í söluferli"] = next;
+        if (d.reasonSaved === false) alert("Verkið er merkt tapað, en ástæðan vistaðist ekki.");
+        load();
+        return true;
+      }, function (err) { alert(err.message); return false; });
+    });
+  }
+
   // Shared by the detail panel's stage <select> and by dragging a card onto a column.
   function moveToStage(r, next) {
     var f = r.fields;
     if (next === f["Staða í söluferli"]) return;
+    if (next === "🏆 Tækifæri unnið" || next === "🥀 Tækifæri tapað") return closeDeal(r, next);
     if (CLOSED_STAGES.indexOf(next) !== -1 && !confirm('Færa í "' + next + '"? Þetta er lokastaða og kveikir á tengdum automationum (t.d. tölvupóstum).')) {
       return;
     }
@@ -845,6 +922,7 @@
     return apiPatch(r.id, patch).then(function () {
       Object.assign(f, patch);
       load();
+      return true;
     });
   }
 
@@ -1017,7 +1095,8 @@
       var before = f["Staða í söluferli"];
       var result = moveToStage(r, next);
       if (!result) { stageSel.value = before; return; } // confirm() declined
-      result.then(function () {
+      result.then(function (moved) {
+        if (moved === false) { stageSel.value = before; return; }
         var def = NEXT_STEP_DEFAULTS[next];
         if (def) { stepSel.value = def.step; document.getElementById("dStepDate").value = f["Næsta skref dags."]; }
       });
