@@ -779,7 +779,7 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
 - 3D (`addCabinetBox`): `doorMove` úr `meta.shelfBlock` — `lift` (aventos eða smida lift, veggskápur) = ein framhlið sem lyftist upp á efri brún (`kind:"lift"`, rotation.x); `pocket` (einhver smida-hurð pocket) = hurðin snýst út 90° og rennur svo aftur inn með hliðinni (`kind:"pocket"`). Smellt á hurð / *Opna* sýnir það.
 
 ### 2026-10-27 — Bað: eigandinn gekk í gegn (flæði/UI)
-- Veggjasíðurnar (Gluggar og hurðir): engin Spegilskápur-útlína lengur; strikaða útlínan við dropann heitir **Vatnsinntak** (ekki Vaskaskápur). Vatnsplanið (ofan frá) sýnir áfram „Vaskaskápur · 80 cm“ þar sem skápurinn lendir.
+- Veggjasíðurnar (Gluggar og hurðir): engin Spegilskápur-útlína lengur; strikaða útlínan við dropann heitir **Vatnsinntak** (ekki Vaskaskápur). Vatnsplanið (ofan frá) segir líka „Vatnsinntak“.
 - Toppur á baði: `topGroups` = Harðplast, Compact, Steinn (+ „Enginn toppur“) — sömu flipar/efni og Borðplata í eldhúsi. Þvottahús óbreytt (Harðplast).
 - Mál í 3D (bað + þvottahús, `topDims` í closetSc-blokkinni): breiddir fyrir ofan vegginn (lofthæð + 10 cm), hæðir sem ein keðja (bil undir + eining) við enda innréttingarinnar, engin heildarhæð staflað við hliðina. `setShowDims` teiknar yfirlagið strax (beið áður eftir næsta ramma).
 - Hjálp → Sýna leiðsögnina: á baði „Smelltu á vaskaskáp“ og síðasta spjaldið útskýrir orðin (vaskaskápur, handlaug, toppur, spegilskápur, flísar, hindranir); þvottahús „Smelltu á vélarstæðu“. Spjallmennið (`STUDIO_GUIDE`): nýr kafli um baðorðin + Tækjaskápar/lyftihurðir, Málsetning undir Skoða.
