@@ -4727,7 +4727,7 @@
     setClosetCounts(b, r.shelves, r.rails, r.drawers);
   }
   function closetTrays(b){ return b && Array.isArray(b.shelfPos) ? b.shelfPos.filter(function(x){ return x && x.tray; }).length : 0; }
-  function closetCounts(b){ var t = closetTrays(b); return { trays:t, shelves:Math.max(0, (KP3D.shelvesOf(b) || 0) - t), rails:CATALOG[b.type].railRange ? KP3D.railsOf(b) || 0 : 0, drawers:b.interior && b.interior.mode === "skuffur" ? b.interior.count : 0 }; }
+  function closetCounts(b){ var t = closetTrays(b); return { trays:t, shelves:Math.max(0, (KP3D.shelvesOf(b) || 0) - t), rails:CATALOG[b.type].railRange ? KP3D.railsOf(b) || 0 : 0, drawers:b.interior && b.interior.mode === "skuffur" ? b.interior.count : (b.closetInner && Array.isArray(b.innerCodes) ? b.innerCodes.length : 0) }; }
   // Stakir hlutir / Tilbúnar lausnir (user, 2026-10-26, like IKEA PAX): the bay's shelves, rails and drawers; the recipe
   // that matches the counts lights up, any other mix is just the customer's own
   function setClosetCounts(b, shelves, rails, drawers, trays){
@@ -4739,6 +4739,14 @@
     var hit = !trays && CLOSET_RECIPES.find(function(x){ return x.shelves === (b.shelves || 0) && x.rails === (b.rails || 0) && x.drawers === drawers; });
     b.closetRecipe = hit ? hit.key : null;
     var r = { drawers:drawers };
+    if (r.drawers && b.closetInner && c.cls === "tall" && b.type !== "harskapurOpinn"){ // Innskúffur fyrir aftan hurð (owner, 2026-10-27): full-height door, the
+      // same K drawers as inner drawers (b.innerCodes → Smíðagögn "inner" → /cnc), positions auto (innerDrawersOf)
+      var ic = []; for (var ii = 0; ii < r.drawers; ii++) ic.push((b.innerCodes && b.innerCodes[ii]) || "K");
+      b.innerCodes = ic; delete b.innerPos; delete b.drawerZoneMm;
+      if (c.hasInterior) b.interior = { mode:"hillur", count:b.shelves || 0 };
+      closetAutoLayout(b, trays); return;
+    }
+    if (!b.closetInner){ delete b.innerCodes; delete b.innerPos; }
     if (r.drawers){ // wardrobe drawers: equal K drawers, each front a comfortable round number just above its side (user, 2026-10-26) — not the tall unit's default 120 cm zone
       var side = (KP3D.DRAWER_CODES[drawerSys()].side || {}).K || 129, slot = Math.ceil((side + CLOSET_DRAWER_OVER_MM) / 10) * 10;
       var prev = b.interior && b.interior.mode === "skuffur" && b.interior.frontsMm && b.interior.codes ? b.interior : null; // keep drawers already resized
@@ -4796,6 +4804,7 @@
   }
   function setClosetBayDoors(b, doors){
     var t = doors ? "harskapur" : "harskapurOpinn"; if (b.type === t) return;
+    if (!doors && b.closetInner){ var k0 = closetCounts(b); delete b.closetInner; setClosetCounts(b, k0.shelves, k0.rails, k0.drawers, k0.trays); } // no door to hide them behind
     var k = closetCounts(b); b.type = t; setClosetCounts(b, k.shelves, k.rails, k.drawers, k.trays); // the same things inside, with or without doors
   }
   function closetBayWidths(len){
@@ -8453,6 +8462,7 @@
     side.querySelectorAll("[data-clitem]").forEach(function(el){ el.addEventListener("click", function(){ closetItemStep(b, el.dataset.clitem); renderUnitWizard(); }); });
     side.querySelectorAll("[data-cldrawer]").forEach(function(el){ el.addEventListener("click", function(){ closetDrawerStep(b, el.dataset.cldrawer); renderUnitWizard(); }); });
     side.querySelectorAll("[data-clrailcolor]").forEach(function(el){ el.addEventListener("click", function(){ b.railColor = el.dataset.clrailcolor; renderUnitWizard(); }); });
+    side.querySelectorAll("[data-cldrawermode]").forEach(function(el){ el.addEventListener("click", function(){ setClosetDrawerMode(b, el.dataset.cldrawermode === "inni"); renderUnitWizard(); }); });
     side.querySelectorAll("[data-slidedoors]").forEach(function(el){ el.addEventListener("click", function(){ b.slideDoors = +el.dataset.slidedoors; renderUnitWizard(); }); });
     side.querySelectorAll("[data-cldoortype]").forEach(function(el){ el.addEventListener("click", function(){ uw.doorKind = el.dataset.cldoortype; if (uw.doorKind !== "pocket" && b.smida) delete b.smida.doors; setClosetBayDoors(b, el.dataset.cldoortype !== "open"); uwAdvance("door"); renderUnitWizard(); }); });
     side.querySelectorAll("[data-front-all]").forEach(function(el){ el.addEventListener("click", function(){
@@ -11414,6 +11424,18 @@
         return '<button type="button" class="hw-btn' + (kind === o[0] ? ' active' : '') + '" data-cldoortype="' + o[0] + '"' + (o[2] ? ' title="' + __(o[2]) + '"' : '') + '>' + __(o[1]) + '</button>';
       }).join("") + '</div>' + (!wizard && b.doorSys && DOOR_SYSTEMS[b.doorSys] ? '<small class="cl-note">' + __(DOOR_SYSTEMS[b.doorSys].short) + ' · ' + __("söluaðili staðfestir kerfi og verð") + '</small>' : '') + '</div>' + (wizard ? '' : slideDoorsHtml(b));
   }
+  // Skúffur undir hurðinni / Innskúffur fyrir aftan hurð (owner, 2026-10-27) — wardrobe units with doors and drawers
+  function setClosetDrawerMode(b, inner){
+    var k = closetCounts(b); if (!!b.closetInner === !!inner) return;
+    if (inner) b.closetInner = true; else delete b.closetInner;
+    setClosetCounts(b, k.shelves, k.rails, k.drawers, k.trays);
+  }
+  function closetDrawerModeHtml(b, cnt){
+    if (!cnt.drawers || b.type !== "harskapur") return "";
+    return '<div class="edit-field"><label title="' + __("Innskúffur: hurðin nær niður og skúffurnar eru inni í skápnum, án sýnilegra handfanga.") + '">' + __("Skúffurnar") + '</label><div class="hw-toggle">' +
+      '<button type="button" class="hw-btn' + (!b.closetInner ? ' active' : '') + '" data-cldrawermode="undir">' + __("Undir hurðinni") + '</button>' +
+      '<button type="button" class="hw-btn' + (b.closetInner ? ' active' : '') + '" data-cldrawermode="inni">' + __("Fyrir aftan hurð") + '</button></div></div>';
+  }
   function closetBayHtml(b, wizard, noDoors){
     if (!isCloset() || !closetTall(b)) return "";
     var deep = closetDeep(b), cur = b.closetRecipe, cnt = closetCounts(b);
@@ -11423,7 +11445,7 @@
           var off = !deep && r.rails;
           return '<button type="button" class="cl-recipe' + (cur === r.key ? ' on' : '') + '" data-clrecipe="' + r.key + '"' + (off ? ' disabled title="' + __("Herðatré passa ekki í 35 cm djúpan skáp") + '"' : '') + '>' + closetRecipeSvg(r.key) + '<b>' + __(r.label) + '</b><small>' + __(r.desc) + '</small></button>';
         }).join("") + '</div>' + (!cur ? '<p class="cl-hint">' + __("Þín eigin samsetning — veldu lausn til að byrja upp á nýtt.") + '</p>' : '');
-    return (noDoors ? '' : closetDoorsHtml(b, wizard)) + '<div class="edit-field"><label>' + __("Hvað á að vera í skápnum?") + '</label>' + tabs + body + '</div>';
+    return (noDoors ? '' : closetDoorsHtml(b, wizard)) + '<div class="edit-field"><label>' + __("Hvað á að vera í skápnum?") + '</label>' + tabs + body + '</div>' + closetDrawerModeHtml(b, cnt);
   }
   // the compact wardrobe panel's own rows: width in cm + "Skipta í tvennt"
   function closetWidthHtml(b){
@@ -11740,6 +11762,7 @@
     host.querySelectorAll("[data-clitem]").forEach(function(btn){ btn.addEventListener("click", function(){ if (b.locked){ lockedToast(); return; } closetItemStep(b, btn.dataset.clitem); save(); refreshAfterEdit(); }); });
     host.querySelectorAll("[data-cldrawer]").forEach(function(btn){ btn.addEventListener("click", function(){ if (b.locked){ lockedToast(); return; } closetDrawerStep(b, btn.dataset.cldrawer); save(); refreshAfterEdit(); }); });
     host.querySelectorAll("[data-clrailcolor]").forEach(function(btn){ btn.addEventListener("click", function(){ if (b.locked){ lockedToast(); return; } b.railColor = btn.dataset.clrailcolor; save(); refreshAfterEdit(); }); });
+    host.querySelectorAll("[data-cldrawermode]").forEach(function(btn){ btn.addEventListener("click", function(){ if (b.locked){ lockedToast(); return; } setClosetDrawerMode(b, btn.dataset.cldrawermode === "inni"); save(); refreshAfterEdit(); }); });
     host.querySelectorAll("[data-slidedoors]").forEach(function(btn){ btn.addEventListener("click", function(){ b.slideDoors = +btn.dataset.slidedoors; save(); refreshAfterEdit(); }); });
     host.querySelectorAll("[data-cldoortype]").forEach(function(btn){
       btn.addEventListener("click", function(){
@@ -13152,6 +13175,7 @@
         if (c.thvoSide){ var hs = blockHeightMm(b, c); notes.push("Hlið við hlið í skáp: Lítill kassi " + b.widthMm + " mm með einni skúffu (~300 mm) undir " + (b.widthMm < 1000 ? "einni vél" : "þvottavél og þurrkara") + ", 2 úthliðar " + hs + " mm upp með vélunum, skápur ofan á (" + Math.max(0, hs - 100 - 300 - 880) + " mm) — söluaðili staðfestir."); }
         if (b.single && c.thvo) notes.push("Enginn þurrkari: aðeins þvottavél í turninum, skápur með hillum fyrir ofan."); // (owner, 2026-10-27)
         if (b.mirrorFront) notes.push("Spegilskápur: spegill límdur á framhliðina — söluaðili staðfestir spegilinn og verð."); // (owner, 2026-10-27)
+        if (b.closetInner && Array.isArray(b.innerCodes) && b.innerCodes.length && c.cls === "tall") notes.push("Innskúffur fyrir aftan hurð (val viðskiptavinar): " + b.innerCodes.length + " × " + b.innerCodes.join(" · ") + " (" + DRAWER_SYSTEMS[drawerSys()].label + "), hurð í fullri hæð, engar sjáanlegar skúffuframhliðar — staðsetning í Smíðagögnum; söluaðili staðfestir verð.");
         if (b.doorSys && DOOR_SYSTEMS[b.doorSys] && b.type === "harskapur") notes.push(doorSysRec(b).label + " (val viðskiptavinar) — engar lamir; söluaðili staðfestir kerfi, stærð og verð.");
         if (closetMirrorIdsNow()[b.id]){ var cmN = KP3D.doorLeaves(b, c).length || 1; notes.push("Spegill á " + cmN + (cmN === 1 ? " hurð" : " hurðum") + " (val viðskiptavinar) — söluaðili staðfestir spegilinn og verð."); }
         if (state.bathMirror && c.sink) notes.push("Spegilskápur óskast yfir vaskinn — ekki í pöntun, söluaðili verðleggur hann og staðfestir mál.");
