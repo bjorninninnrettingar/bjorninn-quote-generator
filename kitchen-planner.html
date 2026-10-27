@@ -204,27 +204,38 @@
   .wel-main > :nth-child(2){ transition-delay:.06s; } .wel-main > :nth-child(3){ transition-delay:.12s; } .wel-main > :nth-child(4){ transition-delay:.2s; } .wel-main > :nth-child(5){ transition-delay:.26s; }
   .wel-vis{ transition-delay:.1s; }
   /* the intro: a white screen, BJÖRNINN in gold blurs in, STUDIO extrudes into 3D and sways (the owner's design,
-     scratch/studio-intro.html — timing tightened to ~5.5 s), then the lockup glides to #welLock */
-  #intro{ display:none; position:fixed; inset:0; z-index:1000; background:#fff; align-items:center; justify-content:center; cursor:pointer;
-    --t-brand:.35s; --d-brand:1.7s; --t-studio:1.45s; --d-studio:1.5s; --t-3d:2.3s; --d-3d:2s; --ease:cubic-bezier(.16,1,.3,1); --ease-io:cubic-bezier(.65,0,.35,1); }
+     scratch/studio-intro.html), then the lockup glides to #welLock. Smoothness round (owner, 2026-10-27: "laggar og
+     aðeins of hægt"): only transform + opacity move, every moving part is its own GPU layer — the blur is a pre-blurred
+     copy that crossfades (no animated filter), the extrusion is 18 layers placed once in z under one parent whose
+     scaleZ grows (no per-frame custom property), the white is a layer whose opacity fades. ≈3.7 s to content. */
+  #intro{ display:none; position:fixed; inset:0; z-index:1000; align-items:center; justify-content:center; cursor:pointer;
+    --t-brand:.12s; --d-brand:1.1s; --t-studio:.7s; --d-studio:.95s; --t-3d:1.25s; --d-3d:1.35s; --ease:cubic-bezier(.16,1,.3,1); --ease-io:cubic-bezier(.65,0,.35,1); }
   html[data-intro] #intro{ display:flex; }
-  #intro .intro-lock{ display:flex; flex-direction:column; align-items:center; gap:.35em; font-size:clamp(30px, 8.6vw, 128px); font-weight:700; letter-spacing:.03em; line-height:1; text-align:center; user-select:none; transform-origin:50% 50%; will-change:transform; }
-  #intro .brand{ padding:.25em .1em .3em .13em; margin:-.25em -.1em -.3em -.13em; color:#ceb163; opacity:0; }
-  #intro.play .brand{ animation:intro-brand var(--d-brand) var(--ease) var(--t-brand) both; }
-  @keyframes intro-brand{ from{ opacity:0; transform:translateY(.18em); filter:blur(14px); } to{ opacity:1; transform:translateY(0); filter:blur(0); } }
+  #intro .intro-bg{ position:absolute; inset:0; background:#fff; will-change:opacity; }
+  #intro .intro-lock{ position:relative; display:flex; flex-direction:column; align-items:center; gap:.35em; font-size:clamp(30px, 8.6vw, 128px); font-weight:700; letter-spacing:.03em; line-height:1; text-align:center; user-select:none; transform-origin:50% 50%; will-change:transform; backface-visibility:hidden; }
+  #intro .brand{ position:relative; color:#ceb163; will-change:transform; }
+  #intro .brand .bs{ display:block; opacity:0; will-change:opacity; }
+  #intro .brand .bb{ position:absolute; inset:0; filter:blur(.11em); opacity:0; will-change:opacity; }
+  #intro.play .brand{ animation:intro-rise var(--d-brand) var(--ease) var(--t-brand) both; }
+  #intro.play .brand .bs{ animation:intro-fade .8s ease-out calc(var(--t-brand) + .28s) both; }
+  #intro.play .brand .bb{ animation:intro-blur var(--d-brand) ease-out var(--t-brand) both; }
+  @keyframes intro-rise{ from{ transform:translate3d(0,.16em,0); } to{ transform:translate3d(0,0,0); } }
+  @keyframes intro-fade{ from{ opacity:0; } to{ opacity:1; } }
+  @keyframes intro-blur{ 0%{ opacity:0; } 30%{ opacity:.95; } 100%{ opacity:0; } }
   #intro .persp{ perspective:1100px; perspective-origin:50% 40%; font-size:.78em; font-weight:400; letter-spacing:.16em; margin-top:.1em; }
-  #intro .reveal{ transform-style:preserve-3d; opacity:0; }
+  #intro .reveal{ transform-style:preserve-3d; opacity:0; will-change:opacity, transform; }
   #intro.play .reveal{ animation:intro-studio var(--d-studio) var(--ease) var(--t-studio) both; }
-  @keyframes intro-studio{ from{ opacity:0; transform:translateY(.3em); } to{ opacity:1; transform:translateY(0); } }
-  @property --step{ syntax:"<length>"; inherits:true; initial-value:0px; }
-  #intro .studio{ --step:0px; position:relative; transform-style:preserve-3d; padding-left:.16em; transform:rotateX(0deg) rotateY(0deg); }
-  #intro.play .studio{ animation:intro-extrude var(--d-3d) var(--ease-io) var(--t-3d) both, intro-turn var(--d-3d) var(--ease-io) var(--t-3d) both, intro-sway 9s ease-in-out calc(var(--t-3d) + var(--d-3d)) infinite alternate; }
-  @keyframes intro-extrude{ from{ --step:0px; } to{ --step:.0115em; } }
+  @keyframes intro-studio{ from{ opacity:0; transform:translate3d(0,.3em,0); } to{ opacity:1; transform:translate3d(0,0,0); } }
+  #intro .studio{ position:relative; transform-style:preserve-3d; padding-left:.16em; transform:rotateX(0deg) rotateY(0deg); will-change:transform; }
+  #intro.play .studio{ animation:intro-turn var(--d-3d) var(--ease-io) var(--t-3d) both, intro-sway 9s ease-in-out calc(var(--t-3d) + var(--d-3d)) infinite alternate; }
   @keyframes intro-turn{ from{ transform:rotateX(0deg) rotateY(0deg); } to{ transform:rotateX(9deg) rotateY(-26deg); } }
   @keyframes intro-sway{ from{ transform:rotateX(9deg) rotateY(-26deg); } to{ transform:rotateX(6deg) rotateY(-12deg); } }
-  #intro .layer{ position:absolute; left:0; top:0; padding-left:.16em; transform:translateZ(calc(var(--i) * var(--step) * -1)); pointer-events:none; }
-  #intro .front{ position:relative; color:#0c0c0d; display:block; }
-  #intro.quick .brand, #intro.quick .reveal{ opacity:1; } /* a returning visitor: the lockup is already formed, it just glides */
+  #intro .ext{ position:absolute; inset:0; transform-style:preserve-3d; transform:scaleZ(.01); will-change:transform; pointer-events:none; }
+  #intro.play .ext{ animation:intro-extrude var(--d-3d) var(--ease-io) var(--t-3d) both; }
+  @keyframes intro-extrude{ from{ transform:scaleZ(.01); } to{ transform:scaleZ(1); } }
+  #intro .layer{ position:absolute; left:0; top:0; padding-left:.16em; transform:translateZ(calc(var(--i) * -.0192em)); }
+  #intro .front{ position:relative; color:#0c0c0d; display:block; transform:translateZ(0); }
+  #intro.quick .brand .bs, #intro.quick .reveal{ opacity:1; } /* a returning visitor: the lockup is already formed, it just glides */
   @media (prefers-reduced-motion:reduce){ #intro{ display:none !important; } .wel-main > *, .wel-vis, .wel-hero .wh-img, .wr img{ transition:none !important; } }
   @media (max-width:980px){ .wrap.welm .wel{ grid-template-columns:1fr; gap:32px; } .wel-vis{ width:100%; justify-self:stretch; } }
   /* Rýmin þín with no rooms yet = the room picker (owner, 2026-10-27): the room kinds as big cards, a tap adds one */
@@ -2049,7 +2060,7 @@
 </div>
 
 <!-- the intro (owner, 2026-10-27): shown by html[data-intro] (set in <head>), run by introBoot() -->
-<div id="intro" aria-hidden="true"><div class="intro-lock" id="introLock"><div class="brand">BJÖRNINN</div><div class="persp"><div class="reveal"><div class="studio" id="introStudio"><span class="front">STUDIO</span></div></div></div></div></div>
+<div id="intro" aria-hidden="true"><div class="intro-bg"></div><div class="intro-lock" id="introLock"><div class="brand"><span class="bb">BJÖRNINN</span><span class="bs">BJÖRNINN</span></div><div class="persp"><div class="reveal"><div class="studio" id="introStudio"><div class="ext" id="introExt"></div><span class="front">STUDIO</span></div></div></div></div></div>
 
 <div class="wrap" id="mainWrap">
 
@@ -13387,7 +13398,7 @@
     if (host){ host.classList.remove("on"); host.parentNode.classList.remove("live"); host.innerHTML = ""; }
   }
   function renderWelcome(){
-    if (!welSceneOn) setTimeout(function(){ if (state.step === "welcome" && !welSceneOn) startWelcomeScene(); }, 350);
+    if (!welSceneOn && !document.documentElement.hasAttribute("data-intro")) setTimeout(function(){ if (state.step === "welcome" && !welSceneOn) startWelcomeScene(); }, 350); // during the intro: started by introFinish()
     var proj = hasProject(), ws = document.getElementById("welStart");
     ws.hidden = false; ws.disabled = false; ws.textContent = proj ? __("Halda áfram →") : __("Byrja →"); // Halda áfram → Rýmin þín (owner, 2026-10-27)
     document.getElementById("welReset").hidden = !proj;
@@ -13420,21 +13431,21 @@
     if (PRO || state.step !== "welcome" || hasProject() || hasDesign()){ introFinish(); return; }
     introOn = true; syncChatLauncher();
     try{ localStorage.setItem("bjorninn:studio:introSeen", "1"); }catch(e){}
-    var studio = document.getElementById("introStudio"), LAYERS = 30;
-    for (var i = LAYERS; i >= 1; i--){ // the extrusion: 30 copies stepping back in z, darker towards the back
+    var studio = document.getElementById("introStudio"), ext = document.getElementById("introExt"), LAYERS = 18;
+    for (var i = LAYERS; i >= 1; i--){ // the extrusion: 18 copies placed once in z (darker towards the back); .ext's scaleZ grows the depth
       var sp = document.createElement("span"); sp.className = "layer"; sp.textContent = "STUDIO"; sp.style.setProperty("--i", i);
       var g = Math.round(32 + (i / LAYERS) * 70); sp.style.color = "rgb(" + g + "," + g + "," + (g + 2) + ")";
-      studio.insertBefore(sp, studio.firstChild);
+      ext.appendChild(sp);
     }
     var skip = function(e){ if (e && e.type === "keydown" && (e.metaKey || e.ctrlKey || e.altKey)) return; introGlide(650); };
     ov.addEventListener("click", skip); document.addEventListener("keydown", skip);
     introOn = { skip:skip, timer:0 };
-    if (mode === "quick"){ ov.classList.add("quick"); introOn.timer = setTimeout(function(){ introGlide(800); }, 220); }
+    if (mode === "quick"){ ov.classList.add("quick"); introOn.timer = setTimeout(function(){ introGlide(700); }, 140); }
     else {
       // the glide follows the animation's own clock (a background tab freezes CSS time but not timers): a short hold
       // after STUDIO has turned, with a timer only as the net if animationend never comes
-      studio.addEventListener("animationend", function(e){ if (e.animationName === "intro-turn" && introOn && !introOn.gliding){ clearTimeout(introOn.timer); introOn.timer = setTimeout(function(){ introGlide(1050); }, 380); } });
-      ov.classList.add("play"); introOn.timer = setTimeout(function(){ introGlide(1050); }, 9000);
+      studio.addEventListener("animationend", function(e){ if (e.animationName === "intro-turn" && introOn && !introOn.gliding){ clearTimeout(introOn.timer); introOn.timer = setTimeout(function(){ introGlide(850); }, 260); } });
+      ov.classList.add("play"); introOn.timer = setTimeout(function(){ introGlide(850); }, 7000);
     }
   }
   function introGlide(dur){
@@ -13442,28 +13453,26 @@
     introOn.gliding = true; clearTimeout(introOn.timer);
     document.removeEventListener("keydown", introOn.skip);
     var root = document.documentElement, ov = document.getElementById("intro"), lock = document.getElementById("introLock");
-    var studio = document.getElementById("introStudio"), brand = lock.querySelector(".brand"), reveal = lock.querySelector(".reveal");
-    // freeze wherever the animation is (a skip can come mid-way), then ease every part to the flat lockup
-    var cs = getComputedStyle(studio), bs = getComputedStyle(brand), rs = getComputedStyle(reveal);
-    studio.style.transform = cs.transform; studio.style.setProperty("--step", cs.getPropertyValue("--step") || "0px");
-    brand.style.opacity = bs.opacity; brand.style.filter = bs.filter; brand.style.transform = bs.transform;
-    reveal.style.opacity = rs.opacity; reveal.style.transform = rs.transform;
+    var studio = document.getElementById("introStudio"), ext = document.getElementById("introExt"), reveal = lock.querySelector(".reveal");
+    var brand = lock.querySelector(".brand"), bs = lock.querySelector(".bs"), bb = lock.querySelector(".bb"), bg = ov.querySelector(".intro-bg");
+    // freeze wherever the animation is (a skip can come mid-way), then ease every part to the flat lockup — transform/opacity only
+    var parts = [studio, ext, brand, reveal, bs, bb], cs = parts.map(function(el){ var c = getComputedStyle(el); return { t:c.transform, o:c.opacity }; });
+    parts.forEach(function(el, i){ el.style.transform = cs[i].t === "none" ? "" : cs[i].t; el.style.opacity = cs[i].o; });
     ov.classList.remove("play", "quick"); void ov.offsetWidth;
     var src = lock.getBoundingClientRect(), tgt = document.getElementById("welLock").getBoundingClientRect();
     var k = tgt.width && src.width ? tgt.width / src.width : 0.12;
     var dx = (tgt.left + tgt.width / 2) - (src.left + src.width / 2), dy = (tgt.top + tgt.height / 2) - (src.top + src.height / 2);
-    var ez = "cubic-bezier(.65,0,.35,1)", t = dur + "ms " + ez;
+    var ez = "cubic-bezier(.65,0,.35,1)", t = dur + "ms " + ez, fade = "opacity " + Math.round(dur * .45) + "ms ease";
     lock.style.transition = "transform " + t;
-    studio.style.transition = "transform " + t + ", --step " + t;
-    brand.style.transition = reveal.style.transition = "opacity " + Math.round(dur * .5) + "ms ease, filter " + Math.round(dur * .5) + "ms ease, transform " + t;
-    ov.style.transition = "background-color " + Math.round(dur * .6) + "ms ease " + Math.round(dur * .35) + "ms";
+    studio.style.transition = ext.style.transition = brand.style.transition = "transform " + t;
+    reveal.style.transition = fade + ", transform " + t; bs.style.transition = bb.style.transition = fade;
+    bg.style.transition = "opacity " + Math.round(dur * .55) + "ms ease " + Math.round(dur * .35) + "ms";
     ov.style.pointerEvents = "none";
-    lock.style.transform = "translate(" + dx + "px," + dy + "px) scale(" + k + ")";
-    studio.style.transform = "rotateX(0deg) rotateY(0deg)"; studio.style.setProperty("--step", "0px");
-    brand.style.opacity = "1"; brand.style.filter = "none"; brand.style.transform = "none";
-    reveal.style.opacity = "1"; reveal.style.transform = "none";
-    ov.style.backgroundColor = "rgba(255,255,255,0)";
-    setTimeout(function(){ root.classList.add("intro-out"); }, Math.round(dur * .5)); // once the lockup has mostly shrunk
+    lock.style.transform = "translate3d(" + dx + "px," + dy + "px,0) scale(" + k + ")";
+    studio.style.transform = "rotateX(0deg) rotateY(0deg)"; ext.style.transform = "scaleZ(.01)"; brand.style.transform = "translate3d(0,0,0)";
+    reveal.style.opacity = "1"; reveal.style.transform = "translate3d(0,0,0)"; bs.style.opacity = "1"; bb.style.opacity = "0";
+    bg.style.opacity = "0";
+    setTimeout(function(){ root.classList.add("intro-out"); }, Math.round(dur * .45)); // once the lockup has mostly shrunk
     setTimeout(introFinish, dur + 60);
   }
   function introFinish(){
@@ -13472,6 +13481,9 @@
     var ov = document.getElementById("intro"); if (ov) ov.remove();
     if (introOn && introOn.skip) document.removeEventListener("keydown", introOn.skip);
     introOn = false;
+    // the live 3D kitchen is built once the page is idle after the intro (the picture is its poster meanwhile)
+    var go3d = function(){ if (state.step === "welcome" && !welSceneOn) startWelcomeScene(); };
+    if (window.requestIdleCallback) requestIdleCallback(go3d, { timeout:1500 }); else setTimeout(go3d, 300);
     if (window.BJORNINN_CHAT) window.BJORNINN_CHAT.launcher = chatLauncherFits(); // the widget may still be loading
     syncChatLauncher();
   }

@@ -763,3 +763,11 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
 - **Room renders** in `images/studio/` (`<room>.jpg` 1600×1000 + `-t.jpg` 480 px), captured from real Studio scenes with
   `KP3D.renderShot` (bath: beige tiles; laundry: U702 suggestion; wardrobe: U665 Fylla vegginn; door: dark walnut from the
   door wizard canvas). Re-capture the same way if the 3D look changes; eldhus-t is a thumbnail of `welcome-kitchen.jpg`.
+- **Smoothness round (owner same day: "laggar og aðeins of hægt")**: only transform + opacity animate, each moving part a GPU
+  layer. Blur-in = a pre-blurred copy (`.bb`, static `filter`) crossfading into the sharp text (`.bs`) — no animated filter;
+  extrusion = 18 `.layer`s placed once in z inside `#introExt`, whose `scaleZ(.01→1)` grows the depth — no per-frame
+  `--step` custom property (that re-styled all 30 layers every frame); the white is `.intro-bg` fading opacity (not
+  background-color); the glide is a FLIP transform. The welcome 3D kitchen no longer builds under the intro — `introFinish()`
+  starts it on `requestIdleCallback` (picture is the poster meanwhile). ≈3.8 s to content (was 5.9). Headless Chrome,
+  1440×900 @2x, 4 runs (`scratchpad perf.mjs`: rAF frame-time + long-task logger): before avg 33–35 ms/frame, ~70 frames
+  > 25 ms, worst stall 550–680 ms, ~1.2 s long tasks during the intro → after avg 16.7–17 ms, 0–2 frames > 25 ms, 0 long tasks.
