@@ -741,3 +741,25 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   the control; PRO keeps the box-code list. A sink unit's preview camera sits higher (the bowl shows).
 - **Laundry Ný eining 4–6/6 (owner):** Grunnskápur keeps Ruslafötur in the laundry (sorting; bins = kitchen + laundry for
   customers); the laundry's Hár skápur has no Fataslár control; Efri skápur in the bath's order (open shelves first).
+
+## Forsíðan — intro + Apple-quiet welcome (owner, 2026-10-27)
+
+- **Intro** = the owner's animation (`scratch/studio-intro.html`) inside the page: `#intro` (white, fixed) — BJÖRNINN gold
+  `#ceb163` blur-in, STUDIO black extrudes (30 `.layer` copies, `--step` via `@property`) and turns; timing tightened to
+  ≈5.5 s (`--t-*`/`--d-*` on `#intro`). Then `introGlide()` FLIPs `#introLock` onto `#welLock` (the stacked lockup top-left
+  of the welcome page — same proportions, so the swap is seamless), STUDIO eases flat, the white fades and the content
+  rises in (`html.intro-out`). The glide follows `animationend` of `intro-turn` (+380 ms hold), a 9 s timer is only the net
+  (a hidden tab / hidden Browser pane freezes CSS time — screenshots there are not the real timing; seek with
+  `getAnimations()` to inspect frames).
+- **Who sees it**: decided in `<head>` before first paint (`html[data-intro]` = `full` | `quick`): first visit full, then
+  ≈1 s quick (`bjorninn:studio:introSeen`); none for `?pro` / `?embedded` / < 768 px / reduced motion / language switch /
+  a saved design in the draft (head check) — `introBoot()` also drops it for `hasProject()`/`hasDesign()`. Click or any key
+  skips (`introGlide(650)`). Chat launcher hidden while `introOn` (`chatLauncherFits`). The welcome kitchen's 3D builds
+  under the white screen (it doubles as the loader). Head has a 9 s safety net that removes a never-started overlay.
+- **Welcome**: `.wel-h` headline "Hannaðu heimilið þitt.", one line, `.wel-go` black pill (Byrja → / Halda áfram → + quiet
+  Byrja upp á nýtt), `.wel-line` steps in one line, `.wel-trust`. Right: `.wel-hero` (16:10, soft shadow; base picture +
+  live `#welScene` + one `.wh-img` per room) and `.wel-rooms` — five thumbnails; hover/focus crossfades the hero
+  (`welShowRoom`), leaving the row brings the live kitchen back, a click = Byrja. h1/kicker hidden on the welcome page only.
+- **Room renders** in `images/studio/` (`<room>.jpg` 1600×1000 + `-t.jpg` 480 px), captured from real Studio scenes with
+  `KP3D.renderShot` (bath: beige tiles; laundry: U702 suggestion; wardrobe: U665 Fylla vegginn; door: dark walnut from the
+  door wizard canvas). Re-capture the same way if the 3D look changes; eldhus-t is a thumbnail of `welcome-kitchen.jpg`.

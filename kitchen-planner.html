@@ -5,6 +5,24 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>BJÖRNINN STUDIO — hannaðu heimilið</title>
 <meta name="description" content="Teiknaðu upp draumaeldhúsið í 3D — veldu skápa, efni og lögun. Gróf teikning, engin binding. Björninn Innréttingar fer yfir og fullkomnar hönnunina með þér." />
+<script>
+/* Studio intro (owner, 2026-10-27): decided before the first paint so nothing flashes under the white screen.
+   html[data-intro] = "full" (first visit) | "quick" (seen it before, ~1 s). No intro for PRO / embedded / phones /
+   reduced motion / a language switch / a saved design (a returning customer is never kept waiting). */
+(function(){ try{
+  var q = new URLSearchParams(location.search), mode = "full";
+  if (q.get("pro") || q.get("embedded") || innerWidth < 768 || (matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches)) return;
+  try{ if (sessionStorage.getItem("bjorninn:kitchenPlanner:langResume") === "1") return; }catch(e){}
+  try{ var d = JSON.parse(localStorage.getItem("bjorninn:kitchenPlanner:draft:v1") || "null");
+    if (d && (d.closed || (d.categoryQueue || []).length || (d.doorList || []).length || (d.home && d.home.rooms && Object.keys(d.home.rooms).length))) return;
+    if (localStorage.getItem("bjorninn:studio:introSeen") === "1") mode = "quick"; }catch(e){}
+  document.documentElement.setAttribute("data-intro", mode);
+  setTimeout(function(){ // a safety net: if the planner never started the intro, never leave the white screen up
+    var ov = document.getElementById("intro"), h = document.documentElement;
+    if (h.hasAttribute("data-intro") && !(ov && /play|quick/.test(ov.className))){ h.removeAttribute("data-intro"); h.classList.add("intro-out"); }
+  }, 9000);
+}catch(e){} })();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -134,38 +152,88 @@
   .tour-act{ display:flex; justify-content:space-between; align-items:center; margin-top:14px; }
   @media (prefers-reduced-motion:reduce){ .tour-hole, .tour-bub{ transition:none; } }
   .help-menu button[hidden]{ display:none; }
-  /* welcome page (2026-10-11): one centred column — the header and the steps start on the same line, the button
-     sits on the right like "Áfram →" on the pages after it */
-  .wrap.welm{ max-width:1180px; padding-top:clamp(28px, 9vh, 96px); }
+  /* BJÖRNINN STUDIO welcome (owner, 2026-10-27: "supreme, Apple white space"): the intro's lockup rests top-left,
+     one headline + one line + one button on the left, the big render with the five room pictures on the right */
+  .wrap.welm{ max-width:1360px; padding-top:clamp(28px, 6vh, 64px); }
   .wrap:not(.welm):not(.wide) h1{ font-size:20px; margin-top:2px; }
   .wrap:not(.welm):not(.wide) .top{ margin-bottom:14px; }
-  .wrap.welm .wel{ max-width:none; margin:22px 0 0; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.25fr); gap:48px; align-items:center; }
-  .wel-main{ grid-column:1; grid-row:1; }
-  .wel-hero{ grid-column:2; grid-row:1; margin:0; position:relative; }
-  .wel-hero img{ display:block; width:100%; height:auto; max-height:calc(100vh - 260px); object-fit:cover; border-radius:18px; box-shadow:0 24px 60px rgba(25,25,25,.18), 0 4px 14px rgba(25,25,25,.08); }
+  .wel-lock{ display:none; flex-direction:column; align-items:center; gap:.35em; font-size:15px; font-weight:700; letter-spacing:.03em; line-height:1; user-select:none; }
+  .wel-lock .wl-b{ color:#ceb163; }
+  .wel-lock .wl-s{ font-size:.78em; font-weight:400; letter-spacing:.16em; padding-left:.16em; margin-top:.1em; color:#0c0c0d; }
+  .wrap.welm .wel-lock{ display:inline-flex; }
+  .wrap.welm #kicker, .wrap.welm #pageTitle{ display:none; }
+  .wrap.welm .top{ align-items:center; }
+  html[data-intro] #welLock{ visibility:hidden; } /* the intro's own lockup lands exactly here, then this takes over */
+  .wrap.welm .wel{ max-width:none; margin:0; display:grid; grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr); gap:clamp(40px, 6vw, 96px); align-items:center; }
+  .wel-main{ min-width:0; }
+  .wel-h{ font-size:clamp(40px, 4.6vw, 68px); line-height:1.03; letter-spacing:-.035em; font-weight:600; margin:0; text-wrap:balance; }
+  .wel-lede{ margin:22px 0 0; font-size:clamp(16px, 1.3vw, 19px); line-height:1.55; color:var(--ink-soft); max-width:27em; }
+  .wel .wel-actions{ display:flex; align-items:center; justify-content:flex-start; gap:24px; flex-wrap:wrap; margin-top:40px; }
+  .wel-go{ display:inline-flex; align-items:center; justify-content:center; min-width:190px; background:#111; color:#fff; border:0; border-radius:999px; font:inherit; font-size:17px; font-weight:600; padding:17px 34px; cursor:pointer; transition:background .2s, transform .25s, box-shadow .25s; }
+  .wel-go:hover{ background:#000; transform:translateY(-1px); box-shadow:0 12px 28px -8px rgba(0,0,0,.35); }
+  .wel-go:focus-visible{ outline:2px solid #ceb163; outline-offset:3px; }
+  .wel-line{ list-style:none; display:flex; flex-wrap:wrap; gap:10px 0; margin:clamp(36px, 7vh, 64px) 0 0; padding:0; font-size:clamp(12px, .9vw, 13.5px); color:var(--ink); }
+  .wel-line li{ display:flex; align-items:baseline; gap:7px; white-space:nowrap; }
+  .wel-line li + li::before{ content:"·"; color:#c9c5b8; margin:0 11px 0 3px; }
+  .wel-line i{ font-style:normal; color:#b39a58; font-size:.92em; font-weight:700; font-variant-numeric:tabular-nums; }
+  .wel-trust{ margin:16px 0 0; font-size:12.5px; color:#a3a199; }
+  .wel-trust span + span::before{ content:"·"; margin:0 10px; }
+  .wel-vis{ min-width:0; width:min(100%, calc((100vh - 320px) * 1.6)); justify-self:end; }
+  .wel-hero{ position:relative; margin:0; width:100%; aspect-ratio:16 / 10; border-radius:22px; overflow:hidden; background:#f4f3ef; box-shadow:0 44px 80px -34px rgba(20,20,20,.30), 0 14px 32px -14px rgba(20,20,20,.12); isolation:isolate; }
+  .wel-hero .wh-img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; opacity:0; z-index:2; transition:opacity .7s ease; }
+  .wel-hero .wh-img.base{ opacity:1; z-index:0; }
+  .wel-hero .wh-img.on{ opacity:1; }
   /* the live, slowly turning 3D kitchen over the picture (2026-10-12); the picture stays as the poster underneath */
-  .wel-scene{ position:absolute; inset:0; border-radius:18px; overflow:hidden; opacity:0; transition:opacity .8s ease; z-index:1; }
+  .wel-scene{ position:absolute; inset:0; opacity:0; transition:opacity .8s ease; z-index:1; }
   .wel-scene.on{ opacity:1; }
   .wel-scene canvas{ display:block; width:100%; height:100%; cursor:grab; }
   .wel-drag{ display:none; }
-  .wel-hero.live .wel-drag{ display:inline; }
-  .wel-hero figcaption{ z-index:2; }
-  .wel-hero figcaption{ position:absolute; left:14px; bottom:12px; font-size:12px; font-weight:600; color:#fff; background:rgba(25,25,25,.55); padding:4px 10px; border-radius:999px; backdrop-filter:blur(4px); }
-  @media (max-width:980px){ .wrap.welm .wel{ grid-template-columns:1fr; gap:24px; } .wel-hero{ grid-row:auto; grid-column:1; } .wel-main{ grid-row:auto; } }
-  /* BJÖRNINN STUDIO front page (2026-10-23): one card per room, a click starts it (or picks it back up) */
-  .wel-lede{ margin:10px 0 0; font-size:15px; line-height:1.55; color:var(--ink-soft); max-width:520px; }
-  .wel .wel-steps{ list-style:none; margin:22px 0 22px; padding:0; display:flex; flex-direction:column; gap:12px; }
-  .wel-steps li{ display:flex; gap:16px; align-items:center; padding:14px 16px; background:#fff; border:1px solid var(--line); border-radius:14px; }
-  .wel-steps .ws-ic{ flex:none; width:52px; height:52px; border-radius:12px; background:var(--panel); display:grid; place-items:center; color:var(--ink); }
-  .wel-steps b{ display:block; font-size:15.5px; margin-bottom:2px; } .wel-steps small{ font-size:13px; color:var(--ink-soft); line-height:1.4; }
-  #welStart.btn-big{ font-size:16px; padding:13px 26px; }
+  .wel-hero.live:not(.other) .wel-drag{ display:inline; }
+  .wel-hero figcaption{ position:absolute; z-index:3; left:16px; bottom:14px; font-size:12px; font-weight:500; color:#fff; background:rgba(20,20,20,.42); padding:5px 12px; border-radius:999px; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); }
+  .wel-rooms{ display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); gap:14px; margin-top:22px; }
+  .wr{ background:none; border:0; padding:0; margin:0; cursor:pointer; text-align:left; font:inherit; color:var(--ink-soft); min-width:0; }
+  .wr img{ display:block; width:100%; height:auto; aspect-ratio:16 / 10; object-fit:cover; border-radius:12px; background:#f4f3ef; opacity:.72; transition:opacity .35s ease, transform .45s cubic-bezier(.16,1,.3,1), box-shadow .35s ease; }
+  .wr span{ display:block; margin-top:9px; font-size:13px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:color .25s; }
+  .wr:hover img, .wr:focus-visible img, .wr.on img{ opacity:1; }
+  .wr:hover img, .wr:focus-visible img{ transform:translateY(-2px); box-shadow:0 10px 22px -10px rgba(20,20,20,.35); }
+  .wr.on span, .wr:hover span{ color:var(--ink); }
+  .wr:focus-visible{ outline:none; } .wr:focus-visible span{ text-decoration:underline; text-underline-offset:3px; }
+  /* the content rises in under the gliding lockup (intro), a beat apart */
+  .wel-main > *, .wel-vis{ transition:opacity .9s ease, transform 1.1s cubic-bezier(.16,1,.3,1); }
+  html[data-intro]:not(.intro-out) .wel-main > *, html[data-intro]:not(.intro-out) .wel-vis{ opacity:0; transform:translateY(18px); }
+  .wel-main > :nth-child(2){ transition-delay:.06s; } .wel-main > :nth-child(3){ transition-delay:.12s; } .wel-main > :nth-child(4){ transition-delay:.2s; } .wel-main > :nth-child(5){ transition-delay:.26s; }
+  .wel-vis{ transition-delay:.1s; }
+  /* the intro: a white screen, BJÖRNINN in gold blurs in, STUDIO extrudes into 3D and sways (the owner's design,
+     scratch/studio-intro.html — timing tightened to ~5.5 s), then the lockup glides to #welLock */
+  #intro{ display:none; position:fixed; inset:0; z-index:1000; background:#fff; align-items:center; justify-content:center; cursor:pointer;
+    --t-brand:.35s; --d-brand:1.7s; --t-studio:1.45s; --d-studio:1.5s; --t-3d:2.3s; --d-3d:2s; --ease:cubic-bezier(.16,1,.3,1); --ease-io:cubic-bezier(.65,0,.35,1); }
+  html[data-intro] #intro{ display:flex; }
+  #intro .intro-lock{ display:flex; flex-direction:column; align-items:center; gap:.35em; font-size:clamp(30px, 8.6vw, 128px); font-weight:700; letter-spacing:.03em; line-height:1; text-align:center; user-select:none; transform-origin:50% 50%; will-change:transform; }
+  #intro .brand{ padding:.25em .1em .3em .13em; margin:-.25em -.1em -.3em -.13em; color:#ceb163; opacity:0; }
+  #intro.play .brand{ animation:intro-brand var(--d-brand) var(--ease) var(--t-brand) both; }
+  @keyframes intro-brand{ from{ opacity:0; transform:translateY(.18em); filter:blur(14px); } to{ opacity:1; transform:translateY(0); filter:blur(0); } }
+  #intro .persp{ perspective:1100px; perspective-origin:50% 40%; font-size:.78em; font-weight:400; letter-spacing:.16em; margin-top:.1em; }
+  #intro .reveal{ transform-style:preserve-3d; opacity:0; }
+  #intro.play .reveal{ animation:intro-studio var(--d-studio) var(--ease) var(--t-studio) both; }
+  @keyframes intro-studio{ from{ opacity:0; transform:translateY(.3em); } to{ opacity:1; transform:translateY(0); } }
+  @property --step{ syntax:"<length>"; inherits:true; initial-value:0px; }
+  #intro .studio{ --step:0px; position:relative; transform-style:preserve-3d; padding-left:.16em; transform:rotateX(0deg) rotateY(0deg); }
+  #intro.play .studio{ animation:intro-extrude var(--d-3d) var(--ease-io) var(--t-3d) both, intro-turn var(--d-3d) var(--ease-io) var(--t-3d) both, intro-sway 9s ease-in-out calc(var(--t-3d) + var(--d-3d)) infinite alternate; }
+  @keyframes intro-extrude{ from{ --step:0px; } to{ --step:.0115em; } }
+  @keyframes intro-turn{ from{ transform:rotateX(0deg) rotateY(0deg); } to{ transform:rotateX(9deg) rotateY(-26deg); } }
+  @keyframes intro-sway{ from{ transform:rotateX(9deg) rotateY(-26deg); } to{ transform:rotateX(6deg) rotateY(-12deg); } }
+  #intro .layer{ position:absolute; left:0; top:0; padding-left:.16em; transform:translateZ(calc(var(--i) * var(--step) * -1)); pointer-events:none; }
+  #intro .front{ position:relative; color:#0c0c0d; display:block; }
+  #intro.quick .brand, #intro.quick .reveal{ opacity:1; } /* a returning visitor: the lockup is already formed, it just glides */
+  @media (prefers-reduced-motion:reduce){ #intro{ display:none !important; } .wel-main > *, .wel-vis, .wel-hero .wh-img, .wr img{ transition:none !important; } }
+  @media (max-width:980px){ .wrap.welm .wel{ grid-template-columns:1fr; gap:32px; } .wel-vis{ width:100%; justify-self:stretch; } }
   /* Rýmin þín with no rooms yet = the room picker (owner, 2026-10-27): the room kinds as big cards, a tap adds one */
   .hl-kinds{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:14px; }
   .hl-type{ display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-start; gap:6px; text-align:left; padding:20px; border:1px solid var(--line); border-radius:14px; background:#fff; cursor:pointer; font:inherit; color:var(--ink); min-height:150px; transition:border-color .15s, box-shadow .15s; }
   .hl-type:hover, .hl-type:focus-visible{ border-color:var(--ink); box-shadow:0 8px 22px rgba(25,25,25,.08); outline:none; }
   .hl-type .ht-ic{ margin-bottom:auto; color:var(--ink); } .hl-type b{ font-size:17px; } .hl-type small{ font-size:13px; color:var(--ink-soft); line-height:1.4; }
   .hl-type .ht-add{ margin-top:6px; font-size:13px; font-weight:700; color:var(--blue); }
-  .wrap.welm .wel{ margin-top:6px; } .studio-card{ min-height:130px; }
+  .studio-card{ min-height:130px; }
   .studio-cards{ display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:10px; }
   .studio-card{ display:flex; flex-direction:column; align-items:flex-start; gap:4px; text-align:left; padding:14px 14px 12px; border:1.5px solid var(--line); border-radius:14px; background:#fff; cursor:pointer; font:inherit; color:var(--ink); transition:border-color .15s, transform .15s, box-shadow .15s; }
   .studio-card:hover:not(:disabled){ border-color:var(--blue); transform:translateY(-2px); box-shadow:0 8px 22px rgba(25,25,25,.08); }
@@ -177,7 +245,6 @@
   .studio-card .go{ margin-top:4px; font-size:12px; font-weight:700; color:var(--blue); }
   .studio-card:disabled{ cursor:default; opacity:.55; }
   .studio-card.has{ border-color:var(--gold); }
-  .wel-actions{ display:flex; align-items:center; justify-content:flex-end; gap:18px; flex-wrap:wrap; margin-top:8px; }
   .reset-link{ background:none; border:none; color:var(--ink-soft); font-size:13px; text-decoration:underline; cursor:pointer; padding:4px 0; white-space:nowrap; }
   .reset-link:hover{ color:var(--danger); }
 
@@ -396,15 +463,6 @@
   .stepper .bar{ position:absolute; left:0; right:0; bottom:0; height:6px; border-radius:3px; background:var(--line); overflow:hidden; }
   .stepper .bar i{ display:block; height:100%; width:0; border-radius:3px; background:linear-gradient(90deg, var(--gold), #c9b35a); transition:width .6s cubic-bezier(.4,.1,.2,1); }
   .stepper .st.done{ background:var(--gold-soft); border-color:#d9d3b3; }
-  /* welcome screen */
-  .wel{ max-width:760px; margin:8px auto 0; text-align:left; }
-  .wel h2{ font-size:32px; line-height:1.15; margin:0 0 12px; font-weight:700; }
-  .wel-steps{ list-style:none; margin:0 0 20px; padding:0; display:grid; gap:12px; }
-  .wel-steps li{ display:flex; gap:16px; align-items:flex-start; padding:10px 0; }
-  .wel-steps .n{ flex:none; width:38px; height:38px; border-radius:50%; background:var(--gold); color:#fff; font-weight:700; font-size:18px; display:flex; align-items:center; justify-content:center; }
-  .wel-steps h3{ margin:0 0 4px; font-size:18px; }
-  .wel-steps p{ margin:0; color:var(--ink-soft); font-size:14.5px; line-height:1.5; }
-  .wel-meta{ display:flex; gap:18px; flex-wrap:wrap; font-size:14px; color:var(--ink-soft); margin:0 0 18px; }
   /* room openings (step 2) */
   .op-row{ position:relative; display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; background:#fff; border:1px solid var(--line); border-radius:12px; padding:10px 40px 12px 12px; margin-bottom:8px; }
   .op-row .op-nm{ flex-basis:100%; }
@@ -1089,9 +1147,9 @@
     #screen-contact .contact-preview:not([hidden]){ max-height:100%; overflow-y:auto; box-sizing:border-box; }
     /* 2026-10-15: centre the welcome page in the space under the header, nudged up a touch so it reads as
        "slightly above centre" rather than dead-centre */
-    .wrap.welm{ padding-top:24px; }
+    .wrap.welm{ padding-top:clamp(24px, 4.5vh, 48px); }
     #screen-welcome:not([hidden]){ justify-content:center; }
-    #screen-welcome:not([hidden]) .wel{ margin-bottom:16vh; }
+    #screen-welcome:not([hidden]) .wel{ margin-bottom:5vh; }
     #shapePick:not([hidden]){ flex:1; min-height:0; overflow-y:auto; }
     #shapeDraw:not([hidden]){ flex:1; min-height:0; }
     #shapeDraw .shape-wiz{ height:100%; align-items:stretch; }
@@ -1442,7 +1500,6 @@
   .studio-card .tick{ position:absolute; top:10px; right:10px; width:22px; height:22px; border-radius:50%; border:1.5px solid var(--line); display:grid; place-items:center; font-size:12px; font-weight:700; color:#fff; }
   .studio-card.on{ border-color:var(--blue); box-shadow:0 0 0 1px var(--blue) inset; }
   .studio-card.on .tick{ background:var(--blue); border-color:var(--blue); }
-  #welStart{ min-width:220px; justify-content:center; }
   .hl-pick{ position:fixed; inset:0; background:rgba(25,25,25,.35); display:grid; place-items:center; z-index:250; }
   .hl-pick-box{ background:#fff; border-radius:16px; padding:22px 24px; width:min(760px, calc(100vw - 32px)); box-shadow:0 20px 60px rgba(0,0,0,.25); display:flex; flex-direction:column; gap:14px; }
   .hl-pick-box h3{ margin:0; font-size:20px; }
@@ -1991,10 +2048,14 @@
   </div>
 </div>
 
+<!-- the intro (owner, 2026-10-27): shown by html[data-intro] (set in <head>), run by introBoot() -->
+<div id="intro" aria-hidden="true"><div class="intro-lock" id="introLock"><div class="brand">BJÖRNINN</div><div class="persp"><div class="reveal"><div class="studio" id="introStudio"><span class="front">STUDIO</span></div></div></div></div></div>
+
 <div class="wrap" id="mainWrap">
 
   <div class="top">
     <div>
+      <div class="wel-lock embedHide" id="welLock" role="img" aria-label="BJÖRNINN STUDIO"><span class="wl-b">BJÖRNINN</span><span class="wl-s">STUDIO</span></div>
       <div class="kicker embedHide" id="kicker">BJÖRNINN STUDIO</div>
       <h1 id="pageTitle" data-i18n>Hannaðu eldhúsið þitt</h1>
     </div>
@@ -2076,21 +2137,38 @@
   </section>
 
   <section id="screen-welcome" hidden>
+    <!-- 2026-10-27 (owner): Apple-quiet — headline, one line, one button; the render and the five rooms on the right -->
     <div class="wel">
-      <!-- 2026-10-12: a kitchen drawn in the planner itself, next to the steps -->
-      <figure class="wel-hero"><div class="wel-scene" id="welScene" aria-hidden="true"></div><img src="images/welcome-kitchen.jpg" data-i18n="attrs" alt="Eldhús hannað í hönnunartólinu: dökkblá innrétting, hvítur marmari og messinghöldur" width="1600" height="942"><figcaption data-i18n>Hannað hér í hönnunartólinu<span class="wel-drag"> · dragðu til að snúa</span></figcaption></figure>
       <div class="wel-main">
-      <div class="wel-meta"><span data-i18n>10–15 mínútur</span><span data-i18n>Vistast sjálfkrafa</span><span data-i18n>Engin binding</span></div>
-      <p class="wel-lede" data-i18n>Innréttingar fyrir allt heimilið, hannaðar af þér í 3D og smíðaðar af okkur.</p>
-      <!-- 2026-10-27 (owner): the start page only shows what's going to happen — the rooms are picked on Rýmin þín -->
-      <ol class="wel-steps">
-        <li><span class="ws-ic" data-wsic="ibud"></span><div><b data-i18n>Veldu rýmin</b><small data-i18n>Eldhús, fataskápur, bað, þvottahús eða innihurðir — eitt eða fleiri.</small></div></li>
-        <li><span class="ws-ic" data-wsic="cube"></span><div><b data-i18n>Hannaðu í 3D</b><small data-i18n>Teiknaðu rýmið, veldu efni og raðaðu skápunum. Allt vistast jafnóðum.</small></div></li>
-        <li><span class="ws-ic" data-wsic="sheet"></span><div><b data-i18n>Við förum yfir</b><small data-i18n>Söluaðili fer yfir hönnunina og sendir þér teikningar og tilboð. Engin binding.</small></div></li>
-      </ol>
-      <div class="wel-actions">
-        <button class="reset-link" id="welReset" type="button" hidden data-i18n>Byrja upp á nýtt</button>
-        <button class="btn btn-primary btn-big" id="welStart" type="button" data-i18n>Byrja →</button>
+        <h2 class="wel-h" data-i18n>Hannaðu heimilið þitt.</h2>
+        <p class="wel-lede" data-i18n>Innréttingar fyrir allt heimilið, hannaðar af þér í 3D og smíðaðar af okkur.</p>
+        <div class="wel-actions">
+          <button class="wel-go" id="welStart" type="button" data-i18n>Byrja →</button>
+          <button class="reset-link" id="welReset" type="button" hidden data-i18n>Byrja upp á nýtt</button>
+        </div>
+        <ol class="wel-line">
+          <li><i>1</i><span data-i18n>Veldu rýmin</span></li>
+          <li><i>2</i><span data-i18n>Hannaðu í 3D</span></li>
+          <li><i>3</i><span data-i18n>Við förum yfir og sendum teikningar</span></li>
+        </ol>
+        <p class="wel-trust"><span data-i18n>Smíðað á Íslandi</span><span data-i18n>Engin binding</span><span data-i18n>Vistast sjálfkrafa</span></p>
+      </div>
+      <div class="wel-vis">
+      <figure class="wel-hero" id="welHero">
+        <img class="wh-img base" src="images/welcome-kitchen.jpg" data-i18n="attrs" alt="Eldhús hannað í hönnunartólinu: dökkblá innrétting, hvítur marmari og messinghöldur" width="1600" height="942">
+        <div class="wel-scene" id="welScene" aria-hidden="true"></div>
+        <img class="wh-img" data-room="fataskapur" src="images/studio/fataskapur.jpg" alt="" width="1600" height="1000" decoding="async">
+        <img class="wh-img" data-room="bad" src="images/studio/bad.jpg" alt="" width="1600" height="1000" decoding="async">
+        <img class="wh-img" data-room="thvottahus" src="images/studio/thvottahus.jpg" alt="" width="1600" height="1000" decoding="async">
+        <img class="wh-img" data-room="innihurdir" src="images/studio/innihurdir.jpg" alt="" width="1600" height="1000" decoding="async">
+        <figcaption data-i18n>Hannað hér í hönnunartólinu<span class="wel-drag"> · dragðu til að snúa</span></figcaption>
+      </figure>
+      <div class="wel-rooms" id="welRooms">
+        <button type="button" class="wr on" data-room="eldhus"><img src="images/studio/eldhus-t.jpg" alt="" width="480" height="300" decoding="async"><span data-i18n>Eldhús</span></button>
+        <button type="button" class="wr" data-room="fataskapur"><img src="images/studio/fataskapur-t.jpg" alt="" width="480" height="300" decoding="async"><span data-i18n>Fataskápur</span></button>
+        <button type="button" class="wr" data-room="bad"><img src="images/studio/bad-t.jpg" alt="" width="480" height="300" decoding="async"><span data-i18n>Baðherbergi</span></button>
+        <button type="button" class="wr" data-room="thvottahus"><img src="images/studio/thvottahus-t.jpg" alt="" width="480" height="300" decoding="async"><span data-i18n>Þvottahús</span></button>
+        <button type="button" class="wr" data-room="innihurdir"><img src="images/studio/innihurdir-t.jpg" alt="" width="480" height="300" decoding="async"><span data-i18n>Innihurðir</span></button>
       </div>
       </div>
     </div>
@@ -13313,7 +13391,89 @@
     var proj = hasProject(), ws = document.getElementById("welStart");
     ws.hidden = false; ws.disabled = false; ws.textContent = proj ? __("Halda áfram →") : __("Byrja →"); // Halda áfram → Rýmin þín (owner, 2026-10-27)
     document.getElementById("welReset").hidden = !proj;
-    document.querySelectorAll("[data-wsic]").forEach(function(el){ if (!el.firstChild) el.innerHTML = icon(el.dataset.wsic, 28); });
+  }
+  // The five room pictures (owner, 2026-10-27): hovering one crossfades the big picture to that room (renders made in
+  // Studio, images/studio/); leaving the row brings the live kitchen back. A click starts, like Byrja.
+  function welShowRoom(k){
+    document.querySelectorAll("#welHero .wh-img[data-room]").forEach(function(im){ im.classList.toggle("on", im.dataset.room === k); });
+    document.querySelectorAll("#welRooms .wr").forEach(function(b){ b.classList.toggle("on", b.dataset.room === k); });
+    document.getElementById("welHero").classList.toggle("other", k !== "eldhus");
+  }
+  document.querySelectorAll("#welRooms .wr").forEach(function(b){
+    b.addEventListener("mouseenter", function(){ welShowRoom(b.dataset.room); });
+    b.addEventListener("focus", function(){ welShowRoom(b.dataset.room); });
+    b.addEventListener("click", function(){ document.getElementById("welStart").click(); });
+  });
+  document.getElementById("welRooms").addEventListener("mouseleave", function(){ welShowRoom("eldhus"); });
+  document.getElementById("welRooms").addEventListener("focusout", function(e){ if (!e.relatedTarget || !this.contains(e.relatedTarget)) welShowRoom("eldhus"); });
+
+  // ---------- the intro (owner, 2026-10-27) ----------
+  // A big white screen plays the owner's animation (scratch/studio-intro.html): BJÖRNINN in gold blurs in, STUDIO in
+  // black extrudes into 3D and sways; then the lockup glides up and shrinks into #welLock (top-left) while the welcome
+  // content rises in under it. First visit ≈ 5.5 s ("full"), after that ≈ 1 s ("quick"); a click or any key skips.
+  // <head> decides (html[data-intro]); here it's dropped at once for PRO, any step but the welcome page, or a saved
+  // design. It doubles as the loader: the welcome kitchen's 3D builds under the white screen meanwhile.
+  var introOn = false;
+  function introBoot(){
+    var root = document.documentElement, mode = root.getAttribute("data-intro"), ov = document.getElementById("intro");
+    if (!mode) return;
+    if (PRO || state.step !== "welcome" || hasProject() || hasDesign()){ introFinish(); return; }
+    introOn = true; syncChatLauncher();
+    try{ localStorage.setItem("bjorninn:studio:introSeen", "1"); }catch(e){}
+    var studio = document.getElementById("introStudio"), LAYERS = 30;
+    for (var i = LAYERS; i >= 1; i--){ // the extrusion: 30 copies stepping back in z, darker towards the back
+      var sp = document.createElement("span"); sp.className = "layer"; sp.textContent = "STUDIO"; sp.style.setProperty("--i", i);
+      var g = Math.round(32 + (i / LAYERS) * 70); sp.style.color = "rgb(" + g + "," + g + "," + (g + 2) + ")";
+      studio.insertBefore(sp, studio.firstChild);
+    }
+    var skip = function(e){ if (e && e.type === "keydown" && (e.metaKey || e.ctrlKey || e.altKey)) return; introGlide(650); };
+    ov.addEventListener("click", skip); document.addEventListener("keydown", skip);
+    introOn = { skip:skip, timer:0 };
+    if (mode === "quick"){ ov.classList.add("quick"); introOn.timer = setTimeout(function(){ introGlide(800); }, 220); }
+    else {
+      // the glide follows the animation's own clock (a background tab freezes CSS time but not timers): a short hold
+      // after STUDIO has turned, with a timer only as the net if animationend never comes
+      studio.addEventListener("animationend", function(e){ if (e.animationName === "intro-turn" && introOn && !introOn.gliding){ clearTimeout(introOn.timer); introOn.timer = setTimeout(function(){ introGlide(1050); }, 380); } });
+      ov.classList.add("play"); introOn.timer = setTimeout(function(){ introGlide(1050); }, 9000);
+    }
+  }
+  function introGlide(dur){
+    if (!introOn || introOn.gliding) return;
+    introOn.gliding = true; clearTimeout(introOn.timer);
+    document.removeEventListener("keydown", introOn.skip);
+    var root = document.documentElement, ov = document.getElementById("intro"), lock = document.getElementById("introLock");
+    var studio = document.getElementById("introStudio"), brand = lock.querySelector(".brand"), reveal = lock.querySelector(".reveal");
+    // freeze wherever the animation is (a skip can come mid-way), then ease every part to the flat lockup
+    var cs = getComputedStyle(studio), bs = getComputedStyle(brand), rs = getComputedStyle(reveal);
+    studio.style.transform = cs.transform; studio.style.setProperty("--step", cs.getPropertyValue("--step") || "0px");
+    brand.style.opacity = bs.opacity; brand.style.filter = bs.filter; brand.style.transform = bs.transform;
+    reveal.style.opacity = rs.opacity; reveal.style.transform = rs.transform;
+    ov.classList.remove("play", "quick"); void ov.offsetWidth;
+    var src = lock.getBoundingClientRect(), tgt = document.getElementById("welLock").getBoundingClientRect();
+    var k = tgt.width && src.width ? tgt.width / src.width : 0.12;
+    var dx = (tgt.left + tgt.width / 2) - (src.left + src.width / 2), dy = (tgt.top + tgt.height / 2) - (src.top + src.height / 2);
+    var ez = "cubic-bezier(.65,0,.35,1)", t = dur + "ms " + ez;
+    lock.style.transition = "transform " + t;
+    studio.style.transition = "transform " + t + ", --step " + t;
+    brand.style.transition = reveal.style.transition = "opacity " + Math.round(dur * .5) + "ms ease, filter " + Math.round(dur * .5) + "ms ease, transform " + t;
+    ov.style.transition = "background-color " + Math.round(dur * .6) + "ms ease " + Math.round(dur * .35) + "ms";
+    ov.style.pointerEvents = "none";
+    lock.style.transform = "translate(" + dx + "px," + dy + "px) scale(" + k + ")";
+    studio.style.transform = "rotateX(0deg) rotateY(0deg)"; studio.style.setProperty("--step", "0px");
+    brand.style.opacity = "1"; brand.style.filter = "none"; brand.style.transform = "none";
+    reveal.style.opacity = "1"; reveal.style.transform = "none";
+    ov.style.backgroundColor = "rgba(255,255,255,0)";
+    setTimeout(function(){ root.classList.add("intro-out"); }, Math.round(dur * .5)); // once the lockup has mostly shrunk
+    setTimeout(introFinish, dur + 60);
+  }
+  function introFinish(){
+    var root = document.documentElement;
+    root.classList.add("intro-out"); root.removeAttribute("data-intro");
+    var ov = document.getElementById("intro"); if (ov) ov.remove();
+    if (introOn && introOn.skip) document.removeEventListener("keydown", introOn.skip);
+    introOn = false;
+    if (window.BJORNINN_CHAT) window.BJORNINN_CHAT.launcher = chatLauncherFits(); // the widget may still be loading
+    syncChatLauncher();
   }
   // ======================================================================
   // PRO "Rýmið" (2026-10-26): the customer's five room pages (lögun, stærð, lofthæð, gluggar, vatn) as ONE page for
@@ -19317,6 +19477,7 @@
       var langBack = false; try{ langBack = sessionStorage.getItem("bjorninn:kitchenPlanner:langResume") === "1"; sessionStorage.removeItem("bjorninn:kitchenPlanner:langResume"); }catch(e){}
       render();
       if (langBack && state.step === "welcome" && state.resumeStep) resumeLeftStep();
+      introBoot();
       startChat();
     }
   }
@@ -19355,7 +19516,7 @@
       return c;
     });
   }
-  function chatLauncherFits(){ return state.step !== "editor" && state.step !== "heimili" && state.step !== "hurdir"; }
+  function chatLauncherFits(){ return !introOn && state.step !== "editor" && state.step !== "heimili" && state.step !== "hurdir"; }
   function syncChatLauncher(){ if (window.BjorninnChat) window.BjorninnChat.showLauncher(chatLauncherFits()); }
   function startChat(){
     if (KPI18N.isPro || window.BJORNINN_CHAT) return;
