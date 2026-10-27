@@ -5570,6 +5570,7 @@
         if (wall.floor.length > 1 || hungW){
           // clear of the unit (owner, 2026-10-27: it sat right on it) — over a bath's basin and tap too
           var o = g.origin, ax = g.axis, n = g.normal, y = top + (hungW ? 0.52 : 0.3);
+          (wall.wall || []).forEach(function(wb){ var wc = CATALOG[wb.type]; if (!wc) return; y = Math.max(y, elevOf(wb) / 1000 + Math.min(wb.heightMm || wc.h, roomHeightMm) / 1000 + 0.14); }); // over a wall cabinet, never through it
           PENDING_DIMS.push({ a:{ x:o.x + ax.x * (lo / 1000) + n.x * dep, y:y, z:o.z + ax.z * (lo / 1000) + n.z * dep },
             b:{ x:o.x + ax.x * (hi / 1000) + n.x * dep, y:y, z:o.z + ax.z * (hi / 1000) + n.z * dep }, text:dimLen(hi - lo) });
         }

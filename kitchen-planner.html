@@ -4123,17 +4123,54 @@
     state.seeded = true;
     var any = state.walls.some(function(x){ return x.floor.length || x.wall.length; }) || state.islands.length;
     if (w.open || any) return;
-    if (isLaundry() && !PRO){ seedLaundry(w); syncBathPanels(); save(); return; } // the whole laundry, as "Hvar er vélin?" showed it
+    // customers (owner, 2026-10-27): never a filled room by itself — the basic start (sink / vanity at the water, a laundry's
+    // machines), then one question "Viltu fá tillögu að innréttingu?"; Já fills it as before (suggestFull)
+    var full = PRO || suggestFull || state.suggestAsk === "yes";
+    if (!PRO && !state.suggestAsk && suggestKinds()) state.suggestAsk = "ask";
+    if (isLaundry() && !PRO){ seedLaundry(w, !full); syncBathPanels(); save(); return; } // the laundry, as "Hvar er vélin?" showed it
     var b = newBlock("vaskaskapur");
     var mid = state.waterWall ? waterAlong(w) : Math.round(w.lengthMm / 2 / 10) * 10;
     var start = Math.max(cornerClearance(w, "floor"), Math.min(w.lengthMm - b.widthMm, Math.round((mid - b.widthMm / 2) / 10) * 10)); // centred on the water marker
     insertBlockAt(w, "floor", b, start);
     landedBlockId = b.id;
-    if (catBase() === "eldhus" && !PRO) seedKitchenRun(w, b, start);
+    if (catBase() === "eldhus" && !PRO && full) seedKitchenRun(w, b, start);
+    if (catBase() === "bad" && !PRO && full) seedBathExtras(w, b, start);
     if (catBase() === "thvottahus") placeLaundryMachine(w, b);
     syncBathPanels();
     save();
     if (PRO) toast("Vaskaskápur settur á vatnið á " + w.label + " — eyddu honum ef hann á ekki að vera þar."); // G7: never silent
+  }
+  // ---- "Viltu fá tillögu að innréttingu?" (owner, 2026-10-27) — customers only ----
+  var suggestFull = false;
+  function suggestKinds(){ var cb = catBase(); return cb === "eldhus" || cb === "bad" || cb === "thvottahus"; }
+  // a bath's suggestion: the vanity at the water + a drawer unit beside it (where there's room) + an efri skápur over it
+  function seedBathExtras(w, sink, start){
+    var lo = cornerClearance(w, "floor"), hi = w.lengthMm, side = (hi - (start + sink.widthMm)) >= (start - lo) ? 1 : -1;
+    var g = newBlock("grunnskapur"); g.widthMm = 400; g.autoSeed = true;
+    var dcs = KP3D.drawerCodes({ mode:"skuffur", count:3 }, drawerSys()); g.interior = { mode:"skuffur", count:dcs.length, codes:dcs };
+    var at = side > 0 ? start + sink.widthMm + 40 : start - 40 - g.widthMm; // + room for the úthliðar between
+    var fits = function(a, wd, zone){ return a >= lo && a + wd <= hi && freeIntervals(w, zone, null, probeSpan(zone, g)).some(function(iv){ return iv[0] <= a + 0.5 && iv[1] >= a + wd - 0.5; }); };
+    if (fits(at, g.widthMm, "floor")) insertBlockAt(w, "floor", g, at);
+    var e = newBlock("efriskapur"); e.widthMm = Math.max(CATALOG.efriskapur.minW, Math.min(CATALOG.efriskapur.maxW, sink.widthMm)); e.autoSeed = true;
+    var eFree = freeIntervals(w, "wall", null, probeSpan("wall", e)).some(function(iv){ return iv[0] <= start + 0.5 && iv[1] >= start + e.widthMm - 0.5; });
+    if (eFree && !(state.windows || []).some(function(o){ return o.wallId === w.id && start < o.offsetMm + o.widthMm && start + e.widthMm > o.offsetMm; })) insertBlockAt(w, "wall", e, start);
+  }
+  function askSuggestion(){
+    if (PRO || state.step !== "editor" || state.suggestAsk !== "ask" || document.getElementById("fitAsk")) return;
+    askChoice("<b>" + __("Viltu fá tillögu að innréttingu?") + "</b> " + __("Við röðum upp algengri innréttingu fyrir þig. Þú breytir henni eins og þú vilt."),
+      __("Já, sýna tillögu"), __("Nei, ég byrja sjálf/ur"),
+      function(){ applySuggestion(true); },
+      function(){ state.suggestAsk = "no"; save(); });
+  }
+  // fill the room with its suggestion — replaces what's there (with Afturkalla when something was)
+  function applySuggestion(first){
+    if (PRO || !suggestKinds()) return;
+    var had = state.walls.some(function(x){ return x.floor.length || x.wall.length; }) && !first, before = JSON.stringify(state);
+    state.walls.forEach(function(x){ x.floor = []; x.wall = []; });
+    state.seeded = false; state.suggestAsk = "yes";
+    suggestFull = true; try{ seedSink(); } finally { suggestFull = false; }
+    save(); refreshAfterEdit();
+    if (had) undoToast(__("Tillagan er komin."), function(){ state = JSON.parse(before); save(); refreshAfterEdit(); });
   }
   // A new kitchen starts as a real run, not one lonely sink (round 3, B1, 2026-10-26): along the water wall (or the longest
   // wall) — uppþvottavél + a drawer unit on one side of the sink, a drawer unit + the ísskápsturn on the other, efri
@@ -4237,7 +4274,7 @@
       if (ok) insertBlockAt(w, "wall", e, starts[i]);
     });
   }
-  function seedLaundry(waterW){
+  function seedLaundry(waterW, basic){ // basic: the sink + the machines only, no filler units / wall cabinets (the customer said Nei to a suggestion)
     var m = state.laundryMachine || "staeda", k = unitWallShape();
     var unitWalls = k && SHAPE_TEMPLATES[k].closetWalls ? SHAPE_TEMPLATES[k].closetWalls.map(function(i){ return state.walls[i]; }).filter(function(x){ return x && !x.open; }) : [waterW];
     if (unitWalls.indexOf(waterW) < 0) waterW = unitWalls[0];
@@ -4248,12 +4285,12 @@
     if (other){ // Horn: the machines on the other wall, at the corner; the water wall's units stop short of the corner
       var oi = state.walls.indexOf(other), wi = state.walls.indexOf(waterW), atStart = oi === (wi + 1) % state.walls.length; // the next wall starts at the corner
       var cornerMm = 620; // the corner square stays free: the other wall's 60 cm units stand in front of it (else the fronts there can't open)
-      laundryRun(waterW, [sink], mid, true, atStart ? { end:cornerMm } : { start:cornerMm });
+      laundryRun(waterW, [sink], mid, !basic, atStart ? { end:cornerMm } : { start:cornerMm });
       var towerFar = m === "staeda"; // a tall tower in the corner would block the water wall's last unit — it goes at the far end
-      if (mach.length) laundryRun(other, mach, atStart !== towerFar ? 0 : other.lengthMm, true, towerFar ? (atStart ? { end:20 } : { start:20 }) : null); // (room for the tower's úthlið to push it along)
-      else laundryRun(other, [], 0, true);
-    } else laundryRun(waterW, [sink].concat(mach.length ? mach : [laundryBase(600)]), mid, true); // Engin vél: sink + a drawer unit, as on its preview
-    if (m !== "staeda") unitWalls.forEach(laundryWallUnits);
+      if (mach.length) laundryRun(other, mach, atStart !== towerFar ? 0 : other.lengthMm, !basic, towerFar ? (atStart ? { end:20 } : { start:20 }) : null); // (room for the tower's úthlið to push it along)
+      else if (!basic) laundryRun(other, [], 0, true);
+    } else laundryRun(waterW, [sink].concat(mach.length ? mach : basic ? [] : [laundryBase(600)]), mid, !basic); // Engin vél: sink + a drawer unit, as on its preview
+    if (m !== "staeda" && !basic) unitWalls.forEach(laundryWallUnits);
     landedBlockId = sink.id;
   }
   function laundryUntouched(){ // every unit is still the one we seeded (none moved into place by hand, none locked)
@@ -8522,6 +8559,7 @@
       }).join("") + '</div>' +
       '<div class="cat-title">' + __("Lofthæð") + '</div><div class="dim-f" style="margin-bottom:12px;"><input type="number" id="roomHeightInput" data-len min="' + MIN_ROOM_HEIGHT_MM + '" max="3200" step="10" value="' + state.roomHeightMm + '"><small>' + uUnit() + ' · ' + uNum(MIN_ROOM_HEIGHT_MM) + '–' + uNum(3200) + '</small></div>' +
       '<button type="button" class="btn btn-secondary btn-small" data-act="shape">' + __("Breyta lögun og lengd veggja") + '</button>';
+    if (!PRO && suggestKinds()) roomBody += '<button type="button" class="reset-link" data-suggest="1" style="margin-top:10px;">' + __("Fá tillögu að innréttingu") + '</button>';
     var html = sec("rymi", __("Rými"), roomBody);
 
     // (cabinets: "＋ Ný eining" sits at the right end of the 3D toolbar, #edNewUnit — moved there 2026-10-02)
@@ -8618,6 +8656,7 @@
     });
     host.querySelectorAll("[data-hcolor]").forEach(function(b){ b.addEventListener("click", function(){ pickHandleColor(b.dataset.hcolor); refreshAfterEdit(); renderCatalogPanel(); }); });
     host.querySelectorAll("[data-decor-add]").forEach(function(b){ b.addEventListener("click", function(){ addDecor(b.dataset.decorAdd); }); });
+    host.querySelectorAll("[data-suggest]").forEach(function(b){ b.addEventListener("click", function(){ var sec0 = b.closest("details"); if (sec0) sec0.open = false; applySuggestion(false); }); });
     host.querySelectorAll("[data-obst-add]").forEach(function(b){ b.addEventListener("click", function(){ if (PRO) addObstacle(b.dataset.obstAdd); else startPlaceMode("obstacle", b.dataset.obstAdd); }); });
     host.querySelectorAll("[data-decor-all]").forEach(function(b){
       b.addEventListener("click", function(){
@@ -11996,7 +12035,7 @@
     if (step !== "welcome") stopWelcomeScene();
     if (state.step === "editor" && step !== "editor"){ KP3D.teardown3D(); selectedBlockId = null; selectedWallId = null; }
     if (step !== "shape") endHeightScene();
-    if (step === "editor" && state.step !== "editor"){ undoStack = []; histIdx = -1; seedSink(); }
+    if (step === "editor" && state.step !== "editor"){ undoStack = []; histIdx = -1; seedSink(); setTimeout(askSuggestion, 450); }
     if (step === "shape" && state.closed && shapePhase === "pick" && state.walls.length) shapePhase = "size";
     // park the room being worked on so its data survives a trip back to "Hvað erum við að skoða?"
     // (byrjaSel is synced here too — re-entering byrja from mid-flow should show the real queue, not
@@ -12024,7 +12063,7 @@
   // object as the user moves between categories (Eldhús, Fataskápar, ...); categoryQueue/categoryData/
   // activeCategory themselves are never part of this list.
   var ROOM_FIELDS = ["intake", "carcass", "drawerSystem", "look", "look2", "innerFront", "handle", "handleColor", "top", "floor", "floorTile", "floorPattern", "floorRot", "roomHeightMm",
-    "wallColor", "windows", "doors", "closed", "shapeKey", "waterWall", "waterAlongMm", "seeded", "base900", "islands", "walls", "obstacles", "decor", "openingsDone", "annotations", "hungUnits",
+    "wallColor", "windows", "doors", "closed", "shapeKey", "waterWall", "waterAlongMm", "seeded", "suggestAsk", "base900", "islands", "walls", "obstacles", "decor", "openingsDone", "annotations", "hungUnits",
     "worktop", "closetDepthMm", "closetHeightMm", "closetHeightLoft", "closetCeilGapMm", "closetSeeded", "closetFillDeclined", "closetDoors", "closetAutoHandle", "closetSpans", "laundryMachine", "laundryDrain", "bathMirror", "matAuto", "matFrom", "matAsk"]; // per wardrobe (2026-10-25 — were project-wide by accident)
   function serializeRoom(){
     var blob = {};

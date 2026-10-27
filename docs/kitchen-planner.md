@@ -676,3 +676,9 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   (`fullAim` in buildScene). Unit-wall rooms' 3D dims: the run's width sits higher (bath top + 52 cm, over basin and tap;
   others + 30 cm), the overall height moved out to 24 cm from the unit's end, and a wall-hung bath gets a second, inner
   chain beside it: gap under + the box (e.g. 20 + 60 = 80). Verified hung after reload.
+- **"Viltu fá tillögu að innréttingu?" (owner):** customers' rooms are never filled by themselves. `seedSink` places the basic
+  start (kitchen: the sink; bath: the vanity; laundry: sink + the machines, `seedLaundry(w, basic)`) and sets the room
+  field `suggestAsk = "ask"`; entering the editor shows one `askChoice` (Já, sýna tillögu / Nei, ég byrja sjálf/ur).
+  Já → `applySuggestion` clears the room's units and reseeds with `suggestFull` (kitchen run, full laundry, bath: vanity +
+  a 40 cm drawer unit + an efri skápur over the vanity, `seedBathExtras`); "Fá tillögu að innréttingu" in the Rými menu does
+  the same later with Afturkalla. PRO unchanged. The unit-wall rooms' width dimension sits above any wall cabinet.
