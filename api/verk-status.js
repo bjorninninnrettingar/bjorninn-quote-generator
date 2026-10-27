@@ -12,6 +12,8 @@
 // POST { k, t, action: "sagad", pieceId, done } → { ok, done }
 // `from` must equal the current status (a stale page can't overwrite a newer one).
 
+import { addLine } from "./virkni.js";
+
 const BASE = "https://api.airtable.com/v0/app91U15z9K704Okd";
 const PROJECTS = "tbl4LMXlQjp66RFKI";
 const PIECES = "tblhdgyvTcBfP8kov";
@@ -74,6 +76,10 @@ export default async function handler(req, res) {
       }
       if (!transitionAllowed(b.from, b.to)) return res.status(400).json({ error: "Þessi færsla er ekki leyfð" });
       await at(`${PROJECTS}/${t}`, { method: "PATCH", body: JSON.stringify({ fields: { "Staða í framleiðslu": b.to } }) });
+      // 🔔 office bell (2026-10-27). No chat: "💬 Má afhenda → Skrifstofu chat" already posts.
+      const texti = b.to === STAGES.deliver ? (b.from === STAGES.done ? "Afhent afturkallað — aftur í Má afhenda" : "Allt pakkað — Má afhenda 🚚")
+        : b.to === STAGES.done ? "Afhent ✅" : "Má afhenda afturkallað — aftur í " + b.to;
+      await addLine({ texti, tegund: "afhending", til: "Skrifstofa", t, tengill: "/verk?t=" + t, hver: "Verkstæði" });
       return res.status(200).json({ ok: true, stage: b.to });
     }
 

@@ -50,3 +50,15 @@ test("sagað refuses a piece from another project", async () => {
   assert.equal(r.status, 403);
   assert.equal(r.calls.some((c) => c.opts.method === "PATCH"), false);
 });
+
+test("a status move also writes one office Virkni line (no chat)", async () => {
+  const r = await call({ k: "lykill", t: T, action: "status", from: STAGES.assembly, to: STAGES.deliver }, undefined,
+    async (url, opts) => ok(opts.method ? { id: "recVVVVVVVVVVVVVV" } : { "Staða í söluferli": "🏆 Tækifæri unnið", "Staða í framleiðslu": STAGES.assembly }));
+  assert.equal(r.status, 200);
+  const line = r.calls.find((c) => c.url.includes("tblPPMTlFhW0snk24"));
+  const f = JSON.parse(line.opts.body).fields;
+  assert.equal(f["Tegund"], "afhending");
+  assert.equal(f["Til"], "Skrifstofa");
+  assert.deepEqual(f["Tækifæri"], [T]);
+  assert.equal(r.calls.some((c) => String(c.url).includes("chat.googleapis.com")), false);
+});

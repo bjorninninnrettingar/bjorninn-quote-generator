@@ -81,6 +81,22 @@ function toItem(r) {
   };
 }
 
+// Server-side writer for other endpoints (verk-status, cron). Fields must already be valid;
+// never throws — a missing Virkni line must not fail the action that caused it.
+export async function addLine({ texti, tegund, til, t, tengill, hver }) {
+  try {
+    const fields = { "Texti": String(texti).slice(0, 300), "Tegund": tegund, "Til": til, "Flokkur": FLOKKUR_FOR[tegund] || "Framleiðsla" };
+    if (t) fields["Tækifæri"] = [t];
+    if (tengill) fields["Tengill"] = ORIGIN + tengill;
+    if (hver) fields["Hver"] = hver;
+    const rec = await at(VIRKNI, { method: "POST", body: JSON.stringify({ fields }) });
+    return rec.id;
+  } catch (e) {
+    console.error("virkni addLine:", e.message);
+    return null;
+  }
+}
+
 async function list(req, res) {
   const q = req.query || {};
   const role = q.til === "Verkstæði" ? "Verkstæði" : "Skrifstofa";
