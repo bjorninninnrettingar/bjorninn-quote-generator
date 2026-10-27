@@ -610,3 +610,8 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   room done last (reversed queue, PRO unchanged).
 - Left on purpose: default kitchen size (made 1.4× on 2026-10-12 by the user), Ný eining height 90 vs chip 80 (the chip
   edits carcass height), 2D front tint on far walls, Hexxa on tall doubles, collapsible Senda inn summary.
+- **Owner round (same day): Rýmin þín is where rooms are chosen.** The welcome page is intro only (`.wel-steps`: Veldu
+  rýmin → Hannaðu í 3D → Við förum yfir, the showcase kitchen, one big Byrja / Halda áfram + quiet Byrja upp á nýtt).
+  Byrja/Halda áfram → `openHome()`. An empty project's Rýmin þín is the picker (`.hl-kinds`, a tap = `addRooms([t])`,
+  no walk); "+ Bæta við rými" adds the same way; Hanna opens a room. A language switch still reopens the exact step
+  (`resumeLeftStep`). The welcome room cards (`welPick`, `renderStudioCards`) are gone.

@@ -146,7 +146,17 @@
   @media (max-width:980px){ .wrap.welm .wel{ grid-template-columns:1fr; gap:24px; } .wel-hero{ grid-row:auto; grid-column:1; } .wel-main{ grid-row:auto; } }
   /* BJÖRNINN STUDIO front page (2026-10-23): one card per room, a click starts it (or picks it back up) */
   .wel-lede{ margin:10px 0 0; font-size:15px; line-height:1.55; color:var(--ink-soft); max-width:520px; }
-  .wel h2.wel-ask{ margin:20px 0 10px; font-size:19px; line-height:1.3; } /* under the page title, not a rival to it (morning scan 2026-10-27) */
+  .wel .wel-steps{ list-style:none; margin:22px 0 22px; padding:0; display:flex; flex-direction:column; gap:12px; }
+  .wel-steps li{ display:flex; gap:16px; align-items:center; padding:14px 16px; background:#fff; border:1px solid var(--line); border-radius:14px; }
+  .wel-steps .ws-ic{ flex:none; width:52px; height:52px; border-radius:12px; background:var(--panel); display:grid; place-items:center; color:var(--ink); }
+  .wel-steps b{ display:block; font-size:15.5px; margin-bottom:2px; } .wel-steps small{ font-size:13px; color:var(--ink-soft); line-height:1.4; }
+  #welStart.btn-big{ font-size:16px; padding:13px 26px; }
+  /* Rýmin þín with no rooms yet = the room picker (owner, 2026-10-27): the room kinds as big cards, a tap adds one */
+  .hl-kinds{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:14px; }
+  .hl-type{ display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-start; gap:6px; text-align:left; padding:20px; border:1px solid var(--line); border-radius:14px; background:#fff; cursor:pointer; font:inherit; color:var(--ink); min-height:150px; transition:border-color .15s, box-shadow .15s; }
+  .hl-type:hover, .hl-type:focus-visible{ border-color:var(--ink); box-shadow:0 8px 22px rgba(25,25,25,.08); outline:none; }
+  .hl-type .ht-ic{ margin-bottom:auto; color:var(--ink); } .hl-type b{ font-size:17px; } .hl-type small{ font-size:13px; color:var(--ink-soft); line-height:1.4; }
+  .hl-type .ht-add{ margin-top:6px; font-size:13px; font-weight:700; color:var(--blue); }
   .wrap.welm .wel{ margin-top:6px; } .studio-card{ min-height:130px; }
   .studio-cards{ display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:10px; }
   .studio-card{ display:flex; flex-direction:column; align-items:flex-start; gap:4px; text-align:left; padding:14px 14px 12px; border:1.5px solid var(--line); border-radius:14px; background:#fff; cursor:pointer; font:inherit; color:var(--ink); transition:border-color .15s, transform .15s, box-shadow .15s; }
@@ -1410,6 +1420,7 @@
   .hl-note{ margin:0; font-size:13.5px; color:var(--ink-soft); }
   .hl-gate{ background:#fff; border:1px solid #e3c98f; border-radius:12px; padding:10px 14px; display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; }
   .hl-gate p{ margin:0; flex:1 1 auto; font-size:14px; }
+  .hl-card.fresh{ animation:hlFresh 1.4s ease-out; } @keyframes hlFresh{ 0%{ box-shadow:0 0 0 3px var(--blue); } 100%{ box-shadow:0 0 0 0 transparent; } }
   .hl-card.need{ border-color:#e3c98f; box-shadow:0 0 0 2px #f3e3bd; } /* Áfram stopped: the empty rooms themselves are marked */
   .hl-gate-row{ display:inline-flex; align-items:center; gap:8px; }
   .hl-gate-row b{ font-size:14px; margin-right:2px; }
@@ -2058,12 +2069,16 @@
       <figure class="wel-hero"><div class="wel-scene" id="welScene" aria-hidden="true"></div><img src="images/welcome-kitchen.jpg" data-i18n="attrs" alt="Eldhús hannað í hönnunartólinu: dökkblá innrétting, hvítur marmari og messinghöldur" width="1600" height="942"><figcaption data-i18n>Hannað hér í hönnunartólinu<span class="wel-drag"> · dragðu til að snúa</span></figcaption></figure>
       <div class="wel-main">
       <div class="wel-meta"><span data-i18n>10–15 mínútur</span><span data-i18n>Vistast sjálfkrafa</span><span data-i18n>Engin binding</span></div>
-      <p class="wel-lede" data-i18n>Teiknaðu rýmið, veldu efni og raðaðu innréttingunni í 3D. Þú færð teikningar og vörulista, og tilboð frá okkur — frítt og án skuldbindingar.</p>
-      <h2 class="wel-ask" data-i18n>Hvaða rými viltu hanna?</h2>
-      <div class="studio-cards" id="studioCards"></div>
+      <p class="wel-lede" data-i18n>Innréttingar fyrir allt heimilið, hannaðar af þér í 3D og smíðaðar af okkur.</p>
+      <!-- 2026-10-27 (owner): the start page only shows what's going to happen — the rooms are picked on Rýmin þín -->
+      <ol class="wel-steps">
+        <li><span class="ws-ic" data-wsic="ibud"></span><div><b data-i18n>Veldu rýmin</b><small data-i18n>Eldhús, fataskápur, bað, þvottahús eða innihurðir — eitt eða fleiri.</small></div></li>
+        <li><span class="ws-ic" data-wsic="cube"></span><div><b data-i18n>Hannaðu í 3D</b><small data-i18n>Teiknaðu rýmið, veldu efni og raðaðu skápunum. Allt vistast jafnóðum.</small></div></li>
+        <li><span class="ws-ic" data-wsic="sheet"></span><div><b data-i18n>Við förum yfir</b><small data-i18n>Söluaðili fer yfir hönnunina og sendir þér teikningar og tilboð. Engin binding.</small></div></li>
+      </ol>
       <div class="wel-actions">
         <button class="reset-link" id="welReset" type="button" hidden data-i18n>Byrja upp á nýtt</button>
-        <button class="btn btn-primary" id="welStart" type="button" data-i18n>Byrja að hanna →</button>
+        <button class="btn btn-primary btn-big" id="welStart" type="button" data-i18n>Byrja →</button>
       </div>
       </div>
     </div>
@@ -2517,7 +2532,7 @@
   var CATALOG = KP3D.CATALOG;
   var LOOKS = KP3D.LOOKS;
   // Line icons instead of emoji (user, 2026-10-23: "taka alla þessa emoja út, erum að reyna hafa þetta high end")
-  var ICON_PATHS = { up:'<path d="M12 19V5M6 11l6-6 6 6"/>', down:'<path d="M12 5v14M6 13l6 6 6-6"/>', grip:'<circle cx="9" cy="7" r="1"/><circle cx="15" cy="7" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="17" r="1"/><circle cx="15" cy="17" r="1"/>', info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/>',"target": "<circle cx=\"12\" cy=\"12\" r=\"7.5\"/><circle cx=\"12\" cy=\"12\" r=\"2.5\"/><path d=\"M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3\"/>", "camera": "<path d=\"M4 8.5h3l1.8-2.5h6.4L17 8.5h3V19H4z\"/><circle cx=\"12\" cy=\"13.5\" r=\"3.4\"/>", "trash": "<path d=\"M5 7h14M10 7V5h4v2M7 7l.9 12.2h8.2L17 7M10.5 10.5v6M13.5 10.5v6\"/>", "lock": "<rect x=\"6\" y=\"11\" width=\"12\" height=\"9\" rx=\"1.5\"/><path d=\"M8.5 11V8a3.5 3.5 0 0 1 7 0v3\"/>", "unlock": "<rect x=\"6\" y=\"11\" width=\"12\" height=\"9\" rx=\"1.5\"/><path d=\"M8.5 11V8a3.5 3.5 0 0 1 6.9-.9\"/>", "laptop": "<rect x=\"4.5\" y=\"5\" width=\"15\" height=\"10.5\" rx=\"1\"/><path d=\"M2.5 19h19\"/>", "check": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M8 12.4l2.8 2.8L16.2 9.6\"/>", "window": "<rect x=\"5\" y=\"4\" width=\"14\" height=\"16\" rx=\".5\"/><path d=\"M12 4v16M5 12h14\"/>", "door": "<path d=\"M6.5 20.5V3.5h11v17M4 20.5h16\"/><circle cx=\"14.6\" cy=\"12\" r=\".7\"/>", "opening": "<path d=\"M6.5 20.5V3.5h11v17\" stroke-dasharray=\"2 2\"/><path d=\"M4 20.5h16\"/>", "eldhus": "<rect x=\"3.5\" y=\"10\" width=\"17\" height=\"10\" rx=\".5\"/><path d=\"M3.5 13.5h17M12 13.5V20M7 7h4M13 7h4\"/>", "fataskapar": "<rect x=\"5\" y=\"3\" width=\"14\" height=\"18\" rx=\".5\"/><path d=\"M12 3v18M10.2 11v2M13.8 11v2\"/>", "bad": "<path d=\"M4 11.5h16v1.5a6 6 0 0 1-6 6h-4a6 6 0 0 1-6-6z\"/><path d=\"M12 11.5V6h3\"/>", "thvottahus": "<rect x=\"5\" y=\"3\" width=\"14\" height=\"18\" rx=\"1.5\"/><circle cx=\"12\" cy=\"13.2\" r=\"4\"/><path d=\"M8 6.5h2\"/>", "hurdir": "<path d=\"M6.5 20.5V3.5h11v17M4 20.5h16\"/><circle cx=\"14.6\" cy=\"12\" r=\".7\"/>", "close": "<path d=\"M6.5 6.5l11 11M17.5 6.5l-11 11\"/>", "rotate": "<path d=\"M18.5 12a6.5 6.5 0 1 1-1.9-4.6\"/><path d=\"M17 3.8v3.9h-3.9\"/>", "ibud": "<path d=\"M4 11l8-6.5 8 6.5v9.5H4z\"/><path d=\"M10 20.5V15h4v5.5\"/>",
+  var ICON_PATHS = { cube:'<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/>', sheet:'<path d="M6 3h8.5L19 7.5V21H6z"/><path d="M14 3v5h5M9 12.5h7M9 16h7"/>', up:'<path d="M12 19V5M6 11l6-6 6 6"/>', down:'<path d="M12 5v14M6 13l6 6 6-6"/>', grip:'<circle cx="9" cy="7" r="1"/><circle cx="15" cy="7" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="17" r="1"/><circle cx="15" cy="17" r="1"/>', info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/>',"target": "<circle cx=\"12\" cy=\"12\" r=\"7.5\"/><circle cx=\"12\" cy=\"12\" r=\"2.5\"/><path d=\"M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3\"/>", "camera": "<path d=\"M4 8.5h3l1.8-2.5h6.4L17 8.5h3V19H4z\"/><circle cx=\"12\" cy=\"13.5\" r=\"3.4\"/>", "trash": "<path d=\"M5 7h14M10 7V5h4v2M7 7l.9 12.2h8.2L17 7M10.5 10.5v6M13.5 10.5v6\"/>", "lock": "<rect x=\"6\" y=\"11\" width=\"12\" height=\"9\" rx=\"1.5\"/><path d=\"M8.5 11V8a3.5 3.5 0 0 1 7 0v3\"/>", "unlock": "<rect x=\"6\" y=\"11\" width=\"12\" height=\"9\" rx=\"1.5\"/><path d=\"M8.5 11V8a3.5 3.5 0 0 1 6.9-.9\"/>", "laptop": "<rect x=\"4.5\" y=\"5\" width=\"15\" height=\"10.5\" rx=\"1\"/><path d=\"M2.5 19h19\"/>", "check": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M8 12.4l2.8 2.8L16.2 9.6\"/>", "window": "<rect x=\"5\" y=\"4\" width=\"14\" height=\"16\" rx=\".5\"/><path d=\"M12 4v16M5 12h14\"/>", "door": "<path d=\"M6.5 20.5V3.5h11v17M4 20.5h16\"/><circle cx=\"14.6\" cy=\"12\" r=\".7\"/>", "opening": "<path d=\"M6.5 20.5V3.5h11v17\" stroke-dasharray=\"2 2\"/><path d=\"M4 20.5h16\"/>", "eldhus": "<rect x=\"3.5\" y=\"10\" width=\"17\" height=\"10\" rx=\".5\"/><path d=\"M3.5 13.5h17M12 13.5V20M7 7h4M13 7h4\"/>", "fataskapar": "<rect x=\"5\" y=\"3\" width=\"14\" height=\"18\" rx=\".5\"/><path d=\"M12 3v18M10.2 11v2M13.8 11v2\"/>", "bad": "<path d=\"M4 11.5h16v1.5a6 6 0 0 1-6 6h-4a6 6 0 0 1-6-6z\"/><path d=\"M12 11.5V6h3\"/>", "thvottahus": "<rect x=\"5\" y=\"3\" width=\"14\" height=\"18\" rx=\"1.5\"/><circle cx=\"12\" cy=\"13.2\" r=\"4\"/><path d=\"M8 6.5h2\"/>", "hurdir": "<path d=\"M6.5 20.5V3.5h11v17M4 20.5h16\"/><circle cx=\"14.6\" cy=\"12\" r=\".7\"/>", "close": "<path d=\"M6.5 6.5l11 11M17.5 6.5l-11 11\"/>", "rotate": "<path d=\"M18.5 12a6.5 6.5 0 1 1-1.9-4.6\"/><path d=\"M17 3.8v3.9h-3.9\"/>", "ibud": "<path d=\"M4 11l8-6.5 8 6.5v9.5H4z\"/><path d=\"M10 20.5V15h4v5.5\"/>",
     chevronLeft:'<path d="M14.5 6l-6 6 6 6"/>', chevronRight:'<path d="M9.5 6l6 6-6 6"/>', copy:'<rect x="8.5" y="8.5" width="11" height="11" rx="1.5"/><path d="M15.5 8.5V5.5a1 1 0 0 0-1-1h-9a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3"/>',
     eye:'<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>' };
   function icon(k, size){ size = size || 18; return '<svg class="ico" viewBox="0 0 24 24" width="' + size + '" height="' + size + '" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICON_PATHS[k] || "") + '</svg>'; }
@@ -12931,9 +12946,10 @@
   }
   function renderWelcome(){
     if (!welSceneOn) setTimeout(function(){ if (state.step === "welcome" && !welSceneOn) startWelcomeScene(); }, 350);
-    document.getElementById("welStart").hidden = false; // Byrja with the ticked rooms, or Halda áfram (round 3)
-    document.getElementById("welReset").hidden = !hasProject();
-    renderStudioCards();
+    var proj = hasProject(), ws = document.getElementById("welStart");
+    ws.hidden = false; ws.disabled = false; ws.textContent = proj ? __("Halda áfram →") : __("Byrja →"); // Halda áfram → Rýmin þín (owner, 2026-10-27)
+    document.getElementById("welReset").hidden = !proj;
+    document.querySelectorAll("[data-wsic]").forEach(function(el){ if (!el.firstChild) el.innerHTML = icon(el.dataset.wsic, 28); });
   }
   // ======================================================================
   // PRO "Rýmið" (2026-10-26): the customer's five room pages (lögun, stærð, lofthæð, gluggar, vatn) as ONE page for
@@ -13918,6 +13934,7 @@
     withEachCategory(function(){ if (cabinetTotal() > 0) any = true; });
     return any || designedDoors().length > 0;
   }
+  var hlFlash = null; // the rooms just added (their cards light up once)
   var homeBackTo = null; // the room "Rýmin þín" was opened from (its ← Til baka goes there)
   function openHome(){
     homeBackTo = !PRO && state.activeCategory && (state.step === "editor" || state.step === "materials" || state.step === "shape") ? state.activeCategory : state.step === "hurdir" ? "hurdir" : null;
@@ -14856,7 +14873,7 @@
       var b = e.target.closest("button"); if (!b || b.disabled) return;
       if (b.dataset.addpick){ var i = pick.indexOf(b.dataset.addpick); if (i >= 0) pick.splice(i, 1); else pick.push(b.dataset.addpick); draw(); return; }
       if (b.dataset.addcancel){ close(); return; }
-      if (b.dataset.addgo){ close(); hideUndoToast(); startPicked(pick); }
+      if (b.dataset.addgo){ close(); hideUndoToast(); addRooms(pick); }
     });
     document.addEventListener("keydown", onKey);
     draw(); document.body.appendChild(ov);
@@ -14890,6 +14907,16 @@
     document.getElementById("homeSub").textContent = __("Hvert rými er hannað fyrir sig. Eitt tilboð fyrir allt.");
     var nb = document.getElementById("homeNextBtn"); nb.textContent = __("Áfram →"); nb.hidden = false; // QA A1: the real send is on the last page
     var rows = hlRows();
+    if (!rows.length){ // nothing in the project yet: Rýmin þín is the room picker (owner, 2026-10-27)
+      document.getElementById("homeTitle").textContent = __("Hvaða rými viltu hanna?");
+      document.getElementById("homeSub").textContent = __("Smelltu á rými til að bæta því við. Þú getur bætt fleirum við hvenær sem er.");
+      hlGate = null; hlLaidOut = null;
+      var tH = Math.max(150, Math.min(250, Math.floor(((host.clientHeight || innerHeight - 312) - 40 - 14) / 2))); // two rows of three, filling the box
+      host.innerHTML = '<div class="home-list"><div class="hl-kinds" style="grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:' + tH + 'px">' + STUDIO_ROOMS.map(function(r){
+        return '<button type="button" class="hl-type" data-hltypeadd="' + r.key + '"><span class="ht-ic">' + icon(r.key === "rymi" ? "ibud" : r.key, 44) + '</span><b>' + __(r.label) + '</b><small>' + __(r.desc) + '</small><span class="ht-add">' + __("+ Bæta við") + '</span></button>'; }).join("") + '</div></div>';
+      host.onclick = function(e){ var b = e.target.closest("[data-hltypeadd]"); if (b) addRooms([b.dataset.hltypeadd]); };
+      return;
+    }
     var orderable = rows.some(function(r){ return r.order; }), empty = rows.filter(function(r){ return !r.done; });
     if (hlGate === true && orderable) hlGate = null; // resolved — the message goes with it
     if (typeof hlGate === "string" && canGoTo("intake").ok) hlGate = null;
@@ -14907,7 +14934,7 @@
       var rowH = Math.max(150, Math.min(290, Math.floor((H - 40 - noteH - (R - 1) * 14) / R)));
       html += '<div class="hl-grid" style="grid-template-columns:repeat(' + cols + ',minmax(0,1fr));grid-auto-rows:' + rowH + 'px">' + rows.map(function(r){
         var st = r.done ? __("Klárt") : r.started ? __("Í vinnslu") : __("Ekki byrjað");
-        return '<div class="hl-card' + (r.done ? ' done' : r.started ? ' wip' : '') + (hlGate === true && !r.done ? ' need' : '') + '">' +
+        return '<div class="hl-card' + (r.done ? ' done' : r.started ? ' wip' : '') + (hlFlash && hlFlash.indexOf(r.key) >= 0 ? ' fresh' : '') + (hlGate === true && !r.done ? ' need' : '') + '">' +
           '<button type="button" class="hl-thumb" data-hlopen="' + r.key + '" aria-label="' + escapeHtmlPro(homeNameOf(r.key)) + '">' + hlThumbHtml(r, 240, Math.max(60, rowH - 104)) + '</button>' +
           '<button type="button" class="hl-x" data-hldel="' + r.key + '" title="' + __("Fjarlægja") + '" aria-label="' + __("Fjarlægja") + '">' + icon("close", 14) + '</button>' +
           '<div class="hl-body"><label class="hl-name-wrap" title="' + __("Smelltu til að breyta nafninu") + '"><input class="hl-name" data-hlname="' + r.key + '" value="' + escapeHtmlPro(homeNameOf(r.key)) + '" maxlength="40" aria-label="' + __("Nafn rýmis") + '"><i class="hl-pen" aria-hidden="true"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg></i></label>' +
@@ -14918,6 +14945,7 @@
     }
     if (window.__kpHomePlan) html += '<p class="home-hint"><button type="button" class="reset-link" data-hlplan="1">' + __("Teikna grunnmynd") + '</button></p>';
     host.innerHTML = html + '</div>';
+    setTimeout(function(){ hlFlash = null; }, 300); // (survives the re-render once laid out)
     hlPlans(host);
     // measured while the screen was still switching (a narrower box → 3 columns of squashed cards): once more, laid out
     setTimeout(function(){ if (state.step === "heimili" && homeListMode() && hlLaidOut !== host.clientWidth + "x" + host.clientHeight) renderHome(); }, 60);
@@ -14953,7 +14981,6 @@
     { key:"hurdir", label:"Innihurðir", desc:"Hurðir um allt heimilið" },
     { key:"rymi", label:"Aðeins rými", desc:"Stofa, gangur eða annað rými án innréttingar" }
   ];
-  var welPick = []; // the cards ticked on the start page (not saved)
   function hasProject(){ return !!(state.home && (homeRooms().length || hlHasDoors())); }
   function roomCardsHtml(pick, attr){ // the big room cards with a tick — the start page and "+ Bæta við rými" share them
     return STUDIO_ROOMS.map(function(r){
@@ -14965,24 +14992,9 @@
         '<span class="tick" aria-hidden="true">' + (on ? '&#10003;' : '') + '</span><span class="ic">' + icon(r.key === "rymi" ? "ibud" : r.key, 26) + '</span><b>' + __(r.label) + '</b><small' + (have && !on ? ' class="in-proj"' : '') + '>' + sub + '</small></button>';
     }).join("");
   }
-  function renderStudioCards(){
-    var host = document.getElementById("studioCards"); if (!host) return;
-    host.innerHTML = roomCardsHtml(welPick, "data-studio");
-    var b = document.getElementById("welStart"), proj = hasProject();
-    b.textContent = welPick.length ? (proj ? __("Bæta við og byrja →") : __("Byrja →")) : proj ? __("Halda áfram →") : __("Byrja →");
-    b.disabled = !welPick.length && !proj;
-    var hint = document.getElementById("welHint");
-    if (!hint){ hint = document.createElement("span"); hint.id = "welHint"; hint.className = "nav-need"; b.parentNode.insertBefore(hint, b); }
-    hint.textContent = !welPick.length && !proj ? __("Veldu eitt eða fleiri rými.") : "";
-  }
-  document.addEventListener("click", function(e){
-    var card = e.target.closest && e.target.closest("[data-studio]"); if (!card || card.disabled) return;
-    var key = card.dataset.studio, i = welPick.indexOf(key);
-    if (i >= 0) welPick.splice(i, 1); else welPick.push(key);
-    renderStudioCards();
-  });
-  // add the picked kinds to the project (named "Fataskápur 2" … when one is there already) and walk them, doors last
-  function startPicked(types){
+  // add the picked kinds to the project — no walk: they show on Rýmin þín, "Hanna" opens one (owner, 2026-10-27)
+  function addRooms(types){ startPicked(types, true); }
+  function startPicked(types, noWalk){
     if (PRO) return;
     state.home = state.home || { rooms:{} }; state.home.names = state.home.names || {}; state.home.rymi = state.home.rymi || {};
     state.categoryQueue = state.categoryQueue || []; state.categoryData = state.categoryData || {};
@@ -14997,6 +15009,7 @@
       keys.push(key);
     });
     var di = keys.indexOf("hurdir"); if (di >= 0){ keys.splice(di, 1); keys.push("hurdir"); } // doors last, as on the room list (a Stofa picked with them came after the doors)
+    if (noWalk){ save(); hlFlash = keys; renderHome(); return; }
     state.home.walk = keys;
     save(); homeNext();
   }
@@ -15031,9 +15044,16 @@
     else if (fresh && state.home && state.home.rymi && state.home.rymi[key]){ state.intake.room = state.home.rymi[key]; save(); } // picked on the start page as "Baðherbergi 2" …
     if (known && state.walls && state.walls.length){ if (!plain && canGoTo("editor").ok) goto("editor"); else { shapePhase = state.closed ? "size" : "pick"; render(); } }
   }
+  // Byrja / Halda áfram → Rýmin þín (owner, 2026-10-27): an empty project there is the room picker
   document.getElementById("welStart").addEventListener("click", function(){
-    if (welPick.length){ var p = welPick.slice(); welPick = []; startPicked(p); return; }
-    if (!hasProject()) return;
+    if (PRO) return;
+    delete state.resumeStep;
+    state.home = state.home || { rooms:{} };
+    openHome();
+  });
+  // a language switch reopens the very step the visitor was on (morning scan #8)
+  function resumeLeftStep(){
+    if (!hasProject()){ openHome(); return; }
     var to = state.resumeStep && state.resumeStep !== "welcome" ? state.resumeStep : "heimili";
     delete state.resumeStep;
     if (to === "hurdir"){ openDoors(); return; }
@@ -15043,7 +15063,7 @@
     if (to === "materials") matPhase = matCoreDone() ? 0 : null;
     goto(to);
     if (to === "contact") renderPreviews();
-  });
+  }
   document.getElementById("welReset").addEventListener("click", resetAll);
 
   // ---------- Byrja: "Hvað erum við að skoða?" category picker ----------
@@ -18856,7 +18876,7 @@
       // …except right after a language switch (Hjálp → In English): straight back where they were (morning scan 2026-10-27 #8)
       var langBack = false; try{ langBack = sessionStorage.getItem("bjorninn:kitchenPlanner:langResume") === "1"; sessionStorage.removeItem("bjorninn:kitchenPlanner:langResume"); }catch(e){}
       render();
-      if (langBack && state.step === "welcome" && state.resumeStep) document.getElementById("welStart").click();
+      if (langBack && state.step === "welcome" && state.resumeStep) resumeLeftStep();
     }
   }
 })();
