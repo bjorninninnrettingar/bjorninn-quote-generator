@@ -5555,7 +5555,7 @@
     // the whole wardrobe's size (user, 2026-10-26): its total width above the units' own widths, one per wardrobe wall,
     // and its total height at its free end — same overlay style, on/off with "Málsetning"
     if (closetSc && !iso && !opts.people) (function(){
-      var tallM = 0, hEnd = null;
+      var tallM = 0, hEnd = null, hungGapM = 0;
       closetWallIdx.forEach(function(i){
         var wall = state.walls[i], g = geoms[i], st = blockStartsMm(wall.floor, cornerClearanceMm(state.walls, i, "floor")), lo = Infinity, hi = -Infinity, top = 0, dep = 0;
         wall.floor.forEach(function(b, bi){
@@ -5565,16 +5565,24 @@
         });
         if (!isFinite(lo)) return;
         tallM = Math.max(tallM, top);
-        if (wall.floor.length > 1){
-          var o = g.origin, ax = g.axis, n = g.normal, y = top + 0.24;
+        var hungW = !!state.hungUnits && !wall.island; // a wall-hung bath: its gap under the units (the box is lifted by it)
+        if (hungW) hungGapM = Math.max(hungGapM, ((typeof wall.plinthMm === "number") ? wall.plinthMm : 200) / 1000);
+        if (wall.floor.length > 1 || hungW){
+          // clear of the unit (owner, 2026-10-27: it sat right on it) — over a bath's basin and tap too
+          var o = g.origin, ax = g.axis, n = g.normal, y = top + (hungW ? 0.52 : 0.3);
           PENDING_DIMS.push({ a:{ x:o.x + ax.x * (lo / 1000) + n.x * dep, y:y, z:o.z + ax.z * (lo / 1000) + n.z * dep },
             b:{ x:o.x + ax.x * (hi / 1000) + n.x * dep, y:y, z:o.z + ax.z * (hi / 1000) + n.z * dep }, text:dimLen(hi - lo) });
         }
-        if (!hEnd){ var oe = closetOuterEnd(i); hEnd = { g:g, at:oe ? hi / 1000 + 0.12 : lo / 1000 - 0.12, dep:dep }; }
+        if (!hEnd){ var oe = closetOuterEnd(i); hEnd = { g:g, at:oe ? hi / 1000 + 0.24 : lo / 1000 - 0.24, at2:oe ? hi / 1000 + 0.1 : lo / 1000 - 0.1, dep:dep }; }
       });
       if (hEnd && tallM){
         var g = hEnd.g, px = g.origin.x + g.axis.x * hEnd.at + g.normal.x * hEnd.dep, pz = g.origin.z + g.axis.z * hEnd.at + g.normal.z * hEnd.dep;
-        PENDING_DIMS.push({ a:{ x:px, y:0, z:pz }, b:{ x:px, y:tallM, z:pz }, text:dimLen(Math.round(tallM * 1000)) });
+        PENDING_DIMS.push({ a:{ x:px, y:0, z:pz }, b:{ x:px, y:tallM, z:pz }, text:dimLen(Math.round(tallM * 1000)) }); // outer: floor to the top
+        if (hungGapM > 0.01 && tallM > hungGapM){ // inner, nearer the unit (owner, 2026-10-27): the gap under it + its own height, e.g. 20 + 60 = 80
+          var px2 = g.origin.x + g.axis.x * hEnd.at2 + g.normal.x * hEnd.dep, pz2 = g.origin.z + g.axis.z * hEnd.at2 + g.normal.z * hEnd.dep;
+          PENDING_DIMS.push({ a:{ x:px2, y:0, z:pz2 }, b:{ x:px2, y:hungGapM, z:pz2 }, text:dimLen(Math.round(hungGapM * 1000)) });
+          PENDING_DIMS.push({ a:{ x:px2, y:hungGapM, z:pz2 }, b:{ x:px2, y:tallM, z:pz2 }, text:dimLen(Math.round((tallM - hungGapM) * 1000)) });
+        }
       }
     })();
 
@@ -5674,6 +5682,8 @@
       }
     }
     var laundryAim = !opts.darkBg && /^thvottahus(:|$)/.test(String(state.activeCategory || "")) && /^bath/.test(state.shapeKey || ""); // a customer laundry (2026-10-26): its unit wall, like the bath
+    // a customer bath too (owner, 2026-10-27): the whole unit wall floor to ceiling on entering Skipulag — the window was cut at the top, the vanity at the bottom
+    var fullAim = laundryAim || (!opts.darkBg && /^bad(:|$)/.test(String(state.activeCategory || "")) && /^bath/.test(state.shapeKey || ""));
     if (!focusBounds && !opts.people && ((/^bad(:|$)/.test(String(state.activeCategory || "")) && state.hungUnits) || laundryAim)){
       var bIdx = (state.walls || []).map(function(w, i){ return i; }).filter(function(i){ var w = state.walls[i]; return geoms[i] && !w.open && ((w.floor || []).length || (w.wall || []).length); });
       if (!bIdx.length) bIdx = (state.walls || []).map(function(w, i){ return i; }).filter(function(i){ return geoms[i] && !state.walls[i].open; }).slice(0, 1);
@@ -5683,16 +5693,16 @@
           var g = geoms[i], w = state.walls[i], a0 = 0, a1 = g.lenM;
           var fs = blockStartsMm(w.floor || [], 0), ws = blockStartsMm(w.wall || [], 0), ext = [];
           (w.floor || []).forEach(function(b, k){ ext.push(fs[k], fs[k] + b.widthMm); }); (w.wall || []).forEach(function(b, k){ ext.push(ws[k], ws[k] + b.widthMm); });
-          if (ext.length && !opts.darkBg && !laundryAim){ a0 = Math.min.apply(null, ext) / 1000; a1 = Math.max.apply(null, ext) / 1000; var pad = Math.max(0, (1.4 - (a1 - a0)) / 2); a0 = Math.max(0, a0 - pad); a1 = Math.min(g.lenM, a1 + pad); }
+          if (ext.length && !opts.darkBg && !fullAim){ a0 = Math.min.apply(null, ext) / 1000; a1 = Math.max.apply(null, ext) / 1000; var pad = Math.max(0, (1.4 - (a1 - a0)) / 2); a0 = Math.max(0, a0 - pad); a1 = Math.min(g.lenM, a1 + pad); }
           var am = (a0 + a1) / 2; bcx += g.origin.x + g.axis.x * am; bcz += g.origin.z + g.axis.z * am; bnx += g.normal.x; bnz += g.normal.z; bLen = Math.max(bLen, a1 - a0); });
         bcx /= bIdx.length; bcz /= bIdx.length; var bnl = Math.hypot(bnx, bnz) || 1; bnx /= bnl; bnz /= bnl;
         var bd = Math.max(2.3, bLen * 0.95 + 0.9) * (bIdx.length > 1 ? 1.2 : 1);
-        if (laundryAim){ // the whole unit wall, floor to ceiling, with a margin (round 2: the tower's top was clipped under the toolbar)
+        if (fullAim){ // the whole unit wall, floor to ceiling, with a margin (round 2: the tower's top was clipped under the toolbar)
           var lAsp = (wrap && wrap.clientWidth && wrap.clientHeight) ? wrap.clientWidth / wrap.clientHeight : 1.6, lV = Math.tan(22.5 * Math.PI / 180);
           bd = Math.max((WALL_H + 0.7) / 2 / lV, (bLen + 0.8) / 2 / (lV * lAsp)) * (bIdx.length > 1 ? 1.1 : 1) + 0.3;
         }
-        camera.position.set(bcx + bnx * bd + bnz * bd * 0.22, laundryAim ? WALL_H * 0.55 : 1.3, bcz + bnz * bd - bnx * bd * 0.22); // low enough to see the floor under the hung units
-        bathAim = { x:bcx + bnx * 0.3, y:laundryAim ? WALL_H * 0.47 : 0.95, z:bcz + bnz * 0.3 };
+        camera.position.set(bcx + bnx * bd + bnz * bd * 0.22, fullAim ? WALL_H * 0.55 : 1.3, bcz + bnz * bd - bnx * bd * 0.22); // low enough to see the floor under the hung units
+        bathAim = { x:bcx + bnx * 0.3, y:fullAim ? WALL_H * 0.47 : 0.95, z:bcz + bnz * 0.3 };
       }
     }
     var people = opts.people && geoms.length ? addPeople(THREE, scene, geoms, WALL_H, roomHeightMm, state.walls, wallColor) : null;

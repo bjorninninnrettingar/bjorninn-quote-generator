@@ -672,3 +672,7 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   (`bathMirror` forced false for customers in `roomDefaults`, Senda inn row removed); its last page is just "Toppur".
   Efni previews put úthliðar on the box ends from the front page on (`previewEndPanels`, hung bath: box height only);
   leaving the drawer page snaps the drawers shut.
+- **Bath Skipulag 3D (owner):** a customer bath frames its whole unit wall floor to ceiling on entry, like the laundry
+  (`fullAim` in buildScene). Unit-wall rooms' 3D dims: the run's width sits higher (bath top + 52 cm, over basin and tap;
+  others + 30 cm), the overall height moved out to 24 cm from the unit's end, and a wall-hung bath gets a second, inner
+  chain beside it: gap under + the box (e.g. 20 + 60 = 80). Verified hung after reload.
