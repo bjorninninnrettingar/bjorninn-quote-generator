@@ -126,3 +126,17 @@ switches to the BiesseWorks window (macro list, legend, raw ops); "Einfalt" back
 `opts.accent = {hinge, shelf, inner}` draws those in blue (/smida: set by hand). The CSS is injected by cnc-bpp.js
 itself, so /cnc, /bpp and /smida get it; PRO's Smíða still lifts the technical `.bw-canvas-wrap svg` into its zoom view.
 Other file kinds (drawer fronts, doors/jambs) keep the technical card only.
+
+### /smida is the CNC page now (2026-10-26, owner)
+- **Skrifa á USB in /smida** = /cnc's own writer: /smida loads `/cnc?recordId=…&k=…&embedded=1` in a hidden frame,
+  waits for `CNC_API.ready()`, saves its own unsaved changes first, and calls `CNC_API.writeUsb(dir)` with the folder
+  the user picked (picker first — the browser needs the click). Same folder, files, GLB=HS_ marks, jamb-wins rule,
+  Hurðaskrá append, "6. CNC yfirfarið" tick. cnc.html only gained `window.CNC_API` + `lastExport` + a quiet
+  "Opna í Smíða →" link; nothing else in /cnc changed (fallback for now). Test `tests/smida-eydublod.test.js` guards
+  that /smida never writes files itself.
+- **Parity proven on T-15** (local read-only server, masters copied from `~/bjorninn-cnc-mirror` into two OPFS
+  stand-in sticks): /cnc's own button → stick A, /smida's Skrifa á USB → stick B: 76 files each, all 74 .bpp
+  byte-identical; only the timestamp line ("Búið til: …") in T-15 CNC skrá.txt / Hurðaskrá.txt differs.
+- After the export /smida shows: files written + folder, "Í höndunum" (EKKI GERT lines, FRE, inner drawers that
+  don't fit, Stakur-frontur units whose doors hang on a neighbour — no hinges drilled for them, Fataslá), how many notes
+  are in CNC skrá.txt, and every written file (click = its card, calm view).

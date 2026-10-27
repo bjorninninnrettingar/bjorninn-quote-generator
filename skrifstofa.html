@@ -371,6 +371,7 @@
     <div class="pvSection"><h3 class="pvToggle">Teikningar<span class="pvChev">▾</span></h3><div class="pvBody"><div class="pvDocs" id="pvDrawings"></div></div></div>
     <div class="pvSection"><h3 class="pvToggle">Eyðublöð<span class="pvChev">▾</span></h3><div class="pvBody" id="pvForms"></div></div>
     <a class="pvLink" id="pvOpenFerli" href="#">Opna í Skipulagsferli →</a>
+    <a class="pvLink" id="pvOpenSmida" href="#" target="_blank" rel="noopener" style="margin-left:18px;display:none" title="Lamir, hillur og ofn skáp fyrir skáp — og Skrifa á USB">Smíða &amp; CNC →</a>
   </div>
 </div>
 
@@ -1105,6 +1106,9 @@
     document.getElementById("pvDrawings").innerHTML = '<div class="empty">Sæki…</div>';
     document.getElementById("pvForms").innerHTML = '<div class="empty">Sæki…</div>';
     document.getElementById("pvOpenFerli").href = "/ferli?recordId=" + id + (getK() ? "&k=" + encodeURIComponent(getK()) : "");
+    // Smíða & CNC (/smida, 2026-10-26): shown once the project turns out to have Eyðublöð (below)
+    var smidaA = document.getElementById("pvOpenSmida");
+    smidaA.style.display = "none"; smidaA.href = "/smida?recordId=" + id + (getK() ? "&k=" + encodeURIComponent(getK()) : "");
     // Greiðslur & tilboð (2026-10-26) — shared with /crm, see office-money.js + api/greidslur.js.
     OfficeMoney.mount(document.getElementById("pvGreidslur"), id, getK());
 
@@ -1165,6 +1169,7 @@
           var recs = d.records || [];
           var el = document.getElementById("pvForms");
           if (!recs.length) { el.innerHTML = '<div class="empty">Engin eyðublöð fundust</div>'; return; }
+          document.getElementById("pvOpenSmida").style.display = "inline-block";
           el.innerHTML = recs.map(function (r) { return row(r.fields["Athugasemd"] || "(ónefnt)", r.fields["Hvað viltu smíða?"] || ""); }).join("");
         });
 

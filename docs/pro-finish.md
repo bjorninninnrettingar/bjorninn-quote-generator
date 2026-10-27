@@ -550,3 +550,10 @@ Owner: the most important page in the company; the first version read like a for
   the same from the CNC side view (hinge → its door, shelf/inner → the nearest one). Double-click a door = switch hinge side.
   CNC side view: the hinge as its cross mounting plate; each drawer/inner drawer as its box standing on its runner line,
   as tall as its Blum side (Merivo N 63 / M 91 / K 129 / E 192, Legra M 90.5 / K 128.5 / C 177 / F 241 — the planner's table) with its code inside.
+- **Round 4 — /smida = Smíða & CNC for every project.** Any project opens (no more "teiknað í PRO" stop). A unit whose
+  Eyðublað was made from a Line Item is **read-only**: planned from the drawing's Smíðagögn (as /cnc), list says
+  "Teiknaður í PRO", panel says why + "Breyta í PRO →" (`&smida=Sk7`), never saved from here — so a later Keyra
+  skipulag can't silently disagree with /smida. "Skrifa á USB" in the top bar (see docs/cnc.md). Entry points with the
+  office key: Skipulagsferli → Yfirfara → "3. Smíða & CNC" (Opna hér / ↗), the Verk-í-vinnslu project popup on
+  /skrifstofa ("Smíða & CNC →", shown when it has Eyðublöð), and the CRM deal ("Smíða & CNC →", same rule).
+  No sidebar entry: /smida is per project, like the others reached from a project.

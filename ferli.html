@@ -631,7 +631,8 @@
   var PIPE_TOOLS = [
     { id: "cutlist", num: "1", label: "Skurðarlisti (Cutty)", path: "/cutlist", chip: "chipCutty" },
     { id: "aedar", num: "2", label: "Æðar (F2, viðarmynstur)", path: "/aedar", chip: "chipAedar" },
-    { id: "cnc", num: "3", label: "CNC vélun", path: "/cnc", chip: null },
+    // 2026-10-26: Smíða & CNC (/smida) is the CNC page now — lamir/hillur/ofn per skáp + "Skrifa á USB" (same files as /cnc)
+    { id: "cnc", num: "3", label: "Smíða & CNC", path: "/smida", chip: null, key: true },
   ];
   function fillYfirfara(proj) {
     var el = document.getElementById("content-yfirfara");
@@ -654,7 +655,7 @@
               '<span class="pipeLabel">' + t.num + '. ' + t.label + '</span>' +
               (t.chip ? '<span class="chip" id="' + t.chip + '">…</span>' : '<span class="chip">Vélun</span>') +
               '<button type="button" class="inlineToggle" data-tool="' + t.id + '">Opna hér ▾</button>' +
-              '<a class="newTab" target="_blank" title="Opna í nýjum flipa" href="' + t.path + qs + '">↗</a>' +
+              '<a class="newTab" target="_blank" title="Opna í nýjum flipa" href="' + t.path + qs + (t.key && k ? "&k=" + encodeURIComponent(k) : "") + '">↗</a>' +
             '</div>' +
             '<div class="inlineFrame" id="frame-' + t.id + '"></div>' +
           '</div>';
@@ -686,7 +687,7 @@
         btn.textContent = open ? "Loka ▲" : "Opna hér ▾";
         if (open && !frame.dataset.loaded) {
           frame.dataset.loaded = "1";
-          frame.innerHTML = '<iframe src="' + tool.path + qs + '&embedded=1" loading="lazy"></iframe>';
+          frame.innerHTML = '<iframe src="' + tool.path + qs + (tool.key && k ? "&k=" + encodeURIComponent(k) : "") + '&embedded=1" loading="lazy"></iframe>';
         }
       });
     });

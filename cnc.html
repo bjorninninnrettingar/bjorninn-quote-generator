@@ -207,6 +207,7 @@
       <h1>CNC útflutningur</h1>
       <div class="sub">Yfirfara og skrifa á USB-kubbinn. Rangt hér → lagaðu í Sögunarlista / Eyðublaði, ekki hér.</div>
     </div>
+    <a id="smidaOpen" href="#" target="_blank" rel="noopener" style="visibility:hidden;font-size:.85rem;font-weight:700;color:var(--blue);text-decoration:none;margin-right:10px" title="Sama útflutningur, rólegri síða — lamir, hillur og ofn stillt í leiðinni">Opna í Smíða →</a>
     <button class="help-btn" id="helpBtn" title="Hjálp">❓</button>
   </div>
 
@@ -374,6 +375,7 @@
     var units = data.units, lineSmida = data.lineSmida;
     projGrip = data.projGrip; legacyProject = CD.legacy(data);
     project = { id: id, name: name, prefix: pre };
+    $("smidaOpen").href = "/smida?recordId=" + encodeURIComponent(id) + "&k=" + encodeURIComponent(KEY); $("smidaOpen").style.visibility = "visible";
     var I = CD.sideInput(data), isDoor = I.isDoor;
 
     // Doors — Vörulisti first (names always; CNC macró fields are the catalog fallback for a hinge/lock/
@@ -616,6 +618,15 @@
     return (masterCache[key] = await readText(f));
   }
 
+  // /smida ("Smíða & CNC", 2026-10-26) writes to USB THROUGH this page, loaded in a hidden iframe: the same
+  // writeUsb, the same files, byte for byte. It waits for ready(), then calls writeUsb(dir) with the folder it picked.
+  var lastExport = null;
+  window.CNC_API = {
+    ready: function () { return !!(project && sideInput && $("projSel").value === project.id); },
+    project: function () { return project && { id: project.id, name: project.name, prefix: project.prefix }; },
+    tally: function () { return lastTally; },
+    writeUsb: async function (dir) { lastExport = null; await writeUsb(dir); if (!lastExport) throw new Error(($("log").textContent.match(/⛔[^\n]*/g) || ["Ekkert skrifað"]).pop()); return lastExport; },
+  };
   async function writeUsb(pickedDir) {
     if (!project) return;
     var pre = project.prefix, overwrite = $("overwriteJamb").checked;
@@ -711,6 +722,7 @@
         ["", "EKKI GERT — þarf að forrita í höndunum eða laga gögn (" + missing.length + "):"], missing.map(function (s) { return "  " + s; }));
       await writeBytes(job, pre + " CNC skrá.txt", D.toCp1252(sheet.join("\r\n") + "\r\n"));
       log("📒 " + pre + " CNC skrá.txt — " + made.length + " skrár, " + warn.length + " ⚠, " + missing.length + " ⛔. Búið.");
+      lastExport = { made: made, warn: warn, missing: missing, preview: preview, folder: folderOf(project.name) };
       // 2026-10-17 (user): "Bpp yfirfarið" on /ferli's Loka yfirferð checklist should auto-tick
       // once CNC has actually been exported to USB, instead of staying a manual box — this is the
       // one real signal that export happened, so self-report it here rather than relying on

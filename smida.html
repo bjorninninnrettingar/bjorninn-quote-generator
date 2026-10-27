@@ -47,7 +47,25 @@
   .tbtn { font-size:13px; color:var(--blue); padding:6px 4px; }
   .tbtn:disabled { color:var(--dim); }
   #saveBtn { min-width:64px; text-align:center; } #undoBtn { width:78px; text-align:center; }
-  .top a { color:var(--blue); text-decoration:none; font-size:13px; }
+  .usb { font-size:13px; font-weight:600; color:#fff; background:var(--text); border-radius:8px; padding:7px 14px; }
+  .usb:disabled { background:#e8e8ed; color:var(--dim); }
+  /* export sheet */
+  .sheet { position:fixed; inset:0; background:rgba(0,0,0,.28); display:flex; align-items:center; justify-content:center; z-index:50; }
+  .sheet > div { width:min(760px, calc(100vw - 40px)); max-height:calc(100vh - 80px); overflow:auto; background:#fff; border-radius:16px; padding:28px 30px 22px; box-shadow:0 20px 60px rgba(0,0,0,.25); }
+  .sheet h2 { font-size:22px; font-weight:600; letter-spacing:-.01em; }
+  .sheet .sub2 { color:var(--muted); margin-top:4px; }
+  .sheet .stage2 { margin-top:18px; display:flex; align-items:center; gap:10px; color:var(--muted); }
+  .sheet .spin { width:16px; height:16px; border:2px solid var(--line); border-top-color:var(--blue); border-radius:50%; animation:sp .8s linear infinite; }
+  @keyframes sp { to { transform:rotate(360deg); } }
+  .sheet h3 { font-size:12px; font-weight:600; color:var(--dim); letter-spacing:.05em; text-transform:uppercase; margin:20px 0 6px; }
+  .sheet ul { list-style:none; } .sheet li { font-size:13.5px; padding:4px 0; }
+  .sheet li.hand::before { content:""; display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--amber); margin-right:9px; vertical-align:middle; }
+  .sheet .files { display:grid; grid-template-columns:repeat(2, 1fr); gap:2px 16px; }
+  .sheet .files button { text-align:left; font-size:12.5px; color:var(--blue); padding:3px 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sheet .foot { display:flex; justify-content:flex-end; gap:16px; margin-top:22px; }
+  .sheet .foot button { font-size:14px; color:var(--blue); }
+  .sheet .err { color:var(--red); margin-top:14px; }
+  #fileCard { margin-top:14px; }
 
   .main { display:grid; grid-template-columns:236px 1fr 404px; min-height:0; }
 
@@ -197,7 +215,7 @@
       <span class="save" id="save"></span>
       <button type="button" class="tbtn" id="saveBtn" disabled>Vista</button>
       <button type="button" class="tbtn" id="undoBtn" disabled>Afturkalla</button>
-      <a id="cncLink" href="#" target="_blank" rel="noopener">CNC ↗</a>
+      <button type="button" id="usbBtn" class="usb" disabled>Skrifa á USB</button>
     </div>
   </div>
   <div class="main" id="main"><div></div><div class="msg"><p>Sæki Eyðublöð og Sögunarlista…</p></div><div></div></div>
@@ -219,6 +237,7 @@
   function r1(x) { return Math.round(x * 10) / 10; }
   function mm(x) { return String(Math.round(x)); }
   var project = null, cabs = [], edits = {}, cur = 0, view = "front", cncFile = 0, saving = false, saveErr = null;
+  var stakur = []; // Stakur frontur units with a door-sized front (their hinges are drilled by hand)
   var undoStack = []; // [{ items:[{id, smida, prev}], label }] — Afturkalla takes the last save back
   var openRow = {}; // which quiet rows are expanded (per cabinet, by key)
   var advOpen = {}; // "Nánar" per row key
@@ -259,7 +278,7 @@
       project = { id: p.id, name: name, prefix: pre };
       $("pname").textContent = name;
       document.title = pre + " · Smíða";
-      $("cncLink").href = "/cnc?recordId=" + encodeURIComponent(p.id) + "&k=" + encodeURIComponent(KEY);
+
       data = await CD.load({ proxy: PROXY, key: KEY, id: p.id, prefix: pre });
     } catch (e) {
       if (e.status === 401 || e.status === 403) fail("Lykillinn virkar ekki", "Opnaðu síðuna aftur úr PRO eða CNC.", e.message);
@@ -267,15 +286,19 @@
       else fail("Ekkert samband", "Athugaðu nettenginguna og reyndu aftur.", e.message);
       return;
     }
-    if (!CD.legacy(data)) {
-      fail("Þetta verkefni er teiknað í PRO", "Eyðublöðin voru búin til úr teikningunni. Breyttu Smíða í PRO — annars skrifar næsta Keyra skipulag yfir það sem er vistað hér.", "",
-        '<a style="color:var(--blue)" href="/skipuleggja?pro=' + encodeURIComponent(project.id) + "&k=" + encodeURIComponent(KEY) + '">Opna í PRO</a>');
-      return;
-    }
     var I = CD.sideInput(data);
     cabs = data.units.filter(function (u) { return I.byUnit[u.id] && !I.isDoor[u.id]; }).map(function (u) {
-      return M.cabinet(u, I.byUnit[u.id], { gripMm: CD.gripFor(I, data.projGrip, u.id, null).mm, gripZones: I.unitGripZones[u.id], fataslar: I.unitFataslar[u.id] });
+      // drawn in PRO: plan from the drawing's own Smíðagögn (what /cnc uses too), read-only here
+      var pro = data.lineKey[u.id] || (data.lineSmida[u.id] ? "PRO" : null);
+      var rec = pro ? { id: u.id, fields: Object.assign({}, u.fields, { "Smíðagögn (JSON) 🔧": I.unitSmida[u.id] }) } : u;
+      var c = M.cabinet(rec, I.byUnit[u.id], { gripMm: CD.gripFor(I, data.projGrip, u.id, null).mm, gripZones: I.unitGripZones[u.id], fataslar: I.unitFataslar[u.id] });
+      if (c && pro) c.pro = pro;
+      return c;
     }).filter(Boolean).sort(function (a, b) { return a.name.localeCompare(b.name, "is", { numeric: true }); });
+    // fronts that are their own Eyðublað ("Stakur frontur") hang on a neighbour's sides — /cnc drills no hinges for them
+    stakur = data.units.filter(function (u) { return (I.byUnit[u.id] || []).some(function (r) { return /stakur frontur/i.test([].concat(r["Tegund einingu"] || "")[0] || ""); }) &&
+      (I.byUnit[u.id] || []).some(function (r) { return /frontur/i.test(r.Partur || "") && (+r.H || 0) > 350; }); }).map(function (u) { return String(u.fields["Athugasemd"] || "").trim(); })
+      .filter(function (n) { return !/UÞV|uppþv/i.test(n); }); // a dishwasher front hangs on the machine, no hinges
     if (!cabs.length) { fail("Engir skápar", "Engin Eyðublöð með skápahliðum í Sögunarlista fundust fyrir " + project.prefix + ".", ""); return; }
     var draft = {}; try { draft = JSON.parse(localStorage.getItem(DRAFT()) || "{}") || {}; } catch (e) { draft = {}; }
     cabs.forEach(function (c) {
@@ -287,6 +310,7 @@
     var at = cabs.findIndex(function (c) { return c.unit === WANT_UNIT; });
     if (at < 0) at = cabs.findIndex(function (c) { return stateOf(c) !== "done" && stateOf(c) !== "fre"; });
     cur = at >= 0 ? at : 0;
+    $("usbBtn").disabled = false;
     $("main").innerHTML = '<nav class="list" id="list"></nav><section class="stage" id="stage"></section><aside class="panel" id="panel"></aside>';
     render();
     if (restored) toast(restored + (restored === 1 ? " óvistuð breyting sótt" : " óvistaðar breytingar sóttar") + " úr þessum vafra");
@@ -299,10 +323,13 @@
   function smida(c) { return M.smidaOf(c, ed(c)); }
   function plan(c) { return M.planOf(c, smida(c)); }
   // only what was looked at goes to Airtable: a cabinet marked or changed (an untouched default stays /cnc's default)
-  function dirty(c) { var e = ed(c); return M.editable(c) && !!(e.reviewed || e.touched) && !M.same(smida(c), c.existing); }
+  // a cabinet drawn in PRO (its Eyðublað made from a Line Item) is shown, never edited here — PRO owns its Smíðagögn
+  function canEdit(c) { return M.editable(c) && !c.pro; }
+  function dirty(c) { var e = ed(c); return canEdit(c) && !!(e.reviewed || e.touched) && !M.same(smida(c), c.existing); }
   function dirtyCabs() { return cabs.filter(dirty); }
   function stateOf(c) {
     if (!M.editable(c)) return "fre";
+    if (c.pro) return ed(c).reviewed ? "done" : "pro";
     if (M.blockers(c, ed(c), plan(c)).length) return "bad";
     return ed(c).reviewed ? "done" : "todo";
   }
@@ -321,8 +348,9 @@
   // ── render ────────────────────────────────────────────────────────────────────────────────
   function render() { renderTop(); renderList(); drawStage(); renderPanel(); }
   function renderTop() {
-    var ed0 = cabs.filter(M.editable), done = ed0.filter(function (c) { return ed(c).reviewed; }).length;
-    $("prog").innerHTML = '<span class="bar"><i style="width:' + (ed0.length ? Math.round(done / ed0.length * 100) : 0) + '%"></i></span><span>' + done + " af " + ed0.length + " yfirfarnir</span>";
+    var ed0 = cabs.filter(canEdit), pro0 = !ed0.length; if (pro0) ed0 = cabs.filter(function (c) { return c.pro; }); // a PRO project: PRO's own review marks
+    var done = ed0.filter(function (c) { return ed(c).reviewed; }).length;
+    $("prog").innerHTML = '<span class="bar"><i style="width:' + (ed0.length ? Math.round(done / ed0.length * 100) : 0) + '%"></i></span><span>' + done + " af " + ed0.length + (pro0 ? " yfirfarnir í PRO" : " yfirfarnir") + "</span>";
     var nd = dirtyCabs().length, s = $("save");
     if (saving) { s.className = "save busy"; s.innerHTML = "<i></i>Vistar…"; }
     else if (saveErr) { s.className = "save bad"; s.innerHTML = "<i></i>Vistaðist ekki"; s.title = saveErr; }
@@ -337,7 +365,7 @@
     $("list").innerHTML = "<h4>Skápar</h4>" + cabs.map(function (c, i) {
       var s = stateOf(c);
       return '<button type="button" class="item' + (i === cur ? " on" : "") + '" data-go="' + i + '" title="' + esc(c.name) + '">' + stIcon(s) +
-        '<span class="nm">' + esc(c.sk) + '<span class="ty">' + esc(s === "fre" ? "Í höndunum" : s === "bad" ? "Þarf að ákveða" : c.tegund) + "</span></span>" +
+        '<span class="nm">' + esc(c.sk) + '<span class="ty">' + esc(s === "fre" ? "Í höndunum" : c.pro ? "Teiknaður í PRO" : s === "bad" ? "Þarf að ákveða" : c.tegund) + "</span></span>" +
         '<span class="un' + (dirty(c) ? " on" : "") + '" title="Óvistað"></span></button>';
     }).join("");
   }
@@ -427,7 +455,7 @@
       '<text x="' + X(W / 2) + '" y="' + (Y(0) + 22) + '" text-anchor="middle" font-size="12" fill="#a1a1a6">' + W + "</text>";
     s += "</svg>";
     box.innerHTML = s;
-    wire(box.querySelector("svg"), c, H, sc, padT);
+    if (canEdit(c)) wire(box.querySelector("svg"), c, H, sc, padT);
   }
   function wire(svg, c, H, sc, padT) {
     var drag = null;
@@ -592,6 +620,14 @@
     var c = cab(), e = ed(c), p = plan(c), el = $("panel");
     var dims = (c.B || "?") + " × " + (c.H || "?") + " × " + (c.D || "?");
     var h = '<div class="pscroll"><div class="ph"><h1>' + esc(c.sk) + "</h1><p>" + esc(c.tegund) + " · " + dims + (c.base.cabinets > 1 ? " · " + c.base.cabinets + " eins" : "") + "</p></div>";
+    if (c.pro) {
+      var pro = "/skipuleggja?pro=" + encodeURIComponent(project.id) + "&k=" + encodeURIComponent(KEY) + (/^Sk\d+$/.test(c.pro) ? "&smida=" + encodeURIComponent(c.pro) : "");
+      h += '<div class="calm hand">' + I_INFO + "<span>Teiknaður í PRO — Smíðagögnin koma úr teikningunni. Breyttu þeim þar, svo Keyra skipulag skrifi ekki yfir.</span></div>" +
+        '<a class="act" style="display:inline-block;margin-top:14px" target="_blank" rel="noopener" href="' + esc(pro) + '">Breyta í PRO →</a>';
+      var pn = (p.check || []).filter(function (t) { return (p.defaults || []).indexOf(t) < 0; });
+      if (pn.length) h += '<div class="check"><h3>CNC segir</h3><ul>' + pn.map(function (t) { return "<li>" + esc(t.split(/ — /)[0]) + "</li>"; }).join("") + "</ul></div>";
+      el.innerHTML = h + "</div>" + footer(c, e, []); return;
+    }
     if (!M.editable(c)) {
       h += '<div class="calm hand">' + I_INFO + "<span>" + (c.fre ? "FRE-skápur — gerður í höndunum á vélinni. Ekkert vistað héðan." : "Engin hlið sem CNC borar.") + "</span></div></div>";
       el.innerHTML = h + footer(c, e, []); return;
@@ -661,11 +697,12 @@
   }
   function footer(c, e, blockers) {
     var nx = nextOpen(cur), btn;
-    if (!M.editable(c)) btn = '<button type="button" id="nextBtn" class="calmb" data-act="next"' + (nx < 0 ? " disabled" : "") + ">" + (nx >= 0 ? "Næsti · " + esc(cabs[nx].sk) : "Allir yfirfarnir") + "</button>";
+    if (!canEdit(c)) { if (nx < 0 && cabs.length > 1) nx = (cur + 1) % cabs.length; // nothing to review here: just step through
+      btn = '<button type="button" id="nextBtn" class="calmb" data-act="step" data-to="' + nx + '"' + (nx < 0 ? " disabled" : "") + ">" + (nx >= 0 ? "Næsti · " + esc(cabs[nx].sk) + " <kbd>⏎</kbd>" : "Allir yfirfarnir") + "</button>"; }
     else if (blockers.length) btn = '<button type="button" id="nextBtn" disabled>Ákveddu fyrst það sem er opið</button>';
     else if (!e.reviewed) btn = '<button type="button" id="nextBtn" data-act="mark">Yfirfarinn' + (nx >= 0 && nx !== cur ? " → " + esc(cabs[nx].sk) : "") + " <kbd>⏎</kbd></button>";
     else btn = '<button type="button" id="nextBtn" class="calmb" data-act="next"' + (nx < 0 ? " disabled" : "") + ">" + (nx >= 0 ? "Næsti · " + esc(cabs[nx].sk) + " <kbd>⏎</kbd>" : "Allir skápar yfirfarnir") + "</button>";
-    var sub = M.editable(c) && e.reviewed ? '<button type="button" data-act="unmark">Taka merkinguna af</button>' : "";
+    var sub = canEdit(c) && e.reviewed ? '<button type="button" data-act="unmark">Taka merkinguna af</button>' : "";
     return '<div class="pf">' + btn + '<div class="sub">' + sub + "</div></div>";
   }
 
@@ -702,6 +739,7 @@
     else if (act === "unmark") { ed().reviewed = false; ed().touched = true; saveDraft(); render(); }
     else if (act === "mark") mark();
     else if (act === "next") { var nx = nextOpen(cur); if (nx >= 0) go(nx); }
+    else if (act === "step") go(+d.to);
   });
   document.addEventListener("change", function (ev) {
     var t = ev.target; if (!t.matches || !t.matches(".panel input[type=number]")) return;
@@ -728,7 +766,7 @@
 
   // ── saving: a cabinet marked "Yfirfarinn" is written right away (with any other marked change); Vista sends the rest
   function mark() {
-    var c = cab(); if (M.blockers(c, ed(c), plan(c)).length) return;
+    var c = cab(); if (!canEdit(c) || M.blockers(c, ed(c), plan(c)).length) return;
     ed(c).reviewed = true; ed(c).touched = true; saveDraft();
     var nx = nextOpen(cur); if (nx >= 0) cur = nx;
     render(); var on = document.querySelector(".item.on"); if (on) on.scrollIntoView({ block: "nearest" });
@@ -776,6 +814,78 @@
       saving = false; saveErr = null; saveDraft(); render(); toast("Tekið til baka — " + last.label);
     } catch (e) { saving = false; render(); toast("Tókst ekki að taka til baka: " + e.message); }
   };
+
+  // ── Skrifa á USB (2026-10-26): /cnc's own writer, loaded in a hidden frame (cnc.html CNC_API) — the same files,
+  // byte for byte, as /cnc writes today. Unsaved changes are saved first so /cnc reads exactly what's on screen.
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  function sheet(html) {
+    var el = $("usbSheet"); if (!el) { el = document.createElement("div"); el.id = "usbSheet"; el.className = "sheet"; document.body.appendChild(el); }
+    el.innerHTML = "<div>" + html + "</div>"; return el;
+  }
+  function stage(t) { sheet('<h2>Skrifa á USB</h2><p class="sub2">' + esc(project.name) + '</p><div class="stage2"><span class="spin"></span>' + esc(t) + "</div>"); }
+  async function cncFrame() {
+    var old = $("cncFrame"); if (old) old.remove();
+    var f = document.createElement("iframe"); f.id = "cncFrame"; f.setAttribute("aria-hidden", "true");
+    f.style.cssText = "position:fixed;left:-4000px;top:0;width:1280px;height:900px;border:0;visibility:hidden";
+    f.src = "/cnc?recordId=" + encodeURIComponent(project.id) + "&k=" + encodeURIComponent(KEY) + "&embedded=1";
+    document.body.appendChild(f);
+    for (var t = 0; t < 480; t++) {
+      await sleep(250);
+      var w = f.contentWindow, api = w && w.CNC_API;
+      if (api && api.ready()) return api;
+      var failEl = w && w.document && w.document.getElementById("failRetry");
+      if (failEl && failEl.offsetParent) throw new Error("CNC-síðan gat ekki sótt verkefnið");
+    }
+    throw new Error("CNC-síðan svaraði ekki");
+  }
+  async function exportUsb() {
+    if (!project || saving) return;
+    if (!("showDirectoryPicker" in window)) { alert("Þessi vafri getur ekki skrifað beint á USB. Notaðu Chrome eða Edge."); return; }
+    var dir; try { dir = await window.showDirectoryPicker({ mode: "readwrite" }); } catch (e) { return; } // picked first: the browser needs the click
+    var btn = $("usbBtn"); btn.disabled = true;
+    try {
+      if (dirtyCabs().length) {
+        stage("Vista breytingar…");
+        var before = dirtyCabs().length; await save(true);
+        if (saveErr || dirtyCabs().length === before) throw new Error("Vistaðist ekki — ekkert skrifað á USB");
+      }
+      stage("Undirbý skrárnar…");
+      var api = await cncFrame();
+      stage("Skrifa á USB…");
+      var r = await api.writeUsb(dir);
+      showResult(r, dir);
+    } catch (e) {
+      sheet('<h2>Ekkert skrifað</h2><p class="err">' + esc(e.message) + '</p><div class="foot"><button type="button" data-close="1">Loka</button></div>');
+    } finally { btn.disabled = false; }
+  }
+  function showResult(r, dir) {
+    var hand = [];
+    r.missing.forEach(function (m) { hand.push(m); });
+    stakur.forEach(function (n) { hand.push(n + ": lamir fyrir stakan front — boraðar í höndunum"); });
+    r.warn.filter(function (w) { return /Fatasl/.test(w); }).forEach(function (w) { hand.push(w.replace(/\s+/g, " ").replace(/: — /, " — ")); });
+    var nw = r.warn.length;
+    var h = '<h2>Skrifað á USB</h2><p class="sub2">' + r.made.length + " skrár · " + esc(dir.name + "/" + r.folder) + "</p>" +
+      (hand.length ? "<h3>Í höndunum</h3><ul>" + hand.map(function (t) { return '<li class="hand">' + esc(t) + "</li>"; }).join("") + "</ul>" : "") +
+      (nw ? '<p class="sub2" style="margin-top:14px">' + nw + " athugasemdir eru í „" + esc(project.prefix) + " CNC skrá.txt“ á kubbnum.</p>" : "") +
+      "<h3>Skrárnar</h3><div class=\"files\">" + r.preview.map(function (f, i) { var where = f.dir && f.dir.name ? f.dir.name + " / " : ""; return '<button type="button" data-file="' + i + '" title="' + esc(where + f.name) + '">' + esc(where + f.name) + "</button>"; }).join("") + "</div>" +
+      '<div id="fileCard"></div><div class="foot"><button type="button" data-close="1">Loka</button></div>';
+    var el = sheet(h); el._preview = r.preview;
+  }
+  document.addEventListener("click", async function (ev) {
+    var t = ev.target.closest("#usbSheet button"); if (!t) return;
+    if (t.dataset.close) { $("usbSheet").remove(); return; }
+    if (t.dataset.file != null) {
+      var f = $("usbSheet")._preview[+t.dataset.file], box = $("fileCard");
+      try {
+        var file = await (await f.dir.getFileHandle(f.name)).getFile();
+        var text = new TextDecoder("windows-1252").decode(await file.arrayBuffer());
+        box.innerHTML = ""; var card = BPP.buildCard({ name: f.name }, text, null, null, { maxH: 380, maxW: 420 });
+        var rm = card.querySelector(".bw-titlebar .remove"); if (rm) rm.remove();
+        box.appendChild(card);
+      } catch (e) { box.textContent = "Gat ekki lesið " + f.name; }
+    }
+  });
+  $("usbBtn").onclick = exportUsb;
 
   boot();
 })();

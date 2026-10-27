@@ -359,6 +359,7 @@
 
     <div class="actions">
       <a id="dOpenPro" href="#" target="_blank">Opna í hönnuðinum →</a>
+      <a id="dOpenSmida" href="#" target="_blank" rel="noopener" style="display:none" title="Lamir, hillur og ofn skáp fyrir skáp — og Skrifa á USB">Smíða &amp; CNC →</a>
       <button class="printBtn" id="dPrintBtn" type="button">🖨️ Prenta tilboð</button>
       <button class="close" id="dClose">Loka</button>
     </div>
@@ -995,6 +996,11 @@
     document.getElementById("dFollow").textContent = f["Eftirfylgnisstaða❓"] || "—";
     document.getElementById("dAnswer").textContent = f["Svar við eftirfylgni"] || "—";
     document.getElementById("dOpenPro").href = "/skipuleggja?pro=" + r.id + (k ? "&k=" + encodeURIComponent(k) : "");
+    // Smíða & CNC (/smida, 2026-10-26): only for a project that has Eyðublöð (one-record check by its T-number)
+    var smA = document.getElementById("dOpenSmida"), tNo = (String(f["Heiti tækifæris / verkefnis"] || "").match(/^(T-\d+)/) || [])[1];
+    smA.style.display = "none"; smA.href = "/smida?recordId=" + r.id + (k ? "&k=" + encodeURIComponent(k) : ""); smA.dataset.rec = r.id;
+    if (tNo) api("tbl0WcyHhz63pSzZX", "maxRecords=1&fields%5B%5D=Athugasemd&filterByFormula=" + encodeURIComponent('FIND("' + tNo + ' |",{Athugasemd + Tækifæri (fyrir yfirfara)})'))
+      .then(function (d) { if (smA.dataset.rec === r.id && d && (d.records || []).length) smA.style.display = ""; }).catch(function () {});
     document.getElementById("dPrintMsg").textContent = "";
     setupLineItems(r);
     var omBody = document.getElementById("omBody"), omBtn = document.getElementById("omToggleBtn");
