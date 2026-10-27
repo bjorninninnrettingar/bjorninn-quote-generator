@@ -1084,8 +1084,10 @@
   // Flags physically impossible/awkward combinations, in millimetres on each
   // wall: a cabinet overlapping a window or door, or a unit taller than the
   // ceiling. Advisory only — Rakel makes the final call.
-  function fitWarnings(state){
-    var out = [], byMsg = {}, roomH = state.roomHeightMm || 2600;
+  // opts.pro (PRO only, 2026-10-27): also small gaps along a run (G6) and two sinks in one room (G7)
+  var GAP_HINT_MM = 300; // a gap under this between cabinets / to the wall wants an áfella or fyllistykki (or closing up)
+  function fitWarnings(state, opts){
+    var out = [], byMsg = {}, roomH = state.roomHeightMm || 2600, pro = !!(opts && opts.pro), surfs = pro ? surfacesOf(state) : null;
     function add(msg, ids){
       var w = byMsg[msg];
       if (!w){ w = byMsg[msg] = { msg:msg, ids:[], count:0 }; out.push(w); }
@@ -1116,6 +1118,23 @@
         .concat((state.doors || []).filter(function(o){ return o.wallId === wall.id; }).map(function(o){ return { kind:o.gap ? "op" : "hurð", o:o, lo:0, hi:o.heightMm }; }))
         .concat((state.obstacles || []).filter(function(o){ return o.wallId === wall.id && OBSTACLES[o.kind] && OBSTACLES[o.kind].blocks && obstacleRect(o).n0 < 600; })
           .map(function(o){ var v = obstacleVSpan(state, o), r = obstacleRect(o); return { kind:"hindrun", o:{ id:o.id, kind:o.kind, offsetMm:r.a0, widthMm:r.a1 - r.a0 }, lo:v.lo, hi:v.hi }; }));
+      if (pro && !wall.partition && wall.floor.length){ // G6: gaps that need an áfella / fyllistykki — nothing in the Sögunarlisti covers them
+        var cc = cornerClearanceMm(state.walls, wi, "floor"), af = afellaMm(surfs, wi, "floor"), lo = cc + af.start, hi = wall.lengthMm - af.end;
+        var nm = function(b){ return b.sk || __(CATALOG[b.type].label); };
+        var gaps = [];
+        if (cc > 0 || af.start > 0) gaps.push({ from:lo, to:fStarts[0], b:wall.floor[0], end:true }); // only where a wall / corner run meets it
+        wall.floor.forEach(function(b, i){ if (i) gaps.push({ from:fStarts[i - 1] + wall.floor[i - 1].widthMm, to:fStarts[i], a:wall.floor[i - 1], b:b }); });
+        var li = wall.floor.length - 1;
+        if (af.end > 0) gaps.push({ from:fStarts[li] + wall.floor[li].widthMm, to:hi, a:wall.floor[li], end:true });
+        gaps.forEach(function(g){
+          var n = Math.round(g.to - g.from);
+          if (n < 5 || n >= GAP_HINT_MM) return;
+          if (ops.some(function(op){ return op.lo < 900 && op.o.offsetMm < g.to && op.o.offsetMm + op.o.widthMm > g.from; })) return; // a door/opening/radiator is the reason
+          var one = g.a || g.b;
+          add(g.end ? __("Bil {n} mm frá {a} að vegg á {w} — áfella eða færa skápinn að?", { n:n, a:nm(one), w:acc(wall.label) })
+                    : __("Bil {n} mm milli {a} og {b} á {w} — áfella, fyllistykki eða færa saman?", { n:n, a:nm(g.a), b:nm(g.b), w:acc(wall.label) }), [g.a, g.b].filter(Boolean).map(function(b){ return b.id; }));
+        });
+      }
       spans.forEach(function(sp){
         ops.forEach(function(op){
           var hOverlap = Math.min(sp.to, op.o.offsetMm + op.o.widthMm) - Math.max(sp.from, op.o.offsetMm);
@@ -1135,6 +1154,12 @@
       var behind = wall.floor.some(function(b, i){ var c = CATALOG[b.type]; return (c.sink || b.type === "dishwasher" || /uppthvottavel|thvottavel/.test(b.type)) && starts[i] < o.offsetMm + o.widthMm && starts[i] + b.widthMm > o.offsetMm; });
       if (!behind) out.push({ msg:__("Vatnsinntak / niðurfall á {w} er ekki á bak við vaskaskáp eða uppþvottavél.", { w:acc(wall.label) }), ids:[o.id], count:1 });
     });
+    if (pro){ // G7: two sinks in one room — usually the auto-placed one plus one added by hand
+      var sinks = [];
+      surfacesOf(state).forEach(function(w){ w.floor.forEach(function(b){ if ((CATALOG[b.type] || {}).sink) sinks.push(b); }); });
+      if (sinks.length > 1) out.push({ msg:__("{n} vaskaskápar í rýminu ({list}) — er það ætlunin?", { n:sinks.length, list:sinks.map(function(b){ return b.sk || __(CATALOG[b.type].label); }).join(", ") }),
+        ids:sinks.map(function(b){ return b.id; }), count:1 });
+    }
     islandWarnings(state, function(msg, ids){ out.push({ msg:msg, ids:ids, count:1 }); });
     openingIssues(state).warn.forEach(function(w){ out.push({ msg:w.msg, ids:w.ids, count:1 }); });
     roomDoorConflicts(state).forEach(function(cf){
@@ -7257,6 +7282,7 @@
 
   // text along a plan line, never upside down; a side wall's text reads bottom-up
   function planTextAng(dx, dy){ var a = Math.atan2(dy, dx) * 180 / Math.PI; if (a >= 89.5) a -= 180; if (a < -90.5) a += 180; return Math.round(a * 10) / 10; }
+  function planIsPro(){ return typeof document !== "undefined" && !!document.body && document.body.classList.contains("pro"); } // Sk-numbers are shop talk
   function buildPlan2D(container, state, opts){
     opts = opts || {};
     var geoms = wallGeoms(state);
@@ -7393,11 +7419,13 @@
         svg += '<polygon points="' + q.map(function(p){ return X(p.x) + "," + Y(p.z); }).join(" ") + '" fill="#b9bec4" stroke="#7d848b" stroke-width="1" style="pointer-events:none;"/>';
       }
       if (widthM * PX_PER_M > 30 && !thin && !opts.mini){
-        var cx = (X(corners[0].x) + X(corners[2].x)) / 2;
-        var cy = (Y(corners[0].z) + Y(corners[2].z)) / 2;
+        // a wall unit's label near the wall, a floor unit's toward its front, the wall one smaller and grey — they sat
+        // on top of each other ("Sk5 · 60" over "Sk9 · 60", morning scan 2026-10-27); customers see just the width
+        var tF = isWallRow ? 0.3 : 0.62, bx0 = (corners[0].x + corners[1].x) / 2, bz0 = (corners[0].z + corners[1].z) / 2, fx0 = (corners[3].x + corners[2].x) / 2, fz0 = (corners[3].z + corners[2].z) / 2;
+        var cx = X(bx0 + (fx0 - bx0) * tF), cy = Y(bz0 + (fz0 - bz0) * tF);
         // just the width, readable (was "78,8 · 3sk" — user, 2026-10-26); PRO keeps its Sk-number in front
-        var label = (bl.sk ? bl.sk + " · " : "") + dimNum(bl.widthMm);
-        svg += '<text x="' + cx + '" y="' + cy + '" font-size="12" font-weight="600" fill="' + (c.oven ? "#fff" : "#191919") + '" text-anchor="middle" dominant-baseline="middle" style="pointer-events:none;">' + label + '</text>';
+        var label = (bl.sk && planIsPro() ? bl.sk + " · " : "") + dimNum(bl.widthMm);
+        svg += '<text x="' + cx + '" y="' + cy + '" font-size="' + (isWallRow ? 10.5 : 12) + '" font-weight="' + (isWallRow ? 500 : 600) + '" fill="' + (c.oven ? "#fff" : isWallRow ? "#6f6d66" : "#191919") + '" text-anchor="middle" dominant-baseline="middle" style="pointer-events:none;">' + label + '</text>';
       }
     }
 
