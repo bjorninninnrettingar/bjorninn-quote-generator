@@ -591,3 +591,9 @@ Carcass, worktop and handle colour are still the first room's (one field each on
 and answers with the new PDF links (`files`, Airtable's short-lived URLs). A tab is opened on the click (pop-up rule)
 and pointed at the "(Tilboð…)" PDF; the panel lists every PDF as links. /crm's Prenta tilboð sends its `k` too.
 Not done: drawings/Studio pictures appended to the quote PDF.
+
+**G6 + G7 — gap hint, no silent sink (PRO only).** `KP3D.fitWarnings(state, { pro:true })` (editor chip + Yfirferð
+"Ábendingar") also flags floor-run gaps of 5–299 mm between cabinets, and at a wall end that meets a wall/corner run
+(after the 19 mm áfella already kept free) — "Bil N mm milli Sk2 og Sk3 á vegg 1 — áfella, fyllistykki eða færa
+saman?" — unless a door/opening/low obstacle sits in the gap; and "2 vaskaskápar í rýminu (Sk1, Sk3) — er það
+ætlunin?". `seedSink()` still places the sink on the water in PRO but toasts it. Customers (Studio) see no change.

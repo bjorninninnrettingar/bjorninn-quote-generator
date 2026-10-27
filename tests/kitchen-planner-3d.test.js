@@ -138,3 +138,22 @@ test("smidaHingeSide: two leaves = both sides, one door = its swing (wall, base,
   const fridge = Object.keys(C).find((k) => C[k].fridge);
   assert.equal(K.smidaHingeSide({ type: fridge, widthMm: 700 }, C[fridge]), "vinstri"); // a fridge's doors hang on one side
 });
+
+// G6 + G7 (PRO, 2026-10-27): gaps under 300 mm along a floor run, and two sinks in one room, are hints in PRO only.
+test("fitWarnings pro: small gaps want an áfella; a door in the gap or a wide gap doesn't; two sinks are flagged", () => {
+  const room = (floor, extra = {}) => Object.assign({ closed: false, roomHeightMm: 2600,
+    walls: [{ id: "w0", label: "Veggur 1", lengthMm: 4000, turnAfter: null, floor, wall: [] }] }, extra);
+  const b = (id, gapMm, type = "grunnskapur") => ({ id, sk: id, type, widthMm: 600, gapMm });
+  let w = K.fitWarnings(room([b("Sk1", 200), b("Sk2", 0), b("Sk3", 150), b("Sk4", 900)]), { pro: true }).map((x) => x.msg);
+  assert.ok(w.some((m) => /Bil 150 mm milli Sk2 og Sk3/.test(m)), w.join(" | "));
+  assert.ok(!w.some((m) => /Sk3 og Sk4/.test(m))); // 900 mm: room for a cabinet, not an áfella
+  assert.ok(!w.some((m) => /frá Sk1 að vegg/.test(m))); // a lone wall's end has no wall face to fill against
+  const closed = { closed: true, roomHeightMm: 2600, walls: [0, 1, 2, 3].map((i) => ({ id: "w" + i, label: "Veggur " + (i + 1), lengthMm: 4000, turnAfter: "left", floor: i ? [] : [b("Sk1", 120)], wall: [] })) };
+  w = K.fitWarnings(closed, { pro: true }).map((x) => x.msg);
+  assert.ok(w.some((m) => /Bil 101 mm frá Sk1 að vegg á vegg 1/.test(m)), w.join(" | ")); // 120 − the 19 mm áfella already kept free
+  assert.equal(K.fitWarnings(room([b("Sk1", 0), b("Sk2", 150)])).length, 0); // customers: unchanged
+  w = K.fitWarnings(room([b("Sk1", 0), b("Sk2", 150)], { doors: [{ id: "d", wallId: "w0", offsetMm: 610, widthMm: 100, heightMm: 2100 }] }), { pro: true }).map((x) => x.msg);
+  assert.ok(!w.some((m) => /Bil/.test(m)), w.join(" | "));
+  w = K.fitWarnings(room([b("Sk1", 0, "vaskaskapur"), b("Sk2", 0), b("Sk3", 0, "vaskaskapur")]), { pro: true }).map((x) => x.msg);
+  assert.ok(w.some((m) => /2 vaskaskápar í rýminu \(Sk1, Sk3\)/.test(m)), w.join(" | "));
+});

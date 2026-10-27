@@ -3994,6 +3994,7 @@
     if (catBase() === "thvottahus") placeLaundryMachine(w, b);
     syncBathPanels();
     save();
+    if (PRO) toast("Vaskaskápur settur á vatnið á " + w.label + " — eyddu honum ef hann á ekki að vera þar."); // G7: never silent
   }
   // A new kitchen starts as a real run, not one lonely sink (round 3, B1, 2026-10-26): along the water wall (or the longest
   // wall) — uppþvottavél + a drawer unit on one side of the sink, a drawer unit + the ísskápsturn on the other, efri
@@ -10018,7 +10019,7 @@
   // and the messages travel to her in the Tækifæri note.
   var warnings = [];
   var WALL_UNIT_BASE_MM = KP3D.WALL_UNIT_BASE_MM;
-  function computeWarnings(){ return KP3D.fitWarnings(state); }
+  function computeWarnings(){ return KP3D.fitWarnings(state, { pro:!!PRO }); }
   function warnIdList(){ return warnings.reduce(function(acc, w){ return acc.concat(w.ids); }, []); }
 
   function onCabinetSelect(meta){
@@ -17557,7 +17558,7 @@
       }); }); });
       var idOf = {}; Object.keys(keys).forEach(function(id){ idOf[keys[id]] = id; });
       collectLineItems().forEach(function(li){ if (!(li["Vöru reitur 1"] || []).length) f.unlinked.push({ cat:cat, room:room, key:li["🔑"], id:idOf[li["🔑"]] || null }); });
-      KP3D.fitWarnings(state).forEach(function(w){ f.warnings.push(w.msg); });
+      KP3D.fitWarnings(state, { pro:true }).forEach(function(w){ f.warnings.push(w.msg); });
       var wr = wtResult(); if (wr && wr.pieces.length) f.worktops.push({ cat:cat, room:room, r:wr, price:(state.worktop || {}).stonePrice || 0 });
     });
     doorListLines().forEach(function(li){ if (!(li["Vöru reitur 1"] || []).length) f.unlinked.push({ cat:null, room:"Innihurðir", key:li["🔑"] }); });
