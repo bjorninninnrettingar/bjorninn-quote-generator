@@ -194,3 +194,16 @@ WingLine L, recRiQRmHo15SOGd2) now write Smíðagögn `doorSys: "renni" | "felli
 hinge plates and no front cups for that unit (doors typed slide/fold, one "Hliðar" file run ×2) and says "Engar lamir —
 rennihurðir (Hettich Topline XL), borað eftir kerfi". Vasahurðir (Blum Revego) were already "pocket" doors (no hinges).
 T-15 and T-32 export unchanged. Tests in tests/cnc-sides.test.js.
+
+### Grip = the Eyðublað's "Grip?" (2026-10-27, T-248)
+T-248 (PRO-drawn, Jey project handle) said "Frontar (881) passa ekki við hlið (800)" / "(654 vs 600)": 81 = 3 × 27, 54 = 2 × 27.
+The Sögunarlisti script (Yfirfara 3.0, read 2026-10-27) cuts a drawer front `Sérhæð − 3 + GRIP_RULES[Grip?].h` with a hard-coded
+table on the Eyðublað's own "Grip?" (Fræst grip lárétt −35, JEY lárétt −27, HEXXA lárétt −1, lóðrétt = width only) and never
+reads the handle. /cnc took the grip from the handle (Höldur 1 → Grip mm, and since 2026-10-26 the project handle), so on a
+PRO unit with an empty "Grip?" it added 27 per drawer to fronts that were cut full height — the runners would have been
+drilled 27/54/81 mm too high. **/cnc was wrong**; `CNCDATA.gripFor` now uses the same table on "Grip?" (`GRIP_RULES`,
+keep in step with the script), the manual override still wins. T-15 and T-32 export byte-identically to before; of the 35
+drawer units base-wide that have a handle grip, none disagree with their "Grip?" (the unit-level path never misfired); only
+the project-handle path (live 2026-10-26 → 27) could, i.e. a PRO project exported via /cnc in that window.
+Seen, not changed: a unit with a Smíðagögn "alla" grip zone (Keyra skipulag already takes 35 off Sérhæð) AND "Grip?" =
+"Fræst grip lárétt" would lose 35 twice in the Sögunarlisti script.

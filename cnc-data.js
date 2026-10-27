@@ -16,7 +16,8 @@
     "Grip mm (Höldur 1)", // per-unit, via its own Höldur; falls back to the manual field below when absent
     "Grip svæði (JSON) 🪚", // Fræst grip zones (2026-10-14) — Keyra skipulag's validated copy of Smíðagögn's grip[]; "Grip mm (Höldur 1)" is unrelated to this (real handle hardware only, Fræst grip doesn't use it any more)
     "Fataslár", "Fataslár magn", // Fataskápar clothes rail — hardware only, no cut part; ordering count (position comes from Smíðagögn's own rails, drilled via FATASLA — see cnc-sides.js)
-    "Hæð ofns"]; // /smida: the oven's default height on a legacy Ofnaskápur
+    "Hæð ofns", // /smida: the oven's default height on a legacy Ofnaskápur
+    "Grip?"]; // the grip the cut list used (GRIP_RULES below) — the drawer/door slot = front + this + 3
   var SAW_FIELDS = ["Partur", "H", "B", "Þ", "M", "Tegund einingu", "Eyðublað ✏️"];
 
   // encodeURIComponent, never URLSearchParams ("+" breaks {Field} refs — see CLAUDE.md).
@@ -72,8 +73,18 @@
   // planned the old way: Eyðublöð that no Line Item made (no PRO drawing behind them) — /smida edits these
   function legacy(data) { return data.linesSeen === false && data.units.some(function (u) { return String(u.fields["Sérsmíði tegund"] || "") !== "Hurð"; }); }
 
+  // The Sögunarlisti script (Yfirfara 3.0, wflqQLKQBKIpNutDn) cuts a front Sérhæð − 3 + GRIP_RULES[Grip?].h — the
+  // Eyðublað's "Grip?" is the ONLY thing that shortens a front (2026-10-27, read from the script). So the extra height
+  // /cnc must add back on top of each cut front is exactly −h for that choice, and 0 when Grip? is empty or another
+  // value — never the handle's own "Grip mm" (T-248: a project Jey handle with an empty Grip? added 27 mm per drawer
+  // to fronts that were cut full height → "Frontar (881) passa ekki við hlið (800)"). Keep this table in step with the script.
+  var GRIP_RULES = { "Fræst grip lárétt": 35, "JEY lárétt": 27, "HEXXA lárétt": 1, "JEY lóðrétt": 0, "HEXXA lóðrétt": 0 };
+  function gripOfField(v) {
+    var name = String((v && v.name) || v || "").trim();
+    return Object.prototype.hasOwnProperty.call(GRIP_RULES, name) ? GRIP_RULES[name] : 0;
+  }
   function sideInput(data) {
-    var unitName = {}, isDoor = {}, unitH = {}, unitSmida = {}, unitStale = {}, unitSk = {}, unitGrip = {}, unitGripZones = {}, unitFataslar = {};
+    var unitName = {}, isDoor = {}, unitH = {}, unitSmida = {}, unitStale = {}, unitSk = {}, unitGrip = {}, unitGripZones = {}, unitFataslar = {}, unitGripName = {};
     data.units.forEach(function (u) {
       unitName[u.id] = u.fields["Athugasemd"] || "(nafnlaust)"; unitH[u.id] = u.fields["Hæð"];
       var ey = u.fields[SMIDA] || null, li = data.lineSmida[u.id] || null;
@@ -83,8 +94,8 @@
       unitSk[u.id] = data.lineKey[u.id] || (String(unitName[u.id]).match(/^(Sk\d+|HU\d+)/) || [])[1] || null;
       isDoor[u.id] = String(u.fields["Sérsmíði tegund"] || "") === "Hurð";
       // multipleLookupValues always comes back as an array, even through a single-record link.
-      var g = u.fields["Grip mm (Höldur 1)"]; g = Array.isArray(g) ? g[0] : g;
-      unitGrip[u.id] = typeof g === "number" ? g : null;
+      unitGrip[u.id] = gripOfField(u.fields["Grip?"]); // what the cut list took off the fronts
+      unitGripName[u.id] = String((u.fields["Grip?"] && u.fields["Grip?"].name) || u.fields["Grip?"] || "").trim();
       // Fræst grip zones (2026-10-14): Keyra skipulag's own validated JSON, not Smíðagögn directly — already
       // has the dimension shrink baked elsewhere (Sérhæð/Hæð frontur N), this is milling-position metadata only.
       try { var gz = JSON.parse(u.fields["Grip svæði (JSON) 🪚"] || "[]"); unitGripZones[u.id] = Array.isArray(gz) ? gz : []; } catch (e) { unitGripZones[u.id] = []; }
@@ -95,20 +106,18 @@
     // Sides — every non-door unit's Sögunarlisti rows.
     var byUnit = {};
     data.rows.forEach(function (r) { var u = (r.fields["Eyðublað ✏️"] || [])[0]; u = u && (u.id || u); if (!u || isDoor[u]) return; (byUnit[u] = byUnit[u] || []).push(r.fields); });
-    return { byUnit: byUnit, isDoor: isDoor, unitName: unitName, unitH: unitH, unitSmida: unitSmida, unitStale: unitStale, unitSk: unitSk, unitGrip: unitGrip, unitGripZones: unitGripZones, unitFataslar: unitFataslar };
+    return { byUnit: byUnit, isDoor: isDoor, unitGripName: unitGripName, unitName: unitName, unitH: unitH, unitSmida: unitSmida, unitStale: unitStale, unitSk: unitSk, unitGrip: unitGrip, unitGripZones: unitGripZones, unitFataslar: unitFataslar };
   }
 
-  // Where each unit's grip comes from (2026-10-26): the manual override when given, else the unit's own Höldur 1
-  // (Vörulisti "Grip mm"), else the project's handle chosen in PRO (a handle with none = 0), else unknown (0, flagged).
+  // Each unit's grip (2026-10-27): the manual override when given, else what the cut list used — the Eyðublað's
+  // "Grip?" through GRIP_RULES (0 when empty). The handle's "Grip mm" / the project handle no longer decide it.
   function gripFor(I, projGrip, u, override) {
     if (override != null) return { mm: override, src: "override" };
-    if (I.unitGrip[u] != null) return { mm: I.unitGrip[u], src: "unit" };
-    if (projGrip) return { mm: projGrip.mm, src: "project" };
-    return { mm: 0, src: "unknown" };
+    return { mm: I.unitGrip[u] || 0, src: "unit" };
   }
 
   var api = { PROJECTS: PROJECTS, UNIT: UNIT, SAW: SAW, PRODUCTS: PRODUCTS, LINES: LINES, PNAME: PNAME, SMIDA: SMIDA, UNIT_FIELDS: UNIT_FIELDS, SAW_FIELDS: SAW_FIELDS,
-    fetchAll: fetchAll, smidaShape: smidaShape, load: load, legacy: legacy, sideInput: sideInput, gripFor: gripFor };
+    fetchAll: fetchAll, smidaShape: smidaShape, GRIP_RULES: GRIP_RULES, gripOfField: gripOfField, load: load, legacy: legacy, sideInput: sideInput, gripFor: gripFor };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   root.CNCDATA = api;
 })(typeof window !== "undefined" ? window : globalThis);

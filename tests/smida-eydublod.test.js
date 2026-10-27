@@ -131,7 +131,8 @@ test("cnc-data: a project whose Eyðublöð no Line Item made is legacy", () => 
   assert.equal(CD.legacy(Object.assign({}, data, { linesSeen: null })), false); // Line Items unreadable → don't guess
   const I = CD.sideInput(data);
   assert.equal(I.byUnit.recU1aaaaaaaaaaaa.length, 1);
-  assert.deepEqual(CD.gripFor(I, { mm: 27 }, "recU1aaaaaaaaaaaa", null), { mm: 27, src: "project" });
+  // 2026-10-27: the project's handle no longer decides the grip — only the Eyðublað's "Grip?" (what the cut list used)
+  assert.deepEqual(CD.gripFor(I, { mm: 27 }, "recU1aaaaaaaaaaaa", null), { mm: 0, src: "unit" });
 });
 
 // ── api/smida-eydublad.js ───────────────────────────────────────────────────────────────────────
@@ -227,4 +228,24 @@ test("collision check: an inner drawer through a shelf or a runner on shelf-pin 
   const SK29_1 = [hr("Laus hilla", 559, 768, 16, 1), hr("Innskúffufrontur K - Merivo Skrokkaefni", 144, 762, 16, 4), hr("Skápur hlið", 2530, 580, 16, 2), hr("Föst hilla", 559, 768, 16, 1)];
   const c29 = cab("recSk291aaaaaaaa", "Sk 29.1", SK29_1, { Hæð: 2530, Breidd: 800, Dýpt: 580 });
   assert.deepEqual(M.planOf(c29, M.smidaOf(c29, M.initEdit(c29))).hits, []);
+});
+
+
+// T-248 (2026-10-27): a PRO drawer unit with a Jey PROJECT handle but an empty "Grip?" — the Sögunarlisti script cut the
+// fronts Sérhæð − 3 (no grip), so /cnc must not add 27 per drawer ("Frontar (881) passa ekki við hlið (800)").
+test("grip = the Eyðublað's Grip? (as the cut list), not the handle: PRO stack 800 fits, JEY lárétt still 27", () => {
+  const gr = (Partur, H, B, Þ, M) => ({ Partur, H, B, "Þ": Þ, M, "Tegund einingu": ["Grunnskápur"] });
+  // PRO slots 215/411/174 (= 800) → cut 212/408/171
+  const rows = [gr("Skápur hlið", 800, 580, 16, 2), gr("Skúffufrontur E - Merivo", 212, 597, 19, 1), gr("Skúffufrontur K - Merivo", 408, 597, 19, 1), gr("Skúffufrontur M - Merivo", 171, 597, 19, 1)];
+  const mk = (grip) => ({ units: [unit("recU2aaaaaaaaaaaa", "Sk2", grip ? { "Grip?": grip } : {})], rows: rows.map((r) => ({ fields: Object.assign({}, r, { "Eyðublað ✏️": ["recU2aaaaaaaaaaaa"] }) })), lineSmida: {}, lineKey: {}, linesSeen: true, projGrip: { mm: 27 } });
+  const I0 = CD.sideInput(mk(null));
+  const g0 = CD.gripFor(I0, { mm: 27, name: "Jey" }, "recU2aaaaaaaaaaaa", null).mm;
+  assert.equal(g0, 0);
+  const p0 = S.unitPlan("Sk2", rows, { unitHeight: 800, gripMm: g0 });
+  assert.ok(!p0.check.some((t) => /passa ekki við hlið/.test(t)), p0.check.join(" | "));
+  const before = S.unitPlan("Sk2", rows, { unitHeight: 800, gripMm: 27 }); // what /cnc did on T-248
+  assert.ok(before.check.some((t) => /Frontar \(881\) passa ekki við hlið \(800\)/.test(t)), before.check.join(" | "));
+  // a legacy unit whose Grip? is JEY lárétt (T-15): the cut list took 27 off, so /cnc adds 27 back — unchanged
+  assert.equal(CD.gripFor(CD.sideInput(mk("JEY lárétt")), null, "recU2aaaaaaaaaaaa", null).mm, 27);
+  assert.equal(CD.gripFor(CD.sideInput(mk("JEY lóðrétt")), null, "recU2aaaaaaaaaaaa", null).mm, 0);
 });

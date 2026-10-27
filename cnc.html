@@ -410,11 +410,12 @@
     var drawerUnits = Object.keys(I.byUnit).filter(function (u) { return I.byUnit[u].some(function (r) { return DRAWER_FRONT_RE.test(r.Partur || ""); }); });
     var unknown = drawerUnits.filter(function (u) { return gripFor(u).src === "unknown"; });
     var own = drawerUnits.filter(function (u) { return gripFor(u).src === "unit"; });
-    var auto = projGrip ? projGrip.mm : null;
+    // 2026-10-27: the grip is what the cut list took off the fronts — each Eyðublað's "Grip?" (cnc-data.js GRIP_RULES)
+    var by = {}; drawerUnits.forEach(function (u) { var n = I.unitGripName[u] || "ekkert grip"; by[n] = (by[n] || 0) + 1; });
+    var parts = Object.keys(by).map(function (n) { return esc(n) + (CD.GRIP_RULES[n] ? " (" + CD.GRIP_RULES[n] + " mm)" : "") + " ×" + by[n]; });
     var text = !drawerUnits.length ? "" : overrideGrip() != null
-      ? "Grip handvirkt: <b>" + overrideGrip() + " mm</b> — yfirskrifar " + (projGrip ? esc(projGrip.name) + " (" + auto + " mm)" : "sjálfvirkt") + " á öllum skúffueiningum"
-      : projGrip ? "Grip <b>" + auto + " mm</b> — af höldunni " + esc(projGrip.name) + " (valin í PRO)" + (own.length ? ", " + own.length + " með eigin höldu" : "") + (projGrip.mixed ? " · höldurnar eru með ólík grip" : "")
-      : "Grip óþekkt — engin halda á verkefninu" + (own.length ? " (" + own.length + " með eigin höldu)" : "");
+      ? "Grip handvirkt: <b>" + overrideGrip() + " mm</b> — yfirskrifar „Grip?“ á Eyðublöðunum á öllum skúffueiningum"
+      : "Grip eftir „Grip?“ á Eyðublaði (eins og Sögunarlisti sker frontana): " + parts.join(" · ");
     return { drawerUnits: drawerUnits, unknown: unknown, own: own, text: text, override: overrideGrip() != null, unitName: I.unitName };
   }
   function planSides() {
