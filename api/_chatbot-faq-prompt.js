@@ -293,8 +293,8 @@ const STUDIO_GUIDE = `
 - Efni má líka breyta síðar í Skipulagi undir valmyndinni „Efni“.
 
 ### Skref 3 — Skipulag (3D)
-- Stika efst: Rými (gólf, veggjalitur, lofthæð, „Breyta lögun og lengd veggja“), Gluggar og hindranir, Efni, Lýsing, Húsgögn; svo sýnin 3D / 2D / Ofanmynd; „Skoða“ (Endurstilla sýn, Vista mynd, Ganga um, Málband, X-Ray); afturkalla/endurgera örvar; og „＋ Ný eining“.
-- Bæta við skáp: ýttu á „＋ Ný eining“ → veldu tegund („Hvað viltu bæta við?“, t.d. grunnskápar, háir skápar, efri skápar, eldhústæki, eyja) → stilltu Breidd, Hæð, Dýpt, Skúffur eða hurðir og Innvols → „Setja inn“.
+- Stika efst: Rými (gólf, veggjalitur, lofthæð, „Breyta lögun og lengd veggja“), Gluggar og hindranir, Efni, Lýsing, Húsgögn; svo sýnin 3D / 2D / Ofanmynd; „Skoða“ (Endurstilla sýn, Vista mynd, Ganga um, Málband, X-Ray, Málsetning); afturkalla/endurgera örvar; og „＋ Ný eining“.
+- Bæta við skáp: ýttu á „＋ Ný eining“ → veldu tegund („Hvað viltu bæta við?“, t.d. grunnskápar, háir skápar, efri skápar, tækjaskápar, eldhústæki, eyja; á baði vaskaskápur, skápar og spegilskápur) → stilltu Breidd, Hæð, Dýpt, Skúffur eða hurðir og Innvols → „Setja inn“.
 - Velja: smelltu á skáp. Þá opnast spjald hægra megin með Tegund, Breidd, Hæð, Dýpt, Hæð frá gólfi, innvolsi o.fl.
 - Breyta stærð: skrifaðu nýja breidd (eða hæð/dýpt) í spjaldið hægra megin.
 - Færa: dragðu skápinn með músinni, eða notaðu örvatakkana ← → (10 cm í einu, með Shift 1 cm).
@@ -310,6 +310,20 @@ const STUDIO_GUIDE = `
 - Tómur fataskápsveggur: „Fylla vegginn“ fyllir hann af skápum.
 - Það þarf a.m.k. einn skáp áður en haldið er áfram („Áfram →“).
 - „Sýna leiðsögnina“ undir Hjálp sýnir stutta leiðsögn aftur.
+
+### Baðherbergi og þvottahús — orðin
+- Vaskaskápur: skápurinn undir handlauginni, hangir á veggnum (sjálfgefið 20 cm frá gólfi, má breyta). Á baðinu er hann alltaf fyrsta einingin undir „＋ Ný eining“.
+- Handlaug: vaskurinn sjálfur, situr ofan á toppnum. Gatið í toppnum er aðeins stærra en skálin.
+- Toppur: platan ofan á vaskaskápnum. Sömu val og borðplata í eldhúsi: Harðplast, Compact, Steinn (Björninn selur ekki steinplötur — aðeins til að sjá útlitið) eða „Enginn toppur“.
+- Spegilskápur: efri skápur með spegli á framhliðinni (undir „＋ Ný eining“ → Efri skápar). Söluaðili staðfestir spegilinn og verð.
+- Flísar: veggflísar, valdar undir „Útlit rýmisins“ í Rými-skrefinu (bara fyrir útlitið, ekki í pöntun).
+- Hindranir: sturta, klósett, handklæðaofn o.fl. eru settar inn undir „Gluggar og hindranir“ svo skáparnir lendi ekki á þeim.
+- Vatnsinntak: strikalínan á veggnum (í Gluggum og hurðum) sýnir hvar vatnið kemur inn — þar lendir vaskaskápurinn.
+- Mál: í 3D eru breiddirnar efst, fyrir ofan vegginn, og hæðirnar við enda innréttingarinnar. „Málsetning“ undir „Skoða“ kveikir og slekkur á þeim.
+
+### Tækjaskápar og lyftihurðir
+- „Tækjaskápar“ undir „＋ Ný eining“ (eldhús og fataskápar): t.d. „Skápur með rennihurðum“ — hurðirnar renna inn í hliðar skápsins (Blum Revego). Í eldhúsi eru ofn- og ísskápsturnar líka þar. Söluaðili staðfestir verð.
+- Efri skápar með hurðum: „Opnast til hliðar“ eða „Opnast upp“ (lyfta, Blum AVENTOS). Söluaðili velur rétta lyftu og staðfestir verð.
 
 ### Innihurðir
 - „Hvað ætlar þú að gera margar hurðir?“ → ein lína á hurð (HU-1, HU-2 …), velja rými og „Hanna“ fyrir hverja hurð.

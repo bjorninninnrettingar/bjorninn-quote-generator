@@ -2635,7 +2635,7 @@
   // KP3D.setShowDims(false) hides the always-on unit dimensions (the "Málsetning" toggle); live drag tags always show.
   var OV = null, PENDING_DIMS = [], PENDING_LABELS = [], SHOW_DIMS = (function(){ try{ return localStorage.getItem("bjorninn:kitchenPlanner:showDims") !== "0"; }catch(e){ return true; } })();
   var OV_BLUE = "#0058a3", OV_DARK = "#2b2b2e";
-  function setShowDims(on){ SHOW_DIMS = !!on; try{ localStorage.setItem("bjorninn:kitchenPlanner:showDims", on ? "1" : "0"); }catch(e){} }
+  function setShowDims(on){ SHOW_DIMS = !!on; if (OV){ OV.last = null; if (THREE_STATE && THREE_STATE.camera) drawOverlay(THREE_STATE.camera, THREE_STATE.renderer.domElement); } /* redrawn at once, not on the next frame */ try{ localStorage.setItem("bjorninn:kitchenPlanner:showDims", on ? "1" : "0"); }catch(e){} }
   function ovLineSvg(a, b, text, active){
     var col = active ? OV_BLUE : OV_DARK, sw = active ? 2.4 : 1.4;
     var dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy) || 1, nx = -dy / L * 6, ny = dx / L * 6, mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
@@ -5700,6 +5700,9 @@
     // and its total height at its free end — same overlay style, on/off with "Málsetning"
     if (closetSc && !iso && !opts.people) (function(){
       var tallM = 0, hEnd = null, hungGapM = 0;
+      // Bað / Þvottahús (owner, 2026-10-27): every dimension outside the units — the widths along the very top of the
+      // wall, the heights as one clean chain (gap + unit) past the end of the run; no total stacked beside it
+      var topDims = /^(bad|thvottahus)(:|$)/.test(String(state.activeCategory || ""));
       closetWallIdx.forEach(function(i){
         var wall = state.walls[i], g = geoms[i], st = blockStartsMm(wall.floor, cornerClearanceMm(state.walls, i, "floor")), lo = Infinity, hi = -Infinity, top = 0, dep = 0;
         wall.floor.forEach(function(b, bi){
@@ -5715,15 +5718,17 @@
           // clear of the unit (owner, 2026-10-27: it sat right on it) — over a bath's basin and tap too
           var o = g.origin, ax = g.axis, n = g.normal, y = top + (hungW ? 0.52 : 0.3);
           (wall.wall || []).forEach(function(wb){ var wc = CATALOG[wb.type]; if (!wc) return; y = Math.max(y, elevOf(wb) / 1000 + Math.min(wb.heightMm || wc.h, roomHeightMm) / 1000 + 0.14); }); // over a wall cabinet, never through it
+          if (topDims) y = roomHeightMm / 1000 + 0.1; // above the wall itself
           var back = 0.02; // at the back, along the wall (owner, 2026-10-27): never in front of the unit while orbiting
           PENDING_DIMS.push({ a:{ x:o.x + ax.x * (lo / 1000) + n.x * back, y:y, z:o.z + ax.z * (lo / 1000) + n.z * back },
             b:{ x:o.x + ax.x * (hi / 1000) + n.x * back, y:y, z:o.z + ax.z * (hi / 1000) + n.z * back }, text:dimLen(hi - lo) });
         }
-        if (!hEnd){ var oe = closetOuterEnd(i); hEnd = { g:g, at:oe ? hi / 1000 + 0.24 : lo / 1000 - 0.24, at2:oe ? hi / 1000 + 0.1 : lo / 1000 - 0.1, dep:0.02 }; } // the heights at the back too
+        if (!hEnd){ var oe = closetOuterEnd(i), off = topDims ? 0.16 : 0.24; hEnd = { g:g, at:oe ? hi / 1000 + off : lo / 1000 - off, at2:oe ? hi / 1000 + (topDims ? 0.16 : 0.1) : lo / 1000 - (topDims ? 0.16 : 0.1), dep:0.02 }; } // the heights at the back too
       });
       if (hEnd && tallM){
         var g = hEnd.g, px = g.origin.x + g.axis.x * hEnd.at + g.normal.x * hEnd.dep, pz = g.origin.z + g.axis.z * hEnd.at + g.normal.z * hEnd.dep;
-        PENDING_DIMS.push({ a:{ x:px, y:0, z:pz }, b:{ x:px, y:tallM, z:pz }, text:dimLen(Math.round(tallM * 1000)) }); // outer: floor to the top
+        var chain = topDims && hungGapM > 0.01 && tallM > hungGapM;
+        if (!chain) PENDING_DIMS.push({ a:{ x:px, y:0, z:pz }, b:{ x:px, y:tallM, z:pz }, text:dimLen(Math.round(tallM * 1000)) }); // outer: floor to the top
         if (hungGapM > 0.01 && tallM > hungGapM){ // inner, nearer the unit (owner, 2026-10-27): the gap under it + its own height, e.g. 20 + 60 = 80
           var px2 = g.origin.x + g.axis.x * hEnd.at2 + g.normal.x * hEnd.dep, pz2 = g.origin.z + g.axis.z * hEnd.at2 + g.normal.z * hEnd.dep;
           PENDING_DIMS.push({ a:{ x:px2, y:0, z:pz2 }, b:{ x:px2, y:hungGapM, z:pz2 }, text:dimLen(Math.round(hungGapM * 1000)) });

@@ -5634,14 +5634,12 @@
     var hideOpen = !!unitWallShape(); // a bath / wardrobe: its open room edges aren't walls to walk to (round 2)
     if ((state.closed || wi > 0) && !(hideOpen && prev.open)) svg += navTxt(x0 + 10, false, prev, prevS && prevS !== wall ? prevS : null, '← ' + __("Veggur {n}", { n:state.walls.indexOf(prev) + 1 }) + (prev.open ? ' ' + __("(opinn)") : ''));
     if ((state.closed || wi < n - 1) && !(hideOpen && next.open)) svg += navTxt(x0 + L * sc - 10, true, next, nextS && nextS !== wall ? nextS : null, __("Veggur {n}", { n:state.walls.indexOf(next) + 1 }) + (next.open ? ' ' + __("(opinn)") : '') + ' →');
-    // Bað / Þvottahús: the vanity at the droplet (and a bath's spegilskápur over it) faintly on the wall, so no window
-    // goes where the mirror will hang (owner, 2026-10-27) — just a guide, nothing to click
+    // Bað / Þvottahús: the water inlet (the vanity's spot at the droplet) faintly on the wall — just a guide, nothing to click
     if (bathShape() && !PRO && state.waterWall === wall.id){
       var gW = isLaundry() ? 600 : 800, gA = Math.max(0, Math.min(L - gW, waterAlong(wall) - gW / 2)), gTxt = function(cx, cy, t){ return '<text x="' + cx + '" y="' + cy + '" font-size="11" text-anchor="middle" fill="#8a7f69" style="pointer-events:none;">' + t + '</text>'; };
       var gRect = function(lo, hi){ return '<rect x="' + X(gA) + '" y="' + Y(hi) + '" width="' + gW * sc + '" height="' + (hi - lo) * sc + '" fill="#e7dcc6" fill-opacity=".45" stroke="#9c8f77" stroke-width="1.2" stroke-dasharray="5,3" style="pointer-events:none;"/>'; };
       var vLo = isLaundry() ? 0 : BATH_HUNG_MM, vHi = isLaundry() ? 900 : BATH_HUNG_MM + BATH_BOX_MM;
-      svg += gRect(vLo, vHi) + gTxt(X(gA + gW / 2), Y((vLo + vHi) / 2) + 4, __("Vaskaskápur"));
-      if (isBath()){ var mLo = 1150, mHi = Math.min(roomH - 50, 1850); svg += gRect(mLo, mHi) + gTxt(X(gA + gW / 2), Y((mLo + mHi) / 2) + 4, __("Spegilskápur")); }
+      svg += gRect(vLo, vHi) + gTxt(X(gA + gW / 2), Y((vLo + vHi) / 2) + 4, __("Vatnsinntak")); // marks where the water comes in; no spegilskápur outline (owner, 2026-10-27)
     }
     var items = elItems(wall.id), pills = "";
     if (!items.length) svg += '<text x="' + (x0 + L * sc / 2) + '" y="' + (top + roomH * sc / 2) + '" font-size="15" text-anchor="middle" fill="#b3b0a8">' + __("Engir gluggar eða hurðir á þessum vegg") + '</text>';
@@ -9496,7 +9494,7 @@
   function renderTopCards(){
     // "Engin" is not a tab with one tile but a choice of its own at the end of the row: a click picks it and the
     // page stays where it is (user, 2026-10-24)
-    var tabGroups = topGroupsNow().filter(function(g){ return g.key !== "engin"; }), cdTop = categoryDef(state.activeCategory); // Bað/Þvottahús: Egger only
+    var tabGroups = topGroupsNow().filter(function(g){ return g.key !== "engin"; }), cdTop = categoryDef(state.activeCategory); // Bað: Harðplast / Compact / Steinn like the kitchen (owner, 2026-10-27); Þvottahús: Harðplast
     if (!matTab.top && state.top && TOPS[state.top] && tabGroups.some(function(g){ return g.key === TOPS[state.top].group; })) matTab.top = TOPS[state.top].group; // open on the chosen one's tab
     var grp = tabGroups.find(function(g){ return g.key === matTab.top; }) || tabGroups[0];
     var tabs = document.getElementById("topTabs");
@@ -13281,9 +13279,19 @@
   ];
   // the unit-wizard steps (grunnskáp … Setja inn) start here; the "Ný eining" step is the one before
   var TOUR_UW0 = TOUR_STEPS.findIndex(function(st){ return st.title === __("Smelltu á grunnskáp"); });
-  var TOUR_VIEW_HTML = TOUR_STEPS[2].html;
+  var TOUR_VIEW_HTML = TOUR_STEPS[2].html, TOUR_UW0_TXT = { title:TOUR_STEPS[TOUR_UW0].title, html:TOUR_STEPS[TOUR_UW0].html }, TOUR_END_HTML = TOUR_STEPS[TOUR_STEPS.length - 1].html;
+  // Bað / Þvottahús (owner, 2026-10-27): the first unit is the vaskaskápur / vélarstæða, and the last card explains the
+  // room's own words (vaskaskápur, handlaug, toppur, spegilskápur, flísar, sturta / klósett)
+  function tourRoomText(){
+    var bath = isWallRoom() && !isLaundry(), laundry = isLaundry(), u = TOUR_STEPS[TOUR_UW0], last = TOUR_STEPS[TOUR_STEPS.length - 1];
+    u.title = bath ? __("Smelltu á vaskaskáp") : laundry ? __("Smelltu á vélarstæðu") : TOUR_UW0_TXT.title;
+    u.html = bath ? __("Vaskaskápurinn hangir á veggnum og handlaugin situr ofan á toppnum.") : laundry ? __("Þvottavél og þurrkari í háum skáp — eða veldu vélar undir borðplötu.") : TOUR_UW0_TXT.html;
+    last.html = bath ? '<ul class="tour-list">' + __('<li><b>Vaskaskápur</b> — skápurinn undir handlauginni, hangir á veggnum</li><li><b>Handlaug</b> — vaskurinn, situr ofan á toppnum</li><li><b>Toppur</b> — platan ofan á vaskaskápnum: Harðplast, Compact, Steinn eða enginn</li>') +
+      __('<li><b>Spegilskápur</b> — efri skápur með spegli á framhliðinni</li><li><b>Flísar</b> — veggflísar, valdar í Útliti rýmisins</li><li><b>Hindranir</b> — sturta, klósett og handklæðaofn, undir Gluggar og hindranir, svo skáparnir lendi ekki á þeim</li>') + '</ul>' + TOUR_END_HTML : TOUR_END_HTML;
+  }
   function startTour(){
     endTour();
+    tourRoomText();
     TOUR_STEPS[2].html = TOUR_VIEW_HTML + (window.innerWidth <= 1500 ? '<p class="tour-note">' + __("Á þessum skjá eru Skotmarkið, Myndavélin og Gangandi maðurinn undir „Skoða“.") + '</p>' : "");
     TOUR_STEPS[0].title = state.activeCategory && catBase() !== "eldhus" ? __("Hér hannar þú rýmið þitt") : __("Hér hannar þú eldhúsið þitt"); // a bathroom isn't a kitchen
     tour = { i:0, count0:cabinetTotal(), root:document.createElement("div") };
@@ -15661,7 +15669,7 @@
     // Bað + Þvottahús (studio review 2026-10-25, section C): their own page lists, Egger tops only (no stone), the usual
     // answers already picked (defaults) so "Áfram" just works; the water page and shape pick say what fits the room
     { key:"bad", label:"Baðherbergi", tree:BAD_TREE, roomPicker:true, defaultRoom:"Baðh.", water:true, worktop:true, hung:true, matPhases:MAT_PHASES_BAD,
-      defaultShape:"rect", roomSize:[2500, 2000], topGroups:["hardplast"], noTopLabel:"Enginn toppur", waterHint:"Við notum þetta til að staðsetja vaskaskápinn.",
+      defaultShape:"rect", roomSize:[2500, 2000], topGroups:["hardplast", "compact", "steinn"], noTopLabel:"Enginn toppur", waterHint:"Við notum þetta til að staðsetja vaskaskápinn.",
       // the usual bathroom (user, 2026-10-26): oak-look fronts, Jey grip, a white harðplast top with the handlaug on it
       defaults:{ carcass:"dokkgra", drawerSystem:"merivo", top:"eg_W1000", look:"eg_H1180", floor:"flis_ljos" } }, // the handle is the customer's own pick; a tiled floor (owner, 2026-10-27)
     { key:"thvottahus", label:"Þvottahús", tree:THVOTT_TREE, defaultRoom:"Þvottah.", water:true, worktop:true, matPhases:MAT_PHASES_THVOTTAHUS,
