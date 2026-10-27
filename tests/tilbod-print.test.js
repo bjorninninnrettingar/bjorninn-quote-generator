@@ -108,3 +108,12 @@ test("EFNISVAL: both front materials with their rooms; 3+ handle SKUs as one fam
   assert.equal(one["Framhliðar"], "W1100 hvít");
   assert.equal(one["Framhliðar 2"], "");
 });
+
+test("EFNISVAL per room: carcass / worktop / handle colour listed per room when rooms differ", () => {
+  const roomMats = [{ room: "Eldhús", carcass: "Dökkgrátt", top: "Premium White", handleColor: "Svartar ⚫" }, { room: "Baðh.", carcass: "Hvítt", handleColor: "Svartar ⚫" }];
+  const m = Object.fromEntries(materialSpec({ "Heiti efnis (from Skrokka efni 🔲 viðskiptavinar)": ["U963"], "Heiti efnis (from Borðplata viðskiptavinar 🍽️)": ["W1000"],
+    "Sjálfsafgreiðsla skipulag (JSON) 📐": JSON.stringify({ roomMats }) }, []));
+  assert.equal(m["Innvols"], "Dökkgrátt (Eldhús) · Hvítt (Baðh.)");
+  assert.equal(m["Borðplata"], "W1000"); // only one room has a worktop
+  assert.equal(m["Höldulitur"], ""); // the same everywhere
+});

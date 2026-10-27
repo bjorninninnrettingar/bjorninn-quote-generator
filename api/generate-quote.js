@@ -306,18 +306,22 @@ export function materialSpec(project, lineItems) {
   const fr1 = lv(project["Heiti efnis (from Fronta efni viðskiptavinar 🖼️)"]);
   const fr2 = lv(project["Heiti efnis (from Fronta efni 2.0 Viðskiptavinar 🖼️)"]) || lv(project["Heiti efnis (from Fronta efni 2 Viðskiptavinar 🖼️)"]);
   const r1 = roomsOf(false), r2 = roomsOf(true), two = !!(fr2 && r2.length);
-  let hp = null;
-  try { hp = JSON.parse(project["Sjálfsafgreiðsla skipulag (JSON) 📐"] || "{}").handlesPrint || null; } catch (e) { hp = null; }
+  let hp = null, rm = [];
+  try { const pj = JSON.parse(project["Sjálfsafgreiðsla skipulag (JSON) 📐"] || "{}"); hp = pj.handlesPrint || null; rm = Array.isArray(pj.roomMats) ? pj.roomMats : []; } catch (e) { hp = null; }
+  // rooms that differ (PRO roomMats): "Dökkgrátt (Eldhús) · Hvítt (Baðh.)" — one value = the Tækifæri's own name
+  const perRoom = (k) => { const by = {}; for (const r of rm) if (r && r[k]) (by[r[k]] = by[r[k]] || []).push(r.room); const ks = Object.keys(by);
+    return ks.length > 1 ? ks.map((v) => `${v} (${by[v].join(", ")})`).join(" · ") : ""; };
   const clean = (n) => String(n || "").replace(/\s*\(frágangur innifalinn\)/i, "").trim();
   const holderVal = hp && Array.isArray(hp.skus) && hp.skus.length > 2
     ? [...new Set(hp.skus.map((x) => clean(x.name).replace(/\s*\d+\s*mm$/i, "")))].join(" / ") + " (" + hp.skus.map((x) => (clean(x.name).match(/(\d+)\s*mm$/i) || [])[1]).filter(Boolean).join(", ") + " mm)"
     : [lv(project["Heiti vöru 📣 (from Höldur Viðskiptavinar ✊)"]), lv(project["Heiti vöru 📣 (from Höldur Viðskiptavinar ✊2.0)"])].map(clean).filter(Boolean).join(" / ");
   return [
-    ["Innvols",       lv(project["Heiti efnis (from Skrokka efni 🔲 viðskiptavinar)"])],
+    ["Innvols",       perRoom("carcass") || lv(project["Heiti efnis (from Skrokka efni 🔲 viðskiptavinar)"])],
     ["Framhliðar",    withRooms(fr1, r1, two)],
     ["Framhliðar 2",  two ? withRooms(fr2, r2, true) : ""],
-    ["Borðplata",     lv(project["Heiti efnis (from Borðplata viðskiptavinar 🍽️)"])],
+    ["Borðplata",     perRoom("top") || lv(project["Heiti efnis (from Borðplata viðskiptavinar 🍽️)"])],
     ["Höldur",        holderVal],
+    ["Höldulitur",    perRoom("handleColor")],
   ];
 }
 

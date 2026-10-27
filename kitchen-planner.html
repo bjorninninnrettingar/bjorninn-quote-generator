@@ -13225,6 +13225,8 @@
           notes.push("Búrskápur: " + (bc.length ? bc.length + " innskúffur (neðan frá: " + bc.join(" · ") + ")" : "engar innskúffur") + ", " + bs + " " + plural(bs, "hilla", "hillur") + (v2 ? "" : " — ekki stöðluð samsetning, söluaðili staðfestir."));
         }
         if (c.note) notes.push(c.note);
+        var mDiff = c.notOrdered ? [] : roomMatDiff(); // this room's own materials (Tækifærið = fyrsta rýmið)
+        if (mDiff.length) notes.push("Efni þessa rýmis: " + mDiff.join(", ") + " — Tækifærið er með efni fyrsta rýmisins.");
         if (c.shelfStack){
           notes.push("Lausar hillur: " + b.count + " stk, hver " + b.widthMm + " mm löng og " + (b.depthMm || c.d) + " mm djúp, " + (b.count > 1 ? b.vgapMm + " mm bil á milli, " : "") + "neðsta hilla " + KP3D.elevOf(b) + " mm frá gólfi.");
         } else if (zone_ofBlock(wall, b) === "wall" && b.elevMm != null){
@@ -13314,6 +13316,38 @@
   function lookFrontId(lookKey, handle){
     var r = lookKey && LOOKS[lookKey];
     return r ? (handle === "sponagrip" && r.gripalistarId ? r.gripalistarId : r.efnislistiId) || null : null;
+  }
+  // Per-room carcass / worktop / handle colour (G2 rest, 2026-10-27). Each room keeps its own (a new room inherits —
+  // matFrom). The Tækifæri holds one of each (the first room's), so a room that differs says so on its lines and in its
+  // Smíðagögn (`mat`) — Eyðublað note today, per-unit material once Airtable reads it (docs/pro-finish.md) — and the
+  // quote PDF lists every room's (planner JSON `roomMats`). Reads the room on `state` (inside withEachCategory: that room).
+  function roomMatNow(){
+    var cr = state.carcass && CARCASS[state.carcass], tr = wtOn() && state.top && TOPS[state.top] && !TOPS[state.top].none ? TOPS[state.top] : null;
+    var hk = handleCfgNow() ? handleColorNow() : null;
+    return { carcass:cr ? { id:cr.efnislistiId || null, label:cr.label } : null, top:tr ? { id:tr.efnislistiId || null, label:tr.label } : null,
+      handleColor:hk ? (HANDLE_COLOR_AIRTABLE[hk] || (KP3D.HANDLE_FINISHES[hk] || {}).label || hk) : null };
+  }
+  function firstRoomBlob(){
+    var q = (state.categoryQueue && state.categoryQueue.length) ? state.categoryQueue : [state.activeCategory || "eldhus"], act = SK_SAVED_ACTIVE || state;
+    for (var i = 0; i < q.length; i++){ var cd = categoryDef(q[i]); if (cd && cd.plain) continue;
+      var b = q[i] === state.activeCategory || (!state.activeCategory && !state.categoryData) ? act : (state.categoryData || {})[q[i]]; if (b) return b; }
+    return act;
+  }
+  // what this room has that the Tækifæri (first room) doesn't — [] when the same
+  function roomMatDiff(){
+    var f = firstRoomBlob(), out = [], m = roomMatNow();
+    if (m.carcass && f.carcass !== state.carcass) out.push("skrokkur " + m.carcass.label);
+    if (m.top && f.top !== state.top) out.push("borðplata " + m.top.label);
+    if (m.handleColor && (f.handleColor || null) !== (state.handleColor || null)) out.push("höldulitur " + m.handleColor);
+    return out;
+  }
+  function projectRoomMats(){
+    var out = [];
+    withEachCategory(function(cat){ var cd = categoryDef(cat); if (cd && cd.plain) return;
+      var n = 0; surfaces().forEach(function(w){ n += w.floor.length + w.wall.length; }); if (!n) return;
+      var m = roomMatNow(), lk = state.look && LOOKS[state.look];
+      out.push({ room:(state.intake && state.intake.room) || proRoomLabel(cat), carcass:m.carcass && m.carcass.label, front:lk ? lk.label : null, top:m.top && m.top.label, handleColor:m.handleColor }); });
+    return out;
   }
   function projectFrontPlan(){
     var queue = (state.categoryQueue && state.categoryQueue.length) ? state.categoryQueue : [state.activeCategory || "eldhus"];
@@ -18342,7 +18376,8 @@
       if (grip.length) o.grip = grip;
     }
     if (b.front2 && state.look2 && !c.panel) o.front = "FR2";
-    var hnd = c.panel || c.notOrdered ? [] : smidaHandles(b, c); if (hnd.length) o.handles = hnd; // → Höldur 1/2 on the Eyðublað (Keyra skipulag)
+    var hnd = c.panel || c.notOrdered ? [] : smidaHandles(b, c); if (hnd.length) o.handles = hnd;
+    var rm = roomMatNow(); o.mat = { carcass:rm.carcass && rm.carcass.id, top:rm.top && rm.top.id, handleColor:rm.handleColor || undefined }; // the room's own (Efnislisti ids) // → Höldur 1/2 on the Eyðublað (Keyra skipulag)
     if (hasInnerDrawers(b, c) && b.innerFront) o.innerFront = b.innerFront;
     if (b.smidaReady && b.smidaReady === smidaHash(o)) o.ready = true; // "Klár til framleiðslu" — only while nothing changed since
     return o;
@@ -18351,7 +18386,7 @@
   // the hash of its Smíðagögn at that moment (b.smidaReady), so ANY later change to what gets built (size, drawers,
   // shelves, oven, hinges…) drops it by itself. /cnc warns about cabinets that aren't marked.
   // (handles aren't what Smíða reviews — adding them to Smíðagögn must not drop every "Yfirfarinn")
-  function smidaHash(o){ var str = JSON.stringify(o, function(k, v){ return k === "handles" ? undefined : v; }), h = 5381; for (var i = 0; i < str.length; i++) h = ((h * 33) ^ str.charCodeAt(i)) >>> 0; return h.toString(36); }
+  function smidaHash(o){ var str = JSON.stringify(o, function(k, v){ return k === "handles" || k === "mat" ? undefined : v; }), h = 5381; for (var i = 0; i < str.length; i++) h = ((h * 33) ^ str.charCodeAt(i)) >>> 0; return h.toString(36); }
   function proReady(b){ var fb = findBlock(b.id); return !!(fb && b.smidaReady && smidaFor(b, CATALOG[b.type], fb.zone).ready); }
   function proSetReady(b, on){
     var fb = findBlock(b.id); if (!fb) return;
@@ -18564,7 +18599,7 @@
     var sig = txt.join("|"), okAck = !!sig && ack.samemat === sig;
     return { key:"sameefni", ok:!diff.length || okAck, title:rooms > 1 ? "Skrokkur, borðplata og höldulitur í rýmunum" : "Skrokkur, borðplata og höldulitur",
       acks:diff.length ? [{ id:"samemat", label:"Ég sé um þetta handvirkt (Tækifærið tekur fyrsta rýmið)", on:okAck, sig:sig }] : null,
-      detail:diff.length ? "Tækifærið á eitt af hverju og tekur fyrsta rýmið — Sögunarlisti, verð og höldupöntun fylgja því. " + txt.join(" · ") + ". Veldu það sama í öllum rýmum, eða staðfestu." :
+      detail:diff.length ? txt.join(" · ") + ". Hvert rými ber sitt efni á línunum (athugasemd á Eyðublaði), í Smíðagögnum og í tilboðs-PDF — en Tækifærið á eitt af hverju (fyrsta rýmið) og Sögunarlisti, verð og höldupöntun fylgja því þar til Airtable les efni per einingu. Veldu það sama, eða staðfestu að þú sjáir um það." :
         rooms > 1 ? "Eins í öllum rýmum." : "Eitt rými." };
   }
   // G2 (2026-10-27): at most two front materials in a project (Fronta efni + Fronta efni 2.0 on the Tækifæri)
@@ -19271,6 +19306,7 @@
   // Vista → true when it reached Airtable. Never silent: a failure opens Yfirferð with a red box + "Reyna aftur";
   // another computer's newer save (409) asks "Sækja nýrri útgáfu" / "Skrifa samt yfir" first.
   async function proSave(resolve, force){
+    try{ state.roomMats = projectRoomMats(); }catch(e){} // every room's materials → the quote PDF's EFNISVAL
     var bt = document.getElementById("proSave"); if (bt) bt.disabled = true;
     proBar("Vista…"); pc.saving = true; if (pc.open) proCheckRender();
     var status = 0, d = {};

@@ -685,3 +685,17 @@ the session reply (smida.handles → E.HANDLE_1/2 + QTY), placed before it.
 - **Quote PDF EFNISVAL:** `materialSpec()` — Framhliðar / Framhliðar 2 with their rooms (FR2 = cabinet lines with
   "Frontaefni #2"); the FR2 lookup was misspelt ("…2 Viðskiptavinar" → "…2.0 Viðskiptavinar") so it never printed.
   Höldur: with 3+ real SKUs one family + the lengths ("Jey Ál grip (400, 600, 3000 mm)").
+
+**Materials per room — carcass / worktop / handle colour (2026-10-27).** Each PRO room already keeps its own (a new
+room inherits the previous one's — "Erfir efni frá …", Breyta fyrir þetta rými). They now flow out:
+- Smíðagögn `mat: { carcass, top, handleColor }` (Efnislisti ids / the Airtable colour name) on every cabinet; excluded
+  from `smidaHash`, so no "Yfirfarinn" marks drop.
+- A room that differs from the first room adds "Efni þessa rýmis: skrokkur Hvítt, … — Tækifærið er með efni fyrsta
+  rýmisins." to its lines' Skilaboð til skipulags → the Eyðublað note (`roomMatDiff()`).
+- Planner JSON `roomMats` (saved by PRO Vista) → quote PDF EFNISVAL lists Innvols / Borðplata / Höldulitur per room when
+  they differ (`materialSpec`).
+- Yfirferð "Skrokkur, borðplata og höldulitur" stays ⛔-with-ack: Airtable still saws/prices/orders from the Tækifæri.
+Not done — needs the owner (schema): Line Items, Eyðublað and Sögunarlisti read carcass/worktop only as lookups from
+the Tækifæri. Proposal: Eyðublað link fields "Skrokkaefni (eining) 🔲" / "Borðplata (eining)" (→ Efnislisti) that
+Keyra skipulag (wflPGRyv0VYi4AZpd) fills from `smida.mat`, and the Sögunarlisti / Pöntunarlisti scripts + Line Item
+material-cost formulas use the unit's own when set, else the Tækifæri's. Scope with the owner before building.
