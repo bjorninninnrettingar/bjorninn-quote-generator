@@ -626,3 +626,10 @@ remembered there — a bookmark without `&k=` works. /crm "+ Nýtt verkefni → 
 "Tveir frontar" (the owner changes that script: Efriskápur `>= 500` → `>= 600`). Used by doorLeaves/smidaHingeSide
 (Smíðagögn `hinge:"baedi"` → /cnc drills both sides), the 3D fronts, handle counts, Smíða's hinge UI, the Sögunarlisti
 preview and the Skápalisti/workdraw doors. /cnc and /smida take the door rows from Sögunarlisti — nothing else to change.
+
+**G11 — Yfirfara 3.0 after Keyra skipulag, from PRO.** When `proWatchSkipulag` sees the run finish, `proRunDone`
+ticks "🔄 Keyra Yfirferð 3.0" false→true (the same write /ferli's Yfirfara button makes; the only writable Eyðublað
+field) on every unit the run created/synced plus every unit still without a Sögunarlisti — ONE unit at a time:
+the next starts when that unit's Sögunarlisti count has settled (≥ 20 s, two equal reads) or after 90 s, because
+Yfirfara's lean Pöntunarlisti runs side by side on one project were what made duplicate lines. Progress and any
+unit that failed show in Yfirferð's run line. No Airtable automation change needed. `window.__wt.runDone` = test hook.

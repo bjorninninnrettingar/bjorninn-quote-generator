@@ -17926,9 +17926,45 @@
     try{ rows = await proGetAll("tblhdgyvTcBfP8kov", 'FIND("' + pre + ' |",ARRAYJOIN({Tækifæri 📣 (projects)}))', ["Partur", "Eyðublað ✏️"]); }
     catch(e){ proRunSet("done", "Skipulag keyrt ✓ · Sögunarlisti: gat ekki lesið (" + e.message + ")"); return; }
     var has = {}; rows.forEach(function(r){ var u = ((r.fields || {})["Eyðublað ✏️"] || [])[0]; if (u) has[u.id || u] = 1; });
-    var none = Object.keys(ey).filter(function(id){ return !has[id]; }).map(function(id){ return ey[id]; }).sort(function(a, z){ return String(a).localeCompare(String(z), "is", { numeric:true }); });
-    proRunSet("done", "Skipulag keyrt ✓ · " + (synced ? synced + " " + proPl(synced, "Eyðublað", "Eyðublöð") + " " + (synced === 1 ? "uppfært" : "uppfærð") : "ekkert breyttist") +
-      " · Sögunarlisti " + rows.length + " hlutir" + (none.length ? " · " + none.length + " " + proPl(none.length, "eining", "einingar") + " án Sögunarlista (" + none.slice(0, 6).join(", ") + ") — keyrðu Yfirfara á " + (none.length === 1 ? "henni" : "þeim") : ""));
+    var byKeyN = function(a, z){ return String(ey[a]).localeCompare(String(ey[z]), "is", { numeric:true }); };
+    // G11 (2026-10-27): Yfirfara 3.0 on every unit this run created/changed + every unit still without a Sögunarlisti
+    var t0 = pr.t0 || 0, todo = {};
+    lines.forEach(function(l){ if (l.ey && (l.ts >= t0 - 60 || !has[l.ey])) todo[l.ey] = 1; });
+    var ids = Object.keys(todo).sort(byKeyN);
+    var head = "Skipulag keyrt ✓ · " + (synced ? synced + " " + proPl(synced, "Eyðublað", "Eyðublöð") + " " + (synced === 1 ? "uppfært" : "uppfærð") : "ekkert breyttist");
+    if (!ids.length){ proRunSet("done", head + " · Sögunarlisti " + rows.length + " hlutir ✓"); return; }
+    proRunYfirfara(ids, ey, head, pr.seq);
+  }
+  // G11: tick "🔄 Keyra Yfirferð 3.0" (false → true, exactly like /ferli's Yfirfara button) on one Eyðublað at a time —
+  // its automation (Sögunarlisti → Pöntunarlisti lean → Vörur á einingu) runs per unit, and runs side by side on one
+  // project's Pöntunarlisti are what made duplicate lines before. Next unit when this one's Sögunarlisti count has
+  // settled (≥ 20 s, two equal reads) or after 90 s. Nothing else is written. Stops if a new Keyra skipulag starts.
+  async function proRunYfirfara(ids, ey, head, seq){
+    var pre = proPrefix(), done = 0, failed = [];
+    function countFor(id, rows){ return rows.filter(function(r){ var u = ((r.fields || {})["Eyðublað ✏️"] || [])[0]; return u && (u.id || u) === id; }).length; }
+    for (var i = 0; i < ids.length; i++){
+      if (seq !== pr.seq) return;
+      var id = ids[i];
+      proRunSet("running", head + " · Yfirfara 3.0: " + ey[id] + " (" + (i + 1) + " af " + ids.length + ")…");
+      try{
+        var path = encodeURIComponent("tbl0WcyHhz63pSzZX/" + id) + "&k=" + encodeURIComponent(PRO.k);
+        for (var on = 0; on < 2; on++){
+          var r = await fetch("/api/airtable?path=" + path, { method:"PATCH", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ fields:{ "🔄 Keyra Yfirferð 3.0": !!on } }) });
+          if (!r.ok) throw new Error("HTTP " + r.status);
+        }
+      }catch(e){ failed.push(ey[id]); continue; }
+      var start = Date.now(), prev = -1;
+      while (seq === pr.seq && Date.now() - start < 90000){
+        await new Promise(function(res){ setTimeout(res, 5000); });
+        var n = -2; try{ n = countFor(id, await proGetAll("tblhdgyvTcBfP8kov", 'FIND("' + pre + ' |",ARRAYJOIN({Tækifæri 📣 (projects)}))', ["Eyðublað ✏️"])); }catch(e){}
+        if (n > 0 && n === prev && Date.now() - start >= 20000) break;
+        prev = n;
+      }
+      done++;
+    }
+    if (seq !== pr.seq) return;
+    proRunSet(failed.length ? "error" : "done", head + " · Yfirfara 3.0 sent á " + done + " " + proPl(done, "einingu", "einingar") +
+      (failed.length ? " · tókst ekki á " + failed.join(", ") + " — keyrðu Yfirfara á " + (failed.length === 1 ? "henni" : "þeim") + " í /ferli" : " ✓ (Sögunarlisti, Pöntunarlisti og vörur á einingu)"));
   }
   function proCncUrl(){ return "/cnc?recordId=" + encodeURIComponent(PRO.id) + "&k=" + encodeURIComponent(PRO.k); }
   // Tilboð panel — the 4 pricing fields Rakel/the owner edit by hand in
@@ -18745,7 +18781,7 @@
   }
   window.__wdModels = wdModels; // devtools / tests
   window.__wdCabinetRows = wdCabinetRows;
-  window.__wt = { result:function(){ return wtResult(); }, open:function(f){ proWtOpen(f); }, lines:function(){ return collectAllLineItems().filter(function(li){ return /^B[PVH]/.test(li["🔑"]); }); }, smida:function(){ return proSmidaAll(); }, check:function(){ return proCheckItems(); }, state:function(){ return state; }, refresh:function(){ save(); refreshAfterEdit(); } }; // devtools / tests
+  window.__wt = { result:function(){ return wtResult(); }, open:function(f){ proWtOpen(f); }, lines:function(){ return collectAllLineItems().filter(function(li){ return /^B[PVH]/.test(li["🔑"]); }); }, smida:function(){ return proSmidaAll(); }, check:function(){ return proCheckItems(); }, runDone:function(lines, synced, t0){ pr.t0 = t0; return proRunDone(lines, synced); }, state:function(){ return state; }, refresh:function(){ save(); refreshAfterEdit(); } }; // devtools / tests
 
   // ---------- PRO home (2026-10-23): ?pro=home — start a new project, or search for one to continue ----------
   var PH_TAEKIFAERI = "tbl4LMXlQjp66RFKI";
