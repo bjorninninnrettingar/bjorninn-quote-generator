@@ -82,13 +82,13 @@
                    note:"Viðskiptavinur óskar eftir innbyggðum FRYSTI (ekki ísskáp) í þessum skáp — staðfestu stærð tækis (nisju) og hurðargerð." },
     vinkaelir:   { label:"Vínkælir (undir borðplötu)", zone:"floor", cls:"floor", defaultW:600, minW:300, maxW:600, widths:[300, 450, 600], h:900, d:600, minH:820, maxH:950, minD:550, maxD:700, hasInterior:false, counter:true, appliance:"wine", notOrdered:true },
     // (no longer offered — "nú erum við að gera eldhús", 2026-10-05; kept so older drafts still load)
-    thvottavelFri:{ label:"Þvottavél (frístandandi)", zone:"floor", cls:"floor", defaultW:600, minW:600, maxW:600, h:900, d:600, minH:800, maxH:950, minD:550, maxD:700, hasInterior:false, counter:true, appliance:"washer", notOrdered:true },
+    thvottavelFri:{ label:"Þvottavél (frístandandi)", zone:"floor", cls:"floor", defaultW:600, minW:600, maxW:600, h:900, d:650, minH:800, maxH:950, minD:550, maxD:700, hasInterior:false, counter:true, appliance:"washer", notOrdered:true },
     burskapur:   { label:"Búrskápur", zone:"floor", cls:"tall", defaultW:600, minW:300, maxW:1200, h:2500, d:600, minH:1800, maxH:2700, minD:400, maxD:700, hasInterior:false, bur:true },
     // Þvottavélaskápur: washer/dryer tower; b.thvo = "skuffa" (a drawer at the bottom to raise the machine) | "hurdir" (doors only)
     // "Hlið við hlið í skáp" (owner, 2026-10-27): washer + dryer side by side, raised on a drawer (~30 cm), in a frame with a
     // cabinet above — built from existing parts (a Lítill kassi with the drawer + úthliðar, see v1RecordFor). 620 wide = one machine.
     thvottavelHlid:{ label:"Vélar hlið við hlið", zone:"floor", cls:"tall", defaultW:1240, minW:620, maxW:1300, widths:[620, 1240], h:2100, d:650, minH:1400, maxH:2700, minD:600, maxD:750, hasInterior:false, thvo:true, thvoSide:true, fixedFronts:true },
-    thvottavel:  { label:"Þvottavélaskápur", zone:"floor", cls:"tall", defaultW:600, minW:600, maxW:900, h:2500, d:600, minH:1800, maxH:2700, minD:600, maxD:750, hasInterior:false, thvo:true, fixedFronts:true },
+    thvottavel:  { label:"Þvottavélaskápur", zone:"floor", cls:"tall", defaultW:600, minW:600, maxW:900, h:2500, d:650, minH:1800, maxH:2700, minD:600, maxD:750, hasInterior:false, thvo:true, fixedFronts:true },
     // Uppþvottavél: integrated dishwasher behind one full front (V1 = the front itself)
     uppthvottavel:{ label:"Uppþvottavél", zone:"floor", cls:"floor", defaultW:600, minW:450, maxW:600, h:900, d:600, minH:850, maxH:1000, minD:550, maxD:700, hasInterior:false, counter:true, dishwasher:true },
     // Ruslaskápur: one tall pull-out with bins (RUSL60 / RUSL80)

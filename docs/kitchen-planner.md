@@ -731,3 +731,11 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   (`LM.v1.litillkassi.open[600|1200]`); V2 = the one-drawer combo (`drawerCodes({count:1})`: Merivo E / Legra C);
   the frame is described in the line note: "Hlið við hlið í skáp: Lítill kassi … með einni skúffu (~300 mm) undir …,
   2 úthliðar <h> mm upp með vélunum, skápur ofan á (…) — söluaðili staðfestir." Revisit when Útfærslur are aligned.
+- **Laundry Ný eining 1–3/6 (owner):** Vélarstæða — two picture cards (Opið vélarhólf / Lokað með hurðum, `data-thvo-kind`)
+  + Þurrkari Já/Nei (`b.single`) instead of the Útfærsla list (PRO keeps the list); machine units 65 cm deep by default
+  (`thvottavel`, `thvottavelFri`; `thvottavelHlid` already 65); "Veggurinn er fullur — Setja inn býður mjórri skáp, eða
+  færðu annan til." when nothing fits. Vélar undir borðplötu — Þurrkari Já/Nei (`uw.noDryer`: one machine), no
+  X-Ray/Opna pills (no cabinet), the width dimension is the pair's total; the run's auto úthliðar carry the worktop.
+  Vaskaskápur in the laundry starts with doors (a valid default). Ruslafötur only offered in the kitchen. Drawer rows
+  show the front ("Skúffa · 20 cm") for customers everywhere (Ný eining + the unit panel) — the drag in the preview is
+  the control; PRO keeps the box-code list. A sink unit's preview camera sits higher (the bowl shows).

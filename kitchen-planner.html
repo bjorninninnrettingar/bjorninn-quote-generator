@@ -124,6 +124,8 @@
   .damp-note{ margin-left:10px; font-size:12px; color:var(--ink-soft); cursor:help; white-space:nowrap; }
   .wt-sw{ background:linear-gradient(var(--wt), var(--wt)) !important; background-image:linear-gradient(90deg, transparent 47%, rgba(0,0,0,.18) 48%, rgba(0,0,0,.18) 52%, transparent 53%), linear-gradient(0deg, transparent 47%, rgba(0,0,0,.18) 48%, rgba(0,0,0,.18) 52%, transparent 53%) !important; background-color:var(--wt) !important; }
   .wt-none{ background:#fff !important; position:relative; } .wt-none::after{ content:""; position:absolute; inset:6px; border-top:1.5px solid #b9b4a8; transform:rotate(-45deg); transform-origin:center; top:50%; }
+  .dw-front-lbl{ flex:1; font-size:13px; font-weight:600; color:var(--ink); padding:6px 4px; cursor:help; }
+  .thvo-cards{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:4px; } .thvo-cards .drawer-card{ padding:8px 10px; }
   .dryer-row{ display:flex; align-items:center; gap:12px; margin-top:12px; font-size:14px; font-weight:600; }
   .btn.btn-primary.is-wait{ opacity:.5; } /* looks not-ready, still answers a click with what is missing */
   .tour-list{ margin:4px 0 0; padding-left:18px; }
@@ -6760,7 +6762,18 @@
         '<button type="button" class="hw-btn' + (b.frontAll ? ' active' : '') + '" data-front-all="1">' + __("Allt úr framhliðaefni") + '</button></div></div>';
     } else if (c.bur){
       return burSetupHTML(b);
-    } else if (c.thvo){
+    } else if (c.appliance === "washer" && !c.thvo && !PRO && uw && uw.b === b){ // Vélar undir borðplötu: one or two machines (owner, 2026-10-27)
+      return '<div class="dryer-row"><span>' + __("Þurrkari") + '</span><div class="hw-toggle">' + [["ja", "Já"], ["nei", "Nei"]].map(function(o){
+        return '<button type="button" class="hw-btn' + ((uw.noDryer ? "nei" : "ja") === o[0] ? ' active' : '') + '" data-uw-dryer="' + o[0] + '">' + __(o[1]) + '</button>'; }).join("") + '</div></div>' +
+        '<p class="sec-note">' + __("Borðplatan fer yfir vélarnar og úthlið ber hana við endann.") + '</p>';
+    } else if (c.thvo && !c.thvoSide && !PRO){ // customers (owner, 2026-10-27): two small picture cards + Þurrkari, not a list
+      var kc = function(v, nm, svg){ return '<button type="button" class="drawer-card' + ((b.thvo === "hurdir" ? "hurdir" : "skuffa") === v ? ' active' : '') + '" data-thvo-kind="' + v + '"><div class="dc-ico">' + svg + '</div><div><div class="dc-name">' + __(nm) + '</div></div></button>'; };
+      var boxS = function(x, y, w, h, f){ return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="1.5" fill="' + (f || "#e4ded0") + '" stroke="#a9a196" stroke-width="1.2"/>'; };
+      return '<div class="thvo-cards">' + kc("skuffa", "Opið vélarhólf", '<svg viewBox="0 0 64 64" width="44" height="44" aria-hidden="true">' + boxS(18, 4, 28, 14) + boxS(18, 18, 28, 32, "#fff") + '<circle cx="32" cy="34" r="8" fill="#fff" stroke="#6d675e" stroke-width="1.3"/>' + boxS(18, 50, 28, 10) + '</svg>') +
+        kc("hurdir", "Lokað með hurðum", '<svg viewBox="0 0 64 64" width="44" height="44" aria-hidden="true">' + boxS(18, 4, 28, 56) + '<path d="M32 4v56" stroke="#a9a196" stroke-width="1.2"/><path d="M29 30v5M35 30v5" stroke="#6d675e" stroke-width="1.6" stroke-linecap="round"/></svg>') + '</div>' +
+        '<div class="dryer-row"><span>' + __("Þurrkari") + '</span><div class="hw-toggle">' + [["ja", "Já"], ["nei", "Nei"]].map(function(o){
+          return '<button type="button" class="hw-btn' + ((b.single ? "nei" : "ja") === o[0] ? ' active' : '') + '" data-thvo-dry="' + o[0] + '">' + __(o[1]) + '</button>'; }).join("") + '</div></div>';
+    } else if (c.thvo && !c.thvoSide){
       label = __("Útfærsla"); cur = b.thvo === "hurdir" ? "hurdir" : "skuffa";
       opts = [["skuffa", __("Skúffa undir vélinni + skápur ofan við")], ["hurdir", __("Hurðir alla leið, 4 loftunarhillur")]];
     } else return "";
@@ -6857,9 +6870,12 @@
         continue;
       }
       var opts = all.filter(function(cd){ if (cd === codes[i]) return true; var next = codes.slice(); next[i] = cd; return stackFits(b, c, next); });
-      rows += '<div class="dw-row-simple' + (inner && hosts.indexOf(i) >= 0 ? ' dw-host' : '') + '" data-dws-row="' + i + '">' + dwIcon(codes[i]) + '<select data-dw-depth="' + i + '">' + opts.map(function(cd){
+      var frontCm = function(){ var sl = (KP3D.stackFrontsMm(b.interior, codes, KP3D.drawerZoneMm(c, drawerBodyMm(b, c), b.drawerZoneMm)) || [])[i]; return sl ? Math.round((sl - 3) / 10) : null; };
+      rows += '<div class="dw-row-simple' + (inner && hosts.indexOf(i) >= 0 ? ' dw-host' : '') + '" data-dws-row="' + i + '">' + dwIcon(codes[i]) +
+        (!PRO ? '<span class="dw-front-lbl" title="' + __("Dragðu skilin á milli skúffanna á myndinni til að breyta hæðinni") + '">' + __("Skúffa") + (frontCm() ? ' · ' + frontCm() + ' cm' : '') + '</span>' // (owner, 2026-10-27): the front, in every room
+        : '<select data-dw-depth="' + i + '">' + opts.map(function(cd){
         return '<option value="' + cd + '"' + (cd === codes[i] ? ' selected' : '') + '>' + codeLabelCm(cd) + '</option>';
-      }).join("") + '</select>' + (tallFronts && tallFronts[i] ? '<input class="dw-fh" type="number" step="0.5" min="5" data-dws-fh="' + i + '" value="' + Math.round(tallFronts[i]) / 10 + '" title="' + __("Hæð framhliðar") + '"><small class="dw-fh-u">cm</small>' : '') +
+      }).join("") + '</select>') + (tallFronts && tallFronts[i] ? '<input class="dw-fh" type="number" step="0.5" min="5" data-dws-fh="' + i + '" value="' + Math.round(tallFronts[i]) / 10 + '" title="' + __("Hæð framhliðar") + '"><small class="dw-fh-u">cm</small>' : '') +
         '<button type="button" class="dw-bin" data-dws-del="' + i + '"' + (n <= 1 ? ' disabled' : '') + ' title="' + __("Fjarlægja þessa skúffu") + '">' + icon("trash", 15) + '</button></div>';
       if (i === innerAt){ // move it up/down to the next drawer tall enough to hide it (buttons stay put, just disabled)
         var hk = hosts.indexOf(i), up = hk >= 0 && hk < hosts.length - 1 ? hosts[hk + 1] : null, down = hk > 0 ? hosts[hk - 1] : null;
@@ -6979,7 +6995,7 @@
       html += drawerSimpleHTML(b, c, codes, inner);
     }
     var lowBox = (b.heightMm || c.h) < 600; // a lítill kassi under 60 cm can take neither (user, 2026-10-25)
-    if (!c.sink && !c.rusl && !lowBox){ // bins: always shown on a drawer unit, greyed with the reason when the bottom drawer can't take them
+    if (!c.sink && !c.rusl && !lowBox && (PRO || catBase() === "eldhus")){ // bins (the kitchen only for customers, owner 2026-10-27): always shown on a drawer unit, greyed with the reason when the bottom drawer can't take them
       var binsOk = binsPossible(b, c), binsAct = binsOn(b, c);
       html += '<div class="dw-add"><span>' + __("Ruslafötur:") + '</span>' +
         '<button type="button" class="hw-btn' + (!binsAct ? ' active' : '') + '" data-dw-bins="0">' + __("Engar") + '</button>' +
@@ -7659,7 +7675,7 @@
     { key:"hlid", label:"Hlið við hlið í skáp", desc:"Upphækkaðar á skúffu, skápur fyrir ofan", icon:"thvottavel", opts:[ // (owner, 2026-10-27) — 62 cm wide = one machine
       { label:"Hlið við hlið í skáp", type:"thvottavelHlid" } ] },
     { key:"vaskur", label:"Vaskaskápur", desc:"Undir borðplötu", icon:"vaskaskapur", opts:[
-      { label:"Vaskaskápur", type:"vaskaskapur", drawers:true } ] },
+      { label:"Vaskaskápur", type:"vaskaskapur" } ] }, // doors to start (owner, 2026-10-27): the drawer-under-sink default opened on a warning
     { key:"grunn", label:"Grunnskápur", desc:"Undir borðplötu", icon:"grunnskapur", opts:[
       { label:"Grunnskápur", type:"grunnskapur", drawers:true } ] },
     { key:"har", label:"Hár skápur", desc:"Upp undir loft — fyrir ræstidótið", icon:"harskapur", opts:[
@@ -7746,7 +7762,7 @@
     function P(al, y, out){ var v = new T.Vector3(g.origin.x + g.axis.x * al + g.normal.x * out, y, g.origin.z + g.axis.z * al + g.normal.z * out).project(st.camera); return { x:(v.x + 1) / 2 * r.width, y:(1 - v.y) / 2 * r.height }; }
     var b = x.b, c = CATALOG[b.type], picked = uw.picked || {}, gap = 0.07;
     var lines = [
-      { key:"w", a:P(x.a0, x.y1 + (x.extraTop || 0) + gap, x.d), b:P(x.a1, x.y1 + (x.extraTop || 0) + gap, x.d), mm:b.widthMm }, // above the tap, never through the basin
+      { key:"w", a:P(x.a0, x.y1 + (x.extraTop || 0) + gap, x.d), b:P(x.a2 || x.a1, x.y1 + (x.extraTop || 0) + gap, x.d), mm:Math.round(((x.a2 || x.a1) - x.a0) * 1000) }, // above the tap, never through the basin; a pair of machines: their total
       { key:"h", a:P(x.a0 - (x.hungM ? 4.2 * gap : gap), x.y0, x.d), b:P(x.a0 - (x.hungM ? 4.2 * gap : gap), x.y1, x.d), mm:blockHeightMm(b, c) }, // overall: floor to the top of the unit
       // a wall-hung unit (owner, 2026-10-27): beside it, nearer the unit, the gap under it + its own height — like the room's 3D dims
       x.hungM ? { key:"h", a:P(x.a0 - gap, x.y0, x.d), b:P(x.a0 - gap, x.y0 + x.hungM, x.d), mm:Math.round(x.hungM * 1000) } : null,
@@ -8011,7 +8027,7 @@
       }
       var secHtml = [];
       var machineOnly = isLaundry() && !PRO && !!c.appliance; // the customer's own washer/dryer: nothing to size, just its place (user, 2026-10-26)
-      if (machineOnly) secHtml.push('<p class="sec-note">' + (uwPairOpt() ? __("Pláss fyrir þína þvottavél og þurrkara, 60 cm hvor — borðplatan fer yfir þær.") : __("Pláss fyrir þína vél, 60 cm — borðplatan fer yfir hana.")) + ' ' + __("Vélarnar sjálfar eru ekki í pöntuninni.") + '</p>');
+      if (machineOnly) secHtml.push(variantHTML(b, c, null) + '<p class="sec-note">' + (uwPairOpt() ? __("Pláss fyrir þína þvottavél og þurrkara, 60 cm hvor — borðplatan fer yfir þær.") : __("Pláss fyrir þína vél, 60 cm — borðplatan fer yfir hana.")) + ' ' + __("Vélarnar sjálfar eru ekki í pöntuninni.") + '</p>'); // + Þurrkari Já / Nei
       else if (!c.panel) secHtml.push(dimSec("w", __("Breidd"), widths, b.widthMm, isCloset() && closetTall(b) && uw.closetW ? uw.closetW : c.defaultW, "data-uw-w", "data-uw-wcustom", c.minW, c.maxW)); // a wardrobe suggests the free space
       var shortWiz = uwShort(b);
       if (shortWiz || machineOnly){} // PRO kitchen: no Hæð/Dýpt/Innvols here — Smíða opens right after Setja inn (2026-10-26)
@@ -8085,7 +8101,7 @@
         var rr = CLOSET_RECIPES.find(function(x){ return x.key === b.closetRecipe; });
         innSum = (rr ? __(rr.label) : __("Eigin samsetning")) + " · " + (b.type === "harskapurOpinn" ? __("Opið") : __("Með hurðum"));
       }
-      if (!shortWiz && innHtml.replace(/<div class="edit-field"><\/div>/g, "").trim()) secHtml.push(uwSec("inn", c.hasInterior || c.shelfRange || c.railRange ? __("Innvols") : __("Útfærsla"), innSum, innHtml));
+      if (!shortWiz && !machineOnly && innHtml.replace(/<div class="edit-field"><\/div>/g, "").trim()) secHtml.push(uwSec("inn", c.hasInterior || c.shelfRange || c.railRange ? __("Innvols") : __("Útfærsla"), innSum, innHtml));
       html += '<div class="uw-secs">' + secHtml.join("") + '</div>';
       if (uw.island){
         side.innerHTML = html + '<div class="uw-actions"><button type="button" class="btn btn-secondary btn-small" data-uw-back>' + __("← Til baka") + '</button>' +
@@ -8282,6 +8298,9 @@
       renderUnitWizard();
     }); });
     if (c.bur) wireBurSetup(side, b, renderUnitWizard);
+    side.querySelectorAll("[data-uw-dryer]").forEach(function(el){ el.addEventListener("click", function(){ uw.noDryer = el.dataset.uwDryer === "nei"; uwPrevKey = ""; renderUnitWizard(); }); });
+    side.querySelectorAll("[data-thvo-kind]").forEach(function(el){ el.addEventListener("click", function(){ if (el.dataset.thvoKind === "hurdir") b.thvo = "hurdir"; else delete b.thvo; renderUnitWizard(); }); });
+    side.querySelectorAll("[data-thvo-dry]").forEach(function(el){ el.addEventListener("click", function(){ if (el.dataset.thvoDry === "nei") b.single = true; else delete b.single; renderUnitWizard(); }); });
     var vs = side.querySelector('[data-role="variant"]');
     if (vs) vs.addEventListener("change", function(){
       if (c.oven){ b.ovenCombo = vs.value; delete b.ovenFrontsMm; } else if (c.thvo) b.thvo = vs.value;
@@ -8317,7 +8336,7 @@
     if (add) add.addEventListener("click", function(){
       var wall = surfaces().find(function(w){ return w.id === uw.wallId; });
       if (!wall) return;
-      var uwOpt = (activeUnitTree()[uw.cat] || { opts:[] }).opts[uw.opt], pairW = uwOpt && uwOpt.pair ? b.widthMm : 0; // Vélar undir borðplötu: washer + dryer
+      var uwOpt = (activeUnitTree()[uw.cat] || { opts:[] }).opts[uw.opt], pairW = uwOpt && uwOpt.pair && !uw.noDryer ? b.widthMm : 0; // Vélar undir borðplötu: washer + dryer (Þurrkari Nei: one)
       var pl = appendPlacement(wall, c.zone, b.widthMm + pairW, probeSpan(c.zone, b));
       if (pairW && !pl.fits){ pairW = 0; pl = appendPlacement(wall, c.zone, b.widthMm, probeSpan(c.zone, b)); if (pl.fits) toast(__("Pláss fyrir eina vél á veggnum — hin fer ekki með.")); }
       if (uwPreferSpan && uwPreferSpan.wallId === wall.id && !wall[c.zone].length && b.widthMm <= uwPreferSpan.mm) pl = { fits:true, offsetMm:uwPreferSpan.startMm };
@@ -8337,7 +8356,7 @@
         var widest = Math.max.apply(null, [0].concat(freeIntervals(wall, c.zone, null, probeSpan(c.zone, b)).map(function(iv){ return iv[1] - iv[0]; })));
         var fitW = wall.island ? 0 : Math.min(c.maxW, Math.floor(widest / 10) * 10);
         if (fitW >= c.minW) offerFit(__("{name} {w} passar ekki á {wall}.", { name:__(c.label), w:uLen(b.widthMm), wall:KPI18N.lang === "en" ? __(wall.label).toLowerCase() : wallDat(wall) }), fitW, function(){ if (!uw || uw.b !== b) return; b.widthMm = fitW; add.click(); }); // the wizard may have moved on (QA J1)
-        else toast(__("Ekki nóg pláss á {wall} fyrir {name}.", { wall:KPI18N.lang === "en" ? __(wall.label).toLowerCase() : wallDat(wall), name:__(c.label).toLowerCase() }));
+        else toast(PRO ? __("Ekki nóg pláss á {wall} fyrir {name}.", { wall:KPI18N.lang === "en" ? __(wall.label).toLowerCase() : wallDat(wall), name:__(c.label).toLowerCase() }) : __("Veggurinn er fullur — Setja inn býður mjórri skáp, eða færðu annan til.")); // (owner, 2026-10-27)
         return;
       }
       insertBlockAt(wall, c.zone, b, pl.offsetMm);
@@ -8358,7 +8377,8 @@
   var UW_SPIN = 0.55; // slower than before (0.9), user 2026-10-10
   function syncUwTools(){
     var t = document.getElementById("uwTools");
-    t.hidden = !(uw && (uw.b || uw.step === 2));
+    var appl = uw && uw.b && CATALOG[uw.b.type] && CATALOG[uw.b.type].appliance && !PRO; // machines under the worktop: no cabinet to look into (owner, 2026-10-27)
+    t.hidden = !(uw && (uw.b || uw.step === 2)) || appl;
     t.querySelector('[data-uwt="fronts"]').textContent = PRO ? (uwView.frontsOff ? "Framhliðar: af" : "Framhliðar: á") : __("Sýna inn í skápinn"); // a customer: one plain toggle (owner, 2026-10-27)
     t.querySelector('[data-uwt="spin"]').hidden = !PRO; // no "Snúa" for customers — the view follows what's being chosen
     t.querySelector('[data-uwt="fronts"]').classList.toggle("active", uwView.frontsOff);
@@ -8379,7 +8399,7 @@
     });
   });
   // "Vélar undir borðplötu" (Þvottahús): the option puts in two machines — the preview shows both
-  function uwPairOpt(hovOpt){ var o = uw && uw.b && uw.cat != null && activeUnitTree()[uw.cat] ? activeUnitTree()[uw.cat].opts[uw.opt] : hovOpt; return !!(o && o.pair); }
+  function uwPairOpt(hovOpt){ var o = uw && uw.b && uw.cat != null && activeUnitTree()[uw.cat] ? activeUnitTree()[uw.cat].opts[uw.opt] : hovOpt; return !!(o && o.pair) && !(uw && uw.noDryer); }
   function schedulePreview(){ clearTimeout(uwPrevTimer); uwPrevTimer = setTimeout(renderUnitPreview, 60); }
   function renderUnitPreview(){
     var host = document.getElementById("uwPreview");
@@ -8443,7 +8463,7 @@
         st.camera.position.copy(newTarget).addScaledVector(dir, Math.max(curDist, dist));
         st.controls.target.copy(newTarget);
       } else {
-        KP3D.setCameraLookAt({ x:cx + g.normal.x * dist + g.axis.x * dist * 0.55, y:cy + size * 0.25, z:cz + g.normal.z * dist + g.axis.z * dist * 0.55 }, { x:cx, y:cy, z:cz });
+        KP3D.setCameraLookAt({ x:cx + g.normal.x * dist + g.axis.x * dist * 0.55, y:cy + size * (c.sink ? 0.6 : 0.25), z:cz + g.normal.z * dist + g.axis.z * dist * 0.55 }, { x:cx, y:cy, z:cz }); // a sink: from higher, into the bowl (owner, 2026-10-27)
       }
       st.controls.target.set(cx, cy, cz);
       st.controls.minPolarAngle = 0.2;
@@ -10409,6 +10429,8 @@
       });
     });
     if (c.bur) wireBurSetup(host, b, function(){ save(); refreshAfterEdit(); });
+    host.querySelectorAll("[data-thvo-kind]").forEach(function(el){ el.addEventListener("click", function(){ if (b.locked){ lockedToast(); return; } if (el.dataset.thvoKind === "hurdir") b.thvo = "hurdir"; else delete b.thvo; save(); refreshAfterEdit(); }); });
+    host.querySelectorAll("[data-thvo-dry]").forEach(function(el){ el.addEventListener("click", function(){ if (b.locked){ lockedToast(); return; } if (el.dataset.thvoDry === "nei") b.single = true; else delete b.single; save(); refreshAfterEdit(); }); });
     var variantSel = host.querySelector('[data-role="variant"]');
     if (variantSel) variantSel.addEventListener("change", function(){
       if (b.locked){ lockedToast(); renderEditPanel(); return; }
