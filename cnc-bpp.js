@@ -304,33 +304,38 @@
   // Blum cruciform mounting plate at true scale (2026-10-26, measured from Blum's own GLB: 41.8 × 56.5 mm). mm, origin =
   // plate centre on the screw line (the 37 mm line /cnc drills), u = toward the FRONT edge (the arm clips on that wing),
   // v = up. Drawn into group `el` with centre (cx, cy) px, s px/mm, front edge to the left (screen x = cx − u·s).
-  function drawPlate(el, cx, cy, s, stroke) {
-    var P = function (u, v) { return (cx - u * s).toFixed(2) + " " + (cy - v * s).toFixed(2); };
+  function drawPlate(el, cx, cy, s, stroke, dir) {
+    dir = dir || 1; // +1: front edge to the left on screen, −1: mirrored (front edge to the right)
+    var P = function (u, v) { return (cx - dir * u * s).toFixed(2) + " " + (cy - v * s).toFixed(2); };
     var a = { fill: "#fff", stroke: stroke, "stroke-width": 1.1, "stroke-linejoin": "round" };
     el.appendChild(svgEl("path", Object.assign({ d: "M" + P(11, -8.45) + " L" + P(21.2, -8.45) + " Q" + P(22.8, -8.45) + " " + P(22.8, -6.8) + " L" + P(22.8, 7.3) +
       " Q" + P(22.8, 8.95) + " " + P(21.2, 8.95) + " L" + P(11, 8.95) + " Z" }, a))); // front wing
     el.appendChild(svgEl("path", Object.assign({ d: "M" + P(-11, -5.25) + " L" + P(-19, -5.25) + " L" + P(-19, 2.95) + " L" + P(-11, 2.95) + " Z" }, a))); // rear tab
     el.appendChild(svgEl("rect", Object.assign({ x: cx - 13 * s, y: cy - 28.25 * s, width: 26 * s, height: 56.5 * s, rx: 4.5 * s }, a))); // body, over the joins
-    el.appendChild(svgEl("circle", { cx: cx + 3.8 * s, cy: cy - 0.15 * s, r: 1.8 * s, fill: "none", stroke: stroke, "stroke-width": .9 })); // adjusting screw
+    el.appendChild(svgEl("circle", { cx: cx + dir * 3.8 * s, cy: cy - 0.15 * s, r: 1.8 * s, fill: "none", stroke: stroke, "stroke-width": .9 })); // adjusting screw
   }
   function renderCalm(LPX, LPY, features, opts) {
     opts = opts || {};
     var acc = opts.accent || {}, BLUE = "#0071e3", INK = "#1d1d1f", SOFT = "#8e8e93", RED = "#d70015";
     var maxH = opts.maxH || 560, maxW = opts.maxW || 360, s = Math.min(maxH / LPX, maxW / LPY);
     var fr = opts.fronts && opts.fronts.length, colW = fr ? 12 : 0, gap = fr ? 7 : 0;
-    var w = LPY * s, h = LPX * s, padL = 30 + colW + gap, padR = 22, top = 12;
-    var X = function (d) { return padL + d * s; }, Y = function (m) { return top + (LPX - m) * s; };
+    // opts.mirror: the right side drawn as the mirror image of the left (front edge to the right) — the two sides face each other
+    var mir = !!opts.mirror, w = LPY * s, h = LPX * s, padL = mir ? 22 : 30 + colW + gap, padR = mir ? 30 + colW + gap : 22, top = 12;
+    var X = function (d) { return padL + (mir ? LPY - d : d) * s; }, Y = function (m) { return top + (LPX - m) * s; };
+    var L = padL; // the panel's left edge on screen, whichever way it faces
+    var XR = function (a, b) { var p = X(a), q = X(b); return { x: Math.min(p, q), w: Math.abs(q - p) }; };
     var svg = svgEl("svg", { class: "bpp-calm-svg", width: padL + w + padR, height: h + top + 24, viewBox: "0 0 " + (padL + w + padR) + " " + (h + top + 24),
       "data-s": s, "data-lpx": LPX, "data-top": top });
     function g(label, type, y) { var el = svgEl("g", { class: "cz" }); var t = svgEl("title", {}); t.textContent = label; el.appendChild(t);
       if (type) { el.setAttribute("data-type", type); el.setAttribute("data-y", Math.round(y)); } svg.appendChild(el); return el; }
-    svg.appendChild(svgEl("rect", { x: X(0), y: Y(LPX), width: w, height: h, rx: 2, fill: "#fff", stroke: INK, "stroke-width": 1.2 }));
+    svg.appendChild(svgEl("rect", { x: L, y: Y(LPX), width: w, height: h, rx: 2, fill: "#fff", stroke: INK, "stroke-width": 1.2 }));
     var front = Math.min(37, LPY / 3), back = LPY - Math.min(37, LPY / 3);
     // fronts column (front edge = left)
     (opts.fronts || []).forEach(function (f) {
       var ef = g(f.label, "front", f.from);
-      ef.appendChild(svgEl("rect", { x: X(0) - gap - colW, y: Y(f.to), width: colW, height: Math.max(1, (f.to - f.from) * s), rx: 1.5, fill: "#f2f2f4", stroke: "#aeaeb2", "stroke-width": 1 }));
-      if ((f.to - f.from) * s > 14 && f.short) { var ft = svgEl("text", { x: X(0) - gap - colW / 2, y: Y((f.from + f.to) / 2), "text-anchor": "middle", "dominant-baseline": "middle", "font-size": 9, fill: SOFT }); ft.textContent = f.short; ef.appendChild(ft); }
+      var colX = mir ? L + w + gap : L - gap - colW;
+      ef.appendChild(svgEl("rect", { x: colX, y: Y(f.to), width: colW, height: Math.max(1, (f.to - f.from) * s), rx: f.kind === "grip" ? 0 : 1.5, fill: f.kind === "grip" ? "#c7c7cc" : "#f2f2f4", stroke: f.kind === "grip" ? "none" : "#aeaeb2", "stroke-width": 1 }));
+      if ((f.to - f.from) * s > 14 && f.short) { var ft = svgEl("text", { x: colX + colW / 2, y: Y((f.from + f.to) / 2), "text-anchor": "middle", "dominant-baseline": "middle", "font-size": 9, fill: SOFT }); ft.textContent = f.short; ef.appendChild(ft); }
     });
     features.forEach(function (f) {
       if (f.type === "drawer") {
@@ -339,38 +344,40 @@
         var el = g(f.label + " — úr Sögunarlista", "drawer", f.from), from = Math.max(0, f.from), to = Math.min(LPX, f.to);
         var ry = from + (sys === "legra" ? 62.5 : 80); // runner over its slot, as cnc-sides.js plans it
         var sideH = (BOX_SIDE[sys] || BOX_SIDE.merivo)[code.toUpperCase()] || 90;
-        el.appendChild(svgEl("rect", { x: X(0) + 3, y: Y(to), width: w - 6, height: Math.max(1, (to - from) * s), fill: "#f7f7f9" }));
-        el.appendChild(svgEl("rect", { x: X(Math.min(12, LPY / 20)), y: Y(ry + sideH), width: X(LPY - Math.min(22, LPY / 12)) - X(Math.min(12, LPY / 20)), height: sideH * s, rx: 2, fill: "#fff", stroke: SOFT, "stroke-width": 1.1 }));
+        el.appendChild(svgEl("rect", { x: L + 3, y: Y(to), width: w - 6, height: Math.max(1, (to - from) * s), fill: "#f7f7f9" }));
+        var bx = XR(Math.min(12, LPY / 20), LPY - Math.min(22, LPY / 12));
+        el.appendChild(svgEl("rect", { x: bx.x, y: Y(ry + sideH), width: bx.w, height: sideH * s, rx: 2, fill: "#fff", stroke: SOFT, "stroke-width": 1.1 }));
         el.appendChild(svgEl("line", { x1: X(front), x2: X(back), y1: Y(ry), y2: Y(ry), stroke: SOFT, "stroke-width": 1.6, "stroke-linecap": "round" }));
         if (code && sideH * s > 9) { var tl = svgEl("text", { x: X(LPY / 2), y: Y(ry + sideH / 2), "text-anchor": "middle", "dominant-baseline": "middle", "font-size": Math.min(12, sideH * s * .55), fill: SOFT }); tl.textContent = code.toUpperCase(); el.appendChild(tl); }
       } else if (f.type === "inner") {
         // an inner drawer = its front band (front bottom = runner − 54, cnc-sides.js INNER_RUNNER), dashed: it hides behind a front
         var icode = (String(f.label).match(/skúffa\s+([NMKCFE])\b/i) || [])[1] || "", ih = f.to - f.from, ib = f.from - 54;
         var ei = g(f.label + " — innskúffa", "inner", f.from), ic = acc.inner ? BLUE : "#6e6e73";
-        ei.appendChild(svgEl("rect", { x: X(Math.min(12, LPY / 20)), y: Y(ib + ih), width: X(LPY - Math.min(22, LPY / 12)) - X(Math.min(12, LPY / 20)), height: ih * s, rx: 2, fill: "#fff", stroke: ic, "stroke-width": 1.1, "stroke-dasharray": "5 3" }));
+        var ibx = XR(Math.min(12, LPY / 20), LPY - Math.min(22, LPY / 12));
+        ei.appendChild(svgEl("rect", { x: ibx.x, y: Y(ib + ih), width: ibx.w, height: ih * s, rx: 2, fill: "#fff", stroke: ic, "stroke-width": 1.1, "stroke-dasharray": "5 3" }));
         ei.appendChild(svgEl("line", { x1: X(front), x2: X(back), y1: Y(f.from), y2: Y(f.from), stroke: ic, "stroke-width": 1.6, "stroke-linecap": "round" }));
         if (ih * s > 12) { var it = svgEl("text", { x: X(LPY / 2), y: Y(ib + ih / 2), "text-anchor": "middle", "dominant-baseline": "middle", "font-size": Math.min(11, ih * s * .4), fill: ic }); it.textContent = "inn " + icode.toUpperCase(); ei.appendChild(it); }
       } else if (f.type === "fixed") {
-        var ef2 = g(f.label); ef2.appendChild(svgEl("rect", { x: X(0) + 3, y: Y(f.to), width: w - 6, height: Math.max(1, (f.to - f.from) * s), fill: "#f5f5f7" }));
+        var ef2 = g(f.label); ef2.appendChild(svgEl("rect", { x: L + 3, y: Y(f.to), width: w - 6, height: Math.max(1, (f.to - f.from) * s), fill: "#f5f5f7" }));
       } else if (f.type === "shelfFixed") {
         var t0 = f.t || 16, es = g(f.label + " — " + Math.round(f.y) + " mm (efri flötur)", "shelf", f.y);
-        es.appendChild(svgEl("rect", { x: X(0), y: Y(f.y), width: w, height: Math.max(1.5, t0 * s), fill: acc.shelf ? "#cfe3fb" : "#d1d1d6", stroke: acc.shelf ? BLUE : INK, "stroke-width": .9 }));
+        es.appendChild(svgEl("rect", { x: L, y: Y(f.y), width: w, height: Math.max(1.5, t0 * s), fill: acc.shelf ? "#cfe3fb" : "#d1d1d6", stroke: acc.shelf ? BLUE : INK, "stroke-width": .9 }));
       } else if (f.type === "shelfLoose") {
         var mid = f.ys[Math.floor(f.ys.length / 2)], el2 = g(f.label + " — " + Math.round(mid + 16) + " mm, göt " + f.ys.map(function (y) { return Math.round(y); }).join(", "), "shelf", mid);
-        el2.appendChild(svgEl("rect", { x: X(0) + 1, y: Y(mid + 16), width: w - 2, height: Math.max(1.5, 16 * s), fill: acc.shelf ? "#e8f1fc" : "#f2f2f4", stroke: acc.shelf ? BLUE : SOFT, "stroke-width": .8, "stroke-dasharray": "4 3" }));
+        el2.appendChild(svgEl("rect", { x: L + 1, y: Y(mid + 16), width: w - 2, height: Math.max(1.5, 16 * s), fill: acc.shelf ? "#e8f1fc" : "#f2f2f4", stroke: acc.shelf ? BLUE : SOFT, "stroke-width": .8, "stroke-dasharray": "4 3" }));
         f.ys.forEach(function (y) { [front, back].forEach(function (d) { el2.appendChild(svgEl("circle", { cx: X(d), cy: Y(y), r: 2.4, fill: acc.shelf ? BLUE : INK })); }); });
       } else if (f.type === "hinge") {
         var eh = g(f.label || "Löm", "hinge", f.y);
-        drawPlate(eh, X(front), Y(f.y), s, acc.hinge ? BLUE : INK);
+        drawPlate(eh, X(front), Y(f.y), s, acc.hinge ? BLUE : INK, mir ? -1 : 1);
       } else if (f.type === "rail") {
         var er = g(f.label, "rail", f.y); er.appendChild(svgEl("line", { x1: X(0), x2: X(LPY), y1: Y(f.y), y2: Y(f.y), stroke: "#d2d2d7", "stroke-width": 1, "stroke-dasharray": "4 4" }));
       }
     });
     (opts.hits || []).forEach(function (hh) {
       var eh2 = g("Árekstur " + Math.round(hh.from) + "–" + Math.round(hh.to) + " mm");
-      eh2.appendChild(svgEl("rect", { x: X(0) - 2, y: Y(hh.to), width: w + 4, height: Math.max(3, (hh.to - hh.from) * s), fill: RED, "fill-opacity": .22, stroke: RED, "stroke-width": 1.2 }));
+      eh2.appendChild(svgEl("rect", { x: L - 2, y: Y(hh.to), width: w + 4, height: Math.max(3, (hh.to - hh.from) * s), fill: RED, "fill-opacity": .22, stroke: RED, "stroke-width": 1.2 }));
     });
-    var t1 = svgEl("text", { x: X(0) - gap - colW - 6, y: Y(LPX / 2), "text-anchor": "end", "dominant-baseline": "middle", "font-size": 11, fill: "#a1a1a6" }); t1.textContent = LPX; svg.appendChild(t1);
+    var t1 = svgEl("text", { x: mir ? L + w + gap + colW + 6 : L - gap - colW - 6, y: Y(LPX / 2), "text-anchor": mir ? "start" : "end", "dominant-baseline": "middle", "font-size": 11, fill: "#a1a1a6" }); t1.textContent = LPX; svg.appendChild(t1);
     var t2 = svgEl("text", { x: X(LPY / 2), y: Y(0) + 16, "text-anchor": "middle", "font-size": 11, fill: "#a1a1a6" }); t2.textContent = LPY; svg.appendChild(t2);
     return svg;
   }
@@ -493,7 +500,7 @@
       if (outEl) { var cx = document.createElement("button"); cx.type = "button"; cx.textContent = "Fjarlægja"; cx.style.color = "#8e8e93"; cx.onclick = rm.onclick; ch.appendChild(cx); }
       calm.appendChild(ch);
       var cbody = document.createElement("div"); cbody.className = "bpp-calm-body";
-      cbody.appendChild(renderCalm(vars.LPX, vars.LPY, built.features, { accent: opts.accent, maxH: opts.maxH, maxW: opts.maxW, hits: opts.hits, fronts: opts.fronts }));
+      cbody.appendChild(renderCalm(vars.LPX, vars.LPY, built.features, { accent: opts.accent, maxH: opts.maxH, maxW: opts.maxW, hits: opts.hits, fronts: opts.fronts, mirror: opts.mirror }));
       calm.appendChild(cbody);
       card.insertBefore(calm, win);
       setView(opts.view === "tech" ? "tech" : "calm");

@@ -118,6 +118,7 @@
   .frrow { display:flex; gap:12px; flex-wrap:wrap; }
   .frc { background:#fff; border:1px solid var(--line); border-radius:10px; padding:8px 10px; display:flex; flex-direction:column; align-items:center; }
   .frn { font-size:12px; margin-top:4px; } .frx { font-size:11px; color:var(--dim); } .cnccap .cred { color:var(--red); }
+  .cnccap .cgp { width:6px; height:6px; background:#c7c7cc; }
   .cnccap .cfr { width:6px; height:12px; background:#f2f2f4; border:1px solid #aeaeb2; border-radius:1.5px; }
 
   /* panel */
@@ -618,20 +619,28 @@
     if (p.status === "stop" || p.status === "skip") { wrap.innerHTML = '<div class="msg"><p>' + esc((p.stop || []).join(" · ") || "Engin hlið.") + "</p></div>"; return; }
     var files = SD.sideFiles(p), acc = handSet(c, ed(c)), maxH = Math.max(260, (box.clientHeight || 700) - 200);
     // every front at its real height next to the side (drawer fronts sit at the bottom of their slot, the grip gap above)
-    var fronts = (p.drawers || []).map(function (d) { return { from: d.from, to: r1(d.from + d.front), short: d.code, label: "Skúffufrontur " + d.code + " · " + mm(d.front) + " mm — úr Sögunarlista" }; })
+    // the grip profile (e.g. Jey 27, "Grip mm" on the handle) sits on each front — slot = front + profile + 3 mm gap
+    var fronts = [];
+    (p.drawers || []).forEach(function (d) {
+      var gp = r1(d.H - d.front);
+      fronts.push({ from: d.from, to: r1(d.from + d.front), short: d.code, label: "Skúffufrontur " + d.code + " · " + mm(d.front) + " mm — úr Sögunarlista" });
+      if (gp > 0.5) fronts.push({ from: r1(d.from + d.front), to: r1(d.from + d.H), kind: "grip", label: "Gripprófíll " + mm(gp) + " mm ofan á frontinum" });
+    });
+    (p.doors || []).forEach(function (d) { if (d.g > 0.5) fronts.push({ from: d.to, to: r1(d.to + d.g), kind: "grip", label: "Gripprófíll " + mm(d.g) + " mm ofan á hurðinni" }); });
+    fronts = fronts
       .concat((p.doors || []).map(function (d) { var fb = d.fb != null ? d.fb : r1(d.to - 1 - d.H), ft = d.ft != null ? d.ft : r1(d.to - 1);
         return { from: fb, to: ft, short: "", label: "Hurð · " + mm(d.H) + " mm" + (fb < -0.5 ? " — nær " + mm(-fb) + " mm niður fyrir hliðina" : "") + " — úr Sögunarlista" }; }));
     var row = document.createElement("div"); row.className = "cncrow"; wrap.appendChild(row);
     files.forEach(function (f) {
       var r = SD.renderSide(MASTER, f.plan);
-      var card = BPP.buildCard({ name: f.name + (f.count > 1 ? " ×" + f.count : "") }, r.text, null, null, { accent: acc, maxH: maxH, maxW: files.length > 1 ? 260 : 360, view: "calm", hits: p.hits, fronts: fronts });
+      var card = BPP.buildCard({ name: f.name + (f.count > 1 ? " ×" + f.count : "") }, r.text, null, null, { accent: acc, maxH: maxH, maxW: files.length > 1 ? 260 : 360, view: "calm", hits: p.hits, fronts: fronts, mirror: /^Hægri/.test(f.name) });
       var rm = card.querySelector(".bw-titlebar .remove"); if (rm) rm.remove();
       row.appendChild(card);
       var sv = card.querySelector(".bpp-calm-svg"); if (sv && canEdit(c)) wireCalm(sv, c, p);
     });
     var cap = document.createElement("div"); cap.className = "cnccap";
     cap.innerHTML = '<span><svg width="12" height="16" viewBox="-1 -1 26 30"><path d="M1 9.5H5V13.5H1Z" fill="#fff" stroke="#1d1d1f" stroke-width="1.6"/><path d="M19 9H23V17H19Z" fill="#fff" stroke="#1d1d1f" stroke-width="1.6"/><rect x="5" y="0" width="14" height="28" rx="3" fill="#fff" stroke="#1d1d1f" stroke-width="1.6"/></svg>Lamaplata</span>' +
-      '<span><i class="cs"></i>Hillugöt</span><span><i class="cf"></i>Föst hilla</span><span><i class="cd"></i>Skúffa á braut</span><span><i class="cfr"></i>Frontar</span><span class="cred">Rautt = árekstur</span><span class="cb">Blátt = stillt hér</span>';
+      '<span><i class="cs"></i>Hillugöt</span><span><i class="cf"></i>Föst hilla</span><span><i class="cd"></i>Skúffa á braut</span><span><i class="cfr"></i>Frontar</span><span><i class="cgp"></i>Gripprófíll</span><span class="cred">Rautt = árekstur</span><span class="cb">Blátt = stillt hér</span>';
     wrap.appendChild(cap);
     // the cabinet's fronts, each with what /cnc drills in it (plan.fronts = the export's own front plans), read-only
     if ((p.fronts || []).length) {

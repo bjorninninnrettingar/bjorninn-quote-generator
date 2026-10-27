@@ -174,3 +174,16 @@ below; its cups are placed from the same absolute heights as the plates (`d.fb`/
 within the usual 1 mm (79 vs 80). Doors that fit (T-32 entire, T-15 Sk 2/4/25-26/27) export byte-identically to before.
 Tests in tests/cnc-sides.test.js. Assumption to check at the machine: on Sk 20-22 (590 front on a 600 side, Undirgrip 20)
 the front is taken as flush at the top (10 mm free at the bottom).
+
+### Guard: cups must sit on plates (2026-10-27)
+Why front positions kept coming out wrong: /cnc never knows where a front physically sits — it reconstructs it from cut
+sizes (Sögunarlisti) + rules (top-down stacking, 3 mm gaps, the grip reveal). The side plates were placed on that
+reconstructed box, but the front-file cups were measured from the front's own ends, assuming front = box − 3. Whenever
+the data broke a rule (undergrip lip, vertical Jey with no reveal) the two disagreed silently. Now `unitPlan` checks every
+hinged door: each cup (front's real extent: top 1 mm under the box top, its cut height) must be within 1.5 mm of a side
+plate and vice versa, else the cabinet STOPS ("lamaskálar í fronti passa ekki við lamaplötur …") — no files, listed as
+EKKI GERT in /cnc, an open decision in /smida. Proven: with the pre-fix door logic it stops exactly Sk 1, 5-8, 15, 20-22, 23,
+37 (19–46 mm); with the current logic nothing on T-15 (31) or T-32 (9) fails.
+The 27 mm between drawer fronts (T-15 Sk 2 etc., "JEY lárétt", Grip mm 27) is the Jey aluminium profile on each front —
+slot = front + profile + 3 mm gap, as /cnc has drilled since T-33; the calm view now draws the profile (grey strip) in the
+fronts column, and the right side is drawn as the mirror image of the left (front edge right).

@@ -218,6 +218,7 @@
     // (d.fb/d.ft = where the front itself sits), not from its own ends — those were 18–46 mm off the plates.
     doors.forEach(function (d) {
       var g = d.H + grip + BOX_GAP <= top - drawerTop + 0.5 ? doorGrip(d) : 0;
+      d.g = g; // the grip profile (e.g. Jey 27) sits in this reveal above the front
       d.to = r1(top - g); d.from = r1(Math.max(drawerTop, d.to - d.H - BOX_GAP));
       d.ft = r1(d.to - HINGE_FRONT_OFFSET); d.fb = r1(d.ft - d.H);
       d.over = d.H + BOX_GAP > d.to - d.from + 0.5;
@@ -459,6 +460,30 @@
 
     plan.frontCheck = []; // front notes stay out of the side status
     plan.fronts = frontPlans(drawers, doors, fixedFronts, by, plan.frontCheck, leaves, opts.grip);
+    // GUARD (2026-10-27, after T-15): every hinge cup the door-front file drills must sit on a plate the side file
+    // drills (≤ 1.5 mm; the 79/80 convention is 1 mm), and every plate needs its cup. The front's position is
+    // reconstructed from cut sizes + rules, so a case the rules don't cover would otherwise slip through silently —
+    // a mismatch STOPS the cabinet (no files written, listed as EKKI GERT) instead of milling doors that won't hang.
+    doors.forEach(function (d, i) {
+      if (d.type === "lift" || d.type === "pocket" || !(d.hinges || []).length) return;
+      var fr = plan.fronts.filter(function (f) { return f.master === "door" && Math.abs(f.LPX - r1(d.H)) < 0.6; })[0];
+      if (!fr) return;
+      var len = r1(d.to - d.from), cups = [];
+      fr.ops.forEach(function (o) {
+        var m = /^([\d.]+), 0, "([\d,]+)"/.exec(o.params); if (!m) return;
+        m[2].split(",").forEach(function (end) {
+          var v = +m[1];
+          // the front's REAL extent (its cut height, top 1 mm under the box top) — never the box, which is what went wrong
+          var ft = r1(d.to - HINGE_FRONT_OFFSET), fb = r1(ft - d.H);
+          cups.push(end === "2" ? fb + v : ft - v);
+        });
+      });
+      var plates = d.hinges.map(function (x) { return r1(d.from + x); });
+      var worst = 0;
+      plates.forEach(function (a) { var b = Math.min.apply(null, cups.map(function (c) { return Math.abs(c - a); })); if (b > worst) worst = b; });
+      cups.forEach(function (c) { var b = Math.min.apply(null, plates.map(function (a) { return Math.abs(c - a); })); if (b > worst) worst = b; });
+      if (worst > 1.5) stop.push("Hurð " + (i + 1) + " (" + r1(d.H) + "): lamaskálar í fronti passa ekki við lamaplötur í hlið (" + r1(worst) + " mm) — ekki skrifað, athuga hæð frontsins");
+    });
     plan.drawers = drawers; plan.doors = doors; plan.loose = loose;
     plan.defaults = defaults; plan.defaultsAccepted = false;
     if (plan.reviewed && defaults.length) { // reviewed in PRO = these defaults were looked at and accepted
