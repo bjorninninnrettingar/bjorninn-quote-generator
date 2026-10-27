@@ -240,6 +240,8 @@
   .approveBtn { font:inherit; font-size:.78rem; padding:4px 10px; border-radius:8px; border:1px solid #2e7d32; background:#e8f5e9; color:#1b5e20; cursor:pointer; }
   .approvedPill { font-size:.72rem; font-weight:600; padding:2px 8px; border-radius:999px; background:#e8f5e9; color:#1b5e20; }
   .ctWrap { text-align:right; }
+  .hxRow { display:flex; gap:10px; font-size:.8rem; padding:4px 2px; border-bottom:1px solid var(--line); }
+  .hxRow .t { color:var(--muted); white-space:nowrap; min-width:92px; }
   .ctAdd { font:inherit; font-size:.76rem; padding:3px 8px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--text); cursor:pointer; }
   .detail input[type="number"] { font:inherit; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:6px 9px; }
   .fuBtns { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
@@ -387,6 +389,9 @@
     <div class="fuMsg" id="dFuMsg"></div>
     <div class="row"><label>Tengiliðir</label><span class="ctWrap"><span id="dContacts"></span> <button type="button" class="ctAdd" id="dCtAdd">+ Tengja</button></span></div>
     <div id="dCtPick" style="display:none;"><input class="lpSearch" id="dCtSearch" type="text" placeholder="Leita að tengilið (nafn, netfang, sími)…" /><div class="lpResults" id="dCtResults"></div></div>
+
+    <button class="liToggle" id="hxToggleBtn" type="button">🕘 Saga ▾</button>
+    <div id="hxBody" class="liBody"></div>
 
     <button class="liToggle" id="vsToggleBtn" type="button">⚙️ Verðstillingar ▾</button>
     <div id="vsBody" class="liBody">
@@ -1302,6 +1307,36 @@
     };
   }
 
+  // ---- 🕘 Saga (2026-10-27) — this project's rows in Virkni 🔔 (written by the Virkni-logg automation on
+  // every Söluferli / Skipulag / Framleiðsla status change), newest first. Also gives "dagar í stöðu",
+  // which the tölfræði row can't (no stage history anywhere else). Lazy: fetched on first expand. ----
+  var VIRKNI = "tblPPMTlFhW0snk24";
+  function setupHistory(r) {
+    var body = document.getElementById("hxBody"), btn = document.getElementById("hxToggleBtn");
+    var name = String(r.fields["Heiti tækifæris / verkefnis"] || ""), tNo = (name.match(/^(T-\d+)/) || [])[1];
+    body.classList.remove("open"); body.innerHTML = ""; btn.textContent = "🕘 Saga ▾";
+    btn.style.display = tNo ? "" : "none";
+    var loaded = false;
+    btn.onclick = function () {
+      var o = body.classList.toggle("open");
+      btn.textContent = "🕘 Saga " + (o ? "▴" : "▾");
+      if (!o || loaded) return;
+      loaded = true;
+      body.innerHTML = '<div class="empty">Sæki…</div>';
+      var fml = 'FIND("' + tNo + ' |", ARRAYJOIN({Tækifæri}))';
+      api(VIRKNI, "filterByFormula=" + encodeURIComponent(fml) + "&sort%5B0%5D%5Bfield%5D=T%C3%ADmi&sort%5B0%5D%5Bdirection%5D=desc&maxRecords=30").then(function (d) {
+        var rows = d.records || [];
+        if (!rows.length) { body.innerHTML = '<div class="empty">Engin saga skráð enn.</div>'; return; }
+        var sala1 = rows.find(function (x) { return x.fields["Flokkur"] === "Sala"; });
+        var since = sala1 && sala1.fields["Tími"] ? Math.floor((Date.now() - new Date(sala1.fields["Tími"]).getTime()) / 86400000) : null;
+        body.innerHTML = (since != null ? '<div class="fuMsg">Í núverandi sölustöðu í ' + since + ' daga</div>' : "") + rows.map(function (x) {
+          var t = x.fields["Tími"] ? new Date(x.fields["Tími"]).toLocaleString("is-IS", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
+          return '<div class="hxRow"><span class="t">' + esc(t) + '</span><span>' + esc(String(x.fields["Texti"] || "").replace(name, "").trim()) + '</span></div>';
+        }).join("");
+      }, function () { body.innerHTML = '<div class="empty">Tókst ekki að sækja söguna.</div>'; });
+    };
+  }
+
   function openDetail(r) {
     var f = r.fields;
     document.getElementById("dName").textContent = f["Heiti tækifæris / verkefnis"] || "(ónefnt)";
@@ -1329,6 +1364,7 @@
     setupFollowUp(r);
     setupContacts(r);
     setupPriceSettings(r);
+    setupHistory(r);
     document.getElementById("dOpenPro").href = "/skipuleggja?pro=" + r.id + (k ? "&k=" + encodeURIComponent(k) : "");
     // Smíða & CNC (/smida, 2026-10-26): only for a project that has Eyðublöð (one-record check by its T-number)
     var smA = document.getElementById("dOpenSmida"), tNo = (String(f["Heiti tækifæris / verkefnis"] || "").match(/^(T-\d+)/) || [])[1];
