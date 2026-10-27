@@ -35,7 +35,7 @@ export const sentOf = (li) => PRODUCT_FIELDS.map((f) => idsKey(li[f]));
 
 // What the client may set (everything else is dropped silently, like the proxy's CREATABLE_FIELDS).
 export const PROJECT_FIELDS = ["Skrokka efni 🔲 viðskiptavinar", "Fronta efni viðskiptavinar 🖼️", "Borðplata viðskiptavinar 🍽️", "Skilaboð til skipulags",
-  "Höldur Viðskiptavinar ✊", "Litur á höldum 🎨", "Magn Halda 1",
+  "Höldur Viðskiptavinar ✊", "Litur á höldum 🎨", "Magn Halda 1", "Höldur Viðskiptavinar ✊2.0", "Magn halda 2.0", // one SKU per slot (G1, 2026-10-27)
   "Fronta efni 2.0 Viðskiptavinar 🖼️", "Innskúffufrontar [Handvalið]"]; // FR2 + inner drawer fronts default (2026-10-23)
 export const LINE_FIELDS = ["Rými 🏡", "Vöru reitur 1", "Vöru reitur 2", "Vöru reitur 3", "Magn", "🔑", "Skilaboð til skipulags", "Smíðagögn (JSON) 🔧",
   "Frontaefni #2", "Tegund innskúffu fronts"];
@@ -113,6 +113,48 @@ export async function listAll(at, table, formula, fields) {
   return out;
 }
 
+// Handles → the Tækifæri's two slots (G1, 2026-10-27). Airtable prices handles as Σprice("Höldur ✊") × "Magn Halda 1"
+// + Σprice("Höldur ✊2.0") × "Magn halda 2.0", and the quote PDF prints the same two rows. The drawing sends how many of
+// each SKU it uses (`handleSkus`); with one or two SKUs that is exact. More (Jey cut-to-size: 400/600/800/900/3000…)
+// can't fit two slots, so two of the used SKUs and a split of the TRUE total count are picked whose amount is the
+// smallest one ≥ the exact Σ nᵢ·pᵢ — at most one handle's price step too high, never low. (It used to send every SKU
+// with one count: every handle priced as the sum of all lengths, ~4×.) Ordering never reads these fields — each
+// Eyðublað's handle comes from its own Útfærslur in Keyra skipulag.
+export const PR_PRICE = "fldCJjSJWoUWyT7iv"; // Vörulisti "Söluverð Bjarnarins 💰" (án vsk)
+export function validHandleSkus(v) {
+  return Array.isArray(v) && v.length <= 24 && v.every((x) => x && REC_RE.test(String(x.id)) && Number.isInteger(x.n) && x.n >= 1 && x.n <= 500);
+}
+export function handleSlots(skus, priceOf) {
+  const by = new Map();
+  for (const x of skus || []) by.set(x.id, (by.get(x.id) || 0) + x.n);
+  const used = [...by].map(([id, n]) => ({ id, n, p: priceOf(id) || 0 })).sort((a, b) => b.n - a.n || a.p - b.p || (a.id < b.id ? -1 : 1));
+  if (used.length <= 2) return used.map(({ id, n }) => ({ id, n }));
+  const N = used.reduce((a, x) => a + x.n, 0), exact = used.reduce((a, x) => a + x.n * x.p, 0);
+  let best = null;
+  for (const X of used) for (const Y of used) {
+    if (X === Y || X.p > Y.p) continue;
+    for (let c2 = 0; c2 <= N; c2++) {
+      const t = (N - c2) * X.p + c2 * Y.p;
+      if (t < exact - 1e-6) continue;
+      const moved = Math.abs(N - c2 - X.n) + Math.abs(c2 - Y.n); // prefer the split closest to the real counts
+      if (!best || t < best.t - 1e-6 || (Math.abs(t - best.t) <= 1e-6 && moved < best.moved)) best = { t, moved, s: [{ id: X.id, n: N - c2 }, { id: Y.id, n: c2 }] };
+      break; // the first c2 that reaches `exact` is this pair's cheapest
+    }
+  }
+  return best.s.filter((x) => x.n > 0).sort((a, b) => b.n - a.n);
+}
+// the four Tækifæri fields for `skus`, prices read from Vörulisti
+export async function handleSlotFields(at, skus) {
+  const ids = [...new Set(skus.map((x) => x.id))], price = {};
+  if (!ids.length) return {};
+  const f = "OR(" + ids.map((id) => `RECORD_ID()='${id}'`).join(",") + ")";
+  const d = await at("GET", `tblzuuRSRkeXaLWxC?filterByFormula=${encodeURIComponent(f)}&returnFieldsByFieldId=true&fields%5B%5D=${PR_PRICE}`);
+  for (const r of d.records || []) price[r.id] = Number((r.fields || {})[PR_PRICE]) || 0;
+  const sl = handleSlots(skus, (id) => price[id]);
+  return { "Höldur Viðskiptavinar ✊": [sl[0].id], "Magn Halda 1": sl[0].n,
+    "Höldur Viðskiptavinar ✊2.0": sl[1] ? [sl[1].id] : [], "Magn halda 2.0": sl[1] ? sl[1].n : 0 };
+}
+
 // Every field name this endpoint uses, per table (api/field-check.js checks them daily).
 export function fieldDeps() {
   return {
@@ -138,12 +180,13 @@ export function validate(body) {
   if (typeof b.state !== "object" || !b.state) return "Skipulag vantar";
   const bad = validateLineItems(b.lineItems);
   if (bad) return bad;
-  for (const v of [b.project?.["Skrokka efni 🔲 viðskiptavinar"], b.project?.["Fronta efni viðskiptavinar 🖼️"], b.project?.["Borðplata viðskiptavinar 🍽️"], b.project?.["Höldur Viðskiptavinar ✊"], b.project?.["Fronta efni 2.0 Viðskiptavinar 🖼️"]]) {
+  for (const v of [b.project?.["Skrokka efni 🔲 viðskiptavinar"], b.project?.["Fronta efni viðskiptavinar 🖼️"], b.project?.["Borðplata viðskiptavinar 🍽️"], b.project?.["Höldur Viðskiptavinar ✊"], b.project?.["Höldur Viðskiptavinar ✊2.0"], b.project?.["Fronta efni 2.0 Viðskiptavinar 🖼️"]]) {
     if (v != null && !(Array.isArray(v) && v.every((x) => REC_RE.test(x)))) return "Ógild tenging";
   }
   // typecast:true would turn any text into a new select choice / a stray number — keep these to what the planner sends
   const p = b.project || {};
-  if (p["Magn Halda 1"] != null && !(Number.isInteger(p["Magn Halda 1"]) && p["Magn Halda 1"] >= 0 && p["Magn Halda 1"] <= 500)) return "Ógilt Magn Halda";
+  if (b.handleSkus != null && !validHandleSkus(b.handleSkus)) return "Ógildar höldur";
+  for (const f of ["Magn Halda 1", "Magn halda 2.0"]) if (p[f] != null && !(Number.isInteger(p[f]) && p[f] >= 0 && p[f] <= 500)) return "Ógilt Magn Halda";
 
   return null;
 }
@@ -203,6 +246,7 @@ export async function submit(at, body) {
     for (const li of body.lineItems) liSent[li["🔑"]] = sentOf(li);
     let json = JSON.stringify(Object.assign({}, body.state, { submissionId: sid, liSent }));
     const fields = pick(body.project, PROJECT_FIELDS);
+    if (body.handleSkus && body.handleSkus.length) Object.assign(fields, await handleSlotFields(at, body.handleSkus));
     if (fields["Litur á höldum 🎨"] != null) fields["Litur á höldum 🎨"] = shortLabel(fields["Litur á höldum 🎨"]);
     if (json.length > PLANNER_JSON_MAX) { // Airtable's long text holds 100 000 characters: a huge multi-room drawing
       // must not lose the whole submission — keep what resuming and pro Vista need, and say so (2026-10-25)

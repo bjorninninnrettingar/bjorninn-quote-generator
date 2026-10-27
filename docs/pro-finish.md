@@ -557,3 +557,19 @@ Owner: the most important page in the company; the first version read like a for
   office key: Skipulagsferli → Yfirfara → "3. Smíða & CNC" (Opna hér / ↗), the Verk-í-vinnslu project popup on
   /skrifstofa ("Smíða & CNC →", shown when it has Eyðublöð), and the CRM deal ("Smíða & CNC →", same rule).
   No sidebar entry: /smida is per project, like the others reached from a project.
+
+## PRO 90 % round (2026-10-27) — from the overnight scan (scratch/morgun-pro.md §3)
+
+**G1 — handles priced per SKU.** `handleHardwareSummary()` sent every length it used (Jey: 400/600/700/3000…) as
+"Höldur Viðskiptavinar ✊" with ONE "Magn Halda 1"; Airtable's höldur formula (fld5N9nsHCOQroGzT = Σprice(✊)×Magn 1 +
+Σprice(✊2.0)×Magn 2) and kp-price multiplied the SUM of the lengths by the total → ~60 þús kr per handle (T-199:
+1,262,072 kr for 21). Now the drawing sends `handleSkus: [{id, n}]` (all rooms, `projectHandleSkus()`) to kp-submit,
+kp-pro and kp-price; the server reads Vörulisti prices and `handleSlots()` (api/kp-submit.js) fills the two slots:
+one/two SKUs exact; more → two used SKUs and a split of the true total whose amount is the smallest ≥ the exact Σnᵢpᵢ
+(≤ one price step high, never low). Welcome kitchen (34 Jey, 6 lengths): 3,027,088 → 453,377 kr (= exact);
+T-199-like (21 Jey: 6×400 8×600 4×700 3×3000): 1,262,072 → 288,895 kr (exact 287,010).
+- Known limit: with 3+ SKUs the slot NAMES on the quote PDF are an equivalent split (e.g. "26 × Jey 800 + 8 × Jey 700"),
+  only the amount and total count are true. A truly per-line handle would need Airtable changes (handle Útfærslur
+  exist with "Söluverð fyrir V3 án halda" = 0, i.e. handles are priced on the Tækifæri by design).
+- Ordering is unaffected: Keyra skipulag puts each Eyðublað's handle from its own Útfærslur, never from the Tækifæri.
+- kp-pro: a one-SKU drawing never clears a Halda 2 the drawing didn't write (`HANDLE2` rule); one it wrote is cleared.

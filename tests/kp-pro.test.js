@@ -188,3 +188,38 @@ test("a newer save from another computer stops Vista with 409 (savedAt), force o
   assert.equal(validate(body({ basedOn: "nope" })), "Ógilt basedOn");
   assert.equal(validate(body({ force: "yes" })), "Ógilt force");
 });
+
+// G1 (2026-10-27): handles go as per-SKU counts; Vista writes Airtable's two priced slots. A one-SKU drawing never
+// clears a Halda 2 that was set by hand (the drawing never sent one).
+test("handleSkus → Höldur ✊ / ✊2.0 slots, Halda 2 set by hand survives a one-SKU drawing", async () => {
+  const H1 = "recHANDLE11111111", H2 = "recHANDLE22222222", H3 = "recHANDLE33333333", HX = "recHANDLEXXXXXXXX";
+  const prices = { [H1]: 10000, [H2]: 12000, [H3]: 20000 };
+  const run = async (skus, oppExtra, projSent) => {
+    const f = fakeFetch((call) => {
+      if (call.method === "GET" && call.url.includes(`tbl4LMXlQjp66RFKI/${OPP}`))
+        return { status: 200, body: { id: OPP, fields: Object.assign({ "Heiti tækifæris / verkefnis": "T-227 | Prófun",
+          "Sjálfsafgreiðsla skipulag (JSON) 📐": JSON.stringify({ submissionId: "sid-1", projSent }) }, oppExtra) } };
+      if (call.method === "GET" && call.url.includes("tblzuuRSRkeXaLWxC"))
+        return { status: 200, body: { records: Object.keys(prices).filter((id) => decodeURIComponent(call.url).includes(id)).map((id) => ({ id, fields: { fldCJjSJWoUWyT7iv: prices[id] } })) } };
+      return routes(call);
+    });
+    await save(makeAirtable("t", { fetchImpl: f, delays: [] }), { recordId: OPP, state: { walls: [] }, smida: {}, project: {}, handleSkus: skus });
+    return f.calls.find((c) => c.method === "PATCH" && c.url.includes("tbl4LMXlQjp66RFKI")).body.records[0].fields;
+  };
+  let p = await run([{ id: H1, n: 10 }, { id: H3, n: 2 }], { "Höldur Viðskiptavinar ✊": [H1, H2, H3], "Magn Halda 1": 12 });
+  assert.deepEqual(p["Höldur Viðskiptavinar ✊"], [H1]);
+  assert.equal(p["Magn Halda 1"], 10);
+  assert.deepEqual(p["Höldur Viðskiptavinar ✊2.0"], [H3]);
+  assert.equal(p["Magn halda 2.0"], 2);
+  // one SKU, Halda 2 set by hand in Airtable, drawing never sent a Halda 2 → untouched
+  p = await run([{ id: H1, n: 10 }], { "Höldur Viðskiptavinar ✊": [H1], "Magn Halda 1": 4, "Höldur Viðskiptavinar ✊2.0": [HX], "Magn halda 2.0": 3 });
+  assert.equal(p["Magn Halda 1"], 10);
+  assert.equal(p["Höldur Viðskiptavinar ✊2.0"], undefined);
+  assert.equal(p["Magn halda 2.0"], undefined);
+  // …but one the drawing wrote itself is cleared when it drops to one SKU
+  p = await run([{ id: H1, n: 10 }], { "Höldur Viðskiptavinar ✊": [H1], "Magn Halda 1": 10, "Höldur Viðskiptavinar ✊2.0": [H3], "Magn halda 2.0": 2 },
+    { "Höldur Viðskiptavinar ✊2.0": H3, "Magn halda 2.0": "2" });
+  assert.deepEqual(p["Höldur Viðskiptavinar ✊2.0"], []);
+  assert.equal(p["Magn halda 2.0"], 0);
+  assert.equal(validate({ recordId: OPP, state: { walls: [] }, smida: {}, handleSkus: [{ id: H1, n: -1 }] }), "Ógildar höldur");
+});

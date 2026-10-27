@@ -9,7 +9,9 @@
 //     efniskostnaður = skrokkplata × "% af plötu (Skrokkar)"(V1) + frontaplata × "fm fronta"(V1+V2)
 //                    + borðplata × "% í Borðplötu"(V1) + hurðaefni × "% í Hurð"(V1) + KL m-verð × "metrar í KL"(V1)
 //   "Endanlegt" per line = einingarverð × Magn × 1.24;   💰 Tilboðsupphæð = Σ lines + höldur
-//   höldur = Σ "Söluverð Bjarnarins 💰" of the picked handles × "Magn Halda 1" × 1.24 (+ handle 2, read as-is)
+//   höldur = (Σ "Söluverð Bjarnarins 💰" of "Höldur ✊" × "Magn Halda 1" + Σ of "Höldur ✊2.0" × "Magn halda 2.0") × 1.24
+//   — the drawing sends ONE SKU per slot with its own count (kitchen-planner-hwfold.js, G1 2026-10-27; it used to send
+//   every length with one total count, ~4× too much). Halda 2 not sent / empty → the Tækifæri's own, as before.
 //
 // A line the drawing hasn't changed (same V1/V2/V3 + Magn as in Airtable, same materials as the Tækifæri)
 // shows Airtable's own Einingarverð — that one also honours price locks (Læst einingarverð 🔒). Every other line
@@ -18,7 +20,7 @@
 //
 // Purchase prices (plate costs) are used here only — the response carries sale prices. Behind VERK_KEY.
 
-import { makeAirtable, listAll, idsKey } from "./kp-submit.js";
+import { makeAirtable, listAll, idsKey, validHandleSkus, handleSlots } from "./kp-submit.js";
 
 const PROJECTS = "tbl4LMXlQjp66RFKI", LINE_ITEMS = "tblFcsUoGxsuUwNEH", VARIANTS = "tbl8HjvBwNJ41cTV0";
 const MATERIALS = "tbl8CrVWKF8CuI7HD", PRODUCTS = "tblzuuRSRkeXaLWxC";
@@ -31,7 +33,7 @@ const DEFAULT_MARKUP = 2.05; // "❗Álagning á efniskostnað❗" default on a 
 const P = {
   name: "fldDC7LI0D4cUeCds", carcass: "fldw1MDJEpQhPhDQf", front: "fldU92py68muVPDA4", front2: "fldOb7qomhuRyNLAg", top: "fld3r8ZXf6Bxfamv6", door: "fldsbpUfOGNep0VFo",
   kl: "flds96p2Mv09ZiSBg", hidden: "fldxxGsEY1GkEw4BB", small: "fldK6wXoyRovdAFqq",
-  h1: "fldtFyOJnSYidfqjI", h1n: "fldroX7FdGTb9c296", h2price: "fldL4wEZyEzZxGwPT", h2n: "fldomhPpb5hmcHvl7",
+  h1: "fldtFyOJnSYidfqjI", h1n: "fldroX7FdGTb9c296", h2: "fldlSL5R56dut2whK", h2price: "fldL4wEZyEzZxGwPT", h2n: "fldomhPpb5hmcHvl7",
   handlesLive: "fld5N9nsHCOQroGzT", handlesNow: "fldYsA3vFjGHXYN3B", total: "fldeXc2zWOrmaGtkC",
 };
 // Útfærslur
@@ -67,7 +69,9 @@ export function validate(body) {
   const m = b.materials || {};
   for (const f of ["carcass", "front", "front2", "top"]) if (m[f] != null && !REC_RE.test(m[f])) return "Ógilt efni";
   if (m.handles != null && !(Array.isArray(m.handles) && m.handles.length <= 8 && m.handles.every((x) => REC_RE.test(x)))) return "Ógildar höldur";
-  if (m.handleCount != null && !(Number.isFinite(m.handleCount) && m.handleCount >= 0 && m.handleCount <= 9999)) return "Ógilt magn halda";
+  if (m.handles2 != null && !(Array.isArray(m.handles2) && m.handles2.length <= 8 && m.handles2.every((x) => REC_RE.test(x)))) return "Ógildar höldur";
+  if (m.handleSkus != null && !validHandleSkus(m.handleSkus)) return "Ógildar höldur";
+  for (const f of ["handleCount", "handleCount2"]) if (m[f] != null && !(Number.isFinite(m[f]) && m[f] >= 0 && m[f] <= 9999)) return "Ógilt magn halda";
   const pr = b.project;
   if (pr != null) {
     if (typeof pr !== "object") return "Ógilt verkefni";
@@ -91,6 +95,9 @@ export function unitPrice({ v1 = [], v2 = [], v3 = [], qty = 1, disc = 0, markup
   const gross = sum(v1, V.price) + sum(v2, V.price) + sum(v3, V.priceV3) + material * markup;
   return gross / VAT * (1 - (disc || 0)) * (1 - (proj.hidden || 0)) * (proj.small || 1);
 }
+
+// Airtable's "höldur" formula (fld5N9nsHCOQroGzT): (price₁ × Magn Halda 1 + price₂ × Magn halda 2.0) × 1.24
+export const handleTotal = (p1, n1, p2, n2) => Math.round(((p1 || 0) * (n1 || 0) + (p2 || 0) * (n2 || 0)) * VAT);
 
 async function byIds(at, table, list, fields) {
   const out = {};
@@ -118,15 +125,21 @@ export async function price(at, body) {
   const pick = { carcass: m.carcass || first(pf[P.carcass]), front: m.front || first(pf[P.front]), front2: m.front2 || first(pf[P.front2]), top: m.top || first(pf[P.top]), door: first(pf[P.door]) };
   const materialsChanged = ["carcass", "front", "front2", "top"].filter((k) => m[k] && m[k] !== first(pf[P[k]]));
   const sameMaterials = !materialsChanged.length;
-  const handleIds = m.handles != null ? m.handles : ids(pf[P.h1]);
-  const handleCount = m.handleCount != null ? m.handleCount : num(pf[P.h1n]);
+  // per-SKU counts → the same two slots Vista writes (kp-submit handleSlots, needs the prices first)
+  const skuRecs = m.handleSkus && m.handleSkus.length ? await byIds(at, PRODUCTS, m.handleSkus.map((x) => x.id), [PR_PRICE]) : null;
+  const slots = skuRecs ? handleSlots(m.handleSkus, (id) => num((skuRecs[id] || {})[PR_PRICE])) : null;
+  const handleIds = slots ? [slots[0].id] : m.handles != null ? m.handles : ids(pf[P.h1]);
+  const handleCount = slots ? slots[0].n : m.handleCount != null ? m.handleCount : num(pf[P.h1n]);
+  const own2 = slots ? slots.length > 1 : !!(m.handles2 && m.handles2.length); // the drawing's Halda 2; else the Tækifæri's (maybe set by hand)
+  const handleIds2 = own2 ? (slots ? [slots[1].id] : m.handles2) : ids(pf[P.h2]);
+  const handleCount2 = own2 ? (slots ? slots[1].n : m.handleCount2 || 0) : num(pf[P.h2n]);
 
   const allV = [];
   for (const li of body.lines) allV.push(...(li.v1 || []), ...(li.v2 || []), ...(li.v3 || []));
   for (const r of rows) for (const f of ["Vöru reitur 1", "Vöru reitur 2", "Vöru reitur 3"]) allV.push(...ids(r.fields[f]));
   const variants = allV.length ? await byIds(at, VARIANTS, allV, Object.values(V)) : {};
   const matRecs = await byIds(at, MATERIALS, [pick.carcass, pick.front, pick.front2, pick.top, pick.door].filter(Boolean), [M_PLATE, M_COST]);
-  const handleRecs = handleIds.length ? await byIds(at, PRODUCTS, handleIds, [PR_PRICE]) : {};
+  const handleRecs = skuRecs || (handleIds.length || own2 ? await byIds(at, PRODUCTS, [...handleIds, ...(own2 ? handleIds2 : [])], [PR_PRICE]) : {});
 
   const mat = {
     carcass: num((matRecs[pick.carcass] || {})[M_PLATE]), front: num((matRecs[pick.front] || {})[M_PLATE]), front2: num((matRecs[pick.front2] || {})[M_PLATE]),
@@ -169,9 +182,11 @@ export async function price(at, body) {
   });
 
   // handles: the Tækifæri's own (possibly locked) number unless the drawing changed handle or count
-  const handlesChanged = idsKey(handleIds) !== idsKey(ids(pf[P.h1])) || handleCount !== num(pf[P.h1n]);
+  const handlesChanged = idsKey(handleIds) !== idsKey(ids(pf[P.h1])) || handleCount !== num(pf[P.h1n]) ||
+    idsKey(handleIds2) !== idsKey(ids(pf[P.h2])) || handleCount2 !== num(pf[P.h2n]);
+  const priceOf = (list) => list.reduce((a, id) => a + num((handleRecs[id] || {})[PR_PRICE]), 0);
   const handlesTotal = handlesChanged
-    ? Math.round((handleIds.reduce((a, id) => a + num((handleRecs[id] || {})[PR_PRICE]), 0) * handleCount + num(pf[P.h2price]) * num(pf[P.h2n])) * VAT)
+    ? handleTotal(priceOf(handleIds), handleCount, own2 ? priceOf(handleIds2) : num(pf[P.h2price]), handleCount2)
     : Math.round(num(pf[P.handlesNow]));
 
   const linesTotal = lines.reduce((a, l) => a + l.total, 0) + other.reduce((a, l) => a + l.total, 0);
@@ -179,7 +194,8 @@ export async function price(at, body) {
   // changes. The Tækifæri's own Tilboðsupphæð also holds parts that aren't lines (D3, 2026-10-26: "−4,154,620 þegar þú
   // vistar" on T-32 was just that difference, Vista wouldn't cut the quote by it).
   const airtableLinesTotal = Math.round(rows.filter((r) => num(r.fields["Magn"])).reduce((a, r) => a + num(r.fields["Einingarverð"]) * num(r.fields["Magn"]) * VAT, 0) + num(pf[P.handlesNow]));
-  return { lines, other, handles: { count: handleCount, total: handlesTotal, changed: handlesChanged, airtableCount: num(pf[P.h1n]), airtableTotal: Math.round(num(pf[P.handlesNow])) },
+  return { lines, other, handles: { count: handleCount + handleCount2, total: handlesTotal, changed: handlesChanged, airtableCount: num(pf[P.h1n]) + num(pf[P.h2n]), airtableTotal: Math.round(num(pf[P.handlesNow])) },
+    handleSlots: slots,
     hiddenDiscount: proj.hidden, small: "small" in po ? (po.small || null) : (first(pf[P.small]) || null), total: linesTotal + handlesTotal,
     airtableTotal: Math.round(num(pf[P.total])), airtableLinesTotal, materialsChanged, drift };
 }

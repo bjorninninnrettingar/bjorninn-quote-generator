@@ -25,7 +25,7 @@
 // útgáfu" / "Skrifa samt yfir" (the latter = `force: true`). A page that sends no basedOn at all (an old cached copy)
 // is not checked. The reply carries the new proSavedAt for the next Vista.
 
-import { makeAirtable, listAll, linesOfProject, validateLineItems, LINE_FIELDS, PRODUCT_FIELDS, PROJECT_FIELDS, INNER_FRONTS, idsKey, sentOf } from "./kp-submit.js";
+import { makeAirtable, listAll, linesOfProject, validateLineItems, LINE_FIELDS, PRODUCT_FIELDS, PROJECT_FIELDS, INNER_FRONTS, idsKey, sentOf, validHandleSkus, handleSlotFields } from "./kp-submit.js";
 
 const PROJECTS = "tbl4LMXlQjp66RFKI";
 const VARIANTS = "tbl8HjvBwNJ41cTV0";              // Útfærslur 🎨 (what V1/V2/V3 link to)
@@ -42,6 +42,7 @@ const KEY_RE = /^(Sk|HU|BP|BV|BH)\d{1,3}$/; // cabinets Sk1…, room doors HU1�
 // rule: the drawing's value is written unless it is unchanged since the drawing last sent it AND Airtable has
 // been changed by hand since (then Airtable's pick stays). `projSent` in the planner JSON remembers what was sent.
 export const PROJECT_SYNC = PROJECT_FIELDS.filter((f) => f !== "Skilaboð til skipulags");
+const HANDLE2 = ["Höldur Viðskiptavinar ✊2.0", "Magn halda 2.0"];
 const projVal = (v) => (Array.isArray(v) ? idsKey(v) : v == null ? "" : String(v));
 const LINE_EXTRA = ["Frontaefni #2", "Tegund innskúffu fronts"];
 // The worktop's lines (2026-10-26): BP = m² of worktop, BV/BH = sink/hob cutouts. Their Magn follows the drawing (a
@@ -72,11 +73,12 @@ export function validate(body) {
     if (typeof b.project !== "object") return "Ógilt efnisval";
     for (const [f, v] of Object.entries(b.project)) {
       if (!PROJECT_SYNC.includes(f)) return "Ógilt efnisval: " + f;
-      if (f === "Magn Halda 1" ? !(Number.isInteger(v) && v >= 0 && v <= 9999) : f === "Litur á höldum 🎨" ? !(typeof v === "string" && v.length <= 40) :
+      if (f === "Magn Halda 1" || f === "Magn halda 2.0" ? !(Number.isInteger(v) && v >= 0 && v <= 9999) : f === "Litur á höldum 🎨" ? !(typeof v === "string" && v.length <= 40) :
         f === "Innskúffufrontar [Handvalið]" ? !INNER_FRONTS.includes(v) :
         !(Array.isArray(v) && v.length <= 8 && v.every((x) => REC_RE.test(x)))) return "Ógilt efnisval: " + f;
     }
   }
+  if (b.handleSkus != null && !validHandleSkus(b.handleSkus)) return "Ógildar höldur";
   if (b.basedOn !== undefined && b.basedOn !== null && !(typeof b.basedOn === "string" && b.basedOn.length <= 40 && !isNaN(Date.parse(b.basedOn)))) return "Ógilt basedOn";
   if (b.force != null && typeof b.force !== "boolean") return "Ógilt force";
   if (b.resolve != null) {
@@ -171,11 +173,13 @@ export async function save(at, body) {
   // Materials/handles — see PROJECT_SYNC. Only fields the drawing actually has a value for are touched.
   const oldProj = old.projSent && typeof old.projSent === "object" ? old.projSent : {};
   const projFields = {}, projSent = Object.assign({}, oldProj), projectUpdated = [];
+  if (body.handleSkus && body.handleSkus.length) body.project = Object.assign({}, body.project, await handleSlotFields(at, body.handleSkus)); // priced slots (G1)
   for (const [f, v] of Object.entries(body.project || {})) {
     const D = projVal(v), A = projVal((opp.fields || {})[f]), B = oldProj[f];
     projSent[f] = D;
     if (A === D) continue;
     if (B !== undefined && D === B && A !== B) { projSent[f] = B; continue; } // hand-changed in Airtable, drawing untouched
+    if (B === undefined && HANDLE2.includes(f) && (D === "" || D === "0")) { delete projSent[f]; continue; } // a one-SKU drawing never clears a Halda 2 set by hand
     projFields[f] = v;
     projectUpdated.push(f);
   }

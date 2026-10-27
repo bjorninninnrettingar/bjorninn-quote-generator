@@ -86,3 +86,47 @@ test("project override scales unchanged lines (not price-locked ones) and every 
   assert.equal(validate({ recordId: A, lines: [], project: { hidden: 1.5 } }), "Ógildur afsláttur");
   assert.equal(validate({ recordId: A, lines: [], project: { small: "Smáverk 99%" } }), "Ógild smáverka álagning");
 });
+
+// G1 (2026-10-27): the drawing used to send every Jey length it used (T-199: 3000/700/600/400) with ONE total count, and
+// Airtable + kp-price multiplied the SUM of the four prices by it — ~60 þús kr per handle. Now per-SKU counts → two slots.
+import { handleTotal } from "../api/kp-price.js";
+import { handleSlots, validHandleSkus } from "../api/kp-submit.js";
+const J = { 400: "recQGHrPjDouWUj0A", 600: "rechBGAe17iY6inFO", 700: "recxzCrwZZ7j6nqXn", 800: "recY9RrTFxsdeY46T", 900: "rec0gWmUzXpUOpPJS", 3000: "recdJl732T43gWNAC" };
+const JP = { [J[400]]: 8446.666666666668, [J[600]]: 10066.666666666668, [J[700]]: 10386.666666666668, [J[800]]: 10866.666666666668, [J[900]]: 12466.666666666668, [J[3000]]: 19566.666666666668 };
+const priceOf = (id) => JP[id];
+const slotsTotal = (sl) => handleTotal(JP[sl[0].id], sl[0].n, sl[1] ? JP[sl[1].id] : 0, sl[1] ? sl[1].n : 0);
+
+test("handleSlots: one or two SKUs exact; more → two used SKUs, true total count, smallest amount ≥ exact", () => {
+  assert.deepEqual(handleSlots([{ id: J[600], n: 4 }, { id: J[600], n: 2 }], priceOf), [{ id: J[600], n: 6 }]);
+  assert.deepEqual(handleSlots([{ id: J[600], n: 4 }, { id: J[3000], n: 2 }], priceOf), [{ id: J[600], n: 4 }, { id: J[3000], n: 2 }]);
+  // the welcome-page kitchen (PRO, Jey): 3×400 16×600 1×700 8×800 5×900 1×3000 = 34 handles
+  const s = [{ id: J[400], n: 3 }, { id: J[600], n: 16 }, { id: J[700], n: 1 }, { id: J[800], n: 8 }, { id: J[900], n: 5 }, { id: J[3000], n: 1 }];
+  const exact = handleTotal(s.reduce((a, x) => a + x.n * JP[x.id], 0), 1, 0, 0);
+  const sl = handleSlots(s, priceOf);
+  assert.equal(sl.length, 2);
+  assert.equal(sl[0].n + sl[1].n, 34);
+  const t = slotsTotal(sl);
+  assert.ok(t >= exact && t - exact <= Math.round((19566.67 - 8446.67) * 1.24), `${t} vs exact ${exact}`); // ≤ one price step high, never low
+  const old = handleTotal(Object.values(JP).reduce((a, p) => a + p, 0), 34, 0, 0);
+  assert.ok(t < old / 5);
+  assert.equal(validHandleSkus([{ id: J[600], n: 2 }]), true);
+  assert.equal(validHandleSkus([{ id: "x", n: 2 }]), false);
+  assert.equal(validHandleSkus([{ id: J[600], n: 0 }]), false);
+});
+
+test("T-199 (21 Jey handles, 4 lengths): was 1,262,072 kr", () => {
+  assert.equal(handleTotal(JP[J[400]] + JP[J[600]] + JP[J[700]] + JP[J[3000]], 21, 0, 0), 1262072);
+});
+
+test("price(): handleSkus → the two priced slots, the same Vista writes", async () => {
+  const opp = { id: "recOPP0000000000a", fields: { fldDC7LI0D4cUeCds: "T-99 | Prófun", fldtFyOJnSYidfqjI: [J[400], J[600], J[700], J[3000]], fldroX7FdGTb9c296: 21, fldYsA3vFjGHXYN3B: 1262072 } };
+  const at = async (method, path) => path.startsWith("tbl4LMXlQjp66RFKI/") ? opp : path.startsWith("tblFcsUoGxsuUwNEH") ? { records: [] }
+    : path.startsWith("tblzuuRSRkeXaLWxC") ? { records: Object.keys(JP).filter((id) => decodeURIComponent(path).includes(id)).map((id) => ({ id, fields: { fldCJjSJWoUWyT7iv: JP[id] } })) } : { records: [] };
+  const skus = [{ id: J[400], n: 6 }, { id: J[600], n: 8 }, { id: J[700], n: 4 }, { id: J[3000], n: 3 }];
+  const d = await price(at, { recordId: opp.id, lines: [], materials: { handleSkus: skus } });
+  assert.equal(d.handles.changed, true);
+  assert.equal(d.handles.count, 21);
+  assert.deepEqual(d.handleSlots, handleSlots(skus, priceOf));
+  assert.equal(d.handles.total, slotsTotal(d.handleSlots));
+  assert.equal(validate({ recordId: A, lines: [], materials: { handleSkus: [{ id: "x", n: 1 }] } }), "Ógildar höldur");
+});
