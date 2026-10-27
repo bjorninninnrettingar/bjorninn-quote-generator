@@ -12399,7 +12399,7 @@
       openEfni:function(){ proOpenEfniAt("top"); } }, focus);
   }
   function collectLineItems(){
-    var rows = [], keys = skKeys(), bom = lightingBOM(), driverPlaced = false;
+    var rows = [], keys = skKeys(), bom = lightingBOM(), driverPlaced = false, fp = projectFrontPlan();
     surfaces().forEach(function(wall){
       wall.floor.concat(wall.wall).forEach(function(b){
         var c = CATALOG[b.type];
@@ -12482,7 +12482,8 @@
         }
         if (v3.length) fields["Vöru reitur 3"] = v3;
         fields["Smíðagögn (JSON) 🔧"] = JSON.stringify(smidaFor(b, c, zone_ofBlock(wall, b))); // sizes + contents → Eyðublað
-        fields["Frontaefni #2"] = !!(b.front2 && state.look2); // → Eyðublað "Frontaefni #2" (Keyra skipulag) + priced on FR2's plate
+        var fid = b.front2 && state.look2 && LOOKS[state.look2] ? LOOKS[state.look2].efnislistiId : lookFrontId(state.look, state.handle);
+        fields["Frontaefni #2"] = !!(fp.fr2 && fid === fp.fr2); // → Eyðublað "Frontaefni #2" (Keyra skipulag) + priced on FR2's plate; FR2 may be another room's front (G2)
         if (hasInnerDrawers(b, c) && b.innerFront) fields["Tegund innskúffu fronts"] = b.innerFront;
         if (notes.length) fields["Skilaboð til skipulags"] = notes.join(" ");
         rows.push(fields);
@@ -12519,15 +12520,49 @@
     if (state.innerFront) project["Innskúffufrontar [Handvalið]"] = state.innerFront;
     return project;
   }
-  // The Tækifæri has ONE set of materials — a project with several rooms (eldhús + fataskápur) is priced on the
-  // first room's, same as Airtable has always done.
+  // Fronts across rooms (G2, 2026-10-27). The Tækifæri has two front materials — "Fronta efni" (FR1) and "Fronta efni
+  // 2.0" (FR2) — and each Line Item says which with "Frontaefni #2" (→ Eyðublað → Sögunarlisti saws/prices it on FR2).
+  // A bath in Halifax eik next to a white kitchen used to go in as kitchen front. In drawing order: the first room's
+  // front = FR1, the next different one actually used (that room's look2, or another room's look) = FR2; a third → `extra`
+  // (Yfirferð ⛔ — the Tækifæri can't hold it). Reads the rooms' saved blobs, so it's safe inside withEachCategory.
+  function lookFrontId(lookKey, handle){
+    var r = lookKey && LOOKS[lookKey];
+    return r ? (handle === "sponagrip" && r.gripalistarId ? r.gripalistarId : r.efnislistiId) || null : null;
+  }
+  function projectFrontPlan(){
+    var queue = (state.categoryQueue && state.categoryQueue.length) ? state.categoryQueue : [state.activeCategory || "eldhus"];
+    var act = SK_SAVED_ACTIVE || state, ids = [], who = {};
+    function add(id, cat, look){
+      if (!id) return;
+      var cd = categoryDef(cat), nm = (state.home && state.home.names && state.home.names[cat]) || (cd && cd.label) || cat;
+      if (ids.indexOf(id) < 0){ ids.push(id); who[id] = { label:(LOOKS[look] || {}).label || look, rooms:[] }; }
+      if (who[id].rooms.indexOf(nm) < 0) who[id].rooms.push(nm);
+    }
+    queue.forEach(function(cat){
+      var blob = cat === state.activeCategory || (!state.activeCategory && !state.categoryData) ? act : (state.categoryData || {})[cat];
+      var cd = categoryDef(cat); if (!blob || (cd && cd.plain)) return;
+      var st = {}; Object.keys(state).forEach(function(k){ st[k] = state[k]; }); ROOM_FIELDS.forEach(function(k){ st[k] = blob[k]; });
+      var blocks = []; KP3D.surfacesOf(st).forEach(function(w){ blocks = blocks.concat(w.floor, w.wall); });
+      if (!blocks.length) return;
+      var two = blob.look2 && LOOKS[blob.look2] ? LOOKS[blob.look2].efnislistiId : null;
+      if (blocks.some(function(b){ return !(b.front2 && two); })) add(lookFrontId(blob.look, blob.handle), cat, blob.look);
+      if (two && blocks.some(function(b){ return b.front2; })) add(two, cat, blob.look2);
+    });
+    return { fr1:ids[0] || null, fr2:ids[1] || null, extra:ids.slice(2), who:who };
+  }
+  // The Tækifæri has ONE set of other materials (carcass, worktop, handles colour) — the first room's, as always; the
+  // fronts follow projectFrontPlan.
   function projectMaterialFields(){
     var out = null;
     withEachCategory(function(cat){
       var cd = categoryDef(cat); if (cd && cd.plain) return; // (a plain room has no materials)
       if (!out) out = materialFieldsNow();
     });
-    return out || materialFieldsNow();
+    out = out || materialFieldsNow();
+    var fp = projectFrontPlan();
+    if (fp.fr1) out["Fronta efni viðskiptavinar 🖼️"] = [fp.fr1];
+    if (fp.fr2) out["Fronta efni 2.0 Viðskiptavinar 🖼️"] = [fp.fr2];
+    return out;
   }
 
   // Before anything is sent (2026-10-25): every drawer stack in every room has its combo product. One made on the spot
@@ -17508,6 +17543,7 @@
           und.length ? "Óákveðið (sjálfgefið sett inn): " + und.map(function(r){ var m = r.undecided.map(function(k){ return MAT_AUTO_LABELS[k]; }).join(", ").toLowerCase(); return multi ? r.room + ": " + m : m; }).join(" · ") + ". Veldu í Efni eða staðfestu hér." :
           "Skrokkur, skúffukerfi, framhlið, höldur og borðplata." },
       wtCheckItem(f, multi),
+      frontCheckItem(),
       { key:"vara", ok:f.cabinets > 0 && !unl.length, title:"Hver eining tengd vöru", target:unl[0],
         picks:f.unlinked.filter(function(u){ return u.id; }),
         acks:f.unlinked.filter(function(u){ return !u.id; }).map(function(u){ return { id:"v1:" + u.key, label:u.key + (multi ? " (" + u.room + ")" : "") + " — Útfærsla valin í Airtable", on:!!ack["v1:" + u.key] }; }),
@@ -17519,6 +17555,14 @@
       { key:"abend", ok:wOk, title:"Ábendingar yfirfarnar", acks:f.warnings.length ? [{ id:"warn", label:"Ég hef farið yfir " + (f.warnings.length === 1 ? "ábendinguna" : "ábendingarnar"), on:wOk, sig:wSig }] : null,
         detail:f.warnings.length ? f.warnings.length + " " + plural(f.warnings.length, "ábending", "ábendingar") + ", t.d. „" + f.warnings[0] + "“" : "Engar ábendingar." }
     ]);
+  }
+  // G2 (2026-10-27): at most two front materials in a project (Fronta efni + Fronta efni 2.0 on the Tækifæri)
+  function frontCheckItem(){
+    var fp = projectFrontPlan(), all = [fp.fr1, fp.fr2].concat(fp.extra).filter(Boolean);
+    function d(id){ var w = fp.who[id]; return w.label + " (" + w.rooms.join(", ") + ")"; }
+    return { key:"frontar", ok:!fp.extra.length, title:all.length > 1 ? "Frontaefni: " + all.length + " í verkefninu" : "Frontaefni",
+      detail:fp.extra.length ? "Verkefnið rúmar tvö frontaefni, þetta hefur " + all.length + ": " + all.map(d).join(" · ") + ". Veldu sama efni í tveimur rýmum, eða skiptu í tvö verkefni." :
+        all.length > 1 ? "Frontaefni 1: " + d(fp.fr1) + " · Frontaefni 2: " + d(fp.fr2) + "." : all.length ? d(fp.fr1) + "." : "Ekkert frontaefni enn." };
   }
   // Borðplata (2026-10-26): a kitchen needs a worktop picked (or "Engin borðplata" on purpose), every corner joint of an
   // in-house top chosen (no default — differs per job), cutouts inside the board, and a stone top its price for the quote
@@ -17629,6 +17673,7 @@
     if (t && t.cat && state.activeCategory && t.cat !== state.activeCategory) openRoom(t.cat);
     // Laga → lands exactly on the fix (2026-10-26): the editor's Efni menu open at the missing field (e.g. Borðplata);
     // a room whose pages the menu doesn't hold (a wardrobe's size/doors) still gets its own materials page
+    if (x.key === "frontar"){ if (state.step !== "editor") goto("editor"); proOpenEfniAt("fronts"); return; }
     if (x.key === "efni"){ if (!(t && t.missingKeys && proOpenEfniAt(t.missingKeys[0]))){ matPhase = firstMissingPhase(); goto("materials"); } return; }
     if (!t) return;
     if (state.step !== "editor") goto("editor");

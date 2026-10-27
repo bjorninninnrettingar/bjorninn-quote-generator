@@ -577,3 +577,10 @@ T-199-like (21 Jey: 6×400 8×600 4×700 3×3000): 1,262,072 → 288,895 kr (exa
   master's own IKEALOM drills it (read from `~/bjorninn-cnc-mirror/Macros/IKEALOM/IKEALOM.bsm`): Ø35 cup at 22.5 mm from
   the door edge, two Ø8 holes at ±22.5 along the edge and 9.5 mm further in (32 mm from the edge), true scale, blue
   (grey while the hinge side is open). Still dragged like before.
+
+**G2 — front material per room.** The Tækifæri has two front fields; `projectFrontPlan()` walks the rooms in order:
+first room's front = "Fronta efni" (FR1), the next different front actually used (that room's look2 on `b.front2`
+blocks, or another room's look) = "Fronta efni 2.0" (FR2). Each line's "Frontaefni #2" = its own front is FR2 (so a
+Halifax bath next to a white kitchen goes to Keyra skipulag → Eyðublað FR2 → Sögunarlisti on the right board, and
+kp-price prices it on FR2's plate). A third front → Yfirferð ⛔ "Frontaefni: 3 í verkefninu" (Laga → Efni → Framhlið).
+Carcass, worktop and handle colour are still the first room's (one field each on the Tækifæri) — not checked yet.
