@@ -4308,13 +4308,15 @@
   // unlocked cabinet never gets (it's a single solid box with no interior geometry at all to reveal).
   // Every cabinet's front slab shares this ONE material object (frontSlab() never clones it), so
   // toggling it once affects the whole room; restore opacity 1 before the customer's own view returns.
-  function setXrayFronts(on){
+  // hide (owner, 2026-10-27): the fronts not drawn at all — the Efni colour page shows the empty box, not grey ghost doors
+  function setXrayFronts(on, hide){
     if (!THREE_STATE || !THREE_STATE.frontMat) return false;
     var m = THREE_STATE.frontMat;
     function strip(mat){
       mat.transparent = true;
       mat.opacity = on ? 0.1 : 1;
       mat.depthWrite = !on;
+      mat.visible = !(on && hide);
       mat.needsUpdate = true;
     }
     strip(m);
@@ -5397,7 +5399,7 @@
       } else if (def.model){ // a WC / a shower: the real model (the Húsgögn one), fitted to the box
         var mg = buildDecor(THREE, def.model, { kind:def.model }); mg.position.set(0, -hM / 2, 0);
         mg.scale.set(wM / (def.w / 1000), 1, dM / (def.d / 1000));
-        mg.traverse(function(o){ if (o.isMesh){ o.castShadow = true; o.receiveShadow = true; if (sel && o.material){ o.material = o.material.clone(); o.material.emissive = new THREE.Color(SELECT_COLOR); o.material.emissiveIntensity = 0.35; } } });
+        mg.traverse(function(o){ if (o.isMesh){ o.castShadow = !o.userData.noShadow; o.receiveShadow = true; if (sel && o.material){ o.material = o.material.clone(); o.material.emissive = new THREE.Color(SELECT_COLOR); o.material.emissiveIntensity = 0.35; } } });
         proxy.add(mg);
       } else if (def.look === "mirror"){ // a wall mirror: a thin pale frame, the glass a near-perfect reflector
         part(new THREE.BoxGeometry(wM, hM, dM), 0xece9e2, 0.4, 0, 0, hM / 2, 0);
@@ -7393,17 +7395,31 @@
       rbox(0.5, 1.75, 0.03, 0.01, 0, 0.9, 0, oak(1, 2), mf);
       var glass = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 1.64), mat(0xdfe6ea, 0.04, 1)); glass.position.set(0, 0.9, 0.016); add(glass, mf);
       rbox(0.04, 0.04, 0.24, 0.01, -0.2, 0.02, -0.08, dark); rbox(0.04, 0.04, 0.24, 0.01, 0.2, 0.02, -0.08, dark);
-    } else if (key === "sturta"){ // a 90×90 walk-in shower: low white tray, two glass walls on the open sides, a ceiling-high rail + rain head
-      var white = mat(0xf6f5f1, 0.25), glassS = mat(0xdfeef2, 0.05, 0, { transparent:true, opacity:0.22, side:THREE.DoubleSide });
-      rbox(0.9, 0.04, 0.9, 0.01, 0, 0.02, 0, white);
-      cyl(0.035, 0.035, 0.004, 0.25, 0.042, 0.25, steel, 20);
-      var gx = new THREE.Mesh(new THREE.BoxGeometry(0.008, 1.95, 0.9), glassS); gx.position.set(0.446, 1.015, 0); add(gx);
-      var gz = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.95, 0.008), glassS); gz.position.set(0.15, 1.015, 0.446); add(gz);
-      rbox(0.012, 0.012, 0.9, 0.003, 0.446, 1.99, 0, steel); rbox(0.6, 0.012, 0.012, 0.003, 0.15, 1.99, 0.446, steel);
-      cyl(0.011, 0.011, 1.15, -0.4, 1.25, -0.4, steel, 12);
-      tube([[-0.4, 1.82, -0.4], [-0.4, 1.95, -0.35], [-0.3, 1.97, -0.28]], 0.011, steel);
-      cyl(0.11, 0.11, 0.012, -0.28, 1.96, -0.26, steel, 32);
-      rbox(0.07, 0.12, 0.05, 0.01, -0.4, 1.05, -0.4, steel);
+    } else if (key === "sturta"){ // a walk-in shower (owner, 2026-10-27): no tray — the floor runs through to a linear drain at the wall;
+      // ONE frameless 8 mm glass screen on the open side (a slim wall profile + a stabiliser bar to the wall), its edges a
+      // touch green like real glass; a rain head on a riser and a thermostatic bar mixer on the wall. Wall at z = −0.45.
+      var glassFace = mat(0xe6f1f0, 0.02, 0, { transparent:true, opacity:0.14, depthWrite:false, envMapIntensity:1.4, side:THREE.DoubleSide });
+      var glassEdge = mat(0x9fc4bb, 0.1, 0, { transparent:true, opacity:0.75, envMapIntensity:1.2 });
+      var gW = 0.008, gH = 2.0, gL = 0.9, gx = 0.45 - gW / 2 - 0.006;
+      var screen = new THREE.Mesh(new THREE.BoxGeometry(gW, gH, gL - 0.012), [glassFace, glassFace, glassEdge, glassEdge, glassEdge, glassEdge]);
+      screen.position.set(gx, 0.012 + gH / 2, -0.45 + 0.012 + (gL - 0.012) / 2); screen.renderOrder = 2; screen.userData.noShadow = true; gr.add(screen); // (no shadow: clear glass)
+      rbox(0.022, gH, 0.022, 0.003, gx, 0.012 + gH / 2, -0.45 + 0.011, steel); // the wall profile it stands in
+      var bar = new THREE.Vector3(gx, 0.012 + gH - 0.02, 0.05), wallPt = new THREE.Vector3(0.12, 0.012 + gH - 0.02, -0.45), mid = bar.clone().add(wallPt).multiplyScalar(0.5), len = bar.distanceTo(wallPt);
+      var rod = cyl(0.007, 0.007, len, mid.x, mid.y, mid.z, steel, 12); rod.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), bar.clone().sub(wallPt).normalize());
+      cyl(0.016, 0.016, 0.012, wallPt.x, wallPt.y, wallPt.z + 0.006, steel, 16).rotation.x = Math.PI / 2; // the wall rose
+      rbox(0.02, 0.03, 0.03, 0.004, gx, bar.y, bar.z, steel); // the glass clamp
+      // linear drain along the wall: a brushed steel strip with a slotted grate
+      rbox(0.78, 0.004, 0.07, 0.002, -0.02, 0.002, -0.45 + 0.07, steel);
+      var slot = mat(0x2c2d30, 0.6); for (var k = 0; k < 18; k++) rbox(0.03, 0.002, 0.008, 0.001, -0.39 + k * 0.043, 0.0045, -0.45 + 0.07, slot);
+      // thermostatic bar mixer, riser with a hand shower, arm + 25 cm rain head
+      var mx = -0.12, mz = -0.45 + 0.04;
+      var mixer = cyl(0.026, 0.026, 0.32, mx, 1.05, mz, steel, 24); mixer.rotation.z = Math.PI / 2;
+      [-0.14, 0.14].forEach(function(dx){ cyl(0.034, 0.034, 0.03, mx + dx, 1.05, mz, steel, 24).rotation.z = Math.PI / 2; });
+      cyl(0.011, 0.011, 1.05, mx + 0.12, 1.6, mz, steel, 14); // riser
+      tube([[mx + 0.12, 2.12, mz], [mx + 0.12, 2.16, mz + 0.05], [mx + 0.12, 2.16, mz + 0.26]], 0.011, steel);
+      cyl(0.125, 0.125, 0.008, mx + 0.12, 2.145, mz + 0.3, steel, 40); // the rain head
+      var hs = cyl(0.018, 0.012, 0.22, mx + 0.12, 1.45, mz + 0.035, steel, 16); hs.rotation.x = 0.12; // hand shower on its slider
+      cyl(0.03, 0.03, 0.012, mx + 0.12, 1.57, mz + 0.045, steel, 24).rotation.x = Math.PI / 2 + 0.12;
     } else if (key === "klosett"){ // a wall-hung rimless WC (owner, 2026-10-27: "make it real-looking"): one lofted ceramic body —
       // flat on the wall, egg-shaped seen from above, curving in underneath back to the wall — a bevelled seat ring, a
       // soft-close lid, chrome hinges, the flush plate on the wall (the cistern is in the wall)

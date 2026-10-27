@@ -9950,7 +9950,7 @@
       if (prevCam) KP3D.setCameraLookAt(prevCam.p, prevCam.t);
       else KP3D.setCameraLookAt({ x:cx + g.normal.x * dist + g.axis.x * dist * 0.45, y:cy + hM * 0.1, z:cz + g.normal.z * dist + g.axis.z * dist * 0.45 }, { x:cx, y:cy, z:cz });
       st.controls.target.set(cx, cy, cz); st.controls.minPolarAngle = 0.2; st.controls.maxPolarAngle = 1.45;
-      if (!frontsOn) KP3D.setXrayFronts(true);
+      if (!frontsOn) KP3D.setXrayFronts(true, true); // the colour page: no fronts at all (owner, 2026-10-27: not grey ghost doors)
       swayPreview(st, Math.atan2(g.normal.x, g.normal.z));
       st.controls.update();
       drawerPagePeek(onDrw);
@@ -9991,7 +9991,7 @@
       if (keepCam) KP3D.setCameraLookAt(prevCam.p, prevCam.t);
       else KP3D.setCameraLookAt({ x:cx + g.normal.x * dist + g.axis.x * dist * 0.45, y:cy + topM * 0.15, z:cz + g.normal.z * dist + g.axis.z * dist * 0.45 }, { x:cx, y:cy, z:cz });
       st.controls.target.set(cx, cy, cz); st.controls.minPolarAngle = 0.2; st.controls.maxPolarAngle = 1.45;
-      if (!frontsOn) KP3D.setXrayFronts(true);
+      if (!frontsOn) KP3D.setXrayFronts(true, true); // the colour page: no fronts at all (owner, 2026-10-27: not grey ghost doors)
       swayPreview(st, Math.atan2(g.normal.x, g.normal.z));
       st.controls.update();
       drawerPagePeek(onDrw);
@@ -10036,7 +10036,7 @@
       if (prevCam) KP3D.setCameraLookAt(prevCam.p, { x:cx, y:cy, z:cz });
       else KP3D.setCameraLookAt({ x:cx + g.normal.x * dist + g.axis.x * dist * 0.35, y:cy + hM * 0.15, z:cz + g.normal.z * dist + g.axis.z * dist * 0.35 }, { x:cx, y:cy, z:cz });
       st.controls.target.set(cx, cy, cz); st.controls.minPolarAngle = 0.2; st.controls.maxPolarAngle = 1.45;
-      if (!frontsOn) KP3D.setXrayFronts(true);
+      if (!frontsOn) KP3D.setXrayFronts(true, true); // the colour page: no fronts at all (owner, 2026-10-27: not grey ghost doors)
       swayPreview(st, Math.atan2(g.normal.x, g.normal.z));
       st.controls.update();
       if (mat) drawerPagePeek((activeMatPhases()[matPhase] || {}).key === "drawers");
@@ -10633,6 +10633,7 @@
   var CORNER_AT_START_DOOR = "haegri", CORNER_AT_END_DOOR = "vinstri";
   function refreshAfterEdit(){
     if (state.step !== "editor") return;
+    if (boundBusy) return; // inside withBoundPanels: it refreshes once when the panels are back (a drop rebuilt the 3D twice — 350 ms of jank, owner 2026-10-27)
     if (autoCornerSwing()) save();
     if (clampIslands()) save();
     if (glueLockedPanels()) save();
