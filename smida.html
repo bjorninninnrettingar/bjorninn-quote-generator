@@ -426,7 +426,7 @@
     // click = its section in the panel, double-click = switch the hinge side
     var hs = e.hinge || null, leaves = c.base.hingeSide === "baedi";
     (p.doors || []).forEach(function (d, i) {
-      var x0 = X(0) + 2, x1 = X(W) - 2, y0 = Y(d.to), y1 = Y(d.from), my = (y0 + y1) / 2, mx = (x0 + x1) / 2;
+      var x0 = X(0) + 2, x1 = X(W) - 2, y0 = Y(d.ft != null ? d.ft : d.to), y1 = Y(d.fb != null ? Math.min(d.fb, d.from) : d.from), my = (y0 + y1) / 2, mx = (x0 + x1) / 2; // the front itself
       var lift = e.doors && e.doors[i] && e.doors[i].type === "lift";
       var mark = "";
       if (lift) mark = "M" + x0 + " " + y0 + " L" + mx + " " + y1 + " L" + x1 + " " + y0; // hinged at the top, opens at the bottom
@@ -611,7 +611,8 @@
     var files = SD.sideFiles(p), acc = handSet(c, ed(c)), maxH = Math.max(260, (box.clientHeight || 700) - 200);
     // every front at its real height next to the side (drawer fronts sit at the bottom of their slot, the grip gap above)
     var fronts = (p.drawers || []).map(function (d) { return { from: d.from, to: r1(d.from + d.front), short: d.code, label: "Skúffufrontur " + d.code + " · " + mm(d.front) + " mm — úr Sögunarlista" }; })
-      .concat((p.doors || []).map(function (d) { return { from: r1(d.to - d.H), to: d.to, short: "", label: "Hurð · " + mm(d.H) + " mm — úr Sögunarlista" }; }));
+      .concat((p.doors || []).map(function (d) { var fb = d.fb != null ? d.fb : r1(d.to - 1 - d.H), ft = d.ft != null ? d.ft : r1(d.to - 1);
+        return { from: fb, to: ft, short: "", label: "Hurð · " + mm(d.H) + " mm" + (fb < -0.5 ? " — nær " + mm(-fb) + " mm niður fyrir hliðina" : "") + " — úr Sögunarlista" }; }));
     var row = document.createElement("div"); row.className = "cncrow"; wrap.appendChild(row);
     files.forEach(function (f) {
       var r = SD.renderSide(MASTER, f.plan);

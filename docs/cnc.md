@@ -162,3 +162,15 @@ carries data-s/data-lpx/data-top so /smida can drag shelves, hinge plates and in
   export writes): drawer fronts with the master's extra row (E 218 / C 203.5 / F 235.5) and any grip milling, door fronts
   with their Ø35 cups (IKEALOM ends, 22.5 mm in from the hinge edge), "×n" and "engin borun". Note: "Sama fræsing á öllum
   skúffufrontum (sameiginlegt master)".
+
+### Door cups vs side plates fix (2026-10-27, the morning T-15 was milled)
+Found from /smida's fronts column on T-15 Sk 1: a door front taller than the box /cnc gave it had its cups measured from
+its own ends (79/79) while the side plates are measured from the side — on T-15 the cups were 19–46 mm off the plates on
+Sk 1, Sk 5-8, Sk 15, Sk 20-22, Sk 23, Sk 37 (their doors would not have hung). Two causes, both fixed in `unitPlan`/`frontPlans`:
+(1) the 27 mm grip reveal was forced above every door, also one that only fits without it (Sk 15: 831 front on an 834
+side was pushed 27 mm down, so its box was 807) — now a door that doesn't fit with the reveal has none; (2) a front still
+taller than its box (undergrip lip, Sk 1 467 on 450, Sk 5-8 897 on 880) keeps its top 1 mm under the box top and hangs
+below; its cups are placed from the same absolute heights as the plates (`d.fb`/`d.ft`, `d.over`). Every T-15 door is now
+within the usual 1 mm (79 vs 80). Doors that fit (T-32 entire, T-15 Sk 2/4/25-26/27) export byte-identically to before.
+Tests in tests/cnc-sides.test.js. Assumption to check at the machine: on Sk 20-22 (590 front on a 600 side, Undirgrip 20)
+the front is taken as flush at the top (10 mm free at the bottom).

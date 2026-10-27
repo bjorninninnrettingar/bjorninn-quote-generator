@@ -211,7 +211,18 @@
       info.push("Vænghurð: hurðir hlið við hlið");
     }
     var top = H - fixedFronts.reduce(function (a, d) { return a + d.H + doorGrip(d) + BOX_GAP; }, 0);
-    doors.forEach(function (d) { d.to = r1(top - doorGrip(d)); d.from = r1(Math.max(drawerTop, d.to - d.H - BOX_GAP)); top = d.from; });
+    // 2026-10-27 (T-15): a door that only fits WITHOUT the grip reveal above it has none (a vertical Jey, a front that
+    // fills its space or overhangs it — T-15 Sk 15: 831 in 834 with grip 27 was pushed 27 down). And a front taller than
+    // its box (wall units with an undergrip lip, T-15 Sk 1 / Sk 5-8: 467 / 897 on 450 / 880 sides) keeps its top at the
+    // box top and overhangs at the bottom: its cups are then placed from the same absolute heights as the side plates
+    // (d.fb/d.ft = where the front itself sits), not from its own ends — those were 18–46 mm off the plates.
+    doors.forEach(function (d) {
+      var g = d.H + grip + BOX_GAP <= top - drawerTop + 0.5 ? doorGrip(d) : 0;
+      d.to = r1(top - g); d.from = r1(Math.max(drawerTop, d.to - d.H - BOX_GAP));
+      d.ft = r1(d.to - HINGE_FRONT_OFFSET); d.fb = r1(d.ft - d.H);
+      d.over = d.H + BOX_GAP > d.to - d.from + 0.5;
+      top = d.from;
+    });
     var oven = /ofn/i.test(tegund) || (by.door || []).some(function (r) { return /ofn/i.test(r.Partur); });
     var stackSum = r1(drawerTop + (H - top));
     if (!oven && (drawers.length || doors.length) && Math.abs(stackSum - H) > 1.5)
@@ -503,7 +514,9 @@
     doors.forEach(function (d) {
       if (d.type === "lift") { check.push("Lyftihurð " + d.H + ": frontur ekki boraður hér"); return; }
       var len = r1(d.to - d.from), ops = [], H = d.H;
-      var pos = (d.hinges || []).map(function (x) { return x <= len / 2 ? { end: "2", mm: r1(x - HINGE_FRONT_OFFSET) } : { end: "3", mm: r1(len - x - HINGE_FRONT_OFFSET) }; });
+      var pos = (d.hinges || []).map(function (x) {
+        if (d.over) { var a = d.from + x, fromB = r1(a - d.fb), fromT = r1(d.ft - a); return fromB <= H / 2 ? { end: "2", mm: fromB } : { end: "3", mm: fromT }; }
+        return x <= len / 2 ? { end: "2", mm: r1(x - HINGE_FRONT_OFFSET) } : { end: "3", mm: r1(len - x - HINGE_FRONT_OFFSET) }; });
       pos.forEach(function (p, i) {
         var twin = pos.find(function (q, j) { return j !== i && q.end !== p.end && q.mm === p.mm; });
         if (twin && p.end === "3") return; // emitted once as "2,3"

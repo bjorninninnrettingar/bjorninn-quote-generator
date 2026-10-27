@@ -440,3 +440,33 @@ test("two leaves side by side = hinges in both sides even when Smíðagögn has 
   const one = S.unitPlan("Sk2", [row("Hár skápur hlið", 2400, 580, 16, 2), row("Frontur", 2397, 597, 19, 1)], { unitHeight: 2400, smida: '{"v":1,"w":600}' });
   assert.ok(one.check.some((c) => /lamahlið óþekkt/i.test(c))); // one door, no side: still unknown
 });
+
+// 2026-10-27 (T-15, the morning it was milled): a door front taller than the space /cnc gave it (undergrip lip on a
+// wall unit, or a front that only fits without the 27 mm grip reveal) had its cups measured from its own ends while the
+// side plates were measured from the side — 19–46 mm apart. Every cup must now sit on its plate (≤ 1 mm, the usual 79/80).
+{
+  const gr = (Partur, H, B, Þ, M) => ({ Partur, H, B, "Þ": Þ, M, "Tegund einingu": ["Efriskápur"] });
+  const cases = [
+    ["Sk 1 (467 front on a 450 side, two leaves)", [gr("Skápur hlið", 450, 650, 16, 2), gr("Frontur vænghurð", 467, 507, 19, 2)], 450, 0],
+    ["Sk 5-8 (897 front on 880, grip 27)", [gr("Skápur hlið", 880, 280, 16, 8), gr("Frontur", 897, 383, 19, 4)], 880, 27],
+    ["Sk 15 (831 front on 834, grip 27)", [gr("Skápur hlið", 834, 380, 16, 2), gr("Frontur vænghurð", 831, 497, 19, 2)], 834, 27],
+    ["Sk 23 (2527 on 2530, grip 27)", [gr("Skápur hlið", 2530, 580, 16, 2), gr("Frontur", 2527, 570, 19, 1)], 2530, 27],
+    ["a normal door (850 on 880, grip 27) is unchanged", [gr("Skápur hlið", 880, 580, 16, 2), gr("Frontur", 850, 497, 19, 1)], 880, 27],
+  ];
+  for (const [name, rows, h, grip] of cases) {
+    test("door cups sit on the side plates: " + name, () => {
+      const p = S.unitPlan("X", rows, { unitHeight: h, gripMm: grip });
+      const d = p.doors[0], plates = d.hinges.map((x) => d.from + x), ft = d.to - 1, fb = ft - d.H;
+      const fr = p.fronts.find((f) => f.master === "door");
+      const cups = [];
+      fr.ops.forEach((o) => { const m = /^([\d.]+), 0, "([\d,]+)"/.exec(o.params); m[2].split(",").forEach((e) => cups.push(e === "2" ? fb + +m[1] : ft - +m[1])); });
+      plates.forEach((a) => assert.ok(Math.min(...cups.map((c) => Math.abs(c - a))) <= 1.01, name + ": plate " + a + " vs cups " + cups.join("/")));
+    });
+  }
+  test("a normal door keeps its 27 mm grip reveal and its 79 mm cups", () => {
+    const gr2 = (Partur, H, B, Þ, M) => ({ Partur, H, B, "Þ": Þ, M, "Tegund einingu": ["Efriskápur"] });
+    const p = S.unitPlan("Sk 27", [gr2("Skápur hlið", 880, 580, 16, 2), gr2("Frontur", 850, 497, 19, 1)], { unitHeight: 880, gripMm: 27 });
+    assert.equal(p.doors[0].to, 853);
+    assert.deepEqual(p.fronts.find((f) => f.master === "door").ops.map((o) => o.params), ['79, 0, "2,3"']);
+  });
+}
