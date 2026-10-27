@@ -839,3 +839,6 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
 - 2D plan: 1.3 m margin round the room so the dimension chains stay in view after reshaping.
 - Verified: milliveggur end handle drag on the room drawing (120 → 268 cm).
 - Not reproduced / not changed: horizon line through the milliveggur in 3D, "doors look good in 3D" in innvols, the laundry arrangement from the owner's screenshot (washer-tower and side-by-side suggestions look right here).
+
+### ⚠️ Villa / hugmynd (2026-10-27)
+Testers report from inside the designer: a **⚠️ Villa / hugmynd** pill at the top (next to Hjálp; also in the Hjálp menu) opens a small dialog — "Eitthvað virkar ekki" / "Mig vantar / hugmynd", free text, optional name/email (remembered in `localStorage` `kp:reporter`). It goes through `sendIssueReport` into **Skipulag villur 🐞** with the whole draft state, step, browser and URL attached. `Tegund` = `Notandi tilkynnti` (bug) or `Hugmynd` (idea; created by the proxy's `typecast`), title prefixed 💬 / 💡 (auto errors stay 🔧). `sendIssueReport` now returns true/false so the dialog only says "Takk" when the row really landed. The ⚠️ is a deliberate exception to the no-emoji Studio rule (owner: people know where to look).
