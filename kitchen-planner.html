@@ -2189,6 +2189,7 @@
         <div class="wiz-panel" data-mpkey="handle">
           <div class="tabs-row" id="handleTabs"></div>
           <p class="tab-blurb" id="handleBlurb"></p>
+          <p class="look-picked" id="handlePicked"></p>
           <div class="h-grid" id="handleCards"></div>
           <div id="handleColors"></div>
         </div>
@@ -9300,6 +9301,15 @@
       card.addEventListener("click", function(){ selectHandle(card.dataset.handle); });
     });
     renderHandleColors();
+    renderHandlePicked();
+    // the chosen one in view when the page opens (owner, 2026-10-27) — a click on a card already shows it
+    var onH = container.querySelector(".sw-tile.active"); if (onH && !keepTab && !handleTabHold) onH.scrollIntoView({ block:"nearest" });
+  }
+  // "Valið: Jey · Burstað stál" like Framhlið
+  function renderHandlePicked(){
+    var el = document.getElementById("handlePicked"), h = state.handle && HANDLES[state.handle]; if (!el) return;
+    var col = h && handleColorable(state.handle) ? handleColorLabel() : "";
+    el.innerHTML = h ? __("Valið:") + ' <b>' + escapeHtmlPro(__(h.label)) + '</b>' + (col ? ' · ' + escapeHtmlPro(__(col)) : '') : __("Ekkert valið enn");
   }
   // colour of the chosen handle (Björninn orders most pulls in several finishes); null = the handle's own colour
   function handleColorable(key){ var h = HANDLES[key]; return !!(h && !h.hidden && !h.fixedColor && h.group !== "an" && (!h.finishes || h.finishes.length > 1)); }
@@ -9313,10 +9323,10 @@
   function renderHandleColors(){
     var box = document.getElementById("handleColors"), F = KP3D.HANDLE_FINISHES;
     if (!box) return;
-    if (!handleColorable(state.handle)){ box.innerHTML = ""; return; }
+    if (!handleColorable(state.handle) || (HANDLES[state.handle] || {}).isPushOpen){ box.innerHTML = ""; return; } // Ekkert handfang / Þrýstiopnun: no colour to pick
     box.innerHTML = '<div class="mat-section-title" style="margin-top:14px;">' + __("Litur á höldum") + '</div>' + handleColorRowHTML();
     box.querySelectorAll("[data-hcolor]").forEach(function(b){
-      b.addEventListener("click", function(){ pickHandleColor(b.dataset.hcolor); renderHandleColors(); updateCabinetPreview(); });
+      b.addEventListener("click", function(){ pickHandleColor(b.dataset.hcolor); renderHandleColors(); renderHandlePicked(); updateCabinetPreview(); });
     });
   }
   // the colour swatches of the chosen handle — the Höldur page and the editor's Efni dropdown share them
@@ -9562,8 +9572,8 @@
     drawersPhase(),
     phaseLike("fronts"),
     phaseLike("handle"),
-    phaseLike("top", { label:"Toppur", title:"Toppur og vaskur", sub:"Handlaugin situr ofan á toppnum. Harðplast er algengast.",
-      panelKeys:["mirror", "top"], render:function(){ renderMirrorCards(); renderTopCards(); } })
+    // no spegilskápur question and no basin choice — the söluaðili's business (owner, 2026-10-27)
+    phaseLike("top", { label:"Toppur", title:"Toppur", sub:"Handlaugin situr ofan á toppnum." })
   ];
   // Þvottahús (user, 2026-10-26): "Hvar er vélin?" moved to Rými (it decides what's placed); Efni like the bath —
   // colour, front, handles, top, drawers last — all already picked (categoryDef.defaults) so Áfram just works
@@ -9578,6 +9588,7 @@
   // (stone in a bathroom, from an old draft or the kitchen) dropped back to the default
   function roomDefaults(){
     var cd = categoryDef(state.activeCategory); if (!cd || !cd.defaults) return;
+    if (!PRO && state.bathMirror) state.bathMirror = false; // the mirror-cabinet question is gone (owner, 2026-10-27): an old draft's "Já" with it
     if (state.top && cd.topGroups && state.top !== "engin" && (!TOPS[state.top] || cd.topGroups.indexOf(TOPS[state.top].group) < 0)) state.top = null;
     Object.keys(cd.defaults).forEach(function(k){ var v = cd.defaults[k]; if (!state[k] && (k !== "top" || TOPS[v])) state[k] = v; });
   }
@@ -9657,7 +9668,7 @@
       return b; };
     var look = matPhaseReveal("fronts") ? state.look : null;
     var pv = { wardrobe:true, carcass:state.carcass, drawerSystem:state.drawerSystem, look:look, handle:matPhaseReveal("handle") ? state.handle : null, handleColor:state.handleColor, top:"engin", floor:null, wallColor:null,
-      roomHeightMm:state.roomHeightMm, closed:false, islands:[], windows:[], doors:[], walls:[{ id:"CLP", label:"", lengthMm:1800, floor:[Object.assign(blk("clp1", 400), { swing:"vinstri" }), Object.assign(blk("clp2", 0), { swing:"haegri" })], wall:[] }] }; // a pair: the handles meet in the middle
+      roomHeightMm:state.roomHeightMm, closed:false, islands:[], windows:[], doors:[], walls:[{ id:"CLP", label:"", lengthMm:1800, floor:(function(){ var fl = [Object.assign(blk("clp1", 400), { swing:"vinstri" }), Object.assign(blk("clp2", 0), { swing:"haegri" })]; return frontsOn ? previewEndPanels(fl) : fl; })(), wall:[] }] }; // a pair: the handles meet in the middle
     var key = JSON.stringify(pv);
     if (key === closetPrevKey && KP3D._three() && host.querySelector("canvas")) return;
     closetPrevKey = key;
@@ -9695,7 +9706,7 @@
     else if (!topOn){ var dcs = KP3D.drawerCodes({ mode:"skuffur", count:2 }, drawerSys()); b.interior = { mode:"skuffur", count:dcs.length, codes:dcs }; }
     var pv = { carcass:state.carcass, drawerSystem:state.drawerSystem, look:frontsOn ? state.look : state.look || "hvitt", handle:matPhaseReveal("handle") ? state.handle : null, handleColor:state.handleColor, top:topOn ? state.top || "engin" : "engin",
       floor:null, wallColor:null, roomHeightMm:state.roomHeightMm, closed:false, islands:[], windows:[], doors:[], hungUnits:true, bathMirror:topOn && !!state.bathMirror, activeCategory:"bad",
-      walls:[{ id:"BTP", label:"", lengthMm:1600, plinthMm:gap, floor:[b], wall:[] }] };
+      walls:[{ id:"BTP", label:"", lengthMm:1600, plinthMm:gap, floor:frontsOn ? previewEndPanels([b], gap) : [b], wall:[] }] };
     var key = JSON.stringify(pv) + frontsOn + onDrw + (state.floor || "") + (state.wallColor || "");
     if (key === closetPrevKey && KP3D._three() && host.querySelector("canvas")) return;
     closetPrevKey = key;
@@ -9739,7 +9750,7 @@
     var frontsOn = !mat || matPhaseReveal("fronts");
     var pv = { carcass:state.carcass, drawerSystem:state.drawerSystem, look:state.look || "eg_W1100", handle:!mat || matPhaseReveal("handle") ? state.handle : null, handleColor:state.handleColor, top:mTop ? state.top || "eg_W1000" : "engin",
       floor:mat ? null : state.floor, wallColor:mat ? null : state.wallColor, roomHeightMm:state.roomHeightMm, closed:false, islands:[], windows:[], doors:[], activeCategory:"thvottahus",
-      walls:[{ id:"MCP", label:"", lengthMm:lenMm, floor:list, wall:[] }] };
+      walls:[{ id:"MCP", label:"", lengthMm:lenMm, floor:mat && frontsOn ? previewEndPanels(list) : list, wall:[] }] };
     var key = JSON.stringify(pv) + (mat ? "m" + frontsOn + (state.floor || "") + (state.wallColor || "") : "");
     if (key === machinePrevKey && (mat || heightScene) && KP3D._three() && host.querySelector("canvas")) return;
     machinePrevKey = key;
@@ -9768,9 +9779,20 @@
   // have no room of their own)
   // the Efni drawer page (owner, 2026-10-27): the top drawer rests half out so its side shows; picking Merivo / Legra
   // glides it all the way out and back once, so the side profiles can be compared
+  // Efni previews (owner, 2026-10-27): from the front page on, the box's bare ends get their úthliðar in the front material
+  // (19 mm, the neighbour's height + depth) — without them it looked unfinished. `list` = one wall's floor run, gapMm before the first.
+  function previewEndPanels(list, hungGapMm){ // hungGapMm: a wall-hung bath unit — its panel is the box only (the scene lifts it by the gap)
+    if (!list.length) return list;
+    var mkP = function(nb, id){ var c = CATALOG[nb.type], tall = c.cls === "tall", saved = blockSeq, p = newBlock(tall ? "uthlidhar" : "uthlid"); blockSeq = saved;
+      p.id = id; p.locked = false; p.heightMm = (nb.heightMm || c.h) - (hungGapMm || 0); p.depthMm = nb.depthMm || c.d; return p; };
+    var first = list[0], last = list[list.length - 1], pl = mkP(first, id0("L")), pr = mkP(last, id0("R"));
+    function id0(s0){ return "pvp" + s0; }
+    pl.gapMm = Math.max(0, (first.gapMm || 0) - 19); first.gapMm = 0;
+    return [pl].concat(list, [pr]);
+  }
   var drawerPeekSys = null;
   function drawerPagePeek(onDrw){
-    if (!onDrw){ drawerPeekSys = null; return; }
+    if (!onDrw){ if (drawerPeekSys != null && KP3D.snapParts) KP3D.snapParts(false); drawerPeekSys = null; return; } // off the drawer page: shut again
     var changed = drawerPeekSys != null && drawerPeekSys !== state.drawerSystem; drawerPeekSys = state.drawerSystem;
     setTimeout(function(){
       if (!KP3D.peekTopDrawer) return;
@@ -9816,7 +9838,7 @@
     sync();
   })();
   var MAT_NEED = { carcass:"Veldu lit til að halda áfram.", drawers:"Veldu skúffukerfi til að halda áfram.", fronts:"Veldu framhlið til að halda áfram.",
-    doors:"Veldu efni á hurðirnar til að halda áfram.", handle:"Veldu höldu til að halda áfram.", top:"Veldu borðplötu til að halda áfram.", machine:"Veldu hvar vélin er til að halda áfram." };
+    doors:"Veldu efni á hurðirnar til að halda áfram.", handle:"Veldu höldu — eða Ekkert handfang.", top:"Veldu borðplötu til að halda áfram.", machine:"Veldu hvar vélin er til að halda áfram." };
   function renderMatActions(){
     var box = document.getElementById("matActions"), last = matPhase === matPhaseCount() - 1, ph = activeMatPhases()[matPhase];
     // a grey Áfram says why (QA 2026-10-26, E2/B2/Þ2/F5) — left of the buttons, so they never move; fronts/handles stay unpicked on purpose
@@ -15245,21 +15267,21 @@
   // project (closets in different bedrooms); water/worktop = whether that shape/materials step applies.
   var CATEGORIES = [
     { key:"eldhus", label:"Eldhús", water:true, worktop:true, defaultShape:"rect",
-      defaults:{ carcass:"dokkgra", drawerSystem:"merivo", look:"eg_W1100", handle:"jey", top:"eg_W1000" }, // every Efni page pre-picked (round 3, B4) — PRO's set, but the front one the picker shows (W1000 is hidden as a front)
+      defaults:{ carcass:"dokkgra", drawerSystem:"merivo", look:"eg_W1100", top:"eg_W1000" }, // no handle: a personal choice the customer makes (owner, 2026-10-27) // every Efni page pre-picked (round 3, B4) — PRO's set, but the front one the picker shows (W1000 is hidden as a front)
       inherit:["carcass", "drawerSystem", "look", "look2", "innerFront", "handle", "handleColor"] },
     { key:"fataskapar", label:"Fataskápar", tree:FATASKAPAR_TREE, roomPicker:true, defaultRoom:"Fatask.", water:false, worktop:false, matPhases:MAT_PHASES_FATASKAPAR,
-      defaults:{ carcass:"dokkgra", drawerSystem:"merivo", look:"eg_W1100", handle:"jey" }, inherit:["look", "handle", "handleColor"] }, // Hurðir + Höldur pre-picked like the bath/laundry (2026-10-26, round 2); same as closetDefaults / the Skúffukerfi page — written here so an inherited room keeps them
+      defaults:{ carcass:"dokkgra", drawerSystem:"merivo", look:"eg_W1100" }, inherit:["look", "handle", "handleColor"] }, // Hurðir + Höldur pre-picked like the bath/laundry (2026-10-26, round 2); same as closetDefaults / the Skúffukerfi page — written here so an inherited room keeps them
     // Bað + Þvottahús (studio review 2026-10-25, section C): their own page lists, Egger tops only (no stone), the usual
     // answers already picked (defaults) so "Áfram" just works; the water page and shape pick say what fits the room
     { key:"bad", label:"Baðherbergi", tree:BAD_TREE, roomPicker:true, defaultRoom:"Baðh.", water:true, worktop:true, hung:true, matPhases:MAT_PHASES_BAD,
       defaultShape:"rect", roomSize:[2500, 2000], topGroups:["hardplast"], noTopLabel:"Enginn toppur", waterHint:"Við notum þetta til að staðsetja vaskaskápinn.",
       // the usual bathroom (user, 2026-10-26): oak-look fronts, Jey grip, a white harðplast top with the handlaug on it
-      defaults:{ carcass:"dokkgra", drawerSystem:"merivo", top:"eg_W1000", look:"eg_H1180", handle:"jey" } },
+      defaults:{ carcass:"dokkgra", drawerSystem:"merivo", top:"eg_W1000", look:"eg_H1180" } }, // the handle is the customer's own pick
     { key:"thvottahus", label:"Þvottahús", tree:THVOTT_TREE, defaultRoom:"Þvottah.", water:true, worktop:true, matPhases:MAT_PHASES_THVOTTAHUS,
       defaultShape:"rect", roomSize:[2500, 1800], topGroups:["hardplast"], waterTitle:"Hvar eru vatn og niðurfall?", waterHint:"Við notum þetta til að staðsetja vaskinn og þvottavélina.",
       // the usual laundry (user, 2026-10-26): white fronts, Jey grip, a white harðplast top; fronts + handles still come
       // from a room already in the project (inherit) — a laundry usually matches the kitchen
-      defaults:{ carcass:"dokkgra", drawerSystem:"merivo", top:"eg_W1000", look:"eg_W1100", handle:"jey", laundryMachine:"staeda" }, inherit:["look", "handle", "handleColor"] },
+      defaults:{ carcass:"dokkgra", drawerSystem:"merivo", top:"eg_W1000", look:"eg_W1100", laundryMachine:"staeda" }, inherit:["look", "handle", "handleColor"] },
     { key:"hurdir", label:"Hurðir", soon:true, hidden:true }, // Innihurðir have their own step (openDoors), never "Væntanlegt"
     // Allt heimilið (2026-10-23): a room with no units of its own (stofa, gangur, forstofa …) — walls, windows and
     // doors only, so the home plan is the real home and doors between rooms have a wall to sit in. Many per project
@@ -15430,7 +15452,7 @@
           var bathM = cdM && cdM.key === "bad"; // Bað: the top the handlaug sits on + the mirror cabinet (round 2)
           var lmM = cdM && cdM.key === "thvottahus" && LAUNDRY_MACHINES.find(function(o){ return o.v === (state.laundryMachine || "staeda"); }); // Þvottahús: where the machine is
           oneMats = [[__("Framhlið"), l2 && l2.label], bathM ? [__("Toppur"), (t2 && !t2.none ? __(t2.label) : __("Enginn toppur")) + " · " + __("Handlaug ofan á")] : [__("Borðplata"), cdM && cdM.worktop && t2 && !t2.none && t2.label],
-            bathM ? [__("Spegilskápur"), state.bathMirror ? __("Já") : __("Nei")] : lmM ? [__("Vélin"), __(lmM.label)] : [null, null], [__("Höldur"), h2 && h2.label], [__("Skrokkur"), c2 && c2.label], [__("Skúffukerfi"), d2 && d2.label]]
+            bathM ? [null, null] : lmM ? [__("Vélin"), __(lmM.label)] : [null, null], [__("Höldur"), h2 && h2.label], [__("Skrokkur"), c2 && c2.label], [__("Skúffukerfi"), d2 && d2.label]]
             .filter(function(r){ return r[1]; }).map(function(r){ return '<dt>' + r[0] + '</dt><dd>' + __(r[1]) + '</dd>'; }).join(""); } }); }catch(e){ nRooms = 1; }
         // "Það sem þú pantar" folds (user, 2026-10-26 — Senda inn must not scroll): shut under a picture, open when the
         // list is all there is (several rooms); open, it scrolls inside its own box

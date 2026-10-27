@@ -2152,6 +2152,8 @@
     "Ganga um": "Walk around",
     "Úthliðunum bætt við.": "End panels added.",
     "Vantar": "Missing",
+    "Handlaugin situr ofan á toppnum.": "The basin sits on top.",
+    "Veldu höldu — eða Ekkert handfang.": "Choose a handle — or No handle.",
     "Mælum með viðarlíki eða einlitu þar sem raki er — spónn er í boði en þolir raka verr.": "Where there's damp we recommend wood-look or solid colours — veneer is available but copes less well with moisture.",
     "Spónn og raki": "Veneer and damp",
     "Miðstöðvarofn": "Radiator",

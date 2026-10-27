@@ -666,3 +666,9 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   out (`KP3D.peekTopDrawer(0.5)` — the highest `kind:"drawer"` part); picking Merivo / Legra glides it to 1 and back
   (`drawerPagePeek`). Bath/laundry Framhlið: a quiet "ⓘ Spónn og raki" (tooltip with the damp advice) beside "Valið" on
   the Spónlagt tab or with a veneer picked — nothing is blocked.
+- **Höldur + last bath pages (owner):** no handle in any customer room's `defaults` any more (PRO_MAT_DEFAULTS keeps Jey) —
+  Áfram waits with "Veldu höldu — eða Ekkert handfang."; `#handlePicked` shows "Valið: halda · litur" and the chosen card
+  scrolls into view on open; no colour row for Ekkert handfang / Þrýstiopnun. The bath's spegilskápur question is gone
+  (`bathMirror` forced false for customers in `roomDefaults`, Senda inn row removed); its last page is just "Toppur".
+  Efni previews put úthliðar on the box ends from the front page on (`previewEndPanels`, hung bath: box height only);
+  leaving the drawer page snaps the drawers shut.
