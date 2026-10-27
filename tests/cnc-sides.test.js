@@ -487,3 +487,16 @@ for (const [sys, word] of [["renni", "rennihurðir"], ["felli", "fellihurðir"]]
     assert.ok(q.ops.some((o) => o.name === "LOM"));
   });
 }
+
+// Fræst grip "alla" lárétt (2026-10-27): Keyra skipulag takes 35 off that front's Sérhæð, so /cnc adds 35 back to the slot
+test("an 'alla' grip zone on a drawer: its slot = cut front + 35 + 3, the stack still fills the side", () => {
+  const gr = (Partur, H, B, Þ, M) => ({ Partur, H, B, "Þ": Þ, M, "Tegund einingu": ["Grunnskápur"] });
+  // Sérhæð 400 / 400 — the top (K) drawer has an alla zone: Sérhæð 400 − 35 → cut 362; E cut 397
+  const rows = [gr("Skápur hlið", 800, 580, 16, 2), gr("Skúffufrontur E - Merivo", 397, 597, 19, 1), gr("Skúffufrontur K - Merivo", 362, 597, 19, 1)];
+  const zones = [{ target: "K", type: "alla", att: "lárétt", brun: "efst" }];
+  const p = S.unitPlan("Sk7", rows, { unitHeight: 800, gripMm: 0, grip: zones });
+  assert.ok(!p.check.some((t) => /passa ekki við hlið/.test(t)), p.check.join(" | "));
+  assert.deepEqual(p.drawers.map((d) => [d.code, d.from, d.to]), [["E", 0, 400], ["K", 400, 800]]);
+  const q = S.unitPlan("Sk7", rows, { unitHeight: 800, gripMm: 0 }); // without the zone the stack is 35 short
+  assert.ok(q.check.some((t) => /Frontar \(765\) passa ekki/.test(t)), q.check.join(" | "));
+});

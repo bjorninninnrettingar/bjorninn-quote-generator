@@ -207,3 +207,9 @@ drawer units base-wide that have a handle grip, none disagree with their "Grip?"
 the project-handle path (live 2026-10-26 → 27) could, i.e. a PRO project exported via /cnc in that window.
 Seen, not changed: a unit with a Smíðagögn "alla" grip zone (Keyra skipulag already takes 35 off Sérhæð) AND "Grip?" =
 "Fræst grip lárétt" would lose 35 twice in the Sögunarlisti script.
+- **Fræst grip "alla" + "Grip?" = Fræst grip lárétt (2026-10-27):** Keyra skipulag (node wacqu9ISRBogXpgxE, `buildFields`)
+  takes 35 off the zone's Sérhæð/Hæð frontur N, and the Sögunarlisti script takes 35 off every front when Grip? is
+  "Fræst grip lárétt" → 70 on that front. Owner: the zone (per front). Fix given to the owner as a Find/Replace in Keyra
+  skipulag: clear Grip? when an "alla" zone was applied. No project has an "alla" zone today (0 Eyðublöð, 0 Line Items);
+  the 18 "Fræst grip lárétt" units (T-31 ×9, T-227 ×8, T-27 ×1) have none, so one deduction. Our side: `unitPlan` now adds
+  the zone's 35 back to that drawer's / split front's slot (`zoneShrink`) — before, runners above it would have sat 35 low.

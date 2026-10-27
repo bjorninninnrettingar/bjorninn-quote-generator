@@ -150,7 +150,11 @@
     var grip = num(opts.gripMm) || 0;
 
     // Drawers, bottom → top, from the real front heights.
-    var drawers = expand(by.drawer, function (r) { var m = r.Partur.match(/skúffufrontur\s+([NMKCFE])\b.*?(merivo|legra)/i); return { code: m[1].toUpperCase(), sys: lc(m[2]), front: num(r.H), B: num(r.B), T: num(r["Þ"]), H: r1(num(r.H) + grip) }; });
+    // A Fræst grip "alla" lárétt zone (Smíðagögn grip[] → Eyðublað "Grip svæði") was taken off that front's Sérhæð /
+    // Hæð frontur N by Keyra skipulag (35 mm), so the cut front is 35 shorter than its slot: add it back to the slot
+    // like any grip (2026-10-27 — before, the runners above such a drawer would have sat 35 mm low).
+    var zoneShrink = function (target) { return (Array.isArray(opts.grip) ? opts.grip : []).some(function (z) { return z && z.target === target && z.type === "alla" && z.att === "lárétt"; }) ? 35 : 0; };
+    var drawers = expand(by.drawer, function (r) { var m = r.Partur.match(/skúffufrontur\s+([NMKCFE])\b.*?(merivo|legra)/i); return { code: m[1].toUpperCase(), sys: lc(m[2]), front: num(r.H), B: num(r.B), T: num(r["Þ"]), H: r1(num(r.H) + grip + zoneShrink(m[1].toUpperCase())) }; });
     // A drawer whose front is listed as a plain "Frontur" (the low oven OFN6: "Frontur" 202 + "Skúffubak K - Merivo",
     // no "Skúffufrontur K") — the low front becomes that drawer, not a door with hinges (T-32 pilot, 2026-10-09).
     if (!drawers.length) {
@@ -217,7 +221,8 @@
     // box top and overhangs at the bottom: its cups are then placed from the same absolute heights as the side plates
     // (d.fb/d.ft = where the front itself sits), not from its own ends — those were 18–46 mm off the plates.
     doors.forEach(function (d) {
-      var g = d.H + grip + BOX_GAP <= top - drawerTop + 0.5 ? doorGrip(d) : 0;
+      var zs = splitNo(d) ? zoneShrink("front" + splitNo(d)) : 0; // a split front's "alla" zone (see zoneShrink)
+      var g = (d.H + grip + BOX_GAP <= top - drawerTop + 0.5 ? doorGrip(d) : 0) + zs;
       d.g = g; // the grip profile (e.g. Jey 27) sits in this reveal above the front
       d.to = r1(top - g); d.from = r1(Math.max(drawerTop, d.to - d.H - BOX_GAP));
       d.ft = r1(d.to - HINGE_FRONT_OFFSET); d.fb = r1(d.ft - d.H);
