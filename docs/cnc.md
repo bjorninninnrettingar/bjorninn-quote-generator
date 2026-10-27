@@ -153,3 +153,12 @@ counts on every T-15 drawer cabinet match Sögunarlisti exactly (Sk 2: E + K run
 Calm view since: shelves/boards at their real thickness (top face = the mm /cnc uses), inner drawers dashed as their
 front band, a thin fronts column at the front edge (`opts.fronts`), red collision bands (`opts.hits`), and the svg
 carries data-s/data-lpx/data-top so /smida can drag shelves, hinge plates and inner drawers on it.
+- **Hinge plate at true scale (2026-10-26):** the calm view draws the Blum cruciform mounting plate measured from Blum's
+  GLB (body 26 × 56.5 r4.5, front wing to 22.8 mm, rear tab to −19, adjusting screw Ø3.6), centred on the plate's screw
+  line at 37 mm, long axis vertical, **wing toward the front edge** (the arm clips on that side — the extracted outline's
+  own note: +x = toward the front edge / arm side). The front elevation in /smida keeps the round hinge marks (seen from
+  the front the plate is inside the side, and at that scale a plate is a few px).
+- **Fronts in /smida's CNC view:** under the two sides, one small card per front from `plan.fronts` (exactly what the
+  export writes): drawer fronts with the master's extra row (E 218 / C 203.5 / F 235.5) and any grip milling, door fronts
+  with their Ø35 cups (IKEALOM ends, 22.5 mm in from the hinge edge), "×n" and "engin borun". Note: "Sama fræsing á öllum
+  skúffufrontum (sameiginlegt master)".

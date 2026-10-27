@@ -301,15 +301,18 @@
   // that part was set by hand (in /smida), else ink. The BiesseWorks-style view stays one click away ("Tæknilegt").
   // Blum side heights (mm) — the same table the planner draws boxes with (kitchen-planner-3d.js DRAWER_CODES, Blum catalogue)
   var BOX_SIDE = { merivo: { N: 63, M: 91, K: 129, E: 192 }, legra: { M: 90.5, K: 128.5, C: 177, F: 241 } };
-  // the hinge's mounting plate (cross plate) as drawn on the side: centre (x, y), px
-  function platePath(x, y) {
-    var a = 9, b = 3.2; // arm half-length, arm half-width
-    return "M" + (x - b) + " " + (y - a) + "H" + (x + b) + "V" + (y - b) + "H" + (x + a) + "V" + (y + b) + "H" + (x + b) + "V" + (y + a) +
-      "H" + (x - b) + "V" + (y + b) + "H" + (x - a) + "V" + (y - b) + "H" + (x - b) + "Z";
+  // Blum cruciform mounting plate at true scale (2026-10-26, measured from Blum's own GLB: 41.8 × 56.5 mm). mm, origin =
+  // plate centre on the screw line (the 37 mm line /cnc drills), u = toward the FRONT edge (the arm clips on that wing),
+  // v = up. Drawn into group `el` with centre (cx, cy) px, s px/mm, front edge to the left (screen x = cx − u·s).
+  function drawPlate(el, cx, cy, s, stroke) {
+    var P = function (u, v) { return (cx - u * s).toFixed(2) + " " + (cy - v * s).toFixed(2); };
+    var a = { fill: "#fff", stroke: stroke, "stroke-width": 1.1, "stroke-linejoin": "round" };
+    el.appendChild(svgEl("path", Object.assign({ d: "M" + P(11, -8.45) + " L" + P(21.2, -8.45) + " Q" + P(22.8, -8.45) + " " + P(22.8, -6.8) + " L" + P(22.8, 7.3) +
+      " Q" + P(22.8, 8.95) + " " + P(21.2, 8.95) + " L" + P(11, 8.95) + " Z" }, a))); // front wing
+    el.appendChild(svgEl("path", Object.assign({ d: "M" + P(-11, -5.25) + " L" + P(-19, -5.25) + " L" + P(-19, 2.95) + " L" + P(-11, 2.95) + " Z" }, a))); // rear tab
+    el.appendChild(svgEl("rect", Object.assign({ x: cx - 13 * s, y: cy - 28.25 * s, width: 26 * s, height: 56.5 * s, rx: 4.5 * s }, a))); // body, over the joins
+    el.appendChild(svgEl("circle", { cx: cx + 3.8 * s, cy: cy - 0.15 * s, r: 1.8 * s, fill: "none", stroke: stroke, "stroke-width": .9 })); // adjusting screw
   }
-  // opts: accent {hinge, shelf, inner} (blue = set by hand), hits [{from, to}] (collisions → red bands, cnc-sides.js
-  // plan.hits), fronts [{from, to, label}] (a thin column at the front edge: every front at its real height).
-  // The svg carries data-s / data-lpx / data-top so a page can turn pointer y into mm (/smida drags on it).
   function renderCalm(LPX, LPY, features, opts) {
     opts = opts || {};
     var acc = opts.accent || {}, BLUE = "#0071e3", INK = "#1d1d1f", SOFT = "#8e8e93", RED = "#d70015";
@@ -358,7 +361,7 @@
         f.ys.forEach(function (y) { [front, back].forEach(function (d) { el2.appendChild(svgEl("circle", { cx: X(d), cy: Y(y), r: 2.4, fill: acc.shelf ? BLUE : INK })); }); });
       } else if (f.type === "hinge") {
         var eh = g(f.label || "Löm", "hinge", f.y);
-        eh.appendChild(svgEl("path", { d: platePath(X(front), Y(f.y)), fill: "#fff", stroke: acc.hinge ? BLUE : INK, "stroke-width": 1.4, "stroke-linejoin": "round" }));
+        drawPlate(eh, X(front), Y(f.y), s, acc.hinge ? BLUE : INK);
       } else if (f.type === "rail") {
         var er = g(f.label, "rail", f.y); er.appendChild(svgEl("line", { x1: X(0), x2: X(LPY), y1: Y(f.y), y2: Y(f.y), stroke: "#d2d2d7", "stroke-width": 1, "stroke-dasharray": "4 4" }));
       }
@@ -374,7 +377,7 @@
   var CALM_CSS = ".bpp-calmv{background:#fff;border:1px solid #e5e5ea;border-radius:12px;padding:12px 14px 10px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1d1d1f}" +
     ".bpp-calm-h{display:flex;align-items:center;gap:10px;margin-bottom:6px;font-size:13px}.bpp-calm-h b{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
     ".bpp-calm-h button{font:inherit;font-size:12px;color:#0071e3;background:none;border:none;cursor:pointer;padding:2px 0}" +
-    ".bpp-calm-body{display:flex;justify-content:center}.bpp-calm-svg .cz{cursor:default}.bpp-calm-svg .cz:hover line,.bpp-calm-svg .cz:hover path,.bpp-calm-svg .cz:hover rect[rx='2']{stroke:#0071e3}.bpp-calm-svg .cz:hover circle{fill:#0071e3}.bpp-calm-svg .cz:hover text{fill:#0071e3}" +
+    ".bpp-calm-body{display:flex;justify-content:center}.bpp-calm-svg .cz{cursor:default}.bpp-calm-svg .cz:hover line,.bpp-calm-svg .cz:hover path,.bpp-calm-svg .cz[data-type=hinge]:hover rect,.bpp-calm-svg .cz[data-type=hinge]:hover circle{stroke:#0071e3;fill:#fff}.bpp-calm-svg .cz:hover line,.bpp-calm-svg .cz:hover rect[rx='2']{stroke:#0071e3}.bpp-calm-svg .cz:hover circle{fill:#0071e3}.bpp-calm-svg .cz:hover text{fill:#0071e3}" +
     ".bpp-card.bpp-calm>.bw-window,.bpp-card.bpp-calm>.bpp-raw,.bpp-card.bpp-calm .bpp-note.info{display:none}.bpp-card:not(.bpp-calm)>.bpp-calmv .bpp-calm-body{display:none}" +
     ".bpp-card:not(.bpp-calm)>.bpp-calmv{border:none;background:none;padding:0 0 6px}";
   function ensureCalmCss() {

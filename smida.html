@@ -112,7 +112,12 @@
   .pick { cursor:pointer; }
   .r.hl, .q.hl { animation:hl 1.6s ease-out; border-radius:10px; }
   @keyframes hl { 0%, 35% { background:#e8f1fc; box-shadow:0 0 0 6px #e8f1fc; } 100% { background:transparent; box-shadow:0 0 0 6px transparent; } }
-  .cnccap .cb { color:var(--blue); } .cnccap .cred { color:var(--red); }
+  .cnccap .cb { color:var(--blue); }
+  .frsec { margin:18px auto 0; max-width:640px; }
+  .frh { display:flex; align-items:baseline; gap:10px; font-size:13px; margin-bottom:8px; } .frh span { color:var(--muted); font-size:12px; }
+  .frrow { display:flex; gap:12px; flex-wrap:wrap; }
+  .frc { background:#fff; border:1px solid var(--line); border-radius:10px; padding:8px 10px; display:flex; flex-direction:column; align-items:center; }
+  .frn { font-size:12px; margin-top:4px; } .frx { font-size:11px; color:var(--dim); } .cnccap .cred { color:var(--red); }
   .cnccap .cfr { width:6px; height:12px; background:#f2f2f4; border:1px solid #aeaeb2; border-radius:1.5px; }
 
   /* panel */
@@ -576,6 +581,30 @@
     svg.addEventListener("pointerup", end); svg.addEventListener("pointercancel", end);
     svg.addEventListener("click", function (ev) { if (svg.dataset.dragged) { delete svg.dataset.dragged; ev.stopPropagation(); } }, true);
   }
+  // One front as /cnc exports it: drawer front (W × H) with the master's extra row / grip milling, door front with its
+  // Ø35 hinge cups (IKEALOM: mm from the bottom "2" / top "3" end, cup centre 22.5 mm in from the hinge edge).
+  var FRONT_EXTRA = { E_NEDSTI_FRONTUR_MERIVO: 218, C_NEDSTI_FRONTUR_LEGRA: 203.5, F_NEDSTA_SKUFFA_LEGRABOX: 235.5 };
+  function frontCard(f, hinge) {
+    var door = f.master === "door", W = door ? f.LPY : f.LPX, H = door ? f.LPX : f.LPY;
+    var s = Math.min(150 / H, 130 / W), pad = 6, w = W * s, h = H * s;
+    var X = function (x) { return pad + x * s; }, Y = function (y) { return pad + (H - y) * s; };
+    var g = '<rect x="' + X(0) + '" y="' + Y(H) + '" width="' + w + '" height="' + h + '" rx="2" fill="#fff" stroke="#1d1d1f" stroke-width="1.1"/>', notes = [];
+    f.ops.forEach(function (o) {
+      if (FRONT_EXTRA[o.name] != null) { var yy = FRONT_EXTRA[o.name]; g += '<line x1="' + X(0) + '" x2="' + X(W) + '" y1="' + Y(yy) + '" y2="' + Y(yy) + '" stroke="#1d1d1f" stroke-width="1" stroke-dasharray="3 3"><title>' + o.name + " — " + yy + " mm frá botni</title></line>"; }
+      else if (o.name === "HARDVIDAR_GRIP_ENDA_TIL_ENDA") { var fy = parseFloat(o.params) || 0; g += '<rect x="' + X(0) + '" y="' + Y(Math.max(fy, 30)) + '" width="' + w + '" height="' + 30 * s + '" fill="#d70015" fill-opacity=".12"><title>Grip fræst</title></rect>'; notes.push("grip"); }
+      else if (o.name === "IKEALOM") {
+        var m = /^([\d.]+), 0, "([\d,]+)"/.exec(o.params); if (!m) return;
+        var mmv = +m[1], ends = m[2].split(","), cx = hinge === "haegri" ? W - 22.5 : 22.5;
+        ends.forEach(function (end) { var y = end === "2" ? mmv : H - mmv;
+          g += '<circle cx="' + X(cx) + '" cy="' + Y(y) + '" r="' + 17.5 * s + '" fill="#fff" stroke="#1d1d1f" stroke-width="1"><title>Lamaskál Ø35 — ' + mmv + " mm frá " + (end === "2" ? "neðri" : "efri") + " enda</title></circle>"; });
+      }
+    });
+    if (!door && f.ops.length) notes.unshift("festing úr master");
+    var el = document.createElement("div"); el.className = "frc";
+    el.innerHTML = '<svg width="' + (w + pad * 2) + '" height="' + (h + pad * 2) + '">' + g + "</svg>" +
+      '<div class="frn">' + esc(f.name) + (f.count > 1 ? " ×" + f.count : "") + "</div>" + (f.ops.length ? "" : '<div class="frx">engin borun</div>');
+    return el;
+  }
   function drawSide(c, p, box) {
     var wrap = document.createElement("div"); wrap.className = "cncv"; box.appendChild(wrap);
     if (p.status === "stop" || p.status === "skip") { wrap.innerHTML = '<div class="msg"><p>' + esc((p.stop || []).join(" · ") || "Engin hlið.") + "</p></div>"; return; }
@@ -592,9 +621,17 @@
       var sv = card.querySelector(".bpp-calm-svg"); if (sv && canEdit(c)) wireCalm(sv, c, p);
     });
     var cap = document.createElement("div"); cap.className = "cnccap";
-    cap.innerHTML = '<span><svg width="14" height="14" viewBox="0 0 14 14"><path d="M5 1H9V5H13V9H9V13H5V9H1V5H5Z" fill="#fff" stroke="#1d1d1f" stroke-width="1.2" stroke-linejoin="round"/></svg>Lamaplata</span>' +
+    cap.innerHTML = '<span><svg width="12" height="16" viewBox="-1 -1 26 30"><path d="M1 9.5H5V13.5H1Z" fill="#fff" stroke="#1d1d1f" stroke-width="1.6"/><path d="M19 9H23V17H19Z" fill="#fff" stroke="#1d1d1f" stroke-width="1.6"/><rect x="5" y="0" width="14" height="28" rx="3" fill="#fff" stroke="#1d1d1f" stroke-width="1.6"/></svg>Lamaplata</span>' +
       '<span><i class="cs"></i>Hillugöt</span><span><i class="cf"></i>Föst hilla</span><span><i class="cd"></i>Skúffa á braut</span><span><i class="cfr"></i>Frontar</span><span class="cred">Rautt = árekstur</span><span class="cb">Blátt = stillt hér</span>';
     wrap.appendChild(cap);
+    // the cabinet's fronts, each with what /cnc drills in it (plan.fronts = the export's own front plans), read-only
+    if ((p.fronts || []).length) {
+      var fsec = document.createElement("div"); fsec.className = "frsec";
+      fsec.innerHTML = '<div class="frh"><b>Frontar</b><span>' + ((p.fronts || []).some(function (f) { return f.master !== "door"; }) ? "Sama fræsing á öllum skúffufrontum (sameiginlegt master)" : "") + "</span></div>";
+      var frow = document.createElement("div"); frow.className = "frrow";
+      p.fronts.forEach(function (f) { frow.appendChild(frontCard(f, ed(c).hinge || p.hingeSide)); });
+      fsec.appendChild(frow); wrap.appendChild(fsec);
+    }
     // a click on the side → that item's section (hinge → its door, shelf/inner → the nearest one)
     row.addEventListener("click", function (ev) {
       var z = ev.target.closest(".bpp-calm-svg .cz[data-type]"); if (!z) return;
