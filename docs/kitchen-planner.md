@@ -603,3 +603,10 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
 - Laundry: when a tower's úthlið has no room, `syncBathPanels` takes 2 cm off one of our seeded low units on that wall.
 - Ofanmynd: wall units labelled near the wall (smaller, grey), floor units toward the front; Sk-numbers only with `body.pro`.
 - Hjálp starts with "Hafa samband" (mailto). **Owner:** a phone number for it is still wanted.
+- Fínpússun same day: start-page question no longer a rival heading, equal cards; `resetAll` asks via `askChoice`
+  (PRO keeps `confirm()`); doors walked last; pencil on room names; the drawing names the room (`shapeRoomLabel`);
+  bath "Toppur" on Senda inn; doors' picture in Senda inn's row; no stepper for Aðeins rými; cm on opening fields;
+  `.shape-side.more-below` fade; bath/laundry room picker lists wet rooms first; customers inherit materials from the
+  room done last (reversed queue, PRO unchanged).
+- Left on purpose: default kitchen size (made 1.4× on 2026-10-12 by the user), Ný eining height 90 vs chip 80 (the chip
+  edits carcass height), 2D front tint on far walls, Hexxa on tall doubles, collapsible Senda inn summary.

@@ -11849,7 +11849,9 @@
     // of them can still be changed on this room's Efni step ("Breyta fyrir þetta rými").
     if (!existing){
       var src = null;
-      (state.categoryQueue || []).some(function(k){ var d = state.categoryData[k]; if (k !== type && d && (d.carcass || d.look)){ src = { key:k, d:d }; return true; } return false; });
+      // customers: the room done last (they had just picked new ones in the bath and were offered the kitchen's — morning scan)
+      var srcKeys = (state.categoryQueue || []).slice(); if (!PRO) srcKeys.reverse();
+      srcKeys.some(function(k){ var d = state.categoryData[k]; if (k !== type && d && (d.carcass || d.look)){ src = { key:k, d:d }; return true; } return false; });
       if (src){
         // …except what this kind of room has its own default for (a wardrobe / bath / laundry: dökkgrátt + Merivo) — it
         // never chose the kitchen's Legra (2026-10-26). Nothing is chosen for a brand-new room yet, so nothing real is lost.
