@@ -4161,6 +4161,7 @@
       var mesh = pickMeshAt(evt), u = mesh && mesh.userData;
       if (!u || !u.blockId || /^(obstacle|decor|opening)/.test(String(u.kind || u.zone || ""))) return;
       peekToggle(u.blockId, opts.onPeek);
+      if (opts.onPeekToggle) opts.onPeekToggle(u.blockId);
     }
     function onCtx(e){ e.preventDefault(); }
     wrap.addEventListener("pointerdown", onDown, { capture:true });

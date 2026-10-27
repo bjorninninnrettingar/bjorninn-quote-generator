@@ -70,6 +70,7 @@
 <script src="cnc-sides.js"></script>
 <script src="kitchen-planner-workdraw.js"></script>
 <script src="kitchen-planner-worktop.js"></script>
+<script src="kitchen-planner-help.js"></script>
 <script src="kitchen-planner-plan.js"></script>
 <script src="kitchen-planner-home.js"></script>
 <style>
@@ -126,6 +127,29 @@
   .help-contact[hidden]{ display:none; }
   .help-contact small{ font-size:12px; color:var(--ink-soft); } .help-contact:hover{ background:var(--panel); } /* someone stuck finds a person first (morning scan 2026-10-27) */
   .help-menu button[hidden]{ display:none; }
+  .help-menu #helpRefBtn{ font-weight:600; }
+  /* Hjálp → "Hvernig…?" (owner, 2026-10-27): every task, searchable — kitchen-planner-help.js */
+  .help-ref{ position:fixed; inset:0; z-index:450; background:rgba(25,25,25,.45); display:flex; align-items:center; justify-content:center; padding:16px; }
+  .help-ref-card{ background:#fff; border-radius:16px; box-shadow:0 24px 60px rgba(0,0,0,.3); width:min(720px, 100%); max-height:min(80vh, 760px); display:flex; flex-direction:column; overflow:hidden; }
+  .help-ref-head{ display:flex; align-items:center; gap:10px; padding:16px 18px 10px; border-bottom:1px solid var(--line); }
+  .help-ref-head h3{ margin:0; font-size:18px; flex:none; }
+  .help-ref-head input{ flex:1; min-width:0; font:inherit; font-size:14px; padding:8px 12px; border:1px solid var(--line); border-radius:10px; }
+  .help-ref-head button{ flex:none; background:none; border:0; font-size:22px; line-height:1; cursor:pointer; color:var(--ink-soft); padding:4px 6px; }
+  .help-ref-body{ overflow-y:auto; padding:6px 18px 16px; }
+  .help-ref-body h4{ margin:14px 0 4px; font-size:11.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--gold); }
+  .help-ref-body details{ border-bottom:1px solid var(--line); }
+  .help-ref-body summary{ cursor:pointer; padding:9px 0; font-size:14.5px; font-weight:600; list-style:none; }
+  .help-ref-body summary::-webkit-details-marker{ display:none; }
+  .help-ref-body summary::after{ content:"+"; float:right; color:var(--ink-soft); font-weight:400; }
+  .help-ref-body details[open] summary::after{ content:"–"; }
+  .help-ref-body p{ margin:0 0 10px; font-size:14px; line-height:1.55; color:var(--ink); }
+  .help-ref-body .hr-none{ padding:16px 0; color:var(--ink-soft); font-size:14px; }
+  .help-ref-body mark{ background:#fff0b8; padding:0 1px; border-radius:2px; }
+  /* one-time hints at the moment they matter (owner, 2026-10-27) */
+  .hint-pop{ position:fixed; left:20px; bottom:24px; z-index:320; max-width:340px; background:#191919; color:#fff; border-radius:12px; box-shadow:0 12px 34px rgba(0,0,0,.25); padding:12px 38px 12px 14px; font-size:13.5px; line-height:1.45; animation:hintIn .25s ease; }
+  .hint-pop b{ color:#f3d27a; } .hint-pop button{ position:absolute; top:6px; right:6px; background:none; border:0; color:#bbb; font-size:18px; line-height:1; cursor:pointer; padding:4px 6px; }
+  @keyframes hintIn{ from{ opacity:0; transform:translateY(8px); } }
+  @media (prefers-reduced-motion:reduce){ .hint-pop{ animation:none; } }
   /* first-time tour */
   .tour{ position:fixed; inset:0; z-index:400; pointer-events:none; }
   .tour-block{ position:absolute; inset:0; pointer-events:auto; }
@@ -2082,6 +2106,7 @@
         <button class="help-btn" id="helpBtn" type="button" aria-haspopup="true" aria-expanded="false" data-i18n>Hjálp</button>
         <div class="help-menu" id="helpMenu" hidden>
           <a class="help-contact" id="helpContact" href="mailto:bjorninn@bjorninninnrettingar.is?subject=BJ%C3%96RNINN%20STUDIO"><b data-i18n>Hafa samband</b><small>bjorninn@bjorninninnrettingar.is</small></a>
+          <button type="button" id="helpRefBtn" data-i18n>Hvernig…? — öll svör</button>
           <button type="button" id="askBtn" hidden data-i18n>Spyrja</button>
           <button type="button" id="tourBtn" hidden data-i18n>Sýna leiðsögnina</button>
           <button type="button" id="reportBtn" data-i18n>Tilkynna vandamál</button>
@@ -4308,6 +4333,7 @@
   }
   function askSuggestion(){
     if (PRO || state.step !== "editor" || state.suggestAsk !== "ask" || document.getElementById("fitAsk")) return;
+    setTimeout(function(){ hintOnce("tillaga", __("<b>Tillagan er bara byrjun</b> — þú breytir öllu eins og þú vilt, eða afturkallar.")); }, 400);
     askChoice("<b>" + __("Viltu fá tillögu að innréttingu?") + "</b> " + __("Við röðum upp algengri innréttingu fyrir þig. Þú breytir henni eins og þú vilt."),
       __("Já, sýna tillögu"), __("Nei, ég byrja sjálf/ur"),
       function(){ applySuggestion(true); },
@@ -4528,6 +4554,12 @@
   }
   // the room is finished: on to the materials
   var roomReadyToasted = {};
+  function shapeHints(){
+    if (PRO || state.step !== "shape") return;
+    if ((shapePhase === "water" && bathShape()) || (shapePhase === "size" && closetShape()))
+      hintOnce("veggur", __("<b>Dragðu hringinn</b> á enda veggjarins til að lengja eða stytta hann — eða skrifaðu málið hægra megin."));
+    else if (shapePhase === "size") hintOnce("veggir", __("<b>Dragðu veggina</b> til að breyta stærðinni — eða skrifaðu málin hægra megin. Það þarf ekki að vera nákvæmt, við mælum aftur."));
+  }
   function lockRoom(){
     var cdL = categoryDef(state.activeCategory);
     if (cdL && cdL.plain){ state.categoryData[state.activeCategory] = serializeRoom(); state.activeCategory = null; homeNext(); return; }
@@ -4550,6 +4582,7 @@
   document.getElementById("shapeSide").addEventListener("scroll", syncShapeScrollCue, { passive:true });
   window.addEventListener("resize", syncShapeScrollCue);
   function renderShapeStep(){
+    setTimeout(shapeHints, 800);
     setTimeout(syncShapeScrollCue, 0);
     if (PRO){ // PRO: one "Rýmið" page (2026-10-26) — the room starts as the usual shape, the table beside the drawing does the rest
       if (!state.closed){ applyShapeTemplate(proDefaultShape()); return; } // (it renders this step again)
@@ -8310,6 +8343,8 @@
   function wireUnitWizard(side){
     side.querySelectorAll("[data-uw-cat]").forEach(function(el){ el.addEventListener("click", function(){
       uw.cat = +el.dataset.uwCat; uw.hover = 0;
+      var hc = activeUnitTree()[uw.cat] || {};
+      if (hc.key === "taeki" || hc.group === "Tækjaskápar") hintOnce("kerfi", __("<b>Flóknari kerfi</b> — hurðirnar hreyfast í myndinni þegar þú smellir á þær. ⓘ við titilinn segir meira; söluaðili staðfestir kerfi og verð."));
       var opts = activeUnitTree()[uw.cat].opts;
       if (opts.length === 1 && !opts[0].soon && (opts[0].island || opts[0].islandBack)){ uw.step = 2; renderUnitWizard(); var only = side.querySelector('[data-uw-opt="0"]'); if (only) only.click(); return; } // the kitchen's Eyja / Bak á eyju entries
       if (opts.length === 1 && !opts[0].soon){ // one real option: skip the redundant step 2 (Fataskápar's groups)
@@ -10791,6 +10826,7 @@
         // which wall (morning scan 2026-10-27: "Allt rýmið" has four, the question didn't say)
         var wn = byWall.map(function(g){ return state.walls.indexOf(g.wall) + 1; }), wlen = byWall.length === 1 ? byWall[0].wall.lengthMm : 0;
         offer.classList.toggle("fit-ask", !PRO); // one suggestion card in every room (owner, 2026-10-27)
+        if (!PRO && state.step === "editor") setTimeout(function(){ if (!offer.hidden) hintOnce("tillaga", __("<b>Tillagan er bara byrjun</b> — þú breytir öllu eins og þú vilt, eða afturkallar.")); }, 400);
         document.getElementById("cfoYes").textContent = PRO ? __("Fylla vegginn") : __("Já, sýna tillögu");
         document.getElementById("cfoNo").textContent = PRO ? __("Ég raða sjálf/ur") : __("Nei, ég byrja sjálf/ur");
         offer.querySelector("b").textContent = !PRO ? __("Viltu fá tillögu?") : PRO || state.walls.filter(function(x){ return !x.open; }).length < 2 ? __("Fylla vegginn með skápum?") :
@@ -11006,6 +11042,7 @@
       KP3D.buildScene(wrap, state, { darkBg:!!PRO, pickWorktop:!!PRO && !isBath(), selectedId:selectedBlockId, selectedWallId:selectedWallId, onWallSelect:onWallSelect, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, onIslandDragEnd:onIslandDragEnd, onIslandDragMove:clampIslandDragMove, onDecorDragEnd:onDecorDragEnd, onDecorDragMove:onDecorDragMove, onObstacleFloorEnd:onObstacleFloorEnd, onObstacleResizeMove:onObstacleResizeMove, onObstacleResizeEnd:onObstacleResizeEnd, onShelfPosMove:onShelfPosMove, onShelfPosEnd:onShelfPosEnd, onShelfPosInfo:onShelfPosInfo, onDrawerResize:onDrawerResize, onDrawerResizeEnd:onShelfPosEnd, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList(), readyIds:PRO ? proReadyIds() : null,
         xray:inspect.on || walkParts, // inspect mode / walking: every cabinet built in parts (drawers/doors tap open, nothing drags)
         onPeek:function(){ renderView(); }, // right-click "kíkja inn" on a solid (unlocked) cabinet: rebuilt in parts, opening
+        onPeekToggle:function(){ hintOnce("kikja", __("<b>Kíkt inn</b> — hægrismelltu aftur á skápinn til að loka honum.")); },
         focusWallId:viewMode === "wall" ? wallViewId : null, freshCamera:viewMode === "wall",
         annotations:viewMode === "wall" ? annoForWall : null, annoSelectedId:function(){ return anno.selId; },
         onWalkChange:syncWalkBtn, coveredRight:panelCoveredPx,
@@ -12655,6 +12692,9 @@
     document.getElementById("pageLede").hidden = true; // the intro is on the welcome page only (2026-10-11)
     var rb = document.getElementById("resetBtn"); if (rb) rb.hidden = state.step === "welcome" && !hasDesign(); // nothing to start over yet
     document.getElementById("tourBtn").hidden = state.step !== "editor";
+    if (state.step === "materials") setTimeout(function(){ if (state.step === "materials") hintOnce("efni", __("<b>Myndin byggist upp</b> eftir því sem þú velur — dragðu til að snúa henni. Allt er forvalið, svo „Áfram →“ virkar alltaf.")); }, 900);
+    if (state.step === "contact") setTimeout(function(){ if (state.step === "contact") hintOnce("senda", __("<b>Ekkert er pantað núna.</b> Söluaðili fer yfir hönnunina og hefur samband innan 3 virkra daga — ókeypis og án skuldbindingar.")); }, 700);
+    if (state.step === "hurdir") setTimeout(function(){ if (state.step === "hurdir") hintOnce("hurdir", __("<b>Ein lína fyrir hverja hurð</b> — veldu rýmið og ýttu á „Hanna“ við hverja hurð.")); }, 700);
     if (state.step !== "editor") endTour();
     else if (!PRO) setTimeout(maybeStartTour, 700);
     if (state.step === "editor"){
@@ -13413,86 +13453,106 @@
   var TOUR_KEY = "bjorninn:kitchenPlanner:tourDone";
   var tour = null;
   function tourDone(){ try{ return localStorage.getItem(TOUR_KEY) === "1"; }catch(e){ return false; } }
-  function maybeStartTour(){ if (!tour && !tourDone() && state.step === "editor" && !uw) startTour(); }
-  var TOUR_STEPS = [
-    { center:true, title:__("Hér hannar þú eldhúsið þitt"), html:__("Stutt yfirferð um það helsta — tekur hálfa mínútu."), next:__("Sýna mér →"), skip:true },
-    { el:function(){ return document.getElementById("catalogPanel"); }, title:__("Hér getur þú breytt"), html:
-      '<ul class="tour-list">' + __('<li><b>Rými</b> — útlitinu á rýminu</li><li><b>Gluggar og hindranir</b> — bætt við gluggum og hurðum</li>') +
-      __('<li><b>Efni</b> — breytt efnisvalinu</li><li><b>Lýsing</b> — kveikt og slökkt á lýsingu, og séð hana í kvöldstemningu</li><li><b>Húsgögn</b> — aukahlutir, best að gera það í lokin</li>') + '</ul>', next:__("Næsta →") },
-    // every button of the toolbar, so the icons need no labels (user, 2026-10-24: "setja alla takkana í hjálp → leiðsögn")
-    { el:function(){ return document.getElementById("viewToggle"); }, title:__("Sýnin"), html:
-      '<ul class="tour-list">' + __('<li><b>3D / 2D / Ofanmynd</b> — þrívídd, einn veggur í einu með málum, eða teikning ofan frá</li><li><b>Skotmarkið</b> — setur sjónarhornið aftur á byrjunarstað</li><li><b>Myndavélin</b> — vistar mynd af hönnuninni</li>') +
-      __('<li><b>Gangandi maðurinn</b> — gakktu um eldhúsið í augnhæð</li><li><b>Málband</b> — smelltu á tvo punkta til að mæla</li><li><b>X-Ray</b> — tekur framhliðarnar af svo þú sérð inn í skápana</li><li><b>Örvarnar</b> — afturkalla og endurgera</li>') + '</ul>', next:__("Næsta →") },
-    { el:function(){ return document.getElementById("edNewUnit"); }, title:__("Hér skráir þú nýja einingu"), html:__("Smelltu á „＋ Ný eining“."), click:true,
-      done:function(){ return !!uw; } },
-    { el:function(){ return document.querySelector('#uwSide [data-uw-cat="0"]'); }, title:__("Smelltu á grunnskáp"), html:__("Grunnskápar standa á gólfinu undir borðplötunni."), click:true,
-      done:function(){ return uw && uw.step >= 2; } },
-    { el:function(){ return document.querySelector('#uwSide .uw-grid'); }, title:__("Veldu útfærslu"), html:__("T.d. skúffur eða hurð með hillum."), click:true,
-      done:function(){ return uw && uw.step >= 3; } },
-    { el:function(){ return document.querySelector("#unitWiz .uw-box"); }, title:__("Hér stillir þú eininguna"), html:__("Breidd, hvað er í einingunni, skúffuhæðir, fjölda og fleira. Fiktaðu — myndin sýnir breytingarnar jafnóðum."), click:true, next:__("Næsta →"), place:"bottomLeft" },
-    { el:function(){ return document.querySelector("#uwSide [data-uw-add], #uwSide [data-isl-add]"); }, title:__("Bættu henni síðan við"), html:__("Smelltu á „Setja inn“."), click:true, scroll:true,
-      done:function(){ return !uw && cabinetTotal() > tour.count0; } },
-    { el:function(){ return document.getElementById("editorGrid"); }, title:__("Smelltu á eininguna"), html:__("Þá getur þú breytt henni, dregið hana til og <b>læst</b> henni þegar hún er rétt."), click:true, next:__("Næsta →"), inside:true },
-    { center:true, title:__("Hreyfing og flýtilyklar"), html:(function(){ var cmd = /Mac|iP(hone|ad)/.test(navigator.platform || navigator.userAgent) ? "⌘" : "Ctrl+";
-      return '<ul class="tour-list tour-keys">' + __('<li><b>Snúa:</b> dragðu með músinni</li><li><b>Hliðra:</b> hægri-smelltu og dragðu</li><li><b>Þysja:</b> skrollaðu</li>') + __('<li><b>Kíkja inn:</b> hægrismelltu á skáp til að kíkja inn — aftur til að loka</li>') +
-        __('<li><kbd>←</kbd> <kbd>→</kbd> færa valinn skáp um {a} (<kbd>Shift</kbd> = {b})</li><li><kbd>Delete</kbd> eyðir · <kbd>{cmd}Z</kbd> afturkallar · <kbd>Esc</kbd> afvelur</li>', { cmd:cmd, a:uLen(100), b:uLen(10) }) + '</ul>'; })(), next:__("Næsta →") },
-    { center:true, title:__("Gangi þér vel!"), html:__("Leiðsögnina finnur þú aftur undir „Hjálp“."), next:__("Byrja") }
-  ];
-  // the unit-wizard steps (grunnskáp … Setja inn) start here; the "Ný eining" step is the one before
-  var TOUR_UW0 = TOUR_STEPS.findIndex(function(st){ return st.title === __("Smelltu á grunnskáp"); });
-  var TOUR_VIEW_HTML = TOUR_STEPS[2].html, TOUR_UW0_TXT = { title:TOUR_STEPS[TOUR_UW0].title, html:TOUR_STEPS[TOUR_UW0].html }, TOUR_END_HTML = TOUR_STEPS[TOUR_STEPS.length - 1].html;
-  // Bað / Þvottahús (owner, 2026-10-27): the first unit is the vaskaskápur / vélarstæða, and the last card explains the
-  // room's own words (vaskaskápur, handlaug, toppur, spegilskápur, flísar, sturta / klósett)
-  function tourRoomText(){
-    var bath = isWallRoom() && !isLaundry(), laundry = isLaundry(), u = TOUR_STEPS[TOUR_UW0], last = TOUR_STEPS[TOUR_STEPS.length - 1];
-    u.title = bath ? __("Smelltu á vaskaskáp") : laundry ? __("Smelltu á vaskaskáp") : TOUR_UW0_TXT.title;
-    u.html = bath ? __("Vaskaskápurinn hangir á veggnum og handlaugin situr ofan á toppnum.") : laundry ? __("Vaskaskápurinn stendur undir borðplötunni. Vélarnar eru neðst í listanum.") : TOUR_UW0_TXT.html;
-    last.html = bath ? '<ul class="tour-list">' + __('<li><b>Vaskaskápur</b> — skápurinn undir handlauginni, hangir á veggnum</li><li><b>Handlaug</b> — vaskurinn, situr ofan á toppnum</li><li><b>Toppur</b> — platan ofan á vaskaskápnum: Harðplast, Compact, Steinn eða enginn</li>') +
-      __('<li><b>Spegilskápur</b> — efri skápur með spegli á framhliðinni</li><li><b>Flísar</b> — veggflísar, valdar í Útliti rýmisins</li><li><b>Hindranir</b> — sturta, klósett og handklæðaofn, undir Gluggar og hindranir, svo skáparnir lendi ekki á þeim</li>') + '</ul>' + TOUR_END_HTML : TOUR_END_HTML;
+  // One-time hints (owner, 2026-10-27): a short note the first time something matters — never in PRO, never over the
+  // tour (it waits, and is shown later), remembered per browser; × or 10 s closes it
+  var HINT_KEY = "bjorninn:kitchenPlanner:hints", hintTimer = 0;
+  function hintSeen(k){ try{ return (JSON.parse(localStorage.getItem(HINT_KEY) || "[]") || []).indexOf(k) >= 0; }catch(e){ return false; } }
+  function hintOnce(k, html){
+    if (PRO || hintSeen(k)) return;
+    if (tour){ setTimeout(function(){ hintOnce(k, html); }, 1500); return; }
+    try{ var a = JSON.parse(localStorage.getItem(HINT_KEY) || "[]") || []; a.push(k); localStorage.setItem(HINT_KEY, JSON.stringify(a)); }catch(e){}
+    var old = document.getElementById("hintPop"); if (old) old.remove();
+    var el = document.createElement("div"); el.id = "hintPop"; el.className = "hint-pop"; el.setAttribute("role", "status");
+    el.innerHTML = html + '<button type="button" aria-label="' + __("Loka") + '">×</button>';
+    el.querySelector("button").addEventListener("click", function(){ el.remove(); });
+    document.body.appendChild(el);
+    clearTimeout(hintTimer); hintTimer = setTimeout(function(){ if (el.parentNode) el.remove(); }, 10000);
   }
+  // the suggestion question / the wardrobe's fill offer come first — the tour waits until they're answered
+  function maybeStartTour(){
+    if (tour || tourDone() || state.step !== "editor" || PRO) return;
+    var offer = document.getElementById("closetFillOffer");
+    if (uw || document.getElementById("fitAsk") || (offer && !offer.hidden)){ setTimeout(maybeStartTour, 1200); return; }
+    startTour();
+  }
+  // The tour (owner, 2026-10-27): six short steps, only what a first-timer needs to finish a room alone. Every step
+  // points at a real control (or the 3D itself) and "Næsta →" always works — nothing waits for a click; Sleppa / Esc close.
+  function tourRoom(){ var b = catBase(); return b === "fataskapar" ? "closet" : b === "bad" ? "bath" : b === "thvottahus" ? "laundry" : "kitchen"; }
+  function tourVisible(el){ return el && el.getClientRects().length && el.offsetParent !== null ? el : null; }
+  var TOUR_STEPS = [
+    { center:true, next:__("Sýna mér →"),
+      title:function(){ var r = tourRoom(); return r === "closet" ? __("Hér hannar þú fataskápinn þinn") : r === "bath" ? __("Hér hannar þú baðherbergið þitt") : r === "laundry" ? __("Hér hannar þú þvottahúsið þitt") : __("Hér hannar þú eldhúsið þitt"); },
+      html:function(){ return __("Sex stutt skref — tekur hálfa mínútu. Þú getur alltaf sleppt eða ýtt á Esc."); } },
+    { el:function(){ return tourVisible(document.getElementById("edNewUnit")); }, next:__("Næsta →"),
+      title:function(){ return __("Bættu við einingu"); },
+      html:function(){ var r = tourRoom();
+        return r === "closet" ? __("Smelltu á „＋ Ný eining“ og veldu Skáp, Kommóðu eða Flóknari kerfi (renni-, vasa- og fellihurðir). Stilltu málin og innvolsið og ýttu á „Setja inn“.")
+          : r === "bath" ? __("Smelltu á „＋ Ný eining“ og byrjaðu á vaskaskápnum — hann hangir á veggnum og handlaugin situr ofan á. Stilltu málin og ýttu á „Setja inn“.")
+          : r === "laundry" ? __("Smelltu á „＋ Ný eining“ og veldu vaskaskáp, skápa eða vélarnar (neðst í listanum). Stilltu málin og ýttu á „Setja inn“.")
+          : __("Smelltu á „＋ Ný eining“ og veldu t.d. grunnskáp, efri skáp eða tækjaskáp. Stilltu málin og innvolsið og ýttu á „Setja inn“."); } },
+    { el:function(){ return tourVisible(document.getElementById("threeWrap")) || tourVisible(document.getElementById("editorGrid")); }, inside:true, next:__("Næsta →"),
+      title:function(){ return __("Færðu og breyttu"); },
+      html:function(){ return '<ul class="tour-list">' + __('<li><b>Dragðu</b> einingu eftir veggnum — bláar línur sýna þegar hún smellur við þá næstu</li><li><b>Smelltu</b> á einingu til að breyta henni í spjaldinu hægra megin</li><li><b>Hægrismelltu</b> á skáp til að kíkja inn — aftur til að loka</li>') + '</ul>'; } },
+    { el:function(){ return tourVisible(document.getElementById("viewToggle")); }, next:__("Næsta →"),
+      title:function(){ return __("Sýnin og málin"); },
+      html:function(){ var dims = !!tourVisible(document.getElementById("dimsBtn")) || isCloset() || isWallRoom();
+        return __("<b>3D</b>, <b>2D</b> (einn veggur með málum) eða <b>Ofanmynd</b>. Undir <b>Skoða</b> er Málband og X-Ray.") + (dims ? " " + __("Þar kveikir þú og slekkur á <b>Málsetningu</b> í 3D.") : ""); } },
+    { el:function(){ return tourVisible(document.getElementById("walkBtn")) || tourVisible(document.querySelector("#viewMenu > summary")); }, next:__("Næsta →"),
+      title:function(){ return __("Ganga um"); },
+      html:function(){ var inMenu = !tourVisible(document.getElementById("walkBtn"));
+        return (inMenu ? __("Undir „Skoða“ → „Ganga um“.") + " " : "") + __("Smelltu í myndina og hreyfðu músina til að líta í kring, W A S D eða örvar til að ganga, smelltu á hurðir og skúffur til að opna þær. Esc hættir."); } },
+    { el:function(){ var off = document.getElementById("closetFillOffer"); if (tourVisible(off)) return off; return isCloset() ? null : tourVisible(document.querySelector('#catalogPanel details[data-sec="rymi"] > summary')); }, next:__("Næsta →"),
+      title:function(){ return __("Fá tillögu"); },
+      html:function(){ return isCloset() ? __("Tómur veggur býður „Viltu fá tillögu?“ — skápar sem fylla vegginn. Þú breytir þeim eins og þú vilt.")
+        : __("Undir „Rými“ → „Fá tillögu að innréttingu“ röðum við upp algengri innréttingu fyrir þig. Þú breytir henni eins og þú vilt — eða afturkallar."); } },
+    { el:function(){ return tourVisible(document.getElementById("toContactBtn")); }, next:__("Næsta →"),
+      title:function(){ return __("Klárt — og senda inn"); },
+      html:function(){ return __("Þegar rýmið er tilbúið: „Klárt — aftur í rýmin“. Þar bætir þú við fleiri rýmum eða ferð í „Senda inn“ — söluaðili fer yfir og hefur samband. Allt vistast sjálfkrafa."); } },
+    { center:true, next:__("Byrja"),
+      title:function(){ return __("Gangi þér vel!"); },
+      html:function(){ var cmd = /Mac|iP(hone|ad)/.test(navigator.platform || navigator.userAgent) ? "⌘" : "Ctrl+";
+        var words = tourRoom() === "bath" ? '<ul class="tour-list">' + __('<li><b>Vaskaskápur</b> — skápurinn undir handlauginni, hangir á veggnum</li><li><b>Handlaug</b> — vaskurinn, situr ofan á toppnum</li><li><b>Toppur</b> — platan ofan á vaskaskápnum: Harðplast, Compact, Steinn eða enginn</li>') +
+          __('<li><b>Spegilskápur</b> — efri skápur með spegli á framhliðinni</li><li><b>Flísar</b> — veggflísar, valdar í Útliti rýmisins</li><li><b>Hindranir</b> — sturta, klósett og handklæðaofn, undir Gluggar og hindranir, svo skáparnir lendi ekki á þeim</li>') + '</ul>' : "";
+        return words + '<ul class="tour-list tour-keys">' + __('<li><b>Snúa:</b> dragðu með músinni</li><li><b>Hliðra:</b> hægri-smelltu og dragðu</li><li><b>Þysja:</b> skrollaðu</li>') +
+          __('<li><kbd>←</kbd> <kbd>→</kbd> færa valinn skáp um {a} (<kbd>Shift</kbd> = {b})</li><li><kbd>Delete</kbd> eyðir · <kbd>{cmd}Z</kbd> afturkallar · <kbd>Esc</kbd> afvelur</li>', { cmd:cmd, a:uLen(100), b:uLen(10) }) + '</ul>' +
+          '<p class="tour-note">' + __("Hjálp efst til hægri: svör við öllu („Hvernig…?“), spjall og þessi leiðsögn aftur.") + '</p>'; } }
+  ];
   function startTour(){
     endTour();
-    tourRoomText();
-    TOUR_STEPS[2].html = TOUR_VIEW_HTML + (window.innerWidth <= 1500 ? '<p class="tour-note">' + __("Á þessum skjá eru Skotmarkið, Myndavélin og Gangandi maðurinn undir „Skoða“.") + '</p>' : "");
-    TOUR_STEPS[0].title = state.activeCategory && catBase() !== "eldhus" ? __("Hér hannar þú rýmið þitt") : __("Hér hannar þú eldhúsið þitt"); // a bathroom isn't a kitchen
-    tour = { i:0, count0:cabinetTotal(), root:document.createElement("div") };
+    if (uw) closeUnitWizard();
+    tour = { i:0, root:document.createElement("div") };
     tour.root.className = "tour";
     tour.root.innerHTML = '<div class="tour-block"></div><div class="tour-hole"></div><div class="tour-bub" role="dialog" aria-live="polite"></div>';
     document.body.appendChild(tour.root);
     tour.timer = setInterval(tourTick, 150);
     window.addEventListener("resize", tourTick);
+    document.addEventListener("keydown", tourKey, true);
     showTourStep(0);
   }
   function endTour(finished){
     if (!tour) return;
-    clearInterval(tour.timer); window.removeEventListener("resize", tourTick);
+    clearInterval(tour.timer); window.removeEventListener("resize", tourTick); document.removeEventListener("keydown", tourKey, true);
     tour.root.remove(); tour = null;
     if (finished !== false) try{ localStorage.setItem(TOUR_KEY, "1"); }catch(e){}
   }
+  function tourKey(e){ if (!tour) return; if (e.key === "Escape"){ e.preventDefault(); e.stopPropagation(); endTour(); } else if (e.key === "Enter" || e.key === "ArrowRight"){ e.preventDefault(); e.stopPropagation(); showTourStep(tour.i + 1); } }
   function showTourStep(i){
     if (i >= TOUR_STEPS.length){ endTour(); return; }
     tour.i = i;
     var st = TOUR_STEPS[i], bub = tour.root.querySelector(".tour-bub");
     bub.innerHTML = '<p class="tour-n">' + (st.center && i === 0 ? __("Velkomin(n)") : (i === TOUR_STEPS.length - 1 ? "" : __("Skref {i} af {n}", { i:i, n:TOUR_STEPS.length - 2 }))) + '</p>' +
-      '<h4>' + st.title + '</h4><div class="tour-txt">' + st.html + '</div><div class="tour-act">' +
+      '<h4>' + st.title() + '</h4><div class="tour-txt">' + st.html() + '</div><div class="tour-act">' +
       (i < TOUR_STEPS.length - 1 ? '<button type="button" class="reset-link" data-tour="skip">' + __("Sleppa") + '</button>' : '<span></span>') +
       (st.next ? '<button type="button" class="btn btn-primary btn-small" data-tour="next">' + st.next + '</button>' : '') + '</div>';
     bub.querySelector('[data-tour="skip"]') && bub.querySelector('[data-tour="skip"]').addEventListener("click", function(){ endTour(); });
     bub.querySelector('[data-tour="next"]') && bub.querySelector('[data-tour="next"]').addEventListener("click", function(){ showTourStep(tour.i + 1); });
-    var tgt = st.scroll && st.el && st.el(); if (tgt) tgt.scrollIntoView({ block:"nearest" });
+    var nx = bub.querySelector('[data-tour="next"]'); if (nx) nx.focus();
     tourTick();
   }
   function tourTick(){
     if (!tour) return;
     if (state.step !== "editor"){ endTour(false); return; }
     var st = TOUR_STEPS[tour.i];
-    if (st.done && st.done()){ showTourStep(tour.i + 1); return; }
-    // the unit wizard was closed or stepped back: pick the step that fits where they are now
-    // (steps 4–7 since "Sýnin" came in at 2 — the old 3–6 threw step 3 back to 2 forever: morning scan 2026-10-27 #2)
-    if (tour.i >= TOUR_UW0 && tour.i <= TOUR_UW0 + 3){
-      var want = !uw ? TOUR_UW0 - 1 : uw.step === 1 ? TOUR_UW0 : uw.step === 2 ? TOUR_UW0 + 1 : (tour.i === TOUR_UW0 + 3 ? TOUR_UW0 + 3 : TOUR_UW0 + 2);
-      if (want !== tour.i){ showTourStep(want); return; }
-    }
     var el = st.el ? st.el() : null, hole = tour.root.querySelector(".tour-hole"), block = tour.root.querySelector(".tour-block"), bub = tour.root.querySelector(".tour-bub");
     var W = window.innerWidth, H = window.innerHeight, pad = 6, r = null;
     if (el && el.getClientRects().length){
@@ -13502,8 +13562,7 @@
     if (r){
       hole.hidden = false;
       hole.style.cssText = "left:" + r.x + "px;top:" + r.y + "px;width:" + r.w + "px;height:" + r.h + "px;";
-      // clicks only reach the highlighted part, and only on the steps where it is meant to be clicked
-      block.style.clipPath = st.click ? 'path(evenodd, "M0 0H' + W + 'V' + H + 'H0Z M' + r.x + ' ' + r.y + 'h' + r.w + 'v' + r.h + 'h-' + r.w + 'Z")' : "none";
+      block.style.clipPath = "none"; // nothing behind the tour is clicked while it runs — Næsta / Sleppa / Esc move on
     } else {
       hole.hidden = true; block.style.clipPath = "none";
     }
@@ -13520,7 +13579,35 @@
     bub.style.left = Math.max(8, Math.min(W - bw - 8, x)) + "px";
     bub.style.top = Math.max(8, Math.min(H - bh - 8, y)) + "px";
   }
-  document.getElementById("tourBtn").addEventListener("click", function(){ if (uw) closeUnitWizard(); startTour(); });
+  document.getElementById("tourBtn").addEventListener("click", function(){ startTour(); });
+  // Hjálp → "Hvernig…?": the whole reference (kitchen-planner-help.js — the chatbot reads the same list), searchable
+  function openHelpRef(q){
+    var list = window.KPHELP || [], en = KPI18N.lang === "en", L = function(o){ return o ? (en ? o.en : o.is) || o.is : ""; };
+    var old = document.getElementById("helpRef"); if (old) old.remove();
+    var ov = document.createElement("div"); ov.id = "helpRef"; ov.className = "help-ref"; ov.setAttribute("role", "dialog"); ov.setAttribute("aria-label", __("Hjálp"));
+    ov.innerHTML = '<div class="help-ref-card"><div class="help-ref-head"><h3>' + __("Hvernig…?") + '</h3><input type="search" id="helpRefQ" placeholder="' + __("Leita — t.d. skúffur, spegill, senda inn") + '" autocomplete="off"><button type="button" data-hr-close aria-label="' + __("Loka") + '">×</button></div><div class="help-ref-body" id="helpRefBody"></div></div>';
+    document.body.appendChild(ov);
+    var body = ov.querySelector("#helpRefBody"), inp = ov.querySelector("#helpRefQ");
+    var fold = function(t){ return String(t).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ð/g, "d").replace(/þ/g, "th").replace(/æ/g, "ae"); };
+    function draw(){
+      var words = fold(inp.value.trim()).split(/\s+/).filter(Boolean), html = "", lastCat = null, n = 0;
+      list.forEach(function(h){
+        var hay = fold(L(h.q) + " " + L(h.a) + " " + L(h.cat));
+        if (words.length && !words.every(function(w){ return hay.indexOf(w) >= 0; })) return;
+        if (L(h.cat) !== lastCat){ lastCat = L(h.cat); html += '<h4>' + escapeHtmlPro(lastCat) + '</h4>'; }
+        html += '<details' + (words.length ? ' open' : '') + '><summary>' + escapeHtmlPro(L(h.q)) + '</summary><p>' + escapeHtmlPro(L(h.a)) + '</p></details>'; n++;
+      });
+      body.innerHTML = n ? html : '<p class="hr-none">' + __("Ekkert fannst. Prófaðu annað orð — eða sendu okkur tölvupóst á bjorninn@bjorninninnrettingar.is.") + '</p>';
+    }
+    function close(){ ov.remove(); document.removeEventListener("keydown", onKey, true); }
+    function onKey(e){ if (e.key === "Escape"){ e.stopPropagation(); close(); } }
+    inp.addEventListener("input", draw);
+    ov.addEventListener("click", function(e){ if (e.target === ov || e.target.closest("[data-hr-close]")) close(); });
+    document.addEventListener("keydown", onKey, true);
+    if (q) inp.value = q;
+    draw(); inp.focus();
+  }
+  document.getElementById("helpRefBtn").addEventListener("click", function(){ openHelpRef(); });
 
   // ---------- wire top-level controls ----------
   // Flow order (Phase 7c): intake → materials → shape → walls → summary(3D) → contact.

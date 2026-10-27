@@ -10,6 +10,8 @@
 // change here too, or this prompt silently drifts out of sync with what
 // customers see on the FAQ page itself.
 
+import "../kitchen-planner-help.js"; // sets globalThis.KPHELP — the Studio's Hjálp list, also read by renderStudioHelp()
+
 const FAQ_CORPUS = [
   { title: "Af hverju sérsmíði?", questions: [
     ["Af hverju ætti ég að velja sérsmíði frekar en staðlaða innréttingu?",
@@ -257,13 +259,20 @@ const STUDIO_EMAIL = "bjorninn@bjorninninnrettingar.is";
 // "samband" is left out on purpose: the contact page lists a phone number.
 const STUDIO_LINK_KEYS = ["efni", "ferli", "boka_tima", "boka_honnud_heim", "holdur", "innihurdir"];
 
+// The Studio's own Hjálp list (kitchen-planner-help.js sets globalThis.KPHELP) — one source for the page and the chat
+function renderStudioHelp() {
+  const list = globalThis.KPHELP || [];
+  let last = "", out = "";
+  list.forEach((h) => { if (h.cat.is !== last) { last = h.cat.is; out += `\n### ${last}\n`; } out += `- Sp: ${h.q.is}\n  Sv: ${h.a.is}\n`; });
+  return out.trim();
+}
 const STUDIO_GUIDE = `
 ### Almennt
 - BJÖRNINN STUDIO er hönnunartól á vefnum: þú teiknar rýmið, velur efni og raðar innréttingunni í 3D. Tekur um 10–15 mínútur, vistast sjálfkrafa í vafranum (á sömu tölvu og sama vafra), ókeypis og engin binding.
 - Virkar best á tölvu (fartölvu eða borðtölvu); í síma birtist „Best á tölvu“. Ekkert týnist — komdu bara aftur á tölvu.
 - Mál eru slegin inn í sentimetrum (cm).
 - Efst er stika með skrefunum: 1 Rými → 2 Efni → 3 Skipulag → 4 Spurningar → 5 Senda inn. Hægt er að smella á skref sem búið er að opna. „← Til baka“ og „Áfram →“ eru alltaf efst til hægri.
-- Hjálp (efst til hægri): Spyrja (þetta spjall), Hafa samband (tölvupóstur), Sýna leiðsögnina (í Skipulagi), Tilkynna vandamál, Byrja upp á nýtt, In English / Á íslensku.
+- Hjálp (efst til hægri): „Hvernig…? — öll svör“ (leitanlegur listi yfir allt sem hægt er að gera), Hafa samband (tölvupóstur), Spyrja (þetta spjall), Sýna leiðsögnina (í Skipulagi, 6 stutt skref), Tilkynna vandamál, Byrja upp á nýtt, In English / Á íslensku.
 - „Byrja upp á nýtt“ eyðir núverandi hönnun eftir staðfestingu — það er ekki hægt að afturkalla.
 - Viðskiptavinir sjá aldrei verð í tólinu. Tilboð kemur frá söluaðila eftir að hönnun er send inn.
 
@@ -277,7 +286,7 @@ const STUDIO_GUIDE = `
 1. Lögun: veldu kort sem passar best (eldhús: Rétthyrnt, L-laga, Með innskoti; fataskápur: Einn veggur, Horn, Innskot, Fataherbergi (skápar meðfram veggjunum, gengið inn); bað: Einn veggur, Horn, Allt rýmið). Málin fínstillir þú næst. Ýttu á „Áfram →“.
    Þvottahús spyr líka „Hvar er vélin?“: Í stæðu, Undir borðplötu eða Engin vél.
 2. Stærð („Stilltu stærð rýmisins“ / „Veggjamál“): hver veggur hefur númer og reit í cm. Mældu hvern vegg frá horni í horn, við gólf, eftir veggnum sjálfum. „Opið“ merkir að þar er enginn veggur (opið inn í annað rými) — það sést sem strikalína. „+ Bæta við vegg“ skiptir vegg; einnig má draga veggina til í teikningunni.
-3. „Lofthæð og útlit“: lofthæð frá gólfi upp í loft (sjálfgefið 260 cm). Vegglitur og gólf eru valfrjáls, bara fyrir útlitið.
+3. Eldhús: „Lofthæð og útlit“ — lofthæð frá gólfi upp í loft (sjálfgefið 260 cm), vegglitur og gólf (bara fyrir útlitið). Fataskápur: „Mál“ — dragðu enda veggjarins (eða skrifaðu cm), „Allur veggurinn“ / „Hluti“ fyrir skápaflötinn (endar hans dragast líka) og Lofthæð; svo „Útlit rýmisins“ (gólf og veggur). Bað/þvottahús: „Veggurinn og vatnið“ — dragðu enda veggjarins og dropann; svo „Útlit rýmisins“ (gólf, veggur, flísar á baði).
 4. „Gluggar og hurðir“, einn vegg í einu („Næsti veggur →“). Undir fyrirsögninni „Bæta við“ eru hnapparnir „Gluggi“, „Hurð“ og „Op“; „+ Fleiri valkostir“ fyrir lagnastokk, bita í lofti, ofn, rafmagnstöflu, vatnsinntak/niðurfall, gluggakistu. Fyrir hvert: „Frá vinstra horni“ (frá horninu vinstra megin þegar þú horfir á vegginn, að brún gluggans/hurðarinnar), Breidd, Hæð og fyrir glugga „Frá gólfi“ (upp að neðri brún gluggans). ✕ fjarlægir.
    Efst stendur hvaða veggur er sýndur („Veggur 1 af 4“) og hann er merktur í teikningunni; „Næsti veggur →“ / „← Fyrri veggur“ fara á milli veggja. Ýttu á „Gluggi“ og fylltu út reitina í línunni sem birtist — glugginn sést strax í teikningunni, það er enginn „Setja inn“ hnappur hér.
 5. Vatn („Hvar kemur vatnið inn?“): smelltu á vegginn þar sem vatnið kemur inn og dragðu dropann á réttan stað (eða skrifaðu „Frá vinstra horni“ í cm). Ef þú veist það ekki, haltu bara áfram.
@@ -286,9 +295,10 @@ const STUDIO_GUIDE = `
 ### Skref 2 — Efni
 - Nokkrar síður, ein í einu, með „Áfram →“. Flest er forvalið, svo það má bara halda áfram og breyta seinna.
 - Eldhús: Skrokkur (litur innan í skápum) → Skúffur (skúffukerfi) → Framhlið → Höldur → Borðplata.
-- Fataskápur: Stærð og litur (dýpt, hæð, litur) → Hurðir (með eða án hurða) → Höldur → Skúffur.
-- Baðherbergi: Litur → Framhlið → Höldur → Toppur og vaskur (líka spegilskápur) → Skúffur.
-- Þvottahús: Litur → Framhlið → Höldur → Borðplata → Skúffur.
+- Fataskápur: Stærð og litur (dýpt; hæð „Upp í loft“ eða „Lægri skápar“ með hæð í cm; litur) → Skúffur → Hurðir (með eða án hurða, efni, „Spegill á hurð“: Enginn / Ein hurð / Allar) → Höldur.
+- Baðherbergi: Litur → Skúffur → Framhlið → Höldur → Toppur.
+- Þvottahús: Litur → Skúffur → Framhlið → Höldur → Borðplata.
+- Myndin byggist upp síðu fyrir síðu (tómur skápur → skúffur → framhlið → höldur).
 - Ef annað rými er þegar hannað er spurt „Sömu efni og í rýminu …?“ — „Já, sömu“ eða „Velja ný“.
 - Efni má líka breyta síðar í Skipulagi undir valmyndinni „Efni“.
 
@@ -308,9 +318,10 @@ const STUDIO_GUIDE = `
 - Málband (undir Skoða): smelltu á tvo punkta til að mæla. X-Ray: framhliðar af, sjáðu inn í skápana.
 - Kíkja inn: hægrismelltu á skáp til að kíkja inn — hurðir og skúffur opnast án þess að skápurinn sé valinn. Hægrismelltu aftur til að loka. (Hægrismella og draga hliðrar sýninni.)
 - Ábendingar (t.d. skápur fyrir glugga eða hærri en lofthæð) birtast sem „ábending“ á stikunni — smelltu til að sjá þær.
-- Tómur fataskápsveggur: „Fylla vegginn“ fyllir hann af skápum.
+- Tillaga: eldhús, bað og þvottahús spyrja „Viltu fá tillögu að innréttingu?“ þegar komið er í Skipulag (líka „Rými“ → „Fá tillögu að innréttingu“). Tómur fataskápsveggur býður „Viltu fá tillögu?“ (t.d. 3 skápar · 79 cm · tvær hurðir á hverjum) — „Já, sýna tillögu“ / „Nei, ég byrja sjálf/ur“.
+- „＋ Ný eining“ opnast alltaf; á fullum vegg býður „Setja inn“ að skipta út skáp eða setja inn mjórri.
 - Það þarf a.m.k. einn skáp áður en haldið er áfram („Áfram →“).
-- „Sýna leiðsögnina“ undir Hjálp sýnir stutta leiðsögn aftur.
+- „Sýna leiðsögnina“ undir Hjálp sýnir stuttu leiðsögnina aftur (6 skref: Ný eining → færa/breyta/kíkja inn → sýnin og málin → Ganga um → Fá tillögu → Klárt og senda inn).
 
 ### Baðherbergi og þvottahús — orðin
 - Vaskaskápur: skápurinn undir handlauginni, hangir á veggnum (sjálfgefið 20 cm frá gólfi, má breyta). Á baðinu er hann alltaf fyrsta einingin undir „＋ Ný eining“.
@@ -322,8 +333,11 @@ const STUDIO_GUIDE = `
 - Vatnsinntak: strikalínan á veggnum (í Gluggum og hurðum) sýnir hvar vatnið kemur inn — þar lendir vaskaskápurinn.
 - Mál: í 3D eru breiddirnar efst, fyrir ofan vegginn, og hæðirnar við enda innréttingarinnar. „Málsetning“ undir „Skoða“ kveikir og slekkur á þeim.
 
-### Tækjaskápar og lyftihurðir
-- „Tækjaskápar“ undir „＋ Ný eining“ (eldhús og fataskápar): t.d. „Skápur með rennihurðum“ — hurðirnar renna inn í hliðar skápsins (Blum Revego). Í eldhúsi eru ofn- og ísskápsturnar líka þar. Söluaðili staðfestir verð.
+### Tækjaskápar, Flóknari kerfi og lyftihurðir
+- Eldhús — „Tækjaskápar“ undir „＋ Ný eining“: „Skápur með rennihurðum“ (hurðirnar renna inn í hliðar skápsins, Blum Revego), ofn í háum skáp, ofn + örbylgja, innbyggður ísskápur og frystir. Söluaðili staðfestir verð.
+- Fataskápur — „Flóknari kerfi“ undir „＋ Ný eining“: Rennihurðir (renna til hliðar fyrir framan, Topline; 2, 3 eða 4 hurðir), Vasahurðir (renna inn í hliðarnar, Blum Revego), Fellihurðir (leggjast saman, WingLine). Hreyfast í þrívíddinni þegar smellt er. Söluaðili staðfestir kerfi og verð.
+- Fataskápur með hurðum og skúffum: Innvols → „Skúffurnar: Undir hurðinni / Fyrir aftan hurð“ (innskúffur, hurðin nær niður).
+- Hornskápur (opnar hillur í horninu) í fataskáp með lögunina Horn eða Fataherbergi.
 - Efri skápar með hurðum: „Opnast til hliðar“ eða „Opnast upp“ (lyfta, Blum AVENTOS). Söluaðili velur rétta lyftu og staðfestir verð.
 
 ### Innihurðir
@@ -379,6 +393,9 @@ Sp: Hvað kostar þetta?
 
 ## Leiðbeiningar um BJÖRNINN STUDIO
 ${STUDIO_GUIDE}
+
+## Hvernig…? — sama efni og Hjálp → „Hvernig…? — öll svör“ í Studio (kitchen-planner-help.js)
+${renderStudioHelp()}
 
 ## Algengar spurningar um Björninn (fyrir almennar spurningar)
 ${renderCorpus()}`;
