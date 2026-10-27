@@ -603,3 +603,14 @@ the machine) and `appliance:"uppthvottavel"`; built-in fridge/freezer get `appli
 skipulag ignores the key; it's for /cnc and people). Skápalisti: dishwasher = "Frontur á vélinni (engar lamir)" +
 "Innbyggð uppþvottavél"; fridge type "Hárskápur (ísskápur)" + "Ísskápur (innbyggður) · loftunarrist (sökkull/toppur)".
 Side effect: a dishwasher/fridge already marked "Yfirfarinn" in Smíða drops its mark once (the Smíðagögn changed).
+
+**G4 — Senda tilboð (Gmail draft, never sent).** Tilboð panel: "Senda tilboð" = the same save-first print, then a
+Gmail compose window (`mail.google.com/mail/?view=cm`, a draft Gmail autosaves) to the project contact's Netfang
+with "Hæ {Fornafn}" and the customer's LASTING link `/api/tilbod-pdf?r=<rec>&s=<HMAC(VERK_KEY)>` (Airtable's
+attachment URLs expire within hours; the link resolves to the CURRENT "Tilboð til sendingar" PDF on each click —
+a re-print updates what the customer sees). Nothing is sent by the app: after Rakel presses Send in Gmail she
+clicks "Merkja tilboð sent" → `/api/sala` action `sent` (the sales session's endpoint: Staða í söluferli =
+📤 Tilboð sent + Næsta skref "Bíða eftir svari" in 3 days). Automations on that status (checked 2026-10-27):
+"Skráir tíma þegar tilboð var sent" (date), Eftirfylgni 1.0/2.0 (internal Chat nudges at 3/13 days), Virkni log,
+and "Verk ósnert í 30 daga → tapað" — none e-mails the customer. tilbod-print now also returns `to` + `link`.
+Not done: the PDF as a real attachment (would need Gmail API credentials server-side).

@@ -1780,6 +1780,9 @@
   #tilbodPanel .tp-actions { grid-column:1 / -1; display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:4px; }
   #tilbodPanel .tp-actions button { font:inherit; border:1px solid var(--blue); border-radius:999px; padding:7px 16px; cursor:pointer; background:var(--blue); color:#fff; }
   #tilbodPanel .tp-msg { font-size:12px; color:var(--ink-soft); }
+  #tilbodPanel .tp-btns { display:flex; gap:6px; flex:none; }
+  #tilbodPanel .tp-actions button.tp-ghost { background:transparent; color:var(--blue); }
+  #tilbodPanel .tp-msg button { font:inherit; font-size:12px; border:1px solid var(--blue); border-radius:999px; padding:3px 10px; margin-left:6px; cursor:pointer; background:var(--blue); color:#fff; }
   #tilbodPanel .tp-loading { opacity:.55; transition:opacity .2s; }
   .pro-open { width:100%; margin:0 0 12px; padding:10px 12px; border-radius:10px; border:0; background:#1d2633; color:#fff; font:700 14px/1.2 inherit; cursor:pointer; }
   .pro-open.todo { background:#8a6a12; } /* not reviewed yet = amber; red stays for ⛔ (B5, 2026-10-26) */ .pro-open.ready { background:#1f9d55; }
@@ -2003,7 +2006,7 @@
         <label for="tpInstallDiscount">Afsláttur í uppsetningu %</label><input id="tpInstallDiscount" type="number" min="0" max="100" step="1" />
         <label for="tpMarkupInstall">Smáverka álagning [uppsetning]</label><select id="tpMarkupInstall"><option value="">—</option></select>
       </div></details>
-      <div class="tp-actions"><span class="tp-msg" id="tpMsg"></span><button type="button" id="tpPrint">Prenta tilboð</button></div>
+      <div class="tp-actions"><span class="tp-msg" id="tpMsg"></span><span class="tp-btns"><button type="button" id="tpPrint" class="tp-ghost">Prenta tilboð</button><button type="button" id="tpSend">Senda tilboð</button></span></div>
     </div>
   </aside>
 
@@ -18084,6 +18087,8 @@
   });
   document.addEventListener("click", function(e){
     if (e.target && e.target.id === "tpPrint") proTilbodPrint();
+    if (e.target && e.target.id === "tpSend") proTilbodSend();
+    if (e.target && e.target.id === "tpMarkSent") proTilbodMarkSent(e.target);
     if (e.target && e.target.id === "tpClose") proTilbodToggle(false);
     if (e.target && e.target.id === "tpAlertGo"){
       var rowsC = document.querySelectorAll("#tilbodPanel tr.tp-chg");
@@ -18106,13 +18111,15 @@
   document.addEventListener("keydown", function(e){ if (e.key === "Escape" && tp.open && !e.target.closest("input,select,textarea")) proTilbodToggle(false); });
   // G3 (2026-10-27): the quote is printed from what's in Airtable — so an unsaved drawing is saved first (same Vista,
   // same conflict dialog), then the new PDF opens in a tab of its own. The tab is opened on the click itself (a tab
-  // opened after the awaits would be blocked as a pop-up) and pointed at the PDF when it's ready.
-  async function proTilbodPrint(){
-    var btn = document.getElementById("tpPrint"), msg = document.getElementById("tpMsg");
+  // opened after the awaits would be blocked as a pop-up) and pointed at the PDF / Gmail when it's ready.
+  function tpWin(text){
     var win = window.open("", "_blank");
-    if (win) try{ win.document.write('<title>Tilboð…</title><p style="font:15px system-ui,sans-serif;padding:32px;color:#555">Bý til tilboðið — opnast hér eftir augnablik…</p>'); }catch(e){}
-    function fail(t){ msg.textContent = t; if (win) try{ win.close(); }catch(e){} btn.disabled = false; }
-    btn.disabled = true;
+    if (win) try{ win.document.write('<title>Björninn</title><p style="font:15px system-ui,sans-serif;padding:32px;color:#555">' + text + '</p>'); }catch(e){}
+    return win;
+  }
+  async function tpPrintNow(win){ // → generate-quote's answer + { files, link, to }, or null (message already shown)
+    var msg = document.getElementById("tpMsg");
+    function fail(t){ msg.textContent = t; if (win) try{ win.close(); }catch(e){} return null; }
     if (proDirty() && !proReadOnly()){
       msg.textContent = "Vista teikninguna fyrst…";
       if (!(await proSave())) return fail("Vistaðist ekki — tilboðið var ekki prentað (það hefði sýnt gamla verðið).");
@@ -18122,12 +18129,51 @@
       var r = await fetch("/api/tilbod-print", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ recordId:PRO.id, k:PRO.k }) });
       var d = await r.json().catch(function(){ return {}; });
       if (!r.ok) throw new Error(d.error || ("HTTP " + r.status));
-      var files = d.files || [], main = files.find(function(f){ return /\(Tilboð/.test(f.filename || ""); }) || files[0];
+      return d;
+    }catch(e){ return fail("Tókst ekki: " + e.message); }
+  }
+  function tpFileLinks(files){
+    return (files || []).map(function(f){
+      return '<a href="' + escapeHtmlPro(f.url) + '" target="_blank" rel="noopener">' + escapeHtmlPro((f.filename || "PDF").replace(/^.*\(|\)\.pdf$/g, "")) + '</a>'; }).join(" · ");
+  }
+  async function proTilbodPrint(){
+    var btns = document.querySelectorAll("#tpPrint, #tpSend"), msg = document.getElementById("tpMsg"), win = tpWin("Bý til tilboðið — opnast hér eftir augnablik…");
+    btns.forEach(function(x){ x.disabled = true; });
+    var d = await tpPrintNow(win);
+    if (d){
+      var files = d.files || [], main = files.find(function(f){ return /\((Tilboð|Verðhugmynd)/.test(f.filename || ""); }) || files[0];
       if (main && win) win.location.href = main.url; else if (win) try{ win.close(); }catch(e){}
-      msg.innerHTML = "✓ Prentað" + (files.length ? ": " + files.map(function(f){
-        return '<a href="' + escapeHtmlPro(f.url) + '" target="_blank" rel="noopener">' + escapeHtmlPro((f.filename || "PDF").replace(/^.*\(|\)\.pdf$/g, "")) + '</a>'; }).join(" · ") : " í Airtable (Tilboð til sendingar)");
-      btn.disabled = false;
-    }catch(e){ fail("Tókst ekki: " + e.message); }
+      msg.innerHTML = "✓ Prentað" + (files.length ? ": " + tpFileLinks(files) : " í Airtable (Tilboð til sendingar)");
+    }
+    btns.forEach(function(x){ x.disabled = false; });
+  }
+  // G4 (2026-10-27): "Senda tilboð" = print (save first) → a Gmail DRAFT to the project's contact with the customer's
+  // lasting link to the PDF (api/tilbod-pdf.js) — nothing is ever sent from here; Rakel reads it and presses Send in
+  // Gmail. Then "Merkja sent" sets Staða í söluferli = 📤 Tilboð sent through /api/sala (its Airtable automations:
+  // Tilboð sent þann, the 3- and 13-day follow-up nudges in Chat, the Virkni log — nothing goes to the customer).
+  async function proTilbodSend(){
+    var btns = document.querySelectorAll("#tpPrint, #tpSend"), msg = document.getElementById("tpMsg"), win = tpWin("Bý til tilboðið og opna drög í Gmail…");
+    btns.forEach(function(x){ x.disabled = true; });
+    var d = await tpPrintNow(win);
+    btns.forEach(function(x){ x.disabled = false; });
+    if (!d) return;
+    var to = d.to || {}, nm = String(PRO.name || "").split("|")[0].trim();
+    var body = (to.first ? "Hæ " + to.first + "," : "Hæ,") + "\n\nTakk fyrir síðast. Hér er tilboðið frá okkur:\n" + d.link +
+      "\n\nEf eitthvað er óljóst eða þú vilt breyta einhverju er velkomið að svara þessum pósti eða hringja.\n\nKær kveðja,"; // Gmail adds the sender's own signature
+    var url = "https://mail.google.com/mail/?view=cm&fs=1&to=" + encodeURIComponent(to.email || "") + "&su=" + encodeURIComponent("Tilboð frá Birninum" + (nm ? " — " + nm : "")) + "&body=" + encodeURIComponent(body);
+    if (win) win.location.href = url; else window.open(url, "_blank");
+    msg.innerHTML = "✓ Drög opin í Gmail" + (to.email ? "" : " — <b>ekkert netfang á tengiliðnum</b>, settu það inn sjálf") + ". Sendirðu? <button type=\"button\" id=\"tpMarkSent\">Merkja tilboð sent</button>" +
+      (d.files && d.files.length ? '<br>PDF: ' + tpFileLinks(d.files) : "");
+  }
+  async function proTilbodMarkSent(btn){
+    var msg = document.getElementById("tpMsg");
+    btn.disabled = true;
+    try{
+      var r = await fetch("/api/sala", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ k:PRO.k, action:"sent", recordId:PRO.id }) });
+      var d = await r.json().catch(function(){ return {}; });
+      if (!r.ok) throw new Error(d.error || ("HTTP " + r.status));
+      msg.textContent = "✓ Staða: 📤 Tilboð sent · eftirfylgni eftir 3 daga";
+    }catch(e){ btn.disabled = false; msg.insertAdjacentText("beforeend", " — tókst ekki: " + e.message); }
   }
   // Meðvituð leið út úr skoðunarhamnum (sama session — sækir aftur = spyr á ný). Flaggar að
   // Sögunarlisti/Pöntunarlisti/CNC eru byggð á gömlu teikningunni og þurfa að keyra aftur eftir þessa breytingu.
