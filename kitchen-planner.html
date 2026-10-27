@@ -17408,6 +17408,9 @@
     if (spl) o.split = spl; // fronts split in Smíða: slots top → bottom → Skipting fronta [Lárétt] + Hæð frontur 1–3
     var doors = proDoorsOf(b, c, zone);
     // which carcass side takes the hinges, seen from the front (/cnc drills only that side): two doors = both
+    // G8 (2026-10-27): an integrated dishwasher's front hangs on the machine — no hinges, no hinge side; appliances say so
+    if (c.dishwasher) o.appliance = "uppthvottavel"; else if (c.fridge) o.appliance = b.type === "frystir" ? "frystir" : "isskapur";
+    if (c.dishwasher) doors = [];
     if (doors.length) o.hinge = KP3D.smidaHingeSide(b, c); // every door cabinet, so /cnc never guesses (two leaves = both)
     if (doors.length && b.smida) o.doors = doors.map(function(dr, i){ var sp = proSpec(b, doors, i);
       return { h:dr.box - 3, type:sp.type, side:b.swing || null, hinges:sp.type === "hinged" ? sp.hinges : [],
@@ -18507,7 +18510,7 @@
         var v1 = (li["Vöru reitur 1"] || [])[0], prod = (b.v1Pick && b.v1Pick.id === v1 && b.v1Pick.name) || (v1 && wdUtfName(v1)) || "";
         var drawers = (sm.fronts || []).slice().reverse().map(function(f){ return (f.code === "fast" ? "fastur" : P + f.code) + " " + f.mm; }).join(" / ");
         if (sm.inner && sm.inner.length) drawers += (drawers ? " · " : "") + "inni: " + sm.inner.map(function(f){ return KPWD.drawerLabel(sys, { code:f.code, inner:true }) + " " + f.mm; }).join(", ");
-        var doors = c.panel || c.appliance ? [] : proDoorsOf(b, c, zone), dTxt = "";
+        var doors = c.panel || c.appliance || c.dishwasher ? [] : proDoorsOf(b, c, zone), dTxt = c.dishwasher ? "Frontur á vélinni (engar lamir)" : "";
         if (doors.length){
           var specs = doors.map(function(d, i){ return proSpec(b, doors, i); });
           var side = { baedi:"báðar hliðar", haegri:"hægri", vinstri:"vinstri" }[sm.hinge] || "";
@@ -18529,13 +18532,15 @@
         if (!v1) note.push("Engin vara (V1)");
         if (sm.oven) note.push("Ofn " + sm.oven.h + " mm");
         if (sm.sink) note.push("Vaskur");
+        if (c.dishwasher) note.push("Innbyggð uppþvottavél");
+        if (c.fridge) note.push(c.label + " · loftunarrist (sökkull/toppur)");
         bathSmidaNotes(sm).forEach(function(t){ note.push(t); });
         if (isBath() && state.hungUnits && !c.panel && !c.appliance) note.push(UPPHENGI_NOTE);
         if (sm.split) note.push("Frontar skiptir " + sm.split.join("/"));
         if (sm.led) note.push("LED " + (sm.led.type === "hlid" ? sm.led.side + " hlið (rauf)" : "undir efstu hillu"));
         if (w.island) note.push("Í eyju");
         if (!c.panel && !c.appliance && !sm.ready) note.push("Ekki yfirfarinn í Smíða");
-        rows.push({ sk:key, n:+String(key).slice(2) || 0, type:c.panel ? c.label : c.skapategundOverride || c.label, product:prod, size:sm.w + " × " + sm.h + " × " + sm.d,
+        rows.push({ sk:key, n:+String(key).slice(2) || 0, type:c.panel ? c.label : c.fridge ? (c.skapategundOverride || "Hárskápur") + " (" + c.label.replace(/\s*\(.*\)$/, "").toLowerCase() + ")" : c.skapategundOverride || c.label, product:prod, size:sm.w + " × " + sm.h + " × " + sm.d,
           front:c.panel || c.appliance ? "" : (sm.front || "FR1") + (sm.innerFront ? " · inn: " + sm.innerFront : ""), drawers:drawers, doors:dTxt, shelves:shTxt,
           grip:c.panel || c.appliance ? "" : sm.grip && sm.grip.length ? "Fræst grip (" + sm.grip.length + ")" : handle, note:note.join(" · ") });
       }); }); });

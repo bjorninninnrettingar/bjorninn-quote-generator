@@ -597,3 +597,9 @@ Not done: drawings/Studio pictures appended to the quote PDF.
 (after the 19 mm áfella already kept free) — "Bil N mm milli Sk2 og Sk3 á vegg 1 — áfella, fyllistykki eða færa
 saman?" — unless a door/opening/low obstacle sits in the gap; and "2 vaskaskápar í rýminu (Sk1, Sk3) — er það
 ætlunin?". `seedSink()` still places the sink on the water in PRO but toasts it. Customers (Studio) see no change.
+
+**G8 — appliances tell the truth.** Smíðagögn: an integrated dishwasher has no `hinge`/`doors` (its front hangs on
+the machine) and `appliance:"uppthvottavel"`; built-in fridge/freezer get `appliance:"isskapur"|"frystir"` (Keyra
+skipulag ignores the key; it's for /cnc and people). Skápalisti: dishwasher = "Frontur á vélinni (engar lamir)" +
+"Innbyggð uppþvottavél"; fridge type "Hárskápur (ísskápur)" + "Ísskápur (innbyggður) · loftunarrist (sökkull/toppur)".
+Side effect: a dishwasher/fridge already marked "Yfirfarinn" in Smíða drops its mark once (the Smíðagögn changed).
