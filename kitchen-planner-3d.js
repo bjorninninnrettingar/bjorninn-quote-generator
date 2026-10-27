@@ -2287,6 +2287,7 @@
     if (meta && meta.counter && meta.stoneMat){
       var sinkHole = meta.sink && !meta.basin ? sinkSize(widthM, depthM) : null; // a bathroom basin sits ON the top: no cut-out
       var TT = meta.stoneMat.userData.thick || 0.03;
+      if (sinkHole) sinkHole = { w:sinkHole.w + 0.008, d:sinkHole.d + 0.008, r:sinkHole.r + 0.004 }; // 4 mm round the bowl, under the rim
       var topGeo = sinkHole ? worktopWithHole(THREE, widthM + 0.001, TT, depthM + 0.02, sinkHole) : new THREE.BoxGeometry(widthM + 0.001, TT, depthM + 0.02);
       worktopUV(topGeo, meta.stoneMat.userData && meta.stoneMat.userData.tile, meta.stoneMat.userData && meta.stoneMat.userData.rotateTex, offsetM + widthM / 2);
       var top = new THREE.Mesh(topGeo, meta.stoneMat);
@@ -2477,7 +2478,7 @@
     if (up < 0.2){ niche = hM - base; up = 0; }
     var common = { washerDrawerM:0, tall:false, fixedFronts:true, splitFr:null, alwaysDims:false };
     addCabinetBox(THREE, scene, geom, offM, wM, base, dM, 0, carcassMat, frontMat, null, Object.assign({}, meta, common), selected, pickables);
-    if (up > 0) addCabinetBox(THREE, scene, geom, offM, wM, up, dM, base + niche, carcassMat, frontMat, null, Object.assign({}, meta, common, { plinth:false, handleBottom:true, suppressBadge:true }), selected, pickables);
+    if (up > 0) addCabinetBox(THREE, scene, geom, offM, wM, up, dM, base + niche, carcassMat, frontMat, { mode:"hillur", count:up > 1 ? 3 : 1 }, Object.assign({}, meta, common, { fixedFronts:false, plinth:false, handleBottom:true, suppressBadge:true }), selected, pickables) // a real cabinet: its fronts strip with X-Ray like any other (they stayed a white box on the Efni colour page); its shelves: with the fronts off it is a real carcass, not an empty glass box (owner, 2026-10-27);
     var quat = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(geom.axis.x, 0, geom.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(geom.normal.x, 0, geom.normal.z)));
     function board(w, h, d, along, y, out){
       var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), carcassMat), a = offM + wM / 2 + along;
@@ -3359,7 +3360,7 @@
     // basin: a rounded box with its top (lid + upper rounded band, hidden in the 32 mm worktop anyway) cut away
     var basinGeo = window.__RoundedBox__ ? new window.__RoundedBox__(hs.w - 0.002, depth, hs.d - 0.002, 4, 0.03) : new THREE.BoxGeometry(hs.w, depth, hs.d);
     var basin = new THREE.Mesh(openTopGeometry(THREE, basinGeo, depth / 2 - 0.029), steelIn);
-    put(basin, topY - depth / 2 + 0.001, zc);
+    put(basin, topY - depth / 2 + 0.028, zc); // its open top just under the rim: the worktop's cut edge never shows inside the bowl
     // flush rim round the hole
     var rimSh = roundedRectShape(THREE, hs.w + 0.03, hs.d + 0.03, hs.r + 0.015); rimSh.holes.push(roundedRectShape(THREE, hs.w, hs.d, hs.r, new THREE.Path()));
     var rimG = new THREE.ExtrudeGeometry(rimSh, { depth:0.0015, bevelEnabled:false, curveSegments:6 }); rimG.rotateX(-Math.PI / 2);

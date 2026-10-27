@@ -4328,7 +4328,7 @@
       if (mach.length) laundryRun(other, mach, atStart !== towerFar ? 0 : other.lengthMm, !basic, towerFar ? (atStart ? { end:20 } : { start:20 }) : null); // (room for the tower's úthlið to push it along)
       else if (!basic) laundryRun(other, [], 0, true);
     } else laundryRun(waterW, [sink].concat(mach.length ? mach : basic ? [] : [laundryBase(600)]), mid, !basic); // Engin vél: sink + a drawer unit, as on its preview
-    if (m !== "staeda" && !basic) unitWalls.forEach(laundryWallUnits);
+    if (!basic) unitWalls.forEach(laundryWallUnits); // efri skápar over every worktop run, with a tower too (owner, 2026-10-27)
     landedBlockId = sink.id;
   }
   function laundryUntouched(){ // every unit is still the one we seeded (none moved into place by hand, none locked)
@@ -8388,7 +8388,8 @@
     var uwWall = state.walls.find(function(w){ return w.id === uw.wallId; }), uwPl = uwWall && typeof uwWall.plinthMm === "number" ? uwWall.plinthMm : (state.hungUnits ? BATH_HUNG_MM : undefined);
     var pv = { wardrobe:isCloset(), carcass:state.carcass, drawerSystem:state.drawerSystem, look:state.look, handle:state.handle, handleColor:state.handleColor, top:c.panel ? "engin" : state.top, /* an úthlið alone: no worktop */ floor:state.floor, wallColor:state.wallColor,
       roomHeightMm:state.roomHeightMm, closed:false, islands:[], windows:[], doors:[], hungUnits:!!state.hungUnits, activeCategory:isLaundry() ? state.activeCategory : undefined, // (a laundry sink: the short utility tap)
-      walls:[{ id:"UWP", label:"", lengthMm:lenMm, plinthMm:uwPl, floor:c.zone === "floor" ? [Object.assign({}, b, { gapMm:400, locked:false })].concat(uwPairOpt(hovOpt) ? [Object.assign({}, b, { id:b.id + "p", gapMm:0, locked:false })] : []) : [], wall:c.zone === "wall" ? [Object.assign({}, b, { gapMm:400, locked:false })] : [] }] };
+      walls:[{ id:"UWP", label:"", lengthMm:lenMm, plinthMm:uwPl, floor:c.zone === "floor" ? (function(){ var fl = [Object.assign({}, b, { gapMm:400, locked:false })].concat(uwPairOpt(hovOpt) ? [Object.assign({}, b, { id:b.id + "p", gapMm:0, locked:false })] : []);
+        return isLaundry() && !PRO && c.thvo ? previewEndPanels(fl) : fl; })() : [], /* the machine tower: its úthliðar, no dark side (owner, 2026-10-27) */ wall:c.zone === "wall" ? [Object.assign({}, b, { gapMm:400, locked:false })] : [] }] };
     KP3D.waitForThree(function(ok){
       if (!ok || !uw) return;
       var prevCam = KP3D._three() ? { p:KP3D._three().camera.position.clone(), t:KP3D._three().controls.target.clone() } : null;
@@ -9871,7 +9872,7 @@
       if (!ok || (mat ? state.step !== "materials" || !isLaundry() : state.step !== "shape" || shapePhase !== "machine")) return;
       var st0 = KP3D._three(), prevCam = (mat || heightScene) && st0 && host.querySelector("canvas") ? { p:st0.camera.position.clone(), t:st0.controls.target.clone() } : null;
       KP3D.teardown3D(true); host.innerHTML = "";
-      KP3D.buildScene(host, pv, { xray:true, clean:true, noGhost:true, onlySurfaceId:"MCP", freshCamera:true, towerGlass:true });
+      KP3D.buildScene(host, pv, { xray:true, clean:true, noGhost:true, onlySurfaceId:"MCP", freshCamera:true, towerGlass:!mat }); // Efni: a real carcass (the top cabinet read as a glass box)
       if (!mat) heightScene = true;
       var st = KP3D._three(); if (!st) return;
       var g = KP3D.surfaceGeoms(pv)[0]; previewFloor(st, g, lenMm / 1000, !!mat);

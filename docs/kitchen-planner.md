@@ -716,3 +716,8 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   (`state.wallTile`, `KP3D.WALL_TILES`: 60 × 30 half-bond, UVs at real size per wall piece) under Vegglitur — decorative.
   Not built: the 4th machine option "Hlið við hlið í skáp" (needs a new unit type + an Útfærsla in Airtable — scoped in
   the reply to the coordinator).
+- **Laundry fixes (owner):** the washer tower's top cabinet is a real cabinet (shelves, fronts strip with X-Ray — it read as a
+  white glass box on the Efni colour page; Efni previews no longer use `towerGlass`); Ný eining's tower preview gets its
+  úthliðar; the laundry suggestion puts efri skápar over every worktop run, with a tower too. Every inset sink (kitchen,
+  laundry, PRO too — shared 3D): the worktop cut-out is 4 mm bigger than the bowl all round (under the rim) and the bowl's
+  open top sits right under the rim, so no worktop edge shows inside the sink at any worktop thickness.
