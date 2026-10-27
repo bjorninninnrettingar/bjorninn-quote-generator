@@ -657,3 +657,8 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   `obstacleKindsHere()` (no "Vatnsinntak" in bath/laundry for customers). Fixtures start at the wall end away from the
   water. They are never line items — only the "Hindranir í rýminu" note. "+ Fleiri valkostir" on that page is a popover
   (`.opw-obst.pop`), closed after a pick.
+- **Bath A–Ö page 4 Efni (owner; Bað + Þvottahús):** the pages run like the kitchen — Litur → Skúffur → Framhlið → Höldur
+  → Toppur (bath tab "Toppur", its page title still "Toppur og vaskur") — and the preview builds up with them through
+  `matPhaseReveal`: an empty box (interior hillur 0) → drawers (`grunnskapur` + drawerCodes) → fronts (x-ray until then)
+  → handles → the top with the basin (`vaskaskapur` only from the top page) + mirror cabinet. `previewFloor(…, true)` takes
+  the floor + wall colour from Útlit rýmisins. Wardrobes already built up (`renderClosetPreview`), unchanged.
