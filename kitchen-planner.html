@@ -451,6 +451,8 @@
   .opw-obst[open] summary{ border-color:var(--blue); background:var(--blue-soft); color:var(--blue); }
   .opw-obst-btns{ display:grid; grid-template-columns:repeat(2,1fr); gap:6px; margin-top:6px; }
   .opw-obst-btns .hw-btn{ font-size:12.5px; padding:7px 8px; text-align:left; }
+  .opw-obst.pop{ position:relative; }
+  .opw-obst.pop[open] > .opw-obst-btns{ position:absolute; left:0; top:calc(100% + 6px); z-index:40; width:320px; margin:0; padding:10px; background:#fff; border:1px solid var(--line); border-radius:12px; box-shadow:0 14px 34px rgba(25,25,25,.16); }
   .elev-svg [data-elid]{ cursor:grab; }
   .elev-svg [data-elid]:active{ cursor:grabbing; }
   .opw-btn{ display:flex; align-items:center; gap:10px; font:inherit; font-size:14.5px; font-weight:600; padding:12px 14px; background:#fff; color:var(--ink); border:1.5px solid var(--line); border-radius:12px; cursor:pointer; text-align:left; }
@@ -5242,8 +5244,9 @@
         (wi > 0 ? '<button type="button" class="btn btn-secondary btn-small" id="opwPrev">' + __("← Fyrri veggur") + '</button>' : '<span class="btn btn-small opw-slot" aria-hidden="true">' + __("← Fyrri veggur") + '</span>') + '</div><p class="opw-q">' + __("Bæta við") + '</p></div></div>' +
       '<div class="opw-btns3"><button type="button" class="opw-btn" data-add="gluggi"><span>' + icon("window", 20) + '</span>' + __("Gluggi") + '</button><button type="button" class="opw-btn" data-add="hurd"><span>' + icon("door", 20) + '</span>' + __("Hurð") + '</button>' +
         '<button type="button" class="opw-btn" data-add="gat" title="' + __("Op án hurðar.") + '"><span>' + icon("opening", 20) + '</span>' + __("Op") + '</button></div>' +
-      '<details class="opw-obst"' + (obsOnWall || openWallMore ? ' open' : '') + '><summary>' + __("+ Fleiri valkostir") + '</summary><div class="opw-obst-btns">' + Object.keys(KP3D.OBSTACLES).filter(function(k){ return k !== "stolpi" && k !== "milliveggur"; }).map(function(k){ // those two are on the size page now
-        return '<button type="button" class="hw-btn" data-addobst="' + k + '">＋ ' + __(KP3D.OBSTACLES[k].label.replace(" (miðstöð)", "")) + '</button>';
+      // a small popover over the panel (owner, 2026-10-27): opening it moves nothing below and brings no scroll bar
+      '<details class="opw-obst pop"' + (openWallMore ? ' open' : '') + '><summary>' + __("+ Fleiri valkostir") + '</summary><div class="opw-obst-btns">' + obstacleKindsHere().filter(function(k){ return k !== "stolpi" && k !== "milliveggur"; }).map(function(k){ // those two are on the size page now
+        return '<button type="button" class="hw-btn" data-addobst="' + k + '">＋ ' + __(KP3D.OBSTACLES[k].label) + '</button>';
       }).join("") + '</div></details>' +
       '' : '';
     add.querySelectorAll("[data-eljump]").forEach(function(el){
@@ -5267,7 +5270,7 @@
     add.querySelectorAll("[data-addobst]").forEach(function(btn){
       btn.addEventListener("click", function(){
         var o = addObstacle(btn.dataset.addobst, openWallId); if (!o) return;
-        selectedOpeningId = o.id; renderOpeningsBox(); renderShapeCanvas();
+        openWallMore = false; selectedOpeningId = o.id; renderOpeningsBox(); renderShapeCanvas();
       });
     });
     renderShapeActions(); // the step's "Áfram" appears once every wall is answered
@@ -5438,6 +5441,15 @@
     var hideOpen = !!unitWallShape(); // a bath / wardrobe: its open room edges aren't walls to walk to (round 2)
     if ((state.closed || wi > 0) && !(hideOpen && prev.open)) svg += navTxt(x0 + 10, false, prev, prevS && prevS !== wall ? prevS : null, '← ' + __("Veggur {n}", { n:state.walls.indexOf(prev) + 1 }) + (prev.open ? ' ' + __("(opinn)") : ''));
     if ((state.closed || wi < n - 1) && !(hideOpen && next.open)) svg += navTxt(x0 + L * sc - 10, true, next, nextS && nextS !== wall ? nextS : null, __("Veggur {n}", { n:state.walls.indexOf(next) + 1 }) + (next.open ? ' ' + __("(opinn)") : '') + ' →');
+    // Bað / Þvottahús: the vanity at the droplet (and a bath's spegilskápur over it) faintly on the wall, so no window
+    // goes where the mirror will hang (owner, 2026-10-27) — just a guide, nothing to click
+    if (bathShape() && !PRO && state.waterWall === wall.id){
+      var gW = isLaundry() ? 600 : 800, gA = Math.max(0, Math.min(L - gW, waterAlong(wall) - gW / 2)), gTxt = function(cx, cy, t){ return '<text x="' + cx + '" y="' + cy + '" font-size="11" text-anchor="middle" fill="#8a7f69" style="pointer-events:none;">' + t + '</text>'; };
+      var gRect = function(lo, hi){ return '<rect x="' + X(gA) + '" y="' + Y(hi) + '" width="' + gW * sc + '" height="' + (hi - lo) * sc + '" fill="#e7dcc6" fill-opacity=".45" stroke="#9c8f77" stroke-width="1.2" stroke-dasharray="5,3" style="pointer-events:none;"/>'; };
+      var vLo = isLaundry() ? 0 : BATH_HUNG_MM, vHi = isLaundry() ? 900 : BATH_HUNG_MM + BATH_BOX_MM;
+      svg += gRect(vLo, vHi) + gTxt(X(gA + gW / 2), Y((vLo + vHi) / 2) + 4, __("Vaskaskápur"));
+      if (isBath()){ var mLo = 1150, mHi = Math.min(roomH - 50, 1850); svg += gRect(mLo, mHi) + gTxt(X(gA + gW / 2), Y((mLo + mHi) / 2) + 4, __("Spegilskápur")); }
+    }
     var items = elItems(wall.id), pills = "";
     if (!items.length) svg += '<text x="' + (x0 + L * sc / 2) + '" y="' + (top + roomH * sc / 2) + '" font-size="15" text-anchor="middle" fill="#b3b0a8">' + __("Engir gluggar eða hurðir á þessum vegg") + '</text>';
     items.forEach(function(it){
@@ -8517,7 +8529,7 @@
       item("opening", "hurd", "door", __("Hurð"), uDims(DOOR_DEFAULT.heightMm, DOOR_DEFAULT.widthMm), true) +
       item("opening", "gat", "gap", __("Op í vegg (án hurðar)"), uDims(GAP_DEFAULT.heightMm, GAP_DEFAULT.widthMm), true) +
       (function(){ // a wardrobe: the few that matter up front, the kitchen ones under "Fleiri" (user, 2026-10-26)
-        var all = Object.keys(KP3D.OBSTACLES), main = isCloset() ? ["stolpi", "biti", "ofn"] : all, more = all.filter(function(k){ return main.indexOf(k) < 0; });
+        var all = obstacleKindsHere(), main = isCloset() ? ["stolpi", "biti", "ofn"] : all, more = all.filter(function(k){ return main.indexOf(k) < 0; });
         var btn = function(k){ return '<button type="button" class="hw-btn" data-obst-add="' + k + '">＋ ' + __(KP3D.OBSTACLES[k].label) + '</button>'; };
         return '<div class="cat-title">' + __("Hindranir") + '</div><div class="light-btns">' + main.map(btn).join("") + '</div>' +
           (more.length ? '<details class="opw-obst"><summary>' + __("+ Fleiri valkostir") + '</summary><div class="light-btns">' + more.map(btn).join("") + '</div></details>' : '');
@@ -8859,17 +8871,27 @@
   // fixed default sizes, positioned by drop point, no collision checks
   // against cabinets on the same wall (a real-world conflict there is
   // exactly the kind of judgment call left for Rakel's review).
+  // the obstacle kinds this room offers (a bath gets its shower / WC / towel rail; a bath or laundry no water pipe — the droplet is that)
+  function obstacleKindsHere(){ var cb = catBase(); return Object.keys(KP3D.OBSTACLES).filter(function(k){ var d = KP3D.OBSTACLES[k]; return (!d.rooms || d.rooms.indexOf(cb) >= 0) && !(d.notRooms && d.notRooms.indexOf(cb) >= 0 && !PRO); }); }
   function addOpening(type, wallId, alongMm, elevMm){
     var wall = state.walls.find(function(w){ return w.id === wallId; });
     if (!wall || wall.open) return;
     var isWindow = type === "gluggi";
-    var d = openingDefault(type), wMm = Math.min(d.widthMm, wall.lengthMm); // a short wall gets a narrower one
-    var sill0 = isWindow ? openingSill(d.heightMm, elevMm, type) : 0;
+    var d = openingDefault(type);
+    var smallWin = isWindow && isWallRoom() && !PRO; // a bath / laundry window: 60 × 60, 140 cm up (owner, 2026-10-27) — not the living-room 120 × 100
+    if (smallWin) d = { widthMm:600, heightMm:600, sillHeightMm:1400 };
+    if (smallWin && elevMm == null && state.waterWall === wallId && bathShape()){ // beside the spegilskápur, not on it, when there's room
+      var vW = isLaundry() ? 600 : 800, wa = waterAlong(wall), v0 = Math.max(0, Math.min(wall.lengthMm - vW, wa - vW / 2)), v1 = v0 + vW;
+      var lft = v0, rgt = wall.lengthMm - v1;
+      if (Math.max(lft, rgt) >= d.widthMm + 100) alongMm = rgt >= lft ? Math.round((v1 + wall.lengthMm) / 2) : Math.round(v0 / 2);
+    }
+    var wMm = Math.min(d.widthMm, wall.lengthMm); // a short wall gets a narrower one
+    var sill0 = isWindow ? (smallWin && elevMm == null ? Math.min(1400, (state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM) - d.heightMm) : openingSill(d.heightMm, elevMm, type)) : 0;
     var offsetMm = snappedOpeningOffset(wall, wMm, alongMm, "", { lo:sill0, hi:sill0 + d.heightMm });
     if (offsetMm === null){ toast(OVERLAP_MSG); return false; }
     var o = { id:"o" + (openingSeq++), wallId:wallId, offsetMm:offsetMm, widthMm:wMm, heightMm:d.heightMm };
     if (type === "gat") o.gap = true; // stored with the doors: same wall placement, no leaf, the wall is cut open
-    if (isWindow) o.sillHeightMm = openingSill(d.heightMm, elevMm, type);
+    if (isWindow) o.sillHeightMm = sill0;
     (isWindow ? state.windows : state.doors).push(o);
     save();
     refreshAfterEdit();
@@ -11429,6 +11451,8 @@
     if (!wall){ toast(__("Teiknaðu rýmið fyrst.")); return; }
     var o = { id:"h" + (obstacleSeq++) + "_" + Date.now().toString(36), kind:kind, wallId:wall.id, widthMm:Math.min(def.w || wall.lengthMm, wall.lengthMm), depthMm:def.d, heightMm:def.h, elevMm:def.elev };
     o.offsetMm = at && at.wallId === wall.id ? Math.max(0, Math.min(wall.lengthMm - o.widthMm, Math.round((at.alongMm - o.widthMm / 2) / 10) * 10)) : Math.round((wall.lengthMm - o.widthMm) / 2);
+    // a shower / WC on the vanity's wall: at the end away from the water, not on top of the vaskaskápur (owner, 2026-10-27)
+    if (!at && def.look === "fixture" && state.waterWall === wall.id) o.offsetMm = waterAlong(wall) < wall.lengthMm / 2 ? Math.max(0, wall.lengthMm - o.widthMm) : 0;
     if (kind === "kista"){ // under a window on this wall (or the first window anywhere)
       var win = state.windows.find(function(w){ return w.wallId === wall.id; }) || state.windows[0];
       if (win){ wall = state.walls.find(function(w){ return w.id === win.wallId; }) || wall; o.wallId = wall.id; o.widthMm = Math.min(win.widthMm + 100, wall.lengthMm); o.offsetMm = Math.max(0, Math.min(wall.lengthMm - o.widthMm, win.offsetMm - 50)); o.elevMm = Math.max(0, win.sillHeightMm - 40); }

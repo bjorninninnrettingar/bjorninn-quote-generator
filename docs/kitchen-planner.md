@@ -649,3 +649,11 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   (`data-bathend` → `startBathEndDrag`, whole cm, `setClosetDim`, `frozenView` holds the corner / other end; grips drawn
   last, over the droplet). New page after it: "Útlit rýmisins" = the kitchen's "height" page (3D + Vegglitur + Gólf)
   without its ceiling field — flow water → height → openings for `bathShape()`.
+- **Bath A–Ö page 3 "Gluggar og hurðir" (owner; Bað + Þvottahús):** the wall elevation shows the vanity at the droplet
+  (bath hung 200–800, laundry 0–900) and a bath's spegilskápur (1150–1850) as dashed guides; a new window there is
+  60 × 60 at 140 cm and lands beside the mirror when the wall has room (`addOpening`, `smallWin`). Obstacles: "Ofn" is
+  now "Miðstöðvarofn"; bath-only `handklaedaofn`, `sturta` (900 × 900 × 2000) and `klosett` (400 × 650 × 800), look
+  `fixture` = a neutral see-through box in 3D with edges; `rooms` / `notRooms` on OBSTACLES filtered by
+  `obstacleKindsHere()` (no "Vatnsinntak" in bath/laundry for customers). Fixtures start at the wall end away from the
+  water. They are never line items — only the "Hindranir í rýminu" note. "+ Fleiri valkostir" on that page is a popover
+  (`.opw-obst.pop`), closed after a pick.

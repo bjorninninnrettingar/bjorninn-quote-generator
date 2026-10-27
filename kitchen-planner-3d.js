@@ -5260,6 +5260,11 @@
         part(new THREE.CylinderGeometry(0.025, 0.025, dM, 16).rotateX(Math.PI / 2), 0x9a9da3, 0.35, 0.6, wM / 4, hM / 2, 0);
       } else if (def.look === "sill"){
         part(new THREE.BoxGeometry(wM, hM, dM), 0xe6e2da, 0.35, 0, 0, hM / 2, 0);
+      } else if (def.look === "fixture"){ // shower / bath / WC: a calm neutral volume, a little see-through — "something stands here"
+        var fx = part(new THREE.BoxGeometry(wM, hM, dM), 0xdfe3e6, 0.5, 0, 0, hM / 2, 0);
+        fx.material.transparent = true; fx.material.opacity = 0.55; fx.castShadow = false;
+        var ed = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(wM, hM, dM)), new THREE.LineBasicMaterial({ color:0x8f969c }));
+        ed.position.set(0, 0, 0); proxy.add(ed);
       } else if (def.shapes && o.shape === "round"){ // a round column (2026-10-23)
         part(new THREE.CylinderGeometry(Math.min(wM, dM) / 2, Math.min(wM, dM) / 2, hM, 40), new THREE.Color(wallColor).getHex(), 1, 0, 0, hM / 2, 0);
       } else {
@@ -6663,9 +6668,13 @@
     stolpi:      { label:"Burðarstólpi",          w:300, d:300, h:null, elev:0,    blocks:true,  look:"wall", free:true, shapes:true },
     milliveggur: { label:"Milliveggur",           w:120, d:600, h:null, elev:0,    blocks:true,  look:"wall", free:true, rotatable:true }, // 120 mm thick by default (user, 2026-10-23)
     biti:        { label:"Biti í lofti",          w:2000, d:300, h:250, elev:null, blocks:true,  look:"wall", ceiling:true, free:true, rotatable:true }, // free + turnable (was: always along one wall, 2026-10-23)
-    ofn:         { label:"Ofn (miðstöð)",         w:1000, d:100, h:600, elev:150,  blocks:true,  look:"radiator" },
+    ofn:         { label:"Miðstöðvarofn",         w:1000, d:100, h:600, elev:150,  blocks:true,  look:"radiator" },
+    // Bað (owner, 2026-10-27): where cabinets can't go — never ordered, only drawn and noted for the söluaðili
+    handklaedaofn:{ label:"Handklæðaofn",         w:500, d:100, h:1200, elev:300,  blocks:true,  look:"radiator", rooms:["bad"] },
+    sturta:      { label:"Sturta / baðkar",       w:900, d:900, h:2000, elev:0,    blocks:true,  look:"fixture", rooms:["bad"] },
+    klosett:     { label:"Klósett",               w:400, d:650, h:800, elev:0,     blocks:true,  look:"fixture", rooms:["bad"] },
     tafla:       { label:"Rafmagnstafla",         w:400, d:120, h:600,  elev:1400, blocks:true,  look:"panel" },
-    vatn:        { label:"Vatnsinntak / niðurfall", w:150, d:60, h:150, elev:450,  blocks:false, look:"pipe" },
+    vatn:        { label:"Vatnsinntak / niðurfall", w:150, d:60, h:150, elev:450,  blocks:false, look:"pipe", notRooms:["bad", "thvottahus"] }, // there the water is the droplet
     kista:       { label:"Gluggakista",           w:1300, d:200, h:40,  elev:960,  blocks:true,  look:"sill" }
   };
   // its height range above the floor (mm)
@@ -7387,7 +7396,7 @@
     (state.doors || []).forEach(function(d){ openingSegment(d, 'data-door-id', "#8a6a4a", true); });
     (state.obstacles || []).forEach(function(o){
       var q = obstacleQuad(state, o), def = OBSTACLES[o.kind]; if (!q || !def) return;
-      var sel = opts.selectedId === o.id, fill = def.look === "wall" ? "#9a958a" : def.look === "radiator" ? "#ffffff" : def.look === "sill" ? "#e6e2da" : "#c4c6c9";
+      var sel = opts.selectedId === o.id, fill = def.look === "wall" ? "#9a958a" : def.look === "radiator" ? "#ffffff" : def.look === "sill" ? "#e6e2da" : def.look === "fixture" ? "#e8ebed" : "#c4c6c9";
       svg += '<polygon data-obstacle-id="' + o.id + '" points="' + q.map(function(p){ return X(p.x) + "," + Y(p.z); }).join(" ") + '" fill="' + fill + '" fill-opacity="' + (def.ceiling ? 0.35 : 0.9) + '" stroke="' + (sel ? "#3d61c1" : "#4a4740") + '" stroke-width="' + (sel ? 2.5 : 1.2) + '"' + (def.ceiling ? ' stroke-dasharray="6,4"' : '') + ' style="cursor:pointer;"><title>' + def.label + '</title></polygon>';
     });
 
