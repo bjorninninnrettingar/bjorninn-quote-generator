@@ -27,7 +27,7 @@ export default async function handler(req, res, { fetchImpl = fetch } = {}) {
   const r = await fetchImpl(`https://${host}/api/generate-quote`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-webhook-secret": secret },
-    body: JSON.stringify({ recordId, mode: "cabinets" }),
+    body: JSON.stringify({ recordId, mode: "cabinets", withDrawings: !!(body || {}).withDrawings }),
   });
   const data = await r.json().catch(() => ({}));
   if (!r.ok || !token) return res.status(r.status).json(data);

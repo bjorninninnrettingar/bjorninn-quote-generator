@@ -7,6 +7,8 @@
 // This endpoint is open to the internet like /api/airtable, so it only ever writes ONE field and only
 // on a record that (a) was created by the planner (its planner-JSON field is filled), (b) is less than
 // 30 minutes old, and (c) doesn't already have a drawing — i.e. the submission that just happened.
+// PRO (2026-10-27, G3): with the office key (?k=VERK_KEY) any Tækifæri's drawing is REPLACED — "Prenta tilboð" puts
+// the drawing as it is now there, and generate-quote appends it to the quote.
 
 const AIRTABLE_BASE = "app91U15z9K704Okd";
 const PROJECTS_TABLE = "tbl4LMXlQjp66RFKI";                 // Tækifæri 📣 (projects)
@@ -46,16 +48,25 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Ekki PDF" });
   }
 
+  const pro = !!process.env.VERK_KEY && (req.query || {}).k === process.env.VERK_KEY;
   const recRes = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${PROJECTS_TABLE}/${recordId}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!recRes.ok) return res.status(404).json({ error: "Tækifæri fannst ekki" });
   const rec = await recRes.json();
   const f = rec.fields || {};
-  if (!f[PLANNER_JSON_FIELD]) return res.status(403).json({ error: "Ekki innsending úr skipuleggjara" });
-  if (Date.now() - Date.parse(rec.createdTime) > MAX_AGE_MS) return res.status(403).json({ error: "Of seint" });
-  if (Array.isArray(f[DRAWINGS_FIELD_NAME]) && f[DRAWINGS_FIELD_NAME].length) {
-    return res.status(409).json({ error: "Teikningar eru þegar komnar" });
+  if (!pro) {
+    if (!f[PLANNER_JSON_FIELD]) return res.status(403).json({ error: "Ekki innsending úr skipuleggjara" });
+    if (Date.now() - Date.parse(rec.createdTime) > MAX_AGE_MS) return res.status(403).json({ error: "Of seint" });
+    if (Array.isArray(f[DRAWINGS_FIELD_NAME]) && f[DRAWINGS_FIELD_NAME].length) {
+      return res.status(409).json({ error: "Teikningar eru þegar komnar" });
+    }
+  } else if (Array.isArray(f[DRAWINGS_FIELD_NAME]) && f[DRAWINGS_FIELD_NAME].length) { // replace, don't pile up
+    const clr = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${PROJECTS_TABLE}/${recordId}`, {
+      method: "PATCH", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ fields: { [DRAWINGS_FIELD_ID]: [] } }),
+    });
+    if (!clr.ok) return res.status(502).json({ error: `Airtable ${clr.status}` });
   }
 
   const date = new Date().toISOString().slice(0, 10);

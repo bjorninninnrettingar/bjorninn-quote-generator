@@ -48,3 +48,31 @@ test("tilbod-pdf: a signed link redirects to the current quote PDF; a wrong sign
   assert.equal(f.calls.length, 1);
   assert.equal(pickQuote([{ filename: "x (Verðhugmynd).pdf" }]).filename, "x (Verðhugmynd).pdf");
 });
+
+// G3 rest (2026-10-27): PRO's print appends the designer's drawings to the quote PDF.
+import { PDFDocument } from "pdf-lib";
+import { appendPdf, quoteFile } from "../api/generate-quote.js";
+import drawings from "../api/kp-drawings.js";
+
+test("appendPdf: the drawings' pages follow the quote's own; quoteFile picks the quote, not Uppsetning", async () => {
+  const mk = async (n) => { const d = await PDFDocument.create(); for (let i = 0; i < n; i++) d.addPage([200, 100]); return d.save(); };
+  const out = await PDFDocument.load(await appendPdf(await mk(2), await mk(3)));
+  assert.equal(out.getPageCount(), 5);
+  assert.equal(quoteFile([{ filename: "T-1 (Uppsetning).pdf" }, { filename: "T-1 (Tilboð).pdf" }]).filename, "T-1 (Tilboð).pdf");
+});
+
+test("kp-drawings: with the office key an older Tækifæri's drawing is replaced; without it, still refused", async () => {
+  const realFetch = globalThis.fetch, calls = [];
+  globalThis.fetch = async (url, o = {}) => { calls.push((o.method || "GET") + " " + url);
+    return { ok: true, status: 200, json: async () => ({ id: REC, createdTime: "2026-01-01T00:00:00Z", fields: { "Teikningar úr skipuleggjara 📐": [{ url: "x" }] } }), text: async () => "" }; };
+  try {
+    const pdf = Buffer.from("%PDF-1.7\n" + "x".repeat(200));
+    let res = mockRes();
+    await drawings({ method: "POST", query: { recordId: REC }, body: pdf }, res);
+    assert.equal(res.statusCode, 403); // old record, no key
+    calls.length = 0; res = mockRes();
+    await drawings({ method: "POST", query: { recordId: REC, k: "secret" }, body: pdf }, res);
+    assert.equal(res.statusCode, 200);
+    assert.ok(calls.some((c) => c.startsWith("PATCH")) && calls.some((c) => c.includes("uploadAttachment")), calls.join(" | "));
+  } finally { globalThis.fetch = realFetch; }
+});

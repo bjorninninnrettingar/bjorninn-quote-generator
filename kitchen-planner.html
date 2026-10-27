@@ -18202,9 +18202,17 @@
       msg.textContent = "Vista teikninguna fyrst…";
       if (!(await proSave())) return fail("Vistaðist ekki — tilboðið var ekki prentað (það hefði sýnt gamla verðið).");
     }
+    // the drawing as it is now (same PDF a customer submission makes) → the Tækifæri → appended to the quote (G3)
+    var withDrawings = false;
+    if (state.closed) try{
+      msg.textContent = "Útbý teikningar fyrir tilboðið…";
+      var dpdf = await KPI18N.asISAsync(function(){ return buildDrawingsPdf(String(PRO.name || "").split("|").slice(1).join("|").trim()); });
+      var up = await postBlobRetry("/api/kp-drawings?recordId=" + encodeURIComponent(PRO.id) + "&k=" + encodeURIComponent(PRO.k), dpdf);
+      withDrawings = up.ok;
+    }catch(e){ withDrawings = false; }
     msg.textContent = "Prenta…";
     try{
-      var r = await fetch("/api/tilbod-print", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ recordId:PRO.id, k:PRO.k }) });
+      var r = await fetch("/api/tilbod-print", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ recordId:PRO.id, k:PRO.k, withDrawings:withDrawings }) });
       var d = await r.json().catch(function(){ return {}; });
       if (!r.ok) throw new Error(d.error || ("HTTP " + r.status));
       return d;
@@ -18221,7 +18229,7 @@
     if (d){
       var files = d.files || [], main = files.find(function(f){ return /\((Tilboð|Verðhugmynd)/.test(f.filename || ""); }) || files[0];
       if (main && win) win.location.href = main.url; else if (win) try{ win.close(); }catch(e){}
-      msg.innerHTML = "✓ Prentað" + (files.length ? ": " + tpFileLinks(files) : " í Airtable (Tilboð til sendingar)");
+      msg.innerHTML = "✓ Prentað" + (d.drawingsAdded ? " með teikningum" : "") + (files.length ? ": " + tpFileLinks(files) : " í Airtable (Tilboð til sendingar)");
     }
     btns.forEach(function(x){ x.disabled = false; });
   }

@@ -633,3 +633,11 @@ field) on every unit the run created/synced plus every unit still without a Sög
 the next starts when that unit's Sögunarlisti count has settled (≥ 20 s, two equal reads) or after 90 s, because
 Yfirfara's lean Pöntunarlisti runs side by side on one project were what made duplicate lines. Progress and any
 unit that failed show in Yfirferð's run line. No Airtable automation change needed. `window.__wt.runDone` = test hook.
+
+**G3 rest — drawings after the quote.** PRO's print (and Senda tilboð) first builds the same drawings PDF a customer
+submission makes (`buildDrawingsPdf`: elevations, corner views, top view, plan; ~1 MB for the welcome kitchen) and
+uploads it with the key to "Teikningar úr skipuleggjara 📐" — `api/kp-drawings` with `?k=VERK_KEY` REPLACES the field
+on any Tækifæri (without the key: the old fresh-submission-only rules). Then `tilbod-print` asks generate-quote for
+`withDrawings`, which appends those pages to the "(Tilboð…)" PDF (`appendPdf`). The Airtable print button is
+unchanged (no drawings — that field can hold the customer's pre-PRO drawing). A failed drawing step never stops the
+print; the panel says "Prentað með teikningum" only when they made it in.

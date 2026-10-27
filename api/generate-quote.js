@@ -1104,6 +1104,17 @@ export async function buildQuoteFiles(project, lineItems, mode, recordId = "") {
   };
 }
 
+// The designer's drawings after the quote's own pages (G3, 2026-10-27) — only when PRO's "Prenta tilboð" asks for it
+// (`withDrawings`), right after it uploaded fresh drawings to "Teikningar úr skipuleggjara 📐"; the Airtable button
+// keeps printing the quote alone (that field may still hold the customer's first, pre-PRO drawing).
+export const DRAWINGS_FIELD = "Teikningar úr skipuleggjara 📐";
+export async function appendPdf(mainBytes, extraBytes) {
+  const main = await PDFDocument.load(mainBytes), extra = await PDFDocument.load(extraBytes);
+  for (const pg of await main.copyPages(extra, extra.getPageIndices())) main.addPage(pg);
+  return main.save();
+}
+export function quoteFile(files) { return files.find((f) => /\((Tilboð|Verðhugmynd)/.test(f.filename)) || files[0]; }
+
 // ── Main handler ──────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
@@ -1156,6 +1167,17 @@ export default async function handler(req, res) {
     }
 
     const { files, totals } = await buildQuoteFiles(project, lineItems, mode, recordId);
+    let drawingsAdded = false;
+    const dw = (project[DRAWINGS_FIELD] || [])[0];
+    if ((req.body || {}).withDrawings && dw && dw.url && files.length) {
+      try {
+        const r = await fetch(dw.url);
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        const qf = quoteFile(files);
+        qf.bytes = await appendPdf(qf.bytes, new Uint8Array(await r.arrayBuffer()));
+        drawingsAdded = true;
+      } catch (e) { console.warn("Drawings not appended:", e.message); } // the quote itself still goes out
+    }
 
     console.log("Clearing old attachments…");
     await clearAttachments(token, recordId);
@@ -1167,6 +1189,7 @@ export default async function handler(req, res) {
       success: true,
       recordId,
       mode,
+      drawingsAdded,
       ...totals,
     });
   } catch (err) {
