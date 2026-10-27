@@ -483,6 +483,9 @@
   // field name cnc-sides.js already reads for ANY cabinet, búrskápur or not — only the designer UI was
   // búrskápur-only before this). Positioning convention mirrors burDrawersOf exactly (60 mm up, 35 mm apart) so
   // the two feel the same to use.
+  // Innskúffur behind a tall unit's door (b.innerCodes — Smíða's free list, and the closet's "Innskúffur fyrir aftan hurð",
+  // owner 2026-10-27): drawn like a búrskápur's — inside, in the carcass colour, no handle, pulled out once the door is open
+  function innerFreeOf(b, c){ return c && !c.bur && c.cls === "tall" && Array.isArray(b.innerCodes) && b.innerCodes.length && !(b.interior && b.interior.mode === "skuffur") ? b.innerCodes : null; }
   function innerDrawersOf(b, sysKey){
     var sys = DRAWER_CODES[sysKey === "merivo" ? "merivo" : "legra"], codes = Array.isArray(b.innerCodes) ? b.innerCodes : [], y = 60;
     var custom = Array.isArray(b.innerPos) && b.innerPos.length === codes.length ? b.innerPos : null;
@@ -2851,13 +2854,13 @@
     // shelves where Rakel put them in Smíða (or spread evenly); the oven and the búrskápur draw their own below.
     // A tall drawer unit's door-above-drawers zone can hold shelves too — hasShelfLayout decides (not `drawers`
     // alone), so a non-tall drawer unit (no zone left) still gets none.
-    var shelfList = meta.oven || (meta.burCodes && meta.burCodes.length) ? [] :
+    var shelfList = meta.oven || (meta.burCodes && meta.burCodes.length && !meta.innerFree) ? [] :
       meta.shelfBlock && hasShelfLayout(meta.shelfBlock) ? shelfLayoutOf(meta.shelfBlock, bodyH * 1000, meta.drawerSystem) :
       drawers ? [] :
       (function(n){ var o = []; for (var k = 1; k <= n; k++) o.push({ mm:bodyH * 1000 * k / (n + 1) + 9 }); return o; })(meta.shelves || 0);
     // open the door and drag a shelf / fataslá up or down, as in an open cabinet (user, 2026-10-26) — only when the
     // list is the block's own layout (the even-spread fallback has nothing to write back to)
-    var dragShelves = !!(pickables && meta.shelfBlock && hasShelfLayout(meta.shelfBlock) && !meta.oven && !(meta.burCodes && meta.burCodes.length));
+    var dragShelves = !!(pickables && meta.shelfBlock && hasShelfLayout(meta.shelfBlock) && !meta.oven && !(meta.burCodes && meta.burCodes.length && !meta.innerFree));
     function makeDraggable(mesh, kind, idx){
       mesh.userData = { kind:kind + "-item", itemKind:kind, blockId:meta.shelfBlock.id, idx:idx, locked:false, bodyBaseY:bodyBase, widthM:widthM, ax:geom.axis.x, az:geom.axis.z };
       pickables.push(mesh);
@@ -2874,7 +2877,7 @@
       if (dragShelves && !shf.fixed) makeDraggable(board, "shelf", si);
     });
     // Fataslá (clothes rail, 2026-10-15): same zone/gating as shelfList, a plain steel rod across the width.
-    var railList = meta.oven || (meta.burCodes && meta.burCodes.length) ? [] :
+    var railList = meta.oven || (meta.burCodes && meta.burCodes.length && !meta.innerFree) ? [] :
       meta.shelfBlock && meta.shelfBlock.type && CATALOG[meta.shelfBlock.type] && CATALOG[meta.shelfBlock.type].railRange ?
         railLayoutOf(meta.shelfBlock, bodyH * 1000, meta.drawerSystem) : [];
     if (railList.length){
@@ -3176,6 +3179,13 @@
     }
 
     var partsBeforeFronts = parts.length;
+    // the joint where drawers meet a door (and every joint in a wardrobe) reads as a real shadow line, even with white
+    // fronts on a white carcass (owner, 2026-10-27: under-door drawers looked like handles on the door)
+    fronts.forEach(function(f, fi){
+      if (!fi || !(wardrobeScene || !!fronts[fi - 1].drawer !== !!f.drawer)) return;
+      var sl = new THREE.Mesh(new THREE.BoxGeometry(widthM - 2 * CARCASS_T + 0.004, 0.004, 0.012), new THREE.MeshStandardMaterial({ color:0x1d1d1f, roughness:0.9 }));
+      sl.position.set(0, bodyBase + bodyH * f.y0, CD - 0.006); frame.add(sl);
+    });
     fronts.forEach(function(f, fi){
       var y0 = bodyBase + bodyH * f.y0 + 0.0015, y1 = bodyBase + bodyH * f.y1 - 0.0015;
       if (f.drawer) makeLeaf(idx++, 0, widthM, y0, y1, "left", f, fi);
@@ -3248,7 +3258,7 @@
     // each inner drawer pulls out on its own once the doors are open
     if (meta.burCodes && meta.burCodes.length){
       var sysB = DRAWER_CODES[sysKey], yb = bodyBase + 0.06, ibw = Math.max(0.2, widthM - 2 * T - 0.026), ibd = Math.max(0.2, CD - 0.045 - BACK_T - 0.01);
-      var burAt = meta.shelfBlock ? burDrawersOf(meta.shelfBlock, sysKey) : null; // Rakel's positions (Smíða)
+      var burAt = meta.shelfBlock ? (meta.innerFree ? innerDrawersOf(meta.shelfBlock, sysKey) : burDrawersOf(meta.shelfBlock, sysKey)) : null; // Rakel's positions (Smíða) / the free innskúffur's own
       meta.burCodes.forEach(function(code, k){
         if (burAt && burAt[k]) yb = bodyBase + burAt[k].mm / 1000;
         var side = (sysB && sysB.side[code]) || 120, key = meta.blockId + ":b" + k, g = new THREE.Group(), meshes = [];
@@ -3266,7 +3276,7 @@
         frame.add(g);
         yb += ifh + 0.035;
       });
-      var burShelves = meta.shelfBlock ? shelfLayoutOf(meta.shelfBlock, bodyH * 1000, sysKey) : [1, 2].map(function(k){ return { mm:((yb - bodyBase) + (bodyH - (yb - bodyBase)) * k / 3) * 1000 + 9 }; });
+      var burShelves = meta.innerFree ? [] : meta.shelfBlock ? shelfLayoutOf(meta.shelfBlock, bodyH * 1000, sysKey) : [1, 2].map(function(k){ return { mm:((yb - bodyBase) + (bodyH - (yb - bodyBase)) * k / 3) * 1000 + 9 }; });
       burShelves.forEach(function(shf){
         var shB = new THREE.Mesh(new THREE.BoxGeometry(widthM - 2 * CARCASS_T - 0.001, 0.018, CD - 0.03), meta.openMat);
         shB.position.set(0, bodyBase + shf.mm / 1000 - 0.009, (CD - 0.03) / 2 + 0.005); shB.castShadow = true; shB.receiveShadow = true;
@@ -5691,7 +5701,7 @@
             splitFr:c.oven || c.fixedFronts ? null : splitFractions(b, hM * 1000 - (c.panel || c.appliance ? 0 : plinthMmW)), // a fridge too, once its split is changed in Smíða
             plinth:(!c.panel || hungPanel) && !c.appliance, plinthMm:plinthMmW, appliance:c.appliance || null, leMans:!!c.tofrahornIds, counter:!!c.counter, sink:!!c.sink, utilityTap:!!c.sink && /^thvottahus(:|$)/.test(String(state.activeCategory || "")), tapCeilM:c.sink ? tapCeilingM(wall, offset + b.widthMm / 2) : null, oven:!!c.oven, panel:!!c.panel, plinthMat:plinthMat, stoneMat:stoneMat,
             ovenCodes:c.lowOven ? ["M"] : c.oven ? ovenCodesOf(b, state.drawerSystem) : null, fixedFronts:!!c.fixedFronts || !!c.appliance,
-            burCodes:c.bur ? burCodesOf(b, state.drawerSystem) : null, dishwasher:!!c.dishwasher,
+            burCodes:c.bur ? burCodesOf(b, state.drawerSystem) : innerFreeOf(b, c), innerFree:!c.bur && !!innerFreeOf(b, c), dishwasher:!!c.dishwasher,
             lowOven:!!c.lowOven, pickTop:!!opts.pickWorktop && !!c.counter, ovenFrontsMm:c.oven ? b.ovenFrontsMm || null : null, ovenBlock:c.oven ? b : null, ovenCat:c.oven ? c : null,
             sinkFixedTop:!!c.sink && b.sinkTop === "fastur" && !!(b.interior && b.interior.mode === "skuffur"),
             fridgeKind:c.fridge ? (b.type === "frystir" ? "freezer" : "fridge") : null,
@@ -7991,7 +8001,7 @@
     ovenHOf: ovenHOf, ovenUnderOf: ovenUnderOf, ovenUnderMinMm: ovenUnderMinMm, ovenUnderMaxMm: ovenUnderMaxMm, ovenUpperMm: ovenUpperMm, ovenShelvesOf: ovenShelvesOf,
     OVEN_DEFAULT: OVEN_DEFAULT,
     modelsPending: modelsPending, preload: preload,
-    shelvesOf: shelvesOf, burCodesOf: burCodesOf,
+    shelvesOf: shelvesOf, burCodesOf: burCodesOf, innerFreeOf: innerFreeOf,
     railsOf: railsOf, railLayoutOf: railLayoutOf,
     radborunSpanMm: radborunSpanMm, RADBORUN_PITCH_MM: RADBORUN_PITCH_MM, RADBORUN_MARGIN_DEFAULT_MM: RADBORUN_MARGIN_DEFAULT_MM,
     setMeasuring: setMeasuring,
