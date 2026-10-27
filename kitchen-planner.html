@@ -4151,7 +4151,7 @@
     var at = side > 0 ? start + sink.widthMm + 40 : start - 40 - g.widthMm; // + room for the úthliðar between
     var fits = function(a, wd, zone){ return a >= lo && a + wd <= hi && freeIntervals(w, zone, null, probeSpan(zone, g)).some(function(iv){ return iv[0] <= a + 0.5 && iv[1] >= a + wd - 0.5; }); };
     if (fits(at, g.widthMm, "floor")) insertBlockAt(w, "floor", g, at);
-    var e = newBlock("efriskapur"); e.widthMm = Math.max(CATALOG.efriskapur.minW, Math.min(CATALOG.efriskapur.maxW, sink.widthMm)); e.autoSeed = true;
+    var e = newBlock("opnarhillur"); e.widthMm = Math.max(CATALOG.opnarhillur.minW, Math.min(CATALOG.opnarhillur.maxW, sink.widthMm)); e.autoSeed = true; // an open shelf, like the Ný eining default
     var eFree = freeIntervals(w, "wall", null, probeSpan("wall", e)).some(function(iv){ return iv[0] <= start + 0.5 && iv[1] >= start + e.widthMm - 0.5; });
     if (eFree && !(state.windows || []).some(function(o){ return o.wallId === w.id && start < o.offsetMm + o.widthMm && start + e.widthMm > o.offsetMm; })) insertBlockAt(w, "wall", e, start);
   }
@@ -7577,9 +7577,9 @@
       { label:"Vaskaskápur", type:"vaskaskapur", drawers:true } ] },
     { key:"grunn", label:"Grunnskápur", desc:"Veggfestur, við hlið vasksins", icon:"grunnskapur", opts:[ // the unit's own name everywhere (QA E10)
       { label:"Grunnskápur", type:"grunnskapur", drawers:true } ] },
-    { key:"efri", label:"Efri skápur", desc:"Á vegg, t.d. yfir vaskinum", icon:"efriskapur", opts:[
+    { key:"efri", label:"Efri skápur", desc:"Á vegg, t.d. yfir vaskinum", icon:"efriskapur", opts:[ // an open shelf first and by default (owner, 2026-10-27) — a mirror cabinet's place
+      { label:"Opin hilla", type:"opnarhillur" },
       { label:"Lokaður skápur með hillum", type:"efriskapur" },
-      { label:"Opinn skápur með hillum", type:"opnarhillur" },
       { label:"Lausar hillur", type:"laushilla" } ] },
     // optional tall cabinet (review 2026-10-25, C): hung like the rest, 160 cm box, 35 cm deep
     { key:"har", label:"Hár skápur", desc:"Valkvætt — fyrir handklæði og fleira", icon:"harskapur", opts:[
@@ -7681,11 +7681,14 @@
     var b = x.b, c = CATALOG[b.type], picked = uw.picked || {}, gap = 0.07;
     var lines = [
       { key:"w", a:P(x.a0, x.y1 + (x.extraTop || 0) + gap, x.d), b:P(x.a1, x.y1 + (x.extraTop || 0) + gap, x.d), mm:b.widthMm }, // above the tap, never through the basin
-      { key:"h", a:P(x.a0 - gap, x.y0, x.d), b:P(x.a0 - gap, x.y1, x.d), mm:blockHeightMm(b, c) },
+      { key:"h", a:P(x.a0 - (x.hungM ? 4.2 * gap : gap), x.y0, x.d), b:P(x.a0 - (x.hungM ? 4.2 * gap : gap), x.y1, x.d), mm:blockHeightMm(b, c) }, // overall: floor to the top of the unit
+      // a wall-hung unit (owner, 2026-10-27): beside it, nearer the unit, the gap under it + its own height — like the room's 3D dims
+      x.hungM ? { key:"h", a:P(x.a0 - gap, x.y0, x.d), b:P(x.a0 - gap, x.y0 + x.hungM, x.d), mm:Math.round(x.hungM * 1000) } : null,
+      x.hungM ? { key:"h", a:P(x.a0 - gap, x.y0 + x.hungM, x.d), b:P(x.a0 - gap, x.y1, x.d), mm:blockHeightMm(b, c) - Math.round(x.hungM * 1000) } : null,
       { key:"d", a:P(x.a1 + gap, x.y0, 0), b:P(x.a1 + gap, x.y0, x.d), mm:b.depthMm || c.d }
     ];
     var hoverKey = uw.hoverDim ? uw.hoverDim.k : null;
-    svg.innerHTML = lines.map(function(l){
+    svg.innerHTML = lines.filter(Boolean).map(function(l){
       var active = uw.sec === l.key || hoverKey === l.key, fixed = !!picked[l.key];
       if (!active && !fixed) return "";
       var col = active ? "#0058a3" : "#2b2b2e", sw = active ? 2.4 : 1.4;
@@ -7933,6 +7936,7 @@
         var picked = !!uw.picked[key], body = '<div class="uw-chips">' + opts.map(function(v){
           return '<button type="button" class="hw-btn' + (picked && cur === v ? ' active' : (!picked && v === def ? ' suggest' : '')) + '" ' + attr + '="' + v + '"' + (!picked && v === def ? ' title="' + __("Algengast") + '"' : '') + '>' + uwN(v) + '</button>';
         }).join("") + '</div>' + ((key === "w" && c.fixedWidths) || lo === hi ? '' : '<div class="uw-custom"><label>' + __("Annað mál") + '</label><input type="number" ' + cAttr + ' min="' + uwN(lo) + '" max="' + uwN(hi) + '" step="' + (uCm() ? 0.1 : 1) + '" value="' + (picked ? uwN(cur) : "") + '" placeholder="' + uwN(def) + '"><small>' + uUnit() + ' · ' + uwN(lo) + '–' + uwN(hi) + '</small></div>') + // in the buttons' unit (user, 2026-10-24; mm in PRO 2026-10-26)
+          (key === "h" && state.hungUnits && !PRO && c.zone === "floor" && c.counter ? '<p class="sec-note uw-toph">' + __("Toppurinn verður í {n} cm hæð", { n:Math.round((cur + (state.top && state.top !== "engin" && TOPS[state.top] ? KP3D.topThickM(state.top) * 1000 : 0)) / 10) }) + '</p>' : '') + // floor → gap + unit + top (owner, 2026-10-27)
           (key === "w" && c.cls === "corner" ? '<p class="sec-note">' + (c.tofrahornIds ? (uCm() ? __("Hurðin er helmingur breiddarinnar: 45, 50 eða 60 cm.") : "Hurðin er helmingur breiddarinnar: 450, 500 eða 600 mm.") : __("Hurðin er helmingur breiddarinnar, hinn helmingurinn er blindur inn í hornið.")) +
             (cornerFillerMm(b, c) ? ' ' + (uCm() ? __("Fyllistykki {n} cm bætist við svo hurðin komist fram hjá skápunum í horninu.", { n:cornerFillerMm(b, c) / 10 }) : "Fyllistykki " + cornerFillerMm(b, c) + " mm bætist við svo hurðin komist fram hjá skápunum í horninu.") : '') + '</p>' : '');
         return uwSec(key, label, uLen(cur) + (picked ? " ✓" : ""), body); // the value shows while folded, picked or not (2026-10-24)
@@ -7956,7 +7960,9 @@
         secHtml.push(uwSec("h", __("Hæð"), uCm() ? __("{h} cm · {g} cm frá gólfi", { h:hBox / 10, g:hg / 10 }) : hBox + " mm · " + hg + " mm frá gólfi",
           '<div class="edit-field"><label>' + __("Hæð skáps") + '</label><div class="uw-chips">' + boxOpts.map(function(h){ return '<button type="button" class="hw-btn' + (h === hBox ? ' active' : '') + '" data-uw-hbox="' + h + '">' + uwN(h) + '</button>'; }).join("") +
             '<small style="align-self:center;margin-left:4px;">' + uUnit() + '</small></div></div>' +
-          '<div class="edit-field"><label>' + __("Hæð frá gólfi") + '</label>' + hungGapChips(hg, "data-uw-gap") + '</div>'));
+          '<div class="edit-field"><label>' + __("Hæð frá gólfi") + '</label>' + hungGapChips(hg, "data-uw-gap") + '</div>' +
+          // floor → gap + box + top, live with the chips (owner, 2026-10-27)
+          (c.counter && !PRO ? '<p class="sec-note uw-toph">' + __("Toppurinn verður í {n} cm hæð", { n:Math.round((hg + hBox + (state.top && state.top !== "engin" && TOPS[state.top] ? KP3D.topThickM(state.top) * 1000 : 0)) / 10) }) + '</p>' : '')));
       } else if (c.minH !== c.maxH) secHtml.push(dimSec("h", c.zone === "floor" && c.cls !== "tall" && c.maxH <= 1200 && !isCloset() ? __("Hæð") + ' <small class="uw-sub">' + __("upp að borðplötu") + '</small>' : __("Hæð"), uwHeightOptions(c), b.heightMm || c.h, c.h, "data-uw-h", "data-uw-hcustom", c.minH, uwHeightCap(c)));
       var bathFr = bathFrontsWiz(b), frontsFr = frontsWiz(b); // Bað: Breidd → Hæð frá gólfi → Skúffur eða hurðir → Innvols (50 cm deep; the side panel still changes it); Eldhús: Mál → Skúffur eða hurðir → Innvols
       if (c.minD !== c.maxD && !bathFr && !shortWiz && !machineOnly) secHtml.push(dimSec("d", __("Dýpt"), uwDepthOptions(c), b.depthMm || c.d, c.d, "data-uw-d", "data-uw-dcustom", c.minD, c.maxD));
@@ -8281,7 +8287,8 @@
   function syncUwTools(){
     var t = document.getElementById("uwTools");
     t.hidden = !(uw && (uw.b || uw.step === 2));
-    t.querySelector('[data-uwt="fronts"]').textContent = uwView.frontsOff ? __("Framhliðar: af") : __("Framhliðar: á");
+    t.querySelector('[data-uwt="fronts"]').textContent = PRO ? (uwView.frontsOff ? "Framhliðar: af" : "Framhliðar: á") : __("Sýna inn í skápinn"); // a customer: one plain toggle (owner, 2026-10-27)
+    t.querySelector('[data-uwt="spin"]').hidden = !PRO; // no "Snúa" for customers — the view follows what's being chosen
     t.querySelector('[data-uwt="fronts"]').classList.toggle("active", uwView.frontsOff);
     t.querySelector('[data-uwt="open"]').textContent = uwView.open ? __("Loka") : __("Opna");
     t.querySelector('[data-uwt="open"]').classList.toggle("active", uwView.open);
@@ -8336,7 +8343,9 @@
       var st = KP3D._three(); if (!st) return;
       if (!uw.b){ // hovering a type: start closed and play the opening, rather than showing it already open (user, 2026-10-25)
         KP3D.snapParts(false);
-        var hoverKey = key; setTimeout(function(){ if (uw && !uw.b && uwPrevKey === hoverKey) KP3D.setAllParts(true); }, 650);
+        // …but a plain drawer stack (a vanity) stays shut — its fronts slid out past the box and looked broken (owner, 2026-10-27)
+        var hoverKey = key, stackOnly = b.interior && b.interior.mode === "skuffur" && !c.bur;
+        if (!stackOnly) setTimeout(function(){ if (uw && !uw.b && uwPrevKey === hoverKey) KP3D.setAllParts(true); }, 650);
       }
       var g = KP3D.surfaceGeoms(pv)[0]; if (state.hungUnits && c.zone === "floor") previewFloor(st, g, lenMm / 1000);
       var hM = blockHeightMm(b, c) / 1000, elevM = c.zone === "wall" ? (KP3D.elevOf(b) || 0) / 1000 : 0;
@@ -8367,7 +8376,8 @@
       st.controls.maxPolarAngle = 1.45; // never from below the floor
       swayPreview(st, Math.atan2(g.normal.x, g.normal.z));
       st.controls.update();
-      uwDimCtx = { g:g, a0:0.4, a1:0.4 + b.widthMm / 1000, a2:0.4 + wEff / 1000, y0:elevM, y1:elevM + hM, d:(b.depthMm || c.d) / 1000, b:b, extraTop:c.sink ? 0.34 : 0 }; // the tap stands above the unit
+      uwDimCtx = { g:g, a0:0.4, a1:0.4 + b.widthMm / 1000, a2:0.4 + wEff / 1000, y0:elevM, y1:elevM + hM, d:(b.depthMm || c.d) / 1000, b:b, extraTop:c.sink ? 0.34 : 0, // the tap stands above the unit
+        hungM:state.hungUnits && c.zone === "floor" && !c.panel ? (typeof uwPl === "number" ? uwPl : BATH_HUNG_MM) / 1000 : 0 };
       if (prevCam && uw.b && (uw.hoverDim || uw.hoverB || uw.hoverHold)){ // pointing at sizes: the view holds exactly still (user, 2026-10-26: quick hovers jumped)
         st.camera.position.copy(prevCam.p); st.controls.target.copy(prevCam.t); st.controls.update(); uwLockView(st); uw.hoverHold = false;
       } else if (!(prevCam && keepCam)){ if (prevCam && uw.b) st.camera.position.copy(prevCam.p); uwAimCamera(!!(prevCam && uw.b)); } else uwLockView(st); // glide from where the view was

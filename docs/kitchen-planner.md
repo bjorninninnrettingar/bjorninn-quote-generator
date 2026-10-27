@@ -682,3 +682,7 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   Já → `applySuggestion` clears the room's units and reseeds with `suggestFull` (kitchen run, full laundry, bath: vanity +
   a 40 cm drawer unit + an efri skápur over the vanity, `seedBathExtras`); "Fá tillögu að innréttingu" in the Rými menu does
   the same later with Afturkalla. PRO unchanged. The unit-wall rooms' width dimension sits above any wall cabinet.
+- **Bath Ný eining (owner):** hovering a plain drawer stack no longer plays the opening (its fronts slid out past the box);
+  customers' preview pills: "Sýna inn í skápinn" (x-ray) + "Opna", no "Snúa". A hung unit's Hæð shows "Toppurinn verður í
+  X cm hæð" (gap + box + top thickness), and the preview draws the overall height outside an inner chain gap + box. The
+  bath's Efri skápur offers "Opin hilla" (opnarhillur) first and by default; the bath suggestion uses it too.
