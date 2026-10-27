@@ -175,6 +175,20 @@
   .runBtn { background:var(--accent); color:#fff; border:none; border-radius:10px; padding:10px 16px; font:inherit; font-size:.85rem; font-weight:600; cursor:pointer; }
   .proLink { display:inline-block; margin-top:8px; color:var(--accent); font-size:.85rem; text-decoration:none; }
 
+  .gateList { display:flex; flex-direction:column; gap:6px; margin:14px 0 10px; }
+  .gateRow { display:flex; gap:10px; align-items:flex-start; padding:8px 11px; border-radius:8px; background:var(--bg); font-size:.88rem; }
+  .gateRow .gIc { width:1.2em; flex:none; text-align:center; font-weight:700; }
+  .gateRow.ok { color:var(--muted); }
+  .gateRow.ok .gIc { color:var(--good); }
+  .gateRow.open { background:#fdf2d9; color:var(--warn); }
+  .gateRow.hard { background:#fbe3e0; color:var(--bad); font-weight:600; }
+  .gateRow .gHint { font-weight:400; font-size:.78rem; margin-top:2px; }
+  .gateNote { font-size:.82rem; color:var(--muted); min-height:1.1em; }
+  .gateActions { display:flex; gap:8px; justify-content:flex-end; margin-top:14px; }
+  .gateCancel { background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:10px; padding:10px 16px; font:inherit; font-size:.88rem; cursor:pointer; }
+  .gateGo { background:var(--good); color:#fff; border:none; border-radius:10px; padding:10px 16px; font:inherit; font-size:.88rem; font-weight:700; cursor:pointer; }
+  .gateGo.risky { background:var(--bad); }
+
   /* ---- Unit wizard modal (ported from /yfirferd) ---- */
   .modalBg { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:50; align-items:flex-start; justify-content:center; padding:40px 20px; overflow:auto; }
   .modalBg.open { display:flex; }
@@ -242,6 +256,16 @@
 
     <div class="board" id="board" style="display:none;"></div>
     <div id="detail" style="display:none;"></div>
+  </div>
+</div>
+
+<div class="modalBg" id="gateBg">
+  <div class="modal gateModal">
+    <div class="mTitle" id="gateTitle"></div>
+    <div class="mSub" id="gateSub"></div>
+    <div class="gateList" id="gateList"></div>
+    <div class="gateNote" id="gateNote"></div>
+    <div class="gateActions"><button type="button" class="gateCancel" id="gateCancel">Hætta við</button><button type="button" class="gateGo" id="gateGo"></button></div>
   </div>
 </div>
 
@@ -483,8 +507,14 @@
           var p = draggingProj;
           if (!p) return;
           var pname = p.fields["Heiti tækifæris / verkefnis"] || "(ónefnt)";
-          if (!confirm('Merkja "' + pname + '" Klárt til framleiðslu?')) return;
-          apiPatch(TAEKIFAERI + "/" + p.id, { "Staða í skipulagi": "Klárt til framleiðslu" }).then(loadBoard);
+          // The board only fetched a few fields — read the checklist fresh for the gate.
+          api(TAEKIFAERI + "/" + p.id).then(function (rec) {
+            var rf = (rec && rec.fields) || {};
+            return confirmKlart(pname, function (field) { return !!rf[field]; });
+          }).then(function (ok) {
+            if (!ok) return;
+            apiPatch(TAEKIFAERI + "/" + p.id, { "Staða í skipulagi": "Klárt til framleiðslu" }).then(loadBoard);
+          });
         });
       }
       board.appendChild(el);
@@ -625,9 +655,42 @@
     { field: "1. Dagssetningar ákveðnar", label: "Dagssetningar ákveðnar", auto: true },
     { field: "2. Cutty keyrður fyrir þetta verkefni og kominn á USB?", label: "Cutty keyrður og á USB", auto: true },
     { field: "3. Teikningar prentaðar 2x", label: "Teikningar prentaðar 2x" },
+    // 2026-10-27: was only tickable in Airtable (T-15 was) — now here too.
+    { field: "4. Verkfundur tekinn", label: "Verkfundur tekinn" },
     { field: "6. CNC yfirfarið", label: "Bpp yfirfarið (CNC útflutningur)", auto: true },
     { field: "5. Efni lent í húsi", label: "Efni lent í húsi" },
   ];
+  // Klárt-hlið (2026-10-27): marking Klárt til framleiðslu now shows what is still open
+  // instead of a bare confirm(). Efni + CNC are the two that actually stop the floor, so
+  // they're flagged red; the rest are amber. It's a warning, not a lock — "Merkja samt"
+  // still goes through, because the office sometimes knows better than the boxes.
+  var GATE_HARD = { "5. Efni lent í húsi": "Efnið er ekki komið í hús", "6. CNC yfirfarið": "CNC-skrár ekki komnar á USB (Smíða & CNC)" };
+  function confirmKlart(pname, isOn) {
+    var missing = CHECKLIST.filter(function (it) { return !isOn(it.field); });
+    var bg = document.getElementById("gateBg");
+    document.getElementById("gateTitle").textContent = "Merkja Klárt til framleiðslu?";
+    document.getElementById("gateSub").textContent = pname || "";
+    document.getElementById("gateList").innerHTML = CHECKLIST.map(function (it) {
+      var on = isOn(it.field), hard = !on && GATE_HARD[it.field];
+      return '<div class="gateRow ' + (on ? "ok" : hard ? "hard" : "open") + '"><span class="gIc">' + (on ? "✓" : hard ? "⛔" : "○") + '</span>' +
+        '<span>' + esc(it.label) + (hard ? '<div class="gHint">' + esc(GATE_HARD[it.field]) + '</div>' : "") + '</span></div>';
+    }).join("");
+    var go = document.getElementById("gateGo");
+    var hardCount = missing.filter(function (it) { return GATE_HARD[it.field]; }).length;
+    document.getElementById("gateNote").textContent = missing.length
+      ? missing.length + " atriði " + (missing.length === 1 ? "er" : "eru") + " opin" + (hardCount ? " — gólfið getur ekki byrjað á öllu fyrr en þau eru leyst." : ".")
+      : "Allt hakað. Verkið fer í framleiðslu.";
+    go.textContent = missing.length ? "Merkja samt Klárt" : "✅ Merkja Klárt til framleiðslu";
+    go.className = "gateGo" + (hardCount ? " risky" : "");
+    bg.classList.add("open");
+    return new Promise(function (resolve) {
+      function done(v) { bg.classList.remove("open"); go.onclick = null; document.getElementById("gateCancel").onclick = null; bg.onclick = null; resolve(v); }
+      go.onclick = function () { done(true); };
+      document.getElementById("gateCancel").onclick = function () { done(false); };
+      bg.onclick = function (e) { if (e.target === bg) done(false); };
+    });
+  }
+
   var PIPE_TOOLS = [
     { id: "cutlist", num: "1", label: "Skurðarlisti (Cutty)", path: "/cutlist", chip: "chipCutty" },
     { id: "aedar", num: "2", label: "Æðar (F2, viðarmynstur)", path: "/aedar", chip: "chipAedar" },
@@ -728,11 +791,15 @@
       gateBtn.disabled = true;
     } else {
       gateBtn.addEventListener("click", function () {
-        if (!confirm("Merkja verkið Klárt til framleiðslu?")) return;
+        confirmKlart(f["Heiti tækifæris / verkefnis"], function (field) {
+          var row = rowEls[field]; return row ? row.classList.contains("on") : !!f[field];
+        }).then(function (ok) {
+        if (!ok) return;
         gateBtn.disabled = true; gateMsg.textContent = "Vista…";
         apiPatch(TAEKIFAERI + "/" + proj.id, { "Staða í skipulagi": "Klárt til framleiðslu" })
           .then(function () { gateBtn.textContent = "✓ Þegar klárt til framleiðslu"; gateMsg.textContent = ""; })
           .catch(function () { gateMsg.textContent = "Tókst ekki."; gateBtn.disabled = false; });
+        });
       });
     }
 
