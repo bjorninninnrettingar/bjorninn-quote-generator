@@ -10917,7 +10917,7 @@
       }
       wrap.innerHTML = "";
       KP3D.buildScene(wrap, state, { darkBg:!!PRO, pickWorktop:!!PRO && !isBath(), selectedId:selectedBlockId, selectedWallId:selectedWallId, onWallSelect:onWallSelect, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, onIslandDragEnd:onIslandDragEnd, onIslandDragMove:clampIslandDragMove, onDecorDragEnd:onDecorDragEnd, onDecorDragMove:onDecorDragMove, onObstacleFloorEnd:onObstacleFloorEnd, onObstacleResizeMove:onObstacleResizeMove, onObstacleResizeEnd:onObstacleResizeEnd, onShelfPosMove:onShelfPosMove, onShelfPosEnd:onShelfPosEnd, onShelfPosInfo:onShelfPosInfo, onDrawerResize:onDrawerResize, onDrawerResizeEnd:onShelfPosEnd, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList(), readyIds:PRO ? proReadyIds() : null,
-        xray:inspect.on, // inspect mode: every cabinet built in parts (drawers/doors tap open, nothing drags)
+        xray:inspect.on || walkParts, // inspect mode / walking: every cabinet built in parts (drawers/doors tap open, nothing drags)
         focusWallId:viewMode === "wall" ? wallViewId : null, freshCamera:viewMode === "wall",
         annotations:viewMode === "wall" ? annoForWall : null, annoSelectedId:function(){ return anno.selId; },
         onWalkChange:syncWalkBtn, coveredRight:panelCoveredPx,
@@ -16569,7 +16569,10 @@
 
   // Studio mynd (2026-10-23): a path-traced, photographic still of exactly the 3D view on screen (KP3D.studioRender).
   // Ganga um: first-person walk at eye height (KP3D.setWalkMode) — 3D view only
-  function syncWalkBtn(){ var on = !!(window.KP3D && KP3D.isWalking && KP3D.isWalking() && viewMode === "3d"); ["walkBtn", "vmWalk"].forEach(function(id){ var b = document.getElementById(id); if (b) b.classList.toggle("active", on); }); }
+  var walkParts = false; // while walking the cabinets are built in parts, so a click opens a door or drawer (owner, 2026-10-27)
+  function syncWalkBtn(){ var on = !!(window.KP3D && KP3D.isWalking && KP3D.isWalking() && viewMode === "3d");
+    if (!on && walkParts){ walkParts = false; if (state.step === "editor" && viewMode === "3d") setTimeout(renderView, 0); } // back to the normal (draggable) build
+    ["walkBtn", "vmWalk"].forEach(function(id){ var b = document.getElementById(id); if (b) b.classList.toggle("active", on); }); }
   // Skoða's stand-ins for the camera buttons (narrow screens): the real button does the work, the menu closes
   document.querySelectorAll("[data-vm-cam]").forEach(function(r){ r.addEventListener("click", function(){
     var vm = document.getElementById("viewMenu"); if (vm) vm.open = false;
@@ -16579,6 +16582,7 @@
     if (viewMode !== "3d"){ toast(__("Ganga um virkar í 3D-sýninni.")); return; }
     if (inspect.on){ toast(__("Slökktu á X-Ray fyrst.")); return; }
     var on = KP3D.setWalkMode(!KP3D.isWalking());
+    if (on && !walkParts){ walkParts = true; renderView(); } // rebuilt in parts — the walk carries on from the same spot
     syncWalkBtn();
     if (on) toast(__("Smelltu í myndina og hreyfðu músina til að líta í kring. W A S D eða örvar til að ganga. Esc til að hætta."));
   });

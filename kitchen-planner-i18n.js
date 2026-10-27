@@ -1560,7 +1560,7 @@
     "Ganga aftur á bak": "Walk backwards",
     "Snúa til hægri": "Turn right",
     "Dragðu til að líta í kring · W A S D / örvar": "Drag to look around · W A S D / arrows",
-    "Hreyfðu músina til að líta í kring · W A S D til að ganga · Esc sleppir músinni": "Move the mouse to look around · W A S D to walk · Esc frees the mouse",
+    "Hreyfðu músina til að líta í kring · smelltu á hurð eða skúffu til að opna · W A S D til að ganga · Esc sleppir músinni": "Move the mouse to look around · click a door or drawer to open it · W A S D to walk · Esc frees the mouse",
     "Smelltu í myndina og hreyfðu músina til að líta í kring · W A S D / örvar til að ganga": "Click the view and move the mouse to look around · W A S D / arrows to walk",
     "Smelltu í myndina og hreyfðu músina til að líta í kring. W A S D eða örvar til að ganga. Esc til að hætta.": "Click the view and move the mouse to look around. W A S D or arrow keys to walk. Esc to stop.",
     "Hætta (Esc)": "Exit (Esc)",

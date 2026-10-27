@@ -6100,10 +6100,21 @@
     // no dragging; Esc gives the mouse back (the browser's own rule), Esc again or "Hætta" ends the walk. Touch keeps drag.
     var walkCanvas = renderer.domElement;
     function walkLocked(){ return document.pointerLockElement === walkCanvas; }
+    // Doors, drawers, lift and pocket doors open with a click while walking (owner, 2026-10-27) — the editor builds the
+    // cabinets in parts while walking (opts.xray from the page), so the same togglePart animation runs
+    var walkRay = new THREE.Raycaster();
+    function walkPartAt(cx, cy){
+      var r = walkCanvas.getBoundingClientRect(), v = cx == null ? new THREE.Vector2(0, 0) : new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
+      walkRay.setFromCamera(v, camera); walkRay.far = 3.5; // within arm's reach-ish, not across the room
+      var hit = walkRay.intersectObjects(pickables, false).find(function(h){ return h.object.visible !== false; });
+      return hit && hit.object.userData && hit.object.userData.isPart && hit.object.userData.partKey ? hit.object.userData.partKey : null;
+    }
+    function walkOpenAtCentre(){ var k = walkPartAt(); if (k) togglePart(k); }
     function walkDown(e){
       if (!WALK.on || !wrap.contains(e.target) || e.target.closest("button,input,select,a,.kp-walk-hud")) return;
       e.stopPropagation(); e.preventDefault(); // nothing gets picked or dragged while walking
-      if (walkLocked()) return; // already looking with the mouse
+      if (walkLocked()){ walkOpenAtCentre(); return; } // looking with the mouse: a click opens / closes what's in the middle of the view
+      if (e.pointerType !== "mouse"){ var hitT = walkPartAt(e.clientX, e.clientY); if (hitT){ togglePart(hitT); return; } } // touch: tap a door / drawer
       if (e.pointerType === "mouse" && walkCanvas.requestPointerLock){ try{ var pr = walkCanvas.requestPointerLock(); if (pr && pr.catch) pr.catch(function(){}); }catch(err){} return; }
       walkLook = { x:e.clientX, y:e.clientY, yaw:WALK.yaw, pitch:WALK.pitch };
     }
@@ -6126,7 +6137,7 @@
       walkKeys[k] = e.type === "keydown"; e.preventDefault();
     }
     function walkWheel(e){ if (!WALK.on || !wrap.contains(e.target)) return; e.preventDefault(); e.stopPropagation(); walkNudge(-Math.sign(e.deltaY) * 0.35); }
-    function walkTip(){ return walkLocked() ? __("Hreyfðu músina til að líta í kring · W A S D til að ganga · Esc sleppir músinni")
+    function walkTip(){ return walkLocked() ? __("Hreyfðu músina til að líta í kring · smelltu á hurð eða skúffu til að opna · W A S D til að ganga · Esc sleppir músinni")
       : __("Smelltu í myndina og hreyfðu músina til að líta í kring · W A S D / örvar til að ganga"); }
     function walkLockChange(){
       var t = wrap.querySelector(".kp-walk-tip"); if (t) t.textContent = walkTip();
