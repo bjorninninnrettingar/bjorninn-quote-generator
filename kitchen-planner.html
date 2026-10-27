@@ -7777,22 +7777,23 @@
   // Þvottahús (user, 2026-10-26): like the bath — one option per type, Mál → Skúffur eða hurðir → Innvols inside the
   // wizard; the machines first. "Vélar undir borðplötu" puts in the washer AND the dryer side by side (opt.pair).
   var THVOTT_TREE = [
-    { key:"vel", label:"Vélarstæða", desc:"Þvottavél og þurrkari í háum skáp", icon:"thvottavel", opts:[
-      { label:"Vélarstæða", type:"thvottavel" } ] },
-    { key:"undir", label:"Vélar undir borðplötu", desc:"Þvottavél og þurrkari hlið við hlið", icon:"thvottavelFri", opts:[
-      { label:"Vélar undir borðplötu", type:"thvottavelFri", pair:true } ] },
-    { key:"hlid", label:"Hlið við hlið í skáp", desc:"Upphækkaðar á skúffu, skápur fyrir ofan", icon:"thvottavel", opts:[ // (owner, 2026-10-27) — 62 cm wide = one machine
-      { label:"Hlið við hlið í skáp", type:"thvottavelHlid" } ] },
+    // cabinets first, the machines last under a quiet Vélar heading — usually placed once via Hvar er vélin? (owner, 2026-10-27)
     { key:"vaskur", label:"Vaskaskápur", desc:"Undir borðplötu", icon:"vaskaskapur", opts:[
       { label:"Vaskaskápur", type:"vaskaskapur" } ] }, // doors to start (owner, 2026-10-27): the drawer-under-sink default opened on a warning
     { key:"grunn", label:"Grunnskápur", desc:"Undir borðplötu", icon:"grunnskapur", opts:[
       { label:"Grunnskápur", type:"grunnskapur", drawers:true } ] },
-    { key:"har", label:"Hár skápur", desc:"Upp undir loft — fyrir ræstidótið", icon:"harskapur", opts:[
-      { label:"Hár skápur", type:"harskapur" } ] },
     { key:"efri", label:"Efri skápur", desc:"Á vegg, yfir borðplötunni", icon:"efriskapur", opts:[ // the bath's order (owner, 2026-10-27): open shelves first
       { label:"Opinn skápur með hillum", type:"opnarhillur" },
       { label:"Lokaður skápur með hillum", type:"efriskapur" },
-      { label:"Lausar hillur", type:"laushilla" } ] }
+      { label:"Lausar hillur", type:"laushilla" } ] },
+    { key:"har", label:"Hár skápur", desc:"Upp undir loft — fyrir ræstidótið", icon:"harskapur", opts:[
+      { label:"Hár skápur", type:"harskapur" } ] },
+    { key:"vel", group:"Vélar", label:"Vélarstæða", desc:"Þvottavél og þurrkari í háum skáp", icon:"thvottavel", opts:[
+      { label:"Vélarstæða", type:"thvottavel" } ] },
+    { key:"undir", group:"Vélar", label:"Vélar undir borðplötu", desc:"Þvottavél og þurrkari hlið við hlið", icon:"thvottavelFri", opts:[
+      { label:"Vélar undir borðplötu", type:"thvottavelFri", pair:true } ] },
+    { key:"hlid", group:"Vélar", label:"Hlið við hlið í skáp", desc:"Upphækkaðar á skúffu, skápur fyrir ofan", icon:"thvottavel", opts:[ // (owner, 2026-10-27) — 62 cm wide = one machine
+      { label:"Hlið við hlið í skáp", type:"thvottavelHlid" } ] }
   ];
   // PRO keeps the full laundry list (E1 + review 2026-10-25 C: corner units and end panels from the kitchen tree)
   var THVOTT_TREE_PRO = [
@@ -13300,8 +13301,8 @@
   // room's own words (vaskaskápur, handlaug, toppur, spegilskápur, flísar, sturta / klósett)
   function tourRoomText(){
     var bath = isWallRoom() && !isLaundry(), laundry = isLaundry(), u = TOUR_STEPS[TOUR_UW0], last = TOUR_STEPS[TOUR_STEPS.length - 1];
-    u.title = bath ? __("Smelltu á vaskaskáp") : laundry ? __("Smelltu á vélarstæðu") : TOUR_UW0_TXT.title;
-    u.html = bath ? __("Vaskaskápurinn hangir á veggnum og handlaugin situr ofan á toppnum.") : laundry ? __("Þvottavél og þurrkari í háum skáp — eða veldu vélar undir borðplötu.") : TOUR_UW0_TXT.html;
+    u.title = bath ? __("Smelltu á vaskaskáp") : laundry ? __("Smelltu á vaskaskáp") : TOUR_UW0_TXT.title;
+    u.html = bath ? __("Vaskaskápurinn hangir á veggnum og handlaugin situr ofan á toppnum.") : laundry ? __("Vaskaskápurinn stendur undir borðplötunni. Vélarnar eru neðst í listanum.") : TOUR_UW0_TXT.html;
     last.html = bath ? '<ul class="tour-list">' + __('<li><b>Vaskaskápur</b> — skápurinn undir handlauginni, hangir á veggnum</li><li><b>Handlaug</b> — vaskurinn, situr ofan á toppnum</li><li><b>Toppur</b> — platan ofan á vaskaskápnum: Harðplast, Compact, Steinn eða enginn</li>') +
       __('<li><b>Spegilskápur</b> — efri skápur með spegli á framhliðinni</li><li><b>Flísar</b> — veggflísar, valdar í Útliti rýmisins</li><li><b>Hindranir</b> — sturta, klósett og handklæðaofn, undir Gluggar og hindranir, svo skáparnir lendi ekki á þeim</li>') + '</ul>' + TOUR_END_HTML : TOUR_END_HTML;
   }
