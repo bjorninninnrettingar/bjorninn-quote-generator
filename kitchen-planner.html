@@ -4269,10 +4269,12 @@
       rp.hidden = !(catDef && catDef.roomPicker);
       if (catDef && catDef.roomPicker){
         var sel = document.getElementById("fataskaparRoom");
-        var selMode = closetMode ? "closet" : "all"; // one select for every room kind — rebuilt when the kind changes
+        var selMode = closetMode ? "closet" : bathMode ? "bath" : "all"; // one select for every room kind — rebuilt when the kind changes
         if (sel.dataset.mode !== selMode){
           sel.dataset.mode = selMode;
-          sel.innerHTML = RYMI_CHOICES.filter(function(r){ return !closetMode || CLOSET_NO_ROOM.indexOf(r) < 0 || r === state.intake.room; }).map(function(r){ return '<option value="' + r + '">' + __(RYMI_LABELS[r] || r) + '</option>'; }).join("");
+          var wet = function(r){ return /bað|snyrt|wc|þvott/i.test(RYMI_LABELS[r] || r) ? 0 : 1; }; // a bath: the wet rooms at the top (morning scan)
+          sel.innerHTML = RYMI_CHOICES.filter(function(r){ return !closetMode || CLOSET_NO_ROOM.indexOf(r) < 0 || r === state.intake.room; }).map(function(r, i){ return { r:r, i:i }; })
+            .sort(function(a, b){ return bathMode ? wet(a.r) - wet(b.r) || a.i - b.i : a.i - b.i; }).map(function(x){ return x.r; }).map(function(r){ return '<option value="' + r + '">' + __(RYMI_LABELS[r] || r) + '</option>'; }).join("");
         }
         if (!sel.dataset.wired){ sel.dataset.wired = "1"; sel.addEventListener("change", function(){ state.intake.room = sel.value; save(); }); }
         sel.value = state.intake.room;
