@@ -146,6 +146,8 @@
       '.sidebar nav a .osLabel{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}' +
       '.osBottom{padding:10px 10px 14px;border-top:1px solid #2a3442;margin-top:8px;display:flex;flex-direction:column;gap:2px;}' +
       '.osBottomRow{display:flex;align-items:center;gap:2px;}' +
+      '.osBellRow{display:flex;color:#8aa4c7;}.osBellRow .vbWrap{flex:1;}.osBellRow .vbBtn{flex:1;justify-content:flex-start;}.osBellRow .vbBtn:hover{background:#242e3b;color:#fff;}' +
+      'html[data-os-collapsed="1"] .osBellRow .osLabel{display:none;}html[data-os-collapsed="1"] .osBellRow .vbBtn{justify-content:center;}' +
       '.osSettingsBtn,.osLogoutBtn{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;color:#8aa4c7;font-size:.82rem;cursor:pointer;font-family:inherit;flex:1;min-width:0;}' +
       '.osSettingsBtn .osLabel,.osLogoutBtn .osLabel{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}' +
       '.osSettingsBtn:hover,.osLogoutBtn:hover{background:#242e3b;color:#fff;}' +
@@ -324,6 +326,7 @@
     if (bottomEl) {
       bottomEl.className = "osBottom";
       bottomEl.innerHTML =
+        '<div class="osBellRow" id="officeBellHost"></div>' +
         '<div class="osBottomRow">' +
           '<button class="osSettingsBtn" id="officeSettingsBtn" type="button">⚙️ <span class="osLabel">Stillingar</span></button>' +
           '<button class="osFoldBtn" id="officeFoldBtn" type="button" title="Fela/sýna valmynd"></button>' +
@@ -335,7 +338,20 @@
       function paintFoldIcon() { foldBtn.textContent = getCollapsed() ? "⇥" : "⇤"; }
       paintFoldIcon();
       foldBtn.addEventListener("click", function () { setCollapsed(!getCollapsed()); paintFoldIcon(); });
+      mountBell(document.getElementById("officeBellHost"), k);
     }
+  }
+
+  // 🔔 Tilkynningar (2026-10-27) — virkni-bell.js is loaded on demand so no page has to
+  // add its own <script> tag; the bell lives above Stillingar in the sidebar.
+  function mountBell(host, k) {
+    if (!host || !k) return;
+    function go() { window.VirkniBell.mount(host, { role: "Skrifstofa", k: k, label: "Tilkynningar" }); }
+    if (window.VirkniBell) return go();
+    var sc = document.createElement("script");
+    sc.src = "/virkni-bell.js";
+    sc.onload = go;
+    document.head.appendChild(sc);
   }
 
   function boot(activeId) {

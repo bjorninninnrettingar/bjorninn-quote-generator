@@ -528,7 +528,10 @@
             return confirmKlart(pname, function (field) { return !!rf[field]; });
           }).then(function (ok) {
             if (!ok) return;
-            apiPatch(TAEKIFAERI + "/" + p.id, { "Staða í skipulagi": "Klárt til framleiðslu" }).then(loadBoard);
+            apiPatch(TAEKIFAERI + "/" + p.id, { "Staða í skipulagi": "Klárt til framleiðslu" }).then(function (r) {
+              if (!(r && r.error)) notifyKlart(p.id, ok);
+              loadBoard();
+            });
           });
         });
       }
@@ -700,10 +703,25 @@
     bg.classList.add("open");
     return new Promise(function (resolve) {
       function done(v) { bg.classList.remove("open"); go.onclick = null; document.getElementById("gateCancel").onclick = null; bg.onclick = null; resolve(v); }
-      go.onclick = function () { done(true); };
+      // Resolves with the open items' labels (an array — truthy even when empty) or false.
+      go.onclick = function () { done(missing.map(function (it) { return it.label; })); };
       document.getElementById("gateCancel").onclick = function () { done(false); };
       bg.onclick = function (e) { if (e.target === bg) done(false); };
     });
+  }
+
+  // 🔔 Tilkynningar (2026-10-27): the floor hears about Klárt from the app itself (bell +
+  // ALMENNT chat via /api/virkni) instead of the switched-off Airtable chat automation.
+  function notifyKlart(projId, missing) {
+    if (!k) return;
+    fetch("/api/virkni", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        k: k, tegund: "klart", til: "Allir", chat: true, t: projId, tengill: "/verk?t=" + projId,
+        hver: (shellInfo.record && shellInfo.record.name) || "",
+        texti: "Klárt til framleiðslu" + (missing && missing.length ? " — opið: " + missing.join(", ") : ""),
+      }),
+    }).catch(function () {});
   }
 
   var PIPE_TOOLS = [
@@ -812,7 +830,11 @@
         if (!ok) return;
         gateBtn.disabled = true; gateMsg.textContent = "Vista…";
         apiPatch(TAEKIFAERI + "/" + proj.id, { "Staða í skipulagi": "Klárt til framleiðslu" })
-          .then(function () { gateBtn.textContent = "✓ Þegar klárt til framleiðslu"; gateMsg.textContent = ""; })
+          .then(function (r) {
+            if (r && r.error) throw new Error("patch");
+            gateBtn.textContent = "✓ Þegar klárt til framleiðslu"; gateMsg.textContent = "";
+            notifyKlart(proj.id, ok);
+          })
           .catch(function () { gateMsg.textContent = "Tókst ekki."; gateBtn.disabled = false; });
         });
       });

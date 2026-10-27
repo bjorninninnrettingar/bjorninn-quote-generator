@@ -58,6 +58,8 @@
 
   .hd { display:flex; align-items:center; justify-content:space-between; gap:10px; }
   .hd h1 { font-size:1.7rem; font-weight:800; letter-spacing:-.01em; }
+  .hd .hdRight { display:flex; align-items:center; gap:6px; }
+  #bellHost .vbBtn { color:var(--muted); font-size:1rem; }
   .hd .clock { font-size:1.1rem; font-weight:700; color:var(--muted); font-variant-numeric:tabular-nums; }
 
   /* ── install banner (Android beforeinstallprompt / iOS Safari hint) ── */
@@ -386,7 +388,7 @@
 <div class="wrap">
   <div class="hd">
     <h1>Verkstæði</h1>
-    <div class="clock" id="clock">--:--</div>
+    <div class="hdRight"><span id="bellHost"></span><div class="clock" id="clock">--:--</div></div>
   </div>
 
   <div id="installBar">
@@ -695,6 +697,7 @@
   </div>
 </div>
 
+<script src="/virkni-bell.js"></script>
 <script>
 (function () {
   "use strict";
@@ -807,6 +810,8 @@
   // is the right call. ──
   var VERK_KEY = "XpxfZw1Cc9APLSlDGhm1AM4NdU1j";
   function verkKey() { return VERK_KEY; }
+  // 🔔 Tilkynningar (2026-10-27) — Verkstæði + Allir lines from /api/virkni.
+  try { window.VirkniBell.mount(document.getElementById("bellHost"), { role: "Verkstæði", k: VERK_KEY, dark: function () { return document.documentElement.getAttribute("data-theme") !== "light"; } }); } catch (e) {}
 
   // encodeURIComponent, NOT URLSearchParams — see grain.html for why (the
   // proxy doesn't decode "+" back to a space, which breaks {Field Name} refs).
@@ -1750,6 +1755,13 @@
     btn.disabled = true; btn.textContent = "Skrái…";
     try {
       await airtableCreate(QUICKFIX_TABLE, fields);
+      // 🔔 Tilkynningar: the person it's assigned to gets it in the bell + ALMENNT chat.
+      // Fire-and-forget — the Quick Fix itself is already saved.
+      if (window.VirkniBell) window.VirkniBell.post({
+        k: verkKey(), tegund: "quickfix", til: "Verkstæði", chat: true,
+        texti: "Quick Fix → " + owner + ": " + issue.slice(0, 200) + (due ? " (skil " + due + ")" : ""),
+        t: projId || undefined, tengill: "/app", hver: getMe() || from || ""
+      });
       $("qfForm").reset();
       delete $("qfForm").dataset.touched;
       selectQfProject(getProject());

@@ -284,7 +284,15 @@
       var b = this; b.disabled = true;
       Promise.all(open.map(function (o) {
         return apiPatch(PANTADIR + "/" + o.id, { "Staða": ARRIVED }).then(function () { setOrderStatus(o.id, ARRIVED); });
-      })).then(syncEfni).catch(function () { b.disabled = false; alert("Tókst ekki að vista allt — endurhlaða og reyna aftur."); });
+      })).then(syncEfni).then(function () {
+        // 🔔 the floor + planner hear that the material is in (bell + ALMENNT chat).
+        if (!k) return;
+        fetch("/api/virkni", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ k: k, tegund: "efni", til: "Allir", chat: true, t: recordId, tengill: "/verk?t=" + recordId,
+            hver: (shellInfo.record && shellInfo.record.name) || "", texti: "Allt efni komið í hús" }),
+        }).catch(function () {});
+      }).catch(function () { b.disabled = false; alert("Tókst ekki að vista allt — endurhlaða og reyna aftur."); });
     });
 
     var unlinkedWrap = document.getElementById("unlinkedWrap");

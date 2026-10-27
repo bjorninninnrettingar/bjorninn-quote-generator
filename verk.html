@@ -1152,6 +1152,13 @@
 
   var q = new URLSearchParams(location.search);
   var t = q.get("t"), k = q.get("k");
+  // 🔔 links in Google Chat can't carry the key (2026-10-27) — remember it from any earlier
+  // /verk visit, or reuse the office login's, so a chat link opens on a phone/PC that has
+  // been here before.
+  try {
+    if (k) localStorage.setItem("bjorninn:verk:k", k);
+    else k = localStorage.getItem("bjorninn:verk:k") || localStorage.getItem("bjorninn:skrifstofa:k") || "";
+  } catch (e) {}
   if (!t || !/^rec[A-Za-z0-9]{14}$/.test(t) || !k) {
     hide($("loading")); show($("error")); return;
   }

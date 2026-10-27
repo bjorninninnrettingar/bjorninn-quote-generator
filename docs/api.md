@@ -47,3 +47,7 @@ Moved out of CLAUDE.md on 2026-10-12.
   - `GET ?stats=lost` → reason counts for /crm's "🥀 Af hverju töpum við?" card.
 - /crm: KPIs (opin tækifæri, Sala þessa mánaðar, Millifærslur) and the tölfræði row skip `Prufuverk 🧪`; cards show 🧪 Prufa and Líkur pills. `Búið að fylgja eftir`, `Líkur á sölu`, `Prufuverk 🧪` added to Tækifæri `VERK_ONLY_FIELDS` (read only; writes stay in sala.js).
 - **Not yet verified live:** the actual Unnið on T-248 (PDF freeze / For-skipulag / chat) — the session's permission check stopped the live write (real chat post + price lock). All UI paths were verified on production with stubbed POSTs. To test: print a tilboð on T-248 → set Unnið in /crm → check Staðfest tilboð 🔒, Staða í skipulagi, SKRIF-CHAT; then revert T-248 (status, both checkboxes, Staða í skipulagi, Staðfest tilboð 🔒, Verk staðfest þann, Staðfest tilboðsupphæð 🔒, Staðfestar heildartekjur án vsk 🔒, Ár/Mánuður staðfestingar, Læst hölduverð 🔒 + lykill, and the 3 Line Items' lock fields `fldBexESHa3Gb1p8h` `fldudABtnqz2iLw92` `fldXmXekXg4t9Bn12` `fldT4usY2l2VJ7K2M`).
+
+## /api/virkni (2026-10-27)
+
+Tilkynningar v1 — see docs/app-floor.md "Morgun-verkstæði round". VERK_KEY on GET and POST. Google Chat webhooks only in env vars `GOOGLE_CHAT_WEBHOOK_ALMENNT` / `GOOGLE_CHAT_WEBHOOK_SKRIFSTOFA` (never client-side); text built server-side, links restricted to in-app paths on bjorninn.vercel.app. Tests: tests/virkni.test.js.
