@@ -6143,6 +6143,9 @@
       var t = wrap.querySelector(".kp-walk-tip"); if (t) t.textContent = walkTip();
       var h = wrap.querySelector(".kp-walk-hud"); if (h) h.style.opacity = walkLocked() ? "0.82" : "1";
       wrap.style.cursor = WALK.on && !walkLocked() ? "pointer" : "";
+      var dot = wrap.querySelector(".kp-walk-dot"); // the aim point while the mouse is locked: what a click opens
+      if (WALK.on && walkLocked()){ if (!dot){ dot = document.createElement("div"); dot.className = "kp-walk-dot"; dot.style.cssText = "position:absolute;left:50%;top:50%;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:rgba(255,255,255,.9);box-shadow:0 0 0 1.5px rgba(0,0,0,.45);pointer-events:none;z-index:6"; wrap.appendChild(dot); } }
+      else if (dot) dot.remove();
     }
     function walkHud(on){
       var h = wrap.querySelector(".kp-walk-hud");
