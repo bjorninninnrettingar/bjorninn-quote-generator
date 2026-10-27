@@ -4781,7 +4781,7 @@
     });
   }
   var mirrorTimer = 0;
-  if (typeof window !== "undefined") window.addEventListener("kp3d-tex-loaded", function(){ clearTimeout(mirrorTimer); mirrorTimer = setTimeout(function(){ if (THREE_STATE) updateMirrors(window.__THREE__, THREE_STATE.renderer, THREE_STATE.scene); }, 250); });
+  if (typeof window !== "undefined" && window.addEventListener) window.addEventListener("kp3d-tex-loaded", function(){ clearTimeout(mirrorTimer); mirrorTimer = setTimeout(function(){ if (THREE_STATE) updateMirrors(window.__THREE__, THREE_STATE.renderer, THREE_STATE.scene); }, 250); });
   function disposeSourceUsers(src){ // every live texture sharing `src` (clones for offsets/rotation) lets go of its old GPU storage
     [THREE_STATE && THREE_STATE.scene, PREVIEW && PREVIEW.scene].forEach(function(sc){
       if (sc) sc.traverse(function(o){
