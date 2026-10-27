@@ -13102,20 +13102,39 @@
     var fits = sorted.filter(function(o){ return o.mm <= Math.max(0, availMm); });
     return fits.length ? fits[fits.length - 1] : sorted[0];
   }
-  function handleHardwareSummary(){
+  // one cabinet's handles: [{ id (Vörulisti), n, mm }] per front, the room's handle (null = no handle hardware)
+  function handleCfgNow(){
     var hcfg = state.handle && window.KPMODELS && window.KPMODELS.handles && window.KPMODELS.handles[state.handle];
-    if (!hcfg || !hcfg.lenOptions || !hcfg.lenOptions.length) return null;
+    return hcfg && hcfg.lenOptions && hcfg.lenOptions.length ? hcfg : null;
+  }
+  function blockHandleSkus(b, c, hcfg){
+    hcfg = hcfg || handleCfgNow(); if (!hcfg || !c) return [];
     var lenOptions = (hcfg.lenOptionsByFinish && hcfg.lenOptionsByFinish[handleColorNow()]) || hcfg.lenOptions; // a colour that is its own product (Crossing svart/svart)
-    var stock = hcfg.kind === "jey" || hcfg.kind === "hexxa"; // cut-to-size vs. a fixed discrete pull
+    var stock = hcfg.kind === "jey" || hcfg.kind === "hexxa", out = []; // cut-to-size vs. a fixed discrete pull
+    frontWidthsOf(b, c).forEach(function(fw){
+      var need = hcfg.kind === "hexxa" && fw.tall && isCloset() ? Math.min(400, fw.mm) : fw.mm; // a wardrobe's Hexxa is a 40 cm slot at hand height
+      var pick = stock ? pickStockSku(lenOptions, need) : pickFittingSku(lenOptions, fw.tall ? KP3D.tallHandleAvailMm(hcfg, fw.mm) : KP3D.handleAvailMm(hcfg, fw.mm)); // same rule as the 3D
+      out.push({ id:pick ? pick.vorulistiId : null, n:fw.count, mm:pick ? pick.mm : 0 });
+    });
+    return out;
+  }
+  // Smíðagögn `handles` (2026-10-27, T-248: handles were priced but never ORDERED): this cabinet's handles per SKU,
+  // at most two (the Eyðublað has Höldur 1 / Höldur 2) — Keyra skipulag writes them to "Höldur 1/2" + "magn", which
+  // Pöntunarlisti orders × Fjöldi eininga. A third length (rare: a 3-way split tall door) goes up into the longer slot.
+  function smidaHandles(b, c){
+    var by = {}; blockHandleSkus(b, c).forEach(function(x){ if (!x.id) return; var g = by[x.id] || (by[x.id] = { id:x.id, n:0, mm:x.mm }); g.n += x.n; });
+    var gs = Object.keys(by).map(function(k){ return by[k]; }).sort(function(a, z){ return z.n - a.n || z.mm - a.mm; });
+    while (gs.length > 2){ var lo = gs.reduce(function(m, g){ return !m || g.mm < m.mm ? g : m; }, null), up = gs.filter(function(g){ return g !== lo; }).sort(function(a, z){ return a.mm - z.mm; }).find(function(g){ return g.mm >= lo.mm; }) || gs[0]; up.n += lo.n; gs.splice(gs.indexOf(lo), 1); }
+    return gs.map(function(g){ return { id:g.id, n:g.n }; });
+  }
+  function handleHardwareSummary(){
+    var hcfg = handleCfgNow(); if (!hcfg) return null;
     var ids = {}, count = 0, skus = []; // skus: one entry per front with its own SKU — counted per SKU (G1, 2026-10-27)
     surfaces().forEach(function(wall){
       wall.floor.concat(wall.wall).forEach(function(b){
-        var c = CATALOG[b.type];
-        frontWidthsOf(b, c).forEach(function(fw){
-          var need = hcfg.kind === "hexxa" && fw.tall && isCloset() ? Math.min(400, fw.mm) : fw.mm; // a wardrobe's Hexxa is a 40 cm slot at hand height
-          var pick = stock ? pickStockSku(lenOptions, need) : pickFittingSku(lenOptions, fw.tall ? KP3D.tallHandleAvailMm(hcfg, fw.mm) : KP3D.handleAvailMm(hcfg, fw.mm)); // same rule as the 3D
-          if (pick){ ids[pick.vorulistiId] = true; skus.push({ id:pick.vorulistiId, n:fw.count }); }
-          count += fw.count;
+        blockHandleSkus(b, CATALOG[b.type], hcfg).forEach(function(x){
+          if (x.id){ ids[x.id] = true; skus.push({ id:x.id, n:x.n }); }
+          count += x.n;
         });
       });
     });
@@ -18323,6 +18342,7 @@
       if (grip.length) o.grip = grip;
     }
     if (b.front2 && state.look2 && !c.panel) o.front = "FR2";
+    var hnd = c.panel || c.notOrdered ? [] : smidaHandles(b, c); if (hnd.length) o.handles = hnd; // → Höldur 1/2 on the Eyðublað (Keyra skipulag)
     if (hasInnerDrawers(b, c) && b.innerFront) o.innerFront = b.innerFront;
     if (b.smidaReady && b.smidaReady === smidaHash(o)) o.ready = true; // "Klár til framleiðslu" — only while nothing changed since
     return o;
@@ -18330,7 +18350,8 @@
   // "Klár til framleiðslu" (pro, 2026-10-10): Rakel marks a cabinet once she's checked it in Smíða. The mark is
   // the hash of its Smíðagögn at that moment (b.smidaReady), so ANY later change to what gets built (size, drawers,
   // shelves, oven, hinges…) drops it by itself. /cnc warns about cabinets that aren't marked.
-  function smidaHash(o){ var str = JSON.stringify(o), h = 5381; for (var i = 0; i < str.length; i++) h = ((h * 33) ^ str.charCodeAt(i)) >>> 0; return h.toString(36); }
+  // (handles aren't what Smíða reviews — adding them to Smíðagögn must not drop every "Yfirfarinn")
+  function smidaHash(o){ var str = JSON.stringify(o, function(k, v){ return k === "handles" ? undefined : v; }), h = 5381; for (var i = 0; i < str.length; i++) h = ((h * 33) ^ str.charCodeAt(i)) >>> 0; return h.toString(36); }
   function proReady(b){ var fb = findBlock(b.id); return !!(fb && b.smidaReady && smidaFor(b, CATALOG[b.type], fb.zone).ready); }
   function proSetReady(b, on){
     var fb = findBlock(b.id); if (!fb) return;

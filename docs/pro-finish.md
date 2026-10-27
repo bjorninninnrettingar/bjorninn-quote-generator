@@ -668,3 +668,13 @@ Open: handles are never ordered (no handle V3 on PRO lines → no Pöntunarlisti
 passa ekki við hlið (800)" on a 3-drawer Merivo base (and 654/600 on a hung bath unit); Keyra skipulag's run failed
 on two pre-existing ⛔ HU lines but PRO said "Skipulag keyrt ✓"; "Klár til framleiðslu" stayed disabled until
 Yfirferð was reopened; the quote PDF's EFNISVAL shows only FR1.
+
+**Handles reach the order (2026-10-27, from the T-248 test).** Pöntunarlisti (both variants) and Pöntun per Unit order
+handles from the Eyðublað's "Höldur 1/2" + "Höldur 1/2 magn" (× Fjöldi eininga); Keyra skipulag filled those only from
+handle Útfærslur in V1–V3 (qty = the Útfærsla's own Magn, always 1) — PRO never puts handles there, so nothing was
+ordered. Now every cabinet's Smíðagögn carries `handles: [{id: Vörulisti, n}]` (≤ 2 SKUs, `smidaHandles()`, same SKU
+rule as the quote — `blockHandleSkus()`), and Keyra skipulag (owner's script change, below) writes them to Höldur 1/2.
+`smidaHash` ignores `handles`, so adding them didn't drop anyone's "Yfirfarinn". Existing PRO projects: Vista once,
+then Keyra skipulag (the lines are stale → re-synced) and Yfirfara.
+Owner, Keyra skipulag 📝 (wflPGRyv0VYi4AZpd) — Find `    if (drawerTypes.size > 1) {` → Replace with the block in
+the session reply (smida.handles → E.HANDLE_1/2 + QTY), placed before it.
