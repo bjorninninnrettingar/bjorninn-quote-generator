@@ -2747,6 +2747,14 @@
     if (!THREE_STATE) return;
     (THREE_STATE.scene.userData.parts || []).forEach(function(p){ p.cur = p.target = open ? 1 : 0; PART_STATE[p.key] = p; applyPart(p); });
   }
+  // the Efni drawer page (owner, 2026-10-27): the top drawer of the scene pulled out to `amount` (0–1), animated
+  function peekTopDrawer(amount){
+    if (!THREE_STATE) return false;
+    var V = new window.__THREE__.Vector3(), best = null, by = -Infinity;
+    (THREE_STATE.scene.userData.parts || []).forEach(function(p){ if (p.kind !== "drawer" || !p.group) return; p.group.getWorldPosition(V); if (V.y > by){ by = V.y; best = p; } });
+    if (!best) return false;
+    best.target = amount; PART_STATE[best.key] = best; return true;
+  }
   function setAllParts(open){
     if (!THREE_STATE) return 0;
     var list = THREE_STATE.scene.userData.parts || [];
@@ -7606,7 +7614,7 @@
     setXrayFronts: setXrayFronts, previewFront: previewFront,
     setCameraLookAt: setCameraLookAt, studioRender: studioRender,
     renderShot: renderShot, unitsShot: unitsShot,
-    setAllParts: setAllParts, snapParts: snapParts,
+    setAllParts: setAllParts, snapParts: snapParts, peekTopDrawer: peekTopDrawer,
     DRAWER_CODES: DRAWER_CODES, FIXED_FRONT_CODE: FIXED_FRONT_CODE,
     FRONT_MIN: FRONT_MIN, slotMin: slotMin,
     drawerCodes: drawerCodes,

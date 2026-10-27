@@ -662,3 +662,7 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   `matPhaseReveal`: an empty box (interior hillur 0) → drawers (`grunnskapur` + drawerCodes) → fronts (x-ray until then)
   → handles → the top with the basin (`vaskaskapur` only from the top page) + mirror cabinet. `previewFloor(…, true)` takes
   the floor + wall colour from Útlit rýmisins. Wardrobes already built up (`renderClosetPreview`), unchanged.
+- **Efni Skúffur + Framhlið (owner):** on the drawer page of the bath / laundry / wardrobe previews the top drawer rests half
+  out (`KP3D.peekTopDrawer(0.5)` — the highest `kind:"drawer"` part); picking Merivo / Legra glides it to 1 and back
+  (`drawerPagePeek`). Bath/laundry Framhlið: a quiet "ⓘ Spónn og raki" (tooltip with the damp advice) beside "Valið" on
+  the Spónlagt tab or with a veneer picked — nothing is blocked.

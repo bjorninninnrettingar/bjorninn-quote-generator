@@ -121,6 +121,7 @@
   .tour-txt .tour-note{ margin:8px 0 0; font-size:12.5px; color:var(--ink-soft); }
   .bath-end .be-dot{ transition:r .12s, stroke-width .12s; } .bath-end:hover .be-dot{ r:15; stroke-width:2; } body.dragging-wall, body.dragging-wall *{ cursor:grabbing !important; user-select:none; }
   .bath-size .field.quiet label{ font-size:12.5px; font-weight:500; color:var(--ink-soft); } .bath-size .field.quiet label small{ font-weight:400; } .bath-size .field.quiet .h-num{ max-width:84px; padding:6px 8px; font-size:13px; }
+  .damp-note{ margin-left:10px; font-size:12px; color:var(--ink-soft); cursor:help; white-space:nowrap; }
   .btn.btn-primary.is-wait{ opacity:.5; } /* looks not-ready, still answers a click with what is missing */
   .tour-list{ margin:4px 0 0; padding-left:18px; }
   .tour-list li{ margin:3px 0; }
@@ -9205,7 +9206,10 @@
     // tone chips (2026-10-11) on a long list: Ljóst / Miðlungs / Dökkt by the decor's average colour
     keys = toneFilter("lookTones", "lookCards", keys, LOOKS, lookToneSel, function(t){ lookToneSel = t; renderLookCards(); });
     var picked = state.look && LOOKS[state.look];
-    document.getElementById("lookPicked").innerHTML = picked ? __("Valið:") + ' <b>' + __(picked.label) + '</b>' : __("Ekkert valið enn");
+    // a bath / laundry: a calm word about veneer and damp on the Spónlagt tab or with a veneer picked — still fully selectable (owner, 2026-10-27)
+    var dampTxt = __("Mælum með viðarlíki eða einlitu þar sem raki er — spónn er í boði en þolir raka verr.");
+    var damp = isWallRoom() && !PRO && (cat.key === "sponlagt" || (picked && picked.category === "sponlagt")) ? ' <span class="damp-note" title="' + escapeHtmlPro(dampTxt) + '"><span class="shape-tip" aria-hidden="true">ⓘ</span> ' + __("Spónn og raki") + '</span>' : '';
+    document.getElementById("lookPicked").innerHTML = (picked ? __("Valið:") + ' <b>' + __(picked.label) + '</b>' : __("Ekkert valið enn")) + damp;
     if (!keys.length && lookQuery){ container.innerHTML = '<p class="tab-blurb" style="grid-column:1/-1;">' + __("Ekkert fannst — prófaðu annað orð.") + '</p>'; return; }
     container.innerHTML = keys.map(function(key){ return lookTileHTML(key, "data-look"); }).join("");
     container.querySelectorAll("[data-look]").forEach(function(card){
@@ -9672,6 +9676,7 @@
       if (!frontsOn) KP3D.setXrayFronts(true);
       swayPreview(st, Math.atan2(g.normal.x, g.normal.z));
       st.controls.update();
+      drawerPagePeek(onDrw);
     }, 8000);
   }
   // Baðherbergi (user, 2026-10-26): a real wall-hung vanity — 80 cm vaskaskápur at its Hæð frá gólfi, the top + handlaug,
@@ -9712,6 +9717,7 @@
       if (!frontsOn) KP3D.setXrayFronts(true);
       swayPreview(st, Math.atan2(g.normal.x, g.normal.z));
       st.controls.update();
+      drawerPagePeek(onDrw);
     }, 8000);
   }
   // Þvottahús "Hvar er vélin?" (user, 2026-10-26: the page showed an empty carcass): the choice itself — the stack in a
@@ -9755,10 +9761,23 @@
       if (!frontsOn) KP3D.setXrayFronts(true);
       swayPreview(st, Math.atan2(g.normal.x, g.normal.z));
       st.controls.update();
+      if (mat) drawerPagePeek((activeMatPhases()[matPhase] || {}).key === "drawers");
     }, 8000);
   }
   // a light floor + a strip of wall under a wall-hung unit, so the gap under it reads as "hangs on the wall" (the previews
   // have no room of their own)
+  // the Efni drawer page (owner, 2026-10-27): the top drawer rests half out so its side shows; picking Merivo / Legra
+  // glides it all the way out and back once, so the side profiles can be compared
+  var drawerPeekSys = null;
+  function drawerPagePeek(onDrw){
+    if (!onDrw){ drawerPeekSys = null; return; }
+    var changed = drawerPeekSys != null && drawerPeekSys !== state.drawerSystem; drawerPeekSys = state.drawerSystem;
+    setTimeout(function(){
+      if (!KP3D.peekTopDrawer) return;
+      if (!changed){ KP3D.peekTopDrawer(0.5); return; }
+      KP3D.peekTopDrawer(1); setTimeout(function(){ KP3D.peekTopDrawer(0.5); }, 900);
+    }, 120);
+  }
   function previewFloor(st, g, lenM, room){ // room: the floor + wall colour picked on Útlit rýmisins (the Efni previews, owner 2026-10-27)
     var T = window.__THREE__; if (!T || !st || !st.scene) return;
     var fl = room && state.floor && KP3D.FLOORS[state.floor], wc = room && state.wallColor && WALL_COLORS[state.wallColor];
