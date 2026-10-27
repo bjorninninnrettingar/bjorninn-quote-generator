@@ -1525,6 +1525,8 @@
   .hd-room{ display:flex; gap:6px; min-width:0; }
   .hd-room-sel{ flex:1; min-width:0; padding:8px 10px; border:1px solid var(--line); border-radius:8px; font:inherit; font-size:14px; background:#fff; color:var(--ink); }
   .hd-room-sel.need{ border-color:var(--blue); box-shadow:0 0 0 3px var(--blue-soft); color:var(--blue-deep); }
+  .hd-room-sel.err{ border-color:var(--danger); box-shadow:0 0 0 3px rgba(192,57,43,.14); }
+  .hd-room-err{ flex-basis:100%; font-style:normal; font-size:12.5px; font-weight:600; color:var(--danger); }
   .dw-like{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:-6px 0 12px; font-size:13px; }
   .dw-like > span{ font-weight:700; margin-right:2px; }
   .dw-like small{ color:var(--ink-soft); font-size:12px; margin-left:2px; }
@@ -13446,7 +13448,11 @@
   function doorNext(){
     if (doorPage === "list"){
       var bad = doorsReady();
-      if (bad){ toast(bad.designed === false ? __("Hannaðu {hu} fyrst — smelltu á Hanna.", { hu:doorHuLabel(bad) }) : __("Veldu rými fyrir {hu}.", { hu:doorHuLabel(bad) })); return; }
+      if (bad){
+        if (bad.designed !== false){ doorNeedId = bad.id; renderDoorStep(); var se = document.querySelector("#hdBody .hd-room-sel.err"); if (se) se.focus(); }
+        toast(bad.designed === false ? __("Hannaðu {hu} fyrst — smelltu á Hanna.", { hu:doorHuLabel(bad) }) : __("Veldu rými fyrir {hu}.", { hu:doorHuLabel(bad) })); return;
+      }
+      doorNeedId = null;
       doorPage = "review"; renderDoorStep(); return;
     }
     if (PRO){ leaveDoors(); return; }
@@ -13455,15 +13461,23 @@
     goto("intake");
   }
   function doorHomeRoom(d){ return !PRO && state.home && d.homeRoom && homeRooms().indexOf(d.homeRoom) >= 0 ? d.homeRoom : null; } // Allt heimilið: the project room it was put in
+  var doorNeedId = null; // the door Áfram stopped on for want of a room
   function doorRoomSelect(d, i){
     var R = KPDOORS.ROOMS, hr = doorHomeRoom(d), known = !!hr || R.some(function(r){ return r.value === d.room; }) || d.room === KPDOORS.OTHER || !d.room;
     // Allt heimilið (2026-10-26): the project's own rooms first, by the names the customer gave them; then the usual list
     var own = !PRO && state.home ? homeRooms() : [];
-    return '<select class="hd-room-sel' + (d.room ? '' : ' need') + '" data-droom="' + i + '" aria-label="' + __("Rými") + '"><option value="">' + __("— Veldu rými —") + '</option>' +
-      (own.length ? '<optgroup label="' + __("Rýmin þín") + '">' + own.map(function(k){ return '<option value="home:' + escapeHtmlPro(k) + '"' + (hr === k ? ' selected' : '') + '>' + escapeHtmlPro(homeNameOf(k)) + '</option>'; }).join("") + '</optgroup><optgroup label="' + __("Önnur rými") + '">' : '') +
-      R.map(function(r){ return '<option value="' + r.value + '"' + (!hr && d.room === r.value ? ' selected' : '') + '>' + __(r.label) + '</option>'; }).join("") +
+    // morning scan 2026-10-27: the project's rooms aren't listed a second time under "Önnur rými", and a wardrobe shows the
+    // room it stands in ("Fataherbergi"), not "Fataskápur"
+    var ownName = function(k){ var nm = homeNameOf(k); return /^fataskapar/.test(k) && nm === __("Fataskápur") ? __(RYMI_LABELS[roomNameOf(k)] || roomNameOf(k)) : nm; };
+    var taken = own.map(function(k){ return ownName(k); }).concat(own.map(function(k){ return /^fataskapar/.test(k) ? "" : roomNameOf(k); }));
+    var others = R.filter(function(r){ return d.room === r.value && !hr || (taken.indexOf(r.value) < 0 && taken.indexOf(__(r.label)) < 0); });
+    var need = !KPDOORS.roomOk(d) && doorNeedId === d.id; // Áfram pressed with no room for this door: said right here, in red
+    return '<select class="hd-room-sel' + (d.room ? '' : ' need') + (need ? ' err' : '') + '" data-droom="' + i + '" aria-label="' + __("Rými") + '"><option value="">' + __("— Veldu rými —") + '</option>' +
+      (own.length ? '<optgroup label="' + __("Rýmin þín") + '">' + own.map(function(k){ return '<option value="home:' + escapeHtmlPro(k) + '"' + (hr === k ? ' selected' : '') + '>' + escapeHtmlPro(ownName(k)) + '</option>'; }).join("") + '</optgroup><optgroup label="' + __("Önnur rými") + '">' : '') +
+      others.map(function(r){ return '<option value="' + r.value + '"' + (!hr && d.room === r.value ? ' selected' : '') + '>' + __(r.label) + '</option>'; }).join("") +
       (known ? '' : '<option value="' + escapeHtmlPro(d.room) + '" selected>' + escapeHtmlPro(__(RYMI_LABELS[d.room] || d.room)) + '</option>') +
       '<option value="' + KPDOORS.OTHER + '"' + (!hr && d.room === KPDOORS.OTHER ? ' selected' : '') + '>' + __("Annað") + '</option>' + (own.length ? '</optgroup>' : '') + '</select>' +
+      (need ? '<em class="hd-room-err">' + __("Veldu rými fyrir þessa hurð") + '</em>' : '') +
       (!hr && d.room === KPDOORS.OTHER ? '<input type="text" class="hd-room-other" data-droomother="' + i + '" maxlength="40" value="' + escapeHtmlPro(d.roomOther || "") + '" placeholder="' + __("Hvaða rými?") + '">' : '');
   }
   function designedDoors(){ return (state.doorList || []).filter(function(x){ return x.designed !== false; }); } // the empty HU-1 a fresh list starts with doesn't count as work
@@ -13771,7 +13785,7 @@
     if (em) em.textContent = err && String(t.value).trim().length >= 2 ? err : ""; // don't nag after one digit
     if (lab) lab.classList.toggle("bad", !!(err && String(t.value).trim().length >= 2));
     var ok = document.querySelector("#dwSide [data-dwmalok]"); if (ok) ok.disabled = !dwMalOk();
-    var sv = document.querySelector("#dwSide [data-dwsave]"); if (sv){ sv.disabled = !dwMalOk(); sv.title = dwMalOk() ? "" : __("Sláðu inn breidd, hæð og veggþykkt fyrst (Mál)."); }
+    var sv = document.querySelector("#dwSide [data-dwsave]"); if (sv){ sv.classList.toggle("is-wait", !dwMalOk()); sv.title = dwMalOk() ? "" : __("Sláðu inn breidd, hæð og veggþykkt fyrst (Mál)."); }
     var hs = document.querySelector('#dwSide [data-dwsec="mal"] span'); if (hs) hs.textContent = dwSummary("mal");
     dwSync();
   });

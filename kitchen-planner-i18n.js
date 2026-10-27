@@ -2148,6 +2148,7 @@
     "Ganga um": "Walk around",
     "Úthliðunum bætt við.": "End panels added.",
     "Vantar": "Missing",
+    "Veldu rými fyrir þessa hurð": "Choose a room for this door",
     "Sömu efni og í rýminu „{room}“?": "Same materials as in “{room}”?",
     "Fylla vegg {n} ({len}) með skápum?": "Fill wall {n} ({len}) with cabinets?",
     "Fylla veggi {list} með skápum?": "Fill walls {list} with cabinets?",
