@@ -15003,15 +15003,19 @@
       // the Senda inn picture is always the default view with nothing selected (round 2, 2026-10-26: it took whatever angle
       // the customer had orbited to, and a selected unit's tint) — rebuilt once, here, while the editor's 3D is still alive
       var wrapT = document.getElementById("threeWrap");
-      if (viewMode === "3d" && KP3D._three() && wrapT){
+      // from 2D / Ofanmynd too (morning scan 2026-10-27 #4: the kitchen's card showed a clipped plan, Senda inn only an icon) —
+      // the editor is being left anyway, so a clean 3D scene is built in its place for the pictures
+      var shot3d = !!wrapT && (viewMode === "3d" ? !!KP3D._three() : !!window.__THREE__ && KP3D.hasWebGL());
+      if (shot3d){
+        if (viewMode !== "3d"){ wrapT.hidden = false; document.getElementById("planWrap").hidden = true; }
         selectedBlockId = null; selectedWallId = null; document.getElementById("floatBar").hidden = true;
         KP3D.teardown3D(true); wrapT.innerHTML = "";
         KP3D.buildScene(wrapT, state, { darkBg:!!PRO, freshCamera:true, clean:true, noGhost:true });
         var stT = KP3D._three(); if (stT && stT.controls) stT.controls.update();
       }
       // the room's card / Senda inn picture: its units framed, same angle in every room (round 3, B2)
-      if (homeKey && viewMode === "3d" && KP3D.unitsShot){ var us = null; try{ us = KP3D.unitsShot({ width:480, height:300 }); }catch(e){} hlThumbSet(homeKey, us); }
-      var url = viewMode === "3d" ? KP3D.snapshot3D() : null;
+      if (homeKey && shot3d && KP3D.unitsShot){ var us = null; try{ us = KP3D.unitsShot({ width:480, height:300 }); }catch(e){} hlThumbSet(homeKey, us); }
+      var url = shot3d ? KP3D.snapshot3D() : null;
       if (!url) return;
       var img = new Image();
       img.onload = function(){
