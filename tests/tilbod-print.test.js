@@ -76,3 +76,20 @@ test("kp-drawings: with the office key an older Tækifæri's drawing is replaced
     assert.ok(calls.some((c) => c.startsWith("PATCH")) && calls.some((c) => c.includes("uploadAttachment")), calls.join(" | "));
   } finally { globalThis.fetch = realFetch; }
 });
+
+import { realHandleItems } from "../api/generate-quote.js";
+import { handleSlotsKey } from "../api/kp-submit.js";
+test("quote PDF: 3+ handle SKUs print as the real SKUs, adding up to Airtable's handle amount; hand-changed slots don't", () => {
+  const skus = [{ id: "a", n: 6, name: "Jey Ál grip 400mm (frágangur innifalinn)", p: 8446.67 }, { id: "b", n: 8, name: "Jey Ál grip 600mm", p: 10066.67 },
+    { id: "c", n: 4, name: "Jey Ál grip 700mm", p: 10386.67 }, { id: "d", n: 3, name: "Jey Ál grip 3000mm", p: 19566.67 }];
+  const project = { "Höldur Viðskiptavinar ✊": ["a"], "Magn Halda 1": 16, "Höldur Viðskiptavinar ✊2.0": ["d"], "Magn halda 2.0": 5,
+    "Sjálfsafgreiðsla skipulag (JSON) 📐": JSON.stringify({ handlesPrint: { key: handleSlotsKey(["a"], 16, ["d"], 5), skus } }) };
+  const slots = [{ "Einingarverð": 8446.67, "Magn": 16 }, { "Einingarverð": 19566.67, "Magn": 5 }];
+  const rows = realHandleItems(project, slots);
+  assert.equal(rows.length, 4);
+  assert.equal(rows[0]["Vara 🚪"], "Jey Ál grip 400mm");
+  assert.deepEqual(rows.map((r) => r["Magn"]), [6, 8, 4, 3]);
+  const sum = (l) => l.reduce((a, r) => a + r["Einingarverð"] * r["Magn"], 0);
+  assert.ok(Math.abs(sum(rows) - sum(slots)) < 0.01);
+  assert.equal(realHandleItems(Object.assign({}, project, { "Magn Halda 1": 17 }), slots), null); // changed in Airtable
+});

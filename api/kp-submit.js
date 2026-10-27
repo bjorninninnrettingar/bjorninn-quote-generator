@@ -121,6 +121,7 @@ export async function listAll(at, table, formula, fields) {
 // with one count: every handle priced as the sum of all lengths, ~4×.) Ordering never reads these fields — each
 // Eyðublað's handle comes from its own Útfærslur in Keyra skipulag.
 export const PR_PRICE = "fldCJjSJWoUWyT7iv"; // Vörulisti "Söluverð Bjarnarins 💰" (án vsk)
+export const PR_NAME = "fld2eaMu1s2beJLK4";  // Vörulisti "Heiti vöru 📣"
 export function validHandleSkus(v) {
   return Array.isArray(v) && v.length <= 24 && v.every((x) => x && REC_RE.test(String(x.id)) && Number.isInteger(x.n) && x.n >= 1 && x.n <= 500);
 }
@@ -143,16 +144,25 @@ export function handleSlots(skus, priceOf) {
   }
   return best.s.filter((x) => x.n > 0).sort((a, b) => b.n - a.n);
 }
-// the four Tækifæri fields for `skus`, prices read from Vörulisti
-export async function handleSlotFields(at, skus) {
-  const ids = [...new Set(skus.map((x) => x.id))], price = {};
+// the slots as one string — same shape as Airtable's own handle key formula (fldphVJWa1p1lp3Lg): "ids|n1|ids|n2"
+export function handleSlotsKey(h1, n1, h2, n2) { return [(h1 || []).join(","), Number(n1) || 0, (h2 || []).join(","), Number(n2) || 0].join("|"); }
+// the four Tækifæri fields for `skus`, prices read from Vörulisti. `info` (optional) gets { key, skus:[{id, n, name, p}] } —
+// PRO keeps it so the quote PDF can print every real SKU when two slots can't hold them (generate-quote handlesPrint).
+export async function handleSlotFields(at, skus, info) {
+  const ids = [...new Set(skus.map((x) => x.id))], price = {}, name = {};
   if (!ids.length) return {};
   const f = "OR(" + ids.map((id) => `RECORD_ID()='${id}'`).join(",") + ")";
-  const d = await at("GET", `tblzuuRSRkeXaLWxC?filterByFormula=${encodeURIComponent(f)}&returnFieldsByFieldId=true&fields%5B%5D=${PR_PRICE}`);
-  for (const r of d.records || []) price[r.id] = Number((r.fields || {})[PR_PRICE]) || 0;
+  const d = await at("GET", `tblzuuRSRkeXaLWxC?filterByFormula=${encodeURIComponent(f)}&returnFieldsByFieldId=true&fields%5B%5D=${PR_PRICE}&fields%5B%5D=${PR_NAME}`);
+  for (const r of d.records || []) { price[r.id] = Number((r.fields || {})[PR_PRICE]) || 0; name[r.id] = String((r.fields || {})[PR_NAME] || ""); }
   const sl = handleSlots(skus, (id) => price[id]);
-  return { "Höldur Viðskiptavinar ✊": [sl[0].id], "Magn Halda 1": sl[0].n,
+  const out = { "Höldur Viðskiptavinar ✊": [sl[0].id], "Magn Halda 1": sl[0].n,
     "Höldur Viðskiptavinar ✊2.0": sl[1] ? [sl[1].id] : [], "Magn halda 2.0": sl[1] ? sl[1].n : 0 };
+  if (info) {
+    const by = {}; for (const x of skus) by[x.id] = (by[x.id] || 0) + x.n;
+    info.key = handleSlotsKey(out["Höldur Viðskiptavinar ✊"], out["Magn Halda 1"], out["Höldur Viðskiptavinar ✊2.0"], out["Magn halda 2.0"]);
+    info.skus = Object.keys(by).map((id) => ({ id, n: by[id], name: name[id] || "", p: price[id] || 0 })).sort((a, z) => a.p - z.p);
+  }
+  return out;
 }
 
 // Every field name this endpoint uses, per table (api/field-check.js checks them daily).

@@ -3,6 +3,7 @@
 // pdf-lib, pure JS, no native deps
 
 import { PDFDocument, StandardFonts, rgb, degrees } from "pdf-lib";
+import { handleSlotsKey } from "./kp-submit.js";
 
 const AIRTABLE_BASE       = "app91U15z9K704Okd";
 const PROJECTS_TABLE      = "tbl4LMXlQjp66RFKI";
@@ -591,6 +592,24 @@ async function buildPdf(project, lineItems, includeSummary = false, estimate = f
 // ── Virtual handle line items (project-level Höldur) ─────────────────────────
 
 // Same math as Airtable's "Samtals hölduverð m.vsk": söluverð án vsk × magn × 1,24.
+// G1 follow-up (2026-10-27): the two Airtable slots can hold only two SKUs, so a Jey kitchen with 4–6 lengths is
+// priced on an equivalent pair. PRO's Vista keeps the real ones (planner JSON `handlesPrint`: name, count, list price
+// and the slot key it wrote). While the Tækifæri's slots are still exactly those, the PDF prints one row per real
+// SKU; every list price is scaled by the same factor so the rows add up to Airtable's own handle amount (the quote
+// total never moves). Slots changed by hand since → the plain slot rows, as before.
+export function realHandleItems(project, slotItems) {
+  let hp = null;
+  try { hp = JSON.parse(project["Sjálfsafgreiðsla skipulag (JSON) 📐"] || "{}").handlesPrint || null; } catch (e) { return null; }
+  if (!hp || !Array.isArray(hp.skus) || hp.skus.length < 3) return null;
+  if (hp.key !== handleSlotsKey(project["Höldur Viðskiptavinar ✊"], project["Magn Halda 1"], project["Höldur Viðskiptavinar ✊2.0"], project["Magn halda 2.0"])) return null;
+  const slotTotal = slotItems.reduce((a, i) => a + i["Einingarverð"] * i["Magn"], 0);
+  const exact = hp.skus.reduce((a, x) => a + (x.p || 0) * x.n, 0);
+  if (!(slotTotal > 0 && exact > 0)) return null;
+  const k = slotTotal / exact;
+  return hp.skus.map((x) => ({ "Rými 🏡": HANDLE_ROOM, "Vara 🚪": String(x.name || "Halda").replace(/\s*\(frágangur innifalinn\)/i, ""),
+    "útfærsla 🎨": "", "Magn": x.n, "Einingarverð": (x.p || 0) * k, "Afsl. %": 0 }));
+}
+
 function buildHandleLineItems(project) {
   const items = [];
   for (const slot of HANDLE_SLOTS) {
@@ -607,7 +626,7 @@ function buildHandleLineItems(project) {
       "Afsl. %":     0,
     });
   }
-  return items;
+  return realHandleItems(project, items) || items;
 }
 
 function sumInclVat(items) {

@@ -221,5 +221,10 @@ test("handleSkus → Höldur ✊ / ✊2.0 slots, Halda 2 set by hand survives a 
     { "Höldur Viðskiptavinar ✊2.0": H3, "Magn halda 2.0": "2" });
   assert.deepEqual(p["Höldur Viðskiptavinar ✊2.0"], []);
   assert.equal(p["Magn halda 2.0"], 0);
+  // three SKUs: the planner JSON keeps the real ones for the quote PDF, with the slot key it wrote
+  p = await run([{ id: H1, n: 6 }, { id: H2, n: 8 }, { id: H3, n: 3 }], {});
+  const hp = JSON.parse(p["Sjálfsafgreiðsla skipulag (JSON) 📐"]).handlesPrint;
+  assert.deepEqual(hp.skus.map((x) => [x.id, x.n]), [[H1, 6], [H2, 8], [H3, 3]]);
+  assert.equal(hp.key, [p["Höldur Viðskiptavinar ✊"].join(","), p["Magn Halda 1"], p["Höldur Viðskiptavinar ✊2.0"].join(","), p["Magn halda 2.0"]].join("|"));
   assert.equal(validate({ recordId: OPP, state: { walls: [] }, smida: {}, handleSkus: [{ id: H1, n: -1 }] }), "Ógildar höldur");
 });

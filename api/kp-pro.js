@@ -173,7 +173,10 @@ export async function save(at, body) {
   // Materials/handles — see PROJECT_SYNC. Only fields the drawing actually has a value for are touched.
   const oldProj = old.projSent && typeof old.projSent === "object" ? old.projSent : {};
   const projFields = {}, projSent = Object.assign({}, oldProj), projectUpdated = [];
-  if (body.handleSkus && body.handleSkus.length) body.project = Object.assign({}, body.project, await handleSlotFields(at, body.handleSkus)); // priced slots (G1)
+  const hInfo = {};
+  if (body.handleSkus && body.handleSkus.length) body.project = Object.assign({}, body.project, await handleSlotFields(at, body.handleSkus, hInfo)); // priced slots (G1)
+  // more SKUs than slots: what the quote PDF prints instead of the two slot rows, while the slots are still these
+  const handlesPrint = hInfo.skus && hInfo.skus.length > 2 ? { key: hInfo.key, skus: hInfo.skus } : null;
   for (const [f, v] of Object.entries(body.project || {})) {
     const D = projVal(v), A = projVal((opp.fields || {})[f]), B = oldProj[f];
     projSent[f] = D;
@@ -187,7 +190,7 @@ export async function save(at, body) {
   // The state goes last, so liSent only ever records what really reached the Line Items.
   const proSavedAt = new Date().toISOString();
   const json = JSON.stringify(Object.assign({}, body.state, old.submissionId ? { submissionId: old.submissionId } : {},
-    { liSent, liExtra, projSent, proSavedAt }));
+    { liSent, liExtra, projSent, proSavedAt, handlesPrint }));
   await at("PATCH", PROJECTS, { typecast: true, records: [{ id: opp.id, fields: Object.assign({ [PLANNER_JSON]: json }, projFields) }] });
 
   // Product names for the conflict question (the ids alone mean nothing to Rakel).

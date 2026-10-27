@@ -641,3 +641,11 @@ on any Tækifæri (without the key: the old fresh-submission-only rules). Then `
 `withDrawings`, which appends those pages to the "(Tilboð…)" PDF (`appendPdf`). The Airtable print button is
 unchanged (no drawings — that field can hold the customer's pre-PRO drawing). A failed drawing step never stops the
 print; the panel says "Prentað með teikningum" only when they made it in.
+
+**G1 follow-up — real handle names on the quote PDF (no Airtable change).** kp-pro's Vista keeps, in the planner JSON,
+`handlesPrint = { key, skus:[{id, n, name, p}] }` when the drawing uses 3+ handle SKUs (`handleSlotFields(at, skus,
+info)`; key = `handleSlotsKey` = the shape of Airtable's own handle key "ids|n1|ids|n2"). generate-quote's
+`realHandleItems`: while the Tækifæri's slots still match that key, the PDF prints one row per real SKU with its true
+count; every list price × the same factor (slot amount / exact, ≤ one price step) so the rows sum to Airtable's handle
+amount and the quote total never moves. Slots changed by hand in Airtable → the two slot rows, as before.
+(Making Airtable's own total exact would need a field change: the Verðlás automation overwrites the handle lock at 🏆.)
