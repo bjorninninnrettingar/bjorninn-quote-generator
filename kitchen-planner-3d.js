@@ -400,12 +400,16 @@
     applyMood(scene);
   }
   function setMood(on){ MOOD = !!on; return MOOD; }
-  function addCarcassBoards(THREE, parent, widthM, bodyH, bodyBase, depth, mat){
+  function addCarcassBoards(THREE, parent, widthM, bodyH, bodyBase, depth, mat, rails){
     var T = CARCASS_T, inner = widthM - 2 * T;
     function board(w, h, d, x, y, z){ var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m; }
     board(T, bodyH, depth, -widthM / 2 + T / 2, bodyBase + bodyH / 2, depth / 2);   // sides
     board(T, bodyH, depth, widthM / 2 - T / 2, bodyBase + bodyH / 2, depth / 2);
-    board(inner, T, depth - BACK_T, 0, bodyBase + bodyH - T / 2, BACK_T + (depth - BACK_T) / 2); // top + bottom, in front of the back
+    if (rails){ // a sink cabinet has no top board, only a rail at the front and one at the back (owner, 2026-10-27)
+      board(inner, T, 0.09, 0, bodyBase + bodyH - T / 2, depth - 0.045);
+      board(inner, T, 0.09, 0, bodyBase + bodyH - T / 2, BACK_T + 0.045);
+    }
+    else board(inner, T, depth - BACK_T, 0, bodyBase + bodyH - T / 2, BACK_T + (depth - BACK_T) / 2); // top + bottom, in front of the back
     board(inner, T, depth - BACK_T, 0, bodyBase + T / 2, BACK_T + (depth - BACK_T) / 2);
     board(inner, bodyH - 2 * T, BACK_T, 0, bodyBase + bodyH / 2, BACK_T / 2);          // back
   }
@@ -2315,7 +2319,7 @@
       var cframe = new THREE.Group();
       cframe.position.set(geom.origin.x + geom.axis.x * (offsetM + widthM / 2), 0, geom.origin.z + geom.axis.z * (offsetM + widthM / 2));
       cframe.quaternion.copy(quat);
-      addCarcassBoards(THREE, cframe, widthM, bodyH, bodyBase, art ? depthM - FRONT_T : depthM, meta.openMat);
+      addCarcassBoards(THREE, cframe, widthM, bodyH, bodyBase, art ? depthM - FRONT_T : depthM, meta.openMat, !!meta.sink);
       cframe.traverse(function(o){ if (o.isMesh) o.userData = meta; }); // a click on a board = a click on the cabinet
       group.add(cframe);
     }
@@ -2394,7 +2398,7 @@
     // covers every Fataskápar piece (floor and wall) uniformly.
     if (meta && meta.alwaysDims && meta.zone !== "opening" && !isPanel && geom && geom.axis) addUnitDims(geom, offsetM, widthM, baseYM + heightM, depthM, dimLen(Math.round(widthM * 1000)));
     if (art) addArticulated(THREE, scene, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta, useFrontMat, pickables);
-    else if (meta && meta.zone !== "opening" && !isPanel && !meta.appliance) addFrontDetails(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta.handle, !!meta.tall, meta.zone === "wall" || !!meta.handleBottom, meta.split || 0, meta, useFrontMat);
+    else if (meta && meta.zone !== "opening" && !isPanel && !meta.appliance) addFrontDetails(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta.handle, !!meta.tall, meta.zone === "wall" || !!meta.handleBottom || (bodyBase >= HIGH_DOOR_M && !(interior && interior.mode === "skuffur")), meta.split || 0, meta, useFrontMat);
     if (meta && meta.appliance && !meta.applModel) addApplianceDetails(THREE, group, geom, offsetM, widthM, heightM, depthM, meta.appliance);
     return group;
   }
@@ -2480,7 +2484,9 @@
     var base = plM + (side ? 0.3 : TOWER_DRAWER_M), niche = Math.min(single || side ? TOWER_NICHE_M / 2 : TOWER_NICHE_M, hM - base - CARCASS_T), up = hM - base - niche;
     if (up < 0.2){ niche = hM - base; up = 0; }
     var common = { washerDrawerM:0, tall:false, fixedFronts:true, splitFr:null, alwaysDims:false };
-    addCabinetBox(THREE, scene, geom, offM, wM, base, dM, 0, carcassMat, frontMat, null, Object.assign({}, meta, common), selected, pickables);
+    // the box under the machines is a real DRAWER (owner, 2026-10-27): one front with its handle, a drawer box that pulls out
+    var dCodes = drawerCodes({ mode:"skuffur", count:1 }, meta.drawerSystem);
+    addCabinetBox(THREE, scene, geom, offM, wM, base, dM, 0, carcassMat, frontMat, { mode:"skuffur", count:dCodes.length, codes:dCodes }, Object.assign({}, meta, common, { fixedFronts:false }), selected, pickables);
     if (up > 0) addCabinetBox(THREE, scene, geom, offM, wM, up, dM, base + niche, carcassMat, frontMat, { mode:"hillur", count:up > 1 ? 3 : 1 }, Object.assign({}, meta, common, { fixedFronts:false, plinth:false, handleBottom:true, suppressBadge:true }), selected, pickables) // a real cabinet: its fronts strip with X-Ray like any other (they stayed a white box on the Efni colour page); its shelves: with the fronts off it is a real carcass, not an empty glass box (owner, 2026-10-27);
     var quat = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(geom.axis.x, 0, geom.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(geom.normal.x, 0, geom.normal.z)));
     function board(w, h, d, along, y, out){
@@ -2909,7 +2915,7 @@
       if (meta.handle){
         var tmp = new THREE.Group();
         var fake = { origin:{ x:cxL - w / 2, z:0 }, axis:{ x:1, z:0 }, normal:{ x:0, z:1 }, lenM:w };
-        addFrontDetails(THREE, tmp, fake, 0, w, fh, y0, depthM, { mode:"skuffur", count:1 }, meta.handle, false, meta.zone === "wall" || (meta.tall && fi > 0 && !f.drawer), 0.55, { vertical:vertA, freeSide:freeSideA, slab:true }, frontMat);
+        addFrontDetails(THREE, tmp, fake, 0, w, fh, y0, depthM, { mode:"skuffur", count:1 }, meta.handle, false, meta.zone === "wall" || (meta.tall && fi > 0 && !f.drawer) || (!f.drawer && (!!meta.handleBottom || y0 >= HIGH_DOOR_M)), 0.55, { vertical:vertA, freeSide:freeSideA, slab:true }, frontMat); // a door hung high (over the machines, a top box): its handle at the bottom edge (owner, 2026-10-27)
         tmp.children.slice().forEach(function(ch){ ch.position.x -= pivotX; g.add(ch); if (ch.isMesh) meshes.push(ch); else ch.traverse(function(o){ if (o.isMesh) meshes.push(o); }); });
       }
       // a front slot with no drawer behind it: a sink's fixed top front, or any "P" (Föst framhlið) position
@@ -5037,9 +5043,23 @@
   }
   // Two cut-out figures standing ~1.2 m in front of the longest solid wall, turned towards the camera every
   // frame, plus a floor-to-ceiling dimension line on that wall (left of them) with the height in mm.
-  function addPeople(THREE, scene, geoms, wallH, heightMm, walls, wallHex){
+  function addPeople(THREE, scene, geoms, wallH, heightMm, walls, wallHex, state){
     var g = geoms.filter(function(x, i){ return !(walls[i] && walls[i].open); }).sort(function(a, b){ return b.lenM - a.lenM; })[0] || geoms[0], mid = { x:g.origin.x + g.axis.x * g.lenM / 2, z:g.origin.z + g.axis.z * g.lenM / 2 }, out = [];
-    var inM = 0.7;
+    var inM = 0.7, wallMid = mid;
+    // never inside a unit (owner, 2026-10-27: they stood in the laundry's cabinets): the first spot — further out from the wall,
+    // then along it — where both figures stand clear of every floor unit and obstacle, inside the room; none free: no people
+    if (state){
+      var quads = []; try{ quads = floorRects(state).map(function(r){ return r.q; }).concat((state.obstacles || []).map(function(o){ return obstacleQuad(state, o); }).filter(Boolean)); }catch(e){}
+      var poly = geoms.closed ? geoms.map(function(x){ return { x:x.origin.x, z:x.origin.z }; }) : null;
+      var clear = function(px, pz){ if (poly && !inPoly(px, pz, poly)) return false;
+        return [[0, 0], [0.22, 0], [-0.22, 0], [0, 0.22], [0, -0.22]].every(function(o){ return !quads.some(function(q){ return inPoly(px + o[0], pz + o[1], q); }); }); };
+      var found = null;
+      [0, -0.7, 0.7, -1.3, 1.3].some(function(sh){ for (var d = 0.7; d <= 2.6 && !found; d += 0.15){
+        var ok = [-0.38, 0.42].every(function(a){ return clear(mid.x + g.normal.x * d + g.axis.x * (a + sh), mid.z + g.normal.z * d + g.axis.z * (a + sh)); });
+        if (ok) found = { d:d, sh:sh }; } return !!found; });
+      if (!found) return null;
+      inM = found.d; wallMid = mid; mid = { x:mid.x + g.axis.x * found.sh, z:mid.z + g.axis.z * found.sh };
+    }
     [["man", -0.38], ["woman", 0.42]].forEach(function(pr){
       // the illustrated people (user, 2026-10-24), head to sole = their height; the drawn silhouette is the fallback
       var P = PEOPLE[pr[0]], tex = new THREE.Texture(), pic = personImage(pr[0]);
@@ -5072,8 +5092,8 @@
     });
     // dimension line on the wall, a little to the side of the figures
     // (2026-10-11) further from the figures, near the corner, and the label up by the ceiling — it sat on the man
-    var dOff = -Math.max(0.9, Math.min(g.lenM / 2 - 0.35, 1.9));
-    var dx = mid.x + g.axis.x * dOff + g.normal.x * 0.02, dz = mid.z + g.axis.z * dOff + g.normal.z * 0.02;
+    var dOff = -Math.max(0.9, Math.min(g.lenM / 2 - 0.15, 1.9)), dSide = mid !== wallMid && (mid.x - wallMid.x) * g.axis.x + (mid.z - wallMid.z) * g.axis.z < 0 ? -1 : 1; // the figures moved along the wall: the line goes to the other end
+    var dx = wallMid.x + g.axis.x * dOff * dSide + g.normal.x * 0.02, dz = wallMid.z + g.axis.z * dOff * dSide + g.normal.z * 0.02;
     var wn = parseInt((wallHex || "#f1efe8").slice(1), 16), dark = (((wn >> 16) & 255) * 0.3 + ((wn >> 8) & 255) * 0.59 + (wn & 255) * 0.11) < 128;
     var lm = new THREE.LineBasicMaterial({ color:dark ? 0xf4f2ec : 0x333333 }), tick = 0.08;
     function seg(a, b){ scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, b]), lm)); }
@@ -5091,7 +5111,7 @@
     if (THREE.SRGBColorSpace) lt.colorSpace = THREE.SRGBColorSpace;
     var sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:lt, depthTest:false }));
     sp.scale.set(0.95, 0.27, 1); sp.renderOrder = 10;
-    sp.position.set(dx + g.normal.x * 0.05 + g.axis.x * 0.5, wallH - 0.32, dz + g.normal.z * 0.05 + g.axis.z * 0.5);
+    sp.position.set(dx + g.normal.x * 0.05 - g.axis.x * 0.32 * dSide, wallH - 0.14, dz + g.normal.z * 0.05 - g.axis.z * 0.32 * dSide); // on the outer side of its line: clear of the figures' own labels (owner, 2026-10-27)
     scene.add(sp);
     return { people:out, focus:{ x:mid.x + g.normal.x * inM, z:mid.z + g.normal.z * inM }, g:g };
   }
@@ -5618,7 +5638,21 @@
           if (!under) addMirrorCabinet(THREE, scene, g, offset / 1000, b.widthMm / 1000, Math.min(Math.max(1.15, hM + 0.42), (roomHeightMm - 760) / 1000), carcassMat);
         }
         if (applMdl) placeApplModel(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, applMdl);
-        if (c.thvo && !opts.people) addTowerMachines(THREE, scene, g, offset / 1000, b.widthMm / 1000, nicheTower ? towerNiche.base : plinthMmW / 1000 + CARCASS_T, nicheTower ? towerNiche.top : hM - CARCASS_T, dM, washerMat, !!b.single || (c.thvoSide && b.widthMm < 1000), !!c.thvoSide);
+        // a tall unit's side left bare above a lower neighbour (no room was left for its úthlið — owner, 2026-10-27: the laundry
+        // tower's side read as a black slab): a 2 mm skin in the front material over the bare part, never ordered
+        if (c.cls === "tall" && !c.panel && !opts.darkBg && !wall.island) [-1, 1].forEach(function(dir){
+          var nb = wall.floor[bi + dir], nc = nb && CATALOG[nb.type];
+          if (!nb || nc.panel) return;
+          var touching = dir < 0 ? Math.abs(fStarts[bi - 1] + nb.widthMm - offset) < 3 : Math.abs(offset + b.widthMm - fStarts[bi + 1]) < 3;
+          var nh = Math.min(nb.heightMm || nc.h, roomHeightMm) / 1000 + (nc.counter && stoneMat ? (stoneMat.userData.thick || 0.03) + 0.001 : 0);
+          if (!touching || nh > hM - 0.05) return;
+          var skinH = hM - nh, skin = new THREE.Mesh(new THREE.BoxGeometry(0.002, skinH, dM), frontMatOf(b)), along = (offset + (dir > 0 ? b.widthMm : 0)) / 1000 + dir * 0.0012;
+          panelUV(skin.geometry, 0.002, skinH, dM, frontMatOf(b).userData && frontMatOf(b).userData.tile);
+          skin.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(g.axis.x, 0, g.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(g.normal.x, 0, g.normal.z)));
+          skin.position.set(g.origin.x + g.axis.x * along + g.normal.x * dM / 2, nh + skinH / 2, g.origin.z + g.axis.z * along + g.normal.z * dM / 2);
+          skin.castShadow = true; skin.receiveShadow = true; scene.add(skin);
+        });
+        if (c.thvo) addTowerMachines(THREE, scene, g, offset / 1000, b.widthMm / 1000, nicheTower ? towerNiche.base : plinthMmW / 1000 + CARCASS_T, nicheTower ? towerNiche.top : hM - CARCASS_T, dM, washerMat, !!b.single || (c.thvoSide && b.widthMm < 1000), !!c.thvoSide);
         // LED in a tall closet (user, 2026-10-23, C1): a vertical strip in a groove at the front edge of one side
         // (6×6 mm), or a strip under the top shelf (4×8 mm). Behind the doors — it shows in X-ray and with doors open.
         if (b.closetLed && c.cls === "tall" && !opts.people){
@@ -5876,7 +5910,7 @@
         bathAim = { x:bcx + bnx * 0.3, y:fullAim ? WALL_H * 0.47 : 0.95, z:bcz + bnz * 0.3 };
       }
     }
-    var people = opts.people && geoms.length ? addPeople(THREE, scene, geoms, WALL_H, roomHeightMm, state.walls, wallColor) : null;
+    var people = opts.people && geoms.length ? addPeople(THREE, scene, geoms, WALL_H, roomHeightMm, state.walls, wallColor, state) : null;
     if (people){ // stand inside the room at eye height, facing the figures and their wall (wide lens so floor + ceiling fit)
       var pg = people.g, depth = Math.abs(pg.normal.x) > 0.5 ? bbox.w : bbox.d, back = Math.max(1.9, Math.min(4.2, depth - 0.7 - 0.25)); // keep the camera inside the room when it fits
       camera.fov = 70; camera.updateProjectionMatrix();
@@ -6062,12 +6096,23 @@
       var nx = WALK.x - Math.sin(WALK.yaw) * m, nz = WALK.z - Math.cos(WALK.yaw) * m;
       if (!walkBlocked(nx, nz)){ WALK.x = nx; WALK.z = nz; }
     }
+    // Mouse-look like a game (owner, 2026-10-27): a click in the view locks the pointer — moving the mouse turns the view,
+    // no dragging; Esc gives the mouse back (the browser's own rule), Esc again or "Hætta" ends the walk. Touch keeps drag.
+    var walkCanvas = renderer.domElement;
+    function walkLocked(){ return document.pointerLockElement === walkCanvas; }
     function walkDown(e){
       if (!WALK.on || !wrap.contains(e.target) || e.target.closest("button,input,select,a,.kp-walk-hud")) return;
       e.stopPropagation(); e.preventDefault(); // nothing gets picked or dragged while walking
+      if (walkLocked()) return; // already looking with the mouse
+      if (e.pointerType === "mouse" && walkCanvas.requestPointerLock){ try{ var pr = walkCanvas.requestPointerLock(); if (pr && pr.catch) pr.catch(function(){}); }catch(err){} return; }
       walkLook = { x:e.clientX, y:e.clientY, yaw:WALK.yaw, pitch:WALK.pitch };
     }
     function walkMove(e){
+      if (WALK.on && walkLocked()){ // the locked mouse: right turns right, up looks up
+        WALK.yaw -= (e.movementX || 0) * 0.0022;
+        WALK.pitch = Math.max(-0.9, Math.min(0.7, WALK.pitch - (e.movementY || 0) * 0.0018));
+        return;
+      }
       if (!walkLook) return;
       WALK.yaw = walkLook.yaw + (e.clientX - walkLook.x) * 0.0045; // drag the world: right = turn left (like Street View)
       WALK.pitch = Math.max(-0.9, Math.min(0.7, walkLook.pitch + (e.clientY - walkLook.y) * 0.0035));
@@ -6076,11 +6121,18 @@
     function walkKey(e){
       if (!WALK.on || /input|textarea|select/i.test((e.target && e.target.tagName) || "")) return;
       var k = e.key.toLowerCase();
-      if (e.type === "keydown" && k === "escape"){ setWalk(false); if (opts.onWalkChange) opts.onWalkChange(false); return; }
+      if (e.type === "keydown" && k === "escape"){ if (walkLocked()){ document.exitPointerLock(); return; } setWalk(false); if (opts.onWalkChange) opts.onWalkChange(false); return; }
       if (!/^(w|a|s|d|shift|arrow(up|down|left|right))$/.test(k)) return;
       walkKeys[k] = e.type === "keydown"; e.preventDefault();
     }
     function walkWheel(e){ if (!WALK.on || !wrap.contains(e.target)) return; e.preventDefault(); e.stopPropagation(); walkNudge(-Math.sign(e.deltaY) * 0.35); }
+    function walkTip(){ return walkLocked() ? __("Hreyfðu músina til að líta í kring · W A S D til að ganga · Esc sleppir músinni")
+      : __("Smelltu í myndina og hreyfðu músina til að líta í kring · W A S D / örvar til að ganga"); }
+    function walkLockChange(){
+      var t = wrap.querySelector(".kp-walk-tip"); if (t) t.textContent = walkTip();
+      var h = wrap.querySelector(".kp-walk-hud"); if (h) h.style.opacity = walkLocked() ? "0.82" : "1";
+      wrap.style.cursor = WALK.on && !walkLocked() ? "pointer" : "";
+    }
     function walkHud(on){
       var h = wrap.querySelector(".kp-walk-hud");
       if (!on){ if (h) h.remove(); return; }
@@ -6093,7 +6145,7 @@
       h.innerHTML = '<span style="display:flex;gap:4px;">' +
         '<button type="button" data-wk="arrowleft" title="' + __("Snúa til vinstri") + '" style="' + arrow + '">⟲</button><button type="button" data-wk="w" title="' + __("Ganga áfram") + '" style="' + arrow + '">▲</button>' +
         '<button type="button" data-wk="s" title="' + __("Ganga aftur á bak") + '" style="' + arrow + '">▼</button><button type="button" data-wk="arrowright" title="' + __("Snúa til hægri") + '" style="' + arrow + '">⟳</button></span>' +
-        '<span class="kp-walk-tip">' + __("Dragðu til að líta í kring · W A S D / örvar") + '</span>' +
+        '<span class="kp-walk-tip">' + walkTip() + '</span>' +
         walkJumps().map(function(j, i){ return '<button type="button" data-wj="' + i + '" style="' + pill + '">' + __(j.label) + '</button>'; }).join("") +
         '<button type="button" data-wq="1" style="all:unset;cursor:pointer;background:#fff;color:#111;border-radius:999px;padding:4px 10px;font-weight:600">' + __("Hætta (Esc)") + '</button>';
       h.querySelector("[data-wq]").addEventListener("click", function(){ setWalk(false); if (opts.onWalkChange) opts.onWalkChange(false); });
@@ -6111,19 +6163,21 @@
         if (!WALK.on || walkBlocked(WALK.x, WALK.z)){ var sp0 = walkSpot(); WALK.x = sp0.x; WALK.z = sp0.z; WALK.yaw = sp0.yaw; WALK.pitch = -0.08; }
         WALK.on = true; controls.enabled = false; camera.fov = 62; camera.updateProjectionMatrix(); walkApply();
       } else if (!on && WALK.on){
-        WALK.on = false; walkKeys = {}; walkLook = null; controls.enabled = true;
+        WALK.on = false; walkKeys = {}; walkLook = null; controls.enabled = true; if (walkLocked()) document.exitPointerLock(); wrap.style.cursor = "";
         if (walkPrev){ camera.position.copy(walkPrev.pos); controls.target.copy(walkPrev.target); camera.fov = walkPrev.fov; camera.updateProjectionMatrix(); controls.update(); }
         walkPrev = null;
       }
-      walkHud(WALK.on);
+      walkHud(WALK.on); walkLockChange();
       return WALK.on;
     }
     window.addEventListener("pointerdown", walkDown, true); window.addEventListener("pointermove", walkMove); window.addEventListener("pointerup", walkUp);
     window.addEventListener("keydown", walkKey); window.addEventListener("keyup", walkKey); wrap.addEventListener("wheel", walkWheel, { capture:true, passive:false });
+    document.addEventListener("pointerlockchange", walkLockChange);
     THREE_STATE.setWalk = setWalk;
     THREE_STATE.walkCleanup = function(){
       window.removeEventListener("pointerdown", walkDown, true); window.removeEventListener("pointermove", walkMove); window.removeEventListener("pointerup", walkUp);
       window.removeEventListener("keydown", walkKey); window.removeEventListener("keyup", walkKey); wrap.removeEventListener("wheel", walkWheel, { capture:true });
+      document.removeEventListener("pointerlockchange", walkLockChange); if (walkLocked()) document.exitPointerLock();
       walkHud(false);
     };
     THREE_STATE.walkStep = walkStep;
@@ -6566,6 +6620,7 @@
   // centre was kept 12 cm from the ends whatever the length): an upright pull stays HANDLE_SAFE_M inside its own
   // front at both ends, centred at hand height where it can, and is never longer than the front leaves room for.
   var HANDLE_SAFE_M = 0.05, HAND_HEIGHT_M = 1.05;
+  var HIGH_DOOR_M = 1.2; // a door whose bottom edge is this high or more is reached from below: the handle goes on its bottom edge
   function uprightY(bottom, top, lenM){
     var lo = bottom + lenM / 2 + HANDLE_SAFE_M, hi = top - lenM / 2 - HANDLE_SAFE_M;
     return lo > hi ? (bottom + top) / 2 : Math.max(lo, Math.min(hi, HAND_HEIGHT_M));
