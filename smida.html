@@ -105,13 +105,15 @@
   .cnccap .ci { width:9px; height:9px; border-radius:50%; border:1.6px solid var(--text); }
   .cnccap .cs { width:4px; height:4px; border-radius:50%; background:var(--text); box-shadow:6px 0 0 var(--text); margin-right:6px; }
   .cnccap .cf { width:14px; height:2px; background:var(--text); }
+  .bpp-calm-svg .cz[data-type="shelf"], .bpp-calm-svg .cz[data-type="inner"], .bpp-calm-svg .cz[data-type="hinge"] { cursor:ns-resize; }
   .cnccap .cd { width:14px; height:9px; border:1.1px solid #6e6e73; border-radius:2px; box-shadow:inset 0 -1.6px 0 #6e6e73; }
   .cnccap svg { display:block; }
   .bpp-calm-svg .cz[data-type] { cursor:pointer; }
   .pick { cursor:pointer; }
   .r.hl, .q.hl { animation:hl 1.6s ease-out; border-radius:10px; }
   @keyframes hl { 0%, 35% { background:#e8f1fc; box-shadow:0 0 0 6px #e8f1fc; } 100% { background:transparent; box-shadow:0 0 0 6px transparent; } }
-  .cnccap .cb { color:var(--blue); }
+  .cnccap .cb { color:var(--blue); } .cnccap .cred { color:var(--red); }
+  .cnccap .cfr { width:6px; height:12px; background:#f2f2f4; border:1px solid #aeaeb2; border-radius:1.5px; }
 
   /* panel */
   .panel { border-left:1px solid var(--line); background:var(--surface); display:flex; flex-direction:column; min-height:0; }
@@ -541,20 +543,57 @@
     return { hinge: !!e.doors, inner: !!e.inner && !same(e.inner, M.defaultInner(c)),
       shelf: e.oven ? !same(e.oven.shelves, M.ovenLayout(c, e.oven.h, e.oven.under)) : !!e.shelves && !same(e.shelves, M.defaultShelves(c)) };
   }
+  // drag on the CNC side view too: shelves, hinge plates, inner drawers (the same edits as on the front)
+  function wireCalm(svg, c, p) {
+    var S = +svg.dataset.s, LPX = +svg.dataset.lpx, TOP = +svg.dataset.top, drag = null;
+    function mmAt(ev) { var r = svg.getBoundingClientRect(), k = r.height / svg.viewBox.baseVal.height; return LPX - ((ev.clientY - r.top) / k - TOP) / S; }
+    function nearest(list, f, y) { var b = 0; list.forEach(function (x, i) { if (Math.abs(f(x) - y) < Math.abs(f(list[b]) - y)) b = i; }); return b; }
+    svg.addEventListener("pointerdown", function (ev) {
+      var z = ev.target.closest(".cz[data-type]"); if (!z) return;
+      var t = z.dataset.type, y = +z.dataset.y, e = ed(c), d0 = null;
+      if (t === "shelf") { var sl = e.shelves || (e.oven && e.oven.shelves); if (!sl) return; d0 = { k: t, i: nearest(sl, function (x) { return x.fixed ? x.mm : x.mm - 16; }, y), list: sl }; }
+      else if (t === "inner") { if (!e.inner) return; d0 = { k: t, i: nearest(e.inner, function (x) { return x.mm + 54; }, y) }; }
+      else if (t === "hinge") { var di = (p.doors || []).findIndex(function (d) { return y >= d.from - 1 && y <= d.to + 1; }); if (di < 0) return; var dd = p.doors[di];
+        d0 = { k: t, i: di, j: nearest(dd.hinges || [], function (x) { return dd.from + x; }, y), door: dd }; }
+      else return;
+      ev.preventDefault(); svg.setPointerCapture(ev.pointerId);
+      d0.start = mmAt(ev); d0.el = z; drag = d0;
+    });
+    svg.addEventListener("pointermove", function (ev) {
+      if (!drag) return;
+      drag.dv = Math.round(mmAt(ev) - drag.start); drag.moved = drag.moved || drag.dv !== 0;
+      drag.el.setAttribute("transform", "translate(0," + (-drag.dv * S) + ")");
+    });
+    function end() {
+      var d = drag; drag = null; if (!d || !d.moved) return;
+      svg.dataset.dragged = "1";
+      change(function (e) {
+        if (d.k === "shelf") d.list[d.i].mm = Math.round(d.list[d.i].mm + d.dv);
+        else if (d.k === "inner") e.inner[d.i].mm = Math.round(e.inner[d.i].mm + d.dv);
+        else setHinge(c, d.i, d.j, (d.door.hinges[d.j] || 0) + d.dv, d.door);
+      });
+    }
+    svg.addEventListener("pointerup", end); svg.addEventListener("pointercancel", end);
+    svg.addEventListener("click", function (ev) { if (svg.dataset.dragged) { delete svg.dataset.dragged; ev.stopPropagation(); } }, true);
+  }
   function drawSide(c, p, box) {
     var wrap = document.createElement("div"); wrap.className = "cncv"; box.appendChild(wrap);
     if (p.status === "stop" || p.status === "skip") { wrap.innerHTML = '<div class="msg"><p>' + esc((p.stop || []).join(" · ") || "Engin hlið.") + "</p></div>"; return; }
     var files = SD.sideFiles(p), acc = handSet(c, ed(c)), maxH = Math.max(260, (box.clientHeight || 700) - 200);
+    // every front at its real height next to the side (drawer fronts sit at the bottom of their slot, the grip gap above)
+    var fronts = (p.drawers || []).map(function (d) { return { from: d.from, to: r1(d.from + d.front), short: d.code, label: "Skúffufrontur " + d.code + " · " + mm(d.front) + " mm — úr Sögunarlista" }; })
+      .concat((p.doors || []).map(function (d) { return { from: r1(d.to - d.H), to: d.to, short: "", label: "Hurð · " + mm(d.H) + " mm — úr Sögunarlista" }; }));
     var row = document.createElement("div"); row.className = "cncrow"; wrap.appendChild(row);
     files.forEach(function (f) {
       var r = SD.renderSide(MASTER, f.plan);
-      var card = BPP.buildCard({ name: f.name + (f.count > 1 ? " ×" + f.count : "") }, r.text, null, null, { accent: acc, maxH: maxH, maxW: files.length > 1 ? 260 : 360, view: "calm" });
+      var card = BPP.buildCard({ name: f.name + (f.count > 1 ? " ×" + f.count : "") }, r.text, null, null, { accent: acc, maxH: maxH, maxW: files.length > 1 ? 260 : 360, view: "calm", hits: p.hits, fronts: fronts });
       var rm = card.querySelector(".bw-titlebar .remove"); if (rm) rm.remove();
       row.appendChild(card);
+      var sv = card.querySelector(".bpp-calm-svg"); if (sv && canEdit(c)) wireCalm(sv, c, p);
     });
     var cap = document.createElement("div"); cap.className = "cnccap";
     cap.innerHTML = '<span><svg width="14" height="14" viewBox="0 0 14 14"><path d="M5 1H9V5H13V9H9V13H5V9H1V5H5Z" fill="#fff" stroke="#1d1d1f" stroke-width="1.2" stroke-linejoin="round"/></svg>Lamaplata</span>' +
-      '<span><i class="cs"></i>Hillugöt</span><span><i class="cf"></i>Föst hilla</span><span><i class="cd"></i>Skúffa á braut</span><span class="cb">Blátt = stillt hér</span>';
+      '<span><i class="cs"></i>Hillugöt</span><span><i class="cf"></i>Föst hilla</span><span><i class="cd"></i>Skúffa á braut</span><span><i class="cfr"></i>Frontar</span><span class="cred">Rautt = árekstur</span><span class="cb">Blátt = stillt hér</span>';
     wrap.appendChild(cap);
     // a click on the side → that item's section (hinge → its door, shelf/inner → the nearest one)
     row.addEventListener("click", function (ev) {
@@ -564,7 +603,7 @@
       if (t === "hinge") { var di = Math.max(0, (p.doors || []).findIndex(function (d) { return y >= d.from - 1 && y <= d.to + 1; })); focusSection("d" + di, "h" + di); }
       else if (t === "shelf") { var sl = e.shelves || (e.oven && e.oven.shelves); if (sl) focusSection("shelves", null, '[data-shelf="' + nearest(sl, 16) + '"]'); }
       else if (t === "inner") { if (e.inner) focusSection("inner", null, '[data-inner="' + nearest(e.inner, -54) + '"]'); else focusSection("dw"); }
-      else if (t === "drawer") focusSection("dw");
+      else if (t === "drawer" || t === "front") { toast("Skúffur og frontar koma úr Sögunarlista — breyttu á Eyðublaðinu"); focusSection("dw"); }
       else if (t === "rail") focusSection(e.rails ? "rails" : "shelves");
     });
   }
@@ -637,9 +676,10 @@
     // ── open decisions
     var open = "";
     if (askHinge) open += '<div class="q"><h2><span class="dot"></span>Hvoru megin eru lamirnar?</h2>' + hingeCards(e) + "</div>";
-    if (blockers.some(function (b) { return /^Innskúffa/.test(b); }))
+    if (blockers.some(function (b) { return /^Innskúffa.*kemst ekki fyrir/.test(b); }))
       open += '<div class="q"><h2><span class="dot"></span>Innskúffurnar komast ekki fyrir</h2><button type="button" class="act" data-act="innerreset">Raða þeim sjálfkrafa</button></div>';
-    blockers.filter(function (b) { return !/lamahlið|^Innskúffa/.test(b); }).forEach(function (b) { open += '<div class="q"><h2><span class="dot"></span>' + esc(b) + "</h2></div>"; });
+    blockers.filter(function (b) { return !/lamahlið|^Innskúffa.*kemst ekki fyrir/.test(b); }).forEach(function (b) {
+      open += '<div class="q"><h2><span class="dot"></span>' + esc(b) + "</h2>" + (/ rekst | nær upp/.test(b) ? '<p class="sub" style="color:var(--muted);font-size:13px">Færðu hilluna eða innskúffuna — dragðu á teikningunni.</p>' : "") + "</div>"; });
     if (open) h += '<div class="open">' + open + "</div>";
     else h += '<div class="calm">' + I_CHECK + "<span>" + (e.reviewed ? "Yfirfarinn — tilbúinn fyrir CNC" : "Ekkert opið — líttu yfir og merktu yfirfarinn") + "</span></div>";
     // ── quiet lines

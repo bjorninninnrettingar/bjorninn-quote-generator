@@ -206,3 +206,25 @@ test("/smida writes to USB only through cnc.html's writeUsb", async () => {
   assert.match(smida, /"\/cnc\?recordId="/);
   assert.doesNotMatch(smida, /createWritable|getFileHandle\([^)]*create/); // no writes of its own
 });
+
+test("collision check: an inner drawer through a shelf or a runner on shelf-pin holes is flagged (plan.hits)", () => {
+  // T-15 Sk 2 as /cnc exports it today: inner M in the K zone, nothing above it drilled → no collision
+  const p0 = S.unitPlan("Sk 2", SK2, { unitHeight: 2296, gripMm: 27 });
+  assert.ok(!p0.check.some((t) => / rekst | nær upp/.test(t)), p0.check.join(" | "));
+  assert.deepEqual(p0.hits, []);
+  // …and with the /smida oven boards (800 / 1411 / 1866): the inner M front (662–768) clears the 784–800 board
+  const c = cab("recSk2bbbbbbbbbbb", "Sk 2", SK2, { Hæð: 2296, Breidd: 600, Dýpt: 600, "Hæð ofns": 1050 }, 27);
+  const e = M.initEdit(c); e.hinge = "vinstri";
+  assert.deepEqual(M.planOf(c, M.smidaOf(c, e)).hits, []);
+  // T-15 Sk 23 with the fixed shelf dragged down through the top inner drawer (508–652): flagged + blocks Yfirfarinn
+  const c23 = cab("recSk23ccccccccc", "Sk 23", SK23, { Hæð: 2530, Breidd: 600, Dýpt: 600 }, 27);
+  const e23 = M.initEdit(c23); e23.hinge = "haegri"; e23.shelves[0].mm = 600;
+  const p23 = M.planOf(c23, M.smidaOf(c23, e23));
+  assert.ok(p23.check.some((t) => /^Innskúffa K rekst í föstu hilluna í 600 — \d+ mm vantar$/.test(t)), p23.check.join(" | "));
+  assert.ok(p23.hits.length >= 1);
+  assert.ok(M.blockers(c23, e23, p23).some((t) => / rekst í /.test(t)));
+  // /smida's own default for a tall cabinet with inner drawers keeps the shelves above them (T-15 Sk 29.1 shape)
+  const SK29_1 = [hr("Laus hilla", 559, 768, 16, 1), hr("Innskúffufrontur K - Merivo Skrokkaefni", 144, 762, 16, 4), hr("Skápur hlið", 2530, 580, 16, 2), hr("Föst hilla", 559, 768, 16, 1)];
+  const c29 = cab("recSk291aaaaaaaa", "Sk 29.1", SK29_1, { Hæð: 2530, Breidd: 800, Dýpt: 580 });
+  assert.deepEqual(M.planOf(c29, M.smidaOf(c29, M.initEdit(c29))).hits, []);
+});

@@ -64,6 +64,9 @@
   function defaultShelves(cab) {
     var g = geom(cab), n = cab.nLoose + cab.nFixed; if (!n) return [];
     var a = (cab.base.doors || []).length ? Math.max(g.drawerTop, g.doorBottom) : g.drawerTop;
+    // inner drawers behind the door sit at the bottom: the shelves start above them (else /cnc reports a collision)
+    if (innerEditable(cab)) { var inn = defaultInner(cab), last = inn[inn.length - 1], li = cab.inner[inn.length - 1];
+      if (last && li) a = Math.max(a, last.mm + li.h + 40); }
     var xs = spread(n, a, g.H);
     // fixed ones in the middle of the stack (a divider), loose around them — Rakel moves them to the drawing
     var fixedAt = {}, mid = (n - 1) / 2, order = xs.map(function (x, i) { return i; }).sort(function (i, j) { return Math.abs(i - mid) - Math.abs(j - mid) || j - i; });
@@ -175,6 +178,8 @@
     var g = geom(cab);
     (e.shelves || (e.oven && e.oven.shelves) || []).forEach(function (s) { if (!(s.mm > 0 && s.mm < g.H)) out.push("Hilla í " + s.mm + " mm er utan skápsins (0–" + g.H + ")."); });
     (e.inner || []).forEach(function (x, i) { var h = (cab.inner[i] || {}).h || 0; if (!(x.mm > 0) || x.mm + h > g.top) out.push("Innskúffa " + x.code + " í " + x.mm + " mm kemst ekki fyrir (toppur " + g.top + ")."); });
+    // /cnc's own collision check (cnc-sides.js): a drawer/runner through a shelf or its pin holes is an open decision
+    (plan.check || []).forEach(function (t) { if (/ rekst (í|á) | nær upp í toppinn/.test(t) && out.indexOf(t) < 0) out.push(t); });
     return out;
   }
 

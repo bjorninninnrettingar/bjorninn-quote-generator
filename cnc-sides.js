@@ -221,6 +221,9 @@
     // shelves above, fixed = FOST_HILLA at its top face, loose = LAUS_HILLA with `pos` holes 50 apart, the middle
     // one under the shelf. mm are from the bottom of the side, like everything here.
     var so = (parseSmida(opts.smida) || {}).oven, shelfRows = [], ovenDone = false;
+    // what occupies height on the side, for the collision check below (2026-10-26): boards (fixed/loose shelves,
+    // oven boards) as [bot, top] bands, shelf-pin hole rows, inner drawer front bands
+    var boards = [], pinRows = [], innerBands = [];
     // fixed = FOST_HILLA at its top face; loose = LAUS_HILLA with `pos` holes 50 apart, the middle one under the shelf.
     // Board thickness from Sögunarlisti's own shelf row when there is one. Counts are compared with Sögunarlisti.
     function emitShelves(list, above, noCount, radborun) {
@@ -228,18 +231,19 @@
       var sl = (list || []).filter(function (x) { return num(x.mm) > above && num(x.mm) < H; });
       sl.forEach(function (x) {
         var mm = r1(num(x.mm));
-        if (x.fixed) { op("FOST_HILLA", "Föst hilla", tF + ", " + mm + ", 2, lpy-22, lpz+5"); shelfRows.push(r1(mm - tF / 2)); return; }
+        if (x.fixed) { op("FOST_HILLA", "Föst hilla", tF + ", " + mm + ", 2, lpy-22, lpz+5"); shelfRows.push(r1(mm - tF / 2)); boards.push({ bot: r1(mm - tF), top: mm, fixed: true, what: "föstu hilluna í " + mm }); return; }
+        boards.push({ bot: r1(mm - tL), top: mm, what: "hilluna í " + mm });
         if (radborun) { shelfRows.push(r1(mm - tL)); return; } // its holes come from the one continuous run below
         var n = Math.max(1, Math.min(9, Math.round(num(x.pos) || 3))), mid = r1(mm - tL), first = r1(mid - Math.floor((n - 1) / 2) * 50);
         op("LAUS_HILLA", "Laus hilla (" + n + " stillingar)", first + ", " + n + ", 37, 20+60, 50");
-        for (var k = 0; k < n; k++) shelfRows.push(r1(first + k * 50));
+        for (var k = 0; k < n; k++) { shelfRows.push(r1(first + k * 50)); pinRows.push(r1(first + k * 50)); }
       });
       // Raðborun (continuous/IKEA-style drilling): one LAUS_HILLA run spanning the whole span at a fixed pitch,
       // instead of each loose shelf's own small cluster — any loose shelf above can sit anywhere in that run.
       if (radborun && num(radborun.from) != null && num(radborun.to) != null && num(radborun.to) > num(radborun.from)) {
         var rFrom = r1(num(radborun.from)), rN = Math.max(1, Math.floor((num(radborun.to) - rFrom) / RADBORUN_PITCH) + 1);
         op("LAUS_HILLA", "Raðborun (" + rN + " göt)", rFrom + ", " + rN + ", 37, 20+60, " + RADBORUN_PITCH);
-        for (var rk = 0; rk < rN; rk++) shelfRows.push(r1(rFrom + rk * RADBORUN_PITCH));
+        for (var rk = 0; rk < rN; rk++) { shelfRows.push(r1(rFrom + rk * RADBORUN_PITCH)); pinRows.push(r1(rFrom + rk * RADBORUN_PITCH)); }
       }
       if (!noCount) {
         var nL = sl.filter(function (x) { return !x.fixed; }).length, nF = sl.length - nL;
@@ -258,8 +262,8 @@
       ovenDone = true;
     } else if (oven && so && num(so.under) > 0 && num(so.h) > 0) {
       var nb = r1(num(so.under)), nt = r1(nb + num(so.h) + OVEN_BOARD);
-      op("FOST_HILLA", "Loftunarbotn (ofn stendur á)", OVEN_BOARD + ", " + nb + ", 2, lpy-22, lpz+5"); shelfRows.push(nb);
-      if (nt <= H - T) { op("FOST_HILLA", "Loftunartoppur", OVEN_BOARD + ", " + nt + ", 2, lpy-22, lpz+5"); shelfRows.push(nt); }
+      op("FOST_HILLA", "Loftunarbotn (ofn stendur á)", OVEN_BOARD + ", " + nb + ", 2, lpy-22, lpz+5"); shelfRows.push(nb); boards.push({ bot: r1(nb - OVEN_BOARD), top: nb, fixed: true, what: "botninn undir ofninum í " + nb });
+      if (nt <= H - T) { op("FOST_HILLA", "Loftunartoppur", OVEN_BOARD + ", " + nt + ", 2, lpy-22, lpz+5"); shelfRows.push(nt); boards.push({ bot: r1(nt - OVEN_BOARD), top: nt, fixed: true, what: "toppinn yfir ofninum í " + nt }); }
       var hasShelves = Array.isArray(so.shelves); // older Smíðagögn: niche only, shelves spread by default below
       var sl = emitShelves(hasShelves ? so.shelves : [], nt, !hasShelves);
       info.push("Ofn úr hönnuði: " + num(so.h) + " mm, " + nb + " undir, " + sl.length + " hillur fyrir ofan");
@@ -273,7 +277,7 @@
     var loose = ovenDone ? 0 : expand(by.looseShelf, function (r) { return r; }).length;
     if (loose) {
       var a = so && num(so.under) > 0 && num(so.h) > 0 ? r1(num(so.under) + num(so.h) + OVEN_BOARD) : doors.length ? Math.max(drawerTop, top) : drawerTop, b = H;
-      for (var i = 1; i <= loose; i++) { var x = r1(a + (b - a) * i / (loose + 1)); shelfRows.push(x); op("LAUS_HILLA", "Laus hilla", r1(x - 50) + ", 3, 37, 20+60, 50"); }
+      for (var i = 1; i <= loose; i++) { var x = r1(a + (b - a) * i / (loose + 1)); shelfRows.push(x); pinRows.push(r1(x - 50), x, r1(x + 50)); boards.push({ bot: x, top: r1(x + 16), what: "hilluna í " + r1(x + 16) }); op("LAUS_HILLA", "Laus hilla", r1(x - 50) + ", 3, 37, 20+60, 50"); }
       dflt("Lausar hillur (" + loose + "): sjálfgefin staðsetning — breyttu eftir teikningu ef þarf");
     }
     var fixed = expand(by.fixedShelf, function (r) { return r; }).length;
@@ -308,7 +312,7 @@
         inner.forEach(function (d) {
           var x = r1(edge - d.H + INNER_RUNNER);
           if (edge - d.H < zone.from + 60) check.push("Innskúffa " + d.code + " (" + d.H + ") — lítið pláss fyrir neðan í hólfi " + zone.code + ", athuga");
-          runners.push(x); op(macroOf(d), "Innskúffa " + d.code, d.H + ", " + x + ", " + d.code);
+          runners.push(x); innerBands.push({ code: d.code, bot: r1(x - INNER_RUNNER), top: r1(x - INNER_RUNNER + d.H), runner: x }); op(macroOf(d), "Innskúffa " + d.code, d.H + ", " + x + ", " + d.code);
           edge = r1(edge - d.H - BOX_GAP);
         });
         if (inner.length > 1 || oven) dflt("Innskúffur (" + inner.length + "): athuga staðsetningu eftir teikningu");
@@ -320,16 +324,40 @@
           sInner.forEach(function (x) { var i = left.findIndex(function (d) { return d.code === x.code; }); if (i >= 0) placed.push({ d: left.splice(i, 1)[0], mm: num(x.mm) }); });
         }
         if (placed.length === inner.length && placed.every(function (p) { return p.mm > 0; })) {
-          placed.forEach(function (p) { var x = r1(p.mm + INNER_RUNNER); runners.push(x); op(macroOf(p.d), "Innskúffa " + p.d.code, p.d.H + ", " + x + ", " + p.d.code); });
+          placed.forEach(function (p) { var x = r1(p.mm + INNER_RUNNER); runners.push(x); innerBands.push({ code: p.d.code, bot: r1(p.mm), top: r1(p.mm + p.d.H), runner: x }); op(macroOf(p.d), "Innskúffa " + p.d.code, p.d.H + ", " + x + ", " + p.d.code); });
           info.push("Innskúffur staðsettar í hönnuði");
         } else {
           var bottom = 60; // the designer's default too: the bottom runner (60 + 54) clears the bottom hinge at 80
-          inner.forEach(function (d) { runners.push(r1(bottom + INNER_RUNNER)); op(macroOf(d), "Innskúffa " + d.code, d.H + ", " + r1(bottom + INNER_RUNNER) + ", " + d.code); bottom = r1(bottom + d.H + 80); });
+          inner.forEach(function (d) { runners.push(r1(bottom + INNER_RUNNER)); innerBands.push({ code: d.code, bot: r1(bottom), top: r1(bottom + d.H), runner: r1(bottom + INNER_RUNNER) }); op(macroOf(d), "Innskúffa " + d.code, d.H + ", " + r1(bottom + INNER_RUNNER) + ", " + d.code); bottom = r1(bottom + d.H + 80); });
           if (bottom > H - T) stop.push("Innskúffur komast ekki fyrir");
           dflt("Innskúffur bak við hurð (" + inner.length + "): sjálfgefið neðan frá, framhlið + 80 á milli — hönnuður staðsetur");
         }
       }
     }
+
+    // Collisions on the side (2026-10-26, owner on T-15 Sk 2): an inner drawer (its front band = the box's height) must
+    // clear every board (shelf / oven board, 16 mm under its top face); no runner may sit on a shelf-pin row or a fixed
+    // shelf's fixing line; an inner drawer stays under the cabinet top. Hinges vs runners/shelves are checked below.
+    // Every hit is a check on the cabinet and in plan.hits (drawn red by the calm view).
+    var hits = [];
+    innerBands.forEach(function (ib) {
+      boards.forEach(function (b) {
+        if (ib.top > b.bot + 0.5 && ib.bot < b.top - 0.5) {
+          var miss = ib.bot < b.bot ? r1(ib.top - b.bot) : r1(b.top - ib.bot);
+          check.push("Innskúffa " + ib.code + " rekst í " + b.what + " — " + miss + " mm vantar");
+          hits.push({ from: Math.max(ib.bot, b.bot), to: Math.min(ib.top, b.top) });
+        }
+      });
+      if (ib.top > H - T + 0.5) { check.push("Innskúffa " + ib.code + " nær upp í toppinn — " + r1(ib.top - (H - T)) + " mm of hátt"); hits.push({ from: H - T, to: ib.top }); }
+    });
+    runners.forEach(function (r) {
+      var pin = pinRows.filter(function (y) { return Math.abs(y - r) < 12; })[0];
+      if (pin != null) { check.push("Skúffubraut í " + r + " rekst á hillugöt í " + pin); hits.push({ from: Math.min(r, pin) - 6, to: Math.max(r, pin) + 6 }); }
+      boards.filter(function (b) { return b.fixed && Math.abs(r1((b.bot + b.top) / 2) - r) < 20; }).forEach(function (b) {
+        check.push("Skúffubraut í " + r + " rekst á festingu fyrir " + b.what); hits.push({ from: b.bot, to: b.top });
+      });
+    });
+    plan.hits = hits;
 
     // Hinges: per door, 80 from each end of its box + evenly between (default), or exactly where the designer put
     // them (Smíðagögn) when its doors match Sögunarlisti; corner "2" = from the bottom, "3" = from the top.

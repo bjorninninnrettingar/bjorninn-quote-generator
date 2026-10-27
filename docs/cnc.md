@@ -140,3 +140,16 @@ Other file kinds (drawer fronts, doors/jambs) keep the technical card only.
 - After the export /smida shows: files written + folder, "Í höndunum" (EKKI GERT lines, FRE, inner drawers that
   don't fit, Stakur-frontur units whose doors hang on a neighbour — no hinges drilled for them, Fataslá), how many notes
   are in CNC skrá.txt, and every written file (click = its card, calm view).
+
+### Collision check on the side (cnc-sides.js, 2026-10-26)
+`unitPlan` now records what takes height on a side — boards (fixed/loose shelves, oven boards: [top − thickness, top]),
+shelf-pin hole rows, inner-drawer front bands ([runner − 54, + front height]) — and checks: inner drawer vs every board
+("Innskúffa M rekst í föstu hilluna í 800 — X mm vantar"), inner drawer above the top board, any runner within 12 mm of a
+pin row, any runner within 20 mm of a fixed shelf's fixing line. Each hit is a `check` line and a band in `plan.hits`
+(the calm view draws it red); /smida makes them open decisions that block "Yfirfarinn". T-15 as exported today: no hit
+on any exported cabinet (Sk 2's inner M front is 662–768; Sk 30.2 hits the top but is ⛔ anyway). Drawer/runner
+counts on every T-15 drawer cabinet match Sögunarlisti exactly (Sk 2: E + K runners + one MERVIBOX_INNSKUFFA at 716 = the
+"Innskúffufrontur M" row — the "third box" was the inner drawer, drawn too tall in the calm view; fixed).
+Calm view since: shelves/boards at their real thickness (top face = the mm /cnc uses), inner drawers dashed as their
+front band, a thin fronts column at the front edge (`opts.fronts`), red collision bands (`opts.hits`), and the svg
+carries data-s/data-lpx/data-top so /smida can drag shelves, hinge plates and inner drawers on it.

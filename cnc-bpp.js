@@ -121,7 +121,7 @@
         case "FOST_HILLA": {
           var mm = num(p[1], vars);
           if (mm == null) { unknown.push(op); break; }
-          features.push({ type: "shelfFixed", y: mm, label: op.label || "Föst hilla" });
+          features.push({ type: "shelfFixed", y: mm, t: num(p[0], vars) || 16, label: op.label || "Föst hilla" });
           break;
         }
         case "LAUS_HILLA": {
@@ -307,48 +307,67 @@
     return "M" + (x - b) + " " + (y - a) + "H" + (x + b) + "V" + (y - b) + "H" + (x + a) + "V" + (y + b) + "H" + (x + b) + "V" + (y + a) +
       "H" + (x - b) + "V" + (y + b) + "H" + (x - a) + "V" + (y - b) + "H" + (x - b) + "Z";
   }
+  // opts: accent {hinge, shelf, inner} (blue = set by hand), hits [{from, to}] (collisions → red bands, cnc-sides.js
+  // plan.hits), fronts [{from, to, label}] (a thin column at the front edge: every front at its real height).
+  // The svg carries data-s / data-lpx / data-top so a page can turn pointer y into mm (/smida drags on it).
   function renderCalm(LPX, LPY, features, opts) {
     opts = opts || {};
-    var acc = opts.accent || {}, BLUE = "#0071e3", INK = "#1d1d1f", SOFT = "#8e8e93";
+    var acc = opts.accent || {}, BLUE = "#0071e3", INK = "#1d1d1f", SOFT = "#8e8e93", RED = "#d70015";
     var maxH = opts.maxH || 560, maxW = opts.maxW || 360, s = Math.min(maxH / LPX, maxW / LPY);
-    var w = LPY * s, h = LPX * s, pad = 28;
-    var X = function (d) { return pad + d * s; }, Y = function (m) { return pad / 2 + (LPX - m) * s; };
-    var svg = svgEl("svg", { class: "bpp-calm-svg", width: w + pad * 2, height: h + pad + 6, viewBox: "0 0 " + (w + pad * 2) + " " + (h + pad + 6) });
-    function g(label) { var el = svgEl("g", { class: "cz" }); var t = svgEl("title", {}); t.textContent = label; el.appendChild(t); svg.appendChild(el); return el; }
+    var fr = opts.fronts && opts.fronts.length, colW = fr ? 12 : 0, gap = fr ? 7 : 0;
+    var w = LPY * s, h = LPX * s, padL = 30 + colW + gap, padR = 22, top = 12;
+    var X = function (d) { return padL + d * s; }, Y = function (m) { return top + (LPX - m) * s; };
+    var svg = svgEl("svg", { class: "bpp-calm-svg", width: padL + w + padR, height: h + top + 24, viewBox: "0 0 " + (padL + w + padR) + " " + (h + top + 24),
+      "data-s": s, "data-lpx": LPX, "data-top": top });
+    function g(label, type, y) { var el = svgEl("g", { class: "cz" }); var t = svgEl("title", {}); t.textContent = label; el.appendChild(t);
+      if (type) { el.setAttribute("data-type", type); el.setAttribute("data-y", Math.round(y)); } svg.appendChild(el); return el; }
     svg.appendChild(svgEl("rect", { x: X(0), y: Y(LPX), width: w, height: h, rx: 2, fill: "#fff", stroke: INK, "stroke-width": 1.2 }));
     var front = Math.min(37, LPY / 3), back = LPY - Math.min(37, LPY / 3);
+    // fronts column (front edge = left)
+    (opts.fronts || []).forEach(function (f) {
+      var ef = g(f.label, "front", f.from);
+      ef.appendChild(svgEl("rect", { x: X(0) - gap - colW, y: Y(f.to), width: colW, height: Math.max(1, (f.to - f.from) * s), rx: 1.5, fill: "#f2f2f4", stroke: "#aeaeb2", "stroke-width": 1 }));
+      if ((f.to - f.from) * s > 14 && f.short) { var ft = svgEl("text", { x: X(0) - gap - colW / 2, y: Y((f.from + f.to) / 2), "text-anchor": "middle", "dominant-baseline": "middle", "font-size": 9, fill: SOFT }); ft.textContent = f.short; ef.appendChild(ft); }
+    });
     features.forEach(function (f) {
-      if (f.type === "drawer" || f.type === "inner") {
+      if (f.type === "drawer") {
         // the box as the Rover macro places it: on its runner line, as tall as the Blum side of its code
         var code = (String(f.label).match(/skúffa\s+([NMKCFE])\b/i) || [])[1] || "", sys = f.sys || "merivo";
-        var el = g(f.label), from = Math.max(0, f.from), to = Math.min(LPX, f.to), inner = f.type === "inner";
-        var ry = inner ? from : from + (sys === "legra" ? 62.5 : 80); // runner over its slot, as cnc-sides.js plans it
+        var el = g(f.label + " — úr Sögunarlista", "drawer", f.from), from = Math.max(0, f.from), to = Math.min(LPX, f.to);
+        var ry = from + (sys === "legra" ? 62.5 : 80); // runner over its slot, as cnc-sides.js plans it
         var sideH = (BOX_SIDE[sys] || BOX_SIDE.merivo)[code.toUpperCase()] || 90;
-        if (!inner) el.appendChild(svgEl("rect", { x: X(0) + 3, y: Y(to), width: w - 6, height: Math.max(1, (to - from) * s), fill: "#f7f7f9" }));
-        var col = inner && acc.inner ? BLUE : "#6e6e73";
-        el.appendChild(svgEl("rect", { x: X(Math.min(12, LPY / 20)), y: Y(ry + sideH), width: X(LPY - Math.min(22, LPY / 12)) - X(Math.min(12, LPY / 20)), height: sideH * s, rx: 2, fill: inner ? "#fff" : "#fff", stroke: col, "stroke-width": 1.1 }));
-        el.appendChild(svgEl("line", { x1: X(front), x2: X(back), y1: Y(ry), y2: Y(ry), stroke: col, "stroke-width": 1.6, "stroke-linecap": "round" }));
-        if (code && sideH * s > 9) { var tl = svgEl("text", { x: X(LPY / 2), y: Y(ry + sideH / 2), "text-anchor": "middle", "dominant-baseline": "middle", "font-size": Math.min(12, sideH * s * .55), fill: col }); tl.textContent = code.toUpperCase(); el.appendChild(tl); }
-        el.setAttribute("data-type", f.type); el.setAttribute("data-y", Math.round(ry));
+        el.appendChild(svgEl("rect", { x: X(0) + 3, y: Y(to), width: w - 6, height: Math.max(1, (to - from) * s), fill: "#f7f7f9" }));
+        el.appendChild(svgEl("rect", { x: X(Math.min(12, LPY / 20)), y: Y(ry + sideH), width: X(LPY - Math.min(22, LPY / 12)) - X(Math.min(12, LPY / 20)), height: sideH * s, rx: 2, fill: "#fff", stroke: SOFT, "stroke-width": 1.1 }));
+        el.appendChild(svgEl("line", { x1: X(front), x2: X(back), y1: Y(ry), y2: Y(ry), stroke: SOFT, "stroke-width": 1.6, "stroke-linecap": "round" }));
+        if (code && sideH * s > 9) { var tl = svgEl("text", { x: X(LPY / 2), y: Y(ry + sideH / 2), "text-anchor": "middle", "dominant-baseline": "middle", "font-size": Math.min(12, sideH * s * .55), fill: SOFT }); tl.textContent = code.toUpperCase(); el.appendChild(tl); }
+      } else if (f.type === "inner") {
+        // an inner drawer = its front band (front bottom = runner − 54, cnc-sides.js INNER_RUNNER), dashed: it hides behind a front
+        var icode = (String(f.label).match(/skúffa\s+([NMKCFE])\b/i) || [])[1] || "", ih = f.to - f.from, ib = f.from - 54;
+        var ei = g(f.label + " — innskúffa", "inner", f.from), ic = acc.inner ? BLUE : "#6e6e73";
+        ei.appendChild(svgEl("rect", { x: X(Math.min(12, LPY / 20)), y: Y(ib + ih), width: X(LPY - Math.min(22, LPY / 12)) - X(Math.min(12, LPY / 20)), height: ih * s, rx: 2, fill: "#fff", stroke: ic, "stroke-width": 1.1, "stroke-dasharray": "5 3" }));
+        ei.appendChild(svgEl("line", { x1: X(front), x2: X(back), y1: Y(f.from), y2: Y(f.from), stroke: ic, "stroke-width": 1.6, "stroke-linecap": "round" }));
+        if (ih * s > 12) { var it = svgEl("text", { x: X(LPY / 2), y: Y(ib + ih / 2), "text-anchor": "middle", "dominant-baseline": "middle", "font-size": Math.min(11, ih * s * .4), fill: ic }); it.textContent = "inn " + icode.toUpperCase(); ei.appendChild(it); }
       } else if (f.type === "fixed") {
-        var ef = g(f.label); ef.appendChild(svgEl("rect", { x: X(0) + 3, y: Y(f.to), width: w - 6, height: Math.max(1, (f.to - f.from) * s), fill: "#f5f5f7" }));
+        var ef2 = g(f.label); ef2.appendChild(svgEl("rect", { x: X(0) + 3, y: Y(f.to), width: w - 6, height: Math.max(1, (f.to - f.from) * s), fill: "#f5f5f7" }));
       } else if (f.type === "shelfFixed") {
-        var es = g(f.label + " — " + Math.round(f.y) + " mm");
-        es.appendChild(svgEl("line", { x1: X(0), x2: X(LPY), y1: Y(f.y), y2: Y(f.y), stroke: acc.shelf ? BLUE : INK, "stroke-width": 2 }));
-        es.setAttribute("data-type", "shelf"); es.setAttribute("data-y", Math.round(f.y));
+        var t0 = f.t || 16, es = g(f.label + " — " + Math.round(f.y) + " mm (efri flötur)", "shelf", f.y);
+        es.appendChild(svgEl("rect", { x: X(0), y: Y(f.y), width: w, height: Math.max(1.5, t0 * s), fill: acc.shelf ? "#cfe3fb" : "#d1d1d6", stroke: acc.shelf ? BLUE : INK, "stroke-width": .9 }));
       } else if (f.type === "shelfLoose") {
-        var el2 = g(f.label + " — göt " + f.ys.map(function (y) { return Math.round(y); }).join(", ") + " mm");
+        var mid = f.ys[Math.floor(f.ys.length / 2)], el2 = g(f.label + " — " + Math.round(mid + 16) + " mm, göt " + f.ys.map(function (y) { return Math.round(y); }).join(", "), "shelf", mid);
+        el2.appendChild(svgEl("rect", { x: X(0) + 1, y: Y(mid + 16), width: w - 2, height: Math.max(1.5, 16 * s), fill: acc.shelf ? "#e8f1fc" : "#f2f2f4", stroke: acc.shelf ? BLUE : SOFT, "stroke-width": .8, "stroke-dasharray": "4 3" }));
         f.ys.forEach(function (y) { [front, back].forEach(function (d) { el2.appendChild(svgEl("circle", { cx: X(d), cy: Y(y), r: 2.4, fill: acc.shelf ? BLUE : INK })); }); });
-        el2.setAttribute("data-type", "shelf"); el2.setAttribute("data-y", Math.round(f.ys[Math.floor(f.ys.length / 2)]));
       } else if (f.type === "hinge") {
-        var eh = g((f.label || "Löm") + (f.y != null ? "" : ""));
+        var eh = g(f.label || "Löm", "hinge", f.y);
         eh.appendChild(svgEl("path", { d: platePath(X(front), Y(f.y)), fill: "#fff", stroke: acc.hinge ? BLUE : INK, "stroke-width": 1.4, "stroke-linejoin": "round" }));
-        eh.setAttribute("data-type", "hinge"); eh.setAttribute("data-y", Math.round(f.y));
       } else if (f.type === "rail") {
-        var er = g(f.label); er.setAttribute("data-type", "rail"); er.setAttribute("data-y", Math.round(f.y)); er.appendChild(svgEl("line", { x1: X(0), x2: X(LPY), y1: Y(f.y), y2: Y(f.y), stroke: "#d2d2d7", "stroke-width": 1, "stroke-dasharray": "4 4" }));
+        var er = g(f.label, "rail", f.y); er.appendChild(svgEl("line", { x1: X(0), x2: X(LPY), y1: Y(f.y), y2: Y(f.y), stroke: "#d2d2d7", "stroke-width": 1, "stroke-dasharray": "4 4" }));
       }
     });
-    var t1 = svgEl("text", { x: X(0) - 8, y: Y(LPX / 2), "text-anchor": "end", "dominant-baseline": "middle", "font-size": 11, fill: "#a1a1a6" }); t1.textContent = LPX; svg.appendChild(t1);
+    (opts.hits || []).forEach(function (hh) {
+      var eh2 = g("Árekstur " + Math.round(hh.from) + "–" + Math.round(hh.to) + " mm");
+      eh2.appendChild(svgEl("rect", { x: X(0) - 2, y: Y(hh.to), width: w + 4, height: Math.max(3, (hh.to - hh.from) * s), fill: RED, "fill-opacity": .22, stroke: RED, "stroke-width": 1.2 }));
+    });
+    var t1 = svgEl("text", { x: X(0) - gap - colW - 6, y: Y(LPX / 2), "text-anchor": "end", "dominant-baseline": "middle", "font-size": 11, fill: "#a1a1a6" }); t1.textContent = LPX; svg.appendChild(t1);
     var t2 = svgEl("text", { x: X(LPY / 2), y: Y(0) + 16, "text-anchor": "middle", "font-size": 11, fill: "#a1a1a6" }); t2.textContent = LPY; svg.appendChild(t2);
     return svg;
   }
@@ -471,7 +490,7 @@
       if (outEl) { var cx = document.createElement("button"); cx.type = "button"; cx.textContent = "Fjarlægja"; cx.style.color = "#8e8e93"; cx.onclick = rm.onclick; ch.appendChild(cx); }
       calm.appendChild(ch);
       var cbody = document.createElement("div"); cbody.className = "bpp-calm-body";
-      cbody.appendChild(renderCalm(vars.LPX, vars.LPY, built.features, { accent: opts.accent, maxH: opts.maxH, maxW: opts.maxW }));
+      cbody.appendChild(renderCalm(vars.LPX, vars.LPY, built.features, { accent: opts.accent, maxH: opts.maxH, maxW: opts.maxW, hits: opts.hits, fronts: opts.fronts }));
       calm.appendChild(cbody);
       card.insertBefore(calm, win);
       setView(opts.view === "tech" ? "tech" : "calm");
