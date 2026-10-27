@@ -74,6 +74,7 @@
   function setLang(l){
     if (l !== "en" && l !== "is") return;
     try{ localStorage.setItem(KEY, l); }catch(e){}
+    try{ sessionStorage.setItem("bjorninn:kitchenPlanner:langResume", "1"); }catch(e){} // the page reopens on the same step, not the welcome page
     try{
       var u = new URL(location.href);
       if (u.searchParams.has("lang")) u.searchParams.set("lang", l);
@@ -126,7 +127,7 @@
     "10–15 mínútur": "10–15 minutes",
     "Vistast sjálfkrafa": "Saves automatically",
     "Engin binding": "No commitment",
-    "Teiknaðu rýmið, veldu efni og raðaðu innréttingunni í 3D. Þú færð teikningar, vörulista og verð — frítt og án skuldbindingar.": "Draw the room, choose materials and lay out your cabinets in 3D. You get drawings, a product list and a price — free and with no commitment.",
+    "Teiknaðu rýmið, veldu efni og raðaðu innréttingunni í 3D. Þú færð teikningar og vörulista, og tilboð frá okkur — frítt og án skuldbindingar.": "Draw the room, choose materials and lay out your cabinets in 3D. You get drawings and a product list, and a quote from us — free and with no commitment.",
     "Hvað viltu hanna?": "What would you like to design?",
     "Byrja að hanna →": "Start designing →",
     "Hvað erum við að skoða?": "What are we looking at?",
@@ -2140,7 +2141,17 @@
   // morning scan fixes (2026-10-27)
   add({
     "Veldu lögun rýmisins fyrst.": "Pick the room's shape first.",
-    "Veldu hvernig vélarnar standa fyrst.": "Pick how the machines stand first."
+    "Veldu hvernig vélarnar standa fyrst.": "Pick how the machines stand first.",
+    "Sjónarhornið aftur á byrjunarstað": "The view back where it started",
+    "Vista mynd": "Save picture",
+    "Mynd af hönnuninni í tölvuna þína": "A picture of the design to your computer",
+    "Ganga um": "Walk around",
+    "Úthliðunum bætt við.": "End panels added.",
+    "Vantar": "Missing",
+    "t.d. {v}": "e.g. {v}",
+    "Sláðu inn málin fyrst — breidd, hæð og veggþykkt.": "Enter the sizes first — width, height and wall thickness.",
+    "Sjáðu rýmið í augnhæð": "See the room at eye level",
+    "Á þessum skjá eru Skotmarkið, Myndavélin og Gangandi maðurinn undir „Skoða“.": "On this screen the target, the camera and the walking man are under “View”."
   });
 
   // part F: stored/computed numbered labels from kitchen-planner-3d.js (CATALOG width variants, island rows, partition sides)

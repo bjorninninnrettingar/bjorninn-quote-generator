@@ -115,6 +115,8 @@
   .tour-bub h4{ margin:0 0 6px; font-size:17px; }
   .tour-n{ margin:0 0 4px; font-size:11.5px; font-weight:700; color:var(--gold); text-transform:uppercase; letter-spacing:.04em; }
   .tour-txt{ font-size:14px; line-height:1.5; color:var(--ink); }
+  .tour-txt .tour-note{ margin:8px 0 0; font-size:12.5px; color:var(--ink-soft); }
+  .btn.btn-primary.is-wait{ opacity:.5; } /* looks not-ready, still answers a click with what is missing */
   .tour-list{ margin:4px 0 0; padding-left:18px; }
   .tour-list li{ margin:3px 0; }
   .tour-keys kbd{ display:inline-block; min-width:20px; padding:1px 6px; border:1px solid var(--line); border-bottom-width:2px; border-radius:5px; background:#fafaf8; font-family:inherit; font-size:12px; font-weight:600; line-height:1.4; text-align:center; }
@@ -249,7 +251,8 @@
   .ed-toolbar{ flex-wrap:nowrap !important; gap:6px 8px !important; }
   .ed-toolbar .view-toggle button{ padding:6px 10px; font-size:12.5px; }
   .ed-tbtn, .ed-newunit{ white-space:nowrap; }
-  @media (max-width:1500px){ #camToggle{ display:none; } .ed-menus .cat-sec > summary{ padding:6px 9px; } }
+  .vm-row.vm-cam{ display:none; } /* the camera buttons' stand-ins in Skoða, only while the bar has no room for them (morning scan 2026-10-27 #5) */
+  @media (max-width:1500px){ #camToggle{ display:none; } .ed-menus .cat-sec > summary{ padding:6px 9px; } .vm-row.vm-cam{ display:grid; } }
   /* E1 (2026-10-26): at 1280 px the row ran ~90 px past the edge and "← Til baka" was cut off — tighter below 1400 */
   @media (max-width:1399px){
     .ed-toolbar{ gap:4px 5px !important; }
@@ -2036,7 +2039,7 @@
       <figure class="wel-hero"><div class="wel-scene" id="welScene" aria-hidden="true"></div><img src="images/welcome-kitchen.jpg" data-i18n="attrs" alt="Eldhús hannað í hönnunartólinu: dökkblá innrétting, hvítur marmari og messinghöldur" width="1600" height="942"><figcaption data-i18n>Hannað hér í hönnunartólinu<span class="wel-drag"> · dragðu til að snúa</span></figcaption></figure>
       <div class="wel-main">
       <div class="wel-meta"><span data-i18n>10–15 mínútur</span><span data-i18n>Vistast sjálfkrafa</span><span data-i18n>Engin binding</span></div>
-      <p class="wel-lede" data-i18n>Teiknaðu rýmið, veldu efni og raðaðu innréttingunni í 3D. Þú færð teikningar, vörulista og verð — frítt og án skuldbindingar.</p>
+      <p class="wel-lede" data-i18n>Teiknaðu rýmið, veldu efni og raðaðu innréttingunni í 3D. Þú færð teikningar og vörulista, og tilboð frá okkur — frítt og án skuldbindingar.</p>
       <h2 class="wel-ask" data-i18n>Hvaða rými viltu hanna?</h2>
       <div class="studio-cards" id="studioCards"></div>
       <div class="wel-actions">
@@ -2257,6 +2260,9 @@
           <!-- "Skoða" (user, 2026-10-26): Málband, X-Ray and Málsetning in one dropdown like Rými / Efni — fewer controls on
                the bar, and the bar never changes width when one is switched on (the dot on the button says something is on) -->
           <div class="ed-menus ed-viewmenu"><details class="cat-sec" id="viewMenu" data-sec="skoda"><summary><span data-i18n>Skoða</span><i class="vm-dot" aria-hidden="true"></i></summary><div class="sec-body vm-body">
+            <button type="button" class="vm-row vm-cam" data-vm-cam="resetCamBtn"><b data-i18n>Endurstilla sýn</b><small data-i18n>Sjónarhornið aftur á byrjunarstað</small></button>
+            <button type="button" class="vm-row vm-cam" data-vm-cam="snapBtn"><b data-i18n>Vista mynd</b><small data-i18n>Mynd af hönnuninni í tölvuna þína</small></button>
+            <button type="button" class="vm-row vm-cam" data-vm-cam="walkBtn" id="vmWalk"><b data-i18n>Ganga um</b><small data-i18n>Sjáðu rýmið í augnhæð</small><i class="vm-sw" aria-hidden="true"></i></button>
             <button type="button" class="vm-row" id="measureBtn"><b data-i18n>Málband</b><small data-i18n>Smelltu á tvo punkta til að mæla á milli þeirra</small><i class="vm-sw" aria-hidden="true"></i></button>
             <button type="button" class="vm-row" id="inspectBtn"><b>X-Ray</b><small data-i18n>Framhliðar af — smelltu á skúffu eða hurð til að opna hana</small><i class="vm-sw" aria-hidden="true"></i></button>
             <button type="button" class="vm-row" id="skTagsBtn" hidden><b>Sk-númer</b><small>Sk-númer skápanna á framhliðunum í 3D</small><i class="vm-sw" aria-hidden="true"></i></button>
@@ -4013,6 +4019,8 @@
       var free2 = spansOf(w, "wall").every(function(sp){ return p.start + u.widthMm <= sp.start || p.start >= sp.end; });
       if (free2) insertBlockAt(w, "wall", u, p.start);
     });
+    // its úthliðar too (morning scan 2026-10-27 #7): the first "Klárt" asked for 5 missing panels on a kitchen we drew ourselves
+    missingEndPanels().forEach(function(m){ addEndPanel(m.wall, m.zone, m.b, m.dir); });
   }
   // Þvottahús (user, 2026-10-23, E1; review 2026-10-25 C): the machine as picked on "Hvar er vélin?" — the stack, or washer +
   // dryer side by side under the worktop, or none — next to the sink, on whichever side has room. Marked auto so a later
@@ -6211,7 +6219,9 @@
     return changed;
   }
   var panelsAskedFor = null; // the plan we already asked about (don't nag twice for the same thing)
+  var panelsPending = 0; // the short pause after "Já, bæta við" — a second click meanwhile does nothing
   function checkEndPanelsThen(go){
+    if (panelsPending) return;
     if (bathAutoPanels()){ go(); return; } // the bath adds its own (syncBathPanels)
     var miss = missingEndPanels(), sig = JSON.stringify(state.walls.map(function(w){ return [w.floor, w.wall]; })) + JSON.stringify(state.islands);
     if (!miss.length || panelsAskedFor === sig){ go(); return; }
@@ -6222,7 +6232,8 @@
         missingEndPanels().forEach(function(m){ if (addEndPanel(m.wall, m.zone, m.b, m.dir)) added++; else failed++; });
         save(); refreshAfterEdit();
         panelsAskedFor = JSON.stringify(state.walls.map(function(w){ return [w.floor, w.wall]; })) + JSON.stringify(state.islands);
-        if (!failed){ go(); return; } // all in: straight on, no second click (round 3, B6)
+        // all in: on by itself, no second click (round 3, B6) — after a moment in the room so the panels are seen going in
+        if (!failed){ toast(__("Úthliðunum bætt við.")); panelsPending = setTimeout(function(){ panelsPending = 0; if (state.step === "editor") go(); }, 1200); return; }
         toast(__("Bætti við {n} {panels}", { n:added, panels:plural(added, "úthlið", "úthliðum") }) + __(" — {n} komust ekki fyrir, færðu skápana aðeins til", { n:failed }) + __(". Skoðaðu og ýttu aftur á Áfram."));
       },
       function(){ panelsAskedFor = sig; go(); });
@@ -12669,8 +12680,10 @@
   ];
   // the unit-wizard steps (grunnskáp … Setja inn) start here; the "Ný eining" step is the one before
   var TOUR_UW0 = TOUR_STEPS.findIndex(function(st){ return st.title === __("Smelltu á grunnskáp"); });
+  var TOUR_VIEW_HTML = TOUR_STEPS[2].html;
   function startTour(){
     endTour();
+    TOUR_STEPS[2].html = TOUR_VIEW_HTML + (window.innerWidth <= 1500 ? '<p class="tour-note">' + __("Á þessum skjá eru Skotmarkið, Myndavélin og Gangandi maðurinn undir „Skoða“.") + '</p>' : "");
     TOUR_STEPS[0].title = state.activeCategory && catBase() !== "eldhus" ? __("Hér hannar þú rýmið þitt") : __("Hér hannar þú eldhúsið þitt"); // a bathroom isn't a kitchen
     tour = { i:0, count0:cabinetTotal(), root:document.createElement("div") };
     tour.root.className = "tour";
@@ -13564,8 +13577,8 @@
             (dw.more ? '<div class="dw-kinds sm">' + more.map(function(k){ return '<button type="button" class="shape-card dw-kind' + (curK === k.key ? ' active' : '') + '" data-dwkind="' + k.key + '">' + doorPic({ kind:k.kind, widthMm:800, heightMm:2100, hinge:"left" }, true) + '<div class="nm">' + __(k.label) + '</div><small>' + __(k.desc) + '</small></button>'; }).join("") + '</div>' : '');
         } else if (key === "mal"){
           body = '<p class="dw-hint">' + (PRO ? "Op í vegg (B × H) og veggþykkt, nákvæm mál í mm." : __("Mældu opið í veggnum. Sláðu inn nákvæm mál í cm.") + ' <b>' + __("Aukastafir eru í lagi, t.d. 82,3 cm.") + '</b>') + '</p>' + [["widthMm", "Breidd", "Breidd opsins (mælt á tveimur stöðum og sett minna málið)"], ["heightMm", "Hæð", "Frá gólfi upp í opið, bæði horn mæld — minna málið skráð"], ["wallMm", "Veggþykkt", "Veggþykkt opsins — gott að mæla á nokkrum stöðum"]].map(function(f){
-            var err = dwValErr(f[0]);
-            return '<label class="dw-num' + (err ? ' bad' : '') + '"><span><b>' + __(f[1]) + '</b><small>' + __(f[2]) + '</small></span><span class="dw-in"><input type="text" inputmode="decimal" autocomplete="off" data-dwnum="' + f[0] + '" value="' + escapeHtmlPro(dw.vals[f[0]]) + '" placeholder="' + (PRO ? dLim(f[0])[0] + '–' + dLim(f[0])[1] : dLim(f[0])[0] / 10 + '–' + dLim(f[0])[1] / 10) + '"><i>' + dU() + '</i></span>' +
+            var err = dwValErr(f[0]); if (err === null && dw.askMal) err = __("Vantar"); // "Vista hurðina" pressed with this one empty
+            return '<label class="dw-num' + (err ? ' bad' : '') + '"><span><b>' + __(f[1]) + '</b><small>' + __(f[2]) + '</small></span><span class="dw-in"><input type="text" inputmode="decimal" autocomplete="off" data-dwnum="' + f[0] + '" value="' + escapeHtmlPro(dw.vals[f[0]]) + '" placeholder="' + (PRO ? dLim(f[0])[0] + '–' + dLim(f[0])[1] : __("t.d. {v}", { v:{ widthMm:82, heightMm:208, wallMm:12 }[f[0]] })) + '"><i>' + dU() + '</i></span>' +
               '<em class="dw-err" data-dwerr="' + f[0] + '">' + (err || '') + '</em></label>';
           }).join("") + '<button type="button" class="btn btn-primary btn-small dw-next" data-dwmalok="1"' + (dwMalOk() ? '' : ' disabled') + '>' + __("Áfram") + '</button>';
         } else if (key === "opnun"){
@@ -13600,7 +13613,7 @@
     });
     var can = dwMalOk();
     html += '</div></div><div class="uw-actions"><button type="button" class="btn btn-secondary btn-small" data-dwcancel="1">' + __("Hætta við") + '</button>' +
-      '<button type="button" class="btn btn-primary" data-dwsave="1"' + (can ? '' : ' disabled title="' + __("Sláðu inn breidd, hæð og veggþykkt fyrst (Mál).") + '"') + '>' + __("Vista hurðina") + '</button></div>';
+      '<button type="button" class="btn btn-primary' + (can ? '' : ' is-wait') + '" data-dwsave="1"' + (can ? '' : ' title="' + __("Sláðu inn breidd, hæð og veggþykkt fyrst (Mál).") + '"') + '>' + __("Vista hurðina") + '</button></div>';
     side.innerHTML = html;
     side.classList.toggle("dw-compact", dw.sec === "efni"); // Útlit: the done steps shrink so more swatches show
     var nk = side.querySelector(".dw-scroll"); if (nk) nk.scrollTop = top;
@@ -13615,7 +13628,8 @@
   }
   function dwChip(attr, val, on, label){ return '<button type="button" class="hd-chip' + (on ? ' on' : '') + '" data-' + attr + '="' + val + '">' + label + '</button>'; }
   function saveDoorWiz(){
-    if (!dw || !dwMalOk()){ if (dw){ dw.sec = "mal"; renderDoorWiz(); } return; }
+    // never a silent grey button (morning scan 2026-10-27 #10): it opens Mál, marks what's missing and says so
+    if (!dw || !dwMalOk()){ if (dw){ dw.sec = "mal"; dw.askMal = true; renderDoorWiz(); toast(__("Sláðu inn málin fyrst — breidd, hæð og veggþykkt.")); } return; }
     var d = dw.d; d.designed = true;
     if (!KPDOORS.hasLeafMat(d)) delete d.leaf;
     delete d.hunar;
@@ -14599,7 +14613,9 @@
   ];
   var hlAdd = null; // the open "+ Rými" form: { t, name, edited }
   function homeListMode(){ return !state.home || state.home.view !== "plan"; }
-  function homeNameOf(key){ var n = state.home && state.home.names && state.home.names[key]; return n || (key === "hurdir" ? __("Innihurðir") : __(RYMI_LABELS[roomNameOf(key)] || roomNameOf(key))); }
+  // a stored default name ("Eldhús", "Baðherbergi 2") shows in the visitor's language; one they typed stays as typed
+  function homeNameShown(n){ var m = /^(.*\S) (\d+)$/.exec(n); return m && __(m[1]) !== m[1] ? __(m[1]) + " " + m[2] : __(n); }
+  function homeNameOf(key){ var n = state.home && state.home.names && state.home.names[key]; return n ? homeNameShown(n) : (key === "hurdir" ? __("Innihurðir") : __(RYMI_LABELS[roomNameOf(key)] || roomNameOf(key))); }
   function hlNamesInUse(){ var out = homeRooms().map(homeNameOf); if (hlHasDoors()) out.push(homeNameOf("hurdir")); return out; }
   function hlFreeName(base){ var used = hlNamesInUse(), n = base, i = 2; while (used.indexOf(n) >= 0) n = base + " " + i++; return n; }
   function hlHasDoors(){ return !!(state.home && state.home.doors) || !!(state.doorList || []).length; }
@@ -14893,6 +14909,7 @@
     if (to === "shape" && state.closed && state.walls.length && shapePhase === "pick") shapePhase = "size";
     if (to === "materials") matPhase = matCoreDone() ? 0 : null;
     goto(to);
+    if (to === "contact") renderPreviews();
   });
   document.getElementById("welReset").addEventListener("click", resetAll);
 
@@ -15778,7 +15795,12 @@
 
   // Studio mynd (2026-10-23): a path-traced, photographic still of exactly the 3D view on screen (KP3D.studioRender).
   // Ganga um: first-person walk at eye height (KP3D.setWalkMode) — 3D view only
-  function syncWalkBtn(){ var b = document.getElementById("walkBtn"); if (b) b.classList.toggle("active", !!(window.KP3D && KP3D.isWalking && KP3D.isWalking() && viewMode === "3d")); }
+  function syncWalkBtn(){ var on = !!(window.KP3D && KP3D.isWalking && KP3D.isWalking() && viewMode === "3d"); ["walkBtn", "vmWalk"].forEach(function(id){ var b = document.getElementById(id); if (b) b.classList.toggle("active", on); }); }
+  // Skoða's stand-ins for the camera buttons (narrow screens): the real button does the work, the menu closes
+  document.querySelectorAll("[data-vm-cam]").forEach(function(r){ r.addEventListener("click", function(){
+    var vm = document.getElementById("viewMenu"); if (vm) vm.open = false;
+    document.getElementById(r.dataset.vmCam).click();
+  }); });
   document.getElementById("walkBtn").addEventListener("click", function(){
     if (viewMode !== "3d"){ toast(__("Ganga um virkar í 3D-sýninni.")); return; }
     if (inspect.on){ toast(__("Slökktu á X-Ray fyrst.")); return; }
@@ -18614,7 +18636,10 @@
       if (state.closed && state.walls.length) shapePhase = "size"; // a saved room opens on the sizing drawing
       // a returning visitor with a design lands on the welcome page: "Halda áfram →" takes them back to that step
       if (state.step !== "welcome" && state.step !== "done" && hasDesign()){ state.resumeStep = state.step; state.step = "welcome"; }
+      // …except right after a language switch (Hjálp → In English): straight back where they were (morning scan 2026-10-27 #8)
+      var langBack = false; try{ langBack = sessionStorage.getItem("bjorninn:kitchenPlanner:langResume") === "1"; sessionStorage.removeItem("bjorninn:kitchenPlanner:langResume"); }catch(e){}
       render();
+      if (langBack && state.step === "welcome" && state.resumeStep) document.getElementById("welStart").click();
     }
   }
 })();
