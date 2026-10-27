@@ -151,6 +151,7 @@
   svg.ico{ display:inline-block; vertical-align:-3px; flex:none; }
   .studio-card b{ font-size:15px; }
   .studio-card small{ font-size:12px; color:var(--ink-soft); line-height:1.35; }
+  .studio-card small.in-proj{ color:var(--blue); font-weight:600; }
   .studio-card .go{ margin-top:4px; font-size:12px; font-weight:700; color:var(--blue); }
   .studio-card:disabled{ cursor:default; opacity:.55; }
   .studio-card.has{ border-color:var(--gold); }
@@ -1400,7 +1401,8 @@
   .hl-addcard:hover{ border-color:var(--ink); }
   .hl-note{ margin:0; font-size:13.5px; color:var(--ink-soft); }
   .hl-gate{ background:#fff; border:1px solid #e3c98f; border-radius:12px; padding:10px 14px; display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; }
-  .hl-gate p{ margin:0; flex-basis:100%; font-size:14px; }
+  .hl-gate p{ margin:0; flex:1 1 auto; font-size:14px; }
+  .hl-card.need{ border-color:#e3c98f; box-shadow:0 0 0 2px #f3e3bd; } /* Áfram stopped: the empty rooms themselves are marked */
   .hl-gate-row{ display:inline-flex; align-items:center; gap:8px; }
   .hl-gate-row b{ font-size:14px; margin-right:2px; }
   .studio-card.pick{ position:relative; min-height:124px; padding:16px 16px 14px; gap:5px; }
@@ -4160,7 +4162,12 @@
       // black "Næsti veggur →" under "Veggur N af M" in the panel
       box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">' + __("← Til baka") + '</button><button class="btn btn-primary" id="shNext" type="button">' + __("Áfram →") + '</button>';
       document.getElementById("shBack").addEventListener("click", function(){ shapePhase = bathShape() ? "water" : closetShape() ? "size" : "height"; renderShapeStep(); });
-      document.getElementById("shNext").addEventListener("click", afterOpenings);
+      // the first time through, Áfram walks the walls too (morning scan 2026-10-27: Áfram skipped walls 2–6) — on from the last one
+      document.getElementById("shNext").addEventListener("click", function(){
+        var ws = solidWalls(), wi = ws.findIndex(function(w){ return w.id === openWallId; });
+        if (!state.openingsDone && wi >= 0 && wi < ws.length - 1){ nextOpeningWall(); return; }
+        afterOpenings();
+      });
     } else {
       // one way on, water marked or not — nothing is placed for you when it isn't (2026-10-11)
       box.innerHTML = '<button class="btn btn-secondary" id="shBack" type="button">' + __("← Til baka") + '</button><button class="btn btn-primary" id="shNext" type="button">' + __("Áfram →") + '</button>';
@@ -6209,7 +6216,14 @@
     }); });
     var k = 0;
     missingEndPanels().forEach(function(m){
-      if (!addEndPanel(m.wall, m.zone, m.b, m.dir)) return;
+      var ok = addEndPanel(m.wall, m.zone, m.b, m.dir);
+      // no room for it (the laundry's tower at the open end of a full wall showed its bare carcass side, morning scan
+      // 2026-10-27): one of our own seeded low units on that wall gives up 2 cm, then once more
+      if (!ok){
+        var sh = m.wall[m.zone].find(function(x){ var c = CATALOG[x.type]; return x !== m.b && x.autoSeed && !x.locked && !c.panel && !c.thvo && c.cls === "floor" && x.widthMm - 20 >= (c.minW || 0); });
+        if (sh){ sh.widthMm -= 20; ok = addEndPanel(m.wall, m.zone, m.b, m.dir); if (!ok) sh.widthMm += 20; }
+      }
+      if (!ok) return;
       var p = m.wall[m.zone].find(function(x){ return CATALOG[x.type].panel && !x.autoPanel && x.lockTo && x.lockTo.id === m.b.id && x.lockTo.dir === m.dir; });
       if (p){ p.autoPanel = true; p.id = "ap_" + m.b.id + (m.dir < 0 ? "L" : "R"); } // a stable id: the same panel each time
       k++;
@@ -9046,6 +9060,7 @@
     // "Engin" is not a tab with one tile but a choice of its own at the end of the row: a click picks it and the
     // page stays where it is (user, 2026-10-24)
     var tabGroups = topGroupsNow().filter(function(g){ return g.key !== "engin"; }), cdTop = categoryDef(state.activeCategory); // Bað/Þvottahús: Egger only
+    if (!matTab.top && state.top && TOPS[state.top] && tabGroups.some(function(g){ return g.key === TOPS[state.top].group; })) matTab.top = TOPS[state.top].group; // open on the chosen one's tab
     var grp = tabGroups.find(function(g){ return g.key === matTab.top; }) || tabGroups[0];
     var tabs = document.getElementById("topTabs");
     tabs.innerHTML = tabsHTML(tabGroups, function(k){ return topsOf(k).length; }, grp.key, "data-ttab") +
@@ -9069,6 +9084,9 @@
     container.querySelectorAll("[data-top]").forEach(function(card){
       card.addEventListener("click", function(){ selectTop(card.dataset.top); });
     });
+    // "Valið: Premium White" but the tile was far down the grid (morning scan 2026-10-27): the chosen one is scrolled into view
+    var on = container.querySelector(".sw-tile.active");
+    if (on){ var cr = container.getBoundingClientRect(), r = on.getBoundingClientRect(); if (r.bottom > cr.bottom || r.top < cr.top) container.scrollTop += r.top - cr.top - 8; }
   }
 
   // requiresFrontCategory (e.g. spónagrip -> "sponlagt") gates a handle out of the picker whenever
@@ -9742,12 +9760,13 @@
     if (on) document.querySelectorAll(".wiz-panel").forEach(function(p){ p.hidden = true; });
     if (!on){ el.innerHTML = ""; return; }
     var hasTop = state.matAsk.own && Object.prototype.hasOwnProperty.call(state.matAsk.own, "top");
-    el.innerHTML = '<h3>' + __("Sömu efni og í {room}?", { room:escapeHtmlPro(matAskName()) }) + '</h3><p>' + (hasTop ? __("Sama framhlið, höldur, skrokkur og borðplata — eins og á myndinni.") : __("Sama framhlið, höldur og skrokkur — eins og á myndinni.")) + '</p>' +
+    el.innerHTML = '<h3>' + __("Sömu efni og í rýminu „{room}“?", { room:escapeHtmlPro(matAskName()) }) /* the name in quotes stays in the nominative ("…og í Eldhús?" was wrong) */ + '</h3><p>' + (hasTop ? __("Sama framhlið, höldur, skrokkur og borðplata — eins og á myndinni.") : __("Sama framhlið, höldur og skrokkur — eins og á myndinni.")) + '</p>' +
       '<div class="mat-ask-btns"><button type="button" class="btn btn-primary" data-maskyes="1">' + __("Já, sömu") + '</button><button type="button" class="btn btn-secondary" data-maskno="1">' + __("Velja ný") + '</button></div>';
     el.onclick = function(e){
       var b = e.target.closest("button"); if (!b) return;
       if (b.dataset.maskyes){
         state.matAsk = null; roomDefaults(); save();
+        if (isCloset()){ matPhase = 0; renderMaterials(); return; } // a wardrobe still sees its size page (depth, height) — the colour is already the same
         if (activeMatPhases().every(function(p){ return p.done(); })) goto("editor"); else { matPhase = firstMissingPhase(); renderMaterials(); } // only what's still open (e.g. a worktop of its own)
         return;
       }
@@ -10176,6 +10195,10 @@
         var byWall = []; plan.forEach(function(x){ var g = byWall.find(function(y){ return y.wall === x.wall; }); if (!g){ g = { wall:x.wall, w:[] }; byWall.push(g); } g.w.push(Math.round(x.w)); });
         var mmTxt = byWall.map(function(g){ var sm = g.w.every(function(v){ return Math.abs(v - g.w[0]) <= 1; }), t = (sm ? g.w.length + " × " + g.w[0] : g.w.join(" + ")) + " mm";
           return byWall.length > 1 ? "Veggur " + (state.walls.indexOf(g.wall) + 1) + ": " + t : t; }).join(" · ");
+        // which wall (morning scan 2026-10-27: "Allt rýmið" has four, the question didn't say)
+        var wn = byWall.map(function(g){ return state.walls.indexOf(g.wall) + 1; }), wlen = byWall.length === 1 ? byWall[0].wall.lengthMm : 0;
+        offer.querySelector("b").textContent = PRO || state.walls.filter(function(x){ return !x.open; }).length < 2 ? __("Fylla vegginn með skápum?") :
+          wn.length === 1 ? __("Fylla vegg {n} ({len}) með skápum?", { n:wn[0], len:uLen(wlen) }) : __("Fylla veggi {list} með skápum?", { list:wn.slice(0, -1).join(", ") + " " + __("og") + " " + wn[wn.length - 1] });
         offer.querySelector("[data-cfo-sum]").textContent = PRO ? mmTxt + (state.closetDoors === "engar" ? " · opnir" : " · tvær hurðir á hverjum") + " · svo Smíða á Sk1" :
           plan.length + " " + plural(plan.length, "skápur", "skápar") + " · " + (same ? widths[0] + " cm" : widths.join(" + ") + " cm") + (state.closetDoors === "engar" ? " · " + __("opnir") : " · " + __("tvær hurðir á hverjum"));
       }
@@ -13842,7 +13865,9 @@
     withEachCategory(function(){ if (cabinetTotal() > 0) any = true; });
     return any || designedDoors().length > 0;
   }
+  var homeBackTo = null; // the room "Rýmin þín" was opened from (its ← Til baka goes there)
   function openHome(){
+    homeBackTo = !PRO && state.activeCategory && (state.step === "editor" || state.step === "materials" || state.step === "shape") ? state.activeCategory : state.step === "hurdir" ? "hurdir" : null;
     state.home = state.home || { rooms:{} };
     state.categoryQueue = state.categoryQueue || []; state.categoryData = state.categoryData || {};
     if (state.step === "editor" && !PRO && state.activeCategory && cabinetTotal()) captureThumb(); // the room's card picture, while its 3D is alive
@@ -14637,7 +14662,13 @@
     if (d && d.moved) save();
     renderHome();
   }
-  document.getElementById("homeBackBtn").addEventListener("click", function(){ if (homeListMode()) goto("welcome"); else wizBack(); });
+  // ← Til baka on Rýmin þín = where they came from (morning scan 2026-10-27): the room they left with "Rýmin þín", else the start page
+  document.getElementById("homeBackBtn").addEventListener("click", function(){
+    if (!homeListMode()){ wizBack(); return; }
+    var b = homeBackTo; homeBackTo = null;
+    if (b && (b === "hurdir" ? hlHasDoors() : homeRooms().indexOf(b) >= 0)){ if (b === "hurdir") openDoors(); else openRoom(b); return; }
+    goto("welcome");
+  });
   document.getElementById("homeNextBtn").addEventListener("click", function(){
     if (!homeListMode()){ wizNext(); return; }
     homeListNext(); // an empty room is left out; only a home with nothing in it stops here (2026-10-26)
@@ -14663,7 +14694,8 @@
   function hlNamesInUse(){ var out = homeRooms().map(homeNameOf); if (hlHasDoors()) out.push(homeNameOf("hurdir")); return out; }
   function hlFreeName(base){ var used = hlNamesInUse(), n = base, i = 2; while (used.indexOf(n) >= 0) n = base + " " + i++; return n; }
   function hlHasDoors(){ return !!(state.home && state.home.doors) || !!(state.doorList || []).length; }
-  function hlUnits(key){ var n = 0; surfacesOfBlob(roomBlobOf(key) || {}).forEach(function(s){ n += (s.floor || []).length + (s.wall || []).length; }); return n; }
+  function hlUnitsAll(key){ var n = 0; surfacesOfBlob(roomBlobOf(key) || {}).forEach(function(s){ n += (s.floor || []).length + (s.wall || []).length; }); return n; }
+  function hlUnits(key){ var n = 0; surfacesOfBlob(roomBlobOf(key) || {}).forEach(function(s){ (s.floor || []).concat(s.wall || []).forEach(function(b){ if (!(CATALOG[b.type] && CATALOG[b.type].panel)) n++; }); }); return n; } // cabinets — úthliðar aren't units (morning scan)
   function hlStartForm(){
     var have = homeRooms().map(function(k){ return String(k).split(":")[0]; });
     var t = have.indexOf("eldhus") < 0 ? "eldhus" : "fataskapar"; // the usual next room
@@ -14722,7 +14754,7 @@
   function hlThumbHtml(r, w, h){
     if (r.key === "hurdir"){ var d0 = designedDoors()[0]; return d0 ? doorThumb(d0, w, h) : icon("hurdir", 34); }
     var t = hlThumbs()[r.key];
-    if (t && t.u && t.n === r.n && r.n > 0) return '<img src="' + t.u + '" alt="">';
+    if (t && t.u && r.n > 0 && (t.n === r.n || t.n === hlUnitsAll(r.key))) return '<img src="' + t.u + '" alt="">'; // (a picture saved before úthliðar stopped counting still fits)
     if (r.started) return '<div class="hl-plan" data-hlplan2d="' + escapeHtmlPro(r.key) + '"></div>'; // drawn, no picture yet: its floor plan
     return icon(r.icon, 34);
   }
@@ -14784,7 +14816,7 @@
     el.querySelector("span").textContent = msg;
     el.querySelector("button").onclick = function(){ hideUndoToast(); onUndo(); };
     el.hidden = false; clearTimeout(undoTimer);
-    undoTimer = setTimeout(hideUndoToast, 6000);
+    undoTimer = setTimeout(hideUndoToast, 10000); // 10 s: time enough for a slow reader (morning scan)
   }
   function hideUndoToast(){ clearTimeout(undoTimer); var el = document.getElementById("undoToast"); if (el) el.hidden = true; }
   function homeListNext(){
@@ -14814,15 +14846,15 @@
       if (H < 300) H = Math.max(390, innerHeight - 312); // not laid out yet: the canvas's CSS height
       hlLaidOut = W + "x" + host.clientHeight;
       var note = '';
-      if (hlGate === true) note = '<div class="hl-gate"><p>' + (empty.length ? __("Ekkert er komið í {rooms} enn — hannaðu eitthvað eða fjarlægðu það sem þú þarft ekki.", { rooms:hlNames(empty) }) : __("Bættu einingu eða hurð við eitthvert rými fyrst.")) + '</p>' +
-        empty.map(function(r){ return '<span class="hl-gate-row"><b>' + escapeHtmlPro(homeNameOf(r.key)) + '</b><button type="button" class="btn btn-primary btn-small" data-hlopen="' + r.key + '">' + __("Hanna") + '</button><button type="button" class="btn btn-secondary btn-small" data-hldel="' + r.key + '">' + __("Fjarlægja") + '</button></span>'; }).join("") + '</div>';
+      // one line, the empty cards themselves marked — no Hanna/Fjarlægja row per room under the cards (morning scan 2026-10-27)
+      if (hlGate === true) note = '<div class="hl-gate"><p>' + (empty.length ? __("Ekkert er komið í {rooms} enn — hannaðu eitthvað eða fjarlægðu það sem þú þarft ekki.", { rooms:hlNames(empty) }) : __("Bættu einingu eða hurð við eitthvert rými fyrst.")) + '</p></div>';
       else if (hlGate) note = '<div class="hl-gate"><p>' + escapeHtmlPro(hlGate) + '</p><span class="hl-gate-row"><b>' + escapeHtmlPro(homeNameOf("hurdir")) + '</b><button type="button" class="btn btn-primary btn-small" data-hlopen="hurdir">' + __("Hanna") + '</button></span></div>';
       else if (orderable && empty.length) note = '<p class="hl-note">' + (empty.length === 1 ? __("{room} er tómt og fer ekki með.", { room:hlNames(empty) }) : __("{rooms} eru tóm og fara ekki með.", { rooms:hlNames(empty) })) + '</p>';
-      var noteH = !note ? 0 : 12 + (hlGate === true ? 64 + Math.ceil(empty.length / 3) * 36 : hlGate ? 86 : 32); // + the list's gap
+      var noteH = 12 + 52; // one line (+ a button for a door): the same room kept whether a note shows or not: the cards never change size under the customer
       var rowH = Math.max(150, Math.min(290, Math.floor((H - 40 - noteH - (R - 1) * 14) / R)));
       html += '<div class="hl-grid" style="grid-template-columns:repeat(' + cols + ',minmax(0,1fr));grid-auto-rows:' + rowH + 'px">' + rows.map(function(r){
         var st = r.done ? __("Klárt") : r.started ? __("Í vinnslu") : __("Ekki byrjað");
-        return '<div class="hl-card' + (r.done ? ' done' : r.started ? ' wip' : '') + '">' +
+        return '<div class="hl-card' + (r.done ? ' done' : r.started ? ' wip' : '') + (hlGate === true && !r.done ? ' need' : '') + '">' +
           '<button type="button" class="hl-thumb" data-hlopen="' + r.key + '" aria-label="' + escapeHtmlPro(homeNameOf(r.key)) + '">' + hlThumbHtml(r, 240, Math.max(60, rowH - 104)) + '</button>' +
           '<button type="button" class="hl-x" data-hldel="' + r.key + '" title="' + __("Fjarlægja") + '" aria-label="' + __("Fjarlægja") + '">' + icon("close", 14) + '</button>' +
           '<div class="hl-body"><input class="hl-name" data-hlname="' + r.key + '" value="' + escapeHtmlPro(homeNameOf(r.key)) + '" maxlength="40" aria-label="' + __("Nafn rýmis") + '">' +
@@ -14866,15 +14898,18 @@
     { key:"bad", label:"Baðherbergi", desc:"Veggfestir vaskaskápar og efri skápar" },
     { key:"thvottahus", label:"Þvottahús", desc:"Þvottavél, þurrkari og vaskur" },
     { key:"hurdir", label:"Innihurðir", desc:"Hurðir um allt heimilið" },
-    { key:"rymi", label:"Aðeins rými", desc:"Án innréttingar — stofa, gangur …" }
+    { key:"rymi", label:"Aðeins rými", desc:"Stofa, gangur eða annað rými án innréttingar" }
   ];
   var welPick = []; // the cards ticked on the start page (not saved)
   function hasProject(){ return !!(state.home && (homeRooms().length || hlHasDoors())); }
   function roomCardsHtml(pick, attr){ // the big room cards with a tick — the start page and "+ Bæta við rými" share them
     return STUDIO_ROOMS.map(function(r){
       var on = pick.indexOf(r.key) >= 0, off = r.key === "hurdir" && hlHasDoors();
+      // already in the project (morning scan 2026-10-27): said on the card, so a second kitchen is never made by mistake
+      var have = r.key === "hurdir" || !state.home ? 0 : homeRooms().filter(function(k){ return String(k).split(":")[0] === r.key; }).length;
+      var sub = off ? __("Á listanum") : have ? (on ? __("Bætist við · nr. {n}", { n:have + 1 }) : __("Í verkefninu · {n}", { n:have })) : __(r.desc);
       return '<button type="button" class="studio-card pick' + (on ? ' on' : '') + '" ' + attr + '="' + r.key + '"' + (off ? ' disabled title="' + __("Innihurðir eru þegar á listanum") + '"' : '') + ' aria-pressed="' + on + '">' +
-        '<span class="tick" aria-hidden="true">' + (on ? '&#10003;' : '') + '</span><span class="ic">' + icon(r.key === "rymi" ? "ibud" : r.key, 26) + '</span><b>' + __(r.label) + '</b><small>' + __(off ? "Á listanum" : r.desc) + '</small></button>';
+        '<span class="tick" aria-hidden="true">' + (on ? '&#10003;' : '') + '</span><span class="ic">' + icon(r.key === "rymi" ? "ibud" : r.key, 26) + '</span><b>' + __(r.label) + '</b><small' + (have && !on ? ' class="in-proj"' : '') + '>' + sub + '</small></button>';
     }).join("");
   }
   function renderStudioCards(){
