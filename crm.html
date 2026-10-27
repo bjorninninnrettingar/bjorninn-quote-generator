@@ -117,6 +117,8 @@
   .prCell .cnt { font-size:1.2rem; font-weight:700; margin-top:2px; }
   .prCell .val { font-size:.72rem; color:var(--dim); margin-top:2px; }
 
+  .proOpenBtn{ display:inline-block; padding:4px 10px; border-radius:8px; background:#1f3f8f; color:#fff !important; font-weight:600; font-size:.8rem; text-decoration:none; white-space:nowrap; }
+  .proOpenBtn:hover{ background:#2a52b5; }
   /* Til yfirferðar / Næstu skref (2026-10-23) — tables, not card rows: what matters here is scanning
      several at once to decide what needs action first (days waiting, offer size), which a row of
      cards makes you click into one at a time to compare. Both now live inside a .panel (own white
@@ -340,7 +342,7 @@
   <div class="panel" id="toReview" style="display:none;">
     <h2 class="toReviewHead">📝 Til yfirferðar — sjálfsafgreiðsla <span class="cnt" id="toReviewCnt"></span></h2>
     <table class="reviewTable">
-      <thead><tr><th>Verkefni</th><th>Staða</th><th class="num">Dagar síðan sent</th><th class="num">Tilboð</th></tr></thead>
+      <thead><tr><th>Verkefni</th><th>Staða</th><th class="num">Dagar síðan sent</th><th class="num">Tilboð</th><th></th></tr></thead>
       <tbody id="toReviewRow"></tbody>
     </table>
   </div>
@@ -426,7 +428,7 @@
     <div id="omBody" class="liBody"></div>
 
     <div class="actions">
-      <a id="dOpenPro" href="#" target="_blank">Opna í hönnuðinum →</a>
+      <a id="dOpenPro" href="#" target="_blank" rel="noopener">Opna í PRO →</a>
       <a id="dOpenSmida" href="#" target="_blank" rel="noopener" style="display:none" title="Lamir, hillur og ofn skáp fyrir skáp — og Skrifa á USB">Smíða &amp; CNC →</a>
       <button class="printBtn" id="dPrintBtn" type="button">🖨️ Prenta tilboð</button>
       <button class="printBtn" id="dSentBtn" type="button" title="Færir í Tilboð sent og setur Næsta skref = Bíða eftir svari eftir 3 daga">📤 Merkja tilboð sent</button>
@@ -1035,8 +1037,11 @@
         '<td class="nm">' + esc(f["Heiti tækifæris / verkefnis"] || "(ónefnt)") + '</td>' +
         '<td>' + esc(f["Staða í söluferli"] || "—") + '</td>' +
         '<td class="num">' + (days == null ? "—" : days + " d.") + '</td>' +
-        '<td class="num">' + kr(f["💰 Tilboðsupphæð"]) + '</td>';
-      tr.addEventListener("click", function () {
+        '<td class="num">' + kr(f["💰 Tilboðsupphæð"]) + '</td>' +
+        // "Opna í PRO" (2026-10-27): the Studio submission opens in PRO in a new tab with the office key — one click
+        '<td class="num"><a class="proOpenBtn" target="_blank" rel="noopener" href="/skipuleggja?pro=' + r.id + (k ? "&k=" + encodeURIComponent(k) : "") + '">Opna í PRO →</a></td>';
+      tr.addEventListener("click", function (e) {
+        if (e.target.closest("a")) return;
         window.open("/skipuleggja?pro=" + r.id + (k ? "&k=" + encodeURIComponent(k) : ""), "_blank");
       });
       row.appendChild(tr);

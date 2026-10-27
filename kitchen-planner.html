@@ -1369,6 +1369,17 @@
   /* ---------- pro mode (Rakel, ?pro=<Tækifæri>&k=…) ---------- */
   body.pro #toContactBtn:not(.pro-next) { display:none; } /* PRO: only as "Næsta rými" when several rooms are queued (A2, 2026-10-26) */
   #proBar { display:flex; gap:10px; align-items:center; font:600 13px/1.3 inherit; color:var(--ink); }
+  /* "Frá Studio" (2026-10-27): what the customer sent in, calm and collapsible, over the top-left of the stage */
+  #proStudio{ position:fixed; top:118px; left:16px; z-index:60; width:min(440px, calc(100vw - 32px)); max-height:calc(100vh - 150px); overflow:auto; background:var(--panel, #fff); color:var(--ink); border:1px solid var(--line); border-radius:14px; box-shadow:0 14px 40px rgba(0,0,0,.28); padding:14px 16px 12px; font-size:13px; line-height:1.45; }
+  #proStudio[hidden]{ display:none; }
+  #proStudio .ps-head{ display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  #proStudio .ps-head b{ font-size:15px; flex:1; }
+  #proStudio .ps-head button{ font:inherit; font-size:12px; border:1px solid var(--line); border-radius:999px; padding:4px 10px; cursor:pointer; background:transparent; color:inherit; }
+  #proStudio .ps-head .ps-ok{ background:var(--blue); border-color:var(--blue); color:#fff; font-weight:600; }
+  #proStudio h5{ margin:10px 0 4px; font-size:11px; letter-spacing:.05em; text-transform:uppercase; opacity:.6; }
+  #proStudio dl{ display:grid; grid-template-columns:auto 1fr; gap:3px 12px; margin:0; } #proStudio dt{ opacity:.65; } #proStudio dd{ margin:0; }
+  #proStudio ul{ margin:0; padding-left:16px; } #proStudio li{ margin:2px 0; }
+  #proStudio .ps-note{ white-space:pre-wrap; background:rgba(127,127,127,.1); border-radius:8px; padding:6px 8px; }
   #proBar[hidden] { display:none; }
   #proBar .pb-tno { white-space:nowrap; flex:0 0 auto; opacity:.85; }
   #proBar .pb-name { opacity:.7; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:28vw; }
@@ -18392,7 +18403,8 @@
     // in every state (the designer wants to see the CNC side before locking); a legacy project's "Smíða úr Eyðublöðum" is the same page
     var backBtn = EMBEDDED ? "" : '<a class="pb-back" href="/skrifstofa" title="Aftur á skrifstofuna (teikningin er geymd í þessum vafra)">← Skrifstofa</a>';
     var smidaBtn = PRO.legacy ? "" : '<button type="button" id="proSmidaCnc" title="Smíða & CNC (/smida): hliðar, frontar og það sem CNC borar — opnast í nýjum flipa">Smíða & CNC ↗</button>';
-    var reviewBtn = PRO.needsReview ? '<button type="button" id="proReviewed" class="pb-review" title="Teikning frá viðskiptavini: merktu hana yfirfarna (fer af „Til yfirferðar“ í CRM)">Merkja teikningu yfirfarna</button>' : "";
+    var reviewBtn = (proFromStudio() ? '<button type="button" id="proStudioBtn" class="pb-review" title="Það sem viðskiptavinurinn sendi inn úr Studio: svör, athugasemd, tengiliður, rými og sérkerfi">Frá Studio</button>' : "") +
+      (PRO.needsReview ? '<button type="button" id="proReviewed" class="pb-review" title="Teikning frá viðskiptavini: merktu hana yfirfarna (fer af „Til yfirferðar“ í CRM)">Merkja teikningu yfirfarna</button>' : "");
     if (PRO.locked && !PRO.unlocked){
       el.innerHTML = backBtn + '<span>PRO</span>' + proNameHtml() +
         '<span class="pb-locked">Í skipulagi (' + escapeHtmlPro(PRO.lockStatus) + ') — skoðunarhamur</span>' +
@@ -18406,6 +18418,7 @@
       var wd0 = el.querySelector("#proWorkDraw"); if (wd0) wd0.addEventListener("click", openWorkDrawings);
       var cn0 = el.querySelector("#proCnc"); if (cn0) cn0.addEventListener("click", function(){ window.open(proCncUrl(), "_blank", "noopener"); });
       var rb0 = el.querySelector("#proReviewed"); if (rb0) rb0.addEventListener("click", proMarkReviewed);
+      var sb0 = el.querySelector("#proStudioBtn"); if (sb0) sb0.addEventListener("click", function(){ var p = document.getElementById("proStudio"); proStudioRender(!p || p.hidden); });
       var se0 = el.querySelector("#proSmidaEy"); if (se0) se0.addEventListener("click", proOpenSmidaEy);
       var sc0 = el.querySelector("#proSmidaCnc"); if (sc0) sc0.addEventListener("click", proOpenSmidaEy);
       return;
@@ -18428,6 +18441,7 @@
     var ttb = el.querySelector("#proTilbodToggle"); if (ttb) ttb.addEventListener("click", proTilbodToggle);
     var wd = el.querySelector("#proWorkDraw"); if (wd) wd.addEventListener("click", openWorkDrawings);
     var rb = el.querySelector("#proReviewed"); if (rb) rb.addEventListener("click", proMarkReviewed);
+    var sb = el.querySelector("#proStudioBtn"); if (sb) sb.addEventListener("click", function(){ var p = document.getElementById("proStudio"); proStudioRender(!p || p.hidden); });
     var se = el.querySelector("#proSmidaEy"); if (se) se.addEventListener("click", proOpenSmidaEy);
     var sc = el.querySelector("#proSmidaCnc"); if (sc) sc.addEventListener("click", proOpenSmidaEy);
   }
@@ -18686,13 +18700,62 @@
   // "Yfirfarið" (2026-10-18) — the button referenced in old comments but never actually built. Staff
   // looks the self-serve drawing over here, clicks this, and it's off CRM's "Til yfirferðar" strip —
   // nothing else changes automatically (confirmed with the user: just the flag, not the sales stage).
+  // "Frá Studio" (2026-10-27): the customer's own inputs on a project that came from BJÖRNINN STUDIO — answers,
+  // their note, contact, the rooms with their materials, the special systems and when it was sent. Opens by itself
+  // while the drawing still waits for review; the bar's "Frá Studio" brings it back.
+  function proFromStudio(){ return !!(PRO && PRO.ready && (state.submissionId || PRO.needsReview)); }
+  function proStudioSpecials(){
+    var found = {}, add = function(t){ found[t] = (found[t] || 0) + 1; };
+    withEachCategory(function(cat){
+      var cd = categoryDef(cat);
+      state.walls.forEach(function(w){ (w.floor || []).concat(w.wall || []).forEach(function(b){
+        var c = CATALOG[b.type]; if (!c) return;
+        if (b.doorSys && DOOR_SYSTEMS[b.doorSys]) add(doorSysRec(b).label);
+        else if (b.smida && Array.isArray(b.smida.doors) && b.smida.doors.some(function(d){ return d && d.type === "pocket"; })) add("Vasahurðir / rennihurð í hlið (Blum Revego)");
+        if (b.aventos && AVENTOS_PRODUCTS[b.aventos]) add("Lyftihurð (" + AVENTOS_PRODUCTS[b.aventos].label + ")");
+        if (b.closetInner) add("Innskúffur fyrir aftan hurð");
+        if (b.mirrorFront) add("Spegilskápur");
+        if (c.cls === "tall" && (c.oven || c.fridge)) add("Tækjaskápur: " + c.label);
+      }); });
+      if (/^fataskapar/.test(String(cat)) && (state.closetMirror === "ein" || state.closetMirror === "allar")) add("Spegill á hurð (" + (state.closetMirror === "ein" ? "ein hurð" : "allar hurðir") + ")");
+    });
+    return Object.keys(found).map(function(t){ return found[t] > 1 ? t + " × " + found[t] : t; });
+  }
+  function proStudioAnswers(){
+    var a = {};
+    withEachCategory(function(){ var it = state.intake || {}; ["delivery", "budget", "install", "measure", "source", "note"].forEach(function(k){ if (it[k] && !a[k]) a[k] = it[k]; }); });
+    return a;
+  }
+  function proStudioRender(open){
+    var el = document.getElementById("proStudio");
+    if (!proFromStudio()){ if (el) el.hidden = true; return; }
+    if (!el){ el = document.createElement("div"); el.id = "proStudio"; el.setAttribute("role", "region"); el.setAttribute("aria-label", "Frá Studio"); document.body.appendChild(el); }
+    if (open != null) el.hidden = !open;
+    if (el.hidden) return;
+    var f = (PRO.rec && PRO.rec.fields) || {}, e = escapeHtmlPro, ans = proStudioAnswers();
+    var sent = PRO.rec && PRO.rec.createdTime ? new Date(PRO.rec.createdTime) : null;
+    var dl = function(rows){ rows = rows.map(function(r){ return [r[0], Array.isArray(r[1]) ? r[1].join(", ") : r[1]]; }).filter(function(r){ return r[1]; }); return rows.length ? '<dl>' + rows.map(function(r){ return '<dt>' + e(r[0]) + '</dt><dd>' + e(r[1]) + '</dd>'; }).join("") + '</dl>' : '<p style="opacity:.6;margin:0">—</p>'; };
+    var rooms = []; try{ rooms = orderBreakdownRows(); }catch(err){}
+    var spec = proStudioSpecials();
+    el.innerHTML = '<div class="ps-head"><b>Frá viðskiptavini (Studio)</b>' +
+        (PRO.needsReview ? '<button type="button" class="ps-ok" data-ps="ok" title="Tekur verkefnið af „Til yfirferðar“ í CRM — ekkert annað breytist">Yfirfarið</button>' : '<span style="opacity:.6">✓ yfirfarið</span>') +
+        '<button type="button" data-ps="hide">Fela</button></div>' +
+      '<div style="opacity:.7">Sent inn ' + (sent ? e(sent.toLocaleDateString("is-IS")) + " kl. " + e(sent.toLocaleTimeString("is-IS", { hour:"2-digit", minute:"2-digit" })) : "—") + '</div>' +
+      '<h5>Tengiliður</h5>' + dl([["Nafn", f["Fullt nafn 👤"]], ["Netfang", f["Netfang 📧"]], ["Sími", f["☎️ Símanúmer"]]]) +
+      '<h5>Spurningar</h5>' + dl([["Afhending", ans.delivery], ["Fjárhagur", ans.budget], ["Uppsetning", ans.install], ["Mæling", ans.measure], ["Frétti af okkur", ans.source]]) +
+      (ans.note ? '<h5>Eitthvað sem söluaðili ætti að vita</h5><div class="ps-note">' + e(ans.note) + '</div>' : '') +
+      '<h5>Rými og efni</h5>' + (rooms.length ? '<dl>' + rooms.map(function(r){ return '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>'; }).join("") + '</dl>' : '<p style="opacity:.6;margin:0">—</p>') +
+      '<h5>Sérkerfi og athugasemdir</h5>' + (spec.length ? '<ul>' + spec.map(function(t){ return '<li>' + e(t) + '</li>'; }).join("") + '</ul>' : '<p style="opacity:.6;margin:0">Engin</p>');
+    el.querySelector('[data-ps="hide"]').addEventListener("click", function(){ el.hidden = true; });
+    var ok = el.querySelector('[data-ps="ok"]'); if (ok) ok.addEventListener("click", proMarkReviewed);
+  }
   function proMarkReviewed(){
     var rb = document.getElementById("proReviewed"); if (rb) rb.disabled = true;
     fetch("/api/airtable?path=" + encodeURIComponent("tbl4LMXlQjp66RFKI/" + PRO.id) + "&k=" + encodeURIComponent(PRO.k), {
       method:"PATCH", headers:{ "Content-Type":"application/json" },
       body: JSON.stringify({ fields:{ "Sjálfsafgreiðsla — óyfirfarið ⚠️": false } })
-    }).then(function(){ PRO.needsReview = false; proBar(); })
-      .catch(function(){ if (rb) rb.disabled = false; });
+    }).then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); PRO.needsReview = false; proBar(); proStudioRender(); })
+      .catch(function(){ if (rb) rb.disabled = false; var ok = document.querySelector('#proStudio [data-ps="ok"]'); if (ok){ ok.disabled = false; ok.textContent = "Tókst ekki — reyna aftur"; } });
   }
   // "Keyra skipulag" — í stað gamla Interface-takkans í Airtable (sem hefur ekkert API-jafngildi): skrifar
   // gátreitinn "🔄 Keyra Skipulag" false→true á Tækifæri, sem retriggerar sjálfa Airtable-automationina
@@ -19262,6 +19325,7 @@
     PRO.unlocked = false;
     // CRM's "Til yfirferðar" strip (2026-10-18) — true until someone clicks Yfirfarið below.
     PRO.needsReview = !!(rec.fields || {})["Sjálfsafgreiðsla — óyfirfarið ⚠️"];
+    PRO.rec = { createdTime:rec.createdTime || null, fields:rec.fields || {} }; // "Frá Studio" reads the contact + sent date
     var keepLocal = false;
     if (!raw){ // Rakel draws every project (2026-10-09): no drawing yet = start one, from the Byrja category picker
       var local = null; try{ local = proDirty() ? localStorage.getItem(STORAGE_KEY) : null; }catch(e){}
@@ -19294,6 +19358,7 @@
     render();
     proBar();
     proLegacyCheck(); // an (empty) drawing on a project planned in Airtable: the bar still offers Smíða úr Eyðublöðum
+    if (PRO.needsReview && state.submissionId) setTimeout(function(){ proStudioRender(true); }, 400); // a fresh Studio submission: the customer's inputs first
     if (/[?&]maeling=1\b/.test(location.search)) setTimeout(openMeasurePanel, 300); // the measurer's link (A7)
     var smidaSk = (location.search.match(/[?&]smida=(Sk\d{1,3})\b/) || [])[1];
     if (smidaSk) setTimeout(function(){ proOpenSk(smidaSk); }, 300); // /cnc "Laga í PRO →" (2026-10-26)
