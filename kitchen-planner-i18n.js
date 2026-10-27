@@ -2152,6 +2152,8 @@
     "Ganga um": "Walk around",
     "Úthliðunum bætt við.": "End panels added.",
     "Vantar": "Missing",
+    "LED í spegilskáp": "LED in the mirror cabinet",
+    "Spegill": "Mirror",
     "Sýna inn í skápinn": "Show inside",
     "Toppurinn verður í {n} cm hæð": "The top will be {n} cm from the floor",
     "Opin hilla": "Open shelf",

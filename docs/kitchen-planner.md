@@ -697,3 +697,8 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   Hár skápur widths 40/50/60 + Annað mál. Málsetning in Skoða now also for bath / laundry; the unit-wall rooms' width and
   height dims sit at the back (along the wall); a label too long for its segment sits beside it. Front split ≤ 600 mm
   still waits for the Airtable field.
+- **Bath Skipulag menus (owner):** Lýsing — "LED í spegilskáp" (`lighting().mirror`, shown when a Spegilskápur exists)
+  lights only `mirrorFront` units, which `underWall` now skips; there is no LED under the vanity. Húsgögn (bath) offers
+  Klósett + Spegill as obstacles (the WC keeps cabinets away; neither is ordered, both noted under Hindranir): OBSTACLES
+  `model` draws the Húsgögn model fitted to the box (new `klosett` decor: block, bowl, seat + lid, flush plate; the shower
+  obstacle uses the `sturta` model), `look:"mirror"` a framed reflector.

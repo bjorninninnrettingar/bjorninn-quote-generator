@@ -8602,7 +8602,8 @@
         ? '<div class="cat-title">' + __("LED í öllum skápum") + '</div><div class="hw-toggle">' + [["", "Ekkert"], ["hlid", "Lóðrétt í hlið"], ["hilla", "Undir efstu hillu"]].map(function(o){
             return '<button type="button" class="hw-btn' + (clLed === o[0] ? ' active' : '') + '" data-closetledall="' + o[0] + '">' + __(o[1]) + '</button>'; }).join("") + '</div>' +
           (clLed === "mixed" ? '<p class="sec-note">' + __("Skáparnir eru með mismunandi LED — veldu til að hafa það eins alls staðar.") + '</p>' : '')
-        : '<div class="light-btns">' + lbtn("underWall", __("LED undir efri skápum")) + lbtn("shelves", __("LED í opnum hillum")) + '</div>') +
+        : '<div class="light-btns">' + (isBath() && surfaces().some(function(w){ return w.wall.some(function(b){ return b.mirrorFront; }); }) ? lbtn("mirror", __("LED í spegilskáp")) : '') + // (owner, 2026-10-27)
+          lbtn("underWall", __("LED undir efri skápum")) + lbtn("shelves", __("LED í opnum hillum")) + '</div>') +
       '<button type="button" class="btn btn-secondary btn-small" data-act="mood">' + (moodOn ? __("Dagsbirta") : __("Sjá í kvöldstemningu")) + '</button>' +
       (bom ? '<p class="sec-note">' + lightingText(bom).join(" · ") + '</p><p class="sec-note" style="font-size:11px;">' + __(LED_POWER_NOTE) + '</p>' : '<p class="sec-note">' + (clLed != null ? __("Smelltu á skáp til að kveikja eða slökkva á ljósi í honum.") : __("Smelltu á efri skáp til að kveikja eða slökkva á ljósi undir honum einum.")) + '</p>'));
     var DEC = KP3D.DECOR;
@@ -8616,6 +8617,7 @@
       }).join("") + ((state.decor || []).length ? '<div class="light-btns">' +
         '<button type="button" class="hw-btn' + (state.decorHidden ? ' active' : '') + '" data-decor-all="hide">' + (state.decorHidden ? __("Sýna húsgögnin") : __("Fela húsgögnin")) + '</button>' +
         '<button type="button" class="hw-btn' + (state.decorLocked ? ' active' : '') + '" data-decor-all="lock">' + (state.decorLocked ? __("Öll læst — smelltu til að opna") : __("Læsa öllum húsgögnum")) + '</button></div>' : '') +
+      (isBath() ? '<div class="cat-title">' + __("Baðherbergi") + '</div><div class="light-btns">' + ["klosett", "spegillVeggur"].map(function(k){ return '<button type="button" class="hw-btn" data-obst-add="' + k + '">＋ ' + __(KP3D.OBSTACLES[k].label) + '</button>'; }).join("") + '</div>' : '') + // (owner, 2026-10-27) — a WC also keeps cabinets away
       '<p class="sec-note">' + __("Bara til að sjá rýmið fyrir sér — ekki hluti af pöntuninni. Dragðu hlutina til í 3D.") + '</p>');
     // --- materials, changed right here mid-design (2026-10-10) ---
     var undNow = PRO ? matUndecided() : [];
@@ -11960,7 +11962,7 @@
 
   // ---- Lýsing (2026-10-05): what's lit, and the products it takes (Útfærslur "Ljós og lýsing") ----
   function lighting(){ return state.lighting || (state.lighting = { underWall:false, shelves:false, plinth:false }); }
-  function lightingOn(){ var L = lighting(); return L.underWall || L.shelves || surfaces().some(function(w){ return w.wall.some(function(b){ return b.led; }) || w.floor.some(function(b){ return !!b.closetLed; }); }); }
+  function lightingOn(){ var L = lighting(); return L.underWall || L.shelves || L.mirror || surfaces().some(function(w){ return w.wall.some(function(b){ return b.led; }) || w.floor.some(function(b){ return !!b.closetLed; }); }); }
   var LED_POWER_NOTE = "Rafmagn: viðskiptavinur eða fagaðili þarf að tengja LED-lýsinguna við rafmagn á staðnum."; // C3
   var LED_W_PER_M = 9.6; // rough power of the 4×8 mm strip, for the transformer size
   // The products, as real Útfærslur (Flokkur "Ljós og lýsing"). They go in V3 of the cabinet they light, one
@@ -11997,7 +11999,7 @@
       });
       w.wall.forEach(function(b){
         var c = CATALOG[b.type]; if (c.panel || c.shelfStack) return;
-        if (b.led != null ? b.led : L.underWall){ // a LED strip (4×8 mm) under each one, cut from the 1/2/3 m reels
+        if (b.led != null ? b.led : b.mirrorFront ? !!L.mirror : L.underWall){ // a LED strip (4×8 mm) under each one, cut from the 1/2/3 m reels (a spegilskápur: "LED í spegilskáp")
           unit(b, b.widthMm); watts += b.widthMm / 1000 * LED_W_PER_M;
         }
         if (c.open && L.shelves){ // a LED strip under the top and under each shelf (ATOM spots left out for now)

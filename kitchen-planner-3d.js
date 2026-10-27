@@ -5270,6 +5270,15 @@
         part(new THREE.CylinderGeometry(0.025, 0.025, dM, 16).rotateX(Math.PI / 2), 0x9a9da3, 0.35, 0.6, wM / 4, hM / 2, 0);
       } else if (def.look === "sill"){
         part(new THREE.BoxGeometry(wM, hM, dM), 0xe6e2da, 0.35, 0, 0, hM / 2, 0);
+      } else if (def.model){ // a WC / a shower: the real model (the Húsgögn one), fitted to the box
+        var mg = buildDecor(THREE, def.model, { kind:def.model }); mg.position.set(0, -hM / 2, 0);
+        mg.scale.set(wM / (def.w / 1000), 1, dM / (def.d / 1000));
+        mg.traverse(function(o){ if (o.isMesh){ o.castShadow = true; o.receiveShadow = true; if (sel && o.material){ o.material = o.material.clone(); o.material.emissive = new THREE.Color(SELECT_COLOR); o.material.emissiveIntensity = 0.35; } } });
+        proxy.add(mg);
+      } else if (def.look === "mirror"){ // a wall mirror: a thin pale frame, the glass a near-perfect reflector
+        part(new THREE.BoxGeometry(wM, hM, dM), 0xece9e2, 0.4, 0, 0, hM / 2, 0);
+        var mir = part(new THREE.BoxGeometry(wM - 0.03, hM - 0.03, 0.004), 0xe4eaee, 0.04, 1, 0, hM / 2, dM / 2 + 0.002);
+        mir.material.userData = { envKeep:true };
       } else if (def.look === "fixture"){ // shower / bath / WC: a calm neutral volume, a little see-through — "something stands here"
         var fx = part(new THREE.BoxGeometry(wM, hM, dM), 0xdfe3e6, 0.5, 0, 0, hM / 2, 0);
         fx.material.transparent = true; fx.material.opacity = 0.55; fx.castShadow = false;
@@ -5494,7 +5503,7 @@
         if (c.panel || opts.people) return;
         var wf = null, ww = b.widthMm / 1000;
         // LED under the wall unit: a strip under its front edge, a glow on what's below (worktop / floor unit / floor)
-        if (b.led != null ? b.led : LIGHT.underWall){
+        if (b.led != null ? b.led : b.mirrorFront ? !!LIGHT.mirror : LIGHT.underWall){ // a spegilskápur has its own "LED í spegilskáp"
           wf = ledFrame(THREE, scene, g, offset / 1000, ww);
           ledStrip(THREE, scene, wf, 0, ww - 0.04, elevM - 0.004, dM - 0.05);
           var mid = offset + b.widthMm / 2, under = wall.floor.find(function(fb, fi){ return fStarts[fi] <= mid && mid <= fStarts[fi] + fb.widthMm; });
@@ -6695,8 +6704,9 @@
     ofn:         { label:"Miðstöðvarofn",         w:1000, d:100, h:600, elev:150,  blocks:true,  look:"radiator" },
     // Bað (owner, 2026-10-27): where cabinets can't go — never ordered, only drawn and noted for the söluaðili
     handklaedaofn:{ label:"Handklæðaofn",         w:500, d:100, h:1200, elev:300,  blocks:true,  look:"radiator", rooms:["bad"] },
-    sturta:      { label:"Sturta / baðkar",       w:900, d:900, h:2000, elev:0,    blocks:true,  look:"fixture", rooms:["bad"] },
-    klosett:     { label:"Klósett",               w:400, d:650, h:800, elev:0,     blocks:true,  look:"fixture", rooms:["bad"] },
+    sturta:      { label:"Sturta / baðkar",       w:900, d:900, h:2000, elev:0,    blocks:true,  look:"fixture", rooms:["bad"], model:"sturta" },
+    klosett:     { label:"Klósett",               w:400, d:650, h:800, elev:0,     blocks:true,  look:"fixture", rooms:["bad"], model:"klosett" }, // a real wall-hung WC in 3D (owner, 2026-10-27)
+    spegillVeggur:{ label:"Spegill",              w:600, d:20, h:800, elev:1100,   blocks:false, look:"mirror", rooms:["bad"] }, // a loose mirror on the wall — not ordered
     tafla:       { label:"Rafmagnstafla",         w:400, d:120, h:600,  elev:1400, blocks:true,  look:"panel" },
     vatn:        { label:"Vatnsinntak / niðurfall", w:150, d:60, h:150, elev:450,  blocks:false, look:"pipe", notRooms:["bad", "thvottahus"] }, // there the water is the droplet
     kista:       { label:"Gluggakista",           w:1300, d:200, h:40,  elev:960,  blocks:true,  look:"sill" }
@@ -7257,6 +7267,16 @@
       tube([[-0.4, 1.82, -0.4], [-0.4, 1.95, -0.35], [-0.3, 1.97, -0.28]], 0.011, steel);
       cyl(0.11, 0.11, 0.012, -0.28, 1.96, -0.26, steel, 32);
       rbox(0.07, 0.12, 0.05, 0.01, -0.4, 1.05, -0.4, steel);
+    } else if (key === "klosett"){ // a wall-hung WC (owner, 2026-10-27): the mounting block, a rounded bowl, seat + lid, a flush plate on the wall
+      var ceramic = mat(0xf7f6f2, 0.18), seatM = mat(0xfbfaf8, 0.3);
+      rbox(0.36, 0.42, 0.16, 0.03, 0, 0.47, -0.245, ceramic); // the block against the wall
+      var bowlW = new THREE.Mesh(new THREE.SphereGeometry(1, 40, 24, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), ceramic);
+      bowlW.scale.set(0.18, 0.2, 0.27); bowlW.position.set(0, 0.42, 0.02); add(bowlW);
+      var rimW = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.03, 40), ceramic); rimW.scale.set(0.18, 1, 0.27); rimW.position.set(0, 0.42, 0.02); add(rimW);
+      var seatW = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.018, 40), seatM); seatW.scale.set(0.185, 1, 0.275); seatW.position.set(0, 0.444, 0.025); add(seatW);
+      var lidW = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.016, 40), seatM); lidW.scale.set(0.18, 1, 0.27); lidW.position.set(0, 0.461, 0.025); add(lidW);
+      rbox(0.24, 0.16, 0.012, 0.01, 0, 1.02, -0.319, mat(0xeeeeec, 0.25)); // flush plate
+      rbox(0.07, 0.1, 0.006, 0.005, -0.045, 1.02, -0.311, mat(0xdcdedf, 0.2, 0.3)); rbox(0.07, 0.1, 0.006, 0.005, 0.045, 1.02, -0.311, mat(0xdcdedf, 0.2, 0.3));
     } else if (key === "badkar"){ // a built-in 170×70 bath: white panelled tub, an inset oval bowl, a chrome spout at one end
       var whiteB = mat(0xf7f6f2, 0.2), inner = mat(0xf2f1ec, 0.15, 0, { side:THREE.DoubleSide });
       var ring = new THREE.Shape(); ring.moveTo(-0.85, -0.35); ring.lineTo(0.85, -0.35); ring.lineTo(0.85, 0.35); ring.lineTo(-0.85, 0.35); ring.lineTo(-0.85, -0.35);
