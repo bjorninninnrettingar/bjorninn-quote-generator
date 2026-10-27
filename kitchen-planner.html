@@ -146,7 +146,8 @@
   .help-ref-body .hr-none{ padding:16px 0; color:var(--ink-soft); font-size:14px; }
   .help-ref-body mark{ background:#fff0b8; padding:0 1px; border-radius:2px; }
   /* one-time hints at the moment they matter (owner, 2026-10-27) */
-  .hint-pop{ position:fixed; left:20px; bottom:24px; z-index:320; max-width:340px; background:#191919; color:#fff; border-radius:12px; box-shadow:0 12px 34px rgba(0,0,0,.25); padding:12px 38px 12px 14px; font-size:13.5px; line-height:1.45; animation:hintIn .25s ease; }
+  .studio-card .ic svg{ stroke-width:1; } /* thinner line icons on the room cards (user, 2026-10-27) */
+  .hint-pop{ position:fixed; left:76px; bottom:24px; z-index:320; max-width:340px; background:#191919; color:#fff; border-radius:12px; box-shadow:0 12px 34px rgba(0,0,0,.25); padding:12px 38px 12px 14px; font-size:13.5px; line-height:1.45; animation:hintIn .25s ease; }
   .hint-pop b{ color:#f3d27a; } .hint-pop button{ position:absolute; top:6px; right:6px; background:none; border:0; color:#bbb; font-size:18px; line-height:1; cursor:pointer; padding:4px 6px; }
   @keyframes hintIn{ from{ opacity:0; transform:translateY(8px); } }
   @media (prefers-reduced-motion:reduce){ .hint-pop{ animation:none; } }
@@ -665,6 +666,7 @@
   .in-room .ir-acts button{ padding:5px 7px; }
   .in-room .ir-row{ display:flex; align-items:center; gap:8px; background:#fff; border:1px solid var(--line); border-radius:10px; padding:7px 10px; font-size:13px; flex-wrap:wrap; }
   .in-room .ir-row b{ flex:1; min-width:100px; }
+  .in-room .ir-dims{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; width:100%; }
   .in-room .ir-row label{ display:flex; align-items:center; gap:4px; color:var(--ink-soft); font-size:12px; }
   .in-room .ir-row input{ width:62px; font:inherit; font-size:13px; padding:4px 6px; border:1px solid var(--line); border-radius:7px; }
   .in-room .ir-acts{ display:flex; gap:4px; }
@@ -1050,7 +1052,7 @@
   .dw-row-simple .dw-mv svg{ stroke-width:2; }
   .dw-row-simple .dw-mv:hover:not(:disabled){ color:var(--accent, #3a5bd9); background:#eef2fd; }
   .dw-row-simple .dw-bin:disabled{ opacity:.25; cursor:default; }
-  .dw-add-one{ margin-top:6px; width:100%; border:1px dashed var(--line); background:#fff; border-radius:6px; padding:8px; font:inherit; font-size:13px; color:var(--ink-soft); cursor:pointer; }
+  .dw-add-one{ margin-top:6px; width:100%; border:1px dashed #9a968a; background:#fff; border-radius:6px; padding:8px; font:inherit; font-size:13px; color:var(--ink); cursor:pointer; }
   .dw-add-one:hover:not(:disabled){ border-color:var(--ink); color:var(--ink); }
   .dw-add-one:disabled{ opacity:.4; cursor:default; }
 
@@ -3452,8 +3454,8 @@
       topRun(X0, kind === "closet" ? 110 : 104, kind !== "closet");
     } else if (key === "closetCorner" || key === "bathCorner"){
       wall(X0, Y0, X1, Y0); wall(X0, Y0, X0, Y1); wall(X1, Y0, X1, Y1, true); wall(X1, Y1, X0, Y1, true);
-      topRun(X0 + 34, kind === "closet" ? 100 : 96, kind !== "closet");
-      leftRun(Y0 + 38, kind === "closet" ? 52 : 44);
+      topRun(X0, kind === "closet" ? 110 : 104, kind !== "closet"); // the two runs meet in the corner, as in the planner (user, 2026-10-27)
+      leftRun(Y0 + (kind === "closet" ? D + 4 : D), kind === "closet" ? 56 : 48);
     } else if (key === "closetNiche"){ // the wardrobe set into a recess between two walls
       var nx0 = X0 + 44, nx1 = X1 - 44, nd = D + 8;
       wall(X0, Y0 + nd, nx0, Y0 + nd); wall(nx0, Y0 + nd, nx0, Y0); wall(nx0, Y0, nx1, Y0); wall(nx1, Y0, nx1, Y0 + nd); wall(nx1, Y0 + nd, X1, Y0 + nd);
@@ -3486,7 +3488,7 @@
         out += '<polygon points="' + cpts.map(function(c){ return c[0].toFixed(1) + "," + c[1].toFixed(1); }).join(" ") + '" fill="#d9ccb2" stroke="#9c8f77" stroke-width="1"/>';
       }
     });
-    if (units){ // a kitchen card (owner, 2026-10-27): a run on its first solid wall + a dashed wall cabinet over it — the wall rooms' style
+    if (false && units){ // a kitchen card (owner, 2026-10-27) — switched off the same day: kitchens vary so much that a drawn run misleads; bare room outlines only: a run on its first solid wall + a dashed wall cabinet over it — the wall rooms' style
       var wi = t.edges.findIndex(function(e, i){ return t.open.indexOf(i) < 0; });
       if (wi >= 0){
         var p = v[wi], q = v[(wi + 1) % v.length], L = Math.hypot(q.x - p.x, q.z - p.z) || 1, ux = (q.x - p.x) / L, uz = (q.z - p.z) / L, inx = -uz, inz = ux;
@@ -3670,6 +3672,11 @@
         if (shapePhase === "size" && sizeObSel === o.id && def.free && !round){
           var T = obTotalAng(o) * Math.PI / 180, ldx = -Math.sin(T), ldn = Math.cos(T); // its length axis, (along, out)
           var dx = ax * ldx + nx * ldn, dy = az * ldx + nz * ldn, reach = Math.max(o.widthMm, o.depthMm) / 2 * sc + 22;
+          if (o.kind === "milliveggur"){ // both ends are handles: drag one to lengthen / shorten it, the other end stays put (user, 2026-10-27)
+            reach += 14;
+            [1, -1].forEach(function(sg){ var ex = cx0 + dx * sg * o.depthMm / 2 * sc, ey = cy0 + dy * sg * o.depthMm / 2 * sc;
+              items += '<g data-obend="' + o.id + ':' + sg + '" style="cursor:ew-resize;"><circle cx="' + ex + '" cy="' + ey + '" r="7" fill="#fff" stroke="#0058a3" stroke-width="2"/><title>' + __("Dragðu til að lengja eða stytta") + '</title></g>'; });
+          }
           var hx = cx0 + dx * reach, hy = cy0 + dy * reach;
           items += '<line x1="' + cx0 + '" y1="' + cy0 + '" x2="' + hx + '" y2="' + hy + '" stroke="#0058a3" stroke-width="1.2" stroke-dasharray="3,3" style="pointer-events:none;"/>' +
             '<g data-obrot="' + o.id + '" style="cursor:grab;"><circle cx="' + hx + '" cy="' + hy + '" r="11" fill="#fff" stroke="#0058a3" stroke-width="2"/><g transform="translate(' + (hx - 7) + ',' + (hy - 7) + ') scale(.58)" fill="none" stroke="#0058a3" stroke-width="2.4" stroke-linecap="round">' + ICON_PATHS.rotate + '</g><title>' + __("Dragðu til að snúa. Smellur á 45° og 90°.") + '</title></g>';
@@ -3882,6 +3889,9 @@
     });
     host.querySelectorAll("[data-obdrag]").forEach(function(el){
       el.addEventListener("pointerdown", function(evt){ startObDrag(el.dataset.obdrag, evt); });
+    });
+    host.querySelectorAll("[data-obend]").forEach(function(el){
+      el.addEventListener("pointerdown", function(evt){ var pr = el.dataset.obend.split(":"); startObEnd(pr[0], +pr[1], evt); });
     });
     host.querySelectorAll("[data-obrot]").forEach(function(el){
       el.addEventListener("pointerdown", function(evt){ startObRotate(el.dataset.obrot, evt); });
@@ -5025,8 +5035,9 @@
         var mv = o.kind === "milliveggur", round = o.shape === "round", num = function(k, v, lbl, unit){ return '<label>' + __(lbl) + ' <input type="number" step="' + (unit === "°" ? 1 : 10) + '" data-irv="' + o.id + ':' + k + '"' + (unit === "°" ? '' : ' data-len') + ' value="' + v + '">' + (unit || uUnit()) + '</label>'; };
         var shape = mv ? '' : '<span class="ir-shape"><button type="button" data-irshape="' + o.id + ':box" aria-pressed="' + !round + '" title="' + __("Kassi") + '"><svg width="14" height="14"><rect x="2" y="2" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button><button type="button" data-irshape="' + o.id + ':round" aria-pressed="' + round + '" title="' + __("Hringur") + '"><svg width="14" height="14"><circle cx="7" cy="7" r="5.3" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button></span>';
         var dims = mv ? num("depthMm", o.depthMm, "Lengd") + num("widthMm", o.widthMm, "Þykkt") : round ? num("diaMm", o.widthMm, "Þvermál") : num("widthMm", o.widthMm, "Breidd") + num("depthMm", o.depthMm, "Dýpt");
-        return '<div class="ir-row' + (sizeObSel === o.id ? ' sel' : '') + '" data-irsel="' + o.id + '"><b>' + __(KP3D.OBSTACLES[o.kind].label) + '</b>' + shape + dims + (round ? '' : num("ang", obTotalAng(o), "Horn", "°")) +
-          '<span class="ir-acts">' + (round ? '' : '<button type="button" data-irrot="' + o.id + '" title="' + __("Snúa um 90°") + '">' + icon("rotate", 13) + '</button>') + '<button type="button" data-irdel="' + o.id + '" title="' + __("Fjarlægja") + '">' + icon("close", 13) + '</button></span></div>';
+        return '<div class="ir-row' + (sizeObSel === o.id ? ' sel' : '') + '" data-irsel="' + o.id + '"><b>' + __(KP3D.OBSTACLES[o.kind].label) + '</b>' + shape +
+          '<span class="ir-acts"><button type="button" data-irrot="' + o.id + '" title="' + __("Snúa um 90°") + '"' + (round ? ' style="visibility:hidden" tabindex="-1" aria-hidden="true"' : '') + '>' + icon("rotate", 13) + '</button><button type="button" data-irdel="' + o.id + '" title="' + __("Fjarlægja") + '">' + icon("close", 13) + '</button></span>' + // the buttons never move: round hides the rotate button but keeps its place (user, 2026-10-27)
+          '<div class="ir-dims">' + dims + (round ? '' : num("ang", obTotalAng(o), "Átt", "°")) + '</div></div>';
       }).join("") + (mine.length ? '<p class="ir-hint">' + __("Dragðu á teikningunni til að færa. Veldu og dragðu handfangið til að snúa.") + '</p>' : '');
     box.appendChild(inRoom);
     inRoom.addEventListener("click", function(e){
@@ -5385,6 +5396,29 @@
       renderShapeCanvas();
     }
     function up(){ window.removeEventListener("pointermove", move); obRot = null; frozenView = null; save(); renderWallList(); renderShapeCanvas(); }
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up, { once:true });
+  }
+  // a milliveggur's end handle: its length (depthMm) follows the pointer along its own axis, the far end stays where it is
+  function startObEnd(id, sg, evt){
+    evt.preventDefault(); evt.stopPropagation();
+    var o = findObstacle(id), host = document.getElementById("shapeCanvas"); if (!o) return;
+    var wi = state.walls.findIndex(function(w){ return w.id === o.wallId; }), v = shapeView(host.clientWidth, host.clientHeight);
+    frozenView = { scale:v.scale, ox:v.ox, oy:v.oy, ref:0, refX:v.pts[0].x, refZ:v.pts[0].z };
+    var T = obTotalAng(o) * Math.PI / 180, da = -Math.sin(T) * sg, dn = Math.cos(T) * sg; // the dragged end's direction, (along, out)
+    var r0 = KP3D.obstacleRect(o), cA = (r0.a0 + r0.a1) / 2, cN = (r0.n0 + r0.n1) / 2, L0 = o.depthMm, fa = cA - da * L0 / 2, fn = cN - dn * L0 / 2;
+    var n = v.pts.length, p1 = v.pts[wi], p2 = v.pts[(wi + 1) % n], L = Math.hypot(p2.x - p1.x, p2.z - p1.z) || 1, ax = (p2.x - p1.x) / L, az = (p2.z - p1.z) / L, nx = -az, nz = ax;
+    function move(e){
+      var p = canvasPointMm(e, v), px = p.x - p1.x, pz = p.z - p1.z, pa = px * ax + pz * az, pn = px * nx + pz * nz;
+      var len = Math.round(((pa - fa) * da + (pn - fn) * dn) / 10) * 10;
+      len = Math.max(Math.max(200, minMilliveggDepthMm(o)), Math.min(6000, len));
+      var ca = fa + da * len / 2, cn = fn + dn * len / 2;
+      o.depthMm = len;
+      if (o.rot === 90){ o.offsetMm = Math.round(ca - len / 2); o.outMm = Math.round(cn - o.widthMm / 2); }
+      else { o.offsetMm = Math.round(ca - o.widthMm / 2); o.outMm = Math.round(cn - len / 2); }
+      renderShapeCanvas();
+    }
+    function up(){ window.removeEventListener("pointermove", move); frozenView = null; save(); renderWallList(); renderShapeCanvas(); }
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up, { once:true });
   }

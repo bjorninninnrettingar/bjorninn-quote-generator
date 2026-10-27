@@ -768,7 +768,7 @@
     // fake that precision. It writes a plain note instead (see
     // collectEyðublaðRows in kitchen-planner.html), same pattern as the
     // shelves-vs-drawers note. `isPushOpen` flags that branch.
-    push:   { label:"Þrýstiopnun (Blum Tip-on)", img:"handles/push-open.jpg", desc:"Ekkert sýnilegt handfang eða grip — ýtt létt á framhliðina til að opna", vorulistiId:null, isPushOpen:true }
+    push:   { label:"Þrýstiopnun", img:"handles/push-open.jpg", desc:"Ekkert sýnilegt handfang eða grip — ýtt létt á framhliðina til að opna", vorulistiId:null, isPushOpen:true }
   };
   // 3D look of each handle: style = bar | edge | tab | knob | groove | none,
   // len = bar length (m) or the share of the door width for an edge profile.
@@ -2794,8 +2794,13 @@
     if (p.hinges) p.hinges.forEach(function(h){ h.visible = e > 0.75; }); // the hinge model is the open hinge
   }
   function stepParts(scene){
-    (scene.userData.parts || []).forEach(function(p){
-      if (p.cur === p.target) return;
+    var all = scene.userData.parts || [];
+    all.forEach(function(p){
+      if (p.cur === p.target && !(p.host && p.cur > 0)) return;
+      if (p.host){ // an innskúffa lives behind its host drawer: it shuts with it and never opens through it (user, 2026-10-27)
+        var hp = all.find(function(x){ return x.key === p.host; });
+        if (hp){ if (hp.target === 0) p.target = 0; if (p.cur > hp.cur){ p.cur = hp.cur; applyPart(p); } if (p.cur === p.target) return; }
+      }
       p.cur += (p.target - p.cur) * (p.kind === "lemans" ? 0.045 : 0.14); // a LeMans opens slowly enough to follow the trays
       if (Math.abs(p.target - p.cur) < 0.002) p.cur = p.target;
       applyPart(p);
@@ -2816,6 +2821,7 @@
     if (!THREE_STATE) return;
     var p = (THREE_STATE.scene.userData.parts || []).find(function(x){ return x.key === key; });
     if (!p) return;
+    if (p.host){ var hp2 = (THREE_STATE.scene.userData.parts || []).find(function(x){ return x.key === p.host; }); if (hp2 && !hp2.target) return; } // behind a closed drawer: nothing to open
     p.target = p.target ? 0 : 1;
     PART_STATE[key] = p;
   }
@@ -2989,7 +2995,7 @@
           var ipm = Object.assign({}, meta, { isPart:true, partKey:ikey });
           imeshes.forEach(function(m){ m.userData = ipm; pickables.push(m); });
           var prevI = PART_STATE[ikey];
-          var partI = { key:ikey, group:ig, kind:"drawer", slide:Math.min(0.3, CD * 0.5), cur:prevI ? prevI.cur : 0, target:prevI ? prevI.target : (PEEK_OPEN[meta.blockId] ? 1 : 0) };
+          var partI = { key:ikey, host:key, group:ig, kind:"drawer", slide:Math.min(0.3, CD * 0.5), cur:prevI ? prevI.cur : 0, target:prevI ? prevI.target : (PEEK_OPEN[meta.blockId] ? 1 : 0) };
           PART_STATE[ikey] = partI; parts.push(partI); applyPart(partI);
           frame.add(ig);
         }
@@ -4160,6 +4166,7 @@
       if (moved || MEASURING || drag) return;
       var mesh = pickMeshAt(evt), u = mesh && mesh.userData;
       if (!u || !u.blockId || /^(obstacle|decor|opening)/.test(String(u.kind || u.zone || ""))) return;
+      if (u.isPart && u.partKey){ togglePart(u.partKey); return; } // right-click on one drawer / door opens only that one (user, 2026-10-27); the carcass opens the whole cabinet
       peekToggle(u.blockId, opts.onPeek);
       if (opts.onPeekToggle) opts.onPeekToggle(u.blockId);
     }
@@ -6385,7 +6392,7 @@
       var svg = "";
       // an úthlið is its own segment, labelled with its thickness in mm (owner, 2026-10-27: 60 | 19 | 60 adds up to
       // the real total) — "19 mm" for a customer, whose chain is otherwise in cm
-      function segTxt(u){ return u.panel ? String(Math.round(u.widthMm)) + (unitCm() ? " mm" : "") : dimNum(u.widthMm); }
+      function segTxt(u){ return u.panel ? String(Math.round(u.widthMm)) : dimNum(u.widthMm); }
       floorU.forEach(function(u){
         var p0 = P(u.a0, -0.12), p1 = P(u.a1, -0.12);
         svg += dimTick(p0.x, p0.y, p1.x, p1.y, segTxt(u), false, color);
