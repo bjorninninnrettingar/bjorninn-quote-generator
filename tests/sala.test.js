@@ -119,3 +119,22 @@ test("Fyrirspurnir: list needs the key and never shows Afgreitt; status only tak
   assert.deepEqual(patches(good.calls)[0].body.fields, { [V.status]: "Afgreitt" });
   assert.match(patches(good.calls)[0].url, new RegExp(VEFSPJALL + "/"));
 });
+
+test("Verðstillingar: only the 5 price fields, discounts 0–50 %, locked once the deal is won", async () => {
+  assert.equal(refusal("verd", {}, { fields: { osynilegur: 0.1, uppsetning: true, skipting: "50% - 50%", ferdir: null } }), null);
+  assert.match(refusal("verd", {}, { fields: { osynilegur: 10 } }), /0–50/);
+  assert.match(refusal("verd", {}, { fields: { "Staða í söluferli": "x" } }), /Óþekktur/);
+  assert.match(refusal("verd", {}, { fields: {} }), /Óþekktur/);
+  assert.match(refusal("verd", {}, { fields: { skipting: "30%" } }), /Óþekkt gildi/);
+  assert.match(refusal("verd", { [F.stage]: WON }, { fields: { uppsetning: true } }), /læstar/);
+  const { calls } = await run(post({ action: "verd", fields: { afslUpps: 0.2, ferdir: "2 Ferðir 🚚🚚" } }), {});
+  assert.deepEqual(patches(calls)[0].body.fields, { [F.afslUpps]: 0.2, [F.ferdir]: "2 Ferðir 🚚🚚" });
+});
+
+test("Tengja tengilið appends to the existing contacts, never replaces or duplicates", async () => {
+  const C1 = "recCCCCCCCCCCCCC1", C2 = "recCCCCCCCCCCCCC2";
+  assert.match(refusal("tengilid", { [F.contacts]: [C1] }, { contactId: C1 }), /þegar/);
+  assert.match(refusal("tengilid", {}, { contactId: "x" }), /Ógildur/);
+  const { calls } = await run(post({ action: "tengilid", contactId: C2 }), { [F.contacts]: [C1] });
+  assert.deepEqual(patches(calls)[0].body.fields, { [F.contacts]: [C1, C2] });
+});

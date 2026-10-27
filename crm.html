@@ -239,6 +239,9 @@
   .pendingRow { display:flex; align-items:center; gap:8px; grid-column:1/-1; }
   .approveBtn { font:inherit; font-size:.78rem; padding:4px 10px; border-radius:8px; border:1px solid #2e7d32; background:#e8f5e9; color:#1b5e20; cursor:pointer; }
   .approvedPill { font-size:.72rem; font-weight:600; padding:2px 8px; border-radius:999px; background:#e8f5e9; color:#1b5e20; }
+  .ctWrap { text-align:right; }
+  .ctAdd { font:inherit; font-size:.76rem; padding:3px 8px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--text); cursor:pointer; }
+  .detail input[type="number"] { font:inherit; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:6px 9px; }
   .fuBtns { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
   .fuBtns button { font:inherit; font-size:.8rem; padding:5px 9px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--text); cursor:pointer; }
   .fuBtns button:disabled { opacity:.5; cursor:default; }
@@ -382,6 +385,18 @@
     <div class="row"><label>Líkur á sölu</label><select id="dLikur"></select></div>
     <div class="row"><label>Prufuverk <span class="muted" title="Prufu-/testverk telja ekki í KPI og tölfræði">(telst ekki með)</span></label><input type="checkbox" id="dPrufa" /></div>
     <div class="fuMsg" id="dFuMsg"></div>
+    <div class="row"><label>Tengiliðir</label><span class="ctWrap"><span id="dContacts"></span> <button type="button" class="ctAdd" id="dCtAdd">+ Tengja</button></span></div>
+    <div id="dCtPick" style="display:none;"><input class="lpSearch" id="dCtSearch" type="text" placeholder="Leita að tengilið (nafn, netfang, sími)…" /><div class="lpResults" id="dCtResults"></div></div>
+
+    <button class="liToggle" id="vsToggleBtn" type="button">⚙️ Verðstillingar ▾</button>
+    <div id="vsBody" class="liBody">
+      <div class="row"><label>Ósýnilegur afsláttur %</label><input type="number" id="vsOsyn" min="0" max="50" step="1" placeholder="0" style="width:80px" /></div>
+      <div class="row"><label>Uppsetning Bjarnarins</label><input type="checkbox" id="vsUpps" /></div>
+      <div class="row"><label>Afsláttur í uppsetningu %</label><input type="number" id="vsAfslUpps" min="0" max="50" step="1" placeholder="0" style="width:80px" /></div>
+      <div class="row"><label>Heimsending (ferðir)</label><select id="vsFerdir"></select></div>
+      <div class="row"><label>Skipting greiðslu</label><select id="vsSkipting"></select></div>
+      <div class="fuMsg" id="vsMsg"></div>
+    </div>
 
     <div id="liWrap" style="display:none;">
       <button class="liToggle" id="liToggleBtn" type="button">📦 Vörulínur ▾</button>
@@ -1215,6 +1230,78 @@
     };
   }
 
+  // ---- Verðstillingar (2026-10-27) — same Tækifæri fields PRO's Tilboð panel edits, for quick-line deals
+  // that never open PRO. api/sala.js `verd`; refused after Unnið (price locked). ----
+  var FERDIR_CHOICES = ["1 Ferð 🚚", "2 Ferðir 🚚🚚", "3 Ferðir 🚚🚚🚚", "4 Ferðir 🚚🚚🚚🚚"];
+  var SKIPTING_CHOICES = ["100%", "50% - 50%", "40% - 30% - 30%"];
+  function setupPriceSettings(r) {
+    var f = r.fields, body = document.getElementById("vsBody"), btn = document.getElementById("vsToggleBtn"), msg = document.getElementById("vsMsg");
+    var locked = f["Staða í söluferli"] === "🏆 Tækifæri unnið";
+    btn.style.display = locked ? "none" : "";
+    body.classList.remove("open"); btn.textContent = "⚙️ Verðstillingar ▾"; msg.textContent = "";
+    btn.onclick = function () { var o = body.classList.toggle("open"); btn.textContent = "⚙️ Verðstillingar " + (o ? "▴" : "▾"); };
+    var pct = function (v) { return v == null ? "" : Math.round(v * 100); };
+    var osyn = document.getElementById("vsOsyn"), upps = document.getElementById("vsUpps"), au = document.getElementById("vsAfslUpps");
+    var fe = document.getElementById("vsFerdir"), sk = document.getElementById("vsSkipting");
+    osyn.value = pct(f["Ósýnilegur afsláttur %"]); au.value = pct(f["Afsláttur í uppsetningu"]);
+    upps.checked = !!f["Uppsetning Bjarnarins 🪛🐻"];
+    fe.innerHTML = selectHtml(FERDIR_CHOICES, f["Fjöldi ferða 🚚"]);
+    sk.innerHTML = selectHtml(SKIPTING_CHOICES, f["Skipting greiðslu"]);
+    function save(key, field, value) {
+      var o = {}; o[key] = value;
+      msg.textContent = "Vista…";
+      sala("verd", { recordId: r.id, fields: o }).then(function () { f[field] = value; msg.textContent = "✓ Vistað — tilboðsupphæðin uppfærist í Airtable"; },
+        function (e) { msg.textContent = "Tókst ekki: " + e.message; });
+    }
+    var num = function (el) { return el.value === "" ? null : Number(el.value) / 100; };
+    osyn.onchange = function () { save("osynilegur", "Ósýnilegur afsláttur %", num(osyn)); };
+    au.onchange = function () { save("afslUpps", "Afsláttur í uppsetningu", num(au)); };
+    upps.onchange = function () { save("uppsetning", "Uppsetning Bjarnarins 🪛🐻", upps.checked); };
+    fe.onchange = function () { save("ferdir", "Fjöldi ferða 🚚", fe.value || null); };
+    sk.onchange = function () { save("skipting", "Skipting greiðslu", sk.value || null); };
+  }
+
+  // ---- Tengiliðir verkefnis (2026-10-27) — names of the linked contacts + "Tengja" another existing one
+  // (replaces Airtable's "Tengja tengilið við sölu" form). New contacts are still made in 👤 Tengiliðir. ----
+  function contactName(c) { return ((c["Fornafn ⬅️"] || "") + " " + (c["Eftirnafn ➡️"] || "")).trim() || c["Netfang 📧"] || "(ónefndur)"; }
+  function setupContacts(r) {
+    var f = r.fields, out = document.getElementById("dContacts"), pick = document.getElementById("dCtPick");
+    var ids = (f["Tengiliður verkefnis 👤"] || []).slice();
+    pick.style.display = "none";
+    function paint(names) { out.textContent = names.length ? names.join(", ") : "—"; }
+    paint([]);
+    Promise.all(ids.map(function (id) { return api(CONTACTS + "/" + id).then(function (d) { return contactName(d.fields || {}); }, function () { return "?"; }); })).then(paint);
+    document.getElementById("dCtAdd").onclick = function () {
+      pick.style.display = pick.style.display === "none" ? "block" : "none";
+      var s = document.getElementById("dCtSearch"); s.value = ""; document.getElementById("dCtResults").innerHTML = ""; s.focus();
+    };
+    var t = null;
+    document.getElementById("dCtSearch").oninput = function (e) {
+      clearTimeout(t);
+      var term = e.target.value.trim(), res = document.getElementById("dCtResults");
+      if (!term) { res.innerHTML = ""; return; }
+      t = setTimeout(function () {
+        var q = String(term).replace(/"/g, '\\"');
+        var fml = "OR(SEARCH(LOWER(\"" + q + "\"),LOWER({Fornafn ⬅️}&\" \"&{Eftirnafn ➡️})),SEARCH(LOWER(\"" + q + "\"),LOWER({Netfang 📧})),SEARCH(\"" + q + "\",{Símanúmer ☎️}))";
+        api(CONTACTS, "filterByFormula=" + encodeURIComponent(fml) + "&maxRecords=8").then(function (d) {
+          res.innerHTML = "";
+          (d.records || []).filter(function (c) { return ids.indexOf(c.id) === -1; }).forEach(function (c) {
+            var el = document.createElement("div"); el.className = "lpResult";
+            el.textContent = contactName(c.fields) + (c.fields["Netfang 📧"] ? " · " + c.fields["Netfang 📧"] : "");
+            el.onclick = function () {
+              el.textContent = "Tengi…";
+              sala("tengilid", { recordId: r.id, contactId: c.id }).then(function () {
+                ids.push(c.id); f["Tengiliður verkefnis 👤"] = ids.slice(); setupContacts(r);
+              }, function (err) { el.textContent = err.message; });
+            };
+            res.appendChild(el);
+          });
+          if (!res.children.length) res.innerHTML = '<div class="empty">Ekkert fannst</div>';
+        });
+      }, 250);
+    };
+  }
+
   function openDetail(r) {
     var f = r.fields;
     document.getElementById("dName").textContent = f["Heiti tækifæris / verkefnis"] || "(ónefnt)";
@@ -1240,6 +1327,8 @@
     document.getElementById("dStepDate").value = f["Næsta skref dags."] || "";
     document.getElementById("dStale").textContent = (f["Verk ósnert dagar 📅"] || 0) + " dagar";
     setupFollowUp(r);
+    setupContacts(r);
+    setupPriceSettings(r);
     document.getElementById("dOpenPro").href = "/skipuleggja?pro=" + r.id + (k ? "&k=" + encodeURIComponent(k) : "");
     // Smíða & CNC (/smida, 2026-10-26): only for a project that has Eyðublöð (one-record check by its T-number)
     var smA = document.getElementById("dOpenSmida"), tNo = (String(f["Heiti tækifæris / verkefnis"] || "").match(/^(T-\d+)/) || [])[1];

@@ -45,7 +45,15 @@ export const F = {
   svar: "fldygHnitQ2ecN7J1",     // Svar við eftirfylgni
   likur: "fldPM6TY0a1Eq7h1e",    // Líkur á sölu
   prufa: "fldmFWmxlhMEtfD3y",    // Prufuverk 🧪
+  contacts: "fldwF9nnmsFo2yp1R", // Tengiliður verkefnis 👤
+  osynilegur: "fldxxGsEY1GkEw4BB", // Ósýnilegur afsláttur %   (fraction, 0.1 = 10 %)
+  afslUpps: "fldJYI0FGjA1wChOh",   // Afsláttur í uppsetningu  (fraction)
+  uppsetning: "fldf7s8YUWHgczAy5", // Uppsetning Bjarnarins 🪛🐻
+  ferdir: "fld4qWuFpGim3IFmi",     // Fjöldi ferða 🚚
+  skipting: "fldlvDTC46bqAsAP8",   // Skipting greiðslu
 };
+// Verðstillingar the deal popup may set (`verd`). Discounts are capped at 50 % to catch a typed 10 meaning 10 %.
+export const PRICE_KEYS = ["osynilegur", "afslUpps", "uppsetning", "ferdir", "skipting"];
 export const L = { name: "fldvDFIGtjQarHVX3", reason: "fldeshNrwubHuiaOj", detail: "fldo8yRxBJHTGtEaL", project: "fld5AKHh8uChH7epA" };
 export const PENDING = { [CONTACTS]: "fldPDEG0fiAmgI5ed", [COMPANIES]: "fldK3PJLILdEjt5MG" }; // Óyfirfarið — Rakel ⚠️
 
@@ -55,6 +63,8 @@ export const CHOICES = {
   followup: ["☎️ 🐰 RH tók símtal", "📤 🐰 RH sendi póst ", "☎️ 🦁 JK Tók símtal ", "📤 🦁 JK sendi póst", "💬 Í samskiptum (líkleg)"],
   svar: ["Bíður fjármagns 💸", "Bíður betri tíma ⏰", "Óákveðið❓", "Bíða e. svari ⏳"],
   likur: ["🔴 Lítil", "🟡 Miðlungs", "🟢 Góð", "🔥 Mjög líkleg"],
+  ferdir: ["1 Ferð 🚚", "2 Ferðir 🚚🚚", "3 Ferðir 🚚🚚🚚", "4 Ferðir 🚚🚚🚚🚚"],
+  skipting: ["100%", "50% - 50%", "40% - 30% - 30%"],
   reason: ["⏰ Afhendingartími", "📈 Verð", "🔨 Valdi annað fyrirtæki", "🛟 Upplifði óöryggi í ferlinu", "📆 Verkefni var frestað", "✍️ Annað"],
 };
 const APPROVER_TITLES = ["Sölumaður / Arkitekt"];
@@ -82,6 +92,25 @@ export function refusal(action, f, b = {}) {
     return b.value == null || b.value === "" || CHOICES[action].includes(b.value) ? null : "Óþekkt gildi.";
   }
   if (action === "prufa") return typeof b.value === "boolean" ? null : "Gildið þarf að vera já/nei.";
+  if (action === "verd") {
+    // After Unnið the price is locked (🔒 Verðlás) and Konto drafts read Skipting — change those in Airtable.
+    if (stage === WON) return "Verðstillingar eru læstar eftir staðfestingu.";
+    const v = b.fields && typeof b.fields === "object" ? b.fields : null;
+    const keys = v ? Object.keys(v) : [];
+    if (!keys.length || keys.some((x) => !PRICE_KEYS.includes(x))) return "Óþekktur reitur.";
+    for (const x of keys) {
+      const val = v[x];
+      if (x === "osynilegur" || x === "afslUpps") { if (val !== null && !(typeof val === "number" && val >= 0 && val <= 0.5)) return "Afsláttur þarf að vera 0–50 %."; }
+      else if (x === "uppsetning") { if (typeof val !== "boolean") return "Uppsetning þarf að vera já/nei."; }
+      else if (val !== null && !CHOICES[x].includes(val)) return "Óþekkt gildi.";
+    }
+    return null;
+  }
+  if (action === "tengilid") {
+    if (!REC.test(String(b.contactId || ""))) return "Ógildur tengiliður.";
+    if ((f[F.contacts] || []).includes(b.contactId)) return "Tengiliðurinn er þegar á verkinu.";
+    return null;
+  }
   return "Óþekkt aðgerð.";
 }
 
@@ -98,6 +127,8 @@ export function patchesFor(action, f, b = {}, now = new Date()) {
   }
   if (action === "sent") return [{ [F.stage]: SENT, [F.step]: "⏳ Bíða eftir svari frá viðskiptavini", [F.stepDate]: inDays(3, now) }];
   if (action === "prufa") return [{ [F.prufa]: b.value }];
+  if (action === "verd") { const o = {}; for (const [x, val] of Object.entries(b.fields)) o[F[x]] = val; return [o]; }
+  if (action === "tengilid") return [{ [F.contacts]: [...(f[F.contacts] || []), b.contactId] }];
   return [{ [F[action]]: b.value || null }];
 }
 
