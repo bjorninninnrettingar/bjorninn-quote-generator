@@ -18620,7 +18620,7 @@
     pc.badge = all ? "✓" : n + "/" + items.length;
     var pg = document.getElementById("proProg"); if (pg){ pg.textContent = pc.badge; pg.classList.toggle("all", all); }
     var el = document.getElementById("proCheck");
-    if (!pc.open){ if (el) el.hidden = true; return; }
+    if (!pc.open){ if (el){ el.hidden = true; el.innerHTML = ""; } return; } // no stale (hidden) "Klár til framleiðslu" left behind (T-248)
     if (!el){ el = document.createElement("div"); el.id = "proCheck"; document.body.appendChild(el); }
     el.hidden = false;
     var esc = escapeHtmlPro;
@@ -18832,9 +18832,11 @@
   async function proRunSnapshot(){
     var pre = proPrefix(); if (!pre) throw new Error("ekkert T-númer");
     var lines = await proGetAll("tblFcsUoGxsuUwNEH", 'FIND("' + pre + ' |",ARRAYJOIN({Tækifæri 📣 (projects)}))',
-      ["🔑", "Eyðublað búið til ✏️", "⚠️ Breytt eftir stofnun", "Síðast samstillt timestamp"]);
+      ["🔑", "Eyðublað búið til ✏️", "⚠️ Breytt eftir stofnun", "Síðast samstillt timestamp", "⚠️ Skipulagsvilla"]);
     return lines.map(function(r){ var f = r.fields || {}, ey = f["Eyðublað búið til ✏️"] || [];
-      return { key:f["🔑"] || "", ey:ey.length ? (ey[0].id || ey[0]) : null, stale:!!f["⚠️ Breytt eftir stofnun"], ts:+f["Síðast samstillt timestamp"] || 0 }; });
+      // ⛔ in Skipulagsvillur = Keyra skipulag skips the line and the run ends "failed" (⚠️ are only hints) — T-248
+      var err = String(f["⚠️ Skipulagsvilla"] || "").split(/(?=⛔|⚠️)/).map(function(x){ return x.trim(); }).filter(function(x){ return x.indexOf("⛔") === 0; }).join(" ");
+      return { key:f["🔑"] || "", ey:ey.length ? (ey[0].id || ey[0]) : null, stale:!!f["⚠️ Breytt eftir stofnun"], ts:+f["Síðast samstillt timestamp"] || 0, err:err }; });
   }
   function proRunSet(phase, text){ pr.phase = phase; pr.text = text; proCheckOpen(true); }
   async function proWatchSkipulag(t0, base, startedAt){
@@ -18870,15 +18872,21 @@
     var t0 = pr.t0 || 0, todo = {};
     lines.forEach(function(l){ if (l.ey && (l.ts >= t0 - 60 || !has[l.ey])) todo[l.ey] = 1; });
     var ids = Object.keys(todo).sort(byKeyN);
-    var head = "Skipulag keyrt ✓ · " + (synced ? synced + " " + proPl(synced, "Eyðublað", "Eyðublöð") + " " + (synced === 1 ? "uppfært" : "uppfærð") : "ekkert breyttist");
-    if (!ids.length){ proRunSet("done", head + " · Sögunarlisti " + rows.length + " hlutir ✓"); return; }
-    proRunYfirfara(ids, ey, head, pr.seq);
+    // lines Keyra skipulag refused (⛔): the rest ran, but the run is "failed" in Airtable — say which and why (T-248)
+    var drawn = {}; try{ collectAllLineItems().forEach(function(li){ drawn[li["🔑"]] = 1; }); }catch(e){}
+    var blocked = lines.filter(function(l){ return l.err; });
+    var blk = blocked.length ? " · ⛔ " + blocked.length + " " + proPl(blocked.length, "lína stöðvaðist", "línur stöðvuðust") + ": " +
+      blocked.slice(0, 5).map(function(l){ return (l.key || "lína án 🔑") + " (" + l.err.replace(/⛔\s*/g, "").replace(/\.\s*$/, "") + ")" + (l.key && drawn[l.key] ? "" : " — ekki í teikningunni: lagaðu eða eyddu henni í Airtable/CRM"); }).join(" · ") +
+      (blocked.length > 5 ? " …" : "") : "";
+    var head = (blocked.length ? "Skipulag keyrt með villum" : "Skipulag keyrt ✓") + " · " + (synced ? synced + " " + proPl(synced, "Eyðublað", "Eyðublöð") + " " + (synced === 1 ? "uppfært" : "uppfærð") : "ekkert breyttist") + blk;
+    if (!ids.length){ proRunSet(blocked.length ? "error" : "done", head + " · Sögunarlisti " + rows.length + " hlutir" + (blocked.length ? "" : " ✓")); return; }
+    proRunYfirfara(ids, ey, head, pr.seq, blocked.length);
   }
   // G11: tick "🔄 Keyra Yfirferð 3.0" (false → true, exactly like /ferli's Yfirfara button) on one Eyðublað at a time —
   // its automation (Sögunarlisti → Pöntunarlisti lean → Vörur á einingu) runs per unit, and runs side by side on one
   // project's Pöntunarlisti are what made duplicate lines before. Next unit when this one's Sögunarlisti count has
   // settled (≥ 30 s, two equal reads) or after 90 s. Nothing else is written. Stops if a new Keyra skipulag starts.
-  async function proRunYfirfara(ids, ey, head, seq){
+  async function proRunYfirfara(ids, ey, head, seq, nBlocked){
     var pre = proPrefix(), done = 0, failed = [];
     function countFor(id, rows){ return rows.filter(function(r){ var u = ((r.fields || {})["Eyðublað ✏️"] || [])[0]; return u && (u.id || u) === id; }).length; }
     for (var i = 0; i < ids.length; i++){
@@ -18902,7 +18910,7 @@
       done++;
     }
     if (seq !== pr.seq) return;
-    proRunSet(failed.length ? "error" : "done", head + " · Yfirfara 3.0 sent á " + done + " " + proPl(done, "einingu", "einingar") +
+    proRunSet(failed.length || nBlocked ? "error" : "done", head + " · Yfirfara 3.0 sent á " + done + " " + proPl(done, "einingu", "einingar") +
       (failed.length ? " · tókst ekki á " + failed.join(", ") + " — keyrðu Yfirfara á " + (failed.length === 1 ? "henni" : "þeim") + " í /ferli" : " ✓ (Sögunarlisti, Pöntunarlisti og vörur á einingu)"));
   }
   function proCncUrl(){ return "/cnc?recordId=" + encodeURIComponent(PRO.id) + "&k=" + encodeURIComponent(PRO.k); }

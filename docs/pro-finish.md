@@ -678,3 +678,7 @@ rule as the quote — `blockHandleSkus()`), and Keyra skipulag (owner's script c
 then Keyra skipulag (the lines are stale → re-synced) and Yfirfara.
 Owner, Keyra skipulag 📝 (wflPGRyv0VYi4AZpd) — Find `    if (drawerTypes.size > 1) {` → Replace with the block in
 the session reply (smida.handles → E.HANDLE_1/2 + QTY), placed before it.
+- **Keyra skipulag ⛔ lines surfaced:** the run watcher reads "⚠️ Skipulagsvilla"; lines with ⛔ (skipped by the script,
+  run marked failed) show in Yfferð's run line as "Skipulag keyrt með villum · ⛔ N línur stöðvuðust: HU3 (Magn vantar…)",
+  with "ekki í teikningunni: lagaðu eða eyddu henni í Airtable/CRM" for lines PRO doesn't own; phase = error.
+- **No stale Yfirferð:** a closed Yfirferð panel is emptied (its hidden "Klár til framleiðslu" kept the old disabled state).
