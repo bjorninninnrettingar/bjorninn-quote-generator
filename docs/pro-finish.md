@@ -614,3 +614,9 @@ clicks "Merkja tilboð sent" → `/api/sala` action `sent` (the sales session's 
 "Skráir tíma þegar tilboð var sent" (date), Eftirfylgni 1.0/2.0 (internal Chat nudges at 3/13 days), Virkni log,
 and "Verk ósnert í 30 daga → tapað" — none e-mails the customer. tilbod-print now also returns `to` + `link`.
 Not done: the PDF as a real attachment (would need Gmail API credentials server-side).
+
+**G9 + G10 + G12 — navigation.** PRO strip: "+ Rými" next to the room tabs (also with one room) and a clickable
+"1. Rými" → the room cards with this project's rooms ticked (same as Rýmið's ← Til baka; hidden when locked).
+PRO bar: "← Skrifstofa" (not inside /pro's frame), "Smíða & CNC ↗" (/smida) in every state, unlocked too.
+`PRO.k` falls back to the office key /skrifstofa keeps (`bjorninn:skrifstofa:k`) and a key in the link is
+remembered there — a bookmark without `&k=` works. /crm "+ Nýtt verkefni → Hanna" opens PRO in a new tab.

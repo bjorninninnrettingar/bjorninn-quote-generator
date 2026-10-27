@@ -1255,6 +1255,8 @@
   #proBar .pb-name { opacity:.7; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:28vw; }
   #proBar button { font:inherit; border:1px solid var(--line); border-radius:999px; padding:6px 14px; cursor:pointer; background:var(--blue); border-color:var(--blue); color:#fff; }
   #proBar button:disabled { opacity:.5; cursor:default; }
+  #proBar .pb-back { color:var(--ink-soft); text-decoration:none; white-space:nowrap; font-size:13px; }
+  #proBar .pb-back:hover { color:var(--ink); }
   #proBar .pb-dirty { color:#b3261e; font-weight:700; }
   body.pro #proBar .pb-dirty { color:#ffd60a; }
   #proBar .pb-locked { color:#b3261e; font-weight:700; }
@@ -1628,6 +1630,8 @@
   .pro-steps .ps-rooms{ margin-left:auto; display:flex; gap:4px; }
   .pro-steps .ps-room{ font:inherit; font-size:12px; padding:3px 11px; border-radius:999px; border:1px solid var(--line); background:none; color:var(--ink-soft); cursor:pointer; white-space:nowrap; }
   .pro-steps .ps-room:hover{ color:var(--ink); border-color:var(--ink-soft); }
+  .pro-steps .ps-room.ps-add{ border-style:dashed; }
+  body.pro-ro .pro-steps .ps-add{ display:none; }
   .pro-steps .ps-room.on{ color:var(--ink); border-color:var(--blue); background:rgba(10,132,255,.14); font-weight:700; cursor:default; }
   .mat-from{ display:flex; gap:6px; align-items:flex-start; margin:0 0 8px; padding:7px 9px; border-radius:8px; background:rgba(10,132,255,.1); border:1px solid rgba(10,132,255,.35); font-size:12px; line-height:1.4; color:var(--ink); }
   .mat-from .ico{ flex:none; margin-top:1px; color:var(--blue); }
@@ -2452,7 +2456,10 @@
 
   // Pro mode (2026-10-08): Rakel opens an existing project from the Tækifæri (?pro=<recordId>&k=<office key>).
   // It edits its own local copy (never the customer draft) and "Vista í Airtable" writes back to that project.
-  var PRO = (function(){ try{ var q = new URLSearchParams(location.search), id = q.get("pro"); return id && /^rec[A-Za-z0-9]{14}$/.test(id) ? { id:id, k:q.get("k") || "" } : null; }catch(e){ return null; } })();
+  // k: from the link, else the office key /skrifstofa keeps in this browser (G10, 2026-10-27 — a bookmark without &k= used to break everything)
+  var PRO = (function(){ try{ var q = new URLSearchParams(location.search), id = q.get("pro"); if (!(id && /^rec[A-Za-z0-9]{14}$/.test(id))) return null;
+    var k = q.get("k") || ""; try{ if (k) localStorage.setItem("bjorninn:skrifstofa:k", k); else k = localStorage.getItem("bjorninn:skrifstofa:k") || ""; }catch(e){}
+    return { id:id, k:k }; }catch(e){ return null; } })();
   // PRO home (2026-10-23): ?pro=home&k=<office key> — a landing screen so staff don't have to go via CRM/
   // Ferli to find a project's "Opna í hönnuðinum" link. Not a real record id, so PRO itself stays null and
   // the normal proBoot() path never runs; see the init branch near the bottom of this file.
@@ -11943,10 +11950,11 @@
       if (psOn){
         var q = state.categoryQueue || [], qi = q.indexOf(state.activeCategory), cdS = categoryDef(state.activeCategory);
         var lbl = ["Rými", "Rýmið" + (state.step !== "byrja" && cdS ? " — " + cdS.label + (q.length > 1 && qi >= 0 ? " (" + (qi + 1) + " af " + q.length + ")" : "") : ""), "Teikning"], at = state.step === "byrja" ? 0 : state.step === "shape" ? 1 : 2;
-        ps.innerHTML = lbl.map(function(t, i){ return '<span class="' + (i === at ? "on" : i < at ? "done" : "") + '"' + (i === 1 && at === 2 ? ' data-psgo="shape" title="Aftur á Rýmið (lögun og mál)"' : '') + '>' + (i + 1) + '. ' + escapeHtmlPro(t) + '</span>'; }).join("<i>›</i>") +
+        ps.innerHTML = lbl.map(function(t, i){ return '<span class="' + (i === at ? "on" : i < at ? "done" : "") + '"' + (i === 1 && at === 2 ? ' data-psgo="shape" title="Aftur á Rýmið (lögun og mál)"' : i === 0 && at > 0 ? ' data-psgo="byrja" title="Rými verkefnisins — bæta við eða fjarlægja"' : '') + '>' + (i + 1) + '. ' + escapeHtmlPro(t) + '</span>'; }).join("<i>›</i>") +
           // room tabs (2026-10-26, multi-room): every room of the project, the open one marked, one click to any — in queue order, so they never move
-          (q.length > 1 ? '<span class="ps-rooms" role="tablist" aria-label="Rými verkefnisins">' + q.map(function(k){ var on = k === state.activeCategory;
-            return '<button type="button" role="tab" class="ps-room' + (on ? ' on' : '') + '" data-psroom="' + escapeHtmlPro(k) + '" aria-selected="' + on + '">' + escapeHtmlPro(proRoomLabel(k)) + '</button>'; }).join("") + '</span>' : '');
+          (at > 0 ? '<span class="ps-rooms" role="tablist" aria-label="Rými verkefnisins">' + (q.length > 1 ? q.map(function(k){ var on = k === state.activeCategory;
+            return '<button type="button" role="tab" class="ps-room' + (on ? ' on' : '') + '" data-psroom="' + escapeHtmlPro(k) + '" aria-selected="' + on + '">' + escapeHtmlPro(proRoomLabel(k)) + '</button>'; }).join("") : "") +
+            '<button type="button" class="ps-room ps-add" data-psgo="byrja" title="Bæta rými við verkefnið (t.d. bað eftir fyrsta fund)">+ Rými</button></span>' : ''); // G9
       }
     }
     if (DS || PF) document.getElementById("progressSteps").hidden = false;
@@ -13004,8 +13012,10 @@
     ps.addEventListener("click", function(e){
       var rt = e.target.closest("[data-psroom]");
       if (rt){ if (rt.dataset.psroom !== state.activeCategory){ if (proEdId) closeBoxEditor(); save(); openRoom(rt.dataset.psroom); } return; }
-      var g = e.target.closest("[data-psgo]"); if (!g || state.step !== "editor") return;
+      var g = e.target.closest("[data-psgo]"); if (!g) return;
       if (document.body.classList.contains("pro-ro")){ toast("Opnaðu til breytinga fyrst"); return; } // locked: like the dimmed ← Til baka
+      if (g.dataset.psgo === "byrja"){ if (proEdId) closeBoxEditor(); save(); byrjaSel = (state.categoryQueue || []).slice(); goto("byrja"); return; } // G9: the room cards, this project's rooms ticked (same as Rýmið's ← Til baka)
+      if (state.step !== "editor") return;
       shapePhase = "size"; goto("shape"); });
   })();
   (function wireProRoomBox(){
@@ -17525,14 +17535,18 @@
     el.hidden = false;
     // legacy project (Eyðublöð not made from Line Items, e.g. T-15): Smíða happens in /smida, always reachable here
     var smidaEyBtn = PRO.legacy ? '<button type="button" id="proSmidaEy" class="pb-review" title="Lamir, hillur, ofn og innskúffur fyrir CNC — beint á Eyðublöðin sem eru til">Smíða úr Eyðublöðum</button>' : "";
+    // G10/G12 (2026-10-27): a way back to the office (not inside /pro's frame — it has its own sidebar) and Smíða & CNC
+    // in every state (the designer wants to see the CNC side before locking); a legacy project's "Smíða úr Eyðublöðum" is the same page
+    var backBtn = EMBEDDED ? "" : '<a class="pb-back" href="/skrifstofa" title="Aftur á skrifstofuna (teikningin er geymd í þessum vafra)">← Skrifstofa</a>';
+    var smidaBtn = PRO.legacy ? "" : '<button type="button" id="proSmidaCnc" title="Smíða & CNC (/smida): hliðar, frontar og það sem CNC borar — opnast í nýjum flipa">Smíða & CNC ↗</button>';
     var reviewBtn = PRO.needsReview ? '<button type="button" id="proReviewed" class="pb-review" title="Teikning frá viðskiptavini: merktu hana yfirfarna (fer af „Til yfirferðar“ í CRM)">Merkja teikningu yfirfarna</button>' : "";
     if (PRO.locked && !PRO.unlocked){
-      el.innerHTML = '<span>PRO</span>' + proNameHtml() +
+      el.innerHTML = backBtn + '<span>PRO</span>' + proNameHtml() +
         '<span class="pb-locked">Í skipulagi (' + escapeHtmlPro(PRO.lockStatus) + ') — skoðunarhamur</span>' +
         reviewBtn + smidaEyBtn +
         '<button type="button" id="proTilbodToggle"' + (tp.open ? ' class="on"' : "") + '>Tilboð</button>' +
         '<button type="button" id="proWorkDraw" title="2D vinnuteikningar fyrir verkstæðið">Teikningar</button>' +
-        '<button type="button" id="proCnc" title="CNC-útflutningur (/cnc) fyrir þetta verkefni">CNC</button>' +
+        smidaBtn + '<button type="button" id="proCnc" title="CNC-útflutningur (/cnc) fyrir þetta verkefni">CNC</button>' +
         '<button type="button" id="proUnlock" class="pb-unlock">Opna til breytinga</button>';
       var ub = el.querySelector("#proUnlock"); if (ub) ub.addEventListener("click", proUnlock);
       var ttb0 = el.querySelector("#proTilbodToggle"); if (ttb0) ttb0.addEventListener("click", proTilbodToggle);
@@ -17540,9 +17554,10 @@
       var cn0 = el.querySelector("#proCnc"); if (cn0) cn0.addEventListener("click", function(){ window.open(proCncUrl(), "_blank", "noopener"); });
       var rb0 = el.querySelector("#proReviewed"); if (rb0) rb0.addEventListener("click", proMarkReviewed);
       var se0 = el.querySelector("#proSmidaEy"); if (se0) se0.addEventListener("click", proOpenSmidaEy);
+      var sc0 = el.querySelector("#proSmidaCnc"); if (sc0) sc0.addEventListener("click", proOpenSmidaEy);
       return;
     }
-    el.innerHTML = '<span>PRO</span>' + proNameHtml() +
+    el.innerHTML = backBtn + '<span>PRO</span>' + proNameHtml() +
       (PRO.locked ? '<span class="pb-locked">opnað til breytinga</span>' : "") +
       (msg ? '<span>' + escapeHtmlPro(msg) + '</span>' : (proDirty() ? '<span class="pb-dirty">● óvistað</span>' : '<span>✓ vistað</span>')) +
       reviewBtn + smidaEyBtn +
@@ -17552,7 +17567,7 @@
       '<button type="button" id="proTilbodToggle"' + (tp.open ? ' class="on"' : "") + '>Tilboð</button>' +
       '<button type="button" id="proWorkDraw" title="2D vinnuteikningar fyrir verkstæðið">Teikningar</button>' +
       '<button type="button" id="proDoorList" title="Innihurðir fyrir allt heimilið (HU-línur)">Hurðir</button>' +
-      '<button type="button" id="proMeasure" title="Mælingarblað: sláðu inn málin á staðnum beint í teikninguna">Mæling</button>';
+      '<button type="button" id="proMeasure" title="Mælingarblað: sláðu inn málin á staðnum beint í teikninguna">Mæling</button>' + smidaBtn;
     var dlb = el.querySelector("#proDoorList"); if (dlb) dlb.addEventListener("click", function(){ openDoors("list"); }); // the customer's HU list + Hanna, in mm (2026-10-26)
     var mpb = el.querySelector("#proMeasure"); if (mpb) mpb.addEventListener("click", openMeasurePanel);
     var bt = el.querySelector("#proSave"); if (bt) bt.addEventListener("click", function(){ proCheckOpen(!pc.open); });
@@ -17561,6 +17576,7 @@
     var wd = el.querySelector("#proWorkDraw"); if (wd) wd.addEventListener("click", openWorkDrawings);
     var rb = el.querySelector("#proReviewed"); if (rb) rb.addEventListener("click", proMarkReviewed);
     var se = el.querySelector("#proSmidaEy"); if (se) se.addEventListener("click", proOpenSmidaEy);
+    var sc = el.querySelector("#proSmidaCnc"); if (sc) sc.addEventListener("click", proOpenSmidaEy);
   }
   // ---------- Yfirferð — the gate before Vista / Klár til framleiðslu (2026-10-26) ----------
   // Everything production needs, as one list, each line a link to where it gets fixed (mission: "idiot proof" — nothing
