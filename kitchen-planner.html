@@ -164,7 +164,7 @@
   .tour-txt .tour-note{ margin:8px 0 0; font-size:12.5px; color:var(--ink-soft); }
   .bath-end .be-dot{ transition:r .12s, stroke-width .12s; } .bath-end:hover .be-dot{ r:15; stroke-width:2; } body.dragging-wall, body.dragging-wall *{ cursor:grabbing !important; user-select:none; }
   .bath-size .field.quiet label{ font-size:12.5px; font-weight:500; color:var(--ink-soft); } .bath-size .field.quiet label small{ font-weight:400; } .bath-size .field.quiet .h-num{ max-width:84px; padding:6px 8px; font-size:13px; }
-  .damp-note{ margin-left:10px; font-size:12px; color:var(--ink-soft); cursor:help; white-space:nowrap; }
+  .damp-note{ display:block; margin-top:4px; font-size:12px; color:var(--ink-soft); cursor:help; }
   .wt-sw{ background:linear-gradient(var(--wt), var(--wt)) !important; background-image:linear-gradient(90deg, transparent 47%, rgba(0,0,0,.18) 48%, rgba(0,0,0,.18) 52%, transparent 53%), linear-gradient(0deg, transparent 47%, rgba(0,0,0,.18) 48%, rgba(0,0,0,.18) 52%, transparent 53%) !important; background-color:var(--wt) !important; }
   .wt-none{ background:#fff !important; position:relative; } .wt-none::after{ content:""; position:absolute; inset:6px; border-top:1.5px solid #b9b4a8; transform:rotate(-45deg); transform-origin:center; top:50%; }
   .dw-front-lbl{ flex:1; font-size:13px; font-weight:600; color:var(--ink); padding:6px 4px; cursor:help; }
@@ -4640,7 +4640,7 @@
     document.getElementById("shapeExtras").hidden = shapePhase !== "height";
     document.getElementById("shapeSizeBox").hidden = shapePhase !== "size" || !!PRO;
     document.getElementById("shapeProBox").hidden = !PRO || shapePhase !== "size";
-    document.getElementById("shapeHeightBox").hidden = shapePhase !== "height" || ((bathNow || closetShape()) && !PRO); // a bath's ceiling is on "Veggurinn og vatnið", a wardrobe's on Mál
+    document.getElementById("shapeHeightBox").hidden = shapePhase !== "height" || (bathNow && !PRO); // a bath's ceiling is on "Veggurinn og vatnið", a wardrobe's on Mál
     document.getElementById("shapeOpenings").hidden = shapePhase !== "openings";
     document.getElementById("shapeWater").hidden = shapePhase !== "water";
     document.getElementById("shapeMachine").hidden = shapePhase !== "machine";
@@ -4883,7 +4883,8 @@
       if (k === "closetNiche"){ lo = Math.max(lo, CLOSET_CORNER_FILLER_MM); hi = Math.min(hi, w.lengthMm - CLOSET_CORNER_FILLER_MM); } // a 6 cm filler at each side wall so the outer doors open past 90° (QA: they hit the niche walls)
       if (k === "closetCorner" && i === 1) lo = Math.max(lo, (state.closetDepthMm || 580) + CLOSET_CORNER_FILLER_MM); // wall 2 starts behind the corner unit + a filler so its first door clears wall 1's handles
       if (k === "closetCorner" && i === 0){ // the corner square: an open shelf unit, the bays end before it
-        var d = Math.min((state.closetDepthMm || 580) + CLOSET_CORNER_FILLER_MM, hi - lo); // as deep as wall 2's units + the filler, so wall 1's last door clears them too
+        var d = Math.min(Math.max((state.closetDepthMm || 580) + CLOSET_CORNER_FILLER_MM, 1150), hi - lo - 600); // as deep as wall 2's units + the filler, so wall 1's last door clears them too. Owner rule 2026-10-27: the corner unit is 110–120 cm wide — a 64 cm one is blocked by wall 2's first unit and can't be reached
+        if (hi - lo - 600 < 300) d = Math.min((state.closetDepthMm || 580) + CLOSET_CORNER_FILLER_MM, hi - lo); // a short wall: the old narrow corner
         if (d >= 300){ corner = { start:hi - d, w:d }; hi -= d; }
       }
       var pos = lo;
@@ -5684,6 +5685,7 @@
   function setRoomHeight(v, numEl){
     if (!v || v === state.roomHeightMm) return;
     state.roomHeightMm = v;
+    if (isCloset()) syncClosetLoft(); // Lofthæð also sits first on Útlit rýmisins for a wardrobe (owner, 2026-10-27)
     if (numEl && document.activeElement !== numEl) numEl.value = v;
     cancelAnimationFrame(heightRaf);
     heightRaf = requestAnimationFrame(renderHeightCanvas); // one rebuild per frame while the slider moves
@@ -9604,7 +9606,7 @@
     var picked = state.look && LOOKS[state.look];
     // a bath / laundry: a calm word about veneer and damp on the Spónlagt tab or with a veneer picked — still fully selectable (owner, 2026-10-27)
     var dampTxt = __("Mælum með viðarlíki eða einlitu þar sem raki er — spónn er í boði en þolir raka verr.");
-    var damp = isWallRoom() && !PRO && (cat.key === "sponlagt" || (picked && picked.category === "sponlagt")) ? ' <span class="damp-note" title="' + escapeHtmlPro(dampTxt) + '"><span class="shape-tip" aria-hidden="true">ⓘ</span> ' + __("Spónn og raki") + '</span>' : '';
+    var damp = isWallRoom() && !PRO && (cat.key === "sponlagt" || (picked && picked.category === "sponlagt")) ? ' <span class="damp-note" title="' + escapeHtmlPro(dampTxt) + '"><span class="shape-tip" title="' + escapeHtmlPro(dampTxt) + '">ⓘ</span> ' + escapeHtmlPro(dampTxt) + '</span>' : ''; // the sentence is printed, not only a hover tip that never showed (owner, 2026-10-27)
     document.getElementById("lookPicked").innerHTML = (picked ? __("Valið:") + ' <b>' + __(picked.label) + '</b>' : __("Ekkert valið enn")) + damp;
     if (!keys.length && lookQuery){ container.innerHTML = '<p class="tab-blurb" style="grid-column:1/-1;">' + __("Ekkert fannst — prófaðu annað orð.") + '</p>'; return; }
     container.innerHTML = keys.map(function(key){ return lookTileHTML(key, "data-look"); }).join("");

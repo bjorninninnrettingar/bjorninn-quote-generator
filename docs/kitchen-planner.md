@@ -818,3 +818,10 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
 - Milliveggur: both ends are drag handles on the shape drawing (`startObEnd`; far end stays put).
 - 3D: right-click on a drawer/door opens only that part (`togglePart`); an innskúffa (`partI.host`) never opens while its host drawer is closed and shuts with it (`stepParts`).
 - NOT yet: horizon line through the milliveggur (3D), draggable cabinet once in innvols, door look in 3D, 2D dims when the room changes, Ný eining menu parity (snúa, framhliðar af/á).
+
+## Studio visual list round — batch 2 (2026-10-27)
+- Fataskápur: Lofthæð is also first on "Útlit rýmisins" (same value as on Mál; `setRoomHeight` keeps the closet loft in sync).
+- Open wardrobe unit with drawers: each front now has a real drawer box behind it and a board over the top drawer (3D `addCabinetBox`, open + `interior.mode==="skuffur"`).
+- **Rule (owner): the wardrobe corner unit is 110–120 cm wide** (`closetFillPlan`: 115 cm, falling back to the old 64 cm only when the wall is too short) — a 64 cm one is blocked by wall 2's first unit.
+- Bath/laundry "Spónn og raki": the sentence is printed under "Valið", not only a hover tip.
+- Selection: customers already get only the blue outline (`outlineSel`); PRO (darkBg) still tints on purpose — not changed.

@@ -2389,6 +2389,20 @@
           pickables.push(oslab);
         }
         group.add(oslab);
+        // the drawer itself behind its front, so the fronts aren't slabs in thin air (owner, 2026-10-27)
+        var sideO = Math.max(50, Math.min(200, Math.round((oy1 - oy0) * 1000 - 55))),
+          obx = buildDrawerBox(THREE, meta.drawerSystem, meta.carcassKey, sideO, Math.max(0.2, widthM - 2 * CARCASS_T - 0.026), Math.max(0.2, depthM - FRONT_T - BACK_T - 0.01), null, widthM - 2 * CARCASS_T);
+        obx.position.copy(local(0, drawerBoxY(oy0, oy1, sideO / 1000), depthM - FRONT_T - 0.005)); obx.quaternion.copy(quat);
+        obx.traverse(function(o){ if (o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
+        group.add(obx);
+      }
+      // ...and a board over the top drawer, so you don't look down into the drawers from the open space above
+      var coverMm = bodyH * 1000 * ozt;
+      if (ozt < 0.999 && !(openList || []).some(function(sl){ return Math.abs(sl.mm - coverMm) < 40; })){
+        var cover = new THREE.Mesh(new THREE.BoxGeometry(widthM - 2 * CARCASS_T - 0.001, 0.018, depthM - 0.02), meta.openMat);
+        cover.position.copy(local(0, bodyBase + coverMm / 1000 + 0.009, (depthM - 0.02) / 2 + 0.005));
+        cover.quaternion.copy(quat); cover.castShadow = true; cover.receiveShadow = true;
+        group.add(cover);
       }
     }
     if (interior && interior.mode === "skuffur" && !art){
