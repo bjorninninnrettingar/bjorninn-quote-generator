@@ -2603,6 +2603,7 @@
     var col = active ? OV_BLUE : OV_DARK, sw = active ? 2.4 : 1.4;
     var dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy) || 1, nx = -dy / L * 6, ny = dx / L * 6, mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
     var tw = String(text).length * 7.4 + 14;
+    if (L < tw + 16){ var sx = -dy / L, sy = dx / L; if (sx < 0){ sx = -sx; sy = -sy; } mx += sx * (tw / 2 + 10); my += sy * (tw / 2 + 10); } // short (e.g. the 15 cm gap): the pill beside it, not on it
     return '<line x1="' + a.x + '" y1="' + a.y + '" x2="' + b.x + '" y2="' + b.y + '" stroke="' + col + '" stroke-width="' + sw + '"/>' +
       [a, b].map(function(p){ return '<line x1="' + (p.x - nx) + '" y1="' + (p.y - ny) + '" x2="' + (p.x + nx) + '" y2="' + (p.y + ny) + '" stroke="' + col + '" stroke-width="' + sw + '"/>'; }).join("") +
       '<rect x="' + (mx - tw / 2) + '" y="' + (my - 11) + '" width="' + tw + '" height="22" rx="11" fill="' + (active ? col : "#fff") + '" stroke="' + col + '" stroke-width="1"/>' +
@@ -5321,7 +5322,9 @@
     var look2 = state.look2 ? LOOKS[state.look2] : null;
     var frontMat2 = look2 ? (window.KPMat ? makeFrontMaterial(THREE, state.look2, look2) : new THREE.MeshStandardMaterial({ color:look2.color3d, roughness:0.7 })) : null;
     if (frontMat2){ frontMat2.__xrayBase = frontMat; frontMat2.userData.fr2 = true; } // (fr2: previewFront leaves it alone)
-    function frontMatOf(b){ return b && b.front2 && frontMat2 ? frontMat2 : frontMat; }
+    // a spegilskápur (owner, 2026-10-27): its fronts are a mirror — a bright, near-perfect reflector of the room's light
+    var mirrorMat = new THREE.MeshStandardMaterial({ color:0xe4eaee, metalness:1, roughness:0.04 }); mirrorMat.__xrayBase = frontMat; mirrorMat.userData = { envKeep:true, fr2:true };
+    function frontMatOf(b){ return b && b.mirrorFront ? mirrorMat : b && b.front2 && frontMat2 ? frontMat2 : frontMat; }
     // opts.towerGlass (Þvottahús previews, user 2026-10-26): the washer tower's doors see-through so the machines inside show
     var towerGlassMat = opts.towerGlass ? (function(){ var m = frontMat.clone(); m.transparent = true; m.opacity = 0.16; m.depthWrite = false; return m; })() : null;
     var frontOpenMat = frontMat.clone(); frontOpenMat.side = THREE.DoubleSide; // open shelf units built all in the front material (b.frontAll)
@@ -5572,10 +5575,11 @@
           // clear of the unit (owner, 2026-10-27: it sat right on it) — over a bath's basin and tap too
           var o = g.origin, ax = g.axis, n = g.normal, y = top + (hungW ? 0.52 : 0.3);
           (wall.wall || []).forEach(function(wb){ var wc = CATALOG[wb.type]; if (!wc) return; y = Math.max(y, elevOf(wb) / 1000 + Math.min(wb.heightMm || wc.h, roomHeightMm) / 1000 + 0.14); }); // over a wall cabinet, never through it
-          PENDING_DIMS.push({ a:{ x:o.x + ax.x * (lo / 1000) + n.x * dep, y:y, z:o.z + ax.z * (lo / 1000) + n.z * dep },
-            b:{ x:o.x + ax.x * (hi / 1000) + n.x * dep, y:y, z:o.z + ax.z * (hi / 1000) + n.z * dep }, text:dimLen(hi - lo) });
+          var back = 0.02; // at the back, along the wall (owner, 2026-10-27): never in front of the unit while orbiting
+          PENDING_DIMS.push({ a:{ x:o.x + ax.x * (lo / 1000) + n.x * back, y:y, z:o.z + ax.z * (lo / 1000) + n.z * back },
+            b:{ x:o.x + ax.x * (hi / 1000) + n.x * back, y:y, z:o.z + ax.z * (hi / 1000) + n.z * back }, text:dimLen(hi - lo) });
         }
-        if (!hEnd){ var oe = closetOuterEnd(i); hEnd = { g:g, at:oe ? hi / 1000 + 0.24 : lo / 1000 - 0.24, at2:oe ? hi / 1000 + 0.1 : lo / 1000 - 0.1, dep:dep }; }
+        if (!hEnd){ var oe = closetOuterEnd(i); hEnd = { g:g, at:oe ? hi / 1000 + 0.24 : lo / 1000 - 0.24, at2:oe ? hi / 1000 + 0.1 : lo / 1000 - 0.1, dep:0.02 }; } // the heights at the back too
       });
       if (hEnd && tallM){
         var g = hEnd.g, px = g.origin.x + g.axis.x * hEnd.at + g.normal.x * hEnd.dep, pz = g.origin.z + g.axis.z * hEnd.at + g.normal.z * hEnd.dep;

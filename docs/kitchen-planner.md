@@ -692,3 +692,8 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   A front in a bath / wardrobe is at most 600 mm (`DRAWER_FRONT_CAP_MM`, also in the wardrobe path). A hung unit's Hæð has
   "Annað mál" for the box height. Not built yet: "Skipta fronti í tvennt" (needs an Airtable/Keyra skipulag field) and the
   per-code min/max table (awaiting the owner's numbers).
+- **Bath Ný eining units (owner):** Efri skápur = Opinn skápur með hillum (default) → Spegilskápur (`efriskapur` +
+  `b.mirrorFront`: mirror fronts in 3D via `frontMatOf`, a line-item note for the söluaðili) → Lokaður → Lausar hillur.
+  Hár skápur widths 40/50/60 + Annað mál. Málsetning in Skoða now also for bath / laundry; the unit-wall rooms' width and
+  height dims sit at the back (along the wall); a label too long for its segment sits beside it. Front split ≤ 600 mm
+  still waits for the Airtable field.

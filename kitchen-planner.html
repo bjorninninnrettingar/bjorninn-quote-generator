@@ -7578,7 +7578,8 @@
     { key:"grunn", label:"Grunnskápur", desc:"Veggfestur, við hlið vasksins", icon:"grunnskapur", opts:[ // the unit's own name everywhere (QA E10)
       { label:"Grunnskápur", type:"grunnskapur", drawers:true } ] },
     { key:"efri", label:"Efri skápur", desc:"Á vegg, t.d. yfir vaskinum", icon:"efriskapur", opts:[ // an open shelf first and by default (owner, 2026-10-27) — a mirror cabinet's place
-      { label:"Opin hilla", type:"opnarhillur" },
+      { label:"Opinn skápur með hillum", type:"opnarhillur" },
+      { label:"Spegilskápur", type:"efriskapur", mirror:true }, // a closed cabinet with a mirror on its front (owner, 2026-10-27)
       { label:"Lokaður skápur með hillum", type:"efriskapur" },
       { label:"Lausar hillur", type:"laushilla" } ] },
     // optional tall cabinet (review 2026-10-25, C): hung like the rest, 160 cm box, 35 cm deep
@@ -7828,6 +7829,7 @@
   function uwStartBlock(opt){
     var b = newBlock(opt.type), c = CATALOG[opt.type];
     if (opt.preset) Object.assign(b, JSON.parse(JSON.stringify(opt.preset))); // e.g. ofn + örbylgja = ovenH 1050
+    if (opt.mirror) b.mirrorFront = true; // Spegilskápur: the efri skápur with a mirror glued on its front
     if (c.hasInterior && opt.drawers && !(c.sink && isBath())){ // (a bath basin unit already has its two drawers — newBlock)
       b.interior.mode = "skuffur";
       for (var n = 3; n >= 1; n--){
@@ -7859,6 +7861,7 @@
     if (c.rusl) out = [600, 800];
     if (c.dishwasher) out = [450, 600];
     if (c.widths) out = c.widths.slice();
+    if (isBath() && c.zone === "floor" && c.cls === "tall") out = [400, 500, 600].filter(function(w){ return w >= c.minW && w <= c.maxW; }); // a bath's tall cabinet: three sizes + Annað mál (owner, 2026-10-27)
     if (isBath() && c.zone === "floor" && c.cls === "floor") out = (c.sink ? [600, 800, 1000, 1200] : [300, 400, 600, 800]).filter(function(w){ return w >= c.minW && w <= c.maxW; }); // the usual vanity sizes (user, 2026-10-26)
     return out;
   }
@@ -10690,7 +10693,7 @@
     syncViewMenuDot();
   }
   // "Málsetning" (user, 2026-10-26): the wardrobe units' dimensions on or off — next to X-Ray, remembered
-  function syncDimsUI(){ var t = document.getElementById("dimsBtn"); t.hidden = !isCloset(); t.classList.toggle("active", KP3D.showDimsOn()); syncSkTagsUI(); syncViewMenuDot(); }
+  function syncDimsUI(){ var t = document.getElementById("dimsBtn"); t.hidden = !(isCloset() || isWallRoom()); /* bath + laundry too (owner, 2026-10-27) */ t.classList.toggle("active", KP3D.showDimsOn()); syncSkTagsUI(); syncViewMenuDot(); }
   // "Sk-númer" (PRO, 2026-10-26): Rakel thinks in Sk numbers — label every ordered cabinet with it in 3D. Remembered.
   var skTagsOn = (function(){ try{ return localStorage.getItem("bjorninn:kitchenPlanner:skTags") === "1"; }catch(e){ return false; } })();
   function syncSkTagsUI(){
@@ -12791,6 +12794,7 @@
         if (b.aventos && AVENTOS_PRODUCTS[b.aventos]) notes.push("Lyfta: " + AVENTOS_PRODUCTS[b.aventos].label + " í stað lama — staðfestu stærð og þyngd framhliðar gagnvart lyftunni.");
         if (c.oven && !c.lowOven && +b.ovenH === 1050) notes.push("Ofn (60 cm) + örbylgjuofn (45 cm) í sama turni — staðfestu tækin.");
         if (state.hungUnits && zone_ofBlock(wall, b) === "floor") notes.push("Veggfestur (baðherbergi): " + plinthMmOf(c, "floor", wall) + " mm frá gólfi að neðri brún, enginn sökkull.");
+        if (b.mirrorFront) notes.push("Spegilskápur: spegill límdur á framhliðina — söluaðili staðfestir spegilinn og verð."); // (owner, 2026-10-27)
         if (state.bathMirror && c.sink) notes.push("Spegilskápur óskast yfir vaskinn — ekki í pöntun, söluaðili verðleggur hann og staðfestir mál.");
         if (c.sink && state.laundryDrain && isLaundry()) notes.push("Niðurfall í gólfi: " + (state.laundryDrain === "ja" ? "já" : "nei") + " (viðskiptavinur).");
         var lit = bom && bom.perUnit[b.id];
