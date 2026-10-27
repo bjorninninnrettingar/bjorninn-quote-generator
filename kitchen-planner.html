@@ -7968,6 +7968,7 @@
     closeFitAsk();
     // a full wall no longer stops it (owner, 2026-10-27): Setja inn offers to swap a cabinet or a narrower one instead
     // (an unanswered "passar ekki" question is about a unit that's no longer being added — QA J1)
+    uwView.frontsOff = false; uwView.open = false; // a new unit starts with its fronts on and shut (the fronts "vanished" when the last one was left see-through, owner 2026-10-27)
     uw = { step:1, hoverCat:0 }; // the first (most common) type shows on the left right away (user, 2026-10-26: it sat empty)
     var st = KP3D._three();
     uwEditorCam = st ? { p:st.camera.position.clone(), t:st.controls.target.clone() } : null;
@@ -8014,7 +8015,7 @@
   var uwAimAnim = 0;
   function uwLockView(st){
     if (PRO || !uw || !uw.b) return;
-    st.controls.autoRotate = false; st.controls.enableRotate = false;
+    st.controls.autoRotate = false; st.controls.enableRotate = true; // the cabinet can be turned by hand while choosing (owner, 2026-10-27) — it only stops turning by itself
     st.controls.minAzimuthAngle = -Infinity; st.controls.maxAzimuthAngle = Infinity;
   }
   function uwAimCamera(animate){
@@ -8627,8 +8628,8 @@
     var t = document.getElementById("uwTools");
     var appl = uw && uw.b && CATALOG[uw.b.type] && CATALOG[uw.b.type].appliance && !PRO; // machines under the worktop: no cabinet to look into (owner, 2026-10-27)
     t.hidden = !(uw && (uw.b || uw.step === 2)) || appl;
-    t.querySelector('[data-uwt="fronts"]').textContent = PRO ? (uwView.frontsOff ? "Framhliðar: af" : "Framhliðar: á") : __("Sýna inn í skápinn"); // a customer: one plain toggle (owner, 2026-10-27)
-    t.querySelector('[data-uwt="spin"]').hidden = !PRO; // no "Snúa" for customers — the view follows what's being chosen
+    t.querySelector('[data-uwt="fronts"]').textContent = uwView.frontsOff ? __("Framhliðar: af") : __("Framhliðar: á"); // back for customers too (owner, 2026-10-27: the new menu lacked Snúa and Framhliðar af/á)
+    t.querySelector('[data-uwt="spin"]').hidden = false;
     t.querySelector('[data-uwt="fronts"]').classList.toggle("active", uwView.frontsOff);
     t.querySelector('[data-uwt="open"]').textContent = uwView.open ? __("Loka") : __("Opna");
     t.querySelector('[data-uwt="open"]').classList.toggle("active", uwView.open);

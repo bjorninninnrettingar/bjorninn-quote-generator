@@ -832,3 +832,10 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
 - Customers have no "Tegund" dropdown in the cabinet panel any more (PRO keeps it) — a new type = Ný eining or Afrita.
 - Moving a cabinet that has úthliðar bound to it (`withBoundPanels`) now drops those panels at once (toast: add them again where it lands) instead of trying to carry them and often failing with "ekkert pláss".
 - Laundry arrangement ("þvottaherbergisstæðu"): not reproduced — the suggestion with a washer tower looks right; waiting for what exactly is off.
+
+## Studio visual list round — finish (2026-10-27)
+- Ný eining preview: "Framhliðar: á/af" and "Snúa: á/af" are back for customers (they had been replaced by one "Sýna inn í skápinn"); a new unit always starts with fronts on and shut (a left-over see-through state made the fronts "vanish").
+- Ný eining preview can be turned by hand while choosing (`uwLockView`: enableRotate true; it only stops auto-spinning).
+- 2D plan: 1.3 m margin round the room so the dimension chains stay in view after reshaping.
+- Verified: milliveggur end handle drag on the room drawing (120 → 268 cm).
+- Not reproduced / not changed: horizon line through the milliveggur in 3D, "doors look good in 3D" in innvols, the laundry arrangement from the owner's screenshot (washer-tower and side-by-side suggestions look right here).

@@ -7003,7 +7003,7 @@
     var geoms = wallGeoms(state);
     if (!geoms.length) return null;
     var b = stateBounds(state, geoms);
-    var margin = 0.8;
+    var margin = 1.3; // room for the dimension chains outside the walls however the room is reshaped (owner, 2026-10-27: dims were cut off; was 0.8)
     // geoms/surfaces include free-standing island rows and milliveggir after the real walls
     return { minX: b.minX - margin, minZ: b.minZ - margin, pxPerM: PX_PER_M, geoms: geoms.concat(islandGeoms(state)).concat(milliveggGeoms(state)), surfaces: surfacesOf(state) };
   }
