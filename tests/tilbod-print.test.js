@@ -93,3 +93,18 @@ test("quote PDF: 3+ handle SKUs print as the real SKUs, adding up to Airtable's 
   assert.ok(Math.abs(sum(rows) - sum(slots)) < 0.01);
   assert.equal(realHandleItems(Object.assign({}, project, { "Magn Halda 1": 17 }), slots), null); // changed in Airtable
 });
+
+import { materialSpec } from "../api/generate-quote.js";
+test("EFNISVAL: both front materials with their rooms; 3+ handle SKUs as one family with the lengths", () => {
+  const project = { "Heiti efnis (from Fronta efni viðskiptavinar 🖼️)": ["W1100 hvít"], "Heiti efnis (from Fronta efni 2.0 Viðskiptavinar 🖼️)": ["H1180 Halifax"],
+    "Heiti efnis (from Skrokka efni 🔲 viðskiptavinar)": ["U963"], "Heiti vöru 📣 (from Höldur Viðskiptavinar ✊)": ["Jey Ál grip 700mm (frágangur innifalinn)"],
+    "Sjálfsafgreiðsla skipulag (JSON) 📐": JSON.stringify({ handlesPrint: { skus: [{ name: "Jey Ál grip 400mm (frágangur innifalinn)" }, { name: "Jey Ál grip 600mm" }, { name: "Jey Ál grip 3000mm" }] } }) };
+  const lines = [{ "🔑": "Sk1", "Rými 🏡": "Eldhús" }, { "🔑": "Sk2", "Rými 🏡": "Eldhús" }, { "🔑": "Sk10", "Rými 🏡": "Baðh.", "Frontaefni #2": true }, { "Rými 🏡": "Höldur" }];
+  const m = Object.fromEntries(materialSpec(project, lines));
+  assert.equal(m["Framhliðar"], "W1100 hvít (Eldhús)");
+  assert.equal(m["Framhliðar 2"], "H1180 Halifax (Baðh.)");
+  assert.equal(m["Höldur"], "Jey Ál grip (400, 600, 3000 mm)");
+  const one = Object.fromEntries(materialSpec({ "Heiti efnis (from Fronta efni viðskiptavinar 🖼️)": ["W1100 hvít"] }, [{ "🔑": "Sk1", "Rými 🏡": "Eldhús" }]));
+  assert.equal(one["Framhliðar"], "W1100 hvít");
+  assert.equal(one["Framhliðar 2"], "");
+});

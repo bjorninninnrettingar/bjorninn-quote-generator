@@ -682,3 +682,6 @@ the session reply (smida.handles → E.HANDLE_1/2 + QTY), placed before it.
   run marked failed) show in Yfferð's run line as "Skipulag keyrt með villum · ⛔ N línur stöðvuðust: HU3 (Magn vantar…)",
   with "ekki í teikningunni: lagaðu eða eyddu henni í Airtable/CRM" for lines PRO doesn't own; phase = error.
 - **No stale Yfirferð:** a closed Yfirferð panel is emptied (its hidden "Klár til framleiðslu" kept the old disabled state).
+- **Quote PDF EFNISVAL:** `materialSpec()` — Framhliðar / Framhliðar 2 with their rooms (FR2 = cabinet lines with
+  "Frontaefni #2"); the FR2 lookup was misspelt ("…2 Viðskiptavinar" → "…2.0 Viðskiptavinar") so it never printed.
+  Höldur: with 3+ real SKUs one family + the lengths ("Jey Ál grip (400, 600, 3000 mm)").

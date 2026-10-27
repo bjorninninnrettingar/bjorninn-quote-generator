@@ -296,6 +296,31 @@ function drawFooter(page, PW, fontReg) {
 
 // totalInclVatOverride: the grand total to print (canonical Airtable total +
 // any virtual installation/delivery rows). null = use the sum of the rows.
+// EFNISVAL (2026-10-27, T-248): every front material with the rooms it's in (a cabinet line with "Frontaefni #2" is on
+// FR2, the rest on FR1) — the second front used to be read from a misspelt lookup ("…2 Viðskiptavinar", the field is
+// "…2.0 …") and never printed. Handles: the real SKUs when PRO kept them (planner JSON handlesPrint), else the slots.
+export function materialSpec(project, lineItems) {
+  const roomsOf = (fr2) => [...new Set((lineItems || []).filter((i) => /^(Sk|HU)\d/.test(String(i["🔑"] || "")) && !!i["Frontaefni #2"] === fr2)
+    .map((i) => i["Rými 🏡"]).filter(Boolean))];
+  const withRooms = (name, rooms, many) => (name && many && rooms.length ? `${name} (${rooms.join(", ")})` : name);
+  const fr1 = lv(project["Heiti efnis (from Fronta efni viðskiptavinar 🖼️)"]);
+  const fr2 = lv(project["Heiti efnis (from Fronta efni 2.0 Viðskiptavinar 🖼️)"]) || lv(project["Heiti efnis (from Fronta efni 2 Viðskiptavinar 🖼️)"]);
+  const r1 = roomsOf(false), r2 = roomsOf(true), two = !!(fr2 && r2.length);
+  let hp = null;
+  try { hp = JSON.parse(project["Sjálfsafgreiðsla skipulag (JSON) 📐"] || "{}").handlesPrint || null; } catch (e) { hp = null; }
+  const clean = (n) => String(n || "").replace(/\s*\(frágangur innifalinn\)/i, "").trim();
+  const holderVal = hp && Array.isArray(hp.skus) && hp.skus.length > 2
+    ? [...new Set(hp.skus.map((x) => clean(x.name).replace(/\s*\d+\s*mm$/i, "")))].join(" / ") + " (" + hp.skus.map((x) => (clean(x.name).match(/(\d+)\s*mm$/i) || [])[1]).filter(Boolean).join(", ") + " mm)"
+    : [lv(project["Heiti vöru 📣 (from Höldur Viðskiptavinar ✊)"]), lv(project["Heiti vöru 📣 (from Höldur Viðskiptavinar ✊2.0)"])].map(clean).filter(Boolean).join(" / ");
+  return [
+    ["Innvols",       lv(project["Heiti efnis (from Skrokka efni 🔲 viðskiptavinar)"])],
+    ["Framhliðar",    withRooms(fr1, r1, two)],
+    ["Framhliðar 2",  two ? withRooms(fr2, r2, true) : ""],
+    ["Borðplata",     lv(project["Heiti efnis (from Borðplata viðskiptavinar 🍽️)"])],
+    ["Höldur",        holderVal],
+  ];
+}
+
 async function buildPdf(project, lineItems, includeSummary = false, estimate = false, totalInclVatOverride = null) {
   const doc = await PDFDocument.create();
   const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
@@ -360,17 +385,7 @@ async function buildPdf(project, lineItems, includeSummary = false, estimate = f
   txt(page, "EFNISVAL", colR, yR, fontBold, 7, GOLD);
   yR -= 13;
 
-  const holder1 = lv(project["Heiti vöru 📣 (from Höldur Viðskiptavinar ✊)"]);
-  const holder2 = lv(project["Heiti vöru 📣 (from Höldur Viðskiptavinar ✊2.0)"]);
-  const holderVal = [holder1, holder2].filter(Boolean).join(" / ");
-
-  const specFields = [
-    ["Innvols",       lv(project["Heiti efnis (from Skrokka efni 🔲 viðskiptavinar)"])],
-    ["Framhliðar",    lv(project["Heiti efnis (from Fronta efni viðskiptavinar 🖼️)"])],
-    ["Framhliðar 2",  lv(project["Heiti efnis (from Fronta efni 2 Viðskiptavinar 🖼️)"])],
-    ["Borðplata",     lv(project["Heiti efnis (from Borðplata viðskiptavinar 🍽️)"])],
-    ["Höldur",        holderVal],
-  ];
+  const specFields = materialSpec(project, lineItems);
 
   for (const [label, val] of specFields) {
     if (!val) continue;
