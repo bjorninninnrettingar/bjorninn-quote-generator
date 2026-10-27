@@ -771,3 +771,9 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   starts it on `requestIdleCallback` (picture is the poster meanwhile). ≈3.8 s to content (was 5.9). Headless Chrome,
   1440×900 @2x, 4 runs (`scratchpad perf.mjs`: rAF frame-time + long-task logger): before avg 33–35 ms/frame, ~70 frames
   > 25 ms, worst stall 550–680 ms, ~1.2 s long tasks during the intro → after avg 16.7–17 ms, 0–2 frames > 25 ms, 0 long tasks.
+
+### 2026-10-27 — Tækjaskápar + lyftihurðir fyrir viðskiptavini (owner)
+- **Tækjaskápar** (Ný eining): eldhús = nýr hópur með *Skápur með rennihurðum* (harskapur, `opt.pocket`) + ofn í háum skáp, ofn + örbylgja, innbyggður ísskápur, frystir (turnarnir fluttir úr Eldhústæki; það sem stendur undir borðplötu er áfram í Eldhústæki). Fataskápar = nýr flokkur *Tækjaskápar* með sama skáp.
+- `opt.pocket` → `uwStartBlock` kallar `applyClosetDoorKind(b, "pocket")` (sama Smíða spec og *Rennur inn í hlið* í panelnum) → V3 Revego UNO/DUO (`POCKET_PRODUCTS`, `pocketLeafOf`) + pöntunarathugasemd eins og áður. Fataskápa-wizard sleppir Hurðir-skrefinu fyrir hann; ⓘ við titilinn: „Söluaðili staðfestir verð.“ Panel-valið *Rennur inn í hlið* óbreytt.
+- **Lyftihurð**: `liftHTML` (fremst í `variantHTML`, bara viðskiptavinir) á efri skápum með hurðum (ekki opnum, hillum, spegilskáp, tækjum) í öllum rýmum: *Opnast til hliðar / Opnast upp*. Upp = `b.aventos = "hktop"` (fyrsti/sjálfgefni í PRO Lyfta-valinu) + spec type `"lift"` — sama og PRO `avSel`. Athugasemd á pöntun segir að viðskiptavinur valdi og söluaðili velji rétta AVENTOS gerð + staðfesti verð. PRO heldur sínu Lyfta-vali.
+- 3D (`addCabinetBox`): `doorMove` úr `meta.shelfBlock` — `lift` (aventos eða smida lift, veggskápur) = ein framhlið sem lyftist upp á efri brún (`kind:"lift"`, rotation.x); `pocket` (einhver smida-hurð pocket) = hurðin snýst út 90° og rennur svo aftur inn með hliðinni (`kind:"pocket"`). Smellt á hurð / *Opna* sýnir það.

@@ -6827,7 +6827,23 @@
     return codes.length + " " + plural(codes.length, "skúffa", "skúffur") + ": " + groups.map(function(g){ return g.n + " " + (g.n > 1 ? __(CODE_PLURAL[g.cd]) : __(g.nm).toLowerCase()); }).join(", ") +
       (parts[1] ? " + " + (parts[1] === "IK" ? __("miðlungs innskúffa") : __("lág innskúffa")) : "");
   }
-  function variantHTML(b, c, ro){
+  // Lyftihurð for customers (owner, 2026-10-27): a wall cabinet with doors opens to the side or UP. "Upp" = the
+  // AVENTOS default PRO's Lyfta select starts with (HK-Top) and the door spec type "lift" — V3 product + the order
+  // note follow (söluaðili adjusts the model). PRO keeps its own select.
+  function liftable(b, c){ return !PRO && c.zone === "wall" && !c.panel && !c.shelfStack && !c.open && !c.appliance && !c.fixedFronts && !b.mirrorFront; }
+  function liftHTML(b, c){
+    if (!liftable(b, c)) return "";
+    return '<div class="edit-field"><label title="' + __("Opnast upp: Blum AVENTOS lyfta í stað lama. Söluaðili staðfestir gerð og verð.") + '">' + __("Hurðin") + '</label><div class="hw-toggle">' +
+      '<button type="button" class="hw-btn' + (!b.aventos ? ' active' : '') + '" data-lift="0">' + __("Opnast til hliðar") + '</button>' +
+      '<button type="button" class="hw-btn' + (b.aventos ? ' active' : '') + '" data-lift="1">' + __("Opnast upp") + '</button></div></div>';
+  }
+  function setLiftDoor(b, up){
+    var c = CATALOG[b.type], fb = findBlock(b.id), ds = proDoorsOf(b, c, fb ? fb.zone : "wall");
+    if (up) b.aventos = b.aventos || "hktop"; else delete b.aventos;
+    ds.forEach(function(d, i){ var sp = proSpec(b, ds, i); sp.type = up ? "lift" : "hinged"; if (!up && !(sp.hinges && sp.hinges.length)) sp.hinges = proDefaultHinges(b, ds, i); proSetSpec(b, ds, i, sp); });
+  }
+  function variantHTML(b, c, ro){ return liftHTML(b, c) + variantBaseHTML(b, c, ro); }
+  function variantBaseHTML(b, c, ro){
     var LM = window.KP_LINEMAP; if (!LM) return "";
     var opts = [], cur = null, label = "";
     if (c.oven){
@@ -7698,12 +7714,15 @@
     kOne("Efri skápar", "efri", "Efri skápur", "Lokaður, með hillum", { type:"efriskapur" }),
     kOne("Efri skápar", "opnar", "Opinn efri skápur", "Hillur í kassa", { type:"opnarhillur" }),
     kOne("Efri skápar", "laus", "Lausar hillur", "Hillur á vegg", { type:"laushilla" }),
-    kOne("Eldhústæki", "ofn", "Ofn í háum skáp", "Ofn í háum skáp", { type:"ofnaskapur" }),
+    // Tækjaskápar (owner, 2026-10-27): the home for the complex systems — the Revego pocket-door unit (doors slide
+    // into the sides, a coffee / pantry station) and the tall appliance towers; what stands under the worktop stays in Eldhústæki
+    kOne("Tækjaskápar", "renni", "Skápur með rennihurðum", "Hurðirnar renna inn í hliðarnar", { type:"harskapur", pocket:true }),
+    kOne("Tækjaskápar", "ofn", "Ofn í háum skáp", "Ofn í háum skáp", { type:"ofnaskapur" }),
+    kOne("Tækjaskápar", "ofnorb", "Ofn + örbylgja", "60 + 45 í háum skáp", { type:"ofnaskapur", preset:{ ovenH:1050 } }),
+    kOne("Tækjaskápar", "isinn", "Innbyggður ísskápur", "Í háum skáp", { type:"isskapur" }),
+    kOne("Tækjaskápar", "frystir", "Innbyggður frystir", "Í háum skáp", { type:"frystir" }),
     kOne("Eldhústæki", "ofnlag", "Ofn í lágum skáp", "Ofn undir borðplötu", { type:"ofnaskapurLagur" }),
-    kOne("Eldhústæki", "ofnorb", "Ofn + örbylgja", "60 + 45 í háum skáp", { type:"ofnaskapur", preset:{ ovenH:1050 } }),
     kOne("Eldhústæki", "isfri", "Frístandandi ísskápur", "Stendur sér", { type:"isskapurFri" }),
-    kOne("Eldhústæki", "isinn", "Innbyggður ísskápur", "Í háum skáp", { type:"isskapur" }),
-    kOne("Eldhústæki", "frystir", "Innbyggður frystir", "Í háum skáp", { type:"frystir" }),
     kOne("Eldhústæki", "vin", "Vínkælir", "Undir borðplötu", { type:"vinkaelir" }),
     kOne("Eldhústæki", "uppth", "Uppþvottavél", "Innbyggð", { type:"uppthvottavel" }),
     kOne("Eldhústæki", "uppthfri", "Uppþvottavél, frístandandi", "Undir borðplötu", { type:"uppthvottavelFri" }),
@@ -7725,6 +7744,8 @@
       { label:"Skápur", type:"harskapur" } ] },
     { key:"grunn", label:"Kommóða", desc:"Lágur skúffuskápur", icon:"grunnskapur", opts:[
       { label:"Kommóða", type:"grunnskapur", drawers:true } ] },
+    { key:"taeki", label:"Tækjaskápar", desc:"Hurðirnar renna inn í hliðarnar", icon:"harskapur", opts:[ // owner, 2026-10-27: Revego
+      { label:"Skápur með rennihurðum", type:"harskapur", pocket:true } ] },
     { key:"hillur", label:"Hillur á vegg", desc:"Lausar hillur", icon:"laushilla", opts:[
       { label:"Hillur á vegg", type:"laushilla" } ] }
   ];
@@ -8000,6 +8021,7 @@
     var b = newBlock(opt.type), c = CATALOG[opt.type];
     if (opt.preset) Object.assign(b, JSON.parse(JSON.stringify(opt.preset))); // e.g. ofn + örbylgja = ovenH 1050
     if (opt.mirror) b.mirrorFront = true; // Spegilskápur: the efri skápur with a mirror glued on its front
+    if (opt.pocket) applyClosetDoorKind(b, "pocket"); // Tækjaskápar: Revego doors from the start (the same spec as the panel's Rennur inn í hlið)
     if (c.hasInterior && opt.drawers && !(c.sink && isBath())){ // (a bath basin unit already has its two drawers — newBlock)
       b.interior.mode = "skuffur";
       for (var n = 3; n >= 1; n--){
@@ -8099,7 +8121,7 @@
       if (uw.secFor !== b){ uw.secFor = b; uw.picked = {}; uw.sec = !c.panel ? "w" : c.minH !== c.maxH ? "h" : c.minD !== c.maxD ? "d" : "inn"; } // a new cabinet starts over
       var widths = uwWidthOptions(c), walls = uwSurfaces(c.zone);
       var catNow = activeUnitTree()[uw.cat];
-      html = '<p class="uw-kicker">' + __(catNow.group || catNow.label) + '</p><h3>' + (opt.group ? __(opt.group) + ': ' : '') + __(opt.label) + '</h3>';
+      html = '<p class="uw-kicker">' + __(catNow.group || catNow.label) + '</p><h3>' + (opt.group ? __(opt.group) + ': ' : '') + __(opt.label) + (opt.pocket ? ' <span class="shape-tip" title="' + __("Blum Revego: hurðirnar renna inn í hliðar skápsins. Söluaðili staðfestir verð.") + '" aria-label="' + __("Söluaðili staðfestir verð.") + '">ⓘ</span>' : '') + '</h3>';
       if (uw.island) html += islandBoxesHTML();
       // One thing at a time (user, 2026-10-23): Breidd → Hæð → Dýpt → Innvols as collapsible groups. Each dimension
       // starts un-picked with the usual size highlighted; picking one folds it into its header ("Breidd · 60 cm ✓")
@@ -8185,10 +8207,10 @@
       if (isCloset() && closetTall(b) && PRO && !uw.cornerUnit) // PRO keeps its own Innvols (Smíða opens next) but gets the Hurðir step before it, with Rennihurð í hlið (2026-10-26)
         secHtml.push(uwSec("door", "Hurðir", b.type === "harskapurOpinn" ? "Opið" : uw.doorKind === "pocket" ? "Rennihurð í hlið" : "Með hurðum", closetDoorsHtml(b, true)));
       if (isCloset() && closetTall(b) && !PRO){ // the same picture cards as the side panel; doors first — they change the options (user, 2026-10-26)
-        secHtml.push(uwSec("door", __("Hurðir"), b.type === "harskapurOpinn" ? __("Opið") : __("Með hurðum"), closetDoorsHtml(b, true)));
+        if (!opt.pocket) secHtml.push(uwSec("door", __("Hurðir"), b.type === "harskapurOpinn" ? __("Opið") : __("Með hurðum"), closetDoorsHtml(b, true)));
         innHtml = closetBayHtml(b, true, true);
         var rr = CLOSET_RECIPES.find(function(x){ return x.key === b.closetRecipe; });
-        innSum = (rr ? __(rr.label) : __("Eigin samsetning")) + " · " + (b.type === "harskapurOpinn" ? __("Opið") : __("Með hurðum"));
+        innSum = (rr ? __(rr.label) : __("Eigin samsetning")) + " · " + (b.type === "harskapurOpinn" ? __("Opið") : opt.pocket ? __("Rennihurð í hlið") : __("Með hurðum"));
       }
       if (!shortWiz && !machineOnly && innHtml.replace(/<div class="edit-field"><\/div>/g, "").trim()) secHtml.push(uwSec("inn", c.hasInterior || c.shelfRange || c.railRange ? __("Innvols") : __("Útfærsla"), innSum, innHtml));
       html += '<div class="uw-secs">' + secHtml.join("") + '</div>';
@@ -8251,7 +8273,7 @@
       var opts = activeUnitTree()[uw.cat].opts;
       if (opts.length === 1 && !opts[0].soon && (opts[0].island || opts[0].islandBack)){ uw.step = 2; renderUnitWizard(); var only = side.querySelector('[data-uw-opt="0"]'); if (only) only.click(); return; } // the kitchen's Eyja / Bak á eyju entries
       if (opts.length === 1 && !opts[0].soon){ // one real option: skip the redundant step 2 (Fataskápar's groups)
-        uw.opt = 0; uw.b = uwStartBlock(opts[0]); uw.step = 3;
+        uw.opt = 0; uw.b = uwStartBlock(opts[0]); uw.step = 3; uw.doorKind = opts[0].pocket ? "pocket" : null;
       } else uw.step = 2;
       renderUnitWizard();
     }); });
@@ -8277,7 +8299,7 @@
         uw.opt = +el.dataset.uwOpt; uw.island = { type:io.island, a:mk(), b:two ? mk() : null };
         uw.b = uw.island.a[0]; uw.step = 3; renderUnitWizard(); return;
       }
-      uw.opt = +el.dataset.uwOpt; uw.b = uwStartBlock(activeUnitTree()[uw.cat].opts[uw.opt]); uw.step = 3; renderUnitWizard();
+      uw.opt = +el.dataset.uwOpt; uw.b = uwStartBlock(activeUnitTree()[uw.cat].opts[uw.opt]); uw.step = 3; uw.doorKind = io.pocket ? "pocket" : null; renderUnitWizard();
     }); });
     side.querySelectorAll("[data-uw-back]").forEach(function(el){ el.addEventListener("click", function(){
       uw.step--; if (uw.step < 3){ uw.b = null; uw.island = null; }
@@ -8400,10 +8422,11 @@
     side.querySelectorAll("[data-clitem]").forEach(function(el){ el.addEventListener("click", function(){ closetItemStep(b, el.dataset.clitem); renderUnitWizard(); }); });
     side.querySelectorAll("[data-cldrawer]").forEach(function(el){ el.addEventListener("click", function(){ closetDrawerStep(b, el.dataset.cldrawer); renderUnitWizard(); }); });
     side.querySelectorAll("[data-clrailcolor]").forEach(function(el){ el.addEventListener("click", function(){ b.railColor = el.dataset.clrailcolor; renderUnitWizard(); }); });
-    side.querySelectorAll("[data-cldoortype]").forEach(function(el){ el.addEventListener("click", function(){ uw.doorKind = el.dataset.cldoortype; setClosetBayDoors(b, el.dataset.cldoortype !== "open"); uwAdvance("door"); renderUnitWizard(); }); });
+    side.querySelectorAll("[data-cldoortype]").forEach(function(el){ el.addEventListener("click", function(){ uw.doorKind = el.dataset.cldoortype; if (uw.doorKind !== "pocket" && b.smida) delete b.smida.doors; setClosetBayDoors(b, el.dataset.cldoortype !== "open"); uwAdvance("door"); renderUnitWizard(); }); });
     side.querySelectorAll("[data-front-all]").forEach(function(el){ el.addEventListener("click", function(){
       if (el.dataset.frontAll === "1") b.frontAll = true; else delete b.frontAll; renderUnitWizard();
     }); });
+    side.querySelectorAll("[data-lift]").forEach(function(el){ el.addEventListener("click", function(){ setLiftDoor(b, el.dataset.lift === "1"); renderUnitWizard(); }); });
     side.querySelectorAll("[data-oven-type]").forEach(function(el){ el.addEventListener("click", function(){
       if (b.type === el.dataset.ovenType) return;
       b.type = el.dataset.ovenType; delete b.heightMm; delete b.ovenFrontsMm;
@@ -10532,6 +10555,9 @@
         if (b.locked){ lockedToast(); return; }
         if (btn.dataset.frontAll === "1") b.frontAll = true; else delete b.frontAll; save(); refreshAfterEdit();
       });
+    });
+    host.querySelectorAll("[data-lift]").forEach(function(btn){
+      btn.addEventListener("click", function(){ setLiftDoor(b, btn.dataset.lift === "1"); save(); refreshAfterEdit(); });
     });
     host.querySelectorAll("[data-oven-type]").forEach(function(btn){
       btn.addEventListener("click", function(){ if (b.type !== btn.dataset.ovenType) changeBlockType(wall, zone, b.id, btn.dataset.ovenType); });
@@ -12986,7 +13012,8 @@
         }
         var v3 = v1 ? v3RecordsFor(b, c) : [];
         if (!v1 && v3RecordsFor(b, c).length) notes.push("Aukahlutir (t.d. ruslafötur, töfrahorn, lyfta) fóru ekki með þar sem skápurinn fann ekki V1 — bættu þeim við í V3 handvirkt."); // never drop them silently
-        if (b.aventos && AVENTOS_PRODUCTS[b.aventos]) notes.push("Lyfta: " + AVENTOS_PRODUCTS[b.aventos].label + " í stað lama — staðfestu stærð og þyngd framhliðar gagnvart lyftunni.");
+        if (b.aventos && AVENTOS_PRODUCTS[b.aventos]) notes.push(PRO ? "Lyfta: " + AVENTOS_PRODUCTS[b.aventos].label + " í stað lama — staðfestu stærð og þyngd framhliðar gagnvart lyftunni."
+          : "Opnast upp (val viðskiptavinar): " + AVENTOS_PRODUCTS[b.aventos].label + " sett sem sjálfgefið — söluaðili velur rétta AVENTOS gerð eftir stærð og þyngd framhliðar og staðfestir verð.");
         if (c.oven && !c.lowOven && +b.ovenH === 1050) notes.push("Ofn (60 cm) + örbylgjuofn (45 cm) í sama turni — staðfestu tækin.");
         if (state.hungUnits && zone_ofBlock(wall, b) === "floor") notes.push("Veggfestur (baðherbergi): " + plinthMmOf(c, "floor", wall) + " mm frá gólfi að neðri brún, enginn sökkull.");
         if (c.thvoSide){ var hs = blockHeightMm(b, c); notes.push("Hlið við hlið í skáp: Lítill kassi " + b.widthMm + " mm með einni skúffu (~300 mm) undir " + (b.widthMm < 1000 ? "einni vél" : "þvottavél og þurrkara") + ", 2 úthliðar " + hs + " mm upp með vélunum, skápur ofan á (" + Math.max(0, hs - 100 - 300 - 880) + " mm) — söluaðili staðfestir."); }

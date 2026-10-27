@@ -2759,6 +2759,12 @@
       if (p.racks) p.racks.position.z = p.racksOut * smooth01((p.cur - 0.5) / 0.5);
       return;
     }
+    if (p.kind === "lift"){ p.group.rotation.x = -1.4 * e; return; } // AVENTOS: the front swings up and out over the cabinet
+    if (p.kind === "pocket"){ // Revego: out to 90°, then back into the pocket beside the carcass
+      p.group.rotation.y = (p.hinge === "left" ? -1 : 1) * Math.PI / 2 * smooth01(p.cur / 0.5);
+      p.group.position.z = p.z0 - p.pocketIn * smooth01((p.cur - 0.5) / 0.5);
+      return;
+    }
     if (p.kind === "drawer") p.group.position.z = p.slide * e;
     else p.group.rotation.y = (p.hinge === "left" ? -1 : 1) * (p.maxRad || 1.75) * e;
     if (p.hinges) p.hinges.forEach(function(h){ h.visible = e > 0.75; }); // the hinge model is the open hinge
@@ -2866,10 +2872,15 @@
     // of this flag, so dropping the old "!drawers" gate here only affects the door-zone front, correctly.
     var wide = twoDoors(widthM * 1000, meta.zone === "wall") && !meta.fridge && !meta.corner;
     var parts = (scene.userData.parts = scene.userData.parts || []);
+    // Tækjaskápar (owner, 2026-10-27): a wall unit with an AVENTOS lift opens UP (one front, tips up on its top edge);
+    // doors with the Rennihurð í hlið spec (smida.doors type "pocket") turn out 90° and then slide back into the side
+    var mvB = meta.shelfBlock, doorMove = !mvB || meta.corner || meta.fridge || meta.oven ? null
+      : meta.zone === "wall" && (mvB.aventos || (mvB.smida && Array.isArray(mvB.smida.doors) && mvB.smida.doors.some(function(d){ return d && d.type === "lift"; }))) ? "lift"
+      : mvB.smida && Array.isArray(mvB.smida.doors) && mvB.smida.doors.some(function(d){ return d && d.type === "pocket"; }) ? "pocket" : null;
 
     function makeLeaf(idx, cxL, w, y0, y1, hinge, f, fi){
       var key = meta.blockId + ":" + idx;
-      var g = new THREE.Group(), pivotX = f.drawer || hinge === "bottom" ? cxL : (hinge === "left" ? cxL - w / 2 : cxL + w / 2), fh = y1 - y0;
+      var g = new THREE.Group(), pivotX = f.drawer || hinge === "bottom" || hinge === "top" ? cxL : (hinge === "left" ? cxL - w / 2 : cxL + w / 2), fh = y1 - y0;
       g.position.set(pivotX, 0, 0);
       var pmeta = Object.assign({}, meta, { isPart:true, partKey:key }), meshes = [];
       // a wardrobe's drawer: dragged up/down its top edge follows the pointer (2.5 cm steps, user 2026-10-26) — see onDrawerResize
@@ -2993,12 +3004,13 @@
         g.children.forEach(function(ch){ ch.position.z -= pz; });
         g.position.z = pz;
         if (hinge === "bottom"){ g.children.forEach(function(ch){ ch.position.y -= y0; }); g.position.y = y0; } // a flap pivots on its lower edge
+        if (hinge === "top"){ g.children.forEach(function(ch){ ch.position.y -= y1; }); g.position.y = y1; } // a lift front tips up on its top edge
       }
       meshes.forEach(function(m){ m.userData = pmeta; pickables.push(m); });
       var prev = PART_STATE[key];
       var maxDeg = meta.doorLimit && meta.doorLimit[hinge] != null ? meta.doorLimit[hinge] : DOOR_OPEN_DEG; // stops at a wall / corner
       if (hingeOpenRad != null) maxDeg = Math.min(maxDeg, hingeOpenRad * 180 / Math.PI); // a door with the hinge model opens to the model's own 90°
-      var part = { key:key, group:g, kind:f.drawer ? "drawer" : hinge === "bottom" ? "flap" : "door", hinge:hinge, maxRad:maxDeg * Math.PI / 180, slide:fixedTop ? 0 : Math.min(0.34, CD * 0.6), cur:prev ? prev.cur : 0, target:prev ? prev.target : 0, hinges:leafHinges };
+      var part = { key:key, group:g, kind:f.drawer ? "drawer" : hinge === "bottom" ? "flap" : hinge === "top" ? "lift" : doorMove === "pocket" ? "pocket" : "door", hinge:hinge, z0:g.position.z, pocketIn:Math.max(0.1, CD - 0.06), maxRad:maxDeg * Math.PI / 180, slide:fixedTop ? 0 : Math.min(0.34, CD * 0.6), cur:prev ? prev.cur : 0, target:prev ? prev.target : 0, hinges:leafHinges };
       PART_STATE[key] = part; parts.push(part); applyPart(part);
       frame.add(g);
     }
@@ -3142,7 +3154,8 @@
         scaleFrontUV(blind.geometry, hw - 0.004, y1 - y0, frontMat.userData && frontMat.userData.tile, false, { u:offsetM + widthM / 2 + (left ? 0 : -hw), v:y0 });
         blind.position.set(left ? hw / 2 : -hw / 2, (y0 + y1) / 2, CD + FRONT_T / 2); blind.castShadow = true;
         frame.add(blind);
-      } else if (wide){
+      } else if (doorMove === "lift") makeLeaf(idx++, 0, widthM, y0, y1, "top", f, fi); // one lift front, however wide
+      else if (wide){
         makeLeaf(idx++, -widthM / 4, widthM / 2, y0, y1, "left", f, fi);
         makeLeaf(idx++, widthM / 4, widthM / 2, y0, y1, "right", f, fi);
       } else makeLeaf(idx++, 0, widthM, y0, y1, meta.hingeRight ? "right" : "left", f, fi);
