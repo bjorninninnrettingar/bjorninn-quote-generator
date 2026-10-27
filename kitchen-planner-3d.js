@@ -4728,6 +4728,15 @@
   // Until the photo is in (a first visit: ~0.3–2 s), the texture is a tiny swatch of the material's own colour —
   // a texture with no image yet rendered the front/worktop BLACK (studio-load, 2026-10-26). The photo then arrives as
   // a new Source (a fresh GPU texture at its real size), so every material/clone sharing `t` picks it up.
+  function disposeSourceUsers(src){ // every live texture sharing `src` (clones for offsets/rotation) lets go of its old GPU storage
+    [THREE_STATE && THREE_STATE.scene, PREVIEW && PREVIEW.scene].forEach(function(sc){
+      if (sc) sc.traverse(function(o){
+        if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(function(m){
+          ["map", "bumpMap", "roughnessMap", "normalMap", "alphaMap"].forEach(function(k){ var x = m && m[k]; if (x && x.source === src) x.dispose(); });
+        });
+      });
+    });
+  }
   function imgTex(THREE, url, color){
     var t = IMG_TEX && IMG_TEX.get(url);
     if (t) return t;
@@ -4736,7 +4745,13 @@
     t = new THREE.Texture(ph); t.needsUpdate = true;
     IMG_PENDING++;
     new THREE.ImageLoader().load(url, function(img){
-      IMG_PENDING--; t.source = new THREE.Source(img); t.needsUpdate = true;
+      IMG_PENDING--;
+      // The photo goes into the SAME Source (so every clone of `t` gets it too), and every texture on it is disposed
+      // first: three keeps a texture's GPU storage per texture settings, not per image, so once the 2 × 2 placeholder
+      // had been drawn the photo was uploaded into that tiny immutable storage and failed — wood fronts came out one
+      // flat colour or glitched (owner, bath 2026-10-27). Disposed, the next frame allocates it at the photo's size.
+      var src = t.source; t.dispose(); src.data = img; src.needsUpdate = true;
+      disposeSourceUsers(src);
       window.dispatchEvent(new Event("kp3d-tex-loaded"));
     }, undefined, function(){ IMG_PENDING--; });
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
@@ -5166,6 +5181,24 @@
           return { offM:w.offsetMm / 1000, widM:w.widthMm / 1000, loM:w.sillHeightMm / 1000, hM:Math.min(w.sillHeightMm + w.heightMm, roomHeightMm) / 1000 }; }));
       wallFades.push({ mesh:addWallPlane(THREE, scene, g, WALL_H, mat, gaps), geom:g, mat:mat, wallId:wid, openings:[] });
     });
+    // opts.previewRoom (bath / laundry previews, owner 2026-10-27): the isolated unit stands in a piece of the real room —
+    // the floor and the wall (colour or tiles) picked on "Útlit rýmisins", at real size, with the same light and shadows
+    // as the editor — instead of a white void where a white box read as a flat slab
+    if (iso && opts.previewRoom && geoms[0]){
+      var prg = geoms[0], prExt = 3, prDepth = 4.5;
+      var prWall = { origin:{ x:prg.origin.x - prg.axis.x * prExt, z:prg.origin.z - prg.axis.z * prExt }, axis:prg.axis, normal:prg.normal, lenM:prg.lenM + prExt * 2 };
+      addWallPlane(THREE, scene, prWall, WALL_H, wallMat.clone(), []);
+      var prq = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(prg.axis.x, 0, prg.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(prg.normal.x, 0, prg.normal.z)));
+      var prFloor = new THREE.Mesh(new THREE.PlaneGeometry(prWall.lenM, prDepth), floorMat);
+      if (floorMat.map && floorMat.userData.tile) [floorMat.map, floorMat.bumpMap, floorMat.roughnessMap].forEach(function(t){ if (t) t.repeat.set(prWall.lenM / floorMat.userData.tile, prDepth / floorMat.userData.tile); });
+      var prG = new THREE.Group(); prG.quaternion.copy(prq); prG.position.set(prg.origin.x + prg.axis.x * prg.lenM / 2, 0, prg.origin.z + prg.axis.z * prg.lenM / 2);
+      prFloor.rotation.x = -Math.PI / 2; prFloor.position.set(0, 0, prDepth / 2 - 0.04); prFloor.receiveShadow = true; prG.add(prFloor);
+      if (!wallMat.userData.tileWall){ // a painted wall gets its white skirting, like the room
+        var prSk = new THREE.Mesh(new THREE.BoxGeometry(prWall.lenM, 0.09, 0.014), skirtMat); prSk.position.set(0, 0.045, 0.005); prSk.receiveShadow = true; prG.add(prSk);
+      }
+      scene.add(prG);
+      scene.background = new THREE.Color(0xf3f1ec);
+    }
 
     function geomForWall(wallId){
       if (iso && !isFocusWall(wallId)) return null;

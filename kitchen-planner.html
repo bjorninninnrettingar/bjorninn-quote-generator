@@ -8499,7 +8499,7 @@
     var wEff = b.widthMm * (uwPairOpt(hovOpt) ? 2 : 1), lenMm = Math.max(1200, wEff + 800);
     // a bath unit hangs at its wall's Hæð frá gólfi in the preview too (it stood on a kitchen plinth, user 2026-10-26)
     var uwWall = state.walls.find(function(w){ return w.id === uw.wallId; }), uwPl = uwWall && typeof uwWall.plinthMm === "number" ? uwWall.plinthMm : (state.hungUnits ? BATH_HUNG_MM : undefined);
-    var pv = { wardrobe:isCloset(), carcass:state.carcass, drawerSystem:state.drawerSystem, look:state.look, handle:state.handle, handleColor:state.handleColor, top:c.panel ? "engin" : state.top, /* an úthlið alone: no worktop */ floor:state.floor, wallColor:state.wallColor,
+    var pv = { wardrobe:isCloset(), carcass:state.carcass, drawerSystem:state.drawerSystem, look:state.look, handle:state.handle, handleColor:state.handleColor, top:c.panel ? "engin" : state.top, /* an úthlið alone: no worktop */ floor:state.floor, wallColor:state.wallColor, wallTile:state.wallTile,
       roomHeightMm:state.roomHeightMm, closed:false, islands:[], windows:[], doors:[], hungUnits:!!state.hungUnits, activeCategory:isLaundry() ? state.activeCategory : undefined, // (a laundry sink: the short utility tap)
       walls:[{ id:"UWP", label:"", lengthMm:lenMm, plinthMm:uwPl, floor:c.zone === "floor" ? (function(){ var fl = [Object.assign({}, b, { gapMm:400, locked:false })].concat(uwPairOpt(hovOpt) ? [Object.assign({}, b, { id:b.id + "p", gapMm:0, locked:false })] : []);
         return isLaundry() && !PRO && c.thvo ? previewEndPanels(fl) : fl; })() : [], /* the machine tower: its úthliðar, no dark side (owner, 2026-10-27) */ wall:c.zone === "wall" ? [Object.assign({}, b, { gapMm:400, locked:false })] : [] }] };
@@ -8508,7 +8508,7 @@
       var prevCam = KP3D._three() ? { p:KP3D._three().camera.position.clone(), t:KP3D._three().controls.target.clone() } : null;
       KP3D.teardown3D(true);
       host.innerHTML = "";
-      KP3D.buildScene(host, pv, { xray:true, clean:true, noGhost:true, onlySurfaceId:"UWP", freshCamera:true, darkBg:!!PRO, afterFrame:drawUwDims, towerGlass:true, // the washer + dryer show through the tower's doors (user, 2026-10-26)
+      KP3D.buildScene(host, pv, { xray:true, clean:true, noGhost:true, onlySurfaceId:"UWP", freshCamera:true, darkBg:!!PRO, afterFrame:drawUwDims, towerGlass:true, previewRoom:!PRO && (isBath() || isLaundry()), // bath / laundry: the room's own floor + wall // the washer + dryer show through the tower's doors (user, 2026-10-26)
         // Smíða lite: shelves / rails / drawers move in the preview too (user, 2026-10-26)
         onShelfPosMove:uw.b ? onShelfPosMove : null, onShelfPosEnd:uwItemMoved, onShelfPosInfo:uw.b ? onShelfPosInfo : null, onDrawerResize:uw.b ? onDrawerResize : null, onDrawerResizeEnd:uwItemMoved,
         drawerDragAll:!!uw.b && !PRO }); // every room (owner, 2026-10-27): drag a drawer front's edge to resize it, typing optional
@@ -8519,7 +8519,7 @@
         var hoverKey = key, stackOnly = b.interior && b.interior.mode === "skuffur" && !c.bur;
         if (!stackOnly) setTimeout(function(){ if (uw && !uw.b && uwPrevKey === hoverKey) KP3D.setAllParts(true); }, 650);
       }
-      var g = KP3D.surfaceGeoms(pv)[0]; if (state.hungUnits && c.zone === "floor") previewFloor(st, g, lenMm / 1000);
+      var g = KP3D.surfaceGeoms(pv)[0]; if (state.hungUnits && c.zone === "floor" && (PRO || !(isBath() || isLaundry()))) previewFloor(st, g, lenMm / 1000);
       var hM = blockHeightMm(b, c) / 1000, elevM = c.zone === "wall" ? (KP3D.elevOf(b) || 0) / 1000 : 0;
       var tapM = c.sink ? 0.34 : 0; // the tap above a sink unit is in the picture too (user, 2026-10-26)
       var along = 0.4 + wEff / 2000, cx = g.origin.x + g.axis.x * along, cz = g.origin.z + g.axis.z * along, cy = elevM + (hM + tapM) / 2;
@@ -9939,18 +9939,18 @@
     if (!drwOn) b.interior = { mode:"hillur", count:0 }; // the colour page: just the empty box
     else if (!topOn){ var dcs = KP3D.drawerCodes({ mode:"skuffur", count:2 }, drawerSys()); b.interior = { mode:"skuffur", count:dcs.length, codes:dcs }; }
     var pv = { carcass:state.carcass, drawerSystem:state.drawerSystem, look:frontsOn ? state.look : state.look || "hvitt", handle:matPhaseReveal("handle") ? state.handle : null, handleColor:state.handleColor, top:topOn ? state.top || "engin" : "engin",
-      floor:null, wallColor:null, roomHeightMm:state.roomHeightMm, closed:false, islands:[], windows:[], doors:[], hungUnits:true, bathMirror:topOn && !!state.bathMirror, activeCategory:"bad",
+      floor:state.floor, wallColor:state.wallColor, wallTile:state.wallTile, roomHeightMm:state.roomHeightMm, closed:false, islands:[], windows:[], doors:[], hungUnits:true, bathMirror:topOn && !!state.bathMirror, activeCategory:"bad",
       walls:[{ id:"BTP", label:"", lengthMm:1600, plinthMm:gap, floor:frontsOn ? previewEndPanels([b], gap) : [b], wall:[] }] };
-    var key = JSON.stringify(pv) + frontsOn + onDrw + (state.floor || "") + (state.wallColor || "");
+    var key = JSON.stringify(pv) + frontsOn + onDrw;
     if (key === closetPrevKey && KP3D._three() && host.querySelector("canvas")) return;
     closetPrevKey = key;
     KP3D.waitForThree(function(ok){
       if (!ok || state.step !== "materials" || !isBath()) return;
       var st0 = KP3D._three(), prevCam = st0 && host.querySelector("canvas") ? { p:st0.camera.position.clone(), t:st0.controls.target.clone() } : null;
       KP3D.teardown3D(true); host.innerHTML = "";
-      KP3D.buildScene(host, pv, { xray:true, clean:true, noGhost:true, onlySurfaceId:"BTP", freshCamera:true });
+      KP3D.buildScene(host, pv, { xray:true, clean:true, noGhost:true, onlySurfaceId:"BTP", freshCamera:true, previewRoom:true }); // the room's own floor + wall (3D owns it)
       var st = KP3D._three(); if (!st) return;
-      var g = KP3D.surfaceGeoms(pv)[0]; previewFloor(st, g, 1.6, true);
+      var g = KP3D.surfaceGeoms(pv)[0];
       var topM = pv.bathMirror ? Math.max(1.85, b.heightMm / 1000 + 1.1) : b.heightMm / 1000 + 0.32;
       var cx = g.origin.x + g.axis.x * 0.8 + g.normal.x * 0.25, cz = g.origin.z + g.axis.z * 0.8 + g.normal.z * 0.25, cy = topM / 2;
       var vHalf = (st.camera.fov || 45) * Math.PI / 360, hHalf = Math.atan(Math.tan(vHalf) * (st.camera.aspect || 1));
@@ -9984,19 +9984,19 @@
     // (Efni, round 3: the same laundry in the chosen materials — see-through fronts on the colour page, like the bath)
     var frontsOn = !mat || matPhaseReveal("fronts");
     var pv = { carcass:state.carcass, drawerSystem:state.drawerSystem, look:state.look || "eg_W1100", handle:!mat || matPhaseReveal("handle") ? state.handle : null, handleColor:state.handleColor, top:mTop ? state.top || "eg_W1000" : "engin",
-      floor:mat ? null : state.floor, wallColor:mat ? null : state.wallColor, roomHeightMm:state.roomHeightMm, closed:false, islands:[], windows:[], doors:[], activeCategory:"thvottahus",
+      floor:state.floor, wallColor:state.wallColor, wallTile:state.wallTile, roomHeightMm:state.roomHeightMm, closed:false, islands:[], windows:[], doors:[], activeCategory:"thvottahus",
       walls:[{ id:"MCP", label:"", lengthMm:lenMm, floor:frontsOn ? previewEndPanels(list) : list, wall:[] }] }; // the machine page too: no bare dark side on the tower
-    var key = JSON.stringify(pv) + (mat ? "m" + frontsOn + (state.floor || "") + (state.wallColor || "") : "");
+    var key = JSON.stringify(pv) + (mat ? "m" + frontsOn : "");
     if (key === machinePrevKey && (mat || heightScene) && KP3D._three() && host.querySelector("canvas")) return;
     machinePrevKey = key;
     KP3D.waitForThree(function(ok){
       if (!ok || (mat ? state.step !== "materials" || !isLaundry() : state.step !== "shape" || shapePhase !== "machine")) return;
       var st0 = KP3D._three(), prevCam = (mat || heightScene) && st0 && host.querySelector("canvas") ? { p:st0.camera.position.clone(), t:st0.controls.target.clone() } : null;
       KP3D.teardown3D(true); host.innerHTML = "";
-      KP3D.buildScene(host, pv, { xray:true, clean:true, noGhost:true, onlySurfaceId:"MCP", freshCamera:true, towerGlass:!mat }); // Efni: a real carcass (the top cabinet read as a glass box)
+      KP3D.buildScene(host, pv, { xray:true, clean:true, noGhost:true, onlySurfaceId:"MCP", freshCamera:true, towerGlass:!mat, previewRoom:true }); // Efni: a real carcass (the top cabinet read as a glass box); the room's own floor + wall (3D owns it)
       if (!mat) heightScene = true;
       var st = KP3D._three(); if (!st) return;
-      var g = KP3D.surfaceGeoms(pv)[0]; previewFloor(st, g, lenMm / 1000, !!mat);
+      var g = KP3D.surfaceGeoms(pv)[0];
       var runM = (lenMm - 600) / 1000, hM = m === "staeda" ? 2.5 : 1.0, am = 0.3 + runM / 2;
       var cx = g.origin.x + g.axis.x * am + g.normal.x * 0.3, cz = g.origin.z + g.axis.z * am + g.normal.z * 0.3, cy = hM / 2;
       var vHalf = (st.camera.fov || 45) * Math.PI / 360, hHalf = Math.atan(Math.tan(vHalf) * (st.camera.aspect || 1));
