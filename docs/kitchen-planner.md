@@ -686,3 +686,9 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   customers' preview pills: "Sýna inn í skápinn" (x-ray) + "Opna", no "Snúa". A hung unit's Hæð shows "Toppurinn verður í
   X cm hæð" (gap + box + top thickness), and the preview draws the overall height outside an inner chain gap + box. The
   bath's Efri skápur offers "Opin hilla" (opnarhillur) first and by default; the bath suggestion uses it too.
+- **Ný eining drawer fronts (owner):** in the wizard preview (customers, `opts.drawerDragAll`) every drawer front drags.
+  A full drawer unit moves the line above the front (the top one: the line under it) — the two fronts trade height in
+  2.5 cm steps, each gets the deepest box whose `slotMin` fits (`stackMoveLine`); wardrobe zones keep `closetSetDrawerSlot`.
+  A front in a bath / wardrobe is at most 600 mm (`DRAWER_FRONT_CAP_MM`, also in the wardrobe path). A hung unit's Hæð has
+  "Annað mál" for the box height. Not built yet: "Skipta fronti í tvennt" (needs an Airtable/Keyra skipulag field) and the
+  per-code min/max table (awaiting the owner's numbers).

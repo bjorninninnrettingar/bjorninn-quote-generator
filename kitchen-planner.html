@@ -7959,7 +7959,9 @@
           .filter(function(h, i, a){ return a.indexOf(h) === i && h + hg <= c.maxH; });
         secHtml.push(uwSec("h", __("Hæð"), uCm() ? __("{h} cm · {g} cm frá gólfi", { h:hBox / 10, g:hg / 10 }) : hBox + " mm · " + hg + " mm frá gólfi",
           '<div class="edit-field"><label>' + __("Hæð skáps") + '</label><div class="uw-chips">' + boxOpts.map(function(h){ return '<button type="button" class="hw-btn' + (h === hBox ? ' active' : '') + '" data-uw-hbox="' + h + '">' + uwN(h) + '</button>'; }).join("") +
-            '<small style="align-self:center;margin-left:4px;">' + uUnit() + '</small></div></div>' +
+            '<small style="align-self:center;margin-left:4px;">' + uUnit() + '</small></div>' +
+            // any height in range, like Breidd (owner, 2026-10-27)
+            '<div class="uw-custom"><label>' + __("Annað mál") + '</label><input type="number" data-uw-hboxcustom="1" min="' + uwN(Math.max(1, c.minH - hg)) + '" max="' + uwN(c.maxH - hg) + '" step="' + (uCm() ? 0.1 : 1) + '" value="' + (boxOpts.indexOf(hBox) < 0 ? uwN(hBox) : "") + '" placeholder="' + uwN(hBox) + '"><small>' + uUnit() + ' · ' + uwN(Math.max(1, c.minH - hg)) + '–' + uwN(c.maxH - hg) + '</small></div></div>' +
           '<div class="edit-field"><label>' + __("Hæð frá gólfi") + '</label>' + hungGapChips(hg, "data-uw-gap") + '</div>' +
           // floor → gap + box + top, live with the chips (owner, 2026-10-27)
           (c.counter && !PRO ? '<p class="sec-note uw-toph">' + __("Toppurinn verður í {n} cm hæð", { n:Math.round((hg + hBox + (state.top && state.top !== "engin" && TOPS[state.top] ? KP3D.topThickM(state.top) * 1000 : 0)) / 10) }) + '</p>' : '')));
@@ -8130,6 +8132,8 @@
       var w0 = state.walls.find(function(w){ return w.id === uw.wallId; }); if (!w0) return;
       var box = (b.heightMm || c.h) - plinthMmOf(c, "floor", w0);
       setHungGap(w0, +el.dataset.uwGap); b.heightMm = clampHeight(b.type, box + plinthMmOf(c, "floor", w0)); save(); uwAdvance("h"); renderUnitWizard(); }); });
+    var hbc = side.querySelector("[data-uw-hboxcustom]");
+    if (hbc) hbc.addEventListener("change", function(){ if (!hbc.value) return; var w0 = state.walls.find(function(w){ return w.id === uw.wallId; }); b.heightMm = clampHeight(b.type, uwParse(hbc.value) + plinthMmOf(c, "floor", w0)); renderUnitWizard(); });
     var hc = side.querySelector("[data-uw-hcustom]");
     if (hc) hc.addEventListener("change", function(){ if (!hc.value) return; b.heightMm = clampHeight(b.type, uwParse(hc.value)); uwAdvance("h"); renderUnitWizard(); });
     side.querySelectorAll("[data-uw-d]").forEach(function(el){ el.addEventListener("click", function(){ uw.hoverDim = null; b.depthMm = +el.dataset.uwD; uwAdvance("d"); renderUnitWizard(); }); });
@@ -8339,7 +8343,8 @@
       host.innerHTML = "";
       KP3D.buildScene(host, pv, { xray:true, clean:true, noGhost:true, onlySurfaceId:"UWP", freshCamera:true, darkBg:!!PRO, afterFrame:drawUwDims, towerGlass:true, // the washer + dryer show through the tower's doors (user, 2026-10-26)
         // Smíða lite: shelves / rails / drawers move in the preview too (user, 2026-10-26)
-        onShelfPosMove:uw.b ? onShelfPosMove : null, onShelfPosEnd:uwItemMoved, onShelfPosInfo:uw.b ? onShelfPosInfo : null, onDrawerResize:uw.b && isCloset() ? onDrawerResize : null, onDrawerResizeEnd:uwItemMoved });
+        onShelfPosMove:uw.b ? onShelfPosMove : null, onShelfPosEnd:uwItemMoved, onShelfPosInfo:uw.b ? onShelfPosInfo : null, onDrawerResize:uw.b ? onDrawerResize : null, onDrawerResizeEnd:uwItemMoved,
+        drawerDragAll:!!uw.b && !PRO }); // every room (owner, 2026-10-27): drag a drawer front's edge to resize it, typing optional
       var st = KP3D._three(); if (!st) return;
       if (!uw.b){ // hovering a type: start closed and play the opening, rather than showing it already open (user, 2026-10-25)
         KP3D.snapParts(false);
@@ -11687,12 +11692,33 @@
     var fb = dragBlock(blockId); if (!fb) return null;
     var b = fb.block, c = CATALOG[b.type];
     if (!b.interior || b.interior.mode !== "skuffur") return null;
-    var codes = KP3D.drawerCodes(b.interior, drawerSys()), body = proBodyMm(b, c, fb.zone);
-    var slots = KP3D.stackFrontsMm(b.interior, codes, KP3D.drawerZoneMm(c, body, b.drawerZoneMm)) || codes.map(function(){ return 170; });
+    var codes = KP3D.drawerCodes(b.interior, drawerSys()), body = proBodyMm(b, c, fb.zone), zone = KP3D.drawerZoneMm(c, body, b.drawerZoneMm);
+    var slots = KP3D.stackFrontsMm(b.interior, codes, zone) || codes.map(function(){ return 170; });
     if (!slots[idx]) return null;
+    if (!isCloset() && zone >= body - 5 && slots.length > 1) return stackMoveLine(b, slots, codes, idx, topMm, body); // a full drawer unit: the line between two fronts moves
     var below = 0; for (var i = 0; i < idx; i++) below += slots[i];
     var slot = closetSetDrawerSlot(b, idx, Math.round((topMm - below) / DRAWER_SNAP_MM) * DRAWER_SNAP_MM, body);
     return slot == null ? null : { mm:slot, label:fmtCm(slot) };
+  }
+  // A drawer unit full of drawers (owner, 2026-10-27): dragging a front moves the line above it (the top front: the line
+  // under it) — the two fronts on either side trade height, each one gets the deepest box that fits its slot, and a bath /
+  // wardrobe front never goes over 600 mm.
+  var DRAWER_FRONT_CAP_MM = 600;
+  function stackMoveLine(b, slots, codes, idx, topMm, body){
+    var n = slots.length, line = idx < n - 1 ? idx : idx - 1; // the line above slot `line`
+    var below = 0; for (var i = 0; i < line; i++) below += slots[i];
+    var pair = slots[line] + slots[line + 1], sys = drawerSys(), list = sys === "merivo" ? ["N", "M", "K", "E"] : ["M", "K", "C", "F"];
+    var minS = KP3D.slotMin(list[0]), cap = (catBase() === "bad" || isCloset()) ? DRAWER_FRONT_CAP_MM : Infinity;
+    var want = Math.round((topMm - below) / DRAWER_SNAP_MM) * DRAWER_SNAP_MM;
+    var lo = Math.max(minS, pair - cap), hi = Math.min(pair - minS, cap);
+    if (lo > hi) return null;
+    var s0 = Math.max(lo, Math.min(hi, want)), s1 = pair - s0;
+    var codeFor = function(sl){ return list.filter(function(cd){ return KP3D.slotMin(cd) <= sl; }).pop() || list[0]; };
+    slots = slots.slice(); codes = codes.slice();
+    slots[line] = s0; slots[line + 1] = s1; codes[line] = codeFor(s0); codes[line + 1] = codeFor(s1);
+    b.interior.codes = codes; b.interior.frontsMm = slots; b.interior.count = codes.length;
+    var mine = line === idx ? s0 : s1;
+    return { mm:mine, label:fmtCm(mine) };
   }
   function fmtCm(mm){ var v = Math.round(mm / 5) / 2; return (v % 1 ? v.toFixed(1).replace(".", ",") : String(v)) + " cm"; }
   // one drawer's slot (front height) → the deepest drawer that fits it (Legra K → C → F, Merivo K → E); the shelf that
@@ -11702,7 +11728,7 @@
     var slots = KP3D.stackFrontsMm(b.interior, codes, KP3D.drawerZoneMm(c, body, b.drawerZoneMm)) || codes.map(function(){ return 170; });
     var others = slots.reduce(function(a, x, i){ return i === idx ? a : a + x; }, 0);
     var tall = sys === "merivo" ? ["K", "E"] : ["K", "C", "F"];
-    var minSlot = KP3D.slotMin(tall[0]), maxSlot = body - KP3D.DRAWER_TOPDOOR_MIN_MM - others;
+    var minSlot = KP3D.slotMin(tall[0]), maxSlot = Math.min(DRAWER_FRONT_CAP_MM, body - KP3D.DRAWER_TOPDOOR_MIN_MM - others); // ≤ 600 mm a front (owner, 2026-10-27)
     var slot = Math.max(minSlot, Math.min(maxSlot, want));
     if (slot < minSlot) return null;
     var oldZone = slots.reduce(function(a, x){ return a + x; }, 0);

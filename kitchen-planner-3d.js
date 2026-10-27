@@ -2835,7 +2835,7 @@
       g.position.set(pivotX, 0, 0);
       var pmeta = Object.assign({}, meta, { isPart:true, partKey:key }), meshes = [];
       // a wardrobe's drawer: dragged up/down its top edge follows the pointer (2.5 cm steps, user 2026-10-26) — see onDrawerResize
-      if (f.drawer && wardrobeScene && meta.tall && meta.shelfBlock){ pmeta.drawerIdx = fi; pmeta.drawerBotY = y0; pmeta.drawerTopY = y1; pmeta.ax = geom.axis.x; pmeta.az = geom.axis.z; pmeta.bodyBaseY = bodyBase; pmeta.widthM = w; }
+      if (f.drawer && ((wardrobeScene && meta.tall && meta.shelfBlock) || drawerDragAll)){ pmeta.drawerIdx = fi; pmeta.drawerBotY = y0; pmeta.drawerTopY = y1; pmeta.ax = geom.axis.x; pmeta.az = geom.axis.z; pmeta.bodyBaseY = bodyBase; pmeta.widthM = w; }
       var hcfgA = meta.handle && window.KPMODELS && window.KPMODELS.handles && window.KPMODELS.handles[meta.handle];
       var hstyleA = (HANDLES[meta.handle] || {}).style;
       var vertA = !!(meta.tall && !f.drawer && !meta.corner && hstyleA !== "knob");
@@ -4981,13 +4981,14 @@
   // called with {wallId,zone,blockId} when a cabinet is clicked, or null on
   // a click that hit nothing (deselect).
   // Fataskápar (user, 2026-10-25): door handles at hand height — set per scene from the room's category
-  var wardrobeScene = false;
+  var wardrobeScene = false, drawerDragAll = false; // drawerDragAll: the Ný eining preview — every drawer front's edge drags (owner, 2026-10-27)
   // the selected unit gets the blue outline (selHullSvg) instead of lilac fronts — every customer room (round 2, 2026-10-26:
   // lilac read as another front colour in the bath too); PRO (darkBg) keeps the tint
   var outlineSel = false;
   function buildScene(wrap, state, opts){
     opts = opts || {};
     wardrobeScene = /^fataskapar/.test(String(state.activeCategory || "")) || !!state.wardrobe;
+    drawerDragAll = !!opts.drawerDragAll;
     outlineSel = wardrobeScene || !opts.darkBg;
     handleFinish = handleFinishFor(state.handle, state.handleColor);
     var THREE = window.__THREE__;
