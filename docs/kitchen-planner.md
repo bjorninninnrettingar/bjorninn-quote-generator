@@ -707,3 +707,12 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   Kitchen cards draw a run on the first solid wall + the dashed wall cabinet, like the wall rooms; Aðeins rými stays a
   bare outline. **Bug fixed:** `load()` threw a whole home project away when it was reloaded on a room's shape page
   before that room was drawn (the old single-room "not closed → start over" rule) — now only old single-room drafts.
+- **Laundry + bath, same day (owner):** "Hvar er vélin?" has Þurrkari Já / Nei (`state.laundryDryer`, `noDryer()`,
+  `laundryMachineTypes()`): Nei + Í stæðu = a tower with the washer only (`b.single` → `addWasherTower(…, single)`,
+  one machine, a shelved cabinet above, a line-item note); Nei + Undir borðplötu = one machine + a drawer unit. The machine
+  page's preview gets its úthliðar (no dark tower side). The wall/water page draws the machines beside the vanity on a
+  single wall (red when they don't fit), and dragging a wall end keeps the droplet's distance from the end that stays put.
+  Bath + laundry floors default to tiles (`flis_ljos`, `roomDefaults` on the shape step). Bath: "Flísar á vegg"
+  (`state.wallTile`, `KP3D.WALL_TILES`: 60 × 30 half-bond, UVs at real size per wall piece) under Vegglitur — decorative.
+  Not built: the 4th machine option "Hlið við hlið í skáp" (needs a new unit type + an Útfærsla in Airtable — scoped in
+  the reply to the coordinator).

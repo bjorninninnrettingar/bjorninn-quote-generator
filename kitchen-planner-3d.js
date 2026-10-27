@@ -710,6 +710,13 @@
   // purchasable material (Björninn doesn't sell paint), so no Efnislisti
   // link like carcass/front — just a curated hex palette for the 3D/2D
   // preview. hvitt matches the historical fixed wall color.
+  // Flísar á vegg (bath, owner 2026-10-27): decorative only, never ordered — 60 × 30 cm wall tiles, half-bond, grey grout
+  var WALL_TILES = {
+    hvit:  { label:"Hvítar flísar",  color:"#f2f1ec" },
+    gra:   { label:"Gráar flísar",   color:"#bebdb7" },
+    beige: { label:"Beige flísar",   color:"#d9cdb7" },
+    dokk:  { label:"Dökkar flísar",  color:"#5b5c5f" }
+  };
   var WALL_COLORS = {
     hreinhvitt: { label:"Hreinhvítt", hex:"#fbfbf9" },
     hvitt:   { label:"Beinhvítt",  hex:"#f1efe8" },
@@ -1572,7 +1579,9 @@
     // with the wall (flickering backs, worst through a faded wall).
     var back = WALL_THICKNESS_M / 2 + 0.0015;
     pieces.forEach(function(pc){
-      var m = new THREE.Mesh(new THREE.BoxGeometry(pc[1] - pc[0], pc[3] - pc[2], WALL_THICKNESS_M), wallMat);
+      var bgeo = new THREE.BoxGeometry(pc[1] - pc[0], pc[3] - pc[2], WALL_THICKNESS_M);
+      if (wallMat.userData && wallMat.userData.tileWall){ var tw = wallMat.userData.tileWall; scaleFrontUV(bgeo, pc[1] - pc[0], pc[3] - pc[2], { w:tw, h:tw }, false, { u:pc[0], v:pc[2] }); } // tiles at real size, lined up across the pieces
+      var m = new THREE.Mesh(bgeo, wallMat);
       m.quaternion.copy(wq);
       var mid = (pc[0] + pc[1]) / 2;
       m.position.set(geom.origin.x + geom.axis.x * mid - geom.normal.x * back, (pc[2] + pc[3]) / 2, geom.origin.z + geom.axis.z * mid - geom.normal.z * back);
@@ -2462,8 +2471,9 @@
   // a cabinet with one door above when there's room (≥ 20 cm). Both boxes carry the unit's meta (pick / drag / select).
   // Returns the niche's {base, top} (m) for addTowerMachines.
   var TOWER_DRAWER_M = 0.40, TOWER_NICHE_M = 1.76;
-  function addWasherTower(THREE, scene, geom, offM, wM, hM, dM, plM, carcassMat, frontMat, meta, selected, pickables){
-    var base = plM + TOWER_DRAWER_M, niche = Math.min(TOWER_NICHE_M, hM - base - CARCASS_T), up = hM - base - niche;
+  function addWasherTower(THREE, scene, geom, offM, wM, hM, dM, plM, carcassMat, frontMat, meta, selected, pickables, single){
+    // single (no dryer, owner 2026-10-27): a niche for the washer only — the rest above is a cabinet with shelves
+    var base = plM + TOWER_DRAWER_M, niche = Math.min(single ? TOWER_NICHE_M / 2 : TOWER_NICHE_M, hM - base - CARCASS_T), up = hM - base - niche;
     if (up < 0.2){ niche = hM - base; up = 0; }
     var common = { washerDrawerM:0, tall:false, fixedFronts:true, splitFr:null, alwaysDims:false };
     addCabinetBox(THREE, scene, geom, offM, wM, base, dM, 0, carcassMat, frontMat, null, Object.assign({}, meta, common), selected, pickables);
@@ -2483,12 +2493,12 @@
   }
   // Þvottavélaskápur (user, 2026-10-26): the washer with the dryer on it, drawn inside the tower (above its drawer) —
   // hidden behind the doors in the room, seen through them in the previews (opts.towerGlass) or with the fronts off
-  function addTowerMachines(THREE, group, geom, offsetM, widthM, baseM, topM, depthM, mat){
-    var mw = Math.min(0.6, widthM - 2 * CARCASS_T - 0.012), mh = Math.min(0.85, (topM - baseM - 0.03) / 2), md = Math.min(0.58, depthM - FRONT_T - 0.03);
+  function addTowerMachines(THREE, group, geom, offsetM, widthM, baseM, topM, depthM, mat, single){
+    var mw = Math.min(0.6, widthM - 2 * CARCASS_T - 0.012), mh = Math.min(0.85, (topM - baseM - 0.03) / (single ? 1 : 2)), md = Math.min(0.58, depthM - FRONT_T - 0.03);
     if (mh < 0.5 || mw < 0.4) return;
     var quat = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(geom.axis.x, 0, geom.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(geom.normal.x, 0, geom.normal.z)));
     var a = offsetM + widthM / 2, back = BACK_T + 0.01;
-    [0, 1].forEach(function(k){
+    (single ? [0] : [0, 1]).forEach(function(k){
       var sub = new THREE.Group(), body = new THREE.Mesh(new THREE.BoxGeometry(mw, mh - 0.01, md), mat);
       body.position.set(geom.origin.x + geom.axis.x * a + geom.normal.x * (back + md / 2), mh / 2, geom.origin.z + geom.axis.z * a + geom.normal.z * (back + md / 2));
       body.quaternion.copy(quat); body.castShadow = true; body.receiveShadow = true; sub.add(body);
@@ -5002,6 +5012,13 @@
     var carcassMat = new THREE.MeshStandardMaterial({ color: carcass ? carcass.color3d : "#3a3a3a", roughness:0.9 });
     var wallColor = state.wallColor && WALL_COLORS[state.wallColor] ? WALL_COLORS[state.wallColor].hex : "#f1efe8";
     var wallMat = new THREE.MeshStandardMaterial({ color:wallColor, roughness:1, side:THREE.DoubleSide });
+    var wt = state.wallTile && WALL_TILES[state.wallTile];
+    if (wt && window.KPMat){ // tiled walls: real-size tiles (the UVs are set per wall piece in addWallPlane), a soft glaze
+      var wtt = window.KPMat.tileFloorTexture(wt.color, 0.06, 0.6, 0.3);
+      wallMat = new THREE.MeshStandardMaterial({ map:canvasTex(THREE, wtt.color, true), bumpMap:canvasTex(THREE, wtt.bump, false), bumpScale:0.3,
+        roughnessMap:canvasTex(THREE, roughFromBump(wtt.bump, 0.3, 0.05), false), roughness:1, side:THREE.DoubleSide, envMapIntensity:0.5 });
+      wallMat.userData.envKeep = true; wallMat.userData.tileWall = 1.2; // the tile texture covers 1.2 m
+    }
     var floorMat;
     if (window.KPMat){
       var ft = floorTexture(state.floor, state), isTile = (FLOORS[state.floor] || {}).kind === "tile";
@@ -5459,7 +5476,7 @@
         // Þvottavélaskápur "Skúffa undir vélinni + skápur ofan við" (round 3, user 2026-10-26): a drawer at the bottom, the
         // washer + dryer in an open niche, a cabinet above — what's built and what the "Hvar er vélin?" preview shows
         var nicheTower = c.thvo && b.thvo !== "hurdir" && !applMat;
-        if (nicheTower) towerNiche = addWasherTower(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, plinthMmW / 1000, carcassMat, frontMatOf(b), cabMeta, selected, pickables);
+        if (nicheTower) towerNiche = addWasherTower(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, plinthMmW / 1000, carcassMat, frontMatOf(b), cabMeta, selected, pickables, !!b.single);
         else addCabinetBox(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, 0, applMat || carcassMat, applMat || (c.thvo && towerGlassMat) || frontMatOf(b), inter, cabMeta, selected, pickables);
         if (c.sink && state.hungUnits && state.bathMirror && !opts.people && !wall.island){ // the mirror cabinet asked for on the Efni page, over the sink
           var mx0 = offset, mx1 = offset + b.widthMm, mws = blockStartsMm(wall.wall || [], 0);
@@ -5467,7 +5484,7 @@
           if (!under) addMirrorCabinet(THREE, scene, g, offset / 1000, b.widthMm / 1000, Math.min(Math.max(1.15, hM + 0.42), (roomHeightMm - 760) / 1000), carcassMat);
         }
         if (applMdl) placeApplModel(THREE, scene, g, offset / 1000, b.widthMm / 1000, hM, dM, applMdl);
-        if (c.thvo && !opts.people) addTowerMachines(THREE, scene, g, offset / 1000, b.widthMm / 1000, nicheTower ? towerNiche.base : plinthMmW / 1000 + CARCASS_T, nicheTower ? towerNiche.top : hM - CARCASS_T, dM, washerMat);
+        if (c.thvo && !opts.people) addTowerMachines(THREE, scene, g, offset / 1000, b.widthMm / 1000, nicheTower ? towerNiche.base : plinthMmW / 1000 + CARCASS_T, nicheTower ? towerNiche.top : hM - CARCASS_T, dM, washerMat, !!b.single);
         // LED in a tall closet (user, 2026-10-23, C1): a vertical strip in a groove at the front edge of one side
         // (6×6 mm), or a strip under the top shelf (4×8 mm). Behind the doors — it shows in X-ray and with doors open.
         if (b.closetLed && c.cls === "tall" && !opts.people){
@@ -7593,7 +7610,7 @@
     blockStartsMm: blockStartsMm,
     planTransform: planTransform,
     rectCornersWorld: rectCornersWorld, drawerZoneMm: drawerZoneMm, TALL_DRAWER_MAX_MM: TALL_DRAWER_MAX_MM, DRAWER_TOPDOOR_MIN_MM: DRAWER_TOPDOOR_MIN_MM, drawerStackSpaceMm: drawerStackSpaceMm, doorLeaves: doorLeaves, smidaHingeSide: smidaHingeSide, islandFits: islandFits, nearestIslandFit: nearestIslandFit, topThickM: topThickM, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, obstacleRect: obstacleRect, obstacleCorners: obstacleCorners, handleAvailMm: handleAvailMm, tallHandleAvailMm: tallHandleAvailMm, obstacleAng: obstacleAng, setShowDims: setShowDims, setSkTags: setSkTags, showDimsOn: function(){ return SHOW_DIMS; }, DECOR: DECOR, decorKindsFor: decorKindsFor, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
-    WALL_COLORS: WALL_COLORS,
+    WALL_COLORS: WALL_COLORS, WALL_TILES: WALL_TILES,
     WINDOW_DEFAULT: WINDOW_DEFAULT,
     _handleProfile: handleProfile,
     DOOR_DEFAULT: DOOR_DEFAULT,
