@@ -3054,7 +3054,7 @@
     // Fataskápar (user, 2026-10-25): the customer only knows the wall the wardrobe goes on, not the room — a straight
     // wall, a corner, or a niche between two walls. The rest of the room is open (dashed) around it; the sizes page
     // asks for those walls only (closetDims). `closetWalls` = the walls the wardrobe stands on.
-    closetWall:   { group:"closet", label:"Beinn veggur", edges:[[2400,"L"],[1200,"L"],[2400,"L"],[1200,"L"]], open:[1,2,3], closetWalls:[0] },
+    closetWall:   { group:"closet", label:"Einn veggur", edges:[[2400,"L"],[1200,"L"],[2400,"L"],[1200,"L"]], open:[1,2,3], closetWalls:[0] },
     closetCorner: { group:"closet", label:"Horn", edges:[[2400,"L"],[1800,"L"],[2400,"L"],[1800,"L"]], open:[2,3], closetWalls:[0,1] },
     closetNiche:  { group:"closet", label:"Innskot", edges:[[600,"R"],[650,"L"],[2000,"L"],[650,"R"],[600,"L"],[1200,"L"],[3200,"L"],[1200,"L"]], open:[5,6,7], closetWalls:[2] },
     // Baðherbergi (user, 2026-10-26): what matters is the wall the vanity goes on, not the room's shape — one wall or a
@@ -3377,9 +3377,19 @@
     function basin(cx, cy, rx, ry){ o += '<ellipse cx="' + f(cx) + '" cy="' + f(cy) + '" rx="' + rx + '" ry="' + ry + '" fill="#fbfaf7" stroke="#9c8f77" stroke-width="1"/>'; }
     function machine(cx, cy, r){ o += '<circle cx="' + f(cx) + '" cy="' + f(cy) + '" r="' + r + '" fill="#fbfaf7" stroke="#9c8f77" stroke-width="1"/>'; }
     function split(x, y, w, h, n, vertical){ for (var i = 1; i < n; i++){ var t = i / n; o += vertical ? '<line x1="' + f(x) + '" y1="' + f(y + h * t) + '" x2="' + f(x + w) + '" y2="' + f(y + h * t) + '" stroke="#9c8f77" stroke-width="1"/>' : '<line x1="' + f(x + w * t) + '" y1="' + f(y) + '" x2="' + f(x + w * t) + '" y2="' + f(y + h) + '" stroke="#9c8f77" stroke-width="1"/>'; } }
+    // a wardrobe run seen from above (owner, 2026-10-27): bays, a thin line for every door and the door faces along the
+    // room side, so it reads as wardrobes. vertical = along a side wall; faceLeft = its doors face left (right wall)
+    function wardrobe(x, y, w, h, vertical, faceLeft){
+      unit(x, y, w, h);
+      var len = vertical ? h : w, bays = Math.max(2, Math.round(len / (vertical ? 24 : 27))), doors = bays * 2;
+      split(x, y, w, h, bays, vertical);
+      for (var i = 1; i < doors; i += 2){ var t = i / doors; o += vertical ? '<line x1="' + f(faceLeft ? x : x + w - 5) + '" y1="' + f(y + h * t) + '" x2="' + f(faceLeft ? x + 5 : x + w) + '" y2="' + f(y + h * t) + '" stroke="#9c8f77" stroke-width=".8"/>' : '<line x1="' + f(x + w * t) + '" y1="' + f(y + h - 5) + '" x2="' + f(x + w * t) + '" y2="' + f(y + h) + '" stroke="#9c8f77" stroke-width=".8"/>'; }
+      o += vertical ? '<line x1="' + f(faceLeft ? x + 2.5 : x + w - 2.5) + '" y1="' + f(y) + '" x2="' + f(faceLeft ? x + 2.5 : x + w - 2.5) + '" y2="' + f(y + h) + '" stroke="#9c8f77" stroke-width=".8"/>'
+        : '<line x1="' + f(x) + '" y1="' + f(y + h - 2.5) + '" x2="' + f(x + w) + '" y2="' + f(y + h - 2.5) + '" stroke="#9c8f77" stroke-width=".8"/>';
+    }
     // a run along the top wall, from x, w wide: what's in it depends on the room
     function topRun(x, w, withUpper){
-      if (kind === "closet"){ unit(x, Y0, w, D + 4); split(x, Y0, w, D + 4, Math.max(2, Math.round(w / 27))); return; }
+      if (kind === "closet"){ wardrobe(x, Y0, w, D + 4, false); return; }
       if (kind === "bath"){ var vw = Math.min(56, w * 0.55); unit(x, Y0, vw, D); basin(x + vw / 2, Y0 + D / 2 + 1, Math.min(16, vw / 3.2), 6); if (w > vw){ unit(x + vw, Y0, w - vw, D); split(x + vw, Y0, w - vw, D, 2, true); }
         if (withUpper) upper(x + 4, Y0, vw - 8, 10); return; } // the spegilskápur over the basin
       if (kind === "laundry"){ var sw = Math.min(46, w * 0.45); unit(x, Y0, sw, D); basin(x + sw / 2, Y0 + D / 2 + 1, 11, 5); var mw = Math.min(30, w - sw); unit(x + sw, Y0, mw, D); machine(x + sw + mw / 2, Y0 + D / 2, 7);
@@ -3388,7 +3398,7 @@
     }
     // a run down the left wall
     function leftRun(y, h){
-      if (kind === "closet"){ unit(X0, y, D + 4, h); split(X0, y, D + 4, h, Math.max(2, Math.round(h / 24)), true); return; }
+      if (kind === "closet"){ wardrobe(X0, y, D + 4, h, true); return; }
       if (kind === "laundry"){ unit(X0, y, D, h); machine(X0 + D / 2, y + h * 0.3, 6.5); machine(X0 + D / 2, y + h * 0.72, 6.5); return; } // the machine tower
       unit(X0, y, D, h); if (kind === "bath") split(X0, y, D, h, 2, true); // a tall cabinet
     }
@@ -3399,11 +3409,16 @@
       wall(X0, Y0, X1, Y0); wall(X0, Y0, X0, Y1); wall(X1, Y0, X1, Y1, true); wall(X1, Y1, X0, Y1, true);
       topRun(X0 + 34, kind === "closet" ? 100 : 96, kind !== "closet");
       leftRun(Y0 + 38, kind === "closet" ? 52 : 44);
+    } else if (key === "closetNiche"){ // the wardrobe set into a recess between two walls
+      var nx0 = X0 + 44, nx1 = X1 - 44, nd = D + 8;
+      wall(X0, Y0 + nd, nx0, Y0 + nd); wall(nx0, Y0 + nd, nx0, Y0); wall(nx0, Y0, nx1, Y0); wall(nx1, Y0, nx1, Y0 + nd); wall(nx1, Y0 + nd, X1, Y0 + nd);
+      wall(X1, Y0 + nd, X1, Y1, true); wall(X1, Y1, X0, Y1, true); wall(X0, Y1, X0, Y0 + nd, true);
+      wardrobe(nx0, Y0, nx1 - nx0, D + 4, false);
     } else if (key === "rect"){
       wall(X0, Y0, X1, Y0); wall(X1, Y0, X1, Y1); wall(X1, Y1, X0, Y1); wall(X0, Y1, X0, Y0);
       topRun(X0, X1 - X0, kind !== "closet");
       leftRun(Y0 + D + 12, 40);
-      if (kind === "closet"){ unit(X1 - D - 4, Y0 + D + 16, D + 4, 44); split(X1 - D - 4, Y0 + D + 16, D + 4, 44, 2, true); }
+      if (kind === "closet") wardrobe(X1 - D - 4, Y0 + D + 16, D + 4, 44, true, true);
       else { unit(X1 - D, Y0 + D + 14, D, 38); unit(X0 + 70, Y1 - D, 60, D); split(X0 + 70, Y1 - D, 60, D, 2); }
     } else return null;
     return o + '</svg>';
@@ -4594,7 +4609,7 @@
         var host = document.getElementById(g === "closed" ? "shapeCardsClosed" : "shapeCardsOpen");
         host.classList.toggle("four", keys.length === 4);
         host.innerHTML = keys.map(function(k){
-          var lb = whole && k === "rect" ? "Allt rýmið" : SHAPE_TEMPLATES[k].label, ds = whole && k === "rect" ? "Allir veggir, innrétting þar sem þú vilt" : CLOSET_SHAPE_DESC[k];
+          var lb = whole && k === "rect" ? (closetMode ? "Fataherbergi" : "Allt rýmið") : SHAPE_TEMPLATES[k].label, ds = whole && k === "rect" ? (closetMode ? "Skápar meðfram veggjunum, gengið inn" : "Allir veggir, innrétting þar sem þú vilt") : CLOSET_SHAPE_DESC[k]; // a closet's whole room is a walk-in (owner, 2026-10-27)
           var pic = !PRO && (closetMode || bathMode) ? roomShapeIcon(k, closetMode ? "closet" : isLaundry() ? "laundry" : "bath") : null;
           if (!ds && !PRO) ds = KITCHEN_SHAPE_DESC[k]; // every flow's cards: name + one short line (owner, 2026-10-27)
           return '<button type="button" class="shape-card" data-shape="' + k + '">' + (pic || templateIcon(k, !PRO && !closetMode && !bathMode && !(catDef && catDef.plain))) + '<div class="nm">' + __(lb) + '</div>' + (ds ? '<small>' + __(ds) + '</small>' : '') + '</button>';

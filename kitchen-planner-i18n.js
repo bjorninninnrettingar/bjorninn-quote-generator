@@ -2154,6 +2154,7 @@
     "600 þús.–1 m.kr.": "600k–1m ISK",
     "Yfir 1 m.kr.": "Over 1m ISK",
     "Allt rýmið": "The whole room",
+    "Skápar meðfram veggjunum, gengið inn": "Wardrobes along the walls, walk in",
     "Teiknaðu allt herbergið frá A til Ö — allir veggir, gluggar og hurðir, innrétting þar sem þú vilt": "Draw the whole room from A to Z — every wall, window and door, units wherever you like"
   });
 

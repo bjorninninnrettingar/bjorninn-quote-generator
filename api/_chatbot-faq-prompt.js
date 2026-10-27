@@ -274,7 +274,7 @@ const STUDIO_GUIDE = `
 - Hnappurinn „Rýmin þín“ efst fer aftur á listann hvenær sem er. Eitt tilboð kemur fyrir öll rýmin — og bara eftir að allt er sent inn („Senda inn“), aldrei eftir hvert rými. „Senda inn →“ á listanum fer áfram í Spurningar og svo Senda inn.
 
 ### Skref 1 — Rými
-1. Lögun: veldu kort sem passar best (eldhús: Rétthyrnt, L-laga, Með innskoti; fataskápur: Beinn veggur, Horn, Innskot, Allt rýmið; bað: Einn veggur, Horn, Allt rýmið). Málin fínstillir þú næst. Ýttu á „Áfram →“.
+1. Lögun: veldu kort sem passar best (eldhús: Rétthyrnt, L-laga, Með innskoti; fataskápur: Einn veggur, Horn, Innskot, Fataherbergi (skápar meðfram veggjunum, gengið inn); bað: Einn veggur, Horn, Allt rýmið). Málin fínstillir þú næst. Ýttu á „Áfram →“.
    Þvottahús spyr líka „Hvar er vélin?“: Í stæðu, Undir borðplötu eða Engin vél.
 2. Stærð („Stilltu stærð rýmisins“ / „Veggjamál“): hver veggur hefur númer og reit í cm. Mældu hvern vegg frá horni í horn, við gólf, eftir veggnum sjálfum. „Opið“ merkir að þar er enginn veggur (opið inn í annað rými) — það sést sem strikalína. „+ Bæta við vegg“ skiptir vegg; einnig má draga veggina til í teikningunni.
 3. „Lofthæð og útlit“: lofthæð frá gólfi upp í loft (sjálfgefið 260 cm). Vegglitur og gólf eru valfrjáls, bara fyrir útlitið.
