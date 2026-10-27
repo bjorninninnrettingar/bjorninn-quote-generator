@@ -6995,7 +6995,7 @@
       html += drawerSimpleHTML(b, c, codes, inner);
     }
     var lowBox = (b.heightMm || c.h) < 600; // a lítill kassi under 60 cm can take neither (user, 2026-10-25)
-    if (!c.sink && !c.rusl && !lowBox && (PRO || catBase() === "eldhus")){ // bins (the kitchen only for customers, owner 2026-10-27): always shown on a drawer unit, greyed with the reason when the bottom drawer can't take them
+    if (!c.sink && !c.rusl && !lowBox && (PRO || catBase() === "eldhus" || catBase() === "thvottahus")){ // bins (kitchen + laundry — sorting — for customers, owner 2026-10-27): always shown on a drawer unit, greyed with the reason when the bottom drawer can't take them
       var binsOk = binsPossible(b, c), binsAct = binsOn(b, c);
       html += '<div class="dw-add"><span>' + __("Ruslafötur:") + '</span>' +
         '<button type="button" class="hw-btn' + (!binsAct ? ' active' : '') + '" data-dw-bins="0">' + __("Engar") + '</button>' +
@@ -7680,9 +7680,9 @@
       { label:"Grunnskápur", type:"grunnskapur", drawers:true } ] },
     { key:"har", label:"Hár skápur", desc:"Upp undir loft — fyrir ræstidótið", icon:"harskapur", opts:[
       { label:"Hár skápur", type:"harskapur" } ] },
-    { key:"efri", label:"Efri skápur", desc:"Á vegg, yfir borðplötunni", icon:"efriskapur", opts:[
-      { label:"Lokaður skápur með hillum", type:"efriskapur" },
+    { key:"efri", label:"Efri skápur", desc:"Á vegg, yfir borðplötunni", icon:"efriskapur", opts:[ // the bath's order (owner, 2026-10-27): open shelves first
       { label:"Opinn skápur með hillum", type:"opnarhillur" },
+      { label:"Lokaður skápur með hillum", type:"efriskapur" },
       { label:"Lausar hillur", type:"laushilla" } ] }
   ];
   // PRO keeps the full laundry list (E1 + review 2026-10-25 C: corner units and end panels from the kitchen tree)
@@ -8076,7 +8076,7 @@
           '<button type="button" class="hw-btn' + (b.swing !== "vinstri" ? ' active' : '') + '" data-uw-swing="haegri">' + __("Hægri") + '</button></div>' +
           (b.swingSet ? '' : '<p class="sec-note">' + __("Velst sjálfkrafa þegar skápurinn fer í horn: blindi helmingurinn inn í hornið.") + '</p>') + '</div>';
       }
-      var railN = c.railRange ? KP3D.railsOf(b) : null; // Fataslá
+      var railN = c.railRange && !(isLaundry() && !PRO) ? KP3D.railsOf(b) : null; // Fataslá (none in a laundry's tall cabinet, owner 2026-10-27)
       if (railN != null){
         var rrng = [c.railRange[0], c.railRange[1]];
         innHtml += '<div class="edit-field"><label>' + __("Fataslár") + '</label><div class="hw-count"><button class="iconbtn" data-uw-rail="-1"' + (railN <= rrng[0] ? " disabled" : "") + '>−</button><b>' + railN + '</b><button class="iconbtn" data-uw-rail="1"' + (railN >= rrng[1] ? " disabled" : "") + '>+</button><span>' + plural(railN, "fataslá", "fataslár") + '</span></div></div>';

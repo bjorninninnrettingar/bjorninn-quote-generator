@@ -739,3 +739,5 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   Vaskaskápur in the laundry starts with doors (a valid default). Ruslafötur only offered in the kitchen. Drawer rows
   show the front ("Skúffa · 20 cm") for customers everywhere (Ný eining + the unit panel) — the drag in the preview is
   the control; PRO keeps the box-code list. A sink unit's preview camera sits higher (the bowl shows).
+- **Laundry Ný eining 4–6/6 (owner):** Grunnskápur keeps Ruslafötur in the laundry (sorting; bins = kitchen + laundry for
+  customers); the laundry's Hár skápur has no Fataslár control; Efri skápur in the bath's order (open shelves first).
