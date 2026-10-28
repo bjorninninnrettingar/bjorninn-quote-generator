@@ -77,6 +77,11 @@ test("Tilboð discount: 0-30 allowed, above 15 asks, nothing typed is zero", () 
   assert.deepEqual(KPPROTEXT.tilbodDiscount("7,5"), { value: 7.5, clamped: false, confirm: false });
 });
 
+test("Yfirferð lines name the click: Laga → on the row", () => {
+  const page = read("kitchen-planner.html");
+  ["opna rýmið og teikna", "veldu í Efni-valmyndinni", "opna skápinn í Smíða", "opna borðplötuna"].forEach((x) => assert.ok(page.includes(x), x));
+});
+
 test("Tilboð note names the discount and markup that are already in the price", () => {
   assert.match(KPPROTEXT.tilbodFactors(5, "Smáverk 20%"), /5 % afsláttur og álagning Smáverk 20% er þegar inni í því/);
   assert.doesNotMatch(KPPROTEXT.tilbodFactors(0, ""), /þegar inni/);

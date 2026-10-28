@@ -847,3 +847,10 @@ Testers report from inside the designer: a **⚠️ Villa / hugmynd** pill at th
 - Úthliðar vanish when the cabinet is **picked up** (3D drag start: `opts.onCabinetDragStart` → `on3DDragStart` deletes bound panels, hides them in the live scene), not at the drop.
 - Selecting a wall no longer lays a see-through blue pane over the wall for customers (`outlineSel`): it tinted every open unit lilac; the blue frame stays. PRO keeps the pane.
 - Room doors in 3D / walk mode rebuilt (`addOpeningMarker`, `isDoor`): 40 mm slab with a hairline gap, reveal boards, 70 mm architrave, two raised panels, three hinges, lever + rose. The old plane is now the invisible pick surface; selection tints the slab.
+
+## PRO UX round 2026-10-28 (Studio -> PRO port, tour, help, issue texts)
+- Audit: scratch/studio-to-pro-port-2026-10-28.md (31 Studio improvements: active / kept customer-only / done).
+- `kitchen-planner-pro-help.js` (new, Icelandic only, NOT read by the chatbot): `KPHELP_PRO` (Hjálp in PRO), `KPPROTOUR` (5-step PRO tour, seen flag `bjorninn:kitchenPlanner:proTourDone`; Hjálp -> Sýna leiðsögnina runs it in PRO via `tourSteps()`), `KPPROTEXT` (Smíða/Yfirferð issue texts "hvað er rangt - ýttu á Laga", Tilboð discount guard + note). Tests: tests/kp-pro-help.test.js.
+- Tour targets use fallbacks (`#proYfirferd`, `#proSave`, `#proBar`): if the PRO bar is rebuilt keep one of those ids.
+- Efni menu in PRO: closed button shows "N óákveðið"; opens by itself once per project (`<STORAGE_KEY>:efniOpened`). Ný eining preview no longer restarts auto-spin in PRO. One-time hint `kikja` also in PRO (`PRO_HINTS`).
+- Tilboð: `#tpFactorNote` sentence + capture-phase guard on `#tpDiscount` (0-30 %, confirm above 15) - separate from the proTilbod* code.

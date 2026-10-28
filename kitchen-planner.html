@@ -18701,14 +18701,14 @@
       detail:"Þessi teikning kom frá viðskiptavini. Farðu yfir hana og ýttu á „Merkja teikningu yfirfarna“ efst." }] : [];
     return out.concat([
       { key:"rymi", ok:!undrawn.length && f.cabinets > 0, title:multi ? "Öll rými teiknuð (" + f.rooms.length + ")" : "Rýmið teiknað", target:undrawn[0], room:true,
-        detail:undrawn.length ? undrawn.map(function(r){ return r.room + (r.drawn ? ": engar einingar" : ": ekki teiknað enn"); }).join(" · ") + "." :
+        detail:undrawn.length ? undrawn.map(function(r){ return r.room + (r.drawn ? ": engar einingar" : ": ekki teiknað enn"); }).join(" · ") + ". Smelltu á „Laga →“ til að opna rýmið og teikna." :
           f.cabinets ? f.rooms.filter(function(r){ return !r.plain; }).map(function(r){ return r.room + ": " + r.units + " " + plural(r.units, "eining", "einingar"); }).join(" · ") + "." : "Engar einingar enn." },
       { key:"maeling", ok:!!(M && M.at), title:"Rýmið mælt á staðnum",
         detail:M && M.at ? "Mæling lokið " + new Date(M.at).toLocaleDateString("is-IS") + "." : "Opnaðu Mælingu, sláðu inn málin og ýttu á „Mæling lokið“." },
       { key:"efni", ok:!miss.length && undOk, title:"Efni og höldur valin",
         target:miss[0] || (undOk ? null : Object.assign({}, und[0], { missingKeys:und[0].undecided.map(function(k){ return MAT_AUTO_PHASE[k]; }) })),
         acks:!miss.length && und.length ? [{ id:"matauto", label:"Sjálfgefnu efnin eru rétt", on:undOk, sig:undSig }] : null,
-        detail:miss.length ? miss.map(function(r){ var m = r.missing.join(", ").toLowerCase() + " vantar"; return multi ? r.room + ": " + m : m.charAt(0).toUpperCase() + m.slice(1); }).join(" · ") + "." :
+        detail:miss.length ? miss.map(function(r){ var m = r.missing.join(", ").toLowerCase() + " vantar"; return multi ? r.room + ": " + m : m.charAt(0).toUpperCase() + m.slice(1); }).join(" · ") + ". Smelltu á „Laga →“ og veldu í Efni-valmyndinni." :
           und.length ? "Óákveðið (sjálfgefið sett inn): " + und.map(function(r){ var m = r.undecided.map(function(k){ return MAT_AUTO_LABELS[k]; }).join(", ").toLowerCase(); return multi ? r.room + ": " + m : m; }).join(" · ") + ". Veldu í Efni eða staðfestu hér." :
           "Skrokkur, skúffukerfi, framhlið, höldur og borðplata." },
       wtCheckItem(f, multi),
@@ -18719,7 +18719,7 @@
         acks:f.unlinked.filter(function(u){ return !u.id; }).map(function(u){ return { id:"v1:" + u.key, label:u.key + (multi ? " (" + u.room + ")" : "") + " — Útfærsla valin í Airtable", on:!!ack["v1:" + u.key] }; }),
         detail:unl.length ? keyList(unl) + ": engin stöðluð vara passar sjálfkrafa — veldu vöruna hér fyrir neðan (fer í V1 á línunni þegar þú vistar)." : f.cabinets ? f.cabinets + " " + plural(f.cabinets, "eining", "einingar") + " með vöru." : "Engar einingar enn." },
       { key:"villur", ok:f.cabinets > 0 && !f.issues.length, title:"Engar ⛔ villur í Smíða", target:f.issues[0], smida:true,
-        detail:f.issues.length ? f.issues[0].key + ": " + f.issues[0].text + (f.issues.length > 1 ? " (og " + (f.issues.length - 1) + " " + plural(f.issues.length - 1, "skápur", "skápar") + " í viðbót)" : "") : f.cabinets ? "Lamir, skúffur og hillur ganga upp." : "Engar einingar enn." },
+        detail:f.issues.length ? f.issues[0].key + ": " + f.issues[0].text + (f.issues.length > 1 ? " (og " + (f.issues.length - 1) + " " + plural(f.issues.length - 1, "skápur", "skápar") + " í viðbót)" : "") + " Smelltu á „Laga →“ hér til að opna skápinn í Smíða." : f.cabinets ? "Lamir, skúffur og hillur ganga upp." : "Engar einingar enn." },
       { key:"smida", ok:f.cabinets > 0 && !f.unready.length, title:"Hver skápur yfirfarinn í Smíða", target:f.unready[0], smida:true,
         detail:f.unready.length ? f.unready.length + " af " + f.cabinets + " eftir: " + keyList(f.unready) + ". Opnaðu Smíða og ýttu á „Yfirfarinn →“ — það fer beint á næsta skáp." : f.cabinets ? "Allir merktir yfirfarnir." : "Engar einingar enn." },
       orphCheckItem(),
@@ -18829,7 +18829,7 @@
         (r.joints.length ? ", " + r.joints.length + " " + (r.joints.length === 1 ? "samskeyti" : "samskeyti") : "") + (r.kind === "stone" ? " (steinn)" : "");
     });
     return { key:"bordplata", ok:!todo.length, title:"Borðplata", target:target, wt:true,
-      detail:(todo.length ? todo.slice(0, 3).join(" · ") + (todo.length > 3 ? " (+" + (todo.length - 3) + ")" : "") + "." : f.worktops.length ? shown.join(" · ") + "." : "Engin borðplata í teikningunni.").replace(/^./, function(ch){ return ch.toUpperCase(); }) };
+      detail:(todo.length ? todo.slice(0, 3).join(" · ") + (todo.length > 3 ? " (+" + (todo.length - 3) + ")" : "") + ". Smelltu á „Laga →“ til að opna borðplötuna." : f.worktops.length ? shown.join(" · ") + "." : "Engin borðplata í teikningunni.").replace(/^./, function(ch){ return ch.toUpperCase(); }) };
   }
   // every V1 Útfærsla the planner knows (KP_LINEMAP.v1, generated from Airtable), by name — the A3 picker
   var proV1List = null;
