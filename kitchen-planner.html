@@ -11,7 +11,7 @@
    reduced motion / a language switch / a saved design (a returning customer is never kept waiting). */
 (function(){ try{
   var q = new URLSearchParams(location.search), mode = "full";
-  if (q.get("pro") || q.get("embedded") || innerWidth < 768 || (matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches)) return;
+  if (q.get("pro") || q.get("embedded") || q.get("scene") || innerWidth < 768 || (matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches)) return;
   try{ if (sessionStorage.getItem("bjorninn:kitchenPlanner:langResume") === "1") return; }catch(e){}
   try{ var d = JSON.parse(localStorage.getItem("bjorninn:kitchenPlanner:draft:v1") || "null");
     if (d && (d.closed || (d.categoryQueue || []).length || (d.doorList || []).length || (d.home && d.home.rooms && Object.keys(d.home.rooms).length))) return;
@@ -2686,7 +2686,16 @@
   // kicker stays hidden across the whole flow, not just the landing list.
   var EMBEDDED = (function(){ try{ return new URLSearchParams(location.search).get("embedded") === "1"; }catch(e){ return false; } })();
   function embeddedQS(){ return EMBEDDED ? "&embedded=1" : ""; }
-  var STORAGE_KEY = PRO ? "bjorninn:kitchenPlanner:pro:" + PRO.id : "bjorninn:kitchenPlanner:draft:v1";
+  // ?scene=fataskapur|bad|thvottahus (2026-10-28): opens scenes/<name>.json in the editor under its OWN storage key, so a real
+  // customer draft is never touched; ignored in PRO; never submits (submitPlan). ?reset=1 starts the scene over. docs/kitchen-planner.md
+  var SCENE = (function(){ try{ if (PRO) return null; var n = new URLSearchParams(location.search).get("scene"); return /^(fataskapur|bad|thvottahus)$/.test(n || "") ? n : null; }catch(e){ return null; } })();
+  var STORAGE_KEY = PRO ? "bjorninn:kitchenPlanner:pro:" + PRO.id : SCENE ? "bjorninn:kitchenPlanner:scene:" + SCENE : "bjorninn:kitchenPlanner:draft:v1";
+  if (SCENE) try{
+    if (!localStorage.getItem(STORAGE_KEY) || /[?&]reset=1\b/.test(location.search)){
+      var sx = new XMLHttpRequest(); sx.open("GET", "scenes/" + SCENE + ".json", false); sx.send(); // tiny file, once; sync so load() finds it
+      if (sx.status === 200) localStorage.setItem(STORAGE_KEY, sx.responseText);
+    }
+  }catch(e){}
 
   var KP3D = window.KP3D;
   // Customers see cm, PRO keeps mm (2026-10-26, docs/studio-cm.md). State, drafts and everything sent to Airtable
@@ -13566,6 +13575,7 @@
   async function submitPlan(){
     var submitBtn = document.getElementById("submitBtn");
     var errEl = document.getElementById("submitError");
+    if (SCENE){ errEl.textContent = "Þetta er prufusena — ekki hægt að senda inn."; errEl.style.display = ""; return; }
     errEl.style.display = "none";
     submitBtn.disabled = true;
     submitBtn.textContent = __("Sendi...");
@@ -20419,7 +20429,7 @@
       }
       if (state.closed && state.walls.length) shapePhase = "size"; // a saved room opens on the sizing drawing
       // a returning visitor with a design lands on the welcome page: "Halda áfram →" takes them back to that step
-      if (state.step !== "welcome" && state.step !== "done" && hasDesign()){ state.resumeStep = state.step; state.step = "welcome"; }
+      if (!SCENE && state.step !== "welcome" && state.step !== "done" && hasDesign()){ state.resumeStep = state.step; state.step = "welcome"; }
       // …except right after a language switch (Hjálp → In English): straight back where they were (morning scan 2026-10-27 #8)
       var langBack = false; try{ langBack = sessionStorage.getItem("bjorninn:kitchenPlanner:langResume") === "1"; sessionStorage.removeItem("bjorninn:kitchenPlanner:langResume"); }catch(e){}
       render();

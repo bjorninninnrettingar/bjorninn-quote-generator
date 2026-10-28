@@ -777,6 +777,23 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   stone-ceramic pot with soft rim and domed soil, curved woody stems, ~30 folded, drooping, vertex-shaded leaves (7×9 grid ≈ 112 tris,
   cached per size, four shared green materials; the small one is a 14-leaf rosette). `welcome-kitchen.jpg` (Oct 12) was NOT re-shot: it only
   shows the tiny plant and a fresh shot of the current showcase differs (handles/lighting) from the live Airtable scene it fronts.
+- **Room scenes to finish by hand (2026-10-28)**: `scenes/{fataskapur,bad,thvottahus}.json` = the full planner state of each render
+  (decor included). `/skipuleggja?scene=fataskapur|bad|thvottahus` opens one straight in the editor (3D, all normal tools). The
+  `SCENE` const in kitchen-planner.html: own localStorage key `bjorninn:kitchenPlanner:scene:<name>` (a real customer draft is never
+  read or written; the first visit seeds the key from the JSON by a tiny sync XHR, edits persist in that key), `?reset=1` starts over,
+  ignored in PRO, no intro, `submitPlan()` refuses ("prufusena"). **Innihurðir cannot be a planner state**: its picture is the door
+  wizard's own scene plus primitives (bench, two frames, vase) added by script — the owner can only change the door itself (Hurðir →
+  Hanna: size, leaf `sp06`, handle, hinge) at `/skipuleggja` → Byrja → Innihurðir; the extras live only in the shot script below.
+  Cameras used: fataskapur pos (4.0,1.5,3.7) → target (1.9,1.1,0.3) fov 52; bad (3.0,1.5,3.1) → (1.0,1.3,0.2) fov 56; thvottahus
+  (3.2,1.5,3.1) → (1.4,1.2,0.2) fov 54.
+- **Re-shoot after editing** (Browser pane on `?scene=<name>`, finish editing, then in the console; the editor's 3D scene is the one
+  shot — set the camera first with the mouse or pass `pos/target`; save the printed data URL, e.g. `copy(url)` → decode, or POST it to a
+  tiny local receiver). Then `python3` Pillow: `Image.open(f).convert("RGB").save("images/studio/<room>.jpg", quality=85, optimize=True, progressive=True)` and
+  `.resize((480,300), Image.LANCZOS).save("images/studio/<room>-t.jpg", quality=85, optimize=True)`:
+  ```js
+  const r = await KP3D.renderShot({ pos:{x:3.0,y:1.5,z:3.1}, target:{x:1.0,y:1.3,z:0.2}, fov:56, width:1600, height:1000, quality:.88, settle:60 });
+  r.url  // data:image/jpeg;base64,…  (1600×1000)
+  ```
 - **Smoothness round (owner same day: "laggar og aðeins of hægt")**: only transform + opacity animate, each moving part a GPU
   layer. Blur-in = a pre-blurred copy (`.bb`, static `filter`) crossfading into the sharp text (`.bs`) — no animated filter;
   extrusion = 18 `.layer`s placed once in z inside `#introExt`, whose `scaleZ(.01→1)` grows the depth — no per-frame
