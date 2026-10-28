@@ -15,12 +15,17 @@
 //   approve   → clears "Óyfirfarið — Rakel ⚠️" on a Tengiliður / Fyrirtæki — owners and
 //               Sölumaður / Arkitekt only, re-checked against Starfsmenn with the per-person login token.
 //   fyrirspurn → "Staða" on a Vefspjall 💬 row (Nýtt → Skoðað / Afgreitt) — no automation watches that table.
+//   afturkalla → "Afturkalla Unnið" (owner only, 2026-10-28): reverses what is safely reversible (see UNDO_NOTE).
+// UNNIÐ posts to Google Chat through api/virkni.js addLine (env webhook) — the Airtable SKRIF-CHAT script
+// step is broken (hard-coded webhook).
 // GET ?k=…&stats=lost → loss reasons counted from "Töpuð tækifæri svör🥀".
 // GET ?k=…&list=fyrirspurnir → open (not Afgreitt) site-chat conversations, newest first. Vefspjall is
 //   write-only on the open proxy (every visitor's email + transcript), so it's read only here.
 //
 // Everything needs VERK_KEY (?k= / body.k); reads and writes by field id. Kept off the open
 // /api/airtable proxy on purpose.
+
+import { addLine } from "./virkni.js";
 
 const BASE = "https://api.airtable.com/v0/app91U15z9K704Okd";
 export const PROJECTS = "tbl4LMXlQjp66RFKI";
@@ -51,7 +56,21 @@ export const F = {
   uppsetning: "fldf7s8YUWHgczAy5", // Uppsetning Bjarnarins 🪛🐻
   ferdir: "fld4qWuFpGim3IFmi",     // Fjöldi ferða 🚚
   skipting: "fldlvDTC46bqAsAP8",   // Skipting greiðslu
+  planning: "fldXS9CA2HD7qJg2P",   // Staða í skipulagi
+  confirmed: "fldx9h2VPlEjhFXPm",  // Staðfest tilboðsupphæð 🔒
+  g2: "fldznyrXOEVeRTPy9",         // Greiðsla 2 greidd
+  g3: "fld8eVrW714WQmean",         // Greiðsla 3 greidd
+  log: "fldCoyt9zJ6NSHXyU",        // Konto drög 🧾
 };
+export const CONTACT_KT = "Kennitala 👤#️⃣";
+export const kennitalaOf = (v) => String(v == null ? "" : v).replace(/\D/g, "");
+// What "Afturkalla Unnið" does NOT undo — shown to the user and returned by the API.
+export const UNDO_NOTE = [
+  "Frysta Staðfest tilboð 🔒 PDF-afritið er ekki afturkallað (næsta Unnið skrifar yfir það).",
+  "Konto-drög sem þegar voru búin til eru ekki afturkölluð (undo er því neitað ef G1-drög eru til).",
+  "Læsingar á Line Items (🔒 Verðlás, læst hölduverð) eru ekki opnaðar héðan — opnaðu þær í Airtable.",
+  "Ár/Mánuður staðfestingar og Virkni-línur sem urðu til standa eftir.",
+];
 // Verðstillingar the deal popup may set (`verd`). Discounts are capped at 50 % to catch a typed 10 meaning 10 %.
 export const PRICE_KEYS = ["osynilegur", "afslUpps", "uppsetning", "ferdir", "skipting"];
 export const L = { name: "fldvDFIGtjQarHVX3", reason: "fldeshNrwubHuiaOj", detail: "fldo8yRxBJHTGtEaL", project: "fld5AKHh8uChH7epA" };
@@ -74,9 +93,26 @@ const OWNER_TYPE = "Eigandi 👨🏻‍💼";
 export function inDays(n, now = new Date()) { const d = new Date(now); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
 
 // Why an action isn't allowed on this project right now (null = allowed). Pure, for tests.
-export function refusal(action, f, b = {}) {
+// `ctx.kt` = the linked contact's kennitala as read by the handler (unnid only).
+export function refusal(action, f, b = {}, ctx = {}) {
   const stage = f[F.stage] || "";
-  if (action === "unnid") return stage === WON ? "Verkið er þegar unnið." : null;
+  if (action === "unnid") {
+    if (stage === WON) return "Verkið er þegar unnið.";
+    const missing = [];
+    if (!(Array.isArray(f[F.tilbod]) && f[F.tilbod].length)) missing.push("Tilboð til sendingar (PDF) — prentaðu tilboð fyrst");
+    if (!f[F.skipting]) missing.push("Skipting greiðslu — veldu í Verðstillingum");
+    if (!(f[F.contacts] || []).length) missing.push("tengiliður á verkinu");
+    else if (kennitalaOf(ctx.kt).length !== 10) missing.push("kennitala tengiliðs (10 tölustafir) — bættu henni við á tengiliðnum");
+    return missing.length ? "Ekki hægt að merkja unnið — vantar: " + missing.join("; ") + "." : null;
+  }
+  if (action === "afturkalla") {
+    if (stage !== WON) return "Verkið er ekki merkt unnið.";
+    if (f[F.g2] || f[F.g3]) return "Greiðsla 2 eða 3 er merkt greidd — ekki hægt að afturkalla héðan.";
+    if (/·\s*G1\s*·\s*drög/.test(String(f[F.log] || ""))) return "G1-drög í Konto eru til — eyddu þeim fyrst, svo má afturkalla.";
+    const plan = f[F.planning] || "";
+    if (plan && plan !== "For-skipulag") return `Verkið er komið í „${plan}“ í skipulagi — ekki hægt að afturkalla héðan.`;
+    return null;
+  }
   if (action === "tapad") {
     if (stage === LOST_STAGE) return "Verkið er þegar tapað.";
     if (b.reason != null && b.reason !== "" && !CHOICES.reason.includes(b.reason)) return "Óþekkt ástæða.";
@@ -125,6 +161,9 @@ export function patchesFor(action, f, b = {}, now = new Date()) {
     out.push({ [box]: true, [other]: false, [F.stage]: action === "unnid" ? WON : LOST_STAGE });
     return out;
   }
+  if (action === "afturkalla") {
+    return [{ [F.won]: false, [F.stage]: Array.isArray(f[F.tilbod]) && f[F.tilbod].length ? SENT : "✍️ Teikna og yfirfara tilboð", [F.planning]: null, [F.confirmed]: null }];
+  }
   if (action === "sent") return [{ [F.stage]: SENT, [F.step]: "⏳ Bíða eftir svari frá viðskiptavini", [F.stepDate]: inDays(3, now) }];
   if (action === "prufa") return [{ [F.prufa]: b.value }];
   if (action === "verd") { const o = {}; for (const [x, val] of Object.entries(b.fields)) o[F[x]] = val; return [o]; }
@@ -169,7 +208,7 @@ async function lostStats(token) {
 
 // Owners + Sölumaður / Arkitekt (Rakel) may approve. Never trusts the page's own roles: the login token is
 // bound to one Starfsmenn id and that record is re-read here.
-async function mayApprove(token, me, t) {
+async function mayApprove(token, me, t, ownerOnly = false) {
   const secret = process.env.KIOSK_DEVICE_SECRET;
   if (!secret || !REC.test(String(me || ""))) return false;
   const { skrifstofaDayToken } = await import("./skrifstofa-login.js");
@@ -177,7 +216,7 @@ async function mayApprove(token, me, t) {
   const url = `${BASE}/${STARFSMENN}?maxRecords=1&filterByFormula=${encodeURIComponent(`RECORD_ID()='${me}'`)}&fields%5B%5D=${encodeURIComponent("Tegund starfsmanns 🧑‍💻")}&fields%5B%5D=${encodeURIComponent("Starfsheiti 💼")}`;
   const r = await at(token, url);
   const f = ((r.d.records || [])[0] || {}).fields || {};
-  return r.ok && (f["Tegund starfsmanns 🧑‍💻"] === OWNER_TYPE || APPROVER_TITLES.includes(f["Starfsheiti 💼"]));
+  return r.ok && (f["Tegund starfsmanns 🧑‍💻"] === OWNER_TYPE || (!ownerOnly && APPROVER_TITLES.includes(f["Starfsheiti 💼"])));
 }
 
 export default async function handler(req, res) {
@@ -217,12 +256,31 @@ export default async function handler(req, res) {
   const rec = await at(token, byId(PROJECTS, id, Object.values(F)));
   const row = (rec.d.records || [])[0];
   if (!rec.ok || !row) return res.status(rec.ok ? 404 : rec.status).json({ error: "Fann ekki verkið" });
-  const why = refusal(action, row.fields, b);
+  let ctx = {};
+  if (action === "unnid") {
+    const cid = (row.fields[F.contacts] || [])[0];
+    if (cid && REC.test(cid)) {
+      const c = await at(token, `${BASE}/${CONTACTS}/${cid}?fields%5B%5D=${encodeURIComponent(CONTACT_KT)}`);
+      ctx = { kt: c.ok && c.d.fields ? c.d.fields[CONTACT_KT] : "" };
+    }
+  }
+  const why = refusal(action, row.fields, b, ctx);
   if (why) return res.status(409).json({ error: why });
+  if (action === "afturkalla" && !(await mayApprove(token, b.me, b.t, true))) return res.status(403).json({ error: "Aðeins eigandi getur afturkallað Unnið (skráðu þig inn aftur ef þú ert eigandi)." });
 
   for (const fields of patchesFor(action, row.fields, b)) {
     const p = await at(token, `${BASE}/${PROJECTS}/${id}`, { method: "PATCH", body: JSON.stringify({ fields, typecast: false }) });
     if (!p.ok) return res.status(p.status).json({ error: "Airtable: " + ((p.d.error && (p.d.error.type || p.d.error)) || p.status) });
+  }
+  const projectName = String(row.fields[F.name] || "");
+  if (action === "unnid") {
+    await addLine({ texti: "UNNIÐ 🏆🎉", tegund: "staða", til: "Skrifstofa", t: id, tengill: "/crm", chat: true, projectName });
+  }
+  if (action === "afturkalla") {
+    // Best effort: an automation-written field may not be writable — a failure is reported, not fatal.
+    const x = await at(token, `${BASE}/${PROJECTS}/${id}`, { method: "PATCH", body: JSON.stringify({ fields: { "Verk staðfest þann": null }, typecast: false }) });
+    await addLine({ texti: "Unnið afturkallað", tegund: "staða", til: "Skrifstofa", t: id, tengill: "/crm", chat: false, projectName });
+    return res.status(200).json({ ok: true, action, notReverted: UNDO_NOTE, dateCleared: x.ok });
   }
   let lostRow = null;
   if (action === "tapad" && b.reason) {

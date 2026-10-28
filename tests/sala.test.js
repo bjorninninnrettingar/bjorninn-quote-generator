@@ -32,13 +32,65 @@ test("a malformed record id never reaches a filterByFormula", async () => {
   assert.equal(calls.length, 0);
 });
 
+const READY = { [F.stage]: SENT, [F.tilbod]: [{ filename: "t.pdf", url: "u" }], [F.skipting]: "100%", [F.contacts]: ["recCCCCCCCCCCCCCC"], [F.name]: "T-1 | X" };
+const withKt = (kt) => (c) => (c.url.includes(CONTACTS) ? { status: 200, body: { id: "recCCCCCCCCCCCCCC", fields: { "Kennitala 👤#️⃣": kt } } } : undefined);
+
 test("Unnið ticks the checkbox the Airtable automation listens to, plus the status, by field id", async () => {
-  const { res, calls } = await run(post({ action: "unnid" }), { [F.stage]: SENT });
+  const { res, calls } = await run(post({ action: "unnid" }), READY, withKt("010190-1239"));
   assert.equal(res.statusCode, 200);
   const p = patches(calls);
   assert.equal(p.length, 1);
   assert.deepEqual(p[0].body.fields, { [F.won]: true, [F.lost]: false, [F.stage]: WON });
   assert.match(p[0].url, /tbl4LMXlQjp66RFKI\/recAAAAAAAAAAAAAA$/);
+});
+
+test("Unnið is refused, naming exactly what is missing (PDF, Skipting, kennitala, contact)", async () => {
+  assert.match(refusal("unnid", { [F.stage]: SENT }), /Tilboð til sendingar.*Skipting greiðslu.*tengiliður/);
+  const noPdf = await run(post({ action: "unnid" }), { ...READY, [F.tilbod]: undefined }, withKt("0101901239"));
+  assert.equal(noPdf.res.statusCode, 409);
+  assert.match(noPdf.res.body.error, /Tilboð til sendingar/);
+  assert.doesNotMatch(noPdf.res.body.error, /Skipting|kennitala/);
+  const noKt = await run(post({ action: "unnid" }), READY, withKt("12345"));
+  assert.equal(noKt.res.statusCode, 409);
+  assert.match(noKt.res.body.error, /kennitala tengiliðs/);
+  assert.equal(patches(noKt.calls).length, 0);
+  const noSplit = await run(post({ action: "unnid" }), { ...READY, [F.skipting]: undefined }, withKt("0101901239"));
+  assert.match(noSplit.res.body.error, /Skipting greiðslu/);
+});
+
+test("Unnið announces itself through Virkni + the env chat webhook; a missing webhook never fails it", async () => {
+  Object.assign(process.env, { GOOGLE_CHAT_WEBHOOK_SKRIFSTOFA: "https://chat.googleapis.com/v1/spaces/X/messages?key=fake" });
+  const on = await run(post({ action: "unnid" }), READY, (c) => withKt("0101901239")(c) || (c.url.includes("chat.googleapis") ? { status: 200, body: {} } : undefined));
+  assert.equal(on.res.statusCode, 200);
+  const virkni = on.calls.find((c) => c.method === "POST" && c.url.includes("tblPPMTlFhW0snk24"));
+  assert.match(virkni.body.fields.Texti, /UNNIÐ/);
+  assert.deepEqual(virkni.body.fields["Tækifæri"], [T]);
+  const chat = on.calls.find((c) => c.url.includes("chat.googleapis"));
+  assert.match(chat.body.text, /UNNIÐ.*\n.*T-1/);
+  delete process.env.GOOGLE_CHAT_WEBHOOK_SKRIFSTOFA;
+  const off = await run(post({ action: "unnid" }), READY, withKt("0101901239"));
+  assert.equal(off.res.statusCode, 200);
+  assert.equal(off.calls.filter((c) => c.url.includes("chat.googleapis")).length, 0);
+});
+
+test("Afturkalla Unnið: owner only; refused after payments / Konto G1 draft / further in planning; reverses the checkbox + stage + amount", async () => {
+  const won = { ...READY, [F.stage]: WON, [F.planning]: "For-skipulag", [F.confirmed]: 900000 };
+  assert.match(refusal("afturkalla", { [F.stage]: SENT }), /ekki merkt unnið/);
+  assert.match(refusal("afturkalla", { ...won, [F.g2]: true }), /Greiðsla 2/);
+  assert.match(refusal("afturkalla", { ...won, [F.log]: "27.10 · G1 · drög abc" }), /G1-drög/);
+  assert.match(refusal("afturkalla", { ...won, [F.planning]: "Klárt til framleiðslu" }), /Klárt til framleiðslu/);
+  assert.equal(refusal("afturkalla", won), null);
+  assert.deepEqual(patchesFor("afturkalla", won), [{ [F.won]: false, [F.stage]: SENT, [F.planning]: null, [F.confirmed]: null }]);
+  const { skrifstofaDayToken } = await import("../api/skrifstofa-login.js");
+  const t = skrifstofaDayToken("leynd", ME, 0);
+  const staff = (title, type) => (c) => (c.url.includes("tblhglpjQkczdG1AY") ? { status: 200, body: { records: [{ id: ME, fields: { "Starfsheiti 💼": title, "Tegund starfsmanns 🧑‍💻": type } }] } } : undefined);
+  const rakel = await run(post({ action: "afturkalla", me: ME, t }), won, staff("Sölumaður / Arkitekt", "Fast ráðinn 👷"));
+  assert.equal(rakel.res.statusCode, 403);
+  assert.equal(patches(rakel.calls).length, 0);
+  const owner = await run(post({ action: "afturkalla", me: ME, t }), won, staff("Framkvæmdastjóri", "Eigandi 👨🏻‍💼"));
+  assert.equal(owner.res.statusCode, 200);
+  assert.ok(owner.res.body.notReverted.length >= 3);
+  assert.deepEqual(patches(owner.calls)[0].body.fields, { [F.won]: false, [F.stage]: SENT, [F.planning]: null, [F.confirmed]: null });
 });
 
 test("a stale ticked checkbox (reopened deal) is unticked first so the automation fires again", () => {

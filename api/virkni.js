@@ -81,20 +81,39 @@ function toItem(r) {
   };
 }
 
+// Posts to the Google Chat room for `til` from the env webhook. Never throws.
+// Returns "sent" | "no-webhook" | "bad-webhook" | "rate-limited" | "failed".
+export async function sendChat(til, text) {
+  try {
+    const hook = til === "Skrifstofa" ? process.env.GOOGLE_CHAT_WEBHOOK_SKRIFSTOFA : process.env.GOOGLE_CHAT_WEBHOOK_ALMENNT;
+    if (!hook) return "no-webhook";
+    if (!/^https:\/\/chat\.googleapis\.com\//.test(hook)) return "bad-webhook";
+    if (!chatAllowed()) return "rate-limited";
+    const r = await fetch(hook, { method: "POST", headers: { "Content-Type": "application/json; charset=UTF-8" }, body: JSON.stringify({ text }) });
+    return r.ok ? "sent" : "failed";
+  } catch {
+    return "failed";
+  }
+}
+
 // Server-side writer for other endpoints (verk-status, cron). Fields must already be valid;
 // never throws — a missing Virkni line must not fail the action that caused it.
-export async function addLine({ texti, tegund, til, t, tengill, hver }) {
+// chat:true also posts to Google Chat (trusted server callers only; any tegund) — a missing webhook env is silent.
+export async function addLine({ texti, tegund, til, t, tengill, hver, chat, projectName }) {
+  let id = null;
+  if (!process.env.AIRTABLE_TOKEN) return null; // not configured (tests, local): no line, no chat, no error
   try {
     const fields = { "Texti": String(texti).slice(0, 300), "Tegund": tegund, "Til": til, "Flokkur": FLOKKUR_FOR[tegund] || "Framleiðsla" };
     if (t) fields["Tækifæri"] = [t];
     if (tengill) fields["Tengill"] = ORIGIN + tengill;
     if (hver) fields["Hver"] = hver;
     const rec = await at(VIRKNI, { method: "POST", body: JSON.stringify({ fields }) });
-    return rec.id;
+    id = rec.id;
   } catch (e) {
     console.error("virkni addLine:", e.message);
-    return null;
   }
+  if (chat === true) await sendChat(til, chatText({ texti: String(texti).slice(0, 300), projectName, hver, tengill }));
+  return id;
 }
 
 async function list(req, res) {
@@ -145,24 +164,7 @@ async function create(req, res) {
   const rec = await at(VIRKNI, { method: "POST", body: JSON.stringify({ fields }) });
 
   let chat = "off";
-  if (b.chat === true && CHAT_TEGUND.includes(tegund)) {
-    const hook = til === "Skrifstofa" ? process.env.GOOGLE_CHAT_WEBHOOK_SKRIFSTOFA : process.env.GOOGLE_CHAT_WEBHOOK_ALMENNT;
-    if (!hook) chat = "no-webhook";
-    else if (!/^https:\/\/chat\.googleapis\.com\//.test(hook)) chat = "bad-webhook";
-    else if (!chatAllowed()) chat = "rate-limited";
-    else {
-      try {
-        const r = await fetch(hook, {
-          method: "POST",
-          headers: { "Content-Type": "application/json; charset=UTF-8" },
-          body: JSON.stringify({ text: chatText({ texti, projectName, hver, tengill }) }),
-        });
-        chat = r.ok ? "sent" : "failed";
-      } catch {
-        chat = "failed";
-      }
-    }
-  }
+  if (b.chat === true && CHAT_TEGUND.includes(tegund)) chat = await sendChat(til, chatText({ texti, projectName, hver, tengill }));
   return res.status(200).json({ ok: true, id: rec.id, chat });
 }
 
