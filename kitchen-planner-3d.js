@@ -7487,6 +7487,29 @@
     g.rotateX(-Math.PI / 2); g.computeVertexNormals();
     return (DECOR_CACHE[key] = g);
   }
+  // A plant leaf (2026-10-28 overhaul): pointed oval, folded along the midrib, drooping along its length, with a
+  // vertex-colour gradient (darker at the midrib and base, lighter at the edges). 7 × 9 grid ≈ 112 triangles, cached per size.
+  function plantLeafGeometry(THREE, len, wid, bend){
+    var key = "pleaf" + [len, wid, bend].join("_"), g = DECOR_CACHE[key];
+    if (g) return g;
+    var NC = 7, NR = 9, pos = [], col = [], idx = [], i, j;
+    for (j = 0; j <= NR; j++){
+      var t = j / NR, w = wid * Math.pow(Math.sin(Math.PI * Math.pow(Math.max(t, 0.001), 0.72)), 0.8) * (1 - 0.18 * t);
+      for (i = 0; i <= NC; i++){
+        var u = i / NC * 2 - 1, x = u * w, y = t * len;
+        var z = Math.abs(u) * w * 0.22 - t * t * len * bend + Math.sin(u * 2.4) * 0.002 * len * t; // V fold at the midrib, droop, a faint ripple
+        pos.push(x, y, z);
+        var sh = 0.72 + 0.28 * Math.abs(u) + 0.08 * t - (Math.abs(u) < 0.14 ? 0.16 : 0); // paler towards the edge, a darker midrib line
+        col.push(sh, sh, sh);
+      }
+    }
+    for (j = 0; j < NR; j++) for (i = 0; i < NC; i++){ var a = j * (NC + 1) + i, b = a + 1, c = a + NC + 1, d = c + 1; idx.push(a, c, b, b, c, d); }
+    g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+    g.setIndex(idx); g.rotateX(-Math.PI / 2); g.computeVertexNormals();
+    return (DECOR_CACHE[key] = g);
+  }
   function buildDecor(THREE, key, item){
     var gr = new THREE.Group(), RB = window.__RoundedBox__;
     function mat(c, r, m, extra){ return new THREE.MeshStandardMaterial(Object.assign({ color:c, roughness:r == null ? 0.6 : r, metalness:m || 0 }, extra || {})); }
@@ -7536,35 +7559,40 @@
       }
       var fr = new THREE.Mesh(new THREE.TorusGeometry(0.163, 0.008, 8, 36), blackMetal); fr.rotation.x = Math.PI / 2; fr.position.y = 0.22; add(fr);
     } else if (key === "planta" || key === "plantaLitil"){
+      // 2026-10-28: a tapered stone-ceramic pot with a soft rim and a domed soil top, woody curved stems, many drooping
+      // folded leaves in four greens (a fiddle-leaf fig); the small one is a leafy rosette in a glossy little pot.
       var big = key === "planta", sc = big ? 1 : 0.42;
-      var potM = big ? mat(0xd9d3c7, 0.85) : mat(0xe9e4da, 0.35);
-      lathe([[0, 0], [0.12, 0], [0.13, 0.01], [0.165, 0.3], [0.17, 0.32], [0.158, 0.32], [0.152, 0.3], [0, 0.3]].map(function(p){ return [p[0] * sc, p[1] * sc]; }), potM, 40);
-      cyl(0.152 * sc, 0.152 * sc, 0.01, 0, 0.29 * sc, 0, mat(0x3b2d22, 1), 32);
-      var h0 = 0.29 * sc; // soil level
-      var greens = [0x2f5a2c, 0x3b6a35, 0x2a4f27, 0x45753c];
-      function leafAt(px, py, pz, ang, up, L, i){ // a leaf whose base sits at (px,py,pz), pointing outward along ang, tilted up by `up`
-        var Wd = L * (big ? 0.45 : 0.36);
-        var lf = new THREE.Mesh(leafGeometry(THREE, +L.toFixed(3), +Wd.toFixed(3), big ? 0.12 : 0.1, false), mat(greens[i % greens.length], 0.45, 0, { side:THREE.DoubleSide }));
+      var potM = big ? mat(0xd8d2c6, 0.72) : mat(0xece7de, 0.3);
+      lathe([[0, 0], [0.105, 0], [0.12, 0.012], [0.15, 0.14], [0.168, 0.28], [0.176, 0.3], [0.17, 0.318], [0.158, 0.318], [0.153, 0.3], [0.15, 0.285]].map(function(p){ return [p[0] * sc, p[1] * sc]; }), potM, 40);
+      var h0 = 0.285 * sc; // soil level
+      lathe([[0, 0.012], [0.146, 0], [0.15, -0.012], [0, -0.012]].map(function(p){ return [p[0] * sc, p[1] * sc]; }), mat(0x3b2d22, 1), 28, 0, h0 + 0.008 * sc, 0);
+      var greens = [mat(0x2f5a2c, 0.5, 0, { vertexColors:true, side:THREE.DoubleSide }), mat(0x3b6a35, 0.5, 0, { vertexColors:true, side:THREE.DoubleSide }),
+        mat(0x27492a, 0.5, 0, { vertexColors:true, side:THREE.DoubleSide }), mat(0x4a7a3d, 0.5, 0, { vertexColors:true, side:THREE.DoubleSide })];
+      var stemM = mat(0x5a4533, 0.8);
+      function leafAt(px, py, pz, ang, up, L, i){ // base at (px,py,pz), tip pointing out along ang, raised by `up`
+        var lf = new THREE.Mesh(plantLeafGeometry(THREE, +L.toFixed(2), +(L * (big ? 0.42 : 0.36)).toFixed(3), big ? 0.35 : 0.3), greens[(i * 7 + (i >> 2)) % 4]);
         lf.position.set(px, py, pz); lf.rotation.order = "YXZ";
-        lf.rotation.y = Math.atan2(-Math.cos(ang), -Math.sin(ang)); // the leaf's tip (-z) points out along (cos ang, sin ang)
-        lf.rotation.x = up; lf.rotation.z = 0.25 * Math.sin(i * 2.3);
+        lf.rotation.y = Math.atan2(-Math.cos(ang), -Math.sin(ang)); // the tip (-z) points out along (cos ang, sin ang)
+        lf.rotation.x = up; lf.rotation.z = 0.3 * Math.sin(i * 2.3);
+        lf.scale.setScalar(0.92 + 0.16 * Math.abs(Math.sin(i * 1.7)));
         add(lf);
       }
-      if (big){ // rubber plant: three woody stems, leaves spiralling up them
-        var stemM = mat(0x4b3a2a, 0.8), li2 = 0;
-        [[0.0, 1.1, 0.0], [0.07, 0.95, 2.1], [0.06, 0.8, 4.2]].forEach(function(st){
-          var lean = st[0], H = st[1], dir = st[2], top = [Math.cos(dir) * lean * 2.2, h0 + H, Math.sin(dir) * lean * 2.2];
-          var curve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, h0, 0), new THREE.Vector3(top[0] * 0.3, h0 + H * 0.5, top[2] * 0.3), new THREE.Vector3(top[0], top[1], top[2])]);
-          add(new THREE.Mesh(new THREE.TubeGeometry(curve, 20, 0.009, 6, false), stemM));
-          for (var t = 0.38; t <= 1.0001; t += 0.075){
-            var pt = curve.getPoint(t), ang = li2 * 2.399 + dir, L = 0.27 - 0.08 * t;
-            leafAt(pt.x, pt.y, pt.z, ang, 0.15 + t * 0.55, L, li2++);
+      if (big){
+        var li2 = 0;
+        [[0.0, 1.12, 0.3], [0.07, 0.92, 2.2], [0.06, 0.74, 4.3]].forEach(function(st){
+          var lean = st[0], H = st[1], dir = st[2], top = [Math.cos(dir) * lean * 2.4, h0 + H, Math.sin(dir) * lean * 2.4];
+          var curve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, h0 - 0.01, 0), new THREE.Vector3(top[0] * 0.25 - Math.sin(dir) * 0.012, h0 + H * 0.45, top[2] * 0.25 + Math.cos(dir) * 0.012), new THREE.Vector3(top[0], top[1], top[2])]);
+          add(new THREE.Mesh(new THREE.TubeGeometry(curve, 16, 0.0095, 6, false), stemM));
+          for (var t = 0.34; t <= 1.0001; t += 0.066){
+            var pt = curve.getPoint(t), ang = li2 * 2.399 + dir, L = 0.3 - 0.12 * t;
+            leafAt(pt.x, pt.y, pt.z, ang, 0.1 + t * 0.6, L, li2++);
           }
+          leafAt(top[0], top[1], top[2], dir, 1.15, 0.12, li2++); // a young upright leaf at the tip
         });
-      } else { // a small leafy pot plant: a rosette from the soil
-        for (var j = 0; j < 9; j++){
-          var a2 = j * 2.399, L2 = 0.1 + 0.025 * Math.sin(j * 1.3);
-          leafAt(Math.cos(a2) * 0.01, h0 + 0.01 + j * 0.004, Math.sin(a2) * 0.01, a2, 0.45 + 0.35 * (j % 3) / 2, L2, j);
+      } else {
+        for (var j = 0; j < 14; j++){
+          var a2 = j * 2.399, L2 = 0.1 + 0.03 * Math.sin(j * 1.3) + (j < 5 ? 0.02 : 0);
+          leafAt(Math.cos(a2) * 0.012, h0 + 0.01 + j * 0.003, Math.sin(a2) * 0.012, a2, 0.3 + 0.5 * (j % 5) / 4, L2, j);
         }
       }
     } else if (key === "motta"){

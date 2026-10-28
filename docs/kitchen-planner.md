@@ -771,6 +771,12 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
   scene (`KPDOORS.preview` → `_p().scene`, spónlagt `sp03` Hnota dökk) with `KP3D` decor models (planta, standspegill, motta)
   moved in, plus a primitive oak bench, two frames and a vase, own renderer (`localClippingEnabled`, exposure 1.3), ceiling swapped
   for a light basic material. Note: a door look with `img` (melamine swatch) maps wrong — use `{key, color, wood:true}`.
+  **Round 2 (2026-10-28, owner)**: stóll moved off the wardrobe wall/mirror; Bað got two 900 mm `efriskapur` with `mirrorFront` (a wide
+  spegilskápur — the `bathMirror` note is only as wide as the sink unit, max 1200), an `uthlid` at the cabinet end and a dark `eg_F187`
+  borðplata; door leaf `sp06` Eik, gömul. **Pottaplanta rebuilt** (`buildDecor` planta/plantaLitil + `plantLeafGeometry`): tapered
+  stone-ceramic pot with soft rim and domed soil, curved woody stems, ~30 folded, drooping, vertex-shaded leaves (7×9 grid ≈ 112 tris,
+  cached per size, four shared green materials; the small one is a 14-leaf rosette). `welcome-kitchen.jpg` (Oct 12) was NOT re-shot: it only
+  shows the tiny plant and a fresh shot of the current showcase differs (handles/lighting) from the live Airtable scene it fronts.
 - **Smoothness round (owner same day: "laggar og aðeins of hægt")**: only transform + opacity animate, each moving part a GPU
   layer. Blur-in = a pre-blurred copy (`.bb`, static `filter`) crossfading into the sharp text (`.bs`) — no animated filter;
   extrusion = 18 `.layer`s placed once in z inside `#introExt`, whose `scaleZ(.01→1)` grows the depth — no per-frame
