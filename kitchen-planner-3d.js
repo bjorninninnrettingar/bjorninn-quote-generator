@@ -3865,6 +3865,9 @@
         // úthliðar bound to it (owner, 2026-10-27: they stayed behind while the box flew off; the drop re-attaches them)
         groups:pickables.filter(function(m){ return (m.userData.blockId === bid || (m.userData.lockToId && m.userData.lockToId === bid)) && !m.userData.isPart; }).map(function(m){ return m.parent; })
           .filter(function(g, i, all){ return all.indexOf(g) === i; }) };
+      // a group inside another dragged group moves with it: moving it too applied the offset twice (a spegilskápur's shelves
+      // flew out of the room, owner 2026-10-28)
+      drag.groups = drag.groups.filter(function(g){ return !drag.groups.some(function(o){ var p = g.parent; while (p){ if (p === o) return true; p = p.parent; } return false; }); });
       controls.enabled = false;
     }
     var hovered = null;
@@ -4937,6 +4940,14 @@
       });
     });
     var n = 0;
+    var MIRROR_EDGE = null; // a mirror door is 20 mm slab: its edges (the underside seen from below) are satin, not more mirror (owner, 2026-10-28)
+    groups.forEach(function(gm){ gm[0].forEach(function(o){
+      var gp = o.geometry && o.geometry.parameters;
+      if (!Array.isArray(o.material) && gp && o.geometry.type === "BoxGeometry" && Math.abs(gp.depth - FRONT_T) < 0.0015){
+        MIRROR_EDGE = MIRROR_EDGE || new THREE.MeshStandardMaterial({ color:0xc9ceca, metalness:0.2, roughness:0.45 });
+        var mm0 = o.material; o.material = [MIRROR_EDGE, MIRROR_EDGE, MIRROR_EDGE, MIRROR_EDGE, mm0, MIRROR_EDGE];
+      }
+    }); });
     groups.forEach(function(gm){ var meshes = gm[0], m = gm[1];
       if (++n > 4) return;
       var box = new THREE.Box3(); meshes.forEach(function(o){ box.expandByObject(o); });
