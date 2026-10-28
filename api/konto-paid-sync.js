@@ -83,7 +83,9 @@ export default async function handler(req, res) {
     if (dry) { // diagnostics for the dry run only: did Konto's invoices line up with the guids we hold? (no names, no amounts)
       let held = 0, matched = 0; const statusCounts = {};
       for (const w of work) for (const e of Object.values(w.ledger)) { held++; const i = e.guid ? inv.get(String(e.guid)) : null; if (i) { matched++; const st = String(i.status || "?"); statusCounts[st] = (statusCounts[st] || 0) + 1; } }
-      Object.assign(report, { invoicesFetched: invoices.length, guidsHeld: held, guidsMatched: matched, statusCounts });
+      const keys = new Set(); for (const i of invoices.slice(0, 40)) Object.keys(i || {}).forEach((k) => keys.add(k)); // field NAMES only
+      const refs = [...keys].filter((k) => /draft|ref|origin|source|parent|guid|id$/i.test(k));
+      Object.assign(report, { invoicesFetched: invoices.length, guidsHeld: held, guidsMatched: matched, statusCounts, invoiceFieldNames: [...keys].sort(), possibleLinkFields: refs });
     }
     for (const w of work) {
       const plan = planSync({
