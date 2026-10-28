@@ -30,15 +30,17 @@
      Pöntunarlisti here is a summary + link — /pontun stays the real tool for
      actually managing orders. */
   :root {
-    --bg:#f3f4f6; --surface:#ffffff; --line:#e1e4e8; --sidebar:#1b2430;
-    --text:#1a1d21; --muted:#5d6670; --dim:#9aa3ad;
+    --bg:#f5f5f7; --surface:#ffffff; --line:#e6e6ea; --sidebar:#1b2430;
+    --text:#1d1d1f; --muted:#6e6e73; --dim:#a1a1a6;
     --accent:#0f6cbd; --warn:#9a6700; --bad:#c4291c; --good:#1a7d36;
-    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --warn-bg:#fdf2d9; --good-bg:#e5f6ea; --bad-bg:#fbe4e1; --good-soft:#e5f6ea;
+    --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
   :root[data-theme="dark"] {
-    --bg:#11151c; --surface:#1a1f28; --line:#2a3140;
-    --text:#e7eaf0; --muted:#9aa3ad; --dim:#6b7380;
+    --bg:#101216; --surface:#1a1d23; --line:#2a2e37;
+    --text:#f2f2f5; --muted:#9a9aa3; --dim:#6b6b73;
     --accent:#3b9eff; --warn:#e3b341; --bad:#f2766b; --good:#4caf6e;
+    --warn-bg:#332a10; --good-bg:#102414; --bad-bg:#3a1a17; --good-soft:#102414;
   }
   * { box-sizing:border-box; margin:0; padding:0; }
   html,body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; line-height:1.4; }
@@ -53,48 +55,64 @@
   .sidebar .user { padding:14px 18px 0; border-top:1px solid #2a3442; margin-top:10px; font-size:.82rem; display:flex; justify-content:space-between; align-items:center; }
   .sidebar .user button { background:none; border:none; color:#8aa4c7; font:inherit; font-size:.8rem; cursor:pointer; }
 
-  .main { flex:1; min-width:0; padding:24px 28px 40px; max-width:1500px; }
-  .pageHd { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:16px; }
-  .pageHd h1 { font-size:1.35rem; font-weight:700; }
-  .pageHd a { color:var(--accent); text-decoration:none; font-size:.85rem; }
+  .main { flex:1; min-width:0; padding:44px 48px 80px; max-width:980px; }
+  .pageHd { margin-bottom:6px; }
+  .pageHd h1 { font-size:2rem; font-weight:700; letter-spacing:-.02em; }
+  .back { display:inline-block; color:var(--accent); text-decoration:none; font-size:.9rem; margin-bottom:14px; }
+  .back[hidden] { display:none; }
+  .lead { color:var(--muted); font-size:.95rem; margin:4px 0 34px; min-height:1.2em; }
 
-  /* ---- Kanban ---- */
-  .attnStrip { margin-bottom:18px; }
-  .attnStrip h2 { font-size:.78rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.02em; margin-bottom:8px; }
-  .nsRow { display:flex; gap:10px; overflow-x:auto; padding-bottom:4px; }
-  .nsCard { flex:0 0 220px; background:var(--surface); border-radius:12px; padding:11px 13px; box-shadow:0 1px 3px rgba(0,0,0,.05); cursor:pointer; text-decoration:none; color:var(--text); display:block; border-left:3px solid var(--bad); }
-  .nsCard .nm { font-weight:600; font-size:.85rem; }
-  .nsCard .sub { font-size:.78rem; color:var(--muted); margin-top:4px; }
-  .pontunChip { font-size:.62rem; font-weight:700; background:#f1e9fd; color:#8250df; padding:1px 6px; border-radius:999px; margin-left:5px; white-space:nowrap; }
-  .colWarn { color:var(--bad); font-weight:700; }
-
-  .board { display:flex; gap:14px; overflow-x:auto; padding-bottom:10px; }
-  .col { flex:0 0 240px; }
-  .col h2 { font-size:.78rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.02em; margin-bottom:8px; display:flex; align-items:center; gap:6px; }
-  .col h2 .colLabel { flex:1; }
-  .col h2 .cnt { color:var(--dim); font-weight:500; }
-  .col h2 .colorDot { width:8px; height:8px; border-radius:50%; flex:none; }
-  .cards { display:flex; flex-direction:column; gap:8px; min-height:30px; border-radius:10px; transition:background .1s; }
-  .cards.dropTarget.dragover { background:rgba(130,80,223,.1); outline:2px dashed #8250df; outline-offset:-2px; }
-  .kcard { background:var(--surface); border-radius:12px; padding:11px 13px; box-shadow:0 1px 3px rgba(0,0,0,.05); text-decoration:none; color:var(--text); display:block; font-size:.86rem; font-weight:600; }
-  .kcard.dragging { opacity:.4; }
-  .empty { text-align:center; color:var(--muted); padding:16px 0; font-size:.8rem; }
+  /* ---- Board (list, 2026-10-28) ---- */
+  .group { margin-bottom:34px; }
+  .secTitle { font-size:.78rem; font-weight:600; color:var(--muted); letter-spacing:.02em; margin:0 4px 10px; }
+  .secTitle.bad { color:var(--bad); }
+  .list { background:var(--surface); border-radius:14px; overflow:hidden; }
+  .prow { display:flex; align-items:center; gap:18px; padding:16px 20px; border-bottom:1px solid var(--line); text-decoration:none; color:var(--text); }
+  .prow:last-child { border-bottom:none; }
+  .prow:hover { background:var(--bg); }
+  .prow:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
+  .pn { flex:1; min-width:0; }
+  .pn .t { font-weight:600; font-size:1rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pn .s { font-size:.84rem; color:var(--muted); margin-top:2px; }
+  .pn .s .stale { color:var(--warn); font-weight:600; }
+  .pn .s .late { color:var(--bad); font-weight:600; }
+  .steps { display:flex; gap:4px; flex:none; }
+  .steps i { width:22px; height:4px; border-radius:2px; background:var(--line); }
+  .steps i.on { background:var(--accent); }
+  .steps i.cur { background:var(--accent); }
+  .chev { color:var(--dim); flex:none; }
+  .tag { font-size:.7rem; font-weight:600; padding:2px 9px; border-radius:999px; background:var(--bg); color:var(--muted); margin-left:8px; white-space:nowrap; }
+  .tag.pt { background:#efe8fc; color:#6f42c1; }
+  .empty { text-align:center; color:var(--muted); padding:16px 0; font-size:.85rem; }
   .loading { text-align:center; color:var(--muted); padding:60px 0; }
+  .note { color:var(--muted); font-size:.92rem; padding:22px; }
+  .note.err { color:var(--bad); }
+  .link { background:none; border:none; color:var(--accent); cursor:pointer; font-size:.88rem; padding:2px 4px; }
+  .link:hover { text-decoration:underline; }
+  .toast { position:fixed; left:50%; bottom:28px; transform:translateX(-50%); background:var(--text); color:var(--surface); padding:11px 20px; border-radius:999px; font-size:.88rem; z-index:300; opacity:0; pointer-events:none; transition:opacity .2s; max-width:90vw; }
+  .toast.show { opacity:1; }
+  .toast.bad { background:var(--bad); color:#fff; }
+  .skel { height:62px; border-bottom:1px solid var(--line); background:linear-gradient(90deg,var(--surface),var(--bg),var(--surface)); background-size:200% 100%; animation:sh 1.4s infinite; }
+  @keyframes sh { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
 
   /* ---- Detail ---- */
-  .projHd { background:var(--surface); border-radius:12px; padding:14px 18px; margin-bottom:18px; }
-  .projHd .nm { font-size:1.1rem; font-weight:700; }
-  .projHd .st { color:var(--muted); font-size:.85rem; margin-top:3px; }
+  .projHd { margin:0 0 26px; }
+  .stepper { display:flex; gap:6px; margin-top:4px; }
+  .stepper .sp { flex:1; }
+  .stepper .sp i { display:block; height:4px; border-radius:2px; background:var(--line); margin-bottom:6px; }
+  .stepper .sp.done i, .stepper .sp.cur i { background:var(--accent); }
+  .stepper .sp.done i { background:var(--good); }
+  .stepper .sp span { font-size:.78rem; color:var(--muted); }
+  .stepper .sp.cur span { color:var(--text); font-weight:600; }
 
-  .stage { background:var(--surface); border-radius:12px; margin-bottom:12px; overflow:hidden; border:1px solid var(--line); }
-  .stage.current { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
-  .stage.done { border-color:var(--good); }
+  .stage { background:var(--surface); border-radius:14px; margin-bottom:14px; overflow:hidden; }
+  .stage.current { box-shadow:0 0 0 2px var(--accent); }
   .stageHd .badge.done { background:var(--good); }
-  .stageHd { display:flex; align-items:center; justify-content:space-between; padding:13px 18px; cursor:pointer; }
-  .stageHd .t { font-weight:700; font-size:.95rem; display:flex; align-items:center; gap:8px; }
+  .stageHd { display:flex; align-items:center; justify-content:space-between; padding:18px 22px; cursor:pointer; }
+  .stageHd .t { font-weight:600; font-size:1.02rem; display:flex; align-items:center; gap:8px; }
   .stageHd .badge { font-size:.68rem; font-weight:700; padding:2px 9px; border-radius:999px; background:var(--accent); color:#fff; }
   .stageHd .chev { color:var(--dim); font-size:.8rem; }
-  .stageBody { display:none; padding:0 18px 18px; border-top:1px solid var(--line); padding-top:14px; }
+  .stageBody { display:none; padding:4px 22px 22px; border-top:1px solid var(--line); padding-top:18px; }
   .stageBody.open { display:block; }
 
   .unitRow { display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-bottom:1px solid var(--line); cursor:pointer; font-size:.88rem; }
@@ -230,6 +248,7 @@
 </style>
 </head>
 <body>
+<div class="toast" id="toast" role="status"></div>
 <div id="shell">
   <div class="sidebar">
     <div id="officeSidebarTop"></div>
@@ -237,24 +256,12 @@
     <div id="officeSidebarBottom"></div>
   </div>
   <div class="main">
-    <div class="pageHd">
-      <h1 id="pageTitle">Skipulagsferli</h1>
-      <a href="/ferli" id="backToBoard" style="display:none;">← Öll verk</a>
-    </div>
+    <a class="back" href="/ferli" id="backToBoard" hidden>‹ Öll verk</a>
+    <div class="pageHd"><h1 id="pageTitle">Skipulagsferli</h1></div>
+    <div class="lead" id="lead"></div>
 
     <div id="loading" class="loading">Sæki…</div>
-
-    <div class="attnStrip" id="attnWrap" style="display:none;">
-      <h2>⚠️ Þarfnast athygli — ósnert &gt;5 daga</h2>
-      <div class="nsRow" id="attnRow"></div>
-    </div>
-
-    <div class="attnStrip" id="deliveryWrap" style="display:none;">
-      <h2>📅 Næstu afhendingar</h2>
-      <div class="nsRow" id="deliveryRow"></div>
-    </div>
-
-    <div class="board" id="board" style="display:none;"></div>
+    <div id="board" style="display:none;"></div>
     <div id="detail" style="display:none;"></div>
   </div>
 </div>
@@ -273,7 +280,7 @@
 
 <div class="modalBg" id="modalBg">
   <div class="modal">
-    <button class="mClose" id="mClose">✕</button>
+    <button class="mClose" id="mClose">&times;</button>
     <div class="mTitle" id="unitTitle"></div>
     <div class="mSub" id="unitSub"></div>
     <div class="wFlags" id="flags"></div>
@@ -372,185 +379,129 @@
   }
   if (unitParam) openUnitModal(unitParam);
 
-  // ======================= KANBAN =======================
+  // ======================= BOARD (list, 2026-10-28) =======================
+  // No kanban: what matters is what needs somebody. Stale projects first, then one group per stage
+  // (each row shows how far along the 4 steps it is). The old drag into "Pöntunarlisti" is gone — a
+  // drag is too easy to do by accident for a status that tells the floor to start; "Merkja Klárt"
+  // on the project page runs the same gate (checklist + typed KLÁRT) and the same notification.
+  var toastT = null;
+  function toast(msg, bad) {
+    var el = document.getElementById("toast");
+    el.textContent = msg; el.className = "toast show" + (bad ? " bad" : "");
+    clearTimeout(toastT); toastT = setTimeout(function () { el.classList.remove("show"); }, bad ? 5000 : 2200);
+  }
+  function retryNote(msg, fn) {
+    var id = "r" + Math.random().toString(36).slice(2);
+    setTimeout(function () { var b = document.getElementById(id); if (b) b.addEventListener("click", fn); }, 0);
+    return '<div class="list"><div class="note err">' + esc(msg) + ' <button class="link" id="' + id + '" type="button">Reyna aftur</button></div></div>';
+  }
+  // PATCH that tells the truth: resolves true on success; on failure shows a red toast and resolves false
+  // (callers undo their optimistic UI). Used by the checklist and the date fields, which used to fail silently.
+  function saveFields(path, fields, what) {
+    return apiPatch(path, fields).then(function (r) {
+      if (r && r.error) throw new Error("patch");
+      return true;
+    }).catch(function () { toast("Tókst ekki að vista" + (what ? " " + what : "") + " — reyndu aftur.", true); return false; });
+  }
+
+  var MONTHS = ["jan.", "feb.", "mars", "apr.", "maí", "júní", "júlí", "ág.", "sept.", "okt.", "nóv.", "des."];
+  function todayStr() { return new Date().toLocaleDateString("sv-SE", { timeZone: "Atlantic/Reykjavik" }); }
+  function dateIs(s) { var p = String(s).slice(0, 10).split("-"); return (+p[2]) + ". " + MONTHS[+p[1] - 1]; }
+  function daysTo(s) { return Math.round((Date.parse(String(s).slice(0, 10)) - Date.parse(todayStr())) / 86400000); }
+
+  var STALE_DAYS = 5;
   function loadBoard() {
-    document.getElementById("loading").style.display = "block";
+    var BOARD_FIELDS = ["Heiti tækifæris / verkefnis", "Staða í skipulagi", "Staða í framleiðslu", "Verk ósnert dagar 📅", "Áætlaður afhendingardagur Björninn (internal)"];
+    document.getElementById("loading").style.display = "none";
+    var boardEl = document.getElementById("board");
+    boardEl.style.display = "block";
+    boardEl.innerHTML = '<div class="list"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>';
     var fml = '{Staða í söluferli}="🏆 Tækifæri unnið"';
     Promise.all([
-      api(TAEKIFAERI, "filterByFormula=" + encodeURIComponent(fml) + "&fields%5B%5D=Heiti%20t%C3%A6kif%C3%A6ris%20%2F%20verkefnis&fields%5B%5D=Sta%C3%B0a%20%C3%AD%20skipulagi&fields%5B%5D=Sta%C3%B0a%20%C3%AD%20framlei%C3%B0slu&fields%5B%5D=" + encodeURIComponent("Verk ósnert dagar 📅") + "&fields%5B%5D=" + encodeURIComponent("Áætlaður afhendingardagur Björninn (internal)") + "&pageSize=100"),
+      api(TAEKIFAERI, "filterByFormula=" + encodeURIComponent(fml) + "&" + BOARD_FIELDS.map(function (f) { return "fields%5B%5D=" + encodeURIComponent(f); }).join("&") + "&pageSize=100"),
       api(PANTADIR, "pageSize=100")
     ]).then(function (res) {
-      document.getElementById("loading").style.display = "none";
-      document.getElementById("board").style.display = "flex";
-      var projects = res[0].records || [];
-      renderBoard(projects, res[1].records || []);
-      renderAttention(projects);
-      renderDelivery(projects);
-    });
+      renderBoard(res[0].records || [], res[1].records || []);
+    }).catch(function () { boardEl.innerHTML = retryNote("Tókst ekki að sækja verkin.", loadBoard); });
   }
 
-  // ---- "Þarfnast athygli" — reuses the same "Verk ósnert dagar 📅" field CRM's own stale-pill
-  // already uses, just a tighter threshold (5 days, not 14) since active skipulag prep moves faster
-  // than early-stage sales follow-up. A rule of thumb, easy to retune if it's noisy in practice. ----
-  var STALE_DAYS = 5;
-  function renderAttention(projects) {
-    var stale = projects.filter(function (p) { return (p.fields["Verk ósnert dagar 📅"] || 0) >= STALE_DAYS; });
-    stale.sort(function (a, b) { return (b.fields["Verk ósnert dagar 📅"] || 0) - (a.fields["Verk ósnert dagar 📅"] || 0); });
-    var wrap = document.getElementById("attnWrap"), row = document.getElementById("attnRow");
-    if (!stale.length) { wrap.style.display = "none"; return; }
-    wrap.style.display = "block";
-    row.innerHTML = "";
-    stale.slice(0, 12).forEach(function (p) {
-      var a = document.createElement("a");
-      a.className = "nsCard";
-      a.href = "/ferli?recordId=" + p.id + (k ? "&k=" + encodeURIComponent(k) : "");
-      a.innerHTML = '<div class="nm">' + esc(p.fields["Heiti tækifæris / verkefnis"] || "") + '</div>' +
-        '<div class="sub">' + Math.round(p.fields["Verk ósnert dagar 📅"] || 0) + ' daga ósnert</div>';
-      row.appendChild(a);
-    });
-  }
-
-  // ---- "Næstu afhendingar" — chronological, soonest first, across every project currently on
-  // this board (not just Pöntunarlisti/Klárt — a project can have a real delivery date set early). ----
-  function renderDelivery(projects) {
-    var DATE_FIELD = "Áætlaður afhendingardagur Björninn (internal)";
-    // 2026-10-18 (user): a delivered project ("Staða í framleiðslu" = LOKIÐ) shouldn't still show
-    // up here just because it has a past delivery date — "Næstu afhendingar" means what's still
-    // coming, not history.
-    var withDate = projects.filter(function (p) { return p.fields[DATE_FIELD] && p.fields["Staða í framleiðslu"] !== PROD_DONE; });
-    withDate.sort(function (a, b) { return a.fields[DATE_FIELD] < b.fields[DATE_FIELD] ? -1 : 1; });
-    var wrap = document.getElementById("deliveryWrap"), row = document.getElementById("deliveryRow");
-    if (!withDate.length) { wrap.style.display = "none"; return; }
-    wrap.style.display = "block";
-    row.innerHTML = "";
-    withDate.slice(0, 12).forEach(function (p) {
-      var a = document.createElement("a");
-      a.className = "nsCard";
-      a.style.borderLeftColor = "#0f6cbd";
-      a.href = "/ferli?recordId=" + p.id + (k ? "&k=" + encodeURIComponent(k) : "");
-      a.innerHTML = '<div class="nm">' + esc(p.fields["Heiti tækifæris / verkefnis"] || "") + '</div>' +
-        '<div class="sub">' + esc(p.fields[DATE_FIELD]) + '</div>';
-      row.appendChild(a);
-    });
-  }
-
-  var BOTTLENECK_COUNT = 10;
   function hasOpenOrderFor(name, openOrderNames) {
     return Object.keys(openOrderNames).some(function (label) { return label.indexOf(name) === 0; });
   }
   function renderBoard(projects, orders) {
-    // Which project NAMES still have an open (not "Komið í hús") order —
-    // used to split "Klárt til framleiðslu" into that column vs Pöntunarlisti, AND (2026-10-18) to
-    // show a small 📦 chip on ANY card with an open order, not just the ones in that 5th column —
-    // a project still mid-skipulag can just as easily be blocked on a slow supplier.
+    // Names with a still-open (not "Komið í hús") order — splits "Klárt til framleiðslu" into the
+    // Pöntunarlisti group vs graduated, and tags ANY project with an open order.
     var openOrderNames = {};
     orders.forEach(function (o) {
       var f = o.fields || {};
-      if (f["Staða"] !== "Komið í hús 🐻") {
-        var links = f["Tækifæri 📣"] || [];
-        // Pantaðir listar links by id normally, but this proxy only returns
-        // ids for link fields (no name) — fall back to Stöðu kenni's own
-        // "<verk> — <birgir>" prefix, which always starts with the project name.
-        var label = f["Stöðu kenni"] || "";
-        openOrderNames[label] = true;
-      }
+      if (f["Staða"] !== "Komið í hús 🐻") openOrderNames[f["Stöðu kenni"] || ""] = true;
     });
-
-    var board = document.getElementById("board");
-    board.innerHTML = "";
-    var cols = STAGES.map(function (s) { return { id: s.id, label: s.label, color: s.color, items: [] }; });
-    cols.push({ id: "pontun", label: "Pöntunarlisti", color: PONTUN_COLOR, items: [] });
-
+    var DATE = "Áætlaður afhendingardagur Björninn (internal)";
+    var groups = STAGES.map(function (s, i) { return { id: s.id, label: s.label, step: i, items: [] }; });
+    groups.push({ id: "pontun", label: "Pöntunarlisti", step: 3, items: [] });
+    var attention = [];
     projects.forEach(function (p) {
       var f = p.fields || {};
-      if (f["Staða í framleiðslu"] === PROD_DONE) return; // production already delivered — off this board
-      var stNow = f["Staða í skipulagi"] || "";
-      var name = f["Heiti tækifæris / verkefnis"] || "";
+      if (f["Staða í framleiðslu"] === PROD_DONE) return; // delivered — off this board
+      var stNow = f["Staða í skipulagi"] || "", name = f["Heiti tækifæris / verkefnis"] || "";
+      var g;
       if (stNow === "Klárt til framleiðslu") {
-        if (hasOpenOrderFor(name, openOrderNames)) cols[3].items.push(p); // else: skipulag done, no open orders — graduates off the board
+        if (!hasOpenOrderFor(name, openOrderNames)) return; // skipulag done, nothing open — graduated
+        g = groups[3];
       } else {
         var idx = STAGES.findIndex(function (s) { return s.match === stNow; });
-        if (idx === -1) idx = 0; // empty/unknown Staða í skipulagi → For-skipulag
-        cols[idx].items.push(p);
+        g = groups[idx === -1 ? 0 : idx];
       }
+      p._g = g; p._open = hasOpenOrderFor(name, openOrderNames);
+      if ((f["Verk ósnert dagar 📅"] || 0) >= STALE_DAYS) attention.push(p); else g.items.push(p);
     });
+    function byUrgency(a, b) {
+      var da = a.fields[DATE] || "9999", db = b.fields[DATE] || "9999";
+      return da < db ? -1 : da > db ? 1 : 0;
+    }
+    attention.sort(function (a, b) { return (b.fields["Verk ósnert dagar 📅"] || 0) - (a.fields["Verk ósnert dagar 📅"] || 0); });
+    groups.forEach(function (g) { g.items.sort(byUrgency); });
 
-    cols.forEach(function (col) {
-      var el = document.createElement("div");
-      el.className = "col";
-      // Bottleneck flag (2026-10-18, rule of thumb >10 — easy to retune) — a loud visual nudge that
-      // a column is piling up, not a hard limit on anything.
-      var cntCls = col.items.length > BOTTLENECK_COUNT ? "cnt colWarn" : "cnt";
-      var cntTitle = col.items.length > BOTTLENECK_COUNT ? ' title="Margt hér — gæti verið flöskuháls"' : "";
-      el.innerHTML = '<h2><span class="colorDot" style="background:' + col.color + '"></span><span class="colLabel">' + esc(col.label) + '</span><span class="' + cntCls + '"' + cntTitle + '>' + (col.items.length > BOTTLENECK_COUNT ? "⚠️ " : "") + col.items.length + '</span></h2><div class="cards"></div>';
-      var cardsEl = el.querySelector(".cards");
-      if (!col.items.length) cardsEl.innerHTML = '<div class="empty">Ekkert hér</div>';
-      col.items.forEach(function (p) {
-        var a = document.createElement("a");
-        a.className = "kcard";
-        a.style.borderLeft = "3px solid " + col.color;
-        a.href = "/ferli?recordId=" + p.id + (k ? "&k=" + encodeURIComponent(k) : "");
-        var name = p.fields["Heiti tækifæris / verkefnis"] || "(ónefnt)";
-        a.innerHTML = esc(name) + (col.id !== "pontun" && hasOpenOrderFor(name, openOrderNames) ? '<span class="pontunChip">📦 pöntun opin</span>' : "");
-        // Drag-and-drop (2026-10-18): the only stage a card can be dragged INTO here is
-        // "Pöntunarlisti" — it's the one transition ("Klárt til framleiðslu") the office
-        // sets by hand; every earlier column is filled by real Airtable automations
-        // (Keyra skipulag / Yfirfara 3.0 / Pöntunarlisti) running, not a status flip, so
-        // there's nothing honest to do if a card is dropped there. Same confirm wording
-        // as the per-project "Merkja Klárt til framleiðslu" button.
-        if (col.id !== "pontun") {
-          a.draggable = true;
-          a.addEventListener("dragstart", function (e) {
-            draggingProj = p;
-            a.classList.add("dragging");
-            e.dataTransfer.effectAllowed = "move";
-            e.dataTransfer.setData("text/plain", p.id);
-          });
-          a.addEventListener("dragend", function () { a.classList.remove("dragging"); draggingProj = null; });
-        }
-        cardsEl.appendChild(a);
-      });
-      if (col.id === "pontun") {
-        cardsEl.classList.add("dropTarget");
-        cardsEl.addEventListener("dragover", function (e) {
-          if (!draggingProj) return;
-          e.preventDefault();
-          cardsEl.classList.add("dragover");
-        });
-        cardsEl.addEventListener("dragleave", function () { cardsEl.classList.remove("dragover"); });
-        cardsEl.addEventListener("drop", function (e) {
-          e.preventDefault();
-          cardsEl.classList.remove("dragover");
-          var p = draggingProj;
-          if (!p) return;
-          var pname = p.fields["Heiti tækifæris / verkefnis"] || "(ónefnt)";
-          // The board only fetched a few fields — read the checklist fresh for the gate.
-          api(TAEKIFAERI + "/" + p.id).then(function (rec) {
-            var rf = (rec && rec.fields) || {};
-            return confirmKlart(pname, function (field) { return !!rf[field]; });
-          }).then(function (ok) {
-            if (!ok) return;
-            apiPatch(TAEKIFAERI + "/" + p.id, { "Staða í skipulagi": "Klárt til framleiðslu" }).then(function (r) {
-              if (!(r && r.error)) notifyKlart(p.id, ok);
-              loadBoard();
-            });
-          });
-        });
+    function rowHtml(p) {
+      var f = p.fields, name = f["Heiti tækifæris / verkefnis"] || "(ónefnt)", g = p._g, bits = [];
+      var stale = Math.round(f["Verk ósnert dagar 📅"] || 0);
+      if (stale >= STALE_DAYS) bits.push('<span class="stale">' + stale + " daga ósnert</span>");
+      if (f[DATE]) {
+        var d = daysTo(f[DATE]);
+        bits.push(d < 0 ? '<span class="late">Afhending ' + dateIs(f[DATE]) + " · " + (-d) + " d. of seint</span>" : "Afhending " + dateIs(f[DATE]) + " · eftir " + d + " d.");
       }
-      board.appendChild(el);
-    });
+      var dots = ""; for (var i = 0; i < 4; i++) dots += '<i class="' + (i <= g.step ? "on" : "") + '"></i>';
+      return '<a class="prow" href="/ferli?recordId=' + p.id + (k ? "&k=" + encodeURIComponent(k) : "") + '">' +
+        '<div class="pn"><div class="t">' + esc(name) + (p._open && g.id !== "pontun" ? '<span class="tag pt">Pöntun opin</span>' : "") + "</div>" +
+        '<div class="s">' + (bits.length ? bits.join(" · ") : esc(g.label)) + "</div></div>" +
+        '<div class="steps" title="' + esc(g.label) + '">' + dots + "</div>" + CHEV + "</a>";
+    }
+    function grp(title, items, cls, showStage) {
+      return items.length ? '<div class="group"><div class="secTitle ' + (cls || "") + '">' + esc(title) + " · " + items.length + '</div><div class="list">' + items.map(rowHtml).join("") + "</div></div>" : "";
+    }
+    var total = attention.length + groups.reduce(function (n, g) { return n + g.items.length; }, 0);
+    document.getElementById("lead").textContent = total ? total + (total === 1 ? " verk í skipulagi" : " verk í skipulagi") + (attention.length ? " · " + attention.length + " þarf athygli" : "") : "";
+    document.getElementById("board").innerHTML = total
+      ? grp("Þarfnast athygli", attention, "bad") + groups.map(function (g) { return grp(g.label, g.items); }).join("")
+      : '<div class="list"><div class="note">Ekkert verk er í skipulagi núna.</div></div>';
   }
-  var draggingProj = null;
+  var CHEV = '<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
 
   // ======================= DETAIL =======================
   function loadDetail(id) {
     document.getElementById("loading").style.display = "block";
-    document.getElementById("backToBoard").style.display = "inline-block";
+    document.getElementById("backToBoard").hidden = false;
     api(TAEKIFAERI + "/" + id).then(function (proj) {
       document.getElementById("loading").style.display = "none";
+      if (!proj || proj.error || !proj.fields) throw new Error("not found");
       var det = document.getElementById("detail");
       det.style.display = "block";
       renderDetail(proj);
+    }).catch(function () {
+      document.getElementById("loading").style.display = "none";
+      var det = document.getElementById("detail");
+      det.style.display = "block";
+      det.innerHTML = retryNote("Tókst ekki að sækja verkið.", function () { det.style.display = "none"; loadDetail(id); });
     });
   }
 
@@ -565,7 +516,9 @@
 
     var det = document.getElementById("detail");
     det.innerHTML =
-      '<div class="projHd"><div class="nm">' + esc(name) + '</div><div class="st">Staða í skipulagi: ' + esc(stNow) + '</div></div>' +
+      '<div class="projHd"><div class="stepper">' + [["forskipulag", "Forskipulag"], ["skipulag", "Skipulag"], ["yfirfara", "Loka yfirferð"], ["pontun", "Pöntunarlisti"]].map(function (st, i) {
+        return '<div class="sp ' + (i < curRank ? "done" : i === curRank ? "cur" : "") + '"><i></i><span>' + st[1] + "</span></div>";
+      }).join("") + "</div></div>" +
       stageHtml("forskipulag", "1 · Forskipulag", stNow === "For-skipulag", done("forskipulag")) +
       stageHtml("skipulag", "2 · Skipulag (einingar)", stNow === "Í skipulagningu", done("skipulag")) +
       stageHtml("yfirfara", "3 · Loka yfirferð", stNow === "Yfirfara", done("yfirfara")) +
@@ -609,7 +562,7 @@
     var k2 = k ? "&k=" + encodeURIComponent(k) : "";
     var html = '<a class="proLink" target="_blank" href="/skipuleggja?pro=' + proj.id + k2 + '">Opna í hönnuðinum (PRO mode) →</a><br/>';
     if ((proj.fields["Staða í skipulagi"] || "For-skipulag") === "For-skipulag" || !proj.fields["Staða í skipulagi"]) {
-      html += '<button class="runBtn" id="runSkipulagBtn" style="margin-top:10px;">📐 Keyra skipulag</button><div class="gateMsg" id="runSkipulagMsg"></div>';
+      html += '<button class="runBtn" id="runSkipulagBtn" style="margin-top:10px;">Keyra skipulag</button><div class="gateMsg" id="runSkipulagMsg"></div>';
     } else {
       html += '<div class="sectionTitle" style="margin-top:10px;">Skipulag keyrt þegar</div>';
     }
@@ -643,7 +596,7 @@
           // actually processed this unit (not just "samþykkja" clicked — that only triggers it).
           var done = !!f["Yfirfarin"];
           return '<div class="unitRow' + (done ? " unitDone" : "") + '" data-unit="' + r.id + '">' +
-            '<span>' + (done ? "✅ " : "") + esc(f["Athugasemd"] || "(ónefnd)") + '</span>' +
+            '<span>' + (done ? "✓ " : "") + esc(f["Athugasemd"] || "(ónefnd)") + '</span>' +
             '<span class="chip">' + esc(f["Hvað viltu smíða?"] || "") + '</span></div>';
         }).join("");
         el.querySelectorAll(".unitRow").forEach(function (row) {
@@ -692,7 +645,7 @@
     document.getElementById("gateSub").textContent = pname || "";
     document.getElementById("gateList").innerHTML = CHECKLIST.map(function (it) {
       var on = isOn(it.field), hard = !on && GATE_HARD[it.field];
-      return '<div class="gateRow ' + (on ? "ok" : hard ? "hard" : "open") + '"><span class="gIc">' + (on ? "✓" : hard ? "⛔" : "○") + '</span>' +
+      return '<div class="gateRow ' + (on ? "ok" : hard ? "hard" : "open") + '"><span class="gIc">' + (on ? "✓" : hard ? "!" : "○") + '</span>' +
         '<span>' + esc(it.label) + (hard ? '<div class="gHint">' + esc(GATE_HARD[it.field]) + '</div>' : "") + '</span></div>';
     }).join("");
     var go = document.getElementById("gateGo");
@@ -700,7 +653,7 @@
     document.getElementById("gateNote").textContent = missing.length
       ? missing.length + " atriði " + (missing.length === 1 ? "er" : "eru") + " opin" + (hardCount ? " — gólfið getur ekki byrjað á öllu fyrr en þau eru leyst." : ".")
       : "Allt hakað. Verkið fer í framleiðslu.";
-    go.textContent = missing.length ? "Merkja samt Klárt" : "✅ Merkja Klárt til framleiðslu";
+    go.textContent = missing.length ? "Merkja samt Klárt" : "Merkja Klárt til framleiðslu";
     go.className = "gateGo" + (hardCount ? " risky" : "");
     // 2026-10-28 (G2): open items need an explicit typed acknowledgement, not just a click.
     var ackWrap = document.getElementById("gateAckWrap"), ackIn = document.getElementById("gateAck");
@@ -772,20 +725,31 @@
       '<div class="sectionTitle">Gátlisti</div>' +
       '<div class="checklist" id="checklist"></div>' +
       '<div class="stemmir" id="stemmirLine"></div>' +
-      '<button class="bppToggle" id="bppToggleBtn">🔬 Skoða CNC-forritun (.bpp) hér til að yfirfara →</button>' +
+      '<button class="bppToggle" id="bppToggleBtn">Skoða CNC-forritun (.bpp) til að yfirfara →</button>' +
       '<div id="bppArea"><div id="bppDrop"><div>Slepptu <b>.bpp</b> skrám hér</div><label class="pick">Velja skrár<input id="bppFile" type="file" accept=".bpp" multiple /></label></div><div id="bppOut"></div></div>' +
-      '<button class="gateBtn" id="gateBtn">✅ Merkja Klárt til framleiðslu</button>' +
+      '<button class="gateBtn" id="gateBtn">Merkja Klárt til framleiðslu</button>' +
       '<div class="gateMsg" id="gateMsg"></div>';
 
-    document.getElementById("dagVinnudagar").addEventListener("change", function (e) {
-      apiPatch(TAEKIFAERI + "/" + proj.id, { "Áætlaðir dagar í vinnudögum Björninn (internal)": e.target.value === "" ? null : Number(e.target.value) });
-    });
-    document.getElementById("dagUpphaf").addEventListener("change", function (e) {
-      apiPatch(TAEKIFAERI + "/" + proj.id, { "Upphafs framleiðsludagur verks": e.target.value || null });
-    });
-    document.getElementById("dagAfhending").addEventListener("change", function (e) {
-      apiPatch(TAEKIFAERI + "/" + proj.id, { "Áætlaður afhendingardagur Björninn (internal)": e.target.value || null });
-    });
+    // Date fields: validated (delivery can't be before start), saved with a visible failure + revert.
+    function wireDate(id, field, convert, check) {
+      var inp = document.getElementById(id), last = inp.value;
+      inp.addEventListener("change", function () {
+        var v = inp.value, bad = check && check(v);
+        if (bad) { toast(bad, true); inp.value = last; return; }
+        var ff = {}; ff[field] = convert(v);
+        saveFields(TAEKIFAERI + "/" + proj.id, ff, "").then(function (ok) {
+          if (!ok) { inp.value = last; return; }
+          last = v; f[field] = convert(v); toast("Vistað");
+          if (field === DATES_FIELD && v) reconcileAuto("1. Dagssetningar ákveðnar", true);
+        });
+      });
+    }
+    wireDate("dagVinnudagar", "Áætlaðir dagar í vinnudögum Björninn (internal)", function (v) { return v === "" ? null : Number(v); },
+      function (v) { return v !== "" && (!isFinite(Number(v)) || Number(v) < 0 || Number(v) > 400) ? "Dagafjöldi þarf að vera á bilinu 0–400." : ""; });
+    wireDate("dagUpphaf", "Upphafs framleiðsludagur verks", function (v) { return v || null; },
+      function (v) { var e = document.getElementById("dagAfhending").value; return v && e && v > e ? "Upphafsdagur má ekki vera á eftir afhendingardegi." : ""; });
+    wireDate("dagAfhending", DATES_FIELD, function (v) { return v || null; },
+      function (v) { var st = document.getElementById("dagUpphaf").value; return v && st && v < st ? "Afhending má ekki vera á undan upphafsdegi." : ""; });
 
     el.querySelectorAll(".inlineToggle").forEach(function (btn) {
       btn.addEventListener("click", function () {
@@ -812,8 +776,10 @@
         row.classList.toggle("on", next);
         row.querySelector(".box").textContent = next ? "✓" : "";
         var ff = {}; ff[item.field] = next;
-        apiPatch(TAEKIFAERI + "/" + proj.id, ff).then(function (r) {
-          if (next && item.field === "5. Efni lent í húsi" && !(r && r.error)) {
+        saveFields(TAEKIFAERI + "/" + proj.id, ff, "atriðið").then(function (ok) {
+          if (!ok) { row.classList.toggle("on", !next); row.querySelector(".box").textContent = !next ? "✓" : ""; return; }
+          f[item.field] = next;
+          if (next && item.field === "5. Efni lent í húsi") {
             window.OfficeShell.notifyEfni(k, proj.id, "Efni komið í hús", { name: f["Heiti tækifæris / verkefnis"] || "" });
           }
         });
