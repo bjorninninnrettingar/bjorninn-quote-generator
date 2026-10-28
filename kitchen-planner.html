@@ -71,6 +71,7 @@
 <script src="kitchen-planner-workdraw.js"></script>
 <script src="kitchen-planner-worktop.js"></script>
 <script src="kitchen-planner-help.js"></script>
+<script src="kitchen-planner-pro-help.js"></script>
 <script src="kitchen-planner-plan.js"></script>
 <script src="kitchen-planner-home.js"></script>
 <style>
@@ -1822,6 +1823,7 @@
   .prm-span em{ font-style:normal; margin-right:4px; }
   .prm-span small{ font-size:11px; }
   .prm-note{ font-size:11.5px; color:var(--ink-soft); margin:0; }
+  .cat-sec > summary em.mat-und{ font-style:normal; font-weight:700; font-size:10.5px; color:#ffb020; margin-left:6px; text-transform:uppercase; letter-spacing:.03em; } /* PRO: how many materials are still the default */
   .mat-sel em.mat-und{ font-style:normal; font-weight:700; font-size:10.5px; color:#ffb020; margin-left:6px; text-transform:uppercase; letter-spacing:.03em; }
   /* ── Mæling (2026-10-23, A7): the measurer's sheet beside the room drawing ── */
   #measurePanel{ position:fixed; right:14px; top:84px; bottom:14px; width:360px; z-index:70; background:var(--panel, #fff); color:var(--ink); border:1px solid var(--line); border-radius:14px; box-shadow:0 18px 50px rgba(0,0,0,.22); display:flex; flex-direction:column; }
@@ -8817,7 +8819,7 @@
     var resume = null;
     st.renderer.domElement.addEventListener("pointerdown", function(){
       c.autoRotate = false; clearTimeout(resume);
-      resume = setTimeout(function(){ if (KP3D._three() === st && !reduce && uwView.spin && !(uw && uw.b && !PRO)) c.autoRotate = true; }, 5000); // a unit being set up holds its view
+      resume = setTimeout(function(){ if (KP3D._three() === st && !reduce && uwView.spin && !(uw && uw.b)) c.autoRotate = true; }, 5000); // a unit being set up holds its view
     });
   }
   function swayPreview(st, frontAz){
@@ -8827,7 +8829,7 @@
     var resume = null;
     st.renderer.domElement.addEventListener("pointerdown", function(){
       c.autoRotate = false; clearTimeout(resume);
-      resume = setTimeout(function(){ if (KP3D._three() === st && !reduce && uwView.spin && !(uw && uw.b && !PRO)) c.autoRotate = true; }, 5000); // a unit being set up holds its view
+      resume = setTimeout(function(){ if (KP3D._three() === st && !reduce && uwView.spin && !(uw && uw.b)) c.autoRotate = true; }, 5000); // a unit being set up holds its view
     });
     var tick = setInterval(function(){
       if (KP3D._three() !== st){ clearInterval(tick); return; }
@@ -9014,7 +9016,10 @@
     var mDrawers = showDrawers ? matSel("drawerSystem", __("Skúffukerfi"), [{ items:Object.keys(DRAWER_SYSTEMS).map(function(k){ return [k, DRAWER_SYSTEMS[k].label]; }) }], state.drawerSystem) : "";
     var matBody = matFrom + (PRO ? mCarcass + frontPick + mPro + mTop + mHandle + mDrawers : mCarcass + mDrawers + frontPick + mHandle + mTop) +
       '<button type="button" class="btn btn-secondary btn-small" data-act="materials" style="margin-top:6px;">' + __("Sjá myndir af efnunum") + '</button>';
-    html += sec("efni", __("Efni"), matBody) + secLysing + secSkraut; // Rými → Gluggar og hindranir → Efni → Lýsing → Húsgögn (user, 2026-10-24)
+    // PRO (audit #8): materials nobody picked yet are named on the closed Efni button, and the menu opens by itself once per project
+    var efniTitle = __("Efni") + (PRO && undNow.length ? ' <em class="mat-und">' + undNow.length + ' óákveðið</em>' : "");
+    if (PRO && undNow.length && state.step === "editor"){ var efKey = STORAGE_KEY + ":efniOpened"; try{ if (!localStorage.getItem(efKey)){ localStorage.setItem(efKey, "1"); openSecs.efni = true; } }catch(e){} }
+    html += sec("efni", efniTitle, matBody) + secLysing + secSkraut; // Rými → Gluggar og hindranir → Efni → Lýsing → Húsgögn (user, 2026-10-24)
     var bodyScroll = {}; host.querySelectorAll(".cat-sec[open] > .sec-body").forEach(function(b){ bodyScroll[b.parentNode.dataset.sec] = b.scrollTop; });
     var frontsScroll = (host.querySelector(".ed-fronts") || {}).scrollTop || 0;
     host.innerHTML = html;
@@ -12765,7 +12770,7 @@
     if (state.step === "contact") setTimeout(function(){ if (state.step === "contact") hintOnce("senda", __("<b>Ekkert er pantað núna.</b> Söluaðili fer yfir hönnunina og hefur samband innan 3 virkra daga — ókeypis og án skuldbindingar.")); }, 700);
     if (state.step === "hurdir") setTimeout(function(){ if (state.step === "hurdir") hintOnce("hurdir", __("<b>Ein lína fyrir hverja hurð</b> — veldu rýmið og ýttu á „Hanna“ við hverja hurð.")); }, 700);
     if (state.step !== "editor") endTour();
-    else if (!PRO) setTimeout(maybeStartTour, 700);
+    else setTimeout(maybeStartTour, 700); // PRO has its own tour (kitchen-planner-pro-help.js), first open per browser
     if (state.step === "editor"){
       viewMode = "3d";
       document.querySelectorAll("#viewToggle button").forEach(function(btn){ btn.classList.toggle("active", btn.dataset.view === "3d"); });
@@ -13614,15 +13619,16 @@
   // Everything fades except the part being explained; a bubble says what it is. Some steps wait for the customer
   // to click the highlighted thing (＋ Ný eining → Grunnskápar → a variant → Setja inn). Shown once per browser,
   // "Sýna leiðsögnina" in Hjálp replays it. Not in pro.
-  var TOUR_KEY = "bjorninn:kitchenPlanner:tourDone";
+  var TOUR_KEY = PRO ? "bjorninn:kitchenPlanner:proTourDone" : "bjorninn:kitchenPlanner:tourDone"; // PRO has its own tour and its own "seen" flag
   var tour = null;
   function tourDone(){ try{ return localStorage.getItem(TOUR_KEY) === "1"; }catch(e){ return false; } }
   // One-time hints (owner, 2026-10-27): a short note the first time something matters — never in PRO, never over the
   // tour (it waits, and is shown later), remembered per browser; × or 10 s closes it
   var HINT_KEY = "bjorninn:kitchenPlanner:hints", hintTimer = 0;
   function hintSeen(k){ try{ return (JSON.parse(localStorage.getItem(HINT_KEY) || "[]") || []).indexOf(k) >= 0; }catch(e){ return false; } }
+  var PRO_HINTS = ["kikja"]; // the only one-time hints that also fit PRO (the rest are customer flow)
   function hintOnce(k, html){
-    if (PRO || hintSeen(k)) return;
+    if ((PRO && PRO_HINTS.indexOf(k) < 0) || hintSeen(k)) return;
     if (tour){ setTimeout(function(){ hintOnce(k, html); }, 1500); return; }
     try{ var a = JSON.parse(localStorage.getItem(HINT_KEY) || "[]") || []; a.push(k); localStorage.setItem(HINT_KEY, JSON.stringify(a)); }catch(e){}
     var old = document.getElementById("hintPop"); if (old) old.remove();
@@ -13634,9 +13640,10 @@
   }
   // the suggestion question / the wardrobe's fill offer come first — the tour waits until they're answered
   function maybeStartTour(){
-    if (tour || tourDone() || state.step !== "editor" || PRO) return;
-    var offer = document.getElementById("closetFillOffer");
-    if (uw || document.getElementById("fitAsk") || (offer && !offer.hidden)){ setTimeout(maybeStartTour, 1200); return; }
+    if (tour || tourDone() || state.step !== "editor") return;
+    var offer = document.getElementById("closetFillOffer"), stu = PRO && document.getElementById("proStudio");
+    if (PRO && !PRO.ready){ setTimeout(maybeStartTour, 1200); return; } // PRO: the project has to be loaded first
+    if (uw || document.getElementById("fitAsk") || (offer && !offer.hidden) || (stu && !stu.hidden) || document.getElementById("proDlg")){ setTimeout(maybeStartTour, 1200); return; }
     startTour();
   }
   // The tour (owner, 2026-10-27): six short steps, only what a first-timer needs to finish a room alone. Every step
@@ -13681,6 +13688,12 @@
           __('<li><kbd>←</kbd> <kbd>→</kbd> færa valinn skáp um {a} (<kbd>Shift</kbd> = {b})</li><li><kbd>Delete</kbd> eyðir · <kbd>{cmd}Z</kbd> afturkallar · <kbd>Esc</kbd> afvelur</li>', { cmd:cmd, a:uLen(100), b:uLen(10) }) + '</ul>' +
           '<p class="tour-note">' + __("Hjálp efst til hægri: svör við öllu („Hvernig…?“), spjall og þessi leiðsögn aftur.") + '</p>'; } }
   ];
+  // PRO's tour: data in kitchen-planner-pro-help.js (KPPROTOUR), same engine. Hjálp → „Sýna leiðsögnina“ in PRO runs this one, never the customers'.
+  var PRO_TOUR_STEPS = PRO && window.KPPROTOUR ? window.KPPROTOUR.map(function(t){
+    return { center:!!t.center, next:t.next, title:function(){ return t.title; }, html:function(){ return t.html; },
+      el:t.sel ? function(){ for (var i = 0; i < t.sel.length; i++){ var e = tourVisible(document.querySelector(t.sel[i])); if (e) return e; } return null; } : null };
+  }) : null;
+  function tourSteps(){ return PRO_TOUR_STEPS || TOUR_STEPS; }
   function startTour(){
     endTour();
     if (uw) closeUnitWizard();
@@ -13701,12 +13714,13 @@
   }
   function tourKey(e){ if (!tour) return; if (e.key === "Escape"){ e.preventDefault(); e.stopPropagation(); endTour(); } else if (e.key === "Enter" || e.key === "ArrowRight"){ e.preventDefault(); e.stopPropagation(); showTourStep(tour.i + 1); } }
   function showTourStep(i){
-    if (i >= TOUR_STEPS.length){ endTour(); return; }
+    var TS = tourSteps();
+    if (i >= TS.length){ endTour(); return; }
     tour.i = i;
-    var st = TOUR_STEPS[i], bub = tour.root.querySelector(".tour-bub");
-    bub.innerHTML = '<p class="tour-n">' + (st.center && i === 0 ? __("Velkomin(n)") : (i === TOUR_STEPS.length - 1 ? "" : __("Skref {i} af {n}", { i:i, n:TOUR_STEPS.length - 2 }))) + '</p>' +
+    var st = TS[i], bub = tour.root.querySelector(".tour-bub");
+    bub.innerHTML = '<p class="tour-n">' + (st.center && i === 0 ? __("Velkomin(n)") : (i === TS.length - 1 ? "" : __("Skref {i} af {n}", { i:i, n:TS.length - 2 }))) + '</p>' +
       '<h4>' + st.title() + '</h4><div class="tour-txt">' + st.html() + '</div><div class="tour-act">' +
-      (i < TOUR_STEPS.length - 1 ? '<button type="button" class="reset-link" data-tour="skip">' + __("Sleppa") + '</button>' : '<span></span>') +
+      (i < TS.length - 1 ? '<button type="button" class="reset-link" data-tour="skip">' + __("Sleppa") + '</button>' : '<span></span>') +
       (st.next ? '<button type="button" class="btn btn-primary btn-small" data-tour="next">' + st.next + '</button>' : '') + '</div>';
     bub.querySelector('[data-tour="skip"]') && bub.querySelector('[data-tour="skip"]').addEventListener("click", function(){ endTour(); });
     bub.querySelector('[data-tour="next"]') && bub.querySelector('[data-tour="next"]').addEventListener("click", function(){ showTourStep(tour.i + 1); });
@@ -13716,7 +13730,7 @@
   function tourTick(){
     if (!tour) return;
     if (state.step !== "editor"){ endTour(false); return; }
-    var st = TOUR_STEPS[tour.i];
+    var st = tourSteps()[tour.i];
     var el = st.el ? st.el() : null, hole = tour.root.querySelector(".tour-hole"), block = tour.root.querySelector(".tour-block"), bub = tour.root.querySelector(".tour-bub");
     var W = window.innerWidth, H = window.innerHeight, pad = 6, r = null;
     if (el && el.getClientRects().length){
@@ -13746,10 +13760,11 @@
   document.getElementById("tourBtn").addEventListener("click", function(){ startTour(); });
   // Hjálp → "Hvernig…?": the whole reference (kitchen-planner-help.js — the chatbot reads the same list), searchable
   function openHelpRef(q){
-    var list = window.KPHELP || [], en = KPI18N.lang === "en", L = function(o){ return o ? (en ? o.en : o.is) || o.is : ""; };
+    var list = (PRO ? window.KPHELP_PRO : window.KPHELP) || [], en = !PRO && KPI18N.lang === "en", // PRO: its own Icelandic list (Sk, Smíða, Yfirferð, Tilboð)
+       L = function(o){ return typeof o === "string" ? o : o ? (en ? o.en : o.is) || o.is : ""; };
     var old = document.getElementById("helpRef"); if (old) old.remove();
     var ov = document.createElement("div"); ov.id = "helpRef"; ov.className = "help-ref"; ov.setAttribute("role", "dialog"); ov.setAttribute("aria-label", __("Hjálp"));
-    ov.innerHTML = '<div class="help-ref-card"><div class="help-ref-head"><h3>' + __("Hvernig…?") + '</h3><input type="search" id="helpRefQ" placeholder="' + __("Leita — t.d. skúffur, spegill, senda inn") + '" autocomplete="off"><button type="button" data-hr-close aria-label="' + __("Loka") + '">×</button></div><div class="help-ref-body" id="helpRefBody"></div></div>';
+    ov.innerHTML = '<div class="help-ref-card"><div class="help-ref-head"><h3>' + __("Hvernig…?") + '</h3><input type="search" id="helpRefQ" placeholder="' + (PRO ? "Leita — t.d. Sk, Smíða, Yfirferð, tilboð" : __("Leita — t.d. skúffur, spegill, senda inn")) + '" autocomplete="off"><button type="button" data-hr-close aria-label="' + __("Loka") + '">×</button></div><div class="help-ref-body" id="helpRefBody"></div></div>';
     document.body.appendChild(ov);
     var body = ov.querySelector("#helpRefBody"), inp = ov.querySelector("#helpRefQ");
     var fold = function(t){ return String(t).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ð/g, "d").replace(/þ/g, "th").replace(/æ/g, "ae"); };
@@ -13772,6 +13787,35 @@
     draw(); inp.focus();
   }
   document.getElementById("helpRefBtn").addEventListener("click", function(){ openHelpRef(); });
+
+  // Tilboð clarity (PRO audit #11): one visible sentence about what the price already contains, and a guard on the
+  // hidden discount (0-30 %, "ertu viss?" above 15) that runs BEFORE the panel's own change handler. Separate from the
+  // proTilbod* code on purpose — it only reads #tpDiscount / #tpMarkup / #tpTotal. Wording in kitchen-planner-pro-help.js.
+  if (PRO && window.KPPROTEXT){
+    var tpNote = null, tpPrev = "";
+    var tpNoteSync = function(){
+      var foot = document.querySelector("#tilbodPanel .tp-foot"), d = document.getElementById("tpDiscount"), m = document.getElementById("tpMarkup");
+      if (!foot || !d) return;
+      if (!tpNote){ tpNote = document.createElement("p"); tpNote.id = "tpFactorNote"; tpNote.style.cssText = "margin:0 0 8px;font-size:12px;line-height:1.4;color:var(--ink-soft,#6b6b6b);"; foot.insertBefore(tpNote, foot.firstChild); }
+      var pct = KPPROTEXT.tilbodDiscount(d.value).value, mk = m && m.value && m.selectedIndex >= 0 ? m.options[m.selectedIndex].text : "";
+      tpNote.textContent = KPPROTEXT.tilbodFactors(pct, mk);
+    };
+    document.addEventListener("focusin", function(e){ if (e.target.id === "tpDiscount") tpPrev = e.target.value; });
+    document.addEventListener("change", function(e){
+      if (e.target.id !== "tpDiscount") return;
+      var r = KPPROTEXT.tilbodDiscount(e.target.value), t = e.target;
+      if (r.clamped){ t.value = r.value; toast("Afsláttur er í mesta lagi 30 %."); }
+      if (r.confirm && !confirm(KPPROTEXT.tilbodConfirm(r.value))){
+        e.stopPropagation(); // the panel's own handler never saves the typed value
+        t.value = tpPrev; t.dispatchEvent(new Event("input", { bubbles:true })); // the price goes back to the old one
+      }
+      tpNoteSync();
+    }, true);
+    document.addEventListener("input", function(e){ if (e.target.id === "tpDiscount" || e.target.id === "tpMarkup") tpNoteSync(); });
+    document.addEventListener("change", function(e){ if (e.target.id === "tpMarkup") tpNoteSync(); });
+    var tpTot = document.getElementById("tpTotal"); if (tpTot) new MutationObserver(tpNoteSync).observe(tpTot, { childList:true, characterData:true, subtree:true });
+    tpNoteSync();
+  }
 
   // ---------- wire top-level controls ----------
   // Flow order (Phase 7c): intake → materials → shape → walls → summary(3D) → contact.
@@ -17205,8 +17249,8 @@
       var dFronts = KP3D.stackFrontsMm(b.interior, dCodes, dSpace);
       if (dFronts && dFronts.length === dCodes.length){
         var dSum = dFronts.reduce(function(a, h){ return a + h; }, 0);
-        if (Math.abs(dSum - dSpace) > 1.5) add("Skúffuhæðir eru samtals " + Math.round(dSum) + " mm — þurfa að fylla " + Math.round(dSpace) + " mm.", "drawers");
-        dFronts.forEach(function(h, i){ if (h < KP3D.slotMin(dCodes[i]) - 0.5) add(CODE_LABEL[dCodes[i]].toLowerCase() + " skúffa er " + Math.round(h) + " mm — undir " + KP3D.slotMin(dCodes[i]) + " mm lágmarkinu.", "drawers"); });
+        if (Math.abs(dSum - dSpace) > 1.5) add(KPPROTEXT.drawerSum(dSum, dSpace), "drawers");
+        dFronts.forEach(function(h, i){ if (h < KP3D.slotMin(dCodes[i]) - 0.5) add(KPPROTEXT.drawerMin(CODE_LABEL[dCodes[i]].toLowerCase(), h, KP3D.slotMin(dCodes[i])), "drawers"); });
       }
     }
     if (!doors.length) return done();
@@ -17216,10 +17260,10 @@
       var sp = proSpec(b, doors, i), bottom = top - d.box;
       if (sp.type === "hinged"){ // lift/pocket doors have no side hinges to validate at all
         var pos = CNCSIDES.specToPositions(sp.hinges, d.box), need = proHingeMin(d.box);
-        if (pos.length < need) add(d.label + ": " + d.box + " mm hurð þarf minnst " + need + " lamir (" + pos.length + " núna).", "hinges");
+        if (pos.length < need) add(KPPROTEXT.hingeCount(d.label, d.box, need, pos.length), "hinges");
         pos.forEach(function(p){
           var hit = rows.find(function(r){ return Math.abs(bottom + p - r.at) < 30; });
-          if (hit) add(d.label + ": löm " + (p <= d.box / 2 ? "↓" + Math.round(p) : "↑" + Math.round(d.box - p)) + " lendir á " + hit.what + " — færðu lömina eða " + (hit.fix || "hilluna") + ".", "hinges");
+          if (hit) add(KPPROTEXT.hingeHit(d.label, p <= d.box / 2 ? "↓" + Math.round(p) : "↑" + Math.round(d.box - p), hit.what, hit.fix), "hinges");
         });
       }
       top = bottom;
