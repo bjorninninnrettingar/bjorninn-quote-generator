@@ -25,7 +25,7 @@
 // útgáfu" / "Skrifa samt yfir" (the latter = `force: true`). A page that sends no basedOn at all (an old cached copy)
 // is not checked. The reply carries the new proSavedAt for the next Vista.
 
-import { makeAirtable, listAll, linesOfProject, validateLineItems, LINE_FIELDS, PRODUCT_FIELDS, PROJECT_FIELDS, INNER_FRONTS, idsKey, sentOf, validHandleSkus, handleSlotFields } from "./kp-submit.js";
+import { makeAirtable, listAll, linesOfProject, validateLineItems, LINE_FIELDS, MAT_LINE_FIELDS, isMatErr, stripMats, hasMats, PRODUCT_FIELDS, PROJECT_FIELDS, INNER_FRONTS, idsKey, sentOf, validHandleSkus, handleSlotFields } from "./kp-submit.js";
 
 const PROJECTS = "tbl4LMXlQjp66RFKI";
 const VARIANTS = "tbl8HjvBwNJ41cTV0";              // Útfærslur 🎨 (what V1/V2/V3 link to)
@@ -44,12 +44,12 @@ const KEY_RE = /^(Sk|HU|BP|BV|BH)\d{1,3}$/; // cabinets Sk1…, room doors HU1�
 export const PROJECT_SYNC = PROJECT_FIELDS.filter((f) => f !== "Skilaboð til skipulags");
 const HANDLE2 = ["Höldur Viðskiptavinar ✊2.0", "Magn halda 2.0"];
 const projVal = (v) => (Array.isArray(v) ? idsKey(v) : v == null ? "" : String(v));
-const LINE_EXTRA = ["Frontaefni #2", "Tegund innskúffu fronts"];
+const LINE_EXTRA = ["Frontaefni #2", "Tegund innskúffu fronts", ...MAT_LINE_FIELDS]; // the last two are Efnislisti links (a room's own carcass / worktop, 2026-10-28)
 // The worktop's lines (2026-10-26): BP = m² of worktop, BV/BH = sink/hob cutouts. Their Magn follows the drawing (a
 // longer worktop = more m²), with the same rule as LINE_EXTRA: a Magn changed by hand in Airtable since the drawing
 // last sent it stays. Cabinet lines' Magn is never touched (always 1 from the drawing).
 const QTY_KEY_RE = /^(BP|BV|BH)\d{1,3}$/;
-const extraVal = (f, v) => (f === "Frontaefni #2" ? (v ? "1" : "") : v && typeof v === "object" ? String(v.name || "") : v == null ? "" : String(v));
+const extraVal = (f, v) => (Array.isArray(v) ? idsKey(v) : f === "Frontaefni #2" ? (v ? "1" : "") : v && typeof v === "object" ? String(v.name || "") : v == null ? "" : String(v));
 
 export function fieldDeps() {
   return { [PROJECTS]: new Set([PLANNER_JSON, PROJECT_NAME, ...PROJECT_SYNC]), [LINE_ITEMS]: new Set([...LINE_FIELDS, SMIDA, "🔑", LINK_TO_PROJECT]) };
@@ -113,7 +113,20 @@ export async function save(at, body) {
   }
 
   // this Tækifæri's own lines, by its link field — not the "T-227 |" name prefix, which a new one may not have yet
-  const rows = await linesOfProject(at, opp.id, ["🔑", SMIDA, LINK_TO_PROJECT, "Magn", ...PRODUCT_FIELDS, ...LINE_EXTRA]);
+  // The material link fields are only read/written when the drawing has something to say about them (a room with its own
+  // carcass/worktop, or one it sent before and may now clear) — a plain project never touches them. They may not exist in
+  // Airtable yet: then everything below runs without them and the answer says `matsSkipped`.
+  const oldExtra = old.liExtra && typeof old.liExtra === "object" ? old.liExtra : {};
+  let matsOn = (body.lineItems || []).some((li) => MAT_LINE_FIELDS.some((f) => Array.isArray(li[f]) && li[f].length)) ||
+    Object.values(oldExtra).some((o) => o && MAT_LINE_FIELDS.some((f) => o[f] !== undefined));
+  let matsSkipped = false;
+  const BASE_COLS = ["🔑", SMIDA, LINK_TO_PROJECT, "Magn", ...PRODUCT_FIELDS, ...LINE_EXTRA.filter((f) => !MAT_LINE_FIELDS.includes(f))];
+  let rows;
+  if (matsOn) {
+    try { rows = await linesOfProject(at, opp.id, [...BASE_COLS, ...MAT_LINE_FIELDS]); }
+    catch (e) { if (!isMatErr(e)) throw e; matsOn = false; matsSkipped = true; }
+  }
+  if (!rows) rows = await linesOfProject(at, opp.id, BASE_COLS);
   const byKey = new Map(rows.map((r) => [String(r.fields["🔑"] || "").trim(), r]));
   const patch = new Map(); // row id → fields to write
   const put = (row, f, v) => { if (!patch.has(row.id)) patch.set(row.id, {}); patch.get(row.id)[f] = v; };
@@ -128,7 +141,11 @@ export async function save(at, body) {
       const li = newLines.get(key);
       if (li) {
         const fields = { [LINK_TO_PROJECT]: [opp.id] };
-        for (const f of LINE_FIELDS) if (li[f] != null && li[f] !== "") fields[f] = li[f];
+        for (const f of LINE_FIELDS) {
+          if (li[f] == null || li[f] === "") continue;
+          if (MAT_LINE_FIELDS.includes(f)) { if (!li[f].length) continue; if (!matsOn) { matsSkipped = true; continue; } }
+          fields[f] = li[f];
+        }
         creates.push({ fields });
         liSent[key] = sentOf(li);
       } else if (val) missing.push(key);
@@ -140,18 +157,22 @@ export async function save(at, body) {
 
   // FR2 + inner drawer fronts on existing lines (2026-10-23): same rule as the Tækifæri materials — the drawing's value
   // is written unless it hasn't changed since it was last sent AND someone set it by hand in Airtable since.
-  const oldExtra = old.liExtra && typeof old.liExtra === "object" ? old.liExtra : {}, liExtra = {};
+  const liExtra = {};
   for (const [key, li] of newLines) {
     const row = byKey.get(key), prev = oldExtra[key] || {}, sent = {};
     for (const f of LINE_EXTRA) {
-      const D = extraVal(f, li[f]); sent[f] = D;
+      const isMat = MAT_LINE_FIELDS.includes(f);
+      if (isMat && !matsOn) { if (prev[f] !== undefined) sent[f] = prev[f]; continue; } // not writable now: keep what was last really sent
+      const D = extraVal(f, li[f]);
+      if (isMat && !D && prev[f] === undefined) continue; // never sent, drawing has none: nothing to remember or write
+      sent[f] = D;
       if (!row) continue;
       const A = extraVal(f, row.fields[f]), B = prev[f];
       if (A === D) continue;
       if (B !== undefined && D === B && A !== B) { sent[f] = B; continue; }
       if (B === undefined && !D) continue; // never sent before and the drawing has no pick: Airtable's stays
       if (f === "Tegund innskúffu fronts" && !D) continue; // the drawing never clears a hand-picked inner front
-      put(row, f, f === "Frontaefni #2" ? D === "1" : D || null);
+      put(row, f, isMat ? (D ? D.split(",") : []) : f === "Frontaefni #2" ? D === "1" : D || null);
     }
     if (QTY_KEY_RE.test(key) && Number.isInteger(li["Magn"])) {
       const D = String(li["Magn"]), A = row && row.fields["Magn"] != null ? String(row.fields["Magn"]) : "", B = prev.Magn;
@@ -210,8 +231,18 @@ export async function save(at, body) {
     { liSent, liExtra, projSent, proSavedAt, handlesPrint }));
   const { json, dropped } = fitPlannerJson(body.state, build);
   if (!json) { const e = new Error("Teikningin er of st\u00f3r til a\u00f0 vista (" + build(body.state).length + " stafir)"); e.status = 413; throw e; }
-  for (let i = 0; i < updates.length; i += 10) await at("PATCH", LINE_ITEMS, { records: updates.slice(i, i + 10) });
-  for (let i = 0; i < creates.length; i += 10) await at("POST", LINE_ITEMS, { typecast: true, records: creates.slice(i, i + 10) });
+  // A 422 naming one of the material link fields (not created in Airtable yet) → the same batch without them.
+  const noMats = (r) => { matsSkipped = true; return stripMats(r); };
+  for (let i = 0; i < updates.length; i += 10) {
+    const recs = updates.slice(i, i + 10);
+    try { await at("PATCH", LINE_ITEMS, { records: recs }); }
+    catch (e) { if (!(isMatErr(e) && hasMats(recs))) throw e; const r2 = noMats(recs).filter((r) => Object.keys(r.fields).length); if (r2.length) await at("PATCH", LINE_ITEMS, { records: r2 }); }
+  }
+  for (let i = 0; i < creates.length; i += 10) {
+    const recs = creates.slice(i, i + 10);
+    try { await at("POST", LINE_ITEMS, { typecast: true, records: recs }); }
+    catch (e) { if (!(isMatErr(e) && hasMats(recs))) throw e; await at("POST", LINE_ITEMS, { typecast: true, records: noMats(recs) }); }
+  }
   // Retry the final write (P-04): the Line Items are already written. Re-running a save is safe anyway (rows that match
   // the drawing need no write, created rows are found by their key), but two retries avoid showing a failure at all.
   let lastErr = null, saved = false;
@@ -235,7 +266,7 @@ export async function save(at, body) {
   const named = (a) => a.map((id) => names[id] || id);
   const removed = [...byKey.keys()].filter((k) => KEY_RE.test(k) && !(k in body.smida)).sort((a, z) => a.slice(2) - z.slice(2));
   return { recordId: opp.id, project: (opp.fields || {})[PROJECT_NAME] || "", created: creates.length, updated: updates.length, unchanged, missing, removed,
-    conflicts: conflicts.map((c) => Object.assign(c, { drawingNames: named(c.drawing), airtableNames: named(c.airtable) })), liSent, projectUpdated, proSavedAt, trimmed: dropped };
+    conflicts: conflicts.map((c) => Object.assign(c, { drawingNames: named(c.drawing), airtableNames: named(c.airtable) })), liSent, projectUpdated, proSavedAt, trimmed: dropped, ...(matsSkipped ? { matsSkipped: true } : {}) };
 }
 
 // P-02 (2026-10-28): Line Items whose Sk number is no longer in the drawing. "orphans" only reads; "retire" deletes the

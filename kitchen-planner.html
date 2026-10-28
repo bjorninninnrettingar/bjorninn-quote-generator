@@ -13364,6 +13364,7 @@
         var fid = b.front2 && state.look2 && LOOKS[state.look2] ? LOOKS[state.look2].efnislistiId : lookFrontId(state.look, state.handle);
         fields["Frontaefni #2"] = !!(fp.fr2 && fid === fp.fr2); // → Eyðublað "Frontaefni #2" (Keyra skipulag) + priced on FR2's plate; FR2 may be another room's front (G2)
         if (hasInnerDrawers(b, c) && b.innerFront) fields["Tegund innskúffu fronts"] = b.innerFront;
+        var own = roomOwnMats(); fields["Skrokkaefni (lína) 🔲"] = own.carcass; fields["Borðplata (lína) 🍽️"] = own.top; // [] = same as the Tækifæri (clears an old own value)
         if (notes.length) fields["Skilaboð til skipulags"] = notes.join(" ");
         rows.push(fields);
       });
@@ -13371,7 +13372,7 @@
     if (bom && !driverPlaced && rows.length) rows[0]["Skilaboð til skipulags"] = ((rows[0]["Skilaboð til skipulags"] || "") + " " +
       LIGHT_PRODUCTS[bom.driver.code].label + " vantar í V3 — enginn upplýstur skápur með V1.").trim();
     (state.doors || []).forEach(function(d){ var li = doorLineOf(d); if (li) rows.push(li); });
-    if (PRO) wtLines().forEach(function(li){ rows.push(li); }); // the worktop: BP (m²) + BV/BH cutouts — PRO only, the customer keeps the simple choice
+    if (PRO) wtLines().forEach(function(li){ li["Borðplata (lína) 🍽️"] = roomOwnMats().top; rows.push(li); }); // the worktop: BP (m²) + BV/BH cutouts — PRO only, the customer keeps the simple choice
     return rows;
   }
 
@@ -13418,6 +13419,12 @@
     return { carcass:cr ? { id:cr.efnislistiId || null, label:cr.label } : null, top:tr ? { id:tr.efnislistiId || null, label:tr.label } : null,
       handleColor:hk ? (HANDLE_COLOR_AIRTABLE[hk] || (KP3D.HANDLE_FINISHES[hk] || {}).label || hk) : null };
   }
+  // This room's OWN carcass / worktop as Efnislisti ids for the Line Item links — only when it differs from the Tækifæri's
+  // (= the first room's), so single-room and existing projects send [] (docs/owner-per-unit-materials-2026-10-28.md)
+  function roomOwnMats(){ var f = firstRoomBlob(), m = roomMatNow(),
+      fc = f.carcass && CARCASS[f.carcass], ft = f.top && TOPS[f.top] && !TOPS[f.top].none ? TOPS[f.top] : null;
+    return { carcass: m.carcass && m.carcass.id && (!fc || fc.efnislistiId !== m.carcass.id) ? [m.carcass.id] : [],
+             top: m.top && m.top.id && (!ft || ft.efnislistiId !== m.top.id) ? [m.top.id] : [] }; }
   function firstRoomBlob(){
     var q = (state.categoryQueue && state.categoryQueue.length) ? state.categoryQueue : [state.activeCategory || "eldhus"], act = SK_SAVED_ACTIVE || state;
     for (var i = 0; i < q.length; i++){ var cd = categoryDef(q[i]); if (cd && cd.plain) continue;
