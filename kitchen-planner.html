@@ -1384,7 +1384,7 @@
   .op-seg + .op-seg { margin-top:6px; }
   .op-door-pic { display:block; margin:8px auto 2px; }
   /* ---------- pro mode (Rakel, ?pro=<Tækifæri>&k=…) ---------- */
-  body.pro #toContactBtn:not(.pro-next) { display:none; } /* PRO: only as "Næsta rými" when several rooms are queued (A2, 2026-10-26) */
+  body.pro #toContactBtn { min-width:172px; } /* PRO (audit #1, 2026-10-28): the one primary "Áfram" is always there, same place, same width — only its words change with the step */
   #proBar { display:flex; gap:10px; align-items:center; font:600 13px/1.3 inherit; color:var(--ink); }
   /* "Frá Studio" (2026-10-27): what the customer sent in, calm and collapsible, over the top-left of the stage */
   #proStudio{ position:fixed; top:118px; left:16px; z-index:60; width:min(440px, calc(100vw - 32px)); max-height:calc(100vh - 150px); overflow:auto; background:var(--panel, #fff); color:var(--ink); border:1px solid var(--line); border-radius:14px; box-shadow:0 14px 40px rgba(0,0,0,.28); padding:14px 16px 12px; font-size:13px; line-height:1.45; }
@@ -1417,7 +1417,9 @@
   #proFail h2 { margin:6px 0 8px; font-size:19px; line-height:1.3; }
   #proFail p { margin:0 0 18px; font-size:14px; line-height:1.5; color:var(--ink-soft); }
   #proFail .pf-ico { color:#ffb020; }
-  #proFail button { font:700 14px/1.2 inherit; font-family:inherit; border:0; border-radius:10px; padding:11px 22px; cursor:pointer; background:var(--blue); color:#fff; }
+  #proFail button, #proFail a.pf-pick { display:inline-block; box-sizing:border-box; font:700 14px/1.2 inherit; font-family:inherit; border:0; border-radius:10px; padding:11px 22px; cursor:pointer; background:var(--blue); color:#fff; text-decoration:none; }
+  #proFail .pf-btns { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+  #proFail a.pf-pick.sec { background:transparent; color:var(--ink); border:1px solid var(--line); }
   #proFail small { display:block; margin-top:14px; font-size:12px; color:var(--ink-soft); opacity:.8; }
   /* in-app PRO dialog (replaces window.confirm, 2026-10-26) */
   #proDlg { position:fixed; inset:0; z-index:400; background:rgba(15,18,24,.6); display:flex; align-items:center; justify-content:center; padding:16px; box-sizing:border-box; }
@@ -1429,6 +1431,7 @@
   #proCheck .pc-err { margin:8px 0 4px; padding:10px 12px; border-radius:10px; background:#3a1518; border:1px solid #a3271a; color:#ffd9d4; font-size:13px; line-height:1.4; display:flex; flex-wrap:wrap; gap:4px 6px; align-items:baseline; }
   #proCheck .pc-err b { color:#fff; }
   #proCheck .pc-err-d { flex-basis:100%; font-size:12px; color:#ffb8ae; }
+  #proCheck a.pc-retry { text-decoration:none; display:inline-block; }
   #proCheck .pc-retry { margin-top:6px; font:700 13px/1.2 inherit; font-family:inherit; border-radius:8px; padding:7px 14px; cursor:pointer; border:1px solid #ff8a7a; background:#a3271a; color:#fff; }
   #proDlg .pd-foot { display:flex; justify-content:flex-end; gap:10px; margin-top:16px; }
   #proDlg .pd-foot button { font:700 14px/1.2 inherit; font-family:inherit; border-radius:10px; padding:10px 18px; cursor:pointer; border:1px solid var(--line); background:transparent; color:var(--ink); }
@@ -1449,6 +1452,18 @@
   body.pro.tp-open .top { padding-right:calc(var(--tp-w) - 24px); }
   body.pro.tp-open #mainWrap .top { padding-right:0; } /* inside #mainWrap the drawer's width is already taken off — twice cut the bar off on the left (2026-10-26) */
   body.pro.tp-open .top > div:first-child { display:none; }
+  #proBar .pb-stat { min-width:128px; text-align:right; }
+  #proBar button.pb-unlock.pb-stat { text-align:center; }
+  #proBar button:disabled { cursor:not-allowed; }
+  #proBar button.pb-chk, #proBar button.pb-more { background:transparent; border-color:var(--blue); color:var(--ink); }
+  #proBar button.pb-chk.on, #proBar button.pb-more.on { background:var(--blue); color:#fff; }
+  #proBar button.pb-more svg { margin-left:6px; vertical-align:-2px; }
+  #proBar .pb-dot { display:inline-block; width:7px; height:7px; margin-left:6px; border-radius:50%; background:#ffd60a; vertical-align:2px; }
+  #proMore { position:fixed; z-index:350; min-width:220px; padding:6px; border-radius:12px; background:var(--panel); color:var(--ink); border:1px solid var(--line); box-shadow:0 12px 36px rgba(0,0,0,.3); display:flex; flex-direction:column; gap:2px; }
+  #proMore[hidden] { display:none; }
+  #proMore button { font:600 13px/1.3 inherit; font-family:inherit; text-align:left; border:0; border-radius:8px; padding:9px 12px; cursor:pointer; background:transparent; color:inherit; }
+  #proMore button.pb-flash { box-shadow:0 0 0 3px #ffd60a; }
+  #proMore button:hover { background:rgba(127,127,127,.15); }
   #proBar .pb-prog { display:inline-block; margin-left:7px; padding:1px 7px; border-radius:999px; background:#ffd60a; color:#1b1f24; font-size:11.5px; font-weight:800; }
   #proBar .pb-prog:empty { display:none; }
   #proBar .pb-prog.all { background:#34c759; color:#fff; }
@@ -1786,6 +1801,7 @@
   .mat-from-go{ all:unset; cursor:pointer; color:var(--blue); text-decoration:underline; }
   .pro-steps span[data-psgo]{ cursor:pointer; }
   .pro-steps span[data-psgo]:hover{ border-color:var(--ink-soft); }
+  body.pro-ro .pro-steps span[data-psgo="yf"], body.pro-ro .pro-steps span[data-psgo="tb"]{ cursor:pointer; }
   body.pro-ro .pro-steps span[data-psgo]{ cursor:default; border-color:var(--line); }
   .pro-steps span{ padding:3px 10px; border-radius:999px; border:1px solid var(--line); white-space:nowrap; }
   .pro-steps span.on{ color:var(--ink); border-color:var(--blue); font-weight:700; }
@@ -2184,12 +2200,12 @@
   <!-- ============ STEP: WELCOME ============ -->
   <!-- ============ PRO HOME (2026-10-23): ?pro=home — start a new project or continue one ============ -->
   <section id="screen-pro-home" hidden>
-    <div class="title-row"><div><div class="screen-title">PRO — Velja verkefni</div>
+    <div class="title-row"><div><div class="screen-title">Veldu verkefni</div>
     <p class="screen-sub">Byrjaðu nýtt verkefni eða haltu áfram með eitt sem þegar er til.</p></div>
     <div class="actions step-nav"><button class="btn btn-primary" id="phNewBtn" type="button">＋ Nýtt verkefni</button></div></div>
 
     <div class="ph-wrap">
-      <input type="search" class="sw-search" id="phSearch" placeholder="Leita að verkefni — nafn eða heimilisfang" autocomplete="off">
+      <input type="search" class="sw-search" id="phSearch" placeholder="Leita að verkefni — nafn eða T-númer" autocomplete="off">
       <div id="phResults" class="ph-results"></div>
     </div>
 
@@ -2644,7 +2660,7 @@
   // Ferli to find a project's "Opna í hönnuðinum" link. Not a real record id, so PRO itself stays null and
   // the normal proBoot() path never runs; see the init branch near the bottom of this file.
   var PRO_HOME = (function(){ try{ return new URLSearchParams(location.search).get("pro") === "home"; }catch(e){ return false; } })();
-  function proHomeK(){ try{ return new URLSearchParams(location.search).get("k") || ""; }catch(e){ return ""; } }
+  function proHomeK(){ try{ var k = new URLSearchParams(location.search).get("k") || ""; if (k){ try{ localStorage.setItem("bjorninn:skrifstofa:k", k); }catch(e){} return k; } try{ return localStorage.getItem("bjorninn:skrifstofa:k") || ""; }catch(e){ return ""; } }catch(e){ return ""; } }
   // Embedded in the office shell's own <iframe> (2026-10-23, pro.html) — not a full-page open
   // anymore, so the page's own "BJÖRNINN STUDIO" kicker is redundant next to the office sidebar
   // that already carries that branding; same ?embedded=1 + .embedHide pattern grain.html already
@@ -2700,6 +2716,7 @@
   var ICON_PATHS = { cube:'<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/>', sheet:'<path d="M6 3h8.5L19 7.5V21H6z"/><path d="M14 3v5h5M9 12.5h7M9 16h7"/>', up:'<path d="M12 19V5M6 11l6-6 6 6"/>', down:'<path d="M12 5v14M6 13l6 6 6-6"/>', grip:'<circle cx="9" cy="7" r="1"/><circle cx="15" cy="7" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="17" r="1"/><circle cx="15" cy="17" r="1"/>', info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/>',"target": "<circle cx=\"12\" cy=\"12\" r=\"7.5\"/><circle cx=\"12\" cy=\"12\" r=\"2.5\"/><path d=\"M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3\"/>", "camera": "<path d=\"M4 8.5h3l1.8-2.5h6.4L17 8.5h3V19H4z\"/><circle cx=\"12\" cy=\"13.5\" r=\"3.4\"/>", "trash": "<path d=\"M5 7h14M10 7V5h4v2M7 7l.9 12.2h8.2L17 7M10.5 10.5v6M13.5 10.5v6\"/>", "lock": "<rect x=\"6\" y=\"11\" width=\"12\" height=\"9\" rx=\"1.5\"/><path d=\"M8.5 11V8a3.5 3.5 0 0 1 7 0v3\"/>", "unlock": "<rect x=\"6\" y=\"11\" width=\"12\" height=\"9\" rx=\"1.5\"/><path d=\"M8.5 11V8a3.5 3.5 0 0 1 6.9-.9\"/>", "laptop": "<rect x=\"4.5\" y=\"5\" width=\"15\" height=\"10.5\" rx=\"1\"/><path d=\"M2.5 19h19\"/>", "check": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M8 12.4l2.8 2.8L16.2 9.6\"/>", "window": "<rect x=\"5\" y=\"4\" width=\"14\" height=\"16\" rx=\".5\"/><path d=\"M12 4v16M5 12h14\"/>", "door": "<path d=\"M6.5 20.5V3.5h11v17M4 20.5h16\"/><circle cx=\"14.6\" cy=\"12\" r=\".7\"/>", "opening": "<path d=\"M6.5 20.5V3.5h11v17\" stroke-dasharray=\"2 2\"/><path d=\"M4 20.5h16\"/>", "eldhus": "<rect x=\"3.5\" y=\"10\" width=\"17\" height=\"10\" rx=\".5\"/><path d=\"M3.5 13.5h17M12 13.5V20M7 7h4M13 7h4\"/>", "fataskapar": "<rect x=\"5\" y=\"3\" width=\"14\" height=\"18\" rx=\".5\"/><path d=\"M12 3v18M10.2 11v2M13.8 11v2\"/>", "bad": "<path d=\"M4 11.5h16v1.5a6 6 0 0 1-6 6h-4a6 6 0 0 1-6-6z\"/><path d=\"M12 11.5V6h3\"/>", "thvottahus": "<rect x=\"5\" y=\"3\" width=\"14\" height=\"18\" rx=\"1.5\"/><circle cx=\"12\" cy=\"13.2\" r=\"4\"/><path d=\"M8 6.5h2\"/>", "hurdir": "<path d=\"M6.5 20.5V3.5h11v17M4 20.5h16\"/><circle cx=\"14.6\" cy=\"12\" r=\".7\"/>", "close": "<path d=\"M6.5 6.5l11 11M17.5 6.5l-11 11\"/>", "rotate": "<path d=\"M18.5 12a6.5 6.5 0 1 1-1.9-4.6\"/><path d=\"M17 3.8v3.9h-3.9\"/>", "ibud": "<path d=\"M4 11l8-6.5 8 6.5v9.5H4z\"/><path d=\"M10 20.5V15h4v5.5\"/>",
     chevronLeft:'<path d="M14.5 6l-6 6 6 6"/>', chevronRight:'<path d="M9.5 6l6 6-6 6"/>', copy:'<rect x="8.5" y="8.5" width="11" height="11" rx="1.5"/><path d="M15.5 8.5V5.5a1 1 0 0 0-1-1h-9a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3"/>',
     eye:'<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>' };
+  ICON_PATHS.alert = '<path d="M12 4l9 16H3z"/><path d="M12 10v4.5"/><path d="M12 17.2h.01"/>'; // line icon in PRO instead of the ⛔/⚠️ emoji
   function icon(k, size){ size = size || 18; return '<svg class="ico" viewBox="0 0 24 24" width="' + size + '" height="' + size + '" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICON_PATHS[k] || "") + '</svg>'; }
 
   // Measurement fields take numbers only (user, 2026-10-26, round 5): every number / decimal field in every flow —
@@ -10875,11 +10892,7 @@
     var total = surfaces().reduce(function(sum, w){ return sum + w.floor.length + w.wall.length; }, 0);
     var tcb = document.getElementById("toContactBtn");
     tcb.disabled = false; // always on — with nothing placed a click says why instead of a grey button (user, 2026-10-26)
-    if (PRO){ // PRO never goes to intake/contact — with several rooms queued this is the way to the next one (A2)
-      var nxt = proNextRoom();
-      tcb.classList.toggle("pro-next", !!nxt);
-      if (nxt){ var nd = categoryDef(nxt); tcb.textContent = "Næsta rými: " + ((nd && nd.label) || nxt) + " →"; tcb.disabled = false; }
-    }
+    if (PRO) proSyncNext(); // PRO never goes to intake/contact — Áfram = next room, then Yfirferð, then Tilboð
     var stageEmpty = document.getElementById("stageEmpty"), offer = document.getElementById("closetFillOffer");
     // Fataskápar: an empty wardrobe wall offers to fill itself (user, 2026-10-26: offered, never automatic)
     if (isCloset() && !closetEmpty() && state.closetFillDeclined) state.closetFillDeclined = false; // emptied again later: offer again
@@ -12678,8 +12691,14 @@
     if (ps){ ps.hidden = !psOn;
       if (psOn){
         var q = state.categoryQueue || [], qi = q.indexOf(state.activeCategory), cdS = categoryDef(state.activeCategory);
-        var lbl = ["Rými", "Rýmið" + (state.step !== "byrja" && cdS ? " — " + cdS.label + (q.length > 1 && qi >= 0 ? " (" + (qi + 1) + " af " + q.length + ")" : "") : ""), "Teikning"], at = state.step === "byrja" ? 0 : state.step === "shape" ? 1 : 2;
-        ps.innerHTML = lbl.map(function(t, i){ return '<span class="' + (i === at ? "on" : i < at ? "done" : "") + '"' + (i === 1 && at === 2 ? ' data-psgo="shape" title="Aftur á Rýmið (lögun og mál)"' : i === 0 && at > 0 ? ' data-psgo="byrja" title="Rými verkefnisins — bæta við eða fjarlægja"' : '') + '>' + (i + 1) + '. ' + escapeHtmlPro(t) + '</span>'; }).join("<i>›</i>") +
+        // the whole path (audit #1, 2026-10-28): Rými › Rýmið › Teikning › Yfirferð › Tilboð — the last two are the panels in the top bar
+        var lbl = ["Rými", "Rýmið" + (state.step !== "byrja" && cdS ? " — " + cdS.label + (q.length > 1 && qi >= 0 ? " (" + (qi + 1) + " af " + q.length + ")" : "") : ""), "Teikning", "Yfirferð", "Tilboð"], at = state.step === "byrja" ? 0 : state.step === "shape" ? 1 : 2;
+        var cur = at === 2 ? (tp.open ? 4 : pc.open ? 3 : 2) : at;
+        ps.innerHTML = lbl.map(function(t, i){
+          var go = i === 1 && at === 2 ? ' data-psgo="shape" title="Aftur á Rýmið (lögun og mál)"' : i === 0 && at > 0 ? ' data-psgo="byrja" title="Rými verkefnisins — bæta við eða fjarlægja"' :
+            i === 3 ? (at === 2 ? ' data-psgo="yf" title="Yfirferð: listi yfir það sem þarf að vera klárt áður en verkefnið fer í framleiðslu"' : ' title="Opnast þegar teikningin er hafin"') :
+            i === 4 ? (at === 2 ? ' data-psgo="tb" title="Tilboðið eins og viðskiptavinurinn sér það"' : ' title="Opnast þegar teikningin er hafin"') : '';
+          return '<span class="' + (i === cur ? "on" : i < cur ? "done" : "") + '"' + go + '>' + (i + 1) + '. ' + escapeHtmlPro(t) + '</span>'; }).join("<i>›</i>") +
           // room tabs (2026-10-26, multi-room): every room of the project, the open one marked, one click to any — in queue order, so they never move
           (at > 0 ? '<span class="ps-rooms" role="tablist" aria-label="Rými verkefnisins">' + (q.length > 1 ? q.map(function(k){ var on = k === state.activeCategory;
             return '<button type="button" role="tab" class="ps-room' + (on ? ' on' : '') + '" data-psroom="' + escapeHtmlPro(k) + '" aria-selected="' + on + '">' + escapeHtmlPro(proRoomLabel(k)) + '</button>'; }).join("") : "") +
@@ -12760,7 +12779,7 @@
     if (state.step !== "materials" && closetPrevKey){ closetPrevKey = ""; if (state.step !== "editor") KP3D.teardown3D(true); }
     document.getElementById("pageLede").hidden = true; // the intro is on the welcome page only (2026-10-11)
     var rb = document.getElementById("resetBtn"); if (rb) rb.hidden = state.step === "welcome" && !hasDesign(); // nothing to start over yet
-    document.getElementById("tourBtn").hidden = state.step !== "editor";
+    document.getElementById("tourBtn").hidden = state.step !== "editor" || !!PRO; // the tour is the customer's — nothing PRO-specific to show yet (audit #5b)
     if (state.step === "materials") setTimeout(function(){ if (state.step === "materials") hintOnce("efni", __("<b>Myndin byggist upp</b> eftir því sem þú velur — dragðu til að snúa henni. Allt er forvalið, svo „Áfram →“ virkar alltaf.")); }, 900);
     if (state.step === "contact") setTimeout(function(){ if (state.step === "contact") hintOnce("senda", __("<b>Ekkert er pantað núna.</b> Söluaðili fer yfir hönnunina og hefur samband innan 3 virkra daga — ókeypis og án skuldbindingar.")); }, 700);
     if (state.step === "hurdir") setTimeout(function(){ if (state.step === "hurdir") hintOnce("hurdir", __("<b>Ein lína fyrir hverja hurð</b> — veldu rýmið og ýttu á „Hanna“ við hverja hurð.")); }, 700);
@@ -14012,6 +14031,8 @@
       var rt = e.target.closest("[data-psroom]");
       if (rt){ if (rt.dataset.psroom !== state.activeCategory){ if (proEdId) closeBoxEditor(); save(); openRoom(rt.dataset.psroom); } return; }
       var g = e.target.closest("[data-psgo]"); if (!g) return;
+      if (g.dataset.psgo === "tb"){ proTilbodToggle(!tp.open); return; }
+      if (g.dataset.psgo === "yf"){ if (proReadOnly()){ toast("Verkefnið er læst — opnaðu til breytinga fyrst"); return; } proCheckOpen(!pc.open); return; }
       if (document.body.classList.contains("pro-ro")){ toast("Opnaðu til breytinga fyrst"); return; } // locked: like the dimmed ← Til baka
       if (g.dataset.psgo === "byrja"){ if (proEdId) closeBoxEditor(); save(); byrjaSel = (state.categoryQueue || []).slice(); goto("byrja"); return; } // G9: the room cards, this project's rooms ticked (same as Rýmið's ← Til baka)
       if (state.step !== "editor") return;
@@ -16289,11 +16310,37 @@
   // PRO: the queued room after this one (wraps round), null with only one room
   function proNextRoom(){
     var q = state.categoryQueue || [], i = q.indexOf(state.activeCategory);
-    if (q.length < 2 || i < 0) return null;
-    return q[(i + 1) % q.length];
+    if (q.length < 2 || i < 0 || i >= q.length - 1) return null;
+    return q[i + 1];
   }
+  // PRO's single primary button (audit #1): label + what it does follow the step — Næsta rými (while rooms are left) →
+  // Áfram í yfirferð → Áfram í tilboð. Same button, same spot, same width. Locked projects skip Yfirferð (it only saves).
+  function proNextStep(){
+    if (typeof tp !== "undefined" && tp.open) return { label:"Áfram í tilboð →", disabled:true, title:"Þú ert í síðasta skrefinu — Tilboð." };
+    if (pc.open) return { label:"Áfram í tilboð →", title:"Opna tilboðið" };
+    var nxt = proNextRoom();
+    if (nxt){ var nd = categoryDef(nxt); return { label:"Næsta rými →", title:"Næsta rými: " + ((nd && nd.label) || nxt) }; }
+    if (proReadOnly()) return { label:"Áfram í tilboð →", title:"Opna tilboðið" };
+    return { label:"Áfram í yfirferð →", title:"Yfirferð: listi yfir það sem þarf að vera klárt áður en verkefnið fer í framleiðslu" };
+  }
+  function proSyncNext(){
+    var tcb = document.getElementById("toContactBtn"); if (!tcb || !PRO) return;
+    var n = proNextStep();
+    tcb.textContent = n.label; tcb.disabled = !!n.disabled; tcb.title = n.title || "";
+    if (state.step === "editor") updateStepper(); // the strip shows the same step
+  }
+  function proNextAction(){
+    if (tp.open) return;
+    if (pc.open || (!proNextRoom() && proReadOnly())){ proTilbodToggle(true); return; }
+    var nxt = proNextRoom();
+    if (nxt){ save(); openRoom(nxt); return; }
+    proCheckOpen(true);
+  }
+  // the panels open and close from several places (bar, strip, Esc, solo-panel) — body.tp-open is the one signal Tilboð gives
+  new MutationObserver(function(){ var o = document.body.classList.contains("tp-open"); if (o !== proNextSeenTp){ proNextSeenTp = o; if (PRO) proSyncNext(); } }).observe(document.body, { attributes:true, attributeFilter:["class"] });
+  var proNextSeenTp = false;
   document.getElementById("toContactBtn").addEventListener("click", function(){
-    if (PRO){ var nxt = proNextRoom(); if (nxt){ save(); openRoom(nxt); } return; }
+    if (PRO){ proNextAction(); return; }
     if (!cabinetTotal()){ toast(__("Settu inn að minnsta kosti einn skáp.")); return; }
     checkEndPanelsThen(function(){ captureThumb(); finishCategory(); }); // 3D scene must still be alive for the thumbnail
   });
@@ -17820,7 +17867,7 @@
     // ⛔ first, where it can't be missed (2026-10-26: it sat under the last section, below the fold on a tall unit)
     // each with "Laga" (2026-10-26): the nearest value that works, one undo step (Cmd+Z / Afturkalla right here)
     var issueList = proIssues(b, c, fb.zone, true), issues = issueList.map(function(x){ return x.text; });
-    if (issueList.length) right += '<div class="pe-issues' + (peFlash ? ' flash' : '') + '"><b>⛔ Lagaðu áður en skápurinn er merktur yfirfarinn:</b>' + issueList.map(function(x){
+    if (issueList.length) right += '<div class="pe-issues' + (peFlash ? ' flash' : '') + '"><b>' + icon("alert", 16) + ' Lagaðu áður en skápurinn er merktur yfirfarinn:</b>' + issueList.map(function(x){
       return '<div class="pe-issue"><span>' + escapeHtmlPro(x.text) + '</span>' + (x.fix ? '<button type="button" class="pe-btn pe-laga" data-pe="fixissue" data-fix="' + x.fix + '" title="' +
         (x.fix === "drawers" ? "Næsta gilda hæð — tekið af / bætt á skúffuna með mest pláss" : "Færir lamirnar sem lenda á hillum á næsta lausa stað og bætir við þeim sem vantar") + '">Laga</button>' : '') + '</div>'; }).join("") + '</div>';
     peFlash = false;
@@ -17956,7 +18003,7 @@
     }
     if (dr || (c.oven && !c.lowOven)) right += '<div class="pe-door"><h4>' + (dr ? "Skúffur" : "Undir ofninum") + '</h4><div id="peInterior">' +
       (dr ? hardwareHTML(b, c, { sides:true }) : variantHTML(b, c, { sides:true })) + '</div>' +
-      '<div class="pe-note">Sláðu inn frontahæð, dragðu bláu skilin á teikningunni eða ⠿ til að færa skúffu. Aðeins skúffan sem þú dregur breytist — samtalan þarf að fylla skápinn (⛔ efst segir til). Strikaða línan er Blum-hliðin (hlið = hæð hennar; staðsetningin er nálgun), rauðu punktarnir eru göt fyrir framhliðina.</div></div>';
+      '<div class="pe-note">Sláðu inn frontahæð, dragðu bláu skilin á teikningunni eða ⠿ til að færa skúffu. Aðeins skúffan sem þú dregur breytist — samtalan þarf að fylla skápinn (villulistinn efst segir til). Strikaða línan er Blum-hliðin (hlið = hæð hennar; staðsetningin er nálgun), rauðu punktarnir eru göt fyrir framhliðina.</div></div>';
     if (bathSinkUnit(b, c)){ // Toppur (bath vaskaskápur): waste hole + tap, mm from the left side / from the wall; a small plan beside it
       var bt = bathTopOf(b, c), dpt = b.depthMm || c.d, pw = 150, ps = pw / b.widthMm, ph = dpt * ps;
       var plan = '<svg width="' + (pw + 2) + '" height="' + (ph + 16) + '" style="flex:none"><rect x="1" y="9" width="' + pw + '" height="' + ph + '" fill="#f4f5f7" stroke="#8a929c"/>' +
@@ -18005,16 +18052,16 @@
       ? '<div class="pe-note">Merktur yfirfarinn ' + (b.smidaReadyAt ? new Date(b.smidaReadyAt).toLocaleString("is-IS") : "") + '. Breyting á skápnum tekur merkinguna af.</div>' +
         '<button type="button" class="pe-ready undo" data-pe="ready" data-v="0">Taka merkinguna af</button>'
       : (b.smidaReady ? '<div class="pe-note">Skápnum var breytt eftir að hann var merktur yfirfarinn — yfirfara og merkja aftur.</div>' : '') +
-        (issues.length ? '<div class="pe-note">Hnappurinn opnast þegar ⛔ atriðin efst eru löguð.</div>' : '') +
+        (issues.length ? '<div class="pe-note">Hnappurinn opnast þegar villurnar efst eru lagaðar.</div>' : '') +
         '<div class="pe-note">Merktu skápinn með græna hnappnum efst — hann fer þá beint á næsta óyfirfarna.</div>';
     // the strip of Sk buttons + the one primary button, always in the same place (top right) whatever the state
     var skList = proSkList(), curUid = proUid(b.id), skNext = proNextUnready(skList, curUid), nOk = skList.filter(function(x){ return x.st === "ok"; }).length, skMulti = skList.some(function(x){ return x.ri > 0; });
-    var stTxt = { ok:"yfirfarinn", todo:"ekki skoðaður", err:"⛔ villa í Smíða" };
+    var stTxt = { ok:"yfirfarinn", todo:"ekki skoðaður", err:"villa í Smíða" };
     var goBtn = isReady
-      ? '<button type="button" class="pe-go next" data-pe="go"' + (skNext ? ' title="Næsti skápur sem er ekki yfirfarinn' + (skNext.cat !== (skList.find(function(x){ return x.uid === curUid; }) || {}).cat ? ' (' + escapeHtmlPro(skNext.room) + ')' : '') + '">Næsti → ' + skNext.key : ' title="Allir skápar eru yfirfarnir">Allir yfirfarnir — loka') + '</button>'
-      : '<button type="button" class="pe-go" data-pe="go"' + (issues.length ? ' disabled title="Lagaðu ⛔ atriðin fyrst"' : ' title="Merkja þennan yfirfarinn' + (skNext ? ' og opna ' + skNext.key : '') + '"') + '>' + (skNext ? 'Yfirfarinn → ' + skNext.key : 'Skápur yfirfarinn ✓') + '</button>';
+      ? '<button type="button" class="pe-go next" data-pe="go"' + (skNext ? ' title="Næsti skápur sem er ekki yfirfarinn' + (skNext.cat !== (skList.find(function(x){ return x.uid === curUid; }) || {}).cat ? ' (' + escapeHtmlPro(skNext.room) + ')' : '') + '. Sk = skápanúmer. ' + skNext.key + ' er næsti.">Næsti óyfirfarni →' : ' title="Allir skápar eru yfirfarnir">Allt yfirfarið · loka') + '</button>'
+      : '<button type="button" class="pe-go" data-pe="go"' + (issues.length ? ' disabled title="Lagaðu villurnar fyrst"' : ' title="Merkja þennan yfirfarinn' + (skNext ? ' og opna ' + skNext.key + ' (Sk = skápanúmer)' : '') + '"') + '>' + (skNext ? 'Yfirfarinn · næsti →' : 'Yfirfarinn · klára ✓') + '</button>';
     var nav = '<div class="pe-nav"><button type="button" class="pe-btn pe-arrow" data-pe="prev" title="Fyrri skápur (←)">' + icon("chevL", 16) + '</button>' +
-      '<div class="pe-sks">' + skList.map(function(x, i){ return (skMulti && (i === 0 || skList[i - 1].ri !== x.ri) ? '<span class="pe-room' + (i ? ' sep' : '') + '">' + escapeHtmlPro(x.room) + '</span>' : '') +
+      '<div class="pe-sks" title="Sk = skápanúmer. Græn = yfirfarinn, gul = ekki skoðaður, rauð = villa sem þarf að laga.">' + skList.map(function(x, i){ return (skMulti && (i === 0 || skList[i - 1].ri !== x.ri) ? '<span class="pe-room' + (i ? ' sep' : '') + '">' + escapeHtmlPro(x.room) + '</span>' : '') +
         '<button type="button" class="pe-sk ' + x.st + (x.uid === curUid ? ' cur' : '') + '" data-pe="goto" data-id="' + escapeHtmlPro(x.uid) + '" title="' + x.key + ' · ' + escapeHtmlPro(x.label) + (skMulti ? ' (' + escapeHtmlPro(x.room) + ')' : '') + ' — ' + stTxt[x.st] + '"><i></i>' + x.key + '</button>'; }).join("") + '</div>' +
       '<button type="button" class="pe-btn pe-arrow" data-pe="next" title="Næsti skápur (→)">' + icon("chevR", 16) + '</button>' +
       '<span class="pe-count" title="' + (skMulti ? "Yfirfarnir skápar í öllu verkefninu" : "Yfirfarnir skápar í rýminu") + '">' + nOk + '/' + skList.length + '</span>' + goBtn +
@@ -18555,54 +18602,59 @@
     if (!el) return;
     proRoSync();
     el.hidden = false;
-    // legacy project (Eyðublöð not made from Line Items, e.g. T-15): Smíða happens in /smida, always reachable here
-    var smidaEyBtn = PRO.legacy ? '<button type="button" id="proSmidaEy" class="pb-review" title="Lamir, hillur, ofn og innskúffur fyrir CNC — beint á Eyðublöðin sem eru til">Smíða úr Eyðublöðum</button>' : "";
-    // G10/G12 (2026-10-27): a way back to the office (not inside /pro's frame — it has its own sidebar) and Smíða & CNC
-    // in every state (the designer wants to see the CNC side before locking); a legacy project's "Smíða úr Eyðublöðum" is the same page
+    // ONE fixed row in every state (audit #5, 2026-10-28): the same buttons in the same places whether the project is open or
+    // locked — a control that doesn't apply is greyed with a reason, never removed or moved. The rare ones (Frá Studio,
+    // "Merkja teikningu yfirfarna", CNC) sit behind "Meira" at the end instead of coming and going in the middle.
+    var locked = !!(PRO.locked && !PRO.unlocked), lockWhy = "Verkefnið er læst — opnaðu til breytinga fyrst";
     var backBtn = EMBEDDED ? "" : '<a class="pb-back" href="/skrifstofa" title="Aftur á skrifstofuna (teikningin er geymd í þessum vafra)">← Skrifstofa</a>';
-    var smidaBtn = PRO.legacy ? "" : '<button type="button" id="proSmidaCnc" title="Smíða & CNC (/smida): hliðar, frontar og það sem CNC borar — opnast í nýjum flipa">Smíða & CNC ↗</button>';
-    var reviewBtn = (proFromStudio() ? '<button type="button" id="proStudioBtn" class="pb-review" title="Það sem viðskiptavinurinn sendi inn úr Studio: svör, athugasemd, tengiliður, rými og sérkerfi">Frá Studio</button>' : "") +
-      (PRO.needsReview ? '<button type="button" id="proReviewed" class="pb-review" title="Teikning frá viðskiptavini: merktu hana yfirfarna (fer af „Til yfirferðar“ í CRM)">Merkja teikningu yfirfarna</button>' : "");
-    if (PRO.locked && !PRO.unlocked){
-      el.innerHTML = backBtn + '<span>PRO</span>' + proNameHtml() +
-        '<span class="pb-locked">Í skipulagi (' + escapeHtmlPro(PRO.lockStatus) + ') — skoðunarhamur</span>' +
-        reviewBtn + smidaEyBtn +
-        '<button type="button" id="proTilbodToggle"' + (tp.open ? ' class="on"' : "") + '>Tilboð</button>' +
-        '<button type="button" id="proWorkDraw" title="2D vinnuteikningar fyrir verkstæðið">Teikningar</button>' +
-        smidaBtn + '<button type="button" id="proCnc" title="CNC-útflutningur (/cnc) fyrir þetta verkefni">CNC</button>' +
-        '<button type="button" id="proUnlock" class="pb-unlock">Opna til breytinga</button>';
-      var ub = el.querySelector("#proUnlock"); if (ub) ub.addEventListener("click", proUnlock);
-      var ttb0 = el.querySelector("#proTilbodToggle"); if (ttb0) ttb0.addEventListener("click", proTilbodToggle);
-      var wd0 = el.querySelector("#proWorkDraw"); if (wd0) wd0.addEventListener("click", openWorkDrawings);
-      var cn0 = el.querySelector("#proCnc"); if (cn0) cn0.addEventListener("click", function(){ window.open(proCncUrl(), "_blank", "noopener"); });
-      var rb0 = el.querySelector("#proReviewed"); if (rb0) rb0.addEventListener("click", proMarkReviewed);
-      var sb0 = el.querySelector("#proStudioBtn"); if (sb0) sb0.addEventListener("click", function(){ var p = document.getElementById("proStudio"); proStudioRender(!p || p.hidden); });
-      var se0 = el.querySelector("#proSmidaEy"); if (se0) se0.addEventListener("click", proOpenSmidaEy);
-      var sc0 = el.querySelector("#proSmidaCnc"); if (sc0) sc0.addEventListener("click", proOpenSmidaEy);
-      return;
-    }
-    el.innerHTML = backBtn + '<span>PRO</span>' + proNameHtml() +
-      (PRO.locked ? '<span class="pb-locked">opnað til breytinga</span>' : "") +
-      (msg ? '<span>' + escapeHtmlPro(msg) + '</span>' : (proDirty() ? '<span class="pb-dirty">● óvistað</span>' : '<span>✓ vistað</span>')) +
-      reviewBtn + smidaEyBtn +
-      // Vista opens Yfirferð first (2026-10-26): the checklist, "Vista í Airtable" and the gated "Klár til framleiðslu"
-      // (which replaced the loose "Keyra skipulag" button here). The badge = how many checks are green.
-      '<button type="button" id="proSave" class="pb-save"' + (PRO.ready ? "" : " disabled") + ' title="Yfirferð og vistun">Vista<span class="pb-prog" id="proProg">' + escapeHtmlPro(pc.badge || "") + '</span></button>' +
-      '<button type="button" id="proTilbodToggle"' + (tp.open ? ' class="on"' : "") + '>Tilboð</button>' +
+    // the status slot: saved / unsaved / the message — or, when locked, the way out (same place, same size)
+    var stat = locked
+      ? '<button type="button" id="proUnlock" class="pb-unlock pb-stat" title="Staða: ' + escapeHtmlPro(PRO.lockStatus) + '. Þú getur skoðað allt, en ekki breytt fyrr en þú opnar til breytinga.">Læst · Opna til breytinga</button>'
+      : '<span class="pb-stat' + (!msg && proDirty() ? ' pb-dirty' : '') + '">' + (msg ? escapeHtmlPro(msg) : proDirty() ? '● óvistað' : (PRO.locked ? 'opið til breytinga · ' : '') + '✓ vistað' +(state.proSavedAt ? ' ' + escapeHtmlPro(proClock(state.proSavedAt)) : '')) + '</span>';
+    var off = function(cond, why){ return cond ? ' disabled title="' + escapeHtmlPro(why) + '"' : ''; };
+    var needsDot = PRO.needsReview ? '<span class="pb-dot" title="Teikning frá viðskiptavini bíður yfirferðar"></span>' : "";
+    el.innerHTML = backBtn + '<span>PRO</span>' + proNameHtml() + stat +
+      // Vista saves straight to Airtable (one click, Cmd/Ctrl+S); Yfirferð is the checklist and the gated "Klár til framleiðslu"
+      '<button type="button" id="proSave" class="pb-save"' + (locked ? off(true, lockWhy) : (PRO.ready && !pc.saving ? ' title="Vista í Airtable (Cmd+S)"' : ' disabled title="' + (pc.saving ? "Vista…" : "Verkefnið er enn að opnast") + '"')) + '>Vista</button>' +
+      '<button type="button" id="proYfirferd" class="pb-chk' + (pc.open ? ' on' : '') + '"' + (locked ? off(true, lockWhy) : (PRO.ready ? ' title="Yfirferð: listi yfir það sem þarf að vera klárt áður en verkefnið fer í framleiðslu"' : ' disabled')) + '>Yfirferð<span class="pb-prog" id="proProg">' + escapeHtmlPro(pc.badge || "") + '</span></button>' +
+      '<button type="button" id="proTilbodToggle"' + (tp.open ? ' class="on"' : "") + ' title="Tilboðið eins og viðskiptavinurinn sér það">Tilboð</button>' +
       '<button type="button" id="proWorkDraw" title="2D vinnuteikningar fyrir verkstæðið">Teikningar</button>' +
-      '<button type="button" id="proDoorList" title="Innihurðir fyrir allt heimilið (HU-línur)">Hurðir</button>' +
-      '<button type="button" id="proMeasure" title="Mælingarblað: sláðu inn málin á staðnum beint í teikninguna">Mæling</button>' + smidaBtn;
-    var dlb = el.querySelector("#proDoorList"); if (dlb) dlb.addEventListener("click", function(){ openDoors("list"); }); // the customer's HU list + Hanna, in mm (2026-10-26)
-    var mpb = el.querySelector("#proMeasure"); if (mpb) mpb.addEventListener("click", openMeasurePanel);
-    var bt = el.querySelector("#proSave"); if (bt) bt.addEventListener("click", function(){ proCheckOpen(!pc.open); });
+      '<button type="button" id="proDoorList"' + (locked ? off(true, lockWhy) : ' title="Innihurðir fyrir allt heimilið (HU = hurð, ein lína í pöntun fyrir hverja hurð)"') + '>Hurðir</button>' +
+      '<button type="button" id="proMeasure"' + (locked ? off(true, lockWhy) : ' title="Mælingarblað: sláðu inn málin á staðnum beint í teikninguna"') + '>Mæling</button>' +
+      '<button type="button" id="proSmidaCnc" title="' + (PRO.legacy ? "Eldra verkefni: lamir, hillur, ofn og innskúffur fyrir CNC eru stillt beint á framleiðslulínurnar (Eyðublöð) sem eru til" : "Smíða & CNC (/smida): hliðar, frontar og það sem CNC borar — opnast í nýjum flipa") + '">Smíða & CNC ↗</button>' +
+      '<button type="button" id="proMoreBtn" class="pb-more' + (pm.open ? ' on' : '') + '" aria-haspopup="menu" aria-expanded="' + !!pm.open + '" title="Fleiri aðgerðir">Meira' + needsDot + icon("down", 12) + '</button>';
+    var $ = function(id){ return el.querySelector(id); }, on = function(id, fn){ var b = $(id); if (b && !b.disabled) b.addEventListener("click", fn); };
+    on("#proUnlock", proUnlock);
+    on("#proSave", function(){ proSave(); });
+    on("#proYfirferd", function(){ proCheckOpen(!pc.open); });
+    on("#proTilbodToggle", proTilbodToggle);
+    on("#proWorkDraw", openWorkDrawings);
+    on("#proDoorList", function(){ openDoors("list"); }); // the customer's HU list + Hanna, in mm (2026-10-26)
+    on("#proMeasure", openMeasurePanel);
+    on("#proSmidaCnc", proOpenSmidaEy);
+    on("#proMoreBtn", function(ev){ ev.stopPropagation(); proMoreToggle(!pm.open); });
+    proMoreRender();
     proCheckSoon();
-    var ttb = el.querySelector("#proTilbodToggle"); if (ttb) ttb.addEventListener("click", proTilbodToggle);
-    var wd = el.querySelector("#proWorkDraw"); if (wd) wd.addEventListener("click", openWorkDrawings);
-    var rb = el.querySelector("#proReviewed"); if (rb) rb.addEventListener("click", proMarkReviewed);
-    var sb = el.querySelector("#proStudioBtn"); if (sb) sb.addEventListener("click", function(){ var p = document.getElementById("proStudio"); proStudioRender(!p || p.hidden); });
-    var se = el.querySelector("#proSmidaEy"); if (se) se.addEventListener("click", proOpenSmidaEy);
-    var sc = el.querySelector("#proSmidaCnc"); if (sc) sc.addEventListener("click", proOpenSmidaEy);
+    if (typeof proSyncNext === "function") proSyncNext();
   }
+  // "Meira" (audit #5): the things that exist only sometimes. Lives on <body> (the bar clips), re-rendered with the bar.
+  var pm = { open:false };
+  function proMoreToggle(on){ pm.open = !!on; var b = document.getElementById("proMoreBtn"); if (b){ b.classList.toggle("on", pm.open); b.setAttribute("aria-expanded", String(pm.open)); } proMoreRender(); }
+  function proMoreRender(){
+    var m = document.getElementById("proMore"), b = document.getElementById("proMoreBtn");
+    if (!pm.open || !b){ if (m) m.hidden = true; return; }
+    if (!m){ m = document.createElement("div"); m.id = "proMore"; m.setAttribute("role", "menu"); document.body.appendChild(m);
+      m.addEventListener("click", function(e){ var t = e.target.closest("button"); if (!t || t.disabled) return; proMoreToggle(false); (m.__go || {})[t.id] && m.__go[t.id](); }); }
+    var go = {};
+    var items = [];
+    if (proFromStudio()){ items.push('<button type="button" role="menuitem" id="proStudioBtn" title="Það sem viðskiptavinurinn sendi inn úr Studio: svör, athugasemd, tengiliður, rými og sérkerfi">Frá Studio</button>'); go.proStudioBtn = function(){ var p = document.getElementById("proStudio"); proStudioRender(!p || p.hidden); }; }
+    if (PRO.needsReview){ items.push('<button type="button" role="menuitem" id="proReviewed" title="Teikning frá viðskiptavini: merktu hana yfirfarna (hún fer þá af „Til yfirferðar“ listanum)">Merkja teikningu yfirfarna</button>'); go.proReviewed = proMarkReviewed; }
+    items.push('<button type="button" role="menuitem" id="proCnc" title="CNC-útflutningur (/cnc) fyrir þetta verkefni — opnast í nýjum flipa">CNC-útflutningur ↗</button>'); go.proCnc = function(){ window.open(proCncUrl(), "_blank", "noopener"); };
+    m.__go = go; m.innerHTML = items.join(""); m.hidden = false;
+    var r = b.getBoundingClientRect(); m.style.top = Math.round(r.bottom + 6) + "px"; m.style.right = Math.max(8, Math.round(window.innerWidth - r.right)) + "px";
+  }
+  document.addEventListener("pointerdown", function(e){ if (pm.open && e.target.closest && !e.target.closest("#proMore, #proMoreBtn")) proMoreToggle(false); });
+  document.addEventListener("keydown", function(e){ if (pm.open && e.key === "Escape") proMoreToggle(false); });
   // ---------- Yfirferð — the gate before Vista / Klár til framleiðslu (2026-10-26) ----------
   // Everything production needs, as one list, each line a link to where it gets fixed (mission: "idiot proof" — nothing
   // skippable, nothing missable). "Vista í Airtable" is always allowed (a draft); "Klár til framleiðslu" = vista +
@@ -18674,7 +18726,7 @@
         picks:f.unlinked.filter(function(u){ return u.id; }),
         acks:f.unlinked.filter(function(u){ return !u.id; }).map(function(u){ return { id:"v1:" + u.key, label:u.key + (multi ? " (" + u.room + ")" : "") + " — Útfærsla valin í Airtable", on:!!ack["v1:" + u.key] }; }),
         detail:unl.length ? keyList(unl) + ": engin stöðluð vara passar sjálfkrafa — veldu vöruna hér fyrir neðan (fer í V1 á línunni þegar þú vistar)." : f.cabinets ? f.cabinets + " " + plural(f.cabinets, "eining", "einingar") + " með vöru." : "Engar einingar enn." },
-      { key:"villur", ok:f.cabinets > 0 && !f.issues.length, title:"Engar ⛔ villur í Smíða", target:f.issues[0], smida:true,
+      { key:"villur", ok:f.cabinets > 0 && !f.issues.length, title:"Engar villur í Smíða", target:f.issues[0], smida:true,
         detail:f.issues.length ? f.issues[0].key + ": " + f.issues[0].text + (f.issues.length > 1 ? " (og " + (f.issues.length - 1) + " " + plural(f.issues.length - 1, "skápur", "skápar") + " í viðbót)" : "") : f.cabinets ? "Lamir, skúffur og hillur ganga upp." : "Engar einingar enn." },
       { key:"smida", ok:f.cabinets > 0 && !f.unready.length, title:"Hver skápur yfirfarinn í Smíða", target:f.unready[0], smida:true,
         detail:f.unready.length ? f.unready.length + " af " + f.cabinets + " eftir: " + keyList(f.unready) + ". Opnaðu Smíða og ýttu á „Yfirfarinn →“ — það fer beint á næsta skáp." : f.cabinets ? "Allir merktir yfirfarnir." : "Engar einingar enn." },
@@ -18828,10 +18880,10 @@
           (x.acks && x.acks.length ? '<span class="pc-acks">' + x.acks.map(function(a){ return '<label><input type="checkbox" data-ack="' + esc(a.id) + '"' + (a.sig != null ? ' data-sig="' + esc(a.sig) + '"' : '') + (a.on ? " checked" : "") + '> ' + esc(a.label) + '</label>'; }).join("") + '</span>' : '') +
           '</div>';
       }).join("") +
-      (pc.saveErr ? '<div class="pc-err" role="alert"><b>Vistun tókst ekki.</b> ' + esc(pc.saveErr) + (proDirty() ? ' <span class="pc-err-d">● Óvistað — breytingarnar eru geymdar í þessum vafra.</span>' : '') + '<button type="button" class="pc-retry" data-pc="save">Reyna aftur</button></div>' : '') +
+      (pc.saveErr ? '<div class="pc-err" role="alert"><b>Vistun tókst ekki.</b> ' + esc(pc.saveErr) + (proDirty() ? ' <span class="pc-err-d">● Óvistað — breytingarnar eru geymdar í þessum vafra.</span>' : '') + '<button type="button" class="pc-retry" data-pc="save">Reyna aftur</button> <a class="pc-retry" href="' + esc(proPickerUrl()) + '" title="Aftur á verkefnalistann — teikningin er geymd í þessum vafra">Velja verkefni</a></div>' : '') +
       '<div class="pc-foot"><button type="button" class="pc-save" data-pc="save"' + (pc.saving ? ' disabled' : '') + '>' + (pc.saving ? "Vista…" : "Vista í Airtable") + '</button>' +
       '<button type="button" class="pc-ready" data-pc="ready"' + (all ? "" : ' disabled title="Opnast þegar allar línur eru grænar"') + '>Klár til framleiðslu</button></div>' +
-      '<div class="pc-note">Vista geymir drögin hvenær sem er. „Klár til framleiðslu“ vistar og keyrir skipulag (Eyðublöð → Sögunarlisti, Pöntunarlisti, CNC) — eftir það læsist teikningin.' + (proDirty() ? ' <b>● Óvistaðar breytingar.</b>' : '') + '</div>' +
+      '<div class="pc-note">Vista geymir drögin hvenær sem er. „Klár til framleiðslu“ vistar og sendir teikninguna í framleiðslu (skurðarlisti, pöntun, CNC) — eftir það læsist hún.' + (proDirty() ? ' <b>● Óvistaðar breytingar.</b>' : '') + '</div>' +
       // the run's status + the next step (2026-10-26) — always here, same place, so nothing moves when the run ends
       '<div class="pc-run ' + (pr.phase || "idle") + '"><span class="pc-run-t">' + esc(pr.phase ? pr.text : "Skipulag ekki keyrt héðan í þessari lotu.") + '</span>' +
         (pr.phase === "timeout" || pr.phase === "error" ? ' <button type="button" class="pc-recheck" data-pc="recheck">Athuga aftur</button>' : '') +
@@ -18863,7 +18915,7 @@
   function proCheckFix(x){
     var t = x.target;
     if (x.key === "maeling"){ proCheckOpen(false); openMeasurePanel(); return; }
-    if (x.key === "yfirfarid"){ proCheckOpen(false); var rv = document.getElementById("proReviewed"); if (rv){ rv.classList.add("pb-flash"); setTimeout(function(){ rv.classList.remove("pb-flash"); }, 1600); } return; }
+    if (x.key === "yfirfarid"){ proCheckOpen(false); proMoreToggle(true); var rv = document.getElementById("proReviewed"); if (rv){ rv.classList.add("pb-flash"); setTimeout(function(){ rv.classList.remove("pb-flash"); }, 1600); } return; }
     if (x.key === "orphans"){ if (!x.pending) proOrphFix(); return; }
     if (x.key === "sala") return; // answered with its checkbox in the list
     if (x.key === "abend"){ var wc = document.getElementById("warnChip"); if (wc && !wc.hidden) wc.click(); return; }
@@ -18913,7 +18965,7 @@
     proRunSkipulag(); // one dialog: vista (if needed) og keyra — a failed save keeps Yfirferð open with the red box
   }
   document.addEventListener("keydown", function(e){ if (e.key === "Escape" && pc.open && !e.target.closest("input,select,textarea")) proCheckOpen(false); });
-  document.addEventListener("pointerdown", function(e){ if (pc.open && e.target.closest && !e.target.closest("#proCheck, #proSave, #measurePanel, #proEd, #proWt, #warnPop, #proDlg")) proCheckOpen(false); });
+  document.addEventListener("pointerdown", function(e){ if (pc.open && e.target.closest && !e.target.closest("#proCheck, #proYfirferd, #measurePanel, #proEd, #proWt, #warnPop, #proDlg")) proCheckOpen(false); });
   // "Yfirfarið" (2026-10-18) — the button referenced in old comments but never actually built. Staff
   // looks the self-serve drawing over here, clicks this, and it's off CRM's "Til yfirferðar" strip —
   // nothing else changes automatically (confirmed with the user: just the flag, not the sales stage).
@@ -19071,7 +19123,7 @@
     // lines Keyra skipulag refused (⛔): the rest ran, but the run is "failed" in Airtable — say which and why (T-248)
     var drawn = {}; try{ collectAllLineItems().forEach(function(li){ drawn[li["🔑"]] = 1; }); }catch(e){}
     var blocked = lines.filter(function(l){ return l.err; });
-    var blk = blocked.length ? " · ⛔ " + blocked.length + " " + proPl(blocked.length, "lína stöðvaðist", "línur stöðvuðust") + ": " +
+    var blk = blocked.length ? " · " + blocked.length + " " + proPl(blocked.length, "lína stöðvaðist", "línur stöðvuðust") + ": " +
       blocked.slice(0, 5).map(function(l){ return (l.key || "lína án 🔑") + " (" + l.err.replace(/⛔\s*/g, "").replace(/\.\s*$/, "") + ")" + (l.key && drawn[l.key] ? "" : " — ekki í teikningunni: lagaðu eða eyddu henni í Airtable/CRM"); }).join(" · ") +
       (blocked.length > 5 ? " …" : "") : "";
     var head = (blocked.length ? "Skipulag keyrt með villum" : "Skipulag keyrt ✓") + " · " + (synced ? synced + " " + proPl(synced, "Eyðublað", "Eyðublöð") + " " + (synced === 1 ? "uppfært" : "uppfærð") : "ekkert breyttist") + blk;
@@ -19431,11 +19483,12 @@
   // (2026-10-26) an in-app dialog, not window.confirm: says plainly what has to be run again afterwards
   async function proUnlock(){
     var ok = await proDialog({ title:"Opna teikninguna til breytinga?", ok:"Opna til breytinga", cancel:"Hætta við",
-      html:'<p>Verkefnið er komið í skipulag (' + escapeHtmlPro(PRO.lockStatus) + '). Eyðublöð, Sögunarlisti, Pöntunarlisti og CNC eru byggð á teikningunni eins og hún er núna.</p>' +
-        '<p>Ef þú breytir henni þarf að keyra þetta aftur á eftir, í þessari röð — annars verða gögnin úrelt:</p>' +
-        '<ol><li>Vista og <b>keyra skipulag</b> <small>— Eyðublöðin uppfærast úr teikningunni</small></li>' +
-        '<li><b>Yfirfara</b> hverja breytta einingu <small>— Sögunarlisti og vörur á einingu</small></li>' +
-        '<li><b>Keyra pöntunarlista</b> <small>— Pöntunarlisti og pantanir</small></li></ol>' +
+      html:'<p>Verkefnið er læst af því það er komið í framleiðslu (' + escapeHtmlPro(PRO.lockStatus) + ').</p>' +
+        '<p>Ef þú breytir teikningunni þarf að keyra pöntunarlistann aftur á eftir — láttu Ísak vita.</p>' +
+        '<details><summary>Hvað þarf að keyra aftur?</summary><p>Skurðarlistinn, pöntunarlistinn og CNC-skrárnar eru byggð á teikningunni eins og hún er núna. Eftir breytingu, í þessari röð:</p>' +
+        '<ol><li>Vista og <b>keyra skipulag</b> <small>— framleiðslulínurnar uppfærast úr teikningunni</small></li>' +
+        '<li><b>Yfirfara</b> hverja breytta einingu <small>— skurðarlisti og vörur á einingu</small></li>' +
+        '<li><b>Keyra pöntunarlista</b> <small>— pöntunarlisti og pantanir</small></li></ol></details>' +
         '<p>CNC-skrár sem eru þegar komnar á USB þarf að flytja út aftur í /cnc.</p>' });
     if (!ok) return;
     PRO.unlocked = true;
@@ -19498,7 +19551,7 @@
   // a failed save, in Icelandic, for the red box in Yfirferð (2026-10-26: was a raw English server line in the header)
   function proSaveErrText(status, msg){
     if (!status) return "Ekkert samband við þjóninn — athugaðu nettenginguna og reyndu aftur.";
-    if (status === 401 || status === 403) return "Lykillinn virkar ekki — opnaðu verkefnið aftur með hnappnum á Tækifærinu í Airtable.";
+    if (status === 401 || status === 403) return "Lykillinn vantar eða er útrunninn — ýttu á „Velja verkefni“ og opnaðu verkefnið aftur (teikningin er geymd í þessum vafra).";
     if (status === 413) return "Teikningin er of stór til að vista — fækkaðu herbergjum eða skiptu verkefninu.";
     if (status === 409) return "Einhver annar vistaði verkefnið á undan þér — ekkert var vistað.";
     if (status === 400) return "Airtable tók ekki við gögnunum" + (msg ? ": " + msg : ".");
@@ -19574,18 +19627,39 @@
     tp.last = null; proTilbodRefresh(true); // Airtable's own total just changed
     return true;
   }
+  // the project picker (?pro=home) with the office key kept in this browser — where every dead end leads back to (audit #3)
+  function proPickerUrl(){ var k = ""; try{ k = (PRO && PRO.k) || localStorage.getItem("bjorninn:skrifstofa:k") || ""; }catch(e){} return "/skipuleggja?pro=home" + (k ? "&k=" + encodeURIComponent(k) : "") + embeddedQS(); }
   // the project couldn't be opened: a clear message in the stage instead of a blank page with "HTTP 403" in the bar
-  function proFail(title, help, tech){
+  function proFail(title, help, tech, status){
     document.body.classList.add("pro-fail");
     var bar = document.getElementById("proBar");
     if (bar){ bar.hidden = false; bar.innerHTML = '<span>PRO</span><span class="pb-locked">Verkefnið opnaðist ekki</span>'; }
     var el = document.getElementById("proFail");
     if (!el){ el = document.createElement("div"); el.id = "proFail"; el.setAttribute("role", "alert"); document.body.appendChild(el); }
+    // never a dead end (audit #3): "Velja verkefni" = the picker (key from this browser); "Reyna aftur" only where a retry can help (not 401/403/404 — the same link fails the same way)
+    var noRetry = /^(401|403|404)$/.test(String(status || ""));
     el.innerHTML = '<span class="pf-ico">' + icon("info", 30) + '</span><h2>' + escapeHtmlPro(title) + '</h2><p>' + escapeHtmlPro(help) + '</p>' +
-      '<button type="button" id="proRetry">Reyna aftur</button>' + (tech ? '<small>' + escapeHtmlPro(tech) + '</small>' : '');
-    el.querySelector("#proRetry").addEventListener("click", function(){ this.disabled = true; location.reload(); });
+      '<div class="pf-btns"><a class="pf-pick' + (noRetry ? '' : ' sec') + '" id="proPick" href="' + escapeHtmlPro(proPickerUrl()) + '">Velja verkefni</a>' +
+      (noRetry ? '' : '<button type="button" id="proRetry">Reyna aftur</button>') + '</div>' + (tech ? '<small>' + escapeHtmlPro(tech) + '</small>' : '');
+    var rt = el.querySelector("#proRetry"); if (rt) rt.addEventListener("click", function(){ this.disabled = true; location.reload(); });
   }
+  // PRO polish (2026-10-28 audit): no emoji in the header's report button (a line icon instead), Cmd/Ctrl+S = Vista, and
+  // a warning before the tab closes while "● óvistað" shows (the local copy survives, but only in this browser).
+  function proDeEmoji(){
+    ["reportTopBtn", "reportBtn"].forEach(function(id){ var b = document.getElementById(id); if (b){ b.removeAttribute("data-i18n"); b.innerHTML = icon("info", 15) + " Villa / hugmynd"; b.style.display = "inline-flex"; b.style.alignItems = "center"; b.style.gap = "6px"; } });
+  }
+  document.addEventListener("keydown", function(e){
+    if (!PRO || !(e.metaKey || e.ctrlKey) || e.altKey || String(e.key).toLowerCase() !== "s") return;
+    e.preventDefault(); // never the browser's "Save page"
+    if (!PRO.ready || proReadOnly()){ toast(proReadOnly() ? "Verkefnið er læst — opnaðu til breytinga til að vista." : "Verkefnið er enn að opnast."); return; }
+    proSave();
+  });
+  window.addEventListener("beforeunload", function(e){
+    if (!PRO || !PRO.ready || !proDirty()) return;
+    e.preventDefault(); e.returnValue = ""; // the browser shows its own "Leave site?" text
+  });
   async function proBoot(){
+    proDeEmoji();
     document.body.classList.add("pro");
     if (EMBEDDED) document.body.classList.add("embedded");
     // small stepper sits inline in the header, between the title and the PRO bar (user, 2026-10-15) — it's
@@ -19600,8 +19674,8 @@
       if (!r.ok){ var er = new Error("HTTP " + r.status); er.status = r.status; throw er; }
       rec = await r.json();
     }catch(e){
-      if (e.status === 401 || e.status === 403) proFail("Gat ekki opnað verkefnið — lykillinn virkar ekki", "Hlekkurinn er ekki með réttan skrifstofulykil. Opnaðu verkefnið aftur með hnappnum á Tækifærinu í Airtable.", e.message);
-      else if (e.status === 404) proFail("Gat ekki opnað verkefnið — það fannst ekki", "Tækifærið er ekki til lengur eða hlekkurinn er rangur. Opnaðu það aftur úr Airtable.", e.message);
+      if (e.status === 401 || e.status === 403) proFail("Gat ekki opnað verkefnið — lykillinn vantar", "Lykillinn vantar eða er útrunninn. Veldu verkefnið aftur af listanum — ef það dugar ekki, opnaðu skrifstofusíðuna og farðu þaðan.", e.message, e.status);
+      else if (e.status === 404) proFail("Gat ekki opnað verkefnið — það fannst ekki", "Verkefnið er ekki til lengur eða hlekkurinn er rangur. Veldu það aftur af listanum.", e.message, e.status);
       else if (e.status) proFail("Gat ekki opnað verkefnið — villa á þjóninum", "Airtable eða þjónninn svaraði ekki rétt. Bíddu augnablik og reyndu aftur.", e.message);
       else proFail("Gat ekki opnað verkefnið — ekkert samband", "Athugaðu nettenginguna og reyndu aftur.", e.message);
       return;
@@ -20011,17 +20085,25 @@
   function initProHome(){
     document.getElementById("phNewBtn").addEventListener("click", function(){
       document.getElementById("phNewForm").hidden = false;
-      document.getElementById("phSearch").closest(".ph-wrap").hidden = true;
-      document.getElementById("phFornafn").focus();
+      document.getElementById("phFornafn").focus(); // the search stays visible above — look before you make a duplicate
     });
     document.getElementById("phNewCancel").addEventListener("click", phCloseNewForm);
+    ["phFornafn", "phEftirnafn"].forEach(function(id){ document.getElementById(id).addEventListener("input", phDupHint); });
     document.getElementById("phNewCreate").addEventListener("click", phCreateProject);
     document.getElementById("phSearch").addEventListener("input", function(){ renderPhResults(); });
     phLoadRecords();
   }
+  // "Til er verkefni með þessu nafni: T-123" while typing, so a customer isn't entered twice (audit #10)
+  function phDupHint(){
+    var msg = document.getElementById("phMsg"), a = document.getElementById("phFornafn").value.trim().toLowerCase(), b = document.getElementById("phEftirnafn").value.trim().toLowerCase();
+    if (!msg || phCreating) return;
+    if (!a || (phRecords || []).length === 0){ msg.textContent = ""; return; }
+    var hit = (phRecords || []).filter(function(r){ var n = String((r.fields || {})["Heiti tækifæris / verkefnis"] || "").toLowerCase(); return n.indexOf(a) !== -1 && (!b || n.indexOf(b) !== -1); }).slice(0, 3)
+      .map(function(r){ var n = String((r.fields || {})["Heiti tækifæris / verkefnis"] || ""); var m = /^T-\d+/i.exec(n); return m ? m[0] : n; });
+    msg.textContent = hit.length ? "Til er verkefni með þessu nafni: " + hit.join(", ") + " — leitaðu hér að ofan áður en þú býrð til nýtt." : "";
+  }
   function phCloseNewForm(){
     document.getElementById("phNewForm").hidden = true;
-    document.getElementById("phSearch").closest(".ph-wrap").hidden = false;
     document.getElementById("phMsg").textContent = "";
     ["phFornafn", "phEftirnafn", "phSimi", "phNetfang"].forEach(function(id){ document.getElementById(id).value = ""; });
   }
@@ -20072,7 +20154,7 @@
       var selling = (phRecords || []).filter(function(r){ return !phActive(r) && /hönnun|ráðgjöf|tilboð sent/i.test((r.fields || {})["Staða í söluferli"] || ""); }).sort(byT).slice(0, 12);
       var group = function(title, rs){ return rs.length ? '<h4 class="ph-group">' + title + ' · ' + rs.length + '</h4>' + rs.map(row).join("") : ''; };
       host.innerHTML = group("Í framleiðslu", prod) + group("Í skipulagi", plan) + group("Unnið — ekki byrjað", waiting) + group("Í sölu", selling) +
-        '<p class="ph-empty">Leitaðu til að finna önnur verkefni (nafn, heimilisfang eða T-númer).</p>';
+        '<p class="ph-empty">Leitaðu til að finna önnur verkefni (nafn eða T-númer).</p>';
       return;
     }
     host.innerHTML = list.map(row).join("");
@@ -20116,6 +20198,7 @@
     if (PRO) proBoot();
     else if (PRO_HOME){
       document.body.classList.add("pro"); // same dark staff theme as proBoot()
+      proDeEmoji();
       if (EMBEDDED) document.body.classList.add("embedded");
       state.step = "pro-home";
       render();
