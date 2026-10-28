@@ -949,6 +949,8 @@
     else if (idx === 3) { next = { to:STAGES[4].key, text:"✅ Verkið er afhent", cls:"", done:"Verkið er merkt afhent" }; hint = "Ýttu þegar verkið er komið til kúnnans."; }
     else if (idx === 4) hint = "Verkinu er lokið.";
     else hint = "Staðan færist sjálfkrafa þegar skipulag er klárt.";
+    // A QR-scan link (piece token) can't change the project's stage — open /verk from the app for that.
+    if (stageState.k && stageState.k.indexOf("pk1.") === 0 && next) { next = null; hint = "Til að breyta stöðu verksins: opnaðu verkið úr appinu."; }
     $("stageHint").textContent = hint;
     btn.classList.toggle("hidden", !next);
     btn.classList.remove("armed");
@@ -1172,7 +1174,7 @@
   // /verk visit, or reuse the office login's, so a chat link opens on a phone/PC that has
   // been here before.
   try {
-    if (k) localStorage.setItem("bjorninn:verk:k", k);
+    if (k) { if (k.indexOf("pk1.") !== 0) localStorage.setItem("bjorninn:verk:k", k); } // piece tokens (QR) expire in 12 h — never remembered
     else k = localStorage.getItem("bjorninn:verk:k") || localStorage.getItem("bjorninn:skrifstofa:k") || "";
   } catch (e) {}
   if (!t || !/^rec[A-Za-z0-9]{14}$/.test(t) || !k) {

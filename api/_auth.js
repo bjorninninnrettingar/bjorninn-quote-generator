@@ -92,3 +92,42 @@ export const isFullKey = (k) => keyLevel(k) === "full";
 
 // For endpoints the floor really uses (virkni, verk-status): old key OR a valid floor token.
 export const checkFloorOrFullKey = (k) => keyLevel(k) !== null;
+
+// ── Piece token (2026-10-28) ─────────────────────────────────────────────────────────────────────
+// Minted by api/v.js for a scanned Zebra label (/v/<pieceId> -> /velja?...&k=<piece token>). Replaces the shared
+// VERK_KEY in that redirect. Self-contained (no lookup): it names the one piece, its unit and its project, so
+// api/airtable.js can scope it without asking Airtable. Valid 12 hours.
+//   pk1.<pieceId>.<unitId>.<projectId or "-">.<expUnixSeconds>.<base64url(hmac)>
+//   hmac = HMAC-SHA256(FLOOR_TOKEN_SECRET, "piece:" + pieceId + ":" + unitId + ":" + projectId + ":" + exp)
+// keyLevel() deliberately does NOT recognise it (so endpoints that accept "any key" never accept it by accident);
+// endpoints that do take it call verifyPieceToken themselves.
+export const PIECE_PREFIX = "pk1";
+export const PIECE_TTL_SEC = 12 * 3600;
+const REC_ID_RE = /^rec[A-Za-z0-9]{14}$/;
+const pieceMac = (secret, pieceId, unitId, projectId, exp) =>
+  b64u(crypto.createHmac("sha256", secret).update(`piece:${pieceId}:${unitId}:${projectId}:${exp}`).digest());
+
+export function signPieceToken(secret, { pieceId, unitId, projectId, exp }) {
+  if (!secret) throw new Error("FLOOR_TOKEN_SECRET not configured");
+  const proj = projectId || "-";
+  if (!REC_ID_RE.test(pieceId) || !REC_ID_RE.test(unitId) || (proj !== "-" && !REC_ID_RE.test(proj))) throw new Error("bad id");
+  return [PIECE_PREFIX, pieceId, unitId, proj, exp, pieceMac(secret, pieceId, unitId, proj, exp)].join(".");
+}
+
+export const isPieceTokenShape = (k) => typeof k === "string" && k.startsWith(PIECE_PREFIX + ".");
+
+export function verifyPieceToken(value, now) {
+  const secret = process.env.FLOOR_TOKEN_SECRET;
+  if (!secret) return { ok: false, reason: "not_configured" };
+  if (typeof value !== "string" || value.length > 300) return { ok: false, reason: "malformed" };
+  const parts = value.split(".");
+  if (parts.length !== 6 || parts[0] !== PIECE_PREFIX) return { ok: false, reason: "malformed" };
+  const [, pieceId, unitId, proj, expStr, sig] = parts;
+  if (!REC_ID_RE.test(pieceId) || !REC_ID_RE.test(unitId) || (proj !== "-" && !REC_ID_RE.test(proj)) || !/^\d{1,12}$/.test(expStr)) {
+    return { ok: false, reason: "malformed" };
+  }
+  if (!safeEq(sig, pieceMac(secret, pieceId, unitId, proj, expStr))) return { ok: false, reason: "bad_signature" };
+  const exp = Number(expStr);
+  if (exp * 1000 <= (now == null ? Date.now() : now)) return { ok: false, reason: "expired" };
+  return { ok: true, pieceId, unitId, projectId: proj === "-" ? null : proj, exp };
+}
