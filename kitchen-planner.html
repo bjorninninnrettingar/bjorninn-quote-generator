@@ -1280,7 +1280,8 @@
   #measureCard .mc-h{ display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; }
   #measureCard .mc-h b{ font-size:14px; }
   #measureCard button{ font:inherit; cursor:pointer; color:var(--ink); }
-  #measureCard #mcDone{ font-size:12.5px; font-weight:700; padding:4px 12px; border-radius:999px; border:1px solid var(--blue); background:var(--blue); color:#fff; }
+  #measureCard #mcDone{ width:26px; height:26px; margin:-4px -6px 0 0; border-radius:50%; border:0; background:transparent; font-size:20px; line-height:1; color:var(--ink-soft); }
+  #measureCard #mcDone:hover{ background:var(--panel); color:var(--ink); }
   #measureCard .mc-hint{ color:var(--ink-soft); font-size:12px; line-height:1.35; margin-bottom:6px; }
   #measureCard .mc-row{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 0; border-top:1px solid var(--line); }
   #measureCard .mc-row b{ display:block; font-size:16px; }
@@ -1493,6 +1494,8 @@
   body.pro #proBar { flex:1 1 auto; min-width:0; justify-content:flex-end; gap:8px; }
   body.pro #proBar > * { flex:none; white-space:nowrap; }
   body.pro #proBar .pb-name { flex:0 1 auto; min-width:48px; max-width:none; }
+  #proBar button.pb-pill { background:transparent; border-color:var(--line); color:var(--ink); font-size:12.5px; padding:4px 11px; }
+  #proBar button.pb-pill-dot::before { content:""; display:inline-block; width:7px; height:7px; margin-right:6px; border-radius:50%; background:#ffd60a; }
   #proBar .pb-left { display:flex; align-items:center; gap:12px; margin-right:auto; min-width:0; }
   #proBar .pb-left .pb-tno { font-size:15px; font-weight:800; opacity:1; }
   #proBar .pb-left .pb-name { opacity:.85; font-size:14px; max-width:22vw; }
@@ -16731,7 +16734,7 @@
       });
     }
     c.hidden = !show; if (!show) return;
-    c.innerHTML = '<div class="mc-h"><b>' + __("Málband") + '</b><button type="button" id="mcDone">' + __("Lokið") + '</button></div>' +
+    c.innerHTML = '<div class="mc-h"><b>' + __("Málband") + '</b><button type="button" id="mcDone" aria-label="' + __("Loka") + '" title="' + __("Loka") + ' (Esc)">×</button></div>' +
       '<div class="mc-hint">' + (measurePend ? __("Smelltu á seinni punktinn — Shift læsir línunni, Esc hættir við") : __("Smelltu á fyrsta punkt — græni hringurinn er horn eða miðja")) + '</div>' +
       (measureList.length ? '<div class="mc-list">' + measureList.map(function(m, i){
         var p = measureParts(m), sub = p.h > 5 && p.v > 5 ? __("lárétt") + " " + uLen(p.h) + " · " + __("lóðrétt") + " " + uLen(p.v) : p.v > 5 ? __("lóðrétt") : __("lárétt");
@@ -18820,16 +18823,17 @@
       ? '<button type="button" id="proUnlock" class="pb-unlock pb-stat" title="Staða: ' + escapeHtmlPro(PRO.lockStatus) + '. Þú getur skoðað allt, en ekki breytt fyrr en þú opnar til breytinga.">Læst · Opna til breytinga</button>'
       : '<span class="pb-stat' + (!msg && proDirty() ? ' pb-dirty' : '') + '">' + (msg ? escapeHtmlPro(msg) : proDirty() ? '● óvistað' : (PRO.locked ? 'opið til breytinga · ' : '') + '✓ vistað' +(state.proSavedAt ? ' ' + escapeHtmlPro(proClock(state.proSavedAt)) : '')) + '</span>';
     var off = function(cond, why){ return cond ? ' disabled title="' + escapeHtmlPro(why) + '"' : ''; };
-    var needsDot = PRO.needsReview ? '<span class="pb-dot" title="Teikning frá viðskiptavini bíður yfirferðar"></span>' : "";
-    el.innerHTML = '<span class="pb-left">' + proNameHtml() + backBtn + '</span>' + stat +
+    // what used to hide behind "Meira" (owner 2026-10-28: the menu goes): two small pills beside the name, only when they apply — the right-hand buttons never move
+    var pills = (proFromStudio() ? '<button type="button" id="proStudioBtn" class="pb-pill" title="Það sem viðskiptavinurinn sendi inn úr Studio: svör, athugasemd, tengiliður, rými og sérkerfi">Frá Studio</button>' : "") +
+      (PRO.needsReview ? '<button type="button" id="proReviewed" class="pb-pill pb-pill-dot" title="Teikning frá viðskiptavini: merktu hana yfirfarna (hún fer þá af „Til yfirferðar“ listanum)">Merkja yfirfarna</button>' : "");
+    el.innerHTML = '<span class="pb-left">' + proNameHtml() + backBtn + pills + '</span>' + stat +
       // Vista saves straight to Airtable (one click, Cmd/Ctrl+S); Yfirferð is the checklist and the gated "Klár til framleiðslu"
       '<button type="button" id="proSave" class="pb-save"' + (locked ? off(true, lockWhy) : (PRO.ready && !pc.saving ? ' title="Vista í Airtable (Cmd+S)"' : ' disabled title="' + (pc.saving ? "Vista…" : "Verkefnið er enn að opnast") + '"')) + '>Vista</button>' +
       '<button type="button" id="proYfirferd" class="pb-chk' + (pc.open ? ' on' : '') + '"' + (locked ? off(true, lockWhy) : (PRO.ready ? ' title="Yfirferð: listi yfir það sem þarf að vera klárt áður en verkefnið fer í framleiðslu"' : ' disabled')) + '>Yfirferð<span class="pb-prog" id="proProg">' + escapeHtmlPro(pc.badge || "") + '</span></button>' +
       '<button type="button" id="proTilbodToggle"' + (tp.open ? ' class="on"' : "") + ' title="Tilboðið eins og viðskiptavinurinn sér það">Tilboð</button>' +
       '<button type="button" id="proWorkDraw" title="2D vinnuteikningar fyrir verkstæðið">Teikningar</button>' +
       '<button type="button" id="proDoorList"' + (locked ? off(true, lockWhy) : ' title="Innihurðir fyrir allt heimilið (HU = hurð, ein lína í pöntun fyrir hverja hurð)"') + '>Hurðir</button>' +
-      '<button type="button" id="proMeasure"' + (locked ? off(true, lockWhy) : ' title="Mælingarblað: sláðu inn málin á staðnum beint í teikninguna"') + '>Mæling</button>' +
-      '<button type="button" id="proMoreBtn" class="pb-more' + (pm.open ? ' on' : '') + '" aria-haspopup="menu" aria-expanded="' + !!pm.open + '" title="Fleiri aðgerðir">Meira' + needsDot + icon("down", 12) + '</button>';
+      '<button type="button" id="proMeasure"' + (locked ? off(true, lockWhy) : ' title="Mælingarblað: sláðu inn málin á staðnum beint í teikninguna"') + '>Mæling</button>';
     var $ = function(id){ return el.querySelector(id); }, on = function(id, fn){ var b = $(id); if (b && !b.disabled) b.addEventListener("click", fn); };
     on("#proUnlock", proUnlock);
     on("#proSave", function(){ proSave(); });
@@ -18838,28 +18842,11 @@
     on("#proWorkDraw", openWorkDrawings);
     on("#proDoorList", function(){ openDoors("list"); }); // the customer's HU list + Hanna, in mm (2026-10-26)
     on("#proMeasure", openMeasurePanel);
-    on("#proMoreBtn", function(ev){ ev.stopPropagation(); proMoreToggle(!pm.open); });
-    proMoreRender();
+    on("#proStudioBtn", function(){ var p = document.getElementById("proStudio"); proStudioRender(!p || p.hidden); });
+    on("#proReviewed", proMarkReviewed);
     proCheckSoon();
     if (typeof proSyncNext === "function") proSyncNext();
   }
-  // "Meira" (audit #5): the things that exist only sometimes. Lives on <body> (the bar clips), re-rendered with the bar.
-  var pm = { open:false };
-  function proMoreToggle(on){ pm.open = !!on; var b = document.getElementById("proMoreBtn"); if (b){ b.classList.toggle("on", pm.open); b.setAttribute("aria-expanded", String(pm.open)); } proMoreRender(); }
-  function proMoreRender(){
-    var m = document.getElementById("proMore"), b = document.getElementById("proMoreBtn");
-    if (!pm.open || !b){ if (m) m.hidden = true; return; }
-    if (!m){ m = document.createElement("div"); m.id = "proMore"; m.setAttribute("role", "menu"); document.body.appendChild(m);
-      m.addEventListener("click", function(e){ var t = e.target.closest("button"); if (!t || t.disabled) return; proMoreToggle(false); (m.__go || {})[t.id] && m.__go[t.id](); }); }
-    var go = {};
-    var items = [];
-    if (proFromStudio()){ items.push('<button type="button" role="menuitem" id="proStudioBtn" title="Það sem viðskiptavinurinn sendi inn úr Studio: svör, athugasemd, tengiliður, rými og sérkerfi">Frá Studio</button>'); go.proStudioBtn = function(){ var p = document.getElementById("proStudio"); proStudioRender(!p || p.hidden); }; }
-    if (PRO.needsReview){ items.push('<button type="button" role="menuitem" id="proReviewed" title="Teikning frá viðskiptavini: merktu hana yfirfarna (hún fer þá af „Til yfirferðar“ listanum)">Merkja teikningu yfirfarna</button>'); go.proReviewed = proMarkReviewed; }
-    m.__go = go; m.innerHTML = items.join(""); m.hidden = false;
-    var r = b.getBoundingClientRect(); m.style.top = Math.round(r.bottom + 6) + "px"; m.style.right = Math.max(8, Math.round(window.innerWidth - r.right)) + "px";
-  }
-  document.addEventListener("pointerdown", function(e){ if (pm.open && e.target.closest && !e.target.closest("#proMore, #proMoreBtn")) proMoreToggle(false); });
-  document.addEventListener("keydown", function(e){ if (pm.open && e.key === "Escape") proMoreToggle(false); });
   // ---------- Yfirferð — the gate before Vista / Klár til framleiðslu (2026-10-26) ----------
   // Everything production needs, as one list, each line a link to where it gets fixed (mission: "idiot proof" — nothing
   // skippable, nothing missable). "Vista í Airtable" is always allowed (a draft); "Klár til framleiðslu" = vista +
@@ -19120,7 +19107,7 @@
   function proCheckFix(x){
     var t = x.target;
     if (x.key === "maeling"){ proCheckOpen(false); openMeasurePanel(); return; }
-    if (x.key === "yfirfarid"){ proCheckOpen(false); proMoreToggle(true); var rv = document.getElementById("proReviewed"); if (rv){ rv.classList.add("pb-flash"); setTimeout(function(){ rv.classList.remove("pb-flash"); }, 1600); } return; }
+    if (x.key === "yfirfarid"){ proCheckOpen(false); var rv = document.getElementById("proReviewed"); if (rv){ rv.classList.add("pb-flash"); setTimeout(function(){ rv.classList.remove("pb-flash"); }, 1600); } return; }
     if (x.key === "orphans"){ if (!x.pending) proOrphFix(); return; }
     if (x.key === "sala") return; // answered with its checkbox in the list
     if (x.key === "abend"){ var wc = document.getElementById("warnChip"); if (wc && !wc.hidden) wc.click(); return; }

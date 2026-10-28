@@ -2720,7 +2720,7 @@
   // "Sk-númer" (PRO, 2026-10-26): every ordered cabinet's Sk number on its front, same pill as the dimensions.
   // KP3D.setSkTags({ blockId:"Sk1", … }) or null; read off the live pickables, so it follows drags and rebuilds.
   var SK_TAGS = null, skCorner = null;
-  function setSkTags(map){ SK_TAGS = map && Object.keys(map).length ? map : null; if (OV) OV.last = ""; }
+  function setSkTags(map){ SK_TAGS = map && Object.keys(map).length ? map : null; if (OV){ OV.last = null; if (THREE_STATE && THREE_STATE.camera) drawOverlay(THREE_STATE.camera, THREE_STATE.renderer.domElement); } } // redrawn at once — an empty overlay equalled the old "" so switching the tags off never cleared them
   function skTagsSvg(P){
     if (!SK_TAGS || !THREE_STATE || !THREE_STATE.pickables) return "";
     var out = "", seen = {};
@@ -4392,7 +4392,7 @@
       st.wallHi = null;
     }
     st.opts.selectedWallId = wallId || null;
-    if (!wallId) return true;
+    if (!wallId || outlineSel) return true; // Studio / wardrobes: no blue wall highlight at all (owner 2026-10-28) — PRO keeps it
     var wi = st.walls.findIndex(function(w){ return w.id === wallId; }), g = st.geoms[wi];
     if (!g || st.walls[wi].island || st.walls[wi].open) return true;
     var hM = st.roomHM, grp = new THREE.Group();
