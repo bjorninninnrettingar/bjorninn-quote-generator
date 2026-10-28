@@ -1415,7 +1415,9 @@
   #proFail h2 { margin:6px 0 8px; font-size:19px; line-height:1.3; }
   #proFail p { margin:0 0 18px; font-size:14px; line-height:1.5; color:var(--ink-soft); }
   #proFail .pf-ico { color:#ffb020; }
-  #proFail button { font:700 14px/1.2 inherit; font-family:inherit; border:0; border-radius:10px; padding:11px 22px; cursor:pointer; background:var(--blue); color:#fff; }
+  #proFail button, #proFail a.pf-pick { display:inline-block; box-sizing:border-box; font:700 14px/1.2 inherit; font-family:inherit; border:0; border-radius:10px; padding:11px 22px; cursor:pointer; background:var(--blue); color:#fff; text-decoration:none; }
+  #proFail .pf-btns { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+  #proFail a.pf-pick.sec { background:transparent; color:var(--ink); border:1px solid var(--line); }
   #proFail small { display:block; margin-top:14px; font-size:12px; color:var(--ink-soft); opacity:.8; }
   /* in-app PRO dialog (replaces window.confirm, 2026-10-26) */
   #proDlg { position:fixed; inset:0; z-index:400; background:rgba(15,18,24,.6); display:flex; align-items:center; justify-content:center; padding:16px; box-sizing:border-box; }
@@ -1427,6 +1429,7 @@
   #proCheck .pc-err { margin:8px 0 4px; padding:10px 12px; border-radius:10px; background:#3a1518; border:1px solid #a3271a; color:#ffd9d4; font-size:13px; line-height:1.4; display:flex; flex-wrap:wrap; gap:4px 6px; align-items:baseline; }
   #proCheck .pc-err b { color:#fff; }
   #proCheck .pc-err-d { flex-basis:100%; font-size:12px; color:#ffb8ae; }
+  #proCheck a.pc-retry { text-decoration:none; display:inline-block; }
   #proCheck .pc-retry { margin-top:6px; font:700 13px/1.2 inherit; font-family:inherit; border-radius:8px; padding:7px 14px; cursor:pointer; border:1px solid #ff8a7a; background:#a3271a; color:#fff; }
   #proDlg .pd-foot { display:flex; justify-content:flex-end; gap:10px; margin-top:16px; }
   #proDlg .pd-foot button { font:700 14px/1.2 inherit; font-family:inherit; border-radius:10px; padding:10px 18px; cursor:pointer; border:1px solid var(--line); background:transparent; color:var(--ink); }
@@ -2182,12 +2185,12 @@
   <!-- ============ STEP: WELCOME ============ -->
   <!-- ============ PRO HOME (2026-10-23): ?pro=home — start a new project or continue one ============ -->
   <section id="screen-pro-home" hidden>
-    <div class="title-row"><div><div class="screen-title">PRO — Velja verkefni</div>
+    <div class="title-row"><div><div class="screen-title">Veldu verkefni</div>
     <p class="screen-sub">Byrjaðu nýtt verkefni eða haltu áfram með eitt sem þegar er til.</p></div>
     <div class="actions step-nav"><button class="btn btn-primary" id="phNewBtn" type="button">＋ Nýtt verkefni</button></div></div>
 
     <div class="ph-wrap">
-      <input type="search" class="sw-search" id="phSearch" placeholder="Leita að verkefni — nafn eða heimilisfang" autocomplete="off">
+      <input type="search" class="sw-search" id="phSearch" placeholder="Leita að verkefni — nafn eða T-númer" autocomplete="off">
       <div id="phResults" class="ph-results"></div>
     </div>
 
@@ -2642,7 +2645,7 @@
   // Ferli to find a project's "Opna í hönnuðinum" link. Not a real record id, so PRO itself stays null and
   // the normal proBoot() path never runs; see the init branch near the bottom of this file.
   var PRO_HOME = (function(){ try{ return new URLSearchParams(location.search).get("pro") === "home"; }catch(e){ return false; } })();
-  function proHomeK(){ try{ return new URLSearchParams(location.search).get("k") || ""; }catch(e){ return ""; } }
+  function proHomeK(){ try{ var k = new URLSearchParams(location.search).get("k") || ""; if (k){ try{ localStorage.setItem("bjorninn:skrifstofa:k", k); }catch(e){} return k; } try{ return localStorage.getItem("bjorninn:skrifstofa:k") || ""; }catch(e){ return ""; } }catch(e){ return ""; } }
   // Embedded in the office shell's own <iframe> (2026-10-23, pro.html) — not a full-page open
   // anymore, so the page's own "BJÖRNINN STUDIO" kicker is redundant next to the office sidebar
   // that already carries that branding; same ?embedded=1 + .embedHide pattern grain.html already
@@ -2698,6 +2701,7 @@
   var ICON_PATHS = { cube:'<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/>', sheet:'<path d="M6 3h8.5L19 7.5V21H6z"/><path d="M14 3v5h5M9 12.5h7M9 16h7"/>', up:'<path d="M12 19V5M6 11l6-6 6 6"/>', down:'<path d="M12 5v14M6 13l6 6 6-6"/>', grip:'<circle cx="9" cy="7" r="1"/><circle cx="15" cy="7" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="17" r="1"/><circle cx="15" cy="17" r="1"/>', info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/>',"target": "<circle cx=\"12\" cy=\"12\" r=\"7.5\"/><circle cx=\"12\" cy=\"12\" r=\"2.5\"/><path d=\"M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3\"/>", "camera": "<path d=\"M4 8.5h3l1.8-2.5h6.4L17 8.5h3V19H4z\"/><circle cx=\"12\" cy=\"13.5\" r=\"3.4\"/>", "trash": "<path d=\"M5 7h14M10 7V5h4v2M7 7l.9 12.2h8.2L17 7M10.5 10.5v6M13.5 10.5v6\"/>", "lock": "<rect x=\"6\" y=\"11\" width=\"12\" height=\"9\" rx=\"1.5\"/><path d=\"M8.5 11V8a3.5 3.5 0 0 1 7 0v3\"/>", "unlock": "<rect x=\"6\" y=\"11\" width=\"12\" height=\"9\" rx=\"1.5\"/><path d=\"M8.5 11V8a3.5 3.5 0 0 1 6.9-.9\"/>", "laptop": "<rect x=\"4.5\" y=\"5\" width=\"15\" height=\"10.5\" rx=\"1\"/><path d=\"M2.5 19h19\"/>", "check": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M8 12.4l2.8 2.8L16.2 9.6\"/>", "window": "<rect x=\"5\" y=\"4\" width=\"14\" height=\"16\" rx=\".5\"/><path d=\"M12 4v16M5 12h14\"/>", "door": "<path d=\"M6.5 20.5V3.5h11v17M4 20.5h16\"/><circle cx=\"14.6\" cy=\"12\" r=\".7\"/>", "opening": "<path d=\"M6.5 20.5V3.5h11v17\" stroke-dasharray=\"2 2\"/><path d=\"M4 20.5h16\"/>", "eldhus": "<rect x=\"3.5\" y=\"10\" width=\"17\" height=\"10\" rx=\".5\"/><path d=\"M3.5 13.5h17M12 13.5V20M7 7h4M13 7h4\"/>", "fataskapar": "<rect x=\"5\" y=\"3\" width=\"14\" height=\"18\" rx=\".5\"/><path d=\"M12 3v18M10.2 11v2M13.8 11v2\"/>", "bad": "<path d=\"M4 11.5h16v1.5a6 6 0 0 1-6 6h-4a6 6 0 0 1-6-6z\"/><path d=\"M12 11.5V6h3\"/>", "thvottahus": "<rect x=\"5\" y=\"3\" width=\"14\" height=\"18\" rx=\"1.5\"/><circle cx=\"12\" cy=\"13.2\" r=\"4\"/><path d=\"M8 6.5h2\"/>", "hurdir": "<path d=\"M6.5 20.5V3.5h11v17M4 20.5h16\"/><circle cx=\"14.6\" cy=\"12\" r=\".7\"/>", "close": "<path d=\"M6.5 6.5l11 11M17.5 6.5l-11 11\"/>", "rotate": "<path d=\"M18.5 12a6.5 6.5 0 1 1-1.9-4.6\"/><path d=\"M17 3.8v3.9h-3.9\"/>", "ibud": "<path d=\"M4 11l8-6.5 8 6.5v9.5H4z\"/><path d=\"M10 20.5V15h4v5.5\"/>",
     chevronLeft:'<path d="M14.5 6l-6 6 6 6"/>', chevronRight:'<path d="M9.5 6l6 6-6 6"/>', copy:'<rect x="8.5" y="8.5" width="11" height="11" rx="1.5"/><path d="M15.5 8.5V5.5a1 1 0 0 0-1-1h-9a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3"/>',
     eye:'<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>' };
+  ICON_PATHS.alert = '<path d="M12 4l9 16H3z"/><path d="M12 10v4.5"/><path d="M12 17.2h.01"/>'; // line icon in PRO instead of the ⛔/⚠️ emoji
   function icon(k, size){ size = size || 18; return '<svg class="ico" viewBox="0 0 24 24" width="' + size + '" height="' + size + '" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICON_PATHS[k] || "") + '</svg>'; }
 
   // Measurement fields take numbers only (user, 2026-10-26, round 5): every number / decimal field in every flow —
@@ -12758,7 +12762,7 @@
     if (state.step !== "materials" && closetPrevKey){ closetPrevKey = ""; if (state.step !== "editor") KP3D.teardown3D(true); }
     document.getElementById("pageLede").hidden = true; // the intro is on the welcome page only (2026-10-11)
     var rb = document.getElementById("resetBtn"); if (rb) rb.hidden = state.step === "welcome" && !hasDesign(); // nothing to start over yet
-    document.getElementById("tourBtn").hidden = state.step !== "editor";
+    document.getElementById("tourBtn").hidden = state.step !== "editor" || !!PRO; // the tour is the customer's — nothing PRO-specific to show yet (audit #5b)
     if (state.step === "materials") setTimeout(function(){ if (state.step === "materials") hintOnce("efni", __("<b>Myndin byggist upp</b> eftir því sem þú velur — dragðu til að snúa henni. Allt er forvalið, svo „Áfram →“ virkar alltaf.")); }, 900);
     if (state.step === "contact") setTimeout(function(){ if (state.step === "contact") hintOnce("senda", __("<b>Ekkert er pantað núna.</b> Söluaðili fer yfir hönnunina og hefur samband innan 3 virkra daga — ókeypis og án skuldbindingar.")); }, 700);
     if (state.step === "hurdir") setTimeout(function(){ if (state.step === "hurdir") hintOnce("hurdir", __("<b>Ein lína fyrir hverja hurð</b> — veldu rýmið og ýttu á „Hanna“ við hverja hurð.")); }, 700);
@@ -17819,7 +17823,7 @@
     // ⛔ first, where it can't be missed (2026-10-26: it sat under the last section, below the fold on a tall unit)
     // each with "Laga" (2026-10-26): the nearest value that works, one undo step (Cmd+Z / Afturkalla right here)
     var issueList = proIssues(b, c, fb.zone, true), issues = issueList.map(function(x){ return x.text; });
-    if (issueList.length) right += '<div class="pe-issues' + (peFlash ? ' flash' : '') + '"><b>⛔ Lagaðu áður en skápurinn er merktur yfirfarinn:</b>' + issueList.map(function(x){
+    if (issueList.length) right += '<div class="pe-issues' + (peFlash ? ' flash' : '') + '"><b>' + icon("alert", 16) + ' Lagaðu áður en skápurinn er merktur yfirfarinn:</b>' + issueList.map(function(x){
       return '<div class="pe-issue"><span>' + escapeHtmlPro(x.text) + '</span>' + (x.fix ? '<button type="button" class="pe-btn pe-laga" data-pe="fixissue" data-fix="' + x.fix + '" title="' +
         (x.fix === "drawers" ? "Næsta gilda hæð — tekið af / bætt á skúffuna með mest pláss" : "Færir lamirnar sem lenda á hillum á næsta lausa stað og bætir við þeim sem vantar") + '">Laga</button>' : '') + '</div>'; }).join("") + '</div>';
     peFlash = false;
@@ -17955,7 +17959,7 @@
     }
     if (dr || (c.oven && !c.lowOven)) right += '<div class="pe-door"><h4>' + (dr ? "Skúffur" : "Undir ofninum") + '</h4><div id="peInterior">' +
       (dr ? hardwareHTML(b, c, { sides:true }) : variantHTML(b, c, { sides:true })) + '</div>' +
-      '<div class="pe-note">Sláðu inn frontahæð, dragðu bláu skilin á teikningunni eða ⠿ til að færa skúffu. Aðeins skúffan sem þú dregur breytist — samtalan þarf að fylla skápinn (⛔ efst segir til). Strikaða línan er Blum-hliðin (hlið = hæð hennar; staðsetningin er nálgun), rauðu punktarnir eru göt fyrir framhliðina.</div></div>';
+      '<div class="pe-note">Sláðu inn frontahæð, dragðu bláu skilin á teikningunni eða ⠿ til að færa skúffu. Aðeins skúffan sem þú dregur breytist — samtalan þarf að fylla skápinn (villulistinn efst segir til). Strikaða línan er Blum-hliðin (hlið = hæð hennar; staðsetningin er nálgun), rauðu punktarnir eru göt fyrir framhliðina.</div></div>';
     if (bathSinkUnit(b, c)){ // Toppur (bath vaskaskápur): waste hole + tap, mm from the left side / from the wall; a small plan beside it
       var bt = bathTopOf(b, c), dpt = b.depthMm || c.d, pw = 150, ps = pw / b.widthMm, ph = dpt * ps;
       var plan = '<svg width="' + (pw + 2) + '" height="' + (ph + 16) + '" style="flex:none"><rect x="1" y="9" width="' + pw + '" height="' + ph + '" fill="#f4f5f7" stroke="#8a929c"/>' +
@@ -18004,14 +18008,14 @@
       ? '<div class="pe-note">Merktur yfirfarinn ' + (b.smidaReadyAt ? new Date(b.smidaReadyAt).toLocaleString("is-IS") : "") + '. Breyting á skápnum tekur merkinguna af.</div>' +
         '<button type="button" class="pe-ready undo" data-pe="ready" data-v="0">Taka merkinguna af</button>'
       : (b.smidaReady ? '<div class="pe-note">Skápnum var breytt eftir að hann var merktur yfirfarinn — yfirfara og merkja aftur.</div>' : '') +
-        (issues.length ? '<div class="pe-note">Hnappurinn opnast þegar ⛔ atriðin efst eru löguð.</div>' : '') +
+        (issues.length ? '<div class="pe-note">Hnappurinn opnast þegar villurnar efst eru lagaðar.</div>' : '') +
         '<div class="pe-note">Merktu skápinn með græna hnappnum efst — hann fer þá beint á næsta óyfirfarna.</div>';
     // the strip of Sk buttons + the one primary button, always in the same place (top right) whatever the state
     var skList = proSkList(), curUid = proUid(b.id), skNext = proNextUnready(skList, curUid), nOk = skList.filter(function(x){ return x.st === "ok"; }).length, skMulti = skList.some(function(x){ return x.ri > 0; });
-    var stTxt = { ok:"yfirfarinn", todo:"ekki skoðaður", err:"⛔ villa í Smíða" };
+    var stTxt = { ok:"yfirfarinn", todo:"ekki skoðaður", err:"villa í Smíða" };
     var goBtn = isReady
       ? '<button type="button" class="pe-go next" data-pe="go"' + (skNext ? ' title="Næsti skápur sem er ekki yfirfarinn' + (skNext.cat !== (skList.find(function(x){ return x.uid === curUid; }) || {}).cat ? ' (' + escapeHtmlPro(skNext.room) + ')' : '') + '">Næsti → ' + skNext.key : ' title="Allir skápar eru yfirfarnir">Allir yfirfarnir — loka') + '</button>'
-      : '<button type="button" class="pe-go" data-pe="go"' + (issues.length ? ' disabled title="Lagaðu ⛔ atriðin fyrst"' : ' title="Merkja þennan yfirfarinn' + (skNext ? ' og opna ' + skNext.key : '') + '"') + '>' + (skNext ? 'Yfirfarinn → ' + skNext.key : 'Skápur yfirfarinn ✓') + '</button>';
+      : '<button type="button" class="pe-go" data-pe="go"' + (issues.length ? ' disabled title="Lagaðu villurnar fyrst"' : ' title="Merkja þennan yfirfarinn' + (skNext ? ' og opna ' + skNext.key : '') + '"') + '>' + (skNext ? 'Yfirfarinn → ' + skNext.key : 'Skápur yfirfarinn ✓') + '</button>';
     var nav = '<div class="pe-nav"><button type="button" class="pe-btn pe-arrow" data-pe="prev" title="Fyrri skápur (←)">' + icon("chevL", 16) + '</button>' +
       '<div class="pe-sks">' + skList.map(function(x, i){ return (skMulti && (i === 0 || skList[i - 1].ri !== x.ri) ? '<span class="pe-room' + (i ? ' sep' : '') + '">' + escapeHtmlPro(x.room) + '</span>' : '') +
         '<button type="button" class="pe-sk ' + x.st + (x.uid === curUid ? ' cur' : '') + '" data-pe="goto" data-id="' + escapeHtmlPro(x.uid) + '" title="' + x.key + ' · ' + escapeHtmlPro(x.label) + (skMulti ? ' (' + escapeHtmlPro(x.room) + ')' : '') + ' — ' + stTxt[x.st] + '"><i></i>' + x.key + '</button>'; }).join("") + '</div>' +
@@ -18555,16 +18559,16 @@
     proRoSync();
     el.hidden = false;
     // legacy project (Eyðublöð not made from Line Items, e.g. T-15): Smíða happens in /smida, always reachable here
-    var smidaEyBtn = PRO.legacy ? '<button type="button" id="proSmidaEy" class="pb-review" title="Lamir, hillur, ofn og innskúffur fyrir CNC — beint á Eyðublöðin sem eru til">Smíða úr Eyðublöðum</button>' : "";
+    var smidaEyBtn = PRO.legacy ? '<button type="button" id="proSmidaEy" class="pb-review" title="Eldra verkefni: lamir, hillur, ofn og innskúffur fyrir CNC eru stillt beint á framleiðslulínurnar (Eyðublöð) sem eru til">Smíða úr Eyðublöðum</button>' : "";
     // G10/G12 (2026-10-27): a way back to the office (not inside /pro's frame — it has its own sidebar) and Smíða & CNC
     // in every state (the designer wants to see the CNC side before locking); a legacy project's "Smíða úr Eyðublöðum" is the same page
     var backBtn = EMBEDDED ? "" : '<a class="pb-back" href="/skrifstofa" title="Aftur á skrifstofuna (teikningin er geymd í þessum vafra)">← Skrifstofa</a>';
     var smidaBtn = PRO.legacy ? "" : '<button type="button" id="proSmidaCnc" title="Smíða & CNC (/smida): hliðar, frontar og það sem CNC borar — opnast í nýjum flipa">Smíða & CNC ↗</button>';
     var reviewBtn = (proFromStudio() ? '<button type="button" id="proStudioBtn" class="pb-review" title="Það sem viðskiptavinurinn sendi inn úr Studio: svör, athugasemd, tengiliður, rými og sérkerfi">Frá Studio</button>' : "") +
-      (PRO.needsReview ? '<button type="button" id="proReviewed" class="pb-review" title="Teikning frá viðskiptavini: merktu hana yfirfarna (fer af „Til yfirferðar“ í CRM)">Merkja teikningu yfirfarna</button>' : "");
+      (PRO.needsReview ? '<button type="button" id="proReviewed" class="pb-review" title="Teikning frá viðskiptavini: merktu hana yfirfarna (hún fer þá af „Til yfirferðar“ listanum)">Merkja teikningu yfirfarna</button>' : "");
     if (PRO.locked && !PRO.unlocked){
       el.innerHTML = backBtn + '<span>PRO</span>' + proNameHtml() +
-        '<span class="pb-locked">Í skipulagi (' + escapeHtmlPro(PRO.lockStatus) + ') — skoðunarhamur</span>' +
+        '<span class="pb-locked" title="Staða: ' + escapeHtmlPro(PRO.lockStatus) + '. Þú getur skoðað allt, en ekki breytt fyrr en þú opnar til breytinga.">Læst — komið í framleiðslu</span>' +
         reviewBtn + smidaEyBtn +
         '<button type="button" id="proTilbodToggle"' + (tp.open ? ' class="on"' : "") + '>Tilboð</button>' +
         '<button type="button" id="proWorkDraw" title="2D vinnuteikningar fyrir verkstæðið">Teikningar</button>' +
@@ -18589,7 +18593,7 @@
       '<button type="button" id="proSave" class="pb-save"' + (PRO.ready ? "" : " disabled") + ' title="Yfirferð og vistun">Vista<span class="pb-prog" id="proProg">' + escapeHtmlPro(pc.badge || "") + '</span></button>' +
       '<button type="button" id="proTilbodToggle"' + (tp.open ? ' class="on"' : "") + '>Tilboð</button>' +
       '<button type="button" id="proWorkDraw" title="2D vinnuteikningar fyrir verkstæðið">Teikningar</button>' +
-      '<button type="button" id="proDoorList" title="Innihurðir fyrir allt heimilið (HU-línur)">Hurðir</button>' +
+      '<button type="button" id="proDoorList" title="Innihurðir fyrir allt heimilið (HU = hurð, ein lína í pöntun fyrir hverja hurð)">Hurðir</button>' +
       '<button type="button" id="proMeasure" title="Mælingarblað: sláðu inn málin á staðnum beint í teikninguna">Mæling</button>' + smidaBtn;
     var dlb = el.querySelector("#proDoorList"); if (dlb) dlb.addEventListener("click", function(){ openDoors("list"); }); // the customer's HU list + Hanna, in mm (2026-10-26)
     var mpb = el.querySelector("#proMeasure"); if (mpb) mpb.addEventListener("click", openMeasurePanel);
@@ -18673,7 +18677,7 @@
         picks:f.unlinked.filter(function(u){ return u.id; }),
         acks:f.unlinked.filter(function(u){ return !u.id; }).map(function(u){ return { id:"v1:" + u.key, label:u.key + (multi ? " (" + u.room + ")" : "") + " — Útfærsla valin í Airtable", on:!!ack["v1:" + u.key] }; }),
         detail:unl.length ? keyList(unl) + ": engin stöðluð vara passar sjálfkrafa — veldu vöruna hér fyrir neðan (fer í V1 á línunni þegar þú vistar)." : f.cabinets ? f.cabinets + " " + plural(f.cabinets, "eining", "einingar") + " með vöru." : "Engar einingar enn." },
-      { key:"villur", ok:f.cabinets > 0 && !f.issues.length, title:"Engar ⛔ villur í Smíða", target:f.issues[0], smida:true,
+      { key:"villur", ok:f.cabinets > 0 && !f.issues.length, title:"Engar villur í Smíða", target:f.issues[0], smida:true,
         detail:f.issues.length ? f.issues[0].key + ": " + f.issues[0].text + (f.issues.length > 1 ? " (og " + (f.issues.length - 1) + " " + plural(f.issues.length - 1, "skápur", "skápar") + " í viðbót)" : "") : f.cabinets ? "Lamir, skúffur og hillur ganga upp." : "Engar einingar enn." },
       { key:"smida", ok:f.cabinets > 0 && !f.unready.length, title:"Hver skápur yfirfarinn í Smíða", target:f.unready[0], smida:true,
         detail:f.unready.length ? f.unready.length + " af " + f.cabinets + " eftir: " + keyList(f.unready) + ". Opnaðu Smíða og ýttu á „Yfirfarinn →“ — það fer beint á næsta skáp." : f.cabinets ? "Allir merktir yfirfarnir." : "Engar einingar enn." },
@@ -18827,10 +18831,10 @@
           (x.acks && x.acks.length ? '<span class="pc-acks">' + x.acks.map(function(a){ return '<label><input type="checkbox" data-ack="' + esc(a.id) + '"' + (a.sig != null ? ' data-sig="' + esc(a.sig) + '"' : '') + (a.on ? " checked" : "") + '> ' + esc(a.label) + '</label>'; }).join("") + '</span>' : '') +
           '</div>';
       }).join("") +
-      (pc.saveErr ? '<div class="pc-err" role="alert"><b>Vistun tókst ekki.</b> ' + esc(pc.saveErr) + (proDirty() ? ' <span class="pc-err-d">● Óvistað — breytingarnar eru geymdar í þessum vafra.</span>' : '') + '<button type="button" class="pc-retry" data-pc="save">Reyna aftur</button></div>' : '') +
+      (pc.saveErr ? '<div class="pc-err" role="alert"><b>Vistun tókst ekki.</b> ' + esc(pc.saveErr) + (proDirty() ? ' <span class="pc-err-d">● Óvistað — breytingarnar eru geymdar í þessum vafra.</span>' : '') + '<button type="button" class="pc-retry" data-pc="save">Reyna aftur</button> <a class="pc-retry" href="' + esc(proPickerUrl()) + '" title="Aftur á verkefnalistann — teikningin er geymd í þessum vafra">Velja verkefni</a></div>' : '') +
       '<div class="pc-foot"><button type="button" class="pc-save" data-pc="save"' + (pc.saving ? ' disabled' : '') + '>' + (pc.saving ? "Vista…" : "Vista í Airtable") + '</button>' +
       '<button type="button" class="pc-ready" data-pc="ready"' + (all ? "" : ' disabled title="Opnast þegar allar línur eru grænar"') + '>Klár til framleiðslu</button></div>' +
-      '<div class="pc-note">Vista geymir drögin hvenær sem er. „Klár til framleiðslu“ vistar og keyrir skipulag (Eyðublöð → Sögunarlisti, Pöntunarlisti, CNC) — eftir það læsist teikningin.' + (proDirty() ? ' <b>● Óvistaðar breytingar.</b>' : '') + '</div>' +
+      '<div class="pc-note">Vista geymir drögin hvenær sem er. „Klár til framleiðslu“ vistar og sendir teikninguna í framleiðslu (skurðarlisti, pöntun, CNC) — eftir það læsist hún.' + (proDirty() ? ' <b>● Óvistaðar breytingar.</b>' : '') + '</div>' +
       // the run's status + the next step (2026-10-26) — always here, same place, so nothing moves when the run ends
       '<div class="pc-run ' + (pr.phase || "idle") + '"><span class="pc-run-t">' + esc(pr.phase ? pr.text : "Skipulag ekki keyrt héðan í þessari lotu.") + '</span>' +
         (pr.phase === "timeout" || pr.phase === "error" ? ' <button type="button" class="pc-recheck" data-pc="recheck">Athuga aftur</button>' : '') +
@@ -19070,7 +19074,7 @@
     // lines Keyra skipulag refused (⛔): the rest ran, but the run is "failed" in Airtable — say which and why (T-248)
     var drawn = {}; try{ collectAllLineItems().forEach(function(li){ drawn[li["🔑"]] = 1; }); }catch(e){}
     var blocked = lines.filter(function(l){ return l.err; });
-    var blk = blocked.length ? " · ⛔ " + blocked.length + " " + proPl(blocked.length, "lína stöðvaðist", "línur stöðvuðust") + ": " +
+    var blk = blocked.length ? " · " + blocked.length + " " + proPl(blocked.length, "lína stöðvaðist", "línur stöðvuðust") + ": " +
       blocked.slice(0, 5).map(function(l){ return (l.key || "lína án 🔑") + " (" + l.err.replace(/⛔\s*/g, "").replace(/\.\s*$/, "") + ")" + (l.key && drawn[l.key] ? "" : " — ekki í teikningunni: lagaðu eða eyddu henni í Airtable/CRM"); }).join(" · ") +
       (blocked.length > 5 ? " …" : "") : "";
     var head = (blocked.length ? "Skipulag keyrt með villum" : "Skipulag keyrt ✓") + " · " + (synced ? synced + " " + proPl(synced, "Eyðublað", "Eyðublöð") + " " + (synced === 1 ? "uppfært" : "uppfærð") : "ekkert breyttist") + blk;
@@ -19430,11 +19434,12 @@
   // (2026-10-26) an in-app dialog, not window.confirm: says plainly what has to be run again afterwards
   async function proUnlock(){
     var ok = await proDialog({ title:"Opna teikninguna til breytinga?", ok:"Opna til breytinga", cancel:"Hætta við",
-      html:'<p>Verkefnið er komið í skipulag (' + escapeHtmlPro(PRO.lockStatus) + '). Eyðublöð, Sögunarlisti, Pöntunarlisti og CNC eru byggð á teikningunni eins og hún er núna.</p>' +
-        '<p>Ef þú breytir henni þarf að keyra þetta aftur á eftir, í þessari röð — annars verða gögnin úrelt:</p>' +
-        '<ol><li>Vista og <b>keyra skipulag</b> <small>— Eyðublöðin uppfærast úr teikningunni</small></li>' +
-        '<li><b>Yfirfara</b> hverja breytta einingu <small>— Sögunarlisti og vörur á einingu</small></li>' +
-        '<li><b>Keyra pöntunarlista</b> <small>— Pöntunarlisti og pantanir</small></li></ol>' +
+      html:'<p>Verkefnið er læst af því það er komið í framleiðslu (' + escapeHtmlPro(PRO.lockStatus) + ').</p>' +
+        '<p>Ef þú breytir teikningunni þarf að keyra pöntunarlistann aftur á eftir — láttu Ísak vita.</p>' +
+        '<details><summary>Hvað þarf að keyra aftur?</summary><p>Skurðarlistinn, pöntunarlistinn og CNC-skrárnar eru byggð á teikningunni eins og hún er núna. Eftir breytingu, í þessari röð:</p>' +
+        '<ol><li>Vista og <b>keyra skipulag</b> <small>— framleiðslulínurnar uppfærast úr teikningunni</small></li>' +
+        '<li><b>Yfirfara</b> hverja breytta einingu <small>— skurðarlisti og vörur á einingu</small></li>' +
+        '<li><b>Keyra pöntunarlista</b> <small>— pöntunarlisti og pantanir</small></li></ol></details>' +
         '<p>CNC-skrár sem eru þegar komnar á USB þarf að flytja út aftur í /cnc.</p>' });
     if (!ok) return;
     PRO.unlocked = true;
@@ -19497,7 +19502,7 @@
   // a failed save, in Icelandic, for the red box in Yfirferð (2026-10-26: was a raw English server line in the header)
   function proSaveErrText(status, msg){
     if (!status) return "Ekkert samband við þjóninn — athugaðu nettenginguna og reyndu aftur.";
-    if (status === 401 || status === 403) return "Lykillinn virkar ekki — opnaðu verkefnið aftur með hnappnum á Tækifærinu í Airtable.";
+    if (status === 401 || status === 403) return "Lykillinn vantar eða er útrunninn — ýttu á „Velja verkefni“ og opnaðu verkefnið aftur (teikningin er geymd í þessum vafra).";
     if (status === 413) return "Teikningin er of stór til að vista — fækkaðu herbergjum eða skiptu verkefninu.";
     if (status === 409) return "Einhver annar vistaði verkefnið á undan þér — ekkert var vistað.";
     if (status === 400) return "Airtable tók ekki við gögnunum" + (msg ? ": " + msg : ".");
@@ -19573,18 +19578,39 @@
     tp.last = null; proTilbodRefresh(true); // Airtable's own total just changed
     return true;
   }
+  // the project picker (?pro=home) with the office key kept in this browser — where every dead end leads back to (audit #3)
+  function proPickerUrl(){ var k = ""; try{ k = (PRO && PRO.k) || localStorage.getItem("bjorninn:skrifstofa:k") || ""; }catch(e){} return "/skipuleggja?pro=home" + (k ? "&k=" + encodeURIComponent(k) : "") + embeddedQS(); }
   // the project couldn't be opened: a clear message in the stage instead of a blank page with "HTTP 403" in the bar
-  function proFail(title, help, tech){
+  function proFail(title, help, tech, status){
     document.body.classList.add("pro-fail");
     var bar = document.getElementById("proBar");
     if (bar){ bar.hidden = false; bar.innerHTML = '<span>PRO</span><span class="pb-locked">Verkefnið opnaðist ekki</span>'; }
     var el = document.getElementById("proFail");
     if (!el){ el = document.createElement("div"); el.id = "proFail"; el.setAttribute("role", "alert"); document.body.appendChild(el); }
+    // never a dead end (audit #3): "Velja verkefni" = the picker (key from this browser); "Reyna aftur" only where a retry can help (not 401/403/404 — the same link fails the same way)
+    var noRetry = /^(401|403|404)$/.test(String(status || ""));
     el.innerHTML = '<span class="pf-ico">' + icon("info", 30) + '</span><h2>' + escapeHtmlPro(title) + '</h2><p>' + escapeHtmlPro(help) + '</p>' +
-      '<button type="button" id="proRetry">Reyna aftur</button>' + (tech ? '<small>' + escapeHtmlPro(tech) + '</small>' : '');
-    el.querySelector("#proRetry").addEventListener("click", function(){ this.disabled = true; location.reload(); });
+      '<div class="pf-btns"><a class="pf-pick' + (noRetry ? '' : ' sec') + '" id="proPick" href="' + escapeHtmlPro(proPickerUrl()) + '">Velja verkefni</a>' +
+      (noRetry ? '' : '<button type="button" id="proRetry">Reyna aftur</button>') + '</div>' + (tech ? '<small>' + escapeHtmlPro(tech) + '</small>' : '');
+    var rt = el.querySelector("#proRetry"); if (rt) rt.addEventListener("click", function(){ this.disabled = true; location.reload(); });
   }
+  // PRO polish (2026-10-28 audit): no emoji in the header's report button (a line icon instead), Cmd/Ctrl+S = Vista, and
+  // a warning before the tab closes while "● óvistað" shows (the local copy survives, but only in this browser).
+  function proDeEmoji(){
+    ["reportTopBtn", "reportBtn"].forEach(function(id){ var b = document.getElementById(id); if (b){ b.removeAttribute("data-i18n"); b.innerHTML = icon("info", 15) + " Villa / hugmynd"; b.style.display = "inline-flex"; b.style.alignItems = "center"; b.style.gap = "6px"; } });
+  }
+  document.addEventListener("keydown", function(e){
+    if (!PRO || !(e.metaKey || e.ctrlKey) || e.altKey || String(e.key).toLowerCase() !== "s") return;
+    e.preventDefault(); // never the browser's "Save page"
+    if (!PRO.ready || proReadOnly()){ toast(proReadOnly() ? "Verkefnið er læst — opnaðu til breytinga til að vista." : "Verkefnið er enn að opnast."); return; }
+    proSave();
+  });
+  window.addEventListener("beforeunload", function(e){
+    if (!PRO || !PRO.ready || !proDirty()) return;
+    e.preventDefault(); e.returnValue = ""; // the browser shows its own "Leave site?" text
+  });
   async function proBoot(){
+    proDeEmoji();
     document.body.classList.add("pro");
     if (EMBEDDED) document.body.classList.add("embedded");
     // small stepper sits inline in the header, between the title and the PRO bar (user, 2026-10-15) — it's
@@ -19599,8 +19625,8 @@
       if (!r.ok){ var er = new Error("HTTP " + r.status); er.status = r.status; throw er; }
       rec = await r.json();
     }catch(e){
-      if (e.status === 401 || e.status === 403) proFail("Gat ekki opnað verkefnið — lykillinn virkar ekki", "Hlekkurinn er ekki með réttan skrifstofulykil. Opnaðu verkefnið aftur með hnappnum á Tækifærinu í Airtable.", e.message);
-      else if (e.status === 404) proFail("Gat ekki opnað verkefnið — það fannst ekki", "Tækifærið er ekki til lengur eða hlekkurinn er rangur. Opnaðu það aftur úr Airtable.", e.message);
+      if (e.status === 401 || e.status === 403) proFail("Gat ekki opnað verkefnið — lykillinn vantar", "Lykillinn vantar eða er útrunninn. Veldu verkefnið aftur af listanum — ef það dugar ekki, opnaðu skrifstofusíðuna og farðu þaðan.", e.message, e.status);
+      else if (e.status === 404) proFail("Gat ekki opnað verkefnið — það fannst ekki", "Verkefnið er ekki til lengur eða hlekkurinn er rangur. Veldu það aftur af listanum.", e.message, e.status);
       else if (e.status) proFail("Gat ekki opnað verkefnið — villa á þjóninum", "Airtable eða þjónninn svaraði ekki rétt. Bíddu augnablik og reyndu aftur.", e.message);
       else proFail("Gat ekki opnað verkefnið — ekkert samband", "Athugaðu nettenginguna og reyndu aftur.", e.message);
       return;
@@ -20010,17 +20036,25 @@
   function initProHome(){
     document.getElementById("phNewBtn").addEventListener("click", function(){
       document.getElementById("phNewForm").hidden = false;
-      document.getElementById("phSearch").closest(".ph-wrap").hidden = true;
-      document.getElementById("phFornafn").focus();
+      document.getElementById("phFornafn").focus(); // the search stays visible above — look before you make a duplicate
     });
     document.getElementById("phNewCancel").addEventListener("click", phCloseNewForm);
+    ["phFornafn", "phEftirnafn"].forEach(function(id){ document.getElementById(id).addEventListener("input", phDupHint); });
     document.getElementById("phNewCreate").addEventListener("click", phCreateProject);
     document.getElementById("phSearch").addEventListener("input", function(){ renderPhResults(); });
     phLoadRecords();
   }
+  // "Til er verkefni með þessu nafni: T-123" while typing, so a customer isn't entered twice (audit #10)
+  function phDupHint(){
+    var msg = document.getElementById("phMsg"), a = document.getElementById("phFornafn").value.trim().toLowerCase(), b = document.getElementById("phEftirnafn").value.trim().toLowerCase();
+    if (!msg || phCreating) return;
+    if (!a || (phRecords || []).length === 0){ msg.textContent = ""; return; }
+    var hit = (phRecords || []).filter(function(r){ var n = String((r.fields || {})["Heiti tækifæris / verkefnis"] || "").toLowerCase(); return n.indexOf(a) !== -1 && (!b || n.indexOf(b) !== -1); }).slice(0, 3)
+      .map(function(r){ var n = String((r.fields || {})["Heiti tækifæris / verkefnis"] || ""); var m = /^T-\d+/i.exec(n); return m ? m[0] : n; });
+    msg.textContent = hit.length ? "Til er verkefni með þessu nafni: " + hit.join(", ") + " — leitaðu hér að ofan áður en þú býrð til nýtt." : "";
+  }
   function phCloseNewForm(){
     document.getElementById("phNewForm").hidden = true;
-    document.getElementById("phSearch").closest(".ph-wrap").hidden = false;
     document.getElementById("phMsg").textContent = "";
     ["phFornafn", "phEftirnafn", "phSimi", "phNetfang"].forEach(function(id){ document.getElementById(id).value = ""; });
   }
@@ -20071,7 +20105,7 @@
       var selling = (phRecords || []).filter(function(r){ return !phActive(r) && /hönnun|ráðgjöf|tilboð sent/i.test((r.fields || {})["Staða í söluferli"] || ""); }).sort(byT).slice(0, 12);
       var group = function(title, rs){ return rs.length ? '<h4 class="ph-group">' + title + ' · ' + rs.length + '</h4>' + rs.map(row).join("") : ''; };
       host.innerHTML = group("Í framleiðslu", prod) + group("Í skipulagi", plan) + group("Unnið — ekki byrjað", waiting) + group("Í sölu", selling) +
-        '<p class="ph-empty">Leitaðu til að finna önnur verkefni (nafn, heimilisfang eða T-númer).</p>';
+        '<p class="ph-empty">Leitaðu til að finna önnur verkefni (nafn eða T-númer).</p>';
       return;
     }
     host.innerHTML = list.map(row).join("");
@@ -20115,6 +20149,7 @@
     if (PRO) proBoot();
     else if (PRO_HOME){
       document.body.classList.add("pro"); // same dark staff theme as proBoot()
+      proDeEmoji();
       if (EMBEDDED) document.body.classList.add("embedded");
       state.step = "pro-home";
       render();
