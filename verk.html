@@ -322,6 +322,7 @@
       <div class="sticky-delivery hidden" id="deliveryField">
         <span class="flabel">Afhending</span>
         <span class="fval-big" id="deliveryVal"></span>
+        <div class="fval" id="pickupVal" style="font-size:.85rem"></div>
       </div>
     </div>
 
@@ -417,6 +418,7 @@
     delivery:"Áætlaður afhendingardagur Björninn (internal)",
     start:"Upphafs framleiðsludagur verks",
     weighted:"Framvinda framleiðslu [weighted]",
+    pickup:"Viðskiptavinur sækir þann:",
 
     nGeneral:"🧠📌Það sem þarf að hafa í huga",
     nFraes:"🔬📌 Það sem Fræsari þarf að hafa í huga",
@@ -476,6 +478,15 @@
     var m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
     if(m) return parseInt(m[3],10)+". "+IS_MONTHS[parseInt(m[2],10)-1]+" "+m[1];
     return s;
+  }
+  // "2026-11-03" -> "3. nóvember 2026"; with a time ("...T14:30:00.000Z") -> "... kl. 14:30" (Reykjavík).
+  function pickupText(v){
+    var s = txt(v); if (!s) return "";
+    if (s.indexOf("T") < 0) return fmtDate(s);
+    var d = new Date(s); if (isNaN(d.getTime())) return fmtDate(s);
+    var hm = d.toLocaleTimeString("is-IS", { hour:"2-digit", minute:"2-digit", hour12:false, timeZone:"Atlantic/Reykjavik" });
+    var day = fmtDate(d.toLocaleDateString("en-CA", { timeZone:"Atlantic/Reykjavik" }));
+    return day + (hm && hm !== "00:00" ? " kl. " + hm : "");
   }
   function md(src){
     var s=esc(src).trim();
@@ -1127,6 +1138,11 @@
 
     var del = fmtDate(f[F.delivery]);
     if (del) { $("deliveryVal").textContent = del; show($("deliveryField")); }
+    // 2026-10-28 (G8): the booked pick-up/delivery slot (set in /dagatal) next to the estimate;
+    // once the job is Má afhenda with nothing booked, say so instead of staying silent.
+    var pk = pickupText(f[F.pickup]);
+    if (pk) { $("pickupVal").textContent = "Bókað: " + pk; show($("deliveryField")); }
+    else if (stageState.stage === STAGES[3].key) { $("pickupVal").textContent = "Ekki bókað enn"; show($("deliveryField")); }
 
     var w = pct(f[F.weighted]);
     if (w != null) {

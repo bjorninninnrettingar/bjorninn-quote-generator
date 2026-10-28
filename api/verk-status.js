@@ -43,6 +43,26 @@ export function transitionAllowed(from, to) {
   return ALLOWED.some(([a, b]) => a === from && b === to);
 }
 
+// 2026-10-28 (G16): Tilbúið/Í vinnslu → Má afhenda skips Samsetning, so check that sawing and
+// milling were actually recorded (same 95 % / 60 % the floor page and the Airtable automation use).
+// Only the owner may override, with ownerKey (env OWNER_KEY) + a reason, which lands in Virkni.
+export const SAW_TARGET = 0.95, MILL_TARGET = 0.6;
+const numOr0 = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+export function productionRecorded(f = {}) {
+  const raw = f["Framvinda sögunar"];
+  const sawRaw = raw == null || raw === "" ? 0 : numOr0(raw);
+  const saw = sawRaw > 1 ? sawRaw / 100 : sawRaw;
+  const todo = numOr0(f["Fjöldi hluta til að fræsa 🔬"]);
+  const mill = todo ? Math.min(numOr0(f["Fjöldi hluta fræstir 🔬"]), todo) / todo : 1;
+  const problems = [];
+  if (saw < SAW_TARGET) problems.push("sögun " + Math.round(saw * 100) + "% (þarf " + SAW_TARGET * 100 + "%)");
+  if (mill < MILL_TARGET) problems.push("fræsing " + Math.round(mill * 100) + "% (þarf " + MILL_TARGET * 100 + "%)");
+  return { ok: !problems.length, problems };
+}
+export function needsProductionGate(from, to) {
+  return to === STAGES.deliver && (from === STAGES.ready || from === STAGES.work);
+}
+
 async function at(path, opts = {}) {
   const r = await fetch(`${BASE}/${path}`, {
     ...opts,
@@ -75,11 +95,23 @@ export default async function handler(req, res) {
         return res.status(409).json({ error: "Staðan hefur breyst — endurhlaðið síðuna", stage: current });
       }
       if (!transitionAllowed(b.from, b.to)) return res.status(400).json({ error: "Þessi færsla er ekki leyfð" });
+      let overrideNote = "";
+      if (needsProductionGate(b.from, b.to)) {
+        const chk = productionRecorded(project);
+        if (!chk.ok) {
+          const reason = String(b.reason || "").trim().slice(0, 150);
+          const ownerOk = b.override === true && process.env.OWNER_KEY && b.ownerKey === process.env.OWNER_KEY && reason;
+          if (!ownerOk) {
+            return res.status(409).json({ error: "Sögun/fræsing ekki skráð: " + chk.problems.join(", ") + ". Aðeins eigandi getur farið framhjá þessu.", code: "framleidsla_vantar", stage: current });
+          }
+          overrideNote = " (eigandi fór framhjá: " + chk.problems.join(", ") + " — " + reason + ")";
+        }
+      }
       await at(`${PROJECTS}/${t}`, { method: "PATCH", body: JSON.stringify({ fields: { "Staða í framleiðslu": b.to } }) });
       // 🔔 office bell (2026-10-27). No chat: "💬 Má afhenda → Skrifstofu chat" already posts.
       const texti = b.to === STAGES.deliver ? (b.from === STAGES.done ? "Afhent afturkallað — aftur í Má afhenda" : "Allt pakkað — Má afhenda 🚚")
         : b.to === STAGES.done ? "Afhent ✅" : "Má afhenda afturkallað — aftur í " + b.to;
-      await addLine({ texti, tegund: "afhending", til: "Skrifstofa", t, tengill: "/verk?t=" + t, hver: "Verkstæði" });
+      await addLine({ texti: texti + overrideNote, tegund: "afhending", til: "Skrifstofa", t, tengill: "/verk?t=" + t, hver: "Verkstæði" });
       return res.status(200).json({ ok: true, stage: b.to });
     }
 

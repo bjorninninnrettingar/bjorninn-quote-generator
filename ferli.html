@@ -265,6 +265,8 @@
     <div class="mSub" id="gateSub"></div>
     <div class="gateList" id="gateList"></div>
     <div class="gateNote" id="gateNote"></div>
+    <label class="gateAck" id="gateAckWrap" style="display:none;font-size:.82rem;margin:8px 0 2px"><span id="gateAckText"></span>
+      <input type="text" id="gateAck" autocomplete="off" style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid var(--line,#ccc);border-radius:8px;font:inherit"></label>
     <div class="gateActions"><button type="button" class="gateCancel" id="gateCancel">Hætta við</button><button type="button" class="gateGo" id="gateGo"></button></div>
   </div>
 </div>
@@ -700,11 +702,21 @@
       : "Allt hakað. Verkið fer í framleiðslu.";
     go.textContent = missing.length ? "Merkja samt Klárt" : "✅ Merkja Klárt til framleiðslu";
     go.className = "gateGo" + (hardCount ? " risky" : "");
+    // 2026-10-28 (G2): open items need an explicit typed acknowledgement, not just a click.
+    var ackWrap = document.getElementById("gateAckWrap"), ackIn = document.getElementById("gateAck");
+    ackIn.value = "";
+    ackWrap.style.display = missing.length ? "" : "none";
+    document.getElementById("gateAckText").textContent = missing.length
+      ? "Ég veit að þetta er opið: " + missing.map(function (it) { return it.label; }).join(", ") + ". Skrifaðu „KLÁRT“ til að staðfesta."
+      : "";
+    function ackOk() { return !missing.length || ackIn.value.trim().toUpperCase() === "KLÁRT"; }
+    function syncGo() { go.disabled = !ackOk(); go.style.opacity = go.disabled ? ".45" : ""; }
+    ackIn.oninput = syncGo; syncGo();
     bg.classList.add("open");
     return new Promise(function (resolve) {
       function done(v) { bg.classList.remove("open"); go.onclick = null; document.getElementById("gateCancel").onclick = null; bg.onclick = null; resolve(v); }
       // Resolves with the open items' labels (an array — truthy even when empty) or false.
-      go.onclick = function () { done(missing.map(function (it) { return it.label; })); };
+      go.onclick = function () { if (!ackOk()) return; done(missing.map(function (it) { return it.label; })); };
       document.getElementById("gateCancel").onclick = function () { done(false); };
       bg.onclick = function (e) { if (e.target === bg) done(false); };
     });
@@ -800,7 +812,11 @@
         row.classList.toggle("on", next);
         row.querySelector(".box").textContent = next ? "✓" : "";
         var ff = {}; ff[item.field] = next;
-        apiPatch(TAEKIFAERI + "/" + proj.id, ff);
+        apiPatch(TAEKIFAERI + "/" + proj.id, ff).then(function (r) {
+          if (next && item.field === "5. Efni lent í húsi" && !(r && r.error)) {
+            window.OfficeShell.notifyEfni(k, proj.id, "Efni komið í hús", { name: f["Heiti tækifæris / verkefnis"] || "" });
+          }
+        });
       });
       wrap.appendChild(row);
       rowEls[item.field] = row;
